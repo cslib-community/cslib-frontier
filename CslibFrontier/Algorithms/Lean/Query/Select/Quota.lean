@@ -20,6 +20,60 @@ import Mathlib.Algebra.Order.BigOperators.Group.List
 
 /-!
 # Quota selection with admissibility tests
+
+Items `xs : List α` are partitioned into groups by `g : α → γ`. Each item has a hidden weight
+`w : α → W`, injective into a linear order, and is either admissible or not, for a hidden
+predicate `adm`. The representative of a group with an admissible item is its lightest admissible
+item (`Cslib.Query.IsGroupRepresentative`). Quota selection finds the `k` lightest representatives,
+or all of them if there are fewer than `k`, learning weights only by comparisons and admissibility
+only by tests. This is Lemma 3.3 of [KhannaPuttermanSong2026] (§3.2, p. 16), the selection step of
+the batch procedure in their deterministic linear-comparison minimum spanning forest algorithm.
+
+Programs are `FreeM (CmpTestQuery α)` values, where `CmpTestQuery α` is the sum
+(`Cslib.Query.SumQuery`) of comparison queries `LEQuery α` and test queries `TestQuery α`. The
+oracle `CmpTestQuery.oracleOf w adm` answers both. The three counts are separate:
+comparisons are `SumQuery.countInl`, and tests answered `true` and `false` are
+`FreeM.cost oracle (CmpTestQuery.passWeight oracle)` and `FreeM.cost oracle
+(CmpTestQuery.failWeight oracle)`.
+
+The algorithm (`Cslib.Query.quotaSelect`) follows the proof of Lemma 3.3. It splits the items at
+the median with the deterministic selection `Cslib.Query.select`. It scans the lower half,
+testing items until `k` groups have passed. If they have, it recurses on the lower half.
+Otherwise it runs a quota-one search for each passing group on that group's items in the lower
+half, and recurses with the remaining quota on the upper half, without the passing groups.
+
+## Source mapping
+
+[KhannaPuttermanSong2026], §3.2, Lemma 3.3, p. 16: "Given an integer `k ≥ 0`, we can select the
+`k` lightest representatives, or all representatives if there are fewer than `k`, using
+`O(k log(m + 1))` successful admissibility tests and `O(m)` additional weight comparisons."
+
+* Selection: `Cslib.Query.mem_selected_quotaSelect` (an item is selected iff it is a
+  representative with fewer than `k` lighter representatives), with
+  `Cslib.Query.length_selected_quotaSelect` (`min k` the number of groups with an admissible item)
+  and `Cslib.Query.nodup_selected_quotaSelect`. These assume an injective `w` and a
+  duplicate-free input.
+* Comparisons: `Cslib.Query.countInl_quotaSelect_le`, at most `234 m` for every oracle.
+* Successful tests: `Cslib.Query.cost_passWeight_quotaSelect_le`, at most `k (⌈log₂ m⌉ + 1)` for
+  every oracle.
+* Failed tests, which the source charges separately (p. 15: a failure is stored and reused):
+  `Cslib.Query.cost_failWeight_quotaSelect` (one per reported failed item, for every oracle),
+  `Cslib.Query.failed_quotaSelect` (the reported items are distinct and inadmissible) and
+  `Cslib.Query.cost_failWeight_quotaSelect_le` (at most the number of inadmissible items).
+* The property the proof of Lemma 3.2 (p. 15) uses: `Cslib.Query.quotaSelect_guarantee`. The
+  source argues its second half by saying that an untested edge could be made admissible without
+  changing the run. Here it is proved directly by induction along the recursion: in the branch
+  where fewer than `k` groups pass the scan, every untested item of the lower half is in a passing
+  group.
+
+Deviations from the proof of Lemma 3.3, none affecting the statement:
+
+* The base case is a list of at most one item, rather than `m ≤ k`.
+* The scan runs over the lower half from its end to its front.
+* A failed item is not stored and looked up: it is dropped from every list passed to a recursive
+  call, so it is never tested again.
+* Groups are given by an arbitrary map `g`, and the input is a list; the batch procedure groups
+  the edges at a vertex by their other endpoint.
 -/
 
 public section
@@ -34,7 +88,8 @@ inductive TestQuery (α : Type) : Type → Type where
   | test (a : α) : TestQuery α Bool
 
 /-- Build a `TestQuery α` oracle from a Boolean predicate. -/
-@[expose] def TestQuery.oracleOf {α : Type} (t : α → Bool) : {ι : Type} → TestQuery α ι → ι
+@[expose] def TestQuery.oracleOf {α : Type} (t : α → Bool) :
+    {ι : Type} → TestQuery α ι → ι
   | _, .test a => t a
 
 @[simp] theorem TestQuery.oracleOf_test {α : Type} (t : α → Bool) (a : α) :
@@ -79,8 +134,8 @@ structure QuotaSelection (α : Type) where
 
 variable {α γ : Type} [DecidableEq α] [DecidableEq γ]
 
-/-- Split `xs` around its element `p` of rank `⌊m / 2⌋`, for `m = xs.length`: the elements below
-`p`, and the others (`p` and the elements above it). -/
+/-- Split `xs` around its element `p` of rank `⌊m / 2⌋`, for `m = xs.length`, found by
+`Cslib.Query.select`: the elements below `p`, and the others (`p` and the elements above it). -/
 private def medianSplit (xs : List α) : FreeM (LEQuery α) (Option (List α × List α)) := do
   match ← select (xs.length / 2) xs with
   | none => return none
@@ -91,7 +146,8 @@ private def medianSplit (xs : List α) : FreeM (LEQuery α) (Option (List α × 
 /-- Scan `xs` from its last element to its first, testing items until `k` groups have passed a
 test. Items of a group that has already passed are skipped. Returns the groups that passed and
 the items that failed. -/
-private def scanTests (g : α → γ) (k : ℕ) : List α → FreeM (CmpTestQuery α) (List γ × List α)
+private def scanTests (g : α → γ) (k : ℕ) :
+    List α → FreeM (CmpTestQuery α) (List γ × List α)
   | [] => return ([], [])
   | x :: xs => do
     let (P, F) ← scanTests g k xs
@@ -110,7 +166,11 @@ upper half `H`, and scans `L`, testing items until `k` groups have passed. If `k
 are exactly the groups with an admissible item in `L`; it finds the representative of each with a
 quota-one search on its items in `L`, and recurses with the remaining quota on the items of `H`
 in the other groups. Items whose test failed are dropped before recursing, so no item fails
-twice. -/
+twice.
+
+The run returns nothing if the median split does not have the sizes `⌊m / 2⌋` and `⌈m / 2⌉`.
+This never happens for comparisons by an injective weight on a list without duplicates; the
+check makes the recursion well founded and the query bounds hold for every oracle. -/
 def quotaSelect (g : α → γ) (k : ℕ) (xs : List α) :
     FreeM (CmpTestQuery α) (QuotaSelection α) :=
   if k = 0 then return ⟨[], []⟩ else
@@ -153,7 +213,8 @@ private theorem eval_mapM {β δ : Type} (oracle : {ι : Type} → CmpTestQuery 
 
 omit [DecidableEq α] in
 private theorem cost_mapM {β δ : Type} (oracle : {ι : Type} → CmpTestQuery α ι → ι)
-    (wt : {ι : Type} → CmpTestQuery α ι → ℕ) (f : β → FreeM (CmpTestQuery α) δ) (l : List β) :
+    (wt : {ι : Type} → CmpTestQuery α ι → ℕ) (f : β → FreeM (CmpTestQuery α) δ)
+    (l : List β) :
     (l.mapM f).cost oracle wt = (l.map fun b => (f b).cost oracle wt).sum := by
   induction l with
   | nil => rfl
@@ -161,8 +222,9 @@ private theorem cost_mapM {β δ : Type} (oracle : {ι : Type} → CmpTestQuery 
 
 /-! ## The scan -/
 
-private theorem scanTests_spec (oracle : {ι : Type} → CmpTestQuery α ι → ι) (g : α → γ) (k : ℕ)
-    (xs : List α) :
+omit [DecidableEq α] in
+private theorem scanTests_spec (oracle : {ι : Type} → CmpTestQuery α ι → ι) (g : α → γ)
+    (k : ℕ) (xs : List α) :
     SumQuery.countInl oracle (scanTests g k xs) = 0 ∧
     (scanTests g k xs).cost oracle (CmpTestQuery.passWeight oracle) =
       ((scanTests g k xs).eval oracle).1.length ∧
@@ -170,7 +232,8 @@ private theorem scanTests_spec (oracle : {ι : Type} → CmpTestQuery α ι → 
       ((scanTests g k xs).eval oracle).2.length ∧
     ((scanTests g k xs).eval oracle).1.length ≤ k ∧ ((scanTests g k xs).eval oracle).1.Nodup ∧
     ((scanTests g k xs).eval oracle).2.Sublist xs ∧
-    (∀ c ∈ ((scanTests g k xs).eval oracle).1, ∃ x ∈ xs, oracle (.inr (.test x)) = true ∧ g x = c) ∧
+    (∀ c ∈ ((scanTests g k xs).eval oracle).1,
+      ∃ x ∈ xs, oracle (.inr (.test x)) = true ∧ g x = c) ∧
     (∀ x ∈ ((scanTests g k xs).eval oracle).2, oracle (.inr (.test x)) = false) ∧
     (((scanTests g k xs).eval oracle).1.length < k → ∀ x ∈ xs,
       g x ∈ ((scanTests g k xs).eval oracle).1 ∨ x ∈ ((scanTests g k xs).eval oracle).2) := by
@@ -202,7 +265,8 @@ private theorem scanTests_spec (oracle : {ι : Type} → CmpTestQuery α ι → 
           ite_false, SumQuery.countInl_liftInr, FreeM.cost_lift, FreeM.eval_lift, hb,
           Bool.false_eq_true, SumQuery.countInl_pure, FreeM.cost_pure, FreeM.eval_pure, add_zero,
           ih1, ih2, ih3, CmpTestQuery.passWeight, CmpTestQuery.failWeight, List.length_cons]
-        refine ⟨trivial, trivial, trivial, ih4, ih5, ih6.cons_cons x, mem7, ?_, fun _ y hy => ?_⟩
+        refine ⟨trivial, trivial, trivial, ih4, ih5, ih6.cons_cons x, mem7, ?_,
+          fun _ y hy => ?_⟩
         · intro y hy
           rcases List.mem_cons.mp hy with rfl | hy
           · exact hb
@@ -214,7 +278,8 @@ private theorem scanTests_spec (oracle : {ι : Type} → CmpTestQuery α ι → 
           ite_false, SumQuery.countInl_liftInr, FreeM.cost_lift, FreeM.eval_lift, hb,
           SumQuery.countInl_pure, FreeM.cost_pure, FreeM.eval_pure, add_zero, ite_true,
           ih1, ih2, ih3, CmpTestQuery.passWeight, CmpTestQuery.failWeight, List.length_cons]
-        refine ⟨trivial, trivial, trivial, by omega, List.nodup_cons.mpr ⟨hxP, ih5⟩, ih6.cons x, ?_, ih8,
+        refine ⟨trivial, trivial, trivial, by omega, List.nodup_cons.mpr ⟨hxP, ih5⟩, ih6.cons x,
+          ?_, ih8,
           fun _ y hy => ?_⟩
         · intro c hc
           rcases List.mem_cons.mp hc with rfl | hc
@@ -329,7 +394,8 @@ private theorem cost_zero {β : Type} (oracle : {ι : Type} → LEQuery α ι �
 omit [DecidableEq α] in
 private theorem eval_liftInl {β : Type} (oracle : {ι : Type} → CmpTestQuery α ι → ι)
     (p : FreeM (LEQuery α) β) :
-    (p.liftM (SumQuery.liftInl (G := TestQuery α))).eval oracle = p.eval fun q => oracle (.inl q) := by
+    (p.liftM (SumQuery.liftInl (G := TestQuery α))).eval oracle =
+      p.eval fun q => oracle (.inl q) := by
   rw [FreeM.eval_liftM]
   rfl
 
@@ -374,7 +440,8 @@ private theorem sum_length_filter_le (g : α → γ) {P : List γ} (hP : P.Nodup
 
 private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι → ι) (g : α → γ)
     (n : ℕ) : ∀ (k : ℕ) (xs : List α), xs.length = n →
-      SumQuery.countInl oracle (quotaSelect g k xs) ≤ (if k ≤ 1 then 117 else 234) * xs.length ∧
+      SumQuery.countInl oracle (quotaSelect g k xs) ≤
+        (if k ≤ 1 then 117 else 234) * xs.length ∧
       (quotaSelect g k xs).cost oracle (CmpTestQuery.passWeight oracle) ≤
         k * (Nat.clog 2 xs.length + 1) ∧
       (quotaSelect g k xs).cost oracle (CmpTestQuery.failWeight oracle) =
@@ -430,7 +497,8 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
           FreeM.eval_pure, add_zero, zero_add, List.length_append]
         obtain ⟨c1, c2, c3⟩ := ih L'.length (by omega) k L' rfl
         simp only [SumQuery.countInl] at c1
-        have hc : Nat.clog 2 L'.length + 1 ≤ Nat.clog 2 xs.length := clog_add_one_le hlen (by omega)
+        have hc : Nat.clog 2 L'.length + 1 ≤ Nat.clog 2 xs.length :=
+          clog_add_one_le hlen (by omega)
         have := Nat.mul_le_mul_left k hc
         refine ⟨?_, ?_, by omega⟩
         · split_ifs at c1 ⊢ <;> omega
@@ -457,11 +525,13 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
               _ ≤ 117 * L'.length := Nat.mul_le_mul_left _ (sum_length_filter_le g sc5 L')
           by_cases hk1 : k ≤ 1
           · obtain rfl : P = [] := List.length_eq_zero_iff.mp (by omega)
-            simp only [List.map_nil, List.sum_nil, zero_add, List.length_nil, Nat.sub_zero] at d1 ⊢
+            simp only [List.map_nil, List.sum_nil, zero_add, List.length_nil,
+              Nat.sub_zero] at d1 ⊢
             simp only [hk1, ite_true] at d1 ⊢
             omega
           · split_ifs at d1 ⊢ <;> omega
-        · have hc : ∀ l, l ≤ xs.length - xs.length / 2 → Nat.clog 2 l + 1 ≤ Nat.clog 2 xs.length :=
+        · have hc : ∀ l, l ≤ xs.length - xs.length / 2 →
+              Nat.clog 2 l + 1 ≤ Nat.clog 2 xs.length :=
             fun l hl => clog_add_one_le hlen hl
           have hsum : (P.map fun b => (quotaSelect g 1 (L'.filter (g · = b))).cost oracle
               (CmpTestQuery.passWeight oracle)).sum ≤ P.length * Nat.clog 2 xs.length := by
@@ -518,7 +588,8 @@ private theorem eval_quotaSelect_of_two_le (oracle : {ι : Type} → CmpTestQuer
 
 section Representatives
 
-variable {W : Type} [LinearOrder W] (g : α → γ) (w : α → W) (adm : α → Prop) [DecidablePred adm]
+variable {W : Type} [LinearOrder W] (g : α → γ) (w : α → W) (adm : α → Prop)
+  [DecidablePred adm]
 
 omit [DecidableEq α] [DecidableEq γ] in
 /-- `r` is the representative of its group among `xs`: an admissible item of `xs` whose weight is
@@ -549,14 +620,16 @@ private theorem IsGroupRepresentative.eq (hw : Function.Injective w) {xs : List 
     (hg : g x = g y) : x = y :=
   hw (le_antisymm (hx.2.2 y hy.1 hy.2.1 hg.symm) (hy.2.2 x hx.1 hx.2.1 hg))
 
-omit [DecidableEq α] [DecidableEq γ] in
+omit [DecidableEq α] [DecidableEq γ] [DecidablePred adm] in
 private theorem exists_isGroupRepresentative {xs : List α} {x : α} (hx : x ∈ xs) (ha : adm x) :
     ∃ r, IsGroupRepresentative g w adm xs r ∧ g r = g x ∧ w r ≤ w x := by
   classical
-  obtain ⟨r, hr, hmin⟩ := Finset.exists_min_image (xs.toFinset.filter fun y => adm y ∧ g y = g x) w
-    ⟨x, by simp [hx, ha]⟩
+  obtain ⟨r, hr, hmin⟩ :=
+    Finset.exists_min_image (xs.toFinset.filter fun y => adm y ∧ g y = g x) w
+      ⟨x, by simp [hx, ha]⟩
   simp only [Finset.mem_filter, List.mem_toFinset] at hr hmin
-  refine ⟨r, ⟨hr.1, hr.2.1, fun y hy hay hgy => hmin y ⟨hy, hay, hgy.trans hr.2.2⟩⟩, hr.2.2,
+  refine ⟨r, ⟨hr.1, hr.2.1, fun y hy hay hgy => hmin y ⟨hy, hay, hgy.trans hr.2.2⟩⟩,
+    hr.2.2,
     hmin x ⟨hx, ha, rfl⟩⟩
 
 omit [DecidableEq α] [DecidableEq γ] [DecidablePred adm] in
@@ -605,7 +678,8 @@ private structure Spec (k : ℕ) (xs : List α) (res : QuotaSelection α) : Prop
   failed : ∀ x ∈ res.failed, x ∈ xs ∧ ¬ adm x
   guarantee : ∀ e ∈ xs, e ∉ res.failed →
     (∀ r ∈ res.selected, g r = g e → w r ≤ w e) ∧
-    ((∀ r ∈ res.selected, g r ≠ g e) → res.selected.length = k ∧ ∀ r ∈ res.selected, w r < w e)
+    ((∀ r ∈ res.selected, g r ≠ g e) →
+      res.selected.length = k ∧ ∀ r ∈ res.selected, w r < w e)
 
 private theorem quotaSelect_spec (hw : Function.Injective w)
     (oracle : {ι : Type} → CmpTestQuery α ι → ι)
@@ -741,7 +815,8 @@ private theorem quotaSelect_spec (hw : Function.Injective w)
         simp only [Finset.mem_filter, List.mem_toFinset]
         constructor
         · rintro ⟨hy, hry, hlt⟩
-          have hyL : y ∈ L := (hxsLH y hy).resolve_right fun hyH => absurd (hLH r hr y hyH) (not_lt.mpr hlt.le)
+          have hyL : y ∈ L := (hxsLH y hy).resolve_right fun hyH =>
+            absurd (hLH r hr y hyH) (not_lt.mpr hlt.le)
           have := (repL y hyL).mp hry
           exact ⟨this.1, this, hlt⟩
         · rintro ⟨hy, hry, hlt⟩
@@ -794,7 +869,8 @@ private theorem quotaSelect_spec (hw : Function.Injective w)
       have hH'len : H'.length ≤ H.length := List.length_filter_le _ _
       set f := fun c => (quotaSelect g 1 (L'.filter (g · = c))).eval oracle with hf
       set rH := (quotaSelect g (k - P.length) H').eval oracle with hrH
-      have memLc : ∀ c x, x ∈ L'.filter (g · = c) ↔ x ∈ L' ∧ g x = c := fun c x => by simp
+      have memLc : ∀ c x, x ∈ L'.filter (g · = c) ↔ x ∈ L' ∧ g x = c := fun c x => by
+        simp
       have IHc : ∀ c ∈ P, Spec (g := g) (w := w) (adm := adm) 1 (L'.filter (g · = c)) (f c) :=
         fun c _ => ih _ (by
           have := List.length_filter_le (fun x => decide (g x = c)) L'
@@ -866,7 +942,8 @@ private theorem quotaSelect_spec (hw : Function.Injective w)
         rw [(IHc c hc).length_selected]
         have : c ∈ admissibleGroups g adm (L'.filter (g · = c)) := by
           obtain ⟨x, hx, ha, rfl⟩ := hP c hc
-          exact (mem_admissibleGroups g adm).mpr ⟨x, (memLc _ x).mpr ⟨admL' x hx ha, rfl⟩, ha, rfl⟩
+          exact (mem_admissibleGroups g adm).mpr
+            ⟨x, (memLc _ x).mpr ⟨admL' x hx ha, rfl⟩, ha, rfl⟩
         have := Finset.card_pos.mpr ⟨c, this⟩
         omega
       have memS : ∀ r, r ∈ (P.map f).flatMap (·.selected) ++ rH.selected ↔
@@ -1031,7 +1108,8 @@ private theorem quotaSelect_spec (hw : Function.Injective w)
           exact h r ((memS r).mpr (Or.inl ⟨g e, hgP, hr⟩)) hgr
         rcases hxsLH e he with heL | heH
         · have hgP : g e ∈ P := (sc9 hPk e heL).resolve_right heF
-          have heLc : e ∈ L'.filter (g · = g e) := (memLc _ e).mpr ⟨(memL' e).mpr ⟨heL, heF⟩, rfl⟩
+          have heLc : e ∈ L'.filter (g · = g e) :=
+            (memLc _ e).mpr ⟨(memL' e).mpr ⟨heL, heF⟩, rfl⟩
           have IHe := ((IHc (g e) hgP).guarantee e heLc (heX (g e) hgP)).1
           refine ⟨fun r hr hgr => ?_, fun h => absurd h (notb hgP)⟩
           rcases (memS r).mp hr with ⟨c, hc, hrc⟩ | hrH
@@ -1056,6 +1134,94 @@ private theorem quotaSelect_spec (hw : Function.Injective w)
               · exact hLH r ((selc c hc r).mp hrc).1 e heH
               · exact hltH r hrH
 
+/-! ## Main results -/
+
+variable (g) {k : ℕ} {xs : List α}
+
+/-- **Quota selection is correct** ([KhannaPuttermanSong2026], §3.2, Lemma 3.3, p. 16). Against
+comparisons by an injective weight `w` and tests by `adm`, `quotaSelect g k xs` selects exactly the
+representatives with fewer than `k` lighter representatives: the `k` lightest representatives,
+or all of them if there are fewer than `k`. -/
+theorem mem_selected_quotaSelect (hw : Function.Injective w) (hxs : xs.Nodup) (r : α) :
+    r ∈ ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).selected ↔
+      IsGroupRepresentative g w adm xs r ∧
+        (xs.toFinset.filter fun y => IsGroupRepresentative g w adm xs y ∧ w y < w r).card < k :=
+  (quotaSelect_spec hw _ (fun _ _ => rfl) (fun _ => rfl) _ k xs rfl hxs).mem_selected r
+
+/-- Quota selection selects no item twice. -/
+theorem nodup_selected_quotaSelect (hw : Function.Injective w) (hxs : xs.Nodup) :
+    ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).selected.Nodup :=
+  (quotaSelect_spec hw _ (fun _ _ => rfl) (fun _ => rfl) _ k xs rfl hxs).nodup_selected
+
+/-- Quota selection selects `min k c` items, where `c` is the number of groups with an admissible
+item. -/
+theorem length_selected_quotaSelect (hw : Function.Injective w) (hxs : xs.Nodup) :
+    ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).selected.length =
+      min k (admissibleGroups g adm xs).card :=
+  (quotaSelect_spec hw _ (fun _ _ => rfl) (fun _ => rfl) _ k xs rfl hxs).length_selected
+
+/-- The items reported as failed are distinct inadmissible items of the input. -/
+theorem failed_quotaSelect (hw : Function.Injective w) (hxs : xs.Nodup) :
+    ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).failed.Nodup ∧
+      ∀ x ∈ ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).failed, x ∈ xs ∧ ¬ adm x :=
+  let h := quotaSelect_spec hw _ (fun _ _ => rfl) (fun _ => rfl) _ k xs rfl hxs
+  ⟨h.nodup_failed, h.failed⟩
+
+/-- **The guarantee of quota selection used by the batch procedure** ([KhannaPuttermanSong2026],
+§3.2, proof of Lemma 3.2, p. 15). Let `R'` be the items whose test failed. For every input item
+`e ∉ R'`, admissible or not: a selected item in the group of `e` weighs at most `w e`; and if no
+item of its group is selected, then exactly `k` items are selected, all lighter than `e`.
+
+The source argues the second part by noting that an untested item could be made admissible
+without changing the run; here it is proved directly, by induction along the recursion. -/
+theorem quotaSelect_guarantee (hw : Function.Injective w) (hxs : xs.Nodup) {e : α} (he : e ∈ xs)
+    (hef : e ∉ ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).failed) :
+    (∀ r ∈ ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).selected,
+        g r = g e → w r ≤ w e) ∧
+      ((∀ r ∈ ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).selected, g r ≠ g e) →
+        ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).selected.length = k ∧
+          ∀ r ∈ ((quotaSelect g k xs).eval (CmpTestQuery.oracleOf w adm)).selected, w r < w e) :=
+  (quotaSelect_spec hw _ (fun _ _ => rfl) (fun _ => rfl) _ k xs rfl hxs).guarantee e he hef
+
 end Representatives
+
+variable (g : α → γ) (k : ℕ) (xs : List α)
+
+/-- **Comparison bound for quota selection** ([KhannaPuttermanSong2026], §3.2, Lemma 3.3, p. 16).
+For every oracle, `quotaSelect g k xs` makes at most `234 * xs.length` comparisons. -/
+theorem countInl_quotaSelect_le (oracle : {ι : Type} → CmpTestQuery α ι → ι) :
+    SumQuery.countInl oracle (quotaSelect g k xs) ≤ 234 * xs.length := by
+  have h := (quotaSelect_cost oracle g _ k xs rfl).1
+  split_ifs at h <;> omega
+
+/-- **Successful-test bound for quota selection** ([KhannaPuttermanSong2026], §3.2, Lemma 3.3,
+p. 16). For every oracle, `quotaSelect g k xs` makes at most `k * (⌈log₂ m⌉ + 1)` tests answered
+`true`, where `m = xs.length`. -/
+theorem cost_passWeight_quotaSelect_le (oracle : {ι : Type} → CmpTestQuery α ι → ι) :
+    (quotaSelect g k xs).cost oracle (CmpTestQuery.passWeight oracle) ≤
+      k * (Nat.clog 2 xs.length + 1) :=
+  (quotaSelect_cost oracle g _ k xs rfl).2.1
+
+/-- For every oracle, the tests of `quotaSelect g k xs` answered `false` are as many as the items
+it reports as failed. -/
+theorem cost_failWeight_quotaSelect (oracle : {ι : Type} → CmpTestQuery α ι → ι) :
+    (quotaSelect g k xs).cost oracle (CmpTestQuery.failWeight oracle) =
+      ((quotaSelect g k xs).eval oracle).failed.length :=
+  (quotaSelect_cost oracle g _ k xs rfl).2.2
+
+/-- **Failed tests of quota selection**: no item fails twice. Against comparisons by an injective
+weight and tests by `adm`, the tests answered `false` are at most the inadmissible items of the
+input. -/
+theorem cost_failWeight_quotaSelect_le {W : Type} [LinearOrder W] {w : α → W}
+    (hw : Function.Injective w) {adm : α → Prop} [DecidablePred adm] {xs : List α}
+    (hxs : xs.Nodup) :
+    (quotaSelect g k xs).cost (CmpTestQuery.oracleOf w adm)
+        (CmpTestQuery.failWeight (CmpTestQuery.oracleOf w adm)) ≤
+      (xs.toFinset.filter fun x => ¬ adm x).card := by
+  obtain ⟨hnd, hmem⟩ := failed_quotaSelect (k := k) (adm := adm) g hw hxs
+  rw [cost_failWeight_quotaSelect, ← List.toFinset_card_of_nodup hnd]
+  refine Finset.card_le_card fun x hx => ?_
+  have := hmem x (List.mem_toFinset.mp hx)
+  simpa using this
 
 end Cslib.Query

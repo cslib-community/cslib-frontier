@@ -197,6 +197,7 @@ public import CslibFrontier.Algorithms.Lean.Query.Arith.MatMul
 public import CslibFrontier.Algorithms.Lean.Query.BinarySearch
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.CostHom
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.FilterM
+public import CslibFrontier.Algorithms.Lean.Query.FreeM.LiftM
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.MOfFn
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.Tabulate
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.Greedy
@@ -208,6 +209,7 @@ public import CslibFrontier.Algorithms.Lean.Query.Select.Cost
 public import CslibFrontier.Algorithms.Lean.Query.Select.Defs
 public import CslibFrontier.Algorithms.Lean.Query.Select.MinMax.Basic
 public import CslibFrontier.Algorithms.Lean.Query.Select.MinMax.LowerBound
+public import CslibFrontier.Algorithms.Lean.Query.Select.Quota
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.MinPlus
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.MinPlusViaNegTriangle
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.NegTriangleFinding
