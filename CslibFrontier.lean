@@ -206,8 +206,12 @@ public import CslibFrontier.Algorithms.Lean.Query.Matroid.Intersection
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.LowerBound
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Batch
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Correctness
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Errors
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Estimate
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.History
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Instance
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Procedure
+public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.Schedule
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Certificate.State
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.PathMaxima.Boruvka

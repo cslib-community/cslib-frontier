@@ -151,7 +151,7 @@ private theorem not_joins_sdiff_of_bottleneck {ends : E → Sym2 V} {F : Set E}
   · exact hlt h'
   · exact isAcyclic_iff.1 hF g hg x y hxy ((hux.mono hL).symm.trans (h.trans (hyv.mono hL).symm))
 
-omit [DecidableEq E] in
+omit [DecidableEq V] [DecidableEq E] in
 /-- **Threshold connectivity through the path edges.** For an acyclic forest joining the ends
 `u, v` of `e`, the forest edges no heavier than `k` join `u` and `v` exactly when every path edge
 of `e` is no heavier than `k`. -/
@@ -159,6 +159,7 @@ theorem joins_le_iff_forall_mem_pathEdges (hw : Function.Injective w) {st : Stat
     (hF : IsAcyclic st.ends (st.forest : Set E)) {e : E} {u v : V} (huv : st.ends e = s(u, v))
     (hj : Joins st.ends (st.forest : Set E) u v) (k : W) :
     Joins st.ends {f | f ∈ st.forest ∧ w f ≤ k} u v ↔ ∀ f ∈ pathEdges st e, w f ≤ k := by
+  classical
   constructor
   · intro h f hf
     by_contra hk
@@ -230,7 +231,8 @@ def tagKey (w : E → W) (p : Bool × E) : W ×ₗ Bool :=
   toLex (w p.2, p.1)
 
 omit [DecidableEq E] [LinearOrder W] in
-theorem tagKey_injective {w : E → W} (hw : Function.Injective w) : Function.Injective (tagKey w) := by
+theorem tagKey_injective {w : E → W} (hw : Function.Injective w) :
+    Function.Injective (tagKey w) := by
   rintro ⟨b, e⟩ ⟨b', e'⟩ h
   simp only [tagKey, toLex_inj, Prod.mk.injEq] at h
   rw [hw h.1, h.2]
@@ -318,6 +320,11 @@ theorem fst_eq_true_iff_prefersFind (hw : Function.Injective w) {st : State V E}
         (tagKey_true_le_false.1 (hmax (true, su) ((hmem _).2 (Or.inl ⟨rfl, Or.inl rfl⟩)))))
     · exact absurd hxs (not_le.2
         (tagKey_true_le_false.1 (hmax (true, sv) ((hmem _).2 (Or.inl ⟨rfl, Or.inr rfl⟩)))))
+
+/-- An edge that is not projectable prefers *find* (p. 13). -/
+theorem prefersFind_of_not_projectable {st : State V E} {e : E} (hp : ¬Projectable st e) :
+    PrefersFind w st e :=
+  Or.inl hp
 
 /-- A projectable edge whose ends the forest does not join prefers *project* (p. 20). -/
 theorem not_prefersFind_of_not_contested {st : State V E} {e : E} (hp : Projectable st e)
@@ -490,6 +497,11 @@ noncomputable def history (inst : Instance V E) :
     (snapshot cfg (LEQuery.keyOracle w) inst i).state.forest,
     prefVector w (snapshot cfg (LEQuery.keyOracle w) inst i).state inst.edges⟩
 
+/-- The true preference sequence of `e` is its preference at the start of each round. -/
+theorem prefSeq_eq (inst : Instance V E) (e : E) (j : ℕ) :
+    prefSeq cfg w inst e j = pref w (snapshot cfg (LEQuery.keyOracle w) inst j).state e := by
+  rw [prefSeq]
+
 /-- The preferences of the edges of the call in the history are the true preferences. -/
 theorem pref_history_of_mem {inst : Instance V E} (i : Fin (levelT cfg.γ inst.level ^ 2)) {e : E}
     (he : e ∈ inst.edges) : (history cfg w inst i).pref e = prefSeq cfg w inst e i :=
@@ -530,10 +542,23 @@ noncomputable def roundChoices (inst : Instance V E) : Finset (HistoryRound V E)
 
 /-- **The family of histories** of a call on `inst` (Lemma 3.10, p. 19): every round is one of the
 `Cslib.Query.Certificate.roundChoices`. It depends only on `γ` and the combinatorial data of the
-instance, not on the weights. -/
-noncomputable def histories (γ : ℕ) (inst : Instance V E) :
+instance, not on the weights. It is irreducible, so that elaborating a membership in it on a
+concrete instance does not unfold the finset; use `Cslib.Query.Certificate.mem_histories` and
+`Cslib.Query.Certificate.card_histories`. -/
+@[irreducible] noncomputable def histories (γ : ℕ) (inst : Instance V E) :
     Finset (Fin (levelT γ inst.level ^ 2) → HistoryRound V E) :=
   Fintype.piFinset fun _ => roundChoices inst
+
+theorem mem_histories {γ : ℕ} {inst : Instance V E}
+    {h : Fin (levelT γ inst.level ^ 2) → HistoryRound V E} :
+    h ∈ histories γ inst ↔ ∀ i, h i ∈ roundChoices inst := by
+  unfold histories
+  exact Fintype.mem_piFinset
+
+theorem card_histories (γ : ℕ) (inst : Instance V E) :
+    #(histories γ inst) = #(roundChoices inst) ^ (levelT γ inst.level ^ 2) := by
+  unfold histories
+  rw [Fintype.card_piFinset, prod_const, card_univ, Fintype.card_fin]
 
 omit [DecidableEq E] in
 theorem mem_spokeChoices {inst : Instance V E} {σ : V → Option E}
@@ -566,7 +591,7 @@ theorem history_mem_histories (hw : Function.Injective w) (hmsf : cfg.ExactMsf w
     {inst : Instance V E} (hwf : inst.WellFormed) :
     history cfg w inst ∈ histories cfg.γ inst := by
   classical
-  refine Fintype.mem_piFinset.2 fun i => ?_
+  refine mem_histories.2 fun i => ?_
   set st := (snapshot cfg (LEQuery.keyOracle w) inst i).state
   have hinv := invariant_snapshot hw hmsf hwf i
   have hends : st.ends = inst.ends := ends_snapshot _ _ _ _
@@ -607,9 +632,10 @@ private theorem sum_range_choose_le_add_choose (m K : ℕ) :
   exact sum_le_sum fun k hk =>
     Nat.le_mul_of_pos_right _ (Nat.choose_pos (Nat.sub_le K k))
 
-omit [LinearOrder W] [DecidableEq V] in
+omit [LinearOrder W] [DecidableEq V] [DecidableEq E] in
 theorem card_forestChoices_le (inst : Instance V E) :
     #(forestChoices inst) ≤ (#inst.edges + (#inst.vertices - 1)).choose (#inst.vertices - 1) := by
+  classical
   set K := #inst.vertices - 1
   have hsub : forestChoices inst ⊆ (range (K + 1)).biUnion fun k => inst.edges.powersetCard k := by
     intro F hF
@@ -723,9 +749,7 @@ theorem log_card_histories_le (γ : ℕ) (inst : Instance V E) :
     rw [e2] at hpref
     have : 0 ≤ √((m : ℝ) * n) := Real.sqrt_nonneg _
     nlinarith
-  unfold histories
-  rw [Fintype.card_piFinset, prod_const, card_univ, Fintype.card_fin, Nat.cast_pow,
-    Real.log_pow]
+  rw [card_histories, Nat.cast_pow, Real.log_pow]
   have hlogR0 : 0 ≤ Real.log #(roundChoices inst) := Real.log_natCast_nonneg _
   calc ((levelT γ inst.level ^ 2 : ℕ) : ℝ) * Real.log #(roundChoices inst)
       ≤ ((levelT γ inst.level ^ 2 : ℕ) : ℝ) * (7 * √(m * n)) := by gcongr
