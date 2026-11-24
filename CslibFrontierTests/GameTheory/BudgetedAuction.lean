@@ -4,11 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Basic
-import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.DiscreteClinching
-import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Impossibility
-import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.TwoBidderClinching
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Basic
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.DiscreteClinching
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Impossibility
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.TwoBidderClinching
 import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
@@ -20,6 +24,8 @@ indivisible-item positive contrast mechanism (`cappedSecondPrice`) verifying tha
 private-budget DSIC + discrete Pareto optimality **is** achievable when `alloc ∈ {0, 1}` (in sharp
 contrast with the divisible impossibility theorem `not_exists_privateBudgetDSIC_isParetoOptimal`).
 -/
+
+public section
 
 namespace CslibFrontierTests.GameTheory.BudgetedAuction
 
@@ -309,6 +315,20 @@ example :
     twoBidderClinchingSP_isNormalized (by norm_num) hB,
     twoBidderClinching_isParetoOptimal (by norm_num) hB hv,
     twoBidderClinching_sum_alloc (by norm_num) hB hv ⟨0, by norm_num⟩⟩
+
+/-- Quantitative `m = 2` budget-manipulation check via `twoBidderClinching_budget_manipulation`:
+bidder `1` (`⟨1, 1⟩` against `⟨5, 1⟩`) raises its utility from `1 / 4` to `1 - Real.log 2` while
+paying `Real.log 2 ≤ 1`. -/
+theorem twoBidderClinching_two_budget_manipulation :
+    let θ : Fin 2 → BidderType := ![⟨5, 1⟩, ⟨1, 1⟩]
+    let b' : BidderType := ⟨1, 1 + Real.log 2⟩
+    ((twoBidderClinchingMechanism 2).outcome θ).utility (fun k => (θ k).val) 1 = 1 / 4 ∧
+      ((twoBidderClinchingMechanism 2).outcome (Function.update θ 1 b')).payment 1 = Real.log 2 ∧
+      ((twoBidderClinchingMechanism 2).outcome (Function.update θ 1 b')).utility
+        (fun k => (θ k).val) 1 = 1 - Real.log 2 := by
+  have h := twoBidderClinching_budget_manipulation (m := 2) (by norm_num)
+  norm_num at h
+  exact ⟨h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.2.1⟩
 
 /-- Private-budget manipulation witness (`twoBidderClinching` is NOT `IsPrivateBudgetDSIC` for
 `m = 1`). -/
