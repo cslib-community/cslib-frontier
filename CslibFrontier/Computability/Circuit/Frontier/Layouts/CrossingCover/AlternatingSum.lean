@@ -83,7 +83,7 @@ where `dirNBCount D j` counts the **directed non-backtracking walks** of length 
 * `Cslib.Circuits.Frontier.CrossingCover.two_mul_simpleVertexCover_le_alternating`
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Frontier.CrossingCover
 
@@ -117,7 +117,7 @@ theorem exists_simpleVertexCover_eq [Finite V] (D : SimpleGraph V) :
 
 /-- The bipartite crossing subgraph of `H` induced by a bipartition `b : V → Bool`: retains the
 edges of `H` whose endpoints receive distinct labels under `b`. -/
-def crossingGraph (H : SimpleGraph V) (b : V → Bool) : SimpleGraph V where
+@[expose] def crossingGraph (H : SimpleGraph V) (b : V → Bool) : SimpleGraph V where
   Adj u v := H.Adj u v ∧ b u ≠ b v
   symm := ⟨fun _ _ h => ⟨h.1.symm, h.2.symm⟩⟩
   loopless := ⟨fun _ h => h.2 rfl⟩
@@ -145,15 +145,15 @@ private theorem isEdgeClosed_compl' {D : SimpleGraph V} {S : Finset V}
   fun hv => hu (hS v u huv.symm hv)
 
 /-- The number of directed non-backtracking walks of length `j` in `D`. -/
-noncomputable def dirNBCount [Fintype V] (D : SimpleGraph V) (j : ℕ) : ℕ :=
+@[expose] noncomputable def dirNBCount [Fintype V] (D : SimpleGraph V) (j : ℕ) : ℕ :=
   open Classical in (univ.filter fun w : Fin (j + 1) → V => IsNBWalk D j w).card
 
 /-- The finset of degree-`3` vertices of a simple graph `D`. -/
-noncomputable def degThreeSet [Fintype V] (D : SimpleGraph V) : Finset V :=
+@[expose] noncomputable def degThreeSet [Fintype V] (D : SimpleGraph V) : Finset V :=
   open Classical in univ.filter fun v => D.degree v = 3
 
 /-- Explicit constant multiplying `#(degThreeSet D)` in the alternating-sum bound for odd `J`. -/
-def altErrConst (J : ℕ) : ℕ :=
+@[expose] def altErrConst (J : ℕ) : ℕ :=
   2 + ∑ j ∈ Icc 1 J, if Even j then (j + 1) * 3 * 2 ^ (j - 1) else 0
 
 end BasicDefs
@@ -498,6 +498,58 @@ private structure DegOnePath (D : SimpleGraph V) (p : List V) : Prop where
   deg_inner : ∀ i : ℕ, 0 < i → (h : i + 1 < p.length) → open Classical in D.degree p[i] = 2
   deg_last : open Classical in D.degree p[p.length - 1] = 1
 
+/-- In a graph of maximum degree `2`, let `p` be a path whose first vertex has degree `1`. A
+neighbour of the last vertex of `p` other than its predecessor is not on `p`. -/
+private lemma notMem_of_adj_last (D : SimpleGraph V)
+    (h2 : ∀ v : V, open Classical in D.degree v ≤ 2) (p : List V)
+    (hnd : p.Nodup) (hlen : 2 ≤ p.length)
+    (hadj : ∀ i : ℕ, (h : i + 1 < p.length) → D.Adj p[i] p[i + 1])
+    (hd0 : open Classical in D.degree (p[0]'(by omega)) = 1) {nxt : V}
+    (hadj_nxt : D.Adj p[p.length - 1] nxt) (hne_prev : nxt ≠ p[p.length - 2]) :
+    nxt ∉ p := by
+  classical
+  intro hmem
+  set last := p[p.length - 1]
+  set prev := p[p.length - 2]
+  obtain ⟨idx, hidx, hget⟩ := List.getElem_of_mem hmem
+  by_cases hi0 : idx = 0
+  · subst hi0
+    have h1 : p[1] ∈ D.neighborFinset p[0] :=
+      (D.mem_neighborFinset _ _).mpr (hadj 0 (by omega))
+    have h2' : last ∈ D.neighborFinset p[0] :=
+      (D.mem_neighborFinset _ _).mpr (hget ▸ hadj_nxt.symm)
+    obtain ⟨y, hy⟩ := card_eq_one.mp (show (D.neighborFinset p[0]).card = 1 from hd0)
+    rw [hy, mem_singleton] at h1 h2'
+    have hleq : p[p.length - 1] = p[1] := h2'.trans h1.symm
+    have hidx_eq : p.length - 1 = 1 := hnd.getElem_inj_iff.mp hleq
+    have hprev_eq : prev = p[0] := by simp [prev, show p.length - 2 = 0 by omega]
+    exact hne_prev (hget.symm.trans hprev_eq.symm)
+  · by_cases hil : idx = p.length - 1
+    · exact D.loopless.irrefl last (by simp [last, ← hil, hget] at hadj_nxt)
+    · by_cases hip : idx = p.length - 2
+      · exact hne_prev (by simp [prev, ← hip, hget])
+      · have hsub : ({p[idx - 1], p[idx + 1], last} : Finset V) ⊆ D.neighborFinset p[idx] :=
+          fun w hw => by
+            simp only [mem_insert, mem_singleton] at hw
+            rcases hw with rfl | rfl | rfl
+            · exact (D.mem_neighborFinset _ _).mpr
+                (by simpa [show idx - 1 + 1 = idx by omega]
+                  using (hadj (idx - 1) (by omega)).symm)
+            · exact (D.mem_neighborFinset _ _).mpr (hadj idx (by omega))
+            · exact (D.mem_neighborFinset _ _).mpr (hget ▸ hadj_nxt.symm)
+        have hne1 : p[idx - 1] ≠ p[idx + 1] := fun h => by
+          have := hnd.getElem_inj_iff.mp h; omega
+        have hne2 : p[idx - 1] ≠ last := fun h => by
+          have := hnd.getElem_inj_iff.mp h; omega
+        have hne3 : p[idx + 1] ≠ last := fun h => by
+          have := hnd.getElem_inj_iff.mp h; omega
+        have hcard3 : ({p[idx - 1], p[idx + 1], last} : Finset V).card = 3 := by
+          rw [card_insert_of_notMem (by simp [hne1, hne2]),
+            card_insert_of_notMem (by simp [hne3]), card_singleton]
+        have hle3 : 3 ≤ D.degree p[idx] := by
+          rw [SimpleGraph.degree, ← hcard3]; exact card_le_card hsub
+        have hle2 := h2 p[idx]; omega
+
 private lemma extend_path_to_deg_one (D : SimpleGraph V)
     (h2 : ∀ v : V, open Classical in D.degree v ≤ 2) :
     ∀ k : ℕ, ∀ p : List V,
@@ -541,44 +593,7 @@ private lemma extend_path_to_deg_one (D : SimpleGraph V)
         have heq_univ : p.toFinset = univ := eq_univ_of_card _ (by
           rw [List.toFinset_card_of_nodup hnd, hcard_eq])
         exact List.mem_toFinset.mp (heq_univ ▸ mem_univ nxt)
-      obtain ⟨idx, hidx, hget⟩ := List.getElem_of_mem hmem_p
-      by_cases hi0 : idx = 0
-      · subst hi0
-        have h1 : p[1] ∈ D.neighborFinset p[0] :=
-          (D.mem_neighborFinset _ _).mpr (hadj 0 (by omega))
-        have h2' : last ∈ D.neighborFinset p[0] :=
-          (D.mem_neighborFinset _ _).mpr (hget ▸ hadj_nxt.symm)
-        obtain ⟨y, hy⟩ := card_eq_one.mp (show (D.neighborFinset p[0]).card = 1 from hd0)
-        rw [hy, mem_singleton] at h1 h2'
-        have hleq : p[p.length - 1] = p[1] := h2'.trans h1.symm
-        have hidx_eq : p.length - 1 = 1 := hnd.getElem_inj_iff.mp hleq
-        have hprev_eq : prev = p[0] := by simp [prev, show p.length - 2 = 0 by omega]
-        exact hne_prev (hget.symm.trans hprev_eq.symm)
-      · by_cases hil : idx = p.length - 1
-        · exact D.loopless.irrefl last (by simp [last, ← hil, hget] at hadj_nxt)
-        · by_cases hip : idx = p.length - 2
-          · exact hne_prev (by simp [prev, ← hip, hget])
-          · have hsub : ({p[idx - 1], p[idx + 1], last} : Finset V) ⊆ D.neighborFinset p[idx] := by
-              intro w hw
-              simp only [mem_insert, mem_singleton] at hw
-              rcases hw with rfl | rfl | rfl
-              · exact (D.mem_neighborFinset _ _).mpr
-                  (by simpa [show idx - 1 + 1 = idx by omega]
-                    using (hadj (idx - 1) (by omega)).symm)
-              · exact (D.mem_neighborFinset _ _).mpr (hadj idx (by omega))
-              · exact (D.mem_neighborFinset _ _).mpr (hget ▸ hadj_nxt.symm)
-            have hne1 : p[idx - 1] ≠ p[idx + 1] := fun h => by
-              have := hnd.getElem_inj_iff.mp h; omega
-            have hne2 : p[idx - 1] ≠ last := fun h => by
-              have := hnd.getElem_inj_iff.mp h; omega
-            have hne3 : p[idx + 1] ≠ last := fun h => by
-              have := hnd.getElem_inj_iff.mp h; omega
-            have hcard3 : ({p[idx - 1], p[idx + 1], last} : Finset V).card = 3 := by
-              rw [card_insert_of_notMem (by simp [hne1, hne2]),
-                card_insert_of_notMem (by simp [hne3]), card_singleton]
-            have hle3 : 3 ≤ D.degree p[idx] := by
-              rw [SimpleGraph.degree, ← hcard3]; exact card_le_card hsub
-            have hle2 := h2 p[idx]; omega
+      exact notMem_of_adj_last D h2 p hnd hlen hadj hd0 hadj_nxt hne_prev hmem_p
     have hdeg_le := h2 p[p.length - 1]
     exact ⟨p, ⟨hnd, hlen, hadj, hd0, hdi, by omega⟩⟩
   | succ k ih =>
@@ -603,46 +618,8 @@ private lemma extend_path_to_deg_one (D : SimpleGraph V)
       obtain ⟨nxt, hnxt⟩ := card_pos.mp (by omega : 0 < ((D.neighborFinset last).erase prev).card)
       have hne_prev : nxt ≠ prev := (mem_erase.mp hnxt).1
       have hadj_nxt : D.Adj last nxt := (D.mem_neighborFinset _ _).mp (mem_erase.mp hnxt).2
-      have hnot_mem : nxt ∉ p := by
-        intro hmem
-        obtain ⟨idx, hidx, hget⟩ := List.getElem_of_mem hmem
-        by_cases hi0 : idx = 0
-        · subst hi0
-          have h1 : p[1] ∈ D.neighborFinset p[0] :=
-            (D.mem_neighborFinset _ _).mpr (hadj 0 (by omega))
-          have h2' : last ∈ D.neighborFinset p[0] :=
-            (D.mem_neighborFinset _ _).mpr (hget ▸ hadj_nxt.symm)
-          obtain ⟨y, hy⟩ := card_eq_one.mp (show (D.neighborFinset p[0]).card = 1 from hd0)
-          rw [hy, mem_singleton] at h1 h2'
-          have hleq : p[p.length - 1] = p[1] := h2'.trans h1.symm
-          have hidx_eq : p.length - 1 = 1 := hnd.getElem_inj_iff.mp hleq
-          have hprev_eq : prev = p[0] := by simp [prev, show p.length - 2 = 0 by omega]
-          exact hne_prev (hget.symm.trans hprev_eq.symm)
-        · by_cases hil : idx = p.length - 1
-          · exact D.loopless.irrefl last (by simp [last, ← hil, hget] at hadj_nxt)
-          · by_cases hip : idx = p.length - 2
-            · exact hne_prev (by simp [prev, ← hip, hget])
-            · have hsub : ({p[idx - 1], p[idx + 1], last} : Finset V) ⊆ D.neighborFinset p[idx] :=
-                fun w hw => by
-                  simp only [mem_insert, mem_singleton] at hw
-                  rcases hw with rfl | rfl | rfl
-                  · exact (D.mem_neighborFinset _ _).mpr
-                      (by simpa [show idx - 1 + 1 = idx by omega]
-                        using (hadj (idx - 1) (by omega)).symm)
-                  · exact (D.mem_neighborFinset _ _).mpr (hadj idx (by omega))
-                  · exact (D.mem_neighborFinset _ _).mpr (hget ▸ hadj_nxt.symm)
-              have hne1 : p[idx - 1] ≠ p[idx + 1] := fun h => by
-                have := hnd.getElem_inj_iff.mp h; omega
-              have hne2 : p[idx - 1] ≠ last := fun h => by
-                have := hnd.getElem_inj_iff.mp h; omega
-              have hne3 : p[idx + 1] ≠ last := fun h => by
-                have := hnd.getElem_inj_iff.mp h; omega
-              have hcard3 : ({p[idx - 1], p[idx + 1], last} : Finset V).card = 3 := by
-                rw [card_insert_of_notMem (by simp [hne1, hne2]),
-                  card_insert_of_notMem (by simp [hne3]), card_singleton]
-              have hle3 : 3 ≤ D.degree p[idx] := by
-                rw [SimpleGraph.degree, ← hcard3]; exact card_le_card hsub
-              have hle2 := h2 p[idx]; omega
+      have hnot_mem : nxt ∉ p :=
+        notMem_of_adj_last D h2 p hnd hlen hadj hd0 hadj_nxt hne_prev
       let p' := p ++ [nxt]
       have hnd' : p'.Nodup := hnd.append (List.nodup_singleton nxt) fun _ h1 h2 =>
         hnot_mem (by simpa [List.mem_singleton.mp h2] using h1)
@@ -1026,6 +1003,56 @@ section DegreeThreeRemoval
 
 variable {V : Type*} [Fintype V]
 
+/-- One-step extension bound. In a graph of maximum degree `3`, a family `T` of non-backtracking
+walks of length `k + 2` whose truncations lie in a family `S` of non-backtracking walks of length
+`k + 1` has at most `2 * |S|` members: the last vertex is a neighbour of the previous one other
+than the one before it. -/
+private lemma card_nbWalk_extend_le (D : SimpleGraph V)
+    (h3 : ∀ v : V, open Classical in D.degree v ≤ 3) (k : ℕ)
+    (S : Finset (Fin (k + 2) → V)) (T : Finset (Fin (k + 3) → V))
+    (hS : ∀ w' ∈ S, IsNBWalk D (k + 1) w')
+    (hT : ∀ w ∈ T, IsNBWalk D (k + 2) w ∧ (fun i : Fin (k + 2) => w i.castSucc) ∈ S) :
+    T.card ≤ S.card * 2 := by
+  classical
+  let fiber (w' : Fin (k + 2) → V) : Finset (Fin (k + 3) → V) :=
+    univ.filter fun w => IsNBWalk D (k + 2) w ∧
+      (∀ i : Fin (k + 2), w i.castSucc = w' i)
+  have hsub : T ⊆ S.biUnion fiber := by
+    intro w hw
+    obtain ⟨hnb, hmem⟩ := hT w hw
+    exact mem_biUnion.mpr ⟨_, hmem, mem_filter.mpr ⟨mem_univ _, hnb, fun _ => rfl⟩⟩
+  have hfib_le : ∀ w' ∈ S, (fiber w').card ≤ 2 := fun w' hw' => by
+    have hnb' := hS w' hw'
+    let a := w' ⟨k + 1, by omega⟩
+    let p := w' ⟨k, by omega⟩
+    have hap : D.Adj a p := (hnb'.1 ⟨k, by omega⟩).symm
+    have hle : (fiber w').card ≤ ((D.neighborFinset a).erase p).card := by
+      refine card_le_card_of_injOn (fun w => w ⟨k + 2, by omega⟩) ?_ ?_
+      · intro w hw
+        have ⟨hnb, hag⟩ := (mem_filter.mp hw).2
+        refine mem_coe.mpr (mem_erase.mpr ⟨?_, (D.mem_neighborFinset _ _).mpr ?_⟩)
+        · have hne := hnb.2 k (by omega)
+          rw [show w ⟨k, by omega⟩ = p from hag ⟨k, by omega⟩] at hne
+          exact hne.symm
+        · rw [show a = w ⟨k + 1, by omega⟩ from (hag ⟨k + 1, by omega⟩).symm]
+          exact hnb.1 ⟨k + 1, by omega⟩
+      · intro w₁ hw₁ w₂ hw₂ heq
+        have ha₁ := (mem_filter.mp hw₁).2.2
+        have ha₂ := (mem_filter.mp hw₂).2.2
+        ext i
+        by_cases hi : i.val < k + 2
+        · exact (ha₁ ⟨i.val, hi⟩).trans (ha₂ ⟨i.val, hi⟩).symm
+        · have hilt : i.val < k + 3 := i.isLt
+          have hieq : i = ⟨k + 2, by omega⟩ := Fin.ext (show i.val = k + 2 by omega)
+          rw [hieq]; exact heq
+    have hce : ((D.neighborFinset a).erase p).card = D.degree a - 1 := by
+      rw [card_erase_of_mem ((D.mem_neighborFinset _ _).mpr hap), SimpleGraph.degree]
+    have := h3 a; omega
+  calc T.card ≤ (S.biUnion fiber).card := card_le_card hsub
+    _ ≤ ∑ w' ∈ S, (fiber w').card := card_biUnion_le
+    _ ≤ ∑ _w' ∈ S, 2 := sum_le_sum hfib_le
+    _ = S.card * 2 := by rw [sum_const, smul_eq_mul]
+
 private lemma card_nbWalk_from_start_le (D : SimpleGraph V)
     (h3 : ∀ v : V, open Classical in D.degree v ≤ 3) :
     ∀ (k : ℕ) (v₀ : V),
@@ -1062,54 +1089,14 @@ private lemma card_nbWalk_from_start_le (D : SimpleGraph V)
     | succ k =>
       have hk := ih v₀
       simp only [Nat.add_eq_zero_iff, one_ne_zero, and_false, ↓reduceIte, Nat.add_sub_cancel] at hk
-      let Sprev : Finset (Fin (k + 2) → V) :=
-        univ.filter fun w => IsNBWalk D (k + 1) w ∧ w 0 = v₀
-      let fiber (w' : Fin (k + 2) → V) : Finset (Fin (k + 3) → V) :=
-        univ.filter fun w => IsNBWalk D (k + 2) w ∧
-          (∀ i : Fin (k + 2), w i.castSucc = w' i)
-      have hsub : (univ.filter fun w : Fin (k + 3) → V =>
-          IsNBWalk D (k + 2) w ∧ w 0 = v₀) ⊆ Sprev.biUnion fiber := by
-        intro w hw
-        have ⟨hnb, h0⟩ := (mem_filter.mp hw).2
-        let w' : Fin (k + 2) → V := fun i => w i.castSucc
-        refine mem_biUnion.mpr ⟨w', mem_filter.mpr ⟨mem_univ _, ?_, h0⟩,
-          mem_filter.mpr ⟨mem_univ _, hnb, fun _ => rfl⟩⟩
+      refine le_trans (card_nbWalk_extend_le D h3 k
+        (univ.filter fun w => IsNBWalk D (k + 1) w ∧ w 0 = v₀) _
+        (fun w' hw' => (mem_filter.mp hw').2.1) fun w hw => ?_) ?_
+      · have ⟨hnb, h0⟩ := (mem_filter.mp hw).2
+        refine ⟨hnb, mem_filter.mpr ⟨mem_univ _, ?_, h0⟩⟩
         exact ⟨fun i => hnb.1 i.castSucc, fun i hi => hnb.2 i (by omega)⟩
-      have hfib_le : ∀ w' ∈ Sprev, (fiber w').card ≤ 2 := fun w' hw' => by
-        have ⟨hnb', _⟩ := (mem_filter.mp hw').2
-        let u := w' ⟨k + 1, by omega⟩
-        let p := w' ⟨k, by omega⟩
-        have hap : D.Adj u p := (hnb'.1 ⟨k, by omega⟩).symm
-        have hle : (fiber w').card ≤ ((D.neighborFinset u).erase p).card := by
-          refine card_le_card_of_injOn (fun w => w ⟨k + 2, by omega⟩) ?_ ?_
-          · intro w hw
-            have ⟨hnb, hag⟩ := (mem_filter.mp hw).2
-            refine mem_coe.mpr (mem_erase.mpr ⟨?_, (D.mem_neighborFinset _ _).mpr ?_⟩)
-            · have hne := hnb.2 k (by omega)
-              rw [show w ⟨k, by omega⟩ = p from hag ⟨k, by omega⟩] at hne
-              exact hne.symm
-            · rw [show u = w ⟨k + 1, by omega⟩ from (hag ⟨k + 1, by omega⟩).symm]
-              exact hnb.1 ⟨k + 1, by omega⟩
-          · intro w₁ hw₁ w₂ hw₂ heq
-            have ha₁ := (mem_filter.mp hw₁).2.2
-            have ha₂ := (mem_filter.mp hw₂).2.2
-            ext i
-            by_cases hi : i.val < k + 2
-            · exact (ha₁ ⟨i.val, hi⟩).trans (ha₂ ⟨i.val, hi⟩).symm
-            · have hilt : i.val < k + 3 := i.isLt
-              have hieq : i = ⟨k + 2, by omega⟩ := Fin.ext (show i.val = k + 2 by omega)
-              rw [hieq]; exact heq
-        have hce : ((D.neighborFinset u).erase p).card = D.degree u - 1 := by
-          rw [card_erase_of_mem ((D.mem_neighborFinset _ _).mpr hap), SimpleGraph.degree]
-        have hu3 := h3 u
-        omega
-      calc (univ.filter fun w : Fin (k + 3) → V => IsNBWalk D (k + 2) w ∧ w 0 = v₀).card
-          ≤ (Sprev.biUnion fiber).card := card_le_card hsub
-        _ ≤ ∑ w' ∈ Sprev, (fiber w').card := card_biUnion_le
-        _ ≤ ∑ _w' ∈ Sprev, 2 := sum_le_sum hfib_le
-        _ = Sprev.card * 2 := by rw [sum_const, smul_eq_mul]
-        _ ≤ (3 * 2 ^ k) * 2 := Nat.mul_le_mul_right 2 hk
-        _ = 3 * 2 ^ (k + 1) := by ring
+      · calc _ ≤ (3 * 2 ^ k) * 2 := Nat.mul_le_mul_right 2 hk
+          _ = 3 * 2 ^ (k + 1) := by ring
 
 private lemma card_nbWalk_from_two_le (D : SimpleGraph V)
     (h3 : ∀ v : V, open Classical in D.degree v ≤ 3) (u prev : V) (hadj : D.Adj u prev) :
@@ -1149,54 +1136,15 @@ private lemma card_nbWalk_from_two_le (D : SimpleGraph V)
       have hdeg := h3 u
       exact hle.trans (by rw [hce]; exact (by omega : D.degree u - 1 ≤ 2 ^ (0 + 1)))
     | succ k =>
-      let Sprev : Finset (Fin (k + 2) → V) :=
-        univ.filter fun w => IsNBWalk D (k + 1) w ∧ w 0 = u ∧
-          (∀ _ : 0 < k + 1, w ⟨1, by omega⟩ ≠ prev)
-      let fiber (w' : Fin (k + 2) → V) : Finset (Fin (k + 3) → V) :=
-        univ.filter fun w => IsNBWalk D (k + 2) w ∧
-          (∀ i : Fin (k + 2), w i.castSucc = w' i)
-      have hsub : (univ.filter fun w : Fin (k + 3) → V =>
-          IsNBWalk D (k + 2) w ∧ w 0 = u ∧
-            (∀ _ : 0 < k + 2, w ⟨1, by omega⟩ ≠ prev)) ⊆ Sprev.biUnion fiber := by
-        intro w hw
-        have ⟨hnb, h0, hne⟩ := (mem_filter.mp hw).2
-        let w' : Fin (k + 2) → V := fun i => w i.castSucc
-        refine mem_biUnion.mpr ⟨w', mem_filter.mpr ⟨mem_univ _, ?_, h0, fun _ => hne (by omega)⟩,
-          mem_filter.mpr ⟨mem_univ _, hnb, fun _ => rfl⟩⟩
+      refine le_trans (card_nbWalk_extend_le D h3 k
+        (univ.filter fun w => IsNBWalk D (k + 1) w ∧ w 0 = u ∧
+          (∀ _ : 0 < k + 1, w ⟨1, by omega⟩ ≠ prev)) _
+        (fun w' hw' => (mem_filter.mp hw').2.1) fun w hw => ?_) ?_
+      · have ⟨hnb, h0, hne⟩ := (mem_filter.mp hw).2
+        refine ⟨hnb, mem_filter.mpr ⟨mem_univ _, ?_, h0, fun _ => hne (by omega)⟩⟩
         exact ⟨fun i => hnb.1 i.castSucc, fun i hi => hnb.2 i (by omega)⟩
-      have hfib_le : ∀ w' ∈ Sprev, (fiber w').card ≤ 2 := fun w' hw' => by
-        have ⟨hnb', _, _⟩ := (mem_filter.mp hw').2
-        let a := w' ⟨k + 1, by omega⟩
-        let p := w' ⟨k, by omega⟩
-        have hap : D.Adj a p := (hnb'.1 ⟨k, by omega⟩).symm
-        have hle : (fiber w').card ≤ ((D.neighborFinset a).erase p).card := by
-          refine card_le_card_of_injOn (fun w => w ⟨k + 2, by omega⟩) ?_ ?_
-          · intro w hw
-            have ⟨hnb, hag⟩ := (mem_filter.mp hw).2
-            refine mem_coe.mpr (mem_erase.mpr ⟨?_, (D.mem_neighborFinset _ _).mpr ?_⟩)
-            · have hne := hnb.2 k (by omega)
-              rw [show w ⟨k, by omega⟩ = p from hag ⟨k, by omega⟩] at hne
-              exact hne.symm
-            · rw [show a = w ⟨k + 1, by omega⟩ from (hag ⟨k + 1, by omega⟩).symm]
-              exact hnb.1 ⟨k + 1, by omega⟩
-          · intro w₁ hw₁ w₂ hw₂ heq
-            have ha₁ := (mem_filter.mp hw₁).2.2
-            have ha₂ := (mem_filter.mp hw₂).2.2
-            ext i
-            by_cases hi : i.val < k + 2
-            · exact (ha₁ ⟨i.val, hi⟩).trans (ha₂ ⟨i.val, hi⟩).symm
-            · have hilt : i.val < k + 3 := i.isLt
-              have hieq : i = ⟨k + 2, by omega⟩ := Fin.ext (show i.val = k + 2 by omega)
-              rw [hieq]; exact heq
-        have hce : ((D.neighborFinset a).erase p).card = D.degree a - 1 := by
-          rw [card_erase_of_mem ((D.mem_neighborFinset _ _).mpr hap), SimpleGraph.degree]
-        have := h3 a; omega
-      calc _ ≤ (Sprev.biUnion fiber).card := card_le_card hsub
-        _ ≤ ∑ w' ∈ Sprev, (fiber w').card := card_biUnion_le
-        _ ≤ ∑ _w' ∈ Sprev, 2 := sum_le_sum hfib_le
-        _ = Sprev.card * 2 := by rw [sum_const, smul_eq_mul]
-        _ ≤ (2 ^ (k + 1)) * 2 := Nat.mul_le_mul_right 2 ih
-        _ = 2 ^ (k + 2) := by ring
+      · calc _ ≤ (2 ^ (k + 1)) * 2 := Nat.mul_le_mul_right 2 ih
+          _ = 2 ^ (k + 2) := by ring
 
 private lemma card_nbWalk_through_at_le (D : SimpleGraph V)
     (h3 : ∀ v : V, open Classical in D.degree v ≤ 3)

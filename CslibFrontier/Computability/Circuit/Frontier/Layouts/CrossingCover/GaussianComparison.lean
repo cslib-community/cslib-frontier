@@ -62,7 +62,7 @@ evaluated on a submodular function `f : (ι → Bool) → ℝ`:
 * `Cslib.Circuits.Frontier.CrossingCover.integral_threshold_le_zero`: zero-threshold maximality.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Frontier.CrossingCover
 
@@ -321,7 +321,7 @@ section MultilinearExt
 variable {ι : Type*}
 
 /-- Coordinatewise threshold vector `fun i => decide (x i < t)`. -/
-noncomputable def thresholdVec (x : ι → ℝ) (t : ℝ) : ι → Bool :=
+@[expose] noncomputable def thresholdVec (x : ι → ℝ) (t : ℝ) : ι → Bool :=
   open Classical in
   fun i => decide (x i < t)
 

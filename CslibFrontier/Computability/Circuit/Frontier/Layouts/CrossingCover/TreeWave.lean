@@ -85,7 +85,7 @@ asymptotic upper bound on the expected minimum crossing vertex cover of `H`.
   threshold.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Frontier.CrossingCover
 
@@ -478,7 +478,7 @@ section PushedProfile
 variable {V : Type*}
 
 /-- Number of non-backtracking walks of length `k` from `v` to `w` in `H`. -/
-noncomputable def nbCount [Fintype V] (H : SimpleGraph V) (k : ℕ) (v w : V) : ℕ :=
+@[expose] noncomputable def nbCount [Fintype V] (H : SimpleGraph V) (k : ℕ) (v w : V) : ℕ :=
   open Classical in
   (Finset.univ.filter fun walk : Fin (k + 1) → V =>
     IsNBWalk H k walk ∧ walk 0 = v ∧ walk (Fin.last k) = w).card
@@ -697,13 +697,13 @@ section WaveRow
 variable {V : Type*}
 
 /-- Unit-norm row vector `V ⊕ V → ℝ` defining the regularized Gaussian wave at vertex `v`. -/
-noncomputable def waveRow [Fintype V] (H : SimpleGraph V) (R : ℕ) (ε : ℝ) (v : V) :
+@[expose] noncomputable def waveRow [Fintype V] (H : SimpleGraph V) (R : ℕ) (ε : ℝ) (v : V) :
     V ⊕ V → ℝ
   | Sum.inl x => Real.sqrt (1 - ε ^ 2) * Real.sqrt (pushedProb H R v x)
   | Sum.inr x => open Classical in if x = v then ε else 0
 
 /-- Evaluation of the Gaussian wave field at vertex `v`. -/
-noncomputable def waveScore [Fintype V] (H : SimpleGraph V) (R : ℕ) (ε : ℝ)
+@[expose] noncomputable def waveScore [Fintype V] (H : SimpleGraph V) (R : ℕ) (ε : ℝ)
     (g : V ⊕ V → ℝ) (v : V) : ℝ :=
   ∑ z : V ⊕ V, waveRow H R ε v z * g z
 
@@ -1768,13 +1768,13 @@ theorem ar2Coeff_sq_sum_eq_one (j : ℕ) (a : Fin (j + 1)) :
 
 /-- Alternating-sign orthant probability `2 * P(∀ i, (-1)^i * X_i > 0)` of the stationary AR(2)
 Gaussian process of length `j`. -/
-noncomputable def ar2AltProb (j : ℕ) : ℝ :=
+@[expose] noncomputable def ar2AltProb (j : ℕ) : ℝ :=
   2 * (piGauss (Fin (j + 1))).real
     {ξ | ∀ i : Fin (j + 1), 0 < (-1 : ℝ) ^ i.val * ar2StepMap j ξ i}
 
 /-- Joint density of the alternating-sign process `Y_i = (-1)^i * X_i` on `Fin (j + 1) → ℝ`,
 matching `ar2InitDensity` and `ar2Kernel`. -/
-noncomputable def ar2StepJointDensity : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
+@[expose] noncomputable def ar2StepJointDensity : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
   | 0, x => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-(x 0) ^ 2 / 2)
   | k + 1, x =>
       ((3 / (2 * Real.pi)) *
@@ -2273,7 +2273,7 @@ theorem ar2AltProb_eq_integral_density (j : ℕ) :
       (measurable_ar2StepJointDensity j).aestronglyMeasurable]
 
 /-- Truncated alternating wave sum for odd order `J`. -/
-noncomputable def ar2AltWaveSum (J : ℕ) : ℝ :=
+@[expose] noncomputable def ar2AltWaveSum (J : ℕ) : ℝ :=
   ∑ j ∈ Finset.Icc 1 J, (-1 : ℝ) ^ (j + 1) * (3 / 2) * (2 : ℝ) ^ (j - 1) * ar2AltProb j
 
 end AR2Process
@@ -3178,39 +3178,30 @@ theorem exists_nbWalk_prob_close (j : ℕ) (hj : 1 ≤ j) (η : ℝ) (hη : 0 < 
           have hnot : ¬((-1 : ℝ) ^ i.val * c i < 0) := fun h => not_lt.mpr h0.le ((hall i).mp h)
           exact lt_of_le_of_ne (not_lt.mp hnot)
             (mul_ne_zero (pow_ne_zero _ (by norm_num)) (hc i)).symm
-      · rintro (hp | hm) i
-        · have h1 := hp i.castSucc; have h2 := hp i.succ
-          rcases Nat.even_or_odd i.castSucc.val with hev | hodd
-          · have ho : Odd i.succ.val := by
-              rw [Fin.val_succ]; exact hev.add_one
-            rw [hev.neg_one_pow, one_mul] at h1
-            rw [ho.neg_one_pow, neg_one_mul] at h2
-            rw [(thresholdVec_apply_eq_false c 0 _).mpr h1.le,
-              (thresholdVec_apply_eq_true c 0 _).mpr (by linarith)]
-            decide
-          · have he : Even i.succ.val := by
-              rw [Fin.val_succ]; exact hodd.add_one
-            rw [hodd.neg_one_pow, neg_one_mul] at h1
-            rw [he.neg_one_pow, one_mul] at h2
-            rw [(thresholdVec_apply_eq_true c 0 _).mpr (by linarith),
-              (thresholdVec_apply_eq_false c 0 _).mpr h2.le]
-            decide
-        · have h1 := hm i.castSucc; have h2 := hm i.succ
-          rcases Nat.even_or_odd i.castSucc.val with hev | hodd
-          · have ho : Odd i.succ.val := by
-              rw [Fin.val_succ]; exact hev.add_one
-            rw [hev.neg_one_pow, one_mul] at h1
-            rw [ho.neg_one_pow, neg_one_mul] at h2
-            rw [(thresholdVec_apply_eq_true c 0 _).mpr h1,
-              (thresholdVec_apply_eq_false c 0 _).mpr (by linarith)]
-            decide
-          · have he : Even i.succ.val := by
-              rw [Fin.val_succ]; exact hodd.add_one
-            rw [hodd.neg_one_pow, neg_one_mul] at h1
-            rw [he.neg_one_pow, one_mul] at h2
-            rw [(thresholdVec_apply_eq_false c 0 _).mpr (by linarith),
-              (thresholdVec_apply_eq_true c 0 _).mpr h2]
-            decide
+      · intro h i
+        -- in either phase consecutive entries have opposite signs
+        have hprod : c i.castSucc * c i.succ < 0 := by
+          have hpw : (-1 : ℝ) ^ i.succ.val = -(-1 : ℝ) ^ i.castSucc.val := by
+            simp [Fin.val_succ, pow_succ]
+          have hsq : ((-1 : ℝ) ^ i.castSucc.val) ^ 2 = 1 := by
+            rw [← pow_mul, mul_comm, pow_mul]; norm_num
+          have hpos : 0 < ((-1 : ℝ) ^ i.castSucc.val * c i.castSucc) *
+              ((-1 : ℝ) ^ i.succ.val * c i.succ) := by
+            rcases h with hp | hm
+            · exact mul_pos (hp _) (hp _)
+            · exact mul_pos_of_neg_of_neg (hm _) (hm _)
+          have hrw : ((-1 : ℝ) ^ i.castSucc.val * c i.castSucc) *
+              (-(-1 : ℝ) ^ i.castSucc.val * c i.succ) =
+              -(((-1 : ℝ) ^ i.castSucc.val) ^ 2 * (c i.castSucc * c i.succ)) := by ring
+          rw [hpw, hrw, hsq, one_mul] at hpos
+          linarith
+        rcases mul_neg_iff.mp hprod with ⟨h1, h2⟩ | ⟨h1, h2⟩
+        · rw [(thresholdVec_apply_eq_false c 0 _).mpr h1.le,
+            (thresholdVec_apply_eq_true c 0 _).mpr h2]
+          decide
+        · rw [(thresholdVec_apply_eq_true c 0 _).mpr h1,
+            (thresholdVec_apply_eq_false c 0 _).mpr h2.le]
+          decide
     exact hstep_pos (fun i => waveScore H' R ε g (w i)) hg
   have hE_eq : (piGauss (V' ⊕ V')).real Ewalk = 2 * (piGauss (V' ⊕ V')).real Pplus := by
     rw [measureReal_congr hae_eq, measureReal_union hdisj hPminus_meas, hsym_eq]; ring

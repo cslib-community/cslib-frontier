@@ -84,7 +84,7 @@ no custom axioms, and no `maxHeartbeats` overrides).
   `alternatingWaveSum 13 < 130649 / 1000000`.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Frontier.CrossingCover
 
@@ -96,19 +96,19 @@ open scoped BigOperators Interval
 section AR2Density
 
 /-- Stationary bivariate Gaussian density with unit marginals and correlation `-2√2 / 3`. -/
-noncomputable def ar2InitDensity (x y : ℝ) : ℝ :=
+@[expose] noncomputable def ar2InitDensity (x y : ℝ) : ℝ :=
   (3 / (2 * Real.pi)) *
     Real.exp (-(9 / 2) * (x ^ 2 + y ^ 2) - 6 * Real.sqrt 2 * x * y)
 
 /-- Gaussian AR(2) transition kernel with conditional mean `-√2 y - x / 2` and variance `1 / 12`. -/
-noncomputable def ar2Kernel (x y z : ℝ) : ℝ :=
+@[expose] noncomputable def ar2Kernel (x y z : ℝ) : ℝ :=
   Real.sqrt (6 / Real.pi) *
     Real.exp (-6 * (z + Real.sqrt 2 * y + x / 2) ^ 2)
 
 /-- Joint density of the first `j + 1` coordinates of the stationary AR(2) process. For `j = 0`
 this is the standard 1D Gaussian density; for `j ≥ 1` it is the product of `ar2InitDensity` and
 `j - 1` transition factors `ar2Kernel`. -/
-noncomputable def ar2JointDensity : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
+@[expose] noncomputable def ar2JointDensity : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
   | 0, x => (Real.sqrt (2 * Real.pi))⁻¹ * Real.exp (-(x 0) ^ 2 / 2)
   | k + 1, x =>
       ar2InitDensity (x ⟨0, by omega⟩) (x ⟨1, by omega⟩) *
@@ -116,16 +116,16 @@ noncomputable def ar2JointDensity : (j : ℕ) → (Fin (j + 1) → ℝ) → ℝ
           (x ⟨i.1 + 2, by omega⟩)
 
 /-- Positive-orthant integral `∫_{x > 0} ar2JointDensity j x dx` over `Fin (j + 1) → ℝ`. -/
-noncomputable def ar2OrthantIntegral (j : ℕ) : ℝ :=
+@[expose] noncomputable def ar2OrthantIntegral (j : ℕ) : ℝ :=
   ∫ x in Set.pi Set.univ (fun _ : Fin (j + 1) => Set.Ioi (0 : ℝ)),
     ar2JointDensity j x ∂(Measure.pi fun _ : Fin (j + 1) => volume)
 
 /-- Alternating-sign path probability `2 * ar2OrthantIntegral j` for a path of `j` edges. -/
-noncomputable def altPathProb (j : ℕ) : ℝ :=
+@[expose] noncomputable def altPathProb (j : ℕ) : ℝ :=
   2 * ar2OrthantIntegral j
 
 /-- Truncated alternating wave sum up to path length `J`. -/
-noncomputable def alternatingWaveSum (J : ℕ) : ℝ :=
+@[expose] noncomputable def alternatingWaveSum (J : ℕ) : ℝ :=
   ∑ j ∈ Finset.Icc 1 J,
     (-1 : ℝ) ^ (j + 1) * (3 / 2) * (2 : ℝ) ^ (j - 1) * altPathProb j
 
@@ -1794,19 +1794,19 @@ theorem ar2JointDensity_two_eq (a b c : ℝ) :
 
 /-- Endpoint triple tail bound `endTail L` for `a > L, b > 0, c > 0` (and symmetrically
 `a > 0, b > 0, c > L`). -/
-noncomputable def ar2EndTail (L : ℝ) : ℝ :=
+private noncomputable def ar2EndTail (L : ℝ) : ℝ :=
   (3 / (2 * Real.pi)) * Real.sqrt (6 / Real.pi) *
     (Real.exp (-6 * L ^ 2) / (12 * L)) *
     (1 / (12 * Real.sqrt 2 * L)) * (1 / (6 * L))
 
 /-- Interior triple tail bound `intTail L` for `a > 0, b > L, c > 0`. -/
-noncomputable def ar2IntTail (L : ℝ) : ℝ :=
+private noncomputable def ar2IntTail (L : ℝ) : ℝ :=
   (3 / (2 * Real.pi)) * Real.sqrt (6 / Real.pi) *
     (Real.exp (-(33 / 2) * L ^ 2) / (33 * L)) *
     (1 / (12 * Real.sqrt 2 * L)) ^ 2
 
 /-- Pair tail bound `pairTail L` for `j = 1`. -/
-noncomputable def ar2PairTail (L : ℝ) : ℝ :=
+private noncomputable def ar2PairTail (L : ℝ) : ℝ :=
   (3 / (2 * Real.pi)) *
     (Real.exp (-(9 / 2) * L ^ 2) / (9 * L)) * (1 / (6 * Real.sqrt 2 * L))
 
@@ -1849,8 +1849,50 @@ private theorem lintegral_fin3_prod_mul {fa fb fc : ℝ → ENNReal}
           lintegral_prod_mul hb.aemeasurable hc.aemeasurable
   rw [heq2, ← mul_assoc]
 
+/-- Product domination on `Fin 3 → ℝ`: an integrand dominated pointwise by a constant times a
+product of three one-dimensional factors, each restricted to a measurable set, integrates to at
+most the constant times the product of the three one-dimensional set integrals. -/
+private theorem lintegral_fin3_le_of_le_indicator_prod {F : (Fin 3 → ℝ) → ENNReal} {C : ℝ}
+    {sa sb sc : Set ℝ} (hsa : MeasurableSet sa) (hsb : MeasurableSet sb) (hsc : MeasurableSet sc)
+    {ga gb gc : ℝ → ℝ} (hga : Continuous ga) (hgb : Continuous gb) (hgc : Continuous gc)
+    (hpt : ∀ x : Fin 3 → ℝ, F x ≤ ENNReal.ofReal C *
+      (sa.indicator (fun a => ENNReal.ofReal (ga a)) (x 0) *
+        sb.indicator (fun b => ENNReal.ofReal (gb b)) (x 1) *
+        sc.indicator (fun c => ENNReal.ofReal (gc c)) (x 2))) :
+    ∫⁻ x : Fin 3 → ℝ, F x ∂(Measure.pi fun _ : Fin 3 => volume) ≤
+      ENNReal.ofReal C *
+        ((∫⁻ a in sa, ENNReal.ofReal (ga a)) * (∫⁻ b in sb, ENNReal.ofReal (gb b)) *
+          (∫⁻ c in sc, ENNReal.ofReal (gc c))) := by
+  have hma : Measurable (sa.indicator fun a => ENNReal.ofReal (ga a)) :=
+    (ENNReal.measurable_ofReal.comp hga.measurable).indicator hsa
+  have hmb : Measurable (sb.indicator fun b => ENNReal.ofReal (gb b)) :=
+    (ENNReal.measurable_ofReal.comp hgb.measurable).indicator hsb
+  have hmc : Measurable (sc.indicator fun c => ENNReal.ofReal (gc c)) :=
+    (ENNReal.measurable_ofReal.comp hgc.measurable).indicator hsc
+  have hprod_m : Measurable fun x : Fin 3 → ℝ =>
+      sa.indicator (fun a => ENNReal.ofReal (ga a)) (x 0) *
+        sb.indicator (fun b => ENNReal.ofReal (gb b)) (x 1) *
+        sc.indicator (fun c => ENNReal.ofReal (gc c)) (x 2) :=
+    ((hma.comp (measurable_pi_apply 0)).mul (hmb.comp (measurable_pi_apply 1))).mul
+      (hmc.comp (measurable_pi_apply 2))
+  calc ∫⁻ x : Fin 3 → ℝ, F x ∂(Measure.pi fun _ : Fin 3 => volume)
+      ≤ ∫⁻ x : Fin 3 → ℝ, ENNReal.ofReal C *
+          (sa.indicator (fun a => ENNReal.ofReal (ga a)) (x 0) *
+            sb.indicator (fun b => ENNReal.ofReal (gb b)) (x 1) *
+            sc.indicator (fun c => ENNReal.ofReal (gc c)) (x 2))
+          ∂(Measure.pi fun _ : Fin 3 => volume) := lintegral_mono hpt
+    _ = ENNReal.ofReal C *
+          ((∫⁻ a : ℝ, sa.indicator (fun a => ENNReal.ofReal (ga a)) a) *
+            (∫⁻ b : ℝ, sb.indicator (fun b => ENNReal.ofReal (gb b)) b) *
+            (∫⁻ c : ℝ, sc.indicator (fun c => ENNReal.ofReal (gc c)) c)) := by
+        rw [lintegral_const_mul _ hprod_m, lintegral_fin3_prod_mul hma hmb hmc]
+    _ = ENNReal.ofReal C *
+          ((∫⁻ a in sa, ENNReal.ofReal (ga a)) * (∫⁻ b in sb, ENNReal.ofReal (gb b)) *
+            (∫⁻ c in sc, ENNReal.ofReal (gc c))) := by
+        rw [lintegral_indicator hsa, lintegral_indicator hsb, lintegral_indicator hsc]
+
 /-- Triple left-endpoint tail bound: `P(X₀ > L, X₁ > 0, X₂ > 0) ≤ ar2EndTail L`. -/
-theorem lintegral_triple_end_left_le {L : ℝ} (hL : 0 < L) :
+private theorem lintegral_triple_end_left_le {L : ℝ} (hL : 0 < L) :
     ∫⁻ x : Fin 3 → ℝ,
         (Set.indicator {x : Fin 3 → ℝ | L < x 0 ∧ 0 < x 1 ∧ 0 < x 2}
           (fun _ => (1 : ENNReal)) x) *
@@ -1892,31 +1934,16 @@ theorem lintegral_triple_end_left_le {L : ℝ} (hL : 0 < L) :
       have h3 : 0 ≤ 12 * Real.sqrt 2 * x 1 * x 2 := by positivity
       linarith [sq_nonneg (x 1), sq_nonneg (x 2)]
     · rw [Set.indicator_of_notMem hx, zero_mul]; exact bot_le
-  have hma : Measurable fa :=
-    (ENNReal.measurable_ofReal.comp (by fun_prop : Continuous fun a : ℝ =>
-      Real.exp (-6 * a ^ 2)).measurable).indicator measurableSet_Ioi
-  have hmb : Measurable fb :=
-    (ENNReal.measurable_ofReal.comp (by fun_prop : Continuous fun b : ℝ =>
-      Real.exp (-(12 * Real.sqrt 2 * L) * b)).measurable).indicator measurableSet_Ioi
-  have hmc : Measurable fc :=
-    (ENNReal.measurable_ofReal.comp (by fun_prop : Continuous fun c : ℝ =>
-      Real.exp (-(6 * L) * c)).measurable).indicator measurableSet_Ioi
-  have hprod_m : Measurable fun x : Fin 3 → ℝ => fa (x 0) * fb (x 1) * fc (x 2) :=
-    ((hma.comp (measurable_pi_apply 0)).mul (hmb.comp (measurable_pi_apply 1))).mul
-      (hmc.comp (measurable_pi_apply 2))
   calc ∫⁻ x : Fin 3 → ℝ,
           Set.indicator {x : Fin 3 → ℝ | L < x 0 ∧ 0 < x 1 ∧ 0 < x 2}
             (fun _ => (1 : ENNReal)) x * ENNReal.ofReal (ar2JointDensity 2 x)
           ∂(Measure.pi fun _ : Fin 3 => volume)
-      ≤ ∫⁻ x : Fin 3 → ℝ, ENNReal.ofReal C * (fa (x 0) * fb (x 1) * fc (x 2))
-          ∂(Measure.pi fun _ : Fin 3 => volume) := lintegral_mono hpt
-    _ = ENNReal.ofReal C * ((∫⁻ a : ℝ, fa a) * (∫⁻ b : ℝ, fb b) * (∫⁻ c : ℝ, fc c)) := by
-        rw [lintegral_const_mul _ hprod_m, lintegral_fin3_prod_mul hma hmb hmc]
-    _ = ENNReal.ofReal C *
+      ≤ ENNReal.ofReal C *
           ((∫⁻ a in Set.Ioi L, ENNReal.ofReal (Real.exp (-6 * a ^ 2))) *
            (∫⁻ b in Set.Ioi (0 : ℝ), ENNReal.ofReal (Real.exp (-(12 * Real.sqrt 2 * L) * b))) *
-           (∫⁻ c in Set.Ioi (0 : ℝ), ENNReal.ofReal (Real.exp (-(6 * L) * c)))) := by
-        simp only [fa, fb, fc, lintegral_indicator measurableSet_Ioi]
+           (∫⁻ c in Set.Ioi (0 : ℝ), ENNReal.ofReal (Real.exp (-(6 * L) * c)))) :=
+        lintegral_fin3_le_of_le_indicator_prod measurableSet_Ioi measurableSet_Ioi
+          measurableSet_Ioi (by fun_prop) (by fun_prop) (by fun_prop) hpt
     _ ≤ ENNReal.ofReal C *
           (ENNReal.ofReal (Real.exp (-6 * L ^ 2) / (2 * 6 * L)) *
            ENNReal.ofReal (1 / (12 * Real.sqrt 2 * L)) *
@@ -1931,7 +1958,7 @@ theorem lintegral_triple_end_left_le {L : ℝ} (hL : 0 < L) :
         congr 1; unfold ar2EndTail; dsimp only [C]; ring
 
 /-- Triple right-endpoint tail bound: `P(X₀ > 0, X₁ > 0, X₂ > L) ≤ ar2EndTail L`. -/
-theorem lintegral_triple_end_right_le {L : ℝ} (hL : 0 < L) :
+private theorem lintegral_triple_end_right_le {L : ℝ} (hL : 0 < L) :
     ∫⁻ x : Fin 3 → ℝ,
         (Set.indicator {x : Fin 3 → ℝ | 0 < x 0 ∧ 0 < x 1 ∧ L < x 2}
           (fun _ => (1 : ENNReal)) x) *
@@ -1973,31 +2000,16 @@ theorem lintegral_triple_end_right_le {L : ℝ} (hL : 0 < L) :
       have h3 : 0 ≤ 12 * Real.sqrt 2 * x 0 * x 1 := by positivity
       linarith [sq_nonneg (x 0), sq_nonneg (x 1)]
     · rw [Set.indicator_of_notMem hx, zero_mul]; exact bot_le
-  have hma : Measurable fa :=
-    (ENNReal.measurable_ofReal.comp (by fun_prop : Continuous fun a : ℝ =>
-      Real.exp (-(6 * L) * a)).measurable).indicator measurableSet_Ioi
-  have hmb : Measurable fb :=
-    (ENNReal.measurable_ofReal.comp (by fun_prop : Continuous fun b : ℝ =>
-      Real.exp (-(12 * Real.sqrt 2 * L) * b)).measurable).indicator measurableSet_Ioi
-  have hmc : Measurable fc :=
-    (ENNReal.measurable_ofReal.comp (by fun_prop : Continuous fun c : ℝ =>
-      Real.exp (-6 * c ^ 2)).measurable).indicator measurableSet_Ioi
-  have hprod_m : Measurable fun x : Fin 3 → ℝ => fa (x 0) * fb (x 1) * fc (x 2) :=
-    ((hma.comp (measurable_pi_apply 0)).mul (hmb.comp (measurable_pi_apply 1))).mul
-      (hmc.comp (measurable_pi_apply 2))
   calc ∫⁻ x : Fin 3 → ℝ,
           Set.indicator {x : Fin 3 → ℝ | 0 < x 0 ∧ 0 < x 1 ∧ L < x 2}
             (fun _ => (1 : ENNReal)) x * ENNReal.ofReal (ar2JointDensity 2 x)
           ∂(Measure.pi fun _ : Fin 3 => volume)
-      ≤ ∫⁻ x : Fin 3 → ℝ, ENNReal.ofReal C * (fa (x 0) * fb (x 1) * fc (x 2))
-          ∂(Measure.pi fun _ : Fin 3 => volume) := lintegral_mono hpt
-    _ = ENNReal.ofReal C * ((∫⁻ a : ℝ, fa a) * (∫⁻ b : ℝ, fb b) * (∫⁻ c : ℝ, fc c)) := by
-        rw [lintegral_const_mul _ hprod_m, lintegral_fin3_prod_mul hma hmb hmc]
-    _ = ENNReal.ofReal C *
+      ≤ ENNReal.ofReal C *
           ((∫⁻ a in Set.Ioi (0 : ℝ), ENNReal.ofReal (Real.exp (-(6 * L) * a))) *
            (∫⁻ b in Set.Ioi (0 : ℝ), ENNReal.ofReal (Real.exp (-(12 * Real.sqrt 2 * L) * b))) *
-           (∫⁻ c in Set.Ioi L, ENNReal.ofReal (Real.exp (-6 * c ^ 2)))) := by
-        simp only [fa, fb, fc, lintegral_indicator measurableSet_Ioi]
+           (∫⁻ c in Set.Ioi L, ENNReal.ofReal (Real.exp (-6 * c ^ 2)))) :=
+        lintegral_fin3_le_of_le_indicator_prod measurableSet_Ioi measurableSet_Ioi
+          measurableSet_Ioi (by fun_prop) (by fun_prop) (by fun_prop) hpt
     _ ≤ ENNReal.ofReal C *
           (ENNReal.ofReal (1 / (6 * L)) *
            ENNReal.ofReal (1 / (12 * Real.sqrt 2 * L)) *
@@ -2012,7 +2024,7 @@ theorem lintegral_triple_end_right_le {L : ℝ} (hL : 0 < L) :
         congr 1; unfold ar2EndTail; dsimp only [C]; ring
 
 /-- Triple interior tail bound: `P(X₀ > 0, X₁ > L, X₂ > 0) ≤ ar2IntTail L`. -/
-theorem lintegral_triple_int_le {L : ℝ} (hL : 0 < L) :
+private theorem lintegral_triple_int_le {L : ℝ} (hL : 0 < L) :
     ∫⁻ x : Fin 3 → ℝ,
         (Set.indicator {x : Fin 3 → ℝ | 0 < x 0 ∧ L < x 1 ∧ 0 < x 2}
           (fun _ => (1 : ENNReal)) x) *
@@ -2056,31 +2068,16 @@ theorem lintegral_triple_int_le {L : ℝ} (hL : 0 < L) :
       have h3 : 0 ≤ 6 * x 0 * x 2 := by positivity
       linarith [sq_nonneg (x 0), sq_nonneg (x 2)]
     · rw [Set.indicator_of_notMem hx, zero_mul]; exact bot_le
-  have hma : Measurable fa :=
-    (ENNReal.measurable_ofReal.comp (by fun_prop : Continuous fun a : ℝ =>
-      Real.exp (-(12 * Real.sqrt 2 * L) * a)).measurable).indicator measurableSet_Ioi
-  have hmb : Measurable fb :=
-    (ENNReal.measurable_ofReal.comp (by fun_prop : Continuous fun b : ℝ =>
-      Real.exp (-(33 / 2) * b ^ 2)).measurable).indicator measurableSet_Ioi
-  have hmc : Measurable fc :=
-    (ENNReal.measurable_ofReal.comp (by fun_prop : Continuous fun c : ℝ =>
-      Real.exp (-(12 * Real.sqrt 2 * L) * c)).measurable).indicator measurableSet_Ioi
-  have hprod_m : Measurable fun x : Fin 3 → ℝ => fa (x 0) * fb (x 1) * fc (x 2) :=
-    ((hma.comp (measurable_pi_apply 0)).mul (hmb.comp (measurable_pi_apply 1))).mul
-      (hmc.comp (measurable_pi_apply 2))
   calc ∫⁻ x : Fin 3 → ℝ,
           Set.indicator {x : Fin 3 → ℝ | 0 < x 0 ∧ L < x 1 ∧ 0 < x 2}
             (fun _ => (1 : ENNReal)) x * ENNReal.ofReal (ar2JointDensity 2 x)
           ∂(Measure.pi fun _ : Fin 3 => volume)
-      ≤ ∫⁻ x : Fin 3 → ℝ, ENNReal.ofReal C * (fa (x 0) * fb (x 1) * fc (x 2))
-          ∂(Measure.pi fun _ : Fin 3 => volume) := lintegral_mono hpt
-    _ = ENNReal.ofReal C * ((∫⁻ a : ℝ, fa a) * (∫⁻ b : ℝ, fb b) * (∫⁻ c : ℝ, fc c)) := by
-        rw [lintegral_const_mul _ hprod_m, lintegral_fin3_prod_mul hma hmb hmc]
-    _ = ENNReal.ofReal C *
+      ≤ ENNReal.ofReal C *
           ((∫⁻ a in Set.Ioi (0 : ℝ), ENNReal.ofReal (Real.exp (-(12 * Real.sqrt 2 * L) * a))) *
            (∫⁻ b in Set.Ioi L, ENNReal.ofReal (Real.exp (-(33 / 2) * b ^ 2))) *
-           (∫⁻ c in Set.Ioi (0 : ℝ), ENNReal.ofReal (Real.exp (-(12 * Real.sqrt 2 * L) * c)))) := by
-        simp only [fa, fb, fc, lintegral_indicator measurableSet_Ioi]
+           (∫⁻ c in Set.Ioi (0 : ℝ), ENNReal.ofReal (Real.exp (-(12 * Real.sqrt 2 * L) * c)))) :=
+        lintegral_fin3_le_of_le_indicator_prod measurableSet_Ioi measurableSet_Ioi
+          measurableSet_Ioi (by fun_prop) (by fun_prop) (by fun_prop) hpt
     _ ≤ ENNReal.ofReal C *
           (ENNReal.ofReal (1 / (12 * Real.sqrt 2 * L)) *
            ENNReal.ofReal (Real.exp (-(33 / 2) * L ^ 2) / (2 * (33 / 2) * L)) *
@@ -2095,26 +2092,26 @@ theorem lintegral_triple_int_le {L : ℝ} (hL : 0 < L) :
         congr 1; unfold ar2IntTail; dsimp only [C]; ring
 
 /-- Coordinatewise cutoff for the anisotropic box `[0, L_end] × [0, L_int]^{j-1} × [0, L_end]`. -/
-def ar2BoxBound (L_end L_int : ℝ) (j : ℕ) (i : Fin (j + 1)) : ℝ :=
+private def ar2BoxBound (L_end L_int : ℝ) (j : ℕ) (i : Fin (j + 1)) : ℝ :=
   if i.1 = 0 ∨ i.1 = j then L_end else L_int
 
 /-- The anisotropic truncation box `∏ i, (0, ar2BoxBound L_end L_int j i]`. -/
-def ar2Box (L_end L_int : ℝ) (j : ℕ) : Set (Fin (j + 1) → ℝ) :=
+private def ar2Box (L_end L_int : ℝ) (j : ℕ) : Set (Fin (j + 1) → ℝ) :=
   Set.pi Set.univ fun i => Set.Ioc (0 : ℝ) (ar2BoxBound L_end L_int j i)
 
 /-- The integral of `ar2JointDensity j` over the anisotropic box `ar2Box L_end L_int j`. -/
-noncomputable def ar2BoxIntegral (L_end L_int : ℝ) (j : ℕ) : ℝ :=
+private noncomputable def ar2BoxIntegral (L_end L_int : ℝ) (j : ℕ) : ℝ :=
   ∫ x in ar2Box L_end L_int j, ar2JointDensity j x
     ∂(Measure.pi fun _ : Fin (j + 1) => volume)
 
 /-- Total tail upper bound `tailBound L_end L_int j` for truncating the positive orthant to
 `ar2Box L_end L_int j`. -/
-noncomputable def ar2TailBound (L_end L_int : ℝ) (j : ℕ) : ℝ :=
+private noncomputable def ar2TailBound (L_end L_int : ℝ) (j : ℕ) : ℝ :=
   if j = 1 then 2 * ar2PairTail L_end
   else 2 * ar2EndTail L_end + (j - 1 : ℝ) * ar2IntTail L_int
 
 /-- The box integral is nonnegative and at most `ar2OrthantIntegral j`. -/
-theorem ar2BoxIntegral_le_orthant (L_end L_int : ℝ) (j : ℕ) :
+private theorem ar2BoxIntegral_le_orthant (L_end L_int : ℝ) (j : ℕ) :
     ar2BoxIntegral L_end L_int j ≤ ar2OrthantIntegral j := by
   unfold ar2BoxIntegral ar2OrthantIntegral
   refine setIntegral_mono_set (ar2JointDensity_integrable j).integrableOn
@@ -2123,7 +2120,7 @@ theorem ar2BoxIntegral_le_orthant (L_end L_int : ℝ) (j : ℕ) :
   exact (hx i hi).1
 
 /-- Explicit anisotropic tail truncation error bound for `j ≥ 1`. -/
-theorem ar2OrthantIntegral_sub_box_le {L_end L_int : ℝ} (hLe : 0 < L_end) (hLi : 0 < L_int)
+private theorem ar2OrthantIntegral_sub_box_le {L_end L_int : ℝ} (hLe : 0 < L_end) (hLi : 0 < L_int)
     {j : ℕ} (hj : 1 ≤ j) :
     ar2OrthantIntegral j - ar2BoxIntegral L_end L_int j ≤
       ar2TailBound L_end L_int j := by
@@ -2531,7 +2528,7 @@ private theorem derivative_iterate_monic (p : Polynomial ℝ) (hmon : p.Monic) :
 
 /-- Scaled Legendre polynomial `Q_N(X) = 2^N * P_N(X)` with exact integer-valued binomial
 coefficients. -/
-noncomputable def legendreScaled (N : ℕ) : Polynomial ℝ :=
+private noncomputable def legendreScaled (N : ℕ) : Polynomial ℝ :=
   ∑ k ∈ Finset.range (N / 2 + 1),
     Polynomial.C (((-1 : ℝ) ^ k) * (N.choose k : ℝ) *
       ((2 * N - 2 * k).choose N : ℝ)) * Polynomial.X ^ (N - 2 * k)
@@ -2570,7 +2567,7 @@ private theorem linear_pow_dvd_iterate_deriv (N k : ℕ) (hk : k ≤ N) :
       exact ⟨dvd_derivative_of_pow_succ_dvd h1, dvd_derivative_of_pow_succ_dvd h2⟩
 
 /-- Rodrigues formula: `N! * legendreScaled N = derivative^[N] ((X^2 - 1)^N)`. -/
-theorem legendreScaled_eq_rodrigues (N : ℕ) :
+private theorem legendreScaled_eq_rodrigues (N : ℕ) :
     Polynomial.C (N.factorial : ℝ) * legendreScaled N =
       derivative^[N] ((Polynomial.X ^ 2 - 1 : Polynomial ℝ) ^ N) := by
   have hderiv_pow : ∀ (m r : ℕ), derivative^[r] (Polynomial.X ^ m : Polynomial ℝ) =
@@ -2654,7 +2651,7 @@ theorem legendreScaled_eq_rodrigues (N : ℕ) :
     simp
 
 /-- Degree and leading coefficient of `legendreScaled N`. -/
-theorem legendreScaled_coeff_self (N : ℕ) :
+private theorem legendreScaled_coeff_self (N : ℕ) :
     (legendreScaled N).natDegree = N ∧
     (legendreScaled N).coeff N = ((2 * N).choose N : ℝ) := by
   have hterm : ∀ k ∈ Finset.range (N / 2 + 1),
@@ -2680,11 +2677,11 @@ theorem legendreScaled_coeff_self (N : ℕ) :
   exact ⟨le_antisymm hdeg_le hdeg_ge, hcoeff⟩
 
 /-- Degree `N` of `legendreScaled N`. -/
-theorem legendreScaled_natDegree (N : ℕ) : (legendreScaled N).natDegree = N :=
+private theorem legendreScaled_natDegree (N : ℕ) : (legendreScaled N).natDegree = N :=
   (legendreScaled_coeff_self N).1
 
 /-- Leading coefficient of `legendreScaled N` is `C(2N, N) > 0`. -/
-theorem legendreScaled_leadingCoeff (N : ℕ) :
+private theorem legendreScaled_leadingCoeff (N : ℕ) :
     (legendreScaled N).leadingCoeff = ((2 * N).choose N : ℝ) := by
   rw [Polynomial.leadingCoeff, legendreScaled_natDegree, (legendreScaled_coeff_self N).2]
 
@@ -2735,7 +2732,7 @@ private theorem integral_mul_rodrigues_ibp (N : ℕ) (p : Polynomial ℝ) (k : �
       ring
 
 /-- Orthogonality of `legendreScaled N` to every polynomial of degree `< N` on `[-1, 1]`. -/
-theorem integral_mul_legendreScaled_eq_zero {N : ℕ} {p : Polynomial ℝ}
+private theorem integral_mul_legendreScaled_eq_zero {N : ℕ} {p : Polynomial ℝ}
     (hdeg : p.natDegree < N) :
     ∫ t in (-1 : ℝ)..1, p.eval t * (legendreScaled N).eval t = 0 := by
   have hfac : (N.factorial : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero N)
@@ -2829,7 +2826,7 @@ private theorem integral_one_sub_sq_pow (N : ℕ) :
               ring
 
 /-- Exact `L²` norm squared of `legendreScaled N` on `[-1, 1]`. -/
-theorem integral_legendreScaled_sq (N : ℕ) :
+private theorem integral_legendreScaled_sq (N : ℕ) :
     ∫ t in (-1 : ℝ)..1, ((legendreScaled N).eval t) ^ 2 =
       (2 : ℝ) ^ (2 * N + 1) / (2 * N + 1 : ℝ) := by
   have hfac : (N.factorial : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero N)
@@ -2903,7 +2900,7 @@ theorem integral_legendreScaled_sq (N : ℕ) :
 
 /-- Monic Legendre polynomial integral on `[-1, 1]`: for `N` distinct roots `r` of
 `legendreScaled N`, `∫_{-1}^1 (∏ k, (t - r k))^2 dt` equals the classical factorial formula. -/
-theorem integral_monicLegendre_sq {N : ℕ} {r : Fin N → ℝ}
+private theorem integral_monicLegendre_sq {N : ℕ} {r : Fin N → ℝ}
     (hprod : legendreScaled N =
       Polynomial.C ((2 * N).choose N : ℝ) * ∏ k : Fin N, (Polynomial.X - Polynomial.C (r k))) :
     ∫ t in (-1 : ℝ)..1, (∏ k : Fin N, (t - r k)) ^ 2 =
@@ -2983,13 +2980,13 @@ theorem eq_leadingCoeff_mul_prod_of_roots {N : ℕ} {p : Polynomial ℝ}
 
 /-- Divided-difference quotient polynomial `(p(X) - p(r)) / (X - r)` computed explicitly via
 `geom_sum₂`. -/
-noncomputable def polyQuotAt (p : Polynomial ℝ) (r : ℝ) : Polynomial ℝ :=
+private noncomputable def polyQuotAt (p : Polynomial ℝ) (r : ℝ) : Polynomial ℝ :=
   ∑ j ∈ Finset.range (p.natDegree + 1),
     Polynomial.C (p.coeff j) *
       ∑ i ∈ Finset.range j, Polynomial.C (r ^ (j - 1 - i)) * Polynomial.X ^ i
 
 /-- Pointwise polynomial identity `polyQuotAt p r * (X - C r) = p - C (p.eval r)`. -/
-theorem polyQuotAt_mul_X_sub_C (p : Polynomial ℝ) (r : ℝ) :
+private theorem polyQuotAt_mul_X_sub_C (p : Polynomial ℝ) (r : ℝ) :
     polyQuotAt p r * (Polynomial.X - Polynomial.C r) = p - Polynomial.C (p.eval r) := by
   have hgeo : ∀ j : ℕ, (∑ i ∈ Finset.range j, Polynomial.C (r ^ (j - 1 - i)) * Polynomial.X ^ i) *
       (Polynomial.X - Polynomial.C r) = Polynomial.X ^ j - Polynomial.C (r ^ j) := by
@@ -3024,7 +3021,7 @@ theorem polyQuotAt_mul_X_sub_C (p : Polynomial ℝ) (r : ℝ) :
             refine Finset.sum_congr rfl fun j _ => by simp
 
 /-- Cauchy-integral polynomial whose value at `r` equals `∫_{-1}^1 (p(t) - p(r)) / (t - r) dt`. -/
-noncomputable def cauchyIntPoly (p : Polynomial ℝ) : Polynomial ℝ :=
+private noncomputable def cauchyIntPoly (p : Polynomial ℝ) : Polynomial ℝ :=
   ∑ j ∈ Finset.range (p.natDegree + 1),
     Polynomial.C (p.coeff j) *
       ∑ i ∈ Finset.range j,
@@ -3032,7 +3029,7 @@ noncomputable def cauchyIntPoly (p : Polynomial ℝ) : Polynomial ℝ :=
         else 0
 
 /-- Exact evaluation formula for `cauchyIntPoly p`. -/
-theorem cauchyIntPoly_eval (p : Polynomial ℝ) (r : ℝ) :
+private theorem cauchyIntPoly_eval (p : Polynomial ℝ) (r : ℝ) :
     (cauchyIntPoly p).eval r = ∫ t in (-1 : ℝ)..1, (polyQuotAt p r).eval t := by
   have hint_pow : ∀ i : ℕ, ∫ t in (-1 : ℝ)..1, t ^ i =
       if Even i then (2 : ℝ) / (i + 1 : ℝ) else 0 := by
@@ -3062,12 +3059,13 @@ theorem cauchyIntPoly_eval (p : Polynomial ℝ) (r : ℝ) :
   · simp only [he, ↓reduceIte, eval_zero, mul_zero]
 
 /-- Unshifted Lagrange basis polynomial `ℓ_k(X)` on the node family `r : Fin N → ℝ`. -/
-noncomputable def lagrangeBasis {N : ℕ} (r : Fin N → ℝ) (k : Fin N) : Polynomial ℝ :=
+private noncomputable def lagrangeBasis {N : ℕ} (r : Fin N → ℝ) (k : Fin N) : Polynomial ℝ :=
   ∏ m ∈ Finset.univ.erase k,
     Polynomial.C ((r k - r m)⁻¹) * (Polynomial.X - Polynomial.C (r m))
 
 /-- Value of `lagrangeBasis r k` at every node `r m`. -/
-theorem lagrangeBasis_eval {N : ℕ} {r : Fin N → ℝ} (hr : Function.Injective r) (k m : Fin N) :
+private theorem lagrangeBasis_eval {N : ℕ} {r : Fin N → ℝ} (hr : Function.Injective r)
+    (k m : Fin N) :
     (lagrangeBasis r k).eval (r m) = if m = k then 1 else 0 := by
   unfold lagrangeBasis
   rw [eval_prod]
@@ -3082,7 +3080,7 @@ theorem lagrangeBasis_eval {N : ℕ} {r : Fin N → ℝ} (hr : Function.Injectiv
     simp
 
 /-- Degree of `lagrangeBasis r k` is at most `N - 1` (hence `< N` when `0 < N`). -/
-theorem lagrangeBasis_natDegree_le {N : ℕ} (r : Fin N → ℝ) (k : Fin N) :
+private theorem lagrangeBasis_natDegree_le {N : ℕ} (r : Fin N → ℝ) (k : Fin N) :
     (lagrangeBasis r k).natDegree ≤ N - 1 := by
   have hdeg_le : (lagrangeBasis r k).natDegree ≤ N - 1 := by
     unfold lagrangeBasis
@@ -3102,11 +3100,11 @@ theorem lagrangeBasis_natDegree_le {N : ℕ} (r : Fin N → ℝ) (k : Fin N) :
   exact hdeg_le
 
 /-- Gauss–Legendre quadrature weight `w_k = ∫_{-1}^1 ℓ_k(t) dt`. -/
-noncomputable def gaussWeight {N : ℕ} (r : Fin N → ℝ) (k : Fin N) : ℝ :=
+private noncomputable def gaussWeight {N : ℕ} (r : Fin N → ℝ) (k : Fin N) : ℝ :=
   ∫ t in (-1 : ℝ)..1, (lagrangeBasis r k).eval t
 
 /-- Exact formula expressing `gaussWeight r k` as a single rational ratio evaluated at `r k`. -/
-theorem gaussWeight_eq_cauchyInt_div_deriv {N : ℕ} {r : Fin N → ℝ} (hr_mono : StrictMono r)
+private theorem gaussWeight_eq_cauchyInt_div_deriv {N : ℕ} {r : Fin N → ℝ} (hr_mono : StrictMono r)
     (hr_root : ∀ k : Fin N, (legendreScaled N).eval (r k) = 0) (k : Fin N) :
     gaussWeight r k =
       (cauchyIntPoly (legendreScaled N)).eval (r k) /
@@ -3156,7 +3154,7 @@ theorem gaussWeight_eq_cauchyInt_div_deriv {N : ℕ} {r : Fin N → ℝ} (hr_mon
   exact intervalIntegral.integral_congr fun t _ => hlag t
 
 /-- Exactness of Gauss–Legendre quadrature on `[-1, 1]` for all polynomials of degree `< 2 * N`. -/
-theorem gaussQuad_exact {N : ℕ} (hN : 0 < N) {r : Fin N → ℝ} (hr_mono : StrictMono r)
+private theorem gaussQuad_exact {N : ℕ} (hN : 0 < N) {r : Fin N → ℝ} (hr_mono : StrictMono r)
     (hr_root : ∀ k : Fin N, (legendreScaled N).eval (r k) = 0)
     (f : Polynomial ℝ) (hdeg : f.natDegree < 2 * N) :
     ∫ t in (-1 : ℝ)..1, f.eval t = ∑ k : Fin N, gaussWeight r k * f.eval (r k) := by
@@ -3263,7 +3261,7 @@ theorem gaussQuad_exact {N : ℕ} (hN : 0 < N) {r : Fin N → ℝ} (hr_mono : St
           rw [intervalIntegral.integral_const_mul, mul_comm, gaussWeight]
 
 /-- Positivity of every Gauss–Legendre weight `w_k = ∫_{-1}^1 ℓ_k(t)^2 dt > 0`. -/
-theorem gaussWeight_pos {N : ℕ} (hN : 0 < N) {r : Fin N → ℝ} (hr_mono : StrictMono r)
+private theorem gaussWeight_pos {N : ℕ} (hN : 0 < N) {r : Fin N → ℝ} (hr_mono : StrictMono r)
     (hr_root : ∀ k : Fin N, (legendreScaled N).eval (r k) = 0) (k : Fin N) :
     0 < gaussWeight r k := by
   have hdeg : ((lagrangeBasis r k) ^ 2).natDegree < 2 * N := by
@@ -3305,7 +3303,7 @@ theorem gaussWeight_pos {N : ℕ} (hN : 0 < N) {r : Fin N → ℝ} (hr_mono : St
   simpa [eval_pow] using hpos_int
 
 /-- Sum of Gauss–Legendre weights on `[-1, 1]` equals `2`. -/
-theorem sum_gaussWeight {N : ℕ} (hN : 0 < N) {r : Fin N → ℝ} (hr_mono : StrictMono r)
+private theorem sum_gaussWeight {N : ℕ} (hN : 0 < N) {r : Fin N → ℝ} (hr_mono : StrictMono r)
     (hr_root : ∀ k : Fin N, (legendreScaled N).eval (r k) = 0) :
     ∑ k : Fin N, gaussWeight r k = 2 := by
   have h := gaussQuad_exact hN hr_mono hr_root (1 : Polynomial ℝ) (by simp; omega)
@@ -3349,7 +3347,7 @@ private theorem exists_iteratedDeriv_eq_zero_of_zeros {m : ℕ} {f : ℝ → ℝ
       · rwa [iteratedDeriv_succ']
 
 /-- Hermite interpolation polynomial matching both `g` and `deriv g` at `N` distinct nodes `x`. -/
-noncomputable def hermitePoly {N : ℕ} (x : Fin N → ℝ) (g : ℝ → ℝ) : Polynomial ℝ :=
+private noncomputable def hermitePoly {N : ℕ} (x : Fin N → ℝ) (g : ℝ → ℝ) : Polynomial ℝ :=
   ∑ k : Fin N,
     let l := lagrangeBasis x k
     let lp := l.derivative.eval (x k)
@@ -3414,7 +3412,7 @@ private theorem hermitePoly_spec {N : ℕ} {x : Fin N → ℝ} (hx : Function.In
 
 /-- 1D Gauss–Legendre error theorem on `[a, b]`, specialized via affine shift from `[-1, 1]` to
 `[0, L]`. -/
-theorem abs_integral_sub_gaussQuad_le {N : ℕ} (hN : 0 < N) {L : ℝ} (hL : 0 < L)
+private theorem abs_integral_sub_gaussQuad_le {N : ℕ} (hN : 0 < N) {L : ℝ} (hL : 0 < L)
     {r : Fin N → ℝ} (hr_mono : StrictMono r)
     (hr_range : ∀ k : Fin N, r k ∈ Set.Ioo (-1 : ℝ) 1)
     (hr_root : ∀ k : Fin N, (legendreScaled N).eval (r k) = 0)
@@ -4026,7 +4024,7 @@ section AR2QuadRecurrence
 /-- Explicit upper bound on `|ar2BoxIntegral L_end L_int j - ar2TensorQuad L_end L_int r j|`
 using the `N`-point shifted Gauss–Legendre rule and the diagonal precision bounds `≤ 12`
 at endpoints and `≤ 39` in the interior. -/
-noncomputable def ar2QuadErr (N : ℕ) (L_end L_int : ℝ) (j : ℕ) : ℝ :=
+private noncomputable def ar2QuadErr (N : ℕ) (L_end L_int : ℝ) (j : ℕ) : ℝ :=
   (3 / (2 * Real.pi)) * (Real.sqrt (6 / Real.pi)) ^ (j - 1) *
     L_end ^ 2 * L_int ^ (j - 1) *
     ((N.factorial : ℝ) ^ 3 /
@@ -4034,21 +4032,21 @@ noncomputable def ar2QuadErr (N : ℕ) (L_end L_int : ℝ) (j : ℕ) : ℝ :=
     (2 * (12 * L_end ^ 2) ^ N + ((j - 1 : ℕ) : ℝ) * (39 * L_int ^ 2) ^ N)
 
 /-- Nonnegativity of `ar2QuadErr`. -/
-theorem ar2QuadErr_nonneg (N : ℕ) {L_end L_int : ℝ} (_hLe : 0 ≤ L_end) (hLi : 0 ≤ L_int)
+private theorem ar2QuadErr_nonneg (N : ℕ) {L_end L_int : ℝ} (_hLe : 0 ≤ L_end) (hLi : 0 ≤ L_int)
     (j : ℕ) : 0 ≤ ar2QuadErr N L_end L_int j := by
   unfold ar2QuadErr
   positivity
 
 /-- Tensor-product Gauss–Legendre quadrature sum for `ar2JointDensity j` over the anisotropic
 box `ar2Box L_end L_int j`. -/
-noncomputable def ar2TensorQuad {N : ℕ} (L_end L_int : ℝ) (r : Fin N → ℝ) (j : ℕ) : ℝ :=
+private noncomputable def ar2TensorQuad {N : ℕ} (L_end L_int : ℝ) (r : Fin N → ℝ) (j : ℕ) : ℝ :=
   ∑ a : Fin (j + 1) → Fin N,
     (∏ i : Fin (j + 1), ar2BoxBound L_end L_int j i / 2 * gaussWeight r (a i)) *
       ar2JointDensity j (fun i => ar2BoxBound L_end L_int j i / 2 * (r (a i) + 1))
 
 /-- Anisotropic Gauss–Legendre quadrature error bound for `ar2BoxIntegral L_end L_int j`
 (`j ≥ 1`). -/
-theorem abs_ar2BoxIntegral_sub_tensorQuad_le {N : ℕ} (hN : 0 < N)
+private theorem abs_ar2BoxIntegral_sub_tensorQuad_le {N : ℕ} (hN : 0 < N)
     {L_end L_int : ℝ} (hLe : 0 < L_end) (hLi : 0 < L_int)
     {r : Fin N → ℝ} (hr_mono : StrictMono r)
     (hr_range : ∀ k : Fin N, r k ∈ Set.Ioo (-1 : ℝ) 1)
@@ -4186,7 +4184,7 @@ theorem abs_ar2BoxIntegral_sub_tensorQuad_le {N : ℕ} (hN : 0 < N)
 `qLo j ≤ 2^(j-1) * ar2TensorQuad L_end L_int r j ≤ qHi j` for `j ∈ Finset.Icc 1 J`, even-index
 tail truncation errors are dropped (they contribute nonpositively) while odd-index terms add both
 quadrature and tail error bounds. -/
-theorem alternatingWaveSum_le_of_quad {N : ℕ} (hN : 0 < N)
+private theorem alternatingWaveSum_le_of_quad {N : ℕ} (hN : 0 < N)
     {L_end L_int : ℝ} (hLe : 0 < L_end) (hLi : 0 < L_int)
     {r : Fin N → ℝ} (hr_mono : StrictMono r)
     (hr_range : ∀ k : Fin N, r k ∈ Set.Ioo (-1 : ℝ) 1)
@@ -7469,31 +7467,21 @@ private theorem gaussWeight_r19_symm (k : Fin 19) :
 
 private def certDPow17 : ℕ := certD ^ 17
 
-private theorem weight_bracket_pos_sign {mid wLo wHi : ℕ} {r : ℝ}
+/-- Lipschitz step shared by the two sign cases of the weight bracket: at a point `r` within
+`1 / certD` of the grid point `mid / certD`, the scaled numerator and denominator of the
+Gauss–Legendre weight are within `mAp19 * certD ^ 17`, respectively `mQpp19 * certD ^ 17`, of
+their integer evaluations at the grid point. -/
+private theorem weight_bracket_dist {mid : ℕ} {r : ℝ}
     (hmid : mid + 1 ≤ certD) (hr_mem : r ∈ Set.Icc (-1 : ℝ) 1)
-    (hr_dist : |r - (mid : ℝ) / certD| ≤ 1 / (certD : ℝ))
-    (ha_sign : Nat.ble (Nat.add (evalHom a19Neg mid certD) (Nat.mul mAp19 certDPow17))
-      (evalHom a19Pos mid certD) = true)
-    (hd_sign : Nat.ble (Nat.add (evalHom d19Neg mid certD)
-      (Nat.add (Nat.mul mQpp19 certDPow17) 1)) (evalHom d19Pos mid certD) = true)
-    (hlo : Nat.ble (Nat.mul wLo (Nat.mul a19LCM
-      (Nat.add (Nat.sub (evalHom d19Pos mid certD) (evalHom d19Neg mid certD))
-        (Nat.mul mQpp19 certDPow17))))
-      (Nat.mul (Nat.sub (Nat.sub (evalHom a19Pos mid certD) (evalHom a19Neg mid certD))
-        (Nat.mul mAp19 certDPow17)) certS) = true)
-    (hhi : Nat.ble (Nat.mul (Nat.add (Nat.sub (evalHom a19Pos mid certD)
-        (evalHom a19Neg mid certD)) (Nat.mul mAp19 certDPow17)) certS)
-      (Nat.mul wHi (Nat.mul a19LCM
-        (Nat.sub (Nat.sub (evalHom d19Pos mid certD) (evalHom d19Neg mid certD))
-          (Nat.mul mQpp19 certDPow17)))) = true) :
-    (wLo : ℝ) / certS ≤ (cauchyIntPoly (legendreScaled 19)).eval r /
-        (legendreScaled 19).derivative.eval r ∧
-      (cauchyIntPoly (legendreScaled 19)).eval r /
-        (legendreScaled 19).derivative.eval r ≤ (wHi : ℝ) / certS := by
+    (hr_dist : |r - (mid : ℝ) / certD| ≤ 1 / (certD : ℝ)) :
+    |(certD : ℝ) ^ 18 * ((a19LCM : ℝ) * (cauchyIntPoly (legendreScaled 19)).eval r) -
+        ((evalHom a19Pos mid certD : ℝ) - (evalHom a19Neg mid certD : ℝ))| ≤
+      (mAp19 : ℝ) * (certDPow17 : ℝ) ∧
+    |(certD : ℝ) ^ 18 * (legendreScaled 19).derivative.eval r -
+        ((evalHom d19Pos mid certD : ℝ) - (evalHom d19Neg mid certD : ℝ))| ≤
+      (mQpp19 : ℝ) * (certDPow17 : ℝ) := by
   have hD : 0 < certD := by decide
   have hDR : (0 : ℝ) < certD := Nat.cast_pos.mpr hD
-  have hSpos : (0 : ℝ) < certS := by norm_num [certS]
-  have hLpos : (0 : ℝ) < a19LCM := by norm_num [a19LCM]
   have hm_mem : (mid : ℝ) / certD ∈ Set.Icc (-1 : ℝ) 1 := by
     have hm0 : (0 : ℝ) ≤ (mid : ℝ) / certD := by positivity
     exact ⟨by linarith, by rw [div_le_one hDR]; exact_mod_cast (show mid ≤ certD by omega)⟩
@@ -7526,68 +7514,61 @@ private theorem weight_bracket_pos_sign {mid wLo wHi : ℕ} {r : ℝ}
       (legendreScaled 19).derivative.eval ((mid : ℝ) / certD)| ≤ (mQpp19 : ℝ) / certD :=
     (hd_lip.trans (mul_le_mul_of_nonneg_left hr_dist (by positivity))).trans_eq
       (by ring)
-  have hpow : (certD : ℝ) ^ 18 * ((1 : ℝ) / certD) = (certDPow17 : ℝ) := by
-    unfold certDPow17; push_cast; field_simp
   have hD18 : (0 : ℝ) < (certD : ℝ) ^ 18 := by positivity
-  set aP := evalHom a19Pos mid certD
-  set aN := evalHom a19Neg mid certD
-  set dP := evalHom d19Pos mid certD
-  set dN := evalHom d19Neg mid certD
-  set A := (certD : ℝ) ^ 18 * ((a19LCM : ℝ) * (cauchyIntPoly (legendreScaled 19)).eval r)
-  set B := (certD : ℝ) ^ 18 * (legendreScaled 19).derivative.eval r
-  have ha_abs := abs_le.mp ha_bd
-  have hd_abs := abs_le.mp hd_bd
-  have hA_lo : ((aP - aN) - mAp19 * certDPow17 : ℕ) ≤ A := by
-    have hnat : aN + mAp19 * certDPow17 ≤ aP := Nat.le_of_ble_eq_true ha_sign
+  constructor
+  · rw [← ha_eq, ← mul_sub, abs_mul, abs_of_pos hD18]
+    calc (certD : ℝ) ^ 18 * |(a19LCM : ℝ) * (cauchyIntPoly (legendreScaled 19)).eval r -
+          (a19LCM : ℝ) * (cauchyIntPoly (legendreScaled 19)).eval ((mid : ℝ) / certD)|
+        ≤ (certD : ℝ) ^ 18 * ((mAp19 : ℝ) / certD) := mul_le_mul_of_nonneg_left ha_bd hD18.le
+      _ = (mAp19 : ℝ) * (certDPow17 : ℝ) := by unfold certDPow17; push_cast; field_simp
+  · rw [← hd_eq, ← mul_sub, abs_mul, abs_of_pos hD18]
+    calc (certD : ℝ) ^ 18 * |(legendreScaled 19).derivative.eval r -
+          (legendreScaled 19).derivative.eval ((mid : ℝ) / certD)|
+        ≤ (certD : ℝ) ^ 18 * ((mQpp19 : ℝ) / certD) := mul_le_mul_of_nonneg_left hd_bd hD18.le
+      _ = (mQpp19 : ℝ) * (certDPow17 : ℝ) := by unfold certDPow17; push_cast; field_simp
+
+/-- Interval step shared by the two sign cases of the weight bracket: if `A` and `B` are within
+the Lipschitz radii of the integers `aP - aN` and `dP - dN`, which the sign checks keep positive,
+then the checked integer inequalities bracket `A / (a19LCM * B)` between `wLo / certS` and
+`wHi / certS`. -/
+private theorem weight_bracket_of_bounds {wLo wHi aP aN dP dN : ℕ} {A B : ℝ}
+    (hA : |A - ((aP : ℝ) - (aN : ℝ))| ≤ (mAp19 : ℝ) * (certDPow17 : ℝ))
+    (hB : |B - ((dP : ℝ) - (dN : ℝ))| ≤ (mQpp19 : ℝ) * (certDPow17 : ℝ))
+    (ha_sign : aN + mAp19 * certDPow17 ≤ aP)
+    (hd_sign : dN + (mQpp19 * certDPow17 + 1) ≤ dP)
+    (hlo : wLo * (a19LCM * (dP - dN + mQpp19 * certDPow17)) ≤
+      (aP - aN - mAp19 * certDPow17) * certS)
+    (hhi : (aP - aN + mAp19 * certDPow17) * certS ≤
+      wHi * (a19LCM * (dP - dN - mQpp19 * certDPow17))) :
+    (wLo : ℝ) / certS ≤ A / ((a19LCM : ℝ) * B) ∧
+      A / ((a19LCM : ℝ) * B) ≤ (wHi : ℝ) / certS := by
+  have hSpos : (0 : ℝ) < certS := by norm_num [certS]
+  have hLpos : (0 : ℝ) < a19LCM := by norm_num [a19LCM]
+  have ha_abs := abs_le.mp hA
+  have hd_abs := abs_le.mp hB
+  have hA_lo : ((aP - aN - mAp19 * certDPow17 : ℕ) : ℝ) ≤ A := by
     rw [Nat.cast_sub (by omega : mAp19 * certDPow17 ≤ aP - aN),
       Nat.cast_sub (by omega : aN ≤ aP)]
-    have hstep := mul_le_mul_of_nonneg_left ha_abs.1 hD18.le
-    rw [mul_sub] at hstep
-    have hrhs : (certD : ℝ) ^ 18 * -((mAp19 : ℝ) / certD) =
-        -((mAp19 : ℝ) * (certDPow17 : ℝ)) := by
-      unfold certDPow17; push_cast; field_simp
-    dsimp only [A]; push_cast; linarith [hstep, hrhs, ha_eq]
-  have hA_hi : A ≤ ((aP - aN) + mAp19 * certDPow17 : ℕ) := by
-    have hnat : aN + mAp19 * certDPow17 ≤ aP := Nat.le_of_ble_eq_true ha_sign
+    push_cast; linarith [ha_abs.1]
+  have hA_hi : A ≤ ((aP - aN + mAp19 * certDPow17 : ℕ) : ℝ) := by
     push_cast; rw [Nat.cast_sub (by omega : aN ≤ aP)]
-    have hstep := mul_le_mul_of_nonneg_left ha_abs.2 hD18.le
-    rw [mul_sub] at hstep
-    have hrhs : (certD : ℝ) ^ 18 * ((mAp19 : ℝ) / certD) =
-        (mAp19 : ℝ) * (certDPow17 : ℝ) := by
-      unfold certDPow17; push_cast; field_simp
-    dsimp only [A]; linarith [hstep, hrhs, ha_eq]
-  have hB_lo : ((dP - dN) - mQpp19 * certDPow17 : ℕ) ≤ B ∧
-      0 < (((dP - dN) - mQpp19 * certDPow17 : ℕ) : ℝ) := by
-    have hnat : dN + (mQpp19 * certDPow17 + 1) ≤ dP := Nat.le_of_ble_eq_true hd_sign
-    refine ⟨?_, Nat.cast_pos.mpr (by omega)⟩
+    linarith [ha_abs.2]
+  have hB_lo : ((dP - dN - mQpp19 * certDPow17 : ℕ) : ℝ) ≤ B := by
     rw [Nat.cast_sub (by omega : mQpp19 * certDPow17 ≤ dP - dN),
       Nat.cast_sub (by omega : dN ≤ dP)]
-    have hstep := mul_le_mul_of_nonneg_left hd_abs.1 hD18.le
-    rw [mul_sub] at hstep
-    have hrhs : (certD : ℝ) ^ 18 * -((mQpp19 : ℝ) / certD) =
-        -((mQpp19 : ℝ) * (certDPow17 : ℝ)) := by
-      unfold certDPow17; push_cast; field_simp
-    dsimp only [B]; push_cast; linarith [hstep, hrhs, hd_eq]
-  have hB_hi : B ≤ ((dP - dN) + mQpp19 * certDPow17 : ℕ) := by
-    have hnat : dN + (mQpp19 * certDPow17 + 1) ≤ dP := Nat.le_of_ble_eq_true hd_sign
+    push_cast; linarith [hd_abs.1]
+  have hB_hi : B ≤ ((dP - dN + mQpp19 * certDPow17 : ℕ) : ℝ) := by
     push_cast; rw [Nat.cast_sub (by omega : dN ≤ dP)]
-    have hstep := mul_le_mul_of_nonneg_left hd_abs.2 hD18.le
-    rw [mul_sub] at hstep
-    have hrhs : (certD : ℝ) ^ 18 * ((mQpp19 : ℝ) / certD) =
-        (mQpp19 : ℝ) * (certDPow17 : ℝ) := by
-      unfold certDPow17; push_cast; field_simp
-    dsimp only [B]; linarith [hstep, hrhs, hd_eq]
-  have hB_pos : 0 < B := hB_lo.2.trans_le hB_lo.1
-  have hratio : (cauchyIntPoly (legendreScaled 19)).eval r /
-      (legendreScaled 19).derivative.eval r = A / ((a19LCM : ℝ) * B) := by
-    dsimp only [A, B]; field_simp
-  rw [hratio]
+    linarith [hd_abs.2]
+  have hB_lo_pos : (0 : ℝ) < ((dP - dN - mQpp19 * certDPow17 : ℕ) : ℝ) :=
+    Nat.cast_pos.mpr (by omega)
+  have hB_pos : 0 < B := hB_lo_pos.trans_le hB_lo
   have hloR : (wLo : ℝ) * ((a19LCM : ℝ) * ((dP - dN + mQpp19 * certDPow17 : ℕ) : ℝ)) ≤
       ((aP - aN - mAp19 * certDPow17 : ℕ) : ℝ) * certS := by
-    exact_mod_cast Nat.le_of_ble_eq_true hlo
+    exact_mod_cast hlo
   have hhiR : ((aP - aN + mAp19 * certDPow17 : ℕ) : ℝ) * certS ≤
       (wHi : ℝ) * ((a19LCM : ℝ) * ((dP - dN - mQpp19 * certDPow17 : ℕ) : ℝ)) := by
-    exact_mod_cast Nat.le_of_ble_eq_true hhi
+    exact_mod_cast hhi
   constructor
   · rw [div_le_div_iff₀ hSpos (mul_pos hLpos hB_pos)]
     calc (wLo : ℝ) * ((a19LCM : ℝ) * B)
@@ -7598,7 +7579,43 @@ private theorem weight_bracket_pos_sign {mid wLo wHi : ℕ} {r : ℝ}
   · rw [div_le_div_iff₀ (mul_pos hLpos hB_pos) hSpos]
     calc A * certS ≤ ((aP - aN + mAp19 * certDPow17 : ℕ) : ℝ) * certS := by gcongr
       _ ≤ (wHi : ℝ) * ((a19LCM : ℝ) * ((dP - dN - mQpp19 * certDPow17 : ℕ) : ℝ)) := hhiR
-      _ ≤ (wHi : ℝ) * ((a19LCM : ℝ) * B) := by gcongr; exact hB_lo.1
+      _ ≤ (wHi : ℝ) * ((a19LCM : ℝ) * B) := by gcongr
+
+private theorem weight_bracket_pos_sign {mid wLo wHi : ℕ} {r : ℝ}
+    (hmid : mid + 1 ≤ certD) (hr_mem : r ∈ Set.Icc (-1 : ℝ) 1)
+    (hr_dist : |r - (mid : ℝ) / certD| ≤ 1 / (certD : ℝ))
+    (ha_sign : Nat.ble (Nat.add (evalHom a19Neg mid certD) (Nat.mul mAp19 certDPow17))
+      (evalHom a19Pos mid certD) = true)
+    (hd_sign : Nat.ble (Nat.add (evalHom d19Neg mid certD)
+      (Nat.add (Nat.mul mQpp19 certDPow17) 1)) (evalHom d19Pos mid certD) = true)
+    (hlo : Nat.ble (Nat.mul wLo (Nat.mul a19LCM
+      (Nat.add (Nat.sub (evalHom d19Pos mid certD) (evalHom d19Neg mid certD))
+        (Nat.mul mQpp19 certDPow17))))
+      (Nat.mul (Nat.sub (Nat.sub (evalHom a19Pos mid certD) (evalHom a19Neg mid certD))
+        (Nat.mul mAp19 certDPow17)) certS) = true)
+    (hhi : Nat.ble (Nat.mul (Nat.add (Nat.sub (evalHom a19Pos mid certD)
+        (evalHom a19Neg mid certD)) (Nat.mul mAp19 certDPow17)) certS)
+      (Nat.mul wHi (Nat.mul a19LCM
+        (Nat.sub (Nat.sub (evalHom d19Pos mid certD) (evalHom d19Neg mid certD))
+          (Nat.mul mQpp19 certDPow17)))) = true) :
+    (wLo : ℝ) / certS ≤ (cauchyIntPoly (legendreScaled 19)).eval r /
+        (legendreScaled 19).derivative.eval r ∧
+      (cauchyIntPoly (legendreScaled 19)).eval r /
+        (legendreScaled 19).derivative.eval r ≤ (wHi : ℝ) / certS := by
+  have hLpos : (0 : ℝ) < a19LCM := by norm_num [a19LCM]
+  have hD18 : (0 : ℝ) < (certD : ℝ) ^ 18 := pow_pos (Nat.cast_pos.mpr (by decide)) 18
+  obtain ⟨ha_bd, hd_bd⟩ := weight_bracket_dist hmid hr_mem hr_dist
+  have h := weight_bracket_of_bounds (wLo := wLo) (wHi := wHi) ha_bd hd_bd
+    (Nat.le_of_ble_eq_true ha_sign) (Nat.le_of_ble_eq_true hd_sign)
+    (Nat.le_of_ble_eq_true hlo) (Nat.le_of_ble_eq_true hhi)
+  have hratio : (cauchyIntPoly (legendreScaled 19)).eval r /
+      (legendreScaled 19).derivative.eval r =
+      (certD : ℝ) ^ 18 * ((a19LCM : ℝ) * (cauchyIntPoly (legendreScaled 19)).eval r) /
+        ((a19LCM : ℝ) * ((certD : ℝ) ^ 18 * (legendreScaled 19).derivative.eval r)) := by
+    rw [mul_left_comm ((certD : ℝ) ^ 18) (a19LCM : ℝ), mul_div_mul_left _ _ hLpos.ne',
+      mul_div_mul_left _ _ hD18.ne']
+  rw [hratio]
+  exact h
 
 private theorem weight_bracket_neg_sign {mid wLo wHi : ℕ} {r : ℝ}
     (hmid : mid + 1 ≤ certD) (hr_mem : r ∈ Set.Icc (-1 : ℝ) 1)
@@ -7621,113 +7638,29 @@ private theorem weight_bracket_neg_sign {mid wLo wHi : ℕ} {r : ℝ}
         (legendreScaled 19).derivative.eval r ∧
       (cauchyIntPoly (legendreScaled 19)).eval r /
         (legendreScaled 19).derivative.eval r ≤ (wHi : ℝ) / certS := by
-  have hD : 0 < certD := by decide
-  have hDR : (0 : ℝ) < certD := Nat.cast_pos.mpr hD
-  have hSpos : (0 : ℝ) < certS := by norm_num [certS]
   have hLpos : (0 : ℝ) < a19LCM := by norm_num [a19LCM]
-  have hm_mem : (mid : ℝ) / certD ∈ Set.Icc (-1 : ℝ) 1 := by
-    have hm0 : (0 : ℝ) ≤ (mid : ℝ) / certD := by positivity
-    exact ⟨by linarith, by rw [div_le_one hDR]; exact_mod_cast (show mid ≤ certD by omega)⟩
-  have ha_eq : (certD : ℝ) ^ 18 * ((a19LCM : ℝ) *
-      (cauchyIntPoly (legendreScaled 19)).eval ((mid : ℝ) / certD)) =
-      (evalHom a19Pos mid certD : ℝ) - (evalHom a19Neg mid certD : ℝ) := by
-    rw [evalHom_eq (by decide : a19Pos ≠ []) mid hD,
-      evalHom_eq (by decide : a19Neg ≠ []) mid hD]
-    have h1 : a19Pos.length - 1 = 18 := rfl
-    have h2 : a19Neg.length - 1 = 18 := rfl
-    rw [h1, h2, ← mul_sub, ← Polynomial.eval_sub, ← a19_eq,
-      Polynomial.eval_mul, Polynomial.eval_C]
-  have hd_eq : (certD : ℝ) ^ 18 * (legendreScaled 19).derivative.eval ((mid : ℝ) / certD) =
-      (evalHom d19Pos mid certD : ℝ) - (evalHom d19Neg mid certD : ℝ) := by
-    rw [evalHom_eq (by decide : d19Pos ≠ []) mid hD,
-      evalHom_eq (by decide : d19Neg ≠ []) mid hD]
-    have h1 : d19Pos.length - 1 = 18 := rfl
-    have h2 : d19Neg.length - 1 = 18 := rfl
-    rw [h1, h2, ← mul_sub, ← Polynomial.eval_sub, ← d19_eq]
-  have ha_lip := abs_poly_eval_sub_le (Polynomial.C (a19LCM : ℝ) *
-    cauchyIntPoly (legendreScaled 19)) mAp19 a19_lip_le hr_mem hm_mem
-  have hd_lip := abs_poly_eval_sub_le (legendreScaled 19).derivative mQpp19
-    d19_lip_le hr_mem hm_mem
-  have ha_bd : |(a19LCM : ℝ) * (cauchyIntPoly (legendreScaled 19)).eval r -
-      (a19LCM : ℝ) * (cauchyIntPoly (legendreScaled 19)).eval ((mid : ℝ) / certD)| ≤
-      (mAp19 : ℝ) / certD := by
-    have h1 := ha_lip.trans (mul_le_mul_of_nonneg_left hr_dist (by positivity))
-    simpa [Polynomial.eval_mul, Polynomial.eval_C, div_eq_mul_inv] using h1
-  have hd_bd : |(legendreScaled 19).derivative.eval r -
-      (legendreScaled 19).derivative.eval ((mid : ℝ) / certD)| ≤ (mQpp19 : ℝ) / certD :=
-    (hd_lip.trans (mul_le_mul_of_nonneg_left hr_dist (by positivity))).trans_eq
-      (by ring)
-  have hD18 : (0 : ℝ) < (certD : ℝ) ^ 18 := by positivity
-  set aP := evalHom a19Pos mid certD
-  set aN := evalHom a19Neg mid certD
-  set dP := evalHom d19Pos mid certD
-  set dN := evalHom d19Neg mid certD
-  set A := -((certD : ℝ) ^ 18 * ((a19LCM : ℝ) * (cauchyIntPoly (legendreScaled 19)).eval r))
-  set B := -((certD : ℝ) ^ 18 * (legendreScaled 19).derivative.eval r)
-  have ha_abs := abs_le.mp ha_bd
-  have hd_abs := abs_le.mp hd_bd
-  have hA_lo : ((aN - aP) - mAp19 * certDPow17 : ℕ) ≤ A := by
-    have hnat : aP + mAp19 * certDPow17 ≤ aN := Nat.le_of_ble_eq_true ha_sign
-    rw [Nat.cast_sub (by omega : mAp19 * certDPow17 ≤ aN - aP),
-      Nat.cast_sub (by omega : aP ≤ aN)]
-    have hstep := mul_le_mul_of_nonneg_left ha_abs.2 hD18.le
-    rw [mul_sub] at hstep
-    have hrhs : (certD : ℝ) ^ 18 * ((mAp19 : ℝ) / certD) =
-        (mAp19 : ℝ) * (certDPow17 : ℝ) := by
-      unfold certDPow17; push_cast; field_simp
-    dsimp only [A]; push_cast; linarith [hstep, hrhs, ha_eq]
-  have hA_hi : A ≤ ((aN - aP) + mAp19 * certDPow17 : ℕ) := by
-    have hnat : aP + mAp19 * certDPow17 ≤ aN := Nat.le_of_ble_eq_true ha_sign
-    push_cast; rw [Nat.cast_sub (by omega : aP ≤ aN)]
-    have hstep := mul_le_mul_of_nonneg_left ha_abs.1 hD18.le
-    rw [mul_sub] at hstep
-    have hrhs : (certD : ℝ) ^ 18 * -((mAp19 : ℝ) / certD) =
-        -((mAp19 : ℝ) * (certDPow17 : ℝ)) := by
-      unfold certDPow17; push_cast; field_simp
-    dsimp only [A]; linarith [hstep, hrhs, ha_eq]
-  have hB_lo : ((dN - dP) - mQpp19 * certDPow17 : ℕ) ≤ B ∧
-      0 < (((dN - dP) - mQpp19 * certDPow17 : ℕ) : ℝ) := by
-    have hnat : dP + (mQpp19 * certDPow17 + 1) ≤ dN := Nat.le_of_ble_eq_true hd_sign
-    refine ⟨?_, Nat.cast_pos.mpr (by omega)⟩
-    rw [Nat.cast_sub (by omega : mQpp19 * certDPow17 ≤ dN - dP),
-      Nat.cast_sub (by omega : dP ≤ dN)]
-    have hstep := mul_le_mul_of_nonneg_left hd_abs.2 hD18.le
-    rw [mul_sub] at hstep
-    have hrhs : (certD : ℝ) ^ 18 * ((mQpp19 : ℝ) / certD) =
-        (mQpp19 : ℝ) * (certDPow17 : ℝ) := by
-      unfold certDPow17; push_cast; field_simp
-    dsimp only [B]; push_cast; linarith [hstep, hrhs, hd_eq]
-  have hB_hi : B ≤ ((dN - dP) + mQpp19 * certDPow17 : ℕ) := by
-    have hnat : dP + (mQpp19 * certDPow17 + 1) ≤ dN := Nat.le_of_ble_eq_true hd_sign
-    push_cast; rw [Nat.cast_sub (by omega : dP ≤ dN)]
-    have hstep := mul_le_mul_of_nonneg_left hd_abs.1 hD18.le
-    rw [mul_sub] at hstep
-    have hrhs : (certD : ℝ) ^ 18 * -((mQpp19 : ℝ) / certD) =
-        -((mQpp19 : ℝ) * (certDPow17 : ℝ)) := by
-      unfold certDPow17; push_cast; field_simp
-    dsimp only [B]; linarith [hstep, hrhs, hd_eq]
-  have hB_pos : 0 < B := hB_lo.2.trans_le hB_lo.1
+  have hD18 : (0 : ℝ) < (certD : ℝ) ^ 18 := pow_pos (Nat.cast_pos.mpr (by decide)) 18
+  obtain ⟨ha_bd, hd_bd⟩ := weight_bracket_dist hmid hr_mem hr_dist
+  have ha_bd' : |-((certD : ℝ) ^ 18 * ((a19LCM : ℝ) *
+      (cauchyIntPoly (legendreScaled 19)).eval r)) -
+      ((evalHom a19Neg mid certD : ℝ) - (evalHom a19Pos mid certD : ℝ))| ≤
+      (mAp19 : ℝ) * (certDPow17 : ℝ) := by
+    rw [← abs_neg]; convert ha_bd using 2; ring
+  have hd_bd' : |-((certD : ℝ) ^ 18 * (legendreScaled 19).derivative.eval r) -
+      ((evalHom d19Neg mid certD : ℝ) - (evalHom d19Pos mid certD : ℝ))| ≤
+      (mQpp19 : ℝ) * (certDPow17 : ℝ) := by
+    rw [← abs_neg]; convert hd_bd using 2; ring
+  have h := weight_bracket_of_bounds (wLo := wLo) (wHi := wHi) ha_bd' hd_bd'
+    (Nat.le_of_ble_eq_true ha_sign) (Nat.le_of_ble_eq_true hd_sign)
+    (Nat.le_of_ble_eq_true hlo) (Nat.le_of_ble_eq_true hhi)
   have hratio : (cauchyIntPoly (legendreScaled 19)).eval r /
-      (legendreScaled 19).derivative.eval r = A / ((a19LCM : ℝ) * B) := by
-    dsimp only [A, B]; field_simp
+      (legendreScaled 19).derivative.eval r =
+      -((certD : ℝ) ^ 18 * ((a19LCM : ℝ) * (cauchyIntPoly (legendreScaled 19)).eval r)) /
+        ((a19LCM : ℝ) * -((certD : ℝ) ^ 18 * (legendreScaled 19).derivative.eval r)) := by
+    rw [mul_neg, neg_div_neg_eq, mul_left_comm ((certD : ℝ) ^ 18) (a19LCM : ℝ),
+      mul_div_mul_left _ _ hLpos.ne', mul_div_mul_left _ _ hD18.ne']
   rw [hratio]
-  have hloR : (wLo : ℝ) * ((a19LCM : ℝ) * ((dN - dP + mQpp19 * certDPow17 : ℕ) : ℝ)) ≤
-      ((aN - aP - mAp19 * certDPow17 : ℕ) : ℝ) * certS := by
-    exact_mod_cast Nat.le_of_ble_eq_true hlo
-  have hhiR : ((aN - aP + mAp19 * certDPow17 : ℕ) : ℝ) * certS ≤
-      (wHi : ℝ) * ((a19LCM : ℝ) * ((dN - dP - mQpp19 * certDPow17 : ℕ) : ℝ)) := by
-    exact_mod_cast Nat.le_of_ble_eq_true hhi
-  constructor
-  · rw [div_le_div_iff₀ hSpos (mul_pos hLpos hB_pos)]
-    calc (wLo : ℝ) * ((a19LCM : ℝ) * B)
-        ≤ (wLo : ℝ) * ((a19LCM : ℝ) * ((dN - dP + mQpp19 * certDPow17 : ℕ) : ℝ)) := by
-            gcongr
-      _ ≤ ((aN - aP - mAp19 * certDPow17 : ℕ) : ℝ) * certS := hloR
-      _ ≤ A * certS := by gcongr
-  · rw [div_le_div_iff₀ (mul_pos hLpos hB_pos) hSpos]
-    calc A * certS ≤ ((aN - aP + mAp19 * certDPow17 : ℕ) : ℝ) * certS := by gcongr
-      _ ≤ (wHi : ℝ) * ((a19LCM : ℝ) * ((dN - dP - mQpp19 * certDPow17 : ℕ) : ℝ)) := hhiR
-      _ ≤ (wHi : ℝ) * ((a19LCM : ℝ) * B) := by gcongr; exact hB_lo.1
+  exact h
 
 private def wLo19 : List ℕ :=
   [1946178822972, 4481422676569, 6904454273764, 9149002162244, 11156664554733, 12875396253933,
@@ -11343,72 +11276,54 @@ private theorem qHi_13_ge : (2 : ℝ) ^ (13 - 1) * ar2TensorQuad (17 / 10) (21 /
     (ar2PrefixMat_nonneg (by norm_num) (by norm_num) gw19_nn 10)
     (ar2ReadoutMat_nonneg (by norm_num) gw19_nn) matGHi10_ge matRHi_ge
 
+/-- Certified upper bound for `exp (-(64 * u / certT))`: one fixed-point evaluation of
+`exp (-(u / certT))` followed by six fixed-point squarings. -/
+private theorem exp_neg_le_fpSqIterUp (u : ℕ) :
+    Real.exp (-(64 * ((u : ℝ) / certT))) ≤
+      (fpSqIterUp certT 6 (expStepHiSum certT u certM) : ℝ) / certT := by
+  have hT : 0 < certT := by decide
+  have hpow : Real.exp (-((u : ℝ) / certT)) ^ (2 ^ 6) =
+      Real.exp (-(64 * ((u : ℝ) / certT))) := by
+    rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+  rw [← hpow]
+  exact pow_le_fpSqIterUp hT 6 (Real.exp_pos _).le (le_expStepHiSum hT)
+
 private theorem exp_pair_tail_le : Real.exp (-(9 / 2) * (17 / 10 : ℝ) ^ 2) ≤
     (2249055967033 : ℝ) / certT := by
   have hchk : fpSqIterUp certT 6 (expStepHiSum certT 203203125000000000 certM) =
       2249055967033 := rfl
-  have hT : 0 < certT := by decide
-  have hpow : Real.exp (-(203203125000000000 : ℝ) / certT) ^ (2 ^ 6) =
-      Real.exp (-(64 * ((203203125000000000 : ℝ) / certT))) := by
-    rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+  have hchkR : ((fpSqIterUp certT 6 (expStepHiSum certT 203203125000000000 certM) : ℕ) : ℝ) =
+      (2249055967033 : ℝ) := by exact_mod_cast hchk
   calc Real.exp (-(9 / 2) * (17 / 10 : ℝ) ^ 2)
-      ≤ Real.exp (-(64 * ((203203125000000000 : ℝ) / certT))) := by
+      ≤ Real.exp (-(64 * (((203203125000000000 : ℕ) : ℝ) / certT))) := by
           apply Real.exp_le_exp.mpr; norm_num [certT]
-    _ = Real.exp (-(203203125000000000 : ℝ) / certT) ^ (2 ^ 6) := hpow.symm
     _ ≤ (fpSqIterUp certT 6 (expStepHiSum certT 203203125000000000 certM) : ℝ) / certT :=
-          pow_le_fpSqIterUp hT 6 (Real.exp_pos _).le
-            (by
-              have hl := le_expStepHiSum (T := certT) (u := 203203125000000000) (m := certM) hT
-              simpa [neg_div] using hl)
-    _ = (2249055967033 : ℝ) / certT := by
-          have hchkR :
-              ((fpSqIterUp certT 6 (expStepHiSum certT 203203125000000000 certM) : ℕ) : ℝ) =
-              (2249055967033 : ℝ) := by exact_mod_cast hchk
-          rw [hchkR]
+          exp_neg_le_fpSqIterUp _
+    _ = (2249055967033 : ℝ) / certT := by rw [hchkR]
 
 private theorem exp_end_tail_le : Real.exp (-6 * (17 / 10 : ℝ) ^ 2) ≤
     (29466848064 : ℝ) / certT := by
   have hchk : fpSqIterUp certT 6 (expStepHiSum certT 270937500000000000 certM) = 29466848064 := rfl
-  have hT : 0 < certT := by decide
-  have hpow : Real.exp (-(270937500000000000 : ℝ) / certT) ^ (2 ^ 6) =
-      Real.exp (-(64 * ((270937500000000000 : ℝ) / certT))) := by
-    rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+  have hchkR : ((fpSqIterUp certT 6 (expStepHiSum certT 270937500000000000 certM) : ℕ) : ℝ) =
+      (29466848064 : ℝ) := by exact_mod_cast hchk
   calc Real.exp (-6 * (17 / 10 : ℝ) ^ 2)
-      ≤ Real.exp (-(64 * ((270937500000000000 : ℝ) / certT))) := by
+      ≤ Real.exp (-(64 * (((270937500000000000 : ℕ) : ℝ) / certT))) := by
           apply Real.exp_le_exp.mpr; norm_num [certT]
-    _ = Real.exp (-(270937500000000000 : ℝ) / certT) ^ (2 ^ 6) := hpow.symm
     _ ≤ (fpSqIterUp certT 6 (expStepHiSum certT 270937500000000000 certM) : ℝ) / certT :=
-          pow_le_fpSqIterUp hT 6 (Real.exp_pos _).le
-            (by
-              have hl := le_expStepHiSum (T := certT) (u := 270937500000000000) (m := certM) hT
-              simpa [neg_div] using hl)
-    _ = (29466848064 : ℝ) / certT := by
-          have hchkR :
-              ((fpSqIterUp certT 6 (expStepHiSum certT 270937500000000000 certM) : ℕ) : ℝ) =
-              (29466848064 : ℝ) := by exact_mod_cast hchk
-          rw [hchkR]
+          exp_neg_le_fpSqIterUp _
+    _ = (29466848064 : ℝ) / certT := by rw [hchkR]
 
 private theorem exp_int_tail_le : Real.exp (-(33 / 2) * (21 / 20 : ℝ) ^ 2) ≤
     (12578837482 : ℝ) / certT := by
   have hchk : fpSqIterUp certT 6 (expStepHiSum certT 284238281250000000 certM) = 12578837482 := rfl
-  have hT : 0 < certT := by decide
-  have hpow : Real.exp (-(284238281250000000 : ℝ) / certT) ^ (2 ^ 6) =
-      Real.exp (-(64 * ((284238281250000000 : ℝ) / certT))) := by
-    rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+  have hchkR : ((fpSqIterUp certT 6 (expStepHiSum certT 284238281250000000 certM) : ℕ) : ℝ) =
+      (12578837482 : ℝ) := by exact_mod_cast hchk
   calc Real.exp (-(33 / 2) * (21 / 20 : ℝ) ^ 2)
-      ≤ Real.exp (-(64 * ((284238281250000000 : ℝ) / certT))) := by
+      ≤ Real.exp (-(64 * (((284238281250000000 : ℕ) : ℝ) / certT))) := by
           apply Real.exp_le_exp.mpr; norm_num [certT]
-    _ = Real.exp (-(284238281250000000 : ℝ) / certT) ^ (2 ^ 6) := hpow.symm
     _ ≤ (fpSqIterUp certT 6 (expStepHiSum certT 284238281250000000 certM) : ℝ) / certT :=
-          pow_le_fpSqIterUp hT 6 (Real.exp_pos _).le
-            (by
-              have hl := le_expStepHiSum (T := certT) (u := 284238281250000000) (m := certM) hT
-              simpa [neg_div] using hl)
-    _ = (12578837482 : ℝ) / certT := by
-          have hchkR :
-              ((fpSqIterUp certT 6 (expStepHiSum certT 284238281250000000 certM) : ℕ) : ℝ) =
-              (12578837482 : ℝ) := by exact_mod_cast hchk
-          rw [hchkR]
+          exp_neg_le_fpSqIterUp _
+    _ = (12578837482 : ℝ) / certT := by rw [hchkR]
 
 private theorem certPairTail_le : ar2PairTail (17 / 10) ≤ (4866 : ℝ) / 10 ^ 12 := by
   unfold ar2PairTail

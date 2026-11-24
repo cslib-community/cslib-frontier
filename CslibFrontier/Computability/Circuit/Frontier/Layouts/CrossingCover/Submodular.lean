@@ -82,7 +82,7 @@ proved directly.
   Algorithm for Dominating Set*][JeongSaetherTelle2015]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Frontier.CrossingCover
 
@@ -95,7 +95,7 @@ section BoolCube
 variable {ι : Type*}
 
 /-- Complement of a Boolean assignment. -/
-def notVec (a : ι → Bool) : ι → Bool := fun i => !a i
+@[expose] def notVec (a : ι → Bool) : ι → Bool := fun i => !a i
 
 @[simp] theorem notVec_apply (a : ι → Bool) (i : ι) : notVec a i = !a i := rfl
 
@@ -111,15 +111,15 @@ def notVec (a : ι → Bool) : ι → Bool := fun i => !a i
 
 /-- A real-valued function on the Boolean cube `{0,1}^ι` is **submodular** when
 `f (a ⊓ b) + f (a ⊔ b) ≤ f a + f b` for all `a, b`. -/
-def IsSubmodularBool (f : (ι → Bool) → ℝ) : Prop :=
+@[expose] def IsSubmodularBool (f : (ι → Bool) → ℝ) : Prop :=
   ∀ a b : ι → Bool, f (a ⊓ b) + f (a ⊔ b) ≤ f a + f b
 
 /-- A function on the Boolean cube is **complement-symmetric** when `f (!a) = f a`. -/
-def IsSymmetricBool {α : Type*} (f : (ι → Bool) → α) : Prop :=
+@[expose] def IsSymmetricBool {α : Type*} (f : (ι → Bool) → α) : Prop :=
   ∀ a : ι → Bool, f (notVec a) = f a
 
 /-- The discrete marginal difference in coordinate `i`: `f (a^{i↦1}) - f (a^{i↦0})`. -/
-def diffBool [DecidableEq ι] (f : (ι → Bool) → ℝ) (i : ι) (a : ι → Bool) : ℝ :=
+@[expose] def diffBool [DecidableEq ι] (f : (ι → Bool) → ℝ) (i : ι) (a : ι → Bool) : ℝ :=
   f (update a i true) - f (update a i false)
 
 /-- For a submodular function on the Boolean cube, changing coordinate `i` yields a nonincreasing
@@ -183,17 +183,17 @@ noncomputable def vertexPenalty (b : V → Bool) (x : E → Bool) (v : V) : ℕ 
   if ∀ e : E, e ∈ G.incidenceSet v → x e = b v then 0 else 1
 
 /-- Total anchored cut cost `Q_b(x) = ∑ v, vertexPenalty G b x v`. -/
-noncomputable def anchoredCost [Fintype V] (b : V → Bool) (x : E → Bool) : ℕ :=
+@[expose] noncomputable def anchoredCost [Fintype V] (b : V → Bool) (x : E → Bool) : ℕ :=
   ∑ v : V, vertexPenalty G b x v
 
 /-- The unanchored vertex split penalty at `v`: `1` iff incident edges disagree in `x`. -/
-noncomputable def edgeSplit (x : E → Bool) (v : V) : ℕ :=
+@[expose] noncomputable def edgeSplit (x : E → Bool) (v : V) : ℕ :=
   open Classical in
   if (∀ e : E, e ∈ G.incidenceSet v → x e = false) ∨
       (∀ e : E, e ∈ G.incidenceSet v → x e = true) then 0 else 1
 
 /-- Total unanchored vertex-split cost `C(x) = ∑ v, edgeSplit G x v`. -/
-noncomputable def splitCost [Fintype V] (x : E → Bool) : ℕ :=
+@[expose] noncomputable def splitCost [Fintype V] (x : E → Bool) : ℕ :=
   ∑ v : V, edgeSplit G x v
 
 theorem vertexPenalty_of_forall {b : V → Bool} {x : E → Bool} {v : V}
@@ -368,14 +368,14 @@ theorem anchoredCost_update_same_le [Fintype V] [DecidableEq E] (b : V → Bool)
 
 /-- A `Finset V` is a **crossing vertex cover** for bipartition `b` if it meets every edge whose
 endpoints have opposite `b`-labels. -/
-def IsCrossingCover (b : V → Bool) (C : Finset V) : Prop :=
+@[expose] def IsCrossingCover (b : V → Bool) (C : Finset V) : Prop :=
   ∀ e : E, b (G.src e) ≠ b (G.tgt e) → G.src e ∈ C ∨ G.tgt e ∈ C
 
 theorem isCrossingCover_univ [Fintype V] (b : V → Bool) : IsCrossingCover G b univ :=
   fun _ _ => Or.inl (mem_univ _)
 
 /-- Minimum vertex-cover cardinality `τ(D_b)` of the crossing graph of `G` at bipartition `b`. -/
-noncomputable def crossingCover (b : V → Bool) : ℕ :=
+@[expose] noncomputable def crossingCover (b : V → Bool) : ℕ :=
   sInf {k : ℕ | ∃ C : Finset V, IsCrossingCover G b C ∧ C.card = k}
 
 private theorem crossingCover_set_nonempty [Finite V] (b : V → Bool) :
@@ -550,7 +550,7 @@ private theorem clampedMinimizer_inf_sup [Fintype V] {b c : V → Bool} (hbc : b
 
 /-- The **least clamped minimizer** of `anchoredCost G b`: pointwise AND of all clamped
 minimizers. -/
-noncomputable def leastClampedMinimizer [Fintype V] (b : V → Bool) : E → Bool :=
+@[expose] noncomputable def leastClampedMinimizer [Fintype V] (b : V → Bool) : E → Bool :=
   open Classical in
   fun e => decide (∀ x : E → Bool, IsClamped G b x →
     anchoredCost G b x = crossingCover G b → x e = true)
