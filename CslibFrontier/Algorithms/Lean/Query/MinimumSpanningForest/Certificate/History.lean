@@ -655,24 +655,6 @@ private theorem card_spokeChoices_le (inst : Instance V E) :
   simp
 
 omit [LinearOrder W] [DecidableEq E] in
-/-- The degrees sum to at most `2m`. -/
-private theorem sum_degree_le (inst : Instance V E) :
-    ∑ v ∈ inst.vertices, #{e ∈ inst.edges | v ∈ inst.ends e} ≤ 2 * #inst.edges := by
-  calc ∑ v ∈ inst.vertices, #{e ∈ inst.edges | v ∈ inst.ends e}
-      = ∑ e ∈ inst.edges, #{v ∈ inst.vertices | v ∈ inst.ends e} := by
-        simp only [card_filter]
-        exact sum_comm
-    _ ≤ ∑ _e ∈ inst.edges, 2 := sum_le_sum fun e _ => by
-        obtain ⟨⟨a, b⟩, hab⟩ := Quot.exists_rep (inst.ends e)
-        calc #{v ∈ inst.vertices | v ∈ inst.ends e} ≤ #({a, b} : Finset V) := by
-              refine card_le_card fun v hv => ?_
-              have := (mem_filter.1 hv).2
-              rw [← hab] at this
-              rcases Sym2.mem_iff.1 this with rfl | rfl <;> simp
-          _ ≤ 2 := card_le_two
-    _ = 2 * #inst.edges := by rw [sum_const, smul_eq_mul, mul_comm]
-
-omit [LinearOrder W] [DecidableEq E] in
 /-- The logarithm of the number of spoke choices (p. 20): `∑ log (deg v + 1) ≤ ∑ √(deg v) ≤
 √(2 m n)`, by `log (x + 1) ≤ √x` and Cauchy–Schwarz. -/
 private theorem log_card_spokeChoices_le (inst : Instance V E) :
@@ -690,7 +672,7 @@ private theorem log_card_spokeChoices_le (inst : Instance V E) :
         Real.sum_sqrt_mul_sqrt_le _ (fun _ => by positivity) fun _ => zero_le_one
     _ ≤ √(2 * #inst.edges) * √(#inst.vertices : ℝ) := by
         gcongr
-        · exact_mod_cast sum_degree_le inst
+        · exact_mod_cast sum_card_incident_le inst.ends inst.edges inst.vertices
         · simp
     _ = √(2 * #inst.edges * #inst.vertices) := (Real.sqrt_mul (by positivity) _).symm
 
