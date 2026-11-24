@@ -27,6 +27,7 @@ import CslibFrontierResults.Entries.ODonnellStableInfluenceBound
 import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries.PolynomialHashing
+import CslibFrontierResults.Entries.PredictionMarket
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
