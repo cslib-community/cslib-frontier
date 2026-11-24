@@ -31,7 +31,8 @@ The scheme is additively homomorphic in the full sense of [KatzLindell2020], Def
 the product of ciphertexts decrypts to the sum of the messages, and multiplying a ciphertext of
 `m₁` by a fresh encryption of `m₂` gives exactly a fresh encryption of `m₁ + m₂`. The word-level
 scheme in `CslibFrontier.Crypto.Computational.Paillier` satisfies only the first condition,
-because its randomness is dyadic.
+because its randomness is dyadic. `CslibFrontier.Crypto.Computational.Paillier.Statistical`
+uses the exact law here to bound that word scheme's distributional error.
 
 Chosen-plaintext security at modulus `N` reduces to the decisional composite residuosity
 experiments at `N` ([KatzLindell2020], Theorem 15.13). The reduction `paillierToDCR A b` runs the
