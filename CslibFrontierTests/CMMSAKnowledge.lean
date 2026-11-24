@@ -62,7 +62,8 @@ example {lam k P : ℕ} (f : VarFunctions noInstance lam) :
       obtain ⟨_ | n, hn⟩ := v
       · exact hf
       · simp at hn
-  simp [hempty, CMMSAInstance.weight] at hlt
+  rw [hempty] at hlt
+  simp [CMMSAInstance.weight] at hlt
   norm_num at hlt
 
 /-! The candidate count at `Δ = 2`, `k = 3` and `δ₀ = 1 / 4`, where

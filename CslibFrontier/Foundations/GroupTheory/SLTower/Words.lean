@@ -154,7 +154,8 @@ theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.val + (d + 1) =
 theorem WL.upper' (i j : Fin h)
     (hij : i < j) : WL h2 (SpecialLinearGroup.transvection hij.ne 1 : G h n) (4 ^ h) := by
   have hlt := Fin.lt_def.1 hij
-  refine (WL.upper (j.val - i.val - 1) i j hij.ne (by omega)).mono (Nat.pow_le_pow_right (by omega) ?_)
+  refine (WL.upper (j.val - i.val - 1) i j hij.ne (by omega)).mono
+    (Nat.pow_le_pow_right (by omega) ?_)
   have := j.isLt
   omega
 

@@ -2299,7 +2299,8 @@ private def zhegColVal {s : ℕ} (d : PaddedDecomp f M k) :
 private def hasZhegCol (d : PaddedDecomp f M k) (s : ℕ) (r : Fin (2 * M)) :
     ZhegCol n M s → Bool
   | .inl cx => Additive.hasFullCol d.aX s r cx
-  | .inr cg => decide (cg.1.val < (r.val / 2) / s ∧ Additive.fullRowPattern d.aG s r cg.1 = cg.2.val)
+  | .inr cg =>
+    decide (cg.1.val < (r.val / 2) / s ∧ Additive.fullRowPattern d.aG s r cg.1 = cg.2.val)
 
 private theorem mul_sum_hasZhegCol_le (d : PaddedDecomp f M k) (s : ℕ) :
     s * (∑ r : Fin (2 * M), #{c : ZhegCol n M s | hasZhegCol d s r c = true}) ≤

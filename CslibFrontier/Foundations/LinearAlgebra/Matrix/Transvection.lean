@@ -40,8 +40,8 @@ variable {n R : Type*} [Fintype n] [DecidableEq n] [CommRing R]
 theorem map_transvection {S : Type*} [CommRing S] (f : R →+* S) {i j : n} (h : i ≠ j) (c : R) :
     map f (transvection h c) = transvection h (f c) := by
   ext k l
-  simp only [map_apply_coe, RingHom.mapMatrix_apply, Matrix.map_apply, transvection_coe,
-    Matrix.add_apply, Matrix.one_apply, Matrix.single_apply]
+  simp only [map_apply_coe, Matrix.map_apply, transvection_coe, Matrix.add_apply,
+    Matrix.one_apply, Matrix.single_apply]
   split_ifs <;> simp
 
 /-- The transvection `1 + c E_ij` adds `c v j` to the coordinate `i` of `v`. -/

@@ -165,7 +165,7 @@ private theorem exists_cramer_rep_of_inj_mulVec {R N H : ℕ}
   have hrank : SQ.rank = N := by
     have hf := SQ.mulVecLin.finrank_range_add_finrank_ker
     rw [hker, finrank_bot, add_zero, Module.finrank_fintype_fun_eq_card,
-      Fintype.card_fin] at hf
+      Fintype.card_fin, Matrix.finrank_range_mulVecLin] at hf
     exact hf
   obtain ⟨r0, c0, _, hc0, hdet0⟩ := Matrix.exists_submatrix_det_ne_zero SQ
   let e : Fin N ≃ Fin SQ.rank := finCongr hrank.symm
@@ -535,7 +535,7 @@ private theorem bezoutSturm_uv_props {FQ₀ FQ₁ : ℚ[X]} (hd10 : FQ₁.natDeg
 
 private noncomputable def polyFromFin {R : Type*} [CommSemiring R] {k : ℕ} (w : Fin k → R) :
     R[X] :=
-  ∑ a : Fin k, C (w a) * X ^ a.1
+  ∑ a : Fin k, C (w a) * X ^ a.val
 
 private theorem coeff_polyFromFin {R : Type*} [CommSemiring R] {k : ℕ} (w : Fin k → R) (m : ℕ) :
     (polyFromFin w).coeff m = if hm : m < k then w ⟨m, hm⟩ else 0 := by
@@ -544,18 +544,18 @@ private theorem coeff_polyFromFin {R : Type*} [CommSemiring R] {k : ℕ} (w : Fi
   · rw [dite_eq_left hm, Finset.sum_eq_single ⟨m, hm⟩]
     · rw [coeff_C_mul, coeff_X_pow_self, mul_one]
     · intro a _ hne
-      have hne_val : m ≠ a.1 := fun h => hne (Fin.ext h.symm)
+      have hne_val : m ≠ a.val := fun h => hne (Fin.ext h.symm)
       rw [coeff_C_mul, coeff_X_pow, ite_eq_right hne_val, mul_zero]
     · intro hnot
       exact absurd (Finset.mem_univ _) hnot
   · rw [dite_eq_right hm]
     refine Finset.sum_eq_zero fun a _ => ?_
-    have hne_val : m ≠ a.1 := fun h => hm (h ▸ a.2)
+    have hne_val : m ≠ a.val := fun h => hm (h ▸ a.isLt)
     rw [coeff_C_mul, coeff_X_pow, ite_eq_right hne_val, mul_zero]
 
 private theorem polyFromFin_eq_of_natDegree_lt {R : Type*} [CommSemiring R] {k : ℕ} (p : R[X])
     (hp : p = 0 ∨ p.natDegree < k) :
-    polyFromFin (fun a : Fin k => p.coeff a.1) = p := by
+    polyFromFin (fun a : Fin k => p.coeff a.val) = p := by
   ext m
   rw [coeff_polyFromFin]
   by_cases hm : m < k
@@ -568,10 +568,10 @@ private theorem polyFromFin_eq_of_natDegree_lt {R : Type*} [CommSemiring R] {k :
 private theorem coeff_polyFromFin_mul {R : Type*} [CommSemiring R] {k : ℕ} (w : Fin k → R)
     (P : R[X]) (m : ℕ) :
     (polyFromFin w * P).coeff m =
-      ∑ a : Fin k, w a * (if a.1 ≤ m then P.coeff (m - a.1) else 0) := by
+      ∑ a : Fin k, w a * (if a.val ≤ m then P.coeff (m - a.val) else 0) := by
   rw [polyFromFin, Finset.sum_mul, Polynomial.finsetSum_coeff]
   refine Finset.sum_congr rfl fun a _ => ?_
-  rw [mul_assoc, coeff_C_mul, mul_comm (X ^ a.1) P, coeff_mul_X_pow']
+  rw [mul_assoc, coeff_C_mul, mul_comm (X ^ a.val) P, coeff_mul_X_pow']
 
 private theorem coeff_polyFromFin_mul_eq_zero_of_gt {R : Type*} [CommSemiring R] {k : ℕ}
     (w : Fin k → R) (P : R[X]) {D m : ℕ} (hP : P = 0 ∨ P.natDegree ≤ D) (hm : k + D ≤ m) :
@@ -634,9 +634,9 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
   let R := Dtop - d + 1
   let S : Matrix (Fin R) (Fin N) ℤ := fun r =>
     Fin.addCases
-      (fun a : Fin nu => if a.1 ≤ d + r.1 then F₀.coeff (d + r.1 - a.1) else 0)
-      (fun b : Fin nv => if b.1 ≤ d + r.1 then F₁.coeff (d + r.1 - b.1) else 0)
-  let rhs : Fin R → ℤ := fun r => if r.1 = 0 then 1 else 0
+      (fun a : Fin nu => if a.val ≤ d + r.val then F₀.coeff (d + r.val - a.val) else 0)
+      (fun b : Fin nv => if b.val ≤ d + r.val then F₁.coeff (d + r.val - b.val) else 0)
+  let rhs : Fin R → ℤ := fun r => if r.val = 0 then 1 else 0
   have hS_bound : ∀ r j, Int.natAbs (S r j) ≤ H := fun r j => by
     dsimp only [S]
     refine Fin.addCases (fun a => ?_) (fun b => ?_) j
@@ -654,7 +654,7 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
   have hmulVec_eq : ∀ (z : Fin N → ℚ) (r : Fin R),
       ((S.map (algebraMap ℤ ℚ)) *ᵥ z) r =
         (polyFromFin (fun a : Fin nu => z (Fin.castAdd nv a)) * FQ₀ +
-          polyFromFin (fun b : Fin nv => z (Fin.natAdd nu b)) * FQ₁).coeff (d + r.1) := by
+          polyFromFin (fun b : Fin nv => z (Fin.natAdd nu b)) * FQ₁).coeff (d + r.val) := by
     intro z r
     rw [coeff_add, coeff_polyFromFin_mul, coeff_polyFromFin_mul]
     change ∑ j : Fin (nu + nv), ((S.map (algebraMap ℤ ℚ)) r j) * z j = _
@@ -686,7 +686,7 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
     rw [natDegree_C_mul (inv_ne_zero hci0), hv_deg]
     omega
   let xSol : Fin N → ℚ :=
-    Fin.addCases (fun a : Fin nu => uTilde.coeff a.1) (fun b : Fin nv => vTilde.coeff b.1)
+    Fin.addCases (fun a : Fin nu => uTilde.coeff a.val) (fun b : Fin nv => vTilde.coeff b.val)
   have hxSol_u : polyFromFin (fun a : Fin nu => xSol (Fin.castAdd nv a)) = uTilde := by
     simp only [xSol, Fin.addCases_left]
     exact polyFromFin_eq_of_natDegree_lt uTilde (Or.inr huT_deg)
@@ -699,7 +699,7 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
   have hxSol_sys : (S.map (algebraMap ℤ ℚ)) *ᵥ xSol = (algebraMap ℤ ℚ) ∘ rhs := by
     ext r
     rw [hmulVec_eq, hxSol_u, hxSol_v, heT_bez, Function.comp_apply]
-    by_cases hr0 : r.1 = 0
+    by_cases hr0 : r.val = 0
     · simp only [rhs, hr0, ↓reduceIte, map_one, add_zero, eTilde, coeff_C_mul]
       change ti.1.leadingCoeff⁻¹ * ti.1.coeff ti.1.natDegree = 1
       rw [← leadingCoeff, inv_mul_cancel₀ hci0]
@@ -812,10 +812,10 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
     ext j
     rw [Pi.zero_apply]
     refine Fin.addCases (fun a => ?_) (fun b => ?_) j
-    · have hc := congrArg (fun p => p.coeff a.1) hu_z
-      simpa only [u, coeff_polyFromFin, dite_eq_left a.2, coeff_zero] using hc
-    · have hc := congrArg (fun p => p.coeff b.1) hv_z
-      simpa only [v, coeff_polyFromFin, dite_eq_left b.2, coeff_zero] using hc
+    · have hc := congrArg (fun p => p.coeff a.val) hu_z
+      simpa only [u, coeff_polyFromFin, dite_eq_left a.isLt, coeff_zero] using hc
+    · have hc := congrArg (fun p => p.coeff b.val) hv_z
+      simpa only [v, coeff_polyFromFin, dite_eq_left b.isLt, coeff_zero] using hc
   obtain ⟨dDet, nums, hdDet0, hdDet_le, hnums_le, hxSol_rep⟩ :=
     exists_cramer_rep_of_inj_mulVec S rhs hS_bound hrhs_bound xSol hxSol_sys hinj
   let n := d₀ + 1
@@ -878,23 +878,23 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
     intro s w P r hw hP
     rw [coeff_polyFromFin_mul]
     have htri : ∀ (t : Finset (Fin s)),
-        Int.natAbs (∑ a ∈ t, w a * (if a.1 ≤ r then P.coeff (r - a.1) else 0)) ≤
+        Int.natAbs (∑ a ∈ t, w a * (if a.val ≤ r then P.coeff (r - a.val) else 0)) ≤
           t.card * (M * H) := by
       intro t
       induction t using Finset.cons_induction with
       | empty => simp only [Finset.sum_empty, Int.natAbs_zero, Finset.card_empty, zero_mul, le_refl]
       | cons a t ha ih =>
         rw [Finset.sum_cons, Finset.card_cons]
-        have hterm : Int.natAbs (w a * (if a.1 ≤ r then P.coeff (r - a.1) else 0)) ≤ M * H := by
+        have hterm : Int.natAbs (w a * (if a.val ≤ r then P.coeff (r - a.val) else 0)) ≤ M * H := by
           rw [Int.natAbs_mul]
           refine Nat.mul_le_mul (hw a) ?_
           split_ifs
           · exact hP _
           · simp only [Int.natAbs_zero, Nat.zero_le]
-        calc Int.natAbs (w a * (if a.1 ≤ r then P.coeff (r - a.1) else 0) +
-              ∑ x ∈ t, w x * (if x.1 ≤ r then P.coeff (r - x.1) else 0))
-            ≤ Int.natAbs (w a * (if a.1 ≤ r then P.coeff (r - a.1) else 0)) +
-                Int.natAbs (∑ x ∈ t, w x * (if x.1 ≤ r then P.coeff (r - x.1) else 0)) :=
+        calc Int.natAbs (w a * (if a.val ≤ r then P.coeff (r - a.val) else 0) +
+              ∑ x ∈ t, w x * (if x.val ≤ r then P.coeff (r - x.val) else 0))
+            ≤ Int.natAbs (w a * (if a.val ≤ r then P.coeff (r - a.val) else 0)) +
+                Int.natAbs (∑ x ∈ t, w x * (if x.val ≤ r then P.coeff (r - x.val) else 0)) :=
               Int.natAbs_add_le _ _
           _ ≤ M * H + t.card * (M * H) := Nat.add_le_add hterm ih
           _ = (t.card + 1) * (M * H) := by ring

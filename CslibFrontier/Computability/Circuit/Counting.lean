@@ -31,6 +31,7 @@ universe v u
 variable {σ : Signature.{v}} [Finite σ.Op] {U : Type u}
 variable {I : Interpretation σ U} [I.IsComplete] {n s : ℕ}
 
+omit [Finite σ.Op] in
 /-- Over a complete basis, the functions computable with at most `s` gates are those of
 complexity at most `s`. -/
 theorem mem_computableFunctions_iff_complexity_le {f : (Fin n → U) → U} :
