@@ -7,7 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandMemory
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandHeader
 
@@ -58,14 +58,6 @@ theorem exec_copyKernel {w : ℕ} (x : Data 96) (h1 : Fits w 1)
     change j.val = i.val at hv
     omega)
 
-private theorem lowSetup_regs (x : Data 96) (s d n : ℕ) (i : Fin 96) (hi : 7 ≤ i.val) :
-    (((x.set copySrc s).set copyDst d).set copyLen n).regs i = x.regs i := by
-  have hs : i ≠ copySrc := by intro h; subst i; norm_num [copySrc] at hi
-  have hd : i ≠ copyDst := by intro h; subst i; norm_num [copyDst] at hi
-  have hn : i ≠ copyLen := by intro h; subst i; norm_num [copyLen] at hi
-  simp only [Data.set_regs, Function.update_of_ne hs, Function.update_of_ne hd,
-    Function.update_of_ne hn]
-
 /-- Protect the entire original initialized prefix, including header zero, with the actual
 native copy. Source words and all memory outside the snapshot block remain untouched. -/
 theorem exec_saveInput {w L m N : ℕ} (x : Data 96) (hx : HeaderPost L m N x)
@@ -73,30 +65,21 @@ theorem exec_saveInput {w L m N : ℕ} (x : Data 96) (hx : HeaderPost L m N x)
     ∃ y, ExecWithin w saveInput x y (7 * inputEnd m N + 7) ∧
       y.mem = ArrayCopy.copyPrefix x.mem 0 (snapshotBase L m N) (inputEnd m N) ∧
       (∀ i, 7 ≤ i.val → y.regs i = x.regs i) := by
-  let start := ((x.set copySrc 0).set copyDst (snapshotBase L m N)).set copyLen (inputEnd m N)
   have hb : Fits w (inputEnd m N) := (memory_fits hfit).of_le (input_le_memoryEnd L m N)
-  have hi : Fits w (inverseBase L m N) :=
+  have hi : Fits w (snapshotBase L m N + inputEnd m N) :=
     (memory_fits hfit).of_le (inverse_le_memoryEnd L m N)
-  obtain ⟨y, hy, hm, hf⟩ := exec_copyKernel start (small_fits hfit (by decide))
-    (by simpa [start, copySrc, copyDst, copyLen] using hb)
-    (by simpa [start, copySrc, copyDst, copyLen, inverseBase] using hi)
-    (Or.inl (by simpa [start, copySrc, copyDst, copyLen] using input_le_snapshot L m N))
-  have h0 : ExecWithin (B := .standard) w (.op (.const copySrc 0))
-      x (x.set copySrc 0) 1 := ExecWithin.const (fits_zero w)
-  have h1 : ExecWithin (B := .standard) w (.op (.copy copyDst snapshot))
-      (x.set copySrc 0) ((x.set copySrc 0).set copyDst (snapshotBase L m N)) 1 := by
-    ram_eval [hx.snapshot, copySrc, copyDst, snapshot, Fin.mk.injEq]
-  have h2 : ExecWithin (B := .standard) w (.op (.copy copyLen prefixSize))
-      ((x.set copySrc 0).set copyDst (snapshotBase L m N)) start 1 := by
-    ram_eval [start, hx.prefixSize, copySrc, copyDst, copyLen, prefixSize, Fin.mk.injEq]
-  refine ⟨y, ?_, ?_, ?_⟩
-  · apply (h0.seq (h1.seq (h2.seq hy))).mono
-    have hn : start.regs copyLen = inputEnd m N := by simp [start]
-    rw [hn]
+  unfold saveInput
+  wram_exec *
+  wram_call (exec_copyKernel _ (small_fits hfit (by decide)) (by wram_simp; exact hb)
+    (by wram_simp; exact hi) (Or.inl (by wram_simp; exact input_le_snapshot L m N)))
+    with y ⟨hm, hf⟩
+  refine ⟨by wram_simp; omega, by wram_simp at hm; exact hm, ?_⟩
+  intro i hi'
+  rw [hf i hi']
+  have hne : i ≠ copySrc ∧ i ≠ copyDst ∧ i ≠ copyLen := by
+    simp only [copySrc, copyDst, copyLen, ne_eq, Fin.ext_iff]
     omega
-  · simpa [start, copySrc, copyDst, copyLen] using hm
-  · intro i hi
-    exact (hf i hi).trans (lowSetup_regs x _ _ _ i hi)
+  wram_simp [hne.1, hne.2.1, hne.2.2]
 
 /-- Restore the complete original input using the reverse disjoint-copy case. This copies
 the actual protected words rather than reconstructing or assuming the input is unchanged. -/
@@ -105,30 +88,20 @@ theorem exec_restoreInput {w L m N : ℕ} (x : Data 96) (hx : HeaderPost L m N x
     ∃ y, ExecWithin w restoreInput x y (7 * inputEnd m N + 7) ∧
       y.mem = ArrayCopy.copyPrefix x.mem (snapshotBase L m N) 0 (inputEnd m N) ∧
       (∀ i, 7 ≤ i.val → y.regs i = x.regs i) := by
-  let start := ((x.set copySrc (snapshotBase L m N)).set copyDst 0).set copyLen (inputEnd m N)
   have hb : Fits w (inputEnd m N) := (memory_fits hfit).of_le (input_le_memoryEnd L m N)
-  have hi : Fits w (inverseBase L m N) :=
+  have hi : Fits w (snapshotBase L m N + inputEnd m N) :=
     (memory_fits hfit).of_le (inverse_le_memoryEnd L m N)
-  obtain ⟨y, hy, hm, hf⟩ := exec_copyKernel start (small_fits hfit (by decide))
-    (by simpa [start, copySrc, copyDst, copyLen, inverseBase] using hi)
-    (by simpa [start, copySrc, copyDst, copyLen] using hb)
-    (Or.inr (Or.inl (by
-      simpa [start, copySrc, copyDst, copyLen] using input_le_snapshot L m N)))
-  have h0 : ExecWithin (B := .standard) w (.op (.copy copySrc snapshot))
-      x (x.set copySrc (snapshotBase L m N)) 1 := by ram_eval [hx.snapshot]
-  have h1 : ExecWithin (B := .standard) w (.op (.const copyDst 0))
-      (x.set copySrc (snapshotBase L m N))
-      ((x.set copySrc (snapshotBase L m N)).set copyDst 0) 1 := ExecWithin.const (fits_zero w)
-  have h2 : ExecWithin (B := .standard) w (.op (.copy copyLen prefixSize))
-      ((x.set copySrc (snapshotBase L m N)).set copyDst 0) start 1 := by
-    ram_eval [start, hx.prefixSize, copySrc, copyDst, copyLen, prefixSize, Fin.mk.injEq]
-  refine ⟨y, ?_, ?_, ?_⟩
-  · apply (h0.seq (h1.seq (h2.seq hy))).mono
-    have hn : start.regs copyLen = inputEnd m N := by simp [start]
-    rw [hn]
+  unfold restoreInput
+  wram_exec *
+  wram_call (exec_copyKernel _ (small_fits hfit (by decide)) (by wram_simp; exact hi)
+    (by wram_simp; exact hb) (Or.inr (Or.inl (by wram_simp; exact input_le_snapshot L m N))))
+    with y ⟨hm, hf⟩
+  refine ⟨by wram_simp; omega, by wram_simp at hm; exact hm, ?_⟩
+  intro i hi'
+  rw [hf i hi']
+  have hne : i ≠ copySrc ∧ i ≠ copyDst ∧ i ≠ copyLen := by
+    simp only [copySrc, copyDst, copyLen, ne_eq, Fin.ext_iff]
     omega
-  · simpa [start, copySrc, copyDst, copyLen] using hm
-  · intro i hi
-    exact (hf i hi).trans (lowSetup_regs x _ _ _ i hi)
+  wram_simp [hne.1, hne.2.1, hne.2.2]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

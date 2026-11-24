@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Depth
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Circuits for first targets and halting
@@ -209,7 +210,7 @@ theorem first_target_time (c : Circuit signature n n) (p : Circuit signature n 1
     omega
 
 /-- **Square-root first target times.** Some circuit of size at most
-`270000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size` returns the
+`180000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size` returns the
 reachability flag and, when it is set, the first target time, as in `first_target_time`. -/
 theorem first_target_time_optimized (c : Circuit signature n n) (p : Circuit signature n 1) :
     ∃ out : Circuit signature n (1 + (n + 2)),
@@ -221,18 +222,15 @@ theorem first_target_time_optimized (c : Circuit signature n n) (p : Circuit sig
         p.eval interpretation ((c.eval interpretation)^[t] x) 0 = true ∧
           (∀ j < t, p.eval interpretation ((c.eval interpretation)^[j] x) 0 ≠ true) ∧ t < 2 ^ n) ∧
       (out.size : ℝ) ≤
-        270000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size := by
+        180000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size := by
   obtain ⟨L, hL, hLN, hopt⟩ :=
     exists_powerBudget_le_optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) le_rfl
   obtain ⟨out, hf, ht, hs⟩ := first_target_time c p L hL hLN
   refine ⟨out, hf, ht, ?_⟩
-  have hs' : (out.size : ℝ) ≤
-      90000 * (powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L : ℝ) + p.size := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 /-- **Halting times.** If `c` fixes every halting state and the orbit of every initial state
-halts, some circuit of size at most `150000 * optimizedBudget n c.size (2 ^ n)` returns, in
+halts, some circuit of size at most `100000 * optimizedBudget n c.size (2 ^ n)` returns, in
 `n + 2` bits, the first halting time of every initial state, which is below `2 ^ n`. No circuit
 recognizing halting states is needed. -/
 theorem halting_time (c : Circuit signature n n) (H : BitString n → Prop)
@@ -242,7 +240,7 @@ theorem halting_time (c : Circuit signature n n) (H : BitString n → Prop)
       (∀ x ∈ initial, let t := (BitString.equivBitVec (out.eval interpretation x)).toNat
         H ((c.eval interpretation)^[t] x) ∧ (∀ j < t, ¬H ((c.eval interpretation)^[j] x)) ∧
           t < 2 ^ n) ∧
-      (out.size : ℝ) ≤ 150000 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 100000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨out, ho, hs⟩ := checkpoint_depth_optimized c
   refine ⟨out, fun x hx => ?_, hs⟩
   have hb : transientDepth (c.eval interpretation) x < 2 ^ n := by

@@ -592,18 +592,11 @@ section Tightness
 def leftCount (k : ℕ) (S : Finset (Fin k ⊕ Fin k)) : ℕ :=
   (Finset.univ.filter fun i : Fin k => Sum.inl i ∈ S).card
 
-private theorem leftCount_empty (k : ℕ) : leftCount k ∅ = 0 := by
-  simp [leftCount]
-
 private theorem leftCount_mono (k : ℕ) : Monotone (leftCount k) := by
   intro A B hAB
   exact Finset.card_le_card fun i hi => by
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
     exact hAB hi
-
-private theorem leftCount_insert_inr (k : ℕ) (j : Fin k) (S : Finset (Fin k ⊕ Fin k)) :
-    leftCount k (insert (Sum.inr j) S) = leftCount k S := by
-  simp [leftCount]
 
 private theorem leftCount_insert_inl_of_notMem (k : ℕ) (i : Fin k)
     {S : Finset (Fin k ⊕ Fin k)} (hi : Sum.inl i ∉ S) :
@@ -648,7 +641,7 @@ def tightOpt (k : ℕ) : Finset (Fin k ⊕ Fin k) :=
 
 @[simp] theorem tightComponent_empty {β : Type*} [Field β] (k : ℕ) (j : Fin k) :
     tightComponent (β := β) k j ∅ = 0 := by
-  simp [tightComponent, leftCount_empty]
+  simp [tightComponent, leftCount]
 
 @[simp] theorem tightObjective_empty {β : Type*} [Field β] (k : ℕ) :
     tightObjective (β := β) k ∅ = 0 := by
@@ -681,7 +674,7 @@ private theorem marginalGain_tightComponent_inr_ne {β : Type*} [Field β]
   unfold marginalGain tightComponent
   have hinr : (Sum.inr j ∈ insert (Sum.inr j') S) ↔ Sum.inr j ∈ S := by
     simp [hne.symm]
-  simp [hinr, leftCount_insert_inr]
+  simp [hinr, leftCount]
 
 theorem nodup_tightCandidates (k : ℕ) : (tightCandidates k).Nodup := by
   unfold tightCandidates

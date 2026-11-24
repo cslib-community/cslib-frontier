@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Bipartite
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 public import CslibFrontier.Computability.Complexity.Problems.UGraph
 import CslibFrontier.Computability.Complexity.Problems.UGraph.USTCONWriter
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 
 /-!
 # Bipartiteness is in logarithmic space
@@ -227,9 +228,7 @@ decides its input and outputs the triangle or the graph without vertices. -/
 theorem USTCON_logSpaceReducible_compl :
     LogSpaceReducible encUSTCON encUGraph USTCON Bipartiteᶜ := by
   obtain ⟨f, hf, hA⟩ := USTCON_mem_L
-  refine ⟨fun I => if f I then triangle else empty,
-    (Turing.MultiTapeTM.ComputableInLogSpace.of_finite (encIn := Turing.MultiTapeTM.encBool)
-      (fun b : Bool => if b then triangle else empty)).comp hf, fun I => ?_⟩
+  refine ⟨fun I => if f I then triangle else empty, by fun_prop, fun I => ?_⟩
   rw [hA I]
   cases h : f I <;> simp [h, empty_mem, triangle_notMem]
 

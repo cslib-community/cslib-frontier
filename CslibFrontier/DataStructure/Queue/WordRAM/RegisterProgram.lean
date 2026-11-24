@@ -124,7 +124,7 @@ structure Rep (w base capacity : ℕ) (front back : List ℕ) (x : Data register
 
 /-- The same logical FIFO projection as the original queue. -/
 def QueueRep (w base capacity : ℕ) (q : List ℕ) (x : Data registers) : Prop :=
-  ∃ front back, q = contents (front, back) ∧ Rep w base capacity front back x
+  ∃ front back, q = Stacks.contents ⟨front, back⟩ ∧ Rep w base capacity front back x
 
 /-- The actual resident input words, without installing the maintained metadata again. -/
 theorem Rep.input_eq {w base capacity : ℕ} {front back : List ℕ} {x : Data registers}

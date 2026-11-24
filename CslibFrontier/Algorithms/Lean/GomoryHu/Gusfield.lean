@@ -23,8 +23,9 @@ and if the parent of `t` lies in `X`, then `s` takes the place of `t` (`p s := p
 This module states the algorithm for an arbitrary cut oracle and an arbitrary processing order,
 and proves it correct for every symmetric submodular set function: if the oracle returns minimum
 cuts, the final parent graph is a Gomory–Hu tree. The oracle may return any minimum cut. The
-executable version over `Fin n` with Edmonds–Karp as the oracle, and its running time, are in
-`CslibFrontier.Algorithms.Lean.GomoryHu.Construction`.
+executable version over `Fin n` with Edmonds–Karp as the oracle is
+`CslibFrontier.Algorithms.Lean.GomoryHu.Construction`, and its Word-RAM running time is
+`CslibFrontier.Algorithms.WordRAM.GomoryHu`.
 
 ## Proof
 

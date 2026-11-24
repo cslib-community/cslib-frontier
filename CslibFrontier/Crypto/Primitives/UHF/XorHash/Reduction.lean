@@ -604,13 +604,7 @@ theorem isComputationalUHF_xorHashWordFamily {ℓ blockWidth width : ℕ → ℕ
   intro A hA
   have hinput : ComputableInPolyTime (fun n => ℓ n + blockWidth n) encUnary encUnary := by
     fun_prop
-  have hzeros := ComputableInPolyTime.bitsReplicate false
-  have heval := hPRF.polyTime.comp (hzeros.prod (hzeros.comp hinput))
-  have hw : ComputableInPolyTime width encUnary encUnary :=
-    (ComputableInPolyTime.length_bits.comp heval).of_enc_eq fun n => by
-      have h := hPRF.length_eq (List.replicate n false)
-        (List.replicate (ℓ n + blockWidth n) false) (by simp)
-      simpa only [List.length_replicate, Function.comp_def] using congrArg encUnary h.symm
+  have hw := hPRF.outLen_polyTime hinput
   have hred := isOraclePPT_xorHashWordCollisionReduction hℓ hb hw hA
   apply negligible_of_le ((hPRF.secure _ hred).add hout)
   exact succProbability_xorHashWordFamily_le family hPRF.length_eq A

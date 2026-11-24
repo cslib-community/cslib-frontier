@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.AVLTree.Basic
 public import CslibFrontier.DataStructure.SearchTree.Erase
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Rebalancing deletion for AVL binary search trees
@@ -90,7 +91,7 @@ private theorem elements_splitMin (a : α) (ah : ℕ) (l r : AVLTree α) :
     have h := Finset.ext_iff.mp (ihl b bh lr) y
     simp only [splitMin, elements_balance, mem_elements_node, Finset.mem_insert,
       Finset.mem_union] at h ⊢
-    tauto
+    lrat_tauto
 
 private theorem elements_glue (l r : AVLTree α) :
     elements (glue l r) = elements l ∪ elements r := by
@@ -101,7 +102,7 @@ private theorem elements_glue (l r : AVLTree α) :
     have h := Finset.ext_iff.mp (elements_splitMin b bh rl rr) y
     simp only [glue, elements_balance, mem_elements_node, Finset.mem_insert,
       Finset.mem_union] at h ⊢
-    tauto
+    lrat_tauto
 
 private theorem valid_and_height_splitMin {a : α} {h : ℕ} {l r : AVLTree α}
     (ht : Valid (.node a h l r)) :
@@ -160,26 +161,24 @@ private theorem valid_and_height_glue {a : α} {h : ℕ} {l r : AVLTree α}
 @[simp]
 theorem elements_erase {t : AVLTree α} (ht : Ordered t) (x : α) :
     elements (erase x t) = (elements t).erase x := by
-  induction t with
-  | nil => rfl
-  | node a h l r ihl ihr =>
-    obtain ⟨hol, hor, hl_a, ha_r⟩ := ht
-    simp only [erase]
-    split <;> rename_i hxa
-    · -- `x < a`: `x` lies in no part of the node except possibly `l`.
-      have hxr : x ∉ elements r := fun h => lt_asymm hxa (ha_r x h)
-      rw [elements_balance, ihl hol, elements_node, Finset.erase_insert_of_ne (ne_of_gt hxa),
-        Finset.erase_union_distrib, Finset.erase_eq_of_notMem hxr]
-    · split <;> rename_i hax
-      · -- `a < x`: symmetrically, `x` can only lie in `r`.
-        have hxl : x ∉ elements l := fun h => lt_asymm hax (hl_a x h)
-        rw [elements_balance, ihr hor, elements_node, Finset.erase_insert_of_ne (ne_of_lt hax),
-          Finset.erase_union_distrib, Finset.erase_eq_of_notMem hxl]
-      · have heq : x = a := le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa)
-        subst heq
-        have hx_notMem : x ∉ elements l ∪ elements r :=
-          SearchTree.Ordered.notMem_elements_union ⟨hol, hor, hl_a, ha_r⟩
-        rw [elements_glue, elements_node, Finset.erase_insert hx_notMem]
+  fun_induction erase x t with
+  | case1 => rfl -- nil
+  | case2 a h l r hxa ihl => -- x < a: erase from l, rebalance
+    -- `x` lies in no part of the node except possibly `l`.
+    obtain ⟨hol, -, -, ha_r⟩ := ht
+    have hxr : x ∉ elements r := fun h => lt_asymm hxa (ha_r x h)
+    rw [elements_balance, ihl hol, elements_node, Finset.erase_insert_of_ne (ne_of_gt hxa),
+      Finset.erase_union_distrib, Finset.erase_eq_of_notMem hxr]
+  | case3 a h l r _ hax ihr => -- a < x: erase from r, rebalance
+    -- Symmetrically, `x` can only lie in `r`.
+    obtain ⟨-, hor, hl_a, -⟩ := ht
+    have hxl : x ∉ elements l := fun h => lt_asymm hax (hl_a x h)
+    rw [elements_balance, ihr hor, elements_node, Finset.erase_insert_of_ne (ne_of_lt hax),
+      Finset.erase_union_distrib, Finset.erase_eq_of_notMem hxl]
+  | case4 a h l r hxa hax => -- x = a: glue l r
+    obtain rfl : x = a := le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa)
+    have hx_notMem : x ∉ elements l ∪ elements r := SearchTree.Ordered.notMem_elements_union ht
+    rw [elements_glue, elements_node, Finset.erase_insert hx_notMem]
 
 private theorem valid_and_height_erase {t : AVLTree α} (ht : Valid t) (x : α) :
     Valid (erase x t) ∧

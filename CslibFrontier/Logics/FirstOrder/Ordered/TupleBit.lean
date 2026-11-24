@@ -82,7 +82,7 @@ private theorem realize_parameters (e B : (language L).Term α) (v : α → Fin 
     (parameters L e B).Realize v ↔
       0 < (e.realize v).val ∧ (B.realize v).val = 2 ^ (e.realize v).val ∧
       (B.realize v).val ^ 3 < n := by
-  fo_simp [parameters, Function.comp_def, Fin.le_def, and_assoc]
+  fo_simp [parameters, Fin.le_def, and_assoc]
   constructor
   · rintro ⟨he, hB, u, hs, hc⟩
     refine ⟨by lia, hB, ?_⟩
@@ -144,28 +144,30 @@ private theorem radixFormula_complete {k : ℕ} (v : Fin 2 × Fin k → Fin n) (
   let t (i : Fin 2) : (language L).Term
       ((Fin 2 × Fin k) ⊕ (Fin 2 ⊕ (Fin 7 ⊕ (Fin 2 × Fin (7 * k))))) :=
     .var (.inr (.inl i))
+  have hconv (j : Fin 2) {Z : Fin (7 * k) → Fin n} (hZ : ∀ i, (Z i).val < bf.val)
+      (hZv : Nat.ofDigits B (List.ofFn fun i => (Z i).val) = lexRank (fun i => v (j, i)))
+      (hwZ : ∀ i, w (.inr (.inr (j, i))) = Z i) :
+      (Radix.convert L (t 1) (fun i => .var (.inr (.inr (.inl i))))
+        (fun i => .var (.inl (j, i.rev)))
+        (fun i => .var (.inr (.inr (.inr (j, i)))))).Realize (Sum.elim v w) := by
+    apply (Radix.realize_convert (t 1)
+      (fun i => .var (.inr (.inr (.inl i)))) _ _ (Sum.elim v w) hB hc ?_).mpr
+    · refine ⟨hN, ?_, ?_⟩
+      · fo_simp [t]
+        exact fun i => hwZ i ▸ hZ i
+      · change Nat.ofDigits (Nat.ofDigits B (List.ofFn fun i => (N i).val))
+          (List.ofFn fun i => (v (j, i.rev)).val) =
+          Nat.ofDigits B (List.ofFn fun i => (w (.inr (.inr (j, i)))).val)
+        simp only [hwZ, hNv, ofDigits_rev (fun i => v (j, i)), hZv]
+    · change 1 ≤ Nat.ofDigits B (List.ofFn fun i => (N i).val)
+      rw [hNv]
+      lia
   fo_simp [radixFormula, and_assoc]
   refine ⟨w, ?_, ?_, ?_, ?_, ?_⟩
   · exact (realize_parameters (t 0) (t 1) (Sum.elim v w)).mpr ⟨he, rfl, hc⟩
   · exact (Radix.realize_cardinality (t 1) _ (Sum.elim v w) hB hc).mpr ⟨hN, hNv⟩
-  · apply (Radix.realize_convert (t 1)
-      (fun i => .var (.inr (.inr (.inl i)))) _ _ (Sum.elim v w) hB hc ?_).mpr
-    · refine ⟨hN, hX, ?_⟩
-      change Nat.ofDigits (Nat.ofDigits B (List.ofFn fun i => (N i).val))
-        (List.ofFn fun i => (v (0, i.rev)).val) = Nat.ofDigits B (List.ofFn fun i => (X i).val)
-      rw [hNv, ofDigits_rev (fun i => v (0, i)), hXv]
-    · change 1 ≤ Nat.ofDigits B (List.ofFn fun i => (N i).val)
-      rw [hNv]
-      lia
-  · apply (Radix.realize_convert (t 1)
-      (fun i => .var (.inr (.inr (.inl i)))) _ _ (Sum.elim v w) hB hc ?_).mpr
-    · refine ⟨hN, hY, ?_⟩
-      change Nat.ofDigits (Nat.ofDigits B (List.ofFn fun i => (N i).val))
-        (List.ofFn fun i => (v (1, i.rev)).val) = Nat.ofDigits B (List.ofFn fun i => (Y i).val)
-      rw [hNv, ofDigits_rev (fun i => v (1, i)), hYv]
-    · change 1 ≤ Nat.ofDigits B (List.ofFn fun i => (N i).val)
-      rw [hNv]
-      lia
+  · exact hconv 0 hX hXv fun _ => rfl
+  · exact hconv 1 hY hYv fun _ => rfl
   · apply (Radix.realize_bitIndex (t 1) (t 0)
       _ _ (Sum.elim v w) he rfl hc hX hY).mpr
     change (Nat.ofDigits B (List.ofFn fun i => (X i).val)).testBit
@@ -211,7 +213,7 @@ private theorem smallFormula_complete {k : ℕ} (v : Fin 2 × Fin k → Fin n) (
     simpa only [hx] using hb
   fo_simp [smallFormula]
   refine ⟨a, x 0, x 1, ?_⟩
-  fo_simp [ite_eq_left hb']
+  fo_simp [hb']
   exact ⟨⟨by lia, fun _ => rfl⟩, fun _ => rfl⟩
 
 end TupleBit
@@ -232,7 +234,7 @@ theorem realize_tupleBit (v : Fin 2 × Fin k → Fin n) :
   by_cases hk : k = 0
   · subst k
     simp [tupleBit, lexRank_apply]
-  · fo_simp [tupleBit, ite_eq_right hk]
+  · fo_simp [tupleBit, hk]
     constructor
     · rintro (h | h)
       · exact TupleBit.smallFormula_sound v h

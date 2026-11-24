@@ -76,7 +76,7 @@ theorem weightedSubdivisionCallback_parts_inSpace [Inhabited Context]
       (fun p => (QueryMachine.encStateRead enc p).length) ∧
     ComputableInSpace M.finish enc encBits (fun s => (enc s).length) := by
   obtain ⟨hq, hn, hh, _, _⟩ := layeredCallback_parts_inSpace ntm
-  have ha := sumElim (budget_const (encIn := encLayeredQuery) (encB := encBool) false (.refl _))
+  have ha := sumElim (budget_const (encIn := encLayeredQuery) (encB := encBool) false)
     (budget_id (enc := encBool) (.refl _))
   exact callback_parts_inSpace encContext encLayeredCallback (layeredCallback ntm)
     (subdivisionLayeredCall params) _ (Sum.elim (fun _ => false) id)
