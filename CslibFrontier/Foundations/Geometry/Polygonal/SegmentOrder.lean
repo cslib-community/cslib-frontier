@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Order.Fin.Basic
 import Mathlib.Tactic.Linarith
 
@@ -69,9 +70,8 @@ private theorem observe_lt_of_position_lt
     (hp : p.position i s < p.position j t) : f (p.eval i s) < f (p.eval j t) := by
   have hij : i.val ≤ j.val := by
     by_contra hn
-    have hstep : (j.val : ℝ) + 1 ≤ i.val := by exact_mod_cast Nat.lt_of_not_ge hn
     dsimp only [position] at hp
-    linarith [hs.1, ht.2]
+    cast_linarith [Nat.lt_of_not_ge hn, hs.1, ht.2]
   rcases eq_or_lt_of_le hij with heq | hij
   · have he : i = j := Fin.ext heq
     subst j
@@ -90,8 +90,7 @@ private theorem observe_lt_of_position_lt
             h i hs (Set.right_mem_Icc.mpr zero_le_one) hs1
         exact hleft.trans_le (hk.symm ▸ (observe_bounds f h j ht).1)
       · have hsEq : s = 1 := le_antisymm hs.2 (le_of_not_gt hs1)
-        have hiCast : (i.val : ℝ) + 1 = j.val := by exact_mod_cast hidx
-        have ht0 : 0 < t := by dsimp only [position] at hp; linarith
+        have ht0 : 0 < t := by dsimp only [position] at hp; cast_linarith [hidx]
         have hright : f (p.point j.castSucc) < f (p.eval j t) := by
           simpa only [eval, AffineMap.lineMap_apply_zero] using
             h j (Set.left_mem_Icc.mpr zero_le_one) ht ht0

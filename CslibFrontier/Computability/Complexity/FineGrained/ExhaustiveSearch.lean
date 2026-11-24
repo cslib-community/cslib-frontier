@@ -161,8 +161,6 @@ private theorem exists_search_length_bounds {f : α × ℕ → β} {ν : α → 
     have := length_encNat_mono hk
     rw [hrounds] at this
     enc_len
-  have hν' : PolyBounded (fun a => (encA a).length) ν := by
-    simpa only [encUnary_apply, List.length_replicate] using hν.polyBounded_length
   obtain ⟨cf, df, hf_len⟩ := hf.polyBounded_length.exists_le
   refine ⟨fun a => 2 * (2 * (encA a).length + ν a + 2) + 2,
     fun a => cf * (2 * (encA a).length + ν a + 2 + 1) ^ df, by growth_poly, by growth_poly,
