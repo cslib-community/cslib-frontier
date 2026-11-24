@@ -403,10 +403,7 @@ theorem computableInPolyTime_signedKey {r : CNF ℕ → ℕ} {q : CNF ℕ × ℕ
     (hq : ComputableInPolyTime q (encPair encCNF encUnary) encB)
     (hd : ComputableInPolyTime d (encPair encCNF encBits) encBool) :
     ComputableInPolyTime (signedKey encB r q d) encCNF (encPair encBits encBool) := by
-  have hencB : ComputableInPolyTime (fun b => encB b) encB encBits :=
-    of_eq (encIn := encB) (encOut := encBits) (f := fun b => encB b) fun _ => rfl
-  unfold signedKey
-  fun_prop
+  fun_prop [signedKey]
 
 end SignedKey
 

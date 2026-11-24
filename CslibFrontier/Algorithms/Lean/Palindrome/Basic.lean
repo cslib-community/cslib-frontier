@@ -260,6 +260,16 @@ theorem exists_length_le_radius_of_isInfix {w u : List α} (hu : u <:+: w) (hpal
 @[expose] def bestCenter (w : List α) : ℕ :=
   ((List.range (2 * w.length + 1)).argmax fun c => 2 * radius w c + c % 2).getD 0
 
+/-- `bestCenter w` is always one of the `2 * w.length + 1` centers `0, …, 2 * w.length`. -/
+theorem bestCenter_le (w : List α) : bestCenter w ≤ 2 * w.length := by
+  unfold bestCenter
+  cases hm : (List.range (2 * w.length + 1)).argmax (fun c => 2 * radius w c + c % 2) with
+  | none => exact Nat.zero_le _
+  | some m =>
+    have hmem := List.mem_range.mp (List.argmax_mem hm)
+    simp only [Option.getD_some]
+    omega
+
 /-- A longest palindromic factor of `w`: the maximal palindrome about `bestCenter w`. -/
 @[expose] def longestPalindrome (w : List α) : List α :=
   maxPalindrome w (bestCenter w)

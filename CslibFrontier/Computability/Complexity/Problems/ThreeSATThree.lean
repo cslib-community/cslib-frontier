@@ -9,14 +9,13 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT
 public import CslibFrontier.Logics.Propositional.CNF.ThreeOccurrence
+import CslibFrontier.Logics.Propositional.CNF.Compact.Relabel
 import CslibFrontier.Logics.Propositional.CNF.ModelCount.Relabel
 import CslibFrontier.Logics.Propositional.CNF.ThreeOccurrence.PolyTime
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryPair
 
 /-!
 # 3SAT with at most three occurrences per variable
@@ -40,7 +39,8 @@ This endpoint imposes no planarity condition.
 ## Main definitions
 
 * `Cslib.Complexity.ThreeSATThree`: satisfiable width-three, occurrence-three CNF formulas.
-* `Cslib.Complexity.toThreeSATThree`: the total reduction from `ThreeSAT`.
+* `Cslib.Complexity.ThreeSATThree.copyCodec`, `Cslib.Complexity.toThreeSATThree`: variable-copy
+  codec and total reduction from `ThreeSAT`.
 
 ## Main results
 
@@ -67,27 +67,24 @@ def ThreeSATThree : Set (CNF ℕ) :=
 
 namespace ThreeSATThree
 
+/-- Codec numbering an original binary label and its two occurrence indices. -/
+def copyCodec : NatCodec (ℕ × ℕ × ℕ) :=
+  NatCodec.nat.pair (NatCodec.nat.pair .nat)
+
 /-- Injectively encode an original binary label and its two occurrence indices. -/
-def numberCopy (x : ℕ × ℕ × ℕ) : ℕ := Nat.pair x.1 (Nat.pair x.2.1 x.2.2)
+def numberCopy (x : ℕ × ℕ × ℕ) : ℕ :=
+  copyCodec x
 
 /-- Numbering copies is injective, independently of whether they occur in a formula. -/
-theorem numberCopy_injective : Function.Injective numberCopy := by
-  rintro ⟨a, b, c⟩ ⟨d, e, f⟩ h
-  simp only [numberCopy, Nat.pair_eq_pair] at h
-  rcases h with ⟨rfl, rfl, rfl⟩
-  rfl
+theorem numberCopy_injective : Function.Injective numberCopy :=
+  copyCodec.injective
 
 /-- Numbering copies is polynomial-time without expanding the original binary label. -/
 @[fun_prop]
 theorem computableInPolyTime_numberCopy :
     ComputableInPolyTime numberCopy (encPair encNat (encPair encUnary encUnary)) encNat := by
-  have hi : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.pair p.1 p.2)
-      (encPair encUnary encUnary) encNat :=
-    ComputableInPolyTime.binary_pair.comp
-      ((ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.fst _ _)).prod
-        (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _)))
-  exact ComputableInPolyTime.binary_pair.comp
-    ((ComputableInPolyTime.fst _ _).prod (hi.comp (ComputableInPolyTime.snd _ _)))
+  unfold numberCopy copyCodec
+  fun_prop
 
 /-- Check clause widths, literal-occurrence bounds, and a satisfying assignment. -/
 def verifier (x : CNF ℕ × List Bool) : Bool :=
@@ -116,9 +113,7 @@ theorem isVerifier : IsVerifier encCNF Polynomial.X verifier ThreeSATThree := by
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encCNF encBits) encBool := by
-  unfold verifier
-  simp only [List.count_eq_countP]
-  fun_prop
+  fun_prop [verifier]
 
 /-- 3SAT-3 belongs to NP under the ordinary binary CNF encoding. -/
 theorem mem_NP : ThreeSATThree ∈ NP encCNF :=
@@ -156,11 +151,7 @@ theorem modelCount_toThreeSATThree (φ : CNF ℕ) (hφ : ∀ c ∈ φ, c.length 
 @[fun_prop]
 theorem computableInPolyTime_toThreeSATThree :
     ComputableInPolyTime toThreeSATThree encCNF encCNF := by
-  have hr := CNF.computableInPolyTime_relabel ThreeSATThree.computableInPolyTime_numberCopy
-  have hs := CNF.computableInPolyTime_toThreeOccurrence encNat
-  have hc := hr.comp hs
-  unfold toThreeSATThree
-  fun_prop
+  fun_prop [toThreeSATThree]
 
 /-- Correctness holds for all CNF inputs, including those outside the width-three restriction. -/
 theorem mem_ThreeSATThree_toThreeSATThree_iff (φ : CNF ℕ) :
@@ -176,13 +167,8 @@ theorem mem_ThreeSATThree_toThreeSATThree_iff (φ : CNF ℕ) :
     · intro c hc
       obtain ⟨d, hd, rfl⟩ := List.mem_map.1 hc
       simpa using CNF.width_toThreeOccurrence (by decide : 2 ≤ 3) hw' d hd
-    · intro v
-      rw [CNF.vars_relabel]
-      by_cases hv : v ∈ φ.toThreeOccurrence.vars.map ThreeSATThree.numberCopy
-      · obtain ⟨x, _, rfl⟩ := List.mem_map.1 hv
-        rw [List.count_map_of_injective _ _ ThreeSATThree.numberCopy_injective]
-        exact CNF.count_vars_toThreeOccurrence_le φ x
-      · simp [List.count_eq_zero.2 hv]
+    · exact CNF.count_vars_relabel_le_of_injOn _ _ ThreeSATThree.numberCopy_injective.injOn
+        (CNF.count_vars_toThreeOccurrence_le φ)
   · have hw' : ¬ ∀ c ∈ φ, c.length ≤ 3 := by simpa using hw
     simp [ThreeSATThree, ThreeSAT, hw', CNF.Satisfiable]
 

@@ -24,7 +24,7 @@ implicit rejection ([NIST, Section 6, Algorithms 16–18][NISTFIPS203]):
 
 The wrapper is stated for any `ExplicitCoinPKE`, and the re-encryption check is the existing
 `FujisakiOkamoto.decT` with coin function `m ↦ (G(m ‖ h)).2` (`decapsWith_eq`). Unlike
-`FujisakiOkamoto.Scheme.decapsNotBot`, which derives keys as `H(false, m, c)` and rejection keys
+`FujisakiOkamoto.Scheme.decapsNotBot`, which derives keys as `H(m, c)` and rejection keys
 from a message-space seed, ML-KEM takes the shared key from `G` without hashing `c`, binds the
 public key into `G` through `H(ek)`, and derives rejection keys from an independent seed `z`.
 

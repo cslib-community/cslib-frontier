@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import shutil
@@ -44,7 +45,7 @@ class WorktreeCreateTests(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.tmp = pathlib.Path(tmp.name)
+        self.tmp = pathlib.Path(tmp.name).resolve()
         self.origin = self.tmp / "origin.git"
         subprocess.run(
             ["git", "init", "--quiet", "--bare", "-b", "main", str(self.origin)],
@@ -220,6 +221,158 @@ class WorktreeCreateTests(unittest.TestCase):
         self.assertNotEqual(git(package, "rev-parse", "--absolute-git-dir"),
                             git(copied_package, "rev-parse", "--absolute-git-dir"))
         self.assertFalse((self.work / ".lake/build/bootstrap-artifact").exists())
+
+    def test_seed_checks_destination_pins_and_actual_package_heads(self) -> None:
+        pkg = self.primary_caches()
+        pin = git(pkg, "rev-parse", "HEAD")
+        manifest = self.work / "lake-manifest.json"
+        manifest.write_text(json.dumps({"packages": [{"name": "cslib", "type": "git", "rev": pin}]}))
+        (self.work / "lean-toolchain").write_text("pinned-toolchain\n")
+        git(self.work, "add", "lake-manifest.json", "lean-toolchain")
+        git(self.work, "commit", "-qm", "record pins")
+        env = self.bootstrap_probe()
+        for name, base, expected in (("same", "HEAD", "seeded"), ("old", "HEAD^", "empty"),
+                                     ("stale", "HEAD", "empty")):
+            if name == "stale":
+                git(pkg, "commit", "--allow-empty", "-qm", "different dependency revision")
+            result = self.create(f"test/{name}", name, base, env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            wt = self.work / ".worktrees" / name
+            self.assertEqual((wt / ".bootstrap-entry").read_text(), expected)
+            self.assertEqual((wt / ".lake/build/root-output").is_file(), expected == "seeded")
+            self.assertEqual((wt / ".lake/packages/cslib/.lake").exists(), expected == "seeded")
+            self.assertTrue((wt / ".lake/build/bootstrap-artifact").is_file())
+
+    def test_existing_destination_dependencies_gate_root_outputs(self) -> None:
+        package = self.primary_caches()
+        pin = git(package, "rev-parse", "HEAD")
+        (self.work / "lake-manifest.json").write_text(json.dumps({
+            "packages": [{"name": "cslib", "type": "git", "rev": pin}]}))
+        git(self.work, "add", "lake-manifest.json")
+        git(self.work, "commit", "-qm", "record dependency pin")
+        for case in ("clean", "dirty", "staged", "untracked", "wrong-head", "missing"):
+            with self.subTest(case=case):
+                result = self.create(f"test/{case}", case, "HEAD", "--source-only")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                target = self.work / ".worktrees" / case
+                packages = target / ".lake/packages"
+                packages.mkdir(parents=True)
+                destination = packages / "cslib"
+                if case != "missing":
+                    git(target, "clone", "-q", str(package), str(destination))
+                if case in ("dirty", "staged"):
+                    (destination / "Source.lean").write_text("destination edit\n")
+                    if case == "staged":
+                        git(destination, "add", "Source.lean")
+                elif case == "untracked":
+                    (destination / "Local.lean").write_text("destination addition\n")
+                elif case == "wrong-head":
+                    git(destination, "commit", "--allow-empty", "-qm", "different revision")
+                before = git(destination, "status", "--porcelain") if case != "missing" else None
+                result = subprocess.run(
+                    ["bash", str(self.work / "scripts/worktree.sh"), "seed", str(target)],
+                    capture_output=True, text=True, env=GIT_ENV)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                for path in (".lake/build/root-output", ".lake/config/lakefile.olean"):
+                    self.assertEqual((target / path).is_file(), case == "clean", path)
+                if case != "missing":
+                    self.assertEqual(git(destination, "status", "--porcelain"), before)
+                else:
+                    self.assertFalse(destination.exists())
+
+    def test_root_lake_configuration_changes_prevent_build_output_seed(self) -> None:
+        self.primary_caches()
+        for name in ("lakefile.toml", "lakefile.lean"):
+            (self.work / name).write_text("original configuration\n")
+        git(self.work, "add", "lakefile.toml", "lakefile.lean")
+        git(self.work, "commit", "-qm", "record Lake configuration")
+        for case, name in enumerate(("lakefile.toml", "lakefile.lean")):
+            with self.subTest(name=name):
+                result = self.create(f"test/config-{case}", f"config-{case}", "HEAD", "--source-only")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                target = self.work / ".worktrees" / f"config-{case}"
+                (target / name).write_text("changed configuration\n")
+                result = subprocess.run(
+                    ["bash", str(self.work / "scripts/worktree.sh"), "seed", str(target)],
+                    capture_output=True, text=True, env=GIT_ENV)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse((target / ".lake/build").exists())
+                self.assertFalse((target / ".lake/config").exists())
+                self.assertEqual((target / name).read_text(), "changed configuration\n")
+
+    def test_compatible_root_cache_omits_a_dirty_guide_only_package(self) -> None:
+        cslib = self.primary_caches()
+        verso = self.work / ".lake/packages/verso"
+        git(self.work, "clone", "-q", str(cslib), str(verso))
+        (verso / "Source.lean").write_text("local guide edit")
+        pin = git(cslib, "rev-parse", "HEAD")
+        for names in (["cslib"], []):
+            manifest = {"packages": [{"name": name, "type": "git", "rev": pin} for name in names]}
+            (self.work / "lake-manifest.json").write_text(json.dumps(manifest))
+            git(self.work, "add", "lake-manifest.json")
+            git(self.work, "commit", "-qm", "record root pins")
+            name = f"root-{len(names)}"
+            result = self.create(f"test/{name}", name, "HEAD", "--copy-packages")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            lake = self.work / ".worktrees" / name / ".lake"
+            self.assertTrue((lake / "build/root-output").is_file())
+            self.assertFalse((lake / "packages/verso").exists())
+            self.assertEqual((lake / "packages/cslib/.lake/build/dependency-output").is_file(),
+                             bool(names))
+
+    def test_mixed_pins_seed_only_clean_matching_package_sources(self) -> None:
+        cslib = self.primary_caches()
+        other = self.work / ".lake/packages/other"
+        git(self.work, "clone", "-q", str(cslib), str(other))
+        other_cache = other / ".lake/build/dependency-output"
+        other_cache.parent.mkdir(parents=True)
+        other_cache.write_text("old build")
+        pin = git(cslib, "rev-parse", "HEAD")
+        entries = [{"name": name, "type": "git", "rev": pin} for name in ("cslib", "other")]
+        (self.work / "lake-manifest.json").write_text(json.dumps({"packages": entries}))
+        git(self.work, "add", "lake-manifest.json")
+        git(self.work, "commit", "-qm", "record two pins")
+        git(other, "commit", "--allow-empty", "-qm", "different dependency revision")
+        env = self.bootstrap_probe()
+        for name, flags in (("linked", ()), ("cslib", ("--copy-cslib",)), ("all", ("--copy-packages",))):
+            with self.subTest(mode=name):
+                result = self.create(f"test/{name}", name, "HEAD", *flags, env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                lake = self.work / ".worktrees" / name / ".lake"
+                kept = lake / "packages/cslib"
+                self.assertEqual(git(kept, "rev-parse", "HEAD"), pin)
+                self.assertFalse(os.path.samefile(cslib / ".git/index", kept / ".git/index"))
+                self.assertEqual(os.path.samefile(cslib / "Source.lean", kept / "Source.lean"), not flags)
+                for path in (kept / ".lake", lake / "packages/other", lake / "build/root-output", lake / "config"):
+                    self.assertFalse(path.exists(), path)
+                self.assertTrue((lake / "build/bootstrap-artifact").is_file())
+
+    def test_dirty_dependency_sources_and_unreadable_manifest_skip_seed(self) -> None:
+        pkg = self.primary_caches()
+        pin = git(pkg, "rev-parse", "HEAD")
+        manifest = self.work / "lake-manifest.json"
+        manifest.write_text(json.dumps({"packages": [{"name": "cslib", "type": "git", "rev": pin}]}))
+        git(self.work, "add", "lake-manifest.json")
+        git(self.work, "commit", "-qm", "record pin")
+        for mode in ("untracked", "unstaged", "staged", "malformed"):
+            with self.subTest(mode=mode):
+                # Overlapping changes are restored between cases, including the index.
+                (pkg / "Extra.lean").unlink(missing_ok=True)
+                git(pkg, "restore", "--staged", "--worktree", "--", "Source.lean")
+                if mode == "malformed":
+                    manifest.write_text("{")
+                    git(self.work, "commit", "-qam", "broken manifest fixture")
+                elif mode == "untracked":
+                    (pkg / "Extra.lean").write_text("local source")
+                else:
+                    (pkg / "Source.lean").write_text("local edit")
+                    if mode == "staged":
+                        git(pkg, "add", "Source.lean")
+                result = self.create(f"test/{mode}", mode, "HEAD", env=self.bootstrap_probe())
+                self.assertEqual(result.returncode, 0, result.stderr)
+                wt = self.work / ".worktrees" / mode
+                self.assertEqual((wt / ".bootstrap-entry").read_text(), "empty")
+                self.assertFalse((wt / ".lake/packages/cslib").exists())
 
     def test_source_only_respects_explicit_bootstrap_opt_out(self) -> None:
         self.primary_caches()

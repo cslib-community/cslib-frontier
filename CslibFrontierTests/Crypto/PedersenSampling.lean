@@ -186,14 +186,15 @@ example (A : Encryption.WordAdversary) (hA : A.IsPPT) (b : Bool) :
         schnorrGroups.pedersenHidingProbExperiment A b p.1 p.2) :=
   schnorrGroups.isPPTOn_pedersenHidingProbExperiment hA b
 
-/-- Under the native fair-coin key distribution `pedersenKeyDistProb setup`, the Pedersen
-commitment scheme remains statistically hiding and computationally binding under `DiscreteLog`. -/
+/-- Under the fair-coin key distribution `pedersenKeyDistProb setup`, the Pedersen commitment scheme
+is statistically hiding with ideal commitment sampling, and computationally binding under
+`DiscreteLog`. -/
 example (setup : ℕ → PMF schnorrGroups.Desc)
     (hm : ∀ n, ∀ d ∈ (setup n).support, 2 ^ n ≤ schnorrGroups.order d)
     (hDL : schnorrGroups.DiscreteLog setup) :
     schnorrGroups.pedersenScheme.StatisticalHiding (schnorrGroups.pedersenKeyDistProb setup) ∧
       schnorrGroups.pedersenScheme.Binding (schnorrGroups.pedersenKeyDistProb setup) :=
-  ⟨schnorrGroups.pedersenScheme_statisticalHiding_pedersenKeyDistProb setup
+  ⟨schnorrGroups.pedersenScheme_statisticalHiding_ideal_pedersenKeyDistProb setup
       (fun n => Nat.two_pow_pos n) hm
       (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using negligible_one_div_two_pow),
     hDL.pedersenScheme_binding_pedersenKeyDistProb⟩

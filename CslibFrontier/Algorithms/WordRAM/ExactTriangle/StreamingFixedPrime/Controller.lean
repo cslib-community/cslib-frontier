@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime.Program
+import CslibFrontier.Computability.WordRAM.Record
 
 /-!
 # Charged one-slot controller setup and reclamation
@@ -23,10 +24,8 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime
 open Cslib.WordRAM
 open FixedPrime (recordBank)
 
--- The finite setup writes only the five existing controller registers.
-set_option maxRecDepth 4096 in
 private theorem setup_preserves : ∀ i : Fin 416, i.val < 400 → setup.Preserves i := by
-  decide
+  decide +kernel
 
 /-- Read the total logical count and charge all five controller initialization instructions. -/
 theorem exec_setup {w : ℕ} (x : Data 416) (h1 : Fits w 1) :
@@ -36,19 +35,12 @@ theorem exec_setup {w : ℕ} (x : Data 416) (h1 : Fits w 1) :
       y.regs FixedPrime.Reg.found = 0 ∧ y.regs FixedPrime.Reg.scans = 0 ∧
       y.regs FixedPrime.Reg.one = 1 ∧
       ∀ j : Fin 416, j.val < 400 → y.regs j = x.regs j := by
-  let M := x.regs (producerBank Instances.total)
-  let y := x.set FixedPrime.Reg.index 0 |>.set FixedPrime.Reg.limit M
-    |>.set FixedPrime.Reg.found 0 |>.set FixedPrime.Reg.scans 0
-    |>.set FixedPrime.Reg.one 1
-  have he : ExecWithin w setup x y 5 := by
-    ram_eval [setup, y, M, h1, FixedPrime.Reg.index, FixedPrime.Reg.limit,
-      FixedPrime.Reg.found, FixedPrime.Reg.scans, FixedPrime.Reg.one, producerBank,
-      recordBank, RecordWitness.productBank, RecordProduct.producerBank,
-      Instances.total, Fin.castLE]
-  refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, ?_, fun j hj =>
-    he.regs_eq (setup_preserves j hj)⟩
-  all_goals simp +decide [y, M, FixedPrime.Reg.index, FixedPrime.Reg.limit,
-    FixedPrime.Reg.found, FixedPrime.Reg.scans, FixedPrime.Reg.one]
+  refine WP.exists_execWithin_preserves (fun j hj => setup_preserves j hj) ?_
+  unfold setup
+  wram_exec
+  intro hpres
+  exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp,
+    by wram_simp, by wram_simp, hpres⟩
 
 /-- Reclaim the slot by an actual charged heap copy, retaining every word and other register. -/
 theorem exec_reset {w : ℕ} (x : Data 416) :

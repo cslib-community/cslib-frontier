@@ -389,19 +389,14 @@ theorem computableInPolyTime_guoVerifyNonMem {N g c h b : α → ℕ} {γ : α �
     (hb : ComputableInPolyTime b enc encNat) (hγ : ComputableInPolyTime γ enc encIntBin) :
     ComputableInPolyTime (fun a => guoVerifyNonMem (N a) (g a) (c a) (h a) (b a) (γ a))
       enc encBool := by
-  have habs : ComputableInPolyTime (fun a => (γ a).natAbs) enc encNat :=
-    ComputableInPolyTime.intBin_natAbs.comp hγ
   have hbh := computableInPolyTime_powMod hN hb hh
-  have hcγ := computableInPolyTime_powMod hN hc habs
-  exact ComputableInPolyTime.bool_and'
-    (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.binary_gcd' hc hN)
-      (ComputableInPolyTime.const 1))
-    (ComputableInPolyTime.ite_decide (ComputableInPolyTime.intBin_isNeg.comp hγ)
-      (ComputableInPolyTime.beq hbh
-        (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hg hcγ) hN))
-      (ComputableInPolyTime.beq
-        (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hbh hcγ) hN)
-        (ComputableInPolyTime.binary_mod' hg hN)))
+  have hcγ := computableInPolyTime_powMod hN hc (e := fun a => (γ a).natAbs) (by fun_prop)
+  have hm1 := ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hg hcγ) hN
+  have hm2 := ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hbh hcγ) hN
+  have hm3 := ComputableInPolyTime.binary_mod' hg hN
+  have hcop : ComputableInPolyTime (fun a => decide (Nat.Coprime (c a) (N a))) enc encBool := by
+    fun_prop [Nat.Coprime]
+  fun_prop [guoVerifyNonMem]
 
 /-- Alice's exponent `E` for the set of elements of a list is computable in polynomial time whenever
 the list is, on `encList encX`, and `H` is, with binary values. The machine erases the list's
@@ -439,6 +434,7 @@ theorem computableInPolyTime_guoCommit_toFinset {β : Type} [DecidableEq β]
 
 /-- Alice's non-membership coefficient `guoNonMemCoeff h E`, the natural number `-γ` on `encNat`,
 is computable in polynomial time whenever `h` and `E` are, as natural numbers on `encNat`. -/
+@[local fun_prop]
 theorem computableInPolyTime_guoNonMemCoeff {h E : α → ℕ}
     (hh : ComputableInPolyTime h enc encNat) (hE : ComputableInPolyTime E enc encNat) :
     ComputableInPolyTime (fun a => guoNonMemCoeff (h a) (E a)) enc encNat :=
@@ -450,9 +446,8 @@ polynomial time whenever `h` and `E` are, as natural numbers on `encNat`. This i
 in `guoVerifyNonMem_witness` and `computableInPolyTime_guoVerifyNonMem`. -/
 theorem computableInPolyTime_neg_guoNonMemCoeff {h E : α → ℕ}
     (hh : ComputableInPolyTime h enc encNat) (hE : ComputableInPolyTime E enc encNat) :
-    ComputableInPolyTime (fun a => -(guoNonMemCoeff (h a) (E a) : ℤ)) enc encIntBin :=
-  ComputableInPolyTime.intBin_neg.comp
-    (ComputableInPolyTime.intBin_natCast.comp (computableInPolyTime_guoNonMemCoeff hh hE))
+    ComputableInPolyTime (fun a => -(guoNonMemCoeff (h a) (E a) : ℤ)) enc encIntBin := by
+  fun_prop
 
 /-- Alice's non-membership group element is computable in polynomial time whenever `N`, `g`, `h`
 and `E` are, as natural numbers on `encNat`. -/
@@ -461,10 +456,7 @@ theorem computableInPolyTime_guoNonMemWitness {N g h E : α → ℕ}
     (hh : ComputableInPolyTime h enc encNat) (hE : ComputableInPolyTime E enc encNat) :
     ComputableInPolyTime (fun a => guoNonMemWitness (N a) (g a) (h a) (E a)) enc encNat :=
   computableInPolyTime_powMod hN hg
-    (ComputableInPolyTime.binary_div'
-      (ComputableInPolyTime.binary_add'
-        (ComputableInPolyTime.binary_mul' (computableInPolyTime_guoNonMemCoeff hh hE) hE)
-        (ComputableInPolyTime.const 1)) hh)
+    (e := fun a => (guoNonMemCoeff (h a) (E a) * E a + 1) / h a) (by fun_prop)
 
 /-- The root `guoForgeryRoot` is computable in polynomial time whenever `N`, `a` and `b` are, as
 natural numbers on `encNat`, and `γ` is, as an integer on `encIntBin`. -/
@@ -475,8 +467,7 @@ theorem computableInPolyTime_guoForgeryRoot {N a b : α → ℕ} {γ : α → �
   ComputableInPolyTime.binary_mod'
     (ComputableInPolyTime.binary_mul' hb
       (computableInPolyTime_powMod hN
-        (ComputableInPolyTime.ite_decide (ComputableInPolyTime.intBin_isNeg.comp hγ)
-          (ComputableInPolyTime.binary_modInv' ha hN) ha)
-        (ComputableInPolyTime.intBin_natAbs.comp hγ))) hN
+        (x := fun x => if γ x < 0 then BinaryGcd.modInv (a x) (N x) else a x)
+        (e := fun x => (γ x).natAbs) (by fun_prop) (by fun_prop))) hN
 
 end Cslib.Crypto

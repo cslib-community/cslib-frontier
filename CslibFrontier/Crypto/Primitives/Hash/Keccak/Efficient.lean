@@ -189,15 +189,14 @@ private theorem computableInPolyTime_absorb (layout : SpongeLayout) :
       (encSpongeView layout) := by
     unfold Sponge.absorbStep
     exact (computableInPolyTime_keccakP1600Rounds24View layout).comp hpreprocess
-  apply ComputableInPolyTime.of_tidy
-  apply Turing.MultiTapeTM.ComputableTidilyInPolyTime.foldl_of_bounded_growth
+  apply Turing.MultiTapeTM.ComputableInPolyTime.foldl_of_bounded_growth
     (encA := encBitString (64 * layout.rateLanes))
     (encL := encList (encBitString (64 * layout.rateLanes)))
     (encB := encSpongeView layout)
     (step := Sponge.absorbStep (keccakP1600Rounds24View layout))
-    (id' (encIn := encList (encBitString (64 * layout.rateLanes)))).tidy
-    (const (0 : SpongeView layout)).tidy
-    hstep.tidy
+    (id' (encIn := encList (encBitString (64 * layout.rateLanes))))
+    (const (0 : SpongeView layout))
+    hstep
     (growth := 0)
   intro state block
   simp [encSpongeView]
@@ -207,11 +206,10 @@ private theorem computableInPolyTime_iteratePermutation (layout : SpongeLayout) 
       (fun p : SpongeView layout × ℕ =>
         (keccakP1600Rounds24View layout)^[p.2] p.1)
       (encPair (encSpongeView layout) encUnary) (encSpongeView layout) := by
-  apply ComputableInPolyTime.of_tidy
-  apply Turing.MultiTapeTM.ComputableTidilyInPolyTime.iterate_of_bounded_growth
-    (snd (encSpongeView layout) encUnary |>.tidy)
-    (fst (encSpongeView layout) encUnary |>.tidy)
-    (computableInPolyTime_keccakP1600Rounds24View layout).tidy
+  apply Turing.MultiTapeTM.ComputableInPolyTime.iterate_of_bounded_growth
+    (snd (encSpongeView layout) encUnary)
+    (fst (encSpongeView layout) encUnary)
+    (computableInPolyTime_keccakP1600Rounds24View layout)
     (growth := 0)
   intro state
   simp [encSpongeView]
@@ -335,10 +333,9 @@ polynomial-time in the framed input bytes and the unary requested output length.
         squeezeBytesFor layout (Sponge.toBlocks rate padded) (p.2 ⌈/⌉ rateBytes))
       encByteXofInput encByteStringLE :=
     (computableInPolyTime_squeezeBytesFor layout).comp (hblocks.prod hblockCount)
-  have htaken := Turing.MultiTapeTM.ComputableTidilyInPolyTime.listTakeWithInput
-    hsqueezed.tidy houtput.tidy
-  exact ComputableInPolyTime.of_tidy <| by
-    simpa only [byteSponge, rate, rateBytes] using htaken
+  have htaken := Turing.MultiTapeTM.ComputableInPolyTime.listTakeWithInput
+    hsqueezed houtput
+  simpa only [byteSponge, bitSponge, rate, rateBytes] using htaken
 
 /-- SHA3-512 is uniformly polynomial-time in its framed little-endian input bytes. -/
 @[fun_prop] theorem computableInPolyTime_sha3512 :

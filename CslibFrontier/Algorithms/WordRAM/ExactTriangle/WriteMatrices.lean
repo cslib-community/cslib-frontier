@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Allocation
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Native zero/one matrices for an Exact Triangle instance
@@ -172,11 +175,7 @@ theorem program_fixed (rightSide : Bool) :
   cases rightSide <;> decide
 
 private theorem entry_of_regs {A : Args} {x y : Data 17} (hx : Entry A x)
-    (h : ∀ i : Fin 17, i.val < 8 → y.regs i = x.regs i) : Entry A y :=
-  ⟨(h src (by decide)).trans hx.src, (h dst (by decide)).trans hx.dst,
-    (h size (by decide)).trans hx.size, (h dimension (by decide)).trans hx.dimension,
-    (h modulus (by decide)).trans hx.modulus, (h first (by decide)).trans hx.first,
-    (h length (by decide)).trans hx.length, (h rho (by decide)).trans hx.rho⟩
+    (h : ∀ i : Fin 17, i.val < 8 → y.regs i = x.regs i) : Entry A y := by regs_frame
 
 private theorem exec_indices {w q : ℕ} (side : Bool) (A : Args) (x : Data 17)
     (hx : Entry A x) (hq : x.regs idx = q) (hfit : Fits w q) :
@@ -185,36 +184,12 @@ private theorem exec_indices {w q : ℕ} (side : Bool) (A : Args) (x : Data 17)
       y.regs vertex = (if side then q / A.n else q % A.D) / A.p ∧
       y.regs label = (if side then q / A.n else q % A.D) % A.p ∧
       y.regs one = x.regs one ∧ y.regs zero = x.regs zero ∧ y.mem = x.mem := by
-  have hdn : Fits w (q / A.n) := hfit.of_le (Nat.div_le_self ..)
-  have hmn : Fits w (q % A.n) := hfit.of_le (Nat.mod_le ..)
-  have hdd : Fits w (q / A.D) := hfit.of_le (Nat.div_le_self ..)
-  have hmd : Fits w (q % A.D) := hfit.of_le (Nat.mod_le ..)
-  have hdnp : Fits w (q / A.n / A.p) := hdn.of_le (Nat.div_le_self ..)
-  have hmnp : Fits w (q / A.n % A.p) := hdn.of_le (Nat.mod_le ..)
-  have hmdp : Fits w (q % A.D / A.p) := hmd.of_le (Nat.div_le_self ..)
-  have hmmp : Fits w (q % A.D % A.p) := hmd.of_le (Nat.mod_le ..)
-  let rowValue := if side then q % A.n else q / A.D
-  let middleValue := if side then q / A.n else q % A.D
-  let y := x.set line rowValue |>.set vertex middleValue
-    |>.set label (middleValue % A.p) |>.set vertex (middleValue / A.p)
-  refine ⟨y, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, rfl⟩
-  · cases side <;>
-      ram_eval [indices, y, rowValue, middleValue, hq, hx.size, hx.dimension, hx.modulus,
-        hdn, hmn, hdd, hmd, hdnp, hmnp, hmdp, hmmp, line, vertex, label, idx, size,
-        dimension, modulus, Fin.mk.injEq]
-  · apply entry_of_regs hx
-    intro i hi
-    have hl : i ≠ line := by intro h; subst i; change 10 < 8 at hi; omega
-    have hv : i ≠ vertex := by intro h; subst i; change 11 < 8 at hi; omega
-    have hb : i ≠ label := by intro h; subst i; change 12 < 8 at hi; omega
-    simp only [y, Data.set_regs, Function.update_of_ne hl, Function.update_of_ne hv,
-      Function.update_of_ne hb]
-  · simp +decide [y, idx, line, vertex, label, hq]
-  · simp +decide [y, rowValue, line, vertex, label]
-  · simp [y, middleValue]
-  · simp +decide [y, middleValue, line, vertex, label]
-  · simp +decide [y, one, line, vertex, label]
-  · simp +decide [y, zero, line, vertex, label]
+  refine WP.exists_execWithin ?_
+  cases side <;>
+    (simp only [indices, Bool.false_eq_true, ↓reduceIte]
+     wram_exec [hq, hx.size, hx.dimension, hx.modulus]
+     exact ⟨by regs_frame, by wram_simp [hq], by wram_simp, by wram_simp, by wram_simp,
+       by wram_simp, by wram_simp, rfl⟩)
 
 private theorem exec_readLabel {w row v : ℕ} (side : Bool) (A : Args) (R : ℕ → ℕ)
     (x : Data 17) (hx : Entry A x)
@@ -227,30 +202,12 @@ private theorem exec_readLabel {w row v : ℕ} (side : Bool) (A : Args) (R : ℕ
       y.regs value = (if side then (A.p - R (row * A.n + A.first + v)) % A.p
         else (R (row * A.n + A.first + v) + A.rho) % A.p) ∧
       (∀ i, i ≠ addr → i ≠ value → y.regs i = x.regs i) ∧ y.mem = x.mem := by
-  let pos := row * A.n + A.first + v
-  have hpos : pos < A.n * A.n := hpoint
-  have hkey := hR pos hpos
-  have hr := hinput pos hpos
-  have hmul : Fits w (row * A.n) := hs.of_le (by dsimp [pos] at hpos; omega)
-  have hfirst : Fits w (row * A.n + A.first) := hs.of_le (by dsimp [pos] at hpos; omega)
-  have hindex : Fits w pos := hs.of_le (by omega)
-  have haddr : Fits w (A.src + pos) := hs.of_le (by omega)
-  have hsub : Fits w (A.p - R pos) := hp.of_le (by omega)
-  have hadd : Fits w (R pos + A.rho) := hp.of_le (by omega)
-  have hmodsub : Fits w ((A.p - R pos) % A.p) := hsub.of_le (Nat.mod_le ..)
-  have hmodadd : Fits w ((R pos + A.rho) % A.p) := hadd.of_le (Nat.mod_le ..)
-  let z := x.set addr (row * A.n) |>.set addr (row * A.n + A.first)
-    |>.set addr pos |>.set addr (A.src + pos) |>.set value (R pos)
-  let t := if side then A.p - R pos else R pos + A.rho
-  let y := z.set value t |>.set value (t % A.p)
-  refine ⟨y, ?_, ?_, ?_, rfl⟩
-  · cases side <;>
-      ram_eval [readLabel, z, t, y, hrow, hv, hx.size, hx.first, hx.src, hx.modulus, hx.rho,
-        hmul, hfirst, hindex, haddr, hsub, hadd, hmodsub, hmodadd, hr, pos, line, vertex,
-        size, first, src, modulus, rho, addr, value, Fin.mk.injEq]
-  · cases side <;> simp [y, t, pos]
-  · intro i hi hv
-    simp only [y, z, Data.set_regs, Function.update_of_ne hi, Function.update_of_ne hv]
+  have hkey := hR _ hpoint
+  refine WP.exists_execWithin ?_
+  cases side <;>
+    (simp only [readLabel, Bool.false_eq_true, ↓reduceIte]
+     wram_exec [hrow, hv, hx.size, hx.first, hx.src, hx.modulus, hx.rho, hinput _ hpoint]
+     exact ⟨by wram_simp, fun i ha hval => by wram_simp [ha, hval], rfl⟩)
 
 private theorem body_preserves (side : Bool) : ∀ i : Fin 17,
     (i.val < 8 ∨ i = area ∨ i = one ∨ i = zero) → (body side).Preserves i := by
@@ -266,84 +223,30 @@ private theorem exec_body {w q : ℕ} (side : Bool) (A : Args) (R : ℕ → ℕ)
     (hmod : Fits w (2 * A.p)) :
     ∃ y, ExecWithin w (body side) x y 18 ∧ y.regs idx = q + 1 ∧
       y.mem = Function.update x.mem (A.dst + q) (entry side A R q) := by
-  have hqfit : Fits w q := hdst.of_le (by omega)
-  obtain ⟨b, hb, hba, hbi, hbl, hbv, hbb, hbo, hbz, hbm⟩ :=
-    exec_indices side A x hx hq hqfit
-  let row := if side then q % A.n else q / A.D
-  let mid := if side then q / A.n else q % A.D
-  let v := mid / A.p
-  let σ := mid % A.p
-  let gate : Code .standard 17 := .branch (.lt vertex length)
-    (.seq (readLabel side)
-      (.branch (.eq label value) (.op (.copy value one)) (.op (.copy value zero))))
-    (.op (.copy value zero))
-  have hgate : ∃ z, ExecWithin w gate b z 11 ∧ z.regs value = entry side A R q ∧
-      z.regs idx = q ∧ z.regs one = 1 ∧ z.mem = x.mem := by
-    by_cases hv : v < A.length
-    · have hn : 0 < A.n := by
-        by_contra h
-        have hn : A.n = 0 := by omega
-        simp only [hn, Nat.zero_mul] at hlt
-        omega
-      have hD : 0 < A.D := by
-        by_contra h
-        have hD : A.D = 0 := by omega
-        simp only [hD, Nat.mul_zero] at hlt
-        omega
-      have hrow : row < A.n := by
-        cases side
-        · exact (Nat.div_lt_iff_lt_mul hD).mpr hlt
-        · exact Nat.mod_lt _ hn
-      have hpoint : row * A.n + A.first + v < A.n * A.n := by
-        have hb := Nat.mul_le_mul_right A.n (Nat.succ_le_of_lt hrow)
-        rw [Nat.succ_mul] at hb
-        omega
-      obtain ⟨c, hc, hcv, hcr, hcm⟩ := exec_readLabel side A R b hba hbl hbv hpoint hR
-        (by simpa only [hbm] using hinput) hsrc hmod hrho
-      let wanted := if side then (A.p - R (row * A.n + A.first + v)) % A.p
-        else (R (row * A.n + A.first + v) + A.rho) % A.p
-      have hcl : c.regs label = σ := (hcr label (by decide) (by decide)).trans hbb
-      have hci : c.regs idx = q := (hcr idx (by decide) (by decide)).trans hbi
-      have hco : c.regs one = 1 := (hcr one (by decide) (by decide)).trans (hbo.trans ho)
-      have hcz : c.regs zero = 0 := (hcr zero (by decide) (by decide)).trans (hbz.trans hz)
-      let z := c.set value (if σ = wanted then 1 else 0)
-      have hchoose : ExecWithin (B := .standard) w
-          (.branch (.eq label value) (.op (.copy value one)) (.op (.copy value zero))) c z 3 := by
-        by_cases h : σ = wanted <;>
-          ram_eval [z, hcl, hcv, hco, hcz, h, wanted, row, v, mid, σ, label, value, one,
-            zero, Fin.mk.injEq]
-      have hcond : (Cond.lt vertex length).Holds b := by
-        simpa only [Cond.holds_lt, hbv, hba.length] using hv
-      refine ⟨z, ?_, ?_, ?_, ?_, hcm.trans hbm⟩
-      · exact (ExecWithin.branch_pos hcond (hc.seq hchoose)).mono (by omega)
-      · simp only [z, Data.set_regs, Function.update_self, entry, row, mid, v, σ, hv,
-          ↓reduceIte, wanted]
-      · simpa +decide [z, idx, value] using hci
-      · simpa +decide [z, one, value] using hco
-    · have hcond : ¬(Cond.lt vertex length).Holds b := by
-        simpa only [Cond.holds_lt, hbv, hba.length] using hv
-      refine ⟨b.set value 0, ?_, ?_, ?_, ?_, hbm⟩
-      · have he : ExecWithin w gate b (b.set value 0) 3 := ExecWithin.branch_neg hcond
-          (show ExecWithin w (.op (.copy value zero)) b (b.set value 0) 1 from by
-            simpa only [hbz, hz] using (ExecWithin.copy (x := b) (d := value) (s := zero)))
-        exact he.mono (by omega)
-      · simp only [Data.set_regs, Function.update_self, entry, mid, v, hv, ↓reduceIte]
-      · simpa +decide [idx, value] using hbi
-      · simpa +decide [one, value] using hbo.trans ho
-  obtain ⟨z, hzg, hzv, hzi, hzo, hzm⟩ := hgate
-  have hzd : z.regs dst = A.dst :=
-    (hzg.regs_eq (by cases side <;> decide)).trans hba.dst
-  have haddr : Fits w (A.dst + q) := hdst.of_le (by omega)
-  have hinc : Fits w (q + 1) := hdst.of_le (by omega)
-  let y := (z.set addr (A.dst + q)).write (A.dst + q) (entry side A R q)
-    |>.set idx (q + 1)
-  have htail : ExecWithin w
-      (ram[ addr ← dst + idx; *addr ← value; idx ← idx + one ]) z y 3 := by
-    ram_eval [y, hzd, hzi, hzv, hzo, haddr, hinc, addr, dst, idx, value, one, Fin.mk.injEq]
-  refine ⟨y, ?_, by simp [y], ?_⟩
-  · simpa only [body, gate, Nat.reduceAdd] using hb.seq (hzg.seq htail)
-  · change Function.update z.mem (A.dst + q) (entry side A R q) = _
-    rw [hzm]
+  refine WP.exists_execWithin ?_
+  unfold body
+  wram_exec
+  wram_call (exec_indices side A x hx hq (hdst.of_le (by omega))) with
+    b ⟨hba, hbi, hbl, hbv, hbb, hbo, hbz, hbm⟩
+  by_cases hv : (if side then q / A.n else q % A.D) / A.p < A.length
+  · have hrow : (if side then q % A.n else q / A.D) < A.n := by
+      cases side <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> stride_omega
+    have hpoint : (if side then q % A.n else q / A.D) * A.n + A.first +
+        (if side then q / A.n else q % A.D) / A.p < A.n * A.n := by stride_omega
+    wram_exec [hbv, hba.length, hv]
+    wram_call (exec_readLabel side A R b hba hbl hbv hpoint hR
+      (by simpa only [hbm] using hinput) hsrc hmod hrho) with c ⟨hcv, hcr, hcm⟩
+    have : c.regs dst = A.dst := by regs_frame
+    have : c.regs idx = q := by regs_frame
+    have : c.regs one = 1 := by regs_frame
+    have : c.regs zero = 0 := by regs_frame
+    have : c.regs label = (if side then q / A.n else q % A.D) % A.p := by regs_frame
+    wram_exec [hcv, this, ‹c.regs dst = A.dst›, ‹c.regs idx = q›, ‹c.regs one = 1›,
+      ‹c.regs zero = 0›]
+    all_goals exact ⟨by wram_simp, by
+      simp only [entry, hv, hc, ↓reduceIte, hcm, hbm, Data.write_mem, Data.set_mem]⟩
+  · wram_exec [hbv, hba.length, hv, hbz, hz, hba.dst, hbi, hbo, ho]
+    exact ⟨by wram_simp, by simp only [entry, hv, ↓reduceIte, hbm, Data.write_mem, Data.set_mem]⟩
 
 /-- Construct every entry of a left or right instance matrix in `20nD+6` native instructions,
 excluding the halt. The source is an actual residue array below the output. All cells outside
@@ -368,10 +271,8 @@ theorem exec {w : ℕ} (side : Bool) (A : Args) (R : ℕ → ℕ) (x : Data 17)
     obtain ⟨hyp, hya, hyo, hyz, hyi, hym, hyout⟩ := hy
     have hlt : y.regs idx < A.n * A.D := by
       simpa only [Cond.holds_lt, hya] using hc
-    have hyinput : ∀ i < A.n * A.n, y.mem (A.src + i) = R i := by
-      intro i hi
-      rw [hyout _ (by omega)]
-      exact hinput i hi
+    have hyinput : ∀ i < A.n * A.n, y.mem (A.src + i) = R i := fun i hi => by
+      rw [hyout _ (by omega)]; exact hinput i hi
     obtain ⟨z, he, hzi, hzm⟩ := exec_body side A R y hyp rfl hyo hyz hlt
       hrho hpiece hR hyinput hsrc hdst hmod
     have hpres (i : Fin 17) (hi : i.val < 8 ∨ i = area ∨ i = one ∨ i = zero) :
@@ -379,55 +280,22 @@ theorem exec {w : ℕ} (side : Bool) (A : Args) (R : ℕ → ℕ) (x : Data 17)
     refine ⟨z, he, ⟨entry_of_regs hyp (fun i hi => hpres i (Or.inl hi)),
       (hpres area (by simp)).trans hya, (hpres one (by simp)).trans hyo,
       (hpres zero (by simp)).trans hyz, by omega, ?_, ?_⟩, by omega⟩
-    · intro j hj
-      rw [hzm]
+    · intro j hj; rw [hzm]
       by_cases h : j = y.regs idx
-      · subst j
-        exact Function.update_self ..
-      · rw [Function.update_of_ne (by omega)]
-        exact hym j (by omega)
-    · intro a ha
-      rw [hzm, Function.update_of_ne (by omega)]
-      exact hyout a (by omega)
-  have h1 : Fits w 1 := hmod.of_le (by omega)
-  have ha : Fits w (A.n * A.D) := hdst.of_le (by omega)
-  let x₀ := x.set zero 0 |>.set one 1 |>.set idx 0 |>.set area (A.n * A.D)
-  have hx₀ : I x₀ := by
-    refine ⟨entry_of_regs hx ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro i hi
-      have hz : i ≠ zero := by intro h; subst i; change 15 < 8 at hi; omega
-      have ho : i ≠ one := by intro h; subst i; change 16 < 8 at hi; omega
-      have hn : i ≠ idx := by intro h; subst i; change 8 < 8 at hi; omega
-      have ha : i ≠ area := by intro h; subst i; change 9 < 8 at hi; omega
-      simp only [x₀, Data.set_regs, Function.update_of_ne hz, Function.update_of_ne ho,
-        Function.update_of_ne hn, Function.update_of_ne ha]
-    · simp [x₀]
-    · simp +decide [x₀, one, idx, area]
-    · simp +decide [x₀, zero, one, idx, area]
-    · simp +decide [x₀, idx, area]
-    · intro j hj
-      simp +decide only [x₀, Data.set_regs, Function.update_apply, idx, area, ↓reduceIte] at hj
-      omega
-    · intro a _
-      rfl
-  have hinit : ExecWithin w
-      (ram[ zero ← #0; one ← #1; idx ← #0; area ← size * dimension ]) x x₀ 4 := by
-    ram_eval [x₀, hx.size, hx.dimension, ha, h1, zero, one, idx, area, size, dimension,
-      Fin.mk.injEq]
-  obtain ⟨y, he, hy, hc⟩ := ExecWithin.loop_invariant I
-    (fun y => A.n * A.D - y.regs idx) hbody hx₀
-  obtain ⟨hyp, hya, -, -, hyi, hym, hyout⟩ := hy
-  have hend : y.regs idx = A.n * A.D := by
-    simp only [Cond.holds_lt, hya] at hc
-    omega
-  refine ⟨y, ?_, hyp, hend, ?_, ?_⟩
-  · convert hinit.seq he using 1
-    · rfl
-    · simp +decide only [x₀, Data.set_regs, Function.update_apply, idx, area, ↓reduceIte]
-      omega
-  · intro i
-    exact hym i (by simpa only [hend] using i.isLt)
-  · intro a ha
-    exact hyout a (by simpa only [hend, Block.Owns] using ha)
+      · subst j; update_simp
+      · update_simp; exact hym j (by omega)
+    · intro a ha; rw [hzm]; update_simp; exact hyout a (by omega)
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec [hx.size, hx.dimension]
+  have hx₀ : I (((x.set zero 0).set one 1).set idx 0 |>.set area (A.n * A.D)) :=
+    ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp; exact Nat.zero_le _, fun _ hj => by wram_simp at hj, fun _ _ => rfl⟩
+  wram_call (ExecWithin.loop_invariant I (fun y => A.n * A.D - y.regs idx) hbody hx₀)
+    with y ⟨⟨hyp, hya, -, -, hyi, hym, hyout⟩, hc⟩
+  have hend : y.regs idx = A.n * A.D := by simp only [Cond.holds_lt, hya] at hc; omega
+  refine ⟨by wram_simp; omega, hyp, hend,
+    fun i => hym i (by simpa only [hend] using i.isLt),
+    fun a ha => hyout a (by simpa only [hend, Block.Owns] using ha)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.WriteMatrices

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Schedule
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Coordinates
@@ -28,8 +29,8 @@ of degree `w = 4 b`, in coordinates:
 
 * the modulus is found by trial division (`Cslib.leastIrreducibleCode`), and the
   multiplication table of the power basis lists the remainders of `X ^ (u + v)`
-  (`Cslib.HardnessEncoding.fieldTable`, `Cslib.HardnessEncoding.isMulTable_fieldTable`);
-* sums are `Cslib.BitString.listXor`, products `Cslib.AffineDisperser.fieldMul`, and inverses the
+  (`Cslib.BinaryField.fieldTable`, `Cslib.BinaryField.isMulTable_fieldTable`);
+* sums are `Cslib.BitString.listXor`, products `Cslib.BinaryField.fieldMul`, and inverses the
   powers `y ^ (2 ^ w - 2)` (`Cslib.HardnessEncoding.fieldInv`);
 * the Lagrange basis polynomial of a node `a` among the embedded bit strings of length `b`, at a
   point `t`, is the product of `t - a'` over the other nodes `a'`, divided by the product of
@@ -45,14 +46,12 @@ at length `|y|` (`Cslib.HardnessEncoding.encodedProgram_eq`).
 
 ## Main definitions
 
-* `Cslib.HardnessEncoding.fieldTable`: the multiplication table of the explicit binary field.
 * `Cslib.HardnessEncoding.lagrangeVal`: a Lagrange basis polynomial at a point, in coordinates.
 * `Cslib.HardnessEncoding.ldeVal`: the low-degree extension of a truth table at a point.
 * `Cslib.HardnessEncoding.encodedProgram`: the program.
 
 ## Main results
 
-* `Cslib.HardnessEncoding.isMulTable_fieldTable`: the table multiplies.
 * `Cslib.HardnessEncoding.fieldOfBits_ldeVal`: the program computes the low-degree extension.
 * `Cslib.HardnessEncoding.encodedProgram_eq`: the program computes the encoded slices.
 
@@ -65,24 +64,14 @@ at length `|y|` (`Cslib.HardnessEncoding.encodedProgram_eq`).
 
 @[expose] public section
 
+open Cslib.BinaryField
+
 namespace Cslib.HardnessEncoding
 
 open Finset Polynomial Cslib.AffineDisperser Cslib.Circuits Cslib.Circuits.Boolean
 open Cslib.BitString (bitEquiv bitEquiv_symm_false bitEquiv_symm_true listXor)
 
 /-! ### The program -/
-
-/-- The multiplication table of the power basis modulo the binary polynomial with coefficient
-list `g`: entry `(u, v)` lists the coefficients of the remainder of `X ^ (u + v)`. -/
-def powerMulTable (g : List Bool) : List (List (List Bool)) :=
-  (List.range (g.length - 1)).map fun u => (List.range (g.length - 1)).map fun v =>
-    (powerTable g).getD (u + v) []
-
-/-- The coefficient list of the modulus of the explicit binary field of degree `w`. -/
-def modulusBits (w : ℕ) : List Bool := (leastIrreducibleCode (2 ^ (w + 1)) w).bits
-
-/-- The multiplication table of the explicit binary field of degree `w`. -/
-def fieldTable (w : ℕ) : List (List (List Bool)) := powerMulTable (modulusBits w)
 
 /-- The inverse in coordinates: `y ^ (2 ^ w - 2)`, as the square of `y ^ (2 ^ (w - 1) - 1)`. -/
 def fieldInv (tab : List (List (List Bool))) (w : ℕ) (y : List Bool) : List Bool :=
@@ -130,68 +119,9 @@ def encodedProgram (M : ℕ) (gL : List Bool → Bool) (y : List Bool) (ℓ : �
 
 /-! ### The explicit binary field in coordinates -/
 
-/-- The coefficient list of the modulus is the coefficient list of `leastIrreducible w`. -/
-private theorem polyOfBits_modulusBits {w : ℕ} (hw : w ≠ 0) :
-    polyOfBits (modulusBits w) = leastIrreducible w := by
-  rw [modulusBits, polyOfBits_bits, polyOfCode_leastIrreducibleCode hw le_rfl]
-
-/-- The coefficient list of the modulus has length `w + 1` and ends with a one. -/
-private theorem exists_modulusBits_eq {w : ℕ} (hw : w ≠ 0) :
-    ∃ l : List Bool, modulusBits w = l ++ [true] ∧ l.length = w := by
-  have hne : leastIrreducibleCode (2 ^ (w + 1)) w ≠ 0 := by
-    intro h
-    have := polyOfCode_leastIrreducibleCode hw (le_refl (2 ^ (w + 1)))
-    rw [h, polyOfCode_zero] at this
-    exact (irreducible_leastIrreducible w).ne_zero this.symm
-  obtain ⟨l, hl⟩ := exists_bits_eq_append_true hne
-  refine ⟨l, hl, ?_⟩
-  have := natDegree_polyOfBits_append_true l
-  rw [← hl, ← modulusBits, polyOfBits_modulusBits hw, natDegree_leastIrreducible hw] at this
-  exact this.symm
-
-/-- The basis of the explicit binary field used by the program. -/
 local notation "𝔅" => BinaryField.basis
 
-/-- **The table multiplies**: `fieldTable w` is a multiplication table of the power basis of the
-explicit binary field of degree `w`. -/
-theorem isMulTable_fieldTable {w : ℕ} (hw : w ≠ 0) : IsMulTable (𝔅 hw) (fieldTable w) := by
-  obtain ⟨l, hl, hlen⟩ := exists_modulusBits_eq hw
-  subst hlen
-  have hglen : (modulusBits l.length).length - 1 = l.length := by simp [hl]
-  refine ⟨by simp [fieldTable, powerMulTable, hglen], fun u v => ?_⟩
-  set α := AdjoinRoot.root (leastIrreducible l.length)
-  have hα : aeval α (polyOfBits (l ++ [true])) = 0 := by
-    rw [← hl, polyOfBits_modulusBits hw, AdjoinRoot.aeval_eq, AdjoinRoot.mk_self]
-  have huv : (u : ℕ) + v < 2 * l.length := by omega
-  have hentry : tableEntry (fieldTable l.length) u v =
-      (powerTable (l ++ [true])).getD (u + v) [] := by
-    simp only [tableEntry, fieldTable, powerMulTable, hglen, ← hl]
-    rw [List.getD_map_range _ [] u.2, List.getD_map_range _ [] v.2]
-  rw [BinaryField.basis_apply, BinaryField.basis_apply, ← pow_add,
-    pow_eq_sum_powerTable l hα huv, fieldOfBits, ofBits, hentry, Finset.sum_range]
-  refine Finset.sum_congr rfl fun d _ => ?_
-  rw [BinaryField.basis_apply]
-
 variable {w : ℕ}
-
-/-- The element with given coordinates in the power basis is the element with these bits. -/
-private theorem fieldOfBits_basis (hw : w ≠ 0) (a : List Bool) :
-    fieldOfBits (𝔅 hw) a = (BinaryField.equivBits hw).symm fun j => a.getD j false := by
-  rw [fieldOfBits, ofBits, BinaryField.equivBits_symm_apply]
-
-/-- The bits of the element with given coordinates. -/
-private theorem equivBits_fieldOfBits (hw : w ≠ 0) (a : List Bool) (j : Fin w) :
-    BinaryField.equivBits hw (fieldOfBits (𝔅 hw) a) j = a.getD j false := by
-  rw [BinaryField.equivBits_apply, repr_fieldOfBits, RingEquiv.apply_symm_apply]
-
-/-- The coordinates `[true]` are those of `1`. -/
-private theorem fieldOfBits_one (hw : w ≠ 0) : fieldOfBits (𝔅 hw) [true] = 1 := by
-  rw [fieldOfBits, ofBits, Fintype.sum_eq_single ⟨0, Nat.pos_of_ne_zero hw⟩]
-  · simp [BinaryField.basis_apply, bitEquiv_symm_true]
-  · intro u hu
-    have : (u : ℕ) ≠ 0 := fun h => hu (Fin.ext h)
-    obtain ⟨k, hk⟩ := Nat.exists_eq_succ_of_ne_zero this
-    simp [hk, bitEquiv_symm_false]
 
 /-- Addition in coordinates: `listXor w [a, b]` has the sum of the coordinates. -/
 private theorem fieldOfBits_listXor_pair (hw : w ≠ 0) (a b : List Bool) :
@@ -233,11 +163,6 @@ private theorem embed_eq_fieldOfBits (hw : w ≠ 0) {b : ℕ} (hbw : b ≤ w) (a
   split_ifs with hj
   · exact (List.getD_ofFn_of_lt a hj false).symm
   · exact (List.getD_eq_default _ _ (by simp; omega)).symm
-
-/-- The element with the bits of `v` as coordinates. -/
-theorem fieldOfBits_ofFn (hw : w ≠ 0) (v : BitString w) :
-    fieldOfBits (𝔅 hw) (List.ofFn v) = (BinaryField.equivBits hw).symm v := by
-  simp [fieldOfBits_basis]
 
 /-- The numerator of a Lagrange basis polynomial: the product of `t - a'` over the other nodes. -/
 private theorem fieldOfBits_lagrangeNum (hw : w ≠ 0) {b : ℕ} (hbw : b ≤ w) (a : BitString b)

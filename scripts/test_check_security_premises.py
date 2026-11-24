@@ -174,6 +174,66 @@ class MainTests(unittest.TestCase):
         self.assertIn("every module is enforced", out)
         self.assertIn(f"{HELPER_PATH}:20: {HELPER}", err)
 
+    def test_advisory_mode_prints_a_new_premise_and_succeeds(self) -> None:
+        # Outside GitHub Actions there is no workflow notice, whatever the caller's environment.
+        with mock.patch.dict(c.os.environ, {"GITHUB_ACTIONS": "false"}):
+            code, out, err = self.run_main({}, "--advisory")
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("prompt to open the statement, not a failure", out)
+        self.assertIn(f"{SCHNORR_PATH}:10: {SCHNORR}", out)
+        self.assertIn("premise hDL: negligible about `Cslib.Crypto.Schnorr.reduction`", out)
+        # The untouched module is counted, not listed.
+        self.assertNotIn(HELPER, out)
+        self.assertIn("advisory, nothing is enforced. 1 more difference(s) in modules this "
+                      "change does not touch", out)
+        self.assertNotIn("::notice", out)
+        with mock.patch.dict(c.os.environ, {"GITHUB_ACTIONS": "true"}):
+            code, out, _ = self.run_main(None, "--advisory")
+        self.assertEqual(code, 0)
+        self.assertIn("::notice title=Security premises (advisory)::1 difference(s)", out)
+
+    def test_advisory_mode_prints_stale_and_unjustified_entries_and_succeeds(self) -> None:
+        gone = "Cslib.Crypto.Schnorr.gone"
+        code, out, err = self.run_main({SCHNORR: entry(SCHNORR_PATH, ["hDL"], why=""),
+                                        gone: entry(SCHNORR_PATH, ["h"])}, "--advisory")
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn(f"{SCHNORR_PATH}: {gone} (no longer flagged: h)", out)
+        self.assertIn("without a justification", out)
+
+    def test_advisory_mode_is_quiet_without_differences(self) -> None:
+        with mock.patch.dict(c.os.environ, {"GITHUB_ACTIONS": "true"}):
+            code, out, err = self.run_main({SCHNORR: entry(SCHNORR_PATH, ["hDL"]),
+                                            HELPER: entry(HELPER_PATH, ["hε"])}, "--advisory")
+        self.assertEqual((code, err), (0, ""))
+        self.assertNotIn("::notice", out)
+        self.assertIn("checking 1 changed module(s); advisory, nothing is enforced.\n", out)
+
+    def test_advisory_mode_reports_every_module_when_the_checker_changes(self) -> None:
+        with mock.patch.object(c, "checker_changed", return_value=True):
+            code, out, _ = self.run_main({}, "--advisory")
+        self.assertEqual(code, 0)
+        self.assertIn("every module is reported", out)
+        self.assertIn(f"{HELPER_PATH}:20: {HELPER}", out)
+
+    def test_advisory_mode_still_fails_on_a_broken_tool(self) -> None:
+        # A malformed baseline and a crashed scan are errors, not findings.
+        self.baseline.write_text('{"Cslib.Crypto.Schnorr.thm": {"module": 1}}')
+        with self.assertRaises(SystemExit) as raised:
+            self.run_main(None, "--advisory")
+        self.assertIn("expected a JSON object", str(raised.exception.code))
+        self.baseline.write_text("{not json")
+        with self.assertRaises(json.JSONDecodeError):
+            self.run_main(None, "--advisory")
+        with mock.patch.object(c, "scan", side_effect=SystemExit("the reader failed")), \
+                self.assertRaises(SystemExit) as raised:
+            self.run_main({}, "--advisory")
+        self.assertEqual(raised.exception.code, "the reader failed")
+
+    def test_advisory_mode_does_not_write_the_baseline(self) -> None:
+        with self.assertRaises(SystemExit) as raised:
+            self.run_main({}, "--advisory", "--update-baseline")
+        self.assertEqual(raised.exception.code, 2)
+
     def test_report_mode_succeeds(self) -> None:
         code, out, _ = self.run_main({}, "--report")
         self.assertEqual(code, 0)
@@ -431,8 +491,8 @@ class CompiledFixtureTests(unittest.TestCase):
 
 class CommittedFilesTests(unittest.TestCase):
     """These run on every event, merge groups included, so they check only the baseline file
-    itself. Whether its entries match the library (a moved or deleted module, say) is the pull
-    request check's job, which merge groups only report."""
+    itself. Whether its entries match the library (a moved or deleted module, say) is for the
+    advisory reports to show."""
 
     def test_baseline_is_canonical_and_justified(self) -> None:
         baseline = c.load_baseline(c.BASELINE)

@@ -17,8 +17,11 @@ For changed APIs and reuse refactors, follow [Check the API through its callers]
 inspect the actual caller and relevant sibling implementation, including generated certificates
 and any representation bridge. Compilation alone does not check placement or duplicated behavior.
 Check new and changed statements against
-[Structures for domain objects and records](statements.md#structures-for-domain-objects-and-records) and
-[Encodings in statements](statements.md#encodings-in-statements).
+[Structures for domain objects and records](statements.md#structures-for-domain-objects-and-records),
+[Encodings in statements](statements.md#encodings-in-statements) and
+[Running-time claims](statements.md#running-time-claims); a PR with any `TimeM` import or use,
+`Cslib.Algorithms.Lean.MergeSort.MergeSort` import, tick/tactic extension (`✓`, `time_simps`,
+`time_spec`), or replacement hand-charged cost monad is blocked.
 Read new and changed proofs against the rest of their file and nearby modules, not only the diff:
 a new copy of an argument the library already makes is a finding when the
 [library quality standard](../CONTRIBUTING.md#library-quality-standard) says a shared lemma pays.
@@ -60,9 +63,10 @@ or—when the conditional statement is a useful, non-vacuous intermediate step�
 [Faithful headlines](statements.md#faithful-headlines): such a helper is permitted provided the published
 theorem stays open and the helper never occupies its name, PR title or
 [results inventory](../results/README.md) entry. Also check that the change removes or demotes any
-stand-in it supersedes (rule 4). In `Cslib.Crypto`, `scripts/check_security_premises.py`
-supplements this gate on elaborated premise shapes ([Security theorems](statements.md#security-theorems)),
-without replacing semantic review.
+stand-in it supersedes (rule 4). In `Cslib.Crypto`, read what the advisory reports of
+`scripts/check_security_premises.py` and `scripts/check_reduction_witnesses.py` print for the
+changed modules ([Security theorems](statements.md#security-theorems)): each item is a prompt to
+open a statement, a baseline entry does not clear one, and a clean report is not evidence.
 
 **Ask what should not exist.** For each new public declaration, definition, file and test, ask
 whether the library is better with it ([taste.md](taste.md)). Is it used by a caller in this PR, by
@@ -74,6 +78,21 @@ or say that you looked and found nothing to remove. A review without an answer t
 incomplete. Do not use a zero reference count alone to remove expected mathematical API
 ([Check the API through its callers](workflow.md#check-the-api-through-its-callers)).
 
+**Automation must pay for itself.** When a change to a tactic, `simp` set, `fun_prop` rule or
+other automation is justified by the client code it removes, check that claim against the diff.
+
+- **Count both sides.** Compare what the change adds to the automation, its tests and supporting
+  lemmas with what it removes from clients, and have the PR description state the split. Net
+  growth is a finding unless the PR names a benefit other than length, such as a class of goals
+  that no longer needs manual plumbing, robustness against unfolding, or a measured speedup.
+- **Name each branch's callers.** For each new branch or feature of the automation, name the
+  callers that use it. A branch that recognises one definition's shape, one constant or one
+  module's hypotheses, and serves only that family of callers, belongs in a lemma those callers
+  apply, not in the automation. Ask the author to replace it with the lemma, or to show callers
+  outside the family that need it.
+- **Finish the migration.** Sibling sites of the pattern the automation now handles are migrated
+  in the same change. A migration that neither shortens nor clarifies a proof is left out.
+
 **Name the first real property.** For each new definition, construction or transcribed algorithm,
 say what its first non-trivial property is (signatures verify under the transcribed signer, the
 padding is block-aligned, no revealed node is an ancestor of the hidden leaf, the simulator's
@@ -82,15 +101,28 @@ output is close to the real view) and whether this PR proves it. Unfoldings, `rf
 listed under "Main results". If the property is missing, request it, or have the PR title, body
 and module documentation say plainly that the change provides definitions only.
 
+**Read the statement before the prose, and open what it names.** For each headline, first read the
+Lean statement without its docstring and say what it proves; open the games, schemes and
+predicates it mentions, since a clean list of hypotheses can sit on a game that samples ideally or
+a scheme that is a stand-in. Then read the docstring. An unresolved gap the docstring admits is
+still a finding: it is tracked by an issue or a baseline entry and shows in the name
+([taste.md](taste.md#a-stated-limitation-is-tracked)), or the review asks for that. A source's own
+hypothesis or a deliberate model boundary is not a gap.
+
 Before a published theorem enters the [results inventory](../results/README.md), its statement is
 checked against the source by a reviewer, human or agent, from outside the authoring fleet. The
 checker reads the cited passages in the source itself, not locators copied from the PR, reads the
-definitions the statement rests on, and records the check in a comment that says who made it,
-what was read, which deviations were accepted and what was not checked. An agent's check says
-that it is an agent's and is never presented as a human one. The check is a step of its own,
-separate from the ordinary independent review, which is still required. A maintainer may require
-a human check for entries from their own fleet by saying so on the entry's PR or tracking issue;
-that requirement then holds for those entries.
+definitions the statement names, as the step "Read the statement before the prose, and open what
+it names" asks of every headline, and records the check in a comment that says who made it, what
+was read, which deviations were accepted and what was not checked. The comment answers each point
+listed under
+[The cited result is the unit of quality](statements.md#the-cited-result-is-the-unit-of-quality),
+and the affected points are checked again, as a delta, when the statement or a definition it names
+changes in meaning. A headline for a cited result is registered after this check, or is presented
+as a step under [Faithful headlines](statements.md#faithful-headlines) rule 2. An agent's check says that it is an agent's and is never presented as a
+human one. The check is a step of its own, separate from the ordinary independent review, which
+is still required. A maintainer may require a human check for entries from their own fleet by
+saying so on the entry's PR or tracking issue; that requirement then holds for those entries.
 
 Before approving library changes, read the **Parallel-definition**, **Duplicate-statement** and
 **Repeated-proof-block** notices in the CI job summary or step logs for the reviewed revision. Inspect both
@@ -102,6 +134,10 @@ an existing author explanation rather than duplicating it. Locally, after a buil
 truncated reports. Resolve skipped or incomplete scans, or record their coverage limits and
 perform targeted source checks. A successful exit, an empty report or a private declaration is
 not evidence of uniqueness; the tools supplement source search and semantic review.
+
+For a PR that moves the cslib pin, rerun the query for upstream PRs labelled
+`cslib-frontier-adaptation` and check that the description accounts for each
+([Upstream changes labelled for adaptation](build-and-files.md#upstream-changes-labelled-for-adaptation)).
 
 Check the writing where a change explains itself: the docstring's mapping from statement to
 source and the PR description. When a change alters a procedure, a role or a registry-backed fact,

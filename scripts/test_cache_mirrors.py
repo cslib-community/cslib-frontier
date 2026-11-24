@@ -1,4 +1,4 @@
-"""Exercise mirror order/deadlines with real loopback HTTP and a native-Lake facade."""
+"""Exercise mirror order and deadlines with loopback HTTP and Lake."""
 
 import ctypes
 import json
@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -57,9 +58,16 @@ except Exception:
 '''
 
 
-@unittest.skipUnless(os.name == "posix" and shutil.which("curl") and shutil.which("git"),
-                     "mirror integration requires POSIX, curl and git")
-class MirrorTests(unittest.TestCase):
+def run_git(root, env, *args, timestamp=None):
+    if timestamp is not None:
+        env = {**env, "GIT_AUTHOR_DATE": f"@{timestamp} +0000",
+               "GIT_COMMITTER_DATE": f"@{timestamp} +0000"}
+    return subprocess.check_output(["git", *args], cwd=root, env=env, text=True).strip()
+
+
+class MirrorFixture(unittest.TestCase):
+    fake_lake = True
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="cache mirror ")
         self.addCleanup(temporary.cleanup)
@@ -76,16 +84,25 @@ class MirrorTests(unittest.TestCase):
                         MIRROR_ARTIFACTS=str(self.artifacts), MIRROR_LOG=str(self.log),
                         COMPLEXITYLIB_CACHE_ORIGIN_TIMEOUT="2")
         self.git("init", "-q")
-        (self.root / "lean-toolchain").write_text("leanprover/lean4:fixture\n")
+        if self.fake_lake:
+            (self.root / "lean-toolchain").write_text("leanprover/lean4:fixture\n")
+        else:
+            shutil.copyfile(REPO / "lean-toolchain", self.root / "lean-toolchain")
         self.git("add", "lean-toolchain")
         self.git("commit", "-qm", "fixture")
         self.env["MIRROR_REVISION"] = self.git("rev-parse", "HEAD")
-        executable = self.root / "bin/lake"
-        executable.parent.mkdir()
-        executable.write_text(FAKE_LAKE)
-        executable.chmod(0o755)
-        self.env["PATH"] = str(executable.parent) + os.pathsep + self.env["PATH"]
+        if self.fake_lake:
+            executable = self.root / "bin/lake"
+            executable.parent.mkdir()
+            executable.write_text(FAKE_LAKE)
+            executable.chmod(0o755)
+            self.env["PATH"] = str(executable.parent) + os.pathsep + self.env["PATH"]
         self.requests = []
+        self.revision_mappings = {}
+        self.artifact_payloads = {
+            "0000000000000001.art": b"completed first artifact",
+            "0000000000000002.art": b"completed second artifact",
+        }
         self.release = threading.Event()
         fixture = self
 
@@ -98,29 +115,47 @@ class MirrorTests(unittest.TestCase):
                 if "/hang/" in self.path:
                     fixture.release.wait(20)
                     return
+                if "/hang-art/" in self.path and self.path.endswith(".art"):
+                    fixture.release.wait(20)
+                    return
                 if "/miss/" in self.path:
                     self.send_error(404)
                     return
                 if "/forbidden/" in self.path:
                     self.send_error(403)
                     return
+                if "/server-error/" in self.path:
+                    self.send_error(501)
+                    return
                 if self.path.endswith(".jsonl"):
-                    data = b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n["0000000000000002","0000000000000002.ltar"]\n'
+                    if "/by-rev/" in self.path or "/by-rev-403/" in self.path:
+                        rev = self.path.rsplit("/", 1)[-1].removesuffix(".jsonl")
+                        data = fixture.revision_mappings.get(rev)
+                        if data is None:
+                            self.send_error(403 if "/by-rev-403/" in self.path else 404)
+                            return
+                    else:
+                        data = b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n["0000000000000002","0000000000000002.ltar"]\n'
                     if "/html/" in self.path:
                         data = b"<html>maintenance</html>"
                     elif "/empty/" in self.path:
                         data = b""
+                    elif "/header-only/" in self.path:
+                        data = b'"2026-03-17"\n'
+                    elif "/unsupported-version/" in self.path:
+                        data = data.replace(b'"2026-03-17"', b'"1900-01-01"')
                     elif "/malformed/" in self.path:
                         data += b"not json\n"
                     elif "/malformed-current/" in self.path:
-                        data = b'"2026-03-17"\n["0000000000000001",BROKEN]\n'
-                elif self.path.endswith("0000000000000001.art"):
-                    data = b"completed first artifact"
-                elif self.path.endswith("0000000000000002.art") and "/partial/" not in self.path:
-                    data = b"completed second artifact"
+                        data = b'"2026-03-17"\n["0000000000000001","not-an-archive"]\n'
+                    elif "/duplicate-input/" in self.path:
+                        data = data.replace(b'["0000000000000002",', b'["0000000000000001",')
                 else:
-                    self.send_error(404)
-                    return
+                    name = self.path.rsplit("/", 1)[-1]
+                    data = fixture.artifact_payloads.get(name)
+                    if data is None or ("/partial/" in self.path and name == "0000000000000002.art"):
+                        self.send_error(404)
+                        return
                 self.send_response(200)
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
@@ -141,8 +176,8 @@ class MirrorTests(unittest.TestCase):
         self.server.shutdown()
         self.server.server_close()
 
-    def git(self, *args):
-        return subprocess.check_output(["git", *args], cwd=self.root, env=self.env, text=True).strip()
+    def git(self, *args, timestamp=None):
+        return run_git(self.root, self.env, *args, timestamp=timestamp)
 
     def events(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
@@ -156,6 +191,10 @@ class MirrorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
 
+
+@unittest.skipUnless(os.name == "posix" and shutil.which("curl") and shutil.which("git"),
+                     "mirror integration requires POSIX, curl and git")
+class MirrorTests(MirrorFixture):
     def test_primary_success_does_not_contact_secondary(self):
         result = self.fetch("/primary", "/fallback")
         self.assertRegex(result.stdout, r"cache origin 1/2: completed in \d+\.\ds:")
@@ -191,7 +230,19 @@ class MirrorTests(unittest.TestCase):
         self.assertRegex(result.stdout, r"cache origin 1/2: timed out in \d+\.\ds:")
         self.assertRegex(result.stdout, r"cache origin 2/2: completed in \d+\.\ds:")
         self.assertLess(time.monotonic() - start, 10)
-        self.assertEqual(len(self.events()), 2)
+        self.assertTrue(any("/hang/r0/" in request for request in self.requests))
+        self.assertEqual([event["endpoint"] for event in self.events()],
+                         [self.base + "/fallback/a0"])
+        self.assertEqual(len(list(self.artifacts.iterdir())), 2)
+
+    def test_hanging_artifact_download_has_deadline_then_secondary_succeeds(self):
+        start = time.monotonic()
+        result = self.fetch("/hang-art", "/fallback", COMPLEXITYLIB_CACHE_ORIGIN_TIMEOUT="2")
+        self.assertRegex(result.stdout, r"cache origin 1/2: timed out in \d+\.\ds:")
+        self.assertRegex(result.stdout, r"cache origin 2/2: completed in \d+\.\ds:")
+        self.assertLess(time.monotonic() - start, 10)
+        self.assertEqual([event["endpoint"] for event in self.events()],
+                         [self.base + "/hang-art/a0", self.base + "/fallback/a0"])
         self.assertEqual(len(list(self.artifacts.iterdir())), 2)
 
     def test_missing_output_path_has_same_order_and_bounded_mapping_lookup(self):
@@ -210,10 +261,12 @@ class MirrorTests(unittest.TestCase):
         self.assertFalse(self.artifacts.exists() and any(self.artifacts.iterdir()))
 
     def test_mapping_lookup_failure_reports_http_status_without_claiming_no_artifacts(self):
-        result = self.fetch("/miss", missing=True)
-        self.assertIn("No usable cached mapping among 1 revisions", result.stdout)
-        self.assertIn("last lookup HTTP 404, curl exit 22", result.stdout)
-        self.assertNotIn("No uploaded outputs", result.stdout)
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                result = self.fetch("/miss", missing=missing)
+                self.assertIn("No usable cached mapping among 1 revisions", result.stdout)
+                self.assertIn("last lookup HTTP 404, curl exit 22", result.stdout)
+                self.assertNotIn("No uploaded outputs", result.stdout)
 
     def test_exhausted_mirrors_preserve_the_subsequent_strict_build(self):
         for name in ("scripts/build.sh", "scripts/cache/ensure.sh", "scripts/cache/get.sh",
@@ -225,8 +278,10 @@ class MirrorTests(unittest.TestCase):
         result = subprocess.run([str(self.root / "scripts/build.sh"), "--wfail", "--iofail"],
                                 cwd=self.root, env=env, capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 23, result.stdout + result.stderr)
+        self.assertTrue(any("/miss/r0/" in request for request in self.requests))
+        self.assertTrue(any("/other/miss/r0/" in request for request in self.requests))
         self.assertEqual([event["args"][:2] for event in self.events()],
-                         [["exe", "cache"], ["cache", "get"], ["cache", "get"], ["build", "--wfail"]])
+                         [["exe", "cache"], ["build", "--wfail"]])
 
     def test_missing_output_filter_preserves_current_modules(self):
         trace = self.root / ".lake/build/Current.trace"
@@ -237,17 +292,261 @@ class MirrorTests(unittest.TestCase):
         self.assertEqual(sorted(path.name for path in self.artifacts.iterdir()), ["0000000000000002.art"])
 
     def test_malformed_primary_mapping_cannot_suppress_secondary(self):
-        for primary in ("/html", "/empty", "/malformed"):
-            with self.subTest(primary=primary):
-                self.fetch(primary, "/fallback", missing=True)
-                self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
+        for missing in (False, True):
+            for primary in ("/html", "/empty", "/header-only", "/unsupported-version", "/malformed"):
+                with self.subTest(missing=missing, primary=primary):
+                    self.log.unlink(missing_ok=True)
+                    shutil.rmtree(self.artifacts, ignore_errors=True)
+                    result = self.fetch(primary, "/fallback", missing=missing)
+                    self.assertIn("Unusable cached mapping", result.stdout)
+                    self.assertEqual(len(self.events()), 1)
+                    self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
 
     def test_malformed_row_matching_a_current_trace_is_not_filtered_away(self):
         trace = self.root / ".lake/build/Current.trace"
         trace.parent.mkdir(parents=True)
         trace.write_text('{"depHash":"0000000000000001"}')
-        self.fetch("/malformed-current", "/fallback", missing=True)
+        result = self.fetch("/malformed-current", "/fallback", missing=True)
+        self.assertIn("unsupported mapping row 2", result.stdout)
+        self.assertEqual(len(self.events()), 1)
         self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
+
+    def test_valid_mapping_with_all_outputs_current_completes_without_artifact_requests(self):
+        trace = self.root / ".lake/build/Current.trace"
+        trace.parent.mkdir(parents=True)
+        trace.write_text('{"depHash":"0000000000000001"}\n{"depHash":"0000000000000002"}')
+        result = self.fetch("/primary", "/fallback", missing=True)
+        self.assertIn("0 of them are not current", result.stdout)
+        self.assertIn("cache origin 1/2: completed", result.stdout)
+        self.assertEqual(len(self.events()), 1)
+        self.assertFalse(any(request.endswith(".art") or "/fallback/" in request
+                             for request in self.requests))
+
+    def test_duplicate_inputs_fall_back_even_if_filtered_as_current(self):
+        trace = self.root / ".lake/build/Current.trace"
+        trace.parent.mkdir(parents=True)
+        trace.write_text('{"depHash":"0000000000000001"}')
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.log.unlink(missing_ok=True)
+                self.requests.clear()
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                result = self.fetch("/duplicate-input", "/fallback", missing=missing)
+                self.assertIn("duplicate input hash in mapping row 3", result.stdout)
+                self.assertEqual([event["endpoint"] for event in self.events()],
+                                 [self.base + "/fallback/a0"])
+                expected = {"0000000000000002.art"}
+                if not missing:
+                    expected.add("0000000000000001.art")
+                self.assertEqual({path.name for path in self.artifacts.iterdir()}, expected)
+
+    def test_403_on_unpublished_revisions_continues_to_published_ancestor(self):
+        # GCS with roles/storage.legacyObjectReader (read without list) answers missing objects
+        # with HTTP 403 rather than 404. Unpublished branch/merge tips must not cause restore.py
+        # to abandon the origin before reaching a published ancestor.
+        self.git("checkout", "-qb", "main")
+        (self.root / "base.txt").write_text("base\n")
+        self.git("add", "base.txt")
+        self.git("commit", "-qm", "old base B", timestamp=1_700_001_000)
+        old_base = self.git("rev-parse", "HEAD")
+
+        self.git("checkout", "-qb", "feature")
+        (self.root / "feat.txt").write_text("feat\n")
+        self.git("add", "feat.txt")
+        self.git("commit", "-qm", "feature", timestamp=1_700_003_000)
+
+        self.git("checkout", "-q", "main")
+        (self.root / "main.txt").write_text("main\n")
+        self.git("add", "main.txt")
+        self.git("commit", "-qm", "published main", timestamp=1_700_002_000)
+        new_main = self.git("rev-parse", "HEAD")
+
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-ff", "-m", "merge main", "main", timestamp=1_700_004_000)
+
+        self.revision_mappings = {
+            old_base: b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n',
+            new_main: b'"2026-03-17"\n["0000000000000002","0000000000000002.ltar"]\n',
+        }
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.requests.clear()
+                self.log.unlink(missing_ok=True)
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                result = self.fetch("/by-rev-403", "/fallback", missing=missing)
+                self.assertIn(f"Remote cache: {new_main}", result.stdout)
+                self.assertFalse(any("/fallback/" in req for req in self.requests))
+                self.assertEqual(sorted(p.name for p in self.artifacts.iterdir()),
+                                 ["0000000000000002.art"])
+
+    def test_all_403_origin_exhausts_candidates_and_falls_back_to_secondary(self):
+        for i in range(2):
+            (self.root / f"step{i}").write_text(str(i))
+            self.git("add", f"step{i}")
+            self.git("commit", "-qm", f"step {i}", timestamp=1_700_000_100 + i)
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.requests.clear()
+                self.log.unlink(missing_ok=True)
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                result = self.fetch("/forbidden", "/fallback", missing=missing)
+                forbidden_lookups = [r for r in self.requests if "/forbidden/r0/" in r]
+                self.assertEqual(len(forbidden_lookups), 3)
+                self.assertIn("No usable cached mapping among 3 revisions", result.stdout)
+                self.assertIn("last lookup HTTP 403", result.stdout)
+                self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
+
+    def test_5xx_and_transport_errors_fail_fast_without_probing_every_ancestor(self):
+        for i in range(4):
+            (self.root / f"step{i}").write_text(str(i))
+            self.git("add", f"step{i}")
+            self.git("commit", "-qm", f"step {i}", timestamp=1_700_000_100 + i)
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            closed_origin = f"http://127.0.0.1:{sock.getsockname()[1]}"
+        for missing in (False, True):
+            with self.subTest(kind="5xx", missing=missing):
+                self.requests.clear()
+                self.log.unlink(missing_ok=True)
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                result = self.fetch("/server-error", "/fallback", missing=missing)
+                error_lookups = [r for r in self.requests if "/server-error/r0/" in r]
+                self.assertEqual(len(error_lookups), 1)
+                self.assertIn("No usable cached mapping among 1 revisions", result.stdout)
+                self.assertIn("last lookup HTTP 501", result.stdout)
+                self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
+            with self.subTest(kind="transport", missing=missing):
+                self.requests.clear()
+                self.log.unlink(missing_ok=True)
+                shutil.rmtree(self.artifacts, ignore_errors=True)
+                env = {**self.env,
+                       "COMPLEXITYLIB_CACHE_URLS": f"{closed_origin} {self.base}/fallback"}
+                args = [sys.executable, "-B", str(REPO / "scripts/cache/restore.py"),
+                        "--checkout", str(self.root)]
+                if missing:
+                    args.append("--missing")
+                result = subprocess.run(args, cwd=self.root, env=env,
+                                        capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("No usable cached mapping among 1 revisions", result.stdout)
+                self.assertEqual(self.events()[-1]["endpoint"], self.base + "/fallback/a0")
+
+    def test_merge_of_main_and_post_merge_commits_restore_merged_main_over_old_base(self):
+        # Old base B (published with artifact 1), newer main M (published with artifact 2) followed
+        # by an unpublished tip M_tip, and a feature branch with newer timestamps off B that merges
+        # M_tip (and then adds a post-merge commit P1). Both default and --missing must restore M.
+        self.git("checkout", "-qb", "main")
+        (self.root / "base.txt").write_text("base\n")
+        self.git("add", "base.txt")
+        self.git("commit", "-qm", "old base B", timestamp=1_700_001_000)
+        old_base = self.git("rev-parse", "HEAD")
+
+        self.git("checkout", "-qb", "feature")
+        (self.root / "feat.txt").write_text("feat 1\n")
+        self.git("add", "feat.txt")
+        self.git("commit", "-qm", "feature 1", timestamp=1_700_003_000)
+
+        self.git("checkout", "-q", "main")
+        (self.root / "main1.txt").write_text("main 1\n")
+        self.git("add", "main1.txt")
+        self.git("commit", "-qm", "main published M", timestamp=1_700_001_500)
+        new_main = self.git("rev-parse", "HEAD")
+        (self.root / "main2.txt").write_text("main 2\n")
+        self.git("add", "main2.txt")
+        self.git("commit", "-qm", "main unpublished tip", timestamp=1_700_001_600)
+
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-ff", "-m", "merge main", "main", timestamp=1_700_004_000)
+
+        self.revision_mappings = {
+            old_base: b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n',
+            new_main: b'"2026-03-17"\n["0000000000000002","0000000000000002.ltar"]\n',
+        }
+
+        for stage in ("merge-head", "post-merge"):
+            if stage == "post-merge":
+                (self.root / "post.txt").write_text("post merge\n")
+                self.git("add", "post.txt")
+                self.git("commit", "-qm", "post-merge commit", timestamp=1_700_005_000)
+            for missing in (False, True):
+                with self.subTest(stage=stage, missing=missing):
+                    self.requests.clear()
+                    self.log.unlink(missing_ok=True)
+                    shutil.rmtree(self.artifacts, ignore_errors=True)
+                    result = self.fetch("/by-rev", missing=missing)
+                    self.assertIn(f"Remote cache: {new_main}", result.stdout)
+                    self.assertEqual(sorted(p.name for p in self.artifacts.iterdir()),
+                                     ["0000000000000002.art"])
+                    self.assertFalse(any(old_base in req for req in self.requests))
+
+    def pin_mathlib(self, revision, message, timestamp):
+        manifest = {"version": "1.1.0", "packages": [
+            {"name": "cslib", "rev": "c" * 40}, {"name": "mathlib", "rev": revision}]}
+        (self.root / "lake-manifest.json").write_text(json.dumps(manifest))
+        self.git("add", "lake-manifest.json")
+        self.git("commit", "-qm", message, timestamp=timestamp)
+        return self.git("rev-parse", "HEAD")
+
+    def test_ancestors_pinning_another_mathlib_are_not_restored(self):
+        # The incident of 17 November 2026: after a Mathlib bump, the nearest published ancestor
+        # predates the bump, so its complete output set was downloaded and matched nothing.
+        # An orphan history, so that every candidate has a manifest (the fixture's root has none).
+        self.git("checkout", "-q", "--orphan", "main")
+        before = self.pin_mathlib("a" * 40, "published before the bump", 1_700_001_000)
+        self.revision_mappings = {
+            before: b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n'}
+        bump = self.pin_mathlib("b" * 40, "unpublished Mathlib bump", 1_700_002_000)
+        for missing in (False, True):
+            with self.subTest(published="before the bump only", missing=missing):
+                self.requests.clear()
+                result = self.fetch("/by-rev", "/by-rev-403", missing=missing)
+                self.assertIn("Skipping 1 of 2 candidate ancestors", result.stdout)
+                # Only the bump itself is looked up, at both origins; nothing is downloaded.
+                self.assertEqual(len(self.requests), 2)
+                self.assertTrue(all(bump in request for request in self.requests))
+                self.assertFalse(self.artifacts.exists() and any(self.artifacts.iterdir()))
+        # A pin changed in the working tree but not yet committed matches no ancestor at all:
+        # the first origin attempt settles that without a request, and no other origin is tried.
+        self.requests.clear()
+        committed = (self.root / "lake-manifest.json").read_text()
+        (self.root / "lake-manifest.json").write_text(committed.replace("b" * 40, "e" * 40))
+        result = self.fetch("/by-rev", "/by-rev-403")
+        self.assertIn("no candidate ancestor shares this checkout's Mathlib revision", result.stdout)
+        self.assertIn("origin 1/2: skipped", result.stdout)
+        self.assertNotIn("origin 2/2", result.stdout)
+        self.assertEqual(self.requests, [])
+        (self.root / "lake-manifest.json").write_text(committed)
+        # Once the bump is published it is restored, and the older set is still never requested.
+        self.revision_mappings[bump] = b'"2026-03-17"\n["0000000000000002","0000000000000002.ltar"]\n'
+        (self.root / "work.txt").write_text("work\n")
+        self.git("add", "work.txt")
+        self.git("commit", "-qm", "work after the bump", timestamp=1_700_003_000)
+        result = self.fetch("/by-rev")
+        self.assertIn(f"Remote cache: {bump}", result.stdout)
+        self.assertEqual(sorted(p.name for p in self.artifacts.iterdir()), ["0000000000000002.art"],
+                         result.stdout + result.stderr)
+        self.assertFalse(any(before in request for request in self.requests))
+
+    def test_other_manifest_changes_and_unreadable_pins_keep_the_ancestor(self):
+        # A bump of cslib alone left 52% to 99.8% of outputs reusable, so it must not be skipped;
+        # the fixture's first commit has no manifest at all and is kept as well.
+        self.git("checkout", "-qb", "main")
+        published = self.pin_mathlib("a" * 40, "published", 1_700_001_000)
+        self.revision_mappings = {
+            published: b'"2026-03-17"\n["0000000000000001","0000000000000001.ltar"]\n'}
+        manifest = json.loads((self.root / "lake-manifest.json").read_text())
+        manifest["packages"][0]["rev"] = "d" * 40
+        (self.root / "lake-manifest.json").write_text(json.dumps(manifest, indent=1))
+        self.git("add", "lake-manifest.json")
+        self.git("commit", "-qm", "bump cslib only", timestamp=1_700_002_000)
+        result = self.fetch("/by-rev")
+        self.assertIn(f"Remote cache: {published}", result.stdout)
+        self.assertNotIn("Skipping", result.stdout)
+        self.assertEqual(restore.same_mathlib(self.root, restore.candidate_revisions(self.root)),
+                         restore.candidate_revisions(self.root))
+        # An unreadable manifest in the checkout disables the comparison instead of the restore.
+        (self.root / "lake-manifest.json").write_text("not json")
+        self.assertEqual(len(restore.same_mathlib(self.root, [published])), 1)
 
     def test_explicit_empty_legacy_override_disables_configured_mirrors(self):
         self.fetch("/primary", "/fallback", COMPLEXITYLIB_CACHE_URL="")
@@ -258,6 +557,168 @@ class MirrorTests(unittest.TestCase):
         self.fetch("/primary", "/fallback", DISABLE_CACHE_RESTORE="true")
         self.assertEqual(self.events(), [])
         self.assertEqual(self.requests, [])
+
+
+@unittest.skipUnless(shutil.which("git"), "git is required")
+@unittest.skipUnless(all(shutil.which(tool) for tool in ("lake", "curl", "git")),
+                     "native mirror integration requires Lake, curl and Git")
+class RealLakeMirrorTests(MirrorFixture):
+    fake_lake = False
+
+    def test_html_mapping_falls_back_and_caches_real_output(self):
+        producer = self.root / "producer"
+        producer.mkdir()
+        shutil.copyfile(self.root / "lean-toolchain", producer / "lean-toolchain")
+        for directory in (producer, self.root):
+            (directory / "lakefile.toml").write_text(
+                'name = "fixture"\nenableArtifactCache = true\n[[lean_lib]]\nname = "Fixture"\n')
+            (directory / "Fixture.lean").write_text("def answer : Nat := 42\n")
+
+        mapping = producer / "mapping.jsonl"
+        archives = producer / "archives"
+
+        def lake_cache_dir(path):
+            if sys.platform == "cygwin":
+                return subprocess.check_output(["cygpath", "-am", str(path)], text=True).strip()
+            return str(path)
+
+        env = {**self.env, "LAKE_CACHE_DIR": lake_cache_dir(producer / "cache"), "LAKE_NO_CACHE": "false"}
+        subprocess.run(["lake", "build", "Fixture", "-o", "mapping.jsonl"],
+                       cwd=producer, env=env, check=True, timeout=60)
+        subprocess.run(["lake", "cache", "stage", "mapping.jsonl", "archives"],
+                       cwd=producer, env=env, check=True, timeout=30)
+        payloads = {archive.stem + ".art": archive.read_bytes()
+                    for archive in archives.glob("*.ltar")}
+        self.assertTrue(payloads, "Lake did not stage any artifacts")
+        self.artifact_payloads = payloads
+        revision = self.env["MIRROR_REVISION"]
+        self.revision_mappings[revision] = mapping.read_bytes()
+
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.requests.clear()
+                cache = self.root / f"consumer-cache-{missing}"
+                result = self.fetch("/html", "/by-rev", missing=missing,
+                                    LAKE_CACHE_DIR=lake_cache_dir(cache), LAKE_NO_CACHE="false",
+                                    COMPLEXITYLIB_CACHE_ORIGIN_TIMEOUT="10")
+                self.assertIn("cache origin 2/2: completed", result.stdout, result.stderr)
+                self.assertTrue(any(request.endswith(f"/{revision}.jsonl")
+                                    and request.startswith("/html/") for request in self.requests))
+                self.assertEqual({request.rsplit("/", 1)[-1] for request in self.requests
+                                  if request.startswith("/by-rev/a0/")}, payloads.keys())
+                self.assertEqual({path.stem + ".art": path.read_bytes()
+                                  for path in cache.rglob("*.ltar")}, payloads)
+
+
+class CandidateRevisionsTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="cache candidates ")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        self.env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1",
+                        GIT_AUTHOR_NAME="Candidate fixture", GIT_COMMITTER_NAME="Candidate fixture",
+                        GIT_AUTHOR_EMAIL="fixture@example.invalid",
+                        GIT_COMMITTER_EMAIL="fixture@example.invalid")
+        self.git("init", "-q", "-b", "main")
+
+    def git(self, *args, timestamp=None):
+        return run_git(self.root, self.env, *args, timestamp=timestamp)
+
+    def commit(self, path, content, message, timestamp):
+        (self.root / path).write_text(content)
+        self.git("add", path)
+        self.git("commit", "-qm", message, timestamp=timestamp)
+        return self.git("rev-parse", "HEAD")
+
+    def test_clock_skew_still_orders_descendant_before_old_base(self):
+        old_base = self.commit("base", "0", "B", timestamp=1_700_009_000)
+        self.git("checkout", "-qb", "feature")
+        self.commit("feat", "1", "F1", timestamp=1_700_005_000)
+        self.git("checkout", "-q", "main")
+        new_main = self.commit("main", "1", "M", timestamp=1_700_001_000)
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-ff", "-m", "merge", "main", timestamp=1_700_010_000)
+        revs = restore.candidate_revisions(self.root)
+        self.assertLess(revs.index(new_main), revs.index(old_base))
+
+    def test_long_feature_branch_does_not_starve_merged_main_in_either_parent_order(self):
+        self.commit("base", "0", "B", timestamp=1_700_001_000)
+        self.git("checkout", "-qb", "feature")
+        for i in range(110):
+            self.commit("feat", str(i), f"F{i}", timestamp=1_700_003_000 + i)
+        feat_tip = self.git("rev-parse", "HEAD")
+        self.git("checkout", "-q", "main")
+        new_main = self.commit("main", "1", "M", timestamp=1_700_002_000)
+
+        # Local merge: first parent is long feature branch, second parent is main.
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-ff", "-m", "merge main into feat", "main",
+                 timestamp=1_700_005_000)
+        local_revs = restore.candidate_revisions(self.root)
+        self.assertIn(new_main, local_revs)
+        self.assertLessEqual(local_revs.index(new_main), 2)
+
+        # PR merge commit: first parent is main, second parent is long feature branch.
+        self.git("checkout", "-qb", "pr-merge", new_main)
+        self.git("merge", "-q", "--no-ff", "-m", "merge feat into main", feat_tip,
+                 timestamp=1_700_006_000)
+        pr_revs = restore.candidate_revisions(self.root)
+        self.assertIn(new_main, pr_revs)
+        self.assertLessEqual(pr_revs.index(new_main), 2)
+
+    def test_unpublished_main_streak_still_precedes_short_branch_old_base(self):
+        old_base = self.commit("base", "0", "B", timestamp=1_700_001_000)
+        self.git("checkout", "-qb", "feature")
+        self.commit("feat", "1", "F1", timestamp=1_700_001_100)
+        self.git("checkout", "-q", "main")
+        published_main = self.commit("main", "0", "M0", timestamp=1_700_002_000)
+        for i in range(1, 21):
+            self.commit("main", str(i), f"M{i}", timestamp=1_700_002_000 + i)
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-ff", "-m", "merge main", "main", timestamp=1_700_003_000)
+        revs = restore.candidate_revisions(self.root)
+        self.assertLess(revs.index(published_main), revs.index(old_base))
+
+    def test_stalled_merge_base_fallback_rescues_long_branch_between_merges(self):
+        self.commit("base", "0", "B", timestamp=1_700_001_000)
+        self.git("checkout", "-qb", "feature")
+        self.commit("feat", "0", "F0", timestamp=1_700_001_100)
+        self.git("checkout", "-q", "main")
+        first_main = self.commit("main", "1", "M1", timestamp=1_700_002_000)
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-ff", "-m", "merge M1", "main", timestamp=1_700_002_100)
+        for i in range(1, 106):
+            self.commit("feat", str(i), f"F{i}", timestamp=1_700_003_000 + i)
+        self.git("checkout", "-q", "main")
+        self.commit("main", "2", "M2-unpublished", timestamp=1_700_004_000)
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-ff", "-m", "merge M2", "main", timestamp=1_700_005_000)
+        revs = restore.candidate_revisions(self.root)
+        self.assertIn(first_main, revs)
+
+    def test_stalled_fallback_seeds_remaining_wave_and_next_wave_before_stalled_base(self):
+        base = self.commit("base", "0", "B", timestamp=1_700_001_000)
+        self.git("checkout", "-qb", "left")
+        self.commit("left", "1", "L1", timestamp=1_700_002_000)
+        self.commit("left", "2", "L2", timestamp=1_700_002_100)
+        self.git("checkout", "-qb", "extra", base)
+        extra1 = self.commit("extra", "1", "X1", timestamp=1_700_002_400)
+        self.commit("extra", "2", "X2", timestamp=1_700_002_500)
+        self.git("checkout", "-qb", "mid", base)
+        self.commit("mid", "1", "M1", timestamp=1_700_001_500)
+        mid2 = self.commit("mid", "2", "M2", timestamp=1_700_001_600)
+        self.git("checkout", "-qb", "right", base)
+        self.commit("right", "1", "R1", timestamp=1_700_003_000)
+        self.git("checkout", "-q", "left")
+        self.git("merge", "-q", "--no-ff", "-m", "octopus", "extra", "mid", "right",
+                 timestamp=1_700_004_000)
+        # Wave 0: octopus (1).
+        # Wave 1: [R1 (3000), X2 (2500), L2 (2100), M2 (1600)].
+        # R1 stalls B, X2 queues X1 into next_wave, limit=4 stops on L2 leaving M2 in remaining_wave.
+        revs = restore.candidate_revisions(self.root, limit=4, stalled_limit=5)
+        self.assertLess(revs.index(mid2), revs.index(extra1))
+        self.assertLess(revs.index(extra1), revs.index(base))
 
 
 @unittest.skipUnless(os.name == "posix", "owned process-group shutdown requires POSIX")
@@ -404,7 +865,7 @@ class PublicationPermissionTests(unittest.TestCase):
         lean = jobs["lean-checks"]
         aggregator = jobs["ci-checks"]
         self.assertIn("env.CACHE_RECOVERY_GENERATION", lean)
-        self.assertIn("needs: [source-checks, lean-checks]", aggregator)
+        self.assertIn("needs: [select-checks, source-checks, lean-checks]", aggregator)
         self.assertIn("if: always()", aggregator)
         self.assertIn("publication: ${{ needs.lean-checks.outputs.publication }}", aggregator)
         for name in ("publish-gcs-cache", "publish-mit-cache"):

@@ -83,7 +83,6 @@ open BitString Module Polynomial
 `m`, least significant first. -/
 noncomputable def polyOfCode (m : ℕ) : (ZMod 2)[X] :=
   if m = 0 then 0 else C (m : ZMod 2) + X * polyOfCode (m / 2)
-decreasing_by omega
 
 /-- The code `0` gives the zero polynomial. -/
 @[simp]

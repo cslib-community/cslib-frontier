@@ -16,9 +16,10 @@ import CslibFrontier.Foundations.Data.Finset.Expect
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Data.Rat.Cast.Lemmas
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Partitioned-bucket, micro-bucket, and slab-hysteresis model for succinct dictionaries
@@ -117,7 +118,7 @@ open scoped BigOperators ENNReal
 
 /-- Number of local micro-bucket bits `min ⌊log₂ n⌋ (3 * logLogFactor n)` within each Feistel
 bucket. -/
-@[expose]
+@[expose, wram_arith]
 def microBits (n : ℕ) : ℕ :=
   min (Nat.log 2 n) (3 * Dynamic.logLogFactor n)
 
@@ -127,7 +128,7 @@ def numMicroPerBucket (n : ℕ) : ℕ :=
   2 ^ microBits n
 
 /-- Total number of `(bucket, microBucket)` address bits `bucketBits n + microBits n = ⌊log₂ n⌋`. -/
-@[expose]
+@[expose, wram_arith]
 def totalMicroBits (n : ℕ) : ℕ :=
   bucketBits n + microBits n
 
@@ -184,7 +185,7 @@ def maxTailItems (n : ℕ) : ℕ :=
   numBuckets n * tailCapPerBucket n
 
 /-- Bit-width `⌈log₂ (n + 1)⌉` capable of representing any global index or count in `0 .. n`. -/
-@[expose]
+@[expose, wram_arith]
 def globalPtrBits (n : ℕ) : ℕ :=
   Nat.clog 2 (n + 1)
 
@@ -206,9 +207,7 @@ theorem keyQuotient_eq_of_quotientFin_eq {U n : ℕ} (hnU : n ≤ U) (u₁ u₂ 
   rwa [quotientFin_val_eq hnU, quotientFin_val_eq hnU] at hval
 
 /-- For every `n : ℕ`, `totalMicroBits n = Nat.log 2 n`. -/
-theorem totalMicroBits_eq_log (n : ℕ) : totalMicroBits n = Nat.log 2 n := by
-  unfold totalMicroBits bucketBits microBits
-  omega
+theorem totalMicroBits_eq_log (n : ℕ) : totalMicroBits n = Nat.log 2 n := by wram_omega
 
 /-- `bucketBits n` is at most `totalMicroBits n`. -/
 theorem bucketBits_le_totalMicroBits (n : ℕ) : bucketBits n ≤ totalMicroBits n :=
@@ -270,10 +269,8 @@ theorem le_two_mul_totalMicroBuckets (n : ℕ) : n ≤ 2 * totalMicroBuckets n :
 
 /-- For every `n : ℕ`, `n ≤ (2 * numMicroPerBucket n) * numBuckets n`. -/
 theorem le_two_mul_numMicro_mul_numBuckets (n : ℕ) :
-    n ≤ (2 * numMicroPerBucket n) * numBuckets n := by
-  have h := le_two_mul_totalMicroBuckets n
-  rw [totalMicroBuckets_eq_mul] at h
-  linarith
+    n ≤ (2 * numMicroPerBucket n) * numBuckets n :=
+  (le_two_mul_totalMicroBuckets n).trans_eq (by rw [totalMicroBuckets_eq_mul]; ring)
 
 /-- `effBucketCap n` is at least `4`. -/
 theorem four_le_effBucketCap (n : ℕ) : 4 ≤ effBucketCap n := by
@@ -367,10 +364,7 @@ theorem slabSize_eq_sq_of_pos {n : ℕ} (hb : 0 < bucketBits n) :
   have h1 : slabSize n = (slabScale n) ^ 2 := by
     unfold slabSize slabBits slabScale
     rw [ite_eq_right hb0, Nat.mul_comm 2 (Dynamic.logLogFactor n), pow_mul]
-  refine ⟨h1, ?_⟩
-  rw [h1]
-  have h2 := two_le_slabScale n
-  nlinarith
+  exact ⟨h1, h1 ▸ Nat.pow_le_pow_left (two_le_slabScale n) 2⟩
 
 /-- When `0 < bucketBits n`, `numBuckets n * (slabScale n) ^ 3 ≤ n`. -/
 theorem numBuckets_mul_slabScale_cubed_le {n : ℕ} (hb : 0 < bucketBits n) :
@@ -417,10 +411,8 @@ theorem globalPtrBits_le_two_mul_slabScale {n : ℕ} (hb : 0 < bucketBits n) :
   have hcube := numBuckets_mul_slabScale_cubed_le hb
   have hscale := two_le_slabScale n
   have hb_pos := numBuckets_pos n
-  have hcube8 : 8 ≤ (slabScale n) ^ 3 :=
-    calc 8 = 2 ^ 3 := by decide
-      _ ≤ (slabScale n) ^ 3 := Nat.pow_le_pow_left hscale 3
-  have hn8 : 8 ≤ n := by nlinarith
+  have hcube8 : 8 ≤ (slabScale n) ^ 3 := Nat.pow_le_pow_left hscale 3
+  have hn8 : 8 ≤ n := hcube8.trans ((Nat.le_mul_of_pos_left _ hb_pos).trans hcube)
   have hmax : max n 4 = n := max_eq_left (by omega)
   have hle2n : n + 1 ≤ 2 * max n 4 := by omega
   have hclog1 : Nat.clog 2 (n + 1) ≤ Nat.clog 2 (max n 4) + 1 := by
@@ -433,8 +425,7 @@ theorem globalPtrBits_le_two_mul_slabScale {n : ℕ} (hb : 0 < bucketBits n) :
   have hclog2 : Nat.clog 2 (max n 4) ≤ slabScale n := by
     unfold slabScale Dynamic.logLogFactor
     exact Nat.le_pow_clog (by decide) (Nat.clog 2 (max n 4))
-  unfold globalPtrBits
-  omega
+  wram_omega
 
 /-- For every `n : ℕ`, `maxTailItems n ≤ n`. -/
 theorem maxTailItems_le (n : ℕ) : maxTailItems n ≤ n := by
@@ -506,8 +497,7 @@ theorem maxFullSlabs_mul_globalPtrBits_le (n : ℕ) :
     have hptr := globalPtrBits_le_two_mul_slabScale hb_pos
     have hdiv_le : n / slabSize n * slabSize n ≤ n := Nat.div_mul_le_self n (slabSize n)
     have h2L_le_sq : 2 * slabScale n ≤ slabSize n := by
-      rw [hslab]
-      nlinarith
+      rw [hslab, sq]; exact Nat.mul_le_mul_right _ hscale
     calc n / slabSize n * globalPtrBits n
         ≤ n / slabSize n * (2 * slabScale n) := by gcongr
       _ ≤ n / slabSize n * slabSize n := by gcongr
@@ -519,10 +509,8 @@ theorem two_mul_numBuckets_mul_globalPtrBits_le_of_pos {n : ℕ} (hb : 0 < bucke
   have hcube := numBuckets_mul_slabScale_cubed_le hb
   have hscale := two_le_slabScale n
   have hptr := globalPtrBits_le_two_mul_slabScale hb
-  have hsq : 4 ≤ (slabScale n) ^ 2 := by nlinarith
-  have h4L_le_cube : 4 * slabScale n ≤ (slabScale n) ^ 3 := by
-    calc 4 * slabScale n ≤ (slabScale n) ^ 2 * slabScale n := by nlinarith
-      _ = (slabScale n) ^ 3 := by ring
+  have h4L_le_cube : 4 * slabScale n ≤ (slabScale n) ^ 3 :=
+    (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hscale 2)).trans_eq (pow_succ _ 2).symm
   calc 2 * (numBuckets n * globalPtrBits n)
       ≤ 2 * (numBuckets n * (2 * slabScale n)) := by gcongr
     _ = numBuckets n * (4 * slabScale n) := by ring
@@ -862,7 +850,7 @@ theorem expect_probeExcess_le_three_on {U n_max : ℕ}
   unfold probeExcess
   push_cast
   rw [expect_add_distrib]
-  linarith
+  exact (add_le_add h1 h2).trans_eq (by norm_num)
 
 /-- Natural-number sum form of `expect_probeExcess_le_three_on`: the sum of `probeExcess` over all
 seeds `i : ι` is at most `3 * Fintype.card ι`. -/
@@ -1075,7 +1063,7 @@ def globalMetaVarLen (n : ℕ) : ℕ :=
 /-- Total number of `globalPtrBits n`-bit entries in `GlobalMeta`: `4` global header slots (slots
 `0` and `1` store `n_slabs` and `n_tails`; slots `2` and `3` are unused) plus `globalMetaVarLen n`.
 -/
-@[expose]
+@[expose, wram_arith]
 def globalMetaLen (n : ℕ) : ℕ :=
   4 + globalMetaVarLen n
 
@@ -1089,7 +1077,8 @@ theorem localMetaLen_mul_effBucketPosBits_le (n : ℕ) :
       have h2 := numBuckets_mul_effBucketCap_le_four_mul hn
       have h3 := totalMicroBuckets_eq_mul n
       unfold localMetaLen
-      nlinarith
+      rw [Nat.left_distrib, ← mul_left_comm, ← h3]
+      omega
     have hbits := effBucketPosBits_le n
     calc localMetaLen n * effBucketPosBits n
         ≤ (9 * n) * (6 * Dynamic.logLogFactor n) := Nat.mul_le_mul hlen hbits
@@ -1148,12 +1137,12 @@ theorem globalMetaLen_mul_globalPtrBits_le (n : ℕ) :
       have hcube := numBuckets_mul_slabScale_cubed_le hb_pos
       have hscale := two_le_slabScale n
       have hb_num := numBuckets_pos n
-      have hsq : 4 ≤ (slabScale n) ^ 2 := by nlinarith
       have h4L : 4 * globalPtrBits n ≤ 2 * n := by
         calc 4 * globalPtrBits n
             ≤ 4 * (2 * slabScale n) := by gcongr
           _ = 2 * (4 * slabScale n) := by ring
-          _ ≤ 2 * ((slabScale n) ^ 2 * slabScale n) := by nlinarith
+          _ ≤ 2 * ((slabScale n) ^ 2 * slabScale n) :=
+            Nat.mul_le_mul_left 2 (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hscale 2))
           _ = 2 * (1 * (slabScale n) ^ 3) := by ring
           _ ≤ 2 * (numBuckets n * (slabScale n) ^ 3) := by
             gcongr
@@ -1192,21 +1181,16 @@ theorem globalMetaLen_le_of_bucketBits_pos {n : ℕ} (hb : 0 < bucketBits n) :
   have hB1 : 1 ≤ numBuckets n := numBuckets_pos n
   have hcube := numBuckets_mul_slabScale_cubed_le hb
   have hK : slabSize n = (slabScale n) ^ 2 := (slabSize_eq_sq_of_pos hb).1
-  have hS2_16 : 16 ≤ slabSize n := by
-    rw [hK]
-    nlinarith
+  have hS2_16 : 16 ≤ slabSize n := hK ▸ (by decide : 16 ≤ 8 ^ 2).trans (Nat.pow_le_pow_left hS8 2)
   have hdiv : n / slabSize n ≤ n / 16 := by gcongr
   have h5 : 3 + 4 * slabScale n + 2 * (2 * (slabScale n) ^ 2) ≤ 5 * (slabScale n) ^ 2 := by
-    nlinarith
+    have := Nat.mul_le_mul_right (slabScale n) hS8; rw [sq] at *; omega
   have hm5 :
       numBuckets n * (3 + 4 * slabScale n + 2 * (2 * (slabScale n) ^ 2)) ≤
-        5 * (numBuckets n * (slabScale n) ^ 2) := by
-    calc numBuckets n * (3 + 4 * slabScale n + 2 * (2 * (slabScale n) ^ 2))
-        ≤ numBuckets n * (5 * (slabScale n) ^ 2) := Nat.mul_le_mul_left _ h5
-      _ = 5 * (numBuckets n * (slabScale n) ^ 2) := by ring
-  have h4le : 4 ≤ numBuckets n * (slabScale n) ^ 2 := by
-    calc 4 ≤ 1 * 16 := by decide
-      _ ≤ numBuckets n * (slabScale n) ^ 2 := Nat.mul_le_mul hB1 (by nlinarith)
+        5 * (numBuckets n * (slabScale n) ^ 2) :=
+    (Nat.mul_le_mul_left _ h5).trans_eq (by ring)
+  have h4le : 4 ≤ numBuckets n * (slabScale n) ^ 2 :=
+    (by decide : 4 ≤ 1 * 16).trans (Nat.mul_le_mul hB1 (hK ▸ hS2_16))
   have h8 : 8 * (numBuckets n * (slabScale n) ^ 2) ≤ n := by
     calc 8 * (numBuckets n * (slabScale n) ^ 2)
         ≤ slabScale n * (numBuckets n * (slabScale n) ^ 2) :=

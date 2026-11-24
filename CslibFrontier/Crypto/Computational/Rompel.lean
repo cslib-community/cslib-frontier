@@ -12,13 +12,15 @@ public import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetColli
 public import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
 
 /-!
-# Rompel's signature theorem: one-way functions and EUF-CMA digital signatures
+# Toward Rompel's signature theorem: one-way functions and EUF-CMA digital signatures
 
 Combining universal one-way hash families from inaccessible entropy with target collision-resistant
-hash-and-sign and stateless PRF-seeded authentication trees establishes Rompel's equivalence between
-uniform one-way functions (`OneWay`) and uniform stateless many-time EUF-CMA digital signature
-schemes on both fixed `n`-bit messages (`SignatureScheme.EUFCMA`) and unrestricted `List Bool`
-messages (`WordSignatureScheme.EUFCMA`):
+hash-and-sign and stateless PRF-seeded authentication trees proves an equivalence between uniform
+one-way functions (`OneWay`) and uniform stateless many-time EUF-CMA digital signature schemes on
+both fixed `n`-bit messages (`SignatureScheme.EUFCMA`) and unrestricted `List Bool` messages
+(`WordSignatureScheme.EUFCMA`). These are steps toward Rompel's theorem ([Rompel1990]), not the
+cited result: the primary source has not been inspected, so the statements have not been checked
+against it (#5293).
 
 1. **Sufficiency (`OneWay.exists_indexedEUFCMA_two`, `OneWay.exists_counterEUFCMA_two`,
    `OneWay.exists_eufCMA`, `OneWay.exists_wordEUFCMA`)**: any uniform `OneWay` function yields an
@@ -44,7 +46,7 @@ messages (`WordSignatureScheme.EUFCMA`):
    `exists_oneTimeSignature_iff_exists_wordSignature`)**: converse reindexing of seeded key
    generation (`SignatureScheme.EUFCMA.exists_oneWay`, `WordSignatureScheme.EUFCMA.exists_oneWay`)
    closes both `(∃ f, OneWay f) ↔ ∃ S : SignatureScheme, S.EUFCMA` and
-   `(∃ f, OneWay f) ↔ ∃ S : WordSignatureScheme, S.EUFCMA` (`[Rompel1990]`, pp. 387–394) and
+   `(∃ f, OneWay f) ↔ ∃ S : WordSignatureScheme, S.EUFCMA` (after `[Rompel1990]`, pp. 387–394) and
    equates existence of one-time `SignatureScheme`s with stateless many-time `SignatureScheme`s and
    `WordSignatureScheme`s.
 
@@ -64,15 +66,17 @@ and forged in each execution.
   capacity-`2` `IndexedSignatureScheme` satisfying `CounterEUFCMA` on arbitrary-length `List Bool`
   messages.
 * `Cslib.Crypto.OneWay.exists_eufCMA`: every uniform `OneWay` function yields a stateless many-time
-  `SignatureScheme` satisfying `EUFCMA` on `n`-bit messages.
+  `SignatureScheme` satisfying `EUFCMA` on `n`-bit messages (a step toward Rompel's theorem).
 * `Cslib.Crypto.OneWay.exists_wordEUFCMA`: every uniform `OneWay` function yields a stateless
-  many-time `WordSignatureScheme` satisfying `EUFCMA` on arbitrary-length `List Bool` messages.
+  many-time `WordSignatureScheme` satisfying `EUFCMA` on arbitrary-length `List Bool` messages (a
+  step toward Rompel's theorem).
 * `Cslib.Crypto.exists_oneWay_iff_exists_signature`,
   `Cslib.Crypto.exists_oneTimeSignature_iff_exists_signature`: `OneWay` and `OneTimeEUFCMA`
-  equivalences for `n`-bit `SignatureScheme`s.
+  equivalences for `n`-bit `SignatureScheme`s (the first a step toward Rompel's equivalence).
 * `Cslib.Crypto.exists_oneWay_iff_exists_wordSignature`,
   `Cslib.Crypto.exists_oneTimeSignature_iff_exists_wordSignature`: `OneWay` and `OneTimeEUFCMA`
-  equivalences for unrestricted-message `WordSignatureScheme`s.
+  equivalences for unrestricted-message `WordSignatureScheme`s (the first a step toward Rompel's
+  equivalence).
 
 ## References
 
@@ -111,19 +115,25 @@ theorem OneWay.exists_counterEUFCMA_two {f : List Bool → List Bool} (hf : OneW
   obtain ⟨S, hcap, hS⟩ := hf.exists_indexedEUFCMA_two
   exact ⟨S, hcap, hS.counterEUFCMA⟩
 
-/-- **Rompel sufficiency for `SignatureScheme`** (`[Rompel1990]`, pp. 387–394; proved via
-`[HHRVW2020]`, Sections 4.2 and 5.1, Theorems 4.5 and 5.1, and `[BonehShoup2023]`, Sections 13.2.1
-and 14.6.3): every uniform `OneWay` function implies the existence of a stateless many-time
-`SignatureScheme` satisfying `EUFCMA` (on `SignatureScheme`'s `n`-bit message space at security
-parameter `n`). -/
+/-- Step toward Rompel's sufficiency theorem ([Rompel1990], pp. 387–394), not the cited result:
+the primary source has not been inspected (`manual/sources.md` records that its full text was not
+inspected), so this statement has not been checked against it (#5293).
+
+Every uniform `OneWay` function implies the existence of a stateless many-time `SignatureScheme`
+satisfying `EUFCMA` (on `SignatureScheme`'s `n`-bit message space at security parameter `n`). The
+proof goes through `[HHRVW2020]`, Sections 4.2 and 5.1, Theorems 4.5 and 5.1, and
+`[BonehShoup2023]`, Sections 13.2.1 and 14.6.3. -/
 theorem OneWay.exists_eufCMA {f : List Bool → List Bool} (hf : OneWay f) :
     ∃ S : SignatureScheme, S.EUFCMA := by
   obtain ⟨H, hH⟩ := hf.exists_targetCollisionResistant_keyedHashFamily
   exact hf.exists_eufCMA_of_targetCollisionResistant hH
 
-/-- **Rompel's equivalence for `SignatureScheme`** (`[Rompel1990]`, pp. 387–394): a uniform one-way
-function exists if and only if a uniform stateless many-time `EUFCMA`-secure `SignatureScheme` (on
-`n`-bit messages at parameter `n`) exists. -/
+/-- Step toward Rompel's equivalence ([Rompel1990], pp. 387–394), not the cited result: the
+primary source has not been inspected (`manual/sources.md` records that its full text was not
+inspected), so this statement has not been checked against it (#5293).
+
+A uniform one-way function exists if and only if a uniform stateless many-time `EUFCMA`-secure
+`SignatureScheme` (on `n`-bit messages at parameter `n`) exists. -/
 theorem exists_oneWay_iff_exists_signature :
     (∃ f, OneWay f) ↔ ∃ S : SignatureScheme, S.EUFCMA :=
   ⟨fun ⟨_, hf⟩ => hf.exists_eufCMA, fun ⟨_, hS⟩ => hS.exists_oneWay⟩
@@ -135,17 +145,25 @@ theorem exists_oneTimeSignature_iff_exists_signature :
     (∃ S : SignatureScheme, S.OneTimeEUFCMA) ↔ ∃ S : SignatureScheme, S.EUFCMA :=
   exists_oneWay_iff_exists_oneTimeSignature.symm.trans exists_oneWay_iff_exists_signature
 
-/-- **Rompel sufficiency for `WordSignatureScheme`** (`[Rompel1990]`, pp. 387–394; proved via
-`[HHRVW2020]`, Sections 4.2 and 5.1, Theorems 4.5 and 5.1, and `[BonehShoup2023]`, Sections 13.2.1
-and 14.6.3): every uniform `OneWay` function implies the existence of a stateless many-time
-`WordSignatureScheme` satisfying `EUFCMA` on arbitrary-length `List Bool` messages. -/
+/-- Step toward Rompel's sufficiency theorem ([Rompel1990], pp. 387–394), for messages of any
+length, not the cited result: the primary source has not been inspected (`manual/sources.md`
+records that its full text was not inspected), so this statement has not been checked against it
+(#5293).
+
+Every uniform `OneWay` function implies the existence of a stateless many-time
+`WordSignatureScheme` satisfying `EUFCMA` on arbitrary-length `List Bool` messages. The proof goes
+through `[HHRVW2020]`, Sections 4.2 and 5.1, Theorems 4.5 and 5.1, and `[BonehShoup2023]`,
+Sections 13.2.1 and 14.6.3. -/
 theorem OneWay.exists_wordEUFCMA {f : List Bool → List Bool} (hf : OneWay f) :
     ∃ S : WordSignatureScheme, S.EUFCMA := by
   obtain ⟨H, hH⟩ := hf.exists_targetCollisionResistant_keyedHashFamily
   exact hf.exists_wordEUFCMA_of_targetCollisionResistant hH
 
-/-- **Rompel's equivalence for `WordSignatureScheme`** (`[Rompel1990]`, pp. 387–394): a uniform
-one-way function exists if and only if a uniform stateless many-time `EUFCMA`-secure
+/-- Step toward Rompel's equivalence ([Rompel1990], pp. 387–394), for messages of any length,
+not the cited result: the primary source has not been inspected (`manual/sources.md` records that
+its full text was not inspected), so this statement has not been checked against it (#5293).
+
+A uniform one-way function exists if and only if a uniform stateless many-time `EUFCMA`-secure
 `WordSignatureScheme` on arbitrary-length `List Bool` messages exists. -/
 theorem exists_oneWay_iff_exists_wordSignature :
     (∃ f, OneWay f) ↔ ∃ S : WordSignatureScheme, S.EUFCMA :=

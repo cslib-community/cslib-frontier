@@ -4,19 +4,38 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Complexity.Problems.MonotoneCircuitValue.Completeness
 
-/-! Clients of monotone circuit value: both answers occur, dual rails preserve negation,
-empty inputs are supported, and the generic writer has a concrete zero-chunk instance. -/
+/-! Clients of monotone circuit value: encoded words match the `CircuitValue` encoding of the De
+Morgan reading by `rfl`, both answers occur, dual rails preserve negation, empty inputs are
+supported, and the generic writer has a concrete zero-chunk instance. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.MonotoneCircuitValue
 
 open Cslib Cslib.Complexity Cslib.Circuits Turing Turing.MultiTapeTM
 
+/-- Encoded words of `MonotoneCircuitValueInstance` are unchanged from the `CircuitValue` encoding
+of its De Morgan reading. -/
+example (x : MonotoneCircuitValueInstance) :
+    encMonotoneCircuitValue x =
+      encCircuitValue ⟨x.arity, x.circuit.mapOp Monotone.toDeMorgan, x.input⟩ :=
+  rfl
+
+example (n : ℕ) (c : Circuit Monotone.signature n 1) (x : BitString n) :
+    encMonotoneCircuitValue { arity := n, circuit := c, input := x } =
+      encCircuitValue ⟨n, c.mapOp Monotone.toDeMorgan, x⟩ :=
+  rfl
+
 /-- Yes- and no-instances with no gates. -/
 example :
-    ⟨1, Circuit.id Monotone.signature 1, fun _ => true⟩ ∈ MonotoneCircuitValue ∧
-    ⟨1, Circuit.id Monotone.signature 1, fun _ => false⟩ ∉ MonotoneCircuitValue :=
+    { arity := 1, circuit := Circuit.id Monotone.signature 1, input := fun _ => true } ∈
+      MonotoneCircuitValue ∧
+    { arity := 1, circuit := Circuit.id Monotone.signature 1, input := fun _ => false } ∉
+      MonotoneCircuitValue :=
   ⟨rfl, by change false ≠ true; decide⟩
 
 private def notGate : Circuit Boolean.signature 1 1 := Circuit.oneGate .not (fun _ => 0)
@@ -47,17 +66,11 @@ example (w : List Bool) : copySpec.machine.run (frame w) (copySpec.rounds w.leng
 
 /-- The generic writer's space hypotheses are realized by this concrete instance. -/
 example : ComputableInLogSpace id (encFramed encBits) encBits := by
-  have hin : (fun p => (CircuitValue.WriterSpec.encStepIn p).length) ≼
-      fun p => CircuitValue.wBudget p.1 := .of_le_linear 2 0 fun p => by
-    simp only [length_encPair, encBool_apply, CircuitValue.wBudget]
-    simp only [encNat_apply, List.length_cons, List.length_nil, zero_add, add_zero,
-      Order.add_one_le_iff]
-    omega
   refine copySpec.computableInLogSpace (fun w => by
     simp [CircuitValue.WriterSpec.output, copySpec])
-    (ComputableInSpace.budget_const (encB := encNat) 0 hin)
-    (ComputableInSpace.budget_const (encB := encBits) [] hin)
-    (ComputableInSpace.budget_const (encB := encBits) [] hin) ?_
+    (ComputableInSpace.budget_const (encB := encNat) 0)
+    (ComputableInSpace.budget_const (encB := encBits) [])
+    (ComputableInSpace.budget_const (encB := encBits) []) ?_
   change PolynomiallyBounded fun _ : ℕ => 0
   fun_prop
 

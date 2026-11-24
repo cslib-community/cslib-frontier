@@ -126,17 +126,23 @@ its identity.
 A faithful statement matters more than a milestone. Agent reviews have approved theorems that
 assumed something about their own reduction because the PR disclosed it
 ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293); in `Cslib.Crypto`,
-`scripts/check_security_premises.py` catches common elaborated premise shapes under
-[security theorems](../AGENTS.md#security-theorems), while review owns semantic fidelity). Ask
+the advisory report of `scripts/check_security_premises.py` points a reviewer at common elaborated
+premise shapes under [security theorems](../AGENTS.md#security-theorems), fails nothing and clears
+nothing, and review owns semantic fidelity). Ask
 also which assumption a cited result rests on: the
 [assumptions inventory](programs-crypto-and-probability/assumptions.md) records whether each one
 is the source's or novel to this library, and a novel one may not stand in for the source's
 ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). When a
 report says a result landed "with limitations", ask whether the theorem is named and documented as
 a step ([faithful headlines](../AGENTS.md#faithful-headlines)) and whether the cited result is
-still open. Before a published theorem enters the [results inventory](../results/README.md), check
-its statement against the source yourself and say so in your own comment; agent review alone does
-not admit an entry.
+still open. Before a published theorem enters the [results inventory](../results/README.md), a
+reviewer from outside the authoring fleet, human or agent, checks its statement against the source
+and records the check; you can require a human check for your own fleet's entries by saying so on
+the entry's PR ([policy/review.md](../policy/review.md#review-cycle)). Judge a report by cited results: a theorem that presents one is registered
+there after that check or is worded as a step
+([the cited result is the unit of quality](../policy/statements.md#the-cited-result-is-the-unit-of-quality)),
+and a change in the number of baseline entries of the premise and reduction-witness scans is not
+progress.
 
 ## Direct a coordinator
 

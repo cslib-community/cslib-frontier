@@ -55,6 +55,8 @@ These constructions are standard; their formulation in this query model is origi
 
 ## Main definitions
 
+* `Cslib.Quantum.QueryBasis`: named `(index, ctrl, work)` coordinates of a basis state of
+  `State N W`.
 * `Cslib.Quantum.slice`, `Cslib.Quantum.controlled`: slices at a classical register, and the
   isometry applying `V g` to the slice at `g`.
 * `Cslib.Quantum.permute`, `Cslib.Quantum.flipCtrl`, `Cslib.Quantum.hadCtrl`: a permutation of the
@@ -86,15 +88,43 @@ open Finset
 
 variable {N : ℕ} {W G : Type*}
 
-/-! ### Slices and classical control -/
+/-! ### Named basis configurations, slices and classical control -/
+
+/-- Named computational-basis configuration of `Cslib.Quantum.State N W`: the queried index in
+`Fin N`, the phase-kickback control bit, and the workspace value. -/
+@[ext] structure QueryBasis (N : ℕ) (W : Type*) where
+  /-- The queried input position. -/
+  index : Fin N
+  /-- The phase-kickback control bit. -/
+  ctrl : Bool
+  /-- The workspace register value. -/
+  work : W
+  deriving DecidableEq
+
+/-- Equivalence between `QueryBasis N W` and the raw basis tuple `Fin N × Bool × W` of
+`State N W`. -/
+def QueryBasis.equiv {N : ℕ} {W : Type*} : QueryBasis N W ≃ Fin N × Bool × W where
+  toFun q := (q.index, q.ctrl, q.work)
+  invFun | (i, b, w) => ⟨i, b, w⟩
+  left_inv | ⟨_, _, _⟩ => rfl
+  right_inv | ⟨_, _, _⟩ => rfl
+
+@[simp] theorem QueryBasis.equiv_apply {N : ℕ} {W : Type*} (q : QueryBasis N W) :
+    QueryBasis.equiv q = (q.index, q.ctrl, q.work) := rfl
+
+@[simp] theorem QueryBasis.equiv_symm_apply {N : ℕ} {W : Type*} (i : Fin N) (b : Bool) (w : W) :
+    QueryBasis.equiv.symm (i, b, w) = ⟨i, b, w⟩ := rfl
+
+instance [Fintype W] : Fintype (QueryBasis N W) :=
+  Fintype.ofEquiv (Fin N × Bool × W) QueryBasis.equiv.symm
 
 /-- The slice `ψ_g` of a state at the value `g` of a classical register `G` in the workspace: the
 amplitudes of the basis states whose register holds `g`. -/
 def slice (g : G) (ψ : State N (W × G)) : State N W :=
-  WithLp.toLp 2 fun p => ψ.ofLp (p.1, p.2.1, p.2.2, g)
+  WithLp.toLp 2 fun (i, b, w) => ψ.ofLp (i, b, w, g)
 
-@[simp] theorem slice_apply (g : G) (ψ : State N (W × G)) (p : Fin N × Bool × W) :
-    (slice g ψ).ofLp p = ψ.ofLp (p.1, p.2.1, p.2.2, g) := rfl
+@[simp] theorem slice_apply (g : G) (ψ : State N (W × G)) (i : Fin N) (b : Bool) (w : W) :
+    (slice g ψ).ofLp (i, b, w) = ψ.ofLp (i, b, w, g) := rfl
 
 @[simp] theorem slice_add (g : G) (ψ φ : State N (W × G)) :
     slice g (ψ + φ) = slice g ψ + slice g φ := rfl
@@ -107,8 +137,8 @@ def slice (g : G) (ψ : State N (W × G)) : State N W :=
 
 /-- The basis states of `Fin N × Bool × (W × G)`, sorted by the value of the register `G`. -/
 private def splitEquiv : Fin N × Bool × (W × G) ≃ G × (Fin N × Bool × W) where
-  toFun p := (p.2.2.2, p.1, p.2.1, p.2.2.1)
-  invFun q := (q.2.1, q.2.2.1, q.2.2.2, q.1)
+  toFun | (i, b, w, g) => (g, i, b, w)
+  invFun | (g, i, b, w) => (i, b, w, g)
   left_inv _ := rfl
   right_inv _ := rfl
 
@@ -119,28 +149,28 @@ variable [Fintype W] [Fintype G]
 /-- A sum over the basis states is the sum, over the values `g` of the register, of the sums over
 the basis states whose register holds `g`. -/
 private theorem sum_split {M : Type*} [AddCommMonoid M] (f : Fin N × Bool × (W × G) → M) :
-    ∑ p, f p = ∑ g, ∑ q : Fin N × Bool × W, f (q.1, q.2.1, q.2.2, g) := by
+    ∑ p, f p = ∑ g, ∑ q : Fin N × Bool × W, f (splitEquiv.symm (g, q)) := by
   rw [← Fintype.sum_prod_type']
   exact Fintype.sum_equiv splitEquiv _ _ fun _ => rfl
 
 /-- The squared norm of a state is the sum of the squared norms of its slices. -/
 theorem norm_sq_eq_sum_slice (ψ : State N (W × G)) : ‖ψ‖ ^ 2 = ∑ g, ‖slice g ψ‖ ^ 2 := by
-  simp only [EuclideanSpace.norm_sq_eq, slice_apply]
-  exact sum_split _
+  simp only [EuclideanSpace.norm_sq_eq]
+  exact (sum_split _).trans (sum_congr rfl fun _ _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl)
 
 /-- The isometry **controlled by a classical register**: it applies `V g` to the slice at `g`. -/
 noncomputable def controlled (V : G → State N W →ₗᵢ[ℂ] State N W) :
     State N (W × G) →ₗᵢ[ℂ] State N (W × G) where
-  toFun ψ := WithLp.toLp 2 fun p => (V p.2.2.2 (slice p.2.2.2 ψ)).ofLp (p.1, p.2.1, p.2.2.1)
+  toFun ψ := WithLp.toLp 2 fun (i, b, w, g) => (V g (slice g ψ)).ofLp (i, b, w)
   map_add' ψ φ := by
-    ext p
+    ext ⟨i, b, w, g⟩
     simp
   map_smul' c ψ := by
-    ext p
+    ext ⟨i, b, w, g⟩
     simp
   norm_map' ψ := by
-    have h : ‖(WithLp.toLp 2 fun p : Fin N × Bool × (W × G) =>
-        (V p.2.2.2 (slice p.2.2.2 ψ)).ofLp (p.1, p.2.1, p.2.2.1) : State N (W × G))‖ ^ 2 =
+    have h : ‖(WithLp.toLp 2 fun (i, b, w, g) =>
+        (V g (slice g ψ)).ofLp (i, b, w) : State N (W × G))‖ ^ 2 =
           ‖ψ‖ ^ 2 := by
       rw [norm_sq_eq_sum_slice, norm_sq_eq_sum_slice]
       exact sum_congr rfl fun g _ => by rw [← (V g).norm_map (slice g ψ)]; rfl
@@ -165,10 +195,12 @@ in `S`. -/
 theorem measureProb_eq_sum_slice [DecidableEq W] [DecidableEq G] (ψ : State N (W × G))
     (S : Finset (Fin N × Bool × (W × G))) :
     measureProb ψ S =
-      ∑ g, measureProb (slice g ψ) (univ.filter fun q => (q.1, q.2.1, q.2.2, g) ∈ S) := by
-  simp only [measureProb, sum_filter, slice_apply]
-  rw [← sum_split (fun p => if p ∈ S then ‖ψ.ofLp p‖ ^ 2 else 0), ← sum_filter,
-    filter_mem_eq_inter, univ_inter]
+      ∑ g, measureProb (slice g ψ) (univ.filter fun (i, b, w) => (i, b, w, g) ∈ S) := by
+  simp only [measureProb, sum_filter]
+  have hS : ∑ p ∈ S, ‖ψ.ofLp p‖ ^ 2 = ∑ p, if p ∈ S then ‖ψ.ofLp p‖ ^ 2 else 0 := by
+    rw [sum_ite_mem, univ_inter]
+  rw [hS, sum_split]
+  exact sum_congr rfl fun _ _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl
 
 /-- The probability of measuring query index `i` is the sum over the slices. -/
 theorem regProb_eq_sum_slice (ψ : State N (W × G)) (i : Fin N) :
@@ -223,14 +255,14 @@ omit [Fintype W] in
 queried bit to the control bit. Hadamard gates around a query realize it
 (`Cslib.Quantum.hadCtrl_phaseOracle_hadCtrl_eq_permute`). -/
 def bitFlip (x : Fin N → Bool) : Equiv.Perm (Fin N × Bool × W) where
-  toFun p := (p.1, p.2.1 ^^ x p.1, p.2.2)
-  invFun p := (p.1, p.2.1 ^^ x p.1, p.2.2)
-  left_inv p := by simp
-  right_inv p := by simp
+  toFun | (i, b, w) => (i, b ^^ x i, w)
+  invFun | (i, b, w) => (i, b ^^ x i, w)
+  left_inv | ⟨_, _, _⟩ => by simp
+  right_inv | ⟨_, _, _⟩ => by simp
 
 omit [Fintype W] in
-@[simp] theorem bitFlip_apply (x : Fin N → Bool) (p : Fin N × Bool × W) :
-    bitFlip x p = (p.1, p.2.1 ^^ x p.1, p.2.2) := rfl
+@[simp] theorem bitFlip_apply (x : Fin N → Bool) (i : Fin N) (b : Bool) (w : W) :
+    bitFlip x (i, b, w) = (i, b ^^ x i, w) := rfl
 
 omit [Fintype W] in
 @[simp] theorem bitFlip_symm (x : Fin N → Bool) : (bitFlip (W := W) x).symm = bitFlip x := rfl
@@ -238,13 +270,13 @@ omit [Fintype W] in
 /-- The flip `|i, b, w⟩ ↦ |i, ¬b, w⟩` of the control bit. -/
 noncomputable def flipCtrl : State N W ≃ₗᵢ[ℂ] State N W :=
   permute
-    { toFun := fun p => (p.1, !p.2.1, p.2.2)
-      invFun := fun p => (p.1, !p.2.1, p.2.2)
-      left_inv := fun p => by simp
-      right_inv := fun p => by simp }
+    { toFun := fun (i, b, w) => (i, !b, w)
+      invFun := fun (i, b, w) => (i, !b, w)
+      left_inv := fun ⟨_, _, _⟩ => by simp
+      right_inv := fun ⟨_, _, _⟩ => by simp }
 
-@[simp] theorem flipCtrl_apply (ψ : State N W) (p : Fin N × Bool × W) :
-    (flipCtrl ψ).ofLp p = ψ.ofLp (p.1, !p.2.1, p.2.2) := rfl
+@[simp] theorem flipCtrl_apply (ψ : State N W) (i : Fin N) (b : Bool) (w : W) :
+    (flipCtrl ψ).ofLp (i, b, w) = ψ.ofLp (i, !b, w) := rfl
 
 /-- Flipping the control bit does not change the probability of any query index. -/
 theorem regProb_flipCtrl (ψ : State N W) (i : Fin N) : regProb (flipCtrl ψ) i = regProb ψ i := by
@@ -316,14 +348,14 @@ theorem run_add {U V : ℕ → State N W →ₗᵢ[ℂ] State N W} {T : ℕ} (h0
 /-- The Hadamard gate on the control bit:
 `|i, b, w⟩ ↦ (|i, 0, w⟩ + (-1)^b |i, 1, w⟩) / √2`. -/
 noncomputable def hadCtrl : State N W →ₗᵢ[ℂ] State N W where
-  toFun ψ := WithLp.toLp 2 fun p => (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) *
-    (ψ.ofLp (p.1, false, p.2.2) + (if p.2.1 then -1 else 1) * ψ.ofLp (p.1, true, p.2.2))
+  toFun ψ := WithLp.toLp 2 fun (i, b, w) => (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) *
+    (ψ.ofLp (i, false, w) + (if b then -1 else 1) * ψ.ofLp (i, true, w))
   map_add' ψ φ := by
-    ext p
+    ext ⟨i, b, w⟩
     simp only [PiLp.add_apply]
     ring
   map_smul' c ψ := by
-    ext p
+    ext ⟨i, b, w⟩
     simp only [PiLp.smul_apply, smul_eq_mul, RingHom.id_apply]
     ring
   norm_map' ψ := by
@@ -334,8 +366,8 @@ noncomputable def hadCtrl : State N W →ₗᵢ[ℂ] State N W where
         Real.sq_sqrt zero_le_two, neg_one_mul, one_mul, ← sub_eq_add_neg, Complex.sq_norm,
         Complex.normSq_add, Complex.normSq_sub]
       ring
-    have h : ‖(WithLp.toLp 2 fun p : Fin N × Bool × W => (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) *
-        (ψ.ofLp (p.1, false, p.2.2) + (if p.2.1 then -1 else 1) * ψ.ofLp (p.1, true, p.2.2)) :
+    have h : ‖(WithLp.toLp 2 fun (i, b, w) => (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) *
+        (ψ.ofLp (i, false, w) + (if b then -1 else 1) * ψ.ofLp (i, true, w)) :
           State N W)‖ ^ 2 = ‖ψ‖ ^ 2 := by
       simp only [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type, Fintype.sum_bool, ite_true,
         Bool.false_eq_true, ite_false]
@@ -344,9 +376,9 @@ noncomputable def hadCtrl : State N W →ₗᵢ[ℂ] State N W where
       exact sum_congr rfl fun w _ => key _ _
     exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp h
 
-theorem hadCtrl_apply (ψ : State N W) (p : Fin N × Bool × W) :
-    (hadCtrl ψ).ofLp p = (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) *
-      (ψ.ofLp (p.1, false, p.2.2) + (if p.2.1 then -1 else 1) * ψ.ofLp (p.1, true, p.2.2)) :=
+theorem hadCtrl_apply (ψ : State N W) (i : Fin N) (b : Bool) (w : W) :
+    (hadCtrl ψ).ofLp (i, b, w) = (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) *
+      (ψ.ofLp (i, false, w) + (if b then -1 else 1) * ψ.ofLp (i, true, w)) :=
   rfl
 
 /-- **Hadamard gates around a query give the bit oracle**: a Hadamard gate on the control bit, a
@@ -370,10 +402,9 @@ theorem hadCtrl_phaseOracle_hadCtrl_eq_permute (x : Fin N → Bool) (ψ : State 
 bit, a query and another Hadamard gate write the queried bit into the control bit: the result has
 amplitude `φ(i, 0, w)` at `|i, x_i, w⟩` and `0` elsewhere. -/
 theorem hadCtrl_phaseOracle_hadCtrl {x : Fin N → Bool} {φ : State N W}
-    (hφ : ∀ i w, φ.ofLp (i, true, w) = 0) (p : Fin N × Bool × W) :
-    (hadCtrl (phaseOracle x (hadCtrl φ))).ofLp p =
-      if p.2.1 = x p.1 then φ.ofLp (p.1, false, p.2.2) else 0 := by
-  obtain ⟨i, b, w⟩ := p
+    (hφ : ∀ i w, φ.ofLp (i, true, w) = 0) (i : Fin N) (b : Bool) (w : W) :
+    (hadCtrl (phaseOracle x (hadCtrl φ))).ofLp (i, b, w) =
+      if b = x i then φ.ofLp (i, false, w) else 0 := by
   rw [hadCtrl_phaseOracle_hadCtrl_eq_permute, permute_apply, bitFlip_symm, bitFlip_apply]
   cases b <;> cases x i <;> simp [hφ]
 
@@ -388,9 +419,9 @@ noncomputable def check (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N 
 after the check the control bit holds the queried bit `x_i` of the query index `i`. -/
 theorem run_check {T : ℕ} {U : ℕ → State N W →ₗᵢ[ℂ] State N W} {ψ₀ : State N W}
     {x : Fin N → Bool} (hctrl : ∀ i w, (run U ψ₀ x T).ofLp (i, true, w) = 0)
-    (p : Fin N × Bool × W) :
-    (run (check T U) ψ₀ x (T + 1)).ofLp p =
-      if p.2.1 = x p.1 then (run U ψ₀ x T).ofLp (p.1, false, p.2.2) else 0 := by
+    (i : Fin N) (b : Bool) (w : W) :
+    (run (check T U) ψ₀ x (T + 1)).ofLp (i, b, w) =
+      if b = x i then (run U ψ₀ x T).ofLp (i, false, w) else 0 := by
   have hT : run (check T U) ψ₀ x T = hadCtrl (run U ψ₀ x T) := by
     cases T with
     | zero => simp [run, check]
@@ -399,94 +430,97 @@ theorem run_check {T : ℕ} {U : ℕ → State N W →ₗᵢ[ℂ] State N W} {ψ
       simp [check]
   rw [run, hT]
   simp only [check, show ¬ T + 1 < T by omega, show T + 1 ≠ T by omega, ite_false]
-  exact hadCtrl_phaseOracle_hadCtrl hctrl p
+  exact hadCtrl_phaseOracle_hadCtrl hctrl i b w
 
 /-- **The acceptance probability of a check**: if the state of `U` after `T` queries has control
 bit `0`, then after the check the control bit is `1` with the probability that measuring the state
 of `U` gives a marked query index. -/
 theorem measureProb_run_check {T : ℕ} {U : ℕ → State N W →ₗᵢ[ℂ] State N W} {ψ₀ : State N W}
     {x : Fin N → Bool} (hctrl : ∀ i w, (run U ψ₀ x T).ofLp (i, true, w) = 0) :
-    measureProb (run (check T U) ψ₀ x (T + 1)) (univ.filter fun p => p.2.1 = true) =
+    measureProb (run (check T U) ψ₀ x (T + 1)) (univ.filter fun (_, b, _) => b = true) =
       ∑ i with x i = true, regProb (run U ψ₀ x T) i := by
-  simp only [measureProb, sum_filter, run_check hctrl, regProb_eq_sum, Fintype.sum_prod_type,
-    Fintype.sum_bool, ite_true, Bool.false_eq_true, ite_false]
+  simp only [measureProb, sum_filter, regProb_eq_sum, Fintype.sum_prod_type,
+    Fintype.sum_bool, run_check hctrl, ite_true, Bool.false_eq_true, ite_false]
   refine sum_congr rfl fun i _ => ?_
   cases x i <;> simp [hctrl]
 
 /-! ### Running an algorithm twice -/
 
 /-- The basis permutation exchanging the query register, control bit and workspace with a copy of
-them held in the workspace. -/
-def swapCopy : Equiv.Perm (Fin N × Bool × (W × (Fin N × Bool × W))) where
-  toFun p := (p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2, p.1, p.2.1, p.2.2.1)
-  invFun p := (p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2, p.1, p.2.1, p.2.2.1)
-  left_inv _ := rfl
-  right_inv _ := rfl
+them (`QueryBasis N W`) held in the workspace. -/
+def swapCopy : Equiv.Perm (Fin N × Bool × (W × QueryBasis N W)) where
+  toFun | (i, b, w, q) => (q.index, q.ctrl, q.work, ⟨i, b, w⟩)
+  invFun | (i, b, w, q) => (q.index, q.ctrl, q.work, ⟨i, b, w⟩)
+  left_inv | ⟨_, _, _, ⟨_, _, _⟩⟩ => rfl
+  right_inv | ⟨_, _, _, ⟨_, _, _⟩⟩ => rfl
 
 /-- The algorithm `U` with `T` queries **run twice**, on two copies of its registers: the second
 copy waits in the workspace while the first run makes its `T` queries; then the copies are
 exchanged, and the second run makes `T` more queries while the outcome of the first waits in the
 workspace. -/
 noncomputable def twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N W) :
-    ℕ → State N (W × (Fin N × Bool × W)) →ₗᵢ[ℂ] State N (W × (Fin N × Bool × W)) := fun t =>
+    ℕ → State N (W × QueryBasis N W) →ₗᵢ[ℂ] State N (W × QueryBasis N W) := fun t =>
   if t < T then controlled fun _ => U t
   else if t = T then (controlled fun _ => U 0).comp
     ((permute swapCopy).toLinearIsometry.comp (controlled fun _ => U T))
   else controlled fun _ => U (t - T)
 
 /-- The initial state of `twice`: two copies of `ψ₀`. -/
-noncomputable def twiceInit (ψ₀ : State N W) : State N (W × (Fin N × Bool × W)) :=
-  WithLp.toLp 2 fun p => ψ₀.ofLp (p.1, p.2.1, p.2.2.1) * ψ₀.ofLp p.2.2.2
+noncomputable def twiceInit (ψ₀ : State N W) : State N (W × QueryBasis N W) :=
+  WithLp.toLp 2 fun (i, b, w, q) => ψ₀.ofLp (i, b, w) * ψ₀.ofLp (QueryBasis.equiv q)
 
 /-- Two copies of a unit state form a unit state. -/
 theorem norm_twiceInit {ψ₀ : State N W} (hψ₀ : ‖ψ₀‖ = 1) : ‖twiceInit ψ₀‖ = 1 := by
   have h : ‖twiceInit ψ₀‖ ^ 2 = 1 := by
     rw [norm_sq_eq_sum_slice]
-    have hslice : ∀ g, slice g (twiceInit ψ₀) = ψ₀.ofLp g • ψ₀ := by
+    have hslice : ∀ g, slice g (twiceInit ψ₀) = ψ₀.ofLp (QueryBasis.equiv g) • ψ₀ := by
       intro g
-      ext q
+      ext ⟨i, b, w⟩
       simp [twiceInit, mul_comm]
     simp only [hslice, norm_smul, hψ₀, mul_one]
-    rw [← EuclideanSpace.norm_sq_eq, hψ₀, one_pow]
+    rw [Fintype.sum_equiv QueryBasis.equiv _ (fun p => ‖ψ₀.ofLp p‖ ^ 2) fun _ => rfl,
+      ← EuclideanSpace.norm_sq_eq, hψ₀, one_pow]
   nlinarith [norm_nonneg (twiceInit ψ₀)]
 
 /-- **Running twice gives two independent copies**: after `T + T` queries, the state of `twice` is
 the product of two copies of the state of `U` after `T` queries. -/
 theorem run_twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ₀ : State N W)
-    (x : Fin N → Bool) (p : Fin N × Bool × (W × (Fin N × Bool × W))) :
-    (run (twice T U) (twiceInit ψ₀) x (T + T)).ofLp p =
-      (run U ψ₀ x T).ofLp (p.1, p.2.1, p.2.2.1) * (run U ψ₀ x T).ofLp p.2.2.2 := by
+    (x : Fin N → Bool) (i : Fin N) (b : Bool) (w : W) (q : QueryBasis N W) :
+    (run (twice T U) (twiceInit ψ₀) x (T + T)).ofLp (i, b, w, q) =
+      (run U ψ₀ x T).ofLp (i, b, w) * (run U ψ₀ x T).ofLp (QueryBasis.equiv q) := by
   set F := run U ψ₀ x T
   -- The first run, with the second copy waiting.
-  have hfirst : ∀ g, slice g (run (fun s => controlled fun _ : Fin N × Bool × W => U s)
-      (twiceInit ψ₀) x T) = ψ₀.ofLp g • F := by
+  have hfirst : ∀ g, slice g (run (fun s => controlled fun _ : QueryBasis N W => U s)
+      (twiceInit ψ₀) x T) = ψ₀.ofLp (QueryBasis.equiv g) • F := by
     intro g
     rw [slice_run (fun _ s => U s)]
-    have : slice g (twiceInit ψ₀) = ψ₀.ofLp g • ψ₀ := by
-      ext q
+    have : slice g (twiceInit ψ₀) = ψ₀.ofLp (QueryBasis.equiv g) • ψ₀ := by
+      ext ⟨i', b', w'⟩
       simp [twiceInit, mul_comm]
     rw [this, run_smul]
   -- The exchange.
   have hswap : run (twice T U) (twiceInit ψ₀) x T = (controlled fun _ => U 0)
-      (permute swapCopy (run (fun s => controlled fun _ : Fin N × Bool × W => U s)
+      (permute swapCopy (run (fun s => controlled fun _ : QueryBasis N W => U s)
         (twiceInit ψ₀) x T)) := by
     cases T with
     | zero => simp [run, twice]
     | succ T =>
-      rw [run, run, run_congr (U' := fun s => controlled fun _ : Fin N × Bool × W => U s)
+      rw [run, run, run_congr (U' := fun s => controlled fun _ : QueryBasis N W => U s)
         (fun s hs => by simp [twice, show s < T + 1 by omega])]
       simp [twice]
-  have hmid : ∀ g, slice g (run (twice T U) (twiceInit ψ₀) x T) = F.ofLp g • U 0 ψ₀ := by
+  have hmid : ∀ g, slice g (run (twice T U) (twiceInit ψ₀) x T) =
+      F.ofLp (QueryBasis.equiv g) • U 0 ψ₀ := by
     intro g
     rw [hswap, slice_controlled, ← map_smul]
     congr 1
-    ext q
-    have := congrArg (fun φ => φ.ofLp (g.1, g.2.1, g.2.2)) (hfirst (q.1, q.2.1, q.2.2))
-    simp only [slice_apply, PiLp.smul_apply, smul_eq_mul, permute_apply] at this ⊢
+    ext ⟨i', b', w'⟩
+    have := congrArg (fun φ => φ.ofLp (g.index, g.ctrl, g.work)) (hfirst ⟨i', b', w'⟩)
+    simp only [slice_apply, PiLp.smul_apply, smul_eq_mul, permute_apply, QueryBasis.equiv_apply]
+      at this ⊢
     exact this.trans (mul_comm _ _)
   -- The second run, with the outcome of the first waiting.
   have hsecond : run (twice T U) (twiceInit ψ₀) x (T + T) = run
-      (fun r => controlled fun _ : Fin N × Bool × W =>
+      (fun r => controlled fun _ : QueryBasis N W =>
         if r = 0 then LinearIsometry.id else U r) (run (twice T U) (twiceInit ψ₀) x T) x T :=
     run_add (by simp) (fun r => by
       simp [twice, show ¬ T + r + 1 < T by omega, show T + r + 1 ≠ T by omega,
@@ -494,9 +528,8 @@ theorem run_twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ
   have hU : run (fun r => if r = 0 then LinearIsometry.id else U r) (U 0 ψ₀) x T = F :=
     (run_add (T := 0) (by simp) (fun r => by simp) ψ₀ x T).symm.trans
       (by rw [Nat.zero_add])
-  obtain ⟨i, b, w, g⟩ := p
   have := congrArg (fun φ => φ.ofLp (i, b, w)) (slice_run (fun _ r => if r = 0 then
-    LinearIsometry.id else U r) (run (twice T U) (twiceInit ψ₀) x T) x g T)
+    LinearIsometry.id else U r) (run (twice T U) (twiceInit ψ₀) x T) x q T)
   simp only [slice_apply] at this
   rw [hsecond, this, hmid, run_smul, hU, PiLp.smul_apply, smul_eq_mul, mul_comm]
 
@@ -506,15 +539,27 @@ outcome of one run lies in `S`. -/
 theorem measureProb_run_twice [DecidableEq W] {T : ℕ} {U : ℕ → State N W →ₗᵢ[ℂ] State N W}
     {ψ₀ : State N W} (hψ₀ : ‖ψ₀‖ = 1) (x : Fin N → Bool) (S : Finset (Fin N × Bool × W)) :
     measureProb (run (twice T U) (twiceInit ψ₀) x (T + T))
-        (univ.filter fun p => (p.1, p.2.1, p.2.2.1) ∈ S ∨ p.2.2.2 ∈ S) =
+        (univ.filter fun (i, b, w, q) => (i, b, w) ∈ S ∨ QueryBasis.equiv q ∈ S) =
       1 - (1 - measureProb (run U ψ₀ x T) S) ^ 2 := by
   set F := run U ψ₀ x T
   set f : Fin N × Bool × W → ℝ := fun q => ‖F.ofLp q‖ ^ 2
+  let fstCopy : Fin N × Bool × (W × QueryBasis N W) → Fin N × Bool × W :=
+    fun (i, b, w, _) => (i, b, w)
+  let sndCopy : Fin N × Bool × (W × QueryBasis N W) → Fin N × Bool × W :=
+    fun (_, _, _, q) => QueryBasis.equiv q
   have hprod : ∀ f₁ f₂ : Fin N × Bool × W → ℝ,
-      ∑ p : Fin N × Bool × (W × (Fin N × Bool × W)), f₁ (p.1, p.2.1, p.2.2.1) * f₂ p.2.2.2 =
+      ∑ p : Fin N × Bool × (W × QueryBasis N W), f₁ (fstCopy p) * f₂ (sndCopy p) =
         (∑ q, f₁ q) * ∑ g, f₂ g := by
     intro f₁ f₂
-    rw [sum_split, sum_mul_sum, sum_comm]
+    rw [sum_split]
+    have hinner : ∀ g : QueryBasis N W,
+        (∑ q : Fin N × Bool × W,
+          f₁ (fstCopy (splitEquiv.symm (g, q))) * f₂ (sndCopy (splitEquiv.symm (g, q)))) =
+        ∑ q : Fin N × Bool × W, f₁ q * f₂ (QueryBasis.equiv g) :=
+      fun _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl
+    simp_rw [hinner]
+    rw [Fintype.sum_equiv QueryBasis.equiv _ (fun r => ∑ q, f₁ q * f₂ r) fun _ => rfl,
+      sum_mul_sum, sum_comm]
   have hF : ∑ q, f q = 1 := by
     simp only [f, ← EuclideanSpace.norm_sq_eq, F, norm_run, hψ₀, one_pow]
   have hS : measureProb F S = ∑ q, if q ∈ S then f q else 0 := by
@@ -522,17 +567,22 @@ theorem measureProb_run_twice [DecidableEq W] {T : ℕ} {U : ℕ → State N W �
   have hSc : ∑ q, (if q ∈ S then 0 else f q) = 1 - measureProb F S := by
     rw [hS, ← hF, ← sum_sub_distrib]
     exact sum_congr rfl fun q _ => by split_ifs <;> ring
-  have hterm : ∀ p : Fin N × Bool × (W × (Fin N × Bool × W)),
-      (if (p.1, p.2.1, p.2.2.1) ∈ S ∨ p.2.2.2 ∈ S then ‖F.ofLp (p.1, p.2.1, p.2.2.1)‖ ^ 2 *
-        ‖F.ofLp p.2.2.2‖ ^ 2 else 0) =
-          f (p.1, p.2.1, p.2.2.1) * f p.2.2.2 - (fun q => if q ∈ S then 0 else f q)
-            (p.1, p.2.1, p.2.2.1) * (fun q => if q ∈ S then 0 else f q) p.2.2.2 := by
-    intro p
-    by_cases h1 : (p.1, p.2.1, p.2.2.1) ∈ S <;> by_cases h2 : p.2.2.2 ∈ S <;> simp [h1, h2, f]
-  simp only [measureProb, sum_filter, run_twice, norm_mul, mul_pow]
-  rw [sum_congr rfl fun p _ => hterm p, sum_sub_distrib, hprod f f,
-    hprod (fun q => if q ∈ S then 0 else f q) (fun q => if q ∈ S then 0 else f q), hF, hSc,
-    measureProb]
+  have hsum : measureProb (run (twice T U) (twiceInit ψ₀) x (T + T))
+      (univ.filter fun (i, b, w, q) => (i, b, w) ∈ S ∨ QueryBasis.equiv q ∈ S) =
+      ∑ p : Fin N × Bool × (W × QueryBasis N W),
+        (f (fstCopy p) * f (sndCopy p) -
+          (fun q => if q ∈ S then 0 else f q) (fstCopy p) *
+            (fun q => if q ∈ S then 0 else f q) (sndCopy p)) := by
+    rw [measureProb, sum_filter]
+    refine sum_congr rfl ?_
+    rintro ⟨i, b, w, q⟩ _
+    dsimp only [fstCopy, sndCopy]
+    rw [run_twice, norm_mul, mul_pow]
+    by_cases h1 : (i, b, w) ∈ S
+    · simp [h1, f, F]
+    · by_cases h2 : (q.index, q.ctrl, q.work) ∈ S <;> simp [h1, h2, f, F]
+  rw [hsum, sum_sub_distrib, hprod f f,
+    hprod (fun q => if q ∈ S then 0 else f q) (fun q => if q ∈ S then 0 else f q), hF, hSc]
   ring
 
 end Cslib.Quantum

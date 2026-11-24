@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.WordRAM.Realization.BoundedTactic
 public import CslibFrontier.Computability.WordRAM.Realization.GlueVector
 public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.ReducedKWise
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Runtime `ReducedKWise` Parameters and Four-Russians Table Initialization
@@ -64,7 +66,10 @@ open scoped ENNReal
 /-- Number of product limb words (`108 ≥ 2 * reducedLimbCount t`) at `[scratchBase + 54, +108)`. -/
 @[expose] def prodWords : ℕ := 108
 /-- Total scratch footprint (`54 + 108 = 162` words) for runtime polynomial hash evaluation. -/
-@[expose] def scratchWords : ℕ := 162
+@[expose, wram_arith] def scratchWords : ℕ := 162
+
+attribute [local wram_arith] accWords prodWords
+  ReducedKWise.seedWords ReducedKWise.tableWords ReducedKWise.space ReducedKWise.tabBase
 
 @[simp] theorem accWords_eq : accWords = 54 := rfl
 @[simp] theorem prodWords_eq : prodWords = 108 := rfl
@@ -171,73 +176,13 @@ theorem fits_mkHashParams {w w₀ b b' k hashBase scratchBase : ℕ}
     (hfit_hash : Fits w (hashBase + ReducedKWise.space w w₀ b b' k))
     (hfit_scr : Fits w (scratchBase + scratchWords)) (i : Fin 19) :
     Fits w (mkHashParams w w₀ b b' k i) := by
-  have hw_lt : Fits w w := Nat.lt_two_pow_self
-  have h162 : Fits w 162 := hfit_scr.of_le (by dsimp only [scratchWords]; omega)
-  have hspace : Fits w (ReducedKWise.space w w₀ b b' k) := hfit_hash.of_le (by omega)
-  have hpow2c : Fits w (2 ^ (2 * rChunk w₀ b b')) := Nat.pow_lt_pow_right one_lt_two hc_lt
-  have hpowc_le : 2 ^ rChunk w₀ b b' ≤ 2 ^ (2 * rChunk w₀ b b') :=
-    Nat.pow_le_pow_right two_pos (by omega)
-  have hp_le : rPack w w₀ b b' ≤ 2 * rChunk w₀ b b' := reducedPackShift_le _ w
-  have hpowm : Fits w (2 ^ (w₀ - 1)) := Nat.pow_lt_pow_right one_lt_two (by omega)
-  have hL0_le : rHalf w₀ b b' ≤ 27 := reducedHalfLimbs_le _
-  have hseed_ge : 1 + k * rLimbs w₀ b b' ≤ ReducedKWise.space w w₀ b b' k :=
-    Nat.le_add_right _ (ReducedKWise.tableWords w w₀ b b')
-  have hk_le : k ≤ k * rLimbs w₀ b b' := Nat.le_mul_of_pos_right k (reducedLimbCount_pos _)
-  fin_cases i
-  · exact hspace
-  · exact hspace.of_le (u := ReducedKWise.seedWords w₀ b b' k) hseed_ge
-  · exact hspace.of_le (u := k * rLimbs w₀ b b') (by omega)
-  · exact hpowm.of_le (u := 2 ^ (w₀ - 1) - 1) (Nat.sub_le _ _)
-  · exact hw_lt.of_le (u := (w₀ - 1) / 2) (by omega)
-  · exact hpowm.of_le (u := 2 ^ ((w₀ - 1) / 2) - 1)
-      ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (Nat.div_le_self _ 2)))
-  · exact hpowm.of_le (u := 2 ^ ((w₀ - 1) - (w₀ - 1) / 2) - 1)
-      ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (Nat.sub_le _ _)))
-  · exact hpowm.of_le (u := 2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1)
-      ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos (Nat.sub_le _ _)))
-  · exact hw_lt.of_le (u := w₀ - min w₀ (3 * b)) (by omega)
-  · exact hw_lt.of_le (u := rChunk w₀ b b') (by omega)
-  · exact hpow2c.of_le (u := 2 ^ rChunk w₀ b b' - 1) ((Nat.sub_le _ _).trans hpowc_le)
-  · exact hw_lt.of_le (u := 2 * rChunk w₀ b b') (by omega)
-  · exact hpow2c
-  · exact hpow2c.of_le (u := 2 ^ (2 * rChunk w₀ b b') - 1) (Nat.sub_le _ _)
-  · exact hw_lt.of_le (u := rPack w w₀ b b') (by omega)
-  · exact hpow2c.of_le (u := 2 ^ rPack w w₀ b b' - 1)
-      ((Nat.sub_le _ _).trans (Nat.pow_le_pow_right two_pos hp_le))
-  · exact h162.of_le (u := rHalf w₀ b b') (by omega)
-  · exact hspace.of_le (u := k) (by omega)
-  · exact hw_lt.of_le (u := b') hb'
+  have _ : Fits w w := Nat.lt_two_pow_self
+  have _ : rPack w w₀ b b' ≤ 2 * rChunk w₀ b b' := reducedPackShift_le _ w
+  have _ : rHalf w₀ b b' ≤ 27 := reducedHalfLimbs_le _
+  have _ : k ≤ k * rLimbs w₀ b b' := Nat.le_mul_of_pos_right k (reducedLimbCount_pos _)
+  fin_cases i <;> dsimp [mkHashParams] <;> wram_omega
 
 /-! ## Section 2: Runtime `Memory.Prog` table construction (`initTableGenProg`) -/
-
-private theorem clmulTab_index_props {c idx : ℕ} (hidx : idx < 2 ^ (2 * c)) :
-    let u := idx >>> c; let v := idx &&& (2 ^ c - 1); let prevIdx := (u <<< c) + (v >>> 1)
-    u < 2 ^ c ∧ v < 2 ^ c ∧ prevIdx < 2 ^ (2 * c) ∧ prevIdx ≤ idx ∧
-    (v ≠ 0 → prevIdx < idx) ∧ (v = 0 → prevIdx = idx) ∧
-    prevIdx >>> c = u ∧ (prevIdx &&& (2 ^ c - 1)) = v >>> 1 := by
-  intro u v prevIdx
-  have hu_lt : u < 2 ^ c := by
-    dsimp only [u]; rw [Nat.shiftRight_eq_div_pow]
-    exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, ← two_mul])
-  have hv_lt : v < 2 ^ c := and_two_pow_sub_one_lt idx c
-  have hv_shr_lt : v >>> 1 < 2 ^ c := lt_of_le_of_lt (Nat.shiftRight_le v 1) hv_lt
-  have hdecomp : (u <<< c) + v = idx := by
-    dsimp only [u, v]
-    rw [Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow, Nat.and_two_pow_sub_one_eq_mod, mul_comm]
-    exact Nat.div_add_mod idx (2 ^ c)
-  have hprev_le : prevIdx ≤ idx := by have := Nat.shiftRight_le v 1; dsimp only [prevIdx]; omega
-  refine ⟨hu_lt, hv_lt, lt_of_le_of_lt hprev_le hidx, hprev_le, fun hv0 => ?_, fun hv0 => ?_,
-    ?_, ?_⟩
-  · have : v >>> 1 < v := by rw [Nat.shiftRight_eq_div_pow, pow_one]; omega
-    dsimp only [prevIdx]; omega
-  · have : v >>> 1 = 0 := by rw [hv0]; rfl
-    dsimp only [prevIdx]; omega
-  · dsimp only [prevIdx]
-    rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, mul_comm u (2 ^ c),
-      Nat.mul_add_div (Nat.two_pow_pos c), Nat.div_eq_of_lt hv_shr_lt, Nat.add_zero]
-  · dsimp only [prevIdx]
-    rw [Nat.and_two_pow_sub_one_eq_mod, Nat.shiftLeft_eq, Nat.add_comm, Nat.add_mul_mod_self_right,
-      Nat.mod_eq_of_lt hv_shr_lt]
 
 private def initTableClearProg : (HashParams × ℕ) × ℕ → Memory.Prog ℕ
   | ((hp, hashBase), idx) => do
@@ -287,38 +232,6 @@ def InitTableGenPre (w : ℕ) : HashParams × ℕ → Memory.State → Prop
     hashBase + ReducedKWise.space w w₀ b b' k ≤ s.frontier ∧
     Fits w (hashBase + ReducedKWise.space w w₀ b b' k)
 
-private theorem prevWord_limb_eq {w w₀ b b' k hashBase idx : ℕ} {mem : ℕ → ℕ}
-    (hidx : idx < 2 ^ (2 * rChunk w₀ b b'))
-    (hentry : ∀ i < idx, getLimb (2 * rChunk w₀ b b')
-      (mem (ReducedKWise.tabBase hashBase w₀ b b' k + (i >>> rPack w w₀ b b')))
-      (i &&& (2 ^ rPack w w₀ b b' - 1)) =
-      clmul (i >>> rChunk w₀ b b') (i &&& (2 ^ rChunk w₀ b b' - 1))) :
-    let c := rChunk w₀ b b'; let p := rPack w w₀ b b'
-    let tBase := ReducedKWise.tabBase hashBase w₀ b b' k
-    let sh := (idx &&& (2 ^ p - 1)) * (2 * c)
-    let prevIdx := ((idx >>> c) <<< c) + ((idx &&& (2 ^ c - 1)) >>> 1)
-    let masked := mem (tBase + (idx >>> p)) &&& ((1 <<< sh) - 1)
-    let prevWord := Function.update mem (tBase + (idx >>> p)) masked (tBase + (prevIdx >>> p))
-    (prevWord >>> ((prevIdx &&& (2 ^ p - 1)) * (2 * c))) &&& (2 ^ (2 * c) - 1) =
-      clmul (idx >>> c) ((idx &&& (2 ^ c - 1)) >>> 1) := by
-  intro c p tBase sh prevIdx masked prevWord
-  obtain ⟨_, _, _, _, hprev_lt, hprev_zero, hprev_u, hprev_v⟩ := clmulTab_index_props hidx
-  change getLimb (2 * c) prevWord (prevIdx &&& (2 ^ p - 1)) = _
-  have hmask_eq : (1 <<< sh) - 1 = 2 ^ ((idx &&& (2 ^ p - 1)) * (2 * c)) - 1 := by
-    rw [Nat.shiftLeft_eq, one_mul]
-  by_cases hv0 : idx &&& (2 ^ c - 1) = 0
-  · dsimp only [prevWord, masked]
-    rw [show prevIdx = idx from hprev_zero hv0, Function.update_self,
-      show (idx &&& (2 ^ c - 1)) >>> 1 = 0 by rw [hv0]; rfl, clmul_zero_right, hmask_eq]
-    exact getLimb_and_self (2 * c) _ _
-  · have hplt : prevIdx < idx := hprev_lt hv0
-    dsimp only [prevWord, masked]
-    rcases eq_or_ne (prevIdx >>> p) (idx >>> p) with hw_eq | hw_ne
-    · rw [hw_eq, Function.update_self, hmask_eq,
-        getLimb_and_low (and_lt_of_lt_of_shiftRight_eq hplt hw_eq), ← hw_eq,
-        hentry prevIdx hplt, hprev_u, hprev_v]
-    · rw [Function.update_of_ne (by omega), hentry prevIdx hplt, hprev_u, hprev_v]
-
 private def InitTableWritePre (w : ℕ) : ((HashParams × ℕ) × ℕ) × ℕ → Memory.State → Prop
   | (((hp, hashBase), idx), cleared), s => ∃ w₀ b b' k,
     2 * rChunk w₀ b b' < w ∧ hp = mkHashParams w w₀ b b' k ∧ idx < 2 ^ (2 * rChunk w₀ b b') ∧
@@ -341,22 +254,15 @@ private theorem realizesBounded_initTableClear :
     rcases d with ⟨⟨hp, hashBase⟩, idx⟩
     obtain ⟨w₀, b, b', k, hc_lt, rfl, hidx, hfr, _⟩ := h
     dsimp only [hpSeedWords_mk, hpP_mk, hpMaskP_mk, hpTwoC_mk] at *
-    have hc_pos : 0 < rChunk w₀ b b' := reducedChunkBits_pos _
-    have hpack_le : 2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b') ≤ w :=
-      two_pow_reducedPackShift_mul_le (le_of_lt hc_lt)
     have hwIdx_lt := shiftRight_lt_reducedTableWords (w := w) hidx
-    have hsub_lt := and_two_pow_sub_one_lt idx (rPack w w₀ b b')
     have hsh_lt : (idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b') < w :=
-      (Nat.mul_lt_mul_of_pos_right hsub_lt (by omega)).trans_le hpack_le
-    have hfr_end :
-        hashBase + ReducedKWise.seedWords w₀ b b' k + reducedTableWords (rStep w₀ b b') w ≤
-          s.frontier := by
-      simpa only [ReducedKWise.space, ReducedKWise.tableWords, Nat.add_assoc] using hfr
+      packSlot_sh_lt hc_lt.le
+    have _ : Fits w w := Nat.lt_two_pow_self
     have hge1 := Nat.zero_le (idx >>> rPack w w₀ b b'))
+  all_goals try omega
   all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.one_le_two_pow)
-  all_goals try (rw [Nat.shiftLeft_eq, one_mul]; exact Nat.pow_lt_pow_right one_lt_two hsh_lt)
-  all_goals try exact hmem.1.of_le (by omega)
-  exact hsh_lt.trans Nat.lt_two_pow_self
+  all_goals try (rw [Nat.shiftLeft_eq]; wram_omega)
+  all_goals wram_omega [hmem.1]
 
 private theorem realizesBounded_initTableWrite :
     RealizesBounded .exact initTableWriteProg
@@ -370,11 +276,9 @@ private theorem realizesBounded_initTableWrite :
       hpMask2C_mk] at *)
     dsimp only [ReducedKWise.tabBase] at hlimb
     have hc_pos : 0 < rChunk w₀ b b' := reducedChunkBits_pos _
+    have _ : Fits w w := Nat.lt_two_pow_self
     have hpack_le : 2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b') ≤ w :=
       two_pow_reducedPackShift_mul_le (le_of_lt hc_lt)
-    have hpow_pack_le : 2 ^ (2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b')) ≤ 2 ^ w :=
-      Nat.pow_le_pow_right two_pos hpack_le
-    have hpow2c : Fits w (2 ^ (2 * rChunk w₀ b b')) := Nat.pow_lt_pow_right one_lt_two hc_lt
     obtain ⟨hu_lt, hv_lt, _, hprev_le, _, _, _, _⟩ := clmulTab_index_props hidx
     have hwIdx_lt := shiftRight_lt_reducedTableWords (w := w) hidx
     have hprevWIdx_le :
@@ -386,17 +290,16 @@ private theorem realizesBounded_initTableWrite :
       exact Nat.div_le_div_right hprev_le
     have hsub_lt := and_two_pow_sub_one_lt idx (rPack w w₀ b b')
     have hsh_lt : (idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b') < w :=
-      (Nat.mul_lt_mul_of_pos_right hsub_lt (by omega)).trans_le hpack_le
+      packSlot_sh_lt hc_lt.le
     have hpSh_lt :
         ((((idx >>> rChunk w₀ b b' <<< rChunk w₀ b b') +
           ((idx &&& (2 ^ rChunk w₀ b b' - 1)) >>> 1)) &&& (2 ^ rPack w w₀ b b' - 1)) *
           (2 * rChunk w₀ b b')) < w :=
-      (Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt _ _) (by omega)).trans_le hpack_le
+      packSlot_sh_lt hc_lt.le
     have hval_lt := clmul_lt_two_pow_two_mul hu_lt hv_lt
-    have hpow_sub1_le :
-        2 ^ (((idx &&& (2 ^ rPack w w₀ b b' - 1)) + 1) * (2 * rChunk w₀ b b')) ≤
-          2 ^ (2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b')) :=
-      Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right _ hsub_lt)
+    have hmul_sub : ((idx &&& (2 ^ rPack w w₀ b b' - 1)) + 1) * (2 * rChunk w₀ b b') ≤
+        2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b') :=
+      Nat.mul_le_mul_right _ hsub_lt
     have hval_sh_lt :
         clmul (idx >>> rChunk w₀ b b') (idx &&& (2 ^ rChunk w₀ b b' - 1)) <<<
           ((idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b')) <
@@ -406,8 +309,6 @@ private theorem realizesBounded_initTableWrite :
               2 ^ ((idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b')) :=
             Nat.mul_lt_mul_of_pos_right hval_lt (Nat.two_pow_pos _)
         _ = _ := by rw [← pow_add]; congr 1; ring
-    have hnew_lt := ((xor_shiftLeft_lt_two_pow hclr_lt hval_lt).trans_le hpow_sub1_le).trans_le
-      hpow_pack_le
     have hv_shr_lt : (idx &&& (2 ^ rChunk w₀ b b' - 1)) >>> 1 < 2 ^ (rChunk w₀ b b' - 1) := by
       rw [Nat.shiftRight_eq_div_pow, pow_one]
       exact Nat.div_lt_of_lt_mul (by rwa [← pow_succ', Nat.sub_add_cancel hc_pos])
@@ -425,21 +326,16 @@ private theorem realizesBounded_initTableWrite :
       have hle : ((idx &&& (2 ^ rChunk w₀ b b' - 1)) &&& 1) * (idx >>> rChunk w₀ b b') ≤
           1 * (idx >>> rChunk w₀ b b') := Nat.mul_le_mul_right _ Nat.and_le_right
       rw [Nat.one_mul] at hle
-      exact (lt_of_le_of_lt hle hu_lt).trans_le (Nat.pow_le_pow_right two_pos (by omega))
-    have hfr_end :
-        hashBase + ReducedKWise.seedWords w₀ b b' k + reducedTableWords (rStep w₀ b b') w ≤
-          s.frontier := by
-      simpa only [ReducedKWise.space, ReducedKWise.tableWords, Nat.add_assoc] using hfr
+      wram_omega
     have hge1 := Nat.zero_le (idx >>> rPack w w₀ b b')
     have hge2 := Nat.zero_le (((idx >>> rChunk w₀ b b' <<< rChunk w₀ b b') +
       ((idx &&& (2 ^ rChunk w₀ b b' - 1)) >>> 1)) >>> rPack w w₀ b b'))
-  all_goals try exact hmem.1.of_le (by omega)
-  all_goals try exact hpow2c.of_le (by omega)
-  all_goals try exact hsh_lt.trans Nat.lt_two_pow_self
-  all_goals try exact hpSh_lt.trans Nat.lt_two_pow_self
-  all_goals try (rw [hlimb, clmul_eq_bit_mul_xor]; exact hnew_lt)
-  rw [hlimb, clmul_eq_bit_mul_xor]
-  exact (hval_sh_lt.trans_le hpow_sub1_le).trans_le hpow_pack_le
+  all_goals try omega
+  all_goals try fits [hmem.1]
+  all_goals try (
+    rw [hlimb, clmul_eq_bit_mul_xor]
+    wram_omega [xor_shiftLeft_lt_two_pow hclr_lt hval_lt])
+  all_goals wram_omega [hmem.1]
 
 private theorem realizesBounded_initTableStepGen :
     RealizesBounded .exact initTableStepGenProg
@@ -452,7 +348,8 @@ private theorem realizesBounded_initTableStepGen :
     rcases d with ⟨⟨hp, hashBase⟩, idx⟩
     rcases h with ⟨w₀, b, b', k, hc_lt, rfl, hidx, hfr, hentry⟩)
   · exact ⟨w₀, b, b', k, hc_lt, rfl, hidx, hfr, hentry⟩
-  · refine ⟨w₀, b, b', k, hc_lt, rfl, hidx, hfr, ?_, prevWord_limb_eq hidx hentry⟩
+  · refine ⟨w₀, b, b', k, hc_lt, rfl, hidx, hfr, ?_,
+        clmulTab_prev_limb (w := w) (tBase := ReducedKWise.tabBase hashBase w₀ b b' k) hidx hentry⟩
     change (s.mem _ &&& ((1 <<< _) - 1)) < _
     rw [Nat.shiftLeft_eq, one_mul]; exact and_two_pow_sub_one_lt _ _
 
@@ -472,11 +369,8 @@ private theorem initTableGenProg_aux {w w₀ b b' k hashBase : ℕ} {s₀ : Memo
     (∀ a, (a < ReducedKWise.tabBase hashBase w₀ b b' k ∨
         hashBase + ReducedKWise.space w w₀ b b' k ≤ a) → s'.mem a = s₀.mem a) := by
   intro hp prog s'
-  have hc_pos : 0 < rChunk w₀ b b' := reducedChunkBits_pos _
   have hpack_le : 2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b') ≤ w :=
     two_pow_reducedPackShift_mul_le (le_of_lt hc_lt)
-  have hpow_pack_le : 2 ^ (2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b')) ≤ 2 ^ w :=
-    Nat.pow_le_pow_right two_pos hpack_le
   let inv (idx a : ℕ) (s : Memory.State) : Prop :=
     idx = a ∧ hashBase + ReducedKWise.space w w₀ b b' k ≤ s.frontier ∧
     (∀ wIdx < idx >>> rPack w w₀ b b',
@@ -506,26 +400,27 @@ private theorem initTableGenProg_aux {w w₀ b b' k hashBase : ℕ} {s₀ : Memo
           exact Nat.div_le_div_right hprev_le
         have htBase_end :
             ReducedKWise.tabBase hashBase w₀ b b' k + reducedTableWords (rStep w₀ b b') w ≤
-              s.frontier := by
-          unfold ReducedKWise.tabBase; unfold ReducedKWise.space ReducedKWise.tableWords at hfr_s
-          omega
+              s.frontier := by wram_omega
         have hsub_lt := and_two_pow_sub_one_lt idx (rPack w w₀ b b')
         have hsh_lt : (idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b') < w :=
-          (Nat.mul_lt_mul_of_pos_right hsub_lt (by omega)).trans_le hpack_le
+          packSlot_sh_lt hc_lt.le
         let sh := (idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b')
         let masked := s.mem (ReducedKWise.tabBase hashBase w₀ b b' k + (
           idx >>> rPack w w₀ b b')) &&&
           ((1 <<< sh) - 1)
         have hmasked_lt : masked < 2 ^ sh := by
           dsimp only [masked]; rw [Nat.shiftLeft_eq, one_mul]; exact and_two_pow_sub_one_lt _ sh
-        have hlimb := prevWord_limb_eq hidx hentry
+        have hlimb := clmulTab_prev_limb (w := w)
+          (tBase := ReducedKWise.tabBase hashBase w₀ b b' k) hidx hentry
         dsimp only [ReducedKWise.tabBase] at hlimb
         have hval_lt := clmul_lt_two_pow_two_mul hu_lt hv_lt
         let newWord := masked ^^^
           (clmul (idx >>> rChunk w₀ b b') (idx &&& (2 ^ rChunk w₀ b b' - 1)) <<< sh)
-        have hnew_pack_lt : newWord < 2 ^ (2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b')) :=
-          (xor_shiftLeft_lt_two_pow hmasked_lt hval_lt).trans_le
-            (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right _ hsub_lt))
+        have hnew_pack_lt : newWord < 2 ^ (2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b')) := by
+          have hmul_sub : ((idx &&& (2 ^ rPack w w₀ b b' - 1)) + 1) * (2 * rChunk w₀ b b') ≤
+              2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b') :=
+            Nat.mul_le_mul_right _ hsub_lt
+          wram_omega [xor_shiftLeft_lt_two_pow hmasked_lt hval_lt]
         set s₁ := (Memory.spec 0).clientState s (initTableStepGenProg ((hp, hashBase), idx))
         have hs₁_mem : s₁.mem = Function.update s.mem
             (ReducedKWise.tabBase hashBase w₀ b b' k + (idx >>> rPack w w₀ b b')) newWord := by
@@ -541,10 +436,7 @@ private theorem initTableGenProg_aux {w w₀ b b' k hashBase : ℕ} {s₀ : Memo
           rw [validHistory_bind']
           have hlt1 :
               hashBase + ReducedKWise.seedWords w₀ b b' k + (idx >>> rPack w w₀ b b') <
-                s.frontier := by
-            have h1 := Nat.add_lt_add_left hwIdx_lt (ReducedKWise.tabBase hashBase w₀ b b' k)
-            unfold ReducedKWise.tabBase at h1 htBase_end
-            exact lt_of_lt_of_le h1 htBase_end
+                s.frontier := by wram_omega
           have hlt2 : hashBase + ReducedKWise.seedWords w₀ b b' k +
               ((((idx >>> rChunk w₀ b b' <<< rChunk w₀ b b') +
                 ((idx &&& (2 ^ rChunk w₀ b b' - 1)) >>> 1)) >>> rPack w w₀ b b')) < s.frontier :=
@@ -558,8 +450,7 @@ private theorem initTableGenProg_aux {w w₀ b b' k hashBase : ℕ} {s₀ : Memo
                 masked := rfl
           refine ⟨?_, ?_⟩
           · dsimp only [initTableClearProg, hp, hpSeedWords_mk, hpP_mk, hpMaskP_mk, hpTwoC_mk]
-            exact ⟨hlt1, ⟨hlt1, hmasked_lt.trans (Nat.pow_lt_pow_right one_lt_two hsh_lt)⟩,
-              trivial⟩
+            exact ⟨hlt1, ⟨hlt1, by wram_omega⟩, trivial⟩
           · rw [hr_clr]
             dsimp only [initTableWriteProg, hp, hpSeedWords_mk, hpP_mk, hpMaskP_mk, hpTwoC_mk,
               hpC_mk, hpMaskC_mk, hpMask2C_mk]
@@ -582,36 +473,22 @@ private theorem initTableGenProg_aux {w w₀ b b' k hashBase : ℕ} {s₀ : Memo
                     ((1 <<< ((idx &&& (2 ^ rPack w w₀ b b' - 1)) *
                       (2 * rChunk w₀ b b'))) - 1)) := rfl
             rw [hs_clr, hupd, hlimb, clmul_eq_bit_mul_xor]
-            exact hnew_pack_lt.trans_le hpow_pack_le
+            wram_omega
         · rw [hs₁_mem, Function.update_of_ne]
-          intro heq; apply hx; rw [heq]
-          refine ⟨Nat.le_add_right _ _, ?_⟩
-          unfold ReducedKWise.tabBase ReducedKWise.space ReducedKWise.tableWords
-          rw [← Nat.add_assoc]; exact Nat.add_lt_add_left hwIdx_lt _
+          intro heq; apply hx; rw [heq]; dsimp only [mod]
+          wram_omega [Nat.zero_le (idx >>> rPack w w₀ b b')]
         · rw [hs₁_mem]
-          have := shiftRight_add_one_le idx (rPack w w₀ b b')
-          rcases eq_or_lt_of_le (show w' ≤ idx >>> rPack w w₀ b b' by omega) with rfl | hlt
-          · rw [Function.update_self]; exact hnew_pack_lt
-          · rw [Function.update_of_ne (by omega)]; exact hword w' hlt
+          exact update_word_lt hnew_pack_lt hword
+            (by have := shiftRight_add_one_le idx (rPack w w₀ b b'); omega)
         · rw [hs₁_mem]
-          have hmask_eq : (1 <<< sh) - 1 =
-              2 ^ ((idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b')) - 1 := by
-            rw [Nat.shiftLeft_eq, one_mul]
           rcases eq_or_ne i idx with rfl | hne
           · rw [Function.update_self]; exact getLimb_xor_shiftLeft_self hmasked_lt hval_lt
-          · have hilt : i < idx := by omega
-            rcases eq_or_ne (i >>> rPack w w₀ b b') (idx >>> rPack w w₀ b b') with hw_eq | hw_ne
-            · rw [hw_eq, Function.update_self]
-              have hsub_i := and_lt_of_lt_of_shiftRight_eq hilt hw_eq
-              dsimp only [newWord, masked, sh]
-              rw [hmask_eq, getLimb_xor_shiftLeft_of_ne hval_lt (ne_of_lt hsub_i),
-                getLimb_and_low hsub_i, ← hw_eq, hentry i hilt]
-            · rw [Function.update_of_ne (by omega)]; exact hentry i hilt)
+          · rw [clmulTab_getLimb_update_lt (by omega) hval_lt, hentry i (by omega)])
       0 s₀ ⟨rfl, hfr, fun _ hw' => by simp only [Nat.zero_shiftRight, not_lt_zero] at hw',
         fun _ hi => (Nat.not_lt_zero _ hi).elim⟩
   dsimp only [s']; rw [hprog_eq]
   refine ⟨⟨w₀, b, b', k, hc_lt, rfl, hfr, hfit⟩, hsafe, hv, hcost, hfr',
-    ⟨fun wIdx hwIdx => ?_, hentry'⟩, fun a ha => hmod a (by dsimp only [mod]; omega)⟩
+    ⟨fun wIdx hwIdx => ?_, hentry'⟩, fun a ha => hmod a (by omega)⟩
   have hsh := two_pow_two_mul_chunkBits_shiftRight (rStep w₀ b b') w
   exact hword' wIdx (hsh.symm ▸ hwIdx)
 
@@ -677,13 +554,10 @@ private theorem realizesBounded_karatsubaHalf :
     rcases d with ⟨hp, α, x'⟩
     obtain ⟨w₀, b, b', k, hw₀_pos, hw₀_le, hc_lt, rfl, hα_lt, hx'_lt⟩ := h
     try (dsimp only [hpMaskM_mk, hpHalfM_mk, hpMaskH_mk, hpMaskMH_mk, hpMaskM2H_mk] at *)
-    have hm_lt : w₀ - 1 < w := by omega
+    have _ := reducedChunkBits_pos (rStep w₀ b b')
+    have _ : Fits w w := Nat.lt_two_pow_self
     have h_le : (w₀ - 1) / 2 ≤ w₀ - 1 := Nat.div_le_self _ 2
     have h2_le : 2 * ((w₀ - 1) / 2) ≤ w₀ - 1 := Nat.mul_div_le _ 2
-    have hpow2m : 2 ^ (w₀ - 1) + 2 ^ (w₀ - 1) ≤ 2 ^ w := by
-      have : 2 ^ ((w₀ - 1) + 1) ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hm_lt
-      rw [pow_succ'] at this; linarith
-    have hfit_2m : Fits w (2 ^ (w₀ - 1)) := by change 2 ^ (w₀ - 1) < 2 ^ w; linarith
     have hα0 : α &&& (2 ^ ((w₀ - 1) / 2) - 1) < 2 ^ ((w₀ - 1) / 2) := and_two_pow_sub_one_lt _ _
     have hα1 : α >>> ((w₀ - 1) / 2) < 2 ^ ((w₀ - 1) - (w₀ - 1) / 2) :=
       shiftRight_lt_pow_sub h_le hα_lt
@@ -692,8 +566,7 @@ private theorem realizesBounded_karatsubaHalf :
       shiftRight_lt_pow_sub h_le hx'_lt
     have hmul00 : (α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' &&& (2 ^ ((w₀ - 1) / 2) - 1)) <
         2 ^ (w₀ - 1) :=
-      (Nat.mul_lt_mul'' hα0 hx0).trans_le
-        (by rw [← pow_add, ← two_mul]; exact Nat.pow_le_pow_right two_pos h2_le)
+      (Nat.mul_lt_mul'' hα0 hx0).trans_le (by rw [← pow_add, ← two_mul]; wram_omega)
     have hmul01 : (α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' >>> ((w₀ - 1) / 2)) < 2 ^ (w₀ - 1) :=
       (Nat.mul_lt_mul'' hα0 hx1).trans_eq (by rw [← pow_add, Nat.add_sub_of_le h_le])
     have hmul10 : (α >>> ((w₀ - 1) / 2)) * (x' &&& (2 ^ ((w₀ - 1) / 2) - 1)) < 2 ^ (w₀ - 1) :=
@@ -711,11 +584,11 @@ private theorem realizesBounded_karatsubaHalf :
     have hq3 : ((α >>> ((w₀ - 1) / 2)) &&& (2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1)) *
         ((x' >>> ((w₀ - 1) / 2)) &&& (2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1)) <
           2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) := by
-      have h1 := (and_two_pow_sub_one_lt (α >>> ((w₀ - 1) / 2)) _).trans_le
-        (Nat.pow_le_pow_right two_pos (show (w₀ - 1) - 2 * ((w₀ - 1) / 2) ≤ 1 by omega))
       have h2 := and_two_pow_sub_one_lt (x' >>> ((w₀ - 1) / 2)) ((w₀ - 1) - 2 * ((w₀ - 1) / 2))
       have hle1 : (α >>> ((w₀ - 1) / 2)) &&& (2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1) ≤ 1 := by
-        omega
+        have h1 := and_two_pow_sub_one_lt (α >>> ((w₀ - 1) / 2)) ((w₀ - 1) - 2 * ((w₀ - 1) / 2))
+        have : 2 ^ 1 = 2 := rfl
+        wram_omega [this]
       exact lt_of_le_of_lt (by calc _ ≤ 1 * _ := Nat.mul_le_mul_right _ hle1
         _ = _ := Nat.one_mul _) h2
     have hp3 : (((α >>> ((w₀ - 1) / 2)) &&& (2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1)) *
@@ -724,8 +597,6 @@ private theorem realizesBounded_karatsubaHalf :
       rw [Nat.shiftLeft_eq]
       exact (Nat.mul_lt_mul_of_pos_right hq3 (Nat.two_pow_pos _)).trans_eq
         (by rw [← pow_add, Nat.sub_add_cancel h2_le])
-    have h2_fit : Fits w 2 :=
-      (show 2 < w by have := reducedChunkBits_pos (rStep w₀ b b'); omega).trans Nat.lt_two_pow_self
     have hp0_lt := and_two_pow_sub_one_lt
       ((α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' &&& (2 ^ ((w₀ - 1) / 2) - 1))) (w₀ - 1)
     have hs1_lt := and_two_pow_sub_one_lt
@@ -740,15 +611,7 @@ private theorem realizesBounded_karatsubaHalf :
         (2 ^ ((w₀ - 1) - (w₀ - 1) / 2) - 1)) <<< ((w₀ - 1) / 2))) &&& (2 ^ (w₀ - 1) - 1)) +
        ((((α >>> ((w₀ - 1) / 2)) * (x' &&& (2 ^ ((w₀ - 1) / 2) - 1))) &&&
         (2 ^ ((w₀ - 1) - (w₀ - 1) / 2) - 1)) <<< ((w₀ - 1) / 2))) (w₀ - 1))
-  all_goals try exact h2_fit
-  all_goals try exact (show 2 * ((w₀ - 1) / 2) < w by omega).trans Nat.lt_two_pow_self
-  all_goals try exact hfit_2m.of_le (le_of_lt hmul00)
-  all_goals try exact hfit_2m.of_le (le_of_lt hmul01)
-  all_goals try exact hfit_2m.of_le (le_of_lt hmul10)
-  all_goals try exact hfit_2m.of_le (le_of_lt hp1)
-  all_goals try exact hfit_2m.of_le (le_of_lt hp2)
-  all_goals try exact hfit_2m.of_le (le_of_lt hp3)
-  all_goals exact lt_of_lt_of_le (by omega) hpow2m
+  all_goals wram_omega
 
 /-- Universe-reduction key evaluator subroutine. -/
 @[expose] def reduceKeyGenProg : HashParams × ℕ × ℕ → Memory.Prog ℕ
@@ -775,10 +638,8 @@ theorem realizesBounded_reduceKeyGen :
     rcases d with ⟨hp, hashBase, uVal⟩
     obtain ⟨w₀, b, b', k, hw₀_pos, hw₀_le, hc_lt, rfl, hfr, hα_lt, hu_lt⟩ := h
     try (dsimp only [hpMaskM_mk, hpRemShift_mk] at *)
-    have hm_lt : w₀ - 1 < w := by omega
-    have hpow2m : 2 ^ (w₀ - 1) + 2 ^ (w₀ - 1) ≤ 2 ^ w := by
-      have : 2 ^ ((w₀ - 1) + 1) ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hm_lt
-      rw [pow_succ'] at this; linarith
+    have _ := reducedChunkBits_pos (rStep w₀ b b')
+    have _ : Fits w w := Nat.lt_two_pow_self
     have hu_shr : uVal >>> 1 < 2 ^ (w₀ - 1) := by
       rw [Nat.shiftRight_eq_div_pow, pow_one]
       exact Nat.div_lt_of_lt_mul (by
@@ -789,20 +650,17 @@ theorem realizesBounded_reduceKeyGen :
           uVal &&& (2 ^ (w₀ - 1) - 1))) < 2 ^ (w₀ - 1) := by
       dsimp only [karatsubaHalfProg]; exact and_two_pow_sub_one_lt _ (w₀ - 1)
     have hbit : uVal &&& 1 < 2 := by
-      rw [Nat.and_two_pow_sub_one_eq_mod uVal 1]; exact Nat.mod_lt uVal two_pos
-    have h2_fit : Fits w 2 :=
-      (show 2 < w by have := reducedChunkBits_pos (
-        rStep w₀ b b'); omega).trans Nat.lt_two_pow_self)
+      rw [Nat.and_two_pow_sub_one_eq_mod uVal 1]; exact Nat.mod_lt uVal two_pos)
+  all_goals try omega
   all_goals try exact ⟨w₀, b, b', k, hw₀_pos, hw₀_le, hc_lt, rfl, hα_lt,
     and_two_pow_sub_one_lt _ (w₀ - 1)⟩
-  all_goals try exact h2_fit.of_le (by omega)
-  all_goals try exact lt_of_lt_of_le (by omega) hpow2m
+  all_goals try wram_omega
   have hm1 := and_two_pow_sub_one_lt ((uVal >>> 1) +
     (Memory.spec 0).clientResult s
       (karatsubaHalfProg (mkHashParams w w₀ b b' k, s.mem hashBase,
         uVal &&& (2 ^ (w₀ - 1) - 1)))) (w₀ - 1)
   rw [Nat.shiftLeft_eq, pow_one]
-  exact lt_of_lt_of_le (by omega) hpow2m
+  wram_omega
 
 /-- Single word zeroing step subroutine. -/
 @[expose] def zeroWordsStepProg : ℕ × ℕ → Memory.Prog ℕ
@@ -818,7 +676,8 @@ theorem realizesBounded_zeroWordsStep :
       ZeroWordsStepPre (fun _ _ => 0) := by
   realize
   all_goals (rcases d with ⟨baseAddr, i⟩; dsimp only [ZeroWordsStepPre] at h)
-  all_goals exact hmem.1.of_le (by omega)
+  all_goals try omega
+  all_goals fits [hmem.1]
 
 theorem zeroWordsLoop_spec {w baseAddr n : ℕ} {s₀ : Memory.State}
     (hfr : baseAddr + n ≤ s₀.frontier) :

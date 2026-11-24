@@ -13,11 +13,14 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Li
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
+import CslibFrontier.Tactic.EncLen
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -84,10 +87,9 @@ private theorem inputNext_inO :
       (fun q => (encNat q.1).length + q.2 + 1) := by
   refine ((ComputableInO.natPred.comp (ComputableInO.fst encNat encUnary)).mono 8
     (fun q => ?_) (fun q => ?_)).of_enc_eq (fun _ => rfl)
-  · simp only [length_encPair, encUnary_apply, List.length_replicate]
-    nlinarith
-  · simp only [length_encPair, encUnary_apply, List.length_replicate]
-    omega
+  · have := Nat.le_self_pow two_ne_zero ((encNat q.1).length + 1)
+    enc_len
+  · enc_len
 
 private theorem inputEmit_inO :
     ComputableInO inputEmit (encPair encNat encUnary) (encOption encUnary)
@@ -102,32 +104,30 @@ private theorem inputEmit_inO :
   refine ((hc.ite hs (ComputableInO.const none)).mono 16 (fun q => ?_) (fun q => ?_)).of_enc_eq
     (fun q => by simp [inputEmit, Function.comp_apply, eq_comm])
   all_goals
-    simp only [length_encPair, show (encNat 1).length = 1 from rfl,
-      Function.comp_apply]
-    split_ifs <;> omega
+    dsimp only [Function.comp_apply]
+    split_ifs <;> enc_len [show (encNat 1).length = 1 from rfl]
 
 /-- A lookup returns at most one input symbol, with one additional bit for the option tag. -/
 public theorem length_inputSymbol_le (x : List ℕ) (p : ℕ) :
     (encOption encUnary (inputSymbol x p)).length ≤ (encList encUnary x).length + 1 := by
   unfold inputSymbol
   split_ifs
-  · simp
+  · enc_len
   · cases h : (x.drop (p - 1)).head? with
-    | none => simp
+    | none => enc_len
     | some a =>
-      have ha : a ∈ x := List.mem_of_mem_drop (List.mem_of_mem_head? h)
-      have := length_le_encList_of_mem encUnary ha
-      simpa using Nat.succ_le_succ this
+      have := length_le_encList_of_mem encUnary (List.mem_of_mem_drop (List.mem_of_mem_head? h))
+      enc_len at this ⊢
 
 private theorem inputSymbol_pair_inO :
     ComputableInO (fun q : ℕ × List ℕ => inputSymbol q.2 q.1)
       (encPair encNat (encList encUnary)) (encOption encUnary)
       (fun q => ((encList encUnary q.2).length + 1) * ((encNat q.1).length + 1) ^ 2)
       (fun q => (encPair encNat (encList encUnary) q).length) := by
-  obtain ⟨cN, hN, -⟩ := inputNext_inO.tidy
-  obtain ⟨cE, hE, -⟩ := inputEmit_inO.tidy
-  obtain ⟨cF, hF, -⟩ := (ComputableInO.const (encIn := encNat)
-    (encMid := encOption encUnary) none).tidy
+  obtain ⟨cN, hN, -⟩ := Internal.NormalForm.inO inputNext_inO
+  obtain ⟨cE, hE, -⟩ := Internal.NormalForm.inO inputEmit_inO
+  obtain ⟨cF, hF, -⟩ := Internal.NormalForm.inO (ComputableInO.const (encIn := encNat)
+    (encMid := encOption encUnary) none)
   let B (q : ℕ × List ℕ) := (encNat q.1).length
   let N (q : ℕ × List ℕ) := (encList encUnary q.2).length
   let K := 3 * cN + 3 * cE + 3
@@ -160,7 +160,7 @@ private theorem inputSymbol_pair_inO :
       rw [← Finset.mul_sum, ← Finset.mul_sum, hsum]
       ring
     let C := c * (cF + K + 2 * (cN + cE) + 16) + 1
-    refine ComputableInO.of_bounds h.computableInTimeAndSpace C
+    refine ComputableInO.of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h) C
       (fun q => ?_) (fun q => ?_) (fun q => ?_)
     · let Z := (N q + 1) * (B q + 1) ^ 2
       have hb : B q + 1 ≤ (B q + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
@@ -215,8 +215,7 @@ private theorem inputSymbol_pair_inO :
     · have ho := length_inputSymbol_le q.2 q.1
       have hC : 1 ≤ C := by dsimp [C]; omega
       have := Nat.mul_le_mul_right ((encPair encNat (encList encUnary) q).length + 1) hC
-      simp only [length_encPair] at this ⊢
-      omega
+      enc_len at this ⊢
   · intro q j hj
     have hb := hstate q j
     have hb' := hstate q (j + 1)
@@ -243,18 +242,20 @@ private theorem inputSymbol_pair_inO :
   · intro q j hj
     have hb := hstate q j
     have ha := helem q j hj
-    simp only [length_encPair, encUnary_apply, List.length_replicate]
     have hn := Nat.mul_le_mul_left cN (show
       (encNat (streamState q.1 inputNext q.2 j)).length + q.2[j] + 1 + 1 ≤
         2 * B q + N q + 2 by omega)
     have he := Nat.mul_le_mul_left cE (show
-      2 * (encNat (streamState q.1 inputNext q.2 j)).length + 1 + q.2[j] + 1 ≤
-        2 * B q + N q + 2 by omega)
-    nlinarith
+      (encPair encNat encUnary (streamState q.1 inputNext q.2 j, q.2[j])).length + 1 ≤
+        2 * B q + N q + 2 by enc_len)
+    dsimp only
+    rw [Nat.add_mul]
+    omega
   · intro q j _
     exact (hstate q j).trans (Nat.le_add_right _ _)
   · intro q j hj
-    simpa [encUnary_apply] using (helem q j hj).trans (Nat.le_add_left _ _)
+    have := helem q j hj
+    enc_len
 
 /-- After linear argument reordering, the simulated input symbol can be found by streaming the
 encoded list once, with a binary countdown. Time is linear in encoded list length times the square
@@ -275,7 +276,6 @@ public theorem inputSymbol_stream_inO :
       Nat.le_self_pow two_ne_zero _
     have hn := Nat.mul_le_mul_left ((encList encUnary q.1).length + 1) hb
     nlinarith
-  · simp only [length_encPair]
-    omega
+  · enc_len
 
 end Turing.MultiTapeTM.Universal

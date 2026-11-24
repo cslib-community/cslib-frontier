@@ -284,10 +284,7 @@ variable {γ : Type} {encIn : γ ↪ List Bool} {sys : γ → SetSystem} {bits :
 
 private theorem polyTime_bound (hsys : ComputableInPolyTime sys encIn encSetSystem) :
     ComputableInPolyTime (fun c => bound (sys c)) encIn encUnary := by
-  unfold bound
-  exact unary_add' (unary_add'
-    ((length_list _).comp (computableInPolyTime_setSystemGround.comp hsys))
-    ((length_list _).comp (computableInPolyTime_setSystemSets.comp hsys))) (const 4)
+  fun_prop [bound]
 
 private theorem polyTime_arity (hsys : ComputableInPolyTime sys encIn encSetSystem) :
     ComputableInPolyTime (fun c => arity (sys c)) encIn encUnary := by

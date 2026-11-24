@@ -56,7 +56,7 @@ theorem basisFactor_inSpace :
   have hden := budget_comp_linear addMod_inSpace (budget_prod hp (budget_prod ha hneg))
   have hinv := budget_comp_linear unitInv_inSpace (budget_prod hp (budget_natPred hden))
   have hprod := budget_comp_linear mulMod_inSpace (budget_prod hp (budget_prod hnum hinv))
-  have hone := budget_natMod (budget_const (encB := encNat) 1 (.refl _)) hp
+  have hone := budget_natMod (budget_const (encB := encNat) 1) hp
   exact (budget_ite (budget_natEq hj ha) hone hprod).of_enc_eq fun q => by
     by_cases h : q.2.2.1 = q.2.1 <;> simp [basisFactor, h]
 
@@ -77,7 +77,7 @@ private theorem basisStep_inSpace :
     (budget_prod hp (budget_prod ha (budget_prod hj hx)))
   have hmul := budget_comp_linear mulMod_inSpace (budget_prod hp (budget_prod hacc hfac))
   have hnext := budget_ite (budget_natIsZero hp)
-    (budget_const (encB := encNat) 0 (.refl _)) hmul
+    (budget_const (encB := encNat) 0) hmul
   exact (budget_prod hpar (budget_prod (budget_natSucc hj) hnext)).of_enc_eq fun q => by
     by_cases h : q.1.1 = 0 <;> simp [basisStep, h]
 
@@ -92,9 +92,9 @@ theorem basisWeight_inSpace :
   have hs := fst' htail
   have hax := snd' htail
   have hpar := budget_prod hp hax
-  have hone := budget_natMod (budget_const (encB := encNat) 1 (.refl _)) hp
+  have hone := budget_natMod (budget_const (encB := encNat) 1) hp
   have hinit := budget_prod hpar
-    (budget_prod (budget_const (encB := encNat) 0 (.refl _)) hone)
+    (budget_prod (budget_const (encB := encNat) 0) hone)
   have hstates (q : ℕ × ℕ × ℕ × ℕ) (j : ℕ) (hj : j ≤ q.2.1) :
       (encBasisState (basisStep^[j] ((q.1, q.2.2.1, q.2.2.2), 0, 1 % q.1))).length ≤
         16 * ((encBasisArgs q).length + 1) := by

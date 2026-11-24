@@ -106,7 +106,10 @@ theorem wellFormed_replaceGadgetsGuarded (srcArity : Src → ℕ) (B : ℕ)
   · exact wellFormed_replaceGadgets B templates h F
   · exact hr
 
-private theorem eval_instantiate {n : ℕ} {R : Set (Fin n → Bool)}
+/-- Instantiating an actual gadget evaluates its original body at the supplied even free
+names and odd per-occurrence auxiliary names, for every fixed target assignment. No
+satisfiability or arity premise is needed for this pointwise equation. -/
+theorem eval_instantiate {n : ℕ} {R : Set (Fin n → Bool)}
     (g : PPGadget arity sem R) (B index : ℕ) (scope : List ℕ) (σ : ℕ → Bool) :
     (instantiate B index scope g.template).eval sem σ =
       g.body.eval sem (Sum.elim (fun i => σ (2 * scope.getD i.val 0))

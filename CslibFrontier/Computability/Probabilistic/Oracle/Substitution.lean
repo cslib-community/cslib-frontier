@@ -203,9 +203,9 @@ theorem IsOraclePPTOn.interpret_preprocess_open'
   have hlift : IsOraclePPTOn EIn (encPair encBits (encFinEnum Unit))
       (fun p : Caller × ((Operation × List Bool) × Unit) =>
         (fun reply => (reply, p.2.2)) <$> handler p.1 p.2.1) :=
-    (hhandler.preprocess' (input := EIn)
+    (hhandler.preprocess (input := EIn)
       (prepare := fun p : Caller × ((Operation × List Bool) × Unit) => (p.1, p.2.1))
-      (by dsimp only [EIn]; fun_prop)).map_with'
+      (by dsimp only [EIn]; fun_prop)).map_with
         (f := fun p reply => (reply, p.2.2)) (by dsimp only [EIn]; fun_prop)
   have hrun := hprogram.run_interpret_preprocess_open
     (handler := fun a request (state : Unit) => (fun reply => (reply, state)) <$> handler a request)
@@ -214,7 +214,7 @@ theorem IsOraclePPTOn.interpret_preprocess_open'
     (fun a request state _ result hresult => by
       obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
       exact ⟨trivial, hbound a request reply hreply, Nat.le_add_right _ _⟩)
-  have h := hrun.map' (ComputableInPolyTime.fst output (encFinEnum Unit))
+  have h := hrun.map (ComputableInPolyTime.fst output (encFinEnum Unit))
   convert h using 1
   funext a
   rw [OracleComp.run_interpret_sumHandler_readOnly]
@@ -237,7 +237,7 @@ theorem IsOraclePPTOn.interpret_bitQueries
     (handler := fun _ q => List.take 1 <$> ProbOracleComp.query
       (spec := fun _ : Unit × List Bool => List Bool) ((), request q.2))
     (prepare := id) (resources := fun _ _ => 1) ComputableInPolyTime.id'
-    (IsOraclePPTOn.query_take' () (hrequest.comp' (by fun_prop))
+    (IsOraclePPTOn.query_take () (hrequest.comp' (by fun_prop))
       (by fun_prop))
     (ComputableInPolyTime.const 1) fun _ _ _ hreply => by
       obtain ⟨r, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply

@@ -55,14 +55,13 @@ namespace NatSucc
 
 /-- The binary digits of `n + 1` are obtained by incrementing `n.bits` with carry `true`. -/
 public lemma bits_succ (n : ℕ) : (n + 1).bits = incr true n.bits := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rcases Nat.even_or_odd' n with ⟨m, rfl | rfl⟩
-    · rcases Nat.eq_zero_or_pos m with rfl | hm
-      · rfl
-      · rw [Nat.bit1_bits, Nat.bit0_bits m (by omega), incr]
-    · rw [Nat.bit1_bits, show 2 * m + 1 + 1 = 2 * (m + 1) by ring, Nat.bit0_bits _ (by omega),
-        ih m (by omega), incr]
+  rcases Nat.even_or_odd' n with ⟨m, rfl | rfl⟩
+  · rcases Nat.eq_zero_or_pos m with rfl | hm
+    · rfl
+    · rw [Nat.bit1_bits, Nat.bit0_bits m (by omega), incr]
+  · rw [Nat.bit1_bits, show 2 * m + 1 + 1 = 2 * (m + 1) by ring, Nat.bit0_bits _ (by omega),
+      bits_succ m, incr]
+termination_by n
 
 end NatSucc
 

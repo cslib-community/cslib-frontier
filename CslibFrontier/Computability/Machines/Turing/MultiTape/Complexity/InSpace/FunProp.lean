@@ -18,8 +18,9 @@ existing arithmetic, list, option and conditional certificates. Composition uses
 whose workspace is linear in its own encoded argument; the caller's certificate pays for that
 argument. No rule infers a bound on the states of an iteration.
 
-Constants and the identity require the input encoding length to fit the requested budget.
-That side condition is explicit, including when the budget is not the input length.
+A constant fits every budget. The identity requires the input encoding length to fit the
+requested budget; that side condition is explicit, including when the budget is not the input
+length.
 -/
 
 public section
@@ -38,5 +39,13 @@ attribute [fun_prop] budget_cons budget_snoc budget_headD budget_tail budget_isE
 theorem budget_id {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
     (h : (fun a => (enc a).length) ≼ S) : ComputableInSpace (fun a => a) enc enc S :=
   (of_inO (ComputableInO.of_eq fun _ => rfl)).weaken h
+
+/-- The minimum of two binary naturals, within the budget. -/
+@[fun_prop]
+theorem budget_natMin {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {a b : α → ℕ}
+    (ha : ComputableInSpace a enc encNat S) (hb : ComputableInSpace b enc encNat S) :
+    ComputableInSpace (fun x => min (a x) (b x)) enc encNat S :=
+  (budget_ite (budget_natLt ha hb) ha hb).of_enc_eq fun x => by
+    simp only [min_def_lt, decide_eq_true_eq]
 
 end Turing.MultiTapeTM.ComputableInSpace

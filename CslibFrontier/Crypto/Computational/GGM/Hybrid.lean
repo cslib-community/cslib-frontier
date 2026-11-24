@@ -105,11 +105,11 @@ theorem hybridGame_zero (generator : List Bool → List Bool) (adversary : Oracl
 
 /-- The final level caches full query answers directly. There is no suffix left to evaluate. -/
 theorem frontierOracle_self (generator : List Bool → List Bool) (n : ℕ) :
-    frontierOracle generator n n = cachedRandomFunctionOracle n := by
+    frontierOracle generator n n = cachedRandomFunctionOracle (·.length == n) n := by
   funext query cache
   by_cases h : query.length = n
-  · simp [frontierOracle, cachedRandomFunctionOracle, ← h]
-  · simp [frontierOracle, cachedRandomFunctionOracle, h]
+  · simp [frontierOracle, cachedRandomFunctionOracle, cachedSamplerOracle, ← h]
+  · simp [frontierOracle, cachedRandomFunctionOracle, cachedSamplerOracle, h]
 
 /-- At the final level, the prefix hybrid is exactly the ideal PRF game. -/
 theorem hybridGame_self (generator : List Bool → List Bool) (adversary : OracleDistinguisher)
@@ -164,12 +164,7 @@ theorem isPPTOn_frontierOracle {α : Type} {input : α ↪ List Bool}
     (hcache : ComputableInPolyTime cache input cacheEncoding) :
     IsPPTOn input (encPair encBits cacheEncoding)
       (fun a => frontierOracle generator (parameter a) (depth a) (query a) (cache a)) := by
-  have hgenerator := hgenerator.tidy
-  have hparameter := hparameter.tidy
-  have hdepth := hdepth.tidy
-  have hquery := hquery.tidy
-  have hcache := hcache.tidy
-  have heval := (computableInPolyTime_eval (.of_tidy hgenerator)).tidy
+  have heval := (computableInPolyTime_eval (hgenerator))
   unfold frontierOracle cacheEncoding
   fun_prop
 
