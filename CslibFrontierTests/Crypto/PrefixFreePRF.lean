@@ -15,7 +15,8 @@ import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
 
 Use a proper-prefix pair in the CBC word domain with a two-block cap. Its queries use the
 three-block domain. The advantage bound uses the CBC chaining identity for its real game.
-A repeated valid guess makes no external query.
+A repeated valid guess makes no external query. The batch wrapper also skips repeated and
+malformed guesses and respects a cap on the batch.
 -/
 
 set_option linter.privateModule false
@@ -95,6 +96,62 @@ example (family : List Bool → List Bool → List Bool) :
       ((2 : ℝ≥0) ^ 2)⁻¹ := by
   exact succProbability_collisionGame_le_prefixFreeCollisionReduction
     (cbcMacFamily family) _ _ cbcBlockValid_append (cbcMacFamily_extend family)
+
+private def batchGuesses : List (List Bool) :=
+  [[false, false], [false, false], [false, true], [true], [true, true]]
+
+example : IsPrefixFreeOraclePPT (cbcBlockValid (fun _ => 3)) id
+    (prefixFreeBatchReduction id id (fun _ => 4) (cbcBlockValid (fun _ => 2))
+      (fun _ => pure batchGuesses)) :=
+  isPrefixFreeOraclePPT_prefixFreeBatchReduction ComputableInPolyTime.id' ComputableInPolyTime.id'
+    (ComputableInPolyTime.const 4)
+    (computableInPolyTime_cbcBlockValid (ComputableInPolyTime.const 2))
+    (fun _ _ => aligned_of_cbcBlockValid)
+    (ComputableInPolyTime.const batchGuesses).isPPTOn
+
+example :
+    wordQueryRunDist id
+      (prefixFreeBatchReduction id (fun _ => 1) (fun _ => 4) (cbcBlockValid (fun _ => 2))
+        (fun _ => pure batchGuesses) 2 []) =
+    PMF.pure (true, [[false, false, true, false], [false, true, true, false]]) := by
+  have hqueries : prefixFreeBatchQueries 2 4 (cbcBlockValid (fun _ => 2) 2) batchGuesses =
+      [[false, false, true, false], [false, true, true, false]] := by
+    unfold prefixFreeBatchQueries
+    dsimp only
+    rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
+    decide
+  simp only [prefixFreeBatchReduction, wordQueryRunDist_sample_bind, ProbComp.eval_pure,
+    PMF.pure_bind, id_eq, hqueries, wordQueryRunDist_mapM_query_pure]
+  rfl
+
+/-- A width-one batch containing a proper-prefix pair uses the remaining block even when
+the total block count exceeds the alphabet size. -/
+example : InformationTheory.IsPrefixFree
+    ((fun word => word ++ [true]) '' {word | word ∈ [[false], [false, false]]}) :=
+  PRF.isPrefixFree_append_of_freshBatchWordBlock_eq_some (width := 1) (by decide) (by simp) (by
+    rw [PRF.freshBatchWordBlock_eq_map_freshBatchBlock]
+    decide)
+
+/-- The real comparison applies to the CBC domain with a proper-prefix pair and extra block. -/
+example (family : List Bool → List Bool → List Bool) :
+    let guessBatch : ℕ × ℕ → ProbComp (List (List Bool)) :=
+      fun _ => pure [[false, false, false], [false, false, false, true, false, false]]
+    Game.succProbability (multiQueryGame pure (fun _ d => cbcBlockValid (fun _ => 2) d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) guessBatch 3) ≤
+    Game.succProbability (ProbComp.eval
+      (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family)
+        (prefixFreeBatchReduction id id (fun _ => 2) (cbcBlockValid (fun _ => 2)) guessBatch)
+        3)) := by
+  dsimp only
+  refine succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
+    (cbcMacFamily family) _ 3 2 ?_ ?_ (by decide) cbcBlockValid_append (cbcMacFamily_extend family)
+  · intro guesses hguesses
+    simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hguesses
+    subst guesses
+    decide
+  · intro word hw
+    simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq] at hw
+    exact Nat.div_le_of_le_mul hw.2
 
 example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {cap : ℕ → ℕ} (hcap : ComputableInPolyTime cap encUnary encUnary) :
