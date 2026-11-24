@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Combinatorics.CubeSplitting
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.FiberCount
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Ring.GeomSum
 
 /-!
@@ -437,9 +438,7 @@ private theorem pow_sub_pred_pow_le (m b : ℕ) :
   calc ∑ i ∈ range b, (m : ℝ) ^ i * ((m : ℝ) - 1) ^ (b - 1 - i)
       ≤ ∑ _i ∈ range b, (m : ℝ) ^ (b - 1) := sum_le_sum fun i hi => by
         have hib := mem_range.mp hi
-        have hm0 : (0 : ℝ) ≤ m - 1 := by
-          have : (1 : ℝ) ≤ m := Nat.one_le_cast.mpr hm
-          linarith
+        have hm0 : (0 : ℝ) ≤ m - 1 := by cast_linarith [hm]
         calc (m : ℝ) ^ i * ((m : ℝ) - 1) ^ (b - 1 - i) ≤ (m : ℝ) ^ i * (m : ℝ) ^ (b - 1 - i) :=
               mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hm0 (by linarith) _) (by positivity)
           _ = (m : ℝ) ^ (b - 1) := by rw [← pow_add]; congr 1; omega

@@ -19,6 +19,7 @@ import Mathlib.Data.List.GetD
 
 * `WordRAM.Data.init_mem_append`: read a word after an arbitrary prefix in `Data.init`, accounting
   for the machine's length header.
+* `WordRAM.Data.init_mem_of_length_lt`: every cell past the input is `0`.
 * `WordRAM.Data.init_realizes_append`: a list segment appears at its actual initialized address,
   including the machine's length header.
 * `WordRAM.Data.init_mem_flatMap_finRange`, `WordRAM.InputFits.flatMap_finRange`: row-major lookup
@@ -40,6 +41,13 @@ theorem Data.init_mem_append {r : ℕ} (pre rest : List ℕ) (k : ℕ) :
     (Data.init (pre ++ rest) : Data r).mem (pre.length + 1 + k) = rest.getD k 0 := by
   rw [show pre.length + 1 + k = (pre.length + k) + 1 by omega,
     Data.init_mem_succ, List.getD_append_right _ _ _ _ (by omega), Nat.add_sub_cancel_left]
+
+/-- Every cell past the input is `0` in `Data.init`. -/
+theorem Data.init_mem_of_length_lt {r : ℕ} {input : List ℕ} {a : ℕ} (h : input.length < a) :
+    (Data.init input : Data r).mem a = 0 := by
+  obtain ⟨b, rfl⟩ : ∃ b, a = b + 1 := ⟨a - 1, by omega⟩
+  rw [Data.init_mem_succ]
+  exact List.getD_eq_default _ _ (by omega)
 
 /-- The payload between an arbitrary prefix and suffix occupies its corresponding actual
 input block. The extra address word is the standard unsigned input-length header. -/

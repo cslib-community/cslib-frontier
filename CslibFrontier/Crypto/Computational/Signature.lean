@@ -260,9 +260,9 @@ def eufCmaGame (S : SignatureScheme) (adversary : Forger) (n : ℕ) :
   let out ← (OracleComp.interpret
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
       (S.signingOracle n keys.2)) (adversary n keys.1)).run []
-  let msig := out.1
-  return (msig.1.length == n) && !out.2.contains msig.1 &&
-    S.verify keys.1 msig.1 msig.2
+  let ⟨⟨msg, sig⟩, queried⟩ := out
+  return (msg.length == n) && !queried.contains msg &&
+    S.verify keys.1 msg sig
 
 /-- The common certificate of the guarded signing oracles: running an oracle-PPT forger against the
 oracle that signs a request and prepends it to the log when `admit n msg queried` holds, and
@@ -443,9 +443,9 @@ def eufOneTimeGame (S : SignatureScheme) (adversary : Forger) (n : ℕ) :
   let out ← (OracleComp.interpret
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
       (S.oneTimeSigningOracle n keys.2)) (adversary n keys.1)).run []
-  let msig := out.1
-  return (msig.1.length == n) && !out.2.contains msig.1 &&
-    S.verify keys.1 msig.1 msig.2
+  let ⟨⟨msg, sig⟩, queried⟩ := out
+  return (msg.length == n) && !queried.contains msg &&
+    S.verify keys.1 msg sig
 
 /-- The one-time oracle on `adm` is the guarded signing oracle whose admission test also asks
 for an empty log: on an admitted query the log is empty, so `[msg] = msg :: queried`. -/
