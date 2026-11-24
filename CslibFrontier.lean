@@ -8996,6 +8996,10 @@ public import CslibFrontier.GameTheory.Market.EisenbergGale
 public import CslibFrontier.GameTheory.Mechanism.Approximation.LaviSwamy
 public import CslibFrontier.GameTheory.Mechanism.Approximation.RelatedScheduling
 public import CslibFrontier.GameTheory.Mechanism.Bayesian
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Basic
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.DiscreteClinching
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Impossibility
+public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.TwoBidderClinching
 public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.Walrasian
 public import CslibFrontier.GameTheory.Mechanism.CriticalBid
 public import CslibFrontier.GameTheory.Mechanism.DigitalGoods.ProfitExtraction
