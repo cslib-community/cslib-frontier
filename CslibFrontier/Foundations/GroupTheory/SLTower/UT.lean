@@ -19,11 +19,12 @@ import Mathlib.RingTheory.WittVector.IsPoly
 subgroup of upper unitriangular matrices. The simple root elements `1 + E_{j,j+1}`
 (`Cslib.SLTower.x`) generate the towers of the source; `U h` has order `2^(h(h−1)/2)`.
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.SLTower.UT`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tower.UT`.
 
 ## Main definitions
 
-* `Cslib.SLTower.U h`: the upper unitriangular matrices, as a subgroup of `SL_h(F₂)`.
+* `Cslib.SLTower.UMonoid h`, `Cslib.SLTower.U h`: the upper unitriangular matrices, as a
+  submonoid and as a subgroup of `SL_h(F₂)`.
 * `Cslib.SLTower.x h j`: the simple root element `1 + E_{j,j+1}`.
 * `Cslib.SLTower.equivU h`: `U h` is parametrized by its entries above the diagonal.
 
@@ -41,16 +42,8 @@ open Matrix Finset
 /-- The group SL_h(F₂) = GL_h(F₂). -/
 abbrev SL2 (h : ℕ) : Type := Matrix.SpecialLinearGroup (Fin h) (ZMod 2)
 
-theorem sl_pow_mem {G : Type*} [Group G] [Finite G] (S : Submonoid G)
-    {a : G} (ha : a ∈ S) : a⁻¹ ∈ S := by
-  have h : a⁻¹ = a ^ (orderOf a - 1) := by
-    refine inv_eq_of_mul_eq_one_left ?_
-    rw [← pow_succ, Nat.sub_add_cancel (orderOf_pos a), pow_orderOf_eq_one]
-  rw [h]
-  exact S.pow_mem ha _
-
-/-- Upper unitriangular matrices. -/
-@[expose] def U (h : ℕ) : Subgroup (SL2 h) where
+/-- Upper unitriangular matrices, as a submonoid of `SL_h(F₂)`. -/
+@[expose] def UMonoid (h : ℕ) : Submonoid (SL2 h) where
   carrier := {A | ∀ i j, (j < i → A.1 i j = 0) ∧ A.1 i i = 1}
   one_mem' := fun i j => ⟨fun hij => Matrix.one_apply_ne hij.ne', Matrix.one_apply_eq i⟩
   mul_mem' := by
@@ -70,29 +63,21 @@ theorem sl_pow_mem {G : Type*} [Group G] [Finite G] (S : Submonoid G)
         · rw [(hA i k).1 h, zero_mul]
         · rw [(hB k i).1 h, mul_zero]
       · simp
-  inv_mem' := by
-    intro A hA
-    let S : Submonoid (SL2 h) :=
-      { carrier := {A | ∀ i j, (j < i → A.1 i j = 0) ∧ A.1 i i = 1}
-        one_mem' := fun i j => ⟨fun hij => Matrix.one_apply_ne hij.ne', Matrix.one_apply_eq i⟩
-        mul_mem' := by
-          intro A B hA hB i j
-          have h1 : ∀ i j k, j < i → A.1 i k * B.1 k j = 0 := by
-            intro i j k hij
-            rcases lt_or_ge k i with hk | hk
-            · rw [(hA i k).1 hk, zero_mul]
-            · rw [(hB k j).1 (lt_of_lt_of_le hij hk), mul_zero]
-          refine ⟨fun hij => ?_, ?_⟩
-          · rw [Matrix.SpecialLinearGroup.coe_mul, Matrix.mul_apply]
-            exact Finset.sum_eq_zero fun k _ => h1 i j k hij
-          · rw [Matrix.SpecialLinearGroup.coe_mul, Matrix.mul_apply, Finset.sum_eq_single i]
-            · rw [(hA i i).2, (hB i i).2, one_mul]
-            · intro k _ hk
-              rcases lt_or_gt_of_ne hk with h | h
-              · rw [(hA i k).1 h, zero_mul]
-              · rw [(hB k i).1 h, mul_zero]
-            · simp }
-    exact sl_pow_mem S hA
+
+/-- Upper unitriangular matrices: the submonoid, closed under inverses since `SL_h(F₂)` is
+finite. -/
+@[expose] def U (h : ℕ) : Subgroup (SL2 h) :=
+  { UMonoid h with
+    inv_mem' := fun {a} ha => by
+      -- in a finite group `a⁻¹ = a ^ (orderOf a - 1)`
+      have e : a⁻¹ = a ^ (orderOf a - 1) := by
+        refine inv_eq_of_mul_eq_one_left ?_
+        rw [← pow_succ, Nat.sub_add_cancel (orderOf_pos a), pow_orderOf_eq_one]
+      rw [e]
+      exact (UMonoid h).pow_mem ha _ }
+
+theorem mem_U {h : ℕ} {A : SL2 h} : A ∈ U h ↔ ∀ i j, (j < i → A.1 i j = 0) ∧ A.1 i i = 1 :=
+  Iff.rfl
 
 /-- The index j as a row. -/
 @[expose] def lo {h : ℕ} (j : Fin (h - 1)) : Fin h := ⟨j.1, by omega⟩
@@ -153,21 +138,9 @@ noncomputable def equivU (h : ℕ) : U h ≃ ({p : Fin h × Fin h // p.1 < p.2} 
 
 noncomputable instance (h : ℕ) : Fintype (U h) := Fintype.ofFinite _
 
-theorem card_pairs (h : ℕ) : Fintype.card {p : Fin h × Fin h // p.1 < p.2} = h * (h - 1) / 2 := by
-  rw [Fintype.card_subtype, ← Finset.univ_product_univ, Finset.card_filter, Finset.sum_product]
-  have h1 : ∀ i : Fin h, (∑ j : Fin h, if i < j then 1 else 0) = h - 1 - i.1 := by
-    intro i
-    rw [← Finset.card_filter]
-    have := Fin.card_Ioi i
-    rw [← this]
-    congr 1
-    ext j
-    simp
-  rw [Finset.sum_congr rfl fun i _ => h1 i, Fin.sum_univ_eq_sum_range (fun i => h - 1 - i),
-    Finset.sum_range_reflect (fun i => i) h, Finset.sum_range_id]
-
 /-- The order of U h. -/
 theorem card_U (h : ℕ) : Fintype.card (U h) = 2 ^ (h * (h - 1) / 2) := by
-  rw [Fintype.card_congr (equivU h), Fintype.card_fun, ZMod.card, card_pairs]
+  rw [Fintype.card_congr (equivU h), Fintype.card_fun, ZMod.card, Fintype.card_subtype,
+    Fintype.card_product_filter_lt, Fintype.card_fin, Nat.choose_two_right]
 
 end Cslib.SLTower

@@ -28,8 +28,8 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.CoveringT
 
 ## Main results
 
-* `Cslib.CoveringTower.rk_lt`, `Cslib.CoveringTower.rk_inj`: ranks are below the class size and
-  distinguish the elements of a class.
+* `Cslib.CoveringTower.rk_lt`, `Cslib.CoveringTower.injOn_rk`: ranks are below the class size and
+  injective on every class, the condition the ranking clients use.
 -/
 
 public section
@@ -83,6 +83,14 @@ theorem rk_inj (hidx : Function.Injective idx) {F : Finset U} {u v : U} (hu : u 
   · have := rk_lt_rk hv huv.symm h1
     omega
 
+/-- The rank is injective on every key fiber. -/
+theorem injOn_rk (hidx : Function.Injective idx) (F : Finset U) (k : κ) :
+    Set.InjOn (rk idx key F) (F.filter fun u => key u = k) := by
+  intro u hu v hv h
+  have hu' := mem_filter.1 (mem_coe.1 hu)
+  have hv' := mem_filter.1 (mem_coe.1 hv)
+  exact rk_inj hidx hu'.1 hv'.1 (hu'.2.trans hv'.2.symm) h
+
 theorem card_rk_le (hidx : Function.Injective idx) (F : Finset U) (k : κ) (a b : ℕ) :
     (F.filter fun u => key u = k ∧ a ≤ rk idx key F u ∧ rk idx key F u < b).card ≤ b - a := by
   rw [← Nat.card_Ico]
@@ -90,19 +98,14 @@ theorem card_rk_le (hidx : Function.Injective idx) (F : Finset U) (k : κ) (a b 
   · intro u hu
     have := (mem_filter.1 (mem_coe.1 hu)).2
     exact mem_coe.2 (mem_Ico.2 this.2)
-  · intro u hu v hv h
+  · refine (injOn_rk (key := key) hidx F k).mono fun u hu => ?_
     have hu' := mem_filter.1 (mem_coe.1 hu)
-    have hv' := mem_filter.1 (mem_coe.1 hv)
-    exact rk_inj hidx hu'.1 hv'.1 (hu'.2.1.trans hv'.2.1.symm) h
+    exact mem_coe.2 (mem_filter.2 ⟨hu'.1, hu'.2.1⟩)
 
 /-- Every rank occurs. -/
 theorem exists_rk (hidx : Function.Injective idx) (F : Finset U) (k : κ) {w : ℕ}
     (hw : w < (F.filter fun u => key u = k).card) : ∃ u ∈ F, key u = k ∧ rk idx key F u = w := by
-  have hinj : Set.InjOn (rk idx key F) (F.filter fun u => key u = k) := by
-    intro u hu v hv h
-    have hu' := mem_filter.1 (mem_coe.1 hu)
-    have hv' := mem_filter.1 (mem_coe.1 hv)
-    exact rk_inj hidx hu'.1 hv'.1 (hu'.2.trans hv'.2.symm) h
+  have hinj := injOn_rk (key := key) hidx F k
   have himg : (F.filter fun u => key u = k).image (rk idx key F) =
       range (F.filter fun u => key u = k).card := by
     refine eq_of_subset_of_card_le ?_ ?_

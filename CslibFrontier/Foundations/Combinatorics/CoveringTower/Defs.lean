@@ -19,8 +19,11 @@ import Mathlib.Algebra.Group.End
 A *tower* (`Cslib.CoveringTower.Tower h b D J r`) has levels `j ≤ J` of chambers `X j` with
 typed edges `Ed j` and vertices `V j i` of every type `i : Fin h`. Every chamber sits at one
 vertex of every type, at one of `b` places (`Fl`), and the edges of the other types are the near
-pairs (`Nr`) at the vertices of type `i`. Coverings `X j → X (j + 1)` of degree `D` and the
-hosts of the vertices connect the levels. *Routes* (`Cslib.CoveringTower.Routes`) are walks
+pairs (`Nr`) at the vertices of type `i`. Maps `X j → X (j + 1)` (with the induced maps on
+edges and vertices) and the hosts of the vertices connect the levels. The parameter `D` is not a
+pointwise fibre size of the chamber map: it is the ratio `|X j| = D · |X (j + 1)|` of the chamber
+counts (`card_X`) and a bound on the number of edges over every edge of the next level
+(`fibre`). *Routes* (`Cslib.CoveringTower.Routes`) are walks
 between all pairs of chambers of level `0`, of bounded length and bounded use of every edge.
 
 From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Cslib.CoveringTower.Defs`.
@@ -38,7 +41,9 @@ namespace Cslib.CoveringTower
 
 open Finset
 
-/-- A tower of coverings, `J` steps, with `h` types. -/
+/-- A tower of coverings with `J` steps and `h` types; `b` places at a vertex, chamber-count
+ratio and edge-fibre bound `D` between levels, and `r` edges of every type per chamber on
+average (`card_ed`) and at most `r` at every chamber (`deg`). -/
 structure Tower (h b D J r : ℕ) where
   /-- chambers -/
   X : ℕ → Type
