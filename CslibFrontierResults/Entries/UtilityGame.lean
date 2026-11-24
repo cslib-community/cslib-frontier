@@ -89,15 +89,13 @@ register_result "nrtv-monotone-utility-game-poa-two" where
   ]
   theorems := [
     UtilityGame.IsValid.profileValue_le_two_mul_of_isPureNash,
-    UtilityGame.IsValid.profileValue_le_two_mul_expected_of_isCoarseCorrelatedEquilibrium,
     UtilityGame.IsValid.profileValue_le_two_mul_expected_of_isMixedNash
   ]
   scope := "For any finite player set ι and any UtilityGame satisfying IsValid (submodular \
     socialValue, total utility at most social welfare, utility at least marginal welfare \
     contribution) with Monotone socialValue: every pure Nash equilibrium s satisfies \
     profileValue o ≤ 2 * profileValue s for all profiles o, and the same factor-2 welfare bound \
-    holds in expectation for all coarse correlated equilibria (hence correlated equilibria) and \
-    mixed Nash equilibria."
+    holds in expectation for all mixed Nash equilibria."
 
 register_result "nrtv-monotone-basic-utility-random-best-response" where
   title := "Transient expected welfare bound for random best-response moves in basic utility games"
