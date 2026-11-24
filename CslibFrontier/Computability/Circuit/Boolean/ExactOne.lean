@@ -259,8 +259,8 @@ structure ExactOneCircuitResult where
   outWire : ℕ
   deriving Inhabited
 
-/-- Recursive linear-size state transition tracking `(seen1, seen2)` across wire list `ws`.
-Returns `(gates, seen1Wire, seen2Wire)`. -/
+/-- Recursive linear-size state transition tracking `seen1` and `seen2` across wire list `ws`.
+Returns the emitted gates together with the updated `seen1Wire` and `seen2Wire`. -/
 @[expose] def seqExactlyOneStep (nextWire seen1 seen2 : ℕ) : List ℕ → SeqExactlyOneStepResult
   | [] => ⟨[], seen1, seen2⟩
   | w :: ws =>
@@ -272,15 +272,14 @@ Returns `(gates, seen1Wire, seen2Wire)`. -/
       rest.seen1Wire, rest.seen2Wire⟩
 
 /-- Sequential exact-one circuit on input wires `ws`, starting at gate offset `base` on `n` total
-input wires. Returns `(gates, outputWire)`. Uses `3 * ws.length + 3` gates. -/
+input wires. Returns the gate list and its output wire. Uses `3 * ws.length + 3` gates. -/
 @[expose] def seqExactlyOneClause (n base : ℕ) (ws : List ℕ) : ExactOneCircuitResult :=
   let zeroWire := n + base
   let step := seqExactlyOneStep (n + base + 1) zeroWire zeroWire ws
-  let seenPair := (step.seen1Wire, step.seen2Wire)
   let notWire := n + base + 1 + step.gates.length
   let outWire := notWire + 1
   { gates := [(.const false, [])] ++ step.gates ++
-      [(.not, [seenPair.2]), (.and, [seenPair.1, notWire])],
+      [(.not, [step.seen2Wire]), (.and, [step.seen1Wire, notWire])],
     outWire := outWire }
 
 @[simp]
@@ -299,7 +298,7 @@ theorem length_seqExactlyOneClause (n base : ℕ) (ws : List ℕ) :
     length_seqExactlyOneStep]
   omega
 
-theorem snd_seqExactlyOneClause (n base : ℕ) (ws : List ℕ) :
+theorem outWire_seqExactlyOneClause (n base : ℕ) (ws : List ℕ) :
     (seqExactlyOneClause n base ws).outWire = n + base + 3 * ws.length + 2 := by
   simp only [seqExactlyOneClause, length_seqExactlyOneStep]
   omega
@@ -530,7 +529,8 @@ theorem evalCode_seqExactlyOneClause (x : List Bool) (prefixGates : List (Op × 
     _ | _ | _ <;> rfl
 
 /-- Fold a list of wire lists into a conjunction of sequential exact-one De Morgan gadgets.
-Returns `⟨gates, outWire⟩`. Uses `4 * wss.length + 3 * (wss.map List.length).sum` extra gates. -/
+Returns the gate list and its output wire. Uses `4 * wss.length + 3 * (wss.map List.length).sum`
+extra gates. -/
 @[expose] def seqExactlyOneFold (n base acc : ℕ) : List (List ℕ) → ExactOneCircuitResult
   | [] => ⟨[], acc⟩
   | ws :: wss =>
@@ -577,7 +577,7 @@ private theorem isCodeFrom_seqExactlyOneFold (n : ℕ) :
     have hcl := isCodeFrom_seqExactlyOneClause n base (hwss ws (List.mem_cons_self ..))
     have hsnd : (seqExactlyOneClause n base ws).outWire <
         n + (base + (seqExactlyOneClause n base ws).gates.length) := by
-      rw [snd_seqExactlyOneClause, length_seqExactlyOneClause]; omega
+      rw [outWire_seqExactlyOneClause, length_seqExactlyOneClause]; omega
     have hrest := isCodeFrom_seqExactlyOneFold n wss
       (base + (seqExactlyOneClause n base ws).gates.length + 1)
       (n + base + (seqExactlyOneClause n base ws).gates.length)
@@ -609,7 +609,7 @@ theorem isCodeFrom_seqExactlyOneAll (n : ℕ) {wss : List (List ℕ)}
   exact isCodeFrom_const n 0 true _ hfold.1
 
 /-- The output wire of `seqExactlyOneAll n wss` lies strictly below `n + gates.length`. -/
-theorem snd_lt_seqExactlyOneAll (n : ℕ) {wss : List (List ℕ)}
+theorem outWire_seqExactlyOneAll_lt (n : ℕ) {wss : List (List ℕ)}
     (hwss : ∀ ws ∈ wss, ∀ w ∈ ws, w < n) :
     (seqExactlyOneAll n wss).outWire < n + (seqExactlyOneAll n wss).gates.length := by
   have hfold := isCodeFrom_seqExactlyOneFold n wss 1 n

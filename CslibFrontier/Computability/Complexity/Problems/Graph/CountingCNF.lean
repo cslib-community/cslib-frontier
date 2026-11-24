@@ -531,7 +531,7 @@ theorem vars_toPerfectMatchingCNF_subset (G : Graph) :
     G.toPerfectMatchingCNF.vars.toFinset ⊆
       Finset.range (G.edgeList.length + G.perfectMatchingCircuit.gates.length) := by
   have hcode := isCodeFrom_seqExactlyOneAll G.edgeList.length (mem_perfectMatchingWires_lt G)
-  have ho := snd_lt_seqExactlyOneAll G.edgeList.length (mem_perfectMatchingWires_lt G)
+  have ho := outWire_seqExactlyOneAll_lt G.edgeList.length (mem_perfectMatchingWires_lt G)
   have hpos : 0 < G.edgeList.length + G.perfectMatchingCircuit.gates.length := by
     simp [perfectMatchingCircuit, length_seqExactlyOneAll]
   exact vars_tseitinSatCNF_subset hcode ho hpos
@@ -566,7 +566,7 @@ noncomputable def perfectMatchingCNFEquiv (G : Graph) :
           else false) = true} ≃
       {M : G.induced.Subgraph // M.IsPerfectMatching} := by
   have hcode := isCodeFrom_seqExactlyOneAll G.edgeList.length (mem_perfectMatchingWires_lt G)
-  have ho := snd_lt_seqExactlyOneAll G.edgeList.length (mem_perfectMatchingWires_lt G)
+  have ho := outWire_seqExactlyOneAll_lt G.edgeList.length (mem_perfectMatchingWires_lt G)
   let e1 := (tseitinSatAssignmentEquiv hcode ho).symm
   let e2 : {x : Fin G.edgeList.length → Bool //
         evalOutput (List.ofFn x) G.perfectMatchingCircuit.gates
@@ -1095,7 +1095,7 @@ private theorem polyTime_perfectMatchingBlock :
                 ((ComputableInPolyTime.length_list encUnary).comp hWsq))))).prod
           (ComputableInPolyTime.const 2))
     exact (ComputableInPolyTime.unary_to_binary.comp hu).of_enc_eq fun q => by
-      rw [snd_seqExactlyOneClause]
+      rw [outWire_seqExactlyOneClause]
       rfl
   have handGate : ComputableInPolyTime
       (fun q : Graph × (List ℕ × ℕ) =>
