@@ -9046,6 +9046,8 @@ public import CslibFrontier.GameTheory.RandomAssignment.Basic
 public import CslibFrontier.GameTheory.RandomAssignment.Impossibility
 public import CslibFrontier.GameTheory.RandomAssignment.ProbabilisticSerial
 public import CslibFrontier.GameTheory.RandomAssignment.RandomSerialDictatorship
+public import CslibFrontier.GameTheory.ResourceAllocation.KellyMechanism
+public import CslibFrontier.GameTheory.ResourceAllocation.SSVCG
 public import CslibFrontier.GameTheory.SocialChoice.Arrow
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaite
 public import CslibFrontier.GameTheory.SocialChoice.GibbardSatterthwaiteReduction
