@@ -49,7 +49,8 @@ garbler's coins, which is why the term is an expectation and not one advantage a
 ## What is not proved
 
 These bounds are concrete and stated per instance (a fixed parameter, input tuple and
-distinguisher). They leave the expected advantage against the transfer subprotocol and, for a
+distinguisher), or, for the two `bind_…` equalities, under a sampled first stage. They leave the
+expected advantage against the transfer subprotocol and, for a
 corrupted evaluator, the `prv.sim` advantage of the reduction as explicit terms. The following
 parts of Theorem 7 remain open (#6045):
 
@@ -75,6 +76,8 @@ The locators for [LindellPinkas2009] are those recorded in
   by a subprotocol.
 * `Cslib.Crypto.Protocols.MPC.Yao.evaluatorDistinguisherToPrvSim`: the reduction from a
   distinguisher of a corrupted evaluator's view at a fixed instance to a `prv.sim` adversary.
+* `Cslib.Crypto.Protocols.MPC.Yao.evaluatorEnvToPrvSim`: the same reduction for `Yao.protocol`
+  when a sampled first stage, run by the adversary, chooses the inputs and the distinguisher.
 * `Cslib.Crypto.Protocols.MPC.Yao.transferQueries`: the query tuple of the one batched transfer.
 * `Cslib.Crypto.Protocols.MPC.Yao.oneSidedTransferDistinguisher`,
   `Cslib.Crypto.Protocols.MPC.Yao.transferDistinguisher`: the reductions from a distinguisher of
@@ -85,6 +88,13 @@ The locators for [LindellPinkas2009] are those recorded in
 * `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_protocol_evaluator_eq`: against a corrupted
   evaluator of `Yao.protocol`, the advantage at a fixed instance is the `prv.sim` advantage of
   `Yao.evaluatorDistinguisherToPrvSim`.
+* `Cslib.Crypto.Protocols.MPC.Yao.eval_idealJoint_evaluatorSim_bind_eq_prvSimExperiment`,
+  `Cslib.Crypto.Protocols.MPC.Yao.realJoint_protocol_evaluator_bind_eq_prvSimExperiment`: the two
+  equalities of games behind it for `Yao.protocol`: the ideal and the real execution followed by
+  the distinguisher are the two `prv.sim` experiments of the reduction.
+* `Cslib.Crypto.Protocols.MPC.Yao.bind_idealJoint_evaluatorSim_eq_prvSimExperiment`,
+  `Cslib.Crypto.Protocols.MPC.Yao.bind_realJoint_protocol_evaluator_eq_prvSimExperiment`: the same
+  equalities under a sampled first stage, for the one adversary `Yao.evaluatorEnvToPrvSim`.
 * `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedOneSidedProtocol_le_transfer`,
   `Cslib.Crypto.Protocols.MPC.Yao.semiHonestAdvantage_composedProtocol_le_transfer`: for every
   coalition, the advantage is at most the advantage of `composeDistinguisher` against the hybrid
@@ -201,6 +211,50 @@ private theorem eval_prvSimExperiment_evaluatorDistinguisherToPrvSim (n : ℕ) (
     BitString.ofList_ofFn (n := c.evaluatorLen) (x 1)]
 
 /-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted evaluator, not the cited result
+(#6045): original bookkeeping at a fixed instance, stated as an equality of games.
+
+The ideal execution of `Yao.functionality G c` for the coalition `{1}` with the simulator
+`Yao.evaluatorSim G Φ S n c`, followed by a distinguisher `D`, is the simulated `prv.sim`
+experiment (`false`) of the reduction `Yao.evaluatorDistinguisherToPrvSim c x D` against `S n`.
+Nothing is assumed about `G`, `S` or `D`, and no efficiency certificate for the reduction is
+claimed. -/
+theorem eval_idealJoint_evaluatorSim_bind_eq_prvSimExperiment (n : ℕ) (c : Params G)
+    (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ) (x : (i : Fin 2) → Input c i)
+    (D : ((i : ({1} : Finset (Fin 2))) → PartyView (Input c) Coins (schedule c) i) ×
+      ((i : Fin 2) → List Bool) → ProbComp Bool) :
+    ProbComp.eval (idealJoint (functionality G c) {1} (evaluatorSim G Φ S n c) x >>= D) =
+      ProbComp.eval
+        (prvSimExperiment G Φ n (S n) (evaluatorDistinguisherToPrvSim c x D) false) := by
+  rw [eval_prvSimExperiment_evaluatorDistinguisherToPrvSim,
+    ← idealGame_evaluator_eq (fun _ => pure c) (fixedEvaluatorEnv c x D) Φ S n]
+  simp only [ProtocolFamily.idealGame, family, fixedEvaluatorEnv, ↓reduceDIte, ProbComp.eval_bind,
+    ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.pure_bind]
+
+/-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted evaluator, not the cited result
+(#6045): original bookkeeping at a fixed instance, stated as an equality of games; the transfers
+are the ideal `batchOTWorld`.
+
+At every parameter `n ≥ 1`, when `G` is correct with a projective encoding, the real execution of
+the hybrid protocol `Yao.protocol G n c` for the coalition `{1}`, followed by a distinguisher
+`D`, is the real `prv.sim` experiment (`true`) of the reduction
+`Yao.evaluatorDistinguisherToPrvSim c x D`. That experiment does not run the simulator, so `Φ`
+and `S` only name it. Nothing is assumed about `D`, and no efficiency certificate for the
+reduction is claimed. -/
+theorem realJoint_protocol_evaluator_bind_eq_prvSimExperiment
+    (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct) {n : ℕ} (hn : 0 < n)
+    (c : Params G) (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ) (x : (i : Fin 2) → Input c i)
+    (D : ((i : ({1} : Finset (Fin 2))) → PartyView (Input c) Coins (schedule c) i) ×
+      ((i : Fin 2) → List Bool) → ProbComp Bool) :
+    ((protocol G n c).realJoint (batchOTWorld c.evaluatorLen (List Bool)) {1} x).bind
+        (fun r => ProbComp.eval (D r)) =
+      ProbComp.eval
+        (prvSimExperiment G Φ n (S n) (evaluatorDistinguisherToPrvSim c x D) true) := by
+  rw [eval_prvSimExperiment_evaluatorDistinguisherToPrvSim,
+    ← realGame_evaluator_eq hproj hcorrect hn (fun _ => pure c) (fixedEvaluatorEnv c x D) Φ S]
+  simp only [ProtocolFamily.realGame, family, fixedEvaluatorEnv, ↓reduceDIte, ProbComp.eval_pure,
+    PMF.monad_bind_eq_bind, PMF.pure_bind]
+
+/-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted evaluator, not the cited result
 (#6045): the transfers are the ideal `batchOTWorld` and the statement is at a fixed instance.
 
 At every parameter `n ≥ 1`, when `G` is correct with a projective encoding, the semi-honest
@@ -216,24 +270,82 @@ theorem semiHonestAdvantage_protocol_evaluator_eq (hproj : G.encode = projective
     semiHonestAdvantage (protocol G n c) (batchOTWorld c.evaluatorLen (List Bool))
         (functionality G c) {1} (evaluatorSim G Φ S n c) x D =
       prvSimAdvantage G Φ n (S n) (evaluatorDistinguisherToPrvSim c x D) := by
-  have hideal : ProbComp.eval
-      (idealJoint (functionality G c) {1} (evaluatorSim G Φ S n c) x >>= D) =
-      ProbComp.eval
-        (prvSimExperiment G Φ n (S n) (evaluatorDistinguisherToPrvSim c x D) false) := by
-    rw [eval_prvSimExperiment_evaluatorDistinguisherToPrvSim,
-      ← idealGame_evaluator_eq (fun _ => pure c) (fixedEvaluatorEnv c x D) Φ S n]
-    simp only [ProtocolFamily.idealGame, family, fixedEvaluatorEnv, ↓reduceDIte, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.pure_bind]
-  have hreal : ((protocol G n c).realJoint (batchOTWorld c.evaluatorLen (List Bool)) {1} x).bind
-      (fun r => ProbComp.eval (D r)) =
-      ProbComp.eval
-        (prvSimExperiment G Φ n (S n) (evaluatorDistinguisherToPrvSim c x D) true) := by
-    rw [eval_prvSimExperiment_evaluatorDistinguisherToPrvSim,
-      ← realGame_evaluator_eq hproj hcorrect hn (fun _ => pure c) (fixedEvaluatorEnv c x D) Φ S]
-    simp only [ProtocolFamily.realGame, family, fixedEvaluatorEnv, ↓reduceDIte, ProbComp.eval_pure,
-      PMF.monad_bind_eq_bind, PMF.pure_bind]
-  rw [semiHonestAdvantage, hideal, hreal]
+  rw [semiHonestAdvantage, eval_idealJoint_evaluatorSim_bind_eq_prvSimExperiment n c Φ S x D,
+    realJoint_protocol_evaluator_bind_eq_prvSimExperiment hproj hcorrect hn c Φ S x D]
   rfl
+
+/-- **The reduction to simulation privacy with a sampled first stage**, for a corrupted evaluator
+of `Yao.protocol G n c`: the `prv.sim` adversary that first runs the program `e` itself, to sample
+an index `a` (a group description, say) on which the input tuple `x a` and the distinguisher `D a`
+may depend, then queries `c.fn` on the garbler's bits followed by the evaluator's, keeps `a` as
+its state and guesses as `Yao.evaluatorDistinguisherToPrvSim c (x a) (D a)` does. It is one
+adversary for the two `prv.sim` experiments, so the absolute value of its advantage is outside the
+expectation over `a`. No efficiency certificate for it is claimed. -/
+@[expose] noncomputable def evaluatorEnvToPrvSim {δ : Type} (c : Params G) (e : ProbComp δ)
+    (x : δ → (i : Fin 2) → Input c i)
+    (D : δ → ((i : ({1} : Finset (Fin 2))) → PartyView (Input c) Coins (schedule c) i) ×
+      ((i : Fin 2) → List Bool) → ProbComp Bool) : PrvSimAdversary Fn δ where
+  choose _ := do let a ← e; pure (⟨c.fn, circuitInput (x a)⟩, a)
+  guess a V := (evaluatorDistinguisherToPrvSim c (x a) (D a)).guess () V
+
+/-- Either `prv.sim` experiment of `Yao.evaluatorEnvToPrvSim c e x D` samples `a` from `e` and
+runs the same experiment of the fixed-instance reduction
+`Yao.evaluatorDistinguisherToPrvSim c (x a) (D a)`. -/
+private theorem eval_prvSimExperiment_evaluatorEnvToPrvSim {δ : Type} (k : ℕ) (c : Params G)
+    (Φ : SideInfo Fn Λ) (S : PrvSimulator Λ) (e : ProbComp δ) (x : δ → (i : Fin 2) → Input c i)
+    (D : δ → ((i : ({1} : Finset (Fin 2))) → PartyView (Input c) Coins (schedule c) i) ×
+      ((i : Fin 2) → List Bool) → ProbComp Bool) (b : Bool) :
+    ProbComp.eval (prvSimExperiment G Φ k S (evaluatorEnvToPrvSim c e x D) b) =
+      (ProbComp.eval e).bind fun a => ProbComp.eval
+        (prvSimExperiment G Φ k S (evaluatorDistinguisherToPrvSim c (x a) (D a)) b) := by
+  simp only [prvSimExperiment, evaluatorEnvToPrvSim, evaluatorDistinguisherToPrvSim, bind_assoc,
+    pure_bind, ProbComp.eval_bind]
+
+/-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted evaluator, not the cited result
+(#6045): original bookkeeping under a sampled first stage, stated as an equality of games.
+
+Sampling `a` from `e` and then running the ideal execution of `Yao.functionality G c` for the
+coalition `{1}` on the inputs `x a` with the simulator `Yao.evaluatorSim G Φ S n c`, followed by
+the distinguisher `D a`, is the simulated `prv.sim` experiment (`false`) of the adversary
+`Yao.evaluatorEnvToPrvSim c e x D` against `S n`. The first stage `e` is a program run by the
+adversary. Nothing is assumed about `G`, `S`, `e`, `x` or `D`, and no efficiency certificate for
+the adversary is claimed. -/
+theorem bind_idealJoint_evaluatorSim_eq_prvSimExperiment {δ : Type} (n : ℕ) (c : Params G)
+    (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ) (e : ProbComp δ)
+    (x : δ → (i : Fin 2) → Input c i)
+    (D : δ → ((i : ({1} : Finset (Fin 2))) → PartyView (Input c) Coins (schedule c) i) ×
+      ((i : Fin 2) → List Bool) → ProbComp Bool) :
+    (ProbComp.eval e).bind (fun a => ProbComp.eval
+        (idealJoint (functionality G c) {1} (evaluatorSim G Φ S n c) (x a) >>= D a)) =
+      ProbComp.eval (prvSimExperiment G Φ n (S n) (evaluatorEnvToPrvSim c e x D) false) := by
+  rw [eval_prvSimExperiment_evaluatorEnvToPrvSim n c Φ (S n) e x D false]
+  exact congrArg (PMF.bind _) (funext fun a =>
+    eval_idealJoint_evaluatorSim_bind_eq_prvSimExperiment n c Φ S (x a) (D a))
+
+/-- Step towards [LindellPinkas2009], Theorem 7 for a corrupted evaluator, not the cited result
+(#6045): original bookkeeping under a sampled first stage, stated as an equality of games; the
+transfers are the ideal `batchOTWorld`.
+
+At every parameter `n ≥ 1`, when `G` is correct with a projective encoding, sampling `a` from `e`
+and then running the real execution of the hybrid protocol `Yao.protocol G n c` for the coalition
+`{1}` on the inputs `x a`, followed by the distinguisher `D a`, is the real `prv.sim` experiment
+`true` of the adversary `Yao.evaluatorEnvToPrvSim c e x D`. That experiment does not run the
+simulator, so `Φ` and `S` only name it. The first stage `e` is a program run by the adversary.
+Nothing is assumed about `e`, `x` or `D`, and no efficiency certificate for the adversary is
+claimed. -/
+theorem bind_realJoint_protocol_evaluator_eq_prvSimExperiment {δ : Type}
+    (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct) {n : ℕ} (hn : 0 < n)
+    (c : Params G) (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ) (e : ProbComp δ)
+    (x : δ → (i : Fin 2) → Input c i)
+    (D : δ → ((i : ({1} : Finset (Fin 2))) → PartyView (Input c) Coins (schedule c) i) ×
+      ((i : Fin 2) → List Bool) → ProbComp Bool) :
+    (ProbComp.eval e).bind (fun a =>
+        ((protocol G n c).realJoint (batchOTWorld c.evaluatorLen (List Bool)) {1} (x a)).bind
+          fun r => ProbComp.eval (D a r)) =
+      ProbComp.eval (prvSimExperiment G Φ n (S n) (evaluatorEnvToPrvSim c e x D) true) := by
+  rw [eval_prvSimExperiment_evaluatorEnvToPrvSim n c Φ (S n) e x D true]
+  exact congrArg (PMF.bind _) (funext fun a =>
+    realJoint_protocol_evaluator_bind_eq_prvSimExperiment hproj hcorrect hn c Φ S (x a) (D a))
 
 /-! ### The replacement gap: one distinguisher against the transfer subprotocol -/
 

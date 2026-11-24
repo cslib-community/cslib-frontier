@@ -79,6 +79,9 @@ joint distribution of the two pads.
   `otOutputs`.
 * `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_maskedOT_sender`: advantage zero against a
   corrupted sender.
+* `Cslib.Crypto.Protocols.MPC.bind_eval_idealJoint_maskedOT_receiver`,
+  `Cslib.Crypto.Protocols.MPC.bind_realJoint_maskedOT_receiver`: the ideal and the real game of a
+  corrupted receiver against a test are the two pad-test experiments.
 * `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_maskedOT_receiver_eq`: the advantage against a
   corrupted receiver is the pad-hiding advantage of `maskedOTPadTest`.
 * `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_maskedOT_compose_le_add`: the bound after
@@ -348,6 +351,54 @@ chosen component of the message and `u` in the other, and runs `D` on it and the
   D (singletonView (maskedOTReceiverView σ r (maskedOTSimMsg σ (mask r (otOutputs x 1)) u)),
     otOutputs x)
 
+/-- **The ideal game of a corrupted receiver is the pad test on a sample of `pad`.** The ideal
+joint distribution of `otFunctionality M` for the coalition `{1}` with the simulator
+`maskedOTReceiverSim mask samplePads pad`, followed by a test `D`, draws the pads
+`r ← samplePads` and `u ← pad` and runs `maskedOTPadTest mask x D` on the receiver's pad and `u`.
+No hypothesis is needed. -/
+theorem bind_eval_idealJoint_maskedOT_receiver (mask : G → M → M)
+    (samplePads : ProbComp (G × G)) (pad : ProbComp M) (x : (i : Fin 2) → OTIn M i)
+    (D : ((i : ({1} : Finset (Fin 2))) →
+        PartyView (OTIn M) (MaskedOTCoins G) (maskedOTSchedule G M) i) ×
+      ((i : Fin 2) → OTOut M i) → ProbComp Bool) :
+    ((ProbComp.eval (idealJoint (otFunctionality M) {1}
+        (maskedOTReceiverSim mask samplePads pad) x)).bind fun r => ProbComp.eval (D r)) =
+      ProbComp.eval (do
+        let r ← samplePads
+        let u ← pad
+        let σ : Bool := x 1
+        maskedOTPadTest mask x D (if σ then r.2 else r.1) u) := by
+  rw [← ProbComp.eval_bind]
+  simp only [idealJoint, otFunctionality, Functionality.ofDeterministic, maskedOTReceiverSim,
+    pure_bind, bind_assoc]
+  rfl
+
+/-- **The real game of a corrupted receiver is the pad test on the masked unchosen value.** When
+`unmask r` recovers the receiver's output from its mask under every pad `r`, the real joint
+distribution of `maskedOT` with the ideal pad transfer for the coalition `{1}`, followed by a test
+`D`, draws the pads `r ← samplePads` and runs `maskedOTPadTest mask x D` on the receiver's pad and
+the sender's unchosen value masked by the other pad. -/
+theorem bind_realJoint_maskedOT_receiver (mask unmask : G → M → M)
+    (samplePads : ProbComp (G × G)) (x : (i : Fin 2) → OTIn M i)
+    (hmask : ∀ r, unmask r (mask r (otOutputs x 1)) = otOutputs x 1)
+    (D : ((i : ({1} : Finset (Fin 2))) →
+        PartyView (OTIn M) (MaskedOTCoins G) (maskedOTSchedule G M) i) ×
+      ((i : Fin 2) → OTOut M i) → ProbComp Bool) :
+    (((maskedOT mask unmask samplePads).realJoint (otWorld G) {1} x).bind fun r =>
+        ProbComp.eval (D r)) =
+      ProbComp.eval (do
+        let r ← samplePads
+        let σ : Bool := x 1
+        maskedOTPadTest mask x D (if σ then r.2 else r.1)
+          (if σ then mask r.1 (x 0).1 else mask r.2 (x 0).2)) := by
+  rw [Protocol.realJoint, evalWith_maskedOT mask unmask samplePads x hmask]
+  simp only [ProbComp.eval_bind, PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind,
+    Prod.map, id, restrict_singleton]
+  refine congrArg (PMF.bind _) (funext fun r => ?_)
+  exact congrArg (fun c => ProbComp.eval
+    (D (singletonView (maskedOTReceiverView _ _ c), otOutputs x)))
+    (maskedOTSimMsg_mask mask (x 0) r (x 1)).symm
+
 /-- **The advantage against a corrupted receiver is the pad-hiding advantage.** When `unmask r`
 recovers the receiver's output from its mask under every pad `r`, the semi-honest advantage of `D`
 against `maskedOT` with the ideal pad transfer, for the coalition `{1}` with the simulator
@@ -375,17 +426,11 @@ theorem semiHonestAdvantage_maskedOT_receiver_eq (mask unmask : G → M → M)
           let σ : Bool := x 1
           maskedOTPadTest mask x D (if σ then r.2 else r.1)
             (if σ then mask r.1 (x 0).1 else mask r.2 (x 0).2))) := by
-  rw [semiHonestAdvantage, Protocol.realJoint, evalWith_maskedOT mask unmask samplePads x hmask]
-  refine congrArg₂ Game.advantage ?_ ?_
-  · simp only [idealJoint, otFunctionality, Functionality.ofDeterministic, maskedOTReceiverSim,
-      pure_bind, bind_assoc]
-    rfl
-  · simp only [ProbComp.eval_bind, PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind,
-      Prod.map, id, restrict_singleton]
-    refine congrArg (PMF.bind _) (funext fun r => ?_)
-    exact congrArg (fun c => ProbComp.eval
-      (D (singletonView (maskedOTReceiverView _ _ c), otOutputs x)))
-      (maskedOTSimMsg_mask mask (x 0) r (x 1)).symm
+  rw [semiHonestAdvantage]
+  exact congrArg₂ Game.advantage
+    ((ProbComp.eval_bind ..).trans
+      (bind_eval_idealJoint_maskedOT_receiver mask samplePads pad x D))
+    (bind_realJoint_maskedOT_receiver mask unmask samplePads x hmask D)
 
 /-! ### Substituting a protocol for the pad transfer -/
 
