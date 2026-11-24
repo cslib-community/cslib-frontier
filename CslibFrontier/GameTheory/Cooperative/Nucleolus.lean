@@ -450,6 +450,20 @@ private theorem sortDesc_lex_lt_of_countGe_lt {κ : Type*} [Fintype κ] {u v : �
   have hi_mem : i ∈ diff := Finset.mem_filter.2 ⟨Finset.mem_univ i, hne_i⟩
   exact absurd (Finset.min'_le diff i hi_mem) (not_le.2 hi)
 
+private theorem sortDesc_lex_lt_of_tail_pres {κ : Type*} [Fintype κ] {u' u : κ → ℝ} (r₀ : ℝ)
+    (hpres : ∀ t : ℝ, r₀ ≤ t → ∀ s : κ, t ≤ u' s → t ≤ u s)
+    {s₀ : κ} (hge : r₀ ≤ u s₀) (hlt : u' s₀ < r₀) :
+    toLex (sortDesc u') < toLex (sortDesc u) := by
+  refine sortDesc_lex_lt_of_countGe_lt r₀ ?_ fun t ht => ?_
+  · simp only [countGe]
+    refine Finset.card_lt_card ⟨fun s hs =>
+      Finset.mem_filter.2 ⟨Finset.mem_univ _, hpres r₀ le_rfl s (Finset.mem_filter.1 hs).2⟩,
+      fun hsub => absurd (Finset.mem_filter.1
+        (hsub (Finset.mem_filter.2 ⟨Finset.mem_univ _, hge⟩))).2 (not_le.2 hlt)⟩
+  · simp only [countGe]
+    exact Finset.card_le_card fun s hs =>
+      Finset.mem_filter.2 ⟨Finset.mem_univ _, hpres t ht s (Finset.mem_filter.1 hs).2⟩
+
 private theorem sortDesc_midpoint_lt_aux {κ : Type*} [Fintype κ] {u v : κ → ℝ} (M : ℝ)
     (hD_le : ∀ s, u s ≠ v s → max (u s) (v s) ≤ M)
     (hs₀ : ∃ s, u s ≠ v s ∧ u s = M) :
@@ -520,41 +534,10 @@ theorem sortDesc_midpoint_lt_of_ne {κ : Type*} [Fintype κ] {u v : κ → ℝ}
       rw [hs₀eq, max_eq_left hvu]
     exact sortDesc_midpoint_lt_aux M hD_le ⟨s₀, hs₀ne, huM⟩
 
-private theorem continuous_finset_sup' {ι X : Type*} [TopologicalSpace X] {s : Finset ι}
-    (hs : s.Nonempty) (f : ι → X → ℝ) (hf : ∀ i ∈ s, Continuous (f i)) :
-    Continuous fun x => s.sup' hs fun i => f i x := by
-  induction hs using Finset.Nonempty.cons_induction with
-  | singleton a =>
-    simpa only [Finset.sup'_singleton] using hf a (Finset.mem_singleton_self a)
-  | cons a s ha hs ih =>
-    simp_rw [Finset.sup'_cons (H := hs)]
-    refine (hf a (Finset.mem_cons_self a s)).sup (ih fun i hi => hf i (Finset.mem_cons_of_mem hi))
-
-private theorem continuous_finset_inf' {ι X : Type*} [TopologicalSpace X] {s : Finset ι}
-    (hs : s.Nonempty) (f : ι → X → ℝ) (hf : ∀ i ∈ s, Continuous (f i)) :
-    Continuous fun x => s.inf' hs fun i => f i x := by
-  induction hs using Finset.Nonempty.cons_induction with
-  | singleton a =>
-    simpa only [Finset.inf'_singleton] using hf a (Finset.mem_singleton_self a)
-  | cons a s ha hs ih =>
-    simp_rw [Finset.inf'_cons (H := hs)]
-    refine (hf a (Finset.mem_cons_self a s)).inf (ih fun i hi => hf i (Finset.mem_cons_of_mem hi))
-
 theorem continuous_sortDesc {κ : Type*} [Fintype κ] (k : Fin (Fintype.card κ)) :
     Continuous fun u : κ → ℝ => sortDesc u k := by
-  refine continuous_finset_sup' _ _ fun T _ => ?_
-  exact continuous_finset_inf' _ _ fun s _ => continuous_apply s
-
-private theorem continuous_finset_sum_real {ι X : Type*} [TopologicalSpace X] (s : Finset ι)
-    (f : ι → X → ℝ) (hf : ∀ i ∈ s, Continuous (f i)) :
-    Continuous fun x => ∑ i ∈ s, f i x := by
-  classical
-  induction s using Finset.induction with
-  | empty => simpa using continuous_const
-  | insert a s ha ih =>
-    simp_rw [Finset.sum_insert ha]
-    exact (hf a (Finset.mem_insert_self a s)).add
-      (ih fun i hi => hf i (Finset.mem_insert_of_mem hi))
+  refine Continuous.finset_sup'_apply _ fun T _ => ?_
+  exact Continuous.finset_inf'_apply _ fun s _ => continuous_apply s
 
 private theorem exists_lexMin_of_continuous {X : Type*} [TopologicalSpace X] :
     ∀ (m : ℕ) (f : Fin m → X → ℝ), (∀ i, Continuous (f i)) →
@@ -815,8 +798,7 @@ private theorem isCompact_cappedPreimputations [Fintype A]
     isCompact_univ_pi fun i => ConditionallyCompleteLinearOrder.isCompact_Icc (lb i) (ub i)
   have hclosed : IsClosed (G.cappedPreimputations lb) := by
     have hsum : Continuous fun x : A → ℝ => ∑ i : A, x i :=
-      continuous_finset_sum_real Finset.univ (fun i (x : A → ℝ) => x i) fun _ _ =>
-        continuous_apply _
+      continuous_finsetSum Finset.univ fun i _ => continuous_apply i
     have heq : G.cappedPreimputations lb =
         {x : A → ℝ | ∑ i : A, x i = G.val Finset.univ} ∩
           ⋂ i : A, {x : A → ℝ | lb i ≤ x i} := by
@@ -1008,8 +990,7 @@ theorem exists_isLexMinimizerOn_of_isCompact [Fintype A] (G : CooperativeGame A)
   have hf : ∀ k : Fin (Fintype.card (Finset A)), Continuous fun x : A → ℝ => G.sortExcess x k := by
     intro k
     refine (continuous_sortDesc k).comp (continuous_pi fun S => ?_)
-    exact continuous_const.sub (continuous_finset_sum_real S (fun i (x : A → ℝ) => x i) fun _ _ =>
-      continuous_apply _)
+    exact continuous_const.sub (continuous_finsetSum S fun i _ => continuous_apply i)
   exact exists_lexMin_of_continuous (Fintype.card (Finset A))
     (fun k x => G.sortExcess x k) hf K hKne hKcomp
 
@@ -1327,22 +1308,9 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
           nlinarith [mul_nonneg hε0.le (hd_ℬ S.1 hSℬ)]
         exact hSt'.trans hex_le
       · exact absurd (ht'.trans hSt') (not_le.2 (hε₁_lt S.1 S.2 hSℬ ε hε0 (min_le_right _ _)))
-    have hle_tail : ∀ t' : ℝ, t_min ≤ t' → countGe u' t' ≤ countGe u t' := fun t' ht' => by
-      simp only [countGe]
-      exact Finset.card_le_card fun S hS =>
-        Finset.mem_filter.2 ⟨Finset.mem_univ _, hmem_of_ge t' ht' S (Finset.mem_filter.1 hS).2⟩
-    have hlt_r₀ : countGe u' r₀ < countGe u r₀ := by
-      simp only [countGe]
-      refine Finset.card_lt_card ⟨fun S hS =>
-        Finset.mem_filter.2 ⟨Finset.mem_univ _, hmem_of_ge r₀ hr₀_ge S (Finset.mem_filter.1 hS).2⟩,
-        fun hsub => ?_⟩
-      let S₀sub : {S : Finset A // S ∈ properNonemptyCoalitions A} := ⟨S₀, hℬ_sub S₀ hS₀⟩
-      have hmem : S₀sub ∈ Finset.univ.filter fun S => r₀ ≤ u S :=
-        Finset.mem_filter.2 ⟨Finset.mem_univ _, le_rfl⟩
-      have hmem' := hsub hmem
-      exact absurd (Finset.mem_filter.1 hmem').2 (not_le.2 hlt_S₀)
     have hprop_lt : toLex (G.sortProperExcess (x + ε • d)) < toLex (G.sortProperExcess x) :=
-      sortDesc_lex_lt_of_countGe_lt r₀ hlt_r₀ fun t' ht' => hle_tail t' (hr₀_ge.trans ht')
+      sortDesc_lex_lt_of_tail_pres r₀ (fun t' ht' => hmem_of_ge t' (hr₀_ge.trans ht'))
+        (s₀ := ⟨S₀, hℬ_sub S₀ hS₀⟩) le_rfl hlt_S₀
     have hall_lt : toLex (G.sortExcess (x + ε • d)) < toLex (G.sortExcess x) :=
       (G.sortExcess_lex_lt_iff_proper hx'_pre hx_pre).2 hprop_lt
     exact absurd (hx_opt.2 (x + ε • d) hx'K) (not_le.2 hall_lt)
@@ -1638,27 +1606,9 @@ private theorem kohlberg_backward [Fintype A] [DecidableEq A] (G : CooperativeGa
         dsimp only [v_prop]
         rw [hex_eq]
         exact hSt
-      have hle_tail : ∀ t : ℝ, r₀ ≤ t → countGe u_prop t ≤ countGe v_prop t := fun t ht => by
-        simp only [countGe]
-        exact Finset.card_le_card fun S hS =>
-          Finset.mem_filter.2 ⟨Finset.mem_univ _, hmem_of_ge t ht S (Finset.mem_filter.1 hS).2⟩
-      have hlt_r₀ : countGe u_prop r₀ < countGe v_prop r₀ := by
-        simp only [countGe]
-        refine Finset.card_lt_card ⟨fun S hS =>
-          Finset.mem_filter.2 ⟨Finset.mem_univ _,
-            hmem_of_ge r₀ le_rfl S (Finset.mem_filter.1 hS).2⟩,
-          fun hsub => ?_⟩
-        let S'sub : {S : Finset A // S ∈ properNonemptyCoalitions A} := ⟨S', hS'prop⟩
-        have hmem_v : S'sub ∈ Finset.univ.filter fun S => r₀ ≤ v_prop S :=
-          Finset.mem_filter.2 ⟨Finset.mem_univ _, le_rfl⟩
-        have hmem_u := hsub hmem_v
-        have hlt_u : u_prop S'sub < r₀ := by
-          dsimp only [u_prop, S'sub]
-          rw [hS'ex]
-          exact hr_lt_r₀
-        exact absurd (Finset.mem_filter.1 hmem_u).2 (not_le.2 hlt_u)
       have hprop_lt : toLex (G.sortProperExcess x) < toLex (G.sortProperExcess y) :=
-        sortDesc_lex_lt_of_countGe_lt r₀ hlt_r₀ hle_tail
+        sortDesc_lex_lt_of_tail_pres r₀ hmem_of_ge (s₀ := ⟨S', hS'prop⟩) le_rfl
+          (by dsimp only [u_prop]; rwa [hS'ex])
       exact le_of_lt ((G.sortExcess_lex_lt_iff_proper hx_pre hy_pre).2 hprop_lt)
     · have hyx : y = x := by
         funext i
