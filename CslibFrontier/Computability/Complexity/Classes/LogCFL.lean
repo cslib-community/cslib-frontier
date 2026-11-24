@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.AuxPDA.Counting
-public import CslibFrontier.Computability.Machines.AuxPDA.Surface
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Counting
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.HaltingTime
@@ -181,14 +180,6 @@ private lemma le_mul_pow_add_of_polyBounded {t : α → ℕ}
   rw [Nat.mul_add, ← Nat.mul_assoc] at hmul
   exact (hle a).trans hmul
 
-private lemma polyBounded_mul_pow_add (enc : α ↪ List Bool) (ct₁ ct₂ d : ℕ) :
-    PolyBounded (fun a => (enc a).length) (fun a => ct₁ * (enc a).length ^ d + ct₂) := by
-  refine PolyBounded.of_forall_le (ct₁ + ct₂) d fun a => ?_
-  have h1 : (enc a).length ^ d ≤ ((enc a).length + 1) ^ d := Nat.pow_le_pow_left (Nat.le_succ _) d
-  have h2 : 1 ≤ ((enc a).length + 1) ^ d := Nat.one_le_pow d _ (Nat.succ_pos _)
-  rw [Nat.add_mul]
-  exact Nat.add_le_add (Nat.mul_le_mul_left ct₁ h1) (by simpa using Nat.mul_le_mul_left ct₂ h2)
-
 /-- `LogCFL` is the union of `AuxPDATimeSpace enc Nat.log2 (· ^ d)` over all polynomial degrees
 `d`. -/
 theorem mem_LogCFL_iff_exists_mem_AuxPDATimeSpace :
@@ -199,7 +190,8 @@ theorem mem_LogCFL_iff_exists_mem_AuxPDATimeSpace :
     exact ⟨d, k, StackSym, State, hst, hfin, M, c, c, ct * 2 ^ d, ct * 2 ^ d,
       hM.mono (fun _ => by rw [Nat.mul_add, Nat.mul_one]) hle⟩
   · rintro ⟨d, k, StackSym, State, hst, hfin, M, cs₁, cs₂, ct₁, ct₂, hM⟩
-    exact ⟨k, StackSym, State, hst, hfin, M, cs₁ + cs₂, _, polyBounded_mul_pow_add enc ct₁ ct₂ d,
+    exact ⟨k, StackSym, State, hst, hfin, M, cs₁ + cs₂, _,
+      ((PolyBounded.const ct₁).mul (PolyBounded.self.pow d)).add (.const ct₂),
       hM.mono (fun _ => by nlinarith) (fun _ => le_rfl)⟩
 
 /-- `UAuxPDA` is the union of `UAuxPDATimeSpace enc Nat.log2 (· ^ d)` over all polynomial degrees
@@ -212,7 +204,8 @@ theorem mem_UAuxPDA_iff_exists_mem_UAuxPDATimeSpace :
     exact ⟨d, k, StackSym, State, hst, hfin, M, c, c, ct * 2 ^ d, ct * 2 ^ d, f,
       hM.mono (fun _ => by rw [Nat.mul_add, Nat.mul_one]) hle, hle1, hA⟩
   · rintro ⟨d, k, StackSym, State, hst, hfin, M, cs₁, cs₂, ct₁, ct₂, f, hM, hle1, hA⟩
-    exact ⟨k, StackSym, State, hst, hfin, M, cs₁ + cs₂, _, f, polyBounded_mul_pow_add enc ct₁ ct₂ d,
+    exact ⟨k, StackSym, State, hst, hfin, M, cs₁ + cs₂, _, f,
+      ((PolyBounded.const ct₁).mul (PolyBounded.self.pow d)).add (.const ct₂),
       hM.mono (fun _ => by nlinarith) (fun _ => le_rfl), hle1, hA⟩
 
 /-! ### Complement duality for `coUAuxPDA` -/

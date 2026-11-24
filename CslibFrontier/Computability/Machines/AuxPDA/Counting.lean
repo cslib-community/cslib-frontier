@@ -682,30 +682,6 @@ theorem ofMultiTapeCTM_acceptCount (M : MultiTapeCTM k Bool State) {input : List
   intro choices _
   cases M.runBranch c choices <;> rfl
 
-/-- If a `MultiTapeCTM` already satisfies `HaltsWithin` at some clock `t₁` (ruling out stuck
-reachable configurations) and every unlabelled run path of length at least `t₂` halts, then it
-also satisfies `HaltsWithin` at clock `t₂`. -/
-theorem _root_.Turing.MultiTapeCTM.haltsWithin_of_paths_of_haltsWithin
-    {M : MultiTapeCTM k Symbol State} {t₁ t₂ : ℕ} {cfg : Turing.Cfg k Symbol State input}
-    (h₁ : M.HaltsWithin t₁ cfg)
-    (h₂ : ∀ p : M.toNTM.RunPath input, p.head = cfg → t₂ ≤ p.length → p.last.Halted) :
-    M.HaltsWithin t₂ cfg := by
-  induction t₂ generalizing cfg t₁ with
-  | zero => exact .halt (h₂ (RelSeries.singleton _ cfg) rfl (Nat.zero_le _))
-  | succ t₂ ih =>
-    cases h₁ with
-    | halt hh => exact .halt hh
-    | @step t₁' _ hne hnext =>
-      by_cases hh : cfg.Halted
-      · exact .halt hh
-      refine .step hne fun idx => ih (hnext idx) fun p hp hlen => ?_
-      have hstep : M.toNTM.Step cfg p.head := by
-        rw [hp, M.step_toNTM_iff hh]
-        exact ⟨idx.val, (M.step?_eq_some_iff _ _ _).mpr ⟨idx.isLt, rfl⟩⟩
-      have he := h₂ (p.cons cfg hstep) (RelSeries.head_cons _ _ _)
-        (by simpa only [RelSeries.cons_length] using Nat.succ_le_succ hlen)
-      simpa only [RelSeries.last_cons] using he
-
 end CountingAuxPDA
 
 end Turing

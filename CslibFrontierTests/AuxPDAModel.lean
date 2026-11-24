@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Computability.Complexity.Classes.LogCFL
+import CslibFrontier.Computability.Machines.AuxPDA.Surface
 
 /-!
 # Tests for the native `AuxPDA` machine model, counting form, surface realizability, and `LogCFL`
@@ -26,7 +27,6 @@ Checked witnesses exercising:
 5. Concrete surface-pair realizability decomposition on `()()` (`[false, true, false, true]`):
    matched `pushPop` witnesses for each `()` pair and `trans` / `realizable_decomp` split at the
    intermediate empty-stack surface configuration.
-6. Standard-axiom verification (`#print axioms`) on every new headline theorem.
 -/
 
 set_option linter.privateModule false
@@ -235,7 +235,7 @@ example :
 example :
     let w : List Bool := [false, false, false, true, true, true]
     ∃ p : dyck1Machine.toAuxPDA.ComputationPath w,
-      p.last.stackHeight = 3 ∧ p.space = 0 := by
+      p.last.stack.length = 3 ∧ p.space = 0 := by
   intro w
   have hwlen : w.length = 6 := rfl
   let s0 := dyck1Cfg w ⟨1, by omega⟩ []
@@ -483,217 +483,5 @@ example :
     (realizable_decomp (by decide : 2 ≤ 4)).mpr (.inr ⟨s2, 2, 2, by decide, by decide, rfl,
       hReal02, hReal24⟩)
   exact ⟨hReal02, hReal24, hReal04⟩
-
-/-! ## 6. Standard-axiom verification on headline theorems -/
-
-/--
-info: 'Turing.AuxPDA.RunPath.stackHeight_le'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.RunPath.stackHeight_le
-
-/--
-info: 'Turing.AuxPDA.ComputationPath.stackHeight_le'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.ComputationPath.stackHeight_le
-
-/--
-info: 'Turing.AuxPDA.ComputationPath.storage_fitsIn'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.ComputationPath.storage_fitsIn
-
-/--
-info: 'Turing.AuxPDA.DecidesInTimeAndSpace.mono'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.DecidesInTimeAndSpace.mono
-
-/--
-info: 'Turing.AuxPDA.ofMultiTapeNTM_accepts_iff'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.ofMultiTapeNTM_accepts_iff
-
-/--
-info: 'Turing.AuxPDA.ofMultiTapeNTM_runsInSpace_iff'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.ofMultiTapeNTM_runsInSpace_iff
-
-/--
-info: 'Turing.AuxPDA.ofMultiTapeNTM_runsInTime_iff'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.ofMultiTapeNTM_runsInTime_iff
-
-/--
-info: 'Turing.CountingAuxPDA.HaltsWithin.branchCount_pos_iff'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.CountingAuxPDA.HaltsWithin.branchCount_pos_iff
-
-/--
-info: 'Turing.CountingAuxPDA.CountsInTimeAndSpace.mono'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.CountingAuxPDA.CountsInTimeAndSpace.mono
-
-/--
-info: 'Turing.CountingAuxPDA.CountsInTimeAndSpace.decidesInTimeAndSpace'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.CountingAuxPDA.CountsInTimeAndSpace.decidesInTimeAndSpace
-
-/--
-info: 'Turing.CountingAuxPDA.ofMultiTapeCTM_haltsWithin_iff'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.CountingAuxPDA.ofMultiTapeCTM_haltsWithin_iff
-
-/--
-info: 'Turing.CountingAuxPDA.ofMultiTapeCTM_acceptCount'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.CountingAuxPDA.ofMultiTapeCTM_acceptCount
-
-/--
-info: 'Turing.AuxPDA.SameHeightRun.last_stack_eq'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.SameHeightRun.last_stack_eq
-
-/--
-info: 'Turing.AuxPDA.realizable_iff_exists_sameHeightRun'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.realizable_iff_exists_sameHeightRun
-
-/--
-info: 'Turing.AuxPDA.realizable_decomp'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.realizable_decomp
-
-/--
-info: 'Turing.AuxPDA.withEmptyStackHalt_accepts_iff'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.withEmptyStackHalt_accepts_iff
-
-/--
-info: 'Turing.AuxPDA.withEmptyStackHalt_runsInSpace'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.withEmptyStackHalt_runsInSpace
-
-/--
-info: 'Turing.AuxPDA.withEmptyStackHalt_runsInTime'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.withEmptyStackHalt_runsInTime
-
-/--
-info: 'Turing.AuxPDA.encard_reachable_surfaceCfg_le_pow'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.encard_reachable_surfaceCfg_le_pow
-
-/--
-info: 'Turing.AuxPDA.surfaceCfgBound_log_polynomiallyBounded'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Turing.AuxPDA.surfaceCfgBound_log_polynomiallyBounded
-
-/--
-info: 'Cslib.Complexity.AuxPDATimeSpace_mono'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.AuxPDATimeSpace_mono
-
-/--
-info: 'Cslib.Complexity.UAuxPDATimeSpace_mono'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.UAuxPDATimeSpace_mono
-
-/--
-info: 'Cslib.Complexity.UAuxPDATimeSpace_subset_AuxPDATimeSpace'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.UAuxPDATimeSpace_subset_AuxPDATimeSpace
-
-/--
-info: 'Cslib.Complexity.UAuxPDA_subset_LogCFL'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.UAuxPDA_subset_LogCFL
-
-/--
-info: 'Cslib.Complexity.mem_LogCFL_iff_exists_mem_AuxPDATimeSpace'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.mem_LogCFL_iff_exists_mem_AuxPDATimeSpace
-
-/--
-info: 'Cslib.Complexity.mem_UAuxPDA_iff_exists_mem_UAuxPDATimeSpace'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.mem_UAuxPDA_iff_exists_mem_UAuxPDATimeSpace
-
-/--
-info: 'Cslib.Complexity.compl_mem_coUAuxPDA_iff'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.compl_mem_coUAuxPDA_iff
-
-/--
-info: 'Cslib.Complexity.coUAuxPDA_eq_UAuxPDA_iff'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.coUAuxPDA_eq_UAuxPDA_iff
-
-/--
-info: 'Cslib.Complexity.NL_subset_LogCFL'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.NL_subset_LogCFL
-
-/--
-info: 'Cslib.Complexity.UL_subset_UAuxPDA'
-depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Complexity.UL_subset_UAuxPDA
 
 end CslibFrontierTests.AuxPDAModel

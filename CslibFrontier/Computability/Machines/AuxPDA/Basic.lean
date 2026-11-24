@@ -158,10 +158,6 @@ variable {k : ℕ} {Symbol StackSym State : Type*} {input : List Symbol}
 abbrev topSym (c : Cfg k Symbol StackSym State input) : Option StackSym :=
   c.stack.head?
 
-/-- The current height of the pushdown stack. -/
-abbrev stackHeight (c : Cfg k Symbol StackSym State input) : ℕ :=
-  c.stack.length
-
 /-- A configuration is halted when its underlying Turing configuration has halted. -/
 abbrev Halted (c : Cfg k Symbol StackSym State input) : Prop :=
   c.tapes.Halted
