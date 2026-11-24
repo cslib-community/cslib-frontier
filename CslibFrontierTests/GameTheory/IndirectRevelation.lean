@@ -38,6 +38,7 @@ This `module` tests the public surface (without unfolding unexposed bodies) of:
   dominant-strategy revelation simulation of a scaled-bid auction, discrete 1-player and 2-player
   PMF Bayesian checks exercising `BayesianGame.ofPMF`,
   `BayesianMechanism.exists_truthful_of_implementsInBayesNash`,
+  `BayesianMechanism.exists_truthful_hasIntegrableInterimPayment`,
   `BayesianMechanism.revelation_integral_payment_eq`,
   `BayesianMechanism.interimUtility_eq_sub_interimPayment`,
   `SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame`,
@@ -523,8 +524,20 @@ example :
         (∀ i, MeasureTheory.IsProbabilityMeasure (D.prior i)) ∧
         D.IsTruthful ∧
         D.toBayesianGame.HasIntegrableUtility (fun _ => id) ∧
-        D.HasIntegrableInterimPayment (fun _ => id) ∧
         D.outcome = f ∧
+        MeasureTheory.Integrable (fun t => D.payment t ()) (MeasureTheory.Measure.pi D.prior) ∧
+        ∫ t, D.payment t () ∂MeasureTheory.Measure.pi D.prior =
+          ∫ t, invertedPostedPrice.payment (fun j => s j (t j)) ()
+            ∂MeasureTheory.Measure.pi invertedPostedPrice.prior) ∧
+      (∃ D : BayesianMechanism Unit (fun _ => Bool) (fun _ => Bool) Bool,
+        (∀ i, MeasureTheory.IsProbabilityMeasure (D.prior i)) ∧
+        D.IsTruthful ∧
+        D.toBayesianGame.HasIntegrableUtility (fun _ => id) ∧
+        D.HasIntegrableInterimPayment (fun _ => id) ∧
+        D.prior = invertedPostedPrice.prior ∧
+        D.valuation = invertedPostedPrice.valuation ∧
+        D.outcome = f ∧
+        (∀ t, D.payment t = invertedPostedPrice.payment (fun j => s j (t j))) ∧
         ∀ i ti, D.interimPayment (fun _ => id) i ti =
           invertedPostedPrice.interimPayment s i (s i ti)) ∧
       (invertedPostedPrice.revelation s).interimPayment (fun _ => id) () true =
@@ -554,10 +567,12 @@ example :
     have := h () true false
     rw [hutil, hutil] at this
     norm_num [id_eq] at this
+  have hout : ∀ t : Unit → Bool,
+      invertedPostedPrice.outcome (fun j => s j (t j)) = f t := fun t => by
+    simp only [invertedPostedPrice, s, f, Bool.not_not]
   have hImpl : invertedPostedPrice.ImplementsInBayesNash f :=
-    ⟨s, fun _ _ _ _ => .of_finite, fun _ _ => .of_finite, hBN, fun t => by
-      simp only [invertedPostedPrice, s, f, Bool.not_not]⟩
-  obtain ⟨s', _, _, _, hMout, D, hDprob, hDtr, hDU, hDP, _, _, hDout, _, hDint⟩ :=
+    ⟨s, fun _ _ _ _ => .of_finite, hBN, hout⟩
+  obtain ⟨s', _, _, hMout, D, hDprob, hDtr, hDU, _, _, hDout, _, _, hDex⟩ :=
     BayesianMechanism.exists_truthful_of_implementsInBayesNash hImpl
   have hs_eq : s' = s := by
     funext i b
@@ -566,10 +581,13 @@ example :
     dsimp only [invertedPostedPrice, f, s] at hb ⊢
     exact (Bool.not_not (s' () b)).symm.trans (congrArg Bool.not hb)
   subst hs_eq
-  exact ⟨hBN, hNotId, hImpl, ⟨D, hDprob, hDtr, hDU, hDP, hDout, hDint⟩,
+  obtain ⟨hDint_ex, hDeq_ex⟩ := hDex () .of_finite
+  exact ⟨hBN, hNotId, hImpl, ⟨D, hDprob, hDtr, hDU, hDout, hDint_ex, hDeq_ex⟩,
+    BayesianMechanism.exists_truthful_hasIntegrableInterimPayment
+      (fun _ _ _ _ => .of_finite) (fun _ _ => .of_finite) hBN hout,
     BayesianMechanism.revelation_interimPayment_eq invertedPostedPrice s () true,
     (BayesianMechanism.revelation_integral_payment_eq (M := invertedPostedPrice) (s := s) ()
-      .of_finite).2⟩
+      .of_finite).2.2⟩
 
 /-- Any function on a measurable space with measurable singletons is integrable against a finite
 measure supported almost everywhere on a finite set. -/
@@ -632,17 +650,30 @@ example :
       M2.ImplementsInBayesNash f2 ∧
       (∃ s : Fin 2 → ℝ → ℝ,
         M2.toBayesianGame.HasIntegrableUtility s ∧
-        M2.HasIntegrableInterimPayment s ∧
         M2.toBayesianGame.IsBayesNash s ∧
         (∀ t, M2.outcome (fun j => s j (t j)) = f2 t) ∧
         ∃ D : BayesianMechanism (Fin 2) (fun _ => ℝ) (fun _ => ℝ) (Fin 2),
           (∀ i, MeasureTheory.IsProbabilityMeasure (D.prior i)) ∧
           D.IsTruthful ∧
           D.toBayesianGame.HasIntegrableUtility (fun _ => id) ∧
-          D.HasIntegrableInterimPayment (fun _ => id) ∧
           D.prior = M2.prior ∧ D.valuation = M2.valuation ∧ D.outcome = f2 ∧
           (∀ t, D.payment t = M2.payment (fun j => s j (t j))) ∧
-          ∀ i ti, D.interimPayment (fun _ => id) i ti = M2.interimPayment s i (s i ti)) ∧
+          (∀ i ti, D.interimPayment (fun _ => id) i ti = M2.interimPayment s i (s i ti)) ∧
+          ∀ i, MeasureTheory.Integrable (fun t => M2.payment (fun j => s j (t j)) i)
+              (MeasureTheory.Measure.pi M2.prior) →
+            MeasureTheory.Integrable (fun t => D.payment t i)
+              (MeasureTheory.Measure.pi D.prior) ∧
+            ∫ t, D.payment t i ∂MeasureTheory.Measure.pi D.prior =
+              ∫ t, M2.payment (fun j => s j (t j)) i ∂MeasureTheory.Measure.pi M2.prior) ∧
+      (∃ D : BayesianMechanism (Fin 2) (fun _ => ℝ) (fun _ => ℝ) (Fin 2),
+        (∀ i, MeasureTheory.IsProbabilityMeasure (D.prior i)) ∧
+        D.IsTruthful ∧
+        D.toBayesianGame.HasIntegrableUtility (fun _ => id) ∧
+        D.HasIntegrableInterimPayment (fun _ => id) ∧
+        D.prior = M2.prior ∧ D.valuation = M2.valuation ∧ D.outcome = f2 ∧
+        (∀ t, D.payment t = M2.payment (fun j => 2 * t j)) ∧
+        ∀ i ti, D.interimPayment (fun _ => id) i ti =
+          M2.interimPayment (fun _ v => 2 * v) i (2 * ti)) ∧
       ∫ t, (M2.revelation (fun _ v => 2 * v)).payment t 1
           ∂MeasureTheory.Measure.pi (M2.revelation (fun _ v => 2 * v)).prior =
         ∫ ti, M2.interimPayment (fun _ v => 2 * v) 1 (2 * ti) ∂M2.prior 1 ∧
@@ -703,17 +734,18 @@ example :
         doubledSignalAuction_equilibrium.isExPostNash i t xi'
     · rw [BayesianMechanism.toBayesianGame_prior]
       exact hint_pi _
-  have hM2_impl : M2.ImplementsInBayesNash f2 := by
-    refine ⟨fun _ v => 2 * v, ?_, fun _ _ => hint_pi _, hM2_BN, fun t => ?_⟩
-    · intro _ _ _ _
-      rw [BayesianMechanism.toBayesianGame_prior]
-      exact hint_pi _
-    · simp only [M2, doubledSignalAuction, f2]
-      by_cases h : t 1 ≤ t 0
-      · have h2 : 2 * t 1 ≤ 2 * t 0 := by linarith
-        simp only [h, h2, ↓reduceIte]
-      · have h2 : ¬ 2 * t 1 ≤ 2 * t 0 := by linarith
-        simp only [h, h2, ↓reduceIte]
+  have hM2_intU : M2.toBayesianGame.HasIntegrableUtility (fun _ v => 2 * v) := fun _ _ _ _ => by
+    rw [BayesianMechanism.toBayesianGame_prior]
+    exact hint_pi _
+  have hM2_out : ∀ t : Fin 2 → ℝ, M2.outcome (fun j => 2 * t j) = f2 t := fun t => by
+    simp only [M2, doubledSignalAuction, f2]
+    by_cases h : t 1 ≤ t 0
+    · have h2 : 2 * t 1 ≤ 2 * t 0 := by linarith
+      simp only [h, h2, ↓reduceIte]
+    · have h2 : ¬ 2 * t 1 ≤ 2 * t 0 := by linarith
+      simp only [h, h2, ↓reduceIte]
+  have hM2_impl : M2.ImplementsInBayesNash f2 :=
+    ⟨fun _ v => 2 * v, hM2_intU, hM2_BN, hM2_out⟩
   -- 2. `SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame` on 2-player `Vickrey.mechanism`.
   have hsupp : ∀ j : Fin 2, ∀ᵐ t ∂μ j, t ∈ Set.Icc (0 : ℝ) 2 := fun j => by
     filter_upwards [hμ_ae j] with t ht
@@ -844,9 +876,96 @@ example :
     simp only [twoBidderSingleItemVal, ↓reduceIte]
     norm_num
   exact ⟨hB_eq, hM2_impl, BayesianMechanism.exists_truthful_of_implementsInBayesNash hM2_impl,
+    BayesianMechanism.exists_truthful_hasIntegrableInterimPayment hM2_intU (fun _ _ => hint_pi _)
+      hM2_BN hM2_out,
     (BayesianMechanism.revelation_integral_payment_eq (M := M2) (s := fun _ v => 2 * v) 1
-      (hint_pi _)).2,
+      (hint_pi _)).2.2,
     hVickrey_BN, hVickrey_BN_on, hNotZero, hVal_prob, hIntVal, hBIC, hpay_val⟩
+
+open Classical in
+/-- **Exceptional null-type witness for Proposition 9.44**: player `false` has deterministic prior
+`PMF.pure 1` (so every `ti ≠ 1` has prior mass `0`), while player `true` has an arbitrary
+probability prior `ν` on `ℝ` and `bad : ℝ → ℝ` is completely arbitrary (requiring neither
+measurability nor `ν`-integrability). Because `bad (x true)` cancels in `valuation - payment` and
+occurs in `payment` only on the null event `x false ≠ 1`, `ImplementsInBayesNash` and
+`exists_truthful_of_implementsInBayesNash` establish truthful implementation and ex-ante
+product-measure payment integrability and expectation equality (`1`) with no integrability
+assumption on the exceptional `ti = 0` payment slice `t ↦ bad (t true)`. -/
+example (ν : MeasureTheory.Measure ℝ) [MeasureTheory.IsProbabilityMeasure ν] (bad : ℝ → ℝ) :
+    let μ : Bool → MeasureTheory.Measure ℝ :=
+      fun b => if b then ν else (PMF.pure (1 : ℝ)).toMeasure
+    let M : BayesianMechanism Bool (fun _ => ℝ) (fun _ => ℝ) (Bool × ℝ) :=
+      { outcome := fun x => (decide (x false = 1), bad (x true))
+        payment := fun x b => if b then 0 else if x false = 1 then 1 else bad (x true)
+        prior := μ
+        valuation := fun b ti ω =>
+          if b then 0
+          else (if decide (ti = 1) == ω.1 then 2 else 0) + (if ω.1 then 1 else ω.2) }
+    M.ImplementsInBayesNash M.outcome ∧
+      ∃ D : BayesianMechanism Bool (fun _ => ℝ) (fun _ => ℝ) (Bool × ℝ),
+        D.IsTruthful ∧
+        D.toBayesianGame.HasIntegrableUtility (fun _ => id) ∧
+        D.outcome = M.outcome ∧
+        MeasureTheory.Integrable (fun t => D.payment t false) (MeasureTheory.Measure.pi D.prior) ∧
+        ∫ t, D.payment t false ∂MeasureTheory.Measure.pi D.prior = 1 := by
+  intro μ M
+  have hprob : ∀ b : Bool, MeasureTheory.IsProbabilityMeasure (M.prior b) := fun b => by
+    cases b <;> dsimp only [M, μ] <;> infer_instance
+  have hpayoff : ∀ (b : Bool) (ti : ℝ) (x : Bool → ℝ),
+      M.toBayesianGame.utility b ti x =
+        if b then 0 else if decide (ti = 1) == decide (x false = 1) then 2 else 0 := by
+    intro b ti x
+    cases b
+    · simp only [BayesianMechanism.toBayesianGame_utility, M, Bool.false_eq_true, ↓reduceIte]
+      by_cases hx : x false = 1 <;> simp only [hx, decide_true, decide_false,
+        Bool.false_eq_true, ↓reduceIte, add_sub_cancel_right]
+    · simp only [BayesianMechanism.toBayesianGame_utility, M, ↓reduceIte, sub_zero]
+  have hintU : M.toBayesianGame.HasIntegrableUtility (fun _ => id) := by
+    intro b ti _ xi
+    cases b
+    · simp only [hpayoff, Bool.false_eq_true, ↓reduceIte, Function.update_self]
+      exact MeasureTheory.integrable_const _
+    · simp only [hpayoff, ↓reduceIte]
+      exact MeasureTheory.integrable_zero _ _ _
+  have hBN : M.toBayesianGame.IsBayesNash (fun _ => id) := by
+    rw [BayesianGame.isBayesNash_iff]
+    intro b ti xi'
+    rw [BayesianGame.interimUtility_def, BayesianGame.interimUtility_def]
+    cases b
+    · simp only [hpayoff, Bool.false_eq_true, ↓reduceIte, Function.update_self, id_eq,
+        BEq.rfl, MeasureTheory.integral_const, MeasureTheory.probReal_univ, one_smul]
+      split_ifs <;> norm_num
+    · simp only [hpayoff, ↓reduceIte, MeasureTheory.integral_zero, le_rfl]
+  have hImpl : M.ImplementsInBayesNash M.outcome :=
+    ⟨fun _ => id, hintU, hBN, fun _ => rfl⟩
+  obtain ⟨s, _, _, hs_out, D, _, hDtr, hDU, hDpr, _, hDout, hDpay, _, hDex⟩ :=
+    BayesianMechanism.exists_truthful_of_implementsInBayesNash hImpl
+  have h0 : ∀ᵐ x ∂μ false, x = (1 : ℝ) := by
+    rw [MeasureTheory.ae_iff]
+    change (PMF.pure (1 : ℝ)).toMeasure {x : ℝ | x ≠ 1} = 0
+    rw [PMF.toMeasure_apply_eq_zero_iff _ (by measurability), PMF.support_pure]
+    exact Set.disjoint_singleton_left.2 fun h => h rfl
+  have h1 : ∀ᵐ t ∂MeasureTheory.Measure.pi M.prior, s false (t false) = 1 := by
+    have hae : ∀ᵐ t ∂MeasureTheory.Measure.pi μ, t false = 1 :=
+      (MeasureTheory.Measure.quasiMeasurePreserving_eval μ false).ae h0
+    filter_upwards [hae] with t ht
+    have hout_t := congrArg Prod.fst (hs_out t)
+    dsimp only [M] at hout_t
+    simp only [ht, decide_true] at hout_t
+    rw [ht]
+    exact of_decide_eq_true hout_t
+  have hp_ae : (fun t => M.payment (fun j => s j (t j)) false) =ᵐ[MeasureTheory.Measure.pi M.prior]
+      fun _ => (1 : ℝ) := by
+    filter_upwards [h1] with t ht
+    simp only [M, Bool.false_eq_true, ↓reduceIte, ht]
+  have hp_int : MeasureTheory.Integrable (fun t => M.payment (fun j => s j (t j)) false)
+      (MeasureTheory.Measure.pi M.prior) :=
+    (MeasureTheory.integrable_const (1 : ℝ)).congr hp_ae.symm
+  obtain ⟨hDint, hDeq⟩ := hDex false hp_int
+  have hval1 : ∫ t, M.payment (fun j => s j (t j)) false ∂MeasureTheory.Measure.pi M.prior = 1 := by
+    rw [MeasureTheory.integral_congr_ae hp_ae, MeasureTheory.integral_const,
+      MeasureTheory.probReal_univ, one_smul]
+  exact ⟨hImpl, D, hDtr, hDU, hDout, hDint, hDeq.trans hval1⟩
 
 end RevelationChecks
 

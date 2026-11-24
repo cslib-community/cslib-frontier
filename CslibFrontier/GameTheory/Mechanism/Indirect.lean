@@ -52,14 +52,17 @@ choose actions `xᵢ ∈ Xᵢ`:
   `BayesianGame.IsBayesNashOn`, with integrability `BayesianGame.HasIntegrableUtilityOn`), bridged
   to `SingleParameter.Mechanism.IsBayesNash`
   (`SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame`). Under independent probability
-  priors `[∀ i, IsProbabilityMeasure (M.prior i)]` and integrable interim utilities and equilibrium
-  interim payments (`BayesianMechanism.ImplementsInBayesNash`), composing `(M, s)` yields a
-  truthful direct `BayesianMechanism` (`M.revelation s`) with probability priors, integrable
-  truthful interim utilities and interim payments, and identical ex-post, interim, and ex-ante
-  expected payments (`BayesianMechanism.exists_truthful_of_implementsInBayesNash`,
-  `BayesianMechanism.revelation_integral_payment_eq`), derived from the general measure-theoretic
-  integral-preservation steps (`BayesianMechanism.revelation_isTruthful`,
-  `BayesianMechanism.revelation_interimPayment_eq`, and `IndirectMechanism.toMechanism_isBICOn`).
+  priors `[∀ i, IsProbabilityMeasure (M.prior i)]` and integrable interim utilities
+  (`BayesianMechanism.ImplementsInBayesNash`), composing `(M, s)` yields a truthful direct
+  `BayesianMechanism` (`M.revelation s`) with probability priors, integrable truthful interim
+  utilities, identical ex-post and interim payment integrals, and identical ex-ante expected
+  payments whenever equilibrium payments are product-measure integrable
+  (`BayesianMechanism.exists_truthful_of_implementsInBayesNash`,
+  `BayesianMechanism.revelation_integral_payment_eq`; see
+  `BayesianMechanism.exists_truthful_hasIntegrableInterimPayment` for all-types interim-payment
+  slice integrability), derived from the general measure-theoretic integral-preservation steps
+  (`BayesianMechanism.revelation_isTruthful`, `BayesianMechanism.revelation_interimPayment_eq`,
+  and `IndirectMechanism.toMechanism_isBICOn`).
 
 ## Main definitions
 
@@ -112,7 +115,8 @@ choose actions `xᵢ ∈ Xᵢ`:
 * `BayesianMechanism.interimUtility_eq_sub_interimPayment`,
   `BayesianMechanism.integral_payment_eq_integral_interimPayment`,
   `BayesianMechanism.revelation_integral_payment_eq`,
-  `BayesianMechanism.exists_truthful_of_implementsInBayesNash`: **Proposition 9.44 (Bayesian
+  `BayesianMechanism.exists_truthful_of_implementsInBayesNash`,
+  `BayesianMechanism.exists_truthful_hasIntegrableInterimPayment`: **Proposition 9.44 (Bayesian
   Revelation Principle)** of [Nisan2007] with independent probability priors and integrable utility
   and payment expectations.
 
@@ -722,14 +726,13 @@ against `Measure.pi M.prior`. -/
       (Measure.pi M.prior)
 
 /-- `M` **implements `f` in the Bayesian sense** ([Nisan2007], Definition 9.42) if some
-Bayes–Nash equilibrium `s` of `M.toBayesianGame` with integrable interim utilities and integrable
-equilibrium interim payments satisfies `M.outcome (fun j => s j (t j)) = f t` everywhere. Together
-with `[∀ i, IsProbabilityMeasure (M.prior i)]`, this ensures expected utilities and equilibrium
-interim payments are genuine probability expectations. -/
+Bayes–Nash equilibrium `s` of `M.toBayesianGame` with integrable interim utilities satisfies
+`M.outcome (fun j => s j (t j)) = f t` everywhere. Together with
+`[∀ i, IsProbabilityMeasure (M.prior i)]`, this ensures the equilibrium comparisons are genuine
+probability expectations. -/
 @[expose] def ImplementsInBayesNash (M : BayesianMechanism ι T X Ω) (f : (∀ i, T i) → Ω) : Prop :=
   ∃ s : ∀ i, T i → X i,
     M.toBayesianGame.HasIntegrableUtility s ∧
-    M.HasIntegrableInterimPayment s ∧
     M.toBayesianGame.IsBayesNash s ∧
     ∀ t, M.outcome (fun j => s j (t j)) = f t
 
@@ -824,16 +827,20 @@ integrable equilibrium interim payments in `M`. -/
   rw [heq]
 
 /-- **Proposition 9.44 (Bayesian Revelation Principle, ex-ante payment expectation)**
-([Nisan2007], §9.6.1, p. 234): under independent probability priors and integrable equilibrium
-payments, player `i`'s ex-ante expected payment in `M.revelation s` equals both `M`'s ex-ante
-expected equilibrium payment and the prior expectation of `M`'s interim equilibrium payments. -/
+([Nisan2007], §9.6.1, p. 234): under independent probability priors and product-measure integrable
+equilibrium payments (which imply almost-everywhere integrable interim slices without requiring
+integrability at null-measure exceptional types), player `i`'s ex-ante expected payment in
+`M.revelation s` is integrable and equals both `M`'s ex-ante expected equilibrium payment and the
+prior expectation of `M`'s interim equilibrium payments. -/
 theorem revelation_integral_payment_eq {M : BayesianMechanism ι T X Ω}
     [∀ i, IsProbabilityMeasure (M.prior i)] {s : ∀ i, T i → X i} (i : ι)
     (hp : Integrable (fun t => M.payment (fun j => s j (t j)) i) (Measure.pi M.prior)) :
     Integrable (fun t => (M.revelation s).payment t i) (Measure.pi (M.revelation s).prior) ∧
       ∫ t, (M.revelation s).payment t i ∂Measure.pi (M.revelation s).prior =
+        ∫ t, M.payment (fun j => s j (t j)) i ∂Measure.pi M.prior ∧
+      ∫ t, (M.revelation s).payment t i ∂Measure.pi (M.revelation s).prior =
         ∫ ti, M.interimPayment s i (s i ti) ∂M.prior i :=
-  ⟨hp, M.integral_payment_eq_integral_interimPayment s i hp⟩
+  ⟨hp, rfl, M.integral_payment_eq_integral_interimPayment s i hp⟩
 
 /-- General measure-theoretic integral-preservation step for [Nisan2007], Proposition 9.44: for
 arbitrary prior measures (without assuming probability normalization or integrability), if `s`
@@ -850,30 +857,55 @@ theorem revelation_isTruthful {M : BayesianMechanism ι T X Ω} {s : ∀ i, T i 
 
 /-- **Proposition 9.44 (Bayesian Revelation Principle)** ([Nisan2007], §9.6.1, p. 234): under
 independent probability priors `[∀ i, IsProbabilityMeasure (M.prior i)]`, if an indirect Bayesian
-mechanism `M` implements `f` in Bayes–Nash equilibrium (with integrable interim utilities and
-equilibrium interim payments), there exists a truthful direct Bayesian mechanism `D` implementing
-`f` with the same probability priors and valuations, integrable truthful interim utilities and
-interim payments, and identical ex-post and interim expected equilibrium payments. Derived from
-the general integral-preservation steps `revelation_isTruthful` and
-`revelation_interimPayment_eq`. -/
+mechanism `M` implements `f` in Bayes–Nash equilibrium (`M.ImplementsInBayesNash f`), there exists
+an implementing Bayes–Nash equilibrium `s` and a truthful direct Bayesian mechanism `D`
+implementing `f` with the same probability priors and valuations, integrable truthful interim
+utilities, identical ex-post and interim payment integrals, and—whenever player `i`'s equilibrium
+payment in `M` is integrable against `Measure.pi M.prior`—integrable ex-ante payment in `D` with
+identical ex-ante expected payment. Derived from the general integral-preservation steps
+`revelation_isTruthful` and `revelation_interimPayment_eq`. -/
 theorem exists_truthful_of_implementsInBayesNash {M : BayesianMechanism ι T X Ω}
     [∀ i, IsProbabilityMeasure (M.prior i)] {f : (∀ i, T i) → Ω}
     (h : M.ImplementsInBayesNash f) :
     ∃ s : ∀ i, T i → X i,
       M.toBayesianGame.HasIntegrableUtility s ∧
-      M.HasIntegrableInterimPayment s ∧
       M.toBayesianGame.IsBayesNash s ∧
       (∀ t, M.outcome (fun j => s j (t j)) = f t) ∧
       ∃ D : BayesianMechanism ι T T Ω,
         (∀ i, IsProbabilityMeasure (D.prior i)) ∧
         D.IsTruthful ∧
         D.toBayesianGame.HasIntegrableUtility (fun _ => id) ∧
-        D.HasIntegrableInterimPayment (fun _ => id) ∧
         D.prior = M.prior ∧ D.valuation = M.valuation ∧ D.outcome = f ∧
         (∀ t, D.payment t = M.payment (fun j => s j (t j))) ∧
-        ∀ i ti, D.interimPayment (fun _ => id) i ti = M.interimPayment s i (s i ti) := by
-  obtain ⟨s, hintU, hintP, hs, hf⟩ := h
-  exact ⟨s, hintU, hintP, hs, hf, M.revelation s, fun _ => inferInstance, revelation_isTruthful hs,
+        (∀ i ti, D.interimPayment (fun _ => id) i ti = M.interimPayment s i (s i ti)) ∧
+        ∀ i, Integrable (fun t => M.payment (fun j => s j (t j)) i) (Measure.pi M.prior) →
+          Integrable (fun t => D.payment t i) (Measure.pi D.prior) ∧
+          ∫ t, D.payment t i ∂Measure.pi D.prior =
+            ∫ t, M.payment (fun j => s j (t j)) i ∂Measure.pi M.prior := by
+  obtain ⟨s, hintU, hs, hf⟩ := h
+  exact ⟨s, hintU, hs, hf, M.revelation s, fun _ => inferInstance, revelation_isTruthful hs,
+    revelation_hasIntegrableUtility hintU, rfl, rfl, funext hf, fun _ => rfl,
+    fun i ti => revelation_interimPayment_eq M s i ti, fun _ hp => ⟨hp, rfl⟩⟩
+
+/-- All-types interim-payment corollary of `exists_truthful_of_implementsInBayesNash`: when an
+implementing Bayes–Nash equilibrium `s` additionally has integrable interim payment slices at every
+type `ti : T i` (`M.HasIntegrableInterimPayment s`), the simulated direct mechanism `D` also
+satisfies `D.HasIntegrableInterimPayment (fun _ => id)`. -/
+theorem exists_truthful_hasIntegrableInterimPayment {M : BayesianMechanism ι T X Ω}
+    [∀ i, IsProbabilityMeasure (M.prior i)] {s : ∀ i, T i → X i} {f : (∀ i, T i) → Ω}
+    (hintU : M.toBayesianGame.HasIntegrableUtility s)
+    (hintP : M.HasIntegrableInterimPayment s)
+    (hs : M.toBayesianGame.IsBayesNash s)
+    (hf : ∀ t, M.outcome (fun j => s j (t j)) = f t) :
+    ∃ D : BayesianMechanism ι T T Ω,
+      (∀ i, IsProbabilityMeasure (D.prior i)) ∧
+      D.IsTruthful ∧
+      D.toBayesianGame.HasIntegrableUtility (fun _ => id) ∧
+      D.HasIntegrableInterimPayment (fun _ => id) ∧
+      D.prior = M.prior ∧ D.valuation = M.valuation ∧ D.outcome = f ∧
+      (∀ t, D.payment t = M.payment (fun j => s j (t j))) ∧
+      ∀ i ti, D.interimPayment (fun _ => id) i ti = M.interimPayment s i (s i ti) :=
+  ⟨M.revelation s, fun _ => inferInstance, revelation_isTruthful hs,
     revelation_hasIntegrableUtility hintU,
     (revelation_hasIntegrableInterimPayment_iff M s).2 hintP,
     rfl, rfl, funext hf, fun _ => rfl, fun i ti => revelation_interimPayment_eq M s i ti⟩
