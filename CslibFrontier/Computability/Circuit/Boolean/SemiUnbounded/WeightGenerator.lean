@@ -27,10 +27,11 @@ generator for layered semi-unbounded Boolean circuits, reusing `Cslib.Code.Juste
 the retained-rank digit accumulator `Cslib.Reachability.Hoza.SeedRank.accumulateRank` directly.
 
 Compared with Hoza's layered-digraph generator (`Cslib.Reachability.Hoza.SeedWeight`), the
-2-adic halving loop of `Generator/Scale.lean` is replaced by direct AND-level scaling
-`scaleByLevel andLevel acc = 6 ^ andLevel * acc`, certified in workspace linear in the encoded
-pair plus the numeric `andLevel` via `Turing.MultiTapeTM.ComputableInSpace.budget_natPow_variable`.
-Leaves and OR gates receive weight `0`.
+2-adic halving loop of `CslibFrontier/Algorithms/Reachability/MinIsolation/Generator/Scale.lean`
+is replaced by direct AND-level scaling `scaleByLevel andLevel acc = 6 ^ andLevel * acc`,
+certified in workspace linear in the encoded pair plus the numeric `andLevel` via
+`Turing.MultiTapeTM.ComputableInSpace.budget_natPow_variable`. Leaves and OR gates receive
+weight `0`.
 
 Two entry points are provided:
 * **Retained-rank interface (`WeightGenerator.gateWeightRank`)**: takes a code-bit callback, a
@@ -40,7 +41,7 @@ Two entry points are provided:
   request producer (`gateWeightRank_inLogSpace`).
 * **Standalone streaming query (`WeightGenerator.evalInput`)**: takes binary circuit size `N`,
   gate metadata (`andLevel`, `isAnd`, `gate`), and raw seed bits in increasing index order,
-  matching `SeedDigits.maskedPrefix` (`evalInput_eq_maskedPrefix`) and
+  matching `SeedDigits.maskedPrefix` via `ofBits` (`evalInput_eq_gateWeightRank`) and
   `LayeredSemiUnboundedCircuit.generatedGateWeight` (`evalInput_canonicalInput`). One fixed
   deterministic multitape Turing machine evaluates it in workspace `O(andLevel + log₂ N + 1)`
   (`generatedGateWeight_computesInTimeAndSpace`), giving logarithmic workspace `O(log N)`,
@@ -319,17 +320,6 @@ increasing index order, and a gate `g : Fin N`. -/
     (seed : Fin (codeLength N 0) → Bool) (g : Fin N) : Input :=
   ⟨⟨N, C.andLevel g, C.isAndGate g, g.val⟩, List.ofFn seed⟩
 
-private theorem testBit_ofBits (w : List Bool) (i : ℕ) :
-    (ofBits w).testBit i = (w[i]?).getD false := by
-  induction w generalizing i with
-  | nil => simp [ofBits]
-  | cons b bs ih =>
-    cases i with
-    | zero => simp [ofBits]
-    | succ k =>
-      rw [ofBits, List.foldr_cons, ← ofBits, Nat.testBit_bit_succ, ih]
-      rfl
-
 /-- Reading the raw seed through `ofBits` and `List.length` makes `gateWeightRank` agree with
 the streaming `SeedDigits.maskedPrefix` evaluator `evalInput` on every input, including trailing
 `false` bits and empty seeds. -/
@@ -343,7 +333,10 @@ theorem evalInput_eq_gateWeightRank (x : Input) :
     unfold SeedDigits.maskedPrefix SeedRank.accumulateRank
     congr 1
     funext j
-    rw [testBit_ofBits]
+    rw [show ofBits x.seed = Cslib.BitString.lsbValue x.seed from
+        (Cslib.BitString.lsbValue_eq_foldr_bit x.seed).symm,
+      Cslib.BitString.testBit_lsbValue]
+    rfl
   · rfl
 
 /-- On canonical inputs, `evalInput` returns the exact weight `C.generatedGateWeight seed g`. -/
