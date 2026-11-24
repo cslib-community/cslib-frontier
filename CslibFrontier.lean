@@ -1276,8 +1276,15 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.RelativeRankUpper
 public import CslibFrontier.Computability.Circuit.Arithmetic.Rigidity
 public import CslibFrontier.Computability.Circuit.Arithmetic.RootFormula
 public import CslibFrontier.Computability.Circuit.Arithmetic.SPCircuit
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Estimates
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Inversion
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Length
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Psi
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateCount
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.StateWords
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Terms
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Window
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.WindowMean
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Act
@@ -8289,6 +8296,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.EuclideanOpNorm
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Farkas
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.FourierMotzkin
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GaussJordan
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GlueDeterminant
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GrenetPermanent
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GroupCirculant
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GroupCirculant.Eigenvalues
@@ -8639,6 +8647,7 @@ public import CslibFrontier.Foundations.RingTheory.Polynomial.ResultantCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.Polynomial.ResultantSpecialization
 public import CslibFrontier.Foundations.RingTheory.Polynomial.ValueResultant
 public import CslibFrontier.Foundations.RingTheory.PowerSeries.Constants
+public import CslibFrontier.Foundations.RingTheory.PowerSeries.Meixner
 public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.Principal
 public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.SeparatedSums
 public import CslibFrontier.Foundations.RingTheory.Trace.Reproducing
