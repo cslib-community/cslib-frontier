@@ -9,13 +9,10 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
+-- Reads private `RowSigner`, `changed_keySeed_le`, and `keySeedDeviceGame` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Languages.Probabilistic.Presample
 import CslibFrontier.Probability.Hellinger
+-- Reads private `Test`, `addressTest`, `addressTest_law`, `hit`, and `scored_gap_le`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
 
 /-!
