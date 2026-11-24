@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.Constructible
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.NatPolynomial
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 import CslibFrontier.Foundations.Data.Nat.Doubling
@@ -36,12 +39,22 @@ machine that writes the clock on its last work tape within `O(T n)` steps, leavi
 work tape blank, its input head at the start and nothing emitted. This mirrors the polynomial
 budget of `MultiTape.Plumbing.PrepareClock`.
 
+The same conversion gives any polynomial-time function `F` of `n` and `T n` in unary
+(`Cslib.Complexity.TimeConstructible.computableInO_unary_of_polyTime`), within time
+`O(n + T n + F (n, T n))`: the arithmetic in binary costs `O(n + T n)` on the values
+(`Turing.MultiTapeTM.ComputableInPolyTime.natPair_inO`), and only the conversion to unary pays for
+the size of the result. For example, a quantity quadratic in `n + T n`, such as the number of moves
+of a game played on words of length linear in `n + T n`, is written in unary within time
+`O((n + T n + 1) ^ 2)`.
+
 ## Main results
 
 * `Cslib.Complexity.TimeConstructible.computableInO_unaryClock`: the clock word of
   `c * 2 ^ Nat.size (T n)` true bits within time and space `O(T n)`.
 * `Cslib.Complexity.TimeConstructible.exists_prepare_unaryClock`: a unary clock of
   `c * 2 ^ Nat.size (T n)` cells within `O(T n)` steps.
+* `Cslib.Complexity.TimeConstructible.computableInO_unary_of_polyTime`: a polynomial-time function
+  of `n` and `T n`, in unary, within time and space `O(n + T n + F (n, T n))`.
 -/
 
 public section
@@ -148,6 +161,22 @@ theorem TimeConstructible.computableInO_unaryClock {T : ℕ → ℕ}
     rw [e]
     omega
   exact hclock.mono (2 * c + 2) hlinear hlinear
+
+/-- **A polynomial-time function of `n` and `T n`, in unary.** For a time-constructible `T` and a
+function `F` of two binary naturals computable in polynomial time, `F (n, T n)` is computed in unary
+from any word of length `n` within time and space `O(n + T n + F (n, T n))`. The length of the word
+and `T n` are computed in binary within `O(n + T n)`, `F` costs `O(n + T n)` on their values
+(`Turing.MultiTapeTM.ComputableInPolyTime.natPair_inO`), and the conversion of the result to unary
+(`Turing.MultiTapeTM.ComputableInO.natToUnary`) costs `O(F (n, T n))`. -/
+theorem TimeConstructible.computableInO_unary_of_polyTime {T : ℕ → ℕ} (hT : TimeConstructible T)
+    {F : ℕ × ℕ → ℕ} (hF : ComputableInPolyTime F (encPair encNat encNat) encNat) :
+    ComputableInO (fun x : List Bool => F (x.length, T x.length)) encBits encUnary
+      (fun x => x.length + T x.length + F (x.length, T x.length))
+      fun x => x.length + T x.length + F (x.length, T x.length) :=
+  (ComputableInO.natToUnary.comp (hF.natPair_inO.comp
+    (ComputableInO.lengthNat.prod hT.computableInO))).mono 3
+    (fun x => by simp only [Function.comp_apply]; omega)
+    fun x => by simp only [Function.comp_apply]; omega
 
 /-- **A unary clock of linear length.** For a time-constructible `T` and a constant `c`, one
 deterministic machine with finitely many states writes `c * 2 ^ Nat.size (T n)` true cells on its

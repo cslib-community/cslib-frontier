@@ -13,10 +13,6 @@ public import Mathlib.Algebra.Order.Field.Basic
 public import Mathlib.Data.Fintype.Basic
 public import Mathlib.Order.Bounds.Defs
 import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Algebra.Order.Module.Defs
-import Mathlib.Algebra.Order.Pi
-import Mathlib.Data.Fintype.Card
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Linarith

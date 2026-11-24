@@ -17,6 +17,7 @@ import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Nat.Bits
 
 /-!
@@ -477,21 +478,12 @@ private theorem loop_size (encRel : Rel ↪ List Bool) (b : Bool) (I : State Rel
 private theorem rotationBudget_poly (encRel : Rel ↪ List Bool) :
     PolyBounded (fun I : State Rel => (encState encRel I).length)
       (rotationBudget encRel) := by
-  let input := encState encRel
-  have hbody := encState_body_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
-  have hports := encState_ports_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
-  have hrot := encState_rotation_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
+  have hbody := encState_body_polyTime encRel (ComputableInPolyTime.id' (encIn := encState encRel))
   have hm : ComputableInPolyTime (fun I : State Rel => I.body.occurrences.length)
-      input encUnary := by
+      (encState encRel) encUnary := by
     simpa only [CSP.vars_length_eq_occurrences, Function.comp_def] using
       (computableInPolyTime_length_vars encRel encNat).comp hbody
-  have hp := (ComputableInPolyTime.length_list encNat).comp hports
-  have hd := (ComputableInPolyTime.length_list encNat).comp
-    (RotationCertificate.computableInPolyTime_successor.comp hrot)
-  have hD := hd.polyBounded.add ((PolyBounded.const 2).mul (hm.polyBounded.add hp.polyBounded))
-  have hS := (ComputableInPolyTime.id' (encIn := input)).polyBounded_length
-  exact (((PolyBounded.const 4).mul hS).add (.const 4)).add
-    (hD.mul (((PolyBounded.const 2).mul (hS.add hD)).add (.const 1)))
+  growth_poly
 
 private def boundedTurn (b : Bool) (I : State Rel) (n : ℕ) : State Rel :=
   (turn b)^[min I.ports.length n] I
