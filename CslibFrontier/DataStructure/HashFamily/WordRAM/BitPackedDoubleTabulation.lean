@@ -379,7 +379,7 @@ private theorem surjective_bitPackedProjHom {N k w : ℕ} (hw : 0 < w) :
     (bitPackedProjHom N k w hw
       ((Equiv.piCongrRight fun _ : Fin (packedWords N k w) => (BitString.equivFin w).symm) words))
 
-private theorem extractPackedSlice_eq_packedSliceOfWords {arrBase N k w : ℕ} (hw : 0 < w)
+theorem extractPackedSlice_eq_packedSliceOfWords {arrBase N k w : ℕ} (hw : 0 < w)
     (hkw : k ≤ w)
     {mem : ℕ → ℕ} (hmem : ∀ q < packedWords N k w, mem (arrBase + q) < 2 ^ w) :
     extractPackedSlice arrBase N k w mem =
@@ -487,7 +487,7 @@ theorem SeedRep.congr_on {base w w₀ c_tab d b_char M_out : ℕ}
 
 /-- Combined additive homomorphism projecting `topWords + botWords` `w`-bit strings onto the pair of
 bit-packed slices `(Fin topEntries → BitString b_char) × (Fin botEntries → BitString M_out)`. -/
-private def bothPackedProjHom (w c_tab d b_char M_out : ℕ) (hw : 0 < w) :
+@[expose] def bothPackedProjHom (w c_tab d b_char M_out : ℕ) (hw : 0 < w) :
     (Fin (topWords w c_tab d b_char + botWords w d b_char M_out) → BitString w) →+
       (Fin (topEntries c_tab d b_char) → BitString b_char) ×
         (Fin (botEntries d b_char) → BitString M_out) where
@@ -514,7 +514,7 @@ private theorem surjective_bothPackedProjHom {w c_tab d b_char M_out : ℕ} (hw 
     ((congrArg (bitPackedProjHom (botEntries d b_char) M_out w hw) hr).trans hw₂)
 
 /-- Extract `(T₁, T₂)` from a combined `(topWords + botWords)`-word slice of `< 2 ^ w` words. -/
-private def tablesOfWords (w c_tab d b_char M_out : ℕ) (hw : 0 < w)
+@[expose] def tablesOfWords (w c_tab d b_char M_out : ℕ) (hw : 0 < w)
     (words : Fin (topWords w c_tab d b_char + botWords w d b_char M_out) → Fin (2 ^ w)) :
     DoubleTabTopSeed (c_tab + 1) d b_char × DoubleTabBotSeed d b_char M_out :=
   let pair := bothPackedProjHom w c_tab d b_char M_out hw
@@ -524,7 +524,7 @@ private def tablesOfWords (w c_tab d b_char M_out : ℕ) (hw : 0 < w)
     DoubleTabulation.botSliceEquiv d b_char M_out
       ((Equiv.piCongrRight fun _ => BitString.equivFin M_out) pair.2))
 
-private theorem uniformOfFintype_map_tablesOfWords (w c_tab d b_char M_out : ℕ) (hw : 0 < w) :
+theorem uniformOfFintype_map_tablesOfWords (w c_tab d b_char M_out : ℕ) (hw : 0 < w) :
     (PMF.uniformOfFintype
       (Fin (topWords w c_tab d b_char + botWords w d b_char M_out) → Fin (2 ^ w))).map
         (tablesOfWords w c_tab d b_char M_out hw) =
