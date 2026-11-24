@@ -8,8 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
+public import CslibFrontier.Logics.Propositional.CNF.Tautology
 public import CslibFrontier.Logics.Propositional.DNF
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import CslibFrontier.Foundations.Data.BitString.Agree
 import Mathlib.Data.Fintype.BigOperators
 
 /-!
@@ -31,7 +33,12 @@ literals of `t` (`Term.force t σ`) gives an assignment satisfying `t` whenever 
 (`wordAssignment`), forcing the literals of `t` is `2 ^ t.width`-to-one onto the satisfying
 assignments of `t`, where `t.width` is the number of distinct variables of `t`
 (`card_filter_force`). In particular a consistent term has `2 ^ (|vs| - t.width)` satisfying
-assignments of the variables `vs` (`two_pow_sub_width_le_modelCount`).
+assignments of the variables `vs` (`card_filter_eval_eq_two_pow`,
+`two_pow_sub_width_le_modelCount`), and any term has at most `2 ^ (|V| - t.width)` satisfying
+assignments of a finite type of variables `V` (`Term.card_filter_eval_le`). Removing repeated
+literals keeps the value of a term (`Term.eval_dedup`) and leaves a consistent term with exactly
+`t.width` literals (`Term.length_dedup_of_consistent`). The negation of a term is a tautological
+clause (`CNF.isTautClause`) exactly when the term is inconsistent (`Term.isTautClause_negate`).
 
 Counting the satisfying assignments of `φ` by the first term that they satisfy partitions them
 (`DNF.card_filter_eval_eq_sum`). These are the combinatorial facts behind the Karp–Luby–Madras
@@ -49,12 +56,18 @@ estimator [Karp, Luby and Madras][KarpLubyMadras1989], [Mitzenmacher and Upfal, 
 
 * `Cslib.Logic.PL.Term.eval_force`, `Cslib.Logic.PL.Term.force_eq_of_eval`,
   `Cslib.Logic.PL.Term.consistent_iff_exists_eval`: forcing and consistency.
+* `Cslib.Logic.PL.Term.eval_dedup`, `Cslib.Logic.PL.Term.length_dedup_of_consistent`: removing
+  repeated literals keeps the value, and leaves a consistent term with `t.width` literals.
+* `Cslib.Logic.PL.Term.isTautClause_negate`: the negation of a term is a tautological clause
+  exactly when the term is inconsistent.
 * `Cslib.Logic.PL.DNF.eval_congr`: a formula only depends on its variables.
 * `Cslib.Logic.PL.DNF.modelCount_eq_card_filter`: the count over words of `CNF.numVars φ` bits.
 * `Cslib.Logic.PL.DNF.card_filter_eval_eq_sum`: the partition by the first satisfied term.
 * `Cslib.Logic.PL.card_filter_force`: forcing a term is `2 ^ t.width`-to-one.
 * `Cslib.Logic.PL.two_pow_sub_width_le_modelCount`: a consistent term of `φ` contributes
   `2 ^ (CNF.numVars φ - t.width)` satisfying assignments.
+* `Cslib.Logic.PL.Term.card_filter_eval_le`: a term on `k` variables is satisfied by at most
+  `2 ^ (|V| - k)` assignments of a finite type of variables.
 
 ## References
 
@@ -150,6 +163,44 @@ theorem Term.consistent_iff_exists_eval {t : Term V} :
     t.consistent = true ↔ ∃ σ : V → Bool, t.eval σ = true :=
   ⟨fun hc => ⟨t.force fun _ => false, Term.eval_force hc _⟩,
     fun ⟨_, hσ⟩ => Term.consistent_of_eval hσ⟩
+
+/-- Removing repeated literals does not change the value of a term. -/
+@[simp] theorem Term.eval_dedup (σ : V → Bool) (t : Term V) : Term.eval σ t.dedup = t.eval σ := by
+  rw [Bool.eq_iff_iff, Term.eval_eq_true_iff, Term.eval_eq_true_iff]
+  simp only [List.mem_dedup]
+
+/-- A consistent term without repeated literals has one literal per variable: its length is the
+width. The clause dual is `CNF.nodup_map_fst_dedup_of_not_isTautClause`. -/
+theorem Term.length_dedup_of_consistent {t : Term V} (hc : t.consistent = true) :
+    t.dedup.length = t.width := by
+  obtain ⟨σ, hσ⟩ := Term.consistent_iff_exists_eval.1 hc
+  have hlit := (Term.eval_eq_true_iff σ t).1 hσ
+  have hnodup : (t.dedup.map Prod.fst).Nodup :=
+    (List.nodup_dedup t).map_on fun l hl l' hl' hvar => Prod.ext hvar <| by
+      rw [← hlit l (List.mem_dedup.1 hl), ← hlit l' (List.mem_dedup.1 hl'), hvar]
+  rw [Term.width, ← List.length_map Prod.fst, ← List.toFinset_card_of_nodup hnodup]
+  congr 1
+  ext v
+  simp only [List.mem_toFinset, List.mem_map, List.mem_dedup]
+
+/-- The negation of a term is a tautological clause, one containing a literal and its negation,
+exactly when the term is inconsistent, containing a variable with both signs. -/
+@[simp] theorem Term.isTautClause_negate (t : Term V) :
+    CNF.isTautClause t.negate = !t.consistent := by
+  rw [Bool.eq_iff_iff, Bool.not_eq_true', ← Bool.not_eq_true]
+  simp only [CNF.isTautClause, Term.negate, Term.consistent, List.any_eq_true, List.mem_map,
+    decide_eq_true_eq, List.all_eq_true, Bool.or_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne,
+    ne_eq, beq_iff_eq, Std.Sat.Literal.negate, Prod.mk.injEq]
+  constructor
+  · rintro ⟨_, ⟨⟨a₁, a₂⟩, ha, rfl⟩, ⟨b₁, b₂⟩, hb, rfl, hab⟩ h
+    rcases h _ hb _ ha with h | h
+    · exact h rfl
+    · cases a₂ <;> cases b₂ <;> simp_all
+  · intro h
+    push Not at h
+    obtain ⟨⟨a₁, a₂⟩, ha, ⟨b₁, b₂⟩, hb, rfl, hab⟩ := h
+    refine ⟨(a₁, !a₂), ⟨_, ha, rfl⟩, _, hb, rfl, ?_⟩
+    cases a₂ <;> cases b₂ <;> simp_all
 
 /-! ### Formulas -/
 
@@ -389,6 +440,17 @@ theorem card_filter_eval_eq_two_pow {vs : List V} (hnd : vs.Nodup) {t : Term V}
     rw [← pow_add, Nat.add_sub_cancel' hw]
   rw [hpow] at h
   exact (Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos _) h).symm
+
+/-- **A term is satisfied on a small subcube**: over a finite type of variables `V`, a term on
+`k = t.width` distinct variables is satisfied by at most `2 ^ (|V| - k)` of the `2 ^ |V|`
+assignments, that is, with probability at most `2 ^ (-k)`. -/
+theorem Term.card_filter_eval_le [Fintype V] (t : Term V) :
+    (Finset.univ.filter fun σ : V → Bool => t.eval σ = true).card ≤
+      2 ^ (Fintype.card V - t.width) :=
+  BitString.card_le_of_forall_agree (F := (t.map Prod.fst).toFinset) fun σ hσ τ hτ v hv => by
+    obtain ⟨l, hl, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hv)
+    rw [(Term.eval_eq_true_iff σ t).1 (Finset.mem_filter.1 hσ).2 l hl,
+      (Term.eval_eq_true_iff τ t).1 (Finset.mem_filter.1 hτ).2 l hl]
 
 /-- A term of `φ` reads only variables of `φ`. -/
 theorem DNF.mem_distinctVars_of_mem {φ : DNF V} {t : Term V} (ht : t ∈ φ) :
