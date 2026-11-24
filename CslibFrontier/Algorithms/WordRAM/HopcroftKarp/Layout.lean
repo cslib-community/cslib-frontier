@@ -25,7 +25,8 @@ outputs, the public register layout (`Reg`), and the in-memory CSR and workspace
 * `Cslib.Algorithms.WordRAM.HopcroftKarp.SparseInstance`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.DenseInstance`: sparse CSR and dense matrix bipartite
   graph instances, encodings, word-width envelopes, and ordered maximum-matching outputs.
-* `Cslib.Algorithms.WordRAM.HopcroftKarp.Reg`: public register names (`0 .. 18` and `acc`).
+* `Cslib.Algorithms.WordRAM.HopcroftKarp.Reg.zero`, `Cslib.Algorithms.WordRAM.HopcroftKarp.Reg.acc`:
+  public register indices (`0 .. 18` and scalar `acc` under namespace `Reg`).
 * `Cslib.Algorithms.WordRAM.HopcroftKarp.CSRMem`,
   `Cslib.Algorithms.WordRAM.HopcroftKarp.BaseRegs`: in-memory CSR layout and base-register frame.
 

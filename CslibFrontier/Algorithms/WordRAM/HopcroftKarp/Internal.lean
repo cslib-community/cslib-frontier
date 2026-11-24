@@ -32,20 +32,35 @@ open Cslib.Algorithms.Lean.MaxFlow
 open Cslib.Algorithms.WordRAM.HopcroftKarp
 open Cslib.Algorithms.WordRAM.HopcroftKarp.Reg
 
+/-- Scratch register `19`: outer phase-loop active flag. -/
 abbrev phaseActive : Fin 34 := ⟨19, by decide⟩
+/-- Scratch register `20`: current augmenting-path layer depth `k`. -/
 abbrev rk : Fin 34 := ⟨20, by decide⟩
+/-- Scratch register `21`: flag set when BFS reaches an unmatched right vertex. -/
 abbrev rfound : Fin 34 := ⟨21, by decide⟩
+/-- Scratch register `22`: BFS queue head cursor / DFS root scan cursor. -/
 abbrev qHead : Fin 34 := ⟨22, by decide⟩
+/-- Scratch register `23`: BFS queue tail index. -/
 abbrev qTail : Fin 34 := ⟨23, by decide⟩
+/-- Scratch register `24`: end index of the current BFS layer in the queue. -/
 abbrev layerEnd : Fin 34 := ⟨24, by decide⟩
+/-- Scratch register `25`: current BFS distance / explicit DFS stack depth. -/
 abbrev rd : Fin 34 := ⟨25, by decide⟩
+/-- Scratch register `26`: number of disjoint augmenting paths collected in the phase. -/
 abbrev augLen : Fin 34 := ⟨26, by decide⟩
+/-- Scratch register `27` (`Reg.acc`): inner loop-active flag for `bfsCode` and `dfsLoop`. -/
 abbrev active : Fin 34 := acc
+/-- Scratch register `28`: general loop and CSR edge index. -/
 abbrev idx : Fin 34 := ⟨28, by decide⟩
+/-- Scratch register `29`: general loop upper-bound register. -/
 abbrev limit : Fin 34 := ⟨29, by decide⟩
+/-- Scratch register `30`: scratch memory-address register. -/
 abbrev addr : Fin 34 := ⟨30, by decide⟩
+/-- Scratch register `31`: primary scratch value register. -/
 abbrev val : Fin 34 := ⟨31, by decide⟩
+/-- Scratch register `32`: secondary scratch value register. -/
 abbrev val2 : Fin 34 := ⟨32, by decide⟩
+/-- Scratch register `33`: general temporary scratch value register. -/
 abbrev tmp : Fin 34 := ⟨33, by decide⟩
 
 /-- Encode `Option (Fin m)` into `{0, …, m}` with `none ↦ m`. -/

@@ -103,6 +103,7 @@ theorem hkDfs_acc {m r : ℕ} (G : Fin m × Fin r → Bool) (adj : Fin m → Lis
     hkDfsLevel_acc G mate dist false i (hkDfs G adj mate dist f (i + 1))
       (hkDfs_acc G adj mate dist f (i + 1)) u (adj u) vis acc₀
 
+/-- Remaining-depth continuation supplied to `hkDfsLevel` for the recursive `hkDfs` call. -/
 @[expose] def dfsNext {m r : ℕ} (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) (dist : Vector (Option ℕ) m) :
     ℕ → ℕ → Fin m → Vector Bool r → List (Fin m × Fin r) →
@@ -119,6 +120,7 @@ theorem hkDfs_eq_dfsLevel {m r : ℕ} (G : Fin m × Fin r → Bool)
         (dfsNext G adj mate dist f i) u (adj u) vis acc₀ := by
   cases f <;> rfl
 
+/-- `ps` has pairwise distinct right endpoints, each marked `true` in `vis`. -/
 @[expose] def VisCovers {m r : ℕ} (vis : Vector Bool r) (ps : List (Fin m × Fin r)) : Prop :=
   (ps.map Prod.snd).Nodup ∧ ∀ e ∈ ps, vget vis e.2 = true
 
@@ -152,10 +154,12 @@ theorem VisCovers.length_le {m r : ℕ} {vis : Vector Bool r} {ps : List (Fin m 
   have hcard := h.1.length_le_card
   simpa using hcard
 
+/-- Per-vertex instruction-potential weight assigned to an unvisited right vertex `v`. -/
 @[expose] def dfsVertWeight (inst : SparseInstance) (mate : Vector (Option (Fin inst.m)) inst.r)
     (v : Fin inst.r) : ℕ :=
   38 * hkDfsCost inst.adj mate v + 14
 
+/-- Remaining DFS work potential summed over unvisited (`false`) entries of `vis`. -/
 @[expose] def dfsPot (inst : SparseInstance) (mate : Vector (Option (Fin inst.m)) inst.r)
     (vis : Vector Bool inst.r) : ℕ :=
   vecPotential (fun b : Bool => b = false) (dfsVertWeight inst mate) vis
@@ -501,6 +505,7 @@ private theorem exec_copyAugCode {w bOff k : ℕ} {inst : SparseInstance}
 
 /-! ## Explicit-stack DFS step and frame invariant -/
 
+/-- Single explicit-stack DFS loop body advancing or backtracking one stack frame. -/
 def dfsStepBody : Code .standard 34 := ram[
   addr ← bStackUReg + rd; idx ← *addr;
   addr ← bOffReg + idx; addr ← addr + one; limit ← *addr;
@@ -538,6 +543,7 @@ def dfsStepBody : Code .standard 34 := ram[
     if rd = zero then [ active ← zero ] else [ rd ← rd - one ]
   ] ]
 
+/-- Explicit-stack DFS iteration loop running `dfsStepBody` while `active = 1`. -/
 @[expose] def dfsLoop : Code .standard 34 :=
   .loop (.eq active one) dfsStepBody
 
@@ -568,6 +574,7 @@ structure DfsFrame (inst : SparseInstance) (bOff k : ℕ)
   hal : x.regs augLen = augPairs.length
   hact : x.regs active = 1
 
+/-- Address `a` lies outside `vis` and the active DFS stack frames above depth `d`. -/
 @[expose] def DfsSubtreeOutside (inst : SparseInstance) (bOff d a : ℕ) : Prop :=
   ¬(bOff + inst.m + 1 + inst.numEdges + inst.r + 3 * inst.m ≤ a ∧
       a < bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 3 * inst.m) ∧
