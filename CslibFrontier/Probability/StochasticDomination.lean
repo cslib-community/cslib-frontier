@@ -7,11 +7,6 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
-public import CslibFrontier.Probability.PoissonBinomial
-public import CslibFrontier.Probability.StochasticDomination.Basic
-public import CslibFrontier.Probability.StochasticDomination.PoissonBinomial
-public import CslibFrontier.Probability.StochasticDomination.Adapted
 public import CslibFrontier.Probability.StochasticDomination.SequentialSupport
 public import CslibFrontier.Probability.StochasticDomination.SequentialUpper
 public import CslibFrontier.Probability.StochasticDomination.Stopping

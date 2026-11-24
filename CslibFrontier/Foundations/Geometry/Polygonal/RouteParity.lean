@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersection
 public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 public import Mathlib.Topology.Connected.PathConnected
 import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
+import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
 import CslibFrontier.Foundations.Geometry.PuncturedPaths
 import Mathlib.Algebra.BigOperators.Fin
@@ -122,6 +123,31 @@ theorem rayParity_concat (p q : Route) (h : p.finish = q.start) (u z : ℂ) :
   unfold Route.rayParity Cslib.Polygonal.rayParity
   exact sum_segments_concat p q h (fun a b =>
     if RayCrosses (u * a) (u * b) (u * z) then true else 0)
+
+open Classical in
+/-- The sole segment of a straight route contributes its crossing bit. -/
+theorem rayParity_line (a b u z : ℂ) :
+    (line a b).rayParity u z = decide (RayCrosses (u * a) (u * b) (u * z)) := by
+  classical
+  unfold Route.rayParity Cslib.Polygonal.rayParity
+  change (∑ i : Fin 1, if RayCrosses (u * (line a b).point i.castSucc)
+    (u * (line a b).point i.succ) (u * z) then (true : Bool) else 0) = _
+  rw [Fin.sum_univ_one]
+  change (if RayCrosses (u * a) (u * b) (u * z) then true else false) = _
+  by_cases h : RayCrosses (u * a) (u * b) (u * z) <;> simp [h]
+
+/-- Cutting a straight route into two at an interior point preserves the ray parity of
+the concatenation, including at observations on the cut height. -/
+theorem rayParity_line_split (a b u z : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1) :
+    let m := AffineMap.lineMap a b t
+    ((line a m).concat (line m b)).rayParity u z = (line a b).rayParity u z := by
+  let m := AffineMap.lineMap a b t
+  change ((line a m).concat (line m b)).rayParity u z = (line a b).rayParity u z
+  have hm : u * m = AffineMap.lineMap (u * a) (u * b) t := by
+    let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
+    exact f.toAffineMap.apply_lineMap a b t
+  rw [rayParity_concat _ _ rfl, rayParity_line, rayParity_line, rayParity_line, hm]
+  exact decide_rayCrosses_split _ _ _ ht
 
 /-- Reversing a route leaves its ray parity unchanged at every point. -/
 theorem rayParity_reverse (p : Route) (u z : ℂ) :
@@ -540,5 +566,47 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     rw [rayParity_concat _ _ hq, rayParity_concat p e he, rayParity_concat p q hjoin,
       hparity z hz]
     ac_rfl
+
+/-- Insert a prescribed parity excursion at an interior point of a straight route.
+The excursion avoids the marked points, and each outer germ remains a positive
+multiple of its original value. -/
+theorem exists_line_add_rayParity {U : Set ℂ} (hU : IsOpen U)
+    (hconn : IsPathConnected U) (points odd : Finset ℂ) (hodd : odd ⊆ points)
+    (hUodd : ∀ z ∈ odd, z ∈ U) (a b : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1)
+    (hm : AffineMap.lineMap a b t ∈ U \ (↑points : Set ℂ)) {u : ℂ} (hu : u ≠ 0) :
+    ∃ r : Route, (∀ s, r.endpoint s = (line a b).endpoint s) ∧
+      (∀ s, r.germ s = (if s then 1 - t else t) • (line a b).germ s) ∧
+      segment ℝ a b ⊆ r.support ∧
+      r.support ⊆ segment ℝ a b ∪ (U \ (↑points : Set ℂ)) ∧
+      ∀ z ∈ points, r.rayParity u z = (line a b).rayParity u z + decide (z ∈ odd) := by
+  let m := AffineMap.lineMap a b t
+  let p := line a m
+  let q := line m b
+  obtain ⟨r, he, hg, hcontains, hsupport, hpar⟩ :=
+    exists_concat_add_rayParity hU hconn points odd hodd hUodd p q rfl hm.1 hm.2 hu
+  have hsegments : (p.concat q).support = segment ℝ a b := by
+    let L : ℝ →ᵃ[ℝ] ℂ := AffineMap.lineMap a b
+    have hleft : L '' Set.Icc 0 t = segment ℝ a m := by
+      rw [← segment_eq_Icc ht.1.le, image_segment ℝ L]
+      simp only [L, m, AffineMap.lineMap_apply_zero]
+    have hright : L '' Set.Icc t 1 = segment ℝ m b := by
+      rw [← segment_eq_Icc ht.2.le, image_segment ℝ L]
+      simp only [L, m, AffineMap.lineMap_apply_one]
+    rw [support_concat _ _ rfl]
+    change (line a m).support ∪ (line m b).support = segment ℝ a b
+    rw [support_line, support_line, ← hleft, ← hright, ← Set.image_union,
+      Set.Icc_union_Icc_eq_Icc ht.1.le ht.2.le]
+    exact (segment_eq_image_lineMap ℝ a b).symm
+  refine ⟨r, fun s => ?_, fun s => ?_, hsegments ▸ hcontains, hsegments ▸ hsupport,
+    fun z hz => ?_⟩
+  · rw [he, endpoint_concat _ _ rfl]
+    cases s <;> rfl
+  · rw [hg, germ_concat _ _ rfl]
+    cases s
+    · exact AffineMap.lineMap_vsub_left a b t
+    · exact AffineMap.lineMap_vsub_right a b t
+  · have hcut : (p.concat q).rayParity u z = (line a b).rayParity u z :=
+      rayParity_line_split a b u z ht
+    rw [hpar z hz, hcut]
 
 end Cslib.Polygonal.Route
