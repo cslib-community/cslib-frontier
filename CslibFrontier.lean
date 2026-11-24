@@ -6374,6 +6374,7 @@ public import CslibFrontier.Computability.QueryComplexity.SensitivitySeparation.
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.BinarySearch
 public import CslibFrontier.Computability.Complexity.FineGrained.WordRAM
 public import CslibFrontier.Logics.Propositional.CNF.Encoding
+public import CslibFrontier.MachineLearning.SingularLearning.LearningCoefficient
 public import CslibFrontier.Computability.Circuit.Clique
 public import CslibFrontier.Computability.Complexity.Reduction.TruthTableVariants
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.RandomRestriction
