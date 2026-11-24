@@ -37,7 +37,8 @@ Programs are `FreeM (CmpTestQuery α)` values, where `CmpTestQuery α` is the su
 oracle `CmpTestQuery.oracleOf w adm` answers both. The three counts are separate:
 comparisons are `SumQuery.countInl`, and tests answered `true` and `false` are
 `FreeM.cost oracle (CmpTestQuery.passWeight oracle)` and `FreeM.cost oracle
-(CmpTestQuery.failWeight oracle)`.
+(CmpTestQuery.failWeight oracle)`. When a failed test of `a` costs `c a`, the failed tests cost
+`FreeM.cost oracle (CmpTestQuery.failCost oracle c)`.
 
 The algorithm (`Cslib.Query.quotaSelect`) follows the proof of Lemma 3.3. It splits the items at
 the median with the deterministic selection `Cslib.Query.select`. It scans the lower half,
@@ -60,7 +61,9 @@ half, and recurses with the remaining quota on the upper half, without the passi
 * Successful tests: `Cslib.Query.cost_passWeight_quotaSelect_le`, at most `k (⌈log₂ m⌉ + 1)` for
   every oracle.
 * Failed tests, which the source charges separately (p. 15: a failure is stored and reused):
-  `Cslib.Query.cost_failWeight_quotaSelect` (one per reported failed item, for every oracle),
+  `Cslib.Query.cost_failCost_quotaSelect` (exactly one failed test per reported failed item, and
+  no other, for every oracle, with any cost `c a` per failed test of `a`),
+  `Cslib.Query.cost_failWeight_quotaSelect` (its unit-cost case),
   `Cslib.Query.failed_quotaSelect` (the reported items are distinct and inadmissible) and
   `Cslib.Query.cost_failWeight_quotaSelect_le` (at most the number of inadmissible items).
 * The property the proof of Lemma 3.2 (p. 15) uses: `Cslib.Query.quotaSelect_guarantee`. The
@@ -109,8 +112,7 @@ namespace CmpTestQuery
 
 variable {α W : Type}
 
-/-- The oracle answering a comparison `a ≤ b` by `w a ≤ w b` and a test of `a` by `adm a`. Its
-comparisons are answered as the comparison oracle `LEQuery.keyOracle w` of #8331 answers them. -/
+/-- The oracle answering a comparison `a ≤ b` by `w a ≤ w b` and a test of `a` by `adm a`. -/
 @[expose] def oracleOf [LinearOrder W] (w : α → W) (adm : α → Prop) [DecidablePred adm] :
     {ι : Type} → CmpTestQuery α ι → ι :=
   SumQuery.combine (LEQuery.oracleOf fun a b => decide (w a ≤ w b))
@@ -127,6 +129,13 @@ comparisons are answered as the comparison oracle `LEQuery.keyOracle w` of #8331
     {ι : Type} → CmpTestQuery α ι → ℕ
   | _, .inl _ => 0
   | _, .inr (.test a) => if oracle (.inr (.test a)) then 0 else 1
+
+/-- Weight `c a` on a test of `a` that `oracle` answers `false`: the cost of a failed test may
+depend on the item. -/
+@[expose] def failCost (oracle : {ι : Type} → CmpTestQuery α ι → ι) (c : α → ℕ) :
+    {ι : Type} → CmpTestQuery α ι → ℕ
+  | _, .inl _ => 0
+  | _, .inr (.test a) => if oracle (.inr (.test a)) then 0 else c a
 
 end CmpTestQuery
 
@@ -213,12 +222,12 @@ decreasing_by
 
 omit [DecidableEq α] in
 private theorem scanTests_spec (oracle : {ι : Type} → CmpTestQuery α ι → ι) (g : α → γ)
-    (k : ℕ) (xs : List α) :
+    (c : α → ℕ) (k : ℕ) (xs : List α) :
     SumQuery.countInl oracle (scanTests g k xs) = 0 ∧
     (scanTests g k xs).cost oracle (CmpTestQuery.passWeight oracle) =
       ((scanTests g k xs).eval oracle).1.length ∧
-    (scanTests g k xs).cost oracle (CmpTestQuery.failWeight oracle) =
-      ((scanTests g k xs).eval oracle).2.length ∧
+    (scanTests g k xs).cost oracle (CmpTestQuery.failCost oracle c) =
+      (((scanTests g k xs).eval oracle).2.map c).sum ∧
     ((scanTests g k xs).eval oracle).1.length ≤ k ∧ ((scanTests g k xs).eval oracle).1.Nodup ∧
     ((scanTests g k xs).eval oracle).2.Sublist xs ∧
     (∀ c ∈ ((scanTests g k xs).eval oracle).1,
@@ -253,8 +262,9 @@ private theorem scanTests_spec (oracle : {ι : Type} → CmpTestQuery α ι → 
       · simp only [scanTests, SumQuery.countInl_bind, FreeM.cost_bind, FreeM.eval_bind, h, hstop,
           ite_false, SumQuery.countInl_liftInr, FreeM.cost_lift, FreeM.eval_lift, hb,
           Bool.false_eq_true, SumQuery.countInl_pure, FreeM.cost_pure, FreeM.eval_pure, add_zero,
-          ih1, ih2, ih3, CmpTestQuery.passWeight, CmpTestQuery.failWeight, List.length_cons]
-        refine ⟨trivial, trivial, trivial, ih4, ih5, ih6.cons_cons x, mem7, ?_,
+          ih1, ih2, ih3, CmpTestQuery.passWeight, CmpTestQuery.failCost,
+          List.map_cons, List.sum_cons]
+        refine ⟨trivial, trivial, Nat.add_comm _ _, ih4, ih5, ih6.cons_cons x, mem7, ?_,
           fun _ y hy => ?_⟩
         · intro y hy
           rcases List.mem_cons.mp hy with rfl | hy
@@ -266,7 +276,7 @@ private theorem scanTests_spec (oracle : {ι : Type} → CmpTestQuery α ι → 
       · simp only [scanTests, SumQuery.countInl_bind, FreeM.cost_bind, FreeM.eval_bind, h, hstop,
           ite_false, SumQuery.countInl_liftInr, FreeM.cost_lift, FreeM.eval_lift, hb,
           SumQuery.countInl_pure, FreeM.cost_pure, FreeM.eval_pure, add_zero, ite_true,
-          ih1, ih2, ih3, CmpTestQuery.passWeight, CmpTestQuery.failWeight, List.length_cons]
+          ih1, ih2, ih3, CmpTestQuery.passWeight, CmpTestQuery.failCost, List.length_cons]
         refine ⟨trivial, trivial, trivial, by omega, List.nodup_cons.mpr ⟨hxP, ih5⟩, ih6.cons x,
           ?_, ih8,
           fun _ y hy => ?_⟩
@@ -419,13 +429,13 @@ private theorem sum_length_filter_le (g : α → γ) {P : List γ} (hP : P.Nodup
     omega
 
 private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι → ι) (g : α → γ)
-    (n : ℕ) : ∀ (k : ℕ) (xs : List α), xs.length = n →
+    (c : α → ℕ) (n : ℕ) : ∀ (k : ℕ) (xs : List α), xs.length = n →
       SumQuery.countInl oracle (quotaSelect g k xs) ≤
         (if k ≤ 1 then 117 else 234) * xs.length ∧
       (quotaSelect g k xs).cost oracle (CmpTestQuery.passWeight oracle) ≤
         k * (Nat.clog 2 xs.length + 1) ∧
-      (quotaSelect g k xs).cost oracle (CmpTestQuery.failWeight oracle) =
-        ((quotaSelect g k xs).eval oracle).failed.length := by
+      (quotaSelect g k xs).cost oracle (CmpTestQuery.failCost oracle c) =
+        (((quotaSelect g k xs).eval oracle).failed.map c).sum := by
   induction n using Nat.strong_induction_on with
   | _ n ih =>
   intro k xs hn
@@ -439,8 +449,8 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
     simp [hk]
   · rw [quotaSelect]
     rcases hb : oracle (.inr (.test x)) with _ | _
-    · simp [hk, hb, SumQuery.weightInl, CmpTestQuery.passWeight, CmpTestQuery.failWeight]
-    · simp [hk, hb, SumQuery.weightInl, CmpTestQuery.passWeight, CmpTestQuery.failWeight]
+    · simp [hk, hb, SumQuery.weightInl, CmpTestQuery.passWeight, CmpTestQuery.failCost]
+    · simp [hk, hb, SumQuery.weightInl, CmpTestQuery.passWeight, CmpTestQuery.failCost]
       omega
   · rw [quotaSelect]
     simp only [hk, ite_false]
@@ -453,18 +463,18 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
     have hmsP : (medianSplit xs).cost (fun q => oracle (.inl q))
         (fun q => CmpTestQuery.passWeight oracle (.inl q)) = 0 := FreeM.cost_zero _ _
     have hmsF : (medianSplit xs).cost (fun q => oracle (.inl q))
-        (fun q => CmpTestQuery.failWeight oracle (.inl q)) = 0 := FreeM.cost_zero _ _
+        (fun q => CmpTestQuery.failCost oracle c (.inl q)) = 0 := FreeM.cost_zero _ _
     rw [hmsP, hmsF, zero_add, zero_add]
     rcases hms : (medianSplit xs).eval (fun q => oracle (.inl q)) with _ | ⟨L, H⟩
-    · simp only [FreeM.cost_pure, FreeM.eval_pure, List.length_nil, add_zero]
-      refine ⟨by split_ifs <;> omega, Nat.zero_le _, trivial⟩
+    · simp only [FreeM.cost_pure, FreeM.eval_pure, add_zero]
+      refine ⟨by split_ifs <;> omega, Nat.zero_le _, by simp⟩
     · simp only
       by_cases hguard : L.length ≤ xs.length / 2 ∧ H.length ≤ xs.length - xs.length / 2
       swap
-      · simp only [hguard, ite_false, FreeM.cost_pure, FreeM.eval_pure, List.length_nil, add_zero]
-        refine ⟨by split_ifs <;> omega, Nat.zero_le _, trivial⟩
+      · simp only [hguard, ite_false, FreeM.cost_pure, FreeM.eval_pure, add_zero]
+        refine ⟨by split_ifs <;> omega, Nat.zero_le _, by simp⟩
       simp only [hguard, ite_true, and_self, FreeM.cost_bind, FreeM.eval_bind]
-      obtain ⟨sc1, sc2, sc3, sc4, sc5, sc6, -, -, -⟩ := scanTests_spec oracle g k L
+      obtain ⟨sc1, sc2, sc3, sc4, sc5, sc6, -, -, -⟩ := scanTests_spec oracle g c k L
       rcases hsc : (scanTests g k L).eval oracle with ⟨P, F⟩
       rw [hsc] at sc2 sc3 sc4 sc5 sc6
       simp only [SumQuery.countInl] at sc1
@@ -474,7 +484,7 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
       have hL'len : L'.length ≤ xs.length / 2 := (List.length_filter_le _ _).trans hguard.1
       by_cases hkP : k ≤ P.length
       · simp only [hkP, ite_true, FreeM.cost_bind, FreeM.eval_bind, FreeM.cost_pure,
-          FreeM.eval_pure, add_zero, zero_add, List.length_append]
+          FreeM.eval_pure, add_zero, zero_add, List.map_append, List.sum_append]
         obtain ⟨c1, c2, c3⟩ := ih L'.length (by omega) k L' rfl
         simp only [SumQuery.countInl] at c1
         have hc : Nat.clog 2 L'.length + 1 ≤ Nat.clog 2 xs.length :=
@@ -485,7 +495,8 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
         · rw [Nat.mul_add, Nat.mul_one]
           omega
       · simp only [hkP, ite_false, FreeM.cost_bind, FreeM.eval_bind, FreeM.cost_pure,
-          FreeM.eval_pure, add_zero, zero_add, List.length_append, FreeM.cost_mapM, FreeM.eval_mapM]
+          FreeM.eval_pure, add_zero, zero_add, List.map_append, List.sum_append, FreeM.cost_mapM,
+          FreeM.eval_mapM]
         set H' := H.filter (g · ∉ P) with hH'
         have hH'len : H'.length ≤ xs.length - xs.length / 2 :=
           (List.length_filter_le _ _).trans hguard.2
@@ -533,10 +544,11 @@ private theorem quotaSelect_cost (oracle : {ι : Type} → CmpTestQuery α ι �
           rw [Nat.mul_add, Nat.mul_one]
           omega
         · have hsum : (P.map fun b => (quotaSelect g 1 (L'.filter (g · = b))).cost oracle
-              (CmpTestQuery.failWeight oracle)).sum = (P.map fun b => ((quotaSelect g 1
-                (L'.filter (g · = b))).eval oracle).failed.length).sum :=
+              (CmpTestQuery.failCost oracle c)).sum = (P.map fun b => (((quotaSelect g 1
+                (L'.filter (g · = b))).eval oracle).failed.map c).sum).sum :=
             congrArg List.sum (List.map_congr_left fun c hc => (hrec c hc).2.2)
-          simp only [List.length_flatMap, List.map_map, Function.comp_def]
+          simp only [List.flatMap_def, List.map_flatten, List.sum_flatten, List.map_map,
+            Function.comp_def]
           omega
 
 /-! ## Correctness -/
@@ -732,7 +744,7 @@ private theorem quotaSelect_spec (hw : Function.Injective w)
         (List.ne_nil_of_length_pos (by omega))
     have hguard : L.length ≤ xs.length / 2 ∧ H.length ≤ xs.length - xs.length / 2 :=
       ⟨hLlen.le, hHlen.le⟩
-    obtain ⟨-, -, -, sc4, sc5, sc6, sc7, sc8, sc9⟩ := scanTests_spec oracle g k L
+    obtain ⟨-, -, -, sc4, sc5, sc6, sc7, sc8, sc9⟩ := scanTests_spec oracle g (fun _ => 0) k L
     rcases hsc : (scanTests g k L).eval oracle with ⟨P, F⟩
     rw [hsc] at sc4 sc5 sc6 sc7 sc8 sc9
     dsimp only at sc4 sc5 sc6 sc7 sc8 sc9
@@ -1172,7 +1184,7 @@ variable (g : α → γ) (k : ℕ) (xs : List α)
 `quotaSelect g k xs` makes at most `234 * xs.length` comparisons. -/
 theorem countInl_quotaSelect_le (oracle : {ι : Type} → CmpTestQuery α ι → ι) :
     SumQuery.countInl oracle (quotaSelect g k xs) ≤ 234 * xs.length := by
-  have h := (quotaSelect_cost oracle g _ k xs rfl).1
+  have h := (quotaSelect_cost oracle g (fun _ => 0) _ k xs rfl).1
   split_ifs at h <;> omega
 
 /-- **Successful-test bound for quota selection**, a step in the proof of Theorem 4.1 of
@@ -1182,14 +1194,27 @@ theorem countInl_quotaSelect_le (oracle : {ι : Type} → CmpTestQuery α ι →
 theorem cost_passWeight_quotaSelect_le (oracle : {ι : Type} → CmpTestQuery α ι → ι) :
     (quotaSelect g k xs).cost oracle (CmpTestQuery.passWeight oracle) ≤
       k * (Nat.clog 2 xs.length + 1) :=
-  (quotaSelect_cost oracle g _ k xs rfl).2.1
+  (quotaSelect_cost oracle g (fun _ => 0) _ k xs rfl).2.1
+
+/-- For every oracle and every cost `c` of a failed test, the failed tests of `quotaSelect g k xs`
+cost `∑ c x` over the items `x` it reports as failed: each reported item failed exactly one test,
+and no other test failed. -/
+theorem cost_failCost_quotaSelect (oracle : {ι : Type} → CmpTestQuery α ι → ι) (c : α → ℕ) :
+    (quotaSelect g k xs).cost oracle (CmpTestQuery.failCost oracle c) =
+      (((quotaSelect g k xs).eval oracle).failed.map c).sum :=
+  (quotaSelect_cost oracle g c _ k xs rfl).2.2
 
 /-- For every oracle, the tests of `quotaSelect g k xs` answered `false` are as many as the items
 it reports as failed. -/
 theorem cost_failWeight_quotaSelect (oracle : {ι : Type} → CmpTestQuery α ι → ι) :
     (quotaSelect g k xs).cost oracle (CmpTestQuery.failWeight oracle) =
-      ((quotaSelect g k xs).eval oracle).failed.length :=
-  (quotaSelect_cost oracle g _ k xs rfl).2.2
+      ((quotaSelect g k xs).eval oracle).failed.length := by
+  have h : (fun {ι} (q : CmpTestQuery α ι) => CmpTestQuery.failWeight oracle q) =
+      fun {ι} q => CmpTestQuery.failCost oracle (fun _ => 1) q := by
+    funext ι q
+    rcases q with q | ⟨a⟩ <;> rfl
+  rw [h, cost_failCost_quotaSelect]
+  simp
 
 /-- **Failed tests of quota selection**: no item fails twice. Against comparisons by an injective
 weight and tests by `adm`, the tests answered `false` are at most the inadmissible items of the
