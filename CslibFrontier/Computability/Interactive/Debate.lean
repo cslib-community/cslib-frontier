@@ -965,6 +965,23 @@ private theorem le_abs_sub_of_le_of_lt {a p x d t e : ℝ} (h1 : d ≤ |a - p|) 
     (hte : e + t ≤ d) : e ≤ |x - p| := by
   linarith [abs_sub_le a x p]
 
+/-- **The verifier's check after an abort.** If the claim is closer to the true probability of
+the step than the verifier's tolerance, by a margin `e`, then the verifier rejects it only when
+its sample mean is off by `e`, which by Hoeffding's inequality has probability at most
+`2 exp (-2 r e ^ 2)` for `r` samples. -/
+theorem evalWith_verdict_false_le (law : List Bool → PMF Bool) (P : Params)
+    (hsamples : 0 < P.verifierSamples) (bits : List Bool) (claim : Fin (P.grid + 1)) {e : ℝ}
+    (he : 0 ≤ e)
+    (h : |(claim.val : ℝ) / P.grid - (law bits true).toReal| + e ≤ P.verifierTolerance) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (verdict P bits claim) false ≤
+      ENNReal.ofReal (2 * Real.exp (-2 * P.verifierSamples * e ^ 2)) := by
+  change ev law (verdict P bits claim) false ≤ _
+  rw [ev_verdict, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+  refine ((countLaw (law bits) _).toOuterMeasure_mono fun count hc => ?_).trans
+    ((ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)).2
+      (countLaw_tail (law bits) hsamples he))
+  exact le_abs_sub_of_le_of_le le_rfl (not_lt.1 (of_decide_eq_false hc.1)) (by linarith)
+
 variable {K : ℝ≥0}
 
 private theorem default_failure_lt_two (T : ℕ) : (1 : ℝ) / (100 * (T + 1)) < 2 := by
