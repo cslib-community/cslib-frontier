@@ -50,48 +50,48 @@ example {α : Type} {enc : α ↪ List Bool} {r : α → ℕ}
 -- A closed instance: three copies of the first input bit, including on the empty word.
 example : ComputableInLogSpace
     (fun a : List Bool => (List.range 3).map fun _ => a.headD false) encBits encBits := by
+  have hbound : ∀ _ : List Bool, 3 ≤ 3 := fun _ => le_rfl
   logspace
 
--- Framed outputs retain the element encoding, and specialize a count bound to a projection.
-example {α β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
-    {r : α → ℕ} {f : (α × List Bool) × ℕ → β} (k : ℕ)
+-- A supplied bound is specialized to the argument at which the count is taken, here `p.1`.
+example {α : Type} {enc : α ↪ List Bool} {r : α → ℕ} {f : (α × List Bool) × ℕ → Bool} (k : ℕ)
     (hr : ComputableInLogSpace r enc encUnary) (hk : ∀ a, r a ≤ k)
-    (hf : ComputableInLogSpace f (encPair (encPair enc encBits) encUnary) encOut) :
+    (hf : ComputableInLogSpace f (encPair (encPair enc encBits) encUnary) encBool) :
     ComputableInLogSpace
       (fun p : α × List Bool => (List.range (r p.1)).map fun i => f (p, i))
-      (encPair enc encBits) (encList encOut) := by
+      (encPair enc encBits) encBits := by
   logspace
 
--- An input-independent count can be a parameter, and need not be a literal or a local bound.
-example {α β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
-    {f : α × ℕ → β} (k : ℕ)
-    (hf : ComputableInLogSpace f (encPair enc encUnary) encOut) :
-    ComputableInLogSpace (fun a => (List.range k).map fun i => f (a, i))
-      enc (encList encOut) := by
-  logspace
+/-- A program definition without a certificate of its own. -/
+def swapAppend (p : List Bool × List Bool) : List Bool := p.2 ++ p.1
 
--- Shared preparation exposes bundled certificates and local encoding aliases before search.
-example {α β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
-    {r : α → ℕ} {f : α × ℕ → β} (k : ℕ) (hk : ∀ a, r a ≤ k)
-    (h : ComputableInLogSpace r enc encUnary ∧
-      ComputableInLogSpace f (encPair enc encUnary) encOut) :
-    ComputableInLogSpace (fun a => (List.range (r a)).map fun i => f (a, i))
-      enc (encList encOut) := by
-  let input := enc
+-- `logspace [f]` unfolds `f` in the goal before the search; a name must occur at its turn.
+example : ComputableInLogSpace swapAppend (encPair encBits encBits) encBits := by
+  fail_if_success logspace
+  fail_if_success logspace [swapAppend, swapAppend]
+  logspace [swapAppend]
+
+/-- A routine bundled with its logspace certificate. -/
+structure BundledRoutine where
+  /-- The routine. -/
+  run : List Bool → List Bool
+  /-- The certificate of the routine. -/
+  run_logspace : ComputableInLogSpace run encBits encBits
+
+-- The shared preparation exposes certificates stored in fields of local structures and inlines
+-- local encoding aliases, as `polytime` does.
+example (R : BundledRoutine) :
+    ComputableInLogSpace (fun w => R.run (R.run w)) encBits encBits := by
+  let input : List Bool ↪ List Bool := encBits
   change ComputableInLogSpace _ input _
-  let collect (a : α) := (List.range (r a)).map fun i => f (a, i)
-  change ComputableInLogSpace collect input _
-  logspace [collect]
+  logspace
 
 -- A bound varying with the input cannot be used as a constant, even when stated uniformly.
-example {α β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
-    {r s : α → ℕ} {f : α × ℕ → β} (_hk : ∀ a, r a ≤ s a)
-    (_hr : ComputableInLogSpace r enc encUnary)
-    (_hf : ComputableInLogSpace f (encPair enc encUnary) encOut)
-    (h : ComputableInLogSpace (fun a => (List.range (r a)).map fun i => f (a, i))
-      enc (encList encOut)) :
-    ComputableInLogSpace (fun a => (List.range (r a)).map fun i => f (a, i))
-      enc (encList encOut) := by
+example {α : Type} {enc : α ↪ List Bool} {r s : α → ℕ} {f : α × ℕ → Bool}
+    (_hk : ∀ a, r a ≤ s a) (_hr : ComputableInLogSpace r enc encUnary)
+    (_hf : ComputableInLogSpace f (encPair enc encUnary) encBool)
+    (h : ComputableInLogSpace (fun a => (List.range (r a)).map fun i => f (a, i)) enc encBits) :
+    ComputableInLogSpace (fun a => (List.range (r a)).map fun i => f (a, i)) enc encBits := by
   fail_if_success (clear h; logspace)
   exact h
 
@@ -141,6 +141,7 @@ open CslibFrontierTests.LogSpaceCertificates
 example : ComputableInLogSpace
     (runNamed (fun a : List Bool => (List.range 3).map fun _ => a.headD false))
       encBits encBits := by
+  have hbound : ∀ _ : List Bool, 3 ≤ 3 := fun _ => le_rfl
   fail_if_success fun_prop
   logspace
 

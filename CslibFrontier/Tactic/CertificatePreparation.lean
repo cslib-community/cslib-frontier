@@ -13,10 +13,11 @@ public import Mathlib.Tactic.FunProp
 /-!
 # Preparing goals for certificate composition
 
-The efficiency tactics share this preparation before proof search: unfold only the program
-names supplied by the caller, inline local encoding `let`s, and expose the `fun_prop`
-certificates stored in local structures and conjunctions. Program values and resource
-invariants stay explicit; preparation does not add a computation rule or change a bound.
+The efficiency tactics `polytime`, `ppt`, `logspace` and `space` share this preparation before
+proof search: unfold only the program names supplied by the caller, inline literal `let`s in the
+goal and local encoding `let`s, and expose the `fun_prop` certificates stored in local structures
+and conjunctions. Program values and resource invariants stay explicit; preparation does not add
+a computation rule or change a bound.
 
 ## Main definitions
 

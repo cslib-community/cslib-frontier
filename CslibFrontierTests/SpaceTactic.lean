@@ -34,6 +34,31 @@ example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {f g : α → ℕ}
   change ComputableInSpace _ input encNat S
   space
 
+/-- A program definition without a certificate of its own. -/
+def SpaceTacticHint.addBoth (f g : ℕ → ℕ) (n : ℕ) : ℕ := f n + g n
+
+/-- A program definition that mentions `addBoth` only once it is unfolded. -/
+def SpaceTacticHint.addBothSucc (f g : ℕ → ℕ) (n : ℕ) : ℕ := addBoth f g n + 1
+
+open SpaceTacticHint in
+-- `space [f, g]` unfolds `f` and then `g` in the goal before the search.
+example {S : ℕ → ℕ} {f g : ℕ → ℕ}
+    (hf : ComputableInSpace f encNat encNat S) (hg : ComputableInSpace g encNat encNat S) :
+    ComputableInSpace (addBothSucc f g) encNat encNat S := by
+  fail_if_success space
+  fail_if_success space [addBothSucc]
+  -- `addBoth` occurs only after `addBothSucc` is unfolded, so the order matters.
+  fail_if_success space [addBoth, addBothSucc]
+  space [addBothSucc, addBoth]
+
+open SpaceTacticHint in
+-- A name that does not occur in the goal is an error, also when the goal needs no unfolding.
+example {S : ℕ → ℕ} {f g : ℕ → ℕ}
+    (hf : ComputableInSpace f encNat encNat S) (hg : ComputableInSpace g encNat encNat S) :
+    ComputableInSpace (fun n => f n + g n) encNat encNat S := by
+  fail_if_success space [addBoth]
+  space
+
 -- Binary and unary output costs cannot be silently exchanged.
 example : True := by
   fail_if_success
