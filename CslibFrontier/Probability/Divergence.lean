@@ -268,7 +268,7 @@ end Gibbs
 section MutualInformation
 
 /-- A joint law is supported where the product of its marginals is. -/
-private theorem support_subset_bind_map_prodMk (joint : PMF (α × β)) :
+theorem support_subset_bind_map_prodMk (joint : PMF (α × β)) :
     joint.support ⊆
       ((joint.map Prod.fst).bind fun a => (joint.map Prod.snd).map (a, ·)).support := by
   intro pair hpair

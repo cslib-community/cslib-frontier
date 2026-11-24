@@ -34,9 +34,9 @@ def inputOne8 : CBCInput 8 2 := ⟨⟨0, by decide⟩, fun _ => (1 : BitString 8
 /-- Concrete 2-block `CBCInput 8 2` representing `[(1 : BitString 8), 0]`. -/
 def inputTwo8 : CBCInput 8 2 := ⟨⟨1, by decide⟩, ![(1 : BitString 8), 0]⟩
 /-- Non-vacuous instantiation of prefix-free CBC-MAC smoothness at `n = 8, q = 2, ℓ = 2`, where
-  `δ = 16 / 256 = 1 / 16 < 1` so the lower-bound factor `1 - δ = 15 / 16` is strictly positive. -/
-example : CBCSmooth 8 2 2 ((2 : ℝ) ^ 2 * (2 : ℝ) ^ 2 / (2 : ℝ) ^ 8) ∧
-      (0 : ℝ) < 1 - (2 : ℝ) ^ 2 * (2 : ℝ) ^ 2 / (2 : ℝ) ^ 8 :=
+  `δ = 16 / 512 = 1 / 32 < 1` so the lower-bound factor `1 - δ = 31 / 32` is strictly positive. -/
+example : CBCSmooth 8 2 2 ((2 : ℝ) ^ 2 * (2 : ℝ) ^ 2 / (2 * (2 : ℝ) ^ 8)) ∧
+      (0 : ℝ) < 1 - (2 : ℝ) ^ 2 * (2 : ℝ) ^ 2 / (2 * (2 : ℝ) ^ 8) :=
   ⟨cbcSmooth_of_prefixFree 8 2 2, by norm_num⟩
 /-- Adaptive 2-query oracle program querying `inputZero8`, then adaptively querying either
   `inputOne8` (when the first tag is `0`) or `inputTwo8` (otherwise). -/
@@ -101,12 +101,12 @@ theorem twoQueryAdaptiveTree_admissible : CBCAdmissible 2 twoQueryAdaptiveTree :
     · exact not_isPrefix_of_head_ne (cbcInputBlocks_ne_nil _) head_cbcInputBlocks_zero_ne_two.symm
     · exact absurd rfl hxy
 /-- Non-vacuous instantiation of the adaptive uniform-random-function step (#6046) for
-  `PMF.pure twoQueryAdaptiveTree` at `n = 8, q = 2, ℓ = 2` (advantage bound `16 / 256 = 1 / 16 <
+  `PMF.pure twoQueryAdaptiveTree` at `n = 8, q = 2, ℓ = 2` (advantage bound `16 / 512 = 1 / 32 <
   1`). -/
 noncomputable example :
     |cbcUniformFunctionSuccess 8 2 (PMF.pure twoQueryAdaptiveTree) -
         cbcIdealSuccess 8 2 (PMF.pure twoQueryAdaptiveTree)| ≤
-      (2 : ℝ) ^ 2 * (2 : ℝ) ^ 2 / (2 : ℝ) ^ 8 := by
+      (2 : ℝ) ^ 2 * (2 : ℝ) ^ 2 / (2 * (2 : ℝ) ^ 8) := by
   simpa using
     abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le 8 2 2 (PMF.pure twoQueryAdaptiveTree)
     (fun tree htree => by
