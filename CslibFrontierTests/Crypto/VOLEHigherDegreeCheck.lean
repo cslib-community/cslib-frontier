@@ -1,0 +1,788 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger, Karn Seth. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger, Karn Seth
+-/
+
+import CslibFrontier.Computability.Circuit.Pi
+import CslibFrontier.Crypto.Protocols.VOLE.HigherDegreeCheck
+import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
+import Mathlib.Algebra.Polynomial.Coeff
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.NormNum
+
+/-!
+# Higher-degree QuickSilver, ACT Spend degree-9 parameters, and ACT V1 RLC clients
+
+Exercises `CslibFrontier.Crypto.Protocols.VOLE.HigherDegreeCheck` across:
+- Completeness and full honest-receiver view simulation at `d = 1`, `d = 2` (`MulCheck`/`Circuit`
+  bridge), and `d = actSpendDegree = 9` over prime fields (`ZMod 5`, `ZMod 11`), binary fields
+  (`BinaryField 2`, `BinaryField 4`), and a non-field ring with zero divisors (`ZMod 4`).
+- Negative ZK and completeness witnesses (unmasked view leakage separating valid witnesses at
+  `d = 9`, and a non-vanishing witness diverging from the zero-knowledge simulator).
+- Sharpness of the Schwartz–Zippel bound `d / |F|` at `d = 9` (`9 / 11`) and small-field failure
+  over `ZMod 2` (`100%` acceptance on `X ^ 9 - X`).
+- Scalar-batched soundness (`t / |F| + d / |C|`) and single-shot FAEST grinding subsets.
+- ACT Spend numeric bounds (`9 ∉ {7, 14}`, `(6784 - 1) ^ 5 < 2 ^ 64`, `12283 ^ 2 * 2 ^ 36 < 2 ^ 64`)
+  and `FAEST.Conversion` VOLE lifting into characteristic-2 rings.
+- ACT V1 RLC (`actSpendRLCCount = 45`) non-adaptive, adaptive, and Round-2+3 composed soundness,
+  paired with negative witnesses when domain separation is omitted or the challenge field is small.
+-/
+
+namespace CslibFrontierTests.Crypto.VOLEHigherDegreeCheck
+
+open Cslib Cslib.Circuits Cslib.Probability Cslib.Interactive Cslib.Interactive.Spec
+open Cslib.Crypto.FAEST Cslib.Crypto.Protocols.VOLE
+open scoped BigOperators ENNReal Matrix
+
+private instance : Fact (Nat.Prime 5) := ⟨by decide⟩
+private instance : Fact (Nat.Prime 11) := ⟨by decide⟩
+private instance : Fact (Nat.Prime 13) := ⟨by decide⟩
+private instance : Fact (Nat.Prime 17) := ⟨by decide⟩
+
+/-- Degree-`9` (`actSpendDegree`) polynomial constraint `w 0 ^ 9 - w 1 = 0` over any `CommRing`. -/
+private noncomputable def spendPoly {R : Type} [CommRing R] : MvPolynomial (Fin 2) R :=
+  MvPolynomial.X 0 ^ 9 - MvPolynomial.X 1
+
+private theorem totalDegree_spendPoly_le {R : Type} [CommRing R] :
+    (spendPoly (R := R)).totalDegree ≤ actSpendDegree := by
+  rw [spendPoly, actSpendDegree, sub_eq_add_neg]
+  refine (MvPolynomial.totalDegree_add _ _).trans (max_le ?_ ?_)
+  · refine (MvPolynomial.totalDegree_pow _ _).trans ?_
+    rcases subsingleton_or_nontrivial R with hsub | _
+    · have h0 : (MvPolynomial.X 0 : MvPolynomial (Fin 2) R) = 0 := Subsingleton.eq_zero _
+      simp [h0]
+    · rw [MvPolynomial.totalDegree_X]
+  · rw [MvPolynomial.totalDegree_neg]
+    rcases subsingleton_or_nontrivial R with hsub | _
+    · have h0 : (MvPolynomial.X 1 : MvPolynomial (Fin 2) R) = 0 := Subsingleton.eq_zero _
+      simp [h0]
+    · rw [MvPolynomial.totalDegree_X]
+      omega
+
+private theorem spendPoly_eval_eq {R : Type} [CommRing R] (w : Fin 2 → R) :
+    MvPolynomial.eval w spendPoly = w 0 ^ 9 - w 1 := by
+  simp [spendPoly]
+
+/-! ### Completeness and Full-View Zero-Knowledge Simulation (`d = 1`, `d = 2`, `d = 9`) -/
+
+private noncomputable def linPoly : MvPolynomial (Fin 1) (ZMod 5) :=
+  MvPolynomial.X 0 - MvPolynomial.C 2
+
+-- Degree `d = 1` consumes zero extra mask coordinates (`Fin (1 - 1)` is empty).
+example :
+    qsMaskedCheckView 1 (fun _ : Fin 1 => linPoly) (fun _ => 2) =
+      ProbComp.eval (qsMaskedCheckSimulate 1 (fun _ : Fin 1 => linPoly)) := by
+  refine qsMaskedCheckView_eq_simulate (by omega) (fun _ : Fin 1 => linPoly) ?_ (fun _ => 2) ?_
+  · intro _
+    rw [linPoly, sub_eq_add_neg]
+    have hx : (MvPolynomial.X (0 : Fin 1) : MvPolynomial (Fin 1) (ZMod 5)).totalDegree ≤ 1 :=
+      (MvPolynomial.totalDegree_X (0 : Fin 1)).le
+    have hc : (-MvPolynomial.C (2 : ZMod 5) : MvPolynomial (Fin 1) (ZMod 5)).totalDegree ≤ 1 := by
+      rw [MvPolynomial.totalDegree_neg, MvPolynomial.totalDegree_C]
+      exact Nat.zero_le 1
+    exact (MvPolynomial.totalDegree_add _ _).trans (max_le hx hc)
+  · intro _
+    rw [linPoly, MvPolynomial.eval_sub, MvPolynomial.eval_X, MvPolynomial.eval_C, sub_self]
+
+-- Over `ZMod 5`, both `![1, 1]` and `![2, 2]` satisfy `w 0 ^ 9 = w 1` (since `2 ^ 9 = 512 ≡ 2`)
+-- and produce identical full honest-receiver views under `(d - 1) = 8` VOLE masks.
+example :
+    (qsMaskedCheck actSpendDegree (fun _ : Fin 1 => (spendPoly (R := ZMod 5)))).Complete
+      (voleWorld (ZMod 5) (2 + (actSpendDegree - 1)))
+      (fun _ w => ∀ i : Fin 1, MvPolynomial.eval w ((fun _ => spendPoly) i) = 0)
+      Accept 0 :=
+  qsMaskedCheck_complete actSpendDegree (fun _ => spendPoly) (fun _ => totalDegree_spendPoly_le)
+
+example :
+    qsMaskedCheckView actSpendDegree (fun _ : Fin 1 => (spendPoly (R := ZMod 5))) ![1, 1] =
+      qsMaskedCheckView actSpendDegree (fun _ : Fin 1 => (spendPoly (R := ZMod 5))) ![2, 2] := by
+  rw [qsMaskedCheckView_eq_simulate (by decide : 1 ≤ actSpendDegree) _
+      (fun _ => totalDegree_spendPoly_le) ![1, 1] (fun _ => by simp [spendPoly_eval_eq]),
+    qsMaskedCheckView_eq_simulate (by decide : 1 ≤ actSpendDegree) _
+      (fun _ => totalDegree_spendPoly_le) ![2, 2] (fun _ => by
+        rw [spendPoly_eval_eq]
+        decide)]
+
+-- Full-view ZK at `d = 9` requires no field hypothesis; `ZMod 4` has zero divisors (`2 ^ 9 ≡ 0`).
+example :
+    qsMaskedCheckView actSpendDegree (fun _ : Fin 1 => (spendPoly (R := ZMod 4))) ![2, 0] =
+      ProbComp.eval
+        (qsMaskedCheckSimulate actSpendDegree (fun _ : Fin 1 => (spendPoly (R := ZMod 4)))) := by
+  apply qsMaskedCheckView_eq_simulate (by decide : 1 ≤ actSpendDegree) _
+    (fun _ => totalDegree_spendPoly_le)
+  intro _
+  rw [spendPoly_eval_eq]
+  decide
+
+private theorem coeff_qsHomogPoly_zero_v_lt {R : Type} [CommRing R] {n d : ℕ}
+    (F_poly : MvPolynomial (Fin n) R) (hdeg : F_poly.totalDegree ≤ d) (w : Fin n → R)
+    {k : ℕ} (hk : k < d) :
+    (qsHomogPoly d F_poly w 0).coeff k = 0 := by
+  rw [qsHomogPoly, Polynomial.finsetSum_coeff]
+  refine Finset.sum_eq_zero fun m hm => ?_
+  have hm_le : (m.sum fun _ e => e) ≤ d :=
+    (show m.sum (fun _ e => e) ≤ F_poly.totalDegree from MvPolynomial.le_totalDegree hm).trans hdeg
+  have hprod : (∏ i : Fin n, qsWirePoly w 0 i ^ m i) =
+      Polynomial.C (∏ i : Fin n, w i ^ m i) * Polynomial.X ^ (m.sum fun _ e => e) := by
+    have hwire : ∀ i : Fin n, qsWirePoly w 0 i ^ m i =
+        Polynomial.C (w i ^ m i) * Polynomial.X ^ m i := fun i => by
+      simp [qsWirePoly, mul_pow, ← map_pow]
+    simp_rw [hwire, Finset.prod_mul_distrib, ← map_prod, Finset.prod_pow_eq_pow_sum]
+    have hsum_eq : ∑ x : Fin n, m x = m.sum fun _ e => e := by
+      simp only [Finsupp.sum]
+      symm
+      exact Finset.sum_subset (Finset.subset_univ m.support) fun i _ hi =>
+        Finsupp.notMem_support_iff.mp hi
+    rw [hsum_eq]
+  rw [hprod]
+  have hterm : Polynomial.C (F_poly.coeff m) * Polynomial.X ^ (d - m.sum fun _ e => e) *
+      (Polynomial.C (∏ i : Fin n, w i ^ m i) * Polynomial.X ^ (m.sum fun _ e => e)) =
+      Polynomial.C (F_poly.coeff m * ∏ i : Fin n, w i ^ m i) * Polynomial.X ^ d := by
+    have hpow : Polynomial.X ^ (d - m.sum fun _ e => e) *
+        (Polynomial.X : Polynomial R) ^ (m.sum fun _ e => e) = Polynomial.X ^ d := by
+      rw [← pow_add, Nat.sub_add_cancel hm_le]
+    calc Polynomial.C (F_poly.coeff m) * Polynomial.X ^ (d - m.sum fun _ e => e) *
+          (Polynomial.C (∏ i : Fin n, w i ^ m i) * Polynomial.X ^ (m.sum fun _ e => e))
+        = (Polynomial.C (F_poly.coeff m) * Polynomial.C (∏ i : Fin n, w i ^ m i)) *
+            (Polynomial.X ^ (d - m.sum fun _ e => e) * Polynomial.X ^ (m.sum fun _ e => e)) := by
+          ring
+      _ = Polynomial.C (F_poly.coeff m * ∏ i : Fin n, w i ^ m i) * Polynomial.X ^ d := by
+          rw [map_mul, hpow]
+  rw [hterm, Polynomial.coeff_C_mul, Polynomial.coeff_X_pow, ite_eq_right hk.ne, mul_zero]
+
+private noncomputable def badDeg9View :
+    ((ZMod 5) × (Fin 10 → ZMod 5)) ×
+      Transcript (qsMaskedCheckSpec (ZMod 5) (Fin 1) 2 9) :=
+  ((1, fun _ => 0), (![2, 0], (fun _ => 1, (fun _ => 0, ()))))
+
+-- Negative test 1: a false witness (`![2, 0]`, `2 ^ 9 - 0 = 2 ≠ 0`) produces a real view
+-- rejected by the verifier, separating `qsMaskedCheckView` from `qsMaskedCheckSimulate`.
+example :
+    qsMaskedCheckView 9 (fun _ : Fin 1 => (spendPoly (R := ZMod 5))) ![2, 0] ≠
+      ProbComp.eval
+        (qsMaskedCheckSimulate 9 (fun _ : Fin 1 => (spendPoly (R := ZMod 5)))) := by
+  intro heq
+  have hdeg9 : (spendPoly (R := ZMod 5)).totalDegree ≤ 9 := totalDegree_spendPoly_le
+  have hreal : badDeg9View ∈
+      (qsMaskedCheckView 9 (fun _ : Fin 1 => (spendPoly (R := ZMod 5))) ![2, 0]).support := by
+    rw [qsMaskedCheckView_eq]
+    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
+      PMF.mem_support_pure_iff]
+    refine ⟨voleSample 0 0 1,
+      (mem_support_voleIdealDist_iff _).mpr (valid_voleSample _ _ _),
+      (fun _ => 1), PMF.mem_support_uniformOfFintype _, ?_⟩
+    have hcorr : voleCommitWitness ![2, 0]
+        (fun i => (voleSample (0 : Fin 10 → ZMod 5) 0 1).u (Fin.castAdd (9 - 1) i)) =
+        ![2, 0] := by
+      funext i
+      simp [voleCommitWitness, voleSample]
+    have hrep : qsMaskedCheckReply 9 (fun _ : Fin 1 => (spendPoly (R := ZMod 5)))
+        ![2, 0] (0 : Fin 10 → ZMod 5) 0 (fun _ => 1) = fun _ => 0 := by
+      funext j
+      simp only [qsMaskedCheckReply, Finset.univ_unique, Fin.default_eq_zero, Fin.isValue,
+        Finset.sum_singleton, one_mul, qsMaskCoeff, Pi.zero_apply]
+      split_ifs <;> simp only [add_zero] <;>
+        exact coeff_qsHomogPoly_zero_v_lt spendPoly hdeg9 ![2, 0] j.isLt
+    have hrec : (voleSample (0 : Fin 10 → ZMod 5) 0 1).receiverView = (1, fun _ => 0) := by
+      ext <;> simp [voleSample, VOLECorrelation.receiverView]
+    have hview : ((voleSample (0 : Fin 10 → ZMod 5) 0 1).receiverView,
+        (voleCommitWitness ![2, 0]
+          (fun i => (voleSample (0 : Fin 10 → ZMod 5) 0 1).u (Fin.castAdd (9 - 1) i)),
+          (fun _ => 1, (qsMaskedCheckReply 9 (fun _ : Fin 1 => (spendPoly (R := ZMod 5)))
+            ![2, 0] (voleSample (0 : Fin 10 → ZMod 5) 0 1).u
+            (voleSample (0 : Fin 10 → ZMod 5) 0 1).v (fun _ => 1), ())))) = badDeg9View := by
+      have hu0 : (voleSample (0 : Fin 10 → ZMod 5) 0 1).u = 0 := rfl
+      have hv0 : (voleSample (0 : Fin 10 → ZMod 5) 0 1).v = 0 := rfl
+      rw [hrec, hcorr, hu0, hv0, hrep]
+      rfl
+    exact hview.symm
+  rw [heq] at hreal
+  have hacc := qsMaskedCheckSimulate_accepts (by decide : 1 ≤ 9)
+    (fun _ : Fin 1 => (spendPoly (R := ZMod 5))) hreal
+  have hval : qsMaskedCheckValue 9 (fun _ : Fin 1 => (spendPoly (R := ZMod 5)))
+      1 (fun _ => 0) ![2, 0] (fun _ => 1) = 2 := by
+    let c0 : VOLECorrelation (ZMod 5) 2 := voleSample 0 0 1
+    have hc0 : c0.Valid := valid_voleSample _ _ _
+    have hzero_poly : ∀ k : Fin 9, (qsHomogPoly 9 (spendPoly (R := ZMod 5)) ![2, 0] c0.v).coeff k =
+        0 := fun k => coeff_qsHomogPoly_zero_v_lt spendPoly hdeg9 ![2, 0] k.isLt
+    have hcw : (fun _ : Fin 2 => (0 : ZMod 5)) = c0.w := by
+      funext i
+      simp [c0, voleSample]
+    have hcu : ![2, 0] = voleCommitWitness ![2, 0] c0.u := by
+      funext i
+      simp [c0, voleSample, voleCommitWitness]
+    rw [qsMaskedCheckValue]
+    simp only [Finset.univ_unique, Fin.default_eq_zero, Fin.isValue, Finset.sum_singleton,
+      one_mul, qsMaskValue]
+    have hmask0 : (∑ k : Fin (9 - 1), (0 : ZMod 5) * 1 ^ (k : ℕ)) = 0 := by simp
+    have hq0 : (fun _ : Fin 2 => (0 : ZMod 5)) = c0.w := hcw
+    rw [hmask0, add_zero, hcu]
+    have hdelta0 : (1 : ZMod 5) = c0.delta := rfl
+    rw [hq0, hdelta0]
+    rw [qsHomogVerifierValue_eq_eval hdeg9 ![2, 0] c0 hc0]
+    have hsum0 : qsPolySum 9 (fun k => (qsHomogPoly 9 spendPoly ![2, 0] c0.v).coeff k) c0.delta =
+        0 := by
+      simp [qsPolySum, hzero_poly]
+    rw [hsum0, add_zero, spendPoly_eval_eq]
+    change ((2 : ZMod 5) ^ 9 - 0) * (1 : ZMod 5) ^ 9 = 2
+    decide
+  dsimp only [QSMaskedCheckAccepts, badDeg9View] at hacc
+  rw [hval] at hacc
+  have hpoly0 : qsPolySum 9 (fun _ : Fin 9 => (0 : ZMod 5)) 1 = 0 := by
+    simp [qsPolySum]
+  rw [hpoly0] at hacc
+  exact (by decide : (2 : ZMod 5) ≠ 0) hacc
+
+-- Negative test 2: omitting the `d - 1 = 8` VOLE masks exposes the degree-1 homogenized
+-- coefficient, separating valid witnesses `![0, 0]` and `![1, 1]` over `ZMod 5`.
+private noncomputable def unmaskedDeg9View (w : Fin 2 → ZMod 5) :
+    PMF ((ZMod 5 × (Fin 2 → ZMod 5)) × (Fin 2 → ZMod 5) × ZMod 5) :=
+  (voleIdealDist (ZMod 5) 2).map fun c =>
+    (c.receiverView, voleCommitWitness w c.u, (qsHomogPoly 9 spendPoly w c.v).coeff 1)
+
+private noncomputable def leakedDeg9Event :
+    (ZMod 5 × (Fin 2 → ZMod 5)) × (Fin 2 → ZMod 5) × ZMod 5 :=
+  ((1, ![2, 0]), ![0, 0], 0)
+
+private theorem coeff1_spendPoly_eq (w v : Fin 2 → ZMod 5) :
+    (qsHomogPoly 9 (spendPoly (R := ZMod 5)) w v).coeff 1 =
+      (qsWirePoly w v 0 ^ 9).coeff 1 := by
+  classical
+  let m0 : Fin 2 →₀ ℕ := Finsupp.single 0 9
+  let m1 : Fin 2 →₀ ℕ := Finsupp.single 1 1
+  have hsp : (spendPoly (R := ZMod 5)) =
+      MvPolynomial.monomial m0 1 - MvPolynomial.monomial m1 1 := by
+    simp [spendPoly, m0, m1, MvPolynomial.X, MvPolynomial.monomial_pow]
+  have hm_ne : m0 ≠ m1 := by
+    intro h
+    have h0 := DFunLike.congr_fun h 0
+    simp [m0, m1] at h0
+  have hsub_supp : (spendPoly (R := ZMod 5)).support ⊆ ({m0, m1} : Finset (Fin 2 →₀ ℕ)) := by
+    intro m hm
+    rw [hsp, MvPolynomial.mem_support_iff, MvPolynomial.coeff_sub, MvPolynomial.coeff_monomial,
+      MvPolynomial.coeff_monomial] at hm
+    rw [Finset.mem_insert, Finset.mem_singleton]
+    by_cases h0 : m0 = m
+    · exact Or.inl h0.symm
+    · by_cases h1 : m1 = m
+      · exact Or.inr h1.symm
+      · simp [h0, h1] at hm
+  rw [qsHomogPoly]
+  have hrewrite : (spendPoly (R := ZMod 5)).support.sum (fun m =>
+      Polynomial.C ((spendPoly (R := ZMod 5)).coeff m) *
+        Polynomial.X ^ (9 - m.sum fun _ e => e) * ∏ i : Fin 2, qsWirePoly w v i ^ m i) =
+      ({m0, m1} : Finset (Fin 2 →₀ ℕ)).sum (fun m =>
+        Polynomial.C ((spendPoly (R := ZMod 5)).coeff m) *
+          Polynomial.X ^ (9 - m.sum fun _ e => e) * ∏ i : Fin 2, qsWirePoly w v i ^ m i) := by
+    refine Finset.sum_subset hsub_supp fun m _ hm => ?_
+    simp [MvPolynomial.notMem_support_iff.mp hm]
+  rw [hrewrite, Finset.sum_pair hm_ne, Polynomial.coeff_add]
+  have hc0 : (spendPoly (R := ZMod 5)).coeff m0 = 1 := by
+    rw [hsp, MvPolynomial.coeff_sub, MvPolynomial.coeff_monomial, MvPolynomial.coeff_monomial,
+      ite_eq_left rfl, ite_eq_right hm_ne.symm, sub_zero]
+  have hc1 : (spendPoly (R := ZMod 5)).coeff m1 = -1 := by
+    rw [hsp, MvPolynomial.coeff_sub, MvPolynomial.coeff_monomial, MvPolynomial.coeff_monomial,
+      ite_eq_right hm_ne, ite_eq_left rfl, zero_sub]
+  have hs0 : (m0.sum fun _ e => e) = 9 := Finsupp.sum_single_index rfl
+  have hs1 : (m1.sum fun _ e => e) = 1 := Finsupp.sum_single_index rfl
+  have hp0 : (∏ i : Fin 2, qsWirePoly w v i ^ m0 i) = qsWirePoly w v 0 ^ 9 := by
+    rw [Fin.prod_univ_two]
+    simp [m0]
+  have hp1 : (∏ i : Fin 2, qsWirePoly w v i ^ m1 i) = qsWirePoly w v 1 := by
+    rw [Fin.prod_univ_two]
+    simp [m1]
+  rw [hc0, hc1, hs0, hs1, hp0, hp1]
+  have hterm1 : (Polynomial.C (-1 : ZMod 5) * Polynomial.X ^ (9 - 1) * qsWirePoly w v 1).coeff 1 =
+      0 := by
+    have hfac : Polynomial.C (-1 : ZMod 5) * Polynomial.X ^ (9 - 1) * qsWirePoly w v 1 =
+        Polynomial.X ^ 8 * (Polynomial.C (-1 : ZMod 5) * qsWirePoly w v 1) := by
+      rw [show 9 - 1 = 8 by rfl]
+      ring
+    rw [hfac, Polynomial.coeff_X_pow_mul']
+    simp
+  rw [hterm1, add_zero]
+  simp
+
+example :
+    leakedDeg9Event ∈ (unmaskedDeg9View ![0, 0]).support ∧
+      leakedDeg9Event ∉ (unmaskedDeg9View ![1, 1]).support := by
+  constructor
+  · simp only [unmaskedDeg9View, PMF.mem_support_map_iff]
+    refine ⟨voleSample 0 ![2, 0] 1,
+      (mem_support_voleIdealDist_iff _).mpr (valid_voleSample _ _ _), ?_⟩
+    have hc1 : (qsHomogPoly 9 (spendPoly (R := ZMod 5)) ![0, 0] ![2, 0]).coeff 1 = 0 := by
+      rw [coeff1_spendPoly_eq]
+      have hw0 : qsWirePoly ![0, 0] ![2, 0] 0 = Polynomial.C (2 : ZMod 5) := by
+        simp [qsWirePoly]
+      rw [hw0, ← map_pow, Polynomial.coeff_C_of_ne_zero (by decide : (1 : ℕ) ≠ 0)]
+    refine Prod.ext (Prod.ext rfl ?_) (Prod.ext ?_ hc1)
+    · funext i
+      fin_cases i <;> decide
+    · funext i
+      fin_cases i <;> simp [voleCommitWitness, voleSample, leakedDeg9Event]
+  · simp only [unmaskedDeg9View, PMF.mem_support_map_iff, not_exists, not_and]
+    intro c hc heq
+    have hrec : c.delta = 1 ∧ c.w = ![2, 0] := by
+      have h1 := congrArg Prod.fst heq
+      exact ⟨congrArg Prod.fst h1, congrArg Prod.snd h1⟩
+    have hcorr : voleCommitWitness ![1, 1] c.u = ![0, 0] := congrArg (fun x => x.2.1) heq
+    have hc1 : (qsHomogPoly 9 (spendPoly (R := ZMod 5)) ![1, 1] c.v).coeff 1 = 0 :=
+      congrArg (fun x => x.2.2) heq
+    have hu0 : c.u 0 = 1 := by
+      have h0 := congrFun hcorr 0
+      simp only [voleCommitWitness, Pi.sub_apply, Matrix.cons_val_zero] at h0
+      exact sub_eq_zero.mp h0 |>.symm
+    have hv0 : c.v 0 = 1 := by
+      have hvalid := (mem_support_voleIdealDist_iff c).mp hc 0
+      have hw0 := congrFun hrec.2 0
+      rw [hvalid, hrec.1, hu0] at hw0
+      change 1 * 1 + c.v 0 = 2 at hw0
+      calc c.v 0 = (1 * 1 + c.v 0) - 1 := by ring
+        _ = 2 - 1 := by rw [hw0]
+        _ = 1 := by decide
+    rw [coeff1_spendPoly_eq] at hc1
+    have hwire : qsWirePoly ![1, 1] c.v 0 = Polynomial.X + Polynomial.C (1 : ZMod 5) := by
+      simp [qsWirePoly, hv0, add_comm]
+    rw [hwire, Polynomial.coeff_X_add_C_pow] at hc1
+    have hbad : ((1 : ZMod 5) ^ (9 - 1) * ↑(Nat.choose 9 1) : ZMod 5) = 0 := hc1
+    exact (by decide : ((1 : ZMod 5) ^ (9 - 1) * ↑(Nat.choose 9 1) : ZMod 5) ≠ 0) hbad
+
+/-! ### Soundness Bounds, Tightness at `d = 9`, Small-Field Failure, and FAEST Grinding -/
+
+private noncomputable def nineRootPoly : Polynomial (ZMod 11) :=
+  ∏ k : Fin 9, (Polynomial.X - Polynomial.C (k.val : ZMod 11))
+
+private theorem natDegree_nineRootPoly : nineRootPoly.natDegree ≤ actSpendDegree := by
+  rw [nineRootPoly, actSpendDegree]
+  refine (Polynomial.natDegree_prod_le _ _).trans ?_
+  rw [Finset.sum_congr rfl fun k _ => Polynomial.natDegree_X_sub_C (k.val : ZMod 11)]
+  simp
+
+private theorem coeff_nineRootPoly_nine : nineRootPoly.coeff 9 = 1 := by
+  have hmonic : nineRootPoly.Monic :=
+    Polynomial.monic_prod_of_monic _ _ fun k _ => Polynomial.monic_X_sub_C _
+  have hdeg : nineRootPoly.natDegree = 9 := by
+    rw [nineRootPoly, Polynomial.natDegree_prod_of_monic _ _ fun k _ => Polynomial.monic_X_sub_C _]
+    rw [Finset.sum_congr rfl fun k _ => Polynomial.natDegree_X_sub_C (k.val : ZMod 11)]
+    simp
+  rw [← hdeg]
+  exact hmonic.leadingCoeff
+
+-- Over `ZMod 11`, `toOuterMeasure_qsCheck_le` bounds acceptance by `9 / 11`, and `nineRootPoly`
+-- meets `9 / 11` with exact equality.
+example :
+    (PMF.uniformOfFintype (ZMod 11)).toOuterMeasure
+        {delta | nineRootPoly.eval delta = qsPolySum actSpendDegree (fun _ => 0) delta} ≤
+      9 / (11 : ℝ≥0∞) := by
+  have hne : nineRootPoly.coeff actSpendDegree ≠ 0 := by
+    rw [actSpendDegree, coeff_nineRootPoly_nine]
+    decide
+  simpa only [ZMod.card, actSpendDegree, Nat.cast_ofNat] using
+    toOuterMeasure_qsCheck_le natDegree_nineRootPoly hne (fun _ => 0)
+
+example :
+    (PMF.uniformOfFintype (ZMod 11)).toOuterMeasure
+        {delta | nineRootPoly.eval delta = qsPolySum actSpendDegree (fun _ => 0) delta} =
+      9 / (11 : ℝ≥0∞) := by
+  rw [PMF.toOuterMeasure_uniformOfFintype, ZMod.card]
+  have hset : ({delta | delta ∈
+      {delta : ZMod 11 | nineRootPoly.eval delta = qsPolySum actSpendDegree (fun _ => 0) delta}} :
+      Finset (ZMod 11)) = Finset.univ.image (fun k : Fin 9 => (k.val : ZMod 11)) := by
+    ext delta
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq, qsPolySum,
+      zero_mul, Finset.sum_const_zero, Finset.mem_image, nineRootPoly, Polynomial.eval_prod,
+      Polynomial.eval_sub, Polynomial.eval_X, Polynomial.eval_C, Finset.prod_eq_zero_iff]
+    simp [sub_eq_zero, eq_comm]
+  rw [hset, Finset.card_image_of_injective]
+  · norm_num [div_eq_mul_inv]
+  · intro a b hab
+    have hval : a.val % 11 = b.val % 11 := by
+      simpa [ZMod.val_natCast] using congrArg ZMod.val hab
+    ext
+    rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at hval
+    exact hval
+
+-- Small-field negative test: over `ZMod 2`, a degree-9 polynomial `X ^ 9 - X` with nonzero top
+-- coefficient vanishes on EVERY element of the challenge field (`100%` false-claim acceptance).
+example :
+    (Polynomial.X ^ 9 - Polynomial.X : Polynomial (ZMod 2)).natDegree ≤ 9 ∧
+      (Polynomial.X ^ 9 - Polynomial.X : Polynomial (ZMod 2)).coeff 9 = 1 ∧
+      (PMF.uniformOfFintype (ZMod 2)).toOuterMeasure
+        {delta : ZMod 2 | (Polynomial.X ^ 9 - Polynomial.X : Polynomial (ZMod 2)).eval delta =
+          qsPolySum 9 (fun _ => 0) delta} = 1 := by
+  refine ⟨?_, ?_, ?_⟩
+  · refine (Polynomial.natDegree_sub_le _ _).trans (max_le ?_ ?_)
+    · exact Polynomial.natDegree_X_pow_le 9
+    · exact Polynomial.natDegree_X_le.trans (by omega)
+  · simp [Polynomial.coeff_X_pow, Polynomial.coeff_X_of_ne_one (by decide : (9 : ℕ) ≠ 1)]
+  · have huniv : {delta : ZMod 2 |
+        (Polynomial.X ^ 9 - Polynomial.X : Polynomial (ZMod 2)).eval delta =
+          qsPolySum 9 (fun _ => 0) delta} = Set.univ := by
+      ext delta
+      simp only [Set.mem_ofPred_eq, Set.mem_univ, iff_true, Polynomial.eval_sub,
+        Polynomial.eval_pow, Polynomial.eval_X, qsPolySum, zero_mul, Finset.sum_const_zero]
+      fin_cases delta <;> decide
+    rw [huniv, PMF.toOuterMeasure_apply_eq_one_iff]
+    exact Set.subset_univ _
+
+-- Scalar-batched degree-9 soundness (`t / |F| + d / |C|`) on a false `spendPoly` instance.
+example (a : ZMod 13 → PMF (Fin actSpendDegree → ZMod 13)) :
+    (do
+      let chi ← PMF.uniformOfFintype (ZMod 13)
+      let reply ← a chi
+      let delta ← PMF.uniformOfFintype (ZMod 13)
+      let P_batch : Polynomial (ZMod 13) := ∑ i : Fin 2, Polynomial.C (quickSilverWeight chi i) *
+        qsHomogPoly actSpendDegree spendPoly ![2, 0] 0
+      return decide (P_batch.eval delta = qsPolySum actSpendDegree reply delta)).toOuterMeasure
+        {true} ≤ 2 / (13 : ℝ≥0∞) + 9 / (13 : ℝ≥0∞) := by
+  have h := toOuterMeasure_qsHomogScalarBatch_le (Function.Embedding.refl (ZMod 13))
+    (fun _ : Fin 2 => (spendPoly (R := ZMod 13))) (fun _ => totalDegree_spendPoly_le)
+    ![2, 0] 0 ⟨0, by rw [spendPoly_eval_eq]; decide⟩ a
+  conv at h =>
+    lhs
+    simp only [Function.Embedding.refl_apply]
+  conv at h =>
+    rhs
+    rw [ZMod.card, show actSpendDegree = 9 from rfl]
+    simp only [Nat.cast_ofNat]
+  exact h
+
+-- Single-shot FAEST grinding subsets over `BinaryField 4` (`2 ^ 4 = 16` accepted challenges vs
+-- `2 ^ 6 = 64` raw challenges at `d = actSpendDegree = 9`).
+private def toyGrindParams : ChallengeParams where
+  securityBits := 6
+  repetitions := 2
+  grindingBits := 2
+  grindingBits_le := by decide
+  repetitions_pos := by decide
+  repetitions_le := by decide
+
+private instance : Nonempty
+    {c : BitString toyGrindParams.securityBits // grindingAccepted toyGrindParams c = true} :=
+  instNonemptyGrindingAccepted toyGrindParams
+
+example (a : Fin actSpendDegree → BinaryField 4) :
+    (PMF.uniformOfFintype
+        {c : BitString toyGrindParams.securityBits //
+          grindingAccepted toyGrindParams c = true}).toOuterMeasure
+        {c | (qsHomogPoly actSpendDegree (spendPoly (R := BinaryField 4)) ![1, 0] 0).eval
+            (BinaryField.embed (w := 4) (by decide) (le_refl 4)
+              (grindingAcceptedEquiv toyGrindParams c)) =
+          qsPolySum actSpendDegree a
+            (BinaryField.embed (w := 4) (by decide) (le_refl 4)
+              (grindingAcceptedEquiv toyGrindParams c))} ≤
+      9 / (2 ^ 4 : ℝ≥0∞) := by
+  have hdeg : (qsHomogPoly actSpendDegree (spendPoly (R := BinaryField 4)) ![1, 0] 0).natDegree ≤
+      actSpendDegree := natDegree_qsHomogPoly_le totalDegree_spendPoly_le _ _
+  have hne : (qsHomogPoly actSpendDegree (spendPoly (R := BinaryField 4)) ![1, 0] 0).coeff
+      actSpendDegree ≠ 0 := by
+    rw [coeff_qsHomogPoly_eq_eval totalDegree_spendPoly_le, spendPoly_eval_eq]
+    simp
+  have h := toOuterMeasure_qsCheck_grinding_accepted_le toyGrindParams
+    (BinaryField.embed (w := 4) (by decide) (le_refl 4)) hdeg hne a
+  conv at h =>
+    rhs
+    rw [show toyGrindParams.nonGrindingBits = 4 from rfl, show actSpendDegree = 9 from rfl]
+    simp only [Nat.cast_ofNat]
+  exact h
+
+example (a : Fin actSpendDegree → BinaryField 4) :
+    (PMF.uniformOfFintype (BitString toyGrindParams.securityBits)).toOuterMeasure
+        {c | ∃ h : grindingAccepted toyGrindParams c = true,
+          (qsHomogPoly actSpendDegree (spendPoly (R := BinaryField 4)) ![1, 0] 0).eval
+              (BinaryField.embed (w := 4) (by decide) (le_refl 4)
+                (grindingAcceptedEquiv toyGrindParams ⟨c, h⟩)) =
+            qsPolySum actSpendDegree a
+              (BinaryField.embed (w := 4) (by decide) (le_refl 4)
+                (grindingAcceptedEquiv toyGrindParams ⟨c, h⟩))} ≤
+      9 / (2 ^ 6 : ℝ≥0∞) := by
+  have hdeg : (qsHomogPoly actSpendDegree (spendPoly (R := BinaryField 4)) ![1, 0] 0).natDegree ≤
+      actSpendDegree := natDegree_qsHomogPoly_le totalDegree_spendPoly_le _ _
+  have hne : (qsHomogPoly actSpendDegree (spendPoly (R := BinaryField 4)) ![1, 0] 0).coeff
+      actSpendDegree ≠ 0 := by
+    rw [coeff_qsHomogPoly_eq_eval totalDegree_spendPoly_le, spendPoly_eval_eq]
+    simp
+  have h := toOuterMeasure_qsCheck_grinding_raw_le toyGrindParams
+    (BinaryField.embed (w := 4) (by decide) (le_refl 4)) hdeg hne a
+  conv at h =>
+    rhs
+    rw [show toyGrindParams.securityBits = 6 from rfl, show actSpendDegree = 9 from rfl]
+    simp only [Nat.cast_ofNat]
+  exact h
+
+/-! ### Bridges to `VOLE.MulCheck`, `VOLE.Circuit`, and `FAEST.Conversion` -/
+
+example (w v : Fin 3 → ZMod 5) (q' : Fin 3 → ZMod 5) (delta : ZMod 5) :
+    qsHomogVerifierValue 2 (mulGatePoly 0 1 2) delta q' = q' 0 * q' 1 - q' 2 * delta ∧
+      qsHomogPoly 2 (mulGatePoly 0 1 2) w v =
+        Polynomial.C (w 0 * w 1 - w 2) * Polynomial.X ^ 2 +
+          Polynomial.C (voleMulCrossTerm (w 0) (v 0) (w 1) (v 1) (v 2)) * Polynomial.X +
+          Polynomial.C (voleMulConstTerm (v 0) (v 1)) :=
+  ⟨qsHomogVerifierValue_mulGatePoly 0 1 2 delta q', qsHomogPoly_mulGatePoly 0 1 2 w v⟩
+
+example (delta : ZMod 5) (q : Fin 4 → ZMod 5) (d_corr : Fin 3 → ZMod 5) (r : Fin 2 → ZMod 5) :
+    (∑ i : Fin 2, r i * qsHomogVerifierValue 2 (mulGatePoly 0 1 2) delta
+        (voleAdjustReceiver (Fin.init q) d_corr delta)) +
+        qsMaskValue 2 (fun _ => q (Fin.last 3)) delta =
+      maskedMulCheckValue (fun _ : Fin 2 => 0) (fun _ => 1) (fun _ => 2) delta q d_corr r :=
+  qsMaskedValue_two_eq_maskedMulCheckValue (fun _ : Fin 2 => 0) (fun _ => 1) (fun _ => 2)
+    delta q d_corr r
+
+private def sqCirc : Circuit (arithSignature (ZMod 5)) (1 + 0) 1 :=
+  Circuit.oneGate .mul (fun _ => 0)
+
+example :
+    (∀ idx, (circuitConstraintPoly sqCirc ![2] ![4] idx).totalDegree ≤ 2) ∧
+      (∀ idx, MvPolynomial.eval (circuitTrace sqCirc ![2] Fin.elim0)
+        (circuitConstraintPoly sqCirc ![2] ![4] idx) = 0) ∧
+      ∃ w : Fin 0 → ZMod 5,
+        sqCirc.eval (arithInterpretation (ZMod 5)) (Fin.append ![2] w) = ![4] := by
+  have heval : sqCirc.eval (arithInterpretation (ZMod 5)) (Fin.append ![2] Fin.elim0) = ![4] := by
+    funext i
+    fin_cases i
+    change (2 : ZMod 5) * 2 = 4
+    decide
+  have hvanish : ∀ idx, MvPolynomial.eval (circuitTrace sqCirc ![2] Fin.elim0)
+      (circuitConstraintPoly sqCirc ![2] ![4] idx) = 0 :=
+    eval_circuitConstraintPoly_circuitTrace sqCirc ![2] Fin.elim0 ![4] heval
+  exact ⟨fun idx => totalDegree_circuitConstraintPoly_le sqCirc ![2] ![4] idx, hvanish,
+    exists_witness_of_eval_circuitConstraintPoly_eq_zero sqCirc ![2] ![4]
+      (circuitTrace sqCirc ![2] Fin.elim0) hvanish⟩
+
+private def convRows : Fin (2 ^ 2) → BitString 3 :=
+  ![![true, false, false],
+    ![false, true, false],
+    ![false, false, true],
+    ![true, true, false]]
+
+private def convHidden : Fin (2 ^ 2) := ⟨3, by decide⟩
+
+example (beta : Fin 2 → ZMod 2) :
+    (faestConversionVOLE (R := ZMod 2) convRows convHidden beta).Valid ∧
+      ∀ j : Fin 3,
+        (faestConversionVOLE (R := ZMod 2) convRows convHidden beta).u j = 0 ∨
+        (faestConversionVOLE (R := ZMod 2) convRows convHidden beta).u j = 1 :=
+  ⟨faestConversionVOLE_valid convRows convHidden beta,
+    fun j => faestConversionVOLE_u_binary convRows convHidden beta j⟩
+
+example {R : Type} [CommRing R] [CharP R 2] (beta : Fin 2 → R) :
+    (faestConversionVOLE (R := R) convRows convHidden beta).Valid :=
+  faestConversionVOLE_valid convRows convHidden beta
+
+/-! ### ACT Spend Parameter Checks and Domain Separation -/
+
+-- ACT Spend uses degree 9 ∉ {7, 14}, exceeding FAEST v3.0 Lemma 10.40's {7, 14} hypothesis.
+example : actSpendDegree ∉ ({7, 14} : Finset ℕ) := by decide
+
+-- Concrete ACT Spend `VOLEHash` (`ℓ' = 6784`, `(6784 - 1) ^ 5 < 2 ^ 64`) and `ZKHash`
+-- (`C' = 12283`, `12283 ^ 2 * 2 ^ 36 < 2 ^ 64`) arithmetic checks.
+example : (6784 - 1) ^ 5 < 2 ^ 64 ∧ 12283 ^ 2 * 2 ^ 36 < 2 ^ 64 := by decide
+
+example :
+    (1 : ℝ≥0∞) / 2 ^ (4 * 128) + ((6784 - 1 : ℕ) : ℝ≥0∞) ^ 5 / 2 ^ (4 * 128 + 64) ≤
+      (1 + (1 : ℝ≥0∞) / 1) / 2 ^ (4 * 128) :=
+  voleHashError_le_of_pow_le 128 6784 1 1 (by decide) (by decide)
+
+example :
+    (1 : ℝ≥0∞) / 2 ^ 128 + (12283 : ℝ≥0∞) ^ 2 / 2 ^ (128 + 64) ≤
+      (1 + (1 : ℝ≥0∞) / (2 ^ 36 : ℕ)) / 2 ^ 128 :=
+  zkHashError_le_of_pow_le 128 12283 1 (2 ^ 36) (by decide) (by decide)
+
+example :
+    actRLCDomainByte ∉ faestTrailingDomainBytes ∧
+      actSpendCombineDst.getLast? = some actRLCDomainByte ∧
+      ∀ b ∈ faestTrailingDomainBytes,
+        Disjoint (Set.range (appendDomainByte actRLCDomainByte)) (Set.range (appendDomainByte b)) :=
+  ⟨actRLCDomainByte_notMem_faest, actSpendCombineDst_getLast?,
+    fun _ hb => disjoint_range_appendDomainByte fun h => actRLCDomainByte_notMem_faest (h ▸ hb)⟩
+
+example :
+    (PMF.uniformOfFintype (Fin 4 → Bool)).map
+        (fun H => (fun k₁ : Fin 2 => H (Fin.castLE (by decide) k₁),
+          fun k₂ : Fin 2 => H ⟨k₂.val + 2, by omega⟩)) =
+      (PMF.uniformOfFintype (Fin 2 → Bool)).bind fun H₁ =>
+        (PMF.uniformOfFintype (Fin 2 → Bool)).map fun H₂ => (H₁, H₂) := by
+  let ι₁ : Fin 2 ↪ Fin 4 :=
+    ⟨Fin.castLE (by decide), fun a b h => Fin.ext (by
+      have hv := congrArg Fin.val h
+      simpa only [Fin.val_castLE] using hv)⟩
+  let ι₂ : Fin 2 ↪ Fin 4 := ⟨fun k => ⟨k.val + 2, by omega⟩, fun a b h => by
+    ext
+    have := congrArg Fin.val h
+    dsimp only at this
+    omega⟩
+  refine uniform_split_of_disjoint_range ι₁ ι₂ ?_
+  rw [Set.disjoint_left]
+  rintro _ ⟨a, rfl⟩ ⟨b, hb⟩
+  have h1 : (ι₁ a).val < 2 := a.isLt
+  have h2 : (ι₂ b).val = b.val + 2 := rfl
+  have hval := congrArg Fin.val hb
+  rw [hval] at h2
+  omega
+
+/-! ### ACT V1 RLC (`m = 45`), Round-2+3 Composition, and Negative Boundaries -/
+
+example (lhs rhs : Fin actSpendRLCCount → ZMod 11) (hfalse : ∃ j, lhs j ≠ rhs j)
+    (ZKAccepts : Bool → (Fin actSpendRLCCount → ZMod 11) → Prop)
+    [∀ k l, Decidable (ZKAccepts k l)] {ε_zk : ℝ≥0∞}
+    (hzk : ∀ l, foldedResidual lhs rhs l ≠ 0 →
+      (PMF.uniformOfFintype Bool).toOuterMeasure {k | ZKAccepts k l} ≤ ε_zk) :
+    (do
+      let H ← PMF.uniformOfFintype (Bool → Fin actSpendRLCCount → ZMod 11)
+      let k ← PMF.uniformOfFintype Bool
+      return decide (foldedResidual lhs rhs (H k) = 0 ∨ ZKAccepts k (H k))).toOuterMeasure
+        {true} ≤
+      (11 : ℝ≥0∞)⁻¹ + (1 - (11 : ℝ≥0∞)⁻¹) * ε_zk := by
+  simpa only [ZMod.card, Nat.cast_ofNat] using
+    toOuterMeasure_actV1RLC_le lhs rhs hfalse ZKAccepts hzk
+
+example (P : Fin actSpendRLCCount → Polynomial (ZMod 17))
+    (Q : Unit → Fin 64 → (Fin actSpendRLCCount → ZMod 17) → Polynomial (ZMod 17))
+    (hdegQ : ∀ s k l, (Q s k l).natDegree ≤ actSpendDegree)
+    (a : Unit → Fin 64 → (Fin actSpendRLCCount → ZMod 17) → Fin actSpendDegree → ZMod 17)
+    (M : ProbOracleComp (fun _ : Fin 64 => Fin actSpendRLCCount → ZMod 17) Unit)
+    (hbound : ProbOracleComp.IsQueryBounded M 1) :
+    (do
+      let H ← PMF.uniformOfFintype (Fin 64 → Fin actSpendRLCCount → ZMod 17)
+      let s ← OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k))) M
+      let k ← PMF.uniformOfFintype (Fin 64)
+      let l := H k
+      let c ← PMF.uniformOfFintype (ZMod 17)
+      return decide ((∃ j, (P j).coeff actSpendDegree ≠ 0) ∧
+        ((Q s k l).coeff actSpendDegree ≠ 0 ∨ k = 0) ∧
+        (Q s k l).eval c = qsPolySum actSpendDegree (a s k l) c)).toOuterMeasure {true} ≤
+      1 * (1 / (64 : ℝ≥0∞)) + ((17 : ℝ≥0∞)⁻¹ +
+        (1 - (17 : ℝ≥0∞)⁻¹) * (1 / (64 : ℝ≥0∞) + 9 / (17 : ℝ≥0∞))) := by
+  have hdist : ∀ k₀ : Fin 64, PMF.uniformOfFintype (Fin 64) k₀ ≤ 1 / (64 : ℝ≥0∞) := fun _ => by
+    simp [PMF.uniformOfFintype_apply, one_div]
+  have h := toOuterMeasure_actV1_qs_sound_le (Function.Embedding.refl (ZMod 17))
+    M hbound (PMF.uniformOfFintype (Fin 64)) hdist (fun _ => P) Q hdegQ a
+    (fun s k l => (Q s k l).coeff actSpendDegree ≠ 0 ∨ k = 0) (ε_zk := 1 / (64 : ℝ≥0∞))
+    (fun s l _ => by
+      have hsub : {k : Fin 64 | ((Q s k l).coeff actSpendDegree ≠ 0 ∨ k = 0) ∧
+          (Q s k l).coeff actSpendDegree = 0} ⊆ {0} := fun k hk =>
+        hk.1.resolve_left (not_not.mpr hk.2)
+      refine (MeasureTheory.measure_mono hsub).trans_eq ?_
+      rw [PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply, Fintype.card_fin,
+        one_div]
+      norm_num)
+  conv at h =>
+    lhs
+    simp only [Function.Embedding.refl_apply]
+  conv at h =>
+    rhs
+    rw [ZMod.card, show actSpendDegree = 9 from rfl]
+    simp only [Nat.cast_ofNat]
+  exact h
+
+-- Negative test 3 (omitting domain separation): if two views read the SAME random oracle `H`
+-- instead of disjoint domain-separated slices, `uniform_split_of_disjoint_range` fails, and a
+-- 1-query adversary reading `l = H chal2` before outputting `res` cancels `foldedResidual = 0`
+-- on 100% of runs.
+example :
+    (PMF.uniformOfFintype (Bool → Bool)).map (fun H => (H, H)) ≠
+      (PMF.uniformOfFintype (Bool → Bool)).bind fun H₁ =>
+        (PMF.uniformOfFintype (Bool → Bool)).map fun H₂ => (H₁, H₂) := by
+  intro heq
+  let badPair : (Bool → Bool) × (Bool → Bool) := (fun _ => false, fun _ => true)
+  have h1 : ((PMF.uniformOfFintype (Bool → Bool)).map (fun H => (H, H))) badPair = 0 := by
+    simp only [PMF.map_apply, tsum_eq_zero_iff]
+    intro H
+    by_cases hH : badPair = (H, H)
+    · have h0 : H false = false := (congrFun (congrArg Prod.fst hH) false).symm
+      have h1' : H false = true := (congrFun (congrArg Prod.snd hH) false).symm
+      exact False.elim (Bool.false_ne_true (h0.symm.trans h1'))
+    · simp [hH]
+  have h2 : ((PMF.uniformOfFintype (Bool → Bool)).bind fun H₁ =>
+      (PMF.uniformOfFintype (Bool → Bool)).map fun H₂ => (H₁, H₂)) badPair ≠ 0 := by
+    rw [← PMF.mem_support_iff, PMF.mem_support_bind_iff]
+    refine ⟨fun _ => false, PMF.mem_support_uniformOfFintype _, ?_⟩
+    rw [PMF.mem_support_map_iff]
+    exact ⟨fun _ => true, PMF.mem_support_uniformOfFintype _, rfl⟩
+  rw [heq] at h1
+  exact h2 h1
+
+private noncomputable def adaptiveCancelAdversary :
+    ProbOracleComp (fun _ : Unit => Fin 2 → ZMod 11) (Fin 2 → ZMod 11) := do
+  let l ← ProbOracleComp.query ()
+  return if l = 0 then ![1, 0] else ![l 1, -l 0]
+
+example :
+    ProbOracleComp.IsQueryBounded adaptiveCancelAdversary 1 ∧
+      (do
+        let H ← PMF.uniformOfFintype (Unit → Fin 2 → ZMod 11)
+        let res ← OracleComp.interpret
+          (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k)))
+          adaptiveCancelAdversary
+        let k ← PMF.uniformOfFintype Unit
+        return decide ((∃ j, res j ≠ 0) ∧
+          foldedResidual res 0 (H k) = 0)).toOuterMeasure {true} = 1 := by
+  constructor
+  · unfold adaptiveCancelAdversary
+    simpa only [Nat.add_zero] using
+      (ProbOracleComp.IsQueryBounded.query (spec := fun _ : Unit => Fin 2 → ZMod 11) ()).bind
+        fun _ => OracleComp.IsCostBounded.pure _ 0
+  · have htrue : ∀ H : Unit → Fin 2 → ZMod 11,
+        (∃ j : Fin 2, (if H () = 0 then ![1, 0] else ![H () 1, -H () 0]) j ≠ 0) ∧
+        foldedResidual (if H () = 0 then ![1, 0] else ![H () 1, -H () 0]) 0 (H ()) = 0 := by
+      intro H
+      by_cases h0 : H () = 0
+      · simp [h0, foldedResidual]
+      · constructor
+        · by_contra hzero
+          push Not at hzero
+          have hj0 := hzero 0
+          have hj1 := hzero 1
+          simp only [h0, ↓reduceIte, Matrix.cons_val_zero, Matrix.cons_val_one,
+            neg_eq_zero] at hj0 hj1
+          apply h0
+          ext j
+          fin_cases j <;> simp [hj1, hj0]
+        · simp only [h0, ↓reduceIte, foldedResidual, Fin.sum_univ_two, Pi.zero_apply, sub_zero,
+            Matrix.cons_val_zero, Matrix.cons_val_one]
+          ring
+    have hH (H : Unit → Fin 2 → ZMod 11) :
+        OracleComp.interpret
+          (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k)))
+          adaptiveCancelAdversary =
+          PMF.pure (if H () = 0 then ![1, 0] else ![H () 1, -H () 0]) := by
+      simp [adaptiveCancelAdversary]
+    have heval : (do
+        let H ← PMF.uniformOfFintype (Unit → Fin 2 → ZMod 11)
+        let res ← OracleComp.interpret
+          (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k)))
+          adaptiveCancelAdversary
+        let k ← PMF.uniformOfFintype Unit
+        return decide ((∃ j, res j ≠ 0) ∧ foldedResidual res 0 (H k) = 0)) =
+        PMF.pure true := by
+      simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, hH, PMF.pure_bind]
+      trans ((PMF.uniformOfFintype (Unit → Fin 2 → ZMod 11)).bind fun _ => PMF.pure true)
+      · congr 1 with H : 1
+        trans ((PMF.uniformOfFintype Unit).bind fun _ => PMF.pure true)
+        · congr 1 with k : 1
+          cases k
+          exact congrArg PMF.pure (decide_eq_true (htrue H))
+        · simp [PMF.bind_const]
+      · simp [PMF.bind_const]
+    rw [heval]
+    simp
+
+-- Negative test 4 (small challenge field in ACT V1 RLC): over `ZMod 2`, random linear combination
+-- cancellation probability is `1 / 2` instead of exponentially small, making the Round-2+3 bound
+-- on `ZMod 2` vacuous (`≥ 1`).
+example :
+    (PMF.uniformOfFintype (Fin 2 → ZMod 2)).toOuterMeasure
+        {l | foldedResidual ![1, 0] ![0, 0] l = 0} = 1 / (2 : ℝ≥0∞) := by
+  rw [PMF.toOuterMeasure_uniformOfFintype, Fintype.card_fun, ZMod.card, Fintype.card_fin]
+  have hcard : ({l | l ∈ {l : Fin 2 → ZMod 2 | foldedResidual ![1, 0] ![0, 0] l = 0}} :
+      Finset (Fin 2 → ZMod 2)).card = 2 := by
+    decide
+  rw [hcard, show ((2 ^ 2 : ℕ) : ℝ≥0∞) = 2 * 2 by norm_num,
+    ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num)),
+    ← mul_assoc]
+  simp only [Nat.cast_ofNat]
+  rw [ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul, one_div]
+
+end CslibFrontierTests.Crypto.VOLEHigherDegreeCheck
