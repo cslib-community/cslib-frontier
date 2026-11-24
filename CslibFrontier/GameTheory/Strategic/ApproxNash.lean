@@ -7,63 +7,45 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.GameTheory.Bimatrix.Basic
-public import CslibFrontier.GameTheory.Strategic.Correlated
-public import Mathlib.Analysis.Convex.Basic
+public import CslibFrontier.GameTheory.Bimatrix.CostGame
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Data.Multiset.Count
-public import Mathlib.Geometry.Convex.Set
 import CslibFrontier.GameTheory.Bimatrix.Existence
 import CslibFrontier.Probability.Concentration
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
-import Mathlib.Algebra.BigOperators.Finsupp.Basic
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
-# Approximate Nash equilibria, convexity of correlated equilibria, and simple strategies
+# Approximate Nash equilibria and equilibria with small support
 
-This module formalizes additive `ε`-approximate mixed Nash equilibria for general strategic cost
-games and bimatrix payoff games, the convexity of the set of correlated equilibria (and hence that
-convex combinations of Nash equilibrium distributions are correlated equilibria), the
-Daskalakis–Mehta–Papadimitriou `1/2`-approximate Nash construction, and the
-Lipton–Markakis–Mehta `O(ln(|M| + |N|) / ε²)` uniform-multiset `ε`-Nash existence theorem,
-following [NisanRoughgardenTardosVazirani2007]:
+An **`ε`-approximate Nash equilibrium** is a profile of mixed strategies from which no player can
+gain more than an additive `ε` by deviating ([Papadimitriou2007], Section 2.6.6, p. 45;
+[Kearns2007], Section 7.2, p. 162). This module defines the notion for strategic cost games
+(`CostGame.IsApproxMixedNash`) and for bimatrix games (`BimatrixGame.IsApproxNash`), relates the
+two (`BimatrixGame.isApproxNash_iff_isApproxMixedNash`), and proves two existence results for
+bimatrix games with payoffs in `[0, 1]`. Both are statements about the existence and the support
+of approximate equilibria; no running time is claimed.
 
-* **`ε`-approximate Nash equilibria** ([Papadimitriou2007], Section 2.6.6, p. 45;
-  [Kearns2007], Section 7.2, p. 162): `CostGame.IsApproxMixedNash` and `BimatrixGame.IsApproxNash`,
-  with `ε = 0` equivalences (`CostGame.isApproxMixedNash_zero_iff`,
-  `BimatrixGame.isApproxNash_zero_iff`), monotonicity in `ε`, and equivalence between pure and
-  mixed deviations (`CostGame.IsApproxMixedNash.expectedCost_le_update`,
-  `BimatrixGame.isApproxNash_iff_pure`).
-* **Convexity of correlated equilibria** ([TardosVazirani2007], Section 1.3.6, pp. 14–15;
-  [Papadimitriou2007], Section 2.7, pp. 45–47): `{σ | G.IsCorrelatedEquilibrium σ}` is convex in
-  `Convexity.StdSimplex ℝ (∀ i, S i)` (`CostGame.isConvexSet_isCorrelatedEquilibrium`) and in
-  probability-vector coordinates (`CostGame.convex_correlatedEquilibriumPolytope`). Consequently,
-  every binary or indexed convex combination of correlated equilibria — and in particular of mixed
-  Nash product distributions — is a correlated equilibrium
-  (`CostGame.IsCorrelatedEquilibrium.convexCombPair`,
-  `CostGame.isCorrelatedEquilibrium_iConvexComb`,
-  `CostGame.isCorrelatedEquilibrium_iConvexComb_mixedNash`).
-* **Daskalakis–Mehta–Papadimitriou `1/2`-Nash theorem** ([Papadimitriou2007], Section 2.6.6, p. 45;
-  [DaskalakisMehtaPapadimitriou2006]): in any bimatrix game with payoffs in `[0, 1]`, picking any
-  row `i₀`, a pure best response `j₀` of player 2 to `i₀`, and a pure best response `i₁` of
-  player 1 to `j₀`, the pair `((1/2) e_{i₀} + (1/2) e_{i₁}, e_{j₀})` is a `(1/2)`-approximate Nash
-  equilibrium (`BimatrixGame.isApproxNash_half_dmp`, `BimatrixGame.exists_dmp_half_isApproxNash`).
-* **Lipton–Markakis–Mehta uniform-multiset `ε`-Nash existence** ([TardosVazirani2007],
-  Exercise 1.6, p. 27; [Papadimitriou2007], Section 2.6.6, p. 45; [LiptonMarkakisMehta2003]):
-  in any nonempty finite bimatrix game with payoffs in `[0, 1]` and `ε > 0`, for every integer
-  `k > 2 ln(2(|M| + |N|)) / ε²` — and in particular for the concrete multiset size
-  `BimatrixGame.lmmSampleSize M N ε = ⌊2 ln(2(|M| + |N|)) / ε²⌋₊ + 1` — there exist multisets
-  `m₁ : Multiset M` and `m₂ : Multiset N` of cardinality `k` whose uniform empirical distributions
-  (`uniformMultiset`) form an `ε`-approximate Nash equilibrium
-  (`BimatrixGame.exists_uniformMultiset_isApproxNash_of_lt`,
-  `BimatrixGame.exists_uniformMultiset_isApproxNash`). Scaling handles general nonnegative payoffs
-  in `[0, K]`, yielding an `(ε * K)`-approximate Nash equilibrium matching Exercise 1.6 directly
-  (`BimatrixGame.exists_uniformMultiset_isApproxNash_of_nonneg`).
+* **A `1/2`-approximate equilibrium with support of size at most two.** Take any row `i₀`, a
+  best-response column `j₀` to `i₀`, and a best-response row `i₁` to `j₀`. Then
+  `((1/2) e_{i₀} + (1/2) e_{i₁}, e_{j₀})` is a `1/2`-approximate Nash equilibrium
+  (`BimatrixGame.isApproxNash_half_dmp`). This is the construction of
+  [DaskalakisMehtaPapadimitriou2006]; [Papadimitriou2007], Section 2.6.6, p. 45, reports that
+  `1/2`-approximate equilibria are easy to compute and does not print the construction.
+* **`ε`-approximate equilibria that are uniform on small multisets**
+  ([TardosVazirani2007], Exercise 1.6, p. 27, after [LiptonMarkakisMehta2003]). For every
+  `ε > 0` and every integer `k > 2 ln(2(|M| + |N|)) / ε²` there are multisets of `k` rows and of
+  `k` columns whose uniform distributions (`uniformMultiset`) form an `ε`-approximate Nash
+  equilibrium (`BimatrixGame.exists_uniformMultiset_isApproxNash_of_lt`); the size
+  `BimatrixGame.lmmSampleSize M N ε = ⌊2 ln(2(|M| + |N|)) / ε²⌋₊ + 1` works
+  (`BimatrixGame.exists_uniformMultiset_isApproxNash`). For payoffs in `[0, K]` the same
+  multiset size gives an `(ε * K)`-approximate equilibrium, which is the statement of
+  Exercise 1.6 (`BimatrixGame.exists_uniformMultiset_isApproxNash_of_nonneg`). The proof samples
+  `k` times from an exact Nash equilibrium and applies Hoeffding's inequality with a union bound.
 
 ## Main definitions
 
@@ -75,27 +57,20 @@ following [NisanRoughgardenTardosVazirani2007]:
   of a bimatrix game.
 * `Cslib.GameTheory.uniformMultiset`: the mixed strategy choosing uniformly at random from a
   multiset of pure strategies.
-* `Cslib.GameTheory.BimatrixGame.lmmSampleSize`: explicit concrete multiset size
-  `⌊2 ln(2(|M| + |N|)) / ε²⌋₊ + 1` for the Lipton–Markakis–Mehta theorem.
+* `Cslib.GameTheory.BimatrixGame.lmmSampleSize`: the multiset size
+  `⌊2 ln(2(|M| + |N|)) / ε²⌋₊ + 1`.
 
 ## Main results
 
-* `Cslib.GameTheory.CostGame.isApproxMixedNash_zero_iff`,
-  `Cslib.GameTheory.BimatrixGame.isApproxNash_zero_iff`: `0`-approximate Nash equilibria are exact
-  Nash equilibria.
-* `Cslib.GameTheory.CostGame.isConvexSet_isCorrelatedEquilibrium`: the correlated equilibria form a
-  convex subset of `Convexity.StdSimplex ℝ (∀ i, S i)`.
-* `Cslib.GameTheory.CostGame.isCorrelatedEquilibrium_iConvexComb`,
-  `Cslib.GameTheory.CostGame.isCorrelatedEquilibrium_iConvexComb_mixedNash`: convex combinations of
-  correlated equilibria and of mixed Nash product distributions are correlated equilibria.
+* `Cslib.GameTheory.BimatrixGame.isApproxNash_iff_isApproxMixedNash`: the bimatrix notion agrees
+  with the cost-game notion on `BimatrixGame.toCostGame`.
 * `Cslib.GameTheory.BimatrixGame.isApproxNash_half_dmp`,
-  `Cslib.GameTheory.BimatrixGame.exists_dmp_half_isApproxNash`: the Daskalakis–Mehta–Papadimitriou
-  `(1/2)`-approximate Nash equilibrium theorem.
+  `Cslib.GameTheory.BimatrixGame.exists_dmp_half_isApproxNash`: a `1/2`-approximate Nash
+  equilibrium in which one player mixes two rows evenly and the other plays a column.
 * `Cslib.GameTheory.BimatrixGame.exists_uniformMultiset_isApproxNash_of_lt`,
   `Cslib.GameTheory.BimatrixGame.exists_uniformMultiset_isApproxNash`,
-  `Cslib.GameTheory.BimatrixGame.exists_uniformMultiset_isApproxNash_of_nonneg`: the
-  Lipton–Markakis–Mehta uniform-multiset `ε`-approximate Nash equilibrium existence theorem (both
-  normalized `[0, 1]` and unnormalized `[0, K]` payoffs).
+  `Cslib.GameTheory.BimatrixGame.exists_uniformMultiset_isApproxNash_of_nonneg`: existence of
+  `ε`-approximate Nash equilibria that are uniform on multisets of logarithmic size.
 
 ## References
 
@@ -104,8 +79,6 @@ following [NisanRoughgardenTardosVazirani2007]:
 * [M. Kearns, *Graphical Games*][Kearns2007]
 * [R. J. Lipton, E. Markakis, and A. Mehta, *Playing Large Games Using Simple
   Strategies*][LiptonMarkakisMehta2003]
-* [N. Nisan, T. Roughgarden, É. Tardos, and V. V. Vazirani (eds.),
-  *Algorithmic Game Theory*][NisanRoughgardenTardosVazirani2007]
 * [C. H. Papadimitriou, *The Complexity of Finding Nash Equilibria*][Papadimitriou2007]
 * [É. Tardos and V. V. Vazirani, *Basic Solution Concepts and Computational
   Issues*][TardosVazirani2007]
@@ -172,86 +145,6 @@ theorem IsApproxMixedNash.expectedCost_le_update {ε : ℝ} {p : ∀ i, S i → 
 
 end ApproxMixedNash
 
-/-! ### Convexity of correlated equilibria -/
-
-section ConvexCE
-
-variable {ι : Type*} {S : ι → Type*} [DecidableEq ι] (G : CostGame ι S)
-
-private theorem sum_convexCombPair_weights {X : Type*} {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
-    (hab : a + b = 1) (σ₁ σ₂ : Convexity.StdSimplex ℝ X) (f : X → ℝ) :
-    (Convexity.convexCombPair a b ha hb hab σ₁ σ₂).weights.sum (fun s w => w * f s) =
-      a * σ₁.weights.sum (fun s w => w * f s) + b * σ₂.weights.sum (fun s w => w * f s) := by
-  rw [Convexity.StdSimplex.weights_convexCombPair,
-    Finsupp.sum_add_index' (fun _ => zero_mul _) (fun _ _ _ => add_mul _ _ _),
-    Finsupp.sum_smul_index' (fun _ => zero_mul _),
-    Finsupp.sum_smul_index' (fun _ => zero_mul _), Finsupp.mul_sum, Finsupp.mul_sum]
-  congr 1 <;> exact Finsupp.sum_congr fun _ _ => by rw [smul_eq_mul, mul_assoc]
-
-/-- Binary convex combinations preserve correlated equilibria ([Papadimitriou2007], Section 2.7,
-p. 47). -/
-theorem IsCorrelatedEquilibrium.convexCombPair {G : CostGame ι S}
-    {σ₁ σ₂ : Convexity.StdSimplex ℝ (∀ i, S i)}
-    (h₁ : G.IsCorrelatedEquilibrium σ₁) (h₂ : G.IsCorrelatedEquilibrium σ₂)
-    {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : a + b = 1) :
-    G.IsCorrelatedEquilibrium (Convexity.convexCombPair a b ha hb hab σ₁ σ₂) := by
-  intro i δ
-  rw [sum_convexCombPair_weights, sum_convexCombPair_weights]
-  linarith [mul_le_mul_of_nonneg_left (h₁ i δ) ha, mul_le_mul_of_nonneg_left (h₂ i δ) hb]
-
-/-- **The set of correlated equilibria is convex** ([TardosVazirani2007], Section 1.3.6, pp. 14–15;
-[Papadimitriou2007], Section 2.7, pp. 45–47): `{σ | G.IsCorrelatedEquilibrium σ}` is a convex set
-in `Convexity.StdSimplex ℝ (∀ i, S i)`. -/
-theorem isConvexSet_isCorrelatedEquilibrium :
-    Convexity.IsConvexSet ℝ {σ : Convexity.StdSimplex ℝ (∀ i, S i) | G.IsCorrelatedEquilibrium σ} :=
-  Convexity.IsConvexSet.of_convexCombPair_mem fun _ _ ha hb hab _ h₁ _ h₂ =>
-    h₁.convexCombPair h₂ ha hb hab
-
-/-- Every indexed convex combination of correlated equilibria is a correlated equilibrium. -/
-theorem isCorrelatedEquilibrium_iConvexComb {J : Type*} {G : CostGame ι S}
-    (w : Convexity.StdSimplex ℝ J) {σ : J → Convexity.StdSimplex ℝ (∀ i, S i)}
-    (hσ : ∀ j, w.weights j ≠ 0 → G.IsCorrelatedEquilibrium (σ j)) :
-    G.IsCorrelatedEquilibrium (w.iConvexComb σ) :=
-  (G.isConvexSet_isCorrelatedEquilibrium).iConvexComb_mem hσ
-
-/-- Every convex combination of the product distributions of mixed Nash equilibria is a correlated
-equilibrium ([Papadimitriou2007], Section 2.7, pp. 46–47). -/
-theorem isCorrelatedEquilibrium_iConvexComb_mixedNash [Fintype ι] [∀ i, Fintype (S i)]
-    {J : Type*} {G : CostGame ι S} (w : Convexity.StdSimplex ℝ J)
-    {p : J → ∀ i, S i → ℝ} (hp : ∀ j, G.IsMixedNash (p j)) :
-    G.IsCorrelatedEquilibrium
-      (w.iConvexComb fun j =>
-        productDist (fun i => ((hp j).1 i).nonneg) (fun i => ((hp j).1 i).sum_eq_one)) :=
-  isCorrelatedEquilibrium_iConvexComb w fun j _ => (hp j).isCorrelatedEquilibrium
-
-/-- A binary convex combination of two mixed Nash product distributions is a correlated
-equilibrium. -/
-theorem isCorrelatedEquilibrium_convexCombPair_mixedNash [Fintype ι] [∀ i, Fintype (S i)]
-    {G : CostGame ι S} {p₁ p₂ : ∀ i, S i → ℝ}
-    (hp₁ : G.IsMixedNash p₁) (hp₂ : G.IsMixedNash p₂)
-    {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : a + b = 1) :
-    G.IsCorrelatedEquilibrium
-      (Convexity.convexCombPair a b ha hb hab
-        (productDist (fun i => (hp₁.1 i).nonneg) (fun i => (hp₁.1 i).sum_eq_one))
-        (productDist (fun i => (hp₂.1 i).nonneg) (fun i => (hp₂.1 i).sum_eq_one))) :=
-  hp₁.isCorrelatedEquilibrium.convexCombPair hp₂.isCorrelatedEquilibrium ha hb hab
-
-/-- On a finite game, the correlated-equilibrium polytope in `((∀ i, S i) → ℝ)` is convex in the
-usual vector-space sense `Convex ℝ` ([Papadimitriou2007], Section 2.7, p. 47). -/
-theorem convex_correlatedEquilibriumPolytope [Fintype ι] [∀ i, Fintype (S i)] :
-    Convex ℝ {w : (∀ i, S i) → ℝ | IsMixedStrategy w ∧
-      ∀ i (δ : S i → S i), ∑ s, w s * G.cost i s ≤ ∑ s, w s * G.cost i (update s i (δ (s i)))} := by
-  rintro w₁ ⟨hw₁, hce₁⟩ w₂ ⟨hw₂, hce₂⟩ a b ha hb hab
-  refine ⟨isMixedStrategy_iff.2 ⟨fun s => ?_, ?_⟩, fun i δ => ?_⟩
-  · exact add_nonneg (mul_nonneg ha (hw₁.nonneg s)) (mul_nonneg hb (hw₂.nonneg s))
-  · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum,
-      hw₁.sum_eq_one, hw₂.sum_eq_one, mul_one, hab]
-  · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, add_mul, mul_assoc, sum_add_distrib,
-      ← mul_sum]
-    linarith [mul_le_mul_of_nonneg_left (hce₁ i δ) ha, mul_le_mul_of_nonneg_left (hce₂ i δ) hb]
-
-end ConvexCE
-
 end CostGame
 
 /-! ### Uniform-multiset mixed strategies -/
@@ -261,33 +154,22 @@ section UniformMultiset
 /-- The mixed strategy that chooses uniformly at random from a multiset `m : Multiset α`
 ([TardosVazirani2007], Exercise 1.6, p. 27; [LiptonMarkakisMehta2003]): pure strategy
 `a` receives probability `(m.count a : ℝ) / m.card`. -/
-@[expose] noncomputable def uniformMultiset {α : Type*} [DecidableEq α] (m : Multiset α) (a : α) :
+noncomputable def uniformMultiset {α : Type*} [DecidableEq α] (m : Multiset α) (a : α) :
     ℝ :=
   (m.count a : ℝ) / m.card
+
+@[simp]
+theorem uniformMultiset_apply {α : Type*} [DecidableEq α] (m : Multiset α) (a : α) :
+    uniformMultiset m a = (m.count a : ℝ) / m.card := by rfl
 
 private theorem sum_multiset_count_mul {α : Type*} [Fintype α] [DecidableEq α]
     (m : Multiset α) (f : α → ℝ) :
     ∑ a : α, (m.count a : ℝ) * f a = (m.map f).sum := by
-  induction m using Multiset.induction_on with
-  | empty => simp
-  | cons b s ih =>
-    have hcons : ∀ a : α, (((b ::ₘ s).count a : ℕ) : ℝ) * f a =
-        (s.count a : ℝ) * f a + if a = b then f b else 0 := fun a => by
-      rw [Multiset.count_cons]
-      push_cast
-      split_ifs with hab
-      · subst hab
-        ring
-      · ring
-    simp_rw [hcons]
-    rw [sum_add_distrib, ih, sum_ite_eq' univ b, ite_eq_left_iff.2 fun h => (h (mem_univ b)).elim,
-      Multiset.map_cons, Multiset.sum_cons, add_comm]
-
-theorem sum_multiset_count_eq_card {α : Type*} [Fintype α] [DecidableEq α] (m : Multiset α) :
-    ∑ a : α, m.count a = m.card := by
-  have h := sum_multiset_count_mul m (fun _ => (1 : ℝ))
-  simp only [mul_one, Multiset.map_const', Multiset.sum_replicate, nsmul_eq_mul] at h
-  exact_mod_cast h
+  rw [Finset.sum_multiset_map_count]
+  symm
+  refine (Finset.sum_subset (subset_univ _) fun a _ ha => ?_).trans
+    (sum_congr rfl fun a _ => nsmul_eq_mul _ _)
+  rw [Multiset.count_eq_zero.2 (mt Multiset.mem_toFinset.2 ha), zero_smul]
 
 /-- For any nonempty multiset `m`, `uniformMultiset m` is a valid mixed strategy. -/
 theorem isMixedStrategy_uniformMultiset {α : Type*} [Fintype α] [DecidableEq α]
@@ -295,7 +177,8 @@ theorem isMixedStrategy_uniformMultiset {α : Type*} [Fintype α] [DecidableEq �
   have hcard : (0 : ℝ) < m.card := Nat.cast_pos.2 (Multiset.card_pos.2 hm)
   refine isMixedStrategy_iff.2 ⟨fun a => div_nonneg (Nat.cast_nonneg _) hcard.le, ?_⟩
   dsimp only [uniformMultiset]
-  rw [← sum_div, ← Nat.cast_sum, sum_multiset_count_eq_card, div_self hcard.ne']
+  rw [← sum_div, ← Nat.cast_sum, Multiset.sum_count_eq_card (fun _ _ => mem_univ _),
+    div_self hcard.ne']
 
 /-- The support of `uniformMultiset m` has size at most `m.card`. -/
 theorem ncard_support_uniformMultiset_le {α : Type*} [DecidableEq α]
@@ -425,13 +308,61 @@ theorem IsApproxNash.mono {ε' : ℝ} (h : G.IsApproxNash ε x y) (hle : ε ≤ 
 theorem IsNash.isApproxNash (h : G.IsNash x y) (hε : 0 ≤ ε) : G.IsApproxNash ε x y :=
   (isApproxNash_zero_iff.2 h).mono hε
 
+/-- Scaling both payoff matrices of a bimatrix game by `c ≥ 0` scales the approximation error of an
+`ε`-approximate Nash equilibrium by `c`. -/
+theorem IsApproxNash.smul {c : ℝ} (hc : 0 ≤ c) (h : G.IsApproxNash ε x y) :
+    (⟨c • G.A, c • G.B⟩ : BimatrixGame M N).IsApproxNash (c * ε) x y := by
+  obtain ⟨⟨hx, hbr₁⟩, ⟨hy, hbr₂⟩⟩ := isApproxNash_iff_pure.1 h
+  refine isApproxNash_iff_pure.2 ⟨⟨hx, fun i => ?_⟩, ⟨hy, fun j => ?_⟩⟩
+  · have hi := mul_le_mul_of_nonneg_left (hbr₁ i) hc
+    simp only [payoff₁_eq_dotProduct, Matrix.smul_mulVec, dotProduct_smul, Pi.smul_apply,
+      smul_eq_mul] at hi ⊢
+    linarith
+  · have hj := mul_le_mul_of_nonneg_left (hbr₂ j) hc
+    simp only [payoff₂_eq_dotProduct, Matrix.vecMul_smul, dotProduct_smul, Pi.smul_apply,
+      smul_eq_mul] at hj ⊢
+    linarith
+
+/-- An `ε`-approximate Nash equilibrium of a bimatrix game `G` is equivalently an `ε`-approximate
+mixed Nash equilibrium of `G.toCostGame`. -/
+theorem isApproxNash_iff_isApproxMixedNash :
+    G.IsApproxNash ε x y ↔ G.toCostGame.IsApproxMixedNash ε (profile x y) := by
+  rw [isApproxNash_iff_pure, CostGame.IsApproxMixedNash]
+  constructor
+  · rintro ⟨⟨hx, hbr₁⟩, ⟨hy, hbr₂⟩⟩
+    refine ⟨fun b => ?_, fun b a => ?_⟩
+    · cases b
+      exacts [isMixedStrategy_profile_false_iff.2 hx, isMixedStrategy_profile_true_iff.2 hy]
+    · cases b
+      · obtain ⟨i⟩ := a
+        rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
+          deviationCost_toCostGame_row G y hx.sum_eq_one i]
+        linarith [hbr₁ i]
+      · obtain ⟨j⟩ := a
+        rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
+          deviationCost_toCostGame_column G x hy.sum_eq_one j]
+        linarith [hbr₂ j]
+  · rintro ⟨hmix, hdev⟩
+    have hx := isMixedStrategy_profile_false_iff.1 (hmix false)
+    have hy := isMixedStrategy_profile_true_iff.1 (hmix true)
+    refine ⟨⟨hx, fun i => ?_⟩, ⟨hy, fun j => ?_⟩⟩
+    · have hi := hdev false (ULift.up i)
+      rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
+        deviationCost_toCostGame_row G y hx.sum_eq_one i] at hi
+      linarith
+    · have hj := hdev true (ULift.up j)
+      rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
+        deviationCost_toCostGame_column G x hy.sum_eq_one j] at hj
+      linarith
+
 /-! #### Daskalakis–Mehta–Papadimitriou `1/2`-approximate Nash equilibrium -/
 
-/-- **Daskalakis–Mehta–Papadimitriou `(1/2)`-Nash theorem** ([Papadimitriou2007], Section 2.6.6,
-p. 45; [DaskalakisMehtaPapadimitriou2006]): in any bimatrix game with payoffs in
-`[0, 1]`, if `i₀` is any row, `j₀` maximizes `G.B i₀ ·` (best response of player 2 to `i₀`), and
-`i₁` maximizes `G.A · j₀` (best response of player 1 to `j₀`), then
-`((1/2) e_{i₀} + (1/2) e_{i₁}, e_{j₀})` is a `(1/2)`-approximate Nash equilibrium. -/
+/-- **Daskalakis–Mehta–Papadimitriou `(1/2)`-Nash theorem** ([DaskalakisMehtaPapadimitriou2006];
+cited in [Papadimitriou2007], Section 2.6.6, p. 45): in any bimatrix game with payoffs in `[0, 1]`,
+if `i₀` is any row, `j₀` maximizes `G.B i₀ ·` (best response of player 2 to `i₀`), and `i₁`
+maximizes `G.A · j₀` (best response of player 1 to `j₀`), then
+`((1/2) e_{i₀} + (1/2) e_{i₁}, e_{j₀})` is a `(1/2)`-approximate Nash equilibrium. This states the
+game-theoretic approximation guarantee without a machine running-time claim. -/
 theorem isApproxNash_half_dmp [DecidableEq M] [DecidableEq N]
     (hA : ∀ i j, G.A i j ∈ Set.Icc 0 1) (hB : ∀ i j, G.B i j ∈ Set.Icc 0 1)
     (i₀ : M) {j₀ : N} (hj₀ : ∀ j, G.B i₀ j ≤ G.B i₀ j₀)
@@ -548,14 +479,10 @@ private theorem exists_empirical_tuple {α β : Type*} [Fintype α] [Fintype β]
     {ω | (k : ℝ) * δ ≤ |(∑ t : Fin k, g i (ω t)) - ∑ _t : Fin k, ∑ b : β, (q b).toReal * g i b|}
   have hk_pos : (0 : ℝ) < k := Nat.cast_pos.2 hk
   have hbad_each : ∀ i : α, (μ.toOuterMeasure (bad i)).toReal ≤
-      2 * Real.exp (-2 * (k : ℝ) * δ ^ 2) := by
-    intro i
-    have hconc := pi_sum_abs_sub_mean_ge (fun _ : Fin k => q) (fun _ b => g i b)
-      (bound := 1) (ε := (k : ℝ) * δ) zero_le_one (fun _ b _ => hg i b) (by positivity)
-    refine hconc.trans_eq ?_
-    congr 2
-    simp only [Fintype.card_fin]
-    field_simp
+      2 * Real.exp (-2 * (k : ℝ) * δ ^ 2) := fun i => by
+    simpa only [Fintype.card_fin] using
+      pi_sum_abs_sub_mean_ge_card_mul (fun _ : Fin k => q) (fun _ b => g i b)
+        (fun _ b _ => hg i b) hδ.le
   have hunion_le : (μ.toOuterMeasure (⋃ i : α, bad i)).toReal ≤
       2 * (Fintype.card α : ℝ) * Real.exp (-2 * (k : ℝ) * δ ^ 2) := by
     have h1 : μ.toOuterMeasure (⋃ i : α, bad i) ≤ ∑ i : α, μ.toOuterMeasure (bad i) :=
@@ -619,7 +546,8 @@ private theorem lmm_payoff_bound {α : Type*} [Fintype α] [DecidableEq α] {k :
 p. 27; [Papadimitriou2007], Section 2.6.6, p. 45; [LiptonMarkakisMehta2003]): in any
 nonempty finite bimatrix game with payoffs in `[0, 1]` and `ε > 0`, for every `k : ℕ` satisfying
 `2 ln(2(|M| + |N|)) / ε² < k`, there exist multisets `m₁ : Multiset M` and `m₂ : Multiset N` of
-cardinality `k` whose uniform distributions form an `ε`-approximate Nash equilibrium. -/
+cardinality `k` whose uniform distributions form an `ε`-approximate Nash equilibrium. This states
+existence of a small-support approximate equilibrium without a machine running-time claim. -/
 theorem exists_uniformMultiset_isApproxNash_of_lt [DecidableEq M] [DecidableEq N]
     [Nonempty M] [Nonempty N] (G : BimatrixGame M N)
     (hA : ∀ i j, G.A i j ∈ Set.Icc 0 1) (hB : ∀ i j, G.B i j ∈ Set.Icc 0 1)
@@ -727,59 +655,35 @@ theorem exists_uniformMultiset_isApproxNash_of_nonneg [DecidableEq M] [Decidable
     ∃ (m₁ : Multiset M) (m₂ : Multiset N),
       m₁.card = lmmSampleSize M N ε ∧ m₂.card = lmmSampleSize M N ε ∧
         G.IsApproxNash (ε * K) (uniformMultiset m₁) (uniformMultiset m₂) := by
-  set k := lmmSampleSize M N ε
-  rcases hK.eq_or_lt with rfl | hK_pos
-  · have hA0 : ∀ i j, G.A i j = 0 := fun i j => le_antisymm (hA i j).2 (hA i j).1
-    have hB0 : ∀ i j, G.B i j = 0 := fun i j => le_antisymm (hB i j).2 (hB i j).1
-    let m₁ : Multiset M := Multiset.replicate k (Classical.arbitrary M)
-    let m₂ : Multiset N := Multiset.replicate k (Classical.arbitrary N)
-    have hm₁_ne : m₁ ≠ 0 := Multiset.card_pos.1 (by simp [m₁, k, lmmSampleSize_pos])
-    have hm₂_ne : m₂ ≠ 0 := Multiset.card_pos.1 (by simp [m₂, k, lmmSampleSize_pos])
-    refine ⟨m₁, m₂, Multiset.card_replicate _ _, Multiset.card_replicate _ _,
-      isApproxNash_iff_pure.2 ⟨⟨isMixedStrategy_uniformMultiset hm₁_ne, fun i => ?_⟩,
-        ⟨isMixedStrategy_uniformMultiset hm₂_ne, fun j => ?_⟩⟩⟩
-    · have hGA : G.A = 0 := Matrix.ext hA0
-      simp only [payoff₁_eq_dotProduct, hGA, Matrix.zero_mulVec, Pi.zero_apply, dotProduct_zero,
-        mul_zero, add_zero, le_rfl]
-    · have hGB : G.B = 0 := Matrix.ext hB0
-      simp only [payoff₂_eq_dotProduct, hGB, Matrix.vecMul_zero, Pi.zero_apply, dotProduct_zero,
-        mul_zero, add_zero, le_rfl]
-  · let G' : BimatrixGame M N := ⟨K⁻¹ • G.A, K⁻¹ • G.B⟩
-    have hA' : ∀ i j, G'.A i j ∈ Set.Icc 0 1 := fun i j =>
-      ⟨mul_nonneg (inv_nonneg.2 hK_pos.le) (hA i j).1, by
-        simpa only [G', Matrix.smul_apply, smul_eq_mul, inv_mul_cancel₀ hK_pos.ne'] using
-          mul_le_mul_of_nonneg_left (hA i j).2 (inv_nonneg.2 hK_pos.le)⟩
-    have hB' : ∀ i j, G'.B i j ∈ Set.Icc 0 1 := fun i j =>
-      ⟨mul_nonneg (inv_nonneg.2 hK_pos.le) (hB i j).1, by
-        simpa only [G', Matrix.smul_apply, smul_eq_mul, inv_mul_cancel₀ hK_pos.ne'] using
-          mul_le_mul_of_nonneg_left (hB i j).2 (inv_nonneg.2 hK_pos.le)⟩
-    obtain ⟨m₁, m₂, hm₁, hm₂, happrox⟩ := G'.exists_uniformMultiset_isApproxNash hA' hB' hε
-    obtain ⟨⟨hx, hbr₁⟩, ⟨hy, hbr₂⟩⟩ := isApproxNash_iff_pure.1 happrox
-    refine ⟨m₁, m₂, hm₁, hm₂, isApproxNash_iff_pure.2 ⟨⟨hx, fun i => ?_⟩, ⟨hy, fun j => ?_⟩⟩⟩
-    · have hi := mul_le_mul_of_nonneg_left (hbr₁ i) hK_pos.le
-      have hL : K * (G'.A *ᵥ uniformMultiset m₂) i = (G.A *ᵥ uniformMultiset m₂) i := by
-        change K * ((K⁻¹ • G.A) *ᵥ uniformMultiset m₂) i = _
-        rw [Matrix.smul_mulVec, Pi.smul_apply, smul_eq_mul, ← mul_assoc,
-          mul_inv_cancel₀ hK_pos.ne', one_mul]
-      have hR : K * (G'.payoff₁ (uniformMultiset m₁) (uniformMultiset m₂) + ε) =
-          G.payoff₁ (uniformMultiset m₁) (uniformMultiset m₂) + ε * K := by
-        rw [payoff₁_eq_dotProduct, payoff₁_eq_dotProduct]
-        change K * (uniformMultiset m₁ ⬝ᵥ ((K⁻¹ • G.A) *ᵥ uniformMultiset m₂) + ε) = _
-        rw [Matrix.smul_mulVec, dotProduct_smul, smul_eq_mul, mul_add, ← mul_assoc,
-          mul_inv_cancel₀ hK_pos.ne', one_mul, mul_comm K ε]
-      rwa [hL, hR] at hi
-    · have hj := mul_le_mul_of_nonneg_left (hbr₂ j) hK_pos.le
-      have hL : K * (uniformMultiset m₁ ᵥ* G'.B) j = (uniformMultiset m₁ ᵥ* G.B) j := by
-        change K * (uniformMultiset m₁ ᵥ* (K⁻¹ • G.B)) j = _
-        rw [Matrix.vecMul_smul, Pi.smul_apply, smul_eq_mul, ← mul_assoc,
-          mul_inv_cancel₀ hK_pos.ne', one_mul]
-      have hR : K * (G'.payoff₂ (uniformMultiset m₁) (uniformMultiset m₂) + ε) =
-          G.payoff₂ (uniformMultiset m₁) (uniformMultiset m₂) + ε * K := by
-        rw [payoff₂_eq_dotProduct, payoff₂_eq_dotProduct]
-        change K * (uniformMultiset m₂ ⬝ᵥ (uniformMultiset m₁ ᵥ* (K⁻¹ • G.B)) + ε) = _
-        rw [Matrix.vecMul_smul, dotProduct_smul, smul_eq_mul, mul_add, ← mul_assoc,
-          mul_inv_cancel₀ hK_pos.ne', one_mul, mul_comm K ε]
-      rwa [hL, hR] at hj
+  let G' : BimatrixGame M N :=
+    ⟨if K = 0 then 0 else K⁻¹ • G.A, if K = 0 then 0 else K⁻¹ • G.B⟩
+  have hscale : ∀ (C : Matrix M N ℝ), (∀ i j, C i j ∈ Set.Icc 0 K) →
+      ∀ i j, (if K = 0 then (0 : Matrix M N ℝ) else K⁻¹ • C) i j ∈ Set.Icc 0 1 := by
+    intro C hC i j
+    split_ifs with hK0
+    · exact ⟨le_rfl, zero_le_one⟩
+    · have hK_pos : 0 < K := lt_of_le_of_ne hK (Ne.symm hK0)
+      exact ⟨mul_nonneg (inv_nonneg.2 hK_pos.le) (hC i j).1, by
+        simpa only [Matrix.smul_apply, smul_eq_mul, inv_mul_cancel₀ hK0] using
+          mul_le_mul_of_nonneg_left (hC i j).2 (inv_nonneg.2 hK_pos.le)⟩
+  have hG' : (⟨K • G'.A, K • G'.B⟩ : BimatrixGame M N) = G := by
+    cases G with
+    | mk A B =>
+      dsimp only [G']
+      split_ifs with hK0
+      · subst hK0
+        simp only [zero_smul]
+        congr 1
+        · ext i j
+          exact (le_antisymm (hA i j).2 (hA i j).1).symm
+        · ext i j
+          exact (le_antisymm (hB i j).2 (hB i j).1).symm
+      · simp only [smul_smul, mul_inv_cancel₀ hK0, one_smul]
+  obtain ⟨m₁, m₂, hm₁, hm₂, happrox⟩ :=
+    G'.exists_uniformMultiset_isApproxNash (hscale G.A hA) (hscale G.B hB) hε
+  refine ⟨m₁, m₂, hm₁, hm₂, ?_⟩
+  have hscaled := happrox.smul hK
+  rwa [hG', mul_comm K ε] at hscaled
 
 end LiptonMarkakisMehta
 

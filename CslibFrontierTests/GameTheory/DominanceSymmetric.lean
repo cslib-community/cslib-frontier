@@ -4,47 +4,61 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.Bimatrix.Symmetric
-import CslibFrontier.GameTheory.Strategic.ApproxNash
-import CslibFrontier.GameTheory.Strategic.Dominance
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.GameTheory.Bimatrix.Symmetric
+public import CslibFrontier.GameTheory.Strategic.ApproxNash
+public import CslibFrontier.GameTheory.Strategic.Correlated
+public import CslibFrontier.GameTheory.Strategic.Dominance
+import Mathlib.Data.Fintype.BigOperators
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
 
 /-!
 # Tests for strategic dominance, approximate Nash equilibria, and symmetric games
 
 Nonvacuous checked examples exercising `Strategic.Dominance`, `Strategic.ApproxNash`,
-`Strategic.Symmetric`, and `Bimatrix.Symmetric`:
+`Strategic.Correlated` (convexity), `Strategic.Symmetric`, and `Bimatrix.Symmetric` as an ordinary
+`module` client:
 
-1. **Prisoner's Dilemma (`IDoSDS` and Theorem 4.13)**: simultaneous `IDoSDS` reduces the Prisoner's
-   Dilemma to mutual defection in one step, certifying mutual defection as the unique pure and mixed
-   Nash equilibrium (`IDoSDS.isPureNash_iff_eq_of_singleton`,
+1. **Prisoner's Dilemma (`IDoSDS`, `IsApproxMixedNash`, and Theorem 4.13)**: simultaneous `IDoSDS`
+   reduces the Prisoner's Dilemma to mutual defection in one step, certifying mutual defection as
+   the unique pure and mixed Nash equilibrium (`IDoSDS.isPureNash_iff_eq_of_singleton`,
    `IDoSDS.isMixedNash_iff_eq_single_of_singleton`); cooperation is `1`-strictly dominated, so
-   Theorem 4.13 bounds its time-averaged weight under swap regret `R` by `R / T`.
-2. **Order-dependence of `IDoWDS` on a `2 × 2` game**: in the payoff game `[[(1, 1), (0, 1)],
-   [(0, 2), (0, 0)]]`, one `IDoWDS` schedule eliminates player 2's second column and then player 1's
-   second row to reach the singleton `{(false, false)}`, whereas deleting player 1's weakly
-   dominated second row first reaches `{false} × {false, true}`, where no strategy is weakly
-   dominated (`IDoWDSStep` is terminal there).
-3. **Example 2.2 of [Papadimitriou2007]**: the `3 × 3` symmetric bimatrix game with matrix
-   `[[0, 3, 0], [0, 0, 3], [2, 2, 2]]` has symmetric Nash equilibrium `(0, 1/3, 2/3)`.
-4. **DMP `(1/2)`-Nash and convexity of correlated equilibria**: concrete `[0, 1]` Battle of the
-   Sexes instantiation of `isApproxNash_half_dmp` and convex combination of its two pure Nash
-   equilibria via `isCorrelatedEquilibrium_convexCombPair_mixedNash`.
-5. **Theorem 2.4 (`symmReduction`) and Gale–Kuhn–Tucker (`gktGame`)**: equilibrium lift and
-   recovery on shifted Matching Pennies (`1 ≤ A, B`), `exists_addConst_symmReduction` on
-   signed Matching Pennies (`±1`), plus the `1 × 1` positive game `A = [[100]], B = [[1/10]]`
-   witnessing that `gktGame_unit_eq_zero` genuinely requires `1 ≤ B` while `gktGame_isNash_proj`
-   still recovers a Nash equilibrium.
+   Theorem 4.13 bounds its time-averaged weight under swap regret `R` by `R / T`; and mutual
+   cooperation is a `3`-approximate mixed Nash equilibrium but not a `2`-approximate one.
+2. **Order-dependence and simultaneous limit of `IDoWDS` on a `2 × 2` game**: in the payoff game
+   `[[(1, 1), (0, 1)], [(0, 2), (0, 0)]]`, one `IDoWDS` schedule eliminates player 2's second
+   column and then player 1's second row to reach `{(false, false)}`, whereas deleting player 1's
+   weakly dominated second row first reaches `{false} × {false, true}`, where `IDoWDSStep` is
+   terminal; simultaneous `idowdsSeq` reaches `fun _ => {false}` at stage `1` and stabilizes there
+   (`idowdsLimit`).
+3. **Example 2.2 of [Papadimitriou2007] and `IsEmpty` player-set witness**: the `3 × 3` symmetric
+   bimatrix game with matrix `[[0, 3, 0], [0, 0, 3], [2, 2, 2]]` has symmetric Nash equilibrium
+   `(0, 1/3, 2/3)`; on an empty player set (`Fin 0`), `CostGame.IsSymmetricMixedNash` still rejects
+   non-mixed vectors.
+4. **DMP `(1/2)`-Nash, cost-game bridge, and convexity of correlated equilibria**: concrete `[0, 1]`
+   Battle of the Sexes instantiation of `isApproxNash_half_dmp`, transport to
+   `CostGame.IsApproxMixedNash` via `BimatrixGame.isApproxNash_iff_isApproxMixedNash`, and convex
+   combination of pure Nash equilibria via `IsCorrelatedEquilibrium.convexCombPair`.
+5. **Equilibrium-correspondence step of [Papadimitriou2007], Theorem 2.4 (`symmReduction`)**:
+   equilibrium lift and recovery on shifted Matching Pennies (`1 ≤ A, B`), and
+   `exists_addConst_symmReduction` on signed Matching Pennies (`±1`).
 6. **Mixed-strategy `ε`-dominance (`mixedDomGame`), [vonStengel2007] `(3.7)`, and unnormalized
    Exercise 1.6**: action `2` is `1`-strictly dominated by `(1/2, 1/2, 0)` while undominated by
    any pure action; symmetric equilibria of `[[3, 3, 0], [4, 0, 1], [0, 4, 5]]`; and
    `exists_uniformMultiset_isApproxNash_of_nonneg` on unnormalized `[0, 3]` payoffs.
 -/
 
+public section
+
 namespace CslibFrontierTests.GameTheory.DominanceSymmetric
 
 open Cslib.GameTheory Finset Function Matrix
 
-/-! ### 1. Prisoner's Dilemma: `IDoSDS` to unique equilibrium and Theorem 4.13 -/
+/-! ### 1. Prisoner's Dilemma: `IDoSDS`, `IsApproxMixedNash`, and Theorem 4.13 -/
 
 /-- Prisoner's Dilemma in cost form (`false` = cooperate, `true` = defect): against cooperation,
 defecting lowers cost from `-6` to `-9` (saving `3`); against defection, defecting lowers cost from
@@ -87,7 +101,7 @@ theorem pd_idosds_singleton :
     · exact (hnot rfl).elim
   subst haf
   refine ⟨true, trivial, rfl, fun s => ?_⟩
-  dsimp only [CostGame.restrict]
+  simp only [CostGame.restrict_cost]
   fin_cases i <;> cases h0 : (s 0).1 <;> cases h1 : (s 1).1 <;>
     norm_num [pd, Function.update, h0, h1]
 
@@ -107,6 +121,20 @@ theorem pd_unique_mixedNash (p : Fin 2 → Bool → ℝ) :
     pd.IsMixedNash p ↔ p = fun _ => Pi.single true 1 :=
   pd_idosds_singleton.isMixedNash_iff_eq_single_of_singleton p
 
+/-- Mutual cooperation in `pd` is a `3`-approximate mixed Nash equilibrium (defecting saves `3`),
+and is not a `2`-approximate mixed Nash equilibrium. -/
+theorem pd_cooperate_approxMixedNash_boundary :
+    pd.IsApproxMixedNash 3 (fun _ => Pi.single false 1) ∧
+      ¬ pd.IsApproxMixedNash 2 (fun _ => Pi.single false 1) := by
+  constructor
+  · refine ⟨fun _ => isMixedStrategy_single false, fun i a => ?_⟩
+    rw [CostGame.expectedCost_single, CostGame.deviationCost_single]
+    fin_cases i <;> cases a <;> norm_num [pd, Function.update]
+  · intro h
+    have h0 := h.2 0 true
+    rw [CostGame.expectedCost_single, CostGame.deviationCost_single] at h0
+    norm_num [pd, Function.update] at h0
+
 /-- Nonvacuous instantiation of **Theorem 4.13** on `pd`: under swap regret at most `R` over
 `T > 0` rounds, player `0` places time-averaged weight at most `R / T` on cooperation. -/
 theorem pd_swapRegret_cooperate_decay {p : ℕ → Fin 2 → Bool → ℝ} {T : ℕ} (hT : 0 < T)
@@ -115,8 +143,8 @@ theorem pd_swapRegret_cooperate_decay {p : ℕ → Fin 2 → Bool → ℝ} {T : 
       ∑ t ∈ range T, ∑ b, p t 0 b * pd.deviationCost (p t) 0 b
         ≤ ∑ t ∈ range T, ∑ b, p t 0 b * pd.deviationCost (p t) 0 (δ b) + R) :
     (∑ t ∈ range T, p t 0 false) / (T : ℝ) ≤ R / T := by
-  have h := pd.timeAverage_weight_isEpsStrictlyDominated_le hT hp zero_lt_one hR
-    (pd_cooperate_isEpsStrictlyDominated 0)
+  have h := pd.timeAverage_weight_isEpsStrictlyDominatedMixed_le hT hp zero_lt_one hR
+    (pd_cooperate_isEpsStrictlyDominated 0).isEpsStrictlyDominatedMixed
   simpa only [one_mul] using h
 
 /-- `3 × 3` cost game illustrating **mixed-strategy** `ε`-strict dominance ([BlumMansour2007AGT],
@@ -173,7 +201,7 @@ theorem mixedDomGame_swapRegret_decay {p : ℕ → Fin 2 → Fin 3 → ℝ}
     mixedDomGame_isEpsStrictlyDominatedMixed
   simpa only [one_mul] using h
 
-/-! ### 2. Order-dependence of `IDoWDS` on a `2 × 2` game -/
+/-! ### 2. Order-dependence and simultaneous limit of `IDoWDS` on a `2 × 2` game -/
 
 /-- `2 × 2` game in cost form corresponding to payoffs `[[(1, 1), (0, 1)], [(0, 2), (0, 0)]]`:
 for player 0 (`false` = top, `true` = bottom), `false` weakly dominates `true`;
@@ -203,9 +231,9 @@ theorem orderDepGame_idowds_singleton :
         · rfl
       subst hat
       refine ⟨⟨false, trivial⟩, fun s => ?_, ⟨fun _ => ⟨true, trivial⟩, ?_⟩⟩
-      · dsimp only [CostGame.restrict]
+      · simp only [CostGame.restrict_cost]
         cases h0 : (s 0).1 <;> norm_num [orderDepGame, Function.update, h0]
-      · dsimp only [CostGame.restrict]
+      · simp only [CostGame.restrict_cost]
         norm_num [orderDepGame, Function.update]
   have hstep2 : orderDepGame.IDoWDSStep A₁ (fun _ => {false}) := by
     refine ⟨fun i b hb => ?_, fun i a ha hnot => ?_⟩
@@ -222,9 +250,9 @@ theorem orderDepGame_idowds_singleton :
         refine ⟨⟨false, hfalseA⟩, fun s => ?_, ⟨fun j => if hj : j = 0 then ⟨false, hj ▸ hfalseA⟩
           else ⟨false, by fin_cases j <;> simp_all [A₁]⟩, ?_⟩⟩
         · have hs1 : (s 1).1 = false := (s 1).2
-          dsimp only [CostGame.restrict]
+          simp only [CostGame.restrict_cost]
           norm_num [orderDepGame, Function.update, hs1]
-        · dsimp only [CostGame.restrict]
+        · simp only [CostGame.restrict_cost]
           norm_num [orderDepGame, Function.update]
       · exact (hnot ha).elim
   exact (Relation.ReflTransGen.single hstep1).tail hstep2
@@ -247,9 +275,9 @@ theorem orderDepGame_idowds_other_terminal :
         · rfl
       subst hat
       refine ⟨⟨false, trivial⟩, fun s => ?_, ⟨fun _ => ⟨false, trivial⟩, ?_⟩⟩
-      · dsimp only [CostGame.restrict]
+      · simp only [CostGame.restrict_cost]
         cases h1 : (s 1).1 <;> norm_num [orderDepGame, Function.update, h1]
-      · dsimp only [CostGame.restrict]
+      · simp only [CostGame.restrict_cost]
         norm_num [orderDepGame, Function.update]
     · exact (hnot trivial).elim
   · funext i
@@ -265,10 +293,83 @@ theorem orderDepGame_idowds_other_terminal :
       rw [hab] at hlt
       exact lt_irrefl _ hlt
     · have hs0 : (s 0).1 = false := (s 0).2
-      dsimp only [CostGame.restrict] at hlt
+      simp only [CostGame.restrict_cost] at hlt
       cases a <;> cases b.1 <;> norm_num [orderDepGame, Function.update, hs0] at hlt
 
-/-! ### 3. NRTV Example 2.2: `3 × 3` symmetric bimatrix game -/
+/-- Simultaneous `IDoWDS` (`idowdsSeq`) eliminates `true` for both players in one step on
+`orderDepGame`, leaving `fun _ => {false}` at stage `1`. -/
+theorem orderDepGame_idowdsSeq_one :
+    orderDepGame.idowdsSeq 1 = fun _ => {false} := by
+  funext i
+  ext a
+  rw [CostGame.idowdsSeq_succ, CostGame.idowdsSeq_zero]
+  simp only [Set.mem_ofPred_eq, Set.mem_univ, exists_true_left, Set.mem_singleton_iff]
+  fin_cases i
+  · cases a
+    · simp only [iff_true]
+      rintro ⟨⟨b, _⟩, hle, _, hlt⟩
+      cases b
+      · exact lt_irrefl _ hlt
+      · have h0 := hle fun _ => ⟨false, trivial⟩
+        simp only [CostGame.restrict_cost] at h0
+        norm_num [orderDepGame, Function.update] at h0
+    · simp only [Bool.true_eq_false, iff_false, not_not]
+      refine ⟨⟨false, trivial⟩, fun s => ?_, ⟨fun _ => ⟨false, trivial⟩, ?_⟩⟩
+      · simp only [CostGame.restrict_cost]
+        cases h1 : (s 1).1 <;> norm_num [orderDepGame, Function.update, h1]
+      · simp only [CostGame.restrict_cost]
+        norm_num [orderDepGame, Function.update]
+  · cases a
+    · simp only [iff_true]
+      rintro ⟨⟨b, _⟩, hle, _, hlt⟩
+      cases b
+      · exact lt_irrefl _ hlt
+      · have h0 := hle fun _ => ⟨true, trivial⟩
+        simp only [CostGame.restrict_cost] at h0
+        norm_num [orderDepGame, Function.update] at h0
+    · simp only [Bool.true_eq_false, iff_false, not_not]
+      refine ⟨⟨false, trivial⟩, fun s => ?_, ⟨fun _ => ⟨true, trivial⟩, ?_⟩⟩
+      · simp only [CostGame.restrict_cost]
+        cases h0 : (s 0).1 <;> norm_num [orderDepGame, Function.update, h0]
+      · simp only [CostGame.restrict_cost]
+        norm_num [orderDepGame, Function.update]
+
+/-- Simultaneous `IDoWDS` stabilizes after stage `1` on `orderDepGame`, so
+`orderDepGame.idowdsLimit` is the singleton `fun _ => {false}` (contrasting with the sequential
+terminal state `A₂` above). -/
+theorem orderDepGame_idowdsLimit :
+    orderDepGame.idowdsLimit = fun _ => {false} := by
+  have hsucc : ∀ k, orderDepGame.idowdsSeq (k + 1) = fun _ => {false} := by
+    intro k
+    induction k with
+    | zero => exact orderDepGame_idowdsSeq_one
+    | succ k ih =>
+      funext i
+      ext a
+      rw [CostGame.idowdsSeq_succ, ih]
+      simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff]
+      constructor
+      · exact fun h => h.1
+      · rintro rfl
+        refine ⟨rfl, ?_⟩
+        rintro ⟨⟨b, hb⟩, _, _, hlt⟩
+        have hbf : b = false := hb
+        subst hbf
+        exact lt_irrefl _ hlt
+  funext i
+  ext a
+  rw [CostGame.mem_idowdsLimit_iff, Set.mem_singleton_iff]
+  constructor
+  · intro h
+    have h1 := h 1
+    rw [orderDepGame_idowdsSeq_one] at h1
+    exact h1
+  · rintro rfl k
+    cases k with
+    | zero => simp only [CostGame.idowdsSeq_zero, Set.mem_univ]
+    | succ k => rw [hsucc k]; rfl
+
+/-! ### 3. NRTV Example 2.2 and `IsEmpty` player-set witness -/
 
 /-- Example 2.2 of [Papadimitriou2007] (p. 30): symmetric `3 × 3` game with matrix
 `[[0, 3, 0], [0, 0, 3], [2, 2, 2]]`. -/
@@ -286,13 +387,22 @@ theorem example2_2_isSymmetricNash :
     · rw [Fin.sum_univ_three]
       norm_num
   have hpay : example2_2.payoff₁ ![0, 1 / 3, 2 / 3] ![0, 1 / 3, 2 / 3] = 2 := by
-    rw [BimatrixGame.payoff₁_eq_dotProduct]
-    norm_num [example2_2, Matrix.mulVec, dotProduct, Fin.sum_univ_three]
+    rw [BimatrixGame.payoff₁_eq_dotProduct, example2_2, BimatrixGame.ofSymmetric_A]
+    norm_num [Matrix.mulVec, dotProduct, Fin.sum_univ_three]
   refine ⟨hx, fun i => ?_⟩
-  rw [hpay]
-  fin_cases i <;> norm_num [example2_2, Matrix.mulVec, dotProduct, Fin.sum_univ_three]
+  rw [hpay, example2_2, BimatrixGame.ofSymmetric_A]
+  fin_cases i <;> norm_num [Matrix.mulVec, dotProduct, Fin.sum_univ_three]
 
-/-! ### 4. DMP `(1/2)`-Nash and convex combination of Nash equilibria -/
+/-- On an empty player set (`Fin 0`), `CostGame.IsSymmetricMixedNash` still requires a mixed
+strategy `x`, rejecting negative vectors. -/
+theorem emptyPlayers_not_isSymmetricMixedNash :
+    ¬ ({ cost := fun i _ => isEmptyElim i } : CostGame (Fin 0) (fun _ => Bool)).IsSymmetricMixedNash
+      (fun _ => -1) := by
+  intro h
+  have hnn := h.1.nonneg false
+  norm_num at hnn
+
+/-! ### 4. DMP `(1/2)`-Nash, cost-game bridge, and convex combination of Nash equilibria -/
 
 /-- `[0, 1]`-normalized Battle of the Sexes bimatrix game. -/
 noncomputable def bosBimatrix : BimatrixGame Bool Bool where
@@ -318,6 +428,15 @@ theorem bosBimatrix_dmp_half_nash :
   · cases j <;> norm_num [bosBimatrix]
   · cases i <;> norm_num [bosBimatrix]
 
+/-- Transporting `bosBimatrix_dmp_half_nash` to `CostGame.IsApproxMixedNash` via
+`BimatrixGame.isApproxNash_iff_isApproxMixedNash`. -/
+theorem bosBimatrix_toCostGame_isApproxMixedNash :
+    bosBimatrix.toCostGame.IsApproxMixedNash (1 / 2)
+      (BimatrixGame.profile
+        ((1 / 2 : ℝ) • Pi.single true 1 + (1 / 2 : ℝ) • Pi.single true 1)
+        (Pi.single true 1)) :=
+  BimatrixGame.isApproxNash_iff_isApproxMixedNash.1 bosBimatrix_dmp_half_nash
+
 /-- Coordination game in cost form: both `(false, false)` and `(true, true)` are pure (hence mixed)
 Nash equilibria, and their `1/2`–`1/2` convex combination is a correlated equilibrium. -/
 def coordCostGame : CostGame (Fin 2) (fun _ => Bool) where
@@ -331,11 +450,11 @@ theorem coordCostGame_half_ce :
   have hp₂ : coordCostGame.IsPureNash (fun _ => true) := by
     intro i a
     fin_cases i <;> cases a <;> norm_num [coordCostGame, Function.update]
-  exact ⟨_, CostGame.isCorrelatedEquilibrium_convexCombPair_mixedNash
-    hp₁.isMixedNash hp₂.isMixedNash (by norm_num : (0 : ℝ) ≤ 1 / 2)
+  exact ⟨_, hp₁.isMixedNash.isCorrelatedEquilibrium.convexCombPair
+    hp₂.isMixedNash.isCorrelatedEquilibrium (by norm_num : (0 : ℝ) ≤ 1 / 2)
     (by norm_num : (0 : ℝ) ≤ 1 / 2) (by norm_num)⟩
 
-/-! ### 5. Theorem 2.4 (`symmReduction`) and Gale–Kuhn–Tucker (`gktGame`) + boundary witness -/
+/-! ### 5. Equilibrium-correspondence step of [Papadimitriou2007], Theorem 2.4 (`symmReduction`) -/
 
 /-- Shifted Matching Pennies with payoffs in `{1, 3} ⊆ [1, ∞)`. -/
 def shiftedPennies : BimatrixGame Bool Bool where
@@ -357,9 +476,9 @@ theorem shiftedPennies_isNash_uniform :
   · rw [BimatrixGame.payoff₂_eq_dotProduct]
     cases j <;> norm_num [shiftedPennies, Matrix.vecMul, dotProduct, Fintype.sum_bool]
 
-/-- Round-trip instantiation of **Theorem 2.4**: lifting `shiftedPennies_isNash_uniform` to
-`shiftedPennies.symmReduction` and recovering a Nash equilibrium via
-`symmReduction_pos_and_isNash`. -/
+/-- Round-trip instantiation of the algebraic equilibrium correspondence behind Theorem 2.4:
+lifting `shiftedPennies_isNash_uniform` to `shiftedPennies.symmReduction` and recovering a Nash
+equilibrium via `symmReduction_pos_and_isNash`. -/
 theorem shiftedPennies_symmReduction_roundtrip :
     ∃ z : Bool ⊕ Bool → ℝ,
       shiftedPennies.symmReduction.IsSymmetricNash z ∧
@@ -375,60 +494,18 @@ theorem shiftedPennies_symmReduction_roundtrip :
   obtain ⟨-, -, hNash⟩ := BimatrixGame.symmReduction_pos_and_isNash hA hB hsym
   exact ⟨_, hsym, hNash⟩
 
-/-- End-to-end instantiation of **Gale–Kuhn–Tucker** on `shiftedPennies` (`0 < A` and `1 ≤ B`):
-existence gives a symmetric Nash equilibrium `z` of `shiftedPennies.gktGame`, and `gktGame_recovery`
-certifies `z (Unit) = 0` and `shiftedPennies.IsNash (gktProj₁ z) (gktProj₂ z)`. -/
-theorem shiftedPennies_gktGame_recovery :
-    ∃ z : Bool ⊕ Bool ⊕ Unit → ℝ,
-      shiftedPennies.gktGame.IsSymmetricNash z ∧
-        z (.inr (.inr ())) = 0 ∧
-        shiftedPennies.IsNash (BimatrixGame.gktProj₁ z) (BimatrixGame.gktProj₂ z) := by
-  obtain ⟨z, hz⟩ := (BimatrixGame.isSymmetric_gktGame shiftedPennies).exists_isSymmetricNash
-  have hA : ∀ i j, 0 < shiftedPennies.A i j := by
-    intro i j
-    cases i <;> cases j <;> norm_num [shiftedPennies]
-  have hB1 : ∀ i j, 1 ≤ shiftedPennies.B i j := by
-    intro i j
-    cases i <;> cases j <;> norm_num [shiftedPennies]
-  obtain ⟨hw0, -, -, hNash⟩ := BimatrixGame.gktGame_recovery hA hB1 hz
-  exact ⟨z, hz, hw0, hNash⟩
+/-- Standard Matching Pennies (with negative payoffs `-1` and `1`) exercises
+`exists_addConst_symmReduction` without pre-shifting. -/
+def signedPennies : BimatrixGame Bool Bool where
+  A i j := if i = j then 1 else -1
+  B i j := if i = j then -1 else 1
 
-/-- **Boundary witness for `1 ≤ B` in `gktGame_unit_eq_zero`**: in the `1 × 1` positive game
-`A = [[100]], B = [[1/10]]` (`0 < A, B`, but `B < 1`), `z = (1020, 19, 899) / 1938` is a symmetric
-Nash equilibrium of `gktGame` with strictly positive weight `899 / 1938` on `Unit`, while
-`gktGame_isNash_proj` still recovers a Nash equilibrium of `(A, B)`. -/
-noncomputable def smallBGame : BimatrixGame Unit Unit where
-  A _ _ := 100
-  B _ _ := 1 / 10
-
-/-- Symmetric Nash equilibrium profile `z = (1020, 19, 899) / 1938` of `smallBGame.gktGame`,
-putting strictly positive weight `899 / 1938` on the auxiliary `Unit` strategy. -/
-noncomputable def smallBGktProfile : Unit ⊕ Unit ⊕ Unit → ℝ
-  | .inl () => 1020 / 1938
-  | .inr (.inl ()) => 19 / 1938
-  | .inr (.inr ()) => 899 / 1938
-
-theorem smallBGame_unit_pos_at_symmetricNash :
-    smallBGame.gktGame.IsSymmetricNash smallBGktProfile ∧
-      0 < smallBGktProfile (.inr (.inr ())) ∧
-      smallBGame.IsNash (BimatrixGame.gktProj₁ smallBGktProfile)
-        (BimatrixGame.gktProj₂ smallBGktProfile) := by
-  have hz_sym : smallBGame.gktGame.IsSymmetricNash smallBGktProfile := by
-    rw [(BimatrixGame.isSymmetric_gktGame smallBGame).isSymmetricNash_iff]
-    have hmix : IsMixedStrategy smallBGktProfile := by
-      refine isMixedStrategy_iff.2 ⟨fun k => ?_, ?_⟩
-      · rcases k with ⟨⟩ | ⟨⟩ | ⟨⟩ <;> norm_num [smallBGktProfile]
-      · rw [Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_unique, Fintype.sum_unique,
-          Fintype.sum_unique]
-        norm_num [smallBGktProfile]
-    refine ⟨hmix, fun k => ?_⟩
-    rw [BimatrixGame.payoff₁_eq_dotProduct]
-    rcases k with ⟨⟩ | ⟨⟩ | ⟨⟩ <;>
-      norm_num [BimatrixGame.gktGame, BimatrixGame.gktMatrix, smallBGame, smallBGktProfile,
-        Matrix.mulVec, dotProduct, Fintype.sum_sum_type]
-  refine ⟨hz_sym, by norm_num [smallBGktProfile],
-    BimatrixGame.gktGame_isNash_proj (fun _ _ => by norm_num [smallBGame])
-      (fun _ _ => by norm_num [smallBGame]) hz_sym⟩
+theorem signedPennies_symmReduction_shift :
+    ∃ c : ℝ,
+      ∀ z : Bool ⊕ Bool → ℝ, (signedPennies.addConst c).symmReduction.IsSymmetricNash z →
+        signedPennies.IsNash (BimatrixGame.symmProj₁ z) (BimatrixGame.symmProj₂ z) := by
+  obtain ⟨c, hfwd, _⟩ := signedPennies.exists_addConst_symmReduction
+  exact ⟨c, fun z hz => (hfwd z hz).2.2⟩
 
 /-! ### 6. Symmetric 3×3 game (3.7) of von Stengel and unnormalized Exercise 1.6 -/
 
@@ -448,16 +525,16 @@ theorem vonStengel37_isSymmetricNash_eqs :
     hsym.isSymmetricNash_iff.2 ⟨isMixedStrategy_iff.2 ⟨fun i => ?_, ?_⟩, fun i => ?_⟩⟩
   · fin_cases i <;> norm_num
   · rw [Fin.sum_univ_three]; norm_num
-  · rw [BimatrixGame.payoff₁_eq_dotProduct]
-    fin_cases i <;> norm_num [vonStengel37, Matrix.mulVec, dotProduct, Fin.sum_univ_three]
+  · rw [BimatrixGame.payoff₁_eq_dotProduct, vonStengel37, BimatrixGame.ofSymmetric_A]
+    fin_cases i <;> norm_num [Matrix.mulVec, dotProduct, Fin.sum_univ_three]
   · fin_cases i <;> norm_num
   · rw [Fin.sum_univ_three]; norm_num
-  · rw [BimatrixGame.payoff₁_eq_dotProduct]
-    fin_cases i <;> norm_num [vonStengel37, Matrix.mulVec, dotProduct, Fin.sum_univ_three]
+  · rw [BimatrixGame.payoff₁_eq_dotProduct, vonStengel37, BimatrixGame.ofSymmetric_A]
+    fin_cases i <;> norm_num [Matrix.mulVec, dotProduct, Fin.sum_univ_three]
   · fin_cases i <;> norm_num
   · rw [Fin.sum_univ_three]; norm_num
-  · rw [BimatrixGame.payoff₁_eq_dotProduct]
-    fin_cases i <;> norm_num [vonStengel37, Matrix.mulVec, dotProduct, Fin.sum_univ_three]
+  · rw [BimatrixGame.payoff₁_eq_dotProduct, vonStengel37, BimatrixGame.ofSymmetric_A]
+    fin_cases i <;> norm_num [Matrix.mulVec, dotProduct, Fin.sum_univ_three]
 
 /-- Unnormalized nonnegative payoff instantiation of Exercise 1.6 on `shiftedPennies` (`[0, 3]`):
 at `ε = 1/10`, there exist uniform multisets of size `lmmSampleSize Bool Bool (1/10)` forming a
@@ -472,18 +549,5 @@ theorem shiftedPennies_lmm_unnormalized :
     (fun i j => by cases i <;> cases j <;> norm_num [shiftedPennies])
     (ε := 1 / 10) (by norm_num)
   simpa only [show (1 / 10 : ℝ) * 3 = 3 / 10 by norm_num] using h
-
-/-- Standard Matching Pennies (with negative payoffs `-1` and `1`) exercises
-`exists_addConst_symmReduction` without pre-shifting. -/
-def signedPennies : BimatrixGame Bool Bool where
-  A i j := if i = j then 1 else -1
-  B i j := if i = j then -1 else 1
-
-theorem signedPennies_symmReduction_shift :
-    ∃ c : ℝ,
-      ∀ z : Bool ⊕ Bool → ℝ, (signedPennies.addConst c).symmReduction.IsSymmetricNash z →
-        signedPennies.IsNash (BimatrixGame.symmProj₁ z) (BimatrixGame.symmProj₂ z) := by
-  obtain ⟨c, hfwd, _⟩ := signedPennies.exists_addConst_symmReduction
-  exact ⟨c, fun z hz => (hfwd z hz).2.2⟩
 
 end CslibFrontierTests.GameTheory.DominanceSymmetric

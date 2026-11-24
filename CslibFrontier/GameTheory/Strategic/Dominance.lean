@@ -35,23 +35,25 @@ vanishing weight placed on `ε`-strictly dominated strategies under low swap reg
   `CostGame.IsEpsStrictlyDominatedMixed` (domination by a mixed strategy), and
   `CostGame.IsWeaklyDominated` (with explicit binary relations `*By`).
 * **Restriction and iterated deletion of strictly dominated strategies (`IDoSDS`)**: restricting a
-  `CostGame` to strategy subsets (`CostGame.restrict`) and eliminating strictly dominated strategies
-  preserves both pure and mixed Nash equilibria in both directions (no equilibrium puts positive
-  probability on a strictly dominated strategy, and equilibria of the restricted game lift by zero
-  extension to equilibria of `G`). Consequently, if `CostGame.IDoSDS` reduces the game to a
-  singleton profile `s⋆`, then `s⋆` is the unique pure Nash equilibrium and its point-mass profile
-  is the unique mixed Nash equilibrium (`IDoSDS.isPureNash_iff_eq_of_singleton`,
-  `IDoSDS.isMixedNash_iff_eq_single_of_singleton`).
+  `CostGame` to strategy subsets (`CostGame.restrict`) and eliminating strategies strictly dominated
+  by pure strategies preserves both pure and mixed Nash equilibria in both directions (no
+  equilibrium puts positive probability on a strictly dominated strategy, and equilibria of the
+  restricted game lift by zero extension to equilibria of `G`). Consequently, if `CostGame.IDoSDS`
+  reduces the game to a singleton profile `s⋆`, then `s⋆` is the unique pure Nash equilibrium and
+  its point-mass profile is the unique mixed Nash equilibrium
+  (`IDoSDS.isPureNash_iff_eq_of_singleton`, `IDoSDS.isMixedNash_iff_eq_single_of_singleton`).
 * **Iterated deletion of weakly dominated strategies (`IDoWDS`)** ([DodisRabin2007], Section 8.5.2,
   Definition 8.8 and Footnote 9, p. 200): both the relational `CostGame.IDoWDSStep` /
   `CostGame.IDoWDS` allowing arbitrary deletion schedules (which can be order-dependent) and the
-  simultaneous deletion sequence `CostGame.idowdsSeq`, intersection `CostGame.idowdsLimit`, and
-  `CostGame.SurvivesIDoWDS` of Definition 8.8.
+  simultaneous deletion sequence `CostGame.idowdsSeq` with limit `CostGame.idowdsLimit`, which on
+  any finite nonempty game stabilizes in finitely many steps to a nonempty, undominated surviving
+  set (`exists_idowdsSeq_eq_idowdsLimit`, `idowdsLimit_nonempty`,
+  `not_isWeaklyDominated_idowdsLimit`).
 * **Decay of dominated strategies under swap regret** ([BlumMansour2007AGT], Theorem 4.13, p. 92):
   if player `i` plays mixed strategies over `T > 0` steps with swap regret at most `R` against its
   realized `deviationCost` sequence, then the time-averaged weight placed on any set of `ε`-strictly
-  dominated actions (`ε > 0`, dominated by pure *or* mixed actions) — and in particular on any
-  single `ε`-strictly dominated action — is at most `R / (ε * T)`.
+  dominated actions (`ε > 0`, dominated by mixed — and in particular pure — actions) is at most
+  `R / (ε * T)`.
 
 All definitions follow `Cslib.GameTheory.CostGame` cost-minimization conventions (`cost = -u`), so
 dominating actions achieve lower or equal cost.
@@ -65,7 +67,7 @@ dominating actions achieve lower or equal cost.
   `Cslib.GameTheory.CostGame.IsStrictlyDominantEquilibrium`: strict dominant strategies and
   equilibria.
 * `Cslib.GameTheory.CostGame.IsStrictlyDominatedBy`,
-  `Cslib.GameTheory.CostGame.IsStrictlyDominated`: strict strategic dominance.
+  `Cslib.GameTheory.CostGame.IsStrictlyDominated`: strict strategic dominance by a pure strategy.
 * `Cslib.GameTheory.CostGame.IsEpsStrictlyDominatedBy`,
   `Cslib.GameTheory.CostGame.IsEpsStrictlyDominated`: pure `ε`-strict strategic dominance.
 * `Cslib.GameTheory.CostGame.IsEpsStrictlyDominatedByMixed`,
@@ -74,13 +76,11 @@ dominating actions achieve lower or equal cost.
 * `Cslib.GameTheory.CostGame.IsWeaklyDominatedBy`,
   `Cslib.GameTheory.CostGame.IsWeaklyDominated`: weak strategic dominance.
 * `Cslib.GameTheory.CostGame.restrict`: restriction of a `CostGame` to strategy subsets.
-* `Cslib.GameTheory.CostGame.liftMixed`: zero-extension of mixed strategies from subsets.
 * `Cslib.GameTheory.CostGame.IDoSDSStep`, `Cslib.GameTheory.CostGame.IDoSDS`: one-step and
-  iterated deletion of strictly dominated strategies.
+  iterated deletion of strategies strictly dominated by pure strategies.
 * `Cslib.GameTheory.CostGame.IDoWDSStep`, `Cslib.GameTheory.CostGame.IDoWDS`,
-  `Cslib.GameTheory.CostGame.idowdsSeq`, `Cslib.GameTheory.CostGame.idowdsLimit`,
-  `Cslib.GameTheory.CostGame.SurvivesIDoWDS`: relational and simultaneous iterated deletion of
-  weakly dominated strategies.
+  `Cslib.GameTheory.CostGame.idowdsSeq`, `Cslib.GameTheory.CostGame.idowdsLimit`: relational and
+  simultaneous iterated deletion of weakly dominated strategies.
 
 ## Main results
 
@@ -100,12 +100,14 @@ dominating actions achieve lower or equal cost.
 * `Cslib.GameTheory.CostGame.IDoSDS.isPureNash_iff_eq_of_singleton`,
   `Cslib.GameTheory.CostGame.IDoSDS.isMixedNash_iff_eq_single_of_singleton`: a unique `IDoSDS`
   survivor is the unique pure and mixed Nash equilibrium.
+* `Cslib.GameTheory.CostGame.exists_idowdsSeq_eq_idowdsLimit`,
+  `Cslib.GameTheory.CostGame.idowdsLimit_nonempty`,
+  `Cslib.GameTheory.CostGame.not_isWeaklyDominated_idowdsLimit`: finite-stage stabilization,
+  non-emptiness, and fixed-point property of simultaneous `IDoWDS` on finite nonempty games.
 * `Cslib.GameTheory.CostGame.timeAverage_weight_isEpsStrictlyDominatedMixed_set_le`,
-  `Cslib.GameTheory.CostGame.timeAverage_weight_isEpsStrictlyDominatedMixed_le`,
-  `Cslib.GameTheory.CostGame.timeAverage_weight_isEpsStrictlyDominated_set_le`,
-  `Cslib.GameTheory.CostGame.timeAverage_weight_isEpsStrictlyDominated_le`: **Theorem 4.13** of
-  [BlumMansour2007AGT], bounding the time-averaged weight on `ε`-strictly dominated strategies (by
-  mixed or pure strategies) by `R / (ε * T)`.
+  `Cslib.GameTheory.CostGame.timeAverage_weight_isEpsStrictlyDominatedMixed_le`: **Theorem 4.13**
+  of [BlumMansour2007AGT], bounding the time-averaged weight on `ε`-strictly dominated strategies
+  by `R / (ε * T)`.
 
 ## References
 
@@ -405,13 +407,17 @@ variable {ι : Type*} {S : ι → Type*}
 
 /-- The **restriction** of `G` to strategy subsets `A i ⊆ S i`: each player `i` chooses from the
 subtype `A i` and incurs its original cost in `G`. -/
-@[expose] def restrict (G : CostGame ι S) (A : ∀ i, Set (S i)) : CostGame ι (fun i => A i) where
+def restrict (G : CostGame ι S) (A : ∀ i, Set (S i)) : CostGame ι (fun i => A i) where
   cost i s := G.cost i fun j => (s j : S j)
+
+@[simp]
+theorem restrict_cost (G : CostGame ι S) (A : ∀ i, Set (S i)) (i : ι) (s : ∀ j, A j) :
+    (G.restrict A).cost i s = G.cost i fun j => (s j : S j) := by rfl
 
 open Classical in
 /-- Zero-extension of a family of functions `q i : A i → ℝ` on strategy subsets to the full
 strategy spaces `S i → ℝ`. -/
-@[expose] noncomputable def liftMixed (A : ∀ i, Set (S i)) (q : ∀ i, A i → ℝ) (i : ι) (a : S i) :
+private noncomputable def liftMixed (A : ∀ i, Set (S i)) (q : ∀ i, A i → ℝ) (i : ι) (a : S i) :
     ℝ :=
   if ha : a ∈ A i then q i ⟨a, ha⟩ else 0
 
@@ -609,19 +615,6 @@ theorem isMixedNash_iff_restrict [∀ i, Fintype (A i)]
     · obtain ⟨b, hbA, hb⟩ := hA i a ha
       exact (hle i b hbA).trans (hb.deviationCost_lt hp).le
 
-/-- Lifting a mixed Nash equilibrium of `G.restrict A` by zero extension yields a mixed Nash
-equilibrium of `G` when excluded strategies are strictly dominated by strategies in `A`. -/
-theorem isMixedNash_liftMixed_of_restrict [∀ i, Fintype (A i)]
-    (hA : ∀ i (a : S i), a ∉ A i → ∃ b ∈ A i, G.IsStrictlyDominatedBy i a b)
-    {q : ∀ i, A i → ℝ} (hq : (G.restrict A).IsMixedNash q) :
-    G.IsMixedNash (liftMixed A q) := by
-  refine (isMixedNash_iff_restrict hA (liftMixed A q)).2 ⟨fun i a ha => ?_, ?_⟩
-  · simp only [liftMixed, ha, dite_false]
-  · have hsub : (fun i (a : A i) => liftMixed A q i a.1) = q := by
-      funext i a
-      simp only [liftMixed, a.2, dite_true]
-    rwa [hsub]
-
 end MixedRestriction
 
 /-! ### Iterated deletion of strictly and weakly dominated strategies -/
@@ -665,15 +658,30 @@ def idowdsSeq (G : CostGame ι S) : ℕ → ∀ i, Set (S i)
   | k + 1 => fun i =>
       {a | ∃ ha : a ∈ G.idowdsSeq k i, ¬ (G.restrict (G.idowdsSeq k)).IsWeaklyDominated i ⟨a, ha⟩}
 
+@[simp]
+theorem idowdsSeq_zero (G : CostGame ι S) : G.idowdsSeq 0 = fun _ => Set.univ := by rfl
+
+@[simp]
+theorem idowdsSeq_succ (G : CostGame ι S) (k : ℕ) :
+    G.idowdsSeq (k + 1) = fun i =>
+      {a | ∃ ha : a ∈ G.idowdsSeq k i,
+        ¬ (G.restrict (G.idowdsSeq k)).IsWeaklyDominated i ⟨a, ha⟩} := by rfl
+
 /-- The surviving strategy set `S_i^∞ = ⋂_k S_i^k` of simultaneous `IDoWDS`
 ([DodisRabin2007], Definition 8.8, p. 200). -/
 def idowdsLimit (G : CostGame ι S) (i : ι) : Set (S i) :=
   ⋂ k : ℕ, G.idowdsSeq k i
 
-/-- A strategy profile `p` **survives `IDoWDS`** ([DodisRabin2007], Definition 8.8, p. 200) if
-every player's support lies in `idowdsLimit`. -/
-@[expose] def SurvivesIDoWDS (G : CostGame ι S) (p : ∀ i, S i → ℝ) : Prop :=
-  ∀ i a, 0 < p i a → a ∈ G.idowdsLimit i
+@[simp]
+theorem mem_idowdsLimit_iff (G : CostGame ι S) (i : ι) (a : S i) :
+    a ∈ G.idowdsLimit i ↔ ∀ k, a ∈ G.idowdsSeq k i :=
+  Set.mem_iInter
+
+theorem idowdsSeq_subset_of_le {m n : ℕ} (hmn : m ≤ n) (i : ι) :
+    G.idowdsSeq n i ⊆ G.idowdsSeq m i := by
+  induction hmn with
+  | refl => exact Set.Subset.rfl
+  | step _ ih => exact fun a ha => ih ha.1
 
 theorem idowdsStep_idowdsSeq (k : ℕ) :
     G.IDoWDSStep (G.idowdsSeq k) (G.idowdsSeq (k + 1)) := by
@@ -687,6 +695,111 @@ theorem idowds_idowdsSeq (k : ℕ) :
   induction k with
   | zero => exact .refl
   | succ k ih => exact ih.tail (idowdsStep_idowdsSeq k)
+
+/-- On a finite game, every player with a nonempty strategy set has a strategy that is not weakly
+dominated (minimizing total cost summed across all profiles). -/
+theorem exists_not_isWeaklyDominated [Finite ι] [∀ j, Finite (S j)] (G : CostGame ι S)
+    {i : ι} [Nonempty (S i)] :
+    ∃ a : S i, ¬ G.IsWeaklyDominated i a := by
+  cases nonempty_fintype ι
+  have := fun j => Fintype.ofFinite (S j)
+  obtain ⟨a, -, ha⟩ := (univ : Finset (S i)).exists_min_image
+    (fun a => ∑ s : ∀ j, S j, G.cost i (update s i a)) univ_nonempty
+  refine ⟨a, fun ⟨b, hle, s₀, hlt⟩ => (ha b (mem_univ b)).not_gt ?_⟩
+  exact sum_lt_sum (fun s _ => hle s) ⟨s₀, mem_univ s₀, hlt⟩
+
+/-- On a finite game with nonempty strategy sets, every stage of simultaneous `IDoWDS` retains at
+least one strategy for every player. -/
+theorem idowdsSeq_nonempty [Finite ι] [∀ j, Finite (S j)] [∀ j, Nonempty (S j)]
+    (G : CostGame ι S) (k : ℕ) (i : ι) : (G.idowdsSeq k i).Nonempty := by
+  induction k generalizing i with
+  | zero => exact Set.univ_nonempty
+  | succ k ih =>
+    have : Nonempty (G.idowdsSeq k i) := (ih i).to_subtype
+    obtain ⟨⟨a, ha⟩, hnd⟩ := (G.restrict (G.idowdsSeq k)).exists_not_isWeaklyDominated (i := i)
+    exact ⟨a, ha, hnd⟩
+
+/-- On a finite game, the simultaneous `IDoWDS` sequence stabilizes at a finite stage `K`, where it
+equals `G.idowdsLimit`. -/
+theorem exists_idowdsSeq_eq_idowdsLimit [Finite ι] [∀ j, Finite (S j)] (G : CostGame ι S) :
+    ∃ K : ℕ, ∀ k, K ≤ k → G.idowdsSeq k = G.idowdsLimit := by
+  cases nonempty_fintype ι
+  have := fun j => Fintype.ofFinite (S j)
+  classical
+  let cardAt (k : ℕ) : ℕ := ∑ i : ι, (univ.filter (· ∈ G.idowdsSeq k i)).card
+  obtain ⟨_, ⟨K, rfl⟩, hK_min⟩ :=
+    WellFounded.has_min Nat.lt_wfRel.wf (Set.range cardAt) ⟨cardAt 0, 0, rfl⟩
+  have hsub_step : ∀ i : ι,
+      univ.filter (· ∈ G.idowdsSeq (K + 1) i) ⊆ univ.filter (· ∈ G.idowdsSeq K i) :=
+    fun i a ha => mem_filter.2 ⟨mem_univ a, (mem_filter.1 ha).2.1⟩
+  have hcard_le : ∀ i : ι,
+      (univ.filter (· ∈ G.idowdsSeq (K + 1) i)).card ≤
+        (univ.filter (· ∈ G.idowdsSeq K i)).card :=
+    fun i => card_le_card (hsub_step i)
+  have hcard_eq : cardAt (K + 1) = cardAt K :=
+    le_antisymm (sum_le_sum fun i _ => hcard_le i)
+      (not_lt.1 (hK_min (cardAt (K + 1)) ⟨K + 1, rfl⟩))
+  have hstep_eq : G.idowdsSeq (K + 1) = G.idowdsSeq K := by
+    funext i
+    have hi_eq : (univ.filter (· ∈ G.idowdsSeq (K + 1) i)).card =
+        (univ.filter (· ∈ G.idowdsSeq K i)).card := by
+      by_contra hne
+      have hlt : (univ.filter (· ∈ G.idowdsSeq (K + 1) i)).card <
+          (univ.filter (· ∈ G.idowdsSeq K i)).card := lt_of_le_of_ne (hcard_le i) hne
+      have hsum_lt : cardAt (K + 1) < cardAt K :=
+        sum_lt_sum (fun j _ => hcard_le j) ⟨i, mem_univ i, hlt⟩
+      omega
+    have hfin_eq : univ.filter (· ∈ G.idowdsSeq (K + 1) i) =
+        univ.filter (· ∈ G.idowdsSeq K i) :=
+      eq_of_subset_of_card_le (hsub_step i) hi_eq.ge
+    ext a
+    have ha := Finset.ext_iff.1 hfin_eq a
+    simpa only [mem_filter, mem_univ, true_and] using ha
+  have hconst : ∀ d : ℕ, G.idowdsSeq (K + d) = G.idowdsSeq K := by
+    intro d
+    induction d with
+    | zero => rfl
+    | succ d ih =>
+      funext i
+      change {a | ∃ ha : a ∈ G.idowdsSeq (K + d) i,
+        ¬ (G.restrict (G.idowdsSeq (K + d))).IsWeaklyDominated i ⟨a, ha⟩} = G.idowdsSeq K i
+      rw [ih]
+      exact congrFun hstep_eq i
+  have hlim : G.idowdsSeq K = G.idowdsLimit := by
+    funext i
+    ext a
+    rw [mem_idowdsLimit_iff]
+    refine ⟨fun ha k => ?_, fun h => h K⟩
+    rcases le_total k K with hk | hk
+    · exact idowdsSeq_subset_of_le hk i ha
+    · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
+      rwa [hconst d]
+  refine ⟨K, fun k hk => ?_⟩
+  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
+  rw [hconst d, hlim]
+
+/-- On a finite game with nonempty strategy sets, the simultaneous `IDoWDS` limit `G.idowdsLimit i`
+is nonempty for every player `i`. -/
+theorem idowdsLimit_nonempty [Finite ι] [∀ j, Finite (S j)] [∀ j, Nonempty (S j)]
+    (G : CostGame ι S) (i : ι) : (G.idowdsLimit i).Nonempty := by
+  obtain ⟨K, hK⟩ := G.exists_idowdsSeq_eq_idowdsLimit
+  rw [← hK K le_rfl]
+  exact G.idowdsSeq_nonempty K i
+
+/-- No strategy surviving simultaneous `IDoWDS` is weakly dominated in
+`G.restrict G.idowdsLimit`. -/
+theorem not_isWeaklyDominated_idowdsLimit [Finite ι] [∀ j, Finite (S j)] (G : CostGame ι S)
+    (i : ι) (a : G.idowdsLimit i) :
+    ¬ (G.restrict G.idowdsLimit).IsWeaklyDominated i a := by
+  obtain ⟨K, hK⟩ := G.exists_idowdsSeq_eq_idowdsLimit
+  have hK0 : G.idowdsSeq K = G.idowdsLimit := hK K le_rfl
+  have hK1 : G.idowdsSeq (K + 1) = G.idowdsLimit := hK (K + 1) (Nat.le_succ K)
+  have ha1 : a.1 ∈ G.idowdsSeq (K + 1) i := hK1.symm ▸ a.2
+  rw [idowdsSeq_succ] at ha1
+  obtain ⟨haK, hnd⟩ := ha1
+  generalize hL : G.idowdsSeq K = L at haK hnd hK0
+  subst hK0
+  exact hnd
 
 theorem IDoSDSStep.idowdsStep {A B : ∀ i, Set (S i)} [∀ i, Nonempty (A i)]
     (h : G.IDoSDSStep A B) : G.IDoWDSStep A B :=
@@ -1033,40 +1146,6 @@ theorem timeAverage_weight_isEpsStrictlyDominatedMixed_le
   classical
   simpa only [sum_singleton] using
     G.timeAverage_weight_isEpsStrictlyDominatedMixed_set_le hT hp hε hR {a}
-      (fun b hb => (mem_singleton.1 hb) ▸ ha)
-
-/-- **Swap regret bounds the weight on `ε`-strictly dominated strategies** ([BlumMansour2007AGT],
-Theorem 4.13, p. 92): if over `T > 0` rounds every player plays mixed strategies `p t` and player
-`i` has swap regret at most `R` against its `deviationCost` sequence, then for any set `D` of
-`ε`-strictly dominated strategies (`ε > 0`), the time-averaged probability mass player `i` places
-on `D` is at most `R / (ε * T)`. -/
-theorem timeAverage_weight_isEpsStrictlyDominated_set_le
-    {p : ℕ → ∀ j, S j → ℝ} {T : ℕ} (hT : 0 < T)
-    (hp : ∀ t j, IsMixedStrategy (p t j))
-    {i : ι} {R ε : ℝ} (hε : 0 < ε)
-    (hR : ∀ δ : S i → S i,
-      ∑ t ∈ range T, ∑ a, p t i a * G.deviationCost (p t) i a
-        ≤ ∑ t ∈ range T, ∑ a, p t i a * G.deviationCost (p t) i (δ a) + R)
-    (D : Finset (S i)) (hD : ∀ a ∈ D, G.IsEpsStrictlyDominated ε i a) :
-    (∑ t ∈ range T, ∑ a ∈ D, p t i a) / (T : ℝ) ≤ R / (ε * T) :=
-  G.timeAverage_weight_isEpsStrictlyDominatedMixed_set_le hT hp hε hR D
-    fun a ha => (hD a ha).isEpsStrictlyDominatedMixed
-
-/-- **Single-action form of Theorem 4.13** ([BlumMansour2007AGT], Section 4.4.4, p. 92): if pure
-action `a` of player `i` is `ε`-strictly dominated (`ε > 0`) and player `i` incurs swap regret at
-most `R` over `T > 0` rounds of mixed play, then `(∑_{t < T} p_t i a) / T ≤ R / (ε * T)`. -/
-theorem timeAverage_weight_isEpsStrictlyDominated_le
-    {p : ℕ → ∀ j, S j → ℝ} {T : ℕ} (hT : 0 < T)
-    (hp : ∀ t j, IsMixedStrategy (p t j))
-    {i : ι} {R ε : ℝ} (hε : 0 < ε)
-    (hR : ∀ δ : S i → S i,
-      ∑ t ∈ range T, ∑ b, p t i b * G.deviationCost (p t) i b
-        ≤ ∑ t ∈ range T, ∑ b, p t i b * G.deviationCost (p t) i (δ b) + R)
-    {a : S i} (ha : G.IsEpsStrictlyDominated ε i a) :
-    (∑ t ∈ range T, p t i a) / (T : ℝ) ≤ R / (ε * T) := by
-  classical
-  simpa only [sum_singleton] using
-    G.timeAverage_weight_isEpsStrictlyDominated_set_le hT hp hε hR {a}
       (fun b hb => (mem_singleton.1 hb) ▸ ha)
 
 end SwapRegretDominance
