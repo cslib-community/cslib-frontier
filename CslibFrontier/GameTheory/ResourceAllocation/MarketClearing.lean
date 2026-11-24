@@ -38,7 +38,7 @@ import Mathlib.Topology.Order.IntermediateValue
 /-!
 # Smooth market-clearing mechanisms and optimality of proportional sharing
 
-In Section 21.3 of [Johari2007] (and Section 4 of [JohariTsitsiklis2009]), a **smooth
+In Section 21.3 of [Johari2007] (see also [JohariTsitsiklis2009]), a **smooth
 market-clearing mechanism** is parameterized by a differentiable demand function
 `D : (0, ∞) × [0, ∞) → [0, ∞)` such that for every capacity `C > 0`, user count `R ≥ 2`, and
 nonzero bid profile `θ ∈ [0, ∞)^R`, there is a unique market-clearing price `p = p_D(θ) > 0`
@@ -240,7 +240,7 @@ theorem isMarketNashEquilibrium_iff_withBot {ι : Type*} [Fintype ι] [Decidable
     exact WithBot.coe_le_coe.mp h
 
 /-- The class `𝒟` of **regular smooth market-clearing mechanisms** ([Johari2007], §21.3,
-Definition 21.8; [JohariTsitsiklis2009], §4):
+Definition 21.8; [JohariTsitsiklis2009]):
 1. `D` is a smooth market-clearing mechanism (`IsSmoothMarketClearing D`, which includes
    nonnegativity `D(p, θ) ≥ 0`, Condition (iv)).
 2. For every `R ≥ 2`, `C > 0`, admissible utility `u`, user `r`, and nonnegative `θ`, user `r`'s
@@ -982,7 +982,7 @@ private theorem IsRegularMarketClearing.priceScale_props {D : ℝ → ℝ → �
     hΛ_conv, hΛ_mono, hΛ_diff, hΛ_elast⟩
 
 /-- **Functional form of mechanisms in `𝒟`** ([Johari2007], §21.3, Theorem 21.10(ii);
-[JohariTsitsiklis2009], Theorem 1): for every mechanism `D ∈ 𝒟`, there exists a concave, strictly
+[JohariTsitsiklis2009]): for every mechanism `D ∈ 𝒟`, there exists a concave, strictly
 increasing, differentiable bijection `B : (0, ∞) → (0, ∞)` such that `D(p, θ) = θ / B(p)` for all
 `p > 0` and `θ ≥ 0`. -/
 theorem IsRegularMarketClearing.exists_priceScale {D : ℝ → ℝ → ℝ}
@@ -2299,7 +2299,7 @@ private theorem IsRegularMarketClearing.efficiencyRatio_le_elasticityEfficiencyB
   linarith
 
 /-- **Upper bound on the efficiency of mechanisms in `𝒟`** ([Johari2007], §21.3,
-Theorem 21.10(iii); [JohariTsitsiklis2009], Theorem 1): every regular smooth market-clearing
+Theorem 21.10(iii); [JohariTsitsiklis2009]): every regular smooth market-clearing
 mechanism `D ∈ 𝒟` has worst-case price-anticipating Nash efficiency ratio at most `3 / 4`. -/
 theorem IsRegularMarketClearing.efficiencyRatio_le_three_fourths {D : ℝ → ℝ → ℝ}
     (hD : IsRegularMarketClearing D) :
@@ -2397,7 +2397,7 @@ private theorem IsRegularMarketClearing.efficiencyRatio_eq_three_fourths_of_scal
   exact hkelly_ne.three_fourths_welfare_le hC hU hU0 hd.1
 
 /-- **Johari–Tsitsiklis optimality of proportional sharing** ([Johari2007], §21.3,
-Theorem 21.10(iii); [JohariTsitsiklis2009], Theorem 1): for any regular smooth market-clearing
+Theorem 21.10(iii); [JohariTsitsiklis2009]): for any regular smooth market-clearing
 mechanism `D ∈ 𝒟`, its worst-case Nash efficiency ratio equals `3 / 4` if and only if `D` is
 Kelly's proportional sharing mechanism up to a positive scalar factor `Δ > 0`, i.e.,
 `D(p, θ) = Δ * θ / p` for all `p > 0` and `θ ≥ 0`. -/
