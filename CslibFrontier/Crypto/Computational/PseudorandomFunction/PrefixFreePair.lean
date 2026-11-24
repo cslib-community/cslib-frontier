@@ -42,6 +42,8 @@ For a batch, it searches for a block absent from the complete rows of all words.
   agree after splitting the messages into blocks.
 * `Cslib.Crypto.PRF.isPrefixFree_append_of_freshBatchWordBlock_eq_some`: extending aligned words
   by the returned block makes a prefix-free set.
+* `Cslib.Crypto.PRF.freshBatchWordBlock_isSome_of_sum_div_lt`: the search succeeds when
+  the alphabet is larger than the total number of complete blocks.
 * `Cslib.Crypto.PRF.computableInPolyTime_freshBatchWordBlock`: deterministic polynomial time
   with unary width and a framed list of words.
 -/
@@ -128,6 +130,14 @@ def freshBatchWordBlock (width : ℕ) (messages : List (List Bool)) : Option (Li
   findFreshBlock (size := 2 ^ width) (fun i => BitString.lowBits width i.val)
     (messages.flatMap (completeRows width))
 
+/-- A block returned by the flat search has exactly the requested width. -/
+theorem length_freshBatchWordBlock_of_eq_some {width : ℕ} {messages : List (List Bool)}
+    {block : List Bool} (hblock : freshBatchWordBlock width messages = some block) :
+    block.length = width := by
+  unfold freshBatchWordBlock findFreshBlock at hblock
+  obtain ⟨_, _, rfl⟩ := List.mem_map.mp (List.mem_of_find?_eq_some hblock)
+  simp
+
 /-- Appending a block returned by the flat search makes the batch prefix-free at positive
 width, provided each original word consists of complete blocks. -/
 theorem isPrefixFree_append_of_freshBatchWordBlock_eq_some {width : ℕ}
@@ -135,12 +145,10 @@ theorem isPrefixFree_append_of_freshBatchWordBlock_eq_some {width : ℕ}
     (haligned : ∀ word ∈ messages, width ∣ word.length)
     (hblock : freshBatchWordBlock width messages = some block) :
     InformationTheory.IsPrefixFree ((fun msg => msg ++ block) '' {msg | msg ∈ messages}) := by
+  have hlen := length_freshBatchWordBlock_of_eq_some hblock
   unfold freshBatchWordBlock findFreshBlock at hblock
   have hfresh : block ∉ messages.flatMap (completeRows width) := by
     simpa using List.find?_some hblock
-  have hlen : block.length = width := by
-    obtain ⟨_, _, rfl⟩ := List.mem_map.mp (List.mem_of_find?_eq_some hblock)
-    simp
   have hprefix : InformationTheory.IsPrefixFree
       ((fun rows => rows ++ [block]) '' {rows | rows ∈ messages.map (completeRows width)}) :=
     isPrefixFree_append_of_notMem_flatten (by simpa only [List.flatten_eq_flatMap,
@@ -212,6 +220,19 @@ theorem freshBatchWordBlock_eq_map_freshBatchBlock (width : ℕ) (messages : Lis
         (min_le_left _ _)
       refine Eq.trans ?_ hr.symm
       rw [List.length_map]
+
+/-- With more alphabet elements than complete block occurrences, the flat search succeeds. -/
+theorem freshBatchWordBlock_isSome_of_sum_div_lt {width : ℕ} {messages : List (List Bool)}
+    (hsize : (messages.map fun word => word.length / width).sum < 2 ^ width) :
+    (freshBatchWordBlock width messages).isSome := by
+  have hindexed : ((messages.map fun word =>
+      (BitString.listRows (word.length / width) width word).map (BitString.ofList width)).flatten
+        ).length < 2 ^ width := by
+    simpa only [List.length_flatten, List.map_map, Function.comp_def, List.length_map,
+      BitString.length_listRows] using hsize
+  obtain ⟨block, hblock, _⟩ := isPrefixFree_append_freshBatchBlock hindexed
+  rw [freshBatchWordBlock_eq_map_freshBatchBlock, hblock]
+  rfl
 
 open ComputableInPolyTime in
 /-- The flat-word search runs in deterministic polynomial time. The input is a framed unary

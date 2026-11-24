@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Deterministic replay of Boolean oracle replies
@@ -191,15 +192,8 @@ variable [Finite Control] [Fintype Operation]
   have hinit : ComputableInPolyTime
       (fun p : List Bool × List Bool => FiniteConfig.init (k := k) (Oracle := Operation)
         machine.initial p.1) (encPair encBits encBits) encFiniteConfig := by fun_prop
-  have hin : PolyBounded (fun p : List Bool × List Bool =>
-      (encPair encBits encBits p).length) (fun p => p.1.length) :=
-    (ComputableInPolyTime.fst encBits encBits).polyBounded_length
-  have hans : PolyBounded (fun p : List Bool × List Bool =>
-      (encPair encBits encBits p).length) (fun p => p.2.length) :=
-    (ComputableInPolyTime.snd encBits encBits).polyBounded_length
-  have hb := (PolyBounded.const c).mul (((hin.add hans).add (.const 1)).add (.const 1))
   exact ComputableInPolyTime.foldl' (.snd encBits encBits) hinit
-    machine.replyStep_pt hb
+    machine.replyStep_pt (B := fun p => c * (p.1.length + p.2.length + 1 + 1)) (by growth_poly)
     (fun p i _ => (hc _ _ _ _ (machine.spaceBound_replayConfig p.1 (p.2.take i))).trans
       (Nat.mul_le_mul_left c (by simp only [List.length_take]; omega)))
 

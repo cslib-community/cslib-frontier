@@ -11,7 +11,6 @@ public import CslibFrontier.Foundations.Analysis.Lattice.QuotientMeasure
 public import CslibFrontier.Foundations.MeasureTheory.Group.QuotientDensity
 public import CslibFrontier.Foundations.Probability.Gaussian.Measure
 public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
-public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import Mathlib.MeasureTheory.Measure.TotalVariation.Basic
 
 import CslibFrontier.Foundations.MeasureTheory.Measure.TotalVariation.Map

@@ -13,6 +13,7 @@ public import Mathlib.Data.Set.Card
 public import Mathlib.Data.Set.Restrict
 public import Mathlib.Logic.Function.DependsOn
 import CslibFrontier.Foundations.Data.Set.Card
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Logic.Equiv.Prod
 import Mathlib.SetTheory.Cardinal.Finite
 import Mathlib.Tactic.GCongr
@@ -294,10 +295,8 @@ theorem signedCount_eq_add_sdiff (S : Set (ι → U)) {R D : Set (ι → U)} (h 
 /-- The signed count is twice the deviation of `|R ∩ S|` from `|R| / 2`. -/
 theorem signedCount_eq_two_mul (S R : Set (ι → U)) :
     signedCount S R = 2 * (((R ∩ S).ncard : ℝ) - R.ncard / 2) := by
-  have : ((R ∩ S).ncard : ℝ) + (R \ S).ncard = R.ncard := by
-    exact_mod_cast ncard_inter_add_ncard_sdiff_eq_ncard R S
   rw [signedCount]
-  linarith
+  cast_linarith [ncard_inter_add_ncard_sdiff_eq_ncard R S]
 
 end Finite
 

@@ -60,24 +60,19 @@ theorem stacksOf_append_singleton (C : List (HoleChain n Γ)) (c : HoleChain n �
     stacksOf (C ++ [c]) =
       Function.update (stacksOf C) c.stack (c.pushes.map Prod.snd ++ stacksOf C c.stack) := by
   funext j
-  by_cases hj : j = c.stack
-  · subst hj
-    simp [stacksOf, List.filter_append]
-  · simp [stacksOf, List.filter_append, Function.update_of_ne hj, Ne.symm hj]
+  by_cases hj : j = c.stack <;>
+    simp [stacksOf, List.filter_append, hj, Function.update_of_ne, Ne.symm]
 
 theorem stacksOf_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {p : ℕ} {γ : Γ}
     {ps : List (ℕ × Γ)} (hpost : ∀ c ∈ post, c.stack ≠ i) :
     stacksOf (pre ++ ⟨i, (p, γ) :: ps⟩ :: post) =
       Function.update (stacksOf (pre ++ ⟨i, ps⟩ :: post)) i
         (γ :: stacksOf (pre ++ ⟨i, ps⟩ :: post) i) := by
-  have hfilter : ∀ q : List (ℕ × Γ),
-      (post.filter fun c => decide (c.stack = i)) = [] := fun _ =>
+  have hfilter : (post.filter fun c => decide (c.stack = i)) = [] :=
     List.filter_eq_nil_iff.mpr fun c hc => by simpa using hpost c hc
   funext j
-  by_cases hj : j = i
-  · subst hj
-    simp [stacksOf, List.filter_append, hfilter []]
-  · simp [stacksOf, List.filter_append, Function.update_of_ne hj, Ne.symm hj]
+  by_cases hj : j = i <;>
+    simp [stacksOf, List.filter_append, hfilter, hj, Function.update_of_ne, Ne.symm]
 
 theorem stacksOf_close {pre post : List (HoleChain n Γ)} {i : Fin n} :
     stacksOf (pre ++ ⟨i, []⟩ :: post) = stacksOf (pre ++ post) := by
@@ -181,12 +176,9 @@ private theorem RunsTo.pop_aux {K : ℕ} {ν : HoleList n State} {w : List (Symb
   obtain ⟨stk, pushes⟩ := c₀
   simp only at hc₀ hsym₀
   subst stk
-  obtain ⟨⟨p, γ'⟩, ps, rfl⟩ : ∃ e ps, pushes = e :: ps := by
-    cases pushes with
-    | nil => simp at hsym₀
-    | cons e ps => exact ⟨e, ps, rfl⟩
-  simp only [List.map_cons, List.cons.injEq] at hsym₀
-  obtain ⟨rfl, hps⟩ := hsym₀
+  rcases pushes with _ | ⟨⟨p, γ'⟩, ps⟩
+  · simp at hsym₀
+  obtain ⟨rfl, hps⟩ : γ' = γ ∧ ps.map Prod.snd = r.map Prod.fst := by simpa using hsym₀
   have hCpost : ∀ c ∈ Cpost, c.stack ≠ i := by
     intro c hc
     obtain ⟨h, hh, hch⟩ := List.Forall₂.exists_mem_of_mem hstpost hc
@@ -336,10 +328,8 @@ theorem Reachable.exists_runsTo {K : ℕ} {μ : HoleList n State}
       simp only at hs
       subst hs
       obtain ⟨rs₀, rs₁, rfl, -, hrs₀, hrs₁⟩ := List.Forall₂.split_right hrs
-      obtain ⟨r, rfl⟩ : ∃ r, rs₁ = [r] := by
-        cases hrs₁ with
-        | cons _ h => cases h; exact ⟨_, rfl⟩
-      have hr : M.Realizes i μ.last s' r := by cases hrs₁; assumption
+      rcases hrs₁ with _ | ⟨hr, hnil⟩
+      cases hnil
       obtain ⟨w, hw⟩ := ih rs₀ hrs₀
       obtain ⟨v, hv⟩ := hr.exists_blockRun
       exact ⟨w ++ v, hw.hole hK hv⟩

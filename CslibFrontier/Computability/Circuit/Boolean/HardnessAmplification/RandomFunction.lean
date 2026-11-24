@@ -13,6 +13,7 @@ public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Computability.Circuit.Counting
 import CslibFrontier.Foundations.Combinatorics.Hoeffding
 import CslibFrontier.Foundations.Data.Nat.Power
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Random functions are hard on average
@@ -158,13 +159,11 @@ theorem exists_forall_complexity_le_card_agree_lt {n : ℕ} (hn : 400 ≤ n) :
   have ht : 0 ≤ t := by positivity
   have hexp : (2 : ℝ) ^ L * exp (-(2 * t ^ 2 / 2 ^ n)) < 1 := by
     have hLt : (L : ℝ) < 2 * t ^ 2 / 2 ^ n := by
-      have hkeyR : (9 : ℝ) * S ^ 4 < 2 * 2 ^ n := by exact_mod_cast hkey
-      have hLR : (L : ℝ) ≤ 9 * S ^ 2 := by exact_mod_cast hL
       have heq : 2 * t ^ 2 / 2 ^ n = 2 * 2 ^ n / S ^ 2 := by
         simp only [t]
         field_simp
       rw [heq, lt_div_iff₀ (by positivity)]
-      nlinarith
+      cast_nlinarith [hL, hkey]
     calc (2 : ℝ) ^ L * exp (-(2 * t ^ 2 / 2 ^ n))
         ≤ exp L * exp (-(2 * t ^ 2 / 2 ^ n)) := by
           gcongr

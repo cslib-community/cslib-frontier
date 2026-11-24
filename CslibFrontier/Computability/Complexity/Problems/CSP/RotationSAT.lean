@@ -79,17 +79,16 @@ fixed finite Boolean language, with binary names and the complete framed record 
 theorem mem_NP {Rel : Type} [Finite Rel] (encRel : Rel ↪ List Bool) (arity : Rel → ℕ)
     (sem : Rel → List Bool → Bool) :
     RotationCSPSAT arity sem ∈ NP (CSP.encRotationInstance encRel) := by
+  open scoped RotationInstance in
   have hforget : PolyTimeReducible (CSP.encRotationInstance encRel) (encCSP encRel encNat)
       {I : CSP.RotationInstance Rel | I.constraints ∈ CSPSAT arity sem} (CSPSAT arity sem) :=
-    ⟨CSP.RotationInstance.constraints,
-      encRotationInstance_constraints_polyTime encRel .id', fun _ => Iff.rfl⟩
-  have hinput : ComputableInPolyTime
-      (fun I : CSP.RotationInstance Rel => (I.constraints, I.rotation))
-      (CSP.encRotationInstance encRel) (CSP.encCSPRotationCertificate encRel encNat) :=
-    (encRotationInstance_constraints_polyTime encRel .id').pair
-      (encRotationInstance_rotation_polyTime encRel .id')
-  have hcheck :=
-    (CSP.computableInPolyTime_verifyRotationCertificate encRel encNat).comp hinput
+    ⟨CSP.RotationInstance.constraints, by fun_prop, fun _ => Iff.rfl⟩
+  have hcheck : ComputableInPolyTime
+      (fun I : CSP.RotationInstance Rel => CSP.verifyRotationCertificate I.constraints I.rotation)
+      (CSP.encRotationInstance encRel) Turing.MultiTapeTM.encBool :=
+    (CSP.computableInPolyTime_verifyRotationCertificate encRel Turing.MultiTapeTM.encNat).comp
+      (g := fun I : CSP.RotationInstance Rel => (I.constraints, I.rotation))
+      (by unfold CSP.encCSPRotationCertificate; fun_prop)
   apply mem_NP_of_guard hcheck (hforget.mem_NP (CSPSAT.mem_NP encRel arity sem))
   intro I
   exact ⟨fun ⟨hw, hc, hs⟩ => ⟨hc, hw, hs⟩, fun ⟨hc, hw, hs⟩ => ⟨hw, hc, hs⟩⟩

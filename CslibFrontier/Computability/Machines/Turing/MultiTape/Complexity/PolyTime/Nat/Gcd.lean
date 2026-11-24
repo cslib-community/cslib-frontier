@@ -203,25 +203,35 @@ def modInvInit (a m : ℕ) : (ℕ × ℕ) × (ℕ × ℕ) :=
 def modInvNext (m q t₀ t₁ : ℕ) : ℕ :=
   (t₀ + m - (q * t₁) % m) % m
 
+/-- First remainder `s.1.1` of the extended-Euclidean state `((r₀, r₁), (t₀, t₁))`. -/
+abbrev modInvRem0 (s : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := s.1.1
+
+/-- Second remainder `s.1.2` of the extended-Euclidean state `((r₀, r₁), (t₀, t₁))`. -/
+abbrev modInvRem1 (s : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := s.1.2
+
+/-- First Bézout coefficient `s.2.1` of the extended-Euclidean state `((r₀, r₁), (t₀, t₁))`. -/
+abbrev modInvCoeff0 (s : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := s.2.1
+
+/-- Second Bézout coefficient `s.2.2` of the extended-Euclidean state `((r₀, r₁), (t₀, t₁))`. -/
+abbrev modInvCoeff1 (s : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := s.2.2
+
 /-- One step of the unsigned extended-Euclidean loop modulo `m`: advance the remainder pair
 `(r₀, r₁)` by `gcdStep` and update `(t₀, t₁)` to `(t₁, modInvNext m (r₀ / r₁) t₀ t₁)`
 while `r₁ ≠ 0`. -/
 def modInvStep (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)) : (ℕ × ℕ) × (ℕ × ℕ) :=
-  let r := s.1
-  let t := s.2
-  if r.2 = 0 then s
-  else ((r.2, r.1 % r.2), (t.2, modInvNext m (r.1 / r.2) t.1 t.2))
+  if modInvRem1 s = 0 then s
+  else ((modInvRem1 s, modInvRem0 s % modInvRem1 s),
+    (modInvCoeff1 s, modInvNext m (modInvRem0 s / modInvRem1 s) (modInvCoeff0 s) (modInvCoeff1 s)))
 
 /-- Unsigned modular inverse of `a` modulo `m`, computed by the extended Euclidean algorithm.
 When `0 < m`, `a * modInv a m ≡ Nat.gcd m a [MOD m]` and `modInv a m < m`; when
 `Nat.Coprime a m`, `a * modInv a m ≡ 1 [MOD m]`. -/
 def modInv (a m : ℕ) : ℕ :=
-  let t := ((modInvStep m)^[gcdCount (m, a)] (modInvInit a m)).2
-  t.1
+  modInvCoeff0 ((modInvStep m)^[gcdCount (m, a)] (modInvInit a m))
 
 private lemma fst_modInvStep (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)) :
     (modInvStep m s).1 = gcdStep s.1 := by
-  dsimp only [modInvStep, gcdStep]
+  dsimp only [modInvStep, modInvRem0, modInvRem1, gcdStep]
   split_ifs <;> rfl
 
 private lemma fst_iterate_modInvStep (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)) (i : ℕ) :
@@ -233,7 +243,7 @@ private lemma fst_iterate_modInvStep (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)
 
 private lemma snd_modInvStep_le (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)) (h₁ : s.2.1 ≤ m) (h₂ : s.2.2 ≤ m) :
     (modInvStep m s).2.1 ≤ m ∧ (modInvStep m s).2.2 ≤ m := by
-  dsimp only [modInvStep, modInvNext]
+  dsimp only [modInvStep, modInvRem0, modInvRem1, modInvCoeff0, modInvCoeff1, modInvNext]
   split_ifs with hr
   · exact ⟨h₁, h₂⟩
   · refine ⟨h₂, ?_⟩
@@ -261,7 +271,7 @@ private lemma snd_modInvInit_le (a m : ℕ) :
 private lemma snd_modInvStep_lt {m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (ℕ × ℕ))
     (h₁ : s.2.1 < m) (h₂ : s.2.2 < m) :
     (modInvStep m s).2.1 < m ∧ (modInvStep m s).2.2 < m := by
-  dsimp only [modInvStep, modInvNext]
+  dsimp only [modInvStep, modInvRem0, modInvRem1, modInvCoeff0, modInvCoeff1, modInvNext]
   split_ifs with hr
   · exact ⟨h₁, h₂⟩
   · exact ⟨h₂, Nat.mod_lt _ hm⟩
@@ -292,7 +302,7 @@ private lemma modEq_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (�
     (hm₁ : a * s.2.1 ≡ s.1.1 [MOD m]) (hm₂ : a * s.2.2 ≡ s.1.2 [MOD m]) :
     a * (modInvStep m s).2.1 ≡ (modInvStep m s).1.1 [MOD m] ∧
       a * (modInvStep m s).2.2 ≡ (modInvStep m s).1.2 [MOD m] := by
-  dsimp only [modInvStep, modInvNext]
+  dsimp only [modInvStep, modInvRem0, modInvRem1, modInvCoeff0, modInvCoeff1, modInvNext]
   split_ifs with hr
   · exact ⟨hm₁, hm₂⟩
   · refine ⟨hm₂, ?_⟩
@@ -360,7 +370,7 @@ theorem mul_modInv_modEq_gcd (a : ℕ) {m : ℕ} (hm : 0 < m) :
     rw [fst_iterate_modInvStep]
     change (gcdStep^[gcdCount (m, a)] (m, a)).1 = Nat.gcd m a
     rw [iterate_gcdStep_eq]
-  simpa [modInv, hfst] using hiter
+  simpa [modInv, modInvCoeff0, hfst] using hiter
 
 /-- Modular inverse correctness: when `Nat.Coprime a m`, `a * modInv a m ≡ 1 [MOD m]`. -/
 theorem mul_modInv_modEq_one {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m) :

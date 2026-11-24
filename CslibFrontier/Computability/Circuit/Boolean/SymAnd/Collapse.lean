@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Mobius
+public import CslibFrontier.Foundations.Data.Polynomial.ParityAmplifier
 import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Polynomial
 import CslibFrontier.Foundations.Data.Polynomial.ModulusAmplifier
 import Mathlib.Data.ZMod.Basic
@@ -139,7 +140,8 @@ private theorem sum_prod_mem_lowDegree {G : Multiset (Finset T)} {F E : ℕ}
 /-- The modulus-amplified count of `C` after the layer `L`: the sum over the gates `S` of `C` of
 `∏_{t ∈ S} (1 - p_k(q_t ^ (p - 1)))`. Modulo `p ^ k` it is the number of gates of `C` satisfied
 after `L` (`SymAnd.amplifiedCount_modEq`). -/
-noncomputable def amplifiedCount (C : SymAnd T) (L : ModPolyLayer T) (k : ℕ) (v : T → Bool) : ℤ :=
+@[expose] noncomputable def amplifiedCount (C : SymAnd T) (L : ModPolyLayer T) (k : ℕ)
+    (v : T → Bool) : ℤ :=
   (C.gates.map fun S => ∏ t ∈ S, (1 - (parityAmplifier k).eval (L.q t v ^ (L.p - 1)))).sum
 
 /-- The amplified count has degree at most `C.fanIn * (2k - 1)(p - 1)D` when the slot polynomials
@@ -170,8 +172,8 @@ theorem amplifiedCount_modEq (C : SymAnd T) (L : ModPolyLayer T) (hp : L.p.Prime
 /-- **One explicit collapse step** [BeigelTarui1994, Lemma 2.8]: the canonical circuit
 (`SymAnd.ofLowDegree`) of the amplified count `amplifiedCount C L k` modulo `p ^ k`, up to its
 degree bound `C.fanIn * (2k - 1)(p - 1)D`, below the symmetric gate of `C`. -/
-noncomputable def collapseStep [Fintype T] [DecidableEq T] (C : SymAnd T) (L : ModPolyLayer T)
-    (k D : ℕ) : SymAnd T :=
+@[expose] noncomputable def collapseStep [Fintype T] [DecidableEq T] (C : SymAnd T)
+    (L : ModPolyLayer T) (k D : ℕ) : SymAnd T :=
   ofLowDegree (C.fanIn * ((2 * k - 1) * ((L.p - 1) * D))) (L.p ^ k) (amplifiedCount C L k) C.out
 
 /-- **What the collapse step computes**: `C` after `L`, when `p` is prime, the slot polynomials have
@@ -243,7 +245,7 @@ private theorem tower_size_le {B B' p N e : ℕ} (hpB : p ≤ 2 ^ B) (hN : N ≤
 /-- **The explicit collapse of a tower**: collapse the layers of `Ls` one at a time from the
 outermost, with `k = B + 1` and degree bound `B` at the first layer and `5 B ^ 5` in place of `B`
 afterwards. -/
-noncomputable def collapseRun [Fintype T] [DecidableEq T] (C : SymAnd T) :
+@[expose] noncomputable def collapseRun [Fintype T] [DecidableEq T] (C : SymAnd T) :
     List (ModPolyLayer T) → ℕ → SymAnd T
   | [], _ => C
   | L :: Ls, B => collapseRun (collapseStep C L (B + 1) B) Ls (5 * B ^ 5)
