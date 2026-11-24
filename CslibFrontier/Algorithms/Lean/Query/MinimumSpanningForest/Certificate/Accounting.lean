@@ -17,7 +17,7 @@ The accounting of §3.6 of [Khanna, Putterman and Song][KhannaPuttermanSong2026]
 the program `Cslib.Query.Certificate.certificate`: the comparisons it makes outside its exact
 minimum spanning forest calls, and the total size of those calls. With the correctness results
 of `Cslib.Query.Certificate.card_unsupported_add_sum_absorbed_le` (Lemma 3.7), this proves their
-Lemma 3.1 (§3.1, p. 12) for any schedule and estimator satisfying two hypotheses, which M7b's
+Lemma 3.1 (§3.1, p. 13) for any schedule and estimator satisfying two hypotheses, which M7b's
 `Cslib.Query.Certificate.card_errors_le` and `Cslib.Query.Certificate.sum_countQueries_estimator_le`
 discharge for the paper's schedule (Lemma 3.11) and estimator (§3.5),
 `Cslib.Query.Certificate.Config.derandomized`:
@@ -107,7 +107,7 @@ No step of §3.6 needed repair.
 ## References
 
 * [S. Khanna, A. Putterman and J. Song, *A Deterministic Linear Time Algorithm for Minimum
-  Spanning Tree*][KhannaPuttermanSong2026], §3.1, p. 12, and §3.5–3.6, pp. 22–24.
+  Spanning Tree*][KhannaPuttermanSong2026], §3.1, p. 13, and §3.5–3.6, pp. 22–24.
 -/
 
 public section
@@ -1115,7 +1115,7 @@ private theorem sum_card_msfInputs_add_card_errors_le (hw : Function.Injective w
   nlinarith
 
 /-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the paper's Lemma 3.1
-(§3.1, p. 12, proved in §3.6, pp. 22–24) for the certificate procedure with any schedule and
+(§3.1, p. 13, proved in §3.6, pp. 22–24) for the certificate procedure with any schedule and
 estimator satisfying hypotheses (i) (`Cslib.Query.Certificate.ErrorBound`) and (ii)
 (`Cslib.Query.Certificate.EstCostBound`). The paper's schedule and estimator are
 `Cslib.Query.Certificate.certificate_derandomized_accounting`.
@@ -1318,7 +1318,7 @@ theorem estCostBound_derandomized (γ : ℕ) (hγ : 0 < γ)
   exact h.trans (by linarith)
 
 /-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the paper's Lemma 3.1
-(§3.1, p. 12, proved in §3.6, pp. 22–24) for the certificate procedure with the schedule of Lemma
+(§3.1, p. 13, proved in §3.6, pp. 22–24) for the certificate procedure with the schedule of Lemma
 3.11 and the estimator of §3.5 (`Cslib.Query.Certificate.Config.derandomized`). For every `γ > 0`
 there are `C, C'` such that on a root instance with `n` vertices, `m` edges and `n ≤ 2 m` (no
 isolated vertices), with injective weights and exact minimum spanning forest calls,
@@ -1362,7 +1362,7 @@ theorem certificate_derandomized_accounting (γ : ℕ) (hγ : 0 < γ) :
 
 /-- A step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026] (#8325): the cost of the
 certificate procedure with a linear exact subroutine, for the derandomized configuration: the form
-of the paper's Lemma 3.1 (§3.1, p. 12) used in the proof of Theorem 4.1 (§4, pp. 25–26) by strong
+of the paper's Lemma 3.1 (§3.1, p. 13) used in the proof of Theorem 4.1 (§4, pp. 25–26) by strong
 induction on the number of edges. Every exact call works on at most `8 m / γ + C √(m n)` root edges,
 and if each costs at most `κ` comparisons per input edge, the procedure makes at most
 `C' m + κ (8 m / γ + C √(m n))` comparisons. -/
