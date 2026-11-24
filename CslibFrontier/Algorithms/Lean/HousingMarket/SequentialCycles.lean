@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.HousingMarket.TopTradingCycles
-import Mathlib.Data.Set.Finite.Basic
 import Mathlib.Dynamics.PeriodicPts.Lemmas
 
 /-!
@@ -202,12 +201,6 @@ theorem ttcRounds_injective {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) :
 
 @[simp] theorem ttc_apply (i : Fin n) : sel.ttc i = sel.ttcRounds n Finset.univ i := rfl
 
-private theorem mem_of_apply_mem {C : Finset (Fin n)} (ν : Allocation n)
-    (hC : ∀ b ∈ C, ν b ∈ C) {a : Fin n} (ha : ν a ∈ C) : a ∈ C := by
-  obtain ⟨b, hb, hba⟩ := ((Set.Finite.injOn_iff_bijOn_of_mapsTo (Finset.finite_toSet C) hC).1
-    ν.injective.injOn).surjOn (Finset.mem_coe.2 ha)
-  exact ν.injective hba ▸ hb
-
 private theorem eq_ttcRounds_of_le {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k)
     (ν : Allocation n) (S : Finset (Fin n)) (hSR : S ⊆ R) (hS : ∀ i ∈ S, ν i ∈ S)
     (hle : ∀ i ∈ S, I.rank i (ν i) ≤ I.rank i (sel.ttcRounds k R i)) :
@@ -325,18 +318,6 @@ variable {I} in
 @[expose] def singleCycleSelector : I.CycleSelector :=
   CycleSelector.ofSeed (fun R hR => (I.cycleAgents R).min' (I.cycleAgents_nonempty hR))
     (fun R hR => (I.cycleAgents R).min'_mem (I.cycleAgents_nonempty hR))
-
-theorem singleCycle_subset_cycleAgents {R : Finset (Fin n)} (hR : R.Nonempty) :
-    I.singleCycle R ⊆ I.cycleAgents R :=
-  I.singleCycleSelector.select_subset_cycleAgents hR
-
-theorem singleCycle_nonempty {R : Finset (Fin n)} (hR : R.Nonempty) :
-    (I.singleCycle R).Nonempty :=
-  I.singleCycleSelector.select_nonempty hR
-
-theorem topChoice_mem_singleCycle {R : Finset (Fin n)} {i : Fin n} (hR : R.Nonempty)
-    (hi : i ∈ I.singleCycle R) : I.topChoice R i ∈ I.singleCycle R :=
-  I.singleCycleSelector.topChoice_mem_select hR hi
 
 /-- Sequential single-cycle top trading cycles allocation, eliminating one directed cycle per step.
 -/

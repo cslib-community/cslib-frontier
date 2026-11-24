@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Algorithms.Lean.HousingMarket.GroupIncentives
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Data.Set.Finite.Basic
 import Mathlib.Dynamics.PeriodicPts.Lemmas
 
 /-!
@@ -68,12 +67,6 @@ open Function
 namespace Instance
 
 variable {n : ℕ}
-
-private theorem mem_of_apply_mem {C : Finset (Fin n)} (ν : Allocation n)
-    (hC : ∀ b ∈ C, ν b ∈ C) {a : Fin n} (ha : ν a ∈ C) : a ∈ C := by
-  obtain ⟨b, hb, hba⟩ := ((Set.Finite.injOn_iff_bijOn_of_mapsTo (Finset.finite_toSet C) hC).1
-    ν.injective.injOn).surjOn (Finset.mem_coe.2 ha)
-  exact ν.injective hba ▸ hb
 
 private theorem topChoice_iterate_ne_self_of_ne {I : Instance n} {R : Finset (Fin n)}
     {a₀ : Fin n} (ha₀ : a₀ ∈ I.cycleAgents R) (hne : I.topChoice R a₀ ≠ a₀) :

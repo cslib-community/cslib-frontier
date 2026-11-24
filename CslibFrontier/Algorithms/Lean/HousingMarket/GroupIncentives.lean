@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Algorithms.Lean.HousingMarket.Incentives
 public import CslibFrontier.Algorithms.Lean.HousingMarket.SequentialCycles
-import Mathlib.Data.Set.Finite.Basic
 
 /-!
 # Coalitional incentives, group strategy-proofness, and non-bossiness in housing markets
@@ -151,12 +150,6 @@ theorem updatePrefs_rank_of_notMem {S : Finset (Fin n)} {j : Fin n} (hj : j ∉ 
   rw [rank, updatePref_pref_self]
 
 /-! ### Coalitional invariance of TTC -/
-
-private theorem mem_of_apply_mem {C : Finset (Fin n)} (ν : Allocation n)
-    (hC : ∀ b ∈ C, ν b ∈ C) {a : Fin n} (ha : ν a ∈ C) : a ∈ C := by
-  obtain ⟨b, hb, hba⟩ := ((Set.Finite.injOn_iff_bijOn_of_mapsTo (Finset.finite_toSet C) hC).1
-    ν.injective.injOn).surjOn (Finset.mem_coe.2 ha)
-  exact ν.injective hba ▸ hb
 
 private theorem eq_ttcRounds_of_forall_rank_le {J : Instance n} {S : Finset (Fin n)}
     (hpref : ∀ j, j ∉ S → J.pref j = I.pref j)
