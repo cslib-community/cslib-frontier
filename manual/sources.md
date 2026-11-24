@@ -1780,6 +1780,11 @@ Jure Leskovec, Anand Rajaraman, Jeffrey D. Ullman. *Mining of Massive Datasets*,
 
 Leonid A. Levin. *Average Case Complete Problems*. SIAM Journal on Computing 15(1), 285–286, 1986. https://doi.org/10.1137/0215020 . Bibliographic metadata checked on 2026-11-07. The manual attributes only the existence of a complete distributional problem for `(NP, PComp)` to this paper, and follows the proof of [bt06](#bt06), Theorem 19.
 
+<a id="levinperes2017"></a>
+## levinperes2017
+
+David A. Levin and Yuval Peres (with contributions by Elizabeth L. Wilmer, and a chapter on coupling from the past by James G. Propp and David B. Wilson). *Markov Chains and Mixing Times*, 2nd edition. American Mathematical Society, Providence, RI, 2017. https://doi.org/10.1090/mbk/107 ; author-hosted PDF https://pages.uoregon.edu/dlevin/MARKOV/markovmixing.pdf (416 PDF pages, dated March 21, 2017, SHA-256 `9ef39f9467d9647ff3f5e8747b9ce24b7a90d13be2f8156fbd827b95b661a772`, where printed page `p` in the main text is PDF page `p + 16`). Checked directly against that PDF on 2026-11-24 for Section 1.3 (lazy version `(I + P) / 2`, printed p. 8 / PDF p. 24), Section 12.1 (Lemma 12.1(i), `(12.1)`, Lemma 12.2 symmetric conjugation `D_π^{1/2} P D_π^{-1/2}`, and Lemma 12.3 mean-zero eigenfunctions, printed pp. 161–163 / PDF pp. 177–179), Section 12.2 (`λ_*` `(12.6)`, `γ_* = 1 - λ_*`, `γ = 1 - λ_2` `(12.7)`, variance contraction `(12.8)`, Theorem 12.4 `(12.10)` and `(12.13)`, and Theorem 12.5 `(12.14)`–`(12.15)`, printed pp. 163–164 / PDF pp. 179–180), Section 12.6 (Lemma 12.18 `ℓ²` / `χ²` bound, printed p. 172 / PDF p. 188), Chapter 12 Exercises 12.1(a), 12.3, and 12.4 (printed p. 177 / PDF p. 193), and Section 13.2.1 (`(13.2)` Dirichlet form, Lemma 13.6, Lemma 13.7 `(13.3)`, and Remark 13.8, printed pp. 181–182 / PDF pp. 197–198). Earlier citations in `MarkovChain/` to Chapters 1, 2, 3, 4, 5, 10, and 14 use the same edition's section and theorem numbering.
+
 <a id="lfkn92"></a>
 ## lfkn92
 
