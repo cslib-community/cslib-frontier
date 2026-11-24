@@ -642,9 +642,8 @@ private theorem stepInnerStep_realizes :
     | exact hv
     | exact hacc (by assumption)
 
-private def stepInnerProg (a : StepInnerArgs) : Memory.Prog ℕ := do
-  let res ← iterate stepInnerStep a a.n ⟨0, 0⟩
-  pure res.acc
+private def stepInnerProg (a : StepInnerArgs) : Memory.Prog ℕ :=
+  StepInnerState.acc <$> iterate stepInnerStep a a.n ⟨0, 0⟩
 
 private theorem stepInnerProg_realizes :
     Realizes .exact stepInnerProg encStepInnerArgs wordWords
@@ -742,19 +741,14 @@ private theorem stepInnerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth 
   have heq_s : (Memory.spec 0).clientState s₀ (stepInnerProg env) = s₀ := by
     have hfr := hspec.2.2.2.1
     have hmem := hspec.2.2.2.2.1
-    dsimp only [stepInnerProg]
-    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
+    rw [stepInnerProg, StateTransitionSpec.clientState_map]
     ext a
     · exact hmem a (by simp)
     · exact hfr
-  refine ⟨?_, ?_, ?_, heq_s, ?_⟩
-  · simpa only [stepInnerProg] using hspec.1
-  · refine validHistory_bind_step hspec.2.1 (validHistory_pure w _ _)
-  · dsimp only [stepInnerProg]
-    rw [memoryCost_bind', memoryCost_pure, add_zero]
+  refine ⟨hspec.1, StateTransitionSpec.validHistory_map hspec.2.1, ?_, heq_s, ?_⟩
+  · rw [stepInnerProg, memoryCost_map]
     exact hspec.2.2.1
-  · dsimp only [stepInnerProg]
-    rw [← map_eq_pure_bind, StateTransitionSpec.clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
+  · rw [stepInnerProg, StateTransitionSpec.clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
 
 -- 4. One round of restricted matrix–vector multiplication `stepVecProg`
 
@@ -1245,9 +1239,8 @@ private theorem sumStep_realizes :
     obtain ⟨hb, hu, hacc⟩ := h
     first | exact hb | exact hu | exact hacc
 
-private def sumVecProg (a : SumArgs) : Memory.Prog ℕ := do
-  let res ← iterate sumStep a a.len ⟨0, 0⟩
-  pure res.acc
+private def sumVecProg (a : SumArgs) : Memory.Prog ℕ :=
+  SumState.acc <$> iterate sumStep a a.len ⟨0, 0⟩
 
 private theorem sumVecProg_realizes :
     Realizes .exact sumVecProg encSumArgs wordWords
@@ -1308,19 +1301,14 @@ private theorem sumVecProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w)
   have heq_s : (Memory.spec 0).clientState s₀ (sumVecProg env) = s₀ := by
     have hfr := hspec.2.2.2.1
     have hmem' := hspec.2.2.2.2.1
-    dsimp only [sumVecProg]
-    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
+    rw [sumVecProg, StateTransitionSpec.clientState_map]
     ext a
     · exact hmem' a (by simp)
     · exact hfr
-  refine ⟨?_, ?_, ?_, heq_s, ?_⟩
-  · simpa only [sumVecProg] using hspec.1
-  · exact validHistory_bind_step hspec.2.1 (validHistory_pure w _ _)
-  · dsimp only [sumVecProg]
-    rw [memoryCost_bind', memoryCost_pure, add_zero]
+  refine ⟨hspec.1, StateTransitionSpec.validHistory_map hspec.2.1, ?_, heq_s, ?_⟩
+  · rw [sumVecProg, memoryCost_map]
     simpa only [one_mul] using hspec.2.2.1
-  · dsimp only [sumVecProg]
-    rw [← map_eq_pure_bind, StateTransitionSpec.clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
+  · rw [sumVecProg, StateTransitionSpec.clientResult_map, hspec.2.2.2.2.2.1, hpref_n]
 
 -- 7. In-place binary odometer + parity flip `odometerProg`
 
@@ -1377,9 +1365,8 @@ private theorem odoStep_realizes :
     | exact hi
     | exact hpar (by assumption)
 
-private def odometerProg (a : OdoArgs) : Memory.Prog ℕ := do
-  let res ← iterate odoStep a a.len ⟨0, 1, a.parity0⟩
-  pure res.parity
+private def odometerProg (a : OdoArgs) : Memory.Prog ℕ :=
+  OdoState.parity <$> iterate odoStep a a.len ⟨0, 1, a.parity0⟩
 
 private theorem odometerProg_realizes :
     Realizes .exact odometerProg encOdoArgs wordWords
@@ -1543,26 +1530,10 @@ private theorem odometerProg_spec {w : ℕ} (I : Instance) (hfit : I.FitsWidth w
       simpa using (card_maskSet_succ_prefix_mod hall1 (Or.inl rfl)).symm
     · rw [hp]
       simpa [htn.ne] using (card_maskSet_succ_prefix_mod hall1 (Or.inr ⟨htn, h0t⟩)).symm
-  refine ⟨⟨h1_fit, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa only [odometerProg] using hspec.1
-  · exact validHistory_bind_step hspec.2.1 (validHistory_pure w _ _)
-  · dsimp only [odometerProg]
-    rw [memoryCost_bind', memoryCost_pure, add_zero]
-    exact hspec.2.2.1
-  · dsimp only [odometerProg]
-    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
-    exact hspec.2.2.2.1
-  · intro x hx
-    dsimp only [odometerProg]
-    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
-    exact hspec.2.2.2.2.1 x hx
-  · intro u
-    dsimp only [odometerProg]
-    rw [← map_eq_pure_bind, StateTransitionSpec.clientState_map]
-    exact hspec.2.2.2.2.2.2.2.1 u u.isLt
-  · dsimp only [odometerProg]
-    rw [← map_eq_pure_bind, StateTransitionSpec.clientResult_map]
-    exact hpar_eq
+  simp only [odometerProg, memoryCost_map, StateTransitionSpec.fst_snd_runClient_map,
+    StateTransitionSpec.clientResult_map]
+  exact ⟨⟨h1_fit, hspec.1⟩, StateTransitionSpec.validHistory_map hspec.2.1, hspec.2.2.1,
+    hspec.2.2.2.1, hspec.2.2.2.2.1, fun u => hspec.2.2.2.2.2.2.2.1 u u.isLt, hpar_eq⟩
 
 -- 8. Computing `2 ^ n` via `n`-step doubling (`pow2Prog`)
 
