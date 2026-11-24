@@ -13,6 +13,7 @@ public import CslibFrontier.GameTheory.Strategic.Basic
 public import Mathlib.MeasureTheory.Constructions.BorelSpace.Real
 public import Mathlib.MeasureTheory.Integral.Pi
 public import Mathlib.Probability.ProbabilityMassFunction.Basic
+import CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate
 
 /-!
 # Incomplete-information games, indirect mechanisms, and the revelation principles
@@ -48,13 +49,17 @@ choose actions `xᵢ ∈ Xᵢ`:
   Proposition 9.44; [Harsanyi1967]; [Myerson1981]): adding independent prior measures
   `prior : ∀ i, Measure (T i)` (with discrete `PMF` specialization `BayesianGame.ofPMF`) defines
   interim utility via `Measure.pi` and Bayes–Nash equilibrium (`BayesianGame.IsBayesNash`,
-  `BayesianGame.IsBayesNashOn`), bridged to `SingleParameter.Mechanism.IsBayesNash`
-  (`SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame`). Composing any Bayesian
-  implementation `(M, s)` yields a truthful direct `BayesianMechanism` (`M.revelation s`) with
-  identical ex-post, interim, and ex-ante expected payments
-  (`BayesianMechanism.revelation_isTruthful`,
-  `BayesianMechanism.exists_truthful_of_implementsInBayesNash`), as well as a BIC direct
-  `Mechanism ι Ω` on valuation domains (`IndirectMechanism.toMechanism_isBICOn`).
+  `BayesianGame.IsBayesNashOn`, with integrability `BayesianGame.HasIntegrableUtilityOn`), bridged
+  to `SingleParameter.Mechanism.IsBayesNash`
+  (`SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame`). Under independent probability
+  priors `[∀ i, IsProbabilityMeasure (M.prior i)]` and integrable interim utilities and equilibrium
+  interim payments (`BayesianMechanism.ImplementsInBayesNash`), composing `(M, s)` yields a
+  truthful direct `BayesianMechanism` (`M.revelation s`) with probability priors, integrable
+  truthful interim utilities and interim payments, and identical ex-post, interim, and ex-ante
+  expected payments (`BayesianMechanism.exists_truthful_of_implementsInBayesNash`,
+  `BayesianMechanism.revelation_integral_payment_eq`), derived from the general measure-theoretic
+  integral-preservation steps (`BayesianMechanism.revelation_isTruthful`,
+  `BayesianMechanism.revelation_interimPayment_eq`, and `IndirectMechanism.toMechanism_isBICOn`).
 
 ## Main definitions
 
@@ -69,15 +74,17 @@ choose actions `xᵢ ∈ Xᵢ`:
   `IndirectMechanism.toMechanism`: indirect mechanisms and direct-revelation simulation
   ([Nisan2007], Definition 9.24 and Proposition 9.25).
 * `BayesianGame`, `BayesianGame.ofPMF`, `BayesianGame.interimUtility`,
+  `BayesianGame.HasIntegrableUtilityOn`, `BayesianGame.HasIntegrableUtility`,
   `BayesianGame.IsBayesNashOn`, `BayesianGame.IsBayesNash`: multi-parameter Bayesian games
   ([Nisan2007], Definitions 9.40–9.41).
 * `SingleParameter.Mechanism.toBayesianGame`: single-parameter mechanisms as Bayesian games.
 * `BayesianMechanism`, `BayesianMechanism.toBayesianGame`,
-  `BayesianMechanism.ImplementsInBayesNash`, `BayesianMechanism.revelation`,
-  `BayesianMechanism.IsTruthful`, `BayesianMechanism.interimPayment`: Bayesian mechanisms
-  ([Nisan2007], Definitions 9.42–9.43).
-* `Mechanism.interimUtility`, `Mechanism.IsBICOn`, `Mechanism.IsBIC`: Bayesian incentive
-  compatibility on valuation domains `V : ι → Set (Ω → ℝ)`.
+  `BayesianMechanism.HasIntegrableInterimPayment`, `BayesianMechanism.ImplementsInBayesNash`,
+  `BayesianMechanism.revelation`, `BayesianMechanism.IsTruthful`,
+  `BayesianMechanism.interimPayment`: Bayesian mechanisms ([Nisan2007], Definitions 9.42–9.43).
+* `Mechanism.interimUtility`, `Mechanism.HasIntegrableUtilityOn`, `Mechanism.HasIntegrableUtility`,
+  `Mechanism.IsBICOn`, `Mechanism.IsBIC`: Bayesian incentive compatibility on valuation domains
+  `V : ι → Set (Ω → ℝ)`.
 
 ## Main results
 
@@ -96,11 +103,18 @@ choose actions `xᵢ ∈ Xᵢ`:
   integrability ([Nisan2007], §9.6.1).
 * `SingleParameter.Mechanism.isBayesNash_iff_toBayesianGame`: bridge between
   `SingleParameter.Mechanism.IsBayesNash` and `BayesianGame.IsBayesNashOn`.
-* `BayesianMechanism.revelation_isTruthful`,
-  `BayesianMechanism.revelation_interimPayment_eq`,
-  `BayesianMechanism.exists_truthful_of_implementsInBayesNash`,
-  `IndirectMechanism.toMechanism_isBICOn`: **Proposition 9.44 (Bayesian Revelation Principle)** of
-  [Nisan2007].
+* `BayesianMechanism.revelation_isTruthful`, `BayesianMechanism.revelation_interimPayment_eq`,
+  `BayesianMechanism.revelation_hasIntegrableUtility`,
+  `BayesianMechanism.revelation_hasIntegrableInterimPayment_iff`,
+  `IndirectMechanism.toMechanism_hasIntegrableUtilityOn`,
+  `IndirectMechanism.toMechanism_isBICOn`: general measure-theoretic integral- and
+  integrability-preservation steps for direct simulation.
+* `BayesianMechanism.interimUtility_eq_sub_interimPayment`,
+  `BayesianMechanism.integral_payment_eq_integral_interimPayment`,
+  `BayesianMechanism.revelation_integral_payment_eq`,
+  `BayesianMechanism.exists_truthful_of_implementsInBayesNash`: **Proposition 9.44 (Bayesian
+  Revelation Principle)** of [Nisan2007] with independent probability priors and integrable utility
+  and payment expectations.
 
 ## References
 
@@ -452,6 +466,29 @@ theorem interimUtility_def (B : BayesianGame ι T X) (s : ∀ i, T i → X i) (i
       ∫ t, B.utility i ti (Function.update (fun j => s j (t j)) i xi) ∂Measure.pi B.prior := by
   rfl
 
+/-- Strategy profile `s` has **integrable interim utilities** on type supports `S` if for every
+player `i`, type `ti ∈ S i`, and action `xi : X i`, the payoff integrand in
+`B.interimUtility s i ti xi` is Bochner-integrable against `Measure.pi B.prior`. Together with
+`[∀ i, IsProbabilityMeasure (B.prior i)]`, this ensures every `B.interimUtility s i ti xi`
+compared by `IsBayesNashOn` is a genuine probability expectation rather than a zero-measure or
+`0`-fallback Bochner integral. -/
+@[expose] def HasIntegrableUtilityOn (B : BayesianGame ι T X) (S : ∀ i, Set (T i))
+    (s : ∀ i, T i → X i) : Prop :=
+  ∀ (i : ι) (ti : T i), ti ∈ S i → ∀ (xi : X i),
+    Integrable (fun t => B.utility i ti (Function.update (fun j => s j (t j)) i xi))
+      (Measure.pi B.prior)
+
+/-- Strategy profile `s` has integrable interim utilities at all types (`S i = Set.univ`). -/
+abbrev HasIntegrableUtility (B : BayesianGame ι T X) (s : ∀ i, T i → X i) : Prop :=
+  B.HasIntegrableUtilityOn (fun _ => Set.univ) s
+
+theorem hasIntegrableUtility_iff (B : BayesianGame ι T X) (s : ∀ i, T i → X i) :
+    B.HasIntegrableUtility s ↔
+      ∀ (i : ι) (ti : T i) (xi : X i),
+        Integrable (fun t => B.utility i ti (Function.update (fun j => s j (t j)) i xi))
+          (Measure.pi B.prior) :=
+  ⟨fun h i ti xi => h i ti trivial xi, fun h i ti _ xi => h i ti xi⟩
+
 /-- Strategy profile `s` is a **Bayes–Nash equilibrium on type supports `S`** if for every player
 `i`, every type `ti ∈ S i`, and every deviation `xi' : X i`, playing `s i ti` maximizes interim
 expected utility. Each `B.prior i` is intended to carry `IsProbabilityMeasure`: if `B.prior j = 0`
@@ -627,6 +664,12 @@ def toBayesianGame (M : BayesianMechanism ι T X Ω) : BayesianGame ι T X where
     M.toBayesianGame.prior = M.prior := by
   rfl
 
+instance isProbabilityMeasure_toBayesianGame (M : BayesianMechanism ι T X Ω) (i : ι)
+    [IsProbabilityMeasure (M.prior i)] :
+    IsProbabilityMeasure (M.toBayesianGame.prior i) := by
+  dsimp only [toBayesianGame]
+  infer_instance
+
 /-- Simulate strategies `s : ∀ i, T i → X i` inside `M` to obtain a direct-revelation
 `BayesianMechanism` (`X' = T`, [Nisan2007], Proposition 9.44). -/
 def revelation (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i) :
@@ -648,21 +691,15 @@ def revelation (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i) :
     (M.revelation s).valuation = M.valuation := by
   rfl
 
+instance isProbabilityMeasure_revelation (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i)
+    (i : ι) [IsProbabilityMeasure (M.prior i)] :
+    IsProbabilityMeasure ((M.revelation s).prior i) := by
+  dsimp only [revelation]
+  infer_instance
+
 section Implementation
 
 variable [Fintype ι] [DecidableEq ι]
-
-/-- `M` **implements `f` in the Bayesian sense** if some Bayes–Nash equilibrium `s` of
-`M.toBayesianGame` satisfies `M.outcome (fun j => s j (t j)) = f t` everywhere ([Nisan2007],
-Definition 9.42). -/
-@[expose] def ImplementsInBayesNash (M : BayesianMechanism ι T X Ω) (f : (∀ i, T i) → Ω) : Prop :=
-  ∃ s : ∀ i, T i → X i,
-    M.toBayesianGame.IsBayesNash s ∧ ∀ t, M.outcome (fun j => s j (t j)) = f t
-
-/-- A direct `BayesianMechanism` (`X = T`) is **truthful in the Bayesian sense** if the truthful
-strategies `fun _ => id` form a Bayes–Nash equilibrium ([Nisan2007], Definition 9.43). -/
-@[expose] def IsTruthful (D : BayesianMechanism ι T T Ω) : Prop :=
-  D.toBayesianGame.IsBayesNash fun _ => id
 
 /-- Interim expected payment of player `i` at action `xi` when other players follow `s`. -/
 noncomputable def interimPayment (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i → X i)
@@ -675,8 +712,71 @@ theorem interimPayment_def (M : BayesianMechanism ι T X Ω) (s : ∀ i, T i →
       ∫ t, M.payment (Function.update (fun j => s j (t j)) i xi) i ∂Measure.pi M.prior := by
   rfl
 
+/-- Strategy profile `s` has **integrable equilibrium interim payments** if for every player `i`
+and type `ti`, the payment integrand in `M.interimPayment s i (s i ti)` is Bochner-integrable
+against `Measure.pi M.prior`. -/
+@[expose] def HasIntegrableInterimPayment (M : BayesianMechanism ι T X Ω)
+    (s : ∀ i, T i → X i) : Prop :=
+  ∀ (i : ι) (ti : T i),
+    Integrable (fun t => M.payment (Function.update (fun j => s j (t j)) i (s i ti)) i)
+      (Measure.pi M.prior)
+
+/-- `M` **implements `f` in the Bayesian sense** ([Nisan2007], Definition 9.42) if some
+Bayes–Nash equilibrium `s` of `M.toBayesianGame` with integrable interim utilities and integrable
+equilibrium interim payments satisfies `M.outcome (fun j => s j (t j)) = f t` everywhere. Together
+with `[∀ i, IsProbabilityMeasure (M.prior i)]`, this ensures expected utilities and equilibrium
+interim payments are genuine probability expectations. -/
+@[expose] def ImplementsInBayesNash (M : BayesianMechanism ι T X Ω) (f : (∀ i, T i) → Ω) : Prop :=
+  ∃ s : ∀ i, T i → X i,
+    M.toBayesianGame.HasIntegrableUtility s ∧
+    M.HasIntegrableInterimPayment s ∧
+    M.toBayesianGame.IsBayesNash s ∧
+    ∀ t, M.outcome (fun j => s j (t j)) = f t
+
+/-- A direct `BayesianMechanism` (`X = T`) is **truthful in the Bayesian sense** if the truthful
+strategies `fun _ => id` form a Bayes–Nash equilibrium ([Nisan2007], Definition 9.43). -/
+@[expose] def IsTruthful (D : BayesianMechanism ι T T Ω) : Prop :=
+  D.toBayesianGame.IsBayesNash fun _ => id
+
+/-- When player `i`'s utility integrand at `(ti, xi)` and payment integrand at `xi` are both
+integrable against `Measure.pi M.prior`, the valuation integrand is also integrable and interim
+quasilinear utility splits into expected valuation minus `M.interimPayment s i xi`. -/
+theorem interimUtility_eq_sub_interimPayment {M : BayesianMechanism ι T X Ω}
+    {s : ∀ i, T i → X i} {i : ι} {ti : T i} {xi : X i}
+    (hintU : Integrable
+      (fun t => M.toBayesianGame.utility i ti (Function.update (fun j => s j (t j)) i xi))
+      (Measure.pi M.prior))
+    (hintP : Integrable
+      (fun t => M.payment (Function.update (fun j => s j (t j)) i xi) i)
+      (Measure.pi M.prior)) :
+    M.toBayesianGame.interimUtility s i ti xi =
+      (∫ t, M.valuation i ti (M.outcome (Function.update (fun j => s j (t j)) i xi))
+        ∂Measure.pi M.prior) - M.interimPayment s i xi := by
+  have hintV : Integrable
+      (fun t => M.valuation i ti (M.outcome (Function.update (fun j => s j (t j)) i xi)))
+      (Measure.pi M.prior) := by
+    refine (hintU.add hintP).congr (Filter.Eventually.of_forall fun t => ?_)
+    simp only [Pi.add_apply, toBayesianGame_utility, sub_add_cancel]
+  simp only [BayesianGame.interimUtility, interimPayment, toBayesianGame_utility,
+    toBayesianGame_prior]
+  exact integral_sub hintV hintP
+
+/-- Under independent probability priors, player `i`'s ex-ante expected equilibrium payment equals
+the prior expectation of its interim equilibrium payment `M.interimPayment s i (s i ti)` (Fubini
+over coordinate `i`). -/
+theorem integral_payment_eq_integral_interimPayment (M : BayesianMechanism ι T X Ω)
+    [∀ i, IsProbabilityMeasure (M.prior i)] (s : ∀ i, T i → X i) (i : ι)
+    (hp : Integrable (fun t => M.payment (fun j => s j (t j)) i) (Measure.pi M.prior)) :
+    ∫ t, M.payment (fun j => s j (t j)) i ∂Measure.pi M.prior =
+      ∫ ti, M.interimPayment s i (s i ti) ∂M.prior i := by
+  rw [← integral_integral_update_swap M.prior hp i]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun ti => ?_)
+  simp only [interimPayment]
+  congr 1; funext t
+  rw [funext (Function.apply_update s t i ti)]
+
 /-- In `M.revelation s`, truthful interim utility at report `ti'` equals `M`'s interim utility at
-action `s i ti'`. -/
+action `s i ti'` (general measure-theoretic integral-preservation step). -/
 @[simp] theorem revelation_interimUtility_eq (M : BayesianMechanism ι T X Ω)
     (s : ∀ i, T i → X i) (i : ι) (ti ti' : T i) :
     (M.revelation s).toBayesianGame.interimUtility (fun _ => id) i ti ti' =
@@ -686,8 +786,9 @@ action `s i ti'`. -/
   congr 1; funext t
   rw [funext (Function.apply_update s t i ti')]
 
-/-- In `M.revelation s`, interim expected payment at report `ti` is identical to `M`'s equilibrium
-interim expected payment at `s i ti` ([Nisan2007], Proposition 9.44). -/
+/-- General measure-theoretic integral-preservation step for [Nisan2007], Proposition 9.44: for
+arbitrary prior measures, `(M.revelation s).interimPayment (fun _ => id) i ti` equals `M`'s
+equilibrium interim integral `M.interimPayment s i (s i ti)`. -/
 @[simp] theorem revelation_interimPayment_eq (M : BayesianMechanism ι T X Ω)
     (s : ∀ i, T i → X i) (i : ι) (ti : T i) :
     (M.revelation s).interimPayment (fun _ => id) i ti =
@@ -696,8 +797,49 @@ interim expected payment at `s i ti` ([Nisan2007], Proposition 9.44). -/
   congr 1; funext t
   rw [funext (Function.apply_update s t i ti)]
 
-/-- **Proposition 9.44 (Bayesian Revelation Principle, direct form)** ([Nisan2007], p. 234): if
-`s` is a Bayes–Nash equilibrium of `M`, then `M.revelation s` is truthful in the Bayesian sense. -/
+/-- Simulating `s` inside `M` preserves integrability of interim utilities: if `s` has integrable
+interim utilities in `M`, then truthful reporting `fun _ => id` has integrable interim utilities
+in `M.revelation s`. -/
+theorem revelation_hasIntegrableUtility {M : BayesianMechanism ι T X Ω} {s : ∀ i, T i → X i}
+    (hint : M.toBayesianGame.HasIntegrableUtility s) :
+    (M.revelation s).toBayesianGame.HasIntegrableUtility (fun _ => id) := by
+  intro i ti _ ti'
+  refine (hint i ti trivial (s i ti')).congr (Filter.Eventually.of_forall fun t => ?_)
+  simp only [toBayesianGame, revelation, IndirectMechanism.toIncompleteInfoGame,
+    IndirectMechanism.revelation, id_eq]
+  rw [funext (Function.apply_update s t i ti')]
+
+/-- Truthful reporting in `M.revelation s` has integrable interim payments if and only if `s` has
+integrable equilibrium interim payments in `M`. -/
+@[simp] theorem revelation_hasIntegrableInterimPayment_iff (M : BayesianMechanism ι T X Ω)
+    (s : ∀ i, T i → X i) :
+    (M.revelation s).HasIntegrableInterimPayment (fun _ => id) ↔
+      M.HasIntegrableInterimPayment s := by
+  simp only [HasIntegrableInterimPayment, revelation, IndirectMechanism.revelation, id_eq]
+  refine forall₂_congr fun i ti => ?_
+  have heq : (fun t => M.payment (fun j => s j (Function.update t i ti j)) i) =
+      fun t => M.payment (Function.update (fun j => s j (t j)) i (s i ti)) i := by
+    funext t
+    rw [funext (Function.apply_update s t i ti)]
+  rw [heq]
+
+/-- **Proposition 9.44 (Bayesian Revelation Principle, ex-ante payment expectation)**
+([Nisan2007], §9.6.1, p. 234): under independent probability priors and integrable equilibrium
+payments, player `i`'s ex-ante expected payment in `M.revelation s` equals both `M`'s ex-ante
+expected equilibrium payment and the prior expectation of `M`'s interim equilibrium payments. -/
+theorem revelation_integral_payment_eq {M : BayesianMechanism ι T X Ω}
+    [∀ i, IsProbabilityMeasure (M.prior i)] {s : ∀ i, T i → X i} (i : ι)
+    (hp : Integrable (fun t => M.payment (fun j => s j (t j)) i) (Measure.pi M.prior)) :
+    Integrable (fun t => (M.revelation s).payment t i) (Measure.pi (M.revelation s).prior) ∧
+      ∫ t, (M.revelation s).payment t i ∂Measure.pi (M.revelation s).prior =
+        ∫ ti, M.interimPayment s i (s i ti) ∂M.prior i :=
+  ⟨hp, M.integral_payment_eq_integral_interimPayment s i hp⟩
+
+/-- General measure-theoretic integral-preservation step for [Nisan2007], Proposition 9.44: for
+arbitrary prior measures (without assuming probability normalization or integrability), if `s`
+satisfies `IsBayesNash` in `M`, then `M.revelation s` satisfies `IsTruthful`. For the
+source-facing probability-prior formulation with integrable utility and payment expectations, see
+`exists_truthful_of_implementsInBayesNash`. -/
 theorem revelation_isTruthful {M : BayesianMechanism ι T X Ω} {s : ∀ i, T i → X i}
     (hs : M.toBayesianGame.IsBayesNash s) :
     (M.revelation s).IsTruthful := by
@@ -706,21 +848,35 @@ theorem revelation_isTruthful {M : BayesianMechanism ι T X Ω} {s : ∀ i, T i 
   rw [revelation_interimUtility_eq, revelation_interimUtility_eq]
   exact (M.toBayesianGame.isBayesNash_iff s).1 hs i ti (s i ti')
 
-/-- **Proposition 9.44 (Bayesian Revelation Principle)** ([Nisan2007], p. 234): if an indirect
-Bayesian mechanism `M` implements `f` in Bayes–Nash equilibrium, there exists a truthful direct
-Bayesian mechanism `D` implementing `f` with the same priors, valuations, and ex-post as well as
-interim expected equilibrium payments. -/
+/-- **Proposition 9.44 (Bayesian Revelation Principle)** ([Nisan2007], §9.6.1, p. 234): under
+independent probability priors `[∀ i, IsProbabilityMeasure (M.prior i)]`, if an indirect Bayesian
+mechanism `M` implements `f` in Bayes–Nash equilibrium (with integrable interim utilities and
+equilibrium interim payments), there exists a truthful direct Bayesian mechanism `D` implementing
+`f` with the same probability priors and valuations, integrable truthful interim utilities and
+interim payments, and identical ex-post and interim expected equilibrium payments. Derived from
+the general integral-preservation steps `revelation_isTruthful` and
+`revelation_interimPayment_eq`. -/
 theorem exists_truthful_of_implementsInBayesNash {M : BayesianMechanism ι T X Ω}
-    {f : (∀ i, T i) → Ω} (h : M.ImplementsInBayesNash f) :
+    [∀ i, IsProbabilityMeasure (M.prior i)] {f : (∀ i, T i) → Ω}
+    (h : M.ImplementsInBayesNash f) :
     ∃ s : ∀ i, T i → X i,
+      M.toBayesianGame.HasIntegrableUtility s ∧
+      M.HasIntegrableInterimPayment s ∧
       M.toBayesianGame.IsBayesNash s ∧
+      (∀ t, M.outcome (fun j => s j (t j)) = f t) ∧
       ∃ D : BayesianMechanism ι T T Ω,
-        D.IsTruthful ∧ D.prior = M.prior ∧ D.valuation = M.valuation ∧ D.outcome = f ∧
+        (∀ i, IsProbabilityMeasure (D.prior i)) ∧
+        D.IsTruthful ∧
+        D.toBayesianGame.HasIntegrableUtility (fun _ => id) ∧
+        D.HasIntegrableInterimPayment (fun _ => id) ∧
+        D.prior = M.prior ∧ D.valuation = M.valuation ∧ D.outcome = f ∧
         (∀ t, D.payment t = M.payment (fun j => s j (t j))) ∧
         ∀ i ti, D.interimPayment (fun _ => id) i ti = M.interimPayment s i (s i ti) := by
-  obtain ⟨s, hs, hf⟩ := h
-  exact ⟨s, hs, M.revelation s, revelation_isTruthful hs, rfl, rfl, funext hf,
-    fun _ => rfl, fun i ti => revelation_interimPayment_eq M s i ti⟩
+  obtain ⟨s, hintU, hintP, hs, hf⟩ := h
+  exact ⟨s, hintU, hintP, hs, hf, M.revelation s, fun _ => inferInstance, revelation_isTruthful hs,
+    revelation_hasIntegrableUtility hintU,
+    (revelation_hasIntegrableInterimPayment_iff M s).2 hintP,
+    rfl, rfl, funext hf, fun _ => rfl, fun i ti => revelation_interimPayment_eq M s i ti⟩
 
 end Implementation
 
@@ -743,10 +899,23 @@ theorem interimUtility_def [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
     M.interimUtility μ i v w = ∫ b, M.utility i v (Function.update b i w) ∂Measure.pi μ := by
   rfl
 
+/-- Direct mechanism `M` has **integrable interim utilities** on valuation domains `V` under priors
+`μ` if for every agent `i` and valuations `v, w ∈ V i`, the payoff integrand in
+`M.interimUtility μ i v w` is Bochner-integrable against `Measure.pi μ`. -/
+@[expose] def HasIntegrableUtilityOn [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
+    (μ : ι → Measure (Ω → ℝ)) (V : ι → Set (Ω → ℝ)) : Prop :=
+  ∀ (i : ι) (v w : Ω → ℝ), v ∈ V i → w ∈ V i →
+    Integrable (fun b => M.utility i v (Function.update b i w)) (Measure.pi μ)
+
+/-- Unrestricted interim-utility integrability (`V i = Set.univ`). -/
+abbrev HasIntegrableUtility [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
+    (μ : ι → Measure (Ω → ℝ)) : Prop :=
+  M.HasIntegrableUtilityOn μ fun _ => Set.univ
+
 /-- **Bayesian incentive compatibility on valuation domains `V`** (`IsBICOn`, [Nisan2007],
 Definition 9.43): for every agent `i` and valuations `v, w ∈ V i`, reporting `v` maximizes interim
 expected utility against independent priors `μ`. Each `μ i` is intended to carry
-`IsProbabilityMeasure`. -/
+`IsProbabilityMeasure` with `HasIntegrableUtilityOn μ V`. -/
 @[expose] def IsBICOn [MeasurableSpace (Ω → ℝ)] (M : Mechanism ι Ω)
     (μ : ι → Measure (Ω → ℝ)) (V : ι → Set (Ω → ℝ)) : Prop :=
   ∀ (i : ι) (v w : Ω → ℝ), v ∈ V i → w ∈ V i →
@@ -761,9 +930,28 @@ end Mechanism
 
 namespace IndirectMechanism
 
-/-- **Valuation-domain Bayesian Revelation Principle**: if `s : ∀ i, (Ω → ℝ) → X i` is a
-Bayes–Nash equilibrium on valuation domains `V : ι → Set (Ω → ℝ)` under priors `μ`, then the
-simulated direct `M.toMechanism s : Mechanism ι Ω` satisfies `IsBICOn μ V`. -/
+/-- Simulating `s` via `M.toMechanism s` preserves integrability of interim utilities on valuation
+domains `V`. -/
+theorem toMechanism_hasIntegrableUtilityOn {ι Ω : Type*} {X : ι → Type*}
+    [Fintype ι] [DecidableEq ι] [MeasurableSpace (Ω → ℝ)]
+    (M : IndirectMechanism ι X Ω) (μ : ι → Measure (Ω → ℝ))
+    (V : ι → Set (Ω → ℝ)) {s : ∀ i, (Ω → ℝ) → X i}
+    (hint : ({ toIncompleteInfoGame := M.toIncompleteInfoGame (fun _ (v : Ω → ℝ) => v)
+               prior := μ } : BayesianGame ι (fun _ => Ω → ℝ) X).HasIntegrableUtilityOn V s) :
+    (M.toMechanism s).HasIntegrableUtilityOn μ V := by
+  intro i v w hv hw
+  have h := hint i v hv (s i w)
+  have hupd : ∀ b : ι → Ω → ℝ,
+      (fun j => s j (Function.update b i w j)) =
+        Function.update (fun j => s j (b j)) i (s i w) := fun b =>
+    funext (Function.apply_update s b i w)
+  simpa only [Mechanism.utility, toMechanism, toIncompleteInfoGame, hupd] using h
+
+/-- General measure-theoretic integral-preservation step for valuation-domain direct simulation: if
+`s : ∀ i, (Ω → ℝ) → X i` satisfies `IsBayesNashOn V` under priors `μ`, then the simulated direct
+`M.toMechanism s : Mechanism ι Ω` satisfies `IsBICOn μ V`. Pair with
+`[∀ i, IsProbabilityMeasure (μ i)]` and `toMechanism_hasIntegrableUtilityOn` for genuine
+probability expectations. -/
 theorem toMechanism_isBICOn {ι Ω : Type*} {X : ι → Type*} [Fintype ι] [DecidableEq ι]
     [MeasurableSpace (Ω → ℝ)] (M : IndirectMechanism ι X Ω) (μ : ι → Measure (Ω → ℝ))
     (V : ι → Set (Ω → ℝ)) {s : ∀ i, (Ω → ℝ) → X i}

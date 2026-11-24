@@ -23,8 +23,9 @@ function of [Nisan2007]:
   Definition 9.5): if changing a single voter `i`'s ranking from `P i` to `Q i` changes the chosen
   alternative from `a = f P` to `a' = f Q`, then `i` ranked `a` above `a'` at `P` and ranks `a'`
   above `a` at `Q`. By Proposition 9.6 (`isSingleMonotone_iff_isStrategyProof`), this is
-  equivalent to strategy-proofness for any electorate `V` (finite or infinite), and for finite
-  `V` also to Maskin monotonicity (`isSingleMonotone_iff_isMaskinMonotone`).
+  equivalent to strategy-proofness for any electorate `V` (finite or infinite); composing with the
+  library's `isStrategyProof_iff_isMaskinMonotone` yields the derived finite-electorate equivalence
+  with Maskin monotonicity (`isSingleMonotone_iff_isMaskinMonotone`).
 * **Nisan's induced social welfare function** (`SocialChoiceFunction.nisanSWF`, [Nisan2007],
   Definition 9.9): for a finite electorate `V` and a strategy-proof rule `f` onto `A`, society
   ranks `a` at least as high as `b` on profile `P` when `f (P.toTopSet {a, b}) = a`, where
@@ -36,8 +37,10 @@ function of [Nisan2007]:
 * **Lemma 9.11** ([Nisan2007], p. 215): `nisanSWF` satisfies weak Pareto (`nisanSWF_isPareto`,
   assuming a nonempty electorate `[Nonempty V]`, or `[Nontrivial A]`, which forces `Nonempty V`
   when `f` is onto) as well as constant-profile unanimity (`nisanSWF_const`, Definition 9.2),
-  satisfies independence of irrelevant alternatives (`nisanSWF_isIIA`), and preserves
-  dictators (`nisanSWF_isDictator_iff`, `nisanSWF_isDictatorial_iff`).
+  satisfies independence of irrelevant alternatives (`nisanSWF_isIIA`), and has the exact same
+  dictators as `f` (`nisanSWF_isDictator_iff`, `nisanSWF_isDictatorial_iff`, strengthening
+  Lemma 9.11's non-dictatorship implication `¬ f.IsDictatorial → ¬ (f.nisanSWF hf hs).IsDictatorial`
+  to a full equivalence).
 
 **Implicit nonemptiness in Lemma 9.11.** [Nisan2007] (§9.2.2, p. 212) assumes an electorate of `n`
 voters with `n ≥ 1` implicit (and `|A| ≥ 3` in Theorem 9.8, where surjectivity of `f` already
@@ -58,8 +61,9 @@ preference `(F P).Prefers a a` is irreflexive. Thus `nisanSWF_isPareto` takes `[
 
 * `SocialChoiceFunction.isSingleMonotone_iff_isStrategyProof`: single-voter monotonicity is
   equivalent to strategy-proofness ([Nisan2007], Proposition 9.6).
-* `SocialChoiceFunction.isSingleMonotone_iff_isMaskinMonotone`: for finitely many voters,
-  single-voter monotonicity is equivalent to Maskin monotonicity.
+* `SocialChoiceFunction.isSingleMonotone_iff_isMaskinMonotone`: derived finite-electorate
+  equivalence between single-voter monotonicity and Maskin monotonicity (composing Proposition 9.6
+  with `isStrategyProof_iff_isMaskinMonotone`).
 * `SocialChoiceFunction.nisanSWF_antisymm`, `SocialChoiceFunction.toWeakRanking_nisanRanking`:
   antisymmetry and strict total-order structure of `nisanSWF` ([Nisan2007], Lemma 9.10).
 * `SocialChoiceFunction.nisanSWF_isPareto`, `SocialChoiceFunction.nisanSWF_isPareto_of_nontrivial`,
@@ -67,8 +71,8 @@ preference `(F P).Prefers a a` is irreflexive. Thus `nisanSWF_isPareto` takes `[
 * `SocialChoiceFunction.nisanSWF_isIIA`: independence of irrelevant alternatives ([Nisan2007],
   Lemma 9.11).
 * `SocialChoiceFunction.nisanSWF_isDictator_iff`,
-  `SocialChoiceFunction.nisanSWF_isDictatorial_iff`: `nisanSWF` has the same dictators as `f`
-  ([Nisan2007], Lemma 9.11).
+  `SocialChoiceFunction.nisanSWF_isDictatorial_iff`: full dictator equivalence between `nisanSWF`
+  and `f` (strengthening the non-dictatorship implication of [Nisan2007], Lemma 9.11).
 
 ## References
 
@@ -104,7 +108,9 @@ theorem isSingleMonotone_iff_isStrategyProof : f.IsSingleMonotone ↔ f.IsStrate
     exact ⟨(P i).prefers_of_not_prefers hne.symm (hf P Q i hPQ),
       (Q i).prefers_of_not_prefers hne (hf Q P i fun j hj => (hPQ j hj).symm)⟩
 
-/-- With finitely many voters, single-voter monotonicity is equivalent to Maskin monotonicity. -/
+/-- Derived equivalence for finitely many voters: single-voter monotonicity is equivalent to
+Maskin monotonicity, obtained by composing Proposition 9.6 (`isSingleMonotone_iff_isStrategyProof`)
+with the library's `isStrategyProof_iff_isMaskinMonotone`. -/
 theorem isSingleMonotone_iff_isMaskinMonotone [Finite V] :
     f.IsSingleMonotone ↔ f.IsMaskinMonotone :=
   isSingleMonotone_iff_isStrategyProof.trans isStrategyProof_iff_isMaskinMonotone
@@ -253,7 +259,9 @@ theorem nisanSWF_isIIA (hf : f.IsStrategyProof) (hs : Function.Surjective f) :
   · exact Ranking.prefers_iff_swap (h i)
   · exact iff_of_false ((P i).irrefl _) ((Q i).irrefl _)
 
-/-- Voter `i` is a dictator for `nisanSWF` if and only if `i` is a dictator for `f`. -/
+/-- Strengthening of the dictator step in [Nisan2007], Lemma 9.11: voter `i` is a dictator for
+`nisanSWF` if and only if `i` is a dictator for `f` (Lemma 9.11 uses the forward implication to
+contrapositively deduce non-dictatorship). -/
 theorem nisanSWF_isDictator_iff (hf : f.IsStrategyProof) (hs : Function.Surjective f) {i : V} :
     (f.nisanSWF hf hs).IsDictator i ↔ f.IsDictator i := by
   constructor
@@ -270,7 +278,10 @@ theorem nisanSWF_isDictator_iff (hf : f.IsStrategyProof) (hs : Function.Surjecti
       (Set.mem_insert_of_mem b rfl)).1 htop
     exact (P i).asymm hab hab'
 
-/-- `nisanSWF` is dictatorial if and only if `f` is dictatorial ([Nisan2007], Lemma 9.11). -/
+/-- Strengthening of the non-dictatorship conclusion of [Nisan2007], Lemma 9.11: `nisanSWF` is
+dictatorial if and only if `f` is dictatorial (giving Lemma 9.11's
+`¬ f.IsDictatorial → ¬ (f.nisanSWF hf hs).IsDictatorial` as the contrapositive of the forward
+direction). -/
 theorem nisanSWF_isDictatorial_iff (hf : f.IsStrategyProof) (hs : Function.Surjective f) :
     (f.nisanSWF hf hs).IsDictatorial ↔ f.IsDictatorial :=
   exists_congr fun _ => f.nisanSWF_isDictator_iff hf hs
