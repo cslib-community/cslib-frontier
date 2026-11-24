@@ -42,9 +42,9 @@ open Cslib.Logic.PL Cslib.Logic.PL.VeriPB Cslib.Logic.PL.VeriPB.Graph
 namespace PBGraph
 
 /-- CakePB's labels of the subgraph isomorphism encoding, in the order of
-`Cslib.Logic.PL.VeriPB.Graph.isoConstraints`. -/
-def isoLabels {p t : ℕ} (P : SimpleGraph (Fin p)) [DecidableRel P.Adj]
-    (T : SimpleGraph (Fin t)) [DecidableRel T.Adj] : List String :=
+`Cslib.Logic.PL.VeriPB.Graph.isoConstraints`, for a target on `Fin t`: they depend only on `t`
+and the pattern. -/
+def isoLabels {p : ℕ} (P : SimpleGraph (Fin p)) [DecidableRel P.Adj] (t : ℕ) : List String :=
   (List.finRange p).map (fun a => s!"al1{a}") ++ (List.finRange p).map (fun a => s!"am1{a}") ++
     (List.finRange t).map (fun u => s!"inj{u}") ++
     (List.finRange t).flatMap fun u => (List.finRange p).flatMap fun a =>
@@ -76,6 +76,9 @@ def usage : String :=
   "usage: pb_graph iso PATTERN.lad TARGET.lad [PROOF.pbp]\n" ++
     "       pb_graph clique GRAPH.dimacs [PROOF.pbp]"
 
+end PBGraph
+
+open PBGraph in
 def main (args : List String) : IO UInt32 := do
   match args with
   | ["iso", pf, tf] =>
@@ -83,7 +86,7 @@ def main (args : List String) : IO UInt32 := do
         Graph.parseLAD (← IO.FS.readFile tf))
       | IO.println "s REJECTED graph does not parse"; return 1
     IO.print (label (Text.printOPB ⟨isoConstraints gp.graph gt.graph, none, none⟩
-      (isoNames gp.n gt.n)) (isoLabels gp.graph gt.graph))
+      (isoNames gp.n gt.n)) (isoLabels gp.graph gt.n))
     return 0
   | ["iso", pf, tf, prf] =>
     let t₀ ← IO.monoMsNow
@@ -111,7 +114,3 @@ def main (args : List String) : IO UInt32 := do
       return 0
     | none => IO.println "s REJECTED"; return 1
   | _ => IO.eprintln usage; return 2
-
-end PBGraph
-
-def main (args : List String) : IO UInt32 := PBGraph.main args
