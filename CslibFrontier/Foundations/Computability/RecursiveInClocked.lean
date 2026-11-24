@@ -438,9 +438,11 @@ variable {σ τ β γ : Type}
 /-- The play of a family of clocked programs over `natOracleSpec`: for an input, a fuel and the
 answers received so far, the next query, or the result of the run together with the unused
 answers. -/
-def play (P : σ → ClockedComp natOracleSpec β) (x : (σ × ℕ) × List ℕ) :
-    ℕ ⊕ (Option β × List ℕ) :=
-  OracleComp.play ((P x.1.1) x.1.2).run x.2
+def play (P : σ → ClockedComp natOracleSpec β) : (σ × ℕ) × List ℕ → ℕ ⊕ (Option β × List ℕ)
+  | ((x, k), rs) => OracleComp.play ((P x) k).run rs
+
+@[simp] theorem play_apply (P : σ → ClockedComp natOracleSpec β) (x : σ) (k : ℕ) (rs : List ℕ) :
+    play P ((x, k), rs) = OracleComp.play ((P x) k).run rs := rfl
 
 /-- Play the run with fuel `k` of `P >>= f`: play `P`, then `f` on its result with the answers
 left over. -/
@@ -486,7 +488,7 @@ private theorem play_rfindFrom : ∀ (r i : ℕ) (rs : List ℕ),
       if b then pure i else rfindFrom (fun i => p (x, i)) k r (i + 1)).run) rs = _
     rw [OptionT.run_bind, Option.elimM, OracleComp.play_bind, Function.iterate_succ_apply]
     change _ = rfindDone ((rfindStep p x k)^[r] (Sum.elim _ _ (play p (((x, i), k), rs))))
-    unfold play
+    rw [play_apply]
     rcases OracleComp.play (p (x, i) k).run rs with q | ⟨_ | _ | _, rs'⟩
     · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
     · exact (congrArg rfindDone (rfindStep_iterate_inl p x k _ r)).symm
@@ -569,7 +571,8 @@ theorem computable_play_map {P : σ → ClockedComp natOracleSpec β} {f : σ �
     Computable (play fun x => f x <$> P x) := by
   refine (computable_play_bind hP (f := fun x a => pure (f x a))
     (computable_play_pure (hf.comp fst snd))).of_eq fun x => ?_
-  simp only [play, map_eq_bind_pure_comp, Function.comp_def]
+  rcases x with ⟨⟨x, k⟩, rs⟩
+  simp only [play_apply, map_eq_bind_pure_comp, Function.comp_def]
 
 theorem computable_play_rfind {p : σ × ℕ → ClockedComp natOracleSpec Bool}
     (hp : Computable (play p)) : Computable (play fun x => rfind fun i => p (x, i)) := by
