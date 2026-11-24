@@ -113,7 +113,7 @@ theorem dotProduct_le_dotProduct_add_max_of_mulVec_le {A : Matrix ι κ K}
     c ⬝ᵥ x ≤ y ⬝ᵥ b +
       ∑ j, max ((c - y ᵥ* A) j * l j) ((c - y ᵥ* A) j * u j) := by
   let d := c - y ᵥ* A
-  have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le hx hy
+  have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le (c := c) hx hy
     (fun j _ => hl j) (fun j _ => hu j)
   have heq : d⁺ ⬝ᵥ u - d⁻ ⬝ᵥ l = ∑ j, max (d j * l j) (d j * u j) := by
     simp only [dotProduct, ← Finset.sum_sub_distrib, Pi.posPart_apply, Pi.negPart_apply]
@@ -125,7 +125,7 @@ theorem dotProduct_le_dotProduct_add_max_of_mulVec_le {A : Matrix ι κ K}
     · have hj' := le_of_not_ge hj
       rw [posPart_eq_zero.mpr hj', negPart_eq_neg.mpr hj', zero_mul, zero_sub, neg_mul,
         neg_neg, max_eq_left (mul_le_mul_of_nonpos_left ((hl j).trans (hu j)) hj')]
-  rw [← show d = c - y ᵥ* A from rfl] at h ⊢
+  change c ⬝ᵥ x ≤ y ⬝ᵥ b + ∑ j, max (d j * l j) (d j * u j)
   rw [← heq]
   exact h
 
@@ -138,7 +138,7 @@ solution `0 ≤ y`, `y ᵥ* A = c` [Schrijver1986, Section 7.4]. -/
 theorem dotProduct_le_dotProduct_of_mulVec_le {A : Matrix ι κ K} {b : ι → K} {c : κ → K}
     {x : κ → K} {y : ι → K} (hx : A *ᵥ x ≤ b) (hy : 0 ≤ y) (hyA : y ᵥ* A = c) :
     c ⬝ᵥ x ≤ y ⬝ᵥ b := by
-  have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le (l := 0) (u := 0) hx hy
+  have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le (c := c) (l := 0) (u := 0) hx hy
     (fun j hj => False.elim (by simpa [hyA] using hj))
     (fun j hj => False.elim (by simpa [hyA] using hj))
   simpa using h
@@ -334,7 +334,7 @@ theorem exists_dual_le_of_forall_le (A : Matrix ι κ K) (b : ι → K) (c : κ 
 theorem dotProduct_le_dotProduct_of_nonneg_of_mulVec_le {A : Matrix ι κ K} {b : ι → K}
     {c : κ → K} {x : κ → K} {y : ι → K} (hx : 0 ≤ x) (hAx : A *ᵥ x ≤ b) (hy : 0 ≤ y)
     (hc : c ≤ y ᵥ* A) : c ⬝ᵥ x ≤ y ⬝ᵥ b := by
-  have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le (l := 0) (u := 0) hAx hy
+  have h := dotProduct_le_dotProduct_add_parts_of_mulVec_le (c := c) (l := 0) (u := 0) hAx hy
     (fun j _ => hx j)
     (fun j hj => False.elim ((not_lt_of_ge (sub_nonpos.mpr (hc j))) hj))
   simpa using h
