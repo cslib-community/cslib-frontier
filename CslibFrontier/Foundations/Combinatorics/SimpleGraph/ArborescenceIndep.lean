@@ -916,18 +916,6 @@ private theorem subIndepCount_cast_eq [Fintype V] {arc : V → V → Prop} {rk :
   rw [hcast, h1, h2]
   ring
 
-/-- Base-2 logarithm splits products of subtree counts `subIndepCount`. -/
-private theorem logb_prod_subIndepCount [Fintype V] (arc : V → V → Prop) (s : Finset V) :
-    Real.logb 2 (∏ v ∈ s, (subIndepCount arc v : ℝ)) =
-      ∑ v ∈ s, Real.logb 2 (subIndepCount arc v : ℝ) := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp
-  | @insert a s ha ih =>
-    rw [Finset.prod_insert ha, Finset.sum_insert ha,
-      Real.logb_mul (Nat.cast_pos.mpr (subIndepCount_pos arc a)).ne'
-        (Finset.prod_pos fun v _ => Nat.cast_pos.mpr (subIndepCount_pos arc v)).ne', ih]
-
 /-- Ratio recurrence `p(u) = 1 / (1 + ∏_{v ∈ kids u} p(v))`. -/
 private theorem subRootRatio_eq [Fintype V] {arc : V → V → Prop} {rk : V → ℕ}
     (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) (u : V) :
@@ -957,28 +945,19 @@ private theorem logb_subIndepCount_eq [Fintype V] {arc : V → V → Prop} {rk :
       Finset.prod_nonneg fun v _ => div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
     linarith
   rw [subIndepCount_cast_eq hrank hin u, Real.logb_mul hprod_ne h1p_ne,
-    logb_prod_subIndepCount arc (arcKids arc u)]
+    Real.logb_prod _ _ fun v _ => (Nat.cast_pos.mpr (subIndepCount_pos arc v)).ne']
 
 /-- When `s` has at most `2` elements with `p v ∈ [1 / 2, 4 / 5]`, the updated ratio
 `1 / (1 + ∏ v ∈ s, p v)` remains in `[1 / 2, 4 / 5]`. -/
 private theorem one_div_one_add_prod_mem_Icc {s : Finset V} {p : V → ℝ}
     (hs : s.card ≤ 2) (hp : ∀ v ∈ s, 1 / 2 ≤ p v ∧ p v ≤ 4 / 5) :
     1 / 2 ≤ 1 / (1 + ∏ v ∈ s, p v) ∧ 1 / (1 + ∏ v ∈ s, p v) ≤ 4 / 5 := by
-  classical
-  have hbounds : ∀ t : Finset V, (∀ v ∈ t, 1 / 2 ≤ p v ∧ p v ≤ 4 / 5) →
-      (1 / 2 : ℝ) ^ t.card ≤ ∏ v ∈ t, p v ∧ ∏ v ∈ t, p v ≤ 1 := by
-    intro t ht
-    induction t using Finset.induction_on with
-    | empty => simp
-    | @insert a t ha ih =>
-      obtain ⟨hlo, hhi⟩ := ih fun v hv => ht v (Finset.mem_insert_of_mem hv)
-      obtain ⟨ha_lo, ha_hi⟩ := ht a (Finset.mem_insert_self a t)
-      rw [Finset.card_insert_of_notMem ha, Finset.prod_insert ha, pow_succ']
-      refine ⟨mul_le_mul ha_lo hlo (by positivity) (by linarith), ?_⟩
-      have ht_nn : 0 ≤ ∏ v ∈ t, p v := le_trans (by positivity) hlo
-      calc p a * ∏ v ∈ t, p v ≤ 1 * 1 := mul_le_mul (by linarith) hhi ht_nn zero_le_one
-        _ = 1 := mul_one 1
-  obtain ⟨hlo, hhi⟩ := hbounds s hp
+  have hlo : (1 / 2 : ℝ) ^ s.card ≤ ∏ v ∈ s, p v := by
+    simpa only [Finset.prod_const] using
+      Finset.prod_le_prod₀ (fun _ _ => by norm_num) fun v hv => (hp v hv).1
+  have hhi : ∏ v ∈ s, p v ≤ 1 :=
+    Finset.prod_le_one₀ (fun v hv => by linarith [(hp v hv).1]) fun v hv =>
+      by linarith [(hp v hv).2]
   have hpow : (1 / 2 : ℝ) ^ 2 ≤ (1 / 2 : ℝ) ^ s.card :=
     pow_le_pow_of_le_one (by norm_num) (by norm_num) hs
   have hpos : 0 < 1 + ∏ v ∈ s, p v := by linarith
@@ -1180,7 +1159,7 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
   have hlog_G : Real.logb 2 ((SimpleGraph.fromRel arc).indepSetCount : ℝ) =
       ∑ r ∈ roots, Real.logb 2 (subIndepCount arc r : ℝ) := by
     rw [hindep_prod, Nat.cast_prod]
-    exact logb_prod_subIndepCount arc roots
+    exact Real.logb_prod _ _ fun v _ => (Nat.cast_pos.mpr (subIndepCount_pos arc v)).ne'
   have hsum_V : (Fintype.card V : ℝ) = ∑ r ∈ roots, ((arcSubtree arc r).card : ℝ) := by
     have : Fintype.card V = ∑ r ∈ roots, (arcSubtree arc r).card := by
       rw [← Finset.card_univ, huniv_eq, Finset.card_biUnion hroots_disj]

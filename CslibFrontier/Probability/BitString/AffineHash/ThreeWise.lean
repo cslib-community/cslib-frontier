@@ -94,10 +94,6 @@ private theorem exists_dotProduct_single {n : ℕ} {u : BitString n} (hu : u ≠
   refine ⟨Pi.single j d, ?_⟩
   rw [single_dotProduct, hj, Bool.mul_eq_and, Bool.and_true]
 
-/-- Self-cancellation in the two-element Boolean ring (`a + a = false`). -/
-private theorem bool_add_self (a : Bool) : a + a = 0 :=
-  (BooleanRing.add_eq_zero' a a).2 rfl
-
 /-- Over `Bool` (viewed as `GF(2)`), a `2 × 2` linear system with determinant
 `a₁₁ * a₂₂ + a₁₂ * a₂₁ = true` is solved directly by its adjugate. -/
 private theorem solve_two_bool {a₁₁ a₁₂ a₂₁ a₂₂ : Bool}
@@ -111,13 +107,13 @@ private theorem solve_two_bool {a₁₁ a₁₂ a₂₁ a₂₂ : Bool}
         = d₂ * (a₁₁ * a₂₂ + a₁₂ * a₂₁) + d₃ * (a₁₁ * a₁₂ + a₁₁ * a₁₂) := by
           rw [mul_comm a₂₂ a₁₁, mul_comm a₂₁ a₁₂, mul_comm a₁₂ a₁₁, mul_add, mul_add]
           abel
-      _ = d₂ := by rw [h1, bool_add_self, mul_one, mul_zero, add_zero]
+      _ = d₂ := by rw [h1, BooleanRing.add_self, mul_one, mul_zero, add_zero]
   · rw [add_mul, add_mul, mul_assoc, mul_assoc, mul_assoc, mul_assoc]
     calc d₂ * (a₂₂ * a₂₁) + d₃ * (a₁₂ * a₂₁) + (d₂ * (a₂₁ * a₂₂) + d₃ * (a₁₁ * a₂₂))
         = d₂ * (a₂₁ * a₂₂ + a₂₁ * a₂₂) + d₃ * (a₁₁ * a₂₂ + a₁₂ * a₂₁) := by
           rw [mul_comm a₂₂ a₂₁, mul_add, mul_add]
           abel
-      _ = d₃ := by rw [h1, bool_add_self, mul_zero, mul_one, zero_add]
+      _ = d₃ := by rw [h1, BooleanRing.add_self, mul_zero, mul_one, zero_add]
 
 private theorem exists_dotProduct_pair {n : ℕ} {u v : BitString n}
     (hu : u ≠ 0) (hv : v ≠ 0) (huv : u ≠ v) (d₂ d₃ : Bool) :
@@ -148,7 +144,7 @@ private theorem affineHash_row_eval {n : ℕ} {row x₁ x : BitString n} {c₁ c
       = (row ⬝ᵥ x₁ + row ⬝ᵥ x) + c₁ := by abel
     _ = (c₁ + c₂) + c₁ := by rw [h]
     _ = (c₁ + c₁) + c₂ := by abel
-    _ = c₂ := by rw [bool_add_self, zero_add]
+    _ = c₂ := by rw [BooleanRing.add_self, zero_add]
 
 /-- **Boolean affine hashing is three-wise independent** for all output and input widths `k, n`. -/
 theorem isThreeWiseIndependentHash_affineHash (k n : ℕ) :
@@ -190,7 +186,7 @@ theorem isThreeWiseIndependentHash_affineHash (k n : ℕ) :
     rcases hx' with rfl | rfl
     · funext i
       change rows i ⬝ᵥ x + (rows i ⬝ᵥ x + c₁ i) = c₁ i
-      rw [← add_assoc, bool_add_self, zero_add]
+      rw [← add_assoc, BooleanRing.add_self, zero_add]
     · funext i
       exact affineHash_row_eval (hrows i)
   · obtain ⟨x₁, x₂, x₃, hx₁₂, hx₁₃, hx₂₃, hT₃⟩ := card_eq_three.mp hc
@@ -212,7 +208,7 @@ theorem isThreeWiseIndependentHash_affineHash (k n : ℕ) :
     rcases hx' with rfl | rfl | rfl
     · funext i
       change rows i ⬝ᵥ x + (rows i ⬝ᵥ x + c₁ i) = c₁ i
-      rw [← add_assoc, bool_add_self, zero_add]
+      rw [← add_assoc, BooleanRing.add_self, zero_add]
     · funext i
       exact affineHash_row_eval (hrows i).1
     · funext i
@@ -390,7 +386,7 @@ private theorem card_ker_adjustRow {n : ℕ} {δ : BitString n} (hδ : δ ≠ 0)
       · exact (adjustRow δ).map_zero
       · simp only [adjustRow, AddMonoidHom.coe_mk, ZeroHom.coe_mk,
           pivotMask_dotProduct_of_ne_zero hδ, ↓reduceIte]
-        exact funext fun j => bool_add_self (pivotMask δ j)
+        exact funext fun j => BooleanRing.add_self (pivotMask δ j)
   rw [hset, card_pair (pivotMask_ne_zero hδ).symm]
 
 /-- Additive homomorphism projecting an affine hash seed `(A, b)` onto the subgroup of seeds whose
