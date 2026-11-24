@@ -414,29 +414,34 @@ private partial def depthAfterSource? (p : Expr) (depth : Nat) : MetaM (Option N
   let some (_, _, _, f) := head.app4? ``PMF.bind | return some k
   withBody f fun _ body => depthAfterSource? body k
 
+/-- The chain `e` as `p.bind f` with its source `p` left as written, and the depth of the draw `q`
+in that chain, when head normalization would rewrite `p` and `q`, at depth `k` of the normalized
+chain, lies in `f` under a generic outcome of `p`. Crossing `p` as a unit keeps a mapped or nested
+source intact. -/
+private def crossSource? (ctx : Context) (q : Pat) (e head : Expr) (k : Nat) :
+    MetaM (Option (Expr × Nat)) := do
+  if k == 0 then return none
+  let raw ← explicitBindHead e
+  if raw == head then return none
+  let some (_, _, p, f) := raw.app4? ``PMF.bind | return none
+  let some rest ← depthAfterSource? p k | return none
+  let depths ← withBody f fun _ body => findDepths ctx q body
+  return if depths.contains rest then some (raw, rest + 1) else none
+
 /-- Move the sample at depth `k` of the chain `e`, which samples `q` independently of the earlier
 samples, to the front. Normalize only the path to that sample, preserving the remaining
 continuation. Returns `q.front g` and a proof of `e = q.front g`. -/
 partial def hoistAt (ctx : Context) (q : Pat) (e : Expr) (k : Nat) :
     MetaM (Expr × Expr) := do
-  let (head, hNorm?, k) ← do
-    let (head, h?) ← normalizeBindHead e
-    let normalized := (head, h?, k)
-    if k == 0 || h?.isNone then return normalized
-    let raw ← explicitBindHead e
-    if raw == head then return normalized
-    let some (_, _, p, f) := raw.app4? ``PMF.bind | return normalized
-    let some rest ← depthAfterSource? p k | return normalized
-    -- When the draw is visible under a generic outcome of p, commute across p as a unit.
-    -- In particular a crossed (p.map g).bind retains its original source.
-    let depths ← withBody f fun _ body => findDepths ctx q body
-    if depths.contains rest then return (raw, none, rest + 1)
-    return normalized
+  let (head, h?) ← normalizeBindHead e
+  let (head, hNorm?, k) := match ← crossSource? ctx q e head k with
+    | some (raw, k) => (raw, none, k)
+    | none => (head, h?, k)
   let (result, hMove) ← match k with
     | 0 => do
       let some s ← parseSample? ctx head | throwError "pmf_swap: internal error: no sample to move"
       let result ← q.front s.cont
-      return (result, ← castEqProof head result (← mkEqRefl head))
+      pure (result, ← castEqProof head result (← mkEqRefl head))
     | k + 1 => do
       let some s ← parseSample? ctx head | throwError "pmf_swap: internal error: no sample to move"
       let p := s.toPat
@@ -457,7 +462,7 @@ partial def hoistAt (ctx : Context) (q : Pat) (e : Expr) (k : Nat) :
         mkLambdaFVars #[y] (← p.front pCont))
       -- `p` then `q` is `q` then `p`.
       let h₂ ← swapProof ctx p q G lhs result
-      return (result, ← castEqProof head result (← mkEqTrans h₁ h₂))
+      pure (result, ← castEqProof head result (← mkEqTrans h₁ h₂))
   let proof ← match hNorm? with
     | some h => mkEqTrans h hMove
     | none => pure hMove
