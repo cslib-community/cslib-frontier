@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.GroupTheory.Perm.InsertAfter
 public import CslibFrontier.Foundations.GroupTheory.Perm.Doubled
+import CslibFrontier.Foundations.GroupTheory.Perm.InvariantPredicate
 import Mathlib.SetTheory.Cardinal.NatCard
 
 /-!
@@ -27,6 +28,60 @@ open Equiv
 open Insertion
 
 variable {α : Type} [DecidableEq α] [Finite α]
+
+omit [DecidableEq α] in
+private theorem sameCycle_predicate {f : Perm α} {p : α → Prop}
+    (hp : ∀ x, p (f x) ↔ p x) {x y : α} (h : f.SameCycle x y) : p x ↔ p y :=
+  Iff.of_eq (Perm.sameCycle_one.mp (h.map_of_semiconj
+    (show Function.Semiconj p f (1 : Perm Prop) from fun z => propext (hp z))))
+
+/-- An outgoing swap inside one orbit splits it along any invariant predicate separating
+the two swapped points. Every other orbit retains its exact members. -/
+theorem sameCycle_mul_swap_iff_of_separating {f : Perm α} {a b : α}
+    (hab : f.SameCycle a b) (p : α → Prop) (ha : p a) (hb : ¬ p b)
+    (hp : ∀ x, p ((f * swap a b) x) ↔ p x) (x y : α) :
+    (f * swap a b).SameCycle x y ↔ f.SameCycle x y ∧ (p x ↔ p y) := by
+  let g := f * swap a b
+  have hswap (z : α) : f.SameCycle (swap a b z) z := by
+    by_cases hza : z = a
+    · subst z
+      simpa only [swap_apply_left] using hab.symm
+    by_cases hzb : z = b
+    · subst z
+      simpa only [swap_apply_right] using hab
+    rw [swap_apply_of_ne_of_ne hza hzb]
+  have hstep (z : α) : f.SameCycle (g z) z := Perm.sameCycle_apply_left.mpr (hswap z)
+  have hsub {u v : α} (h : g.SameCycle u v) : f.SameCycle u v :=
+    (sameCycle_predicate (p := f.SameCycle u) (fun z =>
+      ⟨fun hz => hz.trans (hstep z), fun hz => hz.trans (hstep z).symm⟩) h).mp .rfl
+  have hinvariant (q : α → Prop) (hq : ∀ z, q (g z) ↔ q z) (hqa : q a ↔ q b)
+      (z : α) : q (f z) ↔ q z := by
+    have hz : g (swap a b z) = f z := by simp [g, Perm.mul_apply]
+    rw [← hz]
+    exact (hq _).trans (Equiv.predicate_swap q a b hqa z)
+  change g.SameCycle x y ↔ _
+  refine ⟨fun h => ⟨hsub h, sameCycle_predicate hp h⟩, ?_⟩
+  rintro ⟨hxy, hpxy⟩
+  by_cases hxa : f.SameCycle x a
+  · let q (z : α) := g.SameCycle a z ∨ g.SameCycle b z
+    have hq : ∀ z, q (f z) ↔ q z := hinvariant q
+      (fun _ => or_congr Perm.sameCycle_apply_right Perm.sameCycle_apply_right)
+      ⟨fun _ => Or.inr .rfl, fun _ => Or.inl .rfl⟩
+    have choose_orbit (z : α) (hz : f.SameCycle a z) :
+        (p z → g.SameCycle a z) ∧ (¬ p z → g.SameCycle b z) := by
+      have hcover := (sameCycle_predicate hq hz).mp (Or.inl .rfl)
+      rcases hcover with hza | hzb
+      · exact ⟨fun _ => hza, fun hn => (hn ((sameCycle_predicate hp hza).mp ha)).elim⟩
+      · exact ⟨fun hz => (hb ((sameCycle_predicate hp hzb).mpr hz)).elim, fun _ => hzb⟩
+    have hx := choose_orbit x hxa.symm
+    have hy := choose_orbit y (hxa.symm.trans hxy)
+    by_cases hpx : p x
+    · exact (hx.1 hpx).symm.trans (hy.1 (hpxy.mp hpx))
+    · exact (hx.2 hpx).symm.trans (hy.2 (hpx ∘ hpxy.mpr))
+  · have hxb : ¬ f.SameCycle x b := fun h => hxa (h.trans hab.symm)
+    have hq := hinvariant (g.SameCycle x) (fun _ => Perm.sameCycle_apply_right)
+      ⟨fun h => (hxa (hsub h)).elim, fun h => (hxb (hsub h)).elim⟩
+    exact (sameCycle_predicate hq hxy).mp .rfl
 
 omit [DecidableEq α] in
 private theorem sameCycle_optionCongr (f : Perm α) (a b : α) :

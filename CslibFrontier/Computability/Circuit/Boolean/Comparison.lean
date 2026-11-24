@@ -235,6 +235,7 @@ def keyedMinCircuit (k p : ℕ) : Circuit signature (k + p + (k + p)) (k + p) :=
   simp only [circuit_simps, keyedMinCircuit, size_leCircuit, size_muxCircuit]
   ring
 
+@[circuit_bound]
 theorem depth_keyedMinCircuit_le (k p : ℕ) : (keyedMinCircuit k p).depth ≤ 4 * k + 4 := by
   circuit_bound [keyedMinCircuit]
 

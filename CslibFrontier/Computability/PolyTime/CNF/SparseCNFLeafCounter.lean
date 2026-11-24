@@ -745,7 +745,7 @@ private theorem polyBounded_initRowsCertificate_space
       (initRowsCertificate hBOf).space := by
   have hc := NativeCertificate.ofPolyTime_isPolynomial (computableInPolyTime_mbPair hBOf)
   have hsum : PolyBounded (fun p : ℕ × ℕ => (encPair encUnary encUnary p).length)
-      (fun p => p.1 + p.2) := PolyBounded.self.mono fun p => by enc_len
+      (fun p => p.1 + p.2) := by growth_poly
   exact hc.2.add (((PolyBounded.of_polynomiallyBounded id
     initialTestsRows_computableInO.choose_spec.choose_spec.2.1).comp hsum).comp
     (computableInPolyTime_mbPair hBOf).polyBounded_length)
@@ -998,9 +998,7 @@ theorem exists_sparseCNFDeclaredCertificate_bounds (k N₀ : ℕ)
       (polyBounded_fastPathFinalCandCert_space k hNOf hBOf cPoly hSpace))
   let poly (L : ℕ) : ℕ :=
     pSp L + pGuard L + pFall L + pMB L + pAsmG L + pGC L + pAsmF L + pCap L + pCandOver L
-  have hpoly : Cslib.PolynomiallyBounded poly :=
-    (((((((hpSp.add hpGuard).add hpFall).add hpMB).add hpAsmG).add hpGC).add hpAsmF).add
-      hpCap).add hpCandOver
+  have hpoly : Cslib.PolynomiallyBounded poly := by growth_poly
   refine ⟨poly, qInit, polySys, hpoly, hqInit, hpolySys,
     fun x => (hSp x).trans (by dsimp only [poly]; omega), fun R hR x => ?_⟩
   have hg := hGuard x

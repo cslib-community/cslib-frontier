@@ -6,6 +6,8 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.Complexity.Classes.Alternation.NP
 import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
+import CslibFrontier.Computability.Complexity.Classes.Alternation.SavitchEndpoints
+import CslibFrontier.Computability.Complexity.Classes.Alternation.SavitchTime
 import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
 import CslibFrontier.Computability.Complexity.Classes.Constructible.UnaryClock
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.Polynomial
@@ -22,10 +24,13 @@ which puts `Set.univ` and `∅` in `AP` with explicit machines, and their games 
 lost. Two game verifiers, one won by the existential player's first move and one lost to the
 universal player's, put `Set.univ` and `∅` in `AP` through the guess-then-verify machine.
 Single-bit moves on concrete predicates, rounds of quantifiers on a concrete formula, and
-Savitch's midpoint game on a two-word graph. `Set.univ` and `∅`, in nondeterministic polynomial
-space through `P`, are midpoint games won and lost on every instance. For a time-constructible
-`s`, the number of moves of the midpoint game at width `K * (n + s n + 1)` is written in unary
-within time `O((n + s n + 1) ^ 2)`, here for `s n = n`.
+Savitch's midpoint game on a two-word graph, and the endpoints of its plays: the midpoint of the
+last level with each half, and the endpoint machine on the same moves, with two levels of the
+same half, so that the last one is found and not the first. `Set.univ` and `∅`, in
+nondeterministic polynomial space through `P`, are midpoint games won and lost on every instance.
+With both endpoints missing, the leaf test of the midpoint game is the edge test of the initial
+and accepting codes, and the reduction of `NSPACE s ⊆ ATIME ((n + s n) ^ 2)` to a quadratic-time
+leaf test applies to the time-constructible `s n = n`.
 -/
 
 namespace CslibFrontierTests.Alternation
@@ -271,6 +276,45 @@ example : ¬Alternation true (List.replicate (2 * ((1 + 1) * 1)) 1)
   rw [Cslib.Reachability.alternation_midpointGame_iff]
   decide
 
+/-! ### The endpoints of a play -/
+
+/-- Moves of two levels at width `1`: midpoint `[true]` with half `true`, then midpoint `[false]`
+with half `false`. -/
+private def twoHalves : List Bool := [true, false, false, true, false, true, true, false]
+
+/-- Moves of two levels at width `1` whose halves are both `true`: midpoints `[true]`, then
+`[false]`. -/
+private def bothTrue : List Bool := [true, false, false, true, false, false, false, true]
+
+/-- Each endpoint comes from the last level with its half. -/
+example : Cslib.Reachability.lastMidpoint 1 2 twoHalves true = some [true] ∧
+    Cslib.Reachability.lastMidpoint 1 2 twoHalves false = some [false] := by
+  decide
+
+/-- With both halves `true`, the left endpoint is the midpoint of the second level, and the right
+endpoint stays the initial one. -/
+example : Cslib.Reachability.lastMidpoint 1 2 bothTrue true = some [false] ∧
+    Cslib.Reachability.lastMidpoint 1 2 bothTrue false = none := by
+  decide
+
+/-- The endpoint machine on `twoHalves`: the encoded options `some [true]` and `some [false]`. -/
+example : Cslib.Reachability.endpointWord true (1, 2, twoHalves) = [true, true] ∧
+    Cslib.Reachability.endpointWord false (1, 2, twoHalves) = [true, false] := by
+  simp [twoHalves, Cslib.Reachability.endpointWord, Cslib.Reachability.levelMarks,
+    Cslib.Reachability.endpointZip]
+
+/-- The endpoint machine on `bothTrue`: the encoded options `some [false]` and `none`. -/
+example : Cslib.Reachability.endpointWord true (1, 2, bothTrue) = [true, false] ∧
+    Cslib.Reachability.endpointWord false (1, 2, bothTrue) = [] := by
+  simp [bothTrue, Cslib.Reachability.endpointWord, Cslib.Reachability.levelMarks,
+    Cslib.Reachability.endpointZip]
+
+/-- The play of `twoHalves` from `[false]` to `[true]` ends at `[true]` and `[false]`, which are
+neither equal nor an edge. -/
+example : Cslib.Reachability.midpointGame oneEdge 1 2 [false] [true] twoHalves = false := by
+  rw [Cslib.Reachability.midpointGame_eq_reach_lastMidpoint]
+  decide
+
 /-- Trailing moves do not change a game that reads only its first move. -/
 example : Alternation true ([1] ++ [1, 1]) (fun z => z.take 1 = [true]) :=
   (alternation_append_iff fun z => by
@@ -311,91 +355,27 @@ example {α : Type} (enc : α ↪ List Bool) : ∃ (j k : ℕ) (State : Type) (_
   obtain ⟨k, State, hfin, ntm, K, h⟩ := exists_midpointGame_of_mem_NSPACE hj
   exact ⟨j, k, State, hfin, ntm, K, fun a w hw => (h a w hw).not.mp (Set.notMem_empty a)⟩
 
-/-! ### The number of moves of the midpoint game in unary -/
+/-! ### Nondeterministic space in alternating time -/
 
-section MoveCount
+section MidpointLeaf
 
 open Turing.MultiTapeTM
 
-/-- For a time-constructible `s` and a constant `K`, the number of moves of the midpoint game on
-codes of `2 * w + 2` bits, `w = K * (n + s n + 1)`, as in `exists_midpointGame_of_mem_NSPACE`, is
-written in unary within time and space `O((n + s n + 1) ^ 2)`. -/
-private theorem computableInO_midpointMoveCount {α : Type} (enc : α ↪ List Bool) {s : ℕ → ℕ}
-    (hs : TimeConstructible s) (K : ℕ) :
-    ComputableInO (fun a : α =>
-      2 * ((2 * (K * ((enc a).length + s (enc a).length + 1)) + 2 + 1) *
-        (2 * (K * ((enc a).length + s (enc a).length + 1)) + 2))) enc encUnary
-      (fun a => ((enc a).length + s (enc a).length + 1) ^ 2)
-      fun a => ((enc a).length + s (enc a).length + 1) ^ 2 := by
-  have hF : ComputableInPolyTime (fun p : ℕ × ℕ =>
-      2 * ((2 * (K * (p.1 + p.2 + 1)) + 2 + 1) * (2 * (K * (p.1 + p.2 + 1)) + 2)))
-      (encPair encNat encNat) encNat := by
-    fun_prop
-  have h := (hs.computableInO_unary_of_polyTime hF).comp
-    (ComputableInO.of_eq (f := fun a : α => enc a) (encMid := encBits) fun _ => rfl)
-  have hbound (a : α) : (enc a).length + ((enc a).length + s (enc a).length +
-      2 * ((2 * (K * ((enc a).length + s (enc a).length + 1)) + 2 + 1) *
-        (2 * (K * ((enc a).length + s (enc a).length + 1)) + 2))) ≤
-      (8 * K ^ 2 + 20 * K + 14) * (((enc a).length + s (enc a).length + 1) ^ 2 + 1) := by
-    set m := (enc a).length + s (enc a).length + 1
-    have hm : (enc a).length + ((enc a).length + s (enc a).length) ≤ 2 * m := by omega
-    have hm2 : m ≤ m ^ 2 := by nlinarith
-    have e : 2 * ((2 * (K * m) + 2 + 1) * (2 * (K * m) + 2)) =
-        8 * K ^ 2 * m ^ 2 + 20 * (K * m) + 12 := by
-      ring
-    have hKm : K * m ≤ K * m ^ 2 := Nat.mul_le_mul_left K hm2
-    have e2 : (8 * K ^ 2 + 20 * K + 14) * (m ^ 2 + 1) =
-        8 * K ^ 2 * m ^ 2 + 20 * (K * m ^ 2) + 14 * m ^ 2 + (8 * K ^ 2 + 20 * K + 14) := by
-      ring
-    omega
-  refine h.mono (8 * K ^ 2 + 20 * K + 14) (fun a => ?_) fun a => ?_ <;>
-    simpa only [Function.comp_apply, encBits_apply] using hbound a
+/-- With both endpoints missing, the leaf test of the midpoint game is the edge test of the code of
+the initial view and the accepting code. -/
+example {k : ℕ} {State : Type} [Finite State] (ntm : MultiTapeNTM k Bool State) (w : ℕ)
+    (input : List Bool) :
+    ntm.midpointLeaf w input none none =
+      Reachability.reach ntm.codeEdge (2 * w + 2) 0
+        (MultiTapeNTM.viewCode w (ntm.initView input)) (MultiTapeNTM.acceptCode w) :=
+  rfl
 
-/-- The hypotheses are satisfiable: for `s n = n`, which is time-constructible, the number of moves
-of the midpoint game at width `K * (2 * n + 1)` is written in unary within time
-`O((2 * n + 1) ^ 2)`. -/
-example {α : Type} (enc : α ↪ List Bool) (K : ℕ) :
-    ComputableInO (fun a : α =>
-      2 * ((2 * (K * ((enc a).length + (enc a).length + 1)) + 2 + 1) *
-        (2 * (K * ((enc a).length + (enc a).length + 1)) + 2))) enc encUnary
-      (fun a => ((enc a).length + (enc a).length + 1) ^ 2)
-      fun a => ((enc a).length + (enc a).length + 1) ^ 2 :=
-  computableInO_midpointMoveCount enc (s := fun n => n) timeConstructible_id K
+/-- The hypothesis on `s` is satisfiable: `s n = n` is time-constructible, so `NSPACE n` is in
+`ATIME ((n + n) ^ 2)`. -/
+example {α : Type} (enc : α ↪ List Bool) :
+    NSPACE enc (fun n => n) ⊆ ATIME enc fun n => (n + n) ^ 2 :=
+  NSPACE_subset_ATIME_sq_of_timeConstructible timeConstructible_id
 
-/-- **Interface check for the remaining step of `NSPACE(s) ⊆ ATIME((n + s n) ^ 2)`.** This is not a
-proof of that inclusion: the hypothesis `hV`, a verifier of Savitch's midpoint game within time
-`O((n + s n) ^ 2)` on the views of every machine, is proved neither here nor in the library. The
-example checks that, given such a verifier, `exists_midpointGame_of_mem_NSPACE`, the move count
-`computableInO_midpointMoveCount` and `mem_ATIME_of_alternation` give the inclusion for a
-time-constructible `s`, with no further hypothesis. -/
-example {α : Type} (enc : α ↪ List Bool) {A : Set α} {s : ℕ → ℕ} (hs : TimeConstructible s)
-    (hV : ∀ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k Bool State) (K : ℕ),
-      ∃ (TV SV : α × List Bool → ℕ) (C : ℕ),
-        ComputableInO (fun x : α × List Bool =>
-          Reachability.midpointGame ntm.codeEdge
-            (2 * (K * ((enc x.1).length + s (enc x.1).length + 1)) + 2)
-            (2 * (K * ((enc x.1).length + s (enc x.1).length + 1)) + 2)
-            (MultiTapeNTM.viewCode (K * ((enc x.1).length + s (enc x.1).length + 1))
-              (ntm.initView (enc x.1)))
-            (MultiTapeNTM.acceptCode (K * ((enc x.1).length + s (enc x.1).length + 1))) x.2)
-          (encPair enc encBits) encBool TV SV ∧
-        ∀ a z, TV (a, z) ≤ C * ((enc a).length + s (enc a).length) ^ 2 + C)
-    (h : A ∈ NSPACE enc s) : A ∈ ATIME enc fun n => (n + s n) ^ 2 := by
-  obtain ⟨k, State, hfin, ntm, K, hA⟩ := exists_midpointGame_of_mem_NSPACE h
-  obtain ⟨TV, SV, C, hVc, hTV⟩ := hV k State hfin ntm K
-  refine mem_ATIME_of_alternation (C := C + 24 * K ^ 2 + 40 * K + 60)
-    (computableInO_midpointMoveCount enc hs K) hVc (fun a => hA a _ le_rfl) (fun a => ?_)
-    fun a z _ => (hTV a z).trans (by nlinarith)
-  set p := (enc a).length + s (enc a).length
-  have hn : (enc a).length ≤ p := Nat.le_add_right _ _
-  have hp : p ≤ p ^ 2 + 1 := by nlinarith
-  have e : 2 * ((2 * (K * (p + 1)) + 2 + 1) * (2 * (K * (p + 1)) + 2)) + (p + 1) ^ 2 =
-      (8 * K ^ 2 + 1) * p ^ 2 + (16 * K ^ 2 + 20 * K + 2) * p + (8 * K ^ 2 + 20 * K + 13) := by
-    ring
-  have hKp : K * p ≤ K * (p ^ 2 + 1) := Nat.mul_le_mul_left K hp
-  have hK2p : K ^ 2 * p ≤ K ^ 2 * (p ^ 2 + 1) := Nat.mul_le_mul_left _ hp
-  nlinarith [Nat.zero_le (C * p ^ 2), Nat.zero_le (K * p ^ 2), Nat.zero_le (K ^ 2 * p ^ 2)]
-
-end MoveCount
+end MidpointLeaf
 
 end CslibFrontierTests.Alternation
