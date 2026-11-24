@@ -899,14 +899,15 @@ private theorem Phase3Regs.refl (x : Data 34) : Phase3Regs x x :=
 
 private theorem Phase3Regs.trans {x y z : Data 34}
     (h2 : Phase3Regs y z) (h1 : Phase3Regs x y) : Phase3Regs x z :=
-  ⟨h2.1.trans h1.1, h2.2.trans h1.2, h2.3.trans h1.3, h2.4.trans h1.4,
-    h2.5.trans h1.5, h2.6.trans h1.6, h2.7.trans h1.7, h2.8.trans h1.8⟩
+  ⟨h2.edgeIdx.trans h1.edgeIdx, h2.src.trans h1.src, h2.dst.trans h1.dst,
+    h2.stackLen.trans h1.stackLen, h2.compLen.trans h1.compLen, h2.curNode.trans h1.curNode,
+    h2.rem.trans h1.rem, h2.outerIdx.trans h1.outerIdx⟩
 
 @[local wram_simps] private theorem Phase3Regs.write_iff (x y : Data 34) (a v : ℕ) :
     Phase3Regs x (y.write a v) ↔ Phase3Regs x y := by
   simp only [Data.write]
-  exact ⟨fun h => ⟨h.1, h.2, h.3, h.4, h.5, h.6, h.7, h.8⟩,
-    fun h => ⟨h.1, h.2, h.3, h.4, h.5, h.6, h.7, h.8⟩⟩
+  exact ⟨fun h => ⟨h.edgeIdx, h.src, h.dst, h.stackLen, h.compLen, h.curNode, h.rem, h.outerIdx⟩,
+    fun h => ⟨h.edgeIdx, h.src, h.dst, h.stackLen, h.compLen, h.curNode, h.rem, h.outerIdx⟩⟩
 
 @[local wram_simps] private theorem Phase3Regs.set_iff (x y : Data 34) {r : Fin 34} (v : ℕ)
     (hr : r.val ≤ 16 ∨ 28 ≤ r.val) :

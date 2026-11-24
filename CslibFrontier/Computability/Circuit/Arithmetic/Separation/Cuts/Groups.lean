@@ -86,7 +86,7 @@ instance (h : U → Bool → A) (grp : A → G) (g : G) (Cur : Finset U) (b : U 
   decidable_of_iff
     ((∀ u ∈ Cur, grp (h u false) = g → grp (h u true) = g → y (h u false) u = y (h u true) u) ∧
       ∀ u ∈ Cur, ∀ d, grp (h u d) = g → grp (h u !d) ≠ g → y (h u d) u = b u)
-    ⟨fun hh => ⟨hh.1, hh.2⟩, fun hh => ⟨hh.1, hh.2⟩⟩
+    ⟨fun hh => ⟨hh.1, hh.2⟩, fun hh => ⟨hh.inner, hh.outer⟩⟩
 
 variable [CommSemiring F]
 

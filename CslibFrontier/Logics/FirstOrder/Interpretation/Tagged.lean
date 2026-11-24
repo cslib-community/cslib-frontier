@@ -143,7 +143,7 @@ instance [Finite T] [∀ t, Finite (ι t)] [Finite M] : Finite (I.Model M) :=
 
 /-- Coordinate tuple `e.2.1` of an element `e` of the tagged model `I.Model M`. -/
 abbrev Model.coords (e : I.Model M) : ι e.1 → M :=
-  e.2.1
+  e.2.val
 
 /-- The tag and coordinates of an element of the interpreted structure. -/
 def Model.toSigma (e : I.Model M) : Σ t, ι t → M :=
@@ -474,16 +474,16 @@ theorem realize_domainAt_coords (a b : M) (h : a ≠ b) (e : I.Model M) :
   · simpa only [coords_data_self] using e.2.property
 
 /-- First element `p.1.1` of an ordered distinct pair `p : Pairs M`. -/
-abbrev Pairs.fst {M : Type*} (p : Pairs M) : M := p.1.1
+abbrev Pairs.fst {M : Type*} (p : Pairs M) : M := p.val.1
 
 /-- Second element `p.1.2` of an ordered distinct pair `p : Pairs M`. -/
-abbrev Pairs.snd {M : Type*} (p : Pairs M) : M := p.1.2
+abbrev Pairs.snd {M : Type*} (p : Pairs M) : M := p.val.2
 
 /-- The map from the copies of the tagged structure to the compiled structure. -/
 noncomputable def ofCopies [Nontrivial M] (x : Copies (Pairs M) (I.Model M)) :
     (I.toInterpretation S).Model M :=
   ⟨coords x.idx.fst x.idx.snd x.val, (realize_toInterpretation_domain_of_nontrivial S _).2
-    ⟨x.val.1, realize_domainAt_coords _ _ x.idx.2 x.val⟩⟩
+    ⟨x.val.1, realize_domainAt_coords _ _ x.idx.property x.val⟩⟩
 
 /-- On a nontrivial structure `M`, `ofCopies S` is a bijection from `Copies (Pairs M) (I.Model M)`
 to `(I.toInterpretation S).Model M`. -/

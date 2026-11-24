@@ -44,7 +44,7 @@ namespace Cslib.Circuits.Arithmetic.Separation.Tape
 /-- The channels whose head positions start at `0` (all tape sides, and input `0`). -/
 @[expose] def Ch.start {S : Type*} {n : ℕ} : Ch S (Fin n) → Bool
   | .tp _ _ => true
-  | .inp j => j.1 = 0
+  | .inp j => j.val = 0
 
 /-- Local certificate conditions for a matched run: emitted letters `o`, states `q`, head
 positions `P`, tape contents `c`, and one-hot input code `x`. -/
@@ -57,12 +57,12 @@ structure Good {Γ S Q : Type*} [DecidableEq S] {n t M N : ℕ}
   /-- The run ends at state `e`. -/
   last : q (Fin.last t) = e
   /-- Starting channels begin at position `0`. -/
-  zero : ∀ z, z.start = true → (P z 0).1 = 0
+  zero : ∀ z, z.start = true → (P z 0).val = 0
   /-- At step `τ`, channel `z`'s head advances if and only if `o τ` emits on `z`. -/
-  step : ∀ z τ, (P z (Fin.succ τ)).1 = (P z (Fin.castSucc τ)).1 + (emit [o τ] z).length
+  step : ∀ z τ, (P z (Fin.succ τ)).val = (P z (Fin.castSucc τ)).val + (emit [o τ] z).length
   /-- Consecutive input channels are linked by `1` for the separator marker. -/
-  link : ∀ j j' : Fin n, j'.1 = j.1 + 1 →
-    (P (.inp j') 0).1 = (P (.inp j) (Fin.last t)).1 + 1
+  link : ∀ j j' : Fin n, j'.val = j.val + 1 →
+    (P (.inp j') 0).val = (P (.inp j) (Fin.last t)).val + 1
   /-- Each write/read on tape `s` agrees with `c s`. -/
   write : ∀ s b τ γ, o τ = some (.tp s b, γ) →
     c s (P (.tp s b) (Fin.castSucc τ)) = some γ
@@ -70,9 +70,9 @@ structure Good {Γ S Q : Type*} [DecidableEq S] {n t M N : ℕ}
   blank : ∀ s b p, P (.tp s b) (Fin.last t) ≤ p → c s p = none
   /-- Each input emission agrees with the one-hot code `x`. -/
   read : ∀ j τ γ, o τ = some (.inp j, γ) →
-    ∃ h : (P (.inp j) (Fin.castSucc τ)).1 < N, x (⟨_, h⟩, some γ) = true
+    ∃ h : (P (.inp j) (Fin.castSucc τ)).val < N, x (⟨_, h⟩, some γ) = true
   /-- At the end of input `j`, `x` holds the `none` separator. -/
-  sep : ∀ j, ∃ h : (P (.inp j) (Fin.last t)).1 < N, x (⟨_, h⟩, none) = true
+  sep : ∀ j, ∃ h : (P (.inp j) (Fin.last t)).val < N, x (⟨_, h⟩, none) = true
 
 section Forward
 
@@ -93,7 +93,7 @@ theorem emit_take_succ (o : Fin t → Letter S (Fin n) Γ) (z : Ch S (Fin n)) (�
 
 theorem Good.place {x : Fin N × Option Γ → Bool} (h : Good i e x o q P c)
     (z : Ch S (Fin n)) (τ : Fin (t + 1)) :
-    (P z τ).1 = (P z 0).1 + (emit ((List.ofFn o).take τ) z).length := by
+    (P z τ).val = (P z 0).val + (emit ((List.ofFn o).take τ) z).length := by
   induction τ using Fin.induction with
   | zero => simp
   | succ τ ih =>
@@ -102,15 +102,15 @@ theorem Good.place {x : Fin N × Option Γ → Bool} (h : Good i e x o q P c)
 
 theorem Good.place_last {x : Fin N × Option Γ → Bool} (h : Good i e x o q P c)
     (z : Ch S (Fin n)) :
-    (P z (Fin.last t)).1 = (P z 0).1 + (emit (List.ofFn o) z).length := by
+    (P z (Fin.last t)).val = (P z 0).val + (emit (List.ofFn o) z).length := by
   rw [h.place, Fin.val_last, List.take_of_length_le (by simp)]
 
 theorem Good.place_zero {x : Fin N × Option Γ → Bool} (h : Good i e x o q P c)
     (z : Ch S (Fin n)) :
-    (P z 0).1 = place0 o z := by
+    (P z 0).val = place0 o z := by
   rcases z with ⟨s, b⟩ | j
   · exact h.zero _ rfl
-  · have key : ∀ m : ℕ, ∀ j : Fin n, j.1 = m → (P (.inp j) 0).1 = place0 o (.inp j) := by
+  · have key : ∀ m : ℕ, ∀ j : Fin n, j.val = m → (P (.inp j) 0).val = place0 o (.inp j) := by
       intro m
       induction m with
       | zero =>
@@ -118,15 +118,15 @@ theorem Good.place_zero {x : Fin N × Option Γ → Bool} (h : Good i e x o q P 
         rw [h.zero _ (by simp [Ch.start, hj]), place0, hj, base_zero]
       | succ m ih =>
         intro j hj
-        have hm : m < n := by have := j.2; omega
+        have hm : m < n := by have := j.isLt; omega
         have hb := base_succ (fun j => emit (List.ofFn o) (.inp j)) ⟨m, hm⟩
         rw [h.link ⟨m, hm⟩ j hj, h.place_last, ih ⟨m, hm⟩ rfl, place0, place0, hj, hb]
     exact key j j rfl
 
 theorem Good.contents {x : Fin N × Option Γ → Bool} (h : Good i e x o q P c)
     (s : S) (b : Bool) (p : Fin M) :
-    c s p = (emit (List.ofFn o) (.tp s b))[p.1]? := by
-  by_cases hp : p.1 < (emit (List.ofFn o) (.tp s b)).length
+    c s p = (emit (List.ofFn o) (.tp s b))[p.val]? := by
+  by_cases hp : p.val < (emit (List.ofFn o) (.tp s b)).length
   · obtain ⟨τ, γ, h1, h2, h3⟩ := exists_emit _ _ _ hp
     rw [List.length_ofFn] at h1
     have ho : o ⟨τ, h1⟩ = some (.tp s b, γ) := by
@@ -163,7 +163,7 @@ theorem Good.matched [DecidableEq Γ] (hM : t < M) (h : Good i e (code N u) o q 
         have ho : o ⟨τ, h1⟩ = some (.inp k, γ) := by
           simpa [List.getElem?_ofFn, h1] using h2
         obtain ⟨hN, hx⟩ := h.read k ⟨τ, h1⟩ γ ho
-        have hP : (P (.inp k) (Fin.castSucc ⟨τ, h1⟩)).1 =
+        have hP : (P (.inp k) (Fin.castSucc ⟨τ, h1⟩)).val =
             base (fun j => emit (List.ofFn o) (.inp j)) k + p := by
           rw [h.place, h.place_zero, Fin.val_castSucc, h3]
           rfl
@@ -174,7 +174,7 @@ theorem Good.matched [DecidableEq Γ] (hM : t < M) (h : Good i e (code N u) o q 
         rw [hx', List.getElem?_append_left (by simpa using hp), List.getElem?_map, hg]
         rfl
       · obtain ⟨hN, hx⟩ := h.sep k
-        have hP : (P (.inp k) (Fin.last t)).1 =
+        have hP : (P (.inp k) (Fin.last t)).val =
             base (fun j => emit (List.ofFn o) (.inp j)) k + p := by
           rw [h.place_last, h.place_zero, hp]
           rfl
@@ -218,12 +218,12 @@ theorem exists_good [DecidableEq Γ] (hM : N + t < M) (hN : (wordOf (List.ofFn u
       Good i e (code N u) o q P c := by
   have h3 : (fun j => emit (List.ofFn o) (.inp j)) = u := funext h.2
   refine ⟨fun z τ => ⟨_, place_lt hM hN h.2 z τ⟩,
-    fun s p => (emit (List.ofFn o) (.tp s false))[p.1]?, hi, he,
+    fun s p => (emit (List.ofFn o) (.tp s false))[p.val]?, hi, he,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro z hz
     rcases z with ⟨s, b⟩ | j
     · simp [place0]
-    · have : j.1 = 0 := by simpa [Ch.start] using hz
+    · have : j.val = 0 := by simpa [Ch.start] using hz
       simp [place0, this]
   · intro z τ
     simp only [Fin.val_succ, Fin.val_castSucc]
@@ -234,7 +234,7 @@ theorem exists_good [DecidableEq Γ] (hM : N + t < M) (hN : (wordOf (List.ofFn u
       Fin.val_last, place0, h3]
     rw [List.take_of_length_le (by simp), h.2, hj, base_succ]
   · intro s b τ γ ho
-    have hL : (List.ofFn o)[τ.1]? = some (some (.tp s b, γ)) := by simp [ho]
+    have hL : (List.ofFn o)[τ.val]? = some (some (.tp s b, γ)) := by simp [ho]
     have hg := emit_getElem _ _ _ _ hL
     simp only [place0, Fin.val_castSucc, zero_add]
     cases b
@@ -251,7 +251,7 @@ theorem exists_good [DecidableEq Γ] (hM : N + t < M) (hN : (wordOf (List.ofFn u
     · rw [h.1 s]
       exact hp
   · intro j τ γ ho
-    have hL : (List.ofFn o)[τ.1]? = some (some (.inp j, γ)) := by simp [ho]
+    have hL : (List.ofFn o)[τ.val]? = some (some (.inp j, γ)) := by simp [ho]
     have hg := emit_getElem _ _ _ _ hL
     rw [h.2] at hg
     have hlt := (List.getElem?_eq_some_iff.1 hg).1
@@ -265,7 +265,7 @@ theorem exists_good [DecidableEq Γ] (hM : N + t < M) (hN : (wordOf (List.ofFn u
   · intro j
     have hb := base_add_lt u j
     have hP : place0 o (.inp j) +
-        (emit ((List.ofFn o).take (Fin.last t).1) (.inp j)).length =
+        (emit ((List.ofFn o).take (Fin.last t).val) (.inp j)).length =
           base u j + (u j).length := by
       simp only [place0, h3, Fin.val_last]
       rw [List.take_of_length_le (by simp), h.2]

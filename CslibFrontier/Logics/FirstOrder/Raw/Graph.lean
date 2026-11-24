@@ -195,11 +195,11 @@ instance instFiniteTupleVertex [Finite M] : Finite (TupleVertex I K) := by
 
 /-- Underlying tuple `q.1.1` of a gadget vertex `q : TupleVertex I K`. -/
 abbrev TupleVertex.elems {I : ℕ → List M → Prop} {K : ℕ} (q : TupleVertex I K) : List M :=
-  q.1.1
+  q.val.1
 
 /-- Position index `q.1.2` of a gadget vertex `q : TupleVertex I K`. -/
 abbrev TupleVertex.index {I : ℕ → List M → Prop} {K : ℕ} (q : TupleVertex I K) : ℕ :=
-  q.1.2
+  q.val.2
 
 /-- The tuple graph on `M ⊕ TupleVertex I K`: loops on `M`, chain edges
 `(l, j + 1) → (l, j)`, and coordinate edges `(l, j) → l[j]`. -/
@@ -224,8 +224,9 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
     obtain ⟨q0, hq0⟩ := hinr 0 h0
     have hj0 : q0.val.2 = 0 := by
       by_contra hne
-      have hv : q0.1.2 - 1 < q0.1.1.length := by have := q0.2.2.1; omega
-      refine g3 (.inr ⟨(q0.1.1, q0.1.2 - 1), q0.2.1, hv, q0.2.2.2⟩) (fun h => ?_) ?_
+      have hv : q0.val.2 - 1 < q0.val.1.length := by have := q0.property.2.1; omega
+      refine g3 (.inr ⟨(q0.val.1, q0.val.2 - 1), q0.property.1, hv, q0.property.2.2⟩)
+        (fun h => ?_) ?_
       · simp only [tupleGraph, TupleVertex.index] at h; omega
       · rw [hq0]; exact ⟨rfl, by simp only [TupleVertex.index]; omega⟩
     have hchain : ∀ i < bs.length,
@@ -240,15 +241,15 @@ theorem isTupleGadget_tupleGraph_iff {bs : List M} (h0 : 0 < bs.length) (hK : bs
         rw [hq, hq'] at this
         exact ⟨q', hq', this.1.trans hl, by
           have h2 := this.2; dsimp only [TupleVertex.index] at h2; omega⟩
-    have hlen : q0.1.1.length = bs.length := by
+    have hlen : q0.val.1.length = bs.length := by
       obtain ⟨q, hq, hl, hj⟩ := hchain (bs.length - 1) (by omega)
       have h1 : bs.length ≤ q0.val.1.length := by have := q.property.2.1; rw [hl] at this; omega
       by_contra hne
-      have hv : bs.length < q0.1.1.length := by omega
-      refine g4 (.inr ⟨(q0.1.1, bs.length), q0.2.1, hv, q0.2.2.2⟩) (fun h => ?_) ?_
+      have hv : bs.length < q0.val.1.length := by omega
+      refine g4 (.inr ⟨(q0.val.1, bs.length), q0.property.1, hv, q0.property.2.2⟩) (fun h => ?_) ?_
       · simp only [tupleGraph, TupleVertex.index] at h; omega
       · rw [hq]; exact ⟨hl.symm, by simp only [TupleVertex.index]; omega⟩
-    have hl : q0.1.1 = bs := by
+    have hl : q0.val.1 = bs := by
       apply List.ext_getElem hlen
       intro i h1 h2
       obtain ⟨q, hq, hql, hqj⟩ := hchain i h2
