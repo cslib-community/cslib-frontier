@@ -14,7 +14,8 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Len
 /-!
 # Finite groups of isometries of complete CAT(0) spaces: projections to fixed points
 
-`Flag.IsoAct G Z`: an action of `G` on `Z` by isometries, as a homomorphism `G →* (Z ≃ᵢ Z)`. For a finite group acting on a
+`Flag.IsoAct G Z`: an action of `G` on `Z` by isometries, as a homomorphism `G →* (Z ≃ᵢ Z)`. For a
+finite group acting on a
 complete CAT(0) space, the barycenter of an orbit (`Flag.IsoAct.P`, from
 `Cslib.CAT0.exists_isBarycenter`) is a fixed point (`Flag.IsoAct.P_fix`), and it commutes with every
 surjective isometry of `Z` that commutes with all group elements (`Flag.IsoAct.P_comm`).

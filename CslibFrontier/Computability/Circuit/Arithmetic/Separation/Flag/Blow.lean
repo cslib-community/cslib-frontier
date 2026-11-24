@@ -21,7 +21,8 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Flag.Blow`.
 
 ## Main definitions
 
-* `Flag.inc`, `Flag.blow`, `Flag.blowC`, `Flag.blowU`, `Flag.Contr`.
+* `Flag.incl` (inclusion matrices of embeddings), `Flag.inc`, `Flag.blow`, `Flag.blowC`,
+`Flag.blowU`, `Flag.Contr`.
 
 ## Main results
 
@@ -35,22 +36,45 @@ open Finset Matrix
 
 namespace Cslib.Circuits.Arithmetic.Separation.Flag
 
+section Incl
+
+variable {α β γ : Type*} [DecidableEq β]
+
+/-- The inclusion matrix of an embedding `e : α ↪ β`: `1` at `(e x, x)`. -/
+@[expose] def incl (e : α ↪ β) : Matrix β α F2 := Matrix.of fun i x => if i = e x then 1 else 0
+
+theorem incl_t_mul [Fintype β] [DecidableEq α] (e : α ↪ β) : (incl e)ᵀ * incl e = 1 := by
+  ext x y
+  simp [Matrix.mul_apply, incl, Matrix.one_apply, Function.swap, e.injective.eq_iff, eq_comm]
+
+/-- Embeddings with disjoint ranges have orthogonal inclusion matrices. -/
+theorem incl_t_mul_eq_zero [Fintype β] (e : α ↪ β) (e' : γ ↪ β) (h : ∀ x y, e x ≠ e' y) :
+    (incl e)ᵀ * incl e' = 0 := by
+  ext x y
+  simp only [Matrix.mul_apply, incl, Matrix.of_apply, Matrix.transpose_apply, Matrix.zero_apply]
+  refine sum_eq_zero fun k _ => ?_
+  by_cases h1 : k = e x
+  · simp [h1, h x y]
+  · simp [h1]
+
+end Incl
+
 variable {μ κ ι : Type*} [Fintype μ] [DecidableEq μ] [Fintype κ] [DecidableEq κ]
   [Fintype ι] [DecidableEq ι]
 
-/-- The inclusion matrix of an embedding. -/
-def inc (e : μ × κ ↪ ι) : Matrix ι (μ × κ) F2 := fun i x => if i = e x then 1 else 0
+/-- The inclusion matrix of the embedding `μ × κ ↪ ι` of a blow-up. -/
+abbrev inc (e : μ × κ ↪ ι) : Matrix ι (μ × κ) F2 := incl e
 
 omit [Fintype μ] [Fintype κ] in
-theorem inc_t_mul (e : μ × κ ↪ ι) : (inc e)ᵀ * inc e = 1 := by
-  ext x y
-  simp [Matrix.mul_apply, inc, Matrix.one_apply, eq_comm]
+theorem inc_t_mul (e : μ × κ ↪ ι) : (inc e)ᵀ * inc e = 1 := incl_t_mul e
 
 omit [Fintype ι] in
 theorem inc_mul_diag (e : μ × κ ↪ ι) (T : Finset (μ × κ)) :
     inc e * dg T * (inc e)ᵀ = dg (T.map e) := by
   ext i j
-  simp only [Matrix.mul_apply, inc, dg, Matrix.transpose_apply, Matrix.diagonal_apply,
+  simp only
+      [Matrix.mul_apply, inc, incl, Matrix.of_apply, dg, Matrix.transpose_apply,
+          Matrix.diagonal_apply,
     Finset.mem_map]
   simp only [mul_ite, mul_one, mul_zero]
   by_cases hi : ∃ x, e x = i

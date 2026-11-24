@@ -51,12 +51,12 @@ independent." -/
 theorem rowSpace_eq (W : Mt m) : rowSpace W = colSpace Wᵀ := by
   rw [rowSpace, colSpace, Matrix.col_transpose]
 
-/-- The transpose of an invertible matrix. -/
-def trU (p : GLM (Fin m)) : GLM (Fin m) where
-  val := (p : Mt m)ᵀ
-  inv := ((p⁻¹ : GLM (Fin m)) : Mt m)ᵀ
-  val_inv := by rw [← Matrix.transpose_mul, Units.inv_mul, Matrix.transpose_one]
-  inv_val := by rw [← Matrix.transpose_mul, Units.mul_inv, Matrix.transpose_one]
+/-- The transpose of an invertible matrix: Mathlib's `transposeMulEquiv`, unwrapped from the
+opposite group. -/
+@[expose] def trU (p : GLM (Fin m)) : GLM (Fin m) :=
+  MulOpposite.unop (Matrix.GeneralLinearGroup.transposeMulEquiv (Fin m) p)
+
+theorem coe_trU (p : GLM (Fin m)) : ((trU p : GLM (Fin m)) : Mt m) = (p : Mt m)ᵀ := by rfl
 
 theorem X_transpose (p q : GLM (Fin m)) (S : Finset (Fin m)) : (X p q S)ᵀ = X (trU q) (trU p) S :=
     by

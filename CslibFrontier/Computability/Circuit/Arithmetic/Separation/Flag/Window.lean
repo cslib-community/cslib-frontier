@@ -46,12 +46,13 @@ theorem win_win {p n p' n' : ℕ} (hp : p + n ≤ h) (hp' : p' + n' ≤ n) (hpp 
   rw [mat_win, mat_win, mat_win]
   have e : wi hp * wi hp' = wi hpp := by
     ext i j
-    simp only [Matrix.mul_apply, wi, Matrix.of_apply]
+    simp only [Matrix.mul_apply, wi, incl, weEmb_apply, Matrix.of_apply]
     rw [sum_eq_single (we hp' j)]
     · have : we hp (we hp' j) = we hpp j := by
         simp only [we, Fin.ext_iff]
         omega
-      simp [this]
+      simp only [this, ite_mul, one_mul, zero_mul, ite_true]
+      congr 1
     · intro c _ hc
       simp [hc]
     · simp
@@ -61,17 +62,10 @@ theorem win_win {p n p' n' : ℕ} (hp : p + n ≤ h) (hp' : p' + n' ≤ n) (hpp 
   abel
 
 theorem wi_disj {p n p' n' : ℕ} (hp : p + n ≤ h) (hp' : p' + n' ≤ h) (hd : p + n ≤ p') :
-    (wi hp)ᵀ * wi hp' = 0 := by
-  ext i j
-  simp only [Matrix.mul_apply, wi, Matrix.of_apply, Matrix.transpose_apply, Matrix.zero_apply]
-  refine sum_eq_zero fun k _ => ?_
-  by_cases h1 : k = we hp i
-  · have h2 : k ≠ we hp' j := by
-      rw [h1]
-      simp only [we, ne_eq, Fin.ext_iff]
-      omega
-    simp [h2]
-  · simp [h1]
+    (wi hp)ᵀ * wi hp' = 0 :=
+  incl_t_mul_eq_zero _ _ fun i j => by
+    simp only [weEmb_apply, we, ne_eq, Fin.ext_iff]
+    omega
 
 /-- Disjoint windows commute. -/
 theorem win_comm {p n p' n' : ℕ} (hp : p + n ≤ h) (hp' : p' + n' ≤ h) (hd : p + n ≤ p')

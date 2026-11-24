@@ -86,17 +86,21 @@ theorem we_lt {i j : Fin n} : we hp i < we hp j ↔ i < j := by
   simp only [we, Fin.lt_def]
   omega
 
-/-- The inclusion matrix of a window. -/
-@[expose] def wi : Matrix (Fin h) (Fin n) F2 := Matrix.of fun i a => if i = we hp a then 1 else 0
+/-- The window as an embedding. -/
+@[expose] def weEmb : Fin n ↪ Fin h := ⟨we hp, fun _ _ e => (we_inj hp).1 e⟩
 
-theorem wi_t_mul : (wi hp)ᵀ * wi hp = 1 := by
-  ext a b
-  simp [Matrix.mul_apply, wi, Matrix.one_apply, Function.swap, we_inj hp, eq_comm]
+@[simp] theorem weEmb_apply (a : Fin n) : weEmb hp a = we hp a := rfl
+
+/-- The inclusion matrix of a window. -/
+abbrev wi : Matrix (Fin h) (Fin n) F2 := incl (weEmb hp)
+
+theorem wi_t_mul : (wi hp)ᵀ * wi hp = 1 := incl_t_mul _
 
 theorem wi_mul_apply (A : Matrix (Fin n) (Fin n) F2) (i j : Fin h) :
     (wi hp * A * (wi hp)ᵀ) i j =
       ∑ b, ∑ a, if i = we hp a ∧ j = we hp b then A a b else 0 := by
-  simp only [Matrix.mul_apply, wi, Matrix.of_apply, Matrix.transpose_apply, sum_mul]
+  simp only [Matrix.mul_apply, wi, incl, weEmb_apply, Matrix.of_apply, Matrix.transpose_apply,
+    sum_mul]
   refine sum_congr rfl fun b _ => sum_congr rfl fun a _ => ?_
   by_cases h1 : i = we hp a <;> by_cases h2 : j = we hp b <;> simp [h1, h2]
 
@@ -211,17 +215,10 @@ variable {a b : ℕ}
 theorem hl : 0 + a ≤ a + b := by omega
 theorem hr : a + b ≤ a + b := le_rfl
 
-theorem wi_lr : (wi (hl (a := a) (b := b)))ᵀ * wi (hr (a := a) (b := b)) = 0 := by
-  ext i j
-  simp only [Matrix.mul_apply, wi, Matrix.of_apply, Matrix.transpose_apply, Matrix.zero_apply]
-  refine sum_eq_zero fun k _ => ?_
-  by_cases h1 : k = we (hl (a := a) (b := b)) i
-  · have h2 : k ≠ we (hr (a := a) (b := b)) j := by
-      rw [h1]
-      simp only [we, ne_eq, Fin.ext_iff]
-      omega
-    simp [h2]
-  · simp [h1]
+theorem wi_lr : (wi (hl (a := a) (b := b)))ᵀ * wi (hr (a := a) (b := b)) = 0 :=
+  incl_t_mul_eq_zero _ _ fun i j => by
+    simp only [weEmb_apply, we, ne_eq, Fin.ext_iff]
+    omega
 
 theorem wi_rl : (wi (hr (a := a) (b := b)))ᵀ * wi (hl (a := a) (b := b)) = 0 := by
   rw [← Matrix.transpose_transpose (wi (hl (a := a) (b := b))), ← Matrix.transpose_mul, wi_lr,

@@ -182,39 +182,6 @@ theorem rank_vec {u x : Fin m → F2} (hu : u ≠ 0) (hx : x ≠ 0) : (vecMulVec
 
 /-! ### Independent subspaces -/
 
-theorem iSupIndep_two {B C : Submodule F2 (Fin m → F2)} : iSupIndep ![B, C] ↔ Disjoint B C :=
-  iSupIndep_pair (i := 0) (j := 1) (by decide) (by decide)
-
-theorem iSupIndep_three {B C D : Submodule F2 (Fin m → F2)} :
-    iSupIndep ![B, C, D] ↔ Disjoint B (C ⊔ D) ∧ Disjoint C (B ⊔ D) ∧ Disjoint D (B ⊔ C) := by
-  have e0 : (⨆ (j : Fin 3) (_ : j ≠ 0), ![B, C, D] j) = C ⊔ D := by
-    refine le_antisymm (iSup₂_le fun j hj => ?_) (sup_le (le_iSup₂_of_le 1 (by decide) le_rfl)
-      (le_iSup₂_of_le 2 (by decide) le_rfl))
-    fin_cases j
-    · exact absurd rfl hj
-    · exact le_sup_left
-    · exact le_sup_right
-  have e1 : (⨆ (j : Fin 3) (_ : j ≠ 1), ![B, C, D] j) = B ⊔ D := by
-    refine le_antisymm (iSup₂_le fun j hj => ?_) (sup_le (le_iSup₂_of_le 0 (by decide) le_rfl)
-      (le_iSup₂_of_le 2 (by decide) le_rfl))
-    fin_cases j
-    · exact le_sup_left
-    · exact absurd rfl hj
-    · exact le_sup_right
-  have e2 : (⨆ (j : Fin 3) (_ : j ≠ 2), ![B, C, D] j) = B ⊔ C := by
-    refine le_antisymm (iSup₂_le fun j hj => ?_) (sup_le (le_iSup₂_of_le 0 (by decide) le_rfl)
-      (le_iSup₂_of_le 1 (by decide) le_rfl))
-    fin_cases j
-    · exact le_sup_left
-    · exact le_sup_right
-    · exact absurd rfl hj
-  rw [iSupIndep_def, Fin.forall_fin_succ, Fin.forall_fin_succ, Fin.forall_fin_succ]
-  constructor
-  · rintro ⟨h0, h1, h2, -⟩
-    exact ⟨e0 ▸ h0, e1 ▸ h1, e2 ▸ h2⟩
-  · rintro ⟨h0, h1, h2⟩
-    exact ⟨e0.symm ▸ h0, e1.symm ▸ h1, e2.symm ▸ h2, fun i => i.elim0⟩
-
 theorem disjoint_span_F2 {u : Fin m → F2} (hu : u ≠ 0) : Disjoint A (span F2 {u}) ↔ u ∉ A := by
   rw [disjoint_def]
   constructor
@@ -227,7 +194,10 @@ theorem disjoint_span_F2 {u : Fin m → F2} (hu : u ≠ 0) : Disjoint A (span F2
 
 theorem iSupIndep_of_indep2 {u₁ u₂ : Fin m → F2} (h : Indep2 A u₁ u₂) :
     iSupIndep ![A, span F2 {u₁}, span F2 {u₂}] := by
-  rw [iSupIndep_three]
+  rw [iSupIndep_fin_three]
+  simp only [Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
+    Matrix.vecHead, Matrix.vecTail, Function.comp_apply, Fin.succ_zero_eq_one]
+  rw [sup_comm (span F2 {u₂})]
   refine ⟨disjoint_def.2 fun v hv hv' => ?_, disjoint_def.2 fun v hv hv' => ?_,
       disjoint_def.2 fun v hv hv' => ?_⟩
   · rcases mem_sup_span_F2.1 hv' with h1 | h1 <;> rcases mem_span_singleton_F2.1 h1 with h2 | h2
@@ -250,7 +220,10 @@ theorem iSupIndep_of_indep2 {u₁ u₂ : Fin m → F2} (h : Indep2 A u₁ u₂) 
 
 theorem indep2_of_iSupIndep {u₁ u₂ : Fin m → F2} (h1 : u₁ ≠ 0) (h2 : u₂ ≠ 0)
     (h : iSupIndep ![A, span F2 {u₁}, span F2 {u₂}]) : Indep2 A u₁ u₂ := by
-  obtain ⟨d0, d1, -⟩ := iSupIndep_three.1 h
+  obtain ⟨d0, d1, -⟩ := iSupIndep_fin_three.1 h
+  simp only [Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
+    Matrix.vecHead, Matrix.vecTail, Function.comp_apply, Fin.succ_zero_eq_one] at d0 d1
+  rw [sup_comm (span F2 {u₂})] at d1
   rw [disjoint_def] at d0 d1
   have m1 : u₁ ∈ span F2 {u₁} := mem_span_singleton_self u₁
   have m2 : u₂ ∈ span F2 {u₂} := mem_span_singleton_self u₂
@@ -271,7 +244,9 @@ theorem transversal_two {W V : Mt m} :
   have e2 : (fun k => rowSpace (![W, V] k)) = ![rowSpace W, rowSpace V] := by
     funext k
     fin_cases k <;> rfl
-  rw [Transversal, e1, e2, iSupIndep_two, iSupIndep_two]
+  rw [Transversal, e1, e2, iSupIndep_pair (i := 0) (j := 1) (by decide) (by decide),
+    iSupIndep_pair (i := 0) (j := 1) (by decide) (by decide)]
+  rfl
 
 theorem transversal_three {W V V' : Mt m} : Transversal ![W, V, V'] ↔
     iSupIndep ![colSpace W, colSpace V, colSpace V'] ∧
@@ -321,8 +296,8 @@ theorem transversal_zero (V : Mt m) : Transversal ![0, V] := by
 /-- The last two of three transversal matrices are transversal. -/
 theorem Transversal.tail {W V V' : Mt m} (h : Transversal ![W, V, V']) : Transversal ![V, V'] := by
   obtain ⟨h1, h2⟩ := transversal_three.1 h
-  rw [iSupIndep_three] at h1 h2
-  exact transversal_two.2 ⟨h1.2.1.mono_right le_sup_right, h2.2.1.mono_right le_sup_right⟩
+  rw [iSupIndep_fin_three] at h1 h2
+  exact transversal_two.2 ⟨h1.2.1.mono_right le_sup_left, h2.2.1.mono_right le_sup_left⟩
 
 /-- The matrix p·dg{i}·q is u xᵀ for the column u of p and the row x of q with the index i. -/
 theorem X_singleton (p q : GLM (Fin m)) (i : Fin m) : X p q {i} = vecMulVec ((p : Mt m).col i)
