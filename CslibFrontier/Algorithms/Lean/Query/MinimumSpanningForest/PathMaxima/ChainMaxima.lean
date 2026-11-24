@@ -83,7 +83,7 @@ variable (lab : ℕ → X → γ) (sel : ℕ → γ → Option E)
 /-- `e` is a heaviest edge of the chain of `x` at the levels `i, …, j - 1`, for the weights `w`:
 it is the parent edge of the block of `x` at one of these levels, and no parent edge of a block of
 `x` at these levels is heavier. -/
-def IsChainMax [LE W] (w : E → W) (x : X) (i j : ℕ) (e : E) : Prop :=
+@[expose] def IsChainMax [LE W] (w : E → W) (x : X) (i j : ℕ) (e : E) : Prop :=
   (∃ l, i ≤ l ∧ l < j ∧ sel l (lab l x) = some e) ∧
     ∀ l, i ≤ l → l < j → ∀ e', sel l (lab l x) = some e' → w e' ≤ w e
 
