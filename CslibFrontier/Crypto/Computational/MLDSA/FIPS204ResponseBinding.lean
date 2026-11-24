@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 
 /-!
 # Binding of FIPS 204 signature bytes at a repeated challenge digest
@@ -32,7 +31,7 @@ inductive RepeatedDigestWitness (s : Level) where
   | msis (vector : Fin (s.params.k + s.params.ℓ) → Fin s.params.n → ℤ)
 
 /-- Check a candidate against the shared SHAKE256 digest or the ordinary Hermite MSIS instance. -/
-def RepeatedDigestWitness.Valid {s : Level} (H : Xofs) (A : PublicMatrix s) :
+@[expose] def RepeatedDigestWitness.Valid {s : Level} (H : Xofs) (A : PublicMatrix s) :
     RepeatedDigestWitness s → Prop
   | .collision a b => a ≠ b ∧ H.h256.read a (digestBytes s) = H.h256.read b (digestBytes s)
   | .msis v => ModuleSIS.IsSolution (ModuleSIS.hermiteMatrix A)
@@ -98,8 +97,12 @@ theorem extractRepeatedDigest_of_verify {H : Xofs} {s : Level} {bytes : List Byt
   · refine ⟨.collision u v, parsed.trans (by simp [msgHash, addresses]), addresses, ?_⟩
     exact da.trans (same.trans db.symm)
   have addrEq : u = v := not_ne_iff.mp addresses
-  have reps : μ f = μ g :=
-    (List.append_inj (show μ f ++ _ = μ g ++ _ from addrEq) (by simp [μ])).1
+  have reps : μ f = μ g := by
+    have h := congrArg (List.take 512) addrEq
+    have lf : (μ f).length = 512 := length_messageRepresentative ..
+    have lg : (μ g).length = 512 := length_messageRepresentative ..
+    dsimp only [u, v] at h
+    rwa [← lf, take_commitmentInput, lf, ← lg, take_commitmentInput] at h
   have frameEq : formattedMessage f = formattedMessage g := by
     by_contra diff
     exact msgHash ⟨diff, reps⟩
@@ -113,17 +116,16 @@ theorem extractRepeatedDigest_of_verify {H : Xofs} {s : Level} {bytes : List Byt
   have sameW : x.recover 13 pk = y.recover 13 pk := by
     apply eq_of_commitmentInput_eq (range x) (range y) (μ := μ f)
     simpa only [u, v, ← reps] using addrEq
+  have hpkA : pk.A = A := publicKey_matrix s bytes A
+  rw [RepeatedDigestWitness.Valid, ← hpkA]
   apply isSolution_responseDifference (σ := x) (σ' := y) valid gap 13 pk ?_ rfl sameW za zb
   intro heq
   have hz : a.z = b.z := congrArg CompressedSignature.z heq
   have hh : a.h = b.h := congrArg CompressedSignature.h heq
   have hab : a = b := by cases a; cases b; congr
   have sig := eq_of_sigDecode (hab ▸ ha) hb
-  have lengthOK (e : Forgery) (h : H.verify s bytes e.message e.context e.signature = some true) :
-      e.context.length ≤ 255 := by
-    by_contra guardFail
-    simp [Xofs.verify, Xofs.verifyWithExpansion, guard, guardFail] at h
-  obtain ⟨ctx, msg⟩ := formatMessage_inj (lengthOK f first) (lengthOK g second) frameEq
+  obtain ⟨ctx, msg⟩ := formatMessage_inj (context_length_of_verifyWithExpansion first)
+    (context_length_of_verifyWithExpansion second) frameEq
   exact distinct (by cases f; cases g; congr)
 
 end Cslib.Crypto.MLDSA.FIPS204

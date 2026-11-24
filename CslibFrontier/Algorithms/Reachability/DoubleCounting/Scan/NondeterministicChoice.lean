@@ -286,13 +286,13 @@ abbrev encStep : (State × Option Bool × Bool) ↪ List Bool :=
 theorem init_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
     {dimension : α → ℕ} (hdim : ComputableInSpace dimension encIn encNat budget) :
     ComputableInSpace (fun a => (machine (dimension a)).init) encIn encState budget :=
-  encState_mk_budget ((constZero false).mono_le fun _ => Nat.zero_le _)
-    ((constZero false).mono_le fun _ => Nat.zero_le _) (VertexReader.init_budget hdim)
+  encState_mk_budget (budget_const false)
+    (budget_const false) (VertexReader.init_budget hdim)
 
 /-- The choice phase has no dependency on the original input. -/
 theorem query_inSpace (N : ℕ) :
     ComputableInSpace (machine N).query encState encNat (fun s => (encState s).length) :=
-  budget_const 0 (.refl _)
+  budget_const 0
 
 /-- Update the choice state directly from a selector in linear space. -/
 theorem advance_inSpace :

@@ -105,8 +105,8 @@ example :
   have hw : ComputableInSpace rankWeight (encQuery encCtx) encNat
       (fun q => (encQuery encCtx q).length) :=
     sourceWeight_inSpace encCtx Prod.fst Prod.snd (fun _ => 1) (fun _ _ => false)
-      (fst encNat encNat) (snd encNat encNat) (budget_const 1 (.refl _))
-      (BigOLe.const 1 _) (budget_const false (.refl _))
+      (fst encNat encNat) (snd encNat encNat) (budget_const 1)
+      (BigOLe.const 1 _) (budget_const false)
   have ha := budget_optionGetD false
     (budget_id (enc := encOption encBool) (.refl _))
   have hnext := budget_optionSome (budget_optionGetD false
@@ -114,7 +114,7 @@ example :
   have hhalt := budget_optionIsSome (budget_id (enc := encOption encBool) (.refl _))
   exact (callback_parts_inSpace encCtx (encOption encBool) readFirst
     (fun _ => none) rankWeight (fun t => t.getD false)
-    (budget_const none (.refl _)) hw ha (budget_const 0 (.refl _)) hnext hhalt).2.1
+    (budget_const none) hw ha (budget_const 0) hnext hhalt).2.1
 
 private def inputGraph (w : List Bool) : LayeredDigraph (Fin 2) where
   Adj a b := a = 0 ∧ b = 1 ∧ w[0]?.getD false = true
