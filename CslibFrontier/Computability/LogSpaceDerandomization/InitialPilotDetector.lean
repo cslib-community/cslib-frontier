@@ -81,7 +81,7 @@ theorem environmentDetector_row_moment
   unfold rowNormPow
   congr 1
   rw [← univ_product_univ, expect_product]
-  simp only [Fintype.expect_const]
+  simp only [PilotRowRecipe.sourceCoord, PilotRowRecipe.terminalCoord, Fintype.expect_const]
   apply Fintype.expect_equiv (terminalSplit r.terminal.role).symm
   intro p
   simp [hr.1, stageSource, splitTerminal, terminalSplit, coordinate,

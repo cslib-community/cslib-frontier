@@ -35,6 +35,11 @@ namespace Polynomial
   let N := D + E
   max ((N.size + max b (c + 1)) * N + 1) (c + E * (b + 1))
 
+/-- One dyadic precision for a qualifying test and all derivatives, when both
+input polynomials have degree at most `D` and coefficient norm at most `2 ^ b`. -/
+@[expose] def derivativeRootLabelPrecision (D b : ℕ) : ℕ :=
+  algebraicValuePrecision D D b (iterateDerivativeNormExponent D b)
+
 private theorem coeffNorm1_valueResultant_le_two_pow {p g : Polynomial ℤ} {D E b c : ℕ}
     (hD : p.natDegree ≤ D) (hE : g.natDegree ≤ E)
     (hb : p.coeffNorm1 ≤ 2 ^ b) (hc : g.coeffNorm1 ≤ 2 ^ c) :

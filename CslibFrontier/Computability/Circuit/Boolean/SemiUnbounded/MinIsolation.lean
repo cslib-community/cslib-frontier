@@ -54,6 +54,8 @@ endpoint remain open in #7920.
   proof-tree weight of a satisfied gate.
 * `Cslib.Circuits.Boolean.LayeredSemiUnboundedCircuit.generatedGateWeight`: executable Justesen
   instantiation on `Fin N`.
+* `Cslib.Circuits.Boolean.LayeredSemiUnboundedCircuit.generatedGateWeightBound`: seed-independent
+  upper bound `6 ^ (K + codeLength N 0)` for AND-depth at most `K`.
 
 ## Main results
 
@@ -67,6 +69,8 @@ endpoint remain open in #7920.
   min-isolating seed from minimum within-layer code distance.
 * `Cslib.Circuits.Boolean.LayeredSemiUnboundedCircuit.exists_generatedGateWeight_isMinIsolating`:
   Justesen family existence theorem for every normal-form circuit on `Fin N`.
+* `Cslib.Circuits.Boolean.LayeredSemiUnboundedCircuit.generatedGateWeightBound_le_poly`:
+  uniform polynomial bound on `6 ^ (K + ℓ)` for logarithmic AND-depth `K = O(log N)`.
 * `Cslib.Circuits.Boolean.LayeredSemiUnboundedCircuit.generatedGateWeight_polynomial_of_log_depth`:
   polynomial magnitude bound for logarithmic AND-depth circuits.
 -/
@@ -309,11 +313,53 @@ theorem exists_generatedGateWeight_isMinIsolating {N : ℕ}
       simpa only [Nat.zero_add, Nat.mul_one] using log_le_hammingDist_indexedCodeword (n := 0) hne)
     hsize
 
+/-- Seed-independent upper bound `6 ^ (maxAndLevel + codeLength gateCount 0)` on generated gate
+weights for circuits of size `gateCount` and maximum AND-level `maxAndLevel`. -/
+@[expose] def generatedGateWeightBound (gateCount maxAndLevel : ℕ) : ℕ :=
+  6 ^ (maxAndLevel + codeLength gateCount 0)
+
 /-- Every Justesen-generated gate weight is strictly below `6 ^ (C.andLevel g + codeLength N 0)`. -/
 theorem generatedGateWeight_lt_pow {N : ℕ} (C : LayeredSemiUnboundedCircuit (Fin N))
     (seed : Fin (codeLength N 0) → Bool) (g : Fin N) :
     C.generatedGateWeight seed g < 6 ^ (C.andLevel g + codeLength N 0) :=
   C.seededGateWeight_lt_pow (indexedCodeword (n := 0)) seed g
+
+/-- Every gate at AND-level at most `maxAndLevel` has generated weight strictly below
+`generatedGateWeightBound N maxAndLevel`. -/
+theorem generatedGateWeight_lt_bound {N maxAndLevel : ℕ} (C : LayeredSemiUnboundedCircuit (Fin N))
+    (seed : Fin (codeLength N 0) → Bool) (g : Fin N) (hdepth : C.andLevel g ≤ maxAndLevel) :
+    C.generatedGateWeight seed g < generatedGateWeightBound N maxAndLevel :=
+  (C.generatedGateWeight_lt_pow seed g).trans_le
+    (Nat.pow_le_pow_right (by decide) (Nat.add_le_add_right hdepth _))
+
+/-- For logarithmic AND-depth (`maxAndLevel ≤ c * (Nat.log 2 N + 1)`), one polynomial in `N`
+bounds `generatedGateWeightBound N maxAndLevel = 6 ^ (maxAndLevel + codeLength N 0)` uniformly
+across all circuit sizes `N`. -/
+theorem generatedGateWeightBound_le_poly (c : ℕ) :
+    ∃ D : ℕ, ∀ (N maxAndLevel : ℕ),
+      maxAndLevel ≤ c * (Nat.log 2 N + 1) →
+      generatedGateWeightBound N maxAndLevel ≤ (2 * (N + 1)) ^ D := by
+  refine ⟨3 * (c + 268435456), fun N maxAndLevel hdepth => ?_⟩
+  let L := Nat.log 2 N + 1
+  have hdepth' : maxAndLevel ≤ c * L := hdepth
+  have hlen : codeLength N 0 ≤ 268435456 * L := by
+    have h := (codeLength_bounds N 0).2
+    simpa only [Nat.zero_add, Nat.mul_one] using h
+  have hexp : maxAndLevel + codeLength N 0 ≤ (c + 268435456) * L := by
+    have : (c + 268435456) * L = c * L + 268435456 * L := Nat.add_mul c 268435456 L
+    omega
+  have hpow : 2 ^ L ≤ 2 * (N + 1) := by
+    rw [show L = Nat.log 2 N + 1 from rfl, pow_succ']
+    exact Nat.mul_le_mul_left _ (Nat.pow_log_le_add_one 2 N)
+  calc
+    generatedGateWeightBound N maxAndLevel
+        ≤ 6 ^ ((c + 268435456) * L) := Nat.pow_le_pow_right (by decide) hexp
+    _ ≤ (2 ^ 3) ^ ((c + 268435456) * L) := Nat.pow_le_pow_left (by decide) _
+    _ = (2 ^ L) ^ (3 * (c + 268435456)) := by
+      have hab : 3 * ((c + 268435456) * L) = L * (3 * (c + 268435456)) := by ac_rfl
+      rw [← pow_mul, ← pow_mul, hab]
+    _ ≤ (2 * (N + 1)) ^ (3 * (c + 268435456)) :=
+      Nat.pow_le_pow_left hpow _
 
 /-- For circuits of logarithmic AND-depth (`C.andLevel g ≤ c * (Nat.log 2 N + 1)`), one
 polynomial in `N` bounds every Justesen-generated gate weight uniformly across all circuit sizes
@@ -323,28 +369,9 @@ theorem generatedGateWeight_polynomial_of_log_depth (c : ℕ) :
       (seed : Fin (codeLength N 0) → Bool) (g : Fin N),
       C.andLevel g ≤ c * (Nat.log 2 N + 1) →
       C.generatedGateWeight seed g < (2 * (N + 1)) ^ D := by
-  refine ⟨3 * (c + 268435456), fun N C seed g hdepth => ?_⟩
-  let L := Nat.log 2 N + 1
-  have hdepth' : C.andLevel g ≤ c * L := hdepth
-  have hlen : codeLength N 0 ≤ 268435456 * L := by
-    have h := (codeLength_bounds N 0).2
-    simpa only [Nat.zero_add, Nat.mul_one] using h
-  have hexp : C.andLevel g + codeLength N 0 ≤ (c + 268435456) * L := by
-    have : (c + 268435456) * L = c * L + 268435456 * L := Nat.add_mul c 268435456 L
-    omega
-  have hpow : 2 ^ L ≤ 2 * (N + 1) := by
-    rw [show L = Nat.log 2 N + 1 from rfl, pow_succ']
-    exact Nat.mul_le_mul_left _ (Nat.pow_log_le_add_one 2 N)
-  calc
-    C.generatedGateWeight seed g < 6 ^ (C.andLevel g + codeLength N 0) :=
-      C.generatedGateWeight_lt_pow seed g
-    _ ≤ 6 ^ ((c + 268435456) * L) := Nat.pow_le_pow_right (by decide) hexp
-    _ ≤ (2 ^ 3) ^ ((c + 268435456) * L) := Nat.pow_le_pow_left (by decide) _
-    _ = (2 ^ L) ^ (3 * (c + 268435456)) := by
-      have hab : 3 * ((c + 268435456) * L) = L * (3 * (c + 268435456)) := by ac_rfl
-      rw [← pow_mul, ← pow_mul, hab]
-    _ ≤ (2 * (N + 1)) ^ (3 * (c + 268435456)) :=
-      Nat.pow_le_pow_left hpow _
+  obtain ⟨D, hD⟩ := generatedGateWeightBound_le_poly c
+  exact ⟨D, fun N C seed g hdepth =>
+    (C.generatedGateWeight_lt_bound seed g le_rfl).trans_le (hD N (C.andLevel g) hdepth)⟩
 
 end Justesen
 
