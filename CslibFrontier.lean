@@ -218,6 +218,7 @@ public import CslibFrontier.Algorithms.Lean.Query.Sort.Merge.CountBound
 public import CslibFrontier.Algorithms.Lean.Query.Submodular.Greedy
 public import CslibFrontier.Algorithms.Lean.Query.Submodular.LowerBound
 public import CslibFrontier.Algorithms.Lean.Query.Submodular.MatroidGreedy
+public import CslibFrontier.Algorithms.Lean.Query.Submodular.Queyranne
 public import CslibFrontier.Algorithms.Lean.Query.Submodular.ValueQuery
 public import CslibFrontier.Algorithms.Lean.Query.SumQuery
 public import CslibFrontier.Algorithms.Lean.Scheduling.Brent
@@ -251,6 +252,7 @@ public import CslibFrontier.Algorithms.Lean.StoerWagner.Basic
 public import CslibFrontier.Algorithms.Lean.Submodular.Basic
 public import CslibFrontier.Algorithms.Lean.Submodular.Greedy
 public import CslibFrontier.Algorithms.Lean.Submodular.MatroidGreedy
+public import CslibFrontier.Algorithms.Lean.Submodular.Queyranne
 public import CslibFrontier.Algorithms.Lean.SuffixArray.Basic
 public import CslibFrontier.Algorithms.Lean.SuffixArray.Kasai
 public import CslibFrontier.Algorithms.Lean.SuffixArray.Search
