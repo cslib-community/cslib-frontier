@@ -74,12 +74,13 @@ example : totalInfluence (fun x => signVal (and₂ x)) ≤ 2 := by
   linarith
 
 -- With `J = ∅` the weight outside the subsets of `J` is the variance: every Boolean function is
--- `Var[F]`-close to a constant.
+-- `Var[F] / 2`-close to a constant.
 example (f : (ι → Bool) → Bool) :
     ∃ g : (ι → Bool) → Bool, DependsOn g ((∅ : Finset ι) : Set ι) ∧
-      (hammingDist f g : ℝ) / 2 ^ Fintype.card ι ≤
+      2 * ((hammingDist f g : ℝ) / 2 ^ Fintype.card ι) ≤
         𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2 := by
-  obtain ⟨g, hg, hfg⟩ := exists_dependsOn_hammingDist_div_le_sum_not_subset_fourierCoeff_sq f ∅
+  obtain ⟨g, hg, hfg⟩ :=
+    exists_dependsOn_two_mul_hammingDist_div_le_sum_not_subset_fourierCoeff_sq f ∅
   refine ⟨g, hg, hfg.trans_eq ?_⟩
   rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq]
   simp only [subset_empty]

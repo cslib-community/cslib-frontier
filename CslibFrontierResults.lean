@@ -39,6 +39,7 @@ import CslibFrontierResults.Entries.NCLBandwidth
 import CslibFrontierResults.Entries.NetworkContagion
 import CslibFrontierResults.Entries.NetworkFormation
 import CslibFrontierResults.Entries.ODonnellDNFWidth
+import CslibFrontierResults.Entries.ODonnellFriedgutConcentration
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
 import CslibFrontierResults.Entries.ODonnellLowDegreePart
