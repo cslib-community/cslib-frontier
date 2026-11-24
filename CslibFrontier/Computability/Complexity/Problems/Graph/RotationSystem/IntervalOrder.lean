@@ -428,4 +428,36 @@ theorem rotationDistance_le_iff_portRank_between (a b d : Dart G)
       (r.mem_rotationInterval_iff_portRank a d b had (had.symm.trans hab) had' hdb he)
   omega
 
+/-- The clockwise betweenness of distinct triples starting at a dart fixes its successor.
+This also covers endpoint fibers with fewer than three darts. -/
+theorem rotate_eq_of_same_incident_intervals (s : RotationSystem G) (a : Dart G)
+    (horder : ∀ b c : Dart G, a.vertex = b.vertex → b.vertex = c.vertex →
+      a ≠ b → b ≠ c → a ≠ c → (b ∈ r.rotationInterval a c ↔ b ∈ s.rotationInterval a c)) :
+    r.rotate a = s.rotate a := by
+  classical
+  have fixed (t u : RotationSystem G) (ht : t.rotate a = a) : u.rotate a = a := by
+    have hcycle := (t.sameCycle_iff a (u.rotate a)).mpr (u.vertex_rotate a).symm
+    obtain ⟨n, hn⟩ := hcycle.exists_nat_pow_eq
+    have hpow (k : ℕ) : (t.rotate ^ k) a = a := by
+      induction k with
+      | zero => rfl
+      | succ k ih => rw [pow_succ', Equiv.Perm.mul_apply, ih, ht]
+    exact hn.symm.trans (hpow n)
+  by_cases hr : r.rotate a = a
+  · exact hr.trans (fixed r s hr).symm
+  by_cases hs : s.rotate a = a
+  · exact (fixed s r hs).trans hs.symm
+  by_contra hne
+  have hpos := s.rotationDistance_pos_of_ne a (r.rotate a) (r.vertex_rotate a).symm hr
+  have hm : s.rotate a ∈ s.rotationInterval a (r.rotate a) :=
+    Finset.mem_image.mpr ⟨0, Finset.mem_range.mpr hpos, by simp only [zero_add, pow_one]⟩
+  have h := (horder (s.rotate a) (r.rotate a) (s.vertex_rotate a).symm
+    ((s.vertex_rotate a).trans (r.vertex_rotate a).symm)
+    (Ne.symm hs) (Ne.symm hne) (Ne.symm hr)).mpr hm
+  obtain ⟨k, hk, heq⟩ := Finset.mem_image.mp h
+  have hlt := Finset.mem_range.mp hk
+  rw [r.rotationDistance_rotate_of_ne a a rfl hr, r.rotationDistance_self] at hlt
+  have hk0 : k = 0 := by omega
+  exact hne (by simpa only [hk0, zero_add, pow_one] using heq)
+
 end Cslib.Complexity.Graph.RotationSystem
