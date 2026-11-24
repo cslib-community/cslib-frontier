@@ -96,7 +96,8 @@ register_result "jain-mahdian-cross-monotone-core" where
     scheme ξ places ξ.share univ in the γ-core of G (and in the exact core when γ = 1)."
 
 register_result "moulin-largest-willing-coalition" where
-  title := "Unique largest willing coalition and pruning-order invariance of Moulin's mechanism"
+  title := "Unique largest willing coalition returned by Moulin's mechanism (with derived \
+    pruning-order independence)"
   topic := "algorithmic mechanism design"
   sources := [
     { paper := JainMahdian2007,
@@ -107,10 +108,13 @@ register_result "moulin-largest-willing-coalition" where
     Cslib.GameTheory.CostSharingScheme.isGreatest_isWilling_moulinServiced,
     Cslib.GameTheory.CostSharingScheme.moulinServiced_eq_of_validPruning
   ]
-  scope := "Finite agent type [Fintype A] with arbitrary real bids b : A → ℝ. For any \
-    cross-monotonic scheme ξ, iterative pruning moulinServiced converges in at most |A| rounds \
-    to the unique largest willing coalition {S | ∀ i ∈ S, ξ(S, i) ≤ b_i}, and any asynchronous \
-    valid pruning sequence terminating at a willing coalition reaches the same set."
+  scope := "Finite agent type [Fintype A] with arbitrary real bids b : A → ℝ (extending \
+    Proposition 15.15's b_i ≥ 0 domain). For any cross-monotonic scheme ξ, synchronous iterative \
+    pruning moulinServiced (Figure 15.2) converges in at most |A| rounds to the unique largest \
+    willing coalition {S | ∀ i ∈ S, ξ(S, i) ≤ b_i} (isGreatest_isWilling_moulinServiced, \
+    Proposition 15.15); moulinServiced_eq_of_validPruning is a derived order-independence result \
+    showing that any finite path of valid partial deletions (ValidPruningStep) from univ \
+    terminating at a willing coalition reaches the same set."
 
 register_result "moulin-group-strategyproof-mechanism" where
   title := "Moulin's iterative-pruning mechanism is group-strategyproof and budget-balanced"
@@ -144,7 +148,8 @@ register_result "jain-mahdian-submodular-tight-union" where
   ]
   scope := "For any submodular cost-sharing game (bridged to \
     Cslib.Algorithms.Lean.Submodular.IsSubmodular) and allocation α core-feasible on T, if \
-    S₁, S₂ ⊆ T are tight then S₁ ∪ S₂ (and S₁ ∩ S₂) are tight."
+    S₁, S₂ ⊆ T are tight then S₁ ∪ S₂ is tight (IsTight.union, Lemma 15.18); closure under \
+    intersection S₁ ∩ S₂ (IsTight.inter) is proved alongside it as a derived companion."
 
 register_result "jain-mahdian-submodular-maximal-tight" where
   title := "Unique maximal tight subset in submodular cost-sharing games"
@@ -184,14 +189,18 @@ register_result "shapley-value-permutation-average" where
   sources := [
     { paper := TardosVazirani2007,
       theorem := "Example 1.14",
-      locator := "Section 1.7.2, p. 22" }
+      locator := "Section 1.7.2, p. 22" },
+    { paper := JainMahdian2007,
+      theorem := unverified,
+      locator := "Section 15.6.1, p. 403" }
   ]
   theorems := [
     Cslib.GameTheory.shapleyValue_eq_permShapleyValue
   ]
   scope := "Finite agent type [Fintype A] [DecidableEq A]. Equates the subset-size factorial \
-    weight formula for shapleyValue with permShapleyValue, the uniform average of marginal costs \
-    over all |A|! agent orderings."
+    weight formula for shapleyValue (Jain–Mahdian Section 15.6.1, p. 403, obtained there by \
+    counting predecessor sets in a random ordering) with permShapleyValue, the uniform average of \
+    marginal costs over all |A|! agent orderings (Tardos–Vazirani Example 1.14, p. 22)."
 
 register_result "jain-mahdian-shapley-outside-core" where
   title := "Shapley value outside a nonempty facility-location core"
@@ -199,14 +208,17 @@ register_result "jain-mahdian-shapley-outside-core" where
   sources := [
     { paper := JainMahdian2007,
       theorem := "Example 15.24",
-      locator := "Section 15.6.1, p. 403" }
+      locator := "Section 15.6.1, p. 403; Example 15.4 in Section 15.2, pp. 387–388" }
   ]
   theorems := [
+    Cslib.GameTheory.example15_24_nonemptyCore,
     Cslib.GameTheory.example15_24_not_inCore
   ]
-  scope := "On the 3-agent metric facility-location game example15_2 (whose core is nonempty), \
-    the Shapley value evaluates to (23/6, 11/6, 7/3) and violates the {b, c} core inequality \
-    25/6 > 4."
+  scope := "On the 3-agent metric facility-location game example15_2, the core is nonempty — \
+    witnessed by ![4, 2, 2] via FacilityLocationInstance.example15_2_inCore_four_two_two \
+    (Example 15.4, pp. 387–388; packaged as example15_24_nonemptyCore) — whereas the Shapley \
+    value evaluates to (23/6, 11/6, 7/3) and violates the {b, c} core inequality 25/6 > 4 \
+    (example15_24_not_inCore, Example 15.24, p. 403)."
 
 register_result "shapley-value-uniqueness" where
   title := "Shapley's axiomatic uniqueness theorem"
@@ -233,14 +245,15 @@ register_result "jain-mahdian-submodular-shapley-cross-monotone" where
   sources := [
     { paper := JainMahdian2007,
       theorem := "Exercise 15.2",
-      locator := "Exercises, p. 410" }
+      locator := "Exercises, p. 410; Section 15.6.1, p. 403" }
   ]
   theorems := [
     Cslib.GameTheory.CostSharingGame.IsSubmodular.shapleyScheme_isCrossMonotone,
     Cslib.GameTheory.CostSharingGame.IsSubmodular.shapleyValue_inCore
   ]
   scope := "For any submodular cost-sharing game G, the coalition-restricted Shapley scheme \
-    G.shapleyScheme is cross-monotone and shapleyValue G lies in the core of G."
+    G.shapleyScheme is cross-monotone (Exercise 15.2, p. 410) and shapleyValue G lies in the \
+    core of G (Section 15.6.1, p. 403, derived via Proposition 15.14)."
 
 register_result "nash-bargaining-uniqueness" where
   title := "Nash's two-player axiomatic bargaining theorem"
