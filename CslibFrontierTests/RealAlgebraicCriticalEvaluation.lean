@@ -270,6 +270,19 @@ example : criticalCoordinateCoefficientValue 11 1 1 1 0 2 (fun z => z[0]?.getD 0
         rw [Polynomial.coeff_natDegree, (Matrix.charpoly_monic A).leadingCoeff, ZMod.val_one]
   exact hleading _
 
+example : (fun q : ℕ × ℕ => zeroObjectiveCoefficientValue 19 1 1 q.1 q.2 (fun _ => 0)) ∈
+    CountingFunction 9 (encPair encNat encNat) encNat := by
+  exact zeroObjectiveCoefficientValue_mem (a := 0) (Decoder.pair Decoder.nat Decoder.nat)
+    (.const 19) (.const 1) (.const 1) (by fun_prop) (by fun_prop)
+    (CountingFunction.of_polyTime (.const 0))
+
+-- With no variables and zero input, the quotient has rank one and the multiplier is zero.
+example : zeroObjectiveCoefficientValue 11 0 1 0 0 (fun _ => 0) = 0 := by
+  let : Fact (Nat.Prime 11) := ⟨by decide⟩
+  rw [zeroObjectiveCoefficientValue_eq 1 (by decide) 0 0 (0 : MvPolynomial (Fin 0) (ZMod 11))
+    (by simp) (by decide) (by decide) (fun _ => 0) (by simp)]
+  simp [deformedPolynomial, potentialPolynomial, Matrix.charpoly_zero]
+
 -- At u = 1, the equation for F = X is X² + 1 = 0. The value t = 5 is a root mod 13.
 example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0) :
     ZMod 13) = 0 := by
