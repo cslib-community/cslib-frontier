@@ -21,9 +21,8 @@ import CslibFrontier.Probability.PMF.Bind
 # Strict-PPT closure of UC linking and adversary absorption
 
 Library infrastructure toward #6043 (no cited result): proves that linking a strict-PPT UC
-environment with a strict-PPT machine family (and absorbing a strict-PPT adversary into a
-strict-PPT environment) preserves `Environment.IsPPT`, under a polynomial reply-length bound
-(`Machine.IsReplyBounded`) on the machine family.
+environment with a strict-PPT machine family preserves `Environment.IsPPT`, under a polynomial
+reply-length bound (`Machine.IsReplyBounded`) on the machine family.
 
 ## Modelling decisions and restrictions
 
@@ -61,8 +60,6 @@ strict-PPT environment) preserves `Environment.IsPPT`, under a polynomial reply-
   program over the machine's lowered imported interface.
 * `Cslib.Crypto.Protocols.UC.Environment.IsPPT.link`: linking a strict-PPT environment with a
   reply-bounded strict-PPT machine family preserves `Environment.IsPPT`.
-* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.absorbAdversary`: absorbing a reply-bounded
-  strict-PPT adversary into a strict-PPT environment preserves `Environment.IsPPT`.
 -/
 
 public section
@@ -632,20 +629,5 @@ theorem Environment.IsPPT.link
     (C : Finset (Fin n)) :
     Environment.IsPPT (fun κ z => (M κ C).link (Z κ z)) party' adv' :=
   hZ.isOraclePPTOn_lowerWith_link hM hMR C
-
-/-- Library infrastructure (no cited result), toward #6043 (not Proposition 7 of [Canetti2020]):
-running a reply-bounded strict-PPT adversary inside a strict-PPT environment preserves strict
-PPT. -/
-theorem Environment.IsPPT.absorbAdversary
-    {n : ℕ} {In Out NetQ NetR AdvQ AdvR : Type}
-    {Z : Environment n In Out AdvQ AdvR}
-    {A : Adversary n AdvQ AdvR NetQ NetR}
-    {party : WordPort (Fin n × In) (Option Out)}
-    {net : WordPort NetQ NetR} {adv : WordPort AdvQ AdvR}
-    (hZ : Z.IsPPT party adv) (hA : A.IsPPT net adv)
-    (hAR : Machine.IsReplyBounded A (WordInterface.net net) (WordInterface.net adv))
-    (C : Finset (Fin n)) :
-    (absorbAdversary C A Z).IsPPT party net :=
-  hZ.link (hA.liftAdversary (party := party)) (hAR.liftRight (iL := WordInterface.net party)) C
 
 end Cslib.Crypto.Protocols.UC
