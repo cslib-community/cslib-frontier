@@ -8,8 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.BitString.Basic
-import Mathlib.Data.List.GetD
-import Mathlib.Tactic.Linarith
+public import CslibFrontier.Foundations.Data.BitString.Pad10Star
 
 /-!
 # The sponge construction
@@ -46,8 +45,8 @@ security; we use this to solve [KatzLindell2020], Exercise 7.26.
 
 * `Cslib.Crypto.Sponge.absorb`, `Cslib.Crypto.Sponge.squeeze`,
   `Cslib.Crypto.Sponge.hashBlocks`: the absorbing and squeezing phases on block sequences.
-* `Cslib.Crypto.Sponge.pad`, `Cslib.Crypto.Sponge.toBlocks`, `Cslib.Crypto.Sponge.hash`:
-  padding `m ↦ m ‖ 1 ‖ 0^*`, parsing into `r`-bit blocks, and the hash of Construction 7.6.
+* `Cslib.Crypto.Sponge.hash`: the hash of Construction 7.6, on the padding `m ↦ m ‖ 1 ‖ 0^*`
+  (`Cslib.BitString.pad10star`) parsed into `r`-bit blocks (`Cslib.BitString.toBlocks`).
 * `Cslib.Crypto.Sponge.IsInput`: the permutation inputs evaluated while absorbing.
 * `Cslib.Crypto.Sponge.ImageCollision`, `Cslib.Crypto.Sponge.ZeroCapacity`: the bad events of
   Claim 7.8 on a set of evaluated permutation inputs.
@@ -63,8 +62,6 @@ security; we use this to solve [KatzLindell2020], Exercise 7.26.
   full-block messages extends to a hash collision.
 * `Cslib.Crypto.Sponge.hash_prodCongr_collision`: a permutation that acts separately on the rate
   and capacity parts gives an explicit collision ([KatzLindell2020], Exercise 7.26).
-* `Cslib.Crypto.Sponge.pad_injective`, `Cslib.Crypto.Sponge.toBlocks_pad_injective`: distinct
-  messages have distinct padded block sequences.
 
 ## References
 
@@ -257,166 +254,22 @@ theorem absorb_eq_of_capacity_eq (P : R × C → R × C) {a a' : List R}
 
 end Blocks
 
-/-! ### Padding and parsing -/
-
-/-- Padding of Construction 7.6: append a `1` and then the fewest zeros making the length a
-multiple of `r`. -/
-@[expose]
-def pad (r : ℕ) (msg : List Bool) : List Bool :=
-  msg ++ true :: List.replicate ((r - (msg.length + 1) % r) % r) false
-
-/-- Parse a bit string into its consecutive `r`-bit blocks, dropping any incomplete final
-block. -/
-@[expose]
-def toBlocks (r : ℕ) (l : List Bool) : List (BitString r) :=
-  (List.range (l.length / r)).map fun b i => l.getD (b * r + i) false
-
-private theorem replicate_false_append_true_inj :
-    ∀ (k k' : ℕ) (a b : List Bool),
-      List.replicate k false ++ true :: a = List.replicate k' false ++ true :: b → a = b
-  | 0, 0, a, b, h => by simpa using h
-  | k + 1, 0, a, b, h => by simp [List.replicate_succ] at h
-  | 0, k' + 1, a, b, h => by simp [List.replicate_succ] at h
-  | k + 1, k' + 1, a, b, h => by
-    simp only [List.replicate_succ, List.cons_append, List.cons.injEq, true_and] at h
-    exact replicate_false_append_true_inj k k' a b h
-
-/-- Padding is injective: distinct messages have distinct padded strings. -/
-theorem pad_injective (r : ℕ) : Function.Injective (pad r) := by
-  intro a b h
-  have h' := congrArg List.reverse h
-  simp only [pad, List.reverse_append, List.reverse_cons, List.reverse_replicate,
-    List.append_assoc, List.singleton_append] at h'
-  simpa using congrArg List.reverse (replicate_false_append_true_inj _ _ _ _ h')
-
-theorem dvd_length_pad {r : ℕ} (hr : 0 < r) (msg : List Bool) : r ∣ (pad r msg).length := by
-  have h1 := Nat.mod_lt (msg.length + 1) hr
-  have hlen : (pad r msg).length = (msg.length + 1) + (r - (msg.length + 1) % r) % r := by
-    simp only [pad, List.length_append, List.length_cons, List.length_replicate]
-    omega
-  rw [hlen, Nat.dvd_iff_mod_eq_zero]
-  rcases Nat.eq_zero_or_pos ((msg.length + 1) % r) with h | h
-  · rw [h, Nat.sub_zero, Nat.mod_self, Nat.add_zero, h]
-  · rw [Nat.mod_eq_of_lt (by omega : r - (msg.length + 1) % r < r), Nat.add_mod,
-      Nat.mod_eq_of_lt (by omega : r - (msg.length + 1) % r < r), Nat.add_sub_cancel' h1.le,
-      Nat.mod_self]
-
-/-- Padding adds at most one block: a `1` and fewer than `r` zeros. -/
-theorem length_pad_le {r : ℕ} (hr : 0 < r) (msg : List Bool) :
-    (pad r msg).length ≤ msg.length + r := by
-  have := Nat.mod_lt (r - (msg.length + 1) % r) hr
-  simp only [pad, List.length_append, List.length_cons, List.length_replicate]
-  omega
-
-/-- On a message whose length is a multiple of `r`, padding appends one full block
-`1 ‖ 0^(r - 1)`. -/
-theorem pad_of_dvd {r : ℕ} (hr : 0 < r) {msg : List Bool} (h : r ∣ msg.length) :
-    pad r msg = msg ++ true :: List.replicate (r - 1) false := by
-  obtain ⟨k, hk⟩ := h
-  have : (r - (msg.length + 1) % r) % r = r - 1 := by
-    rw [hk, Nat.add_mod, Nat.mul_mod_right, Nat.zero_add, Nat.mod_mod]
-    rcases Nat.lt_or_ge 1 r with h1 | h1
-    · rw [Nat.mod_eq_of_lt h1, Nat.mod_eq_of_lt (by omega)]
-    · obtain rfl : r = 1 := by omega
-      rfl
-  simp only [pad, this]
-
-@[simp]
-theorem length_toBlocks (r : ℕ) (l : List Bool) : (toBlocks r l).length = l.length / r := by
-  simp [toBlocks]
-
-theorem getElem?_toBlocks (r : ℕ) (l : List Bool) (b : ℕ) :
-    (toBlocks r l)[b]? =
-      if b < l.length / r then some (fun i : Fin r => l.getD (b * r + i) false) else none := by
-  by_cases hb : b < l.length / r <;> simp [toBlocks, hb]
-
-private theorem getD_eq_of_toBlocks_eq {r : ℕ} (hr : 0 < r) {l l' : List Bool}
-    (h : toBlocks r l = toBlocks r l') {n : ℕ} (hn : n / r < l.length / r) :
-    l.getD n false = l'.getD n false := by
-  have hn' : n / r < l'.length / r := by
-    have := congrArg List.length h
-    simp only [length_toBlocks] at this
-    rwa [← this]
-  have e := congrArg (fun L => (L[n / r]?).map (· ⟨n % r, Nat.mod_lt n hr⟩)) h
-  simp only [getElem?_toBlocks, hn, hn', ↓reduceIte, Option.map_some, Option.some.injEq] at e
-  rwa [Nat.div_add_mod'] at e
-
-/-- Parsing is injective on strings whose lengths are multiples of `r`. -/
-theorem toBlocks_injOn {r : ℕ} (hr : 0 < r) {l l' : List Bool} (hl : r ∣ l.length)
-    (hl' : r ∣ l'.length) (h : toBlocks r l = toBlocks r l') : l = l' := by
-  have hlen : l.length = l'.length := by
-    have := congrArg List.length h
-    simp only [length_toBlocks] at this
-    rw [← Nat.div_mul_cancel hl, ← Nat.div_mul_cancel hl', this]
-  refine List.ext_getElem hlen fun n hn hn' => ?_
-  have hd : n / r < l.length / r := by
-    rw [Nat.div_lt_iff_lt_mul hr, Nat.div_mul_cancel hl]
-    exact hn
-  have := getD_eq_of_toBlocks_eq hr h hd
-  rwa [List.getD_eq_getElem _ _ hn, List.getD_eq_getElem _ _ hn'] at this
-
-/-- Distinct messages have distinct padded block sequences. -/
-theorem toBlocks_pad_injective {r : ℕ} (hr : 0 < r) :
-    Function.Injective fun msg => toBlocks r (pad r msg) := fun _ _ h =>
-  pad_injective r (toBlocks_injOn hr (dvd_length_pad hr _) (dvd_length_pad hr _) h)
-
-theorem toBlocks_pad_ne_nil {r : ℕ} (hr : 0 < r) (msg : List Bool) :
-    toBlocks r (pad r msg) ≠ [] := by
-  have hpos : 0 < (pad r msg).length := by simp [pad]
-  refine List.ne_nil_of_length_pos ?_
-  rw [length_toBlocks]
-  exact Nat.div_pos (Nat.le_of_dvd hpos (dvd_length_pad hr msg)) hr
-
-theorem toBlocks_append {r : ℕ} (hr : 0 < r) {a : List Bool} (ha : r ∣ a.length)
-    (b : List Bool) : toBlocks r (a ++ b) = toBlocks r a ++ toBlocks r b := by
-  obtain ⟨k, hk⟩ := ha
-  have hka : (toBlocks r a).length = k := by
-    rw [length_toBlocks, hk, Nat.mul_div_cancel_left _ hr]
-  refine List.ext_getElem? fun j => ?_
-  rcases Nat.lt_or_ge j k with hj | hj
-  · rw [List.getElem?_append_left (by rw [hka]; exact hj), getElem?_toBlocks, getElem?_toBlocks,
-      List.length_append, hk, Nat.mul_add_div hr, Nat.mul_div_cancel_left _ hr]
-    simp only [Nat.lt_add_right _ hj, hj, ↓reduceIte, Option.some.injEq]
-    funext i
-    exact List.getD_append _ _ _ _ (by
-      rw [hk]; nlinarith [i.isLt, Nat.mul_le_mul_right r (show j + 1 ≤ k from hj)])
-  · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hj
-    rw [List.getElem?_append_right (by rw [hka]; exact hj), hka, Nat.add_sub_cancel_left,
-      getElem?_toBlocks, getElem?_toBlocks, List.length_append, hk, Nat.mul_add_div hr]
-    simp only [Nat.add_lt_add_iff_left]
-    split_ifs
-    · congr 1 with i : 1
-      rw [List.getD_append_right a b false ((k + d) * r + i) (by rw [hk]; nlinarith), hk,
-        show (k + d) * r + i - r * k = d * r + i by
-          rw [add_mul, mul_comm k r, Nat.add_assoc, Nat.add_sub_cancel_left]]
-    · rfl
-
-@[simp]
-theorem toBlocks_ofFn {r : ℕ} (hr : 0 < r) (m : BitString r) :
-    toBlocks r (List.ofFn m) = [m] := by
-  refine List.ext_getElem? fun j => ?_
-  rw [getElem?_toBlocks, List.length_ofFn, Nat.div_self hr]
-  rcases j with _ | j
-  · simp only [Nat.zero_lt_one, ↓reduceIte, zero_mul, zero_add, List.getElem?_cons_zero,
-      Option.some.injEq]
-    funext i
-    rw [List.getD_eq_getElem _ _ (by simp), List.getElem_ofFn]
-  · simp
-
 /-! ### The sponge hash on messages -/
 
 section Messages
 
+open BitString
+
 variable {r c : ℕ} {O : Type*}
 
-/-- The sponge hash of Construction 7.6 with `k` squeezing outputs: pad the message, parse it
-into `r`-bit blocks and run `hashBlocks`. The output is the list `[h₁, …, h_k]`; with
-`out` the first `v` bits of the state, its flattening is `h₁ ‖ ⋯ ‖ h_k`. -/
+/-- The sponge hash of Construction 7.6 with `k` squeezing outputs: pad the message with
+`pad10star`, parse it into `r`-bit blocks and run `hashBlocks`. The output is the list
+`[h₁, …, h_k]`; with `out` the first `v` bits of the state, its flattening is `h₁ ‖ ⋯ ‖ h_k`. -/
 @[expose]
 def hash (P : BitString r × BitString c → BitString r × BitString c)
     (out : BitString r × BitString c → O)
     (k : ℕ) (msg : List Bool) : List O :=
-  hashBlocks P out k (toBlocks r (pad r msg))
+  hashBlocks P out k (toBlocks r (pad10star r msg))
 
 /-- **Claim 7.8 for forward queries, on messages**: a collision between distinct messages
 triggers event E1, E2 or E3 among the permutation inputs evaluated while absorbing their padded
@@ -425,27 +278,15 @@ theorem badEvent_of_hash_eq (hr : 0 < r)
     (P : BitString r × BitString c → BitString r × BitString c)
     (out : BitString r × BitString c → O) (k : ℕ) {msg msg' : List Bool} (hne : msg ≠ msg')
     (h : hash P out (k + 1) msg = hash P out (k + 1) msg') :
-    ImageCollision P out (fun x => IsInput P (toBlocks r (pad r msg)) x ∨
-        IsInput P (toBlocks r (pad r msg')) x) ∨
-      ZeroCapacity P (fun x => IsInput P (toBlocks r (pad r msg)) x ∨
-        IsInput P (toBlocks r (pad r msg')) x) ∨
-      ImageCollision P Prod.snd (fun x => IsInput P (toBlocks r (pad r msg)) x ∨
-        IsInput P (toBlocks r (pad r msg')) x) := by
-  refine badEvent_of_out_eq P out (toBlocks_pad_ne_nil hr msg) (toBlocks_pad_ne_nil hr msg')
-    ((toBlocks_pad_injective hr).ne hne) ?_
+    ImageCollision P out (fun x => IsInput P (toBlocks r (pad10star r msg)) x ∨
+        IsInput P (toBlocks r (pad10star r msg')) x) ∨
+      ZeroCapacity P (fun x => IsInput P (toBlocks r (pad10star r msg)) x ∨
+        IsInput P (toBlocks r (pad10star r msg')) x) ∨
+      ImageCollision P Prod.snd (fun x => IsInput P (toBlocks r (pad10star r msg)) x ∨
+        IsInput P (toBlocks r (pad10star r msg')) x) := by
+  refine badEvent_of_out_eq P out (toBlocks_pad10star_ne_nil hr msg)
+    (toBlocks_pad10star_ne_nil hr msg') ((toBlocks_pad10star_injective hr).ne hne) ?_
   simpa [hash, hashBlocks_succ] using congrArg List.head? h
-
-/-- Hashing a full-block message `u` followed by one more block `m` absorbs `u`'s blocks, then
-`m`, then the padding block. -/
-theorem toBlocks_pad_append_ofFn (hr : 0 < r) {u : List Bool} (hu : r ∣ u.length)
-    (m : BitString r) :
-    toBlocks r (pad r (u ++ List.ofFn m)) =
-      toBlocks r u ++ m :: toBlocks r (true :: List.replicate (r - 1) false) := by
-  have hum : r ∣ (u ++ List.ofFn m).length := by
-    simpa using Nat.dvd_add hu (dvd_refl r)
-  rw [pad_of_dvd hr hum, List.append_assoc, toBlocks_append hr hu,
-    toBlocks_append hr (a := List.ofFn m) (by simp), toBlocks_ofFn hr]
-  rfl
 
 /-- **Generic capacity-collision attack**: if distinct full-block messages `u ≠ u'` of equal
 length reach states with equal capacity part, then extending them by one block each (`m`, and the
@@ -463,8 +304,8 @@ theorem hash_eq_of_capacity_eq (hr : 0 < r)
           List.ofFn (-(absorb P (toBlocks r u')).1 + ((absorb P (toBlocks r u)).1 + m))) := by
   have hu' : r ∣ u'.length := hlen ▸ hu
   refine ⟨fun heq => hne (List.append_inj heq hlen).1, ?_⟩
-  simp only [hash, hashBlocks, toBlocks_pad_append_ofFn hr hu, toBlocks_pad_append_ofFn hr hu',
-    absorb_eq_of_capacity_eq P h]
+  simp only [hash, hashBlocks, toBlocks_pad10star_append_ofFn hr hu,
+    toBlocks_pad10star_append_ofFn hr hu', absorb_eq_of_capacity_eq P h]
 
 /-- **Exercise 7.26** ([KatzLindell2020], Section 7.3.3): if the permutation acts separately on
 the rate and capacity parts, `P = S × T`, the capacity part after absorbing never depends on the

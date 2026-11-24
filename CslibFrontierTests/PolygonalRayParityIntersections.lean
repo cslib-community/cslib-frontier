@@ -834,4 +834,108 @@ example :
       rw [hi] at h <;> have him := congrArg Complex.im h <;>
       norm_num [AffineMap.lineMap_apply_module'] at him
 
+-- Each family repeats a nonhorizontal segment twice. The two supports cross at zero.
+open Classical in
+example :
+    let a : ℂ := Complex.I
+    let b : ℂ := ⟨1, 1⟩
+    let crosses := (openSegment ℝ (-a) a ∩ openSegment ℝ (-b) b).Nonempty
+    crosses ∧ (∑ _ : Bool, true * ∑ _ : Bool, true * decide crosses) = (0 : Bool) := by
+  intro a b crosses
+  have hm (z : ℂ) : (0 : ℂ) ∈ openSegment ℝ (-z) z := by
+    simpa only [midpoint_neg_self] using midpoint_mem_openSegment (𝕜 := ℝ) (-z) z
+  refine ⟨⟨0, hm a, hm b⟩, ?_⟩
+  have vertical {z : ℂ} (hz : z ∈ segment ℝ (-a) a) : z.re = 0 := by
+    rw [segment_eq_image_lineMap] at hz
+    obtain ⟨s, _, rfl⟩ := hz
+    simp [a, AffineMap.lineMap_apply_module']
+  have diagonal {z : ℂ} (hz : z ∈ segment ℝ (-b) b) : z.re = z.im := by
+    rw [segment_eq_image_lineMap] at hz
+    obtain ⟨s, _, rfl⟩ := hz
+    simp [b, AffineMap.lineMap_apply_module']
+  apply sum_openIntersections_eq_zero_of_even
+    (fun _ : Bool => -a) (fun _ => a) (fun _ : Bool => -b) (fun _ => b)
+    (fun _ => true) (fun _ => true)
+  · intro i
+    norm_num [a]
+  · intro j
+    norm_num [b]
+  · intro i j _ _
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · intro h
+      have hh := diagonal h
+      norm_num [a] at hh
+    · intro h
+      have hh := diagonal h
+      norm_num [a] at hh
+    · intro h
+      have hh := vertical h
+      norm_num [b] at hh
+    · intro h
+      have hh := vertical h
+      norm_num [b] at hh
+  · intro p
+    simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
+  · intro p
+    simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
+
+-- Two open routes cross once. Repeating each balances the endpoints of its family.
+open Classical in
+example :
+    let p := Route.line (-1) 1
+    let q := Route.line (-Complex.I) Complex.I
+    p.start ≠ p.finish ∧ q.start ≠ q.finish ∧ p.intersectionParity q = true ∧
+      (∑ _ : Bool, true * ∑ _ : Bool, true * p.intersectionParity q) = false := by
+  intro p q
+  have hpn : (-1 : ℂ) ≠ 1 := by norm_num [Complex.ext_iff]
+  have hqn : -Complex.I ≠ Complex.I := by norm_num [Complex.ext_iff]
+  have hm (a : ℂ) : (0 : ℂ) ∈ openSegment ℝ (-a) a := by
+    simpa only [midpoint_neg_self] using midpoint_mem_openSegment (𝕜 := ℝ) (-a) a
+  refine ⟨hpn, hqn, ?_, ?_⟩
+  · change (Route.line (-1) 1).intersectionParity (Route.line (-Complex.I) Complex.I) = true
+    rw [Route.intersectionParity_line_line]
+    exact decide_eq_true ⟨0, hm 1, hm Complex.I⟩
+  have hre {z : ℂ} (hz : z ∈ q.support) : z.re = 0 := by
+    change z ∈ (Route.line (-Complex.I) Complex.I).support at hz
+    rw [Route.support_line, segment_eq_image_lineMap] at hz
+    obtain ⟨t, _, rfl⟩ := hz
+    simp [AffineMap.lineMap_apply_module']
+  have him {z : ℂ} (hz : z ∈ p.support) : z.im = 0 := by
+    change z ∈ (Route.line (-1) 1).support at hz
+    rw [Route.support_line, segment_eq_image_lineMap] at hz
+    obtain ⟨t, _, rfl⟩ := hz
+    simp [AffineMap.lineMap_apply_module']
+  apply Route.sum_intersectionParity_eq_false_of_even (fun _ : Bool => p) (fun _ : Bool => q)
+    (fun _ => true) (fun _ => true)
+  · intro _ i
+    change Fin 1 at i
+    have hi : i = 0 := Subsingleton.elim _ _
+    subst i
+    exact hpn
+  · intro _ j
+    change Fin 1 at j
+    have hj : j = 0 := Subsingleton.elim _ _
+    subst j
+    exact hqn
+  · intro _ _ _ _ k hz
+    have h := hre hz
+    change Fin 2 at k
+    fin_cases k
+    · change (-1 : ℂ).re = 0 at h
+      norm_num at h
+    · change (1 : ℂ).re = 0 at h
+      norm_num at h
+  · intro _ _ _ _ k hz
+    have h := him hz
+    change Fin 2 at k
+    fin_cases k
+    · change (-Complex.I).im = 0 at h
+      norm_num at h
+    · change Complex.I.im = 0 at h
+      norm_num at h
+  · intro z
+    simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
+  · intro z
+    simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
+
 end CslibFrontierTests.PolygonalRayParityIntersections

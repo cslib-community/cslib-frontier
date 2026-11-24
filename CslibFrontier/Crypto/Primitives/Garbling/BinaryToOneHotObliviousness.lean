@@ -14,6 +14,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Tactic.Abel
 
 /-!
@@ -317,12 +318,9 @@ theorem realGame_reduction [Module (ZMod 2) L] [Fintype Key] [Nonempty Key] (H :
     eval_run_reduction]
   congr 1 with k : 1
   -- The input labels are the zero-labels shifted by the offsets of the bits of `x`.
-  let e : (Fin (n + 1) → L) ≃ (Fin (n + 1) → L) :=
-    Equiv.addRight fun t => bitOffset (δ k) (x t)
-  conv_lhs => rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv e, PMF.bind_map]
-  congr 1 with X : 1
-  have hX : e X = fun t => X t + bitOffset (δ k) (x t) := rfl
-  simp only [Function.comp_apply, hX, CCR.keyed, runSteps_oracle]
+  symm
+  relabel_uniform (Equiv.addRight fun t => bitOffset (δ k) (x t)) with X
+  simp only [Equiv.coe_addRight, Pi.add_def, CCR.keyed, runSteps_oracle]
 
 /-- Against the fresh uniform oracle, the ciphertexts produced by `oracleSteps` are uniform on
 `Fin n → L`. -/
@@ -348,23 +346,17 @@ private theorem eval_run_oracleSteps_bind_fst {β : Type} (H : L → T → L)
             fun _ => ProbComp.uniform L)).bind fun prev =>
               (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc prev.1 c) := by
           refine congrArg _ (funext fun prev => ?_)
-          let s := A (Fin.last (n + 1)) +
-            ∑ j ∈ Finset.univ.erase (Fin.init x), H (prev.2 j) (tw n j)
-          conv_rhs =>
-            rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv (Equiv.addLeft s),
-              PMF.bind_map]
-          refine congrArg _ (funext fun r => congrArg (fun c => g (Fin.snoc prev.1 c)) ?_)
-          simp only [Equiv.coe_addLeft, s]
+          relabel_uniform (Equiv.addLeft (A (Fin.last (n + 1)) +
+            ∑ j ∈ Finset.univ.erase (Fin.init x), H (prev.2 j) (tw n j))) with r
+          congr 2
+          simp only [Equiv.coe_addLeft]
           abel
       _ = (PMF.uniformOfFintype (Fin n → L)).bind fun ct =>
             (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c) :=
           ih (Fin.init x) (Fin.init A) fun ct =>
             (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c)
       _ = (PMF.uniformOfFintype (Fin (n + 1) → L)).bind g := by
-          let e : (Fin n → L) × L ≃ (Fin (n + 1) → L) × Unit :=
-            ((Equiv.prodComm _ _).trans (Fin.snocEquiv fun _ => L)).trans
-              (Equiv.prodPUnit _).symm
-          exact Cslib.Probability.PMF.uniformOfFintype_bind_bind_fst_equiv e g
+          relabel_uniform ((Equiv.prodComm (Fin n → L) L).trans (Fin.snocEquiv fun _ => L))
 
 variable [DecidableEq L] [Fintype T] [DecidableEq T]
 

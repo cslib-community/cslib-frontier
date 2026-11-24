@@ -11,10 +11,7 @@ public import CslibFrontier.Algorithms.Lean.Assignment.Basic
 public import Mathlib.Algebra.Order.Group.Int
 public import Mathlib.Data.List.MinMax
 import CslibFrontier.Foundations.Data.List.ArgMin
-import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.BigOperators.Ring.Finset
-import Mathlib.Algebra.Order.Group.Unbundled.Abs
-import Mathlib.Data.Fintype.Card
 import Mathlib.Tactic.Linarith
 
 /-!

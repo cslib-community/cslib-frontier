@@ -40,8 +40,8 @@ open scoped BigOperators
 are the least residues of powers of `t` modulo `μ`. -/
 @[expose] noncomputable def fingerprintIntegerRootLabel (p q : ℤ[X]) (D b μ t : ℕ)
     (target : ℤ) : ℤ[X] :=
-  let B := algebraicValuePrecision D D b (iterateDerivativeNormExponent D b)
-  fingerprintLabelPolynomial B (D * μ) (fingerprintRootLabelTests p q D)
+  fingerprintLabelPolynomial (derivativeRootLabelPrecision D b) (D * μ)
+    (fingerprintRootLabelTests p q D)
     (fun i => t ^ i.val % μ) target
 
 private theorem sum_fingerprint_weights_le (D μ t : ℕ) (hμ : 0 < μ) :
@@ -65,7 +65,7 @@ theorem fingerprintIntegerRootLabel_bounds {D b μ : ℕ} {p q : ℤ[X]} (t : �
     (hμ : 0 < μ) (hpD : p.natDegree ≤ D) (hqD : q.natDegree ≤ D)
     (hpb : p.coeffNorm1 ≤ 2 ^ b) (hqb : q.coeffNorm1 ≤ 2 ^ b)
     (ht : target.natAbs ≤ D * μ) :
-    let B := algebraicValuePrecision D D b (iterateDerivativeNormExponent D b)
+    let B := derivativeRootLabelPrecision D b
     let label := fingerprintIntegerRootLabel p q D b μ t target
     label.natDegree ≤ fingerprintLabelDegreeBound D B (D * μ) D ∧
       label.coeffNorm1 ≤
@@ -86,12 +86,12 @@ theorem eval₂_fingerprintIntegerRootLabel_margin {D b μ : ℕ} {p q : ℤ[X]}
     ((1 : ℝ) / 2 ≤ y ∨ y ≤ -(1 : ℝ) / 2) ∧
       (0 < y ↔ (p.map (Int.castRingHom ℝ)).derivativeFingerprint D μ t x = target ∧
         0 < q.eval₂ (Int.castRingHom ℝ) x) := by
-  let B := algebraicValuePrecision D D b (iterateDerivativeNormExponent D b)
-  have h := eval₂_fingerprintLabelPolynomial_margin B (D * μ) (fingerprintRootLabelTests p q D)
-    (fun i => t ^ i.val % μ) target x (sum_fingerprint_weights_le D μ t hμ) fun i =>
+  have h := eval₂_fingerprintLabelPolynomial_margin (derivativeRootLabelPrecision D b) (D * μ)
+    (fingerprintRootLabelTests p q D) (fun i => t ^ i.val % μ) target x
+    (sum_fingerprint_weights_le D μ t hμ) fun i =>
       let hb := fingerprintRootLabelTests_bounds hpD hqD hpb hqb i
       eval₂_eq_zero_or_dyadic_bounds hp hpD hb.1 hpb hb.2 hx
-  simpa only [B, fingerprintIntegerRootLabel, derivativeFingerprint, fingerprintRootLabelTests,
+  simpa only [fingerprintIntegerRootLabel, derivativeFingerprint, fingerprintRootLabelTests,
     Fin.cases_zero, Fin.cases_succ, derivativeSign, iterate_derivative_map, eval_map] using h
 
 /-- A bounded fingerprint and its integer label give a positive margin at any prescribed
