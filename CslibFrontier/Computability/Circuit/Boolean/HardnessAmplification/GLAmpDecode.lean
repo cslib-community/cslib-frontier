@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLSynthesis
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.Nonuniform
 import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Goldreich–Levin decoding of the amplified function
@@ -161,16 +162,13 @@ theorem dens_filter_glAmpCandidate_agree (f : BooleanFunction n) (h : BooleanFun
   gcongr with mg
   intro hmg
   rw [hcount]
-  have hmg' : (#good : ℝ) ≤ 2 ^ (K + 2) *
-      #{x | Crypto.GoldreichLevin.candidate (pred x) mg.1 mg.2 = target x} := by
-    exact_mod_cast hmg
   calc γ / 2 ^ (K + 3) * 2 ^ (k * n) = γ / 2 * 2 ^ (k * n) / 2 ^ (K + 2) := by
         rw [pow_succ]
         field_simp
     _ ≤ #good / 2 ^ (K + 2) := by gcongr
     _ ≤ _ := by
         rw [div_le_iff₀ (by positivity)]
-        linarith
+        cast_linarith [hmg]
 
 /-- The candidate at the blocks of a flat input `x` is the Goldreich–Levin candidate for
 `r ↦ h (x, r)`. -/

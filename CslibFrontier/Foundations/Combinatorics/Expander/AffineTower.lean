@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Combinatorics.Expander.AffinePlane
 public import CslibFrontier.Foundations.Combinatorics.Expander.Tower
 import CslibFrontier.Foundations.Combinatorics.Expander.Reindex
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Tactic.NormNum.Prime
 
@@ -97,13 +98,11 @@ theorem spectralExpansion_affinePlaneTowerBase_le :
 /-- A field with at least 256 elements gives a valid base for the existing zig-zag tower. -/
 theorem spectralExpansion_affinePlaneTowerBase_le_one_div_five
     (hK : 256 ≤ Fintype.card K) : (affinePlaneTowerBase K).spectralExpansion ≤ 1 / 5 := by
-  have hc : (256 : ℝ) ≤ Fintype.card K := by exact_mod_cast hK
   have hr : Real.sqrt (1 / Fintype.card K) ≤ (1 : ℝ) / 16 := by
     rw [Real.sqrt_le_left (by positivity), div_le_iff₀ (by positivity)]
-    nlinarith
+    cast_nlinarith [hK]
   have hs := pow_le_pow_left₀ (Real.sqrt_nonneg (1 / Fintype.card K)) hr 2
-  have h := spectralExpansion_affinePlaneTowerBase_le K
-  nlinarith
+  cast_nlinarith [spectralExpansion_affinePlaneTowerBase_le K]
 
 omit [Field K] in
 /-- The `(n + 1)`-st arithmetic tower graph has `|K|^(8(n + 1))` vertices. -/

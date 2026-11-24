@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.PMF.MultiplyHigh
 public import CslibFrontier.Probability.PMF.DensityBounds
 public import CslibFrontier.Foundations.Data.List.CollisionReplace
 import CslibFrontier.Tactic.FinIndex
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Order.Interval.Finset.Nat
 
 /-!
@@ -151,13 +152,6 @@ is only a totality convention; all uniformity theorems require `offset + count �
     (fun j : Fin (n - offset) => offset + j.val) <$> ProbComp.uniform (Fin (n - offset))
   else pure offset
 
-private def intervalEquiv {offset n : ℕ} (h : offset < n) :
-    Fin (n - offset) ≃ ↥(Ico offset n) where
-  toFun j := ⟨offset + j.val, mem_Ico.mpr ⟨by omega, by omega⟩⟩
-  invFun j := ⟨j.val - offset, by have := mem_Ico.mp j.property; omega⟩
-  left_inv j := by fin_index
-  right_inv j := by apply Subtype.ext; dsimp; have := mem_Ico.mp j.property; omega
-
 /-- The ideal candidate is uniform on the complete shrinking interval. -/
 theorem eval_idealCandidate {n offset : ℕ} (h : offset < n) :
     ProbComp.eval (idealCandidate n offset) =
@@ -166,8 +160,9 @@ theorem eval_idealCandidate {n offset : ℕ} (h : offset < n) :
   let : Nonempty ↥(Ico offset n) := ⟨⟨offset, mem_Ico.mpr ⟨le_rfl, h⟩⟩⟩
   simp only [idealCandidate, dite_eq_left h, ProbComp.eval_map, ProbComp.eval_uniform]
   rw [← PMF.uniformOfFintype_finset_map_val]
-  rw [← PMF.uniformOfFintype_map_equiv (intervalEquiv h), PMF.map_comp]
-  rfl
+  relabel_uniform (fun j : Fin (n - offset) =>
+    (⟨offset + j.val, mem_Ico.mpr ⟨by omega, by omega⟩⟩ : ↥(Ico offset n)))
+  simp
 
 /-- Independent exact uniform candidates give an exact uniform fixed-cardinality support. -/
 theorem eval_idealSupport {n offset count : ℕ} (h : offset + count ≤ n) :

@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Probability.PMF.Map
 
@@ -131,16 +132,7 @@ private theorem computableInPolyTime_decodeRows {α β : Type} {input : α ↪ L
   let growth : α × List Bool → ℕ := fun p =>
     ca * (2 * (input p.1).length + cw * ((input p.1).length + 1) ^ dw + 3) ^ da
   have hpoly : PolyBounded (fun p : α × List Bool => (encIn p).length) growth := by
-    have hp1 : PolyBounded (fun p : α × List Bool => (encIn p).length)
-        (fun p => (input p.1).length) :=
-      hfst.polyBounded_length
-    have hw_pb : PolyBounded (fun p : α × List Bool => (encIn p).length)
-        (fun p => cw * ((input p.1).length + 1) ^ dw) :=
-      (PolyBounded.const cw).mul ((hp1.add (.const 1)).pow dw)
-    have hinner : PolyBounded (fun p : α × List Bool => (encIn p).length)
-        (fun p => 2 * (input p.1).length + cw * ((input p.1).length + 1) ^ dw + 3) :=
-      (((PolyBounded.const 2).mul hp1).add hw_pb).add (.const 3)
-    exact (PolyBounded.const ca).mul (hinner.pow da)
+    growth_poly
   refine foldlWithInput_of_bounded_growth hinit ⟨hlist, hstep, inferInstance, inferInstance⟩
     ⟨hpoly, fun p state row hrow => ?_⟩
   cases state with

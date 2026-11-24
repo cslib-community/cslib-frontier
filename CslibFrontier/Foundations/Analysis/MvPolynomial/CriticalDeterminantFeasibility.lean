@@ -94,7 +94,7 @@ theorem criticalShiftedRootLabel_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
     let D := ell ^ n
     let N := n * ell.size
     let B := criticalRootLabelCoeffNormExponent n ell b
-    let s := Polynomial.sparseRootLabelPrecision D B
+    let s := Polynomial.derivativeRootLabelPrecision D B
     let g := criticalShiftedRootLabel (by omega) b F hF L e
     g.natDegree ≤ Polynomial.signLabelDegreeBound (N + 1) s D ∧
       g.coeffNorm1 ≤ 2 ^ (Polynomial.signLabelNormExponent (N + 1) s
@@ -113,7 +113,8 @@ theorem criticalShiftedRootLabel_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
   let D := ell ^ n
   let N := n * ell.size
   let B := criticalRootLabelCoeffNormExponent n ell b
-  Polynomial.signLabelDegreeBound (N + 1) (Polynomial.sparseRootLabelPrecision D B) D * (ell + 1)
+  let s := Polynomial.derivativeRootLabelPrecision D B
+  Polynomial.signLabelDegreeBound (N + 1) s D * (ell + 1)
 
 /-- Binary coefficient-norm budget for the shifted label evaluated at the integer critical
 objective. -/
@@ -121,7 +122,7 @@ objective. -/
   let D := ell ^ n
   let N := n * ell.size
   let B := criticalRootLabelCoeffNormExponent n ell b
-  let s := Polynomial.sparseRootLabelPrecision D B
+  let s := Polynomial.derivativeRootLabelPrecision D B
   let d := Polynomial.signLabelDegreeBound (N + 1) s D
   let k := Polynomial.signLabelNormExponent (N + 1) s
     (Polynomial.iterateDerivativeNormExponent D B) + N + 3
