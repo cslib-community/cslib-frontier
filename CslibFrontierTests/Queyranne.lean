@@ -52,9 +52,9 @@ private theorem symConcave_isSubmodular : IsSubmodular symConcave := by
   unfold IsSubmodular
   decide
 
-example : (queyranne symConcave [0, 1, 2, 3]).2 = 5 := by decide
+example : (queyranne symConcave [0, 1, 2, 3]).val = 5 := by decide
 
-example : IsNonTrivialCut (queyranne symConcave [0, 1, 2, 3]).1 := by
+example : IsNonTrivialCut (queyranne symConcave [0, 1, 2, 3]).cut := by
   unfold IsNonTrivialCut
   decide
 
@@ -112,7 +112,7 @@ private theorem G4N_multigraph : IsMultigraph G4N := by
   unfold IsMultigraph
   decide
 
-example : (queyranne (cutWeight G4N) [0, 1, 2, 3]).2 = 3 := by decide
+example : (queyranne (cutWeight G4N) [0, 1, 2, 3]).val = 3 := by decide
 
 example : minCut G4N = 3 :=
   (queyranne_minCut_eq G4N_multigraph (vs := [0, 1, 2, 3]) (by decide)
@@ -123,27 +123,27 @@ values (`f ∅ = -6`, `f {0, 1} = 0`, global minimum over non-trivial cuts `= -1
 private def signedSubmod (S : Finset (Fin 4)) : ℤ :=
   (symConcave S : ℤ) - 6
 
-example : (queyranne signedSubmod [0, 1, 2, 3]).2 = -1 := by decide
+example : (queyranne signedSubmod [0, 1, 2, 3]).val = -1 := by decide
 
 example :
     let res := queyranne signedSubmod [0, 1, 2, 3]
-    IsNonTrivialCut res.1 ∧ res.2 = signedSubmod res.1 ∧
-      ∀ C : Finset (Fin 4), IsNonTrivialCut C → signedSubmod res.1 ≤ signedSubmod C :=
+    IsNonTrivialCut res.cut ∧ res.val = signedSubmod res.cut ∧
+      ∀ C : Finset (Fin 4), IsNonTrivialCut C → signedSubmod res.cut ≤ signedSubmod C :=
   queyranne_spec (by unfold IsSubmodular; decide) (by unfold IsSymmetric; decide)
     (by decide) (by decide)
 
 /-- Polymorphic instantiation of `queyranne_cutWeight_spec` over `ℚ` and `ℝ`. -/
 example (W : Fin 4 → Fin 4 → ℚ) (hWsym : ∀ u v, W u v = W v u) (hWnonneg : ∀ u v, 0 ≤ W u v) :
     let res := queyranne (cutWeight W) [0, 1, 2, 3]
-    IsNonTrivialCut res.1 ∧ res.2 = cutWeight W res.1 ∧
-      ∀ C : Finset (Fin 4), IsNonTrivialCut C → cutWeight W res.1 ≤ cutWeight W C :=
+    IsNonTrivialCut res.cut ∧ res.val = cutWeight W res.cut ∧
+      ∀ C : Finset (Fin 4), IsNonTrivialCut C → cutWeight W res.cut ≤ cutWeight W C :=
   queyranne_cutWeight_spec hWsym hWnonneg (by decide) (by decide)
 
 noncomputable example (W : Fin 4 → Fin 4 → ℝ) (hWsym : ∀ u v, W u v = W v u)
     (hWnonneg : ∀ u v, 0 ≤ W u v) :
     let res := queyranne (cutWeight W) [0, 1, 2, 3]
-    IsNonTrivialCut res.1 ∧ res.2 = cutWeight W res.1 ∧
-      ∀ C : Finset (Fin 4), IsNonTrivialCut C → cutWeight W res.1 ≤ cutWeight W C :=
+    IsNonTrivialCut res.cut ∧ res.val = cutWeight W res.cut ∧
+      ∀ C : Finset (Fin 4), IsNonTrivialCut C → cutWeight W res.cut ≤ cutWeight W C :=
   queyranne_cutWeight_spec hWsym hWnonneg (by decide) (by decide)
 
 /-! ## Weighted hypergraph global minimum cut -/
@@ -156,7 +156,7 @@ private def H4 : Finset (Finset (Fin 4)) := {{0, 1}, {2, 3}, {0, 1, 2}}
 private def wH4 (e : Finset (Fin 4)) : ℕ :=
   if e = {0, 1, 2} then 2 else 10
 
-example : (queyranne (hyperCutWeight H4 wH4) [0, 1, 2, 3]).2 = 2 := by decide
+example : (queyranne (hyperCutWeight H4 wH4) [0, 1, 2, 3]).val = 2 := by decide
 
 example : ∀ C : Finset (Fin 4), IsNonTrivialCut C → 2 ≤ hyperCutWeight H4 wH4 C := by
   intro C ⟨hCne, hCuniv⟩
@@ -165,8 +165,8 @@ example : ∀ C : Finset (Fin 4), IsNonTrivialCut C → 2 ≤ hyperCutWeight H4 
 
 example :
     let res := queyranne (hyperCutWeight H4 wH4) [0, 1, 2, 3]
-    IsNonTrivialCut res.1 ∧ res.2 = hyperCutWeight H4 wH4 res.1 ∧
-      ∀ C : Finset (Fin 4), IsNonTrivialCut C → hyperCutWeight H4 wH4 res.1 ≤
+    IsNonTrivialCut res.cut ∧ res.val = hyperCutWeight H4 wH4 res.cut ∧
+      ∀ C : Finset (Fin 4), IsNonTrivialCut C → hyperCutWeight H4 wH4 res.cut ≤
         hyperCutWeight H4 wH4 C :=
   queyranne_hyperCutWeight_spec H4 (fun _ _ => Nat.zero_le _) (by decide) (by decide)
 

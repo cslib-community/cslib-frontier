@@ -39,14 +39,14 @@ last block, and merges the last two blocks `(s, t)`. By Queyranne's pendent-pair
   set-function oracle evaluates full sums on each query (unlike an incremental adjacency array);
   only value-oracle queries are charged in the query-complexity companion module.
 
-Bibliography metadata for `[Queyranne1998]` was checked externally; primary PDF page and section
-locators for `[Queyranne1998]` and `[StoerWagner1997]` were not inspected against a local PDF, so
-the results below are identified by name rather than unverified source numbering.
-
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.Submodular.IsSymmetric`: `f Xᶜ = f X` for all `X`.
 * `Cslib.Algorithms.Lean.Submodular.IsQOrdering`: a full Queyranne ordering of `V`.
+* `Cslib.Algorithms.Lean.Submodular.QScanResult`,
+  `Cslib.Algorithms.Lean.Submodular.QPendentPair`,
+  `Cslib.Algorithms.Lean.Submodular.QCutResult`: named output records for scan, phase pendent
+  pair, and global cut results.
 * `Cslib.Algorithms.Lean.Submodular.queyranneM`,
   `Cslib.Algorithms.Lean.Submodular.queyranne`: monadic and pure Queyranne symmetric submodular
   minimization algorithms.
@@ -312,13 +312,64 @@ section Algorithm
     let rest ← qSingletonsM ask bs
     pure ((b, v) :: rest)
 
+/-- Output of one scan round choosing the next block in a Queyranne ordering. -/
+@[ext]
+structure QScanResult (V β : Type) where
+  /-- Selected candidate block minimizing marginal value `f (A ∪ best) - f best`. -/
+  best : Finset V
+  /-- Precomputed singleton query value `f best`. -/
+  bestVal : β
+  /-- Queried union value `f (A ∪ best)`. -/
+  unionVal : β
+
+instance {V β : Type} [DecidableEq V] [DecidableEq β] : DecidableEq (QScanResult V β) :=
+  fun a b =>
+    match decEq a.best b.best, decEq a.bestVal b.bestVal, decEq a.unionVal b.unionVal with
+    | .isTrue hb, .isTrue hbv, .isTrue huv => .isTrue (QScanResult.ext hb hbv huv)
+    | .isFalse hb, _, _ => .isFalse (fun h => hb (congrArg QScanResult.best h))
+    | _, .isFalse hbv, _ => .isFalse (fun h => hbv (congrArg QScanResult.bestVal h))
+    | _, _, .isFalse huv => .isFalse (fun h => huv (congrArg QScanResult.unionVal h))
+
+/-- Pendent pair `(fst, snd)` returned by one ordering phase together with `f snd`. -/
+@[ext]
+structure QPendentPair (V β : Type) where
+  /-- Penultimate block of the phase's Queyranne ordering. -/
+  fst : Finset V
+  /-- Last block of the phase's Queyranne ordering. -/
+  snd : Finset V
+  /-- Singleton query value `f snd` of the last block. -/
+  sndVal : β
+
+instance {V β : Type} [DecidableEq V] [DecidableEq β] : DecidableEq (QPendentPair V β) :=
+  fun a b =>
+    match decEq a.fst b.fst, decEq a.snd b.snd, decEq a.sndVal b.sndVal with
+    | .isTrue hf, .isTrue hs, .isTrue hsv => .isTrue (QPendentPair.ext hf hs hsv)
+    | .isFalse hf, _, _ => .isFalse (fun h => hf (congrArg QPendentPair.fst h))
+    | _, .isFalse hs, _ => .isFalse (fun h => hs (congrArg QPendentPair.snd h))
+    | _, _, .isFalse hsv => .isFalse (fun h => hsv (congrArg QPendentPair.sndVal h))
+
+/-- Cut and objective value returned by Queyranne's algorithm. -/
+@[ext]
+structure QCutResult (V β : Type) where
+  /-- Selected vertex subset. -/
+  cut : Finset V
+  /-- Value `f cut` achieved on the selected subset. -/
+  val : β
+
+instance {V β : Type} [DecidableEq V] [DecidableEq β] : DecidableEq (QCutResult V β) :=
+  fun a b =>
+    match decEq a.cut b.cut, decEq a.val b.val with
+    | .isTrue hc, .isTrue hv => .isTrue (QCutResult.ext hc hv)
+    | .isFalse hc, _ => .isFalse (fun h => hc (congrArg QCutResult.cut h))
+    | _, .isFalse hv => .isFalse (fun h => hv (congrArg QCutResult.val h))
+
 /-- Scan candidates `cs` left-to-right, minimizing `f (A ∪ b) - f b` (without subtraction) and
 breaking ties toward earlier candidates. -/
 @[expose] def qScanM {m : Type → Type*} [Monad m] {V β : Type} [DecidableEq V]
     [Add β] [LT β] [DecidableLT β]
     (ask : Finset V → m β) (A : Finset V) (best : Finset V) (sBest vBest : β) :
-    List (Finset V × β) → m (Finset V × β × β)
-  | [] => pure (best, sBest, vBest)
+    List (Finset V × β) → m (QScanResult V β)
+  | [] => pure ⟨best, sBest, vBest⟩
   | (b, sb) :: cs => do
     let vb ← ask (A ∪ b)
     if vb + sBest < vBest + sb then
@@ -331,25 +382,25 @@ breaking ties toward earlier candidates. -/
 no query is performed. -/
 @[expose] def qSearchStepsM {m : Type → Type*} [Monad m] {V β : Type} [DecidableEq V]
     [Add β] [LT β] [DecidableLT β] (ask : Finset V → m β) :
-    ℕ → Finset V → Finset V → Finset V × β → List (Finset V × β) → m (Finset V × Finset V × β)
-  | 0, _, prev, (t, st), _ => pure (prev, t, st)
-  | _ + 1, _, prev, (t, st), [] => pure (prev, t, st)
+    ℕ → Finset V → Finset V → Finset V × β → List (Finset V × β) → m (QPendentPair V β)
+  | 0, _, prev, (t, st), _ => pure ⟨prev, t, st⟩
+  | _ + 1, _, prev, (t, st), [] => pure ⟨prev, t, st⟩
   | k + 1, A, prev, c₀, c₁ :: cs => do
     let v₀ ← ask (A ∪ c₀.1)
-    let (best, _, _) ← qScanM ask A c₀.1 c₀.2 v₀ (c₁ :: cs)
-    match eraseBlock best (c₀ :: c₁ :: cs) with
-    | [] => pure (prev, c₀.1, c₀.2)
-    | d₀ :: ds => qSearchStepsM ask k (A ∪ best) best d₀ ds
+    let scan ← qScanM ask A c₀.1 c₀.2 v₀ (c₁ :: cs)
+    match eraseBlock scan.best (c₀ :: c₁ :: cs) with
+    | [] => pure ⟨prev, c₀.1, c₀.2⟩
+    | d₀ :: ds => qSearchStepsM ask k (A ∪ scan.best) scan.best d₀ ds
 
-/-- Compute the pendent pair `(s, t)` and value `f t` for active blocks `b₀ :: b₁ :: bs`. -/
+/-- Compute the pendent pair and last singleton value for active blocks `b₀ :: b₁ :: bs`. -/
 @[expose] def qSearchM {m : Type → Type*} [Monad m] {V β : Type} [DecidableEq V]
     [Add β] [LT β] [DecidableLT β] (ask : Finset V → m β)
-    (b₀ b₁ : Finset V) (bs : List (Finset V)) : m (Finset V × Finset V × β) := do
+    (b₀ b₁ : Finset V) (bs : List (Finset V)) : m (QPendentPair V β) := do
   let cands ← qSingletonsM ask (b₁ :: bs)
   match cands with
   | [] => do
     let v ← ask b₁
-    pure (b₀, b₁, v)
+    pure ⟨b₀, b₁, v⟩
   | c₀ :: cs => qSearchStepsM ask bs.length b₀ b₀ c₀ cs
 
 /-- Contract blocks `s` and `t` into `s ∪ t` in the active partition list. -/
@@ -361,30 +412,30 @@ no query is performed. -/
 non-trivial cut minimizing `f` together with its value. -/
 @[expose] def queyranneRecM {m : Type → Type*} [Monad m] {V β : Type} [DecidableEq V]
     [Add β] [LT β] [DecidableLT β] (ask : Finset V → m β) :
-    ℕ → List (Finset V) → m (Finset V × β)
+    ℕ → List (Finset V) → m (QCutResult V β)
   | 0, _ :: b₁ :: _ => do
     let v₁ ← ask b₁
-    pure (b₁, v₁)
+    pure ⟨b₁, v₁⟩
   | steps + 1, b₀ :: b₁ :: bs => do
-    let (s, t, st) ← qSearchM ask b₀ b₁ bs
-    let (best', vBest') ← queyranneRecM ask steps (mergeBlocks s t (b₀ :: b₁ :: bs))
-    if vBest' < st then pure (best', vBest') else pure (t, st)
+    let pair ← qSearchM ask b₀ b₁ bs
+    let recRes ← queyranneRecM ask steps (mergeBlocks pair.fst pair.snd (b₀ :: b₁ :: bs))
+    if recRes.val < pair.sndVal then pure recRes else pure ⟨pair.snd, pair.sndVal⟩
   | _, _ => do
     let v ← ask ∅
-    pure (∅, v)
+    pure ⟨∅, v⟩
 
 /-- Monadic Queyranne algorithm ([Queyranne1998]) on ground list `vs`, deduplicating `vs` via
 `List.eraseDups` and contracting through `|vs.eraseDups| - 1` phases. -/
 @[expose] def queyranneM {m : Type → Type*} [Monad m] {V β : Type} [DecidableEq V]
     [Add β] [LT β] [DecidableLT β] (ask : Finset V → m β) (vs : List V) :
-    m (Finset V × β) :=
+    m (QCutResult V β) :=
   let u := vs.eraseDups
   queyranneRecM ask (u.length - 2) (u.map ({·}))
 
 /-- Pure executable Queyranne algorithm ([Queyranne1998]) minimizing a symmetric submodular
 function `f : Finset V → β` over `vs : List V`. -/
 @[expose] def queyranne {V β : Type} [DecidableEq V] [Add β] [LT β] [DecidableLT β]
-    (f : Finset V → β) (vs : List V) : Finset V × β :=
+    (f : Finset V → β) (vs : List V) : QCutResult V β :=
   Id.run (queyranneM (m := Id) (fun S => pure (f S)) vs)
 
 end Algorithm
@@ -395,8 +446,7 @@ section Bridges
 
 variable {V β : Type} {m : Type → Type*} {n : Type → Type*} [Monad m] [Monad n]
 
-@[grind .]
-theorem _root_.Cslib.IsMonadHom.map_qSingletonsM
+private theorem map_qSingletonsM
     {φ : {γ : Type} → m γ → n γ} (hφ : IsMonadHom m n φ)
     (ask : Finset V → m β) (bs : List (Finset V)) :
     φ (qSingletonsM ask bs) = qSingletonsM (fun S => φ (ask S)) bs := by
@@ -407,8 +457,7 @@ theorem _root_.Cslib.IsMonadHom.map_qSingletonsM
     congr 1 with v : 1
     simp only [ih, hφ.map_pure]
 
-@[grind .]
-theorem _root_.Cslib.IsMonadHom.map_qScanM [DecidableEq V] [Add β] [LT β] [DecidableLT β]
+private theorem map_qScanM [DecidableEq V] [Add β] [LT β] [DecidableLT β]
     {φ : {γ : Type} → m γ → n γ} (hφ : IsMonadHom m n φ)
     (ask : Finset V → m β) (A best : Finset V) (sBest vBest : β) (cs : List (Finset V × β)) :
     φ (qScanM ask A best sBest vBest cs) =
@@ -423,8 +472,7 @@ theorem _root_.Cslib.IsMonadHom.map_qScanM [DecidableEq V] [Add β] [LT β] [Dec
 
 variable [DecidableEq V] [Add β] [LT β] [DecidableLT β]
 
-@[grind .]
-theorem _root_.Cslib.IsMonadHom.map_qSearchStepsM
+private theorem map_qSearchStepsM
     {φ : {γ : Type} → m γ → n γ} (hφ : IsMonadHom m n φ)
     (ask : Finset V → m β) (k : ℕ) (A prev : Finset V) (c₀ : Finset V × β)
     (cs : List (Finset V × β)) :
@@ -442,28 +490,26 @@ theorem _root_.Cslib.IsMonadHom.map_qSearchStepsM
     | cons c₁ cs' =>
       simp only [qSearchStepsM, hφ.map_bind]
       congr 1 with v₀ : 1
-      simp only [hφ.map_qScanM]
+      simp only [map_qScanM hφ]
       congr 1 with res : 1
-      cases eraseBlock res.1 (c₀ :: c₁ :: cs') with
+      cases eraseBlock res.best (c₀ :: c₁ :: cs') with
       | nil => simp [hφ.map_pure]
       | cons d₀ ds => exact ih _ _ _ _
 
-@[grind .]
-theorem _root_.Cslib.IsMonadHom.map_qSearchM
+private theorem map_qSearchM
     {φ : {γ : Type} → m γ → n γ} (hφ : IsMonadHom m n φ)
     (ask : Finset V → m β) (b₀ b₁ : Finset V) (bs : List (Finset V)) :
     φ (qSearchM ask b₀ b₁ bs) = qSearchM (fun S => φ (ask S)) b₀ b₁ bs := by
-  simp only [qSearchM, hφ.map_bind, hφ.map_qSingletonsM]
+  simp only [qSearchM, hφ.map_bind, map_qSingletonsM hφ]
   congr 1 with cands : 1
   cases cands with
   | nil =>
     simp only [hφ.map_bind]
     congr 1 with v : 1
     exact hφ.map_pure _
-  | cons c₀ cs => exact hφ.map_qSearchStepsM _ _ _ _ _ _
+  | cons c₀ cs => exact map_qSearchStepsM hφ _ _ _ _ _ _
 
-@[grind .]
-theorem _root_.Cslib.IsMonadHom.map_queyranneRecM
+private theorem map_queyranneRecM
     {φ : {γ : Type} → m γ → n γ} (hφ : IsMonadHom m n φ)
     (ask : Finset V → m β) (steps : ℕ) (blocks : List (Finset V)) :
     φ (queyranneRecM ask steps blocks) =
@@ -498,7 +544,7 @@ theorem _root_.Cslib.IsMonadHom.map_queyranneRecM
         congr 1 with v : 1
         exact hφ.map_pure _
       | cons b₁ bs =>
-        simp only [queyranneRecM, hφ.map_bind, hφ.map_qSearchM]
+        simp only [queyranneRecM, hφ.map_bind, map_qSearchM hφ]
         congr 1 with p : 1
         simp only [ih]
         congr 1 with q : 1
@@ -509,7 +555,7 @@ theorem _root_.Cslib.IsMonadHom.map_queyranneM
     {φ : {γ : Type} → m γ → n γ} (hφ : IsMonadHom m n φ)
     (ask : Finset V → m β) (vs : List V) :
     φ (queyranneM ask vs) = queyranneM (fun S => φ (ask S)) vs :=
-  hφ.map_queyranneRecM ask (vs.eraseDups.length - 2) (vs.eraseDups.map ({·}))
+  map_queyranneRecM hφ ask (vs.eraseDups.length - 2) (vs.eraseDups.map ({·}))
 
 end Bridges
 
@@ -553,12 +599,11 @@ private theorem blockPart_singletons {V : Type} [DecidableEq V] [Fintype V]
     exact ⟨{v}, List.mem_toFinset.mpr (List.mem_map.mpr ⟨v, hmem v, rfl⟩),
       Finset.mem_singleton_self v⟩
 
-private theorem blockPart_mergeBlocks {V : Type} [DecidableEq V] [Fintype V]
-    {blocks : List (Finset V)} (hp : BlockPart blocks)
+private theorem mergeBlocks_nonempty_disjoint {V : Type} [DecidableEq V]
+    {blocks : List (Finset V)} (hne : ∀ b ∈ blocks, b.Nonempty) (hdisj : blocks.Pairwise Disjoint)
     {s t : Finset V} (hs : s ∈ blocks) (ht : t ∈ blocks) (hst : s ≠ t) :
-    BlockPart (mergeBlocks s t blocks) := by
-  have hnd := blockPart_nodup hp
-  have hsne := hp.nonempty s hs
+    (∀ b ∈ mergeBlocks s t blocks, b.Nonempty) ∧ (mergeBlocks s t blocks).Pairwise Disjoint := by
+  have hnd := nodup_of_pairwise_disjoint_nonempty hne hdisj
   have hsub : ∀ b ∈ (blocks.erase s).erase t, b ∈ blocks ∧ b ≠ s ∧ b ≠ t := by
     intro b hb
     have hb1 : b ∈ blocks.erase s := List.mem_of_mem_erase hb
@@ -570,36 +615,39 @@ private theorem blockPart_mergeBlocks {V : Type} [DecidableEq V] [Fintype V]
       subst h
       exact hnd.not_mem_erase hb1
     exact ⟨hb0, hbs, hbt⟩
-  have hdisj_list : ((blocks.erase s).erase t).Pairwise Disjoint :=
-    ((hp.disjoint.sublist List.erase_sublist).sublist List.erase_sublist)
-  have hst_disj : ∀ b ∈ (blocks.erase s).erase t, Disjoint (s ∪ t) b := by
-    intro b hb
-    obtain ⟨hb0, hbs, hbt⟩ := hsub b hb
-    refine Finset.disjoint_union_left.mpr ⟨?_, ?_⟩
-    · exact hp.disjoint.forall hs hb0 hbs.symm
-    · exact hp.disjoint.forall ht hb0 hbt.symm
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨?_, List.pairwise_cons.mpr ⟨?_, (hdisj.sublist List.erase_sublist).sublist
+    List.erase_sublist⟩⟩
   · intro b hb
     rcases List.mem_cons.mp hb with rfl | hb'
-    · exact hsne.mono Finset.subset_union_left
-    · exact hp.nonempty b (hsub b hb').1
-  · exact List.pairwise_cons.mpr ⟨hst_disj, hdisj_list⟩
-  · apply Finset.eq_univ_of_forall
-    intro v
-    have hv : v ∈ blocks.toFinset.biUnion id := hp.cover ▸ Finset.mem_univ v
-    obtain ⟨b, hb, hvb⟩ := Finset.mem_biUnion.mp hv
-    have hb_list : b ∈ blocks := List.mem_toFinset.mp hb
-    rw [Finset.mem_biUnion]
-    by_cases hbs : b = s
-    · rw [hbs] at hvb
+    · exact (hne s hs).mono Finset.subset_union_left
+    · exact hne b (hsub b hb').1
+  · intro b hb
+    obtain ⟨hb0, hbs, hbt⟩ := hsub b hb
+    exact Finset.disjoint_union_left.mpr
+      ⟨hdisj.forall hs hb0 hbs.symm, hdisj.forall ht hb0 hbt.symm⟩
+
+private theorem blockPart_mergeBlocks {V : Type} [DecidableEq V] [Fintype V]
+    {blocks : List (Finset V)} (hp : BlockPart blocks)
+    {s t : Finset V} (hs : s ∈ blocks) (ht : t ∈ blocks) (hst : s ≠ t) :
+    BlockPart (mergeBlocks s t blocks) := by
+  have hmd := mergeBlocks_nonempty_disjoint hp.nonempty hp.disjoint hs ht hst
+  refine ⟨hmd.1, hmd.2, ?_⟩
+  apply Finset.eq_univ_of_forall
+  intro v
+  have hv : v ∈ blocks.toFinset.biUnion id := hp.cover ▸ Finset.mem_univ v
+  obtain ⟨b, hb, hvb⟩ := Finset.mem_biUnion.mp hv
+  have hb_list : b ∈ blocks := List.mem_toFinset.mp hb
+  rw [Finset.mem_biUnion]
+  by_cases hbs : b = s
+  · rw [hbs] at hvb
+    exact ⟨s ∪ t, List.mem_toFinset.mpr (by simp [mergeBlocks]),
+      Finset.mem_union_left _ hvb⟩
+  · by_cases hbt : b = t
+    · rw [hbt] at hvb
       exact ⟨s ∪ t, List.mem_toFinset.mpr (by simp [mergeBlocks]),
-        Finset.mem_union_left _ hvb⟩
-    · by_cases hbt : b = t
-      · rw [hbt] at hvb
-        exact ⟨s ∪ t, List.mem_toFinset.mpr (by simp [mergeBlocks]),
-          Finset.mem_union_right _ hvb⟩
-      · refine ⟨b, List.mem_toFinset.mpr (List.mem_cons_of_mem _ ?_), hvb⟩
-        exact (List.mem_erase_of_ne hbt).mpr ((List.mem_erase_of_ne hbs).mpr hb_list)
+        Finset.mem_union_right _ hvb⟩
+    · refine ⟨b, List.mem_toFinset.mpr (List.mem_cons_of_mem _ ?_), hvb⟩
+      exact (List.mem_erase_of_ne hbt).mpr ((List.mem_erase_of_ne hbs).mpr hb_list)
 
 private theorem length_mergeBlocks {V : Type} [DecidableEq V]
     {blocks : List (Finset V)} {s t : Finset V} (hs : s ∈ blocks) (ht : t ∈ blocks)
@@ -859,13 +907,13 @@ private theorem qScan_spec {V β : Type} [DecidableEq V]
     ∀ (cs : List (Finset V × β)) (best : Finset V) (sBest vBest : β),
       (∀ c ∈ cs, c.2 = f c.1) → sBest = f best → vBest = f (A ∪ best) →
       let res := Id.run (qScanM (m := Id) (fun S => pure (f S)) A best sBest vBest cs)
-      (res.1, res.2.1) ∈ (best, sBest) :: cs ∧ res.2.1 = f res.1 ∧
-        res.2.2 = f (A ∪ res.1) ∧
-        ∀ c ∈ (best, sBest) :: cs, res.2.2 + c.2 ≤ f (A ∪ c.1) + res.2.1
+      (res.best, res.bestVal) ∈ (best, sBest) :: cs ∧ res.bestVal = f res.best ∧
+        res.unionVal = f (A ∪ res.best) ∧
+        ∀ c ∈ (best, sBest) :: cs, res.unionVal + c.2 ≤ f (A ∪ c.1) + res.bestVal
   | [], best, sBest, vBest, _, hsb, hvb => by
     have hres :
         Id.run (qScanM (m := Id) (fun S => pure (f S)) A best sBest vBest []) =
-          (best, sBest, vBest) := rfl
+          ⟨best, sBest, vBest⟩ := rfl
     dsimp only
     rw [hres]
     refine ⟨List.mem_cons_self, hsb, hvb, fun c hc => ?_⟩
@@ -916,13 +964,13 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
         b ∉ S_pref ↔ b.1 ∈ (c₀ :: cs).map Prod.fst) →
       let res := Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) k
         (blockUnion blocks S_pref) prev.1 c₀ cs)
-      res.1 ∈ blocks ∧ res.2.1 ∈ blocks ∧ res.1 ≠ res.2.1 ∧ res.2.2 = f res.2.1 ∧
+      res.fst ∈ blocks ∧ res.snd ∈ blocks ∧ res.fst ≠ res.snd ∧ res.sndVal = f res.snd ∧
         ∃ q : List {b : Finset V // b ∈ blocks.toFinset},
           q.Nodup ∧ (∀ b, b ∉ S_pref ↔ b ∈ q) ∧
           IsQOrderingFrom (fun X => f (blockUnion blocks X)) S_pref q ∧
           ((k = 0 ∧ ∃ tP : {b : Finset V // b ∈ blocks.toFinset},
-              q = [tP] ∧ res.1 = prev.1 ∧ tP.1 = res.2.1) ∨
-           (1 ≤ k ∧ ∃ q₀ sP tP, q = q₀ ++ [sP, tP] ∧ sP.1 = res.1 ∧ tP.1 = res.2.1))
+              q = [tP] ∧ res.fst = prev.1 ∧ tP.1 = res.snd) ∨
+           (1 ≤ k ∧ ∃ q₀ sP tP, q = q₀ ++ [sP, tP] ∧ sP.1 = res.fst ∧ tP.1 = res.snd))
   | 0, S_pref, prev, (t, st), [], _, hprevS, _, hmem, hcover => by
     have ht_mem : t ∈ blocks.toFinset := (hmem (t, st) List.mem_cons_self).1
     have ht_eq : st = f t := (hmem (t, st) List.mem_cons_self).2
@@ -946,8 +994,8 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
       (hmem c₀ List.mem_cons_self).2 rfl
     set scanRes := Id.run (qScanM (m := Id) (fun S => pure (f S))
       (blockUnion blocks S_pref) c₀.1 c₀.2 (f (blockUnion blocks S_pref ∪ c₀.1)) (c₁ :: cs))
-    set best := scanRes.1
-    set sBest := scanRes.2.1
+    set best := scanRes.best
+    set sBest := scanRes.bestVal
     have hbest_in : (best, sBest) ∈ c₀ :: c₁ :: cs := hscan.1
     have hbest_mem : best ∈ blocks.toFinset := (hmem (best, sBest) hbest_in).1
     let bP : {b : Finset V // b ∈ blocks.toFinset} := ⟨best, hbest_mem⟩
@@ -988,10 +1036,10 @@ private theorem qSearchSteps_spec {V β : Type} [DecidableEq V] [Fintype V]
             (blockUnion blocks S_pref) prev.1 c₀ (c₁ :: cs)) =
           Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) k
             (blockUnion blocks (insert bP S_pref)) bP.1 d₀ ds) := by
-        change (match eraseBlock scanRes.1 (c₀ :: c₁ :: cs) with
-          | [] => (prev.1, c₀.1, c₀.2)
+        change (match eraseBlock scanRes.best (c₀ :: c₁ :: cs) with
+          | [] => QPendentPair.mk prev.1 c₀.1 c₀.2
           | d₀' :: ds' => Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) k
-              (blockUnion blocks S_pref ∪ scanRes.1) scanRes.1 d₀' ds')) = _
+              (blockUnion blocks S_pref ∪ scanRes.best) scanRes.best d₀' ds')) = _
         rw [her]
         simp only [hunion, bP, best]
       dsimp only
@@ -1029,10 +1077,10 @@ private theorem qSearch_spec {V β : Type} [DecidableEq V] [Fintype V]
     (f : Finset V → β) {blocks : List (Finset V)} (hp : BlockPart blocks)
     (b₀ b₁ : Finset V) (bs : List (Finset V)) (hblocks : blocks = b₀ :: b₁ :: bs) :
     let res := Id.run (qSearchM (m := Id) (fun S => pure (f S)) b₀ b₁ bs)
-    res.1 ∈ blocks ∧ res.2.1 ∈ blocks ∧ res.1 ≠ res.2.1 ∧ res.2.2 = f res.2.1 ∧
+    res.fst ∈ blocks ∧ res.snd ∈ blocks ∧ res.fst ≠ res.snd ∧ res.sndVal = f res.snd ∧
       ∃ (p : List {b : Finset V // b ∈ blocks.toFinset})
         (sP tP : {b : Finset V // b ∈ blocks.toFinset}),
-        sP.1 = res.1 ∧ tP.1 = res.2.1 ∧
+        sP.1 = res.fst ∧ tP.1 = res.snd ∧
         IsQOrdering (fun X => f (blockUnion blocks X)) (p ++ [sP, tP]) := by
   have hnd_list := blockPart_nodup hp
   rw [hblocks, List.nodup_cons] at hnd_list
@@ -1067,7 +1115,7 @@ private theorem qSearch_spec {V β : Type} [DecidableEq V] [Fintype V]
       Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) bs.length
         (blockUnion blocks {b₀P}) b₀P.1 (b₁, f b₁) (bs.map fun b => (b, f b))) := by
     change (match Id.run (qSingletonsM (m := Id) (fun S => pure (f S)) (b₁ :: bs)) with
-      | [] => (b₀, b₁, f b₁)
+      | [] => QPendentPair.mk b₀ b₁ (f b₁)
       | c₀ :: cs => Id.run (qSearchStepsM (m := Id) (fun S => pure (f S)) bs.length b₀ b₀ c₀ cs)) =
       _
     rw [idRun_qSingletons]
@@ -1098,8 +1146,8 @@ private theorem queyranneRec_spec {V β : Type} [DecidableEq V] [Fintype V]
     ∀ (steps : ℕ) (blocks : List (Finset V)),
       BlockPart blocks → blocks.length = steps + 2 →
       let res := Id.run (queyranneRecM (m := Id) (fun S => pure (f S)) steps blocks)
-      IsNonTrivialCut res.1 ∧ res.2 = f res.1 ∧
-        ∀ C : Finset V, IsNonTrivialCut C → RespectsBlocks blocks C → f res.1 ≤ f C
+      IsNonTrivialCut res.cut ∧ res.val = f res.cut ∧
+        ∀ C : Finset V, IsNonTrivialCut C → RespectsBlocks blocks C → f res.cut ≤ f C
   | 0, blocks, hp, hlen => by
     rcases blocks with _ | ⟨b₀, _ | ⟨b₁, bs⟩⟩
     · simp at hlen
@@ -1109,7 +1157,7 @@ private theorem queyranneRec_spec {V β : Type} [DecidableEq V] [Fintype V]
         exact List.eq_nil_of_length_eq_zero (by omega)
       subst hnil
       have hres : Id.run (queyranneRecM (m := Id) (fun S => pure (f S)) 0 [b₀, b₁]) =
-          (b₁, f b₁) := rfl
+          ⟨b₁, f b₁⟩ := rfl
       dsimp only
       rw [hres]
       refine ⟨block_isNonTrivialCut hp (by simp) (by simp), rfl, fun C hCnt hC => ?_⟩
@@ -1166,16 +1214,16 @@ private theorem queyranneRec_spec {V β : Type} [DecidableEq V] [Fintype V]
       set sr := Id.run (qSearchM (m := Id) (fun S => pure (f S)) b₀ b₁ bs)
       obtain ⟨hs_mem, ht_mem, hst_ne, hst_val, p, sP, tP, hsP, htP, hord⟩ := hsearch
       have hp' := blockPart_mergeBlocks hp hs_mem ht_mem hst_ne
-      have hlen' : (mergeBlocks sr.1 sr.2.1 (b₀ :: b₁ :: bs)).length = steps + 2 := by
+      have hlen' : (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)).length = steps + 2 := by
         have := length_mergeBlocks hs_mem ht_mem hst_ne
         omega
       have ih := queyranneRec_spec hf hsym steps
-        (mergeBlocks sr.1 sr.2.1 (b₀ :: b₁ :: bs)) hp' hlen'
+        (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)) hp' hlen'
       set recRes := Id.run (queyranneRecM (m := Id) (fun S => pure (f S)) steps
-        (mergeBlocks sr.1 sr.2.1 (b₀ :: b₁ :: bs)))
-      have ht_nontriv : IsNonTrivialCut sr.2.1 := block_isNonTrivialCut hp (by omega) ht_mem
+        (mergeBlocks sr.fst sr.snd (b₀ :: b₁ :: bs)))
+      have ht_nontriv : IsNonTrivialCut sr.snd := block_isNonTrivialCut hp (by omega) ht_mem
       have hsep_bound : ∀ C : Finset V, RespectsBlocks (b₀ :: b₁ :: bs) C →
-          (sr.1 ⊆ C ↔ ¬ sr.2.1 ⊆ C) → f sr.2.1 ≤ f C := by
+          (sr.fst ⊆ C ↔ ¬ sr.snd ⊆ C) → f sr.snd ≤ f C := by
         intro C hC hsep
         let X : Finset {b : Finset V // b ∈ (b₀ :: b₁ :: bs).toFinset} :=
           Finset.univ.filter fun b => b.1 ⊆ C
@@ -1184,25 +1232,25 @@ private theorem queyranneRec_spec {V β : Type} [DecidableEq V] [Fintype V]
         have hp_le := pendentPair_le (isSubmodular_blockUnion hf hp)
           (isSymmetric_blockUnion hsym hp) hord hX_sep
         have hX_eq : blockUnion (b₀ :: b₁ :: bs) X = C := blockUnion_filter_subset hp hC
-        have ht_eq : blockUnion (b₀ :: b₁ :: bs) {tP} = sr.2.1 := by
+        have ht_eq : blockUnion (b₀ :: b₁ :: bs) {tP} = sr.snd := by
           simp [blockUnion_singleton, htP]
         simpa [hX_eq, ht_eq] using hp_le
-      change (let res := if recRes.2 < sr.2.2 then recRes else (sr.2.1, sr.2.2)
-        IsNonTrivialCut res.1 ∧ res.2 = f res.1 ∧
-          ∀ C : Finset V, IsNonTrivialCut C → RespectsBlocks (b₀ :: b₁ :: bs) C → f res.1 ≤ f C)
+      change (let res := if recRes.val < sr.sndVal then recRes else ⟨sr.snd, sr.sndVal⟩
+        IsNonTrivialCut res.cut ∧ res.val = f res.cut ∧
+          ∀ C : Finset V, IsNonTrivialCut C → RespectsBlocks (b₀ :: b₁ :: bs) C → f res.cut ≤ f C)
       split_ifs with hlt
       · refine ⟨ih.1, ih.2.1, fun C hCnt hC => ?_⟩
-        by_cases hsep : sr.1 ⊆ C ↔ ¬ sr.2.1 ⊆ C
-        · have hle_t : f recRes.1 ≤ f sr.2.1 := by
+        by_cases hsep : sr.fst ⊆ C ↔ ¬ sr.snd ⊆ C
+        · have hle_t : f recRes.cut ≤ f sr.snd := by
             rw [← ih.2.1, ← hst_val]
             exact le_of_lt hlt
           exact hle_t.trans (hsep_bound C hC hsep)
         · exact ih.2.2 C hCnt (respectsBlocks_mergeBlocks hp hs_mem ht_mem hC hsep)
-      · have hle_rec : f sr.2.1 ≤ f recRes.1 := by
+      · have hle_rec : f sr.snd ≤ f recRes.cut := by
           rw [← ih.2.1, ← hst_val]
           exact le_of_not_gt hlt
         refine ⟨ht_nontriv, hst_val, fun C hCnt hC => ?_⟩
-        by_cases hsep : sr.1 ⊆ C ↔ ¬ sr.2.1 ⊆ C
+        by_cases hsep : sr.fst ⊆ C ↔ ¬ sr.snd ⊆ C
         · exact hsep_bound C hC hsep
         · exact hle_rec.trans (ih.2.2 C hCnt (respectsBlocks_mergeBlocks hp hs_mem ht_mem hC hsep))
 
@@ -1222,8 +1270,8 @@ theorem queyranne_spec {V β : Type} [DecidableEq V] [Fintype V]
     {f : Finset V → β} (hf : IsSubmodular f) (hsym : IsSymmetric f)
     (hV : 2 ≤ Fintype.card V) {vs : List V} (hcov : ∀ v, v ∈ vs) :
     let res := queyranne f vs
-    IsNonTrivialCut res.1 ∧ res.2 = f res.1 ∧
-      ∀ C : Finset V, IsNonTrivialCut C → f res.1 ≤ f C := by
+    IsNonTrivialCut res.cut ∧ res.val = f res.cut ∧
+      ∀ C : Finset V, IsNonTrivialCut C → f res.cut ≤ f C := by
   have hu_nd : vs.eraseDups.Nodup := List.nodup_eraseDups vs
   have hu_cov : ∀ v, v ∈ vs.eraseDups := fun v => (List.mem_eraseDups).mpr (hcov v)
   have hp := blockPart_singletons hu_nd hu_cov
@@ -1249,8 +1297,8 @@ theorem queyranne_cutWeight_spec {V β : Type} [DecidableEq V] [Fintype V]
     {W : V → V → β} (hWsym : ∀ u v, W u v = W v u) (hWnonneg : ∀ u v, 0 ≤ W u v)
     (hV : 2 ≤ Fintype.card V) {vs : List V} (hcov : ∀ v, v ∈ vs) :
     let res := queyranne (cutWeight W) vs
-    IsNonTrivialCut res.1 ∧ res.2 = cutWeight W res.1 ∧
-      ∀ C : Finset V, IsNonTrivialCut C → cutWeight W res.1 ≤ cutWeight W C :=
+    IsNonTrivialCut res.cut ∧ res.val = cutWeight W res.cut ∧
+      ∀ C : Finset V, IsNonTrivialCut C → cutWeight W res.cut ≤ cutWeight W C :=
   queyranne_spec (cutWeight_union_add_cutWeight_inter_le_of_nonneg W hWnonneg)
     (fun X => cutWeight_compl_of_symm hWsym X) hV hcov
 
@@ -1259,7 +1307,7 @@ equals `Cslib.WeightedCut.minCut W`. -/
 theorem queyranne_minCut_eq {V : Type} [DecidableEq V] [Fintype V]
     {W : V → V → ℕ} (hW : Cslib.WeightedCut.IsMultigraph W)
     (hV : 2 ≤ Fintype.card V) {vs : List V} (hcov : ∀ v, v ∈ vs) :
-    (queyranne (cutWeight W) vs).2 = minCut W := by
+    (queyranne (cutWeight W) vs).val = minCut W := by
   obtain ⟨hnt, hval, hle⟩ := queyranne_cutWeight_spec hW.1 (fun _ _ => Nat.zero_le _) hV hcov
   obtain ⟨C, hCnt, hC⟩ := exists_minCut_achiever hV W
   apply le_antisymm
@@ -1345,8 +1393,8 @@ theorem queyranne_hyperCutWeight_spec {V β : Type} [DecidableEq V] [Fintype V]
     (H : Finset (Finset V)) {w : Finset V → β} (hw : ∀ e ∈ H, 0 ≤ w e)
     (hV : 2 ≤ Fintype.card V) {vs : List V} (hcov : ∀ v, v ∈ vs) :
     let res := queyranne (hyperCutWeight H w) vs
-    IsNonTrivialCut res.1 ∧ res.2 = hyperCutWeight H w res.1 ∧
-      ∀ C : Finset V, IsNonTrivialCut C → hyperCutWeight H w res.1 ≤ hyperCutWeight H w C :=
+    IsNonTrivialCut res.cut ∧ res.val = hyperCutWeight H w res.cut ∧
+      ∀ C : Finset V, IsNonTrivialCut C → hyperCutWeight H w res.cut ≤ hyperCutWeight H w C :=
   queyranne_spec (isSubmodular_hyperCutWeight H hw) (isSymmetric_hyperCutWeight H w) hV hcov
 
 end Main
