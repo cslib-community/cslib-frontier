@@ -15,6 +15,8 @@ import Mathlib.Data.List.GetD
 
 Moving the darts into a component of the vertex-deleted graph separates the two copies
 of the cut vertex and decreases the number of edges in each resulting component.
+`split_darts_endpoints_declared` preserves endpoint declarations, and
+`vertex_preimage_split_darts` identifies each redirected end with its original vertex.
 -/
 
 public section

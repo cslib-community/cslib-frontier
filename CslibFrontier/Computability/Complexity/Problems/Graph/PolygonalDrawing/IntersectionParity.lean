@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Erik Demaine, OpenAI. All rights reserved.
+Copyright (c) 2026 Erik Demaine. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Erik Demaine, OpenAI
+Authors: Erik Demaine
 -/
 
 module
@@ -11,10 +11,11 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
 
 /-!
-# Crossing counts of regular polygonal drawings
+# Even crossing parity of polygonal drawings
 
-`EvenCrossings` records the parity condition on independent edges and on pairs of distinct
-edges incident with a designated vertex.
+`EvenCrossings` records even indexed open-segment crossing parity on independent edges and
+on distinct edge occurrences incident with a marked vertex of a polygonal drawing.
+The subdrawing module proves that restricting routes preserves this condition.
 -/
 
 public section

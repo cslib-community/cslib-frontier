@@ -15,13 +15,15 @@ import Mathlib.Logic.Embedding.Basic
 /-!
 # Regular contacts of polygonal subdrawings
 
-`Cslib.Complexity.Graph.PolygonalDrawing.HasRegularContacts.subdrawing` shows that
+`PolygonalDrawing.subdrawing` retains literal routes at selected indexed edges.
+`HasRegularContacts.subdrawing` shows that
 regular contacts persist when selecting actual edge occurrences and identifying declared
 vertex names with distinct source names. Each resulting segment is a literal source segment.
+`EvenCrossings.of_route_restriction` carries even crossings and vertex marks to those routes.
 This allows components of a cut graph to reuse the routes of the original drawing
 in [issue #3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 `Cslib.Complexity.Graph.PolygonalDrawing.HasRegularContacts.exists_component_subdrawing`
-applies the restriction when the two copies of the cut vertex lie in different components.
+applies both restrictions when the two copies of the cut vertex lie in different components.
 -/
 
 public section
@@ -97,7 +99,8 @@ theorem EvenCrossings.of_route_restriction {G H : Graph} {D : PolygonalDrawing G
 
 /-- A component of a split graph inherits the source routes and vertex points when identifying
 the two split labels recovers their original incidences and the labels are in different
-components. In particular, one original vertex point can be reused in both component drawings. -/
+components. Both component drawings can reuse one original vertex point. Marked even
+crossings are inherited by pulling the marks back along the vertex labels. -/
 theorem HasRegularContacts.exists_component_subdrawing {G H : Graph} {D : PolygonalDrawing G}
     (hD : D.HasRegularContacts) (edges : Fin H.edges.length ↪ Fin G.edges.length)
     (w v : ℕ) (hv : v ∈ G.vertices) (hsep : ¬SameComponent H w v)
@@ -110,7 +113,8 @@ theorem HasRegularContacts.exists_component_subdrawing {G H : Graph} {D : Polygo
       A.vertex = D.vertex ∘ Function.update id w v ∧
       Set.MapsTo (Function.update id w v) {u | u ∈ (H.componentGraph root).vertices}
         {u | u ∈ G.vertices} ∧
-      Set.InjOn (Function.update id w v) {u | u ∈ (H.componentGraph root).vertices} := by
+      Set.InjOn (Function.update id w v) {u | u ∈ (H.componentGraph root).vertices} ∧
+      (∀ marked, D.EvenCrossings marked → A.EvenCrossings (marked ∘ Function.update id w v)) := by
   let K := H.componentGraph root
   let label := Function.update id w v
   let e : Fin K.edges.length ↪ Fin G.edges.length :=
@@ -147,7 +151,9 @@ theorem HasRegularContacts.exists_component_subdrawing {G H : Graph} {D : Polygo
         simpa only [label, Function.update_self, Function.update_of_ne haw, id_eq] using he
       exact (hsep (hav ▸ hcb.symm.trans hca)).elim
     · simpa only [label, Function.update_of_ne haw, Function.update_of_ne hbw, id_eq] using he
-  exact ⟨D.subdrawing e label hcoord, hD.subdrawing e label hcoord
-    (H.componentGraph_endpoints_declared root hdecl) hmap hinj, fun _ => rfl, rfl, hmap, hinj⟩
+  have hKdecl := H.componentGraph_endpoints_declared root hdecl
+  exact ⟨D.subdrawing e label hcoord, hD.subdrawing e label hcoord hKdecl hmap hinj,
+    fun _ => rfl, rfl, hmap, hinj, fun _ hm =>
+      hm.of_route_restriction e label hcoord hKdecl hinj (fun _ => rfl)⟩
 
 end Cslib.Complexity.Graph.PolygonalDrawing
