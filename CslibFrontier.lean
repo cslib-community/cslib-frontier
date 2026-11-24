@@ -8979,6 +8979,8 @@ public import CslibFrontier.GameTheory.Congestion.Pricing.ParallelSerial
 public import CslibFrontier.GameTheory.Congestion.Pricing.PricedWardrop
 public import CslibFrontier.GameTheory.Congestion.Stability
 public import CslibFrontier.GameTheory.Congestion.StrongNash
+public import CslibFrontier.GameTheory.Congestion.Weighted
+public import CslibFrontier.GameTheory.Congestion.WeightedAffine
 public import CslibFrontier.GameTheory.Contract.CombinatorialAgency
 public import CslibFrontier.GameTheory.Cooperative.Basic
 public import CslibFrontier.GameTheory.Cooperative.Core
