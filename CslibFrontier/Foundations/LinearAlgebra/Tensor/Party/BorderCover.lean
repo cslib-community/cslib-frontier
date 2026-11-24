@@ -9,11 +9,10 @@ module
 
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent
 public import Mathlib.Algebra.Polynomial.Basic
-import Mathlib.Algebra.Order.Ring.Star
+import Mathlib.Analysis.SpecificLimits.Normed
 import Mathlib.Algebra.Polynomial.BigOperators
 import Mathlib.Algebra.Polynomial.Div
 import Mathlib.RingTheory.PowerSeries.Basic
-import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
@@ -94,7 +93,7 @@ variable {K : Type} [Field K] {I : Type} [Fintype I] [DecidableEq I]
 private noncomputable def polyApp {α : I → Type} (z : PartyTensor K I)
     (Φ : ∀ p, α p → z.Index p → Polynomial K)
     (x : ∀ p, α p) : Polynomial K :=
-  ∑ y : ∀ p, z.Index p, (∏ p, Φ p (x p) (y p)) * C (z.entry y)
+  localApply Φ (fun y => C (z.entry y)) x
 
 /-- A product of images of tensors is the image of the product of the tensors. -/
 private theorem polyApp_prod {τ : Type} [Fintype τ] [DecidableEq τ] {α : τ → I → Type}
@@ -103,11 +102,10 @@ private theorem polyApp_prod {τ : Type} [Fintype τ] [DecidableEq τ] {α : τ 
     polyApp (α := fun p => ∀ i, α i p) (prod b) (fun p a c => ∏ i, Φ i p (a i) (c i)) x =
       ∏ i, polyApp (b i) (Φ i) fun p => x p i := by
   unfold polyApp
-  rw [Fintype.prod_sum]
-  refine Fintype.sum_equiv (Equiv.piComm _) _ _ fun y => ?_
-  change (∏ p, ∏ i, Φ i p (x p i) (y p i)) * C (∏ i, (b i).entry fun p => y p i) =
-    ∏ i, (∏ p, Φ i p (x p i) (y p i)) * C ((b i).entry fun p => y p i)
-  rw [map_prod, Finset.prod_comm, ← Finset.prod_mul_distrib]
+  rw [← localApply_prod]
+  congr 1
+  funext y
+  exact map_prod C _ _
 
 /-- Proof of Lemma N.3, powers: if the images of the `b k` sum to `ε ^ D • t` up to higher powers,
 then the products of `N` images, over all words, sum to `ε ^ (N D) • t^N` up to higher powers. -/
@@ -117,7 +115,7 @@ private theorem coeff_sum_words {κ : Type} [Fintype κ] {D : ℕ} {t : PartyTen
     (hL : ∀ x, ∀ i ≤ D, (∑ k, polyApp (b k) (L k) x).coeff i = if i = D then t.entry x else 0)
     (N : ℕ) (x : ∀ p, Fin N → t.Index p) {j : ℕ} (hj : j ≤ N * D) :
     (∑ w : Fin N → κ, ∏ i, polyApp (b (w i)) (L (w i)) fun p => x p i).coeff j =
-      if j = N * D then ((prod fun _ : Fin N => t)).entry x else 0 := by
+      if j = N * D then ((t ^ N)).entry x else 0 := by
   classical
   rw [← Fintype.prod_sum (f := fun (i : Fin N) k => polyApp (b k) (L k) fun p => x p i)]
   have hQ : ∀ i : Fin N, ∃ Q : Polynomial K, (∑ k, polyApp (b k) (L k) fun p => x p i) = X ^ D * Q ∧
@@ -194,29 +192,7 @@ private theorem le_coeff (F : SpectralPoint K I)
 
 
 
-/-- The index tuples of the legs sorted by their parties correspond to the index tuples of all
-legs. -/
-private def pushEquiv {J : Type} (π : J → I) (β : J → Type) :
-    (∀ q, ∀ j : {j : J // π j = q}, β j.1) ≃ (∀ j, β j) where
-  toFun y j := y (π j) ⟨j, rfl⟩
-  invFun z _ j := z j.1
-  left_inv y := by
-    funext q j
-    obtain ⟨j, rfl⟩ := j
-    rfl
-  right_inv _ := rfl
-
-/-- A spectral point at a tensor power. -/
-private theorem apply_prod_const (F : SpectralPoint K I) (t : PartyTensor K I) (N : ℕ) :
-    F (prod fun _ : Fin N => t) = F t ^ N := by
-  rw [F.map_prod, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
-
 variable {A κ : Type} [Fintype A] [DecidableEq A] [Fintype κ]
-
-/-- The exponent of a unit tensor is not negative. -/
-private theorem few_hexp_nonneg [Nonempty I] (F : SpectralPoint K I) (π : A → I) : 0 ≤
-    F.unitExponent π :=
-  Real.logb_nonneg (by norm_num) (F.one_le_unit π (by norm_num))
 
 /-- The number of times a word uses each letter. -/
 private noncomputable def wordType {N : ℕ} (w : Fin N → κ) : κ → Fin (N + 1) :=
@@ -245,7 +221,7 @@ private theorem le_type_bound (F : SpectralPoint K I) [Nonempty A] (π : A → I
     (L : ∀ j p, t.Index p → (c j).Index p → Polynomial K) (ρ : Fin r → Equiv.Perm (Fin N))
     (v : (∀ p, Fin N → t.Index p) → K)
     (hv : ∀ x, v x = (∑ m, ∏ j, polyApp (c j) (L j) fun p => x p (ρ m j)).coeff E) :
-    F (((prod fun _ : Fin N => t)).withEntry v) ≤
+    F (((t ^ N)).withEntry v) ≤
       ((E : ℝ) + 1) ^ Fintype.card I * ((r : ℝ) ^ F.unitExponent π * ∏ j, F (c j)) := by
   classical
   have hI : Nonempty I := ⟨π (Classical.arbitrary A)⟩
@@ -265,7 +241,7 @@ private theorem le_type_bound (F : SpectralPoint K I) [Nonempty A] (π : A → I
         intro u
         change C _ * _ = _
         rw [← polyApp_prod (α := fun _ q => t.Index q) c L fun q j =>
-            x q (pick q (fun a => u a.1) j), polyApp,
+            x q (pick q (fun a => u a.1) j), polyApp, localApply,
           Finset.mul_sum]
         refine Finset.sum_congr rfl fun y _ => ?_
         rw [map_mul]
@@ -275,7 +251,9 @@ private theorem le_type_bound (F : SpectralPoint K I) [Nonempty A] (π : A → I
       refine Fintype.sum_equiv
         ((Equiv.arrowProdEquivProdArrow (α := I) (fun q => {a : A // π a = q} → Fin r)
           fun q => (prod c).Index q).trans
-          (Equiv.prodCongr (pushEquiv π fun _ : A => Fin r) (Equiv.refl _))) _ _ fun y => ?_
+          (Equiv.prodCongr
+            (Equiv.piCongrFiberwise (f := π) (γ₁ := fun _ : A => Fin r) fun _ => Equiv.refl _).symm
+            (Equiv.refl _))) _ _ fun y => ?_
       have hfib : ∀ q, (fun a : {a : A // π a = q} => (y (π a.1)).1 ⟨a.1, rfl⟩) = (y q).1 := by
         intro q
         funext a
@@ -300,7 +278,7 @@ private theorem le_type_bound (F : SpectralPoint K I) [Nonempty A] (π : A → I
       · simp only [pick, dite_eq_left hq]
       · have := ht q fun ⟨a, ha⟩ => hq ⟨a, ha⟩
         exact Subsingleton.elim _ _
-  refine (le_coeff F (s := ((prod fun _ : Fin N => t)).withEntry v) (D := E) Φ fun x =>
+  refine (le_coeff F (s := ((t ^ N)).withEntry v) (D := E) Φ fun x =>
     (hv x).trans (congr_arg (fun P => P.coeff E) (key x))).trans (le_of_eq ?_)
   rw [F.map_mul, F.map_prod, F.apply_push_unit π hr]
 
@@ -350,14 +328,14 @@ private theorem pow_le_few (F : SpectralPoint K I) [Nonempty A] [Nonempty κ] (�
     ∏ i, polyApp (b (w i)) (L₁ (w i)) fun p => x p i
   let v : (κ → Fin (N + 1)) → (∀ p, Fin N → t.Index p) → K := fun τ x =>
     (∑ w : {w : Fin N → κ // wordType w = τ}, G w x).coeff (N * D)
-  have hsum : ∀ x, ((prod fun _ : Fin N => t)).entry x = ∑ τ, v τ x := by
+  have hsum : ∀ x, ((t ^ N)).entry x = ∑ τ, v τ x := by
     intro x
     refine ((coeff_sum_words hL₁ N x le_rfl).trans (ite_eq_left rfl)).symm.trans ?_
     change _ = ∑ τ, (∑ w : {w : Fin N → κ // wordType w = τ}, G w x).coeff (N * D)
     rw [← Polynomial.finsetSum_coeff]
     exact congr_arg (fun P : K[X] => P.coeff _)
       (Fintype.sum_fiberwise (wordType (N := N) (κ := κ)) fun w => G w x).symm
-  rw [← apply_prod_const F]
+  rw [← F.map_pow]
   refine (F.le_sum_entry _ v hsum).trans ?_
   refine (Finset.sum_le_card_nsmul _ _ ((((N * D : ℕ) : ℝ) + 1) ^ Fintype.card I * B ^ N) fun
       τ _ => ?_).trans
@@ -389,7 +367,7 @@ private theorem pow_le_few (F : SpectralPoint K I) [Nonempty A] [Nonempty κ] (�
     rw [hB, mul_pow, ← Real.rpow_natCast ((Fintype.card κ : ℝ) ^ F.unitExponent π),
         ← Real.rpow_mul (by positivity),
       mul_comm (F.unitExponent π), Real.rpow_mul (by positivity), Real.rpow_natCast]
-    refine mul_le_mul (Real.rpow_le_rpow (by positivity) ?_ (few_hexp_nonneg F π)) ?_
+    refine mul_le_mul (Real.rpow_le_rpow (by positivity) ?_ (F.unitExponent_nonneg π)) ?_
       (Finset.prod_nonneg fun _ _ => F.nonneg _) (by positivity)
     · exact_mod_cast (Fintype.card_subtype_le _).trans_eq (by simp)
     · exact (Finset.prod_le_prod₀ (fun _ _ => F.nonneg _) fun j _ => hM _).trans (by simp)
@@ -427,7 +405,7 @@ theorem SpectralPoint.apply_le_of_borderCoveredBy (F : SpectralPoint K I)
               (hL x D le_rfl).trans (ite_eq_left rfl); simpa [hne, localApply] using this.symm)
     obtain ⟨k, y, hy⟩ := hk
     refine h1.trans (one_le_mul_of_one_le_of_one_le ?_ ((F.one_le hy).trans (hM k)))
-    exact Real.one_le_rpow (by exact_mod_cast Fintype.card_pos) (few_hexp_nonneg F π)
+    exact Real.one_le_rpow (by exact_mod_cast Fintype.card_pos) (F.unitExponent_nonneg π)
   · refine le_of_pow_le_poly (C := ((D : ℝ) + 1) ^ Fintype.card I)
       (Fintype.card κ + Fintype.card I) hB fun N => ?_
     refine (pow_le_few F π t ht h hM N).trans (mul_le_mul_of_nonneg_right ?_ (by positivity))
