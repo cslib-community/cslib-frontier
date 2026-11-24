@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
@@ -401,9 +402,7 @@ private theorem eval_run_etmToMACHandler_signingOracle_eq (E : SymmetricCipher) 
       unfold etmForgeJointOracle etmToMACHandler
       by_cases hlenEq : (msg.length == n) = true
       · simp only [hlenEq, ↓reduceIte, OracleComp.interpret_bind, StateT.run_bind,
-          ProbOracleComp.run_interpret_sample, Probability.PMF.monad_bind_eq_bind,
-          PMF.bind_map, Function.comp_def, PMF.map_bind, ProbComp.eval_bind,
-          ProbComp.eval_pure]
+          ProbOracleComp.run_interpret_sample, pmf_norm]
         apply PMF.bind_congr_on_support
         intro c hc
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlenEq) c hc
@@ -508,7 +507,7 @@ theorem succProbability_encForgeGame_encryptThenMAC_le (E : SymmetricCipher) (M 
              (pair.1.length == M.msgLen n) && !out.2.contains pair.1 &&
                M.verify km pair.1 pair.2))) := by
     rw [OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.run_interpret_sample]
-    simp only [Probability.PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def, PMF.bind_bind]
+    simp only [pmf_norm]
     congr 1; funext ke
     rw [OracleComp.interpret_map, StateT.run_map]
     simp only [_root_.PMF.monad_map_eq_map, PMF.bind_map, Function.comp_def]

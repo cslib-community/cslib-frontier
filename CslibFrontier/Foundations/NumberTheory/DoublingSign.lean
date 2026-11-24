@@ -51,18 +51,25 @@ namespace Cslib
 @[expose] def FirstCircleFlag (t : ℚ) (w : ℕ → ℚ) (k : ℕ) : Prop :=
   CircleFlag t (w k) ∧ ∀ j < k, ¬ CircleFlag t (w j)
 
+private lemma eq_zero_of_cast_lt (z : ℤ) (hlo : (-1 : ℚ) < z) (hhi : (z : ℚ) < 1) : z = 0 := by
+  have hlo' : -1 < z := by exact_mod_cast hlo
+  have hhi' : z < 1 := by exact_mod_cast hhi
+  omega
+
+private lemma eq_one_of_cast_lt (z : ℤ) (hlo : (0 : ℚ) < z) (hhi : (z : ℚ) < 2) : z = 1 := by
+  have hlo' : 0 < z := by exact_mod_cast hlo
+  have hhi' : z < 2 := by exact_mod_cast hhi
+  omega
+
 /-- No approximation of zero can be flagged when the error is below the flag margin. -/
 theorem CircleClose.not_flag_zero {ε t w : ℚ} (h : CircleClose ε w 0)
     (hε : ε < t) : ¬ CircleFlag t w := by
   obtain ⟨z, hz⟩ := h
   intro hf
   have hz' := abs_lt.mp hz
-  have hzl : (0 : ℚ) < z := by linarith [hf.1]
-  have hzu : (z : ℚ) < 1 := by linarith [hf.2]
-  have hzl' : 0 < z := by exact_mod_cast hzl
-  have hzu' : z < 1 := by exact_mod_cast hzu
+  have hzl : 0 < z := by exact_mod_cast (by linarith [hf.1] : (0 : ℚ) < z)
+  have hzu : z < 1 := by exact_mod_cast (by linarith [hf.2] : (z : ℚ) < 1)
   omega
-
 
 /-- A flag excludes wrapping at zero; a small target has the sign indicated by the
 side of one half. This also rules out a flag for a zero target. -/
@@ -77,21 +84,13 @@ theorem CircleClose.sign_of_flag {ε t b w q : ℚ} (h : CircleClose ε w q)
   have hz' := abs_lt.mp hz
   have hq' := abs_lt.mp hq
   obtain hpos | hzero | hneg := lt_trichotomy 0 q
-  · have hzlo : (-1 : ℚ) < z := by linarith [hf.1]
-    have hzhi : (z : ℚ) < 1 := by linarith [hf.2]
-    have hzlo' : -1 < z := by exact_mod_cast hzlo
-    have hzhi' : z < 1 := by exact_mod_cast hzhi
-    have hzz : z = 0 := by omega
+  · have hzz : z = 0 := eq_zero_of_cast_lt z (by linarith [hf.1]) (by linarith [hf.2])
     subst z
     norm_num at hz'
     have hw : w < 1 / 2 := by linarith
     exact ⟨iff_of_true hpos hw, iff_of_false (by linarith) (by linarith)⟩
   · exact False.elim (hnzero hzero.symm)
-  · have hzlo : (0 : ℚ) < z := by linarith [hf.1]
-    have hzhi : (z : ℚ) < 2 := by linarith [hf.2]
-    have hzlo' : 0 < z := by exact_mod_cast hzlo
-    have hzhi' : z < 2 := by exact_mod_cast hzhi
-    have hzz : z = 1 := by omega
+  · have hzz : z = 1 := eq_one_of_cast_lt z (by linarith [hf.1]) (by linarith [hf.2])
     subst z
     norm_num at hz'
     have hw : 1 / 2 < w := by linarith
@@ -108,19 +107,11 @@ theorem CircleClose.flag_of_magnitude {ε t a b w q : ℚ} (h : CircleClose ε w
   have hεpos : 0 < ε := lt_of_le_of_lt (abs_nonneg _) hz
   obtain hpos | hneg := le_total 0 q
   · rw [abs_of_nonneg hpos] at hqlo
-    have hzlo : (-1 : ℚ) < z := by linarith [hw.1]
-    have hzhi : (z : ℚ) < 1 := by linarith [hw.2]
-    have hzlo' : -1 < z := by exact_mod_cast hzlo
-    have hzhi' : z < 1 := by exact_mod_cast hzhi
-    have hzz : z = 0 := by omega
+    have hzz : z = 0 := eq_zero_of_cast_lt z (by linarith [hw.1]) (by linarith [hw.2])
     subst z
     constructor <;> norm_num at hz' <;> linarith
   · rw [abs_of_nonpos hneg] at hqlo
-    have hzlo : (0 : ℚ) < z := by linarith [hw.1]
-    have hzhi : (z : ℚ) < 2 := by linarith [hw.2]
-    have hzlo' : 0 < z := by exact_mod_cast hzlo
-    have hzhi' : z < 2 := by exact_mod_cast hzhi
-    have hzz : z = 1 := by omega
+    have hzz : z = 1 := eq_one_of_cast_lt z (by linarith [hw.1]) (by linarith [hw.2])
     subst z
     constructor <;> norm_num at hz' <;> linarith
 

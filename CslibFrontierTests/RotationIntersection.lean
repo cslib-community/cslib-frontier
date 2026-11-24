@@ -105,14 +105,14 @@ example : Nat.card loopRotation.Face = 2 := by
   rw [← loopRotation.card_dual_vertices]
   decide
 
-private def digonPassages : ClosedPassages digon (fun _ => true) where
-  count := 2
-  ports :=
-    { toFun := fun p => ⟨(if p.2 then 1 else 0, decide (p.1 = 1)), rfl⟩
-      invFun := fun d => (if d.val.2 then 1 else 0, decide (d.val.1 = 1))
-      left_inv := by decide
-      right_inv := by decide }
-  vertex_eq := by decide
+private def digonPassages : ClosedPassages digon (fun _ => true) :=
+  ClosedPassages.ofCyclicEdges (Equiv.subtypeUnivEquiv (fun _ => rfl)).symm
+    (fun i => decide (i = 1)) (by decide)
+
+-- Two parallel occurrences keep separate ports even though they have the same endpoint pair.
+example : digonPassages.dart (0 : Fin 2) false = (0, false) ∧
+    digonPassages.dart (0 : Fin 2) true = (1, false) ∧
+    digonPassages.dart (1 : Fin 2) true = (0, true) := by decide
 
 private theorem digonEven : digon.VertexEven (fun _ => true) := digonPassages.vertexEven
 

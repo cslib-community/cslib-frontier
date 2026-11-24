@@ -58,21 +58,26 @@ open Code
 @[expose]
 def bits (σ : List Bool) : List ℕ := σ.map Bool.toNat
 
+/-- Stage bound `p.2.1` in a halting witness `(σ, k, y)`. -/
+abbrev witnessStage (p : List Bool × ℕ × ℕ) : ℕ := p.2.1
+
+/-- Output value `p.2.2` in a halting witness `(σ, k, y)`. -/
+abbrev witnessOutput (p : List Bool × ℕ × ℕ) : ℕ := p.2.2
+
 /-- Some extension of the finite string `τ` makes the code `c` converge on `x` at some stage.
 The witness packs the extension, the stage and the output. -/
 @[expose]
 def Halts (c : Code) (τ : List Bool) (x : ℕ) : Prop :=
   ∃ p : List Bool × ℕ × ℕ,
-    let r := p.2
-    τ <+: p.1 ∧ r.2 ∈ evaln (bits p.1) r.1 c x
+    τ <+: p.1 ∧ witnessOutput p ∈ evaln (bits p.1) (witnessStage p) c x
 
 /-- Predicate stating that `e` decodes to a halting witness `(σ, k, y)` for `c` on `x` extending
 `τ`. -/
 @[expose]
 def haltsPred (c : Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Prop :=
   ∃ p : List Bool × ℕ × ℕ,
-    let r := p.2
-    Encodable.decode e = some p ∧ τ <+: p.1 ∧ r.2 ∈ evaln (bits p.1) r.1 c x
+    Encodable.decode e = some p ∧
+      τ <+: p.1 ∧ witnessOutput p ∈ evaln (bits p.1) (witnessStage p) c x
 
 instance (c : Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Decidable (haltsPred c τ x e) :=
   match h : Encodable.decode (α := List Bool × ℕ × ℕ) e with
@@ -98,9 +103,7 @@ noncomputable def step (c : Code) (σ τ : List Bool) : List Bool × List Bool :
   if h : Halts c τ σ.length then
     let e := Nat.find (p := haltsPred c τ σ.length) ((Halts_iff_exists_haltsPred c τ σ.length).mp h)
     match Encodable.decode (α := List Bool × ℕ × ℕ) e with
-    | some p =>
-      let r := p.2
-      (σ ++ [decide (r.2 = 0)], p.1)
+    | some p => (σ ++ [decide (witnessOutput p = 0)], p.1)
     | none => (σ ++ [false], τ)
   else
     (σ ++ [false], τ)

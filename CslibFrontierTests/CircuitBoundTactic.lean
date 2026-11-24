@@ -242,21 +242,48 @@ is known that does not depend on `j`. State a bound of the family as a hypothesi
 example (cs : Fin m → Circuit σ n 1) : (Circuit.pi cs).depth ≤ 5 := by
   circuit_bound
 
--- The structural bound is found, and the arithmetic left is not linear.
+-- Polynomial arithmetic after the structural bound is discharged by `nlinarith`.
+example (cs : Fin m → Circuit σ n 1) (S : ℕ) (hcs : ∀ j, (cs j).size ≤ S) (hS : S ≤ k) :
+    (Circuit.pi cs).size ≤ m * k := by
+  circuit_bound
+
+-- Nonlinear conditional bounds split top-level `max` before trying `omega`/`nlinarith`.
+example (c : Circuit Boolean.signature n 1) (p : Prop) [Decidable p] (w : ℕ)
+    (hc : c.size ≤ w ^ 2 + w) :
+    (if p then c else Circuit.oneGate (σ := Boolean.signature) (.const false) Fin.elim0).size ≤
+      (w + 1) ^ 2 := by
+  circuit_bound
+
+-- Uniform bounds over `List.ofFn` families are proved by bounding the indexed body uniformly.
+private def listDepthWrap (cs : List (Circuit σ n 1)) : ℕ :=
+  (cs.map Circuit.depth).foldr max 0
+
+private theorem listDepthWrap_le (cs : List (Circuit σ n 1)) {D : ℕ} (h : ∀ C ∈ cs, C.depth ≤ D) :
+    listDepthWrap cs ≤ D := by
+  induction cs with
+  | nil => exact Nat.zero_le _
+  | cons C cs ih =>
+    exact max_le (h C List.mem_cons_self) (ih fun C' hC' => h C' (List.mem_cons_of_mem _ hC'))
+
+attribute [local circuit_bound] listDepthWrap_le in
+example (cs : Fin m → Circuit σ n 1) (D : ℕ) (hcs : ∀ j, (cs j).depth ≤ D) :
+    listDepthWrap (List.ofFn cs) ≤ D := by
+  circuit_bound
+
+-- Formula leaf sizes are normalized by `circuit_simps` and bounded by `circuit_bound`.
+example (F G : Formula Boolean.signature m) (a b : ℕ) (hF : F.leafSize ≤ a) (hG : G.leafSize ≤ b) :
+    (F.and G.not).leafSize ≤ a + b := by
+  circuit_bound
+
+-- When a polynomial comparison still does not hold, the error reports the unproved inequality.
 /--
 error: circuit_bound could not prove
   m * S ≤ m * k
 -/
 #guard_msgs in
-example (cs : Fin m → Circuit σ n 1) (S : ℕ) (hcs : ∀ j, (cs j).size ≤ S) (hS : S ≤ k) :
+example (cs : Fin m → Circuit σ n 1) (S : ℕ) (hcs : ∀ j, (cs j).size ≤ S) :
     (Circuit.pi cs).size ≤ m * k := by
   circuit_bound
-
--- In that case state the structural bound and finish by hand.
-example (cs : Fin m → Circuit σ n 1) (S : ℕ) (hcs : ∀ j, (cs j).size ≤ S) (hS : S ≤ k) :
-    (Circuit.pi cs).size ≤ m * k := by
-  have h : (Circuit.pi cs).size ≤ m * S := by circuit_bound
-  exact h.trans (Nat.mul_le_mul_left m hS)
 
 -- The goal must be a bound between natural numbers.
 /--
@@ -272,9 +299,18 @@ example (c : Circuit σ n m) : c.depth = 3 := by
 example (b d : ℕ) (_h : 1 ≤ d) (_hd : d ≤ 2) (hb : b ^ d ≤ 9) : b ^ d ≤ 9 := by
   circuit_bound
 
-example (d : ℕ) (h0 : 0 < d) (_hd : d ≤ 2) : 0 ^ d ≤ 0 := by
-  fail_if_success circuit_bound
-  simp [Nat.zero_pow h0]
+/--
+error: circuit_bound could not prove
+  0 ^ d ≤ 0 ^ 2
+-/
+#guard_msgs in
+example (d : ℕ) (_hd : d ≤ 2) : 0 ^ d ≤ 0 ^ 2 := by
+  circuit_bound
+
+-- A uniform bound on a mapped list sum uses the membership hypothesis.
+example (cs : List (Circuit σ n m)) (k : ℕ) (h : ∀ c ∈ cs, c.size ≤ k) :
+    (cs.map Circuit.size).sum ≤ cs.length * k := by
+  circuit_bound
 
 -- A `Finset.sup` family whose bound depends on the index reports the same diagnostic note.
 /--

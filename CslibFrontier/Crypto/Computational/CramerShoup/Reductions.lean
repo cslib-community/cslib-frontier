@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Crypto.Game.Statistical
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
@@ -161,8 +162,7 @@ theorem advantage_bind_sampleCramerShoupPair_le (n : ℕ) (d : F.Desc)
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun σ =>
         (PMF.uniformOfFintype (ZMod (F.order d))).bind fun τ => k σ τ) ≤
       2 / 2 ^ n := by
-  simp only [sampleCramerShoupPair, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.bind_bind, PMF.pure_bind]
+  simp only [sampleCramerShoupPair, pmf_norm]
   exact F.advantage_bind_sampleExp_pair_le n d k
 
 /-- Replacing `sampleCramerShoupTripleExponents n d` by three independent uniform draws on
@@ -184,8 +184,7 @@ theorem advantage_bind_sampleCramerShoupTripleExponents_le (n : ℕ) (d : F.Desc
       (ProbComp.eval (F.sampleExp n d)).bind fun a =>
         (ProbComp.eval (F.sampleCramerShoupPair n d)).bind fun bc =>
           k (a : ZMod (F.order d)) (bc.1 : ZMod (F.order d)) (bc.2 : ZMod (F.order d)) := by
-    simp only [sampleCramerShoupTripleExponents, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.bind_bind, PMF.pure_bind, csExpA, csExpBC, csExpB, csExpC]
+    simp only [sampleCramerShoupTripleExponents, csExpA, csExpBC, csExpB, csExpC, pmf_norm]
   rw [hbind]
   refine (Game.advantage_triangle _
     ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α =>
@@ -228,8 +227,7 @@ theorem advantage_bind_sampleCramerShoupSK_le (n : ℕ) (d : F.Desc)
             kZMod (p.1 : ZMod (F.order d)) (p.2 : ZMod (F.order d))
               (p₁.1 : ZMod (F.order d)) (p₁.2 : ZMod (F.order d))
               (p₂.1 : ZMod (F.order d)) (p₂.2 : ZMod (F.order d)) := by
-    simp only [sampleCramerShoupSK, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.bind_bind, PMF.pure_bind]
+    simp only [sampleCramerShoupSK, pmf_norm]
     refine congrArg _ (funext fun p =>
       congrArg _ (funext fun p₁ => congrArg _ (funext fun p₂ => ?_)))
     exact hcast p.1 p.2 p₁.1 p₁.2 p₂.1 p₂.2

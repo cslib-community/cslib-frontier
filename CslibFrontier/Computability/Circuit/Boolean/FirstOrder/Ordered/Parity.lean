@@ -118,13 +118,10 @@ private theorem exists_formula_computes_parity [Fact (2 ≤ n)] (P : L.Relations
       simp [this]
   · have := depth_toUnbounded_le e φ Fin.elim0
     circuit_bound
-  · have h : (Circuits.Formula.gate (σ := Unbounded.signature) .not ![G.bind sub]).size ≤
-        G.size + G.leafSize * 1 + 1 := by
-      circuit_bound
-    have hs : G.size ≤ foSize φ * (n + 2) ^ foSize φ := size_toUnbounded_le e φ Fin.elim0
-    have hl : G.leafSize ≤ (n + 2) ^ foSize φ := leafSize_toUnbounded_le e φ Fin.elim0
-    have hpos : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
-    nlinarith
+  · have := size_toUnbounded_le e φ Fin.elim0
+    have := leafSize_toUnbounded_le e φ Fin.elim0
+    have : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
+    circuit_bound
 
 /-- **Parity is not definable in canonical ordered first-order logic.** In any finite relational
 input vocabulary with a unary relation `P`, no sentence using canonical `≤`, `BIT`, `0`, `1`, and

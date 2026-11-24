@@ -144,7 +144,7 @@ noncomputable def winnowWeight (α θ : ℝ) (tie : Bool) (h : List ((Fin n → 
 
 /-- WINNOW1 [Littlestone1988, §5, Algorithm 3] with update factor `α`, threshold `θ` and
 prediction `tie` at the threshold. -/
-noncomputable def winnow (α θ : ℝ) (tie : Bool) : OnlineLearner (Fin n → Bool) := fun h x =>
+noncomputable def winnow (α θ : ℝ) (tie : Bool) : OnlineLearner (Fin n → Bool) Bool := fun h x =>
   winnowPredict θ tie (winnowWeight α θ tie h) x
 
 /-! ### Basic facts -/
