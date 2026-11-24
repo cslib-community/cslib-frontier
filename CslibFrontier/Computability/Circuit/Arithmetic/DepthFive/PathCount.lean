@@ -183,7 +183,7 @@ private theorem card_vset_castSucc (τ : Fin n → Bool) (S : Finset (Fin n)) (j
       intro x hx
       simp only [vset, mem_filter, mem_univ, true_and] at hx
       exact ⟨hx.2 i (Or.inr (Fin.ext (by simp [hi]))), hx.2 j (Or.inl rfl)⟩
-    have huniq : ∀ i' : Fin n, (i' : ℕ) + 1 = j → i' = i := fun i' h => Fin.ext (by omega)
+    have huniq : ∀ i' : Fin n, (i' : ℕ) + 1 = j → i' = i := fun i' h => by omega
     simp only [hj, ↓reduceIte]
     by_cases hsw : ∃ i : Fin n, (i : ℕ) + 1 = j ∧ τ i ≠ τ j
     · have hg : ¬ ∃ i : Fin n, (i : ℕ) + 1 = j ∧ τ i = false ∧ τ j = false ∧
@@ -252,14 +252,10 @@ private theorem sum_nbrN_le (p : Params)
     dsimp only at heq
     have key : (t : ℕ) = t' ∧ (i : ℕ) = i' := by
       split_ifs at heq with h₁ h₂ h₂
-      · have := congrArg Fin.val heq
-        omega
-      · have := congrArg Fin.val heq
-        exact (hadj t' t (by omega) (hS t' ht').1 (hS t ht).1).elim
-      · have := congrArg Fin.val heq
-        exact (hadj t t' (by omega) (hS t ht).1 (hS t' ht').1).elim
-      · have := congrArg Fin.val heq
-        omega
+      · omega
+      · exact (hadj t' t (by omega) (hS t' ht').1 (hS t ht).1).elim
+      · exact (hadj t t' (by omega) (hS t ht).1 (hS t' ht').1).elim
+      · omega
     obtain rfl : t = t' := Fin.ext key.1
     obtain rfl : i = i' := Fin.ext key.2
     rfl

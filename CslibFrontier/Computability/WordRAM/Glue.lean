@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Glue.Basic
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Compositional certificates and `fun_prop` automation for register-word glue
@@ -52,46 +53,25 @@ private def stageRight {a b c : ℕ} (j : Fin (b + 1)) : Fin (a + b + c + 3) :=
   ⟨j.val + c + a + 2, by omega⟩
 
 private theorem stageRest_injective {a b c : ℕ} : Function.Injective (@stageRest a b c) := by
-  intro i j h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  simp only [stageRest] at this
-  omega
+  fin_index [stageRest]
 
 private theorem stageLeft_injective {a b c : ℕ} : Function.Injective (@stageLeft a b c) := by
-  intro i j h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  simp only [stageLeft] at this
-  omega
+  fin_index [stageLeft]
 
 private theorem stageRight_injective {a b c : ℕ} : Function.Injective (@stageRight a b c) := by
-  intro i j h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  simp only [stageRight] at this
-  omega
+  fin_index [stageRight]
 
 private theorem stageLeft_ne_stageRight {a b c : ℕ} (i : Fin (a + 1)) (j : Fin (b + 1)) :
     stageLeft (c := c) i ≠ stageRight (c := c) j := by
-  intro h
-  have := congrArg Fin.val h
-  simp only [stageLeft, stageRight] at this
-  omega
+  fin_index [stageLeft, stageRight]
 
 private theorem stageLeft_ne_stageRest {a b c : ℕ} (i : Fin (a + 1)) (j : Fin (c + 1)) :
     stageLeft (b := b) i ≠ stageRest (a := a) (b := b) j := by
-  intro h
-  have := congrArg Fin.val h
-  simp only [stageLeft, stageRest] at this
-  omega
+  fin_index [stageLeft, stageRest]
 
 private theorem stageRight_ne_stageRest {a b c : ℕ} (i : Fin (b + 1)) (j : Fin (c + 1)) :
     stageRight (a := a) i ≠ stageRest (a := a) (b := b) j := by
-  intro h
-  have := congrArg Fin.val h
-  simp only [stageRight, stageRest] at this
-  omega
+  fin_index [stageRight, stageRest]
 
 /-- Stage two computed words into fresh scratch slots and run a `(k + 2)`-input computation over
 the original `k` input registers together with the two staged words, without copying the original

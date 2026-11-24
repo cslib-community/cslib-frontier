@@ -18,8 +18,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Nondetermin
 
 * `Turing.MultiTapePTM.step_withCoin_seq_left`: a running first phase follows its own step.
 * `Turing.MultiTapePTM.step_withCoin_seq_right`: the second phase follows its own step.
-* `Turing.MultiTapePTM.replay_append`, `Turing.MultiTapePTM.replay_seq_cases`: concatenate coin
-  replays and identify the active phase of a sequential machine.
+* `Turing.MultiTapePTM.replay_seq_cases`: identify the active phase of a sequential machine,
+  using the closed-replay concatenation law `Turing.MultiTapePTM.replay_append`.
 * `Turing.MultiTapePTM.output_length_le_replay`, `Turing.MultiTapePTM.replay_halted`: output length
   is monotone along a replay, and halted configurations remain fixed.
 * `Turing.MultiTapePTM.completed_replay_mem_support`,
@@ -87,14 +87,6 @@ theorem step_withCoin_seq_right {S₀ S₁ : Type} (first : MultiTapePTM k Symbo
 
 
 variable {k : ℕ} {Symbol State : Type} {input : List Symbol}
-
-/-- Running a sequential concatenation of coin sequences is equivalent to
-running them consecutively. -/
-theorem replay_append (machine : MultiTapePTM k Symbol State)
-    (before after : List Bool) (cfg : Config k Symbol State Empty input) :
-    machine.runClosedConfigFromCoins (before ++ after) cfg =
-      machine.runClosedConfigFromCoins after (machine.runClosedConfigFromCoins before cfg) :=
-  List.foldl_append
 
 /-- Replaying a sequence of coins on a sequentially composed machine either stays in the
 first phase or transitions to the second. -/

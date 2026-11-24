@@ -56,11 +56,7 @@ private theorem polyTime_transformedTargets {α : Type} {enc : α ↪ List Bool}
     (hn : ComputableInPolyTime no enc (encList encIntBin)) :
     ComputableInPolyTime (fun a => transformedTargets (yes a) (no a))
       enc (encList encIntBin) := by
-  unfold transformedTargets
-  apply ComputableInPolyTime.mapWithInput hy
-  apply ComputableInPolyTime.intBin_prod.comp
-  apply ComputableInPolyTime.mapWithInput (hn.comp (.fst enc encIntBin))
-  fun_prop
+  fun_prop [transformedTargets]
 
 private theorem transformedTargets_nonzero {yes no : List ℤ} (hd : yes.Disjoint no) :
     (0 : ℤ) ∉ transformedTargets yes no := by

@@ -36,22 +36,27 @@ coefficient bit-length bound `B`.
 * `Cslib.RealRoot.mignotteBisectionDepth_le_of_bitBound`: unconditional polynomial bound
   `mignotteBisectionDepth cs ≤ (cs.length + 2) ^ 2 * (B + 2)`.
 * `Cslib.RealRoot.DyadicBounded.den_le`, `Cslib.RealRoot.DyadicBounded.natAbs_num_le`,
-  and `Cslib.RealRoot.isolateRoots_dyadicBounded`: dyadic numerator and denominator bounds on all
-  endpoints produced by Sturm bisection.
+  `Cslib.RealRoot.refineLeftRoot_dyadicBounded`, and `Cslib.RealRoot.isolateRoots_dyadicBounded`:
+  dyadic numerator and denominator bounds on all endpoints produced by Sturm bisection.
 
 ## References
 
-* [BasuPollackRoy2006] (locator unverified)
-* [Mahler1964], pp. 257–262 (locator unverified)
-* [Mignotte1982], pp. 259–263 (locator unverified; `HasCoeffBitBound`, `DyadicBounded`, and
-  `mignotteBisectionDepth_le_of_bitBound` are specific to this module)
+`HasCoeffBitBound`, `DyadicBounded`, and `mignotteBisectionDepth_le_of_bitBound` are this
+library's own construction on top of the root-separation ingredients below.
+
+* [BasuPollackRoy2006], Theorem 2.50, p. 52 (Sturm counting ingredient; §10.2 Algorithm 10.4 on
+  pp. 373–374 is related work)
+* [Mahler1964], pp. 257–262 (discriminant/Mahler-measure separation ingredient; equation locator
+  unverified)
+* [Mignotte1982], Theorem 3 (pp. 260–261) and Theorem 5 with integral corollary (p. 262; Landau
+  norm comparison and root-separation ingredients)
 -/
 
 public section
 
 namespace Cslib.RealRoot
 
-open Polynomial Cslib.Algorithms.Lean
+open Polynomial
 
 /-- Every rational entry `q ∈ cs` has numerator and denominator bounded by `2 ^ B`. -/
 @[expose] def HasCoeffBitBound (B : ℕ) (cs : List ℚ) : Prop :=
@@ -98,27 +103,10 @@ theorem hasCoeffBitBound_coeffBitBound (cs : List ℚ) :
   intro q hq
   exact haux cs 0 q hq
 
-private theorem mem_of_mem_trim {q : ℚ} {cs : List ℚ} (hq : q ∈ trim cs) : q ∈ cs := by
-  induction cs with
-  | nil => simp only [trim, List.not_mem_nil] at hq
-  | cons a as ih =>
-    simp only [trim] at hq
-    by_cases he : (trim as).isEmpty = true
-    · simp only [he, ↓reduceIte] at hq
-      by_cases ha : a = 0
-      · simp only [ha, ↓reduceIte, List.not_mem_nil] at hq
-      · rw [ite_eq_right (fun h => absurd h ha), List.mem_singleton] at hq
-        subst hq
-        exact List.mem_cons_self
-    · simp only [he, Bool.false_eq_true, ↓reduceIte, List.mem_cons] at hq
-      rcases hq with rfl | hmem
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem a (ih hmem)
-
-/-- `HasCoeffBitBound B` is preserved by `trim`. -/
+/-- `HasCoeffBitBound B` is preserved by `CoeffList.trim`. -/
 theorem HasCoeffBitBound.trim {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
-    HasCoeffBitBound B (Cslib.RealRoot.trim cs) :=
-  fun q hq => hB q (mem_of_mem_trim hq)
+    HasCoeffBitBound B (CoeffList.trim cs) :=
+  fun q hq => hB q ((CoeffList.trim_sublist cs).subset hq)
 
 private theorem abs_rat_le_two_pow {B : ℕ} {q : ℚ} (hn : Int.natAbs q.num ≤ 2 ^ B) :
     |q| ≤ (2 : ℚ) ^ B := by
@@ -144,7 +132,7 @@ private theorem maxAbsList_le_two_pow {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
 /-- Upper bound `cauchyBoundNat cs ≤ 2 ^ (2 * B) + 2` under `HasCoeffBitBound B cs`. -/
 theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
     cauchyBoundNat cs ≤ 2 ^ (2 * B) + 2 := by
-  let t := trim cs
+  let t := CoeffList.trim cs
   have htB : HasCoeffBitBound B t := hB.trim
   dsimp only [cauchyBoundNat]
   split_ifs with hlen
@@ -153,8 +141,8 @@ theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
       dsimp only [t] at hnil
       simp only [hnil, List.length_nil] at hlen
       omega
-    obtain ⟨lc, hlc, hlc0⟩ := (isTrimmed_trim cs).getLast?_ne_zero htnil
-    have hlc_mem : lc ∈ t := List.mem_of_getLast? hlc
+    obtain ⟨l, lc, hlc0, hteq⟩ := (CoeffList.isTrimmed_trim cs).exists_append_singleton htnil
+    have hlc_mem : lc ∈ t := by simp [t, hteq]
     have hlc_den : lc.den ≤ 2 ^ B := (htB lc hlc_mem).2
     have hlc_num_pos : 1 ≤ Int.natAbs lc.num :=
       Int.natAbs_pos.mpr (Rat.num_ne_zero.mpr hlc0)
@@ -169,14 +157,13 @@ theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
       calc (1 : ℚ) / (2 : ℚ) ^ B
           ≤ (Int.natAbs lc.num : ℚ) / (2 : ℚ) ^ B := by
               gcongr; exact_mod_cast hlc_num_pos
-        _ ≤ (Int.natAbs lc.num : ℚ) / (lc.den : ℚ) :=
-              div_le_div_of_nonneg_left (Nat.cast_nonneg _) hden_pos hden_le
+        _ ≤ (Int.natAbs lc.num : ℚ) / (lc.den : ℚ) := by gcongr
         _ = |(lc.num : ℚ) / (lc.den : ℚ)| := by rw [abs_div, hnum_eq, Nat.abs_cast]
         _ = |lc| := by rw [Rat.num_div_den]
     have hdropB : HasCoeffBitBound B t.dropLast :=
       fun q hq => htB q (List.dropLast_subset t hq)
     have hm_le : maxAbsList t.dropLast ≤ (2 : ℚ) ^ B := maxAbsList_le_two_pow hdropB
-    have hlc_eq : Option.getD t.getLast? 1 = lc := by rw [hlc, Option.getD_some]
+    have hlc_eq : Option.getD t.getLast? 1 = lc := by simp [t, hteq]
     rw [hlc_eq]
     let b := maxAbsList t.dropLast / |lc| + 1
     have hb_nonneg : 0 ≤ b :=
@@ -258,11 +245,11 @@ private theorem foldl_sqNorm_le_of_bound (ns : List ℤ) (M acc : ℕ)
 
 /-- Upper bound on cleared-denominator `sqNormList` under `HasCoeffBitBound B cs`. -/
 theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
-    sqNormList (Prod.snd (clearDenomsList (trim cs))) ≤
+    sqNormList (Prod.snd (clearDenomsList (CoeffList.trim cs))) ≤
       cs.length * 4 ^ ((cs.length + 1) * B) := by
-  let t := trim cs
+  let t := CoeffList.trim cs
   let n := cs.length
-  have ht_len : t.length ≤ n := trim_length_le cs
+  have ht_len : t.length ≤ n := CoeffList.length_trim_le cs
   have htB : HasCoeffBitBound B t := hB.trim
   have hD_le : lcmDens t ≤ 2 ^ (n * B) :=
     (lcmDens_le_of_bitBound htB).trans
@@ -289,10 +276,10 @@ theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
   rw [h4, hns_len] at hsq
   exact hsq.trans (Nat.mul_le_mul_right _ ht_len)
 
-/-- Logarithmic bound on `sqNormList (clearDenomsList (trim cs)).2`
+/-- Logarithmic bound on `sqNormList (clearDenomsList (CoeffList.trim cs)).2`
 under `HasCoeffBitBound B cs`. -/
 theorem clog4_sqNormList_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
-    Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (trim cs)))) ≤
+    Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (CoeffList.trim cs)))) ≤
       cs.length + (cs.length + 1) * B := by
   refine Nat.clog_le_of_le_pow ?_
   have hsq := sqNormList_clearDenoms_le_of_bitBound hB
@@ -319,7 +306,7 @@ theorem mignotteBisectionDepth_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
         (cs.length + 2) * cs.length :=
       Nat.mul_le_mul (Nat.add_le_add_right hd_le_n 2) hclog_d
     have h2 : ((ofCoeffList cs).natDegree - 1) *
-          Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (trim cs)))) ≤
+          Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (CoeffList.trim cs)))) ≤
         cs.length * (cs.length + (cs.length + 1) * B) :=
       Nat.mul_le_mul ((Nat.sub_le _ _).trans hd_le_n) hsn
     have hsum : 1 + 2 * (B + 1) + (cs.length + 2) * cs.length +
@@ -410,79 +397,70 @@ theorem DyadicBounded.natAbs_num_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b 
     exact Nat.mul_le_mul hz hden
   exact Nat.le_of_mul_le_mul_right hmul_le (Nat.pow_pos zero_lt_two)
 
-private theorem refineLeftLoopM_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) :
+/-- Dyadic bound for `refineLeftLoop`: starting from `DyadicBounded b e` endpoints, `fuel` steps
+produce endpoints satisfying `DyadicBounded b (e + fuel)`. -/
+theorem refineLeftLoop_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel b e : ℕ) (u v : ℚ) (vu : ℕ),
       DyadicBounded b e u → DyadicBounded b e v →
-      let I := (refineLeftLoopM t seq fuel u v vu).ret
+      let I := refineLeftLoop t seq fuel u v vu
       DyadicBounded b (e + fuel) I.lower ∧ DyadicBounded b (e + fuel) I.upper
-  | 0, b, e, u, v, _, hu, hv => by
-    simp only [refineLeftLoopM, TimeM.ret_pure, Nat.add_zero]
+  | 0, _, e, _, _, _, hu, hv => by
+    simp only [refineLeftLoop, Nat.add_zero]
     exact ⟨hu, hv⟩
   | fuel + 1, b, e, u, v, vu, hu, hv => by
-    dsimp only [refineLeftLoopM]
-    rw [TimeM.ret_bind, sturmVariationsM_ret]
+    dsimp only [refineLeftLoop]
     have hm : DyadicBounded b (e + 1) ((u + v) / 2) := hu.mid hv
-    split_ifs with hvm
-    · rw [TimeM.ret_pure]
-      exact ⟨hm.mono (by omega), hv.mono (by omega)⟩
-    · rw [TimeM.ret_bind, evalListM_ret]
-      split_ifs with hem
-      · rw [TimeM.ret_pure]
-        exact ⟨hm.mono (by omega), hm.mono (by omega)⟩
-      · have ih := refineLeftLoopM_dyadicBounded t seq fuel b (e + 1) u ((u + v) / 2) vu
-          (hu.mono (by omega)) hm
-        have heq : e + 1 + fuel = e + (fuel + 1) := by omega
-        simpa only [heq] using ih
+    split_ifs with hvm hem
+    · exact ⟨hm.mono (by omega), hv.mono (by omega)⟩
+    · exact ⟨hm.mono (by omega), hm.mono (by omega)⟩
+    · have ih := refineLeftLoop_dyadicBounded t seq fuel b (e + 1) u ((u + v) / 2) vu
+        (hu.mono (by omega)) hm
+      have heq : e + 1 + fuel = e + (fuel + 1) := by omega
+      simpa only [heq] using ih
 
-private theorem refineLeftRootM_dyadicBounded (t : List ℚ) (seq : List (List ℚ))
+/-- Dyadic bound for `refineLeftRoot`: starting from `DyadicBounded b e` endpoints, `fuel` steps
+produce endpoints satisfying `DyadicBounded b (e + fuel)`. -/
+theorem refineLeftRoot_dyadicBounded (t : List ℚ) (seq : List (List ℚ))
     (fuel b e : ℕ) (u v : ℚ) (vu : ℕ)
     (hu : DyadicBounded b e u) (hv : DyadicBounded b e v) :
-    let I := (refineLeftRootM t seq fuel u v vu).ret
+    let I := refineLeftRoot t seq fuel u v vu
     DyadicBounded b (e + fuel) I.lower ∧ DyadicBounded b (e + fuel) I.upper := by
-  dsimp only [refineLeftRootM]
-  rw [TimeM.ret_bind, evalListM_ret]
-  split_ifs with hev
-  · rw [TimeM.ret_pure]
-    exact ⟨hv.mono (by omega), hv.mono (by omega)⟩
-  · rw [TimeM.ret_bind, evalListM_ret]
-    split_ifs with heu
-    · rw [TimeM.ret_pure]
-      exact ⟨hu.mono (by omega), hv.mono (by omega)⟩
-    · exact refineLeftLoopM_dyadicBounded t seq fuel b e u v vu hu hv
+  dsimp only [refineLeftRoot]
+  split_ifs with hev heu
+  · exact ⟨hv.mono (by omega), hv.mono (by omega)⟩
+  · exact ⟨hu.mono (by omega), hv.mono (by omega)⟩
+  · exact refineLeftLoop_dyadicBounded t seq fuel b e u v vu hu hv
 
-private theorem isolateIocM_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) (depthBound : ℕ) :
+/-- Dyadic bound for `isolateIoc`: starting from `DyadicBounded b e` endpoints, every returned
+interval has endpoints satisfying `DyadicBounded b (e + fuel + depthBound)`. -/
+theorem isolateIoc_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) (depthBound : ℕ) :
     ∀ (fuel b e : ℕ) (u v : ℚ) (vu vv : ℕ),
       DyadicBounded b e u → DyadicBounded b e v →
-      ∀ I ∈ (isolateIocM t seq depthBound fuel u v vu vv).ret,
+      ∀ I ∈ isolateIoc t seq depthBound fuel u v vu vv,
         DyadicBounded b (e + fuel + depthBound) I.lower ∧
           DyadicBounded b (e + fuel + depthBound) I.upper
   | fuel, b, e, u, v, vu, vv, hu, hv => by
-    unfold isolateIocM
+    unfold isolateIoc
     dsimp only
     split_ifs with hc0 hc1
-    · rw [TimeM.ret_pure]
-      intro _ h; cases h
-    · rw [TimeM.ret_bind, TimeM.ret_pure]
-      intro I hI
+    · intro _ h; cases h
+    · intro I hI
       rw [List.mem_singleton] at hI
       subst hI
-      have href := refineLeftRootM_dyadicBounded t seq depthBound b e u v vu hu hv
+      have href := refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv
       exact ⟨href.1.mono (by omega), href.2.mono (by omega)⟩
     · cases fuel with
-      | zero =>
-        rw [TimeM.ret_pure]
-        intro _ h; cases h
+      | zero => intro _ h; cases h
       | succ fuel' =>
-        simp only [TimeM.ret_bind, sturmVariationsM_ret, TimeM.ret_pure]
         have hm : DyadicBounded b (e + 1) ((u + v) / 2) := hu.mid hv
         intro I hI
         rw [List.mem_append] at hI
         have heq : e + 1 + fuel' + depthBound = e + (fuel' + 1) + depthBound := by omega
         rcases hI with hL | hR
-        · have h := isolateIocM_dyadicBounded t seq depthBound fuel' b (e + 1) u ((u + v) / 2)
+        · have h := isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) u ((u + v) / 2)
             vu _ (hu.mono (by omega)) hm I hL
           simpa only [heq] using h
-        · have h := isolateIocM_dyadicBounded t seq depthBound fuel' b (e + 1) ((u + v) / 2) v
+        · have h := isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) ((u + v) / 2) v
             _ vv hm (hv.mono (by omega)) I hR
           simpa only [heq] using h
 
@@ -493,15 +471,15 @@ theorem isolateRoots_dyadicBounded (cs : List ℚ) :
     ∀ I ∈ isolateRoots cs,
       DyadicBounded (cauchyBoundNat cs) (2 * mignotteBisectionDepth cs) I.lower ∧
         DyadicBounded (cauchyBoundNat cs) (2 * mignotteBisectionDepth cs) I.upper := by
-  simp only [isolateRoots, isolateRootsM]
-  by_cases he : (trim cs).isEmpty = true
-  · simp only [he, ↓reduceIte, TimeM.ret_pure]
+  simp only [isolateRoots]
+  by_cases he : (CoeffList.trim cs).isEmpty = true
+  · simp only [he, ↓reduceIte]
     intro _ h; cases h
-  · simp only [he, Bool.false_eq_true, ↓reduceIte, TimeM.ret_bind, sturmVariationsM_ret]
+  · simp only [he, Bool.false_eq_true, ↓reduceIte]
     intro I hI
     let b := cauchyBoundNat cs
     let k := mignotteBisectionDepth cs
-    have h := isolateIocM_dyadicBounded (trim cs) (sturmSeqList cs) k k b 0
+    have h := isolateIoc_dyadicBounded (CoeffList.trim cs) (sturmSeqList cs) k k b 0
       (-(b : ℚ)) (b : ℚ) _ _ (DyadicBounded.of_neg_nat b) (DyadicBounded.of_nat b) I hI
     have heq : 0 + k + k = 2 * k := by omega
     simpa only [heq] using h

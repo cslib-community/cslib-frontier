@@ -32,7 +32,7 @@ def oddOnes (word : List Bool) : Bool := word.foldl (fun b x => b ^^ x) false
 
 private theorem oddOnes_mem_DTIME_id : {w | oddOnes w = true} ∈ DTIME encBits (fun n => n) :=
   setOf_mem_DTIME_of_computableInO
-    (ComputableTidilyInO.foldl_bits_finite encBool (fun b x => b ^^ x) false).computableInO
+    (ComputableInO.foldl_bits_finite encBool (fun b x => b ^^ x) false)
     (fun _ => le_rfl)
 
 /-- `oddOnes` lies in linear space via `DTIME_id_ssubset_DSPACE_id`. -/

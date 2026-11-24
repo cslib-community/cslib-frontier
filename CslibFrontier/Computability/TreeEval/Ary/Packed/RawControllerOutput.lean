@@ -156,12 +156,12 @@ theorem decode_inSpace :
     (encPair encNat (encPair encNat (encPair encNat (encPair encNat encNat))))
     (encList encNat))
   have hn := budget_ite valid_inSpace hb
-    (budget_const (encB := encNat) 0 (.refl _))
+    (budget_const (encB := encNat) 0)
   have hid : ComputableInSpace (fun q : Args => q) encArgs encArgs
       (fun q => (encArgs q).length) := of_inO ComputableInDegree.id'.inO_one
   have hinit := budget_prod hid (budget_prod
-    (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encList encBool) [] (.refl _)))
+    (budget_const (encB := encNat) 0)
+    (budget_const (encB := encList encBool) []))
   have hstate (q : Args) (i : ℕ) (hi : i ≤ count q) :
       (encWork (step^[i] (q, 0, []))).length ≤ 16 * ((encArgs q).length + 1) := by
     rw [iterate_step]

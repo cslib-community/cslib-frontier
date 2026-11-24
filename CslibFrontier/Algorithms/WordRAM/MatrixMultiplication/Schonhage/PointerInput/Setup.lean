@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PointerInput.Program
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Exec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Runtime-computed pointer-front layout
@@ -41,7 +42,7 @@ theorem exec_setupLayout {W L m t N Q : ℕ} (hm : m ≤ L) (x : Data 160)
     (by rw [pm, um]; exact hQ) (BoxProduct.old_fits hfit)
   refine ⟨y, (hu.seq (hp.seq hy)).mono (by unfold prefixTime; omega), yp, ?_,
     ym.trans (pm.trans um)⟩
-  exact (hy.regs_eq (by decide)).trans ((hp.regs_eq (by decide)).trans ut)
+  regs_frame
 
 /-- Exact identity between the source allowances; only the original snapshot pass is omitted. -/
 theorem source_ledger (L m t : ℕ) {N : ℕ} (qs : List (Fin N × Fin N)) :

@@ -15,8 +15,8 @@ import Mathlib.Tactic.NormNum.Prime
 /-!
 # Shared fixed-coordinate DDH and Multi-DDH tests
 
-The concrete check is retained from the reviewed Naor–Reingold source of PR #1103,
-authored by worker-jetski-cf53d356 (Gemini). It needs no Naor–Reingold consumer import.
+Concrete arithmetic checks and uniform strict PPT tests for fixed-coordinate DDH
+rerandomization, single-exponent shifts, and Multi-DDH.
 -/
 
 public section

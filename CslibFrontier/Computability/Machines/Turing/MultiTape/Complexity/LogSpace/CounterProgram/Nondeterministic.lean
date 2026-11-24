@@ -50,6 +50,7 @@ the choice (`Turing.CounterProgram.haltsWithin_of_rank`,
   deterministic step followed by a choice.
 * `Turing.CounterProgram.haltsWithin_of_rank`, `Turing.CounterProgram.forall_run_of_rank`:
   halting on every branch and invariants of every branch, from a decreasing rank.
+* `Turing.CounterProgram.Branches.count`: reachability along a unary-counting loop.
 * `Turing.CounterProgram.accepts_of_branches`: a branch to the accepting halt accepts.
 * `Turing.CounterProgram.exists_decidesInLogSpace`: nondeterministic counter programs with
   polynomially bounded registers decide in logarithmic space.
@@ -184,6 +185,23 @@ theorem head (hs : P.halted s = false) (choice : Bool)
     Branches (P := P) (w := w) s s' :=
   (single hs choice).trans h
 
+/-- Reachability along a unary-counting loop: if reading at `(l, regs j)` for `j ≤ bound` reaches
+`(readLabel lInc lExit lEnd (some (decide (j < bound))), regs j)` and each increment `j < bound`
+from `(lInc, regs j)` returns to `(l, regs (j + 1))`, then `(l, regs 0)` branches to
+`(lExit, regs bound)`. -/
+theorem count {l lInc lExit lEnd bound : ℕ} (regs : ℕ → List ℕ)
+    (hread : ∀ j ≤ bound, Branches (P := P) (w := w) (l, regs j)
+      (readLabel lInc lExit lEnd (some (decide (j < bound))), regs j))
+    (hinc : ∀ j < bound, Branches (P := P) (w := w) (lInc, regs j) (l, regs (j + 1))) :
+    Branches (P := P) (w := w) (l, regs 0) (lExit, regs bound) :=
+  Nat.decreasingInduction
+    (motive := fun j _ => Branches (P := P) (w := w) (l, regs j) (lExit, regs bound))
+    (fun j hj ih =>
+      (Branches.trans (by simpa only [hj, decide_true, readLabel] using hread j hj.le)
+        (hinc j hj)).trans ih)
+    (by simpa only [lt_irrefl, decide_false, readLabel] using hread bound le_rfl)
+    (Nat.zero_le _)
+
 end Branches
 
 /-- **A branch to the accepting halt accepts.** -/
@@ -231,7 +249,7 @@ private theorem withChoice_inSpace :
       (encPair encConfig encBool) (encList encNat)
       fun q => (encPair encConfig encBool q).length :=
     budget_comp_lin (snd _ _) (.refl _) hs
-  have hv := budget_prod hregs (budget_prod (budget_const (encB := encNat) 0 (.refl _))
+  have hv := budget_prod hregs (budget_prod (budget_const (encB := encNat) 0)
     (budget_finite (encC := encNat) Bool.toNat (snd encConfig encBool)))
   exact budget_prod (budget_comp_lin (fst _ _) (.refl _) hs)
     (budget_comp ComputableInSpace.set hv
@@ -263,7 +281,7 @@ private theorem accept_inSpace :
     ComputableInSpace P.toNondeterministicQueryMachine.accept encConfig encBool
       fun s => (encConfig s).length :=
   dispatch P.code (.halt []) (fun i _ => decide (i.finish = [true]))
-    (fun _ => budget_const _ (.refl _)) (fst _ _)
+    (fun _ => budget_const _) (fst _ _)
 
 /-- The labels of every branch are bounded by the largest label of the program, and the number of
 registers is fixed. -/
@@ -307,7 +325,7 @@ theorem exists_decidesInLogSpace (P : CounterProgram) {α : Type} {enc : α ↪ 
     (query_inSpace (P := P)) hnext (halted_inSpace (P := P))
     (accept_inSpace (P := P)) (fun _ => P.toNondeterministicQueryMachine.init) time hhalt hA
     (fun a => Nat.log2 (enc a).length + 1) (fun _ => le_rfl)
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
+    (ComputableInSpace.budget_const _)
     ⟨2 * (encNat P.maxLabel).length + 1 + P.registers * (2 * d + 3), fun a choices => ?_⟩
   have hinit : P.init.1 ≤ P.maxLabel ∧ P.init.2.length = P.registers :=
     ⟨Nat.zero_le _, List.length_replicate⟩

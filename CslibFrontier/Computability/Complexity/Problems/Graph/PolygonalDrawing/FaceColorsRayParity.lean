@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CycleSpace
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityDirection
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityEven
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -51,31 +52,11 @@ theorem segment_endpoints_even (x : Fin G.2.length → Bool) (hx : G.VertexEven 
     (∑ s : D.SegmentIndex, ((if u * D.segmentStart s = p then x s.1 else 0) +
       (if u * D.segmentFinish s = p then x s.1 else 0))) = false := by
   classical
-  have hroute (e : Fin G.2.length) :
-      (∑ i : Fin (D.route e).segments,
-        ((if u * (D.route e).point i.castSucc = p then x e else 0) +
-          (if u * (D.route e).point i.succ = p then x e else 0))) =
-        (if u * (D.route e).start = p then x e else 0) +
-          (if u * (D.route e).finish = p then x e else 0) := by
-    let f (i : Fin ((D.route e).segments + 1)) : Bool :=
-      if u * (D.route e).point i = p then x e else 0
-    have hlast := Fin.sum_univ_castSucc f
-    have hfirst := Fin.sum_univ_succ f
-    change (∑ i : Fin (D.route e).segments, (f i.castSucc + f i.succ)) =
-      f 0 + f (Fin.last (D.route e).segments)
-    rw [Finset.sum_add_distrib,
-      eq_sub_iff_add_eq.mpr hlast.symm,
-      eq_sub_iff_add_eq'.mpr hfirst.symm]
-    simp only [sub_eq_add_neg, BooleanRing.neg_eq]
-    calc
-      _ = ((∑ i, f i) + ∑ i, f i) +
-          (f 0 + f (Fin.last (D.route e).segments)) := by ac_rfl
-      _ = _ := by rw [BooleanRing.add_self, zero_add]
   rw [Fintype.sum_sigma]
   change (∑ e, ∑ i : Fin (D.route e).segments,
     ((if u * (D.route e).point i.castSucc = p then x e else 0) +
       (if u * (D.route e).point i.succ = p then x e else 0))) = false
-  simp only [hroute]
+  simp only [Polygonal.Route.sum_segment_endpoint_incidence]
   have hends (e : Fin G.2.length) :
       (if u * (D.route e).start = p then x e else 0) +
         (if u * (D.route e).finish = p then x e else 0) =

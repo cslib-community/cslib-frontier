@@ -162,7 +162,8 @@ theorem first_target_time (c : Circuit signature n n) (p : Circuit signature n 1
       (∀ x, out.eval interpretation x 0 = true ↔
         ∃ t, p.eval interpretation ((c.eval interpretation)^[t] x) 0 = true) ∧
       (∀ x, out.eval interpretation x 0 = true →
-        let t := (word fun i : Fin (n + 2) => out.eval interpretation x (Fin.natAdd 1 i)).toNat
+        let t := (BitString.equivBitVec fun i : Fin (n + 2) =>
+          out.eval interpretation x (Fin.natAdd 1 i)).toNat
         p.eval interpretation ((c.eval interpretation)^[t] x) 0 = true ∧
           (∀ j < t, p.eval interpretation ((c.eval interpretation)^[j] x) 0 ≠ true) ∧ t < 2 ^ n) ∧
       out.size ≤ 90000 * powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L + p.size := by
@@ -192,7 +193,8 @@ theorem first_target_time (c : Circuit signature n n) (p : Circuit signature n 1
   · have hex := (hf x).mp (by rwa [hflagout] at hx)
     have hb : transientDepth (absorb f P) x < 2 ^ n := by
       simpa using transientDepth_lt_card (absorb f P) x
-    have ht : (word fun i : Fin (n + 2) => out.eval interpretation x (Fin.natAdd 1 i)).toNat =
+    have ht : (BitString.equivBitVec fun i : Fin (n + 2) =>
+        out.eval interpretation x (Fin.natAdd 1 i)).toNat =
         transientDepth (absorb f P) x := by
       simp only [ho x, output, Fin.append_right]
       rw [hd, he, BitVec.toNat_ofNat]
@@ -207,18 +209,19 @@ theorem first_target_time (c : Circuit signature n n) (p : Circuit signature n 1
     omega
 
 /-- **Square-root first target times.** Some circuit of size at most
-`270000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size` returns the
+`180000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size` returns the
 reachability flag and, when it is set, the first target time, as in `first_target_time`. -/
 theorem first_target_time_optimized (c : Circuit signature n n) (p : Circuit signature n 1) :
     ∃ out : Circuit signature n (1 + (n + 2)),
       (∀ x, out.eval interpretation x 0 = true ↔
         ∃ t, p.eval interpretation ((c.eval interpretation)^[t] x) 0 = true) ∧
       (∀ x, out.eval interpretation x 0 = true →
-        let t := (word fun i : Fin (n + 2) => out.eval interpretation x (Fin.natAdd 1 i)).toNat
+        let t := (BitString.equivBitVec fun i : Fin (n + 2) =>
+          out.eval interpretation x (Fin.natAdd 1 i)).toNat
         p.eval interpretation ((c.eval interpretation)^[t] x) 0 = true ∧
           (∀ j < t, p.eval interpretation ((c.eval interpretation)^[j] x) 0 ≠ true) ∧ t < 2 ^ n) ∧
       (out.size : ℝ) ≤
-        270000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size := by
+        180000 * optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) + p.size := by
   obtain ⟨L, hL, hLN, hopt⟩ :=
     exists_powerBudget_le_optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) le_rfl
   obtain ⟨out, hf, ht, hs⟩ := first_target_time c p L hL hLN
@@ -229,17 +232,17 @@ theorem first_target_time_optimized (c : Circuit signature n n) (p : Circuit sig
   linarith
 
 /-- **Halting times.** If `c` fixes every halting state and the orbit of every initial state
-halts, some circuit of size at most `150000 * optimizedBudget n c.size (2 ^ n)` returns, in
+halts, some circuit of size at most `100000 * optimizedBudget n c.size (2 ^ n)` returns, in
 `n + 2` bits, the first halting time of every initial state, which is below `2 ^ n`. No circuit
 recognizing halting states is needed. -/
 theorem halting_time (c : Circuit signature n n) (H : BitString n → Prop)
     (initial : Set (BitString n)) (hstop : ∀ x, H x → c.eval interpretation x = x)
     (hhalt : ∀ x ∈ initial, ∃ t, H ((c.eval interpretation)^[t] x)) :
     ∃ out : Circuit signature n (n + 2),
-      (∀ x ∈ initial, let t := (word (out.eval interpretation x)).toNat
+      (∀ x ∈ initial, let t := (BitString.equivBitVec (out.eval interpretation x)).toNat
         H ((c.eval interpretation)^[t] x) ∧ (∀ j < t, ¬H ((c.eval interpretation)^[j] x)) ∧
           t < 2 ^ n) ∧
-      (out.size : ℝ) ≤ 150000 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 100000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨out, ho, hs⟩ := checkpoint_depth_optimized c
   refine ⟨out, fun x hx => ?_, hs⟩
   have hb : transientDepth (c.eval interpretation) x < 2 ^ n := by

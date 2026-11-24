@@ -14,6 +14,7 @@ on:
       - "lake-manifest.json"
       - "scripts/guide.sh"
       - "scripts/check_docs.py"
+      - "scripts/ci/select_guide.py"
       - "lean-toolchain"
       - ".github/actions/install-lean/**"
       - ".github/actions/cache-guide-deps/**"
@@ -22,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   CACHE_RECOVERY_GENERATION: ${{ vars.CACHE_RECOVERY_GENERATION || '0' }}
@@ -43,58 +45,53 @@ jobs:
           # scripts/cache/get-missing.sh looks for the nearest ancestor whose outputs `main` CI
           # uploaded.
           fetch-depth: 100
+      # Select whether this change touches anything in `CslibFrontierGuide`'s transitive import
+      # closure (`check`) or the rendered guide/tooling inputs (`render`). Pure-leaf PRs outside the
+      # guide closure exit fast without downloading `.lake` or compiling `CslibFrontierGuide`.
       - name: Select rendered guide build
         id: changes
         env:
           GUIDE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          render=true
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            # The recorded PR base can be older than this shallow checkout's history.
-            if ! git cat-file -e "$GUIDE_BASE_SHA^{commit}" 2>/dev/null; then
-              git fetch --no-tags --depth=1 origin "$GUIDE_BASE_SHA"
-            fi
-            guide_changes="$(git diff --name-only "$GUIDE_BASE_SHA" HEAD -- \
-              guide scripts/guide.sh scripts/check_docs.py lean-toolchain \
-              .github/actions/install-lean .github/actions/cache-guide-deps .github/workflows/guide.yml)"
-            if [[ -z "$guide_changes" ]]; then
-              render=false
-            fi
-          fi
-          echo "render=$render" >> "$GITHUB_OUTPUT"
+        run: python3 -B scripts/ci/select_guide.py
       # Restore the `.lake` entry that Lean CI saves on `main` (lean_action_ci.yml). Without it,
       # every run downloaded a complete set of outputs (about 200 MB) from the public bucket.
       # This workflow only reads the entry; Lean CI remains its only writer.
       - name: Restore .lake from the Actions cache
-        if: vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1'
+        if: steps.changes.outputs.check == 'true' && vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1'
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ./.lake
           key: lake-${{ env.CACHE_RECOVERY_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('./lean-toolchain') }}-${{ hashFiles('./lake-manifest.json') }}-${{ github.sha }}
           restore-keys: lake-${{ env.CACHE_RECOVERY_GENERATION }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('./lean-toolchain') }}-${{ hashFiles('./lake-manifest.json') }}
       # Restores or installs the toolchain with retries (.github/actions/install-lean, #1426).
-      - uses: ./.github/actions/install-lean
+      - if: steps.changes.outputs.check == 'true'
+        uses: ./.github/actions/install-lean
       # Without `--lean-action`, as scripts/cache/get.sh ran it before.
       - name: Restore Mathlib cache with retries
+        if: steps.changes.outputs.check == 'true'
         continue-on-error: true
         timeout-minutes: 10
         run: python3 -B scripts/cache/get_mathlib.py
       # Download only the outputs that the restored `.lake` lacks (scripts/cache/README.md).
       - name: Restore missing cslib-frontier build outputs
+        if: steps.changes.outputs.check == 'true'
         continue-on-error: true
         timeout-minutes: 10
         run: scripts/cache/get-missing.sh
       - name: Check documentation pins
+        if: steps.changes.outputs.check == 'true'
         run: python3 scripts/check_docs.py --config-only
       # Only main's API docs workflow writes this small, immutable dependency entry.
       - name: Restore Guide dependencies
-        if: vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1'
+        if: steps.changes.outputs.check == 'true' && vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1'
         continue-on-error: true
         timeout-minutes: 5
         uses: ./.github/actions/cache-guide-deps
         with:
           generation: ${{ env.CACHE_RECOVERY_GENERATION }}
+          disable-artifact: ${{ vars.DISABLE_GUIDE_ARTIFACT }}
       - name: Compile guide examples
+        if: steps.changes.outputs.check == 'true'
         run: lake -q -d guide build --log-level=error CslibFrontierGuide
       - name: Build the guide
         if: steps.changes.outputs.render == 'true'

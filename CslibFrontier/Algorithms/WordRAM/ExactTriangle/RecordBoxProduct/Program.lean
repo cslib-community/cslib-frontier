@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct.PointerPrepare
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Width
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Pointer.Exec
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Native prepared-record calls to the pointer-gather box product
@@ -45,9 +46,8 @@ open RecordProduct
 /-- One actual selected record, including all preparation, patch and native product work. -/
 @[expose] def program : Code .standard 320 := .seq prepare invoke
 
--- Traverse the fixed source compiler and relocated native copy banks.
-set_option maxRecDepth 4096 in
 /-- Constant native record-consumer size and physical-width independence. -/
-theorem program_fixed : program.size ≤ 131584 ∧ ¬program.ReadsWidth := by decide
+theorem program_fixed : program.size ≤ 131584 ∧ ¬program.ReadsWidth :=
+  ⟨by decide +kernel, Code.not_readsWidth_of_readsWidthBool rfl⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct

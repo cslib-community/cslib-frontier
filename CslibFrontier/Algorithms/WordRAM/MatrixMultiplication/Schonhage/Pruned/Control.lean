@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Memory
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged native return and term-advance transitions
@@ -30,9 +31,6 @@ def PopLocal (i : Fin registers) : Prop := i = active ∨ i = level ∨ i = mode
 instance (i : Fin registers) : Decidable (PopLocal i) :=
   inferInstanceAs (Decidable (i = active ∨ i = level ∨ i = mode))
 
-private theorem pop_preserves (i : Fin registers) : ¬PopLocal i → pop.Preserves i := by
-  decide +kernel +revert
-
 /-- The return decision is the program's real comparison with zero. Both branches preserve
 memory and all registers outside the three controller fields. -/
 theorem exec_pop {w : ℕ} (x : Data registers) (h0 : x.regs nil = 0)
@@ -44,27 +42,21 @@ theorem exec_pop {w : ℕ} (x : Data registers) (h0 : x.regs nil = 0)
       (∀ i, ¬PopLocal i → y.regs i = x.regs i) := by
   have h2 : Fits w 2 := hw.of_le (by omega)
   have hd : Fits w (x.regs level - 1) := hw.of_le (by omega)
-  by_cases hroot : x.regs level = 0
-  · let y := x.set active 0
-    have he : ExecWithin w pop x y 2 := by
-      ram_eval [pop, y, hroot, h0]
-    refine ⟨y, he.mono (by decide), rfl, ?_, ?_, ?_,
-      fun i hi => he.regs_eq (pop_preserves i hi)⟩
-    all_goals simp +decide [y, hroot, active, level, mode]
-  · let y := (x.set level (x.regs level - 1)).set mode 2
-    have he : ExecWithin w pop x y 4 := by
-      ram_eval [pop, y, hroot, h0, h1, h2, hd, level, mode, one, Fin.mk.injEq]
-    refine ⟨y, he, rfl, ?_, ?_, ?_, fun i hi => he.regs_eq (pop_preserves i hi)⟩
-    all_goals simp +decide [y, hroot, active, level, mode]
+  refine WP.exists_execWithin ?_
+  unfold pop
+  wram_exec [h0, h1, h2, hd]
+  all_goals
+    refine ⟨rfl, by wram_simp; simp [hc], by wram_simp; simp [hc], by wram_simp; simp [hc],
+      fun i hi => ?_⟩
+    simp only [PopLocal, not_or] at hi
+    rcases hi with ⟨h1', h2', h3'⟩
+    wram_simp
 
 /-- Registers changed by advancing and storing a term counter. -/
 def AdvanceLocal (i : Fin registers) : Prop := i = term ∨ i = address ∨ i = mode
 
 instance (i : Fin registers) : Decidable (AdvanceLocal i) :=
   inferInstanceAs (Decidable (i = term ∨ i = address ∨ i = mode))
-
-private theorem advance_preserves (i : Fin registers) :
-    ¬AdvanceLocal i → advance.Preserves i := by decide +kernel +revert
 
 /-- Store a term already in its register and switch to dispatch, charging all four operations. -/
 theorem exec_storeTerm {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
@@ -74,15 +66,11 @@ theorem exec_storeTerm {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
       (∀ i, i ≠ address → i ≠ mode → y.regs i = x.regs i) := by
   have hmode : Fits w 1 := hf.of_le (by omega)
   have hadd : Fits w (x.regs frame + 3) := hf.of_le (by omega)
-  let y := ((((x.set address (x.regs frame + 4)).set address (x.regs frame + 3)).write
-    (x.regs frame + 3) (x.regs term)).set mode 1)
   have hsub : x.regs frame + 4 - 1 = x.regs frame + 3 := by omega
-  have he : ExecWithin w storeTerm x y 4 := by
-    ram_eval [storeTerm, y, h1, h4, hf, hmode, hadd, hsub, address, mode, one,
-      frame, frameWidth, term, Fin.mk.injEq]
-  refine ⟨y, he, by simp [y], rfl, ?_⟩
-  intro i ha hm
-  exact he.regs_eq (by decide +kernel +revert)
+  refine WP.exists_execWithin ?_
+  unfold storeTerm
+  wram_exec [h1, h4, hf, hmode, hadd, hsub]
+  exact ⟨by wram_simp, by wram_simp, fun i ha hm => by wram_simp⟩
 
 /-- The term increment, frame-word address computation, store and phase assignment take five
 instructions. Only the fourth frame word changes in memory. -/
@@ -93,20 +81,18 @@ theorem exec_advance {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
       y.regs mode = 1 ∧
       y.mem = Function.update x.mem (x.regs frame + 3) (x.regs term + 1) ∧
       (∀ i, ¬AdvanceLocal i → y.regs i = x.regs i) := by
-  let z := x.set term (x.regs term + 1)
-  have hpre : ExecWithin w (ram[ term ← term + one ]) x z 1 := by
-    ram_eval [z, h1, ht]
-  obtain ⟨y, hy, hm, hmem, hreg⟩ := exec_storeTerm z
-    (by simpa +decide [z, one, term] using h1)
-    (by simpa +decide [z, frameWidth, term] using h4)
-    (by simpa +decide [z, frame, term] using hf)
-  have he : ExecWithin w advance x y 5 := hpre.seq hy
-  refine ⟨y, he, ?_, hm, ?_, fun i hi => he.regs_eq (advance_preserves i hi)⟩
-  · simpa [z] using hreg term (by decide) (by decide)
-  · simpa +decide [z, frame, term] using hmem
-
-private theorem clearFinish_preserves (i : Fin registers) :
-    ¬AdvanceLocal i → clearValuesFinish.Preserves i := by decide +kernel +revert
+  refine WP.exists_execWithin ?_
+  unfold advance
+  wram_exec [h1, ht]
+  wram_call (exec_storeTerm _ (by wram_simp [h1]) (by wram_simp [h4]) (by wram_simp; exact hf))
+    with y ⟨hmode, hmem, hregs⟩
+  wram_simp at hmem
+  refine ⟨by omega, by rw [hregs term (by decide) (by decide)]; wram_simp, hmode, hmem,
+    fun i hi => ?_⟩
+  simp only [AdvanceLocal, not_or] at hi
+  rcases hi with ⟨h1', h2', h3'⟩
+  rw [hregs i h2' h3']
+  wram_simp
 
 /-- Initialization uses the same actual frame store as advancement, with a zero term counter. -/
 theorem exec_clearValuesFinish {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
@@ -114,16 +100,17 @@ theorem exec_clearValuesFinish {w : ℕ} (x : Data registers) (h1 : x.regs one =
     ∃ y, ExecWithin w clearValuesFinish x y 5 ∧ y.regs term = 0 ∧ y.regs mode = 1 ∧
       y.mem = Function.update x.mem (x.regs frame + 3) 0 ∧
       (∀ i, ¬AdvanceLocal i → y.regs i = x.regs i) := by
-  let z := x.set term 0
-  have hpre : ExecWithin w (ram[ term ← #0 ] : Code .standard registers) x z 1 := by
-    ram_eval [z]
-  obtain ⟨y, hy, hm, hmem, hreg⟩ := exec_storeTerm z
-    (by simpa +decide [z, one, term] using h1)
-    (by simpa +decide [z, frameWidth, term] using h4)
-    (by simpa +decide [z, frame, term] using hf)
-  have he : ExecWithin w clearValuesFinish x y 5 := hpre.seq hy
-  refine ⟨y, he, ?_, hm, ?_, fun i hi => he.regs_eq (clearFinish_preserves i hi)⟩
-  · simpa [z] using hreg term (by decide) (by decide)
-  · simpa +decide [z, frame, term] using hmem
+  refine WP.exists_execWithin ?_
+  unfold clearValuesFinish
+  wram_exec
+  wram_call (exec_storeTerm _ (by wram_simp [h1]) (by wram_simp [h4]) (by wram_simp; exact hf))
+    with y ⟨hmode, hmem, hregs⟩
+  wram_simp at hmem
+  refine ⟨by omega, by rw [hregs term (by decide) (by decide)]; wram_simp, hmode, hmem,
+    fun i hi => ?_⟩
+  simp only [AdvanceLocal, not_or] at hi
+  rcases hi with ⟨h1', h2', h3'⟩
+  rw [hregs i h2' h3']
+  wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery
