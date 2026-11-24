@@ -3289,6 +3289,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoo
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPowerSection
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeValue
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
@@ -7397,6 +7398,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterDegree
 public import CslibFrontier.Foundations.Data.MvPolynomial.PartialDerivatives
 public import CslibFrontier.Foundations.Data.MvPolynomial.PartialEval
 public import CslibFrontier.Foundations.Data.MvPolynomial.PolynomialEvaluationBounds
+public import CslibFrontier.Foundations.Data.MvPolynomial.PowerSection
 public import CslibFrontier.Foundations.Data.MvPolynomial.PowerSum
 public import CslibFrontier.Foundations.Data.MvPolynomial.ReproducingKernel
 public import CslibFrontier.Foundations.Data.MvPolynomial.SchwartzZippel
