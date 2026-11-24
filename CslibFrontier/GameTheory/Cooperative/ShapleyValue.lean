@@ -7,12 +7,14 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
 public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
 public import Mathlib.Analysis.Convex.Basic
 public import Mathlib.Data.Fintype.Perm
 public import Mathlib.Data.Nat.Factorial.Basic
 public import Mathlib.Topology.Compactness.Compact
 import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Algebra.BigOperators.Group.Finset.Powerset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Analysis.Normed.Lp.ProdLp
 import Mathlib.Data.Fintype.EquivFin
@@ -54,10 +56,10 @@ Exercise 15.2; Shapley 1953; Nash 1950):
      `i ∉ S`); excluding `S = A \ {i}` would treat an agent whose sole nonzero marginal cost is at
      the grand coalition as a dummy, contradicting Efficiency.
 4. **Exercise 15.2** (`CostSharingGame.IsSubmodular.shapleyScheme_isCrossMonotone`,
-   `shapleyValue_inCore`, `moulinMechanism_shapleyScheme_isGroupStrategyproof`): for submodular
-   cost-sharing games, the Shapley cost-sharing scheme `shapleyScheme` is cross-monotone (hence
-   `shapleyValue` lies in the core and `moulinMechanism` on `shapleyScheme` is group-strategyproof
-   and `1`-budget-balanced).
+   `CostSharingGame.IsSubmodular.shapleyValue_inCore`): for submodular cost-sharing games, the
+   Shapley cost-sharing scheme `shapleyScheme` is cross-monotone (hence `shapleyValue` lies in the
+   core, and `moulinMechanism` on `shapleyScheme` is group-strategyproof and `1`-budget-balanced
+   by composing with `moulinMechanism_isGroupStrategyproof` and `moulinMechanism_isBudgetBalanced`).
 5. **Nash bargaining solution** (`BargainingProblem`, `nashBargainingSolution`,
    `eq_nashBargainingSolution_of_axioms`, `existsUnique_nashBargainingSolution`,
    [JainMahdian2007], Definition 15.27 and **Theorem 15.28**; Nash 1950): on compact convex
@@ -77,8 +79,7 @@ Exercise 15.2; Shapley 1953; Nash 1950):
   `Cslib.GameTheory.IsAdditiveValue`: Shapley value axioms ([JainMahdian2007], Definition 15.25).
 * `Cslib.GameTheory.CostSharingGame.AreSymmetric`,
   `Cslib.GameTheory.CostSharingGame.IsDummyAgent`,
-  `Cslib.GameTheory.unanimityGame`, `Cslib.GameTheory.unanimityDividend`: symmetry, dummy agents,
-  and the unanimity-game Möbius basis.
+  `Cslib.GameTheory.unanimityGame`: symmetry, dummy agents, and the unanimity-game basis.
 * `Cslib.GameTheory.CostSharingGame.shapleyScheme`: coalition-restricted Shapley cost-sharing
   scheme ([JainMahdian2007], Exercise 15.2).
 * `Cslib.GameTheory.BargainingProblem`,
@@ -107,8 +108,7 @@ Exercise 15.2; Shapley 1953; Nash 1950):
   `Cslib.GameTheory.existsUnique_shapleyValue`: **Theorem 15.26 (Shapley's uniqueness theorem)** of
   [JainMahdian2007].
 * `Cslib.GameTheory.CostSharingGame.IsSubmodular.shapleyScheme_isCrossMonotone`,
-  `Cslib.GameTheory.CostSharingGame.IsSubmodular.shapleyValue_inCore`,
-  `CostSharingGame.IsSubmodular.moulinMechanism_shapleyScheme_isGroupStrategyproof`:
+  `Cslib.GameTheory.CostSharingGame.IsSubmodular.shapleyValue_inCore`:
   **Exercise 15.2** of [JainMahdian2007].
 * `Cslib.GameTheory.isGreatest_nashBargainingSolution`,
   `Cslib.GameTheory.nashBargainingSolution_unique_maximizer`,
@@ -130,8 +130,13 @@ namespace Cslib.GameTheory
 
 /-- Combinatorial weight `s! * (n - 1 - s)! / n!` of a coalition `S ⊆ A \ {i}` of size `s` in a
 game of `n` agents ([JainMahdian2007], Section 15.6.1, p. 403). -/
-@[expose] noncomputable def shapleyWeight (n s : ℕ) : ℝ :=
+noncomputable def shapleyWeight (n s : ℕ) : ℝ :=
   ((s.factorial * (n - 1 - s).factorial : ℕ) : ℝ) / (n.factorial : ℝ)
+
+theorem shapleyWeight_eq (n s : ℕ) :
+    shapleyWeight n s =
+      ((s.factorial * (n - 1 - s).factorial : ℕ) : ℝ) / (n.factorial : ℝ) := by
+  rfl
 
 theorem shapleyWeight_nonneg (n s : ℕ) : 0 ≤ shapleyWeight n s := by
   unfold shapleyWeight
@@ -139,10 +144,17 @@ theorem shapleyWeight_nonneg (n s : ℕ) : 0 ≤ shapleyWeight n s := by
 
 /-- The **Shapley value** `shapleyValue G i` of agent `i` in a TU cost-sharing game `G`
 ([JainMahdian2007], Section 15.6.1, p. 403). -/
-@[expose] noncomputable def shapleyValue {A : Type*} [Fintype A] [DecidableEq A]
+noncomputable def shapleyValue {A : Type*} [Fintype A] [DecidableEq A]
     (G : CostSharingGame A) (i : A) : ℝ :=
   ∑ S ∈ (Finset.univ.erase i).powerset,
     shapleyWeight (Fintype.card A) S.card * (G.cost (insert i S) - G.cost S)
+
+theorem shapleyValue_eq {A : Type*} [Fintype A] [DecidableEq A]
+    (G : CostSharingGame A) (i : A) :
+    shapleyValue G i =
+      ∑ S ∈ (Finset.univ.erase i).powerset,
+        shapleyWeight (Fintype.card A) S.card * (G.cost (insert i S) - G.cost S) := by
+  rfl
 
 /-- Grouped-by-cardinality formula matching the displayed equation of [JainMahdian2007], p. 403. -/
 theorem shapleyValue_eq_sum_card {A : Type*} [Fintype A] [DecidableEq A]
@@ -165,22 +177,35 @@ theorem shapleyValue_eq_sum_card {A : Type*} [Fintype A] [DecidableEq A]
 
 /-- Set of agents appearing strictly before `i` under an agent ordering `σ : Fin (card A) ≃ A`
 ([TardosVazirani2007], Example 1.14). -/
-@[expose] def orderPredecessors {A : Type*} [Fintype A] (σ : Fin (Fintype.card A) ≃ A) (i : A) :
+def orderPredecessors {A : Type*} [Fintype A] (σ : Fin (Fintype.card A) ≃ A) (i : A) :
     Finset A :=
   Finset.univ.filter (fun j => σ.symm j < σ.symm i)
 
+@[simp]
+theorem mem_orderPredecessors {A : Type*} [Fintype A] (σ : Fin (Fintype.card A) ≃ A) (i j : A) :
+    j ∈ orderPredecessors σ i ↔ σ.symm j < σ.symm i := by
+  simp [orderPredecessors]
+
 theorem not_mem_orderPredecessors {A : Type*} [Fintype A] (σ : Fin (Fintype.card A) ≃ A) (i : A) :
     i ∉ orderPredecessors σ i := by
-  simp [orderPredecessors]
+  simp
 
 /-- Permutation-average definition of the Shapley value ([TardosVazirani2007], Example 1.14, p. 22;
 [JainMahdian2007], Section 15.6.1, p. 403): average marginal cost of `i` over all `n!` orderings
 `σ : Fin (card A) ≃ A`. -/
-@[expose] noncomputable def permShapleyValue {A : Type*} [Fintype A] [DecidableEq A]
+noncomputable def permShapleyValue {A : Type*} [Fintype A] [DecidableEq A]
     (G : CostSharingGame A) (i : A) : ℝ :=
   ((Fintype.card A).factorial : ℝ)⁻¹ *
     ∑ σ : Fin (Fintype.card A) ≃ A,
       (G.cost (insert i (orderPredecessors σ i)) - G.cost (orderPredecessors σ i))
+
+theorem permShapleyValue_eq {A : Type*} [Fintype A] [DecidableEq A]
+    (G : CostSharingGame A) (i : A) :
+    permShapleyValue G i =
+      ((Fintype.card A).factorial : ℝ)⁻¹ *
+        ∑ σ : Fin (Fintype.card A) ≃ A,
+          (G.cost (insert i (orderPredecessors σ i)) - G.cost (orderPredecessors σ i)) := by
+  rfl
 
 section PermEquivalence
 
@@ -549,6 +574,18 @@ shares (`φ (G.perm π) (π i) = φ G i`). -/
     (φ : CostSharingGame A → A → ℝ) : Prop :=
   ∀ G₁ G₂ : CostSharingGame A, φ (G₁ + G₂) = φ G₁ + φ G₂
 
+private theorem sum_powerset_map {α β M : Type*} [AddCommMonoid M] (f : α ↪ β) (s : Finset α)
+    (g : Finset β → M) :
+    ∑ t ∈ (s.map f).powerset, g t = ∑ t ∈ s.powerset, g (t.map f) := by
+  classical
+  have hpow : (s.map f).powerset = s.powerset.map (Finset.mapEmbedding f).toEmbedding := by
+    simp only [Finset.map_eq_image, Finset.powerset_image]
+    congr 1
+    funext t
+    exact (Finset.map_eq_image f t).symm
+  rw [hpow, Finset.sum_map]
+  rfl
+
 /-- Anonymity implies Symmetry via transposition `Equiv.swap i j`. -/
 theorem IsAnonymousValue.isSymmetricValue {A : Type*} [DecidableEq A]
     {φ : CostSharingGame A → A → ℝ} (hanon : IsAnonymousValue φ) : IsSymmetricValue φ := by
@@ -556,70 +593,46 @@ theorem IsAnonymousValue.isSymmetricValue {A : Type*} [DecidableEq A]
   let π := Equiv.swap i j
   have hperm : G.perm π = G := by
     ext S
-    rw [CostSharingGame.perm_cost]
-    have hswap_symm : π.symm = π := Equiv.symm_swap i j
-    rw [hswap_symm]
+    rw [CostSharingGame.perm_cost, Equiv.symm_swap]
     by_cases hi : i ∈ S <;> by_cases hj : j ∈ S
     · congr 1
       ext x
-      simp only [Finset.mem_map, Equiv.toEmbedding_apply]
-      refine ⟨fun ⟨y, hy, hyx⟩ => ?_, fun hx => ⟨π x, ?_, Equiv.swap_apply_self i j x⟩⟩
-      · subst hyx
-        by_cases hyi : y = i
-        · subst hyi; simpa [π] using hj
-        · by_cases hyj : y = j
-          · subst hyj; simpa [π] using hi
-          · simpa [π, Equiv.swap_apply_of_ne_of_ne hyi hyj] using hy
-      · by_cases hxi : x = i
-        · subst hxi; simpa [π] using hj
-        · by_cases hxj : x = j
-          · subst hxj; simpa [π] using hi
-          · simpa [π, Equiv.swap_apply_of_ne_of_ne hxi hxj] using hx
-    · have hmap_eq : S.map π.toEmbedding = insert j (S.erase i) := by
+      rw [Finset.mem_map_equiv, Equiv.symm_swap]
+      by_cases hxi : x = i
+      · subst hxi; simp [hi, hj]
+      · by_cases hxj : x = j
+        · subst hxj; simp [hi, hj]
+        · simp [Equiv.swap_apply_of_ne_of_ne hxi hxj]
+    · have hij : i ≠ j := fun h => hj (h ▸ hi)
+      have hmap_eq : S.map π.toEmbedding = insert j (S.erase i) := by
         ext x
-        simp only [Finset.mem_map, Equiv.toEmbedding_apply, Finset.mem_insert, Finset.mem_erase]
-        constructor
-        · rintro ⟨y, hy, rfl⟩
-          by_cases hyi : y = i
-          · subst hyi; exact .inl (Equiv.swap_apply_left _ j)
-          · have hyj : y ≠ j := fun h => hj (h ▸ hy)
-            rw [Equiv.swap_apply_of_ne_of_ne hyi hyj]
-            exact .inr ⟨hyi, hy⟩
-        · rintro (hxj | ⟨hxi, hxS⟩)
-          · subst hxj
-            exact ⟨i, hi, Equiv.swap_apply_left i _⟩
-          · have hxj : x ≠ j := fun h => hj (h ▸ hxS)
-            exact ⟨x, hxS, Equiv.swap_apply_of_ne_of_ne hxi hxj⟩
+        rw [Finset.mem_map_equiv, Equiv.symm_swap, Finset.mem_insert, Finset.mem_erase]
+        by_cases hxi : x = i
+        · subst hxi; simp [hj, hij]
+        · by_cases hxj : x = j
+          · subst hxj; simp [hi]
+          · simp [Equiv.swap_apply_of_ne_of_ne hxi hxj, hxi, hxj]
       rw [hmap_eq, (hsym (S.erase i) (Finset.notMem_erase i S)
         (fun h => hj (Finset.erase_subset i S h))).symm, Finset.insert_erase hi]
-    · have hmap_eq : S.map π.toEmbedding = insert i (S.erase j) := by
+    · have hji : j ≠ i := fun h => hi (h ▸ hj)
+      have hmap_eq : S.map π.toEmbedding = insert i (S.erase j) := by
         ext x
-        simp only [Finset.mem_map, Equiv.toEmbedding_apply, Finset.mem_insert, Finset.mem_erase]
-        constructor
-        · rintro ⟨y, hy, rfl⟩
-          by_cases hyj : y = j
-          · subst hyj; exact .inl (Equiv.swap_apply_right i _)
-          · have hyi : y ≠ i := fun h => hi (h ▸ hy)
-            rw [Equiv.swap_apply_of_ne_of_ne hyi hyj]
-            exact .inr ⟨hyj, hy⟩
-        · rintro (hxi | ⟨hxj, hxS⟩)
-          · subst hxi
-            exact ⟨j, hj, Equiv.swap_apply_right _ j⟩
-          · have hxi : x ≠ i := fun h => hi (h ▸ hxS)
-            exact ⟨x, hxS, Equiv.swap_apply_of_ne_of_ne hxi hxj⟩
+        rw [Finset.mem_map_equiv, Equiv.symm_swap, Finset.mem_insert, Finset.mem_erase]
+        by_cases hxi : x = i
+        · subst hxi; simp [hj]
+        · by_cases hxj : x = j
+          · subst hxj; simp [hi, hji]
+          · simp [Equiv.swap_apply_of_ne_of_ne hxi hxj, hxi, hxj]
       rw [hmap_eq, hsym (S.erase j) (fun h => hi (Finset.erase_subset j S h))
         (Finset.notMem_erase j S), Finset.insert_erase hj]
     · congr 1
       ext x
-      simp only [Finset.mem_map, Equiv.toEmbedding_apply]
-      refine ⟨fun ⟨y, hy, hyx⟩ => ?_, fun hx => ?_⟩
-      · subst hyx
-        have hyi : y ≠ i := fun h => hi (h ▸ hy)
-        have hyj : y ≠ j := fun h => hj (h ▸ hy)
-        rwa [Equiv.swap_apply_of_ne_of_ne hyi hyj]
-      · have hxi : x ≠ i := fun h => hi (h ▸ hx)
-        have hxj : x ≠ j := fun h => hj (h ▸ hx)
-        exact ⟨x, hx, Equiv.swap_apply_of_ne_of_ne hxi hxj⟩
+      rw [Finset.mem_map_equiv, Equiv.symm_swap]
+      by_cases hxi : x = i
+      · subst hxi; simp [hi, hj]
+      · by_cases hxj : x = j
+        · subst hxj; simp [hi, hj]
+        · simp [Equiv.swap_apply_of_ne_of_ne hxi hxj]
   have h := hanon π G i
   rw [hperm, Equiv.swap_apply_left] at h
   exact h.symm
@@ -685,42 +698,16 @@ theorem shapleyValue_isEfficient : IsEfficientValue (shapleyValue (A := A)) := b
 theorem shapleyValue_isAnonymous : IsAnonymousValue (shapleyValue (A := A)) := by
   intro π G i
   rw [shapleyValue, shapleyValue]
-  let emb : Finset A ↪ Finset A :=
-    ⟨fun S => S.map π.toEmbedding, fun S₁ S₂ h => by
-      ext x
-      have hx := Finset.ext_iff.1 h (π x)
-      simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hx⟩
-  have hemb : ∀ S : Finset A, emb S = S.map π.toEmbedding := fun _ => rfl
-  have hpow : (Finset.univ.erase (π i)).powerset =
-      ((Finset.univ.erase i).powerset).map emb := by
-    ext T
-    simp only [Finset.mem_powerset, Finset.mem_map, hemb]
-    constructor
-    · intro hT
-      refine ⟨T.map π.symm.toEmbedding, fun x hx => ?_, ?_⟩
-      · obtain ⟨y, hy, rfl⟩ := Finset.mem_map.1 hx
-        have hy_er := hT hy
-        refine Finset.mem_erase.2 ⟨fun h => ?_, Finset.mem_univ _⟩
-        have : y = π i := by simpa using congr_arg π h
-        exact (Finset.mem_erase.1 hy_er).1 this
-      · ext y
-        simp only [Finset.mem_map_equiv, Equiv.symm_symm, Equiv.apply_symm_apply]
-    · rintro ⟨S, hS, rfl⟩ y hy
-      obtain ⟨x, hx, rfl⟩ := Finset.mem_map.1 hy
-      refine Finset.mem_erase.2 ⟨fun h => (Finset.mem_erase.1 (hS hx)).1 (π.injective h),
-        Finset.mem_univ _⟩
-  rw [hpow, Finset.sum_map]
+  have her : Finset.univ.erase (π i) = (Finset.univ.erase i).map π.toEmbedding := by
+    ext x
+    simp
+  rw [her, sum_powerset_map]
   refine Finset.sum_congr rfl fun S _ => ?_
-  have hcard : (emb S).card = S.card := Finset.card_map _
-  have hmap_symm : (emb S).map π.symm.toEmbedding = S := by
-    rw [hemb]
-    ext x
-    simp [Finset.mem_map_equiv]
-  have hins_symm : (insert (π i) (emb S)).map π.symm.toEmbedding = insert i S := by
-    rw [hemb]
-    ext x
-    simp [Finset.mem_map_equiv]
-  simp only [CostSharingGame.perm_cost, hcard, hmap_symm, hins_symm]
+  have hmap_symm : (S.map π.toEmbedding).map π.symm.toEmbedding = S := by
+    ext x; simp [Finset.mem_map_equiv]
+  have hins_symm : (insert (π i) (S.map π.toEmbedding)).map π.symm.toEmbedding = insert i S := by
+    ext x; simp [Finset.mem_map_equiv]
+  simp only [CostSharingGame.perm_cost, Finset.card_map, hmap_symm, hins_symm]
 
 /-- `shapleyValue` satisfies **Symmetry**. -/
 theorem shapleyValue_isSymmetric : IsSymmetricValue (shapleyValue (A := A)) :=
@@ -744,144 +731,57 @@ theorem shapleyValue_isAdditive : IsAdditiveValue (shapleyValue (A := A)) := by
 
 /-- Scaled **unanimity game** `unanimityGame T hT w` for a nonempty coalition `T` and real weight
 `w`: `cost S = w` if `T ⊆ S` and `0` otherwise. -/
-@[expose] def unanimityGame (T : Finset A) (hT : T.Nonempty) (w : ℝ) : CostSharingGame A where
+def unanimityGame (T : Finset A) (hT : T.Nonempty) (w : ℝ) : CostSharingGame A where
   cost S := if T ⊆ S then w else 0
   cost_empty := by
     have hnot : ¬ T ⊆ ∅ := fun hsub => hT.ne_empty (Finset.subset_empty.1 hsub)
     simp only [hnot, ↓reduceIte]
 
-/-- Harsanyi / Möbius dividend `∑_{R ⊆ T} (-1)^{|T| - |R|} c(R)` of coalition `T` in `G`. -/
-@[expose] noncomputable def unanimityDividend (G : CostSharingGame A) (T : Finset A) : ℝ :=
-  ∑ R ∈ T.powerset, (-1 : ℝ) ^ (T.card - R.card) * G.cost R
-
 omit [Fintype A] in
-private theorem sum_powerset_neg_one_pow (M : Finset A) :
-    (∑ D ∈ M.powerset, (-1 : ℝ) ^ D.card) = if M = ∅ then 1 else 0 := by
-  induction M using Finset.induction_on with
-  | empty => simp
-  | insert a M haM ih =>
-    have hne : insert a M ≠ ∅ := by simp
-    simp only [hne, ↓reduceIte]
-    rw [Finset.powerset_insert, Finset.sum_union]
-    · have himg : (∑ D ∈ M.powerset.image (insert a), (-1 : ℝ) ^ D.card) =
-          -(∑ D ∈ M.powerset, (-1 : ℝ) ^ D.card) := by
-        rw [Finset.sum_image]
-        · rw [← Finset.sum_neg_distrib]
-          refine Finset.sum_congr rfl fun D hD => ?_
-          have haD : a ∉ D := fun ha => haM (Finset.mem_powerset.1 hD ha)
-          rw [Finset.card_insert_of_notMem haD, pow_succ]
-          ring
-        · intro D₁ h₁ D₂ h₂ heq
-          have ha₁ : a ∉ D₁ := fun ha => haM (Finset.mem_powerset.1 h₁ ha)
-          have ha₂ : a ∉ D₂ := fun ha => haM (Finset.mem_powerset.1 h₂ ha)
-          ext x
-          by_cases hxa : x = a
-          · subst hxa; simp [ha₁, ha₂]
-          · have := Finset.ext_iff.1 heq x
-            simpa [hxa] using this
-      rw [himg, add_neg_cancel]
-    · refine Finset.disjoint_left.2 fun D hD₁ hD₂ => ?_
-      obtain ⟨D', _, rfl⟩ := Finset.mem_image.1 hD₂
-      exact haM (Finset.mem_powerset.1 hD₁ (Finset.mem_insert_self a D'))
+@[simp]
+theorem unanimityGame_cost (T : Finset A) (hT : T.Nonempty) (w : ℝ) (S : Finset A) :
+    (unanimityGame T hT w).cost S = if T ⊆ S then w else 0 := by
+  rfl
 
 /-- Möbius basis expansion: every TU cost-sharing game `G` is the finite sum of scaled unanimity
-games over all nonempty coalitions `T`. -/
+games over all nonempty coalitions `T`, weighted by the subset Möbius transform (Harsanyi dividend)
+`Cslib.BitString.subsetMobius G.cost T`. -/
 theorem eq_sum_unanimityGame (G : CostSharingGame A) :
     G = ∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-      unanimityGame x.1 (Finset.mem_filter.1 x.2).2 (unanimityDividend G x.1) := by
+      unanimityGame x.1 (Finset.mem_filter.1 x.2).2 (Cslib.BitString.subsetMobius G.cost x.1) := by
   ext S
   rw [CostSharingGame.sum_cost]
-  -- Drop `attach` and add back `T = ∅` (whose dividend is `G.cost ∅ = 0`).
   have hsum_pow :
       (∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-          (unanimityGame x.1 (Finset.mem_filter.1 x.2).2 (unanimityDividend G x.1)).cost S) =
-        ∑ T ∈ S.powerset, unanimityDividend G T := by
+          (unanimityGame x.1 (Finset.mem_filter.1 x.2).2
+            (Cslib.BitString.subsetMobius G.cost x.1)).cost S) =
+        ∑ T ∈ S.powerset, Cslib.BitString.subsetMobius G.cost T := by
     have hattach :
         (∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-            (unanimityGame x.1 (Finset.mem_filter.1 x.2).2 (unanimityDividend G x.1)).cost S) =
+            (unanimityGame x.1 (Finset.mem_filter.1 x.2).2
+              (Cslib.BitString.subsetMobius G.cost x.1)).cost S) =
           ∑ T ∈ (Finset.univ : Finset A).powerset.filter Finset.Nonempty,
-            if T ⊆ S then unanimityDividend G T else 0 :=
-      Finset.sum_attach _ (fun T => if T ⊆ S then unanimityDividend G T else 0)
+            if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0 :=
+      Finset.sum_attach _ (fun T => if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0)
     rw [hattach]
-    have hdiv0 : unanimityDividend G ∅ = 0 := by simp [unanimityDividend]
+    have hdiv0 : Cslib.BitString.subsetMobius G.cost ∅ = 0 := by
+      simp [Cslib.BitString.subsetMobius]
     calc
       (∑ T ∈ (Finset.univ : Finset A).powerset.filter Finset.Nonempty,
-          if T ⊆ S then unanimityDividend G T else 0)
+          if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0)
         = ∑ T ∈ (Finset.univ : Finset A).powerset,
-            if T ⊆ S then unanimityDividend G T else 0 := by
+            if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0 := by
           refine Finset.sum_subset (Finset.filter_subset _ _) fun T _ hnot => ?_
           simp only [Finset.mem_filter, Finset.mem_powerset.2 (Finset.subset_univ T),
             true_and] at hnot
           rw [Finset.not_nonempty_iff_eq_empty.1 hnot]
           simp only [Finset.empty_subset S, ↓reduceIte, hdiv0]
-      _ = ∑ T ∈ S.powerset, unanimityDividend G T := by
+      _ = ∑ T ∈ S.powerset, Cslib.BitString.subsetMobius G.cost T := by
           rw [← Finset.sum_filter]
           refine Finset.sum_congr ?_ fun _ _ => rfl
           ext T
           simp only [Finset.mem_filter, Finset.mem_powerset, Finset.subset_univ, true_and]
-  rw [hsum_pow]
-  -- Exchange `T ⊆ S` and `R ⊆ T` via `D = T \ R ⊆ S \ R`.
-  calc
-    G.cost S
-      = ∑ R ∈ S.powerset, G.cost R * (if S \ R = ∅ then 1 else 0) := by
-        have hRS : ∀ R ∈ S.powerset, (S \ R = ∅) ↔ R = S := fun R hR => by
-          rw [Finset.sdiff_eq_empty_iff_subset]
-          exact ⟨fun hSR => le_antisymm (Finset.mem_powerset.1 hR) hSR, fun h => h ▸ le_rfl⟩
-        have hcongr : (∑ R ∈ S.powerset, G.cost R * (if S \ R = ∅ then 1 else 0)) =
-            ∑ R ∈ S.powerset, if R = S then G.cost R else 0 := by
-          refine Finset.sum_congr rfl fun R hR => ?_
-          simp only [hRS R hR, mul_ite, mul_one, mul_zero]
-        rw [hcongr, Finset.sum_ite_eq' S.powerset S]
-        simp only [Finset.mem_powerset_self S, ↓reduceIte]
-    _ = ∑ R ∈ S.powerset, G.cost R * (∑ D ∈ (S \ R).powerset, (-1 : ℝ) ^ D.card) := by
-        refine Finset.sum_congr rfl fun R _ => ?_
-        rw [sum_powerset_neg_one_pow]
-    _ = ∑ R ∈ S.powerset, ∑ D ∈ (S \ R).powerset, (-1 : ℝ) ^ D.card * G.cost R := by
-        refine Finset.sum_congr rfl fun R _ => ?_
-        rw [Finset.mul_sum]
-        exact Finset.sum_congr rfl fun D _ => mul_comm _ _
-    _ = ∑ T ∈ S.powerset, unanimityDividend G T := by
-        -- Bijection between `(R, D)` with `R ⊆ S, D ⊆ S \ R` and `(T, R)` with `T ⊆ S, R ⊆ T`.
-        dsimp only [unanimityDividend]
-        rw [Finset.sum_sigma', Finset.sum_sigma']
-        refine Finset.sum_bij (fun p _ => ⟨p.1 ∪ p.2, p.1⟩) ?_ ?_ ?_ ?_
-        · rintro ⟨R, D⟩ hp
-          obtain ⟨hRS, hDS⟩ := Finset.mem_sigma.1 hp
-          refine Finset.mem_sigma.2 ⟨Finset.mem_powerset.2 ?_, Finset.mem_powerset.2 ?_⟩
-          · exact Finset.union_subset (Finset.mem_powerset.1 hRS)
-              ((Finset.mem_powerset.1 hDS).trans Finset.sdiff_subset)
-          · exact Finset.subset_union_left
-        · rintro ⟨R₁, D₁⟩ hp₁ ⟨R₂, D₂⟩ hp₂ heq
-          have hU : R₁ ∪ D₁ = R₂ ∪ D₂ := (Sigma.mk.inj_iff.1 heq).1
-          have hR : R₁ = R₂ := (Sigma.mk.inj_iff.1 heq).2 |> eq_of_heq
-          subst hR
-          have hdisj₁ : Disjoint R₁ D₁ :=
-            Finset.disjoint_of_subset_right (Finset.mem_powerset.1 (Finset.mem_sigma.1 hp₁).2)
-              Finset.disjoint_sdiff
-          have hdisj₂ : Disjoint R₁ D₂ :=
-            Finset.disjoint_of_subset_right (Finset.mem_powerset.1 (Finset.mem_sigma.1 hp₂).2)
-              Finset.disjoint_sdiff
-          have hD : D₁ = D₂ := by
-            ext x
-            have hx := Finset.ext_iff.1 hU x
-            by_cases hxR : x ∈ R₁
-            · simp [Finset.disjoint_left.1 hdisj₁ hxR, Finset.disjoint_left.1 hdisj₂ hxR]
-            · simpa [hxR] using hx
-          subst hD
-          rfl
-        · rintro ⟨T, R⟩ hp
-          obtain ⟨hTS, hRT⟩ := Finset.mem_sigma.1 hp
-          have hRS : R ⊆ S := (Finset.mem_powerset.1 hRT).trans (Finset.mem_powerset.1 hTS)
-          have hDS : T \ R ⊆ S \ R := Finset.sdiff_subset_sdiff (Finset.mem_powerset.1 hTS) le_rfl
-          exact ⟨⟨R, T \ R⟩,
-            Finset.mem_sigma.2 ⟨Finset.mem_powerset.2 hRS, Finset.mem_powerset.2 hDS⟩,
-            Sigma.ext (Finset.union_sdiff_of_subset (Finset.mem_powerset.1 hRT)) HEq.rfl⟩
-        · rintro ⟨R, D⟩ hp
-          have hdisj : Disjoint R D :=
-            Finset.disjoint_of_subset_right (Finset.mem_powerset.1 (Finset.mem_sigma.1 hp).2)
-              Finset.disjoint_sdiff
-          dsimp only
-          rw [Finset.card_union_of_disjoint hdisj, Nat.add_sub_cancel_left]
+  rw [hsum_pow, Cslib.BitString.sum_powerset_subsetMobius]
 
 private theorem value_unanimityGame_of_axioms {φ : CostSharingGame A → A → ℝ}
     (heff : IsEfficientValue φ) (hsym : IsSymmetricValue φ) (hdum : SatisfiesDummy φ)
@@ -964,7 +864,10 @@ theorem eq_shapleyValue_of_axioms {φ : CostSharingGame A → A → ℝ}
 
 /-- **Theorem 15.26 (Shapley's uniqueness theorem, Anonymity form)** ([JainMahdian2007],
 Definition 15.25 & Theorem 15.26, p. 404): `shapleyValue` is the unique value operator satisfying
-Efficiency, Anonymity, Dummy, and Additivity. -/
+Efficiency, Anonymity, Dummy, and Additivity.
+
+Note: here `φ` ranges over all real-valued operators `CostSharingGame A → A → ℝ` rather than
+Definition 15.25's `ℝ₊^n`-valued restriction on monotone cost functions. -/
 theorem existsUnique_shapleyValue :
     ∃! φ : CostSharingGame A → A → ℝ,
       IsEfficientValue φ ∧ IsAnonymousValue φ ∧ SatisfiesDummy φ ∧ IsAdditiveValue φ :=
@@ -995,6 +898,15 @@ noncomputable def shapleyScheme (G : CostSharingGame A) : CostSharingScheme A wh
     else 0
   share_eq_zero_of_not_mem {_ _} hi := by simp only [hi, ↓reduceIte]
 
+@[simp]
+theorem shapleyScheme_share (G : CostSharingGame A) (T : Finset A) (i : A) :
+    G.shapleyScheme.share T i =
+      if i ∈ T then
+        ∑ S ∈ (T.erase i).powerset,
+          shapleyWeight T.card S.card * (G.cost (insert i S) - G.cost S)
+      else 0 := by
+  rfl
+
 theorem shapleyScheme_univ_eq_shapleyValue [Fintype A] (G : CostSharingGame A) :
     G.shapleyScheme.share Finset.univ = shapleyValue G := by
   ext i
@@ -1003,46 +915,13 @@ theorem shapleyScheme_univ_eq_shapleyValue [Fintype A] (G : CostSharingGame A) :
 theorem shapleyScheme_eq_restrict (G : CostSharingGame A) {T : Finset A} {i : A} (hi : i ∈ T) :
     G.shapleyScheme.share T i = shapleyValue (G.restrict T) ⟨i, hi⟩ := by
   simp only [shapleyScheme, hi, ↓reduceIte, shapleyValue, Fintype.card_coe]
-  let emb : Finset {x // x ∈ T} ↪ Finset A :=
-    ⟨fun S => S.map (Function.Embedding.subtype _), fun S₁ S₂ h => by
-      ext ⟨x, hx⟩
-      have hmem := Finset.ext_iff.1 h x
-      simp only [Finset.mem_map, Function.Embedding.coe_subtype] at hmem
-      exact ⟨fun h₁ => by obtain ⟨⟨_, _⟩, h₂, rfl⟩ := hmem.1 ⟨⟨x, hx⟩, h₁, rfl⟩; exact h₂,
-             fun h₂ => by obtain ⟨⟨_, _⟩, h₁, rfl⟩ := hmem.2 ⟨⟨x, hx⟩, h₂, rfl⟩; exact h₁⟩⟩
-  have hemb : ∀ S : Finset {x // x ∈ T}, emb S = S.map (Function.Embedding.subtype _) :=
-    fun _ => rfl
-  have hpow : (T.erase i).powerset =
-      ((Finset.univ.erase (⟨i, hi⟩ : {x // x ∈ T})).powerset).map emb := by
-    ext S
-    simp only [Finset.mem_powerset, Finset.mem_map, hemb]
-    constructor
-    · intro hST
-      let Ssub : Finset {x // x ∈ T} := T.attach.filter (fun x => x.1 ∈ S)
-      refine ⟨Ssub, fun x hx => ?_, ?_⟩
-      · have hxS : x.1 ∈ S := (Finset.mem_filter.1 hx).2
-        have hne : x ≠ ⟨i, hi⟩ := fun h =>
-          (Finset.mem_erase.1 (hST hxS)).1 (congr_arg Subtype.val h)
-        exact Finset.mem_erase.2 ⟨hne, Finset.mem_univ _⟩
-      · ext y
-        simp only [Ssub, Finset.mem_map, Finset.mem_filter, Finset.mem_attach, true_and,
-          Function.Embedding.coe_subtype, Subtype.exists]
-        exact ⟨fun ⟨a, _, haS, hay⟩ => hay ▸ haS,
-          fun hyS => ⟨y, (Finset.mem_erase.1 (hST hyS)).2, hyS, rfl⟩⟩
-    · rintro ⟨Ssub, hSsub, rfl⟩ y hy
-      obtain ⟨⟨x, hxT⟩, hxSsub, rfl⟩ := Finset.mem_map.1 hy
-      have hne : x ≠ i := fun h =>
-        (Finset.mem_erase.1 (hSsub hxSsub)).1 (Subtype.ext h)
-      exact Finset.mem_erase.2 ⟨hne, hxT⟩
-  rw [hpow, Finset.sum_map]
-  refine Finset.sum_congr rfl fun S _ => ?_
-  have hcard : (emb S).card = S.card := Finset.card_map _
-  have hins : (insert (⟨i, hi⟩ : {x // x ∈ T}) S).map (Function.Embedding.subtype _) =
-      insert i (emb S) := by
-    rw [hemb]
-    ext y
+  have her : T.erase i =
+      (Finset.univ.erase (⟨i, hi⟩ : {x // x ∈ T})).map (Function.Embedding.subtype _) := by
+    ext x
     simp [Finset.mem_map]
-  rw [restrict_cost, restrict_cost, hcard, hins, hemb]
+  rw [her, sum_powerset_map]
+  refine Finset.sum_congr rfl fun S _ => ?_
+  simp only [restrict_cost, Finset.card_map, Finset.map_insert, Function.Embedding.coe_subtype]
 
 /-- `shapleyScheme G` is `1`-budget-balanced for every cost-sharing game `G` (by Shapley
 efficiency on each subcoalition `T`). -/
@@ -1101,48 +980,28 @@ theorem IsSubmodular.shapleyScheme_isCrossMonotone {G : CostSharingGame A}
       rw [Finset.card_insert_of_notMem hjT, hT_card]
     simp only [shapleyScheme, hiT, Finset.mem_insert_of_mem hiT, ↓reduceIte, herase_ins,
       hT_card, hinsT_card]
-    rw [Finset.powerset_insert, Finset.sum_union]
-    · have himg :
-          (∑ S ∈ E.powerset.image (insert j),
-              shapleyWeight (t + 2) S.card * (G.cost (insert i S) - G.cost S)) =
-            ∑ S ∈ E.powerset,
-              shapleyWeight (t + 2) (S.card + 1) *
-                (G.cost (insert i (insert j S)) - G.cost (insert j S)) := by
-        rw [Finset.sum_image]
-        · refine Finset.sum_congr rfl fun S hS => ?_
-          have hjS : j ∉ S := fun hj => hjE (Finset.mem_powerset.1 hS hj)
-          rw [Finset.card_insert_of_notMem hjS]
-        · intro S₁ h₁ S₂ h₂ heq
-          have hj₁ : j ∉ S₁ := fun hj => hjE (Finset.mem_powerset.1 h₁ hj)
-          have hj₂ : j ∉ S₂ := fun hj => hjE (Finset.mem_powerset.1 h₂ hj)
-          ext x
-          by_cases hxj : x = j
-          · subst hxj; simp [hj₁, hj₂]
-          · have := Finset.ext_iff.1 heq x
-            simpa [hxj] using this
-      rw [himg, ← Finset.sum_add_distrib]
-      refine Finset.sum_le_sum fun S hS => ?_
-      have hs_le : S.card ≤ t := Finset.card_le_card (Finset.mem_powerset.1 hS)
-      have hiS : i ∉ S := fun hi => (Finset.mem_erase.1 (Finset.mem_powerset.1 hS hi)).1 rfl
-      have hi_insjS : i ∉ insert j S := by simp [hji.symm, hiS]
-      have hdim : G.cost (insert i (insert j S)) - G.cost (insert j S) ≤
-          G.cost (insert i S) - G.cost S :=
-        hsub.marginalGain_le i (Finset.subset_insert j S) hi_insjS
-      have hw_nn : 0 ≤ shapleyWeight (t + 2) (S.card + 1) := shapleyWeight_nonneg _ _
-      calc
-        shapleyWeight (t + 2) S.card * (G.cost (insert i S) - G.cost S) +
-            shapleyWeight (t + 2) (S.card + 1) *
-              (G.cost (insert i (insert j S)) - G.cost (insert j S))
-          ≤ shapleyWeight (t + 2) S.card * (G.cost (insert i S) - G.cost S) +
-              shapleyWeight (t + 2) (S.card + 1) * (G.cost (insert i S) - G.cost S) :=
-            add_le_add le_rfl (mul_le_mul_of_nonneg_left hdim hw_nn)
-        _ = (shapleyWeight (t + 2) S.card + shapleyWeight (t + 2) (S.card + 1)) *
-              (G.cost (insert i S) - G.cost S) := (add_mul _ _ _).symm
-        _ = shapleyWeight (t + 1) S.card * (G.cost (insert i S) - G.cost S) := by
-            rw [shapleyWeight_split hs_le]
-    · refine Finset.disjoint_left.2 fun S h₁ h₂ => ?_
-      obtain ⟨S', _, rfl⟩ := Finset.mem_image.1 h₂
-      exact hjE (Finset.mem_powerset.1 h₁ (Finset.mem_insert_self j S'))
+    rw [Finset.sum_powerset_insert hjE, ← Finset.sum_add_distrib]
+    refine Finset.sum_le_sum fun S hS => ?_
+    have hjS : j ∉ S := fun hj => hjE (Finset.mem_powerset.1 hS hj)
+    rw [Finset.card_insert_of_notMem hjS]
+    have hs_le : S.card ≤ t := Finset.card_le_card (Finset.mem_powerset.1 hS)
+    have hiS : i ∉ S := fun hi => (Finset.mem_erase.1 (Finset.mem_powerset.1 hS hi)).1 rfl
+    have hi_insjS : i ∉ insert j S := by simp [hji.symm, hiS]
+    have hdim : G.cost (insert i (insert j S)) - G.cost (insert j S) ≤
+        G.cost (insert i S) - G.cost S :=
+      hsub.marginalGain_le i (Finset.subset_insert j S) hi_insjS
+    have hw_nn : 0 ≤ shapleyWeight (t + 2) (S.card + 1) := shapleyWeight_nonneg _ _
+    calc
+      shapleyWeight (t + 2) S.card * (G.cost (insert i S) - G.cost S) +
+          shapleyWeight (t + 2) (S.card + 1) *
+            (G.cost (insert i (insert j S)) - G.cost (insert j S))
+        ≤ shapleyWeight (t + 2) S.card * (G.cost (insert i S) - G.cost S) +
+            shapleyWeight (t + 2) (S.card + 1) * (G.cost (insert i S) - G.cost S) :=
+          add_le_add le_rfl (mul_le_mul_of_nonneg_left hdim hw_nn)
+      _ = (shapleyWeight (t + 2) S.card + shapleyWeight (t + 2) (S.card + 1)) *
+            (G.cost (insert i S) - G.cost S) := (add_mul _ _ _).symm
+      _ = shapleyWeight (t + 1) S.card * (G.cost (insert i S) - G.cost S) := by
+          rw [shapleyWeight_split hs_le]
   -- Induct on `D = T₂ \ T₁`.
   intro T₁ T₂ hT₁₂ i hiT₁
   have hind : ∀ D : Finset A, Disjoint T₁ D →
@@ -1169,16 +1028,6 @@ theorem IsSubmodular.shapleyValue_inCore [Fintype A] {G : CostSharingGame A}
   rw [← G.shapleyScheme_univ_eq_shapleyValue]
   exact G.shapleyScheme.inCore_univ G.shapleyScheme_isBudgetBalanced
     hsub.shapleyScheme_isCrossMonotone
-
-/-- Combining Exercise 15.2 with Moulin's Theorem 15.16 yields a `1`-budget-balanced,
-group-strategyproof mechanism `G.shapleyScheme.moulinMechanism` for any submodular game `G`
-([JainMahdian2007], p. 403, multicast application). -/
-theorem IsSubmodular.moulinMechanism_shapleyScheme_isGroupStrategyproof [Fintype A]
-    {G : CostSharingGame A} (hsub : G.IsSubmodular) :
-    G.shapleyScheme.moulinMechanism.IsGroupStrategyproof ∧
-      G.shapleyScheme.moulinMechanism.IsBudgetBalanced G 1 :=
-  ⟨G.shapleyScheme.moulinMechanism_isGroupStrategyproof hsub.shapleyScheme_isCrossMonotone,
-   G.shapleyScheme.moulinMechanism_isBudgetBalanced G.shapleyScheme_isBudgetBalanced⟩
 
 end ShapleyScheme
 
@@ -1207,12 +1056,23 @@ structure BargainingProblem where
 namespace BargainingProblem
 
 /-- Individually rational feasible subset `{x ∈ feasible | d₁ ≤ x₁ ∧ d₂ ≤ x₂}`. -/
-@[expose] def individuallyRational (B : BargainingProblem) : Set (ℝ × ℝ) :=
+def individuallyRational (B : BargainingProblem) : Set (ℝ × ℝ) :=
   B.feasible ∩ {x : ℝ × ℝ | B.disagreement.1 ≤ x.1 ∧ B.disagreement.2 ≤ x.2}
 
+@[simp]
+theorem mem_individuallyRational (B : BargainingProblem) {x : ℝ × ℝ} :
+    x ∈ B.individuallyRational ↔
+      x ∈ B.feasible ∧ B.disagreement.1 ≤ x.1 ∧ B.disagreement.2 ≤ x.2 := by
+  rfl
+
 /-- Nash product `(x₁ - d₁) * (x₂ - d₂)` ([JainMahdian2007], Theorem 15.28). -/
-@[expose] def nashProduct (B : BargainingProblem) (x : ℝ × ℝ) : ℝ :=
+def nashProduct (B : BargainingProblem) (x : ℝ × ℝ) : ℝ :=
   (x.1 - B.disagreement.1) * (x.2 - B.disagreement.2)
+
+@[simp]
+theorem nashProduct_apply (B : BargainingProblem) (x : ℝ × ℝ) :
+    B.nashProduct x = (x.1 - B.disagreement.1) * (x.2 - B.disagreement.2) := by
+  rfl
 
 theorem isCompact_individuallyRational (B : BargainingProblem) :
     IsCompact B.individuallyRational := by

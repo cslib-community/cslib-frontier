@@ -4,9 +4,19 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.GameTheory.Cooperative.Core
-import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
-import CslibFrontier.GameTheory.Cooperative.ShapleyValue
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.GameTheory.Cooperative.Core
+public import CslibFrontier.GameTheory.Cooperative.MoulinCostSharing
+public import CslibFrontier.GameTheory.Cooperative.ShapleyValue
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Analysis.Normed.Lp.ProdLp
+import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Linarith
+import Mathlib.Tactic.NormNum
+import Mathlib.Tactic.Ring
+import Mathlib.Topology.Order.Compact
 
 /-!
 # Cooperative games, cost sharing, Shapley value, and Nash bargaining
@@ -28,6 +38,8 @@ Checked examples exercising the cooperative game theory and cost-sharing modules
 * **Nash bargaining** (`ShapleyValue.lean`): asymmetric linear frontier `{x ≥ 0 | x₁ + 2 x₂ ≤ 4}`
   with disagreement `(0, 0)` uniquely selecting `(2, 1)`.
 -/
+
+public section
 
 namespace CslibFrontierTests.GameTheory.Cooperative
 
@@ -61,9 +73,7 @@ example : FacilityLocationInstance.example15_2.toCostSharingGame.InCore ![4, 2, 
       intro i j
       fin_cases i <;> fin_cases j <;> norm_num [β, h00, h01, h02, h10, h11, h12]
     · intro i
-      rw [Fin.sum_univ_three]
-      have ho : FacilityLocationInstance.example15_2.openCost i = 2 := rfl
-      rw [ho]
+      rw [Fin.sum_univ_three, FacilityLocationInstance.example15_2_openCost i]
       fin_cases i <;> norm_num [β]
   refine ⟨?_, hdual.isCoreFeasible⟩
   rw [Fin.sum_univ_three, FacilityLocationInstance.example15_2_cost.2.2.2.2.2.2]
@@ -85,18 +95,21 @@ example :
    (FacilityLocationInstance.example15_2.toCostSharingGame.inCore_toCooperativeGame_iff
      ![4, 2, 2]).2 FacilityLocationInstance.example15_2_inCore_four_two_two⟩
 
-/-- Applying Corollary 15.9 (`isGreatest_nonemptyApproxCore_integralityGapLP`) to the genuine
-6-vertex metric facility location instance `emptyCoreMetricFL`: `G.cost univ = 8`, the LP `(15.2)`
-optimum is `15 / 2`, and the largest `γ` with nonempty `γ`-core is `integralityGapLP = 15 / 16`. -/
+/-- Applying Corollary 15.9 (`IsSubadditive.isGreatest_nonemptyApproxCore_integralityGapLP`) to the
+genuine 6-vertex metric facility location instance `emptyCoreMetricFL`: `G.cost univ = 8`, the LP
+`(15.2)` optimum is `15 / 2`, and the largest `γ` with nonempty `γ`-core is
+`integralityGapLP = 15 / 16`. -/
 example :
     FacilityLocationInstance.emptyCoreMetricFL.toCostSharingGame.cost Finset.univ = 8 ∧
     FacilityLocationInstance.emptyCoreMetricFL.toCostSharingGame.lpOpt = 15 / 2 ∧
     FacilityLocationInstance.emptyCoreMetricFL.toCostSharingGame.integralityGapLP = 15 / 16 := by
   set G := FacilityLocationInstance.emptyCoreMetricFL.toCostSharingGame
+  have hsub : G.IsSubadditive :=
+    FacilityLocationInstance.emptyCoreMetricFL.toCostSharingGame_isSubadditive
   have happrox := FacilityLocationInstance.emptyCoreMetricFL_inApproxCore
   have huniv : G.cost Finset.univ = 8 := FacilityLocationInstance.emptyCoreMetricFL_cost_univ
   have hpos : 0 < G.cost Finset.univ := by linarith
-  have hgreat := G.isGreatest_nonemptyApproxCore_integralityGapLP hpos
+  have hgreat := hsub.isGreatest_nonemptyApproxCore_integralityGapLP hpos
   have hge : (15 / 16 : ℝ) ≤ G.integralityGapLP :=
     hgreat.2 ⟨fun _ => 5 / 2, happrox⟩
   have hle : G.integralityGapLP ≤ 15 / 16 :=
@@ -104,9 +117,85 @@ example :
       FacilityLocationInstance.emptyCoreMetricFL_not_nonemptyApproxCore_of_gt hgt hgreat.1
   have hgap : G.integralityGapLP = 15 / 16 := le_antisymm hle hge
   refine ⟨huniv, ?_, hgap⟩
-  unfold CostSharingGame.integralityGapLP at hgap
-  rw [huniv] at hgap
+  rw [G.integralityGapLP_eq, hsub.integralLpOpt_eq_cost_univ, huniv] at hgap
   linarith
+
+/-- Non-subadditive boundary witness for Corollary 15.9: on `Bool` with `c({false}) = c({true}) = 1`
+and `c({false, true}) = 10`, both the fractional and integral optima of LP `(15.2)` equal `2`, so
+`integralityGapLP = 1`, whereas the `1`-core is empty and the `(1 / 5)`-core is nonempty. -/
+private def nonSubadditiveGame : CostSharingGame Bool where
+  cost S :=
+    if false ∈ S ∧ true ∈ S then 10
+    else if false ∈ S ∨ true ∈ S then 1
+    else 0
+  cost_empty := by simp
+
+example :
+    ¬ nonSubadditiveGame.IsSubadditive ∧
+    nonSubadditiveGame.integralLpOpt = 2 ∧
+    nonSubadditiveGame.lpOpt = 2 ∧
+    nonSubadditiveGame.integralityGapLP = 1 ∧
+    nonSubadditiveGame.NonemptyApproxCore (1 / 5) ∧
+    ¬ nonSubadditiveGame.NonemptyApproxCore 1 := by
+  have hnot_sub : ¬ nonSubadditiveGame.IsSubadditive := by
+    intro hsub
+    have h := hsub (by decide : Disjoint ({false} : Finset Bool) {true})
+    have hu : ({false} : Finset Bool) ∪ {true} = {false, true} := by decide
+    rw [hu] at h
+    norm_num [nonSubadditiveGame] at h
+  have hw_sing : IsIntegralBalancedWeights (fun S : Finset Bool =>
+      if S = {false} ∨ S = {true} then 1 else 0) := by
+    intro j
+    have huniv_sets : (Finset.univ : Finset (Finset Bool)) = {∅, {false}, {true}, Finset.univ} := by
+      decide
+    rw [Finset.sum_filter, huniv_sets]
+    repeat rw [Finset.sum_insert (by decide)]
+    rw [Finset.sum_singleton]
+    cases j <;> decide
+  have hsum_sing : (∑ S : Finset Bool,
+      ((if S = {false} ∨ S = {true} then 1 else 0 : ℕ) : ℝ) * nonSubadditiveGame.cost S) = 2 := by
+    have huniv_sets : (Finset.univ : Finset (Finset Bool)) = {∅, {false}, {true}, Finset.univ} := by
+      decide
+    rw [huniv_sets]
+    repeat rw [Finset.sum_insert (by decide)]
+    rw [Finset.sum_singleton]
+    have hne : (Finset.univ : Finset Bool) ≠ {false} ∧ (Finset.univ : Finset Bool) ≠ {true} := by
+      decide
+    have htf : ({true, false} : Finset Bool) ≠ {true} := by decide
+    norm_num [nonSubadditiveGame, hne.1, hne.2, htf]
+  have hfeas1 : nonSubadditiveGame.IsCoreFeasible (fun _ => 1) := by
+    intro S
+    by_cases hf : false ∈ S <;> by_cases ht : true ∈ S
+    · have hS : S = Finset.univ := by ext x; cases x <;> simp [hf, ht]
+      rw [hS, Fintype.sum_bool]
+      norm_num [nonSubadditiveGame]
+    · have hS : S = {false} := by ext x; cases x <;> simp [hf, ht]
+      rw [hS]
+      norm_num [nonSubadditiveGame]
+    · have hS : S = {true} := by ext x; cases x <;> simp [hf, ht]
+      rw [hS]
+      norm_num [nonSubadditiveGame]
+    · have hS : S = ∅ := by ext x; cases x <;> simp [hf, ht]
+      rw [hS]
+      norm_num [nonSubadditiveGame]
+  have hlp_ge : 2 ≤ nonSubadditiveGame.lpOpt := by
+    have h := nonSubadditiveGame.isGreatest_coreFeasible_lpOpt.2 ⟨fun _ => 1, hfeas1, rfl⟩
+    simpa [Fintype.sum_bool] using h
+  have hint_le : nonSubadditiveGame.integralLpOpt ≤ 2 :=
+    hsum_sing ▸ nonSubadditiveGame.isLeast_integralBalanced_integralLpOpt.2 ⟨_, hw_sing, rfl⟩
+  have hle := nonSubadditiveGame.lpOpt_le_integralLpOpt
+  have hlp : nonSubadditiveGame.lpOpt = 2 := by linarith
+  have hint : nonSubadditiveGame.integralLpOpt = 2 := by linarith
+  have hgap : nonSubadditiveGame.integralityGapLP = 1 := by
+    rw [nonSubadditiveGame.integralityGapLP_eq, hlp, hint]
+    norm_num
+  have huniv10 : nonSubadditiveGame.cost Finset.univ = 10 := by
+    norm_num [nonSubadditiveGame]
+  refine ⟨hnot_sub, hint, hlp, hgap, ?_, ?_⟩
+  · rw [nonSubadditiveGame.nonemptyApproxCore_iff_le_lpOpt, huniv10, hlp]
+    norm_num
+  · rw [nonSubadditiveGame.nonemptyApproxCore_iff_le_lpOpt, huniv10, hlp]
+    norm_num
 
 /-! ### Exercise 15.1: Concrete 2-agent, 2-good linear exchange economy -/
 
@@ -144,18 +233,20 @@ example :
     · exact le_trans (by norm_num [twoGoodEconomy])
         (Finset.le_sup' (fun k => twoGoodEconomy.utility k true) (Finset.mem_univ false))
   refine ⟨?_, ?_, ?_, ?_, ?_, twoGoodEconomy.marketPriceAllocation_inCore⟩
-  · simp [LinearExchangeEconomy.toCooperativeGame, LinearExchangeEconomy.coalitionValue,
-      twoGoodEconomy]
-  · simp [LinearExchangeEconomy.toCooperativeGame, LinearExchangeEconomy.coalitionValue,
-      twoGoodEconomy]
-  · simp only [LinearExchangeEconomy.toCooperativeGame, LinearExchangeEconomy.coalitionValue,
-      huniv_ne, ↓reduceDIte, Fintype.sum_bool, hsup_f, hsup_t]
-    norm_num [twoGoodEconomy]
-  · simp only [LinearExchangeEconomy.marketPriceAllocation, huniv_ne, ↓reduceDIte,
+  · rw [twoGoodEconomy.toCooperativeGame_val,
+      twoGoodEconomy.coalitionValue_of_nonempty (Finset.singleton_nonempty false)]
+    simp [twoGoodEconomy]
+  · rw [twoGoodEconomy.toCooperativeGame_val,
+      twoGoodEconomy.coalitionValue_of_nonempty (Finset.singleton_nonempty true)]
+    simp [twoGoodEconomy]
+  · rw [twoGoodEconomy.toCooperativeGame_val, twoGoodEconomy.coalitionValue_of_nonempty huniv_ne,
       Fintype.sum_bool, hsup_f, hsup_t]
     norm_num [twoGoodEconomy]
-  · simp only [LinearExchangeEconomy.marketPriceAllocation, huniv_ne, ↓reduceDIte,
-      Fintype.sum_bool, hsup_f, hsup_t]
+  · rw [twoGoodEconomy.marketPriceAllocation_of_nonempty huniv_ne, Fintype.sum_bool, hsup_f,
+      hsup_t]
+    norm_num [twoGoodEconomy]
+  · rw [twoGoodEconomy.marketPriceAllocation_of_nonempty huniv_ne, Fintype.sum_bool, hsup_f,
+      hsup_t]
     norm_num [twoGoodEconomy]
 
 /-! ### Moulin iterative pruning and submodular cost sharing -/
@@ -182,75 +273,81 @@ theorem twoAgentSharedGame_isNonneg : twoAgentSharedGame.IsNonneg := by
     simp [twoAgentSharedGame, hfS, htS]
 
 /-- Both `submodularCostShareScheme` (Theorem 15.20) and `shapleyScheme` (Exercise 15.2) yield
-`1`-budget-balanced, group-strategyproof Moulin mechanisms on `twoAgentSharedGame`. -/
+`1`-budget-balanced, group-strategyproof (and hence single-parameter DSIC) Moulin mechanisms on
+`twoAgentSharedGame`. -/
 example :
     twoAgentSharedGame.submodularCostShareScheme.IsCrossMonotone ∧
     twoAgentSharedGame.submodularCostShareScheme.moulinMechanism.IsGroupStrategyproof ∧
+    twoAgentSharedGame.submodularCostShareScheme.moulinMechanism.toSingleParameterMechanism.IsDSIC ∧
     twoAgentSharedGame.submodularCostShareScheme.moulinMechanism.IsBudgetBalanced
       twoAgentSharedGame 1 ∧
-    twoAgentSharedGame.shapleyScheme.moulinMechanism.IsGroupStrategyproof :=
-  ⟨twoAgentSharedGame.submodularCostShareScheme_isCrossMonotone
-      twoAgentSharedGame_isSubmodular twoAgentSharedGame_isNonneg,
-   twoAgentSharedGame.submodularCostShareScheme.moulinMechanism_isGroupStrategyproof
-      (twoAgentSharedGame.submodularCostShareScheme_isCrossMonotone
-        twoAgentSharedGame_isSubmodular twoAgentSharedGame_isNonneg),
+    twoAgentSharedGame.shapleyScheme.moulinMechanism.IsGroupStrategyproof ∧
+    twoAgentSharedGame.shapleyScheme.moulinMechanism.toSingleParameterMechanism.IsDSIC ∧
+    twoAgentSharedGame.shapleyScheme.moulinMechanism.IsBudgetBalanced twoAgentSharedGame 1 :=
+  let hcmSub := twoAgentSharedGame.submodularCostShareScheme_isCrossMonotone
+    twoAgentSharedGame_isSubmodular twoAgentSharedGame_isNonneg
+  let hgspSub := twoAgentSharedGame.submodularCostShareScheme.moulinMechanism_isGroupStrategyproof
+    hcmSub
+  let hgspShap := twoAgentSharedGame.shapleyScheme.moulinMechanism_isGroupStrategyproof
+    twoAgentSharedGame_isSubmodular.shapleyScheme_isCrossMonotone
+  ⟨hcmSub, hgspSub, hgspSub.isDSIC,
    twoAgentSharedGame.submodularCostShareScheme.moulinMechanism_isBudgetBalanced
       (twoAgentSharedGame.submodularCostShareScheme_isBudgetBalanced
         twoAgentSharedGame_isSubmodular twoAgentSharedGame_isNonneg),
-   (twoAgentSharedGame_isSubmodular.moulinMechanism_shapleyScheme_isGroupStrategyproof).1⟩
+   hgspShap, hgspShap.isDSIC,
+   twoAgentSharedGame.shapleyScheme.moulinMechanism_isBudgetBalanced
+      twoAgentSharedGame.shapleyScheme_isBudgetBalanced⟩
 
 /-- Explicit 2-round cascading dropout trace of `moulinMechanism` on `twoAgentSharedGame`'s Shapley
 scheme (`ξ({false, true}) = (3, 5)`, `ξ({false}) = (4, 0)`): under bids `(7 / 2, 4)`, agent `true`
 is pruned in round 1 (`5 > 4`), raising `false`'s share from `3` to `4 > 7 / 2`, so `false` is
-pruned in round 2 and `moulinServiced = ∅`. Raising `false`'s bid to `9 / 2` stops at `{false}`. -/
+pruned in round 2 and `moulinServiced = ∅` (exercising both `isGreatest_isWilling_moulinServiced`
+and order-independence `moulinServiced_eq_of_validPruning`). Raising `false`'s bid to `9 / 2` stops
+at `{false}`. -/
 example :
     let ξ := twoAgentSharedGame.shapleyScheme
     ξ.moulinServiced (fun b => if b then 4 else 7 / 2) = ∅ ∧
     ξ.moulinServiced (fun b => if b then 4 else 9 / 2) = {false} := by
   intro ξ
   have hcm := twoAgentSharedGame_isSubmodular.shapleyScheme_isCrossMonotone
-  have hw0 : shapleyWeight 1 0 = 1 := by norm_num [shapleyWeight, Nat.factorial]
-  have hw20 : shapleyWeight 2 0 = 1 / 2 := by norm_num [shapleyWeight, Nat.factorial]
-  have hw21 : shapleyWeight 2 1 = 1 / 2 := by norm_num [shapleyWeight, Nat.factorial]
+  have hw0 : shapleyWeight 1 0 = 1 := by norm_num [shapleyWeight_eq, Nat.factorial]
+  have hw20 : shapleyWeight 2 0 = 1 / 2 := by norm_num [shapleyWeight_eq, Nat.factorial]
+  have hw21 : shapleyWeight 2 1 = 1 / 2 := by norm_num [shapleyWeight_eq, Nat.factorial]
   have her_univ_t : ((Finset.univ : Finset Bool).erase true).powerset = {∅, {false}} := by decide
   have her_f : (({false} : Finset Bool).erase false).powerset = {∅} := by decide
-  have her_t : (({true} : Finset Bool).erase true).powerset = {∅} := by decide
   have hshare_univ_t : ξ.share Finset.univ true = 5 := by
     have hcard : (Finset.univ : Finset Bool).card = 2 := by decide
-    simp only [ξ, CostSharingGame.shapleyScheme, Finset.mem_univ, ↓reduceIte, hcard, her_univ_t]
+    simp only [ξ, CostSharingGame.shapleyScheme_share, Finset.mem_univ, ↓reduceIte, hcard,
+      her_univ_t]
     rw [Finset.sum_insert (by decide), Finset.sum_singleton]
     norm_num [hw20, hw21, twoAgentSharedGame]
   have hshare_f : ξ.share {false} false = 4 := by
-    simp only [ξ, CostSharingGame.shapleyScheme, Finset.mem_singleton, ↓reduceIte,
+    simp only [ξ, CostSharingGame.shapleyScheme_share, Finset.mem_singleton, ↓reduceIte,
       Finset.card_singleton, her_f, Finset.sum_singleton]
     norm_num [hw0, twoAgentSharedGame]
-  have hshare_t : ξ.share {true} true = 6 := by
-    simp only [ξ, CostSharingGame.shapleyScheme, Finset.mem_singleton, ↓reduceIte,
-      Finset.card_singleton, her_t, Finset.sum_singleton]
-    norm_num [hw0, twoAgentSharedGame]
   refine ⟨?_, ?_⟩
-  · -- Show `∅` is the unique willing coalition under `(7 / 2, 4)`.
+  · -- Verify `∅ = ξ.moulinServiced b₁` via an explicit 2-step `ValidPruningStep` path
+    -- `univ → {false} → ∅` and `moulinServiced_eq_of_validPruning`.
     let b₁ : Bool → ℝ := fun b => if b then 4 else 7 / 2
-    refine Finset.subset_empty.1 ?_
-    have hwilling := ξ.isWilling_moulinServiced b₁
-    set S := ξ.moulinServiced b₁
-    by_cases ht : true ∈ S
-    · by_cases hf : false ∈ S
-      · have hS : S = Finset.univ := by ext x; cases x <;> simp [hf, ht]
-        have h := hwilling true ht
-        rw [hS, hshare_univ_t] at h
-        norm_num [b₁] at h
-      · have hS : S = {true} := by ext x; cases x <;> simp [hf, ht]
-        have h := hwilling true ht
-        rw [hS, hshare_t] at h
-        norm_num [b₁] at h
-    · by_cases hf : false ∈ S
-      · have hS : S = {false} := by ext x; cases x <;> simp [hf, ht]
-        have h := hwilling false hf
-        rw [hS, hshare_f] at h
-        norm_num [b₁] at h
-      · intro x hx; cases x <;> simp_all
-  · -- Under `(9 / 2, 4)`, `{false}` is willing while neither `univ` nor `{true}` is willing.
+    have hstep1 : ξ.ValidPruningStep b₁ Finset.univ {false} := by
+      refine ⟨fun x hx => ?_, Finset.subset_univ _⟩
+      have hx' := (ξ.mem_moulinStep b₁ Finset.univ x).1 hx
+      cases x
+      · exact Finset.mem_singleton_self false
+      · rw [hshare_univ_t] at hx'
+        norm_num [b₁] at hx'
+    have hstep2 : ξ.ValidPruningStep b₁ {false} ∅ := by
+      refine ⟨fun x hx => ?_, Finset.empty_subset _⟩
+      have hx' := (ξ.mem_moulinStep b₁ {false} x).1 hx
+      have hxf : x = false := Finset.mem_singleton.1 hx'.1
+      subst hxf
+      rw [hshare_f] at hx'
+      norm_num [b₁] at hx'
+    have hpath : Relation.ReflTransGen (ξ.ValidPruningStep b₁) Finset.univ ∅ :=
+      (Relation.ReflTransGen.single hstep1).tail hstep2
+    exact (ξ.moulinServiced_eq_of_validPruning hcm hpath (ξ.isWilling_empty b₁)).symm
+  · -- Under `(9 / 2, 4)`, `{false}` is the unique largest willing coalition
+    -- (`isGreatest_isWilling_moulinServiced`).
     let b₂ : Bool → ℝ := fun b => if b then 4 else 9 / 2
     have hgreat := ξ.isGreatest_isWilling_moulinServiced hcm b₂
     have hf_will : ξ.IsWilling b₂ {false} := by
@@ -289,7 +386,7 @@ example :
   intro U
   have hd2 : U.IsDummyAgent 2 := by
     intro S _
-    simp only [U, unanimityGame]
+    simp only [U, unanimityGame_cost]
     have hiff : ({0, 1} : Finset (Fin 3)) ⊆ insert 2 S ↔ ({0, 1} : Finset (Fin 3)) ⊆ S := by
       refine ⟨fun h x hx => ?_, fun h => h.trans (Finset.subset_insert 2 S)⟩
       rcases Finset.mem_insert.1 (h hx) with rfl | hxS
@@ -298,7 +395,7 @@ example :
     simp only [hiff]
   have hsym01 : U.AreSymmetric 0 1 := by
     intro S h0S h1S
-    simp only [U, unanimityGame]
+    simp only [U, unanimityGame_cost]
     have hn0 : ¬ ({0, 1} : Finset (Fin 3)) ⊆ insert 0 S := fun h =>
       h1S ((Finset.mem_insert.1 (h (by decide))).resolve_left (by decide))
     have hn1 : ¬ ({0, 1} : Finset (Fin 3)) ⊆ insert 1 S := fun h =>
@@ -309,7 +406,7 @@ example :
   have heff := shapleyValue_isEfficient U
   rw [Fin.sum_univ_three] at heff
   have huniv : U.cost Finset.univ = 6 := by
-    simp only [U, unanimityGame, Finset.subset_univ, ↓reduceIte]
+    simp only [U, unanimityGame_cost, Finset.subset_univ, ↓reduceIte]
   rw [huniv, hp2, hp01] at heff
   refine ⟨by linarith, by linarith, hp2⟩
 
@@ -327,23 +424,23 @@ example :
   set G := gloveGame.toCostSharingGame
   have hsym12 : G.AreSymmetric 1 2 := by
     intro S h1S h2S
-    simp only [G, CooperativeGame.toCostSharingGame, gloveGame]
+    simp only [G, CooperativeGame.toCostSharingGame_cost, gloveGame]
     by_cases h0 : (0 : Fin 3) ∈ S <;> simp [h0, h1S, h2S]
   have hp12 : shapleyValue G 1 = shapleyValue G 2 := shapleyValue_isSymmetric G 1 2 hsym12
   have hp0 : shapleyValue G 0 = -(2 / 3) := by
     have her0 : (Finset.univ.erase (0 : Fin 3)).powerset = {∅, {1}, {2}, {1, 2}} := by decide
     have hcardA : Fintype.card (Fin 3) = 3 := Fintype.card_fin 3
-    have hw0 : shapleyWeight 3 0 = 1 / 3 := by norm_num [shapleyWeight, Nat.factorial]
-    have hw1 : shapleyWeight 3 1 = 1 / 6 := by norm_num [shapleyWeight, Nat.factorial]
-    have hw2 : shapleyWeight 3 2 = 1 / 3 := by norm_num [shapleyWeight, Nat.factorial]
-    rw [shapleyValue, hcardA, her0]
+    have hw0 : shapleyWeight 3 0 = 1 / 3 := by norm_num [shapleyWeight_eq, Nat.factorial]
+    have hw1 : shapleyWeight 3 1 = 1 / 6 := by norm_num [shapleyWeight_eq, Nat.factorial]
+    have hw2 : shapleyWeight 3 2 = 1 / 3 := by norm_num [shapleyWeight_eq, Nat.factorial]
+    rw [shapleyValue_eq, hcardA, her0]
     repeat rw [Finset.sum_insert (by decide)]
     rw [Finset.sum_singleton]
-    norm_num [hw0, hw1, hw2, G, CooperativeGame.toCostSharingGame, gloveGame]
+    norm_num [hw0, hw1, hw2, G, CooperativeGame.toCostSharingGame_cost, gloveGame]
   have heff := shapleyValue_isEfficient G
   rw [Fin.sum_univ_three, hp0, ← hp12] at heff
   have huniv : G.cost Finset.univ = -1 := by
-    simp [G, CooperativeGame.toCostSharingGame, gloveGame]
+    simp [G, CooperativeGame.toCostSharingGame_cost, gloveGame]
   rw [huniv] at heff
   exact ⟨hp0, by linarith, by linarith⟩
 
@@ -377,12 +474,14 @@ def asymBargaining : BargainingProblem where
 example : nashBargainingSolution asymBargaining = (2, 1) := by
   symm
   refine nashBargainingSolution_unique_maximizer asymBargaining ?_ ?_
-  · exact ⟨⟨by norm_num, by norm_num, by norm_num⟩,
+  · rw [BargainingProblem.mem_individuallyRational]
+    exact ⟨⟨by norm_num, by norm_num, by norm_num⟩,
       by norm_num [asymBargaining], by norm_num [asymBargaining]⟩
-  · obtain ⟨⟨h₁, h₂, hsum⟩, _, _⟩ :=
-      nashBargainingSolution_mem_individuallyRational asymBargaining
+  · have hmem := (BargainingProblem.mem_individuallyRational _).1
+      (nashBargainingSolution_mem_individuallyRational asymBargaining)
+    obtain ⟨⟨h₁, h₂, hsum⟩, _, _⟩ := hmem
     set x := nashBargainingSolution asymBargaining
-    simp only [BargainingProblem.nashProduct, asymBargaining]
+    simp only [BargainingProblem.nashProduct_apply, asymBargaining]
     have hsq : 0 ≤ (x.1 - 2 * x.2) ^ 2 := sq_nonneg _
     have hsum_sq : (x.1 + 2 * x.2) ^ 2 ≤ 16 := by nlinarith
     nlinarith

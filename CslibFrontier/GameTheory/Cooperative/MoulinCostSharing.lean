@@ -71,7 +71,6 @@ Ray 1989):
 * `Cslib.GameTheory.CostSharingGame.IsSubmodular`,
   `Cslib.GameTheory.CostSharingGame.IsTight`,
   `Cslib.GameTheory.CostSharingGame.maximalTightSet`,
-  `Cslib.GameTheory.CostSharingGame.submodularCostShare`,
   `Cslib.GameTheory.CostSharingGame.submodularCostShareScheme`: submodular games and the Dutta–Ray /
   Jain–Vazirani primal-dual algorithm `SubmodularCostShare` ([JainMahdian2007], Section 15.4.1,
   Figure 15.3).
@@ -188,15 +187,31 @@ variable {A : Type*}
 
 /-- Embed a binary cost-sharing mechanism into `Cslib.GameTheory.SingleParameter.Mechanism` with
 indicator allocation `1` on `serviced b` and `0` outside. -/
-@[expose] def toSingleParameterMechanism [DecidableEq A] (M : CostSharingMechanism A) :
+def toSingleParameterMechanism [DecidableEq A] (M : CostSharingMechanism A) :
     SingleParameter.Mechanism A where
   allocation b i := if i ∈ M.serviced b then 1 else 0
   payment := M.payment
 
+@[simp]
+theorem toSingleParameterMechanism_allocation [DecidableEq A] (M : CostSharingMechanism A)
+    (b : A → ℝ) (i : A) :
+    M.toSingleParameterMechanism.allocation b i = if i ∈ M.serviced b then 1 else 0 := by
+  rfl
+
+@[simp]
+theorem toSingleParameterMechanism_payment [DecidableEq A] (M : CostSharingMechanism A)
+    (b : A → ℝ) :
+    M.toSingleParameterMechanism.payment b = M.payment b := by
+  rfl
+
 /-- Quasilinear utility `u_i q_i - p_i` of agent `i` with true value `u i` under bid profile `b`
 ([JainMahdian2007], Section 15.3, p. 391). -/
-@[expose] def utility [DecidableEq A] (M : CostSharingMechanism A) (u b : A → ℝ) (i : A) : ℝ :=
+def utility [DecidableEq A] (M : CostSharingMechanism A) (u b : A → ℝ) (i : A) : ℝ :=
   (if i ∈ M.serviced b then u i else 0) - M.payment b i
+
+theorem utility_eq [DecidableEq A] (M : CostSharingMechanism A) (u b : A → ℝ) (i : A) :
+    M.utility u b i = (if i ∈ M.serviced b then u i else 0) - M.payment b i := by
+  rfl
 
 @[simp]
 theorem toSingleParameterMechanism_utility [DecidableEq A] (M : CostSharingMechanism A)
@@ -311,9 +326,14 @@ theorem IsWilling.union [DecidableEq A] {ξ : CostSharingScheme A} (hcm : ξ.IsC
 
 /-- One synchronous pruning step `S ↦ {i ∈ S | ξ(i, S) ≤ b_i}` of Moulin's mechanism
 ([JainMahdian2007], Figure 15.2). -/
-@[expose] noncomputable def moulinStep (ξ : CostSharingScheme A) (b : A → ℝ) (S : Finset A) :
+noncomputable def moulinStep (ξ : CostSharingScheme A) (b : A → ℝ) (S : Finset A) :
     Finset A :=
   S.filter (fun i => ξ.share S i ≤ b i)
+
+@[simp]
+theorem mem_moulinStep (ξ : CostSharingScheme A) (b : A → ℝ) (S : Finset A) (i : A) :
+    i ∈ ξ.moulinStep b S ↔ i ∈ S ∧ ξ.share S i ≤ b i :=
+  Finset.mem_filter
 
 theorem moulinStep_subset (ξ : CostSharingScheme A) (b : A → ℝ) (S : Finset A) :
     ξ.moulinStep b S ⊆ S :=
@@ -346,7 +366,7 @@ private theorem iterate_shrinking_fixed {f : Finset A → Finset A} (hf : ∀ S,
 /-- Serviced coalition returned by Moulin's mechanism `M_ξ` ([JainMahdian2007], Figure 15.2):
 iteratively prune `{i ∈ S | ξ(i, S) ≤ b_i}` from `Finset.univ` until convergence (at most
 `Fintype.card A` rounds). -/
-@[expose] noncomputable def moulinServiced [Fintype A] (ξ : CostSharingScheme A) (b : A → ℝ) :
+noncomputable def moulinServiced [Fintype A] (ξ : CostSharingScheme A) (b : A → ℝ) :
     Finset A :=
   (ξ.moulinStep b)^[Fintype.card A] Finset.univ
 
@@ -423,10 +443,20 @@ theorem moulinServiced_mono [Fintype A] {ξ : CostSharingScheme A} (hcm : ξ.IsC
 
 /-- **Moulin's cost-sharing mechanism `M_ξ`** ([JainMahdian2007], Figure 15.2, p. 393): service
 `moulinServiced ξ b` and charge each agent `ξ.share (moulinServiced ξ b) i`. -/
-@[expose] noncomputable def moulinMechanism [Fintype A] (ξ : CostSharingScheme A) :
+noncomputable def moulinMechanism [Fintype A] (ξ : CostSharingScheme A) :
     CostSharingMechanism A where
   serviced := ξ.moulinServiced
   payment b i := ξ.share (ξ.moulinServiced b) i
+
+@[simp]
+theorem moulinMechanism_serviced [Fintype A] (ξ : CostSharingScheme A) (b : A → ℝ) :
+    ξ.moulinMechanism.serviced b = ξ.moulinServiced b := by
+  rfl
+
+@[simp]
+theorem moulinMechanism_payment [Fintype A] (ξ : CostSharingScheme A) (b : A → ℝ) (i : A) :
+    ξ.moulinMechanism.payment b i = ξ.share (ξ.moulinServiced b) i := by
+  rfl
 
 private theorem moulinMechanism_utility_of_mem [Fintype A] [DecidableEq A]
     (ξ : CostSharingScheme A) {u b : A → ℝ} {j : A} (hj : j ∈ ξ.moulinServiced b) :
@@ -578,14 +608,6 @@ theorem IsTight.inter {G : CostSharingGame A} {T S₁ S₂ : Finset A} {α : A �
     G.IsTight α (S₁ ∩ S₂) :=
   (isTight_union_and_inter hsub hfeas hS₁ hS₂ ht₁ ht₂).2
 
-/-- Global-core specialization of **Lemma 15.18**. -/
-theorem IsTight.union_of_isCoreFeasible {G : CostSharingGame A} {S₁ S₂ : Finset A} {α : A → ℝ}
-    (hsub : G.IsSubmodular) (hfeas : G.IsCoreFeasible α)
-    (ht₁ : G.IsTight α S₁) (ht₂ : G.IsTight α S₂) :
-    G.IsTight α (S₁ ∪ S₂) :=
-  ht₁.union (T := S₁ ∪ S₂) hsub (fun S _ => hfeas S)
-    Finset.subset_union_left Finset.subset_union_right ht₂
-
 /-- Union of all tight subsets of `T` ([JainMahdian2007], Corollary 15.19). -/
 noncomputable def maximalTightSet (G : CostSharingGame A) (T : Finset A) (α : A → ℝ) :
     Finset A :=
@@ -683,11 +705,23 @@ private noncomputable def submodularCostShareLoop (G : CostSharingGame A) (T : F
       submodularCostShareLoop G T fuel (fun j => if j ∈ T \ F then α j + δ else α j)
     else α
 
+private theorem submodularCostShareLoop_of_notMem (G : CostSharingGame A) (T : Finset A) :
+    ∀ (fuel : ℕ) (α : A → ℝ) (j : A), j ∉ T →
+      G.submodularCostShareLoop T fuel α j = α j
+  | 0, _, _, _ => rfl
+  | fuel + 1, α, j, hj => by
+    dsimp only [submodularCostShareLoop]
+    split_ifs with hne
+    · rw [submodularCostShareLoop_of_notMem G T fuel _ j hj]
+      have hj' : j ∉ T \ G.maximalTightSet T α := fun h => hj (Finset.mem_sdiff.1 h).1
+      simp only [hj', ↓reduceIte]
+    · rfl
+
 /-- **Algorithm `SubmodularCostShare`** ([JainMahdian2007], Figure 15.3, pp. 396–397; Dutta and
 Ray 1989; Jain and Vazirani 2002): starting from `α = 0`, raise all unfrozen shares `j ∈ T \ F` at
 the same unit rate until a new coalition goes tight, freeze the new maximal tight set, and repeat
 until `F = T`. -/
-noncomputable def submodularCostShare (G : CostSharingGame A) (T : Finset A) : A → ℝ :=
+private noncomputable def submodularCostShare (G : CostSharingGame A) (T : Finset A) : A → ℝ :=
   G.submodularCostShareLoop T T.card (fun _ => 0)
 
 private structure WaterFillingState (G : CostSharingGame A) (T : Finset A) (α : A → ℝ)
@@ -978,32 +1012,19 @@ private theorem submodularCostShare_waterFilling {G : CostSharingGame A}
     rw [hmin_eq, hfilt_T, hFT]
     exact ⟨stf.feasible, rfl⟩
 
-/-- The cost-sharing scheme defined by `SubmodularCostShare` ([JainMahdian2007], Figure 15.3) on a
-nonnegative cost-sharing game `G` (returning `0` outside `T`). -/
+/-- The cost-sharing scheme defined by `SubmodularCostShare` ([JainMahdian2007], Figure 15.3,
+pp. 396–397; Dutta and Ray 1989; Jain and Vazirani 2002): starting from `α = 0`, raise all unfrozen
+shares `j ∈ T \ F` at the same unit rate until a new coalition goes tight, freeze the new maximal
+tight set, and repeat until `F = T`. -/
 noncomputable def submodularCostShareScheme (G : CostSharingGame A) : CostSharingScheme A where
-  share T i := if i ∈ T then G.submodularCostShare T i else 0
-  share_eq_zero_of_not_mem {_ _} hi := by simp only [hi, ↓reduceIte]
-
-theorem submodularCostShareScheme_apply_of_mem {G : CostSharingGame A} {T : Finset A} {i : A}
-    (hi : i ∈ T) :
-    G.submodularCostShareScheme.share T i = G.submodularCostShare T i := by
-  simp only [submodularCostShareScheme, hi, ↓reduceIte]
-
-theorem submodularCostShareScheme_eq_submodularCostShare {G : CostSharingGame A}
-    (hsub : G.IsSubmodular) (hnn : G.IsNonneg) (T : Finset A) :
-    G.submodularCostShareScheme.share T = G.submodularCostShare T := by
-  obtain ⟨_, _, hzero, _, _⟩ := G.submodularCostShare_waterFilling hsub hnn T
-  ext i
-  by_cases hi : i ∈ T
-  · simp only [submodularCostShareScheme, hi, ↓reduceIte]
-  · simp only [submodularCostShareScheme, hi, ↓reduceIte, hzero i hi]
+  share := G.submodularCostShare
+  share_eq_zero_of_not_mem {T i} hi :=
+    G.submodularCostShareLoop_of_notMem T T.card (fun _ => 0) i hi
 
 theorem submodularCostShareScheme_isNonneg {G : CostSharingGame A}
     (hsub : G.IsSubmodular) (hnn : G.IsNonneg) :
-    G.submodularCostShareScheme.IsNonneg := by
-  intro T i
-  rw [G.submodularCostShareScheme_eq_submodularCostShare hsub hnn T]
-  exact (G.submodularCostShare_waterFilling hsub hnn T).2.2.2.1 i
+    G.submodularCostShareScheme.IsNonneg := fun T i =>
+  (G.submodularCostShare_waterFilling hsub hnn T).2.2.2.1 i
 
 /-- `SubmodularCostShare` is `1`-budget-balanced (`∑ i ∈ T, ξ(T, i) = G.cost T` for all `T`,
 [JainMahdian2007], p. 396). -/
@@ -1012,7 +1033,6 @@ theorem submodularCostShareScheme_isBudgetBalanced {G : CostSharingGame A}
     G.submodularCostShareScheme.IsBudgetBalanced G 1 := by
   rw [CostSharingScheme.isBudgetBalanced_one_iff]
   intro T
-  rw [G.submodularCostShareScheme_eq_submodularCostShare hsub hnn T]
   exact (G.submodularCostShare_waterFilling hsub hnn T).2.1
 
 /-- **Theorem 15.20** ([JainMahdian2007], pp. 396–397; Dutta and Ray 1989; Jain and Vazirani 2002):
@@ -1022,8 +1042,7 @@ theorem submodularCostShareScheme_isCrossMonotone {G : CostSharingGame A}
     (hsub : G.IsSubmodular) (hnn : G.IsNonneg) :
     G.submodularCostShareScheme.IsCrossMonotone := by
   intro T₁ T₂ hT₁₂ i hiT₁
-  rw [G.submodularCostShareScheme_eq_submodularCostShare hsub hnn T₁,
-    G.submodularCostShareScheme_eq_submodularCostShare hsub hnn T₂]
+  change G.submodularCostShare T₂ i ≤ G.submodularCostShare T₁ i
   set α₁ := G.submodularCostShare T₁
   set α₂ := G.submodularCostShare T₂
   obtain ⟨_, _, _, hnn₁, hhist₁⟩ := G.submodularCostShare_waterFilling hsub hnn T₁

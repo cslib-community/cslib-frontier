@@ -79,8 +79,6 @@ This module defines:
 
 ## Main results
 
-* `Cslib.GameTheory.CostSharingGame.inApproxCore_one_iff`: the `1`-core coincides with the exact
-  core.
 * `Cslib.GameTheory.CostSharingGame.InApproxCore.mul_le_sum_balanced`,
   `Cslib.GameTheory.CostSharingGame.InCore.le_sum_balanced`: weak LP duality for balanced weights.
 * `Cslib.GameTheory.CooperativeGame.inCore_toCostSharingGame_iff`,
@@ -196,24 +194,26 @@ instance : Module ℝ (CostSharingGame A) where
 /-- Pushforward of a cost-sharing game along a permutation `π` of the agents: a coalition `S` of
 renamed agents pays the cost of its preimage `S.map π.symm.toEmbedding` ([JainMahdian2007],
 Definition 15.25). -/
-@[expose] def perm (π : Equiv.Perm A) (G : CostSharingGame A) : CostSharingGame A where
+def perm (π : Equiv.Perm A) (G : CostSharingGame A) : CostSharingGame A where
   cost S := G.cost (S.map π.symm.toEmbedding)
   cost_empty := by simp
 
 @[simp]
 theorem perm_cost (π : Equiv.Perm A) (G : CostSharingGame A) (S : Finset A) :
-    (G.perm π).cost S = G.cost (S.map π.symm.toEmbedding) := rfl
+    (G.perm π).cost S = G.cost (S.map π.symm.toEmbedding) := by
+  rfl
 
 /-- Restriction of a cost-sharing game to a finite subcoalition `T : Finset A`, viewed as a game on
 the subtype `{x // x ∈ T}`. -/
-@[expose] def restrict (G : CostSharingGame A) (T : Finset A) :
+def restrict (G : CostSharingGame A) (T : Finset A) :
     CostSharingGame {x // x ∈ T} where
   cost S := G.cost (S.map (Function.Embedding.subtype _))
   cost_empty := by simp
 
 @[simp]
 theorem restrict_cost (G : CostSharingGame A) (T : Finset A) (S : Finset {x // x ∈ T}) :
-    (G.restrict T).cost S = G.cost (S.map (Function.Embedding.subtype _)) := rfl
+    (G.restrict T).cost S = G.cost (S.map (Function.Embedding.subtype _)) := by
+  rfl
 
 /-- All coalition costs are nonnegative (`c : 2^A → ℝ₊ ∪ {0}`, [JainMahdian2007], Section 15.3). -/
 @[expose] def IsNonneg (G : CostSharingGame A) : Prop :=
@@ -313,25 +313,27 @@ attribute [simp] val_empty
 
 /-- Negating values turns a cooperative value game into its dual cost-sharing game
 ([JainMahdian2007], Section 15.1, p. 386). -/
-@[expose] def toCostSharingGame (G : CooperativeGame A) : CostSharingGame A where
+def toCostSharingGame (G : CooperativeGame A) : CostSharingGame A where
   cost S := -G.val S
   cost_empty := by simp
 
 @[simp]
 theorem toCostSharingGame_cost (G : CooperativeGame A) (S : Finset A) :
-    G.toCostSharingGame.cost S = -G.val S := rfl
+    G.toCostSharingGame.cost S = -G.val S := by
+  rfl
 
 end CooperativeGame
 
 /-- Negating costs turns a cost-sharing game into its dual cooperative value game. -/
-@[expose] def CostSharingGame.toCooperativeGame {A : Type*} (G : CostSharingGame A) :
+def CostSharingGame.toCooperativeGame {A : Type*} (G : CostSharingGame A) :
     CooperativeGame A where
   val S := -G.cost S
   val_empty := by simp
 
 @[simp]
 theorem CostSharingGame.toCooperativeGame_val {A : Type*} (G : CostSharingGame A) (S : Finset A) :
-    G.toCooperativeGame.val S = -G.cost S := rfl
+    G.toCooperativeGame.val S = -G.cost S := by
+  rfl
 
 @[simp]
 theorem CooperativeGame.toCostSharingGame_toCooperativeGame {A : Type*} (G : CooperativeGame A) :
@@ -448,12 +450,25 @@ variable {A F : Type*}
 
 /-- Construct a facility location instance whose connection costs come from a (pseudo)metric space
 on `A ⊕ F`, matching [JainMahdian2007], Definition 15.1 verbatim. -/
-@[expose] def ofMetric [PseudoMetricSpace (A ⊕ F)] (openCost : F → ℝ)
+def ofMetric [PseudoMetricSpace (A ⊕ F)] (openCost : F → ℝ)
     (openCost_nonneg : ∀ i : F, 0 ≤ openCost i) : FacilityLocationInstance A F where
   openCost := openCost
   connCost i j := dist (Sum.inr i) (Sum.inl j)
   openCost_nonneg := openCost_nonneg
   connCost_nonneg _ _ := dist_nonneg
+
+@[simp]
+theorem ofMetric_openCost [PseudoMetricSpace (A ⊕ F)] (openCost : F → ℝ)
+    (openCost_nonneg : ∀ i : F, 0 ≤ openCost i) (i : F) :
+    (ofMetric (A := A) openCost openCost_nonneg).openCost i = openCost i := by
+  rfl
+
+@[simp]
+theorem ofMetric_connCost [PseudoMetricSpace (A ⊕ F)] (openCost : F → ℝ)
+    (openCost_nonneg : ∀ i : F, 0 ≤ openCost i) (i : F) (j : A) :
+    (ofMetric (A := A) openCost openCost_nonneg).connCost i j =
+      dist (Sum.inr i) (Sum.inl j) := by
+  rfl
 
 /-- `I` is a **metric** facility location instance if its connection costs arise as distances
 `dist (inr i) (inl j)` in some pseudometric space on `A ⊕ F`
@@ -468,9 +483,15 @@ theorem isMetric_ofMetric [PseudoMetricSpace (A ⊕ F)] (openCost : F → ℝ)
 
 /-- Cost of serving coalition `S` using a nonempty set `F'` of open facilities:
 `(∑ i ∈ F', openCost i) + ∑ j ∈ S, min_{i ∈ F'} connCost i j`. -/
-@[expose] def planCost (I : FacilityLocationInstance A F) (S : Finset A) (F' : Finset F)
+def planCost (I : FacilityLocationInstance A F) (S : Finset A) (F' : Finset F)
     (hF' : F'.Nonempty) : ℝ :=
   (∑ i ∈ F', I.openCost i) + ∑ j ∈ S, F'.inf' hF' (fun i => I.connCost i j)
+
+theorem planCost_eq (I : FacilityLocationInstance A F) (S : Finset A) (F' : Finset F)
+    (hF' : F'.Nonempty) :
+    I.planCost S F' hF' =
+      (∑ i ∈ F', I.openCost i) + ∑ j ∈ S, F'.inf' hF' (fun i => I.connCost i j) := by
+  rfl
 
 private theorem nonempty_attach_powerset [Fintype F] [Nonempty F] :
     ((Finset.univ : Finset F).powerset.filter Finset.Nonempty).attach.Nonempty := by
@@ -642,6 +663,10 @@ noncomputable def example15_2 : FacilityLocationInstance (Fin 3) (Fin 2) :=
 theorem example15_2_isMetric : example15_2.IsMetric :=
   ⟨example15_2_metric, fun _ _ => rfl⟩
 
+@[simp]
+theorem example15_2_openCost (i : Fin 2) : example15_2.openCost i = 2 := by
+  rfl
+
 theorem example15_2_connCost :
     example15_2.connCost 0 0 = 2 ∧ example15_2.connCost 0 1 = 2 ∧
     example15_2.connCost 0 2 = 4 ∧ example15_2.connCost 1 0 = 5 ∧
@@ -671,10 +696,8 @@ private theorem example15_2_planCost_eval (S : Finset (Fin 3)) :
     example15_2.planCost S {1} (by simp) = 2 + ∑ j ∈ S, example15_2.connCost 1 j ∧
     example15_2.planCost S {0, 1} (by simp) =
       4 + ∑ j ∈ S, min (example15_2.connCost 0 j) (example15_2.connCost 1 j) := by
-  have hopen0 : example15_2.openCost 0 = 2 := rfl
-  have hopen1 : example15_2.openCost 1 = 2 := rfl
-  refine ⟨by simp [planCost, hopen0], by simp [planCost, hopen1], ?_⟩
-  simp only [planCost, Finset.sum_pair (by decide : (0 : Fin 2) ≠ 1), hopen0, hopen1]
+  refine ⟨by simp [planCost], by simp [planCost], ?_⟩
+  simp only [planCost, Finset.sum_pair (by decide : (0 : Fin 2) ≠ 1), example15_2_openCost]
   have hsum : ∑ j ∈ S, ({0, 1} : Finset (Fin 2)).inf' (by simp)
       (fun i => example15_2.connCost i j) =
       ∑ j ∈ S, min (example15_2.connCost 0 j) (example15_2.connCost 1 j) := by
@@ -716,6 +739,21 @@ theorem example15_2_cost :
       · linarith
       · linarith
       · linarith
+  have eval_pair : ∀ (a b : Fin 3) (hab : a ≠ b) (v : ℝ),
+      2 + (example15_2.connCost 0 a + example15_2.connCost 0 b) ≥ v →
+      2 + (example15_2.connCost 1 a + example15_2.connCost 1 b) ≥ v →
+      4 + (min (example15_2.connCost 0 a) (example15_2.connCost 1 a) +
+           min (example15_2.connCost 0 b) (example15_2.connCost 1 b)) ≥ v →
+      (2 + (example15_2.connCost 0 a + example15_2.connCost 0 b) = v ∨
+       2 + (example15_2.connCost 1 a + example15_2.connCost 1 b) = v ∨
+       4 + (min (example15_2.connCost 0 a) (example15_2.connCost 1 a) +
+            min (example15_2.connCost 0 b) (example15_2.connCost 1 b)) = v) →
+      example15_2.toCostSharingGame.cost {a, b} = v := fun a b hab v h0 h1 h01 hatt =>
+    eval_set {a, b} (by simp) v
+      (by rw [Finset.sum_pair hab]; exact h0)
+      (by rw [Finset.sum_pair hab]; exact h1)
+      (by rw [Finset.sum_pair hab]; exact h01)
+      (by simp only [Finset.sum_pair hab]; exact hatt)
   have huniv : (Finset.univ : Finset (Fin 3)) = {0, 1, 2} := by decide
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact eval_set {0} (by simp) 4 (by norm_num [hc00]) (by norm_num [hc10])
@@ -724,21 +762,12 @@ theorem example15_2_cost :
       (by norm_num [hc01, hc11]) (.inr (.inl (by norm_num [hc11])))
   · exact eval_set {2} (by simp) 3 (by norm_num [hc02]) (by norm_num [hc12])
       (by norm_num [hc02, hc12]) (.inr (.inl (by norm_num [hc12])))
-  · exact eval_set {0, 1} (by simp) 6
-      (by rw [Finset.sum_pair (by decide)]; norm_num [hc00, hc01])
-      (by rw [Finset.sum_pair (by decide)]; norm_num [hc10, hc11])
-      (by rw [Finset.sum_pair (by decide)]; norm_num [hc00, hc01, hc10, hc11])
-      (.inl (by rw [Finset.sum_pair (by decide)]; norm_num [hc00, hc01]))
-  · exact eval_set {1, 2} (by simp) 4
-      (by rw [Finset.sum_pair (by decide)]; norm_num [hc01, hc02])
-      (by rw [Finset.sum_pair (by decide)]; norm_num [hc11, hc12])
-      (by rw [Finset.sum_pair (by decide)]; norm_num [hc01, hc02, hc11, hc12])
-      (.inr (.inl (by rw [Finset.sum_pair (by decide)]; norm_num [hc11, hc12])))
-  · exact eval_set {0, 2} (by simp) 7
-      (by rw [Finset.sum_pair (by decide)]; norm_num [hc00, hc02])
-      (by rw [Finset.sum_pair (by decide)]; norm_num [hc10, hc12])
-      (by rw [Finset.sum_pair (by decide)]; norm_num [hc00, hc02, hc10, hc12])
-      (.inr (.inr (by rw [Finset.sum_pair (by decide)]; norm_num [hc00, hc02, hc10, hc12])))
+  · exact eval_pair 0 1 (by decide) 6 (by norm_num [hc00, hc01]) (by norm_num [hc10, hc11])
+      (by norm_num [hc00, hc01, hc10, hc11]) (.inl (by norm_num [hc00, hc01]))
+  · exact eval_pair 1 2 (by decide) 4 (by norm_num [hc01, hc02]) (by norm_num [hc11, hc12])
+      (by norm_num [hc01, hc02, hc11, hc12]) (.inr (.inl (by norm_num [hc11, hc12])))
+  · exact eval_pair 0 2 (by decide) 7 (by norm_num [hc00, hc02]) (by norm_num [hc10, hc12])
+      (by norm_num [hc00, hc02, hc10, hc12]) (.inr (.inr (by norm_num [hc00, hc02, hc10, hc12])))
   · rw [huniv]
     have hsum3 : ∀ f : Fin 3 → ℝ,
         ∑ j ∈ ({0, 1, 2} : Finset (Fin 3)), f j = f 0 + f 1 + f 2 := by
@@ -853,10 +882,11 @@ theorem emptyCoreMetricFL_isMetric : emptyCoreMetricFL.IsMetric :=
 
 /-- The symmetric pairwise balanced weight collection assigning `1 / 2` to each 2-agent coalition
 `{0, 1}`, `{1, 2}`, `{0, 2}` and `0` to all other coalitions ([JainMahdian2007], p. 389). -/
-noncomputable def pairBalancedWeights (S : Finset (Fin 3)) : ℝ :=
+private noncomputable def pairBalancedWeights (S : Finset (Fin 3)) : ℝ :=
   if S.card = 2 then 1 / 2 else 0
 
-theorem isBalancedWeights_pairBalancedWeights : IsBalancedWeights pairBalancedWeights := by
+private theorem isBalancedWeights_pairBalancedWeights :
+    IsBalancedWeights pairBalancedWeights := by
   refine ⟨fun S => by simp only [pairBalancedWeights]; split_ifs <;> norm_num, fun j => ?_⟩
   have huniv_sets : (Finset.univ : Finset (Finset (Fin 3))) =
       {∅, {0}, {1}, {2}, {0, 1}, {1, 2}, {0, 2}, Finset.univ} := by decide

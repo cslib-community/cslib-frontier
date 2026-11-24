@@ -37,10 +37,11 @@ cost-sharing and cooperative value games ([JainMahdian2007], Section 15.2 and Ex
    `γ`-core if and only if `γ * c(univ) ≤ ∑_S λ_S c(S)` for every balanced weight collection `λ`.
    Strong LP duality establishes this equivalence for every real `γ` without needing `γ ≤ 1`.
 4. **Corollary 15.9** (`CostSharingGame.IsSubadditive.isLeast_integralBalanced`,
-   `CostSharingGame.isGreatest_nonemptyApproxCore_integralityGapLP`): for subadditive games, the
-   optimal integral value of LP `(15.2)` equals `c(univ)`, and when `0 < c(univ)` the largest `γ`
-   with a nonempty `γ`-core equals the fractional-to-integral ratio `lpOpt / c(univ)` of LP
-   `(15.2)`.
+   `CostSharingGame.IsSubadditive.isGreatest_nonemptyApproxCore_integralityGapLP`): defining
+   `integralLpOpt` as the optimal integral value of LP `(15.2)` over `IsIntegralBalancedWeights`
+   and `integralityGapLP := lpOpt / integralLpOpt` as the LP `(15.2)` integrality gap, for
+   subadditive games `integralLpOpt = c(univ)` and, when `0 < c(univ)`, the largest `γ` with a
+   nonempty `γ`-core equals `integralityGapLP`.
 5. **Exercise 15.1** (`LinearExchangeEconomy`): the TU cooperative game of a linear Arrow–Debreu
    exchange economy — where `v(S)` is the maximum total linear utility achievable by redistributing
    coalition `S`'s endowments — always has a nonempty core.
@@ -50,8 +51,10 @@ cost-sharing and cooperative value games ([JainMahdian2007], Section 15.2 and Ex
 * `Cslib.GameTheory.CostSharingGame.lpOpt`: common optimal value of LPs `(15.1)` and `(15.2)`.
 * `Cslib.GameTheory.IsIntegralBalancedWeights`: `ℕ`-valued balanced weights (exact coalition
   partitions, integral solutions of LP `(15.2)`).
+* `Cslib.GameTheory.CostSharingGame.integralLpOpt`: optimal integral value of LP `(15.2)` over
+  `IsIntegralBalancedWeights`.
 * `Cslib.GameTheory.CostSharingGame.integralityGapLP`: fractional-to-integral optimum ratio
-  `G.lpOpt / G.cost Finset.univ` of LP `(15.2)` ([JainMahdian2007], Corollary 15.9).
+  `G.lpOpt / G.integralLpOpt` of LP `(15.2)` ([JainMahdian2007], Corollary 15.9).
 * `Cslib.GameTheory.LinearExchangeEconomy`,
   `Cslib.GameTheory.LinearExchangeEconomy.IsFeasibleRedistribution`,
   `Cslib.GameTheory.LinearExchangeEconomy.IsExactRedistribution`,
@@ -72,7 +75,8 @@ cost-sharing and cooperative value games ([JainMahdian2007], Section 15.2 and Ex
 * `Cslib.GameTheory.CostSharingGame.nonemptyApproxCore_iff_balanced`: **`γ`-Bondareva–Shapley
   theorem** ([JainMahdian2007], Theorem 15.8).
 * `Cslib.GameTheory.CostSharingGame.IsSubadditive.isLeast_integralBalanced`,
-  `Cslib.GameTheory.CostSharingGame.isGreatest_nonemptyApproxCore_integralityGapLP`:
+  `Cslib.GameTheory.CostSharingGame.IsSubadditive.integralLpOpt_eq_cost_univ`,
+  `Cslib.GameTheory.CostSharingGame.IsSubadditive.isGreatest_nonemptyApproxCore_integralityGapLP`:
   **Corollary 15.9** of [JainMahdian2007].
 * `Cslib.GameTheory.LinearExchangeEconomy.isGreatest_feasibleRedistribution`,
   `Cslib.GameTheory.LinearExchangeEconomy.isGreatest_exactRedistribution`,
@@ -181,11 +185,6 @@ theorem lpOpt_le_cost_univ (G : CostSharingGame A) :
   obtain ⟨⟨α, hα, hsum⟩, -⟩ := G.isGreatest_coreFeasible_lpOpt
   exact hsum ▸ hα Finset.univ
 
-theorem lpOpt_le_sum_balanced [DecidableEq A] (G : CostSharingGame A) {w : Finset A → ℝ}
-    (hw : IsBalancedWeights w) :
-    G.lpOpt ≤ ∑ S : Finset A, w S * G.cost S :=
-  G.isLeast_balanced_lpOpt.2 ⟨w, hw, rfl⟩
-
 /-- **Theorem 15.8 (`γ`-Bondareva–Shapley theorem)** ([JainMahdian2007], p. 389): a TU
 cost-sharing game `G` has a nonempty `γ`-core if and only if every balanced weight collection `w`
 satisfies `γ * G.cost univ ≤ ∑ S, w S * G.cost S`.
@@ -257,13 +256,6 @@ theorem isIntegralBalancedWeights_univ {A : Type*} [Fintype A] [DecidableEq A] :
   intro j
   simp
 
-theorem IsIntegralBalancedWeights.isBalancedWeights_cast {A : Type*} [Fintype A] [DecidableEq A]
-    {w : Finset A → ℕ} (hw : IsIntegralBalancedWeights w) :
-    IsBalancedWeights (fun S => (w S : ℝ)) := by
-  refine ⟨fun _ => Nat.cast_nonneg _, fun j => ?_⟩
-  dsimp only
-  rw [← Nat.cast_sum, hw j, Nat.cast_one]
-
 namespace CostSharingGame
 
 section IntegralityGap
@@ -288,6 +280,122 @@ private theorem cost_biUnion_le_sum_of_pairwiseDisjoint [DecidableEq A] {G : Cos
     rw [Finset.biUnion_insert, Finset.sum_insert hSP]
     exact (hsub hdisj_union).trans (add_le_add le_rfl (ih hP_disj))
 
+private theorem integralBalanced_support_spec [DecidableEq A] (G : CostSharingGame A)
+    {w : Finset A → ℕ} (hw : IsIntegralBalancedWeights w) :
+    let P : Finset (Finset A) := Finset.univ.filter (fun S => S.Nonempty ∧ w S ≠ 0)
+    (P : Set (Finset A)).PairwiseDisjoint id ∧
+      P.biUnion id = Finset.univ ∧
+      ∑ S : Finset A, (w S : ℝ) * G.cost S = ∑ S ∈ P, G.cost S := by
+  intro P
+  have hw_one : ∀ S ∈ P, w S = 1 := by
+    intro S hS
+    obtain ⟨⟨j, hj⟩, hne⟩ := (Finset.mem_filter.1 hS).2
+    have hle : w S ≤ ∑ T with j ∈ T, w T :=
+      Finset.single_le_sum (fun _ _ => Nat.zero_le _)
+        (Finset.mem_filter.2 ⟨Finset.mem_univ S, hj⟩)
+    rw [hw j] at hle
+    omega
+  have hP_disj : (P : Set (Finset A)).PairwiseDisjoint id := by
+    intro S₁ h₁ S₂ h₂ hne
+    refine Finset.disjoint_left.2 fun j hj₁ hj₂ => ?_
+    have hsub_pair : ({S₁, S₂} : Finset (Finset A)) ⊆ Finset.univ.filter (fun T => j ∈ T) := by
+      intro T hT
+      rcases Finset.mem_insert.1 hT with rfl | hT'
+      · exact Finset.mem_filter.2 ⟨Finset.mem_univ _, hj₁⟩
+      · rw [Finset.mem_singleton.1 hT']
+        exact Finset.mem_filter.2 ⟨Finset.mem_univ _, hj₂⟩
+    have hle := Finset.sum_le_sum_of_subset hsub_pair (f := w)
+    rw [Finset.sum_pair hne, hw_one S₁ h₁, hw_one S₂ h₂, hw j] at hle
+    omega
+  have hP_union : P.biUnion id = Finset.univ := by
+    ext j
+    simp only [Finset.mem_biUnion, id_eq, Finset.mem_univ, iff_true]
+    have hpos : 0 < ∑ T with j ∈ T, w T := by rw [hw j]; exact Nat.zero_lt_one
+    obtain ⟨T, hT, hwT⟩ := Finset.sum_pos_iff.1 hpos
+    have hjT : j ∈ T := (Finset.mem_filter.1 hT).2
+    exact ⟨T, Finset.mem_filter.2 ⟨Finset.mem_univ T, ⟨j, hjT⟩, hwT.ne'⟩, hjT⟩
+  refine ⟨hP_disj, hP_union, ?_⟩
+  calc
+    ∑ S : Finset A, (w S : ℝ) * G.cost S
+      = ∑ S ∈ P, (w S : ℝ) * G.cost S := by
+        refine (Finset.sum_subset (Finset.subset_univ P) fun S _ hSP => ?_).symm
+        simp only [P, Finset.mem_filter, Finset.mem_univ, true_and, not_and, not_not] at hSP
+        by_cases hS : S.Nonempty
+        · rw [hSP hS, Nat.cast_zero, zero_mul]
+        · rw [Finset.not_nonempty_iff_eq_empty.1 hS, G.cost_empty, mul_zero]
+    _ = ∑ S ∈ P, G.cost S := by
+        refine Finset.sum_congr rfl fun S hS => ?_
+        rw [hw_one S hS, Nat.cast_one, one_mul]
+
+private theorem exists_isLeast_integralBalanced [DecidableEq A] (G : CostSharingGame A) :
+    ∃ v : ℝ,
+      IsLeast ((fun w : Finset A → ℕ => ∑ S : Finset A, (w S : ℝ) * G.cost S) ''
+        {w | IsIntegralBalancedWeights w}) v := by
+  classical
+  let valid : Finset (Finset (Finset A)) :=
+    Finset.univ.filter fun P =>
+      (P : Set (Finset A)).PairwiseDisjoint id ∧ P.biUnion id = Finset.univ
+  have hmem_valid : ∀ {w : Finset A → ℕ}, IsIntegralBalancedWeights w →
+      ∃ P ∈ valid, ∑ S : Finset A, (w S : ℝ) * G.cost S = ∑ S ∈ P, G.cost S := by
+    intro w hw
+    obtain ⟨hdisj, hunion, hsum⟩ := G.integralBalanced_support_spec hw
+    exact ⟨_, Finset.mem_filter.2 ⟨Finset.mem_univ _, hdisj, hunion⟩, hsum⟩
+  have hof_valid : ∀ {P : Finset (Finset A)}, P ∈ valid →
+      ∃ w : Finset A → ℕ, IsIntegralBalancedWeights w ∧
+        ∑ S : Finset A, (w S : ℝ) * G.cost S = ∑ S ∈ P, G.cost S := by
+    intro P hP
+    obtain ⟨hdisj, hunion⟩ := (Finset.mem_filter.1 hP).2
+    refine ⟨fun S => if S ∈ P then 1 else 0, fun j => ?_, ?_⟩
+    · have hj : j ∈ P.biUnion id := hunion.symm ▸ Finset.mem_univ j
+      obtain ⟨S₀, hS₀P, hjS₀⟩ := Finset.mem_biUnion.1 hj
+      rw [Finset.sum_eq_single S₀]
+      · simp [hS₀P]
+      · intro S hS hne
+        simp only [ite_eq_right_iff, one_ne_zero, imp_false]
+        intro hSP
+        exact Finset.disjoint_left.1 (hdisj hSP hS₀P hne) (Finset.mem_filter.1 hS).2 hjS₀
+      · intro hnot
+        exact absurd (Finset.mem_filter.2 ⟨Finset.mem_univ S₀, hjS₀⟩) hnot
+    · simp only [Nat.cast_ite, Nat.cast_one, Nat.cast_zero, ite_mul, one_mul, zero_mul,
+        ← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
+  have hne : valid.Nonempty := by
+    obtain ⟨P, hP, _⟩ := hmem_valid isIntegralBalancedWeights_univ
+    exact ⟨P, hP⟩
+  obtain ⟨P₀, hP₀, hmin⟩ := valid.exists_min_image (fun P => ∑ S ∈ P, G.cost S) hne
+  obtain ⟨w₀, hw₀, hsum₀⟩ := hof_valid hP₀
+  refine ⟨∑ S ∈ P₀, G.cost S, ⟨w₀, hw₀, hsum₀⟩, ?_⟩
+  rintro _ ⟨w, hw, rfl⟩
+  obtain ⟨P, hP, hsum⟩ := hmem_valid hw
+  dsimp only
+  rw [hsum]
+  exact hmin P hP
+
+/-- The optimal integral value of LP `(15.2)` over `IsIntegralBalancedWeights`
+([JainMahdian2007], Section 15.2.2, p. 389). -/
+noncomputable def integralLpOpt (G : CostSharingGame A) : ℝ :=
+  letI := Classical.decEq A
+  G.exists_isLeast_integralBalanced.choose
+
+theorem isLeast_integralBalanced_integralLpOpt [DecidableEq A] (G : CostSharingGame A) :
+    IsLeast ((fun w : Finset A → ℕ => ∑ S : Finset A, (w S : ℝ) * G.cost S) ''
+      {w | IsIntegralBalancedWeights w}) G.integralLpOpt := by
+  have hspec := (@exists_isLeast_integralBalanced A _ (Classical.decEq A) G).choose_spec
+  have heq : {w : Finset A → ℕ | IsIntegralBalancedWeights w} =
+      {w : Finset A → ℕ | @IsIntegralBalancedWeights A _ (Classical.decEq A) w} := by
+    congr!
+  rw [heq]
+  exact hspec
+
+theorem lpOpt_le_integralLpOpt (G : CostSharingGame A) :
+    G.lpOpt ≤ G.integralLpOpt := by
+  classical
+  obtain ⟨⟨w, hw, hsum⟩, -⟩ := G.isLeast_integralBalanced_integralLpOpt
+  have hbal : IsBalancedWeights (fun S => (w S : ℝ)) := by
+    refine ⟨fun _ => Nat.cast_nonneg _, fun j => ?_⟩
+    dsimp only
+    rw [← Nat.cast_sum, hw j, Nat.cast_one]
+  exact hsum ▸ G.isLeast_balanced_lpOpt.2 ⟨fun S => (w S : ℝ), hbal, rfl⟩
+
 /-- For a subadditive cost-sharing game, the **optimal integral value of LP `(15.2)` is precisely
 `G.cost univ`** ([JainMahdian2007], p. 389, preceding Corollary 15.9). -/
 theorem IsSubadditive.isLeast_integralBalanced [DecidableEq A] {G : CostSharingGame A}
@@ -297,71 +405,45 @@ theorem IsSubadditive.isLeast_integralBalanced [DecidableEq A] {G : CostSharingG
   refine ⟨⟨fun S => if S = Finset.univ then 1 else 0, isIntegralBalancedWeights_univ, ?_⟩, ?_⟩
   · simp [ite_mul]
   · rintro _ ⟨w, hw, rfl⟩
-    let P : Finset (Finset A) := Finset.univ.filter (fun S => S.Nonempty ∧ w S ≠ 0)
-    have hw_one : ∀ S ∈ P, w S = 1 := by
-      intro S hS
-      obtain ⟨⟨j, hj⟩, hne⟩ := (Finset.mem_filter.1 hS).2
-      have hle : w S ≤ ∑ T with j ∈ T, w T :=
-        Finset.single_le_sum (fun _ _ => Nat.zero_le _)
-          (Finset.mem_filter.2 ⟨Finset.mem_univ S, hj⟩)
-      rw [hw j] at hle
-      omega
-    have hP_disj : (P : Set (Finset A)).PairwiseDisjoint id := by
-      intro S₁ h₁ S₂ h₂ hne
-      refine Finset.disjoint_left.2 fun j hj₁ hj₂ => ?_
-      have hsub_pair : ({S₁, S₂} : Finset (Finset A)) ⊆ Finset.univ.filter (fun T => j ∈ T) := by
-        intro T hT
-        rcases Finset.mem_insert.1 hT with rfl | hT'
-        · exact Finset.mem_filter.2 ⟨Finset.mem_univ _, hj₁⟩
-        · rw [Finset.mem_singleton.1 hT']
-          exact Finset.mem_filter.2 ⟨Finset.mem_univ _, hj₂⟩
-      have hle := Finset.sum_le_sum_of_subset hsub_pair (f := w)
-      rw [Finset.sum_pair hne, hw_one S₁ h₁, hw_one S₂ h₂, hw j] at hle
-      omega
-    have hP_union : P.biUnion id = Finset.univ := by
-      ext j
-      simp only [Finset.mem_biUnion, id_eq, Finset.mem_univ, iff_true]
-      have hpos : 0 < ∑ T with j ∈ T, w T := by rw [hw j]; exact Nat.zero_lt_one
-      obtain ⟨T, hT, hwT⟩ := Finset.sum_pos_iff.1 hpos
-      have hjT : j ∈ T := (Finset.mem_filter.1 hT).2
-      exact ⟨T, Finset.mem_filter.2 ⟨Finset.mem_univ T, ⟨j, hjT⟩, hwT.ne'⟩, hjT⟩
+    obtain ⟨hP_disj, hP_union, hsum⟩ := G.integralBalanced_support_spec hw
     calc
-      G.cost Finset.univ = G.cost (P.biUnion id) := by rw [hP_union]
-      _ ≤ ∑ S ∈ P, G.cost S := cost_biUnion_le_sum_of_pairwiseDisjoint hsub hP_disj
-      _ = ∑ S ∈ P, (w S : ℝ) * G.cost S := by
-          refine Finset.sum_congr rfl fun S hS => ?_
-          rw [hw_one S hS, Nat.cast_one, one_mul]
-      _ = ∑ S : Finset A, (w S : ℝ) * G.cost S := by
-          refine Finset.sum_subset (Finset.subset_univ P) fun S _ hSP => ?_
-          simp only [P, Finset.mem_filter, Finset.mem_univ, true_and, not_and, not_not] at hSP
-          by_cases hS : S.Nonempty
-          · rw [hSP hS, Nat.cast_zero, zero_mul]
-          · rw [Finset.not_nonempty_iff_eq_empty.1 hS, G.cost_empty, mul_zero]
+      G.cost Finset.univ = G.cost _ := by rw [hP_union]
+      _ ≤ _ := cost_biUnion_le_sum_of_pairwiseDisjoint hsub hP_disj
+      _ = ∑ S : Finset A, (w S : ℝ) * G.cost S := hsum.symm
 
-/-- Fractional-to-integral optimum ratio `G.lpOpt / G.cost Finset.univ` of LP `(15.2)`
-([JainMahdian2007], Corollary 15.9 and p. 390, where the integrality gap is expressed as the best
-budget-balance factor `≤ 1`, e.g. `7.5 / 8` in Example 15.4). -/
+theorem IsSubadditive.integralLpOpt_eq_cost_univ [DecidableEq A] {G : CostSharingGame A}
+    (hsub : G.IsSubadditive) :
+    G.integralLpOpt = G.cost Finset.univ :=
+  G.isLeast_integralBalanced_integralLpOpt.unique hsub.isLeast_integralBalanced
+
+/-- The **integrality gap** `G.lpOpt / G.integralLpOpt` of LP `(15.2)` ([JainMahdian2007],
+Corollary 15.9 and p. 390, expressed as the fractional-to-integral optimum ratio `≤ 1`, e.g.
+`7.5 / 8` in Example 15.4). -/
 noncomputable def integralityGapLP (G : CostSharingGame A) : ℝ :=
-  G.lpOpt / G.cost Finset.univ
+  G.lpOpt / G.integralLpOpt
 
-theorem integralityGapLP_le_one (G : CostSharingGame A) (hpos : 0 < G.cost Finset.univ) :
+theorem integralityGapLP_eq (G : CostSharingGame A) :
+    G.integralityGapLP = G.lpOpt / G.integralLpOpt := by
+  rfl
+
+theorem integralityGapLP_le_one (G : CostSharingGame A) (hpos : 0 < G.integralLpOpt) :
     G.integralityGapLP ≤ 1 :=
-  (div_le_one hpos).2 G.lpOpt_le_cost_univ
+  (div_le_one hpos).2 G.lpOpt_le_integralLpOpt
 
-/-- **Corollary 15.9** ([JainMahdian2007], p. 389): when `0 < G.cost univ`, the largest value `γ`
-for which the `γ`-core of `G` is nonempty is `G.integralityGapLP = G.lpOpt / G.cost univ` — which,
-by `IsSubadditive.isLeast_integralBalanced`, equals the ratio of the fractional optimum of LP
-`(15.2)` to its integral optimum whenever `G` is subadditive. -/
-theorem isGreatest_nonemptyApproxCore_integralityGapLP (G : CostSharingGame A)
-    (hpos : 0 < G.cost Finset.univ) :
+/-- **Corollary 15.9** ([JainMahdian2007], p. 389): for a subadditive cost-sharing game with
+`0 < G.cost univ`, the largest value `γ` for which the `γ`-core of `G` is nonempty equals the
+integrality gap `G.integralityGapLP = G.lpOpt / G.integralLpOpt` of LP `(15.2)`. -/
+theorem IsSubadditive.isGreatest_nonemptyApproxCore_integralityGapLP [DecidableEq A]
+    {G : CostSharingGame A} (hsub : G.IsSubadditive) (hpos : 0 < G.cost Finset.univ) :
     IsGreatest {γ : ℝ | G.NonemptyApproxCore γ} G.integralityGapLP := by
   refine ⟨?_, ?_⟩
   · change G.NonemptyApproxCore G.integralityGapLP
-    rw [G.nonemptyApproxCore_iff_le_lpOpt, integralityGapLP, div_mul_cancel₀ _ hpos.ne']
+    rw [G.nonemptyApproxCore_iff_le_lpOpt, integralityGapLP, hsub.integralLpOpt_eq_cost_univ,
+      div_mul_cancel₀ _ hpos.ne']
   · intro γ hγ
     change G.NonemptyApproxCore γ at hγ
     rw [G.nonemptyApproxCore_iff_le_lpOpt] at hγ
-    rwa [integralityGapLP, le_div_iff₀ hpos]
+    rwa [integralityGapLP, hsub.integralLpOpt_eq_cost_univ, le_div_iff₀ hpos]
 
 end IntegralityGap
 
@@ -406,11 +488,22 @@ theorem IsExactRedistribution.isFeasibleRedistribution {E : LinearExchangeEconom
 
 /-- Maximum total utility achievable by coalition `S`: for each good `g`, allocate `S`'s entire
 supply `∑ i ∈ S, endowment i g` to a member of `S` with the highest marginal utility for `g`. -/
-@[expose] noncomputable def coalitionValue [Fintype G] (E : LinearExchangeEconomy A G)
+noncomputable def coalitionValue [Fintype G] (E : LinearExchangeEconomy A G)
     (S : Finset A) : ℝ :=
   if hS : S.Nonempty then
     ∑ g : G, (S.sup' hS (fun i => E.utility i g)) * ∑ i ∈ S, E.endowment i g
   else 0
+
+@[simp]
+theorem coalitionValue_empty [Fintype G] (E : LinearExchangeEconomy A G) :
+    E.coalitionValue ∅ = 0 := by
+  simp [coalitionValue]
+
+theorem coalitionValue_of_nonempty [Fintype G] (E : LinearExchangeEconomy A G)
+    {S : Finset A} (hS : S.Nonempty) :
+    E.coalitionValue S =
+      ∑ g : G, (S.sup' hS (fun i => E.utility i g)) * ∑ i ∈ S, E.endowment i g := by
+  simp only [coalitionValue, hS, ↓reduceDIte]
 
 private theorem sum_le_coalitionValue_of_feasible [Fintype G]
     (E : LinearExchangeEconomy A G) {S : Finset A} {x : A → G → ℝ}
@@ -481,19 +574,30 @@ theorem isGreatest_feasibleRedistribution [Fintype G]
 
 /-- The TU **cooperative value game** associated to a linear Arrow–Debreu exchange economy `E`
 ([JainMahdian2007], Exercise 15.1). -/
-@[expose] noncomputable def toCooperativeGame [Fintype G] (E : LinearExchangeEconomy A G) :
+noncomputable def toCooperativeGame [Fintype G] (E : LinearExchangeEconomy A G) :
     CooperativeGame A where
   val := E.coalitionValue
-  val_empty := by simp [coalitionValue]
+  val_empty := E.coalitionValue_empty
+
+@[simp]
+theorem toCooperativeGame_val [Fintype G] (E : LinearExchangeEconomy A G) (S : Finset A) :
+    E.toCooperativeGame.val S = E.coalitionValue S := by
+  rfl
 
 /-- Competitive / grand-coalition price payoff allocation: price each good `g` at its maximum
 marginal utility `max_{k ∈ univ} utility k g` and credit each agent `i` the value of `i`'s initial
 endowment at these prices. -/
-@[expose] noncomputable def marketPriceAllocation [Fintype A] [Fintype G]
+noncomputable def marketPriceAllocation [Fintype A] [Fintype G]
     (E : LinearExchangeEconomy A G) (i : A) : ℝ :=
   if hA : (Finset.univ : Finset A).Nonempty then
     ∑ g : G, (Finset.univ.sup' hA (fun k => E.utility k g)) * E.endowment i g
   else 0
+
+theorem marketPriceAllocation_of_nonempty [Fintype A] [Fintype G]
+    (E : LinearExchangeEconomy A G) (hA : (Finset.univ : Finset A).Nonempty) (i : A) :
+    E.marketPriceAllocation i =
+      ∑ g : G, (Finset.univ.sup' hA (fun k => E.utility k g)) * E.endowment i g := by
+  simp only [marketPriceAllocation, hA, ↓reduceDIte]
 
 /-- **Exercise 15.1** ([JainMahdian2007], p. 410): `marketPriceAllocation` lies in the core of
 `E.toCooperativeGame`. -/
@@ -523,11 +627,6 @@ Bondareva–Shapley balancedness inequality for all balanced weight collections.
 theorem toCooperativeGame_nonemptyCore [Fintype A] [Fintype G] (E : LinearExchangeEconomy A G) :
     E.toCooperativeGame.NonemptyCore :=
   ⟨E.marketPriceAllocation, E.marketPriceAllocation_inCore⟩
-
-theorem sum_balanced_le_val_univ [Fintype A] [DecidableEq A] [Fintype G]
-    (E : LinearExchangeEconomy A G) {w : Finset A → ℝ} (hw : IsBalancedWeights w) :
-    ∑ S : Finset A, w S * E.toCooperativeGame.val S ≤ E.toCooperativeGame.val Finset.univ :=
-  E.toCooperativeGame.nonemptyCore_iff_balanced.1 E.toCooperativeGame_nonemptyCore w hw
 
 end LinearExchangeEconomy
 
