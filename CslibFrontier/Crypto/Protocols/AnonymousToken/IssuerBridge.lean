@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Karn Seth. All rights reserved.
+Copyright (c) 2026 Samuel Schlesinger, Karn Seth. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Karn Seth
+Authors: Samuel Schlesinger, Karn Seth
 -/
 
 module
@@ -30,7 +30,7 @@ model and proves an exact, zero-loss simulation reduction (`bridgeAdversary`,
 `eval_extractedDraftConservationExperiment_eq`) into `Conservation.extractedConservationExperiment`.
 Because `Conservation`'s bound already holds for the permissive issuer and the conservation win
 predicate depends only on the log of accepted requests, the range checks, `T ≥ 1` guard, and
-ticket single-use serve faithfulness to the draft rather than slackening the inequality; composing
+ticket single-use serve faithfulness to the draft rather than tightening the inequality; composing
 with `Conservation` directly transfers the concrete EUF-CMA and target/keyless-commitment binding
 bounds to `extractedDraftConservationExperiment`, while `bridgeAdversary_queryBound` preserves query
 budgets.
