@@ -136,38 +136,31 @@ theorem recipPrefixRat_mem_Icc {x : ℕ → ℤ} (hx : IsSignedStream x)
   obtain ⟨he1, he2⟩ := abs_sub_le_iff.mp herr
   exact ⟨by linarith, by linarith⟩
 
+private theorem abs_recipAlpha_cast_le {x : ℕ → ℤ} (hx : IsSignedStream x)
+    (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
+    |(recipAlpha x t : ℝ)| ≤ 1 / 12 := by
+  have hmem := (recipPrefixRat_mem_Icc hx hx_mem t).1
+  unfold recipAlpha
+  push_cast
+  rw [abs_of_pos (one_div_pos.2 (by linarith)), one_div_le_one_div (by linarith) (by norm_num)]
+  linarith
+
 theorem abs_recipAlpha_le_one {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
     |recipAlpha x t| ≤ 1 := by
-  have hmem := recipPrefixRat_mem_Icc hx hx_mem t
-  have hreal : |(recipAlpha x t : ℝ)| ≤ 1 := by
-    unfold recipAlpha
-    push_cast
-    have hx0_pos : (0 : ℝ) < (recipPrefixRat x t : ℝ) := by linarith [hmem.1]
-    rw [abs_of_pos (by positivity)]
-    have hden : (12 : ℝ) ≤ 64 * (recipPrefixRat x t : ℝ) := by linarith [hmem.1]
-    calc (1 : ℝ) / (64 * (recipPrefixRat x t : ℝ))
-        ≤ 1 / 12 := one_div_le_one_div_of_le (by norm_num) hden
-      _ ≤ 1 := by norm_num
-  exact_mod_cast hreal
+  exact_mod_cast (abs_recipAlpha_cast_le hx hx_mem t).trans (by norm_num : (1 / 12 : ℝ) ≤ 1)
 
 theorem abs_recipBeta_le_one {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (1 / 4 : ℝ) 1) (t : ℕ) :
     |recipBeta x t| ≤ 1 := by
-  have hmem := recipPrefixRat_mem_Icc hx hx_mem t
+  have hmem := (recipPrefixRat_mem_Icc hx hx_mem t).1
   have hreal : |(recipBeta x t : ℝ)| ≤ 1 := by
     unfold recipBeta
     push_cast
-    have hx0_pos : (0 : ℝ) < (recipPrefixRat x t : ℝ) := by linarith [hmem.1]
     have hsq : (3 / 16 : ℝ) ^ 2 ≤ (recipPrefixRat x t : ℝ) ^ 2 :=
-      pow_le_pow_left₀ (by norm_num) hmem.1 2
-    have hden : (9 / 4 : ℝ) ≤ 64 * (recipPrefixRat x t : ℝ) ^ 2 := by linarith
-    have hneg_div : (-1 : ℝ) / (64 * (recipPrefixRat x t : ℝ) ^ 2) =
-        -(1 / (64 * (recipPrefixRat x t : ℝ) ^ 2)) := neg_div _ _
-    rw [hneg_div, abs_neg, abs_of_pos (by positivity)]
-    calc (1 : ℝ) / (64 * (recipPrefixRat x t : ℝ) ^ 2)
-        ≤ 1 / (9 / 4) := one_div_le_one_div_of_le (by norm_num) hden
-      _ ≤ 1 := by norm_num
+      pow_le_pow_left₀ (by norm_num) hmem 2
+    rw [neg_div, abs_neg, abs_of_pos (one_div_pos.2 (by linarith)), div_le_one (by linarith)]
+    linarith
   exact_mod_cast hreal
 
 private theorem abs_recipProdVal_le {x : ℕ → ℤ} (hx : IsSignedStream x)
@@ -178,9 +171,7 @@ private theorem abs_recipProdVal_le {x : ℕ → ℤ} (hx : IsSignedStream x)
     rw [streamVal_suffixStream hx, ← recipPrefixRat_cast]
     exact abs_tail_recipCutoff_le hx t
   rw [abs_mul]
-  calc |(recipBeta x t : ℝ)| * |streamVal (suffixStream x (recipCutoff t))|
-      ≤ 1 * (3 / 64) := mul_le_mul hβ he (abs_nonneg _) (by norm_num)
-    _ = 3 / 64 := one_mul _
+  exact (mul_le_mul hβ he (abs_nonneg _) zero_le_one).trans_eq (one_mul _)
 
 /-- Certificate for `recipProdStream = diffDigit N`: its value is bounded by `1` and `N` is a scaled
 approximation of it. -/
@@ -270,35 +261,20 @@ private theorem abs_recipTaylor_remainder_le {x : ℕ → ℤ} (hx : IsSignedStr
     dsimp [e, xVal, x₀]
     rw [recipPrefixRat_cast]
     exact abs_streamVal_sub_streamPrefix_le hx (recipCutoff t)
-  have he_sq : e ^ 2 ≤ 36 / (2 : ℝ) ^ (2 * recipCutoff t) := by
-    calc e ^ 2 = |e| ^ 2 := (sq_abs e).symm
-      _ ≤ (6 / (2 : ℝ) ^ recipCutoff t) ^ 2 := pow_le_pow_left₀ (abs_nonneg e) he_abs 2
-      _ = 36 / ((2 : ℝ) ^ recipCutoff t) ^ 2 := by ring
-      _ = 36 / (2 : ℝ) ^ (2 * recipCutoff t) := by
-          rw [← pow_mul, mul_comm]
-  have hexp : t + 13 ≤ 2 * recipCutoff t := by
-    unfold recipCutoff
-    omega
-  have hpow_le : (2 : ℝ) ^ (t + 13) ≤ (2 : ℝ) ^ (2 * recipCutoff t) :=
-    pow_le_pow_right₀ (by norm_num) hexp
-  have hnum : (2 : ℝ) ^ t * e ^ 2 ≤ 36 / (2 : ℝ) ^ (13 : ℕ) := by
-    calc (2 : ℝ) ^ t * e ^ 2
-        ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (2 * recipCutoff t)) := by gcongr
-      _ ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (t + 13)) := by gcongr
-      _ = 36 / (2 : ℝ) ^ (13 : ℕ) := by
-          rw [pow_add]
-          field_simp
-  have hden : (9 / 16 : ℝ) ≤ 64 * x₀ ^ 2 * xVal := by
-    have hx₀_sq : (3 / 16 : ℝ) ^ 2 ≤ x₀ ^ 2 := pow_le_pow_left₀ (by norm_num) hx₀_mem.1 2
-    have h64 : (9 / 4 : ℝ) ≤ 64 * x₀ ^ 2 := by linarith
-    calc (9 / 16 : ℝ) = (9 / 4) * (1 / 4) := by norm_num
-      _ ≤ (64 * x₀ ^ 2) * xVal :=
-          mul_le_mul h64 hx_mem.1 (by norm_num) (by positivity)
-  rw [mul_div_assoc']
-  calc ((2 : ℝ) ^ t * e ^ 2) / (64 * x₀ ^ 2 * xVal)
-      ≤ (36 / (2 : ℝ) ^ (13 : ℕ)) / (9 / 16) :=
-        div_le_div₀ (by norm_num) hnum (by norm_num) hden
-    _ = 1 / 128 := by norm_num
+  have he' : (2 : ℝ) ^ recipCutoff t * |e| ≤ 6 := by
+    rwa [le_div_iff₀ (by positivity), mul_comm] at he_abs
+  have hk : (2 : ℝ) ^ (t + 13) ≤ ((2 : ℝ) ^ recipCutoff t) ^ 2 := by
+    rw [← pow_mul]
+    exact pow_le_pow_right₀ (by norm_num) (by unfold recipCutoff; omega)
+  have hnum : (2 : ℝ) ^ t * e ^ 2 * 2 ^ 13 ≤ 36 := by
+    calc (2 : ℝ) ^ t * e ^ 2 * 2 ^ 13 = 2 ^ (t + 13) * |e| ^ 2 := by rw [sq_abs, pow_add]; ring
+      _ ≤ ((2 : ℝ) ^ recipCutoff t * |e|) ^ 2 := by rw [mul_pow]; gcongr
+      _ ≤ 6 ^ 2 := by gcongr
+      _ = 36 := by norm_num
+  have hx₀_sq : (3 / 16 : ℝ) ^ 2 ≤ x₀ ^ 2 := pow_le_pow_left₀ (by norm_num) hx₀_mem.1 2
+  have hden : (9 / 16 : ℝ) ≤ 64 * x₀ ^ 2 * xVal := by nlinarith [hx_mem.1]
+  rw [mul_div_assoc', div_le_iff₀ (by positivity)]
+  linarith
 
 /-- **Lemma 10.5 (early-word scaled reciprocal)** [OpenAI2026LogSpace, Lemma 10.5]: for any
 signed-digit stream `x` with `streamVal x ∈ [1 / 4, 1]`, `recip64Approx x` approximates
@@ -314,13 +290,7 @@ theorem recip64Approx_isScaledApprox {x : ℕ → ℤ} (hx : IsSignedStream x)
   have hhalf := recipHalfStream_isSignedStream hx hx_mem t
   have hsc := shiftClipApprox_isScaledApprox 1 hhalf (t + 3)
   have hT_bound : |T| ≤ 1 := by
-    have hα_le : |(recipAlpha x t : ℝ)| ≤ 1 / 12 := by
-      have hmem := recipPrefixRat_mem_Icc hx hx_mem t
-      unfold recipAlpha
-      push_cast
-      have hx0_pos : (0 : ℝ) < (recipPrefixRat x t : ℝ) := by linarith [hmem.1]
-      rw [abs_of_pos (by positivity)]
-      exact one_div_le_one_div_of_le (by norm_num) (by linarith [hmem.1])
+    have hα_le := abs_recipAlpha_cast_le hx hx_mem t
     have hp_le : |(recipBeta x t : ℝ) * (streamVal x - (recipPrefixRat x t : ℝ))| ≤ 3 / 64 := by
       rw [recipPrefixRat_cast, ← streamVal_suffixStream hx]
       exact abs_recipProdVal_le hx hx_mem t
@@ -401,13 +371,9 @@ theorem shiftClipVal_clippedAtomInv (q : ℝ) :
     norm_num
     field_simp
     ring
-  have hle1 : 1 / (2 * c) ≤ 1 := by
-    have h2c : 1 ≤ 2 * c := by linarith
-    exact (div_le_one (by positivity)).mpr h2c
-  have hge_neg1 : -1 ≤ 1 / (2 * c) := by
-    have hpos : 0 ≤ 1 / (2 * c) := by positivity
-    linarith
-  rw [hmul, min_eq_right hle1, max_eq_right hge_neg1]
+  have hpos : 0 ≤ 1 / (2 * c) := by positivity
+  rw [hmul, min_eq_right ((div_le_one (by positivity)).2 (by linarith)),
+    max_eq_right (by linarith)]
 
 /-- Normalized `[-1, 1]` stream decomposition of `Cslib.polynomialTransition4` via `pairAvg`
 and `shiftClipVal 7`. -/
@@ -443,9 +409,7 @@ theorem rationalRamp4Unit_eq_poly_add_inv (t : ℝ) :
         (1 / (1 + max 0 t)) ^ 3 := by
   unfold Cslib.rationalRamp4Unit
   set u := max (0 : ℝ) t
-  have hpos : 0 < 1 + u := by
-    have hu : 0 ≤ u := le_max_left _ _
-    linarith
+  have hpos : 0 < 1 + u := by linarith [le_max_left (0 : ℝ) t]
   field_simp
   ring
 
@@ -518,9 +482,6 @@ theorem sum_dyadicWeight (m : ℕ) (w : ℝ) :
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp [dyadicWeight]
   · have hm_ne : m ≠ 0 := hm.ne'
-    have hsplit : ∑ r ∈ range (m + 1), dyadicWeight m r w =
-        (∑ r ∈ range m, dyadicWeight m r w) + dyadicWeight m m w :=
-      sum_range_succ _ m
     have hlast : dyadicWeight m m w = dyadicSwitch (m - 1) w := by
       unfold dyadicWeight
       simp [hm_ne]
@@ -540,7 +501,7 @@ theorem sum_dyadicWeight (m : ℕ) (w : ℝ) :
             simp [hm_ne, hk_ne, hk_lt]
           rw [hwk, Nat.add_sub_cancel]
           ring
-    rw [hsplit, htel m hm le_rfl, hlast]
+    rw [sum_range_succ, htel m hm le_rfl, hlast]
     ring
 
 theorem dyadicWeight_mem_Icc (m r : ℕ) (w : ℝ) :
@@ -562,18 +523,16 @@ private theorem dyadicSwitch_eq_zero_of_le {k : ℕ} {w : ℝ} (hw : w ≤ (2 : 
     dyadicSwitch k w = 0 := by
   unfold dyadicSwitch Cslib.polynomialSwitch4
   apply Cslib.polynomialTransition4_of_nonpos
-  have hden : 0 < (2 : ℝ) ^ (k + 1) - (2 : ℝ) ^ k := by
-    rw [pow_succ]
-    linarith [pow_pos (two_pos : (0 : ℝ) < 2) k]
+  have hden : 0 < (2 : ℝ) ^ (k + 1) - (2 : ℝ) ^ k :=
+    sub_pos.2 (pow_lt_pow_right₀ one_lt_two k.lt_succ_self)
   exact div_nonpos_of_nonpos_of_nonneg (by linarith) hden.le
 
 private theorem dyadicSwitch_eq_one_of_ge {k : ℕ} {w : ℝ} (hw : (2 : ℝ) ^ (k + 1) ≤ w) :
     dyadicSwitch k w = 1 := by
   unfold dyadicSwitch Cslib.polynomialSwitch4
   apply Cslib.polynomialTransition4_of_one_le
-  have hden : 0 < (2 : ℝ) ^ (k + 1) - (2 : ℝ) ^ k := by
-    rw [pow_succ]
-    linarith [pow_pos (two_pos : (0 : ℝ) < 2) k]
+  have hden : 0 < (2 : ℝ) ^ (k + 1) - (2 : ℝ) ^ k :=
+    sub_pos.2 (pow_lt_pow_right₀ one_lt_two k.lt_succ_self)
   exact (one_le_div hden).mpr (by linarith)
 
 /-- Closing step of `scaled_mem_Icc_of_dyadicWeight_ne_zero` for `r ≠ 0`: if
@@ -606,8 +565,7 @@ theorem scaled_mem_Icc_of_dyadicWeight_ne_zero {m r : ℕ} {w : ℝ}
     by_cases hr0 : r = 0
     · subst hr0
       have hlt2 : w < 2 := by
-        by_contra hge
-        rw [not_lt] at hge
+        by_contra! hge
         have h1 := dyadicSwitch_eq_one_of_ge (k := 0) (w := w) (by norm_num; linarith)
         unfold dyadicWeight at hne
         simp [hm_ne, h1] at hne
@@ -615,19 +573,16 @@ theorem scaled_mem_Icc_of_dyadicWeight_ne_zero {m r : ℕ} {w : ℝ}
       exact ⟨by linarith, by linarith⟩
     · by_cases hrm : r < m
       · have hgt_lo : (2 : ℝ) ^ (r - 1) < w := by
-          by_contra hle
-          rw [not_lt] at hle
+          by_contra! hle
           have hs1 := dyadicSwitch_eq_zero_of_le hle
           have hle2 : w ≤ (2 : ℝ) ^ r := hle.trans (pow_le_pow_right₀ (by norm_num) (by omega))
           have hs2 := dyadicSwitch_eq_zero_of_le hle2
           unfold dyadicWeight at hne
           simp [hm_ne, hr0, hrm, hs1, hs2] at hne
         have hlt_hi : w < (2 : ℝ) ^ (r + 1) := by
-          by_contra hge
-          rw [not_lt] at hge
+          by_contra! hge
           have hge1 : (2 : ℝ) ^ ((r - 1) + 1) ≤ w := by
-            have hr_eq : (r - 1) + 1 = r := by omega
-            rw [hr_eq]
+            rw [Nat.sub_add_cancel (Nat.pos_of_ne_zero hr0)]
             exact (pow_le_pow_right₀ (by norm_num) (Nat.le_succ r)).trans hge
           have hs1 := dyadicSwitch_eq_one_of_ge hge1
           have hs2 := dyadicSwitch_eq_one_of_ge hge
@@ -637,8 +592,7 @@ theorem scaled_mem_Icc_of_dyadicWeight_ne_zero {m r : ℕ} {w : ℝ}
       · by_cases hreq : r = m
         · subst hreq
           have hgt_lo : (2 : ℝ) ^ (r - 1) < w := by
-            by_contra hle
-            rw [not_lt] at hle
+            by_contra! hle
             have hs1 := dyadicSwitch_eq_zero_of_le hle
             unfold dyadicWeight at hne
             simp [hm_ne, hs1] at hne
