@@ -13,12 +13,14 @@ It reads the three versions as the preamble and the entries in order, and merges
   interleaved in key order, and an entry that one side deletes stays deleted unless the other
   side changed it;
 - the lines of the preamble and of each entry three ways: changes that touch different lines of
-  the base merge even when the lines are adjacent, and lines that both sides insert at the same
-  place are kept as two runs, in a fixed order (a run that starts a new paragraph after one that
-  continues the paragraph, and otherwise in text order).
+  the base merge even when the lines are adjacent, and disjoint runs of lines that both sides
+  insert at the same place are kept as two runs, in a fixed order (a run that starts a new
+  paragraph after one that continues the paragraph, and otherwise in text order).
 
 Both rules are symmetric, so the result does not depend on which side is ours. Identical changes
-on both sides agree. Two different changes to one line, or to overlapping lines, an entry that
+on both sides agree. Two different changes to one line, or to overlapping lines, two insertions
+that share a non-blank line or sentence (such as a shared provenance lead-in), a merge that would
+turn a line into a Setext heading neither side wrote, an entry that
 both sides add with different text, an entry that one side deletes and the other changes, and
 duplicate or malformed entries are refused: the driver then leaves `git merge-file`'s text merge,
 with conflict markers, and exits nonzero, so git reports a conflict. Entry text is never
@@ -42,6 +44,7 @@ file whatever the local configuration says.
 from __future__ import annotations
 
 import argparse
+import collections
 import difflib
 import os
 import pathlib
@@ -132,11 +135,51 @@ def merge3(base: Sequence[T], ours: Sequence[T], theirs: Sequence[T], what: str,
     return merged
 
 
-def combine_lines(ours: list[str], theirs: list[str]) -> list[str]:
-    """Two runs of lines inserted at one place, in an order that does not depend on the side: a
-    run that starts a new paragraph after one that continues the paragraph, then text order."""
+def line_sentences(lines: Sequence[str]) -> list[str]:
+    """Non-blank sentences of `lines`, split as `sources_format` splits a paragraph line."""
+    return [piece for line in lines if (stripped := line.strip())
+            for piece in sources_format.sentences(stripped) if piece]
+
+
+def combine_lines(ours: list[str], theirs: list[str], what: str = "the entry") -> list[str]:
+    """Two disjoint runs of lines inserted at one place, in an order that does not depend on the
+    side: a run that starts a new paragraph after one that continues the paragraph, then text
+    order. Runs sharing any non-blank line or sentence, or inserting a Setext underline at the
+    same point as another insertion, are refused."""
+    if any(run and sources_format.SETEXT.match(run[0]) for run in (ours, theirs)):
+        raise Refusal(f"merging {what} would turn a line into a Setext heading")
+    ours_lines = {line.strip() for line in ours if line.strip()}
+    theirs_lines = {line.strip() for line in theirs if line.strip()}
+    if (ours_lines & theirs_lines) or (set(line_sentences(ours)) & set(line_sentences(theirs))):
+        raise Refusal(f"both sides inserted overlapping lines in {what}")
     first, second = sorted((ours, theirs), key=lambda run: (run[:1] == [""], run))
     return first + second
+
+
+def merge_lines(base: Sequence[str], ours: Sequence[str], theirs: Sequence[str],
+                what: str) -> list[str]:
+    """Merge the lines of `what` three ways, refusing duplicate insertions and new Setext
+    headings."""
+    merged = merge3(base, ours, theirs, what,
+                    lambda left, right: combine_lines(left, right, what))
+    for kind, extract in (("lines", lambda seq: [s for x in seq if (s := x.strip())]),
+                          ("sentences", line_sentences)):
+        b_counts = collections.Counter(extract(base))
+        o_counts = collections.Counter(extract(ours))
+        t_counts = collections.Counter(extract(theirs))
+        m_counts = collections.Counter(extract(merged))
+        for item, count in m_counts.items():
+            if count > max(b_counts[item], o_counts[item], t_counts[item]):
+                raise Refusal(f"both sides inserted overlapping {kind} in {what}")
+
+    def setext_blocks(seq: Sequence[str]) -> set[tuple[str, ...]]:
+        return {tuple(payload) for kind, payload in sources_format._iter_blocks(list(seq))
+                if kind == "opaque" and len(payload) >= 2
+                and sources_format.SETEXT.match(payload[-1])}
+
+    if setext_blocks(merged) - (setext_blocks(ours) | setext_blocks(theirs)):
+        raise Refusal(f"merging {what} would turn a line into a Setext heading")
+    return merged
 
 
 def combine_keys(ours: list[str], theirs: list[str]) -> list[str]:
@@ -192,7 +235,7 @@ def merge_sources(base: str, ours: str, theirs: str) -> str:
         base, ours, theirs = formatted
     (b_pre, b_keys, b_entries), (o_pre, o_keys, o_entries), (t_pre, t_keys, t_entries) = (
         parse(text, side) for text, side in ((base, "base"), (ours, "ours"), (theirs, "theirs")))
-    preamble = merge3(b_pre, o_pre, t_pre, "the text before the first entry", combine_lines)
+    preamble = merge_lines(b_pre, o_pre, t_pre, "the text before the first entry")
     keys = merge3(b_keys, o_keys, t_keys, "the order of the entries", combine_keys)
     twice = sorted({key for key in keys if keys.count(key) > 1})
     if twice:
@@ -216,7 +259,7 @@ def merge_sources(base: str, ours: str, theirs: str) -> str:
         elif o == b or o is None:
             block = t
         else:
-            block = merge3(b, o, t, f"entry `{key}`", combine_lines)
+            block = merge_lines(b, o, t, f"entry `{key}`")
         blocks.append("\n".join(block))
     parts = (["\n".join(preamble)] if preamble else []) + blocks
     text = "\n\n".join(parts) + "\n" if parts else ""

@@ -14,14 +14,15 @@ by closing quotes, brackets or emphasis, then one space and the start of a sente
 letter, `[`, `(`, `*`, `` ` ``, `§` or an opening quote). It does not split inside code spans,
 `$...$` math or HTML tags, after an initial or a common abbreviation, or where the next line
 could start another Markdown block. Continuation lines of a list item are indented to its text.
-Headings, anchors, blank lines, fenced code, HTML comments and every other kind of block
-are kept as they are. The result joins back to the same text: `canonical` refuses to return
-output whose words or punctuation differ from its input apart from line breaks and the
-indentation of list continuation lines.
+Headings (ATX and Setext), anchors, blank lines, fenced code, HTML comments, reference
+definitions and every other kind of block are kept as they are. The result has the same Markdown
+block structure and joins back to the same text: `canonical` refuses to return output whose
+blocks, paragraph breaks, words or punctuation differ from its input apart from soft line breaks
+and the indentation of list continuation lines.
 
     python3 scripts/sources_format.py --check [FILE]      # exit 1 if FILE is not in the format
     python3 scripts/sources_format.py --write [FILE]      # rewrite FILE in the format
-    python3 scripts/sources_format.py --compare OLD NEW   # same text apart from line breaks?
+    python3 scripts/sources_format.py --compare OLD NEW   # same blocks and words?
 
 FILE defaults to `manual/sources.md`. `scripts/resolve_sources_conflict.py`, the file's merge
 driver, uses `canonical` to merge versions written before and after the conversion.
@@ -39,9 +40,14 @@ SOURCES = ROOT / "manual" / "sources.md"
 
 # A list item: its marker and the text after it.
 LIST_ITEM = re.compile(r"(?P<marker>(?:[-*+]|\d{1,9}[.)])[ ]+)(?P<text>\S.*)")
-# Lines that are kept as they are and end any paragraph: blank lines, anchors and other HTML,
-# headings, block quotes, tables, fences, thematic breaks, indented code and Pandoc's `:::` divs.
-OPAQUE = re.compile(r"\s*$|<|#|>|\||```|~~~|:::|( {4}|\t)|([-*_])( *\2){2,} *$")
+# A Setext heading underline: `=` or `-` characters after at most three spaces.
+SETEXT = re.compile(r" {0,3}(?:=+|-+)[ \t]*$")
+# A link or footnote reference definition (`[label]: url`), kept as its own line at block start.
+REFERENCE_DEF = re.compile(r" {0,3}\[[^\]]+\]:(?:\s|$)")
+# Lines that open another Markdown block (after up to three spaces) and end any paragraph:
+# anchors and other HTML, ATX headings, block quotes, tables, fences, thematic breaks and
+# Pandoc's `:::` divs.
+BLOCK_OPENER = re.compile(r" {0,3}(?:<|#|>|\||`{3,}|~{3,}|:::|([-*_])( *\1){2,}[ \t]*$)")
 # The opening line of a fenced code block, whose lines up to the closing fence are kept.
 FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
 # The end of a sentence: the last word before a split ends this way.
@@ -122,17 +128,17 @@ def starts_sentence(after: str) -> bool:
     """Whether `after`, the text after a space, may start a line inside a paragraph without
     starting another Markdown block in GitHub's or Pandoc's reading."""
     first = after[:1]
-    if not first:
+    if not first or SETEXT.match(after) or LIST_ITEM.match(after):
         return False
     if first.isupper():
         return True
     if first not in STARTERS:
         return False
-    if first in "*_" and (after[1:2] in ("", " ") or OPAQUE.match(after)):
+    if first in "*_" and (after[1:2] in ("", " ") or BLOCK_OPENER.match(after)):
         return False
     if first == "`" and after.startswith("```"):
         return False
-    if first == "[" and (after.startswith("[^") or re.match(r"\[[^\]]*\]:", after)):
+    if first == "[" and (after.startswith("[^") or REFERENCE_DEF.match(after)):
         return False
     return True
 
@@ -160,59 +166,98 @@ def hard_break(line: str) -> bool:
     return line.endswith("  ") or line.endswith("\\")
 
 
-def canonical(text: str) -> str:
-    """`text` in the line format; see the module docstring."""
-    if text and not text.endswith("\n"):
-        text += "\n"
-    lines = text.split("\n")[:-1]
-    out: list[str] = []
+def _iter_blocks(lines: list[str]):
+    """Yield `('blank', lines)`, `('opaque', lines)` or `('prose', (marker, lines))` in order."""
     i = 0
     while i < len(lines):
         line = lines[i]
+        if not line.strip():
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            yield ("blank", lines[i:j])
+            i = j
+            continue
         item = LIST_ITEM.fullmatch(line)
         if fence := FENCE.match(line):  # a fenced code block, kept up to its closing fence
             close = re.compile(rf" {{0,3}}{re.escape(fence.group(1)[0])}{{{len(fence.group(1))},}}"
                                r"\s*$")
             j = next((k for k in range(i + 1, len(lines)) if close.match(lines[k])), len(lines))
-            out.extend(lines[i:j + 1])
+            yield ("opaque", lines[i:j + 1])
             i = j + 1
             continue
         if line.lstrip(" ").startswith("<!--"):  # an HTML comment, kept up to its end
             j = next((k for k in range(i, len(lines)) if "-->" in lines[k][4 * (k == i):]),
                      len(lines))
-            out.extend(lines[i:j + 1])
+            yield ("opaque", lines[i:j + 1])
             i = j + 1
             continue
-        if (OPAQUE.match(line) and not item) or line[:1].isspace():
-            out.append(line)  # another kind of block, or an indented line outside a list item
+        if ((BLOCK_OPENER.match(line) and not item) or SETEXT.match(line)
+                or REFERENCE_DEF.match(line) or line[:1].isspace()):
+            yield ("opaque", [line])
             i += 1
             continue
         # A paragraph or top-level list item: this line and its continuation lines, up to a
-        # blank line, another list item or a line that starts another block.
+        # blank line, another list item, a Setext underline or a line that opens another block.
         j = i + 1
         while (j < len(lines) and lines[j].strip() and not LIST_ITEM.fullmatch(lines[j])
-               and not (OPAQUE.match(lines[j]) and not lines[j][:1].isspace())):
+               and not (not item and SETEXT.match(lines[j]))
+               and not BLOCK_OPENER.match(lines[j])):
             j += 1
+        if not item and j < len(lines) and SETEXT.match(lines[j]):
+            # A Setext heading (`Heading\n===` or `Heading\n---`): keep heading and underline.
+            yield ("opaque", lines[i:j + 1])
+            i = j + 1
+            continue
         block = lines[i:j]
         marker = item.group("marker") if item else ""
         indent = " " * len(marker)
-        # Kept as they are: a hard line break, which joining would remove, and indentation other
-        # than that of an item's text (a nested list, code or a paragraph's indented line).
+        # Kept as they are: a hard line break (which joining would remove), a Setext underline or
+        # nested list item inside a list item, and indentation other than that of an item's text.
         if any(hard_break(part) for part in block[:-1]) or any(
-                part[:1].isspace() and (not item or not part.startswith(indent)
-                                        or part[len(indent):][:1].isspace()
-                                        or LIST_ITEM.fullmatch(part.lstrip()))
+                SETEXT.match(part.lstrip(" ")) or LIST_ITEM.fullmatch(part.lstrip(" "))
+                or (part[:1].isspace() and (not item or not part.startswith(indent)
+                                            or part[len(indent):][:1].isspace()))
                 for part in block[1:]):
-            out.extend(block)
-            i = j
-            continue
-        joined = " ".join(part.strip() for part in [block[0][len(marker):], *block[1:]])
-        split = sentences(joined)
-        out.append(marker + split[0])
-        out.extend(indent + piece for piece in split[1:])
+            yield ("opaque", block)
+        else:
+            yield ("prose", (marker, block))
         i = j
+
+
+def blocks(text: str) -> list[tuple[str, ...]]:
+    """`text`'s Markdown block structure, normalizing only soft wraps and list continuation
+    indentation inside plain paragraphs and simple top-level list items."""
+    if text and not text.endswith("\n"):
+        text += "\n"
+    out: list[tuple[str, ...]] = []
+    for kind, payload in _iter_blocks(text.split("\n")[:-1]):
+        if kind in ("blank", "opaque"):
+            out.append((kind, *payload))
+        else:
+            marker, block = payload
+            joined = " ".join(part.strip() for part in [block[0][len(marker):], *block[1:]])
+            out.append(("prose", marker.strip(), *joined.split()))
+    return out
+
+
+def canonical(text: str) -> str:
+    """`text` in the line format; see the module docstring."""
+    if text and not text.endswith("\n"):
+        text += "\n"
+    out: list[str] = []
+    for kind, payload in _iter_blocks(text.split("\n")[:-1]):
+        if kind in ("blank", "opaque"):
+            out.extend(payload)
+        else:
+            marker, block = payload
+            indent = " " * len(marker)
+            joined = " ".join(part.strip() for part in [block[0][len(marker):], *block[1:]])
+            split = sentences(joined)
+            out.append(marker + split[0])
+            out.extend(indent + piece for piece in split[1:])
     result = "".join(f"{line}\n" for line in out)
-    if words(result) != words(text):
+    if words(result) != words(text) or blocks(result) != blocks(text):
         raise ValueError("the line format would change the text; this is a bug in sources_format")
     return result
 
@@ -223,13 +268,24 @@ def words(text: str) -> list[str]:
 
 
 def compare(old: str, new: str) -> list[str]:
-    """Differences between `old` and `new` other than line breaks and indentation."""
-    a, b = words(old), words(new)
-    if a == b:
+    """Differences between `old` and `new` other than sentence line breaks and list continuation
+    indentation."""
+    a_words, b_words = words(old), words(new)
+    if a_words != b_words:
+        k = next((i for i, (x, y) in enumerate(zip(a_words, b_words)) if x != y),
+                 min(len(a_words), len(b_words)))
+        return [f"word {k + 1} differs: {' '.join(a_words[max(0, k - 5):k + 5])!r} became "
+                f"{' '.join(b_words[max(0, k - 5):k + 5])!r} "
+                f"({len(a_words)} words before, {len(b_words)} after)"]
+    a_blocks, b_blocks = blocks(old), blocks(new)
+    if a_blocks == b_blocks:
         return []
-    k = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
-    return [f"word {k + 1} differs: {' '.join(a[max(0, k - 5):k + 5])!r} became "
-            f"{' '.join(b[max(0, k - 5):k + 5])!r} ({len(a)} words before, {len(b)} after)"]
+    k = next((i for i, (x, y) in enumerate(zip(a_blocks, b_blocks)) if x != y),
+             min(len(a_blocks), len(b_blocks)))
+    before = " ".join(a_blocks[k][:8]) if k < len(a_blocks) else "<end>"
+    after = " ".join(b_blocks[k][:8]) if k < len(b_blocks) else "<end>"
+    return [f"block {k + 1} differs (paragraph break or Markdown block changed): "
+            f"{before!r} became {after!r} ({len(a_blocks)} blocks before, {len(b_blocks)} after)"]
 
 
 def unformatted(text: str) -> list[int]:
