@@ -78,10 +78,8 @@ private theorem storeData_effect {extra regs : ℕ} (x : State M (layout extra r
   have heap : ((Op.storeData field base src).effect x).heap = x.heap.modify a fun n =>
       { n with data := Function.update n.data field (x.data src) } := by
     simp [Op.effect, Op.instr, Instr.effect, State.modify, cursor]
-  refine ⟨heap ▸ rep.updateData a field (x.data src), ?_, ?_, ?_⟩
-  · simp [Op.effect, Op.instr, Instr.effect]
-  · simp [Op.effect, Op.instr, Instr.effect]
-  · rw [heap, List.length_modify]
+  refine ⟨heap ▸ rep.updateData a field (x.data src), ?_, ?_, by rw [heap, List.length_modify]⟩
+  all_goals simp [Op.effect, Op.instr, Instr.effect]
 
 /-- A complete dictionary read follows the AVL search path and returns the represented value.
 It preserves the heap, root, query, and every client scalar register. -/
@@ -118,9 +116,7 @@ theorem read_correct [LinearOrder M.Value] (zero : M.Op) (lt : M.Test)
       simp [State.deref, hp, stored.absent ordered missing]
     | some address =>
       obtain ⟨path, label, node, get, -, lookup, fields, key⟩ := result.key address hp
-      have labelKey : label.data 0 = s.data 0 := by
-        rw [← fields]
-        exact key
+      have labelKey : label.data 0 = s.data 0 := fields ▸ key
       simp [State.deref, hp, lookup, fields, stored.value path label get, labelKey]
   obtain ⟨t, run, value⟩ := main
   exact ⟨t, run, run.heap_eq (by pm_frame), run.ptr_keep [0, 5] (by pm_frame) (by simp), value,
@@ -142,13 +138,9 @@ theorem write_correct [LinearOrder M.Value] (zero maxSucc : M.Op) (lt heavy le :
     ∃ t result, ExecWithin (write zero maxSucc lt heavy le) s t (112 * avl.cachedHeight + 35) ∧
       WriteResult encode s t result avl memory := by
   have h01 : (0 : Fin (regs + 4)) ≠ 1 := by simp
-  have h02 : (0 : Fin (regs + 4)) ≠ 2 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 2 < regs + 4)]
-  have h31 : (3 : Fin (regs + 4)) ≠ 1 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 3 < regs + 4)]
-  have h32 : (3 : Fin (regs + 4)) ≠ 2 := by
-    simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 3 < regs + 4),
-      Nat.mod_eq_of_lt (by omega : 2 < regs + 4)]
+  have h02 : (0 : Fin (regs + 4)) ≠ 2 := by simp (disch := omega) [Fin.ext_iff, Nat.mod_eq_of_lt]
+  have h31 : (3 : Fin (regs + 4)) ≠ 1 := by simp (disch := omega) [Fin.ext_iff, Nat.mod_eq_of_lt]
+  have h32 : (3 : Fin (regs + 4)) ≠ 2 := by simp (disch := omega) [Fin.ext_iff, Nat.mod_eq_of_lt]
   let start : State M (layout 2 (regs + 2)) := s.setPtr 0 (s.ptr 1)
   obtain ⟨a, newTree, ea, _, ra⟩ := PointerMachine.Structured.insert_correct
     zero maxSucc lt heavy le encode zero_spec max_spec compare heavy_spec le_spec 1 (by decide)
