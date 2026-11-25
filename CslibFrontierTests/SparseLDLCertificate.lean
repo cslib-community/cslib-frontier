@@ -7,7 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
-public import CslibFrontier.Algorithms.LinearAlgebra.SparseLDLCertificate
+public import CslibFrontier.Algorithms.LinearAlgebra.SparseLyapunovCertificate
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 
@@ -161,6 +161,11 @@ example : ((ofSparse 2 2 P).map ((↑) : ℚ → ℝ)).PosDef ∧
     (-(((ofSparse 2 2 A).map ((↑) : ℚ → ℝ))ᵀ * (ofSparse 2 2 P).map ((↑) : ℚ → ℝ) +
       (ofSparse 2 2 P).map ((↑) : ℚ → ℝ) * (ofSparse 2 2 A).map ((↑) : ℚ → ℝ))).PosDef :=
   SparseLyapunovCert.posDef_of_check certA_ok
+
+/-- Exponential stability of `ẋ = A x`, from the accepted certificate. -/
+example : (toEuclideanCLM (𝕜 := ℝ)
+    ((ofSparse 2 2 A).map ((↑) : ℚ → ℝ))).IsExponentiallyStable :=
+  SparseLyapunovCert.isExponentiallyStable_of_check certA_ok
 
 /-- A wrong transpose, and the unstable `A = 1`, are rejected. -/
 example : (⟨A, certP, ⟨[(0, [1]), (1, [1])], [1, 1], []⟩⟩ : SparseLyapunovCert).check 2 A P =

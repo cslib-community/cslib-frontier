@@ -8357,6 +8357,7 @@ public import CslibFrontier.Foundations.Data.List.CommonPrefix
 public import CslibFrontier.Computability.Machines.Turing.TM2.Simulation
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionMachine
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Output
+public import CslibFrontier.Algorithms.LinearAlgebra.SparseLyapunovCertificate
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Assembly.Basic
 public import CslibFrontier.Foundations.Data.BitString.BitVec
 public import CslibFrontier.Crypto.Protocols.MPC.BGW
