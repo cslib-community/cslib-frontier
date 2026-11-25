@@ -109,6 +109,7 @@ theorem wm_r (A : Matrix (Fin b) (Fin b) F2) : wm (hr (a := a) (b := b)) A =
 private theorem mat_blk' (t : U a × Matrix (Fin a) (Fin b) F2 × U b) : mat (blk t) =
     wl a b * mat t.1 * (wl a b)ᵀ + wl a b * t.2.1 * (wr a b)ᵀ + wr a b * mat t.2.2 * (wr a b)ᵀ := by
   obtain ⟨A, M, C⟩ := t
+  -- a sandwich vanishes when the middle factor does, and collapses when it is the identity
   have z {k k' : ℕ} (W : Matrix (Fin (a + b)) (Fin k) F2) (V : Matrix (Fin (a + b)) (Fin k') F2)
       (h : Wᵀ * V = 0) {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2)
       (Q : Matrix (Fin d) (Fin (a + b)) F2) (X : Matrix (Fin c) (Fin k) F2)

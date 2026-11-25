@@ -133,7 +133,8 @@ theorem layerAverage_monomial (S : Finset ι) {k : ℕ} (hk : k ≤ Fintype.card
       exact sum_congr rfl fun x _ => (monomial_apply S x).trans (by congr)]
   have hnk : (n.choose k : 𝕜) ≠ 0 := Nat.cast_ne_zero.2 (Nat.choose_pos hk).ne'
   rcases lt_or_ge k #S with hks | hks
-  · rw [filter_false_of_mem fun T hT hST =>
+  · -- no `k`-set contains `S`
+    rw [filter_false_of_mem fun T hT hST =>
       absurd ((card_le_card hST).trans (mem_powersetCard.1 hT).2.le) (not_le.2 hks),
       Nat.choose_eq_zero_of_lt hks]
     simp

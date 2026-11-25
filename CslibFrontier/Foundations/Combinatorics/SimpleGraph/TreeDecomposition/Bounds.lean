@@ -142,6 +142,8 @@ theorem treewidth_le_one_iff [Finite V] : G.treewidth ≤ 1 ↔ G.IsAcyclic := b
   classical
   refine ⟨fun h v c hc => ?_, IsAcyclic.treewidth_le_one⟩
   obtain ⟨_, D, hD⟩ := treewidth_le_iff.1 h
+  -- The vertex of the cycle whose topmost node is numbered last has both cycle neighbours in its
+  -- bag, so that bag has three vertices.
   obtain ⟨u, hu, hcard⟩ := D.exists_card_filter_adj_le_width
     ⟨v, List.mem_toFinset.2 c.start_mem_support⟩
   have h2 := hc.ncard_neighborSet_toSubgraph_eq_two (List.mem_toFinset.1 hu)
