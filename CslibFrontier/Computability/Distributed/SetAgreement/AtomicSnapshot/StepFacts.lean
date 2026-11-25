@@ -133,10 +133,10 @@ theorem stepSnapshot_effect {P Data : Type*} [Fintype P] [DecidableEq P]
     | embedded val =>
       exact ⟨⟨.readyToWrite st.opId val snap, rfl⟩, rfl, Or.inl rfl⟩
   rcases ev with j | ⟨j, val⟩ | j
-  · obtain ⟨-, rfl⟩ := stepSnapshot_invokeScan_eq h
-    exact ⟨⟨_, rfl⟩, Or.inr ⟨(by rintro ⟨_, _, _, _, h1, _⟩; cases h1), rfl,
-      Or.inr (Or.inl ⟨_, rfl, rfl⟩)⟩⟩
-  · obtain ⟨-, rfl⟩ := stepSnapshot_invokeUpdate_eq h
+  iterate 2
+    first
+    | obtain ⟨-, rfl⟩ := stepSnapshot_invokeScan_eq h
+    | obtain ⟨-, rfl⟩ := stepSnapshot_invokeUpdate_eq h
     exact ⟨⟨_, rfl⟩, Or.inr ⟨(by rintro ⟨_, _, _, _, h1, _⟩; cases h1), rfl,
       Or.inr (Or.inl ⟨_, rfl, rfl⟩)⟩⟩
   · unfold stepSnapshot at h
@@ -153,18 +153,17 @@ theorem stepSnapshot_effect {P Data : Type*} [Fintype P] [DecidableEq P]
             s.proc j' = .readyToWrite opId val snap := by
         rintro ⟨_, _, _, _, h1, h2⟩; cases h1; rw [hpj] at h2; cases h2
       cases hph : st.phase <;> cases hrem : st.rem <;> simp only [hph, hrem] at h
-      · injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
-      · injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
-      · split_ifs at h with hclean
-        · injection h with hs'
-          obtain ⟨hp, hr, hh⟩ := finishScan_eff _ hpj hs'
+      all_goals try
+        (injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩)
+      split_ifs at h with hclean
+      · injection h with hs'
+        obtain ⟨hp, hr, hh⟩ := finishScan_eff _ hpj hs'
+        exact ⟨hp, Or.inr ⟨hnw, hr, hh⟩⟩
+      · cases hfind : (ord.elems.find? fun k =>
+            decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) <;>
+          simp only [hfind, Option.some.injEq] at h
+        · subst h; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
+        · obtain ⟨hp, hr, hh⟩ := finishScan_eff _ hpj h
           exact ⟨hp, Or.inr ⟨hnw, hr, hh⟩⟩
-        · cases hfind : (ord.elems.find? fun k =>
-              decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) <;>
-            simp only [hfind, Option.some.injEq] at h
-          · subst h; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
-          · obtain ⟨hp, hr, hh⟩ := finishScan_eff _ hpj h
-            exact ⟨hp, Or.inr ⟨hnw, hr, hh⟩⟩
-      · injection h with hs'; subst hs'; exact ⟨⟨_, rfl⟩, Or.inr ⟨hnw, rfl, Or.inl rfl⟩⟩
 
 end Cslib.Distributed.SetAgreement
