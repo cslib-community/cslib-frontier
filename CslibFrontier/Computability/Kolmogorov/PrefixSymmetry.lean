@@ -120,19 +120,16 @@ theorem condUniversalPrefix_produces_codeHeader_append {y : ℕ} {c : Code} {p :
       (ofPrefixCode (c.curry y)).Produces p x := by
   rw [Produces, condUniversalPrefix_run_codeHeader_append, Produces]
 
-/-- A natural-number bound on the extended complexity also bounds the complexity. -/
 private theorem complexity_le_of_ecomplexity_le {α : Type*} {M : DescriptionMethod α} {x : α}
     {n : ℕ} (h : M.ecomplexity x ≤ n) : M.complexity x ≤ n :=
   ENat.natCast_le_natCast.mp
     ((natCast_complexity (ne_top_of_le_ne_top (ENat.natCast_ne_top n) h)).trans_le h)
 
-/-- A finite complexity is attained by a program of exactly that length. -/
 private theorem exists_length_eq_complexity {α : Type*} {M : DescriptionMethod α} {x : α}
     (h : M.ecomplexity x ≠ ⊤) : ∃ p, M.Produces p x ∧ p.length = M.complexity x := by
   obtain ⟨p, hp, hlen⟩ := exists_length_eq_ecomplexity h
   exact ⟨p, hp, ENat.natCast_inj.mp (hlen.trans (natCast_complexity h).symm)⟩
 
-/-- If every `N`-program `q` for `z` yields `C_M(w) ≤ |q| + c`, then `C_M(w) ≤ C_N(z) + c`. -/
 private theorem complexity_le_complexity_add {α β : Type*} {M : DescriptionMethod α}
     {N : DescriptionMethod β} {w : α} {z : β} {c : ℕ} (hz : N.ecomplexity z ≠ ⊤)
     (h : ∀ q, N.Produces q z → M.ecomplexity w ≤ q.length + c) :
@@ -448,8 +445,6 @@ private theorem primrec₂_firstPrefixMatch : Primrec₂ firstPrefixMatch := by
   exact Primrec₂.mk <| (Primrec.list_foldr Primrec.snd (Primrec.const Option.none) hh).of_eq
     fun _ => rfl
 
-/-- A `foldr` returning the image of the first element satisfying `P` is `find?` followed by
-`map`. -/
 private theorem foldr_ite_some_eq_find?_map {α β : Type*} (P : α → Prop) [DecidablePred P]
     (f : α → β) (L : List α) :
     L.foldr (fun a acc => if P a then some (f a) else acc) Option.none =
@@ -481,7 +476,6 @@ private theorem exists_firstPrefixMatch_of_mem {r : List Bool} {L : List (List B
   rw [firstPrefixMatch_eq_find?, ← Option.isSome_iff_exists, List.find?_isSome]
   exact ⟨px, hmem, decide_eq_true hp⟩
 
-/-- Two halting programs of a prefix-free method that are prefixes of one string coincide. -/
 private theorem IsPrefixFree.eq_of_prefix {α : Type*} {M : DescriptionMethod α}
     (hM : M.IsPrefixFree) {p₁ p₂ r : List Bool} {x₁ x₂ : α} (h₁ : M.Produces p₁ x₁)
     (h₂ : M.Produces p₂ x₂) (hp₁ : p₁ <+: r) (hp₂ : p₂ <+: r) : p₁ = p₂ :=
@@ -825,32 +819,23 @@ private theorem exists_prefixTableNew_of_produces {p : List Bool} {z : ℕ}
     (hp : universalPrefix.Produces p z) :
     ∃ i : ℕ, prefixTableNew i = some (p, z) := by
   obtain ⟨n, hn⟩ := produces_iff_exists_mem_universalPrefixTable.mp hp
-  have hex : ∃ m : ℕ, (p, z) ∈ universalPrefixTable m := ⟨n, hn⟩
   classical
+  have hex : ∃ m : ℕ, (p, z) ∈ universalPrefixTable m := ⟨n, hn⟩
   let m₀ := Nat.find hex
-  have hm₀_mem : (p, z) ∈ universalPrefixTable m₀ := Nat.find_spec hex
-  have hm₀_pos : 0 < m₀ := by
-    by_contra h0
-    have hz : m₀ = 0 := by omega
-    rw [hz] at hm₀_mem
-    cases hm₀_mem
-  let i := m₀ - 1
-  have hi_succ : i + 1 = m₀ := Nat.sub_add_cancel hm₀_pos
+  have hm₀ : (p, z) ∈ universalPrefixTable m₀ := Nat.find_spec hex
+  obtain ⟨i, hi⟩ : ∃ i, m₀ = i + 1 :=
+    Nat.exists_eq_succ_of_ne_zero fun h0 => by rw [h0] at hm₀; cases hm₀
   have hnot : (p, z) ∉ universalPrefixTable i := Nat.find_min hex (by omega)
-  have hmem' : (p, z) ∈ universalPrefixTable (i + 1) := hi_succ ▸ hm₀_mem
-  have hcand : universalPrefixCand i = some (p, z) := by
-    obtain ⟨j, hj, hfj⟩ := Nat.mem_distinctValues.mp hmem'
-    rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt | rfl
-    · exact absurd (Nat.mem_distinctValues.mpr ⟨j, hlt, hfj⟩) hnot
-    · exact hfj
-  have htab : universalPrefixTable (i + 1) = universalPrefixTable i ++ [(p, z)] := by
-    change Nat.distinctValues universalPrefixCand (i + 1) =
-      Nat.distinctValues universalPrefixCand i ++ [(p, z)]
-    rw [Nat.distinctValues, hcand]
-    have hnot' : (p, z) ∉ Nat.distinctValues universalPrefixCand i := hnot
-    simp [hnot']
-  refine ⟨i, ?_⟩
-  simp [prefixTableNew, htab, hcand]
+  obtain ⟨j, hj, hfj⟩ := Nat.mem_distinctValues.mp (hi ▸ hm₀)
+  rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt | rfl
+  · exact (hnot (Nat.mem_distinctValues.mpr ⟨j, hlt, hfj⟩)).elim
+  · refine ⟨j, ?_⟩
+    have htab : universalPrefixTable (j + 1) = universalPrefixTable j ++ [(p, z)] := by
+      change Nat.distinctValues universalPrefixCand (j + 1) =
+        Nat.distinctValues universalPrefixCand j ++ [(p, z)]
+      rw [Nat.distinctValues, hfj]
+      simp [show (p, z) ∉ Nat.distinctValues universalPrefixCand j from hnot]
+    simp [prefixTableNew, htab, hfj]
 
 private theorem exists_universalMarginal_le_two_pow :
     ∃ c₁ : ℕ, ∀ x : ℕ,
@@ -927,58 +912,32 @@ private theorem primrec₂_symReq (c₁ : ℕ) : Primrec₂ (symReq c₁) := by
       dsimp only [symReq]
       cases prefixTableNew arg.2 <;> rfl
 
+private theorem symProgs_eq_map_filter (x n : ℕ) :
+    symProgs x n = ((universalPrefixTable n).filter fun pz => pz.2.unpair.1 = x).map Prod.fst := by
+  rw [symProgs]
+  induction universalPrefixTable n with
+  | nil => rfl
+  | cons hd tl ih => by_cases h : hd.2.unpair.1 = x <;> simp [h, ih]
+
 private theorem mem_symProgs_iff {x n : ℕ} {w : List Bool} :
     w ∈ symProgs x n ↔ ∃ z, (w, z) ∈ universalPrefixTable n ∧ z.unpair.1 = x := by
-  simp only [symProgs, List.mem_flatMap]
-  constructor
-  · rintro ⟨⟨p, z⟩, hmem, hp⟩
-    by_cases hx : z.unpair.1 = x
-    · simp only [hx, ↓reduceIte, List.mem_singleton] at hp
-      subst hp
-      exact ⟨z, hmem, hx⟩
-    · simp [hx] at hp
-  · rintro ⟨z, hmem, hx⟩
-    exact ⟨(w, z), hmem, by simp [hx]⟩
+  simp [symProgs_eq_map_filter]
 
 private theorem nodup_symProgs (x n : ℕ) : (symProgs x n).Nodup := by
-  have aux : ∀ L : List (List Bool × ℕ), (L.map Prod.fst).Nodup →
-      (L.flatMap fun pz => if pz.2.unpair.1 = x then [pz.1] else []).Nodup := by
-    intro L hL
-    induction L with
-    | nil => simp
-    | cons hd tl ih =>
-      simp only [List.map_cons, List.nodup_cons] at hL
-      simp only [List.flatMap_cons]
-      by_cases h : hd.2.unpair.1 = x
-      · simp only [h, ↓reduceIte, List.cons_append, List.nil_append, List.nodup_cons]
-        refine ⟨fun hmem => hL.1 ?_, ih hL.2⟩
-        simp only [List.mem_flatMap] at hmem
-        obtain ⟨pz, hpz, hwpz⟩ := hmem
-        by_cases h' : pz.2.unpair.1 = x
-        · simp only [h', ↓reduceIte, List.mem_singleton] at hwpz
-          exact List.mem_map.mpr ⟨pz, hpz, hwpz.symm⟩
-        · simp [h'] at hwpz
-      · simp only [h, ↓reduceIte, List.nil_append]
-        exact ih hL.2
-  exact aux (universalPrefixTable n) (nodup_map_fst_universalPrefixTable n)
+  rw [symProgs_eq_map_filter]
+  exact (nodup_map_fst_universalPrefixTable n).sublist (List.filter_sublist.map Prod.fst)
 
 private theorem sum_symProgs_le_of_scaled {c₁ x k n : ℕ}
     (h : codeScaledSum (symProgs x n) * 2 ^ k ≤ 2 ^ (codeMaxLen (symProgs x n) + c₁)) :
     ∑ w ∈ (symProgs x n).toFinset, (2 : ℝ)⁻¹ ^ w.length ≤
       (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ k := by
   have hreal : ((codeScaledSum (symProgs x n) : ℕ) : ℝ) * (2 : ℝ) ^ k ≤
-      (2 : ℝ) ^ (codeMaxLen (symProgs x n) + c₁) := by
-    exact_mod_cast h
+      (2 : ℝ) ^ (codeMaxLen (symProgs x n) + c₁) := mod_cast h
   rw [natCast_codeScaledSum,
     ← List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) (nodup_symProgs x n),
-    pow_add] at hreal
-  set S := ∑ w ∈ (symProgs x n).toFinset, (2 : ℝ)⁻¹ ^ w.length
-  set M := (2 : ℝ) ^ codeMaxLen (symProgs x n)
-  have hM : 0 < M := by positivity
-  have hSk : S * (2 : ℝ) ^ k * M ≤ (2 : ℝ) ^ c₁ * M := by linarith
-  have hle : S * (2 : ℝ) ^ k ≤ (2 : ℝ) ^ c₁ := le_of_mul_le_mul_right hSk hM
-  rw [inv_pow, ← div_eq_mul_inv]
-  exact (le_div_iff₀ (by positivity)).mpr hle
+    mul_right_comm, pow_add, mul_comm ((2 : ℝ) ^ codeMaxLen (symProgs x n))] at hreal
+  rw [inv_pow, ← div_eq_mul_inv, le_div_iff₀ (by positivity)]
+  exact le_of_mul_le_mul_right hreal (by positivity)
 
 private theorem symScaled_mul_le_of_universalMarginal {c₁ x n : ℕ}
     (hmarg : ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) ≤
@@ -987,227 +946,122 @@ private theorem symScaled_mul_le_of_universalMarginal {c₁ x n : ℕ}
       2 ^ (codeMaxLen (symProgs x n) + c₁) := by
   classical
   let T := (symProgs x n).toFinset
-  have hT : ∀ w ∈ T, ∃ z, universalPrefix.Produces w z ∧ z.unpair.1 = x := by
-    intro w hw
+  have hT : ∀ w ∈ T, ∃ z, universalPrefix.Produces w z ∧ z.unpair.1 = x := fun w hw => by
     obtain ⟨z, hz, hzx⟩ := mem_symProgs_iff.mp (List.mem_toFinset.mp hw)
     exact ⟨z, mem_universalPrefixTable_produces hz, hzx⟩
   let emb : {w : List Bool // w ∈ T} →
-      (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} :=
-    fun w =>
-      let z := (hT w.1 w.2).choose
-      let hz := (hT w.1 w.2).choose_spec
-      ⟨z.unpair.2, ⟨w.1, by
-        have hpair : Nat.pair x z.unpair.2 = z := by
-          rw [← hz.2, Nat.pair_unpair]
-        rw [hpair]
-        exact hz.1⟩⟩
+      (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} := fun w =>
+    let z := (hT w.1 w.2).choose
+    ⟨z.unpair.2, w.1, by
+      obtain ⟨hp, hx⟩ := (hT w.1 w.2).choose_spec
+      rwa [show Nat.pair x z.unpair.2 = z by rw [← hx, Nat.pair_unpair]]⟩
   have hemb : Function.Injective emb := fun a b hab =>
     Subtype.ext (congrArg (fun q : (y : ℕ) ×
       {p : List Bool // universalPrefix.Produces p (Nat.pair x y)} => q.2.1) hab)
-  let F : Finset ((y : ℕ) ×
-      {p : List Bool // universalPrefix.Produces p (Nat.pair x y)}) :=
-    T.attach.map ⟨emb, hemb⟩
-  have hsum_F : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length =
-      ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.1.length := by
+  let F := T.attach.map ⟨emb, hemb⟩
+  have hs := summable_universalPrefix_produces_pair x
+  have htsum : ∑' q : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
+      (2 : ℝ)⁻¹ ^ q.2.1.length = ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) :=
+    hs.tsum_sigma' fun _ => isPrefixFree_universalPrefix.summable_universalProb_program _
+  have hsum_F : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length = ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.1.length := by
     rw [Finset.sum_map]
     exact (Finset.sum_attach T fun w => (2 : ℝ)⁻¹ ^ w.length).symm
-  have hs_sigma := summable_universalPrefix_produces_pair x
-  have htsum_eq : ∑' q : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
-      (2 : ℝ)⁻¹ ^ q.2.1.length =
-      ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) :=
-    hs_sigma.tsum_sigma' fun _ => isPrefixFree_universalPrefix.summable_universalProb_program _
   have hsum_le : ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length ≤
-      (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := by
-    calc ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length
-        = ∑ q ∈ F, (2 : ℝ)⁻¹ ^ q.2.1.length := hsum_F
-      _ ≤ ∑' q : (y : ℕ) × {p : List Bool // universalPrefix.Produces p (Nat.pair x y)},
-            (2 : ℝ)⁻¹ ^ q.2.1.length :=
-          hs_sigma.sum_le_tsum F fun _ _ => by positivity
-      _ = ∑' y : ℕ, universalPrefix.universalProb (Nat.pair x y) := htsum_eq
-      _ ≤ (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x := hmarg
+      (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x :=
+    hsum_F.trans_le ((hs.sum_le_tsum F fun _ _ => by positivity).trans (htsum.trans_le hmarg))
   have hreal : ((codeScaledSum (symProgs x n) * 2 ^ universalPrefix.complexity x : ℕ) : ℝ) ≤
       ((2 ^ (codeMaxLen (symProgs x n) + c₁) : ℕ) : ℝ) := by
     push_cast
     rw [natCast_codeScaledSum,
-      ← List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) (nodup_symProgs x n),
-      pow_add]
-    calc (∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length) * (2 : ℝ) ^ codeMaxLen (symProgs x n) *
-          (2 : ℝ) ^ universalPrefix.complexity x
-        ≤ ((2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ universalPrefix.complexity x) *
-            (2 : ℝ) ^ codeMaxLen (symProgs x n) * (2 : ℝ) ^ universalPrefix.complexity x := by
-          gcongr
-      _ = (2 : ℝ) ^ codeMaxLen (symProgs x n) * (2 : ℝ) ^ c₁ *
-            (((2 : ℝ)⁻¹ * (2 : ℝ)) ^ universalPrefix.complexity x) := by
-          rw [mul_pow]
-          ring
-      _ = (2 : ℝ) ^ codeMaxLen (symProgs x n) * (2 : ℝ) ^ c₁ := by
-          rw [inv_mul_cancel₀ (by norm_num), one_pow, mul_one]
+      ← List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) (nodup_symProgs x n), pow_add]
+    refine (mul_le_mul_of_nonneg_right
+      (mul_le_mul_of_nonneg_right hsum_le (pow_nonneg (by norm_num) _))
+      (pow_nonneg (by norm_num) _)).trans_eq ?_
+    rw [mul_right_comm, mul_assoc ((2 : ℝ) ^ c₁), ← mul_pow, inv_mul_cancel₀ two_ne_zero, one_pow,
+      mul_one, mul_comm]
   exact_mod_cast hreal
 
 private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
     ∑ i ∈ Finset.range n,
       (match symReq c₁ xk i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) ≤ 1 := by
   classical
-  let x := xk.unpair.1
-  let k := xk.unpair.2
+  set x := xk.unpair.1
+  set k := xk.unpair.2
+  let f (i : ℕ) : ℝ :=
+    match symReq c₁ xk i with | Option.none => 0 | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ
   let I := (Finset.range n).filter fun i => (symReq c₁ xk i).isSome
-  have hsum_I : ∑ i ∈ Finset.range n,
-      (match symReq c₁ xk i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) =
-      ∑ i ∈ I,
-        (match symReq c₁ xk i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) := by
-    have hite : ∑ i ∈ Finset.range n,
-        (match symReq c₁ xk i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) =
-        ∑ i ∈ Finset.range n, if (symReq c₁ xk i).isSome then
-          (match symReq c₁ xk i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ)
-        else 0 :=
-      Finset.sum_congr rfl fun i _ => by cases symReq c₁ xk i <;> simp
-    rw [hite, ← Finset.sum_filter]
+  change ∑ i ∈ Finset.range n, f i ≤ 1
+  have hsum_I : ∑ i ∈ Finset.range n, f i = ∑ i ∈ I, f i := by
+    rw [Finset.sum_filter]
+    exact Finset.sum_congr rfl fun i _ => by dsimp only [f]; cases symReq c₁ xk i <;> simp
   rw [hsum_I]
-  by_cases hne : I.Nonempty
-  · let i₀ := I.max' hne
-    have hi₀_mem : i₀ ∈ I := Finset.max'_mem I hne
-    have hi₀_some : (symReq c₁ xk i₀).isSome = true := (Finset.mem_filter.mp hi₀_mem).2
-    obtain ⟨⟨ℓ₀, y₀⟩, hi₀_eq⟩ := Option.isSome_iff_exists.mp hi₀_some
-    have hi₀_guard : codeScaledSum (symProgs x (i₀ + 1)) * 2 ^ k ≤
-        2 ^ (codeMaxLen (symProgs x (i₀ + 1)) + c₁) := by
-      dsimp only [symReq] at hi₀_eq
-      cases hpt : prefixTableNew i₀ with
-      | none => simp [hpt] at hi₀_eq
-      | some pz =>
-        simp only [hpt] at hi₀_eq
-        split_ifs at hi₀_eq with hg
-        exact hg.2
-    have hbudget := sum_symProgs_le_of_scaled hi₀_guard
-    have hi_spec : ∀ i ∈ I, ∃ p z, prefixTableNew i = some (p, z) ∧ z.unpair.1 = x ∧
-        codeScaledSum (symProgs x (i + 1)) * 2 ^ k ≤
-          2 ^ (codeMaxLen (symProgs x (i + 1)) + c₁) ∧
-        symReq c₁ xk i = some (p.length + c₁ - k, z.unpair.2) ∧
-        k ≤ p.length + c₁ ∧ p ∈ (symProgs x (i₀ + 1)).toFinset := by
-      intro i hi
-      obtain ⟨⟨ℓ, y⟩, hseq⟩ := Option.isSome_iff_exists.mp (Finset.mem_filter.mp hi).2
-      have hpt_some : (prefixTableNew i).isSome := by
-        by_contra hn
-        simp [symReq, Option.not_isSome_iff_eq_none.mp hn] at hseq
-      obtain ⟨⟨p, z⟩, hpt⟩ := Option.isSome_iff_exists.mp hpt_some
-      have hg : z.unpair.1 = x ∧
-          codeScaledSum (symProgs x (i + 1)) * 2 ^ k ≤
-            2 ^ (codeMaxLen (symProgs x (i + 1)) + c₁) := by
-        dsimp only [symReq, x, k] at hseq ⊢
-        rw [hpt] at hseq
-        by_contra hn
-        simp [hn] at hseq
-      obtain ⟨hpt_tab, _⟩ := prefixTableNew_eq_some_iff hpt
-      have hmem_i1 : (p, z) ∈ universalPrefixTable (i + 1) := by
-        rw [hpt_tab]
-        simp
-      have hp_in_i1 : p ∈ (symProgs x (i + 1)).toFinset :=
-        List.mem_toFinset.mpr (mem_symProgs_iff.mpr ⟨z, hmem_i1, hg.1⟩)
-      have hsum_i1 := sum_symProgs_le_of_scaled hg.2
-      have hpow_le : (2 : ℝ)⁻¹ ^ p.length ≤ (2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ k :=
-        (Finset.single_le_sum (f := fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length)
-          (fun _ _ => by positivity) hp_in_i1).trans hsum_i1
-      have hpow_nat : 2 ^ k ≤ 2 ^ (p.length + c₁) := by
-        have hreal : ((2 ^ k : ℕ) : ℝ) ≤ ((2 ^ (p.length + c₁) : ℕ) : ℝ) := by
-          push_cast
-          rw [pow_add]
-          calc (2 : ℝ) ^ k
-              = ((2 : ℝ)⁻¹ * (2 : ℝ)) ^ p.length * (2 : ℝ) ^ k := by
-                rw [inv_mul_cancel₀ (by norm_num), one_pow, one_mul]
-            _ = (2 : ℝ)⁻¹ ^ p.length * (2 : ℝ) ^ p.length * (2 : ℝ) ^ k := by
-                rw [mul_pow]
-            _ ≤ ((2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ k) * (2 : ℝ) ^ p.length * (2 : ℝ) ^ k := by
-                gcongr
-            _ = (2 : ℝ) ^ p.length * (2 : ℝ) ^ c₁ * (((2 : ℝ)⁻¹ * (2 : ℝ)) ^ k) := by
-                rw [mul_pow]
-                ring
-            _ = (2 : ℝ) ^ p.length * (2 : ℝ) ^ c₁ := by
-                rw [inv_mul_cancel₀ (by norm_num), one_pow, mul_one]
-        exact_mod_cast hreal
-      have hk_le : k ≤ p.length + c₁ := (Nat.pow_le_pow_iff_right (by omega : 1 < 2)).mp hpow_nat
-      have hi_le : i + 1 ≤ i₀ + 1 := Nat.succ_le_succ (Finset.le_max' I i hi)
-      have hmem_i0 : (p, z) ∈ universalPrefixTable (i₀ + 1) :=
-        (universalPrefixTable_prefix hi_le).subset hmem_i1
-      have hp_in_i0 : p ∈ (symProgs x (i₀ + 1)).toFinset :=
-        List.mem_toFinset.mpr (mem_symProgs_iff.mpr ⟨z, hmem_i0, hg.1⟩)
-      have hsym_eq : symReq c₁ xk i = some (p.length + c₁ - k, z.unpair.2) := by
-        dsimp only [symReq]
-        rw [hpt]
-        simp [x, k, hg.1, hg.2]
-      exact ⟨p, z, hpt, hg.1, hg.2, hsym_eq, hk_le, hp_in_i0⟩
-    let prog : I → List Bool := fun i => (hi_spec i.1 i.2).choose
-    have hprog_inj : Function.Injective prog := by
-      intro i j hpeq
-      obtain ⟨zi, hpti, -, -, -, -, -⟩ := (hi_spec i.1 i.2).choose_spec
-      obtain ⟨zj, hptj, -, -, -, -, -⟩ := (hi_spec j.1 j.2).choose_spec
-      have htab_i := prefixTableNew_eq_some_iff hpti
-      have htab_j := prefixTableNew_eq_some_iff hptj
-      have hmem_i : (prog i, zi) ∈ universalPrefixTable (i.1 + 1) := by
-        simp [htab_i.1, prog]
-      have hmem_j : (prog j, zj) ∈ universalPrefixTable (j.1 + 1) := by
-        simp [htab_j.1, prog]
-      have hpi_prod := mem_universalPrefixTable_produces hmem_i
-      have hpj_prod := mem_universalPrefixTable_produces hmem_j
-      rw [← hpeq] at hpj_prod
-      have hzeq : zi = zj := hpi_prod.unique hpj_prod
-      by_contra hne_ij
-      have hval_ne : i.1 ≠ j.1 := fun h => hne_ij (Subtype.ext h)
-      rcases lt_or_gt_of_ne hval_ne with hlt | hlt
-      · have hsub := (universalPrefixTable_prefix (Nat.succ_le_of_lt hlt)).subset hmem_i
-        rw [hpeq, hzeq] at hsub
-        exact htab_j.2 hsub
-      · have hsub := (universalPrefixTable_prefix (Nat.succ_le_of_lt hlt)).subset hmem_j
-        rw [← hpeq, ← hzeq] at hsub
-        exact htab_i.2 hsub
-    have hterms : ∀ i : I,
-        (match symReq c₁ xk i.1 with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) =
-          (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length := by
-      intro i
-      obtain ⟨zi, -, -, -, hseq, hk_le, -⟩ := (hi_spec i.1 i.2).choose_spec
-      rw [hseq]
-      have hadd : (prog i).length + c₁ - k + k = (prog i).length + c₁ := Nat.sub_add_cancel hk_le
-      have hpow : (2 : ℝ)⁻¹ ^ ((prog i).length + c₁ - k) * (2 : ℝ)⁻¹ ^ k =
-          (2 : ℝ)⁻¹ ^ (prog i).length * (2 : ℝ)⁻¹ ^ c₁ := by
-        rw [← pow_add, hadd, pow_add]
-      calc (2 : ℝ)⁻¹ ^ ((prog i).length + c₁ - k)
-          = (2 : ℝ)⁻¹ ^ ((prog i).length + c₁ - k) * (((2 : ℝ)⁻¹ * (2 : ℝ)) ^ k) := by
-            rw [inv_mul_cancel₀ (by norm_num), one_pow, mul_one]
-        _ = (2 : ℝ) ^ k * ((2 : ℝ)⁻¹ ^ ((prog i).length + c₁ - k) * (2 : ℝ)⁻¹ ^ k) := by
-            rw [mul_pow]
-            ring
-        _ = (2 : ℝ) ^ k * ((2 : ℝ)⁻¹ ^ (prog i).length * (2 : ℝ)⁻¹ ^ c₁) := by rw [hpow]
-        _ = (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length := by ring
-    let P : Finset (List Bool) := I.attach.image prog
-    have hP_sub : P ⊆ (symProgs x (i₀ + 1)).toFinset := by
-      intro w hw
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp hw
-      obtain ⟨-, -, -, -, -, -, hp⟩ := (hi_spec i.1 i.2).choose_spec
-      exact hp
-    calc ∑ i ∈ I,
-          (match symReq c₁ xk i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ)
-        = ∑ i ∈ I.attach,
-            (match symReq c₁ xk i.1 with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) :=
-          (Finset.sum_attach I _).symm
-      _ = ∑ i ∈ I.attach, (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length :=
-          Finset.sum_congr rfl fun i _ => hterms i
-      _ = (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * ∑ i ∈ I.attach, (2 : ℝ)⁻¹ ^ (prog i).length := by
-          rw [← Finset.mul_sum]
-      _ = (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * ∑ w ∈ P, (2 : ℝ)⁻¹ ^ w.length := by
-          rw [Finset.sum_image fun a _ b _ h => hprog_inj h]
-      _ ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ *
-            ∑ w ∈ (symProgs x (i₀ + 1)).toFinset, (2 : ℝ)⁻¹ ^ w.length :=
-          mul_le_mul_of_nonneg_left
-            (Finset.sum_le_sum_of_subset_of_nonneg hP_sub fun _ _ _ => by positivity)
-            (by positivity)
-      _ ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * ((2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ k) :=
-          mul_le_mul_of_nonneg_left hbudget (by positivity)
-      _ = ((2 : ℝ) * (2 : ℝ)⁻¹) ^ k * (((2 : ℝ)⁻¹ * (2 : ℝ)) ^ c₁) := by
-          rw [mul_pow, mul_pow]
-          ring
-      _ = 1 := by
-          rw [mul_inv_cancel₀ (by norm_num), inv_mul_cancel₀ (by norm_num), one_pow, one_pow,
-            mul_one]
-  · rw [Finset.not_nonempty_iff_eq_empty.mp hne]
-    simp
+  rcases I.eq_empty_or_nonempty with hI | hne
+  · simp [hI]
+  have hsym {i : ℕ} (hi : i ∈ I) : ∃ p z, prefixTableNew i = some (p, z) ∧ z.unpair.1 = x ∧
+      codeScaledSum (symProgs x (i + 1)) * 2 ^ k ≤
+        2 ^ (codeMaxLen (symProgs x (i + 1)) + c₁) ∧
+      f i = (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) := by
+    obtain ⟨⟨ℓ, y⟩, hseq⟩ := Option.isSome_iff_exists.mp (Finset.mem_filter.mp hi).2
+    have hseq' := hseq
+    dsimp only [symReq] at hseq'
+    rcases hpt : prefixTableNew i with _ | ⟨p, z⟩
+    · simp [hpt] at hseq'
+    · simp only [hpt] at hseq'
+      split_ifs at hseq' with hg
+      obtain ⟨rfl, rfl⟩ := Option.some.inj hseq'
+      exact ⟨p, z, rfl, hg.1, hg.2, by simp [f, hseq]; rfl⟩
+  let i₀ := I.max' hne
+  obtain ⟨_, _, _, _, hi₀_guard, _⟩ := hsym (Finset.max'_mem I hne)
+  let prog (i : ℕ) : List Bool := ((prefixTableNew i).map Prod.fst).getD []
+  have hprog_mem {i : ℕ} (hi : i ∈ I) : prog i ∈ (symProgs x (i₀ + 1)).toFinset := by
+    obtain ⟨p, z, hpt, hzx, -, -⟩ := hsym hi
+    have hmem : (p, z) ∈ universalPrefixTable (i + 1) := by
+      simp [(prefixTableNew_eq_some_iff hpt).1]
+    have hmem0 :=
+      (universalPrefixTable_prefix (Nat.succ_le_succ (Finset.le_max' I i hi))).subset hmem
+    simpa [prog, hpt] using List.mem_toFinset.mpr (mem_symProgs_iff.mpr ⟨z, hmem0, hzx⟩)
+  have hinj : Set.InjOn prog I := fun i hi j hj hp => by
+    obtain ⟨pi, zi, hpti, -, -, -⟩ := hsym hi
+    obtain ⟨pj, zj, hptj, -, -, -⟩ := hsym hj
+    have hpeq : pi = pj := by simpa [prog, hpti, hptj] using hp
+    subst hpeq
+    have hti := prefixTableNew_eq_some_iff hpti
+    have htj := prefixTableNew_eq_some_iff hptj
+    have hmi : (pi, zi) ∈ universalPrefixTable (i + 1) := by simp [hti.1]
+    have hmj : (pi, zj) ∈ universalPrefixTable (j + 1) := by simp [htj.1]
+    obtain rfl : zi = zj :=
+      (mem_universalPrefixTable_produces hmi).unique (mem_universalPrefixTable_produces hmj)
+    rcases lt_trichotomy i j with hlt | rfl | hlt
+    · exact (htj.2 ((universalPrefixTable_prefix (Nat.succ_le_of_lt hlt)).subset hmi)).elim
+    · rfl
+    · exact (hti.2 ((universalPrefixTable_prefix (Nat.succ_le_of_lt hlt)).subset hmj)).elim
+  have hterm {i : ℕ} (hi : i ∈ I) :
+      f i ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length := by
+    obtain ⟨p, _, hpt, -, -, hfi⟩ := hsym hi
+    have hsub : (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) ≤ 2 ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁) := by
+      have h1 : (2 : ℝ)⁻¹ ^ (p.length + c₁ - k) =
+          2 ^ k * (2 : ℝ)⁻¹ ^ (p.length + c₁ - k + k) := by
+        rw [pow_add, mul_left_comm, ← mul_pow, mul_inv_cancel₀ two_ne_zero, one_pow, mul_one]
+      rw [h1]
+      gcongr 2 ^ k * ?_
+      exact pow_le_pow_of_le_one (by positivity) (by norm_num) (by omega)
+    rw [hfi, show prog i = p by simp [prog, hpt]]
+    exact hsub.trans_eq (by rw [pow_add]; ring)
+  calc ∑ i ∈ I, f i
+      ≤ ∑ i ∈ I, (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * (2 : ℝ)⁻¹ ^ (prog i).length :=
+        Finset.sum_le_sum fun i hi => hterm hi
+    _ = (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * ∑ w ∈ I.image prog, (2 : ℝ)⁻¹ ^ w.length := by
+        rw [← Finset.mul_sum, Finset.sum_image hinj]
+    _ ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ *
+          ∑ w ∈ (symProgs x (i₀ + 1)).toFinset, (2 : ℝ)⁻¹ ^ w.length :=
+        mul_le_mul_of_nonneg_left
+          (Finset.sum_le_sum_of_subset_of_nonneg
+            (Finset.image_subset_iff.mpr fun i hi => hprog_mem hi) fun _ _ _ => by positivity)
+          (by positivity)
+    _ ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ c₁ * ((2 : ℝ) ^ c₁ * (2 : ℝ)⁻¹ ^ k) :=
+        mul_le_mul_of_nonneg_left (sum_symProgs_le_of_scaled hi₀_guard) (by positivity)
+    _ = ((2 : ℝ) * (2 : ℝ)⁻¹) ^ k * ((2 : ℝ)⁻¹ * (2 : ℝ)) ^ c₁ := by rw [mul_pow, mul_pow]; ring
+    _ = 1 := by norm_num
 
 /-- **Hard direction of prefix-free symmetry of information**:
 `K(x) + K(y | x, K(x)) ≤ K(x, y) + c` [LiVitanyi2019, ShenUspenskyVereshchagin2017]. -/
@@ -1222,24 +1076,18 @@ theorem exists_complexity_universalPrefix_add_condUniversalPrefix_le :
   obtain ⟨c_fst, hfst⟩ :=
     exists_complexity_universalPrefix_comp_le (Primrec.fst.comp Primrec.unpair).to_comp
   refine ⟨c₁ + c_kc + c_fst, fun x y => ?_⟩
-  obtain ⟨p, hp, hplen⟩ :=
-    exists_length_eq_ecomplexity (ecomplexity_universalPrefix_ne_top (Nat.pair x y))
-  have hp_nat : p.length = universalPrefix.complexity (Nat.pair x y) := by
-    rw [← natCast_complexity_universalPrefix] at hplen
-    exact_mod_cast hplen
+  obtain ⟨p, hp, hp_nat⟩ :=
+    exists_length_eq_complexity (ecomplexity_universalPrefix_ne_top (Nat.pair x y))
   obtain ⟨i, hi⟩ := exists_prefixTableNew_of_produces hp
   have hguard := symScaled_mul_le_of_universalMarginal (n := i + 1) (hmarg x)
-  have hreq : symReq c₁ (Nat.pair x (universalPrefix.complexity x)) i =
-      some (p.length + c₁ - universalPrefix.complexity x, y) := by
-    simp [symReq, hi, hguard]
-  have he := hkc (Nat.pair x (universalPrefix.complexity x)) i
-    (p.length + c₁ - universalPrefix.complexity x) y hreq
-  rw [← natCast_complexity_condUniversalPrefix] at he
   have hcond : (condUniversalPrefix (Nat.pair x (universalPrefix.complexity x))).complexity y ≤
-      p.length + c₁ - universalPrefix.complexity x + c_kc := by
-    exact_mod_cast he
-  have hkx : universalPrefix.complexity x ≤ p.length + c_fst := by
-    simpa [hp_nat] using hfst (Nat.pair x y)
+      p.length + c₁ - universalPrefix.complexity x + c_kc :=
+    complexity_le_of_ecomplexity_le (mod_cast hkc
+      (Nat.pair x (universalPrefix.complexity x)) i
+      (p.length + c₁ - universalPrefix.complexity x) y (by simp [symReq, hi, hguard]))
+  rw [hp_nat] at hcond
+  have hkx : universalPrefix.complexity x ≤
+      universalPrefix.complexity (Nat.pair x y) + c_fst := by simpa using hfst (Nat.pair x y)
   omega
 
 /-- **Exact symmetry of information** for `universalPrefix` conditioned on `(x, K(x))`
@@ -1319,29 +1167,21 @@ theorem exists_abs_complexity_universalPrefixBits_pair_sub_shortestProgram_le :
         (condUniversalPrefixBits (shortestPrefixProgramBits x)).complexity y| ≤ c := by
   let natBitsPart : ℕ →. List Bool := fun n => Nat.rfindOpt (bitsStep n)
   have hbitsPart : Partrec natBitsPart := Partrec.rfindOpt primrec₂_bitsStep.to_comp
-  have hbits_mem : ∀ n : ℕ, n.bits ∈ natBitsPart n := by
-    intro n
-    have huniq : ∀ t ℓ, bitsStep n t = some ℓ → ℓ = n.bits := by
-      intro t ℓ ht
-      dsimp only [bitsStep] at ht
-      split_ifs at ht with hn
-      · subst hn
-        simp only [Option.some.injEq] at ht
-        simp [← ht]
-      · obtain ⟨w, _, hw⟩ := Option.bind_eq_some_iff.mp ht
-        split_ifs at hw with hfld
-        simp only [Option.some.injEq] at hw
-        rw [← hw, ← hfld, Nat.bits_foldr_bit_one]
-    have hdom : (natBitsPart n).Dom := by
-      refine Nat.rfindOpt_dom.mpr ?_
+  have hbits_mem (n : ℕ) : n.bits ∈ natBitsPart n := by
+    have hdom : (natBitsPart n).Dom := Nat.rfindOpt_dom.mpr <| by
       by_cases hn : n = 0
       · exact ⟨0, [], by simp [bitsStep, hn]⟩
       · obtain ⟨w, hw⟩ := exists_foldr_bit_one hn
         exact ⟨encode w, w ++ [true], by simp [bitsStep, hn, hw]⟩
-    have hmem := Part.get_mem hdom
-    obtain ⟨t, ht⟩ := Nat.rfindOpt_spec hmem
-    rw [huniq t _ ht] at hmem
-    exact hmem
+    obtain ⟨t, ht⟩ := Nat.rfindOpt_spec (Part.get_mem hdom)
+    suffices Part.get (natBitsPart n) hdom = n.bits from this ▸ Part.get_mem hdom
+    dsimp only [bitsStep] at ht
+    split_ifs at ht with hn
+    · simp_all
+    · obtain ⟨w, _, hw⟩ := Option.bind_eq_some_iff.mp ht
+      split_ifs at hw with hfld
+      simp only [Option.some.injEq] at hw
+      rw [← hw, ← hfld, Nat.bits_foldr_bit_one]
   let unpairFun : List Bool → ℕ := fun s =>
     let xy := decodeSelfDelimiting s
     Nat.pair (encode xy.1) (encode xy.2)
@@ -1390,21 +1230,15 @@ theorem exists_abs_complexity_universalPrefixBits_pair_sub_shortestProgram_le :
     simpa [unpairFun] using hc_unpair (selfDelimitingCode x ++ y)
   have hpair_hi : universalPrefixBits.complexity (selfDelimitingCode x ++ y) ≤
       universalPrefix.complexity (Nat.pair (encode x) (encode y)) + c_pair := by
-    have hmem_pair : encode (selfDelimitingCode x ++ y) ∈
-        pairPart (Nat.pair (encode x) (encode y)) := by
-      refine Part.mem_bind_iff.mpr ⟨x, by simp, ?_⟩
-      refine Part.mem_bind_iff.mpr ⟨y, by simp, ?_⟩
-      refine (Part.mem_map_iff _).mpr ⟨x.length.bits, hbits_mem x.length, ?_⟩
-      rw [Nat.size_eq_bits_len]
-      rfl
-    exact (complexity_universalPrefixBits_le_encode (selfDelimitingCode x ++ y)).trans
-      (hc_pair (Nat.pair (encode x) (encode y)) (encode (selfDelimitingCode x ++ y)) hmem_pair)
+    exact (complexity_universalPrefixBits_le_encode _).trans (hc_pair _ _ <|
+      Part.mem_bind_iff.mpr ⟨x, by simp, Part.mem_bind_iff.mpr ⟨y, by simp,
+        (Part.mem_map_iff _).mpr ⟨x.length.bits, hbits_mem x.length,
+          by rw [Nat.size_eq_bits_len]; rfl⟩⟩⟩)
   have hx_lo := h₂ x
   have hx_hi := complexity_universalPrefixBits_le_encode x
   have hcond_lo := h₃ (shortestPrefixProgramBits x) y
   have hcond_hi := complexity_condUniversalPrefixBits_le_encode (shortestPrefixProgramBits x) y
-  have hsp : shortestPrefixProgramBits x = shortestPrefixProgram (encode x) := rfl
-  simp only [hsp] at hcond_lo hcond_hi ⊢
+  dsimp only [shortestPrefixProgramBits] at hcond_lo hcond_hi ⊢
   rw [abs_le]
   constructor <;> omega
 
