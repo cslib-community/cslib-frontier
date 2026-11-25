@@ -110,18 +110,14 @@ theorem run_apply (h : IdenticalUntilBad first second bad) (program : OracleComp
       Probability.PMF.monad_bind_eq_bind, PMF.bind_apply]
     refine tsum_congr fun y => ?_
     by_cases hy : bad y.2
-    · have hzero (handler : (q : ι) → StateT σ PMF (spec q))
-          (habsorb : ∀ q s, bad s → ∀ x ∈ (handler q s).support, bad x.2) :
-          (interpret handler (cont y.1)).run y.2 (a, s') = 0 :=
-        (PMF.apply_eq_zero_iff _ _).mpr fun hmem =>
-          hs' (bad_of_mem_support_run habsorb (cont y.1) hy _ hmem)
-      rw [hzero first h.absorb_first, hzero second h.absorb_second, mul_zero, mul_zero]
+    · rw [(PMF.apply_eq_zero_iff _ (a, s')).mpr fun hmem =>
+        hs' (bad_of_mem_support_run h.absorb_first (cont y.1) hy (a, s') hmem),
+        (PMF.apply_eq_zero_iff _ (a, s')).mpr fun hmem =>
+        hs' (bad_of_mem_support_run h.absorb_second (cont y.1) hy (a, s') hmem),
+        mul_zero, mul_zero]
     · by_cases hs : bad s
-      · have hzero (handler : (q : ι) → StateT σ PMF (spec q))
-            (habsorb : ∀ q s, bad s → ∀ x ∈ (handler q s).support, bad x.2) :
-            handler q s y = 0 :=
-          (PMF.apply_eq_zero_iff _ _).mpr fun hmem => hy (habsorb q s hs y hmem)
-        rw [hzero first h.absorb_first, hzero second h.absorb_second, zero_mul, zero_mul]
+      · rw [(PMF.apply_eq_zero_iff _ y).mpr (hy ∘ h.absorb_first q s hs y),
+          (PMF.apply_eq_zero_iff _ y).mpr (hy ∘ h.absorb_second q s hs y), zero_mul, zero_mul]
       · rw [show y = (y.1, y.2) from rfl, h.agree q s hs y.1 y.2 hy, ih y.1 y.2]
 
 /-- **The difference lemma** ([BonehShoup2023], Theorem 4.7): any experiment continuing the run
@@ -137,26 +133,17 @@ theorem bind_apply_le (h : IdenticalUntilBad first second bad) (program : Oracle
   rw [← tsum_add]
   refine tsum_le_tsum fun x => ?_
   by_cases hx : bad x.2
-  · have hbad : x ∈ {x : α × σ | bad x.2} := hx
-    rw [Set.indicator_of_mem hbad]
-    calc ((interpret first program).run s) x * next x b
-        ≤ ((interpret first program).run s) x * 1 :=
-          mul_le_mul_of_nonneg_left (PMF.coe_le_one _ _) zero_le
-      _ ≤ _ := by rw [mul_one]; exact le_add_self
-  · have hgood : x ∉ {x : α × σ | bad x.2} := hx
-    rw [Set.indicator_of_notMem hgood, add_zero, show x = (x.1, x.2) from rfl,
-      h.run_apply program s x.1 x.2 hx]
+  · rw [Set.indicator_of_mem (show x ∈ {x : α × σ | bad x.2} from hx)]
+    exact (mul_le_mul_of_nonneg_left (PMF.coe_le_one _ _) zero_le).trans
+      (by rw [mul_one]; exact le_add_self)
+  · rw [Set.indicator_of_notMem (show x ∉ {x : α × σ | bad x.2} from hx), add_zero,
+      show x = (x.1, x.2) from rfl, h.run_apply program s x.1 x.2 hx]
 
 /-- Identical until bad is symmetric. -/
 theorem symm (h : IdenticalUntilBad first second bad) : IdenticalUntilBad second first bad where
   agree q s hs a s' hs' := (h.agree q s hs a s' hs').symm
   absorb_first := h.absorb_second
   absorb_second := h.absorb_first
-
-/-- A run gives the bad states and the good states total probability one. -/
-private theorem toOuterMeasure_bad_add_good (p : PMF (α × σ)) :
-    p.toOuterMeasure {x | bad x.2} + p.toOuterMeasure {x | ¬bad x.2} = 1 :=
-  Probability.PMF.toOuterMeasure_add_compl_ennreal p _
 
 /-- Handlers that agree until a bad state reach a bad state with the same probability. -/
 theorem bad_eq (h : IdenticalUntilBad first second bad) (program : OracleComp spec α) (s : σ) :
@@ -167,16 +154,15 @@ theorem bad_eq (h : IdenticalUntilBad first second bad) (program : OracleComp sp
     simp only [PMF.toOuterMeasure_apply]
     refine tsum_congr fun x => ?_
     by_cases hx : bad x.2
-    · rw [Set.indicator_of_notMem (show x ∉ {x : α × σ | ¬bad x.2} from fun h => h hx),
-        Set.indicator_of_notMem (show x ∉ {x : α × σ | ¬bad x.2} from fun h => h hx)]
+    · rw [Set.indicator_of_notMem (show x ∉ {x : α × σ | ¬bad x.2} from (· hx)),
+        Set.indicator_of_notMem (show x ∉ {x : α × σ | ¬bad x.2} from (· hx))]
     · rw [Set.indicator_of_mem (show x ∈ {x : α × σ | ¬bad x.2} from hx),
         Set.indicator_of_mem (show x ∈ {x : α × σ | ¬bad x.2} from hx),
         show x = (x.1, x.2) from rfl, h.run_apply program s x.1 x.2 hx]
-  have hfirst := toOuterMeasure_bad_add_good (bad := bad) ((interpret first program).run s)
-  have hsecond := toOuterMeasure_bad_add_good (bad := bad) ((interpret second program).run s)
-  rw [hgood] at hfirst
   exact (ENNReal.add_left_inj (Probability.PMF.toOuterMeasure_ne_top _ _)).mp
-    (hfirst.trans hsecond.symm)
+    ((hgood ▸ Probability.PMF.toOuterMeasure_add_compl_ennreal
+      ((interpret first program).run s) {x | bad x.2}).trans
+      (Probability.PMF.toOuterMeasure_add_compl_ennreal _ _).symm)
 
 /-- **The difference lemma, two-sided** ([BonehShoup2023], Theorem 4.7): any experiment continuing
 the run of a program accepts with probabilities, under the two handlers, that differ by at most the
@@ -186,13 +172,11 @@ theorem abs_sub_le (h : IdenticalUntilBad first second bad) (program : OracleCom
     |(((interpret first program).run s).bind next b).toReal -
         (((interpret second program).run s).bind next b).toReal| ≤
       (((interpret first program).run s).toOuterMeasure {x | bad x.2}).toReal := by
-  have hle := h.bind_apply_le program s next b
-  have hle' := h.symm.bind_apply_le program s next b
-  rw [← h.bad_eq] at hle'
   have hbad := Probability.PMF.toOuterMeasure_ne_top ((interpret first program).run s)
     {x | bad x.2}
-  have h1 := ENNReal.toReal_le_add hle (PMF.apply_ne_top _ _) hbad
-  have h2 := ENNReal.toReal_le_add hle' (PMF.apply_ne_top _ _) hbad
+  have h1 := ENNReal.toReal_le_add (h.bind_apply_le program s next b) (PMF.apply_ne_top _ _) hbad
+  have h2 := ENNReal.toReal_le_add (h.bad_eq program s ▸ h.symm.bind_apply_le program s next b)
+    (PMF.apply_ne_top _ _) hbad
   exact abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
 
 end IdenticalUntilBad
@@ -219,19 +203,14 @@ theorem toOuterMeasure_bad_le {handler : (q : ι) → StateT σ PMF (spec q)} {b
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hk
     simp only [interp_norm, Probability.PMF.monad_bind_eq_bind]
     set K : ℝ≥0∞ := (k - cost q : ℕ) * (budget s + δ + n * δ)
-    calc _ ≤ (handler q s).toOuterMeasure {x | bad x.2} + K := by
-          refine Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ K fun y hmem hy => ?_
-          refine (ih y.1 (hcont y.1) hy).trans ?_
-          simp only [K]
-          gcongr
-          exact hgrow q s hs y hmem hy
+    calc _ ≤ (handler q s).toOuterMeasure {x | bad x.2} + K :=
+          Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ K fun y hmem hy =>
+            (ih y.1 (hcont y.1) hy).trans
+              (by simp only [K]; gcongr; exact hgrow q s hs y hmem hy)
       _ ≤ cost q * (budget s + (n + 1 : ℕ) * δ) +
-            (k - cost q : ℕ) * (budget s + (n + 1 : ℕ) * δ) := by
-          refine add_le_add ((hstep q s hs).trans ?_) (le_of_eq ?_)
-          · gcongr
-            exact le_self_add
-          · simp only [K, Nat.cast_add, Nat.cast_one]
-            ring
+            (k - cost q : ℕ) * (budget s + (n + 1 : ℕ) * δ) :=
+          add_le_add ((hstep q s hs).trans (by gcongr; exact le_self_add))
+            (le_of_eq (by simp only [K, Nat.cast_add, Nat.cast_one]; ring))
       _ = k * (budget s + (n + 1 : ℕ) * δ) := by
           rw [← add_mul, ← Nat.cast_add, Nat.add_sub_cancel' hle]
 
