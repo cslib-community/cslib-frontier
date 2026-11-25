@@ -140,17 +140,15 @@ theorem exists_local_polynomial_POVMs_of_projective {k : ℕ} (D : ℕ)
       (decodedPoint C.alice u)
       ((QuantumStrategy.rightMeasurement (ι := ι) Gᵦ).map fun g => MvPolynomial.eval u g.val))) ≥
         0 := by
-    refine expect_nonneg fun u _ => sub_nonneg.mpr ?_
-    apply Measurement.agreement_le_one
-    exact Measurement.commute_map_map _ _
-      (QuantumStrategy.commute_liftedEffects (S.alice (.point u)) Gᵦ) decodePoint _
+    refine expect_nonneg fun u _ => sub_nonneg.mpr <| Measurement.agreement_le_one _ _ _ <|
+      Measurement.commute_map_map _ _
+        (QuantumStrategy.commute_liftedEffects (S.alice (.point u)) Gᵦ) decodePoint _
   have hᵦ : (𝔼 u : Point F (n + 1), (1 - Measurement.agreement C.state
       ((QuantumStrategy.leftMeasurement (κ := κ) Gₐ).map fun g => MvPolynomial.eval u g.val)
       (decodedPoint C.bob u))) ≥ 0 := by
-    refine expect_nonneg fun u _ => sub_nonneg.mpr ?_
-    apply Measurement.agreement_le_one
-    exact Measurement.commute_map_map _ _
-      (QuantumStrategy.commute_liftedEffects Gₐ (S.bob (.point u))) _ decodePoint
+    refine expect_nonneg fun u _ => sub_nonneg.mpr <| Measurement.agreement_le_one _ _ _ <|
+      Measurement.commute_map_map _ _
+        (QuantumStrategy.commute_liftedEffects Gₐ (S.bob (.point u))) _ decodePoint
   dsimp only
   simp only [expect_sub_distrib, Fintype.expect_const] at hₐ hᵦ ⊢
   exact ⟨by linarith only [hG, hᵦ], by linarith only [hG, hₐ]⟩
