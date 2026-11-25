@@ -233,8 +233,7 @@ private theorem isUnionIndep_exists_insert [Finite ι] [DecidableEq α]
   let K' : Finset (ι × α) := K ∆ p.toFinset
   have hinj_K : Set.InjOn Prod.snd (K : Set (ι × α)) :=
     unitPartitionMatroid_indep_iff.1 hK.indep_right
-  have hI_sub : I ⊆ K'.image Prod.snd := by
-    intro x hxI
+  have hI_sub : I ⊆ K'.image Prod.snd := fun x hxI => by
     obtain ⟨v, hvK, rfl⟩ := Finset.mem_image.1 (hKI ▸ hxI)
     by_cases hvp : v ∉ p
     · exact Finset.mem_image_of_mem _ (Finset.mem_symmDiff.2 (.inl ⟨hvK, by simpa using hvp⟩))
@@ -249,8 +248,7 @@ private theorem isUnionIndep_exists_insert [Finite ι] [DecidableEq α]
     obtain ⟨huE, hind₂⟩ :
         u ∈ E \ K ∧ M₂.Indep ((insert u (K.erase v) : Finset (ι × α)) : Set (ι × α)) := by
       rcases harc with ⟨_, hvEK, _⟩ | ⟨huE, _, hind₂⟩
-      · exact absurd hvK (Finset.mem_sdiff.1 hvEK).2
-      · exact ⟨huE, hind₂⟩
+      exacts [absurd hvK (Finset.mem_sdiff.1 hvEK).2, ⟨huE, hind₂⟩]
     have hu_not_K : u ∉ K := (Finset.mem_sdiff.1 huE).2
     have hu_I : u.2 ∈ I := by
       -- otherwise `u` is a sink and `p.take t` is a shorter augmenting walk
@@ -270,10 +268,8 @@ private theorem isUnionIndep_exists_insert [Finite ι] [DecidableEq α]
       rw [List.length_take] at hlen
       omega
     obtain ⟨w, hwK, hwu⟩ := Finset.mem_image.1 (hKI ▸ hu_I)
-    have hwv : w = v := by
-      by_contra hwv
-      exact hu_not_K (unitPartitionMatroid_indep_iff.1 hind₂ (by simp) (by simp [hwv, hwK])
-        hwu.symm ▸ hwK)
+    have hwv : w = v := of_not_not fun hwv => hu_not_K
+      (unitPartitionMatroid_indep_iff.1 hind₂ (by simp) (by simp [hwv, hwK]) hwu.symm ▸ hwK)
     exact Finset.mem_image.2 ⟨u, Finset.mem_symmDiff.2
       (.inr ⟨List.mem_toFinset.2 (List.getElem_mem _), hu_not_K⟩), by rw [← hwu, hwv]⟩
   obtain ⟨e, he_not_I, he_eq⟩ := Finset.exists_eq_insert_iff.2 ⟨hI_sub, by
