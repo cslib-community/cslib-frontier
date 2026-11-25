@@ -50,28 +50,23 @@ theorem space_sq_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N τ : ℕ,
         BalancedParameters.parameters.horizon guess ≤
       c * (15 * B + N.size + 1) + 15 * B := by
     intro guess hguess
-    change InitializedEvaluator.scheduleAllowance k s Q N (BalancedParameters.blockWidth guess)
-        (BalancedParameters.horizon guess) + (BalancedParameters.blockWidth guess).size +
-        BalancedParameters.horizon guess ≤ _
-    have hcost := hc N (BalancedParameters.blockWidth guess) (BalancedParameters.horizon guess)
-      (BalancedParameters.blockWidth_pos guess)
-    have hstorage := BalancedParameters.storage_le guess
-    have hmono : BalancedParameters.blockWidth guess ≤ B :=
-      BalancedParameters.blockWidth_mono hguess
-    have hbs : (BalancedParameters.blockWidth guess).size ≤
-        BalancedParameters.blockWidth guess := by
-      simpa only [length_encNat_eq_size] using
-        length_encNat_le_self (BalancedParameters.blockWidth guess)
-    have hhz : BalancedParameters.horizon guess ≤ BalancedParameters.horizon guess *
-        ((BalancedParameters.blockWidth guess).size + 1) := Nat.le_mul_of_pos_right _ (by omega)
-    have hterm : BalancedParameters.blockWidth guess + BalancedParameters.horizon guess *
-        ((BalancedParameters.blockWidth guess).size + 1) + N.size + 1 ≤ 15 * B + N.size + 1 := by
-      omega
-    have hmul := Nat.mul_le_mul_left c hterm
+    let bw := BalancedParameters.blockWidth guess
+    let hz := BalancedParameters.horizon guess
+    change InitializedEvaluator.scheduleAllowance k s Q N bw hz + bw.size + hz ≤ _
+    have hcost := hc N bw hz (BalancedParameters.blockWidth_pos guess)
+    have hstorage : bw + hz * (bw.size + 1) ≤ 15 * bw := BalancedParameters.storage_le guess
+    have hmono : bw ≤ B := BalancedParameters.blockWidth_mono hguess
+    have hbs : bw.size ≤ bw := by
+      simpa only [length_encNat_eq_size] using length_encNat_le_self bw
+    have hhz : hz ≤ hz * (bw.size + 1) := Nat.le_mul_of_pos_right _ (by omega)
+    have hmul := Nat.mul_le_mul_left c
+      (show bw + hz * (bw.size + 1) + N.size + 1 ≤ 15 * B + N.size + 1 by omega)
     omega
   have hinner : c * (15 * B + N.size + 1) + 15 * B + N.size + G.size + 1 ≤ (18 * c + 20) * B := by
     have hmul := Nat.mul_le_mul_left c (show 15 * B + N.size + 1 ≤ 18 * B by omega)
-    nlinarith
+    calc c * (15 * B + N.size + 1) + 15 * B + N.size + G.size + 1
+        ≤ c * (18 * B) + 20 * B := by omega
+      _ = (18 * c + 20) * B := by ring
   have hscalar : space k (InitializedEvaluator.scheduleAllowance k s Q)
       BalancedParameters.parameters N τ ≤ K * B :=
     calc

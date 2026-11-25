@@ -328,16 +328,9 @@ theorem card_flowToMatching_coe (f : (bipartiteNetwork G).Flow) :
       split_ifs at hcap <;> omega
     split_ifs <;> omega
   have hcard : (flowToMatching f).card = ∑ u : L, f .source (.left u) := by
-    calc
-      (flowToMatching f).card = ∑ _e ∈ flowToMatching f, 1 := by simp
-      _ = ∑ e : L × R, if 0 < f (.left e.1) (.right e.2) then 1 else 0 :=
-        Finset.sum_filter _ _
-      _ = ∑ u : L, ∑ v : R, if 0 < f (.left u) (.right v) then 1 else 0 := by
-        rw [← Finset.univ_product_univ, Finset.sum_product]
-      _ = ∑ u : L, ∑ v : R, f (.left u) (.right v) :=
-        Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => h01 u v
-      _ = ∑ u : L, f .source (.left u) :=
-        Finset.sum_congr rfl fun u _ => bipartiteFlow_left_conserve f u
+    rw [flowToMatching, Finset.card_filter, ← Finset.univ_product_univ, Finset.sum_product]
+    exact Finset.sum_congr rfl fun u _ =>
+      (Finset.sum_congr rfl fun v _ => h01 u v).trans (bipartiteFlow_left_conserve f u)
   rw [hcard, bipartiteFlow_value_eq_sum_left, Nat.cast_sum]
 
 /-- Construct a feasible unit integral flow on `bipartiteNetwork G` of value `M.card` from any
@@ -403,23 +396,12 @@ bipartite matching `M` ([CLRS2009], Lemma 26.9, p. 733). -/
 @[simp]
 theorem value_matchingToFlow [DecidableEq L] [DecidableEq R] {M : Finset (L × R)}
     (hM : IsMatching G M) : (matchingToFlow hM).value = (M.card : ℤ) := by
-  rw [bipartiteFlow_value_eq_sum_left, ← Nat.cast_sum]
-  congr 1
-  have hlhs :
-      (∑ u : L, (matchingToFlow hM) .source (.left u)) =
-        ∑ u : L, ∑ v : R, (matchingToFlow hM) (.left u) (.right v) :=
-    Finset.sum_congr rfl fun u _ => (bipartiteFlow_left_conserve (matchingToFlow hM) u).symm
-  rw [hlhs]
-  calc
-    (∑ u : L, ∑ v : R, (if (u, v) ∈ M then 1 else 0))
+  rw [bipartiteFlow_value_eq_sum_left, ← Nat.cast_sum, Nat.cast_inj]
+  calc ∑ u : L, (matchingToFlow hM) .source (.left u)
       = ∑ e : L × R, if e ∈ M then 1 else 0 := by
         rw [← Finset.univ_product_univ, Finset.sum_product]
-    _ = ∑ _e ∈ Finset.univ.filter (fun e : L × R => e ∈ M), 1 :=
-        (Finset.sum_filter _ _).symm
-    _ = M.card := by
-        have hflt : Finset.univ.filter (fun e : L × R => e ∈ M) = M := by ext e; simp
-        rw [hflt]
-        simp
+        exact Finset.sum_congr rfl fun u _ => (bipartiteFlow_left_conserve _ u).symm
+    _ = M.card := by rw [← Finset.card_filter]; congr 1; ext; simp
 
 end FlowProperties
 
@@ -513,28 +495,13 @@ theorem isCut_vertexCoverToCut [DecidableEq L] [DecidableEq R]
 theorem cutCapacity_vertexCoverToCut [DecidableEq L] [DecidableEq R]
     {C : VertexCover L R} (hC : IsVertexCover G C) :
     (bipartiteNetwork G).cutCapacity (vertexCoverToCut C) = C.size := by
-  rw [bipartiteNetwork_cutCapacity_eq (isCut_vertexCoverToCut C)]
-  have hL :
-      (∑ u : L, if BipartiteVertex.left u ∉ vertexCoverToCut C then 1 else 0) = C.left.card := by
-    simp [vertexCoverToCut, vertexCoverCutPred]
-  have hM :
-      (∑ u : L, ∑ v : R,
-          if BipartiteVertex.left u ∈ vertexCoverToCut C ∧
-              BipartiteVertex.right v ∉ vertexCoverToCut C ∧ G (u, v) = true then
-            1
-          else 0) = 0 := by
-    refine Finset.sum_eq_zero fun u _ => Finset.sum_eq_zero fun v _ => ?_
-    by_cases hG : G (u, v) = true
-    · rcases hC u v hG with hu | hv
-      · simp [vertexCoverToCut, vertexCoverCutPred, hu, hG]
-      · simp [vertexCoverToCut, vertexCoverCutPred, hv, hG]
-    · simp [hG]
-  have hR :
-      (∑ v : R, if BipartiteVertex.right v ∈ vertexCoverToCut C then 1 else 0) = C.right.card := by
-    simp [vertexCoverToCut, vertexCoverCutPred]
-  rw [hL, hM, hR]
-  unfold VertexCover.size
-  omega
+  have hzero : ∀ u v, ¬(BipartiteVertex.left u ∈ vertexCoverToCut C ∧
+      BipartiteVertex.right v ∉ vertexCoverToCut C ∧ G (u, v) = true) := by
+    rintro u v ⟨hu, hv, hG⟩
+    rcases hC u v hG with h | h <;> simp_all [vertexCoverToCut, vertexCoverCutPred]
+  simp only [bipartiteNetwork_cutCapacity_eq (isCut_vertexCoverToCut C), hzero, ↓reduceIte,
+    Finset.sum_const_zero, add_zero]
+  simp [vertexCoverToCut, vertexCoverCutPred, VertexCover.size]
 
 /-- Extract a bipartite vertex cover of size at most `cutCapacity S` from any `s`-`t` cut `S` of
 `bipartiteNetwork G`. -/
@@ -558,19 +525,7 @@ theorem size_cutToVertexCover_le [DecidableEq L] [DecidableEq R]
     (cutToVertexCover G S).size ≤ (bipartiteNetwork G).cutCapacity S := by
   rw [bipartiteNetwork_cutCapacity_eq hS]
   unfold VertexCover.size cutToVertexCover
-  have hL_card :
-      (Finset.univ.filter
-          (fun u : L => .left u ∉ S ∨ ∃ v : R, G (u, v) = true ∧ .right v ∉ S)).card =
-        ∑ u : L,
-          if .left u ∉ S ∨ ∃ v : R, G (u, v) = true ∧ .right v ∉ S then 1 else 0 := by
-    rw [← Finset.sum_filter]
-    simp
-  have hR_card :
-      (Finset.univ.filter (fun v : R => .right v ∈ S)).card =
-        ∑ v : R, if .right v ∈ S then 1 else 0 := by
-    rw [← Finset.sum_filter]
-    simp
-  rw [hL_card, hR_card, ← Finset.sum_add_distrib]
+  rw [Finset.card_filter, Finset.card_filter, ← Finset.sum_add_distrib]
   have hle_left :
       (∑ u : L, if .left u ∉ S ∨ ∃ v : R, G (u, v) = true ∧ .right v ∉ S then 1 else 0) ≤
         ∑ u : L,
@@ -611,10 +566,32 @@ theorem card_le_size_of_matching_vertexCover {M : Finset (L × R)} (hM : IsMatch
   rw [value_matchingToFlow hM, cutCapacity_vertexCoverToCut hC] at hflow
   omega
 
+end KoenigFinite
+
+/-- Any maximum flow `f` and minimum cut `S` of equal value on `bipartiteNetwork G` yield a
+maximum matching `flowToMatching f` and minimum König vertex cover `cutToVertexCover G S` of
+equal size. -/
+theorem bipartiteMatching_of_maxFlow_minCut [Fintype L] [Fintype R]
+    [DecidableEq L] [DecidableEq R] {G : L × R → Bool}
+    {f : (bipartiteNetwork G).Flow} {S : Finset (BipartiteVertex L R)}
+    (hS : (bipartiteNetwork G).IsCut S)
+    (hval : f.value = ((bipartiteNetwork G).cutCapacity S : ℤ)) :
+    IsMaxMatching G (flowToMatching f) ∧
+      IsMinVertexCover G (cutToVertexCover G S) ∧
+      (flowToMatching f).card = (cutToVertexCover G S).size := by
+  have hM := isMatching_flowToMatching f
+  have hC := isVertexCover_cutToVertexCover G S
+  have hcoe := card_flowToMatching_coe f
+  have hC_le := size_cutToVertexCover_le hS
+  have hM_le := card_le_size_of_matching_vertexCover hM hC
+  refine ⟨⟨hM, fun M' hM' => ?_⟩, ⟨hC, fun C' hC' => ?_⟩, by omega⟩
+  · exact (card_le_size_of_matching_vertexCover hM' hC).trans (by omega)
+  · exact le_trans (by omega) (card_le_size_of_matching_vertexCover hM hC')
+
 /-- **König's Theorem** ([Koenig1931], pp. 116–119; [FordFulkerson1962], Chapter II, Section 4,
 Theorem 4.1): every finite bipartite graph `G : L × R → Bool` admits a maximum matching `M` and a
 minimum vertex cover `C` of equal size (`M.card = C.size`). -/
-theorem exists_maxMatching_eq_minVertexCover (G : L × R → Bool) :
+theorem exists_maxMatching_eq_minVertexCover [Finite L] [Finite R] (G : L × R → Bool) :
     ∃ (M : Finset (L × R)) (C : VertexCover L R),
       IsMaxMatching G M ∧ IsMinVertexCover G C ∧ M.card = C.size := by
   classical
@@ -622,25 +599,7 @@ theorem exists_maxMatching_eq_minVertexCover (G : L × R → Bool) :
   cases nonempty_fintype R
   obtain ⟨f, S, _, hS_min, hval⟩ :=
     (bipartiteNetwork G).exists_maxFlow_eq_minCut (bipartiteNetwork_s_ne_t G)
-  let M := flowToMatching f
-  let C := cutToVertexCover G S
-  have hM : IsMatching G M := isMatching_flowToMatching f
-  have hC : IsVertexCover G C := isVertexCover_cutToVertexCover G S
-  have hM_eq_cap : M.card = (bipartiteNetwork G).cutCapacity S := by
-    have hcoe := card_flowToMatching_coe f
-    change (M.card : ℤ) = f.value at hcoe
-    omega
-  have hC_le_cap : C.size ≤ (bipartiteNetwork G).cutCapacity S :=
-    size_cutToVertexCover_le hS_min.1
-  have hM_le_C : M.card ≤ C.size := card_le_size_of_matching_vertexCover hM hC
-  have heq : M.card = C.size := by omega
-  refine ⟨M, C, ⟨hM, fun M' hM' => ?_⟩, ⟨hC, fun C' hC' => ?_⟩, heq⟩
-  · have := card_le_size_of_matching_vertexCover hM' hC
-    omega
-  · have := card_le_size_of_matching_vertexCover hM hC'
-    omega
-
-end KoenigFinite
+  exact ⟨_, _, bipartiteMatching_of_maxFlow_minCut hS_min.1 hval⟩
 
 end FlowReduction
 
@@ -658,45 +617,28 @@ theorem hasPerfectMatching_iff_exists_matching_card (G : V × V → Bool) :
   classical
   constructor
   · rintro ⟨σ, hσ⟩
-    let M : Finset (V × V) := Finset.univ.image fun u => (u, σ u)
-    have hinj : Function.Injective (fun u : V => (u, σ u)) := fun a b h => (Prod.mk.inj h).1
-    refine ⟨M, ⟨?_, ?_, ?_⟩, ?_⟩
-    · intro e he
-      obtain ⟨u, _, rfl⟩ := Finset.mem_image.mp he
+    have hmem : ∀ {u v}, (u, v) ∈ Finset.univ.image (fun u => (u, σ u)) ↔ σ u = v := by simp
+    refine ⟨Finset.univ.image fun u => (u, σ u), ⟨fun e he => ?_,
+      fun u v₁ v₂ h₁ h₂ => (hmem.mp h₁).symm.trans (hmem.mp h₂),
+      fun u₁ u₂ v h₁ h₂ => σ.injective ((hmem.mp h₁).trans (hmem.mp h₂).symm)⟩, ?_⟩
+    · obtain ⟨u, _, rfl⟩ := Finset.mem_image.mp he
       exact hσ u
-    · intro u v₁ v₂ h₁ h₂
-      obtain ⟨a₁, _, ha₁⟩ := Finset.mem_image.mp h₁
-      obtain ⟨a₂, _, ha₂⟩ := Finset.mem_image.mp h₂
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj ha₁
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj ha₂
-      rfl
-    · intro u₁ u₂ v h₁ h₂
-      obtain ⟨a₁, _, ha₁⟩ := Finset.mem_image.mp h₁
-      obtain ⟨a₂, _, ha₂⟩ := Finset.mem_image.mp h₂
-      obtain ⟨rfl, hv₁⟩ := Prod.mk.inj ha₁
-      obtain ⟨rfl, hv₂⟩ := Prod.mk.inj ha₂
-      exact σ.injective (hv₁.trans hv₂.symm)
-    · rw [Finset.card_image_of_injective _ hinj, Finset.card_univ]
+    · rw [Finset.card_image_of_injective _ fun a b h => (Prod.mk.inj h).1, Finset.card_univ]
   · rintro ⟨M, ⟨hM_edge, hM_left, hM_right⟩, hcard⟩
     have hinj_fst : Set.InjOn Prod.fst (M : Set (V × V)) := by
       intro ⟨u₁, v₁⟩ h₁ ⟨u₂, v₂⟩ h₂ (hu : u₁ = u₂)
       subst hu
       exact Prod.ext rfl (hM_left u₁ v₁ v₂ h₁ h₂)
-    have himg_card : (M.image Prod.fst).card = Fintype.card V := by
-      rw [Finset.card_image_of_injOn hinj_fst, hcard]
     have himg_univ : M.image Prod.fst = Finset.univ :=
-      Finset.eq_of_subset_of_card_le (Finset.subset_univ _) (by simp [himg_card])
-    have hex : ∀ u : V, ∃ v : V, (u, v) ∈ M := by
-      intro u
-      have hu : u ∈ M.image Prod.fst := by rw [himg_univ]; exact Finset.mem_univ u
-      obtain ⟨⟨u', v⟩, hmem, rfl⟩ := Finset.mem_image.mp hu
+      Finset.eq_of_subset_of_card_le (Finset.subset_univ _)
+        (by simp [Finset.card_image_of_injOn hinj_fst, hcard])
+    have hex : ∀ u : V, ∃ v : V, (u, v) ∈ M := fun u => by
+      obtain ⟨⟨_, v⟩, hmem, rfl⟩ :=
+        Finset.mem_image.mp (by rw [himg_univ]; exact Finset.mem_univ u : u ∈ M.image Prod.fst)
       exact ⟨v, hmem⟩
-    let g : V → V := fun u => Classical.choose (hex u)
-    have hg_mem : ∀ u : V, (u, g u) ∈ M := fun u => Classical.choose_spec (hex u)
-    have hg_inj : Function.Injective g := fun u₁ u₂ heq =>
-      hM_right u₁ u₂ (g u₁) (hg_mem u₁) (heq ▸ hg_mem u₂)
-    exact ⟨Equiv.ofBijective g (Finite.injective_iff_bijective.mp hg_inj),
-      fun u => hM_edge (u, g u) (hg_mem u)⟩
+    choose g hg_mem using hex
+    exact ⟨Equiv.ofBijective g (Finite.injective_iff_bijective.mp fun u₁ u₂ heq =>
+      hM_right u₁ u₂ (g u₁) (hg_mem u₁) (heq ▸ hg_mem u₂)), fun u => hM_edge (u, g u) (hg_mem u)⟩
 
 /-- Flow characterization of `HasPerfectMatching G`: `G : V × V → Bool` has a perfect matching if
 and only if `bipartiteNetwork G` admits an integral flow of value `Fintype.card V`. -/
@@ -747,33 +689,6 @@ structure BipartiteOutput (m r : ℕ) where
   augmentations : ℕ
 
 
-/-- Any maximum flow `f` and minimum cut `S` of equal value on `bipartiteNetwork G` yield a
-maximum matching `flowToMatching f` and minimum König vertex cover `cutToVertexCover G S` of
-equal size. -/
-theorem bipartiteMatching_of_maxFlow_minCut {L R : Type*} [Fintype L] [Fintype R]
-    [DecidableEq L] [DecidableEq R] {G : L × R → Bool}
-    {f : (bipartiteNetwork G).Flow} {S : Finset (BipartiteVertex L R)}
-    (hS : (bipartiteNetwork G).IsCut S)
-    (hval : f.value = ((bipartiteNetwork G).cutCapacity S : ℤ)) :
-    IsMaxMatching G (flowToMatching f) ∧
-      IsMinVertexCover G (cutToVertexCover G S) ∧
-      (flowToMatching f).card = (cutToVertexCover G S).size := by
-  have hM : IsMatching G (flowToMatching f) := isMatching_flowToMatching f
-  have hC : IsVertexCover G (cutToVertexCover G S) := isVertexCover_cutToVertexCover G S
-  have hM_card : (flowToMatching f).card = (bipartiteNetwork G).cutCapacity S := by
-    have hcoe := card_flowToMatching_coe f
-    omega
-  have hC_le : (cutToVertexCover G S).size ≤ (bipartiteNetwork G).cutCapacity S :=
-    size_cutToVertexCover_le hS
-  have hM_le_C : (flowToMatching f).card ≤ (cutToVertexCover G S).size :=
-    card_le_size_of_matching_vertexCover hM hC
-  have heq : (flowToMatching f).card = (cutToVertexCover G S).size := by omega
-  refine ⟨⟨hM, fun M' hM' => ?_⟩, ⟨hC, fun C' hC' => ?_⟩, heq⟩
-  · have := card_le_size_of_matching_vertexCover hM' hC
-    omega
-  · have := card_le_size_of_matching_vertexCover hM hC'
-    omega
-
 /-- Compute a maximum bipartite matching and minimum König vertex cover of
 `G : Fin m × Fin r → Bool` via `edmondsKarpDense`. -/
 @[expose] def bipartiteMatching {m r : ℕ}
@@ -792,20 +707,12 @@ theorem bipartiteMatching_correct {m r : ℕ} (G : Fin m × Fin r → Bool) :
     IsMaxMatching G res.matching ∧
       IsMinVertexCover G res.cover ∧
       res.matching.card = res.cover.size := by
-  have hst : (bipartiteFinNetwork G).s ≠ (bipartiteFinNetwork G).t := by
-    intro h
-    exact bipartiteNetwork_s_ne_t G ((bipartiteFinEquiv m r).injective h)
+  have hst : (bipartiteFinNetwork G).s ≠ (bipartiteFinNetwork G).t := fun h =>
+    bipartiteNetwork_s_ne_t G ((bipartiteFinEquiv m r).injective h)
   obtain ⟨_, hmin_cut, hval, _, _, _⟩ := edmondsKarpDense_correct (N := bipartiteFinNetwork G) hst
-  let out := edmondsKarpDense (bipartiteFinNetwork G)
-  have hS_cut : (bipartiteNetwork G).IsCut (Network.cutOfReindex (bipartiteFinEquiv m r) out.cut) :=
-    Network.isCut_cutOfReindex (bipartiteFinEquiv m r) hmin_cut.1
-  have hcap_eq : (bipartiteNetwork G).cutCapacity
-      (Network.cutOfReindex (bipartiteFinEquiv m r) out.cut) =
-      (bipartiteFinNetwork G).cutCapacity out.cut :=
-    Network.cutCapacity_cutOfReindex (bipartiteFinEquiv m r) (bipartiteNetwork G) out.cut
-  have hf_val : (out.flow.ofReindex (bipartiteFinEquiv m r)).value = out.flow.value :=
-    Network.Flow.value_ofReindex (bipartiteFinEquiv m r) out.flow
-  exact bipartiteMatching_of_maxFlow_minCut hS_cut (by rw [hf_val, hval, hcap_eq])
+  exact bipartiteMatching_of_maxFlow_minCut (Network.isCut_cutOfReindex _ hmin_cut.1)
+    ((Network.Flow.value_ofReindex _ _).trans
+      (hval.trans (congrArg _ (Network.cutCapacity_cutOfReindex _ _ _).symm)))
 
 /-- Decide whether `G : Fin n × Fin n → Bool` has a perfect matching via `bipartiteMatching`. -/
 @[expose] def decidePerfectMatching {n : ℕ} (G : Fin n × Fin n → Bool) : Bool :=
@@ -819,17 +726,10 @@ theorem decidePerfectMatching_eq_true_iff {n : ℕ} (G : Fin n × Fin n → Bool
   simp only [decidePerfectMatching, decide_eq_true_iff]
   rw [hasPerfectMatching_iff_exists_matching_card, Fintype.card_fin]
   obtain ⟨hM_max, _, _⟩ := bipartiteMatching_correct G
-  constructor
-  · intro hcard
-    exact ⟨(bipartiteMatching G).matching, hM_max.1, hcard⟩
-  · rintro ⟨M, hM, hcard⟩
-    have hle₁ : n ≤ (bipartiteMatching G).matching.card :=
-      Nat.le_trans (Nat.le_of_eq hcard.symm) (hM_max.2 M hM)
-    have htriv_cov : IsVertexCover G ⟨Finset.univ, ∅⟩ := fun u _ _ => .inl (Finset.mem_univ u)
-    have hle₂ : (bipartiteMatching G).matching.card ≤ n := by
-      have h := card_le_size_of_matching_vertexCover hM_max.1 htriv_cov
-      simpa [VertexCover.size] using h
-    omega
+  refine ⟨fun hcard => ⟨_, hM_max.1, hcard⟩, fun ⟨M, hM, hcard⟩ => ?_⟩
+  refine le_antisymm ?_ (hcard.symm.le.trans (hM_max.2 M hM))
+  simpa [VertexCover.size] using card_le_size_of_matching_vertexCover hM_max.1
+    (C := ⟨Finset.univ, ∅⟩) fun u _ _ => .inl (Finset.mem_univ u)
 
 end ExecutableBipartite
 

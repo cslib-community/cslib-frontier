@@ -164,25 +164,17 @@ private theorem ratTable_encoding_bounds (M : RatTable) :
       ∀ i : Fin M.numRows, ∀ j : Fin M.numCols,
         (M.toMatrix i j).num.natAbs ≤ 2 ^ L ∧ (M.toMatrix i j).den ≤ 2 ^ L := by
   intro L
-  have hrows : (encUnary M.numRows).length ≤ L := by
-    dsimp only [L]
-    rw [RatTable.enc_apply]
-    exact length_le_encPair_left encUnary (encPair encUnary (encList (encList encRat)))
-      (M.numRows, M.numCols, M.rows)
-  have hcols : (encUnary M.numCols).length ≤ L := by
-    dsimp only [L]
-    rw [RatTable.enc_apply]
-    have h1 := length_le_encPair_left encUnary (encList (encList encRat)) (M.numCols, M.rows)
-    have h2 := length_le_encPair_right encUnary (encPair encUnary (encList (encList encRat)))
-      (M.numRows, (M.numCols, M.rows))
-    exact h1.trans h2
-  have hmat : (encList (encList encRat) M.rows).length ≤ L := by
-    dsimp only [L]
-    rw [RatTable.enc_apply]
-    have h1 := length_le_encPair_right encUnary (encList (encList encRat)) (M.numCols, M.rows)
-    have h2 := length_le_encPair_right encUnary (encPair encUnary (encList (encList encRat)))
-      (M.numRows, (M.numCols, M.rows))
-    exact h1.trans h2
+  have hL : (encPair encUnary (encPair encUnary (encList (encList encRat)))
+      (M.numRows, M.numCols, M.rows)).length = L := by
+    rw [← RatTable.enc_apply]
+  have hp2 : (encPair encUnary (encList (encList encRat)) (M.numCols, M.rows)).length ≤ L :=
+    (length_le_encPair_right encUnary _ (M.numRows, M.numCols, M.rows)).trans_eq hL
+  have hrows : (encUnary M.numRows).length ≤ L :=
+    (length_le_encPair_left encUnary _ (M.numRows, M.numCols, M.rows)).trans_eq hL
+  have hcols : (encUnary M.numCols).length ≤ L :=
+    (length_le_encPair_left encUnary _ (M.numCols, M.rows)).trans hp2
+  have hmat : (encList (encList encRat) M.rows).length ≤ L :=
+    (length_le_encPair_right encUnary _ (M.numCols, M.rows)).trans hp2
   refine ⟨by simpa only [encUnary_apply, List.length_replicate] using hrows,
     by simpa only [encUnary_apply, List.length_replicate] using hcols, fun i j => ?_⟩
   simp only [Cslib.RowTable.toMatrix_apply, Cslib.RowTable.entry]
@@ -466,7 +458,7 @@ private theorem bareissElimCols_poly_of_bound {γ : Type} {encIn : γ ↪ List B
   unfold bareissElimCols bareissInit
   have hpoly_bound : PolyBounded (fun x => (encIn x).length)
       (fun x => bareissStateSizeBound (toTable x).numRows (toTable x).numCols (B x).size) := by
-    unfold bareissStateSizeBound; growth_poly
+    growth_poly
   refine (ComputableInPolyTime.foldlWith_spec
     (encP := encBool) (encA := encUnary) (encB := BareissState.enc)
     (par := fun _ => false) (list := fun x => List.range (colLimit x))
@@ -485,29 +477,12 @@ private theorem bareissElimCols_poly_of_bound {γ : Type} {encIn : γ ↪ List B
     hpoly_bound
     (fun x consumed st _ ⟨_, _, _, hinv⟩ =>
       length_encBareissState_le_of_inv hinv (hB x))).1
-  obtain ⟨rest, hrest⟩ := hpre
-  have hlen : (consumed ++ [c]).length ≤ (List.range (colLimit x)).length :=
-    calc (consumed ++ [c]).length
-        ≤ (consumed ++ [c]).length + rest.length := Nat.le_add_right _ _
-      _ = ((consumed ++ [c]) ++ rest).length := (List.length_append).symm
-      _ = (List.range (colLimit x)).length := by rw [hrest]
+  have hlen := hpre.length_le
   simp only [hcon, List.length_append, List.length_range, List.length_singleton] at hlen
   have hk' : k < colLimit x := by omega
   have hc_eq : c = k := by
-    have hk_rest : k < ((consumed ++ [c]) ++ rest).length := by
-      rw [hrest, List.length_range]
-      exact hk'
-    have hget : (List.range (colLimit x))[k]'(by rw [List.length_range]; exact hk') =
-        ((consumed ++ [c]) ++ rest)[k]'hk_rest := by
-      simp only [hrest]
-    have hleft : k < (consumed ++ [c]).length := by
-      simp only [hcon, List.length_append, List.length_range, List.length_singleton]
-      omega
-    have hright : consumed.length ≤ k := by simp only [hcon, List.length_range, le_refl]
-    rw [List.getElem_range, List.getElem_append_left hleft,
-      List.getElem_append_right hright] at hget
-    simp only [hcon, List.length_range, Nat.sub_self, List.getElem_singleton] at hget
-    exact hget.symm
+    have hget := hpre.getElem (by simp [hcon] : k < (consumed ++ [c]).length)
+    simpa [hcon] using hget
   rw [hc_eq]
   exact ⟨k + 1, hk', by simp only [hcon, List.range_succ],
     bareissInv_step (hk'.trans_le (hlim x)) hinv⟩
@@ -527,14 +502,7 @@ private theorem bareissElim_clearDenoms_poly {α : Type} {encIn : α ↪ List Bo
       PolyBounded.self.mono fun M => (ratTable_encoding_bounds M).2.1
     have hsizeB : PolyBounded (fun M => (RatTable.enc M).length)
         (fun M => (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size) := by
-      refine (by growth_poly : PolyBounded _
-          fun M => ((RatTable.enc M).length + 1) * (RatTable.enc M).length + 1).mono fun M => ?_
-      have hsize : (2 ^ ((M.numCols + 1) * (RatTable.enc M).length)).size ≤
-          (M.numCols + 1) * (RatTable.enc M).length + 1 :=
-        Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
-      exact hsize.trans
-        (Nat.add_le_add_right
-          (Nat.mul_le_mul_right _ (Nat.add_le_add_right (ratTable_encoding_bounds M).2.1 1)) 1)
+      growth_poly [@Nat.size_pow, fun M => (ratTable_encoding_bounds M).2.1]
     exact bareissElimCols_poly_of_bound (by fun_prop) (by fun_prop) clearDenoms_wellFormed
       (fun _ => le_refl _) hrows hcols hsizeB
       fun M i j => clearDenoms_abs_le M (ratTable_encoding_bounds M).2.2 i j
@@ -582,16 +550,8 @@ private theorem bareissElimCols_aug_poly {α : Type} {encIn : α ↪ List Bool}
         fun sys => Nat.add_le_add_right (linearSystemInput_encoding_bounds sys).2.1 1
     have hsizeB : PolyBounded (fun sys => (LinearSystemInput.enc sys).length)
         (fun sys => (Bfn sys).size) := by
-      refine (by growth_poly : PolyBounded _ fun sys =>
-          ((LinearSystemInput.enc sys).length + 2) * (LinearSystemInput.enc sys).length + 1).mono
-        fun sys => ?_
       dsimp only [Bfn]
-      have hsize : (2 ^ ((sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length)).size ≤
-          (sys.matrix.numCols + 2) * (LinearSystemInput.enc sys).length + 1 :=
-        Nat.size_le.mpr (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self _))
-      have hmc := (linearSystemInput_encoding_bounds sys).2.1
-      exact hsize.trans
-        (Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.add_le_add_right hmc 2)) 1)
+      growth_poly [@Nat.size_pow, fun sys => (linearSystemInput_encoding_bounds sys).2.1]
     refine bareissElimCols_poly_of_bound (by fun_prop) (by fun_prop)
       (fun sys => clearDenoms_wellFormed _)
       (fun sys => by simp only [clearDenoms, augmentRatTable]; omega)

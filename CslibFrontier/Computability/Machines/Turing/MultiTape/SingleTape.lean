@@ -285,44 +285,28 @@ theorem runFrom_ofSingleTapeTM_of_outputsWithinTime (tm : SingleTapeTM Symbol)
       ((ofSingleTapeTM tm).runFrom ((ofSingleTapeTM tm).initCfg x) T).output = y := by
   intro T
   rcases runFrom_copyInputToWork x with ⟨p', hcopy⟩
-  let mid₁ : Cfg 1 Symbol CopyInputState x :=
-    ⟨none, p', fun _ => tapeOfList x, fun _ => 0, []⟩
-  have hmid₁_halt : mid₁.Halted := rfl
+  let mid₁ : Cfg 1 Symbol CopyInputState x := ⟨none, p', fun _ => tapeOfList x, fun _ => 0, []⟩
   let start₂ : Cfg 1 Symbol tm.State x := mid₁.withState (some (runOnWork tm).q₀)
-  have hrun₂ := runFrom_runOnWork_of_outputsWithinTime tm (mcfg := start₂) rfl
-    (represents_tapeOfList x) h
-  rcases hrun₂ with ⟨hstate₂, hrep₂, hout₂⟩
+  rcases runFrom_runOnWork_of_outputsWithinTime tm (mcfg := start₂) rfl
+    (represents_tapeOfList x) h with ⟨hstate₂, hrep₂, hout₂⟩
   let mid₂ := (runOnWork tm).runFrom start₂ t
-  have hmid₂_halt : mid₂.Halted := hstate₂
   let start₃ : Cfg 1 Symbol Unit x := mid₂.withState (some (emitWork Symbol).q₀)
-  have hrun₃ := runFrom_emitWork (y := y) start₃ rfl hrep₂
-  rcases hrun₃ with ⟨hstate₃, hout₃⟩
+  rcases runFrom_emitWork (y := y) start₃ rfl hrep₂ with ⟨hstate₃, hout₃⟩
   let fin₃ := (emitWork Symbol).runFrom start₃ (y.length + 1)
-  have hfin₃_halt : fin₃.Halted := hstate₃
   have hseq₂₃ : ((runOnWork tm).seq (emitWork Symbol)).runFrom
-      (start₂.mapState (handOver (emitWork Symbol).q₀)) (t + (y.length + 1)) =
+      (mid₁.withState (some ((runOnWork tm).seq (emitWork Symbol)).q₀)) (t + (y.length + 1)) =
         fin₃.mapState (Option.map .inr) :=
-    runFrom_seq (tm₀ := runOnWork tm) (tm₁ := emitWork Symbol) rfl hmid₂_halt rfl hfin₃_halt
-  have hstart₂_eq : mid₁.withState (some ((runOnWork tm).seq (emitWork Symbol)).q₀) =
-      start₂.mapState (handOver (emitWork Symbol).q₀) := rfl
-  rw [← hstart₂_eq] at hseq₂₃
-  have hright_halt : (fin₃.mapState (Option.map (Sum.inr (α := tm.State)))).Halted := by
-    simp [Cfg.Halted, hfin₃_halt]
-  have hinit_eq : (ofSingleTapeTM tm).initCfg x =
-      ((copyInputToWork Symbol).initCfg x).mapState
-        (handOver ((runOnWork tm).seq (emitWork Symbol)).q₀) := rfl
+    runFrom_seq (tm₀ := runOnWork tm) (tm₁ := emitWork Symbol) rfl hstate₂ rfl hstate₃
   have hseq₁₂₃ : (ofSingleTapeTM tm).runFrom ((ofSingleTapeTM tm).initCfg x) T =
-      (fin₃.mapState (Option.map .inr)).mapState (Option.map .inr) := by
-    rw [hinit_eq]
-    exact runFrom_seq (tm₀ := copyInputToWork Symbol)
-      (tm₁ := (runOnWork tm).seq (emitWork Symbol)) hcopy hmid₁_halt hseq₂₃ hright_halt
+      (fin₃.mapState (Option.map .inr)).mapState (Option.map .inr) :=
+    runFrom_seq (tm₀ := copyInputToWork Symbol) (tm₁ := (runOnWork tm).seq (emitWork Symbol))
+      hcopy rfl hseq₂₃ (by simp [Cfg.Halted, fin₃, hstate₃])
   rw [hseq₁₂₃]
-  refine ⟨by simp [Cfg.Halted, hfin₃_halt], ?_⟩
-  change ((emitWork Symbol).runFrom start₃ (y.length + 1)).output = y
+  refine ⟨by simp [Cfg.Halted, fin₃, hstate₃], ?_⟩
+  change fin₃.output = y
   rw [hout₃]
-  change ((runOnWork tm).runFrom start₂ t).output ++ y = y
-  rw [hout₂]
-  rfl
+  change mid₂.output ++ y = y
+  rw [hout₂]; rfl
 
 /-- If `tm.OutputsWithinTime x y t`, then `ofSingleTapeTM tm` computes `y` from `x` in
 `2 * x.length + 4 + (t + (y.length + 1))` steps. -/
@@ -332,12 +316,9 @@ theorem computesInTimeAndSpace_ofSingleTapeTM (tm : SingleTapeTM Symbol)
     (ofSingleTapeTM tm).ComputesInTimeAndSpace x y T (T + 1) := by
   intro T
   rcases runFrom_ofSingleTapeTM_of_outputsWithinTime tm h with ⟨hhalt, hout⟩
-  have h1 : (ofSingleTapeTM tm).ComputesInTimeAndSpace x y T (1 * T + 1) :=
-    ⟨⟨T, hhalt, hout⟩, runsInTime_of_halted hhalt,
-      runsInSpace_of_halted hhalt
-        ((MultiTapeNTM.RunPath.space_le_mul_time_add_one (.ofDeterministic _ _ T)).trans_eq
-          (Nat.mul_add_one _ _))⟩
-  exact ⟨h1.1, h1.2.1, h1.2.2.mono (by omega)⟩
+  refine ⟨⟨T, hhalt, hout⟩, runsInTime_of_halted hhalt, ?_⟩
+  exact (runsInSpace_of_halted (s := 1 * T + 1) hhalt
+    (MultiTapeNTM.RunPath.space_le_mul_time_add_one (.ofDeterministic _ _ T))).mono (by omega)
 
 /-- Input-only time bound for `ofSingleTapeTM tm`: since `y.length ≤ max 1 x.length + t`,
 `3 * x.length + 2 * t + 6` steps always suffice. -/
@@ -422,17 +403,13 @@ theorem PolyTimeComputable.computableInPolyTime {α β : Type*} {f : List Bool �
     (hf : PolyTimeComputable f) (encIn : α ↪ List Bool) (encOut : β ↪ List Bool) (g : α → β)
     (hfg : ∀ a, f (encIn a) = encOut (g a)) :
     ComputableInPolyTime g encIn encOut := by
-  refine ⟨fun n => 3 * n + 2 * hf.poly.eval n + 6,
-    fun n => 3 * n + 2 * hf.poly.eval n + 7, by fun_prop, by fun_prop, ?_⟩
-  refine (hf.toTimeComputable.computableInTimeAndSpace encIn encOut g hfg).mono ?_ ?_
-  · intro a
-    have hb := hf.bounds (encIn a).length
-    dsimp only
-    omega
-  · intro a
-    have hb := hf.bounds (encIn a).length
-    dsimp only
-    omega
+  have hmono (c : ℕ) (a : α) :
+      3 * (encIn a).length + 2 * hf.timeBound (encIn a).length + c ≤
+        3 * (encIn a).length + 2 * hf.poly.eval (encIn a).length + c :=
+    Nat.add_le_add_right (Nat.add_le_add_left (Nat.mul_le_mul_left 2 (hf.bounds _)) _) c
+  exact ⟨fun n => 3 * n + 2 * hf.poly.eval n + 6,
+    fun n => 3 * n + 2 * hf.poly.eval n + 7, by fun_prop, by fun_prop,
+    (hf.toTimeComputable.computableInTimeAndSpace encIn encOut g hfg).mono (hmono 6) (hmono 7)⟩
 
 /-- Special case of `PolyTimeComputable.computableInPolyTime` for `f : List Bool → List Bool`
 under the identity encoding. -/

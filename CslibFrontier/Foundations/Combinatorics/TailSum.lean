@@ -44,21 +44,20 @@ theorem sum_Ioc_two_mul_sub_one_mul_exp_le {c : ℝ} (hc : 0 < c) (a K : ℕ) :
   -- Each term is at most the drop `c (exp (-(j - 1)² / c) - exp (-j² / c))`, which telescopes.
   have hstep (j : ℕ) (hj : 1 ≤ j) : (2 * (j : ℝ) - 1) * exp (-((j : ℝ) ^ 2 / c)) ≤
       c * (exp (-(((j - 1 : ℕ) : ℝ) ^ 2 / c)) - exp (-((j : ℝ) ^ 2 / c))) := by
-    have hd : -((((j - 1 : ℕ) : ℝ)) ^ 2 / c) = (2 * (j : ℝ) - 1) / c + -((j : ℝ) ^ 2 / c) := by
-      rw [Nat.cast_sub hj, Nat.cast_one]
-      field_simp
-      ring
+    have hd : -(((j - 1 : ℕ) : ℝ) ^ 2 / c) = (2 * (j : ℝ) - 1) / c + -((j : ℝ) ^ 2 / c) := by
+      rw [Nat.cast_sub hj, Nat.cast_one, ← neg_div, ← neg_div, ← add_div]
+      congr 1; ring
     rw [hd, exp_add]
-    set d := (2 * (j : ℝ) - 1) / c with hd'
-    have h2 : 2 * (j : ℝ) - 1 = c * d := by rw [hd']; field_simp
-    have key := mul_nonneg (mul_nonneg hc.le (exp_pos (-((j : ℝ) ^ 2 / c))).le)
-      (sub_nonneg.mpr (add_one_le_exp d))
-    rw [h2]
-    nlinarith
+    calc (2 * (j : ℝ) - 1) * exp (-((j : ℝ) ^ 2 / c))
+        = c * ((2 * (j : ℝ) - 1) / c) * exp (-((j : ℝ) ^ 2 / c)) := by
+          rw [mul_div_cancel₀ _ hc.ne']
+      _ ≤ c * (exp ((2 * (j : ℝ) - 1) / c) - 1) * exp (-((j : ℝ) ^ 2 / c)) := by
+          gcongr; linarith [add_one_le_exp ((2 * (j : ℝ) - 1) / c)]
+      _ = _ := by ring
   suffices h : ∀ K, a ≤ K → ∑ j ∈ Ioc a K, (2 * (j : ℝ) - 1) * exp (-((j : ℝ) ^ 2 / c)) ≤
       c * (exp (-((a : ℝ) ^ 2 / c)) - exp (-((K : ℝ) ^ 2 / c))) by
     rcases le_total a K with haK | hKa
-    · exact (h K haK).trans (by nlinarith [exp_pos (-((K : ℝ) ^ 2 / c))])
+    · exact (h K haK).trans (mul_le_mul_of_nonneg_left (sub_le_self _ (exp_pos _).le) hc.le)
     · rw [Ioc_eq_empty (by omega), sum_empty]
       positivity
   intro K haK
@@ -114,19 +113,20 @@ theorem sum_sq_ite_lt_le_of_tail {Ω : Type*} [Fintype Ω] (Y : Ω → ℕ) (R :
   have hfirst := htail (R + 1) (by omega)
   have hrest : ∑ j ∈ Ioc (R + 1) K, (2 * (j : ℝ) - 1) * (#{ω | j ≤ Y ω} : ℝ) ≤
       M * (c * exp (-(((R + 1 : ℕ) : ℝ) ^ 2 / c))) := by
-    refine (sum_le_sum fun j hj => mul_le_mul_of_nonneg_left (htail j ?_) ?_).trans ?_
-    · have := mem_Ioc.mp hj
-      omega
-    · have := mem_Ioc.mp hj
-      have : (1 : ℝ) ≤ j := by exact_mod_cast (show 1 ≤ j by omega)
-      linarith
-    · calc ∑ j ∈ Ioc (R + 1) K, (2 * (j : ℝ) - 1) * (M * exp (-((j : ℝ) ^ 2 / c)))
-          = M * ∑ j ∈ Ioc (R + 1) K, (2 * (j : ℝ) - 1) * exp (-((j : ℝ) ^ 2 / c)) := by
-            rw [mul_sum]
-            exact sum_congr rfl fun j _ => by ring
-        _ ≤ _ := mul_le_mul_of_nonneg_left (sum_Ioc_two_mul_sub_one_mul_exp_le hc _ _) hM
+    refine (sum_le_sum fun j hj => mul_le_mul_of_nonneg_left
+      (htail j (by have := mem_Ioc.mp hj; omega))
+      (by have : (1 : ℝ) ≤ j := by exact_mod_cast (show 1 ≤ j by have := mem_Ioc.mp hj; omega)
+          linarith)).trans ?_
+    calc ∑ j ∈ Ioc (R + 1) K, (2 * (j : ℝ) - 1) * (M * exp (-((j : ℝ) ^ 2 / c)))
+        = M * ∑ j ∈ Ioc (R + 1) K, (2 * (j : ℝ) - 1) * exp (-((j : ℝ) ^ 2 / c)) := by
+          rw [mul_sum]; exact sum_congr rfl fun j _ => by ring
+      _ ≤ _ := mul_le_mul_of_nonneg_left (sum_Ioc_two_mul_sub_one_mul_exp_le hc _ _) hM
   push_cast at hfirst hrest ⊢
-  have hR2 : (0 : ℝ) ≤ ((R : ℝ) + 1) ^ 2 := by positivity
-  nlinarith [mul_le_mul_of_nonneg_left hfirst hR2]
+  calc ((R : ℝ) + 1) ^ 2 * (#{ω | R + 1 ≤ Y ω} : ℝ) +
+        ∑ j ∈ Ioc (R + 1) K, (2 * (j : ℝ) - 1) * (#{ω | j ≤ Y ω} : ℝ)
+      ≤ ((R : ℝ) + 1) ^ 2 * (M * exp (-(((R : ℝ) + 1) ^ 2 / c))) +
+          M * (c * exp (-(((R : ℝ) + 1) ^ 2 / c))) :=
+        add_le_add (mul_le_mul_of_nonneg_left hfirst (by positivity)) hrest
+    _ = M * (((R : ℝ) + 1) ^ 2 + c) * exp (-(((R : ℝ) + 1) ^ 2 / c)) := by ring
 
 end Cslib

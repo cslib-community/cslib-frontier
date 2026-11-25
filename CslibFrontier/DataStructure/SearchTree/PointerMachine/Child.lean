@@ -42,11 +42,11 @@ theorem nodeAt_distinct_iff (right : Bool) (label : Label M extra)
       AddressesDistinct child ∧ AddressesDistinct sibling ∧
       label.address ∉ addresses child ∧ label.address ∉ addresses sibling ∧
       Disjoint (addresses child) (addresses sibling) := by
-  cases right with
-  | false => exact AddressesDistinct.node_iff ..
-  | true =>
-    rw [nodeAt, ite_eq_left rfl, AddressesDistinct.node_iff]
-    constructor <;> rintro ⟨a, b, c, d, e⟩ <;> exact ⟨b, a, d, c, e.symm⟩
+  cases right
+  · exact AddressesDistinct.node_iff ..
+  · rw [nodeAt, ite_eq_left rfl, AddressesDistinct.node_iff]
+    exact ⟨fun ⟨a, b, c, d, e⟩ => ⟨b, a, d, c, e.symm⟩,
+      fun ⟨a, b, c, d, e⟩ => ⟨b, a, d, c, e.symm⟩⟩
 
 /-- The representation of a node whose distinguished child is on the selected side. -/
 theorem represents_nodeAt_iff (right : Bool) (h : List (Record M (layout extra regs)))
@@ -56,8 +56,7 @@ theorem represents_nodeAt_iff (right : Bool) (h : List (Record M (layout extra r
         (if right then root child else root sibling) parent label) ∧
       Represents h (some label.address) child ∧ Represents h (some label.address) sibling := by
   cases right
-  · exact Iff.rfl
-  · exact ⟨fun r => ⟨r.1, r.2.2, r.2.1⟩, fun r => ⟨r.1, r.2.2, r.2.1⟩⟩
+  exacts [Iff.rfl, ⟨fun r => ⟨r.1, r.2.2, r.2.1⟩, fun r => ⟨r.1, r.2.2, r.2.1⟩⟩]
 
 /-- The root of a node is its label, whichever side its distinguished child is on. -/
 @[simp] theorem root_nodeAt (right : Bool) (label : Label M extra)
@@ -114,33 +113,27 @@ theorem replaceChild (right : Bool)
     Represents heap parent (nodeAt right label new sibling) ∧
       AddressesDistinct (nodeAt right label new sibling) ∧
       (∀ z, z ∉ addresses (nodeAt right label old sibling) → heap[z]? = h[z]?) := by
-  let par : Record M (layout extra regs) := record (if right then root sibling else root old)
-    (if right then root old else root sibling) parent label
   let heap := k.modify label.address (fun n =>
     { n with ptr := Function.update n.ptr (if right then 1 else 0) (root new) })
   obtain ⟨hpar, _, hsib⟩ := (represents_nodeAt_iff ..).mp rep
   obtain ⟨_, ds, no, ns, dis⟩ := (nodeAt_distinct_iff ..).mp distinct
-  have lookup : k[label.address]? = some par := (frame _ no).trans hpar
-  have child : Represents heap (some label.address) new :=
-    newRep.congr_addresses fun z hz =>
-      List.getElem?_modify_ne _ _ fun eq : label.address = z => newRoot (eq ▸ hz)
-  have sib : Represents heap (some label.address) sibling :=
-    hsib.congr_addresses fun z hz =>
-      (List.getElem?_modify_ne _ _ fun eq : label.address = z => ns (eq ▸ hz)).trans
-        (frame _ fun hm => Finset.disjoint_left.mp dis hm hz)
   have head : heap[label.address]? =
       some (record (if right then root sibling else root new)
         (if right then root new else root sibling) parent label) := by
-    simp only [heap, List.getElem?_modify_eq, lookup, Option.map_eq_map,
+    simp only [heap, List.getElem?_modify_eq, (frame _ no).trans hpar, Option.map_eq_map,
       Option.map_some, Option.some.injEq]
-    cases right <;> simp only [par, record, Bool.false_eq_true, ↓reduceIte, Record.mk.injEq]
+    cases right <;> simp only [record, Bool.false_eq_true, ↓reduceIte, Record.mk.injEq]
     all_goals exact ⟨by funext i; fin_cases i <;> rfl, trivial⟩
-  refine ⟨(represents_nodeAt_iff ..).mpr ⟨head, child, sib⟩,
+  refine ⟨(represents_nodeAt_iff ..).mpr ⟨head,
+      newRep.congr_addresses fun z hz =>
+        List.getElem?_modify_ne _ _ fun eq : label.address = z => newRoot (eq ▸ hz),
+      hsib.congr_addresses fun z hz =>
+        (List.getElem?_modify_ne _ _ fun eq : label.address = z => ns (eq ▸ hz)).trans
+          (frame _ fun hm => Finset.disjoint_left.mp dis hm hz)⟩,
     (nodeAt_distinct_iff ..).mpr ⟨newDistinct, ds, newRoot, ns, newSibling⟩, fun z hz => ?_⟩
   rw [nodeAt_addresses] at hz
-  have ne : label.address ≠ z := fun eq => hz (eq ▸ Finset.mem_insert_self _ _)
-  have notOld : z ∉ addresses old := fun mem =>
-    hz (Finset.mem_insert_of_mem (Finset.mem_union_left _ mem))
-  exact (List.getElem?_modify_ne _ _ ne).trans (frame _ notOld)
+  exact (List.getElem?_modify_ne _ _ fun eq : label.address = z =>
+      hz (eq ▸ Finset.mem_insert_self _ _)).trans
+    (frame _ fun mem => hz (Finset.mem_insert_of_mem (Finset.mem_union_left _ mem)))
 
 end Cslib.DataStructure.SearchTree.PointerMachine

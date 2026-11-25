@@ -108,19 +108,14 @@ theorem WordCDH.cdh {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
   intro adversary hA
   obtain ⟨W, hW, hWA⟩ := hA.exists_factor F.encCDHInput_apply
     (decode := fun w => w) ComputableInPolyTime.id' fun _ => rfl
-  have hnegl := h (fun n t => W (n, t)) hW
-  refine hnegl.congr fun n => ?_
-  congr 1
+  refine (h (fun n t => W (n, t)) hW).congr fun n => congrArg Game.succProbability ?_
   simp only [cdhGame, cdhWordGame, Game.withSetup, cdhExperiment,
     ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-  refine congrArg (PMF.bind (setup n)) (funext fun d => ?_)
-  refine congrArg (PMF.bind (PMF.uniformOfFintype (ZMod (F.order d)))) (funext fun a => ?_)
-  refine congrArg (PMF.bind (PMF.uniformOfFintype (ZMod (F.order d)))) (funext fun b => ?_)
-  have hmap := hWA ⟨n, d, a • F.generator d, b • F.generator d⟩
-  rw [← hmap, ProbComp.eval_map, PMF.bind_map]
-  refine congrArg (PMF.bind (ProbComp.eval (adversary n d (a • F.generator d)
-    (b • F.generator d)))) (funext fun z => ?_)
-  simp [(F.encode_injective d).eq_iff]
+  refine congrArg (PMF.bind (setup n)) (funext fun d =>
+    congrArg (PMF.bind (PMF.uniformOfFintype (ZMod (F.order d)))) (funext fun a =>
+      congrArg (PMF.bind (PMF.uniformOfFintype (ZMod (F.order d)))) (funext fun b => ?_)))
+  rw [← hWA ⟨n, d, a • F.generator d, b • F.generator d⟩, ProbComp.eval_map, PMF.bind_map]
+  exact congrArg (PMF.bind _) (funext fun z => by simp [(F.encode_injective d).eq_iff])
 
 end PrimeOrderGroupFamily
 
@@ -141,39 +136,23 @@ private theorem isPPT_wordToTypedHelper {F : PrimeOrderGroupFamily}
       F.encCDHInput F.encWordCDHInput :=
     (ComputableInPolyTime.id' (encIn := F.encCDHInput)).of_enc_eq fun x =>
       (F.encCDHInput_apply x).symm
-  have hrun : IsPPTOn F.encCDHInput encBits fun x =>
-      adversary x.secParam
-        (x.groupParameters, F.encode _ x.leftPublic, F.encode _ x.rightPublic) :=
-    hA.preprocess hprep
-  have hgrp0 : ComputableInPolyTime (fun x : F.CDHInput => x.groupParameters)
-      F.encCDHInput F.encDesc :=
-    ((ComputableInPolyTime.fst F.encDesc (encPair encBits encBits)).comp
-      ((ComputableInPolyTime.snd encUnary
-        (encPair F.encDesc (encPair encBits encBits))).comp hprep)).of_enc_eq fun _ => rfl
   have hgrp : ComputableInPolyTime
       (fun p : F.CDHInput × List Bool => p.1.groupParameters)
       (encPair F.encCDHInput encBits) F.encDesc :=
-    hgrp0.comp (by fun_prop)
-  have hcond : ComputableInPolyTime
-      (fun p : F.CDHInput × List Bool => isElem (p.1.groupParameters, p.2))
-      (encPair F.encCDHInput encBits) encBool :=
-    hisElem.comp (hgrp.prod (by fun_prop))
-  have hthen : ComputableInPolyTime
-      (fun p : F.CDHInput × List Bool => p.2)
-      (encPair F.encCDHInput encBits) encBits := by
-    fun_prop
-  have helse : ComputableInPolyTime
-      (fun p : F.CDHInput × List Bool => F.encode p.1.groupParameters 0)
-      (encPair F.encCDHInput encBits) encBits :=
-    PrimeOrderGroupFamily.computableInPolyTime_encode_zero hgrp
+    (((ComputableInPolyTime.fst F.encDesc (encPair encBits encBits)).comp
+      ((ComputableInPolyTime.snd encUnary
+        (encPair F.encDesc (encPair encBits encBits))).comp hprep)).of_enc_eq
+      fun _ => rfl).comp (ComputableInPolyTime.fst F.encCDHInput encBits)
   have hmap : IsPPTOn F.encCDHInput encBits fun x =>
       (fun guess => if isElem (x.groupParameters, guess) then guess
         else F.encode x.groupParameters 0) <$>
       adversary x.secParam
         (x.groupParameters, F.encode _ x.leftPublic, F.encode _ x.rightPublic) :=
-    IsPPTOn.map_with hrun (hcond.ite hthen helse)
-  refine hmap.congr fun x => ?_
-  simp only [Functor.map_map, henc]
+    IsPPTOn.map_with (hA.preprocess hprep)
+      ((hisElem.comp (hgrp.prod (ComputableInPolyTime.snd F.encCDHInput encBits))).ite
+        (ComputableInPolyTime.snd F.encCDHInput encBits)
+        (PrimeOrderGroupFamily.computableInPolyTime_encode_zero hgrp))
+  exact hmap.congr fun x => by simp only [Functor.map_map, henc]
 
 namespace DecodablePrimeOrderGroupFamily
 
@@ -209,21 +188,17 @@ theorem succProbability_cdhWordGame_le_cdhGame (setup : ℕ → PMF F.Desc)
     PrimeOrderGroupFamily.cdhWordGame, Game.withSetup, Cslib.Crypto.cdhExperiment]
   refine Game.succProbability_mono (PMF.bind_apply_mono_on_support _ _ fun d _ => ?_)
   simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-  refine PMF.bind_apply_mono_on_support _ _ fun a _ => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun b _ => ?_
+  refine PMF.bind_apply_mono_on_support _ _ fun a _ =>
+    PMF.bind_apply_mono_on_support _ _ fun b _ => ?_
   rw [ProbComp.eval_map, PMF.bind_map]
   refine PMF.bind_apply_mono_on_support _ _ fun guess _ => ?_
-  by_cases h : guess = F.encode d ((a * b) • F.generator d)
-  · simp [h, F.decode_encode]
-  · simp [h]
+  by_cases h : guess = F.encode d ((a * b) • F.generator d) <;> simp [h, F.decode_encode]
 
 /-- **Typed CDH is equivalent to word-level CDH** for every `DecodablePrimeOrderGroupFamily`. -/
 theorem cdh_iff_encoded (setup : ℕ → PMF F.Desc) :
-    F.toPrimeOrderGroupFamily.CDH setup ↔ F.toPrimeOrderGroupFamily.WordCDH setup := by
-  refine ⟨fun hCDH adversary hA => ?_, PrimeOrderGroupFamily.WordCDH.cdh⟩
-  have htyped := hCDH _ (F.isPPT_wordToTypedCDHAdversary hA)
-  exact negligible_of_le htyped fun n =>
-    F.succProbability_cdhWordGame_le_cdhGame setup adversary n
+    F.toPrimeOrderGroupFamily.CDH setup ↔ F.toPrimeOrderGroupFamily.WordCDH setup :=
+  ⟨fun hCDH adversary hA => negligible_of_le (hCDH _ (F.isPPT_wordToTypedCDHAdversary hA))
+    (F.succProbability_cdhWordGame_le_cdhGame setup adversary), PrimeOrderGroupFamily.WordCDH.cdh⟩
 
 /-- **`DDH` implies word-level `WordCDH`** for a `DecodablePrimeOrderGroupFamily` when every
 supported group at parameter `n` has order at least `m n > 0` and `1 / m n` is negligible. -/

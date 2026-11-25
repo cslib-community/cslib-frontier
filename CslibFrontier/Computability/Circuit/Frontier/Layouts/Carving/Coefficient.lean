@@ -113,86 +113,7 @@ theorem carvingCoefficient_ge : 1 / 40 ≤ carvingCoefficient := by
 theorem carvingCoefficient_pos : 0 < carvingCoefficient :=
   lt_of_lt_of_le (by norm_num) carvingCoefficient_ge
 
-/-! ### Double-angle lower bound helper and numerical bounds -/
-
-/-- Double-angle lower bound for `cos`: when `0 ≤ l ≤ cos x`, `v ≤ cos (2 * x)` whenever
-`v ≤ 2 * l ^ 2 - 1`. -/
-private theorem le_cos_two_mul {x l v : ℝ} (hl0 : 0 ≤ l) (hl : l ≤ cos x)
-    (hv : v ≤ 2 * l ^ 2 - 1) : v ≤ cos (2 * x) := by
-  have hsq := pow_le_pow_left₀ hl0 hl 2
-  rw [cos_two_mul]
-  linarith
-
-/-- Sharp upper bound `arccos ((1 + 2√2) / 4) ≤ 2939503850 / 10^10`. -/
-private theorem arccos_edgeCorr_le :
-    arccos ((1 + 2 * √2) / 4) ≤ 2939503850 / 10000000000 := by
-  have hsqrt : (141421356237309 : ℝ) / 100000000000000 < √2 :=
-    (lt_sqrt (by norm_num)).mpr (by norm_num)
-  have hcos : cos (2939503850 / 10000000000) ≤ (1 + 2 * √2) / 4 := by
-    have hb := cos_bound (x := 2939503850 / 5120000000000) (by norm_num)
-    norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 2939503850 / 5120000000000)] at hb
-    have h0 : cos (2939503850 / 5120000000000) ≤ 9999998351920589 / 10000000000000000 := by
-      have h := (abs_le.mp hb).2
-      norm_num at h ⊢
-      linarith
-    have h1 := cos_two_mul_le (by norm_num) h0
-      (v := 99999934076829 / 100000000000000) (by norm_num)
-    have h2 := cos_two_mul_le (by norm_num) h1
-      (v := 2499993407685073 / 2500000000000000) (by norm_num)
-    have h3 := cos_two_mul_le (by norm_num) h2
-      (v := 2499973630775059 / 2500000000000000) (by norm_num)
-    have h4 := cos_two_mul_le (by norm_num) h3
-      (v := 499978904731301 / 500000000000000) (by norm_num)
-    have h5 := cos_two_mul_le (by norm_num) h4
-      (v := 9998312414104909 / 10000000000000000) (by norm_num)
-    have h6 := cos_two_mul_le (by norm_num) h5
-      (v := 9993250226008867 / 10000000000000000) (by norm_num)
-    have h7 := cos_two_mul_le (by norm_num) h6
-      (v := 1994602003185051 / 2000000000000000) (by norm_num)
-    have h8 := cos_two_mul_le (by norm_num) h7
-      (v := 9892185755549091 / 10000000000000000) (by norm_num)
-    have h9 := cos_two_mul_le (by norm_num) h8
-      (v := 9571067804457669 / 10000000000000000) (by norm_num)
-    have hval : (2939503850 / 10000000000 : ℝ) =
-        2 * (2 * (2 * (2 * (2 * (2 * (2 * (2 * (2 * (2939503850 / 5120000000000))))))))) := by
-      norm_num
-    rw [hval]
-    linarith
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
-
-/-- Sharp lower bound `29395035 / 10^8 ≤ arccos ((1 + 2√2) / 4)`. -/
-private theorem le_arccos_edgeCorr :
-    (29395035 / 100000000 : ℝ) ≤ arccos ((1 + 2 * √2) / 4) := by
-  have hsqrt : √2 < (141421356237310 : ℝ) / 100000000000000 :=
-    (sqrt_lt' (by norm_num)).mpr (by norm_num)
-  have hcos : (1 + 2 * √2) / 4 ≤ cos (29395035 / 100000000) := by
-    have h0 : 999999340768369 / 1000000000000000 ≤ cos (29395035 / 25600000000) := by
-      have := one_sub_sq_div_two_le_cos (x := 29395035 / 25600000000)
-      norm_num at this ⊢
-      linarith
-    have h1 := le_cos_two_mul (by norm_num) h0
-      (v := 199999472614869 / 200000000000000) (by norm_num)
-    have h2 := le_cos_two_mul (by norm_num) h1
-      (v := 499994726155643 / 500000000000000) (by norm_num)
-    have h3 := le_cos_two_mul (by norm_num) h2
-      (v := 999957809467651 / 1000000000000000) (by norm_num)
-    have h4 := le_cos_two_mul (by norm_num) h3
-      (v := 499915620715343 / 500000000000000) (by norm_num)
-    have h5 := le_cos_two_mul (by norm_num) h4
-      (v := 999325022681653 / 1000000000000000) (by norm_num)
-    have h6 := le_cos_two_mul (by norm_num) h5
-      (v := 249325250478843 / 250000000000000) (by norm_num)
-    have h7 := le_cos_two_mul (by norm_num) h6
-      (v := 989218576842809 / 1000000000000000) (by norm_num)
-    have h8 := le_cos_two_mul (by norm_num) h7
-      (v := 14954793524091 / 15625000000000) (by norm_num)
-    have hval : (29395035 / 100000000 : ℝ) =
-        2 * (2 * (2 * (2 * (2 * (2 * (2 * (2 * (29395035 / 25600000000)))))))) := by norm_num
-    rw [hval]
-    linarith
-  calc (29395035 / 100000000 : ℝ) = arccos (cos (29395035 / 100000000)) :=
-        (arccos_cos (by norm_num) (by linarith [pi_gt_three])).symm
-    _ ≤ arccos ((1 + 2 * √2) / 4) := arccos_le_arccos hcos
+/-! ### Alternating Maclaurin envelopes and numerical bounds -/
 
 /-- A function vanishing at `0` whose derivative is nonnegative on `[0, ∞)` is nonnegative there. -/
 private theorem nonneg_of_hasDerivAt_of_nonneg {f g : ℝ → ℝ} (hd : ∀ t, HasDerivAt f (g t) t)
@@ -205,89 +126,224 @@ private theorem nonneg_of_hasDerivAt_of_nonneg {f g : ℝ → ℝ} (hd : ∀ t, 
   intro t ht
   exact h0 ▸ hmono (le_rfl : (0 : ℝ) ∈ Ici 0) ht ht
 
-/-- Alternating degree-`4` Taylor upper bound `exp (-y) ≤ 1 - y + y^2/2 - y^3/6 + y^4/24` for
-`0 ≤ y`. -/
-private theorem exp_neg_le_quartic {y : ℝ} (hy : 0 ≤ y) :
-    exp (-y) ≤ 1 - y + y ^ 2 / 2 - y ^ 3 / 6 + y ^ 4 / 24 := by
-  let f₁ : ℝ → ℝ := fun t => exp (-t) - (1 - t)
-  have hf₁ : ∀ t ≥ 0, 0 ≤ f₁ t := fun t _ => by
-    dsimp [f₁]; linarith [add_one_le_exp (-t)]
-  have hexp_d : ∀ t : ℝ, HasDerivAt (fun x => exp (-x)) (-exp (-t)) t := fun t => by
-    have := ((hasDerivAt_neg t).exp)
-    exact this.congr_deriv (by ring)
-  let f₂ : ℝ → ℝ := fun t => (1 - t + t ^ 2 / 2) - exp (-t)
-  have hd₂ : ∀ t, HasDerivAt f₂ (f₁ t) t := fun t => by
-    have hp : HasDerivAt (fun x => 1 - x + x ^ 2 / 2) (-1 + t) t := by
-      have := (((hasDerivAt_const t (1 : ℝ)).sub (hasDerivAt_id t)).add
-        ((hasDerivAt_pow 2 t).div_const 2))
-      exact this.congr_deriv (by ring)
-    exact (hp.sub (hexp_d t)).congr_deriv (by dsimp [f₁]; ring)
-  have hf₂ : ∀ t ≥ 0, 0 ≤ f₂ t :=
-    nonneg_of_hasDerivAt_of_nonneg hd₂ hf₁ (by simp [f₂])
-  let f₃ : ℝ → ℝ := fun t => exp (-t) - (1 - t + t ^ 2 / 2 - t ^ 3 / 6)
-  have hd₃ : ∀ t, HasDerivAt f₃ (f₂ t) t := fun t => by
-    have hp : HasDerivAt (fun x => 1 - x + x ^ 2 / 2 - x ^ 3 / 6) (-1 + t - t ^ 2 / 2) t := by
-      have := ((((hasDerivAt_const t (1 : ℝ)).sub (hasDerivAt_id t)).add
-        ((hasDerivAt_pow 2 t).div_const 2)).sub ((hasDerivAt_pow 3 t).div_const 6))
-      exact this.congr_deriv (by ring)
-    exact ((hexp_d t).sub hp).congr_deriv (by dsimp [f₂]; ring)
-  have hf₃ : ∀ t ≥ 0, 0 ≤ f₃ t :=
-    nonneg_of_hasDerivAt_of_nonneg hd₃ hf₂ (by simp [f₃])
-  let f₄ : ℝ → ℝ := fun t => (1 - t + t ^ 2 / 2 - t ^ 3 / 6 + t ^ 4 / 24) - exp (-t)
-  have hd₄ : ∀ t, HasDerivAt f₄ (f₃ t) t := fun t => by
-    have hp : HasDerivAt (fun x => 1 - x + x ^ 2 / 2 - x ^ 3 / 6 + x ^ 4 / 24)
-        (-1 + t - t ^ 2 / 2 + t ^ 3 / 6) t := by
-      have := (((((hasDerivAt_const t (1 : ℝ)).sub (hasDerivAt_id t)).add
-        ((hasDerivAt_pow 2 t).div_const 2)).sub ((hasDerivAt_pow 3 t).div_const 6)).add
-        ((hasDerivAt_pow 4 t).div_const 24))
-      exact this.congr_deriv (by ring)
-    exact (hp.sub (hexp_d t)).congr_deriv (by dsimp [f₃]; ring)
-  have hge := nonneg_of_hasDerivAt_of_nonneg hd₄ hf₃ (by simp [f₄]) y hy
-  dsimp [f₄] at hge
+/-- Half-angle sine Maclaurin bounds on `[0, ∞)`:
+`t - t^3/6 + t^5/120 - t^7/5040 ≤ sin t ≤ t - t^3/6 + t^5/120`. -/
+private theorem sin_maclaurin_bounds {t : ℝ} (ht : 0 ≤ t) :
+    t - t ^ 3 / 6 + t ^ 5 / 120 - t ^ 7 / 5040 ≤ sin t ∧
+      sin t ≤ t - t ^ 3 / 6 + t ^ 5 / 120 := by
+  have hc4 : ∀ x ≥ 0, 0 ≤ (1 - x ^ 2 / 2 + x ^ 4 / 24) - cos x :=
+    nonneg_of_hasDerivAt_of_nonneg
+      (f := fun x => (1 - x ^ 2 / 2 + x ^ 4 / 24) - cos x)
+      (g := fun x => sin x - (x - x ^ 3 / 6))
+      (fun x => (((((hasDerivAt_const x (1 : ℝ)).sub ((hasDerivAt_pow 2 x).div_const 2)).add
+        ((hasDerivAt_pow 4 x).div_const 24)).sub (hasDerivAt_cos x)).congr_deriv (by ring)))
+      (fun x hx => by linarith [sin_ge_sub_cube hx]) (by simp)
+  have hs5 : ∀ x ≥ 0, 0 ≤ (x - x ^ 3 / 6 + x ^ 5 / 120) - sin x :=
+    nonneg_of_hasDerivAt_of_nonneg
+      (f := fun x => (x - x ^ 3 / 6 + x ^ 5 / 120) - sin x)
+      (g := fun x => (1 - x ^ 2 / 2 + x ^ 4 / 24) - cos x)
+      (fun x => (((((hasDerivAt_id x).sub ((hasDerivAt_pow 3 x).div_const 6)).add
+        ((hasDerivAt_pow 5 x).div_const 120)).sub (hasDerivAt_sin x)).congr_deriv (by ring)))
+      hc4 (by simp)
+  have hc6 : ∀ x ≥ 0, 0 ≤ cos x - (1 - x ^ 2 / 2 + x ^ 4 / 24 - x ^ 6 / 720) :=
+    nonneg_of_hasDerivAt_of_nonneg
+      (f := fun x => cos x - (1 - x ^ 2 / 2 + x ^ 4 / 24 - x ^ 6 / 720))
+      (g := fun x => (x - x ^ 3 / 6 + x ^ 5 / 120) - sin x)
+      (fun x => ((hasDerivAt_cos x).sub
+        ((((hasDerivAt_const x (1 : ℝ)).sub ((hasDerivAt_pow 2 x).div_const 2)).add
+          ((hasDerivAt_pow 4 x).div_const 24)).sub
+          ((hasDerivAt_pow 6 x).div_const 720))).congr_deriv (by ring))
+      hs5 (by simp)
+  have hs7 : ∀ x ≥ 0, 0 ≤ sin x - (x - x ^ 3 / 6 + x ^ 5 / 120 - x ^ 7 / 5040) :=
+    nonneg_of_hasDerivAt_of_nonneg
+      (f := fun x => sin x - (x - x ^ 3 / 6 + x ^ 5 / 120 - x ^ 7 / 5040))
+      (g := fun x => cos x - (1 - x ^ 2 / 2 + x ^ 4 / 24 - x ^ 6 / 720))
+      (fun x => ((hasDerivAt_sin x).sub
+        ((((hasDerivAt_id x).sub ((hasDerivAt_pow 3 x).div_const 6)).add
+          ((hasDerivAt_pow 5 x).div_const 120)).sub
+          ((hasDerivAt_pow 7 x).div_const 5040))).congr_deriv (by ring))
+      hc6 (by simp)
+  exact ⟨by linarith [hs7 t ht], by linarith [hs5 t ht]⟩
+
+private theorem arccos_le_of_sin_lo {r x : ℝ} (hx0 : 0 ≤ x) (hx3 : x ≤ 3)
+    (h0 : 0 ≤ (x / 2) - (x / 2) ^ 3 / 6 + (x / 2) ^ 5 / 120 - (x / 2) ^ 7 / 5040)
+    (h : 1 - 2 * ((x / 2) - (x / 2) ^ 3 / 6 + (x / 2) ^ 5 / 120 - (x / 2) ^ 7 / 5040) ^ 2 ≤ r) :
+    arccos r ≤ x := by
+  have hsq := pow_le_pow_left₀ h0 (sin_maclaurin_bounds (t := x / 2) (by linarith)).1 2
+  have hcos : cos x ≤ r := by
+    rw [show x = 2 * (x / 2) by ring, cos_two_mul']
+    linarith [sin_sq_add_cos_sq (x / 2)]
+  exact (arccos_le_arccos hcos).trans_eq (arccos_cos hx0 (by linarith [pi_gt_three]))
+
+private theorem le_arccos_of_sin_hi {r x : ℝ} (hx0 : 0 ≤ x) (hx3 : x ≤ 3)
+    (h : r ≤ 1 - 2 * ((x / 2) - (x / 2) ^ 3 / 6 + (x / 2) ^ 5 / 120) ^ 2) :
+    x ≤ arccos r := by
+  have hsin0 : 0 ≤ sin (x / 2) :=
+    sin_nonneg_of_nonneg_of_le_pi (by linarith) (by linarith [pi_gt_three])
+  have hsq := pow_le_pow_left₀ hsin0 (sin_maclaurin_bounds (t := x / 2) (by linarith)).2 2
+  have hcos : r ≤ cos x := by
+    rw [show x = 2 * (x / 2) by ring, cos_two_mul']
+    linarith [sin_sq_add_cos_sq (x / 2)]
+  exact (arccos_cos hx0 (by linarith [pi_gt_three])).symm.trans_le (arccos_le_arccos hcos)
+
+/-- Sharp upper bound `arccos ((1 + 2√2) / 4) ≤ 2939503850 / 10^10`. -/
+private theorem arccos_edgeCorr_le :
+    arccos ((1 + 2 * √2) / 4) ≤ 2939503850 / 10000000000 := by
+  have hsqrt : (141421356237309 : ℝ) / 100000000000000 < √2 :=
+    (lt_sqrt (by norm_num)).mpr (by norm_num)
+  refine arccos_le_of_sin_lo (by norm_num) (by norm_num) (by norm_num) ?_
+  have hnum : 1 - 2 * ((2939503850 / 10000000000 : ℝ) / 2 -
+      ((2939503850 / 10000000000 : ℝ) / 2) ^ 3 / 6 +
+      ((2939503850 / 10000000000 : ℝ) / 2) ^ 5 / 120 -
+      ((2939503850 / 10000000000 : ℝ) / 2) ^ 7 / 5040) ^ 2 ≤
+      (1 + 2 * (141421356237309 / 100000000000000 : ℝ)) / 4 := by norm_num
   linarith
 
-/-- Upper bound on `cdf (gaussianReal 0 1) a` for `0 ≤ a` from `exp_neg_le_quartic`. -/
+/-- Sharp lower bound `29395035 / 10^8 ≤ arccos ((1 + 2√2) / 4)`. -/
+private theorem le_arccos_edgeCorr :
+    (29395035 / 100000000 : ℝ) ≤ arccos ((1 + 2 * √2) / 4) := by
+  have hsqrt : √2 < (141421356237310 : ℝ) / 100000000000000 :=
+    (sqrt_lt' (by norm_num)).mpr (by norm_num)
+  refine le_arccos_of_sin_hi (by norm_num) (by norm_num) ?_
+  have hnum : (1 + 2 * (141421356237310 / 100000000000000 : ℝ)) / 4 ≤
+      1 - 2 * ((29395035 / 100000000 : ℝ) / 2 -
+        ((29395035 / 100000000 : ℝ) / 2) ^ 3 / 6 +
+        ((29395035 / 100000000 : ℝ) / 2) ^ 5 / 120) ^ 2 := by norm_num
+  linarith
+
+/-- Sharp rational bounds on `gaussianCoefficient`:
+`14035095 / 10^8 ≤ gaussianCoefficient ≤ 140350971 / 10^9`. -/
+private theorem gaussianCoefficient_bounds :
+    14035095 / 100000000 ≤ gaussianCoefficient ∧ gaussianCoefficient ≤ 140350971 / 1000000000 := by
+  have hpi_lo : (314159265358979 : ℝ) / 100000000000000 < π := by linarith [pi_gt_d20]
+  have hpi_hi : π < (314159265358980 : ℝ) / 100000000000000 := by linarith [pi_lt_d20]
+  unfold gaussianCoefficient
+  rw [div_mul_eq_mul_div]
+  have hlo : 3 * (29395035 / 100000000) / (2 * (314159265358980 / 100000000000000)) ≤
+      3 * arccos ((1 + 2 * √2) / 4) / (2 * π) :=
+    div_le_div₀ (mul_nonneg (by norm_num) (arccos_nonneg _))
+      (mul_le_mul_of_nonneg_left le_arccos_edgeCorr (by norm_num))
+      (by linarith) (by linarith)
+  have hhi : 3 * arccos ((1 + 2 * √2) / 4) / (2 * π) ≤
+      3 * (2939503850 / 10000000000) / (2 * (314159265358979 / 100000000000000)) :=
+    div_le_div₀ (by positivity)
+      (mul_le_mul_of_nonneg_left arccos_edgeCorr_le (by norm_num))
+      (by norm_num) (by linarith)
+  exact ⟨by norm_num at hlo; linarith, by norm_num at hhi; linarith⟩
+
+private noncomputable def expNegTaylor (n : ℕ) (y : ℝ) : ℝ :=
+  ∑ k ∈ Finset.range (n + 1), (-y) ^ k / k.factorial
+
+private theorem hasDerivAt_expNegTaylor (n : ℕ) (t : ℝ) :
+    HasDerivAt (expNegTaylor (n + 1)) (-expNegTaylor n t) t := by
+  have hd : ∀ k ∈ Finset.range (n + 1),
+      HasDerivAt (fun x : ℝ => (-x) ^ (k + 1) / (k + 1).factorial)
+        (-((-t) ^ k / k.factorial)) t := fun k _ => by
+    have h1 : HasDerivAt (fun x : ℝ => (-x) ^ (k + 1)) (-((k : ℝ) + 1) * (-t) ^ k) t :=
+      ((hasDerivAt_neg t).pow (k + 1)).congr_deriv (by push_cast; ring)
+    refine (h1.div_const ((k + 1).factorial : ℝ)).congr_deriv ?_
+    rw [Nat.factorial_succ, Nat.cast_mul, Nat.cast_add, Nat.cast_one]
+    have hpos : (k : ℝ) + 1 ≠ 0 := by positivity
+    field_simp [hpos]
+  have hfun : expNegTaylor (n + 1) =
+      fun x : ℝ => 1 + ∑ k ∈ Finset.range (n + 1), (-x) ^ (k + 1) / (k + 1).factorial := by
+    funext x
+    unfold expNegTaylor
+    rw [Finset.sum_range_succ']
+    simp [add_comm]
+  rw [hfun]
+  exact ((hasDerivAt_const t (1 : ℝ)).add (HasDerivAt.fun_sum hd)).congr_deriv
+    (by unfold expNegTaylor; rw [Finset.sum_neg_distrib, zero_add])
+
+/-- Alternating Maclaurin remainder sign for `exp (-y)` on `[0, ∞)`: odd-degree partial sums
+under-approximate `exp (-y)` and even-degree partial sums over-approximate it. -/
+private theorem exp_neg_taylor_nonneg : ∀ (n : ℕ) {y : ℝ}, 0 ≤ y →
+    0 ≤ (-1 : ℝ) ^ (n + 1) * (exp (-y) - expNegTaylor n y)
+  | 0, y, hy => by
+    unfold expNegTaylor
+    simp only [zero_add, Finset.sum_range_one, pow_zero, Nat.factorial_zero,
+      Nat.cast_one, div_one, pow_one]
+    linarith [exp_le_one_iff.mpr (neg_nonpos.mpr hy)]
+  | n + 1, y, hy => by
+    refine nonneg_of_hasDerivAt_of_nonneg
+      (f := fun t => (-1 : ℝ) ^ (n + 2) * (exp (-t) - expNegTaylor (n + 1) t))
+      (g := fun t => (-1 : ℝ) ^ (n + 1) * (exp (-t) - expNegTaylor n t)) (fun t => ?_)
+      (fun t ht => exp_neg_taylor_nonneg n ht)
+      (by unfold expNegTaylor; rw [Finset.sum_range_succ']; simp) y hy
+    have hexp : HasDerivAt (fun x => exp (-x)) (-exp (-t)) t :=
+      (hasDerivAt_neg t).exp.congr_deriv (by ring)
+    exact (HasDerivAt.const_mul ((-1 : ℝ) ^ (n + 2))
+      (hexp.sub (hasDerivAt_expNegTaylor n t))).congr_deriv
+      (by rw [pow_succ (-1 : ℝ) (n + 1)]; ring)
+
+private noncomputable def cdfTaylor (n : ℕ) (a : ℝ) : ℝ :=
+  ∑ k ∈ Finset.range (n + 1),
+    (-2⁻¹ : ℝ) ^ k / ((k.factorial : ℝ) * (2 * k + 1)) * a ^ (2 * k + 1)
+
+/-- Alternating polynomial envelope for `cdf (gaussianReal 0 1) a` on `0 ≤ a` obtained by
+integrating `exp_neg_taylor_nonneg` at `y = u ^ 2 / 2`. -/
+private theorem cdf_gaussianReal_taylor_nonneg (n : ℕ) {a : ℝ} (ha : 0 ≤ a) :
+    0 ≤ (-1 : ℝ) ^ (n + 1) *
+      (cdf (gaussianReal 0 1) a - (1 / 2 + (√(2 * π))⁻¹ * cdfTaylor n a)) := by
+  have hsplit : cdf (gaussianReal 0 1) a =
+      1 / 2 + (√(2 * π))⁻¹ * ∫ u in (0 : ℝ)..a, exp (-u ^ 2 / 2) := by
+    rw [cdf_gaussianReal_eq_integral 0 one_ne_zero a,
+      ← Iic_union_Ioc_eq_Iic ha,
+      setIntegral_union (Iic_disjoint_Ioc le_rfl) measurableSet_Ioc
+        (integrable_gaussianPDFReal 0 1).integrableOn
+        (integrable_gaussianPDFReal 0 1).integrableOn,
+      ← cdf_gaussianReal_eq_integral 0 one_ne_zero 0,
+      cdf_gaussianReal_zero_zero one_ne_zero,
+      ← intervalIntegral.integral_of_le ha]
+    have hpdf : (fun u => gaussianPDFReal 0 1 u) = fun u => (√(2 * π))⁻¹ * exp (-u ^ 2 / 2) := by
+      funext u; simp [gaussianPDFReal_def]
+    rw [hpdf, intervalIntegral.integral_const_mul]
+    ring
+  have hQ_deriv : ∀ u ∈ uIcc 0 a, HasDerivAt (cdfTaylor n) (expNegTaylor n (u ^ 2 / 2)) u := by
+    intro u _
+    unfold cdfTaylor expNegTaylor
+    refine HasDerivAt.fun_sum fun k _ => ?_
+    have h1 := HasDerivAt.const_mul ((-2⁻¹ : ℝ) ^ k / ((k.factorial : ℝ) * (2 * k + 1)))
+      (hasDerivAt_pow (2 * k + 1) u)
+    refine h1.congr_deriv ?_
+    have hpos : (2 * (k : ℝ) + 1) ≠ 0 := by positivity
+    have hpow : (-2⁻¹ : ℝ) ^ k * u ^ (2 * k) = (-(u ^ 2 / 2)) ^ k := by
+      rw [pow_mul, ← mul_pow]; congr 1; ring
+    push_cast
+    calc (-2⁻¹ : ℝ) ^ k / ((k.factorial : ℝ) * (2 * k + 1)) * ((2 * k + 1) * u ^ (2 * k))
+        = (-2⁻¹ : ℝ) ^ k * u ^ (2 * k) / k.factorial := by field_simp [hpos]
+      _ = (-(u ^ 2 / 2)) ^ k / k.factorial := by rw [hpow]
+  have hP_cont : Continuous fun u : ℝ => expNegTaylor n (u ^ 2 / 2) := by
+    unfold expNegTaylor; fun_prop
+  have hint_Q : ∫ u in (0 : ℝ)..a, expNegTaylor n (u ^ 2 / 2) = cdfTaylor n a := by
+    rw [intervalIntegral.integral_eq_sub_of_hasDerivAt hQ_deriv (hP_cont.intervalIntegrable 0 a)]
+    unfold cdfTaylor; simp
+  have hint_diff : ∫ u in (0 : ℝ)..a,
+      (-1 : ℝ) ^ (n + 1) * (exp (-u ^ 2 / 2) - expNegTaylor n (u ^ 2 / 2)) =
+      (-1 : ℝ) ^ (n + 1) * ((∫ u in (0 : ℝ)..a, exp (-u ^ 2 / 2)) - cdfTaylor n a) := by
+    rw [intervalIntegral.integral_const_mul,
+      intervalIntegral.integral_sub
+        ((by fun_prop : Continuous fun u : ℝ => exp (-u ^ 2 / 2)).intervalIntegrable 0 a)
+        (hP_cont.intervalIntegrable 0 a), hint_Q]
+  have hnn : 0 ≤ ∫ u in (0 : ℝ)..a,
+      (-1 : ℝ) ^ (n + 1) * (exp (-u ^ 2 / 2) - expNegTaylor n (u ^ 2 / 2)) := by
+    refine intervalIntegral.integral_nonneg ha fun u _ => ?_
+    simpa [neg_div] using exp_neg_taylor_nonneg n (show 0 ≤ u ^ 2 / 2 by positivity)
+  rw [hint_diff] at hnn
+  rw [hsplit]
+  linarith [mul_nonneg (by positivity : (0 : ℝ) ≤ (√(2 * π))⁻¹) hnn]
+
+/-- Upper bound on `cdf (gaussianReal 0 1) a` for `0 ≤ a` from the degree-`4` Taylor envelope. -/
 private theorem cdf_gaussianReal_le_poly {a : ℝ} (ha : 0 ≤ a) :
     cdf (gaussianReal 0 1) a ≤
       1 / 2 + (√(2 * π))⁻¹ * (a - a ^ 3 / 6 + a ^ 5 / 40 - a ^ 7 / 336 + a ^ 9 / 3456) := by
-  have hsplit : cdf (gaussianReal 0 1) a =
-      cdf (gaussianReal 0 1) 0 + ∫ u in (0 : ℝ)..a, gaussianPDFReal 0 1 u := by
-    rw [cdf_gaussianReal_eq_integral 0 one_ne_zero a,
-      cdf_gaussianReal_eq_integral 0 one_ne_zero 0,
-      intervalIntegral.integral_of_le ha]
-    have huni : Iic a = Iic (0 : ℝ) ∪ Ioc 0 a := (Iic_union_Ioc_eq_Iic ha).symm
-    rw [huni, setIntegral_union (Iic_disjoint_Ioc le_rfl) measurableSet_Ioc
-      (integrable_gaussianPDFReal 0 1).integrableOn
-      (integrable_gaussianPDFReal 0 1).integrableOn]
-  rw [hsplit, cdf_gaussianReal_zero_zero one_ne_zero]
-  let P : ℝ → ℝ := fun u => 1 - u ^ 2 / 2 + u ^ 4 / 8 - u ^ 6 / 48 + u ^ 8 / 384
-  let Q : ℝ → ℝ := fun u => u - u ^ 3 / 6 + u ^ 5 / 40 - u ^ 7 / 336 + u ^ 9 / 3456
-  have hQ_deriv : ∀ u ∈ uIcc 0 a, HasDerivAt Q (P u) u := fun u _ => by
-    dsimp [Q, P]
-    have := (((((hasDerivAt_id u).sub ((hasDerivAt_pow 3 u).div_const 6)).add
-      ((hasDerivAt_pow 5 u).div_const 40)).sub ((hasDerivAt_pow 7 u).div_const 336)).add
-      ((hasDerivAt_pow 9 u).div_const 3456))
-    exact this.congr_deriv (by ring)
-  have hP_int : IntervalIntegrable P volume 0 a :=
-    (by unfold P; fun_prop : Continuous P).intervalIntegrable 0 a
-  have hint_Q : ∫ u in (0 : ℝ)..a, P u = Q a := by
-    rw [intervalIntegral.integral_eq_sub_of_hasDerivAt hQ_deriv hP_int]
-    dsimp [Q]; ring
-  have hpdf_le : ∀ u ∈ Icc 0 a, gaussianPDFReal 0 1 u ≤ (√(2 * π))⁻¹ * P u := by
-    intro u _
-    rw [gaussianPDFReal_def]
-    simp only [NNReal.coe_one, mul_one, sub_zero]
-    refine mul_le_mul_of_nonneg_left ?_ (by positivity)
-    have hq := exp_neg_le_quartic (y := u ^ 2 / 2) (by positivity)
-    have heq : -(u ^ 2 / 2) = -u ^ 2 / 2 := by ring
-    rw [heq] at hq
-    refine hq.trans_eq ?_
-    dsimp [P]; ring
-  have hmono := intervalIntegral.integral_mono_on ha
-    ((continuous_gaussianPDFReal 0 1).intervalIntegrable 0 a)
-    (hP_int.const_mul (√(2 * π))⁻¹) hpdf_le
-  rw [intervalIntegral.integral_const_mul, hint_Q] at hmono
-  dsimp [Q] at hmono
+  have h := cdf_gaussianReal_taylor_nonneg 4 ha
+  have h4 : cdfTaylor 4 a = a - a ^ 3 / 6 + a ^ 5 / 40 - a ^ 7 / 336 + a ^ 9 / 3456 := by
+    unfold cdfTaylor
+    simp only [Finset.sum_range_succ, Finset.sum_range_zero, Nat.factorial]
+    norm_num
+    ring
+  rw [h4, show (-1 : ℝ) ^ (4 + 1) = -1 by norm_num] at h
   linarith
 
 /-- Quartic lower bound `1 + y + y^2/2 + y^3/6 + y^4/24 ≤ exp y` for `0 ≤ y`. -/
@@ -304,39 +360,18 @@ theorem carvingCoefficient_le_137432 : carvingCoefficient ≤ 137432 / 1000000 :
   have ha_pos : 0 < a := by norm_num [a]
   refine (carvingCoefficient_le_carvingAt (t := -a) (by linarith)).trans ?_
   unfold carvingAt
-  have hpi_lo : (314159265358979 : ℝ) / 100000000000000 < π := by linarith [pi_gt_d20]
-  have hpi_hi : π < (314159265358980 : ℝ) / 100000000000000 := by linarith [pi_lt_d20]
-  have hpi_pos : 0 < π := pi_pos
-  have hpg_hi : gaussianCoefficient ≤
-      3 * (2939503850 / 10000000000) / (2 * (314159265358979 / 100000000000000)) := by
-    unfold gaussianCoefficient
-    rw [div_mul_eq_mul_div]
-    exact div_le_div₀ (by positivity)
-      (mul_le_mul_of_nonneg_left arccos_edgeCorr_le (by norm_num))
-      (by norm_num) (by linarith)
-  have hpg_lo : 3 * (29395035 / 100000000) / (2 * (314159265358980 / 100000000000000)) ≤
-      gaussianCoefficient := by
-    unfold gaussianCoefficient
-    rw [div_mul_eq_mul_div]
-    exact div_le_div₀ (mul_nonneg (by norm_num) (arccos_nonneg _))
-      (mul_le_mul_of_nonneg_left le_arccos_edgeCorr (by norm_num))
-      (by linarith) (by linarith)
+  obtain ⟨hpg_lo, hpg_hi⟩ := gaussianCoefficient_bounds
   have hpg_pos := gaussianCoefficient_pos
   set y : ℝ := a ^ 2 / 2
-  have hy_nonneg : 0 ≤ y := by positivity
-  have hexp_eq : exp (-(-a) ^ 2 / 2) = (exp y)⁻¹ := by
-    rw [← exp_neg]
-    congr 1
-    dsimp [y]; ring
   set E_lo : ℝ := 1 + y + y ^ 2 / 2 + y ^ 3 / 6 + y ^ 4 / 24
   have hE_pos : 0 < E_lo := by norm_num [E_lo, y, a]
   have hexp_hi : exp (-(-a) ^ 2 / 2) ≤ E_lo⁻¹ := by
-    rw [hexp_eq]
-    exact inv_anti₀ hE_pos (quartic_le_exp hy_nonneg)
+    rw [show -(-a) ^ 2 / 2 = -y by dsimp [y]; ring, exp_neg]
+    exact inv_anti₀ hE_pos (quartic_le_exp (by positivity))
   have hcdf_symm : 1 - cdf (gaussianReal 0 1) (-a) = cdf (gaussianReal 0 1) a := by
     rw [cdf_gaussianReal_neg one_ne_zero a]; ring
   have hsqrt_2pi : (250662827463099 : ℝ) / 100000000000000 ≤ √(2 * π) :=
-    (le_sqrt (by norm_num) (by positivity)).mpr (by nlinarith)
+    (le_sqrt (by norm_num) (by positivity)).mpr (by nlinarith [pi_gt_d20])
   have hcdf_hi : 1 - cdf (gaussianReal 0 1) (-a) ≤
       1 / 2 + ((250662827463099 : ℝ) / 100000000000000)⁻¹ *
         (a - a ^ 3 / 6 + a ^ 5 / 40 - a ^ 7 / 336 + a ^ 9 / 3456) := by
@@ -345,71 +380,28 @@ theorem carvingCoefficient_le_137432 : carvingCoefficient ≤ 137432 / 1000000 :
     have hpoly_pos : 0 ≤ a - a ^ 3 / 6 + a ^ 5 / 40 - a ^ 7 / 336 + a ^ 9 / 3456 := by
       norm_num [a]
     gcongr
-  refine max_le ?_ ?_
-  · calc exp (-(-a) ^ 2 / 2) * gaussianCoefficient
-        ≤ E_lo⁻¹ * (3 * (2939503850 / 10000000000) /
-            (2 * (314159265358979 / 100000000000000))) :=
-          mul_le_mul hexp_hi hpg_hi hpg_pos.le (inv_pos.mpr hE_pos).le
-      _ ≤ 137432 / 1000000 := by norm_num [E_lo, y, a]
-  · have hcoef_hi : 1 / 2 - 2 / 3 * gaussianCoefficient ≤
-        1 / 2 - 2 / 3 * (3 * (29395035 / 100000000) /
-          (2 * (314159265358980 / 100000000000000))) := by linarith
-    have hprod_hi : exp (-(-a) ^ 2 / 2) * gaussianCoefficient ≤
-        E_lo⁻¹ * (3 * (2939503850 / 10000000000) /
-          (2 * (314159265358979 / 100000000000000))) :=
-      mul_le_mul hexp_hi hpg_hi hpg_pos.le (inv_pos.mpr hE_pos).le
-    have hterm1 : gaussianCoefficient * (1 - cdf (gaussianReal 0 1) (-a)) ≤
-        (3 * (2939503850 / 10000000000) / (2 * (314159265358979 / 100000000000000))) *
-          (1 / 2 + ((250662827463099 : ℝ) / 100000000000000)⁻¹ *
-            (a - a ^ 3 / 6 + a ^ 5 / 40 - a ^ 7 / 336 + a ^ 9 / 3456)) :=
-      mul_le_mul hpg_hi hcdf_hi
-        (by rw [hcdf_symm]; exact cdf_nonneg _ _) (by norm_num)
-    have hterm2 : (1 / 2 - 2 / 3 * gaussianCoefficient) *
-          (exp (-(-a) ^ 2 / 2) * gaussianCoefficient) ≤
-        (1 / 2 - 2 / 3 * (3 * (29395035 / 100000000) /
-          (2 * (314159265358980 / 100000000000000)))) *
-          (E_lo⁻¹ * (3 * (2939503850 / 10000000000) /
-            (2 * (314159265358979 / 100000000000000)))) :=
-      mul_le_mul hcoef_hi hprod_hi (mul_nonneg (exp_pos _).le hpg_pos.le) (by norm_num)
-    calc gaussianCoefficient * (1 - cdf (gaussianReal 0 1) (-a)) +
-            (1 / 2 - 2 / 3 * gaussianCoefficient) *
-              (exp (-(-a) ^ 2 / 2) * gaussianCoefficient)
-        ≤ _ := add_le_add hterm1 hterm2
-      _ ≤ 137432 / 1000000 := by norm_num [E_lo, y, a]
+  have hprod_hi : exp (-(-a) ^ 2 / 2) * gaussianCoefficient ≤
+      E_lo⁻¹ * (140350971 / 1000000000) :=
+    mul_le_mul hexp_hi hpg_hi hpg_pos.le (inv_pos.mpr hE_pos).le
+  refine max_le (hprod_hi.trans (by norm_num [E_lo, y, a])) ?_
+  have hterm1 : gaussianCoefficient * (1 - cdf (gaussianReal 0 1) (-a)) ≤
+      (140350971 / 1000000000) *
+        (1 / 2 + ((250662827463099 : ℝ) / 100000000000000)⁻¹ *
+          (a - a ^ 3 / 6 + a ^ 5 / 40 - a ^ 7 / 336 + a ^ 9 / 3456)) :=
+    mul_le_mul hpg_hi hcdf_hi (by rw [hcdf_symm]; exact cdf_nonneg _ _) (by norm_num)
+  have hterm2 : (1 / 2 - 2 / 3 * gaussianCoefficient) *
+        (exp (-(-a) ^ 2 / 2) * gaussianCoefficient) ≤
+      (1 / 2 - 2 / 3 * (14035095 / 100000000)) * (E_lo⁻¹ * (140350971 / 1000000000)) :=
+    mul_le_mul (by linarith) hprod_hi (mul_nonneg (exp_pos _).le hpg_pos.le) (by norm_num)
+  exact (add_le_add hterm1 hterm2).trans (by norm_num [E_lo, y, a])
 
 /-- Lower bound `139821 / 1000000 ≤ Switched.switchedCoefficient` (`c₃ ≈ 0.13982212`). -/
 theorem switchedCoefficient_ge_139821 : (139821 / 1000000 : ℝ) ≤ switchedCoefficient := by
-  have harc : (585685 / 1000000 : ℝ) ≤ arccos (5 / 6) := by
-    have h0 : 499998691456149 / 500000000000000 ≤ cos (585685 / 256000000) := by
-      have := one_sub_sq_div_two_le_cos (x := 585685 / 256000000)
-      norm_num at this ⊢
-      linarith
-    have h1 := le_cos_two_mul (by norm_num) h0
-      (v := 99998953166289 / 100000000000000) (by norm_num)
-    have h2 := le_cos_two_mul (by norm_num) h1
-      (v := 249989531717683 / 250000000000000) (by norm_num)
-    have h3 := le_cos_two_mul (by norm_num) h2
-      (v := 199966502197929 / 200000000000000) (by norm_num)
-    have h4 := le_cos_two_mul (by norm_num) h3
-      (v := 999330100063717 / 1000000000000000) (by norm_num)
-    have h5 := le_cos_two_mul (by norm_num) h4
-      (v := 997321297786717 / 1000000000000000) (by norm_num)
-    have h6 := le_cos_two_mul (by norm_num) h5
-      (v := 494649771018981 / 500000000000000) (by norm_num)
-    have h7 := le_cos_two_mul (by norm_num) h6
-      (v := 478713583876521 / 500000000000000) (by norm_num)
-    have h8 := le_cos_two_mul (by norm_num) h7
-      (v := 833333563103223 / 1000000000000000) (by norm_num)
-    have hval : (585685 / 1000000 : ℝ) =
-        2 * (2 * (2 * (2 * (2 * (2 * (2 * (2 * (585685 / 256000000)))))))) := by norm_num
-    have hcos : (5 / 6 : ℝ) ≤ cos (585685 / 1000000) := by rw [hval]; linarith
-    calc (585685 / 1000000 : ℝ) = arccos (cos (585685 / 1000000)) :=
-          (arccos_cos (by norm_num) (by linarith [pi_gt_three])).symm
-      _ ≤ arccos (5 / 6) := arccos_le_arccos hcos
-  have hpi_hi : π < (314159265358980 : ℝ) / 100000000000000 := by linarith [pi_lt_d20]
+  have harc : (585685 / 1000000 : ℝ) ≤ arccos (5 / 6) :=
+    le_arccos_of_sin_hi (by norm_num) (by norm_num) (by norm_num)
   unfold switchedCoefficient
   rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
-  linarith
+  linarith [pi_lt_d20]
 
 /-- **Strict improvement over Gaspers' switched pathwidth constant `c₃`:**
 `carvingCoefficient ≤ 0.137432 < 0.139821 ≤ switchedCoefficient`. -/
@@ -419,166 +411,66 @@ theorem carvingCoefficient_lt_switchedCoefficient :
 
 /-! ### Localization of the optimal threshold to `[-3 / 10, 0]` -/
 
-/-- Rational bounds `140350 / 1000000 ≤ gaussianCoefficient ≤ 140352 / 1000000`. -/
-private theorem gaussianCoefficient_bounds :
-    140350 / 1000000 ≤ gaussianCoefficient ∧ gaussianCoefficient ≤ 140352 / 1000000 := by
-  have hpi_lo : (314159265358979 : ℝ) / 100000000000000 < π := by linarith [pi_gt_d20]
-  have hpi_hi : π < (314159265358980 : ℝ) / 100000000000000 := by linarith [pi_lt_d20]
-  have hlo : 3 * (29395035 / 100000000) / (2 * (314159265358980 / 100000000000000)) ≤
-      gaussianCoefficient := by
-    unfold gaussianCoefficient
-    rw [div_mul_eq_mul_div]
-    exact div_le_div₀ (mul_nonneg (by norm_num) (arccos_nonneg _))
-      (mul_le_mul_of_nonneg_left le_arccos_edgeCorr (by norm_num))
-      (by linarith) (by linarith)
-  have hhi : gaussianCoefficient ≤
-      3 * (2939503850 / 10000000000) / (2 * (314159265358979 / 100000000000000)) := by
-    unfold gaussianCoefficient
-    rw [div_mul_eq_mul_div]
-    exact div_le_div₀ (by positivity)
-      (mul_le_mul_of_nonneg_left arccos_edgeCorr_le (by norm_num))
-      (by norm_num) (by linarith)
-  exact ⟨by norm_num at hlo; linarith, by norm_num at hhi; linarith⟩
-
 /-- Convenient strict upper bound `gaussianCoefficient < 3 / 20`. -/
 theorem gaussianCoefficient_lt_three_twentieths : gaussianCoefficient < 3 / 20 :=
   gaussianCoefficient_bounds.2.trans_lt (by norm_num)
-
-/-- Alternating degree-`7` Taylor lower bound for `exp (-y)` on `0 ≤ y`. -/
-private theorem exp_neg_ge_septic {y : ℝ} (hy : 0 ≤ y) :
-    1 - y + y ^ 2 / 2 - y ^ 3 / 6 + y ^ 4 / 24 - y ^ 5 / 120 + y ^ 6 / 720 - y ^ 7 / 5040 ≤
-      exp (-y) := by
-  have hexp_d : ∀ t : ℝ, HasDerivAt (fun x => exp (-x)) (-exp (-t)) t := fun t =>
-    (hasDerivAt_neg t).exp.congr_deriv (by ring)
-  let f₄ : ℝ → ℝ := fun t => (1 - t + t ^ 2 / 2 - t ^ 3 / 6 + t ^ 4 / 24) - exp (-t)
-  have hf₄ : ∀ t ≥ 0, 0 ≤ f₄ t := fun t ht => by
-    dsimp [f₄]; linarith [exp_neg_le_quartic ht]
-  let f₅ : ℝ → ℝ := fun t =>
-    exp (-t) - (1 - t + t ^ 2 / 2 - t ^ 3 / 6 + t ^ 4 / 24 - t ^ 5 / 120)
-  have hd₅ : ∀ t, HasDerivAt f₅ (f₄ t) t := fun t => by
-    have hp : HasDerivAt
-        (fun x => 1 - x + x ^ 2 / 2 - x ^ 3 / 6 + x ^ 4 / 24 - x ^ 5 / 120)
-        (-1 + t - t ^ 2 / 2 + t ^ 3 / 6 - t ^ 4 / 24) t := by
-      have := ((((((hasDerivAt_const t (1 : ℝ)).sub (hasDerivAt_id t)).add
-        ((hasDerivAt_pow 2 t).div_const 2)).sub ((hasDerivAt_pow 3 t).div_const 6)).add
-        ((hasDerivAt_pow 4 t).div_const 24)).sub ((hasDerivAt_pow 5 t).div_const 120))
-      exact this.congr_deriv (by ring)
-    exact ((hexp_d t).sub hp).congr_deriv (by dsimp [f₄]; ring)
-  have hf₅ : ∀ t ≥ 0, 0 ≤ f₅ t :=
-    nonneg_of_hasDerivAt_of_nonneg hd₅ hf₄ (by simp [f₅])
-  let f₆ : ℝ → ℝ := fun t =>
-    (1 - t + t ^ 2 / 2 - t ^ 3 / 6 + t ^ 4 / 24 - t ^ 5 / 120 + t ^ 6 / 720) - exp (-t)
-  have hd₆ : ∀ t, HasDerivAt f₆ (f₅ t) t := fun t => by
-    have hp : HasDerivAt
-        (fun x => 1 - x + x ^ 2 / 2 - x ^ 3 / 6 + x ^ 4 / 24 - x ^ 5 / 120 + x ^ 6 / 720)
-        (-1 + t - t ^ 2 / 2 + t ^ 3 / 6 - t ^ 4 / 24 + t ^ 5 / 120) t := by
-      have := (((((((hasDerivAt_const t (1 : ℝ)).sub (hasDerivAt_id t)).add
-        ((hasDerivAt_pow 2 t).div_const 2)).sub ((hasDerivAt_pow 3 t).div_const 6)).add
-        ((hasDerivAt_pow 4 t).div_const 24)).sub ((hasDerivAt_pow 5 t).div_const 120)).add
-        ((hasDerivAt_pow 6 t).div_const 720))
-      exact this.congr_deriv (by ring)
-    exact (hp.sub (hexp_d t)).congr_deriv (by dsimp [f₅]; ring)
-  have hf₆ : ∀ t ≥ 0, 0 ≤ f₆ t :=
-    nonneg_of_hasDerivAt_of_nonneg hd₆ hf₅ (by simp [f₆])
-  let f₇ : ℝ → ℝ := fun t =>
-    exp (-t) -
-      (1 - t + t ^ 2 / 2 - t ^ 3 / 6 + t ^ 4 / 24 - t ^ 5 / 120 + t ^ 6 / 720 - t ^ 7 / 5040)
-  have hd₇ : ∀ t, HasDerivAt f₇ (f₆ t) t := fun t => by
-    have hp : HasDerivAt
-        (fun x => 1 - x + x ^ 2 / 2 - x ^ 3 / 6 + x ^ 4 / 24 - x ^ 5 / 120 +
-          x ^ 6 / 720 - x ^ 7 / 5040)
-        (-1 + t - t ^ 2 / 2 + t ^ 3 / 6 - t ^ 4 / 24 + t ^ 5 / 120 - t ^ 6 / 720) t := by
-      have := ((((((((hasDerivAt_const t (1 : ℝ)).sub (hasDerivAt_id t)).add
-        ((hasDerivAt_pow 2 t).div_const 2)).sub ((hasDerivAt_pow 3 t).div_const 6)).add
-        ((hasDerivAt_pow 4 t).div_const 24)).sub ((hasDerivAt_pow 5 t).div_const 120)).add
-        ((hasDerivAt_pow 6 t).div_const 720)).sub ((hasDerivAt_pow 7 t).div_const 5040))
-      exact this.congr_deriv (by ring)
-    exact ((hexp_d t).sub hp).congr_deriv (by dsimp [f₆]; ring)
-  have hge := nonneg_of_hasDerivAt_of_nonneg hd₇ hf₆ (by simp [f₇]) y hy
-  dsimp [f₇] at hge
-  linarith
 
 private noncomputable abbrev cdfPolyLo (a : ℝ) : ℝ :=
   a - a ^ 3 / 6 + a ^ 5 / 40 - a ^ 7 / 336 + a ^ 9 / 3456 - a ^ 11 / 42240 +
     a ^ 13 / 599040 - a ^ 15 / 9676800
 
-/-- Lower bound on `cdf (gaussianReal 0 1) a` for `0 ≤ a` from `exp_neg_ge_septic`. -/
-private theorem cdf_gaussianReal_ge_poly {a : ℝ} (ha : 0 ≤ a) :
-    1 / 2 + (√(2 * π))⁻¹ * cdfPolyLo a ≤ cdf (gaussianReal 0 1) a := by
-  have hsplit : cdf (gaussianReal 0 1) a =
-      cdf (gaussianReal 0 1) 0 + ∫ u in (0 : ℝ)..a, gaussianPDFReal 0 1 u := by
-    rw [cdf_gaussianReal_eq_integral 0 one_ne_zero a,
-      cdf_gaussianReal_eq_integral 0 one_ne_zero 0,
-      intervalIntegral.integral_of_le ha]
-    have huni : Iic a = Iic (0 : ℝ) ∪ Ioc 0 a := (Iic_union_Ioc_eq_Iic ha).symm
-    rw [huni, setIntegral_union (Iic_disjoint_Ioc le_rfl) measurableSet_Ioc
-      (integrable_gaussianPDFReal 0 1).integrableOn
-      (integrable_gaussianPDFReal 0 1).integrableOn]
-  rw [hsplit, cdf_gaussianReal_zero_zero one_ne_zero]
-  let P : ℝ → ℝ := fun u =>
-    1 - u ^ 2 / 2 + u ^ 4 / 8 - u ^ 6 / 48 + u ^ 8 / 384 - u ^ 10 / 3840 +
-      u ^ 12 / 46080 - u ^ 14 / 645120
-  have hQ_deriv : ∀ u ∈ uIcc 0 a, HasDerivAt cdfPolyLo (P u) u := fun u _ => by
-    dsimp [cdfPolyLo, P]
-    have := ((((((((hasDerivAt_id u).sub ((hasDerivAt_pow 3 u).div_const 6)).add
-      ((hasDerivAt_pow 5 u).div_const 40)).sub ((hasDerivAt_pow 7 u).div_const 336)).add
-      ((hasDerivAt_pow 9 u).div_const 3456)).sub ((hasDerivAt_pow 11 u).div_const 42240)).add
-      ((hasDerivAt_pow 13 u).div_const 599040)).sub
-      ((hasDerivAt_pow 15 u).div_const 9676800))
-    exact this.congr_deriv (by ring)
-  have hP_int : IntervalIntegrable P volume 0 a :=
-    (by unfold P; fun_prop : Continuous P).intervalIntegrable 0 a
-  have hint_Q : ∫ u in (0 : ℝ)..a, P u = cdfPolyLo a := by
-    rw [intervalIntegral.integral_eq_sub_of_hasDerivAt hQ_deriv hP_int]
-    dsimp [cdfPolyLo]; ring
-  have hpdf_ge : ∀ u ∈ Icc 0 a, (√(2 * π))⁻¹ * P u ≤ gaussianPDFReal 0 1 u := by
-    intro u _
-    rw [gaussianPDFReal_def]
-    simp only [NNReal.coe_one, mul_one, sub_zero]
-    refine mul_le_mul_of_nonneg_left ?_ (by positivity)
-    have hq := exp_neg_ge_septic (y := u ^ 2 / 2) (by positivity)
-    have heq : -(u ^ 2 / 2) = -u ^ 2 / 2 := by ring
-    rw [heq] at hq
-    refine (le_of_eq ?_).trans hq
-    dsimp [P]; ring
-  have hmono := intervalIntegral.integral_mono_on ha
-    (hP_int.const_mul (√(2 * π))⁻¹)
-    ((continuous_gaussianPDFReal 0 1).intervalIntegrable 0 a) hpdf_ge
-  rw [intervalIntegral.integral_const_mul, hint_Q] at hmono
-  linarith
-
 private noncomputable abbrev expPolyLo (y : ℝ) : ℝ :=
   1 - y + y ^ 2 / 2 - y ^ 3 / 6 + y ^ 4 / 24 - y ^ 5 / 120 + y ^ 6 / 720 - y ^ 7 / 5040
 
-private theorem carvingAt_gt_on_Icc {a b t : ℝ} (ht : t ∈ Icc a b) (hb0 : b ≤ 0)
-    (he0 : 0 ≤ expPolyLo (a ^ 2 / 2)) (hc0 : 0 ≤ cdfPolyLo (-b))
-    (hval : 138 / 1000 <
-      (140350 / 1000000) * (1 / 2 + (2506629 / 1000000)⁻¹ * cdfPolyLo (-b)) +
-        (1 / 2 - 2 / 3 * (140352 / 1000000)) * (expPolyLo (a ^ 2 / 2) * (140350 / 1000000))) :
-    138 / 1000 < carvingAt t := by
-  obtain ⟨hp_lo, hp_hi⟩ := gaussianCoefficient_bounds
-  have hsqrt_pos : 0 < √(2 * π) := sqrt_pos.mpr (by positivity)
-  have hsqrt_hi : √(2 * π) ≤ 2506629 / 1000000 := by
-    have hpi_hi : π < (314159265358980 : ℝ) / 100000000000000 := by linarith [pi_lt_d20]
-    exact sqrt_le_iff.mpr ⟨by norm_num, by nlinarith⟩
-  have hcdf_tb : cdf (gaussianReal 0 1) t ≤ cdf (gaussianReal 0 1) b :=
-    (strictMono_cdf_gaussianReal 0 one_ne_zero).monotone ht.2
-  have hsymm : 1 - cdf (gaussianReal 0 1) b = cdf (gaussianReal 0 1) (-b) := by
-    have := cdf_gaussianReal_neg one_ne_zero (-b)
-    rw [neg_neg] at this
+/-- Alternating degree-`7` Taylor lower bound for `exp (-y)` on `0 ≤ y`. -/
+private theorem exp_neg_ge_septic {y : ℝ} (hy : 0 ≤ y) : expPolyLo y ≤ exp (-y) := by
+  have h := exp_neg_taylor_nonneg 7 hy
+  have h7 : expNegTaylor 7 y = expPolyLo y := by
+    unfold expNegTaylor expPolyLo
+    simp only [Finset.sum_range_succ, Finset.sum_range_zero, Nat.factorial]
+    norm_num
+    ring
+  rw [h7, show (-1 : ℝ) ^ (7 + 1) = 1 by norm_num] at h
+  linarith
+
+/-- Lower bound on `1 - cdf (gaussianReal 0 1) t` for `t ≤ b ≤ 0` via the degree-`7` envelope. -/
+private theorem one_sub_cdf_ge_of_le {t b : ℝ} (htb : t ≤ b) (hb0 : b ≤ 0)
+    (hc0 : 0 ≤ cdfPolyLo (-b)) :
+    1 / 2 + (2506629 / 1000000 : ℝ)⁻¹ * cdfPolyLo (-b) ≤ 1 - cdf (gaussianReal 0 1) t := by
+  have hcdf_ge : 1 / 2 + (√(2 * π))⁻¹ * cdfPolyLo (-b) ≤ cdf (gaussianReal 0 1) (-b) := by
+    have h := cdf_gaussianReal_taylor_nonneg 7 (show 0 ≤ -b by linarith)
+    have h7 : cdfTaylor 7 (-b) = cdfPolyLo (-b) := by
+      unfold cdfTaylor cdfPolyLo
+      simp only [Finset.sum_range_succ, Finset.sum_range_zero, Nat.factorial]
+      norm_num
+      ring
+    rw [h7, show (-1 : ℝ) ^ (7 + 1) = 1 by norm_num] at h
     linarith
-  have hcdf_lo : 1 / 2 + (2506629 / 1000000 : ℝ)⁻¹ * cdfPolyLo (-b) ≤
-      1 - cdf (gaussianReal 0 1) t := by
-    calc 1 / 2 + (2506629 / 1000000 : ℝ)⁻¹ * cdfPolyLo (-b)
-        ≤ 1 / 2 + (√(2 * π))⁻¹ * cdfPolyLo (-b) := by gcongr
-      _ ≤ cdf (gaussianReal 0 1) (-b) := cdf_gaussianReal_ge_poly (by linarith)
-      _ = 1 - cdf (gaussianReal 0 1) b := hsymm.symm
-      _ ≤ 1 - cdf (gaussianReal 0 1) t := by linarith
+  have hsqrt_pos : 0 < √(2 * π) := sqrt_pos.mpr (by positivity)
+  have hsqrt_hi : √(2 * π) ≤ 2506629 / 1000000 :=
+    sqrt_le_iff.mpr ⟨by norm_num, by nlinarith [pi_lt_d20]⟩
+  have hcdf_tb := (strictMono_cdf_gaussianReal 0 one_ne_zero).monotone htb
+  have hsymm := cdf_gaussianReal_neg one_ne_zero (-b)
+  rw [neg_neg] at hsymm
+  calc 1 / 2 + (2506629 / 1000000 : ℝ)⁻¹ * cdfPolyLo (-b)
+      ≤ 1 / 2 + (√(2 * π))⁻¹ * cdfPolyLo (-b) := by gcongr
+    _ ≤ cdf (gaussianReal 0 1) (-b) := hcdf_ge
+    _ ≤ 1 - cdf (gaussianReal 0 1) t := by linarith
+
+private theorem carvingAt_gt_on_Icc {a b t : ℝ} (ht : t ∈ Icc a b)
+    (hcert : b ≤ 0 ∧ 0 ≤ expPolyLo (a ^ 2 / 2) ∧ 0 ≤ cdfPolyLo (-b) ∧
+      138 / 1000 <
+        (140350 / 1000000) * (1 / 2 + (2506629 / 1000000)⁻¹ * cdfPolyLo (-b)) +
+          (1 / 2 - 2 / 3 * (140352 / 1000000)) * (expPolyLo (a ^ 2 / 2) * (140350 / 1000000))) :
+    138 / 1000 < carvingAt t := by
+  rcases hcert with ⟨hb0, he0, hc0, hval⟩
+  obtain ⟨hp_lo', hp_hi'⟩ := gaussianCoefficient_bounds
+  have hp_lo : 140350 / 1000000 ≤ gaussianCoefficient := by linarith
+  have hp_hi : gaussianCoefficient ≤ 140352 / 1000000 := by linarith
+  have hcdf_lo := one_sub_cdf_ge_of_le ht.2 hb0 hc0
   have hexp_lo : expPolyLo (a ^ 2 / 2) ≤ exp (-t ^ 2 / 2) := by
     have hsq : t ^ 2 ≤ a ^ 2 := by nlinarith [ht.1, ht.2]
-    have h1 := exp_neg_ge_septic (y := a ^ 2 / 2) (by positivity)
-    have h2 : exp (-(a ^ 2 / 2)) ≤ exp (-t ^ 2 / 2) := exp_le_exp.mpr (by linarith)
-    exact h1.trans h2
+    exact (exp_neg_ge_septic (by positivity)).trans (exp_le_exp.mpr (by linarith))
   refine hval.trans_le ((add_le_add ?_ ?_).trans (le_max_right _ _))
   · exact mul_le_mul hp_lo hcdf_lo (by positivity) gaussianCoefficient_pos.le
   · have hprod : expPolyLo (a ^ 2 / 2) * (140350 / 1000000) ≤
@@ -590,61 +482,35 @@ private theorem carvingAt_gt_on_Icc {a b t : ℝ} (ht : t ∈ Icc a b) (hb0 : b 
 private theorem carvingAt_gt_of_lt_neg_three_tenths {t : ℝ} (ht : t < -3 / 10) :
     138 / 1000 < carvingAt t := by
   rcases le_or_gt t (-23 / 10) with h23 | h23
-  · obtain ⟨hp_lo, hp_hi⟩ := gaussianCoefficient_bounds
-    have hsqrt_pos : 0 < √(2 * π) := sqrt_pos.mpr (by positivity)
-    have hsqrt_hi : √(2 * π) ≤ 2506629 / 1000000 := by
-      have hpi_hi : π < (314159265358980 : ℝ) / 100000000000000 := by linarith [pi_lt_d20]
-      exact sqrt_le_iff.mpr ⟨by norm_num, by nlinarith⟩
-    have hcdf_le : cdf (gaussianReal 0 1) t ≤ cdf (gaussianReal 0 1) (-23 / 10) :=
-      (strictMono_cdf_gaussianReal 0 one_ne_zero).monotone h23
-    have hsymm : 1 - cdf (gaussianReal 0 1) (-23 / 10) = cdf (gaussianReal 0 1) (23 / 10) := by
-      have := cdf_gaussianReal_neg one_ne_zero (23 / 10)
-      have hn : -(23 / 10 : ℝ) = -23 / 10 := by norm_num
-      rw [hn] at this
-      linarith
-    have hc0 : 0 ≤ cdfPolyLo (23 / 10) := by norm_num [cdfPolyLo]
-    have hcdf_lo : 1 / 2 + (2506629 / 1000000 : ℝ)⁻¹ * cdfPolyLo (23 / 10) ≤
-        1 - cdf (gaussianReal 0 1) t := by
-      calc 1 / 2 + (2506629 / 1000000 : ℝ)⁻¹ * cdfPolyLo (23 / 10)
-          ≤ 1 / 2 + (√(2 * π))⁻¹ * cdfPolyLo (23 / 10) := by gcongr
-        _ ≤ cdf (gaussianReal 0 1) (23 / 10) := cdf_gaussianReal_ge_poly (by norm_num)
-        _ = 1 - cdf (gaussianReal 0 1) (-23 / 10) := hsymm.symm
-        _ ≤ 1 - cdf (gaussianReal 0 1) t := by linarith
+  · obtain ⟨hp_lo', hp_hi'⟩ := gaussianCoefficient_bounds
+    have hp_lo : 140350 / 1000000 ≤ gaussianCoefficient := by linarith
+    have hc0 : 0 ≤ cdfPolyLo (-(-23 / 10)) := by dsimp only [cdfPolyLo]; norm_num
+    have hcdf_lo := one_sub_cdf_ge_of_le h23 (by norm_num) hc0
     have hnonneg : 0 ≤ (1 / 2 - 2 / 3 * gaussianCoefficient) *
         (exp (-t ^ 2 / 2) * gaussianCoefficient) :=
       mul_nonneg (by linarith) (mul_nonneg (exp_pos _).le gaussianCoefficient_pos.le)
     have hnum : (138 / 1000 : ℝ) <
-        (140350 / 1000000) * (1 / 2 + (2506629 / 1000000)⁻¹ * cdfPolyLo (23 / 10)) := by
-      norm_num [cdfPolyLo]
-    refine hnum.trans_le (le_trans ?_ (le_max_right _ _))
+        (140350 / 1000000) * (1 / 2 + (2506629 / 1000000)⁻¹ * cdfPolyLo (-(-23 / 10))) := by
+      dsimp only [cdfPolyLo]; norm_num
     have hm := mul_le_mul hp_lo hcdf_lo (by positivity) gaussianCoefficient_pos.le
-    linarith
+    exact hnum.trans_le ((show _ ≤ _ by linarith).trans (le_max_right _ _))
   rcases le_or_gt t (-2) with h20 | h20
-  · exact carvingAt_gt_on_Icc ⟨h23.le, h20⟩ (by norm_num) (by norm_num [expPolyLo])
-      (by norm_num [cdfPolyLo]) (by norm_num [expPolyLo, cdfPolyLo])
+  · exact carvingAt_gt_on_Icc ⟨h23.le, h20⟩ (by dsimp only [expPolyLo, cdfPolyLo]; norm_num)
   rcases le_or_gt t (-17 / 10) with h17 | h17
-  · exact carvingAt_gt_on_Icc ⟨h20.le, h17⟩ (by norm_num) (by norm_num [expPolyLo])
-      (by norm_num [cdfPolyLo]) (by norm_num [expPolyLo, cdfPolyLo])
+  · exact carvingAt_gt_on_Icc ⟨h20.le, h17⟩ (by dsimp only [expPolyLo, cdfPolyLo]; norm_num)
   rcases le_or_gt t (-7 / 5) with h14 | h14
-  · exact carvingAt_gt_on_Icc ⟨h17.le, h14⟩ (by norm_num) (by norm_num [expPolyLo])
-      (by norm_num [cdfPolyLo]) (by norm_num [expPolyLo, cdfPolyLo])
+  · exact carvingAt_gt_on_Icc ⟨h17.le, h14⟩ (by dsimp only [expPolyLo, cdfPolyLo]; norm_num)
   rcases le_or_gt t (-11 / 10) with h11 | h11
-  · exact carvingAt_gt_on_Icc ⟨h14.le, h11⟩ (by norm_num) (by norm_num [expPolyLo])
-      (by norm_num [cdfPolyLo]) (by norm_num [expPolyLo, cdfPolyLo])
+  · exact carvingAt_gt_on_Icc ⟨h14.le, h11⟩ (by dsimp only [expPolyLo, cdfPolyLo]; norm_num)
   rcases le_or_gt t (-4 / 5) with h08 | h08
-  · exact carvingAt_gt_on_Icc ⟨h11.le, h08⟩ (by norm_num) (by norm_num [expPolyLo])
-      (by norm_num [cdfPolyLo]) (by norm_num [expPolyLo, cdfPolyLo])
+  · exact carvingAt_gt_on_Icc ⟨h11.le, h08⟩ (by dsimp only [expPolyLo, cdfPolyLo]; norm_num)
   rcases le_or_gt t (-1 / 2) with h05 | h05
-  · exact carvingAt_gt_on_Icc ⟨h08.le, h05⟩ (by norm_num) (by norm_num [expPolyLo])
-      (by norm_num [cdfPolyLo]) (by norm_num [expPolyLo, cdfPolyLo])
+  · exact carvingAt_gt_on_Icc ⟨h08.le, h05⟩ (by dsimp only [expPolyLo, cdfPolyLo]; norm_num)
   rcases le_or_gt t (-21 / 50) with h042 | h042
-  · exact carvingAt_gt_on_Icc ⟨h05.le, h042⟩ (by norm_num) (by norm_num [expPolyLo])
-      (by norm_num [cdfPolyLo]) (by norm_num [expPolyLo, cdfPolyLo])
+  · exact carvingAt_gt_on_Icc ⟨h05.le, h042⟩ (by dsimp only [expPolyLo, cdfPolyLo]; norm_num)
   rcases le_or_gt t (-7 / 20) with h035 | h035
-  · exact carvingAt_gt_on_Icc ⟨h042.le, h035⟩ (by norm_num) (by norm_num [expPolyLo])
-      (by norm_num [cdfPolyLo]) (by norm_num [expPolyLo, cdfPolyLo])
-  · exact carvingAt_gt_on_Icc ⟨h035.le, ht.le⟩ (by norm_num) (by norm_num [expPolyLo])
-      (by norm_num [cdfPolyLo]) (by norm_num [expPolyLo, cdfPolyLo])
+  · exact carvingAt_gt_on_Icc ⟨h042.le, h035⟩ (by dsimp only [expPolyLo, cdfPolyLo]; norm_num)
+  · exact carvingAt_gt_on_Icc ⟨h035.le, ht.le⟩ (by dsimp only [expPolyLo, cdfPolyLo]; norm_num)
 
 /-- Every `ξ > 0` admits a threshold `t₀ ∈ [-3 / 10, 0]` with
 `carvingAt t₀ < carvingCoefficient + ξ`. -/
@@ -667,11 +533,10 @@ theorem exists_mem_Icc_carvingAt_lt {ξ : ℝ} (hξ : 0 < ξ) :
 /-- On `[-3 / 10, 0]`, `134 / 1000 ≤ carvingAt t`. -/
 theorem carvingAt_ge_134_of_mem_Icc {t : ℝ} (ht : t ∈ Icc (-3 / 10 : ℝ) 0) :
     134 / 1000 ≤ carvingAt t := by
-  obtain ⟨hp_lo, _⟩ := gaussianCoefficient_bounds
+  have hp_lo : 140350 / 1000000 ≤ gaussianCoefficient := by linarith [gaussianCoefficient_bounds.1]
   have hexp : 191 / 200 ≤ exp (-t ^ 2 / 2) := by
     have hsq : t ^ 2 ≤ 9 / 100 := by nlinarith [ht.1, ht.2]
-    have h1 := add_one_le_exp (-t ^ 2 / 2)
-    linarith
+    linarith [add_one_le_exp (-t ^ 2 / 2)]
   refine le_trans ?_ (le_max_left _ _)
   calc (134 / 1000 : ℝ) ≤ (191 / 200) * (140350 / 1000000) := by norm_num
     _ ≤ exp (-t ^ 2 / 2) * gaussianCoefficient :=

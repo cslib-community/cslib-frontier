@@ -212,10 +212,8 @@ theorem card_le_of_realize_iff_connected [Finite V] {φ : Language.graph.Sentenc
     Fintype.equivFinOfCardEq (Nat.card_eq_fintype_card.symm.trans hb)
   refine not_realize_iff_of_transfer e hφ _ _ ?_ ?_
     (realize_cycleGraph_iff_sum (by omega) (by omega) le_rfl)
-  · rw [(Iso.comap e _).connected_iff]
-    obtain ⟨k, hk⟩ : ∃ k, 3 ^ quantifierRank φ + 1 + b = k + 1 :=
-      ⟨3 ^ quantifierRank φ + b, by omega⟩
-    rw [hk]
+  · have hk : 3 ^ quantifierRank φ + 1 + b = (3 ^ quantifierRank φ + b) + 1 := by omega
+    rw [(Iso.comap e _).connected_iff, hk]
     exact connected_cycleGraph_add_one
   · rw [(Iso.comap _ _).connected_iff]
     have : Nonempty (Fin (3 ^ quantifierRank φ + 1)) := ⟨0⟩
@@ -276,26 +274,20 @@ theorem hanfEquiv_pathGraph {a b r : ℕ} (ha : 2 * r ≤ a) (hb : 2 * r + 2 ≤
   refine hanfEquiv_zero_iff.2 ⟨pathCycleEquiv a b r (by omega), fun c => ?_⟩
   have hc := c.2
   by_cases h : c.1 < r
-  · have he : pathCycleEquiv a b r (by omega) c = .inl ⟨c.1, by omega⟩ := by
-      simp only [pathCycleEquiv, Equiv.coe_fn_mk, h, dite_true]
-    rw [he]
+  · simp only [pathCycleEquiv, Equiv.coe_fn_mk, h, dite_true]
     obtain ⟨φ, hφ0, hφ⟩ := exists_isBallPath_pathGraph (r := r) c rfl rfl
     obtain ⟨ψ, hψ0, hψ⟩ := exists_isBallPath_pathGraph (r := r) (⟨c.1, by omega⟩ : Fin a)
       (lo := -(min r c.1 : ℕ)) (hi := (min r (a + b - 1 - c.1) : ℕ)) rfl (by simp only; omega)
     exact nbhdIso_of_isBallPath hφ (hψ.sumInl (H := cycleGraph b)) hφ0
       (by simp only [Function.comp_apply, hψ0])
   by_cases h' : c.1 < r + b
-  · have he : pathCycleEquiv a b r (by omega) c = .inr ⟨c.1 - r, by omega⟩ := by
-      simp only [pathCycleEquiv, Equiv.coe_fn_mk, h, h', dite_false, dite_true]
-    rw [he]
+  · simp only [pathCycleEquiv, Equiv.coe_fn_mk, h, h', dite_false, dite_true]
     obtain ⟨φ, hφ0, hφ⟩ := exists_isBallPath_pathGraph (r := r) c (lo := -r) (hi := r)
       (by omega) (by omega)
     obtain ⟨ψ, hψ0, hψ⟩ := exists_isBallPath_cycleGraph hb (⟨c.1 - r, by omega⟩ : Fin b)
     exact nbhdIso_of_isBallPath hφ (hψ.sumInr (G := pathGraph a)) hφ0
       (by simp only [Function.comp_apply, hψ0])
-  · have he : pathCycleEquiv a b r (by omega) c = .inl ⟨c.1 - b, by omega⟩ := by
-      simp only [pathCycleEquiv, Equiv.coe_fn_mk, h, h', dite_false]
-    rw [he]
+  · simp only [pathCycleEquiv, Equiv.coe_fn_mk, h, h', dite_false]
     obtain ⟨φ, hφ0, hφ⟩ := exists_isBallPath_pathGraph (r := r) c rfl rfl
     obtain ⟨ψ, hψ0, hψ⟩ := exists_isBallPath_pathGraph (r := r) (⟨c.1 - b, by omega⟩ : Fin a)
       (lo := -(min r c.1 : ℕ)) (hi := (min r (a + b - 1 - c.1) : ℕ))

@@ -52,6 +52,8 @@ open Cslib.Circuits
 attribute [circuit_simps]
   Formula.eval_const Formula.eval_not Formula.eval_and Formula.eval_or Formula.eval_xor
   Formula.size_const Formula.size_not Formula.size_and Formula.size_or Formula.size_xor
+  Formula.leafSize_const Formula.leafSize_not Formula.leafSize_and Formula.leafSize_or
+  Formula.leafSize_xor
   Formula.depth_const Formula.depth_not Formula.depth_and Formula.depth_or
 
 attribute [circuit_bound] Formula.depth_xor_le

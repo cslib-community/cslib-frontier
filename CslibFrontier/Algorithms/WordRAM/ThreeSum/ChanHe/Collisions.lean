@@ -64,14 +64,9 @@ theorem coll_eq_histogramPairs (values : ℕ → ℤ) (n M : ℕ) (hM : 0 < M)
     obtain ⟨hp₁, hp₂, hne⟩ := mem_offDiag.mp hp
     obtain ⟨i, hi, hival⟩ := mem_image.mp hp₁
     obtain ⟨j, hj, hjval⟩ := mem_image.mp hp₂
-    refine ⟨(i, j), mem_filter.mpr ⟨mem_offDiag.mpr ⟨hi, hj, ?_⟩, ?_⟩, ?_⟩
-    · intro hij
-      change i = j at hij
-      apply hne
-      rw [← hival, ← hjval, hij]
-    · have heq := (natCast_dvd_sub_iff_emod_eq M _ _).mp hdvd
-      change (values i % (M : ℤ)).toNat = (values j % (M : ℤ)).toNat
-      rw [hival, hjval, heq]
-    · exact Prod.ext hival hjval
+    refine ⟨(i, j), mem_filter.mpr ⟨mem_offDiag.mpr ⟨hi, hj, fun hij => ?_⟩, ?_⟩,
+      Prod.ext hival hjval⟩
+    · exact hne (hival ▸ hjval ▸ congrArg values hij)
+    · simp [hival, hjval, (natCast_dvd_sub_iff_emod_eq M _ _).mp hdvd]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe

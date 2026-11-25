@@ -49,11 +49,9 @@ theorem ofFn {count : ℕ} {values : α → Fin count → Value} {T S : Fin coun
   induction count with
   | zero => simpa using (const (encIn := input) (encMid := encList enc) [])
   | succ count ih =>
-    have htail := ih (values := fun a i => values a i.succ)
-      (T := fun i => T i.succ) (S := fun i => S i.succ) (fun i => hvalues i.succ)
-    have h := (ComputableInDegree.cons (enc := enc)).inO_one.comp_linear
-      ((hvalues 0).prod htail)
-    simpa only [Function.comp_def, List.ofFn_succ, Fin.sum_univ_succ, Nat.add_left_comm] using h
+    simpa only [Function.comp_def, List.ofFn_succ, Fin.sum_univ_succ, Nat.add_left_comm] using
+      (ComputableInDegree.cons (enc := enc)).inO_one.comp_linear
+        ((hvalues 0).prod (ih fun i => hvalues i.succ))
 
 /-- Construct a finite tuple from arbitrary resource certificates for its entries. -/
 theorem pi [Fintype Index] {values : α → Index → Value} {T S : Index → α → ℕ}
@@ -90,11 +88,10 @@ theorem pi_apply [Fintype Index] (enc : Value ↪ List Bool) (i : Index) :
     exact (ComputableInDegree.of_finite _).inO_one
   | inr hnonempty =>
     have hlist : ComputableInDegree (fun values : Index → Value =>
-        List.ofFn (fun j => values ((Fintype.equivFin Index).symm j)))
-        (encPi enc) (encList enc) 1 1 := .of_eq (fun _ => rfl)
-    have h := ((getD_fixed (enc := enc) (Classical.choice hnonempty)
+        List.ofFn fun j => values ((Fintype.equivFin Index).symm j))
+        (encPi enc) (encList enc) 1 1 := .of_eq fun _ => rfl
+    simpa [Function.comp_def] using ((getD_fixed (enc := enc) (Classical.choice hnonempty)
       (Fintype.equivFin Index i).val).comp hlist).inO_one
-    simpa [Function.comp_def] using h
 
 /-- Gather fixed entries into a fixed tuple; the map need not be injective. -/
 theorem pi_gather {Target : Type} [Fintype Index] [Fintype Target]

@@ -52,7 +52,7 @@ theorem size_count_false_inSpace :
     (step := fun p => step (flip p)) (init := fun _ => ⟨0, 1⟩)
     (S := fun w => Nat.log2 (encBits w).length) (B := fun w => 4 * Nat.log2 w.length + 7)
     (fun _ j => ⟨j, 2 ^ j⟩) (fun w => Nat.size (w.count false))
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _) step_flip_inSpace
+    (ComputableInSpace.budget_const _) step_flip_inSpace
     (fun _ => rfl)
     (fun w j hj => by
       have h : ¬w.count false < 2 ^ j := Nat.not_lt.mpr (Nat.lt_size.mp hj)

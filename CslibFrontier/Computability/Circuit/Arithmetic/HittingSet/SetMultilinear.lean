@@ -96,11 +96,8 @@ private theorem weight_blockWeight_apply {m : Fin n × Fin d →₀ ℕ} (h1 : �
     (hinj : Set.InjOn Prod.fst (m.support : Set (Fin n × Fin d))) {v : Fin n × Fin d}
     (hv : v ∈ m.support) : Finsupp.weight blockWeight m v.1 = v.2.val + 1 := by
   rw [Finsupp.weight_apply, Finsupp.sum, Finsupp.finsetSum_apply, sum_eq_single_of_mem v hv]
-  · rw [le_antisymm (h1 v) (Finsupp.mem_support_iff.1 hv).bot_lt]
-    simp [blockWeight]
-  · intro u hu huv
-    have : u.1 ≠ v.1 := fun h => huv (hinj hu hv h)
-    simp [blockWeight, this]
+  · simp [le_antisymm (h1 v) (Finsupp.mem_support_iff.1 hv).bot_lt, blockWeight]
+  · exact fun u hu huv => by simp [blockWeight, show u.1 ≠ v.1 from fun h => huv (hinj hu hv h)]
 
 /-- If the weight of a monomial is not zero at a block, the monomial contains a variable of the
 block. -/
@@ -108,35 +105,30 @@ private theorem exists_mem_support_of_weight_blockWeight_ne_zero {m : Fin n × F
     {j : Fin n} (h : Finsupp.weight blockWeight m j ≠ 0) : ∃ v ∈ m.support, v.1 = j := by
   rw [Finsupp.weight_apply, Finsupp.sum, Finsupp.finsetSum_apply] at h
   obtain ⟨v, hv, hvj⟩ := exists_ne_zero_of_sum_ne_zero h
-  refine ⟨v, hv, by_contra fun hne => hvj ?_⟩
-  simp [blockWeight, hne]
+  exact ⟨v, hv, by_contra fun hne => hvj (by simp [blockWeight, hne])⟩
 
 /-- The substitution `blockPower` maps distinct monomials with at most one variable of each
 block, to the first power, to distinct monomials. -/
 theorem weight_blockWeight_injOn :
     Set.InjOn (Finsupp.weight (blockWeight (n := n) (d := d)))
       {m | (∀ v, m v ≤ 1) ∧ Set.InjOn Prod.fst (m.support : Set (Fin n × Fin d))} := by
-  have key : ∀ m m' : Fin n × Fin d →₀ ℕ, (∀ v, m v ≤ 1) →
-      Set.InjOn Prod.fst (m.support : Set (Fin n × Fin d)) → (∀ v, m' v ≤ 1) →
-      Set.InjOn Prod.fst (m'.support : Set (Fin n × Fin d)) →
-      Finsupp.weight blockWeight m = Finsupp.weight blockWeight m' →
-      m.support ⊆ m'.support := by
-    intro m m' h1 hinj h1' hinj' hw v hv
-    have hwv := weight_blockWeight_apply h1 hinj hv
+  have key {m m' : Fin n × Fin d →₀ ℕ}
+      (hm : (∀ v, m v ≤ 1) ∧ Set.InjOn Prod.fst (m.support : Set (Fin n × Fin d)))
+      (hm' : (∀ v, m' v ≤ 1) ∧ Set.InjOn Prod.fst (m'.support : Set (Fin n × Fin d)))
+      (hw : Finsupp.weight blockWeight m = Finsupp.weight blockWeight m') :
+      m.support ⊆ m'.support := fun v hv => by
+    have hwv := weight_blockWeight_apply hm.1 hm.2 hv
     obtain ⟨u, hu, huv⟩ := exists_mem_support_of_weight_blockWeight_ne_zero
-      (m := m') (j := v.1) (by rw [← hw, hwv]; exact Nat.succ_ne_zero _)
-    have hwu := weight_blockWeight_apply h1' hinj' hu
-    rw [huv, ← hw, hwv] at hwu
-    obtain rfl : u = v := Prod.ext huv (Fin.ext (Nat.succ_injective hwu.symm))
-    exact hu
-  rintro m ⟨h1, hinj⟩ m' ⟨h1', hinj'⟩ hw
-  have hs : m.support = m'.support :=
-    (key m m' h1 hinj h1' hinj' hw).antisymm (key m' m h1' hinj' h1 hinj hw.symm)
+      (m := m') (j := v.1) (by simp [← hw, hwv])
+    have hwu := weight_blockWeight_apply hm'.1 hm'.2 hu
+    exact Prod.ext huv (Fin.ext (Nat.succ_injective (hwu.symm.trans (by rw [huv, ← hw, hwv])))) ▸ hu
+  rintro m hm m' hm' hw
+  have hs := (key hm hm' hw).antisymm (key hm' hm hw.symm)
   ext v
   by_cases hv : v ∈ m.support
-  · rw [le_antisymm (h1 v) (Finsupp.mem_support_iff.1 hv).bot_lt,
-      le_antisymm (h1' v) (Finsupp.mem_support_iff.1 (hs ▸ hv)).bot_lt]
-  · rw [Finsupp.notMem_support_iff.1 hv, Finsupp.notMem_support_iff.1 (hs ▸ hv)]
+  · rw [le_antisymm (hm.1 v) (Finsupp.mem_support_iff.1 hv).bot_lt,
+      le_antisymm (hm'.1 v) (Finsupp.mem_support_iff.1 (hs ▸ hv)).bot_lt]
+  · simp [Finsupp.notMem_support_iff.1 hv, Finsupp.notMem_support_iff.1 (hs ▸ hv)]
 
 variable {f : MvPolynomial (Fin n × Fin d) F}
 
@@ -146,8 +138,8 @@ private theorem exists_weight_eq_of_mem_support_blockPower {μ : Fin n →₀ �
     ∃ m ∈ f.support, Finsupp.weight blockWeight m = μ := by
   classical
   rw [mem_support_iff, blockPower, MvPolynomial.coeff_aeval_monomial] at hμ
-  have h0 : weightedHomogeneousComponent blockWeight μ f ≠ 0 := fun h => hμ (by rw [h, map_zero])
-  obtain ⟨m, hm⟩ := support_nonempty.2 h0
+  obtain ⟨m, hm⟩ := support_nonempty.2
+    fun h : weightedHomogeneousComponent blockWeight μ f = 0 => hμ (by rw [h, map_zero])
   rw [support_weightedHomogeneousComponent, mem_filter] at hm
   exact ⟨m, hm.1, hm.2⟩
 
@@ -157,10 +149,7 @@ theorem blockPower_ne_zero (hf : IsSetPartitioned Prod.fst f) (hf0 : f ≠ 0) :
   classical
   obtain ⟨m, hm⟩ := support_nonempty.2 hf0
   refine fun h => mem_support_iff.1 hm ?_
-  have hc : (blockPower F n d f).coeff (Finsupp.weight blockWeight m) = 0 := by
-    rw [h]
-    simp
-  rw [blockPower, MvPolynomial.coeff_aeval_monomial] at hc
+  have hc : (blockPower F n d f).coeff (Finsupp.weight blockWeight m) = 0 := by simp [h]
   have hcomp : weightedHomogeneousComponent blockWeight (Finsupp.weight blockWeight m) f =
       monomial m (f.coeff m) := by
     ext m'
@@ -170,12 +159,10 @@ theorem blockPower_ne_zero (hf : IsSetPartitioned Prod.fst f) (hf0 : f ≠ 0) :
       · subst hmm
         simp
       · have hne : Finsupp.weight blockWeight m' ≠ Finsupp.weight blockWeight m :=
-          fun h => hmm (weight_blockWeight_injOn (hf m hm) (hf m' hm') h.symm)
+          fun hw => hmm (weight_blockWeight_injOn (hf m hm) (hf m' hm') hw.symm)
         simp [hmm, hne]
-    · have hne : m ≠ m' := fun h => hm' (h ▸ hm)
-      simp [notMem_support_iff.1 hm', hne]
-  rw [hcomp, eval_monomial] at hc
-  simpa using hc
+    · simp [notMem_support_iff.1 hm', show m ≠ m' from fun e => hm' (e ▸ hm)]
+  simpa [blockPower, MvPolynomial.coeff_aeval_monomial, hcomp, eval_monomial] using hc
 
 /-- `blockPower f` has individual degree at most `d` for a set-partitioned `f`. -/
 theorem degreeOf_blockPower_le (hf : IsSetPartitioned Prod.fst f) (j : Fin n) :
@@ -183,24 +170,19 @@ theorem degreeOf_blockPower_le (hf : IsSetPartitioned Prod.fst f) (j : Fin n) :
   refine degreeOf_le_iff.2 fun μ hμ => ?_
   obtain ⟨m, hm, rfl⟩ := exists_weight_eq_of_mem_support_blockPower hμ
   by_cases h0 : Finsupp.weight blockWeight m j = 0
-  · rw [h0]
-    exact Nat.zero_le d
+  · simp [h0]
   · obtain ⟨v, hv, rfl⟩ := exists_mem_support_of_weight_blockWeight_ne_zero h0
-    rw [weight_blockWeight_apply (hf m hm).1 (hf m hm).2 hv]
-    exact v.2.isLt
+    exact (weight_blockWeight_apply (hf m hm).1 (hf m hm).2 hv).trans_le v.2.isLt
 
 /-- `blockPower` maps a sum of `w` products across a union of blocks to a sum of `w` products
 across the corresponding variables. -/
 theorem _root_.MvPolynomial.SplitRankLE.blockPower {U : Set (Fin n)} {w : ℕ}
     (h : SplitRankLE (Prod.fst ⁻¹' U) w f) : SplitRankLE U w (blockPower F n d f) := by
   obtain ⟨p, q, hp, hq, rfl⟩ := h
-  have hmem : ∀ (S : Set (Fin n)), ∀ v ∈ Prod.fst ⁻¹' S,
-      (monomial (blockWeight (d := d) v) 1 : MvPolynomial (Fin n) F) ∈ supported F S :=
-    fun S v hv => by
-      have hX : (X v.1 : MvPolynomial (Fin n) F) ∈ supported F S :=
-        Algebra.subset_adjoin ⟨v.1, hv, rfl⟩
-      rw [blockWeight, ← X_pow_eq_monomial]
-      exact pow_mem hX _
+  have hmem (S : Set (Fin n)) (v : Fin n × Fin d) (hv : v ∈ Prod.fst ⁻¹' S) :
+      (monomial (blockWeight v) 1 : MvPolynomial (Fin n) F) ∈ supported F S := by
+    rw [blockWeight, ← X_pow_eq_monomial]
+    exact pow_mem (Algebra.subset_adjoin (s := X '' S) ⟨v.1, hv, rfl⟩) _
   exact ⟨fun i => Cslib.Circuits.Arithmetic.blockPower F n d (p i),
     fun i => Cslib.Circuits.Arithmetic.blockPower F n d (q i),
     fun i => aeval_mem_of_mem_supported (hp i) _ (hmem U),
@@ -229,24 +211,19 @@ theorem exists_mem_support_shift_blockPowerPoint (hf : IsSetPartitioned Prod.fst
     {b : Fin n → F} {μ : Fin n →₀ ℕ} (hμ : μ ∈ (shift b (blockPower F n d f)).support) :
     ∃ m ∈ (shift (blockPowerPoint b) f).support, m.support.card ≤ μ.support.card := by
   classical
-  set G := shift (blockPowerPoint b) f with hG
   rw [shift_blockPower, aeval_def, eval₂_eq] at hμ
   obtain ⟨m, hm, hμm⟩ := mem_biUnion.1 (support_sum hμ)
-  refine ⟨m, hm, ?_⟩
-  rw [← card_image_of_injOn ((hf.shift _) m hm).2]
-  refine card_le_card fun j hj => ?_
+  refine ⟨m, hm, (card_image_of_injOn ((hf.shift _) m hm).2).symm ▸ card_le_card fun j hj => ?_⟩
   obtain ⟨v, hv, rfl⟩ := mem_image.1 hj
-  have key : ∀ P : MvPolynomial (Fin n) F, X v.1 ∣ P → μ ∈ P.support → v.1 ∈ μ.support := by
-    rintro _ ⟨Q, rfl⟩ h
-    rw [mem_support_iff, coeff_X_mul'] at h
-    by_contra hcon
-    exact h (ite_eq_right fun h' => absurd h' hcon)
   have h1 := sub_dvd_pow_sub_pow (X v.1 + C (b v.1) : MvPolynomial (Fin n) F) (C (b v.1))
     (v.2.val + 1)
   rw [add_sub_cancel_right, ← C_pow] at h1
-  exact key _ (Dvd.dvd.mul_left ((h1.trans (dvd_pow_self _ (Finsupp.mem_support_iff.1 hv))).trans
-    (dvd_prod_of_mem (fun u : Fin n × Fin d => ((X u.1 + C (b u.1)) ^ (u.2.val + 1) -
-      (C (b u.1 ^ (u.2.val + 1)) : MvPolynomial (Fin n) F)) ^ m u) hv)) _) hμm
+  obtain ⟨Q, hQ⟩ := Dvd.dvd.mul_left
+    ((h1.trans (dvd_pow_self _ (Finsupp.mem_support_iff.1 hv))).trans
+      (dvd_prod_of_mem (fun u : Fin n × Fin d => ((X u.1 + C (b u.1)) ^ (u.2.val + 1) -
+        (C (b u.1 ^ (u.2.val + 1)) : MvPolynomial (Fin n) F)) ^ m u) hv)) _
+  rw [hQ, mem_support_iff, coeff_X_mul'] at hμm
+  exact by_contra fun hcon => hμm (ite_eq_right fun h' => absurd h' hcon)
 
 /-! ### The hitting set -/
 
@@ -296,28 +273,19 @@ theorem isHittingSet_setMultilinearHittingSet_sum_prod (s : ℕ) :
     IsSetMultilinear.sum _ fun t _ => by
       rw [← smul_eq_C_mul]
       exact (isSetMultilinear_X Prod.fst (j, t)).smul _
-  have hmem (i : Fin s) (j : Fin n) (S : Set (Fin n)) (hj : j ∈ S) :
-      (∑ t, C (c i j t) * X (j, t) : MvPolynomial (Fin n × Fin d) F) ∈
+  have hI (i : Fin s) (J : Finset (Fin n)) (S : Set (Fin n)) (hJ : ∀ j ∈ J, j ∈ S) :
+      (∏ j ∈ J, ∑ t, C (c i j t) * X (j, t) : MvPolynomial (Fin n × Fin d) F) ∈
         supported F (Prod.fst ⁻¹' S) :=
-    sum_mem fun t _ => mul_mem ((supported F _).algebraMap_mem _)
-      (Algebra.subset_adjoin ⟨(j, t), hj, rfl⟩)
+    prod_mem fun j hj => sum_mem fun t _ => mul_mem ((supported F _).algebraMap_mem _)
+      (Algebra.subset_adjoin ⟨(j, t), hJ j hj, rfl⟩)
   refine isHittingSet_setMultilinearHittingSet s _ ⟨?_, fun I => ?_⟩
-  · have hprod (i : Fin s) : IsSetMultilinear Prod.fst (univ : Finset (Fin n))
-        (∏ j, ∑ t, C (c i j t) * X (j, t) : MvPolynomial (Fin n × Fin d) F) := by
-      have hT : ((univ : Finset (Fin n)) : Set (Fin n)).PairwiseDisjoint
-          fun j : Fin n => ({j} : Finset (Fin n)) :=
-        fun j _ k _ hjk => disjoint_singleton.2 hjk
-      have h := IsSetMultilinear.prod univ hT fun j _ => hlin i j
-      rwa [biUnion_singleton_eq_self] at h
-    exact (IsSetMultilinear.sum univ fun i _ => hprod i).isSetPartitioned
-  · have hI (i : Fin s) (J : Finset (Fin n)) (S : Set (Fin n)) (hJ : ∀ j ∈ J, j ∈ S) :
-        (∏ j ∈ J, ∑ t, C (c i j t) * X (j, t) : MvPolynomial (Fin n × Fin d) F) ∈
-          supported F (Prod.fst ⁻¹' S) :=
-      prod_mem fun j hj => hmem i j S (hJ j hj)
-    exact ⟨fun i => ∏ j ∈ I, ∑ t, C (c i j t) * X (j, t),
+  · refine (IsSetMultilinear.sum (S := univ) univ fun i _ => ?_).isSetPartitioned
+    simpa only [biUnion_singleton_eq_self] using IsSetMultilinear.prod univ
+      (fun _ _ _ _ => disjoint_singleton.2) fun j _ => hlin i j
+  · exact ⟨fun i => ∏ j ∈ I, ∑ t, C (c i j t) * X (j, t),
       fun i => ∏ j ∈ Iᶜ, ∑ t, C (c i j t) * X (j, t),
-      fun i => hI i I _ fun j hj => mem_coe.2 hj,
-      fun i => hI i Iᶜ (↑I)ᶜ fun j hj h => mem_compl.1 hj (mem_coe.1 h),
+      fun i => hI i I _ fun _ hj => mem_coe.2 hj,
+      fun i => hI i Iᶜ (↑I)ᶜ fun _ hj h => mem_compl.1 hj (mem_coe.1 h),
       sum_congr rfl fun i _ => (prod_mul_prod_compl I _).symm⟩
 
 /-- The hitting set has at most

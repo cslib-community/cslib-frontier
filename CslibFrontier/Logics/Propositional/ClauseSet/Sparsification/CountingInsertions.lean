@@ -125,11 +125,10 @@ theorem card_counting_marked_le {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ θ r)
         (ψ t).filter fun C => C ∉ ψ 0 ∧ C.card = j ∧ {l} ⊆ C).card := card_le_card hcover
     _ ≤ ∑ l ∈ literals,
         ((ψ t).filter fun C => C ∉ ψ 0 ∧ C.card = j ∧ {l} ⊆ C).card := card_biUnion_le
-    _ ≤ ∑ _l ∈ literals, 2 * θ (j - 1) := by
-      refine sum_le_sum fun l hl => ?_
-      have hbound := card_counting_newContaining_lt hθ N ψ c H b hstep hchoice (j := j) ht
-        (S := {l}) (by simp) (by simp only [card_singleton]; omega)
-      simpa only [card_singleton] using hbound.le
+    _ ≤ ∑ _l ∈ literals, 2 * θ (j - 1) := sum_le_sum fun l _ =>
+        (card_counting_newContaining_lt hθ N ψ c H b hstep hchoice (j := j) ht
+          (S := {l}) (by simp)
+          (by simp only [card_singleton]; omega)).le
     _ = 4 * declared.card * θ (j - 1) := by
       simp only [sum_const, smul_eq_mul, literals, card_product, card_univ, Fintype.card_bool]
       ring
@@ -154,31 +153,20 @@ theorem countingInsertionCount_eq_present_add_deleted {θ : ℕ → ℕ} (hθ : 
     have hsurv := countingIntro_filter_eq_node_sdiff hθ N ψ c H b hstep hheavy hred hnt hm hj
     have hI : I m = S (m + 1) \ S m := by
       ext C
-      have hsurvC := congrArg (C ∈ ·) hsurv
-      simp only [mem_filter, mem_sdiff, mem_union] at hsurvC
-      simp only [I, S, mem_filter, mem_sdiff, mem_union]
-      tauto
+      have := congrArg (C ∈ ·) hsurv
+      simp only [I, S, mem_filter, mem_sdiff, mem_union] at this ⊢; tauto
     have hD : D m = S m \ S (m + 1) := by
       ext C
-      simp only [D, S, mem_filter, mem_sdiff]
-      tauto
+      simp only [D, S, mem_filter, mem_sdiff]; tauto
     rw [hI, hD, card_sdiff_add_card, card_sdiff_add_card, union_comm]
-  suffices ∀ n, n ≤ N → (∑ m ∈ range n, (I m).card) =
-      (S n).card + ∑ m ∈ range n, (D m).card from this N le_rfl
-  intro n
-  induction n with
-  | zero =>
-    have hS0 : S 0 = ∅ := by
-      apply filter_eq_empty_iff.mpr
-      intro C hC h
-      exact h.1 hC
-    simp [hS0]
-  | succ n ih =>
-    intro hn
-    have hprev := ih (by omega)
-    have hstep := hinc n (by omega)
-    rw [sum_range_succ, sum_range_succ]
-    omega
+  have hS0 : S 0 = ∅ := filter_eq_empty_iff.mpr fun C hC h => h.1 hC
+  have htel : (∑ m ∈ range N, (S (m + 1)).card) = (∑ m ∈ range N, (S m).card) + (S N).card := by
+    simpa only [hS0, card_empty, add_zero] using
+      (sum_range_succ' (fun m => (S m).card) N).symm.trans (sum_range_succ _ _)
+  have hsum := sum_congr (s₁ := range N) rfl fun m hm => hinc m (mem_range.mp hm)
+  simp only [sum_add_distrib, htel] at hsum
+  change (∑ m ∈ range N, (I m).card) = (S N).card + ∑ m ∈ range N, (D m).card
+  exact Nat.add_right_cancel (hsum.trans (by ac_rfl))
 
 /-- Summing the actual one-step deletion charges gives the deletion term of (A.3).
 This part requires both `Choice` priorities and reducedness, but not nontautology. -/
@@ -244,10 +232,7 @@ theorem countingInsertionCount_le_pow {M : ℕ} (hM : 2 ≤ M)
         M ^ (j - i) * countingInsertionCount N ψ c H b i ≤
           (4 * declared.card * M ^ (j - 1)) * 3 ^ (i - 1) := by
       obtain ⟨hi1, hij⟩ := mem_Ico.mp hi
-      have hpow : M ^ (j - i) * M ^ (i - 1) = M ^ (j - 1) := by
-        rw [← pow_add]
-        congr 1
-        omega
+      have hpow : M ^ (j - i) * M ^ (i - 1) = M ^ (j - 1) := by rw [← pow_add]; congr 1; omega
       calc
         _ ≤ M ^ (j - i) * (4 * (3 * M) ^ (i - 1) * declared.card) :=
           Nat.mul_le_mul_left _ (ih i hij hi1)

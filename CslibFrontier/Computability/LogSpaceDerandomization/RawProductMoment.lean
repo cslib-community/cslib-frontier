@@ -80,31 +80,22 @@ theorem rowNormPow_product_le (hN : 0 < N) (hu : 0 < u) (hf : 0 < f)
   have hrelease := sourceRelease_le_rowNormPow (s := 4) (Y := Y) hN hu hf
     (fun σ x z => A σ x z ≠ 0) hcol B
   calc
-    _ ≤ (K : ℝ) ^ 3 * CA ^ 4 * ((N * u)⁻¹ * 𝔼 σ,
-        ∑ x ∈ ({x | X σ x} : Finset V),
-          ∑ z ∈ ({z | Z σ z} : Finset V) with A σ x z ≠ 0,
-            ∑ y ∈ ({y | Y σ y} : Finset V), |B σ z y| ^ 4) := by
-      rw [rowNormPow]
-      have hs : ∀ σ x, X σ x →
-          ∑ y ∈ ({y | Y σ y} : Finset V),
-            |∑ z ∈ ({z | Z σ z} : Finset V), A σ x z * B σ z y| ^ 4 ≤
+    rowNormPow 4 N u X Y (fun σ x y => ∑ z ∈ ({z | Z σ z} : Finset V), A σ x z * B σ z y)
+      ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
           (K : ℝ) ^ 3 * CA ^ 4 *
             ∑ z ∈ ({z | Z σ z} : Finset V) with A σ x z ≠ 0,
               ∑ y ∈ ({y | Y σ y} : Finset V), |B σ z y| ^ 4 := by
-        intro σ x hx
+        rw [rowNormPow]
+        refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => sum_le_sum fun x hx => ?_)
+          (by positivity)
         rw [sum_comm, mul_sum]
-        exact sum_le_sum fun y _ => hp σ x y hx
-      calc
-        _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
-            (K : ℝ) ^ 3 * CA ^ 4 *
-              ∑ z ∈ ({z | Z σ z} : Finset V) with A σ x z ≠ 0,
-                ∑ y ∈ ({y | Y σ y} : Finset V), |B σ z y| ^ 4 := by
-          refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (by positivity)
-          exact sum_le_sum fun x hx => hs σ x (by simpa using hx)
-        _ = _ := by simp only [← mul_sum, ← mul_expect]; ring
-    _ ≤ _ := by
-      convert mul_le_mul_of_nonneg_left hrelease
-        (show 0 ≤ (K : ℝ) ^ 3 * CA ^ 4 by positivity) using 1; ring
+        exact sum_le_sum fun y _ => hp σ x y (by simpa using hx)
+    _ = (K : ℝ) ^ 3 * CA ^ 4 * ((N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
+          ∑ z ∈ ({z | Z σ z} : Finset V) with A σ x z ≠ 0,
+            ∑ y ∈ ({y | Y σ y} : Finset V), |B σ z y| ^ 4) := by
+        simp only [← mul_sum, ← mul_expect]; ring
+    _ ≤ (K : ℝ) ^ 3 * CA ^ 4 * (Kc * (f / u) * rowNormPow 4 N f Z Y B) := by gcongr
+    _ = _ := by ring
 
 /-- A conservative three-term signed input estimate. It applies before any slice walk. -/
 theorem rowNormPow_add_sub_le (hNu : 0 ≤ N * u)
@@ -119,7 +110,7 @@ theorem rowNormPow_add_sub_le (hNu : 0 ≤ N * u)
       (abs_sub _ _).trans (add_le_add (abs_add_le _ _) le_rfl)
     have ht4 := pow_le_pow_left₀ (abs_nonneg _) ht 4
     norm_num at hab habc
-    nlinarith [pow_nonneg (abs_nonneg c) 4]
+    linarith [pow_nonneg (abs_nonneg c) 4]
   unfold rowNormPow
   calc
     _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),

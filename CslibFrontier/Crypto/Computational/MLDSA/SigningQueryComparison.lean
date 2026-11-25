@@ -9,11 +9,9 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.QueryDisturbance
+-- Reads private `Address`, `addressLaw`, `actualAddress`, `addressRead`, and `differs`.
 import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Languages.Probabilistic.Presample
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.Hellinger
 import CslibFrontier.Foundations.Quantum.POVM.Mixture
 import CslibFrontier.Foundations.Quantum.Measurement.Classical
@@ -567,16 +565,8 @@ theorem maskSeedGame_sq_sqrt_sub_le (C : QuantumSigningForger) (s : Level) (base
   simp only [maskSeedGame, maskSeedQueryHit, withMaskSeedOracles, Xofs.sampleSigningMaskSeeds,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind,
     ↓reduceIte]
-  apply gap_bind_le
-  intro t
-  apply gap_bind_le
-  intro seed
-  apply gap_bind_le
-  intro rows
-  apply gap_bind_le
-  intro T₁
-  apply gap_bind_le
-  intro T₂
-  exact setup_gap_le C s seed t _ hm score
+  exact gap_bind_le _ _ _ _ _ fun t => gap_bind_le _ _ _ _ _ fun seed => gap_bind_le _ _ _ _ _
+    fun _ => gap_bind_le _ _ _ _ _ fun _ => gap_bind_le _ _ _ _ _ fun _ =>
+      setup_gap_le C s seed t _ hm score
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger

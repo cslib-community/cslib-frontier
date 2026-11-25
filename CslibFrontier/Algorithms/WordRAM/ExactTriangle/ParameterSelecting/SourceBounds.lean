@@ -25,6 +25,14 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting
 
 open Cslib.WordRAM Cslib.Algorithms.ExactTriangle
 
+private theorem le_pow_of_le_two_pow {B c k : ℕ} (hB : 2 ≤ B) (hc : c ≤ 2 ^ k) : c ≤ B ^ k :=
+  hc.trans (Nat.pow_le_pow_left hB k)
+
+private theorem clog_le_mul_clog {x B e : ℕ} (h : x ≤ B ^ e) :
+    Nat.clog 2 x ≤ Nat.clog 2 B * e :=
+  Nat.clog_le_of_le_pow (h.trans ((Nat.pow_le_pow_left (Nat.le_pow_clog one_lt_two B) e).trans_eq
+    (pow_mul 2 _ e).symm))
+
 private theorem window_le_pow {n F B κ : ℕ} (values : List ℤ)
     (hlen : values.length = 3 * (n * n)) (hv : ∀ z ∈ values, z.natAbs ≤ F)
     (hn : n + 2 ≤ B) (hF : F ≤ B ^ κ) :
@@ -38,7 +46,7 @@ private theorem window_le_pow {n F B κ : ℕ} (values : List ℤ)
   have hd : ParameterChoice.window n ≤ B := (ParameterChoice.powers_le n).2.trans (by omega)
   have hg : ParameterChoice.groups n ≤ B := (ParameterChoice.powers_le n).1.trans (by omega)
   have hp : Nat.sqrt (ParameterChoice.window n) ≤ B := (Nat.sqrt_le_self _).trans hd
-  have h3 : 3 ≤ B ^ 2 := (by decide : 3 ≤ (2 : ℕ) ^ 2).trans (Nat.pow_le_pow_left hb 2)
+  have h3 : 3 ≤ B ^ 2 := le_pow_of_le_two_pow hb (by decide)
   have ha : 2 * F + 1 ≤ B ^ (κ + 2) := by
     calc
       _ ≤ 3 * B ^ κ := by omega
@@ -52,20 +60,16 @@ private theorem window_le_pow {n F B κ : ℕ} (values : List ℤ)
         Nat.mul_le_mul (Nat.mul_le_mul h3 hn2) ha
       _ = _ := by ring
   have hbase : B ≤ B ^ (κ + 6) := Nat.le_self_pow (by omega) B
-  have h4 : 4 ≤ B ^ (κ + 6) := (by decide : 4 ≤ (2 : ℕ) ^ 6).trans
-    ((Nat.pow_le_pow_left hb 6).trans (Nat.pow_le_pow_right hb1 (by omega)))
+  have h4 : 4 ≤ B ^ (κ + 6) :=
+    (le_pow_of_le_two_pow hb (by decide : 4 ≤ 2 ^ 6)).trans (Nat.pow_le_pow_right hb1 (by omega))
   have hs : n + ParameterChoice.window n + ParameterChoice.groups n +
       Nat.sqrt (ParameterChoice.window n) + CallableFixedPrime.rawTotal n values + 4 ≤
       B ^ (κ + 9) := by
     calc
       _ ≤ 6 * B ^ (κ + 6) := by omega
-      _ ≤ B ^ 3 * B ^ (κ + 6) := Nat.mul_le_mul_right _
-        ((by decide : 6 ≤ (2 : ℕ) ^ 3).trans (Nat.pow_le_pow_left hb 3))
+      _ ≤ B ^ 3 * B ^ (κ + 6) := Nat.mul_le_mul_right _ (le_pow_of_le_two_pow hb (by decide))
       _ = _ := by ring
-  have hs' := hs.trans (Nat.pow_le_pow_left
-    (Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) B) _)
-  rw [← pow_mul] at hs'
-  have hc := Nat.clog_le_of_le_pow hs'
+  have hc := clog_le_mul_clog hs
   unfold CallableFixedPrime.windowSize CallableFixedPrime.sourceWidth
   calc
     _ ≤ 2 ^ ((6166 * (κ + 9)) * Nat.clog 2 B) := Nat.pow_le_pow_right (by decide)
@@ -110,8 +114,8 @@ theorem envelope_le_pow {n F b ap bp cp B κ β : ℕ} (values : List ℤ)
       _ ≤ B ^ e := small 3 (by dsimp only [e]; omega)
   have hscalar : B ^ β ≤ B ^ e := small β (by dsimp only [e]; omega)
   have hFE := hF.trans (small κ (by dsimp only [e]; omega))
-  have hconst : 2048 ≤ B ^ e := (by decide : 2048 ≤ (2 : ℕ) ^ 20).trans
-    ((Nat.pow_le_pow_left hB 20).trans (small 20 (by dsimp only [e]; omega)))
+  have hconst : 2048 ≤ B ^ e := (le_pow_of_le_two_pow hB (by decide : 2048 ≤ 2 ^ 20)).trans
+    (small 20 (by dsimp only [e]; omega))
   have hcap : Nat.sqrt (ParameterChoice.window n) ≤ B :=
     (Nat.sqrt_le_self _).trans ((ParameterChoice.powers_le n).2.trans (by omega))
   have hcapE : Nat.sqrt (ParameterChoice.window n) ≤ B ^ e :=
@@ -136,8 +140,7 @@ theorem envelope_le_pow {n F b ap bp cp B κ β : ℕ} (values : List ℤ)
     calc
       _ ≤ 10 * B * B ^ 8 := Nat.mul_le_mul hf hsixteen
       _ = 10 * B ^ 9 := by ring
-      _ ≤ B ^ 4 * B ^ 9 := Nat.mul_le_mul_right _
-        ((by decide : 10 ≤ (2 : ℕ) ^ 4).trans (Nat.pow_le_pow_left hB 4))
+      _ ≤ B ^ 4 * B ^ 9 := Nat.mul_le_mul_right _ (le_pow_of_le_two_pow hB (by decide))
       _ = B ^ 13 := by rw [← pow_add]
       _ ≤ B ^ e := small 13 (by dsimp only [e]; omega)
   have hwindow := (window_le_pow values hlen hv hn hF).trans
@@ -159,8 +162,7 @@ theorem envelope_le_pow {n F b ap bp cp B κ β : ℕ} (values : List ℤ)
     omega
   calc
     _ ≤ 6000 * B ^ e := henv
-    _ ≤ B ^ 13 * B ^ e := Nat.mul_le_mul_right _
-      ((by decide : 6000 ≤ (2 : ℕ) ^ 13).trans (Nat.pow_le_pow_left hB 13))
+    _ ≤ B ^ 13 * B ^ e := Nat.mul_le_mul_right _ (le_pow_of_le_two_pow hB (by decide))
     _ = _ := by rw [← pow_add]; congr 1; dsimp only [e]; omega
 
 /-- Logarithmic semantic admission from one common original scalar base. -/
@@ -170,11 +172,7 @@ theorem executionWidth_le_base_log {n F b ap bp cp B κ β : ℕ} (values : List
     (ha : ap ≤ B ^ β) (hc : bp ≤ B ^ β) (hd : cp ≤ B ^ β) :
     executionWidth n F b ap bp cp values ≤
       (12332 * (κ + 9) + β + 36) * Nat.clog 2 B := by
-  have he := envelope_le_pow values hlen hv hn hF hb ha hc hd
-  have he' := he.trans (Nat.pow_le_pow_left
-    (Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) B) _)
-  rw [← pow_mul] at he'
-  have hl := Nat.clog_le_of_le_pow he'
+  have hl := clog_le_mul_clog (envelope_le_pow values hlen hv hn hF hb ha hc hd)
   have hp : 1 ≤ Nat.clog 2 B := Nat.clog_pos (by decide) (by omega)
   unfold executionWidth
   nlinarith only [hl, hp]
@@ -184,13 +182,10 @@ no old unused register or memory bound is required for this execution admission.
 theorem executionWidth_le_host_log {n F b ap bp cp : ℕ} (values : List ℤ)
     (hlen : values.length = 3 * (n * n)) (hv : ∀ z ∈ values, z.natAbs ≤ F)
     (ha : ap ≤ b) (hc : bp ≤ b) (hd : cp ≤ b) :
-    executionWidth n F b ap bp cp values ≤ 123357 * Nat.clog 2 (b + F + n + 2) := by
-  exact executionWidth_le_base_log (B := b + F + n + 2) (κ := 1) (β := 1)
-    values hlen hv (by omega) (by simpa only [pow_one] using (by omega : F ≤ b + F + n + 2))
-    (by simpa only [pow_one] using (by omega : b ≤ b + F + n + 2))
-    (by simpa only [pow_one] using (by omega : ap ≤ b + F + n + 2))
-    (by simpa only [pow_one] using (by omega : bp ≤ b + F + n + 2))
-    (by simpa only [pow_one] using (by omega : cp ≤ b + F + n + 2))
+    executionWidth n F b ap bp cp values ≤ 123357 * Nat.clog 2 (b + F + n + 2) :=
+  executionWidth_le_base_log (B := b + F + n + 2) (κ := 1) (β := 1) values hlen hv (by omega)
+    (by rw [pow_one]; omega) (by rw [pow_one]; omega) (by rw [pow_one]; omega)
+    (by rw [pow_one]; omega) (by rw [pow_one]; omega)
 
 /-- Positive logarithmic resource admission from polynomial original weights, placement
 and raw old words. The old-word exponent is an explicit numerical resource hypothesis. -/
@@ -209,17 +204,13 @@ theorem admissionWidth_le_log {n F b ap bp cp P κ β : ℕ} (values : List ℤ)
   have hP' := hP.trans (Nat.pow_le_pow_right hb1
     (show β ≤ e by dsimp only [e]; omega))
   have hunit : 1 ≤ B ^ e := Nat.one_le_pow _ _ hb1
-  have h3 : 3 ≤ B ^ 2 := (by decide : 3 ≤ (2 : ℕ) ^ 2).trans
-    (Nat.pow_le_pow_left (show 2 ≤ B by dsimp only [B]; omega) 2)
+  have h3 : 3 ≤ B ^ 2 := le_pow_of_le_two_pow (by dsimp only [B]; omega) (by decide)
   have hsum : envelope n F b ap bp cp values + P + 1 ≤ B ^ (e + 2) := by
     calc
       _ ≤ 3 * B ^ e := by omega
       _ ≤ B ^ 2 * B ^ e := Nat.mul_le_mul_right _ h3
       _ = _ := by rw [← pow_add, Nat.add_comm]
-  have hpow := hsum.trans (Nat.pow_le_pow_left
-    (Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) B) _)
-  rw [← pow_mul] at hpow
-  have hl := Nat.clog_le_of_le_pow hpow
+  have hl := clog_le_mul_clog hsum
   have hp : 1 ≤ Nat.clog 2 B := Nat.clog_pos (by decide) (by dsimp only [B]; omega)
   dsimp only [admissionWidth]
   dsimp only [e, B] at hl hp
@@ -240,7 +231,7 @@ theorem wordBound_le_pow {n F b ap bp cp P κ β : ℕ} (values : List ℤ)
   have hP' := hP.trans (Nat.pow_le_pow_right (by omega : 1 ≤ B)
     (show β ≤ e by dsimp only [e]; omega))
   have hunit : 1 ≤ B ^ e := Nat.one_le_pow _ _ (by omega)
-  have h48 : 48 ≤ B ^ 6 := (by decide : 48 ≤ (2 : ℕ) ^ 6).trans (Nat.pow_le_pow_left hb2 6)
+  have h48 : 48 ≤ B ^ 6 := le_pow_of_le_two_pow hb2 (by decide)
   calc
     _ ≤ 48 * B ^ e := by dsimp only [wordBound]; omega
     _ ≤ B ^ 6 * B ^ e := Nat.mul_le_mul_right _ h48
@@ -253,10 +244,10 @@ private theorem initialized_placement (n : ℕ) : 3 + 3 * (n * n) ≤ (n + 2) ^ 
 theorem inputWidth_le_log {n F κ : ℕ} (values : List ℤ)
     (hlen : values.length = 3 * (n * n)) (hv : ∀ z ∈ values, z.natAbs ≤ F)
     (hF : F ≤ (n + 2) ^ κ) :
-    inputWidth n F values ≤ (12332 * (κ + 9) + 40) * Nat.clog 2 (n + 2) :=
-  executionWidth_le_base_log (β := 4) values hlen hv le_rfl hF (initialized_placement n)
-    (by have := initialized_placement n; omega)
-    (by have := initialized_placement n; omega) (by have := initialized_placement n; omega)
+    inputWidth n F values ≤ (12332 * (κ + 9) + 40) * Nat.clog 2 (n + 2) := by
+  have h := initialized_placement n
+  exact executionWidth_le_base_log (β := 4) values hlen hv le_rfl hF h (by omega) (by omega)
+    (by omega)
 
 /-- Every admitted initialized prefix uses polynomial words and address support, with no
 dependence on the physical word width. Empty matrices and the whole small branch are included. -/
@@ -271,12 +262,10 @@ theorem bounded_reachable_polynomial {W n F κ k : ℕ} (values : List ℤ)
       ∀ q, (n + 2) ^ (12332 * (κ + 9) + 41) ≤ q → s.data.mem q = 0 := by
   obtain ⟨regs, memory, support⟩ := bounded_reachable_input values hlen hv
     ((inputWidth_le_log values hlen hv hF).trans hW) hr
+  have h := initialized_placement n
   have he := envelope_le_pow (β := 4) (ap := 3) (bp := 3 + n * n)
-    (cp := 3 + 2 * (n * n)) values hlen hv le_rfl hF (initialized_placement n)
-    (by have := initialized_placement n; omega)
-    (by have := initialized_placement n; omega) (by have := initialized_placement n; omega)
-  have hc : 16 ≤ (n + 2) ^ 4 := (by decide : 16 ≤ (2 : ℕ) ^ 4).trans
-    (Nat.pow_le_pow_left (by omega : 2 ≤ n + 2) 4)
+    (cp := 3 + 2 * (n * n)) values hlen hv le_rfl hF h (by omega) (by omega) (by omega)
+  have hc : 16 ≤ (n + 2) ^ 4 := le_pow_of_le_two_pow (by omega) (by decide)
   have bound : 16 * envelope n F (3 + 3 * (n * n)) 3 (3 + n * n)
       (3 + 2 * (n * n)) values ≤ (n + 2) ^ (12332 * (κ + 9) + 41) := by
     calc

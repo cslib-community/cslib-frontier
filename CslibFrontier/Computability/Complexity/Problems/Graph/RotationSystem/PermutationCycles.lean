@@ -144,26 +144,20 @@ theorem numericalGenusZero_permutationRotation {n : ℕ} (f : Perm (Fin n)) :
   classical
   let r := permutationRotation f
   have hG := permutationGraph_endpoints_declared f
-  apply (r.numericalGenusZero_iff_component_cards hG).mpr
-  intro d
+  refine (r.numericalGenusZero_iff_component_cards hG).mpr fun d => ?_
   obtain ⟨⟨i, s⟩, rfl⟩ := (permutationDartEquiv f).surjective d
+  have he := sameComponent_reverse hG (permutationDartEquiv f (i, false))
+  rw [reverse_permutationDartEquiv] at he
   have hcomp (b : Bool) : RotationCertificate.SameComponent (permutationGraph f)
       (permutationDartEquiv f (i, s)).vertex (permutationDartEquiv f (i, b)).vertex := by
-    have he := sameComponent_reverse hG (permutationDartEquiv f (i, false))
-    rw [reverse_permutationDartEquiv] at he
     cases s <;> cases b
-    · exact .refl (vertex_mem hG _)
-    · exact he
-    · exact he.symm
-    · exact .refl (vertex_mem hG _)
+    all_goals first | exact .refl (vertex_mem hG _) | exact he | exact he.symm
   let toFace (b : Bool) : ComponentFace r (permutationDartEquiv f (i, s)).vertex :=
     ⟨Quotient.mk _ (permutationDartEquiv f (i, b)),
       permutationDartEquiv f (i, b), hcomp b, rfl⟩
-  have hi : Function.Injective toFace := by
-    intro b c h
-    exact sameFace_side_eq f i i b c (Quotient.exact (congrArg Subtype.val h))
   have hF : 2 ≤ Nat.card (ComponentFace r (permutationDartEquiv f (i, s)).vertex) := by
-    simpa using Nat.card_le_card_of_injective toFace hi
+    simpa using Nat.card_le_card_of_injective toFace
+      fun b c h => sameFace_side_eq f i i b c (Quotient.exact (congrArg Subtype.val h))
   have hVE := Nat.card_congr
     (componentEdgeVertexEquiv f (permutationDartEquiv f (i, s)).vertex)
   simp only [Nat.card_eq_finsetCard] at hVE
@@ -181,11 +175,10 @@ theorem sameFace_permutationDartEquiv_iff {n : ℕ} (f : Perm (Fin n))
   constructor
   · intro h
     refine ⟨sameFace_side_eq f i j b c h, ?_⟩
-    let q : Fin n → Quotient (Perm.SameCycle.setoid f) := Quotient.mk _
-    let qd (d : Dart (permutationGraph f)) := q ((permutationDartEquiv f).symm d).1
+    let qd (d : Dart (permutationGraph f)) : Quotient (Perm.SameCycle.setoid f) :=
+      Quotient.mk _ ((permutationDartEquiv f).symm d).1
     have hq : Function.Semiconj qd (permutationRotation f).faceNext
-        (1 : Perm (Quotient (Perm.SameCycle.setoid f))) := by
-      intro d
+        (1 : Perm (Quotient (Perm.SameCycle.setoid f))) := fun d => by
       obtain ⟨⟨k, s⟩, rfl⟩ := (permutationDartEquiv f).surjective d
       simp only [faceNext_permutationDartEquiv, qd, Equiv.symm_apply_apply, Perm.one_apply]
       apply Quotient.sound
@@ -195,10 +188,9 @@ theorem sameFace_permutationDartEquiv_iff {n : ℕ} (f : Perm (Fin n))
       · simpa only [Equiv.apply_symm_apply, ↓reduceIte] using
           (Perm.SameCycle.rfl : f.SameCycle (f.symm k) (f.symm k)).apply_right
     have hh := Perm.sameCycle_one.mp (h.map_of_semiconj hq)
-    have heq : (Quotient.mk (Perm.SameCycle.setoid f) i :
-        Quotient (Perm.SameCycle.setoid f)) = Quotient.mk _ j := by
-      simpa only [qd, q, Equiv.symm_apply_apply] using hh
-    exact Quotient.exact heq
+    exact Quotient.exact (by
+      simpa only [qd, Equiv.symm_apply_apply] using
+        (hh : qd (permutationDartEquiv f (i, b)) = qd (permutationDartEquiv f (j, c))))
   · rintro ⟨rfl, hij⟩
     cases b
     · exact hij.map_of_semiconj (u := fun j => permutationDartEquiv f (j, false))
@@ -217,33 +209,24 @@ theorem exists_potential_of_cycleSum_zero {n : ℕ} (f : Perm (Fin n)) (x : Fin 
     ∃ p : Fin n → Bool, ∀ i, x i = (p i ^^ p (f i)) := by
   let r := permutationRotation f
   let xe (j : Fin (permutationGraph f).edges.length) := x ((permutationEdgeEquiv f).symm j)
-  have hxcoord (j : Fin n) (b : Bool) : xe (permutationDartEquiv f (j, b)).1 = x j := by
-    change x ((permutationEdgeEquiv f).symm (permutationEdgeEquiv f j)) = x j
-    rw [Equiv.symm_apply_apply]
-  have hparity (i : Fin n) (b : Bool) :
-      r.faceParity xe (Quotient.mk _ (permutationDartEquiv f (i, b))) =
-        ∑ j : Fin n, if f.SameCycle i j then x j else 0 := by
-    rw [r.faceParity_mk, parityOn_eq_sum, Finset.sum_filter]
-    rw [← Equiv.sum_comp (permutationDartEquiv f)]
-    simp only [Fintype.sum_prod_type, Fintype.sum_bool]
-    simp only [r, sameFace_permutationDartEquiv_iff, hxcoord]
-    cases b <;> simp
-  have hx : r.FaceEven xe := by
-    apply (r.faceEven_iff_dart xe).mpr
-    intro d
+  have hx : r.FaceEven xe := (r.faceEven_iff_dart xe).mpr fun d => by
     obtain ⟨⟨i, b⟩, rfl⟩ := (permutationDartEquiv f).surjective d
-    rw [hparity]
-    simpa only [Bool.zero_eq_false] using h i
+    have hsum : r.faceParity xe (Quotient.mk _ (permutationDartEquiv f (i, b))) =
+        ∑ j : Fin n, if f.SameCycle i j then x j else 0 := by
+      rw [r.faceParity_mk, parityOn_eq_sum, Finset.sum_filter,
+        ← Equiv.sum_comp (permutationDartEquiv f)]
+      simp only [Fintype.sum_prod_type, Fintype.sum_bool, r, sameFace_permutationDartEquiv_iff,
+        show ∀ j c, xe (permutationDartEquiv f (j, c)).1 = x j from
+          fun j _ => congrArg x (Equiv.symm_apply_apply _ _)]
+      cases b <;> simp
+    simpa only [hsum, Bool.zero_eq_false] using h i
   obtain ⟨spin, hspin⟩ := r.exists_vertexSpins_of_faceEven
     (permutationGraph_endpoints_declared f) (numericalGenusZero_permutationRotation f) xe hx
-  refine ⟨fun i => spin i.val, ?_⟩
-  intro i
-  have he := congrFun hspin (permutationEdgeEquiv f i)
+  refine ⟨fun i => spin i.val, fun i => ?_⟩
   have hd := Graph.edgeGradient_dart (permutationGraph f) spin (permutationDartEquiv f (i, false))
-  rw [reverse_permutationDartEquiv, vertex_permutationDartEquiv, vertex_permutationDartEquiv] at hd
-  simp only [Bool.not_false, Bool.false_eq_true, ite_false, ite_true] at hd
-  have hxedge : xe (permutationEdgeEquiv f i) = x i := by
-    simp only [xe, Equiv.symm_apply_apply]
-  exact hxedge.symm.trans (he.symm.trans hd)
+  simp only [reverse_permutationDartEquiv, vertex_permutationDartEquiv, Bool.not_false,
+    Bool.false_eq_true, ite_false, ite_true] at hd
+  exact (congrArg x (Equiv.symm_apply_apply (permutationEdgeEquiv f) i)).symm.trans
+    ((congrFun hspin (permutationEdgeEquiv f i)).symm.trans hd)
 
 end Cslib.Complexity.Graph.RotationSystem

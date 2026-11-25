@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Cubic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Coefficient
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Sample
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Gaussian layouts of cubic graphs
@@ -133,8 +134,7 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
   have hMpos : 0 < M := Nat.succ_pos _
   have hMR : 720 / ξ ≤ M := by
     rw [hM]
-    push_cast
-    linarith [Nat.le_ceil (720 / ξ)]
+    cast_linarith [Nat.le_ceil (720 / ξ)]
   refine ⟨q, R, ρ₀, 20, ε, M, hq0, hρ₀low, hρ, by norm_num, hεpos, hMpos, ?_⟩
   have hcoef := gaussianCoefficient_ge
   have hMpos' : (0 : ℝ) < M := by exact_mod_cast hMpos

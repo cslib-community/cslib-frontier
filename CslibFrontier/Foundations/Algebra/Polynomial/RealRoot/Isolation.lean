@@ -179,7 +179,7 @@ theorem natDegree_ge_two_of_two_roots {cs : List ℚ} (hsep : (ofCoeffList cs).S
     (hβ : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot β) (hne : α ≠ β) :
     2 ≤ (ofCoeffList cs).natDegree := by
   let pR := (ofCoeffList cs).map (algebraMap ℚ ℝ)
-  have hpR0 : pR ≠ 0 := (Polynomial.map_ne_zero_iff (algebraMap ℚ ℝ).injective).mpr hsep.ne_zero
+  have hpR0 : pR ≠ 0 := Polynomial.map_ne_zero hsep.ne_zero
   have hsub : ({α, β} : Finset ℝ) ⊆ pR.roots.toFinset := Finset.insert_subset
     (Multiset.mem_toFinset.mpr ((mem_roots hpR0).mpr hα))
     (Finset.singleton_subset_iff.mpr (Multiset.mem_toFinset.mpr ((mem_roots hpR0).mpr hβ)))
@@ -208,9 +208,8 @@ private theorem mem_roots_filter_iff {cs : List ℚ} (hsep : (ofCoeffList cs).Se
     r ∈ ((ofCoeffList cs).map (algebraMap ℚ ℝ)).roots.toFinset.filter
         (fun x : ℝ => (u : ℝ) < x ∧ x ≤ (v : ℝ)) ↔
       (u : ℝ) < r ∧ r ≤ (v : ℝ) ∧ ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r := by
-  have hpR0 : (ofCoeffList cs).map (algebraMap ℚ ℝ) ≠ 0 :=
-    (Polynomial.map_ne_zero_iff (algebraMap ℚ ℝ).injective).mpr hsep.ne_zero
-  simp only [Finset.mem_filter, Multiset.mem_toFinset, mem_roots hpR0]
+  simp only [Finset.mem_filter, Multiset.mem_toFinset,
+    mem_roots (Polynomial.map_ne_zero hsep.ne_zero)]
   tauto
 
 private theorem unique_root_Ioc_of_card_eq_one {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
@@ -294,8 +293,8 @@ private theorem refineLeftLoop_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
     have hleL : vm ≤ vu := hvu ▸ sturmVariationsList_antitone hsep hum.le
     have hleR : vv ≤ vm := hvv ▸ sturmVariationsList_antitone hsep hmv.le
     simp only [refineLeftLoop]
-    split_ifs with hvm_eq hem
-    · have hvm' : vm = vu := hvm_eq
+    by_cases hvm_eq : vm = vu
+    · rw [ite_eq_left hvm_eq]
       have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 0 := by rw [← hvu]; omega
       have hcntR : vm - sturmVariationsList (sturmSeqList cs) v = 1 := by rw [← hvv]; omega
       have hnoL {r : ℝ} := no_root_Ioc_of_card_eq_zero hsep hum.le hcntL (r := r)
@@ -304,32 +303,28 @@ private theorem refineLeftLoop_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
       refine ⟨hiso, hum, le_rfl, fun r => (heq_mv r).trans ⟨fun ⟨hmr, hrv, hrr⟩ =>
         ⟨(Rat.cast_lt.mpr hum).trans hmr, hrv, hrr⟩, fun ⟨hur, hrv, hrr⟩ =>
         ⟨lt_of_not_ge fun hrm => hnoL hur hrm hrr, hrv, hrr⟩⟩⟩
-    · have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 1 := by
-        dsimp only [vm, m] at *; rw [← hvu]; omega
-      have hcntR : vm - sturmVariationsList (sturmSeqList cs) v = 0 := by
-        dsimp only [vm, m] at *; rw [← hvv]; omega
+    · rw [ite_eq_right hvm_eq]
+      have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 1 := by
+        rw [← hvu]; omega
+      have hcntR : vm - sturmVariationsList (sturmSeqList cs) v = 0 := by rw [← hvv]; omega
       have hle_m : ∀ {r : ℝ}, r ≤ v →
           ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r → r ≤ m := fun hrv hrr =>
         le_of_not_gt fun hmr => no_root_Ioc_of_card_eq_zero hsep hmv.le hcntR hmr hrv hrr
-      have hm_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (m : ℝ) :=
-        (eval_rat_eq_zero_iff cs m).mp hem
-      obtain ⟨_, _, hr₀_uniq⟩ := unique_root_Ioc_of_card_eq_one hsep hum.le hcntL
-      obtain ⟨hiso, hequiv⟩ := singleton_isolating_of_Ioc hum hmv.le hm_root fun r hur hrv hrr =>
-        (hr₀_uniq r ⟨hur, hle_m hrv hrr, hrr⟩).trans
-          (hr₀_uniq m ⟨Rat.cast_lt.mpr hum, le_rfl, hm_root⟩).symm
-      exact ⟨hiso, hum, hmv.le, hequiv⟩
-    · have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 1 := by
-        dsimp only [vm, m] at *; rw [← hvu]; omega
-      have hcntR : vm - sturmVariationsList (sturmSeqList cs) v = 0 := by
-        dsimp only [vm, m] at *; rw [← hvv]; omega
-      have hle_m : ∀ {r : ℝ}, r ≤ v →
-          ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r → r ≤ m := fun hrv hrr =>
-        le_of_not_gt fun hmr => no_root_Ioc_of_card_eq_zero hsep hmv.le hcntR hmr hrv hrr
-      obtain ⟨ih_iso, ih_low, ih_up, ih_eq⟩ := refineLeftLoop_spec hsep fuel (depth + 1)
-        u m vu vm (by omega) hum hvu rfl (by omega) hu_root (dyadic_half_width_le hwidth).1
-      exact ⟨ih_iso, ih_low, ih_up.trans hmv.le, fun r => (ih_eq r).trans
-        ⟨fun ⟨hur, hrm, hrr⟩ => ⟨hur, hrm.trans (Rat.cast_le.mpr hmv.le), hrr⟩,
-          fun ⟨hur, hrv, hrr⟩ => ⟨hur, hle_m hrv hrr, hrr⟩⟩⟩
+      by_cases hem : evalCoeffList m (CoeffList.trim cs) = 0
+      · rw [ite_eq_left hem]
+        have hm_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (m : ℝ) :=
+          (eval_rat_eq_zero_iff cs m).mp hem
+        obtain ⟨_, _, hr₀_uniq⟩ := unique_root_Ioc_of_card_eq_one hsep hum.le hcntL
+        obtain ⟨hiso, hequiv⟩ := singleton_isolating_of_Ioc hum hmv.le hm_root fun r hur hrv hrr =>
+          (hr₀_uniq r ⟨hur, hle_m hrv hrr, hrr⟩).trans
+            (hr₀_uniq m ⟨Rat.cast_lt.mpr hum, le_rfl, hm_root⟩).symm
+        exact ⟨hiso, hum, hmv.le, hequiv⟩
+      · rw [ite_eq_right hem]
+        obtain ⟨ih_iso, ih_low, ih_up, ih_eq⟩ := refineLeftLoop_spec hsep fuel (depth + 1)
+          u m vu vm (by omega) hum hvu rfl (by omega) hu_root (dyadic_half_width_le hwidth).1
+        exact ⟨ih_iso, ih_low, ih_up.trans hmv.le, fun r => (ih_eq r).trans
+          ⟨fun ⟨hur, hrm, hrr⟩ => ⟨hur, hrm.trans (Rat.cast_le.mpr hmv.le), hrr⟩,
+            fun ⟨hur, hrv, hrr⟩ => ⟨hur, hle_m hrv hrr, hrr⟩⟩⟩
 
 private theorem refineLeftRoot_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     {u v : ℚ} (huv : u < v) {vu vv : ℕ}
@@ -428,29 +423,26 @@ private theorem isolateIoc_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separab
     have hvu_ge : vv ≤ vu := hvu ▸ hvv ▸ sturmVariationsList_antitone hsep huv
     unfold isolateIoc; dsimp only
     split_ifs with hc0 hc1
-    · exact ⟨fun _ h => absurd h List.not_mem_nil, List.Pairwise.nil, by simp [hc0],
-        fun _ h => absurd h List.not_mem_nil, fun _ ⟨hur, hrv, hrr⟩ =>
+    · exact ⟨fun _ h => (nomatch h), List.Pairwise.nil, by rw [hc0, List.length_nil],
+        fun _ h => (nomatch h), fun _ ⟨hur, hrv, hrr⟩ =>
           (no_root_Ioc_of_card_eq_zero hsep huv (hvu ▸ hvv ▸ hc0) hur hrv hrr).elim⟩
     · have huv_lt : u < v := lt_of_le_of_ne huv fun h => by subst h; omega
       have hwidth0 : (v - u : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) := hwidth.trans
         (div_le_self (by positivity) (by exact_mod_cast Nat.one_le_pow depth 2 (by omega)))
       obtain ⟨hiso, hlow, hup, hstrict, hequiv⟩ :=
         refineLeftRoot_spec hsep huv_lt hvu hvv hc1 hwidth0
-      exact ⟨by rintro _ h; obtain rfl := List.mem_singleton.mp h; exact ⟨hiso, hlow, hup, hstrict⟩,
-        List.pairwise_singleton _ _, by simp [hc1],
-        fun _ h r hr => by obtain rfl := List.mem_singleton.mp h
-                           exact ⟨((hequiv r).mp hr).1, ((hequiv r).mp hr).2.1⟩,
-        fun r hr => ⟨_, List.mem_singleton_self _, ((hequiv r).mpr hr).1,
-          ((hequiv r).mpr hr).2.1⟩⟩
+      exact ⟨List.forall_mem_singleton.mpr ⟨hiso, hlow, hup, hstrict⟩,
+        List.pairwise_singleton _ _, by rw [List.length_singleton, hc1],
+        List.forall_mem_singleton.mpr fun r hr => ((hequiv r).mp hr).imp_right And.left,
+        fun r hr => ⟨_, List.mem_singleton_self _, ((hequiv r).mpr hr).imp_right And.left⟩⟩
     · cases fuel with
       | zero =>
         exfalso
-        have hpR0 : (ofCoeffList cs).map (algebraMap ℚ ℝ) ≠ 0 :=
-          (Polynomial.map_ne_zero_iff (algebraMap ℚ ℝ).injective).mpr hsep.ne_zero
         have hcard : 2 ≤ (((ofCoeffList cs).map (algebraMap ℚ ℝ)).roots.toFinset.filter
             (fun r => (u : ℝ) < r ∧ r ≤ (v : ℝ))).card := by
           rw [← card_roots_Ioc_eq hsep huv, ← hvu, ← hvv]; omega
-        obtain ⟨_, _, hα, hβ, huα, hαβ, hβv⟩ := exists_two_roots_Ioc_of_two_le hpR0 hcard
+        obtain ⟨_, _, hα, hβ, huα, hαβ, hβv⟩ := exists_two_roots_Ioc_of_two_le
+          (Polynomial.map_ne_zero hsep.ne_zero) hcard
         exact not_two_roots_of_width_le hsep hα hβ hαβ huα.le hβv (by omega) hwidth
       | succ fuel' =>
         let m := (u + v) / 2
@@ -474,7 +466,8 @@ private theorem isRoot_mem_cauchyIoc {cs : List ℚ} (hsep : (ofCoeffList cs).Se
     (hr : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r) :
     ((-(cauchyBoundNat cs : ℚ) : ℚ) : ℝ) < r ∧ r ≤ ((cauchyBoundNat cs : ℚ) : ℝ) := by
   have hcb := abs_lt.mp (abs_lt_cauchyBoundNat_of_isRoot hsep.ne_zero hr)
-  exact ⟨by push_cast; exact hcb.1, by push_cast; exact hcb.2.le⟩
+  push_cast
+  exact ⟨hcb.1, hcb.2.le⟩
 
 private theorem isolateRoots_spec_aux {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) :
     let b : ℚ := (cauchyBoundNat cs : ℚ)
@@ -489,8 +482,7 @@ private theorem isolateRoots_spec_aux {cs : List ℚ} (hsep : (ofCoeffList cs).S
   let b : ℚ := (cauchyBoundNat cs : ℚ)
   have hspec := isolateIoc_spec hsep (mignotteBisectionDepth cs) 0 (-b) b _ _
     (Nat.zero_add _) (by have : (0 : ℚ) ≤ b := Nat.cast_nonneg _; linarith) rfl rfl
-    (by simp only [b, Rat.cast_neg, sub_neg_eq_add, pow_zero, div_one, Rat.cast_natCast, two_mul,
-      le_rfl])
+    (by simp [b, two_mul])
   have heq : isolateRoots cs =
       isolateIoc (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
         (mignotteBisectionDepth cs) (-b) b (sturmVariationsList (sturmSeqList cs) (-b))
@@ -550,10 +542,9 @@ theorem isolateRoots_length_eq_card_roots {cs : List ℚ} (hsep : (ofCoeffList c
   let b : ℚ := (cauchyBoundNat cs : ℚ)
   rw [(isolateRoots_spec_aux hsep).2.2.1,
     card_roots_Ioc_eq hsep (by have : (0 : ℚ) ≤ b := Nat.cast_nonneg _; linarith)]
-  have hpR0 := (Polynomial.map_ne_zero_iff (algebraMap ℚ ℝ).injective).mpr hsep.ne_zero
   congr 1; ext r
-  simp only [Finset.mem_filter, Multiset.mem_toFinset, and_iff_left_iff_imp]
-  exact fun hr => isRoot_mem_cauchyIoc hsep ((mem_roots hpR0).mp hr)
+  simp only [Finset.mem_filter, Multiset.mem_toFinset, mem_roots', and_iff_left_iff_imp]
+  exact fun hr => isRoot_mem_cauchyIoc hsep hr.2
 
 /-- The unique real root inside the `i`-th isolating interval of `isolateRoots cs`. -/
 noncomputable def isolatedRoot {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)

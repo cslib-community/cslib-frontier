@@ -207,11 +207,8 @@ private theorem has_light_cycle (g : ℕ → ℕ → Index)
     (by simp only [quarterWest, quarterEast, pow_eq]; omega)
     (by simp only [quarterSouth, quarterNorth, pow_eq]; omega)
     (by simp only [quarterNorth, pow_eq]; omega)
-  cases a
-  · exact Or.inl ha
-  · cases b
-    · exact Or.inr hb
-    · exact (neq rfl).elim
+  cases a <;> cases b
+  exacts [Or.inl ha, Or.inl ha, Or.inr hb, (neq rfl).elim]
 
 private theorem exists_refined_zero (base : IndexPlane) (depth : ℕ) :
     ∃ (g : ℕ → ℕ → Index) (u v : ℤ), g 0 0 = 0 ∧
@@ -507,10 +504,7 @@ private theorem evenRules (node : Node) : EvenRules node := by
   have hchunk : evenChunk (k / 78) = true := by
     rcases (show k / 78 = 0 ∨ k / 78 = 1 ∨ k / 78 = 2 ∨ k / 78 = 3 by omega) with h | h | h | h <;>
       rw [h]
-    · exact even_checked0
-    · exact even_checked1
-    · exact even_checked2
-    · exact even_checked3
+    exacts [even_checked0, even_checked1, even_checked2, even_checked3]
   have hcore : EvenRulesCore ⟨⟨k, hk⟩⟩ := by
     have hm := (List.all_eq_true.mp hchunk) (k % 78)
       (List.mem_range.mpr (Nat.mod_lt _ (by decide)))
@@ -618,8 +612,7 @@ private theorem odd_transitions : ∀ axis : LineAxis, ∀ which : StripStep, �
         (classChild axis node ⟨along.val + 1, by omega⟩ step.fixed).code.val ∈
         interiorClass axis step.new) := by
   intro axis which ⟨⟨k, hk⟩⟩
-  have hmem : which ∈ [StripStep.evenToEven, .evenToOdd, .oddToOdd] := by cases which <;> decide
-  have h := odd_transitions_mem axis which hmem
+  have h := odd_transitions_mem axis which (by cases which <;> decide)
   exact ⟨fun hi => h.1 k hi hk, fun hb => h.2 k hb hk⟩
 
 private theorem odd_base (axis : LineAxis) :
@@ -784,8 +777,7 @@ private theorem even_free (axis : LineAxis) (root : Node) (depth index : ℕ)
     (hi : index ≤ depth) : LineFree axis 1 depth true root (coordinate 1 depth index) := by
   induction depth generalizing index with
   | zero =>
-      have hi0 : index = 0 := by omega
-      subst hi0
+      obtain rfl : index = 0 := by omega
       simpa [coordinate, offset] using even_base axis root
   | succ depth ih =>
       obtain ⟨previous, hp, hchild⟩ := offset_parent hi
@@ -836,8 +828,7 @@ private theorem odd_classified (axis : LineAxis) (depth index : ℕ) (hi : index
     StripClassified axis (decide (index ≠ 0)) depth (offset depth index) := by
   induction depth generalizing index with
   | zero =>
-      have hi0 : index = 0 := by omega
-      subst hi0
+      obtain rfl : index = 0 := by omega
       constructor
       · intro along hlo hhi
         norm_num at hlo hhi
@@ -890,8 +881,6 @@ private theorem state_eq_of_present_eq {grid other : ℕ → ℕ → Index}
         cases side <;> simp only [portPresent] <;> rw [geometry]
       have ha := value_isSome_eq_portPresent valid ⟨x, y, side⟩
       have hc := value_isSome_eq_portPresent_of_allowed ⟨x, y, side⟩ allowed
-      have hf := Bool.eq_false_of_not_eq_true hp
-      rw [hf] at ha; rw [hg, hf] at hc
       cases hactual : value actual ⟨x, y, side⟩ <;>
         cases hcanonical : value canonical ⟨x, y, side⟩ <;> simp_all
   have hw := values .west; have he := values .east
@@ -961,12 +950,11 @@ private theorem RefinementComparison.agreement_sparse (C : RefinementComparison)
     (by dsimp only [oldGlobal, translatePort]; omega)
     (by dsimp only [oldGlobal, translatePort]; omega)
     (by dsimp only [oldGlobal, translatePort]; omega) oldGlobalPresent
-  have pathEq := (livePortPath (C.grid d) oldGlobal oldGlobalPresent).sound validFine
   have sparseActual : value actual (sparsePort oldGlobal) = value (C.states d) oldGlobal :=
-    Eq.trans pathEq ((value_coarsen actual oldGlobal).symm.trans previous)
-  have sourceGlobalEq := sparse_block (bx := bx) (by₀ := by₀) oldBounds.1 oldBounds.2
+    Eq.trans ((livePortPath (C.grid d) oldGlobal oldGlobalPresent).sound validFine)
+      ((value_coarsen actual oldGlobal).symm.trans previous)
   have blockValue := C.block d bx by₀ (sparsePort old) sourceBounds.1 sourceBounds.2
-  rw [← sourceGlobalEq] at blockValue ⊢
+  rw [← sparse_block (bx := bx) (by₀ := by₀) oldBounds.1 oldBounds.2] at blockValue ⊢
   exact sparseActual.trans ((C.sparse d oldGlobal).symm.trans blockValue)
 
 private theorem RefinementComparison.agreement (C : RefinementComparison) :
@@ -1141,11 +1129,9 @@ private theorem phase_source (flipped : Bool) (depth : ℕ) (coarse : ℕ → �
   have h := root_descendant_source k g' valid' (by simpa only [scaleEq] using shaded) bx by₀
     (by rw [scaleEq, phaseScale_succ]; omega) (by rw [scaleEq, phaseScale_succ]; omega)
   have invol : Function.Involutive Shade.opposite := Shade.opposite_opposite
-  cases flipped
-  · simp only [k, Bool.false_eq_true, ↓reduceIte] at h
-    rw [invol.iterate_two_mul_add_one] at h; exact h
-  · simp only [k, ↓reduceIte] at h
-    rw [invol.iterate_two_mul] at h; exact h
+  cases flipped <;> simp only [k, Bool.false_eq_true, ↓reduceIte] at h
+  · rwa [invol.iterate_two_mul_add_one] at h
+  · rwa [invol.iterate_two_mul] at h
 
 private def phaseComparison (flipped : Bool) (coarse : ℕ → ℕ → Index)
     (rootEq : coarse 0 0 = 0) : RefinementComparison where
@@ -1322,19 +1308,20 @@ private theorem phase_marked (flipped : Bool) (depth n : ℕ) (hn : n ≤ depth)
       (phaseScale flipped depth) (3 * phaseScale flipped depth) n) := by
   let lines : Fin (n + 1) → ℕ := fun i => coordinate (if flipped then 1 else 2) depth i
   have positiveScale : 0 < (if flipped then 1 else 2 : ℕ) := by cases flipped <;> decide
+  have hle (i : Fin (n + 1)) : (i : ℕ) ≤ depth := Nat.le_trans (Nat.lt_succ_iff.mp i.isLt) hn
   have bounds (i : Fin (n + 1)) : 2 * phaseScale flipped depth + 1 < lines i ∧
       lines i < 6 * phaseScale flipped depth :=
-    coordinate_bounds positiveScale (Nat.le_trans (Nat.lt_succ_iff.mp i.isLt) hn)
+    coordinate_bounds positiveScale (hle i)
   have hi (i : Fin (n + 1)) : lines i < 2 * (3 * phaseScale flipped depth) := by
     have := (bounds i).2; omega
   have mono : StrictMono lines := fun _ _ hij => coordinate_strictMono positiveScale depth hij
   refine MarkedFreeGrid.ofSparse lines lines mono mono
     (fun i => ⟨(bounds i).1, hi i, fun along lower upper =>
-      phase_free .column flipped depth i (Nat.le_trans (Nat.lt_succ_iff.mp i.isLt) hn)
+      phase_free .column flipped depth i (hle i)
         coarse rootEq actual valid shaded along lower
         (by dsimp only [quarterNorth] at upper; omega)⟩)
     (fun i => ⟨(bounds i).1, hi i, fun along lower upper =>
-      phase_free .row flipped depth i (Nat.le_trans (Nat.lt_succ_iff.mp i.isLt) hn)
+      phase_free .row flipped depth i (hle i)
         coarse rootEq actual valid shaded along lower
         (by dsimp only [quarterEast] at upper; omega)⟩)
     (phase_marker flipped depth positive coarse rootEq)
@@ -1367,11 +1354,9 @@ theorem exists_markedFreeGrid {P : Cslib.WangTile.Plane scaffold.tiles}
         Nonempty (MarkedFreeGrid
           (fun i j => R.parent.index (a + i) (b + j)) states
           scale (3 * scale) scale (3 * scale) n) := by
-    have phaseValid : ValidShadeGrid (phaseGrid flipped depth coarse) states := gridEq.symm ▸ valid
-    refine ⟨phaseScale flipped depth, ?_, shaded, ?_⟩
-    · rw [patch, ← gridEq]; exact phase_cycle flipped depth coarse
-    · rw [patch, ← gridEq]
-      exact phase_marked flipped depth n hn positive coarse rootEq states phaseValid shaded
+    rw [patch, ← gridEq]
+    exact ⟨_, phase_cycle flipped depth coarse, shaded, phase_marked flipped depth n hn positive
+      coarse rootEq states (gridEq.symm ▸ valid) shaded⟩
   rcases has_light_cycle coarse (2 * n + 2) (by omega)
       (s := states) (by simpa only [Nat.add_assoc] using valid) with large | small
   · have power : 2 ^ (2 * n + 2) = 4 ^ (n + 1) := by

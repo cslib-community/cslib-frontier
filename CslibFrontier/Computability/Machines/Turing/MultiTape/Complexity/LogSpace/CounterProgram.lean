@@ -447,12 +447,8 @@ open MultiTapeTM ComputableInSpace
 theorem Expr.eval_inSpace : ∀ e : Expr,
     ComputableInSpace (fun regs => e.eval regs) (encList encNat) encNat
       fun regs => (encList encNat regs).length
-  | .const k => budget_const k (.refl _)
-  | .reg i => budget_comp getD
-      (budget_prod (of_inO (.of_linear (.of_eq (f := id) fun _ => rfl)))
-        (budget_const i (.refl _)))
-      (.of_le_linear 16 (8 * (2 * (encNat i).length + 3)) fun regs => by
-        simp only [length_encPair, id]; omega)
+  | .const k => budget_const k
+  | .reg i => budget_getD (of_inO (.of_linear (.of_eq (f := id) fun _ => rfl))) (budget_const i)
   | .add a b =>
     have h := budget_prod (Expr.eval_inSpace a) (Expr.eval_inSpace b)
     budget_comp natAdd h (.add h.length_le (.const 1 _))
@@ -511,18 +507,18 @@ theorem query_inSpace :
     (fun i => by
       cases i with
       | read e => exact evalConfig_inSpace e
-      | _ => exact budget_const 0 (.refl _))
+      | _ => exact budget_const 0)
     (fst _ _)
 
 theorem halted_inSpace :
     ComputableInSpace P.halted encConfig encBool fun s => (encConfig s).length :=
   dispatch P.code (.halt []) (fun i _ => i.halts)
-    (fun _ => budget_const _ (.refl _)) (fst _ _)
+    (fun _ => budget_const _) (fst _ _)
 
 theorem finish_inSpace :
     ComputableInSpace P.finish encConfig encBits fun s => (encConfig s).length :=
   dispatch P.code (.halt []) (fun i _ => i.finish)
-    (fun _ => budget_const _ (.refl _)) (fst _ _)
+    (fun _ => budget_const _) (fst _ _)
 
 theorem label_inSpace :
     ComputableInSpace (fun x : Config × Option Bool => x.1.1) encConfigRead encNat
@@ -533,7 +529,7 @@ theorem emitted_inSpace :
     ComputableInSpace (fun x : Config × Option Bool => P.emitted x.1) encConfigRead
       encBits fun x => (encConfigRead x).length :=
   dispatch P.code (.halt []) (fun i _ => i.emitted)
-    (fun _ => budget_const _ (.refl _)) label_inSpace
+    (fun _ => budget_const _) label_inSpace
 
 theorem exec_inSpace :
     ComputableInSpace (fun x : Config × Option Bool => P.exec x.1 x.2) encConfigRead
@@ -541,20 +537,17 @@ theorem exec_inSpace :
   refine dispatch P.code (.halt []) (fun i x => i.exec x.1 x.2) (fun i => ?_) label_inSpace
   cases i with
   | assign j e next =>
-    have hv := budget_prod regs_inSpace
-      (budget_prod (budget_const (encB := encNat) j (.refl _)) (evalConfigRead_inSpace e))
-    exact budget_prod (budget_const next (.refl _))
-      (budget_comp ComputableInSpace.set hv
-        (.const_mul 128 (.add hv.length_le (.const 1 _))))
+    exact budget_prod (budget_const next)
+      (budget_set regs_inSpace (budget_const j) (evalConfigRead_inSpace e))
   | lt x y yes no =>
     have hxy := budget_prod (evalConfigRead_inSpace x) (evalConfigRead_inSpace y)
     refine (budget_prod (budget_ite (budget_comp natLt hxy (.add hxy.length_le (.const 1 _)))
-      (budget_const (encB := encNat) yes (.refl _)) (budget_const no (.refl _)))
+      (budget_const (encB := encNat) yes) (budget_const no))
       regs_inSpace).of_enc_eq fun s => ?_
     simp [Instr.exec]
   | read e onTrue onFalse onEnd =>
     exact budget_prod (budget_finite (readLabel onTrue onFalse onEnd) (snd _ _)) regs_inSpace
-  | emit b next => exact budget_prod (budget_const next (.refl _)) regs_inSpace
+  | emit b next => exact budget_prod (budget_const next) regs_inSpace
   | halt out => exact fst_inSpace
 
 end Simulation

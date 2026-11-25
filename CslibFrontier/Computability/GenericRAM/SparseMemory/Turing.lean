@@ -223,13 +223,9 @@ theorem find_inO :
         (entries q.2).find? (fun e => decide (q.1 = e.1)))
       (queryEncoding encA encV) (encOption (encPair encA encV))
       (scanTime encA encV) (scanSpace encA encV) := by
-  have hpar := fst encA (encoding encA encV)
-  have hlist : ComputableInO (fun q : Address × SparseMemory Address Value => entries q.2)
-      (queryEncoding encA encV) (encList (encPair encA encV))
-      (fun q => (queryEncoding encA encV q).length)
-      (fun q => (queryEncoding encA encV q).length) :=
-    (snd encA (encoding encA encV)).of_enc_eq fun _ => rfl
-  have h := findWith (compare_inO encA encV) hpar hlist
+  have h := findWith (compare_inO encA encV) (fst encA (encoding encA encV))
+    ((snd encA (encoding encA encV)).of_enc_eq (g := fun q => entries q.2)
+      (encC := encList (encPair encA encV)) fun _ => rfl)
   convert h using 1 <;> first | rfl |
     (funext q; simp only [scanTime, scanSpace, queryEncoding, encoding_apply]; omega)
 
@@ -240,15 +236,11 @@ theorem erase_entries_inO :
         (entries q.2).filter (fun e => decide (q.1 ≠ e.1)))
       (queryEncoding encA encV) (encList (encPair encA encV))
       (scanTime encA encV) (scanSpace encA encV) := by
-  have hnot := (ComputableInDegree.of_finite (encIn := encBool)
-    (encMid := encBool) Bool.not).inO_one
-  have hcmp := hnot.comp_linear (compare_inO encA encV)
-  have hlist : ComputableInO (fun q : Address × SparseMemory Address Value => entries q.2)
-      (queryEncoding encA encV) (encList (encPair encA encV))
-      (fun q => (queryEncoding encA encV q).length)
-      (fun q => (queryEncoding encA encV q).length) :=
-    (snd encA (encoding encA encV)).of_enc_eq fun _ => rfl
-  have h := filterWith hcmp (fst encA (encoding encA encV)) hlist
+  have hcmp := (ComputableInDegree.of_finite (encIn := encBool)
+    (encMid := encBool) Bool.not).inO_one.comp_linear (compare_inO encA encV)
+  have h := filterWith hcmp (fst encA (encoding encA encV))
+    ((snd encA (encoding encA encV)).of_enc_eq (g := fun q => entries q.2)
+      (encC := encList (encPair encA encV)) fun _ => rfl)
   convert h using 1 <;> first | rfl |
     (funext q; simp only [scanTime, scanSpace, queryEncoding, encoding_apply]; omega)
 
@@ -289,9 +281,8 @@ private theorem readResult_inO :
       (fun q => (encPair (encOption (encPair encA encV)) encV q).length)
       (fun q => (encPair (encOption (encPair encA encV)) encV q).length) := by
   have heq : (fun q : Option (Address × Value) × Value => (q.1.map Prod.snd).getD q.2) =
-      fun q => q.1.elim q.2 Prod.snd := by
-    funext ⟨o, d⟩
-    cases o <;> rfl
+      fun q => q.1.elim q.2 Prod.snd :=
+    funext fun ⟨o, _⟩ => by cases o <;> rfl
   rw [heq]
   refine .mono (by fun_prop) 8 (fun q => ?_) fun q => ?_
   all_goals

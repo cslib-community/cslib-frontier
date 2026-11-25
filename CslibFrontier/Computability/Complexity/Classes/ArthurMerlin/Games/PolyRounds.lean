@@ -176,22 +176,21 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
     (PolyBounded.of_forall_le _ _ fun x => le_rfl)
     (fun x pre st hpre hst => by
       obtain ⟨sfx, hsfx⟩ := hpre
-      have hlen : transcriptLength pre ≤ transcriptLength (g x) := by
-        rw [← hsfx]
-        simp only [transcriptLength, List.map_append, List.sum_append]
-        exact Nat.le_add_right _ _
-      have htr := (hlen.trans (transcriptLength_le_length_encAMShape (g x))).trans (hglen x)
-      have hp1 : ((encIn x).length + 1) ^ d₁ ≤ ((encIn x).length + 1) ^ max d₁ d₂ :=
-        Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _)
-      have hp2 : ((encIn x).length + 1) ^ d₂ ≤ ((encIn x).length + 1) ^ max d₁ d₂ :=
-        Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right _ _)
-      have hpow : 1 ≤ ((encIn x).length + 1) ^ max d₁ d₂ := Nat.one_le_pow _ _ (Nat.succ_pos _)
-      have h1 : (w x).length ≤ c₁ * ((encIn x).length + 1) ^ max d₁ d₂ :=
-        (hwlen x).trans (Nat.mul_le_mul_left _ hp1)
-      have h2 : transcriptLength pre ≤ c₂ * ((encIn x).length + 1) ^ max d₁ d₂ :=
-        htr.trans (Nat.mul_le_mul_left _ hp2)
+      set P := ((encIn x).length + 1) ^ max d₁ d₂
+      have hP : 1 ≤ P := Nat.one_le_pow _ _ (Nat.succ_pos _)
+      have h1 : (w x).length ≤ c₁ * P :=
+        (hwlen x).trans
+          (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _)))
+      have h2 : transcriptLength pre ≤ c₂ * P := by
+        have hlen : transcriptLength pre ≤ transcriptLength (g x) := by
+          rw [← hsfx]; simp only [transcriptLength, List.map_append, List.sum_append]
+          exact Nat.le_add_right _ _
+        exact ((hlen.trans (transcriptLength_le_length_encAMShape (g x))).trans (hglen x)).trans
+          (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right _ _)))
       simp only [length_encPair, encBits_apply]
-      nlinarith)
+      calc 2 * st.1.length + 1 + st.2.length
+          ≤ 2 * (c₁ * P) + P + 2 * (c₂ * P) := by have := hst.1; have := hst.2; omega
+        _ = (2 * c₁ + 1 + 2 * c₂) * P := by ring)
   exact ((ComputableInPolyTime.snd encBits encBits).comp hspec.1).of_enc_eq fun x => by
     simp only [Function.comp_apply, foldl_copyStep, List.nil_append]
 
@@ -248,13 +247,13 @@ theorem isAMPolyGameVerifier_iff_value {enc : α ↪ List Bool} {g : ℕ → Lis
       (a ∈ A → 2 ≤ 3 * value true (g (enc a).length) (fun t => ((V (a, t)).toNat : ℚ))) ∧
       (a ∉ A → 3 * value true (g (enc a).length) (fun t => ((V (a, t)).toNat : ℚ)) ≤ 1) := by
   refine forall_congr' fun a => and_congr (imp_congr_right fun _ => ?_)
-    (imp_congr_right fun _ => ?_)
-  all_goals
-    rw [← Nat.cast_le (α := ℚ)]
-    push_cast
-    rw [count_eq]
-    have hp : (0 : ℚ) < 2 ^ arthurBits (g (enc a).length) := by positivity
-    constructor <;> intro h <;> nlinarith
+    (imp_congr_right fun _ => ?_) <;>
+    (rw [← Nat.cast_le (α := ℚ)]; push_cast; rw [count_eq]
+     have hp : (0 : ℚ) < 2 ^ arthurBits (g (enc a).length) := by positivity)
+  · rw [mul_comm (2 : ℚ), mul_left_comm (3 : ℚ)]
+    exact mul_le_mul_iff_right₀ hp
+  · rw [mul_left_comm (3 : ℚ)]
+    simpa only [mul_one] using mul_le_mul_iff_right₀ (b := 3 * _) (c := (1 : ℚ)) hp
 
 /-- Problems decided by polynomial-time public-coin game verifiers whose move pattern at input
 length `n` is `π n`. -/

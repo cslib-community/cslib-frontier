@@ -92,12 +92,10 @@ theorem exists_coins_forall_iff_exists {e p q : Polynomial ℕ} {V : α × List 
       refine le_trans (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right two_pos he)) ?_
       by_cases haA : a ∈ A
       · refine le_trans (Nat.mul_le_mul_left _ (card_le_card fun r hr => ?_)) (h.1 haA)
-        simp only [mem_filter, mem_univ, true_and, iff_true_left haA, not_exists,
-          Bool.not_eq_true] at hr ⊢
-        exact hr
+        simpa only [mem_filter, mem_univ, true_and, iff_true_left haA, not_exists,
+          Bool.not_eq_true] using hr
       · refine le_trans (Nat.mul_le_mul_left _ (card_le_card fun r hr => ?_)) (h.2 haA)
-        simp only [mem_filter, mem_univ, true_and, iff_false_left haA, not_not] at hr ⊢
-        exact hr
+        simpa only [mem_filter, mem_univ, true_and, iff_false_left haA, not_not] using hr
     · rw [filter_false_of_mem fun r _ h => h fun a ha => (hx ⟨a, ha⟩).elim, card_empty,
         mul_zero]
       exact Nat.zero_le _
@@ -125,11 +123,8 @@ theorem AM_subset_NPPoly : AM enc ⊆ NPPoly enc := by
       (mem_NP_setOf_exists_append hVc q)
   · simp only [Set.mem_preimage, Set.mem_ofPred_eq]
     rw [hr _ a rfl]
-    constructor
-    · rintro ⟨y, hy⟩
-      exact ⟨List.ofFn y, List.length_ofFn, hy⟩
-    · rintro ⟨v, hv, hy⟩
-      exact ⟨BitString.ofList _ v, by rwa [BitString.ofFn_ofList hv]⟩
+    exact ⟨fun ⟨y, hy⟩ => ⟨List.ofFn y, List.length_ofFn, hy⟩,
+      fun ⟨v, hv, hy⟩ => ⟨BitString.ofList _ v, by rwa [BitString.ofFn_ofList hv]⟩⟩
 
 /-- **`MA ⊆ NP/poly`**, through `MA ⊆ AM`. -/
 theorem MA_subset_NPPoly : MA enc ⊆ NPPoly enc := MA_subset_AM.trans AM_subset_NPPoly

@@ -440,8 +440,7 @@ theorem clause_agree (i : ℕ) (c : Clause V) (σ τ : Variable V → Bool)
     (hs : ∀ l ∈ c, σ (Sum.inl l.1) = τ (Sum.inl l.1)) :
     ∀ v ∈ (clause i c).vars, σ v = τ v := by
   have pad_mem (k : ℕ) : (padding (V := V) i k).1 ∈ (forcePadding (V := V) i k).vars := by
-    rw [vars_forcePadding]
-    exact List.mem_cons_self
+    rw [vars_forcePadding]; exact List.mem_cons_self
   rcases c with _ | ⟨p, _ | ⟨q, _ | ⟨r, rest⟩⟩⟩
   · simp only [clause, CNF.evalOne_append, Bool.and_eq_true] at hσ hτ
     obtain ⟨⟨⟨hcσ, h0σ⟩, h1σ⟩, h2σ⟩ := hσ
@@ -453,10 +452,7 @@ theorem clause_agree (i : ℕ) (c : Clause V) (σ τ : Variable V → Bool)
     intro v hv
     simp only [clause, CNF.vars_append, List.mem_append] at hv
     rcases hv with ((hv | hv) | hv) | hv
-    · exact hcore v hv
-    · exact hf0 v hv
-    · exact hf1 v hv
-    · exact hf2 v hv
+    exacts [hcore v hv, hf0 v hv, hf1 v hv, hf2 v hv]
   · simp only [clause, CNF.evalOne_append, Bool.and_eq_true] at hσ hτ
     obtain ⟨⟨hcσ, h1σ⟩, h2σ⟩ := hσ
     obtain ⟨⟨hcτ, h1τ⟩, h2τ⟩ := hτ
@@ -466,9 +462,7 @@ theorem clause_agree (i : ℕ) (c : Clause V) (σ τ : Variable V → Bool)
     intro v hv
     simp only [clause, CNF.vars_append, List.mem_append] at hv
     rcases hv with (hv | hv) | hv
-    · exact hcore v hv
-    · exact hf1 v hv
-    · exact hf2 v hv
+    exacts [hcore v hv, hf1 v hv, hf2 v hv]
   · simp only [clause, CNF.evalOne_append, Bool.and_eq_true] at hσ hτ
     obtain ⟨hcσ, h2σ⟩ := hσ
     obtain ⟨hcτ, h2τ⟩ := hτ
@@ -476,9 +470,7 @@ theorem clause_agree (i : ℕ) (c : Clause V) (σ τ : Variable V → Bool)
     have hcore := core_agree i hcσ hcτ (hs p (by simp)) (hs q (by simp)) (hf2 _ (pad_mem 2))
     intro v hv
     simp only [clause, CNF.vars_append, List.mem_append] at hv
-    rcases hv with hv | hv
-    · exact hcore v hv
-    · exact hf2 v hv
+    exact hv.elim (hcore v) (hf2 v)
   · exact core_agree i hσ hτ (hs p (by simp)) (hs q (by simp)) (hs r (by simp))
 
 /-- Satisfying output assignments are determined exactly by their source restrictions. -/

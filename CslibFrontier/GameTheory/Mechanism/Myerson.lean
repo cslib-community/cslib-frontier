@@ -85,7 +85,7 @@ variable {ι : Type*} [DecidableEq ι]
 /-- If `|φ y − φ z| ≤ (y − z)(f y − f z)` whenever `a ≤ z ≤ y ≤ b`, then `φ b = φ a`: summing
 over a uniform partition of `[a, b]` into `N` pieces telescopes to
 `|φ b − φ a| ≤ (b − a)(f b − f a) / N`. -/
-private theorem eq_of_abs_sub_le_mul_sub {φ f : ℝ → ℝ} {a b : ℝ} (hab : a ≤ b)
+theorem eq_of_abs_sub_le_mul_sub {φ f : ℝ → ℝ} {a b : ℝ} (hab : a ≤ b)
     (h : ∀ z y, a ≤ z → z ≤ y → y ≤ b → |φ y - φ z| ≤ (y - z) * (f y - f z)) :
     φ b = φ a := by
   have key : ∀ N : ℕ, 0 < N → |φ b - φ a| ≤ (b - a) * (f b - f a) / N := by

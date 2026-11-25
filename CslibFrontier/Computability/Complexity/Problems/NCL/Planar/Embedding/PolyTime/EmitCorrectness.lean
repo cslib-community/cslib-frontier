@@ -59,24 +59,21 @@ private def finiteWire (g : AndOrGraph) (bits : List Bool) (p : Port (Fin g.edge
 
 /-- Finite incidence names remain distinct after adding their color and direction data. -/
 private theorem finiteWire_injective (g : AndOrGraph) (bits : List Bool) :
-    Function.Injective (finiteWire g bits) := by
-  intro p q h
-  have he : (⟨p, 0⟩ : WeightedPort (Fin g.edgeCount)) = ⟨q, 0⟩ :=
-    WeightedPort.map_injective Fin.val_injective
-      (congrArg (fun r : Port ℕ => (⟨r, 0⟩ : WeightedPort ℕ)) (congrArg Wire.port h))
-  exact congrArg WeightedPort.port he
+    Function.Injective (finiteWire g bits) := fun p q h =>
+  congrArg WeightedPort.port <| WeightedPort.map_injective Fin.val_injective
+    (show WeightedPort.map Fin.val ⟨p, 0⟩ = WeightedPort.map Fin.val ⟨q, 0⟩ from
+      congrArg (fun r => ({ port := r, weight := 0 } : WeightedPort ℕ)) (congrArg Wire.port h))
 
 /-- The finite wire's color agrees with the canonical incidence drawing. -/
 private theorem finiteWire_color (g : AndOrGraph) (hb : g.Bounded) (bits : List Bool) :
-    (fun p => (finiteWire g bits p).color) = fun p => color (List.ofFn g.graph) p.edge := by
-  funext p
-  exact edgeColor_eq g hb p.edge
+    (fun p => (finiteWire g bits p).color) = fun p => color (List.ofFn g.graph) p.edge :=
+  funext fun p => edgeColor_eq g hb p.edge
 
 private theorem shape_vertices (g : AndOrGraph) (h : g.Valid) :
     ∀ v ∈ List.ofFn g.graph, v.ports.length = 3 ∧ v.minInflow = 2 := by
-  intro v hv
+  intro _ hv
   obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
-  rcases h.2.1 i with ⟨a, b, c, hn, hp⟩ | ⟨a, b, c, hn, hp⟩
+  rcases h.2.1 i with ⟨_, _, _, hn, hp⟩ | ⟨_, _, _, hn, hp⟩
   · exact ⟨by simpa only [Vertex.and, List.length_cons, List.length_nil] using hp.length_eq, hn⟩
   · exact ⟨by simpa only [Vertex.or, List.length_cons, List.length_nil] using hp.length_eq, hn⟩
 
@@ -88,13 +85,11 @@ private theorem sources_eq (x : AndOrNCL.Instance) (h : x.graph.Valid) (bits : L
   unfold Emit.sources sourceProgram
   conv_lhs => rw [← vertices_map x.graph h.1]
   simp only [List.zipIdx_map, List.map_map]
-  apply List.map_congr_left
-  rintro ⟨v, i⟩ hi
-  have hv : v ∈ List.ofFn x.graph.graph := List.fst_mem_of_mem_zipIdx hi
-  obtain ⟨hl, hm⟩ := shape_vertices x.graph h v hv
-  obtain ⟨p, q, r, hp⟩ := List.length_eq_three.mp hl
+  refine List.map_congr_left fun ⟨v, _⟩ hi => ?_
+  obtain ⟨p, q, r, hp⟩ := List.length_eq_three.mp
+    (shape_vertices x.graph h v (List.fst_mem_of_mem_zipIdx hi)).1
   cases v with
-  | mk ps need =>
+  | mk ps _ =>
     dsimp only at hp
     subst ps
     simp only [Nat.zero_add]
@@ -125,17 +120,13 @@ private theorem caps_eq (x : AndOrNCL.Instance) (h : x.graph.Valid)
       (fun p => (finiteWire x.graph bits p).bit) (List.finRange x.graph.edgeCount) 0 := by
   unfold Emit.caps capProgram
   rw [hl, ← List.map_coe_finRange_eq_range, List.map_map]
-  apply List.map_congr_left
-  intro e _he
-  rw [Function.comp_apply, edgeColor_eq x.graph h.1 e]
-  rfl
+  exact List.map_congr_left fun e _ => by rw [Function.comp_apply, edgeColor_eq x.graph h.1 e]; rfl
 
 private theorem word_cast {a b a' b' : List Color} {Label : Type} {xs ys : List Label}
     (D : Wiring Cell a b xs ys) (ha : a = a') (hb : b = b') (k : ℕ) :
     (planarizeAlong Cell.expand (D.cast ha hb).diagram).toWord Prim.interp k =
       (planarizeAlong Cell.expand D.diagram).toWord Prim.interp k := by
-  cases ha
-  cases hb
+  subst ha hb
   rfl
 
 /-- The emitted primitive word is the existing canonical planarizer, with identical numbering. -/
@@ -143,28 +134,22 @@ theorem expand_emit_program (x : AndOrNCL.Instance) (h : x.graph.Valid)
     (hl : x.initial.length = x.graph.edgeCount) (bits : List Bool) :
     expand (Emit.program x bits) = planarize x.graph h := by
   unfold Emit.program
-  rw [expand_append, expand_append, sources_eq x h bits,
-    requested_eq x hl bits, available_eq x.graph h.1 bits, caps_eq x h hl bits]
-  rw [expand_sourceProgram _ _ (shape_vertices x.graph h),
+  rw [expand_append, expand_append, sources_eq x h bits, requested_eq x hl bits,
+    available_eq x.graph h.1 bits, caps_eq x h hl bits,
+    expand_sourceProgram _ _ (shape_vertices x.graph h),
     expand_program _ (finiteWire_injective x.graph bits) _ _
       (incidencePerm _ (ofFn_wellFormed x.graph.graph h.2.2))
-      (vertexLabels_nodup _ (ofFn_wellFormed x.graph.graph h.2.2)), expand_capProgram]
-  rw [finiteWire_color x.graph h.1 bits]
-  change _ = (planarizeAlong Cell.expand
-    (diagram (List.ofFn x.graph.graph) (color (List.ofFn x.graph.graph)) _)).toWord Prim.interp 0
-  change _ = _ ++
-    ((planarizeAlong Cell.expand (routing (List.ofFn x.graph.graph)
-      (color (List.ofFn x.graph.graph)) _).diagram).toWord Prim.interp 0 ++ _)
-  rw [routing, word_cast]
-  rw [List.append_assoc]
-  rfl
+      (vertexLabels_nodup _ (ofFn_wellFormed x.graph.graph h.2.2)),
+    expand_capProgram, finiteWire_color x.graph h.1 bits]
+  change _ = _ ++ ((planarizeAlong Cell.expand (routing (List.ofFn x.graph.graph)
+    (color (List.ofFn x.graph.graph)) _).diagram).toWord Prim.interp 0 ++ _)
+  rw [routing, word_cast, List.append_assoc]; rfl
 
 private theorem labelledBits_cast {a b a' b' : List Color} {Label : Type}
     {xs ys : List Label} (D : Wiring Cell a b xs ys) (ha : a = a') (hb : b = b')
     (u : Label → Bool) :
     labelledBits (D.cast ha hb).labeling u = labelledBits D.labeling u := by
-  cases ha
-  cases hb
+  subst ha hb
   rfl
 
 /-- The actual subdivision encoding gives opposite downward reference directions at endpoints. -/
@@ -183,36 +168,23 @@ theorem configurationBits_emit_program (x : AndOrNCL.Instance) (h : x.graph.Vali
       ((planarizeDiagramSimulation x.graph h hf).enc (x.graph.config bits)) := by
   let vs := List.ofFn x.graph.graph
   let c := color vs
-  let u := fun p => (finiteWire x.graph bits p).bit
-  have hu : (Stub.simulation (fun i : Fin vs.length => vs.get i) c
-      (fun i _ hp => port_weight_color
-        (ofFn_andOr x.graph.graph h.2.1)
-        (ofFn_wellFormed x.graph.graph h.2.2) (List.get_mem _ i) hp)
-      (ofFn_loopFree x.graph.graph hf)).enc (x.graph.config bits) = u := by
-    funext p
-    exact stub_enc _ _ _ _ _ p
+  let s := (Stub.simulation (fun i : Fin vs.length => vs.get i) c
+    (fun i _ hp => port_weight_color (ofFn_andOr x.graph.graph h.2.1)
+      (ofFn_wellFormed x.graph.graph h.2.2) (List.get_mem _ i) hp)
+    (ofFn_loopFree x.graph.graph hf)).enc (x.graph.config bits)
+  have hu : s = fun p => (finiteWire x.graph bits p).bit := funext (stub_enc _ _ _ _ _)
   unfold Emit.program
   rw [configurationBits_append, configurationBits_append, sources_eq x h bits,
-    requested_eq x hl bits, available_eq x.graph h.1 bits, caps_eq x h hl bits]
-  rw [configurationBits_sourceProgram _ _ (shape_vertices x.graph h),
+    requested_eq x hl bits, available_eq x.graph h.1 bits, caps_eq x h hl bits,
+    configurationBits_sourceProgram _ _ (shape_vertices x.graph h),
     configurationBits_program _ (finiteWire_injective x.graph bits) _ _
       (incidencePerm _ (ofFn_wellFormed x.graph.graph h.2.2))
       (vertexLabels_nodup _ (ofFn_wellFormed x.graph.graph h.2.2)),
-    configurationBits_capProgram]
-  rw [finiteWire_color x.graph h.1 bits]
-  rw [bits_closed]
-  change _ = extendedBits (diagram vs c _)
-    (((Stub.simulation (fun i : Fin vs.length => vs.get i) c
-      (fun i _ hp => port_weight_color (ofFn_andOr x.graph.graph h.2.1)
-        (ofFn_wellFormed x.graph.graph h.2.2) (List.get_mem _ i) hp)
-      (ofFn_loopFree x.graph.graph hf)).enc (x.graph.config bits)) ∘
-        (drawing vs c _).edgeEquiv)
+    configurationBits_capProgram, finiteWire_color x.graph h.1 bits, bits_closed]
+  change _ = extendedBits (diagram vs c _) (s ∘ (drawing vs c _).edgeEquiv)
   rw [hu]
-  change _ = labelledBits
-    ((sourceBundle vs c).labeling.comp
-      ((routing vs c _).labeling.comp (sinkBundle c).labeling)) u
-  rw [labelledBits_comp, labelledBits_comp, routing, labelledBits_cast]
-  rw [List.append_assoc]
-  rfl
+  change _ = labelledBits ((sourceBundle vs c).labeling.comp
+    ((routing vs c _).labeling.comp (sinkBundle c).labeling)) _
+  rw [labelledBits_comp, labelledBits_comp, routing, labelledBits_cast, List.append_assoc]; rfl
 
 end Cslib.Complexity.NCL.Planar.Embedding.PolyTime

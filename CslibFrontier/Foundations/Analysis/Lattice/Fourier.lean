@@ -69,16 +69,13 @@ theorem integral_fourierChar_tsum_translate {L : Submodule ℤ E} [Countable L]
       fourierChar_inner_eq_one hw z, inv_one, mul_one]
   calc
     _ = ∫ x in s, ∑' z : L, g (z +ᵥ x) := by
-      congr 1
-      funext x
+      congr 1 with x
       simp only [g, Submodule.vadd_def, vadd_eq_add, add_comm (↑_ : E) x, hinv, Circle.smul_def,
         smul_eq_mul, tsum_mul_left]
-    _ = ∑' z : L, ∫ x in s, g (z +ᵥ x) := by
-      apply integral_tsum
-      · exact fun z => (hg.1.comp_quasiMeasurePreserving
-          (measurePreserving_vadd z volume).quasiMeasurePreserving).restrict
-      · rw [← hs.lintegral_eq_tsum'' (‖g ·‖ₑ)]
-        exact ne_of_lt hg.2
+    _ = ∑' z : L, ∫ x in s, g (z +ᵥ x) :=
+      integral_tsum (fun z => (hg.1.comp_quasiMeasurePreserving
+        (measurePreserving_vadd z volume).quasiMeasurePreserving).restrict)
+        (hs.lintegral_eq_tsum'' (‖g ·‖ₑ) ▸ hg.2.ne)
     _ = ∫ x, g x := (hs.integral_eq_tsum'' g hg).symm
     _ = 𝓕 f w := rfl
 

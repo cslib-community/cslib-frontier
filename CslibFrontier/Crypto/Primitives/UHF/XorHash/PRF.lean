@@ -138,16 +138,8 @@ private theorem run_xorHashMultiQueryReduction [DecidableEq X] [DecidableEq Y]
   simp only [xorHashMultiQueryReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
   refine bind_congr fun ms => ?_
   simp only [ProbOracleComp.run_mapM, ProbOracleComp.run_map, run_xorHashQueries,
-    map_pure, List.mapM_pure, pure_bind, ProbOracleComp.run_pure]
-  congr 2
-  apply propext
-  constructor
-  · rintro ⟨a, ha, b, hb, hne, heq⟩
-    obtain ⟨m, hm, rfl⟩ := List.mem_map.mp ha
-    obtain ⟨m', hm', rfl⟩ := List.mem_map.mp hb
-    exact ⟨m, hm, m', hm', hne, heq⟩
-  · rintro ⟨m, hm, m', hm', hne, heq⟩
-    exact ⟨_, List.mem_map.mpr ⟨m, hm, rfl⟩, _, List.mem_map.mpr ⟨m', hm', rfl⟩, hne, heq⟩
+    map_pure, List.mapM_pure, pure_bind, ProbOracleComp.run_pure, List.mem_map,
+    exists_exists_and_eq_and]
 
 /-- For a bounded list adversary, the real PRF experiment has the same law as the full
 multi-query game. Every supported message list is evaluated in full. -/

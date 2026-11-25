@@ -89,17 +89,16 @@ theorem voleWorld_cached_run {α : Type} (c : VOLECorrelation F n)
     (fun _ : Unit => PMF.pure c.receiverView)
   have h := ProbOracleComp.runWith_map_state
     (fun q => StateT.lift (σ := Unit) (oracle q)) (voleWorld F n).impl
-    (fun _ => some c) (fun q state => ?_) program ()
-  · change (ProbOracleComp.runWith (fun q => StateT.lift (σ := Unit) (oracle q))
-      program ()).map (fun (a, _) => (a, some c)) =
-        ProbOracleComp.runWith (voleWorld F n).impl program (some c) at h
-    rw [ProbOracleComp.runWith_lift] at h
-    rw [OracleComp.evalWith_eq_interpret] at h
-    simp only [PMF.map_comp, Function.comp_def, oracle] at h
-    exact h.symm
-  · rcases q with ⟨⟨⟩⟩ | ⟨⟨⟩⟩ <;>
-      simp only [pmf_norm, oracle, OracleComp.sumHandler, StateT.lift, voleWorld_cached_sender,
-        voleWorld_cached_receiver] <;> rfl
+    (fun _ => some c) (fun q _ => by
+      rcases q with ⟨⟨⟩⟩ | ⟨⟨⟩⟩ <;>
+        simp only [pmf_norm, oracle, OracleComp.sumHandler, StateT.lift, voleWorld_cached_sender,
+          voleWorld_cached_receiver] <;> rfl) program ()
+  change (ProbOracleComp.runWith (fun q => StateT.lift (σ := Unit) (oracle q))
+    program ()).map (fun (a, _) => (a, some c)) =
+      ProbOracleComp.runWith (voleWorld F n).impl program (some c) at h
+  rw [ProbOracleComp.runWith_lift, OracleComp.evalWith_eq_interpret] at h
+  simp only [PMF.map_comp, Function.comp_def, oracle] at h
+  exact h.symm
 
 /-- Sampling the cached correlation before execution preserves every output law, including
 for programs that never query setup. Each role still reads only its own fixed share. -/
@@ -118,20 +117,15 @@ theorem voleWorld_eval {α : Type}
     OracleComp.sumHandler (fun _ => PMF.pure c.senderView)
       (fun _ => PMF.pure c.receiverView) q
   let oracle := fun q c => (replies q c).map (·, c)
-  have h := ProbOracleComp.runWith_simulation (voleWorld F n).impl oracle relate
-    (fun q state => ?_) program none
-  · have houtput := congrArg (fun law => law.map Prod.fst) h
-    simp only [pmf_norm, PMF.map, PMF.bind_const] at houtput
-    refine houtput.trans ?_
-    change (voleIdealDist F n).bind _ = _
-    congr 1 with c : 1
-    change (ProbOracleComp.runWith oracle program c).map Prod.fst = _
-    rw [ProbOracleComp.runWith_readOnly replies]
-    simp only [PMF.map_comp, Function.comp_def]
-    change PMF.map id _ = _
-    rw [PMF.map_id]
-    exact OracleComp.evalWith_eq_interpret _ _
-  · rcases q with q | q <;> cases q <;> cases state <;>
-      simp [voleWorld, relate, oracle, replies, OracleComp.sumHandler, PMF.map]
+  have h := congrArg (·.map Prod.fst) (ProbOracleComp.runWith_simulation (voleWorld F n).impl
+    oracle relate (fun q state => by
+      rcases q with ⟨⟨⟩⟩ | ⟨⟨⟩⟩ <;> cases state <;>
+        simp [voleWorld, oracle, relate, replies, OracleComp.sumHandler, PMF.map]) program none)
+  simp only [pmf_norm, PMF.map, PMF.bind_const] at h
+  refine h.trans (congrArg (voleIdealDist F n).bind (funext fun c => ?_))
+  change (ProbOracleComp.runWith oracle program c).map Prod.fst = _
+  rw [ProbOracleComp.runWith_readOnly replies]
+  simp only [PMF.map_comp, Function.comp_def]
+  exact (PMF.map_id _).trans (OracleComp.evalWith_eq_interpret _ _)
 
 end Cslib.Crypto.Protocols.VOLE

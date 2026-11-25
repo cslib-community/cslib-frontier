@@ -11,15 +11,9 @@ public import CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.PMF.Bind
 public import CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
-import all CslibFrontier.Crypto.Computational.MLDSA.PriorCommitmentRefresh
-import all CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
+-- Reads private `installedAttempt`, `retryCall`, and `freshDigestSigningCall` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
-import all CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+-- Reads private `prefixRun`, `prefixRun_eq`, and `expansionTrialGame` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.ExpansionTrial
 
 /-!
@@ -305,18 +299,16 @@ private theorem all_windows (C : QuantumSigningForger) (s : Level) (H : Xofs)
     let adjacentLaw y := U.bind (C.callWindow s H A keys sk next i rows (ys ++ [y]) k)
     let last y := (maskList s k).bind fun zs =>
       U.bind (C.callWindow s H A keys sk next i rows ((ys ++ [y]) ++ zs) 0)
-    have adjacent := C.window_step s H A keys sk next i rows ys k hash
-    have grow : 1 + ys.length ≤ 814 := by lia
     have one : |prob (U.bind (C.callWindow s H A keys sk next i rows ys (k + 1))) -
         prob (μ.bind adjacentLaw)| ≤ B := by
-      apply adjacent.trans
+      refine (C.window_step s H A keys sk next i rows ys k hash).trans ?_
       dsimp only [B, δ]
       gcongr
-      exact_mod_cast grow
-    have rest : |prob (μ.bind adjacentLaw) - prob (μ.bind last)| ≤ k * B := by
-      apply abs_common_bind
-      intro y
-      exact ih (ys ++ [y]) (by simp only [List.length_append, List.length_singleton]; lia)
+      exact_mod_cast (by lia : 1 + ys.length ≤ 814)
+    have rest : |prob (μ.bind adjacentLaw) - prob (μ.bind last)| ≤ k * B :=
+      abs_common_bind _ _ _ fun y => ih (ys ++ [y]) (by
+        simp only [List.length_append, List.length_singleton]
+        lia)
     have endLaw : ((maskList s (k + 1)).bind fun zs =>
         U.bind (C.callWindow s H A keys sk next i rows (ys ++ zs) 0)) = μ.bind last := by
       simp only [maskList, PMF.iid, PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_bind,
@@ -328,9 +320,9 @@ private theorem all_windows (C : QuantumSigningForger) (s : Level) (H : Xofs)
 
 private theorem maskList_eq_row (s : Level) :
     maskList s 814 = (PMF.uniformOfFintype (Row s)).map (fun r => List.ofFn (rowMasks s r)) := by
-  let μ := signingMaskLaw s.params (by cases s <;> decide)
   have lists (n : ℕ) (schedule : Row s → Fin n → Mask s)
-      (law : (PMF.uniformOfFintype (Row s)).map schedule = PMF.iid μ n) :
+      (law : (PMF.uniformOfFintype (Row s)).map schedule =
+        PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) n) :
       maskList s n = (PMF.uniformOfFintype (Row s)).map (fun r => List.ofFn (schedule r)) := by
     rw [maskList, ← law, PMF.map_comp]
     rfl
@@ -358,12 +350,10 @@ private theorem all_reads_sign (C : QuantumSigningForger) (s : Level) (H : Xofs)
   have read (ys : List (Mask s)) (r : Row s) :
       C.resumeRetries s H A next sk D 0 (.signing q k) (scanned s G A sk ys (.signing q k))
         l (r :: rest) d = conclude (draw ys) := by
-    by_cases large : 255 < q.context.length
-    · simp only [scanned, preparedPrefix, draw, large, ↓reduceIte, resumeRetries,
-        conclude, List.tail_cons]
-    · simp only [scanned, preparedPrefix, draw, large, ↓reduceIte, resumeRetries,
-        conclude, List.tail_cons]
-      cases ys.findSome? (fun y => terminalReply (G.attemptWithMask s sk A m y)) <;> rfl
+    by_cases large : 255 < q.context.length <;>
+      simp only [scanned, preparedPrefix, draw, large, ↓reduceIte, resumeRetries, conclude,
+        List.tail_cons]
+    cases ys.findSome? (fun y => terminalReply (G.attemptWithMask s sk A m y)) <;> rfl
   have native (r : Row s) : G.signWithExpansionRow s keys.secretKey q r =
       draw (List.ofFn (rowMasks s r)) := by
     by_cases large : 255 < q.context.length
@@ -389,12 +379,11 @@ private theorem read_window_eq (C : QuantumSigningForger) (s : Level) (H : Xofs)
     U.bind fun rows => C.expansionContinuation s G A keys (C.program keys.publicKey)
       C.initialDevice [] (List.ofFn rows) := by
   intro U G
-  let left (t : List (Row s)) := (maskList s 814).bind fun ys =>
-    C.callWindow s H A keys sk (C.nativeAfter s H A keys) i t ys 0 D
-  let right (t : List (Row s)) := C.expansionContinuation s G A keys (C.program keys.publicKey)
-    C.initialDevice [] t
-  apply uniform_tape_eq s i left right
-  intro pre rows len
+  refine uniform_tape_eq s i
+    (fun t => (maskList s 814).bind fun ys =>
+      C.callWindow s H A keys sk (C.nativeAfter s H A keys) i t ys 0 D)
+    (C.expansionContinuation s G A keys (C.program keys.publicKey) C.initialDevice [])
+    fun pre rows len => ?_
   let go (ys : List (Mask s)) (x : Boundary C) (d : C.Device) (l : List Forgery)
       (t : List (Row s)) := C.resumeRetries s H A (C.nativeAfter s H A keys) sk D 0 x
         (scanned s G A sk ys x) l t d
@@ -402,10 +391,8 @@ private theorem read_window_eq (C : QuantumSigningForger) (s : Level) (H : Xofs)
       C.prefixRun s G keys (C.program keys.publicKey) i C.initialDevice [] (pre ++ r :: rows)
         (go ys)) = _
   rw [← len]
-  apply C.prefixRun_eq s G keys A (maskList s 814) go
-  · intros; rfl
-  · intro q k d l rest
-    exact C.all_reads_sign s H keys sk A key mat (C.nativeAfter s H A keys) D q k d l rest
+  exact C.prefixRun_eq s G keys A (maskList s 814) go (fun _ _ _ _ _ => rfl)
+    (C.all_reads_sign s H keys sk A key mat (C.nativeAfter s H A keys) D) _ _ _ _ _
 
 private noncomputable def chosenCall (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (A : PublicMatrix s) (keys : KeyPair) (i : ℕ) (D : Register s) (keep : Bool)
@@ -450,14 +437,12 @@ private theorem cut_cost_after {C : QuantumSigningForger} {cost : Request C → 
         true_and] at reached
       obtain ⟨b, hb⟩ := reached
       exact ih b (sub b) left hb
-    rcases cmd with coin | op | ask
+    rcases cmd with _ | _ | ask
     · exact earlier i rfl
     · exact earlier i rfl
     · cases i with
       | zero =>
-        have eq : Boundary.signing q next = Boundary.signing ask k :=
-          Set.mem_singleton_iff.mp reached
-        cases eq
+        cases Set.mem_singleton_iff.mp reached
         exact sub r
       | succ i => exact earlier i rfl
 
@@ -526,30 +511,25 @@ private theorem conditioned_call_gap (C : QuantumSigningForger) (s : Level) (H :
         814 * (2 * (4 * qH * √δ + (815 * i.val + 814) * δ)) := by
   intro rows U native programmed δ
   let fresh := rows.bind fun rs => U.bind fun D => C.chosenCall s H A keys i D true (List.ofFn rs)
-  let first (rs : Fin n → Row s) : Game := (maskList s 814).bind fun ys =>
-    U.bind (C.callWindow s H A keys sk (C.nativeAfter s H A keys) i (List.ofFn rs) ys 0)
-  have source : rows.bind first = native := by
-    dsimp only [first, native]
-    simp_rw [PMF.bind_comm (maskList s 814) U, PMF.bind_comm rows U]
-    apply congrArg (PMF.bind U ·)
-    funext D
-    exact C.read_window_eq s H keys sk A key mat i D
   have erase : |prob programmed - prob fresh| ≤ 814 * (4 * qH * √δ + (815 * n + 2) * δ) := by
     rw [abs_sub_comm]
-    apply abs_common_bind rows
-    intro rs
-    exact abs_common_bind U _ _ fun D => C.erase_at_cut s H keys sk A key mat hash calls i D _
+    exact abs_common_bind rows _ _ fun rs =>
+      abs_common_bind U _ _ fun D => C.erase_at_cut s H keys sk A key mat hash calls i D _
   have refresh : |prob fresh - prob native| ≤
       814 * (2 * (4 * qH * √δ + (815 * i.val + 814) * δ)) := by
-    rw [← source]
-    apply abs_common_bind rows
-    intro rs
-    have windows := C.all_windows s H A keys sk (C.nativeAfter s H A keys) i (List.ofFn rs)
-      [] 814 (by simp) hash
+    have source : native = rows.bind fun rs => (maskList s 814).bind fun ys =>
+        U.bind (C.callWindow s H A keys sk (C.nativeAfter s H A keys) i (List.ofFn rs) ys 0) := by
+      dsimp only [native]
+      simp_rw [PMF.bind_comm (maskList s 814) U, PMF.bind_comm rows U]
+      exact congrArg (PMF.bind U ·)
+        (funext fun D => (C.read_window_eq s H keys sk A key mat i D).symm)
+    rw [source]
+    refine abs_common_bind rows _ _ fun rs => ?_
     have write : C.callWindow s H A keys sk (C.nativeAfter s H A keys) i (List.ofFn rs) [] 814 =
         fun D => C.chosenCall s H A keys i D true (List.ofFn rs) :=
       funext fun D => C.write_window_eq s H keys sk A key mat i D _
-    simpa only [List.nil_append, write, Nat.cast_ofNat, first, δ] using windows
+    simpa only [List.nil_append, write, Nat.cast_ofNat, δ] using
+      C.all_windows s H A keys sk (C.nativeAfter s H A keys) i (List.ofFn rs) [] 814 (by simp) hash
   exact (abs_sub_le _ (prob fresh) _).trans (add_le_add erase refresh)
 
 /-- Serve the indexed signing request with the terminal-write handler from the public-pair

@@ -102,11 +102,8 @@ private theorem transpose_honestPauli (basis : Bool) (a : Fin n → Bool) :
   cases basis
   · change pauliXPow a y x = pauliXPow a x y
     simp only [pauliXPow_apply]
-    have h : x = y + a ↔ y = x + a := by
-      constructor <;> intro h <;> rw [h, BitString.add_cancel_right]
-    by_cases hx : x = y + a
-    · rw [ite_eq_left hx, ite_eq_left (h.mp hx)]
-    · rw [ite_eq_right hx, ite_eq_right (fun hy => hx (h.mpr hy))]
+    refine if_congr ?_ rfl rfl
+    constructor <;> intro h <;> rw [h, BitString.add_cancel_right]
   · change pauliZPow a y x = pauliZPow a x y
     by_cases h : x = y
     · subst y
@@ -238,8 +235,7 @@ private theorem sum_ite_prob_honest_mapped
   rw [K.sum_ite_prob_map]
   refine Eq.trans (sum_congr rfl fun u _ => sum_congr rfl fun v _ => ?_) (K.sum_prob basis basis')
   by_cases huv : K.prob basis basis' u v = 0
-  · rw [huv]
-    split_ifs <;> rfl
+  · rw [huv, ite_self]
   · rw [ite_eq_left (h u v huv)]
 
 private theorem sum_ite_prob_honest_sameBasis
@@ -252,10 +248,7 @@ private theorem sum_ite_prob_honest_sameBasis
     (∑ a, ∑ b, if accepts a b then S.prob q r a b else 0) = 1 := by
   apply sum_ite_prob_honest_mapped basis basis q r f g hf hg accepts
   intro u v huv
-  have he : u = v := by
-    by_contra hn
-    exact huv (basisStrategy_prob_eq_zero_of_ne basis hn)
-  subst v
+  obtain rfl := not_imp_comm.1 (basisStrategy_prob_eq_zero_of_ne basis) huv
   exact h u
 
 private theorem honest_prob_swap (q r : PauliBraidingQuestion n Bool) (a b : BraidingAnswer) :
@@ -270,10 +263,8 @@ private theorem honest_prob_swap (q r : PauliBraidingQuestion n Bool) (a b : Bra
   change (star ψ.ofLp ⬝ᵥ ((X ⊗ₖ Y) *ᵥ ψ.ofLp)).re =
     (star ψ.ofLp ⬝ᵥ ((Y ⊗ₖ X) *ᵥ ψ.ofLp)).re
   rw [star_maxEntangled_dotProduct_kronecker_mulVec_eq_trace,
-    star_maxEntangled_dotProduct_kronecker_mulVec_eq_trace]
-  have h : (Xᵀ * Y).trace = (Yᵀ * X).trace := by
-    rw [← trace_transpose (Xᵀ * Y), transpose_mul, transpose_transpose]
-  rw [h]
+    star_maxEntangled_dotProduct_kronecker_mulVec_eq_trace, ← trace_transpose (Xᵀ * Y),
+    transpose_mul, transpose_transpose]
 
 
 section Linearity
@@ -317,9 +308,8 @@ theorem quantumWinProb_pauliBraidingHonestStrategy_linearity :
     S.answers = 1
   rw [SeededGame.answersWinProb_bind_uniformSeed]
   refine (expect_congr rfl fun b _ => ?_).trans (Fintype.expect_const _)
-  have he := game.answersWinProb_pullbackSeed (symmetricLinearityGame n).seed
-    (PauliBraidingSeed.linearity b) S.answers
-  exact he.symm.trans (honest_linearityWithBasis b)
+  exact (game.answersWinProb_pullbackSeed (symmetricLinearityGame n).seed
+    (PauliBraidingSeed.linearity b) S.answers).symm.trans (honest_linearityWithBasis b)
 
 end Linearity
 
@@ -345,8 +335,7 @@ private theorem correlation_honestCHSHStrategy (p : ↥(oddPairs (Fin n))) (x y 
     rw [trace_mul_comm] at ht
     linear_combination ht / 2
   have hZX : trace (Z * X) = 0 := (trace_mul_comm _ _).trans hXZ
-  have hN : (Fintype.card (Fin n → Bool) : ℂ) ≠ 0 := by
-    exact_mod_cast Fintype.card_ne_zero
+  have hN : (Fintype.card (Fin n → Bool) : ℂ) ≠ 0 := Nat.cast_ne_zero.2 Fintype.card_ne_zero
   have ha (r : Bool) : ((honestCHSHStrategy p).alice r).observable =
       honestCHSHObservable false r p :=
     honestCHSHMeasurement_observable _ _ _
@@ -398,9 +387,7 @@ private theorem honest_pauliBraidingCHSHGame
         L.prob x y a b := by
     cases roles
     · exact hK x y a b
-    · change S.prob (.anticommutation true y p) (.anticommutation false x p) b a = _
-      rw [honest_prob_swap]
-      exact hK x y a b
+    · exact (honest_prob_swap _ _ b a).trans (hK x y a b)
   rw [← quantumWinProb_honestCHSHStrategy p, ← TwoProverGame.commutingWinProb_toCommuting]
   change g.commutingWinProb S = TwoProverGame.chsh.toSeeded.commutingWinProb K
   rw [SeededGame.commutingWinProb_eq_sum, SeededGame.commutingWinProb_eq_sum]
@@ -416,14 +403,8 @@ private theorem honest_pauliBraidingCHSHGame
     · rfl
     · exact sum_comm
   rw [hswap, K.sum_ite_prob_map]
-  refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
-  have ha : g.accepts (x, y) (cond roles (.inr b) (.inr a)) (cond roles (.inr a) (.inr b)) ↔
-      TwoProverGame.chsh.accepts x y a b := by
-    cases roles <;> rfl
-  by_cases h : TwoProverGame.chsh.toSeeded.accepts (x, y) a b
-  · rw [ite_eq_left (ha.mpr h), ite_eq_left h]
-    rfl
-  · rw [ite_eq_right (fun hg => h (ha.mp hg)), ite_eq_right h]
+  refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => if_congr ?_ rfl rfl
+  cases roles <;> rfl
 
 /-- The honest strategy attains the CHSH value in the anticommutation branch. -/
 theorem quantumWinProb_pauliBraidingHonestStrategy_anticommutation :
@@ -494,20 +475,12 @@ private theorem honest_special_accepts (roles basis : Bool) (p : ↥(oddPairs (F
     rw [← huv hy, hy]
     exact q.braidingCheckedBit_braidingStrings (· ⬝ᵥ u)
   cases roles
-  · apply sum_ite_prob_honest_mapped basis y _ _ f g hq hr
-    intro u v huv
-    apply hcheck
-    intro hy
-    subst y
-    by_contra hn
-    exact huv (basisStrategy_prob_eq_zero_of_ne basis hn)
-  · apply sum_ite_prob_honest_mapped y basis _ _ g f hr hq
-    intro v u hvu
-    apply hcheck
-    intro hy
-    subst y
-    by_contra hn
-    exact hvu (basisStrategy_prob_eq_zero_of_ne basis (Ne.symm hn))
+  · refine sum_ite_prob_honest_mapped basis y _ _ f g hq hr _ fun u v huv => hcheck u v ?_
+    rintro rfl
+    exact not_imp_comm.1 (basisStrategy_prob_eq_zero_of_ne _) huv
+  · refine sum_ite_prob_honest_mapped y basis _ _ g f hr hq _ fun v u hvu => hcheck u v ?_
+    rintro rfl
+    exact (not_imp_comm.1 (basisStrategy_prob_eq_zero_of_ne _) hvu).symm
 
 /-- The honest strategy passes the consistency branch with probability one. -/
 theorem quantumWinProb_pauliBraidingHonestStrategy_consistency :
@@ -529,11 +502,9 @@ theorem quantumWinProb_pauliBraidingHonestStrategy_consistency :
   cases specialRound
   · let T := ↥(oddPairs (Fin n)) × (Fin n → Bool)
     let f : T → PauliBraidingSeed n Bool := fun (p, dummy) => .sameBasis roles basis p dummy
-    let g := game.pullbackSeed (uniform T) f
     change ({ game with seed := (uniform T).map f }).answersWinProb S.answers = 1
-    rw [← game.answersWinProb_pullbackSeed]
-    change g.commutingWinProb S = 1
-    rw [SeededGame.commutingWinProb_eq_expect_of_uniform g rfl]
+    rw [← game.answersWinProb_pullbackSeed, ← SeededGame.commutingWinProb,
+      SeededGame.commutingWinProb_eq_expect_of_uniform (game.pullbackSeed (uniform T) f) rfl]
     exact (expect_congr rfl fun ⟨p, dummy⟩ _ => honest_sameBasis_accepts roles basis p dummy).trans
       (Fintype.expect_const _)
   · let T := ↥(oddPairs (Fin n))
@@ -544,10 +515,9 @@ theorem quantumWinProb_pauliBraidingHonestStrategy_consistency :
     rw [SeededGame.answersWinProb_bind_seed]
     have hy (y : Bool) : ({ game with seed := (uniform T).map (f y) }).answersWinProb S.answers =
         1 := by
-      rw [← game.answersWinProb_pullbackSeed]
-      let g := game.pullbackSeed (uniform T) (f y)
-      change g.commutingWinProb S = 1
-      rw [SeededGame.commutingWinProb_eq_expect_of_uniform g rfl]
+      rw [← game.answersWinProb_pullbackSeed, ← SeededGame.commutingWinProb,
+        SeededGame.commutingWinProb_eq_expect_of_uniform
+          (game.pullbackSeed (uniform T) (f y)) rfl]
       exact (expect_congr rfl fun p _ => honest_special_accepts roles basis p y).trans
         (Fintype.expect_const _)
     simp only [hy, mul_one, Probability.PMF.sum_toReal]

@@ -98,9 +98,7 @@ theorem markov_bad_samples
   have hgood_compl_bad : good = badᶜ := by
     ext xs; simp only [good, bad, Set.mem_compl_iff, Set.mem_ofPred_eq, not_lt]
   have hbad_meas : MeasurableSet bad := by
-    have : bad = {xs | ((d / 2 : ℕ) : ℝ≥0∞) < ((seenElements W' xs).card : ℝ≥0∞)} := by
-      ext xs; simp only [bad, Set.mem_ofPred_eq, Nat.cast_lt]
-    rw [this]; exact measurableSet_lt measurable_const hf_meas
+    simpa only [bad, ← Nat.cast_lt (α := ℝ≥0∞)] using measurableSet_lt measurable_const hf_meas
   have hE_bound : ∫⁻ xs, ((seenElements W' xs).card : ℝ≥0∞) ∂μ
       ≤ ENNReal.ofReal (8 * ↑m * ε') :=
     calc ∫⁻ xs, ((seenElements W' xs).card : ℝ≥0∞) ∂μ
@@ -229,15 +227,9 @@ theorem ehkv_sum_lower_bound
           mem_coe.mpr (erase_subset _ _ (Finset.sdiff_subset hwU'))
         have hw_ne_w₀ : w ≠ w₀ := Finset.ne_of_mem_erase (Finset.sdiff_subset hwU')
         -- For any S' ∈ W'.powerset and w ≠ w₀ with w ∈ W: w ∈ concepts S' ↔ w ∈ S'.
-        have hmem_iff : ∀ {S' : Finset α} (hS' : S' ∈ W'.powerset),
-            w ∈ concepts S' ↔ w ∈ S' := by
-          intro S' hS'
-          refine ⟨fun hw => ?_, fun hw => ?_⟩
-          · have : w ∈ concepts S' ∩ ↑W := ⟨hw, hwW⟩
-            rw [hconcepts_eq S' hS'] at this
-            exact this.resolve_left (hw_ne_w₀ ∘ Set.mem_singleton_iff.mp) |> mem_coe.mp
-          · have : w ∈ ({w₀} ∪ ↑S' : Set α) := Or.inr (mem_coe.mpr hw)
-            rw [← hconcepts_eq S' hS'] at this; exact this.1
+        have hmem_iff {S' : Finset α} (hS' : S' ∈ W'.powerset) : w ∈ concepts S' ↔ w ∈ S' := by
+          have h := Set.ext_iff.mp (hconcepts_eq S' hS') w
+          simpa [hwW, hw_ne_w₀] using h
         -- Place w in the appropriate symmDiff based on its h₀_local membership.
         have hplace : ∀ {A B : Set α}, w ∈ A → w ∉ B →
             w ∈ symmDiff h₀_local A ∨ w ∈ symmDiff h₀_local B := by
@@ -250,26 +242,23 @@ theorem ehkv_sum_lower_bound
             (mt (hmem_iff hσS_mem).mp (hU_in_S w hwU' hwS))
         · exact (hplace ((hmem_iff hσS_mem).mpr (hU_not_S w hwU' hwS))
             (mt (hmem_iff hS).mp hwS)).symm
-      have hT_sub_W' : T ⊆ W' := filter_subset _ _
       have h2U : d ≤ 2 * U.card := by
-        have hTeq : U.card = d - T.card := card_sdiff_of_subset hT_sub_W'
+        have hTeq : U.card = d - T.card := card_sdiff_of_subset (filter_subset _ _)
         have hTle : T.card ≤ d / 2 := hxs_bad
         omega
       have hP_U : ENNReal.ofReal (4 * ε') ≤ P (↑U) :=
         unseen_measure_ge hε'_pos (by omega) h2U
           (fun w hw => hP_w w (Finset.sdiff_subset hw))
       by_contra h_neither
-      push Not at h_neither
-      obtain ⟨hS_ok, hσS_ok⟩ := h_neither
+      rcases not_or.mp h_neither with ⟨hS_ok, hσS_ok⟩
       -- vendored: `Set.mem_setOf_eq` is deprecated in the pinned Mathlib; `Set.mem_ofPred_eq`.
       simp only [hfail_def, Set.mem_ofPred_eq, not_lt] at hS_ok hσS_ok
-      rw [show A' (sampleOf (concepts (σ S)) xs) = h₀_local from
-        congr_arg A' h_same_sample.symm] at hσS_ok
+      have hA_eq : A' (sampleOf (concepts (σ S)) xs) = h₀_local :=
+        congrArg A' h_same_sample.symm
+      rw [hA_eq] at hσS_ok
       exact complementary_error_contradiction hε'_pos hU_sub_symmDiff hP_U hS_ok hσS_ok
-    rw [show 2 ^ d / 2 = W'.powerset.card / 2 from by rw [card_powerset]]
-    have := involution_half_count (P := fun S => xs ∈ fail (concepts S))
-      hσ_self hσ_mem hpairing
-    convert this
+    rw [← card_powerset]
+    convert involution_half_count (P := fun S => xs ∈ fail (concepts S)) hσ_self hσ_mem hpairing
   have haem : ∀ S ∈ W'.powerset,
       AEMeasurable (fun xs =>
         (fail (concepts S)).indicator (1 : (Fin m → α) → ℝ≥0∞) xs) μ :=
@@ -354,8 +343,7 @@ theorem exists_bad_concept_marginal
   have hε'_pos : 0 < ε' := ENNReal.toReal_pos (ne_of_gt hε_pos) hε_ne_top
   have hε'_le : ε' ≤ 1 / 8 := by ennreal_to_real using hε_le
   have hε_eq : ENNReal.ofReal ε' = ε := ENNReal.ofReal_toReal hε_ne_top
-  have hW_nonempty : W.Nonempty := card_pos.mp (by omega)
-  obtain ⟨w₀, hw₀⟩ := hW_nonempty
+  obtain ⟨w₀, hw₀⟩ : W.Nonempty := card_pos.mp (by omega)
   set W' := W.erase w₀ with hW'_def
   set d := W'.card with hd_def
   have hd : 1 ≤ W'.card := by rw [hW'_def, card_erase_of_mem hw₀]; omega
@@ -368,14 +356,10 @@ theorem exists_bad_concept_marginal
   have hP_supp : P (↑W : Set α)ᶜ = 0 := adversarialMeasure_support hw₀
   have hm_real : (m : ℝ) < (W'.card : ℝ) / (32 * ε') := by
     have hW'_eq : (W'.card : ℝ) = (W.card : ℝ) - 1 := by
-      rw [hW'_def, card_erase_of_mem hw₀]
-      simp [Nat.cast_sub (by omega : 1 ≤ W.card)]
-    rw [hW'_eq]
-    have h32ε_pos : (0 : ℝ) < 32 * ε' := by positivity
-    rw [← ENNReal.ofReal_natCast (n := m)] at hm
-    have hW_pos : (0 : ℝ) < (W.card : ℝ) - 1 := by
-      linarith [show (2 : ℝ) ≤ W.card from by exact_mod_cast hW_card]
-    rwa [ENNReal.ofReal_lt_ofReal_iff (div_pos hW_pos h32ε_pos)] at hm
+      rw [hW'_def, card_erase_of_mem hw₀, Nat.cast_sub (by omega), Nat.cast_one]
+    have hpos : (0 : ℝ) < (W'.card : ℝ) / (32 * ε') := by positivity
+    rw [← hW'_eq, ← ENNReal.ofReal_natCast] at hm
+    exact (ENNReal.ofReal_lt_ofReal_iff hpos).mp hm
   -- vendored: `haveI` becomes `have` (the pinned Mathlib's `haveI` style linter).
   have := hP_prob
   set μ := Measure.pi (fun _ : Fin m => P)

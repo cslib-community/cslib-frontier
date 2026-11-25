@@ -49,27 +49,29 @@ noncomputable instance (d : ℕ) : Fintype (PolynomialFunction F d) := by
 def PolynomialFunction.eval {d : ℕ} (f : PolynomialFunction F d) (u : Point F 1) : F :=
   f.val ⟨u, mem_univ u⟩
 
+omit [Fintype F] [DecidableEq F] in
+private theorem zero_add_smul_single (u : Point F 1) :
+    (0 : Point F 1) + u 0 • Pi.single 0 (1 : F) = u := by
+  funext j
+  rw [Subsingleton.elim j 0]
+  simp [Pi.smul_apply, smul_eq_mul]
+
+private theorem polynomial_of_affine_answer {m d : ℕ} (u v : Point F m)
+    (L : Finset (Point F m)) (f : L → F) (hL : linePoints u v = L) (hf : LineHasDegree f d) :
+    ∃ p : Polynomial F, p.natDegree ≤ d ∧
+      ∀ t : F, f ⟨u + t • v, hL ▸ mem_linePoints u v t⟩ = p.eval t := by
+  subst L
+  exact hf.exists_polynomial
+
 /-- A legal answer on the whole line is represented by a univariate polynomial in the sole
 coordinate, with the advertised degree bound. -/
 theorem PolynomialFunction.exists_polynomial {d : ℕ} (f : PolynomialFunction F d) :
     ∃ p : Polynomial F, p.natDegree ≤ d ∧
       ∀ x : Point F 1, f.eval x = p.eval (x 0) := by
-  let e : Point F 1 := Pi.single 0 1
-  have hLine : linePoints (0 : Point F 1) e = univ := linePoints_single_eq_univ 0 0
-  have hparam (L : Finset (Point F 1)) (hL : linePoints (0 : Point F 1) e = L)
-      (g : L → F) (hg : LineHasDegree g d) :
-      ∃ p : Polynomial F, p.natDegree ≤ d ∧
-        ∀ x : L, g x = p.eval (x.val 0) := by
-    subst L
-    obtain ⟨p, hp, he⟩ := hg.exists_polynomial
-    refine ⟨p, hp, fun x => ?_⟩
-    have hx : (0 : Point F 1) + (x.val 0) • e = x.val := by
-      funext j
-      rw [Subsingleton.elim j 0]
-      simp [e, Pi.smul_apply, smul_eq_mul]
-    exact (congrArg g (Subtype.ext hx.symm)).trans (he (x.val 0))
-  obtain ⟨p, hp, he⟩ := hparam univ hLine f.val f.property
-  exact ⟨p, hp, fun x => he ⟨x, mem_univ x⟩⟩
+  obtain ⟨p, hp, he⟩ := polynomial_of_affine_answer 0 (Pi.single 0 1) univ f.val
+    (linePoints_single_eq_univ 0 0) f.property
+  refine ⟨p, hp, fun x => ?_⟩
+  simpa only [PolynomialFunction.eval, zero_add_smul_single x] using he (x 0)
 
 /-- Evaluate a univariate polynomial function at a field element. -/
 def PolynomialFunction.value {d : ℕ} (p : PolynomialFunction F d) (t : F) : F :=
@@ -84,14 +86,11 @@ theorem PolynomialFunction.value_eq_eval {d : ℕ} (p : PolynomialFunction F d) 
 theorem PolynomialFunction.value_injective {d : ℕ} :
     Function.Injective (PolynomialFunction.value : PolynomialFunction F d → F → F) := by
   intro f g h
-  apply Subtype.ext
-  funext x
-  have hx (j : Fin 1) : x.val 0 = x.val j := congrArg x.val (Subsingleton.elim _ _)
-  have h' := congrFun h (x.val 0)
-  rw [PolynomialFunction.value_eq_eval, PolynomialFunction.value_eq_eval] at h'
-  have he : (fun _ : Fin 1 => x.val 0) = x.val := funext hx
-  rw [he] at h'
-  simpa only [PolynomialFunction.eval, Subtype.eta] using h'
+  refine Subtype.ext (funext fun x => ?_)
+  have hx : (fun _ : Fin 1 => x.val 0) = x.val :=
+    funext fun j => congrArg x.val (Subsingleton.elim 0 j)
+  simpa only [PolynomialFunction.value_eq_eval, PolynomialFunction.eval, hx] using
+    congrFun h (x.val 0)
 
 theorem PolynomialFunction.exists_polynomial_value {d : ℕ} (p : PolynomialFunction F d) :
     ∃ f : Polynomial F, f.natDegree ≤ d ∧ ∀ t, f.eval t = p.value t := by
@@ -115,13 +114,6 @@ noncomputable def PolynomialFunction.ofPolynomial {d : ℕ} (p : Polynomial F)
     (hp : p.natDegree ≤ d) (u : Point F 1) : (ofPolynomial p hp).eval u = p.eval (u 0) := by
   unfold eval ofPolynomial
   rfl
-
-private theorem polynomial_of_affine_answer {m d : ℕ} (u v : Point F m)
-    (L : Finset (Point F m)) (f : L → F) (hL : linePoints u v = L) (hf : LineHasDegree f d) :
-    ∃ p : Polynomial F, p.natDegree ≤ d ∧
-      ∀ t : F, f ⟨u + t • v, hL ▸ mem_linePoints u v t⟩ = p.eval t := by
-  subst L
-  exact hf.exists_polynomial
 
 /-- Read the values of a line answer in the supplied affine parameterization.
 Malformed answers are decoded to the zero polynomial. -/
@@ -179,12 +171,7 @@ noncomputable def decodePolynomial (d : ℕ) (a : Answer F 1) : PolynomialFuncti
 theorem decodePolynomial_agrees {d : ℕ} {u : Point F 1} {a b : Answer F 1}
     (h : accepts d (.axis univ) (.point u) a b) :
     (decodePolynomial d a).eval u = decodePoint b := by
-  have he : (0 : Point F 1) + (u 0) • Pi.single 0 (1 : F) = u := by
-    funext i
-    rw [Subsingleton.elim i 0]
-    simp [Pi.smul_apply, smul_eq_mul]
-  unfold decodePolynomial
-  apply decodeAffinePolynomial_agrees 0 _ (u 0) u _ rfl
-  simpa only [linePoints_single_eq_univ, he] using h
+  apply decodeAffinePolynomial_agrees 0 (Pi.single 0 1) (u 0) u _ rfl
+  simpa only [linePoints_single_eq_univ, zero_add_smul_single] using h
 
 end Cslib.PCP.LowIndividualDegree

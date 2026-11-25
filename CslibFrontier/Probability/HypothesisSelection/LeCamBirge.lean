@@ -7,12 +7,9 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
 public import CslibFrontier.Probability.Hellinger
-public import CslibFrontier.Probability.IID
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Probability.Concentration
-import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.StatisticalDistance
@@ -308,8 +305,6 @@ theorem sum_mul_birgeWeight_le [Fintype α] (p q₀ q₁ : _root_.PMF α) :
               (mul_abs_birgeScalar_sub_one_le (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))
               (by positivity)
         _ = |u x - a x| * |a x - b x| := by ring
-    have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α)
-      (fun x => |u x - a x|) (fun x => |a x - b x|)
     have h1 : ∑ x : α, |u x - a x| ^ 2 = 2 * hellingerSq p q₀ := by
       simp_rw [sq_abs]
       rw [hellingerSq_eq_sum]
@@ -318,38 +313,21 @@ theorem sum_mul_birgeWeight_le [Fintype α] (p q₀ q₁ : _root_.PMF α) :
       simp_rw [sq_abs]
       rw [hellingerSq_eq_sum]
       ring
-    rw [h1, h2] at hcs
-    have hsqrt : ∑ x : α, |u x - a x| * |a x - b x| ≤
-        2 * hellingerDist p q₀ * hellingerDist q₀ q₁ := by
-      refine le_of_sq_le_sq ?_
-        (mul_nonneg (mul_nonneg (by norm_num) (hellingerDist_nonneg _ _))
-          (hellingerDist_nonneg _ _))
-      calc (∑ x : α, |u x - a x| * |a x - b x|) ^ 2
-          ≤ (2 * hellingerSq p q₀) * (2 * hellingerSq q₀ q₁) := hcs
-        _ = (2 * hellingerDist p q₀ * hellingerDist q₀ q₁) ^ 2 := by
-            rw [← hellingerDist_sq p q₀, ← hellingerDist_sq q₀ q₁]
-            ring
-    exact (Finset.sum_le_sum fun x _ => hpt x).trans hsqrt
+    refine (Finset.sum_le_sum fun x _ => hpt x).trans
+      ((Real.sum_mul_le_sqrt_mul_sqrt _ _ _).trans_eq ?_)
+    rw [h1, h2, Real.sqrt_mul zero_le_two, Real.sqrt_mul zero_le_two,
+      hellingerDist_eq_sqrt_hellingerSq, hellingerDist_eq_sqrt_hellingerSq]
+    linear_combination (Real.sqrt (hellingerSq p q₀) * Real.sqrt (hellingerSq q₀ q₁)) *
+      Real.mul_self_sqrt (zero_le_two : (0 : ℝ) ≤ 2)
   have hdiff_eq :
-      ∑ x : α, (p x).toReal * w x - ∑ x : α, (q₀ x).toReal * w x =
-        ∑ x : α, (u x - a x) ^ 2 * (w x - 1) +
-          ∑ x : α, 2 * a x * (u x - a x) * (w x - 1) := by
-    have hsum0 : ∑ x : α, ((p x).toReal - (q₀ x).toReal) = 0 := by
-      rw [Finset.sum_sub_distrib, sum_toReal, sum_toReal, sub_self]
-    have hpt (x : α) :
-        (p x).toReal * w x - (q₀ x).toReal * w x - ((p x).toReal - (q₀ x).toReal) =
-          (u x - a x) ^ 2 * (w x - 1) + 2 * a x * (u x - a x) * (w x - 1) := by
-      rw [← hu2 x, ← ha2 x]
-      ring
-    rw [← Finset.sum_sub_distrib]
-    calc ∑ x : α, ((p x).toReal * w x - (q₀ x).toReal * w x)
-        = ∑ x : α, ((p x).toReal * w x - (q₀ x).toReal * w x) -
-            ∑ x : α, ((p x).toReal - (q₀ x).toReal) := by rw [hsum0, sub_zero]
-      _ = ∑ x : α, ((p x).toReal * w x - (q₀ x).toReal * w x -
-            ((p x).toReal - (q₀ x).toReal)) := (Finset.sum_sub_distrib _ _).symm
-      _ = ∑ x : α, ((u x - a x) ^ 2 * (w x - 1) + 2 * a x * (u x - a x) * (w x - 1)) := by
-          simp_rw [hpt]
-      _ = _ := Finset.sum_add_distrib
+      ∑ x : α, (p x).toReal * w x = ∑ x : α, (q₀ x).toReal * w x +
+        ∑ x : α, (u x - a x) ^ 2 * (w x - 1) + ∑ x : α, 2 * a x * (u x - a x) * (w x - 1) +
+          (∑ x : α, (p x).toReal - ∑ x : α, (q₀ x).toReal) := by
+    simp only [← Finset.sum_add_distrib, ← Finset.sum_sub_distrib]
+    refine Finset.sum_congr rfl fun x _ => ?_
+    rw [← hu2 x, ← ha2 x]
+    ring
+  rw [sum_toReal, sum_toReal] at hdiff_eq
   linarith
 
 /-- Robust Hellinger-ball drift bound: whenever `10 * hellingerDist p q₀ ≤ hellingerDist q₀ q₁`,
@@ -550,16 +528,13 @@ variable [Finite α] [DecidableEq α]
 
 omit [Finite α] [DecidableEq α] in
 private theorem toOuterMeasure_empiricalMass_tail_le (p : _root_.PMF α) (n : ℕ) (γ : ℝ)
-    (P S : (Fin n → α) → Prop)
-    (hiff : 0 < n → ∀ x : Fin n → α, P x ↔ S x)
-    (hpi : ((iid p n).toOuterMeasure {x | S x}).toReal ≤ Real.exp (-2 * (n : ℝ) * γ ^ 2)) :
+    (P : (Fin n → α) → Prop) {S : (Fin n → α) → Prop}
+    (hpi : ((iid p n).toOuterMeasure {x | S x}).toReal ≤ Real.exp (-2 * (n : ℝ) * γ ^ 2))
+    (hiff : 0 < n → ∀ x : Fin n → α, P x ↔ S x) :
     ((iid p n).toOuterMeasure {x | P x}).toReal ≤ Real.exp (-2 * (n : ℝ) * γ ^ 2) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · refine (toOuterMeasure_toReal_le_one _ _).trans_eq ?_
-    simp
-  have hevent : {x : Fin n → α | P x} = {x : Fin n → α | S x} := by
-    ext x
-    exact hiff hn x
+  · exact (toOuterMeasure_toReal_le_one _ _).trans_eq (by simp)
+  have hevent : {x : Fin n → α | P x} = {x : Fin n → α | S x} := Set.ext fun x => hiff hn x
   rwa [hevent]
 
 /-- Lower-tail Hoeffding concentration for `empiricalMass A x`. -/
@@ -569,16 +544,12 @@ theorem toOuterMeasure_empiricalMass_le_sub_le (p : _root_.PMF α) (A : Finset �
       {x | empiricalMass A x ≤ (p.toOuterMeasure (A : Set α)).toReal - γ}).toReal ≤
         Real.exp (-2 * (n : ℝ) * γ ^ 2) := by
   let := Fintype.ofFinite α
-  refine toOuterMeasure_empiricalMass_tail_le p n γ _
-    (fun x => ∑ i : Fin n, (if x i ∈ A then (1 : ℝ) else 0) ≤
-      n * (p.toOuterMeasure (A : Set α)).toReal - n * γ)
-    (fun hn x => by
-      have hnR : (0 : ℝ) < n := Nat.cast_pos.mpr hn
-      simp only [empiricalMass, div_le_iff₀ hnR]
-      constructor <;> intro hx <;> linarith) ?_
   have h := pi_sum_le_mean_sub_card_mul (fun _ : Fin n => p)
     (fun _ a => if a ∈ A then (1 : ℝ) else 0) (empiricalMass_hoeffding_prep p A n) hγ
-  rwa [Fintype.card_fin, sum_indicator_mean, ← iid_eq_pi] at h
+  rw [Fintype.card_fin, sum_indicator_mean, ← iid_eq_pi] at h
+  refine toOuterMeasure_empiricalMass_tail_le p n γ _ h fun hn x => ?_
+  simp only [empiricalMass, div_le_iff₀ (Nat.cast_pos.mpr hn : (0 : ℝ) < n)]
+  exact ⟨fun hx => by linarith, fun hx => by linarith⟩
 
 /-- Upper-tail Hoeffding concentration for `empiricalMass A x`. -/
 theorem toOuterMeasure_add_le_empiricalMass_le (p : _root_.PMF α) (A : Finset α) (n : ℕ)
@@ -587,16 +558,12 @@ theorem toOuterMeasure_add_le_empiricalMass_le (p : _root_.PMF α) (A : Finset �
       {x | (p.toOuterMeasure (A : Set α)).toReal + γ ≤ empiricalMass A x}).toReal ≤
         Real.exp (-2 * (n : ℝ) * γ ^ 2) := by
   let := Fintype.ofFinite α
-  refine toOuterMeasure_empiricalMass_tail_le p n γ _
-    (fun x => n * (p.toOuterMeasure (A : Set α)).toReal + n * γ ≤
-      ∑ i : Fin n, (if x i ∈ A then (1 : ℝ) else 0))
-    (fun hn x => by
-      have hnR : (0 : ℝ) < n := Nat.cast_pos.mpr hn
-      simp only [empiricalMass, le_div_iff₀ hnR]
-      constructor <;> intro hx <;> linarith) ?_
   have h := pi_sum_ge_mean_add_card_mul (fun _ : Fin n => p)
     (fun _ a => if a ∈ A then (1 : ℝ) else 0) (empiricalMass_hoeffding_prep p A n) hγ
-  rwa [Fintype.card_fin, sum_indicator_mean, ← iid_eq_pi] at h
+  rw [Fintype.card_fin, sum_indicator_mean, ← iid_eq_pi] at h
+  refine toOuterMeasure_empiricalMass_tail_le p n γ _ h fun hn x => ?_
+  simp only [empiricalMass, le_div_iff₀ (Nat.cast_pos.mpr hn : (0 : ℝ) < n)]
+  exact ⟨fun hx => by linarith, fun hx => by linarith⟩
 
 /-- Two-sided Hoeffding concentration for `empiricalMass A x`:
 `P^{\otimes n}(γ ≤ |empiricalMass A x - p(A)|) ≤ 2 * Real.exp (-2 * n * γ ^ 2)`. -/
