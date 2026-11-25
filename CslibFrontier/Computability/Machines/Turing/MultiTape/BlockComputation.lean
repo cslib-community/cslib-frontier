@@ -316,17 +316,13 @@ theorem value_eq_some_iff {n : ℕ} (hn : n ≤ q) (v : View k State b) :
         (hprev _).mpr ⟨hσ, rfl⟩
       have hp h d j (hj : lastBefore (InWindow σ h (portBlock σ i h d)) i = some j) :
           providers h d = some (trueView machine input b σ (j + 1)) := by
-        have hji := (lastBefore_eq_some_iff.mp hj).1
-        change (j : ℕ) < n at hji
+        have hji : (j : ℕ) < n := (lastBefore_eq_some_iff.mp hj).1
         have hvj := ihj h d j hj j.isLt (trueView machine input b σ (j + 1))
         dsimp only [providers]
         split
-        next he =>
-          have hc := he.symm.trans hj
-          cases hc
+        next he => cases he.symm.trans hj
         next j' he =>
-          have heq : j' = j := Option.some.inj (he.symm.trans hj)
-          subst j'
+          obtain rfl : j' = j := Option.some.inj (he.symm.trans hj)
           exact hvj.mpr ⟨fun j' hj' => hσ j' (by omega), rfl⟩
       have hproviders h d : (providers h d).isSome := by
         cases hj : lastBefore (InWindow σ h (portBlock σ i h d)) i with
@@ -334,60 +330,41 @@ theorem value_eq_some_iff {n : ℕ} (hn : n ≤ q) (v : View k State b) :
           dsimp only [providers]
           split
           next => rfl
-          next j he =>
-            have hc := hj.symm.trans he
-            cases hc
+          next j he => cases hj.symm.trans he
         | some j => rw [hp h d j hj]; rfl
       rw [hvn, gate_true machine input b σ i hσ providers hproviders hp]
       have hprefix : Prefix machine input b σ (n + 1) ↔
-          actualSchedule machine input b (q := q) i = σ i := by
-        constructor
-        · exact fun h => h i (by simp [i])
-        · intro h j hj
+          actualSchedule machine input b (q := q) i = σ i :=
+        ⟨fun h => h i (by simp [i]), fun h j hj => by
           rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | hj
           · exact hσ j hj
-          · have heq : j = i := Fin.ext hj
-            simpa only [heq] using h
+          · exact (Fin.ext hj : j = i) ▸ h⟩
       rw [hprefix]
     · have hvn : value machine input b σ n = none := by
         cases hv : value machine input b σ n with
         | none => rfl
-        | some w => exact False.elim (hσ ((hprev w).mp hv).1)
+        | some w => exact (hσ ((hprev w).mp hv).1).elim
       rw [hvn, gate_none]
-      constructor
-      · intro h
-        cases h
-      · rintro ⟨hp, -⟩
-        exact False.elim (hσ (fun j hj => hp j (by omega)))
+      exact ⟨fun h => (by cases h), fun ⟨hp, _⟩ => (hσ fun j hj => hp j (by omega)).elim⟩
 
 /-- At the final boundary, every guessed label has been validated. -/
 theorem value_final_eq_some_iff (v : View k State b) :
     value machine input b σ q = some v ↔
       actualSchedule machine input b (q := q) = σ ∧ v = trueView machine input b σ q := by
-  rw [value_eq_some_iff machine input b σ le_rfl]
-  have hprefix : Prefix machine input b σ q ↔ actualSchedule machine input b (q := q) = σ := by
-    constructor
-    · intro h
-      funext j
-      exact h j j.isLt
-    · intro h j _
-      exact congrFun h j
-  rw [hprefix]
+  rw [value_eq_some_iff machine input b σ le_rfl,
+    show Prefix machine input b σ q ↔ actualSchedule machine input b (q := q) = σ from
+      ⟨fun h => funext fun j => h j j.isLt, fun h j _ => congrFun h j⟩]
 
 /-- A wrong complete movement guess fails at the final boundary. -/
 theorem value_final_eq_none_iff :
     value machine input b σ q = none ↔ actualSchedule machine input b (q := q) ≠ σ := by
-  constructor
-  · intro hfail heq
-    have hgood := (value_final_eq_some_iff machine input b σ
+  refine ⟨fun hfail heq => ?_, fun hwrong => ?_⟩
+  · have hgood := (value_final_eq_some_iff machine input b σ
       (trueView machine input b σ q)).mpr ⟨heq, rfl⟩
-    rw [hfail] at hgood
-    cases hgood
-  · intro hwrong
-    cases hv : value machine input b σ q with
+    rw [hfail] at hgood; cases hgood
+  · cases hv : value machine input b σ q with
     | none => rfl
-    | some v =>
-      exact False.elim (hwrong ((value_final_eq_some_iff machine input b σ v).mp hv).1)
+    | some v => exact (hwrong ((value_final_eq_some_iff machine input b σ v).mp hv).1).elim
 
 omit [NeZero b] in
 /-- The fixed-coin boundaries of a deterministic embedding are the native machine boundaries. -/
