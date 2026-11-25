@@ -9,6 +9,7 @@ module
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.CircuitCounting
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.CounterBatch
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.Encoded
+import CslibFrontier.Computability.Circuit.Boolean.Iteration.EndpointPower
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.InPlace
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.ModulusCounter
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
@@ -26,6 +27,7 @@ Exercise the word circuits on a two-bit adder and table selection, the residue c
 concrete repeat, record collisions, and the fixed-power theorems on a bit-flip circuit, on
 zero-width states, on an empty and a singleton invariant set, through an encoding of a type in
 a higher universe, and for permutation inversion and periodicity.
+The optimized clients also exercise the zero-table rounding boundary and the endpoint bound.
 -/
 
 set_option linter.privateModule false
@@ -145,6 +147,26 @@ example (c : Circuit signature 3 3) (T : ℕ) : ∃ out : Circuit signature 3 3,
       out.size ≤ 120000 * (c.size + 64) * 4 := by
   simpa using fixed_power_half_exponent c T
 
+-- A zero-size table still admits a positive checkpoint, with exactly the additive allowance.
+example : ∃ L : ℕ, 0 < L ∧ L ≤ 1 ∧
+    ((7 * L + 3 * (0 / L + 1) : ℕ) : ℝ) ≤ 10 := by
+  convert exists_le_add_add_two_mul_sqrt 7 3 0 1 (by decide) (by decide)
+    (by decide) (by decide) using 1
+  norm_num
+
+-- At width six, the endpoint's square-root term is 56, strictly below the dense bound 64.
+example (T : ℕ) : ∃ out : Circuit signature 6 6,
+    out.Computes interpretation ((Circuit.id signature 6).eval interpretation)^[T] ∧
+      (out.size : ℝ) ≤ 448000 := by
+  obtain ⟨out, hcorrect, hsize⟩ := fixed_power_endpoint (Circuit.id signature 6) T
+  refine ⟨out, hcorrect, ?_⟩
+  change (out.size : ℝ) ≤ 8000 * min ((2 : ℝ) ^ 6) (Real.sqrt ((2 : ℝ) ^ 6 * 49)) at hsize
+  have hsqrt : Real.sqrt ((2 : ℝ) ^ 6 * 49) = 56 := by
+    rw [show (2 : ℝ) ^ 6 * 49 = 56 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
+  rw [hsqrt] at hsize
+  norm_num at hsize
+  exact_mod_cast hsize
+
 /-! ### Universal step map, in-place machines, and sequential squaring -/
 
 -- Zero-gate (`G = 0`), exact (`G = 1`), and padded (`G = 3 > flip.size`) rounds of the universal
@@ -201,7 +223,7 @@ example : ∃ (out : Circuit signature 1 1) (final : BitString 1 → InPlace.Con
         ∃ t, idleMachine.halting (idleMachine.step^[t] (idleMachine.init x)).state) ∧
       ∀ t, idleMachine.halting (idleMachine.step^[t] (idleMachine.init x)).state →
         final x = idleMachine.step^[t] (idleMachine.init x)) ∧
-    (out.size : ℝ) ≤ (Circuit.id signature 1).size + 120000 * optimizedBudget 1 0 2 := by
+    (out.size : ℝ) ≤ (Circuit.id signature 1).size + 80000 * optimizedBudget 1 0 2 := by
   simpa using InPlace.inplace_halting idleMachine idleMachine_absorbing (fun z => z.tape)
     (injOn_config_one idleMachine) (Circuit.id signature 1)
     (fun z _ => by rw [InPlace.Machine.step_of_halting idleMachine_absorbing z trivial]; rfl)
@@ -233,7 +255,7 @@ private theorem collideMachine_round (x : BitString 1) :
 -- on the 2-head colliding/clamping machine `collideMachine`.
 example (T : ℕ) : ∃ out : Circuit signature 1 1,
     (∀ x, out.eval interpretation x = (collideMachine.step^[T] (collideMachine.init x)).tape) ∧
-    (out.size : ℝ) ≤ (Circuit.id signature 1).size + 120000 * optimizedBudget 1 flip.size 2 := by
+    (out.size : ℝ) ≤ (Circuit.id signature 1).size + 80000 * optimizedBudget 1 flip.size 2 := by
   simpa using InPlace.inplace_configs_optimized collideMachine (fun z => z.tape)
     (injOn_config_one collideMachine) flip
     (fun z _ => by rw [collideMachine_step, eval_flip])
@@ -248,7 +270,7 @@ example (q : ℕ)
       q < out.size) ∧
     ∀ T', ∃ out : Circuit signature 1 1,
       (∀ x, out.eval interpretation x = (collideMachine.step^[T'] (collideMachine.init x)).tape) ∧
-      (out.size : ℝ) ≤ (Circuit.id signature 1).size + 120000 * optimizedBudget 1 flip.size 2 := by
+      (out.size : ℝ) ≤ (Circuit.id signature 1).size + 80000 * optimizedBudget 1 flip.size 2 := by
   simpa using InPlace.round_bounds_of_hard collideMachine 1 1 q one_pos (flip.eval interpretation)
     collideMachine_round (fun z => z.tape) (injOn_config_one collideMachine) id (fun _ => rfl)
     hhard flip (fun z _ => by rw [collideMachine_step, eval_flip])

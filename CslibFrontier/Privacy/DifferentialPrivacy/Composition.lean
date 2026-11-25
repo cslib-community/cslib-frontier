@@ -125,15 +125,12 @@ theorem adaptiveComposition_succ (M : List R → D → PMF R) (k : ℕ) (x : D) 
 theorem length_of_mem_support_adaptiveComposition (M : List R → D → PMF R) (k : ℕ) (x : D)
     {l : List R} (hl : l ∈ (adaptiveComposition M k x).support) : l.length = k := by
   induction k generalizing l with
-  | zero =>
-    simp only [adaptiveComposition, PMF.support_pure, Set.mem_singleton_iff] at hl
-    simp [hl]
+  | zero => simp_all [adaptiveComposition]
   | succ k ih =>
-    change l ∈ ((adaptiveComposition M k x).bind fun history =>
-      (M history x).bind fun r => PMF.pure (r :: history)).support at hl
+    rw [adaptiveComposition_succ] at hl
     simp only [PMF.support_bind, PMF.support_pure, Set.mem_iUnion, Set.mem_singleton_iff,
       exists_prop] at hl
-    obtain ⟨history, hhist, r, -, rfl⟩ := hl
+    obtain ⟨history, hhist, _, -, rfl⟩ := hl
     simp [ih hhist]
 
 /-- `k`-fold adaptive composition: if the mechanism run after `i` previous rounds is
@@ -148,18 +145,13 @@ theorem DifferentiallyPrivate.adaptiveComposition {Adj : D → D → Prop} {M : 
   induction k with
   | zero =>
     intro x y _ S
-    simp only [Finset.range_zero, Finset.sum_empty, Real.exp_zero, ENNReal.ofReal_one, one_mul,
-      add_zero]
-    rfl
+    simp [adaptiveComposition_zero]
   | succ k ih =>
-    have hpair := ih.bind_pair_of_support (M₂ := M) (fun history => history.length = k)
-      (fun x _ hl => length_of_mem_support_adaptiveComposition M k x hl)
-      (fun history hl => hl ▸ h history)
-    have hmap := hpair.map fun p => p.2 :: p.1
     rw [Finset.sum_range_succ, Finset.sum_range_succ]
-    convert hmap using 2 with x
-    change ((Privacy.adaptiveComposition M k x).bind fun history =>
-      (M history x).bind fun r => PMF.pure (r :: history)) = _
+    convert (ih.bind_pair_of_support (M₂ := M) (fun history => history.length = k)
+      (fun x _ => length_of_mem_support_adaptiveComposition M k x)
+      (fun history hl => hl ▸ h history)).map (fun p => p.2 :: p.1) using 2 with x
+    rw [adaptiveComposition_succ]
     simp only [monad_bind_eq_bind, monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
 
 end Cslib.Privacy

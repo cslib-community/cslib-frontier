@@ -307,30 +307,24 @@ theorem AgreesWith.apply_of_lookup_eq_some {cache : Cache α} {π : Equiv.Perm �
 /-- If `π` agrees with `cache` and `invLookup cache y = some x`, then `π.symm y = x`. -/
 theorem AgreesWith.symm_apply_of_invLookup_eq_some {cache : Cache α} {π : Equiv.Perm α}
     (hπ : AgreesWith cache π) {y x : α} (h : invLookup cache y = some x) :
-    π.symm y = x := by
-  have hxy := hπ (x, y) (mem_of_invLookup_eq_some h)
-  exact π.symm_apply_eq.mpr hxy.symm
+    π.symm y = x :=
+  π.symm_apply_eq.mpr (hπ (x, y) (mem_of_invLookup_eq_some h)).symm
 
 /-- If `π` agrees with `cache` and `x` is not in the domain of `cache`, then `π x` is not in the
 range of `cache`. -/
 theorem AgreesWith.invLookup_apply_eq_none {cache : Cache α} {π : Equiv.Perm α}
     (hπ : AgreesWith cache π) {x : α} (hx : cache.lookup x = none) :
-    invLookup cache (π x) = none := by
-  rw [invLookup_eq_none_iff]
-  intro e he heq
-  have h1 : π e.1 = π x := (hπ e he).trans heq
-  exact lookup_eq_none_iff.mp hx e he (π.injective h1)
+    invLookup cache (π x) = none :=
+  invLookup_eq_none_iff.mpr fun e he heq =>
+    lookup_eq_none_iff.mp hx e he (π.injective ((hπ e he).trans heq))
 
 /-- If `π` agrees with `cache` and `y` is not in the range of `cache`, then `π.symm y` is not in
 the domain of `cache`. -/
 theorem AgreesWith.lookup_symm_apply_eq_none {cache : Cache α} {π : Equiv.Perm α}
     (hπ : AgreesWith cache π) {y : α} (hy : invLookup cache y = none) :
-    cache.lookup (π.symm y) = none := by
-  rw [lookup_eq_none_iff]
-  intro e he heq
-  have h1 : e.2 = y := by
-    rw [← hπ e he, heq, Equiv.apply_symm_apply]
-  exact invLookup_eq_none_iff.mp hy e he h1
+    cache.lookup (π.symm y) = none :=
+  lookup_eq_none_iff.mpr fun e he heq =>
+    invLookup_eq_none_iff.mp hy e he ((hπ e he).symm.trans (π.eq_symm_apply.mp heq))
 
 /-- Post-composing a permutation agreeing with `cache` by `Equiv.swap (π x) y` extends agreement
 to `(x, y) :: cache` when `x` and `y` are fresh. -/
@@ -338,13 +332,9 @@ theorem AgreesWith.trans_swap_of_lookup_eq_none {cache : Cache α} {π : Equiv.P
     (hπ : AgreesWith cache π) {x y : α} (hx : cache.lookup x = none)
     (hy : invLookup cache y = none) :
     AgreesWith ((x, y) :: cache) (π.trans (Equiv.swap (π x) y)) := by
-  rw [agreesWith_cons]
-  refine ⟨by simp, fun e he => ?_⟩
-  have hne1 : e.2 ≠ π x := by
-    rw [← hπ e he]
-    exact fun h => lookup_eq_none_iff.mp hx e he (π.injective h)
-  have hne2 : e.2 ≠ y := invLookup_eq_none_iff.mp hy e he
-  simp [hπ e he, Equiv.swap_apply_of_ne_of_ne hne1 hne2]
+  refine (agreesWith_cons _ _ _).mpr ⟨by simp, fun e he => ?_⟩
+  have hne1 : e.2 ≠ π x := hπ e he ▸ fun h => lookup_eq_none_iff.mp hx e he (π.injective h)
+  simp [hπ e he, Equiv.swap_apply_of_ne_of_ne hne1 (invLookup_eq_none_iff.mp hy e he)]
 
 /-- Pre-composing a permutation agreeing with `cache` by `Equiv.swap (π.symm y) x` extends
 agreement to `(x, y) :: cache` when `x` and `y` are fresh. -/
@@ -352,14 +342,10 @@ theorem AgreesWith.swap_trans_of_invLookup_eq_none {cache : Cache α} {π : Equi
     (hπ : AgreesWith cache π) {x y : α} (hx : cache.lookup x = none)
     (hy : invLookup cache y = none) :
     AgreesWith ((x, y) :: cache) ((Equiv.swap (π.symm y) x).trans π) := by
-  rw [agreesWith_cons]
-  refine ⟨by simp, fun e he => ?_⟩
-  have hne1 : e.1 ≠ π.symm y := by
-    intro h
-    have h2 : e.2 = y := by rw [← hπ e he, h, Equiv.apply_symm_apply]
-    exact invLookup_eq_none_iff.mp hy e he h2
-  have hne2 : e.1 ≠ x := lookup_eq_none_iff.mp hx e he
-  rw [Equiv.trans_apply, Equiv.swap_apply_of_ne_of_ne hne1 hne2, hπ e he]
+  refine (agreesWith_cons _ _ _).mpr ⟨by simp, fun e he => ?_⟩
+  have hne1 : e.1 ≠ π.symm y := fun h =>
+    invLookup_eq_none_iff.mp hy e he ((hπ e he).symm.trans (π.eq_symm_apply.mp h))
+  rw [Equiv.trans_apply, Equiv.swap_apply_of_ne_of_ne hne1 (lookup_eq_none_iff.mp hx e he), hπ e he]
 
 /-- A cache is a partial bijection when at least one permutation on `α` extends it. -/
 def IsPartialBijection (cache : Cache α) : Prop :=
@@ -375,23 +361,18 @@ theorem isPartialBijection_nil : IsPartialBijection ([] : Cache α) :=
 theorem IsPartialBijection.cons_of_lookup_eq_none {cache : Cache α}
     (h : IsPartialBijection cache) {x y : α} (hx : cache.lookup x = none)
     (hy : invLookup cache y = none) :
-    IsPartialBijection ((x, y) :: cache) := by
-  obtain ⟨π, hπ⟩ := h
-  exact ⟨π.trans (Equiv.swap (π x) y), hπ.trans_swap_of_lookup_eq_none hx hy⟩
+    IsPartialBijection ((x, y) :: cache) :=
+  let ⟨π, hπ⟩ := h
+  ⟨π.trans (Equiv.swap (π x) y), hπ.trans_swap_of_lookup_eq_none hx hy⟩
 
 omit [DecidableEq α] in
 /-- If `π` agrees with `cache` and the domain entries of `cache` are pairwise distinct, then the
 range entries of `cache` are pairwise distinct. -/
 theorem AgreesWith.pairwise_snd_of_pairwise_fst {cache : Cache α} {π : Equiv.Perm α}
     (hπ : AgreesWith cache π) (hp1 : cache.Pairwise (fun a b => a.1 ≠ b.1)) :
-    cache.Pairwise (fun a b => a.2 ≠ b.2) := by
-  induction cache with
-  | nil => exact List.Pairwise.nil
-  | cons e rest ih =>
-    obtain ⟨he, hp1'⟩ := List.pairwise_cons.mp hp1
-    obtain ⟨hπe, hπ'⟩ := (agreesWith_cons e rest π).mp hπ
-    refine List.pairwise_cons.mpr ⟨fun e' he' h2 => he e' he' ?_, ih hπ' hp1'⟩
-    exact π.injective (hπe.trans (h2.trans (hπ' e' he').symm))
+    cache.Pairwise (fun a b => a.2 ≠ b.2) :=
+  hp1.imp_of_mem fun {_ _} ha hb hne h2 =>
+    hne (π.injective ((hπ _ ha).trans (h2.trans (hπ _ hb).symm)))
 
 /-! Most arguments below treat forward and inverse queries alike: a query either hits `cache`,
 or misses it and records the cache entry `PermQuery.toCacheEntry ⟨q, a⟩` for its answer `a`. The
@@ -548,19 +529,14 @@ theorem map_fst_interpret_bidirDedupStep_evalPerm {β : Type} (π : Equiv.Perm �
     simp [PMF.pure_map]
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind]
-    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
-    change (((OracleComp.interpret (fun q => PMF.pure (evalPerm π q))
-      (bidirDedupStep q cache)).bind fun p =>
-        OracleComp.interpret (fun q => PMF.pure (evalPerm π q))
-          ((OracleComp.interpret bidirDedupStep (cont p.1)).run p.2)).map Prod.fst) =
-      OracleComp.interpret (fun q => PMF.pure (evalPerm π q)) (cont (evalPerm π q))
+    simp only [interp_norm, StateT.run_bind, Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
     cases h : cachedAnswer cache q with
     | some a =>
-      rw [bidirDedupStep_of_cachedAnswer_eq_some h]
+      rw [StateT.run, bidirDedupStep_of_cachedAnswer_eq_some h]
       simp only [interp_norm, pmf_norm, hcache.evalPerm_eq_of_cachedAnswer_eq_some h]
       exact ih a hcache
     | none =>
-      rw [bidirDedupStep_of_cachedAnswer_eq_none h]
+      rw [StateT.run, bidirDedupStep_of_cachedAnswer_eq_none h]
       simp only [interp_norm, pmf_norm]
       exact ih (evalPerm π q) (agreesWith_cons_toCacheEntry_iff.mpr ⟨rfl, hcache⟩)
 
@@ -590,19 +566,15 @@ private theorem bidirDedupStep_transcript_inv {β σ : Type}
     exact ⟨rfl, List.nodup_nil, fun _ h => False.elim (List.not_mem_nil h)⟩
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind] at hmem
-    simp only [interp_norm] at hmem
-    change ((result, cache'), (s', transcript)) ∈
-      (((OracleComp.interpret (OracleComp.withTranscript oracle) (bidirDedupStep q cache)).run
-        (s, [])).bind fun p =>
-          (OracleComp.interpret (OracleComp.withTranscript oracle)
-            ((OracleComp.interpret bidirDedupStep (cont p.1.1)).run p.1.2)).run p.2).support at hmem
+    simp only [interp_norm, StateT.run_bind, Probability.PMF.monad_bind_eq_bind] at hmem
+    have hstep : (bidirDedupStep q).run cache = bidirDedupStep q cache := rfl
     cases hq : cachedAnswer cache q with
     | some a =>
-      rw [bidirDedupStep_of_cachedAnswer_eq_some hq] at hmem
+      rw [hstep, bidirDedupStep_of_cachedAnswer_eq_some hq] at hmem
       simp only [interp_norm, pmf_norm] at hmem
       exact ih a hmem
     | none =>
-      rw [bidirDedupStep_of_cachedAnswer_eq_none hq] at hmem
+      rw [hstep, bidirDedupStep_of_cachedAnswer_eq_none hq] at hmem
       supp_cases hmem [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
         OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure] with
         ⟨⟨a, s₁, tr₁⟩, hfirst, hrest⟩
@@ -737,19 +709,14 @@ theorem agreesWith_and_pairwise_of_mem_support_run_bidirDedupStep {β : Type} (�
     exact ⟨hπ, hp1, hπ.pairwise_snd_of_pairwise_fst hp1⟩
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind] at hmem
-    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind] at hmem
-    change (result, cache') ∈
-      ((OracleComp.interpret (fun q => PMF.pure (evalPerm π q))
-        (bidirDedupStep q cache)).bind fun p =>
-          OracleComp.interpret (fun q => PMF.pure (evalPerm π q))
-            ((OracleComp.interpret bidirDedupStep (cont p.1)).run p.2)).support at hmem
+    simp only [interp_norm, StateT.run_bind, Probability.PMF.monad_bind_eq_bind] at hmem
     cases hq : cachedAnswer cache q with
     | some a =>
-      rw [bidirDedupStep_of_cachedAnswer_eq_some hq] at hmem
+      rw [StateT.run, bidirDedupStep_of_cachedAnswer_eq_some hq] at hmem
       simp only [interp_norm, pmf_norm] at hmem
       exact ih a hπ hp1 hmem
     | none =>
-      rw [bidirDedupStep_of_cachedAnswer_eq_none hq] at hmem
+      rw [StateT.run, bidirDedupStep_of_cachedAnswer_eq_none hq] at hmem
       simp only [interp_norm, pmf_norm] at hmem
       have hx : cache.lookup (PermQuery.toCacheEntry ⟨q, evalPerm π q⟩).1 = none := by
         cases q with
@@ -982,13 +949,8 @@ theorem answer_of_cachedAnswer_eq_none {q : PermQuery α} {cache : Cache α}
     (h : cachedAnswer cache q = none) (hne : (freshAnswers cache q).Nonempty) :
     answer q cache = (PMF.uniformOfFinset _ hne).map fun a =>
       (a, PermQuery.toCacheEntry ⟨q, a⟩ :: cache) := by
-  cases q with
-  | forward x =>
-    have hne' : (unusedRange cache).Nonempty := hne
-    simp [answer, show cache.lookup x = none from h, dite_eq_left hne', freshAnswers]
-  | inverse y =>
-    have hne' : (unusedDomain cache).Nonempty := hne
-    simp [answer, show invLookup cache y = none from h, dite_eq_left hne', freshAnswers]
+  cases q <;> simp only [cachedAnswer, freshAnswers] at h hne <;>
+    simp [answer, h, hne, freshAnswers]
 
 /-- `answer` preserves `IsPartialBijection` on every supported transition. -/
 theorem answer_preserve_isPartialBijection (q : PermQuery α) (cache : Cache α)
@@ -1043,9 +1005,7 @@ theorem answer_complete (q : PermQuery α) (cache : Cache α) (hcache : IsPartia
           PMF.uniformOfFinset _ hne a * complete (PermQuery.toCacheEntry ⟨q, a⟩ :: cache) π
         else 0 := by
       rw [map_pair_apply]
-      by_cases hba : b = a
-      · subst hba; simp
-      · simp [hba, Ne.symm hba]
+      split_ifs with hba <;> simp_all [eq_comm]
     simp_rw [hterm, tsum_ite_eq]
     by_cases hπ : π ∈ extPerms cache ∧ a = evalPerm π q
     · obtain ⟨hπ_mem, rfl⟩ := hπ
@@ -1192,20 +1152,16 @@ theorem interpret_run_bidirDedupStep_uniformOfFintype {β : Type}
   | pure a => rfl
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind]
-    simp only [interp_norm]
-    change ((OracleComp.interpret (fun _ : PermQuery α => PMF.uniformOfFintype α)
-      (bidirDedupStep q cache)).bind fun p =>
-        OracleComp.interpret (fun _ : PermQuery α => PMF.uniformOfFintype α)
-          ((OracleComp.interpret bidirDedupStep (cont p.1)).run p.2)) =
-      ((forgetfulAnswer q cache).bind fun p =>
-        (OracleComp.interpret forgetfulAnswer (cont p.1)).run p.2)
+    simp only [interp_norm, StateT.run_bind, Probability.PMF.monad_bind_eq_bind]
     cases h : cachedAnswer cache q with
     | some a =>
-      rw [bidirDedupStep_of_cachedAnswer_eq_some h, forgetfulAnswer_of_cachedAnswer_eq_some h]
+      rw [StateT.run, bidirDedupStep_of_cachedAnswer_eq_some h]
+      conv_rhs => rw [StateT.run, forgetfulAnswer_of_cachedAnswer_eq_some h]
       simp only [interp_norm, pmf_norm]
       exact ih a cache
     | none =>
-      rw [bidirDedupStep_of_cachedAnswer_eq_none h, forgetfulAnswer_of_cachedAnswer_eq_none h]
+      rw [StateT.run, bidirDedupStep_of_cachedAnswer_eq_none h]
+      conv_rhs => rw [StateT.run, forgetfulAnswer_of_cachedAnswer_eq_none h]
       simp only [interp_norm, pmf_norm]
       exact congrArg (PMF.bind _) (funext fun a => ih a (PermQuery.toCacheEntry ⟨q, a⟩ :: cache))
 
@@ -1347,38 +1303,26 @@ private theorem run_interpret_exactWithBad_map_fst {β : Type}
 theorem identicalUntilBad_exactWithBad_forgetfulWithBad :
     IdenticalUntilBad (spec := PermOracleSpec α) exactWithBad forgetfulWithBad
       (fun st : Cache α × Bool => st.2 = true) where
-  agree q st hst a st' hst' := by
-    rcases st with ⟨cache, bad⟩
-    rcases st' with ⟨cache', bad'⟩
-    have hbad : bad = false := Bool.eq_false_iff.mpr hst
-    have hbad' : bad' = false := Bool.eq_false_iff.mpr hst'
-    subst hbad hbad'
+  agree := by
+    rintro q ⟨cache, bad⟩ hst a ⟨cache', bad'⟩ hst'
+    obtain rfl : bad = false := Bool.eq_false_iff.mpr hst
+    obtain rfl : bad' = false := Bool.eq_false_iff.mpr hst'
     cases hq : cachedAnswer cache q with
     | some b => simp only [exactWithBad, forgetfulWithBad, hq]
     | none =>
-      simp only [exactWithBad, forgetfulWithBad, hq, Probability.PMF.monad_bind_eq_bind]
-      rw [PMF.bind_apply, PMF.map_apply]
+      simp only [exactWithBad, forgetfulWithBad, hq, Probability.PMF.monad_bind_eq_bind,
+        PMF.bind_apply, PMF.map_apply]
       refine tsum_congr fun a₀ => ?_
       by_cases ha₀ : a₀ ∈ freshAnswers cache q
-      · rw [ite_eq_left ha₀, PMF.pure_apply]
-        simp [ha₀]
-      · have h0 : ((answer q cache).map fun p => (p.1, p.2, true)) (a, cache', false) = 0 := by
-          rw [PMF.apply_eq_zero_iff]
-          intro h
-          supp_cases h
-        rw [ite_eq_right ha₀, h0]
-        simp [ha₀]
-  absorb_first q st hst p hp := by
-    rcases st with ⟨cache, bad⟩
-    rcases p with ⟨a, cache', bad'⟩
-    dsimp at hst
-    subst hst
+      · simp [ha₀, PMF.pure_apply]
+      · have h0 : ((answer q cache).map fun p => (p.1, p.2, true)) (a, cache', false) = 0 :=
+          (PMF.apply_eq_zero_iff _ _).mpr fun h => by supp_cases h
+        simp [ha₀, h0]
+  absorb_first := by
+    rintro q ⟨cache, _⟩ rfl ⟨a, cache', bad'⟩ hp
     rcases mem_support_exactWithBad hp with ⟨_, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;> rfl
-  absorb_second q st hst p hp := by
-    rcases st with ⟨cache, bad⟩
-    rcases p with ⟨a, cache', bad'⟩
-    dsimp at hst
-    subst hst
+  absorb_second := by
+    rintro q ⟨cache, _⟩ rfl ⟨a, cache', bad'⟩ hp
     rcases mem_support_forgetfulWithBad hp with ⟨_, _, rfl⟩ | ⟨_, _, rfl⟩ <;> simp
 
 /-! ### Quadratic union bound for linearly growing collision sets -/
@@ -1589,26 +1533,14 @@ theorem abs_sub_uniformPerm_uniformFunc_le {β γ : Type}
         let f ← PMF.uniformOfFintype (α → α)
         OracleComp.interpret (fun x => PMF.pure (f x)) program).bind next) c).toReal| ≤
       (Q.choose 2 : ℝ) * (Fintype.card α : ℝ)⁻¹ := by
-  have h := abs_sub_uniformPerm_forgetful_le (isQueryBounded_liftForward hQ) next c
-  have hperm :
-      (do
-        let π ← PMF.uniformOfFintype (Equiv.Perm α)
-        OracleComp.interpret (fun q => PMF.pure (evalPerm π q)) (liftForward program)) =
-      (do
-        let π ← PMF.uniformOfFintype (Equiv.Perm α)
-        OracleComp.interpret (fun x => PMF.pure (π x)) program) := by
-    simp only [interpret_evalPerm_liftForward]
-  have hfunc :
-      (((OracleComp.interpret forgetfulAnswer (liftForward program)).run []).map Prod.fst) =
+  have hfunc : ((OracleComp.interpret forgetfulAnswer (liftForward program)).run []).map Prod.fst =
       (do
         let f ← PMF.uniformOfFintype (α → α)
         OracleComp.interpret (fun x => PMF.pure (f x)) program) := by
-    rw [run_interpret_forgetfulAnswer_liftForward]
-    have hm := RandomOracle.interpret_eq_memoize
-      (fun _ : α => PMF.uniformOfFintype α) program
-    rw [Probability.PMF.pi_uniformOfFintype] at hm
-    exact hm.symm
-  rwa [hperm, hfunc] at h
+    rw [run_interpret_forgetfulAnswer_liftForward, ← RandomOracle.interpret_eq_memoize,
+      Probability.PMF.pi_uniformOfFintype]
+  simpa only [interpret_evalPerm_liftForward, hfunc] using
+    abs_sub_uniformPerm_forgetful_le (isQueryBounded_liftForward hQ) next c
 
 end Finite
 

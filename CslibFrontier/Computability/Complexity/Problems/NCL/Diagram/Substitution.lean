@@ -87,6 +87,30 @@ namespace OpenSim
 variable {D₁ : Diagram Γ a b} {D₂ : Diagram Γ b c} {D₁' : Diagram Γ' a b}
   {D₂' : Diagram Γ' b c}
 
+/-- Lifts of false-to-true reversals suffice, since all internal and boundary moves reverse. -/
+theorem lift_of_false {D : Diagram Γ a b} {D' : Diagram Γ' a b}
+    (ι : D.Edge → D'.Edge) (enc : (D.Edge → Bool) → D'.Edge → Bool)
+    (hlegal : ∀ {s}, (D.graph I).Legal s → (D'.graph I').Legal (enc s))
+    (hpositive : ∀ s x, s x = false → (D.graph I).Legal s →
+      (D.graph I).Legal (reverse s x) →
+        ∃ u, InnerReach I' D' (enc s) u ∧ (D'.graph I').Legal (reverse u (ι x)) ∧
+          InnerReach I' D' (reverse u (ι x)) (enc (reverse s x)))
+    {s : D.Edge → Bool} (x : D.Edge) (hs : (D.graph I).Legal s)
+    (ht : (D.graph I).Legal (reverse s x)) :
+    ∃ u, InnerReach I' D' (enc s) u ∧ (D'.graph I').Legal (reverse u (ι x)) ∧
+      InnerReach I' D' (reverse u (ι x)) (enc (reverse s x)) := by
+  let : Std.Symm (InnerStep I' D') := ⟨fun _ _ h => ConstraintGraph.StepOn.symm h⟩
+  cases hx : s x with
+  | false => exact hpositive s x hx hs ht
+  | true =>
+    obtain ⟨u, hp, hf, hq⟩ := hpositive (reverse s x) x
+      (by simp only [reverse_self, hx, Bool.not_true]) ht
+      (by simpa only [reverse_reverse] using hs)
+    refine ⟨reverse u (ι x), ?_, ?_, ?_⟩
+    · simpa only [reverse_reverse] using _root_.symm hq
+    · simpa only [reverse_reverse] using InnerReach.legal hp (hlegal ht)
+    · simpa only [reverse_reverse] using _root_.symm hp
+
 /-- Created wires stay created wires. -/
 theorem ι_inr {D : Diagram Γ a b} {D' : Diagram Γ' a b} (S : OpenSim I I' D D') (e : D.Inner) :
     ∃ e', S.ι (.inr e) = .inr e' := by
@@ -106,8 +130,7 @@ variable (S₁ : OpenSim I I' D₁ D₁') (S₂ : OpenSim I I' D₂ D₂')
 theorem compι_compLeft (y : D₁.Edge) :
     compι S₁ S₂ (compLeft D₁ D₂ y) = compLeft D₁' D₂' (S₁.ι y) := by
   rcases y with i | e
-  · rw [S₁.ι_top]
-    rfl
+  · exact (congrArg (compLeft D₁' D₂') (S₁.ι_top i)).symm
   · rfl
 
 theorem compι_compRight (z : D₂.Edge) :
@@ -121,10 +144,9 @@ theorem compι_compRight (z : D₂.Edge) :
 @[expose] def compEnc (s : (comp D₁ D₂).Edge → Bool) : (comp D₁' D₂').Edge → Bool :=
   glueComp D₁' D₂' (S₁.enc (s ∘ compLeft D₁ D₂)) (S₂.enc (s ∘ compRight D₁ D₂))
 
-theorem compEnc_agree (s : (comp D₁ D₂).Edge → Bool) (j : Fin b.length) :
+private theorem compEnc_agree (s : (comp D₁ D₂).Edge → Bool) (j : Fin b.length) :
     S₂.enc (s ∘ compRight D₁ D₂) (.inl j) = S₁.enc (s ∘ compLeft D₁ D₂) (D₁'.bottom j) := by
-  rw [← S₂.ι_top, S₂.enc_ι, ← S₁.ι_bottom, S₁.enc_ι]
-  rfl
+  rw [← S₂.ι_top, S₂.enc_ι, ← S₁.ι_bottom, S₁.enc_ι]; rfl
 
 private theorem compEnc_compLeft (s : (comp D₁ D₂).Edge → Bool) (y : D₁'.Edge) :
     compEnc S₁ S₂ s (compLeft D₁' D₂' y) = S₁.enc (s ∘ compLeft D₁ D₂) y :=
@@ -137,10 +159,8 @@ private theorem compEnc_compRight (s : (comp D₁ D₂).Edge → Bool) (z : D₂
 theorem compEnc_ι (s : (comp D₁ D₂).Edge → Bool) (x : (comp D₁ D₂).Edge) :
     compEnc S₁ S₂ s (compι S₁ S₂ x) = s x := by
   rcases comp_cases_compRight x with ⟨y, rfl⟩ | ⟨z, rfl⟩
-  · rw [compι_compLeft, compEnc_compLeft, S₁.enc_ι]
-    rfl
-  · rw [compι_compRight, compEnc_compRight, S₂.enc_ι]
-    rfl
+  · rw [compι_compLeft, compEnc_compLeft, S₁.enc_ι]; rfl
+  · rw [compι_compRight, compEnc_compRight, S₂.enc_ι]; rfl
 
 theorem compι_injective : Function.Injective (compι S₁ S₂) :=
   (Function.surjective_comp_right_iff_injective (γ := Bool)).1 fun s =>
@@ -149,13 +169,9 @@ theorem compι_injective : Function.Injective (compι S₁ S₂) :=
 theorem comp_sound {t : (comp D₁' D₂').Edge → Bool} (ht : ((comp D₁' D₂').graph I').Legal t) :
     ((comp D₁ D₂).graph I).Legal (t ∘ compι S₁ S₂) := by
   obtain ⟨h₁, h₂⟩ := (legal_comp_iff _ _ _).1 ht
-  refine (legal_comp_iff _ _ _).2 ⟨?_, ?_⟩
-  · rw [show (t ∘ compι S₁ S₂) ∘ compLeft D₁ D₂ = (t ∘ compLeft D₁' D₂') ∘ S₁.ι from
-      funext fun y => congrArg t (compι_compLeft S₁ S₂ y)]
-    exact S₁.sound h₁
-  · rw [show (t ∘ compι S₁ S₂) ∘ compRight D₁ D₂ = (t ∘ compRight D₁' D₂') ∘ S₂.ι from
-      funext fun z => congrArg t (compι_compRight S₁ S₂ z)]
-    exact S₂.sound h₂
+  exact (legal_comp_iff _ _ _).2
+    ⟨by simpa only [Function.comp_def, compι_compLeft] using S₁.sound h₁,
+     by simpa only [Function.comp_def, compι_compRight] using S₂.sound h₂⟩
 
 theorem comp_legal_enc {s : (comp D₁ D₂).Edge → Bool} (hs : ((comp D₁ D₂).graph I).Legal s) :
     ((comp D₁' D₂').graph I').Legal (compEnc S₁ S₂ s) := by
@@ -173,20 +189,17 @@ private theorem comp_lift_left {s : (comp D₁ D₂).Edge → Bool} {y : D₁.Ed
   obtain ⟨h₁', -⟩ := (legal_comp_iff _ _ _).1 hs'
   rw [reverse_compLeft_comp] at h₁'
   obtain ⟨u₁, hp, hf, hq⟩ := S₁.lift y h₁ h₁'
-  have hne : ∀ j, S₁.ι y ≠ D₁'.bottom j := fun j h =>
+  have hne (j) : S₁.ι y ≠ D₁'.bottom j := fun h =>
     hy j (S₁.ι_injective (h.trans (S₁.ι_bottom j).symm))
-  have hag : ∀ j, S₂.enc (s ∘ compRight D₁ D₂) (.inl j) = reverse u₁ (S₁.ι y) (D₁'.bottom j) :=
-    fun j => by
-      rw [reverse_of_ne _ (Ne.symm (hne j)), InnerReach.boundary hp (Or.inr ⟨j, rfl⟩)]
-      exact compEnc_agree S₁ S₂ s j
-  have hag₀ : ∀ j, S₂.enc (s ∘ compRight D₁ D₂) (.inl j) = u₁ (D₁'.bottom j) := fun j =>
-    (hag j).trans (reverse_of_ne _ (Ne.symm (hne j)))
+  have hag (j) : S₂.enc (s ∘ compRight D₁ D₂) (.inl j) = reverse u₁ (S₁.ι y) (D₁'.bottom j) := by
+    rw [reverse_of_ne _ (Ne.symm (hne j)), InnerReach.boundary hp (Or.inr ⟨j, rfl⟩)]
+    exact compEnc_agree S₁ S₂ s j
   refine ⟨glueComp D₁' D₂' u₁ (S₂.enc (s ∘ compRight D₁ D₂)),
     innerReach_glueComp_left hp (S₂.legal_enc h₂) (compEnc_agree S₁ S₂ s), ?_, ?_⟩ <;>
     rw [compι_compLeft, ← glueComp_reverse_left]
   · exact legal_glueComp hf (S₂.legal_enc h₂) hag
-  · have := innerReach_glueComp_left hq (S₂.legal_enc h₂) hag
-    rwa [compEnc, reverse_compLeft_comp, reverse_compLeft_comp_compRight _ _ _ hy]
+  · simpa only [compEnc, reverse_compLeft_comp, reverse_compLeft_comp_compRight _ _ _ hy] using
+      innerReach_glueComp_left hq (S₂.legal_enc h₂) hag
 
 private theorem comp_lift_right {s : (comp D₁ D₂).Edge → Bool} {e : D₂.Inner}
     (hs : ((comp D₁ D₂).graph I).Legal s)
@@ -197,27 +210,22 @@ private theorem comp_lift_right {s : (comp D₁ D₂).Edge → Bool} {e : D₂.I
         (compEnc S₁ S₂ (reverse s (.inr (.inr e)))) := by
   obtain ⟨h₁, h₂⟩ := (legal_comp_iff _ _ _).1 hs
   obtain ⟨-, h₂'⟩ := (legal_comp_iff _ _ _).1 hs'
-  rw [show (reverse s (.inr (.inr e)) ∘ compRight D₁ D₂) =
-    reverse (s ∘ compRight D₁ D₂) (.inr e) from reverse_compRight_comp _ _ s (.inr e)] at h₂'
+  have hrev : (reverse s (.inr (.inr e)) ∘ compRight D₁ D₂) =
+      reverse (s ∘ compRight D₁ D₂) (.inr e) := reverse_compRight_comp _ _ s (.inr e)
+  rw [hrev] at h₂'
   obtain ⟨u₂, hp, hf, hq⟩ := S₂.lift (.inr e) h₂ h₂'
   obtain ⟨e', he'⟩ := S₂.ι_inr e
   rw [he'] at hf hq
-  have hag : ∀ j, reverse u₂ (.inr e') (.inl j) = S₁.enc (s ∘ compLeft D₁ D₂) (D₁'.bottom j) :=
-    fun j => by
-      rw [reverse_of_ne _ (by simp), InnerReach.boundary hp (Or.inl ⟨j, rfl⟩)]
-      exact compEnc_agree S₁ S₂ s j
-  have hc : compι S₁ S₂ (.inr (.inr e)) = .inr (.inr e') := by
-    change compRight D₁' D₂' (S₂.ι (.inr e)) = _
-    rw [he']
-    rfl
+  have hag (j) : reverse u₂ (.inr e') (.inl j) = S₁.enc (s ∘ compLeft D₁ D₂) (D₁'.bottom j) := by
+    rw [reverse_of_ne _ (by simp), InnerReach.boundary hp (Or.inl ⟨j, rfl⟩)]
+    exact compEnc_agree S₁ S₂ s j
+  have hc : compι S₁ S₂ (.inr (.inr e)) = .inr (.inr e') := congrArg (compRight D₁' D₂') he'
   refine ⟨glueComp D₁' D₂' (S₁.enc (s ∘ compLeft D₁ D₂)) u₂,
     innerReach_glueComp_right hp (S₁.legal_enc h₁) (compEnc_agree S₁ S₂ s), ?_, ?_⟩ <;>
     rw [hc, ← glueComp_reverse_right]
   · exact legal_glueComp (S₁.legal_enc h₁) hf hag
-  · have := innerReach_glueComp_right hq (S₁.legal_enc h₁) hag
-    rwa [compEnc, reverse_inr_comp_compLeft,
-      show (reverse s (.inr (.inr e)) ∘ compRight D₁ D₂) =
-        reverse (s ∘ compRight D₁ D₂) (.inr e) from reverse_compRight_comp _ _ s (.inr e)]
+  · simpa only [compEnc, reverse_inr_comp_compLeft, hrev] using
+      innerReach_glueComp_right hq (S₁.legal_enc h₁) hag
 
 /-- A shared wire: both parts prepare, the wire is reversed, both parts clean up. -/
 private theorem comp_lift_shared {s : (comp D₁ D₂).Edge → Bool} (j : Fin b.length)
@@ -242,16 +250,14 @@ private theorem comp_lift_shared {s : (comp D₁ D₂).Edge → Bool} (j : Fin b
   rw [S₁.ι_bottom] at hf₁ hq₁
   rw [S₂.ι_top] at hf₂ hq₂
   -- the two prepared parts agree on the shared wires, before and after the reversal
-  have hu : ∀ k, u₂ (.inl k) = u₁ (D₁'.bottom k) := fun k => by
+  have hu (k) : u₂ (.inl k) = u₁ (D₁'.bottom k) := by
     rw [InnerReach.boundary hp₂ (Or.inl ⟨k, rfl⟩), InnerReach.boundary hp₁ (Or.inr ⟨k, rfl⟩)]
     exact compEnc_agree S₁ S₂ s k
-  have hu' : ∀ k, reverse u₂ (.inl j) (.inl k) = reverse u₁ (D₁'.bottom j) (D₁'.bottom k) :=
-    fun k => by
-      by_cases hk : k = j
-      · subst hk
-        rw [reverse_self, reverse_self, hu]
-      · rw [reverse_of_ne _ (by simpa using hk),
-          reverse_of_ne _ fun h => hk (bottom_injective D₁' h), hu]
+  have hu' (k) : reverse u₂ (.inl j) (.inl k) = reverse u₁ (D₁'.bottom j) (D₁'.bottom k) := by
+    rcases eq_or_ne k j with rfl | hk
+    · rw [reverse_self, reverse_self, hu]
+    · rw [reverse_of_ne _ (by simpa using hk),
+        reverse_of_ne _ fun h => hk (bottom_injective D₁' h), hu]
   have hc : compι S₁ S₂ (compLeft D₁ D₂ (D₁.bottom j)) = compLeft D₁' D₂' (D₁'.bottom j) := by
     rw [compι_compLeft, S₁.ι_bottom]
   have hflip : reverse (glueComp D₁' D₂' u₁ u₂) (compLeft D₁' D₂' (D₁'.bottom j)) =
@@ -265,12 +271,9 @@ private theorem comp_lift_shared {s : (comp D₁ D₂).Edge → Bool} (j : Fin b
     ?_, ?_⟩ <;>
     rw [hc, hflip]
   · exact legal_glueComp hf₁ hf₂ hu'
-  · have hv : ∀ k, reverse u₂ (.inl j) (.inl k) =
-        S₁.enc (reverse s₁ (D₁.bottom j)) (D₁'.bottom k) := fun k =>
-      (hu' k).trans (InnerReach.boundary hq₁ (Or.inr ⟨k, rfl⟩)).symm
-    have := (innerReach_glueComp_left hq₁ hf₂ hu').trans
-      (innerReach_glueComp_right hq₂ (S₁.legal_enc h₁') hv)
-    rwa [compEnc, e₁, e₂]
+  · simpa only [compEnc, e₁, e₂] using (innerReach_glueComp_left hq₁ hf₂ hu').trans
+      (innerReach_glueComp_right hq₂ (S₁.legal_enc h₁') fun k =>
+        (hu' k).trans (InnerReach.boundary hq₁ (Or.inr ⟨k, rfl⟩)).symm)
 
 end OpenSim
 
@@ -315,15 +318,13 @@ variable (S₁ : OpenSim I I' D₁ D₁') (S₂ : OpenSim I I' D₂ D₂')
 theorem tensorι_tensorLeft (y : D₁.Edge) :
     tensorι S₁ S₂ (tensorLeft D₁ D₂ y) = tensorLeft D₁' D₂' (S₁.ι y) := by
   rcases y with i | e
-  · rw [S₁.ι_top]
-    rfl
+  · exact (congrArg (tensorLeft D₁' D₂') (S₁.ι_top i)).symm
   · rfl
 
 theorem tensorι_tensorRight (z : D₂.Edge) :
     tensorι S₁ S₂ (tensorRight D₁ D₂ z) = tensorRight D₁' D₂' (S₂.ι z) := by
   rcases z with i | e
-  · rw [S₂.ι_top]
-    rfl
+  · rw [S₂.ι_top]; rfl
   · rfl
 
 /-- The configuration of the juxtaposition of replacements, part by part. -/
@@ -333,10 +334,8 @@ theorem tensorι_tensorRight (z : D₂.Edge) :
 theorem tensorEnc_ι (s : (tensor D₁ D₂).Edge → Bool) (x : (tensor D₁ D₂).Edge) :
     tensorEnc S₁ S₂ s (tensorι S₁ S₂ x) = s x := by
   rcases tensor_cases x with ⟨y, rfl⟩ | ⟨z, rfl⟩
-  · rw [tensorι_tensorLeft, tensorEnc, glueTensor_tensorLeft, S₁.enc_ι]
-    rfl
-  · rw [tensorι_tensorRight, tensorEnc, glueTensor_tensorRight, S₂.enc_ι]
-    rfl
+  · rw [tensorι_tensorLeft, tensorEnc, glueTensor_tensorLeft, S₁.enc_ι]; rfl
+  · rw [tensorι_tensorRight, tensorEnc, glueTensor_tensorRight, S₂.enc_ι]; rfl
 
 theorem tensorι_injective : Function.Injective (tensorι S₁ S₂) :=
   (Function.surjective_comp_right_iff_injective (γ := Bool)).1 fun s =>
@@ -346,13 +345,9 @@ theorem tensor_sound {t : (tensor D₁' D₂').Edge → Bool}
     (ht : ((tensor D₁' D₂').graph I').Legal t) :
     ((tensor D₁ D₂).graph I).Legal (t ∘ tensorι S₁ S₂) := by
   obtain ⟨h₁, h₂⟩ := (legal_tensor_iff _ _ _).1 ht
-  refine (legal_tensor_iff _ _ _).2 ⟨?_, ?_⟩
-  · rw [show (t ∘ tensorι S₁ S₂) ∘ tensorLeft D₁ D₂ = (t ∘ tensorLeft D₁' D₂') ∘ S₁.ι from
-      funext fun y => congrArg t (tensorι_tensorLeft S₁ S₂ y)]
-    exact S₁.sound h₁
-  · rw [show (t ∘ tensorι S₁ S₂) ∘ tensorRight D₁ D₂ = (t ∘ tensorRight D₁' D₂') ∘ S₂.ι from
-      funext fun z => congrArg t (tensorι_tensorRight S₁ S₂ z)]
-    exact S₂.sound h₂
+  exact (legal_tensor_iff _ _ _).2
+    ⟨by simpa only [Function.comp_def, tensorι_tensorLeft] using S₁.sound h₁,
+     by simpa only [Function.comp_def, tensorι_tensorRight] using S₂.sound h₂⟩
 
 theorem tensor_legal_enc {s : (tensor D₁ D₂).Edge → Bool}
     (hs : ((tensor D₁ D₂).graph I).Legal s) :
@@ -375,8 +370,8 @@ private theorem tensor_lift_left {s : (tensor D₁ D₂).Edge → Bool} (y : D�
     innerReach_glueTensor_left hp (S₂.legal_enc h₂), ?_, ?_⟩ <;>
     rw [tensorι_tensorLeft, ← glueTensor_reverse_left]
   · exact legal_glueTensor hf (S₂.legal_enc h₂)
-  · have := innerReach_glueTensor_left hq (S₂.legal_enc h₂)
-    rwa [tensorEnc, reverse_tensorLeft_comp, reverse_tensorLeft_comp_tensorRight]
+  · simpa only [tensorEnc, reverse_tensorLeft_comp, reverse_tensorLeft_comp_tensorRight] using
+      innerReach_glueTensor_left hq (S₂.legal_enc h₂)
 
 private theorem tensor_lift_right {s : (tensor D₁ D₂).Edge → Bool} (z : D₂.Edge)
     (hs : ((tensor D₁ D₂).graph I).Legal s)
@@ -393,8 +388,8 @@ private theorem tensor_lift_right {s : (tensor D₁ D₂).Edge → Bool} (z : D�
     innerReach_glueTensor_right hp (S₁.legal_enc h₁), ?_, ?_⟩ <;>
     rw [tensorι_tensorRight, ← glueTensor_reverse_right]
   · exact legal_glueTensor (S₁.legal_enc h₁) hf
-  · have := innerReach_glueTensor_right hq (S₁.legal_enc h₁)
-    rwa [tensorEnc, reverse_tensorRight_comp, reverse_tensorRight_comp_tensorLeft]
+  · simpa only [tensorEnc, reverse_tensorRight_comp, reverse_tensorRight_comp_tensorLeft] using
+      innerReach_glueTensor_right hq (S₁.legal_enc h₁)
 
 end OpenSim
 

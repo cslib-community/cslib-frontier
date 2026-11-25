@@ -205,31 +205,19 @@ theorem normalized_mem_Icc (I : ℝ → ℝ → ℝ) (τ ρ Q γ : ℝ → ℝ)
     (σ : Γ × Ζ) (x y : V) :
     normalized I τ ρ Q γ K Kc f Xs Z Zt input prep maximum σ x y ∈ Set.Icc 0 (2 * B) := by
   have hQ0 := hQ0all (input x y / f)
-  have hQ1 := hQ1all (input x y / f)
   have hg0 : 0 ≤ rowGate ρ K f input {w | Z σ.2 w} x *
       incomingGate I τ K Kc f input {w | Xs σ.1 w} {w | Z σ.2 w} y :=
     mul_nonneg (hρ0 _) (hτ0 _)
   have hg1 : rowGate ρ K f input {w | Z σ.2 w} x *
       incomingGate I τ K Kc f input {w | Xs σ.1 w} {w | Z σ.2 w} y ≤ 1 :=
-    (mul_le_mul_of_nonneg_right (hρ1 _) (hτ0 _)).trans
-      (by simpa only [one_mul] using hτ1 _)
-  have hc : (1 / 2 : ℝ) ≤ max (1 / 2)
-      (min 1 (normalizer Xs Zt prep x y)) := le_max_left _ _
-  have hc0 : 0 < max (1 / 2) (min 1 (normalizer Xs Zt prep x y)) := by linarith
+    (mul_le_of_le_one_right (hρ0 _) (hτ1 _)).trans (hρ1 _)
   unfold normalized
   split_ifs
-  · have hn0 := div_nonneg (mul_nonneg hQ0 hg0) hc0.le
-    have hn1 : Q (input x y / f) *
-        (rowGate ρ K f input {w | Z σ.2 w} x *
-          incomingGate I τ K Kc f input {w | Xs σ.1 w} {w | Z σ.2 w} y) /
-        max (1 / 2) (min 1 (normalizer Xs Zt prep x y)) ≤ 2 * B := by
-      apply (div_le_iff₀ hc0).mpr
-      calc
-        _ ≤ Q (input x y / f) := mul_le_of_le_one_right hQ0 hg1
-        _ ≤ B := hQ1
-        _ ≤ _ := by nlinarith [hB]
-    exact ⟨mul_nonneg hn0 (hγ0 _),
-      (mul_le_of_le_one_right hn0 (hγ1 _)).trans hn1⟩
+  · have hn0 := div_nonneg (mul_nonneg hQ0 hg0)
+      ((by norm_num : (0 : ℝ) ≤ 1 / 2).trans (le_max_left _ (min 1 (normalizer Xs Zt prep x y))))
+    exact ⟨mul_nonneg hn0 (hγ0 _), (mul_le_of_le_one_right hn0 (hγ1 _)).trans <|
+      (le_abs_self _).trans ((Cslib.abs_mul_div_clip_le hg0 hg1 _).trans
+        (by rw [abs_of_nonneg hQ0]; linarith [hQ1all (input x y / f)]))⟩
   · exact ⟨le_rfl, mul_nonneg (by norm_num) hB⟩
 
 omit [Fintype Γ] [Fintype Ζ] in
@@ -240,12 +228,10 @@ theorem preparation_mem_Icc (I : ℝ → ℝ → ℝ) (τ h ρ : ℝ → ℝ)
     (hh : ∀ d, h d ∈ Set.Icc 0 1) (hρ : ∀ r, ρ r ∈ Set.Icc 0 1)
     (hτ : ∀ r, τ r ∈ Set.Icc 0 1)
     (input : Matrix V V ℝ) (σ : Γ × Ζ) (x y : V) :
-    preparation I τ h ρ K Kc f Xs Z input σ x y ∈ Set.Icc 0 1 := by
-  exact ⟨mul_nonneg (mul_nonneg (hh _).1 (hρ _).1) (hτ _).1,
-    (mul_le_mul_of_nonneg_right
-      ((mul_le_mul_of_nonneg_right (hh _).2 (hρ _).1).trans
-        (by simpa only [one_mul] using (hρ _).2)) (hτ _).1).trans
-          (by simpa only [one_mul] using (hτ _).2)⟩
+    preparation I τ h ρ K Kc f Xs Z input σ x y ∈ Set.Icc 0 1 :=
+  ⟨mul_nonneg (mul_nonneg (hh _).1 (hρ _).1) (hτ _).1,
+    (mul_le_of_le_one_right (mul_nonneg (hh _).1 (hρ _).1) (hτ _).2).trans
+      ((mul_le_of_le_one_right (hh _).1 (hρ _).2).trans (hh _).2)⟩
 
 section Support
 
@@ -267,9 +253,7 @@ theorem card_filter_normalized_row_ne_zero_lt (x : V) (hK : 0 < K) {e g : ℝ}
   rw [mem_filter] at hy ⊢
   refine ⟨hy.1, fun h0 => hy.2 ?_⟩
   unfold normalized
-  split_ifs
-  · rw [← mul_assoc, h0, zero_mul, zero_div, zero_mul]
-  · rfl
+  split_ifs <;> simp [← mul_assoc, h0]
 
 /-- The incoming rank on the completed raw table bounds column support after any substitutions. -/
 theorem card_filter_normalized_col_ne_zero_lt (y : V) (hKc : 0 < Kc)
@@ -277,18 +261,14 @@ theorem card_filter_normalized_col_ne_zero_lt (y : V) (hKc : 0 < Kc)
     {g : ℝ} (hg : g ≤ 1) (hτ : ∀ r, g ≤ r → τ r = 0) :
     #{x ∈ ({w | Xs σ.1 w} : Finset V) |
       normalized I τ ρ Q γ K Kc f Xs Z Zt input prep maximum σ x y ≠ 0} < Kc := by
-  by_contra hle
-  rw [not_lt] at hle
-  have hgate : incomingGate I τ K Kc f input
-      {w | Xs σ.1 w} {w | Z σ.2 w} y = 0 := by
+  by_contra! hle
+  have hgate : incomingGate I τ K Kc f input {w | Xs σ.1 w} {w | Z σ.2 w} y = 0 := by
     refine incomingGate_eq_zero hKc hg hτ (hle.trans (card_le_card fun x hx => ?_))
     rw [mem_filter] at hx ⊢
-    refine ⟨hx.1, le_of_eq (hIQ _ _ (fun hQ => hx.2 ?_) (fun hρ => hx.2 ?_)).symm⟩
-    · simp [normalized, hQ]
-    · simp [normalized, rowGate, hρ]
+    exact ⟨hx.1, le_of_eq (hIQ _ _ (fun hQ => hx.2 (by simp [normalized, hQ]))
+      (fun hρ => hx.2 (by simp [normalized, rowGate, hρ]))).symm⟩
   obtain ⟨x, hx⟩ := card_pos.mp (hKc.trans_le hle)
-  rw [mem_filter] at hx
-  exact hx.2 (by simp [normalized, hgate])
+  exact (mem_filter.mp hx).2 (by simp [normalized, hgate])
 
 end Support
 

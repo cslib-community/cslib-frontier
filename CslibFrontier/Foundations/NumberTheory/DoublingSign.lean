@@ -51,18 +51,21 @@ namespace Cslib
 @[expose] def FirstCircleFlag (t : ℚ) (w : ℕ → ℚ) (k : ℕ) : Prop :=
   CircleFlag t (w k) ∧ ∀ j < k, ¬ CircleFlag t (w j)
 
+private lemma eq_zero_of_cast_lt (z : ℤ) (hlo : (-1 : ℚ) < z) (hhi : (z : ℚ) < 1) : z = 0 := by
+  norm_cast at hlo hhi; omega
+
+private lemma eq_one_of_cast_lt (z : ℤ) (hlo : (0 : ℚ) < z) (hhi : (z : ℚ) < 2) : z = 1 := by
+  norm_cast at hlo hhi; omega
+
 /-- No approximation of zero can be flagged when the error is below the flag margin. -/
 theorem CircleClose.not_flag_zero {ε t w : ℚ} (h : CircleClose ε w 0)
     (hε : ε < t) : ¬ CircleFlag t w := by
+  rintro hf
   obtain ⟨z, hz⟩ := h
-  intro hf
-  have hz' := abs_lt.mp hz
-  have hzl : (0 : ℚ) < z := by linarith [hf.1]
-  have hzu : (z : ℚ) < 1 := by linarith [hf.2]
-  have hzl' : 0 < z := by exact_mod_cast hzl
-  have hzu' : z < 1 := by exact_mod_cast hzu
+  have := abs_lt.mp hz
+  have : (0 : ℤ) < z := by exact_mod_cast (by linarith [hf.1] : (0 : ℚ) < z)
+  have : z < (1 : ℤ) := by exact_mod_cast (by linarith [hf.2] : (z : ℚ) < 1)
   omega
-
 
 /-- A flag excludes wrapping at zero; a small target has the sign indicated by the
 side of one half. This also rules out a flag for a zero target. -/
@@ -77,21 +80,13 @@ theorem CircleClose.sign_of_flag {ε t b w q : ℚ} (h : CircleClose ε w q)
   have hz' := abs_lt.mp hz
   have hq' := abs_lt.mp hq
   obtain hpos | hzero | hneg := lt_trichotomy 0 q
-  · have hzlo : (-1 : ℚ) < z := by linarith [hf.1]
-    have hzhi : (z : ℚ) < 1 := by linarith [hf.2]
-    have hzlo' : -1 < z := by exact_mod_cast hzlo
-    have hzhi' : z < 1 := by exact_mod_cast hzhi
-    have hzz : z = 0 := by omega
+  · have hzz : z = 0 := eq_zero_of_cast_lt z (by linarith [hf.1]) (by linarith [hf.2])
     subst z
     norm_num at hz'
     have hw : w < 1 / 2 := by linarith
     exact ⟨iff_of_true hpos hw, iff_of_false (by linarith) (by linarith)⟩
   · exact False.elim (hnzero hzero.symm)
-  · have hzlo : (0 : ℚ) < z := by linarith [hf.1]
-    have hzhi : (z : ℚ) < 2 := by linarith [hf.2]
-    have hzlo' : 0 < z := by exact_mod_cast hzlo
-    have hzhi' : z < 2 := by exact_mod_cast hzhi
-    have hzz : z = 1 := by omega
+  · have hzz : z = 1 := eq_one_of_cast_lt z (by linarith [hf.1]) (by linarith [hf.2])
     subst z
     norm_num at hz'
     have hw : 1 / 2 < w := by linarith
@@ -108,19 +103,11 @@ theorem CircleClose.flag_of_magnitude {ε t a b w q : ℚ} (h : CircleClose ε w
   have hεpos : 0 < ε := lt_of_le_of_lt (abs_nonneg _) hz
   obtain hpos | hneg := le_total 0 q
   · rw [abs_of_nonneg hpos] at hqlo
-    have hzlo : (-1 : ℚ) < z := by linarith [hw.1]
-    have hzhi : (z : ℚ) < 1 := by linarith [hw.2]
-    have hzlo' : -1 < z := by exact_mod_cast hzlo
-    have hzhi' : z < 1 := by exact_mod_cast hzhi
-    have hzz : z = 0 := by omega
+    have hzz : z = 0 := eq_zero_of_cast_lt z (by linarith [hw.1]) (by linarith [hw.2])
     subst z
     constructor <;> norm_num at hz' <;> linarith
   · rw [abs_of_nonpos hneg] at hqlo
-    have hzlo : (0 : ℚ) < z := by linarith [hw.1]
-    have hzhi : (z : ℚ) < 2 := by linarith [hw.2]
-    have hzlo' : 0 < z := by exact_mod_cast hzlo
-    have hzhi' : z < 2 := by exact_mod_cast hzhi
-    have hzz : z = 1 := by omega
+    have hzz : z = 1 := eq_one_of_cast_lt z (by linarith [hw.1]) (by linarith [hw.2])
     subst z
     constructor <;> norm_num at hz' <;> linarith
 
@@ -130,36 +117,28 @@ theorem exists_first_doubling_magnitude {q a : ℚ} {K : ℕ}
     (hstart : |q| < a) (hend : a ≤ |(2 : ℚ) ^ K * q|) :
     ∃ k ≤ K, a ≤ |(2 : ℚ) ^ k * q| ∧
       ∀ j ≤ k, |(2 : ℚ) ^ j * q| < 2 * a := by
-  let P : ℕ → Prop := fun k => a ≤ |(2 : ℚ) ^ k * q|
-  have hex : ∃ k, P k := ⟨K, hend⟩
-  let k := Nat.find hex
-  have hk : k ≤ K := Nat.find_min' hex hend
-  have hkpos : 0 < k := by
-    by_contra hn
-    have hzero : k = 0 := by omega
-    have hspec : a ≤ |(2 : ℚ) ^ k * q| := Nat.find_spec hex
-    rw [hzero] at hspec
-    norm_num at hspec
+  induction K with
+  | zero =>
+    norm_num at hend
     linarith
-  have hprev : |(2 : ℚ) ^ (k - 1) * q| < a := by
-    exact lt_of_not_ge (Nat.find_min hex (by omega))
-  have hkbound : |(2 : ℚ) ^ k * q| < 2 * a := by
-    have heq : k = (k - 1) + 1 := by omega
-    calc
-      |(2 : ℚ) ^ k * q| = 2 * |(2 : ℚ) ^ (k - 1) * q| := by
-        rw [heq, pow_succ, show (2 : ℚ) ^ (k - 1) * 2 * q =
-          2 * ((2 : ℚ) ^ (k - 1) * q) by ring, abs_mul]
-        norm_num
-      _ < 2 * a := mul_lt_mul_of_pos_left hprev (by norm_num)
-  refine ⟨k, hk, Nat.find_spec hex, fun j hj => ?_⟩
-  have hpow : (2 : ℚ) ^ j ≤ (2 : ℚ) ^ k := pow_le_pow_right₀ (by norm_num) hj
-  calc
-    |(2 : ℚ) ^ j * q| = (2 : ℚ) ^ j * |q| := by
-      rw [abs_mul, abs_of_nonneg (pow_nonneg (by norm_num : (0 : ℚ) ≤ 2) _)]
-    _ ≤ (2 : ℚ) ^ k * |q| := mul_le_mul_of_nonneg_right hpow (abs_nonneg q)
-    _ = |(2 : ℚ) ^ k * q| := by
-      rw [abs_mul, abs_of_nonneg (pow_nonneg (by norm_num : (0 : ℚ) ≤ 2) _)]
-    _ < 2 * a := hkbound
+  | succ K ih =>
+    by_cases hK : a ≤ |(2 : ℚ) ^ K * q|
+    · obtain ⟨k, hk, ha, hlt⟩ := ih hK
+      exact ⟨k, by omega, ha, hlt⟩
+    · refine ⟨K + 1, le_rfl, hend, fun j hj => ?_⟩
+      have hq0 := abs_nonneg q
+      have hlt : (2 : ℚ) ^ K * |q| < a := by
+        simpa [abs_mul, abs_of_pos (by positivity : (0 : ℚ) < 2 ^ K)] using not_le.mp hK
+      rcases Nat.lt_or_eq_of_le hj with hj' | rfl
+      · calc |(2 : ℚ) ^ j * q| = (2 : ℚ) ^ j * |q| := by
+              rw [abs_mul, abs_of_pos (by positivity)]
+          _ ≤ (2 : ℚ) ^ K * |q| :=
+              mul_le_mul_of_nonneg_right (pow_le_pow_right₀ (by norm_num) (by omega)) hq0
+          _ < 2 * a := by linarith
+      · calc |(2 : ℚ) ^ (K + 1) * q| = 2 * ((2 : ℚ) ^ K * |q|) := by
+              rw [pow_succ', mul_assoc, abs_mul, abs_of_pos two_pos, abs_mul,
+                abs_of_pos (by positivity : (0 : ℚ) < 2 ^ K)]
+          _ < 2 * a := mul_lt_mul_of_pos_left hlt two_pos
 
 /-- Mathematical correctness of first-flag sign recovery. Approximation, magnitude,
 precision, flag margin and cutoff conditions are independent explicit inputs. -/
@@ -172,10 +151,8 @@ theorem firstCircleFlag_sign {q a ε t : ℚ} {K : ℕ} (w : ℕ → ℚ)
       (0 < q ↔ w k < 1 / 2) ∧ (q < 0 ↔ 1 / 2 < w k) := by
   classical
   obtain ⟨k₀, hk₀, hreach, hbound⟩ := exists_first_doubling_magnitude hstart hend
-  have hεpos : 0 < ε := by
-    obtain ⟨z, hz⟩ := happrox k₀ hk₀
-    exact (abs_nonneg _).trans_lt hz
-  have ht_half : t < 1 / 2 := by linarith
+  obtain ⟨_, hz₀⟩ := happrox k₀ hk₀
+  have := (abs_nonneg _).trans_lt hz₀
   have hflag : CircleFlag t (w k₀) :=
     (happrox k₀ hk₀).flag_of_magnitude (hw k₀ hk₀) hlo (by linarith) ht
       hreach (hbound k₀ le_rfl)
@@ -184,21 +161,19 @@ theorem firstCircleFlag_sign {q a ε t : ℚ} {K : ℕ} (w : ℕ → ℚ)
   have hk₀' : k ≤ k₀ := Nat.find_min' hex hflag
   have hk : k ≤ K := hk₀'.trans hk₀
   have hs := (happrox k hk).sign_of_flag (Nat.find_spec hex) hε hhi (hbound k hk₀')
-  refine ⟨k, hk, ⟨Nat.find_spec hex, fun j hj => Nat.find_min hex hj⟩, ?_, ?_⟩
-  · simpa only [mul_pos_iff_of_pos_left (by positivity : 0 < (2 : ℚ) ^ k)] using hs.1
-  · have hp : 0 < (2 : ℚ) ^ k := by positivity
-    have heq : (2 : ℚ) ^ k * q < 0 ↔ q < 0 := by
-      simpa only [mul_zero] using (mul_lt_mul_iff_right₀ hp :
-        (2 : ℚ) ^ k * q < (2 : ℚ) ^ k * 0 ↔ q < 0)
-    exact heq.symm.trans hs.2
+  have hp : (0 : ℚ) < 2 ^ k := by positivity
+  have hneg : (2 : ℚ) ^ k * q < (2 : ℚ) ^ k * 0 ↔ q < 0 := mul_lt_mul_iff_right₀ hp
+  rw [mul_zero] at hneg
+  exact ⟨k, hk, ⟨Nat.find_spec hex, fun j hj => Nat.find_min hex hj⟩,
+    (mul_pos_iff_of_pos_left hp).symm.trans hs.1, hneg.symm.trans hs.2⟩
 
 /-- The first flagged index is unique, without any approximation hypotheses. -/
 theorem FirstCircleFlag.unique {t : ℚ} {w : ℕ → ℚ} {j k : ℕ}
     (hj : FirstCircleFlag t w j) (hk : FirstCircleFlag t w k) : j = k := by
-  obtain hlt | heq | hgt := lt_trichotomy j k
-  · exact False.elim (hk.2 j hlt hj.1)
-  · exact heq
-  · exact False.elim (hj.2 k hgt hk.1)
+  rcases lt_trichotomy j k with hlt | rfl | hgt
+  · exact (hk.2 j hlt hj.1).elim
+  · rfl
+  · exact (hj.2 k hgt hk.1).elim
 
 /-- Any first flagged index has the correct sign, under the numerical doubling bounds. -/
 theorem FirstCircleFlag.sign {q a ε t : ℚ} {K k : ℕ} {w : ℕ → ℚ}
@@ -209,8 +184,7 @@ theorem FirstCircleFlag.sign {q a ε t : ℚ} {K k : ℕ} {w : ℕ → ℚ}
     (happrox : ∀ j ≤ K, CircleClose ε (w j) ((2 : ℚ) ^ j * q)) :
     k ≤ K ∧ (0 < q ↔ w k < 1 / 2) ∧ (q < 0 ↔ 1 / 2 < w k) := by
   obtain ⟨j, hj, hf', hs⟩ := firstCircleFlag_sign w hstart hend ht hε hlo hhi hw happrox
-  obtain rfl := hf.unique hf'
-  exact ⟨hj, hs⟩
+  exact hf.unique hf' ▸ ⟨hj, hs⟩
 
 
 end Cslib

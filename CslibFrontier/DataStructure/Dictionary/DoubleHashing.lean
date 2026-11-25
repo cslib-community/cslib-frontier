@@ -982,9 +982,7 @@ private theorem hasBFSWitness_of_partialDepSet {U m : ℕ} (hm : 0 < m)
       (missedProbes (otherOccupiedSlots T (x b)) (π (x b)))).filter
         (· ∉ rawQueue hm T π x₀ r₀ b.val)).length
   have hlen_lt (b : Fin w) : b.val < (rawQueue hm T π x₀ r₀ b.val).length := by
-    have := (hspec b.val b.isLt.le).2
-    have := b.isLt
-    omega
+    have := (hspec b.val b.isLt.le).2; have := b.isLt; omega
   have hxb_spec : ∀ b : Fin w, x b ∈ W ∧
       landingSlot hm T π (x b) = (rawQueue hm T π x₀ r₀ b.val).getD b.val ⟨0, hm⟩ := fun b =>
     keyAt_getD_mem_of_toFinset_subset hm hrep x₀ hW_dom (hspec b.val b.isLt.le).1 (hlen_lt b)
@@ -1062,8 +1060,7 @@ private theorem probeCount_le_sum_hasBFSWitness {U m n_max : ℕ} (hm : 0 < m)
             if HasBFSWitness hm π ((Dictionary.dom s).erase u) x₀ w then 1 else 0) := by
   have hpc_eq : probeCount T u (π u) = 1 + missedProbes (otherOccupiedSlots T u) (π u) := rfl
   rcases Nat.eq_zero_or_pos (missedProbes (otherOccupiedSlots T u) (π u)) with hk0 | hk_pos
-  · rw [hpc_eq, hk0]
-    omega
+  · omega
   · obtain ⟨rank, hrank⟩ := hrep.exists_rank
     rcases dichotomy_partialDepSet hrep.toTableRep hrank u hL with
       ⟨hku_lt, hcard_lt⟩ | ⟨x₀, hx₀_ins, hx₀_le, r₀, hr₀_pos, hr₀_le_min, hw_ge_L, hw_lt_2L⟩
@@ -1074,7 +1071,6 @@ private theorem probeCount_le_sum_hasBFSWitness {U m n_max : ℕ} (hm : 0 < m)
         (fun _ _ => Nat.zero_le _) (Finset.mem_Ico.mpr ⟨by omega, hcard_lt⟩)
       rw [ite_eq_left (hasBFSWitness_of_partialDepSet hm hrep.toTableRep hrank u
         (Finset.mem_insert_self u _) le_rfl hk_pos le_rfl)] at hle_sum
-      rw [hpc_eq]
       omega
     · have hle_inner := Finset.single_le_sum
         (f := fun w' => if HasBFSWitness hm π ((Dictionary.dom s).erase u) x₀ w' then 1 else 0)
@@ -1235,27 +1231,23 @@ private noncomputable def validTuples (M w : ℕ) (h : Fin (w + 1) → ℕ) :
         let d_b := h ⟨b + 1, Nat.succ_lt_succ hb⟩
         (stepFiber M w q slot_b d_b).map
           ⟨fun p_last => Fin.snoc ps p_last, fun p₁ p₂ hp => by
-            have := congrFun hp (Fin.last (b + 1))
-            simpa [Fin.snoc_last] using this⟩
+            simpa [Fin.snoc_last] using congrFun hp (Fin.last (b + 1))⟩
 
 private theorem card_validTuples_le (M : ℕ) {w : ℕ} (hw : w ≤ 2 ^ M)
     (h : Fin (w + 1) → ℕ) (hsum : (∑ a : Fin (w + 1), h a) = w) :
     ∀ (b : ℕ) (hb : b ≤ w),
       (validTuples M w h b hb).card ≤
         (2 ^ M * 2 ^ (M - 1)) * (2 ^ (M - 1) + w ^ 4) ^ b
-  | 0, _ => by
-      simp [validTuples, Fintype.card_pi]
+  | 0, _ => by simp [validTuples, Fintype.card_pi]
   | b + 1, hb => by
       have ih := card_validTuples_le M hw h hsum b (Nat.le_of_succ_le hb)
       calc (validTuples M w h (b + 1) hb).card
           ≤ (validTuples M w h b (Nat.le_of_succ_le hb)).card * (2 ^ (M - 1) + w ^ 4) :=
-            Finset.card_biUnion_le_card_mul _ _ _ fun ps _ => by
-              rw [Finset.card_map]
-              exact card_stepFiber_le M hw _
+            Finset.card_biUnion_le_card_mul _ _ _ fun ps _ =>
+              (Finset.card_map _).trans_le <| card_stepFiber_le M hw _
                 (card_toFinset_tupleQueue_le M w h hsum (Nat.le_of_succ_le hb) ps) _ _
         _ ≤ (2 ^ M * 2 ^ (M - 1)) * (2 ^ (M - 1) + w ^ 4) ^ (b + 1) := by
-            rw [pow_succ (2 ^ (M - 1) + w ^ 4), ← mul_assoc]
-            gcongr
+            rw [pow_succ (2 ^ (M - 1) + w ^ 4), ← mul_assoc]; gcongr
 
 private def restrictTuple {α : Type*} {w : ℕ} (f : Fin (w + 1) → α) (b : ℕ) (hb : b ≤ w) :
     Fin (b + 1) → α :=
@@ -1392,10 +1384,7 @@ private theorem card_degSeqFinset_le_four_pow (w : ℕ) :
       have hle := (Finset.sum_le_univ_sum_of_nonneg (f := fun a => (f a).val)
         (s := Finset.univ.filter fun a : Fin (w + 1) => a.val ≤ b.val)
         fun _ => Nat.zero_le _).trans (Finset.mem_filter.mp hf).2.le
-      have hlt : degPrefSum w f b.val < 2 * w := by
-        have := b.isLt
-        dsimp only [degPrefSum]
-        omega
+      have hlt : degPrefSum w f b.val < 2 * w := by have := b.isLt; dsimp only [degPrefSum]; omega
       simp only [g, hlt, ↓reduceDIte]
     have hg_mono : ∀ f ∈ degSeqFinset w, StrictMono (g f) := fun f hf b₁ b₂ hb => by
       rw [Fin.lt_def] at hb ⊢
@@ -1450,9 +1439,7 @@ private theorem four_pow_mul_card_hasBFSWitness_le
     4 ^ w * (Finset.univ.filter fun θ : Θ₁ × Θ₂ =>
       HasBFSWitness (Nat.two_pow_pos M) (oddStridePerm (h₁ θ.1) (h₂ θ.2)) D x₀ w).card ≤
       Fintype.card (Θ₁ × Θ₂) := by
-  have hwM : w ≤ 2 ^ M := by
-    have := Nat.le_self_pow (show 4 ≠ 0 by norm_num) w
-    omega
+  have hwM : w ≤ 2 ^ M := (Nat.le_self_pow (n := 4) (by norm_num) w).trans (by omega)
   let X_set : Finset (Fin w → Fin U) :=
     (Fintype.piFinset fun _ : Fin w => D.erase x₀).filter Function.Injective
   have hX_card : X_set.card ≤ n_max ^ w := (Finset.card_filter_le _ _).trans <| by
@@ -1551,9 +1538,7 @@ private theorem four_mul_n_max_sq_le_four_pow_maxProbeCutoff (n_max : ℕ) :
   calc 4 * n_max * (n_max + 1)
       ≤ (16 * 2 ^ Nat.clog 2 (max n_max 4)) * (16 * 2 ^ Nat.clog 2 (max n_max 4)) :=
         Nat.mul_le_mul (by omega) (by omega)
-    _ = (2 * 2) ^ maxProbeCutoff n_max := by
-        rw [mul_pow, maxProbeCutoff, pow_add]
-        ring
+    _ = (2 * 2) ^ maxProbeCutoff n_max := by rw [mul_pow, maxProbeCutoff, pow_add]; ring
 
 open scoped Classical in
 /-- **Seed-Sum Probe-Count Bound under `(2 * L + 1)`-Wise Independence**:
@@ -1596,8 +1581,7 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     refine sum_Ico_le_of_two_pow_mul_le fun w hw => ?_
     obtain ⟨hw1, hwL⟩ := Finset.mem_Ico.mp hw
     calc 2 ^ (w - 1 + 1) * (2 * (w * C u w)) = (w * 2 ^ (w + 1)) * C u w := by
-          rw [Nat.sub_add_cancel hw1]
-          ring
+          rw [Nat.sub_add_cancel hw1]; ring
       _ ≤ 4 ^ w * C u w := Nat.mul_le_mul_right _ (mul_two_pow_succ_le_four_pow w)
       _ ≤ Fintype.card (Θ₁ × Θ₂) := hC_bound u (by omega)
   have hov_x₀ (x₀ : Fin U) :
@@ -1606,9 +1590,7 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     refine sum_Ico_le_of_two_pow_mul_le fun w hw => ?_
     obtain ⟨hwL, hw2L⟩ := Finset.mem_Ico.mp hw
     calc 2 ^ (w - L + 1) * (4 ^ L * C x₀ w) = 2 * ((2 ^ (w - L) * 4 ^ L) * C x₀ w) := by ring
-      _ ≤ 2 * ((4 ^ (w - L) * 4 ^ L) * C x₀ w) := by
-          gcongr
-          decide
+      _ ≤ 2 * ((4 ^ (w - L) * 4 ^ L) * C x₀ w) := by gcongr; decide
       _ = 2 * (4 ^ w * C x₀ w) := by rw [← pow_add, Nat.sub_add_cancel hwL]
       _ ≤ 2 * Fintype.card (Θ₁ × Θ₂) := Nat.mul_le_mul_left 2 (hC_bound x₀ hw2L)
   have hov_two :
@@ -1617,11 +1599,9 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     have hsum_4L := (Finset.sum_le_card_nsmul _ _ _ fun x₀ _ => hov_x₀ x₀).trans
       (Nat.mul_le_mul_right _ ((Finset.card_insert_le u _).trans (Nat.add_le_add_right hdom 1)))
     rw [← Finset.mul_sum] at hsum_4L
-    have h4L : 4 * n_max * (n_max + 1) ≤ 4 ^ L :=
-      four_mul_n_max_sq_le_four_pow_maxProbeCutoff n_max
     refine Nat.le_of_mul_le_mul_left ?_ (Nat.pow_pos (n := L) (show 0 < 4 by decide))
-    linarith [Nat.mul_le_mul_left (2 * n_max) hsum_4L,
-      Nat.mul_le_mul_right (Fintype.card (Θ₁ × Θ₂)) h4L]
+    linarith [Nat.mul_le_mul_left (2 * n_max) hsum_4L, Nat.mul_le_mul_right (Fintype.card (Θ₁ × Θ₂))
+      (four_mul_n_max_sq_le_four_pow_maxProbeCutoff n_max)]
   have hpt :
       (∑ θ : Θ₁ × Θ₂, probeCount (T θ) u (oddStridePerm (h₁ θ.1) (h₂ θ.2) u)) ≤
         Fintype.card (Θ₁ × Θ₂) +
@@ -1729,27 +1709,24 @@ theorem sum_probeCount_oddStride_of_whp_kWiseIndependent
               probeCount_le_add_one (hrep ((top₁, bot.1), (top₂, bot.2))).toTableRep hdom u
         _ = (n_max + 1) * B_card := by simp [B_card, Nat.mul_comm]
         _ ≤ (2 + b₁ top₁ + b₂ top₂) * B_card := Nat.mul_le_mul_right B_card <| by
-            simp only [b₁, b₂]
-            split_ifs <;> first | omega | tauto
+            simp only [b₁, b₂]; split_ifs <;> first | omega | tauto
   calc (∑ θ : (Θ_top₁ × Θ_bot₁) × (Θ_top₂ × Θ_bot₂),
         probeCount (T θ) u (twoStageOddStridePerm H₁ H₂ θ u))
       = ∑ top₁ : Θ_top₁, ∑ top₂ : Θ_top₂, ∑ bot : Θ_bot₁ × Θ_bot₂,
           probeCount (T ((top₁, bot.1), (top₂, bot.2))) u
             (oddStridePerm (H₁ top₁ bot.1) (H₂ top₂ bot.2) u) := by
-        rw [Fintype.sum_prod_type]
         simp only [Fintype.sum_prod_type, twoStageOddStridePerm]
-        exact Finset.sum_congr rfl fun top₁ _ => Finset.sum_comm
+        exact Finset.sum_congr rfl fun _ _ => Finset.sum_comm
     _ ≤ ∑ top₁ : Θ_top₁, ∑ top₂ : Θ_top₂, (2 + b₁ top₁ + b₂ top₂) * B_card :=
         Finset.sum_le_sum fun top₁ _ => Finset.sum_le_sum fun top₂ _ => hinner top₁ top₂
     _ ≤ (3 * (Fintype.card Θ_top₁ * Fintype.card Θ_top₂)) * B_card := by
         simp only [b₁, b₂, ← Finset.sum_mul, Finset.sum_add_distrib, Finset.sum_const,
           Finset.card_univ, smul_eq_mul, ← Finset.mul_sum, Finset.sum_boole, Nat.cast_id]
-        refine Nat.mul_le_mul_right _ ?_
-        nlinarith [Nat.mul_le_mul_right (Fintype.card Θ_top₂) hbad₁,
-          Nat.mul_le_mul_left (Fintype.card Θ_top₁) hbad₂]
+        have h1 := Nat.mul_le_mul_right (Fintype.card Θ_top₂) hbad₁
+        have h2 := Nat.mul_le_mul_left (Fintype.card Θ_top₁) hbad₂
+        exact Nat.mul_le_mul_right _ (by ring_nf at h1 h2 ⊢; omega)
     _ = 3 * Fintype.card ((Θ_top₁ × Θ_bot₁) × (Θ_top₂ × Θ_bot₂)) := by
-        simp only [B_card, Fintype.card_prod]
-        ring
+        simp only [B_card, Fintype.card_prod]; ring
 
 /-- **Expected Probe-Count Bound under High-Probability `(2 * L + 1)`-Wise Independence**:
 under the hypotheses of `sum_probeCount_oddStride_of_whp_kWiseIndependent`, the expected probe count
@@ -1882,12 +1859,14 @@ theorem sum_probeCount_oddStride_doubleTab_le
   obtain ⟨hU_cb, hb_ge, hmax_le_2b⟩ : U ≤ 2 ^ (c * b) ∧ doubleTabMinB c_exp ≤ b ∧
       max n_max 4 ≤ 2 ^ (2 * b) := doubleTab_canonical_params hge hU
   have hb_min_def : doubleTabMinB c_exp = 4 * (24 * c + 8) ^ 2 := doubleTabMinB_eq c_exp
-  have hb_64 : 64 ≤ b := by nlinarith
+  have hb_64 : 64 ≤ b := ((by decide : 64 ≤ 4 * 8 ^ 2).trans
+    (Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left (by omega) 2))).trans (hb_min_def ▸ hb_ge)
   have hcut_le : maxProbeCutoff n_max ≤ 2 * b + 4 := by grind [maxProbeCutoff]
-  have h2cut_sq : 2 * maxProbeCutoff n_max + 1 ≤ b ^ 2 := by nlinarith
+  have h2cut_sq : 2 * maxProbeCutoff n_max + 1 ≤ b ^ 2 := by
+    have := Nat.mul_le_mul_right b hb_64; rw [sq]; omega
   have h2n_le : 2 * (n_max + 1) ≤ 2 ^ (2 * b) * b ^ 2 :=
-    calc 2 * (n_max + 1) ≤ max n_max 4 * 4 := by omega
-      _ ≤ 2 ^ (2 * b) * b ^ 2 := Nat.mul_le_mul hmax_le_2b (by nlinarith)
+    (by omega : 2 * (n_max + 1) ≤ max n_max 4 * 4).trans
+      (Nat.mul_le_mul hmax_le_2b (Nat.pow_le_pow_left (by omega : 2 ≤ b) 2))
   have hclog_le_M : Nat.clog 2 (max n_max 4) ≤ M :=
     (Nat.clog_le_iff_le_pow (by decide)).mpr (by omega)
   have hw4 : 2 * (2 * maxProbeCutoff n_max) ^ 4 ≤ 2 ^ M :=
@@ -1940,8 +1919,8 @@ theorem expect_probeCount_oddStride_unconditional_le
   by_cases hge : doubleTabThreshold c_exp ≤ n_max
   · exact (expect_probeCount_oddStride_doubleTab_le hge hU hm hrep hdom u).trans
       (le_max_right _ 3)
-  · have hle : (n_max + 1 : ℝ≥0∞) ≤ (doubleTabThreshold c_exp : ℝ≥0∞) := by
-      exact_mod_cast (by omega : n_max + 1 ≤ doubleTabThreshold c_exp)
+  · have hle : (n_max + 1 : ℝ≥0∞) ≤ (doubleTabThreshold c_exp : ℝ≥0∞) :=
+      mod_cast (by omega : n_max + 1 ≤ doubleTabThreshold c_exp)
     exact ((expect_probeCount_le_add_one (fun θ => (hrep θ).toTableRep) hdom u).trans hle).trans
       (le_max_left _ 3)
 

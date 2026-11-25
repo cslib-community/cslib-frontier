@@ -75,11 +75,7 @@ private theorem conditionalEntropy_bind_tag [Fintype ι] [Finite β] [Finite α]
       ∑ i, (p i).toReal * conditionalEntropy (R i) := by
   set M := p.bind fun i => (R i).map (i, ·)
   have hM : entropy (M.map fun t => ((t.1, t.2.1), t.2.2)) = entropy M :=
-    entropy_map_of_injective M fun s t h => by
-      obtain ⟨i, b, a⟩ := s
-      obtain ⟨j, b', a'⟩ := t
-      simp only [Prod.mk.injEq] at h
-      simp [h]
+    entropy_map_of_injective M fun ⟨_, _, _⟩ ⟨_, _, _⟩ h => by cases h; rfl
   have hfst : (M.map fun t => ((t.1, t.2.1), t.2.2)).map Prod.fst =
       p.bind fun i => ((R i).map Prod.fst).map (i, ·) := by
     simp only [M, PMF.map_bind, PMF.map_comp]
@@ -113,15 +109,13 @@ theorem conditionalEntropy_bind_le [Fintype ι] [Finite β] [Finite α] (p : PMF
     conditionalEntropy (p.bind R) ≤ ∑ i, (p i).toReal * conditionalEntropy (R i) + entropy p := by
   set M := p.bind fun i => (R i).map (i, ·)
   set L := p.bind fun i => ((R i).map Prod.fst).map (i, ·)
-  have hW : M.map Prod.snd = p.bind R := map_snd_bind_tag p R
   have hMW := entropy_map_le M Prod.snd
+  rw [map_snd_bind_tag] at hMW
   have hLsub := entropy_le_entropy_map_fst_add_entropy_map_snd L
-  have hLfst : L.map Prod.fst = p := map_fst_bind_pair p _
   have hLsnd : L.map Prod.snd = (p.bind R).map Prod.fst := by
     simp only [L, PMF.map_bind, PMF.map_comp]
     rfl
-  rw [hLfst, hLsnd] at hLsub
-  rw [hW] at hMW
+  rw [map_fst_bind_pair, hLsnd] at hLsub
   have hM := entropy_bind_pair p R
   have hL := entropy_bind_pair p fun i => (R i).map Prod.fst
   simp only [conditionalEntropy, mul_sub, Finset.sum_sub_distrib]
@@ -151,7 +145,7 @@ theorem condEntropyModulus_monotoneOn : MonotoneOn condEntropyModulus (Set.Icc 0
   have hε1 : 0 < 1 + ε := by linarith
   have ht : d / (1 + d) ≤ ε / (1 + ε) := by
     rw [div_le_div_iff₀ hd1 hε1]
-    nlinarith
+    linarith [show d * (1 + ε) - ε * (1 + d) = d - ε by ring]
   have htε : ε / (1 + ε) ≤ 2⁻¹ := by
     rw [div_le_iff₀ hε1]
     linarith
@@ -205,17 +199,11 @@ private theorem conditionalEntropy_add_mul_le_of_mix_eq [Finite β] [Finite α] 
   simp only [Fintype.sum_bool, Bool.cond_true, Bool.cond_false, mixCoin_true, mixCoin_false]
     at hlow hup
   have h1 : (0 : ℝ) < 1 + d := by linarith
+  have hcancel (x y : ℝ) : (1 + d) * (d / (1 + d) * x + 1 / (1 + d) * y) = y + d * x := by
+    field_simp
+    ring
   have key := mul_le_mul_of_nonneg_left (hlow.trans hup) h1.le
-  rw [← mul_entropy_mixCoin d hd]
-  have e1 : (1 + d) * (d / (1 + d) * conditionalEntropy R₁ + 1 / (1 + d) * conditionalEntropy R₀) =
-      conditionalEntropy R₀ + d * conditionalEntropy R₁ := by
-    field_simp
-    ring
-  have e2 : (1 + d) * (d / (1 + d) * conditionalEntropy S₁ + 1 / (1 + d) * conditionalEntropy S₀ +
-      entropy (mixCoin d hd)) =
-      conditionalEntropy S₀ + d * conditionalEntropy S₁ + (1 + d) * entropy (mixCoin d hd) := by
-    field_simp
-    ring
+  rw [mul_add (1 + d) (_ + _), hcancel, hcancel, mul_entropy_mixCoin] at key
   linarith
 
 /-- The part of `p` exceeding `q`, normalized by `dist p q`. -/
@@ -266,13 +254,20 @@ private theorem abs_sub_le_of_mix [Fintype Ω] (F : PMF Ω → ℝ) {L k : ℝ} 
   have side : ∀ A B : PMF Ω, dist A B ≤ ε → F A - F B ≤ ε * L + k * condEntropyModulus ε := by
     intro A B hAB
     rcases le_or_gt 1 ε with hε1 | hε1
-    · nlinarith [h0 B, hL A]
+    · have : L ≤ ε * L := le_mul_of_one_le_left hL0 hε1
+      linarith [h0 B, hL A]
     rcases (dist_nonneg : 0 ≤ dist A B).eq_or_lt with hd | hd
     · rw [dist_eq_zero.mp hd.symm, sub_self]
       positivity
     have hc := hmix dist_nonneg (mix_excess_eq A B hd)
     have hmono := condEntropyModulus_monotoneOn ⟨dist_nonneg, dist_le_one A B⟩ ⟨hε, hε1.le⟩ hAB
-    nlinarith [h0 (excess B A (by rwa [dist_comm])), hL (excess A B hd)]
+    have hR0 : 0 ≤ dist A B * F (excess B A (by rwa [dist_comm])) :=
+      mul_nonneg dist_nonneg (h0 _)
+    have hS1 : dist A B * F (excess A B hd) ≤ ε * L :=
+      (mul_le_mul_of_nonneg_left (hL _) dist_nonneg).trans (mul_le_mul_of_nonneg_right hAB hL0)
+    have hkm : k * condEntropyModulus (dist A B) ≤ k * condEntropyModulus ε :=
+      mul_le_mul_of_nonneg_left hmono hk
+    linarith
   rw [abs_sub_le_iff]
   exact ⟨side P Q h, side Q P (by rwa [dist_comm])⟩
 
@@ -305,18 +300,10 @@ private theorem condMutualInfo_eq_sub [Finite γ] [Finite α] [Finite β] (J : P
     condMutualInfo J = conditionalEntropy (J.map fun t => (t.1, t.2.1)) -
       conditionalEntropy (J.map fun t => ((t.1, t.2.2), t.2.1)) := by
   have hJ : entropy (J.map fun t => ((t.1, t.2.2), t.2.1)) = entropy J :=
-    entropy_map_of_injective J fun s t h => by
-      obtain ⟨c, a, b⟩ := s
-      obtain ⟨c', a', b'⟩ := t
-      simp only [Prod.mk.injEq] at h
-      simp [h]
+    entropy_map_of_injective J fun ⟨_, _, _⟩ ⟨_, _, _⟩ h => by cases h; rfl
   have hmap := condMutualInfo_map J Prod.fst (fun t => t.2.1) (fun t => t.2.2)
   rw [show (fun t : γ × α × β => (t.1, t.2.1, t.2.2)) = id from rfl, PMF.map_id] at hmap
-  simp only [hmap, conditionalEntropy, PMF.map_comp, hJ]
-  have e1 : (Prod.fst ∘ fun t : γ × α × β => (t.1, t.2.1)) = Prod.fst := rfl
-  have e2 : (Prod.fst ∘ fun t : γ × α × β => ((t.1, t.2.2), t.2.1)) =
-      fun t => (t.1, t.2.2) := rfl
-  rw [e1, e2]
+  simp only [hmap, conditionalEntropy, PMF.map_comp, Function.comp_def, hJ]
   ring
 
 /-- **Continuity of conditional mutual information**: for joint laws `P` and `Q` of `(C, A, B)`

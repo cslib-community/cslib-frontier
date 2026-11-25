@@ -35,27 +35,22 @@ theorem cost_bound (κ n : ℕ) :
   let K := 20 * κ + 121
   let Λ := (layout κ n).digits
   let A := (layout κ n).arrays
-  have hL : 1 ≤ L := Nat.clog_pos (by decide) (show 1 < n + 2 by omega)
+  have hL : 1 ≤ L := Nat.clog_pos (by decide) (by omega)
   have hK : 1 ≤ K := by dsimp [K]; omega
   have hΛ : Λ ≤ K * L := digits_bound κ n
   have hKL : 1 ≤ K * L := by nlinarith
-  have hKLsq : K * L ≤ (K * L) ^ 2 := by nlinarith
   have hAs : A ≤ 12 * (K * L) ^ 2 := by
-    have hs := Nat.pow_le_pow_left hΛ 2
-    dsimp only [A, Layout.arrays, Layout.count, Layout.splits, Λ]
-    nlinarith
-  have hRad : RadixSort.deduplicateTime n Λ ≤ (37 * Λ + 43) * (n + 1) := by
-    dsimp only [RadixSort.deduplicateTime]
-    nlinarith
-  have hRcoef : 37 * Λ + 43 ≤ 80 * (K * L) ^ 2 := by nlinarith
-  have hR := hRad.trans (Nat.mul_le_mul_right (n + 1) hRcoef)
+    have := Nat.pow_le_pow_left hΛ 2
+    dsimp only [A, Layout.arrays, Layout.count, Layout.splits, Λ]; nlinarith
+  have hR := (show RadixSort.deduplicateTime n Λ ≤ (37 * Λ + 43) * (n + 1) by
+    dsimp only [RadixSort.deduplicateTime]; nlinarith).trans
+    (Nat.mul_le_mul_right (n + 1) (show 37 * Λ + 43 ≤ 80 * (K * L) ^ 2 by nlinarith))
   have hA := Nat.mul_le_mul hAs (show 43 * n + 32 ≤ 75 * (n + 1) by omega)
   have hParams := ChanHe.Parameters.time_bound κ n
   have hsqrt := Nat.sqrt_le_self n
-  have hLsq : L ≤ L ^ 2 := by nlinarith
-  have hLN : L ≤ (n + 1) * L ^ 2 := by nlinarith
-  have hN : n + 1 ≤ (n + 1) * L ^ 2 := by nlinarith
-  have hC := Nat.mul_le_mul_left (400 * κ + 3000) hLN
+  have hN : n + 1 ≤ (n + 1) * L ^ 2 := Nat.le_mul_of_pos_right _ (by positivity)
+  have hC := Nat.mul_le_mul_left (400 * κ + 3000)
+    ((Nat.le_self_pow (n := 2) (by decide) L).trans (Nat.le_mul_of_pos_left (L ^ 2) n.succ_pos))
   change ChanHe.Parameters.time κ n ((n + 2) ^ κ) + RadixSort.deduplicateTime n Λ +
     A * (43 * n + 32) + 38 ≤ _
   dsimp only [costCoefficient, K, L] at *

@@ -307,44 +307,27 @@ theorem inFrame_succ_iff_ceilDivFour (depth coordinate : ℕ) :
   let residue := coordinate % period (depth + 1)
   have residueLt : residue < period (depth + 1) :=
     Nat.mod_lt _ (lt_trans Nat.zero_lt_one (one_lt_period (depth + 1)))
-  rw [← (inFrame_periodic (depth + 1)).map_mod_nat coordinate]
-  rw [← (inFrame_ceilDivFour_periodic depth).map_mod_nat coordinate]
-  change inFrame (depth + 1) residue =
-    inFrame depth (ceilDivFour residue)
+  rw [← (inFrame_periodic (depth + 1)).map_mod_nat coordinate,
+    ← (inFrame_ceilDivFour_periodic depth).map_mod_nat coordinate]
+  change inFrame (depth + 1) residue = inFrame depth (ceilDivFour residue)
   have periodEq := period_succ depth
   have startEq := frameStartResidue_succ depth
   have endEq := frameEndResidue_succ depth
   have coarseLe : ceilDivFour residue ≤ period depth := by
-    unfold ceilDivFour
-    rw [periodEq] at residueLt
-    omega
+    unfold ceilDivFour; rw [periodEq] at residueLt; omega
+  apply Bool.eq_iff_iff.mpr
+  rw [inFrame_eq_true_iff, inFrame_eq_true_iff, Nat.mod_eq_of_lt residueLt]
   by_cases coarseLt : ceilDivFour residue < period depth
-  · rw [inFrame, inFrame, Nat.mod_eq_of_lt residueLt,
-      Nat.mod_eq_of_lt coarseLt]
-    apply Bool.eq_iff_iff.mpr
-    simp only [Bool.and_eq_true, decide_eq_true_eq]
+  · rw [Nat.mod_eq_of_lt coarseLt]
     unfold ceilDivFour
     omega
   · have coarseEq : ceilDivFour residue = period depth := by omega
-    have scalePositive : 0 < scale depth := scale_pos depth
-    have fineFalse : inFrame (depth + 1) residue = false := by
-      apply Bool.eq_false_iff.mpr
-      intro inside
-      have insideData :
-          frameStartResidue (depth + 1) ≤ residue ∧
-            residue ≤ frameEndResidue (depth + 1) := by
-        simpa only [Nat.mod_eq_of_lt residueLt] using
-          (inFrame_eq_true_iff _ _).mp inside
-      unfold ceilDivFour at coarseEq
-      rw [endEq] at insideData
-      have periodScale := period_eq_four_mul_scale depth
-      simp only [frameEndResidue] at insideData
-      omega
-    have coarseFalse :
-        inFrame depth (ceilDivFour residue) = false := by
-      rw [coarseEq]
-      simp [inFrame, frameStartResidue]
-    rw [fineFalse, coarseFalse]
+    have := scale_pos depth
+    have := period_eq_four_mul_scale depth
+    rw [coarseEq, Nat.mod_self]
+    simp only [frameStartResidue, frameEndResidue] at endEq ⊢
+    unfold ceilDivFour at coarseEq
+    omega
 
 private theorem boundaryLiftCondition_periodic
     (side : FrameSide) (depth : ℕ) :
@@ -375,44 +358,33 @@ private theorem boundary_succ_iff
   let residue := coordinate % period (depth + 1)
   have residueLt : residue < period (depth + 1) :=
     Nat.mod_lt _ (lt_trans Nat.zero_lt_one (one_lt_period (depth + 1)))
-  rw [← (boundary_periodic side depth).map_mod_nat coordinate]
-  rw [← (boundaryLiftCondition_periodic side depth).map_mod_nat coordinate]
+  rw [← (boundary_periodic side depth).map_mod_nat coordinate,
+    ← (boundaryLiftCondition_periodic side depth).map_mod_nat coordinate]
   change residue % period (depth + 1) = side.boundaryResidue (depth + 1) ↔
     ceilDivFour residue % period depth = side.boundaryResidue depth ∧
       residue % 4 = side.fineResidue
   rw [Nat.mod_eq_of_lt residueLt]
   have periodEq := period_succ depth
   have coarseLe : ceilDivFour residue ≤ period depth := by
-    unfold ceilDivFour
-    rw [periodEq] at residueLt
-    omega
+    unfold ceilDivFour; rw [periodEq] at residueLt; omega
   by_cases coarseLt : ceilDivFour residue < period depth
   · rw [Nat.mod_eq_of_lt coarseLt]
     cases side with
     | opening =>
-        simp only [FrameSide.boundaryResidue, FrameSide.fineResidue]
-        rw [frameStartResidue_succ]
-        have startPositive : 0 < frameStartResidue depth := by
-          simp [frameStartResidue]
-        unfold ceilDivFour
-        omega
+      have : 0 < frameStartResidue depth := by simp [frameStartResidue]
+      simp only [FrameSide.boundaryResidue, FrameSide.fineResidue, frameStartResidue_succ]
+      unfold ceilDivFour; omega
     | closing =>
-        simp only [FrameSide.boundaryResidue, FrameSide.fineResidue]
-        rw [frameEndResidue_succ]
-        unfold ceilDivFour
-        omega
+      simp only [FrameSide.boundaryResidue, FrameSide.fineResidue, frameEndResidue_succ]
+      unfold ceilDivFour; omega
   · have coarseEq : ceilDivFour residue = period depth := by omega
-    have boundaryPositive := side.boundaryResidue_pos depth
-    have boundaryLt := side.boundaryResidue_lt_period depth
+    have := side.boundaryResidue_pos depth
+    have := side.boundaryResidue_lt_period depth
+    have := side.ceilDivFour_boundaryResidue_succ depth
+    rw [coarseEq, Nat.mod_self]
     constructor
-    · intro left
-      have ceilEq : ceilDivFour residue = side.boundaryResidue depth := by
-        rw [left]
-        exact side.ceilDivFour_boundaryResidue_succ depth
-      exact ((Nat.ne_of_gt boundaryLt) (coarseEq.symm.trans ceilEq)).elim
-    · rintro ⟨right, _⟩
-      rw [coarseEq, Nat.mod_self] at right
-      exact ((Nat.ne_of_gt boundaryPositive) right.symm).elim
+    · intro h; rw [h] at coarseEq; omega
+    · rintro ⟨h, _⟩; omega
 
 /-- An opening boundary survives refinement exactly at fine residue one. -/
 theorem openingBoundary_succ_iff (depth coordinate : ℕ) :
@@ -516,21 +488,13 @@ private theorem outerBorder_lift (coordinate transverse : ℕ) :
         (outerBorder (ceilDivFour coordinate) (ceilDivFour transverse)) =
       outerBorder coordinate transverse := by
   unfold outerBorder ceilDivFour
-  by_cases hcoarse : (coordinate + 3) / 4 = 1 ∧
-      1 ≤ (transverse + 3) / 4
+  by_cases hcoarse : (coordinate + 3) / 4 = 1 ∧ 1 ≤ (transverse + 3) / 4
   · rw [ite_eq_left hcoarse]
-    have coordinateRange : 1 ≤ coordinate ∧ coordinate ≤ 4 := by omega
-    have transversePositive : 1 ≤ transverse := by omega
-    by_cases hcoordinate : coordinate = 1
-    · simp [liftBorder, hcoordinate, transversePositive]
-    · have coordinateMod : coordinate % 4 ≠ 1 := by omega
-      simp [liftBorder, hcoordinate, coordinateMod]
-  · rw [ite_eq_right hcoarse]
-    by_cases hfine : coordinate = 1 ∧ 1 ≤ transverse
-    · exfalso
-      apply hcoarse
-      omega
-    · simp [liftBorder, hfine]
+    by_cases hcoord : coordinate = 1
+    · simp [liftBorder, hcoord, show 1 ≤ transverse by omega]
+    · simp [liftBorder, hcoord, show coordinate % 4 ≠ 1 by omega]
+  · rw [ite_eq_right hcoarse, ite_eq_right (by omega)]
+    rfl
 
 /-- The opening precedes the closing in every frame period. -/
 theorem frameStartResidue_lt_frameEndResidue (depth : ℕ) :
@@ -673,32 +637,20 @@ private theorem lift_selectedBorder_eq_some_iff
   constructor
   · intro lifted
     have coarse := liftBorder_eq_some_imp lifted
-    rcases (selectedBorder_eq_some_iff _ _ _ _).1 coarse with outer | frame
-    · left
-      rw [← outerBorder_lift]
-      simpa only [outer, coarse] using lifted
-    · rcases frame with ⟨depth, positive, bounded, border⟩
-      right
-      refine ⟨depth + 1, by omega, by omega, ?_⟩
-      rw [← frameBorder_succ]
-      simpa only [border, coarse] using lifted
-  · rintro (outer | ⟨depth, depthLower, depthUpper, border⟩)
-    · have coarseLift := outerBorder_lift coordinate transverse
-      rw [outer] at coarseLift
-      have coarseOuter := liftBorder_eq_some_imp coarseLift
-      have coarseSelected := (selectedBorder_eq_some_iff level
-        (ceilDivFour coordinate) (ceilDivFour transverse) orientation).2
-        (Or.inl coarseOuter)
-      simpa only [coarseSelected, coarseOuter] using coarseLift
-    · obtain ⟨prior, depthEq⟩ : ∃ prior, depth = prior + 1 :=
-        ⟨depth - 1, by omega⟩
-      rw [depthEq] at depthLower depthUpper border
-      rw [← frameBorder_succ prior coordinate transverse] at border
-      have coarseBorder := liftBorder_eq_some_imp border
-      have coarseSelected := (selectedBorder_eq_some_iff level
-        (ceilDivFour coordinate) (ceilDivFour transverse) orientation).2
-        (Or.inr ⟨prior, by omega, by omega, coarseBorder⟩)
-      simpa only [coarseSelected, coarseBorder] using border
+    rcases (selectedBorder_eq_some_iff _ _ _ _).1 coarse with outer | ⟨depth, hpos, hle, border⟩
+    · exact .inl (by rw [← outerBorder_lift]; simpa only [outer, coarse] using lifted)
+    · exact .inr ⟨depth + 1, by omega, by omega,
+        by rw [← frameBorder_succ]; simpa only [border, coarse] using lifted⟩
+  · rintro (outer | ⟨depth, hlo, hhi, border⟩)
+    · have h := outerBorder_lift coordinate transverse
+      rw [outer] at h
+      have hc := liftBorder_eq_some_imp h
+      simpa only [(selectedBorder_eq_some_iff level _ _ _).2 (.inl hc), hc] using h
+    · obtain ⟨prior, rfl⟩ : ∃ prior, depth = prior + 1 := ⟨depth - 1, by omega⟩
+      rw [← frameBorder_succ] at border
+      have hc := liftBorder_eq_some_imp border
+      simpa only [(selectedBorder_eq_some_iff level _ _ _).2
+        (.inr ⟨prior, by omega, by omega, hc⟩), hc] using border
 
 private theorem ceilDivFour_eight_mul_add (block offset : ℕ) :
     ceilDivFour (8 * block + offset) =
@@ -887,26 +839,11 @@ theorem supertileIndexGrid_zero_cases
       arithmeticState (level + 1) x y := by
     rw [← arithmeticState_succ]
     congr 1 <;> dsimp only [i, j] <;> omega
-  have childZero : ((arithmeticState level (x / 4) (y / 4)).refine i j).node.parent = 0 := by
-    rw [eqn]
-    exact indexZero
-  have transition := BorderState.corner_transition
-    (arithmeticState_admissible level _ _ hx' hy') i j childZero
-  change
-    (i = 0 ∧ j = 0 ∧ supertileIndexGrid level seedNode (x / 4) (y / 4) = 0 ∧
-      (⟨x / 4 % 2, _⟩ : Fin 2) = 0 ∧ (⟨y / 4 % 2, _⟩ : Fin 2) = 0) ∨
-    (i = 0 ∧ j = 0 ∧ supertileIndexGrid level seedNode (x / 4) (y / 4) = 4 ∧
-      (⟨x / 4 % 2, _⟩ : Fin 2) = 1 ∧ (⟨y / 4 % 2, _⟩ : Fin 2) = 1) ∨
-    (i = 2 ∧ j = 2 ∧ (⟨x / 4 % 2, _⟩ : Fin 2) = 0 ∧
-      (⟨y / 4 % 2, _⟩ : Fin 2) = 0) at transition
-  rcases transition with ⟨hi, hj, hnode, hpx, hpy⟩ | ⟨hi, hj, hnode, hpx, hpy⟩ |
-    ⟨hi, hj, hpx, hpy⟩
-  · exact Or.inl ⟨congrArg Fin.val hi, congrArg Fin.val hj, hnode,
-      congrArg Fin.val hpx, congrArg Fin.val hpy⟩
-  · exact Or.inr (Or.inl ⟨congrArg Fin.val hi, congrArg Fin.val hj, hnode,
-      congrArg Fin.val hpx, congrArg Fin.val hpy⟩)
-  · exact Or.inr (Or.inr ⟨congrArg Fin.val hi, congrArg Fin.val hj,
-      congrArg Fin.val hpx, congrArg Fin.val hpy⟩)
+  have childZero : ((arithmeticState level (x / 4) (y / 4)).refine i j).node.parent = 0 :=
+    eqn ▸ indexZero
+  simpa only [arithmeticState, supertileIndexGrid, Fin.ext_iff, i, j, Fin.val_zero, Fin.val_one,
+    Fin.val_two] using
+    BorderState.corner_transition (arithmeticState_admissible level _ _ hx' hy') i j childZero
 
 private theorem interiors_seed_eq_selectedBorder
     (level x y : ℕ) (hx : x < side level) (hy : y < side level) :

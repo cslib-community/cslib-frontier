@@ -106,44 +106,33 @@ and pass it; otherwise descend into that child. -/
       if s ≤ k then first.size + rank k (.node c rest) else rank k first := by
   by_cases h : s ≤ k <;> simp [rank, rankM, leI, h]
 
-/-- Rank against the model, under what the search uses: the separator convention, sorted entries,
-and occupied children at `2 ≤ t`. -/
-private theorem rank_eq_of (ht : 2 ≤ t) (k : α) :
-    ∀ tr : BPlusTree α β, Separated tr → tr.toList.IsSortedAssoc →
-      (∀ c ∈ tr.children, Occupied t c) → rank k tr = SortedAssoc.rank k tr.toList
-  | .leaf entries, _, hs, _ => by
+/-- Rank against the model under the search invariant. -/
+private theorem rank_eq_of (k : α) :
+    ∀ tr : BPlusTree α β, SearchInvariant t tr → rank k tr = SortedAssoc.rank k tr.toList
+  | .leaf entries, h => by
     rw [rank_leaf, toList_leaf]
-    exact SortedAssoc.idRun_rankM (by simpa using hs) k
-  | .node first [], hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    rw [rank_node_nil,
-      rank_eq_of ht k first hp.first (by simpa using hs) fun c hc => hf.of_mem_children hc]
+    exact SortedAssoc.idRun_rankM (by simpa using h.sorted) k
+  | .node first [], h => by
+    rw [rank_node_nil, rank_eq_of k first (h.child List.mem_cons_self)]
     simp
-  | .node first ((s, c) :: rest), hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    have hc : Occupied t c := ho c (by simp)
-    have hs' := hs
-    rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
+  | .node first ((s, c) :: rest), h => by
     rw [rank_node_cons, toList_node_cons, SortedAssoc.rank_append]
     by_cases hk : s ≤ k
     · simp only [hk, ↓reduceIte]
-      rw [SortedAssoc.rank_eq_length_iff.2 fun p hp' =>
-        lt_of_lt_of_le (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') hk,
-        length_toList]
-      congr 1
-      exact rank_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
-        simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
-        exact Or.inr hd)
+      rw [SortedAssoc.rank_eq_length_iff.2 fun p hp =>
+        (h.separated.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp).trans_le hk,
+        length_toList, rank_eq_of k (.node c rest) h.tail]
     · simp only [hk, ↓reduceIte]
+      have hc := h.occupied c (by simp)
       rw [SortedAssoc.rank_eq_zero_iff.2 fun q hq =>
-        (lt_of_lt_of_le (lt_of_not_ge hk) (hp.le_of_mem_tail hs (hc.size_pos ht) hq)).le,
-        Nat.add_zero]
-      exact rank_eq_of ht k first hp.first hs'.1 fun d hd => hf.of_mem_children hd
+        ((lt_of_not_ge hk).trans_le
+          (h.separated.le_of_mem_tail h.sorted (hc.size_pos h.two_le) hq)).le,
+        Nat.add_zero, rank_eq_of k first (h.child List.mem_cons_self)]
 termination_by tr => sizeOf tr
 
 /-- Model equation of rank on well-formed trees. -/
 theorem rank_eq (h : IsWF t tr) (k : α) : rank k tr = SortedAssoc.rank k tr.toList :=
-  rank_eq_of h.two_le k tr h.separated h.sorted h.occupied_of_mem_children
+  rank_eq_of k tr h.searchInvariant
 
 end Pure
 

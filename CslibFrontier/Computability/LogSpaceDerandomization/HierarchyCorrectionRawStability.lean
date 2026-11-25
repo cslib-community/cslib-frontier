@@ -39,6 +39,21 @@ and closure, parameter/workspace growth and native RL=L remain open.
 -/
 public section
 noncomputable section
+
+attribute [local positivity_lemma] Finset.kthLargest_nonneg
+
+private lemma kthLargest_row_le_rectangle_max {V : Type*} (S T : Finset V) (D : V → V → ℝ)
+    {z : V} (hz : z ∈ S) :
+    Finset.kthLargest 1 T (fun w => |D z w|) ≤
+      Finset.kthLargest 1 S (fun z => Finset.kthLargest 1 T (fun w => |D z w|)) := by
+  simpa only [abs_of_nonneg (Finset.kthLargest_nonneg (k := 1))] using
+    Finset.abs_le_kthLargest_one S (fun z => Finset.kthLargest 1 T (fun w => |D z w|)) z hz
+
+private lemma abs_entry_le_rectangle_max {V : Type*} (S T : Finset V) (D : V → V → ℝ)
+    {z y : V} (hz : z ∈ S) (hy : y ∈ T) :
+    |D z y| ≤ Finset.kthLargest 1 S (fun z => Finset.kthLargest 1 T (fun w => |D z w|)) :=
+  (Finset.abs_le_kthLargest_one T (D z) y hy).trans (kthLargest_row_le_rectangle_max S T D hz)
+
 namespace Matrix.FourthRootHierarchyParams
 open Finset Cslib
 open scoped BigOperators
@@ -50,8 +65,7 @@ theorem auxiliary_stability_constants (HP : FourthRootHierarchyParams 16 1 16 32
       |polynomialAuxCutoff4 HP.θ v q - polynomialAuxCutoff4 HP.θ v' q'| ≤
         LI * (|v - v'| + |q - q'|) := by
   obtain ⟨L, hL, hroot⟩ := exists_abs_polynomialAuxCutoff4_root_sub_le HP.θ
-  refine ⟨4 * L, by positivity, ?_⟩
-  intro v q v' q'
+  refine ⟨4 * L, by positivity, fun v q v' q' => ?_⟩
   have h := abs_sub_le_mul_abs_rpow_inv_sub (s := 4) (by decide)
     (polynomialAuxCutoff4_nonneg HP.θ v q) (polynomialAuxCutoff4_nonneg HP.θ v' q')
     (polynomialAuxCutoff4_le_one HP.θ v q) (polynomialAuxCutoff4_le_one HP.θ v' q')
@@ -77,8 +91,7 @@ theorem incoming_root_stability_constants (HP : FourthRootHierarchyParams 16 1 1
         (4⁻¹ : ℝ)| ≤ Lτ * (LI * (Ec + Er) / f) := by
   obtain ⟨LI, hLI, hI⟩ := HP.auxiliary_stability_constants
   obtain ⟨Lτ, hτ⟩ := HP.incomingCutoff_root
-  refine ⟨LI, Lτ, hLI, Lτ.coe_nonneg, ?_⟩
-  intro V Kc hKc f hf A B S T y Ec Er hEc hEr hc hr
+  refine ⟨LI, Lτ, hLI, Lτ.coe_nonneg, fun V Kc hKc f hf A B S T y Ec Er hEc hEr hc hr => ?_⟩
   exact incomingGate_stability hLI Lτ.coe_nonneg hI
     (fun a b => by simpa only [Real.dist_eq] using hτ.dist_le_mul a b)
     (NormalizedRow.rank_pos HP) hKc hf A B S T y hEc hEr hc hr
@@ -134,54 +147,44 @@ theorem correction_preparation_row_moment
   obtain ⟨Lh, Lρ, LI, Lτ, hh, hρ, hi, ht, h⟩ :=
     HP.correction_preparation_stability_constants
   let L := Lh + Lρ + 2 * Lτ * LI
-  have hL : 0 ≤ L := by dsimp only [L]; positivity
-  refine ⟨L, hL, ?_⟩
-  intro Ω V instΩ instV X Y instX instY Kc hKc f hf A B N u hNu
+  refine ⟨L, by dsimp only [L]; positivity,
+    fun Ω V instΩ instV X Y instX instY Kc hKc f hf A B N u hNu => ?_⟩
   classical
   let E := fun σ => kthLargest 1 {z | X σ z} (fun z =>
     kthLargest 1 {w | Y σ w} (fun w => |A σ z w - B σ z w|))
-  have hE (σ : Ω) : 0 ≤ E σ := kthLargest_nonneg
-  have he (σ : Ω) (z : V) (hz : X σ z) :
-      kthLargest 1 {w | Y σ w} (fun w => |A σ z w - B σ z w|) ≤ E σ := by
-    have hh := abs_le_kthLargest_one {z | X σ z}
-      (fun z => kthLargest 1 {w | Y σ w} (fun w => |A σ z w - B σ z w|)) z
-      (mem_filter.mpr ⟨mem_univ _, hz⟩)
-    simpa only [abs_of_nonneg (kthLargest_nonneg (k := 1))] using hh
   have hb (σ : Ω) (x y : V) (hx : X σ x) (hy : Y σ y) :
       |correctionPrep (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.K Kc f (A σ)
           (polynomialPrepCutoff4 HP.θ) HP.ρ {z | X σ z} {w | Y σ w} x y -
         correctionPrep (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.K Kc f (B σ)
           (polynomialPrepCutoff4 HP.θ) HP.ρ {z | X σ z} {w | Y σ w} x y| ≤
         (L / f) * E σ := by
-    have hc (z : V) (hz : X σ z) : |A σ z y - B σ z y| ≤ E σ :=
-      (abs_le_kthLargest_one {w | Y σ w} (fun w => A σ z w - B σ z w) y
-        (mem_filter.mpr ⟨mem_univ _, hy⟩)).trans (he σ z hz)
-    have hp := h V Kc hKc f hf (A σ) (B σ) {z | X σ z} {w | Y σ w}
-      x y (E σ) (E σ) (hE σ) (hE σ)
-      (fun z hz => hc z (mem_filter.mp hz).2)
-      (fun z hz => he σ z (mem_filter.mp hz).2)
-    apply hp.trans
+    let S : Finset V := {z | X σ z}
+    let T : Finset V := {w | Y σ w}
+    have hxS : x ∈ S := mem_filter.mpr ⟨mem_univ _, hx⟩
+    have hyT : y ∈ T := mem_filter.mpr ⟨mem_univ _, hy⟩
+    refine (h V Kc hKc f hf (A σ) (B σ) S T x y (E σ) (E σ) kthLargest_nonneg kthLargest_nonneg
+      (fun z hz => abs_entry_le_rectangle_max S T (fun z w => A σ z w - B σ z w) hz hyT)
+      (fun z hz => kthLargest_row_le_rectangle_max S T (fun z w => A σ z w - B σ z w) hz)).trans ?_
     calc
       _ ≤ (Lh * E σ + Lρ * E σ) / f + Lτ * (LI * (E σ + E σ) / f) := by
         gcongr
-        · exact hc x hx
-        · exact he σ x hx
+        · exact abs_entry_le_rectangle_max S T (fun z w => A σ z w - B σ z w) hxS hyT
+        · exact kthLargest_row_le_rectangle_max S T (fun z w => A σ z w - B σ z w) hxS
       _ = _ := by dsimp only [L]; ring
   have hp := rowNormPow_le_mul (X := X) (Y := Y) (s := 4) hNu
     (c := (L / f) ^ 4) (Z' := fun σ _ _ => E σ) (fun σ x y hx hy => by
-      have hh := pow_le_pow_left₀ (abs_nonneg _) (hb σ x y hx hy) 4
-      simpa only [mul_pow, abs_of_nonneg (hE σ)] using hh)
+      simpa only [mul_pow, E, abs_of_nonneg (kthLargest_nonneg (k := 1))] using
+        pow_le_pow_left₀ (abs_nonneg _) (hb σ x y hx hy) 4)
   exact hp.trans ((mul_le_mul_of_nonneg_left
     (rowNormPow_rectangle_max_le (X := X) (Y := Y) hNu
-      (fun σ x y => A σ x y - B σ x y)) (pow_nonneg (div_nonneg hL hf.le) 4)).trans_eq
-        (by ring))
+      (fun σ x y => A σ x y - B σ x y)) (by positivity)).trans_eq (by ring))
 
 private lemma root_product_dist {a a' b b' c B : ℝ}
     (ha' : a' ∈ Set.Icc 0 B) (hb : b ∈ Set.Icc 0 1)
     (hc : c ∈ Set.Icc 0 1) :
     |a * b * c - a' * b' * c| ≤ |a - a'| + B * |b - b'| := by
-  have he : a * b * c - a' * b' * c = ((a-a')*b + a'*(b-b'))*c := by ring
-  rw [he, abs_mul, abs_of_nonneg hc.1]
+  rw [show a * b * c - a' * b' * c = ((a-a')*b + a'*(b-b'))*c by ring, abs_mul,
+    abs_of_nonneg hc.1]
   apply (mul_le_of_le_one_right (abs_nonneg _) hc.2).trans
   apply (abs_add_le _ _).trans
   rw [abs_mul, abs_mul, abs_of_nonneg hb.1, abs_of_nonneg ha'.1]
@@ -243,8 +246,7 @@ theorem normalized_raw_normalizer_root_stability
       abs_kthLargest_div_sub_div_le (NormalizedRow.rank_pos HP) hf T (A x) (B x)
     have hd := hdist (A x y / f) mA qA (B x y / f) mB qB
     rw [← sub_div, abs_div, abs_of_pos hf] at hd
-    have hd' := hd.trans (mul_le_mul_of_nonneg_left
-      (add_le_add le_rfl hq) hC)
+    have hd' := hd.trans (mul_le_mul_of_nonneg_left (add_le_add le_rfl hq) hC)
     rw [CorrectionRowRecipe.normalized_factorization HP _ _ _ _ _ _ _ _ _ _ _ _ _ hy,
       CorrectionRowRecipe.normalized_factorization HP _ _ _ _ _ _ _ _ _ _ _ _ _ hy]
     change |(OA * IA * HP.γ (maximum y)) ^ (4⁻¹ : ℝ) -
@@ -260,8 +262,6 @@ theorem normalized_raw_normalizer_root_stability
     exact add_le_add hd' (mul_le_mul_of_nonneg_left
       (hi V Kc hKc f hf A B S T y Ec Er hEc hEr hc hr) (by positivity))
   · simp only [CorrectionRowRecipe.normalized, hy, ↓reduceIte, sub_self, abs_zero]
-    have hq : 0 ≤ kthLargest 1 {w | Z σ.2 w} (fun w => |A x w - B x w|) :=
-      kthLargest_nonneg
     positivity
 
 /-- Optional coarse corollary charging mean pointwise preparation differences.
@@ -297,11 +297,8 @@ theorem normalized_raw_prep_root_stability
   refine ⟨C, LI, Lτ, hC, hLI, hLτ, ?_⟩
   intro V Γ Ζ instV instΓ instΖ Xs Z Zt instXs instZ instZt Kc hKc f hf
     A B prep prep' maximum σ x y Ec Er hEc hEr hc hr
-  have hb := h V Γ Ζ Xs Z Zt Kc hKc f hf A B prep prep' maximum σ x y
-    Ec Er hEc hEr hc hr
-  have hm := CorrectionRowRecipe.normalizer_stability Xs Zt prep prep' x y
-  exact hb.trans (add_le_add (mul_le_mul_of_nonneg_left
-    (add_le_add (add_le_add le_rfl hm) le_rfl) hC) le_rfl)
+  exact (h V Γ Ζ Xs Z Zt Kc hKc f hf A B prep prep' maximum σ x y Ec Er hEc hEr hc hr).trans
+    (by gcongr; exact CorrectionRowRecipe.normalizer_stability Xs Zt prep prep' x y)
 
 end Matrix.FourthRootHierarchyParams
 
@@ -411,24 +408,15 @@ theorem correctionRequest_children_root_stability
   dsimp only
   apply hd P J V k D ident r hr hf Kc hKc raw raw' prep prep' maximum maximum' σ x y
     _ _ kthLargest_nonneg kthLargest_nonneg
-  · intro z hz
-    exact abs_le_kthLargest_one _ (fun z => raw σ z y - raw' σ z y) z hz
-  · intro z hz
-    let T : Finset V := {w | coordinate D r.terminal
-      ((Equiv.piSplitAt r.terminal.role (fun _ : Fin J => FrameChannel P 4 1)) σ).1 (ident w)}
-    have h := abs_le_kthLargest_one _
-      (fun z => kthLargest 1 T (fun w => |raw σ z w - raw' σ z w|)) z hz
-    simpa only [abs_of_nonneg (kthLargest_nonneg (k := 1))] using h
+    (fun z hz => abs_le_kthLargest_one _ (fun z => raw σ z y - raw' σ z y) z hz)
+    (fun _ hz => kthLargest_row_le_rectangle_max _ _ (fun z w => raw σ z w - raw' σ z w) hz)
 
 private lemma error_sum_bound {C B LI Lτ Lγ f d q e m z : ℝ}
     (hC : 0 ≤ C) (hf : 0 < f) (hd : d ≤ e) (hq : q ≤ e) :
     C * (d / f + m + q / f) + B * (Lτ * (LI * (e + e) / f)) + B * Lγ * z ≤
       (2 * (C + B * Lτ * LI) / f) * e + C * m + (B * Lγ) * z := by
   calc
-    _ ≤ C * (e / f + m + e / f) + B * (Lτ * (LI * (e + e) / f)) + B * Lγ * z :=
-      add_le_add (add_le_add (mul_le_mul_of_nonneg_left
-        (add_le_add (add_le_add (div_le_div_of_nonneg_right hd hf.le) le_rfl)
-          (div_le_div_of_nonneg_right hq hf.le)) hC) le_rfl) le_rfl
+    _ ≤ C * (e / f + m + e / f) + B * (Lτ * (LI * (e + e) / f)) + B * Lγ * z := by gcongr
     _ = _ := by ring
 
 private lemma source_rank_set {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
@@ -439,8 +427,7 @@ private lemma source_rank_set {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
         ⟨r.source.role, hr.1⟩) (ident z)} : Finset V) =
       ({z | r.source.retains (channels D) σ (ident z)} : Finset V) := by
   ext z
-  simp [Equiv.piSplitAt_apply, coordinate, CorrectionRowTask.Channel.retains,
-    channels]
+  simp [Equiv.piSplitAt_apply, coordinate, CorrectionRowTask.Channel.retains, channels]
 
 private lemma terminal_rank_set {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
     (r : HierarchyTask.Request k (Fin J) (ZMod P)) (σ : Environment P J) :
@@ -449,8 +436,7 @@ private lemma terminal_rank_set {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
       (ident z)} : Finset V) =
       ({z | r.terminal.retains (channels D) σ (ident z)} : Finset V) := by
   ext z
-  simp [Equiv.piSplitAt_apply, coordinate, CorrectionRowTask.Channel.retains,
-    channels]
+  simp [Equiv.piSplitAt_apply, coordinate, CorrectionRowTask.Channel.retains, channels]
 
 private lemma children_root_zero {k : ℕ}
     (D : ZMod P) (ident : V → ZMod P) (r : HierarchyTask.Request k (Fin J) (ZMod P))
@@ -497,70 +483,37 @@ theorem correctionRequest_children_root_envelope
   obtain ⟨C, LI, Lτ, Lγ, hC, hLI, hLτ, hLγ, hd⟩ :=
     correctionRequest_children_root_stability_of_bounds HP
   let B := (2 * HP.Q HP.toHierarchyParams.atomCap) ^ (4⁻¹ : ℝ)
-  have hB : 0 ≤ B := by positivity
   let Cr := 2 * (C + B * Lτ * LI)
   let Cm := B * Lγ
-  have hCr : 0 ≤ Cr := by dsimp [Cr]; positivity
-  have hCm : 0 ≤ Cm := mul_nonneg hB hLγ
-  refine ⟨Cr, C, Cm, hCr, hC, hCm, ?_⟩
+  refine ⟨Cr, C, Cm,
+    by dsimp only [Cr, B]; positivity, hC,
+    by dsimp only [Cm, B]; positivity, ?_⟩
   intro P J instP V instV k D ident r hr hf Kc hKc raw raw' prep prep'
-    maximum maximum' σ x y
-  dsimp only
-  intro hx hy
-  specialize hd P J V k D ident r hr hf Kc hKc raw raw' prep prep' maximum maximum'
-  change r.source.role ≠ r.terminal.role ∧ r.usage.role = r.terminal.role ∧
-    r.usage.suffix = r.terminal.suffix at hr
-  let X := fun σ x => r.source.retains (channels D) σ (ident x)
-  let Y := fun σ y => r.terminal.retains (channels D) σ (ident y)
-  let U := fun σ y => r.usage.retains (channels D) σ (ident y)
-  let E := fun σ => kthLargest 1 {z | X σ z} (fun z =>
-    kthLargest 1 {w | Y σ w} (fun w => |raw σ z w - raw' σ z w|))
-  let M := fun x y => rowSliceMean X U (fun σ a b => |prep σ a b - prep' σ a b|) x y
-  let A := fun σ (_x _y : V) => (Cr / r.terminal.rate) * E σ
-  let F := fun σ x y => C * (if U σ y then M x y else 0)
-  let G := fun σ (_x : V) y => Cm * |maximum σ y - maximum' σ y|
-  let Z := fun σ x y =>
-    correctionRequest D ident r (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.ρ
-        HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc raw prep maximum σ x y ^ (4⁻¹ : ℝ) -
-    correctionRequest D ident r (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.ρ
-        HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc raw' prep' maximum' σ x y ^ (4⁻¹ : ℝ)
-  have hE (σ : Environment P J) : 0 ≤ E σ := kthLargest_nonneg
-  have hM (x y : V) : 0 ≤ M x y := expect_nonneg (fun _ _ => abs_nonneg _)
-  have hA (σ : Environment P J) (x y : V) : 0 ≤ A σ x y :=
-    mul_nonneg (div_nonneg hCr hf.le) (hE σ)
-  have hF (σ : Environment P J) (x y : V) : 0 ≤ F σ x y := by
-    dsimp [F]; split_ifs <;> exact mul_nonneg hC (by first | exact hM x y | rfl)
-  have hG (σ : Environment P J) (x y : V) : 0 ≤ G σ x y := mul_nonneg hCm (abs_nonneg _)
-  have hz (σ : Environment P J) (x y : V) (hx : X σ x) (hy : Y σ y) :
-      |Z σ x y| ≤ A σ x y + F σ x y + G σ x y := by
-    by_cases hu : U σ y
-    · have hrow (z : V) (hz : z ∈ ({z | X σ z} : Finset V)) :
-          kthLargest 1 {w | Y σ w} (fun w => |raw σ z w - raw' σ z w|) ≤ E σ := by
-        have he := abs_le_kthLargest_one {z | X σ z}
-          (fun z => kthLargest 1 {w | Y σ w} (fun w => |raw σ z w - raw' σ z w|)) z hz
-        simpa only [abs_of_nonneg (kthLargest_nonneg (k := 1))] using he
-      have hentry (z : V) (hz : z ∈ ({z | X σ z} : Finset V)) :
-          |raw σ z y - raw' σ z y| ≤ E σ :=
-        (abs_le_kthLargest_one {w | Y σ w} (fun w => raw σ z w - raw' σ z w) y
-          (mem_filter.mpr ⟨mem_univ _, hy⟩)).trans (hrow z hz)
-      have hp := hd σ x y (E σ) (E σ)
-      dsimp only at hp
-      rw [source_rank_set D ident r hr σ, terminal_rank_set D ident r σ] at hp
-      have hp' := hp (hE σ) (hE σ) hentry hrow
-      have he := hentry x (mem_filter.mpr ⟨mem_univ _, hx⟩)
-      have hq := hrow x (mem_filter.mpr ⟨mem_univ _, hx⟩)
-      change |Z σ x y| ≤ _ at hp'
-      apply hp'.trans
-      simpa only [A, F, G, hu, ↓reduceIte, Cr, Cm] using
-        (error_sum_bound (B := B) (LI := LI) (Lτ := Lτ) (Lγ := Lγ)
-          (m := M x y) (z := |maximum σ y - maximum' σ y|) hC hf he hq)
-    · have h0 := children_root_zero D ident r (polynomialAuxCutoff4 HP.θ)
-        HP.incomingCutoff HP.ρ HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc
-        raw raw' prep prep' maximum maximum' σ x y hu
-      change |Z σ x y| = 0 at h0
-      rw [h0]
-      exact add_nonneg (add_nonneg (hA σ x y) (hF σ x y)) (hG σ x y)
-  exact hz σ x y hx hy
+    maximum maximum' σ x y X Y U hx hy
+  by_cases hu : U σ y
+  · let S : Finset V := {z | X σ z}
+    let T : Finset V := {w | Y σ w}
+    let E := kthLargest 1 S (fun z => kthLargest 1 T (fun w => |raw σ z w - raw' σ z w|))
+    have hxS : x ∈ S := mem_filter.mpr ⟨mem_univ _, hx⟩
+    have hyT : y ∈ T := mem_filter.mpr ⟨mem_univ _, hy⟩
+    have hp := hd P J V k D ident r hr hf Kc hKc raw raw' prep prep' maximum maximum' σ x y E E
+    dsimp only at hp
+    rw [source_rank_set D ident r hr σ, terminal_rank_set D ident r σ] at hp
+    refine (hp kthLargest_nonneg kthLargest_nonneg
+      (fun z hz => abs_entry_le_rectangle_max S T (fun z w => raw σ z w - raw' σ z w) hz hyT)
+      (fun z hz =>
+        kthLargest_row_le_rectangle_max S T (fun z w => raw σ z w - raw' σ z w) hz)).trans ?_
+    simpa only [hu, ↓reduceIte, Cr, Cm, X, Y, U, S, T, E] using
+      error_sum_bound (B := B) (LI := LI) (Lτ := Lτ) (Lγ := Lγ)
+        (m := rowSliceMean X U (fun τ a b => |prep τ a b - prep' τ a b|) x y)
+        (z := |maximum σ y - maximum' σ y|) hC hf
+        (abs_entry_le_rectangle_max S T (fun z w => raw σ z w - raw' σ z w) hxS hyT)
+        (kthLargest_row_le_rectangle_max S T (fun z w => raw σ z w - raw' σ z w) hxS)
+  · rw [children_root_zero D ident r (polynomialAuxCutoff4 HP.θ)
+      HP.incomingCutoff HP.ρ HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc
+      raw raw' prep prep' maximum maximum' σ x y hu]
+    simp only [U, hu, ↓reduceIte, mul_zero, add_zero]
+    positivity
 
 set_option backward.isDefEq.respectTransparency false in
 /-- Integrated original-source/full-terminal root error for all three changing child
@@ -594,10 +547,7 @@ theorem correctionRequest_children_root_moment
   obtain ⟨Cr, Cp, Cm, hCr, hCp, hCm, henv⟩ := correctionRequest_children_root_envelope HP
   refine ⟨Cr, Cp, Cm, hCr, hCp, hCm, ?_⟩
   intro P J instP V instV k D ident r hr hf Kc hKc raw raw' prep prep'
-    maximum maximum' N u hNu hUY
-  let X := fun σ x => r.source.retains (channels D) σ (ident x)
-  let Y := fun σ y => r.terminal.retains (channels D) σ (ident y)
-  let U := fun σ y => r.usage.retains (channels D) σ (ident y)
+    maximum maximum' N u hNu hUY X Y U
   let E := fun σ => kthLargest 1 {z | X σ z} (fun z =>
     kthLargest 1 {w | Y σ w} (fun w => |raw σ z w - raw' σ z w|))
   let M := fun x y => rowSliceMean X U (fun σ a b => |prep σ a b - prep' σ a b|) x y
@@ -609,16 +559,8 @@ theorem correctionRequest_children_root_moment
         HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc raw prep maximum σ x y ^ (4⁻¹ : ℝ) -
     correctionRequest D ident r (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.ρ
         HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc raw' prep' maximum' σ x y ^ (4⁻¹ : ℝ)
-  have hE (σ : Environment P J) : 0 ≤ E σ := kthLargest_nonneg
-  have hM (x y : V) : 0 ≤ M x y := expect_nonneg (fun _ _ => abs_nonneg _)
-  have hA (σ : Environment P J) (x y : V) : 0 ≤ A σ x y :=
-    mul_nonneg (div_nonneg hCr hf.le) (hE σ)
-  have hF (σ : Environment P J) (x y : V) : 0 ≤ F σ x y := by
-    dsimp [F]; split_ifs <;> exact mul_nonneg hCp (by first | exact hM x y | rfl)
-  have hG (σ : Environment P J) (x y : V) : 0 ≤ G σ x y := mul_nonneg hCm (abs_nonneg _)
-  have hz (σ : Environment P J) (x y : V) (hx : X σ x) (hy : Y σ y) :
-      |Z σ x y| ≤ A σ x y + F σ x y + G σ x y := by
-    exact henv P J V k D ident r hr hf Kc hKc raw raw' prep prep' maximum maximum' σ x y hx hy
+  have hF (σ : Environment P J) (x y : V) : 0 ≤ F σ x y :=
+    mul_nonneg hCp (by split_ifs; exacts [expect_nonneg fun _ _ => abs_nonneg _, le_rfl])
   have ha : rowNormPow 4 N u X Y A ≤
       (Cr / r.terminal.rate) ^ 4 * (Fintype.card V : ℝ) ^ 2 *
         rowNormPow 4 N u X Y (fun σ x y => raw σ x y - raw' σ x y) := by
@@ -626,19 +568,21 @@ theorem correctionRequest_children_root_moment
       from rfl, rowNormPow_mul (div_nonneg hCr hf.le)]
     simpa only [mul_assoc] using mul_le_mul_of_nonneg_left
       (rowNormPow_rectangle_max_le (X := X) (Y := Y) hNu
-        (fun σ x y => raw σ x y - raw' σ x y)) (pow_nonneg (div_nonneg hCr hf.le) 4)
+        (fun σ x y => raw σ x y - raw' σ x y)) (by positivity)
   have hb : rowNormPow 4 N u X Y F ≤
       Cp ^ 4 * rowNormPow 4 N u X U (fun σ x y => prep σ x y - prep' σ x y) := by
     rw [show F = (fun σ x y => Cp * (if U σ y then M x y else 0)) from rfl,
       rowNormPow_mul hCp]
     exact mul_le_mul_of_nonneg_left (rowNormPow_usage_conditional_abs_le hNu hUY
-      (fun σ x y => prep σ x y - prep' σ x y)) (pow_nonneg hCp 4)
+      (fun σ x y => prep σ x y - prep' σ x y)) (by positivity)
   have hg : rowNormPow 4 N u X Y G =
       Cm ^ 4 * rowNormPow 4 N u X Y (fun σ _ y => maximum σ y - maximum' σ y) := by
     rw [show G = (fun σ x y => Cm * |maximum σ y - maximum' σ y|) from rfl,
       rowNormPow_mul hCm]
     simp only [rowNormPow, abs_abs]
-  exact (rowNormPow_le_three hNu Z A F G hA hF hG hz).trans
+  exact (rowNormPow_le_three hNu Z A F G (fun _ _ _ => by dsimp only [A, E]; positivity) hF
+    (fun _ _ _ => by dsimp only [G]; positivity)
+    (henv P J V k D ident r hr hf Kc hKc raw raw' prep prep' maximum maximum')).trans
     (mul_le_mul_of_nonneg_left (add_le_add (add_le_add ha hb) hg.le) (by norm_num))
 
 end Matrix.HierarchyParams.H4RankEnvironment

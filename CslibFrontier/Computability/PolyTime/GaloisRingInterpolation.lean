@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Nat.Size
@@ -432,10 +433,8 @@ theorem polyBounded_polyLength {p : α → ℕ} {fl : α → List ℕ} {n : α �
     (hfl : ComputableInPolyTime fl encIn (encList encNat))
     (hn : PolyBounded (fun x => (encIn x).length) n) :
     PolyBounded (fun x => (encIn x).length)
-      (fun x => n x * (2 * ((fl x).length * (2 * (p x + 1) + 1)) + 1)) :=
-  hn.mul (((PolyBounded.const 2).mul ((lengthPolyTime hfl).polyBounded.mul
-    (((PolyBounded.const 2).mul (hp.polyBounded.add (PolyBounded.const 1))).add
-      (PolyBounded.const 1)))).add (PolyBounded.const 1))
+      (fun x => n x * (2 * ((fl x).length * (2 * (p x + 1) + 1)) + 1)) := by
+  growth_poly
 
 /-- **Evaluation is polynomial-time**, with the precision in unary. -/
 @[fun_prop]
@@ -492,13 +491,12 @@ theorem computableInPolyTime_basisNum {p : α → ℕ} {fl : α → List ℕ} {v
       · split
         · exact hP.2
         · exact fun c hc => small_of_mem_pmulLinear hc)
-    (polyBounded_polyLength hp hfl
-      ((lengthPolyTime hv).polyBounded_length.add (PolyBounded.const 1)))
+    (by growth_poly : PolyBounded (fun x => (encIn x).length)
+      fun x => ((v x).length + 1) * (2 * ((fl x).length * (2 * (p x + 1) + 1)) + 1))
     (fun x consumed P hpre hP => by
       have hlen : consumed.length ≤ (v x).length := by
         simpa using hpre.length_le
-      refine (length_encPoly_le (n := (v x).length + 1) (by omega) hP.2).trans ?_
-      simp [encUnary_apply])
+      exact length_encPoly_le (n := (v x).length + 1) (by omega) hP.2)
   exact hfold.1
 
 /-- **Lagrange denominators are polynomial-time**, with the precision and the index in unary. -/
@@ -556,11 +554,9 @@ theorem computableInPolyTime_interp {p : α → ℕ} {fl : α → List ℕ} {v y
       refine ⟨?_, fun c hc => small_of_mem_padd hc⟩
       rw [length_padd, length_psmul]
       exact max_le hP.1 (length_basisNum_le _ _))
-    (polyBounded_polyLength hp hfl
-      ((lengthPolyTime hv).polyBounded_length.add (PolyBounded.const 1)))
-    (fun x consumed P _ hP => by
-      refine (length_encPoly_le hP.1 hP.2).trans ?_
-      simp [encUnary_apply])
+    (by growth_poly : PolyBounded (fun x => (encIn x).length)
+      fun x => ((v x).length + 1) * (2 * ((fl x).length * (2 * (p x + 1) + 1)) + 1))
+    (fun x _ P _ hP => length_encPoly_le hP.1 hP.2)
   exact hfold.1
 
 end PolyTime

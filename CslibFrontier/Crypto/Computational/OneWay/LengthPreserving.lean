@@ -109,10 +109,9 @@ theorem two_mul_length_reindex_add_one_le {g : List Bool → List Bool} {L : ℕ
     (hg : ∀ x, (g x).length = L x.length) {x : List Bool} (hx : schedule L 0 ≤ x.length) :
     2 * (OneWayReindex.reindex (schedule L) (core g) x).length + 1 ≤ x.length := by
   set n := GeneratorReindex.parameter (schedule L) x.length
-  have hfits : schedule L n ≤ x.length := GeneratorReindex.parameter_fits hx
-  have hn : n ≤ schedule L n := by unfold schedule; omega
+  have hfits : 4 * n + 2 * L n + 3 ≤ x.length := GeneratorReindex.parameter_fits hx
   have hcore : (core g n (x.take (schedule L n))).length = L n := by
-    simp only [core, hg, List.take_take, List.length_take]
+    simp only [core, hg, List.take_take, List.length_take, schedule]
     congr 1
     omega
   have hlen : (OneWayReindex.reindex (schedule L) (core g) x).length = 2 * n + 1 + L n := by
@@ -121,7 +120,6 @@ theorem two_mul_length_reindex_add_one_le {g : List Bool → List Bool} {L : ℕ
     rw [show (encBits (core g n (x.take (schedule L n)))).length = L n from hcore,
       show (encUnary n).length = n from List.length_replicate]
   rw [hlen]
-  unfold schedule at hfits
   omega
 
 /-- **Inversion reduction.** At every length `M ≥ m(0)`, an inverter for the length-preserving
@@ -136,22 +134,17 @@ theorem inversion_le {g : List Bool → List Bool} {L : ℕ → ℕ}
         M)) := by
   apply ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
   simp only [inversionGame, inversionExperiment, ProbComp.eval_bind, BitString.eval_sampleList]
-  apply PMF.bind_apply_mono_on_support _ true
-  intro input hinput
+  refine PMF.bind_apply_mono_on_support _ true fun input hinput => ?_
   have hlen : input.length = M := BitString.length_of_mem_support_uniformList hinput
   simp only [lengthPreserving, hlen]
-  apply PMF.bind_apply_mono_on_support _ true
-  intro candidate _
+  refine PMF.bind_apply_mono_on_support _ true fun candidate _ => ?_
   simp only [ProbComp.eval_pure, PMF.pure_apply]
   by_cases h : fit candidate.length (OneWayReindex.reindex (schedule L) (core g) candidate) =
       fit M (OneWayReindex.reindex (schedule L) (core g) input)
   · have hc : candidate.length = M := by simpa using congrArg List.length h
-    have hcand := two_mul_length_reindex_add_one_le hg (x := candidate) (by omega)
-    have hinput := two_mul_length_reindex_add_one_le hg (x := input) (by omega)
-    rw [hc] at h hcand
-    rw [hlen] at hinput
-    rw [word_eq_of_fit_eq hcand hinput h]
-    simp [hc]
+    have hcand := hc ▸ two_mul_length_reindex_add_one_le hg (x := candidate) (by omega)
+    have hinput' := hlen ▸ two_mul_length_reindex_add_one_le hg (x := input) (by omega)
+    simp [hc, word_eq_of_fit_eq hcand hinput' (hc ▸ h)]
   · simp [h]
 
 /-- The parameter-indexed game for `core g` is the inversion game for `g` against the inverter
@@ -196,14 +189,15 @@ theorem OneWayLengthPreserving.oneWay {g : List Bool → List Bool} {L : ℕ →
   · have := OneWayReindex.computableInPolyTime_reindex hm hcore
     unfold lengthPreserving fit
     fun_prop
-  · have hfit : IsPPT encBits (fun n image => adversary n (fit n image)) := by
-      refine IsPPTOn.isPPT (hPPT.preprocess (parameter := Prod.fst)
-        (auxiliary := fun p : ℕ × List Bool => fit p.1 p.2) ?_ ?_)
-      · fun_prop
-      · unfold fit
-        fun_prop
+  · have hfit_pt : ComputableInPolyTime (fun p : ℕ × List Bool => fit p.1 p.2)
+        (encPair encUnary encBits) encBits := by
+      unfold fit
+      fun_prop
+    have hfit : IsPPT encBits (fun n image => adversary n (fit n image)) :=
+      IsPPTOn.isPPT (hPPT.preprocess (parameter := Prod.fst)
+        (auxiliary := fun p : ℕ × List Bool => fit p.1 p.2) (by fun_prop) hfit_pt)
     exact negligible_of_eventually_le (hreindex.inversion_negligible _ hfit)
-      (eventually_ge_atTop (schedule L 0) |>.mono fun M hM => inversion_le hlen adversary hM)
+      ((eventually_ge_atTop (schedule L 0)).mono fun M hM => inversion_le hlen adversary hM)
 
 /-- **[Goldreich, Exercise 7.1][Goldreich2007DraftR4]**: if one-way functions exist, then
 length-preserving one-way functions exist. From any one-way function `f` we obtain a one-way

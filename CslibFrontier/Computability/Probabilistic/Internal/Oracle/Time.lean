@@ -25,11 +25,13 @@ import CslibFrontier.Tactic.EncLen
 
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Normalization
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-! # Internal machine constructions for explicit oracle time
 
-The original exact-time endpoints are exported by `Oracle.Time`; their machine assembly,
-halting conversions and joint-state proofs stay in this implementation module.
+The quantitative halting contracts `ComputesOracleInTimeOn` and `ComputesOracleInTime` are
+re-exported by `Oracle.Time`; their closed/open lifts, buffered sequential machine composition
+`oComp`, halting conversions and joint-state proofs stay in this implementation module.
 -/
 
 public section
@@ -108,6 +110,37 @@ private theorem runWith_runOracleConfigFrom_ofClosed {k : ℕ} {State Operation 
   rw [runOracleConfigFrom_ofClosed, ProbOracleComp.runWith_map, ProbOracleComp.runWith_sample,
     PMF.map_comp]
   rfl
+
+private theorem ofClosed_spec {k : ℕ} {State Operation α β : Type} [DecidableEq Operation]
+    {input : α ↪ List Bool} {output : β ↪ List Bool} {t : α → ℕ} {program : α → ProbComp β}
+    (machine : MultiTapePTM k Bool State)
+    (hmachine : ∀ a, (ProbComp.eval (program a)).map output =
+        ProbComp.eval (machine.runClosed (t a) (input a)) ∧
+      ∀ final ∈ (ProbComp.eval (machine.runConfigFrom (ProbComp.uniform Bool) Empty.elim
+          (t a) (machine.initialConfig (input a)))).support,
+        final.tapes.state = none) :
+    ∀ a (OracleState : Type)
+      (oracle : Operation × List Bool → StateT OracleState PMF (List Bool)) s,
+      ProbOracleComp.runWith oracle (output <$> ProbOracleComp.sample (program a)) s =
+        ProbOracleComp.runWith oracle
+          ((ofClosed (Operation := Operation) machine).runOracle (t a) (input a)) s ∧
+      ∀ final ∈ (ProbOracleComp.runWith oracle
+          ((ofClosed (Operation := Operation) machine).runOracleConfigFrom (t a)
+            ((ofClosed (Operation := Operation) machine).initialConfig (input a))) s).support,
+        final.1.tapes.state = none := by
+  intro a OracleState oracle s
+  obtain ⟨hout, hhalt⟩ := hmachine a
+  refine ⟨?_, ?_⟩
+  · rw [run_interpret_runOracle_ofClosed, ← hout, ← ProbOracleComp.sample_map,
+      ProbOracleComp.runWith_sample, ProbComp.eval_map]
+  · intro final hfinal
+    change final ∈ (ProbOracleComp.runWith oracle
+      ((ofClosed (Operation := Operation) machine).runOracleConfigFrom (t a)
+        { tapes := (machine.initialConfig (input a)).tapes, channels := fun _ => {} })
+      s).support at hfinal
+    rw [runWith_runOracleConfigFrom_ofClosed] at hfinal
+    obtain ⟨cfg, hcfg, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
+    exact hhalt cfg hcfg
 
 section BufferedOracleComp
 
@@ -444,6 +477,157 @@ theorem query_take_pair [Finite Operation] (op : Operation) :
     (computesTidily_queryTakePTM op request.1 request.2).congr fun _ _ _ => by
       simp only [encBits, Function.Embedding.coe_refl, id_map]
 
+-- Unconditional `ComputesOracleInTimeOn.bind` at `2 * t₁ a + t₂' a + 4` does not hold because
+-- `ComputesOracleInTimeOn` allows `m₁` to halt with unsubmitted symbols in `queryBuffer`, which
+-- `oComp` passes into `m₂`. Whenever `m₂`'s joint tape-and-state law from `cfg₀.channels` agrees
+-- with its run from empty channels (`m₂.initialConfig`), `oComp m₂ m₁ true` composes both phases
+-- in `2 * t₁ a + t₂' a + 4` steps; this covers both `bind_sample_left` and `bind_sample_right`.
+private theorem oComp_computesOracleInTimeOn [Finite Operation]
+    {first : α → WordOracleComp Operation β} {second : β → WordOracleComp Operation γ}
+    {t₂ : β → ℕ} {t₂' : α → ℕ} {k₁ k₂ : ℕ} {State₁ State₂ : Type}
+    [Finite State₁] [Finite State₂]
+    (m₁ : MultiTapePTM k₁ Bool State₁ Operation)
+    (m₂ : MultiTapePTM k₂ Bool State₂ Operation)
+    (hm₁ : ∀ a (State : Type) (oracle : Operation × List Bool → StateT State PMF (List Bool)) s,
+      ProbOracleComp.runWith oracle (middle <$> first a) s =
+        ProbOracleComp.runWith oracle (m₁.runOracle (t₁ a) (input a)) s ∧
+      ∀ final ∈ (ProbOracleComp.runWith oracle
+          (m₁.runOracleConfigFrom (t₁ a) (m₁.initialConfig (input a))) s).support,
+        final.1.tapes.state = none)
+    (hm₂ : ∀ b (State : Type) (oracle : Operation × List Bool → StateT State PMF (List Bool)) s,
+      ProbOracleComp.runWith oracle (output <$> second b) s =
+        ProbOracleComp.runWith oracle (m₂.runOracle (t₂ b) (middle b)) s ∧
+      ∀ final ∈ (ProbOracleComp.runWith oracle
+          (m₂.runOracleConfigFrom (t₂ b) (m₂.initialConfig (middle b))) s).support,
+        final.1.tapes.state = none)
+    (ht₂ : ∀ a (State : Type) (oracle : Operation × List Bool → StateT State PMF (List Bool))
+      s s' b, (b, s') ∈ (ProbOracleComp.runWith oracle (first a) s).support → t₂ b ≤ t₂' a)
+    (hchannels : ∀ a (State : Type)
+      (oracle : Operation × List Bool → StateT State PMF (List Bool)) s cfg₀ s₁,
+      (cfg₀, s₁) ∈ (ProbOracleComp.runWith oracle
+        (m₁.runOracleConfigFrom (t₁ a) (m₁.initialConfig (input a))) s).support →
+      (ProbOracleComp.runWith oracle
+        (m₂.runOracleConfigFrom (t₂' a)
+          { tapes := Cfg.init m₂.initial cfg₀.tapes.output, channels := cfg₀.channels }) s₁).map
+        (Prod.map (fun c => (c.tapes.output, c.tapes.state)) id) =
+      (ProbOracleComp.runWith oracle
+        (m₂.runOracleConfigFrom (t₂' a) (m₂.initialConfig cfg₀.tapes.output)) s₁).map
+        (Prod.map (fun c => (c.tapes.output, c.tapes.state)) id)) :
+    ComputesOracleInTimeOn input output (fun a => 2 * t₁ a + t₂' a + 4)
+      (fun a => do
+        let b ← first a
+        second b) := by
+  refine ⟨inferInstance, k₂ + k₁ + 2, _, inferInstance, oComp m₂ m₁ true,
+    fun a State oracle s => ?_⟩
+  obtain ⟨hlaw₁, hhalt₁⟩ := hm₁ a State oracle s
+  have hmem_word : ∀ cfg₀ s₁,
+      (cfg₀, s₁) ∈ (ProbOracleComp.runWith oracle
+        (m₁.runOracleConfigFrom (t₁ a) (m₁.initialConfig (input a))) s).support →
+      ∃ b, (b, s₁) ∈ (ProbOracleComp.runWith oracle (first a) s).support ∧
+        middle b = cfg₀.tapes.output := by
+    intro cfg₀ s₁ hcfg₀
+    have hout_mem : (cfg₀.tapes.output, s₁) ∈
+        (ProbOracleComp.runWith oracle (m₁.runOracle (t₁ a) (input a)) s).support := by
+      rw [runOracle_eq_map, ProbOracleComp.runWith_map]
+      exact (PMF.mem_support_map_iff _ _ _).mpr ⟨(cfg₀, s₁), hcfg₀, rfl⟩
+    rw [← hlaw₁, ProbOracleComp.runWith_map] at hout_mem
+    obtain ⟨⟨b, s₁'⟩, hb, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hout_mem
+    rcases Prod.mk.inj heq with ⟨hmid, rfl⟩
+    exact ⟨b, hb, hmid⟩
+  have hpad₂ : ∀ (b : β) (s₁ : State),
+      (b, s₁) ∈ (ProbOracleComp.runWith oracle (first a) s).support →
+      ProbOracleComp.runWith oracle
+        (m₂.runOracleConfigFrom (t₂' a) (m₂.initialConfig (middle b))) s₁ =
+      ProbOracleComp.runWith oracle
+        (m₂.runOracleConfigFrom (t₂ b) (m₂.initialConfig (middle b))) s₁ :=
+    fun b s₁ hb => run_interpret_runOracleConfigFrom_eq_of_halted m₂ oracle
+      (m₂.initialConfig (middle b)) (ht₂ a State oracle s s₁ b hb) s₁ (hm₂ b State oracle s₁).2
+  have hhalt₂_open : ∀ result ∈ (ProbOracleComp.runWith oracle
+      (m₁.runOracleConfigFrom (t₁ a) (m₁.initialConfig (input a))) s).support,
+      ∀ final ∈ (ProbOracleComp.runWith oracle
+        (m₂.runOracleConfigFrom (t₂' a)
+          { tapes := Cfg.init m₂.initial result.1.tapes.output,
+            channels := result.1.channels }) result.2).support,
+        final.1.tapes.state = none := by
+    rintro ⟨cfg₀, s₁⟩ hcfg₀ ⟨cfg₁, s₂⟩ hfinal
+    obtain ⟨b, hb, hmid⟩ := hmem_word cfg₀ s₁ hcfg₀
+    have hhalt₂_word {word} (hw : middle b = word) :
+        ∀ final ∈ (ProbOracleComp.runWith oracle
+          (m₂.runOracleConfigFrom (t₂' a) (m₂.initialConfig word)) s₁).support,
+          final.1.tapes.state = none := by
+      subst hw
+      intro final hf
+      rw [hpad₂ b s₁ hb] at hf
+      exact (hm₂ b State oracle s₁).2 final hf
+    have hmap : ((cfg₁.tapes.output, cfg₁.tapes.state), s₂) ∈ ((ProbOracleComp.runWith oracle
+        (m₂.runOracleConfigFrom (t₂' a)
+          { tapes := Cfg.init m₂.initial cfg₀.tapes.output,
+            channels := cfg₀.channels }) s₁).map
+        (Prod.map (fun c => (c.tapes.output, c.tapes.state)) id)).support :=
+      (PMF.mem_support_map_iff _ _ _).mpr ⟨(cfg₁, s₂), hfinal, rfl⟩
+    rw [hchannels a State oracle s cfg₀ s₁ hcfg₀] at hmap
+    obtain ⟨⟨cfg₁', s₂'⟩, hcfg₁', heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hmap
+    rcases Prod.mk.inj heq with ⟨houtst, rfl⟩
+    rw [← (Prod.mk.inj houtst).2]
+    exact hhalt₂_word hmid (cfg₁', s₂') hcfg₁'
+  have hstep : 2 * t₁ a + t₂' a + 4 = t₁ a + (t₁ a + 4 + t₂' a) := by omega
+  dsimp only
+  rw [hstep]
+  have hcomp := runWith_oComp m₁ m₂ oracle true (input a) (t₁ a) (t₂' a) s hhalt₁ hhalt₂_open
+  refine ⟨?_, ?_⟩
+  · have hout := congrArg (PMF.map (Prod.map (fun final => final.tapes.output) id)) hcomp
+    conv_rhs => rw [runOracle_eq_map, ProbOracleComp.runWith_map]
+    refine Eq.trans ?_ hout.symm
+    rw [PMF.map_bind, map_bind, ProbOracleComp.runWith_bind]
+    classical
+    let cont (p : List Bool × State) : PMF (List Bool × State) :=
+      if h : ∃ b, middle b = p.1 then
+        ProbOracleComp.runWith oracle (output <$> second (Classical.choose h)) p.2
+      else PMF.pure ([], p.2)
+    have hcont (b : β) (s₁ : State) :
+        cont (middle b, s₁) = ProbOracleComp.runWith oracle (output <$> second b) s₁ := by
+      have hex : ∃ b', middle b' = middle b := ⟨b, rfl⟩
+      have hchoose : Classical.choose hex = b := middle.injective (Classical.choose_spec hex)
+      simp only [cont, hex, ↓reduceDIte, hchoose]
+    calc (ProbOracleComp.runWith oracle (first a) s).bind
+          (fun bs => ProbOracleComp.runWith oracle (output <$> second bs.1) bs.2)
+        = (ProbOracleComp.runWith oracle (first a) s).bind
+            (fun bs => cont (middle bs.1, bs.2)) :=
+          PMF.bind_congr_on_support _ _ _ fun ⟨b, s₁⟩ _ => (hcont b s₁).symm
+      _ = ((ProbOracleComp.runWith oracle (first a) s).map
+            (fun bs => (middle bs.1, bs.2))).bind cont := by
+          rw [PMF.bind_map]; rfl
+      _ = (ProbOracleComp.runWith oracle (middle <$> first a) s).bind cont := by
+          rw [ProbOracleComp.runWith_map]; rfl
+      _ = (ProbOracleComp.runWith oracle (m₁.runOracle (t₁ a) (input a)) s).bind cont := by
+          rw [hlaw₁]
+      _ = (ProbOracleComp.runWith oracle
+            (m₁.runOracleConfigFrom (t₁ a) (m₁.initialConfig (input a))) s).bind
+            (fun r => cont (r.1.tapes.output, r.2)) := by
+          rw [runOracle_eq_map, ProbOracleComp.runWith_map, PMF.bind_map]
+          rfl
+      _ = _ := by
+          refine PMF.bind_congr_on_support _ _ _ fun ⟨cfg₀, s₁⟩ hcfg₀ => ?_
+          obtain ⟨b, hb, hmid⟩ := hmem_word cfg₀ s₁ hcfg₀
+          have hproj : (Prod.map (fun c : Config k₂ Bool State₂ Operation cfg₀.tapes.output =>
+                c.tapes.output) (id : State → State)) =
+              Prod.map Prod.fst id ∘ Prod.map (fun c => (c.tapes.output, c.tapes.state)) id := rfl
+          have hchan := congrArg (PMF.map (Prod.map Prod.fst id))
+            (hchannels a State oracle s cfg₀ s₁ hcfg₀)
+          simp only [PMF.map_comp, ← hproj] at hchan
+          rw [PMF.map_comp]
+          refine Eq.trans ?_ hchan.symm
+          rw [← ProbOracleComp.runWith_map, ← runOracle_eq_map, ← hmid, hcont b s₁,
+            (hm₂ b State oracle s₁).1, runOracle_eq_map, runOracle_eq_map,
+            ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, hpad₂ b s₁ hb]
+  · intro final hfinal
+    rw [hcomp] at hfinal
+    obtain ⟨⟨cfg₀, s₁⟩, hcfg₀, htarget⟩ := (PMF.mem_support_bind_iff _ _ _).mp hfinal
+    obtain ⟨⟨cfg₁, s₂⟩, hcfg₁, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp htarget
+    change (cfg₁.tapes.state.map Sum.inr).map Sum.inr = none
+    rw [hhalt₂_open (cfg₀, s₁) hcfg₀ (cfg₁, s₂) hcfg₁]
+    rfl
+
 /-- Sequence a closed halting probabilistic computation `ProbOracleComp.sample (first a)` before
 any halting oracle continuation `second`, in `2 * t₁ a + t₂' a + 4` steps. -/
 theorem bind_sample_left {first : α → ProbComp β} {second : β → WordOracleComp Operation γ}
@@ -457,131 +641,19 @@ theorem bind_sample_left {first : α → ProbComp β} {second : β → WordOracl
         second b) := by
   obtain ⟨k₁, State₁, hfin₁, m₁, hm₁⟩ := hfirst
   obtain ⟨hops, k₂, State₂, hfin₂, m₂, hm₂⟩ := hsecond
-  refine ⟨hops, k₂ + k₁ + 2, _, inferInstance,
-    oComp m₂ (ofClosed (Operation := Operation) m₁) true, fun a State oracle s => ?_⟩
-  obtain ⟨hout₁, hhalt₁⟩ := hm₁ a
-  have hfirst_run : ProbOracleComp.runWith oracle
-      ((ofClosed (Operation := Operation) m₁).runOracleConfigFrom (t₁ a)
-        ((ofClosed (Operation := Operation) m₁).initialConfig (input a))) s =
-      (ProbComp.eval (m₁.runClosedConfigFrom (t₁ a) (m₁.initialConfig (input a)))).map
-        (fun final => ({ tapes := final.tapes, channels := fun _ => {} }, s)) :=
-    runWith_runOracleConfigFrom_ofClosed m₁ oracle (t₁ a) (fun _ => {})
-      (m₁.initialConfig (input a)) s
-  have hhalt₁_open : ∀ final ∈ (ProbOracleComp.runWith oracle
-      ((ofClosed (Operation := Operation) m₁).runOracleConfigFrom (t₁ a)
-        ((ofClosed (Operation := Operation) m₁).initialConfig (input a))) s).support,
-      final.1.tapes.state = none := by
-    rw [hfirst_run]
-    intro final hfinal
-    obtain ⟨cfg, hcfg, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
-    exact hhalt₁ cfg hcfg
-  have hmem_word : ∀ cfg ∈ (ProbComp.eval
-      (m₁.runClosedConfigFrom (t₁ a) (m₁.initialConfig (input a)))).support,
-      ∃ b ∈ (ProbComp.eval (first a)).support, middle b = cfg.tapes.output := by
-    intro cfg hcfg
-    have hout_mem : cfg.tapes.output ∈ (ProbComp.eval (m₁.runClosed (t₁ a) (input a))).support := by
-      rw [runClosed_eq_map, ProbComp.eval_map]
-      exact (PMF.mem_support_map_iff _ _ _).mpr ⟨cfg, hcfg, rfl⟩
-    rw [← hout₁] at hout_mem
-    exact (PMF.mem_support_map_iff _ _ _).mp hout_mem
-  have hhalt₂_word : ∀ word (b : β), b ∈ (ProbComp.eval (first a)).support →
-      middle b = word →
-      ∀ final ∈ (ProbOracleComp.runWith oracle
-        (m₂.runOracleConfigFrom (t₂' a) (m₂.initialConfig word)) s).support,
-        final.1.tapes.state = none := by
-    rintro _ b hb rfl final hfinal
-    rw [run_interpret_runOracleConfigFrom_eq_of_halted m₂ oracle
-      (m₂.initialConfig (middle b)) (ht₂ a b hb) s (hm₂ b State oracle s).2] at hfinal
-    exact (hm₂ b State oracle s).2 final hfinal
-  have hhalt₂_open : ∀ result ∈ (ProbOracleComp.runWith oracle
-      ((ofClosed (Operation := Operation) m₁).runOracleConfigFrom (t₁ a)
-        ((ofClosed (Operation := Operation) m₁).initialConfig (input a))) s).support,
-      ∀ final ∈ (ProbOracleComp.runWith oracle
-        (m₂.runOracleConfigFrom (t₂' a)
-          { tapes := Cfg.init m₂.initial result.1.tapes.output,
-            channels := result.1.channels }) result.2).support,
-        final.1.tapes.state = none := by
-    intro result hresult final hfinal
-    rw [hfirst_run] at hresult
-    obtain ⟨cfg, hcfg, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
-    obtain ⟨b, hb, hmid⟩ := hmem_word cfg hcfg
-    exact hhalt₂_word cfg.tapes.output b hb hmid final hfinal
-  have hstep : 2 * t₁ a + t₂' a + 4 = t₁ a + (t₁ a + 4 + t₂' a) := by omega
-  dsimp only
-  rw [hstep]
-  have hcomp := runWith_oComp (ofClosed (Operation := Operation) m₁) m₂ oracle true
-    (input a) (t₁ a) (t₂' a) s hhalt₁_open hhalt₂_open
-  refine ⟨?_, ?_⟩
-  · have hout := congrArg (PMF.map (Prod.map (fun final => final.tapes.output) id)) hcomp
-    conv_rhs => rw [runOracle_eq_map, ProbOracleComp.runWith_map]
-    refine Eq.trans ?_ hout.symm
-    rw [hfirst_run, PMF.map_bind, PMF.bind_map, map_bind, ProbOracleComp.runWith_bind]
-    simp only [ProbOracleComp.runWith_sample, PMF.bind_map]
-    have hlaw_word : ∀ (cfg : Config k₁ Bool State₁ Empty (input a)) (b : β),
-        b ∈ (ProbComp.eval (first a)).support → middle b = cfg.tapes.output →
-        PMF.map (Prod.map
-            (fun final : Config (k₂ + k₁ + 2) Bool
-                (State₁ ⊕ ((MarkWorkState ⊕ RewindWorkState) ⊕ State₂)) Operation (input a) =>
-              final.tapes.output) id)
-          (PMF.map (fun (cfg₁, s₂) =>
-            (Sequential.right (State₀ := State₁)
-              (Sequential.right (State₀ := MarkWorkState ⊕ RewindWorkState)
-                (oConsumerConfig true
-                  ({ tapes := cfg.tapes, channels := fun _ => {} } :
-                    Config k₁ Bool State₁ Operation (input a)) cfg₁)), s₂))
-            (ProbOracleComp.runWith oracle
-              (m₂.runOracleConfigFrom (t₂' a) (m₂.initialConfig cfg.tapes.output)) s)) =
-        ProbOracleComp.runWith oracle (output <$> second b) s := by
-      intro cfg b hb hmid
-      rw [PMF.map_comp]
-      trans PMF.map (Prod.map (fun cfg₁ => cfg₁.tapes.output) id)
-        (ProbOracleComp.runWith oracle
-          (m₂.runOracleConfigFrom (t₂' a) (m₂.initialConfig cfg.tapes.output)) s)
-      · congr 1
-      · rw [← ProbOracleComp.runWith_map, ← runOracle_eq_map]
-        have hpad : ∀ word, middle b = word →
-            ProbOracleComp.runWith oracle (m₂.runOracle (t₂' a) word) s =
-              ProbOracleComp.runWith oracle (output <$> second b) s := by
-          rintro _ rfl
-          rw [runOracle_eq_map, ProbOracleComp.runWith_map,
-            run_interpret_runOracleConfigFrom_eq_of_halted m₂ oracle
-              (m₂.initialConfig (middle b)) (ht₂ a b hb) s (hm₂ b State oracle s).2,
-            ← ProbOracleComp.runWith_map, ← runOracle_eq_map, (hm₂ b State oracle s).1]
-        exact hpad cfg.tapes.output hmid
-    classical
-    let cont (word : List Bool) : PMF (List Bool × State) :=
-      if h : ∃ b, middle b = word then
-        ProbOracleComp.runWith oracle (output <$> second (Classical.choose h)) s
-      else PMF.pure ([], s)
-    have hcont (b : β) :
-        cont (middle b) = ProbOracleComp.runWith oracle (output <$> second b) s := by
-      have hex : ∃ b', middle b' = middle b := ⟨b, rfl⟩
-      have hchoose : Classical.choose hex = b := middle.injective (Classical.choose_spec hex)
-      simp only [cont, hex, ↓reduceDIte, hchoose]
-    calc (ProbComp.eval (first a)).bind
-          ((fun bs => ProbOracleComp.runWith oracle (output <$> second bs.1) bs.2) ∘
-            fun x => (x, s))
-        = (ProbComp.eval (first a)).bind (fun b => cont (middle b)) := by
-          refine PMF.bind_congr_on_support _ _ _ fun b _ => ?_
-          simp only [Function.comp_apply, hcont]
-      _ = ((ProbComp.eval (first a)).map middle).bind cont := by
-          rw [PMF.bind_map]; rfl
-      _ = (ProbComp.eval (m₁.runClosed (t₁ a) (input a))).bind cont := by rw [hout₁]
-      _ = (ProbComp.eval (m₁.runClosedConfigFrom (t₁ a) (m₁.initialConfig (input a)))).bind
-            (fun cfg => cont cfg.tapes.output) := by
-          rw [runClosed_eq_map, ProbComp.eval_map, PMF.bind_map]
-          rfl
-      _ = _ := by
-          refine PMF.bind_congr_on_support _ _ _ fun cfg hcfg => ?_
-          obtain ⟨b, hb, hmid⟩ := hmem_word cfg hcfg
-          rw [← hmid, hcont b]
-          exact (hlaw_word cfg b hb hmid).symm
-  · intro final hfinal
-    rw [hcomp] at hfinal
-    obtain ⟨⟨cfg₀, s₁⟩, hcfg₀, htarget⟩ := (PMF.mem_support_bind_iff _ _ _).mp hfinal
-    obtain ⟨⟨cfg₁, s₂⟩, hcfg₁, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp htarget
-    change (cfg₁.tapes.state.map Sum.inr).map Sum.inr = none
-    rw [hhalt₂_open (cfg₀, s₁) hcfg₀ (cfg₁, s₂) hcfg₁]
+  refine oComp_computesOracleInTimeOn (ofClosed m₁) m₂ (ofClosed_spec m₁ hm₁) hm₂ ?_ ?_
+  · intro a State oracle s s' b hb
+    rw [ProbOracleComp.runWith_sample, PMF.mem_support_map_iff] at hb
+    obtain ⟨b', hb', heq⟩ := hb
+    exact (Prod.mk.inj heq).1 ▸ ht₂ a b' hb'
+  · intro a State oracle s cfg₀ s₁ hcfg₀
+    change (cfg₀, s₁) ∈ (ProbOracleComp.runWith oracle
+      ((ofClosed m₁).runOracleConfigFrom (t₁ a)
+        { tapes := (m₁.initialConfig (input a)).tapes, channels := fun _ => {} }) s).support
+      at hcfg₀
+    rw [runWith_runOracleConfigFrom_ofClosed, PMF.mem_support_map_iff] at hcfg₀
+    obtain ⟨_, _, heq⟩ := hcfg₀
+    rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
     rfl
 
 /-- Sequence a halting oracle computation `first a` before a closed halting continuation
@@ -598,133 +670,16 @@ theorem bind_sample_right {first : α → WordOracleComp Operation β} {second :
         ProbOracleComp.sample (second b)) := by
   obtain ⟨hops, k₁, State₁, hfin₁, m₁, hm₁⟩ := hfirst
   obtain ⟨k₂, State₂, hfin₂, m₂, hm₂⟩ := hsecond
-  refine ⟨hops, k₂ + k₁ + 2, _, inferInstance,
-    oComp (ofClosed (Operation := Operation) m₂) m₁ true, fun a State oracle s => ?_⟩
-  obtain ⟨hlaw₁, hhalt₁⟩ := hm₁ a State oracle s
-  have hmem_word : ∀ cfg₀ s₁,
-      (cfg₀, s₁) ∈ (ProbOracleComp.runWith oracle
-        (m₁.runOracleConfigFrom (t₁ a) (m₁.initialConfig (input a))) s).support →
-      ∃ b, (b, s₁) ∈ (ProbOracleComp.runWith oracle (first a) s).support ∧
-        middle b = cfg₀.tapes.output := by
-    intro cfg₀ s₁ hcfg₀
-    have hout_mem : (cfg₀.tapes.output, s₁) ∈
-        (ProbOracleComp.runWith oracle (m₁.runOracle (t₁ a) (input a)) s).support := by
-      rw [runOracle_eq_map, ProbOracleComp.runWith_map]
-      exact (PMF.mem_support_map_iff _ _ _).mpr ⟨(cfg₀, s₁), hcfg₀, rfl⟩
-    rw [← hlaw₁, ProbOracleComp.runWith_map] at hout_mem
-    obtain ⟨⟨b, s₁'⟩, hb, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hout_mem
-    rcases Prod.mk.inj heq with ⟨hmid, rfl⟩
-    exact ⟨b, hb, hmid⟩
-  have hhalt₂_word : ∀ word (b : β) (s₁ : State),
-      (b, s₁) ∈ (ProbOracleComp.runWith oracle (first a) s).support →
-      middle b = word →
-      ∀ cfg₁ ∈ (ProbComp.eval (m₂.runClosedConfigFrom (t₂' a) (m₂.initialConfig word))).support,
-        cfg₁.tapes.state = none := by
-    rintro _ b s₁ hb rfl cfg₁ hcfg₁
-    rw [m₂.eval_runClosedConfigFrom_eq_of_halted _
-      (ht₂ a State oracle s s₁ b hb) (hm₂ b).2] at hcfg₁
-    exact (hm₂ b).2 cfg₁ hcfg₁
-  have hhalt₂_open : ∀ result ∈ (ProbOracleComp.runWith oracle
-      (m₁.runOracleConfigFrom (t₁ a) (m₁.initialConfig (input a))) s).support,
-      ∀ final ∈ (ProbOracleComp.runWith oracle
-        ((ofClosed (Operation := Operation) m₂).runOracleConfigFrom (t₂' a)
-          { tapes := Cfg.init (ofClosed (Operation := Operation) m₂).initial result.1.tapes.output,
-            channels := result.1.channels }) result.2).support,
-        final.1.tapes.state = none := by
-    rintro ⟨cfg₀, s₁⟩ hcfg₀ final hfinal
-    obtain ⟨b, hb, hmid⟩ := hmem_word cfg₀ s₁ hcfg₀
-    change final ∈ (ProbOracleComp.runWith oracle
-      ((ofClosed (Operation := Operation) m₂).runOracleConfigFrom (t₂' a)
-        { tapes := (m₂.initialConfig cfg₀.tapes.output).tapes,
-          channels := cfg₀.channels }) s₁).support at hfinal
-    rw [runWith_runOracleConfigFrom_ofClosed] at hfinal
-    obtain ⟨cfg₁, hcfg₁, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
-    exact hhalt₂_word cfg₀.tapes.output b s₁ hb hmid cfg₁ hcfg₁
-  have hstep : 2 * t₁ a + t₂' a + 4 = t₁ a + (t₁ a + 4 + t₂' a) := by omega
-  dsimp only
-  rw [hstep]
-  have hcomp := runWith_oComp m₁ (ofClosed (Operation := Operation) m₂) oracle true
-    (input a) (t₁ a) (t₂' a) s hhalt₁ hhalt₂_open
-  refine ⟨?_, ?_⟩
-  · have hout := congrArg (PMF.map (Prod.map (fun final => final.tapes.output) id)) hcomp
-    conv_rhs => rw [runOracle_eq_map, ProbOracleComp.runWith_map]
-    refine Eq.trans ?_ hout.symm
-    rw [PMF.map_bind, map_bind, ProbOracleComp.runWith_bind]
-    classical
-    let cont (p : List Bool × State) : PMF (List Bool × State) :=
-      if h : ∃ b, middle b = p.1 then
-        ((ProbComp.eval (second (Classical.choose h))).map output).map (fun w => (w, p.2))
-      else PMF.pure ([], p.2)
-    have hcont (b : β) (s₁ : State) :
-        cont (middle b, s₁) = ((ProbComp.eval (second b)).map output).map (fun w => (w, s₁)) := by
-      have hex : ∃ b', middle b' = middle b := ⟨b, rfl⟩
-      have hchoose : Classical.choose hex = b := middle.injective (Classical.choose_spec hex)
-      simp only [cont, hex, ↓reduceDIte, hchoose]
-    calc (ProbOracleComp.runWith oracle (first a) s).bind
-          (fun bs => ProbOracleComp.runWith oracle
-            (output <$> ProbOracleComp.sample (second bs.1)) bs.2)
-        = (ProbOracleComp.runWith oracle (first a) s).bind
-            (fun bs => cont (middle bs.1, bs.2)) := by
-          refine PMF.bind_congr_on_support _ _ _ fun ⟨b, s₁⟩ _ => ?_
-          rw [hcont, ← ProbOracleComp.sample_map, ProbOracleComp.runWith_sample, ProbComp.eval_map]
-      _ = ((ProbOracleComp.runWith oracle (first a) s).map
-            (fun bs => (middle bs.1, bs.2))).bind cont := by
-          rw [PMF.bind_map]; rfl
-      _ = (ProbOracleComp.runWith oracle (middle <$> first a) s).bind cont := by
-          rw [ProbOracleComp.runWith_map]; rfl
-      _ = (ProbOracleComp.runWith oracle (m₁.runOracle (t₁ a) (input a)) s).bind cont := by
-          rw [hlaw₁]
-      _ = (ProbOracleComp.runWith oracle
-            (m₁.runOracleConfigFrom (t₁ a) (m₁.initialConfig (input a))) s).bind
-            (fun r => cont (r.1.tapes.output, r.2)) := by
-          rw [runOracle_eq_map, ProbOracleComp.runWith_map, PMF.bind_map]
-          rfl
-      _ = _ := by
-          refine PMF.bind_congr_on_support _ _ _ fun ⟨cfg₀, s₁⟩ hcfg₀ => ?_
-          obtain ⟨b, hb, hmid⟩ := hmem_word cfg₀ s₁ hcfg₀
-          dsimp only [Function.comp_def]
-          change cont (cfg₀.tapes.output, s₁) =
-            PMF.map (Prod.map
-                (fun final : Config (k₂ + k₁ + 2) Bool
-                    (State₁ ⊕ ((MarkWorkState ⊕ RewindWorkState) ⊕ State₂)) Operation (input a) =>
-                  final.tapes.output) id)
-              (PMF.map _ (ProbOracleComp.runWith oracle
-                ((ofClosed (Operation := Operation) m₂).runOracleConfigFrom (t₂' a)
-                  { tapes := (m₂.initialConfig cfg₀.tapes.output).tapes,
-                    channels := cfg₀.channels }) s₁))
-          rw [runWith_runOracleConfigFrom_ofClosed, PMF.map_comp, PMF.map_comp]
-          have hproj : ((Prod.map
-              (fun final : Config (k₂ + k₁ + 2) Bool
-                  (State₁ ⊕ ((MarkWorkState ⊕ RewindWorkState) ⊕ State₂)) Operation (input a) =>
-                final.tapes.output) id ∘
-              fun x =>
-                (Sequential.right (State₀ := State₁)
-                  (Sequential.right (State₀ := MarkWorkState ⊕ RewindWorkState)
-                    (oConsumerConfig true cfg₀ x.1)), x.2)) ∘
-              fun final : Config k₂ Bool State₂ Empty cfg₀.tapes.output =>
-                (({ tapes := final.tapes, channels := cfg₀.channels } :
-                  Config k₂ Bool State₂ Operation cfg₀.tapes.output), s₁)) =
-              fun final => (final.tapes.output, s₁) := rfl
-          rw [hproj]
-          change cont (cfg₀.tapes.output, s₁) =
-            PMF.map ((fun w => (w, s₁)) ∘
-              fun final : Config k₂ Bool State₂ Empty cfg₀.tapes.output => final.tapes.output)
-              (ProbComp.eval (m₂.runClosedConfigFrom (t₂' a) (m₂.initialConfig cfg₀.tapes.output)))
-          rw [← PMF.map_comp, ← ProbComp.eval_map, ← runClosed_eq_map]
-          have hpad : ∀ word, middle b = word →
-              cont (word, s₁) =
-                (ProbComp.eval (m₂.runClosed (t₂' a) word)).map (fun w => (w, s₁)) := by
-            rintro _ rfl
-            rw [hcont, m₂.eval_runClosed_eq_of_halted _ (ht₂ a State oracle s s₁ b hb) (hm₂ b).2,
-              (hm₂ b).1]
-          exact hpad cfg₀.tapes.output hmid
-  · intro final hfinal
-    rw [hcomp] at hfinal
-    obtain ⟨⟨cfg₀, s₁⟩, hcfg₀, htarget⟩ := (PMF.mem_support_bind_iff _ _ _).mp hfinal
-    obtain ⟨⟨cfg₁, s₂⟩, hcfg₁, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp htarget
-    change (cfg₁.tapes.state.map Sum.inr).map Sum.inr = none
-    rw [hhalt₂_open (cfg₀, s₁) hcfg₀ (cfg₁, s₂) hcfg₁]
-    rfl
+  refine oComp_computesOracleInTimeOn m₁ (ofClosed m₂) hm₁ (ofClosed_spec m₂ hm₂) ht₂ ?_
+  intro a State oracle s cfg₀ s₁ _
+  have hinit : ((ofClosed (Operation := Operation) m₂).initialConfig cfg₀.tapes.output) =
+      { tapes := (m₂.initialConfig cfg₀.tapes.output).tapes, channels := fun _ => {} } := rfl
+  have hcfg : Cfg.init (ofClosed (Operation := Operation) m₂).initial cfg₀.tapes.output =
+      (m₂.initialConfig cfg₀.tapes.output).tapes := rfl
+  rw [hinit, hcfg,
+    runWith_runOracleConfigFrom_ofClosed, runWith_runOracleConfigFrom_ofClosed,
+    PMF.map_comp, PMF.map_comp]
+  rfl
 
 /-- A polynomially bounded halting oracle schedule gives a strict `IsOraclePPTOn` certificate. -/
 theorem isOraclePPTOn (ht : PolyBounded (fun a => (input a).length) t)
@@ -754,19 +709,7 @@ theorem ComputesInTimeOn.computesOracleInTimeOn {Operation α β : Type} [Decida
     ComputesOracleInTimeOn (Operation := Operation) input output t
       (fun a => ProbOracleComp.sample (program a)) := by
   obtain ⟨k, State, hfinite, machine, hmachine⟩ := h
-  refine ⟨inferInstance, k, State, hfinite, ofClosed machine, fun a OracleState oracle s => ?_⟩
-  obtain ⟨hout, hhalt⟩ := hmachine a
-  refine ⟨?_, ?_⟩
-  · rw [run_interpret_runOracle_ofClosed, ← hout, ← ProbOracleComp.sample_map,
-      ProbOracleComp.runWith_sample, ProbComp.eval_map]
-  · intro final hfinal
-    change final ∈ (ProbOracleComp.runWith oracle
-      ((ofClosed (Operation := Operation) machine).runOracleConfigFrom (t a)
-        { tapes := (machine.initialConfig (input a)).tapes, channels := fun _ => {} })
-      s).support at hfinal
-    rw [runWith_runOracleConfigFrom_ofClosed] at hfinal
-    obtain ⟨cfg, hcfg, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
-    exact hhalt cfg hcfg
+  exact ⟨inferInstance, k, State, hfinite, ofClosed machine, ofClosed_spec machine hmachine⟩
 
 /-- A sampled closed program certified without external channels (`Operation := Empty`) is a closed
 halting realization with the exact same step schedule `t`. -/
@@ -787,17 +730,8 @@ theorem ComputesOracleInTimeOn.computesInTimeOn {α β : Type}
     have hid : (Prod.fst ∘ fun word : List Bool => (word, ())) = id := rfl
     rwa [hid, PMF.map_id, PMF.map_id] at hout
   · intro final hfinal
-    have heq : machine.runOracleConfigFrom (t a) (machine.initialConfig (input a)) =
-        ProbOracleComp.sample
-          (machine.runClosedConfigFrom (t a) (machine.initialConfig (input a))) := by
-      simp only [runOracleConfigFrom, runClosedConfigFrom, MultiTapePTM.runConfigFrom,
-        ProbOracleComp.sample, OracleComp.substitute_eq_interpret,
-        MultiTapeMachine.interpret_runConfigFrom]
-      congr 1
-      funext oracle
-      exact oracle.elim
     apply hhalt (final, ())
-    rw [heq, ProbOracleComp.runWith_sample]
+    rw [MultiTapePTM.runOracleConfigFrom_empty, ProbOracleComp.runWith_sample]
     exact (PMF.mem_support_map_iff _ _ _).mpr ⟨final, hfinal, rfl⟩
 
 end Cslib.Probability
@@ -1000,11 +934,8 @@ theorem length_le (h : ComputesOracleInTime output t program) (n : ℕ) (aux : L
 /-- A polynomially bounded parameterized halting oracle schedule gives `IsOraclePPT`. -/
 theorem isOraclePPT (ht : PolyBounded (fun p : ℕ × ℕ => p.1 + p.2) (Function.uncurry t))
     (h : ComputesOracleInTime output t program) :
-    IsOraclePPT output program := by
-  refine IsOraclePPTOn.isOraclePPT (h.on.isOraclePPTOn ?_)
-  refine ht.comp (g := fun input : ℕ × List Bool => (input.1, input.2.length)) ?_
-  refine PolyBounded.of_forall_le 1 1 fun input => ?_
-  enc_len [pow_one, one_mul]
+    IsOraclePPT output program :=
+  IsOraclePPTOn.isOraclePPT (h.on.isOraclePPTOn (by growth_poly))
 
 end ComputesOracleInTime
 

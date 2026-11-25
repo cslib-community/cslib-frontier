@@ -87,22 +87,14 @@ theorem questionsGivenRest_eq_bind (j : Free) (t : Saved j) (q : PairQ)
     · subst i
       simp only [p, Function.update_self, PMF.pure_map, PMF.pure_bind, Prod.mk.eta]
     · have hm := mem_support_halves_of_mem_support_restQuestionsLaw G α C j t ht ⟨i, hi⟩
-      dsimp only [p]
-      rw [Function.update_of_ne hi]
-      change ((conditionalSnd (law G.questions α) (full.halves i)).map Prod.fst).bind
-        (fun x => ((conditionalSnd (law G.questions α) (full.halves i)).map Prod.snd).map (x, ·))
-          = conditionalSnd (law G.questions α) (full.halves i)
-      have htag : full.halves i = t.halves ⟨i, hi⟩ := by
-        simp only [full, restoreMessage, dite_eq_right hi]
-      rw [htag]
-      revert hm
-      cases t.halves ⟨i, hi⟩ with
-      | inl m =>
-        intro hm
+      have hpi : p i = conditionalSnd (law G.questions α) (t.halves ⟨i, hi⟩) := by
+        simp only [p, Function.update_of_ne hi, pairGiven, full, restoreMessage, dite_eq_right hi]
+      rw [hpi]
+      rcases h : t.halves ⟨i, hi⟩ with m | m
+      · rw [h] at hm
         rw [conditionalSnd_law_inl _ _ _ hm]
         exact bind_marginals_eq _ _
-      | inr m =>
-        intro hm
+      · rw [h] at hm
         rw [conditionalSnd_law_inr _ _ _ hm]
         exact bind_marginals_eq _ _
   let priorX := pi (fun i => (p i).map Prod.fst)
@@ -124,17 +116,11 @@ theorem questionsGivenRest_eq_bind (j : Free) (t : Saved j) (q : PairQ)
   have hx : aliceQuestionsGivenRest G α C j t q = priorX.map appendX := by
     unfold aliceQuestionsGivenRest questionsGivenRest
     rw [PMF.map_comp, show priorX = _ from pi_map p (fun _ => Prod.fst), PMF.map_comp]
-    congr 1
-    funext u
-    rw [Function.comp_apply, hcombine]
-    rfl
+    exact congrArg (pi p).map (funext fun u => by rw [Function.comp_apply, hcombine]; rfl)
   have hy : bobQuestionsGivenRest G α C j t q = priorY.map appendY := by
     unfold bobQuestionsGivenRest questionsGivenRest
     rw [PMF.map_comp, show priorY = _ from pi_map p (fun _ => Prod.snd), PMF.map_comp]
-    congr 1
-    funext u
-    rw [Function.comp_apply, hcombine]
-    rfl
+    exact congrArg (pi p).map (funext fun u => by rw [Function.comp_apply, hcombine]; rfl)
   rw [hx, hy]
   change (pi p).map full.combine = _
   have h := congrArg (PMF.map fun (x, y) i => (appendX x i, appendY y i)) hsplit
@@ -231,9 +217,8 @@ theorem norm_checkedVectorGivenRest_sq_observed (S : RepeatedStrategy) (j : Free
       prior.bind fun z => (H z).map (z, ·) := by
     rw [observedCheckedAnswers, observedCheckedAnswersBy_eq_bind]
     simp only [prior, P, Q, H, PMF.bind_bind, PMF.bind_map, Function.comp_def]
-  have hsupport : (q, t) ∈ prior.support := by
-    refine (PMF.mem_support_bind_iff _ _ _).mpr ⟨q, hq, ?_⟩
-    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩
+  have hsupport : (q, t) ∈ prior.support :=
+    (PMF.mem_support_bind_iff _ _ _).mpr ⟨q, hq, (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩⟩
   rw [hLaw, conditionalSnd_bind_pair _ _ _ hsupport]
   exact norm_checkedVectorGivenRest_sq_answers G α C S j t q a b ht
 

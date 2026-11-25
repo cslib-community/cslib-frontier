@@ -119,24 +119,21 @@ theorem isPPTOn_pedersenCommitProb :
       (encPair encBits encBits)
       (fun ((n, key, msg) : ℕ × F.PedersenKey × List Bool) => F.pedersenCommitProb n key msg) := by
   let E := encPair encUnary (encPair F.pedersenScheme.encodeKey encBits)
-  have hn := ComputableInPolyTime.fst encUnary (encPair F.pedersenScheme.encodeKey encBits)
-  have hrest := ComputableInPolyTime.snd encUnary (encPair F.pedersenScheme.encodeKey encBits)
-  have hk := (ComputableInPolyTime.fst F.pedersenScheme.encodeKey encBits).comp hrest
-  have hm := (ComputableInPolyTime.snd F.pedersenScheme.encodeKey encBits).comp hrest
   have hkey : ComputableInPolyTime
       (fun k : F.PedersenKey => (k.1, F.encode k.1 k.2))
       F.pedersenScheme.encodeKey (encPair F.encDesc encBits) := .of_eq fun _ => rfl
-  have hd := (hkey.comp hk).fst'
-  have hs := F.isPPTOn_sampleExp hn hd
-  have hinput := ComputableInPolyTime.fst E encNat
+  have hd : ComputableInPolyTime (fun x : ℕ × F.PedersenKey × List Bool => x.2.1.1) E F.encDesc :=
+    (hkey.comp (by fun_prop)).fst'
   have hr : ComputableInPolyTime
       (fun p : (ℕ × F.PedersenKey × List Bool) × ℕ => p.2.bits)
       (encPair E encNat) encBits :=
-    (ComputableInPolyTime.of_eq fun _ => rfl).comp (ComputableInPolyTime.snd E encNat)
+    (ComputableInPolyTime.of_eq (f := Nat.bits) fun _ => rfl).comp
+      (ComputableInPolyTime.snd E encNat)
   have heval := F.pedersenPublicOperations.computableInPolyTime_commit
-    (hk.comp hinput) (hm.comp hinput) hr
+    (key := fun p : (ℕ × F.PedersenKey × List Bool) × ℕ => p.1.2.1)
+    (message := fun p => p.1.2.2) (by fun_prop) (by fun_prop) hr
   unfold pedersenCommitProb
-  exact hs.bind_with heval.isPPTOn
+  exact (F.isPPTOn_sampleExp (by fun_prop) hd).bind_with heval.isPPTOn
 
 /-- The sampled output is the existing Pedersen commitment-and-opening map applied to the
 approximately uniform residue law. -/
@@ -204,11 +201,6 @@ Pedersen commitment key `⟨d, (α : ZMod (F.order d)) • F.generator d⟩`. -/
 theorem isPPTOn_pedersenKeyGenProb :
     IsPPTOn (encPair encUnary F.encDesc) F.pedersenScheme.encodeKey
       (fun p : ℕ × F.Desc => F.pedersenKeyGenProb p.1 p.2) := by
-  have hn := ComputableInPolyTime.fst encUnary F.encDesc
-  have hd := ComputableInPolyTime.snd encUnary F.encDesc
-  have hs := F.isPPTOn_sampleExp hn hd
-  have hg := F.computableInPolyTime_generator
-  have hsmul := F.computableInPolyTime_smul
   have hpair : ComputableInPolyTime
       (fun q : (ℕ × F.Desc) × ℕ =>
         (q.1.2, F.smul (q.1.2, q.2, F.encode q.1.2 (F.generator q.1.2))))
@@ -221,7 +213,7 @@ theorem isPPTOn_pedersenKeyGenProb :
     ComputableInPolyTime.of_enc_eq hpair fun q => by
       simp only [pedersenScheme_encodeKey, F.smul_encode]
   unfold pedersenKeyGenProb
-  exact hs.bind_with hmk.isPPTOn
+  exact (F.isPPTOn_sampleExp (by fun_prop) (by fun_prop)).bind_with hmk.isPPTOn
 
 /-- The output law of `pedersenKeyGenProb n d` is the key map `α ↦ ⟨d, α • g⟩` applied to the
 approximately uniform residue law `(ProbComp.eval (F.sampleExp n d)).map Nat.cast`. -/
@@ -381,11 +373,8 @@ theorem negligible_advantage_pedersenHidingProbGame (setup : ℕ → PMF F.Desc)
     Negligible fun n =>
       Game.advantage (F.pedersenHidingProbGame setup adversary false n)
         (F.pedersenHidingProbGame setup adversary true n) := by
-  have h4 : Negligible fun n => (4 : ℝ≥0) / 2 ^ n := by
-    simpa only [mul_one_div] using
-      (negligible_one_div_two_pow.const_mul (4 : ℝ≥0))
-  refine negligible_of_le (hinv.add h4) fun n => ?_
-  exact F.advantage_pedersenHidingProbGame_le setup adversary n (m n) (hm0 n) (hm n)
+  negligible using fun n =>
+    F.advantage_pedersenHidingProbGame_le setup adversary n (m n) (hm0 n) (hm n)
 
 /-- Executable `ProbComp Bool` hiding experiment at group description `d`: sample a key with
 `pedersenKeyGenProb n d`, run `adversary.choose` on the encoded key, check message validity with
@@ -435,53 +424,40 @@ theorem isPPTOn_pedersenHidingProbExperiment {adversary : Encryption.WordAdversa
   have hkey_pair : ComputableInPolyTime
       (fun k : F.PedersenKey => (k.1, F.encode k.1 k.2))
       F.pedersenScheme.encodeKey (encPair F.encDesc encBits) := .of_eq fun _ => rfl
+  have henc : ComputableInPolyTime
+      (fun k : F.PedersenKey => F.pedersenScheme.encodeKey k)
+      F.pedersenScheme.encodeKey encBits := .of_eq fun _ => rfl
   have hchoose : IsPPTOn E1 (Encryption.encChoiceOut encBits)
       (fun p : (ℕ × F.Desc) × F.PedersenKey =>
-        adversary.choose p.1.1 (F.pedersenScheme.encodeKey p.2)) := by
-    have hn : ComputableInPolyTime (fun p : (ℕ × F.Desc) × F.PedersenKey => p.1.1) E1 encUnary := by
-      fun_prop
-    have hk : ComputableInPolyTime (fun p : (ℕ × F.Desc) × F.PedersenKey => p.2) E1
-        F.pedersenScheme.encodeKey := by
-      fun_prop
-    have henc : ComputableInPolyTime
-        (fun k : F.PedersenKey => F.pedersenScheme.encodeKey k)
-        F.pedersenScheme.encodeKey encBits := .of_eq fun _ => rfl
-    exact hA.choose.preprocess
+        adversary.choose p.1.1 (F.pedersenScheme.encodeKey p.2)) :=
+    hA.choose.preprocess
       (parameter := fun p : (ℕ × F.Desc) × F.PedersenKey => p.1.1)
       (auxiliary := fun p : (ℕ × F.Desc) × F.PedersenKey => F.pedersenScheme.encodeKey p.2)
-      hn (henc.comp hk)
+      (by fun_prop) (henc.comp (by fun_prop))
   have hmsg : ComputableInPolyTime
       (fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) =>
         if bit && F.validPedersenMessageBool q.1.2.1 q.2.1.1 &&
             F.validPedersenMessageBool q.1.2.1 q.2.1.2 then q.2.1.2
         else q.2.1.1)
       E2 encBits := by
-    have hk : ComputableInPolyTime
-        (fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) => q.1.2)
-        E2 F.pedersenScheme.encodeKey := by fun_prop
     have hd : ComputableInPolyTime
         (fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) => q.1.2.1)
-        E2 F.encDesc := (hkey_pair.comp hk).fst'
+        E2 F.encDesc := (hkey_pair.comp (by fun_prop)).fst'
     fun_prop
   have hcommit : IsPPTOn E2 (encPair encBits encBits)
       (fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) =>
         F.pedersenCommitProb q.1.1.1 q.1.2
           (if bit && F.validPedersenMessageBool q.1.2.1 q.2.1.1 &&
               F.validPedersenMessageBool q.1.2.1 q.2.1.2 then q.2.1.2
-          else q.2.1.1)) := by
-    refine F.isPPTOn_pedersenCommitProb.preprocess
+          else q.2.1.1)) :=
+    F.isPPTOn_pedersenCommitProb.preprocess
       (prepare := fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) =>
         (q.1.1.1, q.1.2,
           if bit && F.validPedersenMessageBool q.1.2.1 q.2.1.1 &&
               F.validPedersenMessageBool q.1.2.1 q.2.1.2 then q.2.1.2
-          else q.2.1.1)) ?_
-    have hn : ComputableInPolyTime
-        (fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) => q.1.1.1)
-        E2 encUnary := by fun_prop
-    have hk : ComputableInPolyTime
-        (fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) => q.1.2)
-        E2 F.pedersenScheme.encodeKey := by fun_prop
-    exact hn.prod (hk.prod hmsg)
+          else q.2.1.1))
+      ((by fun_prop : ComputableInPolyTime _ E2 encUnary).prod
+        ((by fun_prop : ComputableInPolyTime _ E2 F.pedersenScheme.encodeKey).prod hmsg))
   have hguess : IsPPTOn E3 encBool
       (fun r : (((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool)) ×
           (List Bool × List Bool) =>

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -84,10 +85,9 @@ def result (x : Data 21) : Data 21 :=
 address additions. The address bound implies that all constant offsets fit as well. -/
 theorem exec {w : ℕ} (x : Data 21) (ha : Fits w (x.regs pointer + 17)) :
     Exec w code x (result x) 54 := by
-  have haddr (i : ℕ) (hi : i < 18) : Fits w (x.regs pointer + i) := ha.of_le (by omega)
-  have hoff (i : ℕ) (hi : i < 18) : Fits w i := ha.of_le (by omega)
-  ram_eval [code, word, result, List.ofFn_succ, List.ofFn_zero, List.foldl,
-    Fin.val_zero, Fin.val_succ, Fin.val_mk, haddr, hoff]
+  simp only [code, word, result, List.ofFn_succ, List.ofFn_zero, List.foldl,
+    Fin.val_zero, Fin.val_succ, Nat.add_zero]
+  wram_exec
 
 /-- The record base and memory are preserved, and each output register contains its header word. -/
 theorem result_spec (x : Data 21) :

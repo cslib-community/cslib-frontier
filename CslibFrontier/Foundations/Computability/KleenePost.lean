@@ -58,21 +58,26 @@ open Code
 @[expose]
 def bits (σ : List Bool) : List ℕ := σ.map Bool.toNat
 
+/-- Stage bound `p.2.1` in a halting witness `(σ, k, y)`. -/
+abbrev witnessStage (p : List Bool × ℕ × ℕ) : ℕ := p.2.1
+
+/-- Output value `p.2.2` in a halting witness `(σ, k, y)`. -/
+abbrev witnessOutput (p : List Bool × ℕ × ℕ) : ℕ := p.2.2
+
 /-- Some extension of the finite string `τ` makes the code `c` converge on `x` at some stage.
 The witness packs the extension, the stage and the output. -/
 @[expose]
 def Halts (c : Code) (τ : List Bool) (x : ℕ) : Prop :=
   ∃ p : List Bool × ℕ × ℕ,
-    let r := p.2
-    τ <+: p.1 ∧ r.2 ∈ evaln (bits p.1) r.1 c x
+    τ <+: p.1 ∧ witnessOutput p ∈ evaln (bits p.1) (witnessStage p) c x
 
 /-- Predicate stating that `e` decodes to a halting witness `(σ, k, y)` for `c` on `x` extending
 `τ`. -/
 @[expose]
 def haltsPred (c : Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Prop :=
   ∃ p : List Bool × ℕ × ℕ,
-    let r := p.2
-    Encodable.decode e = some p ∧ τ <+: p.1 ∧ r.2 ∈ evaln (bits p.1) r.1 c x
+    Encodable.decode e = some p ∧
+      τ <+: p.1 ∧ witnessOutput p ∈ evaln (bits p.1) (witnessStage p) c x
 
 instance (c : Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Decidable (haltsPred c τ x e) :=
   match h : Encodable.decode (α := List Bool × ℕ × ℕ) e with
@@ -82,13 +87,8 @@ instance (c : Code) (τ : List Bool) (x : ℕ) (e : ℕ) : Decidable (haltsPred 
       ⟨fun hp => ⟨p, h, hp⟩, fun ⟨_, hp', hp⟩ => Option.some.inj (h.symm.trans hp') ▸ hp⟩
 
 lemma Halts_iff_exists_haltsPred (c : Code) (τ : List Bool) (x : ℕ) :
-    Halts c τ x ↔ ∃ e, haltsPred c τ x e := by
-  unfold Halts haltsPred
-  constructor
-  · rintro ⟨p, hp⟩
-    exact ⟨Encodable.encode p, ⟨p, Encodable.encodek _, hp⟩⟩
-  · rintro ⟨e, p, _, hp⟩
-    exact ⟨p, hp⟩
+    Halts c τ x ↔ ∃ e, haltsPred c τ x e :=
+  ⟨fun ⟨p, hp⟩ => ⟨Encodable.encode p, p, Encodable.encodek _, hp⟩, fun ⟨_, p, _, hp⟩ => ⟨p, hp⟩⟩
 
 open Classical in
 /-- One finite-extension step against the code `c`: extend `σ` by one bit at position
@@ -98,20 +98,17 @@ noncomputable def step (c : Code) (σ τ : List Bool) : List Bool × List Bool :
   if h : Halts c τ σ.length then
     let e := Nat.find (p := haltsPred c τ σ.length) ((Halts_iff_exists_haltsPred c τ σ.length).mp h)
     match Encodable.decode (α := List Bool × ℕ × ℕ) e with
-    | some p =>
-      let r := p.2
-      (σ ++ [decide (r.2 = 0)], p.1)
+    | some p => (σ ++ [decide (witnessOutput p = 0)], p.1)
     | none => (σ ++ [false], τ)
   else
     (σ ++ [false], τ)
 
 theorem step_fst (c : Code) (σ τ : List Bool) : ∃ b, (step c σ τ).1 = σ ++ [b] := by
-  unfold step; dsimp only
-  split_ifs with h
-  · generalize he : Nat.find (p := haltsPred c τ σ.length) _ = e
-    match Encodable.decode e with
-    | some p => exact ⟨_, rfl⟩
-    | none => exact ⟨_, rfl⟩
+  unfold step
+  dsimp only
+  split_ifs
+  · cases Encodable.decode (α := List Bool × ℕ × ℕ) (Nat.find (p := haltsPred c τ σ.length) _) <;>
+      exact ⟨_, rfl⟩
   · exact ⟨_, rfl⟩
 
 open Classical in
@@ -121,17 +118,13 @@ private theorem exists_step_of_halts {c : Code} {σ τ : List Bool} (h : Halts c
         τ <+: p.1 ∧ p.2.2 ∈ evaln (bits p.1) p.2.1 c σ.length := by
   obtain ⟨p, hp, hτ, heval⟩ :=
     Nat.find_spec (p := haltsPred c τ σ.length) ((Halts_iff_exists_haltsPred c τ σ.length).mp h)
-  refine ⟨p, ?_, hτ, heval⟩
-  unfold step
-  simp [h, hp]
+  exact ⟨p, by simp [step, h, hp], hτ, heval⟩
 
 theorem step_snd (c : Code) (σ τ : List Bool) : τ <+: (step c σ τ).2 := by
   by_cases h : Halts c τ σ.length
-  · obtain ⟨p, hstep, hτ, -⟩ := exists_step_of_halts h
-    rw [hstep]
-    exact hτ
-  · unfold step
-    simp [h]
+  · obtain ⟨_, hstep, hτ, -⟩ := exists_step_of_halts h
+    exact hstep ▸ hτ
+  · simp [step, h]
 
 /-- The finite string `σ` is an initial segment of the `Bool` sequence `a`. -/
 def Agrees (σ : List Bool) (a : ℕ → Bool) : Prop := ∀ i (h : i < σ.length), σ[i] = a i
@@ -147,29 +140,24 @@ theorem step_spec {c : Code} {σ τ : List Bool} {a b : ℕ → Bool}
   by_cases h : Halts c τ σ.length
   · obtain ⟨p, hstep, -, heval⟩ := exists_step_of_halts h
     rw [hstep] at hσ hτ
-    have hv : p.2.2 ∈ eval (fun n => (b n).toNat : ℕ → ℕ) c σ.length := by
-      refine evaln_sound (fun i hi => ?_) heval
-      have hi' : i < p.1.length := by simpa [bits] using hi
-      simp only [bits, List.getElem_map, hτ i hi', PFun.coe_val]
-      exact Part.mem_some _
-    have hax : a σ.length = decide (p.2.2 = 0) := by
-      simpa using (hσ σ.length (by simp)).symm
+    have hv : p.2.2 ∈ eval (fun n => (b n).toNat : ℕ → ℕ) c σ.length :=
+      evaln_sound (fun i hi => by
+        simp only [bits, List.getElem_map, hτ i (by simpa [bits] using hi), PFun.coe_val]
+        exact Part.mem_some _) heval
+    have hax : a σ.length = decide (p.2.2 = 0) := by simpa using (hσ σ.length (by simp)).symm
     have hv' : p.2.2 = (a σ.length).toNat := Part.mem_unique hv hx
     cases ha : a σ.length <;> simp only [ha, Bool.toNat_true, Bool.toNat_false] at hv' <;>
       simp [ha, hv'] at hax
-  · have h_step : step c σ τ = (σ ++ [false], τ) := by
-      unfold step; dsimp only; simp [h]
-    rw [h_step] at hσ hτ
+  · rw [show step c σ τ = (σ ++ [false], τ) by simp [step, h]] at hσ hτ
     obtain ⟨N, k, hk⟩ := evaln_complete.1 hx
-    apply h
     let M := max N τ.length
-    refine ⟨((List.range M).map b, k, (a σ.length).toNat), ?_, ?_⟩
+    have hbits : bits ((List.range M).map b) = prefixOf (fun n => (b n).toNat) M := by
+      simp [bits, prefixOf, Function.comp_def]
+    refine h ⟨((List.range M).map b, k, (a σ.length).toNat), ?_, ?_⟩
     · rw [List.prefix_iff_eq_take]
-      refine List.ext_getElem (by simp; omega) fun i h₁ h₂ => ?_
-      simp [hτ i h₁]
-    · have hbits : bits ((List.range M).map b) = prefixOf (fun n => (b n).toNat) M := by
-        simp [bits, prefixOf, Function.comp_def]
-      rw [hbits]
+      exact List.ext_getElem (by simp; omega)
+        fun i h₁ _ => by simp [hτ i h₁]
+    · rw [hbits]
       exact evaln_mono (prefixOf_prefix _ (le_max_left _ _)) le_rfl hk
 
 /-- The finite-extension construction. Stage `2e + 1` extends the first string against code `e`,
@@ -184,11 +172,13 @@ noncomputable def stage : ℕ → List Bool × List Bool
 theorem stage_succ_prefix (s : ℕ) :
     (stage s).1 <+: (stage (s + 1)).1 ∧ (stage s).2 <+: (stage (s + 1)).2 := by
   simp only [stage]
-  split_ifs with h
-  · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
+  split_ifs
+  · obtain ⟨_, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
     exact ⟨hb ▸ List.prefix_append _ _, step_snd _ _ _⟩
-  · obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
-    exact ⟨step_snd _ _ _, by rw [Prod.snd_swap, hb]; exact List.prefix_append _ _⟩
+  · obtain ⟨_, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
+    refine ⟨step_snd _ _ _, ?_⟩
+    rw [Prod.snd_swap, hb]
+    exact List.prefix_append _ _
 
 theorem stage_prefix {s t : ℕ} (h : s ≤ t) :
     (stage s).1 <+: (stage t).1 ∧ (stage s).2 <+: (stage t).2 := by
@@ -202,15 +192,13 @@ theorem length_stage (s : ℕ) :
   fun_induction stage s with
   | case1 => simp
   | case2 s h ih =>
-    obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
+    obtain ⟨_, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).1 (stage s).2
     have := (step_snd (ofNat Code (s / 2)) (stage s).1 (stage s).2).length_le
-    rw [hb, List.length_append, List.length_singleton]
-    omega
+    rw [hb, List.length_append, List.length_singleton]; omega
   | case3 s h ih =>
-    obtain ⟨b, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
+    obtain ⟨_, hb⟩ := step_fst (ofNat Code (s / 2)) (stage s).2 (stage s).1
     have := (step_snd (ofNat Code (s / 2)) (stage s).2 (stage s).1).length_le
-    rw [Prod.fst_swap, Prod.snd_swap, hb, List.length_append, List.length_singleton]
-    omega
+    rw [Prod.fst_swap, Prod.snd_swap, hb, List.length_append, List.length_singleton]; omega
 
 /-- The first limit sequence: its value at `n` is fixed by stage `2 * n + 2`. -/
 @[expose]
@@ -224,10 +212,9 @@ private theorem agrees_of_prefix {f : ℕ → List Bool}
     (hpref : ∀ {s t}, s ≤ t → f s <+: f t) (hlen : ∀ i, i < (f (2 * i + 2)).length) (s : ℕ) :
     Agrees (f s) (fun n => (f (2 * n + 2)).getD n false) := fun i hi => by
   dsimp only
-  have hi' := hlen i
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi', Option.getD_some,
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (hlen i), Option.getD_some,
     (hpref (le_max_left s (2 * i + 2))).getElem hi,
-    (hpref (le_max_right s (2 * i + 2))).getElem hi']
+    (hpref (le_max_right s (2 * i + 2))).getElem (hlen i)]
 
 theorem agrees_limA (s : ℕ) : Agrees (stage s).1 limA :=
   agrees_of_prefix (fun h => (stage_prefix h).1)
@@ -238,37 +225,26 @@ theorem agrees_limB (s : ℕ) : Agrees (stage s).2 limB :=
     (fun i => by have := (length_stage (2 * i + 2)).2; omega) s
 
 theorem not_limA_le_limB :
-    ¬(fun n => (limA n).toNat : ℕ → ℕ) ≤ᵀ (fun n => (limB n).toNat : ℕ → ℕ) := by
-  intro h
+    ¬(fun n => (limA n).toNat : ℕ → ℕ) ≤ᵀ (fun n => (limB n).toNat : ℕ → ℕ) := fun h => by
   obtain ⟨c, hc⟩ := turingReducible_iff_exists_code.1 h
   have hs : stage (2 * encode c + 1) =
-      step c (stage (2 * encode c)).1 (stage (2 * encode c)).2 := by
-    simp [stage]
-  refine step_spec (c := c) (σ := (stage (2 * encode c)).1) (τ := (stage (2 * encode c)).2)
-    ?_ ?_ hc
-  · rw [← hs]; exact agrees_limA _
-  · rw [← hs]; exact agrees_limB _
+      step c (stage (2 * encode c)).1 (stage (2 * encode c)).2 := by simp [stage]
+  exact step_spec (hs ▸ agrees_limA _) (hs ▸ agrees_limB _) hc
 
 theorem not_limB_le_limA :
-    ¬(fun n => (limB n).toNat : ℕ → ℕ) ≤ᵀ (fun n => (limA n).toNat : ℕ → ℕ) := by
-  intro h
+    ¬(fun n => (limB n).toNat : ℕ → ℕ) ≤ᵀ (fun n => (limA n).toNat : ℕ → ℕ) := fun h => by
   obtain ⟨c, hc⟩ := turingReducible_iff_exists_code.1 h
   have hs : stage (2 * encode c + 2) =
       (step c (stage (2 * encode c + 1)).2 (stage (2 * encode c + 1)).1).swap := by
     rw [stage]
     simp only [show ¬((2 * encode c + 1) % 2 = 0) by omega, ↓reduceIte,
       show (2 * encode c + 1) / 2 = encode c by omega, ofNat_encode]
-  refine step_spec (c := c) (σ := (stage (2 * encode c + 1)).2)
-    (τ := (stage (2 * encode c + 1)).1) ?_ ?_ hc
-  · have := agrees_limB (2 * encode c + 2)
-    rwa [hs, Prod.snd_swap] at this
-  · have := agrees_limA (2 * encode c + 2)
-    rwa [hs, Prod.fst_swap] at this
+  exact step_spec (by simpa [hs] using agrees_limB (2 * encode c + 2))
+    (by simpa [hs] using agrees_limA (2 * encode c + 2)) hc
 
 theorem indicator_eq (a : ℕ → Bool) :
-    ({n | a n = true} : Set ℕ).indicator 1 = fun n => (a n).toNat := by
-  funext n
-  cases h : a n <;> simp [Set.indicator, h]
+    ({n | a n = true} : Set ℕ).indicator 1 = fun n => (a n).toNat :=
+  funext fun n => by cases h : a n <;> simp [Set.indicator, h]
 
 end KleenePost
 
@@ -285,7 +261,7 @@ theorem kleene_post :
 end Nat.RecursiveIn
 
 /-- The Turing degrees are not linearly ordered: some two degrees are incomparable. -/
-theorem TuringDegree.exists_incomparable : ∃ d₁ d₂ : TuringDegree, ¬d₁ ≤ d₂ ∧ ¬d₂ ≤ d₁ := by
-  obtain ⟨A, B, h₁, h₂⟩ := Nat.RecursiveIn.kleene_post
-  exact ⟨toAntisymmetrization _ (A.indicator 1 : ℕ → ℕ),
+theorem TuringDegree.exists_incomparable : ∃ d₁ d₂ : TuringDegree, ¬d₁ ≤ d₂ ∧ ¬d₂ ≤ d₁ :=
+  let ⟨A, B, h₁, h₂⟩ := Nat.RecursiveIn.kleene_post
+  ⟨toAntisymmetrization _ (A.indicator 1 : ℕ → ℕ),
     toAntisymmetrization _ (B.indicator 1 : ℕ → ℕ), h₁, h₂⟩

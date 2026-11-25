@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 import CslibFrontier.Algorithms.Lean.CDCL.Dimacs
+import CslibFrontier.Logics.Propositional.CNF.StdSat
 import Std.Tactic.BVDecide.LRAT.Checker
 import Std.Tactic.BVDecide.LRAT.Parser
 
@@ -23,7 +24,10 @@ checkers expect. With `--check`, it also checks the certificate with Lean core's
 The answer is correct by the solver's theorems: a model satisfies the formula read
 (`Cslib.Algorithms.Lean.CDCL.solveCompactWith_sat`), and a certificate is accepted by the library's
 LRAT checker (`Cslib.Algorithms.Lean.CDCL.solveCompactWith_unsat`). The DIMACS parser
-(`Cslib.Logic.PL.CNF.ofDIMACS`) is not verified.
+(`Cslib.Logic.PL.CNF.ofDIMACS`) is trusted to read a file as intended; it reads back exactly what
+`Cslib.Logic.PL.CNF.toDIMACS` writes (`Cslib.Logic.PL.CNF.ofDIMACS_toDIMACS`), so for a formula
+built in Lean and printed the answer concerns that formula
+(`Cslib.Algorithms.Lean.CDCL.answerDIMACS_toDIMACS`).
 
 Options, as `Cslib.Algorithms.Lean.CDCL.Options`: `--no-vsids`, `--no-phase`, `--no-restarts`,
 `--no-reduce`, `--ccmin=N` (MiniSat's `ccmin_mode`: `0`, `1` or `2`), `--keep-input` (MiniSat's

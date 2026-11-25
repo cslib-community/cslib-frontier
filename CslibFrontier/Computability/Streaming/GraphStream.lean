@@ -65,12 +65,7 @@ def graphStream (a : Fin n → γ) : List (Fin n × γ) :=
 
 @[simp] theorem mem_graphStream {a : Fin n → γ} {p : Fin n × γ} :
     p ∈ graphStream a ↔ a p.1 = p.2 := by
-  simp only [graphStream, List.mem_ofFn]
-  constructor
-  · rintro ⟨i, rfl⟩
-    rfl
-  · intro h
-    exact ⟨p.1, Prod.ext rfl h⟩
+  simp only [graphStream, List.mem_ofFn, Prod.ext_iff, exists_eq_left]
 
 theorem nodup_graphStream (a : Fin n → γ) : (graphStream a).Nodup :=
   List.nodup_ofFn_ofInjective fun _ _ h => (Prod.ext_iff.1 h).1
@@ -88,16 +83,9 @@ theorem freqMoment_graphStream_append (k : ℕ) (a b : Fin n → γ) :
     freqMoment k (graphStream a ++ graphStream b) = ∑ i, if a i = b i then 2 ^ k else 2 := by
   have hT : (graphStream a ++ graphStream b).toFinset =
       (univ : Finset (Fin n)).biUnion fun i => {(i, a i), (i, b i)} := by
-    ext p
+    ext ⟨i, x⟩
     simp only [List.mem_toFinset, List.mem_append, mem_graphStream, mem_biUnion, mem_univ,
-      true_and, mem_insert, mem_singleton]
-    constructor
-    · rintro (h | h)
-      · exact ⟨p.1, Or.inl (Prod.ext rfl h.symm)⟩
-      · exact ⟨p.1, Or.inr (Prod.ext rfl h.symm)⟩
-    · rintro ⟨i, rfl | rfl⟩
-      · exact Or.inl rfl
-      · exact Or.inr rfl
+      true_and, mem_insert, mem_singleton, Prod.ext_iff, ← and_or_left, exists_eq_left', eq_comm]
   unfold freqMoment
   rw [hT, sum_biUnion]
   · refine sum_congr rfl fun i _ => ?_
@@ -126,24 +114,18 @@ theorem freqMoment_graphStream_append_eq (k : ℕ) (a b : Fin n → γ) :
 `2 n` exactly when the words agree nowhere. For `k = 1` it is always `2 n`. -/
 theorem freqMoment_graphStream_append_eq_two_mul_iff {k : ℕ} (hk : k ≠ 1) (a b : Fin n → γ) :
     freqMoment k (graphStream a ++ graphStream b) = 2 * n ↔ ∀ i, a i ≠ b i := by
-  have hsum := card_filter_eq_add_hammingDist a b
-  rw [Fintype.card_fin] at hsum
-  rw [freqMoment_graphStream_append_eq]
+  have hsum := Fintype.card_fin n ▸ card_filter_eq_add_hammingDist a b
   have hP : 2 ^ k ≠ 2 := fun h =>
     hk (Nat.pow_right_injective (le_refl 2) (h.trans (pow_one 2).symm))
   have hiff : #{i | a i = b i} = 0 ↔ ∀ i, a i ≠ b i := by
     simp only [card_eq_zero, filter_eq_empty_iff, mem_univ, true_imp_iff, ne_eq]
-  rw [← hiff]
-  generalize #{i | a i = b i} = c at hsum ⊢
-  generalize hammingDist a b = δ at hsum ⊢
-  subst hsum
+  rw [freqMoment_graphStream_append_eq, ← hiff]
   constructor
   · intro h
     by_contra hc
-    have h2 : 2 ^ k * c = 2 * c := by omega
-    exact hP (Nat.eq_of_mul_eq_mul_right (Nat.pos_of_ne_zero hc) h2)
+    exact hP (Nat.eq_of_mul_eq_mul_right (Nat.pos_of_ne_zero hc) (by omega))
   · intro hc
-    subst hc
-    simp
+    simp only [hc, mul_zero, zero_add]
+    omega
 
 end Cslib.Streaming

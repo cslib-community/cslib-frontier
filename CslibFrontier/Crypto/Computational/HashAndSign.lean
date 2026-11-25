@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
@@ -350,12 +351,8 @@ private theorem isOraclePPTOn_hashSigningHandler
   let EIn := encPair ECaller EReq
   have hc := ComputableInPolyTime.fst ECaller EReq
   have hr := ComputableInPolyTime.snd ECaller EReq
-  have hn := hc.fst'.fst'
-  have hs := hc.snd'
-  have hmsg := hr.fst'.snd'
-  have hdigest := hH.comp' (hs.prod hmsg)
-  have hbn := hboundPoly.comp' hn
-  have hq := IsOraclePPTOn.query_take (input := EIn) () hdigest hbn
+  have hq := IsOraclePPTOn.query_take (input := EIn) ()
+    (hH.comp' (hc.snd'.prod hr.fst'.snd')) (hboundPoly.comp' hc.fst'.fst')
   have hpost : ComputableInPolyTime
       (fun r : (((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × Unit)) × List Bool =>
         (r.2, ()))
@@ -469,9 +466,7 @@ theorem eval_run_hashSigningHandler
         StateT.run_bind, StateT.run_map, StateT.run_pure]
       simp only [StateT.run, WordSignatureScheme.signingOracle, SignatureScheme.signingOracle,
         SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, hmsg, beq_self_eq_true,
-        ↓reduceIte, scheme, sign_encPair, ProbComp.eval_bind, ProbComp.eval_pure,
-        PMF.monad_map_eq_map, PMF.monad_pure_eq_pure, PMF.monad_bind_eq_bind,
-        PMF.map_bind, PMF.bind_bind, PMF.pure_bind, PMF.pure_map, List.map_cons]
+        ↓reduceIte, scheme, sign_encPair, List.map_cons, pmf_norm]
       refine PMF.bind_congr_on_support _ _ _ fun sig hsig => ?_
       rw [List.take_of_length_le (hbound (H s msg) hmsg sig hsig)])
     program []
@@ -510,11 +505,9 @@ theorem succProbability_eufCmaGame_le
             PMF.pure (((H s out.1.1).length == n) &&
               !(out.2.map (H s)).contains (H s out.1.1) &&
               S.verify keys.1 (H s out.1.1) out.1.2) := by
-    simp only [SignatureScheme.eufCmaGame, baseForger, ProbComp.eval_bind,
-      ProbComp.eval_pure, ProbOracleComp.eval_run_interpret, OracleComp.interpret_bind,
-      StateT.run_bind, ProbOracleComp.run_interpret_sample, OracleComp.interpret_pure,
-      StateT.run_pure, BitString.eval_sampleList, PMF.bind_map,
-      Function.comp_def, PMF.bind_bind, PMF.pure_bind]
+    simp only [SignatureScheme.eufCmaGame, baseForger, ProbOracleComp.eval_run_interpret,
+      OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.run_interpret_sample,
+      OracleComp.interpret_pure, StateT.run_pure, BitString.eval_sampleList, pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
     refine PMF.bind_congr_on_support _ _ _ fun s hs => ?_
     have hlen_s : s.length = n := BitString.length_of_mem_support_uniformList hs
@@ -527,8 +520,7 @@ theorem succProbability_eufCmaGame_le
           (runDist keys s).bind fun out =>
             PMF.pure (isCollision H (fun _ _ => true) n s
               (collisionOf H s out).1 (collisionOf H s out).2) := by
-    simp only [collisionGame, collisionFinder, ProbComp.eval_bind, ProbComp.eval_pure,
-      BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind]
+    simp only [collisionGame, collisionFinder, BitString.eval_sampleList, pmf_norm]
     rw [PMF.bind_comm]
   have hgame : ProbComp.eval ((scheme S H hH hlen).eufCmaGame adversary n) =
       (ProbComp.eval (S.keyGen n)).bind fun keys =>
@@ -536,8 +528,7 @@ theorem succProbability_eufCmaGame_le
           (runDist keys s).bind fun out =>
             PMF.pure (!out.2.contains out.1.1 && S.verify keys.1 (H s out.1.1) out.1.2) := by
     simp only [WordSignatureScheme.eufCmaGame, scheme, keyGen, verify_encPair,
-      ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-      PMF.bind_bind, PMF.pure_bind]
+      BitString.eval_sampleList, pmf_norm]
     rfl
   have key : ProbComp.eval ((scheme S H hH hlen).eufCmaGame adversary n) true ≤
       ProbComp.eval (S.eufCmaGame (baseForger H bound adversary) n) true +
@@ -554,15 +545,11 @@ theorem succProbability_eufCmaGame_le
     · simp
     · obtain ⟨hfresh, hver⟩ := Bool.and_eq_true_iff.mp hwin
       cases hfind : (queried.find? fun m => H s m == H s mStar).isSome
-      · have hnotmem : (queried.map (H s)).contains (H s mStar) = false := by
-          rw [Bool.eq_false_iff]
-          intro hmem
-          obtain ⟨m, hm, hcoll⟩ := List.mem_map.mp (List.contains_iff_mem.mp hmem)
-          have hex : ∃ m ∈ queried, (H s m == H s mStar) = true :=
-            ⟨m, hm, beq_iff_eq.mpr hcoll⟩
-          have hisSome : (queried.find? fun m => H s m == H s mStar).isSome = true :=
-            List.find?_isSome.mpr hex
-          exact Bool.false_ne_true (hfind.symm.trans hisSome)
+      · have hnotmem : (queried.map (H s)).contains (H s mStar) = false :=
+          Bool.eq_false_iff.mpr fun hmem => by
+            obtain ⟨m, hm, hcoll⟩ := List.mem_map.mp (List.contains_iff_mem.mp hmem)
+            exact Bool.false_ne_true
+              (hfind.symm.trans (List.find?_isSome.mpr ⟨m, hm, beq_iff_eq.mpr hcoll⟩))
         have hlen_d : ((H s mStar).length == n) = true := by
           rw [hlen, hlen_s, beq_self_eq_true]
         rw [hlen_d, hnotmem, hver]
@@ -622,23 +609,17 @@ theorem succProbability_eufCmaGame_fixedCollisionForger
       OracleComp.interpret_bind, OracleComp.interpret_map, ProbOracleComp.interpret_query,
       OracleComp.interpret_pure, StateT.run_bind, StateT.run_map, StateT.run_pure]
     simp only [StateT.run, WordSignatureScheme.signingOracle, SignatureScheme.signingOracleOf,
-      SignatureScheme.signingOracleOn, ↓reduceIte, scheme, keyGen, sign_encPair,
-      verify_encPair, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-      BitString.eval_sampleList, PMF.bind_bind, PMF.map_bind, PMF.pure_bind,
-      PMF.pure_map]
+      SignatureScheme.signingOracleOn, ↓reduceIte, scheme, keyGen, sign_encPair, verify_encPair,
+      BitString.eval_sampleList, pmf_norm]
     refine (PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_).trans (PMF.bind_const _ _)
     refine (PMF.bind_congr_on_support _ _ _ fun s hs => ?_).trans (PMF.bind_const _ _)
     have hlen_s : s.length = n := BitString.length_of_mem_support_uniformList hs
     have hlen_d : (H s m₀).length = n := by rw [hlen, hlen_s]
     refine (PMF.bind_congr_on_support _ _ _ fun sig hsig => ?_).trans (PMF.bind_const _ _)
     rw [List.take_of_length_le (hbound n keys hkeys (H s m₀) hlen_d sig hsig)]
-    have hver : S.verify keys.1 (H s m₁) sig = true := by
-      rw [← hcoll s]
-      exact S.verify_sign n keys hkeys (H s m₀) hlen_d sig hsig
-    have hnotmem : ([m₀] : List (List Bool)).contains m₁ = false := by
-      simp [hne]
-    rw [hnotmem, hver]
-    rfl
+    have hver : S.verify keys.1 (H s m₁) sig = true :=
+      hcoll s ▸ S.verify_sign n keys hkeys (H s m₀) hlen_d sig hsig
+    simp [hne, hver]
   simp [Game.succProbability, heval]
 
 /-- **Key-independent collisions break Construction 13.3**: if two distinct messages `m₀ ≠ m₁`
@@ -652,12 +633,9 @@ theorem not_eufCMA_scheme_of_collision
     ¬ (scheme S H hH hlen).EUFCMA := by
   intro heuf
   obtain ⟨bound, hboundPoly, hbound_le⟩ := S.exists_sign_length_bound_of_length_eq
-  have hneg := heuf.negligible (fixedCollisionForger bound m₀ m₁)
-    (isOraclePPT_fixedCollisionForger hboundPoly m₀ m₁)
-  have hzero : Negligible (fun _ : ℕ => (1 : ℝ≥0)) :=
-    hneg.congr fun n =>
-      succProbability_eufCmaGame_fixedCollisionForger S H hH hlen hbound_le hne hcoll n
-  exact not_negligible_const one_ne_zero hzero
+  exact not_negligible_const one_ne_zero
+    ((heuf.negligible _ (isOraclePPT_fixedCollisionForger hboundPoly m₀ m₁)).congr fun n =>
+      succProbability_eufCmaGame_fixedCollisionForger S H hH hlen hbound_le hne hcoll n)
 
 end HashAndSign
 

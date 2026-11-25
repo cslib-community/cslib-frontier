@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.KEM
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Crypto.Game.CloseTo
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
@@ -308,19 +309,17 @@ theorem advantage_play_le (A : RandomizedROAdversary PK M R CT K)
     (Experiment.advantage (A.play game false) (A.play game true) : ℝ) ≤
       e + 2 * Pr[A.coins >>= fun ω => ow (A.run ω)] := by
   set err : A.Coins → ℝ≥0∞ := fun ω => ENNReal.ofReal e + 2 * ProbComp.eval (ow (A.run ω)) true
-  have hstep (ω : A.Coins) :
-      (Experiment.advantage (game (A.run ω) false) (game (A.run ω) true) : ℝ≥0∞) ≤ err ω := by
+  have hclose : CloseTo (ProbComp.eval (A.play game false)) (ProbComp.eval (A.play game true))
+      (∑' ω, ProbComp.eval A.coins ω * err ω) := by
+    simp only [play, ProbComp.eval_bind]
+    refine CloseTo.bind_right_tsum _ fun ω _ => Game.closeTo_iff_coe_advantage_le.mpr ?_
     calc (Experiment.advantage (game (A.run ω) false) (game (A.run ω) true) : ℝ≥0∞)
         = ENNReal.ofReal (Experiment.advantage (game (A.run ω) false)
-            (game (A.run ω) true) : ℝ) := (ENNReal.ofReal_coe_nnreal).symm
+            (game (A.run ω) true) : ℝ) := ENNReal.ofReal_coe_nnreal.symm
       _ ≤ ENNReal.ofReal (e + 2 * Pr[ow (A.run ω)]) := ENNReal.ofReal_le_ofReal (h ω)
       _ = err ω := by
         rw [ENNReal.ofReal_add he (by positivity), ENNReal.ofReal_mul (by norm_num),
           ENNReal.ofReal_toReal (PMF.apply_ne_top _ _), ENNReal.ofReal_ofNat]
-  have hclose : CloseTo (ProbComp.eval (A.play game false)) (ProbComp.eval (A.play game true))
-      (∑' ω, ProbComp.eval A.coins ω * err ω) := by
-    simp only [play, ProbComp.eval_bind]
-    exact CloseTo.bind_right_tsum _ fun ω _ => Game.closeTo_iff_coe_advantage_le.mpr (hstep ω)
   have hsum : ∑' ω, ProbComp.eval A.coins ω * err ω =
       ENNReal.ofReal e + 2 * ProbComp.eval (A.coins >>= fun ω => ow (A.run ω)) true := by
     simp only [err, mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul,
@@ -328,8 +327,7 @@ theorem advantage_play_le (A : RandomizedROAdversary PK M R CT K)
     rw [← ENNReal.tsum_mul_left]
     congr 1
     exact tsum_congr fun ω => mul_left_comm _ _ _
-  have hle := Game.closeTo_iff_coe_advantage_le.mp hclose
-  rw [hsum] at hle
+  have hle := hsum ▸ Game.closeTo_iff_coe_advantage_le.mp hclose
   ennreal_to_real using hle
 
 end RandomizedROAdversary
@@ -659,10 +657,9 @@ theorem interpret_decapsNotBotM {ι : Type} {spec : OracleSpec ι} {n : Type →
       S.decapsNotBotM (fun m => OracleComp.interpret oracle (G m))
         (fun x => OracleComp.interpret oracle (H x)) dk c := by
   rw [decapsNotBotM_eq, decapsNotBotM_eq]
-  cases S.pke.dec dk.sk c with
-  | none => rfl
-  | some m' =>
-    simp only [OracleComp.interpret_bind]
+  cases S.pke.dec dk.sk c
+  · rfl
+  · simp only [OracleComp.interpret_bind]
     congr 1 with r'
     split_ifs <;> rfl
 
@@ -676,10 +673,9 @@ theorem interpret_decapsBotM {ι : Type} {spec : OracleSpec ι} {n : Type → Ty
       S.decapsBotM (fun m => OracleComp.interpret oracle (G m))
         (fun x => OracleComp.interpret oracle (H x)) pk sk c := by
   rw [decapsBotM_eq, decapsBotM_eq]
-  cases S.pke.dec sk c with
-  | none => simp
-  | some m' =>
-    simp only [OracleComp.interpret_bind]
+  cases S.pke.dec sk c
+  · simp
+  · simp only [OracleComp.interpret_bind]
     congr 1 with r'
     split_ifs <;> simp
 
@@ -739,9 +735,7 @@ theorem eval_romIndCcaExperiment_eq_eager [Fintype M] [Finite R] [Fintype CT] [F
   let dG : M → PMF R := fun _ => ProbComp.eval S.pke.sampleCoins
   let dH : Bool × M × CT → PMF K := fun _ => ProbComp.eval S.sampleKey
   dsimp only [romIndCcaExperiment]
-  simp only [eagerRomIndCcaExperiment, coinTable, keyTable, encapsBot, encT,
-    Probability.PMF.monad_bind_eq_bind, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind]
+  simp only [eagerRomIndCcaExperiment, coinTable, keyTable, encapsBot, encT, pmf_norm]
   congr 1; funext ⟨pk, dk⟩
   have hstep (mStar : M) (rStar : R) (kReal kRand : K) :
       (ProbComp.eval ((OracleComp.interpret
@@ -798,18 +792,13 @@ omit [DecidableEq M] in
 theorem eagerHandler_eq_romEagerHandler (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (dk : ImplicitSK PK SK M) (cStar : CT) :
     S.eagerHandler G H dk cStar = romEagerHandler G H (S.notBotDecaps dk) cStar := by
-  have hd (c : CT) : PMF.pure (some (S.decapsNotBot G (fun mc => H (false, mc)) dk c)) =
-      OracleComp.interpret
-      (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
-      (S.notBotDecaps dk c) := by
-    simp only [notBotDecaps, interp_norm, interpret_decapsNotBotM]
-    change _ = some <$> S.decapsNotBotM (m := PMF) (pure ∘ G) (pure ∘ fun mc => H (false, mc)) dk c
-    rw [decapsNotBotM_pure, map_pure]
-    rfl
   funext q
   refine Eq.trans ?_ (dispatch_eq_interpret_romProgram _ _ cStar q)
-  simp only [eagerHandler, hd]
-  rfl
+  simp only [eagerHandler, notBotDecaps, interp_norm, interpret_decapsNotBotM]
+  congr 1
+  funext c
+  change _ = some <$> S.decapsNotBotM (m := PMF) (pure ∘ G) (pure ∘ fun mc => H (false, mc)) dk c
+  rw [decapsNotBotM_pure, map_pure]; rfl
 
 /-- `roIndCcaGame` is the ROM IND-CCA experiment of `FO-notbot`. -/
 @[simp] theorem romIndCcaExperiment_notBot (S : Scheme PK SK M R CT K)
@@ -890,8 +879,7 @@ theorem simFilterHandler_gCache_length_le (S : Scheme PK SK M R CT K)
       filterDecaps] using
       simHashG_gCache_length_le S.pke.sampleCoins m st (res, st') hmem
   | H x =>
-    rcases x with ⟨isFb, m, c⟩
-    cases isFb
+    rcases x with ⟨false | true, m, c⟩
     · dsimp only [simFilterHandler, simFilterDispatch, simHashH, ROQuery.ghCost, ROQuery.dispatch,
         filterDecaps] at hmem ⊢
       change (res, st') ∈ (ProbComp.eval (simHashG S.pke.sampleCoins m st >>= fun z =>
@@ -901,14 +889,11 @@ theorem simFilterHandler_gCache_length_le (S : Scheme PK SK M R CT K)
           simHashHRaw S.sampleKey (false, m, c)) z.snd)).support at hmem
       rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
       obtain ⟨z, hz, hmem₂⟩ := hmem
-      have hz_le := simHashG_gCache_length_le S.pke.sampleCoins m st z hz
-      by_cases henc : S.pke.encDet pk m z.fst = c
-      · simp only [henc, ↓reduceIte] at hmem₂
-        rw [simHashHq_gCache_eq S.sampleKey c z.snd (res, st') hmem₂]
-        exact hz_le
-      · simp only [henc, ↓reduceIte] at hmem₂
-        rw [simHashHRaw_gCache_eq S.sampleKey (false, m, c) z.snd (res, st') hmem₂]
-        exact hz_le
+      split_ifs at hmem₂ with henc
+      · rw [simHashHq_gCache_eq S.sampleKey c z.snd (res, st') hmem₂]
+        exact simHashG_gCache_length_le S.pke.sampleCoins m st z hz
+      · rw [simHashHRaw_gCache_eq S.sampleKey (false, m, c) z.snd (res, st') hmem₂]
+        exact simHashG_gCache_length_le S.pke.sampleCoins m st z hz
     · dsimp only [simFilterHandler, simFilterDispatch, simHashH, ROQuery.ghCost, ROQuery.dispatch,
         filterDecaps] at hmem ⊢
       rw [simHashHRaw_gCache_eq S.sampleKey (true, m, c) st (res, st') hmem]
@@ -920,14 +905,14 @@ theorem simFilterHandler_gCache_length_le (S : Scheme PK SK M R CT K)
     · simp only [hc, ↓reduceIte] at hmem
       change (res, st') ∈ (ProbComp.eval (pure (none, st))).support at hmem
       simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      rcases hmem with ⟨-, rfl⟩
+      obtain ⟨-, rfl⟩ := hmem
       simp
     · simp only [hc, ↓reduceIte] at hmem
       cases hd : d st.gCache c
       · simp only [hd, filterDecaps, Bool.cond_false] at hmem
         change (res, st') ∈ (ProbComp.eval (pure (none, st))).support at hmem
         simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-        rcases hmem with ⟨-, rfl⟩
+        obtain ⟨-, rfl⟩ := hmem
         simp
       · simp only [hd, filterDecaps, Bool.cond_true] at hmem
         change (res, st') ∈ (ProbComp.eval (simHashHq S.sampleKey c st >>= fun a =>
@@ -935,7 +920,7 @@ theorem simFilterHandler_gCache_length_le (S : Scheme PK SK M R CT K)
         rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
         obtain ⟨z, hz, hmem₂⟩ := hmem
         simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem₂
-        rcases hmem₂ with ⟨-, rfl⟩
+        obtain ⟨-, rfl⟩ := hmem₂
         rw [simHashHq_gCache_eq S.sampleKey c st z hz, Nat.add_zero]
 
 /-- Each query `q` to `S.simHandler pk cStar` increases `gCache.length` by at most
@@ -964,9 +949,8 @@ theorem eval_cpaExperiment_romFilterCpaReduction_true (S : Scheme PK SK M R CT K
     ProbComp.eval
         (S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) true) =
       ProbComp.eval (A.coins >>= fun ω => S.simFilterOwExperiment d (A.run ω)) := by
-  simp only [PKE.cpaExperiment, ProbComp.eval_bind, eval_lrExperiment, romFilterCpaReduction,
-    ExplicitCoinPKE.toPKE, simFilterOwExperiment, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind, MessagePair.select_true, ↓reduceIte, PMF.bind_const]
+  simp only [PKE.cpaExperiment, eval_lrExperiment, romFilterCpaReduction, ExplicitCoinPKE.toPKE,
+    simFilterOwExperiment, MessagePair.select_true, ↓reduceIte, PMF.bind_const, pmf_norm]
   pmf_swap
 
 /-- With challenge bit `false`, the IND-CPA experiment of `romFilterCpaReduction d A` encrypts
@@ -978,9 +962,8 @@ theorem succProbability_romFilterCpaReduction_false_le [Fintype M] [Nonempty M]
     (hmsg : ProbComp.eval S.sampleMsg = PMF.uniformOfFintype M) :
     Pr[S.pke.toPKE.cpaExperiment (fun _ _ _ => true) (S.romFilterCpaReduction d A) false] ≤
       ((qG : ℝ) + qH) / Fintype.card M := by
-  simp only [PKE.cpaExperiment, ProbComp.eval_bind, eval_lrExperiment,
-    romFilterCpaReduction, ExplicitCoinPKE.toPKE, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind, MessagePair.select_false, ↓reduceIte]
+  simp only [PKE.cpaExperiment, eval_lrExperiment, romFilterCpaReduction, ExplicitCoinPKE.toPKE,
+    MessagePair.select_false, ↓reduceIte, pmf_norm]
   pmf_hoist (occ := 2) (ProbComp.eval S.sampleMsg)
   let runDist : PMF (Bool × SimState M R CT K) :=
     (ProbComp.eval S.pke.keyGen).bind fun keys =>

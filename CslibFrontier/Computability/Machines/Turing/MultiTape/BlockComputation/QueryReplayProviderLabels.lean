@@ -100,7 +100,7 @@ theorem combine_inSpace (e : Q ≃ Fin s) :
     (of_inO (ComputableInDegree.optionSome (enc₁ := encRawResult (k := k) (Q := Q))
       (enc := encOption (encRawResult (k := k) (Q := Q)))).inO_one) hcombined
   refine (budget_ite hguard hsome
-    (budget_const (encB := encOption (encRawResult (k := k) (Q := Q))) none (.refl _))).of_enc_eq ?_
+    (budget_const (encB := encOption (encRawResult (k := k) (Q := Q))) none)).of_enc_eq ?_
   intro a
   rcases a with ⟨b, ports, previousWord, providerWords⟩
   simp only [combine, empty]

@@ -94,32 +94,28 @@ theorem le_pow_of_step {b : ℝ} (hb : 0 < b) (hvb : v ≤ b) (hp0 : p 0 = 1)
     push Not at hsmall
     rcases Nat.eq_zero_or_pos m with rfl | hm
     · simpa using (le_of_step_zero hp0 (by omega) hstep).trans hvb
-    have hnm : (0 : ℝ) < n - m := by
-      have : (m : ℝ) < n := by exact_mod_cast hmn
-      linarith
+    have hnm : (0 : ℝ) < n - m := sub_pos.2 (Nat.cast_lt.2 hmn)
     -- `ln (1 / p_m) ≤ (m + 1) ln (1 / b)`.
     have hlog : Real.log (1 / p m) ≤ (m + 1) * Real.log (1 / b) := by
       have h := Real.log_le_log (pow_pos hb _) hsmall
       rw [Real.log_pow] at h
       push_cast at h
       simp only [one_div, Real.log_inv]
-      linarith
+      linarith only [h]
     have herr : C * Real.sqrt ((m * L + Real.log (1 / p m)) / (n - m)) ≤ b - v :=
       calc C * Real.sqrt ((m * L + Real.log (1 / p m)) / (n - m))
           ≤ |C| * Real.sqrt ((m * L + (m + 1) * Real.log (1 / b)) / (n - m)) :=
-            mul_le_mul (le_abs_self C)
-              (Real.sqrt_le_sqrt (div_le_div_of_nonneg_right (by linarith) hnm.le))
-              (Real.sqrt_nonneg _) (abs_nonneg C)
+            by gcongr; exact le_abs_self C
         _ = Real.sqrt (C ^ 2 * ((m * L + (m + 1) * Real.log (1 / b)) / (n - m))) := by
             rw [Real.sqrt_mul (sq_nonneg C), Real.sqrt_sq_eq_abs]
         _ ≤ Real.sqrt ((b - v) ^ 2) := by
             gcongr
             rw [mul_div_assoc', div_le_iff₀ hnm]
             exact hcond m hm (by omega) hsmall
-        _ = b - v := Real.sqrt_sq (by linarith)
+        _ = b - v := Real.sqrt_sq (sub_nonneg.2 hvb)
     calc p (m + 1) ≤ p m * (v + C * Real.sqrt ((m * L + Real.log (1 / p m)) / (n - m))) :=
           hstep m hmn
-      _ ≤ p m * b := mul_le_mul_of_nonneg_left (by linarith) (hnn m)
+      _ ≤ p m * b := mul_le_mul_of_nonneg_left (by linarith only [herr]) (hnn m)
       _ ≤ b ^ m * b := mul_le_mul_of_nonneg_right IH hb.le
       _ = b ^ (m + 1) := (pow_succ _ _).symm
 
@@ -134,37 +130,40 @@ theorem le_pow_floor_of_step (hv : 0 ≤ v) (hv1 : v ≤ 1) (hC : 1 ≤ C) (hL :
     p n ≤ ((1 + v) / 2) ^ ⌊(1 - v) ^ 2 * n / (13 * C ^ 2 * L)⌋₊ := by
   set M := ⌊(1 - v) ^ 2 * n / (13 * C ^ 2 * L)⌋₊
   have hK : 0 < 13 * C ^ 2 * L := by positivity
-  have hx : 0 ≤ (1 - v) ^ 2 * n / (13 * C ^ 2 * L) := by positivity
-  have hM : (M : ℝ) ≤ (1 - v) ^ 2 * n / (13 * C ^ 2 * L) := Nat.floor_le hx
-  have hM' : 13 * C ^ 2 * L * M ≤ (1 - v) ^ 2 * n := by
-    rw [le_div_iff₀ hK] at hM
-    linarith
-  have hsq1 : (1 - v) ^ 2 ≤ 1 := by nlinarith
-  have hCL : 1 ≤ C ^ 2 * L := by nlinarith
+  have hM' : 13 * (C ^ 2 * L * M) ≤ (1 - v) ^ 2 * n := by
+    have := (le_div_iff₀' hK).1
+      (Nat.floor_le (show 0 ≤ (1 - v) ^ 2 * n / (13 * C ^ 2 * L) by positivity))
+    linarith only [this, show 13 * C ^ 2 * L * (M : ℝ) = 13 * (C ^ 2 * L * M) by ring]
+  have hsq1 : (1 - v) ^ 2 ≤ 1 := pow_le_one₀ (sub_nonneg.2 hv1) (sub_le_self _ hv)
+  have hCL : 1 ≤ C ^ 2 * L := one_le_mul_of_one_le_of_one_le (one_le_pow₀ hC) hL
   have hM0 : (0 : ℝ) ≤ M := Nat.cast_nonneg M
-  have hcond : 12 * C ^ 2 * M * L ≤ (1 - v) ^ 2 * (n - M) := by nlinarith
+  have hCLM : (M : ℝ) ≤ C ^ 2 * L * M := le_mul_of_one_le_left hM0 hCL
+  have hcond : 12 * (C ^ 2 * L * M) ≤ (1 - v) ^ 2 * (n - M) := by
+    rw [mul_sub]
+    linarith only [hM', (mul_le_of_le_one_left hM0 hsq1).trans hCLM]
   have hMn : M ≤ n := by
-    have : (M : ℝ) ≤ n := by nlinarith
-    exact_mod_cast this
-  refine (antitone_nat_of_succ_le hmono hMn).trans
-    (le_pow_of_step (by linarith) (by linarith) hp0 hnn hmono hstep hMn fun k hk hkM _ => ?_)
+    exact_mod_cast (show (M : ℝ) ≤ n by
+      linarith only [hM', hCLM, hM0, mul_le_of_le_one_left (Nat.cast_nonneg n : (0 : ℝ) ≤ n) hsq1])
+  refine (antitone_nat_of_succ_le hmono hMn).trans (le_pow_of_step (by linarith only [hv])
+    (by linarith only [hv1]) hp0 hnn hmono hstep hMn fun k hk hkM _ => ?_)
   -- `ln (2 / (1 + v)) ≤ 1` and `k + 1 ≤ 2 k ≤ 2 k L`, so the left side is at most `3 C² M L`.
   have hlog : Real.log (1 / ((1 + v) / 2)) ≤ 1 := by
     have h := Real.log_le_sub_one_of_pos (show 0 < 1 / ((1 + v) / 2) by positivity)
-    have : 1 / ((1 + v) / 2) ≤ 2 := by
-      rw [div_le_iff₀ (by positivity)]
-      linarith
-    linarith
-  have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
-  have hkM' : (k : ℝ) ≤ M := by exact_mod_cast hkM.le
+    have : 1 / ((1 + v) / 2) ≤ 2 := (div_le_iff₀ (by positivity)).2 (by linarith only [hv])
+    linarith only [h, this]
+  have hk1 : (1 : ℝ) ≤ k := Nat.one_le_cast.2 hk
+  have hkM' : (k : ℝ) ≤ M := Nat.cast_le.2 hkM.le
   have h1 : (k : ℝ) * L + (k + 1) * Real.log (1 / ((1 + v) / 2)) ≤ 3 * (M * L) := by
-    nlinarith [mul_le_mul_of_nonneg_left hlog (by positivity : (0 : ℝ) ≤ k + 1),
-      mul_le_mul_of_nonneg_right hkM' (by linarith : (0 : ℝ) ≤ L),
-      mul_le_mul_of_nonneg_left hL (by positivity : (0 : ℝ) ≤ k)]
+    linarith only [hk1, le_mul_of_one_le_right (Nat.cast_nonneg k) hL,
+      mul_le_mul_of_nonneg_left hlog (by positivity : (0 : ℝ) ≤ k + 1),
+      mul_le_mul_of_nonneg_right hkM' (by linarith only [hL] : (0 : ℝ) ≤ L)]
   calc C ^ 2 * (k * L + (k + 1) * Real.log (1 / ((1 + v) / 2)))
       ≤ C ^ 2 * (3 * (M * L)) := mul_le_mul_of_nonneg_left h1 (sq_nonneg C)
-    _ ≤ ((1 + v) / 2 - v) ^ 2 * (n - k) := by
-        nlinarith [mul_le_mul_of_nonneg_left (sub_le_sub_left hkM' (n : ℝ)) (sq_nonneg (1 - v))]
+    _ = 12 * (C ^ 2 * L * M) / 4 := by ring
+    _ ≤ (1 - v) ^ 2 * (n - k) / 4 := div_le_div_of_nonneg_right
+        (hcond.trans (mul_le_mul_of_nonneg_left (sub_le_sub_left hkM' _) (sq_nonneg _)))
+        (by norm_num)
+    _ = ((1 + v) / 2 - v) ^ 2 * (n - k) := by ring
 
 /-- **The bound of Holenstein's Theorem 2.5, in exponential form** [Holenstein, Lemma 7.1, (7.2)
 and (7.7)][Holenstein2009]: under the recursion of `le_pow_of_step` with `C ≥ 1`,
@@ -178,42 +177,33 @@ theorem le_two_mul_rpow_of_step (hv : 0 ≤ v) (hv1 : v ≤ 1) (hC : 1 ≤ C) (h
     p n ≤ 2 * (1 - (1 - v) ^ 3 / (26 * C ^ 2)) ^ ((n : ℝ) / L) := by
   set b := (1 + v) / 2
   have hb0 : 0 < b := by positivity
-  have hb1 : b ≤ 1 := by simp only [b]; linarith
-  have hbhalf : 1 / 2 ≤ b := by simp only [b]; linarith
+  have hb1 : b ≤ 1 := by simp only [b]; linarith only [hv1]
+  have hbhalf : 1 / 2 ≤ b := by simp only [b]; linarith only [hv]
   set a := (1 - v) ^ 2 / (13 * C ^ 2)
   set x := (1 - v) ^ 2 * n / (13 * C ^ 2 * L)
   have ha0 : 0 ≤ a := by positivity
-  have ha1 : a ≤ 1 := (div_le_one (by positivity)).2 (by nlinarith)
-  have hx : x = a * (n / L) := by
-    simp only [x, a]
-    field_simp
+  have ha1 : a ≤ 1 := (div_le_one (by positivity)).2 <|
+    (pow_le_one₀ (sub_nonneg.2 hv1) (sub_le_self _ hv)).trans
+      (by linarith only [one_le_pow₀ hC (n := 2)])
+  have hx : x = a * (n / L) := by simp only [x, a]; field_simp
   have hfloor := le_pow_floor_of_step hv hv1 hC hL hp0 hnn hmono hstep
   -- Round the number of steps down at the cost of a factor `2`.
   have hround : b ^ ⌊x⌋₊ ≤ 2 * b ^ x := by
-    have hle : x - 1 ≤ (⌊x⌋₊ : ℝ) := by linarith [Nat.lt_floor_add_one x]
-    have h1 : b ^ ⌊x⌋₊ = b ^ ((⌊x⌋₊ : ℕ) : ℝ) := (Real.rpow_natCast b _).symm
-    have h2 : b ^ ((⌊x⌋₊ : ℕ) : ℝ) ≤ b ^ (x - 1) :=
-      Real.rpow_le_rpow_of_exponent_ge hb0 hb1 hle
-    have h3 : b ^ (x - 1) = b ^ x / b := Real.rpow_sub_one hb0.ne' x
-    rw [h1]
-    refine h2.trans (h3.le.trans ?_)
-    rw [div_le_iff₀ hb0]
-    have := Real.rpow_nonneg hb0.le x
-    nlinarith
+    rw [← Real.rpow_natCast]
+    refine (Real.rpow_le_rpow_of_exponent_ge hb0 hb1
+      (by linarith only [Nat.lt_floor_add_one x] : x - 1 ≤ ⌊x⌋₊)).trans ?_
+    rw [Real.rpow_sub_one hb0.ne', div_le_iff₀ hb0, mul_comm 2, mul_assoc]
+    exact le_mul_of_one_le_right (Real.rpow_nonneg hb0.le x) (by linarith only [hbhalf])
   -- Bernoulli's inequality for the exponent `a ∈ [0, 1]`.
   have hbern : b ^ a ≤ 1 - (1 - v) ^ 3 / (26 * C ^ 2) := by
-    have h := rpow_one_add_le_one_add_mul_self (s := -((1 - v) / 2)) (by linarith) ha0 ha1
+    have h := rpow_one_add_le_one_add_mul_self (s := -((1 - v) / 2)) (by linarith only [hv]) ha0 ha1
     have hb : 1 + -((1 - v) / 2) = b := by simp only [b]; ring
     rw [hb] at h
-    refine h.trans (le_of_eq ?_)
-    simp only [a]
-    field_simp
-    ring
+    exact h.trans_eq (by simp only [a]; field_simp; ring)
   calc p n ≤ b ^ ⌊x⌋₊ := hfloor
     _ ≤ 2 * b ^ x := hround
     _ = 2 * (b ^ a) ^ ((n : ℝ) / L) := by rw [hx, Real.rpow_mul hb0.le]
-    _ ≤ 2 * (1 - (1 - v) ^ 3 / (26 * C ^ 2)) ^ ((n : ℝ) / L) := by
-        gcongr
+    _ ≤ 2 * (1 - (1 - v) ^ 3 / (26 * C ^ 2)) ^ ((n : ℝ) / L) := by gcongr
 
 /-- **The bound of Holenstein's Theorem 2.5 from the recursion**: under the recursion of
 `le_pow_of_step` with `0 ≤ C ≤ 21`, `p_n ≤ (1 - (1 - v)³ / 6000)^{n / L}`. This is the bound that
@@ -248,51 +238,45 @@ theorem le_rpow_of_step (hv : 0 ≤ v) (hv1 : v ≤ 1) (hC0 : 0 ≤ C) (hC : C �
   have hanti : Antitone p := antitone_nat_of_succ_le hmono
   have hp1 : p 1 ≤ v := le_of_step_zero hp0 hn hstep
   set u := 1 - v with hu
-  have hu0 : 0 ≤ u := by linarith
-  have hu1 : u ≤ 1 := by linarith
+  have hu0 : 0 ≤ u := sub_nonneg.2 hv1
+  have hu1 : u ≤ 1 := sub_le_self _ hv
   have hu2 : u ^ 2 ≤ 1 := pow_le_one₀ hu0 hu1
   set t := (n : ℝ) / L with ht
-  have hL0 : 0 < L := by linarith
+  have hL0 : 0 < L := by positivity
   have ht0 : 0 ≤ t := by positivity
-  have htL : t * L = n := by
-    rw [ht]
-    field_simp
-  have hr0 : 0 < 1 - u ^ 3 / 6000 := by nlinarith [pow_le_one₀ hu0 hu1 (n := 3)]
-  have hr1 : 1 - u ^ 3 / 6000 ≤ 1 := by nlinarith [pow_nonneg hu0 3]
+  have htL : t * L = n := by rw [ht]; field_simp
+  have hr0 : 0 < 1 - u ^ 3 / 6000 := by linarith only [pow_le_one₀ hu0 hu1 (n := 3)]
+  have hr1 : 1 - u ^ 3 / 6000 ≤ 1 := sub_le_self _ (by positivity)
   rcases le_or_gt (u ^ 2 * t) 6000 with hA | hB
   · -- Few steps: `p_n ≤ p_1 ≤ v = 1 - u` is already below the bound.
     calc p n ≤ p 1 := hanti hn
-      _ ≤ 1 - u := by linarith
+      _ ≤ 1 - u := by linarith only [hp1, hu]
       _ ≤ (1 - u ^ 3 / 6000) ^ t := by
         rcases le_total t 1 with ht1 | ht1
-        · calc 1 - u ≤ 1 - u ^ 3 / 6000 := by nlinarith [mul_le_mul_of_nonneg_left hu2 hu0]
+        · calc 1 - u ≤ 1 - u ^ 3 / 6000 := by
+                linarith only [mul_le_of_le_one_right hu0 hu2, pow_succ' u 2, pow_nonneg hu0 3]
             _ = (1 - u ^ 3 / 6000) ^ (1 : ℝ) := (Real.rpow_one _).symm
             _ ≤ (1 - u ^ 3 / 6000) ^ t := Real.rpow_le_rpow_of_exponent_ge hr0 hr1 ht1
         · -- Bernoulli's inequality for the exponent `t ≥ 1`.
           refine le_trans ?_ (one_add_mul_self_le_rpow_one_add (s := -(u ^ 3 / 6000))
-            (by linarith) ht1)
-          nlinarith [mul_le_mul_of_nonneg_left hA hu0]
+            (by linarith only [hr0]) ht1)
+          linarith only [mul_le_mul_of_nonneg_left hA hu0,
+            show t * -(u ^ 3 / 6000) = -(u * (u ^ 2 * t)) / 6000 by ring]
   -- Many steps: run the induction with the ratio `b = 1 - u / 5`.
   set b := 1 - u / 5 with hb
-  have hu_pos : 0 < u := by
-    rcases hu0.lt_or_eq with h | h
-    · exact h
-    · rw [← h] at hB
-      norm_num at hB
-  have hb0 : 0 < b := by linarith
-  have hb1 : b < 1 := by linarith
+  have hu_pos : 0 < u := hu0.lt_of_ne fun h => by rw [← h] at hB; norm_num at hB
+  have hb0 : 0 < b := by linarith only [hb, hu1]
+  have hb1 : b < 1 := by linarith only [hb, hu_pos]
   -- `v = 1 - u ≤ (1 - u / 5)^5`, by Bernoulli's inequality.
   have hb5 : 1 - u ≤ b ^ 5 := by
-    have h := one_add_mul_le_pow (a := -(u / 5)) (by linarith) 5
+    have h := one_add_mul_le_pow (a := -(u / 5)) (by linarith only [hu1]) 5
     rw [← sub_eq_add_neg, ← hb] at h
     push_cast at h
-    linarith
+    linarith only [h]
   have hlogb : Real.log (1 / b) ≤ 1 / 4 := by
     have h := Real.log_le_sub_one_of_pos (show 0 < 1 / b by positivity)
-    have : 1 / b ≤ 5 / 4 := by
-      rw [div_le_iff₀ hb0]
-      linarith
-    linarith
+    have : 1 / b ≤ 5 / 4 := (div_le_iff₀ hb0).2 (by linarith only [hb, hu1])
+    linarith only [h, this]
   set M := ⌊u ^ 2 * t / 1000⌋₊
   have hMle : (M : ℝ) ≤ u ^ 2 * t / 1000 := Nat.floor_le (by positivity)
   have hMgt : u ^ 2 * t / 1000 < M + 1 := Nat.lt_floor_add_one _
@@ -301,11 +285,13 @@ theorem le_rpow_of_step (hv : 0 ≤ v) (hv1 : v ≤ 1) (hC0 : 0 ≤ C) (hC : C �
       _ = u ^ 2 * n := by rw [← htL]; ring
   have hMn : M ≤ n := by
     have htn : t ≤ n := div_le_self (Nat.cast_nonneg n) hL
-    have : (M : ℝ) ≤ n := by nlinarith [mul_le_mul_of_nonneg_right hu2 ht0]
-    exact_mod_cast this
-  have hpM := le_pow_of_step hb0 (by linarith) hp0 hnn hmono hstep hMn fun m hm hmM hbm => by
+    exact_mod_cast (show (M : ℝ) ≤ n by
+      linarith only [hMle, htn, ht0, mul_le_of_le_one_left ht0 hu2])
+  have hpM := le_pow_of_step hb0 (by linarith only [hu, hb, hu0]) hp0 hnn hmono hstep hMn
+    fun m hm hmM hbm => by
     -- A step that needs the error bound has `m ≥ 4`, because `p_m ≤ p_1 ≤ v ≤ b^5`.
-    have h5 : b ^ (m + 1) ≤ b ^ 5 := hbm.trans ((hanti hm).trans (hp1.trans (by linarith)))
+    have h5 : b ^ (m + 1) ≤ b ^ 5 :=
+      hbm.trans ((hanti hm).trans (hp1.trans (by linarith only [hu, hb5])))
     have hm4 : (4 : ℝ) ≤ m := by
       have := (pow_le_pow_iff_right_of_lt_one₀ hb0 hb1).1 h5
       exact_mod_cast (show 4 ≤ m by omega)
@@ -313,29 +299,27 @@ theorem le_rpow_of_step (hv : 0 ≤ v) (hv1 : v ≤ 1) (hC0 : 0 ≤ C) (hC : C �
     have hm0 : (0 : ℝ) ≤ m := by positivity
     have hmL : (m : ℝ) ≤ m * L := le_mul_of_one_le_right hm0 hL
     have hX : (m : ℝ) * L + (m + 1) * Real.log (1 / b) ≤ 21 / 16 * (m * L) := by
-      linarith [mul_le_mul_of_nonneg_left hlogb (by positivity : (0 : ℝ) ≤ m + 1)]
-    have hmn : 1000 * (m * L) ≤ u ^ 2 * n :=
-      le_trans (by gcongr) hML
-    have hum : u ^ 2 * m ≤ m * L := by
-      linarith [mul_le_mul_of_nonneg_right hu2 hm0]
+      linarith only [hm4, hmL, mul_le_mul_of_nonneg_left hlogb (by positivity : (0 : ℝ) ≤ m + 1)]
+    have hmn : 1000 * (m * L) ≤ u ^ 2 * n := le_trans (by gcongr) hML
+    have hum : u ^ 2 * m ≤ m * L := (mul_le_of_le_one_left hm0 hu2).trans hmL
     have hC2 : C ^ 2 ≤ 441 := (pow_le_pow_left₀ hC0 hC 2).trans_eq (by norm_num)
     have hbv : (b - v) ^ 2 * (n - m) = 16 / 25 * (u ^ 2 * n) - 16 / 25 * (u ^ 2 * m) := by
-      rw [show b - v = 4 * u / 5 by linarith]
+      rw [show b - v = 4 * u / 5 by linarith only [hb, hu]]
       ring
     calc C ^ 2 * (m * L + (m + 1) * Real.log (1 / b))
         ≤ C ^ 2 * (21 / 16 * (m * L)) := mul_le_mul_of_nonneg_left hX (sq_nonneg C)
       _ ≤ 441 * (21 / 16 * (m * L)) := mul_le_mul_of_nonneg_right hC2 (by positivity)
       _ ≤ (b - v) ^ 2 * (n - m) := by
           rw [hbv]
-          linarith
+          linarith only [hmn, hum, (by positivity : (0 : ℝ) ≤ m * L)]
   -- The number of steps is at least `u² t / 1200`, since `u² t > 6000`.
-  have hMx : u ^ 2 / 1200 * t ≤ M := by linarith
+  have hMx : u ^ 2 / 1200 * t ≤ M := by
+    linarith only [hB, hMgt, div_mul_eq_mul_div (u ^ 2) 1200 t]
   have hbern : b ^ (u ^ 2 / 1200) ≤ 1 - u ^ 3 / 6000 := by
-    have h := rpow_one_add_le_one_add_mul_self (s := -(u / 5)) (by linarith)
-      (by positivity : 0 ≤ u ^ 2 / 1200) (by linarith)
+    have h := rpow_one_add_le_one_add_mul_self (s := -(u / 5)) (by linarith only [hu1])
+      (by positivity : 0 ≤ u ^ 2 / 1200) (by linarith only [hu2])
     rw [← sub_eq_add_neg, ← hb] at h
-    refine h.trans (le_of_eq ?_)
-    ring
+    exact h.trans_eq (by ring)
   calc p n ≤ p M := hanti hMn
     _ ≤ b ^ M := hpM
     _ = b ^ (M : ℝ) := (Real.rpow_natCast b M).symm

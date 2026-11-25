@@ -449,26 +449,13 @@ theorem isPPTOn_interactiveSimWord {enc : Encoding I YF TF CF ZF}
     (hchal : IsPPTOn enc.index encBits fun i => enc.challenge i <$> sampleChallenge i) :
     IsPPTOn (encPair enc.index encBits) encBits
       (interactiveSimWord enc program sampleChallenge) := by
-  let encIn := encPair enc.index encBits
-  have h1 : IsPPTOn encIn encBits
-      (fun p : I × List Bool => enc.challenge p.1 <$> sampleChallenge p.1) :=
-    hchal.preprocess (by fun_prop)
-  let encMid := encPair encIn encBits
-  have h2 : IsPPTOn encMid (encPair encBits encBits)
-      (fun q : (I × List Bool) × List Bool => program (q.1.1, q.1.2, q.2)) :=
-    hprog.preprocess (by fun_prop)
-  have h3 : IsPPTOn encMid (encPair encBits (encPair encBits encBits))
-      (fun q : (I × List Bool) × List Bool =>
-        (fun tzBits : List Bool × List Bool => (tzBits.1, (q.2, tzBits.2))) <$>
-          program (q.1.1, q.1.2, q.2)) :=
-    h2.map_with (by fun_prop)
-  have h4 : IsPPTOn encIn (encPair encBits (encPair encBits encBits))
-      (fun p : I × List Bool => do
-        let cBits ← enc.challenge p.1 <$> sampleChallenge p.1
-        (fun tzBits : List Bool × List Bool => (tzBits.1, (cBits, tzBits.2))) <$>
-          program (p.1, p.2, cBits)) :=
-    h1.bind_with h3
-  exact isPPTOn_iff_encoded.mp h4
+  have h1 := hchal.preprocess (input := encPair enc.index encBits) (prepare := Prod.fst)
+    (by fun_prop)
+  have h2 := hprog.preprocess (input := encPair (encPair enc.index encBits) encBits)
+    (prepare := fun q : (I × List Bool) × List Bool => (q.1.1, q.1.2, q.2)) (by fun_prop)
+  exact isPPTOn_iff_encoded.mp (h1.bind_with
+    (h2.map_with (right := encPair encBits (encPair encBits encBits))
+      (f := fun q tzBits => (tzBits.1, (q.2, tzBits.2))) (by fun_prop)))
 
 variable [∀ i, Fintype (CF i)] [∀ i, Nonempty (CF i)]
 

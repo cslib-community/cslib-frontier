@@ -13,8 +13,8 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Foundations.Data.List.SortedAssoc
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 
 /-!
@@ -42,7 +42,7 @@ namespace Cslib.RandomOracle
 
 open Probability OracleComp
 
-variable {M Y Z α : Type} [DecidableEq M] [DecidableEq Y]
+variable {M Y Z α : Type} [BEq M] [LawfulBEq M] [DecidableEq Y]
 
 /-- Lazy sampling of a function on `Y` that is called at `φ m`, with the cache kept by query. In
 the cache-hit branch, `(m, z)` is still recorded when `m` is not yet cached so that `cache`
@@ -59,20 +59,17 @@ private theorem lookup_map_of_lookup (φ : M → Y) {cache : List (M × Z)} {m :
   induction cache with
   | nil => simp at h
   | cons e t ih =>
-    obtain ⟨m₀, z₀⟩ := e
+    rcases e with ⟨m₀, z₀⟩
     by_cases hm : m = m₀
     · subst hm
-      simp only [List.lookup_cons_self, Option.some.injEq] at h
-      subst h
-      simp
-    · have hb : (m == m₀) = false := by simpa using hm
-      simp only [List.lookup_cons, hb] at h
-      have hmem : (m, z) ∈ t := List.mem_of_lookup_eq_some h
+      simpa using h
+    · simp only [List.lookup_cons, show (m == m₀) = false by simpa using hm] at h
       have hφ : φ m ≠ φ m₀ := fun heq =>
-        hgood ⟨(m, z), List.mem_cons_of_mem _ hmem, (m₀, z₀), by simp, hm, heq⟩
-      have hb' : (φ m == φ m₀) = false := by simpa using hφ
-      simp only [List.map_cons, Prod.map_apply, id_eq, List.lookup_cons, hb']
-      exact ih (fun hbad => hgood (hbad.mono (List.subset_cons_self _ _))) h
+        hgood ⟨(m, z), List.mem_cons_of_mem _ (List.mem_of_lookup_eq_some h),
+          (m₀, z₀), List.mem_cons_self, hm, heq⟩
+      simpa only [List.map_cons, Prod.map_apply, id_eq, List.lookup_cons,
+        show (φ m == φ m₀) = false by simpa using hφ] using
+        ih (fun hbad => hgood (hbad.mono (List.subset_cons_self _ _))) h
 
 private theorem hasImageCollision_cons_of_lookup (φ : M → Y) {cache : List (M × Z)} {m : M} {z : Z}
     (hm : cache.lookup m = none)
@@ -83,6 +80,7 @@ private theorem hasImageCollision_cons_of_lookup (φ : M → Y) {cache : List (M
     (congrArg Prod.fst heq).symm⟩
   exact bne_iff_ne.mp (List.lookup_eq_none_iff.mp hm e he) hm_eq
 
+omit [LawfulBEq M] in
 private theorem memoizeThrough_map_ofList (φ : M → Y) (dist : PMF Z) (m : M)
     (cache : List (M × Z)) :
     (memoizeThrough φ dist m cache).map
@@ -91,13 +89,11 @@ private theorem memoizeThrough_map_ofList (φ : M → Y) (dist : PMF Z) (m : M)
   unfold memoizeThrough
   cases hy : (cache.map (Prod.map φ id)).lookup (φ m) with
   | none =>
-    rw [answer_of_none (fun _ : Y => dist) (ofList (cache.map (Prod.map φ id))) (φ m) hy,
-      PMF.map_comp]
-    refine congrArg (fun f => PMF.map f dist) (funext fun z => ?_)
-    simp only [Function.comp_apply, List.map_cons, Prod.map_apply, id_eq, ofList_cons]
+    rw [answer_of_none (fun _ : Y => dist) _ (φ m) hy, PMF.map_comp]
+    exact congrArg (PMF.map · dist) (funext fun z => by
+      simp only [Function.comp_apply, List.map_cons, Prod.map_apply, id_eq, ofList_cons])
   | some z =>
-    rw [answer_of_some (fun _ : Y => dist) (ofList (cache.map (Prod.map φ id))) (φ m) z hy,
-      PMF.pure_map]
+    rw [answer_of_some (fun _ : Y => dist) _ (φ m) z hy, PMF.pure_map]
     refine congrArg PMF.pure (Prod.ext rfl ?_)
     by_cases hm : (cache.lookup m).isSome
     · simp only [hm, ite_true]
@@ -158,6 +154,7 @@ private theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
     · exact h ▸ hp
     · exact h ▸ List.mem_cons_of_mem _ hp
 
+omit [LawfulBEq M] in
 /-- The result of a program run against `memoizeThrough φ dist` is its result when each query `m`
 is replaced by the query `φ m` to a lazily sampled function on `Y`. -/
 private theorem runWith_memoizeThrough_map_fst (φ : M → Y) (dist : PMF Z)
@@ -166,18 +163,12 @@ private theorem runWith_memoizeThrough_map_fst (φ : M → Y) (dist : PMF Z)
       (ProbOracleComp.runWith (answer fun _ : Y => dist)
         (ProbOracleComp.simulate (fun m => ProbOracleComp.query (φ m)) program)
         (fun _ => none)).map Prod.fst := by
-  have h := ProbOracleComp.runWith_map_state (memoizeThrough φ dist)
-    (fun m => answer (fun _ : Y => dist) (φ m))
-    (fun cache => ofList (cache.map (Prod.map φ id)))
-    (fun m cache => memoizeThrough_map_ofList φ dist m cache) program []
-  have h' := congrArg (PMF.map Prod.fst) h
-  simp only [PMF.map_comp, Function.comp_def, List.map_nil, ofList_nil] at h'
-  have hq : (fun m => ProbOracleComp.runWith (answer fun _ : Y => dist)
-      (ProbOracleComp.query (spec := fun _ : Y => Z) (φ m))) =
-      fun m => answer (fun _ : Y => dist) (φ m) :=
-    funext fun m => funext fun s => ProbOracleComp.runWith_query _ _ _
-  rw [ProbOracleComp.runWith_simulate, hq]
-  exact h'
+  have h := congrArg (PMF.map Prod.fst) <|
+    ProbOracleComp.runWith_map_state (memoizeThrough φ dist)
+      (fun m => answer (fun _ : Y => dist) (φ m))
+      (fun cache => ofList (cache.map (Prod.map φ id)))
+      (fun m cache => memoizeThrough_map_ofList φ dist m cache) program []
+  simpa only [runWith_norm, pmf_norm, List.map_nil, ofList_nil] using h
 
 /-- **A lazily sampled function called through `φ`.** Replacing each query `m` of `program` by the
 query `φ m` to a lazily sampled function on `Y` changes the law of the result by at most the

@@ -72,11 +72,9 @@ least `d`. -/
 theorem le_minDist_iff_hammingNorm (C : Submodule R (ι → M)) {d : ℕ∞} :
     d ≤ minDist (C : Set (ι → M)) ↔ ∀ x ∈ C, x ≠ 0 → d ≤ hammingNorm x := by
   rw [le_minDist_iff]
-  refine ⟨fun h x hx hx0 => ?_, fun h x hx y hy hxy => ?_⟩
-  · rw [← hammingDist_zero_right]
-    exact h x hx 0 C.zero_mem hx0
-  · rw [hammingDist_eq_hammingNorm]
-    exact h _ (C.add_mem (C.neg_mem hx) hy) fun h0 => hxy (neg_add_eq_zero.1 h0)
+  refine ⟨fun h x hx hx0 => hammingDist_zero_right x ▸ h x hx 0 C.zero_mem hx0,
+    fun h x hx y hy hxy => hammingDist_eq_hammingNorm x y ▸
+      h _ (C.add_mem (C.neg_mem hx) hy) fun h0 => hxy (neg_add_eq_zero.1 h0)⟩
 
 /-- **Minimum weight.** The minimum distance of a linear code is the least weight of a nonzero
 codeword, and `⊤` for the zero code. -/
@@ -106,8 +104,7 @@ theorem rate_linearCode_eq_finrank_div_card {ι F : Type*} [Fintype ι] [Field F
     (C : Submodule F (ι → F)) :
     rate (C : Set (ι → F)) = Module.finrank F C / Fintype.card ι := by
   have hF : (1 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.one_lt_card
-  have hcard : Nat.card (C : Set (ι → F)) = Nat.card C := rfl
-  rw [rate, hcard, card_linearCode_eq_pow_finrank]
+  rw [rate, show Nat.card (C : Set (ι → F)) = Nat.card C from rfl, card_linearCode_eq_pow_finrank]
   push_cast
   rw [Real.logb_self_pow (zero_lt_one.trans hF) hF.ne']
 
@@ -121,25 +118,20 @@ theorem card_pow_le_card_ker_mul {ι κ R : Type*} [Fintype ι] [Fintype κ] [Ri
     (f : (ι → R) →ₗ[R] (κ → R)) :
     Fintype.card R ^ Fintype.card ι ≤ Nat.card f.ker * Fintype.card R ^ Fintype.card κ := by
   have h := AddSubgroup.card_ker_mul_card_range f.toAddMonoidHom
-  have hker : Nat.card f.toAddMonoidHom.ker = Nat.card f.ker := rfl
-  have hrange : Nat.card f.toAddMonoidHom.range ≤ Fintype.card R ^ Fintype.card κ := by
-    refine (Nat.card_le_card_of_injective _ Subtype.val_injective).trans ?_
-    rw [Nat.card_fun, Nat.card_eq_fintype_card (α := R), Nat.card_eq_fintype_card (α := κ)]
-  rw [hker, Nat.card_fun, Nat.card_eq_fintype_card (α := R),
-    Nat.card_eq_fintype_card (α := ι)] at h
-  rw [← h]
-  exact Nat.mul_le_mul_left _ hrange
+  have hrange : Nat.card f.toAddMonoidHom.range ≤ Fintype.card R ^ Fintype.card κ :=
+    (Nat.card_le_card_of_injective _ Subtype.val_injective).trans_eq <| by
+      rw [Nat.card_fun, Nat.card_eq_fintype_card (α := R), Nat.card_eq_fintype_card (α := κ)]
+  rw [show Nat.card f.toAddMonoidHom.ker = Nat.card f.ker from rfl, Nat.card_fun,
+    Nat.card_eq_fintype_card (α := R), Nat.card_eq_fintype_card (α := ι)] at h
+  exact h ▸ Nat.mul_le_mul_left _ hrange
 
 /-- Over a finite ring `R` (`|R| ≥ 1`), `|R| ^ (|ι| - |κ|) ≤ |ker f|`. -/
 theorem pow_sub_le_card_ker {ι κ R : Type*} [Fintype ι] [Fintype κ] [Ring R] [Fintype R]
     (f : (ι → R) →ₗ[R] (κ → R)) :
     Fintype.card R ^ (Fintype.card ι - Fintype.card κ) ≤ Nat.card f.ker := by
   rcases le_total (Fintype.card κ) (Fintype.card ι) with hle | hle
-  · have h2 : Fintype.card R ^ (Fintype.card ι - Fintype.card κ) * Fintype.card R ^ Fintype.card κ =
-        Fintype.card R ^ Fintype.card ι := by
-      rw [← pow_add, Nat.sub_add_cancel hle]
-    have hpos : 0 < Fintype.card R ^ Fintype.card κ := pow_pos Fintype.card_pos _
-    exact le_of_mul_le_mul_right (h2.le.trans (card_pow_le_card_ker_mul f)) hpos
+  · refine le_of_mul_le_mul_right ?_ (pow_pos (Fintype.card_pos (α := R)) (Fintype.card κ))
+    simpa only [← pow_add, Nat.sub_add_cancel hle] using card_pow_le_card_ker_mul f
   · rw [Nat.sub_eq_zero_of_le hle, pow_zero]
     exact Nat.card_pos
 
@@ -149,20 +141,15 @@ theorem one_sub_card_div_card_le_rate_ker {ι κ R : Type*} [Fintype ι] [Fintyp
     1 - (Fintype.card κ : ℝ) / Fintype.card ι ≤ rate (f.ker : Set (ι → R)) := by
   have hpos : (0 : ℝ) < Nat.card f.ker := by exact_mod_cast Nat.card_pos (α := f.ker)
   have hR : (1 : ℝ) < Fintype.card R := by exact_mod_cast Fintype.one_lt_card
-  have hR0 : (0 : ℝ) < Fintype.card R := by linarith
-  have h : ((Fintype.card R : ℝ) ^ (Fintype.card ι : ℝ)) ≤
-      (Nat.card f.ker : ℝ) * (Fintype.card R : ℝ) ^ (Fintype.card κ : ℝ) := by
-    rw [Real.rpow_natCast, Real.rpow_natCast]
+  have hpow : (Fintype.card R : ℝ) ^ Fintype.card ι ≤
+      Nat.card f.ker * (Fintype.card R : ℝ) ^ Fintype.card κ := by
     exact_mod_cast card_pow_le_card_ker_mul f
-  have hlog : (Fintype.card ι : ℝ) ≤
-      Real.logb (Fintype.card R) (Nat.card f.ker) + Fintype.card κ := by
-    have h1 := Real.logb_le_logb_of_le hR (by positivity) h
-    rw [Real.logb_mul hpos.ne' (by positivity),
-      Real.logb_rpow hR0 (by linarith), Real.logb_rpow hR0 (by linarith)] at h1
-    exact h1
-  have hι' : (0 : ℝ) < Fintype.card ι := by exact_mod_cast hι
-  have hcard : Nat.card (f.ker : Set (ι → R)) = Nat.card f.ker := rfl
-  rw [rate, hcard, sub_le_iff_le_add, ← add_div, le_div_iff₀ hι', one_mul]
+  have h1 := Real.logb_le_logb_of_le hR (by positivity) hpow
+  rw [Real.logb_mul hpos.ne' (by positivity),
+    Real.logb_self_pow (zero_lt_one.trans hR) hR.ne',
+    Real.logb_self_pow (zero_lt_one.trans hR) hR.ne'] at h1
+  rw [rate, show Nat.card (f.ker : Set (ι → R)) = Nat.card f.ker from rfl, sub_le_iff_le_add,
+    ← add_div, le_div_iff₀ (by exact_mod_cast hι), one_mul]
   linarith
 
 end KerBounds
@@ -192,12 +179,11 @@ theorem extend_eq_sum {κ ι M : Type*} [Fintype κ] [DecidableEq ι] [AddCommMo
     extend emb z i = ∑ j : κ, if emb j = i then z j else 0 := by
   by_cases h : ∃ j, emb j = i
   · rcases h with ⟨j, rfl⟩
-    rw [extend_emb, Finset.sum_eq_single j
-      (fun j' _ hj' => by simp [emb.injective.ne hj']) (by simp)]
+    rw [extend_emb, Finset.sum_eq_single j (fun _ _ hj' => by simp [emb.injective.ne hj'])
+      (by simp)]
     simp
   · push Not at h
-    rw [extend_of_notMem emb z h]
-    simp [h]
+    simp [extend_of_notMem emb z h, h]
 
 /-- Zero-extension along an embedding is injective. -/
 theorem extend_injective {κ ι M : Type*} [Zero M]
@@ -222,17 +208,12 @@ theorem hammingNorm_extend {κ ι M : Type*} [Fintype κ] [Fintype ι]
     [Zero M] [DecidableEq M] (emb : κ ↪ ι) (z : κ → M) :
     hammingNorm (extend emb z) = hammingNorm z := by
   simp only [hammingNorm]
-  symm
-  refine Finset.card_bij (fun j _ => emb j) (fun j hj => ?_) (fun _ _ _ _ h => emb.injective h)
-    (fun i hi => ?_)
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
-    rwa [extend_emb]
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi
-    by_contra hne
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, not_exists] at hne
-    have hnone : ∀ j, emb j ≠ i := fun j he =>
-      hne j (by rw [← he, extend_emb] at hi; exact hi) he
-    exact hi (extend_of_notMem emb z hnone)
+  refine (Finset.card_bij (fun j _ => emb j) (fun j hj => ?_) (fun _ _ _ _ h => emb.injective h)
+    fun i hi => ?_).symm
+  · simpa only [Finset.mem_filter, Finset.mem_univ, true_and, extend_emb] using hj
+  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
+    by_contra! hne
+    exact hi (extend_of_notMem emb z fun j hj => hne j (by rwa [← hj, extend_emb] at hi) hj)
 
 /-- Zero-extension preserves Hamming distance. -/
 theorem hammingDist_extend {κ ι M : Type*} [Fintype κ] [Fintype ι]

@@ -45,11 +45,7 @@ private theorem readNat_append_false (word : List Bool) (n offset count : ℕ) :
     | zero =>
       cases count with
       | zero => rfl
-      | succ count =>
-        change Nat.bit bit (Encoding.NativeDecode.readNat
-          (word ++ List.replicate n false) 0 count) =
-          Nat.bit bit (Encoding.NativeDecode.readNat word 0 count)
-        rw [ih 0 count]
+      | succ count => exact congrArg (Nat.bit bit) (ih 0 count)
 
 /-- The source's full semantic word is its fixed prefix followed by blank bits. This identity
 is a specification only; the native implementation never allocates this suffix. -/

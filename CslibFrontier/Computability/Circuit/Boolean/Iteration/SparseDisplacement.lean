@@ -74,26 +74,25 @@ private theorem synthesis_thresholdSum (S : Finset ℕ) (coeff : ℕ → BitVec 
     rintro _ ⟨i, rfl⟩
     simpa [thresholdSum] using hc (base.getLsbD i.val)
   | @insert j S hj ih =>
-    let previous := fun x => thresholdSum S coeff base (a x)
-    let src := s ∪ wordWires previous
+    let prev := fun x => thresholdSum S coeff base (a x)
     let flag := fun x => (BitVec.ofNat w j).ult (a x)
-    have ht := Synthesis.word_ult (s := src) (fun _ => BitVec.ofNat w j) a
-      (fun i => Or.inl (hc _)) (fun i => Or.inl (ha i))
-    let src1 := src ∪ {flag}
     let term := fun x => if flag x then coeff j else 0
-    have hm := Synthesis.word_mux (s := src1) (fun _ => coeff j) (fun _ => (0 : BitVec w)) flag
-      (Or.inr rfl) (fun i => Or.inl (Or.inl (hc _))) (fun i => Or.inl (Or.inl (hc _)))
-    let src2 := src1 ∪ wordWires term
-    have hadd := Synthesis.word_add (s := src2) previous term
-      (fun i => Or.inl (Or.inl (Or.inr ⟨i, rfl⟩))) (fun i => Or.inr ⟨i, rfl⟩)
-    have he (x : BitString n) :
-        previous x + term x = thresholdSum (insert j S) coeff base (a x) := by
-      simp only [previous, term, flag, thresholdSum, Finset.sum_insert hj]
-      abel
+    have ht := Synthesis.word_ult (s := s ∪ wordWires prev) (fun _ => BitVec.ofNat w j) a
+      (fun _ => .inl (hc _)) (fun i => .inl (ha i))
+    have hm := Synthesis.word_mux (s := (s ∪ wordWires prev) ∪ {flag}) (fun _ => coeff j)
+      (fun _ => (0 : BitVec w)) flag (.inr rfl) (fun _ => .inl (.inl (hc _)))
+      (fun _ => .inl (.inl (hc _)))
+    have hadd := Synthesis.word_add (s := ((s ∪ wordWires prev) ∪ {flag}) ∪ wordWires term)
+      prev term (fun i => .inl (.inl (.inr ⟨i, rfl⟩))) (fun i => .inr ⟨i, rfl⟩)
     have h := ih.trans (ht.trans (hm.trans hadd))
+    have he (x : BitString n) :
+        prev x + term x = thresholdSum (insert j S) coeff base (a x) := by
+      simp only [prev, term, flag, thresholdSum, Finset.sum_insert hj]
+      abel
     simp only [he] at h
-    exact h.mono Set.Subset.rfl Set.Subset.rfl
-      (by rw [Finset.card_insert_of_notMem hj]; lia)
+    refine h.mono Set.Subset.rfl Set.Subset.rfl ?_
+    rw [Finset.card_insert_of_notMem hj]
+    lia
 
 /-- Word displacement relative to the counter coordinates. -/
 def displacement (h : BitVec n → BitVec n) (x : BitVec n) : BitVec n := h x - x
@@ -125,8 +124,7 @@ theorem thresholdSum_displacement (h : BitVec n → BitVec n) (x : BitVec n) :
     calc
       _ = ∑ i ∈ Finset.range (2 ^ n),
           if (BitVec.ofNat n i).ult x then d (i + 1) - d i else 0 := by
-        apply Finset.sum_subset (Finset.filter_subset _ _)
-        intro i hi hn
+        refine Finset.sum_subset (Finset.filter_subset _ _) fun i hi hn => ?_
         have he : d (i + 1) = d i := by
           simpa only [displacementCuts, Finset.mem_filter, hi, true_and, not_not, d] using hn
         simp [he]
@@ -134,16 +132,13 @@ theorem thresholdSum_displacement (h : BitVec n → BitVec n) (x : BitVec n) :
         symm
         calc
           _ = ∑ i ∈ Finset.range x.toNat,
-              if (BitVec.ofNat n i).ult x then d (i + 1) - d i else 0 := by
-            apply Finset.sum_congr rfl
-            intro i hi
-            have hil := Finset.mem_range.mp hi
-            simp [BitVec.ult, Nat.mod_eq_of_lt (hil.trans x.isLt), hil]
-          _ = _ := Finset.sum_subset (Finset.range_mono x.isLt.le) (by
-            intro i hi hn
-            have hil := Finset.mem_range.mp hi
-            have hn' : ¬ i < x.toNat := by simpa using hn
-            simp [BitVec.ult, Nat.mod_eq_of_lt hil, hn'])
+              if (BitVec.ofNat n i).ult x then d (i + 1) - d i else 0 :=
+            Finset.sum_congr rfl fun i hi => by
+              simp [BitVec.ult, Nat.mod_eq_of_lt ((Finset.mem_range.mp hi).trans x.isLt),
+                Finset.mem_range.mp hi]
+          _ = _ := Finset.sum_subset (Finset.range_mono x.isLt.le) fun i hi hn => by
+            simp [BitVec.ult, Nat.mod_eq_of_lt (Finset.mem_range.mp hi),
+              Finset.mem_range.not.mp hn]
   unfold thresholdSum
   rw [hsum, Finset.sum_range_sub d]
   simp [d]
@@ -154,18 +149,15 @@ private theorem displacementCuts_card (f h : BitVec n → BitVec n)
     (displacementCuts h).card ≤ 2 * (disagreement f (fun x => x + 1)).card := by
   classical
   refine (Finset.card_le_card_of_injOn (BitVec.ofNat n) (t :=
-    disagreement (h ∘ (fun x => x + 1)) ((fun x => x + 1) ∘ h)) ?_ ?_).trans
-      (commutation_defect_card f (fun x => x + 1) h hc hi)
-  · intro i hi
-    have hc' := (Finset.mem_filter.mp hi).2
-    simp only [Finset.mem_coe, mem_disagreement, Function.comp_apply]
-    apply (displacement_change_iff h (BitVec.ofNat n i)).mp
-    simpa only [BitVec.ofNat_add, BitVec.ofNat_eq_ofNat] using hc'
-  · intro i hi j hj he
-    have hi' := Finset.mem_range.mp (Finset.mem_filter.mp hi).1
-    have hj' := Finset.mem_range.mp (Finset.mem_filter.mp hj).1
-    have he' := congrArg BitVec.toNat he
-    simpa only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hi', Nat.mod_eq_of_lt hj'] using he'
+    disagreement (h ∘ (· + 1)) ((· + 1) ∘ h)) (fun i hi => ?_) fun i hi j hj he => ?_).trans
+      (commutation_defect_card f (· + 1) h hc hi)
+  · simp only [Finset.mem_coe, mem_disagreement, Function.comp_apply]
+    exact (displacement_change_iff h (BitVec.ofNat n i)).mp
+      (by simpa only [BitVec.ofNat_add, BitVec.ofNat_eq_ofNat] using (Finset.mem_filter.mp hi).2)
+  · simpa only [BitVec.toNat_ofNat,
+      Nat.mod_eq_of_lt (Finset.mem_range.mp (Finset.mem_filter.mp hi).1),
+      Nat.mod_eq_of_lt (Finset.mem_range.mp (Finset.mem_filter.mp hj).1)] using
+        congrArg BitVec.toNat he
 
 /-- A sparse derivative gives an actual native Boolean circuit, including all selection gates. -/
 private theorem displacement_circuit (h : BitVec n → BitVec n) :
@@ -175,28 +167,25 @@ private theorem displacement_circuit (h : BitVec n → BitVec n) :
       out.size ≤ 2 + (displacementCuts h).card * (21 * n + 3) + (12 * n + 1) := by
   let constants : Set (BitString n → Bool) := {fun _ => false, fun _ => true}
   let src := inputs n ∪ constants
-  have hc (v : Bool) : (fun _ : BitString n => v) ∈ src := by
-    cases v <;> simp [src, constants]
   have hw (i : Fin n) : (fun x : BitString n => (BitString.equivBitVec x).getLsbD i.val) ∈ src := by
     simpa only [BitString.getLsbD_equivBitVec] using
-      (show (fun x : BitString n => x i) ∈ src from Or.inl ⟨i, rfl⟩)
+      (show (fun x : BitString n => x i) ∈ src from .inl ⟨i, rfl⟩)
   have hs := synthesis_thresholdSum (displacementCuts h)
-    (fun i => displacement h (BitVec.ofNat n (i + 1)) -
-      displacement h (BitVec.ofNat n i)) (displacement h 0) src (⇑BitString.equivBitVec) hw hc
+    (fun i => displacement h (BitVec.ofNat n (i + 1)) - displacement h (BitVec.ofNat n i))
+    (displacement h 0) src (⇑BitString.equivBitVec) hw (by rintro (_ | _) <;> simp [src, constants])
   simp only [thresholdSum_displacement] at hs
   have hadd := Synthesis.word_add
-    (s := src ∪ wordWires (fun x => displacement h (BitString.equivBitVec x)))
+    (s := src ∪ wordWires fun x => displacement h (BitString.equivBitVec x))
     (⇑BitString.equivBitVec) (fun x => displacement h (BitString.equivBitVec x))
-    (fun i => Or.inl (hw i)) (fun i => Or.inr ⟨i, rfl⟩)
+    (fun i => .inl (hw i)) (fun i => .inr ⟨i, rfl⟩)
   have he (x : BitString n) :
       BitString.equivBitVec x + displacement h (BitString.equivBitVec x) =
         h (BitString.equivBitVec x) := by
     simp [displacement]
   simp only [he] at hadd
-  have hconst : Synthesis Boolean.interpretation (inputs n) constants 2 :=
-    (Synthesis.const false).union (Synthesis.const true)
-  obtain ⟨out, hout, ho⟩ := (hconst.trans (hs.trans hadd)).exists_circuit_outputs
-  exact ⟨out, hout, by simpa only [Nat.add_assoc] using ho⟩
+  obtain ⟨out, hout, ho⟩ := (((Synthesis.const false).union (Synthesis.const true)).trans
+    (hs.trans hadd)).exists_circuit_outputs
+  exact ⟨out, hout, by simpa only [← Nat.add_assoc] using ho⟩
 
 /-- Every injective map commuting with an `r`-edited counter has size `O(n(r+1))`.
 No transition circuit or state-space enumeration is a hypothesis. -/
@@ -234,18 +223,13 @@ theorem sparse_coordinate_power (f g e : Equiv.Perm (BitVec n))
       out.Computes Boolean.interpretation
         (fun x i => ((f ^ T) (BitString.equivBitVec x)).getLsbD i.val) ∧
       out.size ≤ encode.size + decode.size + 100 * (n + 1) * ((disagreement f g).card + 1) := by
-  have hr := disagreement_semiconj_card (f : BitVec n → BitVec n) g e (· + 1) hcycle
   obtain ⟨middle, hm, hs⟩ := sparse_counter_power (e.permCongrHom f) T
-  have hp : (e.permCongrHom f) ^ T = e.permCongrHom (f ^ T) := (map_zpow _ _ _).symm
-  refine ⟨decode.comp (middle.comp encode), ?_, ?_⟩
-  · intro x
-    rw [Circuit.eval_comp, Circuit.eval_comp, he x, hm, hd]
-    rw [hp]
+  refine ⟨decode.comp (middle.comp encode), fun x => ?_, ?_⟩
+  · rw [Circuit.eval_comp, Circuit.eval_comp, he x, hm, hd, ← map_zpow]
     simp only [BitString.equivBitVec_getLsbD, Equiv.permCongrHom_coe, Equiv.permCongr_apply,
       Equiv.symm_apply_apply]
-  · change middle.size ≤ 100 * (n + 1) *
-      ((disagreement (e ∘ f ∘ e.symm) (fun x => x + 1)).card + 1) at hs
-    rw [hr] at hs
+  · change middle.size ≤ 100 * (n + 1) * ((disagreement (e ∘ f ∘ e.symm) (· + 1)).card + 1) at hs
+    rw [disagreement_semiconj_card (f : BitVec n → BitVec n) g e (· + 1) hcycle] at hs
     simp only [Circuit.size_comp]
     lia
 

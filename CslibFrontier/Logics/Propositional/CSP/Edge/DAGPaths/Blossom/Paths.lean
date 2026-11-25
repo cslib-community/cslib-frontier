@@ -51,15 +51,13 @@ namespace DAG
 theorem blossomArcs_map_occurrence (ss : List (Occurrence F × Occurrence F))
     (ts : List ℕ) (pivot : ℕ) (hl : ts.length = ss.length) :
     (blossomArcs ss ts pivot).map Arc.occurrence = Walk.edgesOf ss := by
-  induction ss generalizing ts pivot with
-  | nil => simp [blossomArcs, Walk.edgesOf]
-  | cons s ss ih =>
-    cases ts with
-    | nil => simp at hl
-    | cons t ts =>
-      rcases s with ⟨input, output⟩
-      simp only [blossomArcs, List.map_cons, Walk.edgesOf_cons]
-      rw [ih ts (pivot - 1) (by simpa using hl)]
+  fun_induction blossomArcs ss ts pivot with
+  | case1 => simp [Walk.edgesOf] -- no steps
+  -- steps but no timestamps
+  | case2 ss _ hss => exact absurd (List.eq_nil_of_length_eq_zero (by simpa using hl.symm)) hss
+  | case3 input output ss t ts pivot ih => -- (input, output) :: ss, t :: ts
+    simp only [List.map_cons, Walk.edgesOf_cons]
+    rw [ih (by simpa using hl)]
 
 /-- Both actual ports of a cycle step appear at its supplied timestamp and orientation. -/
 theorem blossomArcs_get_mem {ss : List (Occurrence F × Occurrence F)} {ts : List ℕ}
@@ -68,28 +66,22 @@ theorem blossomArcs_get_mem {ss : List (Occurrence F × Occurrence F)} {ts : Lis
     let stamp := ts[j]'(by omega)
     (⟨input, stamp, decide (j < pivot)⟩ : Arc F) ∈ blossomArcs ss ts pivot ∧
       (⟨output, stamp, decide (pivot ≤ j + 1)⟩ : Arc F) ∈ blossomArcs ss ts pivot := by
-  induction ss generalizing ts pivot j with
-  | nil => simp at hj
-  | cons s ss ih =>
-    cases ts with
-    | nil => simp at hl
-    | cons t ts =>
-      cases j with
-      | zero => simp [blossomArcs]
-      | succ j =>
-        have hlen : ts.length = ss.length := by simpa using hl
-        have hlt : j < ss.length := by simpa using hj
-        have hh := ih hlen (pivot - 1) j hlt
-        have ha : decide (j < pivot - 1) = decide (j + 1 < pivot) := Bool.decide_congr (by omega)
-        have hb : decide (pivot - 1 ≤ j + 1) = decide (pivot ≤ j + 1 + 1) :=
-          Bool.decide_congr (by omega)
-        constructor
-        · apply List.mem_cons_of_mem
-          apply List.mem_cons_of_mem
-          simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, ha] using hh.1
-        · apply List.mem_cons_of_mem
-          apply List.mem_cons_of_mem
-          simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, hb] using hh.2
+  fun_induction blossomArcs ss ts pivot generalizing j with
+  | case1 => simp at hj -- no steps
+  -- steps but no timestamps
+  | case2 ss _ hss => exact absurd (List.eq_nil_of_length_eq_zero (by simpa using hl.symm)) hss
+  | case3 input output ss t ts pivot ih => -- (input, output) :: ss, t :: ts
+    cases j with
+    | zero => simp
+    | succ j =>
+      have hh := ih (by simpa using hl) j (by simpa using hj)
+      have ha : decide (j < pivot - 1) = decide (j + 1 < pivot) := Bool.decide_congr (by omega)
+      have hb : decide (pivot - 1 ≤ j + 1) = decide (pivot ≤ j + 1 + 1) :=
+        Bool.decide_congr (by omega)
+      exact ⟨List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, ha] using hh.1)),
+        List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, hb] using hh.2))⟩
 
 /-- Every actual blossom arc is one of the two supplied ports of a particular cycle step. -/
 theorem blossomArcs_mem {ss : List (Occurrence F × Occurrence F)} {ts : List ℕ}
@@ -99,22 +91,19 @@ theorem blossomArcs_mem {ss : List (Occurrence F × Occurrence F)} {ts : List �
       let stamp := ts[j]'(by omega)
       a = ⟨input, stamp, decide (j < pivot)⟩ ∨
         a = ⟨output, stamp, decide (pivot ≤ j + 1)⟩ := by
-  induction ss generalizing ts pivot with
-  | nil => simp [blossomArcs] at ha
-  | cons s ss ih =>
-    cases ts with
-    | nil => simp at hl
-    | cons t ts =>
-      simp only [blossomArcs, List.mem_cons] at ha
-      rcases ha with rfl | rfl | ha
-      · exact ⟨0, by simp, Or.inl rfl⟩
-      · exact ⟨0, by simp, Or.inr rfl⟩
-      · obtain ⟨j, hj, he⟩ := ih (by simpa using hl) ha
-        have hpa : decide (j < pivot - 1) = decide (j + 1 < pivot) := Bool.decide_congr (by omega)
-        have hpb : decide (pivot - 1 ≤ j + 1) = decide (pivot ≤ j + 1 + 1) :=
-          Bool.decide_congr (by omega)
-        exact ⟨j + 1, by simpa using Nat.succ_lt_succ hj, by simpa only [List.getElem_cons_succ,
-          Nat.succ_eq_add_one, hpa, hpb] using he⟩
+  fun_induction blossomArcs ss ts pivot with
+  | case3 input output ss t ts pivot ih => -- (input, output) :: ss, t :: ts
+    simp only [List.mem_cons] at ha
+    rcases ha with rfl | rfl | ha
+    · exact ⟨0, by simp, Or.inl rfl⟩
+    · exact ⟨0, by simp, Or.inr rfl⟩
+    · obtain ⟨j, hj, he⟩ := ih (by simpa using hl) ha
+      have hpa : decide (j < pivot - 1) = decide (j + 1 < pivot) := Bool.decide_congr (by omega)
+      have hpb : decide (pivot - 1 ≤ j + 1) = decide (pivot ≤ j + 1 + 1) :=
+        Bool.decide_congr (by omega)
+      exact ⟨j + 1, by simpa using Nat.succ_lt_succ hj, by simpa only [List.getElem_cons_succ,
+        Nat.succ_eq_add_one, hpa, hpb] using he⟩
+  | _ => simp at ha -- no steps or no timestamps
 
 /-- A finite lookup of the timestamp at an actual blossom incidence. -/
 @[expose] def blossomTime (w : Walk F) (times : List ℕ) (pivot : ℕ)
@@ -201,25 +190,18 @@ theorem blossomDAG_pairedCopies [DecidableEq V] {w : Walk F} {ts : List ℕ} {pi
   have ha : a ∈ (blossomDAG w ts pivot).arcs := List.mem_toFinset.mpr hm.1
   have hb : b ∈ (blossomDAG w ts pivot).arcs := List.mem_toFinset.mpr hm.2
   have habc : a.copy = b.copy := Prod.ext (linked_constraint hw.1 (List.getElem_mem hj)) rfl
-  have hec : e.copy = a.copy := by
-    rcases heq with rfl | rfl
-    · rfl
-    · exact habc.symm
-  have hab : a ≠ b := by
-    intro hh
-    have hp := congrArg Arc.occurrence hh
-    have hn := hw.2.sublist ((List.singleton_sublist.mpr (List.getElem_mem hj)).flatMap
-      (fun s : Occurrence F × Occurrence F => [s.1, s.2]))
-    exact (List.nodup_cons.mp hn).1 (List.mem_singleton.mpr hp)
-  have hp : ∀ d ∈ (blossomDAG w ts pivot).arcs, d.copy = e.copy → d = a ∨ d = b := by
-    intro d hd0 hdc
-    exact blossomArcs_copy hw hd hj (List.mem_toFinset.mp hd0) (hdc.trans hec)
+  have hec : e.copy = a.copy := heq.elim (fun h => h ▸ rfl) fun h => h ▸ habc.symm
+  have hab : a ≠ b := fun hh =>
+    (List.nodup_cons.mp (hw.2.sublist ((List.singleton_sublist.mpr (List.getElem_mem hj)).flatMap
+      (fun s : Occurrence F × Occurrence F => [s.1, s.2])))).1
+      (List.mem_singleton.mpr (congrArg Arc.occurrence hh))
+  have hp (d : Arc F) (hd0 : d ∈ (blossomDAG w ts pivot).arcs) (hdc : d.copy = e.copy) :
+      d = a ∨ d = b :=
+    blossomArcs_copy hw hd hj (List.mem_toFinset.mp hd0) (hdc.trans hec)
   by_cases hjp : j < pivot
   · exact ⟨a, ha, b, hb, by simp [a, hjp], hec.symm, habc.symm.trans hec.symm, hab, hp⟩
-  · refine ⟨b, hb, a, ha, by simp [b]; omega,
-      habc.symm.trans hec.symm, hec.symm, hab.symm, ?_⟩
-    intro d hd0 hdc
-    exact (hp d hd0 hdc).symm
+  · exact ⟨b, hb, a, ha, by simp [b]; omega, habc.symm.trans hec.symm, hec.symm, hab.symm,
+      fun d hd0 hdc => (hp d hd0 hdc).symm⟩
 
 end DAG
 

@@ -94,13 +94,13 @@ theorem exists_sign_length_bound (M : NonceMACScheme) :
           tag.length ≤ bound n msg.length := by
   obtain ⟨ck, dk, hlenk⟩ := M.keyGen_ppt.length_le
   obtain ⟨cs, ds, hlens⟩ := M.sign_ppt.length_le
-  have hnonce := M.nonceLen_polyTime
+  have := M.nonceLen_polyTime
   refine ⟨fun n ℓ => cs * (2 * (ck * (n + 1) ^ dk) + 2 * ℓ + M.nonceLen n + 4) ^ ds,
     by fun_prop, fun n sk hsk msg nonce hnonceLen tag htag => ?_⟩
   have hkeyLen := hlenk n sk hsk
-  simp only [encUnary_apply, List.length_replicate, encBits_apply] at hkeyLen
   have htagLen := hlens (sk, msg, nonce) tag htag
-  simp only [length_encPair, encBits_apply] at htagLen
+  simp only [encUnary_apply, List.length_replicate, length_encPair,
+    encBits_apply] at hkeyLen htagLen
   exact htagLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by lia) ds))
 
 variable (M : NonceMACScheme)
@@ -218,20 +218,18 @@ private theorem jointOracle_eq {n : ℕ} {sk : List Bool} {bound : ℕ → ℕ �
       ∀ tag ∈ (ProbComp.eval (M.sign sk msg nonce)).support, tag.length ≤ bound n msg.length) :
     jointOracle M n sk bound =
       fun q state => ProbComp.eval (M.counterSigningOracle n sk q state) := by
-  have hmapApply : ∀ {σ β γ : Type} (f : β → γ) (p : StateT σ PMF β) (state : σ),
-      (f <$> p) state = (p state).map (fun r => (f r.1, r.2)) := fun _ _ _ => rfl
-  funext q state
-  obtain ⟨⟨⟩, w⟩ := q
-  obtain ⟨j, issued⟩ := state
+  have hmapApply : ∀ {σ β γ : Type} (f : β → γ) (p : StateT σ PMF β) (s : σ),
+      (f <$> p) s = (p s).map fun r => (f r.1, r.2) := fun _ _ _ => rfl
+  funext ⟨⟨⟩, w⟩ ⟨j, issued⟩
   by_cases hj : (decide (j < 2 ^ M.nonceLen n) && w.length == M.msgLen n) = true
-  · have hw : (w.length == M.msgLen n) = true := (Bool.and_eq_true _ _).mp hj |>.2
-    simp only [jointOracle, counterHandler, counterSigningOracle, StateT.run, hj, ↓reduceIte]
+  · simp only [jointOracle, counterHandler, counterSigningOracle, StateT.run, hj, ↓reduceIte]
     simp only [OracleComp.interpret_map, ProbOracleComp.interpret_query, hmapApply,
       signingPairOracle, encPair_apply, encBits_apply, unframe_frame_append,
-      dropFrame_frame_append, hw, BitString.length_lowBits, beq_self_eq_true, Bool.and_self,
-      ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
-    refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
-    rw [List.take_of_length_le (hbound w _ (BitString.length_lowBits _ _) tag htag)]
+      dropFrame_frame_append, ((Bool.and_eq_true _ _).mp hj).2, BitString.length_lowBits,
+      beq_self_eq_true, Bool.and_self, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
+      PMF.map_bind, PMF.pure_map]
+    exact PMF.bind_congr_on_support _ _ _ fun tag htag => by
+      rw [List.take_of_length_le (hbound w _ (BitString.length_lowBits _ _) tag htag)]
   · simp only [jointOracle, counterHandler, counterSigningOracle, StateT.run, hj,
       Bool.false_eq_true, ↓reduceIte, OracleComp.interpret_pure, ProbComp.eval_pure]
     exact PMF.pure_map _ _
@@ -280,19 +278,16 @@ private theorem eval_sufCmaGame_counterForger {bound : ℕ → ℕ → ℕ} {n :
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
             (fun q state => ProbComp.eval (M.counterSigningOracle n sk q state)))
               (adversary n [])).run (0, [])).map (nonceWin M n sk) := by
-  have hfused : ProbComp.eval (M.sufCmaGame (M.counterForger bound adversary) n) =
-      (ProbComp.eval (M.keyGen n)).bind fun sk =>
-        ((OracleComp.interpret
-          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-            (jointOracle M n sk bound)) (adversary n [])).run (0, [])).map (nonceWin M n sk) := by
-    simp only [sufCmaGame, counterForger, ProbComp.eval_bind, ProbComp.eval_pure,
+  trans (ProbComp.eval (M.keyGen n)).bind fun sk =>
+    ((OracleComp.interpret
+      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
+        (jointOracle M n sk bound)) (adversary n [])).run (0, [])).map (nonceWin M n sk)
+  · simp only [sufCmaGame, counterForger, ProbComp.eval_bind, ProbComp.eval_pure,
       ProbOracleComp.eval_run_interpret, OracleComp.interpret_bind, OracleComp.interpret_pure,
       StateT.run_bind, StateT.run_pure, ProbOracleComp.run_interpret_run_interpret, PMF.bind_map,
       PMF.bind_bind, PMF.pure_bind, Function.comp_def]
     rfl
-  rw [hfused]
-  refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
-  rw [jointOracle_eq (hbound sk hsk)]
+  · exact PMF.bind_congr_on_support _ _ _ fun sk hsk => by rw [jointOracle_eq (hbound sk hsk)]
 
 /-- The issued nonces of every run of the counter signing oracle are the nonces of the counters
 issued so far, and the counter never passes `2 ^ M.nonceLen n`; so they are pairwise distinct. -/
@@ -305,30 +300,27 @@ private theorem nodup_of_mem_support_run_counterSigningOracle {n : ℕ} {sk : Li
           (adversary n [])).run (0, [])).support) :
     (issued.map (fun ((_, issuedNonce), _) => issuedNonce)).Nodup := by
   rw [← ProbOracleComp.runWith_eq_run_interpret] at hr
-  have hinv : counter ≤ 2 ^ M.nonceLen n ∧
+  have hinv := ProbOracleComp.runWith_invariant
+    (fun q state => ProbComp.eval (M.counterSigningOracle n sk q state))
+    (fun (counter, issued) => counter ≤ 2 ^ M.nonceLen n ∧
       issued.map (fun ((_, issuedNonce), _) => issuedNonce) =
-        ((List.range counter).map (BitString.lowBits (M.nonceLen n))).reverse := by
-    refine ProbOracleComp.runWith_invariant
-      (fun q state => ProbComp.eval (M.counterSigningOracle n sk q state))
-      (fun (counter, issued) => counter ≤ 2 ^ M.nonceLen n ∧
-        issued.map (fun ((_, issuedNonce), _) => issuedNonce) =
-          ((List.range counter).map (BitString.lowBits (M.nonceLen n))).reverse)
-      ?_ (adversary n []) (0, []) (by simp) result (counter, issued) hr
-    rintro ⟨⟨⟩, w⟩ ⟨j, issued⟩ ⟨hjle, hissued⟩ a ⟨j', issued'⟩ hmem
-    by_cases hj : (decide (j < 2 ^ M.nonceLen n) && w.length == M.msgLen n) = true
-    · simp only [counterSigningOracle, hj, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-        PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨tag, -, -, rfl, rfl⟩ := hmem
-      refine ⟨(decide_eq_true_iff.mp ((Bool.and_eq_true _ _).mp hj).1), ?_⟩
-      simp [hissued, List.range_succ]
-    · simp only [counterSigningOracle, hj, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure,
-        PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨-, rfl, rfl⟩ := hmem
-      exact ⟨hjle, hissued⟩
+        ((List.range counter).map (BitString.lowBits (M.nonceLen n))).reverse)
+    (fun ⟨⟨⟩, w⟩ ⟨j, issued⟩ ⟨hjle, hissued⟩ _ ⟨_, _⟩ hmem => by
+      by_cases hj : (decide (j < 2 ^ M.nonceLen n) && w.length == M.msgLen n) = true
+      · simp only [counterSigningOracle, hj, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
+          PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
+        obtain ⟨_, -, -, rfl, rfl⟩ := hmem
+        exact ⟨decide_eq_true_iff.mp ((Bool.and_eq_true _ _).mp hj).1,
+          by simp [hissued, List.range_succ]⟩
+      · simp only [counterSigningOracle, hj, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure,
+          PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
+        obtain ⟨-, rfl, rfl⟩ := hmem
+        exact ⟨hjle, hissued⟩)
+    (adversary n []) (0, []) (by simp) result (counter, issued) hr
   rw [hinv.2]
-  refine List.nodup_reverse.mpr (List.nodup_range.map_on fun a ha b hb hab => ?_)
-  exact BitString.lowBits_injective_of_lt
-    ((List.mem_range.mp ha).trans_le hinv.1) ((List.mem_range.mp hb).trans_le hinv.1) hab
+  exact List.nodup_reverse.mpr (List.nodup_range.map_on fun a ha b hb =>
+    BitString.lowBits_injective_of_lt
+      ((List.mem_range.mp ha).trans_le hinv.1) ((List.mem_range.mp hb).trans_le hinv.1))
 
 /-! ### The exact bound -/
 
@@ -383,16 +375,14 @@ private theorem counterHandler_bound {bound : ℕ → ℕ → ℕ} (c : ℕ × L
         (encUnary j).length + (bound c.1 request.2.length + 2 * M.nonceLen c.1 + 2) := by
   unfold counterHandler at hresult
   split_ifs at hresult with hj
-  · obtain ⟨tag, htag, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
+  · obtain ⟨_, htag, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
     obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp htag
-    have htake := List.length_take_le (bound c.1 request.2.length) raw
+    have := List.length_take_le (bound c.1 request.2.length) raw
     simp only [length_encPair, encBits_apply, BitString.length_lowBits, encUnary_apply,
       List.length_replicate]
     omega
-  · have h := OracleComp.eq_of_mem_supportWith_pure hresult
-    subst h
-    simp only [List.length_nil, encUnary_apply, List.length_replicate]
-    omega
+  · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hresult
+    simp only [List.length_nil, encUnary_apply, List.length_replicate]; omega
 
 /-- The counter forger's reduction is uniformly strict oracle PPT for every oracle-PPT forger and
 every polynomial-time truncation bound. -/
@@ -421,11 +411,8 @@ result. The reduction is `counterForger`, with loss `1`
 (`succProbability_counterSufCmaGame_le`). -/
 theorem SUFCMA.counterSufCma (h : M.SUFCMA) : M.CounterSUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := M.exists_sign_length_bound
-  apply CounterSUFCMA.of_negligible
-  intro adversary hadversary
-  exact negligible_of_le
-    (h.negligible (M.counterForger bound adversary)
-      (isOraclePPT_counterForger hboundPoly hadversary))
+  exact CounterSUFCMA.of_negligible fun adversary hadversary => negligible_of_le
+    (h.negligible _ (isOraclePPT_counterForger hboundPoly hadversary))
     fun n => succProbability_counterSufCmaGame_le (hbound n) adversary
 
 end NonceMACScheme

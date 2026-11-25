@@ -79,11 +79,11 @@ theorem binaryIndices_binaryCertificate {width : ℕ} {indices : List ℕ}
   induction indices with
   | nil => rfl
   | cons index rest ih =>
-    simp only [binaryCertificate, List.flatMap_cons, List.length_cons, binaryIndices]
-    rw [BitString.listRows_succ_append rest.length width
-      (BitString.length_binaryWord (h index (by simp)))]
-    simp only [List.map_cons, BitString.binaryValue_binaryWord]
-    exact congrArg (index :: ·) (ih (fun i hi => h i (by simp [hi])))
+    simp only [binaryCertificate, List.flatMap_cons, List.length_cons, binaryIndices,
+      BitString.listRows_succ_append rest.length width
+        (BitString.length_binaryWord (h index List.mem_cons_self)),
+      List.map_cons, BitString.binaryValue_binaryWord]
+    exact congrArg (index :: ·) (ih fun i hi => h i (List.mem_cons_of_mem _ hi))
 
 /-- Decoding and re-encoding a full-width word preserves all bits, including leading zeros. -/
 theorem binaryCertificate_binaryIndices {count width : ℕ} {word : List Bool}
@@ -91,26 +91,22 @@ theorem binaryCertificate_binaryIndices {count width : ℕ} {word : List Bool}
     binaryCertificate width (binaryIndices count width word) = word := by
   induction count generalizing word with
   | zero =>
-    have : word = [] := List.length_eq_zero_iff.mp (by simpa using h)
-    subst word
+    cases List.length_eq_zero_iff.mp (by simpa using h)
     rfl
   | succ count ih =>
     have htake : (word.take width).length = width := by grind
-    have hdrop : (word.drop width).length = count * width := by
-      simp only [List.length_drop, h, Nat.succ_mul, Nat.add_sub_cancel]
-    have hrows := BitString.listRows_succ_append count width htake (word.drop width)
-    rw [List.take_append_drop] at hrows
+    have hrows := List.take_append_drop width word ▸
+      BitString.listRows_succ_append count width htake (word.drop width)
     have hblock : BitString.binaryWord width (BitString.binaryValue (word.take width)) =
-        word.take width := by
-      apply BitString.binaryValue_injective_of_length_eq
-      · rw [BitString.length_binaryWord (by
-          simpa only [htake] using BitString.binaryValue_lt_two_pow (word.take width)), htake]
-      · simp
-    simp only [binaryIndices, hrows, List.map_cons, binaryCertificate, List.flatMap_cons]
-    rw [hblock]
-    change word.take width ++ binaryCertificate width
-      (binaryIndices count width (word.drop width)) = word
-    rw [ih hdrop, List.take_append_drop]
+        word.take width :=
+      BitString.binaryValue_injective_of_length_eq
+        (by rw [BitString.length_binaryWord
+          ((BitString.binaryValue_lt_two_pow _).trans_eq (by rw [htake])), htake])
+        (by simp)
+    simp only [binaryIndices, hrows, List.map_cons, binaryCertificate, List.flatMap_cons, hblock]
+    exact (congrArg (word.take width ++ ·)
+      (ih (by simp only [List.length_drop, h, Nat.succ_mul, Nat.add_sub_cancel]))).trans
+      (List.take_append_drop width word)
 
 /-- Every used index is below the occurrence-list bound, without identifying equal successors. -/
 theorem runBranch_indices_lt {k : ℕ} {Symbol State : Type*} {input : List Symbol}
@@ -123,11 +119,8 @@ theorem runBranch_indices_lt {k : ℕ} {Symbol State : Type*} {input : List Symb
   | nil => simp
   | cons first rest ih =>
     obtain ⟨next, hstep, hrest⟩ := Option.bind_eq_some_iff.mp hrun
-    obtain ⟨hlt, _⟩ := (machine.step?_eq_some_iff cfg next first).mp hstep
-    intro index hindex
-    rcases List.mem_cons.mp hindex with rfl | hindex
-    · exact hlt.trans_le (hbound cfg)
-    · exact ih hrest index hindex
+    exact List.forall_mem_cons.mpr
+      ⟨((machine.step?_eq_some_iff cfg next first).mp hstep).1.trans_le (hbound cfg), ih hrest⟩
 
 /-- The same positive bound covers actual indices and the forced zero padding after halting. -/
 theorem decodeCertificate_indices_lt {k : ℕ} {Symbol State : Type*} {input : List Symbol}
@@ -138,11 +131,8 @@ theorem decodeCertificate_indices_lt {k : ℕ} {Symbol State : Type*} {input : L
     ∀ index ∈ word, index < bound := by
   obtain ⟨hrun, _, hword⟩ := machine.decodeCertificate_sound hdecode
   rw [hword]
-  intro index hindex
-  rcases List.mem_append.mp hindex with hindex | hindex
-  · exact machine.runBranch_indices_lt hbound hrun index hindex
-  · obtain ⟨_, rfl⟩ := List.mem_replicate.mp hindex
-    exact hpos
+  exact List.forall_mem_append.mpr ⟨machine.runBranch_indices_lt hbound hrun,
+    fun _ h => (List.mem_replicate.mp h).2 ▸ hpos⟩
 
 /-- Fixed-width binary words count the canonical occurrence certificates exactly, for any
 terminal verdict. This is the common counting bijection for executable certificate checkers

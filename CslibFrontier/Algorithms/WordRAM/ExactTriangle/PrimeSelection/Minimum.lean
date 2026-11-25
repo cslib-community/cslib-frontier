@@ -30,61 +30,42 @@ private def BestBefore (D : ℕ) (score : ℕ → ℕ) (k best value found : ℕ
 
 private theorem bestBefore_initial (D : ℕ) (score : ℕ → ℕ) :
     BestBefore D score 2 0 0 0 := by
-  refine Or.inl ⟨rfl, rfl, ?_⟩
-  intro p hp hlt
+  refine Or.inl ⟨rfl, rfl, fun _ hp _ => ?_⟩
   have := (Nat.mem_sqrtPrimeWindow_iff_sq.1 hp).1.two_le
   omega
 
 private theorem bestBefore_skip {D k best value found : ℕ} {score : ℕ → ℕ}
     (h : BestBefore D score k best value found) (hk : k ∉ Nat.sqrtPrimeWindow D) :
     BestBefore D score (k + 1) best value found := by
-  obtain ⟨hf, hb, hnone⟩ | ⟨hf, hb, hlt, hv, hmin⟩ := h
-  · refine Or.inl ⟨hf, hb, ?_⟩
-    intro p hp hpk
-    have hne : p ≠ k := by intro he; subst p; exact hk hp
-    exact hnone p hp (by omega)
-  · refine Or.inr ⟨hf, hb, by omega, hv, ?_⟩
-    intro p hp hpk
-    have hne : p ≠ k := by intro he; subst p; exact hk hp
-    exact hmin p hp (by omega)
+  obtain ⟨hf, hb, hnone⟩ | ⟨hf, hb, _, hv, hmin⟩ := h
+  · exact Or.inl ⟨hf, hb, fun p hp hpk => hnone p hp
+      (Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hpk) fun he => hk (he ▸ hp))⟩
+  · exact Or.inr ⟨hf, hb, by omega, hv, fun p hp hpk => hmin p hp
+      (Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hpk) fun he => hk (he ▸ hp))⟩
 
 private theorem bestBefore_take {D k best value found : ℕ} {score : ℕ → ℕ}
     (h : BestBefore D score k best value found) (hk : k ∈ Nat.sqrtPrimeWindow D) :
     BestBefore D score (k + 1)
       (if found = 0 ∨ score k < value then k else best)
       (if found = 0 ∨ score k < value then score k else value) 1 := by
-  obtain ⟨hf, _, hnone⟩ | ⟨hf, hb, hlt, hv, hmin⟩ := h
+  obtain ⟨hf, _, hnone⟩ | ⟨hf, hb, _, hv, hmin⟩ := h
   · simp only [hf, true_or, ↓reduceIte]
-    refine Or.inr ⟨rfl, hk, by omega, rfl, ?_⟩
-    intro p hp hpk
-    by_cases he : p = k
-    · subst p
-      exact le_rfl
-    · exact False.elim (hnone p hp (by omega))
+    exact Or.inr ⟨rfl, hk, by omega, rfl, fun p hp hpk =>
+      if he : p = k then he ▸ le_rfl else (hnone p hp (by omega)).elim⟩
   · simp only [hf, one_ne_zero, false_or]
     by_cases himprove : score k < value
     · simp only [himprove, ↓reduceIte]
-      refine Or.inr ⟨rfl, hk, by omega, rfl, ?_⟩
-      intro p hp hpk
-      by_cases he : p = k
-      · subst p
-        exact le_rfl
-      · exact himprove.le.trans (hmin p hp (by omega))
+      exact Or.inr ⟨rfl, hk, by omega, rfl, fun p hp hpk =>
+        if he : p = k then he ▸ le_rfl else himprove.le.trans (hmin p hp (by omega))⟩
     · simp only [himprove, ↓reduceIte]
-      refine Or.inr ⟨rfl, hb, by omega, hv, ?_⟩
-      intro p hp hpk
-      by_cases he : p = k
-      · subst p
-        exact Nat.le_of_not_gt himprove
-      · exact hmin p hp (by omega)
+      exact Or.inr ⟨rfl, hb, by omega, hv, fun p hp hpk =>
+        if he : p = k then he ▸ Nat.le_of_not_gt himprove else hmin p hp (by omega)⟩
 
 private theorem window_lt_of_exit {D k p : ℕ} (hp : p ∈ Nat.sqrtPrimeWindow D)
-    (hstop : D ≤ k * k) : p < k := by
-  have hs : p * p < D := by
-    simpa only [pow_two] using (Nat.mem_sqrtPrimeWindow_iff_sq.1 hp).2.2
-  by_contra h
-  have hm : k * k ≤ p * p := Nat.mul_self_le_mul_self (Nat.le_of_not_gt h)
-  omega
+    (hstop : D ≤ k * k) : p < k :=
+  not_le.mp fun hle => not_le.mpr
+    (show p * p < D by simpa only [pow_two] using (Nat.mem_sqrtPrimeWindow_iff_sq.1 hp).2.2)
+    (hstop.trans (Nat.mul_self_le_mul_self hle))
 
 private theorem bestBefore_exit {D k best value found : ℕ} {score : ℕ → ℕ}
     (h : BestBefore D score k best value found) (hne : (Nat.sqrtPrimeWindow D).Nonempty)

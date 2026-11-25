@@ -67,21 +67,13 @@ theorem Clause.toOuterMeasure_pi_setOf_eval_eq_false {V : Type*} [Fintype V] {c 
       simp only [Set.mem_ofPred_eq, Set.mem_inter_iff, Clause.eval_cons, Bool.or_eq_false_iff,
         Literal.eval, beq_eq_false_iff_ne]
       cases σ l.1 <;> cases l.2 <;> simp
-    have hdisj : Disjoint ({l.1} : Set V) {v | v ∈ c.map Prod.fst} :=
-      Set.disjoint_singleton_left.2 hc.1
-    rw [hset, PMF.toOuterMeasure_pi_inter_eq_mul _ hdisj
-      (fun σ τ h => by simp only [Set.mem_ofPred_eq, h l.1 rfl])
-      (fun σ τ h => by
+    rw [hset, PMF.toOuterMeasure_pi_eq_inter (fun _ : V => PMF.uniformOfFintype Bool)
+      (S := {v | v ∈ c.map Prod.fst}) hc.1
+      (E := {σ | Clause.eval σ c = false}) (fun σ τ h => by
         simp only [Set.mem_ofPred_eq,
           Clause.eval_congr fun l hl => h l.1 (List.mem_map_of_mem hl)]),
       ih hc.2, List.length_cons, pow_succ, mul_comm]
-    congr 1
-    have h := PMF.toOuterMeasure_map_apply (fun σ : V → Bool => σ l.1)
-      (PMF.pi fun _ : V => PMF.uniformOfFintype Bool) {!l.2}
-    rw [PMF.pi_map_eval] at h
-    rw [show {σ : V → Bool | σ l.1 = !l.2} = (fun σ => σ l.1) ⁻¹' {!l.2} from rfl, ← h,
-      PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply]
-    simp
+    simp [PMF.uniformOfFintype_apply]
 
 /-- **The Lovász Local Lemma for `k`-SAT**, by the symmetric Local Lemma
 [Alon and Spencer, Corollary 5.1.2][AlonSpencer2016]: if every clause of an exact `k`-CNF shares a

@@ -78,6 +78,8 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
+attribute [local irreducible] ComputableInPolyTime
+
 variable {α : Type}
 
 /-! ### The combined instance -/
@@ -424,10 +426,19 @@ theorem soplPpad_end
   -- distinguished source without a pigeon is a proper source `y` of the end-of-line graph. A
   -- pigeon without a hole is a sink `y`. All other strings with `y = 0 ^ (n₂ a)` are isolated.
   unfold sinkOfPotentialLineRel endOfLineRel
-  cases b <;> by_cases hy0 : y = zeroVertex (n₂ a) <;> by_cases hx0 : x = zeroVertex (n₁ a) <;>
-    cases hpo : hasPotentialOut n₁ P₁ S₁ V₁ a x <;> cases hpi : hasPotentialIn n₁ P₁ S₁ V₁ a x <;>
-    cases hout : hasOut n₂ P₂ S₂ a y <;> cases hin : hasIn n₂ P₂ S₂ a y <;>
-    simp_all [soplPpadSuccCore, soplPpadPredCore]
+  cases b <;> by_cases hy0 : y = zeroVertex (n₂ a) <;> by_cases hx0 : x = zeroVertex (n₁ a)
+  · cases hout : hasOut n₂ P₂ S₂ a y <;> simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · cases hout : hasOut n₂ P₂ S₂ a y <;> cases hin : hasIn n₂ P₂ S₂ a y <;>
+      simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · cases hpo : hasPotentialOut n₁ P₁ S₁ V₁ a x <;> cases hpi : hasPotentialIn n₁ P₁ S₁ V₁ a x <;>
+      simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · cases hout : hasOut n₂ P₂ S₂ a y <;> cases hin : hasIn n₂ P₂ S₂ a y <;>
+      simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · cases hpo : hasPotentialOut n₁ P₁ S₁ V₁ a x <;> cases hpi : hasPotentialIn n₁ P₁ S₁ V₁ a x <;>
+      simp_all [soplPpadSuccCore, soplPpadPredCore]
 
 /-! ### Lengths and polynomial-time computability -/
 

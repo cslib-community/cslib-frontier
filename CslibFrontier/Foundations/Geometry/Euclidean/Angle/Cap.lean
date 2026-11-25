@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Geometry.Euclidean.Angle.Unoriented.Basi
 public import Mathlib.Data.Finset.Prod
 import CslibFrontier.Foundations.Analysis.InnerProductSpace.Basic
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Arccos
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Geometry.Euclidean.Angle.Unoriented.TriangleInequality
 
@@ -187,15 +188,12 @@ theorem sum_offDiag_angle_le {x : V} (hx : ‖x‖ = 1) {s : Finset ι} {y : ι 
     (hoff p hp).2.1]
   rcases lt_or_ge #s 2 with hs | hs
   · -- At most one vector: there are no pairs.
-    have : s.offDiag = ∅ := by
+    have h0 : s.offDiag = ∅ := by
       rw [← card_eq_zero, offDiag_card]
       interval_cases #s <;> rfl
-    have hs' : (#s : ℝ) * (#s - 1) = 0 := by
-      interval_cases #s <;> simp
-    rw [this, sum_empty, hs', zero_mul]
-  have hs1 : (0 : ℝ) < #s - 1 := by
-    have : (2 : ℝ) ≤ #s := by exact_mod_cast hs
-    linarith
+    rw [h0, sum_empty]
+    interval_cases #s <;> simp
+  have hs1 : (0 : ℝ) < #s - 1 := by cast_linarith [hs]
   have hcard : (#s.offDiag : ℝ) = #s * (#s - 1) := by
     rw [offDiag_card, Nat.cast_sub (Nat.le_mul_self _), Nat.cast_mul]
     ring

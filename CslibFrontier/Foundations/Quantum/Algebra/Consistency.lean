@@ -57,9 +57,8 @@ noncomputable def agreement (φ : AlgState A) (P Q : Measurement α A) : ℝ :=
 omit [StarRing A] [StarOrderedRing A] in
 /-- Exchanging the roles of commuting effects leaves their agreement unchanged. -/
 theorem agreement_comm (φ : AlgState A) (P Q : Measurement α A)
-    (h : ∀ a, Commute (P.effect a) (Q.effect a)) : agreement φ P Q = agreement φ Q P := by
-  unfold agreement
-  exact sum_congr rfl fun a _ => congrArg (fun x => (φ x).re) (h a).eq
+    (h : ∀ a, Commute (P.effect a) (Q.effect a)) : agreement φ P Q = agreement φ Q P :=
+  sum_congr rfl fun a _ => congrArg (fun x => (φ x).re) (h a).eq
 
 omit [StarRing A] [StarOrderedRing A] in
 /-- Agreement of two postprocessed measurements sums exactly the joint coefficients whose
@@ -92,11 +91,8 @@ by the image of the first outcome under the relabeling. -/
 theorem agreement_map_left {β : Type*} [Fintype β] [DecidableEq β] [IsOrderedAddMonoid A]
     (φ : AlgState A) (P : Measurement α A) (Q : Measurement β A) (f : α → β) :
     agreement φ (P.map f) Q = ∑ a, (φ (P.effect a * Q.effect (f a))).re := by
-  calc
-    agreement φ (P.map f) Q = agreement φ (P.map f) (Q.map id) := by rw [map_id]
-    _ = _ := by
-      rw [agreement_map_map]
-      simp
+  rw [← Q.map_id, agreement_map_map]
+  simp
 
 omit [StarRing A] [StarOrderedRing A] in
 /-- The total joint mass of two complete measurements is one. -/
@@ -122,10 +118,8 @@ theorem agreement_le_one (φ : AlgState A) (P Q : Measurement α A)
 /-- An element between `0` and `1` satisfies `e² ≤ e`. -/
 theorem _root_.Cslib.Quantum.mul_self_le_self_of_nonneg_of_le_one {e : A} (h0 : 0 ≤ e)
     (h1 : e ≤ 1) : e * e ≤ e := by
-  have := Commute.mul_nonneg h0 (sub_nonneg.mpr h1)
-    ((Commute.one_right _).sub_right (Commute.refl _))
-  rw [mul_sub, mul_one, sub_nonneg] at this
-  exact this
+  simpa [mul_sub, sub_nonneg] using Commute.mul_nonneg h0 (sub_nonneg.mpr h1)
+    ((Commute.one_right _).sub_right (.refl _))
 
 /-- An effect satisfies `E² ≤ E`. -/
 theorem effect_mul_self_le (P : Measurement α A) (a : α) :
@@ -161,12 +155,8 @@ omit [StarRing A] [StarOrderedRing A] [TopologicalSpace A]
 private theorem sum_re_effect_add_sub (φ : AlgState A) (P Q : Measurement α A) :
     (∑ a, ((φ (P.effect a)).re + (φ (Q.effect a)).re -
       2 * (φ (P.effect a * Q.effect a)).re)) = 2 - 2 * agreement φ P Q := by
-  have hP : ∑ a, (φ (P.effect a)).re = 1 := by
-    simpa [prob] using P.sum_prob φ
-  have hQ : ∑ a, (φ (Q.effect a)).re = 1 := by
-    simpa [prob] using Q.sum_prob φ
-  rw [sum_sub_distrib, sum_add_distrib, hP, hQ, ← mul_sum, agreement]
-  ring
+  change ∑ a, (P.prob φ a + Q.prob φ a - 2 * (φ (P.effect a * Q.effect a)).re) = _
+  rw [sum_sub_distrib, sum_add_distrib, P.sum_prob φ, Q.sum_prob φ, ← mul_sum, agreement]; ring
 
 omit [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
   [NonnegSpectrumClass ℝ A] in
@@ -221,10 +211,11 @@ theorem sum_norm_sub_sq_triangle (φ : AlgState A) (P Q R : Measurement α A) :
   refine sum_le_sum fun a _ => ?_
   let X := P.effect a - Q.effect a
   let Y := Q.effect a - R.effect a
-  change φ.norm (P.effect a - R.effect a) ^ 2 ≤ 2 * (φ.norm X ^ 2 + φ.norm Y ^ 2)
-  rw [show P.effect a - R.effect a = X + Y by dsimp only [X, Y]; abel]
-  refine (pow_le_pow_left₀ (φ.norm_nonneg _) (φ.norm_add_le X Y) 2).trans ?_
-  nlinarith only [sq_nonneg (φ.norm X - φ.norm Y)]
+  have hXY : P.effect a - R.effect a = X + Y := by
+    dsimp only [X, Y]
+    abel
+  exact hXY ▸ (pow_le_pow_left₀ (φ.norm_nonneg _) (φ.norm_add_le X Y) 2).trans
+    (by nlinarith only [sq_nonneg (φ.norm X - φ.norm Y)])
 
 /-- Measurements that agree with probability at least `1 - ε` have effects that are close in
 the state: `∑_a ‖P_a - Q_a‖²_φ ≤ 2ε`. -/
@@ -238,13 +229,10 @@ observables is at most four times the probability that they disagree. -/
 theorem norm_observable_sub_sq_le (φ : AlgState A) (P Q : Measurement Bool A)
     (h : ∀ a, Commute (P.effect a) (Q.effect a)) :
     φ.norm (P.observable - Q.observable) ^ 2 ≤ 4 * (1 - agreement φ P Q) := by
-  have htrue (M : Measurement Bool A) : M.effect true = 1 - M.effect false := by
-    have hsum := M.sum_effect
-    rw [Fintype.sum_bool] at hsum
-    exact eq_sub_of_add_eq hsum
+  have htrue (M : Measurement Bool A) : M.effect true = 1 - M.effect false :=
+    eq_sub_of_add_eq (Fintype.sum_bool M.effect ▸ M.sum_effect)
   have hneg : P.effect true - Q.effect true = -(P.effect false - Q.effect false) := by
-    rw [htrue P, htrue Q]
-    abel
+    rw [htrue P, htrue Q]; abel
   have hobs : P.observable - Q.observable = (2 : ℂ) • (P.effect false - Q.effect false) := by
     rw [observable, observable, sub_sub_sub_comm, hneg, sub_neg_eq_add, two_smul]
   have hdist := sum_norm_sub_sq_le φ P Q h
@@ -257,13 +245,9 @@ theorem norm_observable_sub_sq_le (φ : AlgState A) (P Q : Measurement Bool A)
 four times its true outcome probability. -/
 theorem norm_observable_sub_one_sq_le (φ : AlgState A) (M : Measurement Bool A) :
     φ.norm (M.observable - 1) ^ 2 ≤ 4 * M.prob φ true := by
-  let constant : Measurement Bool A := const false
-  have hcomm (b : Bool) : Commute (M.effect b) (constant.effect b) := by
-    cases b <;> simp [constant, const]
-  have h := norm_observable_sub_sq_le φ M constant hcomm
-  have hobs : constant.observable = 1 := by simp [constant, const, observable]
-  have hagree : agreement φ M constant = M.prob φ false := by
-    simp [agreement, constant, const, prob]
+  have h := norm_observable_sub_sq_le φ M (const false) fun b => by cases b <;> simp [const]
+  have hobs : (const false : Measurement Bool A).observable = 1 := by simp [const, observable]
+  have hagree : agreement φ M (const false) = M.prob φ false := by simp [agreement, const, prob]
   rw [hobs, hagree] at h
   have htotal := M.sum_prob φ
   rw [Fintype.sum_bool] at htotal

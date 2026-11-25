@@ -9,13 +9,10 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
+-- Reads private `RowSigner`, `changed_keySeed_le`, and `keySeedDeviceGame` internals.
 import all CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Languages.Probabilistic.Presample
 import CslibFrontier.Probability.Hellinger
+-- Reads private `Test`, `addressTest`, `addressTest_law`, `hit`, and `scored_gap_le`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
 
 /-!
@@ -67,12 +64,11 @@ private theorem amps_bind_le {β : Type} [Finite β] (p : PMF β)
   rw [← sq_le_sq₀ (norm_nonneg _) hr, amps_sq]
   calc
     _ ≤ ∑ i, w i * ∑ a, (p a).toReal *
-        (√((f a i true).toReal) - √((g a i true).toReal)) ^ 2 := by
-      apply Finset.sum_le_sum
-      intro i _
-      simp only [PMF.bind_apply_toReal]
-      exact mul_le_mul_of_nonneg_left (PMF.sq_sqrt_mean_sub_le p _ _
-        (fun _ => ENNReal.toReal_nonneg) (fun _ => ENNReal.toReal_nonneg)) ENNReal.toReal_nonneg
+        (√((f a i true).toReal) - √((g a i true).toReal)) ^ 2 :=
+      Finset.sum_le_sum fun i _ => by
+        simp only [PMF.bind_apply_toReal]
+        exact mul_le_mul_of_nonneg_left (PMF.sq_sqrt_mean_sub_le p _ _
+          (fun _ => ENNReal.toReal_nonneg) (fun _ => ENNReal.toReal_nonneg)) ENNReal.toReal_nonneg
     _ = ∑ a, (p a).toReal * ‖amps (f a) - amps (g a)‖ ^ 2 := by
       simp only [amps_sq, Finset.mul_sum]
       rw [Finset.sum_comm]
@@ -93,14 +89,11 @@ private theorem mean_keySeed_hit {C : QuantumSigningForger} {α V : Type} [Zero 
     ∑ seed, ((PMF.uniformOfFintype (FixedBytes 32)) seed).toReal *
       (hit prog (H.withKeySeedExpansion s seed out) H sign d log tape j true).toReal ≤
         1 / 2 ^ 256 := by
-  let seeds := PMF.uniformOfFintype (FixedBytes 32)
-  have bound : (seeds.bind fun seed =>
-      hit prog (H.withKeySeedExpansion s seed out) H sign d log tape j) true ≤
-      (2 ^ 256 : ℝ≥0∞)⁻¹ := by
-    exact hit_mean_le seeds (fun seed => H.withKeySeedExpansion s seed out) H prog
-      sign d log tape j (fun a => changed_keySeed_le C s H out a)
   simpa only [PMF.bind_apply_toReal, ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat,
-    one_div, seeds] using ENNReal.toReal_mono (by simp) bound
+    one_div] using ENNReal.toReal_mono (by simp)
+      (hit_mean_le (PMF.uniformOfFintype (FixedBytes 32))
+        (fun seed => H.withKeySeedExpansion s seed out) H prog sign d log tape j
+        fun a => changed_keySeed_le C s H out a)
 
 private theorem scored_bound {C : QuantumSigningForger} {α : Type} {prog : Program C α} {j : ℕ}
     (cost : OracleComp.IsCostBounded (fun q => (isXofQuery q).toNat) prog j)
@@ -116,17 +109,19 @@ private theorem scored_bound {C : QuantumSigningForger} {α : Type} {prog : Prog
   let h := fun seed i => (hit prog (G seed) H sign d log tape i true).toReal
   rw [← sq_le_sq₀ (norm_nonneg _) (by positivity), amps_sq]
   calc
-    _ ≤ ∑ seed, w seed * (4 * j * ∑ i ∈ Finset.range j, h seed i) := by
-      exact Finset.sum_le_sum fun seed _ => mul_le_mul_of_nonneg_left
+    _ ≤ ∑ seed, w seed * (4 * j * ∑ i ∈ Finset.range j, h seed i) :=
+      Finset.sum_le_sum fun seed _ => mul_le_mul_of_nonneg_left
         (scored_gap_le cost (G seed) H sign test d log tape) ENNReal.toReal_nonneg
     _ = 4 * j * ∑ i ∈ Finset.range j, ∑ seed, w seed * h seed i := by
       simp only [Finset.mul_sum]
       rw [Finset.sum_comm]
       exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun seed _ => mul_left_comm ..
-    _ ≤ 4 * j * ∑ _i ∈ Finset.range j, (1 / 2 ^ 256 : ℝ) :=
-      mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun i _ =>
-        mean_keySeed_hit prog s H out sign d log tape i) (by positivity)
-    _ = _ := by simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]; ring
+    _ ≤ 4 * j * ∑ _i ∈ Finset.range j, (1 / 2 ^ 256 : ℝ) := by
+      gcongr with i
+      exact mean_keySeed_hit prog s H out sign d log tape i
+    _ = _ := by
+      simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+      ring
 
 private theorem prefix_queries_le {C : QuantumSigningForger} {α : Type}
     (p : Program C α) (j : ℕ) :
@@ -137,9 +132,7 @@ private theorem prefix_queries_le {C : QuantumSigningForger} {α : Type}
     rw [queryPrefix]
     split
     · exact .pure _ _
-    · rename_i h
-      apply OracleComp.IsCostBounded.liftBind_iff.mpr
-      refine ⟨?_, fun a => ih a _⟩
+    · refine OracleComp.IsCostBounded.liftBind_iff.mpr ⟨?_, fun a => ih a _⟩
       cases hq : isXofQuery q <;> simp_all
       lia
 
@@ -150,30 +143,26 @@ private theorem observations_bound (C : QuantumSigningForger) (s : Level) (H : X
         (C.observations (H.withKeySeedExpansion s seed out) s sv rows j).map accept) -
       amps (fun _ => (C.observations H s sv rows j).map accept)‖ ≤ j * (2 / 2 ^ 128) := by
   let report := accept ∘ signingSeedCandidates (C := C) (sv.map RowSigner.hash)
-  let M := addressTest C report
-  have hm := addressTest_law C report
   simp only [observations, serviceAddress, addressLaw, PMF.map_comp, withTrialSetup,
     Xofs.expandA_congr (H := H) (K := H.withKeySeedExpansion s _ out) rfl]
-  cases sv with
-  | none => simp
-  | some sv =>
-    dsimp only
-    cases hA : H.expandA s (sv.publicKey.take 32) with
-    | none => simp
-    | some A =>
-      let p := queryPrefix (C := C) (C.program sv.publicKey) j
-      let test := fun (found : Bool) (_ : List Forgery) (_ : List Row) => M found
+  rcases sv with _ | sv
+  · simp
+  · dsimp only
+    cases hA : H.expandA s (sv.publicKey.take 32)
+    · simp
+    · let p := queryPrefix (C := C) (C.program sv.publicKey) j
       let tape := List.ofFn fun i μ => rows (i, μ)
       have law (T : Xofs) :
           ((((OracleComp.interpret (OracleComp.withSampleListWhen isSigningCall (fun _ _ => 0)
             (fun row => C.signingCommand T (sv.reply row))) p).run (C.initial, tape)).map
               (fun (found, st, _) => (found, st))).bind (addressRead C)).map report =
-            scored p T sv.reply test C.initial.1 C.initial.2 tape := by
-        simp only [scored, PMF.map_bind, PMF.bind_map, Function.comp_def, hm]
+            scored p T sv.reply (fun found _ _ => addressTest C report found)
+              C.initial.1 C.initial.2 tape := by
+        simp only [scored, PMF.map_bind, PMF.bind_map, Function.comp_def, addressTest_law C report]
         rfl
-      have bound := scored_bound (prefix_queries_le (C.program sv.publicKey) j) s H out
-        sv.reply test C.initial.1 C.initial.2 tape
-      simpa only [← law, report, p, tape] using bound
+      simpa only [← law, report, p, tape] using
+        scored_bound (prefix_queries_le (C.program sv.publicKey) j) s H out sv.reply
+          (fun found _ _ => addressTest C report found) C.initial.1 C.initial.2 tape
 
 private theorem norm_amps_sq (f : FixedBytes 32 → PMF Bool) :
     ‖amps f‖ ^ 2 = (((PMF.uniformOfFintype (FixedBytes 32)).bind f) true).toReal := by
@@ -203,16 +192,15 @@ private theorem fixed_observations_le (C : QuantumSigningForger) (s : Level) (H 
     change (seeds.bind fun K => (C.serviceAddress H s sv rows j).bind fun addr =>
       PMF.pure (test K (signingSeedCandidates (C := C) (sv.map RowSigner.hash) addr))) true ≤ _
     rw [PMF.bind_comm]
-    apply PMF.bind_apply_le_on_support
-    intro addr _
-    exact two_guesses (C := C) (sv.map RowSigner.hash) addr
+    exact PMF.bind_apply_le_on_support _ fun addr _ =>
+      two_guesses (C := C) (sv.map RowSigner.hash) addr
   have href : ‖amps (fun _ => ref)‖ ≤ √(2 / 2 ^ 256) := by
     rw [← sq_le_sq₀ (norm_nonneg _) (Real.sqrt_nonneg _), norm_amps_sq, PMF.bind_const,
       Real.sq_sqrt (by positivity)]
-    have r := ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp)
-      (ENNReal.inv_ne_top.mpr (by positivity))) hmass
     simpa only [ENNReal.toReal_mul, ENNReal.toReal_ofNat, ENNReal.toReal_inv,
-      ENNReal.toReal_pow, div_eq_mul_inv] using r
+      ENNReal.toReal_pow, div_eq_mul_inv] using
+        ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp)
+          (ENNReal.inv_ne_top.mpr (by positivity))) hmass
   have bound : ‖amps game‖ ≤ √(2 / 2 ^ 256) + j * (2 / 2 ^ 128) := by
     calc
       _ ≤ ‖amps game - amps (fun _ => ref)‖ + ‖amps (fun _ => ref)‖ := by
@@ -220,8 +208,8 @@ private theorem fixed_observations_le (C : QuantumSigningForger) (s : Level) (H 
           (amps (fun _ => ref))
       _ ≤ _ := (add_le_add hdist href).trans_eq (add_comm ..)
   change (seeds.bind game) true ≤ _
-  rw [ENNReal.le_ofReal_iff_toReal_le ((seeds.bind game).apply_ne_top true) (sq_nonneg _)]
-  rw [← norm_amps_sq]
+  rw [ENNReal.le_ofReal_iff_toReal_le ((seeds.bind game).apply_ne_top true) (sq_nonneg _),
+    ← norm_amps_sq]
   exact pow_le_pow_left₀ (norm_nonneg _) bound 2
 
 /-- Predict the 32-byte signing seed with adaptive signatures generated from independent private
@@ -239,15 +227,12 @@ theorem signingSeedPredictionGame_le (C : QuantumSigningForger) (s : Level) (bas
       ENNReal.toReal_mono ENNReal.ofReal_ne_top h
   simp only [keySeedDeviceGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, ↓reduceIte]
   rw [PMF.bind_comm]
-  apply PMF.bind_apply_le_on_support
-  intro rows _
+  refine PMF.bind_apply_le_on_support _ fun rows _ => ?_
   rw [PMF.bind_comm]
-  apply PMF.bind_apply_le_on_support
-  intro H _
+  refine PMF.bind_apply_le_on_support _ fun H _ => ?_
   rw [PMF.bind_comm]
-  apply PMF.bind_apply_le_on_support
-  intro p _
-  exact fixed_observations_le C s H p (rowSigner (setupOracle H s p) s fun _ => 0) rows j
+  exact PMF.bind_apply_le_on_support _ fun p _ =>
+    fixed_observations_le C s H p (rowSigner (setupOracle H s p) s fun _ => 0) rows j
 
 /-- Upper bound on the shared-device success amplitude for any final signed-trial event.
 The private signing-seed prediction bound controls the address measured at each coherent
@@ -265,32 +250,26 @@ theorem sqrt_maskSeedGame_le (C : QuantumSigningForger) (s : Level) (base : Xofs
   let hit := C.maskSeedQueryHit s base ha ((by decide : 64 ≤ 128).trans hb) hsize
   have bound (i : ℕ) (hi : i ∈ Finset.range m) :
       (Game.succProbability (hit i) : ℝ) ≤ rate * pred m ^ 2 := by
-    have h := C.maskSeedQueryHit_le_signingSeedPrediction s base ha
-      ((by decide : 64 ≤ 128).trans hb) hn hsize i
-    have p := C.signingSeedPredictionGame_le s base ((by decide : 272 ≤ 1024).trans ha) hb n i
-    have mono : pred i ≤ pred m := by
-      dsimp only [pred]
-      apply add_le_add le_rfl
-      exact mul_le_mul_of_nonneg_right (by exact_mod_cast (Finset.mem_range.mp hi).le)
-        (by positivity)
-    exact h.trans (mul_le_mul_of_nonneg_left (p.trans
-      (pow_le_pow_left₀ (by dsimp [pred]; positivity) mono 2)) (by positivity))
+    have mono : pred i ≤ pred m := add_le_add le_rfl
+      (mul_le_mul_of_nonneg_right (by exact_mod_cast (Finset.mem_range.mp hi).le) (by positivity))
+    exact (C.maskSeedQueryHit_le_signingSeedPrediction s base ha
+      ((by decide : 64 ≤ 128).trans hb) hn hsize i).trans (mul_le_mul_of_nonneg_left
+      ((C.signingSeedPredictionGame_le s base ((by decide : 272 ≤ 1024).trans ha) hb n i).trans
+        (pow_le_pow_left₀ (by dsimp [pred]; positivity) mono 2)) (by positivity))
   let loss := 2 * m * √rate * pred m
   have sq : (√(Game.succProbability (view true score) : ℝ) -
       √(Game.succProbability (view false score) : ℝ)) ^ 2 ≤ loss ^ 2 := by
-    apply (C.maskSeedGame_sq_sqrt_sub_le s base ha ((by decide : 64 ≤ 128).trans hb)
-      hn hsize hm score).trans
+    refine (C.maskSeedGame_sq_sqrt_sub_le s base ha ((by decide : 64 ≤ 128).trans hb)
+      hn hsize hm score).trans ?_
     calc
       _ ≤ 4 * m * ∑ _i ∈ Finset.range m, (rate * pred m ^ 2) :=
         mul_le_mul_of_nonneg_left (Finset.sum_le_sum bound) (by positivity)
       _ = _ := by
         simp only [loss, Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_pow,
-          Real.sq_sqrt (show 0 ≤ rate by dsimp [rate]; positivity)]
+          Real.sq_sqrt (show 0 ≤ rate by positivity)]
         ring
-  have hl : 0 ≤ loss := by dsimp [loss, pred, rate]; positivity
-  have le := (le_abs_self _).trans ((sq_le_sq₀ (abs_nonneg _) hl).mp
-    (by simpa only [sq_abs] using sq))
-  exact sub_le_iff_le_add'.mp le
+  exact sub_le_iff_le_add'.mp ((le_abs_self _).trans ((sq_le_sq₀ (abs_nonneg _)
+    (by positivity)).mp (by simpa only [sq_abs] using sq)))
 
 /-- Concrete comparison from the original strong-forgery event to the fresh-digest game with
 private signing mask seeds. The remaining probability terms are that private game, raw hash

@@ -190,8 +190,9 @@ private theorem inv_start {q : State} (hb : Bounds I q) (hc : q.ctl = .start)
   have hsn := I.s.isLt
   rw [readBit_of_addr_none (by simp [addr, hc])]
   simp only [step, hc]
-  exact ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hb.c, hb.c, hl.le,
-    by dsimp only; omega, by dsimp only; omega, by simp, by simp⟩,
+  exact ⟨{ hb with
+      w := hb.c, j := hl.le, v₁ := (by dsimp only; omega), v₂ := (by dsimp only; omega),
+      lower := (by simp), frames := (by simp) },
     ⟨hn, hs, ht, hd, hl⟩, by simp [hs], by simp, rfl, rfl, hl⟩
 
 private theorem inv_fill {q : State} (hb : Bounds I q) (hc : q.ctl = .fill) (hp : WalkParams I q)
@@ -203,11 +204,10 @@ private theorem inv_fill {q : State} (hb : Bounds I q) (hc : q.ctl = .fill) (hp 
   rw [readBit_of_addr_none (by simp [addr, hc])]
   by_cases hlen : q.ev.lower.length = q.depth
   · simp only [step, hc, hlen, ite_true]
-    exact ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hb.c, hb.w, hb.j, hb.v₁, hb.v₂, hb.lower,
-      hb.frames⟩, hp', by rw [hlen, hd], hfr, by simp [hw, hj]⟩
+    exact ⟨{ hb with cnt := hb.cnt }, hp', by rw [hlen, hd], hfr, by simp [hw, hj]⟩
   · simp only [step, hc, hlen, ite_false]
-    refine ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hb.c, hb.w, hb.j, hb.v₁, hb.v₂, ?_,
-      hb.frames⟩, hp', hv, ?_, hfr, hw, hj⟩ <;> simp only [List.length_cons] <;> omega
+    refine ⟨{ hb with lower := ?_ }, hp', hv, ?_, hfr, hw, hj⟩ <;>
+      simp only [List.length_cons] <;> omega
 
 private theorem inv_next {q : State} (hb : Bounds I q) (hc : q.ctl = .next) (hp : WalkParams I q)
     (hlow : q.ev.lower.length = depthOf I) (hfr : q.ev.frames = [])
@@ -216,13 +216,12 @@ private theorem inv_next {q : State} (hb : Bounds I q) (hc : q.ctl = .next) (hp 
   rw [readBit_of_addr_none (by simp [addr, hc])]
   by_cases hj : q.j = 0
   · simp only [step, hc, hj, ite_true]
-    exact ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hb.c, hb.w, Nat.zero_le _, hb.v₁, hb.v₂,
-      hb.lower, hb.frames⟩, hp, hlow, hfr, rfl, by simpa [hj] using hw⟩
+    exact ⟨{ hb with j := Nat.zero_le _ }, hp, hlow, hfr, rfl, by simpa [hj] using hw⟩
   · simp only [step, hc, hj, ite_false]
     have hjT := hb.j
-    refine ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hb.c,
-      (Nat.div_le_self _ _).trans hb.w, by dsimp only; omega, hb.v₁, hb.v₂, hb.lower,
-      by simp⟩, hp, by simp [hlow], by dsimp only; omega, ?_⟩
+    refine ⟨{ hb with
+        w := (Nat.div_le_self _ _).trans hb.w, j := (by dsimp only; omega), frames := (by simp) },
+      hp, by simp [hlow], by dsimp only; omega, ?_⟩
     simp only [hw]
     exact div_pow_sub_succ hj hjT
 
@@ -233,8 +232,7 @@ private theorem inv_eval {q : State} (hb : Bounds I q) (hc : q.ctl = .eval) (hp 
   by_cases hfr : q.ev.frames = []
   · simp only [step, hc, hfr, ite_true]
     have hlow : q.ev.lower.length = depthOf I + 1 := by simpa [hfr] using hlen
-    refine ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hb.c, hb.w, hb.j, hb.v₁, hb.v₂,
-      by simp [hlow], by simp⟩, hp, by simp [hlow], rfl, hw⟩
+    exact ⟨{ hb with lower := (by simp [hlow]), frames := (by simp) }, hp, by simp [hlow], rfl, hw⟩
   · simp only [step, hc, hfr, ite_false]
     have hsum := length_lower_add_length_frames_reingoldEvalStep base baseEquiv
       (slotRot q.n (machine.readBit I.encode q)) q.ev
@@ -242,8 +240,9 @@ private theorem inv_eval {q : State} (hb : Bounds I q) (hc : q.ctl = .eval) (hp 
       (P := fun v : ℕ × ℕ ↦ v.1 < I.n ∧ v.2 < I.n)
       (rotG := slotRot q.n (machine.readBit I.encode q))
       (fun v b hv ↦ by rw [hp.1]; exact slotRotN_lt hv.1 hv.2 _ _) (s := q.ev) ⟨hb.v₁, hb.v₂⟩
-    refine ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hb.c, hb.w, hb.j, hv.1, hv.2,
-      by dsimp only; omega, by dsimp only; omega⟩, hp, by dsimp only; omega, hj, hw⟩
+    exact ⟨{ hb with
+        v₁ := hv.1, v₂ := hv.2, lower := (by dsimp only; omega), frames := (by dsimp only; omega) },
+      hp, by dsimp only; omega, hj, hw⟩
 
 private theorem inv_check {q : State} (hb : Bounds I q) (hc : q.ctl = .check) (hp : WalkParams I q)
     (hw : q.w = q.c / numLabels ^ lenOf I) :
@@ -251,21 +250,16 @@ private theorem inv_check {q : State} (hb : Bounds I q) (hc : q.ctl = .check) (h
   rw [readBit_of_addr_none (by simp [addr, hc])]
   by_cases hw₀ : q.w ≠ 0
   · simp only [step, hc, hw₀, ne_eq, not_false_eq_true, ite_true]
-    exact ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hb.c, hb.w, hb.j, hb.v₁, hb.v₂, hb.lower,
-      hb.frames⟩, trivial⟩
+    exact ⟨{ hb with cnt := hb.cnt }, trivial⟩
   · have hw₀' : q.w = 0 := by simpa using hw₀
     by_cases hvt : q.ev.vertex.1 = q.t
     · simp only [step, hc, hw₀', hvt, ne_eq, not_true_eq_false, ite_false, ite_true]
-      exact ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hb.c, Nat.zero_le _, hb.j, hb.v₁, hb.v₂,
-        hb.lower, hb.frames⟩, trivial⟩
+      exact ⟨{ hb with w := Nat.zero_le _ }, trivial⟩
     · simp only [step, hc, hw₀', hvt, ne_eq, not_true_eq_false, ite_false]
       have hlt : q.c < numLabels ^ lenOf I := by
         rw [hw₀', eq_comm, Nat.div_eq_zero_iff] at hw
-        rcases hw with h | h
-        · exact absurd h (pow_pos numLabels_pos _).ne'
-        · exact h
-      exact ⟨⟨hb.cnt, hb.n, hb.s, hb.t, hb.depth, hb.len, hlt, Nat.zero_le _, hb.j, hb.v₁, hb.v₂,
-        hb.lower, hb.frames⟩, hp⟩
+        exact hw.resolve_left (pow_pos numLabels_pos _).ne'
+      exact ⟨{ hb with c := hlt, w := Nat.zero_le _ }, hp⟩
 
 /-- **The invariant is kept by a step.** -/
 private theorem inv_step {q : State} (h : Inv I q) (hd : q.ctl ≠ .done) :
@@ -314,8 +308,8 @@ private theorem length_encList_finEnum_le {α : Type} [FinEnum α] (l : List α)
   | nil => simp
   | cons a l ih =>
     have := length_encFinEnum_lt a
-    simp only [List.map_cons, List.sum_cons, List.length_cons]
-    nlinarith
+    simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.add_mul, one_mul]
+    omega
 
 /-- The counters have at most `65 T + 1` binary digits, as `B ≤ 2 ^ 65`. -/
 private theorem size_le_of_le_pow {x T : ℕ} (h : x ≤ numLabels ^ T) : Nat.size x ≤ 65 * T + 1 := by
@@ -382,7 +376,7 @@ private theorem length_encState_le_of_bounds {q : State} (hb : Bounds I q) :
   refine (length_encState_le q).trans ?_
   rw [stateConst, mul_assoc]
   apply Nat.mul_le_mul_left
-  nlinarith
+  omega
 
 /-- **The states along the run have logarithmically many bits.** -/
 theorem length_encState_run_le (k : ℕ) :
