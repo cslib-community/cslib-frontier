@@ -661,6 +661,14 @@ theorem maxConsistentWidth_two (d h : ℕ) :
       rw [hl, Finset.Ico_self, Finset.sum_empty, Nat.zero_add, Nat.add_sub_cancel, ih d,
         Nat.succ_min_succ, Nat.pow_succ, Nat.mul_comm]
 
+private theorem sum_Ico_sub_eq_sum_range {R : Type*} [AddCommMonoid R] (f : ℕ → ℕ → R)
+    {a D : ℕ} (ha : a < D) :
+    ∑ d ∈ Finset.Ico a D, f (d - a) (D - d - 1) =
+      ∑ m ∈ Finset.range (D - (a + 1) + 1), f m (D - (a + 1) - m) := by
+  rw [Finset.sum_Ico_eq_sum_range, show D - (a + 1) + 1 = D - a by omega]
+  refine Finset.sum_congr rfl fun m _ => ?_
+  rw [Nat.add_sub_cancel_left, show D - (a + m) - 1 = D - (a + 1) - m by omega]
+
 private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
     (hk : 2 ≤ k) (hD : k ≤ D) (f : ℕ → ℕ → R)
     (hf0 : ∀ h, f 0 h = 1)
@@ -721,15 +729,7 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
       rw [hl]
     rw [Finset.sum_congr rfl hterm, Finset.sum_add_distrib, ← Finset.mul_sum]
     congr 2
-    refine Finset.sum_bij (fun d _ => d - (k - 1)) ?_ ?_ ?_ ?_
-    · intro d hd; simp only [Finset.mem_Ico, Finset.mem_range] at hd ⊢; omega
-    · intro d₁ hd₁ d₂ hd₂ heq; simp only [Finset.mem_Ico] at hd₁ hd₂; omega
-    · intro m hm
-      simp only [Finset.mem_range] at hm
-      exact ⟨m + (k - 1), by simp only [Finset.mem_Ico]; omega, Nat.add_sub_cancel _ _⟩
-    · intro d hd
-      simp only [Finset.mem_Ico] at hd
-      rw [show D - d - 1 = D - k - (d - (k - 1)) by omega]
+    rw [sum_Ico_sub_eq_sum_range f (by omega), show k - 1 + 1 = k by omega]
   rw [hlow, hhigh]
   have hfub :
       (∑ d ∈ Finset.Ico 1 (k - 1),
@@ -743,20 +743,8 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
           ∑ j ∈ Finset.Ico 1 (d + 1), f (d - j) (D - d - 1) =
         ∑ j ∈ Finset.Ico 1 (k - 1),
           ∑ d ∈ Finset.Ico j (k - 1), f (d - j) (D - d - 1) := by
-      rw [Finset.sum_sigma', Finset.sum_sigma']
-      refine Finset.sum_bij (fun p _ => ⟨p.2, p.1⟩) ?_ ?_ ?_ ?_
-      · intro p hp
-        simp only [Finset.mem_sigma, Finset.mem_Ico] at hp ⊢
-        omega
-      · rintro ⟨d₁, j₁⟩ _ ⟨d₂, j₂⟩ _ heq
-        simp only [Sigma.mk.injEq] at heq
-        rcases heq with ⟨rfl, h2⟩
-        cases eq_of_heq h2
-        rfl
-      · rintro ⟨j, d⟩ hp
-        simp only [Finset.mem_sigma, Finset.mem_Ico] at hp
-        exact ⟨⟨d, j⟩, by simp only [Finset.mem_sigma, Finset.mem_Ico]; omega, rfl⟩
-      · intro _ _; rfl
+      exact Finset.sum_comm' fun d j => by
+        simp only [Finset.mem_Ico]; constructor <;> intro h <;> omega
     rw [hswap1, Finset.sum_comm (s := Finset.Ico (k - 1) D) (t := Finset.Ico 1 (k - 1)),
       ← Finset.sum_add_distrib]
     have hmerge : ∀ j ∈ Finset.Ico 1 (k - 1),
@@ -767,15 +755,7 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
       simp only [Finset.mem_Ico] at hj
       rw [Finset.sum_Ico_consecutive (f := fun d => f (d - j) (D - d - 1))
         (m := j) (n := k - 1) (k := D) (by omega) (by omega)]
-      refine Finset.sum_bij (fun d _ => d - j) ?_ ?_ ?_ ?_
-      · intro d hd; simp only [Finset.mem_Ico, Finset.mem_range] at hd ⊢; omega
-      · intro d₁ hd₁ d₂ hd₂ heq; simp only [Finset.mem_Ico] at hd₁ hd₂; omega
-      · intro m hm
-        simp only [Finset.mem_range] at hm
-        exact ⟨m + j, by simp only [Finset.mem_Ico]; omega, Nat.add_sub_cancel _ _⟩
-      · intro d hd
-        simp only [Finset.mem_Ico] at hd
-        rw [show D - d - 1 = D - (j + 1) - (d - j) by omega]
+      exact sum_Ico_sub_eq_sum_range f (by omega)
     rw [Finset.sum_congr rfl hmerge]
     refine Finset.sum_bij (fun j _ => j + 1) ?_ ?_ ?_ ?_
     · intro j hj; simp only [Finset.mem_Ico] at hj ⊢; omega
@@ -1984,10 +1964,8 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
           have hj_ne : j ≠ 0 := by omega
           simp only [B₁, PrefixBuilder.assignOut, hj_ne, ↓reduceIte]; rfl
         · intro i hi
-          have hne : (Wire.input i : Wire N 0) ≠ v₀ := by
-            intro heq
-            have hval : i.val = 0 := Fin.val_eq_of_eq (Wire.input.inj heq)
-            omega
+          have hne : (Wire.input i : Wire N 0) ≠ v₀ :=
+            mt Wire.input.inj (Fin.ne_of_val_ne (show i.val ≠ 0 by omega))
           exact (B₀.uses_assignOut_ne 0 v₀ (.input i) rfl hne).trans
             (PrefixBuilder.uses_empty (.input i))
         · exact B₀.uses_assignOut_le hN v₀ rfl
@@ -2048,10 +2026,8 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
         · intro i hi
           have hne_v' : (Wire.input i : Wire N (g + 1)) ≠ v' := castSucc_ne_lastGate (.input i)
           have hne_v : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
-          have hne_inp : (Wire.input i : Wire N g) ≠ inp := by
-            intro heq
-            have hval : i.val = m + 1 := Fin.val_eq_of_eq (Wire.input.inj heq)
-            omega
+          have hne_inp : (Wire.input i : Wire N g) ≠ inp :=
+            mt Wire.input.inj (Fin.ne_of_val_ne (show i.val ≠ m + 1 by omega))
           exact (B₁.uses_assignOut_ne (m + 1) v' (.input i) hnone₁ hne_v').trans
             ((B.uses_addMul_ne v inp h0 hmid h1 (.input i) hne_v hne_inp).trans
               (hin_ge i (by omega)))
@@ -2167,11 +2143,7 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
           let B₂ := B₁.addMul v u_d h0 hmid h1
           let e₂ := B₁.addMulExt v u_d h0 hmid h1
           let v_next : Wire N (g + 1) := .gate (Fin.last g)
-          have hv_ne_ud : v ≠ u_d := by
-            intro heq
-            have hlo := (B.validInputs ⟨a, by omega⟩).1
-            change B.lo u_d = a at hlo
-            rw [← heq, hv_lo] at hlo; omega
+          have hv_ne_ud : v ≠ u_d := Ne.symm (B.input_ne_of_lo_ne (show B.lo v ≠ a by omega))
           refine ⟨g + 1, B₂, v_next, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
           · simp only [B₂, v_next, PrefixBuilder.addMul, liftWireVal_last, B₁,
               PrefixBuilder.assignOut, hv_lo]
@@ -2214,10 +2186,8 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
               hout_ge j (by omega), Option.map_none]
           · intro i hi
             have hne_v : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
-            have hne_ud : (Wire.input i : Wire N g) ≠ u_d := by
-              intro heq
-              have hval : i.val = a := Fin.val_eq_of_eq (Wire.input.inj heq)
-              omega
+            have hne_ud : (Wire.input i : Wire N g) ≠ u_d :=
+              mt Wire.input.inj (Fin.ne_of_val_ne (show i.val ≠ a by omega))
             exact (B₁.uses_addMul_ne v u_d h0 hmid h1 (.input i) hne_v hne_ud).trans
               ((B.uses_assignOut_ne (a - 1) v (.input i) hnone hne_v).trans (hin_ge i (by omega)))
           · have hall₁ : ∀ w' : Wire N g, B₁.uses w' ≤ k :=
