@@ -210,7 +210,6 @@ theorem depth_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (hLN : 
     refine (hi.trans hq).mono Set.Subset.rfl ?_ le_rfl
     rintro _ rfl
     refine ⟨0, funext fun x => Bool.eq_iff_iff.mpr ?_⟩
-    change cyclic.eval interpretation (current x) 0 = true ↔ _
     rw [hcyc, iterate_mem_periodicPts_iff, decide_eq_true_iff]
   have h := hconst.trans (synthesis_threshold s0 (transientDepth f) n C
     (fun x => by simpa using transientDepth_lt_card f x) hc query)
@@ -227,11 +226,8 @@ private theorem depthBudget_le (n s L : ℕ) :
   have hb : (n + 1) ^ 3 ≤ B := cube_le_powerBudget n s (2 ^ n) L
   have hsmall : (n + 2) * (4 * n) + (6 * n + 1) + 16 * (n + 3) + 2 ≤ 100 * (n + 1) ^ 3 := by
     nlinarith [Nat.zero_le (n ^ 3)]
-  have hsmall' := Nat.mul_le_mul_left (n + 1) hsmall
-  have hB : (n + 1) * ((n + 1) ^ 3) ≤ (n + 1) ^ 2 * B := by
-    nlinarith [Nat.mul_le_mul_left ((n + 1) ^ 2) hb]
   unfold depthBudget
-  nlinarith [Nat.zero_le ((n + 1) ^ 2 * B), Nat.zero_le (n * B)]
+  nlinarith [Nat.mul_le_mul_left (n + 1) hsmall, Nat.mul_le_mul_left ((n + 1) ^ 2) hb]
 
 /-- **Square-root transient depths by binary search.** Some circuit of size at most
 `400000 * (n + 1) ^ 2 * optimizedBudget n c.size (2 ^ n)` computes the transient depth of every
@@ -244,9 +240,8 @@ theorem depth_circuit_optimized (c : Circuit signature n n) :
   obtain ⟨L, hL, hLN, ho⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := depth_circuit c L hL hLN
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 200000 * (n + 1 : ℝ) ^ 2 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs.trans (depthBudget_le n c.size L)
-  have h := mul_le_mul_of_nonneg_left ho (show 0 ≤ 200000 * (n + 1 : ℝ) ^ 2 by positivity)
-  nlinarith
+  have hs' : (out.size : ℝ) ≤ 200000 * (n + 1 : ℝ) ^ 2 * powerBudget n c.size (2 ^ n) L :=
+    mod_cast hs.trans (depthBudget_le n c.size L)
+  nlinarith [mul_le_mul_of_nonneg_left ho (show 0 ≤ 200000 * (n + 1 : ℝ) ^ 2 by positivity)]
 
 end Cslib.Circuits.Boolean.Iteration

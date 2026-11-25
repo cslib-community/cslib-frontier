@@ -76,19 +76,15 @@ theorem card_lt_of_partition {ι κ γ : Type*} [Fintype ι] [DecidableEq ι] [F
   let U (C : Finset γ) := univ.filter fun i => a i ∈ C
   have hbad (C : Finset γ) (hC : C ⊆ P) (hkC : k ≤ ∑ c ∈ C, (N c - Q c)) :
       (univ.filter fun j => ¬ Disjoint (S j) (U C)).card + k ≤ (U C).card := by
-    have ht : (univ.filter fun j => ¬ Disjoint (S j) (U C)).card ≤
-        (univ.filter fun j => b j ∈ C).card := by
-      apply card_le_card
-      intro j hj
+    have ht : (univ.filter fun j => ¬ Disjoint (S j) (U C)).card ≤ ∑ c ∈ C, Q c := by
+      rw [← card_filter_mem_eq_sum b C]
+      refine card_le_card fun j hj => ?_
       obtain ⟨i, hiS, hiU⟩ := not_disjoint_iff.mp (mem_filter.mp hj).2
-      have hiC : a i ∈ C := (mem_filter.mp hiU).2
-      exact mem_filter.mpr ⟨mem_univ _, hpart j i hiS ▸ hiC⟩
-    rw [card_filter_mem_eq_sum b C] at ht
+      exact mem_filter.mpr ⟨mem_univ _, hpart j i hiS ▸ (mem_filter.mp hiU).2⟩
     have heq : ∑ c ∈ C, N c = ∑ c ∈ C, Q c + ∑ c ∈ C, (N c - Q c) := by
       rw [← sum_add_distrib]
       exact sum_congr rfl fun c hc => by have := (mem_filter.mp (hC hc)).2; omega
     have hcard : (U C).card = ∑ c ∈ C, N c := card_filter_mem_eq_sum a C
-    change _ ≤ ∑ c ∈ C, Q c at ht
     omega
   have hUV : Disjoint (U A) (U (P \ A)) := disjoint_left.mpr fun i hiA hiB =>
     (mem_sdiff.mp (mem_filter.mp hiB).2).2 (mem_filter.mp hiA).2
@@ -137,19 +133,14 @@ private theorem card_touched_part {ι κ γ : Type*} [DecidableEq ι]
     (univ.filter fun j => ¬ Disjoint (partSupport S a b c j) U).card =
       (univ.filter fun j => ¬ Disjoint (S j) (U.image Subtype.val)).card := by
   classical
-  refine card_bij (fun j _ => j.val) ?_ ?_ ?_
-  · intro j hj
-    obtain ⟨i, hiS, hiU⟩ := not_disjoint_iff.mp (mem_filter.mp hj).2
-    refine mem_filter.mpr ⟨mem_univ _, not_disjoint_iff.mpr ?_⟩
-    exact ⟨i.val, mem_subtype.mp hiS, mem_image.mpr ⟨i, hiU, rfl⟩⟩
-  · intro j _ j' _ hj
-    exact Subtype.ext hj
-  · intro j hj
-    obtain ⟨x, hiS, hxU⟩ := not_disjoint_iff.mp (mem_filter.mp hj).2
+  refine card_bij (fun j _ => j.val) (fun j hj => ?_) (fun _ _ _ _ => Subtype.ext) fun j hj => ?_
+  · obtain ⟨i, hiS, hiU⟩ := not_disjoint_iff.mp (mem_filter.mp hj).2
+    exact mem_filter.mpr ⟨mem_univ _,
+      not_disjoint_iff.mpr ⟨i.val, mem_subtype.mp hiS, mem_image.mpr ⟨i, hiU, rfl⟩⟩⟩
+  · obtain ⟨_, hiS, hxU⟩ := not_disjoint_iff.mp (mem_filter.mp hj).2
     obtain ⟨i, hiU, rfl⟩ := mem_image.mp hxU
-    have hjc : b j = c := (hpart j i.val hiS).symm.trans i.property
-    refine ⟨⟨j, hjc⟩, mem_filter.mpr ⟨mem_univ _, not_disjoint_iff.mpr ?_⟩, rfl⟩
-    exact ⟨i, mem_subtype.mpr hiS, hiU⟩
+    exact ⟨⟨j, (hpart j i.val hiS).symm.trans i.property⟩,
+      mem_filter.mpr ⟨mem_univ _, not_disjoint_iff.mpr ⟨i, mem_subtype.mpr hiS, hiU⟩⟩, rfl⟩
 
 /-- The rank-three incidence bound for an arbitrary support family. It suffices that every two
 disjoint coordinate sets have one side whose cardinality is smaller than its number of touching

@@ -259,10 +259,8 @@ private theorem one_div_eight_le_norm_stdAddChar_sub_one {a : ZMod n}
   set A := a.valMinAbs with hA
   have hn : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne n)
   have hhalf : 2 * |(A : ℝ)| ≤ n := by
-    have h := ZMod.natAbs_valMinAbs_le a
-    have : 2 * A.natAbs ≤ n := by omega
     rw [← Int.cast_abs, ← Int.natCast_natAbs]
-    exact_mod_cast this
+    exact_mod_cast (show 2 * A.natAbs ≤ n by have := ZMod.natAbs_valMinAbs_le a; omega)
   have hbig : (n : ℝ) < 11 * |(A : ℝ)| := by rw [← Int.cast_abs]; exact_mod_cast ha
   have hexp : ZMod.stdAddChar a = Complex.exp (Complex.I * ((2 * Real.pi * A / n : ℝ) : ℂ)) := by
     conv_lhs => rw [← ZMod.coe_valMinAbs a, ← hA, ZMod.stdAddChar_coe]
@@ -274,16 +272,12 @@ private theorem one_div_eight_le_norm_stdAddChar_sub_one {a : ZMod n}
   have hsin : 2 / 11 ≤ |Real.sin (2 * Real.pi * A / n / 2)| := by
     have he : |2 * Real.pi * A / n / 2| = Real.pi * |(A : ℝ)| / n := by
       rw [abs_div, abs_div, abs_mul, abs_mul, abs_two, abs_of_pos Real.pi_pos, abs_of_pos hn]; ring
-    have hle : Real.pi * |(A : ℝ)| / n ≤ Real.pi / 2 := by
-      rw [div_le_iff₀ hn]
-      nlinarith [Real.pi_pos]
+    have hle : Real.pi * |(A : ℝ)| / n ≤ Real.pi / 2 :=
+      (div_le_iff₀ hn).mpr (by nlinarith [Real.pi_pos])
     rw [Real.abs_sin_eq_sin_abs_of_abs_le_pi (by rw [he]; linarith [Real.pi_pos]), he]
-    have := Real.mul_le_sin (by positivity) hle
-    rw [show 2 / Real.pi * (Real.pi * |(A : ℝ)| / n) = 2 * |(A : ℝ)| / n by field_simp] at this
-    have : 2 / 11 ≤ 2 * |(A : ℝ)| / n := by
-      rw [le_div_iff₀ hn]
-      linarith
-    linarith
+    have hsin_le := Real.mul_le_sin (by positivity) hle
+    rw [show 2 / Real.pi * (Real.pi * |(A : ℝ)| / n) = 2 * |(A : ℝ)| / n by field_simp] at hsin_le
+    linarith [(le_div_iff₀ hn).mpr (show 2 / 11 * (n : ℝ) ≤ 2 * |(A : ℝ)| by linarith)]
   nlinarith [abs_nonneg (Real.sin (2 * Real.pi * A / n / 2))]
 
 end Frequencies
@@ -443,30 +437,23 @@ theorem sum_norm_sq_le_shearTranslation (f : ZMod n × ZMod n → ℂ) (hf : ∑
     Matrix.cons_val_two, Matrix.cons_val_three, Matrix.head_cons, Matrix.tail_cons,
     Equiv.coe_addRight]
   rw [← mul_le_mul_iff_right₀ hn]
-  have k₁ := mul_le_mul_of_nonneg_left e₁.1 hn.le
-  have k₂ := mul_le_mul_of_nonneg_left e₁.2 hn.le
-  have k₃ := mul_le_mul_of_nonneg_left e₂.1 hn.le
-  have k₄ := mul_le_mul_of_nonneg_left e₂.2 hn.le
-  have p₁ : 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (1, 0)) - f v‖ ^ 2 := by positivity
-  have p₂ : 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (0, 1)) - f v‖ ^ 2 := by positivity
-  linarith
+  linarith [mul_le_mul_of_nonneg_left e₁.1 hn.le, mul_le_mul_of_nonneg_left e₁.2 hn.le,
+    mul_le_mul_of_nonneg_left e₂.1 hn.le, mul_le_mul_of_nonneg_left e₂.2 hn.le,
+    show 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (1, 0)) - f v‖ ^ 2 by positivity,
+    show 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (0, 1)) - f v‖ ^ 2 by positivity]
 
 /-- **The spectral gap of the shear-translation graph**, uniformly in `n`: its second eigenvalue
 is at most `1 - 1 / 4096`. -/
 theorem secondEigenvalue_shearTranslation_le (n : ℕ) [NeZero n] :
     (shearTranslation n).secondEigenvalue ≤ 1 - 1 / 4096 := by
   rcases subsingleton_or_nontrivial (ZMod n × ZMod n) with hV | hV
-  · rw [secondEigenvalue_eq_zero_of_subsingleton]
-    norm_num
-  have h := secondEigenvalue_ofPerms_le (shearTranslationMove n) (c := 1 / 512) fun f hf ↦ ?_
-  · rw [shearTranslation]
-    refine h.trans_eq ?_
-    norm_num
+  · rw [secondEigenvalue_eq_zero_of_subsingleton]; norm_num
+  rw [shearTranslation]
+  refine (secondEigenvalue_ofPerms_le (shearTranslationMove n) (c := 1 / 512)
+    fun f hf ↦ ?_).trans_eq (by norm_num)
   have hsum : ∑ v, (f v : ℂ) = 0 := by
     rw [Fintype.expect_eq_sum_div_card, div_eq_zero_iff] at hf
-    rcases hf with hf | hf
-    · exact_mod_cast hf
-    · exact absurd hf (by positivity)
+    exact_mod_cast hf.resolve_right (by positivity)
   have hP := sum_norm_sq_le_shearTranslation (fun v ↦ (f v : ℂ)) hsum
   simp only [← Complex.ofReal_sub, Complex.norm_real, Real.norm_eq_abs, sq_abs] at hP
   simp only [Fintype.expect_eq_sum_div_card, ← sum_div]

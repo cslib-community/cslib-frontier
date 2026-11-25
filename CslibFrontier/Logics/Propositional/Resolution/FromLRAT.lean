@@ -258,8 +258,7 @@ private theorem lratToProofAux_spec :
     obtain ⟨ls', d, hc, hp, hd, hf, hlen, hvar⟩ := rupChain_spec hls hdb _ _ h
     obtain rfl : d = [] := List.eq_nil_iff_forall_not_mem.2 fun m hm => by simpa using hf m hm
     refine ⟨ls', by simp [lratToProofAux, hc], hp, hd, ?_, ?_⟩
-    · simp only [lratHintCount]
-      simp at hlen
+    · simp only [lratHintCount, Array.length_toList] at hlen ⊢
       omega
     · have := hvar.trans (Finset.card_filter_le _ _)
       simp only [List.length_cons, Nat.succ_mul]
@@ -277,30 +276,23 @@ private theorem lratToProofAux_spec :
       · exact ⟨List.mem_append_right _ (hdb e he).1, (hdb e he).2⟩
     obtain ⟨ls₂, hc₂, hp₂, hnil, hlen₂, hvar₂⟩ :=
       lratToProofAux_spec rest _ _ hp₁ hdb' (by simpa [LRATEntry.toPair] using h.2)
-    refine ⟨ls₂ ++ ls₁, ?_, by simpa using hp₂, by simpa using hnil, ?_, ?_⟩
-    · simp [lratToProofAux, hc, hc₂]
-    · simp only [lratHintCount, List.length_append]
-      simp at hlen₁
+    refine ⟨ls₂ ++ ls₁, by simp [lratToProofAux, hc, hc₂], by simpa using hp₂,
+      by simpa using hnil, ?_, ?_⟩
+    · simp only [lratHintCount, List.length_append, Array.length_toList] at hlen₁ ⊢
       omega
     · have := hvar₁.trans (Finset.card_filter_le _ _)
       simp only [List.length_append, List.length_cons, Nat.succ_mul]
       omega
   | .addRat .. :: _, _, _, _, _, h => by simp [checkLRATAux] at h
   | .del ids :: rest, db, ls, hls, hdb, h => by
-    simp only [checkLRATAux] at h
-    have hmap : (db.map LRATEntry.toPair).filter (fun e => !ids.toList.contains e.1) =
-        (db.filter fun e => !ids.toList.contains e.id).map LRATEntry.toPair := by
-      rw [List.filter_map]
-      rfl
-    rw [hmap] at h
+    simp only [checkLRATAux, List.filter_map] at h
     obtain ⟨ls', hc, hp, hnil, hlen, hvar⟩ := lratToProofAux_spec rest
       (db.filter fun e => !ids.toList.contains e.id) ls hls
       (fun e he => hdb e (List.mem_filter.1 he).1)
       h
-    refine ⟨ls', by simpa [lratToProofAux] using hc, hp, hnil, ?_, ?_⟩
-    · simpa [lratHintCount] using hlen
-    · simp only [List.length_cons, Nat.succ_mul]
-      omega
+    exact ⟨ls', by simpa [lratToProofAux] using hc, hp, hnil,
+      by simpa [lratHintCount] using hlen,
+      hvar.trans (Nat.mul_le_mul_right _ (Nat.le_succ _))⟩
 
 /-- **The resolution proof of an accepted LRAT certificate is a refutation**: it is a resolution
 proof from `φ` containing the empty clause, with at most `|φ|` lines plus the smaller of the

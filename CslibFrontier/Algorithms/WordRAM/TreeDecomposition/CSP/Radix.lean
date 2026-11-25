@@ -144,12 +144,11 @@ private theorem lookupRadixProg_result (args : LookupRadixArgs) {LB : List ℕ} 
     change ((Memory.spec 0).clientResult s
       (iterate lookupRadixStep (args.q, args.target) rest.length _)).ans = _
     rcases hfd with ⟨rfl, rfl⟩ | rfl
-    · by_cases htv : v = args.target
+    · by_cases htv : args.target = v
       · subst htv
         simp only [and_self, ↓reduceIte, ofRadix]
         simpa using ih (curPtr + 1) (curM / args.q) 1 (curM % args.q) hrest (.inr rfl)
-      · have htv' : args.target ≠ v := Ne.symm htv
-        simp only [htv', and_false, ↓reduceIte, Nat.zero_ne_one, ofRadix]
+      · simp only [htv, and_false, ↓reduceIte, Nat.zero_ne_one, ofRadix]
         simpa using ih (curPtr + 1) (curM / args.q) 0 0 hrest (.inl ⟨rfl, rfl⟩)
     · simp only [Nat.one_ne_zero, false_and, ↓reduceIte]
       simpa using ih (curPtr + 1) (curM / args.q) 1 ans hrest (.inr rfl)
@@ -340,16 +339,11 @@ theorem radixProjProg_result_lt {args : RadixProjArgs} (hq : 0 < args.q)
       (by simp only [Nat.sub_self, Nat.pow_zero]; exact Nat.zero_lt_one) le_rfl
   intro k
   induction k with
-  | zero =>
-    intro st hacc _
-    rw [Nat.sub_zero] at hacc
-    exact hacc
+  | zero => exact fun st hacc _ => by rwa [Nat.sub_zero] at hacc
   | succ j ih =>
     intro st hacc hj_le
     obtain ⟨hst_ev, hres_ev⟩ := radixProjStep_eval args st s
-    have hiter : iterate radixProjStep args (j + 1) st =
-        (radixProjStep (args, st) >>= iterate radixProjStep args j) := rfl
-    rw [hiter, StateTransitionSpec.clientResult_bind, hst_ev, hres_ev]
+    rw [iterate, StateTransitionSpec.clientResult_bind, hst_ev, hres_ev]
     exact ih _ (horner_step_lt hq hj_le hacc _) (Nat.le_of_succ_le hj_le)
 
 /-- Memory validity, functional correctness, and cost bound for `radixProjProg`. -/
@@ -408,9 +402,7 @@ theorem radixProjProg_spec {w : ℕ} (args : RadixProjArgs)
     have hacc_next :
         radixProjAssign args srcL dstL[k] % args.q + args.q * curAcc =
           toRadix args.q (dstL.drop k) (radixProjAssign args srcL) := by
-      have hdrop : dstL.drop k = dstL[k] :: dstL.drop (k + 1) :=
-        List.drop_eq_getElem_cons hk_lt
-      rw [hdrop, toRadix_cons]
+      rw [List.drop_eq_getElem_cons hk_lt, toRadix_cons]
     have hres_step' : (Memory.spec 0).clientResult s (radixProjStep (args, ⟨k + 1, curAcc⟩)) =
         ⟨k, toRadix args.q (dstL.drop k) (radixProjAssign args srcL)⟩ := by
       rw [hres_step]
@@ -431,9 +423,7 @@ theorem radixProjProg_spec {w : ℕ} (args : RadixProjArgs)
       dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (Nat.le_of_succ_le hk_le)
-    have hiter_eq : iterate radixProjStep args (k + 1) ⟨k + 1, curAcc⟩ =
-        (radixProjStep (args, ⟨k + 1, curAcc⟩) >>= iterate radixProjStep args k) := rfl
-    rw [hiter_eq]
+    rw [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step']), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step']
       exact hr_rem

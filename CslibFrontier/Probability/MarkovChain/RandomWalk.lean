@@ -91,22 +91,14 @@ variable {G}
 /-- The transition probabilities of the simple random walk from a vertex with a neighbor. -/
 theorem randomWalk_apply {x : V} (hx : 0 < G.degree x) (y : V) :
     randomWalk G x y = if G.Adj x y then (G.degree x : ℝ≥0∞)⁻¹ else 0 := by
-  have hne : (G.neighborFinset x).Nonempty := by
-    rwa [← card_pos, card_neighborFinset_eq_degree]
-  change (if h : (G.neighborFinset x).Nonempty then PMF.uniformOfFinset _ h
-    else _root_.PMF.pure x) y = _
-  rw [dite_eq_left hne, PMF.uniformOfFinset_apply, card_neighborFinset_eq_degree]
-  simp
+  have hne : (G.neighborFinset x).Nonempty := card_pos.mp (by rwa [card_neighborFinset_eq_degree])
+  simp [randomWalk, hne, PMF.uniformOfFinset_apply]
 
 /-- From an isolated vertex the simple random walk stays put. -/
 theorem randomWalk_apply_of_degree_eq_zero [DecidableEq V] {x : V} (hx : G.degree x = 0) (y : V) :
     randomWalk G x y = if y = x then 1 else 0 := by
-  have hne : ¬ (G.neighborFinset x).Nonempty := by
-    rw [← card_pos, card_neighborFinset_eq_degree, hx]; exact lt_irrefl 0
-  change (if h : (G.neighborFinset x).Nonempty then PMF.uniformOfFinset _ h
-    else _root_.PMF.pure x) y = _
-  rw [dite_eq_right hne]
-  by_cases h : y = x <;> simp [h, PMF.pure_apply]
+  have hne : ¬ (G.neighborFinset x).Nonempty := by simp [← card_pos, hx]
+  by_cases h : y = x <;> simp [randomWalk, hne, h, PMF.pure_apply]
 
 theorem randomWalk_apply_of_adj {x y : V} (h : G.Adj x y) :
     randomWalk G x y = (G.degree x : ℝ≥0∞)⁻¹ := by
@@ -210,11 +202,9 @@ theorem hittingTime_randomWalk_le_dist_mul (hG : G.Connected) (u v : V) :
 
 omit [DecidableEq V] in
 private theorem two_mul_card_edgeFinset_pos (hG : G ≠ ⊥) : 0 < 2 * #G.edgeFinset := by
-  obtain ⟨u, v, huv⟩ : ∃ u v, G.Adj u v := by
+  obtain ⟨u, _, huv⟩ : ∃ u v, G.Adj u v := by
     by_contra! hall
-    refine hG (SimpleGraph.ext ?_)
-    ext u v
-    simp [hall u v]
+    exact hG (SimpleGraph.ext (funext₂ fun u v => propext (by simp [hall u v])))
   rw [← G.sum_degrees_eq_twice_card_edges]
   exact sum_pos' (fun _ _ => Nat.zero_le _) ⟨u, mem_univ u, huv.degree_pos_left⟩
 

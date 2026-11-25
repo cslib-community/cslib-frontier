@@ -102,13 +102,11 @@ private theorem continuous_rotF (hR : sj ^ 2 = 1 - J ^ 2) :
         exact iff_of_false hψ.not_gt hgt.not_gt
     filter_upwards [hev] with ψ hψ
     have hlo : (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ lowSet I J si sj h ψ ↔
-        (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ lowSet I J si sj h ψ₀ := by
-      simp only [lowSet, Set.mem_ofPred_eq]
-      exact and_congr_right fun _ => and_congr_left fun _ => hψ
+        (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ lowSet I J si sj h ψ₀ :=
+      and_congr_right fun _ => and_congr_left fun _ => hψ
     have hhi : (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ ↔
-        (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ₀ := by
-      simp only [highSet, Set.mem_ofPred_eq]
-      exact and_congr_right fun _ => and_congr_left fun _ => not_lt.symm.trans (hψ.not.trans not_lt)
+        (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ₀ :=
+      and_congr_right fun _ => and_congr_left fun _ => not_lt.symm.trans (hψ.not.trans not_lt)
     simp only [hlo, hhi]
 
 /-- **ROT on the closed interval.** -/
@@ -176,14 +174,11 @@ theorem rotF_pi (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2) (hsi : 0 ≤
     by_cases hpos : 0 < si + sj
     · nlinarith only [hh, hy0, hpos, hcomb, mul_nonneg hsj (sub_nonneg.mpr h1),
         mul_nonneg hsi (sub_nonneg.mpr h2)]
-    · have hsi0 : si = 0 := by linarith only [hsi, hsj, hpos]
-      have hsj0 : sj = 0 := by linarith only [hsi, hsj, hpos]
-      rw [hsi0] at hP; rw [hsj0] at hR
-      rcases sq_eq_one_iff.mp (by linarith only [hP] : I ^ 2 = 1) with rfl | rfl
-      · rcases sq_eq_one_iff.mp (by linarith only [hR] : J ^ 2 = 1) with rfl | rfl
-        · linarith only [hIJ]
-        · rw [hsj0] at h2; linarith only [h2, hh, hy0]
-      · rw [hsi0] at h1; linarith only [h1, hh, hy0]
+    · obtain rfl : si = 0 := by linarith only [hsi, hsj, hpos]
+      obtain rfl : sj = 0 := by linarith only [hsi, hsj, hpos]
+      rcases sq_eq_one_iff.mp (by linarith only [hP] : I ^ 2 = 1) with rfl | rfl <;>
+        rcases sq_eq_one_iff.mp (by linarith only [hR] : J ^ 2 = 1) with rfl | rfl <;>
+        linarith only [hIJ, h1, h2, hh, hy0]
   have h01 : ⟪e 0, e 1⟫ = 0 := by simpa using inner_e 0 1
   have h00 : ⟪e 0, e 0⟫ = 1 := by simpa using inner_e 0 0
   have h11 : ⟪e 1, e 1⟫ = 1 := by simpa using inner_e 1 1

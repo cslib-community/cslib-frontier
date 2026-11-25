@@ -75,13 +75,10 @@ private theorem extend_clause {F ls : List (MvPolynomial (Literal V) R)} {c : Cl
       ∏ l ∈ S, X l.negate := by
     rw [Clause.toPCRPoly_eq_prod, Finset.prod_sdiff hS]
   refine ⟨ms, hms, hsub, hprod ▸ hp, ?_, ?_⟩
-  · have hsupp := c.card_support_toPCRPoly_le (R := R)
-    have hmul := Nat.mul_le_mul_left ((S \ c.toFinset).card + 1) hsupp
-    simp only [Nat.mul_one] at hmul
+  · have := Nat.mul_le_mul_left ((S \ c.toFinset).card + 1) (c.card_support_toPCRPoly_le (R := R))
     omega
-  · exact hd.trans (max_le_max_left _ (by
-      have := c.totalDegree_toPCRPoly_le (R := R)
-      omega))
+  · have := c.totalDegree_toPCRPoly_le (R := R)
+    omega
 
 /-- A resolution inference can extend a polynomial calculus proof by at most
 `5 * resolvent.width + 13` monomials, with degree at most the larger of its old degree and
@@ -183,23 +180,22 @@ theorem CNF.IsProof.exists_pcr {φ : CNF V} {ls : List (Clause V)} (h : φ.IsPro
     refine ⟨c.toPCRPoly R :: ms, hm.mem (CNF.toPCRPoly_mem_toPCRPolys hc),
       List.forall_mem_cons.2 ⟨List.mem_cons_self, fun d hd => List.mem_cons_of_mem _ (hlines d hd)⟩,
       ?_, ?_⟩
-    · rw [PC.size_cons, List.length_cons, Nat.mul_add, Nat.mul_one]
+    · rw [PC.size_cons, List.length_cons, Nat.mul_add]
       have := c.card_support_toPCRPoly_le (R := R)
       omega
     · rw [PC.degree_cons]
-      exact max_le ((c.totalDegree_toPCRPoly_le).trans (by
-        have := hw c List.mem_cons_self
-        omega)) hd
+      have := c.totalDegree_toPCRPoly_le (R := R)
+      have := hw c List.mem_cons_self
+      omega
   | @resolvent ls c₁ c₂ v h h₁ h₂ hv₁ hv₂ ih =>
     obtain ⟨ms, hm, hlines, hs, hd⟩ := ih (fun d hd => hw d (List.mem_cons_of_mem _ hd))
     obtain ⟨ns, hn, hsub, hp, hsize, hdeg⟩ := hm.exists_toPCRPoly_resolvent v
       (hlines c₁ h₁) (hlines c₂ h₂)
       (φ.axioms_subset_toPCRPolys (PCR.complementAxiom_mem_axioms v))
     have hwres := hw (c₁.resolvent c₂ v) List.mem_cons_self
-    refine ⟨ns, hn, List.forall_mem_cons.2 ⟨hp, fun c hc => hsub (hlines c hc)⟩, ?_, ?_⟩
-    · rw [List.length_cons, Nat.mul_add, Nat.mul_one]
-      omega
-    · exact hdeg.trans (max_le hd (by omega))
+    refine ⟨ns, hn, List.forall_mem_cons.2 ⟨hp, fun c hc => hsub (hlines c hc)⟩, ?_, by omega⟩
+    rw [List.length_cons, Nat.mul_add]
+    omega
 
 /-- A width-`w` resolution refutation with `s` lines has one PCR refutation simultaneously
 bounded by `(5 * w + 13) * s` monomials and degree `w + 1`. -/

@@ -81,10 +81,10 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
           rw [show fs_ov.physSlot n_max b' l' = fs.physSlot n_max b' l' from rfl]
           dsimp only [fs_ov]
           by_cases hp : fs.physSlot n_max b' l' = p
-          · rw [hp, Function.update_self]; exact hv_lt
-          · rw [Function.update_of_ne hp]; exact h4'
+          · rw [hp, Function.update_self]
+            exact hv_lt
+          · rwa [Function.update_of_ne hp]
         dict_map := fun u' => by
-          dsimp only
           rw [show fs_ov.physSlot n_max = fs.physSlot n_max from rfl]
           dsimp only [fs_ov]
           set b' := feistelBucket (bWhp n_max) h1 u'.val
@@ -92,21 +92,17 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
           have hb' : b' < numBucketsWhp n_max := feistelBucket_lt _ _ _
           by_cases hu' : u' = u
           · subst hu'
-            have hb'_eq : b' = b := rfl
-            have hq'_eq : q' = q_val := rfl
-            rw [Function.update_self, hb'_eq, hq'_eq]
+            rw [Function.update_self]
+            dsimp only [b', q']
             refine ⟨⟨fun h => (by cases h), fun hall => absurd hq_loc (hall loc hloc_lt)⟩,
               fun v' => ⟨fun h => ?_, fun ⟨l', hl', hql, hvl⟩ => ?_⟩⟩
-            · injection h with hv_eq; subst hv_eq
+            · obtain rfl := Option.some.inj h.symm
               exact ⟨loc, hloc_lt, hq_loc, Function.update_self _ _ _⟩
-            · have hl_eq : l' = loc := hv.quot_inj b hb l' hl' loc hloc_lt (hql.trans hq_loc.symm)
-              subst hl_eq
-              rw [Function.update_self] at hvl
-              exact congrArg some hvl
+            · obtain rfl : l' = loc := hv.quot_inj b hb l' hl' loc hloc_lt (hql.trans hq_loc.symm)
+              rwa [Function.update_self, ← Option.some_inj] at hvl
           · rw [Function.update_of_ne hu']
             obtain ⟨hn_iff, hs_iff⟩ := hv.dict_map u'
-            refine ⟨hn_iff, fun v' => ?_⟩
-            rw [hs_iff v']
+            refine ⟨hn_iff, fun v' => (hs_iff v').trans ?_⟩
             have hne_p_of : ∀ l' < fs.bktCount b',
                 fs.quotArr (fs.physSlot n_max b' l') = q' → fs.physSlot n_max b' l' ≠ p := by
               intro l' hl' hql heq
@@ -116,21 +112,14 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
               have huv : u'.val = u.val := by
                 rw [← feistelReconstruct_feistelBucket (bWhp n_max) h1 u'.val,
                   ← feistelReconstruct_feistelBucket (bWhp n_max) h1 u.val]
-                change feistelReconstruct (bWhp n_max) h1 b' q' =
-                  feistelReconstruct (bWhp n_max) h1 b q_val
-                rw [hbb, hqq]
+                exact congrArg₂ (feistelReconstruct (bWhp n_max) h1) hbb hqq
               exact hu' (Fin.ext huv)
-            refine ⟨fun ⟨l', hl', hql, hvl⟩ => ⟨l', hl', hql, ?_⟩,
-              fun ⟨l', hl', hql, hvl⟩ => ⟨l', hl', hql, ?_⟩⟩
-            · rwa [Function.update_of_ne (hne_p_of l' hl' hql)]
-            · rwa [Function.update_of_ne (hne_p_of l' hl' hql)] at hvl }
-    have hom_ov : ∀ b' < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs_ov b' :=
-      fun b' hb' => hv.overmars_valid b' hb'
-    have hst_ov : ValidEpochStage c U n_max θ fs_ov := hv.stage_valid
+            exact exists_congr fun l' => and_congr_right fun hl' => and_congr_right fun hql => by
+              rw [Function.update_of_ne (hne_p_of l' hl' hql)] }
     rw [← hins]
-    obtain ⟨hc', hom', hst', _, _, hclk', _, _⟩ :=
-      overmarsStep_spec hc_ov hb (fun b' hb' _ => hom_ov b' hb') (hom_ov b hb).toPre
-    exact ⟨hc', hom', hst' hst_ov, hclk'⟩
+    obtain ⟨hc', hom', hst', _, _, hclk', _, _⟩ := overmarsStep_spec hc_ov hb
+      (fun b' hb' _ => hv.overmars_valid b' hb') (hv.overmars_valid b hb).toPre
+    exact ⟨hc', hom', hst' hv.stage_valid, hclk'⟩
   | none =>
     rw [hfind] at hins hfl
     have hno_q : ∀ loc < fs.bktCount b, fs.quotArr (fs.physSlot n_max b loc) ≠ q_val :=

@@ -72,13 +72,8 @@ private theorem inWindow_of_drop {k' : ℕ} {S : Type} {ntm : MultiTapeNTM k' Bo
   · exact hpre j hj i
   · have hindex : j.val - cut.val < (p.drop cut).length + 1 := by
       simp only [RelSeries.drop_length]; omega
-    have h := htail _ ⟨⟨j.val - cut.val, hindex⟩, rfl⟩ i
-    have heq : (p.drop cut) ⟨j.val - cut.val, hindex⟩ = p j := by
-      dsimp [RelSeries.drop]
-      congr 1
-      apply Fin.ext
-      simp only [Nat.sub_add_cancel (by omega : cut.val ≤ j.val)]
-    rwa [heq] at h
+    simpa [RelSeries.drop, Nat.sub_add_cancel (Nat.not_lt.mp hj)] using
+      htail _ ⟨⟨j.val - cut.val, hindex⟩, rfl⟩ i
 
 /-- Any prefix begun at a finalizer stays in its deterministic window, including arbitrary
 halted self-loop padding after the finalizer ends. -/
@@ -90,9 +85,8 @@ theorem finish_inWindow {input : List Bool} {ws : Fin k → List Bool} {out : Li
     (hhead : p.head = wordsCfg input (some (.finish F.q₀)) ws out) : p.InWindow s := by
   obtain ⟨ws', e, _, q₀, hqhead, hqlast, _, hspace⟩ := hF input ws out ⟨rfl, rfl⟩
   obtain ⟨q, hhead', hlast', _, hmem⟩ := q₀.exists_running (by rw [hqlast]; rfl)
-  have hmap : p.head = q.head.mapState finishState := by
-    rw [hhead', hqhead, mapState_wordsCfg]
-    exact hhead
+  have hmap : p.head = q.head.mapState finishState :=
+    hhead.trans (by simp [hhead', hqhead, mapState_wordsCfg, finishState])
   have hwin := MultiTapeNTM.RunPath.inWindow_of_space_le (p := q₀)
     (by simp [hqhead]) hspace
   rintro _ ⟨n, rfl⟩ i

@@ -239,14 +239,9 @@ theorem lt_of_mem_rowPorts {g i : ℕ} (hg : g < J) (hi : i ∈ rowPorts J sys d
 /-- A port of a variable group `h < J` is an index wire. -/
 theorem lt_of_mem_colPorts {h i : ℕ} (hh : h < J) (hi : i ∈ colPorts J sys d h) :
     i < numWires J sys d := by
-  have hc : 0 < (colPorts J sys d h).count i := List.count_pos_iff.mpr hi
-  have h1 := sum_count_colPorts (J := J) (sys := sys) (d := d) i
-  have h2 : (colPorts J sys d h).count i ≤
-      ((List.range J).map fun h => (colPorts J sys d h).count i).sum :=
-    List.le_sum_of_mem (List.mem_map.mpr ⟨h, List.mem_range.mpr hh, rfl⟩)
-  by_contra hn
-  rw [ite_eq_right hn] at h1
-  omega
+  obtain ⟨g, hg, hi⟩ := List.mem_flatMap.mp hi
+  exact lt_of_mem_rowPorts (List.mem_range.mp hg)
+    (List.mem_flatMap.mpr ⟨h, List.mem_range.mpr hh, hi⟩)
 
 /-- **The degree of a test group** `g`: the index wires of its pairs. -/
 theorem length_rowPorts (g : ℕ) :
@@ -323,12 +318,10 @@ theorem isRowsFirstBipartite_network :
   set M := mainWires J K sys d with hM
   have hMl (hl : live J K d) : M = numWires J sys d := by rw [hM, mainWires, ite_eq_left hl]
   have hMd (hl : ¬live J K d) : M = 0 := by rw [hM, mainWires, ite_eq_right hl]
-  have hv : (network P ℓ J K s n sys d).2.vertices =
-      rows P ℓ J K s sys d ++ cols P J K s n sys d := rfl
-  have hE : (network P ℓ J K s n sys d).2.numEdges = M + (s - M) := rfl
   rw [fst_network]
   unfold DescribedNetwork.IsRowsFirstBipartite
-  rw [hv, hE, List.take_left, List.drop_left]
+  dsimp only [network]
+  rw [← hM, List.take_left, List.drop_left]
   refine ⟨fun v hv i hi => ?_, fun i hi => ⟨?_, ?_⟩⟩
   · -- Every port names an edge.
     rcases List.mem_append.mp hv with hv | hv <;> rcases List.mem_append.mp hv with hv | hv <;>
@@ -343,22 +336,18 @@ theorem isRowsFirstBipartite_network :
         have := hMl hl; have := lt_of_mem_colPorts (List.mem_range.mp hh) hi; omega
       · simp at hv
   · -- Exactly one row.
-    rw [rows, List.map_append, List.sum_append, List.map_map]
-    simp only [Function.comp_def]
-    rw [sum_count_pad M (s - M) i padRow fun _ => rfl]
+    simp only [rows, ← hM, List.map_append, List.sum_append, List.map_map, Function.comp_def,
+      sum_count_pad M (s - M) i padRow fun _ => rfl]
     by_cases hl : live J K d
-    · simp only [ite_eq_left hl, List.map_map, Function.comp_def, rowVertex]
-      rw [sum_count_rowPorts]
+    · simp only [ite_eq_left hl, List.map_map, Function.comp_def, rowVertex, sum_count_rowPorts]
       have := hMl hl; split_ifs <;> omega
     · simp only [ite_eq_right hl, List.map_singleton, deadRow, List.count_nil, List.sum_singleton]
       have := hMd hl; split_ifs <;> omega
   · -- Exactly one column.
-    rw [cols, List.map_append, List.sum_append, List.map_map]
-    simp only [Function.comp_def]
-    rw [sum_count_pad M (s - M) i padCol fun _ => rfl]
+    simp only [cols, ← hM, List.map_append, List.sum_append, List.map_map, Function.comp_def,
+      sum_count_pad M (s - M) i padCol fun _ => rfl]
     by_cases hl : live J K d
-    · simp only [ite_eq_left hl, List.map_map, Function.comp_def, colVertex]
-      rw [sum_count_colPorts]
+    · simp only [ite_eq_left hl, List.map_map, Function.comp_def, colVertex, sum_count_colPorts]
       have := hMl hl; split_ifs <;> omega
     · simp only [ite_eq_right hl, List.map_nil, List.sum_nil]
       have := hMd hl; split_ifs <;> omega

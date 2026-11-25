@@ -181,19 +181,15 @@ private theorem residue_normal_pair (hell : 1 ≤ ell)
     (a b : NormalIndex n ell) (hab : normalDegree a ≤ normalDegree b) :
     residue ell r (monomial (boxExponent a) 1 * monomial (complementExponent b) 1) =
       if a = b then 1 else 0 := by
-  have ha := MvPolynomial.totalDegree_monomial_le (boxExponent a) (1 : S)
-  have hb := MvPolynomial.totalDegree_monomial_le (complementExponent b) (1 : S)
+  have ha : (monomial (boxExponent a) (1 : S)).totalDegree ≤ normalDegree a :=
+    (MvPolynomial.totalDegree_monomial_le _ _).trans_eq (boxExponent_degree a)
+  have hb : (monomial (complementExponent b) (1 : S)).totalDegree ≤
+      (complementExponent b).sum (fun _ e => e) :=
+    MvPolynomial.totalDegree_monomial_le _ _
   have hd := MvPolynomial.totalDegree_mul
     (monomial (boxExponent a) (1 : S)) (monomial (complementExponent b) 1)
   have hcomp := complement_degree b
-  change (monomial (boxExponent a) (1 : S)).totalDegree ≤
-    (boxExponent a).sum (fun _ e => e) at ha
-  change (monomial (complementExponent b) (1 : S)).totalDegree ≤
-    (complementExponent b).sum (fun _ e => e) at hb
-  rw [boxExponent_degree] at ha
-  have htotal : (monomial (boxExponent a) (1 : S) *
-      monomial (complementExponent b) 1).totalDegree ≤ n * (ell - 1) := by omega
-  rw [residue_low_degree hell r hr _ htotal]
+  rw [residue_low_degree hell r hr _ (by omega)]
   simp only [MvPolynomial.monomial_mul_monomial, one_mul, MvPolynomial.coeff_monomial,
     box_add_complement_iff]
 

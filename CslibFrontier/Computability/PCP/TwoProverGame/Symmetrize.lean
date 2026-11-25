@@ -175,29 +175,21 @@ theorem symmetrize_agreement {V : Type*} [Fintype V] [DecidableEq V]
         Measurement.agreement S.toCommuting.state
           ((leftMeasurement (κ := κ) (G.restrictBasis Function.Embedding.inl)).map g)
           ((S.toCommuting.bob q).map f)) / 2 := by
-  classical
-  let C := S.toCommuting
-  let T := S.symmetrize.toCommuting
-  let R := rightMeasurement (ι := ι ⊕ κ) G
-  let L₀ := leftMeasurement (κ := κ) (G.restrictBasis Function.Embedding.inl)
-  let R₀ := rightMeasurement (ι := ι) (G.restrictBasis Function.Embedding.inr)
+  set C := S.toCommuting
+  set T := S.symmetrize.toCommuting
+  set R := rightMeasurement (ι := ι ⊕ κ) G
+  set L₀ := leftMeasurement (κ := κ) (G.restrictBasis Function.Embedding.inl)
+  set R₀ := rightMeasurement (ι := ι) (G.restrictBasis Function.Embedding.inr)
   have h (a : A) (b : B) :
       (T.state ((T.alice q).effect a * R.effect b)).re =
         ((C.state ((C.alice q).effect a * R₀.effect b)).re +
           (C.state (L₀.effect b * (C.bob q).effect a)).re) / 2 := by
-    change (T.state (((S.symmetrize.alice q).effect a ⊗ₖ 1) * (1 ⊗ₖ G.effect b))).re =
-      ((C.state (((S.alice q).effect a ⊗ₖ 1) *
-          (1 ⊗ₖ (G.restrictBasis Function.Embedding.inr).effect b))).re +
-        (C.state ((((G.restrictBasis Function.Embedding.inl).effect b) ⊗ₖ 1) *
-          (1 ⊗ₖ (S.bob q).effect a))).re) / 2
-    dsimp only [T]
-    rw [← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul, symmetrize_expectation]
-    simp only [← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul,
-      POVM.restrictBasis_effect, Complex.div_ofNat_re, Complex.add_re]
+    dsimp only [T, C, R, L₀, R₀]
+    erw [← mul_kronecker_mul, ← mul_kronecker_mul, ← mul_kronecker_mul]
+    simp only [Matrix.mul_one, Matrix.one_mul, symmetrize_expectation, POVM.restrictBasis_effect,
+      Complex.div_ofNat_re, Complex.add_re]
     rfl
-  change Measurement.agreement T.state ((T.alice q).map f) (R.map g) =
-    (Measurement.agreement C.state ((C.alice q).map f) (R₀.map g) +
-      Measurement.agreement C.state (L₀.map g) ((C.bob q).map f)) / 2
+  classical
   simp only [Measurement.agreement_map_map]
   rw [Finset.sum_comm (γ := B) (α := A), ← sum_add_distrib, sum_div]
   refine sum_congr rfl fun a _ => ?_

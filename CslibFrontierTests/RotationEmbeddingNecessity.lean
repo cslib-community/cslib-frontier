@@ -446,6 +446,7 @@ example :
       let m := AffineMap.lineMap a b (1 / 2 : ℝ)
       let c := AffineMap.lineMap a m δ
       let d := AffineMap.lineMap m b (1 - δ)
+      c ≠ d ∧ c ≠ D.vertex 0 ∧
       ∃ middle : Polygonal.Route,
         2 ≤ middle.segments ∧
         D.route e = ((Polygonal.Route.line a c).concat middle).concat
@@ -460,13 +461,20 @@ example :
   let f : Fin (subdivisionGraph fixedLoop).edges.length := ⟨0, by decide⟩
   let e : Fin (subdivisionGraph fixedLoop).edges.length := ⟨1, by decide⟩
   obtain ⟨ρ, -, δ, hδ, -, hcontact, hstub⟩ := exists_reference_move_stub_isolation hvalid
+  obtain ⟨hcut, hinj, hportAvoid⟩ := hstub δ ⟨hδ.1, le_rfl⟩
   obtain ⟨D, hD, hkeep, -, havoid, hpar, hmiddle⟩ :=
     exists_reference_drawing_with_move_rayParity hvalid loopMoves hfixed hδ (u := 1) one_ne_zero
   have hf := hkeep f (by decide +kernel)
-  refine ⟨δ, hδ.1, D, hf, havoid e ⟨0, by decide⟩ (by decide +kernel), ?_, ?_⟩
+  refine ⟨δ, hδ.1, D, hf, havoid e ⟨0, by decide⟩ (by decide +kernel), ?_, ?_, ?_, ?_⟩
   · have h := hpar e ⟨0, by decide⟩
     have hbit : readMove (frame fixedLoop) loopMoves e.val 0 = true := by decide +kernel
     simpa only [hbit] using h
+  · rw [hD, AffineMap.lineMap_apply_one_sub]
+    have hne : (e, false) ≠ (e, true) := fun h => Bool.false_ne_true (congrArg Prod.snd h)
+    exact hinj.ne hne
+  · rw [hD]
+    intro h
+    exact hportAvoid (e, false) ⟨0, by decide +kernel, h.symm⟩
   · obtain ⟨middle, -, -, hsegments, hroute, hvertices⟩ := hmiddle e (by decide +kernel)
     refine ⟨middle, hsegments, hroute, hvertices, ?_⟩
     intro z hz hfz
@@ -476,7 +484,7 @@ example :
     let b := ref.vertex (Dart.vertex (e, true))
     rw [hD, Route.support_line] at hz
     have hz' : z ∈ Metric.closedBall a ρ ∩ (ref.route e).support := by
-      apply hstub δ ⟨hδ.1, le_rfl⟩ (e, false)
+      apply hcut (e, false)
       change z ∈ segment ℝ a (AffineMap.lineMap a ((Route.line a b).eval 0 _) δ)
       rw [Route.eval_line]
       exact hz

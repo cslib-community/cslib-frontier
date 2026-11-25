@@ -185,8 +185,7 @@ private theorem smallFormula_sound {k : ℕ} (v : Fin 2 × Fin k → Fin n)
   split_ifs at hf with hb
   · fo_simp [and_assoc] at hf
     obtain ⟨hn, hx, hy⟩ := hf
-    have hn' : n = a.val + 2 := by have := Fact.out (p := 2 ≤ n); omega
-    subst n
+    obtain rfl : n = a.val + 2 := by have := Fact.out (p := 2 ≤ n); omega
     have hx' : (fun i => v (0, i)) = x := funext fun i => Fin.ext (hx i)
     have hy' : (fun i => v (1, i)) = y := funext fun i => Fin.ext (hy i)
     simpa only [hx', hy'] using hb
@@ -199,10 +198,8 @@ private theorem smallFormula_complete {k : ℕ} (v : Fin 2 × Fin k → Fin n) (
   let a : Fin 7 := ⟨n - 2, by omega⟩
   have ha : a.val + 2 = n := by dsimp [a]; omega
   let x (p : Fin 2) (i : Fin k) : Fin (a.val + 2) := (v (p, i)).cast ha.symm
-  have hx (p : Fin 2) : lexRank (x p) = lexRank (fun i => v (p, i)) := by
-    simp only [lexRank_apply, x, Fin.val_cast, ha]
   have hb' : (lexRank (x 0)).testBit (lexRank (x 1)) = true := by
-    simpa only [hx] using hb
+    simpa only [lexRank_apply, x, Fin.val_cast, ha] using hb
   fo_simp [smallFormula]
   refine ⟨a, x 0, x 1, ?_⟩
   fo_simp [hb']
@@ -227,14 +224,9 @@ theorem realize_tupleBit (v : Fin 2 × Fin k → Fin n) :
   · subst k
     simp [tupleBit, lexRank_apply]
   · fo_simp [tupleBit, hk]
-    constructor
-    · rintro (h | h)
-      · exact TupleBit.smallFormula_sound v h
-      · exact TupleBit.radixFormula_sound v h
-    · intro hb
-      by_cases hn : n ≤ 8
-      · exact Or.inl (TupleBit.smallFormula_complete v hn hb)
-      · exact Or.inr (TupleBit.radixFormula_complete v (by omega) hb)
+    exact ⟨fun h => h.elim (TupleBit.smallFormula_sound v) (TupleBit.radixFormula_sound v),
+      fun hb => if hn : n ≤ 8 then Or.inl (TupleBit.smallFormula_complete v hn hb)
+        else Or.inr (TupleBit.radixFormula_complete v (by omega) hb)⟩
 
 /-- A bit index beyond the represented number's binary extent is rejected. -/
 theorem not_realize_tupleBit_of_lt (v : Fin 2 × Fin k → Fin n)

@@ -206,19 +206,11 @@ theorem memory_heavy (L : Layout) (values : Fin 3 → ℕ → ℤ) (mem : ℕ �
           (Place.heavyList (values j) (L.n j) L.M (L.n j)).length ∧
         ∀ k (hk : k < (Place.heavyList (values j) (L.n j) L.M (L.n j)).length),
           roundMemory L values j μ (L.heavy j + k) =
-            encode ((Place.heavyList (values j) (L.n j) L.M (L.n j))[k]) := by
-    constructor
-    · exact CountPlace.memory_descriptor ..
-    · intro k hk
-      exact CountPlace.memory_heavy _ _ _ _ _ _ _ _ _ _ _ _ _
-        (L.heavy_end_le_packed j) (by dsimp only [Layout.heavy]; omega) hk
+            encode ((Place.heavyList (values j) (L.n j) L.M (L.n j))[k]) :=
+    ⟨CountPlace.memory_descriptor .., fun _ hk => CountPlace.memory_heavy _ _ _ _ _ _ _ _ _ _ _ _ _
+      (L.heavy_end_le_packed j) (by dsimp only [Layout.heavy]; omega) hk⟩
   have hnext := L.next_descriptor
-  have hdesc01 : L.descriptor 0 < L.descriptor 1 := by
-    dsimp only [Layout.heavy] at hnext
-    omega
-  have hdesc12 : L.descriptor 1 < L.descriptor 2 := by
-    dsimp only [Layout.heavy] at hnext
-    omega
+  have : L.heavy 0 = L.descriptor 0 + 1 ∧ L.heavy 1 = L.descriptor 1 + 1 := ⟨rfl, rfl⟩
   have hlen := Place.length_heavyList_le (values j) (L.n j) L.M (L.n j)
   unfold memory
   fin_cases j <;> simp only [Fin.mk_zero, Fin.mk_one] at hlen ⊢
@@ -237,15 +229,9 @@ theorem roundMemory_outside (L : Layout) (values : Fin 3 → ℕ → ℤ) (j : F
   have hb := L.base_le_descriptor j
   have hd := L.descriptor_lt_packed j
   have hn := L.n_le_total j
-  have hp : L.packed + 4 * L.N ≤ L.endpoint := by
-    dsimp only [Layout.endpoint, Layout.hist, Layout.scratch]
-    omega
-  have hk : L.scratch + L.n j ≤ L.hist := Nat.add_le_add_left hn _
-  have hh : L.hist + L.M = L.endpoint := rfl
-  have hs : L.scratch = L.packed + 4 * L.N := rfl
-  have hout : L.heavy j = L.descriptor j + 1 := rfl
   apply CountPlace.memory_outside _ _ _ _ _ _ _ _ _ _ _ _ L.N _ hM hN
     (by omega) (by split_ifs <;> omega)
+  all_goals dsimp only [Layout.endpoint, Layout.hist, Layout.scratch, Layout.heavy] at ha ⊢
   all_goals rcases ha with ha | ha <;> omega
 
 /-- Inputs, caller memory before the allocation, and memory beyond its endpoint are preserved. -/

@@ -74,8 +74,8 @@ def railBits (x : List Bool) : List Bool := true :: x.flatMap fun b => [b, !b]
   induction x with
   | nil => rfl
   | cons b x ih =>
-    simp only [railBits, List.length_cons, List.flatMap_cons] at ih ⊢
-    simp only [List.length_append, List.length_cons, List.length_nil]
+    simp only [railBits, List.length_cons, List.flatMap_cons, List.length_append,
+      List.length_nil] at ih ⊢
     omega
 
 theorem railBits_append (x : List Bool) (v : Bool) :
@@ -97,10 +97,9 @@ private theorem getD_flatMap_pair (x : List Bool) {w : ℕ} (hw : w < x.length) 
   | cons b x ih =>
     rcases w with _ | w
     · simp
-    · have := ih (w := w) (by simpa using hw)
-      rw [List.flatMap_cons, show 2 * (w + 1) = 2 * w + 1 + 1 by omega,
-        show 2 * w + 1 + 1 + 1 = 2 * w + 1 + 1 + 1 from rfl]
-      simpa [List.getD_cons_succ] using this
+    · have hmul : 2 * (w + 1) = 2 * w + 1 + 1 := by omega
+      rw [List.flatMap_cons, hmul]
+      simpa [List.getD_cons_succ] using ih (by simpa using hw)
 
 /-- The positive rail of a value. -/
 theorem getD_railBits_true (x : List Bool) {w : ℕ} (hw : w < x.length) :
@@ -231,10 +230,7 @@ private theorem evalCode_dualGates_binary (vs : List Bool) {a b : ℕ} (ha : a <
   rw [railBits_append, railBits_append]
   constructor <;>
     (simp only [dualGates, List.getD_cons_zero, List.getD_cons_succ]
-     rw [evalCode_pair _ _ _ _ _ (by
-       simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons,
-         List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-       omega)]
+     rw [evalCode_pair _ _ _ _ _ (by simp [railWire]; omega)]
      simp [interpretation, Boolean.interpretation, hTa, hFa, hTb, hFb])
 
 /-- **The translated gate list computes the dual-rail values**: on the dual-rail inputs, the
@@ -266,13 +262,10 @@ theorem evalCode_dualCode (x : List Bool) {gates : List (Boolean.Op × List ℕ)
       have ha : a < vs.length := by simpa using hw 0 (by simp)
       have hTa := getD_railBits_true vs ha
       have hFa := getD_railBits_false vs ha
+      simp only [List.getD_eq_getElem?_getD] at hTa hFa
       rw [railBits_append]
       simp only [dualGates, List.getD_cons_zero]
-      rw [evalCode_pair _ _ _ _ _ (by
-          simp only [railWire, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)]
-      simp only [List.getD_eq_getElem?_getD] at hTa hFa
+      rw [evalCode_pair _ _ _ _ _ (by simp [railWire]; omega)]
       simp [interpretation, Boolean.interpretation, hTa, hFa]
     · obtain ⟨a, b, rfl⟩ := List.length_eq_two.1 hlen
       exact (evalCode_dualGates_binary vs (by simpa using hw 0 (by simp))
@@ -337,24 +330,17 @@ theorem cost_dualRail (c : Circuit Boolean.signature n m) :
 
 private theorem toNat_outputs_dualRail (c : Circuit Boolean.signature n m) (j : Fin m) :
     ((dualRail c).outputs j).toNat = railWire true (c.outputs j).toNat := by
-  have h := congrArg Prod.snd (code_dualRail c)
-  simp only [Circuit.code] at h
-  have := congrArg (fun l => l[j.val]?) h
-  simpa using this
+  simpa [Circuit.code] using congrArg (fun code => code.2[j.val]?) (code_dualRail c)
 
 /-- **The dual-rail translation computes the same function** on the dual-rail inputs. -/
 theorem eval_dualRail (c : Circuit Boolean.signature n m) (x : BitString n) (j : Fin m) :
     (dualRail c).eval interpretation (railBitString x) j = c.eval Boolean.interpretation x j := by
   rw [Circuit.eval_eq_getD _ _ false, Circuit.eval_eq_getD _ _ false, code_dualRail,
-    toNat_outputs_dualRail, ofFn_railBitString]
-  have hc : Program.IsCodeFrom Boolean.signature (List.ofFn x).length 0 c.code.1 := by
-    simpa using c.isCodeFrom_code
-  rw [evalCode_dualCode _ hc]
-  apply getD_railBits_true
+    toNat_outputs_dualRail, ofFn_railBitString,
+    evalCode_dualCode _ (by simpa using c.isCodeFrom_code)]
   have := (c.outputs j).toNat_lt
   have hl := Circuit.length_code_fst c
-  simp only [length_evalCode, List.length_ofFn]
-  omega
+  exact getD_railBits_true _ (by simp only [length_evalCode, List.length_ofFn]; omega)
 
 end Circuit
 

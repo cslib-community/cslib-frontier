@@ -60,22 +60,14 @@ lemma actualNoiseMax_budget
     vertexNormPow 4 N u (retainedMask s Ls D sourceSuffix)
       (actualNoiseMax s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i) ≤ e ^ 4 := by
   have hnonneg (σ : Environment P J) (x y : ZMod P) :
-      0 ≤ actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i σ x y := by
-    unfold actualNoiseEntry
-    apply div_nonneg (abs_nonneg _)
-    split_ifs
-    · linarith [div_nonneg (hG x y) (rate_pos k).le]
-    · norm_num
-  have hh := vertex_row_max (retainedMask s Ls D sourceSuffix)
+      0 ≤ actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i σ x y :=
+    div_nonneg (abs_nonneg _) (by split_ifs <;> linarith [div_nonneg (hG x y) (rate_pos k).le])
+  have hh := (vertex_row_max (retainedMask s Ls D sourceSuffix)
     (retainedMask t (if ν = 0 then La else Lt) D suffix) hNu
-    (actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i)
-  have he : (fun σ x => kthLargest 1 {y | retainedMask t (if ν = 0 then La else Lt) D suffix σ y}
-      (fun y => |actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i σ x y|)) =
-      actualNoiseMax s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i :=
-    funext fun σ => funext fun x =>
-      congrArg (kthLargest 1 _) (funext fun y => abs_of_nonneg (hnonneg σ x y))
-  rw [he] at hh
-  exact hh.trans hb
+    (actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i)).trans hb
+  simp only [abs_of_nonneg (hnonneg _ _ _)] at hh
+  unfold actualNoiseMax
+  simpa only [actualNoiseEntry] using hh
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments
 namespace Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments
 open Finset Cslib Matrix Cslib.RowCompression Cslib.Probability
@@ -132,32 +124,15 @@ theorem raw_prefix_row_budget
   have hsum := row_add_budget X Ya hNu (by positivity) (by positivity) _ _
     (row_add_budget X Ya hNu (by positivity) (by positivity) _ _ (hm 0) (hm 1))
     (row_add_budget X Ya hNu (by positivity) (by positivity) _ _ (hz' 0) (hz' 1))
-  have hbound := row_mono_abs X Ya hNu
-    (fun σ x y => clippedError (G x y / rate k)
-      (genuineTarget HP s t Ls Lt D sourceSuffix suffix k G ζ σ x y 1) (actualPrefix Δ raw i σ x y))
-    (fun σ x y => (μ 0 σ x y + μ 1 σ x y) + (z 0 σ x y + z 1 σ x y)) (by
-      intro σ x y _ _
-      rw [abs_of_nonneg (clippedError_nonneg _ _ _)]
-      have hh := actual_two_mask_clipped_split HP s t Ls La Lt D sourceSuffix suffix k G hG ζ
-        (actualPrefix Δ raw i) hz σ x y
-      dsimp only at hh
-      have heq : (μ 0 σ x y + μ 1 σ x y) + (z 0 σ x y + z 1 σ x y) =
-        min 1 (|twoMaskMean s t Ls La Lt D sourceSuffix suffix (actualPrefix Δ raw i) x y 0 - G x
-          y / rate k| / (1 + G x y / rate k)) +
-        (if Yt σ y then min 1 |twoMaskMean s t Ls La Lt D sourceSuffix suffix (actualPrefix Δ raw
-          i) x y 1-
-          ζ * genuineMean HP s t Ls Lt (CopyPadding.identifier D sourceSuffix x) D suffix k G x y|
-            else 0) +
-        |actualPrefix Δ raw i σ x y 0 - twoMaskMean s t Ls La Lt D sourceSuffix suffix
-          (actualPrefix Δ raw i) x y 0| / (1 + G x y / rate k) +
-        (if Yt σ y then |actualPrefix Δ raw i σ x y 1 - twoMaskMean s t Ls La Lt D sourceSuffix
-          suffix (actualPrefix Δ raw i) x y 1| else 0) := by
-          simp only [μ, z, actualClippedMean, actualNoiseEntry, Fin.isValue, ↓reduceIte,
-            one_ne_zero, div_one]
-          ring
-      rw [heq]
-      exact hh.trans (le_abs_self _))
-  exact hbound.trans (hsum.trans_eq (by ring))
+  refine (row_mono_abs X Ya hNu _
+    (fun σ x y => (μ 0 σ x y + μ 1 σ x y) + (z 0 σ x y + z 1 σ x y)) fun σ x y _ _ => ?_).trans
+    (hsum.trans_eq (by ring))
+  rw [abs_of_nonneg (clippedError_nonneg _ _ _)]
+  refine (actual_two_mask_clipped_split HP s t Ls La Lt D sourceSuffix suffix k G hG ζ
+    (actualPrefix Δ raw i) hz σ x y).trans ((le_of_eq ?_).trans (le_abs_self _))
+  simp only [μ, z, actualClippedMean, actualNoiseEntry, Fin.isValue, ↓reduceIte,
+    one_ne_zero, div_one]
+  ring
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments
 namespace Matrix.FourthRootHierarchyParams.NormalizedRow
 open Finset Cslib Matrix Cslib.RowCompression Cslib.Probability

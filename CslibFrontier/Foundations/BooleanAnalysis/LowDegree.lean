@@ -113,15 +113,13 @@ theorem lowDegree_mono {D E : ℕ} (hDE : D ≤ E) : lowDegree R ι D ≤ lowDeg
   Submodule.span_mono (Set.image_mono fun _ hS => le_trans hS hDE)
 
 /-- The constant function `1` has degree at most `D`, for every `D`. -/
-theorem one_mem_lowDegree (D : ℕ) : (1 : (ι → Bool) → R) ∈ lowDegree R ι D := by
-  rw [← monomial_empty]
-  exact monomial_mem_lowDegree (by simp)
+theorem one_mem_lowDegree (D : ℕ) : (1 : (ι → Bool) → R) ∈ lowDegree R ι D :=
+  monomial_empty (R := R) (ι := ι) ▸ monomial_mem_lowDegree (Nat.zero_le D)
 
 /-- A constant function has degree at most `D`, for every `D`. -/
-theorem const_mem_lowDegree (D : ℕ) (c : R) : (fun _ : ι → Bool => c) ∈ lowDegree R ι D := by
-  convert Submodule.smul_mem _ c (one_mem_lowDegree (R := R) (ι := ι) D) using 1
-  funext x
-  simp
+theorem const_mem_lowDegree (D : ℕ) (c : R) : (fun _ : ι → Bool => c) ∈ lowDegree R ι D :=
+  (show c • (1 : (ι → Bool) → R) = fun _ => c from funext fun _ => by simp) ▸
+    Submodule.smul_mem _ c (one_mem_lowDegree (R := R) (ι := ι) D)
 
 /-- The bit at a coordinate `i`, read in `R`, has degree at most `1`. -/
 theorem bitVal_mem_lowDegree (i : ι) :
@@ -252,9 +250,7 @@ theorem finrank_lowDegree_le [StrongRankCondition R] (D : ℕ) :
     Module.finrank R (lowDegree R ι D) ≤ #{S : Finset ι | #S ≤ D} := by
   classical
   have himg : monomial R '' {S : Finset ι | #S ≤ D} =
-      ↑(({S : Finset ι | #S ≤ D} : Finset _).image (monomial R)) := by
-    ext
-    simp
+      ↑(({S : Finset ι | #S ≤ D} : Finset _).image (monomial R)) := Set.ext fun _ => by simp
   rw [lowDegree, himg]
   exact (finrank_span_finset_le_card _).trans card_image_le
 

@@ -443,11 +443,9 @@ theorem restrictOption_spec [Finite V] {T : Digraph (Option V)} (hT : T.IsInArbo
     · simp [hT.not_adj_root]
     · simp [hT.not_adj_root]
     · have hu := hT.existsUnique_adj (some v) (Option.some_ne_none v)
-      simp only [superRootExtend_some_none, restrictOption_adj]
       refine ⟨fun hnone => ?_, fun hvn ⟨u, hvu⟩ => Option.some_ne_none u (hu.unique hvu hvn)⟩
       obtain ⟨_ | u, hy, -⟩ := hu
-      · exact hy
-      · exact absurd ⟨u, hy⟩ hnone
+      exacts [hy, absurd ⟨u, hy⟩ hnone]
     · simp
   exact ⟨isBranching_iff_isInArborescence_superRootExtend.mpr (hext ▸ hT), hext,
     fun G hTG u v huv => hTG huv⟩
@@ -480,17 +478,13 @@ theorem IsBranching.card_arcs_add_card_roots {B : Digraph V} [DecidableRel B.Adj
   let nonroots := Finset.univ.filter fun v : V => ∃ u, B.Adj u v
   let roots := Finset.univ.filter fun v : V => ¬ ∃ u, B.Adj u v
   have hbij : arcs.card = nonroots.card := by
-    refine Finset.card_bij (fun e _ => e.2) ?_ ?_ ?_
-    · intro e he
-      have hadj : B.Adj e.1 e.2 := (Finset.mem_filter.mp he).2
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, ⟨e.1, hadj⟩⟩
-    · intro e₁ he₁ e₂ he₂ heq
-      have h1 : B.Adj e₁.1 e₁.2 := (Finset.mem_filter.mp he₁).2
-      have h2 : B.Adj e₂.1 e₂.2 := (Finset.mem_filter.mp he₂).2
-      exact Prod.ext (hB.in_unique h1 (heq ▸ h2)) heq
-    · intro v hv
-      obtain ⟨u, hu⟩ := (Finset.mem_filter.mp hv).2
-      exact ⟨(u, v), Finset.mem_filter.mpr ⟨Finset.mem_univ _, hu⟩, rfl⟩
+    refine Finset.card_bij (fun e _ => e.2)
+      (fun e he => Finset.mem_filter.mpr ⟨Finset.mem_univ _, e.1, (Finset.mem_filter.mp he).2⟩)
+      (fun _ he₁ _ he₂ heq => Prod.ext
+        (hB.in_unique (Finset.mem_filter.mp he₁).2 (heq ▸ (Finset.mem_filter.mp he₂).2)) heq)
+      fun v hv => ?_
+    obtain ⟨u, hu⟩ := (Finset.mem_filter.mp hv).2
+    exact ⟨(u, v), Finset.mem_filter.mpr ⟨Finset.mem_univ _, hu⟩, rfl⟩
   have hdisj : Disjoint nonroots roots :=
     Finset.disjoint_filter.mpr fun _ _ h h' => h' h
   have hunion : nonroots ∪ roots = Finset.univ := by
@@ -558,13 +552,8 @@ private theorem transGen_of_walk_fromRel_isTrail {B : Digraph V} (hB : B.IsBranc
       (SimpleGraph.Walk.cons hx p').IsTrail → B.Adj u x → Relation.TransGen B.Adj u v
   | u, x, _, _, .nil, _, hux => Relation.TransGen.single hux
   | u, x, _, hx, @SimpleGraph.Walk.cons _ _ _ y z hyz q, htr, hux => by
-    have hne : u ≠ y := by
-      intro huy
-      have hnd := htr.edges_nodup
-      simp only [SimpleGraph.Walk.edges_cons, List.nodup_cons, List.mem_cons] at hnd
-      apply hnd.1 (Or.inl ?_)
-      subst huy
-      exact Sym2.eq_swap
+    have hne : u ≠ y := fun huy =>
+      (List.nodup_cons.mp htr.edges_nodup).1 (List.mem_cons.mpr (.inl (huy ▸ Sym2.eq_swap)))
     have hxy : B.Adj x y := ((SimpleGraph.fromRel_adj B.Adj x y).mp hyz).2.resolve_right
       fun h => hne (hB.in_unique hux h)
     exact Relation.TransGen.head hux

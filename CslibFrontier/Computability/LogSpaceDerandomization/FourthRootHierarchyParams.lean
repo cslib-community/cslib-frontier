@@ -227,25 +227,18 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
   · rw [div_le_div_iff₀ (by positivity) hq, one_mul]
     simpa only [mul_comm] using hcopies.le
   · have hJ : (2 * Cπ * m * k * (k + 1)) / δ₀ ≤ (J : ℝ) := by
-      dsimp [J]
-      push_cast
-      exact (Nat.le_ceil _).trans (by linarith)
-    have hb := (div_le_iff₀ hδ₀).mp hJ
-    linarith
-  · intro F hF
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hF
-    rcases hF with rfl | rfl | rfl | rfl | rfl
-    · exact ⟨exists_lipschitzWith_polynomialSwitch4_root _ _,
-        exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _⟩
-    · exact ⟨exists_lipschitzWith_polynomialSwitch4_root _ _,
-        exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _⟩
-    · refine ⟨exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _, ?_⟩
-      simpa only [sub_sub_cancel] using exists_lipschitzWith_polynomialSwitch4_root η η₂
-    · refine ⟨exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _, ?_⟩
-      simpa only [sub_sub_cancel] using
-        exists_lipschitzWith_polynomialSwitch4_root (1 / 2) (4 / 5)
-    · exact ⟨exists_lipschitzWith_polynomialSwitch4_root _ _,
-        exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _⟩
+      push_cast [J]
+      linarith [Nat.le_ceil ((2 * Cπ * m * k * (k + 1)) / δ₀)]
+    linarith [(div_le_iff₀ hδ₀).mp hJ]
+  · simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
+    have hsw (a b : ℝ) := And.intro (exists_lipschitzWith_polynomialSwitch4_root a b)
+      (exists_lipschitzWith_one_sub_polynomialSwitch4_root a b)
+    have hcomp (a b : ℝ) :
+        (∃ K, LipschitzWith K fun t => (1 - polynomialSwitch4 a b t) ^ (4⁻¹ : ℝ)) ∧
+        (∃ K, LipschitzWith K fun t => (1 - (1 - polynomialSwitch4 a b t)) ^ (4⁻¹ : ℝ)) :=
+      ⟨exists_lipschitzWith_one_sub_polynomialSwitch4_root a b,
+        by simpa only [sub_sub_cancel] using exists_lipschitzWith_polynomialSwitch4_root a b⟩
+    exact ⟨hsw _ _, hsw _ _, hcomp η η₂, hcomp (1 / 2) (4 / 5), hsw _ _⟩
 
 end FourthRootHierarchyParams
 

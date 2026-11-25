@@ -125,10 +125,9 @@ theorem setOf_mem_boolAxioms [Fintype σ] :
 
 /-- A Boolean axiom has total degree at most two. -/
 theorem totalDegree_boolAxiom_le (i : σ) : (boolAxiom i : MvPolynomial σ R).totalDegree ≤ 2 := by
-  refine (totalDegree_sub _ _).trans (max_le ?_ ?_)
-  · rw [X_pow_eq_monomial]
-    exact (totalDegree_monomial_le _ _).trans (by simp)
-  · exact (totalDegree_monomial_le _ _).trans (by simp)
+  refine (totalDegree_sub _ _).trans (max_le ?_ ((totalDegree_monomial_le _ _).trans (by simp)))
+  rw [X_pow_eq_monomial]
+  exact (totalDegree_monomial_le _ _).trans (by simp)
 
 /-- Over a nontrivial ring, a Boolean axiom is nonzero: its coefficient at `X i ^ 2` is `1`. -/
 theorem boolAxiom_ne_zero [Nontrivial R] (i : σ) : (boolAxiom i : MvPolynomial σ R) ≠ 0 := by
@@ -142,9 +141,7 @@ one without them. -/
 theorem isBoolSolution_append_boolAxioms [Fintype σ] (F : List (MvPolynomial σ R))
     (x : σ → Bool) : IsBoolSolution (F ++ boolAxioms σ R) x ↔ IsBoolSolution F x := by
   simp only [IsBoolSolution, List.mem_append, or_imp, forall_and, and_iff_left_iff_imp]
-  intro _ p hp
-  obtain ⟨i, rfl⟩ := mem_boolAxioms.1 hp
-  exact eval_boolAxiom x i
+  exact fun _ _ hp => (mem_boolAxioms.1 hp).elim fun i hi => hi ▸ eval_boolAxiom x i
 
 end Algebraic
 
@@ -156,19 +153,17 @@ variable {σ R : Type*} [CommRing R] [Nontrivial R] [Fintype σ]
 Boolean axioms, over a nontrivial commutative ring, leaves `F` without Boolean solutions. -/
 theorem NS.IsProof.not_isBoolSolution {F : List (MvPolynomial σ R)}
     {P : Fin (F ++ boolAxioms σ R).length → MvPolynomial σ R}
-    (h : NS.IsProof (F ++ boolAxioms σ R) P 1) (x : σ → Bool) : ¬ IsBoolSolution F x := by
-  intro hx
-  obtain ⟨f, hf, hne⟩ := h.exists_eval_ne_zero (bitPoint x)
-  exact hne ((isBoolSolution_append_boolAxioms F x).2 hx f hf)
+    (h : NS.IsProof (F ++ boolAxioms σ R) P 1) (x : σ → Bool) : ¬ IsBoolSolution F x :=
+  fun hx => (h.exists_eval_ne_zero (bitPoint x)).elim fun f ⟨hf, hne⟩ =>
+    hne ((isBoolSolution_append_boolAxioms F x).2 hx f hf)
 
 /-- **Soundness of polynomial calculus.** A polynomial calculus refutation of `F` together with
 the Boolean axioms, over a nontrivial commutative ring, leaves `F` without Boolean solutions. -/
 theorem PC.IsProof.not_isBoolSolution {F ls : List (MvPolynomial σ R)}
     (h : PC.IsProof (F ++ boolAxioms σ R) ls) (h1 : 1 ∈ ls) (x : σ → Bool) :
-    ¬ IsBoolSolution F x := by
-  intro hx
-  obtain ⟨f, hf, hne⟩ := h.exists_eval_ne_zero h1 (bitPoint x)
-  exact hne ((isBoolSolution_append_boolAxioms F x).2 hx f hf)
+    ¬ IsBoolSolution F x :=
+  fun hx => (h.exists_eval_ne_zero h1 (bitPoint x)).elim fun f ⟨hf, hne⟩ =>
+    hne ((isBoolSolution_append_boolAxioms F x).2 hx f hf)
 
 /-- Soundness of Nullstellensatz, for refutability in some degree. -/
 theorem NS.RefutableInDegree.not_isBoolSolution {F : List (MvPolynomial σ R)} {d : ℕ}
@@ -236,18 +231,16 @@ theorem NS.refutableInDegree_of_forall_not_isBoolSolution {F : List (MvPolynomia
       Finset.sum_congr rfl fun i _ => mul_comm _ _, ← hbeq]
     ring
   have hmem : ∀ t ∈ (Finset.univ : Finset ((σ → Bool) ⊕ σ)),
-      Sum.elim f boolAxiom t ∈ F ++ boolAxioms σ K := by
-    rintro (x | i) _
-    · exact List.mem_append_left _ (hfF x)
-    · exact List.mem_append_right _ (boolAxiom_mem_boolAxioms i)
+      Sum.elim f boolAxiom t ∈ F ++ boolAxioms σ K := fun t _ =>
+    Sum.casesOn t (fun x => List.mem_append_left _ (hfF x))
+      fun i => List.mem_append_right _ (boolAxiom_mem_boolAxioms i)
   have hdeg : ∀ t ∈ (Finset.univ : Finset ((σ → Bool) ⊕ σ)), Sum.elim g b t ≠ 0 →
       (Sum.elim f boolAxiom t).totalDegree + (Sum.elim g b t).totalDegree ≤
         Fintype.card σ + D := by
     rintro (x | i) _ hne
     · have := hF _ (hfF x)
       have := hgdeg x
-      simp only [Sum.elim_inl]
-      omega
+      simp only [Sum.elim_inl]; omega
     · simp only [Sum.elim_inr] at hne ⊢
       rw [← totalDegree_mul_of_isDomain (boolAxiom_ne_zero i) hne]
       exact (hb i).trans hGdeg

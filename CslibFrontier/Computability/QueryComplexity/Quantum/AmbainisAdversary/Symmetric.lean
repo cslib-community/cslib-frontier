@@ -138,9 +138,8 @@ theorem one_sub_mul_sqrt_le_two_mul_of_weight (U : ℕ → State N W →ₗᵢ[�
   rcases le_or_gt k N with hkN | hkN
   swap
   · have hle : (N : ℝ) + 1 ≤ k := by exact_mod_cast hkN
-    have hnonpos : (k : ℝ) * (N + 1 - k) ≤ 0 :=
-      mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg k) (by linarith)
-    rw [Real.sqrt_eq_zero'.2 hnonpos, mul_zero]
+    rw [Real.sqrt_eq_zero'.2 (mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg k) (by linarith)),
+      mul_zero]
     positivity
   set A := weightLayer N k
   set B := weightLayer N (k - 1)
@@ -204,14 +203,10 @@ theorem one_sub_mul_card_le_four_mul_of_majority (U : ℕ → State N W →ₗ�
     set k := (N + 1) / 2
     have hN : (0 : ℝ) ≤ N := Nat.cast_nonneg N
     rcases (by omega : 2 * k = N ∨ 2 * k = N + 1) with h | h
-    · have hk : (2 * k : ℝ) = N := by exact_mod_cast h
-      have : (k : ℝ) * (N + 1 - k) - (N / 2) ^ 2 = N / 2 := by
-        rw [show (k : ℝ) = N / 2 by linarith]; ring
-      linarith
-    · have hk : (2 * k : ℝ) = N + 1 := by exact_mod_cast h
-      have : (k : ℝ) * (N + 1 - k) - (N / 2) ^ 2 = (2 * N + 1) / 4 := by
-        rw [show (k : ℝ) = (N + 1) / 2 by linarith]; ring
-      linarith
+    · have : (2 * k : ℝ) = N := by exact_mod_cast h
+      nlinarith
+    · have : (2 * k : ℝ) = N + 1 := by exact_mod_cast h
+      nlinarith
   linarith [mul_le_mul_of_nonneg_left hsq hc]
 
 /-- **Bounded-error majority takes `N / 72` queries**: if a `T`-query algorithm with a unit

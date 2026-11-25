@@ -92,11 +92,9 @@ theorem exists_residue_shifts {r : ℕ} (hr : 0 < r) (b : Fin r → ℕ) :
         (b k + m i) % r ^ 3 ≠ (b l + m j) % r ^ 3 := by
   let : NeZero (r ^ 3) := ⟨by positivity⟩
   obtain ⟨m, hm⟩ := exists_residue_shifts_aux hr (fun i => (b i : ZMod (r ^ 3))) r le_rfl
-  refine ⟨fun i => (m i).val, fun i => ZMod.val_lt _, ?_⟩
-  intro i j hij k l he
-  apply hm i j hij k l
-  have hc := (ZMod.natCast_eq_natCast_iff' _ _ (r ^ 3)).mpr he
-  simpa only [Nat.cast_add, ZMod.natCast_zmod_val] using hc
+  refine ⟨fun i => (m i).val, fun i => ZMod.val_lt _, fun i j hij k l he => hm i j hij k l ?_⟩
+  simpa only [Nat.cast_add, ZMod.natCast_zmod_val] using
+    (ZMod.natCast_eq_natCast_iff' _ _ (r ^ 3)).mpr he
 
 /-- Lift a residue by a multiple of `M`. Two modulus-sized slots per diagonal term
 leave room for both the input position's residue and the chosen shift's residue. -/
@@ -135,14 +133,9 @@ theorem exists_spread_shifts {r w : ℕ} (hr : 0 < r) (b : Fin r → ℕ)
   refine ⟨m, ?_, ?_, ?_⟩
   · intro p q hpq
     change b p.1 + m p.2 = b q.1 + m q.2 at hpq
-    have hj : p.2 = q.2 := by
-      by_contra hne
-      apply hsep p.2 q.2 hne p.1 q.1
-      have he := congrArg (fun n => n % r ^ 3) hpq
-      rw [Nat.add_mod (b p.1) (m p.2), Nat.add_mod (b q.1) (m q.2)] at he
-      dsimp only [m] at he
-      rw [spreadShift_mod, spreadShift_mod] at he
-      simpa only [← Nat.add_mod] using he
+    have hj : p.2 = q.2 := by_contra fun hne => hsep p.2 q.2 hne p.1 q.1 <| by
+      have he := congrArg (· % r ^ 3) hpq
+      simpa only [m, Nat.add_mod _ (spreadShift ..), spreadShift_mod, ← Nat.add_mod] using he
     rw [hj] at hpq
     exact Prod.ext (hb (Nat.add_right_cancel hpq)) hj
   · intro i j hij
@@ -212,14 +205,9 @@ theorem approximateSketch_eq {r w : ℕ} (b m : Fin r → ℕ)
   rw [approximateSketch, Nat.testBit_land, Bool.and_eq_true,
     positionMask_testBit _ hf, Nat.testBit_sum_injective _ _
       (fun _ _ _ _ he => hf he)]
-  constructor
-  · rintro ⟨hp, i, hi⟩
-    have he : w + k = b i + m i := by have := hw i; omega
-    exact ⟨i, Finset.mem_univ _, by
-      simpa only [Nat.testBit_shiftRight, he, maskedProduct_testBit b m h hb] using hp, hi⟩
-  · rintro ⟨i, _, hx, hi⟩
-    have he : w + k = b i + m i := by have := hw i; omega
-    exact ⟨by simpa only [Nat.testBit_shiftRight, he, maskedProduct_testBit b m h hb] using hx,
-      i, hi⟩
+  simp only [Nat.testBit_shiftRight, Finset.mem_univ, true_and, ← exists_and_left]
+  refine exists_congr fun i => and_congr_left fun hi => ?_
+  have he : w + k = b i + m i := by have := hw i; omega
+  rw [he, maskedProduct_testBit b m h hb]
 
 end Cslib.DataStructure.FusionTree

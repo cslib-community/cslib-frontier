@@ -89,20 +89,17 @@ theorem packed_side_eventually_le_rpow (κ : ℕ) {ε : ℝ} (hε : 0 < ε) :
     change t ^ 2 ≤ 4 * (3 * A + 1) ^ 2 * (n + 2) * _ at hs
     exact hs.trans (hm.trans_eq (by ring))
   have hsR := (Nat.cast_le (α := ℝ)).mpr hs'
-  have hmul := mul_le_mul_of_nonneg_left hlog (show (0 : ℝ) ≤ n by positivity)
-  have hexp : (n : ℝ) * (n : ℝ) ^ (2 * ε) = (n : ℝ) ^ (1 + 2 * ε) := by
-    rw [Real.rpow_add (by positivity), Real.rpow_one]
-  have hsq : (t : ℝ) ^ 2 ≤ (n : ℝ) ^ (1 + 2 * ε) := by
+  have hsq : (t : ℝ) ^ 2 ≤ ((n : ℝ) ^ (1 / 2 + ε : ℝ)) ^ 2 := by
+    have hmul := mul_le_mul_of_nonneg_left hlog (Nat.cast_nonneg n)
     push_cast at hsR hmul
-    rw [hexp] at hmul
-    nlinarith only [hsR, hmul]
-  have hroot : ((n : ℝ) ^ (1 / 2 + ε : ℝ)) ^ 2 =
-      (n : ℝ) ^ (1 + 2 * ε) := by
-    rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity)]; congr 1; ring
-  have ht0 : (0 : ℝ) ≤ t := by positivity
-  have hr0 : (0 : ℝ) ≤ (n : ℝ) ^ (1 / 2 + ε : ℝ) := Real.rpow_nonneg (by positivity) _
-  change (t : ℝ) ≤ _
-  nlinarith only [hsq, hroot, ht0, hr0]
+    refine (by nlinarith only [hsR, hmul] : (t : ℝ) ^ 2 ≤ n * (n : ℝ) ^ (2 * ε)).trans_eq ?_
+    trans (n : ℝ) ^ (1 + 2 * ε)
+    · rw [Real.rpow_add (by positivity), Real.rpow_one]
+    · symm
+      rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity)]
+      congr 1
+      ring
+  exact (sq_le_sq₀ (Nat.cast_nonneg t) (by positivity)).mp hsq
 
 /-- The actual native emitted-node allowance has the same degree-seven logarithmic estimate
 as the finite instance count. The shared finite lemma avoids a duplicate counting proof. -/
@@ -126,12 +123,9 @@ theorem callerTime_add_twelve_le (N T : ℕ) :
     Host.callerTime N T + 12 ≤
       2 * Host.sideLength N * T + 355 * Host.sideLength N ^ 3 := by
   have ht : 1 ≤ Host.sideLength N := by dsimp only [Host.sideLength]; omega
-  have hp : Host.sideLength N ≤ Host.sideLength N ^ 3 :=
-    Nat.le_self_pow (by decide) _
-  have hp1 : 1 ≤ Host.sideLength N ^ 3 := Nat.one_le_pow _ _ ht
-  unfold Host.callerTime
   have hs : Nat.sqrt N ≤ Host.sideLength N := by dsimp only [Host.sideLength]; omega
-  nlinarith only [hs, hp, hp1]
+  unfold Host.callerTime
+  nlinarith [Nat.le_self_pow (by decide : 3 ≠ 0) (Host.sideLength N), Nat.one_le_pow 3 _ ht]
 
 /-- Uniform polynomial-weight time bounds transfer to the actual packed side and magnitude. -/
 theorem exists_packed_calleeTime_bound {r : ℕ} (c : Host.Callee r) {e : ℝ}

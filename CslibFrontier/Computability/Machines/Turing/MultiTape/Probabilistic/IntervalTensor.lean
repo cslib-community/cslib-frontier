@@ -173,11 +173,9 @@ private theorem mem_blockWindow_of_window {c : Cfg k Bool State input} (h : Fin 
   simp only [Cfg.blockWindow, Cfg.blockIndex, Cfg.headPos_some, Set.mem_Ico]
   have hlo : (b : ℤ) * (c.workTapePos h / b - 1) ≤ b * (c.workTapePos h / b + d - 1) :=
     mul_le_mul_of_nonneg_left (by omega) hb.le
-  have hhi : (b : ℤ) * (c.workTapePos h / b + d - 1) + b ≤ b * (c.workTapePos h / b + 2) := by
-    have : (b : ℤ) * (c.workTapePos h / b + d) ≤ b * (c.workTapePos h / b + 2) :=
-      mul_le_mul_of_nonneg_left (by omega) hb.le
-    linarith
-  exact ⟨by omega, by omega⟩
+  have hhi : (b : ℤ) * (c.workTapePos h / b + d) ≤ b * (c.workTapePos h / b + 2) :=
+    mul_le_mul_of_nonneg_left (by omega) hb.le
+  exact ⟨by omega, by linarith⟩
 
 /-- **An embedded view agrees with the configuration.** Embedding the block indices, control
 record and window contents of `c` gives a configuration with the state, heads and window contents
@@ -195,9 +193,7 @@ theorem agreeOn_embedCfg_view (c : Cfg k Bool State input) :
     rw [hpos, Cfg.headPos_none]
     unfold inputPosOfCoord
     split_ifs with hcond
-    · ext
-      simp only
-      omega
+    · exact Fin.ext (by dsimp only; omega)
     · exact absurd ⟨by omega, by omega⟩ hcond
   · funext h
     exact mul_ediv_add_val_intCast (c.headPos (some h))
@@ -288,20 +284,16 @@ theorem intervalStep_view_iff (c : Cfg k Bool State input) {coins : List Bool}
   have htrack : OutputTrack.ofWord (machine.stepCoins coins e).output =
       OutputTrack.ofWord (machine.stepCoins coins c).output := by
     rw [hword, hword']
-    refine OutputTrack.ofWord_append_eq_of_eq ?_ word
-    rw [ofWord_output_embedCfg]
-    rfl
+    exact OutputTrack.ofWord_append_eq_of_eq (ofWord_output_embedCfg _ _ _) word
   have hcontrol : (machine.stepCoins coins e).blockControl b =
       (machine.stepCoins coins c).blockControl b := by
     rw [Cfg.blockControl, Cfg.blockControl, hagree.state_eq, hagree.headPos_eq, htrack]
   have hwindow : (machine.stepCoins coins e).windowContents b (c.blockIndex b) =
-      (machine.stepCoins coins c).windowContents b (c.blockIndex b) := by
-    funext h d r
-    exact hagree.workTapes_eq h _ (mem_blockWindow_of_window h d r)
+      (machine.stepCoins coins c).windowContents b (c.blockIndex b) :=
+    funext₃ fun h d r => hagree.workTapes_eq h _ (mem_blockWindow_of_window h d r)
   have hindex : (machine.stepCoins coins e).blockIndex b =
-      (machine.stepCoins coins c).blockIndex b := by
-    funext head
-    rw [Cfg.blockIndex, Cfg.blockIndex, hagree.headPos_eq]
+      (machine.stepCoins coins c).blockIndex b :=
+    funext fun head => by rw [Cfg.blockIndex, Cfg.blockIndex, hagree.headPos_eq]
   rw [IntervalStep, hcontrol, hwindow, hindex]
 
 end Interval

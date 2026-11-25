@@ -368,10 +368,9 @@ private theorem contains_foldl_insert (p : ℕ × Literal ℕ → Bool) :
     rw [List.foldl_cons, contains_foldl_insert p ts]
     by_cases hp : p t
     · by_cases hl : t.2 = l
-      · subst hl; simp [hp]
-      · have h₁ : (l == t.2) = false := by simpa using Ne.symm hl
-        have h₂ : (t.2 == l) = false := by simpa using hl
-        simp [hp, h₁, h₂]
+      · subst hl
+        simp [hp]
+      · simp [hp, beq_eq_false_iff_ne.mpr hl, beq_eq_false_iff_ne.mpr (Ne.symm hl)]
     · simp [hp]
 
 private theorem slackFast_eq {T : Trail} {ρ : List (Literal ℕ)} (h : T.Rep ρ) (c : PBConstr) :
@@ -736,6 +735,8 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
   have hcore := DB.get_eq hf.core
   have hs' : f.toState.db = f.db.toList := rfl
   have hc' : f.toState.core = f.core.toList := rfl
+  have ht : f.toState.tcb = f.s.tcb := rfl
+  have ho : f.toState.order = f.s.order := rfl
   have fallback : ∀ t, Option.map FState.toState (Option.map FState.ofState
       (stepTop F obj f.toState t)) = stepTop F obj f.toState t := fun t => by
     simp [Option.map_map, Function.comp_def]
@@ -768,23 +769,16 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
       · simp [hr]
     | del ids =>
       rw [stepTop_step_del]
-      simp only [stepTopFast, runStep, nodupFast_eq, hdb, hcore, hs', hc',
+      simp only [stepTopFast, runStep, nodupFast_eq, hdb, hcore, hs', hc', ht, ho,
         any_contains_eq_any_isSome_lookup]
       obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids
       obtain ⟨hw₂, hl₂⟩ := DB.eraseAll_compact_spec hf.core ids
-      by_cases h₁ : (decide ids.Nodup && ids.all fun i => (lookup f.db.toList i).isSome) = true
-      · simp only [h₁, ↓reduceIte]
-        by_cases h₂ : ((f.s.tcb || f.s.order.isSome) &&
-            ids.any fun i => (lookup f.core.toList i).isSome) = true
-        · have h₂' : ((f.toState.tcb || f.toState.order.isSome) &&
-              ids.any fun i => (lookup f.core.toList i).isSome) = true := h₂
-          simp [h₂, h₂']
-        · have h₂' : ¬ ((f.toState.tcb || f.toState.order.isSome) &&
-              ids.any fun i => (lookup f.core.toList i).isSome) = true := h₂
-          simp only [h₂, h₂', Bool.false_eq_true, ↓reduceIte, Option.map_some, Option.mem_def,
-            Option.some.injEq, forall_eq']
+      split
+      · split
+        · simp
+        · simp only [Option.map_some, Option.mem_def, Option.some.injEq, forall_eq']
           exact ⟨by simp [FState.toState, hl₁, hl₂], ⟨hw₁, hw₂⟩⟩
-      · simp [h₁]
+      · simp
     | _ => exact ⟨fallback _, fallbackWF _⟩
   | deld ids =>
     rw [stepTop_deld]
@@ -797,8 +791,6 @@ private theorem stepTopFast_spec (F : List PBConstr) (obj : Option Objective) {f
     · simp
   | delc ids =>
     rw [stepTop_delc]
-    have ht : f.toState.tcb = f.s.tcb := rfl
-    have ho : f.toState.order = f.s.order := rfl
     simp only [stepTopFast, nodupFast_eq, hcore, hs', hc', ht, ho,
       any_fst_beq_eq_isSome_lookup]
     obtain ⟨hw₁, hl₁⟩ := DB.eraseAll_compact_spec hf.db ids

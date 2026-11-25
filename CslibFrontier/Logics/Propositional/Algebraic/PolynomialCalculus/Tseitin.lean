@@ -345,11 +345,9 @@ private theorem signFunctional_toSign_exclude (h2 : (2 : K) ≠ 0)
   rw [hpoly, ← smul_eq_C_mul, map_smul, map_sum, sum_congr rfl fun t _ => hterm t, smul_eq_mul]
   refine mul_eq_zero_of_right _ ?_
   -- the vertex `v` has a small cut
-  have he : 0 < Multigraph.minBalancedCut ends := by omega
-  have hn : 2 ≤ Fintype.card V := by
-    by_contra hn
-    have : Subsingleton V := Fintype.card_le_one_iff_subsingleton.1 (by omega)
-    simp [Multigraph.minBalancedCut_eq_zero_of_subsingleton] at he
+  have hn : 2 ≤ Fintype.card V := by_contra fun hn => by
+    have := Fintype.card_le_one_iff_subsingleton.1 (by omega : Fintype.card V ≤ 1)
+    simp [Multigraph.minBalancedCut_eq_zero_of_subsingleton] at hd
   have hcutv : Multigraph.edgeCut ends {v} = B := by rw [Multigraph.edgeCut_singleton, hBv]
   have hv : IsSmallCut ends B {v} := ⟨Multigraph.three_mul_card_lt_of_card_edgeCut_lt
     (ends := ends) (by rw [hcutv]; omega) (by rw [card_singleton]; omega), hcutv⟩
@@ -361,11 +359,7 @@ private theorem signFunctional_toSign_exclude (h2 : (2 : K) ≠ 0)
     rw [mem_powerset] at ht
     have hprod : ∏ i ∈ B \ t, (boolSign (y i) : K) =
         (∏ i ∈ B, (boolSign (y i) : K)) * ∏ i ∈ t, (boolSign (y i) : K) := by
-      have h := prod_sdiff (f := fun i => (boolSign (y i) : K)) ht
-      have ht2 : (∏ i ∈ t, (boolSign (y i) : K)) * ∏ i ∈ t, (boolSign (y i) : K) = 1 := by
-        rw [prod_boolSign]
-        exact boolSign_mul_self _
-      rw [← h, mul_assoc, ht2, mul_one]
+      rw [← prod_sdiff ht, mul_assoc, prod_boolSign, prod_boolSign, boolSign_mul_self, mul_one]
     have hcut : (B \ t) ∆ T = (t ∆ T) ∆ B := by
       rw [← symmDiff_of_le ht, symmDiff_right_comm]
     have h₁ := card_symmDiff_le t T
@@ -377,8 +371,7 @@ private theorem signFunctional_toSign_exclude (h2 : (2 : K) ≠ 0)
       rw [hcut, cutSign_symmDiff hG hv (by omega) (by rw [← hcut]; omega),
         cutSign_of_isSmallCut hG hv, parityOn_singleton]
     have hpar : (∏ i ∈ B, (boolSign (y i) : K)) * boolSign (χ v) = -1 := by
-      rw [prod_boolSign, ← boolSign_xor, Bool.xor_iff_ne.2 hy]
-      rfl
+      rw [prod_boolSign, ← boolSign_xor, Bool.xor_iff_ne.2 hy]; rfl
     rw [hprod, hsign]
     linear_combination (∏ i ∈ t, (boolSign (y i) : K)) * cutSign ends χ (t ∆ T) * hpar
   refine sum_involution (fun t _ => B \ t) (fun t ht => by rw [hflip t ht, add_neg_cancel]) ?_
@@ -426,9 +419,8 @@ theorem minBalancedCut_le_two_mul_of_pc_refutableInDegree (h2 : (2 : K) ≠ 0)
     · obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hf
       obtain ⟨v, hv⟩ := CNF.mem_tseitinFormula.1 hc
       obtain ⟨A, hA, rfl⟩ := List.mem_map.1 hv
-      rw [mem_toList, mem_filter] at hA
       rw [Clause.totalDegree_toBoolPoly_exclude] at hfd
-      exact signFunctional_toSign_exclude h2 hG hd rfl hA.2 hfd hT
+      exact signFunctional_toSign_exclude h2 hG hd rfl (mem_filter.1 (mem_toList.1 hA)).2 hfd hT
     · obtain ⟨e, rfl⟩ := mem_boolAxioms.1 hf
       exact signFunctional_toSign_boolAxiom h2 T e
   have hX : ∀ e, ∀ p ∈ invariant K ends χ d, (X e * p).totalDegree ≤ d →

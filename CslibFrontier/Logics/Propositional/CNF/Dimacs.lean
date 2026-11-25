@@ -290,12 +290,9 @@ theorem litChars_ne_nil (l : Literal ℕ) : litChars l ≠ [] := Int.toDecimal_n
 /-- The words of a clause line. -/
 theorem words_clause (cl : Clause ℕ) :
     words (cl.flatMap (litChars · ++ [' ']) ++ ['0']) [] = cl.map litChars ++ [['0']] := by
-  have hflat : cl.flatMap (litChars · ++ [' ']) =
-      (cl.map litChars).flatMap (· ++ [' ']) := by
-    simp [List.flatMap_map]
-  rw [hflat, words_flatMap_space]
+  rw [← List.flatMap_map litChars (· ++ [' ']), words_flatMap_space]
   · rfl
-  · intro _ hw
+  · rintro _ hw
     obtain ⟨l, -, rfl⟩ := List.mem_map.1 hw
     exact ⟨litChars_ne_nil l, fun _ => isWhitespace_of_mem_litChars⟩
 
@@ -345,10 +342,8 @@ theorem readLines_clauses {V C : ℕ} (φ : CNF ℕ) (hφ : ∀ v ∈ CNF.vars �
       simp [clauseChars]
     rw [List.flatMap_cons, hsplit, splitOn_newline _ fun _ hc => ne_newline_of_mem_clause hc,
       List.map_cons, readLines, String.toList_ofList, words_clause, htoks]
-    simp only [hc 'c' (by decide) (by decide), hc '%' (by decide) (by decide),
-      hc 'p' (by decide) (by decide), ↓reduceIte, ← htoks, readLits_clause hcl,
-      List.nil_append, ih hφ']
-    simp
+    simp [hc 'c' (by decide) (by decide), hc '%' (by decide) (by decide),
+      hc 'p' (by decide) (by decide), ← htoks, readLits_clause hcl, ih hφ']
 
 end Dimacs
 

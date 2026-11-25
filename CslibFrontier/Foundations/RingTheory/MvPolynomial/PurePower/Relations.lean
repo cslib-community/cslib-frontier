@@ -42,23 +42,15 @@ private noncomputable def lowerIndex (j : Fin n → ℕ) (i : Fin n) : Fin n →
 private theorem powerProduct_raise (r : Fin n → MvPolynomial (Fin n) S)
     (j : Fin n → ℕ) (i : Fin n) :
     (∏ k, r k ^ raiseIndex j i k) = (∏ k, r k ^ j k) * r i := by
-  have heq (k : Fin n) : r k ^ raiseIndex j i k =
-      r k ^ j k * (if k = i then r i else 1) := by
-    by_cases hk : k = i
-    · subst k
-      simp [raiseIndex, pow_succ]
-    · simp [raiseIndex, hk]
-  simp_rw [heq]
-  rw [Finset.prod_mul_distrib]
+  have heq (k : Fin n) : r k ^ raiseIndex j i k = r k ^ j k * if k = i then r i else 1 := by
+    rcases eq_or_ne k i with rfl | hk <;> simp [raiseIndex, pow_succ, *]
+  rw [Finset.prod_congr rfl fun k _ => heq k, Finset.prod_mul_distrib]
   simp
 
 private theorem target_raise (ell : ℕ) (j : Fin n → ℕ) (i : Fin n) :
     target ell (raiseIndex j i) = target ell j + Finsupp.single i ell := by
   ext k
-  by_cases hk : k = i
-  · subst k
-    simp [target, raiseIndex, Nat.mul_add, Nat.add_assoc]
-  · simp [target, raiseIndex, hk]
+  rcases eq_or_ne k i with rfl | hk <;> simp [target, raiseIndex, Nat.mul_add, Nat.add_assoc, *]
 
 private theorem term_raise (ell : ℕ) (r : Fin n → MvPolynomial (Fin n) S)
     (v : MvPolynomial (Fin n) S) (j : Fin n → ℕ) (i : Fin n) :
@@ -147,9 +139,7 @@ private theorem linear_mul_generator {ell : ℕ} (hell : 1 ≤ ell)
     (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree < ell)
     (v : MvPolynomial (Fin n) S) (i : Fin n) :
     linear hell r hr (v * (X i ^ ell - r i)) = 0 := by
-  rw [mul_sub, map_sub]
-  simp only [linear_apply]
-  rw [residue_mul_X_pow hell r hr, sub_self]
+  simp [mul_sub, map_sub, residue_mul_X_pow hell r hr]
 
 /-- Vanishing on the generated ideal is proved for all polynomial multiples,
 which is the induction invariant required by ideal closure. -/

@@ -211,11 +211,8 @@ private theorem exec_rebuildRowMateCode {w n bC M : ℕ} {mate : Vector (Option 
           subst hjj
           exact Function.update_self _ _ _
         · have hne : bRM + i.val ≠ bRM + i₀.val := fun h => hii (Fin.ext (by omega))
-          have hjj : j ≠ j₀ := fun h => by
-            subst h
-            rw [hmj] at hm
-            exact hii (Option.some.inj hm).symm
-          have hj_ne : j.val ≠ y.regs idx := fun h => hjj (Fin.ext h)
+          have hj_ne : j.val ≠ y.regs idx := fun h =>
+            hii (Option.some.inj (hm.symm.trans ((congrArg (vget mate) (Fin.ext h)).trans hmj)))
           rw [Function.update_of_ne hne]
           exact hsome j (by omega) i hm
       · change Function.update y.mem (bRM + i₀.val) (y.regs idx) (bRM + i.val) = n
@@ -255,13 +252,12 @@ theorem exec_augmentCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁
   have hb₁ : BaseRegs n bC M y₁ := hb.of_eq fun i hi => hr₁ i (by omega)
   obtain ⟨y₂, he₂, hr₂, hsome₂, hnone₂, hf₂⟩ :=
     exec_rebuildRowMateCode hOB'.matching y₁ hb₁ hcol₁ hfit_a
-  have hstep₃ : ∃ y₃,
+  obtain ⟨y₃, he₃, rfl⟩ : ∃ y₃,
       ExecWithin w (ram[ augmented ← #1 ] : Code .standard 28) y₂ y₃ 1 ∧
       y₃ = y₂.set augmented 1 := by
     refine WP.exists_execWithin ?_
     wram_exec
     rfl
-  obtain ⟨y₃, he₃, rfl⟩ := hstep₃
   have hout : ∀ a, ¬(bC + n * n + 2 * n ≤ a ∧ a < bC + n * n + 3 * n) ∧
       ¬(bC + n * n + 7 * n + 1 ≤ a ∧ a < bC + n * n + 8 * n + 1) → y₂.mem a = x.mem a :=
     fun a ⟨ha1, ha2⟩ => (hf₂ a ha2).trans (hf₁ a ha1)
@@ -272,9 +268,8 @@ theorem exec_augmentCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁
      fun j => (hf₂ _ (by have := j.isLt; omega)).trans (hcol₁ j),
      hsome₂, hnone₂⟩,
     hout⟩
-  have h2 := hr₂ i (by omega)
-  have h1 := hr₁ i (by omega)
-  wram_simp [h2, h1]
+  have hi21 : i.val < 21 := by omega
+  wram_simp [hr₂ i hi21, hr₁ i hi21]
 
 
 end Cslib.Algorithms.WordRAM.Hungarian

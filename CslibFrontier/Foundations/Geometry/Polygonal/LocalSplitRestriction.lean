@@ -58,8 +58,7 @@ private theorem point_cutEnds_castSucc (p : Route) (s t : ℝ) (i : Fin p.segmen
     (p.cutEnds s t).point i.castSucc = p.eval i (p.cutLower s i) := by
   have hlast : ¬i.val = p.segments := Nat.ne_of_lt i.isLt
   by_cases hi : i.val = 0
-  · have hi' : i = 0 := Fin.ext hi
-    subst i
+  · obtain rfl : i = 0 := Fin.ext hi
     rfl
   · simp [cutEnds, cutLower, hi, hlast, eval]
 
@@ -67,9 +66,7 @@ private theorem point_cutEnds_succ (p : Route) (s t : ℝ) (i : Fin p.segments) 
     (p.cutEnds s t).point i.succ = p.eval i (p.cutUpper t i) := by
   have hzero : ¬i.val + 1 = 0 := by omega
   by_cases hi : i.val + 1 = p.segments
-  · have hi' : i = Fin.last p.bends := by
-      fin_index [segments]
-    subst i
+  · obtain rfl : i = Fin.last p.bends := by fin_index [segments]
     simp [cutEnds, cutUpper, segments]
   · change (if i.val + 1 = 0 then p.eval 0 s else
       if i.val + 1 = p.segments then p.eval (Fin.last p.bends) (1 - t) else p.point i.succ) = _
@@ -184,12 +181,9 @@ theorem position_cutEnds_eq_of_source_position_eq {p : Route} {s t u v : ℝ}
       have hcast : (i.val : ℝ) + 1 ≤ j.val := by exact_mod_cast hij
       have hi1 : p.cutTime s t i u = 1 := by dsimp [position] at heq; linarith [hi.2, hj.1]
       have hj0 : p.cutTime s t j v = 0 := by dsimp [position] at heq; linarith [hi.2, hj.1]
-      have hu1 := cutTime_eq_one p i (hbounds i) hu hi1
-      have hv0 := cutTime_eq_zero p j (hbounds j) hv hj0
+      rw [cutTime_eq_one p i (hbounds i) hu hi1, cutTime_eq_zero p j (hbounds j) hv hj0]
       dsimp [position] at heq ⊢
-      rw [hi1, hj0] at heq
-      rw [hu1, hv0]
-      exact heq
+      linarith
     rcases lt_or_gt_of_ne (show i.val ≠ j.val from fun h => hij (Fin.ext h)) with hij | hij
     · exact side hu hv hij heq
     · exact (side hv hu hij heq.symm).symm
@@ -205,17 +199,13 @@ theorem atEnd_cutEnds_of_atEnd {p : Route} {s t u : ℝ}
   have hi1 : (i.val : ℝ) + 1 ≤ p.segments := by exact_mod_cast i.isLt
   cases b
   · have hu0 : p.cutTime s t i u = 0 := by dsimp [AtEnd, position] at heq; linarith [hi.1]
-    have hu' := cutTime_eq_zero p i (p.cut_bounds hs ht hst i) hu hu0
+    rw [cutTime_eq_zero p i (p.cut_bounds hs ht hst i) hu hu0]
     dsimp [AtEnd, position] at heq ⊢
-    rw [hu0] at heq
-    rw [hu']
-    exact heq
+    linarith
   · have hu1 : p.cutTime s t i u = 1 := by dsimp [AtEnd, position] at heq; linarith [hi.2]
-    have hu' := cutTime_eq_one p i (p.cut_bounds hs ht hst i) hu hu1
-    dsimp [AtEnd, position] at heq ⊢
-    rw [hu1] at heq
-    rw [hu']
-    exact heq
+    rw [cutTime_eq_one p i (p.cut_bounds hs ht hst i) hu hu1]
+    dsimp [AtEnd, position, cutEnds, segments] at heq ⊢
+    linarith
 
 /-- Cutting the two end segments preserves continuous simplicity, also for a closed loop
 and for a one-segment open edge. The two cuts may have different parameters. -/
