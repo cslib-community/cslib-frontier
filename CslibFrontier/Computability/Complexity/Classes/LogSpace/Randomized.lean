@@ -154,12 +154,9 @@ theorem two_pow_mul_le_iff {input : List Bool} {t t' : ℕ}
     (ht : machine.toNTM.RunsInTime input t) (ht' : machine.toNTM.RunsInTime input t')
     (x y : ℕ) : x * 2 ^ t ≤ y * machine.acceptCoins input t ↔
       x * 2 ^ t' ≤ y * machine.acceptCoins input t' := by
-  have e := machine.acceptCoins_mul_two_pow ht ht'
-  constructor <;> intro h
-  · have := Nat.mul_le_mul_right (2 ^ t') h
-    exact Nat.le_of_mul_le_mul_right (by linarith [congrArg (y * ·) e]) (Nat.two_pow_pos t)
-  · have := Nat.mul_le_mul_right (2 ^ t) h
-    exact Nat.le_of_mul_le_mul_right (by linarith [congrArg (y * ·) e]) (Nat.two_pow_pos t')
+  rw [← mul_le_mul_iff_left₀ (Nat.two_pow_pos t'), mul_right_comm x, mul_assoc y,
+    ← machine.acceptCoins_mul_two_pow ht ht', ← mul_assoc y,
+    mul_le_mul_iff_left₀ (Nat.two_pow_pos t)]
 
 /-- An upper bound `x / y` on the acceptance probability holds at one halting time exactly when it
 holds at another. -/
@@ -167,12 +164,9 @@ theorem mul_le_two_pow_iff {input : List Bool} {t t' : ℕ}
     (ht : machine.toNTM.RunsInTime input t) (ht' : machine.toNTM.RunsInTime input t')
     (x y : ℕ) : y * machine.acceptCoins input t ≤ x * 2 ^ t ↔
       y * machine.acceptCoins input t' ≤ x * 2 ^ t' := by
-  have e := machine.acceptCoins_mul_two_pow ht ht'
-  constructor <;> intro h
-  · have := Nat.mul_le_mul_right (2 ^ t') h
-    exact Nat.le_of_mul_le_mul_right (by linarith [congrArg (y * ·) e]) (Nat.two_pow_pos t)
-  · have := Nat.mul_le_mul_right (2 ^ t) h
-    exact Nat.le_of_mul_le_mul_right (by linarith [congrArg (y * ·) e]) (Nat.two_pow_pos t')
+  rw [← mul_le_mul_iff_left₀ (Nat.two_pow_pos t'), mul_assoc y,
+    ← machine.acceptCoins_mul_two_pow ht ht', ← mul_assoc y, mul_right_comm x,
+    mul_le_mul_iff_left₀ (Nat.two_pow_pos t)]
 
 /-- **Acceptance of the nondeterministic view** is acceptance by some coin string of a halting
 length. -/
@@ -378,22 +372,14 @@ private theorem exists_ofDeterministic_of_mem_L (h : A ∈ L enc) :
   have hacc : MultiTapePTM.acceptCoins (MultiTapePTM.ofDeterministic tm) (enc a) u =
       if f a = true then 2 ^ u else 0 := by
     rw [MultiTapePTM.acceptCoins_ofDeterministic, hout]
-    split_ifs with hc hf hf
-    · rfl
-    · have h₂ := hc.2
-      change [f a] = [true] at h₂
-      exact absurd (by simpa using h₂) hf
-    · exact absurd ⟨hhalt, by rw [hf]; rfl⟩ hc
-    · rfl
-  refine ⟨hspace, u, MultiTapeTM.runsInTime_of_halted hhalt, fun ha => ?_, fun ha => ?_⟩
-  · rw [hacc]
-    split_ifs with hf
-    · rfl
-    · exact absurd ((hA a).mp ha) hf
-  · rw [hacc]
-    split_ifs with hf
-    · exact absurd ((hA a).mpr hf) ha
-    · rfl
+    have hcond : ((tm.runFrom (tm.initCfg (enc a)) u).Halted ∧
+        MultiTapeTM.encBool (f a) = [true]) ↔ f a = true := by
+      simp only [MultiTapeTM.encBool_apply, List.cons.injEq, and_true]
+      exact and_iff_right hhalt
+    simp only [hcond]
+  refine ⟨hspace, u, MultiTapeTM.runsInTime_of_halted hhalt,
+    fun ha => by simp [hacc, (hA a).mp ha],
+    fun ha => by simp [hacc, mt (hA a).mpr ha]⟩
 
 /-- **Deterministic logarithmic space is within `RL`**: a logspace decider ignores its coins. -/
 theorem L_subset_RL : L enc ⊆ RL enc := by
