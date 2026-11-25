@@ -56,11 +56,6 @@ variable {bound query value : Expr} {w : List Bool} {N S : ℕ} {count : ℕ →
     value.eval [w.length, u, v, symbolCode w[query.eval [w.length, u, v, y]]?] = count u v)
   (hcount : ∀ u v, count u v ≤ 2)
 
-private theorem bounded_regs {a b c d : ℕ} (ha : a ≤ S) (hb : b ≤ S)
-    (hc : c ≤ S) (hd : d ≤ S) : ∀ r ∈ [a, b, c, d], r ≤ S := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  omega
-
 include hvalue in
 private theorem reachesOut_count {u v y : ℕ}
     (hregs : ∀ r ∈ [w.length, u, v, y], r ≤ S) (h2 : 2 ≤ S) :
@@ -74,7 +69,7 @@ private theorem reachesOut_count {u v y : ℕ}
       (10, [w.length, u, v, y]) (15, [w.length, u, v, sym]) [] := by
     simpa [sym] using reachesOut_readSymbolCode hcode rfl hregs
   have hb : ∀ r ∈ [w.length, u, v, sym], r ≤ S :=
-    bounded_regs (hregs _ (by simp)) (hregs _ (by simp)) (hregs _ (by simp))
+    forall_mem_four_le (hregs _ (by simp)) (hregs _ (by simp)) (hregs _ (by simp))
       ((Nat.le_of_lt_succ (symbolCode_lt _)).trans h2)
   refine (hr.trans (ReachesOut.assign (show P.instr 15 = _ from rfl) hb ?_)).of_eq rfl
   rw [hvalue]
@@ -90,7 +85,7 @@ private theorem reachesOut_entry {u v y : ℕ}
   let P := inputCountTableProgram bound query value
   let c := count u v
   have hb : ∀ r ∈ [w.length, u, v, c], r ≤ S :=
-    bounded_regs (hregs _ (by simp)) (hregs _ (by simp)) (hregs _ (by simp))
+    forall_mem_four_le (hregs _ (by simp)) (hregs _ (by simp)) (hregs _ (by simp))
       ((hcount u v).trans h2)
   have hr := reachesOut_count (bound := bound) hvalue hregs h2
   have hfirst : P.ReachesOut (frame w) (P.Active S)
@@ -123,16 +118,16 @@ private theorem reachesOut_row (hL : w.length ≤ S) (hN : N ≤ S) (h2 : 2 ≤ 
     (fun v regs => ∃ y, regs = [w.length, u, v, y] ∧ v ≤ N ∧ y ≤ 2) hN
     (by
       rintro v regs ⟨y, rfl, hv, hy⟩
-      exact ⟨rfl, hbound u v y, by simp, bounded_regs hL (by omega) (by omega) (by omega)⟩)
+      exact ⟨rfl, hbound u v y, by simp, forall_mem_four_le hL (by omega) (by omega) (by omega)⟩)
     (by
       rintro v hv regs ⟨y, rfl, -, hy⟩
       have hc := hcount u v
       exact ⟨[w.length, u, v, count u v],
         reachesOut_entry hvalue hcount
-          (bounded_regs hL (by omega) (by omega) (by omega)) h2,
-        rfl, bounded_regs hL (by omega) (by omega) (hc.trans h2),
+          (forall_mem_four_le hL (by omega) (by omega) (by omega)) h2,
+        rfl, forall_mem_four_le hL (by omega) (by omega) (hc.trans h2),
         count u v, by simp, by omega, hc⟩)
-    [w.length, u, x, y] (bounded_regs hL (by omega) (by omega) (by omega))
+    [w.length, u, x, y] (forall_mem_four_le hL (by omega) (by omega) (by omega))
     ⟨y, by simp, by omega, hy⟩
   exact ⟨y', hy', hreach⟩
 
@@ -150,16 +145,16 @@ private theorem reachesOut_table (hL : w.length ≤ S) (hN : N ≤ S) (h2 : 2 �
     (fun u regs => ∃ x y, regs = [w.length, u, x, y] ∧ u ≤ N ∧ x ≤ N ∧ y ≤ 2) hN
     (by
       rintro u regs ⟨x, y, rfl, hu, hx, hy⟩
-      exact ⟨rfl, hbound u x y, by simp, bounded_regs hL (by omega) (by omega) (by omega)⟩)
+      exact ⟨rfl, hbound u x y, by simp, forall_mem_four_le hL (by omega) (by omega) (by omega)⟩)
     (by
       rintro u hu regs ⟨x, y, rfl, -, hx, hy⟩
       obtain ⟨y', hy', hr⟩ := reachesOut_row hbound hvalue hcount hL hN h2 hu hx hy
-      exact ⟨_, hr, rfl, bounded_regs hL (by omega) (by omega) (by omega),
+      exact ⟨_, hr, rfl, forall_mem_four_le hL (by omega) (by omega) (by omega),
         _, y', by simp, by omega, le_rfl, hy'⟩)
-    [w.length, 0, 0, 0] (bounded_regs hL (by omega) (by omega) (by omega))
+    [w.length, 0, 0, 0] (forall_mem_four_le hL (by omega) (by omega) (by omega))
     ⟨0, 0, by simp, by omega, by omega, by omega⟩
   exact ⟨_, hreach.of_eq (List.twoBitTable_eq_flatMap N count).symm,
-    bounded_regs hL (by omega) (by omega) (by omega)⟩
+    forall_mem_four_le hL (by omega) (by omega) (by omega)⟩
 
 include hbound hvalue hcount in
 /-- Starting from zero registers on the original framed word, the shared writer emits exactly

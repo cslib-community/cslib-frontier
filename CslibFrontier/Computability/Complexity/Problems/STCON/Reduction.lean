@@ -204,12 +204,6 @@ noncomputable def writer : CounterProgram where
 
 variable {ntm D} (w : List Bool) {B : ℕ}
 
-/-- Bounded registers. -/
-private theorem bounded_regs {L u v y : ℕ} (hL : L ≤ B) (hu : u ≤ B) (hv : v ≤ B) (hy : y ≤ B) :
-    ∀ r ∈ [L, u, v, y], r ≤ B := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  omega
-
 /-- A counting loop writing `M` set bits. -/
 private theorem reachesOut_ones {b body exit M : ℕ} {bound : Expr}
     (hcode : (writer ntm D).CodeAt b (forCode b 1 bound body exit))
@@ -223,14 +217,14 @@ private theorem reachesOut_ones {b body exit M : ℕ} {bound : Expr}
     (fun k regs => regs = [w.length, k, 0, 0] ∧ k ≤ M) hM
     (by
       rintro k regs ⟨rfl, hk⟩
-      exact ⟨rfl, hbound k, by simp, bounded_regs hL (by omega) (by omega) (by omega)⟩)
+      exact ⟨rfl, hbound k, by simp, forall_mem_four_le hL (by omega) (by omega) (by omega)⟩)
     (by
       rintro k hk regs ⟨rfl, -⟩
       have hB : ∀ r ∈ [w.length, k, 0, 0], r ≤ B :=
-        bounded_regs hL (by omega) (by omega) (by omega)
+        forall_mem_four_le hL (by omega) (by omega) (by omega)
       exact ⟨[w.length, k, 0, 0], ReachesOut.emit hbody hB (ReachesOut.refl _), rfl, hB,
         by simp, by omega⟩)
-    [w.length, i₀, 0, 0] (bounded_regs hL hi₀ (by omega) (by omega))
+    [w.length, i₀, 0, 0] (forall_mem_four_le hL hi₀ (by omega) (by omega))
     (by simp)
   obtain ⟨rfl, -⟩ := hinv
   rwa [List.flatMap_def, List.map_const', List.length_range,
@@ -261,7 +255,8 @@ private theorem reachesOut_entry_symbol (hL : w.length ≤ B)
     ∃ y' ≤ 2, y' = symbolCode w[queryIndex (k := k) (radix D w.length) u]? ∧
       (writer ntm D).ReachesOut (frame w) ((writer ntm D).Active B)
         (24, [w.length, u, v, y]) (29, [w.length, u, v, y']) [] := by
-  have hB : ∀ r ∈ [w.length, u, v, y], r ≤ B := bounded_regs hL (by omega) (by omega) (by omega)
+  have hB : ∀ r ∈ [w.length, u, v, y], r ≤ B :=
+    forall_mem_four_le hL (by omega) (by omega) (by omega)
   have hcode : (writer ntm D).CodeAt 24
       (readSymbolCode 24 3 29 (reg 0) (queryIndexExpr k (radixExpr D (reg 0)) (reg 1))) :=
     codeAt_of_prefix ⟨_, rfl⟩
@@ -278,7 +273,7 @@ private theorem reachesOut_entry (hL : w.length ≤ B)
     ∃ y' ≤ 2, (writer ntm D).ReachesOut (frame w) ((writer ntm D).Active B)
       (23, [w.length, u, v, y]) (22, [w.length, u, v, y']) [sinkAdj ntm D w u v] := by
   have hB : ∀ {y'}, y' ≤ 2 → ∀ r ∈ [w.length, u, v, y'], r ≤ B := fun hy' =>
-    bounded_regs hL (by omega) (by omega) (by omega)
+    forall_mem_four_le hL (by omega) (by omega) (by omega)
   by_cases hvb : v < vertexBound (k := k) (radix D w.length)
   · obtain ⟨y', hy', hsym, hreach⟩ :=
       reachesOut_entry_symbol (ntm := ntm) (D := D) w hL hN h2 hu hv hy
@@ -316,13 +311,13 @@ private theorem reachesOut_row (hL : w.length ≤ B)
       y ≤ 2) hN
     (by
       rintro v regs ⟨y, rfl, hv, hy⟩
-      exact ⟨rfl, by simp, by simp, bounded_regs hL (by omega) (by omega) (by omega)⟩)
+      exact ⟨rfl, by simp, by simp, forall_mem_four_le hL (by omega) (by omega) (by omega)⟩)
     (by
       rintro v hv regs ⟨y, rfl, -, hy⟩
       obtain ⟨y', hy', hreach⟩ := reachesOut_entry (ntm := ntm) (D := D) w hL hN h2 hu.le hv hy
-      exact ⟨_, hreach, rfl, bounded_regs hL (by omega) (by omega) (by omega),
+      exact ⟨_, hreach, rfl, forall_mem_four_le hL (by omega) (by omega) (by omega),
         y', by simp, by omega, hy'⟩)
-    [w.length, u, x, y] (bounded_regs hL (by omega) (by omega) (by omega))
+    [w.length, u, x, y] (forall_mem_four_le hL (by omega) (by omega) (by omega))
     ⟨y, by simp, by omega, hy⟩
   rw [flatMap_singleton_eq_map] at hreach
   exact ⟨y', hy', hreach⟩
@@ -347,15 +342,15 @@ private theorem reachesOut_matrix (hL : w.length ≤ B)
       y ≤ 2) hN
     (by
       rintro u regs ⟨x, y, rfl, hu, hx, hy⟩
-      exact ⟨rfl, by simp, by simp, bounded_regs hL (by omega) (by omega) (by omega)⟩)
+      exact ⟨rfl, by simp, by simp, forall_mem_four_le hL (by omega) (by omega) (by omega)⟩)
     (by
       rintro u hu regs ⟨x, y, rfl, -, hx, hy⟩
       obtain ⟨y', hy', hreach⟩ := reachesOut_row (ntm := ntm) (D := D) w hL hN h2 hu hx hy
-      exact ⟨_, hreach, rfl, bounded_regs hL (by omega) (by omega) (by omega),
+      exact ⟨_, hreach, rfl, forall_mem_four_le hL (by omega) (by omega) (by omega),
         _, y', by simp, by omega, le_rfl, hy'⟩)
-    [w.length, i₀, 0, 0] (bounded_regs hL hi₀ (by omega) (by omega))
+    [w.length, i₀, 0, 0] (forall_mem_four_le hL hi₀ (by omega) (by omega))
     ⟨0, 0, by simp, by omega, by omega, by omega⟩
-  exact ⟨_, hreach, bounded_regs hL (by omega) (by omega) (by omega)⟩
+  exact ⟨_, hreach, forall_mem_four_le hL (by omega) (by omega) (by omega)⟩
 
 
 variable (ntm) in
@@ -372,7 +367,7 @@ theorem computableInLogSpace_configurationInstance :
   have hS : S < VB := startID_lt_vertexBound ntm c w.length
   obtain ⟨hN, hL, h2⟩ := configurationCounter_bounds (k := k) D w
   have hreg (i : ℕ) (hi : i ≤ B) : ∀ r ∈ [w.length, i, 0, 0], r ≤ B :=
-    bounded_regs hL hi (by omega) (by omega)
+    forall_mem_four_le hL hi (by omega) (by omega)
   have hones₁ := reachesOut_ones (ntm := ntm) (D := D) w
     (codeAt_of_prefix ⟨_, rfl⟩)
     (show (writer ntm D).instr 5 = _ from rfl) (M := VB + 1) (fun _ => by simp [VB]) hN hL
@@ -390,7 +385,8 @@ theorem computableInLogSpace_configurationInstance :
   -- the input length is counted by reading the markers of the framed input
   have hcount := reachesOut_count (P := writer ntm D) (n := w.length) (fun j => [j, 0, 0, 0])
     (u := 0) (show (writer ntm D).instr 0 = _ from rfl) (show (writer ntm D).instr 1 = _ from rfl)
-    (fun _ _ => by simp) (fun j hj => bounded_regs (hj.trans hL) (by omega) (by omega) (by omega))
+    (fun _ _ => by simp)
+    (fun j hj => forall_mem_four_le (hj.trans hL) (by omega) (by omega) (by omega))
     (fun j hj => by simpa using getElem?_frame_two_mul hj)
     (by simp only [eval_mul, eval_const, eval_reg, List.getD_cons_zero,
       getElem?_frame_two_mul_length]; decide) 0 (Nat.zero_le _)

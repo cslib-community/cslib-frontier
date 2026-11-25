@@ -112,11 +112,6 @@ private theorem length_input (a b : ℕ) :
     (encPair encUnary encUnary (a, b)).length = 2 * a + 1 + b := by
   simp [length_frame]
 
-private theorem bounded4 {a₀ a₁ a₂ a₃ : ℕ} (h₀ : a₀ ≤ B) (h₁ : a₁ ≤ B) (h₂ : a₂ ≤ B)
-    (h₃ : a₃ ≤ B) : ∀ x ∈ [a₀, a₁, a₂, a₃], x ≤ B := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  omega
-
 /-- The header reads `a` into register `0` and `b` into register `1`. -/
 private theorem reachesOut_header' {P : CounterProgram} (hP : P.CodeAt 0 headerCode)
     (hB : 2 * a + 1 + b ≤ B) :
@@ -135,21 +130,23 @@ private theorem reachesOut_unaryProgram (e : Expr) {v : ℕ} (hv : e.eval [a, b,
   have hset : (unaryProgram e).ReachesOut (encPair encUnary encUnary (a, b))
       ((unaryProgram e).Active B) (4, [a, b, 0, 0]) (5, [a, b, 0, v]) [] :=
     ReachesOut.assign (show (unaryProgram e).instr 4 = _ from rfl)
-      (bounded4 (by omega) (by omega) (by omega) (by omega)) (by simpa [hv] using ReachesOut.refl _)
+      (forall_mem_four_le (by omega) (by omega) (by omega) (by omega))
+      (by simpa [hv] using ReachesOut.refl _)
   have hfor : (unaryProgram e).CodeAt 5 (forCode 5 2 (reg 3) 8 9) := codeAt_of_prefix ⟨_, rfl⟩
   obtain ⟨regs, hloop, hinv⟩ := reachesOut_forCode (w := encPair encUnary encUnary (a, b))
     hfor (fun i regs => regs = [a, b, i, v] ∧ i ≤ v) (fun _ => [true]) hvB
     (fun i regs h => by
       obtain ⟨rfl, hi⟩ := h
-      exact ⟨rfl, rfl, by simp, bounded4 (by omega) (by omega) (by omega) (by omega)⟩)
+      exact ⟨rfl, rfl, by simp, forall_mem_four_le (by omega) (by omega) (by omega) (by omega)⟩)
     (fun i hi regs h => by
       obtain ⟨rfl, -⟩ := h
       exact ⟨[a, b, i, v], ReachesOut.emit (show (unaryProgram e).instr 8 = _ from rfl)
-        (bounded4 (by omega) (by omega) (by omega) (by omega)) (ReachesOut.refl _), rfl,
-        bounded4 (by omega) (by omega) (by omega) (by omega), by simpa using hi⟩)
-    [a, b, 0, v] (bounded4 (by omega) (by omega) (by omega) (by omega)) (by simp)
+        (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) (ReachesOut.refl _), rfl,
+        forall_mem_four_le (by omega) (by omega) (by omega) (by omega), by simpa using hi⟩)
+    [a, b, 0, v] (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) (by simp)
   obtain ⟨rfl, -⟩ := hinv
-  exact ⟨_, (hhead.trans hset).trans hloop, bounded4 (by omega) (by omega) (by omega) (by omega)⟩
+  exact ⟨_, (hhead.trans hset).trans hloop,
+    forall_mem_four_le (by omega) (by omega) (by omega) (by omega)⟩
 
 /-- The binary digits of `v`, least significant first, are its bits below its size. -/
 private theorem bits_eq_map_testBit (v : ℕ) : v.bits = (List.range v.size).map v.testBit := by
@@ -169,14 +166,14 @@ private theorem reachesOut_binaryLoop (e : Expr) {v : ℕ} (hB : 2 * a + 1 + b �
   | zero =>
     obtain rfl : i = v.size := by omega
     refine ReachesOut.lt (show (binaryProgram e).instr 6 = _ from rfl)
-      (bounded4 (by omega) (by omega) (by omega) (by omega)) ?_
+      (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) ?_
     simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ, Nat.lt_size_self, ↓reduceIte,
       List.range'_zero, List.map_nil]
     exact ReachesOut.refl _
   | succ n ih =>
     have hpow : 2 ^ i ≤ v := Nat.lt_size.mp (by omega)
     have hpow' : 2 ^ (i + 1) ≤ 2 ^ v.size := Nat.pow_le_pow_right (by omega) (by omega)
-    have hb := bounded4 (B := B) (a₀ := a) (a₁ := b) (a₂ := 2 ^ i) (a₃ := v) (by omega)
+    have hb := forall_mem_four_le (B := B) (a₀ := a) (a₁ := b) (a₂ := 2 ^ i) (a₃ := v) (by omega)
       (by omega) (by omega) (by omega)
     refine ReachesOut.lt (show (binaryProgram e).instr 6 = _ from rfl) hb ?_
     simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ, show ¬v < 2 ^ i by omega,
@@ -204,9 +201,9 @@ private theorem reachesOut_binaryProgram (e : Expr) {v : ℕ} (hv : e.eval [a, b
   have hset : (binaryProgram e).ReachesOut (encPair encUnary encUnary (a, b))
       ((binaryProgram e).Active B) (4, [a, b, 0, 0]) (6, [a, b, 2 ^ 0, v]) [] := by
     refine ReachesOut.assign (show (binaryProgram e).instr 4 = _ from rfl)
-      (bounded4 (by omega) (by omega) (by omega) (by omega)) ?_
+      (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) ?_
     refine ReachesOut.assign (show (binaryProgram e).instr 5 = _ from rfl)
-      (bounded4 (by omega) (by omega) (by omega) (by omega)) ?_
+      (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) ?_
     simpa [hv] using ReachesOut.refl _
   have hloop := reachesOut_binaryLoop e hB hvB 0 (Nat.zero_le _)
   rw [Nat.sub_zero, ← List.range_eq_range', ← bits_eq_map_testBit] at hloop
@@ -279,7 +276,7 @@ private theorem exists_activeBound (e : Expr) :
       2 * e.eval [a, b, 0, 0] + 1 ≤ (2 * a + 1 + b + 1) ^ d := by
   obtain ⟨d, hd⟩ := e.exists_eval_le_pow
   exact ⟨d + 2, fun a b => le_pow_add_two (by omega)
-    (hd (by omega) (bounded4 (by omega) (by omega) (by omega) (by omega)))⟩
+    (hd (by omega) (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)))⟩
 
 /-! ### Logarithmic space -/
 
@@ -313,7 +310,7 @@ theorem computableInLogSpace_binary (e : Expr) (he : ∀ a b, e.eval [a, b, 0, 0
   have hv : 2 * F a b + 1 ≤ (2 * a + 1 + b + 1) ^ d := he a b ▸ h₂
   have hsize := Nat.two_pow_size_le (F a b)
   refine ⟨_, _, [], reachesOut_binaryProgram e (he a b) (by omega) hv, rfl,
-    by simp [encNat_apply], bounded4 (by omega) (by omega) (by omega) (by omega)⟩
+    by simp [encNat_apply], forall_mem_four_le (by omega) (by omega) (by omega) (by omega)⟩
 
 /-- **Comparing two functions of two unary numbers given by expressions is computable in
 logarithmic space.** -/
@@ -325,8 +322,8 @@ theorem computableInLogSpace_lt (e₁ e₂ : Expr) (h₁ : ∀ a b, e₁.eval [a
   rw [length_input, pow_one]
   have hhead := reachesOut_header' (P := ltProgram e₁ e₂) (codeAt_of_prefix ⟨_, rfl⟩)
     (show 2 * a + 1 + b ≤ 2 * a + 1 + b + 1 by omega)
-  have hb := bounded4 (B := 2 * a + 1 + b + 1) (a₀ := a) (a₁ := b) (a₂ := 0) (a₃ := 0) (by omega)
-    (by omega) (by omega) (by omega)
+  have hb := forall_mem_four_le (B := 2 * a + 1 + b + 1) (a₀ := a) (a₁ := b) (a₂ := 0) (a₃ := 0)
+    (by omega) (by omega) (by omega) (by omega)
   by_cases h : F₁ a b < F₂ a b
   · refine ⟨(5, [a, b, 0, 0]), [] ++ [], [true],
       hhead.trans (ReachesOut.lt (show (ltProgram e₁ e₂).instr 4 = _ from rfl) hb ?_), rfl,
