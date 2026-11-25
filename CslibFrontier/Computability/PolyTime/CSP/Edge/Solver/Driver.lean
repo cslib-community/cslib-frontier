@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Tactic.PolyTime
 
 /-!
 # Native list-funded improvement driver
@@ -30,6 +31,7 @@ public section
 namespace Cslib.Complexity.CSP.EdgeSolver.Program
 
 open Cslib.Logic.PL Cslib.Logic.PL.CSP Turing.MultiTapeTM
+open scoped Cslib.Complexity.CSP.EdgeForest
 
 private def start (input : EdgeForest.Input) : State :=
   ⟨input, [], (CSP.occurrences input.body).length + 1, none⟩
@@ -39,47 +41,28 @@ private def loop (input : EdgeForest.Input) (state : State) : State :=
 private def output (state : State) : Option (List Bool) :=
   if state.frames.isEmpty then state.status.elim none id else none
 
+attribute [local fun_prop] EdgeAugmenting.poly_records EdgeAugmenting.poly_validWith
+
 private theorem poly_guard : ComputableInPolyTime inputGuard EdgeForest.encInput encBool := by
-  unfold inputGuard
-  have hb := EdgeForest.encInput_body_deg.computableInPolyTime
-  have hl := EdgeForest.encInput_labels_deg.computableInPolyTime
-  have hr := EdgeAugmenting.poly_records
-  have hm := computableInPolyTime_checkModel
-  have hvalid := EdgeAugmenting.poly_validWith hb hl
-  fun_prop
+  polytime [inputGuard]
 
 attribute [local fun_prop] poly_guard computableInPolyTime_step
 
 private theorem poly_start : ComputableInPolyTime start EdgeForest.encInput encState := by
-  unfold start
-  have hb := EdgeForest.encInput_body_deg.computableInPolyTime
-  have hr := EdgeAugmenting.poly_records
-  have hm := encState_mk_deg.computableInPolyTime
-  fun_prop
+  polytime [start]
 
 private theorem poly_clock : ComputableInPolyTime clock EdgeForest.encInput encUnary := by
-  unfold clock
-  have hb := EdgeForest.encInput_body_deg.computableInPolyTime
-  have hr := EdgeAugmenting.poly_records
-  fun_prop
+  polytime [clock]
 
 private theorem poly_loop : ComputableInPolyTime
     (fun p : EdgeForest.Input × State => loop p.1 p.2)
     (encPair EdgeForest.encInput encState) encState := by
-  unfold loop
-  fun_prop
+  polytime [loop]
 
 private theorem poly_output : ComputableInPolyTime output encState
     (encOption (encList encBool)) := by
   unfold output
-  have hf := encState_frames_deg.computableInPolyTime
-  have hs := encState_status_deg.computableInPolyTime
-  have hj := ComputableInPolyTime.optionElimWithInput
-    (body := fun (_ : State) (bits : Option (List Bool)) => bits) hs
-    (ComputableInPolyTime.const none)
-    (ComputableInPolyTime.snd encState (encOption (encList encBool)))
-  exact (show ComputableInPolyTime (fun state : State => state.frames.isEmpty)
-    encState encBool from by fun_prop).ite' hj (ComputableInPolyTime.const none)
+  exact ComputableInPolyTime.ite' (by fun_prop) (by fun_prop) (by fun_prop)
 
 private theorem start_good (input : EdgeForest.Input) (h : inputGuard input = true) :
     StateGood input.body (defects (EdgeAugmenting.labeling input.body input.labels)).card

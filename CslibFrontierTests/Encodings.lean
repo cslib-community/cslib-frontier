@@ -7,7 +7,6 @@ Authors: Samuel Schlesinger
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.ResourceFacts
 
 /-!
