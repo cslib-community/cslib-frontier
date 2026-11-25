@@ -113,8 +113,10 @@ theorem read_eq_getElem? (h : z.Represents input pos) :
 /-- A zipper read agrees with the input symbol of any represented native configuration. -/
 theorem read_eq_inputSymbol {k : ℕ} {State : Type*} {cfg : Cfg k Symbol State input}
     (h : z.Represents input cfg.inputPos) : z.read = cfg.inputSymbol := by
-  rw [h.read_eq_getElem?]; unfold Cfg.inputSymbol
-  have := cfg.inputPos.isLt; split_ifs <;> grind
+  rw [h.read_eq_getElem?]
+  unfold Cfg.inputSymbol
+  have := cfg.inputPos.isLt
+  split_ifs <;> grind
 
 /-- Moving left preserves the representation, with clamping at the left boundary. -/
 theorem moveLeft (h : z.Represents input pos) :
@@ -126,19 +128,24 @@ theorem moveLeft (h : z.Represents input pos) :
   | true =>
     refine ⟨h.contents, h.left_nil, ?_⟩
     have hp : pos.val = 0 := h.pos_eq
-    change (moveInputPos pos .neg).val = 0; omega
+    change (moveInputPos pos .neg).val = 0
+    omega
   | false =>
     cases l with
     | nil =>
-      refine ⟨h.contents, by simp [Input.moveLeft], ?_⟩
-      have hp : pos.val = 1 := h.pos_eq
-      change (moveInputPos pos .neg).val = 0; omega
+      refine ⟨h.contents, ?_, ?_⟩
+      · simp [Input.moveLeft]
+      · have hp : pos.val = 1 := h.pos_eq
+        change (moveInputPos pos .neg).val = 0
+        omega
     | cons a l =>
-      refine ⟨by simpa [Input.moveLeft, List.reverse_cons, List.append_assoc] using h.contents,
-        by simp [Input.moveLeft], ?_⟩
-      have hp : pos.val = (a :: l).length + 1 := h.pos_eq
-      simp only [List.length_cons] at hp
-      change (moveInputPos pos .neg).val = l.length + 1; omega
+      refine ⟨?_, ?_, ?_⟩
+      · simpa [Input.moveLeft, List.reverse_cons, List.append_assoc] using h.contents
+      · simp [Input.moveLeft]
+      · have hp : pos.val = (a :: l).length + 1 := h.pos_eq
+        simp only [List.length_cons] at hp
+        change (moveInputPos pos .neg).val = l.length + 1
+        omega
 
 /-- Moving right preserves the representation, with clamping at the right boundary. -/
 theorem moveRight (h : z.Represents input pos) :
@@ -150,30 +157,38 @@ theorem moveRight (h : z.Represents input pos) :
   change l.length + r.length = input.length at hlen
   cases b with
   | true =>
-    have hl : l = [] := h.left_nil rfl; subst hl
-    refine ⟨h.contents, by simp [Input.moveRight], ?_⟩
-    have hp : pos.val = 0 := h.pos_eq
-    change (moveInputPos pos .pos).val = 1; omega
+    have hl : l = [] := h.left_nil rfl
+    subst l
+    refine ⟨h.contents, ?_, ?_⟩
+    · simp [Input.moveRight]
+    · have hp : pos.val = 0 := h.pos_eq
+      change (moveInputPos pos .pos).val = 1
+      omega
   | false =>
     cases r with
     | nil =>
       refine ⟨h.contents, h.left_nil, ?_⟩
       have hp : pos.val = l.length + 1 := h.pos_eq
       simp only [List.length_nil, Nat.add_zero] at hlen
-      change (moveInputPos pos .pos).val = l.length + 1; omega
+      change (moveInputPos pos .pos).val = l.length + 1
+      omega
     | cons a r =>
-      refine ⟨by simpa [Input.moveRight, List.reverse_cons, List.append_assoc] using h.contents,
-        by simp [Input.moveRight], ?_⟩
-      have hp : pos.val = l.length + 1 := h.pos_eq
-      simp only [List.length_cons] at hlen
-      change (moveInputPos pos .pos).val = l.length + 1 + 1; omega
+      refine ⟨?_, ?_, ?_⟩
+      · simpa [Input.moveRight, List.reverse_cons, List.append_assoc] using h.contents
+      · simp [Input.moveRight]
+      · have hp : pos.val = l.length + 1 := h.pos_eq
+        simp only [List.length_cons] at hlen
+        change (moveInputPos pos .pos).val = l.length + 1 + 1
+        omega
 
 /-- Each zipper move simulates the corresponding native bounded head move. -/
 theorem move (h : z.Represents input pos) (d : SignType) :
     (z.move d).Represents input (moveInputPos pos d) := by
   cases d with
   | neg => exact h.moveLeft
-  | zero => change z.Represents input (moveInputPos pos 0); rwa [moveInputPos_zero]
+  | zero =>
+    change z.Represents input (moveInputPos pos 0)
+    rwa [moveInputPos_zero]
   | pos => exact h.moveRight
 
 end Represents

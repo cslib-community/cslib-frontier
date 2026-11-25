@@ -102,9 +102,7 @@ private theorem mem_prune_of_isLargest (hnest : ∀ j ψ, C (j + 1) ψ → C j �
   rw [List.mem_reverse, ← hNh]
   refine getElem_mem_prune (C := fun j a => C j (atLeast a ++ φ))
     (K := fun j => {w | w ∈ A j ∧ w ≤ M}) hh (fun j _ _ => hnest j _) (fun i hi => ?_)
-    (fun j hj y hy => ?_) fun _ _ T hT =>
-      (Finset.card_le_card fun w hw => Finset.mem_range.2 (Nat.lt_succ_of_le (hT w hw).2)).trans
-        (by simpa using hs)
+    (fun j hj y hy => ?_) (fun _ _ T hT => ?_)
   · /- The node at position `i` is in the left set exactly when it is at most `c`. -/
     rw [← hsat]
     have hfst' : N[i].map Prod.fst = c.map Prod.fst :=
@@ -120,6 +118,9 @@ private theorem mem_prune_of_isLargest (hnest : ∀ j ψ, C (j + 1) ψ → C j �
       Fortune.mem_vars_and_length_le_of_map_fst_eq hpre (hfst y (List.mem_reverse.1 hy))
     exact (hkey j hj _).trans ⟨fun h w hw => ⟨h w hw, hM j hj y hv hlen w hw⟩,
       fun h w hw => (h w hw).1⟩
+  · /- At most `M + 1` queries are at most `M`. -/
+    exact (Finset.card_le_card fun w hw => Finset.mem_range.2 (Nat.lt_succ_of_le (hT w hw).2)).trans
+      (by simpa using hs)
 
 /-- **Correctness of the procedure.** Let the sets `C j` decrease and give `SAT` the Hausdorff
 decomposition `⋃ d < D, C (2 d) \ C (2 d + 1)`. If, for each `j < 2 D`, the queries `key j` reduce
@@ -188,12 +189,14 @@ theorem SAT_mem_P_of_polyTimeCTTReducible {β γ : Type} {encB : β ↪ List Boo
   set D := k / 2 + 1
   set key : ℕ → CNF ℕ → List ℕ := fun j ψ => (List.range (rj j ψ)).map fun i => qj j (ψ, i)
   have hkey (j : ℕ) : ComputableInPolyTime (key j) encCNF (encList encUnary) := by
-    have := (hrqj j).1; have := (hrqj j).2
+    have := (hrqj j).1
+    have := (hrqj j).2
     fun_prop
   have hnode (j : ℕ) : ComputableInPolyTime
       (fun p : CNF ℕ × List (Literal ℕ) => key j (atLeast p.2 ++ p.1))
       (encPair encCNF (encList (encPair encNat encBool))) (encList encUnary) := by
-    have := hkey j; fun_prop
+    have := hkey j
+    fun_prop
   choose p hp using fun j => (hnode j).polyBounded_length.exists_polynomial
   /- The queries of the nodes are at most `M (L)`, where `L` is the length of the formula. -/
   let M : Polynomial ℕ := ∑ j ∈ Finset.range (2 * D),
@@ -202,27 +205,26 @@ theorem SAT_mem_P_of_polyTimeCTTReducible {β γ : Type} {encB : β ↪ List Boo
     computableInPolyTime_accepts hkey D ((unary_eval (M + 1)).comp (encoding_length encCNF)),
     fun φ => (accepts_iff (C := fun j ψ => Hausdorff (fun v => d (ψ, v))
         (truthTableAnswers (q ⁻¹' B) r ψ) j) (A := A) (M := M.eval (encCNF φ).length)
-      (fun _ _ hψ => hψ.of_succ)
-      (fun ψ => (hL ψ).trans (eq_true_iff_exists_hausdorff
-        (f := fun v => d (ψ, v)) (b := truthTableAnswers (q ⁻¹' B) r ψ) (by
-          rw [length_truthTableAnswers]
-          have := hk ψ
-          omega)))
-      (fun j _ ψ => by simpa [key] using hA j ψ) (fun j hj a ha hlen w hw => ?_)
-      (by simp)).symm⟩
-  have hw' :=
-    SizedListEncoding.length_elem_le (encA := encUnary) (encL := encList encUnary) _ w hw
-  rw [encUnary_apply, List.length_replicate] at hw'
-  refine hw'.trans ((hp j (φ, a)).trans ?_)
-  simp only [M, Polynomial.eval_finsetSum, Polynomial.eval_comp]
-  refine (Polynomial.eval_mono _ ?_).trans
-    (Finset.single_le_sum (f := fun j => (p j).eval _) (fun _ _ => Nat.zero_le _)
-      (Finset.mem_range.2 hj))
-  have := Fortune.length_encNode_le ha hlen
-  rw [length_encPair]
-  simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_ofNat,
-    Polynomial.eval_one]
-  omega
+      (fun _ _ hψ => hψ.of_succ) (fun ψ => ?_) (fun j _ ψ => by simpa [key] using hA j ψ)
+      (fun j hj a ha hlen w hw => ?_) (by simp)).symm⟩
+  · refine (hL ψ).trans (eq_true_iff_exists_hausdorff
+      (f := fun v => d (ψ, v)) (b := truthTableAnswers (q ⁻¹' B) r ψ) ?_)
+    rw [length_truthTableAnswers]
+    have := hk ψ
+    omega
+  · have hw' :=
+      SizedListEncoding.length_elem_le (encA := encUnary) (encL := encList encUnary) _ w hw
+    rw [encUnary_apply, List.length_replicate] at hw'
+    refine hw'.trans ((hp j (φ, a)).trans ?_)
+    simp only [M, Polynomial.eval_finsetSum, Polynomial.eval_comp]
+    refine (Polynomial.eval_mono _ ?_).trans
+      (Finset.single_le_sum (f := fun j => (p j).eval _) (fun _ _ => Nat.zero_le _)
+        (Finset.mem_range.2 hj))
+    have := Fortune.length_encNode_le ha hlen
+    rw [length_encPair]
+    simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_ofNat,
+      Polynomial.eval_one]
+    omega
 
 /-- **If `SAT` reduces to a sparse problem by a bounded truth-table reduction, then `SAT` is in
 `P`**, a theorem of Ogiwara and Watanabe [Arvind, Köbler and Mundhenk, Section 1]

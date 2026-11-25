@@ -78,8 +78,9 @@ theorem ScanLoopInv.mono_hi {τ : SnapshotTrace ord dInit} {lo hi hi' : ℕ}
   · obtain ⟨tA, a1, a2, a3⟩ := hcA hA k hk
     exact ⟨tA, a1, a2.trans hle, a3⟩
   · obtain ⟨u, u1, u2, ha, hb⟩ := hcB hB
-    exact ⟨u, u1, u2.trans hle, ha, fun k hk =>
-      let ⟨tB, b1, b2, b3⟩ := hb k hk; ⟨tB, b1, b2.trans hle, b3⟩⟩
+    refine ⟨u, u1, u2.trans hle, ha, fun k hk => ?_⟩
+    obtain ⟨tB, b1, b2, b3⟩ := hb k hk
+    exact ⟨tB, b1, b2.trans hle, b3⟩
 
 /-- `ScanLoopInv` step: reading register `j` during `collectA`. -/
 theorem ScanLoopInv.readA {τ : SnapshotTrace ord dInit} {lo t : ℕ}
@@ -103,8 +104,9 @@ theorem ScanLoopInv.finishA {τ : SnapshotTrace ord dInit} {lo t : ℕ}
     (h : ScanLoopInv τ lo t st) :
     ScanLoopInv τ lo (t + 1) { st with phase := .collectB, rem := ord.elems } := by
   obtain ⟨iterS, hi₁, hi₂, hmov, hcA, _⟩ := h
-  refine ⟨iterS, hi₁, by omega, hmov, (fun hA => by cases hA), fun _ =>
-    ⟨t, hi₂, by omega, fun k => hcA hph k (by simp [hrem]),
+  refine ⟨iterS, hi₁, by omega, hmov,
+    (fun hA => by cases hA),
+    fun _ => ⟨t, hi₂, by omega, fun k => hcA hph k (by simp [hrem]),
       fun k hk => absurd (ord.complete k) hk⟩⟩
 
 /-- `ScanLoopInv` step: reading register `j` during `collectB`. -/
@@ -117,8 +119,9 @@ theorem ScanLoopInv.readB {τ : SnapshotTrace ord dInit} {lo t : ℕ}
                 collectBVal := Function.update st.collectBVal j ((τ.stateAt t).reg j) } := by
   obtain ⟨iterS, hi₁, hi₂, hmov, _, hcB⟩ := h
   obtain ⟨u, hu₁, hu₂, ha_all, hb_rem⟩ := hcB hph
-  refine ⟨iterS, hi₁, by omega, hmov, (fun hA => by cases hA), fun _ =>
-    ⟨u, hu₁, by omega, ha_all, fun k hk => ?_⟩⟩
+  refine ⟨iterS, hi₁, by omega, hmov,
+    (fun hA => by cases hA),
+    fun _ => ⟨u, hu₁, by omega, ha_all, fun k hk => ?_⟩⟩
   dsimp only at hk ⊢
   by_cases hkj : k = j
   · subst hkj; exact ⟨t, hu₂, by omega, Function.update_self _ _ _⟩

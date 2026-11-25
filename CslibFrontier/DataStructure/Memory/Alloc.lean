@@ -342,7 +342,9 @@ variable {A₁}
 theorem room_after {s : State} (hs₁ : A₁.Pre s) {r : ℕ}
     (hroom : Fits w (s.frontier + (A₁.room + r))) :
     Fits w (((spec w).clientState s A₁.alloc).frontier + r) :=
-  hroom.of_le (by have := (A₁.allocates s hs₁ (hroom.of_le (by omega))).room_le; omega)
+  hroom.of_le (by
+    have := (A₁.allocates s hs₁ (hroom.of_le (by omega))).room_le
+    omega)
 
 /-- After allocating the first structure, the second one's precondition still holds. -/
 theorem pre_after {s : State} (hs₁ : A₁.Pre s)

@@ -115,7 +115,8 @@ theorem delivery_output (x : Data 128) (values : Fin 3 → ℕ → ℤ) (before 
   intro L
   set o := x.regs outputs + x.regs outputCount
   have hm : (deliveryState x).mem = Function.update x.mem o L.packed := by
-    rw [← deliveryState_packed]; exact deliveryState_mem x
+    rw [← deliveryState_packed]
+    exact deliveryState_mem x
   have ho : o < L.base := htable
   have hkeep (a : ℕ) (ha : L.base ≤ a) : (deliveryState x).mem a = x.mem a := by
     rw [hm, Function.update_of_ne (by omega)]
@@ -127,7 +128,8 @@ theorem delivery_output (x : Data 128) (values : Fin 3 → ℕ → ℤ) (before 
   · exact (hkeep _ (by dsimp only [NodePacking.Layout.packed]; omega)).trans (h.packed a ha)
   · rw [hm]
     by_cases he : a = o
-    · subst he; simp
+    · subst he
+      simp
     · simpa only [Function.update_of_ne he] using h.frame a ha
 
 /-- The delivered register is the existing heavy-set cardinality, not a capacity or pair count. -/

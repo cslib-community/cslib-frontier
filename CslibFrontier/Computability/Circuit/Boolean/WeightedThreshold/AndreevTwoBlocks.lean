@@ -64,10 +64,11 @@ open BitString Finset
 theorem sum_decide_two_mul_succ_le {t : ℤ} {L : ℕ} (h0 : 0 ≤ t) (h : t / 2 ≤ L) :
     ∑ j : Fin L, ((decide (2 * ((j : ℤ) + 1) ≤ t)).toNat : ℤ) = t / 2 := by
   obtain ⟨t, rfl⟩ := Int.eq_ofNat_of_zero_le h0
-  rw [show (t : ℤ) / 2 = ((t / 2 : ℕ) : ℤ) by omega,
-    ← sum_decide_succ_le (show t / 2 ≤ L by omega)]
-  exact sum_congr rfl fun j _ =>
-    congrArg (fun b : Bool => (b.toNat : ℤ)) (decide_eq_decide.mpr (by omega))
+  have hq : t / 2 ≤ L := by omega
+  rw [show (t : ℤ) / 2 = ((t / 2 : ℕ) : ℤ) by omega, ← sum_decide_succ_le hq]
+  exact sum_congr rfl fun j _ => by
+    rw [decide_eq_decide.mpr (show 2 * ((j : ℤ) + 1) ≤ (t : ℤ) ↔ (j : ℤ) + 1 ≤ ((t / 2 : ℕ) : ℤ) by
+      omega)]
 
 /-! ### The bottom gates -/
 
@@ -155,9 +156,10 @@ theorem andreevTwoBlocksTopSum_eq (x : BitString 2 → Bool) (s : Fin 2 → ℕ)
     andreevTwoBlocksBlock, andreevTwoBlocksTopTable, andreevTwoBlocksAddr, ite_mul, one_mul,
     zero_mul, sum_ite_eq', mem_univ, ite_true, Fin.isValue,
     ← mul_sum, add_mul, sum_add_distrib, Pi.one_apply]
-  simp only [show (Fin.rev 0 : Fin 2) = 1 from rfl, show (Fin.rev 1 : Fin 2) = 0 from rfl,
-    Bool.false_eq_true, ite_false, one_ne_zero, zero_ne_one, add_zero, zero_add, ← mul_sum,
-    hblock, hsum]
+  have hr0 : (Fin.rev 0 : Fin 2) = 1 := rfl
+  have hr1 : (Fin.rev 1 : Fin 2) = 0 := rfl
+  simp only [hr0, hr1, Bool.false_eq_true, ite_false, one_ne_zero, zero_ne_one, add_zero,
+    zero_add, ← mul_sum, hblock, hsum]
   ring
 
 /-- **The finite check**: on counts at most `m`, the top sum is at least `13` exactly when the table
@@ -216,21 +218,24 @@ theorem eval_andreevTwoBlocksCircuit (w : BitString (2 ^ 2 + 2 * m)) (o : Fin 1)
       decide (13 ≤ andreevTwoBlocksTopSum m (andreevTable 2 m w) (andreevBlockCount 2 m w)) := by
   rw [andreevTwoBlocksCircuit, eval_depthTwoInputs]
   simp only [interpretation_andreevFormWeight]
-  have h' := congrArg (fun z : ℤ => (z : ℝ))
-    (sum_andreevFormWeight_mul andreevTwoBlocksTopTable (fun _ => 10) w)
+  have h := sum_andreevFormWeight_mul andreevTwoBlocksTopTable (fun _ => 10) w
+  have h' := congrArg (fun z : ℤ => (z : ℝ)) h
   refine decide_eq_decide.mpr ?_
   rw [← @Int.cast_le ℝ, andreevTwoBlocksTopSum,
     ← (Fintype.equivFin (AndreevTwoBlocksIndex m)).symm.sum_comp]
-  push_cast at h' ⊢; rw [← h']
+  push_cast at h' ⊢
+  rw [← h']
 
 /-- **`andreevTwoBlocksCircuit m` computes Andreev's function** with two address blocks on every
 input. -/
 theorem computes_andreevTwoBlocksCircuit (m : ℕ) :
-    (andreevTwoBlocksCircuit m).Computes interpretation (single (andreev 2 m)) := fun w =>
-  funext fun o => by
-    rw [eval_andreevTwoBlocksCircuit, single_apply, andreev_eq_andreevTable]
-    exact Bool.eq_iff_iff.mpr (decide_eq_true_iff.trans
-      (thirteen_le_andreevTwoBlocksTopSum_iff _ _ (andreevBlockCount_le w)))
+    (andreevTwoBlocksCircuit m).Computes interpretation (single (andreev 2 m)) := by
+  intro w
+  funext o
+  rw [eval_andreevTwoBlocksCircuit, single_apply, andreev_eq_andreevTable]
+  exact Bool.eq_iff_iff.mpr (by
+    rw [decide_eq_true_iff]
+    exact thirteen_le_andreevTwoBlocksTopSum_iff _ _ (andreevBlockCount_le w))
 
 /-- The circuit has depth at most `2`. -/
 theorem depth_andreevTwoBlocksCircuit_le (m : ℕ) : (andreevTwoBlocksCircuit m).depth ≤ 2 :=

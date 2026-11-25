@@ -92,7 +92,8 @@ theorem size_run (emit : Fin n → Operation n → Code .standard (Bank.capacity
   | zero => simp [run, nop, Code.size]
   | succ fuel ih =>
     by_cases hk : k < n
-    · have := hsize ⟨k, hk⟩ (ops ⟨k, hk⟩); have := ih (k + 1)
+    · have := hsize ⟨k, hk⟩ (ops ⟨k, hk⟩)
+      have := ih (k + 1)
       simp only [run, dite_eq_left hk, Code.size]; omega
     · simp [run, hk, nop, Code.size]
 

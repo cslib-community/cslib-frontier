@@ -76,8 +76,11 @@ def greaterThan [LinearOrder X] (x y : X) : Bool :=
 theorem isFoolingSet_equality [DecidableEq X] (s : Finset X) :
     IsFoolingSet equality true (s.image fun x => (x, x)) := by
   simp only [IsFoolingSet, mem_image]
-  exact ⟨by rintro _ ⟨_, -, rfl⟩; simp [equality],
-    by rintro _ ⟨_, -, rfl⟩ _ ⟨_, -, rfl⟩ h -; simpa [equality] using h⟩
+  refine ⟨?_, ?_⟩
+  · rintro _ ⟨_, -, rfl⟩
+    simp [equality]
+  · rintro _ ⟨_, -, rfl⟩ _ ⟨_, -, rfl⟩ h -
+    simpa [equality] using h
 
 /-- For an injective map `e` into a linear order, the diagonal pairs form a fooling set for
 greater-than after `e`, with value `false`. -/
@@ -85,19 +88,23 @@ theorem isFoolingSet_greaterThan {L : Type*} [LinearOrder L] [DecidableEq X] {e 
     (he : Function.Injective e) (s : Finset X) :
     IsFoolingSet (fun x y => greaterThan (e x) (e y)) false (s.image fun x => (x, x)) := by
   simp only [IsFoolingSet, mem_image]
-  refine ⟨by rintro _ ⟨_, -, rfl⟩; simp [greaterThan], ?_⟩
-  rintro _ ⟨_, -, rfl⟩ _ ⟨_, -, rfl⟩ h h'
-  simp only [greaterThan, decide_eq_false_iff_not, not_lt] at h h'
-  rw [he (le_antisymm h' h)]
+  refine ⟨?_, ?_⟩
+  · rintro _ ⟨_, -, rfl⟩
+    simp [greaterThan]
+  · rintro _ ⟨_, -, rfl⟩ _ ⟨_, -, rfl⟩ h h'
+    simp only [greaterThan, decide_eq_false_iff_not, not_lt] at h h'
+    rw [he (le_antisymm h' h)]
 
 /-- In a partial order, the diagonal pairs form a fooling set for `≤` with value `true`, by
 antisymmetry. -/
 theorem isFoolingSet_le [PartialOrder X] [DecidableLE X] [DecidableEq X] (s : Finset X) :
     IsFoolingSet (fun x y => decide (x ≤ y)) true (s.image fun x => (x, x)) := by
   simp only [IsFoolingSet, mem_image]
-  refine ⟨by rintro _ ⟨_, -, rfl⟩; simp, ?_⟩
-  rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h h'
-  rw [le_antisymm (by simpa using h : x ≤ x') (by simpa using h' : x' ≤ x)]
+  refine ⟨?_, ?_⟩
+  · rintro _ ⟨_, -, rfl⟩
+    simp
+  · rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h h'
+    rw [le_antisymm (by simpa using h : x ≤ x') (by simpa using h' : x' ≤ x)]
 
 /-- **Equality on a finite set needs more than `log₂` of its size bits**: a protocol computing
 equality on a set of at least two elements sends `d` bits with `|X| < 2 ^ d`. The exact cost,
@@ -156,14 +163,16 @@ def disjointness (x y : ι → Bool) : Bool :=
 theorem isFoolingSet_disjointness (s : Finset (ι → Bool)) :
     IsFoolingSet disjointness true (s.image fun x => (x, fun i => !x i)) := by
   simp only [IsFoolingSet, mem_image]
-  refine ⟨by rintro _ ⟨_, -, rfl⟩; simp [disjointness], ?_⟩
-  rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h h'
-  simp only [disjointness, decide_eq_true_eq] at h h'
-  suffices x = x' by rw [this]
-  refine funext fun i => ?_
-  have h₁ := h i
-  have h₂ := h' i
-  cases hx : x i <;> cases hx' : x' i <;> simp_all
+  refine ⟨?_, ?_⟩
+  · rintro _ ⟨_, -, rfl⟩
+    simp [disjointness]
+  · rintro _ ⟨x, -, rfl⟩ _ ⟨x', -, rfl⟩ h h'
+    simp only [disjointness, decide_eq_true_eq] at h h'
+    suffices x = x' by rw [this]
+    refine funext fun i => ?_
+    have h₁ := h i
+    have h₂ := h' i
+    cases hx : x i <;> cases hx' : x' i <;> simp_all
 
 /-- **Disjointness of `n` bits needs `n + 1` bits**, for `0 < n`. -/
 theorem ecomplexity_disjointness (hn : 0 < n) :

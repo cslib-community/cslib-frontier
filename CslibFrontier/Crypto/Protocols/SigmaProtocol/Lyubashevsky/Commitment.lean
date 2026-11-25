@@ -94,10 +94,13 @@ private theorem intBox_shift_lookup_le {Ω M D : Type} [DecidableEq M]
     exact congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
   have hi : (ideal.bind test) true ≤ Q / (q : ℝ≥0∞) ^ n := by
     rw [hideal]
-    apply bind_apply_le_on_support; intro A _
-    apply bind_apply_le_on_support; intro h hh
-    exact (uniform_shift_lookup_le (msg h) (cache h) (shift A h)).trans
-      (by gcongr; exact_mod_cast hcache A h hh)
+    apply bind_apply_le_on_support
+    intro A _
+    apply bind_apply_le_on_support
+    intro h hh
+    refine (uniform_shift_lookup_le (msg h) (cache h) (shift A h)).trans ?_
+    gcongr
+    exact_mod_cast hcache A h hh
   have h := (hc.bind_left test) {true}
   rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton, hreal] at h
   exact h.trans (add_le_add hi le_rfl)

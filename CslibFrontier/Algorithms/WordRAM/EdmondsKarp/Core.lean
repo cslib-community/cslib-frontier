@@ -101,7 +101,8 @@ private theorem fillStep_realizes :
     Realizes .exact fillStep (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       (WordEncoding.encode (α := ℕ))
       (fun w d _ => Fits w (d.1.1 + d.2) ∧ Fits w (d.2 + 1)) (fun _ _ => 0) := by
-  unfold fillStep; realize
+  unfold fillStep
+  realize
   · exact h.1
   · exact h.2
 
@@ -109,21 +110,25 @@ theorem fillRange_realizes :
     Realizes .exact fillRange (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       (WordEncoding.encode (α := Unit))
       (fun w d _ => let ((base, _), len) := d; Fits w (base + len)) (fun _ _ => 0) := by
-  unfold fillRange; realize [fillStep_realizes]
+  unfold fillRange
+  realize [fillStep_realizes]
   refine iterationSafe_of_stepInv _ _ w d
     (fun rem (idx : ℕ) _ => idx + rem = d.2 ∧ Fits w (d.1.1 + d.2)) ?_ ⟨Nat.zero_add _, h⟩
   intro rem idx _ ⟨hsum, hfit⟩
-  dsimp only [fillStep]; simp only [client_simps]
+  dsimp only [fillStep]
+  simp only [client_simps]
   exact ⟨⟨hfit.of_le (by omega), hfit.of_le (by omega)⟩, by omega, hfit⟩
 
 private theorem preservesAt_fillRange {a base val len : ℕ}
     (hout : a < base ∨ base + len ≤ a) : PreservesAt a (fillRange ((base, val), len)) := fun s => by
-  unfold fillRange; rw [clientState_bind]
+  unfold fillRange
+  rw [clientState_bind]
   change ((Memory.spec 0).clientState s (iterate fillStep (base, val) len 0)).mem a = s.mem a
   refine (iterate_invariant_of fillStep (base, val)
     (fun rem (idx : ℕ) t => idx + rem = len ∧ t.mem a = s.mem a)
     (fun rem idx t ⟨hsum, hmem⟩ => ?_) ⟨Nat.zero_add _, rfl⟩).2
-  unfold fillStep; simp only [client_simps]
+  unfold fillStep
+  simp only [client_simps]
   exact ⟨by omega, (Function.update_of_ne (by omega) _ t.mem).trans hmem⟩
 
 /-- `fillRange ((base, val), len)` writes `val` on `[base, base + len)` and nothing else. -/
@@ -132,7 +137,8 @@ theorem fillRange_spec (base val len : ℕ) (s : Memory.State) :
     (∀ i < len, s'.mem (base + i) = val) ∧
       (∀ a, (a < base ∨ base + len ≤ a) → s'.mem a = s.mem a) := by
   refine ⟨fun i hi => ?_, fun a ha => preservesAt_fillRange ha s⟩
-  unfold fillRange; rw [clientState_bind]
+  unfold fillRange
+  rw [clientState_bind]
   change ((Memory.spec 0).clientState s (iterate fillStep (base, val) len 0)).mem (base + i) = val
   have hinv := iterate_invariant_of fillStep (base, val)
     (fun rem (idx : ℕ) t => idx + rem = len ∧ ∀ j < idx, t.mem (base + j) = val)
@@ -142,7 +148,8 @@ theorem fillRange_spec (base val len : ℕ) (s : Memory.State) :
       refine ⟨by omega, fun j hj => ?_⟩
       rcases eq_or_ne j idx with rfl | hne
       · simp
-      · rw [Function.update_of_ne (by omega)]; exact hprev j (by omega))
+      · rw [Function.update_of_ne (by omega)]
+        exact hprev j (by omega))
     (n := len) (a := 0) (s := s) ⟨Nat.zero_add _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   exact hinv.2 i (by omega)
 
@@ -159,9 +166,11 @@ theorem validHistory_fillRange {w base val len : ℕ} {s : Memory.State}
   unfold fillRange
   refine validHistory_bind_step
     (validHistory_iterate_nat (Inv := fun t => Memory.WellFormed w t ∧ base + len ≤ t.frontier)
-      len 0 (fun idx hidx t ht => ⟨?_, by unfold fillStep; simp only [client_simps]⟩) ⟨hwf, hend⟩)
+      len 0 (fun idx hidx t ht => ⟨?_, ?_⟩) ⟨hwf, hend⟩)
     (validHistory_pure _ _ _)
-  unfold fillStep; have := ht.2
-  exact validHistory_write_bind (by dsimp only; omega) hval (validHistory_pure _ _ _)
+  · unfold fillStep
+    exact validHistory_write_bind (by have := ht.2; dsimp only; omega) hval
+      (validHistory_pure _ _ _)
+  · unfold fillStep; simp only [client_simps]
 
 end Cslib.Algorithms.WordRAM.EdmondsKarp

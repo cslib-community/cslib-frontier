@@ -97,7 +97,8 @@ private def dnfValue (c : Ctx) (φ : DNF ℕ) : Bool := DNF.eval (ctxValue c) φ
 private theorem computableInPolyTime_litValue : ComputableInPolyTime
     (fun p : Ctx × Literal ℕ => litValue p.1 p.2) (encPair encCtx (encPair encNat encBool))
     encBool := by
-  unfold litValue; fun_prop
+  unfold litValue
+  fun_prop
 
 attribute [local fun_prop] computableInPolyTime_litValue
 
@@ -119,7 +120,8 @@ private def context (q : DNF ℕ × ℕ × List Bool) : Ctx :=
 
 private theorem computableInPolyTime_context : ComputableInPolyTime context
     (encPair encDNF (encPair encUnary encBits)) encCtx := by
-  unfold context; fun_prop
+  unfold context
+  fun_prop
 
 attribute [local fun_prop] computableInPolyTime_context
 
@@ -143,8 +145,9 @@ theorem computableInPolyTime_firstHit : ComputableInPolyTime
 /-- The width of a term, in unary. -/
 theorem computableInPolyTime_width :
     ComputableInPolyTime (Term.width (V := ℕ)) encTerm encUnary := by
-  rw [show (Term.width (V := ℕ)) = fun t => CNF.numVars [t] from
-    funext fun t => by simp [Term.width, CNF.numVars, CNF.vars]]
+  have h : (Term.width (V := ℕ)) = fun t => CNF.numVars [t] :=
+    funext fun t => by simp [Term.width, CNF.numVars, CNF.vars]
+  rw [h]
   have := CNF.computableInPolyTime_numVars encNat
   fun_prop
 
@@ -154,11 +157,11 @@ attribute [local fun_prop] computableInPolyTime_width
 theorem computableInPolyTime_consistent :
     ComputableInPolyTime (Term.consistent (V := ℕ)) encTerm encBool := by
   unfold Term.consistent
-  exact ComputableInPolyTime.allWithInput (list := id) (by fun_prop)
-    (ComputableInPolyTime.allWithInput (list := Prod.fst) (by fun_prop)
-      (ComputableInPolyTime.bool_or'
-        (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.beq (by fun_prop) (by fun_prop)))
-        (ComputableInPolyTime.beq (by fun_prop) (by fun_prop))))
+  refine ComputableInPolyTime.allWithInput (list := id) (by fun_prop) ?_
+  refine ComputableInPolyTime.allWithInput (list := Prod.fst) (by fun_prop) ?_
+  exact ComputableInPolyTime.bool_or'
+    (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.beq (by fun_prop) (by fun_prop)))
+    (ComputableInPolyTime.beq (by fun_prop) (by fun_prop))
 
 attribute [local fun_prop] computableInPolyTime_consistent
 
@@ -167,7 +170,8 @@ private def belowWidths (φ : DNF ℕ) (k : ℕ) : Bool :=
 
 private theorem computableInPolyTime_belowWidths : ComputableInPolyTime
     (fun p : DNF ℕ × ℕ => belowWidths p.1 p.2) (encPair encDNF encUnary) encBool := by
-  unfold belowWidths; fun_prop
+  unfold belowWidths
+  fun_prop
 
 attribute [local fun_prop] computableInPolyTime_belowWidths
 
@@ -183,7 +187,8 @@ attribute [local fun_prop] computableInPolyTime_minWidth
 /-- The padding of term `i`, in unary. -/
 theorem computableInPolyTime_padding : ComputableInPolyTime
     (fun p : DNF ℕ × ℕ => padding p.1 p.2) (encPair encDNF encUnary) encUnary := by
-  unfold padding; fun_prop
+  unfold padding
+  fun_prop
 
 attribute [local fun_prop] computableInPolyTime_padding
 
@@ -241,7 +246,8 @@ theorem isPPTOn_trial : IsPPTOn encDNF encBool (trial (V := ℕ)) :=
 private theorem computableInPolyTime_trialBudget_proj : ComputableInPolyTime
     (fun x : DNF ℕ × ℕ × ℕ => trialBudget x.1 x.2.1 x.2.2)
     (encPair encDNF (encPair encUnary encUnary)) encUnary := by
-  unfold trialBudget; fun_prop
+  unfold trialBudget
+  fun_prop
 
 /-- The number of trials, in unary. -/
 theorem computableInPolyTime_trialBudget : ComputableInPolyTime

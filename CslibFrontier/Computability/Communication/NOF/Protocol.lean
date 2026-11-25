@@ -284,7 +284,8 @@ theorem ecomplexityFun_le_succ {i j : ι} (hij : i ≠ j) {n : ℕ}
   have hanswer (x : ∀ k, X k) : answer (encode (view j x)) (view i x) = f x :=
     congrArg f (funext fun k => by
       by_cases h : k = i
-      · subst h; simp [hdecode]
+      · subst h
+        simp [hdecode]
       · simp [h])
   rw [show (n : ℕ∞) + 1 = ((n + 1 : ℕ) : ℕ∞) by push_cast; rfl, ecomplexityFun_le_iff]
   refine ⟨sendBits j n encode fun m => speak i (answer m) (output false) (output true),

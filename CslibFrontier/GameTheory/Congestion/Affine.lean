@@ -90,7 +90,9 @@ theorem mul_add_one_le_five_thirds_sq_add_one_third_sq (y z : ℕ) :
     · rcases Nat.lt_or_ge z 2 with hz | hz
       · interval_cases z <;> norm_num
       · have hz' : (2 : ℝ) ≤ z := mod_cast hz
-        cast_nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ z - 1) (by linarith : (0 : ℝ) ≤ z - 2)]
+        have h1 : (0 : ℝ) ≤ z - 1 := by linarith
+        have h2 : (0 : ℝ) ≤ z - 2 := by linarith
+        cast_nlinarith [mul_nonneg h1 h2]
   · have : (2 : ℝ) ≤ y := mod_cast hy
     nlinarith [sq_nonneg ((3 : ℝ) * y - 2 * z)]
 
@@ -184,7 +186,8 @@ private theorem tightGame_isPureNash : tightGame.toCostGame.IsPureNash (fun _ =>
   intro i t
   simp only [toCostGame_cost, tightGame]
   rw [← Nat.cast_sum, ← Nat.cast_sum, Nat.cast_le]
-  revert i t; decide
+  revert i t
+  decide
 
 /-- **The bound `5/2` is attained**: there is a three-player atomic congestion game with six
 resources and latencies `latency e k = k` that has a pure Nash equilibrium `s` and a profile `s'`

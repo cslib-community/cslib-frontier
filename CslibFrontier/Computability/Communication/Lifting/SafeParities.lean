@@ -63,7 +63,8 @@ theorem gadgetOutputLaw_apply (g : Fin m → Fin m → Bool) (Y : Finset (Fin n 
   unfold gadgetOutputLaw
   rw [← _root_.PMF.toOuterMeasure_apply_singleton, _root_.PMF.toOuterMeasure_map_apply,
     PMF.toOuterMeasure_uniformOfFinset_toReal]
-  congr 3; ext y
+  congr 3
+  ext y
   simp only [mem_filter, Set.mem_preimage, Set.mem_singleton_iff, mem_gadgetFiber]
   exact and_congr_right fun _ =>
     ⟨fun h i hi => congrFun h ⟨i, hi⟩, fun h => funext fun i => h i i.property⟩
@@ -78,7 +79,8 @@ theorem nonleaking_of_parity_bias_le (g : Fin m → Fin m → Bool)
     (β : Fin n → Bool) : (#Y : ℝ) ≤ 2 ^ (#I + 1) * #(gadgetFiber g Y I x β) := by
   have h := abs_mul_mass_sub_one_le_of_bias_le (gadgetOutputLaw g Y hY I x)
     (ε := 1 / 2) (by norm_num) (by simpa only [Fintype.card_coe] using hbias) (I.restrict β)
-  rw [gadgetOutputLaw_apply] at h; simp only [Fintype.card_coe] at h
+  rw [gadgetOutputLaw_apply] at h
+  simp only [Fintype.card_coe] at h
   have hy : (0 : ℝ) < #Y := by exact_mod_cast card_pos.mpr hY
   have hmul := mul_le_mul_of_nonneg_right (abs_le.mp h).1 hy.le
   rw [pow_succ]
@@ -108,7 +110,8 @@ theorem gadgetFiber_card_le_of_high_order_bias_le (g : Fin m → Fin m → Bool)
       exact le_of_eq (by dsimp [q]; field_simp)
   have hm := mul_mass_le_card_add_one_of_high_order_bias_le (gadgetOutputLaw g Y hY I x)
     ht (by positivity) hq1 (by simpa only [Fintype.card_coe] using hiq) hbias (I.restrict β)
-  rw [gadgetOutputLaw_apply] at hm; simp only [Fintype.card_coe] at hm
+  rw [gadgetOutputLaw_apply] at hm
+  simp only [Fintype.card_coe] at hm
   have hy : (0 : ℝ) < #Y := by exact_mod_cast card_pos.mpr hY
   simpa only [mul_assoc, div_mul_cancel₀ _ hy.ne'] using mul_le_mul_of_nonneg_right hm hy.le
 
@@ -139,6 +142,11 @@ theorem isSafe_of_parity_bias_le (g : Fin m → Fin m → Bool) (σ : ℝ)
   have hmul := mul_le_mul_of_nonneg_left
     (gadgetFiber_card_le_of_high_order_bias_le g _ _ I x ht hbias β)
     (by positivity : (0 : ℝ) ≤ 2 * σ ^ #J)
-  rw [pow_succ] at hcard; linarith
+  exact lt_irrefl (#Y : ℝ) <| calc
+    (#Y : ℝ) < 2 ^ (#I + 1) * #(gadgetFiber g (agreeOn Y J α) I x β) * σ ^ #J := hcard
+    _ = (2 * σ ^ #J) * (2 ^ #I * #(gadgetFiber g (agreeOn Y J α) I x β)) := by rw [pow_succ]; ring
+    _ ≤ (2 * σ ^ #J) * ((#{S : Finset I | S.card < t} + 1 : ℝ) * #(agreeOn Y J α)) := hmul
+    _ = 2 * (#{S : Finset I | S.card < t} + 1 : ℝ) * σ ^ #J * #(agreeOn Y J α) := by ring
+    _ ≤ #Y := hcap
 
 end Cslib.Communication.Lifting

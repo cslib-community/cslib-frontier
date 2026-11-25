@@ -93,9 +93,10 @@ theorem isPolyTime_enumCoins (hV : V.PolyTime enc)
 theorem isPolyTime_queryTable (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
     ComputableInPolyTime V.queryTable enc (encList encNat) := by
-  have := isPolyTime_enumCoins hV hcoins
-  have := hV.queries
-  unfold queryTable; fun_prop
+  have he := isPolyTime_enumCoins hV hcoins
+  have hq := hV.queries
+  unfold queryTable
+  fun_prop
 
 /-- Extracting the compact table `answers proof (V.queryTable a)` from `(a, proof)` is
 polynomial-time under a logarithmic coin bound, using capped binary lookup on `proof`. -/
@@ -154,7 +155,8 @@ theorem verdict_answers_queryTable_append (a : α) (proof padding word : List Bo
     V.verdict ((a, word), (V.queries (a, word)).map fun address =>
       (answers proof (V.queryTable a) ++ padding).getD ((V.queryTable a).idxOf address) false) =
       V.accepts a proof word := by
-  unfold accepts answers; congr 2
+  unfold accepts answers
+  congr 2
   exact List.map_congr_left fun address haddress => by
     simp [List.getD_eq_getElem?_getD, List.getElem?_append_left,
       List.idxOf_lt_length_iff.2 (mem_queryTable hword haddress)]
@@ -181,7 +183,8 @@ theorem accepts_proofOfTable (a : α) (table word : List Bool)
     V.accepts a (V.proofOfTable a table) word =
       V.verdict ((a, word), (V.queries (a, word)).map fun address =>
         table.getD ((V.queryTable a).idxOf address) false) := by
-  unfold accepts answers; congr 2
+  unfold accepts answers
+  congr 2
   exact List.map_congr_left fun address haddress => by
     simp [proofOfTable, List.getD_eq_getElem?_getD,
       Nat.lt_succ_of_le (List.le_sum_of_mem (mem_queryTable hword haddress))]
@@ -215,7 +218,8 @@ theorem mem_NP_of_tableCheck {A : Set α} {check : α × List Bool → Bool}
   have htable : table.length ≤ p.eval (enc a).length := by
     simpa [table, answers] using
       (length_le_length_encList encNat (V.queryTable a)).trans (hlength a)
-  simp only [List.length_append, List.length_replicate]; lia
+  simp only [List.length_append, List.length_replicate]
+  lia
 
 end Cslib.Complexity.PCPVerifier
 
@@ -234,9 +238,11 @@ theorem IsPCPVerifier.mem_iff_exists_tableVerifier {r q : ℕ → ℕ} {V : PCPV
   · by_contra ha
     obtain ⟨proof, hproof⟩ := PCPVerifier.tableVerifier_sound a table htable
     have hs := h.sound a ha proof
-    rw [show acceptCount (fun x => V.accepts x.1 proof x.2) a (V.coins a) = 2 ^ V.coins a by
-      simp [acceptCount, hproof]] at hs
-    have := Nat.two_pow_pos (V.coins a); lia
+    have hc : acceptCount (fun x => V.accepts x.1 proof x.2) a (V.coins a) = 2 ^ V.coins a := by
+      simp [acceptCount, hproof]
+    rw [hc] at hs
+    have hp : 0 < 2 ^ V.coins a := Nat.two_pow_pos _
+    lia
 
 /-- Logarithmically many random bits can be checked exhaustively in NP, regardless of the query
 bound. Binary proof addresses are represented by a polynomial-length table of queried bits. -/

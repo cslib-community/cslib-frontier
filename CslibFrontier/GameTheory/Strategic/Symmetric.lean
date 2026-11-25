@@ -123,8 +123,8 @@ private theorem productWeight_comp_perm (π : Equiv.Perm ι) (p : ι → A → �
 omit [Fintype ι] [Fintype A] in
 private theorem update_comp_perm (π : Equiv.Perm ι) (s : ι → A) (i : ι) (a : A) :
     update (s ∘ π) i a = (update s (π i) a) ∘ π := funext fun k => by
-  by_cases hk : k = i
-  · subst hk; simp
+  rcases eq_or_ne k i with rfl | hk
+  · simp
   · simp [hk, π.injective.ne hk]
 
 /-- Equivariance of `expectedCost` under player permutations in a symmetric game. -/

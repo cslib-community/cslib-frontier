@@ -96,7 +96,8 @@ theorem lazyRandomWalk_apply_comm (x y : ι → Bool) :
     fun p => ?_, fun p => ?_⟩ <;>
   · obtain ⟨⟨i, b⟩, hp⟩ := p
     simp only at hp ⊢
-    subst hp; simp
+    subst hp
+    simp
 
 /-- The lazy random walk is reversible with respect to the uniform distribution. -/
 theorem isReversible_lazyRandomWalk :
@@ -136,11 +137,12 @@ theorem lazyRandomWalkCoupling_toOuterMeasure_ne (i : ι) (z : (ι → Bool) × 
     · simp [Function.update_of_ne (Ne.symm hj), hj]
   rw [PMF.toOuterMeasure_map_apply, hpre]
   split_ifs with hz
-  · rw [show {ib : ι × Bool | ib.1 ≠ i ∧ z.1 i ≠ z.2 i} = Prod.fst ⁻¹' {j | j ≠ i} by
-        ext; simp [hz],
-      ← PMF.toOuterMeasure_map_apply, uniformOfFintype_prod_map_fst,
-      toOuterMeasure_uniformOfFintype, div_eq_mul_inv,
-      show Finset.univ.filter (· ∈ {j : ι | j ≠ i}) = Finset.univ.erase i by ext; simp,
+  · have hfst : {ib : ι × Bool | ib.1 ≠ i ∧ z.1 i ≠ z.2 i} = Prod.fst ⁻¹' {j | j ≠ i} :=
+      Set.ext fun _ => by simp [hz]
+    have hfin : Finset.univ.filter (· ∈ {j : ι | j ≠ i}) = Finset.univ.erase i :=
+      Finset.ext fun _ => by simp
+    rw [hfst, ← PMF.toOuterMeasure_map_apply, uniformOfFintype_prod_map_fst,
+      toOuterMeasure_uniformOfFintype, div_eq_mul_inv, hfin,
       Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]
   · simp only [hz, and_false, Set.ofPred_false, PMF.toOuterMeasure_apply_eq_zero_iff,
       Set.disjoint_empty]
@@ -178,11 +180,17 @@ theorem lazyRandomWalkCoupling_pow_toOuterMeasure_ne_le (i : ι) (t : ℕ)
 theorem lazyRandomWalkCoupling_pow_toOuterMeasure_le (t : ℕ) (z : (ι → Bool) × (ι → Bool)) :
     (((lazyRandomWalkCoupling ι ^ t) z).toOuterMeasure {w | w.1 ≠ w.2}).toReal ≤
       Fintype.card ι * (1 - (Fintype.card ι : ℝ)⁻¹) ^ t := by
-  rw [show {w : (ι → Bool) × (ι → Bool) | w.1 ≠ w.2} = ⋃ i ∈ Finset.univ, {w | w.1 i ≠ w.2 i} by
-    ext; simp [Function.ne_iff]]
-  refine (toOuterMeasure_toReal_biUnion_finset_le _ _ _).trans ?_
-  simpa using Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) =>
-    lazyRandomWalkCoupling_pow_toOuterMeasure_ne_le i t z
+  have hsub : {w : (ι → Bool) × (ι → Bool) | w.1 ≠ w.2} =
+      ⋃ i ∈ Finset.univ, {w | w.1 i ≠ w.2 i} :=
+    Set.ext fun _ => by simp [Function.ne_iff]
+  rw [hsub]
+  calc (((lazyRandomWalkCoupling ι ^ t) z).toOuterMeasure
+        (⋃ i ∈ Finset.univ, {w | w.1 i ≠ w.2 i})).toReal
+      ≤ ∑ i, (((lazyRandomWalkCoupling ι ^ t) z).toOuterMeasure {w | w.1 i ≠ w.2 i}).toReal :=
+        toOuterMeasure_toReal_biUnion_finset_le _ _ _
+    _ ≤ ∑ _i : ι, (1 - (Fintype.card ι : ℝ)⁻¹) ^ t :=
+        Finset.sum_le_sum fun i _ => lazyRandomWalkCoupling_pow_toOuterMeasure_ne_le i t z
+    _ = _ := by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
 
 /-- `d(t) ≤ n (1 - 1/n)^t` for the lazy random walk on the hypercube. -/
 theorem distToStationary_lazyRandomWalk_le (t : ℕ) :
@@ -212,11 +220,15 @@ theorem mixingTime_lazyRandomWalk_le {ε : ℝ} (hε : 0 < ε) :
         Fintype.card ι * Real.log ε⁻¹⌉₊ : ℕ) := by
   set n : ℝ := (Fintype.card ι : ℝ)
   have hn : 0 < n := Nat.cast_pos.mpr (Fintype.card_pos (α := ι))
-  refine mixingTime_le_of_distToStationary_le ((distToStationary_lazyRandomWalk_le_exp _).trans ?_)
-  have hdiv : Real.log n + Real.log ε⁻¹ ≤ ⌈n * Real.log n + n * Real.log ε⁻¹⌉₊ / n := by
-    rw [le_div_iff₀ hn]; linarith [Nat.le_ceil (n * Real.log n + n * Real.log ε⁻¹)]
-  refine (mul_le_mul_of_nonneg_left (Real.exp_le_exp.mpr (neg_le_neg hdiv)) hn.le).trans_eq ?_
-  rw [Real.exp_neg, Real.exp_add, Real.exp_log hn, Real.exp_log (inv_pos.mpr hε)]
-  field_simp
+  set t := ⌈n * Real.log n + n * Real.log ε⁻¹⌉₊
+  refine mixingTime_le_of_distToStationary_le ((distToStationary_lazyRandomWalk_le_exp t).trans ?_)
+  have hdiv : Real.log n + Real.log ε⁻¹ ≤ t / n := by
+    rw [le_div_iff₀ hn]
+    linarith [Nat.le_ceil (n * Real.log n + n * Real.log ε⁻¹)]
+  calc n * Real.exp (-(t / n)) ≤ n * Real.exp (-(Real.log n + Real.log ε⁻¹)) := by
+        gcongr
+    _ = ε := by
+        rw [Real.exp_neg, Real.exp_add, Real.exp_log hn, Real.exp_log (inv_pos.mpr hε)]
+        field_simp
 
 end Cslib.BitString

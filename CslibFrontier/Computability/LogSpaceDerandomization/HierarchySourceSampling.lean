@@ -86,7 +86,8 @@ theorem source_nonempty (hD : D ≠ 0) (hid : Function.Injective ident)
     ({a | splitSource D ident r hr a x} : Finset _).Nonempty := by
   convert split_source_nonempty D ident
     {r with terminal := {r.terminal with rate := r.source.rate}}
-    hr hD hid H hsH hs hs x using 1; congr 1
+    hr hD hid H hsH hs hs x using 1
+  congr 1
 
 /-- The bounded computational cutoff preserves the genuine stage input. This entry bound
 uses the true recurrence, independently of the actual sampling-source rate. -/
@@ -97,9 +98,10 @@ theorem stage_atomCutoff_eq {C : Matrix V V ℝ} {i : ℕ}
       HP.Q (stageRaw HP D ident r hr C i x y / r.terminal.rate) := by
   have hb := HP.toHierarchyParams.correctionInput_bounds
     (X := stageSource D ident r hr) (Y := splitTerminal D ident r) hf hC hC1 hCf i
-  exact HP.toHierarchyParams.atomCutoff_eq (div_nonneg (hb.1 x y) hf.le)
-    ((div_le_iff₀ hf).mpr ((hb.2.2 x y).trans
-      (mul_le_mul_of_nonneg_right (by exact_mod_cast Nat.add_le_add_right hi 1) hf.le)))
+  apply HP.toHierarchyParams.atomCutoff_eq (div_nonneg (hb.1 x y) hf.le)
+  apply (div_le_iff₀ hf).mpr
+  exact (hb.2.2 x y).trans (mul_le_mul_of_nonneg_right
+    (by exact_mod_cast Nat.add_le_add_right hi 1) hf.le)
 
 /-- In particular, clipping preserves genuine nonvanishing, rather than defining a new target. -/
 theorem stage_atomCutoff_ne_zero_iff {C : Matrix V V ℝ} {i : ℕ}
@@ -118,7 +120,8 @@ theorem source_normalizer (C : Matrix V V ℝ) (i : ℕ) (x y : V) :
     rowSliceMean (fun σ v => r.source.retains (channels D) σ (ident v))
       (fun σ v => r.usage.retains (channels D) σ (ident v))
       (sourcePreparation HP D ident r hr C i) x y := by
-  convert normalizer_full D ident r hr (sourcePreparation HP D ident r hr C i) x y using 1; rfl
+  convert normalizer_full D ident r hr (sourcePreparation HP D ident r hr C i) x y using 1
+  rfl
 
 /-- Pointwise actual request identity with true stage children and actual conditioning.
 The preparatory denominator is its joint actual source/usage mean. -/
@@ -161,8 +164,10 @@ theorem source_incoming_cost_le (hD : D ≠ 0) (hid : Function.Injective ident)
     (Nat.cast_le.mpr (card_le_card fun w hw => by
       simp only [mem_filter, mem_univ, true_and] at hw ⊢
       exact ((lt_div_iff₀ hf).mp hw).le)).trans hc
-  exact (mul_le_mul_of_nonneg_left hn
-    (mul_nonneg (by norm_num) (hs ▸ rate_pos s).le)).trans_eq (by ring)
+  calc
+    _ ≤ 32 * r.source.rate * (HP.R / r.terminal.rate) :=
+      mul_le_mul_of_nonneg_left hn (mul_nonneg (by norm_num) (hs ▸ rate_pos s).le)
+    _ = _ := by ring
 
 /-- The actual single-Ω mean equals the existing true-stage correction recurrence.
 A narrower sampling source fits the unchanged incoming budget. Its own exponent is
@@ -205,12 +210,16 @@ theorem source_request_mean (hD : D ≠ 0) (hid : Function.Injective ident)
   rw [channel_density D r.usage u hu, source_expect_split D ident r hr]
   simp_rw [source_request_eq HP D ident r hr C i, Equiv.apply_symm_apply]
   simpa only [T, B, HierarchyParams.CorrectionSampling.withUsage_π,
-    HierarchyParams.CorrectionSampling.withUsage_I, HierarchyParams.CorrectionSampling.withUsage_τ,
-    HierarchyParams.CorrectionSampling.withUsage_h, HierarchyParams.CorrectionSampling.withUsage_ρ,
-    HierarchyParams.CorrectionSampling.withUsage_K, HierarchyParams.CorrectionSampling.withUsage_Kc,
-    HierarchyParams.CorrectionSampling.withSource, A, FourthRootHierarchyParams.selected_I,
-    FourthRootHierarchyParams.selected_τ, FourthRootHierarchyParams.selected_h,
-    FourthRootHierarchyParams.selected_ρ, FourthRootHierarchyParams.selected_K,
-    FourthRootHierarchyParams.selected_Kc, stageRaw, stageMaximum] using hm
+    HierarchyParams.CorrectionSampling.withUsage_I,
+    HierarchyParams.CorrectionSampling.withUsage_τ,
+    HierarchyParams.CorrectionSampling.withUsage_h,
+    HierarchyParams.CorrectionSampling.withUsage_ρ,
+    HierarchyParams.CorrectionSampling.withUsage_K,
+    HierarchyParams.CorrectionSampling.withUsage_Kc,
+    HierarchyParams.CorrectionSampling.withSource,
+    A, FourthRootHierarchyParams.selected_I, FourthRootHierarchyParams.selected_τ,
+    FourthRootHierarchyParams.selected_h, FourthRootHierarchyParams.selected_ρ,
+    FourthRootHierarchyParams.selected_K, FourthRootHierarchyParams.selected_Kc,
+    stageRaw, stageMaximum] using hm
 
 end Matrix.HierarchyParams.H4RankEnvironment

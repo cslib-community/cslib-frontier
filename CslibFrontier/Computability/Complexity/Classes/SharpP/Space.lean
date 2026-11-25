@@ -91,7 +91,11 @@ private theorem iterate_acceptCountStep (V : α × List Bool → Bool) (a : α) 
 /-- The streaming count of accepted certificates is `acceptCount`. -/
 theorem streamAcceptCount_eq_acceptCount (V : α × List Bool → Bool) (a : α) (t : ℕ) :
     streamAcceptCount V a t = acceptCount V a t := by
-  rw [streamAcceptCount, iterate_acceptCountStep, acceptCount]; dsimp only
+  rw [streamAcceptCount, iterate_acceptCountStep, acceptCount]
+  dsimp only
+  have hinc (f : Fin t → Bool) :
+      increment^[lsbValue (List.ofFn f)] (List.replicate t false) = List.ofFn f := by
+    simpa using BitString.iterate_increment_lsbValue (List.ofFn f)
   refine Finset.card_bij'
     (fun i _ (j : Fin t) => (increment^[i] (List.replicate t false)).getD j false)
     (fun f _ => lsbValue (List.ofFn f)) (fun i hi => ?_) (fun f hf => ?_) (fun i hi => ?_)
@@ -101,14 +105,11 @@ theorem streamAcceptCount_eq_acceptCount (V : α × List Bool → Bool) (a : α)
     exact hi.2
   · simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_univ, true_and] at hf ⊢
     refine ⟨by simpa using BitString.lsbValue_lt (List.ofFn f), ?_⟩
-    rwa [show increment^[lsbValue (List.ofFn f)] (List.replicate t false) = List.ofFn f by
-      simpa using BitString.iterate_increment_lsbValue (List.ofFn f)]
+    rwa [hinc]
   · obtain ⟨hv, hl⟩ := BitString.iterate_increment t i
       (Finset.mem_range.mp (Finset.mem_filter.mp hi).1)
     rw [List.ofFn_getD_eq_of_length false hl, hv]
-  · rw [show increment^[lsbValue (List.ofFn f)] (List.replicate t false) = List.ofFn f by
-      simpa using BitString.iterate_increment_lsbValue (List.ofFn f)]
-    simp
+  · simp [hinc]
 
 /-- Count certificates accepted by a polynomial-space verifier, at a polynomial-time unary length.
 The binary counter reuses the verifier workspace; no polynomial bound on its time is needed.
@@ -122,10 +123,12 @@ theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α
   · exact (ComputableInPolySpace.of_polyTime
       (ComputableInPolyTime.const 0)).congr fun a => isEmptyElim a
   let _ : Inhabited α := Classical.inhabited_of_nonempty hα
-  have hinit : ComputableInPolyTime (fun a => (a, List.replicate (r a) false, 0)) enc
+  have hinit : ComputableInPolyTime
+      (fun a => (a, List.replicate (r a) false, 0)) enc
       (encPair enc (encPair encBits encNat)) :=
-    ComputableInPolyTime.id'.prod (((ComputableInPolyTime.bitsReplicate false).comp hr).prod
-      (ComputableInPolyTime.const 0))
+    ComputableInPolyTime.id'.prod
+      (((ComputableInPolyTime.bitsReplicate false).comp hr).prod
+        (ComputableInPolyTime.const 0))
   have hfirst : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.1)
       (encPair enc (encPair encBits encNat)) enc := .of_polyTime (by fun_prop)
   have hword : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.2.1)
@@ -136,7 +139,8 @@ theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α
   have hadd := ComputableInPolySpace.of_polyTime ComputableInPolyTime.binary_add
   have hstep : ComputableInPolySpace (acceptCountStep V)
       (encPair enc (encPair encBits encNat)) (encPair enc (encPair encBits encNat)) := by
-    unfold acceptCountStep; fun_prop
+    unfold acceptCountStep
+    fun_prop
   refine ((ComputableInPolySpace.of_polyTime ((ComputableInPolyTime.snd _ _).snd')).comp
     (ComputableInPolySpace.iterate (ComputableInPolyTime.binary_two_pow.comp hr)
       (.of_polyTime hinit) hstep (B := fun a => 2 * (enc a).length + 3 * r a + 5) (by growth_poly)
@@ -146,7 +150,7 @@ theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α
       V (a, increment^[i] (List.replicate (r a) false))).card).length ≤ r a + 1 := by
     rw [encNat_apply, Nat.size_eq_bits_len]
     exact Nat.size_le.mpr (((Finset.card_filter_le _ _).trans (by simpa using hj)).trans_lt
-      (Nat.pow_lt_pow_right (by norm_num) (by lia)))
+      (Nat.pow_lt_pow_right Nat.one_lt_two (Nat.lt_add_one _)))
   enc_len [BitString.length_iterate_increment] at hsize ⊢
 
 /-- Every #P function is computable in polynomial space when its output is written in binary. -/

@@ -135,9 +135,10 @@ theorem sum_filter_mod {J : ℕ} (hJ : 0 < J) (l : List ℕ) (f : ℕ → ℕ) :
   induction l with
   | nil => simp
   | cons x l ih =>
-    rw [Finset.sum_congr rfl fun h _ => show (((x :: l).filter (· % J = h)).map f).sum =
-        (if x % J = h then f x else 0) + ((l.filter (· % J = h)).map f).sum by
-          by_cases hx : x % J = h <;> simp [hx]]
+    have hc (h : ℕ) : (((x :: l).filter (· % J = h)).map f).sum =
+        (if x % J = h then f x else 0) + ((l.filter (· % J = h)).map f).sum := by
+      by_cases hx : x % J = h <;> simp [hx]
+    rw [Finset.sum_congr rfl fun h _ => hc h]
     simp [Finset.sum_add_distrib, ih, Finset.mem_range.mpr (Nat.mod_lt x hJ)]
 
 /-- Summing over the residue classes below `m` sums over the numbers below `m`. -/
@@ -153,14 +154,16 @@ theorem sum_length_filter_mod {J : ℕ} (hJ : 0 < J) (l : List ℕ) :
 /-- **A residue class below `m` has at most `m / J + 1` numbers.** -/
 theorem length_residueClass_le (J m g : ℕ) : (residueClass J m g).length ≤ m / J + 1 := by
   rw [residueClass, ← List.toFinset_card_of_nodup (List.nodup_range.filter _)]
-  refine (Finset.card_le_card_of_injOn (· / J) (fun x hx => ?_)
-    (fun x hx y hy hxy => ?_)).trans_eq (Finset.card_range _)
-  · simp only [Finset.mem_coe, List.mem_toFinset, List.mem_filter, List.mem_range,
-      decide_eq_true_eq, Finset.coe_range, Set.mem_Iio] at hx ⊢
-    exact Nat.lt_succ_of_le (Nat.div_le_div_right hx.1.le)
-  · simp only [Finset.mem_coe, List.mem_toFinset, List.mem_filter, List.mem_range,
-      decide_eq_true_eq] at hx hy
-    rw [← Nat.div_add_mod x J, ← Nat.div_add_mod y J, hx.2, hy.2]
-    exact congrArg (J * · + g) hxy
+  calc #((List.range m).filter (· % J = g)).toFinset
+      ≤ #(Finset.range (m / J + 1)) := by
+        refine Finset.card_le_card_of_injOn (· / J) (fun x hx => ?_) (fun x hx y hy hxy => ?_)
+        · simp only [Finset.mem_coe, List.mem_toFinset, List.mem_filter, List.mem_range,
+            decide_eq_true_eq, Finset.coe_range, Set.mem_Iio] at hx ⊢
+          exact Nat.lt_succ_of_le (Nat.div_le_div_right hx.1.le)
+        · simp only [Finset.mem_coe, List.mem_toFinset, List.mem_filter, List.mem_range,
+            decide_eq_true_eq] at hx hy
+          rw [← Nat.div_add_mod x J, ← Nat.div_add_mod y J, hx.2, hy.2]
+          exact congrArg (J * · + g) hxy
+    _ = m / J + 1 := Finset.card_range _
 
 end List

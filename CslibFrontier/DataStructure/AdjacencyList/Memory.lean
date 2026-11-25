@@ -188,16 +188,17 @@ theorem Inv.congr (hL : L.Valid n) {s s' : Memory.State} (hs : Inv L adj s)
       s'.mem (L.edges.base + j) = s.mem (L.edges.base + j) :=
     h _ (Finset.mem_union_right _ (Block.mem_footprint.mpr (Block.owns_add hj)))
   have H := hs.holds
-  exact ⟨hs.offsets_allocated.mono hf, hs.edges_allocated.mono hf,
-    fun u => by rw [hoff _ u.isLt, hoff _ u.isLt.le]; exact H.offset_succ u,
-    fun u => by rw [hoff _ u.isLt]; exact H.end_le u,
-    fun u i hi => by
-      have := H.edge_lt u hi
-      rw [hoff _ u.isLt.le, hedge _ (by omega)]
-      exact H.target u i hi,
-    fun u i hi => by
-      rw [hoff _ u.isLt.le, hedge _ (H.edge_lt u hi)]
-      exact H.weight u i hi⟩
+  refine ⟨hs.offsets_allocated.mono hf, hs.edges_allocated.mono hf,
+    ⟨fun u => ?_, fun u => ?_, fun u i hi => ?_, fun u i hi => ?_⟩⟩
+  · rw [hoff _ u.isLt, hoff _ u.isLt.le]
+    exact H.offset_succ u
+  · rw [hoff _ u.isLt]
+    exact H.end_le u
+  · have := H.edge_lt u hi
+    rw [hoff _ u.isLt.le, hedge _ (by omega)]
+    exact H.target u i hi
+  · rw [hoff _ u.isLt.le, hedge _ (H.edge_lt u hi)]
+    exact H.weight u i hi
 
 variable (adj) in
 /-- The adjacency arrays, framed by their two fields. -/

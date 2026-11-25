@@ -110,7 +110,8 @@ theorem integrable_virtualValue_mul (hμ : ∀ i, HasValueDensity (μ i) (f i) (
   refine Integrable.mono' ((integrable_comp_eval (hμ i).integrable_virtualValue).norm.mul_const B)
     (((hμ i).measurable_virtualValue.comp (measurable_pi_apply i)).mul hx).aestronglyMeasurable ?_
   filter_upwards [ae_nonneg hμ] with v hv
-  rw [norm_mul]; exact mul_le_mul_of_nonneg_left (hB v hv) (norm_nonneg _)
+  rw [norm_mul]
+  exact mul_le_mul_of_nonneg_left (hB v hv) (norm_nonneg _)
 
 /-- **Expected payment equals expected virtual surplus**, bidder by bidder
 ([Roughgarden2013CS364A], Lecture 5, §2, Step 5). -/
@@ -154,7 +155,8 @@ omit [Fintype ι] [∀ i, IsProbabilityMeasure (μ i)] in
 theorem Mechanism.IsIR.payment_update_zero_nonpos {M : Mechanism ι} (hIR : M.IsIR) (i : ι)
     {b : ι → ℝ} (hb : 0 ≤ b) : M.payment (Function.update b i 0) i ≤ 0 := by
   have := hIR i _ (update_nonneg hb i le_rfl)
-  simp only [Mechanism.utility, Function.update_self, zero_mul, zero_sub] at this; linarith
+  simp only [Mechanism.utility, Function.update_self, zero_mul, zero_sub] at this
+  linarith
 
 /-- **Expected revenue of a DSIC, IR mechanism is at most its expected virtual welfare.**
 Individual rationality at valuation `0` gives `pᵢ(0, v₋ᵢ) ≤ 0`. Myerson's payment identity then
@@ -172,7 +174,8 @@ theorem Mechanism.IsDSIC.integral_sum_payment_le {M : Mechanism ι} (hM : M.IsDS
   · refine integral_mono_ae hint (integrable_finsetSum _ fun i _ =>
       integrable_myersonPayment hμ i (hx i) fun v hv => hB v hv i)
       ((ae_nonneg hμ).mono fun v hv => Finset.sum_le_sum fun i _ => ?_)
-    rw [hM.payment_eq i hv]; linarith [hIR.payment_update_zero_nonpos i hv]
+    rw [hM.payment_eq i hv]
+    linarith [hIR.payment_update_zero_nonpos i hv]
   · rw [integral_undef hint]
     exact integral_nonneg_of_ae ((ae_nonneg hμ).mono fun v hv =>
       Finset.sum_nonneg fun i _ => myersonPayment_nonneg hM.isMonotone hv i)

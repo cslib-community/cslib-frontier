@@ -94,7 +94,9 @@ theorem hoare (h : CostHoare charge pre p post budget) : D.Hoare pre p post := h
 /-- Returning a value has zero operation cost. -/
 theorem pure (a : α) (h : ∀ s, pre s → post a s) :
     CostHoare charge pre (.pure a) post (fun _ => 0) :=
-  ⟨Hoare.pure pre a post h, fun _ _ _ _ _ hrun => by cases hrun; exact le_rfl⟩
+  ⟨Hoare.pure pre a post h, fun _ _ _ _ _ hrun => by
+    cases hrun
+    exact le_rfl⟩
 
 /-- Calling a single operation requires `D.valid s o`, establishes `post a s'` for every permitted
 outcome `D.step s o s' a`, and charges `charge s o` at the pre-state `s`. -/
@@ -103,7 +105,10 @@ theorem call (o : D.Op)
     (h : ∀ s, pre s → D.valid s o ∧ ∀ s' a, D.step s o s' a → post a s') :
     CostHoare charge pre (.liftBind o fun a => .pure a) post (fun s => charge s o) :=
   ⟨Hoare.call pre o post h, fun _ _ _ _ _ hrun => by
-    cases hrun with | liftBind _ _ _ _ _ hrest => cases hrest; simp⟩
+    cases hrun with
+    | liftBind _ _ _ _ _ hrest =>
+      cases hrest
+      simp⟩
 
 /-- On a deterministic specification (`[D.HasStepFn f]`), calling an operation exposes
 `(D.stepFn s o)` and charges `charge s o`. -/
@@ -112,7 +117,10 @@ theorem call_ofFn {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [
     (h : ∀ s, pre s → D.valid s o ∧ post (D.stepFn s o).2 (D.stepFn s o).1) :
     CostHoare charge pre (.liftBind o fun a => .pure a) post (fun s => charge s o) :=
   ⟨Hoare.call_ofFn pre o post h, fun _ _ _ _ _ hrun => by
-    cases hrun with | liftBind _ _ _ _ _ hrest => cases hrest; simp⟩
+    cases hrun with
+    | liftBind _ _ _ _ _ hrest =>
+      cases hrest
+      simp⟩
 
 /-- Compose budgets at every intermediate abstract state satisfying `mid`. -/
 theorem bind {mid : α → D.State → Prop} {post : β → D.State → Prop}

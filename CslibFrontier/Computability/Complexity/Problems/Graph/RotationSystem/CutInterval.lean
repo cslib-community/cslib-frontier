@@ -56,7 +56,8 @@ theorem sameCycle_swap_cutInterval_iff (a b : Dart G) (hab : a.vertex = b.vertex
     · rw [Perm.mul_apply, swap_apply_left, hca]
       exact iff_of_true ⟨rfl, by rw [r.rotationDistance_self]; omega⟩ hb
     rcases eq_or_ne x c with rfl | hxc
-    · rw [Perm.mul_apply, swap_apply_right]; exact iff_of_false hnextOut hcOut
+    · rw [Perm.mul_apply, swap_apply_right]
+      exact iff_of_false hnextOut hcOut
     rw [Perm.mul_apply, swap_apply_of_ne_of_ne hxb hxc]
     by_cases hv : x.vertex = a.vertex
     · have hdist := r.rotationDistance_rotate_of_ne a x hv.symm fun h =>
@@ -67,7 +68,8 @@ theorem sameCycle_swap_cutInterval_iff (a b : Dart G) (hab : a.vertex = b.vertex
     · simp [selected, hv, r.vertex_rotate]
   change (r.rotate * swap b c).SameCycle d e ↔ d.vertex = e.vertex ∧ (selected d ↔ selected e)
   rw [Perm.CycleSurgery.sameCycle_mul_swap_iff_of_separating
-    ((r.sameCycle_iff b c).mpr (hab.symm.trans hc)) selected hb hcOut hstable, r.sameCycle_iff]
+    ((r.sameCycle_iff b c).mpr (hab.symm.trans hc)) selected hb hcOut hstable,
+    r.sameCycle_iff]
 
 /-- Move a proper directed interval to a vertex label distinct from all original incident
 vertices. The split retains every edge occurrence and end tag, and its rotation in these
@@ -88,7 +90,8 @@ theorem exists_split_cutInterval (a b : Dart G) (hab : a.vertex = b.vertex)
   let D : Dart G ≃ Dart H := Equiv.prodCongr E (Equiv.refl Bool)
   let f := r.rotate * swap b (r.rotate.symm a)
   refine ⟨H, E, ⟨D.permCongr f, fun d e => ?_⟩, hdecl, hEnds, rfl⟩
-  obtain ⟨d, rfl⟩ := D.surjective d; obtain ⟨e, rfl⟩ := D.surjective e
+  obtain ⟨d, rfl⟩ := D.surjective d
+  obtain ⟨e, rfl⟩ := D.surjective e
   have hvertex (d : Dart G) : (D d).vertex = _ := hEnds d
   rw [Perm.sameCycle_equiv_iff D f _ fun x => by rw [Equiv.permCongr_apply, Equiv.symm_apply_apply],
     r.sameCycle_swap_cutInterval_iff a b hab hproper, hvertex, hvertex]

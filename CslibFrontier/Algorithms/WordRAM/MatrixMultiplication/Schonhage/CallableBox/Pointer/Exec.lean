@@ -92,19 +92,21 @@ theorem exec {W b m t N s r q : ℕ}
   have he : ExecWithin W program x y
       (coreTime m t qs + (2 + 7 * (QueriedProduct.inputEnd m N qs.length + 1) +
         7 * qs.length + 14)) := hc.seq hy
-  exact ⟨y, he.mono (by unfold timeBound; omega), yr, yv, yi,
-    fun a ha => (yf a (by omega) (by omega)).trans (cf a ha),
-    (he.regs_eq pointer_registers_preserved.1).trans hs,
-    (he.regs_eq pointer_registers_preserved.2.1).trans hr,
-    (he.regs_eq pointer_registers_preserved.2.2).trans hq⟩
+  refine ⟨y, he.mono (by unfold timeBound; omega), yr, yv, yi, ?_, ?_, ?_, ?_⟩
+  · intro a ha
+    exact (yf a (by omega) (by omega)).trans (cf a ha)
+  · exact (he.regs_eq pointer_registers_preserved.1).trans hs
+  · exact (he.regs_eq pointer_registers_preserved.2.1).trans hr
+  · exact (he.regs_eq pointer_registers_preserved.2.2).trans hq
 
 /-- Allowance identity relating `CallableBoxProduct.timeBound` plus `gatherTime` to `timeBound`
 plus the translated snapshot-copy term. -/
 theorem timeBound_ledger (m t : ℕ) {N : ℕ} (qs : List (Fin N × Fin N)) :
     CallableBoxProduct.timeBound m t qs + gatherTime (N * D m) qs.length =
       timeBound m t qs + 3 * (7 * QueriedProduct.inputEnd m N qs.length + 10) := by
-  have := PointerInput.source_ledger (21 * m) m t qs
-  unfold CallableBoxProduct.timeBound CallableBoxProduct.coreTime timeBound coreTime; omega
+  have hs := PointerInput.source_ledger (21 * m) m t qs
+  unfold CallableBoxProduct.timeBound CallableBoxProduct.coreTime timeBound coreTime
+  omega
 
 /-- One fixed flat native instruction list, returning the physical answer pointer. -/
 @[expose] def nativeCode : Program .standard 173 :=
@@ -113,17 +115,17 @@ theorem timeBound_ledger (m t : ℕ) {N : ℕ} (qs : List (Fin N × Fin N)) :
 /-- Pointer gathering retains fixed code and does not inspect the physical word width. -/
 theorem nativeCode_fixed : nativeCode.length ≤ 131584 ∧ ¬nativeCode.ReadsWidth := by
   refine ⟨?_, Code.not_readsWidth_program (Code.not_readsWidth_of_readsWidthBool rfl) _⟩
-  have hsnap_size : (BoxProduct.programFromSnapshot true).size + 1 ≤ 32768 :=
-    (show _ ≤ (BoxProduct.program true).size + 1 by
-      simp only [BoxProduct.programFromSnapshot, BoxProduct.program, BoxProduct.frontFromSnapshot,
-        BoxProduct.front, QueriedProduct.prepareRouting, QueriedProduct.routingFromSnapshot,
-        Code.size]
-      omega).trans (BoxProduct.program_size_le true)
-  have := MemoryWindow.size_compile (BoxProduct.programFromSnapshot true)
-  have := MemoryWindow.size_compile PointerInput.setupLayout
-  have := CallableProduct.setup_size
-  have ⟨_, _⟩ : PointerInput.setupLayout.size ≤ 512 ∧ gather.size ≤ 128 :=
-    ⟨by decide +kernel, by decide +kernel⟩
+  have hsnap_size : (BoxProduct.programFromSnapshot true).size + 1 ≤ 32768 := by
+    refine le_trans ?_ (BoxProduct.program_size_le true)
+    simp only [BoxProduct.programFromSnapshot, BoxProduct.program,
+      BoxProduct.frontFromSnapshot, BoxProduct.front, QueriedProduct.prepareRouting,
+      QueriedProduct.routingFromSnapshot, Code.size]
+    omega
+  have hcs := MemoryWindow.size_compile (BoxProduct.programFromSnapshot true)
+  have hcp := MemoryWindow.size_compile PointerInput.setupLayout
+  have hs := CallableProduct.setup_size
+  have hps : PointerInput.setupLayout.size ≤ 512 := by decide +kernel
+  have hgs : gather.size ≤ 128 := by decide +kernel
   have hts : (Code.seq CallableBoxProduct.includeThreshold
       (.seq CallableProduct.restoreInput CallableProduct.returnOutput)).size ≤ 64 := by
     decide +kernel

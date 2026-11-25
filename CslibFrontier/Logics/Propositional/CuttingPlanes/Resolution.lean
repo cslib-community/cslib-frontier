@@ -69,8 +69,13 @@ omit [DecidableEq V] in
 /-- Halving `0 ≥ 1` plus twice `I` gives `0 ≥ 1` plus `I`. -/
 private theorem div_two_contra_add_two_nsmul (I : Ineq V) :
     (contra + 2 • I).div 2 = contra + I := by
-  refine div_eq_of Nat.two_pos (by ext v; simp [coeff_nsmul]) ?_ ?_ <;>
-    simp only [bound_add, bound_contra, bound_nsmul, nsmul_eq_mul] <;> push_cast <;> omega
+  refine div_eq_of Nat.two_pos ?_ ?_ ?_
+  · ext v
+    simp [coeff_nsmul]
+  all_goals
+    simp only [bound_add, bound_contra, bound_nsmul, nsmul_eq_mul]
+    push_cast
+    omega
 
 private theorem toFinset_resolvent {c₁ c₂ : Clause V} {v : V} :
     (c₁.resolvent c₂ v).toFinset = c₁.toFinset.erase (v, true) ∪ c₂.toFinset.erase (v, false) := by
@@ -137,8 +142,9 @@ theorem CNF.IsProof.cuttingPlanes {φ : CNF V} {ls : List (Clause V)} (h : φ.Is
       obtain ⟨m, hm, hR, hmlen⟩ := derivableInSize_toIneq_resolvent hv₁ hv₂
       have hw₁ := hw c₁ (hp c₁ (by simp))
       have hw₂ := hw c₂ (hp c₂ (by simp))
-      exact ⟨m, (CuttingPlanes.isProof_iff_lineProof.1 hm).mono_hyp fun I hI =>
-        Or.inr (by rcases hI with rfl | rfl <;> simp), hR, by omega⟩
+      refine ⟨m, (CuttingPlanes.isProof_iff_lineProof.1 hm).mono_hyp fun I hI => Or.inr ?_,
+        hR, by omega⟩
+      rcases hI with rfl | rfl <;> simp
   exact ⟨ls', CuttingPlanes.isProof_iff_lineProof.2 h', hmem, hlen⟩
 
 /-- **Cutting planes simulate resolution**, by size [Cook, Coullard and
@@ -148,8 +154,9 @@ theorem CNF.RefutableInSize.cuttingPlanes {φ : CNF V} {s : ℕ} (h : φ.Refutab
     CuttingPlanes.RefutableInSize φ.toIneqs ((8 * #φ.vars.toFinset + 1) * s) := by
   obtain ⟨ls, hp, hnil, hlen⟩ := h
   obtain ⟨ls', h', hmem, hlen'⟩ := hp.cuttingPlanes fun c hc => hp.width_le hc
-  exact ⟨ls', h', by simpa using hmem _ hnil,
-    hlen'.trans (by rw [← mul_assoc]; exact Nat.mul_le_mul_left _ hlen)⟩
+  refine ⟨ls', h', by simpa using hmem _ hnil, hlen'.trans ?_⟩
+  rw [← mul_assoc]
+  exact Nat.mul_le_mul_left _ hlen
 
 /-- **Cutting planes refute exactly the unsatisfiable CNFs.** -/
 theorem CuttingPlanes.exists_refutableInSize_iff_not_satisfiable {φ : CNF V} :

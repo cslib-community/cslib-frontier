@@ -127,8 +127,10 @@ theorem exists_of_randomGraphProb_pos {n : ℕ} {P : SimpleGraph (Fin n) → Pro
 theorem randomGraphProb_exists_le {ι : Type*} (n : ℕ) (I : Finset ι)
     (P : ι → SimpleGraph (Fin n) → Prop) :
     randomGraphProb n (fun G => ∃ i ∈ I, P i G) ≤ ∑ i ∈ I, randomGraphProb n (P i) := by
-  rw [randomGraphProb, show {G | ∃ i ∈ I, P i G} = ⋃ i ∈ I, {G | P i G} by
-    ext G; simp only [Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop]]
+  have hset : {G | ∃ i ∈ I, P i G} = ⋃ i ∈ I, {G | P i G} := by
+    ext G
+    simp only [Set.mem_ofPred_eq, Set.mem_iUnion, exists_prop]
+  rw [randomGraphProb, hset]
   exact Cslib.Probability.PMF.toOuterMeasure_toReal_biUnion_finset_le _ I fun i => {G | P i G}
 
 /-- If an involution of the graphs on `Fin n` exchanges `P` and `¬ P`, then `P` has probability
@@ -194,7 +196,8 @@ theorem binomialRandom_real_eq_randomGraphProb {p : I} (hp : (p : ℝ) = 1 / 2) 
   have hc' : c = (Nat.card (SimpleGraph (Fin n)) : ENNReal)⁻¹ :=
     ENNReal.eq_inv_of_mul_eq_one_left <| by rw [mul_comm, ← Set.ncard_univ, ← hset, measure_univ]
   rw [randomGraphProb_eq, measureReal_def, hset, hc', ENNReal.toReal_mul, ENNReal.toReal_inv,
-    ENNReal.toReal_natCast, ENNReal.toReal_natCast, div_eq_mul_inv, ← Nat.card_coe_set_eq {G | P G}]
+    ENNReal.toReal_natCast, ENNReal.toReal_natCast, div_eq_mul_inv,
+    ← Nat.card_coe_set_eq {G | P G}]
   rfl
 
 end Binomial

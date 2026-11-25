@@ -47,10 +47,11 @@ theorem testBit_sum_injective {α : Type*} (s : Finset α)
     (∑ i ∈ s, (c i).toNat * 2 ^ f i).testBit k = true ↔
       ∃ i ∈ s, c i = true ∧ f i = k := by
   classical
-  rw [show (∑ i ∈ s, (c i).toNat * 2 ^ f i) =
-      ∑ i ∈ (s.filter fun i => c i = true).image f, 2 ^ i by
+  have he : (∑ i ∈ s, (c i).toNat * 2 ^ f i) =
+      ∑ i ∈ (s.filter fun i => c i = true).image f, 2 ^ i := by
     rw [sum_image (hf.mono (filter_subset _ _)), sum_filter]
-    exact sum_congr rfl fun i _ => by cases c i <;> simp, testBit_sum_two_pow]
+    exact sum_congr rfl fun i _ => by cases c i <;> simp
+  rw [he, testBit_sum_two_pow]
   simp only [mem_image, mem_filter, and_assoc]
 
 /-- Masking by sparse positions selects their original coefficients. -/
@@ -69,10 +70,11 @@ theorem sum_injective_lt_two_pow {α : Type*} (s : Finset α) (f : α → ℕ)
     (hf : Set.InjOn f s) (c : α → Bool) {L : ℕ} (hL : ∀ i ∈ s, f i < L) :
     (∑ i ∈ s, (c i).toNat * 2 ^ f i) < 2 ^ L := by
   classical
-  refine (show _ ≤ ∑ i ∈ s, 2 ^ f i from sum_le_sum fun i _ => by cases c i <;> simp).trans_lt ?_
-  rw [← sum_image hf]
-  exact Nat.geomSum_lt (by decide) fun j hj => by
-    obtain ⟨i, hi, rfl⟩ := mem_image.mp hj; exact hL i hi
+  calc
+    (∑ i ∈ s, (c i).toNat * 2 ^ f i) ≤ ∑ i ∈ s, 2 ^ f i :=
+      sum_le_sum fun i _ => by cases c i <;> simp
+    _ = ∑ j ∈ s.image f, 2 ^ j := (sum_image hf).symm
+    _ < 2 ^ L := Nat.geomSum_lt Nat.one_lt_two (forall_mem_image.2 hL)
 
 /-- Increasing placements of the same Boolean coefficients give the same comparisons.
 Gaps between bits do not affect numeric order. -/

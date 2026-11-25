@@ -102,16 +102,21 @@ differs from the parity on `S` at `x` for at most twice as many `y` as there are
 theorem card_filter_selfCorrect_ne_le (f : (ι → Bool) → Bool) (S : Finset ι)
     (x : ι → Bool) :
     #{y | selfCorrect f x y ≠ parityOn S x} ≤ 2 * hammingDist f (parityOn S) := by
-  refine (card_le_card (t := ({y | f y ≠ parityOn S y} : Finset (ι → Bool)) ∪
-      ({y | f (x + y) ≠ parityOn S (x + y)} : Finset _)) fun y hy => ?_).trans
-    ((card_union_le _ _).trans_eq ?_)
-  · simp only [mem_union, mem_filter, mem_univ, true_and] at hy ⊢
-    by_contra! h
-    exact hy (by rw [selfCorrect, h.1, h.2]; exact selfCorrect_parityOn S x y)
-  · have htrans : #{y : ι → Bool | f (x + y) ≠ parityOn S (x + y)} = hammingDist f (parityOn S) :=
-      card_equiv (Equiv.addLeft x) fun y => by
-        simp only [mem_filter, mem_univ, true_and]; exact Iff.rfl
-    rw [htrans, two_mul]; rfl
+  have htrans : #{y : ι → Bool | f (x + y) ≠ parityOn S (x + y)} =
+      hammingDist f (parityOn S) :=
+    card_equiv (Equiv.addLeft x) fun y => by
+      simp only [mem_filter, mem_univ, true_and]
+      exact Iff.rfl
+  calc #{y | selfCorrect f x y ≠ parityOn S x}
+      ≤ #(({y | f y ≠ parityOn S y} : Finset (ι → Bool)) ∪
+          ({y | f (x + y) ≠ parityOn S (x + y)} : Finset _)) := by
+        refine card_le_card fun y hy => ?_
+        simp only [mem_union, mem_filter, mem_univ, true_and] at hy ⊢
+        by_contra h
+        simp only [not_or, ne_eq, not_not] at h
+        exact hy (by rw [selfCorrect, h.1, h.2]; exact selfCorrect_parityOn S x y)
+    _ ≤ _ := card_union_le _ _
+    _ = 2 * hammingDist f (parityOn S) := by rw [htrans, two_mul]; rfl
 
 /-- **Local correctability of parities**: if `f` differs from the parity on `S` on at most an `ε`
 fraction of the inputs, then for every `x`, self-correction at `x` returns the parity's value at
@@ -190,8 +195,10 @@ theorem exists_eq_hadamardCode_iff {f : (ι → Bool) → Bool} :
   classical
   rw [← exists_eq_parityOn_iff]
   constructor
-  · rintro ⟨x, rfl⟩; exact ⟨_, hadamardCode_eq_parityOn x⟩
-  · rintro ⟨S, rfl⟩; exact ⟨_, (hadamardCode_decide_mem S).symm⟩
+  · rintro ⟨x, rfl⟩
+    exact ⟨_, hadamardCode_eq_parityOn x⟩
+  · rintro ⟨S, rfl⟩
+    exact ⟨_, (hadamardCode_decide_mem S).symm⟩
 
 /-- The Hadamard code is injective. -/
 theorem hadamardCode_injective : Function.Injective (hadamardCode (ι := ι)) := fun x y h => by
@@ -213,9 +220,12 @@ zero string with none. -/
 theorem two_mul_card_dotProduct_eq_true_add (x : ι → Bool) :
     2 * #{y | x ⬝ᵥ y = true} + (if x = 0 then 2 ^ Fintype.card ι else 0) = 2 ^ Fintype.card ι := by
   split_ifs with hx
-  · subst hx; simp [zero_dotProduct]
-  · simpa [hammingDist, zero_dotProduct, show ∀ b : Bool, ¬b = 0 ↔ b = true by decide] using
-      two_mul_hammingDist_hadamardCode hx
+  · subst hx
+    simp [zero_dotProduct]
+  · have h := two_mul_hammingDist_hadamardCode hx
+    rw [hammingDist] at h
+    simpa [zero_dotProduct,
+      show ∀ b : Bool, ¬b = 0 ↔ b = true by decide] using h
 
 /-- The inner product is `true` on `2 ^ (k - 1) (2 ^ k - 1)` pairs of `k`-bit strings, in the form
 `2 c + 2 ^ k = 2 ^ k 2 ^ k`. -/
@@ -273,11 +283,13 @@ theorem minDist_range_hadamardCode [Nonempty ι] :
     have := two_mul_hammingDist_hadamardCode h
     rw [← Nat.sub_add_cancel (Fintype.card_pos (α := ι)), pow_succ, mul_comm _ 2] at this
     exact Nat.eq_of_mul_eq_mul_left two_pos this
-  have hne : (fun _ => false : ι → Bool) ≠ fun _ => true :=
-    fun h => Bool.false_ne_true (congrFun h (Classical.arbitrary ι))
-  refine le_antisymm (hdist hne ▸ Code.minDist_le_hammingDist ⟨_, rfl⟩ ⟨_, rfl⟩
-    fun h => hne (hadamardCode_injective h)) (Code.le_minDist_iff.2 ?_)
-  rintro _ ⟨x, rfl⟩ _ ⟨y, rfl⟩ hxy
-  rw [hdist fun h => hxy (congrArg hadamardCode h)]
+  have hne : (fun _ => false : ι → Bool) ≠ fun _ => true := fun h =>
+    Bool.false_ne_true (congrFun h (Classical.arbitrary ι))
+  refine le_antisymm ?_ (Code.le_minDist_iff.2 ?_)
+  · rw [← hdist hne]
+    exact Code.minDist_le_hammingDist ⟨_, rfl⟩ ⟨_, rfl⟩
+      fun h => hne (hadamardCode_injective h)
+  · rintro _ ⟨x, rfl⟩ _ ⟨y, rfl⟩ hxy
+    rw [hdist fun h => hxy (congrArg hadamardCode h)]
 
 end Cslib.BitString

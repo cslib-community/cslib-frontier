@@ -68,22 +68,28 @@ theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
   have hR_E_irred : Irreducible (R.map ι_E) :=
     ((hR_irred.isPrimitive (by omega)).irreducible_iff_irreducible_map_fraction_map).1 hR_irred
   obtain ⟨q, hExpF⟩ := ExpChar.exists F
-  have hF_to_E : Function.Injective (ι_E.comp (Polynomial.C.comp Polynomial.C : F →+* F[X][X])) :=
+  have hF_to_E : Function.Injective
+      (ι_E.comp (Polynomial.C.comp Polynomial.C : F →+* F[X][X])) :=
     hι_E_inj.comp (Polynomial.C_injective.comp Polynomial.C_injective)
   have hExpE : ExpChar E q := expChar_of_injective_ringHom hF_to_E q
   obtain ⟨S_E, hS_E_sep, e_sep, hS_E_exp⟩ := hR_E_irred.hasSeparableContraction q
   set μ := q ^ e_sep
-  have hμ_pos : 1 ≤ μ := Nat.one_le_pow e_sep q
-    (by cases hExpF with | zero => omega | prime hp => exact hp.pos)
+  have hμ_pos : 1 ≤ μ := Nat.one_le_pow e_sep q (by
+    cases hExpF with | zero => omega | prime hp => exact hp.pos)
   have hμ_ne : μ ≠ 0 := by omega
+  have hμ_char : μ = 1 ∨ ∃ (p e : ℕ), CharP F p ∧ p.Prime ∧ μ = p ^ e := by
+    cases hExpF with
+    | zero => exact Or.inl (by simp [μ])
+    | prime hp => exact Or.inr ⟨q, e_sep, inferInstance, hp, rfl⟩
   set S : F[X][X][X] := Polynomial.contract μ R
   have hexp_S : Polynomial.expand (F[X][X]) μ S = R := by
     ext b : 2
     rw [Polynomial.coeff_expand hμ_pos]
     split_ifs with hdiv
     · rw [Polynomial.coeff_contract hμ_ne, Nat.div_mul_cancel hdiv]
-    · exact (hι_E_inj (by rw [map_zero, ← coeff_map, ← hS_E_exp,
-        coeff_expand_eq_zero_of_not_dvd hμ_pos S_E hdiv])).symm
+    · exact (hι_E_inj (by
+        rw [map_zero, ← coeff_map, ← hS_E_exp, coeff_expand_eq_zero_of_not_dvd hμ_pos S_E hdiv])
+        ).symm
   have hS_map : S.map ι_E = S_E := by
     ext b
     rw [coeff_map, Polynomial.coeff_contract hμ_ne, ← coeff_map, ← hS_E_exp,
@@ -94,32 +100,29 @@ theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
     rw [h0, mul_zero] at hdeg_mul; omega
   have hS_wd : ∀ a b, ((S.coeff b).coeff a) ≠ 0 → a + (μ * d) * b ≤ D := fun a b hab => by
     rw [Polynomial.coeff_contract hμ_ne] at hab
-    linarith [(le_weightedDegree (d := d) hab).trans hR_wd,
-      show a + d * (b * μ) = a + (μ * d) * b by ring]
+    have hle := (le_weightedDegree (d := d) hab).trans hR_wd
+    linarith [show a + d * (b * μ) = a + (μ * d) * b by ring]
   have hμd_le : μ * d ≤ D := by
     have hlc : S.coeff S.natDegree ≠ 0 := leadingCoeff_ne_zero.2 fun h => by simp [h] at hS_deg
     obtain ⟨a, ha⟩ : ∃ a, (S.coeff S.natDegree).coeff a ≠ 0 := by
-      by_contra! hall
-      exact hlc (by ext a : 2; simpa using hall a)
-    have := hS_wd a S.natDegree ha
-    have := Nat.mul_le_mul_left (μ * d) hS_deg
+      by_contra hall; push Not at hall; exact hlc (by ext a : 2; simpa using hall a)
+    have h1 := hS_wd a S.natDegree ha
+    have h2 : μ * d * 1 ≤ μ * d * S.natDegree := Nat.mul_le_mul_left _ hS_deg
     omega
   have hS_degZ : degZ S ≤ B_Z := degZ_le_iff.2 fun a b => by
     rw [Polynomial.coeff_contract hμ_ne]; exact degZ_le_iff.1 hR_degZ a (b * μ)
   set Δ : F[X][X] := Polynomial.resultant S S.derivative S.natDegree S.derivative.natDegree
+  have hΔ_ne : Δ ≠ 0 := resultant_ne_zero_of_isCoprime_map ι_E hι_E_inj
+    (by rwa [← Polynomial.derivative_map, hS_map])
   obtain ⟨A_bez, B_bez, _, _, hbez⟩ :=
-    Polynomial.exists_mul_add_mul_eq_C_resultant S S.derivative le_rfl le_rfl (.inl (by omega))
-  exact ⟨μ, S, A_bez, B_bez, Δ,
-    by cases hExpF with | zero => exact .inl (by simp [μ])
-                        | prime hp => exact .inr ⟨q, e_sep, inferInstance, hp, rfl⟩,
-    hμ_pos, hexp_S, hS_deg, hdeg_mul, hμd_le, hS_wd, hS_degZ,
-    resultant_ne_zero_of_isCoprime_map ι_E hι_E_inj
-      (by rwa [← Polynomial.derivative_map, hS_map]),
-    hbez,
-    (DegBound.natDegree F[X]).leadingCoeff_mul_resultant_derivative_le hS_deg fun b =>
-      natDegree_le_iff_coeff_eq_zero.2 fun a ha =>
-        by_contra fun hne => by have := hS_wd a b hne; omega,
-    (DegBound.degZ₂ F).leadingCoeff_mul_resultant_derivative_le hS_deg fun b =>
-      (degZ₂_coeff_le_degZ S b).trans hS_degZ⟩
+    Polynomial.exists_mul_add_mul_eq_C_resultant S S.derivative le_rfl le_rfl (Or.inl (by omega))
+  have hS_coeff_degX : ∀ b, (S.coeff b).natDegree ≤ D := fun b =>
+    natDegree_le_iff_coeff_eq_zero.2 fun a ha =>
+      by_contra fun hne => by have := hS_wd a b hne; omega
+  exact ⟨μ, S, A_bez, B_bez, Δ, hμ_char, hμ_pos, hexp_S, hS_deg, hdeg_mul, hμd_le, hS_wd, hS_degZ,
+    hΔ_ne, hbez,
+    (DegBound.natDegree F[X]).leadingCoeff_mul_resultant_derivative_le hS_deg hS_coeff_degX,
+    (DegBound.degZ₂ F).leadingCoeff_mul_resultant_derivative_le hS_deg
+      (fun b => (degZ₂_coeff_le_degZ S b).trans hS_degZ)⟩
 
 end Cslib.Code.ProximityGap

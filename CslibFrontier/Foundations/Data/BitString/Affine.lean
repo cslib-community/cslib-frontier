@@ -93,14 +93,17 @@ instance {α β : Type*} [Fintype α] [DecidableEq β] [Add α] [Add β] (g : α
 theorem IsAffine.ext_single {d n : ℕ} {g g' : BitString d → BitString n} (hg : IsAffine g)
     (hg' : IsAffine g') (h0 : g 0 = g' 0) (hi : ∀ i, g (Pi.single i true) = g' (Pi.single i true)) :
     g = g' := by
-  have key (s : Finset (Fin d)) : g (fun i => decide (i ∈ s)) = g' (fun i => decide (i ∈ s)) := by
+  have key : ∀ s : Finset (Fin d), g (fun i => decide (i ∈ s)) = g' (fun i => decide (i ∈ s)) := by
+    intro s
     induction s using Finset.induction_on with
     | empty =>
-      simpa only [show (fun i : Fin d => decide (i ∈ (∅ : Finset (Fin d)))) = 0 by
-        funext i; simp [Bool.zero_eq_false]] using h0
+      have : (fun i : Fin d => decide (i ∈ (∅ : Finset (Fin d)))) = 0 := by
+        funext i; simp [Bool.zero_eq_false]
+      rw [this, h0]
     | insert j s hj ih =>
       have hsplit : (fun i => decide (i ∈ insert j s)) =
-          (fun i => decide (i ∈ s)) + Pi.single j true + 0 := funext fun i => by
+          (fun i => decide (i ∈ s)) + Pi.single j true + 0 := by
+        funext i
         by_cases hij : i = j
         · subst hij
           simp only [Finset.mem_insert, true_or, decide_true, hj, decide_false, Pi.single_eq_same,
@@ -111,8 +114,9 @@ theorem IsAffine.ext_single {d n : ℕ} {g g' : BitString d → BitString n} (hg
           cases decide (i ∈ s) <;> rfl
       rw [hsplit, hg, hg', ih, hi, h0]
   funext x
-  simpa only [show (fun i => decide (i ∈ Finset.univ.filter fun i => x i = true)) = x by
-    funext i; simp] using key (Finset.univ.filter fun i => x i = true)
+  have hx : x = fun i => decide (i ∈ Finset.univ.filter fun i => x i = true) := by
+    funext i; simp
+  rw [hx, key]
 
 /-- At most `2 ^ (n (d + 1))` maps from `BitString d` to `BitString n` are affine. -/
 theorem card_isAffine_le (d n : ℕ) :
@@ -135,22 +139,28 @@ theorem exists_affine_of_add_add {ι : Type*} {M : Finset ι} {g : (ι → Bool)
     ∃ T ⊆ M, ∀ u, g u = g 0 + ∑ j ∈ T, u j := by
   classical
   let e : ι → ι → Bool := fun j => Pi.single j true
-  have hsum (A : Finset ι) : g (∑ j ∈ A, e j) = g 0 + ∑ j ∈ A, (g (e j) + g 0) := by
+  have hsum : ∀ A : Finset ι, g (∑ j ∈ A, e j) = g 0 + ∑ j ∈ A, (g (e j) + g 0) := by
+    intro A
     induction A using Finset.induction_on with
     | empty => simp
     | @insert j A hj ih =>
-      have h3 := hadd (e j) (∑ i ∈ A, e i) 0
-      rw [add_zero] at h3
-      rw [Finset.sum_insert hj, Finset.sum_insert hj, h3, ih]
+      rw [Finset.sum_insert hj, Finset.sum_insert hj]
+      have := hadd (e j) (∑ i ∈ A, e i) 0
+      rw [add_zero] at this
+      rw [this, ih]
       ring
   refine ⟨M.filter fun j => g (e j) + g 0 = true, Finset.filter_subset _ _, fun u => ?_⟩
-  rw [hcongr u (∑ j ∈ M.filter (fun j => u j = true), e j) fun i hi => by
-      rw [Finset.sum_apply, Finset.sum_pi_single]
-      simp only [Finset.mem_filter, hi, true_and]
-      cases u i <;> rfl,
-    hsum, Finset.sum_filter, Finset.sum_filter]
-  exact congrArg (g 0 + ·) (Finset.sum_congr rfl fun j _ => by
-    cases u j <;> cases g (e j) + g 0 <;> rfl)
+  have hu : g u = g (∑ j ∈ M.filter (fun j => u j = true), e j) := by
+    apply hcongr
+    intro i hi
+    rw [Finset.sum_apply, Finset.sum_pi_single]
+    simp only [Finset.mem_filter, hi, true_and]
+    cases u i <;> rfl
+  rw [hu, hsum]
+  congr 1
+  rw [Finset.sum_filter, Finset.sum_filter]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  cases u j <;> cases g (e j) + g 0 <;> rfl
 
 /-- A sequence that starts at `c` and adds `f j` at each step `j < n` holds `c + ∑ j' < j, f j'`
 up to step `n`. -/

@@ -42,9 +42,11 @@ theorem StackMemory.indexedChildren {L F : ℕ} {η : OutStr L} {rest : List (Li
     let lam := Encoding.termDigits (⟨d.val, by omega⟩ : Fin 10)
     have hp : lam ≠ .P0 := indexed_ne_P0 d
     have hu : usedFrom η 0 (xs ++ [lam]) = usedFrom η 0 xs + 1 := by
-      rw [usedFrom_append_one]; simp [hi, hp]
+      rw [usedFrom_append_one]
+      simp [hi, hp]
     have he : starsFrom η 0 (xs ++ [lam]) = starsFrom η 0 xs := by
-      rw [starsFrom_append_one]; simp [hp]
+      rw [starsFrom_append_one]
+      simp [hp]
     have hpush' : StackMemory η F ((xs ++ [lam]) :: rest)
         (writeTask F rest.length (xs.length + 1) (prefixCode xs + d.val * 10 ^ xs.length)
           (usedFrom η 0 xs + 1) (starsFrom η 0 xs) (10 ^ (xs.length + 1)) μ) := by
@@ -72,7 +74,8 @@ theorem StackMemory.p0Child {L F : ℕ} {η : OutStr L} {rest : List (List Term)
   have hu : usedFrom η 0 (xs ++ [.P0]) = usedFrom η 0 xs := by simp [usedFrom_append_one]
   have he : starsFrom η 0 (xs ++ [.P0]) =
       if usedFrom η 0 xs = 0 then starsFrom η 0 xs + 1 else starsFrom η 0 xs := by
-    rw [starsFrom_append_one]; split <;> simp_all
+    rw [starsFrom_append_one]
+    split <;> simp_all
   simpa only [List.length_append, List.length_singleton, prefixCode_append, hd, hu, he] using
     h.push (xs ++ [Term.P0])
 

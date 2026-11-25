@@ -276,7 +276,8 @@ theorem toBound (C : StateTransitionImpl D P s₀)
     DataStructure.Bound C.toBaseImpl OperationTrace.probes C.charge := by
   intro s m o a m' tr hr hv he
   obtain ⟨_, _, _, h⟩ := C.toAmortized.step hr hv he
-  simp only [hpot] at h; omega
+  simp only [hpot] at h
+  omega
 
 /-! ### Adaptive-client and multi-operation sequence theorems -/
 
@@ -293,7 +294,7 @@ theorem run_client_demonic_amortized (C : StateTransitionImpl D P s₀)
         C.initPotential + D.totalCostTranscript C.charge s₀ tr := by
   obtain ⟨a, m', traces, s', tr, he, hrun, hr', hlen, hpot⟩ :=
     C.toAmortized.exists_demonic p C.init_rep hv
-  have := C.init_potential
+  have hinit := C.init_potential
   exact ⟨a, m', traces, s', tr, he, hrun, hr', hlen, by omega⟩
 
 /-- Adaptive-client amortized probe bound from `P.init` on a deterministic specification
@@ -307,7 +308,7 @@ theorem run_client_amortized (C : StateTransitionImpl D P s₀)
       DataStructure.total OperationTrace.probes traces + C.potential m' ≤
         C.initPotential + D.totalCost C.charge s₀ (D.clientHistory s₀ p) := by
   obtain ⟨m', traces, he, hr', hpot⟩ := C.toAmortized.exists_executes p C.init_rep hv
-  have := C.init_potential
+  have hinit := C.init_potential
   exact ⟨m', traces, he, hr', by omega⟩
 
 /-- Adaptive-client worst-case probe bound from `P.init` on a deterministic specification when
@@ -364,9 +365,10 @@ theorem runSeq_amortized (C : StateTransitionImpl D P s₀)
       P.seqProbes ops + C.potential (P.runSeq ops).2 ≤
         C.initPotential + D.totalCostTranscript C.charge s₀ tr := by
   obtain ⟨tr, s', hops, hlbl, htr, hr', hpot⟩ := C.runFrom_amortized ops C.init_rep hv
+  refine ⟨tr, s', hops, hlbl, htr, hr', ?_⟩
   have := C.init_potential
-  exact ⟨tr, s', hops, hlbl, htr, hr', by
-    change P.probesFrom P.init ops + C.potential (P.runFrom P.init ops).2 ≤ _; omega⟩
+  change P.probesFrom P.init ops + C.potential (P.runFrom P.init ops).2 ≤ _
+  omega
 
 /-- On a deterministic specification (`D.HasStepFn f`), `P.runSeq ops` on any admissible history
 `D.ValidHistory s₀ ops` produces the exact canonical transcript `(D.run s₀ ops).2`, reaches a

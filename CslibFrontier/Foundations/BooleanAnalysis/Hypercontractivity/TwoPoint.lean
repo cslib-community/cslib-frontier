@@ -61,7 +61,8 @@ private theorem two_le_one_add_rpow_add_one_sub_rpow {p t : ℝ} (hp : p ≤ 2) 
   have hv : 0 < 1 - t := by linarith
   have hprod : 1 ≤ (1 + t) ^ (p - 2) * (1 - t) ^ (p - 2) := by
     rw [← Real.mul_rpow hu.le hv.le]
-    exact Real.one_le_rpow_of_pos_of_le_one_of_nonpos (mul_pos hu hv) (by nlinarith) (by linarith)
+    exact Real.one_le_rpow_of_pos_of_le_one_of_nonpos (mul_pos hu hv) (by nlinarith)
+      (by linarith)
   have ha := Real.rpow_nonneg hu.le (p - 2)
   have hb := Real.rpow_nonneg hv.le (p - 2)
   nlinarith [sq_nonneg ((1 + t) ^ (p - 2) - (1 - t) ^ (p - 2))]
@@ -73,15 +74,18 @@ private theorem monotoneOn_one_add_rpow_sub_one_sub_rpow_sub {p : ℝ} (hp : 1 �
       (Icc 0 1) := by
   refine monotoneOn_of_hasDerivWithinAt_nonneg (convex_Icc 0 1)
     (f' := fun t => (p - 1) * ((1 + t) ^ (p - 2) + (1 - t) ^ (p - 2) - 2))
-    ((((Real.continuous_rpow_const (by linarith)).comp (continuous_const.add continuous_id)).sub
-      ((Real.continuous_rpow_const (by linarith)).comp (continuous_const.sub continuous_id))).sub
-      (continuous_const.mul continuous_id)).continuousOn (fun t ht => ?_) fun t ht => ?_
+    (((((Real.continuous_rpow_const (by linarith)).comp
+      (continuous_const.add continuous_id)).sub
+      ((Real.continuous_rpow_const (by linarith)).comp
+        (continuous_const.sub continuous_id))).sub
+      (continuous_const.mul continuous_id)).continuousOn) (fun t ht => ?_) fun t ht => ?_
   · rw [interior_Icc] at ht
-    convert (((Real.hasDerivAt_one_add_rpow (p - 1) (by linarith [ht.1])).sub
-      (Real.hasDerivAt_one_sub_rpow (p - 1) ht.2)).sub
-      ((hasDerivAt_id t).const_mul (2 * (p - 1)))).hasDerivWithinAt using 1
+    have h := ((Real.hasDerivAt_one_add_rpow (p - 1) (by linarith [ht.1] : -1 < t)).sub
+      (Real.hasDerivAt_one_sub_rpow (p - 1) ht.2)).sub ((hasDerivAt_id t).const_mul (2 * (p - 1)))
+    convert h.hasDerivWithinAt using 1
     · rfl
-    · rw [show p - 1 - 1 = p - 2 by ring]; ring
+    · rw [show p - 1 - 1 = p - 2 by ring]
+      ring
   · rw [interior_Icc] at ht
     exact mul_nonneg (by linarith)
       (by linarith [two_le_one_add_rpow_add_one_sub_rpow hp' ht.1 ht.2])
@@ -98,14 +102,17 @@ private theorem two_add_mul_sq_le_one_add_rpow_add_one_sub_rpow {p t : ℝ} (hp 
       (Icc 0 1) := by
     refine monotoneOn_of_hasDerivWithinAt_nonneg (convex_Icc 0 1)
       (f' := fun t => p * ((1 + t) ^ (p - 1) - (1 - t) ^ (p - 1) - 2 * (p - 1) * t))
-      ((((Real.continuous_rpow_const (by linarith)).comp (continuous_const.add continuous_id)).add
-        ((Real.continuous_rpow_const (by linarith)).comp (continuous_const.sub continuous_id))).sub
-        (continuous_const.mul (continuous_pow 2))).continuousOn (fun t ht => ?_) fun t ht => ?_
+      (((((Real.continuous_rpow_const (by linarith)).comp
+        (continuous_const.add continuous_id)).add
+        ((Real.continuous_rpow_const (by linarith)).comp
+          (continuous_const.sub continuous_id))).sub
+        (continuous_const.mul (continuous_pow 2))).continuousOn) (fun t ht => ?_) fun t ht => ?_
     · rw [interior_Icc] at ht
-      convert (((Real.hasDerivAt_one_add_rpow p (by linarith [ht.1])).add
-        (Real.hasDerivAt_one_sub_rpow p ht.2)).sub
-        ((hasDerivAt_pow 2 t).const_mul (p * (p - 1)))).hasDerivWithinAt using 1
-      rw [show (2 : ℕ) - 1 = 1 from rfl, pow_one, Nat.cast_ofNat]; ring
+      have h := ((Real.hasDerivAt_one_add_rpow p (by linarith [ht.1] : -1 < t)).add
+        (Real.hasDerivAt_one_sub_rpow p ht.2)).sub ((hasDerivAt_pow 2 t).const_mul (p * (p - 1)))
+      convert h.hasDerivWithinAt using 1
+      rw [show (2 : ℕ) - 1 = 1 from rfl, pow_one, Nat.cast_ofNat]
+      ring
     · rw [interior_Icc] at ht
       have h0 := hψ ⟨le_rfl, zero_le_one⟩ ⟨ht.1.le, ht.2.le⟩ ht.1.le
       simp only [add_zero, sub_zero, Real.one_rpow, sub_self, mul_zero] at h0
@@ -124,13 +131,15 @@ private theorem sq_add_sq_mul_sq_rpow_le_of_le {p ρ A B : ℝ} (hp : 1 ≤ p) (
   · obtain rfl : B = 0 := le_antisymm hBA hB
     norm_num [Real.zero_rpow hp0.ne', Real.zero_rpow (half_pos hp0).ne']
   · set t := B / A with ht
+    have ht0 : 0 ≤ t := div_nonneg hB hA0.le
     have ht1 : t ≤ 1 := (div_le_one hA0).2 hBA
     have hBt : B = A * t := by rw [ht, mul_div_cancel₀ _ hA0.ne']
     have hs : 0 ≤ (p - 1) * t ^ 2 := mul_nonneg (by linarith) (sq_nonneg t)
     calc (A ^ 2 + ρ ^ 2 * B ^ 2) ^ (p / 2)
-        ≤ (A ^ 2 * (1 + (p - 1) * t ^ 2)) ^ (p / 2) :=
-          Real.rpow_le_rpow (by positivity) (by rw [hBt]; nlinarith [sq_nonneg (A * t)])
-            (by positivity)
+        ≤ (A ^ 2 * (1 + (p - 1) * t ^ 2)) ^ (p / 2) := by
+          refine Real.rpow_le_rpow (by positivity) ?_ (by positivity)
+          rw [hBt]
+          nlinarith [sq_nonneg (A * t)]
       _ = A ^ p * (1 + (p - 1) * t ^ 2) ^ (p / 2) := by
           rw [Real.mul_rpow (by positivity) (by linarith), ← Real.rpow_natCast,
             ← Real.rpow_mul hA0.le, Nat.cast_ofNat, show (2 : ℝ) * (p / 2) = p by ring]
@@ -138,12 +147,11 @@ private theorem sq_add_sq_mul_sq_rpow_le_of_le {p ρ A B : ℝ} (hp : 1 ≤ p) (
           refine mul_le_mul_of_nonneg_left ?_ (Real.rpow_nonneg hA0.le _)
           have hb := rpow_one_add_le_one_add_mul_self (s := (p - 1) * t ^ 2) (by linarith)
             (p := p / 2) (by positivity) (by linarith)
-          have h2 := two_add_mul_sq_le_one_add_rpow_add_one_sub_rpow hp hp'
-            (div_nonneg hB hA0.le) ht1
+          have h2 := two_add_mul_sq_le_one_add_rpow_add_one_sub_rpow hp hp' ht0 ht1
           nlinarith
       _ = ((A + B) ^ p + (A - B) ^ p) / 2 := by
           rw [hBt, show A + A * t = A * (1 + t) by ring, show A - A * t = A * (1 - t) by ring,
-            Real.mul_rpow hA0.le (by positivity), Real.mul_rpow hA0.le (by linarith)]
+            Real.mul_rpow hA0.le (by linarith), Real.mul_rpow hA0.le (by linarith)]
           ring
 
 /-- **The two-point inequality**: for `1 ≤ p ≤ 2` and `ρ ^ 2 ≤ p - 1`,
@@ -156,9 +164,14 @@ theorem sq_add_sq_mul_sq_rpow_le {p ρ a b : ℝ} (hp : 1 ≤ p) (hp' : p ≤ 2)
   · rw [Real.abs_add_rpow_add_abs_sub_rpow h, ← sq_abs a, ← sq_abs b]
     exact sq_add_sq_mul_sq_rpow_le_of_le hp hp' hρ (abs_nonneg b) h
   · rw [← abs_neg (a - b), neg_sub, add_comm a b, Real.abs_add_rpow_add_abs_sub_rpow h]
-    exact (Real.rpow_le_rpow (by positivity)
-      (by rw [sq_abs, sq_abs]; nlinarith [sq_le_sq.2 h]) (by positivity)).trans
-      (sq_add_sq_mul_sq_rpow_le_of_le hp hp' hρ (abs_nonneg a) h)
+    calc (a ^ 2 + ρ ^ 2 * b ^ 2) ^ (p / 2)
+        ≤ (|b| ^ 2 + ρ ^ 2 * |a| ^ 2) ^ (p / 2) := by
+          refine Real.rpow_le_rpow (by positivity) ?_ (by positivity)
+          rw [sq_abs, sq_abs]
+          have hab : a ^ 2 ≤ b ^ 2 := sq_le_sq.2 h
+          nlinarith
+      _ ≤ ((|b| + |a|) ^ p + (|b| - |a|) ^ p) / 2 :=
+          sq_add_sq_mul_sq_rpow_le_of_le hp hp' hρ (abs_nonneg a) h
 
 /-! ### A single bit -/
 
@@ -167,12 +180,15 @@ probability `(1 - ρ) / 2`. -/
 theorem noiseOp_unit (ρ : ℝ) (g : (Unit → Bool) → ℝ) (b : Bool) :
     noiseOp ρ g (fun _ => b) =
       (1 + ρ) / 2 * g (fun _ => b) + (1 - ρ) / 2 * g (fun _ => !b) := by
-  rw [noiseOp, show (fun P : Unit → Bool => g ((fun _ => b) + P)) =
-      fun P => ∏ i : Unit, (fun (_ : Unit) (c : Bool) => g fun _ => b ^^ c) i (P i) from
+  have h : (fun P : Unit → Bool => g ((fun _ => b) + P)) =
+      fun P => ∏ i : Unit, (fun (_ : Unit) (c : Bool) => g fun _ => b ^^ c) i (P i) :=
     funext fun P => by
-      rw [Fintype.prod_unique]; exact congrArg g (funext fun _ => Bool.add_eq_xor _ _)]
+      rw [Fintype.prod_unique]
+      exact congrArg g (funext fun _ => Bool.add_eq_xor _ _)
+  rw [noiseOp, h]
   refine (bernoulliAverage_prod _ fun (_ : Unit) (c : Bool) => g fun _ => b ^^ c).trans ?_
-  rw [Fintype.prod_unique, Bool.xor_false, Bool.xor_true]; ring
+  rw [Fintype.prod_unique, Bool.xor_false, Bool.xor_true]
+  ring
 
 /-- **`(p, 2)`-hypercontractivity of a single bit**: for `1 ≤ p ≤ 2` and `0 ≤ ρ ≤ √(p - 1)`,
 `‖T_ρ f‖_2 ≤ ‖f‖_p` for every function `f` of one bit [O'Donnell, Theorem 9.18][ODonnell2014]. -/

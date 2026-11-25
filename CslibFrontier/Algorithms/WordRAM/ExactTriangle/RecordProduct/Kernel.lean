@@ -51,7 +51,8 @@ theorem exec_copy {W s d n : ℕ} (x : Data 320)
   refine ⟨y, by simpa only [copy, hn'] using hy,
     by simpa only [Data.comap_mem, hs', hd', hn'] using ym,
     ysrc.trans hs', ydst.trans hd', ylen.trans hn', fun i hi => hframe i fun j hj => ?_⟩
-  have h : 96 + j.val = i.val := congrArg Fin.val hj; omega
+  have h : 96 + j.val = i.val := congrArg Fin.val hj
+  omega
 
 /-- The concrete original-input callee derives its execution from the matrices and coordinate
 occurrences. No execution or time certificate is accepted by this invocation rule. -/
@@ -88,7 +89,8 @@ theorem exec_invoke {W b m N : ℕ}
   refine ⟨y, (hz.seq (hc.seq hy)).mono (by omega), by simp [y], av, ai, af,
     fun i hi hne => ?_⟩
   have hbank (j) : calleeBank j ≠ i := fun hj => by
-    have h : 128 + j.val = i.val := congrArg Fin.val hj; omega
+    have h : 128 + j.val = i.val := congrArg Fin.val hj
+    omega
   rw [Data.set_regs, Function.update_of_ne hne, hframe i hbank]
   simp only [z, Data.set_regs, Function.update_of_ne (hbank _).symm]
 

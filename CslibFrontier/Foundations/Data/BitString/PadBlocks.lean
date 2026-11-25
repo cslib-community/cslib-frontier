@@ -56,7 +56,8 @@ theorem padBlocks_getElem_apply (n L : ℕ) (x : List Bool) (i : ℕ) (hi : i < 
   have h : ∀ (l : List (BitString n)) (_ : l = padBlocks n L x) (h' : i < l.length),
       l[i] j = x.getD (i * n + j) false := by
     rintro _ rfl h'
-    unfold padBlocks at h' ⊢; rw [List.getElem_ofFn]
+    unfold padBlocks at h' ⊢
+    rw [List.getElem_ofFn]
     simp only [listBlock, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt j.isLt,
       List.getElem?_drop]
   exact h _ rfl _
@@ -90,13 +91,13 @@ theorem flatMap_ofFn_toBlocks {n : ℕ} {x : List Bool} (hx : n ∣ x.length) :
     simp only [finProdFinEquiv_apply_val, Nat.add_comm, Nat.mul_comm]
   rw [hblocks, List.flatMap_def, List.map_ofFn, Function.comp_def, ← ofFn_blocksEquiv_symm,
     blocksEquiv_symm_block]
-  exact List.ext_getElem (by simp [Nat.div_mul_cancel hx]) fun p _ h₂ => by
-    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₂]
+  refine List.ext_getElem (by simp [Nat.div_mul_cancel hx]) fun p _ h₂ => ?_
+  simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₂]
 /-- `listRows (L / n) n x` is the word view of `padBlocks n L x`. -/
 theorem listRows_eq_map_ofFn_padBlocks (n L : ℕ) (x : List Bool) :
     listRows (L / n) n x = (padBlocks n L x).map List.ofFn := by
-  refine List.ext_getElem (by simp) fun i h₁ _ => List.ext_getElem (by simp [listRows])
-    fun j _ hj₂ => ?_
+  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
+  refine List.ext_getElem (by simp [listRows]) fun j hj₁ hj₂ => ?_
   simp only [listRows, List.getElem_map, List.getElem_range]
   rw [getElem_listRow (by simpa using hj₂), List.getElem_ofFn,
     padBlocks_getElem_apply n L x i (by simpa using h₁) ⟨j, by simpa using hj₂⟩]
@@ -134,12 +135,13 @@ theorem toBlocks_append {n : ℕ} {a : List Bool} (ha : n ∣ a.length) (b : Lis
     · rfl
 @[simp]
 theorem toBlocks_ofFn {n : ℕ} (hn : 0 < n) (m : BitString n) :
-    toBlocks n (List.ofFn m) = [m] :=
-  List.ext_getElem? fun j => by
-    rw [getElem?_toBlocks, List.length_ofFn, Nat.div_self hn]
-    rcases j with _ | j
-    · simp only [Nat.zero_lt_one, ↓reduceIte, zero_mul, zero_add, List.getElem?_cons_zero,
-        Option.some.injEq]
-      exact funext fun i => by rw [List.getD_eq_getElem _ _ (by simp), List.getElem_ofFn]
-    · simp
+    toBlocks n (List.ofFn m) = [m] := by
+  refine List.ext_getElem? fun j => ?_
+  rw [getElem?_toBlocks, List.length_ofFn, Nat.div_self hn]
+  rcases j with _ | j
+  · simp only [Nat.zero_lt_one, ↓reduceIte, zero_mul, zero_add, List.getElem?_cons_zero,
+      Option.some.injEq]
+    funext i
+    rw [List.getD_eq_getElem _ _ (by simp), List.getElem_ofFn]
+  · simp
 end Cslib.BitString

@@ -56,10 +56,12 @@ theorem ScanMemory.congr {mem mem' : ℕ → ℕ} {out stamps epoch capacity : �
     (hlist : ∀ i < S.card, mem' (out + i) = mem (out + i))
     (hstamp : ∀ q < capacity, mem' (stamps + q) = mem (stamps + q)) :
     ScanMemory mem' out stamps epoch capacity S := by
-  obtain ⟨v, hv, hrange, hreal⟩ := h.listed
-  exact ⟨h.bounded, fun q hq => (hstamp q hq).symm ▸ h.stamp_le q hq,
-    fun q hq => by rw [hstamp q hq]; exact h.marked q hq,
-    v, hv, hrange, fun i => (hlist i i.isLt).trans (hreal i)⟩
+  refine ⟨h.bounded, fun q hq => (hstamp q hq).symm ▸ h.stamp_le q hq, ?_, ?_⟩
+  · intro q hq
+    rw [hstamp q hq]
+    exact h.marked q hq
+  · obtain ⟨v, hv, hrange, hreal⟩ := h.listed
+    exact ⟨v, hv, hrange, fun i => (hlist i i.isLt).trans (hreal i)⟩
 
 /-- A frame on the occupied output and full timestamp directory retains the semantic view.
 The list's dirty tail is deliberately outside the required read set. -/
@@ -105,7 +107,7 @@ theorem ScanMemory.empty {mem : ℕ → ℕ} {out stamps epoch capacity : ℕ}
     (h : ∀ q < capacity, mem (stamps + q) < epoch) :
     ScanMemory mem out stamps epoch capacity ∅ :=
   ⟨by simp, fun q hq => (h q hq).le, fun q hq => by simp [Nat.ne_of_lt (h q hq)],
-    Fin.elim0, fun i => i.elim0, by ext; simp, fun i => i.elim0⟩
+    Fin.elim0, fun i => i.elim0, Set.ext fun _ => by simp, fun i => i.elim0⟩
 
 /-- Append one previously unseen code, then mark its directory entry. Disjointness of the
 two concrete blocks ensures that neither store corrupts the other representation. -/
@@ -120,12 +122,12 @@ theorem ScanMemory.insert_new {mem : ℕ → ℕ} {out stamps epoch capacity : �
     rcases hsep with hs | hs <;> omega
   refine ⟨fun a ha => (Finset.mem_insert.mp ha).elim (· ▸ hq) (h.bounded a),
     fun a ha => ?_, fun a ha => ?_, ?_⟩
-  · by_cases he : a = q
-    · subst a; simp
+  · rcases eq_or_ne a q with rfl | he
+    · simp
     · simpa only [Function.update_of_ne (by omega : stamps + a ≠ stamps + q),
         Function.update_of_ne (haway a ha)] using h.stamp_le a ha
-  · by_cases he : a = q
-    · subst a; simp
+  · rcases eq_or_ne a q with rfl | he
+    · simp
     · simpa only [Function.update_of_ne (by omega : stamps + a ≠ stamps + q),
         Function.update_of_ne (haway a ha), Finset.mem_insert, he, false_or] using h.marked a ha
   · obtain ⟨v, hv, hrange, hreal⟩ := h.listed
@@ -133,8 +135,9 @@ theorem ScanMemory.insert_new {mem : ℕ → ℕ} {out stamps epoch capacity : �
       change ¬(out ≤ stamps + q ∧ stamps + q < out + (S.card + 1))
       rcases hsep with hs | hs <;> omega
     rw [Finset.card_insert_of_notMem hnew]
-    exact ⟨Fin.snoc v q, Fin.snoc_injective_iff.mpr
-      ⟨hv, by simpa only [hrange, Finset.mem_coe] using hnew⟩,
-      by rw [Fin.range_snoc, hrange]; simp, (hreal.snoc q).update_of_not_owns hown epoch⟩
+    refine ⟨Fin.snoc v q, Fin.snoc_injective_iff.mpr
+      ⟨hv, by simpa only [hrange, Finset.mem_coe] using hnew⟩, ?_,
+      (hreal.snoc q).update_of_not_owns hown epoch⟩
+    simp [Fin.range_snoc, hrange]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

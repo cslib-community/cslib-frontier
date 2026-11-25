@@ -130,7 +130,8 @@ theorem truncateTotalDegree_mul_of_gap (D : ℕ) (p q : MvPolynomial V R)
   ext m
   rw [coeff_truncateTotalDegree, coeff_mul, coeff_mul]
   have hdeg {a b : V →₀ ℕ} (hab : (a, b) ∈ Finset.antidiagonal m) :
-      m.degree = a.degree + b.degree := by rw [← Finset.mem_antidiagonal.mp hab, map_add]
+      m.degree = a.degree + b.degree := by
+    rw [← Finset.mem_antidiagonal.mp hab, map_add]
   by_cases hm : m.degree ≤ D
   · rw [ite_eq_left hm]
     exact Finset.sum_congr rfl fun ⟨a, b⟩ hab => by

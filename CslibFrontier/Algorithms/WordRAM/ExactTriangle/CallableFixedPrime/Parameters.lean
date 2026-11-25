@@ -36,7 +36,8 @@ private theorem admission_mono {n D g p A B : ℕ}
     (hn : n ≤ B) (hD : D ≤ B) (hg : g ≤ B) (hp : p ≤ B) (hA : A ≤ B) :
     FixedPrime.admissionWidth n D g p A ≤ FixedPrime.admissionWidth B B B B B := by
   have henv : PreparationInput.envelope n D g p A ≤ PreparationInput.envelope B B B B B := by
-    dsimp only [PreparationInput.envelope, Instances.budget, Catalogue.budget]; gcongr
+    dsimp only [PreparationInput.envelope, Instances.budget, Catalogue.budget]
+    gcongr
   have hP : PreparationInput.wordBound n D g p A ≤ PreparationInput.wordBound B B B B B :=
     Nat.mul_le_mul_left 16 henv
   have hn2 := Nat.pow_le_pow_left hn 2
@@ -45,9 +46,11 @@ private theorem admission_mono {n D g p A B : ℕ}
       (Nat.mul_le_mul_left 256 (Nat.clog_mono_right 2 (by omega)))
   have hM := CallableProduct.windowSize_mono hn hn2
   have henv' : RecordWitness.envelope n D g p A ≤ RecordWitness.envelope B B B B B := by
-    unfold RecordWitness.envelope; gcongr
+    unfold RecordWitness.envelope
+    gcongr
   have hC : FixedPrime.counterEnvelope n p ≤ FixedPrime.counterEnvelope B B := by
-    unfold FixedPrime.counterEnvelope; gcongr
+    unfold FixedPrime.counterEnvelope
+    gcongr
   exact max_le_max (Nat.add_le_add_right (max_le_max hr (Nat.clog_mono_right 2 henv')) 3)
     (Nat.add_le_add_right (Nat.clog_mono_right 2 hC) 1)
 
@@ -64,7 +67,8 @@ theorem source_admission (n D g p total : ℕ) :
 /-- The computed source is wide enough for the two-bit signed-kernel extension. -/
 theorem sourceWidth_two_lt (n D g p total : ℕ) : 2 < sourceWidth n D g p total := by
   have := Nat.clog_pos (b := 2) (n := n + D + g + p + total + 4) (by decide) (by omega)
-  unfold sourceWidth; omega
+  unfold sourceWidth
+  omega
 
 /-- The computed modulus covers the original scalar sum, exponent and native coefficient.
 These are original-parameter facts, independent of the physical width or any execution. -/
@@ -74,9 +78,13 @@ theorem source_bounds (n D g p total : ℕ) :
       6166 ≤ windowSize n D g p total := by
   have hc := Nat.clog_pos (b := 2) (n := n + D + g + p + total + 4) (by decide) (by omega)
   have hlog : Nat.clog 2 (n + D + g + p + total + 4) ≤ sourceWidth n D g p total := by
-    unfold sourceWidth; omega
+    unfold sourceWidth
+    omega
+  have h6166 : 6166 ≤ sourceWidth n D g p total := by
+    unfold sourceWidth
+    omega
   have hwidth : sourceWidth n D g p total < windowSize n D g p total := Nat.lt_two_pow_self
   exact ⟨(Nat.le_pow_clog (by decide) _).trans (Nat.pow_le_pow_right (by decide) hlog),
-    hwidth, (by unfold sourceWidth; omega : 6166 ≤ sourceWidth n D g p total).trans hwidth.le⟩
+    hwidth, h6166.trans hwidth.le⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime

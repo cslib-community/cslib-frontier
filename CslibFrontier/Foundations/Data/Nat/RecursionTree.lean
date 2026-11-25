@@ -91,9 +91,9 @@ theorem sum_div_two_pow_le (x D : ℕ) : ∑ j ∈ range D, x / 2 ^ j ≤ 2 * x 
   induction D generalizing x with
   | zero => simp
   | succ D ih =>
-    rw [sum_range_succ', show ∑ j ∈ range D, x / 2 ^ (j + 1) = ∑ j ∈ range D, x / 2 / 2 ^ j from
-      sum_congr rfl fun j _ => by rw [pow_succ, Nat.mul_comm, Nat.div_div_eq_div_mul],
-      pow_zero, Nat.div_one]
+    have h : ∑ j ∈ range D, x / 2 ^ (j + 1) = ∑ j ∈ range D, x / 2 / 2 ^ j :=
+      sum_congr rfl fun j _ => by rw [pow_succ, Nat.mul_comm, Nat.div_div_eq_div_mul]
+    rw [sum_range_succ', h, pow_zero, Nat.div_one]
     have := ih (x / 2)
     have := Nat.div_mul_le_self x 2
     omega
@@ -102,11 +102,14 @@ theorem sum_div_two_pow_le (x D : ℕ) : ∑ j ∈ range D, x / 2 ^ j ≤ 2 * x 
 private theorem cube_le_eight_mul_two_pow (L : ℕ) : L ^ 3 ≤ 8 * 2 ^ L := by
   rcases Nat.lt_or_ge L 9 with hL | hL
   · interval_cases L <;> norm_num
-  · obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' hL; clear hL
+  · obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' hL
+    clear hL
     induction m with
     | zero => norm_num
     | succ m ih =>
-      calc (m + 1 + 9) ^ 3 ≤ 2 * (m + 9) ^ 3 := by ring_nf; nlinarith
+      calc (m + 1 + 9) ^ 3 ≤ 2 * (m + 9) ^ 3 := by
+            ring_nf
+            nlinarith
         _ ≤ 2 * (8 * 2 ^ (m + 9)) := Nat.mul_le_mul_left 2 ih
         _ = 8 * 2 ^ (m + 1 + 9) := by ring
 
@@ -138,12 +141,16 @@ theorem mul_prod_le_two_pow_div_sqrt_log_two (c E : ℕ) {n D : ℕ} {b e : ℕ 
   set S := n / sqrt L
   have hL : L ≤ S := log_two_le_div_sqrt_log_two n
   have hL2 : L ^ 2 ≤ 16 * S := log_two_sq_le_div_sqrt_log_two hn
-  have hprod : ∏ j ∈ range D, max 1 (b j) ≤ 2 ^ (D * (c * L) + ∑ j ∈ range D, e j) :=
-    (prod_le_prod fun j hj => max_le Nat.one_le_two_pow (hb j (mem_range.mp hj))).trans_eq <| by
-      rw [Finset.prod_pow_eq_pow_sum, sum_add_distrib, sum_const, card_range, smul_eq_mul]
+  have hprod : ∏ j ∈ range D, max 1 (b j) ≤ 2 ^ (D * (c * L) + ∑ j ∈ range D, e j) := by
+    calc ∏ j ∈ range D, max 1 (b j)
+        ≤ ∏ j ∈ range D, 2 ^ (c * L + e j) :=
+          prod_le_prod fun j hj => max_le Nat.one_le_two_pow (hb j (mem_range.mp hj))
+      _ = 2 ^ (D * (c * L) + ∑ j ∈ range D, e j) := by
+          rw [Finset.prod_pow_eq_pow_sum, sum_add_distrib, sum_const, card_range, smul_eq_mul]
   have h1 : D * (c * L) ≤ c * (16 * S) :=
-    (Nat.mul_le_mul_right _ hD).trans <| (show L * (c * L) = c * L ^ 2 by ring) ▸
-      Nat.mul_le_mul_left _ hL2
+    calc D * (c * L) ≤ L * (c * L) := Nat.mul_le_mul_right _ hD
+      _ = c * L ^ 2 := by ring
+      _ ≤ c * (16 * S) := Nat.mul_le_mul_left _ hL2
   calc (D + 1) * ∏ j ∈ range D, max 1 (b j)
       ≤ 2 ^ L * 2 ^ (D * (c * L) + ∑ j ∈ range D, e j) :=
         Nat.mul_le_mul ((Nat.add_le_add_right hD 1).trans Nat.lt_two_pow_self) hprod

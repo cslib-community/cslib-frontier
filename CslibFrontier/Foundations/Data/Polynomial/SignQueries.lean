@@ -91,14 +91,19 @@ private theorem product_indicator {J : Type*} [Fintype J] [DecidableEq J] (σ t 
     (∑ e : J → Fin 3, patternWeight σ e * ∏ i, (t i : ℤ) ^ (e i).val) =
       if t = σ then 2 ^ Fintype.card J else 0 := by
   classical
-  simp_rw [patternWeight, ← Finset.prod_mul_distrib,
-    ← Fintype.prod_sum (fun (i : J) (e : Fin 3) => weight (σ i) e * (t i : ℤ) ^ e.val),
-    weight_indicator]
-  by_cases h : t = σ
-  · subst h; simp
-  · obtain ⟨i, hi⟩ : ∃ i, t i ≠ σ i := by simpa only [funext_iff, not_forall] using h
-    rw [ite_eq_right h]
-    exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp only [hi, ↓reduceIte])
+  calc
+    _ = ∑ e : J → Fin 3, ∏ i, weight (σ i) (e i) * (t i : ℤ) ^ (e i).val := by
+      simp_rw [patternWeight, ← Finset.prod_mul_distrib]
+    _ = ∏ i, ∑ e : Fin 3, weight (σ i) e * (t i : ℤ) ^ e.val :=
+      (Fintype.prod_sum (fun (i : J) (e : Fin 3) => weight (σ i) e * (t i : ℤ) ^ e.val)).symm
+    _ = ∏ i, if t i = σ i then (2 : ℤ) else 0 := by simp only [weight_indicator]
+    _ = _ := by
+      by_cases h : t = σ
+      · subst h
+        simp
+      · obtain ⟨i, hi⟩ : ∃ i, t i ≠ σ i := by simpa only [funext_iff, not_forall] using h
+        rw [ite_eq_right h]
+        exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp only [hi, ↓reduceIte])
 
 /-- The sum of the signs of `q` on a finite set of real points. -/
 noncomputable def signSum (Z : Finset ℝ) (q : ℝ[X]) : ℤ :=
@@ -134,7 +139,8 @@ theorem weighted_queries_eq_count {J : Type*} [Fintype J] [DecidableEq J]
   rw [Finset.sum_comm]
   simp_rw [product_indicator, funext_iff (f := fun i => SignType.sign ((Q i).eval _))]
   rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul, mul_comm, signCount]
-  congr 3; ext
+  congr 3
+  ext
   simp only [Finset.mem_filter]
 
 /-- The Tarski query of `q` at the distinct real roots of `p`.

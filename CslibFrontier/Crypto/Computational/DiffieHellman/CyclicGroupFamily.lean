@@ -201,12 +201,17 @@ private theorem encDDHInput_ddhInputEquiv (x : F.DDHInput) :
 the two input encodings agree. -/
 theorem isPPT_toCyclicGroupFamily_iff (distinguisher : F.DDHDistinguisher) :
     CyclicGroupFamily.DDHDistinguisher.IsPPT (F := F.toCyclicGroupFamily) distinguisher ↔
-      distinguisher.IsPPT :=
-  ⟨fun ⟨k, State, hfin, machine, c, e, h⟩ => ⟨k, State, hfin, machine, c, e, fun a => by
-    rw [← F.encDDHInput_ddhInputEquiv a]; exact h (F.ddhInputEquiv a)⟩,
-    fun ⟨k, State, hfin, machine, c, e, h⟩ => ⟨k, State, hfin, machine, c, e, fun a => by
-      obtain ⟨a, rfl⟩ := F.ddhInputEquiv.surjective a
-      rw [F.encDDHInput_ddhInputEquiv a]; exact h a⟩⟩
+      distinguisher.IsPPT := by
+  constructor
+  · rintro ⟨k, State, hfin, machine, c, e, h⟩
+    refine ⟨k, State, hfin, machine, c, e, fun a => ?_⟩
+    rw [← F.encDDHInput_ddhInputEquiv a]
+    exact h (F.ddhInputEquiv a)
+  · rintro ⟨k, State, hfin, machine, c, e, h⟩
+    refine ⟨k, State, hfin, machine, c, e, fun a => ?_⟩
+    obtain ⟨a, rfl⟩ := F.ddhInputEquiv.surjective a
+    rw [F.encDDHInput_ddhInputEquiv a]
+    exact h a
 
 /-- On a prime-order family the DDH assumption over cyclic group families is the prime-order
 one. -/

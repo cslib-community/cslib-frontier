@@ -86,12 +86,12 @@ theorem count_vars_whiteConstraints (edges : ℕ) (scopes : List (List ℕ)) (v 
   induction scopes generalizing edges with
   | nil => simp [whiteConstraints, CSP.vars, auxiliaryPrefix]
   | cons scope scopes ih =>
-    rw [whiteConstraints_cons, show (parityChain edges scope ++
-        whiteConstraints (edges + (scope.length - 3)) scopes).vars =
+    have hvars : (parityChain edges scope ++
+          whiteConstraints (edges + (scope.length - 3)) scopes).vars =
         (parityChain edges scope).vars ++
-        (whiteConstraints (edges + (scope.length - 3)) scopes).vars by
-          simp only [CSP.vars, List.flatMap_append],
-      List.count_append, count_vars_parityChain, ih]
+          (whiteConstraints (edges + (scope.length - 3)) scopes).vars := by
+      simp only [CSP.vars, List.flatMap_append]
+    rw [whiteConstraints_cons, hvars, List.count_append, count_vars_parityChain, ih]
     simp only [List.flatten_cons, List.count_append, List.length_cons, auxiliaryPrefix_cons]
     split_ifs <;> omega
 

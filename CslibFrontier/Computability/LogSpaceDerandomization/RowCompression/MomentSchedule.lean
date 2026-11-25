@@ -43,7 +43,9 @@ lemma mean_schedule_term {η M ε : ℝ} (hη : 0 < η) (hM : 0 ≤ M) (d : ℕ)
       _ = η * ε ^ 4 * (67108864 : ℝ) ^ d * ((268435456 : ℝ) ^ d * (68719476736 : ℝ) ^ d) * 2 +
           M * ε ^ 4 * (68719476736 : ℝ) ^ d *
             ((1024 : ℝ) ^ d * (67108864 : ℝ) ^ d * (268435456 : ℝ) ^ d) * 256 := by ring
-      _ = _ := by norm_num [← mul_pow]; ring
+      _ = _ := by
+        norm_num [← mul_pow]
+        ring
   rw [hid, ← pow_mul (1 / 64 : ℝ), Nat.mul_comm d 4, pow_mul (1 / 64 : ℝ)]
   norm_num only [show (1 / 64 : ℝ) ^ 4 = 1 / 16777216 by norm_num]
   have h1 : (1 / 68719476736 : ℝ) ^ d ≤ (1 / 16777216 : ℝ) ^ d :=
@@ -62,7 +64,9 @@ lemma mean_tail_growth {ε : ℝ} (hε : 0 ≤ ε) (m j : ℕ) (hj : j < m)
     ∑ i ∈ Ico j m, (28 : ℝ) ^ (m - i) * e i ≤ ε * 128 ^ dyadicSlack m j := by
   let d := dyadicSlack m j
   have hrem : m - j ≤ d := by
-    rw [show m - j = m - (j + 1) + 1 by omega]; exact Nat.lt_two_pow_self
+    have hcount : m - j = m - (j + 1) + 1 := by omega
+    rw [hcount]
+    exact Nat.lt_two_pow_self
   have hd : (m - j : ℕ) ≤ 2 ^ d := hrem.trans Nat.lt_two_pow_self.le
   have ht (i : ℕ) (hi : i ∈ Ico j m) : (28 : ℝ) ^ (m - i) * e i ≤ ε * 64 ^ d := by
     obtain ⟨hji, him⟩ := mem_Ico.mp hi
@@ -74,11 +78,16 @@ lemma mean_tail_growth {ε : ℝ} (hε : 0 ≤ ε) (m j : ℕ) (hj : j < m)
     refine (mul_le_mul_of_nonneg_left (he i hji him) (by positivity)).trans ?_
     refine (mul_le_mul hr (mul_le_mul_of_nonneg_left h2 hε) (by positivity)
       (by positivity)).trans_eq ?_
-    rw [mul_left_comm, ← mul_pow]; norm_num
-  refine (sum_le_sum ht).trans ?_
-  rw [sum_const, Nat.card_Ico, nsmul_eq_mul, ← show (2 : ℝ) ^ d * (ε * 64 ^ d) = ε * 128 ^ d by
-    rw [mul_left_comm, ← mul_pow]; norm_num]
-  exact mul_le_mul_of_nonneg_right (by exact_mod_cast hd) (by positivity)
+    rw [mul_left_comm, ← mul_pow]
+    norm_num
+  calc
+    _ ≤ ∑ _i ∈ Ico j m, ε * 64 ^ d := sum_le_sum ht
+    _ = (m - j : ℕ) * (ε * 64 ^ d) := by simp only [sum_const, Nat.card_Ico, nsmul_eq_mul]
+    _ ≤ (2 : ℝ) ^ d * (ε * 64 ^ d) := mul_le_mul_of_nonneg_right (by exact_mod_cast hd)
+      (by positivity)
+    _ = ε * 128 ^ d := by
+      rw [mul_left_comm, ← mul_pow]
+      norm_num
 
 open Classical in
 /-- The concrete floor/capacity/mean schedule supplies a summable fourth-moment budget,
@@ -119,17 +128,21 @@ lemma false_schedule_sum {η ε R K : ℝ} (hη : 0 < η) (hK : 0 ≤ K) (m : �
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) m
   norm_num only [one_pow, one_mul,
     show (1 : ℝ) * (1 / 64) / (1 - 1 * (1 / 64)) = 1 / 63 by norm_num] at hs
-  have heq : ∑ i ∈ range m, (64 * K * R ^ 4 /
-        ((2 : ℝ) ^ (64 * dyadicSlack m i) * dyadicFloor η m i ^ 4)) *
-        (ε * 2 ^ dyadicSlack m i) ^ 4 =
-      (64 * K * R ^ 4 / η ^ 4 * ε ^ 4) * ∑ i ∈ range m, (1 / 1048576 : ℝ) ^ dyadicSlack m i := by
-    rw [mul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    dsimp only [dyadicFloor]
-    rw [div_mul_eq_mul_div, mul_div_assoc, false_schedule_identity]; ring
-  rw [heq]
-  exact (mul_le_mul_of_nonneg_left ((sum_le_sum fun i _ =>
-    pow_le_pow_left₀ (by norm_num) (by norm_num) _).trans hs) (by positivity)).trans_eq (by ring)
+  calc
+    _ = (64 * K * R ^ 4 / η ^ 4 * ε ^ 4) * ∑ i ∈ range m, (1 / 1048576 : ℝ) ^ dyadicSlack m i := by
+      rw [mul_sum]
+      refine sum_congr rfl fun i _ => ?_
+      dsimp only [dyadicFloor]
+      calc
+        _ = (64 * K * R ^ 4) * ((ε * 2 ^ dyadicSlack m i) ^ 4 /
+          ((2 : ℝ) ^ (64 * dyadicSlack m i) * (η * (1 / 1024) ^ dyadicSlack m i) ^ 4)) := by ring
+        _ = _ := by
+          rw [false_schedule_identity]
+          ring
+    _ ≤ (64 * K * R ^ 4 / η ^ 4 * ε ^ 4) * (1 / 63) :=
+      mul_le_mul_of_nonneg_left ((sum_le_sum fun i _ =>
+        pow_le_pow_left₀ (by norm_num) (by norm_num) _).trans hs) (by positivity)
+    _ = _ := by ring
 
 open Classical in
 /-- The weighted preloss budget has no horizon factor. -/
@@ -139,14 +152,15 @@ lemma pre_schedule_sum {η ε : ℝ} (hη : 0 ≤ η) (hε : 0 ≤ ε) (m : ℕ)
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) m
   norm_num only [one_pow, one_mul,
     show (1 : ℝ) * (1 / 512) / (1 - 1 * (1 / 512)) = 1 / 511 by norm_num] at hs
-  have heq : ∑ i ∈ range m, dyadicFloor η m i * (ε * 2 ^ dyadicSlack m i) =
-      η * ε * ∑ i ∈ range m, (1 / 512 : ℝ) ^ dyadicSlack m i := by
-    rw [mul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    dsimp only [dyadicFloor]
-    rw [show (1 / 512 : ℝ) = (1 / 1024) * 2 by norm_num, mul_pow]; ring
-  rw [heq]
-  exact (mul_le_mul_of_nonneg_left hs (mul_nonneg hη hε)).trans_eq (by ring)
+  calc
+    _ = η * ε * ∑ i ∈ range m, (1 / 512 : ℝ) ^ dyadicSlack m i := by
+      rw [mul_sum]
+      refine sum_congr rfl fun i _ => ?_
+      dsimp only [dyadicFloor]
+      rw [show (1 / 512 : ℝ) = (1 / 1024) * 2 by norm_num, mul_pow]
+      ring
+    _ ≤ η * ε * (1 / 511) := mul_le_mul_of_nonneg_left hs (mul_nonneg hη hε)
+    _ = _ := by ring
 end Cslib.RowCompression
 namespace Cslib.RowCompression
 open Finset

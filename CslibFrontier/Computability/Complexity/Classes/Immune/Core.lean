@@ -154,8 +154,9 @@ theorem exists_infinite_isComplexityCore_subset (hC : C.Countable)
     induction n with
     | zero => simpa [D] using hfin ∅ Set.finite_empty
     | succ n ih =>
-      rw [show D (n + 1) = D n ∪ g n by
-        simp only [D, Finset.range_add_one, Finset.set_biUnion_insert, Set.union_comm]]
+      have hsucc : D (n + 1) = D n ∪ g n := by
+        simp only [D, Finset.range_add_one, Finset.set_biUnion_insert, Set.union_comm]
+      rw [hsucc]
       exact hunion _ ih _ (hg n)
   have hDA (n : ℕ) : D n ⊆ A := Set.iUnion₂_subset fun i _ => hgA i
   have hsub {i n : ℕ} (hi : i < n) (hiA : e i ⊆ A) : e i ⊆ D n :=

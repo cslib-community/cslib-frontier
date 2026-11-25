@@ -49,18 +49,16 @@ theorem Fin.exists_ne_apply_eq_iff_adjacent {α : Type*} [PartialOrder α] {coun
         (∃ fits : i.val + 1 < count, f ⟨i.val + 1, fits⟩ = f i)) := by
   refine ⟨fun ⟨j, different, same⟩ => ?_, ?_⟩
   · rcases lt_or_gt_of_ne different with before | after
-    · exact Or.inl ⟨by lia, (ordered.eq_of_ge_of_le same
-        (by change j.val ≤ i.val - 1; lia)
-        (by change i.val - 1 ≤ i.val; lia)).trans same⟩
-    · exact Or.inr ⟨(Nat.succ_le_of_lt after).trans_lt j.isLt, ordered.eq_of_ge_of_le same.symm
-        (by change i.val ≤ i.val + 1; lia) (Nat.succ_le_of_lt after)⟩
+    · refine Or.inl ⟨by lia, ?_⟩
+      exact (ordered.eq_of_ge_of_le same (Fin.le_def.mpr (Nat.le_sub_one_of_lt before))
+        (Fin.le_def.mpr (Nat.sub_le _ _))).trans same
+    · refine Or.inr ⟨(Nat.succ_le_of_lt after).trans_lt j.isLt, ?_⟩
+      exact ordered.eq_of_ge_of_le same.symm (Fin.le_def.mpr (Nat.le_succ _))
+        (Nat.succ_le_of_lt after)
   · rintro (⟨positive, same⟩ | ⟨fits, same⟩)
-    · refine ⟨⟨i.val - 1, by lia⟩, fun h => ?_, same⟩
-      have := congrArg Fin.val h; dsimp at this
-      lia
-    · refine ⟨⟨i.val + 1, fits⟩, fun h => ?_, same⟩
-      have := congrArg Fin.val h; dsimp at this
-      lia
+    · exact ⟨⟨i.val - 1, (Nat.sub_le _ _).trans_lt i.isLt⟩,
+        Fin.ne_of_val_ne (Nat.sub_lt positive Nat.one_pos).ne, same⟩
+    · exact ⟨⟨i.val + 1, fits⟩, Fin.ne_of_val_ne (Nat.lt_succ_self i.val).ne', same⟩
 
 /-- In a finite array with monotone keys, two different records with equal keys force an adjacent
 pair of different records with that key. -/
@@ -89,9 +87,10 @@ theorem Fin.exists_adjacent_ne_of_monotone_comp {α β : Type*} [PartialOrder β
     by simpa only [hqp, hsame] using hqkey.symm, congrArg key hsame⟩
 
 /-- The sum of all values in `Fin n` is at most `n * n`. -/
-theorem Fin.sum_val_le_mul_self (n : ℕ) : (∑ j : Fin n, j.val) ≤ n * n :=
-  (Finset.sum_le_sum fun j _ => j.isLt.le).trans_eq <| by
-    rw [Finset.sum_const_nat fun _ _ => rfl, Finset.card_univ, Fintype.card_fin]
+theorem Fin.sum_val_le_mul_self (n : ℕ) : (∑ j : Fin n, j.val) ≤ n * n := by
+  calc
+    _ ≤ ∑ _j : Fin n, n := Finset.sum_le_sum fun j _ => j.isLt.le
+    _ = n * n := by simp
 
 /-- A threshold at least the first value and strictly below the last is crossed by an
 actual adjacent pair. The finite sequence need not be monotone. -/

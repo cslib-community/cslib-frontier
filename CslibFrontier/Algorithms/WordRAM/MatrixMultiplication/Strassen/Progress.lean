@@ -96,10 +96,12 @@ theorem exec_accumulate_progress {w p k A B a b out scratch frames frame : ℕ}
     (fun j hj => Cslib.Algorithms.MatrixMultiplication.Strassen.childProduct_natAbs_le
       u v phase hu hv hj) hout hprod hfit haddr
   refine ⟨y, hy, yh, yc, fun s j hj => ?_, fun j hj => ?_, memory⟩
-  · rw [values s j hj]; congr 1
+  · rw [values s j hj]
+    congr 1
     by_cases he : s = t
     · subst s
-      simp only [ite_true, progressValue, hnot, Bool.false_eq_true, ite_false, Function.update_self,
+      simp only [ite_true, progressValue, hnot, Bool.false_eq_true, ite_false,
+        Function.update_self,
         Cslib.Algorithms.MatrixMultiplication.Strassen.partialValue_succ, hsign]
       cases subtract <;> simp [sub_eq_add_neg]
     · simp only [he, ite_false, progressValue, Function.update_of_ne he]

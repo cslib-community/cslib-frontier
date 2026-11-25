@@ -45,8 +45,8 @@ private theorem affine_max_product_le (c₁ c₂ : ℕ) : ∃ K, ∀ N x : ℕ, 
   let a := c₁ + c₂ + 2
   refine ⟨2 * a * (a.size + 2), fun N x hN => ?_⟩
   let y := max (N + 1) (c₁ * x + c₂)
-  have hy : y ≤ a * (x + 1) :=
-    max_le (by dsimp only [a]; nlinarith) (by dsimp only [a]; nlinarith)
+  have hy : y ≤ a * (x + 1) := by
+    apply max_le <;> dsimp only [a] <;> nlinarith
   have hsize := (Nat.size_le_size hy).trans (Nat.size_mul_le a (x + 1))
   have hsucc : (x + 1).size ≤ x.size + 1 := Nat.size_le.mpr <| by
     rw [pow_succ]
@@ -63,6 +63,16 @@ private theorem affine_max_product_le (c₁ c₂ : ℕ) : ∃ K, ∀ N x : ℕ, 
   dsimp only [y] at hmul ⊢
   nlinarith
 
+private theorem le_affine_sqrt_of_sq_le {x y C : ℕ} (h : x ^ 2 ≤ C * (y + 1)) :
+    x ≤ (C + 1) * Nat.sqrt y + (C + 1) := by
+  have hsq : x ^ 2 ≤ ((C + 1) * (Nat.sqrt y + 1)) ^ 2 :=
+    calc _ ≤ C * (y + 1) := h
+      _ ≤ (C + 1) ^ 2 * (Nat.sqrt y + 1) ^ 2 :=
+        Nat.mul_le_mul (by nlinarith)
+          (by nlinarith [Nat.sqrt_le_add y])
+      _ = _ := by ring
+  linarith [(Nat.pow_le_pow_iff_left (by decide : (2 : ℕ) ≠ 0)).mp hsq]
+
 /-- The complete driver absorbs an arbitrary affine source clock into the conventional
 square-root-time-log-time resource, including its input-length scan. -/
 theorem williams_driver_space_le (k s : ℕ) (Q : Type) (c₁ c₂ : ℕ) :
@@ -74,13 +84,7 @@ theorem williams_driver_space_le (k s : ℕ) (Q : Type) (c₁ c₂ : ℕ) :
   refine ⟨c * K + 1, fun N x hN => ?_⟩
   have h := (hc N (c₁ * x + c₂)).trans (Nat.mul_le_mul_left c (hK N x hN))
   rw [← Nat.mul_assoc] at h
-  have hsq : (Driver.space k (InitializedEvaluator.scheduleAllowance k s Q)
-      BalancedParameters.parameters N (c₁ * x + c₂)) ^ 2 ≤
-      ((c * K + 1) * (Nat.sqrt (x * (Nat.log2 x + 1)) + 1)) ^ 2 :=
-    (h.trans (Nat.mul_le_mul (by nlinarith : c * K ≤ (c * K + 1) ^ 2)
-      (by nlinarith [Nat.sqrt_le_add (x * (Nat.log2 x + 1))] :
-        x * (Nat.log2 x + 1) + 1 ≤ (Nat.sqrt (x * (Nat.log2 x + 1)) + 1) ^ 2))).trans_eq (by ring)
-  linarith [(Nat.pow_le_pow_iff_left (by decide : (2 : ℕ) ≠ 0)).mp hsq]
+  exact le_affine_sqrt_of_sq_le h
 
 /-- Williams's deterministic time-to-space inclusion, for every injective input encoding.
 This is Theorem 1.1 of [Williams2025], version 1, in the library's affine-bound multitape
@@ -115,7 +119,8 @@ theorem DTIME_subset_DSPACE_sqrt {α : Type*} (enc : α ↪ List Bool) (t : ℕ 
   simp only [Turing.MultiTapeNTM.initCfg] at hsource
   have hout : decide ((M.runFrom (Turing.Cfg.init M.q₀ (enc a))
       (c₁ * t (enc a).length + c₂)).output = [true]) = indicator A a := by
-    rw [hsource.2]; cases indicator A a <;> rfl
+    rw [hsource.2]
+    cases indicator A a <;> rfl
   have hcompute : simulator.Computes (enc a)
       [decide ((M.runFrom (Turing.Cfg.init M.q₀ (enc a))
         (c₁ * t (enc a).length + c₂)).output = [true])] := h.1

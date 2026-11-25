@@ -117,15 +117,18 @@ theorem configurationJustesenSubdivisionEdge_choice_bounds
   change B.HaltsFrom w (some start) 3 ∧ _
   have hclock : B.HaltsFrom w (some start) 3 := fun bits hlen => by
     rcases M.withRejectingChoice_replay_eq_none_or_runFrom w start bits with hr | hr
-    · rw [hr]; rfl
-    · rw [hr, hlen]; exact hhalt
+    · rw [hr]
+      rfl
+    · rw [hr, hlen]
+      exact hhalt
   refine ⟨hclock, fun bits => ?_⟩
   have htake : B.replay w (bits.take 3) (some start) = B.replay w bits (some start) :=
     (B.withInit (some start)).run_take_of_haltsWithin w hclock bits
   change (encOption encJustesenSubdivisionState (B.replay w bits (some start))).length ≤ _
   rw [← htake]
   rcases M.withRejectingChoice_replay_eq_none_or_runFrom w start (bits.take 3) with hr | hr
-  · rw [hr, encOption_none]; exact Nat.zero_le _
+  · rw [hr, encOption_none]
+    exact Nat.zero_le _
   · rw [hr, encOption_some, List.length_cons, Nat.add_mul, Nat.one_mul]
     have hbound := hstate _ (List.length_take .. ▸ Nat.min_le_left 3 bits.length)
     exact (Nat.add_le_add_right hbound 1).trans (by omega)

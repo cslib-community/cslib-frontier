@@ -158,11 +158,13 @@ theorem matrices_filled (A : Args) (mem : ℕ → ℕ)
         encode (weightBC A.N A.s A.values A.filler b c) ∧
     A.filled mem (A.t * A.t) (A.ac + a.val * A.t + c.val) =
         encode (weightAC A.N A.s A.values A.filler a c) := by
-  have hcell (i j : Fin A.t) : i.val * A.t + j.val < A.t * A.t :=
-    (Nat.add_lt_add_left j.isLt _).trans_le
-      (by rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right A.t i.isLt)
+  have hcell (i j : Fin A.t) : i.val * A.t + j.val < A.t * A.t := by
+    refine (Nat.add_lt_add_left j.isLt _).trans_le ?_
+    rw [← Nat.succ_mul]
+    exact Nat.mul_le_mul_right A.t i.isLt
   refine ⟨?_, ?_, ?_⟩
-  · rw [Nat.add_assoc, A.filled_ab mem _ (hcell a b), weightAB_eq_pick]; rfl
+  · rw [Nat.add_assoc, A.filled_ab mem _ (hcell a b), weightAB_eq_pick]
+    rfl
   · rw [Nat.add_assoc, A.filled_bc mem _ hbc (hcell b c), weightBC_eq_pick]
     simp only [valueBC, Nat.mul_add_div_of_lt _ c.isLt, Nat.mul_add_mod_of_lt c.isLt]
   · rw [Nat.add_assoc, A.filled_ac mem _ hbc hac (hcell a c), weightAC_eq_pick]

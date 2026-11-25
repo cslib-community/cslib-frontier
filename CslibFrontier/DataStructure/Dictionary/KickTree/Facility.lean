@@ -198,9 +198,11 @@ theorem merge_tier_length (j : Fin cfg.kEff) (cubbies : List (List α))
     (hall : ∀ l ∈ cubbies, l.length = cfg.r ⟨j.val, Nat.lt_succ_of_lt j.isLt⟩) :
     cubbies.flatten.length = cfg.r ⟨j.val + 1, Nat.succ_lt_succ j.isLt⟩ := by
   have hmap : cubbies.map List.length =
-      List.replicate cubbies.length (cfg.r ⟨j.val, Nat.lt_succ_of_lt j.isLt⟩) :=
-    List.eq_replicate_iff.mpr ⟨by simp, fun a ha =>
-      let ⟨x, hx, heq⟩ := List.mem_map.mp ha; heq ▸ hall x hx⟩
+      List.replicate cubbies.length (cfg.r ⟨j.val, Nat.lt_succ_of_lt j.isLt⟩) := by
+    refine List.eq_replicate_iff.mpr ⟨by simp, ?_⟩
+    rintro _ ha
+    obtain ⟨x, hx, rfl⟩ := List.mem_map.mp ha
+    exact hall x hx
   rw [List.length_flatten, hmap, List.sum_replicate_nat, hcount]
   exact cfg.t_mul_r j
 

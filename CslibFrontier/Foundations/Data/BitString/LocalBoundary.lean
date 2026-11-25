@@ -62,16 +62,17 @@ private theorem outgoing_cons {n : ℕ} (A : Finset (Fin (n + 1) → Bool))
     (a : Bool) (x : Fin n → Bool) :
     outgoing A (Fin.cons a x) = outgoing (cubeSlice A a) x +
       if Fin.cons (!a) x ∉ A then 1 else 0 := by
-  change #{i : Fin (n + 1) |
-    update (Fin.cons a x) i (!((Fin.cons a x : Fin (n + 1) → Bool) i)) ∉ A} = _
-  rw [Fin.card_filter_univ_succ]
-  simp only [Fin.cons_zero, Fin.update_cons_zero, Fin.cons_succ]
-  rw [show #{j : Fin n | update (Fin.cons a x : Fin (n + 1) → Bool) j.succ (!x j) ∉ A} =
-      outgoing (cubeSlice A a) x by
+  have htail :
+      #{j : Fin n | update (Fin.cons a x : Fin (n + 1) → Bool) j.succ (!x j) ∉ A} =
+        outgoing (cubeSlice A a) x := by
     unfold outgoing
     congr 1 with j : 1
     simp only [mem_filter, mem_univ, true_and, ← Fin.cons_update (α := fun _ => Bool),
-      mem_cubeSlice]]
+      mem_cubeSlice]
+  change #{i : Fin (n + 1) |
+    update (Fin.cons a x) i (!((Fin.cons a x : Fin (n + 1) → Bool) i)) ∉ A} = _
+  rw [Fin.card_filter_univ_succ]
+  simp only [Fin.cons_zero, Fin.update_cons_zero, Fin.cons_succ, htail]
   split_ifs <;> omega
 
 /-- **Cube minimum-degree/cardinality bound**, in local-boundary form. The budget counts
@@ -108,10 +109,15 @@ theorem two_pow_le_two_pow_mul_card_of_boundary_bound {n : ℕ}
       have hb : 1 ≤ b := by have := hsmall x₀ hx₀; omega
       have hrec := ih (cubeSlice A a) (b - 1) hnonempty fun x hx => by
         have := hsmall x hx
-        change outgoing (cubeSlice A a) x ≤ b - 1; omega
-      rw [pow_succ', hcard, show 2 ^ b = 2 * 2 ^ (b - 1) by
-        rw [← pow_succ', Nat.sub_add_cancel hb], mul_assoc]
-      exact Nat.mul_le_mul_left 2 hrec
+        change outgoing (cubeSlice A a) x ≤ b - 1
+        omega
+      have hpow : 2 * 2 ^ (b - 1) = 2 ^ b := by
+        rw [← pow_succ', Nat.sub_add_cancel hb]
+      calc
+        2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
+        _ ≤ 2 * (2 ^ (b - 1) * (cubeSlice A a).card) := Nat.mul_le_mul_left 2 hrec
+        _ = (2 * 2 ^ (b - 1)) * (cubeSlice A a).card := by ring
+        _ = 2 ^ b * A.card := by rw [hpow, ← hcard]
     by_cases hfalse : cubeSlice A false = ∅
     · exact hsingle true (by simpa only [Bool.not_true] using hfalse)
     by_cases htrue : cubeSlice A true = ∅

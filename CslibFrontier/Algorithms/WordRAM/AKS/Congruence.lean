@@ -173,13 +173,14 @@ theorem exec {w : ℕ} (x : Data 25) {a b t r n A : ℕ} (ha : x.regs R = a) (hb
       [hy₄r, hfa, hft, h1] with y₅ ⟨⟨hle, hiff, -⟩, hout₅⟩
     wram_simp at hle hiff ⊢
     refine ⟨by unfold time; omega, hle, ?_, ?_⟩
-    · rw [hiff, congruence_iff_toQuot hr0, ← toQuot_eq_toQuot_iff hn0 hr0
-          (fun k hk => (hR₄ k hk).trans_lt (hred₃ k hk))
-          (fun k hk => (hT₄ k hk).trans_lt (powAddCoeff_lt hn0 _ _ _)),
-        toQuot_congr hR₄, hq₃, toQuot_congr hT₄, toQuot_congr hR₂, toQuot_congr hB₂,
-        toQuot_one hr0, one_mul]
+    · rw [hiff, congruence_iff_toQuot hr0]
+      have hRred (k : ℕ) (hk : k < r) : y₄.mem (a + k) < n := (hR₄ k hk).trans_lt (hred₃ k hk)
+      have hTred (k : ℕ) (hk : k < r) : y₄.mem (t + k) < n :=
+        (hT₄ k hk).trans_lt (powAddCoeff_lt hn0 _ _ _)
+      rw [← toQuot_eq_toQuot_iff hn0 hr0 hRred hTred, toQuot_congr hR₄, hq₃, toQuot_congr hT₄,
+        toQuot_congr hR₂, toQuot_congr hB₂, toQuot_one hr0, one_mul]
     · rintro j (rfl | rfl | rfl | rfl | rfl | rfl) <;> regs_frame
-  · exact fun i hi => (hR₂ i hi).trans_lt (powAddCoeff_lt hn0 _ _ _)
-  · exact fun i hi => (hB₂ i hi).trans_lt (powAddCoeff_lt hn0 _ _ _)
+  · intro i hi; exact (hR₂ i hi).trans_lt (powAddCoeff_lt hn0 _ _ _)
+  · intro i hi; exact (hB₂ i hi).trans_lt (powAddCoeff_lt hn0 _ _ _)
 
 end Cslib.Algorithms.WordRAM.AKS.Congruence

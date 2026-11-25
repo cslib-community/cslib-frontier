@@ -175,7 +175,8 @@ theorem derives_iff_of_ne_nil {A : G.NT} {w : List T} (hw : w ≠ []) :
   rw [ContextFreeGrammar.derives_nonterminal_iff]
   constructor
   · rintro (h | ⟨r, hr, rfl, hd⟩)
-    · obtain ⟨a, -, ha⟩ := List.map_eq_singleton_iff.mp h; cases ha
+    · obtain ⟨a, -, ha⟩ := List.map_eq_singleton_iff.mp h
+      cases ha
     rcases (G.mem_toCFG_rules).mp hr with ⟨r', hr', rfl⟩ | ⟨-, rfl⟩
     · cases r' with
       | leaf A a =>
@@ -191,8 +192,10 @@ theorem derives_iff_of_ne_nil {A : G.NT} {w : List T} (hw : w ≠ []) :
           obtain ⟨hn, rfl⟩ := derives_nil_iff.mp h
           exact G.initial_notMem_output hn _ hr' hD
         refine Or.inr ⟨B, C, u, v, hr', ?_, ?_, rfl, hx, hy⟩
-        · rintro rfl; exact hnil B (by simp [ChomskyNormalFormRule.output]) hx
-        · rintro rfl; exact hnil C (by simp [ChomskyNormalFormRule.output]) hy
+        · rintro rfl
+          exact hnil B (by simp [ChomskyNormalFormRule.output]) hx
+        · rintro rfl
+          exact hnil C (by simp [ChomskyNormalFormRule.output]) hy
     · have := (ContextFreeGrammar.derives_map_terminal_iff (g := G.toCFG) (w := [])).mp hd
       exact absurd (List.map_eq_nil_iff.mp this) hw
   · rintro (⟨a, rfl, ha⟩ | ⟨B, C, u, v, hr, -, -, rfl, hu, hv⟩)
