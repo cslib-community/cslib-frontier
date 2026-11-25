@@ -90,19 +90,14 @@ theorem IndepQuery.card_queriedSets_le_countQueries [DecidableEq α] {γ : Type}
     (oracle : {ι : Type} → IndepQuery α ι → ι) (p : FreeM (IndepQuery α) γ) :
     (IndepQuery.queriedSets oracle p).card ≤ p.countQueries oracle := by
   induction p with
-  | pure a => simp
-  | @lift_bind ρ op cont ih =>
+  | pure => simp
+  | lift_bind op cont ih =>
     cases op with
     | indep S =>
-      change (insert S (IndepQuery.queriedSets oracle (cont (oracle (.indep S))))).card ≤
+      change (IndepQuery.queriedSets oracle (FreeM.lift (.indep S) >>= cont)).card ≤
         (FreeM.lift (.indep S) >>= cont).countQueries oracle
-      rw [FreeM.countQueries_liftBind]
-      calc (insert S (IndepQuery.queriedSets oracle (cont (oracle (.indep S))))).card
-          ≤ (IndepQuery.queriedSets oracle (cont (oracle (.indep S)))).card + 1 :=
-            Finset.card_insert_le _ _
-        _ ≤ (cont (oracle (.indep S))).countQueries oracle + 1 :=
-            Nat.add_le_add_right (ih (oracle (.indep S))) 1
-        _ = 1 + (cont (oracle (.indep S))).countQueries oracle := Nat.add_comm _ 1
+      rw [IndepQuery.queriedSets_liftBind, FreeM.countQueries_liftBind, Nat.add_comm]
+      exact (Finset.card_insert_le _ _).trans (Nat.add_le_add_right (ih _) 1)
 
 /-- If `oracle₁` and `oracle₂` agree on every set queried along `oracle₁`'s path, then `p`
 evaluates to the exact same result under both oracles. -/
@@ -111,17 +106,14 @@ theorem IndepQuery.eval_eq_of_agree_on_queriedSets [DecidableEq α] {γ : Type}
     (hagree : ∀ S ∈ IndepQuery.queriedSets oracle₁ p, oracle₁ (.indep S) = oracle₂ (.indep S)) :
     p.eval oracle₁ = p.eval oracle₂ := by
   induction p with
-  | pure a => rfl
-  | @lift_bind ρ op cont ih =>
+  | pure => rfl
+  | lift_bind op cont ih =>
     cases op with
     | indep S =>
       change (FreeM.lift (.indep S) >>= cont).eval oracle₁ =
         (FreeM.lift (.indep S) >>= cont).eval oracle₂
-      have hS : oracle₁ (.indep S) = oracle₂ (.indep S) :=
-        hagree S (Finset.mem_insert_self S _)
-      rw [FreeM.eval_liftBind, FreeM.eval_liftBind, ← hS]
-      refine ih (oracle₁ (.indep S)) fun T hT => ?_
-      exact hagree T (Finset.mem_insert_of_mem hT)
+      rw [FreeM.eval_liftBind, FreeM.eval_liftBind, ← hagree S (Finset.mem_insert_self S _)]
+      exact ih _ fun T hT => hagree T (Finset.mem_insert_of_mem hT)
 
 /-! ## Adversarial loopy and singleton-base oracles -/
 
@@ -137,18 +129,16 @@ ground set `E : Set α`. -/
   IndepQuery.oracleOf fun S => decide (S ⊆ {e})
 
 theorem IndepQuery.implementsMatroid_loopyOracle [DecidableEq α] (E : Set α) :
-    IndepQuery.ImplementsMatroid (IndepQuery.loopyOracle (α := α)) (Matroid.loopyOn E) := by
-  intro S
-  simp [IndepQuery.loopyOracle]
+    IndepQuery.ImplementsMatroid (IndepQuery.loopyOracle (α := α)) (Matroid.loopyOn E) :=
+  fun S => by simp [IndepQuery.loopyOracle]
 
 theorem IndepQuery.implementsMatroid_singletonOracle [DecidableEq α] {e : α} {E : Set α}
     (he : e ∈ E) :
     IndepQuery.ImplementsMatroid (IndepQuery.singletonOracle e)
-      (Matroid.uniqueBaseOn ({e} : Set α) E) := by
-  intro S
-  have hsub : ({e} : Set α) ⊆ E := Set.singleton_subset_iff.mpr he
-  rw [Matroid.uniqueBaseOn_indep_iff hsub]
-  simp [IndepQuery.singletonOracle, ← Finset.coe_singleton]
+      (Matroid.uniqueBaseOn ({e} : Set α) E) :=
+  fun S => by
+    rw [Matroid.uniqueBaseOn_indep_iff (Set.singleton_subset_iff.mpr he)]
+    simp [IndepQuery.singletonOracle, ← Finset.coe_singleton]
 
 private theorem loopyOracle_eq_singletonOracle_of_ne [DecidableEq α] {e : α} {S : Finset α}
     (hne : S ≠ {e}) :
@@ -189,11 +179,9 @@ theorem IsMatroidBasisAlg.toIsMaxCardIndepAlg [DecidableEq α]
     IsMaxCardIndepAlg alg where
   indep xs M oracle horacle := (halg.isBasis' xs M oracle horacle).indep
   card_max xs M oracle horacle I hI hIsub := by
-    have hB := halg.isBasis' xs M oracle horacle
-    by_contra hlt
-    push Not at hlt
-    obtain ⟨e, heI, heB, hind⟩ := hB.indep.augment_finset hI hlt
-    exact hB.insert_not_indep ⟨hIsub heI, heB⟩ hind
+    by_contra! hlt
+    obtain ⟨e, heI, heB, hind⟩ := (halg.isBasis' xs M oracle horacle).indep.augment_finset hI hlt
+    exact (halg.isBasis' xs M oracle horacle).insert_not_indep ⟨hIsub heI, heB⟩ hind
 
 /-- `matroidGreedySelect` is a correct `IsMatroidBasisAlg`. -/
 theorem matroidGreedySelect_isMatroidBasisAlg [DecidableEq α] :
@@ -225,33 +213,21 @@ theorem IsMaxCardIndepAlg.singleton_mem_queriedSets [DecidableEq α]
     {alg : List α → FreeM (IndepQuery α) (Finset α)} (halg : IsMaxCardIndepAlg alg)
     {xs : List α} {e : α} (he : e ∈ xs) :
     ({e} : Finset α) ∈ IndepQuery.queriedSets IndepQuery.loopyOracle (alg xs) := by
-  set E : Set α := {x | x ∈ xs}
-  have heE : e ∈ E := he
-  have h0_ind := halg.indep xs (Matroid.loopyOn E) IndepQuery.loopyOracle
-    (IndepQuery.implementsMatroid_loopyOracle E)
+  have heE : e ∈ ({x | x ∈ xs} : Set α) := he
   have heval0 : (alg xs).eval IndepQuery.loopyOracle = ∅ := by
-    simpa using h0_ind
+    simpa using halg.indep xs _ _ (IndepQuery.implementsMatroid_loopyOracle {x | x ∈ xs})
   have he_impl := IndepQuery.implementsMatroid_singletonOracle heE
-  have he_ind := halg.indep xs (Matroid.uniqueBaseOn ({e} : Set α) E)
-    (IndepQuery.singletonOracle e) he_impl
+  have h1_ind : (Matroid.uniqueBaseOn ({e} : Set α) {x | x ∈ xs}).Indep
+      (({e} : Finset α) : Set α) := by
+    rw [Matroid.uniqueBaseOn_indep_iff (Set.singleton_subset_iff.mpr heE)]; simp
   have he_card : 1 ≤ ((alg xs).eval (IndepQuery.singletonOracle e)).card := by
-    have h1_ind : (Matroid.uniqueBaseOn ({e} : Set α) E).Indep (({e} : Finset α) : Set α) := by
-      rw [Matroid.uniqueBaseOn_indep_iff (Set.singleton_subset_iff.mpr heE)]
-      simp
-    have h1_sub : (({e} : Finset α) : Set α) ⊆ E := by
-      simp [heE]
-    simpa using halg.card_max xs _ _ he_impl {e} h1_ind h1_sub
-  have heval_ne : (alg xs).eval IndepQuery.loopyOracle ≠
-      (alg xs).eval (IndepQuery.singletonOracle e) := by
-    intro heq
-    rw [heval0] at heq
-    rw [← heq] at he_card
-    simp at he_card
+    simpa using halg.card_max xs _ _ he_impl {e} h1_ind (by simp [heE])
   by_contra hnot_mem
-  apply heval_ne
-  refine IndepQuery.eval_eq_of_agree_on_queriedSets _ _ (alg xs) fun S hS => ?_
-  have hne : S ≠ {e} := fun h => hnot_mem (h ▸ hS)
-  exact loopyOracle_eq_singletonOracle_of_ne hne
+  have heq : (alg xs).eval IndepQuery.loopyOracle =
+      (alg xs).eval (IndepQuery.singletonOracle e) :=
+    IndepQuery.eval_eq_of_agree_on_queriedSets _ _ (alg xs) fun S hS =>
+      loopyOracle_eq_singletonOracle_of_ne fun h => hnot_mem (h ▸ hS)
+  simp [← heq, heval0] at he_card
 
 /-- **Universal per-input independence-oracle lower bound**: for any candidate list `xs : List α`,
 running `alg xs` against `IndepQuery.loopyOracle` makes at least `xs.toFinset.card` queries. -/
@@ -261,27 +237,19 @@ theorem IsMaxCardIndepAlg.card_toFinset_le_countQueries [DecidableEq α]
     xs.toFinset.card ≤ (alg xs).countQueries IndepQuery.loopyOracle := by
   have hsub : xs.toFinset.image (fun e : α => ({e} : Finset α)) ⊆
       IndepQuery.queriedSets IndepQuery.loopyOracle (alg xs) := by
-    intro S hS
+    rintro _ hS
     obtain ⟨e, he, rfl⟩ := Finset.mem_image.mp hS
     exact halg.singleton_mem_queriedSets (List.mem_toFinset.mp he)
-  have hinj : Function.Injective (fun e : α => ({e} : Finset α)) := fun _ _ h =>
-    Finset.singleton_injective h
-  calc xs.toFinset.card
-      = (xs.toFinset.image (fun e : α => ({e} : Finset α))).card :=
-        (Finset.card_image_of_injective _ hinj).symm
-    _ ≤ (IndepQuery.queriedSets IndepQuery.loopyOracle (alg xs)).card :=
-        Finset.card_le_card hsub
-    _ ≤ (alg xs).countQueries IndepQuery.loopyOracle :=
-        IndepQuery.card_queriedSets_le_countQueries _ _
+  rw [← Finset.card_image_of_injective xs.toFinset fun _ _ h => Finset.singleton_injective h]
+  exact (Finset.card_le_card hsub).trans (IndepQuery.card_queriedSets_le_countQueries _ _)
 
 /-- On any duplicate-free list `xs`, `alg xs` makes at least `xs.length` independence queries
 against `IndepQuery.loopyOracle`. -/
 theorem IsMaxCardIndepAlg.length_le_countQueries [DecidableEq α]
     {alg : List α → FreeM (IndepQuery α) (Finset α)} (halg : IsMaxCardIndepAlg alg)
     {xs : List α} (hnodup : xs.Nodup) :
-    xs.length ≤ (alg xs).countQueries IndepQuery.loopyOracle := by
-  rw [← List.toFinset_card_of_nodup hnodup]
-  exact halg.card_toFinset_le_countQueries xs
+    xs.length ≤ (alg xs).countQueries IndepQuery.loopyOracle :=
+  List.toFinset_card_of_nodup hnodup ▸ halg.card_toFinset_le_countQueries xs
 
 /-- On an infinite ground type `α`, any `IsMaxCardIndepAlg` has query complexity lower bound `n`
 (`LowerBound alg List.length id`). `LowerBound` asks only for some input and some oracle forcing
@@ -289,15 +257,12 @@ that many queries; the oracle need not implement a matroid. For the matroid orac
 `IndepQuery.loopyOracle` the bound is `IsMaxCardIndepAlg.length_le_countQueries`. -/
 theorem IsMaxCardIndepAlg.lowerBound_infinite [DecidableEq α] [Infinite α]
     {alg : List α → FreeM (IndepQuery α) (Finset α)} (halg : IsMaxCardIndepAlg alg) :
-    LowerBound alg List.length id := by
-  intro n
+    LowerBound alg List.length id := fun n => by
   let xs : List α := (List.finRange n).map (Infinite.natEmbedding α ∘ Fin.val)
   have hlen : xs.length = n := by simp [xs]
-  have hnodup : xs.Nodup :=
-    (List.nodup_finRange n).map
-      ((Infinite.natEmbedding α).injective.comp Fin.val_injective)
   refine ⟨xs, hlen.le, IndepQuery.loopyOracle, ?_⟩
-  simpa [hlen] using halg.length_le_countQueries hnodup
+  simpa [hlen] using halg.length_le_countQueries
+    ((List.nodup_finRange n).map ((Infinite.natEmbedding α).injective.comp Fin.val_injective))
 
 /-! ### Specializations to `IsMatroidBasisAlg` -/
 
