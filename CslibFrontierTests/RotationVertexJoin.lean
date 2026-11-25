@@ -4,12 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: OpenAI
 -/
 
+module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateCornerSwap
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeEndJoin
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.VertexJoinGenus
 
 /-! Different-component vertex joins retain parallel occurrences, a closed loop and points. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.RotationVertexJoin
 
@@ -22,6 +27,9 @@ private abbrev c : Graph.RotationCertificate := ⟨[2, 3, 0, 1, 6, 7, 4, 5, 9, 8
 
 private noncomputable def r : Graph.RotationSystem G :=
   Graph.RotationCertificate.decode G c (by decide)
+
+private theorem encode_r : Graph.RotationCertificate.ofRotation r = c :=
+  Graph.RotationCertificate.ofRotation_decode (by decide)
 
 private theorem genus : r.NumericalGenusZero :=
   (Graph.RotationCertificate.verifyEuler_eq_true_iff (by decide :
@@ -41,7 +49,10 @@ example : (r.mergeVertices h k (by decide)).NumericalGenusZero :=
 
 -- The exact successor list is the source list with precisely the two outgoing entries swapped.
 example : Graph.RotationCertificate.ofRotation (r.mergeVertices h k (by decide)) =
-    ⟨[6, 3, 0, 1, 2, 7, 4, 5, 9, 8]⟩ := by decide +kernel
+    ⟨[6, 3, 0, 1, 2, 7, 4, 5, 9, 8]⟩ := by
+  rw [ofRotation_mergeVertices, encode_r]
+  exact congrArg Graph.RotationCertificate.mk
+    (by decide : (c.swapSuccessors h.index k.index).successor = [6, 3, 0, 1, 2, 7, 4, 5, 9, 8])
 
 example : Graph.RotationCertificate.verifyGenusZero (mergeGraph h k)
     ⟨[6, 3, 0, 1, 2, 7, 4, 5, 9, 8]⟩ = true := by decide
@@ -75,7 +86,8 @@ example : Graph.RotationCertificate.verifyGenusZero
     (mergeGraph (G := dipole) (0, false) (0, true))
     (Graph.RotationCertificate.ofRotation
       (dipoleRotation.mergeVertices (0, false) (0, true) (by decide))) = false := by
-  decide +kernel
+  rw [ofRotation_mergeVertices, dipoleRotation, Graph.RotationCertificate.ofRotation_decode]
+  decide
 
 private theorem faceFromTable (d e : Graph.Dart G)
     (he : (Graph.RotationCertificate.faceTable G c).getD d.index 0 = e.index) :
@@ -114,7 +126,7 @@ example : ∃ (H : Graph) (s : Graph.RotationSystem H) (lift : Graph.Dart H ↪ 
     r.exists_numericalGenusZero_glueMarkerEdges (by decide) genus h k
       (by decide) (by decide) different
   refine ⟨H, s, lift, hz, hedges.trans (by decide +kernel), u, hu, hv, ?_, ?_⟩
-  · exact hf.trans (by decide +kernel)
-  · exact hb.trans (by decide +kernel)
+  · exact hf.trans (by rw [encode_r]; decide)
+  · exact hb.trans (by rw [encode_r]; decide)
 
 end CslibFrontierTests.RotationVertexJoin

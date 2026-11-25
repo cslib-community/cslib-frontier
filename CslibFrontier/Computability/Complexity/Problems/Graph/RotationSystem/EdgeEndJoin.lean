@@ -23,6 +23,7 @@ by vertex-corner swaps. The first swap joins their components and makes the two 
 marker darts cofacial. The second identification then preserves numerical genus zero.
 Deleting the duplicate marker then yields the actual glued rotation. Its successor is
 described in the original dart coordinates by the two swaps and one possible skip.
+The two rooted cyclic words at the retained marker also use the original dart coordinates.
 -/
 
 public section
