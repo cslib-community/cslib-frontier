@@ -310,13 +310,9 @@ private theorem sharpPWithOracle_mem_GapP_of_mem_SPP (hA : A ∈ SPP encBits)
   let D' : α × List Bool → ℤ := fun _ => 1
   let H' : (α × List Bool) × List Bool → ℤ := fun x => g x.2
   let F := weightedReplay machine input T' D' H'
-  have hinput_pt : ComputableInPolyTime input (encPair enc encBits) encBits := by
-    dsimp [input]; fun_prop
-  have hT'_pt : ComputableInPolyTime T' (encPair enc encBits) encUnary := by
-    dsimp [T']; fun_prop
   have hF : F ∈ GapP (encPair enc encBits) :=
-    GapP.weightedReplay_mem machine hinput_pt
-      hT'_pt GapP.one_mem (GapP.comp_mem hg (by fun_prop))
+    GapP.weightedReplay_mem machine (by dsimp [input]; fun_prop) (by dsimp [T']; fun_prop)
+      GapP.one_mem (GapP.comp_mem hg (by fun_prop))
   have hsum : (fun a => ∑ w : Fin (r a) → Bool, F (a, List.ofFn w)) ∈ GapP enc :=
     GapP.sum_bits_mem hF hr
   convert hsum using 1
@@ -343,8 +339,7 @@ theorem GapPWithOracle_eq_GapP_of_mem_SPP (hA : A ∈ SPP encBits) (enc : α ↪
   have h := GapP.sub_mem' (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₁)
     (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₂)
   convert h using 1
-  funext a
-  exact hg a
+  exact funext hg
 
 /-- **`SPP` is self-low** (`SPP^SPP = SPP`,
 [Fenner–Fortnow–Kurtz, Section 5][FennerFortnowKurtz1994]). -/
@@ -436,16 +431,11 @@ private theorem exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP (hA : A ∈ 
   let D' : α × List Bool → ℤ := fun x => D (enc x.1).length
   let H' : (α × List Bool) × List Bool → ℤ := fun x => H (x.1.1, x.2)
   let F := weightedReplay machine input T' D' H'
-  have hinput_pt : ComputableInPolyTime input (encPair enc encBits) encBits := by
-    dsimp [input]; fun_prop
-  have hT'_pt : ComputableInPolyTime T' (encPair enc encBits) encUnary := by
-    dsimp [T']; fun_prop
   have hD'_pt : ComputableInPolyTime D' (encPair enc encBits) encIntBin :=
     (hD.comp (.encoding_length enc)).comp (.fst enc encBits)
   have hF : F ∈ GapP (encPair enc encBits) :=
-    GapP.weightedReplay_mem machine hinput_pt
-      hT'_pt (mem_GapP_of_polyTime hD'_pt)
-        (GapP.comp_mem hH (by fun_prop))
+    GapP.weightedReplay_mem machine (by dsimp [input]; fun_prop) (by dsimp [T']; fun_prop)
+      (mem_GapP_of_polyTime hD'_pt) (GapP.comp_mem hH (by fun_prop))
   have hsum : (fun a => ∑ w : Fin (r a) → Bool, F (a, List.ofFn w)) ∈ GapP enc :=
     GapP.sum_bits_mem hF hr
   refine ⟨S, hS, hSn, ?_⟩
@@ -464,8 +454,7 @@ private theorem exists_mul_mem_GapP_of_sharpPWithOracle_of_mem_LWPP (hA : A ∈ 
     dsimp only [H]
     rw [hg_eq q]
     split_ifs
-    · exact hmul
-    · exact zero_mul _
+    exacts [hmul, zero_mul _]
   have hF_eval (w : Fin (r a) → Bool) :
       F (a, List.ofFn w) = S (enc a).length * (if V (a, List.ofFn w) then 1 else 0) := by
     have hexact := weightedReplay_eq_exact (A := A) machine input T' D' H' (a, List.ofFn w)
