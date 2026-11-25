@@ -1183,7 +1183,7 @@ private theorem csrScanLoop_spec {c U V w n_max base lo q_val : ℕ}
               lo + (k + j))) = qMem (lo + (k + j)) := clientResult_readPackedProg _ _ _ _ _ _
         rw [hrp]
         by_cases hf0 : f = 0
-        · simp [hf0]; by_cases hq : qMem (lo + (k + j)) = q_val <;> simp [hq]
+        · by_cases hq : qMem (lo + (k + j)) = q_val <;> simp [hf0, hq]
         · simp [hf0]
       refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, hpos, hf⟩, ?_, ?_⟩
       · unfold csrScanStepProg
