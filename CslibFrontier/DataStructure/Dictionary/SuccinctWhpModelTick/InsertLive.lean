@@ -95,18 +95,13 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
       Function.update fs.liveInsCount b (fs.liveInsCount b + 1) := rfl
   -- Fields of `fs` that the live insertion leaves untouched.
   obtain ⟨hcur_eq, hold_eq, hstg_eq, hdf_eq, hbs_eq, hbuf_eq, hli_eq, hoa_eq, hoc_eq, hoi_eq,
-      hosi_eq, hrsi_eq, hsc_eq, hdc_eq, hdb_eq, hdi_eq, hrq_eq, hcs_eq, hrc_eq, hri_eq⟩ :
+      hosi_eq, hrsi_eq⟩ :
       fsIns.curEp = fs.curEp ∧ fsIns.oldEp = fs.oldEp ∧ fsIns.rebStage = fs.rebStage ∧
       fsIns.rebDoneFlag = fs.rebDoneFlag ∧ fsIns.bktSalt = fs.bktSalt ∧ fsIns.buf = fs.buf ∧
       fsIns.liveSliceIdx = fs.liveSliceIdx ∧ fsIns.overmarsActive = fs.overmarsActive ∧
       fsIns.overmarsCursor = fs.overmarsCursor ∧ fsIns.overmarsInsCount = fs.overmarsInsCount ∧
-      fsIns.overmarsSliceIdx = fs.overmarsSliceIdx ∧ fsIns.rebSliceIdx = fs.rebSliceIdx ∧
-      fsIns.stageCursor = fs.stageCursor ∧ fsIns.dirtyCount = fs.dirtyCount ∧
-      fsIns.dirtyBuckets = fs.dirtyBuckets ∧ fsIns.dirtyIdx = fs.dirtyIdx ∧
-      fsIns.rebQueued = fs.rebQueued ∧ fsIns.rebCandSalt = fs.rebCandSalt ∧
-      fsIns.rebScanCursor = fs.rebScanCursor ∧ fsIns.rebInsCount = fs.rebInsCount :=
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
-      rfl, rfl, rfl⟩
+      fsIns.overmarsSliceIdx = fs.overmarsSliceIdx ∧ fsIns.rebSliceIdx = fs.rebSliceIdx :=
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hls_pres : ∀ b' < numBucketsWhp n_max, ∀ l' < fs.bktCount b',
       fsIns.locState b' l' = fs.locState b' l' := by
     intro b' _ l' hl'
@@ -329,58 +324,10 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
           Nat.min_eq_right (by omega : fs.overmarsCursor b ≤ X + 1)]
         exact hrO.congr (fun loc hlt => hfp_pres _ b hb loc (hlt.trans hcur))
           (fun loc hlt => by rw [hls_pres b hb loc (hlt.trans hcur)])
-  · have hstg := hv.stage_valid
-    dsimp only [ValidEpochStage] at hstg ⊢
-    rw [hold_eq, hbuf_eq, hstg_eq, hsc_eq, hdc_eq, hdb_eq, hdi_eq, hdf_eq, hrq_eq,
-      hcs_eq, hrc_eq, hri_eq]
-    split_ifs at hstg ⊢ with hs0 hs1 hs2 hs3
-    · exact hstg
-    · exact hstg
-    · rcases hstg with ⟨hd1, hd2, hd3, hd4, hd5, hd6, hreb⟩
-      refine ⟨hd1, hd2, hd3, hd4, hd5, ?_, fun hlt_s => ?_⟩
-      · intro b' hb' l' hl' hst'
-        rw [hfsIns_bkt] at hl'
-        by_cases hbb : b' = b
-        · subst hbb; rw [Function.update_self] at hl'
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hl' with hlt | rfl
-          · rw [hls_pres b hb l' hlt] at hst'; exact hd6 b hb l' hlt hst'
-          · rw [hls_new] at hst'; omega
-        · rw [Function.update_of_ne hbb] at hl'
-          rw [hls_pres b' hb' l' hl'] at hst'; exact hd6 b' hb' l' hl' hst'
-      · obtain ⟨hcur_r, hinj_r, rm, hvr, hrr⟩ := hreb hlt_s
-        set bc := fs.dirtyBuckets fs.dirtyIdx
-        have hbc : bc < numBucketsWhp n_max := hd3 _ hd2
-        have hbkt_ge : fs.bktCount bc ≤ fsIns.bktCount bc := by
-          rw [hfsIns_bkt]
-          by_cases hbb : bc = b
-          · rw [hbb, Function.update_self]; omega
-          · rw [Function.update_of_ne hbb]
-        have hmin_eq : min (fsIns.bktCount bc) fs.rebScanCursor =
-            min (fs.bktCount bc) fs.rebScanCursor := by
-          rcases hcur_r with ⟨hc0, _⟩ | ⟨_, hc_lt, _⟩
-          · simp [hc0]
-          · rw [Nat.min_eq_right (hc_lt.le.trans hbkt_ge), Nat.min_eq_right hc_lt.le]
-        have hmin_le : min (fs.bktCount bc) fs.rebScanCursor ≤ fs.bktCount bc :=
-          Nat.min_le_left _ _
-        have hrsl_eq : fsIns.slices (fsIns.rebSliceIdx bc) =
-            fs.slices (fs.rebSliceIdx bc) := by
-          rw [hrsi_eq, hsl_eq]
-          exact Function.update_of_ne (hne_all bc hbc).2 _ _
-        rw [hmin_eq, hrsl_eq]
-        refine ⟨?_, ?_, rm, hvr, ?_⟩
-        · rcases hcur_r with ⟨hc0, hi0⟩ | ⟨h16, hc_lt, hins_r⟩
-          · exact Or.inl ⟨hc0, hi0⟩
-          · exact Or.inr ⟨h16, hc_lt.trans_le hbkt_ge, hins_r⟩
-        · intro l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-          have hl1_b := hl₁.trans_le hmin_le
-          have hl2_b := hl₂.trans_le hmin_le
-          rw [hls_pres bc hbc l₁ hl1_b] at hp₁
-          rw [hls_pres bc hbc l₂ hl2_b] at hp₂
-          rw [hfp_pres _ bc hbc l₁ hl1_b, hfp_pres _ bc hbc l₂ hl2_b] at hfeq
-          exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-        · exact hrr.congr (fun loc hlt => hfp_pres _ bc hbc loc (hlt.trans_le hmin_le))
-            (fun loc hlt => by rw [hls_pres bc hbc loc (hlt.trans_le hmin_le)])
-    · exact hstg
+  · refine hv.stage_valid.fastInsertFresh hv.curEp_or (b := b) (q := q_val) (v := v)
+      (rk := rKey) (fp := fp) (collision := false) rfl hfp_pres fun bc hbc => ?_
+    rw [hrsi_eq, hsl_eq]
+    exact Function.update_of_ne (hne_all bc hbc).2 _ _
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp
 
