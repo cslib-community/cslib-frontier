@@ -172,10 +172,8 @@ private theorem Inv.step {k p s : ℕ} {S : DuplicatorStrategy φ p} (hk : ∀ c
       obtain ⟨σ, d, hσ, hd, hsat⟩ := h _ hN₀ (by omega)
       have hAk := hk A hA
       obtain ⟨σ', d', hσ', hdd', hag, hA'⟩ := S.exists_satisfies hσ hA (by omega)
-      have hsat' : ∀ c ∈ N, Satisfies σ' d' c := fun c hc => by
-        by_cases hcA : c = A
-        · exact hcA ▸ hA'
-        · exact (hsat c (Finset.mem_erase.2 ⟨hcA, hc⟩)).mono hdd' hag
+      have hsat' : ∀ c ∈ N, Satisfies σ' d' c := fun c hc =>
+        if hcA : c = A then hcA ▸ hA' else (hsat c (Finset.mem_erase.2 ⟨hcA, hc⟩)).mono hdd' hag
       obtain ⟨d'', hd'', hcard'', hsat''⟩ := exists_subset_satisfies N hsat'
       exact ⟨σ', d'', S.restrict hσ' hd'', hcard'', hsat''⟩
     · refine h N (fun c hc => ?_) hNs
@@ -185,17 +183,13 @@ private theorem Inv.step {k p s : ℕ} {S : DuplicatorStrategy φ p} (hk : ∀ c
     by_cases hR : c₁.resolvent c₂ v ∈ N ∧ c₁.resolvent c₂ v ∉ M
     · -- satisfy the parents of the resolvent and the other clauses of `N`
       obtain ⟨hRN, hRM⟩ := hR
-      have hMs : M.card + 1 ≤ s := by
-        rw [Finset.card_insert_of_notMem hRM] at hcard
-        exact hcard
+      have hMs : M.card + 1 ≤ s := Finset.card_insert_of_notMem hRM ▸ hcard
       set N' := insert c₁ (insert c₂ (N.erase (c₁.resolvent c₂ v)))
       have hN' : N' ⊆ M := by
         refine Finset.insert_subset h₁ (Finset.insert_subset h₂ fun c hc => ?_)
         rcases Finset.mem_insert.1 (hN (Finset.mem_of_mem_erase hc)) with rfl | hc'
         exacts [absurd rfl (Finset.ne_of_mem_erase hc), hc']
-      obtain ⟨σ, d, hσ, -, hsat⟩ := h N' hN' (by
-        have := Finset.card_le_card hN'
-        omega)
+      obtain ⟨σ, d, hσ, -, hsat⟩ := h N' hN' (by have := Finset.card_le_card hN'; omega)
       have hsat' : ∀ c ∈ N, Satisfies σ d c := fun c hc => by
         by_cases hcR : c = c₁.resolvent c₂ v
         · rw [hcR]
@@ -207,9 +201,7 @@ private theorem Inv.step {k p s : ℕ} {S : DuplicatorStrategy φ p} (hk : ∀ c
       exact ⟨σ, d', S.restrict hσ hd', hcard', hsat''⟩
     · refine h N (fun c hc => ?_) hNs
       rcases Finset.mem_insert.1 (hN hc) with rfl | hc'
-      · by_contra hcM
-        exact hR ⟨hc, hcM⟩
-      · exact hc'
+      exacts [of_not_not fun hcM => hR ⟨hc, hcM⟩, hc']
   | erase c => exact h N (hN.trans (Finset.erase_subset _ _)) hNs
 
 /-- The invariant survives a run of a refutation in space `s`, for a `p`-pebble strategy with

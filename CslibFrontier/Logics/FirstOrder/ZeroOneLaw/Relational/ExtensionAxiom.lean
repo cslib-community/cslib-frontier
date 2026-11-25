@@ -227,19 +227,16 @@ theorem isExtensionPair_of_hasExtension [L.IsRelational] {N : Type*} [L.Structur
   -- Send `m` to `z` and every element of `S` to its image under `f`.
   let g : U → N := fun u => if h : (u : M) ∈ S then f ⟨u, h⟩ else z
   have hg_of_mem : ∀ (u : U) (h : (u : M) ∈ S), g u = f ⟨u, h⟩ := fun u h => dite_eq_left h
-  have hg_of_not_mem : ∀ u : U, (u : M) ∉ S → g u = z := fun u h => dite_eq_right h
   have hm_of_not_mem : ∀ u : U, (u : M) ∉ S → (u : M) = m := fun u h =>
     ((hU u).1 u.2).resolve_right h
   have g_inj : Function.Injective g := by
     intro u w huw
     apply Subtype.ext
-    by_cases hu : (u : M) ∈ S <;> by_cases hw : (w : M) ∈ S
-    · rw [hg_of_mem u hu, hg_of_mem w hw] at huw
-      exact Subtype.mk.inj (f.injective huw)
-    · rw [hg_of_mem u hu, hg_of_not_mem w hw] at huw
-      exact absurd huw (hzf _)
-    · rw [hg_of_not_mem u hu, hg_of_mem w hw] at huw
-      exact absurd huw.symm (hzf _)
+    by_cases hu : (u : M) ∈ S <;> by_cases hw : (w : M) ∈ S <;>
+      simp only [g, hu, hw, ↓reduceDIte] at huw
+    · exact Subtype.mk.inj (f.injective huw)
+    · exact absurd huw (hzf _)
+    · exact absurd huw.symm (hzf _)
     · rw [hm_of_not_mem u hu, hm_of_not_mem w hw]
   have g_rel : ∀ {l} (R : L.Relations l) (t : Fin l → U), RelMap R (g ∘ t) ↔ RelMap R t := by
     intro l R t
@@ -260,23 +257,16 @@ theorem isExtensionPair_of_hasExtension [L.IsRelational] {N : Type*} [L.Structur
       let a : NewAtom L (Fintype.card S) := ⟨⟨⟨l, R⟩, τ⟩, hτ⟩
       have h1 : g ∘ t = (Fin.cons z x : Fin (Fintype.card S + 1) → N) ∘ τ := by
         funext j
-        by_cases hj : ((t j : U) : M) ∈ S
-        · simp [τ, hj, hg_of_mem _ hj, x]
-        · simp [τ, hj, hg_of_not_mem _ hj]
+        by_cases hj : ((t j : U) : M) ∈ S <;> simp [τ, hj, g, x]
       have h2 : Subtype.val ∘ t = (Fin.cons m xs : Fin (Fintype.card S + 1) → M) ∘ τ := by
         funext j
         by_cases hj : ((t j : U) : M) ∈ S
         · simp [τ, hj, xs]
-        · change ((t j : U) : M) = (Fin.cons m xs : Fin (Fintype.card S + 1) → M) (τ j)
-          rw [show τ j = 0 from dite_eq_right hj, Fin.cons_zero]
-          exact hm_of_not_mem _ hj
+        · simpa [τ, hj] using hm_of_not_mem _ hj
       rw [h1, h2]
       exact (hzp a).trans (by simp [p, a])
-  refine ⟨⟨⟨g, g_inj⟩, fun f' => isEmptyElim f', fun R t => g_rel R t⟩, ?_⟩
-  ext a
-  simp only [Embedding.comp_apply, Substructure.coe_inclusion]
-  change f a = g _
-  rw [hg_of_mem _ a.2]
+  exact ⟨⟨⟨g, g_inj⟩, fun f' => isEmptyElim f', fun R t => g_rel R t⟩,
+    Embedding.ext fun a => (hg_of_mem (Substructure.inclusion le_sup_right a) a.2).symm⟩
 
 /-- **The extension theory is `ℵ₀`-categorical**: any two countable models are isomorphic, by a
 back-and-forth argument [Libkin2004, Chapter 12]. This needs that `L` has no nullary relation

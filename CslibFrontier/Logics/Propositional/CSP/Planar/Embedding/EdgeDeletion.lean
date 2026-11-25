@@ -42,18 +42,13 @@ theorem getD_restrictPrefix_deleteLastEdge {G : Graph} {u v : ℕ}
   have hb : b.index < 2 * G.2.length := (Dart.indexEquiv G b).isLt
   have hc : 3 ≤ c.successor.length := by
     have := d.1.isLt
-    change 3 ≤ (RotationCertificate.ofRotation r).successor.length
     rw [RotationCertificate.length_ofRotation]
     change 3 ≤ 2 * (G.2 ++ [(u, v)]).length
     simp only [List.length_append, List.length_singleton]
     omega
   have hold (a : Dart G) : (e.symm (some (some a))).index = a.index := rfl
-  have hnone : 2 * G.2.length ≤ (e.symm none).index := by
-    change 2 * G.2.length ≤ 2 * G.2.length + 1
-    omega
-  have hsome : 2 * G.2.length ≤ (e.symm (some none)).index := by
-    change 2 * G.2.length ≤ 2 * G.2.length + 0
-    omega
+  have hnone : 2 * G.2.length ≤ (e.symm none).index := Nat.le_succ _
+  have hsome : 2 * G.2.length ≤ (e.symm (some none)).index := Nat.le_add_right _ 0
   have hstep (z : Option (Option (Dart G))) :
       c.successor.getD (e.symm z).index 0 = (e.symm (f z)).index := by
     rw [RotationCertificate.getD_ofRotation]

@@ -106,8 +106,7 @@ theorem vertexParity_probeEdgeLabels_marker_variable (F : CSP Rel V) (ports : Li
   let y := probeEdgeLabels F ports t x
   have hc := ((verifyRotationCertificate_eq_true_iff _ _).mp w.probe_accepted).1
   have hp : F.occurrences.length ≤ incidenceEdgeIndex p := by
-    rw [incidenceEdgeIndex_probeOccurrence]
-    omega
+    rw [incidenceEdgeIndex_probeOccurrence]; omega
   have hword := vertexParity_eq_sum_incidenceWord y p
     ((RotationCertificate.cycleWord w.certificate (incidenceDart p false).index).map (· / 2))
     (nodup_variable_cycleBlock hc p) (mem_variable_cycleBlock_iff hc p)
@@ -124,8 +123,7 @@ theorem vertexParity_probeEdgeLabels_marker_variable (F : CSP Rel V) (ports : Li
     (List.getD_ofFn y (incidenceDart p false).1 false).trans
       (probeEdgeLabels_probeOccurrence F ports t x i false)
   rw [hbit]
-  congr 1
-  congr 1
+  congr 2
   apply List.map_congr_left
   intro j hj
   obtain ⟨q, hq, _, hpre⟩ := (mem_probe_cycleBlock_iff F ports hn w.certificate hc p hp j).mp hj

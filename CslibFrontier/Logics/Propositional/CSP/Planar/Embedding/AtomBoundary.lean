@@ -262,32 +262,25 @@ theorem restrictPrefix_atomBoundaryCertificate (n : ℕ) :
   suffices hs : (restrictPrefix (2 * n) (atomBoundaryCertificate n)).successor =
       (atomBodyCertificate n).successor by
     exact congrArg Graph.RotationCertificate.mk hs
-  apply List.ext_getElem
+  refine List.ext_getElem ?_ fun k hk hl => ?_
   · rw [length_restrictPrefix, atomBodyCertificate, Graph.RotationCertificate.length_ofRotation]
     simp [starGraph]
-  · intro k hk hl
-    have hlt : k < 2 * (starGraph n).2.length := by
+  · have hlt : k < 2 * (starGraph n).2.length := by
       simpa only [length_restrictPrefix, starGraph, List.length_map, List.length_finRange] using hk
     let d := (Graph.Dart.indexEquiv (starGraph n)).symm ⟨k, hlt⟩
     obtain ⟨⟨i, b⟩, hd⟩ := (starDartEquiv n).surjective d
-    have hindex : d.index = k := by
-      change ((Graph.Dart.indexEquiv (starGraph n))
-        ((Graph.Dart.indexEquiv (starGraph n)).symm ⟨k, hlt⟩)).val = k
-      rw [Equiv.apply_symm_apply]
-    have hi : 2 * i.val + b.toNat = k := by
-      have hh := congrArg (fun d : Graph.Dart (starGraph n) => d.index) hd
-      change 2 * i.val + b.toNat = d.index at hh
-      exact hh.trans hindex
+    have hindex : d.index = k :=
+      congrArg Fin.val ((Graph.Dart.indexEquiv (starGraph n)).apply_symm_apply ⟨k, hlt⟩)
+    have hi : 2 * i.val + b.toNat = k :=
+      (congrArg (fun d : Graph.Dart (starGraph n) => d.index) hd).trans hindex
     rw [← List.getD_eq_getElem _ 0 hk, ← List.getD_eq_getElem _ 0 hl, ← hi]
     have hread := Graph.RotationCertificate.getD_ofRotation (starRotation n)
       (starDartEquiv n (i, b))
     have hii := i.isLt
     cases b
     · simp only [Bool.toNat_false, Nat.add_zero]
-      rw [getD_restrictPrefix_two _ _ _ (by omega) (by
-        rw [length_atomBoundaryCertificate]
-        have h := i.isLt
-        omega) (by rw [getD_atomBoundary_body_even]; omega)
+      rw [getD_restrictPrefix_two _ _ _ (by omega) (by rw [length_atomBoundaryCertificate]; omega)
+        (by rw [getD_atomBoundary_body_even]; omega)
         (by rw [getD_atomBoundary_body_even, getD_atomBoundary_probe_even]; omega),
         getD_atomBoundary_body_even, getD_atomBoundary_probe_even]
       simpa [atomBodyCertificate, Graph.Dart.index, starRotation, starRotor, starDartEquiv] using
@@ -295,10 +288,8 @@ theorem restrictPrefix_atomBoundaryCertificate (n : ℕ) :
     · simp only [Bool.toNat_true]
       have ht := getD_atomBoundary_odd false i
       simp only [Bool.false_eq_true, ite_false, Nat.zero_add] at ht
-      rw [getD_restrictPrefix_one _ _ _ (by omega) (by
-        rw [length_atomBoundaryCertificate]
-        have h := i.isLt
-        omega) (by rw [ht]; have h := (finRotate n i).isLt; omega), ht]
+      rw [getD_restrictPrefix_one _ _ _ (by omega) (by rw [length_atomBoundaryCertificate]; omega)
+        (by rw [ht]; have h := (finRotate n i).isLt; omega), ht]
       simpa [atomBodyCertificate, Graph.Dart.index, starRotation, starRotor, starDartEquiv] using
         hread.symm
 
