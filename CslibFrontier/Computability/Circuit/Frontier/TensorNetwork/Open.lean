@@ -150,6 +150,19 @@ theorem exists_pin [Fintype V] [Fintype E] [DecidableEq E] (hN : N.Trivalent)
   · change (Sum.elim x _ ∘ legs.symm) (legs (.inr h)) = Function.extend e x fill h.val
     simp [Function.extend_apply' _ _ _ h.prop]
 
+/-- Rename the exterior bits of a trivalent network, preserving its whole table and volume. -/
+theorem exists_reindex [Fintype V] [Fintype E] [DecidableEq E] (hN : N.Trivalent) (e : J ≃ I) :
+    ∃ M : OpenBitNetwork R J V E, M.Trivalent ∧ M.volume = N.volume ∧
+      ∀ x, M.contraction x = N.contraction (x ∘ e.symm) := by
+  obtain ⟨M, _, _, hM, _, h⟩ := N.exists_pin hN e.toEmbedding (fun _ => false)
+  refine ⟨M, hM, ?_, fun x => (h x).trans ?_⟩
+  · simp only [volume, Nat.card_congr e]
+  · apply congrArg N.contraction
+    funext i
+    obtain ⟨j, rfl⟩ := e.surjective i
+    exact (e.injective.extend_apply x (fun _ => false) j).trans
+      (congrArg x (e.symm_apply_apply j)).symm
+
 open scoped Classical in
 /-- Apply the same exterior contraction to every factor of a tensor power. The initial network
 may tie distinct factors together internally. The new network uses its same internal graph

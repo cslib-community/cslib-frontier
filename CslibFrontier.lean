@@ -1607,6 +1607,9 @@ public import CslibFrontier.Computability.Circuit.Boolean.DepthTime
 public import CslibFrontier.Computability.Circuit.Boolean.DepthTime.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.DuplicateFlags
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.NoPortsVolume
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.PermutationWires
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.RoutingGrid
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.RoutingNetwork
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.TaggedPermutation
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.VolumeToSize
@@ -2148,6 +2151,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Open
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEntry
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEvaluator
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketTerms
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.RectangleRouting
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Recursion
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ReductionLift
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Reindex
@@ -2155,6 +2159,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.RowsFir
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Schedule
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ScheduleCount
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ScheduledRecursion
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.SpectralPorts
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TaperedRecovery
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Truncated
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TruncatedAlgebraBridge
@@ -2165,6 +2170,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Truncat
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TruncatedResources
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TruncatedRing
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.VertexDesc
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.WirePrice
 public import CslibFrontier.Computability.Circuit.Frontier.TensorRank
 public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut
 public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.BadCountPointwise
@@ -8029,6 +8035,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Loops
 public import CslibFrontier.Foundations.Combinatorics.Expander.LowerBound
 public import CslibFrontier.Foundations.Combinatorics.Expander.MatchingPaths
 public import CslibFrontier.Foundations.Combinatorics.Expander.MatchingPencil
+public import CslibFrontier.Foundations.Combinatorics.Expander.MetricPoincare
 public import CslibFrontier.Foundations.Combinatorics.Expander.MetricReplacement
 public import CslibFrontier.Foundations.Combinatorics.Expander.Mixing
 public import CslibFrontier.Foundations.Combinatorics.Expander.Multigraph
@@ -8040,6 +8047,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Perm
 public import CslibFrontier.Foundations.Combinatorics.Expander.PiProduct
 public import CslibFrontier.Foundations.Combinatorics.Expander.Power
 public import CslibFrontier.Foundations.Combinatorics.Expander.Random
+public import CslibFrontier.Foundations.Combinatorics.Expander.RegularQuotient
 public import CslibFrontier.Foundations.Combinatorics.Expander.Reindex
 public import CslibFrontier.Foundations.Combinatorics.Expander.Reingold
 public import CslibFrontier.Foundations.Combinatorics.Expander.RelativeShearTranslation
@@ -8435,6 +8443,7 @@ public import CslibFrontier.Foundations.Data.Finset.Density
 public import CslibFrontier.Foundations.Data.Finset.DisjointCard
 public import CslibFrontier.Foundations.Data.Finset.Expect
 public import CslibFrontier.Foundations.Data.Finset.Expect.Chebyshev
+public import CslibFrontier.Foundations.Data.Finset.Expect.Threshold
 public import CslibFrontier.Foundations.Data.Finset.ExpectPi
 public import CslibFrontier.Foundations.Data.Finset.ExpectResample
 public import CslibFrontier.Foundations.Data.Finset.Finpartition
