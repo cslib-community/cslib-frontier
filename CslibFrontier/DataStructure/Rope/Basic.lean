@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.List.BalancedFold
+public import CslibFrontier.Foundations.Data.List.Chunks
 
 /-!
 # Ropes: structure, list model and basic API
@@ -39,8 +40,8 @@ other modules.
 * `Rope.mkNode`: a node with recomputed caches, eliminating empty children.
 * `Rope.toList`, `Rope.get?`, `Rope.map`, `Rope.foldl`, `Rope.foldr`, `Rope.singleton`: the
   list model and the basic operations.
-* `Rope.chunks`, `Rope.ofList`: bulk construction in chunks of `max 1 B` elements, combined by
-  `List.balancedFold`.
+* `Rope.ofList`: bulk construction from the chunks `List.chunks B xs` of `max 1 B` elements,
+  combined by `List.balancedFold`.
 
 ## Main results
 
@@ -48,8 +49,6 @@ other modules.
   the model and the structure.
 * `Rope.get?_eq_getElem?`, `Rope.toList_map`, `Rope.foldl_eq`, `Rope.foldr_eq`: the operations
   agree with the `List` model. Membership is membership in `toList` by definition.
-* `Rope.flatten_chunks`, `Rope.length_pos_and_le_of_mem_chunks`: chunking keeps the list and
-  makes chunks of between `1` and `max 1 B` elements.
 * `Rope.toList_ofList`, `Rope.cacheCorrect_ofList`, `Rope.chunked_ofList`: bulk construction
   represents its input with correct caches and, for `1 ≤ B`, chunks of between `1` and `B`
   elements.
@@ -222,18 +221,6 @@ theorem chunked_mkNode {B : ℕ} {l r : Rope α} (hl : Chunked B l) (hr : Chunke
 
 end Structure
 
-section Bulk
-
-variable {α : Type u}
-
-/-- Cut a list into consecutive chunks of `max 1 B` elements; the last may be shorter. -/
-@[expose] def chunks (B : ℕ) : List α → List (List α)
-  | [] => []
-  | x :: xs => (x :: xs.take (B - 1)) :: chunks B (xs.drop (B - 1))
-termination_by xs => xs.length
-
-end Bulk
-
 /-! ### The list model and basic operations -/
 
 section Model
@@ -271,11 +258,11 @@ that conses each element once. -/
 /-- The one-element rope. -/
 @[expose] def singleton (x : α) : Rope α := .leaf [x]
 
-/-- Bulk construction: one leaf per chunk of `chunks B xs`, combined by `List.balancedFold`. At
+/-- Bulk construction: one leaf per chunk of `xs.chunks B`, combined by `List.balancedFold`. At
 every node the two sides receive `⌊n / 2⌋` and `⌈n / 2⌉` of the `n` chunks, so the shape depends
 only on the number of chunks. -/
 @[expose] def ofList (B : ℕ) (xs : List α) : Rope α :=
-  (chunks B xs).balancedFold mkNode .empty leaf
+  (xs.chunks B).balancedFold mkNode .empty leaf
 
 instance : Membership α (Rope α) := ⟨fun t x => x ∈ t.toList⟩
 
@@ -365,29 +352,12 @@ theorem foldr_eq (f : α → β → β) (z : β) (t : Rope α) : t.foldr f z = t
 theorem isWF_singleton {B : ℕ} (hB : 1 ≤ B) (x : α) : IsWF B (singleton x) :=
   isWF_leaf_iff.2 ⟨Nat.one_pos, hB⟩
 
-/-- Chunking keeps the elements in order. -/
-@[simp] theorem flatten_chunks (B : ℕ) (xs : List α) : (chunks B xs).flatten = xs := by
-  induction xs using chunks.induct B with
-  | case1 => simp [chunks]
-  | case2 x xs ih => simp [chunks, ih]
-
-/-- Every chunk has between `1` and `max 1 B` elements. -/
-theorem length_pos_and_le_of_mem_chunks {B : ℕ} {xs c : List α} (hc : c ∈ chunks B xs) :
-    0 < c.length ∧ c.length ≤ max 1 B := by
-  induction xs using chunks.induct B with
-  | case1 => simp [chunks] at hc
-  | case2 x xs ih =>
-    rw [chunks, List.mem_cons] at hc
-    rcases hc with rfl | hc
-    · simp only [List.length_cons, List.length_take]; omega
-    · exact ih hc
-
 /-- Bulk construction represents its input. -/
 @[simp] theorem toList_ofList (B : ℕ) (xs : List α) : (ofList B xs).toList = xs := by
   unfold ofList
   refine (List.balancedFold_induction (op := mkNode) (e := .empty) (f := leaf)
     (p := fun cs (t : Rope α) => t.toList = cs.flatten) rfl (by simp)
-    (fun _ _ _ _ _ _ hx hy => ?_) (chunks B xs)).trans (flatten_chunks B xs)
+    (fun _ _ _ _ _ _ hx hy => ?_) (xs.chunks B)).trans (xs.flatten_chunks B)
   simp [hx, hy]
 
 theorem cacheCorrect_ofList (B : ℕ) (xs : List α) : CacheCorrect (ofList B xs) :=
@@ -402,8 +372,8 @@ theorem chunked_ofList {B : ℕ} (hB : 1 ≤ B) (xs : List α) : Chunked B (ofLi
     (p := fun cs (t : Rope α) => (∀ c ∈ cs, 0 < c.length ∧ c.length ≤ B) → Chunked B t)
     (fun _ => trivial) (fun c h => h c (List.mem_singleton_self c))
     (fun _ _ _ _ _ _ hx hy h => chunked_mkNode (hx fun c hc => h c (List.mem_append_left _ hc))
-      (hy fun c hc => h c (List.mem_append_right _ hc))) (chunks B xs) fun c hc => ?_
-  have := length_pos_and_le_of_mem_chunks hc
+      (hy fun c hc => h c (List.mem_append_right _ hc))) (xs.chunks B) fun c hc => ?_
+  have := List.length_pos_and_le_of_mem_chunks hc
   omega
 
 end Model
