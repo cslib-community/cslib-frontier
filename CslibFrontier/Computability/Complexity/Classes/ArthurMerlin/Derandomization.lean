@@ -74,48 +74,25 @@ theorem MA_subset_NP_of_PromiseBPP_subset_PromiseP
   -- on pairs, Arthur reads the first `p (|a|)` bits of a random string of length `p (|(a, w)|)`
   let V' : (α × List Bool) × List Bool → Bool := fun x =>
     V (x.1.1, x.1.2 ++ x.2.take (p.eval (enc x.1.1).length))
-  have hV' : ComputableInPolyTime V' (encPair (encPair enc encBits) encBits) encBool := by
-    -- the pair `(a, w)`, from which the instance and the proof are projected
-    have hpair : ComputableInPolyTime (fun x : (α × List Bool) × List Bool => x.1)
-        (encPair (encPair enc encBits) encBits) (encPair enc encBits) :=
-      ComputableInPolyTime.fst (encPair enc encBits) encBits
-    have ha : ComputableInPolyTime (fun x : (α × List Bool) × List Bool => x.1.1)
-        (encPair (encPair enc encBits) encBits) enc :=
-      (ComputableInPolyTime.fst enc encBits).comp hpair
-    have hw : ComputableInPolyTime (fun x : (α × List Bool) × List Bool => x.1.2)
-        (encPair (encPair enc encBits) encBits) encBits :=
-      (ComputableInPolyTime.snd enc encBits).comp hpair
-    have hm : ComputableInPolyTime (fun x : (α × List Bool) × List Bool =>
-        p.eval (enc x.1.1).length) (encPair (encPair enc encBits) encBits) encUnary :=
-      (ComputableInPolyTime.unary_eval p).comp ((ComputableInPolyTime.encoding_length enc).comp ha)
-    have hr : ComputableInPolyTime (fun x : (α × List Bool) × List Bool => x.2)
-        (encPair (encPair enc encBits) encBits) encBits :=
-      ComputableInPolyTime.snd (encPair enc encBits) encBits
-    exact hV.comp (ha.prod (ComputableInPolyTime.bitsAppend hw
-      (ComputableInPolyTime.bitsTakeWithInput hr hm)))
+  have hV' : ComputableInPolyTime V' (encPair (encPair enc encBits) encBits) encBool :=
+    hV.comp (ComputableInPolyTime.prod (by fun_prop)
+      (ComputableInPolyTime.bitsAppend (by fun_prop)
+        (ComputableInPolyTime.bitsTakeWithInput (by fun_prop) (by fun_prop))))
   -- bounded error transfers from the instance to the pair
   have htransfer (z : α × List Bool) (b : Bool) :
       BoundedErrorAt (encPair enc encBits) p V' z b ↔ BoundedErrorAt enc p (arthur z.2) z.1 b := by
     set K := p.eval (encPair enc encBits z).length
     set k := p.eval (enc z.1).length
-    have hkK : k ≤ K := by
-      refine Polynomial.monotone_eval p ?_
+    have hkK : k ≤ K := Polynomial.monotone_eval p (by
       simp only [encPair_apply, List.length_append, length_frame]
-      omega
+      omega)
     have hcount := BitString.card_filter_take hkK fun u => V (z.1, z.2 ++ u) = b
     simp only [BoundedErrorAt]
     change 2 * 2 ^ K ≤ 3 * #{r : Fin K → Bool |
         V (z.1, z.2 ++ (List.ofFn r).take k) = b} ↔
       2 * 2 ^ k ≤ 3 * #{r : Fin k → Bool | V (z.1, z.2 ++ List.ofFn r) = b}
-    rw [hcount, ← Nat.sub_add_cancel hkK, pow_add, Nat.add_sub_cancel]
-    have hpos : 0 < 2 ^ (K - k) := Nat.two_pow_pos _
-    constructor
-    · intro h'
-      have : 2 ^ (K - k) * (2 * 2 ^ k) ≤ 2 ^ (K - k) * (3 * #{r : Fin k → Bool |
-          V (z.1, z.2 ++ List.ofFn r) = b}) := by linarith
-      exact Nat.le_of_mul_le_mul_left this hpos
-    · intro h'
-      nlinarith
+    rw [hcount, ← Nat.sub_add_cancel hkK, pow_add, Nat.add_sub_cancel,
+      mul_left_comm 2, mul_left_comm 3, mul_le_mul_iff_right₀ (Nat.two_pow_pos _)]
   have hQ : Q ∈ PromiseBPP (encPair enc encBits) :=
     ⟨p, V', hV', fun z => ⟨fun hz => (htransfer z true).2 hz, fun hz => (htransfer z false).2 hz⟩⟩
   obtain ⟨f, hf, hyes, hno⟩ := mem_PromiseP_iff.1 (h hQ)
@@ -123,11 +100,9 @@ theorem MA_subset_NP_of_PromiseBPP_subset_PromiseP
   · obtain ⟨y, hy⟩ := (hMA a).1 ha
     exact ⟨List.ofFn y, List.length_ofFn, hyes (a, List.ofFn y) hy⟩
   · by_contra ha
-    have hno' := hno (a, w) (by
-      have h' := (hMA a).2 ha (BitString.ofList _ w)
-      rwa [BitString.ofFn_ofList hw] at h')
-    rw [hno'] at hfw
-    exact Bool.false_ne_true hfw
+    have h' := (hMA a).2 ha (BitString.ofList _ w)
+    rw [BitString.ofFn_ofList hw] at h'
+    exact Bool.false_ne_true (hno (a, w) h' ▸ hfw)
 
 /-- **Average-case hardness in `E` collapses `MA` to `NP`** [Arora and Barak,
 Exercise 16.4][AroraBarak07] (web draft 2007-01-08, printed p. 318, PDF p. 334). Let `L` be a
