@@ -102,8 +102,7 @@ private theorem exists_tau_one (hp : CoeffPattern n d a) (hk : 2 ≤ k) (hkd : k
   refine ⟨fun l => if (l : ℕ) = 0 then (b : ZMod n) else ((n - d + l : ℕ) : ZMod n),
     ⟨fun l => ?_, fun l m hml => ?_⟩, fun c hc1 hc => ?_, fun ρ hρ1 hρn => ?_⟩
   · by_cases hl : (l : ℕ) = 0
-    · simp only [hl, ↓reduceIte, Nat.cast_zero, sub_zero]
-      exact hb
+    · simpa only [hl, ↓reduceIte, Nat.cast_zero, sub_zero] using hb
     · simp only [hl, ↓reduceIte]
       rw [← Nat.cast_sub (by omega), show n - d + l - l = n - d by omega]
       exact hp.lead
@@ -132,8 +131,7 @@ private theorem exists_tau_window (hp : CoeffPattern n d a) (hk : 2 ≤ k) (hkd 
   by_cases hℓ0 : a ℓ ≠ 0
   · obtain ⟨τ, hτ, hkill, -⟩ := exists_tau_one hp hk hkd hℓ0
     refine ⟨τ, hτ, fun ρ hρ1 hρ2 => ?_⟩
-    have := hkill (ρ - ℓ) (by omega) (by omega)
-    rwa [show ℓ + (ρ - ℓ) = ρ by omega] at this
+    simpa only [show ℓ + (ρ - ℓ) = ρ by omega] using hkill (ρ - ℓ) (by omega) (by omega)
   push Not at hℓ0
   have hℓlt : ℓ < n - d := lt_of_le_of_ne hℓ fun h => hp.lead (h ▸ hℓ0)
   -- `jh`: the last nonzero coefficient below `ℓ`
@@ -165,8 +163,7 @@ private theorem exists_tau_window (hp : CoeffPattern n d a) (hk : 2 ≤ k) (hkd 
       else if (l : ℕ) ≤ s then ((jh + l : ℕ) : ZMod n) else ((n - d + l : ℕ) : ZMod n),
     ⟨fun l => ?_, fun l m hml => ?_⟩, fun ρ hρ1 hρ2 => ?_⟩
   · by_cases hl0 : (l : ℕ) = 0
-    · simp only [hl0, ↓reduceIte, Nat.cast_zero, sub_zero]
-      exact hjs_spec.2
+    · simpa only [hl0, ↓reduceIte, Nat.cast_zero, sub_zero] using hjs_spec.2
     · by_cases hls : (l : ℕ) ≤ s
       · simp only [hl0, hls, ↓reduceIte]
         rw [← Nat.cast_sub (by omega), show jh + l - l = jh by omega]
@@ -232,8 +229,7 @@ private theorem exists_tau {ι : Type*} [Fintype ι] (a : ι → ZMod n → F) (
       obtain ⟨τ, hτ, h1, h2⟩ := exists_tau_one (hp i) (hk i) (hkd i) h0
       refine ⟨τ, hτ, fun _ ρ hρ1 hρn hρ => ?_, fun h => absurd rfl h⟩
       rcases hρ with hρ | hρ
-      · have := h1 ρ hρ1 hρ
-        rwa [zero_add] at this
+      · simpa only [zero_add] using h1 ρ hρ1 hρ
       · exact h2 ρ hρ hρn
     · by_cases hℓ : ℓ (e.symm i) ≤ n - d i₁
       · obtain ⟨τ, hτ, hkill⟩ := exists_tau_window (hp i) (hk i) (hkd i)
@@ -257,27 +253,19 @@ private theorem exists_tau {ι : Type*} [Fintype ι] (a : ι → ZMod n → F) (
   have hp1 : ρ.val ≤ ℓ (p + 1) := Nat.find_spec hex
   have hp0 : ℓ p < ρ.val := by
     rcases Nat.eq_zero_or_pos p with h | h
-    · rw [h]
-      simp only [ℓ, Finset.range_zero, Finset.sum_empty, add_zero]
-      exact hrδ
+    · simpa only [h, ℓ, Finset.range_zero, Finset.sum_empty, add_zero] using hrδ
     · have := Nat.find_min hex (show p - 1 < p by omega)
       rw [show p - 1 + 1 = p by omega] at this
       omega
   have hδ' : 0 < δ' p := by
     rw [hℓsucc] at hp1
     omega
-  have hpT : p < T := by
-    by_contra h
-    simp [δ', h] at hδ'
-  have hi : e ⟨p, hpT⟩ ≠ i₁ := by
-    intro h
-    simp [δ', hpT, h] at hδ'
+  have hpT : p < T := by by_contra h; simp [δ', h] at hδ'
+  have hi : e ⟨p, hpT⟩ ≠ i₁ := fun h => by simp [δ', hpT, h] at hδ'
   have hδ'i : δ' p = δ (e ⟨p, hpT⟩) := by simp [δ', hpT, hi]
   have hsymm : ((e.symm (e ⟨p, hpT⟩) : Fin T) : ℕ) = p := by rw [e.symm_apply_apply]
   refine ⟨e ⟨p, hpT⟩, hτw _ hi (by rw [hsymm]; omega) ρ.val (by rw [hsymm]; omega) ?_⟩
-  rw [hsymm]
-  rw [hℓsucc, hδ'i] at hp1
-  exact hp1
+  rwa [hsymm, ← hδ'i, ← hℓsucc]
 
 omit [NeZero n] in
 private theorem permanent_eq_zero_of_kills {τ : Fin k → ZMod n} {ρ : ZMod n} (h : Kills a τ ρ) :
@@ -394,11 +382,8 @@ theorem exists_trace_mul_prod_det_mooreMatrix_ne_zero {ι : Type*} [Fintype ι] 
     exact mul_ne_zero hμ
       (Finset.prod_ne_zero_iff.2 fun i _ => permanent_ne_zero_of_isTriangular (hτ i))
   · intro ρ hρ hρ0
-    have hρ' : (ρ : ZMod n) ≠ 0 := by
-      intro h
-      have := congrArg ZMod.val h
-      rw [ZMod.val_cast_of_lt (Finset.mem_range.1 hρ), ZMod.val_zero] at this
-      exact hρ0 this
+    have hρ' : (ρ : ZMod n) ≠ 0 := fun h =>
+      hρ0 (Nat.eq_zero_of_dvd_of_lt ((ZMod.natCast_eq_zero_iff ρ n).1 h) (Finset.mem_range.1 hρ))
     obtain ⟨i, hi⟩ := hkill _ hρ'
     refine mul_eq_zero_of_right _ (Finset.prod_eq_zero (Finset.mem_univ i) ?_)
     rw [show P i (fun l => τ i l - (ρ : ZMod n)) = 0 from permanent_eq_zero_of_kills hi]
