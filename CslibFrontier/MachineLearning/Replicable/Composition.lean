@@ -128,9 +128,7 @@ theorem iid_map_castLE (D : PMF X) {m m' : ℕ} (h : m ≤ m') :
     (Probability.PMF.iid D m').map (fun S i => S (Fin.castLE h i)) = Probability.PMF.iid D m := by
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le h
   have hsub : (fun S : Fin (m + k) → X => fun i => S (Fin.castLE h i)) =
-      Prod.fst ∘ splitSample m k := by
-    ext S i
-    rfl
+      Prod.fst ∘ splitSample m k := rfl
   rw [hsub, ← PMF.map_comp, iid_map_splitSample, PMF.map_bind]
   simp only [PMF.map_comp, Function.comp_def]
   change (Probability.PMF.iid D m).bind (fun S₁ => (Probability.PMF.iid D k).map
@@ -148,9 +146,8 @@ theorem iid_map_block (D : PMF X) (k m : ℕ) :
   rw [Probability.PMF.map_equiv_apply, Probability.PMF.iid_apply, Probability.PMF.iid_apply]
   have hprod :
       ∏ p : Fin (k * m), D ((BitString.blocksEquiv (α := X) (m := k) (k := m)).symm B p) =
-        ∏ jl : Fin k × Fin m, D (B jl.1 jl.2) := by
-    refine Fintype.prod_equiv finProdFinEquiv.symm _ _ fun p => ?_
-    rfl
+        ∏ jl : Fin k × Fin m, D (B jl.1 jl.2) :=
+    Fintype.prod_equiv finProdFinEquiv.symm _ _ fun _ => rfl
   rw [hprod, Fintype.prod_prod_type]
   refine Finset.prod_congr rfl fun j _ => ?_
   rw [Probability.PMF.iid_apply]
@@ -182,30 +179,30 @@ variable {X : Type u} {Ω : Type v} {α : Type w} {γ : Type z}
   seed := A.seed
   run S r := A.run (fun i => S (Fin.castLE h i)) r
 
+/-- The paired output draws the shared seed, then two independent single executions given it. -/
+private theorem pairedOutput_eq_seed_bind {m : ℕ} (A : Algorithm X Ω α m) (D : PMF X) :
+    A.pairedOutput D = A.seed.bind fun r =>
+      ((Probability.PMF.iid D m).bind fun S => A.run S r).bind fun y₁ =>
+        ((Probability.PMF.iid D m).bind fun S => A.run S r).map fun y₂ => (y₁, y₂) := by
+  simp only [pairedOutput, pmf_norm]
+  pmf_swap
+
+/-- Given the seed, a single execution of `A.pad h` has the law of a single execution of `A`. -/
+private theorem iid_bind_run_pad {m m' : ℕ} (A : Algorithm X Ω α m) (h : m ≤ m') (D : PMF X)
+    (r : Ω) : ((Probability.PMF.iid D m').bind fun S => (A.pad h).run S r) =
+      (Probability.PMF.iid D m).bind fun S => A.run S r := by
+  rw [← iid_map_castLE D h, PMF.bind_map]
+  rfl
+
 theorem marginal_pad {m m' : ℕ} (A : Algorithm X Ω α m) (h : m ≤ m') (D : PMF X) :
     (A.pad h).marginal D = A.marginal D := by
   rw [marginal_eq_seed_bind, marginal_eq_seed_bind]
-  refine PMF.bind_congr_on_support _ _ _ fun r _ => ?_
-  dsimp only [pad]
-  exact (PMF.bind_map (Probability.PMF.iid D m') (fun S i => S (Fin.castLE h i))
-    (fun S => A.run S r)).symm.trans (by rw [iid_map_castLE D h])
+  exact congrArg A.seed.bind (funext (iid_bind_run_pad A h D))
 
 theorem disagreeProb_pad {m m' : ℕ} (A : Algorithm X Ω α m) (h : m ≤ m') (D : PMF X) :
     (A.pad h).disagreeProb D = A.disagreeProb D := by
-  simp only [disagreeProb]
-  refine congrArg
-    (fun law : PMF (α × α) => (law.toOuterMeasure {p : α × α | p.1 ≠ p.2}).toReal) ?_
-  simp only [pairedOutput, pad]
-  refine PMF.bind_congr_on_support _ _ _ fun r _ => ?_
-  have h1 :
-      (Probability.PMF.iid D m').bind (fun S₁ => (Probability.PMF.iid D m').bind fun S₂ =>
-        (A.run (fun i => S₁ (Fin.castLE h i)) r).bind fun y₁ =>
-          (A.run (fun i => S₂ (Fin.castLE h i)) r).map fun y₂ => (y₁, y₂)) =
-      ((Probability.PMF.iid D m').map (fun S i => S (Fin.castLE h i))).bind fun S₁ =>
-        ((Probability.PMF.iid D m').map (fun S i => S (Fin.castLE h i))).bind fun S₂ =>
-          (A.run S₁ r).bind fun y₁ => (A.run S₂ r).map fun y₂ => (y₁, y₂) := by
-    simp only [PMF.bind_map, Function.comp_def]
-  rw [h1, iid_map_castLE D h]
+  simp only [disagreeProb, pairedOutput_eq_seed_bind, iid_bind_run_pad]
+  rfl
 
 /-- Two-stage adaptive sequential composition outputting both results `(a, b)`:
 run `A₁` on the first `m₁` samples with seed `r₁`, then run `run₂ a` on the remaining `m₂`
@@ -311,86 +308,13 @@ theorem pairedOutput_pi {k m : ℕ} (A : Fin k → Algorithm X Ω α m) (D : PMF
     (pi A).pairedOutput D =
       (PMF.piFin fun j => (A j).pairedOutput D).map
         (fun v => (fun j => (v j).1, fun j => (v j).2)) := by
-  have hsplit (f : (Fin k → Fin m → X) → PMF ((Fin k → α) × (Fin k → α))) :
-      (Probability.PMF.iid D (k * m)).bind
-        (fun S => f (BitString.block (α := X) (m := k) (k := m) S)) =
-        (PMF.piFin fun _ : Fin k => Probability.PMF.iid D m).bind f := by
-    have hm := (PMF.bind_map (Probability.PMF.iid D (k * m))
-      (BitString.block (α := X) (m := k) (k := m)) f).symm
-    dsimp only [Function.comp_def] at hm
-    rw [hm, iid_map_block, PMF.piFin_const]
-  simp only [pairedOutput, pi]
-  calc (PMF.piFin fun j => (A j).seed).bind (fun rs =>
-        (Probability.PMF.iid D (k * m)).bind fun S₁ =>
-          (Probability.PMF.iid D (k * m)).bind fun S₂ =>
-            (PMF.piFin fun j =>
-                (A j).run (BitString.block (m := k) (k := m) S₁ j) (rs j)).bind fun y₁ =>
-              (PMF.piFin fun j =>
-                (A j).run (BitString.block (m := k) (k := m) S₂ j) (rs j)).map fun y₂ => (y₁, y₂))
-      = (PMF.piFin fun j => (A j).seed).bind (fun rs =>
-          (PMF.piFin fun _ : Fin k => Probability.PMF.iid D m).bind fun B₁ =>
-            (PMF.piFin fun _ : Fin k => Probability.PMF.iid D m).bind fun B₂ =>
-              (PMF.piFin fun j =>
-                ((A j).run (B₁ j) (rs j)).bind fun a =>
-                  ((A j).run (B₂ j) (rs j)).map fun b => (a, b)).map
-                (fun v => (fun j => (v j).1, fun j => (v j).2))) := by
-        refine PMF.bind_congr_on_support _ _ _ fun rs _ => ?_
-        rw [hsplit (fun B₁ =>
-          (Probability.PMF.iid D (k * m)).bind fun S₂ =>
-            (PMF.piFin fun j => (A j).run (B₁ j) (rs j)).bind fun y₁ =>
-              (PMF.piFin fun j =>
-                (A j).run (BitString.block (m := k) (k := m) S₂ j) (rs j)).map fun y₂ =>
-                  (y₁, y₂))]
-        refine PMF.bind_congr_on_support _ _ _ fun B₁ _ => ?_
-        rw [hsplit (fun B₂ =>
-          (PMF.piFin fun j => (A j).run (B₁ j) (rs j)).bind fun y₁ =>
-            (PMF.piFin fun j => (A j).run (B₂ j) (rs j)).map fun y₂ => (y₁, y₂))]
-        refine PMF.bind_congr_on_support _ _ _ fun B₂ _ => ?_
-        exact PMF.piFin_pair (fun j => (A j).run (B₁ j) (rs j))
-          (fun j => (A j).run (B₂ j) (rs j))
-    _ = ((PMF.piFin fun j => (A j).seed).bind (fun rs =>
-          (PMF.piFin fun _ : Fin k => Probability.PMF.iid D m).bind fun B₁ =>
-            (PMF.piFin fun _ : Fin k => Probability.PMF.iid D m).bind fun B₂ =>
-              PMF.piFin fun j =>
-                ((A j).run (B₁ j) (rs j)).bind fun a =>
-                  ((A j).run (B₂ j) (rs j)).map fun b => (a, b))).map
-          (fun v => (fun j => (v j).1, fun j => (v j).2)) := by
-        simp only [← PMF.map_bind]
-    _ = (PMF.piFin fun j => (A j).pairedOutput D).map
-          (fun v => (fun j => (v j).1, fun j => (v j).2)) := by
-        refine congrArg (PMF.map _) ?_
-        have hB₂ (rs : Fin k → Ω) (B₁ : Fin k → Fin m → X) :
-            ((PMF.piFin fun _ : Fin k => Probability.PMF.iid D m).bind fun B₂ =>
-              PMF.piFin fun j =>
-                ((A j).run (B₁ j) (rs j)).bind fun a =>
-                  ((A j).run (B₂ j) (rs j)).map fun b => (a, b)) =
-            PMF.piFin fun j =>
-              (Probability.PMF.iid D m).bind fun S₂ =>
-                ((A j).run (B₁ j) (rs j)).bind fun a =>
-                  ((A j).run S₂ (rs j)).map fun b => (a, b) :=
-          PMF.piFin_bind (fun _ : Fin k => Probability.PMF.iid D m) (fun j S₂ =>
-            ((A j).run (B₁ j) (rs j)).bind fun a => ((A j).run S₂ (rs j)).map fun b => (a, b))
-        simp_rw [hB₂]
-        have hB₁ (rs : Fin k → Ω) :
-            ((PMF.piFin fun _ : Fin k => Probability.PMF.iid D m).bind fun B₁ =>
-              PMF.piFin fun j =>
-                (Probability.PMF.iid D m).bind fun S₂ =>
-                  ((A j).run (B₁ j) (rs j)).bind fun a =>
-                    ((A j).run S₂ (rs j)).map fun b => (a, b)) =
-            PMF.piFin fun j =>
-              (Probability.PMF.iid D m).bind fun S₁ =>
-                (Probability.PMF.iid D m).bind fun S₂ =>
-                  ((A j).run S₁ (rs j)).bind fun a =>
-                    ((A j).run S₂ (rs j)).map fun b => (a, b) :=
-          PMF.piFin_bind (fun _ : Fin k => Probability.PMF.iid D m) (fun j S₁ =>
-            (Probability.PMF.iid D m).bind fun S₂ =>
-              ((A j).run S₁ (rs j)).bind fun a => ((A j).run S₂ (rs j)).map fun b => (a, b))
-        simp_rw [hB₁]
-        exact PMF.piFin_bind (fun j => (A j).seed) (fun j rj =>
-          (Probability.PMF.iid D m).bind fun S₁ =>
-            (Probability.PMF.iid D m).bind fun S₂ =>
-              ((A j).run S₁ rj).bind fun a =>
-                ((A j).run S₂ rj).map fun b => (a, b))
+  have hblocks (r : Fin k → Ω) := iid_bind_piFin_block D k m fun j S => (A j).run S (r j)
+  rw [pairedOutput_eq_seed_bind]
+  simp only [pi, hblocks, PMF.piFin_pair, ← PMF.map_bind]
+  rw [PMF.piFin_bind (fun j => (A j).seed) fun j r =>
+    ((Probability.PMF.iid D m).bind fun S => (A j).run S r).bind fun y₁ =>
+      ((Probability.PMF.iid D m).bind fun S => (A j).run S r).map fun y₂ => (y₁, y₂)]
+  simp only [pairedOutput_eq_seed_bind]
 
 theorem disagreeProb_pi_le {k m : ℕ} (A : Fin k → Algorithm X Ω α m) (D : PMF X) :
     (pi A).disagreeProb D ≤ ∑ j : Fin k, (A j).disagreeProb D := by
@@ -405,9 +329,8 @@ theorem disagreeProb_pi_le {k m : ℕ} (A : Fin k → Algorithm X Ω α m) (D : 
 
 theorem disagreeProb_replicate_le {k m : ℕ} (A : Algorithm X Ω α m) (D : PMF X) :
     (replicate A k).disagreeProb D ≤ k * A.disagreeProb D := by
-  have h := disagreeProb_pi_le (fun _ : Fin k => A) D
-  rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at h
-  exact h
+  simpa only [replicate, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] using
+    disagreeProb_pi_le (fun _ : Fin k => A) D
 
 end Algorithm
 
