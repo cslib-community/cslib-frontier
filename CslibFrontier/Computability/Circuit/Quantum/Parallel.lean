@@ -203,6 +203,7 @@ theorem Circuit.matrix_flatMap_mapWires (C : Circuit m) (L : List (Fin m ↪ Fin
     obtain ⟨he, hL⟩ := List.pairwise_cons.mp hL
     rw [List.flatMap_cons, matrix_append, Submonoid.coe_mul, Matrix.mul_apply]
     simp only [ih hL, matrix_mapWires, ite_mul, zero_mul, mul_ite, mul_zero, ← ite_and]
+    -- the only intermediate basis string is `y` on `e` and `x` elsewhere
     let z₀ (j : Fin N) : Bool := if ∃ i, e i = j then y j else x j
     have hdisj (e' : Fin m ↪ Fin N) (he' : e' ∈ L) (i i' : Fin m) : e' i ≠ e i' :=
       fun h => he e' he' i' i h.symm

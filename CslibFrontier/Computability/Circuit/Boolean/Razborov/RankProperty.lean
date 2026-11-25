@@ -282,6 +282,7 @@ theorem two_pow_two_pow_le_two_mul_ncard_rankTest (n a : ℕ) :
   set φ : BooleanFunction n → BooleanFunction n := fun f x => f x ^^ g x
   have hφ : Function.Involutive φ := fun f => funext fun x => by
     simp only [φ, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
+  -- every function or its partner passes
   have hcover (f) : f ∈ rankTest n a ∨ φ f ∈ rankTest n a := by
     have h := zeroSumMatrix_exactWeight (ι := Fin n) a
     rw [Fintype.card_fin] at h
