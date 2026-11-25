@@ -118,9 +118,7 @@ theorem Clause.length_eraseDupLits_le (c : Clause V) : c.eraseDupLits.length ≤
 literals. -/
 theorem Clause.length_eraseDupLits (c : Clause V) : c.eraseDupLits.length = c.toFinset.card := by
   rw [← List.toFinset_card_of_nodup c.nodup_eraseDupLits]
-  congr 1
-  ext l
-  simp
+  exact congrArg Finset.card (Finset.ext fun _ => by simp)
 
 /-- Removing repeated literals does not change the value of a clause. -/
 @[simp] theorem Clause.eval_eraseDupLits (σ : V → Bool) (c : Clause V) :
@@ -157,14 +155,10 @@ theorem CNF.countUnsat_restrict {σ : V → Bool} {v : V} {b : Bool} (hσ : σ v
       exact (List.countP_cons_of_neg (by simp [hc])).symm
     · have hc : Clause.eval σ (c.filter (· ≠ (v, !b))) = c.eval σ := by
         rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
-        constructor
-        · rintro ⟨l, hl, hle⟩
-          exact ⟨l, (List.mem_filter.1 hl).1, hle⟩
-        · rintro ⟨l, hl, hle⟩
-          refine ⟨l, List.mem_filter.2 ⟨hl, ?_⟩, hle⟩
-          rw [decide_eq_true_iff]
-          rintro rfl
-          simp [hσ] at hle
+        simp only [List.mem_filter, decide_eq_true_eq]
+        refine ⟨fun ⟨l, ⟨hl, _⟩, hle⟩ => ⟨l, hl, hle⟩, fun ⟨l, hl, hle⟩ => ⟨l, ⟨hl, ?_⟩, hle⟩⟩
+        rintro rfl
+        simp [hσ] at hle
       simp only [CNF.countUnsat, List.countP_cons, hc] at ih ⊢
       rw [ih]
 
@@ -223,17 +217,13 @@ theorem CNF.johnsonWeight_restrict_add_le {L : ℕ} (v : V) {ψ : CNF V}
     by_cases hT : (v, true) ∈ c <;> by_cases hF : (v, false) ∈ c <;>
       simp only [hT, hF, ite_true, ite_false, CNF.johnsonWeight_cons, Bool.not_true,
         Bool.not_false]
-    · generalize 2 ^ (L - c.length) = p
-      omega
+    · lia
     · rw [hdouble hT]
-      generalize 2 ^ (L - c.length) = p
-      omega
+      lia
     · rw [hdouble hF]
-      generalize 2 ^ (L - c.length) = p
-      omega
+      lia
     · rw [filter_ne_eq_self hT, filter_ne_eq_self hF]
-      generalize 2 ^ (L - c.length) = p
-      omega
+      lia
 
 omit [DecidableEq V] in
 /-- A formula without variables has weight `2 ^ L` per clause, all of them falsified. -/

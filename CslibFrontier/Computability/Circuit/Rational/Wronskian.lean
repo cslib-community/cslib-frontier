@@ -271,13 +271,8 @@ lemma exists_order_echelon_family {K : Type*} [Field K]
   obtain ⟨h, g, hgLI, hgspan, hgdeg⟩ := exists_degree_echelon_family d W hW
   have hgW : ∀ i, g i ∈ W := fun i => hgspan.le (Submodule.subset_span ⟨i, rfl⟩)
   refine ⟨h, fun i => e.symm (g i), hgLI.map' e.symm.toLinearMap (by simp), ?_, ?_⟩
-  · have hs : Submodule.span K (Set.range (fun i => e.symm (g i))) =
-        (Submodule.span K (Set.range g)).map e.symm.toLinearMap := by
-      rw [Submodule.map_span]
-      congr 1
-      exact Set.range_comp _ _
-    rw [hs, hgspan, ← Submodule.map_comp]
-    change (V.map (e.symm.toLinearMap.comp e.toLinearMap)) = V
+  · rw [show (fun i => e.symm (g i)) = e.symm.toLinearMap ∘ g from rfl, Set.range_comp,
+      ← Submodule.map_span, hgspan, ← Submodule.map_comp]
     simp
   · intro i j hij
     change (reflect (d - 1) (g i)).natTrailingDegree =
@@ -470,14 +465,10 @@ lemma exists_echelon_basis_at {K : Type*} [Field K]
     rw [natDegree_taylor]
     exact hV f hfV hf
   obtain ⟨c, hc⟩ := exists_order_echelon_basis d W (b.map eV) hW
-  refine ⟨c.map eV.symm, ?_⟩
-  have ht : ∀ j, taylor a ((c.map eV.symm) j : K[X]) = (c j : K[X]) := by
-    intro j
+  refine ⟨c.map eV.symm, fun i j hij => hc ?_⟩
+  have ht (k : Fin h) : taylor a ((c.map eV.symm) k : K[X]) = (c k : K[X]) := by
     rw [Basis.map_apply]
-    change e (e.symm (c j : K[X])) = (c j : K[X])
     exact e.apply_symm_apply _
-  intro i j hij
-  apply hc
   simpa only [rootMultiplicity_eq_natTrailingDegree, ← taylor_apply, ht] using hij
 
 /-- Distinct leading orders make vanishing conditions triangular; no linear

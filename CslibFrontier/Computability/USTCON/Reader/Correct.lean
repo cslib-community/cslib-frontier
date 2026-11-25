@@ -199,13 +199,10 @@ private theorem reaches_size (q : State) (m d l : ℕ) :
         (by simp) ?_).trans ?_
       · rw [readBit_of_addr_none rfl]
         simp [step, hm.ne']
-      · have h := ih (m / 2) (Nat.div_lt_self hm (by norm_num)) (d + 16) (l + 4168)
-        have hs := Nat.size_div_two_add_one hm.ne'
-        have e₁ : d + 16 * Nat.size m = d + 16 + 16 * Nat.size (m / 2) := by rw [← hs]; ring
-        have e₂ : l + 4168 * Nat.size m = l + 4168 + 4168 * Nat.size (m / 2) := by
-          rw [← hs]; ring
-        rw [e₁, e₂]
-        exact h
+      · have hs := Nat.size_div_two_add_one hm.ne'
+        simpa only [← hs, mul_add, mul_one, ← add_assoc, add_right_comm d _ 16,
+          add_right_comm l _ 4168] using
+          ih (m / 2) (Nat.div_lt_self hm (by norm_num)) (d + 16) (l + 4168)
 
 /-! ### Evaluating the rotation map -/
 
@@ -493,12 +490,9 @@ private theorem outputs_start {m T : ℕ} (hm : m ≠ 0) :
     have hdiv : q.c / numLabels ^ T = 0 := Nat.div_eq_of_lt hcT
     refine (reaches_start hm q hc hn hs ht hd').outputs ?_
     by_cases hsucc : Success I m T q.c
-    · have htrue : decide (∃ c', q.c ≤ c' ∧ c' < numLabels ^ T ∧ Success I m T c') = true :=
-        decide_eq_true ⟨q.c, le_rfl, hcT, hsucc⟩
-      rw [htrue]
-      refine outputs_check_success _ rfl (by simp [hl, hdiv]) ?_
-      simp only [Success] at hsucc
-      simp [slotVal, ht, hl, hsucc]
+    · rw [decide_eq_true ⟨q.c, le_rfl, hcT, hsucc⟩]
+      exact outputs_check_success _ rfl (by simp [hl, hdiv])
+        (by simp [slotVal, ht, hl, congrArg Fin.val hsucc])
     · have heq : decide (∃ c', q.c ≤ c' ∧ c' < numLabels ^ T ∧ Success I m T c') =
           decide (∃ c', q.c + 1 ≤ c' ∧ c' < numLabels ^ T ∧ Success I m T c') := by
         refine decide_eq_decide.2 ⟨fun ⟨c', h₁, h₂, h₃⟩ ↦

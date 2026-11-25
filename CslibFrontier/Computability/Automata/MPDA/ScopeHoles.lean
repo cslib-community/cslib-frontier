@@ -101,9 +101,8 @@ private theorem wellNested_of_isContextOf {M : MPDA n State α Γ} {c c' : Confi
     · exact ⟨net_eq_zero_of_isContextOf hij hv, fun k =>
         (net_eq_zero_of_isContextOf hij fun μ hμ => hv μ (List.mem_of_mem_take hμ)).symm.le⟩
   · rintro ⟨i', j', p, q, z, hij, -, -, ⟨a, γ, hp⟩, ⟨b, δ, hq⟩, -, -⟩
-    have h₁ := hv _ (List.mem_of_getElem? hp)
-    have h₂ := hv _ (List.mem_of_getElem? hq)
-    simp only [Op.stack, reduceCtorEq, false_or, Option.some.injEq] at h₁ h₂
+    have h₁ : i' = i := by simpa [Op.stack] using hv _ (List.mem_of_getElem? hp)
+    have h₂ : j' = i := by simpa [Op.stack] using hv _ (List.mem_of_getElem? hq)
     exact hij (h₁.trans h₂.symm)
 
 private theorem IsContextOf.eq_of_isPushOn {w : List (α × Op n Γ)} {i j : Fin n} {a b q : ℕ}
@@ -173,16 +172,11 @@ private theorem exists_matches_of_net_neg {w : List (α × Op n Γ)} {i : Fin n}
     exists_first_pop i (w.extract (p + 1) e) 0 (by simpa using hneg)
   simp only [Nat.cast_zero, zero_add] at hu hk
   have hlen : (w.extract (p + 1) e).length = e - (p + 1) := by simp; omega
-  have hulen : u.length < e - (p + 1) := by
-    rw [← hlen, hv]
-    simp
+  have hulen : u.length < e - (p + 1) := by simp [← hlen, hv]
   have hu' : w.extract (p + 1) (p + 1 + u.length) = u := by
-    rw [← w.take_extract (Nat.le_add_right _ _) (show p + 1 + u.length ≤ e by omega), hv,
-      Nat.add_sub_cancel_left]
-    simp
+    simp [← w.take_extract (Nat.le_add_right _ _) (show p + 1 + u.length ≤ e by omega), hv]
   refine ⟨p + 1 + u.length, by omega, by omega, i, hp, ⟨b, δ, ?_⟩, by rwa [hu'], by rwa [hu']⟩
-  rw [← List.getElem?_extract _ hulen, hv]
-  simp
+  simp [← List.getElem?_extract _ hulen, hv]
 
 private theorem PendingAt.lt_of_matches {w : List (α × Op n Γ)} {i : Fin n} {p x m : ℕ}
     (h : PendingAt w p x) (hp : IsPushOn w i p) (hm : Matches w p m) : x < m := by
@@ -265,10 +259,9 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
   obtain ⟨c₁, c₂, hrunv⟩ := exists_configLTS_mTr_extract hrun (p' + 1) b
   refine wellNested_of_isContextOf hrunv hctxv ?_ hk
   by_contra hne
-  have hpos : 0 < net j (w.extract (p' + 1) b) := by
-    have := hk (w.extract (p' + 1) b).length
-    rw [List.take_length] at this
-    omega
+  have hpos : 0 < net j (w.extract (p' + 1) b) :=
+    lt_of_le_of_ne (by simpa only [List.take_length] using hk (w.extract (p' + 1) b).length)
+      (Ne.symm hne)
   obtain ⟨q, hq, hqj, hqk⟩ := exists_pending_push hk hpos
   have hlen : (w.extract (p' + 1) b).length = b - (p' + 1) := by simp; omega
   -- The push at `p' + 1 + q` is still pending at `x`.
@@ -310,11 +303,10 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
   change {q | OpenHolePush w x q ∧ ¬∃ p, SameHole w x p q}.ncard ≤ K
   set R := {q | OpenHolePush w x q ∧ ¬∃ p, SameHole w x p q} with hRdef
   rcases R.eq_empty_or_nonempty with hR | hR
-  · rw [hR, Set.ncard_empty]
-    exact Nat.zero_le _
+  · simp [hR]
   -- The earliest first pending push of an open hole, and its matching pop.
-  have hr₁ : Nat.find hR ∈ R := Nat.find_spec hR
   set r₁ := Nat.find hR
+  have hr₁ : r₁ ∈ R := Nat.find_spec hR
   have hmin : ∀ q ∈ R, r₁ ≤ q := fun q hq => Nat.find_min' hR hq
   obtain ⟨⟨⟨i, hr₁i⟩, -⟩, hr₁pend⟩ := hr₁.1
   have hr₁x : r₁ ≤ x := hr₁pend.1
@@ -340,11 +332,9 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
     exact ⟨fun hq => ⟨by have := hq.1.2.1; omega, hq⟩, fun hq => hq.2⟩
   have hge : ∀ t ∈ insert m₁ T, r₁ ≤ t := (Finset.forall_mem_insert _ _ _).2
     ⟨by omega, fun t ht => hmin t (Finset.mem_filter.mp ht).2⟩
-  have hinj : Set.InjOn (· - r₁) ↑(insert m₁ T) := by
-    intro a ha b hb hab
+  have hinj : Set.InjOn (· - r₁) ↑(insert m₁ T) := fun a ha b hb (hab : a - r₁ = b - r₁) => by
     have := hge a ha
     have := hge b hb
-    simp only at hab
     omega
   have hle_m₁ : ∀ a ∈ insert m₁ T, a ≤ m₁ := (Finset.forall_mem_insert _ _ _).2
     ⟨le_rfl, fun a ha => by have := Finset.mem_range.1 (Finset.mem_filter.mp ha).1; omega⟩
@@ -356,7 +346,7 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
     rw [hRT, Set.ncard_coe_finset]
     omega
   case hT =>
-    intro t ht
+    intro _ ht
     obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp ht
     have := hge a ha
     have := hle_m₁ a ha

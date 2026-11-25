@@ -322,13 +322,11 @@ theorem Reachable.attach_iff {P : Type*} [DecidableEq P] {root : P} {s : State P
     (hr : Reachable root s) (dst : P) :
     (dst ≠ root ∧ (s.proc dst).parent = none) ↔
       (dst ≠ root ∧ (s.proc dst).active = false ∧ (s.proc dst).deficit = 0 ∧
-        (s.proc dst).parent = none) := by
-  constructor
-  · rintro ⟨hdst, hpar⟩
-    obtain ⟨ha, hd⟩ := hr.neutral_of_parent_none hdst hpar
-    exact ⟨hdst, ha, hd, hpar⟩
-  · rintro ⟨hdst, _, _, hpar⟩
-    exact ⟨hdst, hpar⟩
+        (s.proc dst).parent = none) :=
+  ⟨fun ⟨hdst, hpar⟩ =>
+    let ⟨ha, hd⟩ := hr.neutral_of_parent_none hdst hpar
+    ⟨hdst, ha, hd, hpar⟩,
+   fun ⟨hdst, _, _, hpar⟩ => ⟨hdst, hpar⟩⟩
 
 private theorem deficit_eq_of_update_same_deficit {P : Type*} [DecidableEq P] (s : State P)
     (u : P) (act : Bool) (par : Option P) (q : P) :
@@ -855,26 +853,20 @@ theorem Reachable.isTerminal_iff_terminated_of_computationIdle {P : Type*} [Fini
   · intro hterm
     by_contra hnotTerm
     by_cases hsig : s.signals = 0
-    · have hroot_def : 0 < (s.proc root).deficit := by
-        have hact := hidle.1 root
-        simp only [State.Terminated, hact, true_and] at hnotTerm
-        omega
-      have hdef_eq : ∀ x : P, (s.proc x).deficit = (s.children root x).card := by
-        intro x
+    · have hroot_def : 0 < (s.proc root).deficit :=
+        Nat.pos_of_ne_zero fun h0 => hnotTerm ⟨hidle.1 root, h0⟩
+      have hdef_eq (x : P) : (s.proc x).deficit = (s.children root x).card := by
         have hcons := hr.deficit_eq_inFlight_add_children x
-        have hb0 : s.inFlightBasicFrom x = 0 := by
-          simp [State.inFlightBasicFrom, hidle.2]
-        have hs0 : s.inFlightSignalTo x = 0 := by
-          simp [State.inFlightSignalTo, hsig]
-        omega
+        simp only [State.inFlightBasicFrom, hidle.2, Multiset.filter_zero, Multiset.card_zero,
+          State.inFlightSignalTo, hsig, Multiset.count_zero, Nat.zero_add] at hcons
+        exact hcons
       have hchild_eng {x c : P} (hc : c ∈ s.children root x) : c ∈ s.engagedNodes root := by
         simp only [State.children, Finset.mem_filter, Finset.mem_univ, true_and] at hc
         simp [State.engagedNodes, hc.1, hc.2]
       obtain ⟨c₀, hc₀⟩ := Finset.card_pos.mp (hroot_def.trans_eq (hdef_eq root))
       have hex (x : P) (hx : x ∈ s.engagedNodes root) : ∃ k, s.ancestor? k x = some root := by
         simp only [State.engagedNodes, Finset.mem_filter, Finset.mem_univ, true_and] at hx
-        obtain ⟨k, _, _, hk⟩ := hr.engaged_reaches_root hx.1 hx.2
-        exact ⟨k, hk⟩
+        exact (hr.engaged_reaches_root hx.1 hx.2).imp fun _ h => h.2.2
       let dist : P → ℕ := fun x => if hx : x ∈ s.engagedNodes root then Nat.find (hex x hx) else 0
       have hdist (x : P) (hx : x ∈ s.engagedNodes root) : s.ancestor? (dist x) x = some root := by
         simpa [dist, hx] using Nat.find_spec (hex x hx)
@@ -908,21 +900,11 @@ theorem Reachable.isTerminal_iff_terminated_of_computationIdle {P : Type*} [Fini
   · intro ht a s' htr
     have hq := hr.terminated_implies_quiescent ht
     cases a with
-    | sendBasic src dst =>
-      obtain ⟨hact, _⟩ := tr_sendBasic_iff.mp htr
-      rw [(hq.1 src).1] at hact; cases hact
-    | recvBasic src dst =>
-      obtain ⟨hmem, _⟩ := tr_recvBasic_iff.mp htr
-      rw [hq.2.1] at hmem; simp at hmem
-    | becomeIdle p =>
-      obtain ⟨hact, _⟩ := tr_becomeIdle_iff.mp htr
-      rw [(hq.1 p).1] at hact; cases hact
-    | recvSignal p =>
-      obtain ⟨hmem, _⟩ := tr_recvSignal_iff.mp htr
-      rw [hq.2.2] at hmem; simp at hmem
-    | detach p q =>
-      obtain ⟨⟨_, _, _, hpar⟩, _⟩ := tr_detach_iff.mp htr
-      rw [(hq.1 p).2.2] at hpar; cases hpar
+    | sendBasic src _ => exact absurd (tr_sendBasic_iff.mp htr).1 (by simp [(hq.1 src).1])
+    | recvBasic _ _ => exact absurd (tr_recvBasic_iff.mp htr).1 (by simp [hq.2.1])
+    | becomeIdle p => exact absurd (tr_becomeIdle_iff.mp htr).1 (by simp [(hq.1 p).1])
+    | recvSignal _ => exact absurd (tr_recvSignal_iff.mp htr).1 (by simp [hq.2.2])
+    | detach p _ => exact absurd (tr_detach_iff.mp htr).1.2.2.2 (by simp [(hq.1 p).2.2])
 
 private theorem exists_drain_mtr {P : Type*} [Fintype P] [DecidableEq P] {root : P} :
     ∀ m : ℕ, ∀ {s : State P}, Reachable root s → s.ComputationIdle → s.drainMeasure root = m →

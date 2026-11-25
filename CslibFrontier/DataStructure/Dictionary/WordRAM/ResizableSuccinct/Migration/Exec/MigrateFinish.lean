@@ -143,11 +143,11 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     unfold migratePeakWords
     dsimp only [arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]
     ring
-  have hpeak_eq : peakF = arenaB + arenaW := hpeak_raw
   have hfit_ar : Fits w (arenaB + arenaW) := hpeak_raw ▸ hfit_peak
   have hfit_nm : Fits w (newMeta + offNew) := hfit_ar.of_le (Nat.le_add_right _ _)
-  have hnm_le_peak : newMeta + offNew ≤ peakF := by
-    rw [hpeak_eq]; exact Nat.le_add_right _ _
+  have hnm_le_peak : newMeta + offNew ≤ peakF :=
+    (Nat.le_add_right (newMeta + offNew) _ : newMeta + offNew ≤ arenaB + arenaW).trans_eq
+      hpeak_raw.symm
   obtain ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,
       hrep_new_im, _, hpot_im, h_empty_im, hkeep_set_2, hz₂_not_im⟩ :=
     exec_postResample_initMeta mNewMeta (by simp)
@@ -196,11 +196,9 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   obtain ⟨s_fix_old, hinv_old, htot_old, hcpl_old_set⟩ := hcpl_old
   have hsp_le_old : 225 + ReducedKWise.space w (qBits U N_old) (hashB N_old)
       (totalMicroBits N_old) 3 ≤ offCompItems U w N_old := by
-    have hlm : offCompLM U w N_old ≤ offCompItems U w N_old := by
-      unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
-    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
-      at hlm ⊢
-    exact hlm
+    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM
+    dsimp only [epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
+    omega
   have hrep_old_z₂ : ReducedKWise.Rep (base + epochHdrWords) w (qBits U N_old) (hashB N_old)
       (totalMicroBits N_old) 3 θ_old z₂.mem :=
     ⟨ReducedKWise.tableRep_congr hrep_old.1
@@ -222,8 +220,7 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   have henv_sa : StreamRebuildEnv U V w N_old N_new n base newMeta arenaB θ_old θ_new s_abs
       ⟨z₂.mem, peakF⟩ :=
     ⟨hw, hn, hn_old, hNU_old, hn_new, hNU_new, hhdr_set.fits_U, hV, hvals,
-      le_rfl, le_rfl, by change arenaB + arenaW ≤ peakF; rw [hpeak_eq], hfit_nm,
-      hrep_old_z₂,
+      le_rfl, le_rfl, hpeak_raw.ge, hfit_nm, hrep_old_z₂,
       ⟨s_fix_old, hinv_old, (congrArg (totalSlots N_old) hgm_old_z₂).trans htot_old, hcpl_old_z₂⟩,
       hrep_new_im,
       hpot_im,
@@ -294,19 +291,17 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     have hmul := Nat.mul_le_mul_left migFactor hc_sa
     rw [← hz₄_mem_eq] at hmul
     linarith only [hmul, hpot_le]
-  have hex_build : RDemonicExec w peakF migrateStreamBuildCode
-      (((((y_rs.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) _ (· = z₄) :=
-    hex_c1.seq_eq ((hex_im.mono hc_im_mul (fun _ h => h)).seq_eq (hex_z3.seq_eq hex_sa))
-  have hex_clean := hex_build.seq_eq hex_back
+  have hex_clean : RDemonicExec w peakF migrateFinishCleanCode
+      (((((y_rs.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) _ (· = z) :=
+    (hex_c1.seq_eq ((hex_im.mono hc_im_mul fun _ h => h).seq_eq (hex_z3.seq_eq hex_sa))).seq_eq
+      hex_back
   refine ⟨z, _, hex_clean, hzb, hzf, hsplit_z,
     abiPreserved_trans habi_set (abiPreserved_trans habi_set_4 habi_4z),
-    fun addr haddr => ?_, ?_⟩
-  · exact (hbelow_4z addr haddr).trans <|
-      (congrFun hz₄_mem_eq addr).trans <|
-      (hlo_sa addr (by linarith only [haddr])).trans <|
-      (hz₂_not_im addr (fun h => by dsimp only [newMeta] at h; linarith only [haddr, h.1])).trans <|
-      hbelow_set addr haddr
-  · nlinarith only [hsa_pot, hc_back, hn, hf1]
+    fun addr haddr => ?_, by nlinarith only [hsa_pot, hc_back, hn, hf1]⟩
+  exact (hbelow_4z addr haddr).trans <| (congrFun hz₄_mem_eq addr).trans <|
+    (hlo_sa addr (by linarith only [haddr])).trans <|
+    (hz₂_not_im addr (fun h => by dsimp only [newMeta] at h; linarith only [haddr, h.1])).trans <|
+    hbelow_set addr haddr
 
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

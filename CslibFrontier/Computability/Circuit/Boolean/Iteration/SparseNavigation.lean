@@ -269,16 +269,13 @@ theorem sparse_counter_hitting_time (f : Equiv.Perm (BitVec n)) :
     full.eval Boolean.interpretation z (Fin.castAdd (n + 1) i)
   have hfull := Synthesis.circuit (I := Boolean.interpretation)
     (s := inputs (n + n)) full (fun i z => z i) (fun i => ⟨i, rfl⟩)
-  have hout : wires output ⊆ wires (full.eval Boolean.interpretation) := by
-    rintro _ ⟨i, rfl⟩
-    exact ⟨Fin.castAdd (n + 1) i, rfl⟩
+  have hout : wires output ⊆ wires (full.eval Boolean.interpretation) :=
+    fun _ ⟨i, h⟩ => ⟨Fin.castAdd (n + 1) i, h⟩
   obtain ⟨out, ho, hsize⟩ := (hfull.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
   have hnav (z : BitString (n + n)) : out.eval Boolean.interpretation z =
       fun i => cycleLabelVisits (wordCycleLabel f (BitString.equivBitVec (inputLeft z)))
         (wordCycleLabel f (BitString.equivBitVec (inputRight z))) (Fin.castAdd (n + 1) i) := by
-    rw [ho z]
-    dsimp only [output]
-    rw [hf z]
+    simp only [ho z, output, hf z]
   refine ⟨out, fun z => ?_, fun z hz => ?_, hsize.trans hs⟩
   · rw [hnav z]
     exact cycleLabelVisits_flag f f.injective _ _
@@ -322,21 +319,16 @@ theorem sparse_coordinate_visit_schedule (f g e : Equiv.Perm (BitVec n))
   have hquery := Synthesis.circuit (I := Boolean.interpretation) (s := src)
     middle (fun i z => args z i) hargs
   obtain ⟨out, ho, hsize⟩ := ((hx.union hy).trans hquery).exists_circuit_outputs
-  have hconj : Function.Semiconj (e : BitVec n → BitVec n) f conjugate := by
-    intro x
+  have hconj : Function.Semiconj (e : BitVec n → BitVec n) f conjugate := fun x => by
     simp only [conjugate, Equiv.permCongrHom_coe, Equiv.permCongr_apply, Equiv.symm_apply_apply]
   have hex (z : BitString (n + n)) :
       BitString.equivBitVec (inputLeft (args z)) = e (BitString.equivBitVec (inputLeft z)) := by
     change BitString.equivBitVec (fun i => Fin.append (x z) (y z) (Fin.castAdd n i)) = _
-    simp only [Fin.append_left, x]
-    change BitString.equivBitVec (encode.eval Boolean.interpretation (inputLeft z)) = _
-    rw [he (inputLeft z), BitString.equivBitVec_getLsbD]
+    simp only [Fin.append_left, x, he (inputLeft z), BitString.equivBitVec_getLsbD]
   have hey (z : BitString (n + n)) :
       BitString.equivBitVec (inputRight (args z)) = e (BitString.equivBitVec (inputRight z)) := by
     change BitString.equivBitVec (fun i => Fin.append (x z) (y z) (Fin.natAdd n i)) = _
-    simp only [Fin.append_right, y]
-    change BitString.equivBitVec (encode.eval Boolean.interpretation (inputRight z)) = _
-    rw [he (inputRight z), BitString.equivBitVec_getLsbD]
+    simp only [Fin.append_right, y, he (inputRight z), BitString.equivBitVec_getLsbD]
   have hspec (z : BitString (n + n)) (t : ℕ) :
       (f : BitVec n → BitVec n)^[t] (BitString.equivBitVec (inputLeft z)) =
           BitString.equivBitVec (inputRight z) ↔

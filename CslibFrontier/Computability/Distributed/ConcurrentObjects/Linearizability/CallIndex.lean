@@ -47,17 +47,12 @@ theorem mem_of_mem_complete [DecidableEq P] {M : History P Op Resp} {e : Event P
   | nil => exact hm
   | cons a rest ih =>
     cases a with
-    | inv p y op =>
+    | inv _ _ _ =>
       simp only [complete] at hm
       split at hm
-      · rcases List.mem_cons.mp hm with rfl | hm'
-        · exact List.mem_cons_self
-        · exact List.mem_cons_of_mem _ (ih hm')
+      · exact List.mem_cons.mpr ((List.mem_cons.mp hm).imp_right ih)
       · exact List.mem_cons_of_mem _ (ih hm)
-    | resp _ _ _ =>
-      rcases List.mem_cons.mp hm with rfl | hm'
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (ih hm')
+    | resp _ _ _ => exact List.mem_cons.mpr ((List.mem_cons.mp hm).imp_right ih)
 
 /-- Prefix closure of `IsSequential` under `++`. -/
 theorem isSequential_append_left :
@@ -176,14 +171,8 @@ theorem nthProcPos_isSome_iff [DecidableEq P] (p : P) (H : History P Op Resp) (n
 theorem nthProcPos_lt_length [DecidableEq P] {p : P} {H : History P Op Resp} {n pos : ℕ}
     (h : nthProcPos p H n = some pos) : pos < H.length ∧ H[pos]?.map Event.proc = some p := by
   obtain ⟨hlt, _, hpr⟩ := List.nthFilterPos_lt_length h
-  refine ⟨hlt, ?_⟩
-  cases hget : H[pos]? with
-  | none =>
-    rw [hget] at hpr
-    simp only [Option.map_none, reduceCtorEq] at hpr
-  | some a =>
-    rw [hget] at hpr
-    simpa only [Option.map_some, Option.some.injEq, decide_eq_true_eq] using hpr
+  rw [List.getElem?_eq_getElem hlt] at hpr ⊢
+  exact ⟨hlt, congrArg some (of_decide_eq_true (Option.some.inj hpr))⟩
 
 /-- Lookup at `nthProcPos p H n = some pos` agrees with `(H | p)[n]?`. -/
 theorem nthProcPos_getElem? [DecidableEq P] {p : P} {H : History P Op Resp} {n pos : ℕ}

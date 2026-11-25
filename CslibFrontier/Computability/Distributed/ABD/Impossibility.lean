@@ -348,15 +348,11 @@ theorem not_implementsAtomicRegister_of_partition {t : ℕ}
       simp only [hs₁_eq, List.getElem_cons_zero] at hc0 hk0 hinv0 hst0
       ext <;> assumption
   obtain ⟨stp₁, hstp₁_lt, hs₁_hist⟩ := hs₁_rec
-  have hs₁_procB : ∀ p ∈ B, s₁.proc p = π.start.proc p := by
-    intro p hp
-    rw [hproc₁_B p hp]
-    simp [doInvoke, Function.update_of_ne (ne_of_mem_of_not_mem hp ha₀_notB)]
-  have hs₁_msgB : ∀ e : Envelope P M, e.dest ∈ B → π.start.msgs.count e ≤ s₁.msgs.count e := by
-    intro e heB
-    refine le_trans ?_ (hmsg₁_B e heB)
-    simp only [doInvoke, Multiset.count_add]
-    exact Nat.le_add_right _ _
+  have hs₁_procB : ∀ p ∈ B, s₁.proc p = π.start.proc p := fun p hp =>
+    (hproc₁_B p hp).trans (Function.update_of_ne (ne_of_mem_of_not_mem hp ha₀_notB) _ _)
+  have hs₁_msgB : ∀ e : Envelope P M, e.dest ∈ B → π.start.msgs.count e ≤ s₁.msgs.count e :=
+    fun e heB => (hmsg₁_B e heB).trans'
+      (by simp only [doInvoke, Multiset.count_add, Nat.le_add_right])
   -- Run 2 (`F = A`): invoke `read` at `b₀ ∈ B` and drain only `B`-destined messages.
   obtain ⟨s₂, xl₂, _, hreach_s₂, hm₂, hdrain₂, hk₂_comp⟩ :=
     π.exists_completed_drain_of_invoke hImpl A hA hb₀_notA .read
@@ -456,8 +452,7 @@ private lemma unmap_tr.{w} {P S M V : Type*} [DecidableEq P] [DecidableEq M]
     (htr : (uliftStateProtocol.{w} π).lts.Tr u a u') :
     π.lts.Tr (unmapULiftState u) a (unmapULiftState u') := by
   cases a with
-  | stutter =>
-    obtain rfl := htr; rfl
+  | stutter => exact htr ▸ rfl
   | invoke caller kind =>
     obtain ⟨hpend, rfl⟩ := htr
     refine ⟨hpend, ?_⟩
@@ -483,14 +478,10 @@ private lemma implementsAtomicRegister_uliftState.{w} {P S M V : Type*}
   linearizable u hr := by
     obtain ⟨xl, hxl⟩ := hr
     exact h.linearizable (unmapULiftState u) ⟨xl, unmap_mTr hxl⟩
-  terminates F hF ss xs ha k i hi hc := by
-    obtain ⟨h0, hexec, hfair⟩ := ha
-    let ss' : ωSequence (State P S M V) := ss.map unmapULiftState
-    have ha' : π.AdmissibleRun F ss' xs :=
-      ⟨by simp [ss', h0, unmapULiftState, Protocol.start, uliftStateProtocol],
-       fun n => unmap_tr (hexec n),
-       fun e hd n hm => hfair e hd n hm⟩
-    exact h.terminates F hF ss' xs ha' k i hi hc
+  terminates F hF ss xs ha k i hi hc :=
+    h.terminates F hF (ss.map unmapULiftState) xs
+      ⟨by simp [ha.1, unmapULiftState, Protocol.start, uliftStateProtocol],
+       fun n => unmap_tr (ha.2.1 n), ha.2.2⟩ k i hi hc
 
 /-- **Resilience characterization for asynchronous linearizable atomic registers**: over a finite
 process set `P` and nontrivial value domain `V`, a deterministic asynchronous message-passing

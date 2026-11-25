@@ -247,13 +247,8 @@ private theorem mem_literalDigits {i : ℕ} {b : Bool} {p : ℕ} :
     p ∈ literalDigits φ i b ↔
       p = i ∨ ∃ j < φ.length, covers φ i b j = true ∧ p = φ.distinctVars.length + j := by
   simp only [literalDigits, List.mem_cons, List.mem_map, List.mem_filter, List.mem_range]
-  constructor
-  · rintro (h | ⟨j, ⟨hj, hc⟩, rfl⟩)
-    · exact Or.inl h
-    · exact Or.inr ⟨j, hj, hc, rfl⟩
-  · rintro (h | ⟨j, hj, hc, rfl⟩)
-    · exact Or.inl h
-    · exact Or.inr ⟨j, ⟨hj, hc⟩, rfl⟩
+  exact ⟨fun | .inl h => .inl h | .inr ⟨j, ⟨hj, hc⟩, h⟩ => .inr ⟨j, hj, hc, h.symm⟩,
+    fun | .inl h => .inl h | .inr ⟨j, hj, hc, h⟩ => .inr ⟨j, ⟨hj, hc⟩, h.symm⟩⟩
 
 private theorem nodup_literalDigits {i : ℕ} (hi : i < φ.distinctVars.length) (b : Bool) :
     (literalDigits φ i b).Nodup := by
@@ -288,14 +283,11 @@ private theorem mem_items {x : Item} : x ∈ items φ ↔ x ∈ itemSet φ := by
   · cases c <;> simp [items, itemSet]
 
 private theorem nodup_items : (items φ).Nodup := by
-  refine List.Nodup.append ?_ ?_ ?_
-  · refine List.nodup_flatMap.2 ⟨fun i _ => by simp, ?_⟩
-    exact List.nodup_range.pairwise_of_forall_ne fun i _ i' _ h => by
+  refine List.Nodup.append ?_ ?_ (by simp [List.disjoint_left])
+  all_goals
+    refine List.nodup_flatMap.2 ⟨by simp, ?_⟩
+    exact List.nodup_range.pairwise_of_forall_ne fun _ _ _ _ h => by
       simpa [Function.onFun] using h.symm
-  · refine List.nodup_flatMap.2 ⟨fun j _ => by simp, ?_⟩
-    exact List.nodup_range.pairwise_of_forall_ne fun j _ j' _ h => by
-      simpa [Function.onFun] using h.symm
-  · simp [List.disjoint_left]
 
 /-- The digit positions of an item, as a finite set. -/
 private def itemCol (φ : CNF ℕ) (x : Item) : Finset ℕ := (itemDigits φ x).toFinset

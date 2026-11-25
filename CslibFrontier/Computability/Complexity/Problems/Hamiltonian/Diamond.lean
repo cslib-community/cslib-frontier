@@ -162,14 +162,11 @@ private theorem nodup_flatMap_step {l : List ℕ} (hl : l.Nodup)
     cases o a <;> simp
   · intro x hx hx'
     rw [mem_step] at hx hx'
-    rcases hx with rfl | ⟨j, hv, rfl⟩ <;> rcases hx' with h' | ⟨j', hv', h'⟩
-    · simp only [rowNode_inj] at h'
-      omega
-    · simp at h'
-    · simp at h'
-    · rw [clauseNode_inj] at h'
-      subst h'
-      exact hab (ho a b j hv hv')
+    rcases hx with rfl | ⟨j, hv, rfl⟩ <;> rcases hx' with h' | ⟨j', hv', h'⟩ <;>
+      simp only [rowNode_inj, clauseNode_inj, rowNode_ne_clauseNode,
+        clauseNode_ne_rowNode] at h'
+    · exact absurd h'.2 hab
+    · exact hab (ho a b j hv (h' ▸ hv'))
 
 end Step
 
@@ -211,10 +208,9 @@ private theorem visit_eq_some_iff {i s j : ℕ} :
       have hmem := List.mem_range.1 (List.mem_of_find?_eq_some hv)
       have hp := List.find?_some hv
       simp only [decide_eq_true_eq] at hp
-      have := hD.clause_eq _ (hpick j hj).1 _ (hpick j' hmem).1 (hi.trans hp.1.symm)
+      have hcl := hD.clause_eq _ (hpick j hj).1 _ (hpick j' hmem).1 (hi.trans hp.1.symm)
         (hs.trans hp.2.symm)
-      rw [(hpick j hj).2.1, (hpick j' hmem).2.1] at this
-      rw [this]
+      rw [← (hpick j hj).2.1, hcl, (hpick j' hmem).2.1]
 
 /-- A rightward traversal visits clause `j` after row node `a` exactly when `a` starts the slot
 of its picked detour. -/
@@ -222,11 +218,7 @@ private theorem rightVisit_eq_some_iff {i a j : ℕ} :
     rightVisit M pick i a = some j ↔
       j < M ∧ (pick j).row = i ∧ a = 3 * (pick j).slot + 2 := by
   unfold rightVisit
-  split_ifs with h
-  · rw [visit_eq_some_iff hD hpick]
-    omega
-  · simp only [false_iff]
-    omega
+  split_ifs with h <;> simp only [visit_eq_some_iff hD hpick, false_iff] <;> omega
 
 /-- A leftward traversal visits clause `j` after row node `a` exactly when `a` ends the slot of
 its picked detour. -/
@@ -234,11 +226,7 @@ private theorem leftVisit_eq_some_iff {i a j : ℕ} :
     leftVisit M pick i a = some j ↔
       j < M ∧ (pick j).row = i ∧ a = 3 * (pick j).slot + 3 := by
   unfold leftVisit
-  split_ifs with h
-  · rw [visit_eq_some_iff hD hpick]
-    omega
-  · simp only [false_iff]
-    omega
+  split_ifs with h <;> simp only [visit_eq_some_iff hD hpick, false_iff] <;> omega
 
 omit hD in
 /-- The arcs of the picked detour of a clause, in the direction of its row. -/
@@ -252,11 +240,9 @@ private theorem arc_detour {j : ℕ} (hj : j < M) :
   obtain ⟨hmem, hcl, hdir⟩ := hpick j hj
   have harc : ∀ e ∈ detourArcs (pick j), e ∈ arcs N slots D := fun e he =>
     List.mem_append_right _ (List.mem_flatMap.2 ⟨pick j, hmem, he⟩)
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · have hb : (pick j).leftToRight = true := hdir ▸ h
-    exact ⟨harc _ (by simp [detourArcs, hb, hcl]), harc _ (by simp [detourArcs, hb, hcl])⟩
-  · have hb : (pick j).leftToRight = false := hdir ▸ h
-    exact ⟨harc _ (by simp [detourArcs, hb, hcl]), harc _ (by simp [detourArcs, hb, hcl])⟩
+  refine ⟨fun h => ?_, fun h => ?_⟩ <;>
+    exact ⟨harc _ (by simp [detourArcs, ← hdir, h, hcl]),
+      harc _ (by simp [detourArcs, ← hdir, h, hcl])⟩
 
 /-- No clause is visited across the right end of a row. -/
 private theorem visit_last (i : ℕ) : visit M pick i (slots i) = none := by

@@ -462,12 +462,10 @@ theorem run_vertexEqProc {B n x y : ℕ} (hx : x < 2 ^ n) (hy : y < 2 ^ n)
     (vertexEqProc B n).run x y (cat, s₀) = (cat, s₀ + if x = y then 1 else 0) := by
   have hq₁ : 0 < outerChunkBits B := by simp [outerChunkBits]
   have hcov : n ≤ outerDigits B n * outerChunkBits B := Nat.le_ceilDiv_mul hq₁
-  have hx' : x < 2 ^ (outerDigits B n * outerChunkBits B) :=
-    hx.trans_le (Nat.pow_le_pow_right (by decide) hcov)
-  have hy' : y < 2 ^ (outerDigits B n * outerChunkBits B) :=
-    hy.trans_le (Nat.pow_le_pow_right (by decide) hcov)
   rw [run_vertexEqProc_chunk]
-  simp only [natChunkVec_eq_iff hx' hy']
+  simp only [natChunkVec_eq_iff
+    (hx.trans_le (Nat.pow_le_pow_right (by decide) hcov))
+    (hy.trans_le (Nat.pow_le_pow_right (by decide) hcov))]
 
 /-- **Excursion correctness and restoration of `vertexEqProc`**: under any restoring,
 catalyst-independent excursion callback `visit` for `x, y < 2 ^ n`, `runExcursions` restores `cat`
@@ -547,8 +545,7 @@ private theorem outerAccBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
           rw [← pow_add]
           congr 1
           omega
-  have hlog_ℓ₁ : Nat.log 2 (outerDigits B n) < Nat.log 2 (C_N + 1) + outerChunkBits B + 2 :=
-    Nat.log_lt_of_lt_pow' (by omega) hℓ₁_lt
+  have := Nat.log_lt_of_lt_pow' (by omega) hℓ₁_lt
   rw [outerAccBits]
   omega
 
@@ -571,10 +568,8 @@ theorem vertexCatBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
   set c := Nat.log 2 (C_N + 1)
   set d := Nat.log 2 (c + 11) + 1
   have hq₁_pos : 0 < outerChunkBits B := by simp [outerChunkBits]
-  have hq₁_le_B : outerChunkBits B ≤ B + 1 := by
-    have := Nat.log_le_self 2 B
-    rw [outerChunkBits]
-    omega
+  have hq₁_le_B : outerChunkBits B ≤ B + 1 :=
+    max_le (Nat.succ_pos B) ((Nat.log_le_self 2 B).trans (Nat.le_succ B))
   have hq₂_le_B : innerChunkBits B ≤ B + 1 := by grind [innerChunkBits]
   -- Stage 1 bit bound: `(ℓ₁ + 1) * k₁ ≤ (c + 5) * (C_N + 2) * (B + 1)`.
   have hk₁_le : outerAccBits B n ≤ (c + 5) * outerChunkBits B := by
@@ -606,10 +601,9 @@ theorem vertexCatBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
     (Nat.mul_le_mul (show innerDigits B n + 1 ≤ c + 12 by omega) hk₂_lin).trans_eq (by ring)
   have hpow_q₂ : 2 ^ (2 * innerChunkBits B) ≤ 4 * (B + 1) := by
     by_cases hlog : Nat.log 2 B ≤ 1
-    · have hq₂_eq : innerChunkBits B = 1 := by grind [innerChunkBits, outerChunkBits]
-      rw [hq₂_eq]
+    · rw [show innerChunkBits B = 1 by grind [innerChunkBits, outerChunkBits]]
       omega
-    · have hB0 : B ≠ 0 := by intro h0; subst h0; simp at hlog
+    · have hB0 : B ≠ 0 := fun h0 => by simp [h0] at hlog
       have h2q₂ : 2 * innerChunkBits B ≤ Nat.log 2 B := by grind [innerChunkBits, outerChunkBits]
       calc 2 ^ (2 * innerChunkBits B)
           ≤ 2 ^ Nat.log 2 B := Nat.pow_le_pow_right (by decide) h2q₂
