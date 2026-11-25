@@ -246,29 +246,23 @@ theorem dist_eq (x : List Bool) :
     ENNReal.add_sub_cancel_right ENNReal.ofReal_ne_top]
 
 theorem aR_le_bR (x : List Bool) : aR num den x ≤ bR num den x := by
-  have h := D.cdf_eq_cdfLo_add x
-  rw [cdf_eq hcdf hden, cdfLo_eq hcdf hden] at h
-  have : ENNReal.ofReal (aR num den x) ≤ ENNReal.ofReal (bR num den x) := by
-    rw [h]; exact le_self_add
-  exact (ENNReal.ofReal_le_ofReal_iff (bR_nonneg x)).mp this
+  refine (ENNReal.ofReal_le_ofReal_iff (bR_nonneg x)).mp ?_
+  rw [← cdfLo_eq hcdf hden, ← cdf_eq hcdf hden, D.cdf_eq_cdfLo_add]
+  exact le_self_add
 
 omit hcdf in
 theorem aR_mul_eq (x : List Bool) : aR num den x * 2 ^ x.length =
     ((cP num den x * 2 ^ x.length : ℕ) : ℝ) / cQ den x := by
-  have hd : (den x : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (hden x)
-  have hl : (loDen den x : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (loDen_ne_zero hden x)
   unfold aR cP cQ
   push_cast
-  field_simp
+  field_simp [Nat.cast_ne_zero.mpr (hden x), Nat.cast_ne_zero.mpr (loDen_ne_zero hden x)]
 
 omit hcdf in
 theorem bR_mul_eq (x : List Bool) : bR num den x * 2 ^ x.length =
     ((cR num den x * 2 ^ x.length : ℕ) : ℝ) / cQ den x := by
-  have hd : (den x : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (hden x)
-  have hl : (loDen den x : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (loDen_ne_zero hden x)
   unfold bR cR cQ
   push_cast
-  field_simp
+  field_simp [Nat.cast_ne_zero.mpr (hden x), Nat.cast_ne_zero.mpr (loDen_ne_zero hden x)]
 
 omit hcdf in
 theorem cQ_pos (x : List Bool) : 0 < cQ den x :=
@@ -303,17 +297,13 @@ theorem cB_bounds (x : List Bool) (hh : heavy num den x = true) :
     bR num den x * 2 ^ x.length ≤ cB num den x + 1 := by
   have hQ := cQ_pos hden x
   have hQ' : (0 : ℝ) < cQ den x := Nat.cast_pos.mpr hQ
-  have hpos : 0 < cR num den x * 2 ^ x.length := by
-    have := of_decide_eq_true hh
-    omega
+  have := of_decide_eq_true hh
   have h1 : cB num den x * cQ den x ≤ cR num den x * 2 ^ x.length - 1 := Nat.div_mul_le_self _ _
-  have h2 : cR num den x * 2 ^ x.length - 1 < cB num den x * cQ den x + cQ den x :=
-    Nat.lt_div_mul_add hQ
-  have h1' : cB num den x * cQ den x < cR num den x * 2 ^ x.length := by omega
-  have h2' : cR num den x * 2 ^ x.length ≤ (cB num den x + 1) * cQ den x := by
-    rw [add_mul, one_mul]; omega
-  rw [bR_mul_eq hden, lt_div_iff₀ hQ', div_le_iff₀ hQ']
-  exact ⟨by exact_mod_cast h1', by exact_mod_cast h2'⟩
+  have h2 : cR num den x * 2 ^ x.length - 1 < (cB num den x + 1) * cQ den x := by
+    simpa [cB, add_mul] using Nat.lt_div_mul_add (a := cR num den x * 2 ^ x.length - 1) hQ
+  rw [bR_mul_eq hden, lt_div_iff₀ hQ', div_le_iff₀ hQ', ← Nat.cast_add_one, ← Nat.cast_mul,
+    ← Nat.cast_mul, Nat.cast_lt, Nat.cast_le]
+  exact ⟨by omega, by omega⟩
 
 /-- The facts about a word of large probability used by Claim 20. -/
 theorem heavy_spec (x : List Bool) (hh : heavy num den x = true) :

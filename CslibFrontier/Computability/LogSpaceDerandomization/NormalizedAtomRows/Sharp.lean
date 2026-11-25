@@ -289,14 +289,10 @@ theorem sharp_firstOverflow {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ 
   have ht := htail s n Δ raw truth δ hδ hδs m j hj hover hfirst hsecond hn ε
     (fun i _ hi => hε i hi) herrtail y hy
   have hp := hpre s n Δ raw truth m j hj.le hover.1 ε (fun i hi => hε i (hi.trans hj)) herrpre y hy
-  have hc := continuation_preserved HP ζ s n Δ raw truth hs hmargin hδ hδs m j (m - j)
-    (by omega) hover.1 hfirst hsecond hn y hy
-  change output HP ζ (c.row y 0) (c.row y 1) (firstRank s HP.K c.defaultValue c.row) =
-    output HP ζ (b.row y 0) (b.row y 1) (firstRank s HP.K b.defaultValue b.row) at hc
   have href : stateRootError (output HP ζ) s HP.K c ⟨0, truth⟩ y =
-      stateRootError (output HP ζ) s HP.K b ⟨0, truth⟩ y := by
-    unfold stateRootError
-    rw [hc]
+      stateRootError (output HP ζ) s HP.K b ⟨0, truth⟩ y :=
+    congrArg (· ^ (4⁻¹ : ℝ) - _) (continuation_preserved HP ζ s n Δ raw truth hs hmargin hδ hδs m j
+      (m - j) (by omega) hover.1 hfirst hsecond hn y hy)
   rw [← href] at hp
   calc
     _ ≤ |stateRootError (output HP ζ) s HP.K a c y| + |stateRootError (output HP ζ) s HP.K c
@@ -336,13 +332,12 @@ theorem sharp_compression {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ HP
   classical
   obtain ⟨Cf, hCf, hno⟩ := sharp_noOverflow HP ζ hζ hs hmargin
   obtain ⟨Ct, hCt, hover⟩ := sharp_firstOverflow HP ζ hζ hs hmargin hcapscale
-  refine ⟨max Cf Ct, le_trans hCf (le_max_left _ _), ?_⟩
-  intro η hη hmargin
+  refine ⟨max Cf Ct, hCf.trans (le_max_left _ _), fun η hη hmargin => ?_⟩
   obtain ⟨An, hAn, hn⟩ := hno η hη hmargin
   obtain ⟨At, hAt, ht⟩ := hover η hη hmargin
-  refine ⟨max An At, le_trans hAn (le_max_left _ _), ?_⟩
-  intro ι S n Δ raw truth m heavy hfirst hsecond hcapacity ε hε herr
-    εfinal hεfinal herrfinal hfalse y hy
+  refine ⟨max An At, hAn.trans (le_max_left _ _),
+    fun S n Δ raw truth m heavy hfirst hsecond hcapacity ε hε herr
+      εfinal hεfinal herrfinal hfalse y hy => ?_⟩
   exact le_of_noOverflow_of_firstOverflow S n (fun _ => HP.K) (dyadicFloor η m) Δ ⟨0, raw⟩ m
     heavy ε (fun _ => by positivity) hε hεfinal hAt hCf hCt hfalse
     (fun hnone => hn S n Δ raw truth m hnone hfirst ε hε

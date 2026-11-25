@@ -296,9 +296,7 @@ theorem scheffeSelectFin_ge_le_of_log (p : _root_.PMF α) {M : ℕ} [NeZero M]
       δ := by
   refine (scheffeSelectFin_prob_ge_le p models i₀ n hγ).trans ?_
   have hM : (1 : ℝ) ≤ M := by exact_mod_cast NeZero.pos M
-  have hcK : 2 * ((M : ℝ) * ((M : ℝ) - 1)) ≤ 2 * (M : ℝ) ^ 2 := by
-    have : 2 * ((M : ℝ) * ((M : ℝ) - 1)) = 2 * (M : ℝ) ^ 2 - 2 * M := by ring
-    linarith
+  have hcK : 2 * ((M : ℝ) * ((M : ℝ) - 1)) ≤ 2 * (M : ℝ) ^ 2 := by nlinarith
   rw [show (-2 : ℝ) * (n : ℝ) * γ ^ 2 = -(2 * γ ^ 2 * (n : ℝ)) by ring]
   exact Real.mul_exp_neg_le_of_log hcK (by positivity) (by positivity) hδ hn
 
@@ -352,11 +350,8 @@ private theorem birge_pair_not_le_of_true {s : Finset ι} {models : ι → _root
     (hlose : ∀ j ∈ s, j ≠ i₀ → 10 * r ≤ hellingerDist (models j) (models i₀) →
       leCamBirgeTest (models j) (models i₀) x = false)
     (hsame : ihat ≠ i₀) (htest : leCamBirgeTest (models ihat) (models i₀) x = true) :
-    ¬ (10 * r ≤ hellingerDist (models ihat) (models i₀)) := by
-  intro hsep
-  have hf := hlose ihat hihat hsame hsep
-  rw [htest] at hf
-  cases hf
+    ¬ (10 * r ≤ hellingerDist (models ihat) (models i₀)) :=
+  fun hsep => Bool.false_ne_true ((hlose ihat hihat hsame hsep).symm.trans htest)
 
 private theorem le_maxDefeatRadius_of_ne_true {s : Finset ι} {hs : s.Nonempty}
     {models : ι → _root_.PMF α} {n : ℕ} {x : Fin n → α} {i₀ ihat : ι} (hi₀ : i₀ ∈ s)
@@ -455,9 +450,8 @@ private theorem toOuterMeasure_birge_bad_union_le [Finite α] [DecidableEq ι] {
     by_cases hP : P
     · exact (toOuterMeasure_toReal_mono _
         (show {x | P ∧ Q x} ⊆ {x | Q x} from fun _ hx => hx.2)).trans (hb hP)
-    · have hemp : {x : Fin n → α | P ∧ Q x} = ∅ :=
-        Set.eq_empty_iff_forall_notMem.mpr fun _ hx => hP hx.1
-      rw [hemp, MeasureTheory.measure_empty, ENNReal.toReal_zero]
+    · rw [(Set.eq_empty_iff_forall_notMem.mpr fun _ hx => hP hx.1 : {x | P ∧ Q x} = ∅),
+        MeasureTheory.measure_empty, ENNReal.toReal_zero]
       exact (Real.exp_pos _).le
   have hterm (j : ι) :
       ((iid p n).toOuterMeasure (E₁ j ∪ E₂ j)).toReal ≤ 2 * Real.exp (-4 * (n : ℝ) * r ^ 2) := by
@@ -568,11 +562,10 @@ theorem birgeTournamentSelectFin_ge_le_of_log [Finite α] {p : _root_.PMF α} {M
       {x | 11 * r ≤ hellingerDist p (models (birgeTournamentSelectFin models x))}).toReal ≤
       δ := by
   refine (birgeTournamentSelectFin_prob_ge_le models i₀ n hr hp).trans ?_
-  have hM : (1 : ℝ) ≤ M := by exact_mod_cast NeZero.pos M
-  have hcK : 2 * ((M : ℝ) - 1) ≤ 2 * (M : ℝ) := by linarith
-  have hK : 0 < 2 * (M : ℝ) := by linarith
   rw [show (-4 : ℝ) * (n : ℝ) * r ^ 2 = -(4 * r ^ 2 * (n : ℝ)) by ring]
-  exact Real.mul_exp_neg_le_of_log hcK hK (by positivity) hδ hn
+  exact Real.mul_exp_neg_le_of_log
+    (mul_le_mul_of_nonneg_left (sub_le_self _ zero_le_one) zero_le_two)
+    (mul_pos two_pos (Nat.cast_pos.mpr (NeZero.pos M))) (by positivity) hδ hn
 
 /-- Agnostic finite-cover Hellinger guarantee: if `models` on `s` is a finite Hellinger `r`-cover
 of a class `ℱ`, then for every `p ∈ ℱ`, `birgeTournamentSelect` outputs a model within Hellinger

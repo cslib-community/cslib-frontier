@@ -118,7 +118,7 @@ theorem coalitionInfluenceToward_mono (b : Bool) {J K : Finset ι} (hJK : J ⊆ 
   funext j
   by_cases hj : j ∈ J
   · simp [piecewise, hj, hJK hj]
-  · by_cases hk : j ∈ K <;> simp [piecewise, hj, hk]
+  · simp [piecewise, hj]
 
 /-- **The directed coalitional influence of one voter is half its influence**
 [O'Donnell, Exercise 9.25(a)][ODonnell2014]: `Inf~_{i}^b[f] = Infᵢ[f] / 2`; the undirected
@@ -160,20 +160,14 @@ theorem coalitionInfluence_eq_add (J : Finset ι) (f : (ι → Bool) → Bool) :
         (∃ y, f (J.piecewise y z) = true) ∧ ∃ y, f (J.piecewise y z) = false := by
       rw [isUndetermined_iff_outside]
       simp only [PartialAssignment.fill_outside]
-      constructor
-      · rintro ⟨y, y', h⟩
-        cases hy : f (J.piecewise y z) <;> rw [hy] at h
-        · exact ⟨⟨y', by simpa using h.symm⟩, ⟨y, hy⟩⟩
-        · exact ⟨⟨y, hy⟩, ⟨y', by simpa using h.symm⟩⟩
-      · rintro ⟨⟨y, hy⟩, ⟨y', hy'⟩⟩
-        exact ⟨y, y', by rw [hy, hy']; decide⟩
-    have hself : f (J.piecewise z z) = f z := by rw [piecewise_same]
+      refine ⟨fun ⟨y, y', h⟩ => ?_, fun ⟨⟨y, hy⟩, ⟨y', hy'⟩⟩ => ⟨y, y', by simp [hy, hy']⟩⟩
+      cases hy : f (J.piecewise y z)
+      · exact ⟨⟨y', Bool.eq_true_of_not_eq_false (hy ▸ h.symm)⟩, ⟨y, hy⟩⟩
+      · exact ⟨⟨y, hy⟩, ⟨y', Bool.eq_false_iff.mpr (hy ▸ h.symm)⟩⟩
     rw [if_congr hne rfl rfl]
     cases hfz : f z
-    · have hf : ∃ y, f (J.piecewise y z) = false := ⟨z, hself.trans hfz⟩
-      by_cases ht : ∃ y, f (J.piecewise y z) = true <;> simp [ht, hf]
-    · have ht : ∃ y, f (J.piecewise y z) = true := ⟨z, hself.trans hfz⟩
-      by_cases hf : ∃ y, f (J.piecewise y z) = false <;> simp [ht, hf]
+    · simp [show ∃ y, f (J.piecewise y z) = false from ⟨z, by rwa [piecewise_same]⟩]
+    · simp [show ∃ y, f (J.piecewise y z) = true from ⟨z, by rwa [piecewise_same]⟩, add_comm]
   have hsum := congrArg (fun φ => 𝔼 z, φ z) (funext hz)
   simp only [expect_add_distrib] at hsum
   have hone :
@@ -196,12 +190,10 @@ theorem coalitionInfluenceToward_eq_of_monotone {f : (ι → Bool) → Bool} (hf
       (∃ y, f (J.piecewise y z) = b) ↔ f (J.piecewise (fun _ => b) z) = b := by
     refine ⟨fun ⟨y, hy⟩ => ?_, fun h => ⟨_, h⟩⟩
     cases b
-    · have h := hf (J.piecewise_le_piecewise (fun j => Bool.false_le (y j)) (le_refl z))
-      rw [hy] at h
-      exact le_bot_iff.1 h
-    · have h := hf (J.piecewise_le_piecewise (fun j => Bool.le_true (y j)) (le_refl z))
-      rw [hy] at h
-      exact top_le_iff.1 h
+    · exact le_bot_iff.1
+        ((hf (J.piecewise_le_piecewise (fun j => Bool.false_le (y j)) le_rfl)).trans_eq hy)
+    · exact top_le_iff.1
+        (hy.symm.trans_le (hf (J.piecewise_le_piecewise (fun j => Bool.le_true (y j)) le_rfl)))
   simp only [coalitionInfluenceToward, hz]
 
 /-- **Every coalition controls a parity** [O'Donnell, Exercise 9.25(e)][ODonnell2014]: any

@@ -194,16 +194,12 @@ private theorem eventually_lt_of_frontier_of_bound {A M : ℝ} (hA : 0 < A) (hM 
       div_le_div_of_nonneg_left hlog0 h2 hL2
     calc (A + η + 1) * Real.logb q (v + 1) ≤ (A + 2) * (Real.log (v + 1) / Real.log 2) :=
           mul_le_mul (by linarith) h1 hlogV0 (by linarith)
-      _ ≤ κ * Real.log (v + 1) := by
-          rw [mul_div_assoc', div_eq_mul_inv, mul_comm, ← mul_assoc]
-          refine mul_le_mul_of_nonneg_right ?_ hlog0
-          simp only [κ]
-          rw [div_eq_inv_mul]
-          linarith
-  have hvκ : v ≤ κ * (n + s + 1) := by
-    have hκM : M ≤ κ := by simp only [κ]; linarith [show 0 ≤ (A + 2) / Real.log 2 by positivity]
-    have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg _
-    nlinarith
+      _ ≤ κ * Real.log (v + 1) :=
+          ((mul_div_assoc' (A + 2) _ _).trans (div_mul_eq_mul_div (A + 2) _ _).symm).trans_le
+            (mul_le_mul_of_nonneg_right (le_add_of_nonneg_left hM) hlog0)
+  have hvκ : v ≤ κ * (n + s + 1) :=
+    hvs.trans (mul_le_mul_of_nonneg_right (le_add_of_nonneg_right (by positivity))
+      (by linarith [Nat.cast_nonneg (α := ℝ) n]))
   have hd := le_abs_self d
   refine hn s v (w - (A + η) * Real.logb q (v + 1)) hs hv hvκ ?_ ?_
   · simp only [e]
@@ -305,8 +301,6 @@ theorem eventually_lt_of_graph {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 < A)
   filter_upwards [eventually_lt_of_graph_of_bound (M := 7) hr hA (by norm_num) hlayout hSK hε] with
     n hn g V E _ _ G hconn hloop hdeg hV hrank hwidth
   refine hn g V E G hconn hloop hdeg ?_ hrank hwidth
-  have hg : (0 : ℝ) ≤ g := Nat.cast_nonneg g
-  have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
   cast_nlinarith [hV, hr]
 
 /-- **The frontier lower bound, charging only multiary gates.** Let `r ≥ 2` and assume the layout
@@ -330,20 +324,17 @@ theorem eventually_lt_mul_multiarySize {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 
     exists_graph_of_decides_multiarySize hr hfan hS hfreen hbign
   refine hn c.multiarySize V E G hc hl hd ?_ hrank hw
   have hV' : (Nat.card V : ℝ) ≤
-      2 * r * (c.multiarySize + q + (c.multiarySize + n) * (q : ℝ) ^ q) + 3 := by
-    exact_mod_cast hV
-  have hr' : (2 : ℝ) ≤ r := by exact_mod_cast hr
-  have hg : (0 : ℝ) ≤ c.multiarySize := Nat.cast_nonneg _
-  have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-  have hg_le : (c.multiarySize : ℝ) ≤ (r - 1) * c.multiarySize := by nlinarith
-  have hqq : (0 : ℝ) ≤ (q : ℝ) ^ q := by positivity
-  have hq0 : (0 : ℝ) ≤ q := by positivity
+      2 * r * (c.multiarySize + q + (c.multiarySize + n) * (q : ℝ) ^ q) + 3 := mod_cast hV
+  have hr' : (2 : ℝ) ≤ r := mod_cast hr
+  have hg_le : (c.multiarySize : ℝ) ≤ (r - 1) * c.multiarySize :=
+    le_mul_of_one_le_left (Nat.cast_nonneg _) (by linarith)
   have hinner : (c.multiarySize : ℝ) + q + (c.multiarySize + n) * (q : ℝ) ^ q ≤
       (1 + q + (q : ℝ) ^ q) * (n + ((r - 1) * c.multiarySize) + 1) := by
-    nlinarith
-  have hmul := mul_le_mul_of_nonneg_left hinner (by positivity : (0 : ℝ) ≤ 2 * r)
-  simp only [M]
-  linarith
+    nlinarith [Nat.cast_nonneg (α := ℝ) n, Nat.cast_nonneg (α := ℝ) c.multiarySize,
+      Nat.cast_nonneg (α := ℝ) q, pow_nonneg (Nat.cast_nonneg (α := ℝ) q) q]
+  dsimp only [M]
+  linarith [mul_le_mul_of_nonneg_left hinner (by positivity : (0 : ℝ) ≤ 2 * r),
+    Nat.cast_nonneg (α := ℝ) n, Nat.cast_nonneg (α := ℝ) c.multiarySize]
 
 /-- **The frontier lower bound.** Let `r ≥ 2` and assume the layout hypothesis for maximum degree
 `r + 1` with coefficient `A > 0`. Let `S_n ⊆ U^n` be `K_n`-rectangle-free sets over a finite

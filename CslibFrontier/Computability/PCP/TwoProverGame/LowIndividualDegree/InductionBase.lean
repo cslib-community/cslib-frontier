@@ -129,10 +129,7 @@ theorem exists_one_coordinate_polynomial_POVM
   have hscore := acceptScore_one_le_pointAgreement C d u
   simp only [← two_mul, mul_div_cancel_left₀ _ (by norm_num : (2 : ℝ) ≠ 0)]
   rw [Measurement.map_map] at hscore
-  change acceptScore C d (.point u) (.axis univ) ≤
-    Measurement.agreement C.state (decodedPoint C.alice u)
-      ((C.bob (.axis univ)).map fun a => MvPolynomial.eval u (f a).val)
-  simpa only [f, hp, decodedPoint, Function.comp_def] using hscore
+  simpa only [C, f, hp, decodedPoint, Function.comp_def] using hscore
 
 section DegreeZero
 
@@ -188,8 +185,7 @@ private theorem degreeZero_pointVariance
         (𝔼 u : Pt, 𝔼 i : Fin (n + 1), ∑ a, φ.norm (A u a - R i u a) ^ 2) := by
       simp only [← mul_sum, expect_sum_comm]
       rw [sum_comm]
-      simp only [← expect_sum_comm]
-      rw [mul_assoc]
+      simp only [← expect_sum_comm, mul_assoc]
       congr 1
       rw [mul_expect]
       exact expect_congr rfl fun u _ => by

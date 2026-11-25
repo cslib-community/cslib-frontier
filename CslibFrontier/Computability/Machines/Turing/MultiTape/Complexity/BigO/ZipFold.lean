@@ -83,16 +83,9 @@ theorem zipFold_eq_zipWithLeft (f : π → α → Option β → Option γ) (p : 
 /-- A walk that keeps every element is a `List.mapIdx` that reads the second list at each index. -/
 theorem zipFold_some (g : π → α → Option β → γ) (p : π) (l : List α) (r : List β) :
     zipFold (fun p a b => some (g p a b)) p l r = l.mapIdx fun i a => g p a r[i]? := by
-  have hnil : ∀ xs : List α,
-      xs.zipWithLeft (fun a b => some (g p a b)) [] = xs.map fun a => some (g p a none) :=
-    fun xs => by cases xs <;> rfl
-  rw [zipFold_eq_zipWithLeft]
   induction l generalizing r with
   | nil => rfl
-  | cons a l ih =>
-    rcases r with _ | ⟨b, r⟩
-    · simpa [List.zipWithLeft, hnil, List.mapIdx_cons] using congrArg (g p a none :: ·) (ih [])
-    · simpa [List.zipWithLeft, List.mapIdx_cons] using congrArg (g p a (some b) :: ·) (ih r)
+  | cons a l ih => cases r <;> simp [zipFold, ih, List.mapIdx_cons]
 
 namespace ComputableInO
 
