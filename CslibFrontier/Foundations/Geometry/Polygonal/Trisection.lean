@@ -37,17 +37,9 @@ namespace Cslib.Polygonal.Route
 theorem endpoint_trisect (p : Route) (s t : ℝ) (k : Fin 3) (b : Bool) :
     (p.trisect s t k).endpoint b =
       p.trisectionPoints s t (if b then k.succ else k.castSucc) := by
-  have hl : (p.cutEnds s t).start = p.eval (p.endSegment false) (endTime false s) :=
-    p.endpoint_cutEnds s t false
   have hr : (p.cutEnds s t).finish = p.eval (p.endSegment true) (endTime true t) :=
     p.endpoint_cutEnds s t true
-  fin_cases k <;> cases b
-  · rfl
-  · exact hl
-  · exact hl
-  · exact hr
-  · exact hr
-  · rfl
+  fin_cases k <;> cases b <;> first | rfl | exact hr
 
 /-- The four boundaries of the pieces in the original route's position parameter. -/
 @[expose] def trisectionBounds (p : Route) (s t : ℝ) : Fin 4 → ℝ :=
@@ -138,14 +130,8 @@ private theorem middle_position_upper (p : Route) {s t : ℝ}
       simpa only [cutUpper, hi, ite_true] using (p.cutTime_bounds hs.le ht.le hst i hu).2
     have he : p.cutTime s t i u = 1 - t ↔ u = 1 := by
       simpa only [cutUpper, hi, ite_true] using p.cutTime_eq_upper_iff hs.le ht.le hst i u
-    refine ⟨by linarith, ?_⟩
-    constructor
-    · intro hz
-      have hu1 := he.mp (by linarith)
-      linarith
-    · intro hz
-      have hr := he.mpr (by linarith)
-      linarith
+    exact ⟨by linarith, fun hz => by linarith [he.mp (by linarith)],
+      fun hz => by linarith [he.mpr (by linarith)]⟩
   · have hic : (i.val : ℝ) + 2 ≤ p.segments := by
       exact_mod_cast (show i.val + 2 ≤ p.segments by omega)
     have hr := p.cutTime_mem hs.le ht.le hst i hu
@@ -211,17 +197,11 @@ theorem exists_trisect_eval (p : Route) {s t : ℝ}
     rw [hpos, hline, hline]
     refine ⟨⟨by linarith, by linarith⟩, ?_, ?_⟩
     · change (p.segments : ℝ) - t + t * u = (p.segments : ℝ) - t ↔ u = 0
-      constructor
-      · intro he
-        exact (cancel t ht.ne' 0).mp (by rw [mul_zero]; linarith)
-      · intro he
-        rw [he, mul_zero, add_zero]
+      rw [← cancel t ht.ne' 0, mul_zero]
+      constructor <;> intro <;> linarith
     · change (p.segments : ℝ) - t + t * u = p.segments ↔ u = 1
-      constructor
-      · intro he
-        exact (cancel t ht.ne' 1).mp (by rw [mul_one]; linarith)
-      · intro he
-        rw [he, mul_one, sub_add_cancel]
+      rw [← cancel t ht.ne' 1, mul_one]
+      constructor <;> intro <;> linarith
 
 /-- Each of the three pieces is simple when the original route is simple.
 The original route may have the same start and finish. -/
@@ -275,13 +255,8 @@ theorem support_trisect (p : Route) {s t : ℝ}
         rw [eval_cutEnds, show p.cutTime s t i u = r from he]
       · have hi : i = Fin.last p.bends := by
           by_contra h
-          have hn : i.val + 1 ≠ p.segments := by
-            intro he
-            apply h
-            apply Fin.ext
-            simp only [Fin.val_last]
-            unfold segments at he
-            omega
+          have hn : i.val + 1 ≠ p.segments := fun he =>
+            h (Fin.ext (by simp only [Fin.val_last]; unfold segments at he; omega))
           simp only [cutUpper, ite_eq_right hn] at hupp
           exact (not_lt_of_ge hr.2) hupp
         subst i
