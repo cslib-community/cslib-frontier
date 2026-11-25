@@ -186,8 +186,7 @@ theorem ncard_internal_add_join_le [DecidableEq V] [Finite E] {B B' : List V}
       · exact c.eq_of_mem D hD C hC _ hs hs'
       · exact c.eq_of_mem D hD C hC _ ht (by tauto)
     exact hne ((key B hB h₁).symm.trans (key B' hB' h₂))
-  have hle := ncard_le_ncard hsub
-  rwa [ncard_union_eq hdisj] at hle
+  exact (ncard_union_eq hdisj).symm.trans_le (ncard_le_ncard hsub)
 
 /-- **Ordered merge.** Replace two distinct blocks `B` and `B'` joined by an edge (with
 `B'.length ≤ B.length` and at most `d` edges leaving their union) by `B ++ B'`. -/
