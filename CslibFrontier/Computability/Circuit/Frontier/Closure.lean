@@ -847,7 +847,8 @@ private theorem transfer_acc_elimUnary {n s : ℕ} (p : Program σ n s) (I : Int
       rw [← hev]
       exact hx wf.1 w wf.2 hrep
 
-private theorem ReducedProgram.fanInAtMost {p : Program σ n s} {I : Interpretation σ U}
+private theorem ReducedProgram.fanInAtMost {n s : ℕ} {p : Program σ n s}
+    {I : Interpretation σ U}
     (red : ReducedProgram p I) {r : ℕ} (h : p.FanInAtMost r) : red.program.FanInAtMost r :=
   Program.fanInAtMost_iff.mpr fun j =>
     let ⟨k₀, hk₀⟩ := red.arity_le j
