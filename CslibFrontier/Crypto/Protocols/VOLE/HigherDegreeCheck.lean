@@ -91,7 +91,7 @@ and Fiat–Shamir multi-round soundness are not formalized here.
 * [BaumBMRS2023Eprint], Appendix B.1 (printed p. 46; full version of [BaumBMRS2023]): sketches
   generalization of sVOLE checks to arbitrary degree `d` via `(d - 1)` masks.
 * [BaumEtAl2023FAEST], Section 2.3.2: affine masking and scalar-power batched VOLE checks.
-* [BaumEtAl2026FAEST], Section 2.2 ("Adding Zero-Knowledge", `ZK.OWFProve` Figure 7.19), Section 3
+* [BaumEtAl2026FAEST], Section 2.2 ("Adding Zero-Knowledge", `ZK.OWFProve` Figure 7.19), Section 3.3
   (`H_0`..`H_5` domain separation bytes), Section 5.4 (Figure 5.6 / Proposition 5.2), and
   Section 5.5 (Figure 5.7): QuickSilver `(d_zk - 1)` telescoping masking, `Conversion`,
   `Challenge` grinding structure, and (cf. Lemmas 4.6–4.7 and Lemma 10.40, stated under
@@ -102,7 +102,7 @@ and Fiat–Shamir multi-round soundness are not formalized here.
 * [VoleMole2026], commit `87af6871f49d29f9613ee893485c50566ca7d620`: segmented Keccak Spend
   parameters (`d_zk = 9`, `ℓ' = 6784`, `C' = 12283` in `src/keccak/segmented.hpp` and
   `src/act/spend.hpp`), `"rata\x00l0"` RLC (`ACT_SPEND_COMBINE_DST` in `src/dst.hpp:44`, invoked
-  in `src/act/spend.hpp:383` and `src/uov/circuit.hpp:58`), and `H_2^4` (`12`) in
+  in `src/act/spend.hpp:383` and hashed at `src/uov/circuit.hpp:63–64`), and `H_2^4` (`12`) in
   `src/voleith.hpp:126`. VOLEitH ROM extraction and end-to-end ACT protocol security remain tracked
   in #7068.
 
@@ -137,11 +137,12 @@ and Fiat–Shamir multi-round soundness are not formalized here.
 * `Cslib.Crypto.Protocols.VOLE.uniform_split_of_disjoint_range`,
   `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1RLC_of_zkError_le`,
   `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1RLC_adaptive_of_zkError_le`,
-  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_domainSeparated_adaptive_le`,
-  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_faestDomainSeparated_adaptive_le`,
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_domainSeparated_adaptive_of_zkError_le`,
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_faestDomainSeparated_adaptive_of_zkError_le`,
   `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_qs_of_zkBinding_le`,
   `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_foldedQS_le`: domain-separated single-RO
-  splitting, non-adaptive & adaptive ACT V1 RLC soundness, and Round-2+3 QuickSilver composition.
+  splitting, non-adaptive & adaptive ACT V1 RLC steps, and conditional Round-2+3 QuickSilver
+  composition (plus unconditional `foldedConstraint` specialization).
 
 ## References
 
@@ -1400,14 +1401,14 @@ theorem toOuterMeasure_qsCheck_grinding_raw_le (p : ChallengeParams) {d : ℕ}
 
 end Soundness
 
-/-! ### ACT V1 Domain-Separated Random Linear Combination and Round-2+3 Composition -/
+/-! ### ACT V1 Domain-Separated Random Linear Combination and Conditional Round-2+3 Composition -/
 
 section ACTV1RLC
 
 /-- Trailing byte `'0' = 0x30` of `vole-mole`'s ACT Spend RLC domain separator `"rata\x00l0"`
 ([VoleMole2026], `src/dst.hpp:44`,
 `ACT_SPEND_COMBINE_DST = make_dst("rata", act::VERSION, 'l', '0')`, appended after `chal2` in
-`src/act/spend.hpp:383` and `src/uov/circuit.hpp:58`). -/
+`src/act/spend.hpp:383` and hashed in `src/uov/circuit.hpp:63–64`). -/
 @[expose] def actRLCDomainByte : Fin 256 := 0x30
 
 /-- Full 7-byte domain separation tag `"rata\x00l0"` defining `ACT_SPEND_COMBINE_DST` in
@@ -1415,7 +1416,7 @@ section ACTV1RLC
 -/
 @[expose] def actSpendCombineDst : List (Fin 256) := [0x72, 0x61, 0x74, 0x61, 0x00, 0x6c, 0x30]
 
-/-- Trailing domain-separator bytes reserved by FAEST v3 ([BaumEtAl2026FAEST], Section 3:
+/-- Trailing domain-separator bytes reserved by FAEST v3 ([BaumEtAl2026FAEST], Section 3.3:
 `0` for `H_0` BAVC commitment key derivation, `1` for `H_1`, `3..5` for `H_3..H_5`,
 `8..11` for `H_2^0..H_2^3`) together with `12` (`H_2^4` in [VoleMole2026], `src/voleith.hpp:126`).
 -/
@@ -1875,12 +1876,13 @@ theorem toOuterMeasure_actV1RLC_of_zkError_le [Fintype K] [Nonempty K] [Decidabl
   simpa only [Nat.cast_zero, zero_mul, zero_add, OracleComp.interpret_pure, pure_bind,
     hres, true_and, hsub] using hbound
 
-/-- **Domain-separated single-RO adaptive ACT V1 RLC soundness**: against a single finite uniform
-random oracle `H : K_all → Fin m → F` accessed through disjoint embeddings `ι₁ : K₁ ↪ K_all` (the
-ACT RLC slice, queried at most `q` times) and `ι₂ : K₂ ↪ K_all` (other protocol slices, queried
-arbitrarily many times), any adversary `M` satisfies the same `q * δ_K + 1 / |F| + (1 - 1 / |F|) *
-ε_zk` conditional Round-2+3 bound. -/
-theorem toOuterMeasure_actV1_domainSeparated_adaptive_le {K_all K₁ K₂ : Type}
+/-- **Conditional single-shot step given `hzk` (domain-separated single-RO adaptive ACT V1 RLC)**:
+against a single finite uniform random oracle `H : K_all → Fin m → F` accessed through disjoint
+embeddings `ι₁ : K₁ ↪ K_all` (the ACT RLC slice, queried at most `q` times) and `ι₂ : K₂ ↪ K_all`
+(other protocol slices, queried arbitrarily many times), any adversary `M` satisfies the
+`q * δ_K + 1 / |F| + (1 - 1 / |F|) * ε_zk` conditional step bound under the assumed Round-2 error
+`hzk` (error `ε_zk`). Models single-shot interactive `distK`, not full Fiat–Shamir soundness. -/
+theorem toOuterMeasure_actV1_domainSeparated_adaptive_of_zkError_le {K_all K₁ K₂ : Type}
     [Fintype K_all] [DecidableEq K_all] [DecidableEq F] {m q : ℕ}
     (ι₁ : K₁ ↪ K_all) (ι₂ : K₂ ↪ K_all) (hdisj : Disjoint (Set.range ι₁) (Set.range ι₂))
     (M : ProbOracleComp ((fun _ : K₁ => Fin m → F) ⊕ₒ (fun _ : K₂ => Fin m → F)) S)
@@ -1913,12 +1915,14 @@ theorem toOuterMeasure_actV1_domainSeparated_adaptive_le {K_all K₁ K₂ : Type
   · simp only [hs, false_and, decide_false, PMF.bind_const, PMF.toOuterMeasure_pure_apply,
       Set.mem_singleton_iff, Bool.false_eq_true, ↓reduceIte, zero_le]
 
-/-- **FAEST / `vole-mole` byte-domain-separated single-RO adaptive ACT V1 RLC soundness**:
-concrete specialization of `toOuterMeasure_actV1_domainSeparated_adaptive_le` to a single shared
-random oracle `H : ByteMsg (n + 1) → Fin m → F`, where `M` may make at most `q` queries with
-ACT's trailing byte `actRLCDomainByte` (`0x30`) and arbitrarily many queries with any FAEST /
-`vole-mole` trailing domain byte in `faestTrailingDomainBytes`. -/
-theorem toOuterMeasure_actV1_faestDomainSeparated_adaptive_le [DecidableEq F] {n m q : ℕ}
+/-- **Conditional single-shot step given `hzk` (FAEST / `vole-mole` byte-domain-separated single-RO
+adaptive ACT V1 RLC)**: concrete specialization of
+`toOuterMeasure_actV1_domainSeparated_adaptive_of_zkError_le` to a single shared random oracle
+`H : ByteMsg (n + 1) → Fin m → F`, where `M` may make at most `q` queries with ACT's trailing byte
+`actRLCDomainByte` (`0x30`) and arbitrarily many queries with any FAEST / `vole-mole` trailing
+domain byte in `faestTrailingDomainBytes`, assuming Round-2 error `hzk` (`ε_zk`). Models
+single-shot interactive `distK`, not full Fiat–Shamir soundness. -/
+theorem toOuterMeasure_actV1_faestDomainSeparated_adaptive_of_zkError_le [DecidableEq F] {n m q : ℕ}
     (M : ProbOracleComp
       ((fun _ : ByteMsg n => Fin m → F) ⊕ₒ (fun _ : FaestTaggedMsg n => Fin m → F)) S)
     (hbound : OracleComp.IsCostBounded
@@ -1941,7 +1945,7 @@ theorem toOuterMeasure_actV1_faestDomainSeparated_adaptive_le [DecidableEq F] {n
           ZKAccepts s k (H (appendDomainByteFin actRLCDomainByte k))))).toOuterMeasure {true} ≤
       (q : ℝ≥0∞) * δ_K +
         ((Fintype.card F : ℝ≥0∞)⁻¹ + (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ε_zk) :=
-  toOuterMeasure_actV1_domainSeparated_adaptive_le
+  toOuterMeasure_actV1_domainSeparated_adaptive_of_zkError_le
     (appendDomainByteFin actRLCDomainByte) appendFaestDomainByteFin
     (disjoint_range_actRLC_faestDomainByteFin n) M hbound distK hdist res ZKAccepts hzk
 

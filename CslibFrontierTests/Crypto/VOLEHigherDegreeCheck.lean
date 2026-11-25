@@ -4,9 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger, Karn Seth
 -/
 
+module
+
 import CslibFrontier.Computability.Circuit.Pi
 import CslibFrontier.Crypto.Protocols.VOLE.HigherDegreeCheck
 import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
+import Mathlib.Algebra.MvPolynomial.CommRing
 import Mathlib.Algebra.Polynomial.Coeff
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
@@ -30,6 +33,9 @@ Exercises `CslibFrontier.Crypto.Protocols.VOLE.HigherDegreeCheck` across:
   domain separation (shared/colliding bytes), predictable challenges (`q * δ_K = 1`), and small
   challenge fields (`ZMod 2`).
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.VOLEHigherDegreeCheck
 
@@ -769,7 +775,8 @@ example :
   have hdist : ∀ k₀ : ByteMsg 1, PMF.uniformOfFintype (ByteMsg 1) k₀ ≤ 1 / (256 : ℝ≥0∞) := by
     intro _
     simp [PMF.uniformOfFintype_apply, one_div]
-  have h := toOuterMeasure_actV1_faestDomainSeparated_adaptive_le singleROMixedAdversary hq
+  have h := toOuterMeasure_actV1_faestDomainSeparated_adaptive_of_zkError_le
+    singleROMixedAdversary hq
     (PMF.uniformOfFintype (ByteMsg 1)) hdist id (fun _ k _ => k = fun _ => 0)
     (ε_zk := 1 / (256 : ℝ≥0∞)) (fun _ _ _ => by
       rw [show {k : ByteMsg 1 | k = fun _ => 0} = {fun _ => 0} from rfl,
@@ -848,7 +855,8 @@ example :
       1 * (1 / (64 : ℝ≥0∞)) + ((17 : ℝ≥0∞)⁻¹ + (1 - (17 : ℝ≥0∞)⁻¹) * (9 / (17 : ℝ≥0∞))) := by
     rw [ZMod.card, show actSpendDegree = 9 from rfl]
     norm_num
-  simpa only [Nat.cast_one] using h.trans_eq hrhs
+  rw [Nat.cast_one] at h
+  exact h.trans_eq hrhs
 
 private noncomputable def spendRLCQ :
     Unit → Fin 64 → (Fin actSpendRLCCount → ZMod 17) → Polynomial (ZMod 17) :=
@@ -913,7 +921,8 @@ example :
         (1 - (17 : ℝ≥0∞)⁻¹) * (1 / (64 : ℝ≥0∞) + 9 / (17 : ℝ≥0∞))) := by
     rw [ZMod.card, show actSpendDegree = 9 from rfl]
     norm_num
-  simpa only [Nat.cast_one] using h.trans_eq hrhs
+  rw [Nat.cast_one] at h
+  exact h.trans_eq hrhs
 
 -- Negative test 3a (omitting domain separation):
 -- (1) Reading the SAME random oracle `H` does not yield an independent pair `(H₁, H₂)`.
