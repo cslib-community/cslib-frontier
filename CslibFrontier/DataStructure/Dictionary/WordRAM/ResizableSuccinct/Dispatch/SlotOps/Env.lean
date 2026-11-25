@@ -165,15 +165,13 @@ theorem FixedCoupled.denseOfPhysPre_slotOf {metaBase itemBase U V w N m_items b 
   set g := slotOf N gm b j
   have hg_lt : g < N := (slotOf_lt_and_injective hslot).1 b hb j hj
   refine ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V, rfl,
-    henv.meta_le_item.trans (le_trans (Nat.le_add_right _ _) henv.item_le_frontier),
-    hg_lt, fun hb_pos => ?_⟩
+    henv.meta_le_frontier, hg_lt, fun hb_pos => ?_⟩
   have hSN := hslot.multi_total_le hb_pos
   have htd := hcpl.tailDenseInv hb_pos
   have htail := hslot.multi_tail hb_pos
   have hM_le : gm 1 ≤ maxTailItems N := htail.ntails_eq.trans_le htail.ntails_le
   refine ⟨le_trans (Nat.le_add_right _ _) hSN, fun hg_ge => ?_⟩
   have hb_ne : bucketBits N ≠ 0 := hb_pos.ne'
-  unfold bCount at hj; simp only [hb_ne, ↓reduceIte, hb] at hj
   have hj_ge : ¬(j < gm (gmQIdx b) * slabSize N) := fun hj_slab => hg_ge <| by
     have hs_lt : j / slabSize N < gm (gmQIdx b) :=
       Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
@@ -185,9 +183,8 @@ theorem FixedCoupled.denseOfPhysPre_slotOf {metaBase itemBase U V w N m_items b 
     unfold g slotOf; rw [ite_eq_right hb_ne, ite_eq_left hj_slab]
     have h1 := Nat.mul_le_mul_right (slabSize N) hp_lt
     rw [Nat.add_one_mul] at h1; omega
-  have hr_lt : j - gm (gmQIdx b) * slabSize N < gm (gmRIdx b) := by omega
   have ht_lt : gm (gmTailPtrIdx N b (j - gm (gmQIdx b) * slabSize N)) < gm 1 := by
-    rw [htail.ntails_eq]; exact htail.ptr_lt b hb _ hr_lt
+    rw [htail.ntails_eq]; exact htail.ptr_lt b hb _ (hslot.tailOffset_lt hb_pos hb hj hj_ge).1
   have hg_eq : g = N - 1 - gm (gmTailPtrIdx N b (j - gm (gmQIdx b) * slabSize N)) := by
     unfold g slotOf; rw [ite_eq_right hb_ne, ite_eq_right hj_ge]
   have ht_eq : N - 1 - g = gm (gmTailPtrIdx N b (j - gm (gmQIdx b) * slabSize N)) := by omega
