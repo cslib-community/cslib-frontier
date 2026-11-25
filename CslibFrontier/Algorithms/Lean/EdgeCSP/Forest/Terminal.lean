@@ -344,8 +344,7 @@ theorem Trace.pruned_arcs (h : Trace sem f m) :
     · have hc := h.expansion.new_copy (Or.inr ⟨o, ho, rfl⟩)
       exact False.elim (hp.elim (fun hn => hn hc) Bool.noConfusion)
   · rintro (rfl | ha)
-    · apply Finset.mem_filter.mpr
-      exact ⟨List.mem_toFinset.mpr List.mem_cons_self, Or.inr rfl⟩
+    · exact Finset.mem_filter.mpr ⟨List.mem_toFinset.mpr List.mem_cons_self, Or.inr rfl⟩
     · have ha' := List.mem_toFinset.mp ha
       exact Finset.mem_filter.mpr ⟨List.mem_toFinset.mpr
         (List.mem_cons_of_mem _ (List.mem_append_right _ ha')),
@@ -465,9 +464,8 @@ theorem run_trace (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F B
       dsimp only
       split <;> exact ht
     next os hs =>
-      apply run_trace sem f hF _ _ (hg.of_scan hF hv hui hs)
-      intro o ho
-      exact of_decide_eq_true (List.mem_filter.mp ho).2
+      exact run_trace sem f hF _ _ (hg.of_scan hF hv hui hs)
+        fun o ho => of_decide_eq_true (List.mem_filter.mp ho).2
 termination_by remaining.length
 decreasing_by exact length_filter_erase_lt (List.mem_of_find?_eq_some ‹_›)
 
