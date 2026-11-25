@@ -142,8 +142,7 @@ theorem used_nodup (h : Partial sem f rs es e) : (Log.used (e :: es)).Nodup := b
     rcases List.mem_append.mp ho with ho | ho
     · exact h.fresh _ ho h.visited
     · exact h.unused ho
-  · intro o ho p hp he
-    exact h.port_unused (Or.inr ho) (he.symm ▸ hp)
+  · exact fun o ho p hp he => h.port_unused (Or.inr ho) (he.symm ▸ hp)
 
 /-- Partial scans preserve unique discovery variables. -/
 theorem children_nodup (h : Partial sem f rs es e) :
