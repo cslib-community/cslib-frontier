@@ -148,37 +148,29 @@ theorem exists_infinite_isComplexityCore_subset (hC : C.Countable)
     by_cases h : e i ⊆ A
     · simpa only [g, h, ↓reduceIte] using he ▸ Set.mem_range_self i
     · simpa only [g, h, ↓reduceIte] using hfin ∅ Set.finite_empty
-  have hgA (i : ℕ) : g i ⊆ A := by
-    by_cases h : e i ⊆ A
-    · simp only [g, h, ↓reduceIte]
-    · simp only [g, h, ↓reduceIte, Set.empty_subset]
+  have hgA (i : ℕ) : g i ⊆ A := by by_cases h : e i ⊆ A <;> simp [g, h]
   let D : ℕ → Set α := fun n => ⋃ i ∈ Finset.range n, g i
   have hD (n : ℕ) : D n ∈ C := by
     induction n with
     | zero => simpa [D] using hfin ∅ Set.finite_empty
     | succ n ih =>
-      have : D (n + 1) = D n ∪ g n := by
-        simp only [D, Finset.range_add_one, Finset.set_biUnion_insert, Set.union_comm]
-      rw [this]
+      rw [show D (n + 1) = D n ∪ g n by
+        simp only [D, Finset.range_add_one, Finset.set_biUnion_insert, Set.union_comm]]
       exact hunion _ ih _ (hg n)
   have hDA (n : ℕ) : D n ⊆ A := Set.iUnion₂_subset fun i _ => hgA i
-  have hsub {i n : ℕ} (hi : i < n) (hiA : e i ⊆ A) : e i ⊆ D n := by
-    have : g i = e i := by simp only [g, hiA, ↓reduceIte]
-    exact this ▸ Set.subset_biUnion_of_mem (u := g) (Finset.mem_coe.mpr (Finset.mem_range.mpr hi))
+  have hsub {i n : ℕ} (hi : i < n) (hiA : e i ⊆ A) : e i ⊆ D n :=
+    (show g i = e i by simp [g, hiA]) ▸
+      Set.subset_biUnion_of_mem (u := g) (Finset.mem_coe.mpr (Finset.mem_range.mpr hi))
   -- what is left of `A` is infinite, since `A` is not in `C`
-  have hinf (n : ℕ) : (A \ D n).Infinite := by
-    intro hfin'
-    apply hA
-    rw [← Set.union_sdiff_cancel (hDA n)]
-    exact hunion _ (hD n) _ (hfin _ hfin')
+  have hinf (n : ℕ) : (A \ D n).Infinite := fun hfin' =>
+    hA (Set.union_sdiff_cancel (hDA n) ▸ hunion _ (hD n) _ (hfin _ hfin'))
   choose x hx using fun n => (hinf n).nonempty
   refine ⟨Set.range x, Set.range_subset_iff.mpr fun n => (hx n).1, ?_, ?_⟩
   · -- a finite range would be some `e i` inside `A`, which `x (i + 1)` avoids
     intro hfr
     obtain ⟨i, hi⟩ : Set.range x ∈ Set.range e := he ▸ hfin _ hfr
-    have hiA : e i ⊆ A := hi ▸ Set.range_subset_iff.mpr fun n => (hx n).1
-    have hmem : x (i + 1) ∈ e i := hi ▸ Set.mem_range_self (i + 1)
-    exact (hx (i + 1)).2 (hsub (Nat.lt_succ_self i) hiA hmem)
+    exact (hx (i + 1)).2 (hsub (Nat.lt_succ_self i)
+      (hi ▸ Set.range_subset_iff.mpr fun n => (hx n).1) (hi ▸ Set.mem_range_self (i + 1)))
   · rintro B hB (hBA | hBA)
     · -- `B = e i` meets the range only at indices `n ≤ i`
       obtain ⟨i, rfl⟩ : B ∈ Set.range e := he ▸ hB
@@ -187,9 +179,7 @@ theorem exists_infinite_isComplexityCore_subset (hC : C.Countable)
       refine ⟨n, ?_, rfl⟩
       by_contra hn
       exact (hx n).2 (hsub (by simp only [Set.mem_ofPred_eq] at hn; omega) hBA hy)
-    · refine Set.finite_empty.subset ?_
-      rintro _ ⟨hy, n, rfl⟩
-      exact hBA hy (hx n).1
+    · exact Set.finite_empty.subset fun _ ⟨hy, n, heq⟩ => hBA hy (heq ▸ (hx n).1)
 
 section P
 

@@ -183,14 +183,10 @@ theorem succProbability_eufCmaGame_scheme_le (S : IndexedSignatureScheme) (T : S
           (S.indexedEufCmaGame (indexedForger S depth slotBound sigCap adversary) n)) +
       (Q ^ 2 : ℝ≥0) / 2 ^ (depth n + 1) := by
   rw [eufCmaGame_scheme]
-  have hprf := succProbability_treeGame_le_prf (S := S) (T := T) (depth := depth) (N := N)
-    family hinv adversary n
-  have hideal := succProbability_treeIdealGame_le S T depth N slotBound sigCap (hcap n)
-    (hdepth_pos n) hwidth hkgBudget hsgBudget hslot hsigCap adversary hq
-  calc Game.succProbability (ProbComp.eval (treeGame S T depth N (prfCoins family) adversary n))
-      ≤ Game.succProbability (ProbComp.eval (treeIdealGame S T depth N adversary n)) + _ := hprf
-    _ ≤ (_ + _) + _ := add_le_add hideal le_rfl
-    _ = _ := by ring
+  refine (succProbability_treeGame_le_prf (S := S) (T := T) (depth := depth) (N := N)
+    family hinv adversary n).trans ((add_le_add (succProbability_treeIdealGame_le S T depth N
+      slotBound sigCap (hcap n) (hdepth_pos n) hwidth hkgBudget hsgBudget hslot hsigCap
+      adversary hq) le_rfl).trans_eq (by ring))
 
 /-- Step toward [BonehShoup2023], Section 14.6.3, Theorem 14.6, p. 600, in the binary case
 `q = 2`, not the cited result: its PRF premise is stronger than the source's (#5293). This is
@@ -226,9 +222,8 @@ theorem eufCMA_scheme_of_prf_of_inv (S : IndexedSignatureScheme) (hS : S.Indexed
   let Q (n : ℕ) : ℕ := cq * (3 * n + ck * (n + 1) ^ dk + 3) ^ dq
   have hQPoly : ComputableInPolyTime Q encUnary encUnary := by dsimp only [Q]; fun_prop
   let slotBound (n : ℕ) : ℕ := Q n * depth n
-  have hslotPoly := hQPoly.unary_mul' hdepth
-  have hForgerPPT := isOraclePPT_indexedForger S hdepth hslotPoly hsigCapPoly hA
-  have hIdxNeg := hS.negligible (indexedForger S depth slotBound sigCap adversary) hForgerPPT
+  have hIdxNeg := hS.negligible (indexedForger S depth slotBound sigCap adversary)
+    (isOraclePPT_indexedForger S hdepth (hQPoly.unary_mul' hdepth) hsigCapPoly hA)
   have hbound (n : ℕ) : Game.succProbability
         (ProbComp.eval (treeGame S T depth N (prfCoins family) adversary n)) ≤
       (dyadicSize (slotBound n) : ℝ≥0) * Game.succProbability
@@ -236,14 +231,15 @@ theorem eufCMA_scheme_of_prf_of_inv (S : IndexedSignatureScheme) (hS : S.Indexed
           (S.indexedEufCmaGame (indexedForger S depth slotBound sigCap adversary) n)) +
       (Q n ^ 2 : ℝ≥0) / 2 ^ (depth n + 1) + εPrf n := by
     have hqBound : ∀ root ∈ (ProbComp.eval (S.keyGen n)).support,
-        (adversary n (encPair encUnary encBits (n, root.1))).IsQueryBounded (Q n) := by
-      intro root hroot
-      have hrk : root.1.length ≤ ck * (n + 1) ^ dk := by
-        simpa only [encBits_apply] using
-          (length_le_encPair_left encBits encBits root).trans (hkgLen n root hroot)
-      have hpkLen : (encPair encUnary encBits (n, root.1)).length = 2 * n + 1 + root.1.length := by
-        simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      exact (hqb n _).1.mono (Nat.mul_le_mul_left cq (Nat.pow_le_pow_left (by omega) dq))
+        (adversary n (encPair encUnary encBits (n, root.1))).IsQueryBounded (Q n) :=
+      fun root hroot => by
+        have hrk : root.1.length ≤ ck * (n + 1) ^ dk := by
+          simpa only [encBits_apply] using
+            (length_le_encPair_left encBits encBits root).trans (hkgLen n root hroot)
+        have hpkLen : (encPair encUnary encBits (n, root.1)).length =
+            2 * n + 1 + root.1.length := by
+          simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
+        exact (hqb n _).1.mono (Nat.mul_le_mul_left cq (Nat.pow_le_pow_left (by omega) dq))
     exact (hprfLe n).trans (add_le_add (succProbability_treeIdealGame_le S T depth N slotBound
       sigCap (hcap n) (hdepth_pos n) (hwidth n) (hkgBudget n) (hsgBudget n) le_rfl (hsigCap n)
       adversary hqBound) le_rfl)
@@ -323,9 +319,8 @@ EUF-CMA secure signature scheme. -/
 theorem _root_.Cslib.Crypto.IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_oneWay
     {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA) (hcap : ∀ n, 2 ≤ S.capacity n)
     {f : List Bool → List Bool} (hf : OneWay f) :
-    ∃ M : SignatureScheme, M.EUFCMA := by
-  obtain ⟨family, hF⟩ := hf.exists_pseudorandomFunction
-  exact hS.exists_eufCMA_of_prf hcap hF
+    ∃ M : SignatureScheme, M.EUFCMA :=
+  let ⟨_, hF⟩ := hf.exists_pseudorandomFunction; hS.exists_eufCMA_of_prf hcap hF
 
 /-- **Stateless many-time signatures from one-way functions and collision-resistant hash families**:
 combining Lamport one-time signatures, depth-`1` Merkle trees (capacity `2`), PRFs from one-way
