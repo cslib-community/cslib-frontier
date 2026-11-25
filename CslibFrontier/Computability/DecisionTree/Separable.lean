@@ -10,8 +10,6 @@ module
 public import CslibFrontier.Computability.DecisionTree.Leaves
 public import Mathlib.Basic.Real.Basic
 import CslibFrontier.Foundations.Data.Finset.Quantile
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
@@ -125,25 +123,24 @@ theorem exists_rectangle (q : BiMonotoneComparison X Y) (A : Finset X) (B : Fins
   classical
   obtain ⟨x₀, hx₀, hxlo, hxhi⟩ := A.exists_quantile hA q.left ha ha₁
   obtain ⟨y₀, hy₀, hylo, hyhi⟩ := B.exists_quantile hB q.right ha ha₁
+  let A' := A.filter fun x =>
+    if q.eval x₀ y₀ then q.left x₀ ≤ q.left x else q.left x ≤ q.left x₀
+  let B' := B.filter fun y =>
+    if q.eval x₀ y₀ then q.right y₀ ≤ q.right y else q.right y ≤ q.right y₀
+  refine ⟨q.eval x₀ y₀, A', B', Finset.filter_subset _ _, Finset.filter_subset _ _,
+    ⟨x₀, Finset.mem_filter.mpr ⟨hx₀, by split_ifs <;> exact le_rfl⟩⟩,
+    ⟨y₀, Finset.mem_filter.mpr ⟨hy₀, by split_ifs <;> exact le_rfl⟩⟩, ?_⟩
   cases hq : q.eval x₀ y₀
-  · refine ⟨false, A.filter (fun x => q.left x ≤ q.left x₀),
-      B.filter (fun y => q.right y ≤ q.right y₀), Finset.filter_subset _ _,
-      Finset.filter_subset _ _, ⟨x₀, Finset.mem_filter.mpr ⟨hx₀, le_rfl⟩⟩,
-      ⟨y₀, Finset.mem_filter.mpr ⟨hy₀, le_rfl⟩⟩, hxlo, hylo, ?_⟩
-    intro x hx y hy
-    have hle : q.eval x y ≤ q.eval x₀ y₀ :=
-      (q.monotone_left (q.right y) (Finset.mem_filter.mp hx).2).trans
-        (q.monotone_right (q.left x₀) (Finset.mem_filter.mp hy).2)
-    exact le_antisymm (hq ▸ hle) (Bool.false_le _)
-  · refine ⟨true, A.filter (fun x => q.left x₀ ≤ q.left x),
-      B.filter (fun y => q.right y₀ ≤ q.right y), Finset.filter_subset _ _,
-      Finset.filter_subset _ _, ⟨x₀, Finset.mem_filter.mpr ⟨hx₀, le_rfl⟩⟩,
-      ⟨y₀, Finset.mem_filter.mpr ⟨hy₀, le_rfl⟩⟩, hxhi, hyhi, ?_⟩
-    intro x hx y hy
-    have hge : q.eval x₀ y₀ ≤ q.eval x y :=
-      (q.monotone_left (q.right y₀) (Finset.mem_filter.mp hx).2).trans
-        (q.monotone_right (q.left x) (Finset.mem_filter.mp hy).2)
-    exact le_antisymm (Bool.le_true _) (hq ▸ hge)
+  · refine ⟨by simpa only [A', hq, Bool.false_eq_true, ↓reduceIte] using hxlo,
+      by simpa only [B', hq, Bool.false_eq_true, ↓reduceIte] using hylo, fun x hx y hy => ?_⟩
+    simp only [A', B', hq, Bool.false_eq_true, ↓reduceIte, Finset.mem_filter] at hx hy
+    exact le_antisymm (hq ▸ (q.monotone_left _ hx.2).trans (q.monotone_right _ hy.2))
+      (Bool.false_le _)
+  · refine ⟨by simpa only [A', hq, ↓reduceIte] using hxhi,
+      by simpa only [B', hq, ↓reduceIte] using hyhi, fun x hx y hy => ?_⟩
+    simp only [A', B', hq, ↓reduceIte, Finset.mem_filter] at hx hy
+    exact le_antisymm (Bool.le_true _)
+      (hq ▸ (q.monotone_left _ hx.2).trans (q.monotone_right _ hy.2))
 
 end BiMonotoneComparison
 
@@ -204,10 +201,11 @@ private theorem le_mul_of_div_mul_le {n m k c d : ℕ} (hc : 0 < c) (hd : 0 < d)
     (h : (c : ℝ) / d * n ≤ m) (hk : m ≤ k * c) : n ≤ k * d := by
   have hcR : (0 : ℝ) < c := Nat.cast_pos.mpr hc
   have hdR : (0 : ℝ) < d := Nat.cast_pos.mpr hd
-  rw [div_mul_eq_mul_div, div_le_iff₀ hdR] at h
-  have hkR : (m : ℝ) ≤ k * c := by exact_mod_cast hk
-  have : (n : ℝ) ≤ k * d := by nlinarith
-  exact_mod_cast this
+  have hcn : (c : ℝ) * n ≤ c * (k * d) := calc
+    (c : ℝ) * n ≤ m * d := (div_le_iff₀ hdR).mp (by rwa [div_mul_eq_mul_div] at h)
+    _ ≤ (k * c : ℕ) * d := mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hk) hdR.le
+    _ = c * (k * d) := by push_cast; ring
+  exact_mod_cast le_of_mul_le_mul_left hcn hcR
 
 /-- A nonempty product domain contains a rectangle reaching one leaf of a bi-monotone comparison
 tree, with at most the leaf count lost from each side. The natural-number inequalities are the
@@ -227,32 +225,34 @@ theorem exists_leaf_rectangle_biMonotone (t : DecisionTree (BiMonotoneComparison
     have ht : (0 : ℝ) < left.leafCount + right.leafCount := add_pos hl hr
     let a : ℝ := left.leafCount / (left.leafCount + right.leafCount)
     have ha : 0 < a := div_pos hl ht
-    have ha₁ : a < 1 := (div_lt_one ht).mpr (by linarith)
+    have ha₁ : a < 1 := (div_lt_one ht).mpr (lt_add_of_pos_right _ hr)
     obtain ⟨b, A₀, B₀, hA₀, hB₀, hA₀ne, hB₀ne, hAc, hBc, hquery⟩ :=
       q.exists_rectangle A B hA hB ha.le ha₁.le
+    have htot : 0 < left.leafCount + right.leafCount := Nat.add_pos_left left.leafCount_pos _
     cases b with
     | false =>
       obtain ⟨A', B', p, hA', hB', hA'ne, hB'ne, hAl, hBl, hp⟩ := ihl A₀ B₀ hA₀ne hB₀ne
-      refine ⟨A', B', false :: p, hA'.trans hA₀, hB'.trans hB₀, hA'ne, hB'ne,
-        le_mul_of_div_mul_le left.leafCount_pos (Nat.add_pos_left left.leafCount_pos _) ?_ hAl,
-        le_mul_of_div_mul_le left.leafCount_pos (Nat.add_pos_left left.leafCount_pos _) ?_ hBl, ?_⟩
-      · simpa only [Bool.false_eq_true, ↓reduceIte, a, leafCount, Nat.cast_add] using hAc
-      · simpa only [Bool.false_eq_true, ↓reduceIte, a, leafCount, Nat.cast_add] using hBc
-      · intro x hx y hy
-        simp only [path, hquery x (hA' hx) y (hB' hy), Bool.cond_false, hp x hx y hy]
+      exact ⟨A', B', false :: p, hA'.trans hA₀, hB'.trans hB₀, hA'ne, hB'ne,
+        le_mul_of_div_mul_le left.leafCount_pos htot
+          (by simpa only [Bool.false_eq_true, ↓reduceIte, a, leafCount, Nat.cast_add] using hAc)
+          hAl,
+        le_mul_of_div_mul_le left.leafCount_pos htot
+          (by simpa only [Bool.false_eq_true, ↓reduceIte, a, leafCount, Nat.cast_add] using hBc)
+          hBl,
+        fun x hx y hy => by
+          simp only [path, hquery x (hA' hx) y (hB' hy), Bool.cond_false, hp x hx y hy]⟩
     | true =>
-      have heq : 1 - a = right.leafCount / (left.leafCount + right.leafCount : ℝ) := by
-        dsimp only [a]
-        field_simp
-        ring
+      have heq : 1 - a = right.leafCount / (left.leafCount + right.leafCount : ℝ) :=
+        (eq_div_iff ht.ne').mpr <| by
+          dsimp only [a]; rw [sub_mul, one_mul, div_mul_cancel₀ _ ht.ne']; ring
       obtain ⟨A', B', p, hA', hB', hA'ne, hB'ne, hAr, hBr, hp⟩ := ihr A₀ B₀ hA₀ne hB₀ne
-      refine ⟨A', B', true :: p, hA'.trans hA₀, hB'.trans hB₀, hA'ne, hB'ne,
-        le_mul_of_div_mul_le right.leafCount_pos (Nat.add_pos_left left.leafCount_pos _) ?_ hAr,
-        le_mul_of_div_mul_le right.leafCount_pos (Nat.add_pos_left left.leafCount_pos _) ?_ hBr, ?_⟩
-      · simpa only [↓reduceIte, heq, leafCount, Nat.cast_add] using hAc
-      · simpa only [↓reduceIte, heq, leafCount, Nat.cast_add] using hBc
-      · intro x hx y hy
-        simp only [path, hquery x (hA' hx) y (hB' hy), Bool.cond_true, hp x hx y hy]
+      exact ⟨A', B', true :: p, hA'.trans hA₀, hB'.trans hB₀, hA'ne, hB'ne,
+        le_mul_of_div_mul_le right.leafCount_pos htot
+          (by simpa only [↓reduceIte, heq, leafCount, Nat.cast_add] using hAc) hAr,
+        le_mul_of_div_mul_le right.leafCount_pos htot
+          (by simpa only [↓reduceIte, heq, leafCount, Nat.cast_add] using hBc) hBr,
+        fun x hx y hy => by
+          simp only [path, hquery x (hA' hx) y (hB' hy), Bool.cond_true, hp x hx y hy]⟩
 
 /-- A bound on monochromatic rectangle area forces a squared lower bound on the leaf count of a
 bi-monotone comparison tree. This is the division-free form of `L ≥ √(|A| |B| / R)`. -/

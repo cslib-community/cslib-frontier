@@ -207,9 +207,7 @@ theorem dens_countSketch_error_gt_le [Fintype ι] [Nonempty ι] [Fintype κ] [De
     rw [hset]
     exact CountSketch.dens_abs_sum_ite_mul_sign_gt_le (κ := κ) hh hg hε hε₀
       (S := s.toFinset.erase a) (a := a) (notMem_erase a _) (fun b => (s.count b : ℝ)) ht hw
-  have := dens_abs_median_sub_gt_le G hrow r
-  simp only [run_countSketch]
-  exact this
+  simpa only [run_countSketch] using dens_abs_median_sub_gt_le G hrow r
 
 /-- The error of the randomized Count-Sketch is the fraction of bad seeds. -/
 theorem errorProb_countSketchRandom [Fintype ι] [Nonempty ι] [Fintype κ] [Nonempty κ]
@@ -237,8 +235,8 @@ theorem solves_countSketchRandom [Fintype ι] [Nonempty ι] [Fintype κ] [Nonemp
   have hV : 0 ≤ ∑ b ∈ s.toFinset.erase a, (s.count b : ℝ) ^ 2 :=
     sum_nonneg fun _ _ => sq_nonneg _
   refine (dens_countSketch_error_gt_le hh hg hsq hsum s a (by positivity) ?_).trans hδ
-  rw [mul_pow, Real.sq_sqrt hV]
-  nlinarith [mul_nonneg (sub_nonneg.2 hw) hV]
+  rw [mul_pow, Real.sq_sqrt hV, ← mul_assoc]
+  exact mul_le_mul_of_nonneg_right hw hV
 
 /-- **The Count-Sketch answers point queries within `ε √F₂`** [Chakrabarti2025, Section 5.3.2]:
 under the hypotheses of `Cslib.Streaming.solves_countSketchRandom`, for every fixed query `a` the
@@ -251,17 +249,17 @@ theorem solves_countSketchRandom_freqMoment [Fintype ι] [Nonempty ι] [Fintype 
     (countSketchRandom h g sgn r).Solves δ (fun s est => |est a - s.count a| ≤
       ε * √(freqMoment 2 s : ℝ)) m := by
   classical
-  intro s _
-  rw [errorProb_countSketchRandom]
-  simp only [not_le]
-  have hV : 0 ≤ ∑ b ∈ s.toFinset.erase a, (s.count b : ℝ) ^ 2 :=
-    sum_nonneg fun _ _ => sq_nonneg _
+  intro s hs
   have hVF : ∑ b ∈ s.toFinset.erase a, (s.count b : ℝ) ^ 2 ≤ freqMoment 2 s := by
     simp only [freqMoment, Nat.cast_sum, Nat.cast_pow]
     exact sum_le_sum_of_subset_of_nonneg (erase_subset a _) fun _ _ _ => sq_nonneg _
-  refine (dens_countSketch_error_gt_le hh hg hsq hsum s a (by positivity) ?_).trans hδ
-  rw [mul_pow, Real.sq_sqrt (Nat.cast_nonneg _)]
-  nlinarith [mul_nonneg (sub_nonneg.2 hw) hV, mul_nonneg (sub_nonneg.2 hw) (sub_nonneg.2 hVF)]
+  have hle : ε * √(∑ b ∈ s.toFinset.erase a, (s.count b : ℝ) ^ 2) ≤ ε * √(freqMoment 2 s : ℝ) :=
+    mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hVF) hε
+  have hsol := solves_countSketchRandom hh hg hsq hsum hε hw hδ a m s hs
+  rw [errorProb_countSketchRandom] at hsol ⊢
+  refine le_trans (NNRat.cast_le.mpr (dens_mono fun ω hω => ?_)) hsol
+  simp only [mem_filter, mem_univ, true_and, not_le] at hω ⊢
+  exact hle.trans_lt hω
 
 /-- On streams of at most `m` items, every counter of the Count-Sketch lies in `[-m, m]`. -/
 theorem mem_Icc_state_countSketch_snd (hsgn : ∀ y, |sgn y| ≤ 1) (ω : Fin (2 * r) → ι × κ)

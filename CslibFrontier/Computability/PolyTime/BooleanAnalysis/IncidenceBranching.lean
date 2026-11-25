@@ -19,7 +19,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Poly
 import CslibFrontier.Foundations.Data.Nat.CeilDiv
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.SqrtLog
-import Mathlib.Tactic.Linarith
 
 /-!
 # High-incidence branching for Lemma D.2
@@ -315,7 +314,8 @@ theorem isSparseBranch_of_isReducedBranch {k c n n' : ℕ} {sys sys' : List (Lis
   set lam' := Nat.clog 2 n'
   have hlam'2 : 2 ≤ lam' := (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).2 (by omega)
   have hlam_sq : lam ≤ lam' ^ 2 :=
-    (Nat.clog_two_le_two_mul_of_le_two_mul hn2 (by omega)).trans (by nlinarith)
+    (Nat.clog_two_le_two_mul_of_le_two_mul hn2 (by omega)).trans
+      (by rw [sq]; exact Nat.mul_le_mul_right lam' hlam'2)
   have htransfer {α : ℕ} (hα : 2 * α ≤ 2 * c + 4) : lam ^ α ≤ lam' ^ (2 * c + 4) :=
     (Nat.pow_le_pow_left hlam_sq α).trans
       ((pow_mul lam' 2 α).symm.trans_le (Nat.pow_le_pow_right (by omega) hα))
@@ -327,7 +327,8 @@ theorem isSparseBranch_of_isReducedBranch {k c n n' : ℕ} {sys sys' : List (Lis
   · calc sys'.length ≤ sys.length := hlen'
       _ ≤ c * n := h.length_le
       _ ≤ c * (2 * n') := Nat.mul_le_mul_left c hn2
-      _ ≤ (2 * c + 4) * n' := by nlinarith
+      _ = (2 * c) * n' := by ring
+      _ ≤ (2 * c + 4) * n' := Nat.mul_le_mul_right n' (by omega)
   · obtain ⟨eq, heq, hl, -⟩ := hshrink eq' heq'
     exact (hl.trans (h.monomials_le eq heq)).trans (htransfer (by omega))
   · obtain ⟨eq, heq, -, hsc⟩ := hshrink eq' heq'
@@ -339,8 +340,8 @@ theorem isSparseBranch_of_isReducedBranch {k c n n' : ℕ} {sys sys' : List (Lis
     exact (hsc.trans hscope).trans (htransfer (by omega))
   · have hinc := HeavyBranchFold.prepareBranch_reduced_varDegree_le hS_nd hSn
       (fun u hun huS => HeavyBranchFold.varDegree_le_of_not_mem_heavyVarList hun huS) hred u hu
-    exact (hinc.trans (threshold_le_pow h (by omega) (by nlinarith))).trans
-      (htransfer (by omega))
+    exact (hinc.trans (threshold_le_pow h (by omega)
+      ((Nat.mul_le_mul_right k (Nat.le_succ c)).trans hk_lam))).trans (htransfer (by omega))
 
 /-! ### Exactness -/
 
@@ -476,7 +477,6 @@ theorem exists_count_certificate :
   have hQ := maxReducedCost_branchInput_le (cost := csolver.space) fun n' sys' h =>
     (hRQ n' sys' h).2
   have hbase := hK K le_rfl (n, sys)
-  have h1 : 1 ≤ 2 ^ (branchVars n sys).length := Nat.one_le_two_pow
   -- The time is preprocessing, then the streaming loop over the `2 ^ |S|` branches.
   let L := (HeavyBranchFold.encBranchInput (branchInput n sys)).length
   change (NativeCertificate.ofPolyTime computableInPolyTime_branchInput).time (n, sys) +
@@ -486,16 +486,19 @@ theorem exists_count_certificate :
     (NativeCertificate.ofPolyTime computableInPolyTime_branchInput).space (n, sys) +
       (HeavyBranchFold.stepOverhead L +
         HeavyBranchFold.maxReducedCost csolver.space (branchInput n sys)) ≤ _
-  generalize (NativeCertificate.ofPolyTime computableInPolyTime_branchInput).time (n, sys) = A
-    at hbase ⊢
-  generalize (NativeCertificate.ofPolyTime computableInPolyTime_branchInput).space (n, sys) = B
-    at hbase ⊢
-  generalize HeavyBranchFold.stepOverhead L = T at hbase ⊢
-  generalize 2 ^ (branchVars n sys).length = E at h1 ⊢
-  have hmul := Nat.mul_le_mul_left (E + 1) (Nat.add_le_add_left hR T)
-  constructor
-  · nlinarith
-  · omega
+  set A := (NativeCertificate.ofPolyTime computableInPolyTime_branchInput).time (n, sys)
+  set T := HeavyBranchFold.stepOverhead L
+  set E := 2 ^ (branchVars n sys).length
+  set M := HeavyBranchFold.maxReducedCost csolver.time (branchInput n sys)
+  refine ⟨?_, by omega⟩
+  calc A + (T + (E + 1) * (T + M))
+      = (A + T) + (E + 1) * (T + M) := (Nat.add_assoc ..).symm
+    _ ≤ (E + 1) * (A + T) + (E + 1) * (T + R) :=
+        Nat.add_le_add (Nat.le_mul_of_pos_left (A + T) (Nat.succ_pos E))
+          (Nat.mul_le_mul_left (E + 1) (Nat.add_le_add_left hR T))
+    _ = (E + 1) * (A + (T + T) + R) := by ring
+    _ ≤ (E + 1) * (K * ((encPair encUnary encSparseSystem (n, sys)).length + 1) ^ K + R) :=
+        Nat.mul_le_mul_left _ (by omega)
 
 end
 
