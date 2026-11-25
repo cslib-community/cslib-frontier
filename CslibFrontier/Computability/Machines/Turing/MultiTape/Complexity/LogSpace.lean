@@ -122,23 +122,30 @@ theorem haltsAt_le_card [Fintype Symbol] [Fintype State] {s u : ℕ}
   classical
   let core := fun t => (tm.runFrom (tm.initCfg input) t).core
   -- a core repeated before halting would repeat at the halting step
-  have hne {i j} (hij : i < j) (hj : j < u) (hcore : core i = core j) : False := by
+  have hne : ∀ i j, i < j → j < u → core i ≠ core j := by
+    intro i j hij hj hcore
     have hshift := core_runFrom_eq_of_core_eq (tm := tm) hcore (u - j)
     rw [← runFrom_add, ← runFrom_add, show j + (u - j) = u by omega] at hshift
-    exact hu.not_halted (by omega) ((congrArg (fun c => c.2.state) hshift).trans hu.halted)
-  have hinj : Set.InjOn core (Finset.range u : Set ℕ) := fun i hi j hj hcore => by
+    have hstate := congrArg (fun c => c.2.state) hshift
+    exact hu.not_halted (show i + (u - j) < u by omega) (hstate.trans hu.halted)
+  have hinj : Set.InjOn core (Finset.range u : Set ℕ) := by
+    intro i hi j hj hcore
     simp only [Finset.coe_range, Set.mem_Iio] at hi hj
-    rcases lt_trichotomy i j with hlt | rfl | hgt
-    · exact (hne hlt hj hcore).elim
-    · rfl
-    · exact (hne hgt hi hcore.symm).elim
-  have hsub : (u : ℕ∞) ≤ (Set.range fun p : tm.ComputationPath input => p.last.core).encard := by
-    rw [← Finset.card_range u, ← Finset.card_image_of_injOn hinj,
-      ← Set.encard_coe_eq_coe_finsetCard]
-    exact Set.encard_le_encard fun _ hx => by
-      obtain ⟨t, -, rfl⟩ := Finset.mem_image.mp (Finset.mem_coe.mp hx)
-      exact ⟨.ofDeterministic tm input t, rfl⟩
-  exact_mod_cast hsub.trans (tm.encard_cores_le hs)
+    rcases lt_trichotomy i j with hlt | heq | hgt
+    · exact absurd hcore (hne i j hlt hj)
+    · exact heq
+    · exact absurd hcore.symm (hne j i hgt hi)
+  have hsub : (((Finset.range u).image core : Finset _) : Set _).encard ≤
+      (Set.range core).encard := Set.encard_le_encard fun _ hx => by
+    obtain ⟨t, -, rfl⟩ := Finset.mem_coe.mp hx |> Finset.mem_image.mp
+    exact ⟨t, rfl⟩
+  rw [Set.encard_coe_eq_coe_finsetCard, Finset.card_image_of_injOn hinj,
+    Finset.card_range] at hsub
+  -- every core of the run is the core at the end of a computation path
+  have hpath : (Set.range core).encard ≤
+      (Set.range fun p : tm.ComputationPath input => p.last.core).encard :=
+    Set.encard_le_encard (Set.range_subset_iff.2 fun t => ⟨.ofDeterministic tm input t, rfl⟩)
+  exact_mod_cast (hsub.trans hpath).trans (tm.encard_cores_le hs)
 
 /-- A machine that halts on `input` within space `s` does so within
 `(n + 2) * storageBound Symbol State k s` steps, with the same output. -/
@@ -147,8 +154,9 @@ theorem ComputesInTimeAndSpace.of_card [Fintype Symbol] [Fintype State] {output 
     tm.ComputesInTimeAndSpace input output
       ((input.length + 2) * storageBound Symbol State k s) s := by
   obtain ⟨u, -, hu⟩ := exists_haltsAt_of_runsInTime h.2.1
-  exact ⟨h.1, runsInTime_iff_halted.mpr (hu.runFrom_eq (haltsAt_le_card h.2.2 hu) ▸ hu.halted),
-    h.2.2⟩
+  refine ⟨h.1, runsInTime_iff_halted.mpr ?_, h.2.2⟩
+  rw [hu.runFrom_eq (haltsAt_le_card h.2.2 hu)]
+  exact hu.halted
 
 end Halting
 
@@ -173,12 +181,17 @@ theorem polyBounded_log {δ : Type*} (size : δ → ℕ) (c : ℕ) :
 /-- The number of cores under a logarithmic space bound is polynomial. -/
 private theorem card_le_of_log (State : Type*) [Fintype State] (k c : ℕ) :
     ∃ A d, ∀ n, (n + 2) * storageBound Bool State k (c * (Nat.log2 n + 1)) ≤ A * (n + 1) ^ d := by
+  refine ⟨2 * storageBoundBase Bool State k * 2 ^ (storageBoundExp Bool k * c),
+    storageBoundExp Bool k * c + 1, fun n => ?_⟩
   set e := storageBoundExp Bool k * c
-  refine ⟨2 * storageBoundBase Bool State k * 2 ^ e, e + 1, fun n => ?_⟩
-  have hpow : 2 ^ (storageBoundExp Bool k * (c * (Nat.log2 n + 1))) ≤ 2 ^ e * (n + 1) ^ e := by
-    rw [show storageBoundExp Bool k * (c * (Nat.log2 n + 1)) = (Nat.log2 n + 1) * e by ring,
-      pow_mul, ← mul_pow]
-    exact Nat.pow_le_pow_left (Nat.two_pow_log2_succ_le n) e
+  have hpow : 2 ^ (storageBoundExp Bool k * (c * (Nat.log2 n + 1))) ≤ 2 ^ e * (n + 1) ^ e :=
+    calc 2 ^ (storageBoundExp Bool k * (c * (Nat.log2 n + 1))) = (2 ^ (Nat.log2 n + 1)) ^ e := by
+          rw [← pow_mul]
+          congr 1
+          simp only [e]
+          ring
+      _ ≤ (2 * (n + 1)) ^ e := Nat.pow_le_pow_left (Nat.two_pow_log2_succ_le n) e
+      _ = 2 ^ e * (n + 1) ^ e := mul_pow ..
   calc (n + 2) * storageBound Bool State k (c * (Nat.log2 n + 1))
       ≤ (2 * (n + 1)) * (storageBoundBase Bool State k * (2 ^ e * (n + 1) ^ e)) :=
         Nat.mul_le_mul (by omega) ((storageBound_le_base_mul_pow _).trans
@@ -225,7 +238,9 @@ theorem ComputableInLogSpace.congr {f : α → β} {g : α → γ}
     (hf : ComputableInLogSpace f encIn encMid) (h : ∀ a, encOut (g a) = encMid (f a)) :
     ComputableInLogSpace g encIn encOut := by
   obtain ⟨t, c, k, State, hS, tm, htm⟩ := hf
-  exact ⟨t, c, k, State, hS, tm, fun a => by rw [h a]; exact htm a⟩
+  refine ⟨t, c, k, State, hS, tm, fun a => ?_⟩
+  rw [h a]
+  exact htm a
 
 /-- A function pointwisely equal to a logspace function is computable in logarithmic space, by the
 same machine. -/
