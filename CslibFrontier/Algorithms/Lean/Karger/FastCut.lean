@@ -172,35 +172,26 @@ theorem exists_cut_of_mem_support_fastCutLaw {n k : ℕ} (hk : 2 ≤ k)
     (hC : IsContractionOf W₀ part W) {v : ℕ}
     (hv : v ∈ (fastCutLaw k ⟨k, W⟩).support) :
     ∃ C : Finset (Fin n), IsNonTrivialCut C ∧ v = cutWeight W₀ C := by
-  have aux : ∀ k, 2 ≤ k → ∀ (W : Fin k → Fin k → ℕ) (part : Fin n → Fin k),
-      IsContractionOf W₀ part W → ∀ v ∈ (fastCutLaw k ⟨k, W⟩).support,
-        ∃ C : Finset (Fin n), IsNonTrivialCut C ∧ v = cutWeight W₀ C := by
-    intro k
-    induction k using Nat.strong_induction_on with
-    | ind k ih =>
-      intro hk W part hC v hv
-      by_cases hk7 : 7 ≤ k
-      · rw [fastCutLaw_node hk7] at hv
-        supp_cases hv with ⟨a, ⟨ca, hca, ha⟩, b, ⟨cb, hcb, hb⟩, rfl⟩
-        have hbranch : ∀ {child}, child ∈ (contractLaw (⟨k, W⟩, fastCutThreshold k)).support →
-            ∀ v ∈ (fastCutLaw (fastCutThreshold k) child).support,
-            ∃ C : Finset (Fin n), IsNonTrivialCut C ∧ v = cutWeight W₀ C := by
-          intro child hchild v hv
-          obtain ⟨W', part', rfl, hC'⟩ := isContractionOf_of_mem_support_contractLaw
-            (by have := fastCutThreshold_ge_two (by omega : 4 ≤ k); omega)
-            (Nat.le_of_lt (fastCutThreshold_lt (by omega))) hC hchild
-          exact ih _ (fastCutThreshold_lt (by omega))
-            (fastCutThreshold_ge_two (by omega)) W' part' hC' v hv
-        rcases le_total a b with hab | hba
-        · rw [min_eq_left hab]
-          exact hbranch hca a ha
-        · rw [min_eq_right hba]
-          exact hbranch hcb b hb
-      · rw [fastCutLaw_leaf (by omega)] at hv
-        obtain ⟨B, hB, hv⟩ := exists_cut_of_mem_support_answerLaw hk hC.multigraph hv
-        exact ⟨pullbackCut part B, isNonTrivialCut_pullbackCut hC.surj hB,
-          hv.trans (cutWeight_pullbackCut hC B).symm⟩
-  exact aux k hk W part hC v hv
+  fun_induction fastCutDepth k generalizing v with
+  | case1 k hk7 ht_lt ih =>
+    have ht2 : 2 ≤ fastCutThreshold k := fastCutThreshold_ge_two (by omega)
+    have hbranch : ∀ {child}, child ∈ (contractLaw (⟨k, W⟩, fastCutThreshold k)).support →
+        ∀ u ∈ (fastCutLaw (fastCutThreshold k) child).support,
+        ∃ C : Finset (Fin n), IsNonTrivialCut C ∧ u = cutWeight W₀ C := by
+      intro child hchild u hu
+      obtain ⟨W', part', rfl, hC'⟩ :=
+        isContractionOf_of_mem_support_contractLaw (by omega) ht_lt.le hC hchild
+      exact ih ht2 hC' hu
+    rw [fastCutLaw_node hk7] at hv
+    supp_cases hv with ⟨a, ⟨ca, hca, ha⟩, b, ⟨cb, hcb, hb⟩, rfl⟩
+    rcases le_total a b with hab | hba
+    · rw [min_eq_left hab]; exact hbranch hca a ha
+    · rw [min_eq_right hba]; exact hbranch hcb b hb
+  | case2 k hk7 =>
+    rw [fastCutLaw_leaf (by omega)] at hv
+    obtain ⟨B, hB, hv⟩ := exists_cut_of_mem_support_answerLaw hk hC.multigraph hv
+    exact ⟨pullbackCut part B, isNonTrivialCut_pullbackCut hC.surj hB,
+      hv.trans (cutWeight_pullbackCut hC B).symm⟩
 
 /-- Recursive contraction has one-sided error relative to the original graph. -/
 theorem minCut_le_of_mem_support_fastCutLaw {n k : ℕ} (hk : 2 ≤ k)
@@ -215,18 +206,18 @@ theorem minCut_le_of_mem_support_fastCutLaw {n k : ℕ} (hk : 2 ≤ k)
 theorem eq_zero_of_mem_support_fastCutLaw {k : ℕ} (hk : 2 ≤ k)
     {W : Fin k → Fin k → ℕ} (hW : IsMultigraph W) (hmin : minCut W = 0) {v : ℕ}
     (hv : v ∈ (fastCutLaw k ⟨k, W⟩).support) : v = 0 := by
-  induction k using Nat.strong_induction_on generalizing v with
-  | ind k ih =>
-    by_cases hk7 : 7 ≤ k
-    · rw [fastCutLaw_node hk7] at hv
-      supp_cases hv with ⟨a, ⟨child, hchild, ha⟩, b, -, rfl⟩
-      obtain ⟨W', rfl, hW', hmin'⟩ := minCut_eq_zero_of_mem_support_contractLaw
-        (fastCutThreshold_ge_two (by omega)) (Nat.le_of_lt (fastCutThreshold_lt (by omega)))
-        hW hmin hchild
-      rw [ih _ (fastCutThreshold_lt (by omega)) (fastCutThreshold_ge_two (by omega)) hW' hmin' ha]
-      exact Nat.zero_min b
-    · rw [fastCutLaw_leaf (by omega)] at hv
-      exact eq_zero_of_mem_support_answerLaw hk hW hmin hv
+  fun_induction fastCutDepth k generalizing v with
+  | case1 k hk7 ht_lt ih =>
+    have ht2 : 2 ≤ fastCutThreshold k := fastCutThreshold_ge_two (by omega)
+    rw [fastCutLaw_node hk7] at hv
+    supp_cases hv with ⟨a, ⟨child, hchild, ha⟩, b, -, rfl⟩
+    obtain ⟨W', rfl, hW', hmin'⟩ :=
+      minCut_eq_zero_of_mem_support_contractLaw ht2 ht_lt.le hW hmin hchild
+    rw [ih ht2 hW' hmin' ha]
+    exact Nat.zero_min b
+  | case2 k hk7 =>
+    rw [fastCutLaw_leaf (by omega)] at hv
+    exact eq_zero_of_mem_support_answerLaw hk hW hmin hv
 
 /-- A single contraction trial from a contraction of the original graph retains any represented
 minimum cut with the usual `2 / (k (k - 1))` lower bound. -/
@@ -274,11 +265,9 @@ theorem fastCutLaw_hit_prob_ge {n : ℕ} {W₀ : Fin n → Fin n → ℕ}
     by_cases hk7 : 7 ≤ k
     · let t := fastCutThreshold k
       have ht : 2 ≤ t := fastCutThreshold_ge_two (by omega)
-      have htk : t ≤ k := Nat.le_of_lt (fastCutThreshold_lt (by omega))
+      have htk : t ≤ k := (fastCutThreshold_lt (by omega)).le
       have hd' : fastCutDepth t ≤ d := by
-        dsimp only [t]
-        rw [fastCutDepth_of_ge_seven hk7] at hd
-        omega
+        dsimp only [t]; rw [fastCutDepth_of_ge_seven hk7] at hd; omega
       let branch := (contractLaw (⟨k, W⟩, t)).bind fun child => fastCutLaw t child
       have hbranch : (1 : ℝ≥0∞) / ((d + 30 : ℕ) : ℝ≥0∞) ≤
           branch.toOuterMeasure {v | v = minCut W₀} := by
@@ -287,13 +276,12 @@ theorem fastCutLaw_hit_prob_ge {n : ℕ} {W₀ : Fin n → Fin n → ℕ}
         have hprod := Probability.PMF.toOuterMeasure_bind_ge_mul_ennreal
           (contractLaw (⟨k, W⟩, t)) (fun child => fastCutLaw t child)
           {G | Survives W₀ (pullbackCut part B) t G} {v | v = minCut W₀} hsurv
-          (s₂ := (2 : ℝ≥0∞) / ((d + 30 : ℕ) : ℝ≥0∞)) ?_
-        · rwa [half_mul_two_div_eq (by omega : 1 ≤ d + 30)] at hprod
-        · intro G _ hG
-          obtain ⟨W', part', B', rfl, hC', hpb⟩ := hG
-          exact ih ht hd' hC' B'
-            (isNonTrivialCut_of_pullbackCut part'
-              (hpb ▸ isNonTrivialCut_pullbackCut hC.surj hB)) (hpb ▸ hBmin)
+          (s₂ := (2 : ℝ≥0∞) / ((d + 30 : ℕ) : ℝ≥0∞)) fun G _ hG => by
+            obtain ⟨W', part', B', rfl, hC', hpb⟩ := hG
+            exact ih ht hd' hC' B'
+              (isNonTrivialCut_of_pullbackCut part'
+                (hpb ▸ isNonTrivialCut_pullbackCut hC.surj hB)) (hpb ▸ hBmin)
+        rwa [half_mul_two_div_eq (by omega : 1 ≤ d + 30)] at hprod
       have hge : ∀ v ∈ branch.support, minCut W₀ ≤ v := by
         intro v hv
         supp_cases hv [branch] with ⟨G, hG, hv⟩
@@ -301,20 +289,14 @@ theorem fastCutLaw_hit_prob_ge {n : ℕ} {W₀ : Fin n → Fin n → ℕ}
           isContractionOf_of_mem_support_contractLaw (by omega) htk hC hG
         exact minCut_le_of_mem_support_fastCutLaw ht hC' hv
       rw [fastCutLaw_node hk7]
-      have hrec := Probability.PMF.two_branch_hit_prob_ge branch (fun _ => branch) min
+      exact Probability.PMF.two_branch_hit_prob_ge branch (fun _ => branch) min
         {v | v = minCut W₀} {v | v = minCut W₀} (s := d + 30) (by omega) hbranch
-        (fun a _ ha b hb => by
-          change a = minCut W₀ at ha
-          change min a b = minCut W₀
-          rw [ha, min_eq_left (hge b hb)])
-        (fun a ha _ => by
-          refine hbranch.trans ?_
+        (fun a _ (ha : a = minCut W₀) b hb => by
+          change min a b = _; rw [ha, min_eq_left (hge b hb)])
+        (fun a ha _ => hbranch.trans <| by
           rw [PMF.toOuterMeasure_map_apply]
-          exact MeasureTheory.measure_mono fun b hb => by
-            change b = minCut W₀ at hb
-            change min a b = minCut W₀
-            rw [hb, min_eq_right (hge a ha)])
-      exact hrec
+          exact MeasureTheory.measure_mono fun b (hb : b = minCut W₀) => by
+            change min a b = _; rw [hb, min_eq_right (hge a ha)])
     · rw [fastCutLaw_leaf (by omega)]
       refine le_trans ?_ ((base_survival_ge hk (by omega)).trans
         (answerLaw_hit_prob_ge hk hmin hC hB hBmin))
@@ -373,17 +355,13 @@ theorem fastCutLaw_update_failure_le {n : ℕ} (hn : 2 ≤ n)
     ((fastCutLaw n ⟨n, W⟩).map (fun v => if i = 0 then v else min v b)).toOuterMeasure
         {v | v ≠ minCut W} ≤
       (1 : ℝ≥0∞) - (1 : ℝ≥0∞) / ((Nat.log 2 n + 15 : ℕ) : ℝ≥0∞) := by
-  have hmiss := Probability.PMF.toOuterMeasure_compl_le_one_sub _ _
-    (fastCutLaw_root_hit_prob_ge hn hW hmin)
-  refine le_trans ?_ hmiss
+  refine le_trans ?_ (Probability.PMF.toOuterMeasure_compl_le_one_sub _ _
+    (fastCutLaw_root_hit_prob_ge hn hW hmin))
   rw [PMF.toOuterMeasure_map_apply]
-  refine MeasureTheory.measure_mono fun v hv => ?_
-  change (if i = 0 then v else min v b) ≠ minCut W at hv
-  change v ≠ minCut W
-  intro heq
-  apply hv
-  by_cases hi : i = 0
-  · simp only [hi, ↓reduceIte, heq]
-  · simp only [hi, ↓reduceIte, heq, min_eq_left (hb (Nat.pos_of_ne_zero hi))]
+  refine MeasureTheory.measure_mono fun v hv heq => hv ?_
+  change (if i = 0 then v else min v b) = minCut W
+  split_ifs with hi
+  · exact heq
+  · rw [heq, min_eq_left (hb (Nat.pos_of_ne_zero hi))]
 
 end Cslib.Algorithms.Lean.Karger

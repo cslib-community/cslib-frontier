@@ -88,6 +88,21 @@ theorem mapAdj_apply {α β : Type*} (e : α ≃ β) (g : α → List α) (x : �
     mapAdj e g (e x) = (g x).map e := by
   simp [mapAdj]
 
+private theorem foldl_visit_mapAdj {α β : Type*} [DecidableEq α] [DecidableEq β] (e : α ≃ β)
+    (g : α → List α) {k : ℕ}
+    (hstep : ∀ u (s : Cslib.Algorithms.Lean.DFS.State α),
+      visit (mapAdj e g) k (e u) ⟨s.visited.map e.toEmbedding, s.finished.map e⟩ =
+        ⟨(visit g k u s).visited.map e.toEmbedding, (visit g k u s).finished.map e⟩) :
+    ∀ (l : List α) (s : Cslib.Algorithms.Lean.DFS.State α),
+      (l.map e).foldl (fun st w => visit (mapAdj e g) k w st)
+          ⟨s.visited.map e.toEmbedding, s.finished.map e⟩ =
+        ⟨(l.foldl (fun st v => visit g k v st) s).visited.map e.toEmbedding,
+          (l.foldl (fun st v => visit g k v st) s).finished.map e⟩
+  | [], _ => rfl
+  | v :: l, s => by
+    simp only [List.map_cons, List.foldl_cons, hstep v s]
+    exact foldl_visit_mapAdj e g hstep l (visit g k v s)
+
 private theorem visit_mapAdj {α β : Type*} [DecidableEq α] [DecidableEq β] (e : α ≃ β)
     (g : α → List α) :
     ∀ (k : ℕ) (u : α) (s : Cslib.Algorithms.Lean.DFS.State α),
@@ -100,22 +115,11 @@ private theorem visit_mapAdj {α β : Type*} [DecidableEq α] [DecidableEq β] (
       simp only [visit, hu, heu, ↓reduceIte]
     · have heu : e u ∉ s.visited.map e.toEmbedding := by
         simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hu
-      have hfold : ∀ (l : List α) (t : Cslib.Algorithms.Lean.DFS.State α),
-          (l.map e).foldl (fun st w => visit (mapAdj e g) k w st)
-              ⟨t.visited.map e.toEmbedding, t.finished.map e⟩ =
-            ⟨(l.foldl (fun st v => visit g k v st) t).visited.map e.toEmbedding,
-              (l.foldl (fun st v => visit g k v st) t).finished.map e⟩ := by
-        intro l
-        induction l with
-        | nil => intro _; rfl
-        | cons v l ih =>
-          intro t
-          simp only [List.map_cons, List.foldl_cons, visit_mapAdj e g k v t]
-          exact ih (visit g k v t)
       have hins : insert (e u) (s.visited.map e.toEmbedding) =
           (insert u s.visited).map e.toEmbedding :=
         (Finset.map_insert e.toEmbedding u s.visited).symm
-      have hstep := hfold (g u) ⟨insert u s.visited, s.finished⟩
+      have hstep := foldl_visit_mapAdj e g (visit_mapAdj e g k) (g u)
+        ⟨insert u s.visited, s.finished⟩
       simp only [visit, hu, heu, ↓reduceIte, mapAdj_apply, hins]
       rw [hstep]
       rfl
@@ -124,20 +128,8 @@ private theorem dfs_mapAdj {α β : Type*} [DecidableEq α] [DecidableEq β] (e 
     (g : α → List α) (k : ℕ) (rs : List α) :
     dfs (mapAdj e g) k (rs.map e) =
       ⟨(dfs g k rs).visited.map e.toEmbedding, (dfs g k rs).finished.map e⟩ := by
-  unfold dfs
-  have h : ∀ (l : List α) (s : Cslib.Algorithms.Lean.DFS.State α),
-      (l.map e).foldl (fun st w => visit (mapAdj e g) k w st)
-          ⟨s.visited.map e.toEmbedding, s.finished.map e⟩ =
-        ⟨(l.foldl (fun st v => visit g k v st) s).visited.map e.toEmbedding,
-          (l.foldl (fun st v => visit g k v st) s).finished.map e⟩ := by
-    intro l
-    induction l with
-    | nil => intro _; rfl
-    | cons v l ih =>
-      intro s
-      simp only [List.map_cons, List.foldl_cons, visit_mapAdj e g k v s]
-      exact ih (visit g k v s)
-  simpa using h rs ⟨∅, []⟩
+  simpa only [dfs, Finset.map_empty, List.map_nil] using
+    foldl_visit_mapAdj e g (visit_mapAdj e g k) rs ⟨∅, []⟩
 
 private theorem topologicalSort_mapAdj {α β : Type*} [DecidableEq α] [DecidableEq β] (e : α ≃ β)
     (g : α → List α) (vs : List α) :
@@ -255,22 +247,16 @@ theorem Instance.indexComponents_adjFin (G : Instance) (ℓ : Literal (Fin G.n))
 theorem length_le_foldl_addClauseEdges {V : Type*} [DecidableEq V] :
     ∀ (cs : CNF V) (adj : Literal V → List (Literal V)) (w : Literal V),
       (adj w).length ≤ (cs.foldl addClauseEdges adj w).length
-  | [], adj, w => le_rfl
+  | [], _, _ => le_rfl
   | c :: cs, adj, w => by
+    have hcons : ∀ (f : Literal V → List (Literal V)) (u v : Literal V),
+        (f w).length ≤ (Function.update f u (v :: f u) w).length := fun f u v => by
+      by_cases h : w = u <;> simp [h]
     have h1 : (adj w).length ≤ (addClauseEdges adj c w).length := by
       rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, rest⟩⟩⟩
       · exact le_rfl
-      · dsimp only [addClauseEdges]
-        by_cases h : w = a.negate <;> simp [h]
-      · dsimp only [addClauseEdges]
-        by_cases h2 : w = b.negate
-        · subst h2
-          by_cases h1 : b.negate = a.negate
-          · rw [h1]; simp; omega
-          · simp [h1]
-        · by_cases h1 : w = a.negate
-          · subst h1; simp [h2]
-          · simp [h2, h1]
+      · exact hcons adj a.negate a
+      · exact (hcons adj a.negate b).trans (hcons _ b.negate a)
       · exact le_rfl
     exact h1.trans (length_le_foldl_addClauseEdges cs (addClauseEdges adj c) w)
 
