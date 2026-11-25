@@ -570,44 +570,32 @@ theorem stepTrackerCost_add_potential_le {k : ℕ} (hk : 0 < k) {tr : MarkTracke
       (if isCleanReq tr p then harmonic k else 0) + trackerPotential tr := by
   obtain ⟨_, hst, hsk, _, _⟩ := htr
   by_cases hpM : p ∈ tr.marked
-  · have hclean : isCleanReq tr p = false := by simp [isCleanReq, hpM]
-    simp only [stepTrackerCost, stepTracker, hpM, hclean, ↓reduceIte, Bool.false_eq_true, zero_add,
-      le_rfl]
+  · simp [isCleanReq, stepTrackerCost, stepTracker, hpM]
   · by_cases ht0 : tr.staleCached = 0
-    · have hclean : isCleanReq tr p = true := by simp [isCleanReq, hpM, ht0]
-      have hpot0 : trackerPotential tr = 0 := by
-        simp only [trackerPotential, ht0, Nat.sub_zero, sub_self, mul_zero]
-      simp only [stepTrackerCost, stepTracker, hpM, ht0, hclean, ↓reduceIte, hpot0, add_zero]
+    · simp only [isCleanReq, stepTrackerCost, stepTracker, hpM, ht0, and_self, decide_true,
+        not_false_eq_true, true_or, ↓reduceIte, trackerPotential, Nat.sub_zero, sub_self, mul_zero,
+        add_zero]
       by_cases hlt : tr.marked.card < k
-      · simp only [hlt, ↓reduceIte, trackerPotential, Finset.card_empty, Nat.sub_zero,
-          Nat.cast_zero, zero_mul, add_zero]
-        exact one_le_harmonic hk.ne'
+      · simp [hlt, one_le_harmonic hk.ne']
       · have hMcard : tr.marked.card = k := by omega
-        simp only [hlt, ↓reduceIte, trackerPotential]
-        rw [hMcard, show k - (k - 1) = 1 by omega]
+        have hk1 : k - (k - 1) = 1 := by omega
+        simp only [hlt, ↓reduceIte]
+        rw [hMcard, hk1]
         simp only [Nat.cast_one, one_mul, harmonic_succ 0, harmonic_zero, zero_add, inv_one]
         linarith
-    · have htpos : 0 < tr.staleCached := Nat.pos_of_ne_zero ht0
-      by_cases hpS : p ∈ tr.stale
-      · have hclean : isCleanReq tr p = false := by simp [isCleanReq, hpM, ht0, hpS]
-        simp only [stepTrackerCost, stepTracker, hpM, ht0, hpS, hclean, ↓reduceIte,
-          Bool.false_eq_true, zero_add, trackerPotential]
-        have hm1 : 1 ≤ tr.stale.card := Finset.card_pos.mpr ⟨p, hpS⟩
-        have herase_card : (tr.stale.erase p).card = tr.stale.card - 1 :=
-          Finset.card_erase_of_mem hpS
-        have hc_eq : (tr.stale.card - 1) - (tr.staleCached - 1) = tr.stale.card - tr.staleCached :=
-          by omega
-        have hharm_m := harmonic_succ (tr.stale.card - 1)
-        rw [Nat.sub_add_cancel hm1] at hharm_m
-        rw [herase_card, hc_eq, hharm_m, div_eq_mul_inv]
+    · by_cases hpS : p ∈ tr.stale
+      · have hm1 : 1 ≤ tr.stale.card := Finset.card_pos.mpr ⟨p, hpS⟩
+        have hc_eq : (tr.stale.card - 1) - (tr.staleCached - 1) =
+            tr.stale.card - tr.staleCached := by omega
+        have hharm_m : harmonic tr.stale.card =
+            harmonic (tr.stale.card - 1) + (tr.stale.card : ℚ)⁻¹ := by
+          simpa only [Nat.sub_add_cancel hm1] using harmonic_succ (tr.stale.card - 1)
+        simp only [isCleanReq, stepTrackerCost, stepTracker, hpM, ht0, hpS, not_true_eq_false,
+          or_false, and_false, decide_false, Bool.false_eq_true, ↓reduceIte, zero_add,
+          trackerPotential, Finset.card_erase_of_mem hpS, hc_eq, hharm_m, div_eq_mul_inv]
         linarith
-      · have hclean : isCleanReq tr p = true := by simp [isCleanReq, hpM, hpS]
-        simp only [stepTrackerCost, stepTracker, hpM, ht0, hpS, hclean, ↓reduceIte,
-          trackerPotential]
-        have hc_succ : tr.stale.card - (tr.staleCached - 1) =
-            (tr.stale.card - tr.staleCached) + 1 := by omega
-        rw [hc_succ, harmonic_succ (tr.stale.card - tr.staleCached)]
-        set c := tr.stale.card - tr.staleCached
+      · set c := tr.stale.card - tr.staleCached
+        have hc_succ : tr.stale.card - (tr.staleCached - 1) = c + 1 := by omega
         have hc1_ne : ((c + 1 : ℕ) : ℚ) ≠ 0 := by positivity
         have hident :
             1 + ((c + 1 : ℕ) : ℚ) *
@@ -617,10 +605,9 @@ theorem stepTrackerCost_add_potential_le {k : ℕ} (hk : 0 < k) {tr : MarkTracke
           push_cast
           field_simp [hc1_ne]
           ring
-        rw [hident]
-        have hhm : harmonic tr.stale.card ≤ harmonic k := harmonic_mono hsk
-        have hhc : 0 ≤ harmonic c := harmonic_nonneg c
-        linarith
+        simp only [isCleanReq, stepTrackerCost, stepTracker, hpM, ht0, hpS, not_false_eq_true,
+          or_true, and_self, decide_true, ↓reduceIte, trackerPotential, hc_succ, harmonic_succ c]
+        linarith [hident, harmonic_mono hsk, harmonic_nonneg c]
 
 /-- Telescoped harmonic potential inequality over any request list `reqs`. -/
 theorem trackerExpectedCost_add_potential_le {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
@@ -635,15 +622,11 @@ theorem trackerExpectedCost_add_potential_le {k : ℕ} (hk : 0 < k) {tr : MarkTr
     simp only [trackerExpectedCost, runTracker, cleanCount]
     have hstep := stepTrackerCost_add_potential_le hk htr p
     have hih := ih (validTracker_step hk htr p)
-    have hcast :
-        harmonic k * (((if isCleanReq tr p then 1 else 0) +
-          cleanCount k (stepTracker k tr p) rs : ℕ) : ℚ) =
-          (if isCleanReq tr p then harmonic k else 0) +
-            harmonic k * (cleanCount k (stepTracker k tr p) rs : ℚ) := by
-      push_cast
-      split_ifs <;> ring
-    rw [hcast]
-    linarith
+    cases h : isCleanReq tr p
+    · simp only [h, ↓reduceIte, Bool.false_eq_true, zero_add] at hstep ⊢
+      linarith
+    · simp only [h, ↓reduceIte, Nat.cast_add, Nat.cast_one, mul_add, mul_one] at hstep ⊢
+      linarith
 
 /-- **Harmonic phase bound (`E[MARK] ≤ H_k · #clean`).** From any valid initial cache `s₀`, the
 rational expected cost of `markingStrategy` is at most `harmonic k` times the number of clean
@@ -847,14 +830,11 @@ theorem trackerExpectedCost_le_two_mul_harmonic_mul_scheduleCost {k : ℕ} (hk :
     (hv : (problem α k).ValidSchedule s₀ reqs offStates) :
     trackerExpectedCost k (initTracker s₀) reqs ≤
       2 * harmonic k * ((problem α k).scheduleCost s₀ reqs offStates : ℚ) := by
-  have h1 := trackerExpectedCost_le_harmonic_mul_cleanCount hk hs₀ reqs
   have h2 : (cleanCount k (initTracker s₀) reqs : ℚ) ≤
       2 * ((problem α k).scheduleCost s₀ reqs offStates : ℚ) := by
     exact_mod_cast cleanCount_le_two_mul_scheduleCost hk hs₀ hv
-  have h3 : harmonic k * (cleanCount k (initTracker s₀) reqs : ℚ) ≤
-      harmonic k * (2 * ((problem α k).scheduleCost s₀ reqs offStates : ℚ)) :=
-    mul_le_mul_of_nonneg_left h2 (harmonic_nonneg k)
-  linarith
+  linarith [trackerExpectedCost_le_harmonic_mul_cleanCount hk hs₀ reqs,
+    mul_le_mul_of_nonneg_left h2 (harmonic_nonneg k)]
 
 /-- **FKLMSY Theorem 1 (`ℝ≥0∞` cost bound)** [FiatKarpLubyMcGeochSleatorYoung1991]: for every
 admissible initial cache `s₀` (`|s₀| ≤ k`), request sequence `reqs`, and valid offline schedule
