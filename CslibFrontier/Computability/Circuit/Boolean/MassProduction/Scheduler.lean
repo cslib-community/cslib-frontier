@@ -105,7 +105,7 @@ private theorem exists_phases_circuit (bits : K ≃+ BitString b) (scalar : Fin 
   have hkD (q : ℕ) (hq : q ≤ D) : arity q ≤ 2 ^ D := by
     rw [arity_eq_two_pow]
     exact Nat.pow_le_pow_right (by decide) hq
-  have hk1 (q : ℕ) : 0 < arity q := by grind [arity_eq_two_pow]
+  have hk1 (q : ℕ) : 0 < arity q := by rw [arity_eq_two_pow]; exact Nat.two_pow_pos q
   -- One phase with `2 ^ q` pending requests.
   have phase (q : ℕ) (hq : q ≤ D) :
       ∃ c : Circuit signature (2 ^ D * width D (ℓ * b) s) (2 ^ D * width D (ℓ * b) s),
@@ -124,7 +124,9 @@ private theorem exists_phases_circuit (bits : K ≃+ BitString b) (scalar : Fin 
     obtain ⟨c, hc, hsize⟩ := phase 0 (Nat.zero_le D)
     refine ⟨c, fun targets x hx => ?_, by lia⟩
     have h := hc targets x hx
-    have e : 2 ^ D - arity 0 + (arity 0 + 1) / 2 = 2 ^ D := by grind [arity]
+    have e : 2 ^ D - arity 0 + (arity 0 + 1) / 2 = 2 ^ D := by
+      have := hkD 0 (Nat.zero_le D)
+      rw [arity_eq_two_pow, pow_zero] at this ⊢; omega
     rwa [e] at h
   | succ p ih =>
     obtain ⟨c', hc', hsize'⟩ := ih (by lia)
@@ -170,13 +172,10 @@ private theorem total_le {D L b s P F : ℕ} (hb : b ≤ L)
       _ ≤ V ^ 2 * n * (6 * ((s + 1) * V)) := by gcongr
       _ = 6 * n * (s + 1) * V ^ 3 := by ring
       _ ≤ 6 * n * (s + 1) * V ^ 5 := Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hV1 (by decide))
-  have h2 : 2 ≤ 2 * n * (s + 1) * V ^ 5 := by
-    have : 0 < n * (s + 1) * V ^ 5 :=
-      Nat.mul_pos (Nat.mul_pos hn1 (Nat.succ_pos s)) (Nat.pow_pos hV1)
-    have e : 2 * n * (s + 1) * V ^ 5 = 2 * (n * (s + 1) * V ^ 5) := by ring
-    lia
+  have h2 : 2 ≤ 2 * (n * (s + 1) * V ^ 5) :=
+    Nat.le_mul_of_pos_right 2 (Nat.mul_pos (Nat.mul_pos hn1 (Nat.succ_pos s)) (Nat.pow_pos hV1))
   have e1 : 524288 * n * (s + 1) * V ^ 5 = 262144 * n * (s + 1) * V ^ 5 +
-      6 * n * (s + 1) * V ^ 5 + 2 * n * (s + 1) * V ^ 5 + 262136 * (n * (s + 1) * V ^ 5) := by
+      6 * n * (s + 1) * V ^ 5 + 2 * (n * (s + 1) * V ^ 5) + 262136 * (n * (s + 1) * V ^ 5) := by
     ring
   lia
 
@@ -192,11 +191,8 @@ theorem exists_isScheduler (bits : K ≃+ BitString b) (scalar : Fin s ≃ {c : 
       IsScheduler bits scalar c ∧ c.size ≤ schedulerBound D ℓ b s := by
   -- The scalars are the nonzero field elements, and the field has `2 ^ b` elements.
   have hs : s < 2 ^ b := by
-    have h1 : s = Fintype.card {c : K // c ≠ 0} := by
-      simpa using Fintype.card_congr scalar
-    have h2 : Fintype.card K = 2 ^ b := by
-      rw [Fintype.card_congr bits.toEquiv]
-      simp
+    have h1 : s = Fintype.card {c : K // c ≠ 0} := by simpa using Fintype.card_congr scalar
+    have h2 : Fintype.card K = 2 ^ b := by rw [Fintype.card_congr bits.toEquiv]; simp
     rw [h1, ← h2]
     exact Fintype.card_subtype_lt (x := (0 : K)) (by simp)
   -- A universal menu has nonzero directions, so the points have a coordinate.
