@@ -49,77 +49,56 @@ theorem dist_map_le_of_edgePoint_dist_le [Finite V] {W : WeightedGraph V}
     refine ⟨(hdart d r 0).trans_eq ?_, (hdart d r 1).trans_eq ?_⟩
     · rw [Set.Icc.coe_zero, sub_zero, abs_of_nonneg r.2.1]
     · rw [Set.Icc.coe_one, abs_sub_comm, abs_of_nonneg (unitInterval.one_sub_nonneg r)]
-  have hwalk {u v : V} (w : W.graph.Walk u v) :
-      dist (f (vertex u)) (f (vertex v)) ≤ walkLength W.weight w := by
+  have hvertex (u v : V) :
+      dist (f (vertex u)) (f (vertex v)) ≤ dist (vertex u : MetricGraph W) (vertex v) := by
+    obtain ⟨w, -, hw⟩ := exists_isPath_walkLength_eq_vertexDist W.weight_nonneg (W.connected u v)
+    rw [dist_vertex, ← hw]
+    clear hw
     induction w with
-    | nil => simp [walkLength_nil]
+    | nil => simp
     | @cons u v x hadj w' ih =>
       have hstep := (hend ⟨(u, v), hadj⟩ 1).1
       rw [edgePoint_one, Set.Icc.coe_one, one_mul, dist_comm] at hstep
       rw [walkLength_cons]
       exact (dist_triangle _ (f (vertex v)) _).trans (add_le_add hstep ih)
-  have hvertex (u v : V) :
-      dist (f (vertex u)) (f (vertex v)) ≤ vertexDist W.graph W.weight u v := by
-    obtain ⟨w, -, hw⟩ := exists_isPath_walkLength_eq_vertexDist W.weight_nonneg (W.connected u v)
-    exact hw ▸ hwalk w
-  have hve (x : V) (d : W.graph.Dart) (r : unitInterval) :
-      dist (f (vertex x)) (f (edgePoint d r)) ≤
-        dist (vertex x : MetricGraph W) (edgePoint d r) := by
-    rw [dist_vertex_edgePoint]
-    obtain ⟨h0, h1⟩ := hend d r
-    rw [dist_comm] at h0 h1
-    refine le_min ?_ ?_ <;> linarith [hvertex x d.fst, hvertex x d.snd,
-      dist_triangle (f (vertex x)) (f (vertex d.fst)) (f (edgePoint d r)),
-      dist_triangle (f (vertex x)) (f (vertex d.snd)) (f (edgePoint d r))]
-  have hvia : ∀ (d₁ : W.graph.Dart) (r₁ : unitInterval)
-      (d₂ : W.graph.Dart) (r₂ : unitInterval),
-      dist (f (edgePoint d₁ r₁)) (f (edgePoint d₂ r₂)) ≤
-        min
-          (min ((r₁ : ℝ) * W.weight d₁.edge + vertexDist W.graph W.weight d₁.fst d₂.fst +
-                  (r₂ : ℝ) * W.weight d₂.edge)
-               ((r₁ : ℝ) * W.weight d₁.edge + vertexDist W.graph W.weight d₁.fst d₂.snd +
-                  (1 - (r₂ : ℝ)) * W.weight d₂.edge))
-          (min ((1 - (r₁ : ℝ)) * W.weight d₁.edge + vertexDist W.graph W.weight d₁.snd d₂.fst +
-                  (r₂ : ℝ) * W.weight d₂.edge)
-               ((1 - (r₁ : ℝ)) * W.weight d₁.edge + vertexDist W.graph W.weight d₁.snd d₂.snd +
-                  (1 - (r₂ : ℝ)) * W.weight d₂.edge)) := by
-    intro d₁ r₁ d₂ r₂
-    obtain ⟨h10, h11⟩ := hend d₁ r₁
-    obtain ⟨h20, h21⟩ := hend d₂ r₂
-    have step : ∀ a b : V,
-        dist (f (edgePoint d₁ r₁)) (f (edgePoint d₂ r₂)) ≤
-          dist (f (edgePoint d₁ r₁)) (f (vertex a)) +
-          vertexDist W.graph W.weight a b +
-          dist (f (edgePoint d₂ r₂)) (f (vertex b)) := by
-      intro a b
-      have htri := dist_triangle4 (f (edgePoint d₁ r₁))
-        (f (vertex a)) (f (vertex b)) (f (edgePoint d₂ r₂))
-      rw [dist_comm (f (vertex b))] at htri
-      linarith [hvertex a b]
-    refine le_min (le_min ?_ ?_) (le_min ?_ ?_) <;>
-      linarith [step d₁.fst d₂.fst, step d₁.fst d₂.snd,
-        step d₁.snd d₂.fst, step d₁.snd d₂.snd]
-  induction p using ind_simple with
-  | vertex x =>
+  -- Through either endpoint of `d₁`, then on to `q`.
+  have hvia (d₁ : W.graph.Dart) (r₁ : unitInterval) (q : MetricGraph W)
+      (hq : ∀ x, dist (f (vertex x)) (f q) ≤ dist (vertex x : MetricGraph W) q) :
+      dist (f (edgePoint d₁ r₁)) (f q) ≤
+        min ((r₁ : ℝ) * W.weight d₁.edge + dist (vertex d₁.fst : MetricGraph W) q)
+          ((1 - (r₁ : ℝ)) * W.weight d₁.edge + dist (vertex d₁.snd : MetricGraph W) q) := by
+    obtain ⟨h0, h1⟩ := hend d₁ r₁
+    refine le_min ?_ ?_ <;> linarith [hq d₁.fst, hq d₁.snd,
+      dist_triangle (f (edgePoint d₁ r₁)) (f (vertex d₁.fst)) (f q),
+      dist_triangle (f (edgePoint d₁ r₁)) (f (vertex d₁.snd)) (f q)]
+  have hve (x : V) (q : MetricGraph W) :
+      dist (f (vertex x)) (f q) ≤ dist (vertex x : MetricGraph W) q := by
     induction q using ind_simple with
-    | vertex y => exact (hvertex x y).trans_eq (dist_vertex x y).symm
-    | edgePoint d r => exact hve x d r
+    | vertex y => exact hvertex x y
+    | edgePoint d r =>
+      rw [dist_comm, dist_comm (vertex x : MetricGraph W)]
+      refine (hvia d r _ fun y => hvertex y x).trans_eq ?_
+      rw [dist_edgePoint_vertex, dist_vertex, dist_vertex]
+  induction p using ind_simple with
+  | vertex x => exact hve x q
   | edgePoint d₁ r₁ =>
     induction q using ind_simple with
     | vertex y =>
       rw [dist_comm, dist_comm (edgePoint d₁ r₁ : MetricGraph W)]
-      exact hve y d₁ r₁
+      exact hve y _
     | edgePoint d₂ r₂ =>
       by_cases he : d₁.edge = d₂.edge
-      · rcases (dart_edge_eq_iff d₁ d₂).mp he with rfl | hsym
-        · rw [dist_edgePoint_edgePoint_same]
-          exact le_min (hdart d₁ r₁ r₂) (hvia d₁ r₁ d₁ r₂)
-        · subst hsym
-          rw [← edgePoint_symm d₂ r₂, dist_edgePoint_edgePoint_same]
-          exact le_min (hdart d₂.symm r₁ (unitInterval.symm r₂))
-            (hvia d₂.symm r₁ d₂.symm (unitInterval.symm r₂))
+      · obtain ⟨r, hr⟩ : ∃ r, (edgePoint d₂ r₂ : MetricGraph W) = edgePoint d₁ r := by
+          rcases (dart_edge_eq_iff d₁ d₂).mp he with rfl | rfl
+          exacts [⟨r₂, rfl⟩, ⟨unitInterval.symm r₂, (edgePoint_symm d₂ r₂).symm⟩]
+        rw [hr, dist_edgePoint_edgePoint_same]
+        refine le_min (hdart d₁ r₁ r) ((hvia d₁ r₁ _ (hve · _)).trans_eq ?_)
+        rw [dist_vertex_edgePoint, dist_vertex_edgePoint]
+        simp only [← min_add_add_left, add_assoc]
       · rw [dist_edgePoint_edgePoint_of_edge_ne he]
-        exact hvia d₁ r₁ d₂ r₂
+        refine (hvia d₁ r₁ _ (hve · _)).trans_eq ?_
+        rw [dist_vertex_edgePoint, dist_vertex_edgePoint]
+        simp only [← min_add_add_left, add_assoc]
 
 end MetricGraph
 
