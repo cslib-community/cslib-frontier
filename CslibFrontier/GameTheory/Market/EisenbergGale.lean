@@ -303,20 +303,22 @@ private theorem directional_log_increase {m₁ m₂ U₁ U₂ u₁ u₂ c : ℝ}
   have hU₂' : 0 < U₂ + u₂ * ε := by rw [hU₂_add]; exact mul_pos hU₂ hx₂
   refine ⟨ε, hε_pos, hε_lt_c, hU₁', hU₂', ?_⟩
   have hlog₁ : -(a * ε) / (1 - a * ε) ≤ Real.log (1 - a * ε) := by
-    convert Real.one_sub_inv_le_log_of_pos hx₁ using 1
-    field_simp [hx₁.ne']
-    ring
+    have h1 : -(a * ε) / (1 - a * ε) = 1 - (1 - a * ε)⁻¹ := by
+      field_simp [hx₁.ne']
+      ring
+    exact h1.trans_le (Real.one_sub_inv_le_log_of_pos hx₁)
   have hlog₂ : (b * ε) / (1 + b * ε) ≤ Real.log (1 + b * ε) := by
-    convert Real.one_sub_inv_le_log_of_pos hx₂ using 1
-    field_simp [hx₂.ne']
-    ring
+    have h2 : (b * ε) / (1 + b * ε) = 1 - (1 + b * ε)⁻¹ := by
+      field_simp [hx₂.ne']
+      ring
+    exact h2.trans_le (Real.one_sub_inv_le_log_of_pos hx₂)
   have hcross : m₁ * a * (1 + b * ε) < m₂ * b * (1 - a * ε) := by
     have hle : ε * D₂ ≤ m₂ * b - m₁ * a := (le_div_iff₀ hD₂).1 hε_D₂
     have hab_nn : 0 ≤ (m₁ + m₂) * a * b := by positivity
     nlinarith
   have hfrac : m₁ * ((a * ε) / (1 - a * ε)) < m₂ * ((b * ε) / (1 + b * ε)) := by
     rw [← mul_div_assoc, ← mul_div_assoc, div_lt_div_iff₀ hx₁ hx₂]
-    nlinarith [mul_lt_mul_of_pos_right hcross hε_pos]
+    linarith [mul_lt_mul_of_pos_right hcross hε_pos]
   have hsum_pos : 0 < m₁ * Real.log (1 - a * ε) + m₂ * Real.log (1 + b * ε) := by
     have hm₁_le := mul_le_mul_of_nonneg_left hlog₁ hm₁.le
     have hm₂_le := mul_le_mul_of_nonneg_left hlog₂ hm₂.le
@@ -832,20 +834,31 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
       exact ⟨hy.1 i g,
         (Finset.single_le_sum (fun k _ => hy.1 k g) (Finset.mem_univ i)).trans (hy.2.1 g)⟩
     have hK_closed : IsClosed K := by
-      simp only [K, buyerUtility_eq, linearUtility_eq_sum, Set.ofPred_and, Set.ofPred_forall]
-      exact (isClosed_iInter fun i => isClosed_iInter fun g =>
-          isClosed_le continuous_const (by fun_prop)).inter
-        ((isClosed_iInter fun g => isClosed_le (by fun_prop) continuous_const).inter
-          (isClosed_iInter fun i => isClosed_le continuous_const (by fun_prop)))
+      have hc₁ : IsClosed {y : I → G → ℝ | ∀ i g, 0 ≤ y i g} := by
+        simp only [Set.ofPred_forall]
+        exact isClosed_iInter fun i => isClosed_iInter fun g =>
+          isClosed_le continuous_const (by fun_prop)
+      have hc₂ : IsClosed {y : I → G → ℝ | ∀ g, ∑ i : I, y i g ≤ M.supply g} := by
+        simp only [Set.ofPred_forall]
+        exact isClosed_iInter fun g => isClosed_le (by fun_prop) continuous_const
+      have hc₃ : IsClosed {y : I → G → ℝ | ∀ i : I, δ i ≤ M.buyerUtility y i} := by
+        simp only [buyerUtility_eq, linearUtility_eq_sum, Set.ofPred_forall]
+        exact isClosed_iInter fun i => isClosed_le continuous_const (by fun_prop)
+      exact hc₁.inter (hc₂.inter hc₃)
     have hK_compact : IsCompact K := hBox_compact.of_isClosed_subset hK_closed hK_sub
     have hf_cont : ContinuousOn M.eisenbergGaleObjective K := by
-      have hterm : ∀ i : I,
-          ContinuousOn (fun y : I → G → ℝ => M.budget i * Real.log (M.buyerUtility y i)) K :=
-        fun i => continuousOn_const.mul <| by
-          simp only [buyerUtility_eq, linearUtility_eq_sum]
-          refine ContinuousOn.log (by fun_prop) fun y hy => ne_of_gt ?_
-          simpa only [buyerUtility_eq, linearUtility_eq_sum] using (hδ_pos i).trans_le (hy.2.2 i)
-      rw [funext M.eisenbergGaleObjective_eq]
+      have hterm : ∀ i : I, ContinuousOn
+          (fun y : I → G → ℝ => M.budget i * Real.log (∑ g : G, M.utility i g * y i g)) K :=
+        fun i => continuousOn_const.mul
+          (ContinuousOn.log (by fun_prop) fun y hy => by
+            have hpos := (hδ_pos i).trans_le (hy.2.2 i)
+            rw [buyerUtility_eq, linearUtility_eq_sum] at hpos
+            exact hpos.ne')
+      have heq_obj : M.eisenbergGaleObjective = fun y : I → G → ℝ =>
+          ∑ i : I, M.budget i * Real.log (∑ g : G, M.utility i g * y i g) := by
+        ext y
+        simp only [eisenbergGaleObjective_eq, buyerUtility_eq, linearUtility_eq_sum]
+      rw [heq_obj]
       fun_prop
     obtain ⟨xStar, hxStar_K, hxStar_max⟩ :=
       hK_compact.exists_isMaxOn ⟨x₀, hx₀_mem⟩ hf_cont
