@@ -560,6 +560,65 @@ private theorem inEpochInsertMissTailCode_exec {U V w N n n_init base L_peak : �
       rw [h1]; exact hbelow9 addr haddr,
     insert_miss_tail_steps_le (hx₆_k.symm ▸ hΔ_le2) hcost_app_mul⟩
 
+/-- The key-hash prologue shared by the active query, insert and delete paths. From a state whose
+`rBase`, `rCnt` and `rArgU` hold the epoch base, the item count `n > 0` and the key,
+`loadActiveCtxCode` followed by `evalKeyHashCode` loads the context registers and leaves the key
+hash in `rHashOut`. The epoch representation, the frontier, the argument registers and memory
+outside the scratch area are kept. -/
+private theorem activeKeyHash_exec {U V w N n n_init base L_peak : ℕ}
+    {θ : QuotHashSeed U N} {s_abs : Dictionary.State U} (u : Fin U) {x : RData rEpoch}
+    (hx : x.Bounded w) (hn : 0 < n) (hev : EpochValid U n N)
+    (hfr : x.frontier = base + compactedEpochWords U V w N n)
+    (hL : x.frontier ≤ L_peak)
+    (hsplit : CompactedSplitRep base (base + offCompItems U w N) U V w N n n_init θ s_abs
+      ⟨x.mem, x.frontier⟩)
+    (hbase : x.regs rBase = base) (hcnt : x.regs rCnt = n) (hu_reg : x.regs rArgU = u.val) :
+    ∃ y : RData rEpoch,
+      (∀ {rest : RCode .exact rEpoch} {T : ℕ} {P : RData rEpoch → Prop},
+        RDemonicExec w L_peak rest y T P →
+        RDemonicExec w L_peak (.seq loadActiveCtxCode (.seq evalKeyHashCode rest)) x
+          (inEpochFactor + 172 + (45207 * inEpochFactor + T)) P) ∧
+      y.Bounded w ∧ y.frontier = x.frontier ∧ y.regs rFr = y.frontier ∧
+      y.regs rHashOut = hValOfSeed U N θ (keyQuotient (bucketBits N) u.val) ∧
+      CompactedSplitRep base (base + offCompItems U w N) U V w N n n_init θ s_abs
+        ⟨y.mem, y.frontier⟩ ∧
+      (∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → y.mem a = x.mem a) ∧
+      y.regs rBase = base ∧ y.regs rCnt = n ∧
+      y.regs rScratchBase = base + offScratch ∧
+      y.regs rHashBase = base + epochHdrWords ∧
+      y.regs rItemBase = base + offCompItems U w N ∧
+      y.regs rArgU = u.val ∧ y.regs rArgV = x.regs rArgV ∧
+      (∀ i : Fin 19, y.regs (hpReg i) =
+        mkHashParams w (epochQBits U N) (epochHashB N) (totalMicroBits N) 3 i) ∧
+      (∀ i : Fin 36, y.regs (cpReg i) = mkCompParams U V w N i) := by
+  obtain ⟨x₁, hex_ctx, hx₁b, hx₁m, hx₁f, hx₁_base, hx₁_cnt, hx₁_scr, hx₁_hash, hx₁_item, hx₁_fr,
+      _, hx₁_u, hx₁_v, hx₁_hp, hx₁_cp⟩ :=
+    loadActiveCtxCode_exec hx hn hev hfr hL hsplit hbase hcnt
+  obtain ⟨y, hex_kh, hyb, hyf, hy_fr, hy_hout, hsplit_y, hy_out_mem, hy_pres⟩ :=
+    evalKeyHashCode_exec u hx₁b hn hev (hx₁f.trans hfr) (hx₁f.le.trans hL)
+      (by rw [hx₁m, hx₁f]; exact hsplit) (hx₁_fr.trans hx₁f.symm) hx₁_hash hx₁_scr
+      (hx₁_u.trans hu_reg) hx₁_hp hx₁_cp
+  refine ⟨y, fun hrest => hex_ctx.seq_eq (hex_kh.seq_eq hrest), hyb, hyf.trans hx₁f, hy_fr, hy_hout,
+    hsplit_y, fun a ha => (hy_out_mem a ha).trans (congrFun hx₁m a),
+    (hy_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
+      (eReg_ne (by decide))).trans hx₁_base,
+    (hy_pres rCnt (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
+      (eReg_ne (by decide))).trans hx₁_cnt,
+    (hy_pres rScratchBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
+      (eReg_ne (by decide))).trans hx₁_scr,
+    (hy_pres rHashBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
+      (eReg_ne (by decide))).trans hx₁_hash,
+    (hy_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
+      (eReg_ne (by decide))).trans hx₁_item,
+    (hy_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
+      (eReg_ne (by decide))).trans (hx₁_u.trans hu_reg),
+    (hy_pres rArgV (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
+      (eReg_ne (by decide))).trans hx₁_v,
+    fun i => (hy_pres (hpReg i) (hpReg_ne_eReg i (by decide)) (hpReg_lt_88 i)
+      (hpReg_ne_eReg i (by decide)) (hpReg_ne_eReg i (by decide))).trans (hx₁_hp i),
+    fun i => (hy_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
+      (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₁_cp i)⟩
+
 private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ}
     {θ : QuotHashSeed U N} {s_abs : Dictionary.State U} (u : Fin U) {x : RData rEpoch}
     (hx : x.Bounded w) (hn : 0 < n) (hev : EpochValid U n N)
@@ -601,15 +660,10 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
     simp [x₂, RData.set, hx₁_cnt]
   have hx₂_u : x₂.regs rArgU = u.val := by
     simp [x₂, x₁, RData.set, hu_reg]
-  obtain ⟨x₃, hex_ctx, hx₃b, hx₃m, hx₃f, hx₃_base, _, hx₃_scr, hx₃_hash, hx₃_item, hx₃_fr,
-      _, hx₃_u, _, hx₃_hp, hx₃_cp⟩ :=
-    loadActiveCtxCode_exec hx₂b hn hev hfr hL hsplit hx₂_base hx₂_cnt
-  obtain ⟨x₄, hex_kh, hx₄b, hx₄f, hx₄_fr, hx₄_hout, hsplit₄, hx₄_out_mem, hx₄_pres⟩ :=
-    evalKeyHashCode_exec u hx₃b hn hev (hx₃f.trans hfr) (hx₃f.le.trans hL)
-      (by rw [hx₃m, hx₃f]; exact hsplit) (hx₃_fr.trans hx₃f.symm) hx₃_hash hx₃_scr
-      (hx₃_u.trans hx₂_u) hx₃_hp hx₃_cp
-  have hx₄_ff : x₄.frontier = base + compactedEpochWords U V w N n :=
-    hx₄f.trans (hx₃f.trans hfr)
+  obtain ⟨x₄, hex_kh, hx₄b, hx₄f, hx₄_fr, hx₄_hout, hsplit₄, hx₄_out_mem, hx₄_base, -, -, -,
+      hx₄_item, hx₄_u, -, -, hx₄_cp⟩ :=
+    activeKeyHash_exec u hx₂b hn hev hfr hL hsplit hx₂_base hx₂_cnt hx₂_u
+  have hx₄_ff : x₄.frontier = base + compactedEpochWords U V w N n := hx₄f.trans hfr
   obtain ⟨henv₄, hfit_off⟩ := compEpochEnv_of_split hx₄b hn hev hx₄_ff hsplit₄
   obtain ⟨s_fix₄, hinv₄, htot₄, hcpl₄⟩ := hsplit₄.coupled
   have hms₄ : memoryState rFr x₄.toData = ⟨x₄.mem, x₄.frontier⟩ :=
@@ -618,18 +672,6 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
     compQueryWithHashGenProg_dict_spec henv₄ hfit_off hinv₄ hcpl₄ htot₄.le u
   set h_q := hValOfSeed U N θ (keyQuotient (bucketBits N) u.val)
   set d_q := ((mkCompParams U V w N, (base, base + offCompItems U w N)), (u.val, h_q))
-  have hx₄_base : x₄.regs rBase = base :=
-    (hx₄_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_base
-  have hx₄_item : x₄.regs rItemBase = base + offCompItems U w N :=
-    (hx₄_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_item
-  have hx₄_u : x₄.regs rArgU = u.val :=
-    (hx₄_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans (hx₃_u.trans hx₂_u)
-  have hx₄_cp : ∀ i : Fin 36, x₄.regs (cpReg i) = mkCompParams U V w N i := fun i =>
-    (hx₄_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
-      (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₃_cp i)
   have hin_q : x₄.regs ∘ srcKeyHashOp = WordEncoding.encode d_q :=
     (regs_pairSrc
       (regs_pairSrc (regs_cp_eq hx₄_cp)
@@ -645,7 +687,7 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
   obtain ⟨y, hex_q, hyb, hyf, hm_q, hout_q, hframe_q⟩ :=
     execWitness wQuery factor_wQuery_le rFr srcKeyHashOp tmpQuery
       tmpQuery_inj srcKeyHashOp_ne_tmpQuery tmpQuery_ne_rFr srcKeyHashOp_ne_rFr
-      d_q hx₄b ((hx₄f.trans hx₃f).le.trans hL) hin_q (hms₄ ▸ hpre_q) hv_q hnoalloc_q
+      d_q hx₄b (hx₄f.le.trans hL) hin_q (hms₄ ▸ hpre_q) hv_q hnoalloc_q
   rw [hms₄, hst_q] at hm_q
   rw [hms₄, hres_q] at hout_q
   have hym : y.mem = x₄.mem := congrArg Memory.State.mem hm_q
@@ -658,10 +700,10 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
       (tmpQuery_ne_reg (eReg_lt_88 _) (eReg_ne (by decide)) (eReg_ne (by decide)))).trans hx₄_base
   have hex_tot : RDemonicExec w L_peak inEpochQueryCode x _ (· = y) :=
     hex_ld.seq_eq (hex_z.seq_eq
-      (RDemonicExec.branch_neg hcond_neg (hex_ctx.seq_eq (hex_kh.seq_eq hex_q))))
+      (RDemonicExec.branch_neg hcond_neg (hex_kh hex_q)))
   have hpot_eq : inEpochPotential U w N base y = inEpochPotential U w N base x := by
     unfold inEpochPotential
-    rw [hym, compGmAt_eq_of_scratch_mod henv₄.pos_w hx₄_out_mem, hx₃m]; rfl
+    rw [hym, compGmAt_eq_of_scratch_mod henv₄.pos_w hx₄_out_mem]; rfl
   have hcost_mul :
       inEpochFactor * (memoryCost (compQueryWithHashGenProg d_q) (memoryState rFr x₄.toData) + 1) ≤
         39 * inEpochFactor +
@@ -682,7 +724,7 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
     by rw [hym, hyf]; exact hsplit₄,
     hy_base,
     fun addr haddr => by
-      rw [hym]; exact (hx₄_out_mem addr (Or.inl (by omega))).trans (congrFun hx₃m addr),
+      rw [hym]; exact hx₄_out_mem addr (Or.inl (by omega)),
     by rw [hpot_eq]; unfold inEpochBaseCharge; omega⟩
 
 private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : ℕ}
@@ -732,15 +774,10 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
     simp [x₁, RData.set, hu_reg]
   have hx₁_v : x₁.regs rArgV = v := by
     simp [x₁, RData.set, hv_reg]
-  obtain ⟨x₂, hex_ctx, hx₂b, hx₂m, hx₂f, hx₂_base, hx₂_cnt, hx₂_scr, hx₂_hash, hx₂_item, hx₂_fr,
-      _, hx₂_u, hx₂_v, hx₂_hp, hx₂_cp⟩ :=
-    loadActiveCtxCode_exec hx₁b hn hev hfr hL hsplit hx₁_base hx₁_cnt
-  obtain ⟨x₃, hex_kh, hx₃b, hx₃f, hx₃_fr, hx₃_hout, hsplit₃, hx₃_out_mem, hx₃_pres⟩ :=
-    evalKeyHashCode_exec u hx₂b hn hev (hx₂f.trans hfr) (hx₂f.le.trans hL)
-      (by rw [hx₂m, hx₂f]; exact hsplit) (hx₂_fr.trans hx₂f.symm) hx₂_hash hx₂_scr
-      (hx₂_u.trans hx₁_u) hx₂_hp hx₂_cp
-  have hx₃_ff : x₃.frontier = base + compactedEpochWords U V w N n :=
-    hx₃f.trans (hx₂f.trans hfr)
+  obtain ⟨x₃, hex_kh, hx₃b, hx₃f, hx₃_fr, hx₃_hout, hsplit₃, hx₃_out_mem, hx₃_base, hx₃_cnt, -,
+      -, hx₃_item, hx₃_u, hx₃_v, -, hx₃_cp⟩ :=
+    activeKeyHash_exec u hx₁b hn hev hfr hL hsplit hx₁_base hx₁_cnt hx₁_u
+  have hx₃_ff : x₃.frontier = base + compactedEpochWords U V w N n := hx₃f.trans hfr
   obtain ⟨henv₃, hfit_off⟩ := compEpochEnv_of_split hx₃b hn hev hx₃_ff hsplit₃
   obtain ⟨s_fix₃, hinv₃, htot₃, hcpl₃⟩ := hsplit₃.coupled
   have hms₃ : memoryState rFr x₃.toData = ⟨x₃.mem, x₃.frontier⟩ :=
@@ -754,24 +791,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
   set res_sb := (Memory.spec 0).clientResult s_fix₃
     (searchBucketProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), q), m))
   set d_sr := ((mkCompParams U V w N, (base, base + offCompItems U w N)), (u.val, h_q))
-  have hx₃_base : x₃.regs rBase = base :=
-    (hx₃_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₂_base
-  have hx₃_cnt : x₃.regs rCnt = n :=
-    (hx₃_pres rCnt (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₂_cnt
-  have hx₃_item : x₃.regs rItemBase = base + offCompItems U w N :=
-    (hx₃_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₂_item
-  have hx₃_u : x₃.regs rArgU = u.val :=
-    (hx₃_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans (hx₂_u.trans hx₁_u)
-  have hx₃_v : x₃.regs rArgV = v :=
-    (hx₃_pres rArgV (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans (hx₂_v.trans hx₁_v)
-  have hx₃_cp : ∀ i : Fin 36, x₃.regs (cpReg i) = mkCompParams U V w N i := fun i =>
-    (hx₃_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
-      (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₂_cp i)
+  replace hx₃_v : x₃.regs rArgV = v := hx₃_v.trans hx₁_v
   have hin_sr : x₃.regs ∘ srcKeyHashOp = WordEncoding.encode d_sr :=
     (regs_pairSrc
       (regs_pairSrc (regs_cp_eq hx₃_cp)
@@ -788,7 +808,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
   obtain ⟨x₄, hex_sr, hx₄b, hx₄f, hm_sr, hout_sr, hframe_sr⟩ :=
     execWitness wInsSearch factor_wInsSearch_le rFr srcKeyHashOp tmpInsSearch
       tmpInsSearch_inj srcKeyHashOp_ne_tmpInsSearch tmpInsSearch_ne_rFr srcKeyHashOp_ne_rFr
-      d_sr hx₃b ((hx₃f.trans hx₂f).le.trans hL) hin_sr (hms₃ ▸ hpre_sr) hv_sr hnoalloc_sr
+      d_sr hx₃b (hx₃f.le.trans hL) hin_sr (hms₃ ▸ hpre_sr) hv_sr hnoalloc_sr
   rw [hms₃, hst_sr] at hm_sr
   rw [hms₃, hres_sr] at hout_sr
   have hx₄m : x₄.mem = x₃.mem := congrArg Memory.State.mem hm_sr
@@ -817,7 +837,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
     fun reg h1 h88 hf hp hb hm => hframe_sr reg h1 (tmpInsSearch_ne_reg h88 hf hp hb hm)
   set x₅ := x₄.set rOne 1
   have hex_o := RDemonicExec.const (B := .exact) (d := rOne) (x := x₄)
-    ((hx₄f.trans (hx₃f.trans hx₂f)).le.trans hL) hfit1
+    ((hx₄f.trans hx₃f).le.trans hL) hfit1
   have hx₅b : x₅.Bounded w := hx₄b.set hfit1
   have hx₅_ff : x₅.frontier = base + compactedEpochWords U V w N n := hx₄f.trans hx₃_ff
   have hx₅_fr : x₅.regs rFr = x₅.frontier := by
@@ -867,7 +887,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
               probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
           ring
   have hgm_x₃ : compGmAt base U w N x₃.mem = compGmAt base U w N x.mem := by
-    rw [compGmAt_eq_of_scratch_mod henv₃.pos_w hx₃_out_mem, hx₂m]; rfl
+    rw [compGmAt_eq_of_scratch_mod henv₃.pos_w hx₃_out_mem]; rfl
   have hf1_ge := one_le_inEpochFactor
   by_cases hhit : res_sb.1.1 = 1
   · have hsome : (s_abs u).isSome := hf_iff.mp hhit
@@ -938,13 +958,12 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
             Nat.mul_le_mul_left _ (Nat.add_le_add_right hcost_wv 1)
         _ = 9 * inEpochFactor := by ring
     have hex_tot : RDemonicExec w L_peak inEpochInsertCode x _ (· = y) :=
-      hex_ld.seq_eq (hex_ctx.seq_eq (hex_kh.seq_eq (hex_sr.seq_eq
+      hex_ld.seq_eq (hex_kh (hex_sr.seq_eq
         (hex_o.seq_eq (RDemonicExec.branch_pos (neg := inEpochInsertMissTailCode)
-          hcond_pos hex_wv)))))
+          hcond_pos hex_wv))))
     refine ⟨y, _, hex_tot, rfl, hyb, by rw [hyf, hx₅_ff, hn'_eq], hsplit_y, hy_base,
       fun addr haddr => (hbelow_y addr haddr).trans
-        ((hx₃_out_mem addr (Or.inl (Nat.lt_add_right offScratch haddr))).trans
-          (congrFun hx₂m addr)),
+        (hx₃_out_mem addr (Or.inl (Nat.lt_add_right offScratch haddr))),
       by rw [hpot_eq]; exact insert_hit_steps_le hcost_sr_mul hcost_wv_mul⟩
   · have hnot_some : ¬(s_abs u).isSome := mt hf_iff.mpr hhit
     have hnot_mem : u ∉ Dictionary.dom s_abs := mt Dictionary.mem_dom_iff_isSome.mp hnot_some
@@ -982,15 +1001,14 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
         (98 * inEpochFactor) * slotPotential N (compGmAt base U w N x₃.mem) := by
       unfold inEpochPotential; rw [hgm_x₃]
     have hex_tot : RDemonicExec w L_peak inEpochInsertCode x _ (· = y) :=
-      hex_ld.seq_eq (hex_ctx.seq_eq (hex_kh.seq_eq (hex_sr.seq_eq
+      hex_ld.seq_eq (hex_kh (hex_sr.seq_eq
         (hex_o.seq_eq (RDemonicExec.branch_neg
           (pos := RCode.ofCode (wWriteVal.code rFr srcWriteVal tmpWriteVal))
-          hcond_neg hex_miss)))))
+          hcond_neg hex_miss))))
     refine ⟨y, _, hex_tot, rfl, hyb, by rw [hy_ff, hn'_eq],
       by rw [hn'_eq]; exact hsplit_y, hy_base,
       fun addr haddr => (hbelow9 addr haddr).trans
-        ((hx₃_out_mem addr (Or.inl (Nat.lt_add_right offScratch haddr))).trans
-          (congrFun hx₂m addr)),
+        (hx₃_out_mem addr (Or.inl (Nat.lt_add_right offScratch haddr))),
       insert_miss_steps_le hcost_sr_mul (by rw [hpot_x]; exact hcost_m)⟩
 
 private theorem inEpochDeleteHitTailCode_exec {U V w N n n' n_init base L_peak : ℕ}
@@ -1253,15 +1271,10 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
     simp [x₂, RData.set, hx₁_cnt]
   have hx₂_u : x₂.regs rArgU = u.val := by
     simp [x₂, x₁, RData.set, hu_reg]
-  obtain ⟨x₃, hex_ctx, hx₃b, hx₃m, hx₃f, hx₃_base, hx₃_cnt, hx₃_scr, hx₃_hash, hx₃_item, hx₃_fr,
-      _, hx₃_u, _, hx₃_hp, hx₃_cp⟩ :=
-    loadActiveCtxCode_exec hx₂b hn hev hfr hL hsplit hx₂_base hx₂_cnt
-  obtain ⟨x₄, hex_kh, hx₄b, hx₄f, hx₄_fr, hx₄_hout, hsplit₄, hx₄_out_mem, hx₄_pres⟩ :=
-    evalKeyHashCode_exec u hx₃b hn hev (hx₃f.trans hfr) (hx₃f.le.trans hL)
-      (by rw [hx₃m, hx₃f]; exact hsplit) (hx₃_fr.trans hx₃f.symm) hx₃_hash hx₃_scr
-      (hx₃_u.trans hx₂_u) hx₃_hp hx₃_cp
-  have hx₄_ff : x₄.frontier = base + compactedEpochWords U V w N n :=
-    hx₄f.trans (hx₃f.trans hfr)
+  obtain ⟨x₄, hex_kh, hx₄b, hx₄f, hx₄_fr, hx₄_hout, hsplit₄, hx₄_out_mem, hx₄_base, hx₄_cnt,
+      hx₄_scr, hx₄_hash, hx₄_item, hx₄_u, -, hx₄_hp, hx₄_cp⟩ :=
+    activeKeyHash_exec u hx₂b hn hev hfr hL hsplit hx₂_base hx₂_cnt hx₂_u
+  have hx₄_ff : x₄.frontier = base + compactedEpochWords U V w N n := hx₄f.trans hfr
   set x₅ := x₄.set rHq (x₄.regs rHashOut)
   have hex_cp_hq := RDemonicExec.copy (B := .exact) (w := w) (d := rHq) (s := rHashOut) (x := x₄)
     ((hx₄_ff.trans hfr.symm).le.trans hL)
@@ -1282,38 +1295,30 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       henv₄ hfit_off hinv₄ hcpl₄ htot₄.le rfl (fun _ _ => rfl) u
   have hx₅_base : x₅.regs rBase = base := by
     simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rBase ≠ rHq)]
-    exact (hx₄_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_base
+    exact hx₄_base
   have hx₅_cnt : x₅.regs rCnt = n := by
     simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rCnt ≠ rHq)]
-    exact (hx₄_pres rCnt (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_cnt
+    exact hx₄_cnt
   have hx₅_item : x₅.regs rItemBase = base + offCompItems U w N := by
     simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rItemBase ≠ rHq)]
-    exact (hx₄_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_item
+    exact hx₄_item
   have hx₅_hash : x₅.regs rHashBase = base + epochHdrWords := by
     simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rHashBase ≠ rHq)]
-    exact (hx₄_pres rHashBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_hash
+    exact hx₄_hash
   have hx₅_scr : x₅.regs rScratchBase = base + offScratch := by
     simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rScratchBase ≠ rHq)]
-    exact (hx₄_pres rScratchBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_scr
+    exact hx₄_scr
   have hx₅_u : x₅.regs rArgU = u.val := by
     simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rArgU ≠ rHq)]
-    exact (hx₄_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans (hx₃_u.trans hx₂_u)
+    exact hx₄_u
   have hx₅_hq : x₅.regs rHq = h_q := by simp [x₅, RData.set, hx₄_hout]
   have hx₅_hp : ∀ i : Fin 19, x₅.regs (hpReg i) =
       mkHashParams w (epochQBits U N) (epochHashB N) (totalMicroBits N) 3 i := fun i => by
     simp only [x₅, RData.set_regs, Function.update_of_ne (hpReg_ne_eReg (c := 19) i (by decide))]
-    exact (hx₄_pres (hpReg i) (hpReg_ne_eReg i (by decide)) (hpReg_lt_88 i)
-      (hpReg_ne_eReg i (by decide)) (hpReg_ne_eReg i (by decide))).trans (hx₃_hp i)
+    exact hx₄_hp i
   have hx₅_cp : ∀ i : Fin 36, x₅.regs (cpReg i) = mkCompParams U V w N i := fun i => by
     simp only [x₅, RData.set_regs, Function.update_of_ne (cpReg_ne_eReg (c := 19) i (by decide))]
-    exact (hx₄_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
-      (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₃_cp i)
+    exact hx₄_cp i
   have hin_prep : x₅.regs ∘ srcDelPrep = WordEncoding.encode d_prep :=
     (regs_pairSrc
       (regs_pairSrc (regs_cp_eq hx₅_cp)
@@ -1487,7 +1492,7 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
     simp only [x₉, RData.set_regs, Function.update_of_ne (cpReg_ne_eReg (c := 12) i (by decide))]
     exact (hx₈_unch (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)).trans (hx₇_cp i)
   have hgm_x₄ : compGmAt base U w N x₄.mem = compGmAt base U w N x.mem := by
-    rw [compGmAt_eq_of_scratch_mod henv₄.pos_w hx₄_out_mem, hx₃m]; rfl
+    rw [compGmAt_eq_of_scratch_mod henv₄.pos_w hx₄_out_mem]; rfl
   have hcost_del_mul :
       inEpochFactor *
           (memoryCost (compDeletePrepWithHashGenProg d_prep) (memoryState rFr x₅.toData) + 1) +
@@ -1532,8 +1537,7 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
     (hbelow8 addr haddr).trans
       ((hx₇_out_mem addr (Or.inl (Nat.lt_add_right offScratch haddr))).trans
         ((congrFun hx₆m addr).trans
-          ((hx₄_out_mem addr (Or.inl (Nat.lt_add_right offScratch haddr))).trans
-            (congrFun hx₃m addr))))
+          (hx₄_out_mem addr (Or.inl (Nat.lt_add_right offScratch haddr)))))
   have hcpl8 : FixedCoupled base (base + offCompItems U w N) U V w N s_fix'
       ⟨x₈.mem, x₈.frontier⟩ := by rw [hs8_eq]; exact hcpl'
   by_cases hhit : found = 1
@@ -1560,10 +1564,10 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
         hx₉_base hx₉_cnt hx₉_cp
     have hex_tot : RDemonicExec w L_peak inEpochDeleteCode x _ (· = y) :=
       hex_ld.seq_eq (hex_z.seq_eq (RDemonicExec.branch_neg (pos := .op (.copy rZero rZero))
-        hcond_neg0 (hex_ctx.seq_eq (hex_kh.seq_eq (hex_cp_hq.seq_eq (hex_prep.seq_eq
+        hcond_neg0 (hex_kh (hex_cp_hq.seq_eq (hex_prep.seq_eq
           (hex_h2.seq_eq (hex_fin.seq_eq (hex_o.seq_eq
             (RDemonicExec.branch_pos (neg := .op (.copy rZero rZero))
-              hcond_pos hex_hit))))))))))
+              hcond_pos hex_hit)))))))))
     refine ⟨y, _, hex_tot, rfl, hyb, hy_ff, hsplit_y, hy_base,
       fun addr haddr => (hbelow_y addr haddr).trans (hbelow_x₈ addr haddr),
       delete_hit_steps_le hsteps_h (by rw [hpot_y]; exact hcost_del_mul)⟩
@@ -1597,10 +1601,10 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
         (98 * inEpochFactor) * slotPotential N (compGmAt base U w N x₈.mem) := rfl
     have hex_tot : RDemonicExec w L_peak inEpochDeleteCode x _ (· = y) :=
       hex_ld.seq_eq (hex_z.seq_eq (RDemonicExec.branch_neg (pos := .op (.copy rZero rZero))
-        hcond_neg0 (hex_ctx.seq_eq (hex_kh.seq_eq (hex_cp_hq.seq_eq (hex_prep.seq_eq
+        hcond_neg0 (hex_kh (hex_cp_hq.seq_eq (hex_prep.seq_eq
           (hex_h2.seq_eq (hex_fin.seq_eq (hex_o.seq_eq
             (RDemonicExec.branch_neg (pos := inEpochDeleteHitTailCode)
-              hcond_neg hex_nop))))))))))
+              hcond_neg hex_nop)))))))))
     refine ⟨y, _, hex_tot, rfl, hyb, by change x₈.frontier = _; rw [hx₈_ff, hn'_eq],
       hsplit_y, hy_base, hbelow_x₈,
       delete_miss_steps_le (by rw [hpot_y]; exact hcost_del_mul)⟩
