@@ -211,12 +211,14 @@ private theorem exists_nonneg_ne_zero_sqrt_card_mul_le_sum_of_linearOrder
     ∃ v : (ι → Bool) → ℝ, 0 ≤ v ∧ v ≠ 0 ∧ (∀ y ∉ V, v y = 0) ∧ ∀ x,
       √(#S : ℝ) * v x ≤ ∑ i ∈ S with update x i (!x i) ∈ V, v (update x i (!x i)) := by
   rcases S.eq_empty_or_nonempty with rfl | hS
-  · obtain ⟨x, hx⟩ := card_pos.1 (Nat.pos_of_ne_zero fun h => by rw [h] at hV; lia)
+  · -- the indicator of `V`, which is nonempty
+    obtain ⟨x, hx⟩ := card_pos.1 (Nat.pos_of_ne_zero fun h => by rw [h] at hV; lia)
     refine ⟨fun y => if y ∈ V then 1 else 0, fun y => by dsimp only; split_ifs <;> norm_num,
       fun h => by simpa [hx] using congrFun h x, fun y hy => by simp [hy], fun y => by simp⟩
   obtain ⟨μ, hμ, hdim⟩ := exists_abs_eq_sqrt_two_pow_le_two_mul_finrank hS
   obtain ⟨v, hvE, hv0, hvV⟩ := exists_ne_zero_mem_eigenspace_and_eq_zero_of_notMem hV S μ hdim
   have hAv : signedAdjacency S v = μ • v := Module.End.mem_eigenspace_iff.1 hvE
+  -- the absolute values of an eigenfunction vanishing outside `V`
   refine ⟨fun y => |v y|, fun _ => abs_nonneg _, fun h => hv0 (funext fun y =>
     abs_eq_zero.1 (congrFun h y)), fun y hy => by simp only [hvV y hy, abs_zero], fun x => ?_⟩
   calc √(#S : ℝ) * |v x| = |signedAdjacency S v x| := by
@@ -254,6 +256,7 @@ theorem exists_mem_sqrt_card_le_card_update_mem [Fintype ι] [DecidableEq ι]
     {V : Finset (ι → Bool)} (hV : 2 ^ Fintype.card ι < 2 * #V) (S : Finset ι) :
     ∃ x ∈ V, √(#S : ℝ) ≤ #{i ∈ S | update x i (!x i) ∈ V} := by
   obtain ⟨v, hv, hv0, hvV, hS⟩ := exists_nonneg_ne_zero_sqrt_card_mul_le_sum hV S
+  -- a point where `v` is largest
   obtain ⟨x, -, hx⟩ := exists_max_image univ v univ_nonempty
   have hpos : 0 < v x := lt_of_not_ge fun h =>
     hv0 (funext fun y => le_antisymm ((hx y (mem_univ y)).trans h) (hv y))

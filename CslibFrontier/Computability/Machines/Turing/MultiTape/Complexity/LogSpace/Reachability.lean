@@ -243,9 +243,11 @@ theorem exists_computableInPolyTime_search {α : Type} {enc : α ↪ List Bool} 
         (ntm.initView (enc a))) enc (encList encFiniteCfg) := by
   set rounds : α → ℕ := fun a => polyClock (logSpaceClockExponent k State c) (enc a).length
   refine ⟨rounds, fun _ => two_pow_coreLengthBound_log_le k State c _, ?_⟩
+  -- the number of rounds in unary
   have hcount : ComputableInPolyTime rounds enc encUnary := by
     simp only [rounds, polyClock]
     fun_prop
+  -- the found views are polynomially many, each of linear length
   set bound : α → ℕ := fun a => rounds a *
     (2 * viewLengthBound k State (enc a).length (c * (Nat.log2 (enc a).length + 1)) + 1)
   have hbound : PolyBounded (fun a => (enc a).length) bound := by

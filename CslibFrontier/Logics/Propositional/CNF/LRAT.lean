@@ -145,6 +145,7 @@ theorem Clause.residual_eq_unit_iff {c : Clause ℕ} {t : List (Literal ℕ)} {l
   have hmem (m : Literal ℕ) :
       m ∈ c.filter (fun l => !t.contains (Std.Sat.Literal.negate l)) ↔
         m ∈ c ∧ Std.Sat.Literal.negate m ∉ t := by simp
+  -- under the right side, every literal of the filtered clause is `l`
   have honly (hc : ∀ m ∈ c, m ≠ l → Std.Sat.Literal.negate m ∈ t) (m)
       (hm : m ∈ c.filter (fun l => !t.contains (Std.Sat.Literal.negate l))) : m = l :=
     by_contra fun hne => ((hmem m).1 hm).2 (hc m ((hmem m).1 hm).1 hne)
@@ -305,6 +306,7 @@ theorem CNF.false_of_propagateWith {lookup : ℕ → Option (Clause ℕ)} {σ : 
     (hlookup : ∀ h c, lookup h = some c → c.eval σ = true) {trail : List (Literal ℕ)}
     (htrail : ∀ l ∈ trail, Literal.eval σ l = true) {hs : List ℕ}
     (h : propagateWith lookup trail hs = true) : False := by
+  -- a literal of a looked-up clause holds, so it is not false under the trail
   have key {trail : List (Literal ℕ)} (htrail : ∀ l ∈ trail, Literal.eval σ l = true) {x c}
       (hc : lookup x = some c) :
       ∃ l' ∈ c, Literal.eval σ l' = true ∧ Std.Sat.Literal.negate l' ∉ trail := by
@@ -312,12 +314,13 @@ theorem CNF.false_of_propagateWith {lookup : ℕ → Option (Clause ℕ)} {σ : 
     have hl'e : Literal.eval σ l' = true := by simp [Literal.eval, hl'σ]
     exact ⟨l', hl', hl'e, fun hm => by simpa [hl'e] using htrail _ hm⟩
   fun_induction propagateWith lookup trail hs with
-  | case1 | case2 | case5 => simp at h
-  | case3 trail x hs c hc hr =>
+  | case1 | case2 | case5 => simp at h -- no hints, unknown clause, non-unit residual
+  | case3 trail x hs c hc hr => -- residual empty: conflict
     obtain ⟨l', hl', -, hl't⟩ := key htrail hc
     exact hl't (Clause.residual_eq_empty_iff.1 hr l' hl')
-  | case4 trail x hs c hc l hr ih =>
+  | case4 trail x hs c hc l hr ih => -- residual unit l: propagate
     obtain ⟨l', hl', hl'e, hl't⟩ := key htrail hc
+    -- the literal that holds is the propagated one
     obtain rfl : l' = l :=
       by_contra fun hne => hl't ((Clause.residual_eq_unit_iff.1 hr).2.2 l' hl' hne)
     exact ih (by simpa only [List.mem_cons, forall_eq_or_imp] using ⟨hl'e, htrail⟩) h
@@ -348,9 +351,9 @@ theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause 
     (hdb : ∀ e ∈ db, e.2.eval σ = true) {cert : List LRAT.IntAction}
     (h : checkLRATAux db cert = true) : False := by
   fun_induction checkLRATAux db cert with
-  | case1 | case4 => simp at h
-  | case2 => exact false_of_propagateHints hdb (trail := []) (by simp) h
-  | case3 db id c hints rest ih =>
+  | case1 | case4 => simp at h -- no actions, addRat
+  | case2 => exact false_of_propagateHints hdb (trail := []) (by simp) h -- addEmpty
+  | case3 db id c hints rest ih => -- addRup
     rw [Bool.and_eq_true] at h
     exact ih (by simpa only [List.mem_cons, forall_eq_or_imp] using
       ⟨eval_of_propagateHints hdb h.1, hdb⟩) h.2

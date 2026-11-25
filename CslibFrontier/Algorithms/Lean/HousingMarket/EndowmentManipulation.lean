@@ -105,9 +105,12 @@ private theorem eq_empty_of_strict_preTrade_rounds {σ : Allocation n} {S : Fins
     set C := I.cycleAgents R
     have hk' : (R \ C).card ≤ k :=
       Nat.le_of_lt_succ ((I.card_sdiff_cycleAgents_lt hRne).trans_le hk)
+    -- Step 1: No agent in `C` can belong to `S`.
     have hdisj {a : Fin n} (haC : a ∈ C) (haS : a ∈ S) : False :=
       not_lt_of_ge (I.rank_topChoice_le (hR _ (hSR (hσ_maps_S haS))) a)
         (I.ttcRounds_succ_of_mem haC ▸ hlt a haS)
+    -- Step 2: Every agent in `C` is fixed by `σ` (and `σ.symm`), so `(I.reendow σ).ttc` agrees
+    -- with `I.topChoice R` on `C` by `(I.reendow σ).inStrictCore_ttc`.
     have hsymm_C {a : Fin n} (haC : a ∈ C) : σ.symm a = a :=
       σ.injective (by rw [Equiv.apply_symm_apply, hsupp a (hdisj haC)])
     let μ' : Allocation n := (I.reendow σ).ttc
@@ -132,6 +135,7 @@ private theorem eq_empty_of_strict_preTrade_rounds {σ : Allocation n} {S : Fins
         fun b hb => by simpa [hsymm_C hb, hνC hb] using hle hb, a, ha, ?_⟩
       simpa [hsymm_C ha, hνC ha] using
         lt_of_le_of_ne (hle ha) fun heq => hne (I.rank_injective a heq).symm
+    -- Step 3: `μ'` maps `C` onto itself, hence `R \ C` into itself; recurse on `R \ C`.
     have himg_C : C.image μ' = C :=
       Finset.eq_of_subset_of_card_le
         (Finset.image_subset_iff.2 fun _ hb => hμ'C hb ▸ I.topChoice_mem_cycleAgents hb)

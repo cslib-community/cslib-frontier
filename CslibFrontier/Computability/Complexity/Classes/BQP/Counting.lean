@@ -157,6 +157,7 @@ theorem onesPairGap_zero_mem_GapP {gs : α → List GateCode} {X X' : α → Lis
   let h : α → ℕ := fun a => hadamardCount (gs a)
   have hh : ComputableInPolyTime h enc encUnary := by
     simp only [h, hadamardCount_eq_countP]; fun_prop
+  -- the simulations along the two paths of a pair
   let run₁ : (α × List Bool) × List Bool → List Bool × List Bool × Bool := fun p =>
     (gs p.1.1).foldl pathStep (X p.1.1, p.1.2, false)
   let run₂ : (α × List Bool) × List Bool → List Bool × List Bool × Bool := fun p =>

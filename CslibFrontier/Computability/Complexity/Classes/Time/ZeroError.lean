@@ -130,6 +130,7 @@ theorem output_eq_of_halted (h : machine.DecidesWithZeroErrorInExpectedTime enc 
     have h₂ := machine.toOuterMeasure_halted_monotone (machine.initialConfig (enc a))
       (S := {final}) (by rintro _ rfl; exact hhalt) (le_max_right s' s)
     simp only [PMF.toOuterMeasure_apply_singleton] at h₂
+    -- the wrong halted run lies in the complement of the event of a right halted run
     exact (add_le_add h₁ (h₂.trans ((PMF.toOuterMeasure_apply_singleton _ final).symm.trans_le
       ((PMF.toOuterMeasure _).mono
         (Set.singleton_subset_iff.mpr fun hG : final ∈ G => hwrong hG.2))))).trans_eq
