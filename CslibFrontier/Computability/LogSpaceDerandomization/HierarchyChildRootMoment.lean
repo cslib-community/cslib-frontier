@@ -194,8 +194,7 @@ private theorem residualChildCost_fourth_le
       (i, a) ∈ residualErrorCalls (k := k) bins l source midpoint terminal b := by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
     simp only [residualErrorCalls, mem_union, mem_biUnion]
-    left
-    refine ⟨i, hi, ?_⟩
+    refine Or.inl ⟨i, hi, ?_⟩
     rcases ha with rfl | rfl | rfl <;> simp only [r, mem_insert, mem_singleton, true_or, or_true]
   have hn : (0, neg) ∈ residualErrorCalls (k := k) bins l source midpoint terminal b := by
     simp only [residualErrorCalls, mem_union, mem_singleton]
@@ -217,12 +216,8 @@ private theorem residualChildCost_fourth_le
     have hright (z : V) (hz : estimated i σ (r i).left x z ≠ 0 ∨
         canonical i σ (r i).left x z ≠ 0) :
         |estimated i σ (r i).right z y - canonical i σ (r i).right z y| ^ 4 ≤ (q σ) := by
-      have hm : midpoint.retains channels σ z := by
-        by_contra hm
-        have h := hoff i _ hl σ x z hm
-        rcases hz with hz | hz
-        · exact hz h.1
-        · exact hz h.2
+      have hm : midpoint.retains channels σ z := by_contra fun hm =>
+        hz.elim (· (hoff i _ hl σ x z hm).1) (· (hoff i _ hl σ x z hm).2)
       exact herror i _ hr σ z y hm
     have hp := positiveChildError_fourth_le channels l i .residual source midpoint terminal
       (b i) CA CB (estimated i σ) (canonical i σ) x y hCA hCB (hq σ) (hq σ)
