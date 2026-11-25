@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WangTile.Basic
-import CslibFrontier.Tactic.FinIndex
 import Mathlib.Combinatorics.Compactness
 import Mathlib.Data.Finset.Lattice.Fold
 import Mathlib.Data.Int.NatAbs
@@ -57,6 +56,16 @@ private theorem exists_matching {α : Type} (τ : List WangTile) (east north : �
   exact ⟨(hg s).1 ⟨p, hp⟩, (hg s).2.1 ⟨p, hp⟩ ⟨east p, he⟩ rfl,
     (hg s).2.2 ⟨p, hp⟩ ⟨north p, hn⟩ rfl⟩
 
+private theorem Rectangle.horizontal_eq {τ : List WangTile} {w h : ℕ} (q : Rectangle τ w h)
+    {i i' : Fin w} {j j' : Fin h} (hi : i.val + 1 = i'.val) (hj : j = j') :
+    (q.tile i j).right = (q.tile i' j').left := by
+  simpa only [hj, Fin.ext_iff, hi] using q.horizontal i j (hi ▸ i'.isLt)
+
+private theorem Rectangle.vertical_eq {τ : List WangTile} {w h : ℕ} (q : Rectangle τ w h)
+    {i i' : Fin w} {j j' : Fin h} (hi : i = i') (hj : j.val + 1 = j'.val) :
+    (q.tile i j).top = (q.tile i' j').bottom := by
+  simpa only [hi, Fin.ext_iff, hj] using q.vertical i j (hj ▸ j'.isLt)
+
 /-- A finite palette tiles the plane iff it tiles squares of every positive side length. -/
 theorem tilesPlane_iff_squares (τ : List WangTile) :
     TilesPlane τ ↔ ∀ n, Nonempty (Rectangle τ (n + 1) (n + 1)) := by
@@ -69,12 +78,11 @@ theorem tilesPlane_iff_squares (τ : List WangTile) :
       horizontal := fun i j hi => by simpa using (hf i.val j.val).2.1
       vertical := fun i j hj => by simpa using (hf i.val j.val).2.2 }⟩
   · intro h
-    have localPatch (s : Finset (ℤ × ℤ)) := h (2 * s.sup fun p => max p.1.natAbs p.2.natAbs)
     obtain ⟨f, hf⟩ := exists_matching τ (fun p : ℤ × ℤ => (p.1 + 1, p.2))
       (fun p => (p.1, p.2 + 1)) (fun _ _ => True) (by
         intro s
         let N := s.sup fun p => max p.1.natAbs p.2.natAbs
-        let q := (localPatch s).some
+        let q := (h (2 * N)).some
         have bounds (p : s) : -(N : ℤ) ≤ p.val.1 ∧ p.val.1 ≤ N ∧
             -(N : ℤ) ≤ p.val.2 ∧ p.val.2 ≤ N := by
           have hx : p.val.1.natAbs ≤ N :=
@@ -88,31 +96,13 @@ theorem tilesPlane_iff_squares (τ : List WangTile) :
           ⟨(p.val.2 + N).toNat, by have := bounds p; omega⟩
         refine ⟨fun p => ⟨q.tile (ix p) (iy p), q.mem _ _⟩, fun _ => trivial, ?_, ?_⟩
         · intro p r hr
-          have hx : (ix p).val + 1 = (ix r).val := by
-            have := bounds p
-            have := bounds r
-            have hfirst := congrArg Prod.fst hr
-            have hsecond := congrArg Prod.snd hr
-            dsimp only [ix]
-            omega
-          have hy : iy p = iy r := by
-            have hsecond := congrArg Prod.snd hr
-            fin_index [iy]
-          simpa only [hy, Fin.ext_iff, hx] using
-            q.horizontal (ix p) (iy p) (by omega : (ix p).val + 1 < 2 * N + 1)
+          have := bounds p; have := bounds r
+          obtain ⟨h1, h2⟩ := Prod.ext_iff.mp hr
+          exact q.horizontal_eq (by dsimp only [ix]; omega) (Fin.ext (by dsimp only [iy]; omega))
         · intro p r hr
-          have hx : ix p = ix r := by
-            have hfirst := congrArg Prod.fst hr
-            fin_index [ix]
-          have hy : (iy p).val + 1 = (iy r).val := by
-            have := bounds p
-            have := bounds r
-            have hfirst := congrArg Prod.fst hr
-            have hsecond := congrArg Prod.snd hr
-            dsimp only [iy]
-            omega
-          simpa only [hx, Fin.ext_iff, hy] using
-            q.vertical (ix p) (iy p) (by omega : (iy p).val + 1 < 2 * N + 1))
+          have := bounds p; have := bounds r
+          obtain ⟨h1, h2⟩ := Prod.ext_iff.mp hr
+          exact q.vertical_eq (Fin.ext (by dsimp only [ix]; omega)) (by dsimp only [iy]; omega))
     exact ⟨fun x y => f (x, y), fun x y => ⟨(hf _).1, (hf _).2.2⟩⟩
 
 /-- A seeded palette tiles the quadrant iff it has seeded squares of every positive side. -/
@@ -137,21 +127,14 @@ theorem tilesQuadrant_iff_seededSquares (I : SeededInstance) :
           ⟨p.val.1, Nat.lt_succ_of_le (Finset.le_sup_of_le p.property (Nat.le_max_left _ _))⟩
         let iy (p : s) : Fin (N + 1) :=
           ⟨p.val.2, Nat.lt_succ_of_le (Finset.le_sup_of_le p.property (Nat.le_max_right _ _))⟩
-        refine ⟨fun p => ⟨q.tile (ix p) (iy p), q.mem _ _⟩, ?_, ?_, ?_⟩
-        · intro p hp
-          have hx : ix p = 0 := Fin.ext (congrArg Prod.fst hp)
-          have hy : iy p = 0 := Fin.ext (congrArg Prod.snd hp)
-          simpa only [hx, hy] using q.corner
-        · intro p r hr
-          have hx : (ix p).val + 1 = (ix r).val := (congrArg Prod.fst hr).symm
-          have hy : iy p = iy r := Fin.ext (congrArg Prod.snd hr).symm
-          simpa only [hy, Fin.ext_iff, hx] using
-            q.horizontal (ix p) (iy p) (by omega : (ix p).val + 1 < N + 1)
-        · intro p r hr
-          have hx : ix p = ix r := Fin.ext (congrArg Prod.fst hr).symm
-          have hy : (iy p).val + 1 = (iy r).val := (congrArg Prod.snd hr).symm
-          simpa only [hx, Fin.ext_iff, hy] using
-            q.vertical (ix p) (iy p) (by omega : (iy p).val + 1 < N + 1))
+        refine ⟨fun p => ⟨q.tile (ix p) (iy p), q.mem _ _⟩, ?_,
+          fun p r hr =>
+            q.horizontal_eq (congrArg Prod.fst hr).symm (Fin.ext (congrArg Prod.snd hr).symm),
+          fun p r hr =>
+            q.vertical_eq (Fin.ext (congrArg Prod.fst hr).symm) (congrArg Prod.snd hr).symm⟩
+        intro p hp
+        simpa only [show ix p = 0 from Fin.ext (congrArg Prod.fst hp),
+          show iy p = 0 from Fin.ext (congrArg Prod.snd hp)] using q.corner)
     exact ⟨fun x y => f (x, y), (hf _).2.1 rfl,
       fun x y => ⟨(hf _).1, (hf _).2.2⟩⟩
 
