@@ -138,15 +138,9 @@ structure DfsRegs (offAddr edgeAddr visAddr finAddr stkAddr : ℕ) (x : Data 28)
 private theorem dfsRegs_of_frame {offAddr edgeAddr visAddr finAddr stkAddr : ℕ} {x y : Data 28}
     (hx : DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x)
     (hfr : ∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) :
-    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr y :=
-  { czero := (hfr cZero (by decide)).trans hx.czero
-    cone := (hfr cOne (by decide)).trans hx.cone
-    cthree := (hfr cThree (by decide)).trans hx.cthree
-    hoff := (hfr offB (by decide)).trans hx.hoff
-    hedge := (hfr edgeB (by decide)).trans hx.hedge
-    hvis := (hfr visB (by decide)).trans hx.hvis
-    hfin := (hfr finB (by decide)).trans hx.hfin
-    hstk := (hfr stkB (by decide)).trans hx.hstk }
+    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr y := by
+  obtain ⟨⟩ := hx
+  constructor <;> wram_simp [*]
 
 /-- Push the root `uReg` as the first DFS stack frame. -/
 private def dfsPushRoot : Code .standard 28 := ram[
