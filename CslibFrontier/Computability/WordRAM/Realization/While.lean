@@ -380,9 +380,7 @@ theorem With.whileBounded {B : Basis}
     simp only [clientResult_width] at huo
     obtain ⟨z, hz, hzm, hzs, hzf⟩ := hcopy frontier
       (fun i : Fin l => bt (Fin.castAdd (n + 1) i)) st idle hst houtdis (fun _ => hf _) w u
-    have hfr_uz : u.regs frontier ≤ z.regs frontier :=
-      Nat.le_of_eq (hzf frontier (fun _ => hf _)).symm
-    have hstep_exec := hseq hfr_uz hu hz
+    have hstep_exec := hseq (hzf frontier fun _ => hf _).symm.le hu hz
     exact ⟨z, hstep_exec, whileInv_step input output hd hf hs hI
       (hbounded hstep_exec hI.bounded) hum huo huf hzm hzs hzf⟩
   have aux : ∀ fuel q y, I q y → whileSafe guard body safe w d fuel q.1 q.2 →
@@ -433,8 +431,7 @@ theorem With.whileBounded {B : Basis}
   obtain ⟨y, hy, _, hym, _, hys, hyf⟩ := aux (cutoff (d, a₀)) (a₀, memoryState frontier x) a
     hIa hsafe hv
   refine ⟨y, hmono (by nlinarith) (hseq (regs_frontier_le hIa.memory hym) ha hy), ?_, ?_, hyf⟩
-  · rw [clientState_width w]
-    exact hym
+  · rwa [clientState_width w]
   · intro i
     rw [clientResult_width w]
     exact hys i
