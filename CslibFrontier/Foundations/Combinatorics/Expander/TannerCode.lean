@@ -79,26 +79,20 @@ theorem exists_forall_weight_le {h : ℕ}
   simp only [not_exists, not_forall, exists_prop, Bool.not_eq_true] at hne
   set W := ({w : Fin d → Bool | w ≠ 0 ∧ weight w ≤ h} : Finset _)
   have hcover : (univ : Finset (Fin c → Fin d → Bool)) ⊆
-      W.biUnion fun w => {A : Fin c → Fin d → Bool | ∀ i, A i ⬝ᵥ w = false} := by
-    intro A _
+      W.biUnion fun w => {A : Fin c → Fin d → Bool | ∀ i, A i ⬝ᵥ w = false} := fun A _ => by
     obtain ⟨w, hw, hwh, hA⟩ := hne A
-    simp only [mem_biUnion, mem_filter, mem_univ, true_and, W]
-    exact ⟨w, ⟨hw, hwh⟩, hA⟩
+    exact mem_biUnion.mpr
+      ⟨w, mem_filter.mpr ⟨mem_univ _, hw, hwh⟩, mem_filter.mpr ⟨mem_univ _, hA⟩⟩
   have h1 := (card_le_card hcover).trans card_biUnion_le
   rw [Finset.sum_congr rfl fun w hw => card_kernel (c := c) (mem_filter.mp hw).2.1, sum_const,
     smul_eq_mul, card_univ, Fintype.card_fun, Fintype.card_fun, Fintype.card_bool,
     Fintype.card_fin, Fintype.card_fin] at h1
   rcases Nat.eq_zero_or_pos d with rfl | hd
-  · have : W = ∅ := by
-      ext w; simp only [W, mem_filter, mem_univ, true_and, Finset.notMem_empty, iff_false]
-      exact fun h' => h'.1 (funext fun i => i.elim0)
-    obtain ⟨w, hw, -, -⟩ := hne (fun _ i => i.elim0)
+  · obtain ⟨w, hw, -⟩ := hne fun _ i => i.elim0
     exact hw (funext fun i => i.elim0)
-  have e : (2 ^ d) ^ c = 2 ^ c * (2 ^ (d - 1)) ^ c := by
-    rw [← mul_pow, ← pow_succ', Nat.sub_add_cancel hd]
-  rw [e] at h1
-  have hpos : 0 < (2 ^ (d - 1)) ^ c := by positivity
-  have := Nat.le_of_mul_le_mul_right h1 hpos
+  rw [show (2 ^ d) ^ c = 2 ^ c * (2 ^ (d - 1)) ^ c by
+    rw [← mul_pow, ← pow_succ', Nat.sub_add_cancel hd]] at h1
+  have := Nat.le_of_mul_le_mul_right h1 (by positivity : 0 < (2 ^ (d - 1)) ^ c)
   omega
 
 end LocalCode
@@ -148,29 +142,27 @@ theorem le_weight_of_isWord [NeZero d] (s : Fin d → Fin ℓ → Bool) {ε : �
   have _ : Nonempty (Fin d) := Fin.pos_iff_nonempty.mp (NeZero.pos d)
   let C : Submodule Bool (Fin d → Bool) := Code.parityCheckCode (Matrix.of A)
   have hC : ∀ w₁ ∈ (C : Set (Fin d → Bool)), ∀ w₂ ∈ (C : Set (Fin d → Bool)), w₁ ≠ w₂ →
-      ((h + 1 : ℕ) : ℝ) ≤ hammingDist w₁ w₂ := by
-    intro w₁ hw₁ w₂ hw₂ hne
-    have hsum : w₁ + w₂ ∈ C := C.add_mem hw₁ hw₂
+      ((h + 1 : ℕ) : ℝ) ≤ hammingDist w₁ w₂ := fun w₁ hw₁ w₂ hw₂ hne => by
     have hsum0 : w₁ + w₂ ≠ 0 := fun h0 => hne (sub_eq_zero.1 (funext fun i => by
       simpa only [Pi.sub_apply, BooleanRing.sub_eq_add, Pi.add_apply, Pi.zero_apply] using
         congrFun h0 i))
     rw [hammingDist_eq_weight_add]
     exact_mod_cast hA _ hsum0 fun i => by
       simpa [C, Code.mem_parityCheckCode, Matrix.mulVec, Pi.zero_apply, Bool.zero_eq_false] using
-        congrFun (Code.mem_parityCheckCode.1 hsum) i
+        congrFun (Code.mem_parityCheckCode.1 (C.add_mem hw₁ hw₂)) i
   have hxC : x ∈ BipartiteTanner.code (cubeCayley s).doubleCover (C : Set _) (C : Set _) := by
     refine ⟨fun u => ?_, fun v => ?_⟩ <;>
       simp only [SetLike.mem_coe, C, Code.mem_parityCheckCode, funext_iff, Matrix.mulVec,
         Matrix.of_apply, Pi.zero_apply]
-    · exact fun i => hx.1 u i
-    · exact fun i => hx.2 v i
-  have hlam : (cubeCayley s).doubleCover.nontrivialSingularValue ≤ ε := by
-    rw [BipartiteRotationMap.nontrivialSingularValue_doubleCover]
-    exact spectralExpansion_cubeCayley_le s hε hs
-  have hdist := BipartiteTanner.mul_sub_card_le_of_hammingDist (cubeCayley s).doubleCover
-    (by positivity) hC hC hlam hxC (BipartiteTanner.submodule _ C C).zero_mem hx0
+    · exact hx.1 _
+    · exact hx.2 _
+  have hlam : (cubeCayley s).doubleCover.nontrivialSingularValue ≤ ε :=
+    (BipartiteRotationMap.nontrivialSingularValue_doubleCover _).trans_le
+      (spectralExpansion_cubeCayley_le s hε hs)
   simpa [hammingDist_zero_right, ← weight_eq_hammingNorm, Fintype.card_fin, Fintype.card_fun,
-    Fintype.card_bool] using hdist
+    Fintype.card_bool] using BipartiteTanner.mul_sub_card_le_of_hammingDist
+      (cubeCayley s).doubleCover (by positivity) hC hC hlam hxC
+      (BipartiteTanner.submodule _ C C).zero_mem hx0
 
 /-! ### Shortening -/
 
@@ -194,10 +186,10 @@ theorem shortRow_dotProduct_left (s : Fin d → Fin ℓ → Bool) (A : Fin c →
   refine Finset.sum_congr rfl fun e _ => ?_
   rw [Finset.sum_eq_single (emb e).2]
   · by_cases h : (emb e).1 = u
-    · have h' : emb e = (u, (emb e).2) := Prod.ext h rfl
-      rw [ite_eq_left_of_eq_true _ _ (eq_true h), ite_eq_left_of_eq_true _ _ (eq_true h')]
-    · rw [ite_eq_right_of_eq_false _ _ (eq_false h),
-        ite_eq_right_of_eq_false _ _ (eq_false fun h' => h (congrArg Prod.fst h'))]
+    · rw [ite_eq_left_of_eq_true _ _ (eq_true h),
+        ite_eq_left_of_eq_true _ _ (eq_true (Prod.ext h rfl : emb e = (u, (emb e).2)))]
+    · simp only [h, ↓reduceIte,
+        show emb e ≠ (u, (emb e).2) from fun h' => h (congrArg Prod.fst h')]
       cases A i (emb e).2 <;> cases z e <;> rfl
   · intro j _ hj; simp [Prod.ext_iff, Ne.symm hj]
   · simp
@@ -211,12 +203,13 @@ theorem shortRow_dotProduct_right (s : Fin d → Fin ℓ → Bool) (A : Fin c �
   refine Finset.sum_congr rfl fun e _ => ?_
   rw [Finset.sum_eq_single (emb e).2]
   · by_cases h : (emb e).1 + s (emb e).2 = v
-    · have : (emb e).1 = v + s (emb e).2 := by rw [← h, add_add_cancel]
-      have h' : emb e = (v + s (emb e).2, (emb e).2) := Prod.ext this rfl
-      rw [ite_eq_left_of_eq_true _ _ (eq_true h), ite_eq_left_of_eq_true _ _ (eq_true h')]
-    · have : (emb e).1 ≠ v + s (emb e).2 := fun h' => h (by rw [h', add_add_cancel])
-      rw [ite_eq_right_of_eq_false _ _ (eq_false h),
-        ite_eq_right_of_eq_false _ _ (eq_false fun h' => this (congrArg Prod.fst h'))]
+    · have h1 : (emb e).1 = v + s (emb e).2 := by rw [← h, add_add_cancel]
+      rw [ite_eq_left_of_eq_true _ _ (eq_true h),
+        ite_eq_left_of_eq_true _ _
+          (eq_true (Prod.ext h1 rfl : emb e = (v + s (emb e).2, (emb e).2)))]
+    · have h1 : emb e ≠ (v + s (emb e).2, (emb e).2) := fun h' =>
+        h (by rw [congrArg Prod.fst h', add_add_cancel])
+      simp only [h, h1, ↓reduceIte]
       cases A i (emb e).2 <;> cases z e <;> rfl
   · intro j _ hj; simp [Prod.ext_iff, Ne.symm hj]
   · simp
@@ -227,23 +220,18 @@ theorem weight_shortRow_le (s : Fin d → Fin ℓ → Bool) (A : Fin c → Fin d
     (emb : Fin m ↪ (Fin ℓ → Bool) × Fin d) (r : Bool × (Fin ℓ → Bool) × Fin c) :
     weight (shortRow s A emb r) ≤ d := by
   refine (Finset.card_le_card_of_injOn (t := (univ : Finset (Fin d))) (fun e => (emb e).2)
-    (fun _ _ => mem_univ _) ?_).trans (by simp)
-  intro e he e' he' hee'
-  replace he := (Finset.mem_filter.mp (Finset.mem_coe.mp he)).2
-  replace he' := (Finset.mem_filter.mp (Finset.mem_coe.mp he')).2
-  simp only [shortRow] at he he'
-  have hv : (if r.1 then (emb e).1 + s (emb e).2 else (emb e).1) = r.2.1 := by
-    by_contra h; rw [ite_eq_right_of_eq_false _ _ (eq_false h)] at he; exact Bool.false_ne_true he
-  have hv' : (if r.1 then (emb e').1 + s (emb e').2 else (emb e').1) = r.2.1 := by
-    by_contra h; rw [ite_eq_right_of_eq_false _ _ (eq_false h)] at he'
-    exact Bool.false_ne_true he'
-  simp only at hee'
+    (fun _ _ => mem_univ _) fun e he e' he' hee' => ?_).trans (by simp)
+  have hvertex {x : Fin m}
+      (hx : x ∈ (Finset.filter (fun x => shortRow s A emb r x = true) univ : Set (Fin m))) :
+      (if r.1 then (emb x).1 + s (emb x).2 else (emb x).1) = r.2.1 := by
+    by_contra h
+    exact Bool.false_ne_true (by simpa [shortRow, h] using (Finset.mem_filter.mp hx).2)
+  have hv := hvertex he
+  have hv' := hvertex he'
   refine emb.injective (Prod.ext ?_ hee')
-  cases hr : r.1
-  · simp only [hr, Bool.false_eq_true, ite_false] at hv hv'
-    rw [hv, hv']
-  · simp only [hr, ite_true] at hv hv'
-    rw [← add_add_cancel (emb e).1 (s (emb e).2), hv, hee', ← hv', add_add_cancel]
+  cases hr : r.1 <;> simp only [hr, Bool.false_eq_true, ↓reduceIte] at hv hv' hee'
+  · exact hv.trans hv'.symm
+  · rw [← add_add_cancel (emb e).1 (s (emb e).2), hv, hee', ← hv', add_add_cancel]
 
 /-- **The shortened Tanner code.** Under the hypotheses of `le_weight_of_isWord`, including
 `ε ≥ 0`, every nonzero `z` orthogonal to all the rows `shortRow` has
@@ -257,12 +245,10 @@ theorem le_weight_of_shortRow [NeZero d] (s : Fin d → Fin ℓ → Bool) {ε : 
   have hx : IsWord s A (Code.extend emb z) :=
     ⟨fun u i => by rw [← shortRow_dotProduct_left]; exact hz _,
       fun v i => by rw [← shortRow_dotProduct_right]; exact hz _⟩
-  have hx0 : Code.extend emb z ≠ 0 := fun h0 => hz0 (funext fun e => by
-    rw [← Code.extend_emb emb z e, h0]; rfl)
-  have hwt : weight (Code.extend emb z) = weight z := by
-    simp only [weight_eq_hammingNorm, Code.hammingNorm_extend]
-  rw [← hwt]
-  exact le_weight_of_isWord s hε hs A hA hx hx0
+  have hx0 : Code.extend emb z ≠ 0 := fun h0 =>
+    hz0 (funext fun e => by rw [← Code.extend_emb emb z e, h0]; rfl)
+  simpa only [weight_eq_hammingNorm, Code.hammingNorm_extend] using
+    le_weight_of_isWord s hε hs A hA hx hx0
 
 end Tanner
 

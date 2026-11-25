@@ -70,14 +70,12 @@ theorem constCiphertext_hasError {n w : ℕ} (t : Fin n → ZMod (2 ^ w)) (μ : 
     HasError t (constCiphertext n w μ) μ 0 := by
   unfold HasError constCiphertext
   rw [flattenMatrix_mulVec, _root_.Matrix.smul_mulVec, _root_.Matrix.one_mulVec]
-  funext i
-  simp
+  ext; simp
 
 /-- The constant is the bit decomposition of `μ • G`. -/
 theorem constCiphertext_eq_decomposeMatrix (n w : ℕ) (μ : Bool) :
     constCiphertext n w μ = decomposeMatrix w ((μ.toNat : ZMod (2 ^ w)) • gadgetMatrix n w) := by
-  rw [constCiphertext, flattenMatrix, recomposeMatrix_smul]
-  rfl
+  rw [constCiphertext, flattenMatrix, recomposeMatrix_smul]; rfl
 
 /-- Write all bits of `Flatten(μ · I_N)` in the ciphertext order of `serializeCiphertext`. -/
 def constSerialized (n w : ℕ) (μ : Bool) : List Bool :=
@@ -96,8 +94,7 @@ private theorem constEntry_eq (n w : ℕ) (μ : Bool)
   rw [_root_.Matrix.smul_apply, gadgetMatrix_apply, smul_eq_mul]
   by_cases h : i = j
   · cases μ <;> simp [h, hval]
-  · have hv : i.val ≠ j.val := fun hij => h (Fin.ext hij)
-    simp [h, hv]
+  · simp [h, Fin.val_ne_of_ne h]
 
 /-- The computed word is the canonical serialization of the typed constant. -/
 theorem constSerialized_eq (n w : ℕ) (μ : Bool) :
@@ -128,16 +125,15 @@ variable {n w : ℕ} {secret : List Bool} {bound bound₁ bound₂ : ℕ} {μ μ
 
 /-- A bound may be weakened. -/
 theorem mono (h : BoundedError n w secret bound μ ciphertext) {bound' : ℕ}
-    (hle : bound ≤ bound') : BoundedError n w secret bound' μ ciphertext := by
-  obtain ⟨hlength, error, herror, hbound⟩ := h
-  exact ⟨hlength, error, herror, fun i => (hbound i).trans hle⟩
+    (hle : bound ≤ bound') : BoundedError n w secret bound' μ ciphertext :=
+  let ⟨hl, e, he, hb⟩ := h; ⟨hl, e, he, fun i => (hb i).trans hle⟩
 
 /-- A word with error strictly below a quarter of the modulus decrypts to its plaintext. -/
 theorem decryptSerialized_eq (h : BoundedError n w secret bound μ ciphertext) (hw : 0 < w)
-    (hmargin : 4 * bound < 2 ^ w) : decryptSerialized n w secret ciphertext = μ := by
-  obtain ⟨_, error, herror, hbound⟩ := h
-  exact decryptSerialized_eq_of_hasError hw secret ciphertext μ error herror
-    (fun i => (Nat.mul_le_mul_left 4 (hbound i)).trans_lt hmargin)
+    (hmargin : 4 * bound < 2 ^ w) : decryptSerialized n w secret ciphertext = μ :=
+  let ⟨_, e, he, hb⟩ := h
+  decryptSerialized_eq_of_hasError hw secret ciphertext μ e he
+    fun i => (Nat.mul_le_mul_left 4 (hb i)).trans_lt hmargin
 
 /-- NAND of `B₁`- and `B₂`-bounded words is `B₁ + N * B₂`-bounded, with `N = (n + 1) * w`
 [GentrySahaiWaters2013, Section 3.3]. -/
@@ -145,8 +141,7 @@ theorem nandSerialized (hleft : BoundedError n w secret bound₁ μ₁ left)
     (hright : BoundedError n w secret bound₂ μ₂ right) :
     BoundedError n w secret (bound₁ + (n + 1) * w * bound₂) (!(μ₁ && μ₂))
       (GSW.nandSerialized n w left right) := by
-  obtain ⟨_, error₁, herror₁, hbound₁⟩ := hleft
-  obtain ⟨_, error₂, herror₂, hbound₂⟩ := hright
+  obtain ⟨_, error₁, herror₁, hbound₁⟩ := hleft; obtain ⟨_, error₂, herror₂, hbound₂⟩ := hright
   refine ⟨length_nandSerialized n w left right, _,
     nandSerialized_hasError secret left right μ₁ μ₂ error₁ error₂ herror₁ herror₂, fun i => ?_⟩
   simpa using nandError_natAbs_le _ μ₂ error₁ error₂ hbound₁ hbound₂ i
@@ -156,7 +151,7 @@ end BoundedError
 /-- A noiseless constant is `0`-bounded under every secret word. -/
 theorem boundedError_constSerialized (n w : ℕ) (secret : List Bool) (μ : Bool) :
     BoundedError n w secret 0 μ (constSerialized n w μ) := by
-  refine ⟨length_constSerialized n w μ, 0, ?_, fun i => by simp⟩
+  refine ⟨length_constSerialized n w μ, 0, ?_, fun _ => by simp⟩
   rw [constSerialized_eq, decode_serializeCiphertext]
   exact constCiphertext_hasError _ μ
 
@@ -169,7 +164,7 @@ theorem boundedError_encryptSerialized {n m w η : ℕ} {keys : List Bool × Lis
   rw [LWE.eval_keyGenSerialized, PMF.mem_support_map_iff] at hkeys
   obtain ⟨typedKeys, htypedKeys, rfl⟩ := hkeys
   rw [eval_encryptSerialized_serializePublicMatrix, PMF.mem_support_map_iff] at hciphertext
-  obtain ⟨typedCiphertext, htypedCiphertext, rfl⟩ := hciphertext
+  obtain ⟨_, htypedCiphertext, rfl⟩ := hciphertext
   simp only [LWE.keyGen, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at htypedKeys
   obtain ⟨inputs, hinputs, rfl⟩ := htypedKeys
@@ -224,14 +219,12 @@ theorem boundedError_evaluateNode {bits : List Bool} {wires : List (List Bool)}
   | const μ => exact (boundedError_constSerialized n w secret μ).mono (Nat.zero_le _)
   | copy i =>
     have hi := h.getD hnode false []
-    have htake : (wires.getD i []).take (((n + 1) * w) ^ 2) = wires.getD i [] :=
-      List.take_of_length_le hi.1.le
-    simp only [evaluateNode, Layered.Node.eval, htake]
-    exact hi.mono (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
+    simpa only [evaluateNode, Layered.Node.eval, List.take_of_length_le hi.1.le] using
+      hi.mono (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
   | nand i j =>
-    have h' := (h.getD hnode.1 false []).nandSerialized (h.getD hnode.2 false [])
-    simp only [evaluateNode, Layered.Node.eval]
-    exact h'.mono (le_of_eq (by ring))
+    simpa only [evaluateNode, Layered.Node.eval] using
+      ((h.getD hnode.1 false []).nandSerialized (h.getD hnode.2 false [])).mono
+        (le_of_eq (by ring))
 
 /-- A valid layer multiplies the error bound by at most `N + 1`. -/
 theorem forall₂_evaluateLayer {bits : List Bool} {wires : List (List Bool)}
@@ -253,10 +246,9 @@ theorem forall₂_evaluateLayers {bits : List Bool} {wires : List (List Bool)}
   induction layers generalizing bits wires bound with
   | nil => simpa using h
   | cons layer layers ih =>
-    have hnext := ih (forall₂_evaluateLayer h hlayers.1)
-      (by simpa only [Layered.length_evalLayer] using hlayers.2)
     simpa only [Layered.eval_cons, evaluateLayers_cons, List.length_cons, pow_succ,
-      Nat.mul_assoc] using hnext
+      Nat.mul_assoc] using ih (forall₂_evaluateLayer h hlayers.1)
+        (by simpa only [Layered.length_evalLayer] using hlayers.2)
 
 /-- A circuit of depth `d` evaluated on `B`-bounded inputs returns a
 `(N + 1) ^ (2 * d) * B`-bounded ciphertext of its output, with `N = (n + 1) * w`. The inputs may
@@ -266,25 +258,20 @@ theorem boundedError_evaluateCircuit (C : Σ k, Circuit signature k 1) {bits : L
     (h : List.Forall₂ (BoundedError n w secret bound) bits wires) :
     BoundedError n w secret (((n + 1) * w + 1) ^ (2 * C.2.depth) * bound)
       (C.2.eval interpretation (BitString.ofList C.1 bits) 0) (evaluateCircuit n w C wires) := by
-  have hbitsEq : List.ofFn (BitString.ofList C.1 bits) = bits := BitString.ofFn_ofList hbits
   have hlayers := forall₂_evaluateLayers h (layers := (Layered.compile C.1 C.2.code).1)
     (by simpa only [hbits] using Layered.wellFormed_compile C.2)
   rw [Layered.length_compile] at hlayers
   have hselect := Layered.readPositions_eval_compile C.2 (BitString.ofList C.1 bits)
-  rw [hbitsEq] at hselect
-  have hone : (Layered.compile C.1 C.2.code).2.length = 1 := by
-    simpa only [BitString.length_readPositions, List.length_ofFn] using congrArg List.length hselect
-  obtain ⟨index, hindex⟩ := List.length_eq_one_iff.mp hone
-  have hvalid := Layered.outputs_valid_compile C.2 index (by
-    rw [hindex]
-    exact List.mem_singleton_self index)
+  rw [BitString.ofFn_ofList hbits] at hselect
+  obtain ⟨index, hindex⟩ := List.length_eq_one_iff.mp
+    (by simpa only [BitString.length_readPositions, List.length_ofFn] using
+      congrArg List.length hselect)
+  have hvalid := Layered.outputs_valid_compile C.2 index (hindex ▸ List.mem_singleton_self index)
   rw [hindex] at hselect
   simp only [BitString.readPositions, List.map_cons, List.map_nil, List.ofFn_succ, List.ofFn_zero,
     List.cons.injEq, and_true] at hselect
-  have hwire := hlayers.getD (i := index) (by
-    simpa only [Layered.length_eval, hbits] using hvalid) false []
-  rw [hselect] at hwire
-  simpa only [evaluateCircuit, hindex, List.headD_cons] using hwire
+  simpa only [evaluateCircuit, hindex, List.headD_cons, ← hselect] using
+    hlayers.getD (i := index) (by simpa only [Layered.length_eval, hbits] using hvalid) false []
 
 /-- GSW circuit evaluation is correct on supported fresh encryptions under a supported key,
 when `4 * m * η * (N + 1) ^ (2 * d) < 2 ^ w` for the circuit's depth `d`. The output also has
@@ -302,10 +289,6 @@ theorem evaluateCircuit_correct {m η : ℕ} (hw : 0 < w) {keys : List Bool × L
         C.2.eval interpretation (BitString.ofList C.1 bits) 0 := by
   have h := boundedError_evaluateCircuit C hbits
     (hinputs.imp fun μ c hc => boundedError_encryptSerialized hkeys μ hc)
-  refine ⟨h.1, h.decryptSerialized_eq hw ?_⟩
-  calc
-    4 * (((n + 1) * w + 1) ^ (2 * C.2.depth) * (m * η)) =
-        4 * m * η * ((n + 1) * w + 1) ^ (2 * C.2.depth) := by ring
-    _ < 2 ^ w := hmargin
+  exact ⟨h.1, h.decryptSerialized_eq hw (by convert hmargin using 1; ring)⟩
 
 end Cslib.Crypto.Homomorphic.GSW

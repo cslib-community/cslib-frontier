@@ -102,11 +102,10 @@ private theorem computable_elig {T : ℕ → ℕ → ℕ} (hT : Computable₂ T)
   have hu : Computable fun q : ℕ × ℕ × ℕ => Nat.unpair q.2.1 :=
     Primrec.unpair.to_comp.comp (Computable.fst.comp Computable.snd)
   have hy : Computable fun q : ℕ × ℕ × ℕ => q.2.2 := Computable.snd.comp Computable.snd
-  have h : ComputablePred fun q : ℕ × ℕ × ℕ => Elig Φ T q.2.1 q.2.2 := by
-    refine (ComputablePred.nat_le (Computable.fst.comp hu) (Computable.snd.comp hu)).and ?_
-    exact (Φ.computablePred_cost_le.comp ((((Computable.ofNat Code).comp
-      (Computable.fst.comp hu)).pair hy).pair (hT.comp (Computable.snd.comp hu) hy))).not
-  exact @ComputablePred.decide _ _ _ (fun _ => Classical.dec _) h
+  refine @ComputablePred.decide _ _ _ (fun _ => Classical.dec _)
+    ((ComputablePred.nat_le (Computable.fst.comp hu) (Computable.snd.comp hu)).and ?_)
+  exact (Φ.computablePred_cost_le.comp ((((Computable.ofNat Code).comp
+    (Computable.fst.comp hu)).pair hy).pair (hT.comp (Computable.snd.comp hu) hy))).not
 
 /-- The requirement cancelled at stage `y`, if any. -/
 private noncomputable def run (T : ℕ → ℕ → ℕ) (y : ℕ) : Option ℕ :=
@@ -117,10 +116,9 @@ private noncomputable def idx (T : ℕ → ℕ → ℕ) (y : ℕ) : ℕ :=
   ((run Φ T y).map fun p => (Nat.unpair p).2).getD y
 
 private theorem computable_idx {T : ℕ → ℕ → ℕ} (hT : Computable₂ T) : Computable (idx Φ T) := by
-  have hrun : Computable (run Φ T) :=
-    computable_canc (α := ℕ) (E := fun _ => elig Φ T) (ov := fun _ _ => false)
-      (computable_elig Φ hT) (Computable.const false).to₂ (Computable.const 0) Computable.id
-  exact Computable.option_getD (Computable.option_map hrun
+  exact Computable.option_getD (Computable.option_map
+    (computable_canc (α := ℕ) (E := fun _ => elig Φ T) (ov := fun _ _ => false)
+      (computable_elig Φ hT) (Computable.const false).to₂ (Computable.const 0) Computable.id)
     (Computable.snd.comp (Primrec.unpair.to_comp.comp Computable.snd)).to₂) Computable.id
 
 private theorem idx_le (T : ℕ → ℕ → ℕ) (y : ℕ) : idx Φ T y ≤ y := by
@@ -139,13 +137,11 @@ private theorem eventually_le_idx (T : ℕ → ℕ → ℕ) (I : ℕ) : ∀ᶠ y
   | none => exact hIy
   | some p =>
     rw [Option.map_some, Option.getD_some]
-    by_contra hlt
-    push Not at hlt
+    by_contra! hlt
     have hji := ((elig_eq_true Φ).1 (canc_eq_some.1 h).2.2.2.1).1
-    have hp : p < Nat.pair I I := by
-      rw [← Nat.pair_unpair p]
-      exact (Nat.pair_lt_pair_left _ (hji.trans_lt hlt)).trans (Nat.pair_lt_pair_right _ hlt)
-    exact hy p hp h
+    refine hy p ?_ h
+    rw [← Nat.pair_unpair p]
+    exact (Nat.pair_lt_pair_left _ (hji.trans_lt hlt)).trans (Nat.pair_lt_pair_right _ hlt)
 
 /-- If program `c` halts within `T (idx y) y` from stage `N` on, then it halts within some fixed
 `T i` almost everywhere. Otherwise the requirement `⟪encode c, encode c + N⟫` is eligible
@@ -159,26 +155,17 @@ private theorem exists_index (T : ℕ → ℕ → ℕ) (c : Code) (N : ℕ)
   have hup : Nat.unpair p = (encode c, i) := Nat.unpair_pair _ _
   have hfreq : ∃ᶠ y in atTop, ¬∃ m ∈ Φ.cost c y, m ≤ T i y :=
     Filter.not_eventually.1 fun h => hne ⟨i, h⟩
-  have helig : ∀ y, (¬∃ m ∈ Φ.cost c y, m ≤ T i y) → Elig Φ T p y := fun y hy => by
-    refine ⟨?_, ?_⟩
-    · rw [hup]
-      exact Nat.le_add_right _ _
-    · rw [hup]
-      simpa only [ofNat_encode] using hy
   obtain ⟨y, hy⟩ : ∃ y, run Φ T y = some p := by
-    by_contra hnone
-    push Not at hnone
+    by_contra! hnone
     obtain ⟨y, hy1, hy2⟩ := (hfreq.and_eventually (eventually_not_eligible hnone)).exists
     rw [← Bool.not_eq_true, elig_eq_true] at hy2
-    exact hy2 (helig y hy1)
-  have hpy := (canc_le hy).2
-  have hNy : N ≤ y := (Nat.le_add_left N (encode c)).trans ((Nat.right_le_pair _ _).trans hpy)
-  have hidx : idx Φ T y = i := by
-    unfold idx
-    rw [hy, Option.map_some, Option.getD_some, hup]
+    exact hy2 ⟨by rw [hup]; exact Nat.le_add_right _ _,
+      by rw [hup]; simpa only [ofNat_encode] using hy1⟩
+  have hNy : N ≤ y :=
+    (Nat.le_add_left N (encode c)).trans ((Nat.right_le_pair _ _).trans (canc_le hy).2)
+  have hidx : idx Φ T y = i := by simp [idx, hy, hup]
   have hE := ((elig_eq_true Φ).1 (canc_eq_some.1 hy).2.2.2.1).2
-  rw [hup] at hE
-  simp only [ofNat_encode] at hE
+  rw [hup, ofNat_encode] at hE
   exact hE (hidx ▸ hN y hNy)
 
 /-- The partial suprema `max (T 0 n) … (T i n)` of a uniformly computable family are uniformly
@@ -190,25 +177,24 @@ private theorem computable_partialSups {T : ℕ → ℕ → ℕ} (hT : Computabl
     (hT.comp (Computable.const 0) Computable.snd)
     (Primrec.nat_max.to_comp.comp (Computable.snd.comp Computable.snd)
       (hT.comp (Computable.succ.comp (Computable.fst.comp Computable.snd))
-        (Computable.snd.comp Computable.fst))).to₂).of_eq fun p => ?_
-  obtain ⟨i, n⟩ := p
-  dsimp only
+        (Computable.snd.comp Computable.fst))).to₂).of_eq fun ⟨i, n⟩ => ?_
   induction i with
   | zero => exact (partialSups_zero _).symm
-  | succ i ih => rw [partialSups_add_one (ι := ℕ), ← ih]
+  | succ i ih =>
+    dsimp only at ih ⊢
+    rw [partialSups_add_one (ι := ℕ), ← ih]
 
 /-- In a directed family, every partial supremum is dominated almost everywhere by a member. -/
 private theorem exists_partialSups_le {T : ℕ → ℕ → ℕ} (hdir : Directed (· ≤ᶠ[atTop] ·) T)
     (i : ℕ) : ∃ k, (fun n => partialSups (fun k => T k n) i) ≤ᶠ[atTop] T k := by
   induction i with
-  | zero => exact ⟨0, Eventually.of_forall fun n => (partialSups_zero _).le⟩
+  | zero => exact ⟨0, Eventually.of_forall fun _ => (partialSups_zero _).le⟩
   | succ i ih =>
     obtain ⟨k, hk⟩ := ih
     obtain ⟨k', h1, h2⟩ := hdir k (i + 1)
     refine ⟨k', ?_⟩
     filter_upwards [hk, h1, h2] with n hn h1n h2n
-    rw [partialSups_add_one (ι := ℕ)]
-    exact sup_le (hn.trans h1n) h2n
+    simpa only [partialSups_add_one (ι := ℕ)] using sup_le (hn.trans h1n) h2n
 
 end UnionBound
 
@@ -226,14 +212,10 @@ theorem exists_union_bound {T : ℕ → ℕ → ℕ} (hT : Computable₂ T)
     ∃ t : ℕ → ℕ, Computable t ∧ (∀ n, ∃ i ≤ n, t n = T i n) ∧ (∀ i, T i ≤ᶠ[atTop] t) ∧
       ∀ c : Code, (∀ᶠ n in atTop, ∃ m ∈ Φ.cost c n, m ≤ t n) →
         ∃ i, ∀ᶠ n in atTop, ∃ m ∈ Φ.cost c n, m ≤ T i n := by
-  have hmono' : ∀ n, Monotone fun i => T i n := fun n =>
-    monotone_nat_of_le_succ fun i => hmono i n
   refine ⟨fun n => T (idx Φ T n) n, hT.comp (computable_idx Φ hT) Computable.id,
-    fun n => ⟨idx Φ T n, idx_le Φ T n, rfl⟩, fun i => ?_, fun c hc => ?_⟩
-  · filter_upwards [eventually_le_idx Φ T i] with n hn
-    exact hmono' n hn
-  · obtain ⟨N, hN⟩ := eventually_atTop.1 hc
-    exact exists_index Φ T c N hN
+    fun n => ⟨idx Φ T n, idx_le Φ T n, rfl⟩,
+    fun i => (eventually_le_idx Φ T i).mono fun n hn => monotone_nat_of_le_succ (hmono · n) hn,
+    fun c hc => let ⟨N, hN⟩ := eventually_atTop.1 hc; exists_index Φ T c N hN⟩
 
 /-- **The union theorem** [Odifreddi1999, Theorem VII.3.7] [McCreightMeyer1969]. For a uniformly
 computable family of bounds `T` that increases pointwise in the index, some computable `t` has
@@ -246,11 +228,9 @@ theorem union_theorem {T : ℕ → ℕ → ℕ} (hT : Computable₂ T)
   refine ⟨t, ht, hdiag, Set.Subset.antisymm (fun f hf => ?_)
     (Set.iUnion_subset fun i => complexityClass_mono (hle i))⟩
   obtain ⟨c, hc, hev⟩ := mem_complexityClass.1 hf
-  have hev' : ∀ᶠ n in atTop, ∃ m ∈ Φ.cost c n, m ≤ t n :=
-    hev.mono fun n hn => (Φ.forall_mem_cost_iff_exists_of_total hc n).1 hn
-  obtain ⟨i, hi⟩ := hcls c hev'
+  obtain ⟨i, hi⟩ := hcls c (hev.mono fun n => (Φ.forall_mem_cost_iff_exists_of_total hc n).1)
   exact Set.mem_iUnion.2 ⟨i, mem_complexityClass.2
-    ⟨c, hc, hi.mono fun n hn => (Φ.forall_mem_cost_iff_exists_of_total hc n).2 hn⟩⟩
+    ⟨c, hc, hi.mono fun n => (Φ.forall_mem_cost_iff_exists_of_total hc n).2⟩⟩
 
 /-- **The union theorem** for a directed family. If any two bounds of a uniformly computable family
 `T` are dominated almost everywhere by a third, some computable `t` has
@@ -265,9 +245,9 @@ theorem union_theorem_of_directed {T : ℕ → ℕ → ℕ} (hT : Computable₂ 
     (Set.iUnion_subset fun i => ?_))⟩
   · obtain ⟨k, hk⟩ := exists_partialSups_le hdir i
     exact (complexityClass_mono hk).trans (Set.subset_iUnion (fun k => Φ.complexityClass (T k)) k)
-  · refine (complexityClass_mono ?_).trans (Set.subset_iUnion
-      (fun k => Φ.complexityClass fun n => partialSups (fun k => T k n) k) i)
-    exact Eventually.of_forall fun n => le_partialSups (fun k => T k n) i
+  · exact (complexityClass_mono (Eventually.of_forall fun n =>
+      le_partialSups (fun k => T k n) i)).trans
+        (Set.subset_iUnion (fun k => Φ.complexityClass fun n => partialSups (fun k => T k n) k) i)
 
 /-- **The union theorem** for a family that increases almost everywhere. If `T i ≤ T (i + 1)`
 almost everywhere for every `i`, some computable `t` has `C_t = ⋃ i, C_{T i}`. This variant is
@@ -275,8 +255,7 @@ derived here from `union_theorem_of_directed`. -/
 theorem union_theorem_of_eventuallyLE {T : ℕ → ℕ → ℕ} (hT : Computable₂ T)
     (hmono : ∀ i, T i ≤ᶠ[atTop] T (i + 1)) :
     ∃ t : ℕ → ℕ, Computable t ∧ Φ.complexityClass t = ⋃ i, Φ.complexityClass (T i) := by
-  have hle : ∀ i k, i ≤ k → T i ≤ᶠ[atTop] T k := by
-    intro i k hik
+  have hle (i k : ℕ) (hik : i ≤ k) : T i ≤ᶠ[atTop] T k := by
     induction hik with
     | refl => exact EventuallyLE.refl _ _
     | step _ ih => exact ih.trans (hmono _)

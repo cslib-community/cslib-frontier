@@ -122,11 +122,11 @@ theorem leakyPKE_deltaCorrect (P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT) 
 theorem leakyPKE_gammaSpread (P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT) {γ : ℝ}
     (h : P.GammaSpread γ) : (leakyPKE P).GammaSpread γ := by
   intro pk sk hkeys m c
-  refine le_trans (ENNReal.toReal_mono ?_ ?_) (h pk sk hkeys m c.1)
-  · exact ne_top_of_le_ne_top ENNReal.one_ne_top (PMF.toOuterMeasure_le_one _ _)
-  · refine (ProbComp.eval P.sampleCoins).toOuterMeasure.mono fun r hr => ?_
-    simp only [leakyPKE, Set.mem_ofPred_eq] at hr ⊢
-    rw [← hr]
+  refine (ENNReal.toReal_mono
+    (ne_top_of_le_ne_top ENNReal.one_ne_top (PMF.toOuterMeasure_le_one _ _))
+    ((ProbComp.eval P.sampleCoins).toOuterMeasure.mono fun r hr => ?_)).trans (h pk sk hkeys m c.1)
+  simp only [leakyPKE, Set.mem_ofPred_eq] at hr ⊢
+  rw [← hr]
 
 /-- Honest encryptions of `leakyPKE P` carry the tag `none`. -/
 @[simp] theorem encT_leakyPKE (P : ExplicitCoinPKE PK SK (Fin n → Bool) R CT)
@@ -249,14 +249,12 @@ theorem roQueryBounds_leakAdv :
   have h (cost : ROQuery (Fin n → Bool) (CT × Option (Fin n)) → ℕ) (k : ℕ)
       (hd : ∀ x, cost (.decaps x) = 0) (hH : ∀ x, cost (.H x) = k)
       (ch : KEM.Challenge PK (CT × Option (Fin n)) K) :
-      OracleComp.IsCostBounded cost (leakAdv (R := R) ch) (n * k + k) := by
-    dsimp only [leakAdv]
-    refine OracleComp.IsCostBounded.bind ?_ fun bits => ?_
-    · simpa using
-        isCostBounded_leakBits (R := R) (K := K) cost k hd hH ch.ct.1 (List.finRange n)
-    · exact ((OracleComp.IsCostBounded.query _).bind fun _ => .pure _ 0).mono (by simp [hH])
-  intro ch
-  exact ⟨by simpa using h ROQuery.gCost 0 (fun _ => rfl) (fun _ => rfl) ch,
+      OracleComp.IsCostBounded cost (leakAdv (R := R) ch) (n * k + k) :=
+    OracleComp.IsCostBounded.bind
+      (by simpa using
+        isCostBounded_leakBits (R := R) (K := K) cost k hd hH ch.ct.1 (List.finRange n))
+      fun _ => ((OracleComp.IsCostBounded.query _).bind fun _ => .pure _ 0).mono (by simp [hH])
+  exact fun ch => ⟨by simpa using h ROQuery.gCost 0 (fun _ => rfl) (fun _ => rfl) ch,
     by simpa using h ROQuery.hCost 1 (fun _ => rfl) (fun _ => rfl) ch⟩
 
 /-- The candidate message that `leakAdv` reads off for the challenge `(c, none)` when `c`
@@ -300,12 +298,10 @@ private theorem pi_toOuterMeasure_eq {ι γ : Type} [Fintype ι] [Fintype γ] [N
     (pi (α := fun _ : ι => γ) fun _ => uniformOfFintype γ).toOuterMeasure {H | H a = H b} =
       (Fintype.card γ : ℝ≥0∞)⁻¹ := by
   classical
-  have hset : {H : ι → γ | H a = H b} = (fun H => decide (H a = H b)) ⁻¹' {true} := by
-    ext; simp
-  have hupd := bind_pi_update (fun _ : ι => uniformOfFintype γ) b
-    (fun w H => PMF.pure (decide (H a = w)))
-  rw [hset, ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton, PMF.map,
-    Function.comp_def, ← hupd]
+  rw [show {H : ι → γ | H a = H b} = (fun H => decide (H a = H b)) ⁻¹' {true} by ext; simp,
+    ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton, PMF.map,
+    Function.comp_def, ← bind_pi_update (fun _ : ι => uniformOfFintype γ) b
+      (fun w H => PMF.pure (decide (H a = w)))]
   refine bind_apply_of_forall _ fun w => ?_
   have h := pi_map_eval (Function.update (fun _ : ι => uniformOfFintype γ) b (PMF.pure w)) a
   rw [Function.update_of_ne hab] at h
@@ -319,12 +315,10 @@ private theorem pi_toOuterMeasure_exists_le {ι γ J : Type} [Fintype ι] [Finty
     [Fintype J] {a b : J → ι} (hab : ∀ j, a j ≠ b j) :
     (pi (α := fun _ : ι => γ) fun _ => uniformOfFintype γ).toOuterMeasure
         {H | ∃ j, H (a j) = H (b j)} ≤ Fintype.card J * (Fintype.card γ : ℝ≥0∞)⁻¹ := by
-  have hset : {H : ι → γ | ∃ j, H (a j) = H (b j)} =
-      ⋃ j ∈ (Finset.univ : Finset J), {H | H (a j) = H (b j)} := by
-    ext; simp
-  rw [hset]
-  refine (MeasureTheory.measure_biUnion_finset_le _ _).trans_eq ?_
-  simp [pi_toOuterMeasure_eq (hab _)]
+  rw [show {H : ι → γ | ∃ j, H (a j) = H (b j)} =
+    ⋃ j ∈ (Finset.univ : Finset J), {H | H (a j) = H (b j)} by ext; simp]
+  exact (MeasureTheory.measure_biUnion_finset_le _ _).trans_eq
+    (by simp [pi_toOuterMeasure_eq (hab _)])
 
 /-- A game failing with probability at most `n / K` and another succeeding with probability at
 most `1 / K` have advantage at least `1 - (n + 1) / K`. -/
@@ -334,10 +328,9 @@ private theorem le_advantage_of_apply_le {g₀ g₁ : Game} {n k : ℕ} (hk : k 
   have hk' : (k : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.2 (by exact_mod_cast hk)
   ennreal_to_real at h₀ h₁
   have hsum := toReal_true_add_toReal_false g₀
-  rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
-  refine le_trans ?_ (le_abs_self _)
-  rw [add_div, div_eq_mul_inv, div_eq_mul_inv, one_mul]
-  linarith
+  rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability, add_div,
+    div_eq_mul_inv, div_eq_mul_inv, one_mul]
+  exact le_trans (by linarith) (le_abs_self _)
 
 /-- Without the re-encryption check, `leakAdv` distinguishes the real challenge key of
 `FO-notbot` over `leakyPKE P` from a random one with advantage at least `1 - (n + 1) / |K|`, for
@@ -353,35 +346,31 @@ theorem advantage_eagerNoCheckGame_leakAdv [Finite R] [Fintype CT] [Fintype K] [
           Scheme PK SK (Fin n → Bool) R (CT × Option (Fin n)) K).eagerNoCheckGame leakAdv false)
         ((⟨leakyPKE P, sampleMsg, sampleKey⟩ : Scheme _ _ _ _ _ _).eagerNoCheckGame leakAdv true) :
         ℝ) := by
-  have h1 : (⟨leakyPKE P, sampleMsg, sampleKey⟩ :
-      Scheme PK SK (Fin n → Bool) R (CT × Option (Fin n)) K).eagerNoCheckGame leakAdv true true ≤
-        (Fintype.card K : ℝ≥0∞)⁻¹ := by
-    simp only [Scheme.eagerNoCheckGame, Scheme.keyGenNotBot, Scheme.encapsNotBot,
+  let S : Scheme PK SK (Fin n → Bool) R (CT × Option (Fin n)) K :=
+    ⟨leakyPKE P, sampleMsg, sampleKey⟩
+  have h1 : S.eagerNoCheckGame leakAdv true true ≤ (Fintype.card K : ℝ≥0∞)⁻¹ := by
+    simp only [S, Scheme.eagerNoCheckGame, Scheme.keyGenNotBot, Scheme.encapsNotBot,
       Scheme.encapsBot, ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
       PMF.bind_bind, PMF.pure_bind]
-    refine bind_apply_le_on_support _ fun ⟨pk, sk⟩ hk => ?_
-    refine bind_apply_le_on_support _ fun s _ => ?_
-    refine bind_apply_le_on_support _ fun G hG => ?_
-    refine bind_apply_le_on_support _ fun H _ => ?_
-    refine bind_apply_le_on_support _ fun m _ => ?_
+    refine bind_apply_le_on_support _ fun ⟨pk, sk⟩ hk => bind_apply_le_on_support _ fun s _ =>
+      bind_apply_le_on_support _ fun G hG => bind_apply_le_on_support _ fun H _ =>
+        bind_apply_le_on_support _ fun m _ => ?_
     have hdec := leakyPKE_dec_some (hcorr pk sk hk m (G m) ((mem_support_pi_iff _ _).1 hG m))
     simp only [encT_leakyPKE, ite_true,
       interpret_leakAdv ⟨leakyPKE P, sampleMsg, sampleKey⟩ G H ⟨sk, pk, s⟩ _ m hdec]
     rw [hkey, bind_pure_decide_eq_apply_true, uniformOfFintype_apply]
-  have h0 : (⟨leakyPKE P, sampleMsg, sampleKey⟩ :
-      Scheme PK SK (Fin n → Bool) R (CT × Option (Fin n)) K).eagerNoCheckGame leakAdv false false ≤
-        n * (Fintype.card K : ℝ≥0∞)⁻¹ := by
-    simp only [Scheme.eagerNoCheckGame, Scheme.keyTable, Scheme.keyGenNotBot, Scheme.encapsNotBot,
-      Scheme.encapsBot, ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-      PMF.bind_bind, PMF.pure_bind]
-    refine bind_apply_le_on_support _ fun ⟨pk, sk⟩ hk => ?_
-    refine bind_apply_le_on_support _ fun s _ => ?_
-    refine bind_apply_le_on_support _ fun G hG => ?_
+  have h0 : S.eagerNoCheckGame leakAdv false false ≤ n * (Fintype.card K : ℝ≥0∞)⁻¹ := by
+    simp only [S, Scheme.eagerNoCheckGame, Scheme.keyTable, Scheme.keyGenNotBot,
+      Scheme.encapsNotBot, Scheme.encapsBot, ProbComp.eval_bind, ProbComp.eval_pure,
+      PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.pure_bind]
+    refine bind_apply_le_on_support _ fun ⟨pk, sk⟩ hk => bind_apply_le_on_support _ fun s _ =>
+      bind_apply_le_on_support _ fun G hG => ?_
     rw [PMF.bind_comm]
     refine bind_apply_le_on_support _ fun m _ => ?_
     have hdec := leakyPKE_dec_some (hcorr pk sk hk m (G m) ((mem_support_pi_iff _ _).1 hG m))
     simp only [encT_leakyPKE, Bool.false_eq_true, ite_false,
-      interpret_leakAdv ⟨leakyPKE P, sampleMsg, sampleKey⟩ _ _ ⟨sk, pk, s⟩ _ m hdec, PMF.bind_const]
+      interpret_leakAdv ⟨leakyPKE P, sampleMsg, sampleKey⟩ _ _ ⟨sk, pk, s⟩ _ m hdec,
+      PMF.bind_const]
     rw [hkey]
     change (PMF.map _ _) false ≤ _
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
@@ -389,9 +378,8 @@ theorem advantage_eagerNoCheckGame_leakAdv [Finite R] [Fintype CT] [Fintype K] [
     have hab (i : Fin n) : ((false, fun _ => false, (c, some i)) : Bool × (Fin n → Bool) × _) ≠
         (false, fun _ => true, (c, some i)) := by
       simpa using fun h => Bool.false_ne_true (congrFun h i)
-    refine (MeasureTheory.measure_mono ?_).trans
+    refine (MeasureTheory.measure_mono fun H hH => ?_).trans
       ((pi_toOuterMeasure_exists_le hab).trans_eq (by simp))
-    intro H hH
     simp only [Set.mem_preimage, Set.mem_singleton_iff, decide_eq_false_iff_not] at hH
     by_contra hne
     simp only [Set.mem_ofPred_eq, not_exists] at hne
