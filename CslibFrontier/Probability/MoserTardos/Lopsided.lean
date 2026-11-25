@@ -219,61 +219,36 @@ private theorem traceSteps_append (S₀ : Finset (ι × ℕ)) (u v : List ι) :
       exact congrArg (some (j, levelRel R j S₀) :: ·) (ih (insert (j, levelRel R j S₀) S₀))
 
 private theorem traceSteps_swap (hRs : ∀ {i j}, R i j → R j i) (S₀ : Finset (ι × ℕ))
-    {a b : ι} {la : ℕ} {o : Option (ι × ℕ)}
-    (hst : traceSteps R S₀ [a, b] = [some (a, la), o])
-    (ho : o = none ∨ ∃ lb : ℕ, o = some (b, lb) ∧ lb ≤ la) :
-    ¬R a b ∧ traceSteps R S₀ [b, a] = [o, some (a, la)] ∧
+    {a b : ι} {p : ι × ℕ} {o : Option (ι × ℕ)}
+    (hst : traceSteps R S₀ [a, b] = [some p, o])
+    (ho : o = none ∨ ∃ q : ι × ℕ, o = some q ∧ q.2 ≤ p.2) :
+    ¬R a b ∧ traceSteps R S₀ [b, a] = [o, some p] ∧
       foldPush R S₀ [b, a] = foldPush R S₀ [a, b] := by
   by_cases ha0 : levelRel R a S₀ = 0
   · simp [traceSteps, ha0] at hst
-  · have hst' : (if levelRel R b (insert (a, levelRel R a S₀) S₀) = 0 then [none]
-        else [some (b, levelRel R b (insert (a, levelRel R a S₀) S₀))]) = [o] ∧
-        levelRel R a S₀ = la := by
-      simp only [traceSteps, ha0, ↓reduceIte, List.cons.injEq, Option.some.injEq,
-        Prod.mk.injEq, true_and] at hst
-      exact ⟨hst.2, hst.1⟩
-    rcases hst' with ⟨hsb, hla⟩
-    subst hla
-    set la' := levelRel R a S₀
-    set S₁ := insert (a, la') S₀
-    rcases ho with rfl | ⟨lb, rfl, hle⟩
-    · have hb0 : levelRel R b S₁ = 0 := by
-        by_cases h : levelRel R b S₁ = 0
-        · exact h
-        · simp [h] at hsb
-      have hnab : ¬R a b := levelRel_eq_zero hb0 (mem_insert_self _ _)
-      have hnba : ¬R b a := fun h => hnab (hRs h)
-      have hb0' : levelRel R b S₀ = 0 := by
-        rwa [← levelRel_insert_of_not_rel hnab la' S₀]
-      refine ⟨hnab, ?_, ?_⟩
-      · have ha0' : levelRel R a S₀ ≠ 0 := ha0
-        simp only [traceSteps, hb0', ha0', ↓reduceIte]
-        rfl
-      · simp only [foldPush, List.foldl_cons, List.foldl_nil]
-        exact (pushRel_comm_of_not_rel hnba hnab S₀).symm
-    · have hb_ne : levelRel R b S₁ ≠ 0 := by
-        intro h
-        simp [h] at hsb
-      have hlb : levelRel R b S₁ = lb := by
-        simp only [hb_ne, ↓reduceIte, List.cons.injEq, Option.some.injEq, Prod.mk.injEq,
-          and_true] at hsb
-        exact hsb.2
-      have hnab : ¬R a b := fun hab => by
-        have hlt := lt_levelRel (mem_insert_self (a, la') S₀) hab
-        dsimp [S₁] at hlb
-        rw [hlb] at hlt
-        dsimp [la'] at hlt
-        omega
-      have hnba : ¬R b a := fun h => hnab (hRs h)
-      have hlb0 : levelRel R b S₀ = lb := by
-        rw [← hlb, ← levelRel_insert_of_not_rel hnab la' S₀]
-      have hlb_pos : lb ≠ 0 := hlb ▸ hb_ne
-      have hla1 : levelRel R a (insert (b, lb) S₀) = la' :=
-        levelRel_insert_of_not_rel hnba lb S₀
-      refine ⟨hnab, ?_, ?_⟩
-      · simp [traceSteps, hlb0, hlb_pos, hla1, ha0]
-      · simp only [foldPush, List.foldl_cons, List.foldl_nil]
-        exact (pushRel_comm_of_not_rel hnba hnab S₀).symm
+  simp only [traceSteps, ha0, ↓reduceIte, List.cons.injEq, Option.some.injEq] at hst
+  obtain ⟨rfl, hst⟩ := hst
+  set la := levelRel R a S₀
+  set S₁ := insert (a, la) S₀
+  have hnab : ¬R a b := by
+    intro hab
+    have hlt := lt_levelRel (mem_insert_self (a, la) S₀) hab
+    have hb0 : levelRel R b S₁ ≠ 0 := ((Nat.zero_le la).trans_lt hlt).ne'
+    rcases ho with rfl | ⟨q, rfl, hle⟩
+    · simp [hb0] at hst
+    · have hq : (b, levelRel R b S₁) = q :=
+        Option.some.inj ((List.cons.inj (by simpa only [hb0, ↓reduceIte] using hst)).1)
+      exact (not_lt_of_ge hle) ((congrArg Prod.snd hq) ▸ hlt)
+  have hnba : ¬R b a := fun h => hnab (hRs h)
+  have hb := levelRel_insert_of_not_rel hnab la S₀
+  have ha (k : ℕ) := levelRel_insert_of_not_rel hnba k S₀
+  refine ⟨hnab, ?_, (pushRel_comm_of_not_rel hnba hnab S₀).symm⟩
+  change (if levelRel R b S₁ = 0 then [none] else [some (b, levelRel R b S₁)]) = [o] at hst
+  rw [hb] at hst
+  have ho' : (if levelRel R b S₀ = 0 then none else some (b, levelRel R b S₀)) = o := by
+    split_ifs at hst ⊢ <;> exact (List.cons.inj hst).1
+  rw [← ho']
+  by_cases hb0 : levelRel R b S₀ = 0 <;> simp [traceSteps, hb0, ha0, ha, la]
 
 private theorem traceSteps_map_some_eq (hRr : ∀ i, R i i) :
     ∀ (S₀ : Finset (ι × ℕ)) (w : List ι) (L : List (ι × ℕ)),
@@ -413,16 +388,8 @@ private theorem phase1_elim_none {A : ι → Set (∀ v, α v)}
               traceSteps_length, hulen, Nat.add_sub_cancel_left,
               List.getElem?_append_left (by rw [traceSteps_length]; exact Nat.one_lt_two)] at hkq
             exact hkq
-        have ha_eq' : pa = (a, levelRel R a (foldPush R {(i, 0)} u)) := by
-          by_cases ha0 : levelRel R a (foldPush R {(i, 0)} u) = 0
-          · simp [traceSteps, ha0] at hstep_ab
-          · simp only [traceSteps, ha0, ↓reduceIte, List.cons.injEq, Option.some.injEq] at hstep_ab
-            exact hstep_ab.1.symm
-        have hstep_ab' : traceSteps R (foldPush R {(i, 0)} u) [a, b] =
-            [some (a, pa.2), none] := by
-          rw [hstep_ab, ha_eq']
         obtain ⟨hnab, hswap_tr, hswap_fold⟩ :=
-          traceSteps_swap R hRs (foldPush R {(i, 0)} u) hstep_ab' (Or.inl rfl)
+          traceSteps_swap R hRs (foldPush R {(i, 0)} u) hstep_ab (Or.inl rfl)
         have hnlop : ¬Lopsidependent vbl A a b := fun h => hnab (Or.inr h)
         set w' := u ++ b :: a :: v
         have hw'len : w'.length = n := by
@@ -446,7 +413,7 @@ private theorem phase1_elim_none {A : ι → Set (∀ v, α v)}
           rw [witnessRel_eq_foldPush, witnessRel_eq_foldPush, hbav, habv,
             foldPush_append, foldPush_append, foldPush_append, foldPush_append, hswap_fold]
         have htr_w' : traceSteps R {(i, 0)} w' = traceSteps R {(i, 0)} u ++
-            [none, some (a, pa.2)] ++
+            [none, some pa] ++
             traceSteps R (foldPush R (foldPush R {(i, 0)} u) [a, b]) v := by
           have hbav : w' = u ++ [b, a] ++ v := by simp [w']
           rw [hbav, traceSteps_append, traceSteps_append, foldPush_append, hswap_tr, hswap_fold]
@@ -468,18 +435,12 @@ private theorem phase1_elim_none {A : ι → Set (∀ v, α v)}
         obtain ⟨w'', hl'', hw'', L, hL⟩ :=
           ihk w' hw'len hlog' (List.mem_of_getElem? hkq') (by omega) hkq' hpre'
         exact ⟨w'', hl'', hw''.trans hw'eq, L, hL⟩
-    · suffices hmap : ∀ l : List (Option (ι × ℕ)), none ∉ l →
-          ∃ L : List (ι × ℕ), l = L.map some from
-        ⟨w, hlog, rfl, hmap _ hnone⟩
-      intro l hl
-      induction l with
-      | nil => exact ⟨[], rfl⟩
-      | cons o os ih =>
-        cases o with
-        | none => exact absurd List.mem_cons_self hl
-        | some p =>
-          obtain ⟨L, hL⟩ := ih fun hm => hl (List.mem_cons_of_mem _ hm)
-          exact ⟨p :: L, by simp [hL]⟩
+    · match h : (traceSteps R {(i, 0)} w).allSome with
+      | none => exact (hnone (List.allSome_eq_none_iff.mp h)).elim
+      | some L =>
+        refine ⟨w, hlog, rfl, L, ?_⟩
+        rw [← List.forall₂_eq_eq_eq, List.forall₂_map_right_iff]
+        exact List.allSome_eq_some_iff_forall₂.mp h
 
 private theorem phase2_sort_perm {A : ι → Set (∀ v, α v)}
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) {T : ∀ p : V × ℕ, α p.1}
@@ -570,29 +531,8 @@ private theorem phase2_sort_perm {A : ι → Set (∀ v, α v)}
         rw [List.append_assoc, List.append_assoc] at happ'
         obtain ⟨hpre_u, hsuf_u⟩ := List.append_inj happ' hlen_u
         obtain ⟨hst_ab, htail⟩ := List.append_inj hsuf_u (by rw [traceSteps_length]; rfl)
-        have haq_val : q = (a, levelRel R a (foldPush R S₀' u)) := by
-          by_cases ha0 : levelRel R a (foldPush R S₀' u) = 0
-          · simp [traceSteps, ha0] at hst_ab
-          · simp only [traceSteps, ha0, ↓reduceIte, List.cons.injEq, Option.some.injEq] at hst_ab
-            exact hst_ab.1.symm
-        have haq : q = (a, q.2) := by
-          rw [haq_val]
-        have hbp_val : p = (b, levelRel R b (insert (a, levelRel R a (foldPush R S₀' u))
-            (foldPush R S₀' u))) := by
-          by_cases ha0 : levelRel R a (foldPush R S₀' u) = 0
-          · simp [traceSteps, ha0] at hst_ab
-          · simp only [traceSteps, ha0, ↓reduceIte, List.cons.injEq] at hst_ab
-            by_cases hb0 : levelRel R b (insert (a, levelRel R a (foldPush R S₀' u))
-                (foldPush R S₀' u)) = 0
-            · simp [hb0] at hst_ab
-            · simp only [hb0, ↓reduceIte, List.cons.injEq, Option.some.injEq, and_true] at hst_ab
-              exact hst_ab.2.symm
-        have hbp : p = (b, p.2) := by
-          rw [hbp_val]
-        have hst_ab' : traceSteps R (foldPush R S₀' u) [a, b] = [some (a, q.2), some (b, p.2)] := by
-          rw [hst_ab, ← haq, ← hbp]
         obtain ⟨hnab, hswap_tr, hswap_fold⟩ :=
-          traceSteps_swap R hRs (foldPush R S₀' u) hst_ab' (Or.inr ⟨p.2, rfl, hle⟩)
+          traceSteps_swap R hRs (foldPush R S₀' u) hst_ab (Or.inr ⟨p, rfl, hle⟩)
         have hnlop : ¬Lopsidependent vbl A a b := fun h => hnab (Or.inr h)
         set w'' := u ++ b :: a :: v
         have hlog'' : IsLog vbl A T ((pref.map Prod.fst) ++ w'') := by
@@ -605,7 +545,7 @@ private theorem phase2_sort_perm {A : ι → Set (∀ v, α v)}
           have hbav : w'' = u ++ [b, a] ++ v := by simp [w'']
           rw [hbav, traceSteps_append, traceSteps_append, foldPush_append, hpre_u, hswap_tr,
             hswap_fold, htail]
-          simp [haq.symm, hbp.symm, List.map_append]
+          simp [List.map_append]
         have hperm'' : (L₀ ++ p :: q :: L₂').Perm (L₀ ++ [q] ++ p :: L₂') := by
           rw [List.append_assoc, List.singleton_append]
           exact List.Perm.append_left L₀ (List.Perm.swap q p L₂')
