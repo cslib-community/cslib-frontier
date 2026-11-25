@@ -96,13 +96,9 @@ theorem sum_norm_sq_dftProd (f : ZMod N × ZMod N → ℂ) :
         refine sum_congr rfl fun w _ ↦ ?_
         rw [mul_sum]
         refine sum_congr rfl fun ξ _ ↦ ?_
-        have : stdAddChar (ξ.1 * (w - v).1 + ξ.2 * (w - v).2) =
-            stdAddChar (-(ξ.1 * v.1 + ξ.2 * v.2)) * stdAddChar (ξ.1 * w.1 + ξ.2 * w.2) := by
-          rw [← AddChar.map_add_eq_mul]
-          congr 1
-          simp only [Prod.fst_sub, Prod.snd_sub]
-          ring
-        rw [this]
+        rw [show stdAddChar (ξ.1 * (w - v).1 + ξ.2 * (w - v).2) =
+            stdAddChar (-(ξ.1 * v.1 + ξ.2 * v.2)) * stdAddChar (ξ.1 * w.1 + ξ.2 * w.2) by
+          rw [← AddChar.map_add_eq_mul]; exact congrArg _ (by simp; ring)]
         ring
     _ = (N : ℂ) ^ 2 * ∑ v, f v * conj (f v) := by
         simp only [sum_stdAddChar_mul_add, sub_eq_zero, mul_ite, mul_zero, sum_ite_eq',
@@ -116,8 +112,7 @@ theorem dftProd_comp_add (f : ZMod N × ZMod N → ℂ) (t ξ : ZMod N × ZMod N
   refine Fintype.sum_equiv (Equiv.addRight t) _ _ fun v ↦ ?_
   simp only [Equiv.coe_addRight, Prod.fst_add, Prod.snd_add, ← mul_assoc,
     ← AddChar.map_add_eq_mul]
-  congr 2
-  ring
+  exact congrArg (· * _) (congrArg _ (by ring))
 
 /-- **The shear `(x, y) ↦ (x + k * y, y)`** acts on frequencies by `(a, b) ↦ (a, b - k * a)`. -/
 theorem dftProd_comp_shearFst (f : ZMod N × ZMod N → ℂ) (k : ZMod N) (ξ : ZMod N × ZMod N) :
@@ -125,8 +120,7 @@ theorem dftProd_comp_shearFst (f : ZMod N × ZMod N → ℂ) (k : ZMod N) (ξ : 
   rw [dftProd, dftProd]
   refine Fintype.sum_equiv (Cslib.shearFst k) _ _ fun v ↦ ?_
   rw [Cslib.shearFst_apply]
-  congr 2
-  ring
+  exact congrArg (· * _) (congrArg _ (by ring))
 
 /-- **The shear `(x, y) ↦ (x, y + k * x)`** acts on frequencies by `(a, b) ↦ (a - k * b, b)`. -/
 theorem dftProd_comp_shearSnd (f : ZMod N × ZMod N → ℂ) (k : ZMod N) (ξ : ZMod N × ZMod N) :
@@ -134,8 +128,7 @@ theorem dftProd_comp_shearSnd (f : ZMod N × ZMod N → ℂ) (k : ZMod N) (ξ : 
   rw [dftProd, dftProd]
   refine Fintype.sum_equiv (Cslib.shearSnd k) _ _ fun v ↦ ?_
   rw [Cslib.shearSnd_apply]
-  congr 2
-  ring
+  exact congrArg (· * _) (congrArg _ (by ring))
 
 /-- The transform is additive. -/
 theorem dftProd_add (f g : ZMod N × ZMod N → ℂ) : dftProd (f + g) = dftProd f + dftProd g := by
@@ -152,14 +145,12 @@ theorem dftProd_smul (c : ℂ) (f : ZMod N × ZMod N → ℂ) : dftProd (c • f
 theorem dftProd_injective : Function.Injective (dftProd (N := N)) := by
   intro f g h
   have hP := sum_norm_sq_dftProd (f - g)
-  rw [dftProd_sub, h, sub_self] at hP
-  simp only [Pi.zero_apply, norm_zero, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-    sum_const_zero] at hP
-  have hN : (N : ℝ) ^ 2 ≠ 0 := pow_ne_zero _ (Nat.cast_ne_zero.2 (NeZero.ne N))
-  have h0 := (mul_eq_zero.1 hP.symm).resolve_left hN
+  simp only [dftProd_sub, h, sub_self, Pi.zero_apply, norm_zero, ne_eq, OfNat.ofNat_ne_zero,
+    not_false_eq_true, zero_pow, sum_const_zero] at hP
+  have h0 := (mul_eq_zero.1 hP.symm).resolve_left
+    (pow_ne_zero _ (Nat.cast_ne_zero.2 (NeZero.ne N)))
   rw [sum_eq_zero_iff_of_nonneg fun _ _ ↦ by positivity] at h0
-  funext v
-  simpa [sub_eq_zero] using h0 v (mem_univ v)
+  exact funext fun v ↦ sub_eq_zero.1 (by simpa using h0 v (mem_univ v))
 
 /-- The transform as a linear map. -/
 private noncomputable def dftProdLinearMap :
@@ -181,18 +172,18 @@ theorem dftProd_const_of_ne_zero (c : ℂ) {ξ : ZMod N × ZMod N} (hξ : ξ ≠
   simp only [sum_const, card_univ, Fintype.card_prod, ZMod.card, nsmul_eq_mul, norm_mul,
     Complex.norm_natCast, Nat.cast_mul] at hP
   have h0 : ∑ ζ ∈ univ.erase (0 : ZMod N × ZMod N), ‖dftProd (fun _ ↦ c) ζ‖ ^ 2 = 0 := by linarith
-  rw [sum_eq_zero_iff_of_nonneg fun _ _ ↦ by positivity] at h0
-  simpa using h0 ξ (mem_erase.2 ⟨hξ, mem_univ ξ⟩)
+  simpa using (sum_eq_zero_iff_of_nonneg fun _ _ ↦ by positivity).1 h0 ξ
+    (mem_erase.2 ⟨hξ, mem_univ ξ⟩)
 
 /-- **Parseval's identity for the change along a translation**: the transform of the change of
 `f` along the translation by `t` is the transform of `f` times `e (ξ.1 * t.1 + ξ.2 * t.2) - 1`. -/
 theorem sum_norm_sq_dftProd_translate (f : ZMod N × ZMod N → ℂ) (t : ZMod N × ZMod N) :
     ∑ ξ, ‖stdAddChar (ξ.1 * t.1 + ξ.2 * t.2) - 1‖ ^ 2 * ‖dftProd f ξ‖ ^ 2 =
       N ^ 2 * ∑ v, ‖f (v + t) - f v‖ ^ 2 := by
-  rw [← sum_norm_sq_dftProd (fun v ↦ f (v + t) - f v)]
-  refine sum_congr rfl fun ξ _ ↦ ?_
-  have : (fun v ↦ f (v + t) - f v) = (fun v ↦ f (v + t)) - f := rfl
-  rw [this, dftProd_sub, Pi.sub_apply, dftProd_comp_add, ← sub_one_mul, norm_mul, mul_pow]
+  change _ = N ^ 2 * ∑ v, ‖((fun v ↦ f (v + t)) - f) v‖ ^ 2
+  rw [← sum_norm_sq_dftProd]
+  exact sum_congr rfl fun ξ _ ↦ by
+    rw [dftProd_sub, Pi.sub_apply, dftProd_comp_add, ← sub_one_mul, norm_mul, mul_pow]
 
 /-- **Parseval's identity for the difference of two functions along the shear**
 `(x, y) ↦ (x + k * y, y)`: it acts on the frequencies by the dual shear `(a, b) ↦ (a, b - k * a)`.
@@ -200,11 +191,11 @@ theorem sum_norm_sq_dftProd_translate (f : ZMod N × ZMod N → ℂ) (t : ZMod N
 theorem sum_norm_sq_dftProd_shearFst_sub (f g : ZMod N × ZMod N → ℂ) (k : ZMod N) :
     ∑ ξ, ‖dftProd f (Cslib.shearSnd (-k) ξ) - dftProd g ξ‖ ^ 2 =
       N ^ 2 * ∑ v, ‖f (Cslib.shearFst k v) - g v‖ ^ 2 := by
-  rw [← sum_norm_sq_dftProd (fun v ↦ f (Cslib.shearFst k v) - g v)]
-  refine sum_congr rfl fun ξ _ ↦ ?_
-  have : (fun v ↦ f (Cslib.shearFst k v) - g v) = (fun v ↦ f (v.1 + k * v.2, v.2)) - g := rfl
-  rw [this, dftProd_sub, Pi.sub_apply, dftProd_comp_shearFst, Cslib.shearSnd_apply, neg_mul,
-    ← sub_eq_add_neg]
+  change _ = N ^ 2 * ∑ v, ‖((fun (v : ZMod N × ZMod N) ↦ f (v.1 + k * v.2, v.2)) - g) v‖ ^ 2
+  rw [← sum_norm_sq_dftProd]
+  exact sum_congr rfl fun ξ _ ↦ by
+    rw [dftProd_sub, Pi.sub_apply, dftProd_comp_shearFst, Cslib.shearSnd_apply, neg_mul,
+      ← sub_eq_add_neg]
 
 /-- **Parseval's identity for the difference of two functions along the shear**
 `(x, y) ↦ (x, y + k * x)`: it acts on the frequencies by the dual shear `(a, b) ↦ (a - k * b, b)`.
@@ -212,10 +203,10 @@ theorem sum_norm_sq_dftProd_shearFst_sub (f g : ZMod N × ZMod N → ℂ) (k : Z
 theorem sum_norm_sq_dftProd_shearSnd_sub (f g : ZMod N × ZMod N → ℂ) (k : ZMod N) :
     ∑ ξ, ‖dftProd f (Cslib.shearFst (-k) ξ) - dftProd g ξ‖ ^ 2 =
       N ^ 2 * ∑ v, ‖f (Cslib.shearSnd k v) - g v‖ ^ 2 := by
-  rw [← sum_norm_sq_dftProd (fun v ↦ f (Cslib.shearSnd k v) - g v)]
-  refine sum_congr rfl fun ξ _ ↦ ?_
-  have : (fun v ↦ f (Cslib.shearSnd k v) - g v) = (fun v ↦ f (v.1, v.2 + k * v.1)) - g := rfl
-  rw [this, dftProd_sub, Pi.sub_apply, dftProd_comp_shearSnd, Cslib.shearFst_apply, neg_mul,
-    ← sub_eq_add_neg]
+  change _ = N ^ 2 * ∑ v, ‖((fun (v : ZMod N × ZMod N) ↦ f (v.1, v.2 + k * v.1)) - g) v‖ ^ 2
+  rw [← sum_norm_sq_dftProd]
+  exact sum_congr rfl fun ξ _ ↦ by
+    rw [dftProd_sub, Pi.sub_apply, dftProd_comp_shearSnd, Cslib.shearFst_apply, neg_mul,
+      ← sub_eq_add_neg]
 
 end ZMod

@@ -74,17 +74,16 @@ clauses, the run on fair coins uses up a budget of `t` resamplings with probabil
 theorem coinFlips_exhausts_mul_le {k : ℕ} (hk : 3 ≤ k) (hφ : φ.IsExactDistinct k)
     (hdeg : ∀ i : Fin φ.length, degree φ i < 2 ^ (k - 3)) (t : ℕ) :
     coinFlips {x | Exhausts φ k t x} * 2 ^ t ≤ 2 ^ (φ.length + 1) := by
-  have h := card_exhausts_mul_two_pow_lt hk hφ hdeg t
   have hc : ((#{y : Fin (n + t * k) → Bool |
       Exhausts φ k t (Function.extend Fin.val y fun _ => false)} * 2 ^ t : ℕ) : ℝ≥0∞) ≤
-      ((2 ^ (n + t * k) * 2 ^ (φ.length + 1) : ℕ) : ℝ≥0∞) := Nat.cast_le.2 h.le
+      ((2 ^ (n + t * k) * 2 ^ (φ.length + 1) : ℕ) : ℝ≥0∞) :=
+    Nat.cast_le.2 (card_exhausts_mul_two_pow_lt hk hφ hdeg t).le
   push_cast at hc
-  have hN : (2 : ℝ≥0∞) ^ (n + t * k) ≠ 0 := pow_ne_zero _ two_ne_zero
-  have hN' : (2 : ℝ≥0∞) ^ (n + t * k) ≠ ⊤ := ENNReal.pow_ne_top ENNReal.ofNat_ne_top
   rw [coinFlips_setOf_eq_card_mul fun _ _ hxy => exhausts_congr hφ hxy, mul_right_comm]
   calc _ ≤ (2 : ℝ≥0∞) ^ (n + t * k) * 2 ^ (φ.length + 1) * (2 ^ (n + t * k))⁻¹ := by gcongr
     _ = 2 ^ (φ.length + 1) := by
-        rw [mul_right_comm, ENNReal.mul_inv_cancel hN hN', one_mul]
+        rw [mul_right_comm, ENNReal.mul_inv_cancel (pow_ne_zero _ two_ne_zero)
+          (ENNReal.pow_ne_top ENNReal.ofNat_ne_top), one_mul]
 
 /-- **Moser's tail bound.** If every clause of an exact `k`-CNF shares a variable with fewer than
 `2 ^ (k - 3)` other clauses, the run on fair coins uses up a budget of `t` resamplings with
@@ -93,10 +92,9 @@ theorem coinFlips_exhausts_le {k : ℕ} (hk : 3 ≤ k) (hφ : φ.IsExactDistinct
     (hdeg : ∀ i : Fin φ.length, degree φ i < 2 ^ (k - 3)) (t : ℕ) :
     coinFlips {x | Exhausts φ k t x} ≤ 2 ^ (φ.length + 1) * 2⁻¹ ^ t := by
   have h := coinFlips_exhausts_mul_le hk hφ hdeg t
-  have h2 : (2 : ℝ≥0∞) ^ t * 2⁻¹ ^ t = 1 := by
-    rw [← mul_pow, ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top, one_pow]
   calc coinFlips {x | Exhausts φ k t x} = coinFlips {x | Exhausts φ k t x} * 2 ^ t * 2⁻¹ ^ t := by
-        rw [mul_assoc, h2, mul_one]
+        rw [mul_assoc, ← mul_pow, ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top,
+          one_pow, mul_one]
     _ ≤ 2 ^ (φ.length + 1) * 2⁻¹ ^ t := by gcongr
 
 /-! ### The number of resamplings -/
@@ -112,24 +110,14 @@ noncomputable def resamplings (k : ℕ) (x : ℕ → Bool) : ℕ∞ :=
 `t` uses it up. -/
 theorem le_resamplings_iff {k t : ℕ} {x : ℕ → Bool} :
     (t : ℕ∞) ≤ resamplings φ k x ↔ Exhausts φ k t x := by
-  constructor
-  · intro h
-    by_contra hx
-    have ht : 1 ≤ t := by
-      rcases Nat.eq_zero_or_pos t with rfl | ht
-      · exact absurd (Nat.zero_le _) hx
-      · exact ht
-    have hlt (t' : ℕ) : (final φ k t' x).trace.length < t := by
-      rcases le_or_gt t t' with h' | h'
-      · rw [final_eq_of_not_exhausts h' hx]
-        exact Nat.lt_of_not_le hx
-      · exact lt_of_le_of_lt (length_trace_run_le k t' x _) h'
-    have hle : resamplings φ k x ≤ ((t - 1 : ℕ) : ℕ∞) :=
-      iSup_le fun t' => ENat.natCast_le_natCast.2 (by have := hlt t'; omega)
-    have := ENat.natCast_le_natCast.1 (h.trans hle)
-    omega
-  · intro h
-    exact le_iSup_of_le t (ENat.natCast_le_natCast.2 h)
+  refine ⟨fun h => by_contra fun hx => ?_, fun h => le_iSup_of_le t (ENat.natCast_le_natCast.2 h)⟩
+  have ht : 1 ≤ t := Nat.pos_of_ne_zero fun h0 => hx (h0 ▸ Nat.zero_le _)
+  have hle : resamplings φ k x ≤ ((t - 1 : ℕ) : ℕ∞) := iSup_le fun t' =>
+    ENat.natCast_le_natCast.2 <| Nat.le_sub_one_of_lt <| (le_or_gt t t').elim
+      (fun h' => final_eq_of_not_exhausts h' hx ▸ Nat.lt_of_not_le hx)
+      (lt_of_le_of_lt (length_trace_run_le k t' x _))
+  have := ENat.natCast_le_natCast.1 (h.trans hle)
+  omega
 
 private theorem toENNReal_eq_tsum (r : ℕ∞) :
     (r : ℝ≥0∞) = ∑' t : ℕ, if ((t + 1 : ℕ) : ℕ∞) ≤ r then 1 else 0 := by
@@ -139,8 +127,8 @@ private theorem toENNReal_eq_tsum (r : ℕ∞) :
     exact (ENNReal.tsum_const_eq_top_of_ne_zero one_ne_zero).symm
   | coe r =>
     rw [tsum_eq_sum (s := range r) fun t ht =>
-      ite_eq_right fun h => ht (mem_range.2 (ENat.natCast_le_natCast.1 h))]
-    rw [sum_congr rfl fun t ht => ite_eq_left (ENat.natCast_le_natCast.2 (mem_range.1 ht)),
+      ite_eq_right fun h => ht (mem_range.2 (ENat.natCast_le_natCast.1 h)),
+      sum_congr rfl fun t ht => ite_eq_left (ENat.natCast_le_natCast.2 (mem_range.1 ht)),
       ENat.toENNReal_coe, sum_const, card_range, nsmul_eq_mul, mul_one]
 
 theorem resamplings_eq_tsum (k : ℕ) (x : ℕ → Bool) :
@@ -149,7 +137,7 @@ theorem resamplings_eq_tsum (k : ℕ) (x : ℕ → Bool) :
   refine tsum_congr fun t => ?_
   by_cases h : Exhausts φ k (t + 1) x
   · rw [ite_eq_left (le_resamplings_iff.2 h), Set.indicator_of_mem h, Pi.one_apply]
-  · rw [ite_eq_right (fun h' => h (le_resamplings_iff.1 h')), Set.indicator_of_notMem h]
+  · rw [ite_eq_right (mt le_resamplings_iff.1 h), Set.indicator_of_notMem h]
 
 /-- The expected number of resamplings is the sum of the probabilities of making `t + 1`
 resamplings. -/
@@ -170,40 +158,32 @@ theorem lintegral_resamplings_le {k : ℕ} (hk : 3 ≤ k) (hφ : φ.IsExactDisti
   rw [lintegral_resamplings_eq_tsum hφ,
     ← Summable.sum_add_tsum_nat_add' (k := φ.length + 1) CompleteLattice.summable]
   have h1 : ∑ t ∈ range (φ.length + 1), coinFlips {x | Exhausts φ k (t + 1) x} ≤ φ.length + 1 :=
-    calc _ ≤ ∑ _t ∈ range (φ.length + 1), (1 : ℝ≥0∞) := sum_le_sum fun _ _ => prob_le_one
-      _ = φ.length + 1 := by simp only [sum_const, card_range, nsmul_eq_mul, mul_one,
-          Nat.cast_add, Nat.cast_one]
+    (sum_le_sum fun _ _ => prob_le_one).trans_eq (by simp)
   have h2 : ∑' t : ℕ, coinFlips {x | Exhausts φ k (t + (φ.length + 1) + 1) x} ≤ 1 := by
-    calc _ ≤ ∑' t : ℕ, (2⁻¹ : ℝ≥0∞) ^ (t + 1) := by
-          refine tsum_le_tsum fun t => ?_
-          refine (coinFlips_exhausts_le hk hφ hdeg _).trans (le_of_eq ?_)
-          rw [show t + (φ.length + 1) + 1 = (φ.length + 1) + (t + 1) by omega,
-            pow_add (2⁻¹ : ℝ≥0∞) (φ.length + 1) (t + 1), ← mul_assoc, ← mul_pow,
-            ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top, one_pow, one_mul]
-      _ = 1 := by
-          rw [ENNReal.tsum_geometric_add_one, ENNReal.one_sub_inv_two,
-            ENNReal.mul_inv_cancel (by simp) (by simp)]
-  calc _ ≤ ((φ.length : ℝ≥0∞) + 1) + 1 := add_le_add h1 h2
-    _ = φ.length + 2 := by rw [add_assoc, one_add_one_eq_two]
+    refine (tsum_le_tsum (g := fun t => (2⁻¹ : ℝ≥0∞) ^ (t + 1)) fun t => ?_).trans_eq ?_
+    · refine (coinFlips_exhausts_le hk hφ hdeg _).trans_eq ?_
+      rw [show t + (φ.length + 1) + 1 = (φ.length + 1) + (t + 1) by omega,
+        pow_add (2⁻¹ : ℝ≥0∞), ← mul_assoc, ← mul_pow,
+        ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top, one_pow, one_mul]
+    · rw [ENNReal.tsum_geometric_add_one, ENNReal.one_sub_inv_two,
+        ENNReal.mul_inv_cancel (by simp) (by simp)]
+  exact (add_le_add h1 h2).trans_eq (by rw [add_assoc, one_add_one_eq_two])
 
 /-- **Termination.** If every clause of an exact `k`-CNF shares a variable with fewer than
 `2 ^ (k - 3)` other clauses, the run on fair coins stops almost surely. -/
 theorem ae_resamplings_ne_top {k : ℕ} (hk : 3 ≤ k) (hφ : φ.IsExactDistinct k)
     (hdeg : ∀ i : Fin φ.length, degree φ i < 2 ^ (k - 3)) :
     ∀ᵐ x ∂coinFlips, resamplings φ k x ≠ ⊤ := by
-  have hsum : ∑' t : ℕ, coinFlips {x | Exhausts φ k (t + 1) x} ≠ ⊤ := by
-    refine ne_top_of_le_ne_top (b := (φ.length + 2 : ℝ≥0∞)) (by simp) ?_
-    rw [← lintegral_resamplings_eq_tsum hφ]
-    exact lintegral_resamplings_le hk hφ hdeg
+  have hsum : ∑' t : ℕ, coinFlips {x | Exhausts φ k (t + 1) x} ≠ ⊤ :=
+    ne_top_of_le_ne_top (b := (φ.length + 2 : ℝ≥0∞)) (by simp)
+      (lintegral_resamplings_eq_tsum hφ ▸ lintegral_resamplings_le hk hφ hdeg)
   have htop : {x | resamplings φ k x = ⊤} ⊆ ⋂ t : ℕ, {x | Exhausts φ k (t + 1) x} :=
-    fun x hx => Set.mem_iInter.2 fun t => le_resamplings_iff.1 (by
-      rw [show resamplings φ k x = ⊤ from hx]
-      exact le_top)
+    fun x hx => Set.mem_iInter.2 fun t => le_resamplings_iff.1 (hx.symm ▸ le_top)
   rw [ae_iff]
   simp only [ne_eq, not_not]
   refine measure_mono_null htop (le_antisymm ?_ zero_le)
-  refine ge_of_tendsto' (ENNReal.tendsto_atTop_zero_of_tsum_ne_top hsum) fun t => ?_
-  exact measure_mono (Set.iInter_subset _ t)
+  exact ge_of_tendsto' (ENNReal.tendsto_atTop_zero_of_tsum_ne_top hsum) fun t =>
+    measure_mono (Set.iInter_subset _ t)
 
 /-- **The algorithmic Local Lemma for `k`-SAT.** If every clause of an exact `k`-CNF shares a
 variable with fewer than `2 ^ (k - 3)` other clauses, then almost surely the run on fair coins
