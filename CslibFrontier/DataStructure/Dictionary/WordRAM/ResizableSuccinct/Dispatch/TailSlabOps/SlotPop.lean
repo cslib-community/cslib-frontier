@@ -134,10 +134,7 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
   have hslot_fix : SlotStoreInv N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
       s_fix.mem) := slotStoreInv_of_gm_eq hcpl.gm_eq.symm hslot
   by_cases hb0 : bucketBits N = 0
-  · have hb_eq : b = 0 := by
-      have hnb : numBuckets N = 1 := by simp [numBuckets, hb0]
-      omega
-    subst hb_eq
+  · obtain rfl : b = 0 := Nat.lt_one_iff.mp (by simpa [numBuckets, hb0] using hb)
     unfold bCount at hbc; simp only [hb0, ↓reduceIte] at hbc
     have hgm0_le : gm₀ 0 ≤ N := hslot.single_valid hb0
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
@@ -190,10 +187,8 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
           hcpl.val_eq idx (by simpa only [epochTotalSlots, hb0, ↓reduceIte] using hlt0)
     · have hcost : memoryCost (compPopBackSlotGenProg d) s = 6 := by
         dsimp only [d, compPopBackSlotGenProg, compPopBackSingleGenProg]; simp [hb0]
-      have hpot' : slotPotential N (compGmAt metaBase U w N s'.mem) = 0 := by
-        unfold slotPotential; simp [hb0]
-      have hpot0 : slotPotential N gm₀ = 0 := by unfold slotPotential; simp [hb0]
-      rw [hcost, hpot', hpot0]; omega
+      simp only [hcost, slotPotential, hb0, ↓reduceIte]
+      omega
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     have hK_pos : 0 < slabSize N := slabSize_pos N
     have hr_pos : 1 ≤ gm₀ (gmRIdx b) := pos_gmRIdx_of_pos_bCount hb_pos hslot hb hbc
@@ -221,7 +216,6 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
     have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
     have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
     have hq_eq_fix : 4 + 3 * b = gmQIdx b := rfl
-    have hr_eq_fix : gmQIdx b + 1 = gmRIdx b := rfl
     have hrb1_s : compGmAt metaBase U w N s₁.mem (gmRIdx b) = gm₀ (gmRIdx b) - 1 := by
       rw [hgm1_eq, hpres1.2.2.1]
     have hqb1_s : compGmAt metaBase U w N s₁.mem (gmQIdx b) = gm₀ (gmQIdx b) := by
@@ -243,7 +237,7 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
           (demoteSlabProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b)) := by
         dsimp only [s_fix', popBackSlotProg, popBackSlotGenProg]
         simp only [p_bucketBits_mk, hb0, ↓reduceIte, removeLastTailItemGenProg_mk,
-          readGMGenProg_mk, demoteSlabGenProg_mk, hq_eq_fix, hr_eq_fix]
+          readGMGenProg_mk, demoteSlabGenProg_mk, hq_eq_fix, hr_eq]
         rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
           clientState_readGMProg, clientResult_readGMProg s_fix₁ hr_idx_lt,
           StateTransitionSpec.clientState_bind, clientState_readGMProg,
@@ -305,29 +299,26 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
       exact ⟨hs'_eq ▸ hfr1.trans hfr2, hs'_eq ▸ hs_fix'_eq ▸ hcpl2, by omega⟩
     · have hndem1 : ¬ (gm₀ (gmRIdx b) = 1 ∧ 0 < gm₀ (gmQIdx b)) :=
         fun ⟨h1, h2⟩ => hdem ⟨by omega, h2⟩
+      have hite {α} (x y : α) :
+          (if gm₀ (gmRIdx b) - 1 = 0 then if 0 < gm₀ (gmQIdx b) then x else y else y) = y := by
+        grind
       have hs'_eq : s' = s₁ := by
         dsimp only [s', d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
         simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq]
         rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
           clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
           StateTransitionSpec.clientState_bind, clientResult_readCompGMGenProg hq_idx_lt,
-          clientState_readCompGMGenProg, hrb1_s, hqb1_s]
-        split_ifs with hr0 hq_pos
-        · exact absurd ⟨hr0, hq_pos⟩ hdem
-        · exact StateTransitionSpec.clientState_pure _ _
-        · exact StateTransitionSpec.clientState_pure _ _
+          clientState_readCompGMGenProg, hrb1_s, hqb1_s, hite,
+          StateTransitionSpec.clientState_pure]
       have hs_fix'_eq : s_fix' = s_fix₁ := by
         dsimp only [s_fix', popBackSlotProg, popBackSlotGenProg]
         simp only [p_bucketBits_mk, hb0, ↓reduceIte, removeLastTailItemGenProg_mk,
-          readGMGenProg_mk, demoteSlabGenProg_mk, hq_eq_fix, hr_eq_fix]
+          readGMGenProg_mk, demoteSlabGenProg_mk, hq_eq_fix, hr_eq]
         rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
           clientState_readGMProg, clientResult_readGMProg s_fix₁ hr_idx_lt,
           StateTransitionSpec.clientState_bind, clientState_readGMProg,
-          clientResult_readGMProg s_fix₁ hq_idx_lt, hrb1_f, hqb1_f]
-        split_ifs with hr0 hq_pos
-        · exact absurd ⟨hr0, hq_pos⟩ hdem
-        · exact StateTransitionSpec.clientState_pure _ _
-        · exact StateTransitionSpec.clientState_pure _ _
+          clientResult_readGMProg s_fix₁ hq_idx_lt, hrb1_f, hqb1_f, hite,
+          StateTransitionSpec.clientState_pure]
       have hcost_tot : memoryCost (compPopBackSlotGenProg d) s = 76 := by
         dsimp only [d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
         simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq,
@@ -335,11 +326,7 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
           memoryCost_readCompGMGenProg]
         rw [clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
           clientResult_readCompGMGenProg hq_idx_lt, clientState_readCompGMGenProg,
-          hrb1_s, hqb1_s]
-        split_ifs with hr0 hq_pos
-        · exact absurd ⟨hr0, hq_pos⟩ hdem
-        · rw [memoryCost_pure, Nat.add_zero]
-        · rw [memoryCost_pure, Nat.add_zero]
+          hrb1_s, hqb1_s, hite, memoryCost_pure, Nat.add_zero]
       have hupd : compGmAt metaBase U w N s'.mem (gmQIdx b) =
             (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
           compGmAt metaBase U w N s'.mem (gmRIdx b) =
@@ -445,7 +432,6 @@ private theorem realizesBounded_compPopBackMultiGen :
     rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
     dsimp only at *
     obtain ⟨U, V, N, m_cap, s_fix, rfl, henv, hb_pos, hcpl, hslot, hb, hr_pos, hm_cap⟩ := h
-    have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
     have hr_lt := gmRIdx_lt hb_pos hb
     have hq_lt := gmQIdx_lt hb_pos hb
     have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
@@ -508,10 +494,7 @@ theorem realizesBounded_compPopBackSlotGen :
     dsimp only at *
     obtain ⟨U, V, N, m_cap, s_fix, rfl, henv, hcpl, hslot, hb, hbc, hm_cap⟩ := h)
   · rw [cpBucketBits_mk] at hc
-    have hb_eq : b = 0 := by
-      have hnb : numBuckets N = 1 := by simp [numBuckets, hc]
-      omega
-    subst hb_eq
+    obtain rfl : b = 0 := Nat.lt_one_iff.mp (by simpa [numBuckets, hc] using hb)
     unfold bCount at hbc; simp only [hc, ↓reduceIte] at hbc
     exact ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
       rfl, henv.meta_le_frontier, hbc⟩
@@ -534,9 +517,8 @@ theorem validProg_compPopBackSlotGen {w : ℕ} {d : (CompParams × (ℕ × ℕ))
     rw [clientState_readCompGMGenProg]
     exact validProg_writeCompGMGen ⟨henv.compMetaEnv, h0_lt⟩
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
-    have hwg : 0 < ghostW w := by unfold ghostW; omega
     have hr_pos := pos_gmRIdx_of_pos_bCount hb_pos hslot hb hbc
-    obtain ⟨hfr1, hcpl1⟩ := compRemoveLastTailItem_effect henv hb_pos hcpl hslot hb hr_pos hm_cap
+    obtain ⟨hfr1, _⟩ := compRemoveLastTailItem_effect henv hb_pos hcpl hslot hb hr_pos hm_cap
     refine validProg_bind
       (validProg_compRemoveLastTailItemGen
         ⟨U, V, N, m_cap, s_fix, rfl, henv, hb_pos, hcpl, hslot, hb, hr_pos, hm_cap⟩)

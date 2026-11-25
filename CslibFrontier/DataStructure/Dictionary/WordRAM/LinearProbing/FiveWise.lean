@@ -290,13 +290,11 @@ theorem expect_indicator_mul_sum_pow_four_le {ι X Y : Type*} [Fintype ι] [Fint
       simp only [f, ↓reduceIte]
       exact congrArg _ (prod_congr rfl fun x hx => by simp only [hne x hx, ↓reduceIte])
     simp only [hprod_i]
-    rw [hh.expect_prod hcard_ins f, prod_insert huI]
-    have hfu : (𝔼 y : Y, f u y) = 𝔼 y : Y, if y = b then (1 : ℝ) else 0 := by
-      simp only [f, ↓reduceIte]
     have hfI : (∏ x ∈ I, 𝔼 y : Y, f x y) =
         ∏ x ∈ I, 𝔼 y : Y, (bucketCentered W y) ^ #{r : Fin 4 | t r = x} :=
       prod_congr rfl fun x hx => by simp only [f, hne x hx, ↓reduceIte]
-    rw [hfu, hfI]
+    rw [hh.expect_prod hcard_ins f, prod_insert huI, hfI]
+    simp only [f, ↓reduceIte]
     refine mul_le_mul_of_nonneg_left ?_ hb0
     by_cases hall2 : ∀ x ∈ I, 2 ≤ #{r : Fin 4 | t r = x}
     · have hI_le2 : #I ≤ 2 := by
@@ -425,14 +423,9 @@ theorem backSlot_backSlot {M : ℕ} (b : Fin (2 ^ M)) (a₁ a₂ : ℕ) :
   have ha₁₂ := le_two_pow_mul_succ M (a₁ + a₂)
   have hmul : 2 ^ M * (a₁ + 1) + 2 ^ M * (a₂ + 1) =
       2 ^ M * (a₁ + a₂ + 1) + 2 ^ M * 1 := by ring
-  have hsub_mod :
-      ((b.val + 2 ^ M * (a₁ + 1) - a₁) % 2 ^ M + 2 ^ M * (a₂ + 1) - a₂) % 2 ^ M =
-        ((b.val + 2 ^ M * (a₁ + 1) - a₁) % 2 ^ M + (2 ^ M * (a₂ + 1) - a₂)) % 2 ^ M := by
-    congr 1; omega
-  rw [hsub_mod, Nat.mod_add_mod,
-    show b.val + 2 ^ M * (a₁ + 1) - a₁ + (2 ^ M * (a₂ + 1) - a₂) =
-      (b.val + 2 ^ M * (a₁ + a₂ + 1) - (a₁ + a₂)) + 2 ^ M * 1 by omega,
-    Nat.add_mul_mod_self_left]
+  have hadd : b.val + 2 ^ M * (a₁ + 1) - a₁ + (2 ^ M * (a₂ + 1) - a₂) =
+      (b.val + 2 ^ M * (a₁ + a₂ + 1) - (a₁ + a₂)) + 2 ^ M * 1 := by omega
+  rw [Nat.add_sub_assoc ha₂, Nat.mod_add_mod, hadd, Nat.add_mul_mod_self_left]
 
 theorem probeSlot_injOn_range {M : ℕ} (b : Fin (2 ^ M)) {len : ℕ} (hlen : len ≤ 2 ^ M) :
     Set.InjOn (probeSlot M b) (Finset.range len) := by
@@ -522,9 +515,8 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
   set δ : ℝ := (2 ^ (j - 1) : ℝ) / 2
   have hδ_pos : 0 < δ := by positivity
   have hδ_ge_half : (1 / 2 : ℝ) ≤ δ := by
-    have h1 : (1 : ℝ) ≤ (2 ^ (j - 1) : ℝ) := by
-      exact_mod_cast (Nat.one_le_two_pow (n := j - 1))
-    dsimp only [δ]; linarith
+    dsimp only [δ]
+    linarith [show (1 : ℝ) ≤ 2 ^ (j - 1) from mod_cast Nat.one_le_two_pow]
   have h2j_eq : (2 ^ j : ℝ) = 4 * δ := by
     have hj_eq : j = (j - 1) + 1 := by omega
     conv_lhs => rw [hj_eq, pow_succ]
@@ -655,10 +647,9 @@ private theorem probe_le_sum_scaleOverload {ι X : Type*}
     exact le_sum_scaleOverload_of_cyclicInterval h S u i (x := ℓ) (a := a) (len := ℓ) (by omega)
       (by omega) (by omega) hℓ_lt.le ((Nat.pow_log_le_self 2 (by omega)).trans hℓ_card)
       (by omega)
-  · have ht0 : t = 0 := by omega
-    rw [ht0, Nat.cast_zero]
-    refine sum_nonneg fun k _ => ?_
-    split_ifs <;> positivity
+  · obtain rfl : t = 0 := by omega
+    rw [Nat.cast_zero]
+    exact sum_nonneg fun k _ => by split_ifs <;> positivity
 
 private theorem sum_Icc_two_pow_mul_div_sq_eq (M : ℕ) :
     (∑ j ∈ Finset.Icc 1 M, (2 ^ j : ℝ) * (288 / (2 ^ j : ℝ) ^ 2)) =
@@ -685,15 +676,10 @@ theorem expect_probe_le_of_cluster_witness {ι X : Type*} [Fintype ι]
     (probe : ι → ℕ)
     (hwit : ∀ i, HasClusterWitness h S u i (probe i)) :
     𝔼 i, (probe i : ℝ) ≤ 288 := by
-  have hpt (i : ι) :
-      (probe i : ℝ) ≤
-        ∑ j ∈ Finset.Icc 1 M,
-          (2 ^ j : ℝ) * (if scaleOverload M h S u j i then (1 : ℝ) else 0) :=
-    probe_le_sum_scaleOverload h S u hS hM i (probe i) (hwit i)
   calc 𝔼 i, (probe i : ℝ)
       ≤ 𝔼 i, ∑ j ∈ Finset.Icc 1 M,
           (2 ^ j : ℝ) * (if scaleOverload M h S u j i then (1 : ℝ) else 0) :=
-        expect_le_expect fun i _ => hpt i
+        expect_le_expect fun i _ => probe_le_sum_scaleOverload h S u hS hM i (probe i) (hwit i)
     _ = ∑ j ∈ Finset.Icc 1 M,
           𝔼 i, (2 ^ j : ℝ) * (if scaleOverload M h S u j i then (1 : ℝ) else 0) :=
         expect_sum_comm _ _ _

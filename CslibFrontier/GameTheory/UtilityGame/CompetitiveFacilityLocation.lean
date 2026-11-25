@@ -398,11 +398,10 @@ theorem profit_sub_profit_eq [Fintype ι] [DecidableEq ι] [Fintype J] (s : ∀ 
     (a : S i) :
     G.profit i (Function.update s i a) - G.profit i s =
       G.socialWelfare (profileSet (Function.update s i a)) - G.socialWelfare (profileSet s) := by
+  classical
   simpa only [toUtilityGame_utility, toUtilityGame_profileValue] using
-    IsBasic.utility_sub_utility_eq (G := G.toUtilityGame) (fun k s' => by
-      simp only [toUtilityGame_utility, profit_def, toUtilityGame_profileValue,
-        toUtilityGame_socialValue, socialWelfare, ← Finset.sum_sub_distrib]
-      exact Finset.sum_congr rfl fun j _ => G.clientProfit_eq_clientSurplus_sub j s' k) s i a
+    IsBasic.utility_sub_utility_eq (G := G.toUtilityGame)
+      G.isBasic_toUtilityGame.utility_eq_marginal s i a
 
 /-- **Theorem 19.16** ([TardosWexler2007], p. 503): the competitive facility location game is an
 exact potential game with social welfare `V(s)` as potential (`-V(s)` for `toCostGame`). -/
@@ -507,11 +506,8 @@ private theorem socialWelfare_twoByTwoTight (b₀ b₁ : Bool) :
   unfold socialWelfare clientSurplus
   rw [Fin.sum_univ_two, fold_profileSet, fold_profileSet]
   have huniv : (Finset.univ : Finset (Fin 2)) = {0, 1} := by decide
-  have h01 : (0 : Fin 2) ≠ 1 := by decide
-  rw [huniv, Finset.fold_insert (by simp only [mem_singleton, h01, not_false_eq_true]),
-    Finset.fold_singleton,
-    Finset.fold_insert (by simp only [mem_singleton, h01, not_false_eq_true]),
-    Finset.fold_singleton]
+  rw [huniv, Finset.fold_insert (by decide), Finset.fold_singleton,
+    Finset.fold_insert (by decide), Finset.fold_singleton]
   cases b₀ <;> cases b₁ <;> norm_num [twoByTwoTight]
 
 private theorem neg_le_neg_of_fin_two_bool_update (f : (Fin 2 → Bool) → ℝ)
@@ -640,13 +636,10 @@ private theorem openingCostTrap_profileValue {M : ℝ} (hM : 1 ≤ M) (b₀ b₁
   unfold socialWelfare clientSurplus
   rw [Fintype.sum_unique, fold_profileSet]
   have huniv : (Finset.univ : Finset (Fin 2)) = {0, 1} := by decide
-  have h01 : (0 : Fin 2) ≠ 1 := by decide
-  rw [huniv, Finset.fold_insert (by simp only [mem_singleton, h01, not_false_eq_true]),
-    Finset.fold_singleton]
+  rw [huniv, Finset.fold_insert (by decide), Finset.fold_singleton]
   cases b₀ <;> cases b₁ <;> norm_num [openingCostTrapGame, openingCostTrapFee]
-  · rw [max_eq_left (by linarith)]; ring
-  · rw [max_eq_left (by linarith)]; ring
-  · linarith
+  all_goals try rw [max_eq_left (by linarith)]
+  all_goals linarith
 
 /-- **Exercise 19.17(a)** ([TardosWexler2007], p. 515): when facilities have nonnegative opening
 costs, no constant price-of-anarchy bound holds — for every `C : ℝ`, there is a 2-provider,

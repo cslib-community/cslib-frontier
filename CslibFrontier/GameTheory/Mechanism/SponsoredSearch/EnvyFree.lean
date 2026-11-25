@@ -149,10 +149,7 @@ private theorem antitone_fin_of_succ {f : Fin k → ℝ}
     induction d with
     | zero => intro ha; exact le_of_eq (by congr 1)
     | succ n ih => intro ha; exact (h (a.val + n) ha).trans (ih (by omega))
-  have hb := hdiff (b.val - a.val) (by omega)
-  have heq : (⟨a.val + (b.val - a.val), by omega⟩ : Fin k) = b := by
-    apply Fin.ext; dsimp; omega
-  rwa [heq] at hb
+  simpa [Fin.ext_iff, Nat.add_sub_of_le hab] using hdiff (b.val - a.val) (by omega)
 
 private theorem exists_perm_comp_eq [Finite ι] (σ τ : Fin k ↪ ι) :
     ∃ π : Equiv.Perm ι, ∀ i : Fin k, π (σ i) = τ i := by
@@ -318,18 +315,14 @@ theorem IsLocallyEnvyFree.isAssortative {μ : Fin k → ℝ} {v : ι → ℝ} {�
     {p : Fin k → ℝ} (hlef : IsLocallyEnvyFree μ v σ p)
     (hμ : StrictAnti μ) (hμ_pos : ∀ i, 0 < μ i) : IsAssortative v σ := by
   have hanti : Antitone (v ∘ σ) := antitone_fin_of_succ fun i hi => by
-    have h1 := hlef.noEnvyAbove i hi
-    have h2 := hlef.noEnvyBelow i hi
     have hμlt : μ ⟨i + 1, hi⟩ < μ ⟨i, by omega⟩ := hμ (by simp [Fin.lt_def])
     change v (σ ⟨i + 1, hi⟩) ≤ v (σ ⟨i, by omega⟩)
-    nlinarith
+    nlinarith [hlef.noEnvyAbove i hi, hlef.noEnvyBelow i hi]
   refine ⟨hanti, fun i j hj => ?_⟩
   have hk : 0 < k := Fin.pos i
   have hlast : v j ≤ v (σ ⟨k - 1, by omega⟩) := by
-    have h1 := hlef.lastSlot_nonneg hk
-    have h2 := hlef.unassigned_noEnvy hk j hj
-    have hpos := hμ_pos ⟨k - 1, by omega⟩
-    nlinarith
+    nlinarith [hlef.lastSlot_nonneg hk, hlef.unassigned_noEnvy hk j hj,
+      hμ_pos ⟨k - 1, by omega⟩]
   exact hlast.trans (hanti (show i ≤ ⟨k - 1, by omega⟩ by change i.val ≤ k - 1; omega))
 
 /-- Under strictly decreasing positive CTRs, local envy-freeness implies **global envy-freeness**
@@ -404,9 +397,8 @@ private theorem fin_rev_induction {P : Fin k → Prop} (hk : 0 < k)
       have hfinEq : (⟨k - 1 - (n + 1) + 1, by omega⟩ : Fin k) = ⟨k - 1 - n, by omega⟩ := by
         apply Fin.ext; dsimp; omega
       exact hstep (k - 1 - (n + 1)) (by omega) (hfinEq.symm ▸ ih (by omega))
-  have heq : (⟨k - 1 - (k - 1 - r.val), by omega⟩ : Fin k) = r := by
-    apply Fin.ext; dsimp; omega
-  exact heq ▸ hdown (k - 1 - r.val) (by omega)
+  simpa [Fin.ext_iff, Nat.sub_sub_self (Nat.le_sub_one_of_lt r.isLt)] using
+    hdown (k - 1 - r.val) (by omega)
 
 /-- Under strictly decreasing positive CTRs, no unassigned bidder envies *any* slot under a locally
 envy-free price vector. -/
@@ -493,8 +485,7 @@ private theorem priceFromBase_sub_succ (μ : Fin k → ℝ) (v : ι → ℝ) (σ
     simp only [Finset.mem_Ici, Finset.mem_insert, Fin.le_def, Fin.ext_iff]
     omega
   have hnotmem : (⟨i, by omega⟩ : Fin k) ∉ Finset.Ici ⟨i + 1, hi⟩ := by
-    simp only [Finset.mem_Ici, Fin.le_def]
-    omega
+    simp [Fin.le_def]
   unfold priceFromBase
   rw [hIci, Finset.sum_insert hnotmem, add_sub_cancel_right]
   simp only [nextSlotValue, hi, ↓reduceDIte]
@@ -515,25 +506,17 @@ private theorem isLocallyEnvyFree_priceFromBase {μ : Fin k → ℝ} {v : ι →
     (hbase_lo : ∀ j : ι, j ∉ Set.range σ → v j ≤ base) :
     IsLocallyEnvyFree μ v σ (priceFromBase μ v σ base) where
   noEnvyAbove i hi := by
-    have hdiff := priceFromBase_sub_succ μ v σ base i hi
-    linarith
+    linarith [priceFromBase_sub_succ μ v σ base i hi]
   noEnvyBelow i hi := by
-    have hdiff := priceFromBase_sub_succ μ v σ base i hi
-    have hμle : μ ⟨i + 1, hi⟩ ≤ μ ⟨i, by omega⟩ :=
-      hμ (show (⟨i, by omega⟩ : Fin k) ≤ ⟨i + 1, hi⟩ by change i ≤ i + 1; omega)
-    have hv : v (σ ⟨i + 1, hi⟩) ≤ v (σ ⟨i, by omega⟩) :=
-      hσ.antitone (show (⟨i, by omega⟩ : Fin k) ≤ ⟨i + 1, hi⟩ by change i ≤ i + 1; omega)
-    nlinarith
+    have hle : (⟨i, by omega⟩ : Fin k) ≤ ⟨i + 1, hi⟩ := Fin.le_def.mpr (Nat.le_succ i)
+    have hv : v (σ ⟨i + 1, hi⟩) ≤ v (σ ⟨i, by omega⟩) := hσ.antitone hle
+    nlinarith [priceFromBase_sub_succ μ v σ base i hi, hμ hle]
   lastSlot_nonneg hk := by
     rw [priceFromBase_last μ v σ base hk]
-    have hmul : 0 ≤ μ ⟨k - 1, by omega⟩ * (v (σ ⟨k - 1, by omega⟩) - base) :=
-      mul_nonneg (hμ_nonneg ⟨k - 1, by omega⟩) (sub_nonneg.mpr (hbase_hi hk))
-    linarith
+    nlinarith [hμ_nonneg ⟨k - 1, by omega⟩, hbase_hi hk]
   unassigned_noEnvy hk j hj := by
     rw [priceFromBase_last μ v σ base hk]
-    have hmul : 0 ≤ μ ⟨k - 1, by omega⟩ * (base - v j) :=
-      mul_nonneg (hμ_nonneg ⟨k - 1, by omega⟩) (sub_nonneg.mpr (hbase_lo j hj))
-    linarith
+    nlinarith [hμ_nonneg ⟨k - 1, by omega⟩, hbase_lo j hj]
 
 /-- The minimal nonnegative locally envy-free total slot price vector for assignment `σ`:
 `minEnvyFreePrice μ v σ i = ∑ r ≥ i, (μ r - μ (r + 1)) * v (σ (r + 1))`

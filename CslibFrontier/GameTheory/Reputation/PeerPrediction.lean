@@ -221,13 +221,10 @@ def StochasticallyRelevant : Prop :=
 theorem stochasticallyRelevant_iff :
     M.StochasticallyRelevant ↔
       ∀ s₁ s₂ : S, s₁ ≠ s₂ → ∃ s' : S, M.peerPosterior s₁ s' ≠ M.peerPosterior s₂ s' := by
-  constructor
-  · intro hinj s₁ s₂ hne
-    exact Function.ne_iff.mp fun heq => hne (hinj heq)
-  · intro h s₁ s₂ heq
-    by_contra hne
-    obtain ⟨s', hs'⟩ := h s₁ s₂ hne
-    exact hs' (congrFun heq s')
+  refine ⟨fun hinj _ _ hne => Function.ne_iff.mp fun heq => hne (hinj heq), fun h s₁ s₂ heq => ?_⟩
+  by_contra hne
+  obtain ⟨s', hs'⟩ := h s₁ s₂ hne
+  exact hs' (congrFun heq s')
 
 /-! ### Simultaneous reporting game (Equation `(27.1)`) -/
 
@@ -417,7 +414,6 @@ theorem exists_scale_effort_incentive [Nontrivial S]
       (∀ s₀ : S, α * M.uninformedExpectedLogScore s₀ + β <
         α * M.informedExpectedLogScore + β - c) ∧
       ∀ {I : Type*} (r : I → I) (x : I → S) (i : I), 0 ≤ M.logPeerTransfer r α β x i := by
-  classical
   have hgap_pos (s₀ : S) : 0 < M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀ := by
     obtain ⟨s₁, hs₁⟩ := exists_ne s₀
     have hterm (s : S) (hne : s₀ ≠ s) :
@@ -433,25 +429,17 @@ theorem exists_scale_effort_incentive [Nontrivial S]
     rcases eq_or_ne s₀ s with rfl | hs
     · simp
     · exact (hterm s hs).le
-  obtain ⟨s_bar⟩ : Nonempty S := inferInstance
-  let gapSet : Finset ℝ := univ.image fun s₀ : S =>
+  let minGap : ℝ := univ.inf' univ_nonempty fun s₀ =>
     M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀
-  have hgap_ne : gapSet.Nonempty := ⟨_, mem_image_of_mem _ (mem_univ s_bar)⟩
-  let minGap : ℝ := gapSet.min' hgap_ne
-  have hminGap : 0 < minGap := by
-    obtain ⟨s₀, _, hmin_eq⟩ := mem_image.mp (min'_mem gapSet hgap_ne)
-    linarith [hgap_pos s₀, show minGap = gapSet.min' hgap_ne from rfl]
+  have hminGap : 0 < minGap := (lt_inf'_iff _).mpr fun s₀ _ => hgap_pos s₀
   let α : ℝ := (c + 1) / minGap
   have hα : 0 < α := div_pos (by linarith) hminGap
-  have hpair_mem : (s_bar, s_bar) ∈ (univ : Finset S) ×ˢ (univ : Finset S) :=
-    mem_product.mpr ⟨mem_univ s_bar, mem_univ s_bar⟩
-  let minLog : ℝ := ((univ ×ˢ univ).image fun p : S × S =>
-    Real.log (M.peerPosterior p.1 p.2)).min'
-      ⟨_, mem_image_of_mem _ hpair_mem⟩
+  let minLog : ℝ := (univ ×ˢ univ).inf' (univ_nonempty.product univ_nonempty) fun p : S × S =>
+    Real.log (M.peerPosterior p.1 p.2)
   let β : ℝ := -α * minLog
   refine ⟨α, β, hα, fun s₀ => ?_, fun {I} r x i => ?_⟩
   · have hle : minGap ≤ M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀ :=
-      min'_le _ _ (mem_image_of_mem _ (mem_univ s₀))
+      inf'_le _ (mem_univ s₀)
     have hmul : c + 1 ≤ α * (M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀) := by
       calc c + 1 = α * minGap := (div_mul_cancel₀ (c + 1) hminGap.ne').symm
         _ ≤ α * (M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀) :=
@@ -459,7 +447,7 @@ theorem exists_scale_effort_incentive [Nontrivial S]
     linarith
   · simp only [logPeerTransfer, β]
     have hle : minLog ≤ Real.log (M.peerPosterior (x i) (x (r i))) :=
-      min'_le _ _ (mem_image.mpr ⟨(x i, x (r i)), mem_product.mpr ⟨mem_univ _, mem_univ _⟩, rfl⟩)
+      inf'_le (b := (x i, x (r i))) _ (mem_product.mpr ⟨mem_univ _, mem_univ _⟩)
     linarith [mul_le_mul_of_nonneg_left hle hα.le]
 
 /-- **Budget-balanced peer-prediction transfer** (Equation `(4)` of

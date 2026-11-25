@@ -100,14 +100,11 @@ theorem denseOfCirc_mod_self {M base_tail d : ℕ} (hM : 0 < M)
   have hmod : x % M = d % M := denseOfCirc_mod hM (Nat.mod_lt d hM)
   have hx_div := Nat.div_add_mod x M
   have hd_div := Nat.div_add_mod d M
-  rcases lt_trichotomy (x / M) (d / M) with hlt | heq | hgt
-  · have : M * (x / M) + M ≤ M * (d / M) := by
-      simpa [Nat.mul_add] using Nat.mul_le_mul_left M (Nat.succ_le_of_lt hlt)
-    omega
-  · rw [← hx_div, ← hd_div, heq, hmod]
-  · have : M * (d / M) + M ≤ M * (x / M) := by
-      simpa [Nat.mul_add] using Nat.mul_le_mul_left M (Nat.succ_le_of_lt hgt)
-    omega
+  have h1 : x / M ≤ d / M := Nat.le_of_lt_succ <|
+    Nat.lt_of_mul_lt_mul_left (a := M) (by rw [Nat.mul_succ]; omega)
+  have h2 : d / M ≤ x / M := Nat.le_of_lt_succ <|
+    Nat.lt_of_mul_lt_mul_left (a := M) (by rw [Nat.mul_succ]; omega)
+  rw [← hx_div, ← hd_div, Nat.le_antisymm h1 h2, hmod]
 
 theorem denseOfCirc_eq_self_iff {M b c d : ℕ} (hM : 0 < M) (hc : c < M)
     (hlo : b ≤ d) (hhi : d < b + M) :
@@ -499,10 +496,8 @@ theorem denseOfPhys_tail {N : ℕ} (hb : 0 < bucketBits N) {gm : ℕ → ℕ}
     (hSN : gm 0 * slabSize N + gm 1 ≤ N) (td : ℕ → ℕ) {t : ℕ} (ht : t < gm 1) :
     denseOfPhys N gm td (N - 1 - t) =
       denseOfCirc (maxTailItems N) (gm 0 * slabSize N) (td t) := by
-  have hb0 : bucketBits N ≠ 0 := by omega
-  have hnotS : ¬(N - 1 - t < gm 0 * slabSize N) := by omega
-  have hsub : N - 1 - (N - 1 - t) = t := by omega
-  unfold denseOfPhys; rw [ite_eq_right hb0, ite_eq_right hnotS, hsub]
+  unfold denseOfPhys
+  rw [ite_eq_right hb.ne', ite_eq_right (by omega), show N - 1 - (N - 1 - t) = t by omega]
 
 theorem physOfDense_denseOfPhys_slab {N : ℕ} (gm td dt : ℕ → ℕ) {g : ℕ}
     (hg : g < gm 0 * slabSize N) :
