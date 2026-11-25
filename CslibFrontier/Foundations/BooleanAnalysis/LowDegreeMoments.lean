@@ -258,11 +258,9 @@ theorem exp_neg_two_mul_div_four_le_dens_lt {k : ℕ} {f : (ι → Bool) → ℝ
     simp only [hg, expect_sub_distrib, Fintype.expect_const, hμ, sub_self]
   have habs : 𝔼 x, |g x| = 2 * 𝔼 x, E x * g x := by
     have hpt (x : ι → Bool) : |g x| = 2 * (E x * g x) - g x := by
-      simp only [hE]
-      split_ifs with h
-      · rw [abs_of_pos h]; ring
-      · push Not at h
-        rw [abs_of_nonpos h]; ring
+      by_cases h : 0 < g x
+      · simp only [hE, h, ite_true, abs_of_pos h]; ring
+      · simp only [hE, h, ite_false, abs_of_nonpos (not_lt.1 h)]; ring
     rw [expect_congr rfl fun x _ => hpt x, expect_sub_distrib, ← mul_expect, hg0, sub_zero]
   have hcs := expect_mul_sq_le_sq_mul_sq univ E g
   have hE2 : 𝔼 x, E x ^ 2 = (dens {x | 0 < g x} : ℝ) := Fintype.expect_boole_sq _
