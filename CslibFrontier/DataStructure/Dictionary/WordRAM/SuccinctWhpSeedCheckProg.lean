@@ -685,9 +685,9 @@ theorem initFastGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
       rw [Function.update_of_ne (by omega), Function.update_self]
     have hhdr14 : s3.mem (base + hdrBuf1NodeAlloc) = 1 := by
       rw [hm3]; exact Function.update_self _ _ _
-    have hhdr_z : ∀ off < 32, off ≠ 0 → off ≠ 1 → off ≠ 4 → off ≠ 12 → off ≠ 14 →
+    have hhdr_z : ∀ off, off < 32 ∧ off ≠ 0 ∧ off ≠ 1 ∧ off ≠ 4 ∧ off ≠ 12 ∧ off ≠ 14 →
         s3.mem (base + off) = 0 := by
-      intro off hoff h0 h1 h4 h12 h14
+      intro off ⟨hoff, h0, h1, h4, h12, h14⟩
       rw [hm3]; dsimp only [hdrPoolFreeTop, hdrRebStage, hdrBuf0NodeAlloc, hdrBuf1NodeAlloc]
       repeat rw [Function.update_of_ne (by omega)]
       exact hs2_hdr off hoff
@@ -706,17 +706,9 @@ theorem initFastGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
         hps2 j hj, ite_eq_left hj]
     have hmt_pos : 1 ≤ maxTrieNodesWhp c n_max := by unfold maxTrieNodesWhp; omega
     dsimp only [FastMemRep, emptyFastState]
-    refine ⟨Nat.zero_le _, hhdr0, hhdr1,
-      hhdr_z 2 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhdr_z 3 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhdr4,
-      hhdr_z 5 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhdr_z 6 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhdr_z 7 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhdr_z 8 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhdr_z 9 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhdr_z 10 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
-      hhdr_z 11 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
+    refine ⟨Nat.zero_le _, hhdr0, hhdr1, hhdr_z 2 (by decide), hhdr_z 3 (by decide), hhdr4,
+      hhdr_z 5 (by decide), hhdr_z 6 (by decide), hhdr_z 7 (by decide), hhdr_z 8 (by decide),
+      hhdr_z 9 (by decide), hhdr_z 10 (by decide), hhdr_z 11 (by decide),
       ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun _ h => absurd h (Nat.not_lt_zero _)⟩
     · -- quotArr & valArr
       intro i hi
@@ -736,17 +728,8 @@ theorem initFastGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
         hz_seg a (by omega) (by omega) (Or.inl (by omega)) (Or.inl (by omega))
     · -- bktMeta fields 0..9
       intro b hb
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · rw [hbm_s3 (16 * b + 0) (by omega)]; split_ifs with hc <;> [omega; rfl]
-      · rw [hbm_s3 (16 * b + 1) (by omega)]; split_ifs with hc <;> [omega; rfl]
-      · rw [hbm_s3 (16 * b + 2) (by omega)]; split_ifs with hc <;> [omega; rfl]
-      · rw [hbm_s3 (16 * b + 3) (by omega)]; split_ifs with hc <;> [omega; rfl]
-      · rw [hbm_s3 (16 * b + 4) (by omega)]; exact ite_eq_left ⟨by omega, by omega⟩
-      · rw [hbm_s3 (16 * b + 5) (by omega)]; split_ifs with hc <;> [omega; rfl]
-      · rw [hbm_s3 (16 * b + 6) (by omega)]; split_ifs with hc <;> [omega; rfl]
-      · rw [hbm_s3 (16 * b + 7) (by omega)]; split_ifs with hc <;> [omega; rfl]
-      · rw [hbm_s3 (16 * b + 8) (by omega)]; split_ifs with hc <;> [omega; rfl]
-      · rw [hbm_s3 (16 * b + 9) (by omega)]; split_ifs with hc <;> [omega; rfl]
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+        simp (disch := omega) only [hbm_s3] <;> split_ifs <;> omega
     · -- backPtr
       intro b hb k hk
       have hidx : b * capBackWhp n_max + k < M * capBackWhp n_max := by
@@ -766,36 +749,14 @@ theorem initFastGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
     · -- slices (zeroBTreeSlice)
       intro sIdx hsIdx
       dsimp only [BTreeSliceMemRep, zeroBTreeSlice]
-      refine ⟨Nat.zero_le _, ?_, ?_, fun _ h => absurd h (Nat.not_lt_zero _)⟩
-      · rw [hbm_s3 (16 * (sIdx / 3) + 10 + 2 * (sIdx % 3)) (by omega)]
-        split_ifs with hc <;> [omega; rfl]
-      · rw [hbm_s3 (16 * (sIdx / 3) + 11 + 2 * (sIdx % 3)) (by omega)]
-        split_ifs with hc <;> [omega; rfl]
-    · -- BufTrieMemRep 0
-      dsimp only [BufTrieMemRep, emptyBufTrie]
-      simp only [↓reduceIte]
-      refine ⟨hmt_pos, Nat.zero_le _, hhdr12,
-        hhdr_z 13 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
-        fun u hu ch hch => ?_, fun u h1 hlt => by omega, fun u hu => ⟨?_, fun h => absurd rfl h⟩,
-        fun _ h => absurd h (Nat.not_lt_zero _)⟩
-      · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
-          unfold trieChildEntriesWhp
-          calc u * 2 ^ bCharWhp n_max + ch < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max :=
-                Nat.add_lt_add_left hch _
-            _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-            _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
-        exact readPacked_eq_zero_of_zero_range hw hidx fun a ha1 ha2 =>
-          hz_seg a (by omega) (by omega) (Or.inr (by omega)) (Or.inr (by omega))
-      · have hu0 : u = 0 := by omega
-        subst hu0
-        exact readPacked_eq_zero_of_zero_range hw
-          (show 2 < 6 * maxTrieNodesWhp c n_max by omega) fun a ha1 ha2 =>
-            hz_seg a (by omega) (by omega) (Or.inr (by omega)) (Or.inr (by omega))
-    · -- BufTrieMemRep 1
+      refine ⟨Nat.zero_le _, ?_, ?_, fun _ h => absurd h (Nat.not_lt_zero _)⟩ <;>
+        simp (disch := omega) only [hbm_s3] <;> split_ifs <;> omega
+    -- BufTrieMemRep 0 and 1
+    all_goals
       dsimp only [BufTrieMemRep, emptyBufTrie]
       simp only [Nat.one_ne_zero, ↓reduceIte]
-      refine ⟨hmt_pos, Nat.zero_le _, hhdr14,
-        hhdr_z 15 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
+      refine ⟨hmt_pos, Nat.zero_le _, by first | exact hhdr12 | exact hhdr14,
+        by first | exact hhdr_z 13 (by decide) | exact hhdr_z 15 (by decide),
         fun u hu ch hch => ?_, fun u h1 hlt => by omega, fun u hu => ⟨?_, fun h => absurd rfl h⟩,
         fun _ h => absurd h (Nat.not_lt_zero _)⟩
       · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
@@ -1051,6 +1012,35 @@ private theorem realizes_chkBalLoop :
     realizes_chkBalStep
     memoryCost_chkBalStep_pos
 
+/-- Shared induction for the read-only counting loops of Parts 3a–3c: a step that keeps the
+state, advances the counter `k < bound` and recomputes the flag `f` gives the loop's safety,
+frame, result and validity. -/
+private theorem readOnlyLoop_spec {δ : Type} {body : δ × (ℕ × ℕ) → Memory.Prog (ℕ × ℕ)}
+    {safe : ℕ → δ × (ℕ × ℕ) → Memory.State → Prop} {w F bound : ℕ} {d : δ} {s : Memory.State}
+    (f : ℕ → ℕ)
+    (hstep : ∀ k ok, k < bound → ok = f k →
+      safe w (d, (k, ok)) s ∧ (Memory.spec 0).clientState s (body (d, (k, ok))) = s ∧
+      (Memory.spec 0).clientResult s (body (d, (k, ok))) = (k + 1, f (k + 1)) ∧
+      ValidProg w F s (body (d, (k, ok)))) :
+    ∀ rem k ok, k + rem ≤ bound → ok = f k →
+      iterationSafe body safe w d rem (k, ok) s ∧
+      (Memory.spec 0).clientState s (iterate body d rem (k, ok)) = s ∧
+      (Memory.spec 0).clientResult s (iterate body d rem (k, ok)) = (k + rem, f (k + rem)) ∧
+      ValidProg w F s (iterate body d rem (k, ok)) := by
+  intro rem
+  induction rem with
+  | zero => intro k ok _ hok; subst hok; exact ⟨trivial, rfl, rfl, validProg_pure _⟩
+  | succ rem ih =>
+    intro k ok hle hok
+    obtain ⟨hpre, hs1, hr1, hvp1⟩ := hstep k ok (by omega) hok
+    obtain ⟨hsafe_r, hst_r, hres_r, hvp_r⟩ := ih (k + 1) (f (k + 1)) (by omega) rfl
+    have hit : iterate body d (rem + 1) (k, ok) = body (d, (k, ok)) >>= iterate body d rem := rfl
+    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_⟩
+    · rw [hs1, hr1]; exact hsafe_r
+    · rw [hit, clientState_bind, hs1, hr1]; exact hst_r
+    · rw [hit, clientResult_bind, hs1, hr1, hres_r, show k + 1 + rem = k + (rem + 1) by omega]
+    · rw [hit]; exact validProg_bind hvp1 (by rw [hs1, hr1]; exact hvp_r)
+
 private theorem chkBalLoop_spec {c U V w n_max base N : ℕ}
     (henv : WhpLargeEnv c U V w n_max w base) (hN_le : N ≤ n_max) (s : Memory.State) :
     let crt := mkChkRt c U V w n_max base
@@ -1066,69 +1056,53 @@ private theorem chkBalLoop_spec {c U V w n_max base N : ℕ}
       (Memory.spec 0).clientResult s prog =
         (b₀ + rem, if checkAllBalancedCsr M (deltaWhp n_max) N fbMem (b₀ + rem) then 1 else 0) ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro crt M fbMem rem
+  intro crt M fbMem rem b₀ ok₀ hle hok
   have hw := henv.2.1
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.1
   have hfb_b : base + offFbStart c U V w n_max +
       packedWords (M + 1) (globalPtrBits n_max) w ≤ base + largeSpaceWhp c U V w n_max := by
     rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg _
-  induction rem with
-  | zero =>
-    intro b₀ ok₀ _ hok
-    unfold chkBalLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨trivial, rfl, Prod.ext rfl hok, validProg_pure _⟩
-  | succ rem ih =>
-    intro b₀ ok₀ hle hok
-    have hb_lt : b₀ < M := by omega
-    have hpre : ChkBalStepPre w ((crt, N), (b₀, ok₀)) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hN_le, hb_lt⟩
-    set p1 := chkBalStepProg ((crt, N), (b₀, ok₀))
-    have hs1 : (Memory.spec 0).clientState s p1 = s := by
-      dsimp only [p1]; unfold chkBalStepProg
-      simp only [pure_bind]
-      rw [clientState_bind, clientState_readPackedGen, clientState_bind,
-        clientState_readPackedGen]
-      split_ifs <;> rfl
-    set ok1 := if checkAllBalancedCsr M (deltaWhp n_max) N fbMem (b₀ + 1) then 1 else 0
-    have hr1 : (Memory.spec 0).clientResult s p1 = (b₀ + 1, ok1) := by
-      dsimp only [p1]; unfold chkBalStepProg
-      dsimp only [crt, mkChkRt, ckBase, ckW, ckM, ckDelta, ckGBits, ckOffFb]
-      simp only [pure_bind]
-      rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
-        clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen]
-      dsimp only [ok1, checkAllBalancedCsr, checkBalancedBucketNat]
-      rw [hok]
-      by_cases hbal0 : checkAllBalancedCsr M (deltaWhp n_max) N fbMem b₀ = true
-      · simp only [hbal0, Bool.true_and, ↓reduceIte]
-        dsimp only [fbMem, M]
-        have hr_beq : (N % numBucketsWhp n_max == 0) = decide (N % numBucketsWhp n_max = 0) := rfl
-        rw [hr_beq]
-        split_ifs <;>
-          simp only [clientResult_pure_whp, Prod.mk.injEq, true_and,
-            Bool.and_eq_true, decide_eq_true_eq] at * <;>
-          omega
-      · have hbal_f : checkAllBalancedCsr M (deltaWhp n_max) N fbMem b₀ = false :=
-          Bool.eq_false_iff.mpr hbal0
-        simp only [hbal_f, Bool.false_and, Bool.false_eq_true, ↓reduceIte, zero_ne_one,
-          clientResult_pure_whp]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold chkBalStepProg
-      simp only [pure_bind]
-      refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
-      rw [clientState_readPackedGen]
-      refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
-      rw [clientState_readPackedGen]
-      split_ifs <;> exact validProg_pure _
-    obtain ⟨hsafe_r, hst_r, hres_r, hvp_r⟩ := ih (b₀ + 1) ok1 (by omega) rfl
-    have hadd : b₀ + 1 + rem = b₀ + (rem + 1) := by omega
-    unfold chkBalLoopProg at hst_r hres_r hvp_r ⊢
-    dsimp only [iterate]
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width, hs1, hr1]; exact hsafe_r
-    · rw [clientState_bind, hs1, hr1]; exact hst_r
-    · rw [clientResult_bind, hs1, hr1, hres_r, hadd]
-    · refine validProg_bind hvp1 ?_; rw [hs1, hr1]; exact hvp_r
+  unfold chkBalLoopProg
+  refine readOnlyLoop_spec
+    (fun b => if checkAllBalancedCsr M (deltaWhp n_max) N fbMem b then 1 else 0)
+    (fun b₀ ok₀ hb_lt hok => ?_) rem b₀ ok₀ hle hok
+  have hpre : ChkBalStepPre w ((crt, N), (b₀, ok₀)) s :=
+    ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hN_le, hb_lt⟩
+  set p1 := chkBalStepProg ((crt, N), (b₀, ok₀))
+  have hs1 : (Memory.spec 0).clientState s p1 = s := by
+    dsimp only [p1]; unfold chkBalStepProg
+    simp only [pure_bind]
+    rw [clientState_bind, clientState_readPackedGen, clientState_bind,
+      clientState_readPackedGen]
+    split_ifs <;> rfl
+  set ok1 := if checkAllBalancedCsr M (deltaWhp n_max) N fbMem (b₀ + 1) then 1 else 0
+  have hr1 : (Memory.spec 0).clientResult s p1 = (b₀ + 1, ok1) := by
+    dsimp only [p1]; unfold chkBalStepProg
+    dsimp only [crt, mkChkRt, ckBase, ckW, ckM, ckDelta, ckGBits, ckOffFb]
+    simp only [pure_bind]
+    rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
+      clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen]
+    dsimp only [ok1, checkAllBalancedCsr, checkBalancedBucketNat]
+    rw [hok]
+    by_cases hbal0 : checkAllBalancedCsr M (deltaWhp n_max) N fbMem b₀ = true
+    · simp only [hbal0, Bool.true_and, ↓reduceIte]
+      dsimp only [fbMem, M]
+      have hr_beq : (N % numBucketsWhp n_max == 0) = decide (N % numBucketsWhp n_max = 0) := rfl
+      rw [hr_beq]
+      split_ifs <;>
+        simp only [clientResult_pure_whp, Prod.mk.injEq, true_and,
+          Bool.and_eq_true, decide_eq_true_eq] at * <;>
+        omega
+    · simp only [Bool.eq_false_iff.mpr hbal0, Bool.false_and, Bool.false_eq_true, ↓reduceIte,
+        zero_ne_one, clientResult_pure_whp]
+  refine ⟨hpre, hs1, hr1, ?_⟩
+  dsimp only [p1]; unfold chkBalStepProg
+  simp only [pure_bind]
+  refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
+  rw [clientState_readPackedGen]
+  refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
+  rw [clientState_readPackedGen]
+  split_ifs <;> exact validProg_pure _
 
 /-! ### Part 3b: Pairwise-distinct `rKeyAt` check (`checkPairwiseDistinctOn rKeyAt N`) -/
 
@@ -1320,54 +1294,27 @@ private theorem chkRKeyInnerLoop_spec {c U V w n_max base target : ℕ} {θ : Se
       (Memory.spec 0).clientResult s prog =
         (j₀ + rem, if checkNoEqBefore rKeyMem target (j₀ + rem) then 1 else 0) ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro crt hrt fbMem qMem rKeyMem rem
-  induction rem with
-  | zero =>
-    intro j₀ ok₀ _ hok
-    unfold chkRKeyInnerLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨trivial, rfl, Prod.ext rfl hok, validProg_pure _⟩
-  | succ rem ih =>
-    intro j₀ ok₀ hle hok
-    have hj_lt : j₀ < n_max := by omega
-    have hpre : ChkRKeyInnerStepPre w (((crt, hrt), target), (j₀, ok₀)) s :=
-      ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hj_lt⟩
-    obtain ⟨hrk_st, hrk_res, hrk_vp⟩ := csrRKeyAtProg_spec henv hseed hj_lt (s := s)
-    set p1 := chkRKeyInnerStepProg (((crt, hrt), target), (j₀, ok₀))
-    have hs1 : (Memory.spec 0).clientState s p1 = s := by
-      dsimp only [p1]; unfold chkRKeyInnerStepProg
-      simp only [pure_bind]
-      rw [clientState_bind]; dsimp only [crt, hrt]; rw [hrk_st]
-      split_ifs <;> rfl
-    set ok1 := if checkNoEqBefore rKeyMem target (j₀ + 1) then 1 else 0
-    have hr1 : (Memory.spec 0).clientResult s p1 = (j₀ + 1, ok1) := by
-      dsimp only [p1]; unfold chkRKeyInnerStepProg
-      simp only [pure_bind]
-      rw [clientResult_bind]; dsimp only [crt, hrt]
-      have hrk_res' : (Memory.spec 0).clientResult s
-          (csrRKeyAtProg ((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), j₀)) =
-          rKeyMem j₀ := hrk_res
-      rw [hrk_st, hrk_res']
-      dsimp only [ok1, checkNoEqBefore]
-      rw [hok]
-      by_cases hc0 : checkNoEqBefore rKeyMem target j₀ = true
-      · by_cases heq : rKeyMem j₀ = target <;> simp [hc0, heq]
-      · have hcf : checkNoEqBefore rKeyMem target j₀ = false := Bool.eq_false_iff.mpr hc0
-        simp [hcf]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold chkRKeyInnerStepProg; simp only [pure_bind]
-      dsimp only [crt, hrt]
-      refine validProg_bind hrk_vp ?_; rw [hrk_st]
-      split_ifs <;> exact validProg_pure _
-    obtain ⟨hsafe_r, hst_r, hres_r, hvp_r⟩ := ih (j₀ + 1) ok1 (by omega) rfl
-    have hadd : j₀ + 1 + rem = j₀ + (rem + 1) := by omega
-    unfold chkRKeyInnerLoopProg at hst_r hres_r hvp_r ⊢
-    dsimp only [iterate]
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width, hs1, hr1]; exact hsafe_r
-    · rw [clientState_bind, hs1, hr1]; exact hst_r
-    · rw [clientResult_bind, hs1, hr1, hres_r, hadd]
-    · refine validProg_bind hvp1 ?_; rw [hs1, hr1]; exact hvp_r
+  intro crt hrt fbMem qMem rKeyMem rem j₀ ok₀ hle hok
+  unfold chkRKeyInnerLoopProg
+  refine readOnlyLoop_spec (fun j => if checkNoEqBefore rKeyMem target j then 1 else 0)
+    (fun j₀ ok₀ hj_lt hok => ?_) rem j₀ ok₀ hle hok
+  obtain ⟨hrk_st, hrk_res, hrk_vp⟩ := csrRKeyAtProg_spec henv hseed hj_lt (s := s)
+  have hrk_res' : (Memory.spec 0).clientResult s
+      (csrRKeyAtProg ((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), j₀)) =
+      rKeyMem j₀ := hrk_res
+  unfold chkRKeyInnerStepProg
+  simp only [pure_bind]
+  dsimp only [crt, hrt]
+  refine ⟨⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hj_lt⟩, ?_, ?_, ?_⟩
+  · rw [clientState_bind, hrk_st]; split_ifs <;> rfl
+  · rw [clientResult_bind, hrk_st, hrk_res']
+    dsimp only [checkNoEqBefore]
+    rw [hok]
+    by_cases hc0 : checkNoEqBefore rKeyMem target j₀ = true
+    · by_cases heq : rKeyMem j₀ = target <;> simp [hc0, heq]
+    · simp [Bool.eq_false_iff.mpr hc0]
+  · refine validProg_bind hrk_vp ?_; rw [hrk_st]
+    split_ifs <;> exact validProg_pure _
 
 /-- Outer step of `checkPairwiseDistinctOn rKeyAt N` (`d = ((crt, hrt), (i, ok))`). -/
 @[irreducible] private def chkRKeyOuterStepProg :
@@ -1472,65 +1419,35 @@ private theorem chkRKeyOuterLoop_spec {c U V w n_max base : ℕ} {θ : SeedWhp c
       (Memory.spec 0).clientResult s prog =
         (i₀ + rem, if checkPairwiseDistinctOn rKeyMem (i₀ + rem) then 1 else 0) ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro crt hrt fbMem qMem rKeyMem rem
-  induction rem with
-  | zero =>
-    intro i₀ ok₀ _ hok
-    unfold chkRKeyOuterLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨trivial, rfl, Prod.ext rfl hok, validProg_pure _⟩
-  | succ rem ih =>
-    intro i₀ ok₀ hle hok
-    have hi_lt : i₀ < n_max := by omega
-    have hpre : ChkRKeyOuterStepPre w ((crt, hrt), (i₀, ok₀)) s :=
-      ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hi_lt⟩
-    obtain ⟨hrk_st, hrk_res, hrk_vp⟩ := csrRKeyAtProg_spec henv hseed hi_lt (s := s)
-    obtain ⟨_, hin_st, hin_res, hin_vp⟩ :=
-      chkRKeyInnerLoop_spec (target := rKeyMem i₀) henv hseed i₀ 0 1 (by omega) rfl (s := s)
-    rw [Nat.zero_add] at hin_res
-    set p1 := chkRKeyOuterStepProg ((crt, hrt), (i₀, ok₀))
-    have hrk_res' : (Memory.spec 0).clientResult s
-        (csrRKeyAtProg ((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), i₀)) =
-        rKeyMem i₀ := hrk_res
-    have hin_res' : (Memory.spec 0).clientResult s
-        (chkRKeyInnerLoopProg
-          ((((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), rKeyMem i₀), (0, 1)), i₀)) =
-        (i₀, if checkNoEqBefore rKeyMem (rKeyMem i₀) i₀ then 1 else 0) := hin_res
-    have hs1 : (Memory.spec 0).clientState s p1 = s := by
-      dsimp only [p1]; unfold chkRKeyOuterStepProg
-      simp only [pure_bind]
-      rw [clientState_bind]; dsimp only [crt, hrt]; rw [hrk_st, hrk_res', clientState_bind,
-        hin_st]
-      split_ifs <;> rfl
-    set ok1 := if checkPairwiseDistinctOn rKeyMem (i₀ + 1) then 1 else 0
-    have hr1 : (Memory.spec 0).clientResult s p1 = (i₀ + 1, ok1) := by
-      dsimp only [p1]; unfold chkRKeyOuterStepProg
-      simp only [pure_bind]
-      rw [clientResult_bind]; dsimp only [crt, hrt]
-      rw [hrk_st, hrk_res', clientResult_bind, hin_st, hin_res']
-      dsimp only [ok1, checkPairwiseDistinctOn]
-      rw [hok]
-      by_cases hc1 : checkPairwiseDistinctOn rKeyMem i₀ = true <;>
-        by_cases hc2 : checkNoEqBefore rKeyMem (rKeyMem i₀) i₀ = true
-      · simp [hc1, hc2]
-      · simp [hc1, Bool.eq_false_iff.mpr hc2]
-      · simp [Bool.eq_false_iff.mpr hc1]
-      · simp [Bool.eq_false_iff.mpr hc1]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold chkRKeyOuterStepProg; simp only [pure_bind]
-      dsimp only [crt, hrt]
-      refine validProg_bind hrk_vp ?_; rw [hrk_st, hrk_res']
-      refine validProg_bind hin_vp ?_; rw [hin_st]
-      split_ifs <;> exact validProg_pure _
-    obtain ⟨hsafe_r, hst_r, hres_r, hvp_r⟩ := ih (i₀ + 1) ok1 (by omega) rfl
-    have hadd : i₀ + 1 + rem = i₀ + (rem + 1) := by omega
-    unfold chkRKeyOuterLoopProg at hst_r hres_r hvp_r ⊢
-    dsimp only [iterate]
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width, hs1, hr1]; exact hsafe_r
-    · rw [clientState_bind, hs1, hr1]; exact hst_r
-    · rw [clientResult_bind, hs1, hr1, hres_r, hadd]
-    · refine validProg_bind hvp1 ?_; rw [hs1, hr1]; exact hvp_r
+  intro crt hrt fbMem qMem rKeyMem rem i₀ ok₀ hle hok
+  unfold chkRKeyOuterLoopProg
+  refine readOnlyLoop_spec (fun i => if checkPairwiseDistinctOn rKeyMem i then 1 else 0)
+    (fun i₀ ok₀ hi_lt hok => ?_) rem i₀ ok₀ hle hok
+  obtain ⟨hrk_st, hrk_res, hrk_vp⟩ := csrRKeyAtProg_spec henv hseed hi_lt (s := s)
+  obtain ⟨_, hin_st, hin_res, hin_vp⟩ :=
+    chkRKeyInnerLoop_spec (target := rKeyMem i₀) henv hseed i₀ 0 1 (by omega) rfl (s := s)
+  rw [Nat.zero_add] at hin_res
+  have hrk_res' : (Memory.spec 0).clientResult s
+      (csrRKeyAtProg ((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), i₀)) =
+      rKeyMem i₀ := hrk_res
+  have hin_res' : (Memory.spec 0).clientResult s
+      (chkRKeyInnerLoopProg
+        ((((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), rKeyMem i₀), (0, 1)), i₀)) =
+      (i₀, if checkNoEqBefore rKeyMem (rKeyMem i₀) i₀ then 1 else 0) := hin_res
+  unfold chkRKeyOuterStepProg
+  simp only [pure_bind]
+  dsimp only [crt, hrt]
+  refine ⟨⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hi_lt⟩, ?_, ?_, ?_⟩
+  · rw [clientState_bind, hrk_st, hrk_res', clientState_bind, hin_st]
+    split_ifs <;> rfl
+  · rw [clientResult_bind, hrk_st, hrk_res', clientResult_bind, hin_st, hin_res']
+    dsimp only [checkPairwiseDistinctOn]
+    rw [hok]
+    by_cases hc1 : checkPairwiseDistinctOn rKeyMem i₀ = true <;>
+      by_cases hc2 : checkNoEqBefore rKeyMem (rKeyMem i₀) i₀ = true <;> simp [hc1, hc2]
+  · refine validProg_bind hrk_vp ?_; rw [hrk_st, hrk_res']
+    refine validProg_bind hin_vp ?_; rw [hin_st]
+    split_ifs <;> exact validProg_pure _
 
 /-! ### Part 3c: Per-bucket collision-free salt discovery (`findSaltInRange` into `offBktMeta`) -/
 
@@ -1728,52 +1645,29 @@ private theorem chkFpInnerLoop_spec {c U V w n_max base salt lo target : ℕ}
       (Memory.spec 0).clientResult s prog =
         (j₀ + rem, if checkNoEqBefore fpSub target (j₀ + rem) then 1 else 0) ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro crt hrt fbMem qMem fpSub rem
-  induction rem with
-  | zero =>
-    intro j₀ ok₀ _ hok
-    unfold chkFpInnerLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨trivial, rfl, Prod.ext rfl hok, validProg_pure _⟩
-  | succ rem ih =>
-    intro j₀ ok₀ hle hok
-    have hidx_lt : lo + j₀ < n_max := by omega
-    have hpre : ChkFpInnerStepPre w ((((((crt, hrt), salt), lo), target), (j₀, ok₀))) s :=
-      ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hidx_lt⟩
-    obtain ⟨hfp_st, hfp_res, hfp_vp⟩ := csrFpAtProg_spec (salt := salt) henv hseed hidx_lt (s := s)
-    set p1 := chkFpInnerStepProg ((((((crt, hrt), salt), lo), target), (j₀, ok₀)))
-    have hfp_res' : (Memory.spec 0).clientResult s
-        (csrFpAtProg (((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), salt), lo + j₀)) =
-        fpSub j₀ := hfp_res
-    have hs1 : (Memory.spec 0).clientState s p1 = s := by
-      dsimp only [p1]; unfold chkFpInnerStepProg
-      simp only [pure_bind]
-      rw [clientState_bind]; dsimp only [crt, hrt]; rw [hfp_st]
-      split_ifs <;> rfl
-    set ok1 := if checkNoEqBefore fpSub target (j₀ + 1) then 1 else 0
-    have hr1 : (Memory.spec 0).clientResult s p1 = (j₀ + 1, ok1) := by
-      dsimp only [p1]; unfold chkFpInnerStepProg
-      simp only [pure_bind]
-      rw [clientResult_bind]; dsimp only [crt, hrt]; rw [hfp_st, hfp_res']
-      dsimp only [ok1, checkNoEqBefore]
-      rw [hok]
-      by_cases hc0 : checkNoEqBefore fpSub target j₀ = true
-      · by_cases heq : fpSub j₀ = target <;> simp [hc0, heq]
-      · simp [Bool.eq_false_iff.mpr hc0]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold chkFpInnerStepProg; simp only [pure_bind]
-      dsimp only [crt, hrt]
-      refine validProg_bind hfp_vp ?_; rw [hfp_st]
-      split_ifs <;> exact validProg_pure _
-    obtain ⟨hsafe_r, hst_r, hres_r, hvp_r⟩ := ih (j₀ + 1) ok1 (by omega) rfl
-    have hadd : j₀ + 1 + rem = j₀ + (rem + 1) := by omega
-    unfold chkFpInnerLoopProg at hst_r hres_r hvp_r ⊢
-    dsimp only [iterate]
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width, hs1, hr1]; exact hsafe_r
-    · rw [clientState_bind, hs1, hr1]; exact hst_r
-    · rw [clientResult_bind, hs1, hr1, hres_r, hadd]
-    · refine validProg_bind hvp1 ?_; rw [hs1, hr1]; exact hvp_r
+  intro crt hrt fbMem qMem fpSub rem j₀ ok₀ hle hok
+  unfold chkFpInnerLoopProg
+  refine readOnlyLoop_spec (bound := n_max - lo)
+    (fun j => if checkNoEqBefore fpSub target j then 1 else 0)
+    (fun j₀ ok₀ hj_lt hok => ?_) rem j₀ ok₀ (by omega) hok
+  have hidx_lt : lo + j₀ < n_max := by omega
+  obtain ⟨hfp_st, hfp_res, hfp_vp⟩ := csrFpAtProg_spec (salt := salt) henv hseed hidx_lt (s := s)
+  have hfp_res' : (Memory.spec 0).clientResult s
+      (csrFpAtProg (((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), salt), lo + j₀)) =
+      fpSub j₀ := hfp_res
+  unfold chkFpInnerStepProg
+  simp only [pure_bind]
+  dsimp only [crt, hrt]
+  refine ⟨⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hidx_lt⟩, ?_, ?_, ?_⟩
+  · rw [clientState_bind, hfp_st]; split_ifs <;> rfl
+  · rw [clientResult_bind, hfp_st, hfp_res']
+    dsimp only [checkNoEqBefore]
+    rw [hok]
+    by_cases hc0 : checkNoEqBefore fpSub target j₀ = true
+    · by_cases heq : fpSub j₀ = target <;> simp [hc0, heq]
+    · simp [Bool.eq_false_iff.mpr hc0]
+  · refine validProg_bind hfp_vp ?_; rw [hfp_st]
+    split_ifs <;> exact validProg_pure _
 
 /-- Outer step of `checkPairwiseDistinctOn (fun t => fpAt salt (lo + t)) len`
 (`d = ((((crt, hrt), salt), lo), (t, ok))`). -/
@@ -1883,66 +1777,38 @@ private theorem chkFpOuterLoop_spec {c U V w n_max base salt lo : ℕ}
       (Memory.spec 0).clientResult s prog =
         (t₀ + rem, if checkPairwiseDistinctOn fpSub (t₀ + rem) then 1 else 0) ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro crt hrt fbMem qMem fpSub rem
-  induction rem with
-  | zero =>
-    intro t₀ ok₀ _ hok
-    unfold chkFpOuterLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨trivial, rfl, Prod.ext rfl hok, validProg_pure _⟩
-  | succ rem ih =>
-    intro t₀ ok₀ hle hok
-    have hidx_lt : lo + t₀ < n_max := by omega
-    have hpre : ChkFpOuterStepPre w ((((crt, hrt), salt), lo), (t₀, ok₀)) s :=
-      ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hidx_lt⟩
-    obtain ⟨hfp_st, hfp_res, hfp_vp⟩ := csrFpAtProg_spec (salt := salt) henv hseed hidx_lt (s := s)
-    obtain ⟨_, hin_st, hin_res, hin_vp⟩ := chkFpInnerLoop_spec (salt := salt) (lo := lo)
-      (target := fpSub t₀) henv hseed t₀ 0 1 (by omega) rfl (s := s)
-    rw [Nat.zero_add] at hin_res
-    set p1 := chkFpOuterStepProg ((((crt, hrt), salt), lo), (t₀, ok₀))
-    have hfp_res' : (Memory.spec 0).clientResult s
-        (csrFpAtProg (((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), salt), lo + t₀)) =
-        fpSub t₀ := hfp_res
-    have hin_res' : (Memory.spec 0).clientResult s
-        (chkFpInnerLoopProg
-          ((((((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), salt), lo), fpSub t₀),
-            (0, 1)), t₀)) =
-        (t₀, if checkNoEqBefore fpSub (fpSub t₀) t₀ then 1 else 0) := hin_res
-    have hs1 : (Memory.spec 0).clientState s p1 = s := by
-      dsimp only [p1]; unfold chkFpOuterStepProg
-      simp only [pure_bind]
-      rw [clientState_bind]; dsimp only [crt, hrt]; rw [hfp_st, hfp_res', clientState_bind,
-        hin_st]
-      split_ifs <;> rfl
-    set ok1 := if checkPairwiseDistinctOn fpSub (t₀ + 1) then 1 else 0
-    have hr1 : (Memory.spec 0).clientResult s p1 = (t₀ + 1, ok1) := by
-      dsimp only [p1]; unfold chkFpOuterStepProg
-      simp only [pure_bind]
-      rw [clientResult_bind]; dsimp only [crt, hrt]
-      rw [hfp_st, hfp_res', clientResult_bind, hin_st, hin_res']
-      dsimp only [ok1, checkPairwiseDistinctOn]
-      rw [hok]
-      by_cases hc1 : checkPairwiseDistinctOn fpSub t₀ = true <;>
-        by_cases hc2 : checkNoEqBefore fpSub (fpSub t₀) t₀ = true
-      · simp [hc1, hc2]
-      · simp [hc1, Bool.eq_false_iff.mpr hc2]
-      · simp [Bool.eq_false_iff.mpr hc1]
-      · simp [Bool.eq_false_iff.mpr hc1]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold chkFpOuterStepProg; simp only [pure_bind]
-      dsimp only [crt, hrt]
-      refine validProg_bind hfp_vp ?_; rw [hfp_st, hfp_res']
-      refine validProg_bind hin_vp ?_; rw [hin_st]
-      split_ifs <;> exact validProg_pure _
-    obtain ⟨hsafe_r, hst_r, hres_r, hvp_r⟩ := ih (t₀ + 1) ok1 (by omega) rfl
-    have hadd : t₀ + 1 + rem = t₀ + (rem + 1) := by omega
-    unfold chkFpOuterLoopProg at hst_r hres_r hvp_r ⊢
-    dsimp only [iterate]
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width, hs1, hr1]; exact hsafe_r
-    · rw [clientState_bind, hs1, hr1]; exact hst_r
-    · rw [clientResult_bind, hs1, hr1, hres_r, hadd]
-    · refine validProg_bind hvp1 ?_; rw [hs1, hr1]; exact hvp_r
+  intro crt hrt fbMem qMem fpSub rem t₀ ok₀ hle hok
+  unfold chkFpOuterLoopProg
+  refine readOnlyLoop_spec (bound := n_max - lo)
+    (fun t => if checkPairwiseDistinctOn fpSub t then 1 else 0)
+    (fun t₀ ok₀ ht_lt hok => ?_) rem t₀ ok₀ (by omega) hok
+  have hidx_lt : lo + t₀ < n_max := by omega
+  obtain ⟨hfp_st, hfp_res, hfp_vp⟩ := csrFpAtProg_spec (salt := salt) henv hseed hidx_lt (s := s)
+  obtain ⟨_, hin_st, hin_res, hin_vp⟩ := chkFpInnerLoop_spec (salt := salt) (lo := lo)
+    (target := fpSub t₀) henv hseed t₀ 0 1 (by omega) rfl (s := s)
+  rw [Nat.zero_add] at hin_res
+  have hfp_res' : (Memory.spec 0).clientResult s
+      (csrFpAtProg (((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), salt), lo + t₀)) =
+      fpSub t₀ := hfp_res
+  have hin_res' : (Memory.spec 0).clientResult s
+      (chkFpInnerLoopProg
+        ((((((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), salt), lo), fpSub t₀),
+          (0, 1)), t₀)) =
+      (t₀, if checkNoEqBefore fpSub (fpSub t₀) t₀ then 1 else 0) := hin_res
+  unfold chkFpOuterStepProg
+  simp only [pure_bind]
+  dsimp only [crt, hrt]
+  refine ⟨⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hidx_lt⟩, ?_, ?_, ?_⟩
+  · rw [clientState_bind, hfp_st, hfp_res', clientState_bind, hin_st]
+    split_ifs <;> rfl
+  · rw [clientResult_bind, hfp_st, hfp_res', clientResult_bind, hin_st, hin_res']
+    dsimp only [checkPairwiseDistinctOn]
+    rw [hok]
+    by_cases hc1 : checkPairwiseDistinctOn fpSub t₀ = true <;>
+      by_cases hc2 : checkNoEqBefore fpSub (fpSub t₀) t₀ = true <;> simp [hc1, hc2]
+  · refine validProg_bind hfp_vp ?_; rw [hfp_st, hfp_res']
+    refine validProg_bind hin_vp ?_; rw [hin_st]
+    split_ifs <;> exact validProg_pure _
 
 /-- Step searching candidate salt `salt = 0 .. sMax - 1` (`d = ((ch, (lo, len)), (salt, prev))`). -/
 @[irreducible] private def findSaltStepProg :
@@ -2047,72 +1913,46 @@ private theorem findSaltLoop_spec {c U V w n_max base lo len : ℕ}
       (Memory.spec 0).clientResult s prog =
         (s₀ + rem, findSaltInRange fpMem lo len (s₀ + rem)) ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro crt hrt fbMem qMem fpMem rem
+  intro crt hrt fbMem qMem fpMem rem s₀ prev₀ hle hprev
   have hbase_lt : base < base + largeSpaceWhp c U V w n_max := by
     have : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
     omega
-  induction rem with
-  | zero =>
-    intro s₀ prev₀ _ hprev
-    unfold findSaltLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨trivial, rfl, Prod.ext rfl hprev, validProg_pure _⟩
-  | succ rem ih =>
-    intro s₀ prev₀ hle hprev
-    have hs_lt : s₀ < sMaxWhp c n_max := by omega
-    have hpre : FindSaltStepPre w (((crt, hrt), (lo, len)), (s₀, prev₀)) s :=
-      ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hlen_le, hs_lt⟩
-    obtain ⟨_, hfo_st, hfo_res, hfo_vp⟩ := chkFpOuterLoop_spec (salt := s₀) (lo := lo)
-      henv hseed len 0 1 (by omega) rfl (s := s)
-    rw [Nat.zero_add] at hfo_res
-    set p1 := findSaltStepProg (((crt, hrt), (lo, len)), (s₀, prev₀))
-    have hs1 : (Memory.spec 0).clientState s p1 = s := by
-      dsimp only [p1]; unfold findSaltStepProg
-      simp only [pure_bind]
-      rw [clientState_bind]
-      change (Memory.spec 0).clientState s (if prev₀ = 0 then _ else _) = s
-      split_ifs
-      · rw [clientState_bind]; dsimp only [crt, hrt]; rw [hfo_st]; split_ifs <;> rfl
-      · rfl
-    set prev1 := findSaltInRange fpMem lo len (s₀ + 1)
-    have hr1 : (Memory.spec 0).clientResult s p1 = (s₀ + 1, prev1) := by
-      dsimp only [p1]; unfold findSaltStepProg
-      simp only [pure_bind]
-      rw [clientResult_bind]
-      change (Memory.spec 0).clientResult s (if prev₀ = 0 then _ else _) = _
-      dsimp only [prev1, findSaltInRange]
-      rw [← hprev]
-      by_cases hp0 : prev₀ = 0
-      · simp only [hp0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
-        rw [clientResult_bind]; dsimp only [crt, hrt]
-        have hfo_res' : (Memory.spec 0).clientResult s
-            (chkFpOuterLoopProg (((((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), s₀),
-              lo), (0, 1)), len)) =
-            (len, if checkPairwiseDistinctOn (fun t => fpMem s₀ (lo + t)) len then 1 else 0) :=
-          hfo_res
-        rw [hfo_res']
-        by_cases hc : checkPairwiseDistinctOn (fun t => fpMem s₀ (lo + t)) len = true
-        · simp [hc]
-        · simp [Bool.eq_false_iff.mpr hc]
-      · have hp_bne : (prev₀ != 0) = true := bne_iff_ne.mpr hp0
-        simp [hp0, hp_bne]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold findSaltStepProg; simp only [pure_bind]
-      refine validProg_bind (validProg_read hbase_lt) ?_
-      change ValidProg _ _ s (if prev₀ = 0 then _ else _)
-      split_ifs
-      · refine validProg_bind hfo_vp ?_; rw [hfo_st]
-        split_ifs <;> exact validProg_pure _
-      · exact validProg_pure _
-    obtain ⟨hsafe_r, hst_r, hres_r, hvp_r⟩ := ih (s₀ + 1) prev1 (by omega) rfl
-    have hadd : s₀ + 1 + rem = s₀ + (rem + 1) := by omega
-    unfold findSaltLoopProg at hst_r hres_r hvp_r ⊢
-    dsimp only [iterate]
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width, hs1, hr1]; exact hsafe_r
-    · rw [clientState_bind, hs1, hr1]; exact hst_r
-    · rw [clientResult_bind, hs1, hr1, hres_r, hadd]
-    · refine validProg_bind hvp1 ?_; rw [hs1, hr1]; exact hvp_r
+  unfold findSaltLoopProg
+  refine readOnlyLoop_spec (findSaltInRange fpMem lo len)
+    (fun s₀ prev₀ hs_lt hprev => ?_) rem s₀ prev₀ hle hprev
+  obtain ⟨_, hfo_st, hfo_res, hfo_vp⟩ := chkFpOuterLoop_spec (salt := s₀) (lo := lo)
+    henv hseed len 0 1 (by omega) rfl (s := s)
+  rw [Nat.zero_add] at hfo_res
+  have hfo_res' : (Memory.spec 0).clientResult s
+      (chkFpOuterLoopProg (((((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), s₀),
+        lo), (0, 1)), len)) =
+      (len, if checkPairwiseDistinctOn (fun t => fpMem s₀ (lo + t)) len then 1 else 0) :=
+    hfo_res
+  unfold findSaltStepProg
+  simp only [pure_bind]
+  refine ⟨⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hlen_le, hs_lt⟩, ?_, ?_, ?_⟩
+  · rw [clientState_bind]
+    change (Memory.spec 0).clientState s (if prev₀ = 0 then _ else _) = s
+    split_ifs
+    · rw [clientState_bind]; dsimp only [crt, hrt]; rw [hfo_st]; split_ifs <;> rfl
+    · rfl
+  · rw [clientResult_bind]
+    change (Memory.spec 0).clientResult s (if prev₀ = 0 then _ else _) = _
+    dsimp only [findSaltInRange]
+    rw [← hprev]
+    by_cases hp0 : prev₀ = 0
+    · simp only [hp0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+      rw [clientResult_bind]; dsimp only [crt, hrt]
+      rw [hfo_res']
+      by_cases hc : checkPairwiseDistinctOn (fun t => fpMem s₀ (lo + t)) len = true <;>
+        simp [hc]
+    · simp [hp0, bne_iff_ne.mpr hp0]
+  · refine validProg_bind (validProg_read hbase_lt) ?_
+    change ValidProg _ _ s (if prev₀ = 0 then _ else _)
+    split_ifs
+    · refine validProg_bind hfo_vp ?_; rw [hfo_st]
+      split_ifs <;> exact validProg_pure _
+    · exact validProg_pure _
 
 /-- Compact 8-word helper writing `s1 - 1` into `offBktMeta[16 * b + 1]` and updating `allOk`
 (`d = ((((base, offBm), (gBits, w)), (sMax, b)), (allOk, s1))`). Separating this leaf from
@@ -2266,6 +2106,29 @@ private theorem findSaltInRange_le {fpAt : ℕ → ℕ → ℕ} {lo len k : ℕ}
   | succ k ih =>
     dsimp only [findSaltInRange]
     split_ifs <;> omega
+
+private theorem checkNoEqBefore_congr {f g : ℕ → ℕ} {t k : ℕ} (h : ∀ j < k, f j = g j) :
+    checkNoEqBefore f t k = checkNoEqBefore g t k := by
+  induction k with
+  | zero => rfl
+  | succ k ih => simp only [checkNoEqBefore, ih fun j hj => h j (by omega), h k (by omega)]
+
+private theorem checkPairwiseDistinctOn_congr {f g : ℕ → ℕ} {k : ℕ} (h : ∀ j < k, f j = g j) :
+    checkPairwiseDistinctOn f k = checkPairwiseDistinctOn g k := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    simp only [checkPairwiseDistinctOn, ih fun j hj => h j (by omega), h k (by omega),
+      checkNoEqBefore_congr fun j (hj : j < k) => h j (by omega)]
+
+private theorem findSaltInRange_congr {f g : ℕ → ℕ → ℕ} {lo len k : ℕ}
+    (h : ∀ salt idx, lo ≤ idx → idx < lo + len → f salt idx = g salt idx) :
+    findSaltInRange f lo len k = findSaltInRange g lo len k := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    simp only [findSaltInRange, ih,
+      checkPairwiseDistinctOn_congr fun t (ht : t < len) => h k (lo + t) (by omega) (by omega)]
 
 private theorem realizes_findSaltsBktStep :
     Realizes .exact findSaltsBktStepProg
@@ -2428,80 +2291,20 @@ private theorem findSaltsBktLoop_spec {c U V w n_max base : ℕ} {θ : SeedWhp c
       henv hseed_s hlo_len (sMaxWhp c n_max) 0 0 (by omega) rfl (s := s)
     rw [Nat.zero_add] at hfsl_res
     -- Identify `findSaltLoop_spec`'s `fpMem` on `s` with `fpMem` on `s₀`
-    have hfp_congr : ∀ salt t, t < len →
+    have hfp_congr : ∀ salt idx, lo ≤ idx → idx < lo + len →
         (let fb_s := fun b => readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w
            s.mem b
          let q_s := fun k => readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w
            s.mem k
          let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-           (csrBucketOfIdx fb_s (lo + t) M) (q_s (lo + t))
+           (csrBucketOfIdx fb_s idx M) (q_s idx)
          if hs : salt < sMaxWhp c n_max then
            if hu : kv < U then fpHash c U n_max θ.2 ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
-         else 0) = fpMem salt (lo + t) := by
-      intro salt t ht
-      have hidx_n : lo + t < n_max := by omega
+         else 0) = fpMem salt idx := by
+      intro salt idx _ hidx
       dsimp only [fpMem]
-      simp only [csrBucketOfIdx_congr hfb_eq, hq_eq (lo + t) hidx_n]
-    have hfind_congr : ∀ k,
-        findSaltInRange
-          (fun salt idx =>
-            let fb_s := fun b => readPacked (base + offFbStart c U V w n_max)
-              (globalPtrBits n_max) w s.mem b
-            let q_s := fun j => readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w
-              s.mem j
-            let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-              (csrBucketOfIdx fb_s idx M) (q_s idx)
-            if hs : salt < sMaxWhp c n_max then
-              if hu : kv < U then fpHash c U n_max θ.2 ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
-            else 0) lo len k =
-        findSaltInRange fpMem lo len k := by
-      intro k
-      induction k with
-      | zero => rfl
-      | succ k ihk =>
-        dsimp only [findSaltInRange]
-        rw [ihk]
-        have hpd : ∀ m ≤ len,
-            checkPairwiseDistinctOn (fun t =>
-              let fb_s := fun b => readPacked (base + offFbStart c U V w n_max)
-                (globalPtrBits n_max) w s.mem b
-              let q_s := fun j => readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w
-                s.mem j
-              let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-                (csrBucketOfIdx fb_s (lo + t) M) (q_s (lo + t))
-              if hs : k < sMaxWhp c n_max then
-                if hu : kv < U then fpHash c U n_max θ.2 ⟨k, hs⟩ ⟨kv, hu⟩ else 0
-              else 0) m =
-            checkPairwiseDistinctOn (fun t => fpMem k (lo + t)) m := by
-          intro m hm
-          induction m with
-          | zero => rfl
-          | succ m ihm =>
-            dsimp only [checkPairwiseDistinctOn]
-            rw [ihm (Nat.le_of_succ_le hm), hfp_congr k m (Nat.lt_of_succ_le hm)]
-            congr 1
-            have hne_eq : ∀ r ≤ m,
-                checkNoEqBefore (fun t =>
-                  let fb_s := fun b => readPacked (base + offFbStart c U V w n_max)
-                    (globalPtrBits n_max) w s.mem b
-                  let q_s := fun j => readPacked (base + offQuotWhp c w n_max)
-                    (quotBitsWhp U n_max) w s.mem j
-                  let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-                    (csrBucketOfIdx fb_s (lo + t) M) (q_s (lo + t))
-                  if hs : k < sMaxWhp c n_max then
-                    if hu : kv < U then fpHash c U n_max θ.2 ⟨k, hs⟩ ⟨kv, hu⟩ else 0
-                  else 0) (fpMem k (lo + m)) r =
-                checkNoEqBefore (fun t => fpMem k (lo + t)) (fpMem k (lo + m)) r := by
-              intro r hr
-              induction r with
-              | zero => rfl
-              | succ r ihr =>
-                dsimp only [checkNoEqBefore]
-                rw [ihr (Nat.le_of_succ_le hr),
-                  hfp_congr k r (Nat.lt_of_lt_of_le (Nat.lt_of_succ_le hr) (Nat.le_of_succ_le hm))]
-            exact hne_eq m le_rfl
-        rw [hpd len le_rfl]
-    rw [hfind_congr] at hfsl_res
+      simp only [csrBucketOfIdx_congr hfb_eq, hq_eq idx (by omega)]
+    rw [findSaltInRange_congr hfp_congr] at hfsl_res
     set s1_val := salt1Of b₀
     have hs1_le : s1_val ≤ sMaxWhp c n_max := findSaltInRange_le
     have hsVal_pow : s1_val - 1 < 2 ^ globalPtrBits n_max :=
@@ -2837,8 +2640,7 @@ theorem checkGoodSeedOnStateGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWh
     induction k with
     | zero => rfl
     | succ k ihk =>
-      dsimp only [checkAllBalancedCsr]
-      rw [ihk (Nat.le_of_succ_le hk), hfb_eq k (Nat.le_of_succ_le hk), hfb_eq (k + 1) hk]
+      simp only [checkAllBalancedCsr, ihk (by omega), hfb_eq k (by omega), hfb_eq (k + 1) hk]
   rw [hbal_congr M le_rfl] at hbl_res
   -- Loop 2: `chkRKeyOuterLoopProg`
   obtain ⟨_, hrl_st, hrl_res, hrl_vp⟩ :=
@@ -2856,34 +2658,7 @@ theorem checkGoodSeedOnStateGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWh
     intro i hi
     dsimp only [rKeyAt, keyValAt]
     rw [csrBucketOfIdx_congr hfb_eq, hq_eq i (hi.trans_le hN_le)]
-  have hinj_congr : ∀ k ≤ N,
-      checkPairwiseDistinctOn (fun idx =>
-        let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-          (csrBucketOfIdx fbMem idx M) (qMem idx)
-        if h : kv < U then fpReducedKey c U n_max θ.2 ⟨kv, h⟩ else 0) k =
-      checkPairwiseDistinctOn rKeyAt k := by
-    intro k hk
-    induction k with
-    | zero => rfl
-    | succ k ihk =>
-      dsimp only [checkPairwiseDistinctOn]
-      rw [ihk (Nat.le_of_succ_le hk), hrk_pt k (Nat.lt_of_succ_le hk)]
-      congr 1
-      have hne_c : ∀ r ≤ k,
-          checkNoEqBefore (fun idx =>
-            let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-              (csrBucketOfIdx fbMem idx M) (qMem idx)
-            if h : kv < U then fpReducedKey c U n_max θ.2 ⟨kv, h⟩ else 0) (rKeyAt k) r =
-          checkNoEqBefore rKeyAt (rKeyAt k) r := by
-        intro r hr
-        induction r with
-        | zero => rfl
-        | succ r ihr =>
-          dsimp only [checkNoEqBefore]
-          rw [ihr (Nat.le_of_succ_le hr),
-            hrk_pt r (Nat.lt_of_lt_of_le (Nat.lt_of_succ_le hr) (Nat.le_of_succ_le hk))]
-      exact hne_c k le_rfl
-  rw [hinj_congr N le_rfl] at hrl_res
+  rw [checkPairwiseDistinctOn_congr hrk_pt] at hrl_res
   -- Loop 3: `findSaltsBktLoopProg`
   have hfb_adj : ∀ b < M, fbMem b ≤ fbMem (b + 1) ∧ fbMem (b + 1) ≤ n_max := fun b hb => by
     rw [hfb_eq b hb.le, hfb_eq (b + 1) hb]
@@ -2921,53 +2696,7 @@ theorem checkGoodSeedOnStateGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWh
     have hhi_le : csr.fbStart (b + 1) ≤ n_max := (hmono (b + 1) M hb le_rfl).trans hN_le
     have hle_b := hv.2.1 b hb
     dsimp only [salt1Pure]
-    have hrec : ∀ k,
-        findSaltInRange (fun salt idx =>
-          let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-            (csrBucketOfIdx fbMem idx M) (qMem idx)
-          if hs : salt < sMaxWhp c n_max then
-            if hu : kv < U then fpHash c U n_max θ.2 ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
-          else 0) (csr.fbStart b) (csr.fbStart (b + 1) - csr.fbStart b) k =
-        findSaltInRange fpAt (csr.fbStart b) (csr.fbStart (b + 1) - csr.fbStart b) k := by
-      intro k
-      induction k with
-      | zero => rfl
-      | succ k ihk =>
-        dsimp only [findSaltInRange]; rw [ihk]
-        set lo_b := csr.fbStart b
-        set len_b := csr.fbStart (b + 1) - csr.fbStart b
-        have hpd : ∀ m ≤ len_b,
-            checkPairwiseDistinctOn (fun t =>
-              let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-                (csrBucketOfIdx fbMem (lo_b + t) M) (qMem (lo_b + t))
-              if hs : k < sMaxWhp c n_max then
-                if hu : kv < U then fpHash c U n_max θ.2 ⟨k, hs⟩ ⟨kv, hu⟩ else 0
-              else 0) m =
-            checkPairwiseDistinctOn (fun t => fpAt k (lo_b + t)) m := by
-          intro m hm
-          induction m with
-          | zero => rfl
-          | succ m ihm =>
-            dsimp only [checkPairwiseDistinctOn]
-            rw [ihm (Nat.le_of_succ_le hm), hfp_pt k (lo_b + m) (by omega)]
-            congr 1
-            have hne_c : ∀ r ≤ m,
-                checkNoEqBefore (fun t =>
-                  let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-                    (csrBucketOfIdx fbMem (lo_b + t) M) (qMem (lo_b + t))
-                  if hs : k < sMaxWhp c n_max then
-                    if hu : kv < U then fpHash c U n_max θ.2 ⟨k, hs⟩ ⟨kv, hu⟩ else 0
-                  else 0) (fpAt k (lo_b + m)) r =
-                checkNoEqBefore (fun t => fpAt k (lo_b + t)) (fpAt k (lo_b + m)) r := by
-              intro r hr
-              induction r with
-              | zero => rfl
-              | succ r ihr =>
-                dsimp only [checkNoEqBefore]
-                rw [ihr (Nat.le_of_succ_le hr), hfp_pt k (lo_b + r) (by omega)]
-            exact hne_c m le_rfl
-        exact congrArg (if _ != 0 then _ else if · then k + 1 else 0) (hpd len_b le_rfl)
-    exact hrec (sMaxWhp c n_max)
+    exact findSaltInRange_congr fun salt idx _ hidx => hfp_pt salt idx (by omega)
   have hall_congr : ∀ k ≤ M,
       allSaltsFoundRec (fun b =>
         findSaltInRange (fun salt idx =>
@@ -3018,15 +2747,8 @@ theorem checkGoodSeedOnStateGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWh
       by_cases hb2 : checkPairwiseDistinctOn rKeyAt (csr.fbStart (numBucketsWhp n_max)) = true <;>
       by_cases hb3 : (Nat.rec true (fun b prev => prev && (salt1Pure b != 0))
         (numBucketsWhp n_max) : Bool) = true <;>
-      dsimp only [rKeyAt, keyValAt, salt1Pure, fpAt, M] at hb2 hb3 ⊢
-    · simp [hb1, hb2, hb3]
-    · simp [hb1, hb2, Bool.eq_false_iff.mpr hb3]
-    · simp [hb1, Bool.eq_false_iff.mpr hb2]
-    · simp [hb1, Bool.eq_false_iff.mpr hb2]
-    · simp [Bool.eq_false_iff.mpr hb1]
-    · simp [Bool.eq_false_iff.mpr hb1]
-    · simp [Bool.eq_false_iff.mpr hb1]
-    · simp [Bool.eq_false_iff.mpr hb1]
+      dsimp only [rKeyAt, keyValAt, salt1Pure, fpAt, M] at hb2 hb3 ⊢ <;>
+      simp [hb1, hb2, hb3]
   · -- SeedWhpMemRep
     rw [hst_eq]
     exact SeedWhpMemRep.congr_hash hw (fun a _ ha2 => (hsl_out a (Or.inl (by omega))).symm) hseed

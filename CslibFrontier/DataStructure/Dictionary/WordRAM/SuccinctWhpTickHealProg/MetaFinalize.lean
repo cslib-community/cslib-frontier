@@ -257,13 +257,7 @@ theorem fillFinalBktMetaLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ → 
       simp only [pure_bind]
       refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s b₀ hb_lt.le)).bind ?_
       refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s (b₀ + 1) hb_lt)).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
+      iterate 7 refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
       simp only [hlo_hi, show fbStart (b₀ + 1) - fbStart b₀ ≤ n_max from hcnt_le, ↓reduceIte]
       refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
       exact (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind
@@ -333,13 +327,9 @@ theorem fillFinalBktMetaLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ → 
     rw [hadd] at hp_r
     unfold fillFinalBktMetaLoopProg at hf_r hvp_r hp_r hkeep_r hout_r ⊢
     dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r
-    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
-    · intro b hb; rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r b hb
-    · intro idx hidx hmod
-      rw [clientState_bind, hs1.1, hs1.2.1]; exact hkeep_r idx hidx hmod
-    · intro a ha; rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
+    rw [clientState_bind, hs1.1, hs1.2.1]
+    exact ⟨hf_r, validProg_bind hs1.2.2 (by rw [hs1.1, hs1.2.1]; exact hvp_r), hp_r, hkeep_r,
+      hout_r⟩
 
 /-! ## Phase G: `zeroTrieChildrenLoopProg` and `writeHealHdrsAndTrieMetaProg` -/
 
@@ -512,12 +502,10 @@ theorem zeroTrieChildrenLoop_spec {c U V w n_max base : ℕ}
     rw [hadd] at hp_r
     unfold zeroTrieChildrenLoopProg at hf_r hvp_r hp_r hout_r ⊢
     dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r
-    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
-    · intro idx hidx; rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r idx hidx
-    · intro a ha
-      rw [clientState_bind, hs1.1, hs1.2.1, hout_r a ha]
+    rw [clientState_bind, hs1.1, hs1.2.1]
+    refine ⟨hf_r, validProg_bind hs1.2.2 (by rw [hs1.1, hs1.2.1]; exact hvp_r), hp_r,
+      fun a ha => ?_⟩
+    · rw [hout_r a ha]
       dsimp only [s1, m2, m1]
       dsimp only [tc0, tc1, tce, gBits] at hi_lt htc0_end htc1_end ha ⊢
       rw [writePacked_outside hw _ hi_lt _ (by omega),
@@ -745,11 +733,7 @@ theorem writeHealHdrsAndTrieMetaProg_spec {c U V w n_max base freeTop : ℕ}
     exact readPacked_writePacked_self _ _ _ _ _ h0_pow
   · rw [readPacked_congr hw (fun a ⟨ha1, _⟩ => hm_ge16 a (Or.inr (by omega))) h2_lt]
     exact readPacked_writePacked_self _ _ _ _ _ h0_pow
-  · have h16 : a < base ∨ base + 16 ≤ a := by
-      rcases ha with h1 | ⟨h1, _⟩ | h1
-      · exact Or.inl h1
-      · exact Or.inr h1
-      · exact Or.inr (by omega)
+  · have h16 : a < base ∨ base + 16 ≤ a := by rcases ha with h1 | ⟨h1, _⟩ | h1 <;> omega
     rw [hm_ge16 a h16]
     dsimp only [m_tm1, m_tm0]
     dsimp only [tm0, tm1, gBits] at htm0_end htm1_end ha ⊢

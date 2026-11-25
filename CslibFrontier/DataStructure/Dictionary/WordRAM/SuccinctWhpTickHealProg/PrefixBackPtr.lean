@@ -287,13 +287,9 @@ theorem bpPrefixLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ → ℕ}
     rw [hadd] at hev_r
     unfold bpPrefixLoopProg at hf_r hvp_r hev_r hodd_r hout_r ⊢
     dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r
-    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
-    · intro x hx; rw [clientState_bind, hs1.1, hs1.2.1]; exact hev_r x hx
-    · intro idx hidx hmod
-      rw [clientState_bind, hs1.1, hs1.2.1]; exact hodd_r idx hidx hmod
-    · intro a ha; rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
+    rw [clientState_bind, hs1.1, hs1.2.1]
+    exact ⟨hf_r, validProg_bind hs1.2.2 (by rw [hs1.1, hs1.2.1]; exact hvp_r), hev_r, hodd_r,
+      hout_r⟩
 
 /-! ## Phase B: `fillBackPtrOuterLoopProg` (populate `offBackPtr[b * cb + k]`) -/
 
@@ -474,12 +470,10 @@ private theorem fillBackPtrInnerLoop_spec {c U V w n_max base b remBack bp_b : �
     rw [hadd] at hp_r
     unfold fillBackPtrInnerLoopProg at hf_r hvp_r hp_r hoth_r hout_r ⊢
     dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r
-    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
-    · intro k hk; rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r k hk
-    · intro b' hb' hne k hk
-      rw [clientState_bind, hs1.1, hs1.2.1, hoth_r b' hb' hne k hk]
+    rw [clientState_bind, hs1.1, hs1.2.1]
+    refine ⟨hf_r, validProg_bind hs1.2.2 (by rw [hs1.1, hs1.2.1]; exact hvp_r), hp_r,
+      fun b' hb' hne k hk => ?_, fun a ha => ?_⟩
+    · rw [hoth_r b' hb' hne k hk]
       have hne_idx : b' * cb + k ≠ b * cb + k₀ := by
         intro heq
         have hcb_pos : 0 < cb := by omega
@@ -489,8 +483,7 @@ private theorem fillBackPtrInnerLoop_spec {c U V w n_max base b remBack bp_b : �
           rw [mul_comm, Nat.mul_add_div hcb_pos, Nat.div_eq_of_lt hk_lt, Nat.add_zero]
         exact hne (by rw [← hd1, heq, hd2])
       exact readPacked_writePacked_of_ne hw _ hne_idx _
-    · intro a ha
-      rw [clientState_bind, hs1.1, hs1.2.1, hout_r a ha]
+    · rw [hout_r a ha]
       dsimp only [M, cb] at hidx hbp_end
       exact writePacked_outside hw _ hidx _ (by omega)
 
@@ -708,12 +701,9 @@ theorem fillBackPtrOuterLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ → 
     rw [hadd] at hp_r
     unfold fillBackPtrOuterLoopProg at hf_r hvp_r hp_r hout_r ⊢
     dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r.trans hin_f
-    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
-    · intro b hb k hk
-      rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r b hb k hk
-    · intro a ha; rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
+    rw [clientState_bind, hs1.1, hs1.2.1]
+    exact ⟨hf_r.trans hin_f, validProg_bind hs1.2.2 (by rw [hs1.1, hs1.2.1]; exact hvp_r), hp_r,
+      hout_r⟩
 
 /-! ## Phase C Target-Evaluator Specification (`permEvalActDestProg` at `mode = 2`) -/
 

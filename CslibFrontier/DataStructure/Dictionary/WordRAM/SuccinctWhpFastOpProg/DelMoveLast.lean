@@ -86,6 +86,22 @@ loc_del` under `ValidFastState ... fs dict`. -/
       SeedWhpMemRep base c U w₀ n_max θ s.mem ∧
       FastMemRep base c U V w₀ n_max (fastDeleteRemove c U n_max θ fs u b loc_del) s.mem
 
+/-- Reading index `j ≠ i` of a conditionally updated array ignores the update at `i`. -/
+private theorem ite_update_apply_of_ne {α β : Type*} {P : Prop} {dP : Decidable P}
+    {dα : DecidableEq α} {f : α → β} {i j : α} {v : β} (h : j ≠ i) :
+    (if P then Function.update f i v else f) j = f j := by
+  split_ifs
+  · exact Function.update_of_ne h v f
+  · rfl
+
+/-- Reading the updated index of a conditionally updated array. -/
+private theorem ite_update_apply_self {α β : Type*} {P : Prop} {dP : Decidable P}
+    {dα : DecidableEq α} {f : α → β} {i : α} {v : β} :
+    (if P then Function.update f i v else f) i = if P then v else f i := by
+  split_ifs
+  · exact Function.update_self i v f
+  · rfl
+
 private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U} (u : Fin U)
     (hv : ValidFastState c U V n_max θ fs dict)
@@ -131,14 +147,9 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     dsimp [st_last, fs1, fastDeleteRemove]; omega
   have hrk_u_lt : fpReducedKey c U n_max θ.2 u < 2 ^ (cTabWhp c * bCharWhp n_max) :=
     fpReducedKey_lt c U n_max θ.2 u
-  have hfp_u_lt : fpOfSalt c U n_max θ.2 (fs.bktSalt b) u < 2 ^ fpBitsWhp n_max := by
+  have hfp_lt : ∀ salt, fpOfSalt c U n_max θ.2 salt u < 2 ^ fpBitsWhp n_max := fun salt => by
     unfold fpOfSalt
-    by_cases hs : fs.bktSalt b < sMaxWhp c n_max <;> simp only [hs, ↓reduceDIte]
-    · exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
-    · exact Nat.two_pow_pos _
-  have hfpc_u_lt : fpOfSalt c U n_max θ.2 fs.rebCandSalt u < 2 ^ fpBitsWhp n_max := by
-    unfold fpOfSalt
-    by_cases hs : fs.rebCandSalt < sMaxWhp c n_max <;> simp only [hs, ↓reduceDIte]
+    split_ifs with hs
     · exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
     · exact Nat.two_pow_pos _
   refine ⟨hll_tl,
@@ -176,34 +187,11 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
             (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)
         else fs.slices (fs.liveSliceIdx b) := by
       dsimp only [fs1, fastDeleteRemove]
-      by_cases hr : (decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
-          fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
-          fs.rebCollision = 0) && decide (loc_del < fs.rebScanCursor ∧
-          (fs.locState b loc_del = 1 ∨ fs.locState b loc_del = 2 + fs.oldEp))) = true
-      · rw [ite_eq_left hr, Function.update_of_ne hne_lr]
-        by_cases ho : fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-            inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-        · rw [ite_eq_left ho, Function.update_of_ne hne_lo, ite_eq_left ho.2.2,
-            ite_eq_left ho.2.2, Function.update_self]
-        · rw [ite_eq_right ho]
-          by_cases hin :
-              inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-          · rw [ite_eq_left hin, ite_eq_left hin, Function.update_self]
-          · rw [ite_eq_right hin, ite_eq_right hin]
-      · rw [ite_eq_right hr]
-        by_cases ho : fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-            inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-        · rw [ite_eq_left ho, Function.update_of_ne hne_lo, ite_eq_left ho.2.2,
-            ite_eq_left ho.2.2, Function.update_self]
-        · rw [ite_eq_right ho]
-          by_cases hin :
-              inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-          · rw [ite_eq_left hin, ite_eq_left hin, Function.update_self]
-          · rw [ite_eq_right hin, ite_eq_right hin]
+      rw [ite_update_apply_of_ne hne_lr, ite_update_apply_of_ne hne_lo, ite_update_apply_self]
     change ∃ lm1, ValidWhpSlice n_max (fs.liveInsCount b) (fs1.slices (fs.liveSliceIdx b)) lm1
     rw [hsl_l]
     split_ifs
-    · exact ⟨_, hv_l.delete_spec hv.hth hlic_le hfp_u_lt⟩
+    · exact ⟨_, hv_l.delete_spec hv.hth hlic_le (hfp_lt _)⟩
     · exact ⟨lm, hv_l⟩
   · -- `overmarsSlice` in `fs1`
     obtain ⟨hins_om, om, hv_om⟩ := hom_fn ha1
@@ -215,35 +203,13 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
             (fs.slices (fs.overmarsSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)
         else fs.slices (fs.overmarsSliceIdx b) := by
       dsimp only [fs1, fastDeleteRemove]
-      by_cases hr : (decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
-          fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
-          fs.rebCollision = 0) && decide (loc_del < fs.rebScanCursor ∧
-          (fs.locState b loc_del = 1 ∨ fs.locState b loc_del = 2 + fs.oldEp))) = true
-      · rw [ite_eq_left hr, Function.update_of_ne hne_or]
-        by_cases ho : fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-            inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-        · rw [ite_eq_left ho, Function.update_self, ite_eq_left ho, ite_eq_left ho.2.2,
-            Function.update_of_ne hne_lo.symm]
-        · rw [ite_eq_right ho, ite_eq_right ho]
-          by_cases hin :
-              inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-          · rw [ite_eq_left hin, Function.update_of_ne hne_lo.symm]
-          · rw [ite_eq_right hin]
-      · rw [ite_eq_right hr]
-        by_cases ho : fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-            inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-        · rw [ite_eq_left ho, Function.update_self, ite_eq_left ho, ite_eq_left ho.2.2,
-            Function.update_of_ne hne_lo.symm]
-        · rw [ite_eq_right ho, ite_eq_right ho]
-          by_cases hin :
-              inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-          · rw [ite_eq_left hin, Function.update_of_ne hne_lo.symm]
-          · rw [ite_eq_right hin]
+      rw [ite_update_apply_of_ne hne_or, ite_update_apply_self,
+        ite_update_apply_of_ne hne_lo.symm]
     change ∃ om1, ValidWhpSlice n_max (fs.overmarsInsCount b)
       (fs1.slices (fs.overmarsSliceIdx b)) om1
     rw [hsl_o]
     split_ifs
-    · exact ⟨_, hv_om.delete_spec hv.hth hins_om.le hfp_u_lt⟩
+    · exact ⟨_, hv_om.delete_spec hv.hth hins_om.le (hfp_lt _)⟩
     · exact ⟨om, hv_om⟩
   · -- `rebSlice` in `fs1`
     have hcs_lt : fs.rebCandSalt < sMaxWhp c n_max := (of_decide_eq_true hrbt).2.2.2.1
@@ -256,46 +222,12 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
             (fs.slices (fs.rebSliceIdx b)) (fpOfSalt c U n_max θ.2 fs.rebCandSalt u)
         else fs.slices (fs.rebSliceIdx b) := by
       dsimp only [fs1, fastDeleteRemove, rebActiveB]
-      have h_sub : (if fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-            inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) then
-          Function.update
-            (if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) then
-              Function.update fs.slices (fs.liveSliceIdx b)
-                (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-                  (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u))
-             else fs.slices)
-            (fs.overmarsSliceIdx b)
-            (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-              ((if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) then
-                  Function.update fs.slices (fs.liveSliceIdx b)
-                    (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-                      (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u))
-                else fs.slices) (fs.overmarsSliceIdx b))
-              (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u))
-        else if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) then
-          Function.update fs.slices (fs.liveSliceIdx b)
-            (btreeDelete (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-              (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u))
-        else fs.slices) (fs.rebSliceIdx b) = fs.slices (fs.rebSliceIdx b) := by
-        by_cases ho : fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-            inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-        · rw [ite_eq_left ho, Function.update_of_ne hne_or.symm, ite_eq_left ho.2.2,
-            Function.update_of_ne hne_lr.symm]
-        · rw [ite_eq_right ho]
-          by_cases hin :
-              inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc_del) = true
-          · rw [ite_eq_left hin, Function.update_of_ne hne_lr.symm]
-          · rw [ite_eq_right hin]
-      by_cases h_reb : (decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
-          fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
-          fs.rebCollision = 0) && decide (loc_del < fs.rebScanCursor ∧
-          (fs.locState b loc_del = 1 ∨ fs.locState b loc_del = 2 + fs.oldEp))) = true
-      · rw [ite_eq_left h_reb, Function.update_self, ite_eq_left h_reb, h_sub]
-      · rw [ite_eq_right h_reb, ite_eq_right h_reb, h_sub]
+      rw [ite_update_apply_self, ite_update_apply_of_ne hne_or.symm,
+        ite_update_apply_of_ne hne_lr.symm]
     change ∃ rm1, ValidWhpSlice n_max fs.rebInsCount (fs1.slices (fs.rebSliceIdx b)) rm1
     rw [hsl_r]
     split_ifs
-    · exact ⟨_, hv_r.delete_spec hv.hth hins_r.le hfpc_u_lt⟩
+    · exact ⟨_, hv_r.delete_spec hv.hth hins_r.le (hfp_lt _)⟩
     · exact ⟨rm, hv_r⟩
 
 /-- Precondition for `delMoveApplyCoreGenProg`. -/
@@ -411,15 +343,7 @@ private theorem realizes_delMoveApplyCoreGen :
         hld_tl, hfp_live_lt, hlic_le, hv_l1, hom1_fn⟩
     | (refine ⟨c, U, V, w, n_max, θ, fs1lo, henv, rfl, hstep_lo.2.1, hstep_lo.2.2.1,
          hv.curEp_or, hb, hr_lt, hld_tl, hfp_cand_lt, fun hra1 => ?_⟩
-       have hrbt : decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
-           fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
-           fs.rebCollision = 0) = true := by
-         cases hd : decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
-           fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
-           fs.rebCollision = 0)
-         · rw [hd] at hra1; cases hra1
-         · rfl
-       exact hreb_slo hrbt)
+       exact hreb_slo (Bool.of_not_eq_false fun hd => by rw [hd] at hra1; cases hra1))
     | exact ⟨c, U, V, w, n_max, θ, _, henv, rfl, hstep_r.2.1, hstep_r.2.2.1,
         hb, hlt, hll_tl, hbp1, hq1 _ (physSlotGenProg_spec henv hb hll_tl hbp_ll hrep1).2.2.1,
         hv1_lt⟩
