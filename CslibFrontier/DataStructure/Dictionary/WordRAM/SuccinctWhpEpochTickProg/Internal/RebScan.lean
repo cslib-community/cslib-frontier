@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.Common
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -900,70 +901,57 @@ theorem rebScanLoop_spec {c U V w n_max base b : ℕ}
       memoryCost prog s ≤ k * (2 * hashEvalCostWhp c + 2740) ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
       FastStateStep base c U V w n_max θ (rebScanSteps c U n_max θ b k fs) s s' := by
-  intro d k
-  induction k with
-  | zero =>
-    intro fs s _ _ _ _ _ _ hseed hrep
-    unfold rebScanLoopGenProg iterate
-    exact ⟨trivial, Nat.zero_le _, validProg_pure _, FastStateStep.refl hseed hrep⟩
-  | succ k ih =>
-    intro fs s hce hrIdx hcnt hq_all hbp_v hcoll_k hseed hrep
-    have hcoll1 : fs.rebCollision = 0 →
-        fs.rebScanCursor < n_max ∧
-        fs.rebInsCount < 8 * (slabScale n_max) ^ 12 ∧
-        ∃ rm, ValidWhpSlice n_max fs.rebInsCount (fs.slices (fs.rebSliceIdx b)) rm := by
+  intro d k fs s hce hrIdx hcnt hq_all hbp_v hcoll hseed hrep
+  -- `J r () t`: `r` steps remain from `t`, which represents a state `fs'` reaching the target.
+  let J : ℕ → Unit → Memory.State → Prop := fun r _ t => ∃ fs',
+    rebScanSteps c U n_max θ b r fs' = rebScanSteps c U n_max θ b k fs ∧
+    FastStateStep base c U V w n_max θ fs' s t ∧ fs'.curEp = fs.curEp ∧
+    fs'.rebSliceIdx b = fs.rebSliceIdx b ∧ fs'.bktCount b = fs.bktCount b ∧
+    fs'.quotArr = fs.quotArr ∧ fs'.backPtr = fs.backPtr ∧
+    (fs'.rebCollision = 0 →
+      fs'.rebScanCursor + r ≤ n_max ∧ fs'.rebInsCount + r ≤ 8 * (slabScale n_max) ^ 12 ∧
+      ∃ rm, ValidWhpSlice n_max fs'.rebInsCount (fs'.slices (fs'.rebSliceIdx b)) rm)
+  have hJ : ∀ r t, J (r + 1) () t →
+      RebScanOnePre w (d, ()) t ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) t (rebScanOneProg (d, ())) ∧
+      memoryCost (rebScanOneProg (d, ())) t ≤ 2 * hashEvalCostWhp c + 2740 ∧
+      J r () ((Memory.spec 0).clientState t (rebScanOneProg (d, ()))) := by
+    rintro r t ⟨fs', heq, hst, hce', hrIdx', hcnt', hq', hbp', hcoll'⟩
+    have hcoll1 : fs'.rebCollision = 0 →
+        fs'.rebScanCursor < n_max ∧
+        fs'.rebInsCount < 8 * (slabScale n_max) ^ 12 ∧
+        ∃ rm, ValidWhpSlice n_max fs'.rebInsCount (fs'.slices (fs'.rebSliceIdx b)) rm := by
       intro hc0
-      obtain ⟨h1, h2, rm, hv⟩ := hcoll_k hc0
+      obtain ⟨h1, h2, rm, hv⟩ := hcoll' hc0
       exact ⟨by omega, by omega, rm, hv⟩
-    have hpre : RebScanOnePre w (d, ()) s :=
-      ⟨c, U, V, w, n_max, θ, fs, henv, rfl, hseed, hrep, hb, hce, hrIdx,
-        hcnt, hq_all, hbp_v, hcoll1⟩
-    obtain ⟨hmc1, hvp1, hstep1, hce1, hrIdx1, hcnt1, hq1, hbp1, hnext1⟩ :=
-      rebScanOneProg_fastStep henv hb hce hrIdx hcnt hq_all hbp_v hcoll1 hseed hrep (s := s)
-    set fs1 := rebScanSteps c U n_max θ b 1 fs
-    set s1 := (Memory.spec 0).clientState s (rebScanOneProg (d, ()))
-    have hcoll_rem : fs1.rebCollision = 0 →
-        fs1.rebScanCursor + k ≤ n_max ∧
-        fs1.rebInsCount + k ≤ 8 * (slabScale n_max) ^ 12 ∧
-        ∃ rm1, ValidWhpSlice n_max fs1.rebInsCount (fs1.slices (fs1.rebSliceIdx b)) rm1 := by
-      intro hc1
-      obtain ⟨hc0, hcur1, hins1, rm1, hv1⟩ := hnext1 hc1
-      obtain ⟨hcur_k, hins_k, _⟩ := hcoll_k hc0
-      exact ⟨by omega, by omega, rm1, hv1⟩
-    obtain ⟨hsafe_k, hmc_k, hvp_k, hstep_k⟩ :=
-      ih fs1 s1 (hce1 ▸ hce) (hrIdx1 ▸ hrIdx) (hcnt1 ▸ hcnt) (hq1 ▸ hq_all)
-        (by rw [hcnt1, hbp1]; exact hbp_v) hcoll_rem hstep1.2.1 hstep1.2.2.1
-    have hu_eq : (Memory.spec 0).clientResult s (rebScanOneProg (d, ())) = () := rfl
-    dsimp only
-    have hst_all : (Memory.spec 0).clientState s (rebScanLoopGenProg ((d, ()), k + 1)) =
-        (Memory.spec 0).clientState s1 (rebScanLoopGenProg ((d, ()), k)) := by
-      unfold rebScanLoopGenProg
-      change (Memory.spec 0).clientState s
-        (rebScanOneProg (d, ()) >>= fun u => iterate rebScanOneProg d k u) = _
-      rw [clientState_bind, hu_eq]
-    rw [hst_all, rebScanSteps_one_trans]
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, hstep1.trans hstep_k⟩
-    · rw [clientState_width, clientResult_width]; exact hsafe_k
-    · have hmc_eq : memoryCost (rebScanLoopGenProg ((d, ()), k + 1)) s =
-          memoryCost (rebScanOneProg (d, ())) s +
-            memoryCost (rebScanLoopGenProg ((d, ()), k)) s1 := by
-        unfold rebScanLoopGenProg
-        change memoryCost (rebScanOneProg (d, ()) >>= fun u => iterate rebScanOneProg d k u) s = _
-        simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rfl
-      rw [hmc_eq]
-      have hmc_k' : memoryCost (rebScanLoopGenProg ((d, ()), k)) s1 ≤
-          k * (2 * hashEvalCostWhp c + 2740) := hmc_k
-      dsimp only [d, s1] at hmc1 hmc_k' ⊢
-      have hk_mul : (k + 1) * (2 * hashEvalCostWhp c + 2740) =
-          (2 * hashEvalCostWhp c + 2740) + k * (2 * hashEvalCostWhp c + 2740) := by ring
-      rw [hk_mul]; omega
-    · have hvp_k' : ValidProg w (base + largeSpaceWhp c U V w n_max) s1
-          (iterate rebScanOneProg d k ()) := by
-        unfold rebScanLoopGenProg at hvp_k
-        exact hvp_k
-      unfold rebScanLoopGenProg
-      exact validProg_bind hvp1 hvp_k'
+    have hbp1 : ∀ idx < fs'.bktCount b - capFrontWhp n_max,
+        fs'.backPtr b idx < poolSizeWhp n_max := by rw [hcnt', hbp']; exact hbp_v
+    obtain ⟨hmc1, hvp1, hstep1, hce1, hrIdx1, hcnt1, hq1, hbp1', hnext1⟩ :=
+      rebScanOneProg_fastStep henv hb (hce' ▸ hce) (hrIdx' ▸ hrIdx) (hcnt' ▸ hcnt)
+        (hq' ▸ hq_all) hbp1 hcoll1 hst.2.1 hst.2.2.1 (s := t)
+    refine ⟨⟨c, U, V, w, n_max, θ, fs', henv, rfl, hst.2.1, hst.2.2.1, hb, hce' ▸ hce,
+      hrIdx' ▸ hrIdx, hcnt' ▸ hcnt, hq' ▸ hq_all, hbp1, hcoll1⟩, hvp1, hmc1,
+      rebScanSteps c U n_max θ b 1 fs', by rw [← rebScanSteps_one_trans]; exact heq,
+      hst.trans hstep1, hce1.trans hce', hrIdx1.trans hrIdx', hcnt1.trans hcnt',
+      hq1.trans hq', hbp1'.trans hbp', fun hc1 => ?_⟩
+    obtain ⟨hc0, hcur1, hins1, rm1, hv1⟩ := hnext1 hc1
+    obtain ⟨hcur_k, hins_k, _⟩ := hcoll' hc0
+    exact ⟨by omega, by omega, rm1, hv1⟩
+  have hJk : J k () s := ⟨fs, rfl, FastStateStep.refl hseed hrep, rfl, rfl, rfl, rfl, rfl, hcoll⟩
+  obtain ⟨hsafe, hvp, fs', hfs', hstep, -⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := rebScanOneProg) (safe := RebScanOnePre)
+    (d := d) (n := k) (fun j => J (k - j))
+    (fun j hj _ t h => by
+      obtain ⟨hpre, hvp1, -, hJ'⟩ :=
+        hJ (k - (j + 1)) t (by rwa [show k - (j + 1) + 1 = k - j by omega])
+      exact ⟨hpre, hvp1, hJ'⟩)
+    (a := ()) (s := s) (by rwa [Nat.sub_zero])
+  have hmc := memoryCost_iterate_le_potential rebScanOneProg d J (fun _ _ => 0) _
+    (fun j _ t h => ⟨(hJ j t h).2.2.2, Nat.add_le_add_right (hJ j t h).2.2.1 0⟩) k () s hJk
+  rw [Nat.add_zero, Nat.mul_comm] at hmc
+  obtain rfl : fs' = rebScanSteps c U n_max θ b k fs := by rwa [Nat.sub_self] at hfs'
+  unfold rebScanLoopGenProg
+  exact ⟨hsafe, hmc, hvp, hstep⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.EpochTickInternal
 
