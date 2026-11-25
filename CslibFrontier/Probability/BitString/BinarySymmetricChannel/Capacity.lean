@@ -104,7 +104,8 @@ theorem isAchievableRate_of_lt (p : I) {R : ℝ} (hR : R < 1 - Real.binEntropy p
       IsAchievableRate q R := fun ε hε =>
     (eventually_exists_code_decodingError_le q hq hRq hε).mono fun n ⟨E, hE⟩ =>
       have : Nonempty (Fin (2 ^ ⌈R * n⌉₊)) := ⟨⟨0, by positivity⟩⟩
-      let ⟨D, hD⟩ := exists_isNearestDecoder E; ⟨E, D, hE D hD⟩
+      let ⟨D, hD⟩ := exists_isNearestDecoder E
+      ⟨E, D, hE D hD⟩
   rcases lt_trichotomy (p : ℝ) (1 / 2) with hp | hp | hp
   · exact key p hp hR
   · rw [hp, one_div, Real.binEntropy_two_inv, div_self (Real.log_pos one_lt_two).ne',
@@ -119,8 +120,9 @@ theorem isAchievableRate_of_lt (p : I) {R : ℝ} (hR : R < 1 - Real.binEntropy p
 theorem not_isAchievableRate_of_lt (p : I) {R : ℝ} (hR : 1 - Real.binEntropy p / Real.log 2 < R) :
     ¬ IsAchievableRate p R := by
   intro h
-  obtain ⟨n, ⟨E, D, hD⟩, hn⟩ := ((h (1 / 4) (by norm_num)).and
-    (eventually_one_sub_le_expect_decodingError p hR (ε := 1 / 2) (by norm_num))).exists
+  obtain ⟨n, ⟨E, D, hD⟩, hn⟩ :=
+    ((h (1 / 4) (by norm_num)).and
+      (eventually_one_sub_le_expect_decodingError p hR (ε := 1 / 2) (by norm_num))).exists
   have : Nonempty (Fin (2 ^ ⌈R * n⌉₊)) := ⟨⟨0, by positivity⟩⟩
   have h1 := hn E D (by
     rw [Fintype.card_fin, Nat.cast_pow, Nat.cast_two, Real.logb_two_pow]

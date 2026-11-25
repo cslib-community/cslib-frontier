@@ -89,7 +89,8 @@ private theorem eq_of_partSplit_eq {j : ι} {r : P.parts} (h : partSplit P e j =
     j = e r := by
   by_cases hj : j ∈ univ.map e
   · obtain ⟨r', -, rfl⟩ := mem_map.1 hj
-    rw [partSplit_apply] at h; rw [Subtype.ext h]
+    rw [partSplit_apply] at h
+    rw [Subtype.ext h]
   · exact absurd ((partSplit_of_notMem hj).symm.trans h).symm
       (P.nonempty_of_mem_parts r.2).ne_empty
 
@@ -111,7 +112,8 @@ private theorem mem_parts_iff_exists_partSplit_eq {t : Finset (Fin d)} :
   rintro ⟨ht, j, rfl⟩
   by_cases hj : j ∈ univ.map e
   · obtain ⟨r, -, rfl⟩ := mem_map.1 hj
-    rw [partSplit_apply]; exact r.2
+    rw [partSplit_apply]
+    exact r.2
   · rw [partSplit_of_notMem hj] at ht
     exact absurd ht Finset.not_nonempty_empty
 
@@ -142,7 +144,8 @@ private theorem exists_partSplit_eq [Fintype ι] {T : ι → Finset (Fin d)}
     rw [sup_image, Function.id_comp, sup_eq_biUnion, hU]
   let P := Finpartition.ofErase (univ.image T) hind hsup
   have hP (r : P.parts) : ∃ j, T j = r := by
-    obtain ⟨j, -, hj⟩ := mem_image.1 (mem_of_mem_erase r.2); exact ⟨j, hj⟩
+    obtain ⟨j, -, hj⟩ := mem_image.1 (mem_of_mem_erase r.2)
+    exact ⟨j, hj⟩
   choose g hg using hP
   refine ⟨⟨P, ⟨g, fun r r' h => Subtype.ext ((hg r).symm.trans (h ▸ hg r'))⟩⟩,
     funext fun j => Finset.ext fun x => ?_⟩

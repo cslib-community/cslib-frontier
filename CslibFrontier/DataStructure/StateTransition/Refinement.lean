@@ -266,8 +266,10 @@ def comp (M : Refinement D E) (N : Refinement E F) : Refinement D F where
 theorem comp_rep_iff (M : Refinement D E) (N : Refinement E F) (s : D.State) (f : F.State) :
     (M.comp N).toModule.rep s f ↔ (M.toModule.comp N.toModule).rep s f := by
   refine ⟨?_, ?_⟩
-  · rintro ⟨⟨hN, hM⟩, rfl⟩; exact ⟨_, ⟨hM, rfl⟩, hN, rfl⟩
-  · rintro ⟨_, ⟨hM, rfl⟩, hN, rfl⟩; exact ⟨⟨hN, hM⟩, rfl⟩
+  · rintro ⟨⟨hN, hM⟩, rfl⟩
+    exact ⟨_, ⟨hM, rfl⟩, hN, rfl⟩
+  · rintro ⟨_, ⟨hM, rfl⟩, hN, rfl⟩
+    exact ⟨⟨hN, hM⟩, rfl⟩
 
 /-- Linking through a composition links through each refinement in turn. -/
 theorem link_comp (M : Refinement D E) (N : Refinement E F) (p : D.Client α) :

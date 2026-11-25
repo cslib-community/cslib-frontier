@@ -385,7 +385,8 @@ theorem length_shift_le (k : ℕ) (p : List R) : (shift k p).length ≤ k + p.le
 /-- `mul p q` is trimmed. -/
 theorem isTrimmed_mul (p q : List R) : IsTrimmed (mul p q) := by
   unfold mul
-  split_ifs; exacts [isTrimmed_nil, isTrimmed_trim _]
+  split_ifs
+  exacts [isTrimmed_nil, isTrimmed_trim _]
 
 /-- `trim` is the identity on `mul p q`. -/
 @[simp] theorem trim_mul (p q : List R) : trim (mul p q) = mul p q :=

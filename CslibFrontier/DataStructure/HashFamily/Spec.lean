@@ -139,7 +139,9 @@ theorem length_lt_of_afterCurrentEpoch_eq_some {U : ℕ} {ops rest : List (Op U)
   | nil => cases h
   | cons o _ ih =>
     cases o with
-    | resample => cases h; exact Nat.lt_succ_self _
+    | resample =>
+      cases h
+      exact Nat.lt_succ_self _
     | eval _ => exact Nat.lt_succ_of_lt (ih h)
 
 /-- Number of `.resample` operations in `ops`. -/
@@ -168,7 +170,9 @@ theorem resampleCount_eq_succ_of_afterCurrentEpoch_eq_some {U : ℕ} {ops rest :
   | nil => cases h
   | cons o _ ih =>
     cases o with
-    | resample => cases h; rfl
+    | resample =>
+      cases h
+      rfl
     | eval _ => exact ih h
 
 /-- Admissibility predicate asserting that every resampling epoch of `ops` queries at most `k`
@@ -183,12 +187,14 @@ decreasing_by exact length_lt_of_afterCurrentEpoch_eq_some _h
 
 theorem BoundedEpochKeys.card_currentEpochKeys_le {U : ℕ} {k : ℕ} {ops : List (Op U)}
     (h : BoundedEpochKeys k ops) : (currentEpochKeys ops).card ≤ k := by
-  rw [BoundedEpochKeys] at h; exact h.1
+  rw [BoundedEpochKeys] at h
+  exact h.1
 
 theorem BoundedEpochKeys.of_afterCurrentEpoch_eq_some {U : ℕ} {k : ℕ}
     {ops rest : List (Op U)} (h : BoundedEpochKeys k ops)
     (hafter : afterCurrentEpoch ops = some rest) : BoundedEpochKeys k rest := by
-  rw [BoundedEpochKeys, hafter] at h; exact h.2
+  rw [BoundedEpochKeys, hafter] at h
+  exact h.2
 
 @[simp]
 theorem boundedEpochKeys_nil {U : ℕ} (k : ℕ) : BoundedEpochKeys k ([] : List (Op U)) := by
@@ -383,7 +389,8 @@ theorem kWiseSpec_contract_evalOps {Seed : Type u} {k U m : ℕ}
   have hrest_unif := uniformOfFintype_map_restrict_eq hk hv.card_currentEpochKeys_le
   rw [idealTranscriptPMF]
   cases hafter : afterCurrentEpoch ops with
-  | none => rw [evalOps_eq_of_afterCurrentEpoch_eq_none _ _ hafter, hrest_unif]
+  | none =>
+    rw [evalOps_eq_of_afterCurrentEpoch_eq_none _ _ hafter, hrest_unif]
   | some rest =>
     have ih : evalOps (PMF.uniformOfFintype Seed) eval rest = idealTranscriptPMF m rest :=
       kWiseSpec_contract_evalOps hk (hv.of_afterCurrentEpoch_eq_some hafter)
@@ -488,6 +495,7 @@ theorem whpKWiseSpec_contract_evalOps_equiv {Seed : Type w}
     exact congrArg ((PMF.uniformOfFintype Seed).bind ·)
       (funext fun θ₀ => evalOpsFromSeed_map_equiv _ _ e θ₀ ops)
   rw [heq]
-  exact whpKWiseSpec_contract_evalOps_prod (fun α β => eval (e.symm (α, β))) GoodTop hgood hv
+  exact whpKWiseSpec_contract_evalOps_prod (fun α β => eval (e.symm (α, β)))
+    GoodTop hgood hv
 
 end Cslib.DataStructure.HashFamily

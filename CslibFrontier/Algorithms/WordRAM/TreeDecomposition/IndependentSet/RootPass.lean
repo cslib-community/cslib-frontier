@@ -204,16 +204,19 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
     rw [hr_ind, hr_fw, hb_next] at hres_step
     have hv_step : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (rootPassStep (args, ⟨curC, bCur⟩))) := by
-      unfold rootPassStep; dsimp only
+      unfold rootPassStep
+      dsimp only
       refine validHistory_read_bind hfc_addr (validHistory_bind_step hv_ind ?_)
       rw [hst_ind, hr_ind]
       exact validHistory_bind_step hv_fw (validHistory_pure w _ _)
     have hc_step : memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
       have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
-      unfold rootPassStep; dsimp only
+      unfold rootPassStep
+      dsimp only
       rw [memoryCost_bind', memoryCost_read, hr_s, hr_r,
-        memoryCost_bind', hst_ind, hr_ind, memoryCost_bind', hst_fw, memoryCost_pure]
+        memoryCost_bind', hst_ind, hr_ind,
+        memoryCost_bind', hst_fw, memoryCost_pure]
       dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (curC + 1) (by omega)
@@ -288,7 +291,8 @@ theorem rootPassProg_realizes :
     rw [indepBagProg_state]
     repeat (first | split | exact hind_safe | exact hfw_safe | assumption | refine And.intro ?_ ?_)
   · rw [hres_ev]
-    change (st.curC + 1) + j = d.tbl0Len; omega
+    change (st.curC + 1) + j = d.tbl0Len
+    omega
   · rw [hres_ev]
     change (if _ then (if _ then _ else st.best) else st.best) ≤ cap
     split_ifs <;> omega

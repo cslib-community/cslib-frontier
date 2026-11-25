@@ -264,7 +264,8 @@ theorem expoPow_zero (x : Fin n → ℝ) : expoPow x 0 = 1 := by
 /-- On a table closed downwards, the only `e` without a lowered neighbour in the table is `0`. -/
 private theorem eq_zero_of_forall_sub_single_notMem (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)))
     {e : E} (h : ¬∃ l, e.1 l ≠ 0 ∧ e.1 - Finsupp.single l 1 ∈ E) : e.1 = 0 := by
-  ext l; exact by_contra fun hl => h ⟨l, hl, hE tsub_le_self e.2⟩
+  ext l
+  exact by_contra fun hl => h ⟨l, hl, hE tsub_le_self e.2⟩
 
 /-- On a table closed downwards, the monomial chain forces `K b_e = xᵉ`. -/
 theorem bobScale_mul_eq_expoPow (hE : IsLowerSet (E : Set (Fin n →₀ ℕ))) {q : Coord E m → ℝ}
@@ -406,7 +407,8 @@ theorem isTotallyMixedNash_game_iff (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)
   · have hchain := bobScale_mul_eq_expoPow hE fun e => heq .critter (.inl e)
     refine ⟨⟨fun _ => hpos _, hsum .alice, fun j => ?_⟩, hchain, fun e => ?_, fun j hj => ?_,
       fun _ => hpos _, hsum .critter⟩
-    · rw [← eval_encode (hF j) hchain]; exact heq .critter (.inr j)
+    · rw [← eval_encode (hF j) hchain]
+      exact heq .critter (.inr j)
     · simpa only [equation, map_sub, eval_X, eval_C, sub_eq_zero] using heq .bob e
     · simpa only [equation, j.2, ↓reduceDIte, map_sub, eval_X, eval_C, sub_eq_zero] using
         heq .alice ⟨j, hj⟩
@@ -417,10 +419,12 @@ theorem isTotallyMixedNash_game_iff (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)
   · rintro (_ | _ | _)
     · exact hasum
     · refine lt_of_eq_of_lt (sum_congr rfl fun e _ => ?_) (sum_expoPow_div_lt_one ha hasum)
-      rw [eq_div_iff bobScale_pos.ne', mul_comm]; exact hchain e
+      rw [eq_div_iff bobScale_pos.ne', mul_comm]
+      exact hchain e
     · exact hcsum
   · rintro (_ | _ | _) t
-    · simp only [equation]; split_ifs with h
+    · simp only [equation]
+      split_ifs with h
       · simp [hca _ (show (⟨t, h⟩ : Fin m).val < n from t.2)]
       · simp
     · simp [equation, hcb]

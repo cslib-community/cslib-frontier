@@ -103,8 +103,9 @@ private theorem advantage_idealJoint_ddhOTSenderSimProb_le (F : PrimeOrderGroupF
           ProbComp.eval (g r)) ≤ 2 / 2 ^ n := by
   classical
   let Z : Environment F.ddhOTProbFamily {0} :=
-    { choose := fun _ d' => if h : d' = d then pure ⟨h ▸ q, []⟩ else
-        pure ⟨fun i => Fin.cases (motive := fun i => OTIn (F.Carrier d') i)
+    { choose := fun _ d' =>
+        if h : d' = d then pure ⟨h ▸ q, []⟩
+        else pure ⟨fun i => Fin.cases (motive := fun i => OTIn (F.Carrier d') i)
           (F.generator d', F.generator d') (fun _ => false) i, []⟩
       guess := fun _ d' _ r => if h : d' = d then g (h ▸ r) else pure false }
   have h := F.advantage_ddhOTProbSenderGame_le (fun _ => PMF.pure d) Z n

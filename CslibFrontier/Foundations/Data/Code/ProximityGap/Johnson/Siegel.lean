@@ -78,7 +78,8 @@ private theorem polyOfTable_eq_zero_iff (M : Finset (ℕ × ℕ)) (B : ℕ)
   refine ⟨fun h0 => funext fun ⟨⟨⟨a, b⟩, hab⟩, ⟨t, ht⟩⟩ => ?_, ?_⟩
   · simpa [coeff_coeff_coeff_polyOfTable, hab, ht] using
       congrArg (fun Q : F[X][X][X] => ((Q.coeff b).coeff a).coeff t) h0
-  · rintro rfl; ext b a t
+  · rintro rfl
+    ext b a t
     rw [coeff_coeff_coeff_polyOfTable]
     split_ifs <;> simp
 
@@ -167,7 +168,8 @@ theorem exists_siegel_interpolant [DecidableEq F] {ι : Type*} [Fintype ι] (α 
     have hshiftC : shift (C (α eq.1)) (curveWord u eq.1) (C (C (C (c (p, t))))) =
         C (C (C (c (p, t)))) := by
       rw [shift_apply, map_C, taylor_C]
-      change C (taylor (C (α eq.1)) (C (C _))) = _; rw [taylor_C]
+      change C (taylor (C (α eq.1)) (C (C _))) = _
+      rw [taylor_C]
     rw [map_mul, hshiftC, coeff_C_mul, coeff_C_mul, coeff_C_mul]
   have hsiegel : R_eq * r * D_Y < (#M - R_eq) * (B + 1) := by
     simpa [B, siegelZDeg, R_eq, D_Y] using

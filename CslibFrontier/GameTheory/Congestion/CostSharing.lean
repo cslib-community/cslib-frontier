@@ -439,7 +439,8 @@ private theorem optOut_load_some (s : Fin k → Bool) (j : Fin k) :
       i = j ∧ s j = true by
     rw [optOut_resources]
     by_cases hij : i = j
-    · subst hij; cases s i <;> simp
+    · subst hij
+      cases s i <;> simp
     · cases s i <;> simp [hij, Ne.symm hij]]
   cases s j <;> simp [Finset.filter_eq']
 
@@ -499,7 +500,8 @@ theorem isPureNash_optOut_iff (hε : 0 < ε) (s : Fin k → Bool) :
       simp only [Bool.false_eq_true, ↓reduceIte]
       rw [show (Finset.univ.filter fun j =>
           Function.update (fun _ : Fin k => true) i false j = false) = {i} by
-        ext j; by_cases hji : j = i <;> simp [hji],
+        ext j
+        by_cases hji : j = i <;> simp [hji],
         Finset.card_singleton, Nat.cast_one, div_one, div_le_iff₀ (by positivity)]
       nlinarith [Nat.cast_nonneg (α := ℝ) i]
     · rw [Function.update_eq_self]

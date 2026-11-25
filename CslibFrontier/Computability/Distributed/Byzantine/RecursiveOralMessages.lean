@@ -183,7 +183,8 @@ theorem omResolve_eq_omResolve {F : Finset P} {val : P → List P → Bool}
       have hcard : τ.toFinsetᶜ.card = (j :: τ).toFinsetᶜ.card + 1 := by
         finset_card [List.toFinset_cons]
       -- The faulty commander leaves at most `m` faulty processes in the subinstances.
-      have hF' : (F \ (j :: τ).toFinset).card ≤ m := by finset_card [List.toFinset_cons]
+      have hF' : (F \ (j :: τ).toFinset).card ≤ m := by
+        finset_card [List.toFinset_cons]
       -- A correct lieutenant `l` contributes the value it received, by Lemma 1 for `OM(m)`.
       have hvote (l : P) (_ : l ∈ (j :: τ).toFinsetᶜ) (hlF : l ∉ F) (i : P) (hi : i ∉ F) :
           (if l = i then val i (j :: τ) else omResolve i (val i) m (l :: j :: τ)) =

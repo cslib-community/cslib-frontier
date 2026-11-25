@@ -160,7 +160,8 @@ theorem mkInitData0_spec {B : Basis} {r_ds w base : ℕ} (P : SubroutineCode B r
       ∀ a, (mkInitData0 P base).mem a = 0 :=
   ⟨⟨fun i => by
       dsimp only [mkInitData0]
-      split_ifs; exacts [hfit_base, fits_zero w],
+      split_ifs
+      exacts [hfit_base, fits_zero w],
     fun _ => fits_zero w⟩, by simp [mkInitData0], fun j => Fin.elim0 j, fun _ => rfl⟩
 
 end Cslib.DataStructure.CellProbe
@@ -531,8 +532,10 @@ theorem ExecFlatProgramOps.tighten_actualBodyTime {B : Basis} {r w base space : 
       rfl
     let t_act : Latent × Data r → ℝ≥0∞ :=
       fun p => expectedTime w p_op ⟨0, prepareFlatRegs input encode o p.2⟩ - 1
-    have hstep_act : (∑' p, ν p * t_act p) = ∑' x, (ν.map Prod.snd) x *
-        (expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1) :=
+    have hstep_act :
+        (∑' p, ν p * t_act p) =
+          ∑' x, (ν.map Prod.snd) x *
+            (expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1) :=
       (Probability.PMF.tsum_map_mul ν Prod.snd
         (fun x => expectedTime w p_op ⟨0, prepareFlatRegs input encode o x⟩ - 1)).symm
     obtain ⟨ih_exec, ih_le, ih_dist⟩ := ih
@@ -1560,7 +1563,8 @@ theorem ObliviousSequenceImpl.exists_cellProbe_of_execRand
       simExecStepsRand_induction L (ν₀_seq.map fun t => L.pack t.data) hex hsupp_seq
     have hrun_eq : (P_cp.runSeq ops).map Prod.fst = ν_final.map SeqOutcome.transcript := by
       rw [← hlaw, Cslib.CellProbe.Randomized.Scheme.runSeq]
-      dsimp only [P_cp]; rw [PMF.map_bind, PMF.bind_map]
+      dsimp only [P_cp]
+      rw [PMF.map_bind, PMF.bind_map]
       refine Cslib.Probability.PMF.bind_congr_on_support ν₀_seq _ _ fun t ht => ?_
       obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
       simp [SeqOutcome.ofLatentState, PMF.map_comp, Function.comp_def]
@@ -1570,7 +1574,8 @@ theorem ObliviousSequenceImpl.exists_cellProbe_of_execRand
     obtain ⟨_, hexp⟩ :=
       simExecStepsRand_induction L (ν₀_seq.map fun t => L.pack t.data) hex hsupp_seq
     rw [Cslib.CellProbe.Randomized.Scheme.expectedSeqProbes_eq_init_tsum]
-    dsimp only [P_cp]; rw [Probability.PMF.tsum_map_mul]
+    dsimp only [P_cp]
+    rw [Probability.PMF.tsum_map_mul]
     rw [show (L.overhead : ℝ≥0∞) = ((2 * persCount P.input : ℕ) : ℝ≥0∞) from
       congrArg Nat.cast (standardLayout_overhead P.input base C.space w)] at hexp
     rw [show ((ops.map fun o => C.charge o + 2 * persCount P.input).sum : ℕ) =

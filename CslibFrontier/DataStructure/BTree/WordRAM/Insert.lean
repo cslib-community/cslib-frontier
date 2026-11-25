@@ -232,12 +232,14 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
         exact WP.of_execWithin hloop ⟨by omega, rfl⟩
       have hy_b0 : y.mem base = cnt + 1 := by
         rw [hmb0]
-        change x₂.mem base = cnt + 1; rw [hmem_x₂, hmr_b0]
+        change x₂.mem base = cnt + 1
+        rw [hmem_x₂, hmr_b0]
       have hrange_y : readNodeSet (l + 1) base t y.mem (cnt + 1) ⊆ Finset.range cnt' :=
         fun w_id hwin => Finset.mem_range.mpr <| by
           rcases Finset.mem_union.mp (hsub_y hwin) with hold | hico
           · change w_id ∈ readNodeSet (l + 1) base t x₂.mem (cnt + 1) at hold
-            have := Finset.mem_range.mp (hrange_r1 (hmem_x₂ ▸ hold)); omega
+            have := Finset.mem_range.mp (hrange_r1 (hmem_x₂ ▸ hold))
+            omega
           · exact (Finset.mem_Ico.mp hico).2
       have hrep : Rep base capNodes t w (readTree (l + 1) base t y.mem (cnt + 1)) y :=
         ⟨hby, ht, hby_reg, hdy_reg, hfit, by rw [hmb1]; omega,
@@ -271,7 +273,8 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
       have he : ExecWithin w insertCode x y
           ((91 * t + 160) * ((readTree l base t x.mem oldRoot).height + 1) + (21 * t + 120)) := by
         rw [hh_eq]
-        unfold insertCode; apply WP.execWithin
+        unfold insertCode
+        apply WP.execWithin
         wram_exec [hr.base_eq, hr.deg_eq, hcnt_def, holdRoot_def, hnk_old_eq,
           hcnt_ne, h6t, hna_r1, h2tm1_eq, hfull_r,
           hf0, hf1, hf_b1, hf_2t, hf_4t, hf_6t,

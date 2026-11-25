@@ -170,7 +170,8 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
       have hmat_uv : w_st.mem (matBase + u.val * r + w_st.regs idx) =
           if G (u, v) then 1 else 0 := by
         rw [hf_c _ (by omega)]
-        dsimp only [y₁, u]; wram_simp
+        dsimp only [y₁, u]
+        wram_simp
         rw [hlow_y _ hmat_addr_lt]
         simpa [Nat.add_assoc, u] using hmat u v
       have hw_one : w_st.regs one = 1 :=
@@ -209,10 +210,12 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
         rw [List.length_append, List.length_singleton] at hi
         by_cases hi_lt : i < (rowPre (w_st.regs idx)).length
         · rw [List.getElem_append_left hi_lt]
-          wram_simp; exact hed_c i hi_lt
+          wram_simp
+          exact hed_c i hi_lt
         · obtain rfl : i = (rowPre (w_st.regs idx)).length := by omega
           rw [List.getElem_append_right (le_refl _)]
-          wram_simp; simp [v]
+          wram_simp
+          simp [v]
     have hy₁_idx : y₁.regs idx = 0 := by dsimp only [y₁]; wram_simp
     obtain ⟨y₂, hl_col, hPCr, _⟩ := ExecWithin.loop_count PC
       (fun w_st hw_st => (hw_st.2.1 rr (by decide) (by decide) (by decide)).trans
@@ -221,7 +224,8 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
     rw [hy₁_idx, Nat.sub_zero] at hl_col
     obtain ⟨_, hr_c2, hqt_c2, hrE_c2, hed_c2, hf_c2⟩ := hPCr
     have hrowPre_full : rowPre r = sInst.adj u := by
-      dsimp only [rowPre, sInst, exactBipAdj]; rw [List.take_of_length_le (by simp)]
+      dsimp only [rowPre, sInst, exactBipAdj]
+      rw [List.take_of_length_le (by simp)]
     have hy₂_qh : y₂.regs qHead = y.regs qHead :=
       (hr_c2 qHead (by decide) (by decide) (by decide)).trans (by dsimp only [y₁]; wram_simp)
     have hy₂_one : y₂.regs one = 1 :=
@@ -239,8 +243,10 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
       rw [hr_c2 i (by omega) hne (fun h => by subst h; simp at hi)]
       dsimp only [y₁]; wram_simp [hr_y i hi hne]
     · wram_simp [hqt_c2]
-      change matBase + u.val * r + r = matBase + (u.val + 1) * r; ring
-    · wram_simp [hrE_c2]; rw [hrowPre_full, ← hoff_succ]
+      change matBase + u.val * r + r = matBase + (u.val + 1) * r
+      ring
+    · wram_simp [hrE_c2]
+      rw [hrowPre_full, ← hoff_succ]
     · dsimp only [Data.set]
       rw [hf_c2 _ (by omega)]; dsimp only [y₁, u]
       by_cases heq_u : u' = y.regs qHead
@@ -257,7 +263,8 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
         have hoff_u'_succ : sInst.offset (u'.val + 1) =
             sInst.offset u'.val + (sInst.adj u').length := sInst.offset_succ u'.isLt
         rw [hf_c2 _ (by omega)]; dsimp only [y₁]
-        wram_simp; exact hedge_y u' hu'_lt hi
+        wram_simp
+        exact hedge_y u' hu'_lt hi
     · dsimp only [Data.set]
       rw [hf_c2 a (by omega)]; dsimp only [y₁]
       wram_simp [hlow_y a ha]

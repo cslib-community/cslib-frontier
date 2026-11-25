@@ -191,10 +191,12 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
       le_rfl, Or.inl ⟨j, by simp only [utility, o', Function.update_self]; nlinarith⟩⟩
     · rcases eq_or_ne i j with rfl | hi
       · simp only [o', Function.update_self]; linarith [hnn i]
-      · simp only [o', Function.update_of_ne hi]; exact hnn i
+      · simp only [o', Function.update_of_ne hi]
+        exact hnn i
     · rcases eq_or_ne i j with rfl | hi
       · simp only [utility, o', Function.update_self]; nlinarith
-      · simp only [utility, o', Function.update_of_ne hi]; exact le_rfl
+      · simp only [utility, o', Function.update_of_ne hi]
+        exact le_rfl
   · have hxpos : 0 < o.alloc i := lt_of_le_of_ne (hnn i) (Ne.symm hxi)
     have hij : i ≠ j := fun h => by linarith [h ▸ hvi]
     let o' : Outcome ι :=
@@ -243,14 +245,16 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
       · simp only [o', Function.update_self]; linarith [hnn k]
       · rcases eq_or_ne k i with rfl | hki
         · simp only [o', Function.update_of_ne hkj, Function.update_self]; linarith
-        · simp only [o', Function.update_of_ne hkj, Function.update_of_ne hki]; exact hnn k
+        · simp only [o', Function.update_of_ne hkj, Function.update_of_ne hki]
+          exact hnn k
     · rcases eq_or_ne k j with rfl | hkj
       · simp only [o', Function.update_self, t]
         linarith
       · rcases eq_or_ne k i with rfl | hki
         · simp only [o', Function.update_of_ne hkj, Function.update_self]
           linarith [hbf k, mul_nonneg hmid_pos.le hδ_pos.le]
-        · simp only [o', Function.update_of_ne hkj, Function.update_of_ne hki]; exact hbf k
+        · simp only [o', Function.update_of_ne hkj, Function.update_of_ne hki]
+          exact hbf k
     · rcases eq_or_ne k j with rfl | hkj
       · exact hutil_j.le
       · rcases eq_or_ne k i with rfl | hki

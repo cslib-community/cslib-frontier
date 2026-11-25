@@ -111,9 +111,11 @@ theorem toOuterMeasure_uniformOfFintype_le_of_dens_le {α : Type*} [Fintype α] 
     simpa [ENNReal.ofReal_mul hB0] using
       ENNReal.ofReal_le_ofReal ((div_le_iff₀ (Nat.cast_pos.mpr hc_pos)).mp hd)
   calc (PMF.uniformOfFintype α).toOuterMeasure E
-      ≤ (PMF.uniformOfFintype α).toOuterMeasure (F : Set α) := MeasureTheory.measure_mono hsub
+      ≤ (PMF.uniformOfFintype α).toOuterMeasure (F : Set α) :=
+        MeasureTheory.measure_mono hsub
     _ = (F.card : ℝ≥0∞) * (Fintype.card α : ℝ≥0∞)⁻¹ := by
-      rw [PMF.toOuterMeasure_apply_finset]; simp [PMF.uniformOfFintype_apply]
+      rw [PMF.toOuterMeasure_apply_finset]
+      simp [PMF.uniformOfFintype_apply]
     _ ≤ (ENNReal.ofReal B * Fintype.card α) * (Fintype.card α : ℝ≥0∞)⁻¹ := by gcongr
     _ = ENNReal.ofReal B := by
       rw [mul_assoc, ENNReal.mul_inv_cancel (Nat.cast_ne_zero.mpr hc_pos.ne')
@@ -145,6 +147,7 @@ theorem toOuterMeasure_uniformOfFintype_cond_le {α β γ : Type*}
     ← uniformOfFintype_prod]
   refine (toOuterMeasure_bind_le_add _ _ {a | ¬ G a} _ p_bot fun a _ ha => ?_).trans
     (add_le_add htop le_rfl)
-  rw [PMF.toOuterMeasure_map_apply]; exact hbot a (not_not.mp ha)
+  rw [PMF.toOuterMeasure_map_apply]
+  exact hbot a (not_not.mp ha)
 
 end Cslib.Probability.PMF

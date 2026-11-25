@@ -101,7 +101,8 @@ private theorem generatedWeight_lt_pow {w n C : ℕ} (seed : Fin (codeLength w n
   have hpow : 2 ^ L ≤ 2 * (m + 1) := by
     rw [show L = Nat.log 2 m + 1 from rfl, pow_succ']
     exact Nat.mul_le_mul_left _ (Nat.pow_log_le_add_one _ _)
-  calc generatedWeight seed z < 6 ^ (padicValNat 2 z.1.val + codeLength w n) :=
+  calc
+    generatedWeight seed z < 6 ^ (padicValNat 2 z.1.val + codeLength w n) :=
       vertexWeight_lt_pow indexedCodeword seed z.1.val z.2
     _ ≤ (2 ^ 3) ^ ((C + 1) * L) :=
       (Nat.pow_le_pow_right (by decide) hexp).trans (Nat.pow_le_pow_left (by decide) _)

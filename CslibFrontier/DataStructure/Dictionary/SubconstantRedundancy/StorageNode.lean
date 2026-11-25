@@ -192,7 +192,8 @@ theorem lookup_remove (w : WaitingList I_cur I_prev cap) (k k' : Fin (2 ^ I_cur)
     (w.remove k).lookup k' = Function.update w.lookup k none k' := by
   refine Option.ext fun v => ?_
   by_cases hkk : k' = k
-  · subst k'; simp [lookup_eq_some_iff, remove]
+  · subst k'
+    simp [lookup_eq_some_iff, remove]
   · simp [lookup_eq_some_iff, remove, hkk]
 
 /-- Pop the head entry `(y_id^[ℓ], y_id^[ℓ - 1])` of a nonempty waiting list (`Algorithm 3`,
@@ -218,7 +219,8 @@ theorem pop_fst_mem_dom (w : WaitingList I_cur I_prev cap) (hne : w.dom.Nonempty
   have hlen : w.entries ≠ [] := by
     rintro hemp
     rcases hne with ⟨x, hx⟩
-    rw [w.mem_dom_iff, hemp] at hx; cases hx
+    rw [w.mem_dom_iff, hemp] at hx
+    cases hx
   exact (w.mem_dom_iff _).mpr (List.mem_map_of_mem (List.head_mem hlen))
 
 theorem lookup_pop_fst (w : WaitingList I_cur I_prev cap) (hne : w.dom.Nonempty) :
@@ -227,7 +229,8 @@ theorem lookup_pop_fst (w : WaitingList I_cur I_prev cap) (hne : w.dom.Nonempty)
   have hlen : w.entries ≠ [] := by
     rintro hemp
     rcases hne with ⟨x, hx⟩
-    rw [w.mem_dom_iff, hemp] at hx; cases hx
+    rw [w.mem_dom_iff, hemp] at hx
+    cases hx
   exact (w.lookup_eq_some_iff _ _).mpr (List.head_mem hlen)
 
 @[simp]
@@ -412,7 +415,8 @@ theorem query_overwrite (tbl : StorageTable I m Q V) (k : Fin (2 ^ I))
   · subst k'
     simp only [storageTable_query_eq_some_iff, overwrite, Function.update_self, Option.some.injEq]
     exact ⟨fun ⟨j, hj, hp⟩ => by
-        rw [tbl.tableMeta.inj_slots j i₀ k hj hsl₀, Function.update_self] at hp; exact hp,
+        rw [tbl.tableMeta.inj_slots j i₀ k hj hsl₀, Function.update_self] at hp
+        exact hp,
       fun h => ⟨i₀, hsl₀, by simp [i₀, h]⟩⟩
   · simp only [Function.update_of_ne hkk, storageTable_query_eq_some_iff, overwrite]
     refine exists_congr fun j => and_congr_right fun hj => ?_
@@ -478,7 +482,8 @@ theorem dom_insert (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) (qv : Fin Q ×
     · subst hji
       rw [Function.update_self] at hj
       exact .inl (Option.some.inj hj).symm
-    · rw [Function.update_of_ne hji] at hj; exact .inr ⟨j, hj⟩
+    · rw [Function.update_of_ne hji] at hj
+      exact .inr ⟨j, hj⟩
   · rintro (rfl | ⟨j, hj⟩)
     · exact ⟨i₀, Function.update_self ..⟩
     · have hji : j ≠ i₀ := fun h => by rw [h, hi₀_none] at hj; cases hj
@@ -503,7 +508,8 @@ theorem query_insert (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) (qv : Fin Q 
   · simp only [Function.update_of_ne hkk, storageTable_query_eq_some_iff, insert]
     refine exists_congr fun j => ?_
     by_cases hji : j = i₀
-    · subst hji; simp [i₀, Ne.symm hkk, hi₀_none]
+    · subst hji
+      simp [i₀, Ne.symm hkk, hi₀_none]
     · dsimp only [i₀] at hji
       simp only [Function.update_of_ne hji]
 
@@ -532,7 +538,8 @@ theorem query_delete (tbl : StorageTable I m Q V) (k k' : Fin (2 ^ I)) :
     (tbl.delete k).query k' = Function.update tbl.query k none k' := by
   refine Option.ext fun qv' => ?_
   by_cases hkk : k' = k
-  · subst k'; simp [storageTable_query_eq_some_iff, delete]
+  · subst k'
+    simp [storageTable_query_eq_some_iff, delete]
   · simp only [Function.update_of_ne hkk, storageTable_query_eq_some_iff, delete]
     exact exists_congr fun i => and_congr_left fun _ => by
       split_ifs with h <;> simp_all [beq_iff_eq, Ne.symm hkk]
@@ -628,7 +635,8 @@ theorem query_replace (tbl : StorageTable I m Q V) (k_old k_new : Fin (2 ^ I))
     · simp only [Function.update_of_ne hold_eq, storageTable_query_eq_some_iff, replace]
       refine exists_congr fun j => ?_
       by_cases hji : j = i₀
-      · subst hji; simp [i₀, Ne.symm hnew_eq, hsl₀, Ne.symm hold_eq]
+      · subst hji
+        simp [i₀, Ne.symm hnew_eq, hsl₀, Ne.symm hold_eq]
       · dsimp only [i₀] at hji
         simp only [Function.update_of_ne hji]
 

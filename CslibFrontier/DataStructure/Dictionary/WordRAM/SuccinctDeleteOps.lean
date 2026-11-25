@@ -764,7 +764,8 @@ private theorem deleteFoundProg_prePop_spec
       rw [hv_sw, hgm_u1, hv_u1]
     have hc_sw := memoryCost_deleteSwapProg_le U V w₀ n_max h_space
       ((((base, b), j_del), phys_del), (m_last, j_last)) s₁
-    refine ⟨s_mid, L_mid, by rw [hst_base, StateTransitionSpec.clientState_bind], by
+    refine ⟨s_mid, L_mid, by rw [hst_base, StateTransitionSpec.clientState_bind],
+      by
         rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind] at hcost_base
         dsimp only [s_mid, s₁, phys_del, j_last, gm₀] at hc_sw hcost_base ⊢; omega,
       hf_sw.trans hf_u1, fun a ha => (hout_sw a ha).trans (hout_u1 a (by wram_omega [ha])),
@@ -875,7 +876,8 @@ private theorem bucketStateInv_deleteAt
   · rcases eq_or_ne b' b with rfl | hbeq
     · rw [hmem_b' m' hm' j, hbc_b']
       exact and_congr_right fun hj => by simp [(hold_b' j hj).1]
-    · rw [hmem_other' b' hb' hbeq m' hm' j, hinv.hchain_mem b' hb' m' hm' j, hbc_other' b' hb' hbeq]
+    · rw [hmem_other' b' hb' hbeq m' hm' j, hinv.hchain_mem b' hb' m' hm' j,
+        hbc_other' b' hb' hbeq]
       exact and_congr_right fun hj => by simp [(hold_other' b' hb' hbeq j hj).1]
   · rcases eq_or_ne b' b with rfl | hbeq
     · rw [hbc_b'] at hj₁ hj₂
@@ -953,7 +955,8 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
     have hm_last_eq : m_last = mOf (quotAt base U w₀ n_max h_space s.mem
         (slotOf n_max gm₀ b (bCount n_max gm₀ b - 1))) := congrArg mOf hq_last_eq
     have hpre_fin : DeleteFinishPre U V w₀ n_max h_space w d_fin s :=
-      ⟨henv, fun _ => ⟨henv, hinv.hslot, hb, hm_lt, hm_last_lt, hj_del_lt, by
+      ⟨henv, fun _ => ⟨henv, hinv.hslot, hb, hm_lt, hm_last_lt, hj_del_lt,
+        by
           dsimp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishToFound, deleteFinishPhys,
             deleteSlotPhys]
           exact hphys_del_eq ▸ (slotOf_lt_and_injective hinv.hslot).1 b hb _ hj_del_lt,

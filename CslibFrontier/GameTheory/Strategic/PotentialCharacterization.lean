@@ -335,9 +335,11 @@ private theorem fourCycleZero_of_simpleClosed_four {G : CostGame ι S}
   set C := update (update s i yᵢ) j yⱼ
   set D := update (update s i xᵢ) j yⱼ
   by_cases hxi : xᵢ = yᵢ
-  · subst hxi; ring
+  · subst hxi
+    ring
   by_cases hxj : xⱼ = yⱼ
-  · subst hxj; ring
+  · subst hxj
+    ring
   have hne_of : ∀ (u v : ∀ k, S k) (k : ι), u k ≠ v k → u ≠ v :=
     fun _ _ k h e => h (congrFun e k)
   let γ : UnilateralPath ι S :=
@@ -377,7 +379,8 @@ private theorem sweepProfile_apply (L : List ι) (cur target : ∀ i, S i) (k : 
   | cons i L ih =>
       rw [sweepProfile, ih]
       by_cases hki : k = i
-      · subst hki; simp
+      · subst hki
+        simp
       · simp [hki]
 
 private theorem sweepCost_append (G : CostGame ι S) (L₁ L₂ : List ι) (cur target : ∀ i, S i) :
@@ -403,7 +406,8 @@ private theorem sweepCost_swap_head {G : CostGame ι S} (h : G.FourCycleZero) {i
   have hB : update (update cur i (target i)) j (cur j) = update cur i (target i) := by
     ext k
     by_cases hk : k = j
-    · subst hk; simp [hij.symm]
+    · subst hk
+      simp [hij.symm]
     · simp [hk]
   simp only [update_eq_self, hB] at hrect
   simp only [sweepCost, update_comm hij.symm (target j) (target i) cur]
@@ -449,14 +453,17 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
         Finset.mem_erase, List.mem_singleton, and_true]
       exact ⟨fun _ => (em (x = i)).symm, fun _ => trivial⟩
   have hw_rem : ∀ t : ∀ k, S k, sweepProfile L_rem z t = update t i (z i) := fun t => by
-    funext k; rw [sweepProfile_apply]
+    funext k
+    rw [sweepProfile_apply]
     by_cases hki : k = i
-    · subst hki; simp [L_rem]
+    · subst hki
+      simp [L_rem]
     · simp [L_rem, hki]
   unfold potentialOfBase
-  rw [sweepCost_perm h hperm hnd_all z (update s i a), sweepCost_perm h hperm hnd_all z s,
-    sweepCost_append, sweepCost_append, sweepCost_congr_of_notMem G hi_notMem z s a,
-    hw_rem s, hw_rem (update s i a), update_idem]
+  rw [sweepCost_perm h hperm hnd_all z (update s i a),
+    sweepCost_perm h hperm hnd_all z s,
+    sweepCost_append, sweepCost_append,
+    sweepCost_congr_of_notMem G hi_notMem z s a, hw_rem s, hw_rem (update s i a), update_idem]
   simp only [sweepCost, update_idem, update_self, update_eq_self]
   ring
 
@@ -584,7 +591,8 @@ theorem IsWeightedPotential.mixedExtension {G : CostGame ι S} {w : ι → ℝ} 
   have hmap : (fun j => (update p i q j).1) = update (fun j => (p j).1) i q.1 := by
     funext j
     by_cases hj : j = i
-    · subst hj; simp
+    · subst hj
+      simp
     · simp [hj]
   simp only [CostGame.mixedExtension, hmap]
   exact hΦ.expectedCost_update_sub (fun j => (p j).2.sum_eq_one) i q.2.sum_eq_one
@@ -602,7 +610,8 @@ theorem exists_isWeightedPotential_mixedExtension_iff {G : CostGame ι S} {w : �
       update (pureProf s) i ⟨Pi.single a 1, isMixedStrategy_single a⟩ := by
     funext j
     by_cases hj : j = i
-    · subst hj; simp [pureProf]
+    · subst hj
+      simp [pureProf]
     · simp [pureProf, hj]
   have hstep := hΨ (pureProf s) i ⟨Pi.single a 1, isMixedStrategy_single a⟩
   rw [← hupd] at hstep

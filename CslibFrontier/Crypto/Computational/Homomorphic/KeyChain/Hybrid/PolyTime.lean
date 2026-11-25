@@ -64,7 +64,8 @@ theorem isPPTOn_encryptZeroKeyLinks
   have hpairs : ComputableInPolyTime
       (fun a => ((keys a).zip (keys a).tail).map fun b => (a, b))
       input (encList (encPair input
-        (encPair (encPair encBits encBits) (encPair encBits encBits)))) := by fun_prop
+        (encPair (encPair encBits encBits) (encPair encBits encBits)))) := by
+    fun_prop
   have hstep : IsPPTOn
       (encPair input (encPair (encPair encBits encBits) (encPair encBits encBits)))
       (encList encBits)
@@ -85,7 +86,8 @@ theorem isPPTOn_encryptKeyLinksHybrid
     (by fun_prop : ComputableInPolyTime (fun a => (keys a).take (cut a + 1)) input encKeyChainKeys)
   have hback := isPPTOn_encryptZeroKeyLinks hencrypt hn
     (by fun_prop : ComputableInPolyTime (fun a => (keys a).drop (cut a)) input encKeyChainKeys)
-  unfold encryptKeyLinksHybrid; ppt
+  unfold encryptKeyLinksHybrid
+  ppt
 
 include hkeyGen in
 /-- Generate independent keys and hybrid links, charging the full public artifact. -/
@@ -127,7 +129,8 @@ theorem isPPTOn_encryptKeyLinkHybrid
     (by fun_prop : ComputableInPolyTime (fun a => (predecessor a).2) input encBits) hcut
   have hback := isPPTOn_encryptZeroKeyLinks hencrypt hn
     (by fun_prop : ComputableInPolyTime (fun a => next a :: after a) input encKeyChainKeys)
-  unfold encryptKeyLinkHybrid; ppt
+  unfold encryptKeyLinkHybrid
+  ppt
 
 /-- Insert the full challenge ciphertext into the actual boundary-link simulation. -/
 @[fun_prop]
@@ -152,6 +155,7 @@ theorem isPPTOn_spliceEncryptedKeyLink
     hchallenge
   have hback := isPPTOn_encryptZeroKeyLinks hencrypt hn
     (by fun_prop : ComputableInPolyTime (fun a => next a :: after a) input encKeyChainKeys)
-  unfold spliceEncryptedKeyLink; ppt
+  unfold spliceEncryptedKeyLink
+  ppt
 
 end Cslib.Crypto.Homomorphic.Scheme

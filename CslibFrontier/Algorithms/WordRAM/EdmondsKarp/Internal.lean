@@ -348,7 +348,8 @@ theorem bnStep_state (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
   split_ifs
   · rw [clientState_bind_read]
     split_ifs
-    · rw [clientState_bind, readResCap_state]; split_ifs <;> rfl
+    · rw [clientState_bind, readResCap_state]
+      split_ifs <;> rfl
     · rfl
   · rfl
 

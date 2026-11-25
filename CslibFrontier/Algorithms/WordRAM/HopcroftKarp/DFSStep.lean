@@ -257,13 +257,15 @@ theorem hkDfsLevel_pure_props {inst : SparseInstance}
               · rwa [vget_vset_ne _ _ hne.symm])
           cases hrw : (dfsNext inst.graph inst.adj mate dist f d w₀ (vset vis v true) []).2 with
           | some qw =>
-            rw [hrw] at hres_w; dsimp only
+            rw [hrw] at hres_w
+            dsimp only
             have hf_ne : f ≠ 0 := fun h => by simp [h] at hb
             exact ⟨hmono_step, by omega, by simpa [List.append_assoc] using hres_w.1, by
               have := hres_w.2
               simp only [List.length_cons]; omega⟩
           | none =>
-            rw [hrw] at hres_w; dsimp only
+            rw [hrw] at hres_w
+            dsimp only
             obtain ⟨hm2, hp2, hr2⟩ := ih _ ps (hcovers.mono hmono_step)
             exact ⟨fun x hx => hm2 x (hmono_step x hx), by omega, hr2⟩
         · exact ih vis ps hcovers
@@ -467,7 +469,8 @@ private theorem exec_copyAugCode {w bOff k : ℕ} {inst : SparseInstance}
     by_cases hlt_i : i < augPairs.length + y.regs idx
     · have hlt_old : i < (augPairs ++ stackPairs.take (y.regs idx)).length := by omega
       simp only [htake_eq, List.getElem_append_left hlt_old]
-      wram_simp; exact haug_y i hlt_old
+      wram_simp
+      exact haug_y i hlt_old
     · have hi_lt : i < augPairs.length + y.regs idx + 1 := by
         rwa [htake_eq, List.length_append, List.length_singleton, hlen_old] at hi
       obtain rfl : i = augPairs.length + y.regs idx := by omega
@@ -837,15 +840,20 @@ theorem exec_dfsStep_accept {w bOff k : ℕ} {inst : SparseInstance}
       exact (hr_cp i (by omega)).trans (by subst hx_mid; wram_simp)
     · exact hfr.hvisM.vset_true v
         (by
-          wram_simp; rw [hf_cp _ (by omega)]
+          wram_simp
+          rw [hf_cp _ (by omega)]
           subst hx_mid; wram_simp)
         fun v₀ hne => by
           have := v₀.isLt
           have hne_val : v₀.val ≠ v.val := fun h => hne (Fin.ext h)
-          wram_simp; rw [hf_cp _ (by omega)]
-          subst hx_mid; wram_simp
-    · wram_simp; rw [hf_cp a (by omega)]
-      subst hx_mid; wram_simp
+          wram_simp
+          rw [hf_cp _ (by omega)]
+          subst hx_mid
+          wram_simp
+    · wram_simp
+      rw [hf_cp a (by omega)]
+      subst hx_mid
+      wram_simp
   obtain ⟨z, he_step, hr_z, hact_z, hal_z, hvis_z, haug_z, hf_z⟩ := hstep
   have hc_exit : ¬(Cond.eq active one).Holds z := by
     rw [Cond.holds_eq, hact_z, (hr_z one (by decide)).trans hfr.hb.hone]

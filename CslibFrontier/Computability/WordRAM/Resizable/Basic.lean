@@ -208,7 +208,8 @@ theorem RData.Bounded.shrink {w : ℕ} {x : RData r} (hx : x.Bounded w) {k : ℕ
 theorem clear_demonicGrow_eq {w k : ℕ} {x : RData r} {mem' : ℕ → ℕ}
     (hx : x.Bounded w) (hdem : DemonicGrow w x.frontier k x.mem mem') :
     clear mem' x.frontier k = x.mem := by
-  funext a; by_cases ha_lt : a < x.frontier
+  funext a
+  by_cases ha_lt : a < x.frontier
   · exact (clear_of_not_owns (by wram_omega)).trans (hdem.1 a ha_lt)
   · by_cases ha_in : a < x.frontier + k
     · exact (clear_of_owns (by wram_omega)).trans (hx.zero_above (by omega)).symm
@@ -259,10 +260,12 @@ theorem RData.Bounded.evalResizable {w : ℕ} {o : Op B r} {x y : RData r}
     obtain ⟨_, _, hput⟩ := Option.bind_eq_some_iff.mp he
     obtain ⟨hf, rfl⟩ := put_eq_some_iff.mp hput; exact hx.set hf
   | load d a =>
-    rw [Resizable.evalResizable] at he; split_ifs at he with hlt
+    rw [Resizable.evalResizable] at he
+    split_ifs at he with hlt
     exact Option.some.inj he ▸ hx.set (hx.mem_fits _)
   | store a s =>
-    rw [Resizable.evalResizable] at he; split_ifs at he with hlt
+    rw [Resizable.evalResizable] at he
+    split_ifs at he with hlt
     exact Option.some.inj he ▸ hx.write hlt (hx.regs_fits s)
 
 /-- Basis simulation transports `evalResizable`. -/
@@ -699,7 +702,8 @@ end RDemonicExec
 private theorem write_zero_demonicGrow_one {w L : ℕ} {mem mem' : ℕ → ℕ}
     (hz : ∀ a, L ≤ a → mem a = 0) (hg : DemonicGrow w L 1 mem mem') :
     Function.update mem' L 0 = mem := by
-  funext a; rcases lt_trichotomy a L with hlt | rfl | hgt
+  funext a
+  rcases lt_trichotomy a L with hlt | rfl | hgt
   · rw [Function.update_of_ne hlt.ne, hg.1 a hlt]
   · exact (Function.update_self ..).trans (hz a le_rfl).symm
   · rw [Function.update_of_ne hgt.ne', hg.2.2 a (by omega), hz a (by omega)]
@@ -987,7 +991,8 @@ theorem shrinkCode_exec {w L_peak : ℕ} {count idx zero one : Fin r} {x : RData
   let base := Function.update (Function.update x.regs zero 0) one 1
   let xs (i : ℕ) : RData r := ⟨Function.update base idx i, clear x.mem (f - i) i, f - i⟩
   have hloop := RDemonicExec.loop (B := .exact) (w := w) (L_peak := L_peak) (cond := .lt idx count)
-    (body := .seq .shrink (.op (.exactBin .add idx idx one))) xs k 2 (by dsimp only [xs]; omega)
+    (body := .seq .shrink (.op (.exactBin .add idx idx one))) xs k 2
+    (by dsimp only [xs]; omega)
     (fun i hi => by simp [Cond.Holds, xs, base, hci, hcz, hco, k, hi])
     (by simp [Cond.Holds, xs, base, hci, hcz, hco, k])
     fun i hi => RDemonicExec.seq_eq

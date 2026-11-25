@@ -227,7 +227,8 @@ private theorem toSupergraph_state_eq_state [DecidableRel G.Adj] {H : SimpleGrap
   | 0 => rfl
   | r + 1 => by
     have ih := toSupergraph_state_eq_state hle F advH x r
-    funext i; dsimp only [state]
+    funext i
+    dsimp only [state]
     refine congrArg₂ (π.update r i) (congrFun ih i) (funext fun j => funext fun hji => ?_)
     by_cases hj : j ∈ F
     · simp only [hj, ↓reduceIte]
@@ -243,7 +244,8 @@ private theorem state_eq_toSupergraph_state [DecidableRel G.Adj] {H : SimpleGrap
   | 0 => rfl
   | r + 1 => by
     have ih := state_eq_toSupergraph_state hle F advG x r
-    funext i; dsimp only [state]
+    funext i
+    dsimp only [state]
     refine congrArg₂ (π.update r i) (congrFun ih i) (funext fun j => funext fun hji => ?_)
     by_cases hj : j ∈ F
     · simp [hj, dite_eq_left_of_eq_true (eq_true hji)]
@@ -287,7 +289,8 @@ private theorem toProtocol_state_eq_state (π : GraphProtocol (⊤ : SimpleGraph
   | 0 => rfl
   | r + 1 => by
     have ih := toProtocol_state_eq_state π F adv x r
-    funext i; dsimp only [Byzantine.Protocol.state, state]
+    funext i
+    dsimp only [Byzantine.Protocol.state, state]
     refine congrArg₂ (π.update r i) (congrFun ih i) (funext fun j => funext fun hji => ?_)
     have hne : j ≠ i := hji
     by_cases hj : j ∈ F
@@ -304,7 +307,8 @@ private theorem state_eq_toProtocol_state (π : GraphProtocol (⊤ : SimpleGraph
   | 0 => rfl
   | r + 1 => by
     have ih := state_eq_toProtocol_state π F advG x r
-    funext i; dsimp only [Byzantine.Protocol.state, state]
+    funext i
+    dsimp only [Byzantine.Protocol.state, state]
     refine congrArg₂ (π.update r i) (congrFun ih i) (funext fun j => funext fun hji => ?_)
     have hne : j ≠ i := hji
     by_cases hj : j ∈ F
@@ -435,7 +439,8 @@ omit [DecidableEq P] in
 private theorem send_congr_target {r : ℕ} {j : P} {s₁ s₂ : S} (hs : s₁ = s₂) {i l : P}
     (hl : i = l) (hji : G.Adj j i) :
     π.send r j s₁ i hji = π.send r j s₂ l (hl ▸ hji) := by
-  subst hl hs; rfl
+  subst hl hs
+  rfl
 
 /-- **The graph covering lemma** (after [Fischer, Lynch and Merritt][FischerLynchMerritt1985], §2,
 pp. 60–61). Suppose the correct processes embed into a covering network by `e`, preserving their

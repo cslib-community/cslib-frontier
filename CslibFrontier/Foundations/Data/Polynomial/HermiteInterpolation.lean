@@ -203,7 +203,8 @@ theorem eq_sum_hermiteBasis_mul_of_dvd (ht : (s : Set ι).Pairwise fun i j => Is
   · refine (degree_sub_le _ _).trans_lt (max_lt hp ((degree_sum_le _ _).trans_lt ?_))
     refine (Finset.sup_lt_iff (WithBot.bot_lt_coe _)).mpr fun i hi => ?_
     rcases eq_or_ne (r i) 0 with hri | hri
-    · rw [hri, mul_zero, degree_zero]; exact WithBot.bot_lt_coe _
+    · rw [hri, mul_zero, degree_zero]
+      exact WithBot.bot_lt_coe _
     refine degree_le_natDegree.trans_lt ?_
     rw [← Finset.add_sum_erase s J hi, Nat.cast_lt]
     have := (natDegree_lt_iff_degree_lt hri).mpr (hr i hi)

@@ -88,7 +88,8 @@ theorem card_filter_filter_ne_eq (x : ∀ i, β i) (S : Finset ι) :
   have h : #{y : ∀ i, β i | ({i | x i ≠ y i} : Finset ι) = S} =
       Fintype.card (∀ i, {b : β i // (i ∈ S ↔ x i ≠ b)}) := by
     rw [← Fintype.card_coe]
-    refine Fintype.card_congr ((Equiv.subtypeEquivRight fun y => ?_).trans Equiv.subtypePiEquivPi)
+    refine Fintype.card_congr ((Equiv.subtypeEquivRight fun y => ?_).trans
+      Equiv.subtypePiEquivPi)
     simp only [mem_filter, mem_univ, true_and, Finset.ext_iff]
     exact forall_congr' fun _ => Iff.comm
   have hi (i : ι) : Fintype.card {b : β i // (i ∈ S ↔ x i ≠ b)} =
@@ -108,7 +109,8 @@ theorem card_filter_hammingDist_eq (x : ∀ i, β i) (r : ℕ) :
     fun S _ T _ hST => disjoint_left.2 fun y hS hT =>
       hST ((mem_filter.1 hS).2.symm.trans (mem_filter.1 hT).2)]
   congr 1
-  ext y; simp [hammingDist, mem_powersetCard]
+  ext y
+  simp [hammingDist, mem_powersetCard]
 
 /-- Over an alphabet of `q` letters at each of `n` positions, a Hamming sphere of radius `r` has
 `C(n, r) (q - 1) ^ r` words. -/
@@ -126,7 +128,8 @@ theorem card_filter_hammingDist_le_eq_sum (x : ∀ i, β i) (r : ℕ) :
   rw [← card_biUnion fun i _ j _ hij => disjoint_left.2 fun y hi hj =>
     hij ((mem_filter.1 hi).2.symm.trans (mem_filter.1 hj).2)]
   congr 1
-  ext y; simp
+  ext y
+  simp
 
 /-- Over an alphabet of `q` letters at each of `n` positions, a Hamming ball of radius `r` has at
 most `(n (q - 1) + 1) ^ r` words: by the binomial theorem this dominates
@@ -196,7 +199,8 @@ theorem exists_subset_pairwise_lt_hammingDist_forall_exists_le (L : Finset (∀ 
   -- a largest subset of words pairwise more than `r` apart
   obtain ⟨C, hC, hmax⟩ := exists_max_image
     (L.powerset.filter fun C : Finset (∀ i, β i) =>
-      (C : Set (∀ i, β i)).Pairwise fun x y => r < hammingDist x y) card ⟨∅, by simp⟩
+      (C : Set (∀ i, β i)).Pairwise fun x y => r < hammingDist x y) card
+    ⟨∅, by simp⟩
   obtain ⟨hCL, hCr⟩ := mem_filter.1 hC
   refine ⟨C, mem_powerset.1 hCL, hCr, fun y hy => by_contra fun hfar => ?_⟩
   simp only [not_exists, not_and, not_le] at hfar
@@ -244,7 +248,8 @@ theorem exists_le_minDist_and_pow_le_card_mul_sum_choose {q : ℕ}
   have hprod : ∏ i, Fintype.card (β i) = q ^ Fintype.card ι := by simp [hq]
   rcases isEmpty_or_nonempty (∀ i, β i) with hempty | hne
   · refine ⟨∅, by simp, ?_⟩
-    rw [← hprod, ← Fintype.card_pi, Fintype.card_eq_zero]; exact Nat.zero_le _
+    rw [← hprod, ← Fintype.card_pi, Fintype.card_eq_zero]
+    exact Nat.zero_le _
   obtain ⟨x₀⟩ := hne
   obtain ⟨C, hCd, hC⟩ := exists_le_minDist_and_prod_le_card_mul_card_filter_hammingDist_lt hd x₀
   exact ⟨C, hCd, by rwa [card_filter_hammingDist_lt_eq_sum hd, sum_congr rfl fun j _ =>

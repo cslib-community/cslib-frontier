@@ -105,11 +105,16 @@ private theorem init_decode (inst : MWISInstance) :
     simp [s₀, Memory.State.init, Nat.add_comm]
   have hall : HoldsIn 1 inst.encode s₀ := holdsIn_init inst.encode
   simp only [MWISInstance.encode, List.cons_append, List.nil_append, List.append_assoc] at hall
-  rw [HoldsIn.cons_iff] at hall; obtain ⟨_, hm1, hall⟩ := hall
-  rw [HoldsIn.cons_iff] at hall; obtain ⟨_, hm2, hall⟩ := hall
-  rw [HoldsIn.append_iff, inst.weights_len] at hall; obtain ⟨hwt, hall⟩ := hall
-  rw [HoldsIn.append_iff, inst.adjMatrix_len] at hall; obtain ⟨hadj, hall⟩ := hall
-  rw [HoldsIn.append_iff, inst.parents_len] at hall; obtain ⟨hpar, hbags⟩ := hall
+  rw [HoldsIn.cons_iff] at hall
+  obtain ⟨_, hm1, hall⟩ := hall
+  rw [HoldsIn.cons_iff] at hall
+  obtain ⟨_, hm2, hall⟩ := hall
+  rw [HoldsIn.append_iff, inst.weights_len] at hall
+  obtain ⟨hwt, hall⟩ := hall
+  rw [HoldsIn.append_iff, inst.adjMatrix_len] at hall
+  obtain ⟨hadj, hall⟩ := hall
+  rw [HoldsIn.append_iff, inst.parents_len] at hall
+  obtain ⟨hpar, hbags⟩ := hall
   have hlen_eq : 3 + inst.numVerts + inst.numVerts * inst.numVerts + (inst.numNodes + 1) +
       (inst.bags.flatMap encodeBag).length = s₀.frontier := by
     rw [hfr]
@@ -131,9 +136,11 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
   let M := inst.maxBagLen
   obtain ⟨hfr₀, hlen₀, hm1, hm2, hwt₀, hadj₀, hpar₀, hbags₀⟩ := init_decode inst
   have hpow_12 : (inst.numNodes + 1) * 2 ^ inst.maxBagLen ≤
-      (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen := Nat.mul_le_mul_right _ (by omega)
+      (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
+    Nat.mul_le_mul_right _ (by omega)
   have hfit_init_peak : Fits w (s₀.frontier + 4 * (n + 1) + (n + 1) * 2 ^ M) := hw.of_le (by
-    dsimp only [s₀, n, M]; rw [hfr₀]
+    dsimp only [s₀, n, M]
+    rw [hfr₀]
     simp only [MWISInstance.wordBound]; omega)
   have hfit_raw : Fits w s₀.frontier := hfit_init_peak.of_le (by omega)
   obtain ⟨hv_init, _, hfr₁, hlay₁, hc_init⟩ :=
@@ -173,12 +180,14 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
       dsimp only [rpArgs]
       rw [h0_pow]; exact hagree₂ zeroFin)
   have hd_lt (off : ℕ) (hoff : off < 4) : descBase + off < s₂.frontier := by
-    have hdesc : descBase + 4 * (n + 1) ≤ s₂.frontier := hlay₂.desc_hi; omega
+    have hdesc : descBase + 4 * (n + 1) ≤ s₂.frontier := hlay₂.desc_hi
+    omega
   have hr_st (s : Memory.State) (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
   have hr_res (s : Memory.State) (a : ℕ) :
       (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
   refine ⟨?_, ?_, ?_⟩
-  · unfold runMWISProg; dsimp only
+  · unfold runMWISProg
+    dsimp only
     refine validHistory_read_bind (by omega) ?_
     rw [show s₀.mem 1 = m from hm1]
     refine validHistory_read_bind (by omega) ?_
@@ -188,15 +197,18 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     refine validHistory_read_bind (hd_lt 1 (by decide)) ?_
     refine validHistory_read_bind (hd_lt 2 (by decide)) ?_
     exact validHistory_read_bind (hd_lt 3 (by decide)) hv_rp
-  · unfold runMWISProg; dsimp only
+  · unfold runMWISProg
+    dsimp only
     rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, show s₀.mem 1 = m from hm1,
       StateTransitionSpec.clientResult_bind, hr_st, hr_res, show s₀.mem 2 = n from hm2,
       StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind]
     change (Memory.spec 0).clientResult s₂ (Memory.read descBase >>= _) = inst.result
     iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
     rw [hr_rp]
-    dsimp only [rpArgs, MWISInstance.result]; rw [h0_pow]
-  · unfold runMWISProg; dsimp only
+    dsimp only [rpArgs, MWISInstance.result]
+    rw [h0_pow]
+  · unfold runMWISProg
+    dsimp only
     rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, show s₀.mem 1 = m from hm1,
       memoryCost_bind', memoryCost_read, hr_st, hr_res, show s₀.mem 2 = n from hm2,
       memoryCost_bind', memoryCost_bind']
@@ -316,7 +328,8 @@ theorem runMWISProg_realizes :
         _ = (inst.numNodes + 1) * inst.maxBagLen * inst.maxWeight := by ring
     exact ⟨inst.numVerts, inst.adjMatrix, inst.weights, inst.bagAt zeroFin, tblFinal zeroFin,
       (inst.numNodes + 1) * inst.maxBagLen * inst.maxWeight,
-      inst.adjMatrix_len, inst.weights_len, rfl, hlay₂.adj_holds, hlay₂.wt_holds,
+      inst.adjMatrix_len, inst.weights_len, rfl,
+      hlay₂.adj_holds, hlay₂.wt_holds,
       h0_bag, h0_len.symm, inst.bagAt_mem_lt zeroFin,
       h0_tbl, by rwa [h0_pow], by rwa [h0_len],
       hw.of_le (by have := inst.adjMatrix_len ▸ hlay₂.adj_holds.1; omega),

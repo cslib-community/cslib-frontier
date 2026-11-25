@@ -70,7 +70,8 @@ theorem computableInPolyTime_appendPredicate {f : List Bool → List Bool}
     {b : List Bool → Bool} (hf : ComputableInPolyTime f encBits encBits)
     (hb : ComputableInPolyTime b encBits encBool) :
     ComputableInPolyTime (appendPredicate f b) encBits encBits := by
-  unfold appendPredicate; polytime
+  unfold appendPredicate
+  polytime
 
 /-- An inverter for `f` from an inverter for `appendPredicate f b`: guess the appended bit
 uniformly and run the given inverter on the extended image. -/

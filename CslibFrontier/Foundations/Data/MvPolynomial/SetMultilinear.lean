@@ -99,14 +99,16 @@ theorem blockMonomial_apply [DecidableEq σ] (blk : σ → Fin d) (S : Finset (F
 /-- A variable outside the blocks of `S` does not occur in the monomial of a choice on `S`. -/
 theorem blockMonomial_apply_of_notMem (blk : σ → Fin d) {S : Finset (Fin d)}
     (x : BlockChoice blk S) {v : σ} (hv : blk v ∉ S) : blockMonomial blk S x v = 0 := by
-  classical rw [blockMonomial_apply, dite_eq_right hv]
+  classical
+  rw [blockMonomial_apply, dite_eq_right hv]
 
 /-- At a variable of block `i`, the monomial of a choice has exponent `1` if the variable is the
 one chosen in block `i`, and `0` otherwise. -/
 theorem blockMonomial_apply_of_eq [DecidableEq σ] {blk : σ → Fin d} {S : Finset (Fin d)}
     (x : BlockChoice blk S) {i : S} {v : σ} (hv : blk v = i) :
     blockMonomial blk S x v = if (x i : σ) = v then 1 else 0 := by
-  rcases i with ⟨_, hi⟩; subst hv
+  rcases i with ⟨_, hi⟩
+  subst hv
   rw [blockMonomial_apply, dite_eq_left hi]
 
 /-- Distinct choices give distinct monomials, so the choices on `S` are in bijection with the
@@ -223,7 +225,8 @@ theorem isSetMultilinear_X (blk : σ → Fin d) (v : σ) :
   obtain rfl : Finsupp.single v 1 = m := by_contra fun h => hm (ite_eq_right h)
   refine ⟨fun i => ⟨v, (Finset.mem_singleton.mp i.2).symm⟩, Finsupp.ext fun u => ?_⟩
   by_cases huv : v = u
-  · subst huv; simp [blockMonomial_apply]
+  · subst huv
+    simp [blockMonomial_apply]
   · simp [blockMonomial_apply, huv]
 
 /-- The constant `1` is set-multilinear on the empty set of blocks. -/

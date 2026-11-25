@@ -108,7 +108,8 @@ private theorem sum_simplexRetraction {κ : Type*} [Fintype κ] [Nonempty κ] (x
 private theorem simplexRetraction_eq {κ : Type*} [Fintype κ] {x : κ → ℝ}
     (hx₀ : ∀ k, 0 ≤ x k) (hx₁ : ∑ k, x k = 1) : simplexRetraction x = x := by
   have hm : posMass x = 1 := (sum_congr rfl fun k _ => max_eq_left (hx₀ k)).trans hx₁
-  funext k; unfold simplexRetraction
+  funext k
+  unfold simplexRetraction
   rw [hm, max_self, min_self, sub_self, zero_div, add_zero, div_one, max_eq_left (hx₀ k)]
 
 /-- **Brouwer's fixed-point theorem** for a finite product of standard simplices: a continuous map

@@ -223,7 +223,9 @@ theorem insertVisits_of_bounds_none {t : Tree d} (hb : t.bounds = none) (x : ℕ
     t.insertVisits x = 1 := by
   cases t with
   | leaf _ => rfl
-  | node _ _ _ => cases hb; rfl
+  | node _ _ _ =>
+    cases hb
+    rfl
 
 /-- `insert` performs at most `d + 1` active recursive calls. -/
 theorem insertVisits_le (t : Tree d) (x : ℕ) : t.insertVisits x ≤ d + 1 :=

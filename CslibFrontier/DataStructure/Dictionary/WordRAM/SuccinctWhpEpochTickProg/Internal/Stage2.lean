@@ -160,7 +160,8 @@ theorem realizes_epochTickStage2Gen :
     try simp only [Prod.mk.eta] at *
     obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, henv, heq_wp, hseed, hrep, hcore, hpre, hs2⟩ := h
     have hw_eq := henv.2.2.1
-    subst hw_eq; subst heq_wp
+    subst hw_eq
+    subst heq_wp
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
     have h2w := henv.two_le_w
@@ -272,15 +273,19 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
         refine validProg_bind hdc_vp ?_; rw [hdc_st, hdc_res, ite_eq_left hdi_lt]
         refine validProg_bind hrd_vp ?_; rw [hrd_st, hrd_res]
         refine validProg_bind hcd_vp ?_
-        rw [hcd_st, hcd_res]; exact hbody.2.1
+        rw [hcd_st, hcd_res]
+        exact hbody.2.1
       · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res,
           ite_eq_left hdi_lt, clientState_bind, hrd_st, hrd_res, clientState_bind, hcd_st, hcd_res]
         exact hbody.2.2
-    dsimp only [epochTickStage2]; rw [ite_eq_left hdi_lt]
+    dsimp only [epochTickStage2]
+    rw [ite_eq_left hdi_lt]
     by_cases hcs_lt : fs.rebCandSalt < sMaxWhp c n_max
-    · dsimp only [pCs]; rw [ite_eq_left hcs_lt, ite_eq_left hcs_lt]
+    · dsimp only [pCs]
+      rw [ite_eq_left hcs_lt, ite_eq_left hcs_lt]
       obtain ⟨_, hrIdx, hcnt_le, hq_all, hbp_v, hcoll_k, hrvS, hrIdxS, hcandS_lt,
-        hinsS_le, hdiS, hnxtS⟩ := stage2_rebScan16_facts henv hcore hpre hs2 hdi_lt hcs_lt
+        hinsS_le, hdiS, hnxtS⟩ :=
+        stage2_rebScan16_facts henv hcore hpre hs2 hdi_lt hcs_lt
       obtain ⟨_, hscan_mc, hscan_vp, hscan_step⟩ := rebScanLoop_spec henv hb θ 16 fs s
         hcore.curEp_or hrIdx hcnt_le hq_all hbp_v hcoll_k hseed hrep
       set sScan := (Memory.spec 0).clientState s
@@ -292,19 +297,23 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
       refine ⟨?_, validProg_bind hscan_vp hps_vp, ?_⟩
       · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
         dsimp only [sScan, cp, b] at hrd_mc hscan_mc hps_mc ⊢; omega
-      · rw [clientState_bind]; exact hscan_step.trans hps_step
-    · dsimp only [pCs]; rw [ite_eq_right hcs_lt, ite_eq_right hcs_lt, clientState_pure_whp]
+      · rw [clientState_bind]
+        exact hscan_step.trans hps_step
+    · dsimp only [pCs]
+      rw [ite_eq_right hcs_lt, ite_eq_right hcs_lt, clientState_pure_whp]
       refine ⟨?_, validProg_pure _, FastStateStep.refl hseed hrep⟩
       simp only [memoryCost_pure]
       dsimp only [cp] at hrd_mc ⊢; omega
-  · dsimp only [epochTickStage2]; rw [ite_eq_right hdi_lt]
+  · dsimp only [epochTickStage2]
+    rw [ite_eq_right hdi_lt]
     obtain ⟨ht3_mc, ht3_vp, ht3_step⟩ := tickToStage3Prog_fastStep henv hseed hrep (s := s)
     refine ⟨?_, ?_, ?_⟩
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
       rw [hdi_st, hdi_res, hdi_mc, hdc_st, hdc_res, hdc_mc, ite_eq_right hdi_lt]; omega
     · refine validProg_bind hdi_vp ?_; rw [hdi_st, hdi_res]
       refine validProg_bind hdc_vp ?_
-      rw [hdc_st, hdc_res, ite_eq_right hdi_lt]; exact ht3_vp
+      rw [hdc_st, hdc_res, ite_eq_right hdi_lt]
+      exact ht3_vp
     · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res, ite_eq_right hdi_lt]
       exact ht3_step
 

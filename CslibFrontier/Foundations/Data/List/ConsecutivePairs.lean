@@ -146,7 +146,8 @@ theorem step_mem_cyclicPairs {α : Type*} (l : List α) [NeZero l.length] (hl : 
     simp only [hi1, ← List.head_eq_getElem hl, List.mem_cons, true_or]
   · have hlt : i.1 + 1 < l.length := by omega
     have hi1 : (i + 1 : Fin l.length).1 = i.1 + 1 := by
-      rw [Fin.val_add, h1]; exact Nat.mod_eq_of_lt hlt
+      rw [Fin.val_add, h1]
+      exact Nat.mod_eq_of_lt hlt
     simp only [hi1]
     exact List.mem_cons_of_mem _ (getElem_mem_consecutivePairs l i.1 hlt)
 
@@ -160,12 +161,14 @@ theorem cyclicPairs_mem_iff {α : Type*} (l : List α) [NeZero l.length] (hl : l
   rintro (⟨rfl, rfl⟩ | ⟨j, hj, rfl, rfl⟩)
   · refine ⟨⟨l.length - 1, by omega⟩, (List.getLast_eq_getElem hl).symm, ?_⟩
     have hi1 : (⟨l.length - 1, by omega⟩ + 1 : Fin l.length).1 = 0 := by
-      rw [Fin.val_add, h1]; dsimp only
+      rw [Fin.val_add, h1]
+      dsimp only
       rw [show l.length - 1 + 1 = l.length by omega, Nat.mod_self]
     simp only [hi1, ← List.head_eq_getElem hl]
   · refine ⟨⟨j, by omega⟩, rfl, ?_⟩
     have hi1 : (⟨j, by omega⟩ + 1 : Fin l.length).1 = j + 1 := by
-      rw [Fin.val_add, h1]; exact Nat.mod_eq_of_lt hj
+      rw [Fin.val_add, h1]
+      exact Nat.mod_eq_of_lt hj
     simp only [hi1]
 
 end List

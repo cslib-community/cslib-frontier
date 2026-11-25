@@ -121,7 +121,8 @@ private def upd (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) :
 
 private theorem upd_row (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) :
     upd X a b l a = Function.update (X a) b l := by
-  funext b'; rcases eq_or_ne b' b with rfl | e <;> simp [upd, *]
+  funext b'
+  rcases eq_or_ne b' b with rfl | e <;> simp [upd, *]
 
 private theorem upd_row_ne (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) {a' : Fin K}
     (h : a' ≠ a) : upd X a b l a' = X a' := by
@@ -129,7 +130,8 @@ private theorem upd_row_ne (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : 
 
 private theorem upd_col (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) :
     (fun a' => upd X a b l a' b) = Function.update (fun a' => X a' b) a l := by
-  funext a'; rcases eq_or_ne a' a with rfl | e <;> simp [upd, *]
+  funext a'
+  rcases eq_or_ne a' a with rfl | e <;> simp [upd, *]
 
 private theorem upd_col_ne (X : Fin K → Fin K → List Γ) (a b : Fin K) (l : List Γ) {b' : Fin K}
     (h : b' ≠ b) : (fun a' => upd X a b l a' b') = fun a' => X a' b' := by
