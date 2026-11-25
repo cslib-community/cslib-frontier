@@ -74,6 +74,8 @@ example : threeSingletons.toList = [1, 2, 3] := by decide
 example : threeSingletons.length = threeSingletons.toList.length := by decide
 example : threeSingletons.get? 1 = some 2 := by decide
 example : threeSingletons.get? 3 = none := by decide
+/-- Lookups on either side of the boundary between the chunks `[1, 2]` and `[3]`. -/
+example : twoLeaves.get? 1 = some 2 ∧ twoLeaves.get? 2 = some 3 := by decide
 example : (twoLeaves.map (· * 10)).toList = [10, 20, 30] := by decide
 example : twoLeaves.foldl (fun acc x => acc * 10 + x) 0 = 123 := by decide
 example : twoLeaves.foldr (fun x acc => acc * 10 + x) 0 = 321 := by decide
@@ -83,6 +85,9 @@ example : 4 ∉ twoLeaves := by decide
 /-- Bulk construction on a concrete input is well-formed and represents it. -/
 example : IsWF 2 (ofList 2 [1, 2, 3, 4, 5]) ∧ (ofList 2 [1, 2, 3, 4, 5]).toList = [1, 2, 3, 4, 5] :=
   by decide +kernel
+
+/-- Bulk construction at `B = 0` makes singleton chunks, as `max 1 B` says. -/
+example : IsWF 1 (ofList 0 [1, 2, 3]) ∧ (ofList 0 [1, 2, 3]).get? 2 = some 3 := by decide +kernel
 
 /-! ### Boundary conventions of the edit operations, on core lists -/
 

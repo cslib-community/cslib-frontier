@@ -39,7 +39,7 @@ other modules.
 * `Rope.mkNode`: a node with recomputed caches, eliminating empty children.
 * `Rope.toList`, `Rope.get?`, `Rope.map`, `Rope.foldl`, `Rope.foldr`, `Rope.singleton`: the
   list model and the basic operations.
-* `Rope.ofLeaves`, `Rope.chunkLeaves`, `Rope.ofList`: bulk construction in chunks of `B`
+* `Rope.chunks`, `Rope.ofChunks`, `Rope.ofList`: bulk construction in chunks of `max 1 B`
   elements.
 
 ## Main results
@@ -49,7 +49,8 @@ other modules.
 * `Rope.get?_eq_getElem?`, `Rope.toList_map`, `Rope.foldl_eq`, `Rope.foldr_eq`: the operations
   agree with the `List` model. Membership is membership in `toList` by definition.
 * `Rope.toList_ofList`, `Rope.cacheCorrect_ofList`, `Rope.chunked_ofList`: bulk construction
-  represents its input with correct caches and chunks of size at most `B`.
+  represents its input with correct caches and, for `1 ≤ B`, chunks of between `1` and `B`
+  elements.
 * `Rope.isWF_map`: mapping preserves well-formedness.
 * `Rope.IsWF.left`, `Rope.IsWF.right`: the children of a well-formed node are well-formed.
 
@@ -74,7 +75,6 @@ inductive Rope (α : Type u) where
   | leaf (xs : List α)
   /-- An internal node with cached length and height. -/
   | node (cachedLength cachedHeight : ℕ) (left right : Rope α)
-  deriving Inhabited
 
 namespace Rope
 
@@ -150,12 +150,6 @@ structure IsWF (B : ℕ) (t : Rope α) : Prop where
 @[simp] theorem isEmpty_leaf (xs : List α) : (leaf xs).isEmpty = false := rfl
 @[simp] theorem isEmpty_node (n h : ℕ) (l r : Rope α) : (node n h l r).isEmpty = false := rfl
 
-
-@[simp] theorem cacheCorrect_leaf (xs : List α) : CacheCorrect (leaf xs) := trivial
-
-
-
-
 @[simp] theorem isWF_empty (B : ℕ) : IsWF B (empty : Rope α) := ⟨trivial, trivial, trivial⟩
 
 theorem isWF_leaf_iff {B : ℕ} {xs : List α} :
@@ -203,11 +197,7 @@ instance (B : ℕ) (t : Rope α) : Decidable (IsWF B t) :=
 /-- Cached height equals structural height when the caches are correct. -/
 theorem height_eq_structuralHeight {t : Rope α} (hc : CacheCorrect t) :
     t.height = t.structuralHeight := by
-  induction t with
-  | empty | leaf => rfl
-  | node n h l r ihl ihr =>
-    obtain ⟨hl, hr, -, rfl⟩ := hc
-    simp [structuralHeight, ihl hl, ihr hr]
+  induction t <;> simp_all [CacheCorrect, structuralHeight]
 
 /-- A node over `l` and `r` with recomputed caches; an empty child is dropped instead. -/
 @[expose] def mkNode : Rope α → Rope α → Rope α
@@ -220,7 +210,6 @@ theorem height_eq_structuralHeight {t : Rope α} (hc : CacheCorrect t) :
 @[simp] theorem mkNode_empty_right (l : Rope α) : mkNode l .empty = l := by
   cases l <;> rfl
 
-
 theorem cacheCorrect_mkNode {l r : Rope α} (hl : CacheCorrect l) (hr : CacheCorrect r) :
     CacheCorrect (mkNode l r) := by
   cases l <;> cases r <;> first | assumption | exact ⟨hl, hr, rfl, rfl⟩
@@ -229,38 +218,27 @@ theorem chunked_mkNode {B : ℕ} {l r : Rope α} (hl : Chunked B l) (hr : Chunke
     Chunked B (mkNode l r) := by
   cases l <;> cases r <;> first | assumption | exact ⟨hl, hr, rfl, rfl⟩
 
-
 end Structure
 
 section Bulk
 
 variable {α : Type u}
 
-/-- Build a tree from the first `n` ropes of `ts`, returning it together with the unused rest.
-The left subtree takes `⌊n / 2⌋` ropes and the right subtree the remainder. Each rope of `ts` is
-consumed once, and no intermediate list is built. -/
-@[expose] def ofLeavesAux : ℕ → List (Rope α) → Rope α × List (Rope α)
-  | 0, ts => (.empty, ts)
-  | 1, [] => (.empty, [])
-  | 1, t :: ts => (t, ts)
-  | n + 2, ts =>
-    let p := ofLeavesAux ((n + 2) / 2) ts
-    let q := ofLeavesAux (n + 2 - (n + 2) / 2) p.2
-    (mkNode p.1 q.1, q.2)
-termination_by n => n
-decreasing_by all_goals omega
-
-/-- Combine a list of ropes in order into a tree whose shape depends only on the length of the
-list: at every node the two sides receive `⌊n / 2⌋` and `⌈n / 2⌉` ropes. On leaves this gives
-subtrees whose leaf counts differ by at most one. -/
-@[expose] def ofLeaves (ts : List (Rope α)) : Rope α := (ofLeavesAux ts.length ts).1
-
-/-- Cut a list into consecutive leaves of `max 1 B` elements; the last may be shorter. -/
-@[expose] def chunkLeaves (B : ℕ) : List α → List (Rope α)
+/-- Cut a list into consecutive chunks of `max 1 B` elements; the last may be shorter. -/
+@[expose] def chunks (B : ℕ) : List α → List (List α)
   | [] => []
-  | x :: xs => leaf (x :: xs.take (B - 1)) :: chunkLeaves B (xs.drop (B - 1))
+  | x :: xs => (x :: xs.take (B - 1)) :: chunks B (xs.drop (B - 1))
 termination_by xs => xs.length
-decreasing_by simp only [List.length_drop, List.length_cons]; omega
+
+/-- A tree with one leaf per chunk, in order. At every node the two sides receive `⌊n / 2⌋` and
+`⌈n / 2⌉` of the `n` chunks, so the shape depends only on the number of chunks. -/
+@[expose] def ofChunks (cs : List (List α)) : Rope α :=
+  match h : cs.length with
+  | 0 => .empty
+  | 1 => .leaf cs.flatten
+  | n + 2 => mkNode (ofChunks (cs.take ((n + 2) / 2))) (ofChunks (cs.drop ((n + 2) / 2)))
+termination_by cs.length
+decreasing_by all_goals simp only [List.length_take, List.length_drop]; omega
 
 end Bulk
 
@@ -270,15 +248,11 @@ section Model
 
 variable {α : Type u} {β : Type v}
 
-/-- Prepend the elements of `t` to `tail`, right subtree first. -/
-@[expose] def toListAux : Rope α → List α → List α
-  | .empty, tail => tail
-  | .leaf xs, tail => xs ++ tail
-  | .node _ _ l r, tail => toListAux l (toListAux r tail)
-
-/-- The elements of `t` in order: the list model of the rope. The accumulator avoids repeated
-appends. -/
-@[expose] def toList (t : Rope α) : List α := toListAux t []
+/-- The elements of `t` in order: the list model of the rope. -/
+@[expose] def toList : Rope α → List α
+  | .empty => []
+  | .leaf xs => xs
+  | .node _ _ l r => l.toList ++ r.toList
 
 /-- The element at index `i`, if any. -/
 @[expose] def get? : Rope α → ℕ → Option α
@@ -308,32 +282,17 @@ appends. -/
 @[expose] def singleton (x : α) : Rope α := .leaf [x]
 
 /-- Bulk construction in chunks of `max 1 B` elements. -/
-@[expose] def ofList (B : ℕ) (xs : List α) : Rope α := ofLeaves (chunkLeaves B xs)
+@[expose] def ofList (B : ℕ) (xs : List α) : Rope α := ofChunks (chunks B xs)
 
 instance : Membership α (Rope α) := ⟨fun t x => x ∈ t.toList⟩
-
-theorem mem_iff {x : α} {t : Rope α} : x ∈ t ↔ x ∈ t.toList := Iff.rfl
 
 instance [DecidableEq α] (x : α) (t : Rope α) : Decidable (x ∈ t) :=
   inferInstanceAs (Decidable (x ∈ t.toList))
 
-private theorem toListAux_eq (t : Rope α) (tail : List α) :
-    toListAux t tail = toListAux t [] ++ tail := by
-  induction t generalizing tail with
-  | empty => rfl
-  | leaf xs => simp [toListAux]
-  | node n h l r ihl ihr =>
-    simp only [toListAux]
-    rw [ihl, ihr, ihl (toListAux r []), List.append_assoc]
-
 @[simp] theorem toList_empty : (empty : Rope α).toList = [] := rfl
-@[simp] theorem toList_leaf (xs : List α) : (leaf xs).toList = xs := by
-  simp [toList, toListAux]
-
+@[simp] theorem toList_leaf (xs : List α) : (leaf xs).toList = xs := rfl
 @[simp] theorem toList_node (n h : ℕ) (l r : Rope α) :
-    (node n h l r).toList = l.toList ++ r.toList := by
-  simp only [toList, toListAux]
-  rw [toListAux_eq]
+    (node n h l r).toList = l.toList ++ r.toList := rfl
 
 @[simp] theorem toList_mkNode (l r : Rope α) : (mkNode l r).toList = l.toList ++ r.toList := by
   cases l <;> cases r <;> simp [mkNode]
@@ -341,30 +300,16 @@ private theorem toListAux_eq (t : Rope α) (tail : List α) :
 /-- The cached length is the length of the model when the caches are correct. -/
 theorem length_eq_length_toList {t : Rope α} (hc : CacheCorrect t) :
     t.length = t.toList.length := by
-  induction t with
-  | empty | leaf => simp
-  | node n h l r ihl ihr =>
-    obtain ⟨hl, hr, rfl, -⟩ := hc
-    simp [ihl hl, ihr hr]
+  induction t <;> simp_all [CacheCorrect]
 
 @[simp] theorem get?_empty (i : ℕ) : (empty : Rope α).get? i = none := rfl
 @[simp] theorem get?_leaf (xs : List α) (i : ℕ) : (leaf xs).get? i = xs[i]? := rfl
 
-theorem get?_node (n h : ℕ) (l r : Rope α) (i : ℕ) :
-    (node n h l r).get? i = if i < l.length then l.get? i else r.get? (i - l.length) := rfl
-
 /-- Indexing agrees with indexing the model; out-of-range indices give `none`. -/
 theorem get?_eq_getElem? {t : Rope α} (hc : CacheCorrect t) (i : ℕ) :
     t.get? i = t.toList[i]? := by
-  induction t generalizing i with
-  | empty | leaf => simp
-  | node n h l r ihl ihr =>
-    obtain ⟨hl, hr, -, -⟩ := hc
-    have hlen := length_eq_length_toList hl
-    rw [get?_node, toList_node]
-    split
-    · rw [ihl hl, List.getElem?_append_left (by omega)]
-    · rw [ihr hr, List.getElem?_append_right (by omega), hlen]
+  induction t generalizing i <;>
+    simp_all [CacheCorrect, get?, List.getElem?_append, length_eq_length_toList]
 
 @[simp] theorem map_empty (f : α → β) : (empty : Rope α).map f = .empty := rfl
 @[simp] theorem map_leaf (f : α → β) (xs : List α) : (leaf xs).map f = .leaf (xs.map f) := rfl
@@ -414,78 +359,57 @@ theorem foldr_eq (f : α → β → β) (z : β) (t : Rope α) : t.foldr f z = t
 theorem isWF_singleton {B : ℕ} (hB : 1 ≤ B) (x : α) : IsWF B (singleton x) :=
   isWF_leaf_iff.2 ⟨Nat.one_pos, hB⟩
 
-private theorem ofLeavesAux_snd (n : ℕ) (ts : List (Rope α)) :
-    (ofLeavesAux n ts).2 = ts.drop n := by
-  fun_induction ofLeavesAux n ts with
-  | case4 n ts p q ihp ihq =>
-    dsimp only [q, p] at ihq ⊢
-    rw [ihq, ihp, List.drop_drop]
-    congr 1; omega
-  | _ => simp
+private theorem flatten_chunks (B : ℕ) (xs : List α) : (chunks B xs).flatten = xs := by
+  induction xs using chunks.induct B with
+  | case1 => simp [chunks]
+  | case2 x xs ih => simp [chunks, ih]
 
-private theorem toList_ofLeavesAux (n : ℕ) (ts : List (Rope α)) :
-    (ofLeavesAux n ts).1.toList = ((ts.take n).map toList).flatten := by
-  fun_induction ofLeavesAux n ts with
-  | case4 n ts p q ihp ihq =>
-    dsimp only [q, p] at ihq ⊢
-    rw [toList_mkNode, ihp, ihq, ofLeavesAux_snd, ← List.flatten_append, ← List.map_append,
-      ← List.take_add]
-    congr 3; omega
-  | _ => simp
-
-private theorem ofLeavesAux_fst_of_forall (P : Rope α → Prop) (hempty : P .empty)
-    (hnode : ∀ l r, P l → P r → P (mkNode l r)) (n : ℕ) (ts : List (Rope α))
-    (h : ∀ t ∈ ts, P t) : P (ofLeavesAux n ts).1 := by
-  fun_induction ofLeavesAux n ts with
-  | case4 n ts p q ihp ihq =>
-    exact hnode _ _ (ihp h)
-      (ihq fun t ht => h t (List.mem_of_mem_drop (ofLeavesAux_snd _ _ ▸ ht)))
-  | case3 t ts => exact h t (by simp)
-  | _ => exact hempty
-
-theorem toList_ofLeaves (ts : List (Rope α)) :
-    (ofLeaves ts).toList = (ts.map toList).flatten := by
-  rw [ofLeaves, toList_ofLeavesAux, List.take_length]
-
-theorem cacheCorrect_ofLeaves {ts : List (Rope α)} (h : ∀ t ∈ ts, CacheCorrect t) :
-    CacheCorrect (ofLeaves ts) :=
-  ofLeavesAux_fst_of_forall _ trivial (fun _ _ => cacheCorrect_mkNode) _ ts h
-
-theorem chunked_ofLeaves {B : ℕ} {ts : List (Rope α)} (h : ∀ t ∈ ts, Chunked B t) :
-    Chunked B (ofLeaves ts) :=
-  ofLeavesAux_fst_of_forall _ trivial (fun _ _ => chunked_mkNode) _ ts h
-
-private theorem flatten_chunkLeaves (B : ℕ) (xs : List α) :
-    ((chunkLeaves B xs).map toList).flatten = xs := by
-  induction xs using chunkLeaves.induct B with
-  | case1 => simp [chunkLeaves]
-  | case2 x xs ih => simp [chunkLeaves, ih]
-
-private theorem exists_leaf_of_mem_chunkLeaves {B : ℕ} {xs : List α} {t : Rope α}
-    (ht : t ∈ chunkLeaves B xs) : ∃ c, t = leaf c ∧ 0 < c.length ∧ c.length ≤ max 1 B := by
-  induction xs using chunkLeaves.induct B with
-  | case1 => simp [chunkLeaves] at ht
+private theorem length_pos_and_le_of_mem_chunks {B : ℕ} (hB : 1 ≤ B) {xs c : List α}
+    (hc : c ∈ chunks B xs) : 0 < c.length ∧ c.length ≤ B := by
+  induction xs using chunks.induct B with
+  | case1 => simp [chunks] at hc
   | case2 x xs ih =>
-    rw [chunkLeaves, List.mem_cons] at ht
-    rcases ht with rfl | ht
-    · exact ⟨_, rfl, by simp, by simp only [List.length_cons, List.length_take]; omega⟩
-    · exact ih ht
+    rw [chunks, List.mem_cons] at hc
+    rcases hc with rfl | hc
+    · simp only [List.length_cons, List.length_take]; omega
+    · exact ih hc
+
+theorem toList_ofChunks (cs : List (List α)) : (ofChunks cs).toList = cs.flatten := by
+  fun_induction ofChunks cs with
+  | case1 cs h => simp_all
+  | case2 cs h =>
+    obtain ⟨c, rfl⟩ := List.length_eq_one_iff.1 h
+    simp
+  | case3 cs n h ihl ihr =>
+    rw [toList_mkNode, ihl, ihr, ← List.flatten_append, List.take_append_drop]
+
+theorem cacheCorrect_ofChunks (cs : List (List α)) : CacheCorrect (ofChunks cs) := by
+  fun_induction ofChunks cs with
+  | case3 cs n h ihl ihr => exact cacheCorrect_mkNode ihl ihr
+  | _ => trivial
+
+theorem chunked_ofChunks {B : ℕ} (cs : List (List α)) :
+    (∀ c ∈ cs, 0 < c.length ∧ c.length ≤ B) → Chunked B (ofChunks cs) := by
+  fun_induction ofChunks cs with
+  | case1 => exact fun _ => trivial
+  | case2 cs h =>
+    obtain ⟨c, rfl⟩ := List.length_eq_one_iff.1 h
+    simp [Chunked]
+  | case3 cs n h ihl ihr =>
+    exact fun hc => chunked_mkNode (ihl fun c h' => hc c (List.mem_of_mem_take h'))
+      (ihr fun c h' => hc c (List.mem_of_mem_drop h'))
 
 /-- Bulk construction represents its input. -/
 @[simp] theorem toList_ofList (B : ℕ) (xs : List α) : (ofList B xs).toList = xs := by
-  simp [ofList, toList_ofLeaves, flatten_chunkLeaves]
+  simp [ofList, toList_ofChunks, flatten_chunks]
 
 theorem cacheCorrect_ofList (B : ℕ) (xs : List α) : CacheCorrect (ofList B xs) :=
-  cacheCorrect_ofLeaves fun _ ht => by
-    obtain ⟨c, rfl, -⟩ := exists_leaf_of_mem_chunkLeaves ht
-    trivial
+  cacheCorrect_ofChunks _
 
 /-- Bulk construction produces chunks of between `1` and `B` elements. Its balance is an open
 objective of cslib-community/cslib-frontier#3670. -/
 theorem chunked_ofList {B : ℕ} (hB : 1 ≤ B) (xs : List α) : Chunked B (ofList B xs) :=
-  chunked_ofLeaves fun _ ht => by
-    obtain ⟨c, rfl, h₁, h₂⟩ := exists_leaf_of_mem_chunkLeaves ht
-    exact ⟨h₁, by omega⟩
+  chunked_ofChunks _ fun _ hc => length_pos_and_le_of_mem_chunks hB hc
 
 end Model
 
