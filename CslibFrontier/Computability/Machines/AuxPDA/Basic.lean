@@ -112,23 +112,35 @@ lemma apply?_pop_cons (sym : StackSym) (rest : List StackSym) :
 lemma length_le_of_apply? {op : StackOp StackSym} {s s' : List StackSym}
     (h : op.apply? s = some s') : s'.length ≤ s.length + 1 := by
   cases op with
-  | stay => cases h; exact Nat.le_succ _
-  | push sym => cases h; exact le_rfl
+  | stay =>
+    cases h
+    exact Nat.le_succ _
+  | push sym =>
+    cases h
+    exact le_rfl
   | pop =>
     cases s with
     | nil => cases h
-    | cons _ _ => cases h; simp; omega
+    | cons _ _ =>
+      cases h
+      simp; omega
 
 /-- A stack operation decreases the stack height by at most one. -/
 lemma le_length_add_one_of_apply? {op : StackOp StackSym} {s s' : List StackSym}
     (h : op.apply? s = some s') : s.length ≤ s'.length + 1 := by
   cases op with
-  | stay => cases h; exact Nat.le_succ _
-  | push sym => cases h; simp; omega
+  | stay =>
+    cases h
+    exact Nat.le_succ _
+  | push sym =>
+    cases h
+    simp; omega
   | pop =>
     cases s with
     | nil => cases h
-    | cons _ _ => cases h; simp
+    | cons _ _ =>
+      cases h
+      simp
 
 end StackOp
 
@@ -239,7 +251,7 @@ lemma Step.workTapePos_le {c c' : Cfg k Symbol StackSym State input} (h : M.Step
   split at h
   · simp [h]
   · obtain ⟨act, -, hact⟩ := h
-    obtain ⟨stack', -, rfl⟩ := Action.apply?_eq_some_iff.mp hact
+    obtain ⟨_, -, rfl⟩ := Action.apply?_eq_some_iff.mp hact
     exact workTapePos_apply_le act.tape c.tapes i
 
 /-- A single step does not modify any work-tape cell away from its head. -/
@@ -250,7 +262,7 @@ lemma Step.workTapes_eq_of_ne {c c' : Cfg k Symbol StackSym State input} (h : M.
   split at h
   · simp [h]
   · obtain ⟨act, -, hact⟩ := h
-    obtain ⟨stack', -, rfl⟩ := Action.apply?_eq_some_iff.mp hact
+    obtain ⟨_, -, rfl⟩ := Action.apply?_eq_some_iff.mp hact
     rw [Turing.Action.apply_workTapes]
     cases hw : (act.tape.workTapes i).1 <;> simp [hw, hz]
 
@@ -259,9 +271,9 @@ lemma Step.stackHeight_le {c c' : Cfg k Symbol StackSym State input} (h : M.Step
     c'.stack.length ≤ c.stack.length + 1 := by
   unfold Step at h
   split at h
-  · subst h; exact Nat.le_succ _
-  · obtain ⟨act, -, hact⟩ := h
-    obtain ⟨stack', hstack, rfl⟩ := Action.apply?_eq_some_iff.mp hact
+  · exact h ▸ Nat.le_succ _
+  · obtain ⟨_, -, hact⟩ := h
+    obtain ⟨_, hstack, rfl⟩ := Action.apply?_eq_some_iff.mp hact
     exact StackOp.length_le_of_apply? hstack
 
 /-- A single step decreases the stack height by at most one. -/
@@ -269,9 +281,9 @@ lemma Step.le_stackHeight_add_one {c c' : Cfg k Symbol StackSym State input} (h 
     c.stack.length ≤ c'.stack.length + 1 := by
   unfold Step at h
   split at h
-  · subst h; exact Nat.le_succ _
-  · obtain ⟨act, -, hact⟩ := h
-    obtain ⟨stack', hstack, rfl⟩ := Action.apply?_eq_some_iff.mp hact
+  · exact h ▸ Nat.le_succ _
+  · obtain ⟨_, -, hact⟩ := h
+    obtain ⟨_, hstack, rfl⟩ := Action.apply?_eq_some_iff.mp hact
     exact StackOp.le_length_add_one_of_apply? hstack
 
 /-- The one-step relation as a `SetRel`. -/
@@ -502,18 +514,14 @@ lemma ofMultiTapeNTM_step_iff {ntm : MultiTapeNTM k Symbol State}
   cases hs : c₁.tapes.state with
   | none =>
     simp only [Step, MultiTapeNTM.Step, hs]
-    constructor
-    · intro h; subst h; exact ⟨rfl, rfl⟩
-    · rintro ⟨ht, hst⟩; exact Cfg.ext ht hst
+    exact ⟨fun h => ⟨h ▸ rfl, h ▸ rfl⟩, fun ⟨ht, hst⟩ => Cfg.ext ht hst⟩
   | some q =>
     simp only [Step, MultiTapeNTM.Step, ofMultiTapeNTM, hs, Action.apply?_eq_some_iff]
-    constructor
-    · rintro ⟨act, ⟨hstay, htr⟩, stack', hstack, rfl⟩
-      rw [hstay, StackOp.apply?_stay, Option.some.injEq] at hstack
-      exact ⟨⟨act.tape, htr, rfl⟩, hstack.symm⟩
-    · rintro ⟨⟨tAct, htr, htapes⟩, hstack⟩
-      refine ⟨⟨tAct, .stay⟩, ⟨rfl, htr⟩, c₁.stack, rfl, ?_⟩
-      exact Cfg.ext htapes hstack
+    refine ⟨?_, fun ⟨⟨tAct, htr, htapes⟩, hstack⟩ =>
+      ⟨⟨tAct, .stay⟩, ⟨rfl, htr⟩, c₁.stack, rfl, Cfg.ext htapes hstack⟩⟩
+    rintro ⟨act, ⟨hstay, htr⟩, stack', hstack, rfl⟩
+    rw [hstay, StackOp.apply?_stay, Option.some.injEq] at hstack
+    exact ⟨⟨act.tape, htr, rfl⟩, hstack.symm⟩
 
 /-- Projecting an `ofMultiTapeNTM` configuration to its `Turing.Cfg` preserves steps. -/
 private def ofMultiTapeNTMTapesHom (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) :
@@ -527,25 +535,19 @@ private def ofMultiTapeNTMLiftHom (ntm : MultiTapeNTM k Symbol State) (input : L
 
 private lemma ofMultiTapeNTM_space_map_tapes (ntm : MultiTapeNTM k Symbol State)
     (p : (ofMultiTapeNTM ntm).RunPath input) :
-    MultiTapeNTM.RunPath.space (RelSeries.map p (ofMultiTapeNTMTapesHom ntm input)) = p.space := by
-  simp only [MultiTapeNTM.RunPath.space, RunPath.space, MultiTapeNTM.RunPath.spaceUsedByTape,
-    RunPath.spaceUsedByTape]
-  refine Finset.sum_congr rfl fun i _ => congrArg Finset.card ?_
-  exact Finset.image_congr fun _ _ => rfl
+    MultiTapeNTM.RunPath.space (RelSeries.map p (ofMultiTapeNTMTapesHom ntm input)) = p.space :=
+  Finset.sum_congr rfl fun _ _ => congrArg Finset.card (Finset.image_congr fun _ _ => rfl)
 
 private lemma ofMultiTapeNTM_space_map_lift (ntm : MultiTapeNTM k Symbol State)
     (p : ntm.RunPath input) :
-    RunPath.space (RelSeries.map p (ofMultiTapeNTMLiftHom ntm input)) = p.space := by
-  simp only [MultiTapeNTM.RunPath.space, RunPath.space, MultiTapeNTM.RunPath.spaceUsedByTape,
-    RunPath.spaceUsedByTape]
-  refine Finset.sum_congr rfl fun i _ => congrArg Finset.card ?_
-  exact Finset.image_congr fun _ _ => rfl
+    RunPath.space (RelSeries.map p (ofMultiTapeNTMLiftHom ntm input)) = p.space :=
+  Finset.sum_congr rfl fun _ _ => congrArg Finset.card (Finset.image_congr fun _ _ => rfl)
 
 private lemma head_map_lift {ntm : MultiTapeNTM k Symbol State}
     (p : ntm.ComputationPath input) :
     (RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input)).head =
       (ofMultiTapeNTM ntm).initCfg input := by
-  change (⟨p.head, []⟩ : Cfg k Symbol PUnit State input) = (ofMultiTapeNTM ntm).initCfg input
+  change (⟨p.head, []⟩ : Cfg k Symbol PUnit State input) = _
   rw [p.head_eq]
   rfl
 
@@ -553,50 +555,43 @@ private lemma head_map_tapes {ntm : MultiTapeNTM k Symbol State}
     (p : (ofMultiTapeNTM ntm).ComputationPath input) :
     (RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input)).head =
       ntm.initCfg input := by
-  change p.head.tapes = ntm.initCfg input
+  change p.head.tapes = _
   rw [p.head_eq]
   rfl
 
 /-- `ofMultiTapeNTM` preserves work-tape space bounds exactly. -/
 theorem ofMultiTapeNTM_runsInSpace_iff {ntm : MultiTapeNTM k Symbol State} {s : ℕ} :
-    (ofMultiTapeNTM ntm).RunsInSpace input s ↔ ntm.RunsInSpace input s := by
-  constructor
-  · intro h p
-    let p' : (ofMultiTapeNTM ntm).ComputationPath input :=
-      ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input), head_map_lift p⟩
-    simpa [ComputationPath.space, MultiTapeNTM.ComputationPath.space, p',
-      ofMultiTapeNTM_space_map_lift] using h p'
-  · intro h p
-    let p' : ntm.ComputationPath input :=
-      ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input), head_map_tapes p⟩
-    simpa [ComputationPath.space, MultiTapeNTM.ComputationPath.space, p',
-      ofMultiTapeNTM_space_map_tapes] using h p'
+    (ofMultiTapeNTM ntm).RunsInSpace input s ↔ ntm.RunsInSpace input s :=
+  ⟨fun h p => by
+    simpa [ComputationPath.space, MultiTapeNTM.ComputationPath.space,
+      ofMultiTapeNTM_space_map_lift] using
+      h ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input), head_map_lift p⟩,
+   fun h p => by
+    simpa [ComputationPath.space, MultiTapeNTM.ComputationPath.space,
+      ofMultiTapeNTM_space_map_tapes] using
+      h ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input), head_map_tapes p⟩⟩
 
 /-- `ofMultiTapeNTM` preserves all-branches time bounds exactly. -/
 theorem ofMultiTapeNTM_runsInTime_iff {ntm : MultiTapeNTM k Symbol State} {t : ℕ} :
-    (ofMultiTapeNTM ntm).RunsInTime input t ↔ ntm.RunsInTime input t := by
-  constructor
-  · intro h p hp
-    let p' : (ofMultiTapeNTM ntm).ComputationPath input :=
-      ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input), head_map_lift p⟩
-    exact h p' (by simpa [p', ComputationPath.time, RunPath.time,
-      MultiTapeNTM.ComputationPath.time, MultiTapeNTM.RunPath.time] using hp)
-  · intro h p hp
-    let p' : ntm.ComputationPath input :=
-      ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input), head_map_tapes p⟩
-    exact h p' (by simpa [p', ComputationPath.time, RunPath.time,
-      MultiTapeNTM.ComputationPath.time, MultiTapeNTM.RunPath.time] using hp)
+    (ofMultiTapeNTM ntm).RunsInTime input t ↔ ntm.RunsInTime input t :=
+  ⟨fun h p hp =>
+    h ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input), head_map_lift p⟩
+      (by simpa [ComputationPath.time, RunPath.time,
+        MultiTapeNTM.ComputationPath.time, MultiTapeNTM.RunPath.time] using hp),
+   fun h p hp =>
+    h ⟨RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input), head_map_tapes p⟩
+      (by simpa [ComputationPath.time, RunPath.time,
+        MultiTapeNTM.ComputationPath.time, MultiTapeNTM.RunPath.time] using hp)⟩
 
 /-- `ofMultiTapeNTM` preserves acceptance exactly. -/
 theorem ofMultiTapeNTM_accepts_iff {ntm : MultiTapeNTM k Bool State} {input : List Bool} :
-    (ofMultiTapeNTM ntm).Accepts input ↔ ntm.Accepts input := by
-  constructor
-  · rintro ⟨p, hhalt, hout⟩
-    exact ⟨⟨RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input), head_map_tapes p⟩,
-      hhalt, hout⟩
-  · rintro ⟨p, hhalt, hout⟩
-    exact ⟨⟨RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input), head_map_lift p⟩,
-      hhalt, hout⟩
+    (ofMultiTapeNTM ntm).Accepts input ↔ ntm.Accepts input :=
+  ⟨fun ⟨p, hhalt, hout⟩ =>
+    ⟨⟨RelSeries.map p.toRunPath (ofMultiTapeNTMTapesHom ntm input), head_map_tapes p⟩,
+      hhalt, hout⟩,
+   fun ⟨p, hhalt, hout⟩ =>
+    ⟨⟨RelSeries.map p.toRunPath (ofMultiTapeNTMLiftHom ntm input), head_map_lift p⟩,
+      hhalt, hout⟩⟩
 
 end AuxPDA
 

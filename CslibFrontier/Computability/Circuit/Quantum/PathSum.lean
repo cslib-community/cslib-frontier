@@ -164,9 +164,7 @@ theorem onesTerm_zero (gs : List GateCode) (x π π' : List Bool) :
       if (pathRun gs x π).1 = (pathRun gs x π').1 ∧ (pathRun gs x π).1.headD false = true then
         (if (pathRun gs x π).2 ^^ (pathRun gs x π').2 then -1 else 1) else 0 := by
   simp only [onesTerm, List.all_cons, List.all_nil, Bool.and_true]
-  generalize pathRun gs x π = r
-  obtain ⟨s, σ⟩ := r
-  cases s <;> rfl
+  rcases pathRun gs x π with ⟨_ | _, _⟩ <;> rfl
 
 /-- The contribution of a pair of paths from two registers to the acceptance overlap: the product
 of their signs when both end in the same register with qubit `0` equal to one, and `0`
@@ -176,9 +174,7 @@ theorem onesPairTerm_zero (gs : List GateCode) (x x' π π' : List Bool) :
       if (pathRun gs x π).1 = (pathRun gs x' π').1 ∧ (pathRun gs x π).1.headD false = true then
         (if (pathRun gs x π).2 ^^ (pathRun gs x' π').2 then -1 else 1) else 0 := by
   simp only [onesPairTerm, List.all_cons, List.all_nil, Bool.and_true]
-  generalize pathRun gs x π = r
-  obtain ⟨s, σ⟩ := r
-  cases s <;> rfl
+  rcases pathRun gs x π with ⟨_ | _, _⟩ <;> rfl
 
 /-- The acceptance gap of the empty circuit is the bit of qubit `0`. -/
 theorem acceptGap_nil (x : List Bool) : acceptGap [] x = if x.headD false then 1 else 0 := by
@@ -207,49 +203,41 @@ private theorem sgn_mul_run_ofCodes_apply (gs : List GateCode)
         (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ hadamardCount gs := by
   induction gs generalizing x σ with
   | nil =>
-    have hterm (π : List Bool) : term [] (List.ofFn x) (List.ofFn y) σ π =
-        if x = y then (if σ then -1 else 1) else 0 := by
-      by_cases h : x = y <;> simp [term, h]
-    simp only [Circuit.ofCodes_nil, Circuit.run, Circuit.eval_nil, ket_apply, hterm]
+    simp only [Circuit.ofCodes_nil, Circuit.run, Circuit.eval_nil, ket_apply,
+      show ∀ π, term [] (List.ofFn x) (List.ofFn y) σ π =
+          if x = y then (if σ then -1 else 1) else 0 from
+        fun _ => by by_cases h : x = y <;> simp [term, h]]
     rw [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool]
     simp only [hadamardCount_nil, pow_zero, one_smul, mul_one]
-    by_cases h : x = y
-    · subst h
-      cases σ <;> simp [sgn]
+    rcases eq_or_ne x y with rfl | h
+    · cases σ <;> simp [sgn]
     · simp [h, Ne.symm h]
   | cons g gs ih =>
     have hgs' : ∀ g ∈ gs, g.WellFormed m := fun g' hg' => hgs g' (List.mem_cons_of_mem _ hg')
     obtain ⟨pg, hpg⟩ := Option.isSome_iff_exists.mp
       (GateCode.isSome_toPlacedGate?_iff.mpr (hgs g List.mem_cons_self))
-    have hofCodes : Circuit.ofCodes m (g :: gs) = pg :: Circuit.ofCodes m gs := by
-      simp [Circuit.ofCodes, hpg]
     have hrun (z : Fin m → Bool) : Circuit.run (Circuit.ofCodes m (g :: gs)) z =
         Circuit.eval (Circuit.ofCodes m gs) (pg.eval (ket z)) := by
-      rw [hofCodes, Circuit.run, Circuit.eval_cons]
+      simp [Circuit.ofCodes, hpg, Circuit.run, Circuit.eval_cons]
     obtain ⟨h, t, cs⟩ := g
     cases h
     · -- a classical gate moves the basis state
       have ht : t < m := (hgs _ List.mem_cons_self).2.2 t List.mem_cons_self
-      have hget : (List.ofFn x).getD t false = x ⟨t, ht⟩ := List.getD_ofFn_of_lt x ht false
-      have hset (b : Bool) : (List.ofFn x).set t b = List.ofFn (Function.update x ⟨t, ht⟩ b) :=
-        List.set_ofFn x ⟨t, ht⟩ b
       rw [hrun, GateCode.eval_toPlacedGate_ket hpg ht, ← Circuit.run, ih hgs']
-      simp only [term, List.foldl_cons, pathStep, hget, hset]
+      simp only [term, List.foldl_cons, pathStep, List.getD_ofFn_of_lt x ht false,
+        List.set_ofFn x ⟨t, ht⟩]
       rfl
     · -- a Hadamard gate branches over the next path bit
       have ht : t < m := (hgs _ List.mem_cons_self).1
-      have hcs : cs = [] := (hgs _ List.mem_cons_self).2
-      subst hcs
-      have hget : (List.ofFn x).getD t false = x ⟨t, ht⟩ := List.getD_ofFn_of_lt x ht false
-      have hset (b : Bool) : (List.ofFn x).set t b = List.ofFn (Function.update x ⟨t, ht⟩ b) :=
-        List.set_ofFn x ⟨t, ht⟩ b
+      cases (hgs _ List.mem_cons_self).2
       have hterm (c : Bool) (π' : Fin (hadamardCount gs) → Bool) :
           term ((true, t, []) :: gs) (List.ofFn x) (List.ofFn y) σ
             (List.ofFn (Fin.cons c π' : Fin (hadamardCount gs + 1) → Bool)) =
           term gs (List.ofFn (Function.update x ⟨t, ht⟩ c)) (List.ofFn y)
             (σ ^^ (x ⟨t, ht⟩ && c)) (List.ofFn π') := by
         simp only [term, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ, List.foldl_cons, pathStep,
-          List.headD_cons, List.tail_cons, hget, hset]
+          List.headD_cons, List.tail_cons, List.getD_ofFn_of_lt x ht false,
+          List.set_ofFn x ⟨t, ht⟩]
       rw [hrun, GateCode.eval_toPlacedGate_hadamard_ket hpg ht, map_sum, hadamardCount_cons_true,
         ← (Fin.consEquiv fun _ => Bool).sum_comp, Fintype.sum_prod_type, Finset.sum_mul,
         WithLp.ofLp_sum, Finset.sum_apply, Finset.mul_sum]
@@ -303,18 +291,16 @@ private theorem sum_onesAt_pathTerm_mul (S : List ℕ) (gs : List GateCode) (x x
   have hs : (pathRun gs x π).1.length = m := (length_foldl_pathStep gs x π false).trans hx
   simp only [pathTerm_eq, onesPairTerm_eq]
   generalize pathRun gs x π = r at hs ⊢
-  generalize pathRun gs x' π' = r'
-  obtain ⟨s, σ⟩ := r
-  obtain ⟨s', σ'⟩ := r'
+  rcases r with ⟨s, σ⟩
+  rcases pathRun gs x' π' with ⟨s', σ'⟩
   dsimp only at hs ⊢
   let y₀ : Fin m → Bool := fun i => s.getD i false
   have hs₀ : s = List.ofFn y₀ := by
     apply List.ext_getElem (by simp [hs])
-    intro i h₁ h₂
+    intro i h₁ _
     simp [y₀, List.getD_eq_getElem?_getD, h₁]
-  have hiff (y : Fin m → Bool) : s = List.ofFn y ↔ y = y₀ := by
-    rw [hs₀, List.ofFn_inj, eq_comm]
-  simp only [hiff, ite_mul, zero_mul]
+  simp only [show ∀ y : Fin m → Bool, (s = List.ofFn y ↔ y = y₀) from
+    fun y => by rw [hs₀, List.ofFn_inj, eq_comm], ite_mul, zero_mul]
   rw [Finset.sum_ite_eq' (onesAt m S) y₀]
   have hacc : y₀ ∈ onesAt m S ↔ (S.all fun j => s.getD j false) = true := by
     simp only [onesAt, Finset.mem_filter, Finset.mem_univ, true_and, List.all_eq_true, y₀]
@@ -323,9 +309,8 @@ private theorem sum_onesAt_pathTerm_mul (S : List ℕ) (gs : List GateCode) (x x
     simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (show s.length ≤ j by omega)] at h
   by_cases h₀ : y₀ ∈ onesAt m S
   · simp only [h₀, ite_true, ← hs₀, hacc.mp h₀, and_true]
-    by_cases hss : s = s'
-    · subst hss
-      cases σ <;> cases σ' <;> simp
+    rcases eq_or_ne s s' with rfl | hss
+    · cases σ <;> cases σ' <;> simp
     · simp [hss, Ne.symm hss]
   · simp only [h₀, ite_false, mt hacc.mpr h₀, Bool.false_eq_true, and_false]
 
@@ -403,14 +388,12 @@ theorem onesGap_nonneg_and_le (S : List ℕ) {X : List Bool} (gs : List GateCode
     0 ≤ onesGap S gs X ∧ onesGap S gs X ≤ 2 ^ hadamardCount gs := by
   have h := onesProb_eq_onesGap gs hgs S X
   rw [ofFn_inputState le_rfl, Nat.sub_self, List.replicate_zero, List.append_nil] at h
-  have h0 := onesProb_nonneg X.length gs S X
-  have h1 := onesProb_le_one X.length gs S X
-  have hpos : (0 : ℝ) < 2 ^ hadamardCount gs := by positivity
-  rw [h] at h0 h1
-  constructor
-  · exact_mod_cast (div_nonneg_iff.mp h0).elim (fun h => h.1) fun h => absurd h.2 (not_le.mpr hpos)
-  · rw [div_le_one hpos] at h1
-    exact_mod_cast h1
+  have h0 : (0 : ℝ) ≤ onesGap S gs X :=
+    ((div_nonneg_iff.mp (h ▸ onesProb_nonneg X.length gs S X)).resolve_right
+      fun hc => hc.2.not_gt (by positivity)).1
+  have h1 : (onesGap S gs X : ℝ) ≤ 2 ^ hadamardCount gs :=
+    (div_le_one (by positivity)).mp (h ▸ onesProb_le_one X.length gs S X)
+  exact ⟨by exact_mod_cast h0, by exact_mod_cast h1⟩
 
 /-- **The projected gap of no condition is `2 ^ h`**, the squared norm of the final state. -/
 theorem onesGap_nil_eq_two_pow {X : List Bool} (gs : List GateCode)
