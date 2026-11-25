@@ -1699,6 +1699,7 @@ public import CslibFrontier.Computability.Complexity.HardnessEncoding.PolyTime
 public import CslibFrontier.Computability.Communication.Lifting.WitnessCounting
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.RefuterAffineRep
 public import CslibFrontier.DataStructure.OrderedSet.Spec
+public import CslibFrontier.Foundations.Data.MvPolynomial.DisjointVars
 public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Load
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.OutputToTape
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.BoundedLoss
@@ -2709,6 +2710,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 public import CslibFrontier.Algorithms.ThreeSum.ChanHe.Sizes
 public import CslibFrontier.Crypto.Computational.SIS.Basic
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Resources
+public import CslibFrontier.Computability.BranchingProgram.ReadOnceParityArithmetic
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
 public import CslibFrontier.Crypto.Computational.RabinFactoring
 public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
@@ -6175,6 +6177,7 @@ public import CslibFrontier.Foundations.Analysis.SpecificLimits.DescFactorial
 public import CslibFrontier.Crypto.Primitives.BlockCipher.CBCMAC
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Callable.Exec
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.BoundedIncidenceSemantics
+public import CslibFrontier.Computability.Circuit.Boolean.DeterministicDecomposableArithmetic
 public import CslibFrontier.Foundations.Data.MvPolynomial.LowDegreeRoot
 public import CslibFrontier.Algorithms.PlantedClique.RandomGraph
 public import CslibFrontier.Foundations.Analysis.Lattice.Periodization
@@ -10284,6 +10287,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 public import CslibFrontier.Foundations.BooleanAnalysis.Concentration
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayAssignments
+public import CslibFrontier.Computability.Circuit.Arithmetic.SyntacticMultilinear
 public import CslibFrontier.Tactic.SuppCases
 public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.Serialized
 public import CslibFrontier.Computability.QueryComplexity.Connectivity
