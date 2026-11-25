@@ -304,7 +304,25 @@ noncomputable def encryptThenMAC (E : SymmetricCipher) (M : MACScheme)
       dropFrame_encPair_encBits]
     simp [hcLen, hver, hdec]
 
-/-! #### Ciphertext-Integrity to SUF-CMA Reduction for Theorem 9.2 -/
+/-! #### Ciphertext-Integrity to SUF-CMA Reduction for Theorem 9.2
+
+The full-query and one-time reductions differ only in the admission policy of their handler:
+`etmToMACHandler` answers every `n`-bit query and `etmToOneTimeMACHandler` only the first. Both are
+instances of `etmMACHandlerOn`, whose simulation of the policy-generic CI encryption oracle
+`ciEncryptionOracleOn` is proved once (`runWith_etmMACHandlerOn`). -/
+
+/-- `etmToMACHandler` answering a query only when `allow` admits the handler state `s`, which then
+becomes `next s`. -/
+private noncomputable def etmMACHandlerOn {S : Type} (allow : S → Bool) (next : S → S)
+    (E : SymmetricCipher) (n tagBound : ℕ) (ke : List Bool) (request : Unit × List Bool) :
+    StateT S (WordOracleComp Unit) (List Bool) :=
+  fun s =>
+    if allow s && (request.2.length == n) then do
+      let c ← ProbOracleComp.sample (E.encrypt n ke request.2)
+      (fun tag => (encPair encBits encBits (c, tag), next s)) <$>
+        (List.take tagBound <$> ProbOracleComp.query ((), c))
+    else
+      pure ([], s)
 
 /-- Open stateful handler that simulates the `ciEncryptionOracle` of `encryptThenMAC E M` inside
 `M.sufCmaGame` ([BonehShoup2023], Section 9.4.1, Theorem 9.2, Part 1): on an `n`-bit message query
@@ -546,6 +564,80 @@ private theorem etm_sufCma_win_eq_ci_win (E : SymmetricCipher) (M : MACScheme)
     simp only [hframeF, Bool.false_and, Bool.false_eq_true, ↓reduceIte, hlenDummy,
       Option.isSome_none, Bool.and_false]
 
+/-- `ciEncryptionOracleOn allow` of `encryptThenMAC E M` under the keys `(ke, km)`, logging the
+`(ciphertext, tag)` pairs rather than their encodings. -/
+private noncomputable def etmMACIntermediateOracleOn (allow : List (List Bool) → Bool)
+    (E : SymmetricCipher) (M : MACScheme) (n : ℕ) (ke km : List Bool) (request : Unit × List Bool) :
+    StateT (List (List Bool × List Bool)) PMF (List Bool) :=
+  fun queriedPairs =>
+    if allow (queriedPairs.map (encPair encBits encBits)) && (request.2.length == n) then do
+      let c ← ProbComp.eval (E.encrypt n ke request.2)
+      let tag ← ProbComp.eval (M.sign km c)
+      return (encPair encBits encBits (c, tag), (c, tag) :: queriedPairs)
+    else
+      PMF.pure ([], queriedPairs)
+
+/-- Policy-generic simulation behind both CI-to-MAC reductions: run against the tagging oracle
+`M.signingPairOracleOn admit km`, the handler `etmMACHandlerOn allow next` simulates the CI
+encryption oracle `ciEncryptionOracleOn ciAllow` of `encryptThenMAC E M hctLen`, provided the
+handler state `proj pairs` tracks the tagging log `pairs`. The ciphertext log is the encoded
+tagging log. -/
+private theorem runWith_etmMACHandlerOn {S : Type} (E : SymmetricCipher) (M : MACScheme)
+    (hctLen : ∀ n, E.CiphertextLength n (M.msgLen n)) (n tagBound : ℕ) {ke km : List Bool}
+    (hke : ke ∈ (ProbComp.eval (E.keyGen n)).support)
+    (htagBound : ∀ c, c.length = M.msgLen n →
+      ∀ tag ∈ (ProbComp.eval (M.sign km c)).support, tag.length ≤ tagBound)
+    (allow : S → Bool) (next : S → S) (ciAllow : List (List Bool) → Bool)
+    (admit : List Bool → List (List Bool × List Bool) → Bool)
+    (proj : List (List Bool × List Bool) → S)
+    (hallow : ∀ pairs, allow (proj pairs) = ciAllow (pairs.map (encPair encBits encBits)))
+    (hadmit : ∀ c pairs, c.length = M.msgLen n → allow (proj pairs) = true → admit c pairs = true)
+    (hnext : ∀ p pairs, allow (proj pairs) = true → proj (p :: pairs) = next (proj pairs))
+    (program : WordOracleComp Unit (List Bool)) :
+    (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingPairOracleOn admit km q s))
+      ((OracleComp.interpret
+        (OracleComp.sumHandler (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
+          (etmMACHandlerOn allow next E n tagBound ke)) program).run (proj [])) []).map
+        (fun x => (x.1.1, x.2.map (encPair encBits encBits))) =
+      ProbOracleComp.runWith (fun q s => ProbComp.eval
+        ((encryptThenMAC E M hctLen).ciEncryptionOracleOn ciAllow n
+          (encPair encBits encBits (ke, km)) q s)) program [] := by
+  have hsim1 := ProbOracleComp.runWith_run_interpret_map
+    (etmMACHandlerOn allow next E n tagBound ke)
+    (fun q s => ProbComp.eval (M.signingPairOracleOn admit km q s))
+    (etmMACIntermediateOracleOn ciAllow E M n ke km) proj id
+    (fun ⟨⟨⟩, msg⟩ pairs => by
+      simp only [StateT.run, etmMACIntermediateOracleOn, etmMACHandlerOn, id_eq, ← hallow]
+      by_cases hcond : (allow (proj pairs) && (msg.length == n)) = true
+      · simp only [hcond, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
+          pmf_norm]
+        simp only [Bool.and_eq_true, beq_iff_eq] at hcond
+        refine PMF.bind_congr_on_support _ _ _ fun c hc => ?_
+        have hcLen : c.length = M.msgLen n := hctLen n ke hke msg hcond.2 c hc
+        simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
+          MACScheme.signingPairOracleOn, hadmit c pairs hcLen hcond.1, ↓reduceIte,
+          ProbComp.eval_bind, ProbComp.eval_pure, Prod.map_apply, id_eq, pmf_norm]
+        refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
+        rw [List.take_of_length_le (htagBound c hcLen tag htag), hnext _ _ hcond.1]
+      · simp [hcond, ProbOracleComp.runWith_pure, PMF.pure_map])
+    program []
+  have hsim2 := ProbOracleComp.runWith_map_state (etmMACIntermediateOracleOn ciAllow E M n ke km)
+    (fun q s => ProbComp.eval ((encryptThenMAC E M hctLen).ciEncryptionOracleOn ciAllow n
+      (encPair encBits encBits (ke, km)) q s))
+    (fun pairs => pairs.map (encPair encBits encBits))
+    (fun ⟨⟨⟩, msg⟩ pairs => by
+      unfold etmMACIntermediateOracleOn SymmetricCipher.ciEncryptionOracleOn
+      dsimp only [encryptThenMAC]
+      rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
+      by_cases hcond :
+          (ciAllow (pairs.map (encPair encBits encBits)) && (msg.length == n)) = true <;>
+        simp [hcond, ProbComp.eval_bind, ProbComp.eval_pure, Probability.PMF.monad_bind_eq_bind,
+          Probability.PMF.monad_pure_eq_pure, ← PMF.bind_pure_comp, Function.comp_def])
+    program []
+  dsimp only [id_eq, List.map] at hsim1 hsim2
+  rw [hsim1, PMF.map_comp, ← hsim2]
+  rfl
+
 /-- Running `etmToMACForger E M tagBound adversary` in `M.sufCmaGame` produces the exact same
 winning distribution as running `adversary` in `(encryptThenMAC E M hctLen).ciGame` whenever
 `tagBound n` bounds all MAC tag lengths on `M.msgLen n`-bit ciphertexts under supported keys at
@@ -564,46 +656,21 @@ theorem eval_sufCmaGame_etmToMACForger (E : SymmetricCipher) (M : MACScheme)
         let km ← M.keyGen n
         return encPair encBits encBits (ke, km)) := rfl
   simp only [MACScheme.sufCmaGame, SymmetricCipher.ciGame, etmToMACForger, hkeyGen,
-    runWith_norm, pmf_norm, id_eq]
+    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map, Prod.map_fst, Prod.map_snd, id_eq,
+    pmf_norm]
   rw [PMF.bind_comm]
   refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
   refine PMF.bind_congr_on_support _ _ _ fun km hkm => ?_
   conv_lhs =>
     rhs; ext x
-    rw [etm_sufCma_win_eq_ci_win E M hctLen n ke km x.1 x.2.2]
-  have hsim := ProbOracleComp.runWith_map_state
-    (oracle := fun q (state : Unit × List (List Bool × List Bool)) =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingPairOracle n km q s))
-          (etmToMACHandler E n (tagBound n) ke q state.1) state.2).map
-        (fun result => (result.1.1, result.1.2, result.2)))
-    (oracle' := fun q s =>
-      ProbComp.eval ((encryptThenMAC E M hctLen).ciEncryptionOracle n
-        (encPair encBits encBits (ke, km)) q s))
-    (represent := fun s : Unit × List (List Bool × List Bool) =>
-      s.2.map (encPair encBits encBits))
-    (step := by
-      intro ⟨⟨⟩, msg⟩ ⟨⟨⟩, queriedPairs⟩
-      unfold etmToMACHandler SymmetricCipher.ciEncryptionOracle
-      dsimp only [encryptThenMAC]
-      rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
-      by_cases hlenEq : (msg.length == n) = true
-      · simp only [hlenEq, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-          pmf_norm]
-        apply PMF.bind_congr_on_support
-        intro c hc
-        have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlenEq) c hc
-        simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-          MACScheme.signingPairOracle, MACScheme.signingPairOracleOn, hcLen, beq_self_eq_true,
-          ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure]
-        simp only [Prod.map_apply, id_eq, pmf_norm]
-        apply PMF.bind_congr_on_support
-        intro tag htag
-        rw [List.take_of_length_le (htagBound km hkm c hcLen tag htag)]
-        rfl
-      · simp [hlenEq, ProbOracleComp.runWith_pure, ProbComp.eval_pure])
-    (adversary n []) ((), [])
-  dsimp only [List.map] at hsim
-  rw [← hsim, PMF.bind_map, Function.comp_def]
+    rw [etm_sufCma_win_eq_ci_win E M hctLen n ke km x.1.1 x.2]
+  rw [show (encryptThenMAC E M hctLen).ciEncryptionOracle =
+      (encryptThenMAC E M hctLen).ciEncryptionOracleOn (fun _ => true) from rfl,
+    ← runWith_etmMACHandlerOn E M hctLen n (tagBound n) hke (htagBound km hkm) (fun _ => true) id
+      (fun _ => true) (fun msg _ => msg.length == M.msgLen n) (fun _ => ()) (fun _ => rfl)
+      (fun _ _ hcLen _ => beq_iff_eq.mpr hcLen) (fun _ _ _ => rfl) (adversary n []),
+    PMF.bind_map]
   rfl
 
 /-- **Quantitative Ciphertext-Integrity to SUF-CMA equality** ([BonehShoup2023], Section 9.4.1,
@@ -648,16 +715,20 @@ private theorem isQueryBounded_sample_run_interpret {S α β : Type}
       | inr req =>
         exact hhandler k req s
 
-private theorem isQueryBounded_etmToMACHandler (E : SymmetricCipher) (n tagBound : ℕ)
-    (ke : List Bool) (request : Unit × List Bool) (s : Unit) :
-    (etmToMACHandler E n tagBound ke request s).IsQueryBounded 1 := by
-  unfold etmToMACHandler
+private theorem isQueryBounded_etmMACQuery {S : Type} (E : SymmetricCipher) (n tagBound : ℕ)
+    (ke msg : List Bool) (cond : Bool) (next old : S) :
+    ((if cond then do
+      let c ← ProbOracleComp.sample (E.encrypt n ke msg)
+      (fun tag => (encPair encBits encBits (c, tag), next)) <$>
+        (List.take tagBound <$> ProbOracleComp.query ((), c))
+    else
+      pure ([], old)) : WordOracleComp Unit (List Bool × S)).IsQueryBounded 1 := by
   split_ifs
   · simpa only [Nat.zero_add, OracleComp.isCostBounded_map_iff] using
-      (ProbOracleComp.IsQueryBounded.sample (E.encrypt n ke request.2)).bind fun c => by
+      (ProbOracleComp.IsQueryBounded.sample (E.encrypt n ke msg)).bind fun c => by
         simp only [OracleComp.isCostBounded_map_iff]
         exact ProbOracleComp.IsQueryBounded.query ((), c)
-  · exact OracleComp.IsCostBounded.pure ([], ()) 1
+  · exact OracleComp.IsCostBounded.pure ([], old) 1
 
 /-- **Query-count preservation for `etmToMACForger`** ([BonehShoup2023], Section 9.4.1,
 Theorem 9.2, Part 1, printed p. 367): if `adversary n []` makes at most `Q` encryption queries,
@@ -667,7 +738,7 @@ theorem isQueryBounded_etmToMACForger (E : SymmetricCipher) (M : MACScheme)
     (hq : (adversary n []).IsQueryBounded Q) :
     (etmToMACForger E M tagBound adversary n aux).IsQueryBounded Q :=
   isQueryBounded_sample_run_interpret (E.keyGen n) (etmToMACHandler E n (tagBound n))
-    (isQueryBounded_etmToMACHandler E n (tagBound n)) _ hq ()
+    (fun ke req s => isQueryBounded_etmMACQuery E n (tagBound n) ke req.2 _ () s) _ hq ()
 
 /-- Open stateful handler that simulates the `oneTimeCIEncryptionOracle` of `encryptThenMAC E M`
 inside `M.sufOneTimeGame` ([BonehShoup2023], Section 9.4.1, Theorem 9.2): maintains a boolean flag
@@ -719,17 +790,6 @@ theorem isOraclePPT_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACScheme)
     (by ppt [etmToOneTimeMACHandler])
     (fun _ _ _ _ _ _ => etmMACHandler_support E _ _ _ _ _ _ _) hadversary
 
-private theorem isQueryBounded_etmToOneTimeMACHandler (E : SymmetricCipher) (n tagBound : ℕ)
-    (ke : List Bool) (request : Unit × List Bool) (alreadyQueried : Bool) :
-    (etmToOneTimeMACHandler E n tagBound ke request alreadyQueried).IsQueryBounded 1 := by
-  unfold etmToOneTimeMACHandler
-  split_ifs
-  · simpa only [Nat.zero_add, OracleComp.isCostBounded_map_iff] using
-      (ProbOracleComp.IsQueryBounded.sample (E.encrypt n ke request.2)).bind fun c => by
-        simp only [OracleComp.isCostBounded_map_iff]
-        exact ProbOracleComp.IsQueryBounded.query ((), c)
-  · exact OracleComp.IsCostBounded.pure ([], alreadyQueried) 1
-
 /-- **Query-count preservation for `etmToOneTimeMACForger`** ([BonehShoup2023], Section 9.4.1,
 Theorem 9.2, printed p. 367): if `adversary n []` makes at most `Q` encryption queries, then
 `etmToOneTimeMACForger E M tagBound adversary n aux` makes at most `Q` signing queries. -/
@@ -738,18 +798,7 @@ theorem isQueryBounded_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACSchem
     (hq : (adversary n []).IsQueryBounded Q) :
     (etmToOneTimeMACForger E M tagBound adversary n aux).IsQueryBounded Q :=
   isQueryBounded_sample_run_interpret (E.keyGen n) (etmToOneTimeMACHandler E n (tagBound n))
-    (isQueryBounded_etmToOneTimeMACHandler E n (tagBound n)) _ hq false
-
-private noncomputable def etmOneTimeMACIntermediateOracle (E : SymmetricCipher) (M : MACScheme)
-    (n : ℕ) (ke km : List Bool) (request : Unit × List Bool) :
-    StateT (List (List Bool × List Bool)) PMF (List Bool) :=
-  fun queriedPairs =>
-    if queriedPairs.isEmpty && (request.2.length == n) then do
-      let c ← ProbComp.eval (E.encrypt n ke request.2)
-      let tag ← ProbComp.eval (M.sign km c)
-      return (encPair encBits encBits (c, tag), [(c, tag)])
-    else
-      PMF.pure ([], queriedPairs)
+    (fun ke req s => isQueryBounded_etmMACQuery E n (tagBound n) ke req.2 _ true s) _ hq false
 
 /-- Running `etmToOneTimeMACForger E M tagBound adversary` in `M.sufOneTimeGame` produces the
 exact same winning distribution as running `adversary` in
@@ -778,46 +827,13 @@ theorem eval_sufOneTimeGame_etmToOneTimeMACForger (E : SymmetricCipher) (M : MAC
   conv_lhs =>
     rhs; ext x
     rw [etm_sufCma_win_eq_ci_win E M hctLen n ke km x.1.1 x.2]
-  have hsim1 := ProbOracleComp.runWith_run_interpret_map
-    (etmToOneTimeMACHandler E n (tagBound n) ke)
-    (fun q s => ProbComp.eval (M.oneTimeSigningPairOracle n km q s))
-    (etmOneTimeMACIntermediateOracle E M n ke km)
-    (fun pairs => !pairs.isEmpty) id
-    (fun ⟨⟨⟩, msg⟩ pairs => by
-      cases pairs <;>
-        simp only [StateT.run, etmOneTimeMACIntermediateOracle, etmToOneTimeMACHandler,
-          List.isEmpty, id_eq, Bool.not_true, Bool.not_false, Bool.true_and, Bool.false_and,
-          Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_map]
-      by_cases hlen : (msg.length == n) = true
-      · simp only [hlen, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-          pmf_norm]
-        refine PMF.bind_congr_on_support _ _ _ fun c hc => ?_
-        have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlen) c hc
-        simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-          MACScheme.oneTimeSigningPairOracle, MACScheme.signingPairOracleOn, hcLen,
-          beq_self_eq_true, Bool.and_self, List.isEmpty_nil, ↓reduceIte, Prod.map_apply, id_eq,
-          pmf_norm]
-        refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
-        rw [List.take_of_length_le (htagBound km hkm c hcLen tag htag)]
-        rfl
-      · simp [hlen, ProbOracleComp.runWith_pure, PMF.pure_map])
-    (adversary n []) []
-  have hsim2 := ProbOracleComp.runWith_map_state
-    (etmOneTimeMACIntermediateOracle E M n ke km)
-    (fun q s => ProbComp.eval ((encryptThenMAC E M hctLen).oneTimeCIEncryptionOracle n
-      (encPair encBits encBits (ke, km)) q s))
-    (fun pairs => pairs.map (encPair encBits encBits))
-    (fun ⟨⟨⟩, msg⟩ pairs => by
-      unfold etmOneTimeMACIntermediateOracle SymmetricCipher.oneTimeCIEncryptionOracle
-      dsimp only [encryptThenMAC]
-      rw [unframe_encPair_encBits, dropFrame_encPair_encBits, List.isEmpty_map]
-      by_cases hcond : (pairs.isEmpty && (msg.length == n)) = true <;>
-        simp [hcond, ProbComp.eval_bind, ProbComp.eval_pure, Probability.PMF.monad_bind_eq_bind,
-          Probability.PMF.monad_pure_eq_pure, ← PMF.bind_pure_comp, Function.comp_def])
-    (adversary n []) []
-  dsimp only [List.isEmpty, not, id_eq, List.map] at hsim1 hsim2
-  rw [hsim1, ← hsim2]
-  simp only [PMF.bind_map, Function.comp_def]
+  rw [SymmetricCipher.oneTimeCIEncryptionOracle_eq_on,
+    ← runWith_etmMACHandlerOn E M hctLen n (tagBound n) hke (htagBound km hkm) (! ·)
+      (fun _ => true) List.isEmpty (fun msg pairs => msg.length == M.msgLen n && pairs.isEmpty)
+      (fun pairs => !pairs.isEmpty) (fun _ => by rw [Bool.not_not, List.isEmpty_map])
+      (fun _ _ hcLen h => by simpa [hcLen] using h) (fun _ _ _ => rfl) (adversary n []),
+    PMF.bind_map]
+  rfl
 
 /-- **Quantitative one-time Ciphertext-Integrity to `OneTimeSUFCMA` equality**
 ([BonehShoup2023], Section 9.4.1, Theorem 9.2, printed p. 367): when `tagBound n` bounds all MAC
