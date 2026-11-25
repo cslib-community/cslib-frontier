@@ -219,10 +219,8 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
         obtain ⟨hp, hmem⟩ := isProof_resolveOn hp₁ (List.mem_append_right _ hd₀) hd₁ hl₀ hA.1
         refine ⟨_ :: ls₁, _, rfl, hp, List.mem_cons_self, fun m hm => ?_, by simp; omega, ?_⟩
         · rcases hmem m hm with ⟨hm, hne⟩ | ⟨hm, hne⟩
-          · exact (hopen m hm).resolve_right hne
-          · rcases List.mem_cons.1 (hf₁ m hm) with h | h
-            · exact absurd (negate_eq_iff.1 h) hne
-            · exact h
+          exacts [(hopen m hm).resolve_right hne,
+            (List.mem_cons.1 (hf₁ m hm)).resolve_left fun h => hne (negate_eq_iff.1 h)]
         · -- the variable resolved on is free in `t` but not in `l :: t`
           have hv : l.1 ∈ freeVars φ t := by
             obtain ⟨v, b⟩ := l
@@ -246,9 +244,7 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
         hvar₁.trans (Finset.card_le_card hfree)⟩
       rcases List.mem_cons.1 (hf₁ m hm) with h | h
       · obtain rfl := negate_eq_iff.1 h
-        by_cases hlt : l ∈ t
-        · simpa using hlt
-        · exact absurd ⟨hm, hlt⟩ hA
+        simpa using Classical.not_not.1 fun hlt => hA ⟨hm, hlt⟩
       · exact h
 
 /-- The translation of an accepted certificate on a database whose clauses stand for lines of a
@@ -281,8 +277,7 @@ private theorem lratToProofAux_spec :
       rcases List.mem_cons.1 he with rfl | he
       · refine ⟨hd, fun m hm => ?_⟩
         obtain ⟨m', hm', hmm'⟩ := List.mem_map.1 (hf m hm)
-        obtain rfl : m' = m := by simpa using negate_eq_iff.1 hmm'
-        exact hm'
+        rwa [← show m' = m by simpa using negate_eq_iff.1 hmm']
       · exact ⟨List.mem_append_right _ (hdb e he).1, (hdb e he).2⟩
     obtain ⟨ls₂, hc₂, hp₂, hnil, hlen₂, hvar₂⟩ :=
       lratToProofAux_spec rest _ _ hp₁ hdb' (by simpa [LRATEntry.toPair] using h.2)
