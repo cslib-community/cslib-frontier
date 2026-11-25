@@ -128,14 +128,9 @@ theorem exec_fast {w W n F b : ℕ} (values : List ℤ)
       (hpj : j ≠ CallableFixedPrime.Reg.prime := by decide) : q.regs j = x.regs j :=
     (Function.update_of_ne hpj _ _).trans ((rr j hj).trans (sr j hj hdj hgj))
   have qn : q.regs CallableFixedPrime.Reg.n = n := by regs_frame
-  have qd : q.regs CallableFixedPrime.Reg.dimension = D (ParameterChoice.level n) :=
-    (Function.update_of_ne (by decide : CallableFixedPrime.Reg.dimension ≠
-      CallableFixedPrime.Reg.prime) p r.regs).trans
-      (by regs_frame)
-  have qg : q.regs CallableFixedPrime.Reg.groups = ParameterChoice.groups n :=
-    (Function.update_of_ne (by decide : CallableFixedPrime.Reg.groups ≠
-      CallableFixedPrime.Reg.prime) p r.regs).trans
-      (by regs_frame)
+  have qd : q.regs CallableFixedPrime.Reg.dimension = D (ParameterChoice.level n) := by
+    regs_frame
+  have qg : q.regs CallableFixedPrime.Reg.groups = ParameterChoice.groups n := by regs_frame
   have qb : q.regs CallableFixedPrime.Reg.base = b := by regs_frame
   have qa : q.regs CallableFixedPrime.Reg.ab = x.regs CallableFixedPrime.Reg.ab := qkeep _
   have qB : q.regs CallableFixedPrime.Reg.bc = x.regs CallableFixedPrime.Reg.bc := qkeep _
