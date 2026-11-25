@@ -208,8 +208,8 @@ theorem cosetEval_add_half {g ω : F} {d i : ℕ} (hω : IsPrimitiveRoot ω (2 ^
       omega⟩ =
       -cosetEval g ω d i ⟨j.val, lt_of_lt_of_le j.isLt (Nat.pow_le_pow_right (by omega)
         (by omega))⟩ := by
-  have hd : d - i = (d - (i + 1)) + 1 := by omega
-  have hsplit : 2 ^ (d - i) = 2 * 2 ^ (d - (i + 1)) := by rw [hd, pow_succ']
+  have hsplit : 2 ^ (d - i) = 2 * 2 ^ (d - (i + 1)) := by
+    rw [show d - i = (d - (i + 1)) + 1 by omega, pow_succ']
   have hneg := (isPrimitiveRoot_fiber (Nat.pow_pos (by omega))
     (hsplit ▸ isPrimitiveRoot_pow_two_pow hω hi.le)).eq_neg_one_of_two_right
   simp only [cosetEval, cosetPoint, pow_add, hneg, mul_neg, mul_one]
@@ -243,8 +243,7 @@ theorem degree_polyComp_lt {a k : ℕ} (ha : 0 < a) {p : F[X]} (hp : p.degree < 
   rw [degree_lt_iff_coeff_zero]
   refine fun t ht => (coeff_polyComp ha p r t).trans <|
     coeff_eq_zero_of_degree_lt <| lt_of_lt_of_le hp ?_
-  have hle : a * k ≤ a * t + r.val := by nlinarith
-  exact_mod_cast hle
+  exact_mod_cast (by nlinarith : a * k ≤ a * t + r.val)
 
 /-- Reconstruct a polynomial from its `a` residue components via
 `∑ r : Fin a, X ^ r * (ps r).comp (X ^ a)`. -/
@@ -592,29 +591,25 @@ theorem fold2Even_eq_foldComp {g ω : F} {N : ℕ} (f : Fin (2 * N) → F) :
     fold2Even f = foldComp g ω f ⟨0, by omega⟩ := by
   ext j
   simp only [fold2Even, foldComp, foldFiberComp, Fin.sum_univ_two, fiberIdx, pow_zero, mul_one,
-    zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat]
-  rw [div_eq_inv_mul]
+    zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat, div_eq_inv_mul]
 
 /-- `fold2Odd` agrees with `foldComp` at component `1` for `a = 2`. -/
 theorem fold2Odd_eq_foldComp {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiveRoot ω (2 * N))
     (f : Fin (2 * N) → F) :
     fold2Odd g ω f = foldComp g ω f ⟨1, by omega⟩ := by
   ext j
-  have hneg : ω ^ N = -1 := pow_half_eq_neg_one hN hω
   simp only [fold2Odd, foldComp, foldFiberComp, cosetPoint, Fin.sum_univ_two, fiberIdx, pow_zero,
-    pow_one, zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat, hneg, inv_neg,
-    inv_one, neg_mul, ← sub_eq_add_neg]
-  rw [div_eq_inv_mul]
+    pow_one, zero_mul, one_mul, add_zero, Fin.val_zero, Fin.val_one, Nat.cast_ofNat,
+    pow_half_eq_neg_one hN hω, inv_neg, inv_one, neg_mul, ← sub_eq_add_neg, div_eq_inv_mul]
 
 /-- At `a = 2`, the local `a`-to-1 fiber evaluator `foldFiber` coincides with `fold2Fiber`. -/
 theorem foldFiber_two_eq_fold2Fiber {g ω : F} {N : ℕ} (hN : 0 < N)
     (hω : IsPrimitiveRoot ω (2 * N)) (ys : Fin 2 → F) (j : Fin N) (z : F) :
     foldFiber g ω ys j z =
       fold2Fiber (ys 0) (ys 1) (cosetPoint g ω (2 * N) ⟨j.val, by omega⟩) z := by
-  have hneg : ω ^ N = -1 := pow_half_eq_neg_one hN hω
   simp only [foldFiber, foldFiberComp, fold2Fiber, cosetPoint, Fin.sum_univ_two, Fin.val_zero,
-    Fin.val_one, pow_zero, pow_one, one_mul, zero_mul, mul_one, Nat.cast_ofNat, hneg, inv_neg,
-    inv_one, neg_mul, ← sub_eq_add_neg, div_eq_inv_mul]
+    Fin.val_one, pow_zero, pow_one, one_mul, zero_mul, mul_one, Nat.cast_ofNat,
+    pow_half_eq_neg_one hN hω, inv_neg, inv_one, neg_mul, ← sub_eq_add_neg, div_eq_inv_mul]
 
 /-- The explicit 2-to-1 folding operator `fold2` coincides with `foldWord` at `a = 2`. -/
 theorem fold2_eq_foldWord {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiveRoot ω (2 * N))

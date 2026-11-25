@@ -535,17 +535,13 @@ private theorem split_order_hub {I : FixedRotationInput} (hI : Valid I) (v : ℕ
       some (block ++ [2 * I.graph.edges.length]) := by
   change (I.orders ++ [some (block ++ [2 * I.graph.edges.length])]).getD
     I.graph.vertices.length none = _
-  rw [← hI.2.2.1, List.getD_eq_getElem _ _ (by simp)]
-  simp
+  simp [← hI.2.2.1]
 
 private theorem nextInWord_mem (word : List ℕ) {i : ℕ} (hi : i < word.length) :
     nextInWord word i ∈ word := by
   unfold nextInWord
-  split_ifs with hnext
-  · rw [List.getD_eq_getElem _ _ hnext]
-    exact List.getElem_mem hnext
-  · rw [List.getD_eq_getElem _ _ (by omega : 0 < word.length)]
-    exact List.getElem_mem (by omega)
+  split_ifs with hnext <;> rw [List.getD_eq_getElem _ _ (by omega)] <;>
+    exact List.getElem_mem _
 
 private theorem contract_realizes {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
     {block : List ℕ} (s : RotationSystem (split I v block).graph)
@@ -554,10 +550,8 @@ private theorem contract_realizes {I : FixedRotationInput} (hI : Valid I) {v : �
       ((splitCoordinates I v block).permCongr s.rotate * swap (some none) none)))
     (hs : Realizes (split I v block) s) : Realizes I r := by
   intro u word hu i hi d hd
-  have hul : u < I.graph.vertices.length := by
-    by_contra h
-    rw [List.getD_eq_default _ _ (by rw [hI.2.2.1]; omega)] at hu
-    contradiction
+  have hul : u < I.graph.vertices.length := by_contra fun h =>
+    nomatch (List.getD_eq_default I.orders none (n := u) (by rw [hI.2.2.1]; omega)).symm.trans hu
   have hnext := (hI.2.2.2 u word hu).2 (nextInWord word i) |>.mp (nextInWord_mem word hi)
   apply contract_index s r hr d (mem_fiber.mp hnext).1
   have hidx := index_splitCoordinates I v block (some (some d))
@@ -623,10 +617,9 @@ private theorem cut_realizes {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
     rw [← E.symm_apply_apply (s.rotate (E.symm z)), h]
     exact index_splitCoordinates I v block _
   intro u word hu i hi d hd
-  have hul : u < I.graph.vertices.length + 1 := by
-    by_contra h
-    rw [List.getD_eq_default _ _ (by simp [split, hI.2.2.1]; omega)] at hu
-    contradiction
+  have hul : u < I.graph.vertices.length + 1 := by_contra fun h =>
+    nomatch (List.getD_eq_default (split I v block).orders none (n := u)
+      (by simp [split, hI.2.2.1]; omega)).symm.trans hu
   by_cases hou : u < I.graph.vertices.length
   · have ho : I.orders.getD u none = some word := (split_order_old hI v block hou).symm.trans hu
     have huv : u ≠ v := by rintro rfl; rw [hfree] at ho; contradiction

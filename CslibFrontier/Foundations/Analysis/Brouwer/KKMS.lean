@@ -73,15 +73,12 @@ private theorem exists_strictSep_of_not_balanced {A : Type*} [Fintype A] [Decida
   let M : Matrix A (Finset A) ℝ := fun i S => if S ∈ Fset ∧ i ∈ S then 1 else 0
   have hno : ¬ ∃ u : Finset A → ℝ, 0 ≤ u ∧ M *ᵥ u = fun _ => 1 := by
     rintro ⟨u, hu0, hu1⟩
-    refine hnb ⟨fun S => if S ∈ Fset then u S else 0, fun S => ?_, ?_, fun i => ?_,
+    refine hnb ⟨fun S => if S ∈ Fset then u S else 0, fun S => ?_,
+      ite_eq_right fun h => Finset.notMem_empty _ (hne ∅ h).choose_spec, fun i => ?_,
       fun S hS => by_contra fun hnot => by simp [hnot] at hS⟩
     · dsimp only
       split_ifs
       · exact hu0 S
-      · rfl
-    · dsimp only
-      split_ifs with h
-      · exact (Finset.notMem_empty _ (hne ∅ h).choose_spec).elim
       · rfl
     · have hi := congr_fun hu1 i
       simp only [Matrix.mulVec, dotProduct, M, ite_mul, one_mul, zero_mul] at hi
@@ -187,21 +184,19 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
   let dir : (A → ℝ) → A → ℝ := fun z i => ∑ k ∈ t, wt k z * sep k i
   have hdir_cont : Continuous dir :=
     continuous_pi fun i => continuous_finsetSum t fun k _ => (hwt_cont k).mul continuous_const
+  have hdir_sum (z : A → ℝ) (s : Finset A) :
+      ∑ i ∈ s, dir z i = ∑ k ∈ t, wt k z * ∑ i ∈ s, sep k i := by
+    simp only [dir, Finset.mul_sum]
+    exact Finset.sum_comm
   have hdir_pos (z : A → ℝ) (hz : z ∈ Δ) : 0 < ∑ i, dir z i := by
     obtain ⟨k₀, hk₀, hzk₀⟩ := Set.mem_iUnion₂.1 (ht hz)
-    have hsum : ∑ i, dir z i = ∑ k ∈ t, wt k z * ∑ i, sep k i := by
-      simp only [dir, Finset.mul_sum]
-      rw [Finset.sum_comm]
-    rw [hsum]
+    rw [hdir_sum]
     exact Finset.sum_pos' (fun k _ => mul_nonneg (hwt_nonneg k z) (hsep_pos k).le)
       ⟨k₀, hk₀, mul_pos ((hwt_pos_iff k₀ z).2 hzk₀) (hsep_pos k₀)⟩
   have hdir_neg (z : A → ℝ) (hz : z ∈ Δ) (S : Finset A) (hSne : S.Nonempty) (hzS : z ∈ F S) :
       ∑ i ∈ S, dir z i < 0 := by
     obtain ⟨k₀, hk₀, hzk₀⟩ := Set.mem_iUnion₂.1 (ht hz)
-    have hsum : ∑ i ∈ S, dir z i = ∑ k ∈ t, wt k z * ∑ i ∈ S, sep k i := by
-      simp only [dir, Finset.mul_sum]
-      rw [Finset.sum_comm]
-    rw [hsum]
+    rw [hdir_sum]
     refine Finset.sum_neg' (fun k _ => ?_)
       ⟨k₀, hk₀, mul_neg_of_pos_of_neg ((hwt_pos_iff k₀ z).2 hzk₀)
         (hsep_lt k₀ S (hU_sub k₀.1 z hzk₀ S hSne hzS))⟩

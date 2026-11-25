@@ -143,8 +143,7 @@ private theorem eagerFbHandler_reindex (S : Scheme PK SK M R CT K) (G : M → R)
       cases hd : decT S.pke G pk sk c with
       | none => simp [coupledFb, hd]
       | some m' =>
-        have henc := encT_of_decT_eq_some hd
-        simp only [encT] at henc
+        have henc : S.pke.encDet pk m' (G m') = c := encT_of_decT_eq_some hd
         simp [coupledH, henc, dec_of_decT_eq_some hd]
 
 /-- **Re-indexing the random oracles of `FO-notbot`**: the eager coupled game and the eager game
@@ -172,14 +171,10 @@ theorem eagerCoupledGame_eq_eagerFbGame [Fintype M] [Finite R] [Fintype CT] [Fin
         congr 1 with s : 1
         congr 1 with G : 1
         rw [bind_keyTable_reindex S G pk sk]
-        congr 1 with Hq : 1
-        congr 1 with Hraw : 1
-        congr 1 with Hfb' : 1
-        congr 1 with mStar : 1
-        congr 1 with kRand : 1
+        iterate 5 refine congrArg (PMF.bind _) (funext fun _ => ?_)
         congr 1
         funext q
-        exact S.eagerFbHandler_reindex G Hq Hfb' Hraw pk sk s _ q
+        exact S.eagerFbHandler_reindex G _ _ _ pk sk s _ q
     _ = _ := by simp only [PMF.bind_const]
 
 end Scheme

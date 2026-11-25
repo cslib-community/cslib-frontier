@@ -111,9 +111,7 @@ theorem gspUtility_apply_slot [Fintype ι] [DecidableEq ι]
 theorem gspUtility_of_not_mem_range [Fintype ι] [DecidableEq ι]
     (μ : Fin k → ℝ) (v b : ι → ℝ) (σ : Fin k ↪ ι) {j : ι} (hj : j ∉ Set.range σ) :
     gspUtility μ v b σ j = 0 :=
-  Finset.sum_eq_zero fun i _ => by
-    have hne : σ i ≠ j := fun h => hj ⟨i, h⟩
-    simp only [hne, ↓reduceIte]
+  Finset.sum_eq_zero fun i _ => ite_eq_right fun h => hj ⟨i, h⟩
 
 private theorem gspPerClickPrice_nonneg [Fintype ι] [DecidableEq ι]
     {b : ι → ℝ} (hb : ∀ j, 0 ≤ b j) (σ : Fin k ↪ ι) (i : Fin k) :
@@ -219,11 +217,11 @@ theorem gspPerClickPrice_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
   unfold gspPerClickPrice nextSlotValue
   split_ifs with hlt
   · exact minEnvyFreeBid_slot_succ μ v σ i.val hlt
-  · have heq : i = ⟨k - 1, by omega⟩ := by apply Fin.ext; dsimp; omega
-    rw [heq, minEnvyFreePrice_last μ v σ (Fin.pos i)]
-    have hcongr : maxUnassignedValue (minEnvyFreeBid μ v σ) σ = maxUnassignedValue v σ :=
-      maxUnassignedValue_congr fun j hj => minEnvyFreeBid_of_not_mem_range μ v σ hj
-    rw [hcongr, mul_div_cancel_left₀ _ (ne_of_gt (hμ_pos ⟨k - 1, by omega⟩))]
+  · have heq : i = ⟨k - 1, by omega⟩ :=
+      Fin.ext (by dsimp; omega)
+    rw [heq, minEnvyFreePrice_last μ v σ (Fin.pos i),
+      maxUnassignedValue_congr fun j hj => minEnvyFreeBid_of_not_mem_range μ v σ hj,
+      mul_div_cancel_left₀ _ (hμ_pos ⟨k - 1, by omega⟩).ne']
 
 /-- Under `minEnvyFreeBid`, the total expected GSP slot payment equals `minEnvyFreePrice`. -/
 theorem gspSlotPrice_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin k → ℝ} {v : ι → ℝ}
@@ -272,10 +270,9 @@ private theorem isAssortative_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ :
       induction d with
       | zero => intro _; exact le_of_eq (by congr 2)
       | succ n ih => intro hd; exact (hsucc (a.val + n) hd).trans (ih (by omega))
-    have heq : (⟨a.val + (b.val - a.val), by omega⟩ : Fin k) = b := by
-      apply Fin.ext; dsimp; omega
-    have hfin := hdiff (b.val - a.val) (by omega)
-    simpa only [Function.comp_apply, heq] using hfin
+    have heq : (⟨a.val + (b.val - a.val), by omega⟩ : Fin k) = b :=
+      Fin.ext (by dsimp; omega)
+    simpa only [Function.comp_apply, heq] using hdiff (b.val - a.val) (by omega)
   refine ⟨hanti, fun i j hj => ?_⟩
   rw [minEnvyFreeBid_of_not_mem_range μ v σ hj]
   have hk : 0 < k := Fin.pos i
@@ -291,10 +288,7 @@ private theorem isAssortative_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ :
       rw [← hfin, minEnvyFreePrice_last μ v σ hk,
         mul_div_cancel_left₀ _ (hμ_pos k_last).ne']
       exact le_maxUnassignedValue v σ hj
-  have hi_le : i ≤ k_last := by
-    change i.val ≤ k - 1
-    omega
-  exact hlast.trans (hanti hi_le)
+  exact hlast.trans (hanti (Nat.le_sub_one_of_lt i.isLt))
 
 /-- For any assortative assignment `σ`, the bid profile `minEnvyFreeBid μ v σ` together with `σ`
 is a tie-robust full-information Nash equilibrium of the unit-weight GSP auction. -/
@@ -489,13 +483,10 @@ theorem exists_isGSPEquilibrium_locallyEnvyFree [Fintype ι] [DecidableEq ι]
       IsLocallyEnvyFree μ v σ (gspSlotPrice μ b σ) ∧
       gspSlotPrice μ b σ = minEnvyFreePrice μ v σ := by
   obtain ⟨σ, hσ⟩ := exists_isAssortative v hk
-  have hprice : gspSlotPrice μ (minEnvyFreeBid μ v σ) σ = minEnvyFreePrice μ v σ :=
-    gspSlotPrice_minEnvyFreeBid hμ_pos
-  refine ⟨minEnvyFreeBid μ v σ, σ,
-    isGSPEquilibrium_minEnvyFreeBid hσ hμ hμ_pos hv,
-    hσ.isOptimal hμ.antitone (fun i => (hμ_pos i).le),
-    ?_, hprice⟩
-  rw [hprice]
-  exact isLocallyEnvyFree_minEnvyFreePrice hσ hμ.antitone (fun i => (hμ_pos i).le) hv
+  have hprice := gspSlotPrice_minEnvyFreeBid (v := v) (σ := σ) hμ_pos
+  exact ⟨minEnvyFreeBid μ v σ, σ, isGSPEquilibrium_minEnvyFreeBid hσ hμ hμ_pos hv,
+    hσ.isOptimal hμ.antitone fun i => (hμ_pos i).le,
+    hprice.symm ▸ isLocallyEnvyFree_minEnvyFreePrice hσ hμ.antitone (fun i => (hμ_pos i).le) hv,
+    hprice⟩
 
 end Cslib.GameTheory.SponsoredSearch

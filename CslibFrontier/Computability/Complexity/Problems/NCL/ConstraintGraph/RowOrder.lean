@@ -73,17 +73,11 @@ private theorem rank_lt (rows : List ℕ) {i : ℕ} (hi : i < rows.length) :
 
 private theorem rank_lt_rank (rows : List ℕ) {i j : ℕ} (hi : i < rows.length)
     (hij : key rows i < key rows j) : List.rowRank rows i < List.rowRank rows j := by
-  rw [rank_eq_card, rank_eq_card]
-  apply Finset.card_lt_card
-  refine Finset.ssubset_iff_subset_ne.mpr ⟨?_, ?_⟩
-  · intro k hk
-    obtain ⟨hk, hki⟩ := Finset.mem_filter.mp hk
-    exact Finset.mem_filter.mpr ⟨hk, hki.trans hij⟩
-  · intro he
-    have hm : i ∈ (Finset.range rows.length).filter fun k => key rows k < key rows j :=
-      Finset.mem_filter.mpr ⟨Finset.mem_range.mpr hi, hij⟩
-    rw [← he] at hm
-    exact lt_irrefl _ (Finset.mem_filter.mp hm).2
+  simp only [rank_eq_card]
+  refine Finset.card_lt_card (Finset.ssubset_iff_of_subset (fun k hk => ?_) |>.mpr
+    ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_range.mpr hi, hij⟩,
+      fun hm => lt_irrefl _ (Finset.mem_filter.mp hm).2⟩)
+  exact Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp hk).1, (Finset.mem_filter.mp hk).2.trans hij⟩
 
 private theorem rank_injective (rows : List ℕ) {i j : ℕ}
     (hi : i < rows.length) (hj : j < rows.length)
@@ -154,18 +148,11 @@ theorem equiv_symm_apply_eq_getElem (rows : List ℕ) (i : Fin rows.length) :
 
 /-- The sorted index array permutes the original vertex-index range. -/
 theorem indices_perm_range (rows : List ℕ) : (indices rows).Perm (List.range rows.length) := by
-  have h := Equiv.Perm.map_finRange_perm (equiv rows).symm
-  have hm := h.map Fin.val
   have he : (List.finRange rows.length).map (fun i => ((equiv rows).symm i).val) =
-      indices rows := by
-    apply List.ext_getElem
-    · simp [indices]
-    · intro i hi hj
-      simp only [List.getElem_map, List.getElem_finRange, indices, List.getElem_range]
-      rfl
-  have hn : (List.finRange rows.length).map Fin.val = List.range rows.length :=
-    List.map_coe_finRange_eq_range
-  simpa only [List.map_map, Function.comp_def, he, hn] using hm
+      indices rows :=
+    List.ext_getElem (by simp [indices]) fun i _ _ => by simp [indices, equiv]
+  simpa only [List.map_map, Function.comp_def, he, List.map_coe_finRange_eq_range] using
+    (Equiv.Perm.map_finRange_perm (equiv rows).symm).map Fin.val
 
 /-- The sorted index array has one entry per original vertex. -/
 @[simp] theorem length_indices (rows : List ℕ) : (indices rows).length = rows.length := by

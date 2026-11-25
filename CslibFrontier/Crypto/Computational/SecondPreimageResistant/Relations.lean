@@ -203,14 +203,8 @@ is uniformly strict PPT. -/
 theorem isPPT_secondPreimageToCollisionFinder {adversary : SecondPreimageFinder}
     (hadversary : IsPPT encBits adversary) (r : ℕ) :
     IsPPT (encPair encBits encBits) (secondPreimageToCollisionFinder adversary r) := by
-  change IsPPT (encPair encBits encBits)
-    (fun n key => secondPreimageToCollisionFinder adversary r n key)
-  have hfinder : IsPPT (encPair encBits encBits)
-      (fun n key => CollisionResistantToOneWay.finder
-        (fun _ message => message) adversary r n key) :=
-    CollisionResistantToOneWay.isPPT_finder (H := fun _ message => message)
-      (ComputableInPolyTime.snd encBits encBits) hadversary r
-  simpa only [secondPreimageToCollisionFinder, CollisionResistantToOneWay.finder] using hfinder
+  exact CollisionResistantToOneWay.isPPT_finder (H := fun _ message => message)
+    (ComputableInPolyTime.snd encBits encBits) hadversary r
 
 /-- A second preimage `candidate ≠ key ++ message` of `key ++ message` under `keyDigest H` has the
 same key `key` and a colliding message part `candidate.drop (candidate.length / 3) ≠ message`. -/
@@ -365,16 +359,10 @@ theorem OneWayOn.ignoreHeadBit {f : List Bool → List Bool} {valid : ℕ → Li
     OneWayOn (Cslib.Crypto.ignoreHeadBit f) valid := by
   refine OneWayOn.of_negligible (computableInPolyTime_ignoreHeadBit hf.polyTime)
     fun adversary hadversary => ?_
-  have hinv := hf.negligible (ignoreHeadBitInverter adversary)
-    (isPPT_ignoreHeadBitInverter hadversary)
-  have hshift :
-      Negligible (fun N =>
-        Game.succProbability
-          (ProbComp.eval (inversionGameOn f valid (ignoreHeadBitInverter adversary) (N - 1)))) :=
-    hinv.comp_of_polynomial_bound (bound := fun m => m + 1)
-      (Filter.tendsto_sub_atTop_nat 1) (by fun_prop)
-      (Filter.Eventually.of_forall fun N => by omega)
-  refine negligible_of_eventually_le hshift ?_
+  have hinv := (hf.negligible (ignoreHeadBitInverter adversary)
+    (isPPT_ignoreHeadBitInverter hadversary)).comp_of_polynomial_bound (bound := fun m => m + 1)
+    (Filter.tendsto_sub_atTop_nat 1) (by fun_prop) (Filter.Eventually.of_forall fun _ => by omega)
+  refine negligible_of_eventually_le hinv ?_
   filter_upwards [Filter.eventually_ge_atTop 1] with N hN
   obtain ⟨n, rfl⟩ : ∃ n, N = n + 1 := ⟨N - 1, by omega⟩
   simpa only [Nat.add_sub_cancel] using

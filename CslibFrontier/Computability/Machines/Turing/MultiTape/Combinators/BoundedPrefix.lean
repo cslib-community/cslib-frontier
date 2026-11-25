@@ -393,10 +393,8 @@ private theorem transformsTapesAt_extendTapes {k k' : ℕ} {Symbol State : Type*
     simp only [rq, RelSeries.head_map, rp, embedHom_apply, extendTapes_q₀]
     exact embed_wordsCfgAt e p (some tm.q₀) (fun j => ws (e j)) out (fun _ => rfl) fun _ _ => rfl
   have hrqLast : rq.last = wordsCfgAt input p' none ws' (out ++ emitted) := by
-    have hrpLast : rp.last = wordsCfgAt input p' none v (out ++ emitted) := by
-      dsimp only [rp]
-      rw [runPath_last_eq_runFrom]
-      exact hrun
+    have hrpLast : rp.last = wordsCfgAt input p' none v (out ++ emitted) :=
+      (runPath_last_eq_runFrom rp).trans hrun
     simp only [rq, RelSeries.last_map, hrpLast, embedHom_apply]
     exact embed_wordsCfgAt e p' none v (out ++ emitted) hv hx
   have hrunQ : (tm.extendTapes e).runFrom (wordsCfgAt input p (some (tm.extendTapes e).q₀) ws out)
@@ -481,29 +479,24 @@ private def embV (kU kC kV : ℕ) :
   inj' a b h := Fin.ext (embVIdx_inj kU kC kV a.isLt b.isLt (congrArg Fin.val h))
 
 private lemma embU_input (kU kC kV : ℕ) :
-    embU kU kC kV (Fin.natAdd (kU + 1) 0) = ⟨0, by omega⟩ := by
-  ext
-  simp [embU, embUIdx]
+    embU kU kC kV (Fin.natAdd (kU + 1) 0) = ⟨0, by omega⟩ :=
+  Fin.ext (by simp [embU, embUIdx])
 
 private lemma embU_output (kU kC kV : ℕ) :
-    embU kU kC kV ((Fin.last kU).castAdd 2) = ⟨1, by omega⟩ := by
-  ext
-  simp [embU, embUIdx]
+    embU kU kC kV ((Fin.last kU).castAdd 2) = ⟨1, by omega⟩ :=
+  Fin.ext (by simp [embU, embUIdx])
 
 private lemma embC_input (kU kC kV : ℕ) :
-    embC kU kC kV (Fin.natAdd (kC + 1) 0) = ⟨1, by omega⟩ := by
-  ext
-  simp [embC, embCIdx]
+    embC kU kC kV (Fin.natAdd (kC + 1) 0) = ⟨1, by omega⟩ :=
+  Fin.ext (by simp [embC, embCIdx])
 
 private lemma embC_output (kU kC kV : ℕ) :
-    embC kU kC kV ((Fin.last kC).castAdd 2) = ⟨2, by omega⟩ := by
-  ext
-  simp [embC, embCIdx]
+    embC kU kC kV ((Fin.last kC).castAdd 2) = ⟨2, by omega⟩ :=
+  Fin.ext (by simp [embC, embCIdx])
 
 private lemma embV_input (kU kC kV : ℕ) :
-    embV kU kC kV (Fin.natAdd kV 0) = ⟨0, by omega⟩ := by
-  ext
-  simp [embV, embVIdx]
+    embV kU kC kV (Fin.natAdd kV 0) = ⟨0, by omega⟩ :=
+  Fin.ext (by simp [embV, embVIdx])
 
 private lemma embU_val_ne_zero (kU kC kV : ℕ) (j : Fin (kU + 1 + 2))
     (hj : j ≠ Fin.natAdd (kU + 1) 0) :
@@ -591,8 +584,7 @@ theorem computableInTimeAndSpace_boundedPrefix
     let inp := encPair encA encBits (a, raw)
     have hinp : inp = frame u ++ raw := by simp [inp, encPair_apply, encBits_apply, u]
     have hNle : N ≤ capBound L := by
-      have hlen := (htmC a).length_output_le
-      simpa [encUnary_apply, N, L, u, capBound] using hlen
+      simpa [encUnary_apply, N, L, u, capBound] using (htmC a).length_output_le
     have hlenFrame : (frame u).length = 2 * L + 1 := by simp [length_frame, u, L]
     let ws₀ : Fin K → List Bool := fun _ => []
     let ws₁ : Fin K → List Bool := Function.update ws₀ tV (frame u)
@@ -631,10 +623,7 @@ theorem computableInTimeAndSpace_boundedPrefix
           have hneV : embU kU kC kV j ≠ tV :=
             Fin.ne_of_val_ne (embU_val_ne_zero kU kC kV j hj)
           simp [ws₁, ws₀, Function.update_of_ne hneV])
-        (by
-          rw [embU_input]
-          change ws₁ tV = frame u
-          simp [ws₁])
+        (by simp [embU_input, ws₁, tV])
       have hW := hslice.words (fun _ => rfl) (fun _ _ _ ⟨hv, he⟩ =>
         ⟨by simpa [ws₂, tU, embU_output] using hv, he⟩)
       exact (by simpa [hlenFrame, L] using hW : TransformsWords _ ws₁ ws₂ [] _ _).freezeInput inp p₁
@@ -649,10 +638,7 @@ theorem computableInTimeAndSpace_boundedPrefix
           have hneU : embC kU kC kV j ≠ tU := Fin.ne_of_val_ne (by dsimp [tU]; omega)
           have hneV : embC kU kC kV j ≠ tV := Fin.ne_of_val_ne (by dsimp [tV]; omega)
           simp [ws₂, ws₁, ws₀, Function.update_of_ne hneU, Function.update_of_ne hneV])
-        (by
-          rw [embC_input]
-          change ws₂ tU = u
-          simp [ws₂])
+        (by simp [embC_input, ws₂, tU])
       have hW := hslice.words (fun _ => rfl) (fun _ _ _ ⟨hv, he⟩ =>
         ⟨by simpa [ws₃, tCap, embC_output] using hv, he⟩)
       exact (by simpa [L, u, N, ws₃, tCap, K] using hW :
@@ -695,10 +681,7 @@ theorem computableInTimeAndSpace_boundedPrefix
           have hneU : embV kU kC kV j ≠ tU := Fin.ne_of_val_ne (by dsimp [tU]; omega)
           simp [ws₄, ws₃, ws₂, ws₁, ws₀, Function.update_of_ne hneV, Function.update_of_ne hneCap,
             Function.update_of_ne hneU])
-        (by
-          rw [embV_input]
-          change ws₄ tV = encPair encA encBits (a, raw.take N)
-          simp [ws₄, encPair_apply, encBits_apply, u])
+        (by simp [embV_input, ws₄, tV, encPair_apply, encBits_apply, u])
       simpa [encPair_apply, encBits_apply, u] using
         (hslice.words (fun _ => rfl) fun _ _ _ h => h).freezeInput inp p₂
     have hcomp := (hspec1.seq (hspec2.seq (hspec3.seq (hspec4.seq hspec5)))).congr

@@ -58,13 +58,10 @@ private theorem bindRead_fastStep {α : Type} {c U V w n_max base c₁ c₂ : �
     memoryCost (p >>= k) s ≤ c₁ + c₂ ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s (p >>= k) ∧
     FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s (p >>= k)) := by
-  refine ⟨?_, ?_, ?_⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst, hres]
-    have := hk.1
-    omega
-  · refine validProg_bind hvp ?_
-    rw [hst, hres]
+  refine ⟨?_, validProg_bind hvp ?_, ?_⟩
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres]
+    exact Nat.add_le_add hmc hk.1
+  · rw [hst, hres]
     exact hk.2.1
   · rw [clientState_bind, hst, hres]
     exact hk.2.2
@@ -106,11 +103,8 @@ private theorem realizes_stage2CollisionReset :
           fs.rebCandSalt < sMaxWhp c n_max)
       (fun _ _ => 0) := by
   unfold stage2CollisionResetProg
-  have hrs := realizes_readRebSliceIdxGen
-  have hrb := realizes_resetBTreeSliceGen
-  have hrh := realizes_readHdr
-  have hzh := realizes_resetRebScanHdrs
-  realize
+  realize [realizes_readRebSliceIdxGen, realizes_resetBTreeSliceGen, realizes_readHdr,
+    realizes_resetRebScanHdrs]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -189,9 +183,7 @@ private theorem realizes_stage2SwapRoles :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold stage2SwapRolesProg
-  have hro := realizes_readRebAndOmRoleGen
-  have hwb := realizes_writeBktFieldGen
-  realize
+  realize [realizes_readRebAndOmRoleGen, realizes_writeBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -261,9 +253,7 @@ private theorem realizes_stage2SwapCounts :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold stage2SwapCountsProg
-  have hrh := realizes_readHdr
-  have hwb := realizes_writeBktFieldGen
-  realize
+  realize [realizes_readHdr, realizes_writeBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -328,10 +318,7 @@ private theorem realizes_stage2SwapClearOm :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold stage2SwapClearOmProg
-  have hmb := realizes_mkBktMetaRt
-  have hsa := realizes_setOvermarsActRt
-  have hwb := realizes_writeBktFieldGen
-  realize
+  realize [realizes_mkBktMetaRt, realizes_setOvermarsActRt, realizes_writeBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -397,10 +384,7 @@ private theorem realizes_stage2SwapScalars :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold stage2SwapScalarsProg
-  have h1 := realizes_stage2SwapRoles
-  have h2 := realizes_stage2SwapCounts
-  have h3 := realizes_stage2SwapClearOm
-  realize
+  realize [realizes_stage2SwapRoles, realizes_stage2SwapCounts, realizes_stage2SwapClearOm]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -473,11 +457,8 @@ private theorem realizes_stage2SwapPreAdvance :
           fs.dirtyIdx < fs.dirtyCount)
       (fun _ _ => 0) := by
   unfold stage2SwapPreAdvanceProg
-  have hrb := realizes_resetBTreeSliceGen
-  have hrh := realizes_readHdr
-  have hwh := realizes_writeHdr
-  have hzh := realizes_resetRebScanHdrs
-  realize
+  realize [realizes_resetBTreeSliceGen, realizes_readHdr, realizes_writeHdr,
+    realizes_resetRebScanHdrs]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, ⟨b, omRole⟩⟩
     dsimp only at *
@@ -585,12 +566,8 @@ private theorem realizes_stage2SwapAdvanceNext :
             fsSw.rebSliceIdx (fsSw.dirtyBuckets nextIdx) < 3 * numBucketsWhp n_max))
       (fun _ _ => 0) := by
   unfold stage2SwapAdvanceNextProg
-  have hrh := realizes_readHdr
-  have ht3 := realizes_tickToStage3
-  have hrd := realizes_readDirtyBucketGen
-  have hrs := realizes_readRebSliceIdxGen
-  have hrb := realizes_resetBTreeSliceGen
-  realize
+  realize [realizes_readHdr, realizes_tickToStage3, realizes_readDirtyBucketGen,
+    realizes_readRebSliceIdxGen, realizes_resetBTreeSliceGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, nextIdx⟩
     dsimp only at *
@@ -688,9 +665,7 @@ private theorem realizes_stage2SwapFinish :
             fs.rebSliceIdx (fs.dirtyBuckets (fs.dirtyIdx + 1)) < 3 * numBucketsWhp n_max))
       (fun _ _ => 0) := by
   unfold stage2SwapFinishProg
-  have hpa := realizes_stage2SwapPreAdvance
-  have han := realizes_stage2SwapAdvanceNext
-  realize
+  realize [realizes_stage2SwapPreAdvance, realizes_stage2SwapAdvanceNext]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, ⟨b, omRole⟩⟩
     dsimp only at *
@@ -799,12 +774,8 @@ theorem realizes_stage2PostScanGen :
               3 * numBucketsWhp n_max))
       (fun _ _ => 0) := by
   unfold stage2PostScanGenProg
-  have hrh := realizes_readHdr
-  have hrb := realizes_readBktFieldGen
-  have hss := realizes_stage2SwapScalars
-  have hsf := realizes_stage2SwapFinish
-  have hcr := realizes_stage2CollisionReset
-  realize
+  realize [realizes_readHdr, realizes_readBktFieldGen, realizes_stage2SwapScalars,
+    realizes_stage2SwapFinish, realizes_stage2CollisionReset]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *

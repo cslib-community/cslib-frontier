@@ -167,12 +167,9 @@ def inc {P : Type*} [DecidableEq P] (p : P) (c : GCounter P) : GCounter P :=
 def value {P : Type*} [Fintype P] (c : GCounter P) : ℕ :=
   ∑ p : P, c.counts p
 
-theorem le_inc {P : Type*} [DecidableEq P] (p : P) (c : GCounter P) : c ≤ c.inc p := by
-  intro r
-  simp only [inc]
-  by_cases hr : r = p
-  · subst hr; simp
-  · simp [Function.update_of_ne hr]
+theorem le_inc {P : Type*} [DecidableEq P] (p : P) (c : GCounter P) : c ≤ c.inc p := fun r => by
+  simp only [inc, Function.update_apply]
+  split_ifs with hr <;> simp [hr]
 
 theorem inc_comm {P : Type*} [DecidableEq P] (p q : P) (c : GCounter P) :
     (c.inc p).inc q = (c.inc q).inc p := by
@@ -183,9 +180,8 @@ theorem inc_comm {P : Type*} [DecidableEq P] (p q : P) (c : GCounter P) :
         Function.update_comm hpq.symm])
 
 @[simp]
-theorem value_zero {P : Type*} [Fintype P] : (zero P).value = 0 := by
-  change ∑ _p : P, 0 = 0
-  simp
+theorem value_zero {P : Type*} [Fintype P] : (zero P).value = 0 :=
+  Finset.sum_const_zero
 
 @[simp]
 theorem value_inc {P : Type*} [Fintype P] [DecidableEq P] (p : P) (c : GCounter P) :
@@ -612,14 +608,11 @@ theorem mem_sup_removeObserved_add {s₁ s₂ : ORSetCv P α} {p : P} {seq : ℕ
     (hnot_tomb₂ : ⟨x, p, seq⟩ ∉ s₂.tombstones) :
     x ∈ ((s₁.removeObserved x) ⊔ (s₂.add p seq x)).elements := by
   simp only [elements, Finset.mem_image, Finset.mem_sdiff]
-  refine ⟨⟨x, p, seq⟩, ⟨?_, ?_⟩, rfl⟩
-  · exact Finset.mem_union_right _ (Finset.mem_insert_self _ _)
-  · intro htomb
-    rcases Finset.mem_union.mp htomb with ht₁ | ht₂
-    · rcases Finset.mem_union.mp ht₁ with h₁ | hfilt
-      · exact hnot_tomb₁ h₁
-      · exact hunobs (Finset.mem_filter.mp hfilt).1
-    · exact hnot_tomb₂ ht₂
+  refine ⟨⟨x, p, seq⟩, ⟨Finset.mem_union_right _ (Finset.mem_insert_self _ _), fun htomb => ?_⟩,
+    rfl⟩
+  rcases Finset.mem_union.mp htomb with ht₁ | ht₂
+  · exact (Finset.mem_union.mp ht₁).elim hnot_tomb₁ fun h => hunobs (Finset.mem_filter.mp h).1
+  · exact hnot_tomb₂ ht₂
 
 /-- State-based sequential re-add after remove: unlike `TwoPhaseSet`, adding `x` with a fresh tag
 `⟨x, p, seq⟩` after `s.removeObserved x` restores `x ∈ elements`. -/
@@ -959,13 +952,10 @@ theorem ORSetCausalHistory.mem_elements_iff_causal_add_wins {H : Finset Ev}
     x ∈ orsetElements (l.foldl (fun s e => orsetEffect (hH.effOf e) s) ∅) ↔
       ∃ e_add ∈ H, (∃ p n, hH.opOf e_add = .add p n x) ∧
         ¬ ∃ e_rem ∈ H, hH.opOf e_rem = .remove x ∧ prec e_add e_rem := by
-  rw [hH.foldl_eq_survivingTags hl]
-  simp only [orsetElements, Finset.mem_image, mem_orsetSurvivingTags_iff]
-  constructor
-  · rintro ⟨t, ⟨e, heH, hop, hnot_r⟩, rfl⟩
-    exact ⟨e, heH, ⟨t.replica, t.seq, hop⟩, hnot_r⟩
-  · rintro ⟨e, heH, ⟨p, n, hop⟩, hnot_r⟩
-    exact ⟨⟨x, p, n⟩, ⟨e, heH, hop, hnot_r⟩, rfl⟩
+  simp only [hH.foldl_eq_survivingTags hl, orsetElements, Finset.mem_image,
+    mem_orsetSurvivingTags_iff]
+  exact ⟨fun ⟨t, ⟨e, heH, hop, hnot_r⟩, htx⟩ => ⟨e, heH, htx ▸ ⟨⟨t.replica, t.seq, hop⟩, hnot_r⟩⟩,
+    fun ⟨e, heH, ⟨p, n, hop⟩, hnot_r⟩ => ⟨⟨x, p, n⟩, ⟨e, heH, hop, hnot_r⟩, rfl⟩⟩
 
 end ORSetProofs
 
@@ -996,9 +986,6 @@ theorem not_exists_untagged_finset_merge {α : Type*} [DecidableEq α] [Nonempty
 [ShapiroPreguicaBaqueroZawirski2011R], §3.3, Figure 11, p. 21). -/
 theorem untagged_insert_erase_ne_erase_insert {α : Type*} [DecidableEq α] (x : α) :
     (insert x (∅ : Finset α)).erase x ≠ insert x ((∅ : Finset α).erase x) := by
-  intro heq
-  have hmem : x ∈ insert x ((∅ : Finset α).erase x) := Finset.mem_insert_self x _
-  rw [← heq] at hmem
-  exact (Finset.mem_erase.mp hmem).1 rfl
+  simp
 
 end Cslib.Distributed.CRDT

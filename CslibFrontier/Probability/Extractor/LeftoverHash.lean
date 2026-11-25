@@ -78,9 +78,8 @@ theorem IsTwoUniversal.isStrongExtractor {hash : Seed → Input → Output}
       (Real.sqrt (Fintype.card Output * 2 ^ (-k)) / 2) := by
   intro source hsource
   have := Fintype.ofFinite Input
-  have h := hhash.leftover_hash_of_isSource (isSource_of_le_minEntropy hsource 0)
-  rw [uniformOfFintype_prod, NNReal.coe_zero, zero_add] at h
-  rwa [bind_map_eq_seededHash]
+  simpa only [bind_map_eq_seededHash, uniformOfFintype_prod, NNReal.coe_zero, zero_add] using
+    hhash.leftover_hash_of_isSource (isSource_of_le_minEntropy hsource 0)
 
 /-- **Entropy loss of hashing.** If `log₂ |Output| + 2 log₂ (1 / δ) ≤ k`, a two-universal family
 under the uniform seed is a strong `(k, δ / 2)`-extractor. -/
@@ -90,10 +89,8 @@ theorem IsTwoUniversal.isStrongExtractor_of_logb_le {hash : Seed → Input → O
     IsStrongExtractor (fun x s => hash s x) k (δ / 2) := by
   intro source hsource
   have := Fintype.ofFinite Input
-  have h := hhash.leftover_hash_of_isSource_of_logb_le
-    (isSource_of_le_minEntropy hsource 0) hδ hk
-  rw [uniformOfFintype_prod, NNReal.coe_zero, zero_add] at h
-  rwa [bind_map_eq_seededHash]
+  simpa only [bind_map_eq_seededHash, uniformOfFintype_prod, NNReal.coe_zero, zero_add] using
+    hhash.leftover_hash_of_isSource_of_logb_le (isSource_of_le_minEntropy hsource 0) hδ hk
 
 /-- **`ε`-universal hashing as a strong extractor.** An `ε`-universal family under the uniform
 seed is a strong `(k, √(|Output| · (2⁻ᵏ + ε) - 1) / 2)`-extractor. For `ε = 1 / |Output|` this is
@@ -171,18 +168,13 @@ theorem IsUniversalHash.isExtractor_append_of_entropy_div
   intro source hsource
   let e : (BitString t × BitString k) ≃ BitString (k + t) :=
     (Equiv.prodComm _ _).trans (Fin.appendEquiv k t)
-  have h := hhash.isStrongExtractor_of_entropy_div hδ source hsource
-  have he : (source.bind fun x =>
-      (PMF.uniformOfFintype (BitString t)).map fun s => (s, hash s x)).map e =
-      source.bind (fun x => (PMF.uniformOfFintype (BitString t)).map
-        fun s => Fin.append (hash s x) s) := by
-    simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
-    rfl
   have hm := dist_map_le
     (source.bind fun x => (PMF.uniformOfFintype (BitString t)).map fun s => (s, hash s x))
     (PMF.uniformOfFintype (BitString t × BitString k)) e
-  rw [uniformOfFintype_map_equiv, he] at hm
-  exact hm.trans h
+  rw [uniformOfFintype_map_equiv, PMF.map_bind] at hm
+  simp only [PMF.map_comp, Function.comp_def, e, Equiv.trans_apply, Equiv.prodComm_apply,
+    Prod.swap_prod_mk] at hm
+  exact hm.trans (hhash.isStrongExtractor_of_entropy_div hδ source hsource)
 
 end Cslib.Probability
 

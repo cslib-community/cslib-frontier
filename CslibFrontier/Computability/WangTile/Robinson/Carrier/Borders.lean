@@ -126,11 +126,8 @@ private theorem depthAt_eq_some_iff {bound coordinate depth : ℕ} :
         ∀ smaller, 0 < smaller → smaller < depth → inFrame smaller coordinate = false := by
   rw [depthAt_eq_find?, List.find?_range'_eq_some, List.mem_range'_1]
   simp only [Bool.not_eq_eq_eq_not, Bool.not_true]
-  constructor
-  · rintro ⟨inside, range, least⟩
-    exact ⟨by omega, inside, fun smaller positive below => least smaller positive below⟩
-  · rintro ⟨range, inside, least⟩
-    exact ⟨inside, by omega, fun smaller positive below => least smaller positive below⟩
+  exact ⟨fun ⟨inside, range, least⟩ => ⟨by omega, inside, least⟩,
+    fun ⟨range, inside, least⟩ => ⟨inside, by omega, least⟩⟩
 
 private theorem depthAt_eq_none_iff {bound coordinate : ℕ} :
     depthAt bound coordinate = none ↔
@@ -554,13 +551,9 @@ private theorem frameBorders_disjoint_of_lt
       coordinate % period small = 1 := by
     cases largeOrientation with
     | false =>
-        left
-        exact largeClosing_mod_small h
-          ((frameBorder_eq_some_false_iff _ _ _).1 largeBorder).2
+      exact .inl (largeClosing_mod_small h ((frameBorder_eq_some_false_iff _ _ _).1 largeBorder).2)
     | true =>
-        right
-        exact largeOpening_mod_small h
-          ((frameBorder_eq_some_true_iff _ _ _).1 largeBorder).2
+      exact .inr (largeOpening_mod_small h ((frameBorder_eq_some_true_iff _ _ _).1 largeBorder).2)
   have smallResidue := frameBorder_residue_gt_one smallBorder
   omega
 
@@ -569,10 +562,8 @@ private theorem outerBorder_frameBorder_disjoint
     (outer : outerBorder coordinate transverse = some outerOrientation)
     (frame : frameBorder depth coordinate transverse = some frameOrientation) :
     False := by
-  have coordinateOne := (outerBorder_eq_some_iff _ _ _).mp outer |>.1
-  have oneLtPeriod := one_lt_period depth
   have coordinateMod : coordinate % period depth = 1 := by
-    rw [coordinateOne, Nat.mod_eq_of_lt oneLtPeriod]
+    rw [((outerBorder_eq_some_iff _ _ _).mp outer).1, Nat.mod_eq_of_lt (one_lt_period depth)]
   have boundary := frameBorder_residue_gt_one frame
   omega
 
@@ -609,10 +600,8 @@ theorem selectedBorder_eq_some_iff
         Nat.le_of_lt_succ index.isLt,
         by simpa [zero] using candidate⟩
   · rintro (outer | ⟨depth, positive, bounded, border⟩)
-    · refine ⟨⟨0, Nat.zero_lt_succ level⟩, ?_, ?_⟩
-      · simpa [] using outer
-      · intro prior priorLt
-        exact (Nat.not_lt_zero prior.val priorLt).elim
+    · refine ⟨⟨0, Nat.zero_lt_succ level⟩, by simpa [] using outer, fun prior priorLt => ?_⟩
+      exact (Nat.not_lt_zero prior.val priorLt).elim
     · refine ⟨⟨depth, by omega⟩, ?_, ?_⟩
       · simpa [Nat.ne_of_gt positive] using border
       · intro prior priorLt
@@ -715,10 +704,9 @@ private theorem selectedBorder_succ (level coordinate transverse : ℕ) :
             · exact frameBorders_disjoint_of_lt (by omega) border oldBorder
       · left
         exact Or.inr ⟨depth, by omega, bounded, border⟩
-  · rintro (old | ⟨_, new⟩)
-    · rcases old with outer | ⟨depth, lower, bounded, border⟩
-      · exact Or.inl outer
-      · exact Or.inr ⟨depth, by omega, bounded, border⟩
+  · rintro ((outer | ⟨depth, lower, bounded, border⟩) | ⟨_, new⟩)
+    · exact Or.inl outer
+    · exact Or.inr ⟨depth, by omega, bounded, border⟩
     · exact Or.inr ⟨1, by omega, by omega, new⟩
 
 private theorem selectedBorder_succ_block
@@ -802,12 +790,9 @@ private theorem arithmeticState_admissible (level x y : ℕ)
     (arithmeticState level x y).Admissible := by
   induction level generalizing x y with
   | zero =>
-    have xzero : x = 0 := by simpa using hx
-    have yzero : y = 0 := by simpa using hy
-    subst x
-    subst y
-    rw [arithmeticState_zero]
-    exact BorderState.seed_admissible
+    obtain rfl : x = 0 := by simpa using hx
+    obtain rfl : y = 0 := by simpa using hy
+    exact arithmeticState_zero.symm ▸ BorderState.seed_admissible
   | succ level ih =>
     have hx' : x / 4 < 4 ^ level := by rw [pow_succ] at hx; omega
     have hy' : y / 4 < 4 ^ level := by rw [pow_succ] at hy; omega

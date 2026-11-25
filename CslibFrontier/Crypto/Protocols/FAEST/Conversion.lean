@@ -144,15 +144,12 @@ private theorem convertExpandedRows_column {d outputLength : Nat}
   | zero => exact Fin.elim0 j
   | succ d ih =>
     refine Fin.cases ?_ (fun j => ?_) j
-    · simp only [convertExpandedRows, Fin.cases_zero, oddColumn, selectedRows]
-      rw [← (pairEquiv d).sum_comp, Fintype.sum_prod_type]
-      simp only [Fintype.sum_bool, pairEquiv_apply, Fin.val_zero, testBit_pairIndex_zero,
-        Bool.false_eq_true, ↓reduceIte, add_zero]
-    · simp only [convertExpandedRows, Fin.cases_succ, ih, selectedRows]
-      rw [← (pairEquiv d).sum_comp, Fintype.sum_prod_type]
-      simp only [Fintype.sum_bool, pairEquiv_apply, Fin.val_succ, testBit_pairIndex_succ]
+    · simp only [convertExpandedRows, Fin.cases_zero, oddColumn, selectedRows, sum_pairIndex,
+        Fin.val_zero, testBit_pairIndex_zero, Bool.false_eq_true, ↓reduceIte, zero_add]
+    · simp only [convertExpandedRows, Fin.cases_succ, ih, selectedRows, sum_pairIndex,
+        Fin.val_succ, testBit_pairIndex_succ]
       refine Finset.sum_congr rfl fun i _ => ?_
-      by_cases h : (i : Nat).testBit j = true <;> simp [h, pairRows, add_comm]
+      by_cases h : (i : Nat).testBit j = true <;> simp [h, pairRows]
 
 /-- Bounded bitwise xor of two depth-`d` leaf indices. -/
 @[expose] def xorIndex {d : Nat} (i delta : Fin (2 ^ d)) : Fin (2 ^ d) :=
@@ -199,14 +196,12 @@ private theorem selectedRows_verifierRows {d outputLength : Nat}
     (rows : Fin (2 ^ d) → BitString outputLength) (delta : Fin (2 ^ d)) (j : Fin d) :
     selectedRows (verifierRows rows delta) j =
       selectedRows rows j + fun k => (BitString.equivFin d).symm delta j * allRows rows k := by
-  conv_lhs => unfold selectedRows
   have hremove :
-      (∑ i : Fin (2 ^ d), if (i : Nat).testBit j then verifierRows rows delta i else 0) =
+      selectedRows (verifierRows rows delta) j =
         ∑ i : Fin (2 ^ d), if (i : Nat).testBit j then rows (xorIndex i delta) else 0 :=
     Finset.sum_congr rfl fun i _ => by
       by_cases hbit : (i : Nat).testBit j = true
-      · have hne : i ≠ 0 := fun hi => by simp [hi] at hbit
-        simp [hbit, verifierRows, hne]
+      · simp [hbit, verifierRows, show i ≠ 0 from fun hi => by simp [hi] at hbit]
       · simp [hbit]
   rw [hremove, ← (xorEquiv delta).sum_comp]
   simp only [xorEquiv_apply, xorIndex_involutive, testBit_xorIndex]
@@ -253,7 +248,7 @@ theorem conversionCorrelation_valid {d outputLength : Nat}
     (rows : Fin (2 ^ d) → BitString outputLength) (delta : Fin (2 ^ d)) (j : Fin d) :
     (conversionCorrelation rows delta j).Valid := by
   intro k
-  have h := congrFun (convertExpandedRows_correlation rows delta j) k
-  simpa only [conversionCorrelation, Pi.add_apply, Pi.zero_apply, mul_comm, add_comm] using h
+  simpa only [conversionCorrelation, Pi.add_apply, Pi.zero_apply, mul_comm, add_comm] using
+    congrFun (convertExpandedRows_correlation rows delta j) k
 
 end Cslib.Crypto.FAEST

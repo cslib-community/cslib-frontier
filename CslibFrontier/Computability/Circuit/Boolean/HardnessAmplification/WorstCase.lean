@@ -214,11 +214,8 @@ theorem exists_glPredictor_agree (enc : F ≃ BitString w) (h : BitString b ↪ 
         Equiv.apply_symm_apply]
       rfl
     · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx ⊢
-      simp only [glPredictor]
-      rw [show (fun r => C (Fin.append (BitString.pointBits enc
-          ((BitString.pointEquiv enc).symm x)) r)) = pred x by
-        rw [BitString.pointBits_pointEquiv_symm]]
-      rw [hx, Equiv.symm_apply_apply]
+      simp only [glPredictor, BitString.pointBits_pointEquiv_symm,
+        show (fun r => C (Fin.append x r)) = pred x from rfl, hx, target, Equiv.symm_apply_apply]
   rw [hcount]
   have : (#good : ℝ) ≤ 2 ^ (K + 1) *
       #{x | Crypto.GoldreichLevin.candidate (pred x) masks guess = target x} := by
@@ -637,11 +634,8 @@ theorem complexity_le_pow_of_agree_hardnessEncode (enc : F ≃ BitString w)
   have hε1 : ε ≤ 1 / 2 := le_half_of_agree hagree
   obtain ⟨-, hDq, hdq⟩ := reconstruction_ranges hq2 hε hε1 hn hmargin herr
   refine reconstructionCost_le hqw ?_ ?_ ?_ hDq ?_ (by omega)
-  · by_contra! hw
-    simp [Nat.lt_one_iff.mp hw] at hqw
-    omega
-  · by_contra! hm
-    simp [Nat.lt_one_iff.mp hm] at hd
+  · exact Nat.pos_of_ne_zero fun hw => by rw [hw, pow_zero] at hqw; omega
+  · exact Nat.pos_of_ne_zero fun hm => by simp [hm] at hd
   · simpa [BitString] using Fintype.card_le_of_embedding h
   · calc #(Sudan.monomials (m * (2 ^ b - 1)) D) ≤ #(range (D + 1) ×ˢ range (D + 1)) :=
           card_filter_le _ _

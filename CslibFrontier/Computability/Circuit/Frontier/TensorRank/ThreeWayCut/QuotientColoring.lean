@@ -138,11 +138,8 @@ private theorem beats_asymm {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} {c c' : Fin 3}
     (h : beats Q q R ω B c c') : ¬beats Q q R ω B c' c := by
   simp only [beats] at h ⊢
-  rintro (h' | ⟨heq, hτ'⟩) <;> rcases h with hlt | ⟨heq2, hτ⟩
-  · omega
-  · omega
-  · omega
-  · linarith only [hτ, hτ']
+  rintro (h' | ⟨heq, hτ'⟩) <;> rcases h with hlt | ⟨heq2, hτ⟩ <;>
+    first | omega | linarith only [hτ, hτ']
 
 private theorem beats_total {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} (hinj : Function.Injective (ω B).2)
@@ -206,18 +203,12 @@ private theorem blockColor_eq_iff_of_injective {Q : Multigraph W F} {q : ℝ} {R
       · exact absurd rfl hc'
   · intro hall
     unfold blockColor
-    fin_cases c
-    · have h0 : beats Q q R ω B 0 1 ∧ beats Q q R ω B 0 2 :=
-        ⟨hall 1 (by decide), hall 2 (by decide)⟩
-      simp only [h0]; rfl
-    · have hn0 : ¬(beats Q q R ω B 0 1 ∧ beats Q q R ω B 0 2) := fun h =>
-        beats_asymm (hall 0 (by decide)) h.1
-      have h1 : beats Q q R ω B 1 2 := hall 2 (by decide)
-      simp only [hn0, h1, ↓reduceIte]; rfl
-    · have hn0 : ¬(beats Q q R ω B 0 1 ∧ beats Q q R ω B 0 2) := fun h =>
-        beats_asymm (hall 0 (by decide)) h.2
-      have hn1 : ¬beats Q q R ω B 1 2 := beats_asymm (hall 1 (by decide))
-      simp only [hn0, hn1, ↓reduceIte]; rfl
+    fin_cases c <;> simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk] at hall ⊢
+    · exact ite_eq_left ⟨hall 1 (by decide), hall 2 (by decide)⟩
+    · rw [ite_eq_right fun h => beats_asymm (hall 0 (by decide)) h.1,
+        ite_eq_left (hall 2 (by decide))]
+    · rw [ite_eq_right fun h => beats_asymm (hall 0 (by decide)) h.2,
+        ite_eq_right (beats_asymm (hall 1 (by decide)))]
 
 private theorem blockColor_of_strict_majority {Q : Multigraph W F} {q : ℝ} {R : ℕ}
     {ω : W → BlockSample} {B : W} (hinj : Function.Injective (ω B).2) {c : Fin 3}
@@ -340,11 +331,7 @@ private theorem measureReal_eq_third_of_cyclic {Ω : Type*} [MeasurableSpace Ω]
   have h01 : P.real (E 0) = P.real (E 1) := hstep 0
   have h12 : P.real (E 1) = P.real (E 2) := hstep 1
   rw [measureReal_iUnion_fintype hd hm, Fin.sum_univ_three]
-  rcases c with ⟨_ | _ | _ | _, hlt⟩
-  · change P.real (E 0) = _; linarith only [h01, h12]
-  · change P.real (E 1) = _; linarith only [h01, h12]
-  · change P.real (E 2) = _; linarith only [h01, h12]
-  · omega
+  fin_cases c <;> simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk] <;> linarith only [h01, h12]
 
 /-- **Exact `1 / 3` marginal.** By `Z₃`-symmetry (`rotSample`), every block `B` lands in each color
 `c : Fin 3` with probability `1 / 3`. -/

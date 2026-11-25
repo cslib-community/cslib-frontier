@@ -451,22 +451,20 @@ theorem isPPT_lazyROToListGuess {X S T : ℕ → Type}
     ((ComputableInPolyTime.sigmaView encUnary encBits (fun n x => encX n x)
       (fun _ _ => rfl)).comp (ComputableInPolyTime.fst E₀ encBits)).prod
       (ComputableInPolyTime.snd E₀ encBits)
-  have hreassoc : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × List Bool => (q.1.1, q.1.2, q.2))
-      (encPair (encPair encUnary encBits) encBits)
-      (encPair encUnary (encPair encBits encBits)) := by fun_prop
   have hprep : ComputableInPolyTime
       (fun c : (Σ n, X n) × List Bool => (⟨c.1.1, c.1.2, c.2⟩ : WordROInput X))
       E₁ (encWordROInput encX) :=
-    (hreassoc.comp hview).of_enc_eq fun c => by simp [encWordROInput_apply]
+    ((show ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => (q.1.1, q.1.2, q.2))
+      _ (encPair encUnary (encPair encBits encBits)) by fun_prop).comp hview).of_enc_eq
+        fun c => by simp [encWordROInput_apply]
   have hvalid : ComputableInPolyTime
       (fun p : ((Σ n, X n) × List Bool) × List Bool => (decS p.1.1.1 p.2).isSome)
       (encPair E₁ encBits) encBool :=
-    hisSome.comp (((hn₀.comp ((ComputableInPolyTime.fst E₀ encBits).comp
-      (ComputableInPolyTime.fst E₁ encBits)))).prod (ComputableInPolyTime.snd E₁ encBits))
+    hisSome.comp (show ComputableInPolyTime (fun p : ((Σ n, X n) × List Bool) × List Bool =>
+      (p.1.1.1, p.2)) (encPair E₁ encBits) (encPair encUnary encBits) by fun_prop)
   have hsample₁ : IsPPTOn E₁ encBits
       (fun c : (Σ n, X n) × List Bool => encT c.1.1 <$> sampleT c.1.1) :=
-    hsampleT.preprocess (hn₀.comp (ComputableInPolyTime.fst E₀ encBits))
+    hsampleT.preprocess (by fun_prop)
   have hrun := isPPTOn_runState_cachedSamplerOracle
     (prepare := fun c : (Σ n, X n) × List Bool => (⟨c.1.1, c.1.2, c.2⟩ : WordROInput X))
     (valid := fun c q => (decS c.1.1 q).isSome)
@@ -667,12 +665,10 @@ theorem SecretGuessHard.negligible_roAdvantage {X S T : ℕ → Type}
     intro n s hs t ht
     refine (hbounds ⟨n, info n s, encT n t⟩).1.mono ?_
     have his := hinfo n s hs
-    have hmap : encT n t ∈ (ProbComp.eval (encT n <$> sampleT n)).support := by
-      rw [ProbComp.eval_map, PMF.mem_support_map_iff]
-      exact ⟨t, ht, rfl⟩
     have hlt : (encT n t).length ≤ maxT n := by
       simpa only [encBits_apply, encUnary_apply, List.length_replicate, maxT] using
-        hlenT n (encT n t) hmap
+        hlenT n (encT n t) ((ProbComp.eval_map (encT n) (sampleT n)).symm ▸
+          (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
     have hlen : (encWordROInput encX ⟨n, info n s, encT n t⟩).length ≤ M n := by
       rw [encWordROInput_apply]
       dsimp only [M]
@@ -711,20 +707,15 @@ theorem SecretGuessHard.negligible_roAdvantage_bitString {X : ℕ → Type}
   have hisSome : ComputableInPolyTime
       (fun p : ℕ × List Bool =>
         ((OracleCodec.bitString (secLen p.1)).decodeQuery ((), p.2)).isSome)
-      (encPair encUnary encBits) encBool := by
-    have heq : (fun p : ℕ × List Bool =>
-        ((OracleCodec.bitString (secLen p.1)).decodeQuery ((), p.2)).isSome) =
-        fun p : ℕ × List Bool => p.2.length == secLen p.1 := funext fun p => by
-      by_cases h : p.2.length = secLen p.1 <;> simp [OracleCodec.bitString, h]
-    rw [heq]
-    fun_prop
+      (encPair encUnary encBits) encBool :=
+    (show ComputableInPolyTime (fun p : ℕ × List Bool => p.2.length == secLen p.1)
+      (encPair encUnary encBits) encBool by fun_prop).of_enc_eq
+        fun p => congrArg encBool <| by
+          by_cases h : p.2.length = secLen p.1 <;> simp [OracleCodec.bitString, h]
   have hdefault : ComputableInPolyTime
-      (fun n : ℕ => encBitString (secLen n) (fun _ => false)) encUnary encBits := by
-    have heq : (fun n : ℕ => encBitString (secLen n) (fun _ => false)) =
-        fun n : ℕ => List.replicate (secLen n) false :=
-      funext fun n => by simp [encBitString_apply, List.ofFn_const]
-    rw [heq]
-    exact (bits_encList_polyTime encBool).2.comp (.replicate hsec (.const false))
+      (fun n : ℕ => encBitString (secLen n) (fun _ => false)) encUnary encBits :=
+    ((bits_encList_polyTime encBool).2.comp (.replicate hsec (.const false))).of_enc_eq fun n => by
+      simp [encBitString_apply, List.ofFn_const]
   have hsampleT_eval (n : ℕ) :
       ProbComp.eval (sampleT n) = uniformOfFintype (BitString (outLen n)) := by
     simp only [sampleT, ProbComp.eval_map, BitString.eval_sampleList, BitString.uniformList,

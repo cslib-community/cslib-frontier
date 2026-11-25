@@ -599,15 +599,12 @@ theorem computableInPolyTime_encryptEntry
       (f := fun a j => Cslib.Matrix.binaryEntry (n a) (w a) (publicWord a) (idx a) j *
         (coins a).secret.getD j 0)
       (range.comp hn) hterm)
-  have hboolUnary : ComputableInPolyTime Bool.toNat encBool encUnary := of_finite Bool.toNat
-  have hpad : ComputableInPolyTime
-      (fun a => ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input encIntBin :=
-    intBin_mul' (intBin_natCast_unary.comp (hboolUnary.comp hmessage))
-      (intBin_natCast.comp (binary_pow' (const 2) (by fun_prop)))
   have hzero : ComputableInPolyTime
       (fun a => (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)) input
         encIntBin :=
-    intBin_add' (encSerializedEncCoins_scalarError_polyTime hcoins) hpad
+    intBin_add' (encSerializedEncCoins_scalarError_polyTime hcoins)
+      (intBin_mul' (intBin_natCast_unary.comp ((of_finite Bool.toNat).comp hmessage))
+        (intBin_natCast.comp (binary_pow' (const 2) (by fun_prop))))
   have htail : ComputableInPolyTime
       (fun a => (coins a).error.getD (idx a - 1) 0) input encIntBin :=
     (listGetD (encA := encIntBin) 0).comp
@@ -616,9 +613,8 @@ theorem computableInPolyTime_encryptEntry
       (fun a => if idx a = 0 then (coins a).scalarError + ((message a).toNat : ℤ) * 2 ^ (w a - 1)
         else (coins a).error.getD (idx a - 1) 0) input encIntBin := by
     simpa only [Function.comp_apply, beq_iff_eq] using (beq hidx (const 0)).ite' hzero htail
-  have hadd := intBin_add' (intBin_natCast.comp hsum) herr
   simpa only [Function.comp_apply, Nat.cast_pow, Nat.cast_ofNat] using
-    intBin_emodNat' hadd (binary_pow' (const 2) hw)
+    intBin_emodNat' (intBin_add' (intBin_natCast.comp hsum) herr) (binary_pow' (const 2) hw)
 
 /-- Assemble all serialized dual-Regev ciphertext bits deterministically in polynomial time. -/
 @[fun_prop]
@@ -789,10 +785,8 @@ theorem computableInPolyTime_lweExtractChallenge {lweWord : α → List Bool} {m
   · apply bitsLow hw
     have hhead := matrixBinaryEntry (by fun_prop) hw hlweWord (const 0) (const 0)
       (cols := fun a => n a + 1)
-    have hboolUnary : ComputableInPolyTime Bool.toNat encBool encUnary := of_finite Bool.toNat
-    have hhalf : ComputableInPolyTime (fun a => w a - 1) input encUnary := by fun_prop
-    have hpad := binary_mul' (unary_to_binary.comp (hboolUnary.comp hmessage))
-      (binary_pow' (const 2) hhalf)
+    have hpad := binary_mul' (unary_to_binary.comp ((of_finite Bool.toNat).comp hmessage))
+      (binary_pow' (exponent := fun a => w a - 1) (const 2) (by fun_prop))
     exact binary_mod.comp ((binary_add.comp (hhead.prod hpad)).prod (binary_pow' (const 2) hw))
   · apply flatMapToBitsWithInput (range.comp hm)
     apply bitsLow (hw.comp (fst input encUnary))
@@ -966,31 +960,26 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
         (distinguishingGame unifPK (Encryption.keyDistinguisher enc adversary security)) ≤
         (hidingError (n security) (m security) (w security) : ℝ) := by
     rw [Game.advantage_eq_nndist, coe_nndist]
+    let unifPair := do
+      let A ← PMF.uniformOfFintype
+        (_root_.Matrix (Fin (m security)) (Fin (n security)) (ZMod (2 ^ w security)))
+      let u ← PMF.uniformOfFintype (Fin (n security) → ZMod (2 ^ w security))
+      return (A, u)
+    let cont (pk : PublicKey (n security) (m security) (w security)) :=
+      ProbComp.eval (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk))
+    have hLHS : distinguishingGame realPK (Encryption.keyDistinguisher enc adversary security) =
+        ((ProbComp.eval (keyGen (n security) (m security) (w security))).map Prod.fst).bind
+          cont := by
+      simp only [distinguishingGame_eq_bind, realPK, cont, pmf_norm]
+    have hRHS : distinguishingGame unifPK (Encryption.keyDistinguisher enc adversary security) =
+        unifPair.bind cont := by
+      simp only [unifPK, uniformPublicKeyWord, distinguishingGame_eq_bind, unifPair, cont,
+        ← PMF.uniformOfFintype_prod, pmf_norm]
     have hd :
         dist (distinguishingGame realPK (Encryption.keyDistinguisher enc adversary security))
           (distinguishingGame unifPK (Encryption.keyDistinguisher enc adversary security)) ≤
           dist ((ProbComp.eval (keyGen (n security) (m security) (w security))).map Prod.fst)
-            (do
-              let A ← PMF.uniformOfFintype
-                (_root_.Matrix (Fin (m security)) (Fin (n security)) (ZMod (2 ^ w security)))
-              let u ← PMF.uniformOfFintype (Fin (n security) → ZMod (2 ^ w security))
-              return (A, u)) := by
-      have hLHS : distinguishingGame realPK
-          (Encryption.keyDistinguisher enc adversary security) =
-          ((ProbComp.eval (keyGen (n security) (m security) (w security))).map Prod.fst).bind
-            fun pk => ProbComp.eval
-              (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk)) := by
-        simp only [distinguishingGame_eq_bind, realPK, pmf_norm]
-      have hRHS : distinguishingGame unifPK
-          (Encryption.keyDistinguisher enc adversary security) =
-          (do
-            let A ← PMF.uniformOfFintype
-              (_root_.Matrix (Fin (m security)) (Fin (n security)) (ZMod (2 ^ w security)))
-            let u ← PMF.uniformOfFintype (Fin (n security) → ZMod (2 ^ w security))
-            return (A, u)).bind fun pk => ProbComp.eval
-              (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk)) := by
-        simp only [unifPK, uniformPublicKeyWord, distinguishingGame_eq_bind,
-          ← PMF.uniformOfFintype_prod, pmf_norm]
+            unifPair := by
       rw [hLHS, hRHS]
       exact Probability.PMF.dist_bind_le _ _ _
     have hbound := hd.trans (dist_keyGen_uniform_le (n security) (m security) (w security))

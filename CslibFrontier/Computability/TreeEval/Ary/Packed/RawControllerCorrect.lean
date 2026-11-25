@@ -103,18 +103,14 @@ private theorem toRegs_subBank_expected (E : Gate d b → (Fin d → Fin r → Z
   unfold Ary.Iter.updateAt
   cases hread : read (Ary.Iter.path st) with
   | none | leaf _ =>
-    have hv : ∀ i : Fin r, (values.getD i 0 : ZMod p) = 0 := by
-      simpa only [expectedGate, hread, Pi.zero_apply] using hvalues
     have hzero : (fun i : Fin r => S t i - c * (values.getD i 0 : ZMod p)) = S t := by
       funext i
-      rw [hv i, mul_zero, sub_zero]
-    rw [hzero]
-    exact Function.update_eq_self t S
+      simp only [hvalues i, expectedGate, hread, Pi.zero_apply, mul_zero, sub_zero]
+    rw [hzero, Function.update_eq_self]
   | gate f =>
     simp only [Ary.gateUpdateWith]
     congr 1 with i : 1
-    rw [hvalues]
-    simp only [expectedGate, hread]
+    simp only [hvalues i, expectedGate, hread]
 
 private theorem toRegs_scale_unit (S : Ary.State (ZMod p) d r)
     (t : Fin (d + 1)) (j : Fin d) (round : ℕ) (hr : round < p - 1) :
@@ -409,20 +405,14 @@ theorem canonical_step (hd : 0 < d) (reply : Reply) (q : State)
 
 private theorem canonical_ofCfg (q : Ary.Iter.Cfg (ZMod p) d r)
     (hround : ∀ fr ∈ q.stack, fr.round < p - 1) : Canonical p d r (ofCfg q) := by
-  refine ⟨canonicalBank_ofRegs q.regs, ?_, ?_⟩
-  · intro fr hfr
-    obtain ⟨typed, htyped, rfl⟩ := List.mem_map.mp hfr
+  refine ⟨canonicalBank_ofRegs q.regs, fun fr hfr => ?_, ?_⟩
+  · obtain ⟨typed, htyped, rfl⟩ := List.mem_map.mp hfr
     exact ⟨hround typed htyped, typed.child.isLt, ZMod.val_lt typed.coeff,
       typed.target.isLt⟩
-  · cases hm : q.mode with
-    | ret =>
-      intro _ _ h
-      simp [ofCfg, ofMode, hm] at h
-    | call c t =>
-      intro _ _ h
-      simp only [ofCfg, ofMode, hm, State.mode, Option.some.injEq, Prod.mk.injEq] at h
-      rcases h with ⟨rfl, rfl⟩
+  · rcases q with ⟨_, _, ⟨c, t⟩ | _⟩
+    · rintro _ _ ⟨rfl, rfl⟩
       exact ⟨ZMod.val_lt c, t.isLt⟩
+    · exact fun _ _ => nofun
 
 /-- The physical raw transition preserves the canonical representation exactly, not only after
 decoding its field values. This permits consecutive raw transitions without re-encoding. -/
@@ -471,11 +461,9 @@ theorem exists_iterate_step_root (hd : 0 < d)
         (ofCfg (Ary.Iter.initialCfg S c t)) =
       ofCfg (⟨Ary.procWith e E (units p) T c t S, [], .ret⟩ : Ary.Iter.Cfg (ZMod p) d r) := by
   obtain ⟨N, hN⟩ := Ary.Iter.exists_runFrom_root hd e E (units p) T S c t
-  refine ⟨N, ?_⟩
-  rw [iterate_step_ofCfg hd e E T.nodeAt (Ary.Iter.initialCfg S c t) answer hanswer]
-  · rw [hN]
-  · intro n fr hfr
-    simpa only [units, List.length_map, List.length_range] using
-      (Ary.Iter.runFrom_initial_bounds T hd e E (units p) S c t n).2 fr hfr
+  refine ⟨N, (iterate_step_ofCfg hd e E T.nodeAt _ answer hanswer (fun n fr hfr => ?_) N).trans
+    (congrArg ofCfg hN)⟩
+  simpa only [units, List.length_map, List.length_range] using
+    (Ary.Iter.runFrom_initial_bounds T hd e E (units p) S c t n).2 fr hfr
 
 end Cslib.TreeEval.Ary.Packed.RawController

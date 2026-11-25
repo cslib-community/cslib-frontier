@@ -141,9 +141,7 @@ theorem retainPort_zeroPort {n : ℕ} (i j : Fin (n + 2)) :
 theorem comp_retainPort_zeroPort {n : ℕ} (i : Fin (n + 2)) (x : Fin (n + 2) → Bool)
     (h : cyclicDifference x i = false) : (x ∘ retainPort i) ∘ zeroPort i = x := by
   have he : x i = x (finRotate (n + 2) i) := by
-    revert h
-    dsimp [cyclicDifference]
-    cases x i <;> cases x (finRotate (n + 2) i) <;> decide
+    simpa only [cyclicDifference, bne_eq_false_iff_eq] using h
   funext j
   rcases retainPort_zeroPort i j with hj | ⟨rfl, hj⟩ | ⟨rfl, hj⟩
   exacts [congrArg x hj, (congrArg x hj).trans he, (congrArg x hj).trans he.symm]
@@ -379,22 +377,18 @@ theorem eq_pair_or_quartet_of_cap {n : ℕ} (j : Fin (n + 2)) (hj : j ≠ 0)
   cases hb : s 1 with
   | false =>
     refine Or.inl (funext fun k => ?_)
-    by_cases hk1 : k = 1
-    · subst k
-      simp [flipOn, hb, Ne.symm (capDifferencePort_ne_one j)]
-    by_cases hk2 : k = 2
-    · subst k
-      simp [flipOn, ← hs, hb, Ne.symm (capDifferencePort_ne_two j), Fin.ext_iff,
+    rcases Decidable.eq_or_ne k 1 with rfl | hk1
+    · simp [flipOn, hb, Ne.symm (capDifferencePort_ne_one j)]
+    rcases Decidable.eq_or_ne k 2 with rfl | hk2
+    · simp [flipOn, ← hs, hb, Ne.symm (capDifferencePort_ne_two j), Fin.ext_iff,
         Nat.mod_eq_of_lt (by omega : 2 < n + 4)]
     exact he k hk1 hk2
   | true =>
     refine Or.inr (funext fun k => ?_)
-    by_cases hk1 : k = 1
-    · subst k
-      simp [flipOn, hb]
-    by_cases hk2 : k = 2
-    · subst k
-      simp [flipOn, ← hs, hb]
+    rcases Decidable.eq_or_ne k 1 with rfl | hk1
+    · simp [flipOn, hb]
+    rcases Decidable.eq_or_ne k 2 with rfl | hk2
+    · simp [flipOn, ← hs, hb]
     simpa [flipOn, hk1, hk2] using he k hk1 hk2
 
 /-- Cyclic translation commutes with cyclic differences; orientation is preserved. -/

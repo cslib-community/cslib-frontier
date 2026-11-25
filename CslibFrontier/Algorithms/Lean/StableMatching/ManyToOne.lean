@@ -539,11 +539,7 @@ private theorem liftCloneFun_none {M : ManyToOneMatching m n} (hfeas : I.IsFeasi
     {r : Fin m} (hMr : M.hospital r = none) :
     I.liftCloneFun hfeas r = none := by
   unfold liftCloneFun
-  split
-  · rfl
-  · rename_i _ hsome
-    rw [hMr] at hsome
-    nomatch hsome
+  split <;> simp_all
 
 private theorem liftCloneFun_some {M : ManyToOneMatching m n} (hfeas : I.IsFeasible M)
     {r : Fin m} {h : Fin n} (hMr : M.hospital r = some h) :
@@ -553,11 +549,9 @@ private theorem liftCloneFun_some {M : ManyToOneMatching m n} (hfeas : I.IsFeasi
           (hfeas h)⟩) := by
   unfold liftCloneFun
   split
-  · rename_i hnone
-    rw [hMr] at hnone
-    nomatch hnone
+  · simp_all
   · rename_i h' hsome
-    obtain rfl := Option.some_injective _ (hsome.symm.trans hMr)
+    cases hMr.symm.trans hsome
     rfl
 
 private def liftClone {M : ManyToOneMatching m n} (hM : I.IsStable M) :
@@ -606,9 +600,7 @@ private theorem isStable_liftClone {M : ManyToOneMatching m n} (hM : I.IsStable 
   have hμ_ir : I.cloneInstance.IsIndividuallyRational μ := fun r s hs => by
     change I.liftCloneFun hfeas r = some s at hs
     cases hMr : M.hospital r with
-    | none =>
-      rw [I.liftCloneFun_none hfeas hMr] at hs
-      nomatch hs
+    | none => simp [I.liftCloneFun_none hfeas hMr] at hs
     | some h =>
       rw [I.liftCloneFun_some hfeas hMr] at hs
       obtain rfl := Option.some_injective _ hs
@@ -669,8 +661,7 @@ private theorem isStable_liftClone {M : ManyToOneMatching m n} (hM : I.IsStable 
       refine hnb r h ⟨hres_lt, hr_hosp, Or.inl ?_⟩
       by_contra! hge
       obtain ⟨_, -, -, hsym'⟩ := hsym_of_lt_card (lt_of_lt_of_le j.isLt hge)
-      rw [hsym] at hsym'
-      nomatch hsym'
+      simp [hsym] at hsym'
     | some r' =>
       rw [hsym, I.clone_recvRank_seat_some, I.clone_recvRank_seat_some] at hr_lt
       have hMr' : M.hospital r' = some h := by

@@ -216,20 +216,16 @@ private theorem abpCombine_eq_zero_of_le {R : Type*} [Zero R] {k₁ k₂ : ℕ}
   obtain ⟨x, rfl⟩ := (abpEquiv k₁ k₂).surjective i
   obtain ⟨y, rfl⟩ := (abpEquiv k₁ k₂).surjective j
   simp only [abpCombine, Matrix.submatrix_apply, Equiv.symm_apply_apply]
+  simp only [abpEquiv, Equiv.trans_apply, finCongr_apply, Fin.le_iff_val_le_val,
+    Fin.val_cast] at hji
   rcases x with a | b <;> rcases y with a' | b'
-  · refine hN₁ a a' ?_
-    simp only [abpEquiv, Equiv.trans_apply, finCongr_apply, Fin.le_iff_val_le_val, Fin.val_cast,
-      finSumFinEquiv_apply_left, Fin.val_castAdd] at hji ⊢
-    exact hji
-  · exfalso
-    simp only [abpEquiv, Equiv.trans_apply, finCongr_apply, Fin.le_iff_val_le_val, Fin.val_cast,
-      finSumFinEquiv_apply_left, finSumFinEquiv_apply_right, Fin.val_castAdd,
+  · exact hN₁ a a' (by simpa using hji)
+  · simp only [finSumFinEquiv_apply_left, finSumFinEquiv_apply_right, Fin.val_castAdd,
       Fin.val_natAdd] at hji
     omega
   · rfl
-  · refine hN₂ b.succ b'.succ ?_
-    simp only [abpEquiv, Equiv.trans_apply, finCongr_apply, Fin.le_iff_val_le_val, Fin.val_cast,
-      finSumFinEquiv_apply_right, Fin.val_natAdd, Fin.val_succ] at hji ⊢
+  · refine hN₂ b.succ b'.succ (Fin.le_iff_val_le_val.mpr ?_)
+    simp only [finSumFinEquiv_apply_right, Fin.val_natAdd, Fin.val_succ] at hji ⊢
     omega
 
 private theorem pathSum_abpCombine {R : Type*} [CommRing R] {k₁ k₂ : ℕ}
@@ -253,17 +249,11 @@ private theorem pathSum_abpCombine {R : Type*} [CommRing R] {k₁ k₂ : ℕ}
   simp only [Pi.add_apply, hvm, Matrix.vecMul_fromBlocks, Matrix.vecMul_zero, add_zero]
   rcases y with a | b
   · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inl, Sum.elim_comp_inl,
-      ← abpEquiv_inl_zero k₁ k₂]
-    rcases eq_or_ne a 0 with rfl | ha
-    · simpa only [Pi.add_apply, Pi.single_eq_same] using congrFun hq₁ 0
-    · simpa only [Pi.add_apply,
-        Pi.single_eq_of_ne (fun h => ha (Sum.inl.inj ((abpEquiv k₁ k₂).injective h))),
-        Pi.single_eq_of_ne ha] using congrFun hq₁ a
-  · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inr]
-    have hne : abpEquiv k₁ k₂ (.inr b) ≠ 0 := by
-      rw [← abpEquiv_inl_zero k₁ k₂]
-      exact fun h => nomatch (abpEquiv k₁ k₂).injective h
-    rw [Pi.single_eq_of_ne hne, zero_add]
+      ← abpEquiv_inl_zero k₁ k₂, Pi.single_apply, Equiv.apply_eq_iff_eq, Sum.inl.injEq]
+    simpa only [Pi.add_apply, Pi.single_apply] using congrFun hq₁ a
+  · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inr,
+      ← abpEquiv_inl_zero k₁ k₂, Pi.single_apply, Equiv.apply_eq_iff_eq, reduceCtorEq, ↓reduceIte,
+      zero_add]
     exact hr b
 
 /-- A specialization branching program of size `k + 1` gives a projection of the

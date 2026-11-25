@@ -410,14 +410,11 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
       have hB : 0 < Bcoef := by dsimp only [Bcoef]; positivity
       have h1 : η ≤ A * ε₀ / (4 * Bcoef) := min_le_right _ _
       rw [le_div_iff₀ (by positivity)] at h1
-      change η * Bcoef ≤ A * ε₀ / 4
       linarith)
     hγ_bound
     (by
-      have hsub : (w_r + 2 * c_edge * A) * ((c_slack : ℝ) + (e_fn n : ℝ)) ≤
-          (w_r + 2 * c_edge * A) * (defic n : ℝ) := by gcongr
-      have herr_le := le_trans (le_abs_self _) herrn
-      linarith)
+      linarith [mul_le_mul_of_nonneg_left he_add_le (by positivity : 0 ≤ w_r + 2 * c_edge * A),
+        (le_abs_self _).trans herrn])
     (by rw [hm_eq n] at hfin; linarith)
 
 private theorem switched_coeff_eq (k c_sw : ℝ) (hk : k ≠ 0)
@@ -501,10 +498,7 @@ private theorem eventually_hardMatrix_sq_le_of_layoutBound {d : ℕ}
   refine ⟨γ_sq, hγ, ?_⟩
   have hev := eventually_hardMatrix_contradiction hA hlayout (c_slack := 2) (by norm_num)
     hc_edge hε hγ.le (by linarith)
-    (by
-      have heq : (1 + 2 * c_edge * A) * γ_sq = c_edge * A * ε₀ / 4 := by
-        dsimp only [γ_sq]; field_simp
-      linarith)
+    (le_of_eq (by dsimp only [γ_sq, ε₀]; field_simp))
   filter_upwards [hev] with n ⟨hn24, hcontra⟩
   refine ⟨hn24, fun net leaf val_sq hsize hcut_le hρ_le => ?_⟩
   by_contra! hgt

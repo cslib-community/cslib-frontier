@@ -102,18 +102,14 @@ private theorem enumerates_flatMap {l : List ℕ} (hl : l.Nodup) (hne : l ≠ []
       · rw [List.getElem?_append_right (by simp; omega)]
         simp only [List.length_map, show i + 1 - l.length = 0 by omega, nextSection,
           succIn_getElem hl hil, List.getElem?_eq_none (by omega : l.length ≤ i + 1), h.head]
-        rcases S with _ | ⟨t', S⟩
-        · simp
-        · obtain ⟨a, l', rfl⟩ := List.exists_cons_of_ne_nil hne
-          simp
+        obtain ⟨a, l', rfl⟩ := List.exists_cons_of_ne_nil hne
+        cases S <;> simp
     · have hi' : i - (l.map (· :: t)).length < (S.flatMap fun t => l.map (· :: t)).length := by
         simp only [List.length_append, List.length_map] at hi ⊢
         omega
       rw [List.getElem_append_right (by simp; omega),
         List.getElem?_append_right (by simp; omega), ih _ hi']
-      congr 1
-      simp only [List.length_map]
-      omega
+      exact congrArg _ (by simp only [List.length_map]; omega)
 
 /-- **The odometer enumerates the sections.** When every list of `L` is duplicate-free, the
 odometer step leads from each section of `L` to the next one in `List.sections L`, and from the
@@ -125,9 +121,8 @@ theorem nextSection_sections : ∀ {L : List (List ℕ)}, (∀ l ∈ L, l.Nodup)
     simp [nextSection]
   | l :: L, hL => by
     by_cases hne : l = []
-    · subst hne
-      intro i hi
-      simp [List.sections, List.flatMap_eq_nil_iff.mpr fun _ _ => rfl] at hi
+    · rintro i hi
+      simp [hne, List.sections, List.flatMap_eq_nil_iff.mpr fun _ _ => rfl] at hi
     · exact enumerates_flatMap (hL l (by simp)) hne _
         (nextSection_sections fun l' h => hL l' (by simp [h]))
 

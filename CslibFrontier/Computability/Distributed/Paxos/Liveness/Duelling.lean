@@ -130,6 +130,7 @@ private lemma duelling_prep_and_1a {Learner V : Type*} [DecidableEq Learner] [De
       Msg.phase1a ⟨k, p⟩ ∈ u'.msgs ∧
       Msg.phase1b 0 ⟨k, p⟩ none ∈ u'.msgs ∧
       Msg.phase1b 1 ⟨k, p⟩ none ∈ u'.msgs := by
+  intro acts u'
   let b : Ballot (Fin 2) := ⟨k, p⟩
   set u1 := synodStep majorityQuorumsFin3 u (.prepare p k)
   have hu1_def : u1 =
@@ -148,8 +149,7 @@ private lemma duelling_prep_and_1a {Learner V : Type*} [DecidableEq Learner] [De
         acceptors := fun q => if q = 0 then
           { maxBal := some b, maxVoted := none, crashed := false } else u.acceptors q } := by
     dsimp only [u2, synodStep, synodStepCore]
-    have hu1_acc : u1.acceptors = u.acceptors := by rw [hu1_def]
-    rw [hu1_acc, ite_eq_left ha0_bal, ha0_vote]
+    rw [congrArg SynodState.acceptors hu1_def, ite_eq_left ha0_bal, ha0_vote]
     congr 1; funext q
     by_cases hq0 : q = 0 <;> simp only [hq0, ↓reduceIte, ha0_live]
   set u3 := synodStep majorityQuorumsFin3 u2 (.recvPhase1a 1 b)
@@ -169,10 +169,7 @@ private lemma duelling_prep_and_1a {Learner V : Type*} [DecidableEq Learner] [De
   have tr3 : (synodLts majorityQuorumsFin3).Tr u2 (.recvPhase1a 1 b) u3 :=
     ⟨⟨by rw [hu2_def]; exact ha1_live,
       by rw [hu2_def, hu1_def]; exact Finset.mem_insert_of_mem (Finset.mem_insert_self _ _)⟩, rfl⟩
-  have hu3_eq : ([SynodAction.prepare p k, .recvPhase1a 0 b, .recvPhase1a 1 b] :
-      List (SynodAction (Fin 2) (Fin 3) Learner V)).foldl (synodStep majorityQuorumsFin3) u = u3 :=
-    rfl
-  dsimp only []
+  have hu3_eq : u' = u3 := rfl
   rw [hu3_eq]
   refine ⟨LTS.MTr.stepL tr1 (LTS.MTr.stepL tr2 (LTS.MTr.stepL tr3 LTS.MTr.refl)), ?_⟩
   rw [hu3_def, hu2_def, hu1_def]
@@ -202,6 +199,7 @@ private lemma duelling_recv_two_1b {Learner V : Type*} [DecidableEq Learner] [De
       u'.learners = u.learners ∧
       u.msgs ⊆ u'.msgs ∧
       Msg.phase2a ⟨k, p⟩ val ∈ u'.msgs := by
+  intro acts u'
   let b : Ballot (Fin 2) := ⟨k, p⟩
   have hins01 : insert (1 : Fin 3) ({0} : Finset (Fin 3)) = {0, 1} := by decide
   have hcond0 : b = ⟨k, p⟩ ∧ (0 : Fin 3) ∉ (∅ : Finset (Fin 3)) := ⟨rfl, Finset.notMem_empty 0⟩
@@ -238,10 +236,7 @@ private lemma duelling_recv_two_1b {Learner V : Type*} [DecidableEq Learner] [De
     ⟨⟨by rw [hp], h1b0⟩, rfl⟩
   have tr2 : (synodLts majorityQuorumsFin3).Tr u1 (.recvPhase1b p 1 b none) u2 :=
     ⟨⟨by rw [hu1_def]; simp only [↓reduceIte], by rw [hu1_def]; exact h1b1⟩, rfl⟩
-  have hu2_eq : ([SynodAction.recvPhase1b p 0 b none, .recvPhase1b p 1 b none] :
-      List (SynodAction (Fin 2) (Fin 3) Learner V)).foldl (synodStep majorityQuorumsFin3) u = u2 :=
-    rfl
-  dsimp only []
+  have hu2_eq : u' = u2 := rfl
   rw [hu2_eq]
   refine ⟨LTS.MTr.stepL tr1 (LTS.MTr.stepL tr2 LTS.MTr.refl), ?_⟩
   rw [hu2_def]
@@ -381,16 +376,8 @@ theorem exists_duelling_proposers_livelock {Learner V : Type*}
     ωSequence.mk (duellingStateSeq v₀ v₁)
   let xls : ωSequence (List (SynodAction (Fin 2) (Fin 3) Learner V)) :=
     ωSequence.mk (duellingCycle v₀)
-  have hstep : ∀ k,
-      (synodLts majorityQuorumsFin3).MTr (ts k) (xls k) (ts (k + 1)) ∧
-      Msg.phase1a ⟨k, 0⟩ ∈ (ts (k + 1)).msgs ∧
-      Msg.phase1a ⟨k, 1⟩ ∈ (ts (k + 1)).msgs ∧
-      Msg.phase2a ⟨k, 0⟩ v₀ ∈ (ts (k + 1)).msgs ∧
-      Msg.phase2a ⟨k, 1⟩ v₁ ∈ (ts (k + 1)).msgs := by
-    intro k
-    obtain ⟨hmtr, -, hmsgs⟩ := duellingCycle_step (Learner := Learner) v₀ v₁ k (ts k)
-      (duellingStateSeq_inv v₀ v₁ k)
-    exact ⟨hmtr, hmsgs⟩
+  have hstep (k : ℕ) :=
+    duellingCycle_step (Learner := Learner) v₀ v₁ k (ts k) (duellingStateSeq_inv v₀ v₁ k)
   have hpos : ∀ k, 0 < (xls k).length := fun k => by
     simp only [xls, get_fun, duellingCycle, List.length_cons, List.length_nil]
     omega
@@ -398,7 +385,7 @@ theorem exists_duelling_proposers_livelock {Learner V : Type*}
   obtain ⟨ss, hexec, hts⟩ := LTS.OmegaExecution.flatten_mTr (fun k => (hstep k).1) hpos
   have hmtr n := hexec.extract_mTr ((cumLen_strictMono hpos).id_le n)
   refine ⟨inputs, ss, xls.flatten, hne, ?_, hexec, ?_,
-    fun k => ⟨xls.cumLen (k + 1), (hts (k + 1)).symm ▸ (hstep k).2⟩, ?_, ?_⟩
+    fun k => ⟨xls.cumLen (k + 1), (hts (k + 1)).symm ▸ (hstep k).2.2⟩, ?_, ?_⟩
   · simpa only [cumLen_zero, ts, get_fun, duellingStateSeq, inputs] using hts 0
   · refine (forall_flatten_iff hpos
         (fun act : SynodAction (Fin 2) (Fin 3) Learner V =>

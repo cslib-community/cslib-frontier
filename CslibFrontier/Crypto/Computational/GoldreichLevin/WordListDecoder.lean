@@ -146,13 +146,9 @@ theorem enumList_listMaskCount_budget {n precision L : ℕ} (hn : n ≤ L) (hp :
     calc
       n * precision ^ 4 ≤ L * L ^ 4 := Nat.mul_le_mul hn hpow4
       _ = L ^ 5 := by ring
-  have hguess : 2 ^ listMaskCount n precision ≤ 16 * L ^ 5 + 2 := by
-    have h := guessCount_listMaskCount_le n precision
-    linarith
-  have hmask : 2 * listMaskCount n precision + 1 ≤ 16 * L ^ 5 + 3 := by
-    have h := listMaskCount_le n precision
-    linarith
-  exact Nat.mul_le_mul hguess hmask
+  exact Nat.mul_le_mul
+    (by linarith [guessCount_listMaskCount_le n precision])
+    (by linarith [listMaskCount_le n precision])
 
 /-- Enumerating all `2 ^ listMaskCount p.1 p.2` parity guesses is polynomial-time jointly in
 `p : ℕ × ℕ` under `(encPair encUnary encUnary)`. -/
@@ -162,13 +158,9 @@ theorem polyTime_enumList_listMaskCount_pair :
       (encPair encUnary encUnary) (encList encBits) := by
   refine ComputableInPolyTime.bitsEnumList (by fun_prop)
     (size := fun L => (16 * L ^ 5 + 2) * (16 * L ^ 5 + 3)) (by fun_prop) ?_
-  intro p
-  have hn : p.1 ≤ (encPair encUnary encUnary p).length := by
-    simp [encPair_apply, encUnary_apply]
-    omega
-  have hp : p.2 ≤ (encPair encUnary encUnary p).length := by
-    simp [encPair_apply, encUnary_apply]
-  exact enumList_listMaskCount_budget hn hp
+  refine fun p => enumList_listMaskCount_budget ?_ ?_
+  · simp [encPair_apply, encUnary_apply]; omega
+  · simp [encPair_apply, encUnary_apply]
 
 private theorem comp_prod_eq {α β γ δ : Type*} (f : β → γ → δ) (g : α → β) (h : α → γ) :
     ((fun p : β × γ => f p.1 p.2) ∘ fun a => (g a, h a)) = fun a => f (g a) (h a) :=
@@ -498,14 +490,13 @@ theorem toFinset_wordListDecodePruned (predictor : List Bool → Bool) (dimensio
   rw [toFinset_dedupWords, List.toFinset_filter, toFinset_wordListDecode, listRows_eq_ofFn]
   ext w
   simp only [Finset.mem_filter, Finset.mem_image, List.length_ofFn, mem_prunedCandidates]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨⟨x, hx, rfl⟩, hpass⟩
-    rw [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq] at hpass
-    exact ⟨x, ⟨hx, hpass⟩, rfl⟩
+    exact ⟨x, ⟨hx,
+      by simpa only [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq] using hpass⟩, rfl⟩
   · rintro ⟨x, ⟨hx, hpass⟩, rfl⟩
-    refine ⟨⟨x, hx, rfl⟩, ?_⟩
-    rw [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq]
-    exact hpass
+    exact ⟨⟨x, hx, rfl⟩,
+      by simpa only [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq] using hpass⟩
 
 /-- For `x : BitString n`, `List.ofFn x` belongs to `wordListDecodePruned` if and only if `x`
 belongs to `prunedCandidates`. -/
@@ -748,15 +739,12 @@ theorem wordListDecodePruned_congr {predictor₁ predictor₂ : List Bool → Bo
     wordListDecodePruned predictor₁ dimension precision masks samples =
       wordListDecodePruned predictor₂ dimension precision masks samples := by
   unfold wordListDecodePruned wordPruneCandidates
-  have h1 : ∀ q ∈ listDecodeQueries dimension precision masks, predictor₁ q = predictor₂ q :=
-    fun q hq => hagree q (List.mem_append_left _ hq)
-  have h2 : ∀ q ∈ listRows (pruneSampleCount dimension precision) dimension samples,
-      predictor₁ q = predictor₂ q :=
-    fun q hq => hagree q (List.mem_append_right _ hq)
-  rw [wordListDecode_congr dimension precision masks h1]
+  rw [wordListDecode_congr dimension precision masks fun q hq =>
+    hagree q (List.mem_append_left _ hq)]
   congr 1
   refine List.filter_congr fun candidate _ => ?_
-  rw [wordEmpiricalHits_congr _ candidate h2]
+  rw [wordEmpiricalHits_congr _ candidate fun q hq =>
+    hagree q (List.mem_append_right _ hq)]
 
 /-- Running `wordListDecode` with `lookupReply queries (queries.map predictor)` where
 `queries = listDecodeQueries dimension precision masks` equals `wordListDecode predictor`. -/

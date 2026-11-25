@@ -69,14 +69,10 @@ theorem Emission.loaded {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
   refine ⟨(hs 0).trans hl.1, ?_, ?_⟩
   · intro j
     fin_cases j
-    · exact (hs 1).trans (hl.2.1 0)
-    · exact (hs 3).trans (hl.2.1 1)
-    · exact (hs 5).trans (hl.2.1 2)
+    exacts [(hs 1).trans (hl.2.1 0), (hs 3).trans (hl.2.1 1), (hs 5).trans (hl.2.1 2)]
   · intro j
     fin_cases j
-    · exact (hs 2).trans (hl.2.2 0)
-    · exact (hs 4).trans (hl.2.2 1)
-    · exact (hs 6).trans (hl.2.2 2)
+    exacts [(hs 2).trans (hl.2.2 0), (hs 4).trans (hl.2.2 1), (hs 6).trans (hl.2.2 2)]
 
 /-- Old input columns below the stack or above the output table cannot be overwritten by the
 single native pointer store, and both actual kernels preserve the old prefix. -/
@@ -110,9 +106,7 @@ private theorem Emission.forall_children {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
   intro d hd
   simp only [Emission.children, List.mem_cons, List.not_mem_nil, or_false] at hd
   rcases hd with rfl | rfl | rfl
-  · exact hc 0
-  · exact hc 1
-  · exact hc 2
+  exacts [hc 0, hc 1, hc 2]
 
 /-- Actual heavy-buffer readback represents exactly the existing ordered three-child recursion. -/
 theorem Emission.children_tasks {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
@@ -273,11 +267,8 @@ theorem Emission.math_step {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
       ((h.children ++ es).map Entry.task, some (e.task.node Q Λ)) := by
   have hempty : ¬e.task.empty := by
     simp only [Math.Task.empty, Entry.task, List.toFinset_eq_empty_iff]
-    intro he
-    rcases he with he | he | he
-    · exact hn 0 (by rw [he]; rfl)
-    · exact hn 1 (by rw [he]; rfl)
-    · exact hn 2 (by rw [he]; rfl)
+    rintro (he | he | he)
+    exacts [hn 0 (he ▸ rfl), hn 1 (he ▸ rfl), hn 2 (he ▸ rfl)]
   rw [List.map_append, h.children_tasks]
   cases he : e.fuel with
   | zero => exact (hf he).elim

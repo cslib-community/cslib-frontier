@@ -69,9 +69,8 @@ theorem point_bounds_of_mem_support {r : Route} (hr : IsOrthogonal r) {w h : ℤ
     0 ≤ p.1 ∧ p.1 ≤ w ∧ 0 ≤ p.2 ∧ p.2 ≤ h := by
   rcases (realPoint_mem_support_iff hr p).1 hp with hp | ⟨e, he, hp⟩
   · exact hb p hp
-  · have hm := List.of_mem_zip he
-    have := hb e.1 hm.1
-    have := hb e.2 (List.mem_of_mem_tail hm.2)
+  · have := hb e.1 (List.of_mem_zip he).1
+    have := hb e.2 (List.mem_of_mem_tail (List.of_mem_zip he).2)
     omega
 
 /-- Changing the sign only interchanges the two orientations of a straight neighborhood. -/
@@ -120,13 +119,9 @@ theorem walk_triple (a d : Point) {i k : ℕ} (hi : i + 2 ≤ k) :
 theorem walk_straight (a d : Point) {i k : ℕ} (hi : 0 < i) (hik : i < k) :
     StraightThrough (walk a d k) (a + i • d) d := by
   obtain ⟨i, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hi.ne'
-  have hm : a + (i + 1) • d - d = a + i • d := by
-    rw [add_smul, one_smul]; abel
-  have hp : a + (i + 1) • d + d = a + (i + 2) • d := by
-    simp only [add_smul, one_smul, two_nsmul]; abel
   refine Or.inl ?_
-  rw [hm, hp]
-  exact walk_triple a d (by omega)
+  simpa only [Nat.succ_eq_add_one, add_smul, one_smul, two_nsmul, ← add_assoc,
+    add_sub_cancel_right] using walk_triple a d (i := i) (k := k) (by omega)
 
 /-- A strict interior integer point of an axis-aligned segment has both neighboring unit
 points consecutively present in that segment's subdivision. -/

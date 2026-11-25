@@ -101,12 +101,10 @@ private theorem card_reedSolomon_list_le_maxYDeg
     have hD_le_maxY : D ≤ ProximityGap.maxYDeg 0 D :=
       Finset.le_sup (f := Prod.snd) (b := (0, D))
         (Sudan.mem_monomials.2 ⟨Nat.zero_le D, le_rfl, by simp⟩)
-    have hmon0 : #(Sudan.monomials 0 D) = (D + 1) * (D + 1) := by
-      have : Sudan.monomials 0 D = range (D + 1) ×ˢ range (D + 1) := by
-        ext ⟨a, b⟩
-        simp only [Sudan.mem_monomials, mem_product, mem_range, Nat.lt_succ_iff, zero_mul, add_zero]
-        tauto
-      rw [this, Finset.card_product, Finset.card_range]
+    have hmon0 : Sudan.monomials 0 D = range (D + 1) ×ˢ range (D + 1) := by
+      ext ⟨a, b⟩
+      simp only [Sudan.mem_monomials, mem_product, mem_range, Nat.lt_succ_iff, zero_mul, add_zero]
+      tauto
     have hcard_mul : A_good.card * t ≤ Fintype.card ι := calc
       A_good.card * t ≤ ∑ a ∈ A_good, (Finset.univ.filter fun i => u i = a).card :=
           Finset.card_nsmul_le_sum _ _ t fun _ ha => (mem_filter.1 ha).2
@@ -117,7 +115,7 @@ private theorem card_reedSolomon_list_le_maxYDeg
     have hm_le : m ≤ m * (m + 1) / 2 :=
       (Nat.le_div_iff_mul_le two_pos).2 (Nat.mul_le_mul_left m (by omega))
     have hlt_sq : A_good.card * (D + 1) < (D + 1) * (D + 1) := by
-      rw [Nat.sub_self, hmon0] at hinterp
+      rw [Nat.sub_self, hmon0, Finset.card_product, Finset.card_range] at hinterp
       calc A_good.card * (D + 1) ≤ A_good.card * (m * t) := Nat.mul_le_mul_left _ hroot
         _ = A_good.card * t * m := by ring
         _ ≤ Fintype.card ι * m := Nat.mul_le_mul_right _ hcard_mul
@@ -127,13 +125,11 @@ private theorem card_reedSolomon_list_le_maxYDeg
       ((Nat.lt_succ_iff.1 (Nat.lt_of_mul_lt_mul_right hlt_sq)).trans hD_le_maxY),
       fun c hcRS hcW => ?_⟩
     obtain ⟨P, hPdeg, rfl⟩ := mem_reedSolomon.1 hcRS
-    have hconst : (fun i => P.eval (α i)) = fun _ => P.coeff 0 := funext fun i => by
-      have hP : P = C (P.coeff 0) := Polynomial.eq_C_of_natDegree_eq_zero <| by
-        rcases eq_or_ne P 0 with rfl | hP0
-        · exact natDegree_zero
-        · exact Nat.lt_one_iff.1 ((natDegree_lt_iff_degree_lt hP0).2 hPdeg)
-      conv_lhs => rw [hP]
-      exact eval_C
+    have hP : P = C (P.coeff 0) := Polynomial.eq_C_of_natDegree_eq_zero <| by
+      rcases eq_or_ne P 0 with rfl | hP0
+      exacts [natDegree_zero, Nat.lt_one_iff.1 ((natDegree_lt_iff_degree_lt hP0).2 hPdeg)]
+    have hconst : (fun i => P.eval (α i)) = fun _ => P.coeff 0 :=
+      funext fun i => (congrArg (eval (α i)) hP).trans eval_C
     have hcard_a : t ≤ (Finset.univ.filter fun i => u i = P.coeff 0).card := by
       simpa only [congrFun hconst] using hagree_ge (fun i => P.eval (α i)) hcW
     obtain ⟨i₀, hi₀⟩ := Finset.card_pos.1 (ht_pos.trans_le hcard_a)
@@ -187,12 +183,11 @@ private theorem ratWeighted_to_nat_affine_ca
   obtain ⟨W, _, hW_le, _, hsum_iff, hθ_le_t⟩ := rat_weights_to_nat hM hμ_le hμ_den θ
   obtain ⟨z₀, hz₀⟩ := hT_ne
   obtain ⟨c₀, _, hc₀_ge⟩ := hclose z₀ hz₀
-  have hθ_le_n : (θ : ℝ) ≤ (Fintype.card ι : ℝ) := by
-    exact_mod_cast hc₀_ge.trans (sum_le_card_of_le_one hμ_le _)
-  have hB := ceilDiv_radius_le hM (hk.trans hkn) hθ_le_t hθ_le_n hθ
-  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ := hw hW_le hB fun z hz => by
-    obtain ⟨c, hcRS, hge⟩ := hclose z hz
-    exact ⟨c, hcRS, (hsum_iff _).1 hge⟩
+  have hB := ceilDiv_radius_le hM (hk.trans hkn) hθ_le_t
+    (mod_cast hc₀_ge.trans (sum_le_card_of_le_one hμ_le _)) hθ
+  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ := hw hW_le hB fun z hz =>
+    let ⟨c, hcRS, hge⟩ := hclose z hz
+    ⟨c, hcRS, (hsum_iff _).1 hge⟩
   exact ⟨D', (hsum_iff D').2 hD', v₀, hv₀, v, hvRS, hagree⟩
 
 /-- **Explicit-parameter `ℕ`-weighted correlated-agreement step on affine spaces up to the Johnson

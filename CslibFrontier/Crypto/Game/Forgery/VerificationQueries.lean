@@ -284,35 +284,23 @@ theorem isSigningQueryBounded_forgerToVq {PK M Sig : Type}
     (h : (A pk).IsQueryBounded Q_s) :
     IsSigningQueryBounded (forgerToVq A pk) Q_s := by
   unfold forgerToVq
-  have hfirst : IsSigningQueryBounded
-      (OracleComp.interpret
-        (OracleComp.sumHandler (fun k => ProbOracleComp.sample (ProbComp.unifFin k))
-          fun m => ProbOracleComp.query (spec := forgeVqSpec M Sig) (Sum.inl m))
-        (A pk)) Q_s := by
-    refine h.interpret fun q => ?_
-    cases q with
-    | inl k => exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
-    | inr m => exact IsSigningQueryBounded.query_sign m
-  exact (hfirst.bind fun cand =>
+  refine ((h.interpret ?_).bind fun cand =>
     (IsSigningQueryBounded.query_verify cand).bind fun _ => .pure () 0).mono (by simp)
+  rintro (k | m)
+  · exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
+  · exact IsSigningQueryBounded.query_sign m
 
 /-- `forgerToVq A` makes at most `1` verification query. -/
 theorem isVerificationQueryBounded_forgerToVq {PK M Sig : Type}
     (A : PK → ProbOracleComp (fun _ : M => Sig) (M × Sig)) (pk : PK) :
     IsVerificationQueryBounded (forgerToVq A pk) 1 := by
   unfold forgerToVq
-  have hzero : IsVerificationQueryBounded
-      (OracleComp.interpret
-        (OracleComp.sumHandler (fun k => ProbOracleComp.sample (ProbComp.unifFin k))
-          fun m => ProbOracleComp.query (spec := forgeVqSpec M Sig) (Sum.inl m))
-        (A pk)) 0 := by
-    refine (OracleComp.IsCostBounded.of_forall_cost_eq_zero (fun _ => rfl) (A pk)).interpret
-      fun q => ?_
-    cases q with
-    | inl k => exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
-    | inr m => exact IsVerificationQueryBounded.query_sign m
-  exact (hzero.bind fun cand =>
+  refine (((OracleComp.IsCostBounded.of_forall_cost_eq_zero (fun _ => rfl) (A pk)).interpret
+    ?_).bind fun cand =>
     (IsVerificationQueryBounded.query_verify cand).bind fun _ => .pure () 0).mono (by simp)
+  rintro (k | m)
+  · exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
+  · exact IsVerificationQueryBounded.query_sign m
 
 /-! ### Finite Theorem 6.1: planted-query guessing reduction to Attack Game 6.1 -/
 
@@ -332,10 +320,7 @@ private theorem eval_vqForgeExperiment_zero {PK SK M Sig : Type} [Inhabited Sig]
       | inl m =>
         dsimp only [vqOracle, StateT.run] at hz
         cases hsig : signer sk s.log m with
-        | none =>
-          rw [hsig, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hz
-          subst hz
-          simp
+        | none => simp_all [ProbComp.eval_pure]
         | some reply =>
           rw [hsig, ProbComp.eval_map, PMF.mem_support_map_iff] at hz
           obtain ⟨_, -, rfl⟩ := hz
@@ -343,9 +328,7 @@ private theorem eval_vqForgeExperiment_zero {PK SK M Sig : Type} [Inhabited Sig]
       | inr p =>
         cases z.2.won <;> simp)
     ⟨[], false⟩ ((), st) hmem
-  cases hwon : st.won
-  · simp
-  · simp [hwon] at hle
+  cases hwon : st.won <;> simp_all
 
 /-- An adversary with verification-query budget `0` has `succProbability = 0` in
 `vqForgeExperiment`. -/
@@ -422,37 +405,27 @@ theorem isQueryBounded_vqToForgerOn {PK M Sig : Type} [Inhabited M] [Inhabited S
     (h : IsSigningQueryBounded (A pk) Q_s) :
     (vqToForgerOn admit index A pk).IsQueryBounded Q_s := by
   unfold vqToForgerOn
-  have hsample := ProbOracleComp.IsQueryBounded.sample (spec := fun _ : M => Sig) index
-  have hrun : ∀ j, (((OracleComp.interpret
-      (OracleComp.sumHandler
-        (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-        (vqToForgerHandler admit))
-      (A pk)).run (ProbOracleComp.PlantedOracleState.init j default []))).IsQueryBounded Q_s := by
-    intro j
-    refine OracleComp.IsCostBounded.run_interpret (fun q s => ?_) h _
-    cases q with
-    | inl k =>
-      change ((ProbOracleComp.sample (ProbComp.unifFin k) >>= fun a => pure (a, s)) :
-        ProbOracleComp (fun _ : M => Sig) _).IsQueryBounded 0
-      exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
-        fun a => .pure (a, s) 0).mono (by omega)
-    | inr q =>
-      change ((vqToForgerHandler admit q).run s).IsQueryBounded (if q.isLeft then 1 else 0)
-      dsimp only [vqToForgerHandler, StateT.run]
-      cases s.planted.hasCaptured
-      · cases q with
-        | inl m =>
-          simp only [Bool.false_eq_true, ↓reduceIte, Sum.isLeft_inl]
-          split_ifs
-          · rw [map_eq_bind_pure_comp]
-            exact ((ProbOracleComp.IsQueryBounded.query m).bind fun _ => .pure _ 0).mono
-              (by omega)
-          · exact .pure _ 1
-        | inr p =>
-          simp only [Bool.false_eq_true, ↓reduceIte, Sum.isLeft_inr]
-          split_ifs <;> exact .pure _ 0
-      · cases q <;> exact .pure _ _
-  exact (hsample.bind fun j => (hrun j).bind fun _ => .pure _ 0).mono (by omega)
+  refine ((ProbOracleComp.IsQueryBounded.sample index).bind fun j =>
+    ((OracleComp.IsCostBounded.run_interpret ?_ h _).bind fun _ => .pure _ 0)).mono (by omega)
+  rintro (k | (m | p)) s
+  · change ((ProbOracleComp.sample (ProbComp.unifFin k) >>= fun a => pure (a, s)) :
+      ProbOracleComp (fun _ : M => Sig) _).IsQueryBounded 0
+    exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
+      fun a => .pure (a, s) 0).mono (by omega)
+  · change ((vqToForgerHandler admit (Sum.inl m)).run s).IsQueryBounded 1
+    dsimp only [vqToForgerHandler, StateT.run]
+    cases s.planted.hasCaptured
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      split_ifs
+      · rw [map_eq_bind_pure_comp]
+        exact ((ProbOracleComp.IsQueryBounded.query m).bind fun _ => .pure _ 0).mono (by omega)
+      · exact .pure _ 1
+    · exact .pure _ 1
+  · change ((vqToForgerHandler admit (Sum.inr p)).run s).IsQueryBounded 0
+    dsimp only [vqToForgerHandler, StateT.run]
+    cases s.planted.hasCaptured <;> simp only [Bool.false_eq_true, ↓reduceIte]
+    · split_ifs <;> exact .pure _ 0
+    · exact .pure _ 0
 
 private abbrev ValidVqLog {PK SK M Sig : Type} (verify : PK → SK → M → Sig → Bool)
     (pk : PK) (sk : SK) :=
@@ -578,20 +551,13 @@ private theorem run_vqToForgerHandler_eq_plantedHandler {PK SK M Sig : Type} [In
             ProbOracleComp.PlantedOracleState.oracleStateLens, vqPlantedSim, PMF.monad_map_eq_map,
             PMF.map_comp, Function.comp_def]
           cases hprog : signer sk st.oracleState.val m with
-          | none =>
-            have hadm : admit st.oracleState.val m = false := by
-              rw [← hadmit, hprog]
-              rfl
-            simp [hadm]
+          | none => simp [← hadmit, hprog]
           | some program =>
-            have hadm : admit st.oracleState.val m = true := by
-              rw [← hadmit, hprog]
-              rfl
-            simp only [hadm, ↓reduceIte, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-              ProbOracleComp.logOracle, hprog, ProbComp.eval_map, PMF.map_comp, Function.comp_def]
+            simp only [← hadmit, hprog, Option.isSome_some, ↓reduceIte,
+              ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, ProbOracleComp.logOracle,
+              ProbComp.eval_map, PMF.map_comp, Function.comp_def]
             refine PMF.map_congr_on_support (ProbComp.eval program) _ _ fun σ hσ => ?_
-            have hv := hsign st.oracleState.val m program hprog σ hσ
-            simp [validVqLogPush, hv]
+            simp [validVqLogPush, hsign st.oracleState.val m program hprog σ hσ]
         | inr p =>
           simp only [Bool.false_eq_true, ↓reduceIte, Sum.isRight_inr, vqExtract, vqDummyReply,
             vqPlantedSim]
@@ -684,13 +650,7 @@ theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabit
             (A pk) ⟨[], false⟩).toOuterMeasure {x | x.2.won = true} := by
       rw [ProbOracleComp.eval_runState, PMF.bind_apply, PMF.toOuterMeasure_eq_tsum_mul_indicator]
       refine tsum_congr fun x => ?_
-      by_cases hwon : x.2.won = true
-      · have hmem : x ∈ {y : Unit × VqOracleState M Sig | y.2.won = true} := hwon
-        rw [Set.indicator_of_mem hmem, Pi.one_apply, hwon, PMF.pure_apply_self]
-      · have hnot : x ∉ {y : Unit × VqOracleState M Sig | y.2.won = true} := hwon
-        have hfalse : x.2.won = false := Bool.eq_false_iff.mpr hwon
-        rw [Set.indicator_of_notMem hnot, hfalse]
-        simp
+      cases hwon : x.2.won <;> simp [hwon]
     have hunion :
         (ProbOracleComp.runWith
           (fun q st => ProbComp.eval (vqOracle signer verify pk sk q st))
@@ -872,13 +832,12 @@ theorem eval_vqForgeExperiment_le_mul_sampleModIndex_of_dvd {PK SK M Sig : Type}
           (vqToForgerOn admit (ProbComp.sampleModIndex width Q_v) A)) true := by
   rcases hdvd with rfl | hdvd
   · simp [eval_vqForgeExperiment_zero keyGen signer verify hA]
-  have hle := eval_vqForgeExperiment_le_mul_add_of_index keyGen signer verify admit hadmit hsign
+  simpa using eval_vqForgeExperiment_le_mul_add_of_index keyGen signer verify admit hadmit hsign
     Q_v (ProbComp.sampleModIndex width Q_v) (c := (Q_v : ℝ≥0∞)) (ε := 0)
     (fun j hj => by
       rw [add_zero, ProbComp.sampleModIndex_eq_sampleModNat width ((Nat.zero_le j).trans_lt hj)]
       exact ProbComp.one_le_mul_eval_sampleModNat_of_dvd hj hdvd)
     hA
-  simpa using hle
 
 /-! ### Finite Exercise 6.2: PRF-based MAC with verification queries -/
 
@@ -923,34 +882,24 @@ theorem isQueryBounded_vqMacToPrfAdversary {D R : Type} [DecidableEq D] [Decidab
     (hs : IsSigningQueryBounded (A ()) Q_s) (hv : IsVerificationQueryBounded (A ()) Q_v) :
     (vqMacToPrfAdversary A).IsQueryBounded (Q_s + Q_v) := by
   unfold vqMacToPrfAdversary
-  have htot := IsQueryBounded.of_signing_and_verification hs hv
-  have hrun : (((OracleComp.interpret
-      (OracleComp.sumHandler
-        (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-        vqMacToPrfHandler)
-      (A ())).run ⟨[], false⟩)).IsQueryBounded (Q_s + Q_v) := by
-    refine OracleComp.IsCostBounded.run_interpret (fun q s => ?_) htot _
-    cases q with
-    | inl k =>
-      change ((ProbOracleComp.sample (ProbComp.unifFin k) >>= fun a => pure (a, s)) :
-        ProbOracleComp (fun _ : D => R) _).IsQueryBounded 0
-      exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
-        fun a => .pure (a, s) 0).mono (by omega)
-    | inr q =>
-      change ((vqMacToPrfHandler q).run s).IsQueryBounded 1
-      cases q with
-      | inl m =>
-        dsimp only [vqMacToPrfHandler, StateT.run]
-        rw [map_eq_bind_pure_comp]
-        exact ((ProbOracleComp.IsQueryBounded.query m).bind fun _ => .pure _ 0).mono (by omega)
-      | inr p =>
-        rcases p with ⟨m, σ⟩
-        dsimp only [vqMacToPrfHandler, StateT.run]
-        split_ifs
-        · exact .pure _ 1
-        · rw [map_eq_bind_pure_comp]
-          exact ((ProbOracleComp.IsQueryBounded.query m).bind fun _ => .pure _ 0).mono (by omega)
-  exact (hrun.bind fun _ => .pure _ 0).mono (by omega)
+  refine ((OracleComp.IsCostBounded.run_interpret ?_
+    (IsQueryBounded.of_signing_and_verification hs hv) _).bind
+    fun _ => .pure _ 0).mono (by omega)
+  rintro (k | (m | ⟨m, σ⟩)) s
+  · change ((ProbOracleComp.sample (ProbComp.unifFin k) >>= fun a => pure (a, s)) :
+      ProbOracleComp (fun _ : D => R) _).IsQueryBounded 0
+    exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
+      fun a => .pure (a, s) 0).mono (by omega)
+  · change ((vqMacToPrfHandler (Sum.inl m)).run s).IsQueryBounded 1
+    dsimp only [vqMacToPrfHandler, StateT.run]
+    rw [map_eq_bind_pure_comp]
+    exact ((ProbOracleComp.IsQueryBounded.query m).bind fun _ => .pure _ 0).mono (by omega)
+  · change ((vqMacToPrfHandler (Sum.inr (m, σ))).run s).IsQueryBounded 1
+    dsimp only [vqMacToPrfHandler, StateT.run]
+    split_ifs
+    · exact .pure _ 1
+    · rw [map_eq_bind_pure_comp]
+      exact ((ProbOracleComp.IsQueryBounded.query m).bind fun _ => .pure _ 0).mono (by omega)
 
 private abbrev ValidPrfVqState {D R : Type} (f : D → R) :=
   {st : VqOracleState D R // ∀ p ∈ st.log, f p.1 = p.2}

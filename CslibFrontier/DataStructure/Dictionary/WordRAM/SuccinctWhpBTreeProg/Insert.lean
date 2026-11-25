@@ -105,8 +105,6 @@ theorem btreeInsertGenProg_spec {c U V w n_max base sIdx insCount q val : ℕ}
   set d0 := (((mkWhpCoreParams c U V w n_max, base), sIdx), q)
   set s2 := (Memory.spec 0).clientState s1
     (descendSplitLoopGenProg ((d0, (sl1.alloc, sl1.root)), hMaxBTree))
-  set p := descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-    hMaxBTree sl1 sl1.root q
   obtain ⟨hfr3, hmc3, hvp3, hrep3, hoth3, hout3⟩ :=
     finishLeafInsertGenProg_spec henv hsIdx hrep2 hcntL hqlo hqhi hhiL hval hvlf (s := s2)
   have hoff := largeOffsetChain c U V w n_max
@@ -146,31 +144,24 @@ theorem realizes_btreeInsertGen :
   realize
   all_goals
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, val⟩
-    dsimp only [BTreeModGenPre] at h
     obtain ⟨c, U, V, w₀, n_max, insCount, sl, mapFn,
       henv, rfl, hsIdx, hins, hrep, hv, hq, hval⟩ := h
-    have hth := henv.2.2.2.1
     have hw_eq := henv.2.2.1
     subst hw_eq
+  · exact ⟨c, U, V, w, n_max, insCount, sl, mapFn, henv, rfl, hsIdx, hins, hrep, hv⟩
+  all_goals
     obtain ⟨_, hres1, _, _, hrep1, halloc1, ⟨T1, hrt1, hht1, hnf1, hv1⟩, _, _, _⟩ :=
       ensureAndSplitRootGenProg_spec henv hsIdx hins hrep hv (s := s)
-    have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
-      Nat.sub_lt (Nat.two_pow_pos _) one_pos
-    simp only [hres1, wp_large_hMaxBTree hth] at *
-  · exact ⟨c, U, V, w, n_max, insCount, sl, mapFn, henv, rfl, hsIdx, hins, hrep, hv⟩
-  · exact (descendSplitLoopGenProg_spec henv hsIdx hrep1 halloc1.le hrt1 hnf1 hht1
-      (Nat.zero_le q) (by omega) hhi hv1
-      (s := (Memory.spec 0).clientState s
-        (ensureAndSplitRootGenProg ((mkWhpCoreParams c U V w n_max, base), sIdx)))
-      (fuel := hMaxBTree)).2.2.2.2.1
-  · obtain ⟨_, hres2, _, _, _, hrep2, ⟨isR, cntL, loL, hiL, hcntL, hqlo, hqhi, hhiL, hvlf⟩,
+    simp only [hres1, wp_large_hMaxBTree henv.2.2.2.1] at *
+    obtain ⟨_, hres2, _, _, hpre2, hrep2, ⟨isR, cntL, loL, hiL, hcntL, hqlo, hqhi, hhiL, hvlf⟩,
       _, _, _⟩ :=
       descendSplitLoopGenProg_spec henv hsIdx hrep1 halloc1.le hrt1 hnf1 hht1
-        (Nat.zero_le q) (by omega) hhi hv1
+        (Nat.zero_le q) (by omega) (Nat.sub_lt (Nat.two_pow_pos _) one_pos) hv1
         (s := (Memory.spec 0).clientState s
           (ensureAndSplitRootGenProg ((mkWhpCoreParams c U V w n_max, base), sIdx)))
         (fuel := hMaxBTree)
-    rw [hres2]
+  · exact hpre2
+  · rw [hres2]
     exact ⟨c, U, V, w, n_max, _, isR, cntL, loL, hiL, mapFn,
       henv, rfl, hsIdx, hrep2, hcntL, hqlo, hqhi, hhiL, hval, hvlf⟩
 

@@ -62,20 +62,14 @@ theorem mutualInfo_map_swap [Finite α] [Finite β] (p : PMF (α × β)) :
     mutualInfo (p.map Prod.swap) = mutualInfo p := by
   rw [mutualInfo_eq_entropy_add, mutualInfo_eq_entropy_add,
     entropy_map_of_injective p Prod.swap_injective, PMF.map_comp, PMF.map_comp]
-  have h1 : (Prod.fst ∘ (Prod.swap : α × β → β × α)) = Prod.snd := rfl
-  have h2 : (Prod.snd ∘ (Prod.swap : α × β → β × α)) = Prod.fst := rfl
-  rw [h1, h2]
-  ring
+  exact sub_left_inj.mpr (add_comm _ _)
 
 /-- Mutual information is at most the entropy of the first marginal: `I(A; B) ≤ H(A)`. -/
 theorem mutualInfo_le_entropy_map_fst [Finite α] [Finite β] (p : PMF (α × β)) :
     mutualInfo p ≤ entropy (p.map Prod.fst) := by
   rw [← mutualInfo_map_swap]
-  have hsnd : (p.map Prod.swap).map Prod.snd = p.map Prod.fst := by
-    rw [PMF.map_comp]
-    rfl
-  rw [← hsnd]
-  exact mutualInfo_le_entropy_map_snd (p.map Prod.swap)
+  simpa only [PMF.map_comp, Function.comp_def, Prod.snd_swap] using
+    mutualInfo_le_entropy_map_snd (p.map Prod.swap)
 
 /-- Injective re-encoding of the conditioning variable on the support does not change conditional
 mutual information: `I(A; B | e(C)) = I(A; B | C)`. -/
@@ -293,15 +287,12 @@ theorem mutualInfo_eq_entropy_map_snd_sub_logb_of_const_fiber [Finite α] [Finit
       · simp only [hb, ↓reduceIte, conditionalSnd_apply p a ha, hzero a ha b hb, ENNReal.zero_div]
     rw [hcond_eq, entropy_uniformOfFinset (unseen a) hne, hca]
   have hcond : conditionalEntropy p = Real.logb 2 c := by
-    rw [conditionalEntropy_eq_sum]
-    have hterm : ∀ a : α, ((p.map Prod.fst) a).toReal * entropy (conditionalSnd p a) =
-        ((p.map Prod.fst) a).toReal * Real.logb 2 c := by
-      intro a
-      by_cases ha : a ∈ (p.map Prod.fst).support
-      · rw [hcond_supp a ha]
-      · rw [PMF.mem_support_iff, not_not] at ha
-        rw [ha, ENNReal.toReal_zero, zero_mul, zero_mul]
-    rw [Finset.sum_congr rfl fun a _ => hterm a, ← Finset.sum_mul, sum_toReal, one_mul]
+    rw [conditionalEntropy_eq_sum, Finset.sum_congr rfl fun a _ =>
+      (?_ : _ = ((p.map Prod.fst) a).toReal * Real.logb 2 c), ← Finset.sum_mul, sum_toReal,
+      one_mul]
+    by_cases ha : a ∈ (p.map Prod.fst).support
+    · rw [hcond_supp a ha]
+    · simp [(PMF.apply_eq_zero_iff (p.map Prod.fst) a).mpr ha]
   rw [mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy, hcond]
 
 end Cslib.Probability.PMF

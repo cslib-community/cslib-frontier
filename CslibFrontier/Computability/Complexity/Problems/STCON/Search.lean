@@ -240,11 +240,7 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
     search_step
     rw [I.getElem?_encode_n hnI]
-    by_cases h : n < I.n
-    · simp only [h, decide_true]
-      search_finish []
-    · simp only [h, decide_false]
-      search_finish []
+    by_cases h : n < I.n <;> simp only [h, decide_true, decide_false] <;> search_finish []
   case «1» =>
     obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
     search_step
@@ -253,11 +249,7 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
     search_step
     rw [I.getElem?_encode_s hsI']
-    by_cases h : s < I.s
-    · simp only [h, decide_true]
-      search_finish []
-    · simp only [h, decide_false]
-      search_finish []
+    by_cases h : s < I.s <;> simp only [h, decide_true, decide_false] <;> search_finish []
   case «3» =>
     obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
     search_step
@@ -266,11 +258,7 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
     search_step
     rw [I.getElem?_encode_t htI']
-    by_cases h : t < I.t
-    · simp only [h, decide_true]
-      search_finish []
-    · simp only [h, decide_false]
-      search_finish []
+    by_cases h : t < I.t <;> simp only [h, decide_true, decide_false] <;> search_finish []
   case «5» =>
     obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
     search_step
@@ -310,11 +298,7 @@ private theorem inv_step_check {l c n s t cur steps v : ℕ} (hl7 : 7 ≤ l) (hl
   case «9» =>
     obtain ⟨rfl, rfl, rfl, hR, hst, hvn⟩ := hP
     search_step
-    by_cases h : steps < I.n
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · simp only [h, ↓reduceIte]
-      search_finish []
+    by_cases h : steps < I.n <;> simp only [h, ↓reduceIte] <;> search_finish [hR]
   case «10» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hlt⟩ := hP
     search_step
@@ -342,11 +326,7 @@ private theorem inv_step_guess {l c n s t cur steps v : ℕ} (hl11 : 11 ≤ l) (
   case «13» =>
     obtain ⟨rfl, rfl, rfl, hR, hlt, hvn⟩ := hP
     search_step
-    by_cases h : v < I.n
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · simp only [h, ↓reduceIte]
-      search_finish []
+    by_cases h : v < I.n <;> simp only [h, ↓reduceIte] <;> search_finish [hR]
 
 /-- A step in the arc-following phase (`14 ≤ l ≤ 16`) preserves the invariant and decreases the
 rank. -/

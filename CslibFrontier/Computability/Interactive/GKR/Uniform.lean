@@ -171,10 +171,9 @@ theorem wiringPred_sumElim {R : Type*} [CommRing R] (C : LayeredCircuit) (g : Ga
     (a : Fin (C.width (i + 1)) → Bool) (b c : Fin (C.width i) → Bool) :
     C.wiringPred (R := R) g i (Sum.elim a (Sum.elim b c)) =
       if C.isWiring g i a b c then 1 else 0 := by
-  have ha : (Sum.elim a (Sum.elim b c) ∘ Sum.inl) = a := rfl
-  have hb : (Sum.elim a (Sum.elim b c) ∘ Sum.inr ∘ Sum.inl) = b := rfl
-  have hc : (Sum.elim a (Sum.elim b c) ∘ Sum.inr ∘ Sum.inr) = c := rfl
-  simp [wiringPred, isWiring, ha, hb, hc]
+  simp only [wiringPred, isWiring, ← Function.comp_assoc, Sum.elim_comp_inl, Sum.elim_comp_inr,
+    decide_eq_true_eq]
+  by_cases h : C.gate i a = g ∧ C.left i a = b ∧ C.right i a = c <;> simp [h]
 
 end LayeredCircuit
 
@@ -269,49 +268,30 @@ theorem of_neighbours
       ∀ a : Fin ((C ι).width (i + 1)) → Bool,
         rightAt ⟨ι, i, List.ofFn a⟩ = List.ofFn ((C ι).right i a)) :
     IsLogSpaceUniform encI C := by
+  open ComputableInLogSpace in
   refine ⟨hdepth, hwidth, ?_⟩
   let toGateQuery : WiringQuery I → GateQuery I := fun q => ⟨q.index, q.layer, q.outGate⟩
-  have hWqFields : ComputableInLogSpace
+  have hWq : ComputableInLogSpace
       (fun q : WiringQuery I =>
         (q.index, q.gate, q.layer, q.outGate, q.leftGate, q.rightGate))
       (encWiringQuery I encI) (encWiringQueryFields I encI) :=
-    ComputableInLogSpace.of_eq (encWiringQuery_apply I encI)
-  have hIdx : ComputableInLogSpace WiringQuery.index (encWiringQuery I encI) encI :=
-    ComputableInLogSpace.fst' hWqFields
-  have hRest1 := ComputableInLogSpace.snd' hWqFields
-  have hGate : ComputableInLogSpace WiringQuery.gate (encWiringQuery I encI) encGate :=
-    ComputableInLogSpace.fst' hRest1
-  have hRest2 := ComputableInLogSpace.snd' hRest1
-  have hLayer : ComputableInLogSpace WiringQuery.layer (encWiringQuery I encI) encUnary :=
-    ComputableInLogSpace.fst' hRest2
-  have hRest3 := ComputableInLogSpace.snd' hRest2
-  have hOut : ComputableInLogSpace WiringQuery.outGate (encWiringQuery I encI) encBits :=
-    ComputableInLogSpace.fst' hRest3
-  have hRest4 := ComputableInLogSpace.snd' hRest3
-  have hLeft : ComputableInLogSpace WiringQuery.leftGate (encWiringQuery I encI) encBits :=
-    ComputableInLogSpace.fst' hRest4
-  have hRight : ComputableInLogSpace WiringQuery.rightGate (encWiringQuery I encI) encBits :=
-    ComputableInLogSpace.snd' hRest4
+    of_eq (encWiringQuery_apply I encI)
+  have hRest2 := snd' (snd' hWq)
+  have hRest4 := snd' (snd' hRest2)
   have hToGq : ComputableInLogSpace toGateQuery (encWiringQuery I encI) (encGateQuery I encI) :=
-    (ComputableInLogSpace.pair hIdx (ComputableInLogSpace.pair hLayer hOut)).congr
+    (pair (fst' hWq) (pair (fst' hRest2) (fst' (snd' hRest2)))).congr
       fun q => (encGateQuery_apply I encI (toGateQuery q)).symm
   let decideWiring : WiringQuery I → Bool := fun q =>
     decide (gateAt (toGateQuery q) = q.gate) &&
       (decide (leftAt (toGateQuery q) = q.leftGate) &&
         decide (rightAt (toGateQuery q) = q.rightGate))
   have hDec : ComputableInLogSpace decideWiring (encWiringQuery I encI) encBool :=
-    ComputableInLogSpace.bool_and
-      (ComputableInLogSpace.equal (hgate.comp' hToGq) hGate)
-      (ComputableInLogSpace.bool_and
-        (ComputableInLogSpace.equal (hleft.comp' hToGq) hLeft)
-        (ComputableInLogSpace.equal (hright.comp' hToGq) hRight))
+    bool_and (equal (hgate.comp' hToGq) (fst' (snd' hWq)))
+      (bool_and (equal (hleft.comp' hToGq) (fst' hRest4))
+        (equal (hright.comp' hToGq) (snd' hRest4)))
   refine ⟨decideWiring, hDec, fun ι g i hi a b c => ?_⟩
-  simp only [decideWiring, toGateQuery, LayeredCircuit.isWiring, hgate_eq ι i hi a,
-    hleft_eq ι i hi a, hright_eq ι i hi a, List.ofFn_inj]
-  by_cases h1 : (C ι).gate i a = g <;>
-    by_cases h2 : (C ι).left i a = b <;>
-    by_cases h3 : (C ι).right i a = c <;>
-    simp [h1, h2, h3]
+  simp [decideWiring, toGateQuery, LayeredCircuit.isWiring, hgate_eq ι i hi a,
+    hleft_eq ι i hi a, hright_eq ι i hi a, ← Bool.decide_and]
 
 end LayeredCircuit.IsLogSpaceUniform
 
@@ -534,14 +514,10 @@ private theorem eval_indicatorPoly_lits {R : Type*} [CommRing R] {kOut kIn : ℕ
       (∏ ℓ : Fin kIn, (lits.getD ℓ.val (.const false)).constWeight kOut (y ℓ)) *
         ∏ j : Fin kOut, ∏ ℓ : Fin kIn,
           (lits.getD ℓ.val (.const false)).varWeight j.val (a j) (y ℓ) := by
-  have h1 : ∀ ℓ : Fin kIn,
-      (if (lits.getD ℓ.val (.const false)).eval a then y ℓ else 1 - y ℓ) =
-        (lits.getD ℓ.val (.const false)).constWeight kOut (y ℓ) *
-          ∏ j : Fin kOut, (lits.getD ℓ.val (.const false)).varWeight j.val (a j) (y ℓ) :=
-    fun ℓ => (WireLit.constWeight_mul_prod_varWeight _ a (y ℓ)).symm
   rw [eval_indicatorPoly_apply]
-  simp_rw [h1]
-  rw [Finset.prod_mul_distrib, Finset.prod_comm]
+  change (∏ ℓ : Fin kIn, WireLit.litFactor ((lits.getD ℓ.val (.const false)).eval a) (y ℓ)) = _
+  simp only [← WireLit.constWeight_mul_prod_varWeight, Finset.prod_mul_distrib]
+  rw [Finset.prod_comm]
 
 /-- **Single-clause factorization**: summing `χ_a(z) χ_{evalLeft a}(y) χ_{evalRight a}(w)` over all
 gates `a` matching `cl` equals the coordinate product `cl.evalFactor z y w`. -/
@@ -561,10 +537,6 @@ private theorem sum_matchesVec_eq_evalFactor {R : Type*} [CommRing R] {kOut kIn 
       ((∏ ℓ : Fin kIn, (cl.leftLits.getD ℓ.val (.const false)).constWeight kOut (y ℓ)) *
         (∏ ℓ : Fin kIn, (cl.rightLits.getD ℓ.val (.const false)).constWeight kOut (w ℓ))) *
         ∏ j : Fin kOut, cl.bitTerm z y w j (a j) := fun a => by
-    have hz : eval z (indicatorPoly a) = ∏ j : Fin kOut, WireLit.litFactor (a j) (z j) :=
-      eval_indicatorPoly_apply a z
-    have hl : cl.evalLeft kIn a = fun ℓ => (cl.leftLits.getD ℓ.val (.const false)).eval a := rfl
-    have hr : cl.evalRight kIn a = fun ℓ => (cl.rightLits.getD ℓ.val (.const false)).eval a := rfl
     calc (if cl.matchesVec a then
             eval z (indicatorPoly a) * eval y (indicatorPoly (cl.evalLeft kIn a)) *
               eval w (indicatorPoly (cl.evalRight kIn a))
@@ -576,9 +548,10 @@ private theorem sum_matchesVec_eq_evalFactor {R : Type*} [CommRing R] {kOut kIn 
       _ = ((∏ ℓ : Fin kIn, (cl.leftLits.getD ℓ.val (.const false)).constWeight kOut (y ℓ)) *
             (∏ ℓ : Fin kIn, (cl.rightLits.getD ℓ.val (.const false)).constWeight kOut (w ℓ))) *
             ∏ j : Fin kOut, cl.bitTerm z y w j (a j) := by
-            rw [← cl.prod_maskWeight (R := R) a, hz, hl, hr,
-              eval_indicatorPoly_lits cl.leftLits y a, eval_indicatorPoly_lits cl.rightLits w a]
-            simp only [bitTerm, Finset.prod_mul_distrib]
+            rw [← cl.prod_maskWeight (R := R) a, eval_indicatorPoly_apply a z]
+            unfold evalLeft evalRight
+            rw [eval_indicatorPoly_lits cl.leftLits y a, eval_indicatorPoly_lits cl.rightLits w a]
+            simp only [bitTerm, WireLit.litFactor, Finset.prod_mul_distrib]
             ring
   simp only [hterm, ← Finset.mul_sum, evalFactor, sum_prod_bool]
 
@@ -687,9 +660,7 @@ def litFactorNat (p : ℕ) (b : Bool) (r : ℕ) : ℕ :=
 
 theorem natCast_litFactorNat {p : ℕ} [NeZero p] (b : Bool) (r : ℕ) :
     ((litFactorNat p b r : ℕ) : ZMod p) = WireLit.litFactor b (r : ZMod p) := by
-  cases b
-  · simp [litFactorNat, WireLit.litFactor, natCast_subModNat]
-  · simp [litFactorNat, WireLit.litFactor, ZMod.natCast_mod]
+  cases b <;> simp [litFactorNat, WireLit.litFactor, natCast_subModNat, ZMod.natCast_mod]
 
 /-- Natural representative of `WireLit.constWeight` modulo `p`. -/
 private def constWeightNat (p kOut : ℕ) (lit : WireLit) (r : ℕ) : ℕ :=
@@ -702,9 +673,7 @@ private theorem natCast_constWeightNat {p : ℕ} [NeZero p] (kOut : ℕ) (lit : 
   cases lit <;> simp only [constWeightNat, encWireLit_elim, encWireLit_toSum, Sum.elim_inl,
     Sum.elim_inr, WireLit.constWeight]
   · exact natCast_litFactorNat _ _
-  · split_ifs
-    · simp
-    · exact natCast_litFactorNat _ _
+  · split_ifs <;> simp [natCast_litFactorNat]
 
 /-- Natural representative of `WireLit.varWeight` modulo `p`. -/
 private def varWeightNat (p : ℕ) (lit : WireLit) (j : ℕ) (b : Bool) (r : ℕ) : ℕ :=
@@ -717,9 +686,7 @@ private theorem natCast_varWeightNat {p : ℕ} [NeZero p] (lit : WireLit) (j : �
   cases lit <;> simp only [varWeightNat, encWireLit_elim, encWireLit_toSum, Sum.elim_inl,
     Sum.elim_inr, WireLit.varWeight]
   · simp
-  · split_ifs
-    · exact natCast_litFactorNat _ _
-    · simp
+  · split_ifs <;> simp [natCast_litFactorNat]
 
 /-- Natural representative of `WiringClause.maskWeight`. -/
 private def maskWeightNat (m : Option Bool) (b : Bool) : ℕ :=
@@ -815,12 +782,8 @@ theorem computableInPolyTime_subModNat {γ : Type} {encIn : γ ↪ List Bool} {p
     (hb : ComputableInPolyTime b encIn encNat) :
     ComputableInPolyTime (fun x => subModNat (p x) (a x) (b x)) encIn encNat := by
   unfold subModNat
-  have hp0 : ComputableInPolyTime (fun x => decide (p x = 0)) encIn encBool :=
-    decide_eq' hp (const 0)
-  have hbody : ComputableInPolyTime (fun x => (a x % p x + (p x - b x % p x)) % p x)
-      encIn encNat :=
-    binary_mod' (binary_add' (binary_mod' ha hp) (binary_sub' hp (binary_mod' hb hp))) hp
-  exact ite_decide hp0 (const 0) hbody
+  exact ite_decide (decide_eq' hp (const 0)) (const 0)
+    (binary_mod' (binary_add' (binary_mod' ha hp) (binary_sub' hp (binary_mod' hb hp))) hp)
 
 @[fun_prop]
 theorem computableInPolyTime_litFactorNat {γ : Type} {encIn : γ ↪ List Bool}
@@ -885,29 +848,23 @@ private lemma maskWeightNat_pt {γ : Type} {encIn : γ ↪ List Bool}
     {m : γ → Option Bool} {b : γ → Bool}
     (hm : ComputableInPolyTime m encIn (encOption encBool))
     (hb : ComputableInPolyTime b encIn encBool) :
-    ComputableInPolyTime (fun x => maskWeightNat (m x) (b x)) encIn encNat := by
-  have hfin : ComputableInPolyTime (fun q : Option Bool × Bool => maskWeightNat q.1 q.2)
-      (encPair (encOption encBool) encBool) encNat := of_finite _
-  exact hfin.comp (hm.prod hb)
+    ComputableInPolyTime (fun x => maskWeightNat (m x) (b x)) encIn encNat :=
+  (of_finite (fun q : Option Bool × Bool => maskWeightNat q.1 q.2)).comp (hm.prod hb)
 
 private lemma getD_wireLitList_pt {γ : Type} {encIn : γ ↪ List Bool}
     {xs : γ → List WireLit} {i : γ → ℕ}
     (hxs : ComputableInPolyTime xs encIn (encList encWireLit))
     (hi : ComputableInPolyTime i encIn encUnary) :
-    ComputableInPolyTime (fun x => (xs x).getD (i x) (.const false)) encIn encWireLit := by
-  have hget : ComputableInPolyTime (fun x => (xs x)[i x]?) encIn (encOption encWireLit) :=
-    getElem? hxs hi
-  exact (hget.optionGetDWithInput (const (.const false))).of_enc_eq fun x => by
-    rw [List.getD_eq_getElem?_getD]
+    ComputableInPolyTime (fun x => (xs x).getD (i x) (.const false)) encIn encWireLit :=
+  ((ComputableInPolyTime.getElem? hxs hi).optionGetDWithInput (const (.const false))).of_enc_eq
+    fun x => by rw [List.getD_eq_getElem?_getD]
 
 private lemma getOpt_mask_pt {γ : Type} {encIn : γ ↪ List Bool}
     {ms : γ → List (Option Bool)} {i : γ → ℕ}
     (hms : ComputableInPolyTime ms encIn encMask)
     (hi : ComputableInPolyTime i encIn encUnary) :
-    ComputableInPolyTime (fun x => ((ms x)[i x]?).getD none) encIn (encOption encBool) := by
-  have hget : ComputableInPolyTime (fun x => (ms x)[i x]?)
-      encIn (encOption (encOption encBool)) := getElem? hms hi
-  exact hget.optionGetDWithInput (const none)
+    ComputableInPolyTime (fun x => ((ms x)[i x]?).getD none) encIn (encOption encBool) :=
+  (ComputableInPolyTime.getElem? hms hi).optionGetDWithInput (const none)
 
 private lemma bitTermNat_pt {γ : Type} {encIn : γ ↪ List Bool}
     {p kIn j : γ → ℕ} {cl : γ → WiringClause} {zs ys ws : γ → List ℕ} {b : γ → Bool}
@@ -1289,15 +1246,12 @@ theorem isLogSpaceUniform_powerSumCircuit :
           exact listOfFn_eval_snoc hrel _ a
   refine LayeredCircuit.IsLogSpaceUniform.of_neighbours hDepth hWidth hGateAt
     (hSideAt false) (hSideAt true)
-    (fun P i hi => ?_) (fun P i hi a => hSideEq false P i hi a)
+    (fun P i _ => ?_) (fun P i hi a => hSideEq false P i hi a)
     (fun P i hi a => hSideEq true P i hi a)
   dsimp only [powerSumCircuit, LayeredCircuit.ofClauses]
   intro a
-  simp only [gateAt, PowerSumParams.layerClauses]
-  by_cases h0 : i = 0
-  · subst h0
-    simp [hmUnmasked]
-  · by_cases hsq : i ≤ P.sqDepth <;> simp [h0, hsq, hmUnmasked]
+  by_cases h0 : i = 0 <;> by_cases hsq : i ≤ P.sqDepth <;>
+    simp [gateAt, PowerSumParams.layerClauses, h0, hsq, hmUnmasked]
 
 /-- Modular wiring-MLE evaluator for `powerSumCircuit`. -/
 def evalPowerSumWiring (q : WiringMLEQuery PowerSumParams) : ℕ :=

@@ -564,12 +564,9 @@ private theorem gossip_edge_hop (C : CvRDT S Op Q) {G : Digraph P}
   let pkt : GossipPacket P UId S := ⟨v, s.replica u, s.history u⟩
   let s₁ := C.gossipStep s (.send u v)
   let s₂ := C.gossipStep s₁ (.mergeConsume pkt)
-  have htr₁ : (C.gossipLTS G).Tr s (.send u v) s₁ := ⟨hadj, rfl⟩
-  have htr₂ : (C.gossipLTS G).Tr s₁ (.mergeConsume pkt) s₂ :=
-    ⟨Multiset.mem_cons_self pkt s.inFlight, rfl⟩
   refine ⟨[.send u v, .mergeConsume pkt], s₂,
-    LTS.MTr.stepL htr₁ (LTS.MTr.stepL htr₂ LTS.MTr.refl), rfl, fun w => ?_, fun w => ?_, ?_, ?_,
-    fun b hb w => ?_, fun H hH w => ?_⟩
+    LTS.MTr.stepL ⟨hadj, rfl⟩ (LTS.MTr.stepL ⟨Multiset.mem_cons_self pkt s.inFlight, rfl⟩
+      LTS.MTr.refl), rfl, fun w => ?_, fun w => ?_, ?_, ?_, fun b hb w => ?_, fun H hH w => ?_⟩
   all_goals simp only [s₂, s₁, CvRDT.gossipStep, pkt, Function.update_apply]
   · split_ifs with hwv <;> simp [hwv]
   · split_ifs with hwv <;> simp [hwv]
@@ -750,17 +747,14 @@ private theorem idxOf_lt_of_pairwise_not_prec {Ev : Type*} [DecidableEq Ev]
   intro e₁ he₁ e₂ he₂ hprec
   have hi : l.idxOf e₁ < l.length := List.idxOf_lt_length_of_mem he₁
   have hj : l.idxOf e₂ < l.length := List.idxOf_lt_length_of_mem he₂
-  have hget₁ : l[l.idxOf e₁] = e₁ := List.getElem_idxOf hi
-  have hget₂ : l[l.idxOf e₂] = e₂ := List.getElem_idxOf hj
   rcases lt_trichotomy (l.idxOf e₁) (l.idxOf e₂) with hlt | heq | hgt
   · exact hlt
-  · have he₁₂ : e₁ = e₂ := by rw [← hget₁, ← hget₂]; simp [heq]
-    subst he₁₂
-    exact absurd hprec (irrefl e₁)
-  · rw [List.pairwise_iff_getElem] at hpw
-    have hnot := hpw (l.idxOf e₂) (l.idxOf e₁) hj hi hgt
-    rw [hget₁, hget₂] at hnot
-    exact absurd hprec hnot
+  · have he₁₂ : e₁ = e₂ := (List.getElem_idxOf hi).symm.trans
+      ((by simp [heq] : l[l.idxOf e₁] = l[l.idxOf e₂]).trans (List.getElem_idxOf hj))
+    exact absurd (he₁₂ ▸ hprec) (irrefl e₂)
+  · exact absurd hprec (by
+      simpa [List.getElem_idxOf hi, List.getElem_idxOf hj] using
+        List.pairwise_iff_getElem.mp hpw _ _ hj hi hgt)
 
 private theorem foldl_comm_prefix {S Ev Eff : Type*} (effect : Eff → S → S) (effOf : Ev → Eff)
     (a : Ev) (pre : List Ev)
@@ -1020,12 +1014,8 @@ private theorem exists_minimal_of_nonempty {Ev : Type*}
   classical
   -- Choose `m ∈ H` minimizing the cardinality of `{y ∈ H | prec y m}`.
   let ancCard : Ev → ℕ := fun x => (H.filter (fun y => prec y x)).card
-  obtain ⟨k, hk⟩ : ∃ k, k ∈ H.image ancCard :=
-    let ⟨x, hx⟩ := hne
-    ⟨ancCard x, Finset.mem_image_of_mem ancCard hx⟩
-  let minCard := (H.image ancCard).min' ⟨k, hk⟩
-  have hmin_mem : minCard ∈ H.image ancCard := Finset.min'_mem _ _
-  obtain ⟨m, hmH, hm_eq⟩ := Finset.mem_image.mp hmin_mem
+  let minCard := (H.image ancCard).min' (hne.image ancCard)
+  obtain ⟨m, hmH, hm_eq⟩ := Finset.mem_image.mp (Finset.min'_mem (H.image ancCard) _)
   refine ⟨m, hmH, fun y hyH hprec => ?_⟩
   have hssub : H.filter (fun z => prec z y) ⊂ H.filter (fun z => prec z m) := by
     rw [Finset.ssubset_iff_of_subset]

@@ -163,17 +163,15 @@ theorem exists_haltsWithin (h : P.AllBranches w B Post (fun _ => False) s) :
   | halt hh _ _ =>
     exact ⟨0, fun _ _ => by rwa [NondeterministicQueryMachine.replay_of_halted _ _ hh]⟩
   | @step s hh _ _ ih =>
-    obtain ⟨t₀, h₀⟩ := ih false
-    obtain ⟨t₁, h₁⟩ := ih true
-    refine ⟨max t₀ t₁ + 1, fun choices hlen => ?_⟩
+    choose t ht using ih
+    refine ⟨max (t false) (t true) + 1, fun choices hlen => ?_⟩
     cases choices with
     | nil => simp at hlen
     | cons c rest =>
+      simp only [List.length_cons] at hlen
       simp only [NondeterministicQueryMachine.replay_cons, step_toNondeterministicQueryMachine,
         hh, Bool.false_eq_true, ↓reduceIte]
-      cases c
-      · exact h₀ rest (by simp at hlen; omega)
-      · exact h₁ rest (by simp at hlen; omega)
+      exact ht c rest (by cases c <;> omega)
 
 /-- **Every branch keeps its registers bounded and halts only where `Post` holds**, for a program
 with no target. -/
@@ -184,8 +182,7 @@ theorem replay (h : P.AllBranches w B Post (fun _ => False) s) (choices : List B
   induction h generalizing choices with
   | exit hq => exact hq.elim
   | halt hh hp hb =>
-    rw [NondeterministicQueryMachine.replay_of_halted _ _ hh]
-    exact ⟨hb, fun _ => hp⟩
+    exact (P.toNondeterministicQueryMachine.replay_of_halted w hh choices).symm ▸ ⟨hb, fun _ => hp⟩
   | @step s hh hb _ ih =>
     cases choices with
     | nil => exact ⟨hb, fun h => absurd h (by simp [hh])⟩
@@ -194,6 +191,11 @@ theorem replay (h : P.AllBranches w B Post (fun _ => False) s) (choices : List B
         hh, Bool.false_eq_true, ↓reduceIte] using ih c rest
 
 end AllBranches
+
+private theorem halted_withChoice_of_isStep {s : Config} (hstep : (P.instr s.1).IsStep)
+    (c : Bool) : P.halted (withChoice s c) = false := by
+  cases h : P.instr s.1 <;>
+    simp [halted, withChoice_fst, h, Instr.IsStep, Instr.halts] at hstep ⊢
 
 /-! ### Deterministic code -/
 
@@ -209,12 +211,9 @@ theorem allBranches_of_reaches {B : ℕ} (hB : 1 ≤ B) {Post Q : Config → Pro
   induction t generalizing s c with
   | zero => exact .exit (hQ c)
   | succ t ih =>
-    obtain ⟨hr, hstep, hb⟩ := hR s (by simpa using ht 0 (by omega))
-    have hh : P.halted (withChoice s c) = false := by
-      cases h : P.instr s.1 <;>
-        simp [halted, withChoice_fst, h, Instr.IsStep, Instr.halts] at hstep ⊢
-    refine .step hh (List.forall_mem_set_of_forall_mem hb (by cases c <;> simp; omega))
-      fun c' => ?_
+    obtain ⟨hr, hstep, hb⟩ := hR s (ht 0 (Nat.zero_lt_succ _))
+    refine .step (halted_withChoice_of_isStep hstep c)
+      (List.forall_mem_set_of_forall_mem hb (by cases c <;> dsimp <;> omega)) fun c' => ?_
     rw [step_withChoice hr, show withChoice (withChoice (P.step w s) c) c' =
       withChoice (P.step w s) c' by simp [withChoice]]
     exact ih c'
@@ -225,10 +224,7 @@ theorem allBranches_of_reaches {B : ℕ} (hB : 1 ≤ B) {Post Q : Config → Pro
 private theorem branches_step {s : Config} (hr : (P.instr s.1).readsChoice = false)
     (hstep : (P.instr s.1).IsStep) (c c' : Bool) :
     Branches (P := P) (w := w) (withChoice s c) (withChoice (P.step w s) c') := by
-  have hh : P.halted (withChoice s c) = false := by
-    cases h : P.instr s.1 <;>
-      simp [halted, withChoice_fst, h, Instr.IsStep, Instr.halts] at hstep ⊢
-  have := Branches.single (P := P) (w := w) hh c'
+  have := Branches.single (P := P) (w := w) (halted_withChoice_of_isStep hstep c) c'
   rwa [step_withChoice hr, show withChoice (withChoice (P.step w s) c) c' =
     withChoice (P.step w s) c' by simp [withChoice]] at this
 
@@ -245,10 +241,10 @@ theorem branches_of_reaches {R : Config → Prop} {s s' : Config} (h : P.Reaches
   · clear hc
     induction t generalizing s c with
     | zero =>
-      have h0 := hR s (by simpa using ht 0 (by omega))
-      exact branches_step h0.1 h0.2 c c'
+      exact branches_step (hR s (ht 0 (Nat.zero_lt_succ _))).1
+        (hR s (ht 0 (Nat.zero_lt_succ _))).2 c c'
     | succ t ih =>
-      have h0 := hR s (by simpa using ht 0 (by omega))
+      have h0 := hR s (ht 0 (Nat.zero_lt_succ _))
       refine (branches_step h0.1 h0.2 c c).trans ?_
       rw [Function.iterate_succ_apply]
       exact ih c fun t' ht' => by
@@ -317,11 +313,10 @@ theorem exists_decidesInLogSpace_of_allBranches (P : CounterProgram) {α : Type}
       ntm.DecidesInSpace enc A fun a => c * (Nat.log2 (enc a).length + 1) := by
   choose time htime using fun a => (hall a).exists_haltsWithin
   refine P.exists_decidesInLogSpace time d (fun a choices hlen => htime a choices hlen.ge)
-    (fun a choices => ((hall a).replay choices).1) fun a => ⟨fun ha => ?_, fun ha => ?_⟩
-  · obtain ⟨s, hs, hacc⟩ := hacc a ha
-    exact accepts_of_branches hs hacc
-  · obtain ⟨choices, hhalt, haccept⟩ := ha
-    exact ((hall a).replay choices).2 hhalt (instr_of_accepts hhalt haccept)
+    (fun a choices => ((hall a).replay choices).1) fun a =>
+      ⟨fun ha => (hacc a ha).elim fun _ hs => accepts_of_branches hs.1 hs.2,
+        fun ⟨choices, hhalt, haccept⟩ =>
+          ((hall a).replay choices).2 hhalt (instr_of_accepts hhalt haccept)⟩
 
 end CounterProgram
 

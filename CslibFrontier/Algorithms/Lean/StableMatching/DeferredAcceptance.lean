@@ -140,11 +140,8 @@ structure Inv (s : State n) : Prop where
 theorem inv_init : I.Inv (fun _ => 0) where
   lt p := by have := p.isLt; omega
   rejected p k hk := absurd hk (Nat.not_lt_zero _)
-  last_unique p q hp hq := by
-    have h1 := p.isLt
-    have h2 := q.isLt
-    ext
-    omega
+  last_unique p q hp _ := Fin.ext ((Nat.lt_one_iff.mp (hp.symm ▸ p.isLt)).trans
+    (Nat.lt_one_iff.mp (hp.symm ▸ q.isLt)).symm)
 
 private theorem target_update_ne (s : State n) {p x : Fin n} (h : x ≠ p) (v : ℕ) :
     I.target (Function.update s p v) x = I.target s x := by
@@ -158,10 +155,7 @@ private theorem held_step {s : State n} {p : Fin n} (hp : I.Outranked s p)
   · subst hqp
     obtain ⟨y, hy, hyp⟩ := hp
     have hyq : y ≠ q := fun h => lt_irrefl _ (h ▸ hyp)
-    refine ⟨y, ?_, ?_⟩
-    · rw [I.target_update_ne s hyq, hy, hq]
-    · rw [← hq]
-      exact lt_trans hyp (hq ▸ hx)
+    exact ⟨y, by rw [I.target_update_ne s hyq, hy, hq], lt_trans (hq ▸ hyp) hx⟩
   · exact ⟨q, by rw [I.target_update_ne s hqp, hq], hx⟩
 
 private theorem ne_of_outranks {s : State n} {p q : Fin n}
@@ -391,15 +385,12 @@ theorem propRank_deferredAcceptance (p : Fin n) :
 /-- Deferred acceptance outputs a stable matching ([GaleShapley1962], Theorem 1). -/
 theorem isStable_deferredAcceptance : I.IsStable I.deferredAcceptance := by
   rintro p r ⟨hp, hr⟩
-  have hs := I.inv_finalState
-  have hk : (I.propRank p r).val < I.finalState p := by
-    rw [← propRank_deferredAcceptance]; exact hp
-  obtain ⟨q, hq, hqp⟩ := hs.rejected p _ hk
+  obtain ⟨q, hq, hqp⟩ := I.inv_finalState.rejected p (I.propRank p r)
+    (by rwa [← propRank_deferredAcceptance])
   rw [propPref_propRank] at hq hqp
-  have hq' : I.deferredAcceptance q = r := hq
-  have : I.deferredAcceptance.symm r = q := by rw [← hq', Equiv.symm_apply_apply]
-  rw [this] at hr
-  exact lt_asymm hr hqp
+  have hsymm : I.deferredAcceptance.symm r = q :=
+    I.deferredAcceptance.injective (by simp [deferredAcceptance_apply, hq])
+  exact lt_asymm (hsymm ▸ hr) hqp
 
 
 /-- No proposer has been turned down by a receiver it is matched to in the stable matching `ν`. -/
@@ -474,17 +465,12 @@ theorem proposals_eq :
 /-- Deferred acceptance makes at most `n^2 - n + 1` proposals (see [GusfieldIrving1989]). -/
 theorem proposals_le : I.proposals ≤ n ^ 2 - n + 1 := by
   have h := I.sum_le I.inv_finalState
-  have hp : I.proposals = ∑ p, I.finalState p + n := by
-    rw [proposals, Finset.sum_add_distrib]
-    simp
-  rw [hp]
+  rw [proposals, Finset.sum_add_distrib]
   rcases n with _ | m
   · simp at h ⊢
-  · have : (m + 1) ^ 2 - (m + 1) + 1 = m ^ 2 + (m + 1) := by
-      rw [show (m + 1) ^ 2 = m ^ 2 + (m + 1) + m by ring]
-      omega
-    rw [this]
-    simp only [Nat.add_sub_cancel] at h
+  · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one,
+      Nat.add_sub_cancel] at h ⊢
+    have : (m + 1) ^ 2 = m ^ 2 + (m + 1) + m := by ring
     omega
 
 /-- Deferred acceptance is the proposer-optimal stable matching. -/

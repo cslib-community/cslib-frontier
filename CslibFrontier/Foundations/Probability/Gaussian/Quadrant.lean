@@ -186,15 +186,11 @@ theorem gaussianQuadrant_comm {ρ : ℝ} (hρ : |ρ| ≤ 1) (α β : ℝ) :
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(α, 0) = 0`. -/
 theorem gaussianQuadrant_zero_right (ρ α : ℝ) : gaussianQuadrant ρ α 0 = 0 := by
-  have : {p : ℝ × ℝ | Φ p.1 ≤ α ∧ Φ p.2 ≤ 0} = ∅ :=
-    eq_empty_of_forall_notMem fun p hp => (cdf_pos' p.2).not_ge hp.2
-  rw [gaussianQuadrant_def, this, measureReal_empty]
+  simp [gaussianQuadrant_def, fun x => (cdf_pos' x).not_ge]
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(0, β) = 0`. -/
 theorem gaussianQuadrant_zero_left (ρ β : ℝ) : gaussianQuadrant ρ 0 β = 0 := by
-  have : {p : ℝ × ℝ | Φ p.1 ≤ 0 ∧ Φ p.2 ≤ β} = ∅ :=
-    eq_empty_of_forall_notMem fun p hp => (cdf_pos' p.1).not_ge hp.1
-  rw [gaussianQuadrant_def, this, measureReal_empty]
+  simp [gaussianQuadrant_def, fun x => (cdf_pos' x).not_ge]
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(α, 1) = α` for `α ∈ [0, 1]`. -/
 theorem gaussianQuadrant_one_right (ρ : ℝ) {α : ℝ} (h0 : 0 ≤ α) (h1 : α ≤ 1) :
@@ -248,7 +244,7 @@ theorem gaussianQuadrant_neg {ρ : ℝ} (hρ : |ρ| ≤ 1) {α : ℝ} (h0 : 0 �
     ext p
     simp only [mem_preimage, mem_ofPred_eq, mem_sdiff, cdf_gaussianReal_neg one_ne_zero, not_and,
       not_lt, sub_le_comm]
-    exact ⟨fun h => ⟨h.1, fun _ => h.2⟩, fun h => ⟨h.1, h.2 h.1⟩⟩
+    tauto
   have hae : ∀ᵐ p ∂μ, Φ p.2 ≠ 1 - β := by
     refine ae_of_ae_map (p := fun y => Φ y ≠ 1 - β) measurable_snd.aemeasurable ?_
     rw [correlatedGaussian_map_snd hρ]
@@ -368,10 +364,9 @@ theorem mul_le_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 ≤ ρ) (hρ1 : ρ ≤ 1) {
 `α, β ∈ [0, 1]`. -/
 theorem gaussianQuadrant_le_mul {ρ : ℝ} (hρ0 : -1 ≤ ρ) (hρ1 : ρ ≤ 0) {α β : ℝ} (hα0 : 0 ≤ α)
     (hα1 : α ≤ 1) (hβ0 : 0 ≤ β) (hβ1 : β ≤ 1) : gaussianQuadrant ρ α β ≤ α * β := by
-  have h := mul_le_gaussianQuadrant (ρ := -ρ) (β := 1 - β) (by linarith) (by linarith) hα0 hα1
-    (by linarith) (by linarith)
   rw [← neg_neg ρ, gaussianQuadrant_neg (abs_le.2 ⟨by linarith, by linarith⟩) hα0 hα1]
-  linarith
+  linarith [mul_le_gaussianQuadrant (ρ := -ρ) (β := 1 - β) (by linarith) (by linarith) hα0 hα1
+    (by linarith) (by linarith)]
 
 /-! ### Exercise 11.19 (e): Lipschitz continuity -/
 
@@ -451,11 +446,10 @@ variable {ι : Type*} [Fintype ι]
 where `√(a ⬝ᵥ a)` is the Euclidean norm of `a`. -/
 theorem measureReal_pi_gaussianReal_setOf_dotProduct_le {a : ι → ℝ} (ha : a ≠ 0) (b : ℝ) :
     (Measure.pi fun _ : ι => gaussianReal 0 1).real {z | a ⬝ᵥ z ≤ b} = Φ (b / √(a ⬝ᵥ a)) := by
-  have h := map_measureReal_apply (μ := Measure.pi fun _ : ι => gaussianReal 0 1)
-    (f := (a ⬝ᵥ ·)) (by fun_prop) (measurableSet_Iic (a := b))
-  rw [pi_gaussianReal_map_dotProduct_eq_map_const_mul, map_measureReal_apply (by fun_prop)
-    measurableSet_Iic, preimage_const_mul_Iic₀ b (sqrt_dotProduct_self_pos ha)] at h
-  rw [cdf_eq_real, h]
+  rw [cdf_eq_real, ← preimage_const_mul_Iic₀ b (sqrt_dotProduct_self_pos ha),
+    ← map_measureReal_apply (by fun_prop) measurableSet_Iic,
+    ← pi_gaussianReal_map_dotProduct_eq_map_const_mul,
+    map_measureReal_apply (by fun_prop) measurableSet_Iic]
   rfl
 
 /-- **Noise stability of halfspaces** [O'Donnell, Exercise 11.19][ODonnell2014]: the indicator of

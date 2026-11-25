@@ -86,24 +86,18 @@ private theorem Program.support_subset_reachableInputs
     | gate impossible => exact Fin.elim0 impossible
   | @gate g program line ih =>
     intro frontier i hi
-    let prior := Finset.univ.filter fun wire : Wire n g => wire.castSucc ∈ frontier
-    let opened :=
-      if Wire.gate (Fin.last g) ∈ frontier then prior ∪ Finset.univ.image line.wires else prior
-    apply ih opened
+    refine ih _ (Finset.mem_biUnion.mpr ?_)
     obtain ⟨wire, wireSelected, hi⟩ := Finset.mem_biUnion.mp hi
-    revert wireSelected hi
-    induction wire using Wire.lastCases with
+    cases wire using Wire.lastCases with
     | last =>
-      intro lastSelected hi
       rw [Program.wireSupport_gate_last] at hi
       obtain ⟨argument, hi⟩ := Line.mem_inputSupport.mp hi
-      exact Finset.mem_biUnion.mpr ⟨line.wires argument, by simp [opened, lastSelected], hi⟩
+      exact ⟨line.wires argument, by simp [wireSelected], hi⟩
     | castSucc wire =>
-      intro wireSelected hi
       rw [Program.wireSupport_gate_castSucc] at hi
-      refine Finset.mem_biUnion.mpr ⟨wire, ?_, hi⟩
+      refine ⟨wire, ?_, hi⟩
       by_cases lastSelected : Wire.gate (Fin.last g) ∈ frontier <;>
-        simp [opened, lastSelected, prior, wireSelected]
+        simp [lastSelected, wireSelected]
 
 /-- Opening the last gate `g` along `line` increases the frontier size by at most `w line.op`
 whenever `σ.Arity line.op ≤ 1 + w line.op`. -/
@@ -148,10 +142,8 @@ private theorem Program.card_reachableInputs_le_cost
   induction program with
   | empty =>
     simp only [Program.reachableInputs, Program.cost_empty, Nat.add_zero]
-    exact Finset.card_le_card_of_injOn Wire.input (fun _ present => by simpa using present)
-      fun _ _ _ _ h => by
-        cases h
-        rfl
+    exact Finset.card_le_card_of_injOn Wire.input (fun _ h => by simpa using h)
+      fun _ _ _ _ => Wire.input.inj
   | @gate g program line ih =>
     let prior := Finset.univ.filter fun wire : Wire n g => wire.castSucc ∈ frontier
     let opened :=
@@ -195,10 +187,7 @@ private theorem Program.cost_le_of_fanInAtMost (p : Program σ n g) {r : ℕ} (h
   induction p with
   | empty => simp
   | gate p line ih =>
-    have hw : max (r - 1) (σ.Arity line.op - 1) = r - 1 := by
-      have := h.2
-      omega
-    rw [Program.cost_gate, Nat.mul_succ, hw]
+    rw [Program.cost_gate, Nat.mul_succ, max_eq_left (Nat.sub_le_sub_right h.2 1)]
     exact Nat.add_le_add (ih h.1) le_rfl
 
 /-- A fan-in-`r` circuit has at most `m + (r - 1) * c.size`

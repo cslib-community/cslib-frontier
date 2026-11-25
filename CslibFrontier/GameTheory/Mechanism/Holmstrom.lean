@@ -311,11 +311,9 @@ theorem exists_groves_of_isDSIC [Fintype ι] [DecidableEq ι] {M : Mechanism ι 
   obtain ⟨h, hh, hpay⟩ := exists_groves_of_convex (V := fun _ => Set.univ)
     (hM.isDSICOn _) (fun b _ ω => hf b ω) (fun _ => convex_univ)
   refine ⟨h, hh, ?_⟩
-  cases M with
-  | mk out pay =>
-    simp only [groves, Mechanism.mk.injEq, true_and]
-    funext b i
-    exact hpay b (fun _ => Set.mem_univ _) i
+  cases M
+  simpa only [groves, Mechanism.mk.injEq, true_and, funext_iff] using
+    fun b i => hpay b (fun _ => Set.mem_univ _) i
 
 /-! ### Counterexample on a disconnected two-point domain -/
 
@@ -377,18 +375,11 @@ theorem disconnectedNonGroves_not_groves :
   rintro ⟨h, hh, hpay⟩
   let bLo : Fin 2 → Bool → ℝ := ![twoOutcomeVal 0, twoOutcomeVal (-1)]
   let bHi : Fin 2 → Bool → ℝ := ![twoOutcomeVal 2, twoOutcomeVal (-1)]
-  have hbLo (j : Fin 2) : bLo j ∈ disconnectedDomains j := by
-    fin_cases j
-    · exact Or.inl rfl
-    · exact rfl
-  have hbHi (j : Fin 2) : bHi j ∈ disconnectedDomains j := by
-    fin_cases j
-    · exact Or.inr rfl
-    · exact rfl
-  have hupd : bHi = Function.update bLo 0 (twoOutcomeVal 2) := by
-    funext j
-    fin_cases j <;> rfl
-  have h0eq : h 0 bHi = h 0 bLo := by rw [hupd, hh]
+  have hbLo : ∀ j, bLo j ∈ disconnectedDomains j := Fin.forall_fin_two.2 ⟨.inl rfl, rfl⟩
+  have hbHi : ∀ j, bHi j ∈ disconnectedDomains j := Fin.forall_fin_two.2 ⟨.inr rfl, rfl⟩
+  have hupd : bHi = Function.update bLo 0 (twoOutcomeVal 2) :=
+    funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩)
+  have h0eq : h 0 bHi = h 0 bLo := hupd ▸ hh 0 bLo (twoOutcomeVal 2)
   have hLo := hpay bLo hbLo 0
   have hHi := hpay bHi hbHi 0
   simp only [groves, disconnectedNonGroves, welfare, Fin.sum_univ_two,

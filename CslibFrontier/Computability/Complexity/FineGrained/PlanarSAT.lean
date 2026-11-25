@@ -62,9 +62,7 @@ private theorem not_decidableInPowerExpTime_of_planarization (hSH : SH)
     · rfl
     · exact iff_of_false
         (fun h => hw (by simpa only [List.all_eq_true, decide_eq_true_eq] using h.1))
-        (fun h => by
-          obtain ⟨σ, hσ⟩ := h.2
-          exact Bool.false_ne_true hσ)
+        (fun ⟨_, _, hσ⟩ => Bool.false_ne_true hσ)
   · intro φ
     have hsourceSize : (source φ).length + (source φ).vars.length + 1 ≤
         4 * (φ.numVars + φ.length + 1) := by
@@ -83,15 +81,11 @@ private theorem not_decidableInPowerExpTime_of_planarization (hSH : SH)
           Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hsourceSize 2)
         _ = _ := by ring
     have hout : (f (source φ)).numVars + 1 ≤ (16 * K + 1) * (φ.numVars + φ.length + 1) ^ 2 := by
-      have hone : 1 ≤ (φ.numVars + φ.length + 1) ^ 2 := by
-        simpa only [one_pow] using Nat.pow_le_pow_left
-          (show 1 ≤ φ.numVars + φ.length + 1 by omega) 2
+      have hone : 1 ≤ (φ.numVars + φ.length + 1) ^ 2 := Nat.one_le_pow 2 _ (by omega)
       calc
         _ ≤ 16 * K * (φ.numVars + φ.length + 1) ^ 2 + (φ.numVars + φ.length + 1) ^ 2 :=
           Nat.add_le_add hbound hone
         _ = _ := by ring
-    change ((f (source φ)).numVars + 1 : ℝ) ≤
-      (↑(16 * K) + 1 : ℝ) * ((φ.numVars + φ.length : ℕ) + 1 : ℝ) ^ (2 : ℝ)
     rw [Real.rpow_two]
     exact_mod_cast hout
 

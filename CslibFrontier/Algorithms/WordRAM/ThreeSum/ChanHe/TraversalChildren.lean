@@ -114,44 +114,40 @@ theorem pushChildren_exec {w base capacity : ℕ} (x : Data 128) (vs : List ℕ)
   have ha := prepareThird_exec x hx hone
   have hra : WordStack.Rep w base capacity vs (a.comap registers) := by
     simpa (disch := decide) only [a, thirdState, comap_set_outside] using hr
-  obtain ⟨b, hb, hrb, hfb, hpb⟩ := pushFrame_exec a vs h2 hcap hra
+  obtain ⟨b, hb, hrb : WordStack.Rep w base capacity (words a ++ vs) (b.comap registers),
+      hfb, hpb⟩ := pushFrame_exec a vs h2 hcap hra
     (fun i => (ha.bounded hx).1 (slot i)) (by omega)
   have hwa : words a = childWords x 2 := by
     simp +decide [words, a, thirdState, childWords, Data.set, slot, original,
       heavyBase, heavyLength]
-  change WordStack.Rep w base capacity (words a ++ vs) (b.comap registers) at hrb
-  rw [hwa] at hrb
   let c := secondState b
   have hc := prepareSecond_exec (w := w) b
   have hrc : WordStack.Rep w base capacity (childWords x 2 ++ vs) (c.comap registers) := by
-    simpa (disch := decide) only [c, secondState, comap_set_outside] using hrb
-  obtain ⟨d, hd, hrd, hfd, hpd⟩ := pushFrame_exec c (childWords x 2 ++ vs) h2 hcap hrc
+    simpa (disch := decide) only [c, secondState, comap_set_outside, ← hwa] using hrb
+  obtain ⟨d, hd, hrd : WordStack.Rep w base capacity (words c ++ (childWords x 2 ++ vs))
+      (d.comap registers), hfd, hpd⟩ := pushFrame_exec c (childWords x 2 ++ vs) h2 hcap hrc
     (fun i => (hc.bounded (hb.bounded (ha.bounded hx))).1 (slot i))
     (by simp only [List.length_append, length_childWords]; omega)
   have hwc : words c = childWords x 1 := by
     simp +decide [words, c, secondState, hpb, Outside, a, thirdState, childWords, Data.set,
       slot, original, heavyBase, heavyLength]
-  change WordStack.Rep w base capacity (words c ++ (childWords x 2 ++ vs))
-    (d.comap registers) at hrd
-  rw [hwc] at hrd
   let e := firstState d
   have he := prepareFirst_exec (w := w) d
   have hre : WordStack.Rep w base capacity (childWords x 1 ++ (childWords x 2 ++ vs))
       (e.comap registers) := by
-    simpa (disch := decide) only [e, firstState, comap_set_outside] using hrd
-  obtain ⟨z, hz, hrz, hfz, _⟩ := pushFrame_exec e (childWords x 1 ++ (childWords x 2 ++ vs))
+    simpa (disch := decide) only [e, firstState, comap_set_outside, ← hwc] using hrd
+  obtain ⟨z, hz, hrz : WordStack.Rep w base capacity
+      (words e ++ (childWords x 1 ++ (childWords x 2 ++ vs))) (z.comap registers),
+      hfz, _⟩ := pushFrame_exec e (childWords x 1 ++ (childWords x 2 ++ vs))
     h2 hcap hre
     (fun i => (he.bounded (hd.bounded (hc.bounded (hb.bounded (ha.bounded hx))))).1 (slot i))
     (by simp only [List.length_append, length_childWords]; omega)
   have hwe : words e = childWords x 0 := by
     simp +decide [words, e, firstState, hpd, Outside, c, secondState, hpb, a, thirdState,
       childWords, Data.set, slot, original, heavyBase, heavyLength]
-  change WordStack.Rep w base capacity (words e ++ (childWords x 1 ++ (childWords x 2 ++ vs)))
-    (z.comap registers) at hrz
-  rw [hwe] at hrz
   have hrun : Exec w pushChildren x z 207 := ha.seq (hb.seq (hc.seq (hd.seq (he.seq hz))))
   refine ⟨z, hrun, ?_, ?_, fun i hi => hrun.regs_eq (pushChildren_preserves i hi)⟩
-  · simpa only [List.append_assoc] using hrz
+  · simpa only [← hwe, List.append_assoc] using hrz
   · intro p hp
     exact (hfz p hp).trans ((hfd p hp).trans (hfb p hp))
 

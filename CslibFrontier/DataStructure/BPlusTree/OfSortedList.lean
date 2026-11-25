@@ -395,12 +395,9 @@ private theorem toList_pack (first : BPlusTree α β) (rest : List (Branch α β
     · rw [pack_cons_of_drop_eq_nil ss h]
       simp
     · rw [pack_cons_of_drop_eq_cons ss h]
-      have hr : rest = rest.take s ++ (k, c) :: rest' := by
-        rw [← h, List.take_append_drop]
-      have := ih c rest'
-      conv_rhs => rw [hr]
+      conv_rhs => rw [← List.take_append_drop s rest, h]
       simp only [toList_node, List.flatMap_cons, List.flatMap_append, List.append_assoc,
-        Branch.child_mk, this]
+        Branch.child_mk, ih c rest']
 
 /-- The first tree of a cut level starts with the entries of the level's first tree. -/
 private theorem toList_pack_fst (first : BPlusTree α β) (rest : List (Branch α β))
@@ -471,10 +468,7 @@ private theorem chunkSizes_bounds (ht : 2 ≤ t) {fuel n : ℕ} (hn : t - 1 ≤ 
       rcases List.mem_cons.1 hs with rfl | hs
       · split <;> omega
       · refine ih ?_ ?_ s hs <;> split <;> omega
-    · rw [chunkSizes_of_le h]
-      intro s hs
-      rw [List.mem_singleton.1 hs]
-      exact ⟨hn, h⟩
+    · simp [chunkSizes_of_le h]; omega
 
 /-- At most `2 * t - 1` entries are loaded into a single leaf. -/
 private theorem ofSortedList_of_length_le {l : List (α × β)} (ht : 2 ≤ t)
@@ -698,17 +692,14 @@ private theorem separated_pack {first : BPlusTree α β} {rest : List (Branch α
     · rw [pack_cons_of_drop_eq_nil ss hd]
       exact ⟨separated_node hf hr hk hs, by simp⟩
     · rw [pack_cons_of_drop_eq_cons ss hd]
-      have hrest : rest = rest.take s ++ (k, c) :: rest' := by
-        rw [← hd, List.take_append_drop]
-      have hmem : ∀ e ∈ rest.drop s, e ∈ rest := fun e he => List.mem_of_mem_drop he
-      rw [hd] at hmem
-      have hs' : ((first.toList ++ (rest.take s).flatMap fun e => e.child.toList) ++
-          (c.toList ++ rest'.flatMap fun e => e.child.toList)).IsSortedAssoc := by
-        have := hs
-        rw [hrest] at this
-        simpa only [List.flatMap_append, List.flatMap_cons, List.append_assoc,
-          Branch.child_mk] using this
-      obtain ⟨hs₁, hs₂, -⟩ := List.isSortedAssoc_append_iff.1 hs'
+      have hmem : ∀ e ∈ (k, c) :: rest', e ∈ rest := fun e he =>
+        List.mem_of_mem_drop (hd ▸ he)
+      obtain ⟨hs₁, hs₂, -⟩ := List.isSortedAssoc_append_iff.1
+        (show ((first.toList ++ (rest.take s).flatMap fun e => e.child.toList) ++
+            (c.toList ++ rest'.flatMap fun e => e.child.toList)).IsSortedAssoc by
+          conv at hs => rw [← List.take_append_drop s rest, hd]
+          simpa only [List.flatMap_append, List.flatMap_cons, List.append_assoc,
+            Branch.child_mk] using hs)
       obtain ⟨hf', hr'⟩ := ih (first := c) (rest := rest')
         (hr _ (hmem _ List.mem_cons_self))
         (fun e he => hr e (hmem e (List.mem_cons_of_mem _ he)))

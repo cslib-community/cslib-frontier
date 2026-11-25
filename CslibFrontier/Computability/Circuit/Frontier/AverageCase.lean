@@ -83,10 +83,8 @@ noncomputable def correlation (S T : Set (ι → U)) : ℝ :=
 /-- Complementing the first set negates the correlation. -/
 @[simp]
 theorem correlation_compl_left (S T : Set (ι → U)) : correlation Sᶜ T = -correlation S T := by
-  have hs (A : Set (ι → U)) : {x | x ∈ Sᶜ ↔ x ∈ A} = {x | x ∈ S ↔ x ∈ Aᶜ} := by
-    ext x
-    simp only [mem_compl_iff, mem_ofPred_eq]
-    tauto
+  have hs (A : Set (ι → U)) : {x | x ∈ Sᶜ ↔ x ∈ A} = {x | x ∈ S ↔ x ∈ Aᶜ} :=
+    Set.ext fun _ => by simp only [mem_compl_iff, mem_ofPred_eq]; tauto
   rw [correlation, correlation, agreement, agreement, hs T, hs Tᶜ, compl_compl, ← agreement,
     ← agreement, neg_sub]
 
@@ -103,10 +101,8 @@ variable [Finite ι] [Finite U]
 theorem agreement_add_agreement_compl [Nonempty U] (S T : Set (ι → U)) :
     agreement S T + agreement S Tᶜ = 1 := by
   have hN : (0 : ℝ) < Nat.card (ι → U) := by exact_mod_cast Nat.card_pos
-  have hcompl : {x : ι → U | x ∈ S ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T}ᶜ := by
-    ext x
-    simp only [mem_compl_iff, mem_ofPred_eq]
-    tauto
+  have hcompl : {x : ι → U | x ∈ S ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T}ᶜ :=
+    Set.ext fun _ => by simp only [mem_compl_iff, mem_ofPred_eq]; tauto
   rw [agreement, agreement, hcompl, ← add_div, div_eq_one_iff_eq hN.ne']
   exact_mod_cast ncard_add_ncard_compl _
 
@@ -163,15 +159,13 @@ theorem agreement_le {ι U : Type*} [Finite ι] [Finite U] [Nonempty U] {S T : S
     agreement S T ≤ (1 + β) / 2 + (R₁ + R₂) / (2 * Nat.card (ι → U)) := by
   have hN : (0 : ℝ) < Nat.card (ι → U) := by exact_mod_cast Nat.card_pos
   -- The agreeing inputs are those of `T` in `S` and those of `Tᶜ` outside `S`.
-  have hagree : {x | x ∈ S ↔ x ∈ T} = (T ∩ S) ∪ (Tᶜ \ S) := by
-    ext x
-    simp only [mem_ofPred_eq, mem_union, mem_inter_iff, Set.mem_sdiff, mem_compl_iff]
-    tauto
+  have hagree : {x | x ∈ S ↔ x ∈ T} = (T ∩ S) ∪ (Tᶜ \ S) :=
+    Set.ext fun _ => by
+      simp only [mem_ofPred_eq, mem_union, mem_inter_iff, Set.mem_sdiff, mem_compl_iff]; tauto
   have hdisj : Disjoint (T ∩ S) (Tᶜ \ S) := disjoint_left.mpr fun x hx hx' => hx'.1 hx.1
   have hcard : ({x | x ∈ S ↔ x ∈ T}.ncard : ℝ) = (T ∩ S).ncard + (Tᶜ \ S).ncard := by
     rw [hagree, ncard_union_eq hdisj]
-    push_cast
-    ring
+    exact Nat.cast_add _ _
   have hT : ((T ∩ S).ncard : ℝ) + (T \ S).ncard = T.ncard := by
     exact_mod_cast ncard_inter_add_ncard_sdiff_eq_ncard T S
   have hTc : ((Tᶜ ∩ S).ncard : ℝ) + (Tᶜ \ S).ncard = Tᶜ.ncard := by
@@ -185,9 +179,7 @@ theorem agreement_le {ι U : Type*} [Finite ι] [Finite U] [Nonempty U] {S T : S
   have hβ : β * T.ncard + β * Tᶜ.ncard = β * Nat.card (ι → U) := by rw [← htotal]; ring
   rw [agreement, div_le_iff₀ hN, hcard]
   have hRHS : ((1 + β) / 2 + (R₁ + R₂) / (2 * Nat.card (ι → U))) * Nat.card (ι → U) =
-      (1 + β) / 2 * Nat.card (ι → U) + (R₁ + R₂) / 2 := by
-    field_simp
-  rw [hRHS]
+      (1 + β) / 2 * Nat.card (ι → U) + (R₁ + R₂) / 2 := by field_simp
   linarith
 
 /-- A count whose base-`q` logarithm is at most `(1 - μ) n` is at most an

@@ -205,15 +205,11 @@ private theorem stepCoins_block_of_valid {width : ℕ} (hw : 0 < width)
   induction bits using List.reverseRecOn with
   | nil => simp only [List.length_nil] at hlen; omega
   | append_singleton bits bit ih =>
-    have hpre : bits.length < width := by
-      simp only [List.length_append, List.length_singleton] at hlen
-      omega
-    rw [MultiTapePTM.stepCoins_append, stepCoins_prefix hw machine cfg state hs bits hpre,
+    simp only [List.length_append, List.length_singleton] at hlen
+    rw [MultiTapePTM.stepCoins_append, stepCoins_prefix hw machine cfg state hs bits (by omega),
       MultiTapePTM.stepCoins_cons, MultiTapePTM.stepCoins_nil]
-    apply step_buffer_at_end hw machine cfg state _ _ bit
-    · simpa only [List.length_append, List.length_singleton] using hlen
-    · exact hs
-    · simpa only [BitString.binaryValue_snoc] using hact
+    exact step_buffer_at_end hw machine cfg state _ _ bit hlen hs
+      (by simpa only [BitString.binaryValue_snoc] using hact)
 
 
 private theorem stepCoins_of_halted {width : ℕ} (hw : 0 < width)
@@ -447,34 +443,28 @@ private theorem acceptCount_partial {width : ℕ} (hw : 0 < width)
       ((List.ofFn word).take (count * width)) ((List.ofFn word).drop (count * width))
       ht (by rw [hd]; exact hrest)
     rwa [List.take_append_drop, hd, ← hp word] at h
-  refine Finset.card_bij (fun word _ => prefWord word) ?_ ?_ ?_
-  · intro word hw'
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
-      simpa only [decide_eq_true_eq] using
-        (haccept word).mp (by
-          simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hw').2) |>.1⟩
+  have mem_acc {m : ℕ} {f : Fin m → Bool} :
+      f ∈ Finset.univ.filter (fun w =>
+          decide ((table hw machine).runClosedCoins (List.ofFn w) input = [true])) ↔
+        (table hw machine).runClosedCoins (List.ofFn f) input = [true] := by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq]
+  refine Finset.card_bij (fun word _ => prefWord word)
+    (fun word hw' => mem_acc.mpr ((haccept word).mp (mem_acc.mp hw')).1) ?_ ?_
   · intro left hl right hr heq
     apply List.ofFn_injective
-    have hleft := (haccept left).mp (by
-      simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hl).2)
-    have hright := (haccept right).mp (by
-      simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hr).2)
     rw [← List.take_append_drop (count * width) (List.ofFn left),
-      ← List.take_append_drop (count * width) (List.ofFn right), hleft.2, hright.2,
+      ← List.take_append_drop (count * width) (List.ofFn right),
+      ((haccept left).mp (mem_acc.mp hl)).2, ((haccept right).mp (mem_acc.mp hr)).2,
       ← hp left, ← hp right, heq]
   · intro word hword
     let extended := BitString.ofList (count * width + rest)
       (List.ofFn word ++ List.replicate rest false)
     have hext : List.ofFn extended = List.ofFn word ++ List.replicate rest false :=
-      BitString.ofFn_ofList (by simp only [List.length_append, List.length_ofFn,
-        List.length_replicate])
-    have hprefWord : prefWord extended = word := by
-      apply List.ofFn_injective
-      rw [hp, hext, List.take_left' (by simp)]
-    refine ⟨extended, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hprefWord⟩
-    simpa only [decide_eq_true_eq] using (haccept extended).mpr
-      ⟨hprefWord.symm ▸ by simpa only [decide_eq_true_eq] using (Finset.mem_filter.mp hword).2,
-        by rw [hext, List.drop_left' (by simp)]⟩
+      BitString.ofFn_ofList (by simp)
+    have hprefWord : prefWord extended = word :=
+      List.ofFn_injective (by rw [hp, hext, List.take_left' (by simp)])
+    exact ⟨extended, mem_acc.mpr ((haccept extended).mpr
+      ⟨hprefWord.symm ▸ mem_acc.mp hword, by rw [hext, List.drop_left' (by simp)]⟩), hprefWord⟩
 
 /-- Each occurrence-labelled terminal accepting branch corresponds to exactly one binary word.
 Repeated actions retain their multiplicity, while early halts have a unique zero continuation. -/
@@ -500,11 +490,7 @@ theorem acceptCount_table_div {width : ℕ} (hw : 0 < width)
     (horizon : ℕ) :
     (table hw machine).acceptCount input horizon =
       machine.acceptCount (horizon / width) (Cfg.init machine.initial input) := by
-  have hclock : horizon = horizon / width * width + horizon % width := by
-    have h := Nat.mod_add_div horizon width
-    rw [Nat.mul_comm width] at h
-    omega
-  conv_lhs => rw [hclock]
+  conv_lhs => rw [(Nat.div_add_mod' horizon width).symm]
   rw [acceptCount_partial hw machine input _ _ (Nat.mod_lt _ hw),
     acceptCount_table hw machine input hbound]
 

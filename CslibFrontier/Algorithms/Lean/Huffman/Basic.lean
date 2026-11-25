@@ -128,10 +128,9 @@ theorem eq_leaf_of_leaves_perm_singleton {T : CodeTree α} {a : α}
   cases T with
   | leaf b => exact congrArg leaf (List.singleton_inj.mp h.eq_singleton)
   | branch l r =>
-    have := h.length_eq
-    have := two_le_length_leaves_of_branch l r
-    simp only [List.length_singleton] at *
-    omega
+    have hlen := h.length_eq
+    have h2 := two_le_length_leaves_of_branch l r
+    simp only [List.length_singleton] at hlen; omega
 
 @[simp] theorem leaves_map (f : α → β) (T : CodeTree α) :
     (T.map f).leaves = T.leaves.map f := by
@@ -302,8 +301,7 @@ def codewordSet (T : CodeTree α) : Set (List Bool) :=
 theorem weightedPathLength_eq_sum_codewords {β : Type*} [AddCommMonoid β]
     (w : α → β) (T : CodeTree α) :
     T.weightedPathLength w = (T.codewords.map fun p => p.2.length • w p.1).sum := by
-  rw [weightedPathLength_eq_sum_leafDepths, ← map_length_codewords, List.map_map]
-  rfl
+  rw [weightedPathLength_eq_sum_leafDepths, ← map_length_codewords, List.map_map]; rfl
 
 theorem pairwise_rel_of_ne {γ : Type*} {R : γ → γ → Prop}
     (hsym : ∀ {u v}, R u v → R v u) {L : List γ} (hpw : L.Pairwise R)
@@ -340,9 +338,8 @@ theorem pairwise_incomparable_codewords (T : CodeTree α) :
 
 theorem nodup_map_snd_codewords (T : CodeTree α) :
     (T.codewords.map Prod.snd).Nodup :=
-  List.Pairwise.imp
-    (fun {c₁ c₂} h (hEq : c₁ = c₂) => h.1 (hEq ▸ List.prefix_refl c₁))
-    T.pairwise_incomparable_codewords
+  T.pairwise_incomparable_codewords.imp fun {c₁ c₂} h (hEq : c₁ = c₂) =>
+    h.1 (hEq ▸ List.prefix_refl c₁)
 
 /-- Every `CodeTree` codebook satisfies Mathlib's `InformationTheory.IsPrefixFree`. -/
 theorem isPrefixFree_codewordSet (T : CodeTree α) :
@@ -476,8 +473,7 @@ theorem decodeOne_append_of_mem_codewords {T : CodeTree α} {a : α} {c : List B
   | branch l r ihl ihr =>
     simp only [codewords, List.mem_append, List.mem_map, Prod.mk.injEq] at hmem
     rcases hmem with ⟨⟨a', cl⟩, hl, rfl, rfl⟩ | ⟨⟨a', cr⟩, hr, rfl, rfl⟩
-    · exact ihl hl
-    · exact ihr hr
+    exacts [ihl hl, ihr hr]
 
 theorem exists_encode_of_subset_leaves [DecidableEq α] {T : CodeTree α} {msg : List α}
     (hmsg : ∀ a ∈ msg, a ∈ T.leaves) :
@@ -526,8 +522,7 @@ private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List 
             hnodup.1 (h ▸ List.mem_map.mpr ⟨q, hq, rfl⟩)]
       have hmul : c.length • (msg.count a + 1) = c.length • msg.count a + c.length :=
         Nat.mul_succ _ _
-      simp only [List.count_cons_self, htail, hmul]
-      omega
+      simp only [List.count_cons_self, htail, hmul]; omega
     · rw [List.count_cons_of_ne fun (h : a = p.1) =>
           hnodup.1 (h.symm ▸ List.mem_map.mpr ⟨_, hps, rfl⟩),
         ih hnodup.2 hps]

@@ -165,9 +165,7 @@ private theorem computableInPolyTime_maxValue :
   have hstep : ComputableInPolyTime
       (fun q : (List (ℕ × ℕ) × ℕ) × (ℕ × ℕ) => max q.1.2 q.2.2)
       (encPair encInstance (encPair encNat encNat)) encNat := by
-    have h := ite (binary_le' hm ha) ha hm
-    simp only [decide_eq_true_eq] at h
-    simpa only [max_def] using h
+    simpa only [max_def, decide_eq_true_eq] using ite (binary_le' hm ha) ha hm
   exact foldlWithInput_of_bounded_growth (encA := encPair encNat encNat)
     (encB := encNat) (encL := encItems)
     (list := id) (init := fun _ => 0) (step := fun _ m a => max m a.2) (const _)
@@ -177,9 +175,7 @@ private theorem computableInPolyTime_maxValue :
       have h1 := SizedListEncoding.length_elem_le (encA := encPair encNat encNat)
         (encL := encItems) l a ha
       rw [length_encPair] at h1
-      rcases le_total m a.2 with h | h
-      · rw [max_eq_right h]; omega
-      · rw [max_eq_left h]; omega⟩
+      rcases max_choice m a.2 with h | h <;> rw [h] <;> omega⟩
 
 /-- **The knapsack FPTAS runs in polynomial time** in the encoded instance and `k`, given in
 unary. -/
@@ -202,16 +198,12 @@ theorem computableInPolyTime_fptas :
         (fits x.2.2 x.2.1))
       (encPair encUnary encInstance)
       (encList (encPair (encPair encNat encNat) encUnary)) := by
-    have hNq := hN.comp (fst (encPair encUnary encInstance)
-      (encPair encNat encNat))
-    have hNb := ComputableInPolyTime.unary_to_binary.comp hNq
-    have hPq := hP.comp (fst (encPair encUnary encInstance)
-      (encPair encNat encNat))
-    have hv := (snd (encPair encUnary encInstance)
-      (encPair encNat encNat)).snd'
-    have hmul := binary_mul' hv hNb
-    have hdiv := ComputableInPolyTime.binary_div.comp (hmul.prod hPq)
-    exact mapWithInput hF ((snd _ _).prod (binary_min_unary' hNq hdiv))
+    have hfst := fst (encPair encUnary encInstance) (encPair encNat encNat)
+    have hsnd := snd (encPair encUnary encInstance) (encPair encNat encNat)
+    have hNq := hN.comp hfst
+    have hdiv := ComputableInPolyTime.binary_div.comp
+      ((binary_mul' hsnd.snd' (ComputableInPolyTime.unary_to_binary.comp hNq)).prod (hP.comp hfst))
+    exact mapWithInput hF (hsnd.prod (binary_min_unary' hNq hdiv))
   have hDP := computableInPolyTime_profitDP (encI := encPair (encPair encNat encNat) encUnary)
     (w := fun a : (ℕ × ℕ) × ℕ => a.1.1) (p := Prod.snd) (fst _ _).fst' (snd _ _)
     fun _ => by simp only [length_encPair, encUnary_apply, List.length_replicate]; omega

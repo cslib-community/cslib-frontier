@@ -88,33 +88,28 @@ theorem insertLeaf_correct (source : Fin (extra + 1) → Fin (regs + 2)) (side :
       (∀ a par, x.ptr 2 = some a → x.heap[a]? = some par →
         y.heap[a]? = some
           { par with ptr := Function.update par.ptr side.castSucc (some x.heap.length) }) := by
-  dsimp only
+  intro label heap
   obtain ⟨a, alloc, ah, ap, ad, _⟩ := allocate_correct source x pc
   obtain ⟨b, attach, bh, bp, bd⟩ := attach_correct side { a with pc := 0 } rfl
   let y := { b with pc := (allocate (M := M) source).length +
       (attachLeaf (M := M) (extra := extra) (regs := regs) side).length }
-  have heap : y.heap = match x.ptr 2 with
-      | none => x.heap ++ [record none none (x.ptr 2) ⟨x.heap.length, fun f => x.data (source f)⟩]
-      | some p => (x.heap ++ [record none none (x.ptr 2)
-          ⟨x.heap.length, fun f => x.data (source f)⟩]).modify p fun n =>
+  have hheap : y.heap = match x.ptr 2 with
+      | none => heap
+      | some p => heap.modify p fun n =>
           { n with ptr := Function.update n.ptr side.castSucc (some x.heap.length) } := by
-    cases hp : x.ptr 2 <;> simpa [y, State.modify, ap, ah, hp] using bh
-  refine ⟨y, by simpa only [insertLeaf, Nat.add_assoc] using alloc.sequence attach, heap, ?_,
-    by
-      rw [heap]
-      cases x.ptr 2 <;> simp,
+    cases hp : x.ptr 2 <;> simpa [y, heap, label, State.modify, ap, ah, hp] using bh
+  refine ⟨y, by simpa only [insertLeaf, Nat.add_assoc] using alloc.sequence attach, hheap, ?_,
+    by cases hp : x.ptr 2 <;> simp [hheap, heap, hp],
     by simp [y, bp, ap], by simp [y, bp, ap], bd.trans ad,
     by simp [y, bp], fun i h0 h1 h5 => by simp [y, bp, ap, h0, h1, h5], fun p par hp get => ?_⟩
-  · rw [heap]
+  · rw [hheap]
     cases hp : x.ptr 2 with
-    | none => simp [Represents, root]
+    | none => simp [Represents, root, heap, label, hp]
     | some p =>
-      rw [hp] at vacant
-      obtain ⟨par, get, _⟩ := vacant
+      obtain ⟨par, get, _⟩ := hp ▸ vacant
       have bound : p < x.heap.length := (List.getElem?_eq_some_iff.mp get).1
-      change _ = some _ ∧ True ∧ True
-      rw [List.getElem?_modify_ne _ _ (by omega : p ≠ x.heap.length)]
-      exact ⟨by simp [root], trivial, trivial⟩
-  · simp [heap, hp, List.getElem?_append_left (List.getElem?_eq_some_iff.mp get).1, get]
+      rw [Represents, List.getElem?_modify_ne _ _ (by omega : p ≠ x.heap.length)]
+      simp [Represents, root, heap, label, hp]
+  · simp [hheap, heap, hp, List.getElem?_append_left (List.getElem?_eq_some_iff.mp get).1, get]
 
 end Cslib.DataStructure.SearchTree.PointerMachine

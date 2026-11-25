@@ -47,6 +47,12 @@ operations without saturation. With `Cslib.Logic.PL.VeriPB.exists_isProof_contra
 `pol` fragment of VeriPB without saturation and cutting planes refute the same sets
 (`Cslib.Logic.PL.VeriPB.exists_check_iff_exists_refutableInSize`).
 
+**Sizes.** Only the direction from cutting planes to VeriPB has a size bound: `s` lines give at
+most `s` steps and `3 s` operations. The converse, `exists_isProof_contra_of_check`, bounds no
+size. Its translation of a single rounding-up division, or of a normalization whose degree is
+clamped at `0`, adds a literal axiom for every term of the constraint, and it rederives every line
+that a later step reuses.
+
 ## Main definitions
 
 * `Cslib.Logic.PL.PBConstr.Dominates`, `Cslib.Logic.PL.PBConstr.Represents`: a constraint whose
@@ -425,7 +431,9 @@ theorem exists_check_cnf_of_refutableInSize {φ : CNF ℕ} {s : ℕ}
 /-- **The `pol` fragment of VeriPB without saturation and cutting planes refute the same sets.** The
 constraints `F` have a checked proof of `UNSAT` made of `pol` steps without saturation and of
 deletions iff the inequalities of `F` have a cutting planes refutation. A refutation with `s` lines
-gives a proof with at most `s` steps (`Cslib.Logic.PL.VeriPB.exists_check_of_refutableInSize`). -/
+gives a proof with at most `s` steps (`Cslib.Logic.PL.VeriPB.exists_check_of_refutableInSize`).
+The converse direction, `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check`, bounds no size,
+so this equivalence states no size relation in that direction. -/
 theorem exists_check_iff_exists_refutableInSize {F : List PBConstr} :
     (∃ P : Proof, check F P = true ∧ P.steps.all Step.IsCP) ↔
       ∃ s, RefutableInSize {I | ∃ c ∈ F, c.toIneq = I} s :=

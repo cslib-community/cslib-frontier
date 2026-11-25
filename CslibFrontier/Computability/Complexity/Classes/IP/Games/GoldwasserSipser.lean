@@ -232,10 +232,11 @@ theorem computableInPolyTime_agrees {γ : Type} {encIn : γ ↪ List Bool}
   induction G generalizing j p t with
   | nil => exact (ComputableInPolyTime.const true).of_enc_eq fun x => rfl
   | cons y G ih =>
-    obtain ⟨_ | _, q⟩ := y
-    · have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=
-        (ComputableInPolyTime.unary_eval q).comp hlen
-      have htake := ComputableInPolyTime.bitsTakeWithInput ht hn
+    obtain ⟨mv, q⟩ := y
+    have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=
+      (ComputableInPolyTime.unary_eval q).comp hlen
+    cases mv
+    · have htake := ComputableInPolyTime.bitsTakeWithInput ht hn
       have hm := ComputableInPolyTime.bitsRowWithInput hn (ComputableInPolyTime.const 0)
         (hmsg.comp (ComputableInPolyTime.id'.prod (hj.prod hp)))
       have hrec := ih (ComputableInPolyTime.unary_add' hj (ComputableInPolyTime.const 1))
@@ -244,9 +245,7 @@ theorem computableInPolyTime_agrees {γ : Type} {encIn : γ ↪ List Bool}
         hrec).of_enc_eq fun x => ?_
       simp only [evalShape, List.map_cons, agrees, BitString.listRow_zero]
       rfl
-    · have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=
-        (ComputableInPolyTime.unary_eval q).comp hlen
-      exact (ih (ComputableInPolyTime.unary_add' hj (ComputableInPolyTime.const 1))
+    · exact (ih (ComputableInPolyTime.unary_add' hj (ComputableInPolyTime.const 1))
         (ComputableInPolyTime.bitsAppend hp (ComputableInPolyTime.bitsTakeWithInput ht hn))
         (ComputableInPolyTime.bitsDropWithInput ht hn)).of_enc_eq fun x => rfl
 
@@ -424,8 +423,7 @@ theorem IPGameClass_subset_AMGameClass {enc : α ↪ List Bool} (π : List IPMov
   generalize (enc a).length = n at hN h1 h2 ⊢
   -- the evaluated parameters
   have hc' : verifierMoves (evalShape (repeatShapePoly R G₀ ++ [(.verifier, R * ρ₀)]) n) = c := by
-    rw [verifierMoves_evalShape, List.map_append, hGfst]
-    simp [c]
+    simp [verifierMoves_evalShape, hGfst, c]
   have hRn : R.eval n = max A₀ 1 * W.eval n := by simp [R]
   have hBn : B.eval n = R.eval n * W.eval n := by simp [B]
   have hZn : Z.eval n = 2 * (B.eval n + 6 * c * (B.eval n + 1)) := by simp [Z]
@@ -449,17 +447,12 @@ theorem IPGameClass_subset_AMGameClass {enc : α ↪ List Bool} (π : List IPMov
     have hWr : W.eval n ≤ R.eval n := hRn ▸ Nat.le_mul_of_pos_left _ (by omega)
     have hAr : A₀ ≤ R.eval n :=
       hRn ▸ (le_max_left A₀ 1).trans (Nat.le_mul_of_pos_right _ (by omega))
-    have hr1 : 1 ≤ R.eval n := by
-      rw [hRn]
-      exact Nat.mul_pos (by omega) (by omega)
+    have hr1 : 1 ≤ R.eval n := hRn ▸ Nat.mul_pos (by omega) (by omega)
     have hb : B.eval n + 1 ≤ 2 * R.eval n ^ 2 := by
-      have := Nat.mul_le_mul_left (R.eval n) hWr
-      have := Nat.mul_le_mul hr1 hr1
       rw [hBn]
-      nlinarith
+      nlinarith [Nat.mul_le_mul_left (R.eval n) hWr, Nat.mul_le_mul hr1 hr1]
     have hM : 72 * c ^ 2 * (B.eval n + 1) ^ 2 ≤ 288 * c ^ 2 * R.eval n ^ 4 := by
-      have := Nat.pow_le_pow_left hb 2
-      nlinarith
+      nlinarith [Nat.pow_le_pow_left hb 2]
     calc 6 * (72 * c ^ 2 * (B.eval n + 1) ^ 2) ^ c * 2 ^ R.eval n
         ≤ 6 * (288 * c ^ 2 * R.eval n ^ 4) ^ c * 2 ^ R.eval n := by gcongr
       _ = 6 * (288 * c ^ 2) ^ c * R.eval n ^ (4 * c) * 2 ^ R.eval n := by

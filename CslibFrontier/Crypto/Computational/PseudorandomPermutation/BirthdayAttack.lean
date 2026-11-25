@@ -189,11 +189,8 @@ theorem isOraclePPT_wordBirthdayDistinguisher {blockLen Q : ℕ → ℕ}
         (wordBirthdayStep blockLen n) ([], false)) :=
     IsOraclePPTOn.iterateWith_of_bounded_growth hcount hinit
       (isOraclePPTOn_wordBirthdayStep hblockLen) hpoly hgrowth
-  have hres : IsOraclePPTOn encUnary encBool
-      (fun n => Prod.snd <$> OracleComp.iterate (min (Q n) (2 ^ blockLen n))
-        (wordBirthdayStep blockLen n) ([], false)) :=
-    hiter.map (by fun_prop)
-  exact (hres.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
+  exact ((hiter.map (by fun_prop)).preprocess
+    (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
 
 end PolyTime
 
@@ -337,9 +334,8 @@ theorem eval_prfIdealGame_wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) (
           (birthdayQueries (blockLen n) (min (Q n) (2 ^ blockLen n))))) := by
   rw [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, PRF.eval_idealExperiment]
   congr 1 with f : 1
-  have hrun := congrArg ProbComp.eval
-    (run_wordBirthdayDistinguisher_randomFunctionOracle blockLen Q n f)
-  simpa only [ProbOracleComp.eval_run, ProbComp.eval_pure] using hrun
+  simpa only [ProbOracleComp.eval_run, ProbComp.eval_pure] using
+    congrArg ProbComp.eval (run_wordBirthdayDistinguisher_randomFunctionOracle blockLen Q n f)
 
 /-- Exact real-valued advantage of `wordBirthdayDistinguisher` between `E.prpRealGame` and
 `prfIdealGame`. -/
@@ -381,10 +377,9 @@ theorem half_le_advantage_wordBirthdayDistinguisher (E : BlockCipher) (Q : ℕ �
   have hmin : min (Q n) (2 ^ E.blockLen n) = 2 ^ E.blockLen n := min_eq_right hQ
   have hcard : 2 ≤ Fintype.card (BitString (E.blockLen n)) := by
     simpa [BitString.card] using Nat.pow_le_pow_right Nat.two_pos hpos
-  have h := PRP.half_le_advantage_birthdayDistinguisher_of_bijective
+  exact_mod_cast PRP.half_le_advantage_birthdayDistinguisher_of_bijective
     (fun k : BitString (E.keyLen n) => E.permEquiv n (List.ofFn k) List.length_ofFn)
     (hmin ▸ bijective_birthdayQueries) hcard
-  exact_mod_cast h
 
 /-- Exact real-valued PRF advantage of `wordBirthdayDistinguisher` for a `BlockCipher` with
 `E.keyLen = id`. -/

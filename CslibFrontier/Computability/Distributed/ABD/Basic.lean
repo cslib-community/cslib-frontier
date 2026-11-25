@@ -682,28 +682,23 @@ theorem deliverHistory_entry_preserves {P V : Type*} (hist : List (OpRecord P V)
     (deliverHistory hist resp step pend?)[i].invStep = hist[i].invStep ∧
     (∀ r, (deliverHistory hist resp step pend?)[i].status.respStep? = some r →
       hist[i].status.respStep? = some r ∨ r = step) := by
-  have hsame (h : (deliverHistory hist resp step pend?)[i] = hist[i]) :
-      (deliverHistory hist resp step pend?)[i].caller = hist[i].caller ∧
-      (deliverHistory hist resp step pend?)[i].kind = hist[i].kind ∧
-      (deliverHistory hist resp step pend?)[i].invStep = hist[i].invStep ∧
-      (∀ r, (deliverHistory hist resp step pend?)[i].status.respStep? = some r →
-        hist[i].status.respStep? = some r ∨ r = step) := by
-    rw [h]; exact ⟨rfl, rfl, rfl, fun _ hr => Or.inl hr⟩
-  rcases pend? with _ | pend
-  · exact hsame rfl
-  · cases hm : matchCompletion pend.kind resp step with
-    | none => exact hsame (by simp only [deliverHistory, hm])
-    | some stDone =>
-      cases hrec : hist[pend.opId]? with
-      | none => exact hsame (by simp only [deliverHistory, hm, hrec])
-      | some rec =>
-        obtain ⟨hp_lt, rfl⟩ := List.getElem?_eq_some_iff.mp hrec
-        by_cases hip : pend.opId = i
-        · subst hip
+  by_cases h : (deliverHistory hist resp step pend?)[i] = hist[i]
+  · rw [h]
+    exact ⟨rfl, rfl, rfl, fun _ hr => Or.inl hr⟩
+  · rcases pend? with _ | pend
+    · exact absurd rfl h
+    · cases hm : matchCompletion pend.kind resp step with
+      | none => exact absurd (by simp only [deliverHistory, hm]) h
+      | some stDone =>
+        cases hrec : hist[pend.opId]? with
+        | none => exact absurd (by simp only [deliverHistory, hm, hrec]) h
+        | some rec =>
+          obtain ⟨_, rfl⟩ := List.getElem?_eq_some_iff.mp hrec
+          obtain rfl : pend.opId = i := by_contra fun hip =>
+            h (by simp only [deliverHistory, hm, hrec, List.getElem_set_ne hip])
           simp only [deliverHistory, hm, hrec, List.getElem_set_self, true_and]
           exact fun r hr =>
             Or.inr (Option.some.inj ((respStep?_of_matchCompletion hm).symm.trans hr)).symm
-        · exact hsame (by simp only [deliverHistory, hm, hrec, List.getElem_set_ne hip])
 
 private lemma getElem?_deliverHistory_of_ne {P V : Type*} (hist : List (OpRecord P V))
     (resp : Option (OpResp V)) (step : ℕ) (pend? : Option (PendingOp V)) {i : ℕ}
@@ -903,16 +898,12 @@ theorem tr_notDelivered_mem {s s' : State P S M V} {a : Action P M V}
   cases a with
   | invoke caller kind =>
     obtain ⟨_, rfl⟩ := htr
-    simp only [doInvoke, Multiset.mem_add]
-    exact Or.inl he
+    exact Multiset.mem_add.mpr (Or.inl he)
   | deliver m =>
     obtain ⟨_, rfl⟩ := htr
-    have hne : e ≠ m := fun h => ha (by rw [h])
-    simp only [doDeliver, Multiset.mem_add]
-    exact Or.inl ((Multiset.mem_erase_of_ne hne).mpr he)
-  | stutter =>
-    obtain rfl := htr
-    exact he
+    exact Multiset.mem_add.mpr
+      (Or.inl ((Multiset.mem_erase_of_ne fun h => ha (congrArg Action.deliver h.symm)).mpr he))
+  | stutter => exact htr ▸ he
 
 private lemma mTr_notDelivered_mem {s t : State P S M V} {xl : List (Action P M V)}
     {e : Envelope P M} (h : π.lts.MTr s xl t) (he : e ∈ s.msgs)

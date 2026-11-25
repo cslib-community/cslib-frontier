@@ -109,7 +109,6 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
     dsimp only [ζ]
     linarith only [mul_le_mul_of_nonneg_left (add_le_add (add_le_add h₁ h₂) h₃) hm₀]
   have hs4 : s ≤ t ^ 4 := hs_pow.trans_le (hpow 4 128 (by norm_num))
-  have hm2 : 0 ≤ m - 1 := by linarith
   have hqterm : (m - 1) * r ≤ m * t ^ 4 :=
     mul_le_mul (by linarith : m - 1 ≤ m) (hrs.trans hs4) hr.1 hm₀
   have hsqrtZ : √ζ ≤ 100 * m * t ^ 2 :=
@@ -120,15 +119,12 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
     linarith only [hz4]
   have hγsqrt : √(64 * m * γ) ≤ 8 * m * t ^ 2 := by
     apply sqrt_le_scaled_power (a := 64) hm ht₀ (by norm_num) (by norm_num)
-    gcongr
-    exact hγs.trans hs4
+    exact mul_le_mul_of_nonneg_left (hγs.trans hs4) (by positivity)
   have hv : v ≤ 4 * m * t ^ 2 := by
     apply sqrt_le_scaled_power (a := 12) hm ht₀ (by norm_num) (by norm_num)
-    have h₁ := mul_le_mul_of_nonneg_left (hεs.trans hs4) hm₀
-    have h₂ := mul_le_mul_of_nonneg_left (hδs.trans hs4) hm₀
-    have h₃ := le_mul_of_one_le_left (pow_nonneg ht₀ 4) hm
     norm_num
-    linarith only [h₁, (hδs.trans hs4).trans h₃]
+    linarith only [mul_le_mul_of_nonneg_left (hεs.trans hs4) hm₀,
+      (hδs.trans hs4).trans (le_mul_of_one_le_left (pow_nonneg ht₀ 4) hm)]
   have hmt (a b : ℕ) (h : a ≤ b) : m * t ^ b ≤ m * t ^ a :=
     mul_le_mul_of_nonneg_left (hpow a b h) hm₀
   have hc : c ≤ 310000 * m * t ^ 2 := by
@@ -142,7 +138,6 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
     norm_num
     linarith only [hc, hz4, hmt 2 4 (by norm_num), show 0 ≤ m * t ^ 2 by positivity]
   have hk₁ : (1 : ℝ) ≤ k := by exact_mod_cast hk
-  have hk₀ : (0 : ℝ) ≤ k := by positivity
   have hk₂ : (k : ℝ) ≤ (k : ℝ) ^ 2 := le_self_pow₀ hk₁ two_ne_zero
   have hk₂₁ : (1 : ℝ) ≤ (k : ℝ) ^ 2 := hk₁.trans hk₂
   have hk₃ : ((k - 1 : ℕ) : ℝ) ≤ k := by exact_mod_cast Nat.sub_le k 1

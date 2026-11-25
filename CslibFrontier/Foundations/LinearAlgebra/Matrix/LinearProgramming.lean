@@ -158,12 +158,11 @@ theorem exists_dual_eq_of_bddAbove (A : Matrix ι κ K) (b : ι → K) (c : κ �
       simp only [Pi.add_apply, Function.const_apply, Pi.zero_apply, neg_dotProduct] at h; linarith
   -- some row of the projection bounds `t` from above
   have h₀ := (hfeas (c ⬝ᵥ x₀)).1 ⟨x₀, hx₀, le_rfl⟩
-  have hpos : ∃ r, 0 < β r := by
+  obtain ⟨r₀, hr₀⟩ : ∃ r, 0 < β r := by
     by_contra! hneg
     obtain ⟨x, hx, htx⟩ := (hfeas (max (c ⬝ᵥ x₀) M + 1)).2 fun r =>
       (mul_le_mul_of_nonpos_left (by linarith [le_max_left (c ⬝ᵥ x₀) M]) (hneg r)).trans (h₀ r)
     linarith [hM ⟨x, hx, rfl⟩, le_max_right (c ⬝ᵥ x₀) M]
-  obtain ⟨r₀, hr₀⟩ := hpos
   have : Nonempty {r // 0 < β r} := ⟨⟨r₀, hr₀⟩⟩
   obtain ⟨⟨r, hr⟩, hmin⟩ := Finite.exists_min fun r : {r // 0 < β r} => γ r / β r
   have ht₀ : c ⬝ᵥ x₀ ≤ γ r / β r := (le_div_iff₀ hr).2 (mul_comm (c ⬝ᵥ x₀) _ ▸ h₀ r)
@@ -181,12 +180,11 @@ theorem exists_dual_eq_of_bddAbove (A : Matrix ι κ K) (b : ι → K) (c : κ �
   have huA : u ᵥ* A = β r • c := by
     have h : T r ᵥ* A' = 0 := congr_fun hTA r
     rw [vecMul_fromRows] at h
-    funext j
+    ext j
     have hj := congr_fun h j
     simp only [Pi.add_apply, Pi.zero_apply, vecMul, dotProduct, replicateRow_apply,
       Finset.univ_unique, Finset.sum_singleton, Function.comp_apply, PUnit.default_eq_unit,
-      Pi.neg_apply, mul_neg] at hj
-    simp only [vecMul, dotProduct, Pi.smul_apply, smul_eq_mul, u, β]
+      Pi.neg_apply, mul_neg, Pi.smul_apply, smul_eq_mul, u, β] at hj ⊢
     linarith
   refine ⟨x, (β r)⁻¹ • u, hx, fun i => ?_, ?_, ?_⟩
   · exact smul_nonneg (inv_nonneg.2 hr.le) (hT r _)
@@ -202,9 +200,8 @@ theorem exists_isGreatest_of_bddAbove [Finite ι] (A : Matrix ι κ K) (b : ι �
     ∃ x, A *ᵥ x ≤ b ∧ IsGreatest ((c ⬝ᵥ ·) '' {x | A *ᵥ x ≤ b}) (c ⬝ᵥ x) := by
   have := Fintype.ofFinite ι
   obtain ⟨x, y, hx, hy, hyA, hxy⟩ := exists_dual_eq_of_bddAbove A b c hP hbdd
-  refine ⟨x, hx, ⟨x, hx, rfl⟩, ?_⟩
-  rintro _ ⟨x', hx', rfl⟩
-  exact hxy ▸ dotProduct_le_dotProduct_of_mulVec_le hx' hy hyA
+  exact ⟨x, hx, ⟨x, hx, rfl⟩,
+    Set.forall_mem_image.2 fun _ hx' => hxy ▸ dotProduct_le_dotProduct_of_mulVec_le hx' hy hyA⟩
 
 /-- **Strong duality**: if the primal `max {c ⬝ᵥ x | A *ᵥ x ≤ b}` and the dual
 `min {y ⬝ᵥ b | 0 ≤ y, y ᵥ* A = c}` are both feasible, then both optima are attained and equal
@@ -215,25 +212,22 @@ theorem exists_isGreatest_isLeast_dotProduct (A : Matrix ι κ K) (b : ι → K)
       IsLeast ((· ⬝ᵥ b) '' {y | 0 ≤ y ∧ y ᵥ* A = c}) v := by
   obtain ⟨y₀, hy₀, hy₀A⟩ := hD
   obtain ⟨x, y, hx, hy, hyA, hxy⟩ := exists_dual_eq_of_bddAbove A b c hP
-    ⟨y₀ ⬝ᵥ b, by
-      rintro _ ⟨x, hx, rfl⟩
-      exact dotProduct_le_dotProduct_of_mulVec_le hx hy₀ hy₀A⟩
-  refine ⟨c ⬝ᵥ x, ⟨⟨x, hx, rfl⟩, ?_⟩, ⟨⟨y, ⟨hy, hyA⟩, hxy⟩, ?_⟩⟩
-  · rintro _ ⟨x', hx', rfl⟩
-    exact hxy ▸ dotProduct_le_dotProduct_of_mulVec_le hx' hy hyA
-  · rintro _ ⟨y', ⟨hy', hy'A⟩, rfl⟩
-    exact dotProduct_le_dotProduct_of_mulVec_le hx hy' hy'A
+    ⟨y₀ ⬝ᵥ b, Set.forall_mem_image.2 fun _ hx => dotProduct_le_dotProduct_of_mulVec_le hx hy₀ hy₀A⟩
+  exact ⟨c ⬝ᵥ x,
+    ⟨⟨x, hx, rfl⟩,
+      Set.forall_mem_image.2 fun _ hx' => hxy ▸ dotProduct_le_dotProduct_of_mulVec_le hx' hy hyA⟩,
+    ⟨⟨y, ⟨hy, hyA⟩, hxy⟩,
+      Set.forall_mem_image.2 fun _ h => dotProduct_le_dotProduct_of_mulVec_le hx h.1 h.2⟩⟩
 
 /-- A feasible primal program is bounded above iff its dual is feasible. In particular a feasible
 primal program with infeasible dual is unbounded [Schrijver1986, Section 7.4]. -/
 theorem bddAbove_image_dotProduct_iff (A : Matrix ι κ K) (b : ι → K) (c : κ → K)
     (hP : ∃ x, A *ᵥ x ≤ b) :
     BddAbove ((c ⬝ᵥ ·) '' {x | A *ᵥ x ≤ b}) ↔ ∃ y, 0 ≤ y ∧ y ᵥ* A = c := by
-  refine ⟨fun h => ?_, fun ⟨y, hy, hyA⟩ => ⟨y ⬝ᵥ b, ?_⟩⟩
-  · obtain ⟨x, y, -, hy, hyA, -⟩ := exists_dual_eq_of_bddAbove A b c hP h
-    exact ⟨y, hy, hyA⟩
-  · rintro _ ⟨x, hx, rfl⟩
-    exact dotProduct_le_dotProduct_of_mulVec_le hx hy hyA
+  refine ⟨fun h => ?_, fun ⟨y, hy, hyA⟩ =>
+    ⟨y ⬝ᵥ b, Set.forall_mem_image.2 fun _ hx => dotProduct_le_dotProduct_of_mulVec_le hx hy hyA⟩⟩
+  obtain ⟨_, y, -, hy, hyA, -⟩ := exists_dual_eq_of_bddAbove A b c hP h
+  exact ⟨y, hy, hyA⟩
 
 /-- A feasible dual program is bounded below iff the primal is feasible. In particular a feasible
 dual program with infeasible primal is unbounded [Schrijver1986, Section 7.4]. -/

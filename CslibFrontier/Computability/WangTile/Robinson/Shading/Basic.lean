@@ -198,12 +198,11 @@ structure Allowed (component : Thick) (quadrant : Quadrant) (state : ShadeState)
 theorem allowedFor_iff {component : Thick} {quadrant : Quadrant} {state : ShadeState} :
     allowedFor component quadrant state = true ↔ Allowed component quadrant state := by
   simp only [allowedFor, Bool.and_eq_true, decide_eq_true_eq,
-    Bool.ite_eq_true_distrib, ite_true_right, and_imp]
-  constructor
-  · rintro ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨hw, he⟩, hs⟩, hn⟩, hh⟩, hv⟩, hes⟩, hen⟩, hws⟩, hwn⟩, hc⟩
-    exact ⟨hw, he, hs, hn, hh, hv, hes, hen, hws, hwn, hc⟩
-  · rintro ⟨hw, he, hs, hn, hh, hv, hes, hen, hws, hwn, hc⟩
-    exact ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨hw, he⟩, hs⟩, hn⟩, hh⟩, hv⟩, hes⟩, hen⟩, hws⟩, hwn⟩, hc⟩
+    Bool.ite_eq_true_distrib, ite_true_right, and_imp, and_assoc]
+  exact ⟨fun ⟨hw, he, hs, hn, hh, hv, hes, hen, hws, hwn, hc⟩ =>
+      ⟨hw, he, hs, hn, hh, hv, hes, hen, hws, hwn, hc⟩,
+    fun ⟨hw, he, hs, hn, hh, hv, hes, hen, hws, hwn, hc⟩ =>
+      ⟨hw, he, hs, hn, hh, hv, hes, hen, hws, hwn, hc⟩⟩
 
 /-- Local red-path incidence, propagation, corner, and crossing rules. -/
 @[expose] def locallyAllowed (site : QuarterIndex) (state : ShadeState) : Bool :=
@@ -696,12 +695,10 @@ private theorem Link.sound_on {indexGrid : Nat → Nat → Index}
       intro h _
       have rules : Allowed (componentAt indexGrid x y) (quadrantAt x y) (stateGrid x y) :=
         allowedFor_iff.mp (allowed x y h)
-      apply related_true_of_ne_of_present
-      · exact rules.west_present.trans (by
-          simp only [hasWest, hhorizontal, Bool.true_or])
-      · exact rules.south_present.trans (by
-          simp only [hasSouth, hvertical, Bool.true_or])
-      · exact rules.crossing_opposite hhorizontal hvertical
+      exact related_true_of_ne_of_present
+        (rules.west_present.trans (by simp only [hasWest, hhorizontal, Bool.true_or]))
+        (rules.south_present.trans (by simp only [hasSouth, hvertical, Bool.true_or]))
+        (rules.crossing_opposite hhorizontal hvertical)
   | symm link ih => exact fun hfirst hsecond => Related.symm (ih hsecond hfirst)
 
 /-- Each graph link enforces the corresponding shade parity in a valid grid. -/
@@ -909,23 +906,22 @@ theorem CycleShade.coarsen {grid : Nat → Nat → Index} {fine : Nat → Nat �
     (cycle : CycleOn grid west east south north)
     (shaded : CycleShade fine (4 * west) (4 * east) (4 * south) (4 * north) shade) :
     CycleShade (coarsen fine) west east south north shade := by
-  have apply_port := coarse_value hfine
-  constructor
-  · apply apply_port ⟨quarterWest west, quarterSouth south, .east⟩
-    · simp [portPresent, hasEast, cycle.southwest_corner.1]
-    · simpa [value, sparsePort, sparseCoordinate, quarterWest, quarterSouth,
-        Nat.add_div, ← Nat.mul_assoc] using shaded.southwest
-  · apply apply_port ⟨quarterEast east, quarterSouth south, .west⟩
-    · simp [portPresent, hasWest, cycle.southeast_corner.1]
-    · simpa [value, sparsePort, sparseCoordinate, quarterEast, quarterSouth,
-        Nat.add_div, ← Nat.mul_assoc] using shaded.southeast
-  · apply apply_port ⟨quarterEast east, quarterNorth north, .west⟩
-    · simp [portPresent, hasWest, cycle.northeast_corner.1]
-    · simpa [value, sparsePort, sparseCoordinate, quarterEast, quarterNorth,
-        ← Nat.mul_assoc] using shaded.northeast
-  · apply apply_port ⟨quarterWest west, quarterNorth north, .east⟩
-    · simp [portPresent, hasEast, cycle.northwest_corner.1]
-    · simpa [value, sparsePort, sparseCoordinate, quarterWest, quarterNorth,
-        Nat.add_div, ← Nat.mul_assoc] using shaded.northwest
+  exact
+    ⟨coarse_value hfine ⟨quarterWest west, quarterSouth south, .east⟩
+      (by simp [portPresent, hasEast, cycle.southwest_corner.1])
+      (by simpa [value, sparsePort, sparseCoordinate, quarterWest, quarterSouth,
+        Nat.add_div, ← Nat.mul_assoc] using shaded.southwest),
+     coarse_value hfine ⟨quarterEast east, quarterSouth south, .west⟩
+      (by simp [portPresent, hasWest, cycle.southeast_corner.1])
+      (by simpa [value, sparsePort, sparseCoordinate, quarterEast, quarterSouth,
+        Nat.add_div, ← Nat.mul_assoc] using shaded.southeast),
+     coarse_value hfine ⟨quarterEast east, quarterNorth north, .west⟩
+      (by simp [portPresent, hasWest, cycle.northeast_corner.1])
+      (by simpa [value, sparsePort, sparseCoordinate, quarterEast, quarterNorth,
+        ← Nat.mul_assoc] using shaded.northeast),
+     coarse_value hfine ⟨quarterWest west, quarterNorth north, .east⟩
+      (by simp [portPresent, hasEast, cycle.northwest_corner.1])
+      (by simpa [value, sparsePort, sparseCoordinate, quarterWest, quarterNorth,
+        Nat.add_div, ← Nat.mul_assoc] using shaded.northwest)⟩
 
 end Cslib.WangTile.Robinson

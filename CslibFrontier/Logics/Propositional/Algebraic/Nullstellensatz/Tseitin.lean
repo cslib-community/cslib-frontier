@@ -66,18 +66,15 @@ theorem ns_refutableInDegree_tseitinFormula_of_charP_two {k : ℕ}
   let s : Finset (Σ _ : V, Finset E) := univ.sigma fun v =>
     {A ∈ (Multigraph.incidence ends v).powerset |
       parityOn (Multigraph.incidence ends v) (fun i => decide (i ∈ A)) ≠ χ v}
-  have hf : ∀ p ∈ s, f p ∈ (tseitinFormula ends χ).toBoolPolys R := by
-    intro p hp
-    rw [mem_sigma] at hp
-    refine List.mem_map.2 ⟨_, mem_tseitinFormula.2 ⟨p.1, List.mem_map.2 ⟨p.2, ?_, rfl⟩⟩, rfl⟩
-    rw [mem_toList]
-    exact hp.2
+  have hf : ∀ p ∈ s, f p ∈ (tseitinFormula ends χ).toBoolPolys R := fun p hp =>
+    List.mem_map.2 ⟨_, mem_tseitinFormula.2
+      ⟨p.1, List.mem_map.2 ⟨p.2, mem_toList.2 (mem_sigma.1 hp).2, rfl⟩⟩, rfl⟩
   have hd : ∀ p ∈ s, (fun _ => (1 : MvPolynomial E R)) p ≠ 0 →
-      (f p).totalDegree + ((fun _ => (1 : MvPolynomial E R)) p).totalDegree ≤ k := by
-    intro p _ _
-    rw [totalDegree_one, add_zero]
-    exact (Clause.totalDegree_toBoolPoly_le _).trans
-      ((Clause.length_exclude _ _).trans_le (hk p.1))
+      (f p).totalDegree + ((fun _ => (1 : MvPolynomial E R)) p).totalDegree ≤ k :=
+    fun p _ _ => by
+      rw [totalDegree_one, add_zero]
+      exact (Clause.totalDegree_toBoolPoly_le _).trans
+        ((Clause.length_exclude _ _).trans_le (hk p.1))
   obtain ⟨P, hP, hPd⟩ := NS.exists_isProof_of_sum s f (fun _ => 1) hf hd
   -- the total charge is odd
   have hcharge : ∑ v, (if χ v then (1 : MvPolynomial E R) else 0) = 1 := by
@@ -94,10 +91,9 @@ theorem ns_refutableInDegree_tseitinFormula_of_charP_two {k : ℕ}
           CharTwo.two_nsmul]
     · intro v e
       by_cases he : (ends e).IsDiag <;> simp [he, Sym2.mem_toFinset]
-  have h1 : ∑ p ∈ s, f p * 1 = 1 := by
-    simp only [mul_one, s, f]
-    rw [sum_sigma, sum_congr rfl fun v _ => sum_toBoolPoly_exclude_parityOn_ne (R := R)
-      (Multigraph.incidence ends v) (χ v), sum_add_distrib, hcharge, hhand, add_zero]
-  exact ⟨P, Eq.trans hP h1, hPd⟩
+  refine ⟨P, hP.trans ?_, hPd⟩
+  simp only [mul_one, s, f]
+  rw [sum_sigma, sum_congr rfl fun v _ => sum_toBoolPoly_exclude_parityOn_ne (R := R)
+    (Multigraph.incidence ends v) (χ v), sum_add_distrib, hcharge, hhand, add_zero]
 
 end Cslib.Logic.PL.CNF

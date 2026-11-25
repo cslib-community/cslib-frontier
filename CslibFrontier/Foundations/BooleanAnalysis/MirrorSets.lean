@@ -82,9 +82,8 @@ theorem IsDensityLimit.exists_mem_apply_eq {Y : Finset (ι → Bool)} {p k : ℝ
   by_contra hn
   have hd (P : ι → Bool) (hi : P i ≠ true) : coordinateDensity Y P x = 0 := by
     rw [coordinateDensity_eq_expect]
-    refine expect_eq_zero fun y _ => ?_
-    have hy : resample P x y ∉ Y := fun hy => hn ⟨resample P x y, hy, by simp [resample, hi]⟩
-    simp [hy]
+    exact expect_eq_zero fun y _ => ite_eq_right fun hy =>
+      hn ⟨resample P x y, hy, by simp [resample, hi]⟩
   have hpoint (P : ι → Bool) :
       (if (2 : ℝ) ^ (-k) ≤ coordinateDensity Y P x then (1 : ℝ) else 0) ≤
         if P i then 1 else 0 := by
@@ -157,12 +156,12 @@ private theorem coordinateFiber_light_patterns (X : Finset (ι → Bool)) (hX : 
           (uniformMass_nonneg (coordinateFiber X s x) z))
         (expect_uniformDensity hne) (show (1 : ℝ) ≤ 64 * k by linarith)
         (uniformDensity_le_rpow hne hd) hr
-        (show r ≤ 1 / (512 * (64 * k)) by convert hr' using 1; ring)
-      rw [show (-2 : ℝ) * (64 * k) - 2 = -128 * k - 2 by ring,
+        (show r ≤ 1 / (512 * (64 * k)) by
+          convert hr' using 1
+          ring)
+      rwa [show (-2 : ℝ) * (64 * k) - 2 = -128 * k - 2 by ring,
         show -(64 * k) = -64 * k by ring] at ht
-      exact ht
-    · simp only [hd, false_and, ite_false, mul_zero, bernoulliAverage_const]
-      exact le_rfl
+    · simp [hd, bernoulliAverage_const]
   have hl := expect_le_expect (s := X) hpoint
   rw [← mul_expect] at hl
   have hg := le_expect_uniformDeficit_coordinateFiber_le X hX s (show 0 < k by linarith) hdef
@@ -183,10 +182,8 @@ private theorem fiber_completion_density (X : Finset (ι → Bool)) (s x : ι �
           (2 : ℝ) ^ (-128 * k - 2) then 1 else 0 := by
     split_ifs with hb hl
     · exact le_rfl
-    · exfalso
-      apply hl
-      have he := projectionAverage_uniformDensity_fiber X s x hX R u
-      rw [he]
+    · refine (hl ?_).elim
+      rw [projectionAverage_uniformDensity_fiber X s x hX R u]
       calc
         _ ≤ (2 : ℝ) ^ uniformDeficit (coordinateFiber X s x) * (2 : ℝ) ^ (-194 * k) := by gcongr
         _ = (2 : ℝ) ^ (uniformDeficit (coordinateFiber X s x) - 194 * k) := by
@@ -215,13 +212,11 @@ private theorem fiber_completion_density_union (X : Finset (ι → Bool)) (P Q x
   have hq : (fun i => if h : S i = true then !R ⟨i, h⟩ else false) = Q := by
     funext i
     cases hp : P i <;> cases hq : Q i <;> simp [S, R, hp, hq]
-  have ht := fiber_completion_density X S x (coordinateFiber_nonempty S hx) R hk hd hl
-  rw [hq] at ht
   simp_rw [coordinateDensity_resample_union X P Q x, resample_eq_completePattern]
   rw [Fintype.expect_restrict_coordinates
     (fun u => if coordinateDensity X Q (completePattern S x u) <
-      (2 : ℝ) ^ (-194 * k) then (1 : ℝ) else 0)]
-  exact ht
+      (2 : ℝ) ^ (-194 * k) then (1 : ℝ) else 0), ← hq]
+  exact fiber_completion_density X S x (coordinateFiber_nonempty S hx) R hk hd hl
 
 private theorem bad_modifications_probability_of_rate (X : Finset (ι → Bool)) (hX : X.Nonempty)
     {k p q r : ℝ} (hk : 1 ≤ k) (hdef : uniformDeficit X ≤ k)
@@ -422,11 +417,9 @@ private theorem guidingDensity_small_event (Y : Finset (ι → Bool)) {k : ℝ} 
     have he : (2 : ℝ) ^ k * (2 : ℝ) ^ (-k - 6) = 1 / 64 := by
       rw [← Real.rpow_add (by norm_num), show k + (-k - 6) = (-6 : ℝ) by ring]
       norm_num
-    have hh := hcap.trans ((mul_le_mul_of_nonneg_left hsmall (by positivity)).trans_eq he)
     rw [ite_eq_left hsmall]
-    linarith
-  · rw [ite_eq_right hsmall]
-    linarith
+    linarith [hcap.trans ((mul_le_mul_of_nonneg_left hsmall (by positivity)).trans_eq he)]
+  · rw [ite_eq_right hsmall]; linarith
 
 private theorem guidedAverage_bad_completion (X Y : Finset (ι → Bool)) (hX : X.Nonempty)
     {k p q : ℝ} (hk : 1 ≤ k) (hdef : uniformDeficit X ≤ k) (hp : 0 < p)
@@ -482,12 +475,10 @@ private theorem guidedAverage_mirror_mass (X Y : Finset (ι → Bool)) (hX : X.N
     · by_cases hl : IsDensityLimit X q (194 * k) z
       · simp only [hy, hl, and_self, ite_true]
         linarith [hbad z]
-      · have hh : 1 / 4 < bad z := by
-          dsimp only [bad]
-          rw [one_sub_bernoulliAverage_density_lt]
-          unfold IsDensityLimit at hl
-          linarith
-        simp only [hy, hl, and_false, ite_true, ite_false, zero_add]
+      · simp only [hy, hl, and_false, ite_true, ite_false, zero_add]
+        dsimp only [bad]
+        rw [one_sub_bernoulliAverage_density_lt]
+        unfold IsDensityLimit at hl
         linarith
     · simp only [hy, false_and, ite_false, zero_add]
       linarith [hbad z]

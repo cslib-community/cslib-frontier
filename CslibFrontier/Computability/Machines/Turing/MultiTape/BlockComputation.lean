@@ -61,17 +61,13 @@ theorem stepCoins_ofDeterministic (M : MultiTapeTM k Bool State) (coins : List B
   induction coins generalizing c with
   | nil => rfl
   | cons bit coins ih =>
-    rw [MultiTapePTM.stepCoins_cons, ih]
-    have hstep : ((MultiTapePTM.ofDeterministic M).withCoin bit).toTM.step c = M.step c := by
-      cases hs : c.state with
-      | none =>
-        rw [MultiTapeTM.step_of_halt hs, MultiTapeTM.step_of_halt hs]
-      | some state =>
-        rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hs,
-          MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
-        rfl
-    rw [hstep]
-    exact (M.runFrom_succ_eq_step c coins.length).symm
+    rw [MultiTapePTM.stepCoins_cons, ih, List.length_cons, M.runFrom_succ_eq_step]
+    congr 1
+    cases hs : c.state
+    · rw [MultiTapeTM.step_of_halt hs, MultiTapeTM.step_of_halt hs]
+    · rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hs,
+        MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
+      rfl
 
 end Turing.MultiTapeTM
 
@@ -265,13 +261,8 @@ private theorem move_iff (i : Fin q) :
   change ((actualSchedule machine input b (q := q) i head : SignType) : ℤ) =
     (boundary machine input b (q := q) (i + 1)).blockIndex b head -
       (boundary machine input b (q := q) i).blockIndex b head at h
-  constructor
-  · intro hm
-    have heq : (actualSchedule machine input b (q := q) i head : ℤ) = σ i head := by omega
-    exact sign_cast_injective heq
-  · intro hs
-    rw [hs] at h
-    omega
+  exact ⟨fun hm => sign_cast_injective (by dsimp only; omega),
+    fun hs => by rw [hs] at h; omega⟩
 
 private theorem gate_true (i : Fin q) (hσ : Prefix machine input b σ i)
     (providers : Fin k → Fin 3 → Option (View k State b))
@@ -288,12 +279,9 @@ private theorem gate_true (i : Fin q) (hσ : Prefix machine input b σ i)
   rw [← hindex, machine.intervalStep_view_iff b _ (by simp),
     ← boundary_succ machine input b i.isLt, move_iff]
   rw [hindex]
-  change (_ = v.1 ∧ _ = v.2 ∧ _) ↔ _ ∧ v = (_, _)
-  constructor
-  · rintro ⟨hc, hw, hm⟩
-    exact ⟨hm, Prod.ext hc.symm hw.symm⟩
-  · rintro ⟨hm, rfl⟩
-    exact ⟨rfl, rfl, hm⟩
+  refine ⟨fun ⟨hc, hw, hm⟩ => ⟨hm, Prod.ext hc.symm hw.symm⟩, ?_⟩
+  rintro ⟨hm, rfl⟩
+  exact ⟨rfl, rfl, hm⟩
 
 /-- A successful interval value is exactly the true leaving view, and validates every movement
 label in its prefix. In particular, success at the root validates all earlier labels. -/

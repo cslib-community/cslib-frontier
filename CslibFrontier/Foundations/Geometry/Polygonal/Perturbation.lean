@@ -106,12 +106,8 @@ theorem exists_replaceBends_avoiding_spans {ι : Type*} [Finite ι]
       rw [Fin.castSucc_succ, point_replaceBends]
       exact (hnear ⟨i, l⟩).trans (hδi i)
   · simpa only [bend, Sigma.eta] using hinj
-  · intro d
-    rw [← hfixed]
-    exact havoidFixed ⟨d.1, d.2⟩
-  · intro d a b ha hb hab hda hdb
-    rw [← hfixed] at ha hb
-    exact hspans d a b ha hb hab hda hdb
+  · exact fun d => hfixed ▸ havoidFixed ⟨d.1, d.2⟩
+  · exact fun d a b ha hb => hspans d a b (hfixed ▸ ha) (hfixed ▸ hb)
   · rw [← hfixed]
     simpa only [bend, Sigma.eta] using htriple
 
@@ -182,8 +178,7 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
     cases b <;> rfl
   have hEndFixed (d : E) : point (endNode d) ∈ fixed := by
     rw [hEnd]
-    rcases d with ⟨e, b⟩
-    cases b
+    rcases d with ⟨e, _ | _⟩
     · exact Or.inl (Or.inr ⟨e, rfl⟩)
     · exact Or.inr ⟨e, rfl⟩
   have hpoint : Function.Injective point := by
@@ -193,16 +188,8 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
       cases d <;> rfl
     rw [heq]
     refine Sum.elim_injective.mpr ⟨?_, hinj, ?_⟩
-    · intro x y h
-      apply hends
-      change point (endNode x) = point (endNode y) at h
-      rwa [hEnd, hEnd] at h
-    · intro x y h
-      change point (endNode x) = placed y at h
-      apply hfixed y
-      change placed y ∈ fixed
-      rw [← h]
-      exact hEndFixed x
+    · exact fun x y h => hends ((hEnd x).symm.trans (h.trans (hEnd y)))
+    · exact fun x y h => hfixed y (h ▸ hEndFixed x : (point ∘ bendNode) y ∈ fixed)
   have hpool (d : N) : point d ∈ fixed ∪ Set.range placed := by
     obtain ⟨s, rfl⟩ := hnode d
     cases s with
@@ -273,15 +260,11 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
   · intro d a ha b hb hab
     apply hcompare d a b (Or.inl ha) (Or.inl hb) hab
     intro hp
-    have hsub : ({point (left d), point (right d)} : Set ℂ) ⊆ fixed := by
-      rw [hp]
-      exact Set.insert_subset_iff.mpr ⟨ha, Set.singleton_subset_iff.mpr hb⟩
-    have hne : Disjoint fixed (Set.range placed) := by
-      refine Set.disjoint_left.mpr ?_
-      rintro _ hx ⟨k, rfl⟩
-      exact hfixed k hx
-    rcases hmovable d with hm | hm
-    · exact Set.disjoint_left.mp hne (hsub (Set.mem_insert _ _)) hm
-    · exact Set.disjoint_left.mp hne (hsub (Set.mem_insert_of_mem _ (Set.mem_singleton _))) hm
+    have hsub : ({point (left d), point (right d)} : Set ℂ) ⊆ fixed :=
+      hp ▸ Set.insert_subset_iff.mpr ⟨ha, Set.singleton_subset_iff.mpr hb⟩
+    rcases hmovable d with ⟨k, hk⟩ | ⟨k, hk⟩
+    · exact hfixed k (hk.symm ▸ hsub (Set.mem_insert _ _) : placed k ∈ fixed)
+    · exact hfixed k (hk.symm ▸ hsub (Set.mem_insert_of_mem _ (Set.mem_singleton _)) :
+        placed k ∈ fixed)
 
 end Cslib.Polygonal.Route

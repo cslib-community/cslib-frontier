@@ -186,10 +186,8 @@ theorem polynomialRoot_pow_eq {d : ℕ} (hd : 1 ≤ d) :
 theorem polynomialRoot_gt_one {d : ℕ} (hd : 1 ≤ d) : 1 < polynomialRoot d := by
   by_contra! hle
   have hpos := polynomialRoot_pos d
-  have h1 : polynomialRoot d ^ (d + 1) ≤ 1 := pow_le_one₀ hpos.le hle
-  have h2 : (1 : ℝ) < (1 + polynomialRoot d) ^ d :=
-    one_lt_pow₀ (by linarith) (by omega)
-  linarith [polynomialRoot_pow_eq hd]
+  linarith [polynomialRoot_pow_eq hd, pow_le_one₀ (n := d + 1) hpos.le hle,
+    one_lt_pow₀ (a := 1 + polynomialRoot d) (n := d) (by linarith) (by omega)]
 
 /-- For every `d ≥ 1`, the characteristic root satisfies `polynomialRoot d < d + 1`. -/
 theorem polynomialRoot_lt_succ {d : ℕ} (hd : 1 ≤ d) : polynomialRoot d < (d : ℝ) + 1 := by
@@ -463,15 +461,11 @@ theorem nat_mul_add_one_pow_le_polynomialSmooth {j d : ℕ} (hjd : j ≤ d) (y z
     have hmu := polynomialSmoothMu_nonneg d
     nlinarith [show (0 : ℝ) ≤ y by positivity, show (0 : ℝ) ≤ z by positivity]
   have hy1 : (1 : ℝ) ≤ y := by exact_mod_cast hy
-  have hstep1 : (y : ℝ) * ((z : ℝ) + 1) ^ j ≤ (y : ℝ) * ((z : ℝ) + y) ^ j :=
-    mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) (by linarith) j) (by positivity)
-  have hstep2 := mul_add_pow_le_polynomialSmooth (d := j) hj (x := (y : ℝ)) (z := (z : ℝ))
-    (by positivity) (by positivity)
-  have hlam := polynomialSmoothLam_mono hjd
-  have hmu := polynomialSmoothMu_mono hjd
-  exact (hstep1.trans hstep2).trans (add_le_add
-    (mul_le_mul_of_nonneg_right hlam (by positivity))
-    (mul_le_mul_of_nonneg_right hmu (by positivity)))
+  refine ((mul_le_mul_of_nonneg_left
+      (pow_le_pow_left₀ (by positivity) (by linarith) j) (by positivity)).trans
+    (mul_add_pow_le_polynomialSmooth hj (by positivity) (by positivity))).trans
+    (add_le_add (mul_le_mul_of_nonneg_right (polynomialSmoothLam_mono hjd) (by positivity))
+      (mul_le_mul_of_nonneg_right (polynomialSmoothMu_mono hjd) (by positivity)))
 
 end CharacteristicRoot
 
@@ -566,10 +560,9 @@ theorem expected_socialCost_le_succ_pow_of_hasPolynomialLatencies {d : ℕ} (hd 
     refine sum_nonneg fun e _ => mul_nonneg (Nat.cast_nonneg _) ?_
     rw [hl]
     exact sum_nonneg fun j _ => mul_nonneg (hc e j) (by positivity)
-  have hpow : polynomialRoot d ^ (d + 1) ≤ ((d : ℝ) + 1) ^ (d + 1) :=
-    pow_le_pow_left₀ (polynomialRoot_pos d).le (polynomialRoot_lt_succ hd).le (d + 1)
   exact (expected_socialCost_le_of_hasPolynomialLatencies hd h hσ s').trans
-    (mul_le_mul_of_nonneg_right hpow hnonneg)
+    (mul_le_mul_of_nonneg_right
+      (pow_le_pow_left₀ (polynomialRoot_pos d).le (polynomialRoot_lt_succ hd).le (d + 1)) hnonneg)
 
 end GeneralPolynomial
 
@@ -685,16 +678,12 @@ private theorem quadraticTightGame_socialCost_eq (s : Fin 4 → Bool) :
 private theorem quadraticTightGame_socialCost_false :
     quadraticTightGame.toCostGame.socialCost (fun _ => false) = 460 := by
   rw [quadraticTightGame_socialCost_eq]
-  exact_mod_cast (by decide :
-    ∑ e : Fin 8, quadraticTightGame.load (fun _ => false) e *
-      (quadraticTightWeight e * quadraticTightGame.load (fun _ => false) e ^ 2) = 460)
+  norm_cast
 
 private theorem quadraticTightGame_socialCost_true :
     quadraticTightGame.toCostGame.socialCost (fun _ => true) = 48 := by
   rw [quadraticTightGame_socialCost_eq]
-  exact_mod_cast (by decide :
-    ∑ e : Fin 8, quadraticTightGame.load (fun _ => true) e *
-      (quadraticTightWeight e * quadraticTightGame.load (fun _ => true) e ^ 2) = 48)
+  norm_cast
 
 private theorem quadraticTightGame_isPureNash :
     quadraticTightGame.toCostGame.IsPureNash (fun _ => false) := by

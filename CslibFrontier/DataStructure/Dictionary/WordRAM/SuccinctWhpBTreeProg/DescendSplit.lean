@@ -215,8 +215,7 @@ private theorem realizes_descendSplitStepGen :
     have hkw_lt : 2 * tMinWhp n_max * keyLaneBitsWhp n_max < w := henv.keysWordBits_lt_w
     have hvw_lt : 2 * tMinWhp n_max * valLaneBitsWhp n_max < w := henv.valsWordBits_lt_w
     have hcnt_div : (sl.nodes cur).metaWord / 2 = metaCount (sl.nodes cur).metaWord := rfl
-    simp only [hcs_n] at *
-    simp only [hres_n] at *
+    simp only [hcs_n, hres_n] at *
     try simp only [wp_large_M hth] at *
     try simp only [wp_large_nSlice hth] at *
     try simp only [wp_large_tMin hth] at *
@@ -235,12 +234,10 @@ private theorem realizes_descendSplitStepGen :
     · simp only [wp_large_wKey hth, wp_large_powFp hth]; exact hlanes
   · exact (Nat.le_mul_of_pos_left _ (by omega)).trans_lt hvw_lt
   · rw [hcnt_div]
-    have hlanes' : ∀ j < metaCount (sl.nodes cur).metaWord,
-        laneGet (fpBitsWhp n_max + 2) (sl.nodes cur).keysWord j < 2 ^ fpBitsWhp n_max := hlanes
     have hr_le : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
         (metaCount (sl.nodes cur).metaWord) q (sl.nodes cur).keysWord ≤
         metaCount (sl.nodes cur).metaWord := by
-      rw [swarRank_eq_count_lt (by omega) hkey_lt (hqhi.trans_lt hhi) hkw_cnt hlanes']
+      rw [swarRank_eq_count_lt (by omega) hkey_lt (hqhi.trans_lt hhi) hkw_cnt hlanes]
       exact (card_filter_le _ _).trans_eq (card_range _)
     exact ((Nat.mul_le_mul_right _ (hr_le.trans (by omega))).trans_lt hvw_lt).trans
       Nat.lt_two_pow_self
@@ -269,11 +266,7 @@ private theorem realizes_descendSplitStepGen :
         readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hchild_lt hrep (s := s)
       dsimp only at hndc_st hndc_res
       rw [hc0_eq] at hnf hkw_cnt
-      simp only [hcnt_div] at *
-      simp only [hc0_eq] at *
-      simp only [hval_r] at *
-      simp only [hndc_st] at *
-      simp only [hndc_res] at *
+      simp only [hcnt_div, hc0_eq, hval_r, hndc_st, hndc_res] at *
       try dsimp only [SplitFullChildPre]
       have h2t_lt : 2 * tMinWhp n_max < w :=
         (Nat.le_mul_of_pos_right _ (by unfold keyLaneBitsWhp; positivity)).trans_lt hkw_lt
@@ -475,6 +468,8 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
       dsimp only at hndc_st hndc_res hndc_mc hndc_vp
       have hcntc_div : (sl.nodes childIdx).metaWord / 2 =
           metaCount (sl.nodes childIdx).metaWord := rfl
+      have hr_eq_sw : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
+          (sl.nodes cur).keysWord = r := rfl
       by_cases hfull_c : metaCount (sl.nodes childIdx).metaWord = 2 * tMinWhp n_max - 1
       · -- Subcase B1: Child `childIdx` is full (`splitFullNode` + 3 node writes + alloc)
         set spPure := splitFullNode (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
@@ -522,8 +517,6 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
         have hsp_res := clientResult_splitFullNodeGenProg (U := U) (V := V) (w := w)
           hth (sl.nodes childIdx) s
         dsimp only at hsp_res
-        have hr_eq_sw : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-            (sl.nodes cur).keysWord = r := rfl
         have hmP_eq : parentNd'.metaWord = 2 * (c0 + 1) := by
           simp [parentNd', mkNodeMeta]
         have hstep : (Memory.spec 0).clientState s
@@ -640,10 +633,8 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
             let childIdx0 := laneGet (valLaneBitsWhp n_max) (sl.nodes cur).valsWord r0
             if (metaCount (sl.nodes childIdx0).metaWord == 2 * tMinWhp n_max - 1) = true
             then _ else _) = _
-          have hr_eq : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-              (sl.nodes cur).keysWord = r := rfl
           dsimp only
-          rw [hr_eq, hval_r, hc]
+          rw [hr_eq_sw, hval_r, hc]
           simp only [↓reduceIte]
           rfl
         obtain ⟨isR, Tn, lon, hin, hrtn, hnfn, hhtn, hlon, hhin, hhin_lt, hvn⟩ :
@@ -673,11 +664,8 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
           fun idx hidx hneA => (ih_bm idx hidx hneA).trans (hbm4 idx hidx hneA),
           fun a ha => (ih_out a ha).trans (hout4 a ha)⟩
       · -- Subcase B2: Child `childIdx` is already non-full (`< 2 * tMin - 1`)
-        have hcnt_c_le' : metaCount (sl.nodes childIdx).metaWord ≤ 2 * tMinWhp n_max - 1 :=
-          hcnt_c_le
-        have hnf_c : metaCount (sl.nodes childIdx).metaWord < 2 * tMinWhp n_max - 1 := by omega
-        have hr_eq_sw : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) c0 q
-            (sl.nodes cur).keysWord = r := rfl
+        have hnf_c : metaCount (sl.nodes childIdx).metaWord < 2 * tMinWhp n_max - 1 :=
+          lt_of_le_of_ne hcnt_c_le hfull_c
         have hstep : (Memory.spec 0).clientState s
               (descendSplitStepGenProg (d0, (sl.alloc, cur))) = s ∧
             (Memory.spec 0).clientResult s

@@ -421,11 +421,9 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
               Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs) := by
     simp only [romUnextractedTokenExperiment, runROMUnextractedToken, ProbComp.eval_map,
       ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_runState, PMF.map_bind]
-    congr 1
-    funext keys
-    dsimp only [romH]
-    simp_rw [verifyGatedHandlerProg_eval]
-    simp only [PMF.map, Function.comp_def, PMF.pure_bind, romTokenAccept]
+    congr 1 with keys : 1
+    simp only [romH, verifyGatedHandlerProg_eval, PMF.map, Function.comp_def, PMF.pure_bind,
+      romTokenAccept]
   have hext_eval :
       ProbComp.eval (extractedExperiment S targetFn
         (extractedForgerOfROM expand decWit chalToIdx checkRel A)) =
@@ -517,12 +515,8 @@ theorem unextractedTokenExperiment_succProbability_le_extracted {d sdLen comLen 
       (romTokenRel targetFn) ROMTokenRequest.stmt ROMTokenRequest.proof checkRel hSound none
       (romTokenAcceptReal S keys) (romTokenAcceptExt expand decWit targetFn S keys)
       (fun tr req _ hrel => by
-        have htarget :
-            targetFn req.message (extractWitnessFromTrace expand decWit tr req.proof) =
-              req.target := by
-          simp only [romTokenRel, ROMTokenRequest.stmt] at hrel
-          exact of_decide_eq_true hrel
-        simp [romTokenAcceptReal, romTokenAcceptExt, htarget])
+        simp [romTokenAcceptReal, romTokenAcceptExt,
+          of_decide_eq_true (by simpa only [romTokenRel, ROMTokenRequest.stmt] using hrel)])
       [] (A keys.1) (hm keys.1) (hleaf keys.1) (hfs keys.1)
         (fun (tok, (_, msgs)) =>
           Token.valid S targetFn keys.1 tok && decide (tok.payload.message ∉ msgs))
@@ -1128,11 +1122,9 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
     simp only [romUnextractedConservationExperiment, runROMUnextractedConservation,
       ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_runState,
       PMF.map_bind]
-    congr 1
-    funext keys
-    dsimp only [romH]
-    simp_rw [verifyGatedHandlerProg_eval]
-    simp only [PMF.map, Function.comp_def, PMF.pure_bind, romConservationAccept]
+    congr 1 with keys : 1
+    simp only [romH, verifyGatedHandlerProg_eval, PMF.map, Function.comp_def, PMF.pure_bind,
+      romConservationAccept]
   have hext_eval :
       ProbComp.eval (Conservation.extractedConservationExperiment com tag S
         (extractedAdversaryOfROM expand decWit chalToIdx checkRel A)) =
@@ -1275,11 +1267,9 @@ theorem unextractedConservationExperiment_succProbability_le_extracted {d sdLen 
       ROMConservationRequest.proof checkRel hSound none (romConsAcceptReal tag S keys)
       (romConsAcceptExt expand decWit com tag S keys)
       (fun tr req accepted hrel => by
-        have hloc := acceptLocal_toExtractedRequest_of_rel com tag S keys.1 req
-          (extractWitnessFromTrace expand decWit tr req.proof) hrel
-        have hmsg := signedMessage_toExtractedRequest tag req
-          (extractWitnessFromTrace expand decWit tr req.proof)
-        simp [romConsAcceptReal, romConsAcceptExt, hloc, hmsg])
+        simp [romConsAcceptReal, romConsAcceptExt,
+          acceptLocal_toExtractedRequest_of_rel com tag S keys.1 req _ hrel,
+          signedMessage_toExtractedRequest tag req])
       [] (A keys.1) (hm keys.1) (hleaf keys.1) (hfs keys.1)
         (fun (ctx, (_, accepted)) =>
           decide (romIssuedAmount accepted ctx + romGrantedRefund accepted ctx <

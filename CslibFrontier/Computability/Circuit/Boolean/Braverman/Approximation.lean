@@ -241,14 +241,11 @@ private theorem depth_lit (i : Fin N) (v : Bool) : (lit i v).depth ≤ 1 := by
 private theorem card_ne_one_iff {α : Type*} (A : Finset α) :
     #A ≠ 1 ↔ ∀ j ∈ A, ∃ j' ∈ A, j' ≠ j := by
   rw [Ne, card_eq_one]
-  constructor
-  · intro h j hj
-    by_contra hno
-    exact h ⟨j, eq_singleton_iff_unique_mem.2
-      ⟨hj, fun x hx => by_contra fun hxj => hno ⟨x, hx, hxj⟩⟩⟩
-  · rintro h ⟨a, rfl⟩
-    obtain ⟨j', hj', hne⟩ := h a (mem_singleton_self a)
-    exact hne (mem_singleton.1 hj')
+  refine ⟨fun h j hj => by_contra fun hno => h ⟨j, eq_singleton_iff_unique_mem.2
+    ⟨hj, fun x hx => by_contra fun hxj => hno ⟨x, hx, hxj⟩⟩⟩, ?_⟩
+  rintro h ⟨a, rfl⟩
+  obtain ⟨j', hj', hne⟩ := h a (mem_singleton_self a)
+  exact hne (mem_singleton.1 hj')
 
 variable {t K : ℕ}
 
@@ -407,12 +404,10 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
     split_ifs with hk
     · rw [eval_missFormula, decide_eq_true_iff]
       have harg : (fun a => Cw.eval Unbounded.interpretation x (e ((P.lines k).wires a))) =
-          args ℓ s ν P k x := by
-        funext a
-        rw [hCw_eval x _ (by have := P.wireDepths_lines_lt k a; omega)]
-        exact (fst_tr ℓ s ν P _ x).symm
-      rw [harg]
-      exact ⟨fun h => ⟨hk, h⟩, fun h => h.2⟩
+          args ℓ s ν P k x := funext fun a =>
+        (hCw_eval x _ (by have := P.wireDepths_lines_lt k a; omega)).trans
+          (fst_tr ℓ s ν P _ x).symm
+      simp only [harg, hk, true_and]
     · simp [hk]
   refine ⟨(tr ℓ s ν P (C.outputs 0)).2,
     lowDegree_mono (Nat.pow_le_pow_right h1 (C.outputDepths_le_depth 0)) (snd_tr_mem ℓ s ν P h1 _),

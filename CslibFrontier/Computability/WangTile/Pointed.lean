@@ -243,35 +243,28 @@ theorem seededSquare_of_pointedExtension {I : SeededInstance} {n : ℕ} :
   let d (i j : Fin (n + 1)) : Pointed.Decoded I (q.tile i j) :=
     Classical.choice (Pointed.decoded_of_mem (q.mem i j))
   have corner := Pointed.decorate_inj.mp ((d 0 0).tile_eq.trans q.corner)
-  have hx (i j : Fin (n + 1)) : (d i j).horizontal ≠ .negative := by
-    apply Pointed.axisGrid_nonnegative (fun i j => (d i j).horizontal) corner.1
-    · intro k
-      exact ((d k.castSucc 0).horizontal_match (d k.succ 0)
-        (q.horizontal k.castSucc 0 k.succ.isLt)).1
-    · intro i k
-      exact ((d i k.castSucc).vertical_match (d i k.succ)
-        (q.vertical i k.castSucc k.succ.isLt)).2.1
-  have hy (i j : Fin (n + 1)) : (d i j).vertical ≠ .negative := by
-    apply Pointed.axisGrid_nonnegative (fun j i => (d i j).vertical) corner.2.1
-    · intro k
-      exact ((d 0 k.castSucc).vertical_match (d 0 k.succ)
-        (q.vertical 0 k.castSucc k.succ.isLt)).1
-    · intro j k
-      exact ((d k.castSucc j).horizontal_match (d k.succ j)
-        (q.horizontal k.castSucc j k.succ.isLt)).2.1
-  refine ⟨{
+  have hx (i j : Fin (n + 1)) : (d i j).horizontal ≠ .negative :=
+    Pointed.axisGrid_nonnegative (fun i j => (d i j).horizontal) corner.1
+      (fun k => ((d k.castSucc 0).horizontal_match (d k.succ 0)
+        (q.horizontal k.castSucc 0 k.succ.isLt)).1)
+      (fun i k => ((d i k.castSucc).vertical_match (d i k.succ)
+        (q.vertical i k.castSucc k.succ.isLt)).2.1) i j
+  have hy (i j : Fin (n + 1)) : (d i j).vertical ≠ .negative :=
+    Pointed.axisGrid_nonnegative (fun j i => (d i j).vertical) corner.2.1
+      (fun k => ((d 0 k.castSucc).vertical_match (d 0 k.succ)
+        (q.vertical 0 k.castSucc k.succ.isLt)).1)
+      (fun j k => ((d k.castSucc j).horizontal_match (d k.succ j)
+        (q.horizontal k.castSucc j k.succ.isLt)).2.1) j i
+  exact ⟨{
     tile := fun i j => (d i j).payload
-    mem := ?_
-    horizontal := ?_
-    vertical := ?_
+    mem := fun i j => by
+      rw [Pointed.Decoded.payload, Pointed.payload_of_nonnegative (hx i j) (hy i j)]
+      exact (d i j).source_mem
+    horizontal := fun i j hi =>
+      ((d i j).horizontal_match (d ⟨i.val + 1, hi⟩ j) (q.horizontal i j hi)).2.2
+    vertical := fun i j hj =>
+      ((d i j).vertical_match (d i ⟨j.val + 1, hj⟩) (q.vertical i j hj)).2.2
     corner := corner.2.2 }⟩
-  · intro i j
-    rw [Pointed.Decoded.payload, Pointed.payload_of_nonnegative (hx i j) (hy i j)]
-    exact (d i j).source_mem
-  · intro i j hi
-    exact ((d i j).horizontal_match (d ⟨i.val + 1, hi⟩ j) (q.horizontal i j hi)).2.2
-  · intro i j hj
-    exact ((d i j).vertical_match (d i ⟨j.val + 1, hj⟩) (q.vertical i j hj)).2.2
 
 namespace Pointed
 
@@ -345,10 +338,7 @@ theorem tilesAtOrigin_pointedExtension_iff (I : SeededInstance) :
     TilesAtOrigin (pointedExtension I) ↔ TilesQuadrant I := by
   constructor
   · rintro ⟨f, hseed, hf⟩
-    apply (tilesQuadrant_iff_seededSquares I).mpr
-    intro n
-    apply seededSquare_of_pointedExtension
-    exact ⟨{
+    refine (tilesQuadrant_iff_seededSquares I).mpr fun n => seededSquare_of_pointedExtension ⟨{
       tile := fun i j => f i.val j.val
       mem := fun i j => (hf i.val j.val).1
       horizontal := fun i j hi => by simpa using (hf i.val j.val).2.1

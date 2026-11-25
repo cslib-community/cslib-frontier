@@ -75,9 +75,8 @@ theorem two_mul_sq_sub_one_le_inner {x y z : V} (hx : ‖x‖ = 1) (hy : ‖y‖
     {κ : ℝ} (hκ : 0 ≤ κ) (hyx : κ ≤ ⟪y, x⟫) (hzx : κ ≤ ⟪z, x⟫) :
     2 * κ ^ 2 - 1 ≤ ⟪y, z⟫ := by
   have hκ1 : κ ≤ 1 := hyx.trans ((real_inner_le_norm y x).trans_eq (by rw [hy, hx, one_mul]))
-  have hyx' : angle y x ≤ arccos κ := by
-    rw [angle_eq_arccos_inner_of_norm_eq_one hy hx]
-    exact arccos_le_arccos hyx
+  have hyx' : angle y x ≤ arccos κ :=
+    angle_eq_arccos_inner_of_norm_eq_one hy hx ▸ arccos_le_arccos hyx
   have hxz' : angle x z ≤ arccos κ := by
     rw [angle_comm, angle_eq_arccos_inner_of_norm_eq_one hz hx]
     exact arccos_le_arccos hzx
@@ -149,9 +148,7 @@ theorem card_mul_sq_sub_le_of_le_abs_inner {x : V} (hx : ‖x‖ ≤ 1) {s : Fin
     (#s : ℝ) * (κ ^ 2 - γ) ≤ 1 - γ := by
   -- Flip each vector to the side of `x`.
   set σ : ι → ℝ := fun i => if 0 ≤ ⟪y i, x⟫ then 1 else -1 with hσ
-  have hσabs : ∀ i, |σ i| = 1 := fun i => by
-    simp only [hσ]
-    split_ifs <;> simp
+  have hσabs (i) : |σ i| = 1 := by by_cases h : 0 ≤ ⟪y i, x⟫ <;> simp [hσ, h]
   refine card_mul_sq_sub_le_of_le_inner (y := fun i => σ i • y i) hx (fun i hi => ?_) hκ hγ
     (fun i hi => ?_) (fun i hi j hj hij => ?_)
   · rw [norm_smul, Real.norm_eq_abs, hσabs, one_mul]
@@ -159,10 +156,8 @@ theorem card_mul_sq_sub_le_of_le_abs_inner {x : V} (hx : ‖x‖ ≤ 1) {s : Fin
   · rw [real_inner_smul_left]
     simp only [hσ]
     split_ifs with h
-    · rw [one_mul]
-      exact (abs_of_nonneg h) ▸ hyx i hi
-    · rw [neg_one_mul]
-      exact (abs_of_neg (not_le.1 h)) ▸ hyx i hi
+    · linarith [hyx i hi, abs_of_nonneg h]
+    · linarith [hyx i hi, abs_of_neg (not_le.1 h)]
   · rw [real_inner_smul_left, real_inner_smul_right]
     calc σ i * (σ j * ⟪y i, y j⟫) ≤ |σ i * (σ j * ⟪y i, y j⟫)| := le_abs_self _
       _ = |⟪y i, y j⟫| := by rw [abs_mul, abs_mul, hσabs, hσabs, one_mul, one_mul]
@@ -199,10 +194,9 @@ theorem sum_offDiag_angle_le {x : V} (hx : ‖x‖ = 1) {s : Finset ι} {y : ι 
     ring
   rw [← hcard]
   refine sum_arccos_le_card_mul_arccos _ (fun p hp => ⟨?_, ?_⟩) ?_
-  · obtain ⟨h1, h2, h3, h4⟩ := hoff p hp
-    linarith [two_mul_sq_sub_one_le_inner hx h1 h2 hκ0 h3 h4]
-  · obtain ⟨h1, h2, -⟩ := hoff p hp
-    exact (real_inner_le_norm _ _).trans_eq (by rw [h1, h2, one_mul])
+  · linarith [two_mul_sq_sub_one_le_inner hx (hoff p hp).1 (hoff p hp).2.1 hκ0
+      (hoff p hp).2.2.1 (hoff p hp).2.2.2]
+  · exact (real_inner_le_norm _ _).trans_eq (by rw [(hoff p hp).1, (hoff p hp).2.1, one_mul])
   · rw [hcard, mul_assoc, mul_div_cancel₀ _ hs1.ne']
     linarith [le_sum_offDiag_inner hx hy hκ0 hyx]
 

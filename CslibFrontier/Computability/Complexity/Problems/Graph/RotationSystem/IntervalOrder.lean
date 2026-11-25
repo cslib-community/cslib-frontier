@@ -250,12 +250,8 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
     have hA := hnA d hd hda
     have hB := hnB d hd hda
     have hout : r.portRank d < r.portRank a ∨ r.portRank b < r.portRank d := by omega
-    have hzda : z ≠ d := fun he => by
-      subst he
-      omega
-    have hab' : a ≠ b := fun he => by
-      subst he
-      omega
+    have hzda : z ≠ d := ne_of_apply_ne r.portRank (by omega)
+    have hab' : a ≠ b := ne_of_apply_ne r.portRank (by omega)
     have hza' : z ≠ a := fun h => hza (congrArg color h)
     have hzb' : z ≠ b := fun h => hza ((congrArg color h).trans hab.symm)
     have hda' : d ≠ a := fun h => hda (congrArg color h)
@@ -284,12 +280,9 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
 /-- A different dart in the same source cycle has positive first-hit rank. -/
 theorem rotationDistance_pos_of_ne {G : Graph} (r : RotationSystem G)
     (o a : Dart G) (hoa : o.vertex = a.vertex) (hne : a ≠ o) :
-    0 < r.rotationDistance o a := by
-  by_contra hn
-  have hzero : r.rotationDistance o a = 0 := by omega
-  have h := r.pow_rotationDistance o a hoa
-  rw [hzero, pow_zero, Equiv.Perm.one_apply] at h
-  exact hne h.symm
+    0 < r.rotationDistance o a :=
+  Nat.pos_of_ne_zero fun hzero => hne <| by
+    simpa [hzero] using (r.pow_rotationDistance o a hoa).symm
 
 /-- A forward source step adds one to the first-hit rank until it returns to the
 specified cycle cut. -/
@@ -383,11 +376,9 @@ theorem rotationDistance_le_iff_portRank_between (a b d : Dart G)
     r.rotationDistance a d ≤ r.rotationDistance a b ↔
       r.portRank a ≤ r.portRank d ∧ r.portRank d ≤ r.portRank b := by
   by_cases hda : d = a
-  · subst d
-    simp [hrank]
+  · simp [hda, hrank]
   by_cases hdb : d = b
-  · subst d
-    simp [hrank]
+  · simp [hdb, hrank]
   have hrd : r.portRank d ≠ r.portRank a :=
     fun h => hda (r.portRank_injective d a had.symm h)
   have hrb : r.portRank d ≠ r.portRank b :=

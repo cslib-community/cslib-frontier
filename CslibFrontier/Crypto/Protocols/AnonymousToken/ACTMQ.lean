@@ -1114,14 +1114,8 @@ theorem actMQConservation_succProbability_le
               (rangeBoundedAdversary bound A))) := by
   by_cases hbound : bound = 0
   · subst hbound
-    have hzero :
-        Experiment.succProbability
-            (actMQConservationExperiment 0 (actCom F G encodeState) (actTag refundEmbed) S A) =
-          0 := by
-      simp [Experiment.succProbability, Game.succProbability,
-        actMQConservationExperiment_zero_eq_pure_false]
-    rw [hzero]
-    exact bot_le
+    simp [Experiment.succProbability, Game.succProbability,
+      actMQConservationExperiment_zero_eq_pure_false]
   · have hpos : 0 < bound := Nat.pos_of_ne_zero hbound
     refine (Conservation.extractedConservationExperiment_succProbability_le_extractedExperiment
       (actCom F G encodeState) (actTag refundEmbed) S (rangeBoundedAdversary bound A)).trans ?_
@@ -1241,11 +1235,8 @@ theorem gCollisionForger_extractedExperiment_eq [DecidableEq Message] [AddCommGr
   have htarg : UOV.structuredTarget F G (μ + F r₁ - F r₂) r₂ = UOV.structuredTarget F G μ r₁ := by
     simp only [UOV.structuredTarget, Prod.mk.injEq, hG, and_true]
     abel
-  have hmsg : μ + F r₁ - F r₂ ≠ μ := by
-    intro h
-    apply hF
-    have h' : μ + (F r₁ - F r₂) = μ + 0 := by simpa [add_sub_assoc] using h
-    exact sub_eq_zero.mp (add_left_cancel h')
+  have hmsg : μ + F r₁ - F r₂ ≠ μ := fun h =>
+    hF (sub_eq_zero.mp (add_left_cancel (a := μ) (by rwa [← add_sub_assoc, add_zero])))
   simp only [extractedExperiment, Signature.signingCorrectnessExperiment, runExtracted,
     gCollisionForger, ProbOracleComp.runLog_query_bind_pure, ProbComp.eval_map,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_map, PMF.pure_bind]
@@ -1439,6 +1430,33 @@ private theorem exists_sq_ne_one_of_nodup {K : Type} [Mul K] [One K]
       exact hnodup.1 (Or.inl (ha.trans hb.symm))
     · exact ⟨a, List.mem_cons_self, ha⟩
 
+private theorem clawExperiment_zeroOpeningClawAttack_eq_false_of_exists
+    {K : Type} [Mul K] [AddCommGroup Message] [SMul K Message]
+    [DecidableEq Message] [DecidableEq Tail] [Zero R]
+    (S : Signature.Scheme PK SK (Message × Tail) Sig) (F : R → Message) (G : R → Tail)
+    (scaleSig : K → Sig → Sig) (scalars : List K) (μ : Message) {a : K} (ha : a ∈ scalars)
+    (hfail : ∀ keys ∈ (ProbComp.eval S.keyGen).support,
+      ∀ sig ∈ (ProbComp.eval (S.sign keys.2 (UOV.structuredTarget F G μ 0))).support,
+        S.verify keys.1 (UOV.structuredTarget F G ((a * a) • μ) 0) (scaleSig a sig) = false) :
+    ProbComp.eval
+        (clawExperiment S (UOV.structuredTarget F G)
+          (zeroOpeningClawAttack scaleSig scalars μ)) =
+      PMF.pure false := by
+  simp only [clawExperiment, ProbComp.eval_map]
+  apply Probability.PMF.map_eq_pure_iff.mpr
+  intro run hrun
+  simp only [runClaw, zeroOpeningClawAttack, ProbOracleComp.runLog_query_bind_pure,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hrun
+  obtain ⟨keys, hkeys, _, ⟨sig, hsig, rfl⟩, rfl⟩ := hrun
+  dsimp only [clawAccept]
+  rw [Bool.and_eq_false_iff]
+  right
+  rw [Bool.eq_false_iff]
+  intro h
+  rw [List.all_map, List.all_eq_true] at h
+  exact Bool.false_ne_true ((hfail keys hkeys sig hsig).symm.trans (h a ha))
+
 /-- A nonzero constant tail `G 0 ≠ 0` defeats `zeroOpeningClawAttack` for every scalar list of
 length at least two with distinct squares, over optional-preimage (`Option X`) homogeneous
 quadratic verifiers: any answer returned by the signer either is `none` (failing verification) or
@@ -1464,29 +1482,14 @@ theorem clawExperiment_zeroOpeningClawAttack_option_eq_false_of_tail_ne_zero
           (zeroOpeningClawAttack (fun a => Option.map (a • ·)) scalars μ)) =
       PMF.pure false := by
   obtain ⟨a, ha, hasq⟩ := exists_sq_ne_one_of_nodup hlen hnodup
-  simp only [clawExperiment, ProbComp.eval_map]
-  apply Probability.PMF.map_eq_pure_iff.mpr
-  intro run hrun
-  simp only [runClaw, zeroOpeningClawAttack, ProbOracleComp.runLog_query_bind_pure,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-    PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hrun
-  obtain ⟨keys, hkeys, _, ⟨opt, hopt, rfl⟩, rfl⟩ := hrun
-  dsimp only [clawAccept]
-  rw [Bool.and_eq_false_iff]
-  right
-  rw [Bool.eq_false_iff]
-  intro h
-  rw [List.all_map, List.all_eq_true] at h
-  have ha' := h a ha
-  dsimp only [Function.comp_def] at ha'
+  refine clawExperiment_zeroOpeningClawAttack_eq_false_of_exists S F G _ scalars μ ha
+    fun keys hkeys opt hopt => ?_
   cases opt with
-  | none =>
-    simp [hver] at ha'
+  | none => simp [hver]
   | some s =>
-    have hanswer := hsign keys hkeys (some s) hopt s rfl
     have hne := UOV.rescale_ne_zeroOpening_of_tail_ne_zero (pubMap keys.1) F G htail a hasq
-      hanswer ((a * a) • μ)
-    simp [hver, hne] at ha'
+      (hsign keys hkeys (some s) hopt s rfl) ((a * a) • μ)
+    simp [hver, hne]
 
 /-- Raw-preimage (`Sig = X`) counterpart of
 `clawExperiment_zeroOpeningClawAttack_option_eq_false_of_tail_ne_zero`. -/
@@ -1508,25 +1511,11 @@ theorem clawExperiment_zeroOpeningClawAttack_eq_false_of_tail_ne_zero
           (zeroOpeningClawAttack (fun a s => a • s) scalars μ)) =
       PMF.pure false := by
   obtain ⟨a, ha, hasq⟩ := exists_sq_ne_one_of_nodup hlen hnodup
-  simp only [clawExperiment, ProbComp.eval_map]
-  apply Probability.PMF.map_eq_pure_iff.mpr
-  intro run hrun
-  simp only [runClaw, zeroOpeningClawAttack, ProbOracleComp.runLog_query_bind_pure,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-    PMF.mem_support_map_iff, PMF.mem_support_pure_iff] at hrun
-  obtain ⟨keys, hkeys, _, ⟨s, hs, rfl⟩, rfl⟩ := hrun
-  dsimp only [clawAccept]
-  rw [Bool.and_eq_false_iff]
-  right
-  rw [Bool.eq_false_iff]
-  intro h
-  rw [List.all_map, List.all_eq_true] at h
-  have ha' := h a ha
-  dsimp only [Function.comp_def] at ha'
-  have hanswer := hsign keys hkeys s hs
+  refine clawExperiment_zeroOpeningClawAttack_eq_false_of_exists S F G _ scalars μ ha
+    fun keys hkeys s hs => ?_
   have hne := UOV.rescale_ne_zeroOpening_of_tail_ne_zero (pubMap keys.1) F G htail a hasq
-    hanswer ((a * a) • μ)
-  simp [hver, hne] at ha'
+    (hsign keys hkeys s hs) ((a * a) • μ)
+  simp [hver, hne]
 
 end StructuralAttacks
 

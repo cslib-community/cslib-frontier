@@ -64,17 +64,13 @@ theorem TableAt.cons {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
     subst he
     simp only [Function.update_self]
     refine ⟨ha, haT, hc.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
-    omega
-  · have hne : tcell T j ≠ tcell T i := by simp only [tcell]; omega
-    have hfind : ((i, c) :: db).find? (·.1 == j) = db.find? (·.1 == j) := by
-      simp [hj]
-    rw [hfind, Function.update_of_ne hne]
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb; omega
+  · have hfind : ((i, c) :: db).find? (·.1 == j) = db.find? (·.1 == j) := by simp [hj]
+    rw [hfind, Function.update_of_ne (by simp only [tcell]; omega)]
     refine ⟨(h j).1, fun e he => ?_⟩
     obtain ⟨hpos, hlt, hl⟩ := (h j).2 e he
     refine ⟨hpos, hlt, hl.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
-    omega
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb; omega
 
 /-- Clearing the cell of number `i` deletes the clauses numbered `i`. -/
 theorem TableAt.erase {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ)} (h : TableAt mem T db)
@@ -85,24 +81,18 @@ theorem TableAt.erase {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause �
   intro j
   by_cases hj : i = j
   · subst hj
-    have : (db.filter fun e => !(e.1 == i)).find? (·.1 == i) = none := by
-      rw [List.find?_eq_none]
-      intro e he
-      simp only [List.mem_filter, Bool.not_eq_eq_eq_not, Bool.not_true, beq_eq_false_iff_ne] at he
-      simpa using he.2
-    simp [this]
-  · have hne : tcell T j ≠ tcell T i := by simp only [tcell]; omega
-    have hfind : (db.filter fun e => !(e.1 == i)).find? (·.1 == j) = db.find? (·.1 == j) :=
+    have hnone : (db.filter fun e => !(e.1 == i)).find? (·.1 == i) = none :=
+      List.find?_eq_none.mpr fun e he => by simpa using (List.mem_filter.mp he).2
+    simp [hnone]
+  · have hfind : (db.filter fun e => !(e.1 == i)).find? (·.1 == j) = db.find? (·.1 == j) :=
       find?_filter_of_imp db fun e he => by
         simp only [beq_iff_eq] at he
-        simp only [he, Bool.not_eq_true', beq_eq_false_iff_ne, ne_eq]
-        exact fun h' => hj h'.symm
-    rw [hfind, Function.update_of_ne hne]
+        simpa [he] using Ne.symm hj
+    rw [hfind, Function.update_of_ne (by simp only [tcell]; omega)]
     refine ⟨(h j).1, fun e he => ?_⟩
     obtain ⟨hpos, hlt, hl⟩ := (h j).2 e he
     refine ⟨hpos, hlt, hl.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
-    omega
+    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb; omega
 
 /-! ### The trail -/
 
@@ -260,11 +250,9 @@ theorem rupStep_spec (db : List (ℕ × Clause ℕ)) (i : ℕ) (c : Clause ℕ) 
     simp only [↓reduceIte]
     wram_simp
     have hOA := hyoa.trans hzoa
-    have hcz : HoldsList (x.regs ptr + 1) (encodeClause c) z.mem := by
-      have hc0 : HoldsList (x.regs ptr + 1) (encodeClause c) x.mem :=
-        holdsList_cons_iff.mpr ⟨hlen, hlits⟩
-      exact hc0.frame fun a _ ha => hOA.eq_of_lt (by
-        simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at ha; omega)
+    have hcz : HoldsList (x.regs ptr + 1) (encodeClause c) z.mem :=
+      (holdsList_cons_iff.mpr ⟨hlen, hlits⟩).frame fun a _ ha => hOA.eq_of_lt (by
+        simp only [List.length_cons, List.length_map] at ha; omega)
     refine ⟨hz0, hz1, by regs_frame, hzT, ?_, by regs_frame, ?_, ?_, fun a ha => ?_⟩
     · rw [hzp]; simp [encodeClause, encodeClauseBy, encodeNums]; omega
     · exact (htab.of_onlyAsg hOA).cons i c _ (by omega) (by omega) hcz
@@ -275,10 +263,8 @@ theorem filter_contains_cons (db : List (ℕ × Clause ℕ)) (h : ℕ) (hs : Lis
     (db.filter fun e => !(e.1 == h)).filter (fun e => !hs.contains e.1) =
       db.filter fun e => !(h :: hs).contains e.1 := by
   rw [List.filter_filter]
-  congr 1
-  funext e
-  simp only [List.contains_cons, Bool.not_or]
-  rw [Bool.and_comm]
+  exact congrArg db.filter (funext fun e => by
+    simp only [List.contains_cons, Bool.not_or, Bool.and_comm])
 
 /-- **The deletion loop** clears the table cells of the numbers in `[ptr, hend)`. -/
 theorem delLoop_spec (db : List (ℕ × Clause ℕ)) (ids : List ℕ) (x : Data 28) (M T s : ℕ)
@@ -380,8 +366,8 @@ theorem stepLoop_spec (rest : List LRAT.IntAction) (db : List (ℕ × Clause ℕ
     simp only [stepWords, List.flatMap_nil, List.length_nil, Nat.add_zero] at hpT
     simp [Cond.holds_lt, hpT, hinv.endp]
   | cons a rest ih =>
-    have hwords : stepWords (a :: rest) = encodeAction a ++ stepWords rest := by
-      simp [stepWords]
+    have hwords : stepWords (a :: rest) = encodeAction a ++ stepWords rest :=
+      List.flatMap_cons
     rw [hwords] at hl hpT hM
     simp only [List.length_append] at hpT
     obtain ⟨hla, hlr⟩ := holdsList_append_iff.mp hl

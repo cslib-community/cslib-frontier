@@ -119,10 +119,8 @@ theorem isAdjacency_iff_adjValid {n : ℕ} {N : Network (Fin n)} {adj : Fin n �
 @[expose] def exactAdj {n : ℕ} (N : Network (Fin n)) (u : Fin n) : List (Fin n) :=
   (List.finRange n).filter fun v => decide (u ≠ v ∧ 0 < N.cap u v + N.cap v u)
 
-theorem isAdjacency_exactAdj {n : ℕ} (N : Network (Fin n)) : IsAdjacency N (exactAdj N) := by
-  intro u v huv hpos
-  simp only [exactAdj, List.mem_filter, List.mem_finRange, decide_eq_true_eq, true_and]
-  exact ⟨huv, hpos⟩
+theorem isAdjacency_exactAdj {n : ℕ} (N : Network (Fin n)) : IsAdjacency N (exactAdj N) :=
+  fun _ _ huv hpos => by simp [exactAdj, huv]; omega
 
 theorem nodup_exactAdj {n : ℕ} (N : Network (Fin n)) (u : Fin n) : (exactAdj N u).Nodup :=
   (List.nodup_finRange n).filter _
@@ -140,21 +138,14 @@ theorem adjSteps_exactAdj_eq {n : ℕ} (N : Network (Fin n)) :
       N.symArcs = Finset.univ.biUnion fun u : Fin n =>
         (Finset.univ.filter fun v => (u, v) ∈ N.symArcs).image (Prod.mk u) := by
     ext ⟨u, v⟩
-    simp only [Finset.mem_biUnion, Finset.mem_univ, Finset.mem_image, Finset.mem_filter, true_and]
-    constructor
-    · intro h
-      exact ⟨u, v, h, rfl⟩
-    · rintro ⟨a, b, hb, hab⟩
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hab
-      exact hb
+    simp
   conv_rhs => rw [hpart, Finset.card_biUnion (fun a _ b _ hab =>
     Finset.disjoint_left.mpr fun x hx hy => by
-      simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and] at hx hy
-      obtain ⟨_, _, rfl⟩ := hx
-      obtain ⟨_, _, heq⟩ := hy
+      obtain ⟨_, _, rfl⟩ := Finset.mem_image.mp hx
+      obtain ⟨_, _, heq⟩ := Finset.mem_image.mp hy
       exact hab (Prod.mk.inj heq).1.symm)]
-  refine Finset.sum_congr rfl fun u _ => ?_
-  exact (Finset.card_image_of_injective _ fun _ _ h => (Prod.mk.inj h).2).symm
+  exact Finset.sum_congr rfl fun u _ =>
+    (Finset.card_image_of_injective _ fun _ _ h => (Prod.mk.inj h).2).symm
 
 end Adjacency
 
@@ -203,10 +194,8 @@ private theorem canRelabel_of_cur_nil {adj : V → List V} (hadj : IsAdjacency N
   · subst huv; exact le_rfl
   · obtain ⟨pre, hpre, hno⟩ := hs.curInv u
     rw [hnil, List.append_nil] at hpre
-    have hcap := s.pr.flow.resCap_le_cap_add_cap u v
-    have hmem : v ∈ pre := hpre ▸ hadj u v huv (by omega)
     have h1 := hs.prInv.valid.le_add_one u v hpos
-    have h2 : ¬ (0 < s.pr.flow.resCap u v ∧ s.pr.height u = s.pr.height v + 1) := hno v hmem
+    have h2 := hno v (hpre ▸ hadj u v huv (by have := s.pr.flow.resCap_le_cap_add_cap u v; omega))
     omega
 
 private def isHeadAdmissible (s : CAState N) (u : V) : Prop :=
@@ -230,22 +219,16 @@ private theorem dischargeMeasure_le_fuel {adj : V → List V} {u : V} {s : CASta
     (hcur : CurrentArcInv adj s.pr s.cur) (hn : 0 < Fintype.card V) :
     dischargeMeasure adj u s ≤ dischargeFuel adj u := by
   obtain ⟨pre, hpre, _⟩ := hcur u
-  have hlen : (s.cur u).length ≤ (adj u).length := by
-    have := congrArg List.length hpre
-    rw [List.length_append] at this
-    omega
+  have hlen : (s.cur u).length ≤ (adj u).length := by simp [hpre]
   unfold dischargeMeasure dischargeFuel
-  have h1 : 2 * Fintype.card V - 1 - s.pr.height u ≤ 2 * Fintype.card V - 1 := Nat.sub_le _ _
-  have h2 : (2 * Fintype.card V - 1 - s.pr.height u) * (2 * (adj u).length + 2) ≤
-      (2 * Fintype.card V - 1) * (2 * (adj u).length + 2) := Nat.mul_le_mul_right _ h1
+  have h2 := Nat.mul_le_mul_right (2 * (adj u).length + 2)
+    (Nat.sub_le (2 * Fintype.card V - 1) (s.pr.height u))
   have h3 : 2 * (s.cur u).length + (if isHeadAdmissible s u then 1 else 0) ≤
       2 * (adj u).length + 1 := by
     split_ifs <;> omega
   have h4 : (2 * Fintype.card V - 1) * (2 * (adj u).length + 2) + (2 * (adj u).length + 2) =
       2 * Fintype.card V * (2 * (adj u).length + 2) := by
-    rw [← Nat.succ_mul]
-    congr 1
-    omega
+    rw [← Nat.add_one_mul, Nat.sub_add_cancel (by omega)]
   omega
 
 section Decidable
@@ -254,8 +237,7 @@ variable [DecidableEq V]
 
 private theorem relabel_height_self_lt {σ : PushRelabel.State N} {u : V}
     (hr : σ.flow.CanRelabel σ.height u) : σ.height u < (σ.apply (.relabel u)).height u := by
-  rw [State.apply_relabel_height, Preflow.relabel_self]
-  exact hr.lt_relabelHeight
+  simpa [State.apply_relabel_height, Preflow.relabel_self] using hr.lt_relabelHeight
 
 private theorem relabel_height_of_ne (σ : PushRelabel.State N) {u x : V} (hx : x ≠ u) :
     (σ.apply (.relabel u)).height x = σ.height x :=
@@ -266,17 +248,14 @@ private theorem currentArcInv_advance {adj : V → List V} {σ : PushRelabel.Sta
     (hcu : cur u = v :: vs) (hnon : ¬ (0 < σ.flow.resCap u v ∧ σ.height u = σ.height v + 1)) :
     CurrentArcInv adj σ (Function.update cur u vs) := by
   intro x
+  obtain ⟨pre, hpre, hno⟩ := hcur x
   by_cases hxu : x = u
   · subst hxu
-    obtain ⟨pre, hpre, hno⟩ := hcur x
-    refine ⟨pre ++ [v], ?_, fun w hw => ?_⟩
-    · rw [Function.update_self, hpre, hcu, List.append_assoc, List.singleton_append]
-    · rcases List.mem_append.mp hw with hw' | hw'
-      · exact hno w hw'
-      · rw [List.mem_singleton.mp hw']
-        exact hnon
-  · obtain ⟨pre, hpre, hno⟩ := hcur x
-    rw [Function.update_of_ne hxu]
+    refine ⟨pre ++ [v], by simp [hpre, hcu], fun w hw => ?_⟩
+    rcases List.mem_append.mp hw with hw' | hw'
+    · exact hno w hw'
+    · exact List.mem_singleton.mp hw' ▸ hnon
+  · rw [Function.update_of_ne hxu]
     exact ⟨pre, hpre, hno⟩
 
 private theorem currentArcInv_push {adj : V → List V} {σ : PushRelabel.State N}
@@ -284,22 +263,17 @@ private theorem currentArcInv_push {adj : V → List V} {σ : PushRelabel.State 
     (hp : σ.flow.CanPush σ.height u v) : CurrentArcInv adj (σ.apply (.push u v)) cur := by
   intro x
   obtain ⟨pre, hpre, hno⟩ := hcur x
-  refine ⟨pre, hpre, fun w hw ⟨hpos, heq⟩ => ?_⟩
-  apply hno w hw
-  have huv := hp.ne
-  rw [State.apply_push_flow] at hpos
-  rw [State.apply_push_height] at heq
+  refine ⟨pre, hpre, fun w hw ⟨hpos, heq⟩ => hno w hw ?_⟩
+  simp only [State.apply_push_flow, State.apply_push_height] at hpos heq
   by_cases h1 : x = u ∧ w = v
   · obtain ⟨rfl, rfl⟩ := h1
-    rw [σ.flow.resCap_push_self huv] at hpos
+    rw [σ.flow.resCap_push_self hp.ne] at hpos
     exact ⟨by omega, heq⟩
   · by_cases h2 : x = v ∧ w = u
     · obtain ⟨rfl, rfl⟩ := h2
-      have hpeq := hp.height_eq
-      change σ.height x = σ.height w + 1 at heq
+      have := hp.height_eq
       omega
-    · rw [σ.flow.resCap_push_of_ne h1 h2] at hpos
-      exact ⟨hpos, heq⟩
+    · exact ⟨by rwa [σ.flow.resCap_push_of_ne h1 h2] at hpos, heq⟩
 
 private theorem currentArcInv_relabel {adj : V → List V} {σ : PushRelabel.State N}
     {cur : V → List V} (hvalid : σ.flow.IsValidLabeling σ.height)
@@ -307,9 +281,7 @@ private theorem currentArcInv_relabel {adj : V → List V} {σ : PushRelabel.Sta
     CurrentArcInv adj (σ.apply (.relabel u)) (Function.update cur u (adj u)) := by
   intro x
   by_cases hxu : x = u
-  · subst hxu
-    rw [Function.update_self]
-    exact ⟨[], rfl, by simp⟩
+  · exact hxu ▸ ⟨[], by simp, by simp⟩
   · rw [Function.update_of_ne hxu]
     obtain ⟨pre, hpre, hno⟩ := hcur x
     refine ⟨pre, hpre, fun w hw ⟨hpos, heq⟩ => hno w hw ⟨hpos, ?_⟩⟩
@@ -370,13 +342,11 @@ private theorem push_preserves_admissible_backward {σ : PushRelabel.State N} {u
     (hadm : 0 < (σ.apply (.push u v)).flow.resCap x y ∧
       (σ.apply (.push u v)).height x = (σ.apply (.push u v)).height y + 1) :
     0 < σ.flow.resCap x y ∧ σ.height x = σ.height y + 1 := by
-  rw [State.apply_push_height] at hadm
-  rw [State.apply_push_flow] at hadm
+  simp only [State.apply_push_height, State.apply_push_flow] at hadm
   refine ⟨?_, hadm.2⟩
   by_cases h1 : x = u ∧ y = v
   · obtain ⟨rfl, rfl⟩ := h1
-    rw [σ.flow.resCap_push_self hp.ne] at hadm
-    omega
+    rw [σ.flow.resCap_push_self hp.ne] at hadm; omega
   · by_cases h2 : x = v ∧ y = u
     · obtain ⟨rfl, rfl⟩ := h2
       have := hp.height_eq
@@ -402,11 +372,7 @@ private theorem dischargeLoop_relabel {adj : V → List V} {norm : CAState N →
       let r := dischargeLoop adj norm u fuel
         ⟨s.pr.apply (.relabel u), Function.update s.cur u (adj u)⟩
       ⟨.relabel u :: r.ops, r.ca, r.advances, true⟩ := by
-  rw [dischargeLoop, ite_eq_left hact]
-  dsimp only
-  rw [hcu]
-  dsimp only
-  rw [hnorm]
+  simp only [dischargeLoop, hact, ↓reduceIte, hcu, hnorm]
 
 private theorem dischargeLoop_push {adj : V → List V} {norm : CAState N → CAState N}
     (hnorm : ∀ s, norm s = s) {u v : V} {vs : List V} {fuel : ℕ} {s : CAState N}
@@ -415,11 +381,7 @@ private theorem dischargeLoop_push {adj : V → List V} {norm : CAState N → CA
     dischargeLoop adj norm u (fuel + 1) s =
       let r := dischargeLoop adj norm u fuel ⟨s.pr.apply (.push u v), s.cur⟩
       ⟨.push u v :: r.ops, r.ca, r.advances, r.relabeled⟩ := by
-  rw [dischargeLoop, ite_eq_left hact]
-  dsimp only
-  rw [hcu]
-  dsimp only
-  rw [ite_eq_left hadm, hnorm]
+  simp only [dischargeLoop, hact, ↓reduceIte, hcu, hadm, and_self, hnorm]
 
 private theorem dischargeLoop_advance {adj : V → List V} {norm : CAState N → CAState N}
     (hnorm : ∀ s, norm s = s) {u v : V} {vs : List V} {fuel : ℕ} {s : CAState N}
@@ -428,11 +390,7 @@ private theorem dischargeLoop_advance {adj : V → List V} {norm : CAState N →
     dischargeLoop adj norm u (fuel + 1) s =
       let r := dischargeLoop adj norm u fuel ⟨s.pr, Function.update s.cur u vs⟩
       ⟨r.ops, r.ca, r.advances + 1, r.relabeled⟩ := by
-  rw [dischargeLoop, ite_eq_left hact]
-  dsimp only
-  rw [hcu]
-  dsimp only
-  rw [ite_eq_right hadm, hnorm]
+  simp only [dischargeLoop, hact, ↓reduceIte, hcu, hadm, hnorm]
 
 omit [DecidableEq V] in
 private theorem dischargeMeasure_pos_of_isActive {adj : V → List V} (hadj : IsAdjacency N adj)
@@ -804,37 +762,31 @@ private theorem before_append_cons {α : Type*} {u v : α} :
     cases hb with
     | head hm => exact hm
     | tail htail => exact htail.mem_right
-  | a :: ds, rest, hu, hb => by
-    have hau : a ≠ u := fun h => hu (h ▸ List.mem_cons_self)
-    have hu' : u ∉ ds := fun h => hu (List.mem_cons_of_mem _ h)
+  | _ :: _, _, hu, hb => by
     cases hb with
-    | head _ => exact absurd rfl hau.symm
-    | tail htail => exact before_append_cons hu' htail
+    | head _ => exact absurd List.mem_cons_self hu
+    | tail htail => exact before_append_cons (fun h => hu (List.mem_cons_of_mem _ h)) htail
 
 private theorem not_before_of_nodup_append {α : Type*} {u v : α} {done rest : List α}
     (hnd : (done ++ u :: rest).Nodup) (hv : v ∈ done) : ¬ Before u v (done ++ u :: rest) := by
   intro hb
   have hdisj := (List.nodup_append.mp hnd).2.2
-  have hu : u ∉ done := fun h => hdisj u h u List.mem_cons_self rfl
-  have hv_rest : v ∈ rest := before_append_cons hu hb
+  have hv_rest := before_append_cons (fun h => hdisj u h u List.mem_cons_self rfl) hb
   exact hdisj v hv v (List.mem_cons_of_mem _ hv_rest) rfl
 
 private theorem before_erase_cons {α : Type*} {x y u : α} (hx : x ≠ u) (hy : y ≠ u) :
     ∀ {done rest : List α}, Before x y (done ++ u :: rest) → Before x y (done ++ rest)
-  | [], rest, hb => by
+  | [], _, hb => by
     cases hb with
     | head _ => exact absurd rfl hx.symm
     | tail htail => exact htail
-  | a :: ds, rest, hb => by
-    simp only [List.cons_append] at hb ⊢
+  | _ :: _, _, hb => by
     cases hb with
     | head hmem =>
       refine .head ?_
       rcases List.mem_append.mp hmem with hm | hm
       · exact List.mem_append_left _ hm
-      · rcases List.mem_cons.mp hm with rfl | hm'
-        · exact absurd rfl hy
-        · exact List.mem_append_right _ hm'
+      · exact List.mem_append_right _ ((List.mem_cons.mp hm).resolve_left hy)
     | tail htail => exact .tail (before_erase_cons hx hy htail)
 
 variable {V : Type*} [Fintype V] [DecidableEq V] {N : Network V}
@@ -1420,26 +1372,15 @@ theorem relabelToFrontWith_correct {vs : List V} (hnodup : vs.Nodup)
     unfold rtfMeasure sumHeightMax
     change (Fintype.card V + (Fintype.card V - 2) * (2 * Fintype.card V - 1) -
         ∑ v, (PushRelabel.init N).height v) * (Fintype.card V - 2) + vs.length = _
-    rw [sum_height_init, hlen]
-    have h1 : Fintype.card V + (Fintype.card V - 2) * (2 * Fintype.card V - 1) -
-        Fintype.card V = (Fintype.card V - 2) * (2 * Fintype.card V - 1) := by omega
-    rw [h1]
+    rw [sum_height_init, hlen, Nat.add_sub_cancel_left]
     ring
-  have hlt_fuel : rtfMeasure V (RTFState.init N adj vs) < rtfFuel V := by
-    rw [hmeas0]
-    unfold rtfFuel
-    omega
+  have hlt_fuel : rtfMeasure V (RTFState.init N adj vs) < rtfFuel V := by simp [hmeas0, rtfFuel]
   obtain ⟨hfinInv, htodo, hrun, _, hns, _, hdis, hadv⟩ :=
     rtfLoop_spec hadj hcaNorm hstNorm hst (rtfFuel V) (RTFState.init N adj vs)
       (rtfInv_init hst hnodup hmem) hlt_fuel
   have hnot_act : ∀ v, ¬ (rtfLoop adj caNorm stNorm (rtfFuel V)
-      (RTFState.init N adj vs)).2.ca.pr.flow.IsActive v := fun v hv => by
-    have hv' : v ∈ (rtfLoop adj caNorm stNorm (rtfFuel V)
-        (RTFState.init N adj vs)).2.done := by
-      have hm := (hfinInv.mem_iff v).mpr ⟨hv.1, hv.2.1⟩
-      rw [htodo, List.append_nil] at hm
-      exact hm
-    exact hfinInv.done_inactive v hv' hv
+      (RTFState.init N adj vs)).2.ca.pr.flow.IsActive v := fun v hv =>
+    hfinInv.done_inactive v (by simpa [htodo] using (hfinInv.mem_iff v).mpr ⟨hv.1, hv.2.1⟩) hv
   have hz := excess_eq_zero_of_forall_not_isActive _ hnot_act
   have hmax := hfinInv.caInv.prInv.valid.isMaxFlow_toFlow hz
   obtain ⟨hmin, hval⟩ := hfinInv.caInv.prInv.valid.isMinCut_gapCut hz
@@ -1447,18 +1388,14 @@ theorem relabelToFrontWith_correct {vs : List V} (hnodup : vs.Nodup)
   rw [ite_eq_right hst]
   simp only [RelabelToFrontOutput.ofState]
   rw [dite_eq_left hz]
-  exact ⟨hmax, hmin, hval, hrun, hdis.trans_eq (by
-      rw [hmeas0]
-      exact Nat.zero_add _),
+  exact ⟨hmax, hmin, hval, hrun, hdis.trans_eq ((Nat.zero_add _).trans hmeas0),
     hns.trans_eq (Nat.sub_zero _), (Nat.le_add_right _ _).trans
       (hadv.trans_eq ((Nat.zero_add _).trans (advPotential_init adj)))⟩
 
 private theorem card_sub_two_bound (n : ℕ) (hn : 2 ≤ n) :
     (n - 2) * ((n - 2) * (2 * n - 1) + 1) ≤ 2 * n ^ 3 := by
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le' hn
-  have h1 : k + 2 - 2 = k := by omega
-  have h2 : 2 * (k + 2) - 1 = 2 * k + 3 := by omega
-  rw [h1, h2]
+  rw [Nat.add_sub_cancel_right, show 2 * (k + 2) - 1 = 2 * k + 3 by omega]
   have hsum :
       2 * (k + 2) ^ 3 = k * (k * (2 * k + 3) + 1) + (9 * k ^ 2 + 23 * k + 16) := by ring
   omega
@@ -1467,10 +1404,8 @@ private theorem ops_sum_bound (n : ℕ) (hn : 2 ≤ n) :
     (n - 2) * (2 * n - 1) + n * (n * (n - 1)) +
       (n - 2) * ((n - 2) * (2 * n - 1) + 1) ≤ 4 * n ^ 3 := by
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le' hn
-  have h1 : k + 2 - 2 = k := by omega
-  have h2 : 2 * (k + 2) - 1 = 2 * k + 3 := by omega
-  have h3 : k + 2 - 1 = k + 1 := by omega
-  rw [h1, h2, h3]
+  rw [Nat.add_sub_cancel_right, show 2 * (k + 2) - 1 = 2 * k + 3 by omega,
+    show k + 2 - 1 = k + 1 by omega]
   have hsum :
       4 * (k + 2) ^ 3 =
         k * (2 * k + 3) + (k + 2) * ((k + 2) * (k + 1)) + k * (k * (2 * k + 3) + 1) +
@@ -1493,10 +1428,7 @@ theorem relabelToFrontWith_bounds {vs : List V} (hnodup : vs.Nodup)
       out.ops.length ≤ 4 * Fintype.card V ^ 3 := by
   obtain ⟨_, _, _, hrun, hdis, hns, _⟩ :=
     relabelToFrontWith_correct hnodup hmem hadj hcaNorm hstNorm hst
-  have h2n : 2 ≤ Fintype.card V := by
-    have hcard : ({N.s, N.t} : Finset V).card ≤ Fintype.card V := Finset.card_le_univ _
-    rw [Finset.card_pair hst] at hcard
-    exact hcard
+  have h2n : 2 ≤ Fintype.card V := Finset.card_pair hst ▸ Finset.card_le_univ {N.s, N.t}
   have hrel := numRelabels_lt hst hrun
   have hrel_sharp := numRelabels_le hst hrun
   have hsat := numSatPushes_le_posArcs hst hrun
@@ -1504,10 +1436,6 @@ theorem relabelToFrontWith_bounds {vs : List V} (hnodup : vs.Nodup)
   have hdis_cube : (relabelToFrontWith N vs adj caNorm stNorm).discharges ≤
       2 * Fintype.card V ^ 3 :=
     hdis.trans (card_sub_two_bound (Fintype.card V) h2n)
-  have hns_cube : (PushRelabel.init N).numNonsatPushes
-      (relabelToFrontWith N vs adj caNorm stNorm).ops ≤ 4 * Fintype.card V ^ 3 := by
-    have : 2 * Fintype.card V ^ 3 ≤ 4 * Fintype.card V ^ 3 := by omega
-    exact hns.trans (hdis_cube.trans this)
   have hlen : (relabelToFrontWith N vs adj caNorm stNorm).ops.length ≤ 4 * Fintype.card V ^ 3 := by
     rw [State.length_eq (PushRelabel.init N)]
     have hsat_v : Fintype.card V * N.symArcs.card ≤
@@ -1515,7 +1443,7 @@ theorem relabelToFrontWith_bounds {vs : List V} (hnodup : vs.Nodup)
       Nat.mul_le_mul_left _ N.card_symArcs_le_mul_pred
     have hsum := ops_sum_bound (Fintype.card V) h2n
     omega
-  exact ⟨hrel.le, hsat, hdis_cube, hns_cube, hlen⟩
+  exact ⟨hrel.le, hsat, hdis_cube, by omega, hlen⟩
 
 /-- **Combined discharge, push/relabel operation, and current-arc advance count bound
 (`discharges + ops.length + advances`):** at most `6|V|³ + 2|V| ∑ v, (adj v).length` in general,

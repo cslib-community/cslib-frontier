@@ -327,47 +327,38 @@ private theorem reaches_walk {m : ℕ} (hm : m ≠ 0) (q : State) (hc : q.ctl = 
     set lab := labelOfNat w
     set r := (reingold base baseEquiv (input I.graph) m).rot (x, lab)
     -- the next step pushes the frame of the top level
-    have h₁ : Reaches I q { q with
-        ctl := .eval
-        ev := (⟨(x.toList).1, (x.toList).2, [(.zig₀, lab)]⟩ :
-          ReingoldEvalState (Fin I.n × Fin I.n) Label).mapVertex slotVal
-        w := w / numLabels
-        j := j } := by
+    let q₁ : State := { q with
+      ctl := .eval
+      ev := (⟨(x.toList).1, (x.toList).2, [(.zig₀, lab)]⟩ :
+        ReingoldEvalState (Fin I.n × Fin I.n) Label).mapVertex slotVal
+      w := w / numLabels
+      j := j }
+    have h₁ : Reaches I q q₁ := by
       refine .single (by simp [hc]) ?_
       rw [readBit_of_addr_none (by simp [addr, hc])]
       obtain ⟨_, _, _, _, _, _, _, _, _, _, _⟩ := q
-      simp_all [step, ReingoldEvalState.mapVertex, lab]
+      simp_all [step, ReingoldEvalState.mapVertex, lab, q₁]
     -- the evaluation of the rotation map
-    have h₂ := reaches_eval { q with
-        ctl := .eval
-        ev := (⟨(x.toList).1, (x.toList).2, [(.zig₀, lab)]⟩ :
-          ReingoldEvalState (Fin I.n × Fin I.n) Label).mapVertex slotVal
-        w := w / numLabels
-        j := j } rfl hn hs ht hm x lab rfl
+    have h₂ := reaches_eval q₁ rfl hn hs ht hm x lab rfl
     -- the label at the far end is dropped
+    let q₂ : State := { q with
+      ctl := .next
+      ev := ⟨slotVal r.1.root, (r.1.toList).2, []⟩
+      w := w / numLabels
+      j := j }
     have h₃ : Reaches I { q with
         ctl := .eval
         ev := (⟨(r.1.toList).1, r.2 :: (r.1.toList).2, []⟩ :
           ReingoldEvalState (Fin I.n × Fin I.n) Label).mapVertex slotVal
         w := w / numLabels
-        j := j }
-        { q with
-          ctl := .next
-          ev := ⟨slotVal r.1.root, (r.1.toList).2, []⟩
-          w := w / numLabels
-          j := j } := by
+        j := j } q₂ := by
       refine .single (by simp) ?_
       rw [readBit_of_addr_none (by simp [addr, ReingoldEvalState.atRoot,
         ReingoldEvalState.mapVertex])]
-      simp [step, ReingoldEvalState.mapVertex]
-    have h₄ := ih { q with
-        ctl := .next
-        ev := ⟨slotVal r.1.root, (r.1.toList).2, []⟩
-        w := w / numLabels
-        j := j } rfl hn hs ht r.1 (w / numLabels) rfl rfl rfl
+      simp [step, ReingoldEvalState.mapVertex, q₂]
     rw [show w / numLabels ^ (j + 1) = w / numLabels / numLabels ^ j by
       rw [pow_succ', Nat.div_div_eq_div_mul]]
-    exact h₁.trans (h₂.trans (h₃.trans h₄))
+    exact h₁.trans (h₂.trans (h₃.trans (ih q₂ rfl hn hs ht r.1 (w / numLabels) rfl rfl rfl)))
 
 /-- **A walk of a counter**: from the start of the walk of the counter `c`, the machine fills the
 labels of the start vertex `(⋯ ((s, s), 0) ⋯, 0)` and walks along the digits of `c`. -/
@@ -381,25 +372,22 @@ private theorem reaches_start {m : ℕ} (hm : m ≠ 0) (q : State) (hc : q.ctl =
       w := q.c / numLabels ^ q.len
       j := 0 } := by
   -- the start resets the registers
-  have h₁ : Reaches I q { q with
-      ctl := .fill
-      ev := ⟨(q.s, q.s), List.replicate 0 0, []⟩
-      w := q.c
-      j := q.len } := by
+  let q₁ : State := { q with
+    ctl := .fill
+    ev := ⟨(q.s, q.s), List.replicate 0 0, []⟩
+    w := q.c
+    j := q.len }
+  have h₁ : Reaches I q q₁ := by
     refine .single (by simp [hc]) ?_
     rw [readBit_of_addr_none (by simp [addr, hc])]
-    simp [step, hc]
+    simp [step, hc, q₁]
   -- the labels are filled with zeros
-  have h₂ : Reaches I { q with
-      ctl := .fill
-      ev := ⟨(q.s, q.s), List.replicate 0 0, []⟩
-      w := q.c
-      j := q.len }
-      { q with
-        ctl := .next
-        ev := ⟨(q.s, q.s), List.replicate m 0, []⟩
-        w := q.c
-        j := q.len } := by
+  let q₂ : State := { q with
+    ctl := .next
+    ev := ⟨(q.s, q.s), List.replicate m 0, []⟩
+    w := q.c
+    j := q.len }
+  have h₂ : Reaches I q₁ q₂ := by
     refine (reaches_iterate (fun i ↦ { q with
       ctl := .fill
       ev := ⟨(q.s, q.s), List.replicate i 0, []⟩
@@ -408,14 +396,9 @@ private theorem reaches_start {m : ℕ} (hm : m ≠ 0) (q : State) (hc : q.ctl =
     · rw [readBit_of_addr_none (by simp [addr])]
       simp [step, hd, hi.ne, List.replicate_succ]
     · rw [readBit_of_addr_none (by simp [addr])]
-      simp [step, hd]
-  have h₃ := reaches_walk hm { q with
-      ctl := .next
-      ev := ⟨(q.s, q.s), List.replicate m 0, []⟩
-      w := q.c
-      j := q.len } rfl hn hs ht (IteratedProd.mk (I.s, I.s) 0 m) q.c q.len
-    (by simp [slotVal, hs]) rfl rfl
-  exact h₁.trans (h₂.trans h₃)
+      simp [step, hd, q₂]
+  exact h₁.trans (h₂.trans (reaches_walk hm q₂ rfl hn hs ht (IteratedProd.mk (I.s, I.s) 0 m)
+    q.c q.len (by simp [slotVal, hs, q₂]) rfl rfl))
 
 variable (I) in
 /-- The machine halts from `q` with the output `b` appended to the output so far. -/

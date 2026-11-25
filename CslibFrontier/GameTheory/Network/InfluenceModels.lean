@@ -208,10 +208,8 @@ private theorem unitMeasure_real_Iic {a : ℝ} (ha0 : 0 ≤ a) (ha1 : a ≤ 1) :
 
 private theorem unitMeasure_real_Ioi {a : ℝ} (ha0 : 0 ≤ a) (ha1 : a ≤ 1) :
     unitMeasure.real (Ioi a) = 1 - a := by
-  have hcompl : unitMeasure.real (Ioi a) = 1 - unitMeasure.real (Iic a) := by
-    have hu := probReal_compl_eq_one_sub (μ := unitMeasure) (s := Iic a) measurableSet_Iic
-    simpa only [compl_Iic] using hu
-  rw [hcompl, unitMeasure_real_Iic ha0 ha1]
+  simpa only [compl_Iic, unitMeasure_real_Iic ha0 ha1] using
+    probReal_compl_eq_one_sub (μ := unitMeasure) (s := Iic a) measurableSet_Iic
 
 private theorem unitMeasure_real_Ioc {a b : ℝ} (ha0 : 0 ≤ a) (hab : a ≤ b) (hb1 : b ≤ 1) :
     unitMeasure.real (Ioc a b) = b - a := by
@@ -430,10 +428,7 @@ private theorem measurableSet_thresholdStep_eq (A B : Finset V) :
   rw [heq]
   exact MeasurableSet.univ_pi fun v => by
     split_ifs
-    · exact MeasurableSet.univ
-    · exact MeasurableSet.empty
-    · exact measurableSet_Iic
-    · exact measurableSet_Ioi
+    exacts [.univ, .empty, measurableSet_Iic, measurableSet_Ioi]
 
 theorem measurableSet_thresholdFinal_eq (S A : Finset V) :
     MeasurableSet {θ : V → ℝ | M.thresholdFinal θ S = A} := by
@@ -650,9 +645,7 @@ theorem seqSurvival_perm (v : V) {us₁ us₂ : List V} (hp : us₁.Perm us₂) 
     have hu₁ : u₁ ∉ X := hdisj u₁ List.mem_cons_self
     have hu₂ : u₂ ∉ X := hdisj u₂ (List.mem_cons_of_mem u₁ List.mem_cons_self)
     simp only [seqSurvival, ← mul_assoc]
-    rw [C.swap_survival v u₁ u₂ X hne hu₁ hu₂]
-    have hins : insert u₁ (insert u₂ X) = insert u₂ (insert u₁ X) := Finset.insert_comm u₁ u₂ X
-    rw [hins]
+    rw [C.swap_survival v u₁ u₂ X hne hu₁ hu₂, Finset.insert_comm u₁ u₂ X]
   | @trans l₁ l₂ l₃ hp₁ _ ih₁ ih₂ =>
     intro X hnd hdisj
     exact (ih₁ hnd hdisj).trans
@@ -1206,9 +1199,7 @@ theorem activeSetProb_eq_toGeneralThresholdModel
             Function.update_of_ne (fun h => hw (Finset.mem_insert.mpr (Or.inl h))) _ _]
           refine and_congr_left' (forall_congr' fun w => imp_congr_right fun hw => ?_)
           rw [Function.update_of_ne fun h => hw (Finset.mem_insert.mpr (Or.inl h))]
-        by_cases hθ : θ ∈ S_succ
-        · rw [indicator_of_mem hθ, indicator_of_mem (hmem_iff.mpr hθ)]
-        · rw [indicator_of_notMem hθ, indicator_of_notMem (mt hmem_iff.mp hθ)]
+        by_cases hθ : θ ∈ S_succ <;> simp [hθ, hmem_iff]
       have hE1_eq : E1 = {θ | θ v ∈ Ioc g0 g1 ∧ θ ∈ S_succ} := by
         ext θ
         simp only [E1, S_succ, survEvent, mem_Ioc, mem_ofPred_eq]
@@ -1334,12 +1325,7 @@ theorem mem_seedLayer0 {V : Type*} {T : ℕ} {S : Finset V} {x : V × Fin (T + 1
   rcases x with ⟨v, t⟩
   rw [seedLayer0, Finset.mem_map]
   change (∃ u ∈ S, (u, (0 : Fin (T + 1))) = (v, t)) ↔ t = 0 ∧ v ∈ S
-  constructor
-  · rintro ⟨u, huS, hpair⟩
-    cases hpair
-    exact ⟨rfl, huS⟩
-  · rintro ⟨rfl, hvS⟩
-    exact ⟨v, hvS, rfl⟩
+  simp [and_comm, eq_comm]
 
 theorem seedLayer0_union {V : Type*} [DecidableEq V] (T : ℕ) (A B : Finset V) :
     seedLayer0 T (A ∪ B) = seedLayer0 T A ∪ seedLayer0 T B := by

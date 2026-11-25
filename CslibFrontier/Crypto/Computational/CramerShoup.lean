@@ -389,24 +389,10 @@ theorem cramerShoupMsgCCA2Game_eq_game1
     csSkS, csSkT, csSkS₁, csSkT₁, csSkS₂, csSkT₂, csChoiceMsg₀, csChoiceMsg₁, csChoiceAD,
     ZMod.natCast_zmod_val, encodeCramerShoupEncrypt_publicKey_eq_challenge]
   refine congrArg _ (funext fun d => congrArg _ (funext fun α => ?_))
-  conv_rhs => rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod (F.order d)))]
-  refine congrArg _ (funext fun σ => ?_)
-  conv_rhs => rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod (F.order d)))]
-  refine congrArg _ (funext fun τ => ?_)
-  conv_rhs => rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod (F.order d)))]
-  refine congrArg _ (funext fun σ₁ => ?_)
-  conv_rhs => rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod (F.order d)))]
-  refine congrArg _ (funext fun τ₁ => ?_)
-  conv_rhs => rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod (F.order d)))]
-  refine congrArg _ (funext fun σ₂ => ?_)
-  conv_rhs => rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod (F.order d)))]
-  refine congrArg _ (funext fun τ₂ => ?_)
-  conv_rhs => rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod (F.order d)))]
-  refine congrArg _ (funext fun choiceOut => ?_)
-  by_cases h : (isElem (d, encodeMsg (d, csChoiceMsg₀ choiceOut.1)) &&
-      isElem (d, encodeMsg (d, csChoiceMsg₁ choiceOut.1))) = true
-  · simp only [h, ↓reduceIte]
-  · simp only [h, Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
+  iterate 7
+    conv_rhs => rw [PMF.bind_comm (PMF.uniformOfFintype (ZMod (F.order d)))]
+    refine congrArg _ (funext fun _ => ?_)
+  split_ifs <;> first | rfl | exact (PMF.bind_const _ _).symm
 
 /-- **Game 2** ([BonehShoup2023], Section 12.5.3, printed p. 490, adapted to
 $\mathcal{E}_{\mathrm{MCS}}$ with associated data): replace the Diffie–Hellman challenge pair
@@ -1276,11 +1262,7 @@ private theorem cramerShoupMsgCCA2Game_eq_bind_innerSK
     (setup n).bind fun d =>
       F.cramerShoupCCA2UniformSK hasAD encodeAD H isElem d adversary bit n true := by
   simp only [pmf_norm, cramerShoupMsgCCA2Game, cramerShoupCCA2UniformSK]
-  refine congrArg _ (funext fun d => ?_)
-  refine congrArg _ (funext fun α => congrArg _ (funext fun σ =>
-    congrArg _ (funext fun τ => congrArg _ (funext fun σ₁ =>
-      congrArg _ (funext fun τ₁ => congrArg _ (funext fun σ₂ =>
-        congrArg _ (funext fun τ₂ => ?_)))))))
+  iterate 8 refine congrArg _ (funext fun _ => ?_)
   simp only [cramerShoupCCA2InnerSK, cramerShoupCCA2InnerB, PMF.monad_bind_eq_bind,
     PMF.monad_pure_eq_pure, ↓reduceIte,
     encodeCramerShoupPublicKey_encode, skNatOfZMod,

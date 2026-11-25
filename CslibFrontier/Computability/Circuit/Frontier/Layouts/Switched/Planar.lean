@@ -100,9 +100,7 @@ private theorem radial_integral : (∫ r in Ioi 0, radial r) = 1 / (2 * Real.pi)
     ring
   rw [hangle] at h
   simp only [integral_const, probReal_univ, smul_eq_mul, mul_one] at h
-  have hp := Real.pi_pos
-  apply (eq_div_iff (by positivity : (2 * Real.pi) ≠ 0)).mpr
-  nlinarith
+  exact (eq_div_iff (mul_ne_zero two_ne_zero Real.pi_ne_zero)).mpr h.symm
 
 /-- A vector with unit inner square has unit norm. -/
 private theorem norm_eq_one_of_inner_self {E : Type*} [NormedAddCommGroup E]
@@ -187,11 +185,10 @@ private theorem freeInd_periodic (γ₀ γ₁ k : ℝ) : Function.Periodic (free
 private theorem intervalIntegrable_of_bdd {f : ℝ → ℝ} (hf : Measurable f) (h0 : ∀ t, 0 ≤ f t)
     (h1 : ∀ t, f t ≤ 1) (a b : ℝ) : IntervalIntegrable f volume a b := by
   rw [intervalIntegrable_iff]
-  refine Measure.integrableOn_of_bounded (M := 1) ?_ hf.aestronglyMeasurable ?_
-  · exact measure_Ioc_lt_top.ne |>.lt_top.ne
-  · filter_upwards with t
-    rw [Real.norm_eq_abs, abs_of_nonneg (h0 t)]
-    exact h1 t
+  refine Measure.integrableOn_of_bounded (M := 1) measure_Ioc_lt_top.ne hf.aestronglyMeasurable ?_
+  filter_upwards with t
+  rw [Real.norm_eq_abs, abs_of_nonneg (h0 t)]
+  exact h1 t
 
 private theorem intervalIntegrable_freeInd (γ₀ γ₁ k : ℝ) {a b : ℝ} :
     IntervalIntegrable (freeInd γ₀ γ₁ k) volume a b :=
@@ -369,11 +366,8 @@ theorem measurableSet_planarSet (γ₀ γ₁ h : ℝ) : MeasurableSet (planarSet
     ((measurableSet_lt (by fun_prop) measurable_const).inter
       (measurableSet_lt (by fun_prop) measurable_const))
 
-private theorem radial_nonneg {r : ℝ} (hr : 0 ≤ r) : 0 ≤ radial r := by
-  unfold radial
-  have := gaussianPDFReal_nonneg 0 1 r
-  have := gaussianPDFReal_nonneg 0 1 0
-  positivity
+private theorem radial_nonneg {r : ℝ} (hr : 0 ≤ r) : 0 ≤ radial r :=
+  mul_nonneg hr (mul_nonneg (gaussianPDFReal_nonneg 0 1 r) (gaussianPDFReal_nonneg 0 1 0))
 
 private theorem measurable_radial : Measurable radial :=
   measurable_id.mul ((measurable_gaussianPDFReal 0 1).mul measurable_const)
@@ -445,15 +439,14 @@ least the equilateral one. -/
 theorem planarProb_ge_eq {γ₀ γ₁ h : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ ≤ π) (h1 : 0 ≤ γ₁)
     (h1' : γ₁ ≤ π) : planarProb (2 * π / 3) (2 * π / 3) h ≤ planarProb γ₀ γ₁ h := by
   rw [planarProb_polar, planarProb_polar]
-  have hA : ∀ a b k, 0 ≤ angMeasure a b k ∧ angMeasure a b k ≤ 2 * π := by
-    intro a b k
+  have hA (a b k : ℝ) : 0 ≤ angMeasure a b k ∧ angMeasure a b k ≤ 2 * π := by
+    refine ⟨intervalIntegral.integral_nonneg (by linarith [Real.pi_pos])
+      fun t _ => freeInd_nonneg a b k t, ?_⟩
     have hle := intervalIntegral.integral_mono_on (by linarith [Real.pi_pos] : -π ≤ π)
-      (intervalIntegrable_freeInd a b k) intervalIntegrable_const
-      (fun t _ => freeInd_le_one a b k t)
-    have hge := intervalIntegral.integral_nonneg (μ := volume) (by linarith [Real.pi_pos] : -π ≤ π)
-      (fun t _ => freeInd_nonneg a b k t)
+      (intervalIntegrable_freeInd a b k) intervalIntegrable_const fun t _ => freeInd_le_one a b k t
     simp only [intervalIntegral.integral_const, smul_eq_mul, mul_one] at hle
-    exact ⟨hge, by unfold angMeasure; linarith⟩
+    rw [angMeasure]
+    linarith
   have hmeasA : ∀ a b, Measurable fun r => angMeasure a b (h / r) := by
     intro a b
     -- the parametric integral of a jointly measurable bounded function

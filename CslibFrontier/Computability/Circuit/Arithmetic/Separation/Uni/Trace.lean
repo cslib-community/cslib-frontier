@@ -52,9 +52,7 @@ theorem cols_ext {q : ℕ} {c c' : List (Fin (q + 1) → Bool)}
     (h : ∀ j, c.map (fun v => v j) = c'.map fun v => v j) : c = c' := by
   refine List.ext_getElem (by simpa using congrArg List.length (h 0)) fun i h1 h2 => ?_
   funext j
-  have h3 : (c.map fun v => v j)[i]'(by simpa using h1) =
-      (c'.map fun v => v j)[i]'(by simpa using h2) := by simp only [h j]
-  simpa using h3
+  simpa [h1, h2] using congrArg (·[i]?) (h j)
 
 /-- Column-major `L`-bit big-endian slices of a `q`-tuple of natural numbers (reduced modulo
 `2 ^ L` so every column has unconditional length `L`). -/
@@ -224,11 +222,9 @@ theorem MX.vals :
       binaryValue (true :: x.finalCounter) = 1 + x.steps.length := by
   have h1 := chain_val x.counter cn1 cn _ _ hx.cp fun r _ => bv_cn r
   rw [bv_i1, hx.length_eq] at h1
-  refine ⟨?_, h1.2⟩
-  rw [← h1.1]
   have h2 := congrArg (List.map binaryValue) hx.fr
   rw [List.map_map, List.map_map] at h2
-  exact h2.symm
+  exact ⟨h2.symm.trans h1.1, h1.2⟩
 
 theorem MX.size_eq : Nat.size (x.steps.length + 1) = x.init.length + 1 := by
   have h1 := hx.vals.2
@@ -342,15 +338,13 @@ theorem MX.unique [Fintype K] [DecidableEq K] {P : Mach A M K} {x x' : XP P}
   have e1 : x.init = x'.init := unit_list hL
   have e3 : x.steps = x'.steps :=
     List.ext_getElem hT fun i h1 h2 => by
-      have h3 : (x.steps.map nst)[i]'(by simpa using h1) =
-          (x'.steps.map nst)[i]'(by simpa using h2) := by simp only [e]
-      simp only [List.getElem_map] at h3
-      have h4 := congrArg Prod.fst h3
-      have h5 := congrArg Prod.snd h3
-      refine Prod.ext h4 ?_
+      have h3 : nst x.steps[i] = nst x'.steps[i] := by
+        simpa [h1, h2] using congrArg (·[i]?) e
+      dsimp only [nst] at h3
+      refine Prod.ext (Prod.mk.inj h3).1 ?_
       rw [← unb_bv (x.steps[i]).2, ← unb_bv (x'.steps[i]).2,
         hx.len _ (List.getElem_mem h1), hx'.len _ (List.getElem_mem h2), hL]
-      exact congrArg (unb _) h5
+      exact congrArg (unb _) (Prod.mk.inj h3).2
   have e2 : x.counter = x'.counter :=
     (List.map_injective_iff (f := cn)).2
       (fun ⟨u, k⟩ ⟨u', k'⟩ h =>
@@ -359,12 +353,12 @@ theorem MX.unique [Fintype K] [DecidableEq K] {P : Mach A M K} {x x' : XP P}
       (by rw [hx.fr, hx'.fr, e3])
   have e4r : x.finalRegs = x'.finalRegs := cols_ext fun i => by
     have h1 := hx.rg i
-    rw [e1, e3] at h1
-    simpa using List.append_cancel_left (h1.symm.trans (hx'.rg i))
+    rw [e1, e3, hx'.rg i] at h1
+    simpa using h1.symm
   have e4c : x.finalCounter = x'.finalCounter := by
     have h1 := hx.cp
-    rw [e1, e2] at h1
-    simpa using List.append_cancel_left (h1.symm.trans hx'.cp)
+    rw [e1, e2, hx'.cp] at h1
+    simpa using h1.symm
   have e6 : x.sort = x'.sort := by
     have h1 := hx.block ▸ hx.ls
     rw [e1, e3] at h1

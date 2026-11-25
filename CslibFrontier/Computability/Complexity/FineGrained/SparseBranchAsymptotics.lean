@@ -639,11 +639,7 @@ theorem CNF.parityRowBranchExamBound_of_schedule [Fintype V] [DecidableEq V]
           (rowBound (2 * β_B + 5) n') (tauRat n'))) :
     CNF.ParityRowBranchExamBound φ k β_B W b₀ rows e := by
   have hn'_le : n' ≤ Fintype.card V := by
-    have heq :
-        #(univ \ heavyVars univ (univ : Finset (Fin rows.length))
-            (fun j => equationScope (φ.parityRowSystem rows j)) b₀) = n' := by
-      simpa only [Fintype.card_coe, Fintype.card_fin] using Fintype.card_congr e
-    rw [← heq]
+    rw [← Fintype.card_fin n', ← Fintype.card_congr e, Fintype.card_coe]
     exact card_le_univ _
   refine ⟨⟨hn_le, hn'_le⟩, fun b => ?_, fun examSum hexam => ?_⟩
   · obtain ⟨hF, ⟨D⟩⟩ := hfeas b
@@ -747,12 +743,10 @@ theorem CNF.exists_greedy_parityRowSystem_branch_schedule_and_examBound_of_le_cl
   intro D₀ P b₀
   obtain ⟨A₀, hlen0, hw0, hgreedy⟩ :=
     hgreedy_sched φ hk ((le_max_left _ _).trans hN₁) hB1 hB_le hm
-  refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ => ?_⟩
-  obtain ⟨hcount, hstage⟩ := hgreedy A γ h0 hA hγ
-  refine ⟨hcount, fun i hi => ?_⟩
+  refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ =>
+    (hgreedy A γ h0 hA hγ).imp_right fun hstage i hi => ?_⟩
   obtain ⟨hlen_i, hstage_e⟩ := hstage i hi
-  refine ⟨hlen_i, ?_⟩
-  intro S n' e
+  refine ⟨hlen_i, fun ⦃_⦄ e => ?_⟩
   obtain ⟨⟨hn_le, _⟩, hbranches, hfeas⟩ := hstage_e e
   exact CNF.parityRowBranchExamBound_of_schedule e hlen_i
     ((le_max_right _ _).trans hN₁) hn_le hbranches hfeas

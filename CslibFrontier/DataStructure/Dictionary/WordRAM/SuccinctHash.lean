@@ -467,20 +467,9 @@ theorem bucketMapOfState_feistelBucket {U n_max : ℕ} (hnU : n_max ≤ U) (h1 :
       (keyQuotient (bucketBits n_max) u.val) = s_abs u := by
   unfold bucketMapOfState
   have hrec := feistelReconstruct_feistelBucket (bucketBits n_max) h1 u.val
-  have hb : feistelBucket (bucketBits n_max) h1 u.val < numBuckets n_max :=
-    feistelBucket_lt (bucketBits n_max) h1 u.val
-  have hq : keyQuotient (bucketBits n_max) u.val < 2 ^ quotientBits U n_max :=
-    keyQuotient_lt_two_pow_quotientBits hnU u.isLt
-  have hcond : feistelReconstruct (bucketBits n_max) h1
-      (feistelBucket (bucketBits n_max) h1 u.val)
-      (keyQuotient (bucketBits n_max) u.val) < U ∧
-      feistelBucket (bucketBits n_max) h1 u.val < numBuckets n_max ∧
-      keyQuotient (bucketBits n_max) u.val < 2 ^ quotientBits U n_max := by
-    rw [hrec]
-    exact ⟨u.isLt, hb, hq⟩
-  rw [dite_eq_left hcond]
-  congr 1
-  exact Fin.ext hrec
+  rw [dite_eq_left ⟨hrec.symm ▸ u.isLt, feistelBucket_lt (bucketBits n_max) h1 u.val,
+    keyQuotient_lt_two_pow_quotientBits hnU u.isLt⟩]
+  exact congrArg s_abs (Fin.ext hrec)
 
 theorem bucketMapOfState_update {U n_max : ℕ} (hnU : n_max ≤ U) (h1 : ℕ → ℕ)
     (s_abs : Dictionary.State U) (u : Fin U) (v_opt : Option ℕ) :
@@ -505,12 +494,10 @@ theorem bucketMapOfState_update {U n_max : ℕ} (hnU : n_max ≤ U) (h1 : ℕ �
       rw [Function.update_of_ne hne_u]
     · rfl
   funext b' q'
-  by_cases hbeq : b' = b
-  · subst hbeq
-    rw [Function.update_self]
-    by_cases hqeq : q' = q
-    · subst hqeq
-      rw [Function.update_self, bucketMapOfState_feistelBucket hnU h1 _ u, Function.update_self]
+  rcases eq_or_ne b' b with rfl | hbeq
+  · rw [Function.update_self]
+    rcases eq_or_ne q' q with rfl | hqeq
+    · rw [Function.update_self, bucketMapOfState_feistelBucket hnU h1 _ u, Function.update_self]
     · rw [Function.update_of_ne hqeq]
       exact hne_pair b q' (Or.inr hqeq)
   · rw [Function.update_of_ne hbeq]

@@ -106,9 +106,7 @@ theorem card_of_mem_negatedHeartUnits {H : Finset (Literal V)} {C : Finset (Lite
 private theorem card_negatedHeartUnits (H : Finset (Literal V)) :
     (negatedHeartUnits H).card = H.card := by
   refine card_image_of_injective H fun ⟨va, ba⟩ ⟨vb, bb⟩ hab => ?_
-  have hneg := singleton_inj.mp hab
-  simp only [Std.Sat.Literal.negate, Prod.mk.injEq] at hneg
-  exact Prod.ext hneg.1 (Bool.not_inj_iff.mp hneg.2)
+  simpa [Std.Sat.Literal.negate] using singleton_inj.mp hab
 
 private theorem potential_negatedHeartUnits (H : Finset (Literal V)) :
     potential (negatedHeartUnits H) = 2 * H.card := by
@@ -157,10 +155,8 @@ theorem card_le_of_mem_countingChild {ψ : ClauseSet V} {c k : ℕ} {H : Finset 
     rcases mem_union.mp (reduce_subset _ hC) with hC' | hCneg
     · rcases mem_union.mp hC' with hCψ | hCpet
       · exact hk C hCψ
-      · have := card_of_mem_petals hCpet
-        omega
-    · have := card_of_mem_negatedHeartUnits hCneg
-      omega
+      · rw [card_of_mem_petals hCpet]; omega
+    · rw [card_of_mem_negatedHeartUnits hCneg]; omega
 
 private theorem petal_unit_potential_bound {c h z : ℕ} (h1 : 1 ≤ h) (hlt : h < c) (hz : 2 ≤ z) :
     z * 2 ^ (c - h) + 2 * h < z * 2 ^ c := by
@@ -222,10 +218,7 @@ theorem potential_countingChild_lt_pow {M : ℕ} (hM : 2 ≤ M)
     {ψ : ClauseSet V} {c : ℕ} {H : Finset (Literal V)}
     (h : Heavy (M ^ ·) ψ c H) (b : Bool) :
     potential (countingChild ψ c H b) < potential ψ :=
-  potential_countingChild_lt
-    (fun _ hj => hM.trans
-      (by simpa only [pow_one] using Nat.pow_le_pow_right (by omega : 0 < M) hj))
-    h b
+  potential_countingChild_lt (fun _ hj => hM.trans (Nat.le_self_pow (by omega) M)) h b
 
 /-! ### Finite characterization of sparsity and unique choices -/
 
@@ -289,10 +282,8 @@ theorem countingLeaves_of_not_sparse {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j �
     countingLeaves θ ψ =
       countingLeaves θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 false) ++
         countingLeaves θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 true) := by
-  have hz : 2 ≤ (flower ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2).card :=
-    two_le_card_flower_of_heavy hθ (choice_chooseBranch h).1
   rw [countingLeaves]
-  exact ite_eq_left ⟨h, hz⟩
+  exact ite_eq_left ⟨h, two_le_card_flower_of_heavy hθ (choice_chooseBranch h).1⟩
 
 /-- Unfolding `countingLeaves` when the valid `Choice` at `ψ` is uniquely `(c, H)` and
 `flower ψ c H` has at least two clauses. -/
@@ -355,10 +346,7 @@ theorem sparse_of_mem_countingLeaves {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j �
 /-- **Leaf sparsity for geometric thresholds `θ j = M ^ j` (`2 ≤ M`).** -/
 theorem sparse_of_mem_countingLeaves_pow {M : ℕ} (hM : 2 ≤ M)
     {ψ L : ClauseSet V} (hL : L ∈ countingLeaves (M ^ ·) ψ) : Sparse (M ^ ·) L :=
-  sparse_of_mem_countingLeaves
-    (fun _ hj => hM.trans
-      (by simpa only [pow_one] using Nat.pow_le_pow_right (by omega : 0 < M) hj))
-    hL
+  sparse_of_mem_countingLeaves (fun _ hj => hM.trans (Nat.le_self_pow (by omega) M)) hL
 
 /-- **Invariant inheritance.** A property of clause sets that holds at the root `ψ` and passes from
 a node to both counting children at every branching step of `countingLeaves` (a valid `Choice` whose
@@ -485,13 +473,11 @@ theorem countP_eval_toCNF_countingLeaves_of_sat_iff (θ : ℕ → ℕ) {ψ : Cla
     {x : V → Bool} (h : ψ.Sat x ↔ φ.eval x = true) :
     ((countingLeaves θ ψ).map ClauseSet.toCNF).countP (fun F => F.eval x) =
       if φ.eval x then 1 else 0 := by
-  rw [List.countP_map]
-  have hcongr : (Function.comp (fun F : CNF V => F.eval x) ClauseSet.toCNF) =
-      fun L : ClauseSet V => decide (L.Sat x) := by
-    funext L
-    exact Bool.eq_iff_iff.mpr
+  have hcongr : Function.comp (fun F : CNF V => F.eval x) ClauseSet.toCNF =
+      fun L : ClauseSet V => decide (L.Sat x) :=
+    funext fun L => Bool.eq_iff_iff.mpr
       ((ClauseSet.eval_toCNF_eq_true_iff L x).trans decide_eq_true_iff.symm)
-  rw [hcongr, countP_sat_countingLeaves]
+  rw [List.countP_map, hcongr, countP_sat_countingLeaves]
   exact if_congr h rfl rfl
 
 /-- **CNF assignment partition.** Evaluating `L.toCNF` across `countingLeaves θ φ.toClauseSet`

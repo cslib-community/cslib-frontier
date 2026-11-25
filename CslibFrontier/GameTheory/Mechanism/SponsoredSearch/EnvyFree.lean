@@ -111,11 +111,8 @@ theorem slotAlloc_of_not_mem_range [DecidableEq ι] (μ : Fin k → ℝ) (σ : F
     simp only [hne, ↓reduceIte]
 
 private theorem slotAlloc_nonneg [DecidableEq ι] {μ : Fin k → ℝ} (hμ : ∀ i, 0 ≤ μ i)
-    (σ : Fin k ↪ ι) (j : ι) : 0 ≤ slotAlloc μ σ j := by
-  refine Finset.sum_nonneg fun i _ => ?_
-  split_ifs
-  · exact hμ i
-  · exact le_rfl
+    (σ : Fin k ↪ ι) (j : ι) : 0 ≤ slotAlloc μ σ j :=
+  Finset.sum_nonneg fun i _ => by split_ifs <;> simp [hμ i]
 
 /-- Total social welfare `∑ i, μ i * v (σ i)` of assignment `σ : Fin k ↪ ι` under CTRs `μ` and
 per-click values `v` ([LahaiePennockSaberiVohra2007], §28.3.1, (28.1), p. 703). -/
@@ -163,10 +160,6 @@ private theorem exists_perm_comp_eq [Finite ι] (σ τ : Fin k ↪ ι) :
   classical
   let s : Finset ι := Finset.univ.map σ
   let t : Finset ι := Finset.univ.map τ
-  have hsc : Fintype.card {x : ι // x ∈ s} = k := by
-    rw [Fintype.card_coe, Finset.card_map, Finset.card_fin]
-  have htc : Fintype.card {y : ι // y ∈ t} = k := by
-    rw [Fintype.card_coe, Finset.card_map, Finset.card_fin]
   let eσ : Fin k ≃ {x : ι // x ∈ s} :=
     Equiv.ofBijective (fun i => ⟨σ i, Finset.mem_map.mpr ⟨i, Finset.mem_univ _, rfl⟩⟩)
       ⟨fun _ _ h => σ.injective (congrArg Subtype.val h), fun ⟨_, hx⟩ => by
@@ -177,17 +170,15 @@ private theorem exists_perm_comp_eq [Finite ι] (σ τ : Fin k ↪ ι) :
         obtain ⟨i, -, rfl⟩ := Finset.mem_map.mp hy; exact ⟨i, rfl⟩⟩
   let eIn : {x : ι // x ∈ s} ≃ {y : ι // y ∈ t} := eσ.symm.trans eτ
   have hcompl : Fintype.card {x : ι // ¬x ∈ s} = Fintype.card {y : ι // ¬y ∈ t} := by
-    rw [Fintype.card_subtype_compl, Fintype.card_subtype_compl, hsc, htc]
+    simp only [Fintype.card_subtype_compl, Fintype.card_coe, s, t, Finset.card_map, Finset.card_fin]
   let eOut : {x : ι // ¬x ∈ s} ≃ {y : ι // ¬y ∈ t} := Fintype.equivOfCardEq hcompl
   let π : Equiv.Perm ι :=
     (Equiv.sumCompl (· ∈ s)).symm.trans ((eIn.sumCongr eOut).trans (Equiv.sumCompl (· ∈ t)))
   refine ⟨π, fun i => ?_⟩
-  have hmem : σ i ∈ s := Finset.mem_map.mpr ⟨i, Finset.mem_univ _, rfl⟩
-  have hL : (Equiv.sumCompl (· ∈ s)).symm (σ i) = Sum.inl (eσ i) := by
-    rw [Equiv.symm_apply_eq]; rfl
+  have hL : (Equiv.sumCompl (· ∈ s)).symm (σ i) = Sum.inl (eσ i) :=
+    (Equiv.symm_apply_eq _).mpr rfl
   change Equiv.sumCompl (· ∈ t) ((eIn.sumCongr eOut) ((Equiv.sumCompl (· ∈ s)).symm (σ i))) = τ i
-  rw [hL]
-  simp only [Equiv.sumCongr_apply, Sum.map_inl, eIn, Equiv.trans_apply, Equiv.symm_apply_apply]
+  simp only [hL, Equiv.sumCongr_apply, Sum.map_inl, eIn, Equiv.trans_apply, Equiv.symm_apply_apply]
   rfl
 
 /-- **Northwest corner rule** ([LahaiePennockSaberiVohra2007], §28.3.1, p. 704): every assortative
@@ -283,14 +274,9 @@ theorem exists_isOptimal [Fintype ι] (μ : Fin k → ℝ) (v : ι → ℝ) (hk 
 theorem exists_isAssortative [Fintype ι] (v : ι → ℝ) (hk : k ≤ Fintype.card ι) :
     ∃ σ : Fin k ↪ ι, IsAssortative v σ := by
   let μ₀ : Fin k → ℝ := fun i => (k : ℝ) - (i.val : ℝ)
-  have hμ₀ : StrictAnti μ₀ := fun a b hab => by
-    have : (a.val : ℝ) < (b.val : ℝ) := Nat.cast_lt.mpr hab
-    simp only [μ₀]; linarith
-  have hμ₀_pos : ∀ i : Fin k, 0 < μ₀ i := fun i => by
-    have : (i.val : ℝ) < (k : ℝ) := Nat.cast_lt.mpr i.isLt
-    simp only [μ₀]; linarith
-  obtain ⟨σ, hσ⟩ := exists_isOptimal μ₀ v hk
-  exact ⟨σ, hσ.isAssortative hμ₀ hμ₀_pos⟩
+  have hμ₀ : StrictAnti μ₀ := fun _ _ hab => sub_lt_sub_left (Nat.cast_lt.mpr hab) _
+  have hμ₀_pos : ∀ i : Fin k, 0 < μ₀ i := fun i => sub_pos.mpr (Nat.cast_lt.mpr i.isLt)
+  exact (exists_isOptimal μ₀ v hk).imp fun _ hσ => hσ.isAssortative hμ₀ hμ₀_pos
 
 /-- An assignment `σ : Fin k ↪ ι` with slot prices `p : Fin k → ℝ` (expected payments per
 impression) is **locally envy-free** with respect to CTRs `μ` and per-click values `v`
@@ -368,14 +354,9 @@ theorem IsLocallyEnvyFree.noEnvy {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin
           (hμ (show (⟨i.val + n, by omega⟩ : Fin k) < ⟨i.val + n + 1, hd⟩ by
             simp [Fin.lt_def])).le
         have hih := ih (by omega)
-        have hcur : μ ⟨i.val + n + 1, hd⟩ * v (σ i) - p ⟨i.val + n + 1, hd⟩ ≤
-            μ ⟨i.val + n, by omega⟩ * v (σ i) - p ⟨i.val + n, by omega⟩ := by
-          nlinarith
-        exact hcur.trans hih
-    have heq : (⟨i.val + (r.val - i.val), by omega⟩ : Fin k) = r := by
-      apply Fin.ext; dsimp; omega
-    have hfin := hstep (r.val - i.val) (by omega)
-    simpa only [heq] using hfin
+        change μ ⟨i.val + n + 1, hd⟩ * v (σ i) - p ⟨i.val + n + 1, hd⟩ ≤ _
+        nlinarith
+    simpa [Fin.ext_iff, Nat.add_sub_of_le hir] using hstep (r.val - i.val) (by omega)
   · have hstep : ∀ d (hd : d ≤ i.val),
         μ ⟨i.val - d, by omega⟩ * v (σ i) - p ⟨i.val - d, by omega⟩ ≤ μ i * v (σ i) - p i := by
       intro d
@@ -394,10 +375,7 @@ theorem IsLocallyEnvyFree.noEnvy {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin
             change i.val - (n + 1) < i.val - n; omega)).le
         have hih := ih (by omega)
         nlinarith
-    have heq : (⟨i.val - (i.val - r.val), by omega⟩ : Fin k) = r := by
-      apply Fin.ext; dsimp; omega
-    have hfin := hstep (i.val - r.val) (by omega)
-    simpa only [heq] using hfin
+    simpa [Fin.ext_iff, Nat.sub_sub_self hri] using hstep (i.val - r.val) (by omega)
 
 /-- Under strictly decreasing positive CTRs, every assigned bidder gets nonnegative utility under a
 locally envy-free price vector (individual rationality). -/

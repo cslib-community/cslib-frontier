@@ -143,12 +143,9 @@ Section 20.3, p. 554). -/
 private theorem singleton_contains_of_bounds_eq {t : Tree d} (ht : t.Valid) {m : ℕ}
     (hb : t.bounds = some (m, m)) (y : ℕ) : t.Contains y ↔ y = m := by
   have he := ht.extrema_of_bounds hb
-  constructor
-  · intro hy
-    have := he.2.2.2.2 y hy
-    omega
-  · rintro rfl
-    exact he.2.2.1
+  refine ⟨fun hy => ?_, fun h => h ▸ he.2.2.1⟩
+  have := he.2.2.2.2 y hy
+  omega
 
 /-- Clearing the local header of a valid singleton node yields a valid empty node in `O(1)` because
 minimum exclusion already forces its summary and clusters to be empty. -/
@@ -246,10 +243,8 @@ private theorem cluster_key_eq_iff {d : ℕ} {c : Fin (universeSize d) → Tree 
     k.val * universeSize d + a = x ↔
       k.val = x / universeSize d ∧ a = x % universeSize d := by
   have hcoord := cluster_coordinates (i := k.val) (universeSize_pos d) ((hc k).contains_lt ha)
-  constructor
-  · rintro rfl; exact ⟨hcoord.1.symm, hcoord.2.symm⟩
-  · rintro ⟨hk, ha'⟩
-    rw [hk, ha', Nat.div_add_mod']
+  exact ⟨fun h => h ▸ ⟨hcoord.1.symm, hcoord.2.symm⟩,
+    fun ⟨hk, ha'⟩ => by rw [hk, ha', Nat.div_add_mod']⟩
 
 private theorem contains_node_erase {d m M newMin x low : ℕ}
     {i : Fin (universeSize d)} {s s' : Tree d}
@@ -490,13 +485,12 @@ private theorem clusterMax_eq_of_valid {m M : ℕ} {s : Tree d}
     clusterMax m s c = M := by
   have he := ht.extrema_of_bounds rfl
   have ⟨_, hs, hc, ho, hmin⟩ := ht
-  have hv' := valid_node_of_clusterMax (ht.contains_lt he.2.2.1) hs hc ho hmin
-  have he' := hv'.extrema_of_bounds rfl
-  have hsame : ∀ z, (node (some (m, clusterMax m s c)) s c).Contains z ↔
-      (node (some (m, M)) s c).Contains z := fun z => by simp [contains_node_some]
-  have h1 : clusterMax m s c ≤ M := (he.2.2.2.2 _ ((hsame _).mp he'.2.2.2.1)).2
-  have h2 : M ≤ clusterMax m s c := (he'.2.2.2.2 _ ((hsame _).mpr he.2.2.2.1)).2
-  exact Nat.le_antisymm h1 h2
+  have he' := (valid_node_of_clusterMax (ht.contains_lt he.2.2.1) hs hc ho hmin).extrema_of_bounds
+    rfl
+  have hsame (z : ℕ) : (node (some (m, clusterMax m s c)) s c).Contains z ↔
+      (node (some (m, M)) s c).Contains z := by simp [contains_node_some]
+  exact Nat.le_antisymm (he.2.2.2.2 _ ((hsame _).mp he'.2.2.2.1)).2
+    (he'.2.2.2.2 _ ((hsame _).mpr he.2.2.2.1)).2
 
 /-- Deleting a key not represented by a valid tree returns the exact tree `t`. -/
 theorem erase_eq_of_not_contains {t : Tree d} (ht : t.Valid) {x : ℕ}
@@ -505,11 +499,9 @@ theorem erase_eq_of_not_contains {t : Tree d} (ht : t.Valid) {x : ℕ}
   | zero =>
     cases t with
     | leaf b =>
-      cases b with
-      | none => rfl
-      | some b =>
-        obtain ⟨m, M⟩ := b
-        simp only [contains_leaf_some, not_or] at hx
+      rcases b with _ | ⟨m, M⟩
+      · rfl
+      · simp only [contains_leaf_some, not_or] at hx
         simp [erase, hx.1, hx.2]
   | succ d ih =>
     cases t with
@@ -538,9 +530,7 @@ theorem erase_eq_of_not_contains {t : Tree d} (ht : t.Valid) {x : ℕ}
               have hne : x % universeSize d ≠ cm := fun h =>
                 hnot_low (h ▸ (ht.2.2.1 i).contains_minimum hbi)
               rw [ite_eq_left rfl, ite_eq_right hne]
-            · rw [ite_eq_right hcm]
-              have hc_eq : Function.update c i (erase (c i) (x % universeSize d)) = c := by
-                rw [ih (ht.2.2.1 i) hnot_low, Function.update_eq_self]
-              rw [hc_eq, clusterMax_eq_of_valid ht]
+            · rw [ite_eq_right hcm, ih (ht.2.2.1 i) hnot_low, Function.update_eq_self,
+                clusterMax_eq_of_valid ht]
 
 end Cslib.DataStructure.VanEmdeBoas.Tree

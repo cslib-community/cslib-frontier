@@ -132,15 +132,9 @@ theorem IsInCore.individuallyRational {E : ExchangeMarket I G} {x : I → G → 
     E.utility i (E.endowment i) ≤ E.utility i (x i) := by
   by_contra hlt
   push Not at hlt
-  refine hcore.2 {i} E.endowment ⟨singleton_nonempty i, ?_, ?_, ?_, ⟨i, mem_singleton_self i, hlt⟩⟩
-  · intro j hj g
-    rw [mem_singleton.1 hj]
-    exact E.endowment_nonneg i g
-  · intro g
-    simp
-  · intro j hj
-    rw [mem_singleton.1 hj]
-    exact hlt.le
+  exact hcore.2 {i} E.endowment ⟨singleton_nonempty i,
+    fun j hj g => mem_singleton.1 hj ▸ E.endowment_nonneg i g, fun _ => le_rfl,
+    fun j hj => mem_singleton.1 hj ▸ hlt.le, ⟨i, mem_singleton_self i, hlt⟩⟩
 
 /-- **Competitive equilibria belong to the core** ([DebreuScarf1963]): in any locally nonsatiated
 exchange economy (with no convexity hypothesis), no coalition can block a competitive equilibrium
@@ -350,12 +344,10 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
     rintro z₁ ⟨S₁, α₁, b₁, hS₁, hα₁_pos, hα₁_sum, hb₁_nn, hb₁_gt, hz₁⟩
       z₂ ⟨S₂, α₂, b₂, hS₂, hα₂_pos, hα₂_sum, hb₂_nn, hb₂_gt, hz₂⟩ t₁ t₂ ht₁ ht₂ ht
     rcases eq_or_lt_of_le ht₁ with rfl | ht₁_pos
-    · have ht₂1 : t₂ = 1 := by linarith
-      subst ht₂1
+    · obtain rfl : t₂ = 1 := by linarith
       simpa using ⟨S₂, α₂, b₂, hS₂, hα₂_pos, hα₂_sum, hb₂_nn, hb₂_gt, hz₂⟩
     rcases eq_or_lt_of_le ht₂ with rfl | ht₂_pos
-    · have ht₁1 : t₁ = 1 := by linarith
-      subst ht₁1
+    · obtain rfl : t₁ = 1 := by linarith
       simpa using ⟨S₁, α₁, b₁, hS₁, hα₁_pos, hα₁_sum, hb₁_nn, hb₁_gt, hz₁⟩
     · let S : Finset I := S₁ ∪ S₂
       let w₁ : I → ℝ := fun i => if i ∈ S₁ then t₁ * α₁ i else 0
@@ -397,31 +389,20 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
             have hc₁_nn : 0 ≤ w₁ i / α i := div_nonneg (hw₁_nn i) hαi.le
             have hc₂_nn : 0 ≤ w₂ i / α i := div_nonneg (hw₂_nn i) hαi.le
             have hc_sum : w₁ i / α i + w₂ i / α i = 1 := by
-              rw [← add_div]
-              exact div_self hαi.ne'
+              rw [← add_div, div_self hαi.ne']
             have hcomb := hconv i (hx_feas.1 i) ⟨hb₁_nn i hi₁, hb₁_gt i hi₁⟩
               ⟨hb₂_nn i hi₂, hb₂_gt i hi₂⟩ hc₁_nn hc₂_nn hc_sum
-            have hbi_eq : b i = (w₁ i / α i) • b₁ i + (w₂ i / α i) • b₂ i := by simp [b, hi₁, hi₂]
-            refine ⟨by rw [hbi_eq]; exact hcomb.1, by rw [hbi_eq]; exact hcomb.2, fun g => ?_⟩
-            rw [hbi_eq]
+            simp only [b, hi₁, hi₂, ↓reduceIte]
+            refine ⟨hcomb.1, hcomb.2, fun g => ?_⟩
             simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-            have hα_def : α i = w₁ i + w₂ i := rfl
             field_simp [hαi.ne']
-            rw [hα_def]
+            dsimp only [α]
             ring
-          · have hbi_eq : b i = b₁ i := by simp [b, hi₁, hi₂]
-            have hw₂0 : w₂ i = 0 := by simp [w₂, hi₂]
-            refine ⟨by rw [hbi_eq]; exact hb₁_nn i hi₁, by rw [hbi_eq]; exact hb₁_gt i hi₁,
-              fun g => ?_⟩
-            rw [hbi_eq]
-            simp only [α, hw₂0, add_zero, zero_mul]
+          · simp only [b, w₂, α, hi₁, hi₂, ↓reduceIte, add_zero, zero_mul]
+            exact ⟨hb₁_nn i hi₁, hb₁_gt i hi₁, fun _ => trivial⟩
         · have hi₂ : i ∈ S₂ := (mem_union.1 hi).resolve_left hi₁
-          have hbi_eq : b i = b₂ i := by simp [b, hi₁]
-          have hw₁0 : w₁ i = 0 := by simp [w₁, hi₁]
-          refine ⟨by rw [hbi_eq]; exact hb₂_nn i hi₂, by rw [hbi_eq]; exact hb₂_gt i hi₂,
-            fun g => ?_⟩
-          rw [hbi_eq]
-          simp only [α, hw₁0, zero_add, zero_mul]
+          simp only [b, w₁, α, hi₁, ↓reduceIte, zero_add, zero_mul]
+          exact ⟨hb₂_nn i hi₂, hb₂_gt i hi₂, fun _ => trivial⟩
       refine ⟨S, α, b, hS₁.mono subset_union_left, hα_pos, hα_sum,
         fun i hi => (hb_props i hi).1, fun i hi => (hb_props i hi).2.1, fun g => ?_⟩
       have hsum_eq : ∑ i ∈ S, α i * (b i g - E.endowment i g) =
@@ -495,12 +476,9 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
     have hmem_C : ∀ {ic : I × Fin r}, ic ∈ C ↔ ic.1 ∈ S ∧ ic.2.val < k ic.1 := by
       intro ⟨i, c⟩
       simp only [C, mem_biUnion, slice, mem_map, mem_filter, mem_univ, true_and]
-      constructor
-      · rintro ⟨j, hjS, c', hc', heq⟩
-        obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
-        exact ⟨hjS, hc'⟩
-      · rintro ⟨hiS, hc⟩
-        exact ⟨i, hiS, c, hc, rfl⟩
+      exact ⟨fun ⟨_, hjS, _, hc', h⟩ =>
+          ⟨(Prod.mk.inj h).1 ▸ hjS, (Prod.mk.inj h).1 ▸ (Prod.mk.inj h).2 ▸ hc'⟩,
+        fun ⟨hiS, hc⟩ => ⟨i, hiS, c, hc, rfl⟩⟩
     have hc₀_lt : 0 < r := hr_pos
     have hic₀_mem : (i₀, (⟨0, hc₀_lt⟩ : Fin r)) ∈ C :=
       hmem_C.2 ⟨hi₀S, hk_pos i₀ hi₀S⟩

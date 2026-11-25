@@ -365,16 +365,14 @@ theorem succProbability_collisionGame_le_prefixFreeCollisionReduction
       ((2 : ℝ≥0) ^ outLen n)⁻¹ := by
   let I : Game := ProbComp.eval (prfIdealGameOn oracleValid outLen
     (prefixFreeCollisionReduction width outLen valid guessPair) n)
-  have hIdeal : I.succProbability ≤ ((2 : ℝ≥0) ^ outLen n)⁻¹ := by
-    apply ENNReal.coe_le_coe.mp
+  have hIdeal : I.succProbability ≤ ((2 : ℝ≥0) ^ outLen n)⁻¹ := ENNReal.coe_le_coe.mp <| by
     rw [Game.coe_succProbability_ennreal, ENNReal.coe_inv (pow_ne_zero _ two_ne_zero),
       ENNReal.coe_pow, ENNReal.coe_ofNat]
     exact eval_prfIdealGameOn_prefixFreeCollisionReduction_le guessPair n hDomain
   refine (succProbability_collisionGame_le_real_prefixFreeCollisionReduction
     (outLen := outLen) family guessPair n hDomain hExtend).trans
     ((Game.succProbability_le_add_of_advantage_le (g₁ := I) le_rfl).trans ?_)
-  rw [add_comm I.succProbability]
-  exact add_le_add le_rfl hIdeal
+  simpa only [add_comm I.succProbability] using add_le_add_right hIdeal _
 
 /-- Boneh–Shoup v0.6, Theorem 7.3 (printed pp. 258–259), in the word model. An extendable
 prefix-free PRF with negligible reciprocal reply-space size is a computational UHF on the
@@ -650,11 +648,8 @@ theorem succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
     have hwidth := PRF.length_freshBatchWordBlock_of_eq_some hblock
     have hqueries : prefixFreeBatchQueries (width n) (Q n) (valid n) guesses =
         messages.map (fun word => word ++ block) := by
-      simp only [prefixFreeBatchQueries, List.take_of_length_le (hBudget guesses hguesses)]
-      change (if (PRF.freshBatchWordBlock (width n) messages).isSome then
-        messages.map (fun word => word ++ (PRF.freshBatchWordBlock (width n) messages).getD [])
-        else []) = _
-      simp [hblock]
+      simp [prefixFreeBatchQueries, List.take_of_length_le (hBudget guesses hguesses),
+        messages, hblock]
     obtain ⟨u, hu, v, hv, hne, hvalidU, hvalidV, htag⟩ := hWin
     have hmem (word : List Bool) (hm : word ∈ guesses) (hw : valid n word = true) :
         word ++ block ∈ messages.map (fun w => w ++ block) :=
@@ -819,17 +814,16 @@ theorem succProbability_multiQueryGame_le_prefixFreeBatchReduction
       (Q n).choose 2 / (2 : ℝ≥0) ^ outLen n := by
   let ideal : Game := ProbComp.eval (prfIdealGameOn oracleValid outLen
     (prefixFreeBatchReduction width outLen Q valid guessBatch) n)
-  have hIdeal : ideal.succProbability ≤ (Q n).choose 2 / (2 : ℝ≥0) ^ outLen n := by
-    apply ENNReal.coe_le_coe.mp
-    rw [Game.coe_succProbability_ennreal, ENNReal.coe_div (pow_ne_zero _ two_ne_zero),
-      ENNReal.coe_natCast, ENNReal.coe_pow, ENNReal.coe_ofNat]
-    exact eval_prfIdealGameOn_prefixFreeBatchReduction_le guessBatch n hDomain
+  have hIdeal : ideal.succProbability ≤ (Q n).choose 2 / (2 : ℝ≥0) ^ outLen n :=
+    ENNReal.coe_le_coe.mp <| by
+      rw [Game.coe_succProbability_ennreal, ENNReal.coe_div (pow_ne_zero _ two_ne_zero),
+        ENNReal.coe_natCast, ENNReal.coe_pow, ENNReal.coe_ofNat]
+      exact eval_prfIdealGameOn_prefixFreeBatchReduction_le guessBatch n hDomain
   refine (succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
     (outLen := outLen) family guessBatch n maxBlocks hBudget hBlocks hAlphabet
       hDomain hExtend).trans
     ((Game.succProbability_le_add_of_advantage_le (g₁ := ideal) le_rfl).trans ?_)
-  rw [add_comm ideal.succProbability]
-  exact add_le_add le_rfl hIdeal
+  simpa only [add_comm ideal.succProbability] using add_le_add_right hIdeal _
 
 /-- A strict PPT batch guesser on the duplicated unary parameter has a unary polynomial-time
 cap on the length of every supported list of guesses. -/

@@ -125,12 +125,10 @@ private theorem inv_hdrN {i : ℕ} (hi : i ≤ I.n) :
     Inv I (step { init with cnt := i } (machine.readBit I.encode { init with cnt := i })).1 := by
   have hn := I.n_pos
   rw [readBit_hdrN hi]
-  by_cases hlt : i < I.n
+  rcases hi.lt_or_eq with hlt | rfl
   · simp only [step, init, hlt, decide_true, ite_true]
     exact ⟨by constructor <;> bound_tac, rfl⟩
-  · have hi' : i = I.n := by omega
-    subst hi'
-    simp only [step, init, lt_irrefl, decide_false, Bool.false_eq_true, ite_false]
+  · simp only [step, init, lt_irrefl, decide_false, Bool.false_eq_true, ite_false]
     exact ⟨by constructor <;> bound_tac, rfl, Nat.zero_le _⟩
 
 private theorem inv_hdrS {i : ℕ} (hi : i ≤ I.s) :
@@ -139,12 +137,10 @@ private theorem inv_hdrS {i : ℕ} (hi : i ≤ I.s) :
   have hn := I.n_pos
   have hs := I.s.isLt
   rw [readBit_of_addr (A := I.n + 1 + i) rfl, USTCONInstance.getD_encode_s _ hi]
-  by_cases hlt : i < I.s
+  rcases hi.lt_or_eq with hlt | rfl
   · simp only [step, init, hlt, decide_true, ite_true]
     exact ⟨by constructor <;> bound_tac, rfl, hlt⟩
-  · have hi' : i = I.s := by omega
-    subst hi'
-    simp only [step, init, lt_irrefl, decide_false, Bool.false_eq_true, ite_false]
+  · simp only [step, init, lt_irrefl, decide_false, Bool.false_eq_true, ite_false]
     exact ⟨by constructor <;> bound_tac, rfl, Nat.zero_le _⟩
 
 private theorem inv_hdrT {i : ℕ} (hi : i ≤ I.t) :
@@ -154,12 +150,10 @@ private theorem inv_hdrT {i : ℕ} (hi : i ≤ I.t) :
   have hs := I.s.isLt
   have ht := I.t.isLt
   rw [readBit_of_addr (A := I.n + 1 + I.s + 1 + i) rfl, USTCONInstance.getD_encode_t _ hi]
-  by_cases hlt : i < I.t
+  rcases hi.lt_or_eq with hlt | rfl
   · simp only [step, init, hlt, decide_true, ite_true]
     exact ⟨by constructor <;> bound_tac, rfl, hlt⟩
-  · have hi' : i = I.t := by omega
-    subst hi'
-    simp only [step, init, lt_irrefl, decide_false, Bool.false_eq_true, ite_false]
+  · simp only [step, init, lt_irrefl, decide_false, Bool.false_eq_true, ite_false]
     refine ⟨⟨le_rfl, le_rfl, by bound_tac, by bound_tac, ?_, ?_, by bound_tac, by bound_tac,
       by bound_tac, by bound_tac, by bound_tac, by bound_tac, by bound_tac⟩, rfl, ?_, ?_⟩
     · simp only [depthOf, depth]; omega
@@ -347,8 +341,8 @@ private theorem length_encState_le_of_bounds {q : State} (hb : Bounds I q) :
   set a := Nat.size I.n
   have hD : depthOf I = 16 * a + 524 := rfl
   have hT : lenOf I = 4168 * a + 136240 := by simp only [lenOf, walkLength, depth]; ring
-  have hle {x : ℕ} (hx : x ≤ I.n) : (encNat x).length ≤ a := by
-    rw [length_encNat_eq_size]; exact Nat.size_le_size hx
+  have hle {x : ℕ} (hx : x ≤ I.n) : (encNat x).length ≤ a :=
+    length_encNat_eq_size x ▸ Nat.size_le_size hx
   have h₁ := hle hb.cnt
   have h₂ := hle hb.n
   have h₃ := hle hb.s
@@ -375,8 +369,7 @@ private theorem length_encState_le_of_bounds {q : State} (hb : Bounds I q) :
   rw [card_frame] at h₁₄
   refine (length_encState_le q).trans ?_
   rw [stateConst, mul_assoc]
-  apply Nat.mul_le_mul_left
-  omega
+  exact Nat.mul_le_mul_left _ (by omega)
 
 /-- **The states along the run have logarithmically many bits.** -/
 theorem length_encState_run_le (k : ℕ) :

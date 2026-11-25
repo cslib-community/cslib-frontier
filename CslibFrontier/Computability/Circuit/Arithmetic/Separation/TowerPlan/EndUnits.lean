@@ -300,10 +300,7 @@ private theorem exists_mem_givenUnits {u : PlanUnit R FL Pl U0 U1}
       cases u with
       | init a c k => exact occurs_of_initialTarget_eq_relay hτ L
       | new ν k =>
-        revert hτ
-        simp only [unitTarget]
-        generalize moveChannelEquiv R FL Pl ν = w
-        rcases w with ⟨⟨x, hx⟩ | l, d⟩ <;> intro hτ
+        rcases hw : moveChannelEquiv R FL Pl ν with ⟨⟨x, hx⟩ | l, d⟩ <;> rw [unitTarget, hw] at hτ
         · exact Relay.occurs_of_target_eq_relay hx hτ L
         · cases hτ
     exact relay hy₁ hy₂ (hτ.trans hy₃.symm)
@@ -314,10 +311,7 @@ private theorem exists_mem_givenUnits {u : PlanUnit R FL Pl U0 U1}
         split_ifs at hτ
         simp at hτ
       | new ν k =>
-        revert hτ
-        simp only [unitTarget]
-        generalize moveChannelEquiv R FL Pl ν = w
-        rcases w with ⟨⟨x, hx⟩ | l, d⟩ <;> intro hτ
+        rcases hw : moveChannelEquiv R FL Pl ν with ⟨⟨x, hx⟩ | l, d⟩ <;> rw [unitTarget, hw] at hτ
         · obtain ⟨-, e, rfl, ⟨rfl, -, rfl⟩ | ⟨rfl, -, rfl⟩⟩ := Relay.of_target_eq_segment hτ
           exacts [not_isDiag_segment j.2 (hx.1 rfl), not_isDiag_segment j.2 (hx.2 rfl).symm]
         · cases hτ
@@ -464,10 +458,7 @@ theorem towerPlan_good_of_possible {ub : ℕ} (hub : 0 < ub) {x : Fin (Fintype.c
     (towerPlan R FL Pl lhat U0 U1).Good n o x := by
   obtain ⟨ι, hι⟩ := hp
   refine goodOutcome_of_length hub ι fun ν => ?_
-  change (o ((moveChannelEquiv R FL Pl).symm ⟨moveOrder R ch FL x, ν⟩) : ℕ) = _
-  rw [show (moveChannelEquiv R FL Pl).symm ⟨moveOrder R ch FL x, ν⟩ = ⟨x, ν⟩ from
-    (Equiv.symm_apply_eq _).2 rfl]
-  exact hι ν
+  exact (congrArg (fun c => (o c : ℕ)) ((Equiv.symm_apply_eq _).2 rfl)).trans (hι ν)
 
 /-- For a good outcome, all units of a channel but the last are alive. -/
 theorem alive_eq_of_goodOutcome {n : Fin A → Fin A → ℕ} {o : MoveChannel R ch FL → ℕ}

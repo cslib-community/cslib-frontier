@@ -167,16 +167,9 @@ private theorem adj_out_in_iff {G : Graph} {u v : ℕ} (hu : u ∈ G.vertices) (
   rw [adj_split_iff, mem_split_snd_iff, mem_split_snd_iff]
   simp only [splitVertex_eq_splitVertex_iff]
   constructor
-  · rintro ⟨-, (⟨w, -, h | h⟩ | ⟨e, he, h₁, h₂⟩) | (⟨w, -, h | h⟩ | ⟨e, -, h₁, h₂⟩)⟩
-    · omega
-    · omega
-    · obtain ⟨a, b⟩ := e
-      obtain rfl := eq_of_idxOf_eq hu h₁.1.symm
-      obtain rfl := eq_of_idxOf_eq hv h₂.1.symm
-      exact he
-    · omega
-    · omega
-    · omega
+  · rintro ⟨-, (⟨w, -, h | h⟩ | ⟨⟨a, b⟩, he, h₁, h₂⟩) | (⟨w, -, h | h⟩ | ⟨e, -, h₁, h₂⟩)⟩ <;>
+      try omega
+    exact eq_of_idxOf_eq hu h₁.1.symm ▸ eq_of_idxOf_eq hv h₂.1.symm ▸ he
   · intro h
     refine ⟨by simp [splitVertex_eq_splitVertex_iff], Or.inl (Or.inr ⟨(u, v), h, ?_, ?_⟩)⟩ <;>
       exact ⟨rfl, trivial⟩
@@ -188,13 +181,9 @@ private theorem eq_of_adj_mid {G : Graph} {v x : ℕ}
   rw [adj_split_iff, mem_split_snd_iff, mem_split_snd_iff] at h
   rcases h with ⟨-, (⟨w, -, ⟨h₁, rfl⟩ | ⟨h₁, rfl⟩⟩ | ⟨e, -, h₁, rfl⟩) |
     (⟨w, -, ⟨rfl, h₁⟩ | ⟨rfl, h₁⟩⟩ | ⟨e, -, rfl, h₁⟩)⟩ <;>
-    simp only [splitVertex_eq_splitVertex_iff] at h₁ ⊢
-  · omega
+    simp only [splitVertex_eq_splitVertex_iff] at h₁ ⊢ <;> try omega
   · exact Or.inr ⟨h₁.1.symm, trivial⟩
-  · omega
   · exact Or.inl ⟨h₁.1.symm, trivial⟩
-  · omega
-  · omega
 
 /-- An exit vertex of a declared vertex is adjacent only to its middle vertex and to entries of
 its out-neighbours. -/
@@ -202,17 +191,11 @@ private theorem eq_of_adj_out {G : Graph} {v x : ℕ} (hv : v ∈ G.vertices)
     (h : G.split.toSimpleGraph.Adj (G.splitVertex v 2) x) :
     x = G.splitVertex v 1 ∨ ∃ w, (v, w) ∈ G.edges ∧ x = G.splitVertex w 0 := by
   rw [adj_split_iff, mem_split_snd_iff, mem_split_snd_iff] at h
-  rcases h with ⟨-, (⟨w, -, ⟨h₁, rfl⟩ | ⟨h₁, rfl⟩⟩ | ⟨e, he, h₁, rfl⟩) |
+  rcases h with ⟨-, (⟨w, -, ⟨h₁, rfl⟩ | ⟨h₁, rfl⟩⟩ | ⟨⟨a, b⟩, he, h₁, rfl⟩) |
     (⟨w, -, ⟨rfl, h₁⟩ | ⟨rfl, h₁⟩⟩ | ⟨e, -, rfl, h₁⟩)⟩ <;>
-    simp only [splitVertex_eq_splitVertex_iff] at h₁
-  · omega
-  · omega
-  · obtain ⟨a, b⟩ := e
-    obtain rfl := eq_of_idxOf_eq hv h₁.1.symm
-    exact Or.inr ⟨b, he, rfl⟩
-  · omega
+    simp only [splitVertex_eq_splitVertex_iff] at h₁ <;> try omega
+  · exact Or.inr ⟨b, eq_of_idxOf_eq hv h₁.1.symm ▸ he, rfl⟩
   · exact Or.inl (splitVertex_eq_splitVertex_iff.2 ⟨h₁.1.symm, rfl⟩)
-  · omega
 
 /-! ### Sequences of gadgets -/
 

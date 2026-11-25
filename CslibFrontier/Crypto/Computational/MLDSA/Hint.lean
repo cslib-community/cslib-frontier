@@ -242,8 +242,7 @@ private theorem highBits_intCast_mul_add_of_le (hγ : 0 < γ₂) (hdvd : 2 * γ�
 /-- `UseHint` always returns a nonnegative bucket index under the source parameter hypotheses. -/
 theorem useHint_nonneg (hγ : 0 < γ₂) (hq : 4 * γ₂ < q) (h : Bool) (r : ZMod q) :
     0 ≤ useHint q γ₂ h r := by
-  have hm := bucketCount_pos hγ hq
-  have hmz : (0 : ℤ) < ((q - 1) / (2 * γ₂) : ℕ) := by exact_mod_cast hm
+  have hmz : (0 : ℤ) < ((q - 1) / (2 * γ₂) : ℕ) := Nat.cast_pos.mpr (bucketCount_pos hγ hq)
   cases h
   · simpa only [useHint_false] using highBits_nonneg (q := q) hγ r
   · simp only [useHint]
@@ -252,8 +251,7 @@ theorem useHint_nonneg (hγ : 0 < γ₂) (hq : 4 * γ₂ < q) (h : Bool) (r : ZM
 /-- `UseHint` returns an index below the number `(q - 1) / (2 γ₂)` of high-order buckets. -/
 theorem useHint_lt (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4 * γ₂ < q)
     (h : Bool) (r : ZMod q) : useHint q γ₂ h r < ((q - 1) / (2 * γ₂) : ℕ) := by
-  have hm := bucketCount_pos hγ hq
-  have hmz : (0 : ℤ) < ((q - 1) / (2 * γ₂) : ℕ) := by exact_mod_cast hm
+  have hmz : (0 : ℤ) < ((q - 1) / (2 * γ₂) : ℕ) := Nat.cast_pos.mpr (bucketCount_pos hγ hq)
   cases h
   · simpa only [useHint_false] using highBits_lt hγ hdvd (by omega) r
   · simp only [useHint]
@@ -278,10 +276,8 @@ theorem useHint_injective (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4
     (r : ZMod q) : Function.Injective fun h : Bool => useHint q γ₂ h r := by
   intro h h' heq
   cases h <;> cases h'
-  · rfl
-  · exact absurd heq.symm (useHint_true_ne_highBits hγ hdvd hq r)
-  · exact absurd heq (useHint_true_ne_highBits hγ hdvd hq r)
-  · rfl
+  exacts [rfl, absurd heq.symm (useHint_true_ne_highBits hγ hdvd hq r),
+    absurd heq (useHint_true_ne_highBits hγ hdvd hq r), rfl]
 
 /-- **Arbitrary-hint residual bound.** For every hint bit and coefficient, the centered residual
 between `r` and `2 γ₂ · UseHint(h, r, 2 γ₂)` has magnitude at most `2 γ₂ + 1`. This is the scalar
@@ -344,8 +340,6 @@ theorem useHint_makeHint (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4 
       rw [hsum]
       simp only [a', b', Int.cast_add, Int.cast_sub, huse]
       ring
-    have ha₀ : 0 ≤ a' := useHint_nonneg hγ hq true r
-    have ha : a' < ((q - 1) / (2 * γ₂) : ℕ) := useHint_lt hγ hdvd hq true r
     have hb : -(γ₂ : ℤ) ≤ b' ∧ b' ≤ γ₂ ∧ (b' = -(γ₂ : ℤ) → a' = 0) := by
       by_cases hrpos : 0 < lowBits q γ₂ r
       · have hw := hintWrap_nonneg_of_pos hγ hrpos
@@ -368,7 +362,8 @@ theorem useHint_makeHint (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 4 
           split_ifs at h <;> omega
         exact ⟨by omega, by omega, by omega⟩
     rw [hsum']
-    exact (highBits_intCast_mul_add_of_le hγ hdvd hq ha₀ ha hb.1 hb.2.1 hb.2.2).symm
+    exact (highBits_intCast_mul_add_of_le hγ hdvd hq (useHint_nonneg hγ hq true r)
+      (useHint_lt hγ hdvd hq true r) hb.1 hb.2.1 hb.2.2).symm
 
 /-- Apply `MakeHint` coefficientwise. -/
 def makeHintVec {ι : Type*} (q γ₂ : ℕ) (z r : ι → ZMod q) : ι → Bool :=

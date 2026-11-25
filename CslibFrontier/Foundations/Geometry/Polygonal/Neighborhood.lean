@@ -72,14 +72,10 @@ theorem exists_openSegment_crossing_neighborhoods {ι : Type*} [Finite ι] (a b 
   let P := {p : ι × ι // p.1 ≠ p.2}
   let T (p : P) := openSegment ℝ (a p.val.1) (b p.val.1) ∩
     openSegment ℝ (a p.val.2) (b p.val.2)
-  have hC : C = ⋃ p : P, T p := by
-    ext z
-    constructor
-    · rintro ⟨i, j, hij, hi, hj⟩
-      exact Set.mem_iUnion.mpr ⟨⟨(i, j), hij⟩, hi, hj⟩
-    · intro hz
-      obtain ⟨p, hi, hj⟩ := Set.mem_iUnion.mp hz
-      exact ⟨p.val.1, p.val.2, p.property, hi, hj⟩
+  have hC : C = ⋃ p : P, T p := Set.ext fun z =>
+    ⟨fun ⟨i, j, hij, hi, hj⟩ => Set.mem_iUnion.mpr ⟨⟨(i, j), hij⟩, hi, hj⟩, fun hz =>
+      let ⟨p, hi, hj⟩ := Set.mem_iUnion.mp hz
+      ⟨p.1.1, p.1.2, p.2, hi, hj⟩⟩
   have hfinite : C.Finite := hC ▸ Set.finite_iUnion fun p =>
     (hpair p.val.1 p.val.2 p.property).finite
   obtain ⟨U, hU, hdisj⟩ := hfinite.t2_separation
@@ -106,9 +102,7 @@ theorem exists_openSegment_crossing_neighborhoods {ι : Type*} [Finite ι] (a b 
       rw [segment_same, Set.mem_singleton_iff] at hzz
       exact Set.disjoint_left.mp havoid hz (hzz.symm ▸ hws)
     · intro i hi
-      apply Set.disjoint_left.mpr
-      intro w hw hs
-      exact hi (hseg (Sum.inl i) w (hball hw) hs)
+      exact Set.disjoint_left.mpr fun w hw hs => hi (hseg (Sum.inl i) w (hball hw) hs)
   choose radius hpos hsub havoidPts havoidSegments using hlocal
   let ρ (z : ℂ) := if hz : z ∈ C then radius z hz else 1
   have hρ {z : ℂ} (hz : z ∈ C) : ρ z = radius z hz := dite_eq_left hz

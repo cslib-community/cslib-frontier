@@ -405,18 +405,14 @@ private theorem offset_children (depth index : ℕ) :
       if index = 0 then 4 * offset depth 0
       else if index = 1 then 4 * offset depth 0 + 1
       else 4 * offset depth (index - 1) + 3 := by
-  by_cases hz : index = 0
-  · simp [offset, hz, pow_succ]; omega
-  · by_cases ho : index = 1
-    · simp [offset, ho, pow_succ]; omega
-    · have hpow : 4 ^ (index - 1) = 4 ^ (index - 1 - 1) * 4 := by
-        simpa only [Nat.sub_add_cancel (show 1 ≤ index - 1 by omega)] using
-          pow_succ 4 (index - 1 - 1)
-      have hp : 0 < 4 ^ depth := pow_pos (by decide) _
-      have hq : 0 < 4 ^ (index - 1 - 1) := pow_pos (by decide) _
-      simp only [offset, ite_eq_right hz, ite_eq_right ho, ↓reduceIte,
-        ite_eq_right (show index - 1 ≠ 0 by omega), pow_succ, hpow]
-      omega
+  rcases index with _ | _ | index
+  · simp [offset, pow_succ]; omega
+  · simp [offset, pow_succ]; omega
+  · have hp : 0 < 4 ^ depth := pow_pos (by decide) _
+    have hq : 0 < 4 ^ index := pow_pos (by decide) _
+    simp only [offset, Nat.add_eq_zero_iff, one_ne_zero, and_false, ↓reduceIte,
+      Nat.reduceEqDiff, Nat.add_sub_cancel, pow_succ]
+    omega
 
 /-- The geometric axis of a free-line scan. -/
 private inductive LineAxis where
@@ -714,8 +710,6 @@ private theorem even_refine {axis : LineAxis} {root : Node} {depth old child fix
   intro along lower upper
   have hlocal : along % 8 < 8 := Nat.mod_lt _ (by decide)
   simp only [Nat.one_mul, pow_succ] at lower upper
-  have hlo : 4 ^ depth ≤ along / 8 := by omega
-  have hhi : along / 8 < 3 * 4 ^ depth := by omega
   rw [show along = 8 * (along / 8) + along % 8 by omega, hchild]
   apply (clearAt_succ_block axis true (depth + 1) root _ _ _ _ hlocal (by omega)).2
   by_cases hb : along / 8 = 4 ^ depth
@@ -844,15 +838,10 @@ private theorem odd_classified (axis : LineAxis) (depth index : ℕ) (hi : index
           (hoff : offset (depth + 1) index =
             4 * offset depth prev + (transition which).fixed.val) :=
         hnew ▸ strip_step (which := which) (hodd ▸ ih prev hp) hoff
-      by_cases hz : index = 0
-      · subst index
-        exact go .evenToEven 0 (by omega) rfl rfl (by simp [offset_children, transition])
-      · by_cases ho : index = 1
-        · subst index
-          exact go .evenToOdd 0 (by omega) rfl rfl (by simp [offset_children, transition])
-        · exact go .oddToOdd (index - 1) (by omega)
-            (by simp [transition, show index - 1 ≠ 0 by omega]) (by simp [transition, hz])
-            (by simp [offset_children, transition, hz, ho])
+      rcases index with _ | _ | index
+      · exact go .evenToEven 0 (Nat.zero_le _) rfl rfl (by simp [offset_children, transition])
+      · exact go .evenToOdd 0 (Nat.zero_le _) rfl rfl (by simp [offset_children, transition])
+      · exact go .oddToOdd (index + 1) (by omega) rfl rfl (by simp [offset_children, transition])
 
 private theorem odd_free (axis : LineAxis) (depth index : ℕ) (hi : index ≤ depth) :
     LineFree axis 2 depth false seedNode (coordinate 2 depth index) := by

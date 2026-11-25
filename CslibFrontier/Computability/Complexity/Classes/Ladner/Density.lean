@@ -130,9 +130,7 @@ private theorem checkShorter_eq_true_iff {C : Type} {test : C × List Bool → B
     simpa only [unpad_pad, decide_eq_true hlt, ↓reduceIte] using hu
   · intro h u hu
     split_ifs with hlt
-    · replace hlt := of_decide_eq_true hlt
-      have hpad := pad_unpad (hu ▸ hlt)
-      have hlen := congrArg List.length hpad
+    · have hlen := congrArg List.length (pad_unpad (hu ▸ of_decide_eq_true hlt))
       rw [length_pad, hu] at hlen
       exact h (unpad u).1 (by omega)
     · rfl
@@ -231,8 +229,7 @@ private theorem recursivelyPresentable_coneOf {W : Set (List Bool) → Set (List
       simpa only [wg, hLi] using hwval (fun u => g (i, u))
     have hall : ∀ x : List Bool, eqTest ((i, j), x) = true := fun x => by
       simp only [eqTest, decide_eq_true_eq, hj x]
-      apply Bool.eq_iff_iff.mpr
-      rw [← hB' x, hL₂ x, ← hWLi, Set.mem_ofPred_eq]
+      exact Bool.eq_iff_iff.mpr (by rw [← hB' x, hL₂ x, ← hWLi, Set.mem_ofPred_eq])
     refine ⟨Nat.pair i j, Set.ext fun w => ?_⟩
     have hchk : Ladner.checkShorter eqTest ((i, j), w.length) = true :=
       Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x
@@ -252,8 +249,7 @@ private theorem recursivelyPresentable_coneOf {W : Set (List Bool) → Set (List
       refine ⟨⟨fun w => transducerIndexed (i, w), computableInPolyTime_transducerIndexed i,
         fun w => (hB' _).symm⟩, ⟨fun w => transducerIndexed (j, w),
         computableInPolyTime_transducerIndexed j, fun x => ?_⟩⟩
-      have hx := of_decide_eq_true (hall x)
-      rw [hB' x, hx, ← hwval (fun u => g (i, u)), Set.mem_ofPred_eq]
+      rw [hB' x, of_decide_eq_true (hall x), ← hwval (fun u => g (i, u)), Set.mem_ofPred_eq]
     · push Not at hall
       obtain ⟨x₀, hx₀⟩ := hall
       replace hx₀ : eqTest ((i, j), x₀) = false := Bool.eq_false_iff.mpr hx₀
@@ -264,11 +260,9 @@ private theorem recursivelyPresentable_coneOf {W : Set (List Bool) → Set (List
         have hfalse : Ladner.checkShorter eqTest ((i, j), w.length) = false :=
           Bool.eq_false_iff.mpr fun htrue => by
             simpa [hx₀] using Ladner.checkShorter_eq_true_iff.mp htrue x₀ (by omega)
-        have hpw : (present (m, w) = true) ↔ w ∈ B := by
-          simp only [present, show m.unpair = (i, j) from rfl, hfalse, Bool.false_eq_true,
-            ↓reduceIte, hB' w]
-        simp only [Set.mem_symmDiff, Set.mem_ofPred_eq, hpw] at hw
-        tauto
+        simp only [Set.mem_symmDiff, Set.mem_ofPred_eq, present, show m.unpair = (i, j) from rfl,
+          hfalse, Bool.false_eq_true, ↓reduceIte, hB' w] at hw
+        exact hw.elim (fun h => h.2 h.1) fun h => h.2 h.1
       exact hclosed hBmem hfin
 
 /-- **The polynomial-time `m`-degree of a problem outside `P` is closed under finite

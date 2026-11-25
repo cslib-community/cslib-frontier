@@ -73,9 +73,7 @@ private theorem disjoint_reference_cuts (I : FixedRotationInput)
   have hw : Set.Icc γ δ ⊆ f ⁻¹' Metric.ball w τ := by
     simpa only [segment_eq_Icc hγδ] using
       (Convex.affine_preimage (𝕜 := ℝ) f (convex_ball w τ)).segment_subset hγ hδ
-  apply Set.disjoint_left.mpr
-  intro t ht hu
-  exact Set.disjoint_left.mp hballs
+  exact Set.disjoint_left.mpr fun _ ht hu => Set.disjoint_left.mp hballs
     (Metric.ball_subset_closedBall (hz ht)) (Metric.ball_subset_closedBall (hw hu))
 
 private theorem append_word_point_order {α : Type*} [Preorder α]
@@ -125,15 +123,12 @@ private theorem append_word_support (a b : ℂ) (nodes : List ℂ) (S : Set ℂ)
   intro w hw
   obtain ⟨i, t, ht, heval⟩ := (Route.mem_support_iff _ w).mp hw
   have hi : i.val + 1 < (a :: b :: nodes).length := by
-    have hh := i.isLt
-    simp only [Route.segments_foldl_append] at hh
-    change i.val < 1 + nodes.length at hh
+    have hh : i.val < 1 + nodes.length :=
+      Route.segments_foldl_append (Route.line a b) nodes ▸ i.isLt
     simp only [List.length_cons]
     omega
-  have hpiece := (List.isChain_iff_getElem.mp hword) i.val hi
-  apply hpiece
   rw [← heval, Route.eval_foldl_append_line]
-  exact lineMap_mem_segment ℝ _ _ ht
+  exact (List.isChain_iff_getElem.mp hword i.val hi) (lineMap_mem_segment ℝ _ _ ht)
 
 
 private theorem vertex_contacts_from_support {I : FixedRotationInput} (hI : Valid I)
@@ -335,14 +330,11 @@ private theorem word_order_from_cuts {ι : Type*} (L : List ι) (a b : ℂ)
   have hfinal (z) (hz : z ∈ L) : ξ (right z) < ξ b := by
     rw [hright z hz, hproj]
     exact (lineMap_lt_right_iff_lt (hβ z hz)).mpr hab
-  have hbetween : L.Pairwise fun z w => ξ (right z) < ξ (left w) := by
-    apply List.pairwise_iff_getElem.mpr
-    intro i j hi hj hij
-    have hz := List.getElem_mem hi
-    have hw := List.getElem_mem hj
-    have hzw := (List.pairwise_iff_getElem.mp hsorted) i j hi hj hij
-    rw [hright _ hz, hleft _ hw, hproj, hproj]
-    exact (lineMap_lt_lineMap_iff_of_lt' hab).mpr hzw
+  have hbetween : L.Pairwise fun z w => ξ (right z) < ξ (left w) :=
+    List.pairwise_iff_getElem.mpr fun i j hi hj hij => by
+      rw [hright _ (List.getElem_mem hi), hleft _ (List.getElem_mem hj), hproj, hproj]
+      exact (lineMap_lt_lineMap_iff_of_lt' hab).mpr
+        (List.pairwise_iff_getElem.mp hsorted i j hi hj hij)
   have hchain := chain_patch_word L a b left middle right
     (fun x y => ξ x < ξ y) hab hfirst hfinal hlocal hbetween
   rwa [← List.pairwise_map, ← List.isChain_iff_pairwise, List.isChain_map]
@@ -850,10 +842,8 @@ private theorem free_raw_first_embedding {I : FixedRotationInput}
         (P z).eval k t = zpt z + (raw z).eval 0 t := by
       rw [hP z, ite_eq_right
         (by simp only [hd, decide_false, Bool.false_eq_true, not_false_eq_true])]
-      intro k hk
-      have hk0 : k = 0 := Fin.ext hk
-      subst hk0
-      exact Route.eval_translate (raw z) (zpt z) 0 t
+      rintro k hk
+      exact (Fin.ext hk : k = 0) ▸ Route.eval_translate (raw z) (zpt z) 0 t
     exact hEval 0 rfl
 
 /-- Construct one complete named-field reference patch assembly from `Valid I` alone.

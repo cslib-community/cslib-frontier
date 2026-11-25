@@ -105,8 +105,7 @@ private theorem bankFoldStep_inSpace :
   have hflags := snd' (snd' hq)
   have huse := fst' hflags
   have hsub := snd' hflags
-  have hval := budget_comp_lin getD (linear_mul 8)
-    (budget_prod hvals (budget_natMod hj hr))
+  have hval := budget_getD hvals (budget_natMod hj hr)
   have hprod := budget_comp_linear mulMod_inSpace
     (budget_prod hp (budget_prod hc hval))
   have hneg := budget_comp_linear negMod_inSpace (budget_prod hp hprod)

@@ -228,10 +228,8 @@ private theorem pos_resCap_or_of_pos_resCap_augmentLevel (f : N.Flow) {d : V →
   rw [resCap_augmentLevel] at h
   by_cases hf : 0 < f.resCap u v
   · exact .inl hf
-  · right
-    have hgvu : 0 < g v u := by omega
-    have hcap : 0 < (f.levelNet d).cap v u := lt_of_lt_of_le hgvu (g.le_cap v u)
-    exact ((f.levelNet_cap_pos_iff d v u).mp hcap).1
+  · exact .inr (((f.levelNet_cap_pos_iff d v u).mp
+      (lt_of_lt_of_le (by omega : 0 < g v u) (g.le_cap v u))).1)
 
 /-- **Distance monotonicity**: augmenting by any flow of the level network of shortest residual
 distances never decreases a residual distance from `N.s` ([Dinic1970]; [Schrijver2003],
@@ -288,8 +286,7 @@ theorem resDist_lt_resDist_augmentLevel (f : N.Flow) (g : (f.levelNet f.resDist)
           (f.levelNet_cap_eq_zero_of_pos f.resDist hcap_pos ▸ g.le_cap w u)
         have hunsat : g u w < (f.levelNet f.resDist).cap u w := by
           have hres := f.resCap_augmentLevel g u w
-          have hcap_eq : (f.levelNet f.resDist).cap u w = f.resCap u w := by
-            rw [levelNet_cap]; split_ifs <;> omega
+          rw [levelNet_cap, ite_eq_left (by omega)]
           omega
         have hp_ne : p ≠ [] := by rintro rfl; simp at hs
         have hw_notin : w ∉ p := fun hmem => by have := hle w hmem; omega
@@ -416,16 +413,13 @@ theorem mem_resBall_iff_resDist_le (f : N.Flow) {k : ℕ} (hk : k < Fintype.card
   ((Finset.range (Fintype.card V)).filter fun k => v ∉ f.resBall k).card
 
 theorem bfsDist_eq_resDist (f : N.Flow) (v : V) : f.bfsDist v = f.resDist v := by
+  have hle := f.resDist_le_card v
   have hfilter : (Finset.range (Fintype.card V)).filter (fun k => v ∉ f.resBall k) =
       Finset.range (f.resDist v) := by
     ext k
-    simp only [Finset.mem_filter, Finset.mem_range]
-    constructor
-    · rintro ⟨hk, hnot⟩
-      rw [f.mem_resBall_iff_resDist_le hk] at hnot; omega
-    · intro hk
-      have hk' : k < Fintype.card V := lt_of_lt_of_le hk (f.resDist_le_card v)
-      exact ⟨hk', by rw [f.mem_resBall_iff_resDist_le hk']; omega⟩
+    simp only [Finset.mem_filter, Finset.mem_range,
+      and_congr_right fun hk => not_congr (f.mem_resBall_iff_resDist_le hk v)]
+    omega
   rw [bfsDist, hfilter, Finset.card_range]
 
 end Flow
@@ -473,13 +467,9 @@ theorem isBlocking_of_not_exists_slackNet {g : L.Flow}
 theorem isBlocking_iff_not_exists_slackNet {g : L.Flow} :
     g.IsBlocking ↔ ¬ ∃ p, (Flow.zero g.slackNet).IsAugmentingPath p := by
   refine ⟨fun hg ⟨p, hnd, hs, ht, hpos⟩ => ?_, isBlocking_of_not_exists_slackNet⟩
-  have hcap : ∀ e ∈ pathArcs p, 0 < L.cap e.1 e.2 := fun e he => by
-    have h := hpos e he
-    rw [resCap_zero_slackNet] at h
-    omega
-  obtain ⟨e, he, hsat⟩ := hg p hnd hs ht hcap
-  have h := hpos e he
-  rw [resCap_zero_slackNet] at h
+  simp only [resCap_zero_slackNet] at hpos
+  obtain ⟨e, he, hsat⟩ := hg p hnd hs ht fun e he => by have := hpos e he; omega
+  have := hpos e he
   omega
 
 /-- Arcs not saturated by `g`. -/

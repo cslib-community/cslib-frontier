@@ -361,13 +361,8 @@ theorem Realizable.exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
       (surface_apply_eq_applySurfaceTapes act₁.tape c₁ (γ :: c₁.stack)).trans hs'.symm
     obtain ⟨pmid, hmidHead, hmidSurf, hmidStack, hmidLen, -, hmidGe⟩ := ih hc'surf
     obtain ⟨_, q₂, act₂, hq₂, htr₂, hpopOp, hs₂⟩ := hpop
-    have htop₂' : pmid.last.topSym = some γ := by
-      change pmid.last.stack.head? = _
-      rw [hmidStack]
-      rfl
-    have hq₂' : pmid.last.tapes.state = some q₂ := by
-      rw [← hmidSurf] at hq₂
-      exact hq₂
+    have htop₂' : pmid.last.topSym = some γ := congrArg List.head? hmidStack
+    have hq₂' : pmid.last.tapes.state = some q₂ := by rwa [← hmidSurf] at hq₂
     have htr₂' : M.Tr q₂ pmid.last.tapes.inputSymbol pmid.last.tapes.workTapeSymbols
         pmid.last.topSym act₂ := by
       rw [← hmidSurf] at htr₂
@@ -376,7 +371,8 @@ theorem Realizable.exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
     have hstep₂ : M.Step pmid.last c₂ := by
       simp only [Step, hq₂']
       refine ⟨act₂, htr₂', Action.apply?_eq_some_iff.mpr ⟨c₁.stack, ?_, rfl⟩⟩
-      rw [hpopOp, hmidStack]; rfl
+      rw [hpopOp, hmidStack]
+      rfl
     have hc₂surf : c₂.surface = s₂ := by
       rw [hs₂, ← hmidSurf]
       exact surface_apply_eq_applySurfaceTapes act₂.tape pmid.last c₁.stack
@@ -452,10 +448,8 @@ theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
   · right
     push Not at hmid
     have hstrict (j : Fin (p.length + 1)) (hj0 : 0 < j.val) (hjlt : j.val < p.length) :
-        p.head.stack.length + 1 ≤ (p j).stack.length := by
-      have := hge j
-      have := hmid j hj0 hjlt
-      omega
+        p.head.stack.length + 1 ≤ (p j).stack.length :=
+      Nat.lt_of_le_of_ne (hge j) (Ne.symm (hmid j hj0 hjlt))
     have h1lt : 1 < p.length + 1 := by omega
     have hstep1 : M.Step p.head (p ⟨1, h1lt⟩) := p.step ⟨0, by omega⟩
     have h1eq : (p ⟨1, h1lt⟩).stack.length = p.head.stack.length + 1 := by
@@ -499,15 +493,12 @@ theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
       ⟨d', fun i => p ⟨i.val + 1, by omega⟩, fun i => p.step ⟨i.val + 1, by omega⟩⟩
     have hmidLast : pmid.last = p ⟨p.length - 1, hpenlt⟩ :=
       congrArg p (Fin.ext (by simp [pmid]; omega))
-    have hmidSame : SameHeightRun pmid := by
-      refine ⟨?_, fun i => ?_⟩
-      · change (pmid.last).stack.length = (p ⟨1, h1lt⟩).stack.length
-        rw [hmidLast, hpeneq, h1eq]
-      · change (p ⟨1, h1lt⟩).stack.length ≤ _
-        rw [h1eq]
-        have hi : i.val < d' + 1 := i.isLt
-        exact hstrict ⟨i.val + 1, by omega⟩ (Nat.succ_pos _)
-          (by simp; omega)
+    have hmidSame : SameHeightRun pmid :=
+      ⟨(congrArg List.length (congrArg Cfg.stack hmidLast)).trans (hpeneq.trans h1eq.symm),
+        fun i => by
+          have : i.val < d' + 1 := i.isLt
+          exact h1eq.trans_le (hstrict ⟨i.val + 1, by omega⟩ (Nat.succ_pos _)
+            (by simp; omega))⟩
     refine ⟨γ, pmid, rfl, hmidSame,
       fun _ ⟨i, hi⟩ => ⟨⟨i.val + 1, by have := i.isLt; dsimp only [pmid] at this; omega⟩, hi⟩,
       h1stack, hpush, fun hpenStack => ?_⟩
@@ -529,9 +520,7 @@ theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
         rw [hop, hpenStack, StackOp.apply?_pop_cons, Option.some.injEq] at hstack
         subst hstack
         have htopPen : (p ⟨p.length - 1, hpenlt⟩).surface.topSym = some γ := by
-          change (p ⟨p.length - 1, hpenlt⟩).stack.head? = some γ
-          rw [hpenStack]
-          rfl
+          simp [Cfg.surface, Cfg.topSym, hpenStack]
         exact ⟨by simp [hlastCfg], htopPen, q, act, hq, htopPen ▸ htr, hop,
           hlastCfg ▸ surface_apply_eq_applySurfaceTapes act.tape _ p.head.stack⟩
 
@@ -603,13 +592,10 @@ theorem realizable_iff_exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
     M.Realizable input s₁ s₂ d ↔
       ∃ p : M.RunPath input, p.head = c₁ ∧ p.last.surface = s₂ ∧ p.length = d ∧
         SameHeightRun p := by
-  constructor
-  · intro h
-    obtain ⟨p, hhead, hsurf, -, hlen, hsame⟩ := h.exists_sameHeightRun hc₁
+  refine ⟨fun h => ?_, fun ⟨p, hhead, hsurf, hlen, hsame⟩ => ?_⟩
+  · obtain ⟨p, hhead, hsurf, -, hlen, hsame⟩ := h.exists_sameHeightRun hc₁
     exact ⟨p, hhead, hsurf, hlen, hsame⟩
-  · rintro ⟨p, hhead, hsurf, hlen, hsame⟩
-    have hreal := (sameHeightRun_stack_and_realizable d p hlen hsame).2
-    rwa [hhead, hc₁, hsurf] at hreal
+  · simpa only [hhead, hc₁, hsurf] using (sameHeightRun_stack_and_realizable d p hlen hsame).2
 
 /-- **Surface-pair realizability decomposition** (Ruzzo / Venkateswaran): for `d ≥ 2`, a surface
 pair `(s₁, s₂)` is realizable in `d` steps iff it either splits as a matched push-pop pair
@@ -1044,8 +1030,7 @@ theorem encard_reachable_surfaceCfg_le [Fintype StackSym] [Fintype State]
     {M : AuxPDA k Bool StackSym State} {s : ℕ} (hs : M.RunsInSpace input s) :
     (Set.range fun p : M.ComputationPath input => p.last.surface).encard ≤
       surfaceCfgBound StackSym State k input.length (k * s) := by
-  have hsum : ∑ _ : Fin k, s ≤ k * s := by simp
-  refine le_trans (Set.encard_le_encard ?_) (encard_surfaceCfg_fitsIn_le hsum)
+  refine (Set.encard_le_encard ?_).trans (encard_surfaceCfg_fitsIn_le (w := fun _ => s) (by simp))
   rintro _ ⟨p, rfl⟩
   have hle : ∀ i, p.spaceUsedByTape i ≤ s := fun i =>
     (Finset.single_le_sum (fun j _ => Nat.zero_le (p.spaceUsedByTape j)) (Finset.mem_univ i)).trans

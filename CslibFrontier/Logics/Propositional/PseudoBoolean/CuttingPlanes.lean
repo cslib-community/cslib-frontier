@@ -94,8 +94,7 @@ theorem PBConstr.bound_sum_termIneq (ts : List (ℕ × Literal ℕ)) :
   | nil => simp only [List.map_nil, List.sum_nil, bound_zero, negSum, Nat.cast_zero, neg_zero]
   | cons t ts ih =>
     simp only [List.map_cons, List.sum_cons, bound_add, ih, bound_termIneq, negSum]
-    split <;> simp only [Nat.cast_add, zero_add]
-    all_goals ring
+    split <;> simp only [Nat.cast_add, zero_add] <;> ring
 
 theorem PBConstr.coeff_toIneq (c : PBConstr) :
     c.toIneq.coeff = (c.terms.map fun t => Finsupp.single (termVar t) (termCoeff t)).sum := by
@@ -203,9 +202,8 @@ theorem negSum_add_negSum_negate (ts : List (ℕ × Literal ℕ)) :
   | nil => simp only [List.map_nil, negSum_nil, add_zero, coeffSum_nil]
   | cons t ts ih =>
     obtain ⟨a, v, b⟩ := t
-    simp only [List.map_cons, negSum_cons, coeffSum_cons]
-    have hn : Std.Sat.Literal.negate (v, b) = (v, !b) := rfl
-    rw [hn]
+    simp only [List.map_cons, negSum_cons, coeffSum_cons,
+      show Std.Sat.Literal.negate (v, b) = (v, !b) from rfl]
     cases b <;>
       simp only [termPos, Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte] <;>
       omega
@@ -372,8 +370,7 @@ theorem Der.termIneq (t : ℕ × Literal ℕ) : Der Γ (termIneq t) := by
   rcases Nat.eq_zero_or_pos a with rfl | ha
   · exact Der.zero.of_eq (by simp only [PBConstr.termIneq, zero_smul])
   · cases b
-    · exact (Der.leOne v).smul ha
-    · exact (Der.nonneg v).smul ha
+    exacts [(Der.leOne v).smul ha, (Der.nonneg v).smul ha]
 
 /-- A constraint of degree `0` is a sum of literal axioms. -/
 theorem Der.degree_zero (ts : List (ℕ × Literal ℕ)) : Der Γ (⟨ts, 0⟩ : PBConstr).toIneq := by
@@ -386,15 +383,13 @@ theorem Der.degree_zero (ts : List (ℕ × Literal ℕ)) : Der Γ (⟨ts, 0⟩ :
     simp only [PBConstr.toIneq, List.map_cons, List.sum_cons, add_assoc]
 
 theorem Der.normalize {c : PBConstr} (h : Der Γ c.toIneq) : Der Γ c.normalize.toIneq := by
-  set D : ℤ := (c.degree : ℤ) - negSum c.terms
   have hcoeff := coeff_toIneq_normalize c
   by_cases hd : c.normalize.degree = 0
-  · have : c.normalize = ⟨c.normalize.terms, 0⟩ := by rw [← hd]
-    rw [this]; exact Der.degree_zero _
+  · rw [show c.normalize = ⟨c.normalize.terms, 0⟩ by rw [← hd]]
+    exact Der.degree_zero _
   · refine h.lower hcoeff (le_of_eq ?_)
     rw [toIneq_eq, toIneq_eq]
-    simp only [PBConstr.normalize] at hd ⊢
-    rw [negSum_fromLinear]
+    simp only [PBConstr.normalize, negSum_fromLinear] at hd ⊢
     simp only [fromLinear] at hd ⊢
     omega
 
@@ -502,9 +497,8 @@ theorem Der.div' {c : PBConstr} (hc : Der Γ c.toIneq) (k : ℕ) : Der Γ (c.div
   have hbound : ((⟨ts, d⟩ : PBConstr).toIneq + (⟨E, 0⟩ : PBConstr).toIneq).bound =
       (d : ℤ) - k * negSum u := by
     simp only [toIneq_eq, bound_add]
-    have : ((negSum ts : ℕ) : ℤ) + negSum E = k * negSum u := by exact_mod_cast hns
-    push_cast
-    linarith
+    have : ((negSum ts : ℕ) : ℤ) + negSum E = k * negSum u := mod_cast hns
+    push_cast; linarith
   refine (hsum.div hk fun v => ?_).of_eq ?_
   · rw [hcoeff]
     exact dvd_mul_right _ _
@@ -537,14 +531,13 @@ theorem Der.weaken' {c : PBConstr} (hc : Der Γ c.toIneq) (v : ℕ) :
     refine Ineq.ext ?_ ?_
     · simp only [coeff_add, cf_map_negate, ← hcf, rem, rest]; abel
     · simp only [bound_add]
-      have : ((negSum rest : ℕ) : ℤ) + negSum rem = negSum ts := by exact_mod_cast hns
+      have : ((negSum rest : ℕ) : ℤ) + negSum rem = negSum ts := mod_cast hns
       have : ((negSum rem : ℕ) : ℤ) +
-          negSum (rem.map fun t => (t.1, Std.Sat.Literal.negate t.2)) = coeffSum rem := by
-        exact_mod_cast hneg
-      push_cast [hd]
-      linarith
-  · have : d - coeffSum rem = 0 := by omega
-    rw [this]; exact Der.degree_zero _
+          negSum (rem.map fun t => (t.1, Std.Sat.Literal.negate t.2)) = coeffSum rem :=
+        mod_cast hneg
+      push_cast [hd]; linarith
+  · rw [Nat.sub_eq_zero_of_le (le_of_not_ge hd)]
+    exact Der.degree_zero _
 
 /-- A contradiction derives `0 ≥ 1`. -/
 theorem Der.contra {c : PBConstr} (hc : Der Γ c.toIneq) (h : c.IsContradiction) :
@@ -558,11 +551,10 @@ theorem Der.contra {c : PBConstr} (hc : Der Γ c.toIneq) (h : c.IsContradiction)
   · rw [toIneq_eq, toIneq_eq]
     simp only [bound_add, bound_contra]
     have : ((negSum c.terms : ℕ) : ℤ) +
-        negSum (c.terms.map fun t => (t.1, Std.Sat.Literal.negate t.2)) = coeffSum c.terms := by
-      exact_mod_cast hneg
-    have : (coeffSum c.terms : ℤ) + 1 ≤ c.degree := by exact_mod_cast h
-    push_cast
-    linarith
+        negSum (c.terms.map fun t => (t.1, Std.Sat.Literal.negate t.2)) = coeffSum c.terms :=
+      mod_cast hneg
+    have : (coeffSum c.terms : ℤ) + 1 ≤ c.degree := mod_cast h
+    push_cast; linarith
 
 /-! ### Proofs made of cutting-planes steps -/
 
@@ -625,8 +617,7 @@ theorem runSteps_der : ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List St
     runSteps db n ss = some (db', n') → ∀ e ∈ db', Der Γ e.2.toIneq
   | db, n, [], db', n', _, hdb, h => by
     simp only [runSteps, Option.some.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, -⟩ := h
-    exact hdb
+    exact h.1 ▸ hdb
   | db, n, s :: ss, db', n', hss, hdb, h => by
     simp only [List.all_cons, Bool.and_eq_true] at hss
     simp only [runSteps] at h
@@ -647,8 +638,7 @@ theorem runSteps_der : ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List St
         simp only [runStep] at h₁
         split at h₁
         · simp only [Option.some.injEq, Prod.mk.injEq] at h₁
-          obtain ⟨rfl, -⟩ := h₁
-          exact fun e he => hdb e (List.mem_of_mem_filter he)
+          exact h₁.1 ▸ fun e he => hdb e (List.mem_of_mem_filter he)
         · cases h₁
       | rup | rupSearch | pbc => simp only [Step.IsCP, Bool.false_eq_true, false_and] at hss
     · cases h

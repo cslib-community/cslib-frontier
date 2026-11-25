@@ -253,13 +253,11 @@ noncomputable def randGreedyProb (ℓ : ℕ → ι → ℝ) (t : ℕ) (i : ι) :
 
 theorem randGreedyProb_of_mem {ℓ : ℕ → ι → ℝ} {t : ℕ} {i : ι} (hi : i ∈ leaders ℓ t) :
     randGreedyProb ℓ t i = 1 / (leaders ℓ t).card := by
-  unfold randGreedyProb
-  simp only [hi, ↓reduceIte]
+  simp [randGreedyProb, hi]
 
 theorem randGreedyProb_of_notMem {ℓ : ℕ → ι → ℝ} {t : ℕ} {i : ι} (hi : i ∉ leaders ℓ t) :
     randGreedyProb ℓ t i = 0 := by
-  unfold randGreedyProb
-  simp only [hi, ↓reduceIte]
+  simp [randGreedyProb, hi]
 
 theorem randGreedyProb_nonneg (ℓ : ℕ → ι → ℝ) (t : ℕ) (i : ι) :
     0 ≤ randGreedyProb ℓ t i := by
@@ -276,9 +274,8 @@ theorem sum_randGreedyProb [Nonempty ι] (ℓ : ℕ → ι → ℝ) (t : ℕ) :
 theorem randGreedyProb_congr {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ} (h : ∀ s < t, ℓ s = ℓ' s) :
     randGreedyProb ℓ t = randGreedyProb ℓ' t := by
   funext i
-  have hl := leaders_congr h
   unfold randGreedyProb
-  rw [hl]
+  rw [leaders_congr h]
 
 omit [Fintype ι] in
 private theorem sum_nat_of_binary {ℓ : ℕ → ι → ℝ} {t : ℕ}
@@ -359,12 +356,8 @@ theorem randGreedy_loss_le_harmonic [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T 
         · linarith [add_one_le_sum_of_notMem_leaders hℓ_prev hmem, hℓ_nn i]
       have hharm :
           ((S.card : ℝ) - S'.card) / S.card ≤ (harmonic S.card : ℝ) - harmonic S'.card := by
-        have hq : ((((S.card : ℚ) - S'.card) / S.card : ℚ) : ℝ) ≤
-            ((harmonic S.card - harmonic S'.card : ℚ) : ℝ) := by
-          exact_mod_cast sub_div_le_harmonic_sub (show S'.card ≤ S.card from
-            hS'_eq ▸ card_filter_le S _)
-        push_cast at hq
-        exact hq
+        simpa using (Rat.cast_le (K := ℝ)).mpr
+          (sub_div_le_harmonic_sub (hS'_eq ▸ card_filter_le S _))
       rw [hm_eq, ← hS'_eq]
       linarith
     · have hA1 (i : ι) (hi : i ∈ S) : ℓ t i = 1 :=

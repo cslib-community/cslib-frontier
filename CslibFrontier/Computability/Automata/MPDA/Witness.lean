@@ -98,9 +98,8 @@ theorem isSome_atomicWitness {i : Fin n} {s t : State} {γ : Γ}
     (h : ⟨s, γ, t⟩ ∈ M.atomicHoles i) : (M.atomicWitness i s γ t).isSome := by
   obtain ⟨a, s₁, hT, hwn⟩ := (mem_atomicHoles M).mp h
   refine List.findSome?_isSome_iff.mpr ⟨(a, s₁), FinEnum.mem_toList _, ?_⟩
-  dsimp only
-  simp only [hT, ↓reduceIte, Option.isSome_map]
-  exact isSome_wrWitness ((mem_wellNestedPairs M).mpr hwn)
+  simpa only [hT, ↓reduceIte, Option.isSome_map] using
+    isSome_wrWitness ((mem_wellNestedPairs M).mpr hwn)
 
 /-- The run of a realization is a block run of it. -/
 theorem blockWitness_spec {i : Fin n} {s t : State} {r : List (Γ × State)}
@@ -165,9 +164,7 @@ theorem reachUpTo_mono {K : ℕ} {k k' : ℕ} (h : k ≤ k') : M.reachUpTo K k �
 theorem reachUpTo_stable {K k : ℕ} (h : M.reachUpTo K (k + 1) = M.reachUpTo K k) :
     ∀ j, M.reachUpTo K (k + j) = M.reachUpTo K k
   | 0 => rfl
-  | j + 1 => by
-    rw [← Nat.add_assoc, reachUpTo, reachUpTo_stable h j]
-    exact h
+  | j + 1 => (congrArg (fun R => R ∪ R.biUnion (M.successors K)) (reachUpTo_stable h j)).trans h
 
 /-- The worklist loop only adds lists reached in as many more steps as it has fuel. -/
 theorem explore_subset_reachUpTo {K : ℕ} :
@@ -427,11 +424,8 @@ private theorem isSome_bind_map {α β γ : Type*} {a : Option α} {b : Option �
 theorem isSome_initWitness {μ : HoleList n State} (h : μ ∈ M.initialLists) :
     (M.initWitness μ).isSome := by
   obtain ⟨hh, s₀, hs₀, hwr⟩ := mem_initialLists.mp h
-  unfold initWitness
-  simp only [hh, ↓reduceIte]
-  refine List.findSome?_isSome_iff.mpr ⟨s₀, FinEnum.mem_toList _, ?_⟩
-  simp only [hs₀, ↓reduceIte]
-  exact isSome_wrWitness hwr
+  simp only [initWitness, hh, ↓reduceIte, List.findSome?_isSome_iff]
+  exact ⟨s₀, FinEnum.mem_toList _, by simp [hs₀, isSome_wrWitness hwr]⟩
 
 theorem isSome_holeWitness_of_init {K : ℕ} {Rs : List (Finset (HoleList n State))}
     {μ : HoleList n State} {rs : List (List (Γ × State))} (h : μ ∈ M.initialLists) :
@@ -568,19 +562,13 @@ theorem map_fst_mem_boundedLanguage_of_witness {K : ℕ} {w : List (Symbol × Op
 answers `false`, that is, by Theorem 1, exactly when the `K`-hole-bounded language is not
 empty. -/
 theorem isSome_witness_iff {K : ℕ} : (M.witness K).isSome ↔ M.isEmpty K = false := by
-  constructor
-  · intro h
-    obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp h
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · obtain ⟨_, hw⟩ := Option.isSome_iff_exists.mp h
     exact isEmpty_eq_false_of_mem_boundedLanguage (map_fst_mem_boundedLanguage_of_witness hw)
-  · intro h
-    unfold isEmpty isEmptyFrom at h
-    rw [decide_eq_false_iff_not, not_not] at h
-    obtain ⟨μ, hμ, hholes, f, hf, hwr⟩ := h
-    have hμR : μ ∈ M.reachUpTo K (0 + listBound n State K) :=
-      explore_subset_reachUpTo _ 0 _ _ le_rfl le_rfl hμ
+  · simp only [isEmpty, isEmptyFrom, decide_eq_false_iff_not, not_not] at h
+    obtain ⟨⟨_, ℓ⟩, hμ, rfl, f, hf, hwr⟩ := h
+    have hμR := explore_subset_reachUpTo _ 0 _ _ le_rfl le_rfl hμ
     obtain ⟨e, -, heq, hsub⟩ := stableLayers_eq (M := M) (K := K) (listBound n State K) 0
-    obtain ⟨holes, ℓ⟩ := μ
-    cases hholes
     have hL : M.stableLayers K (listBound n State K) [M.initialLists] = M.layers K (e + 1) := heq
     refine List.findSome?_isSome_iff.mpr ⟨(ℓ, f), FinEnum.mem_toList _, ?_⟩
     simp only [hL]
