@@ -84,11 +84,10 @@ theorem le_nthRoot_and_mul_nthRoot_le {k s e c p : ℕ} (hk : k ≠ 0) (hse : s 
 `2 ^ m p ^ (m p) ≤ (p + 1) ^ (m p)` for `p ≠ 0`. -/
 theorem two_pow_mul_pow_le_add_one_pow (m : ℕ) {p : ℕ} (hp : p ≠ 0) :
     2 ^ m * p ^ (m * p) ≤ (p + 1) ^ (m * p) := by
-  -- Bernoulli's inequality: `p ^ p + p ^ p ≤ (p + 1) ^ p`
   have h : 2 * p ^ p ≤ (p + 1) ^ p := by
-    have := pow_add_mul_le_add_pow_of_sq_nonneg (R := ℕ) (a := p) (b := 1) (Nat.zero_le _)
-      (Nat.zero_le _) (Nat.zero_le _) (Nat.zero_le _) p
-    rwa [mul_one, Nat.cast_id, mul_pow_sub_one hp, ← two_mul] at this
+    simpa only [mul_one, Nat.cast_id, mul_pow_sub_one hp, ← two_mul] using
+      pow_add_mul_le_add_pow_of_sq_nonneg (R := ℕ) (a := p) (b := 1) (Nat.zero_le _)
+        (Nat.zero_le _) (Nat.zero_le _) (Nat.zero_le _) p
   rw [mul_comm m, pow_mul, pow_mul, ← mul_pow]
   exact Nat.pow_le_pow_left h m
 
@@ -100,20 +99,17 @@ end Roots
 `2 8 ^ 6 ≤ 9 ^ 6`. -/
 private theorem natCast_add_one_mul_le_inv_two_pow (n t : ℕ) :
     ((n : ℚ≥0) + 1) * (8 / 9) ^ (6 * (n + 1 + t)) ≤ (2 ^ t)⁻¹ := by
-  have key : (n + 1) * 2 ^ t * 8 ^ (6 * (n + 1 + t)) ≤ 9 ^ (6 * (n + 1 + t)) := by
-    have hn : (n + 1) * 2 ^ t ≤ 2 ^ (n + 1 + t) := by
-      rw [pow_add]
-      exact Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
+  have key : (n + 1) * 2 ^ t * 8 ^ (6 * (n + 1 + t)) ≤ 9 ^ (6 * (n + 1 + t)) :=
     calc (n + 1) * 2 ^ t * 8 ^ (6 * (n + 1 + t))
-        ≤ 2 ^ (n + 1 + t) * 8 ^ (6 * (n + 1 + t)) := Nat.mul_le_mul_right _ hn
+        ≤ 2 ^ (n + 1 + t) * 8 ^ (6 * (n + 1 + t)) :=
+          Nat.mul_le_mul_right _
+            (pow_add 2 (n + 1) t ▸ Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le)
       _ = (2 * 8 ^ 6) ^ (n + 1 + t) := by rw [mul_pow, pow_mul]
       _ ≤ (9 ^ 6) ^ (n + 1 + t) := Nat.pow_le_pow_left (by norm_num) _
       _ = 9 ^ (6 * (n + 1 + t)) := by rw [pow_mul]
-  have key' := Nat.cast_le (α := ℚ≥0).2 key
-  push_cast at key'
   rw [div_pow, mul_div_assoc', div_le_iff₀ (by positivity), ← div_eq_inv_mul,
     le_div_iff₀ (by positivity), mul_right_comm]
-  exact key'
+  exact_mod_cast key
 
 section Hashing
 
@@ -158,9 +154,7 @@ theorem dens_filter_not_relativeHashEstimate_le {k p : ℕ} (h : ∀ j, ι j →
     dens {ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
       ¬ (#S ≤ relativeHashEstimate h y S ω ∧
         p * relativeHashEstimate h y S ω ≤ (p + 1) * #S)} ≤ (n + 1) * (8 / 9) ^ r := by
-  have hk : k ≠ 0 := by
-    rintro rfl
-    simp at hp
+  have hk : k ≠ 0 := fun hk => by simp [hk] at hp
   by_cases hX : Nonempty X
   · obtain ⟨x⟩ := hX
     have : ∀ j, Nonempty (ι j) := fun j => (hh j).nonempty (fun _ => x) (y j)
@@ -168,31 +162,20 @@ theorem dens_filter_not_relativeHashEstimate_le {k p : ℕ} (h : ∀ j, ι j →
     refine (dens_le_dens fun ω hω => ?_).trans
       (dens_filter_not_hashEstimate_le h y _ hh hY (hcard ▸ hS))
     simp only [mem_filter, mem_univ, true_and, hcard] at hω ⊢
-    refine fun ⟨hle, hge⟩ => hω (le_nthRoot_and_mul_nthRoot_le hk hge ?_ hp)
-    rw [show 128 = 16 * 8 by norm_num, mul_assoc]
-    exact Nat.mul_le_mul_left 16 hle
+    exact fun ⟨hle, hge⟩ => hω <| le_nthRoot_and_mul_nthRoot_le hk hge (by omega) hp
   · have : IsEmpty X := not_nonempty_iff.mp hX
-    have hS0 : S = ∅ := eq_empty_of_isEmpty S
-    subst hS0
+    rw [eq_empty_of_isEmpty S]
     have hpi : (Fintype.piFinset fun _ : Fin k => (∅ : Finset X)) = ∅ :=
       card_eq_zero.mp (by rw [Fintype.card_piFinset_const, card_empty, zero_pow hk])
-    have hest : ∀ ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j,
-        relativeHashEstimate h y ∅ ω = 0 := fun ω => by
-      have ha : ¬ hashAnswer h y ∅ ω 0 := by
-        rintro ⟨_, hr⟩
-        simp at hr
-      have hhe : hashEstimate h y ∅ ω = 0 := by
-        simp only [hashEstimate, estimate, ha, ↓reduceIte]
-      simp only [relativeHashEstimate, hpi, hhe, mul_zero]
+    have hest (ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j) : relativeHashEstimate h y ∅ ω = 0 := by
+      have ha : ¬ hashAnswer h y ∅ ω 0 := fun ⟨_, hr⟩ => by simp at hr
+      simp only [relativeHashEstimate, hpi, hashEstimate, estimate, ha, ↓reduceIte, mul_zero]
       by_contra hne
-      have h0 := (Nat.le_nthRoot_iff hk).mp (Nat.one_le_iff_ne_zero.mpr hne)
-      simp at h0
-    have hemp : ({ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
+      simpa using (Nat.le_nthRoot_iff hk).mp (Nat.one_le_iff_ne_zero.mpr hne)
+    rw [show ({ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
         ¬ (#(∅ : Finset X) ≤ relativeHashEstimate h y ∅ ω ∧
-          p * relativeHashEstimate h y ∅ ω ≤ (p + 1) * #(∅ : Finset X))} : Finset _) = ∅ := by
-      ext ω
-      simp [hest ω]
-    rw [hemp, dens_empty]
+          p * relativeHashEstimate h y ∅ ω ≤ (p + 1) * #(∅ : Finset X))} : Finset _) = ∅ by
+        ext ω; simp [hest ω], dens_empty]
     positivity
 
 /-- **Approximate counting with relative error and small failure probability**: under the
@@ -231,19 +214,15 @@ theorem one_sub_inv_two_pow_le_dens_filter_affineRelativeHashEstimate {m p : ℕ
       #S ≤ relativeHashEstimate (fun _ A x => affineHash A (Function.uncurry x)) (fun _ => 0) S ω ∧
         p * relativeHashEstimate (fun _ A x => affineHash A (Function.uncurry x)) (fun _ => 0) S ω
           ≤ (p + 1) * #S} := by
-  have hh : ∀ j, IsPairwiseIndependentHash fun (A : Matrix (Fin j) (Fin (7 * p) × Fin m) (ZMod 2) ×
-      (Fin j → ZMod 2)) (x : Fin (7 * p) → Fin m → ZMod 2) => affineHash A (Function.uncurry x) :=
-    fun _ => isPairwiseIndependentHash_affineHash.comp Function.uncurry_injective
-  have hY : ∀ j, Fintype.card (Fin j → ZMod 2) = 2 ^ j := fun j => by
-    rw [Fintype.card_fun, ZMod.card, Fintype.card_fin]
   have hS : #S ^ (7 * p) ≤ 2 ^ (7 * p * m) := by
-    have : #S ≤ 2 ^ m := by
-      simpa only [Fintype.card_fun, ZMod.card, Fintype.card_fin] using card_le_univ S
-    calc #S ^ (7 * p) ≤ (2 ^ m) ^ (7 * p) := Nat.pow_le_pow_left this _
-      _ = 2 ^ (7 * p * m) := by rw [← pow_mul, mul_comm]
-  have hp' : 128 * p ^ (7 * p) ≤ (p + 1) ^ (7 * p) := two_pow_mul_pow_le_add_one_pow 7 hp
+    rw [mul_comm (7 * p) m, pow_mul 2]
+    exact Nat.pow_le_pow_left
+      (by simpa only [Fintype.card_fun, ZMod.card, Fintype.card_fin] using card_le_univ S) _
   exact one_sub_inv_two_pow_le_dens_filter_relativeHashEstimate
     (ι := fun j => Matrix (Fin j) (Fin (7 * p) × Fin m) (ZMod 2) × (Fin j → ZMod 2))
-    (Y := fun j => Fin j → ZMod 2) _ _ _ hh hY hS hp' t
+    (Y := fun j => Fin j → ZMod 2) _ _ _
+    (fun _ => isPairwiseIndependentHash_affineHash.comp Function.uncurry_injective)
+    (fun j => by rw [Fintype.card_fun, ZMod.card, Fintype.card_fin])
+    hS (two_pow_mul_pow_le_add_one_pow 7 hp) t
 
 end Cslib.Probability.ApproximateCounting

@@ -195,32 +195,27 @@ theorem editDist_triangle [Finite V] (G H K : SimpleGraph V) :
 /-- Relabelling both graphs by the same bijection preserves their edit distance. -/
 theorem editDist_comap_equiv [Finite V] {W : Type*} [Finite W] (e : V ≃ W) (G H : SimpleGraph W) :
     editDist (G.comap e) (H.comap e) = editDist G H := by
-  have h : symmDiff (G.comap e) (H.comap e) = (symmDiff G H).comap e := by
-    ext a b
-    simp [SimpleGraph.symmDiff_adj]
-  rw [editDist, editDist, h]
+  rw [editDist, editDist, show symmDiff (G.comap e) (H.comap e) = (symmDiff G H).comap e by
+    ext; simp [SimpleGraph.symmDiff_adj]]
   exact Nat.card_congr (Iso.comap e (symmDiff G H)).mapEdgeSet
 
 /-- On a finite vertex set the edit distance is the size of the symmetric difference of the edge
 sets. -/
 theorem editDist_eq_card [Fintype V] [DecidableEq V] (G H : SimpleGraph V) [DecidableRel G.Adj]
     [DecidableRel H.Adj] : editDist G H = #(symmDiff G.edgeFinset H.edgeFinset) := by
-  have he : (symmDiff G H).edgeSet = ↑(symmDiff G.edgeFinset H.edgeFinset) := by
-    rw [Finset.coe_symmDiff, SimpleGraph.coe_edgeFinset, SimpleGraph.coe_edgeFinset,
-      SimpleGraph.edgeSet_symmDiff]
-  rw [editDist, Nat.card_coe_set_eq, he, Set.ncard_coe_finset]
+  rw [editDist, Nat.card_coe_set_eq, SimpleGraph.edgeSet_symmDiff, ← SimpleGraph.coe_edgeFinset,
+    ← SimpleGraph.coe_edgeFinset, ← Finset.coe_symmDiff, Set.ncard_coe_finset]
 
 /-- Deleting a set `s` of edges of `G` changes exactly the pairs in `s`. -/
 theorem editDist_deleteEdges [Fintype V] (G : SimpleGraph V) [DecidableRel G.Adj]
     {s : Finset (Sym2 V)} (hs : s ⊆ G.edgeFinset) : editDist G (G.deleteEdges s) = #s := by
-  have he : (symmDiff G (G.deleteEdges s)).edgeSet = s := by
+  rw [editDist, show (symmDiff G (G.deleteEdges s)).edgeSet = s by
     rw [SimpleGraph.edgeSet_symmDiff, SimpleGraph.edgeSet_deleteEdges]
     ext e
     have := @hs e
     simp only [Set.mem_symmDiff, Set.mem_sdiff, Finset.mem_coe, SimpleGraph.mem_edgeFinset]
       at this ⊢
-    tauto
-  rw [editDist, he, Nat.card_coe_set_eq, Set.ncard_coe_finset]
+    tauto, Nat.card_coe_set_eq, Set.ncard_coe_finset]
 
 end EditDist
 
@@ -235,18 +230,15 @@ theorem not_isFar_of_property {G : SimpleGraph V} {P : SimpleGraph V → Prop} (
     (hε : 0 ≤ ε) : ¬ IsFar G P ε := fun h => by
   have h₁ := h G hG
   rw [editDist_self, Nat.cast_zero] at h₁
-  have h₂ : (0 : ℝ) ≤ ε * (Fintype.card V ^ 2 : ℕ) := by positivity
-  linarith
+  linarith [show (0 : ℝ) ≤ ε * (Fintype.card V ^ 2 : ℕ) by positivity]
 
 variable {G : SimpleGraph V} [DecidableRel G.Adj] {P : SimpleGraph V → Prop}
 
 /-- An `ε`-far graph is `ε n²`-delete-far: at least `ε n²` edges must be deleted to reach the
 property. -/
 theorem IsFar.deleteFar {ε : ℝ} (h : IsFar G P ε) :
-    G.DeleteFar P (ε * (Fintype.card V ^ 2 : ℕ)) := fun s hs hP => by
-  have h₁ := h _ hP
-  rw [editDist_deleteEdges G hs] at h₁
-  exact h₁.le
+    G.DeleteFar P (ε * (Fintype.card V ^ 2 : ℕ)) := fun _ hs hP =>
+  (editDist_deleteEdges G hs ▸ h _ hP).le
 
 /-- A graph `ε`-far from triangle-free is `ε`-far from triangle-free in the sense of Mathlib's
 triangle removal lemma. -/
@@ -261,24 +253,20 @@ theorem isFar_of_deleteFar (hP : ∀ ⦃H H' : SimpleGraph V⦄, H ≤ H' → P 
     (h : G.DeleteFar P r) (hr : ε * (Fintype.card V ^ 2 : ℕ) < r) : IsFar G P ε := by
   intro H hH
   classical
-  have hdel : P (G.deleteEdges (G.edgeFinset \ H.edgeFinset : Finset (Sym2 V))) := by
-    refine hP (fun u v huv => ?_) hH
-    rw [SimpleGraph.deleteEdges_adj] at huv
-    obtain ⟨hG, hn⟩ := huv
-    by_contra hH'
-    exact hn (by simp [hG, hH'])
-  have h₁ := h Finset.sdiff_subset hdel
-  have h₂ : #(G.edgeFinset \ H.edgeFinset) ≤ editDist G H := by
+  have h₁ := h (s := G.edgeFinset \ H.edgeFinset) Finset.sdiff_subset <| hP (fun u v huv => by
+    obtain ⟨hG, hn⟩ := SimpleGraph.deleteEdges_adj.mp huv
+    exact Classical.byContradiction fun hH' => hn (by simp [hG, hH'])) hH
+  have h₂ : (#(G.edgeFinset \ H.edgeFinset) : ℝ) ≤ editDist G H := by
     rw [editDist_eq_card]
-    exact Finset.card_le_card fun e he => Finset.mem_symmDiff.mpr (Or.inl (Finset.mem_sdiff.mp he))
-  have h₃ : (#(G.edgeFinset \ H.edgeFinset) : ℝ) ≤ editDist G H := by exact_mod_cast h₂
+    exact_mod_cast Finset.card_le_card fun _ he =>
+      Finset.mem_symmDiff.mpr (.inl (Finset.mem_sdiff.mp he))
   linarith
 
 /-- On a nonempty vertex set, being `ε'`-far from triangle-free in the sense of Mathlib implies
 being `ε`-far from triangle-free for every `ε < ε'`. -/
 theorem isFar_of_farFromTriangleFree [Nonempty V] {ε ε' : ℝ} (h : G.FarFromTriangleFree ε')
     (hεε' : ε < ε') : IsFar G (fun H => H.CliqueFree 3) ε := by
-  refine isFar_of_deleteFar (fun H H' hle hH' => hH'.anti hle) h ?_
+  refine isFar_of_deleteFar (fun _ _ hle hH' => hH'.anti hle) h ?_
   have hn : (0 : ℝ) < (Fintype.card V ^ 2 : ℕ) := by
     have := Fintype.card_pos (α := V)
     positivity
@@ -319,10 +307,8 @@ theorem IsOneSidedTester.evalWith_false_eq_zero {n : ℕ} {P : SimpleGraph (Fin 
     {T : Tester n} {ε : ℝ} {q : ℕ} (hT : IsOneSidedTester T P ε q) {H : SimpleGraph (Fin n)}
     (hH : P H) :
     OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle (adjOracle H)) T false = 0 := by
-  have h := hT.accept H hH
-  rw [acceptProb_eq, ENNReal.toReal_eq_one_iff, PMF.apply_eq_one_iff] at h
-  rw [PMF.apply_eq_zero_iff, h]
-  simp
+  have h := (PMF.apply_eq_one_iff _ _).mp ((ENNReal.toReal_eq_one_iff _).mp (hT.accept H hH))
+  simp [PMF.apply_eq_zero_iff, h]
 
 /-- Independent repetition multiplies acceptance probabilities. -/
 theorem acceptProb_repeatAll {n : ℕ} (T : Tester n) (G : SimpleGraph (Fin n)) (k : ℕ) :
@@ -337,10 +323,7 @@ theorem isQueryBounded_repeatAll {n : ℕ} {T : Tester n} {q : ℕ}
   | zero => exact .pure _ _
   | succ k ih =>
     rw [Nat.mul_succ, Nat.add_comm (q * k)]
-    refine hT.bind fun b => ?_
-    cases b
-    · exact OracleComp.IsCostBounded.pure _ _
-    · exact ih
+    exact hT.bind fun | false => OracleComp.IsCostBounded.pure _ _ | true => ih
 
 /-- Amplification: if the `q`-query tester `T` accepts every graph with property `P` with
 probability one and accepts every `ε`-far graph with probability at most `1 - δ`, then `k`

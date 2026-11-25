@@ -104,42 +104,29 @@ theorem read_write (t : RawTape Symbol) (w : Option (Option Symbol)) (z : ℤ) :
 theorem read_moveLeft (t : RawTape Symbol) (z : ℤ) :
     t.moveLeft.read z = t.read (z - 1) := by
   rcases t with ⟨h, l, r⟩
-  cases z with
-  | ofNat n =>
-    cases n with
-    | zero => cases l <;> rfl
-    | succ n =>
-      have he : (Int.ofNat (n + 1) : ℤ) - 1 = Int.ofNat n := by grind
-      rw [he]
-      cases n <;> rfl
-  | negSucc n =>
-    have he : Int.negSucc n - 1 = Int.negSucc (n + 1) := by omega
-    rw [he]
+  rcases z with (_ | n) | n
+  · cases l <;> rfl
+  · rw [show (Int.ofNat (n + 1) : ℤ) - 1 = Int.ofNat n by grind]
+    cases n <;> rfl
+  · rw [show Int.negSucc n - 1 = Int.negSucc (n + 1) by omega]
     cases l <;> rfl
 
 theorem read_moveRight (t : RawTape Symbol) (z : ℤ) :
     t.moveRight.read z = t.read (z + 1) := by
   rcases t with ⟨h, l, r⟩
-  cases z with
-  | ofNat n =>
-    have he : (Int.ofNat n : ℤ) + 1 = Int.ofNat (n + 1) := by grind
-    rw [he]
+  rcases z with n | (_ | n)
+  · rw [show (Int.ofNat n : ℤ) + 1 = Int.ofNat (n + 1) by grind]
     cases n <;> cases r <;> rfl
-  | negSucc n =>
-    cases n with
-    | zero => rfl
-    | succ n =>
-      have he : Int.negSucc (n + 1) + 1 = Int.negSucc n := by omega
-      rw [he]
-      rfl
+  · rfl
+  · rw [show Int.negSucc (n + 1) + 1 = Int.negSucc n by omega]
+    rfl
 
 theorem Represents.head {t : RawTape Symbol} {native : ℤ → Option Symbol} {pos : ℤ}
     (h : t.Represents native pos) : t.head = native pos := by
   simpa using h 0
 
-theorem Represents.init : (init : RawTape Symbol).Represents (fun _ => none) 0 := by
-  intro z
-  exact read_init z
+theorem Represents.init : (init : RawTape Symbol).Represents (fun _ => none) 0 :=
+  read_init
 
 theorem Represents.write {t : RawTape Symbol} {native : ℤ → Option Symbol} {pos : ℤ}
     (h : t.Represents native pos) (w : Option (Option Symbol)) :
@@ -149,28 +136,21 @@ theorem Represents.write {t : RawTape Symbol} {native : ℤ → Option Symbol} {
   intro z
   rw [read_write]
   cases w with
-  | none =>
-    by_cases hz : z = 0
-    · subst z; simpa using h 0
-    · simpa [hz] using h z
+  | none => split_ifs with hz <;> simpa [hz] using h z
   | some s =>
     by_cases hz : z = 0
     · subst z; simp
     · simpa [hz, show pos + z ≠ pos by omega] using h z
 
 theorem Represents.moveLeft {t : RawTape Symbol} {native : ℤ → Option Symbol} {pos : ℤ}
-    (h : t.Represents native pos) : t.moveLeft.Represents native (pos - 1) := by
-  intro z
+    (h : t.Represents native pos) : t.moveLeft.Represents native (pos - 1) := fun z => by
   rw [read_moveLeft, h]
-  congr 1
-  omega
+  exact congrArg native (by omega)
 
 theorem Represents.moveRight {t : RawTape Symbol} {native : ℤ → Option Symbol} {pos : ℤ}
-    (h : t.Represents native pos) : t.moveRight.Represents native (pos + 1) := by
-  intro z
+    (h : t.Represents native pos) : t.moveRight.Represents native (pos + 1) := fun z => by
   rw [read_moveRight, h]
-  congr 1
-  omega
+  exact congrArg native (by omega)
 
 /-- Raw execution preserves a native optional-write-and-move action, including erasing cells. -/
 theorem Represents.step {t : RawTape Symbol} {native : ℤ → Option Symbol} {pos : ℤ}
@@ -178,14 +158,10 @@ theorem Represents.step {t : RawTape Symbol} {native : ℤ → Option Symbol} {p
     (t.step a).Represents (match a.1 with
       | none => native
       | some s => Function.update native pos s) (pos + a.2) := by
-  rcases a with ⟨w, d⟩
-  cases w <;> cases d
-  · simpa only [RawTape.step, SignType.cast, add_zero] using h.write none
-  · simpa only [RawTape.step, SignType.cast, sub_eq_add_neg] using (h.write none).moveLeft
-  · simpa only [RawTape.step, SignType.cast] using (h.write none).moveRight
-  · simpa only [RawTape.step, SignType.cast, add_zero] using h.write (some _)
-  · simpa only [RawTape.step, SignType.cast, sub_eq_add_neg] using (h.write (some _)).moveLeft
-  · simpa only [RawTape.step, SignType.cast] using (h.write (some _)).moveRight
+  rcases a with ⟨w, _ | _ | _⟩
+  · simpa only [RawTape.step, SignType.cast, add_zero] using h.write w
+  · simpa only [RawTape.step, SignType.cast, sub_eq_add_neg] using (h.write w).moveLeft
+  · simpa only [RawTape.step, SignType.cast] using (h.write w).moveRight
 
 @[simp] theorem left_write (t : RawTape Symbol) (w : Option (Option Symbol)) :
     (t.write w).left = t.left := rfl
