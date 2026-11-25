@@ -1160,55 +1160,18 @@ theorem exists_computableInO_step (S : StackAccumulationSpec encA encK encS encB
               (encG (g (S.leafInstance (S.topNode st)))).length + 1) ^ d
         else 0) := by
   let encSt := encStackSearchState encK encS encD
-  have hstk : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.stack)
-      encSt (encList encS) :=
-    computableInPolyTime_stackSearchState_stack .id'
-  have hctx : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.ctx) encSt encK :=
-    computableInPolyTime_stackSearchState_ctx .id'
-  have hacc : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.acc) encSt encD :=
-    computableInPolyTime_stackSearchState_acc .id'
-  have hdone : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.stack.isEmpty)
-      encSt encBool :=
-    (listIsEmpty (encA := encS) (encL := encList encS)).comp hstk
-  have hhead : ComputableInPolyTime
-      (fun st : StackSearchState κ σ δ => st.stack.headD S.defaultNode) encSt encS :=
-    (headD S.defaultNode).comp hstk
-  have htail : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.stack.tail)
-      encSt (encList encS) :=
-    (tail (encA := encS) (encL := encList encS)).comp hstk
+  have := S.computableInPolyTime_isLeaf
+  have := S.computableInPolyTime_leafInstance
+  have := S.computableInPolyTime_expand
+  have := S.computableInPolyTime_combine
   have htopNode : ComputableInPolyTime S.topNode encSt (encStackNodeInput encK encS) :=
-    computableInPolyTime_stackNodeInput_mk hctx hhead
-  have hleaf : ComputableInPolyTime (fun st => S.isLeaf (S.topNode st)) encSt encBool :=
-    S.computableInPolyTime_isLeaf.comp htopNode
-  have htop : ComputableInPolyTime (fun st => S.leafInstance (S.topNode st)) encSt encB :=
-    S.computableInPolyTime_leafInstance.comp htopNode
-  have hexpList : ComputableInPolyTime
-      (fun st : StackSearchState κ σ δ => S.expand (S.topNode st) ++ st.stack.tail)
-      encSt (encList encS) :=
-    listAppend' (S.computableInPolyTime_expand.comp htopNode) htail
-  have hexpand : ComputableInPolyTime
-      (fun st : StackSearchState κ σ δ =>
-        StackSearchState.mk st.ctx (S.expand (S.topNode st) ++ st.stack.tail) st.acc)
-      encSt encSt :=
-    computableInPolyTime_stackSearchState_mk hctx hexpList hacc
-  have hpSt : ComputableInPolyTime (fun p : StackSearchState κ σ δ × γ => p.1)
-      (encPair encSt encG) encSt := fst encSt encG
-  have hpG : ComputableInPolyTime (fun p : StackSearchState κ σ δ × γ => p.2)
-      (encPair encSt encG) encG := snd encSt encG
-  have hcombIn : ComputableInPolyTime
-      (fun p : StackSearchState κ σ δ × γ => StackCombineInput.mk p.1.ctx p.1.acc p.2)
-      (encPair encSt encG) (encStackCombineInput encK encD encG) :=
-    computableInPolyTime_stackCombineInput_mk
-      (computableInPolyTime_stackSearchState_ctx hpSt)
-      (computableInPolyTime_stackSearchState_acc hpSt) hpG
-  have hrecord : ComputableInPolyTime
-      (fun p : StackSearchState κ σ δ × γ =>
-        StackSearchState.mk p.1.ctx p.1.stack.tail (S.combine ⟨p.1.ctx, p.1.acc, p.2⟩))
-      (encPair encSt encG) encSt :=
-    computableInPolyTime_stackSearchState_mk
-      (computableInPolyTime_stackSearchState_ctx hpSt)
-      (htail.comp hpSt) (S.computableInPolyTime_combine.comp hcombIn)
-  obtain ⟨d, h⟩ := exists_computableInO_searchStep hdone hleaf htop hexpand hrecord hg
+    computableInPolyTime_stackNodeInput_mk (by fun_prop) (by fun_prop)
+  obtain ⟨d, h⟩ := exists_computableInO_searchStep (encS := encSt)
+    (done := fun st => st.stack.isEmpty) (isLeaf := fun st => S.isLeaf (S.topNode st))
+    (top := fun st => S.leafInstance (S.topNode st))
+    (expand := fun st => ⟨st.ctx, S.expand (S.topNode st) ++ st.stack.tail, st.acc⟩)
+    (record := fun p => ⟨p.1.ctx, p.1.stack.tail, S.combine ⟨p.1.ctx, p.1.acc, p.2⟩⟩)
+    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) hg
   exact ⟨d, h.of_enc_eq fun _ => rfl⟩
 
 private theorem topNode_encLength_le (S : StackAccumulationSpec encA encK encS encB encG encD)
