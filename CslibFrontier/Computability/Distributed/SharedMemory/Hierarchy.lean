@@ -289,13 +289,11 @@ theorem solvesWaitFreeConsensus_one {P I V : Type*} {Op Resp ObjState : I → Ty
       refine ⟨rfl, fun v hv => ?_⟩
       simp only [Protocol.initConfig, reduceCtorEq] at hv
     · intro c₁ q hinit hact_q p
-      by_cases hpq : p = q
-      · subst hpq
-        rw [π.step_of_active hact_q]
+      rcases eq_or_ne p q with rfl | hpq
+      · rw [π.step_of_active hact_q]
         simp only [π, oneProcProtocol, Function.update_self, Option.some.injEq]
         exact ⟨(hinit p).1, fun v hv => hv.symm.trans (hinit p).1⟩
-      · rw [π.step_proc_of_ne c₁ hpq]
-        exact hinit p
+      · simpa only [π.step_proc_of_ne c₁ hpq] using hinit p
   refine ⟨hwf, ?_, ?_⟩
   · rintro inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩
     rw [(hinv inp c hr p₁).2 v₁ hp₁, (hinv inp c hr p₂).2 v₂ hp₂, Subsingleton.elim p₁ p₂]
@@ -839,11 +837,7 @@ theorem not_isCommutingOrOverwriting_casObj {α : Type*} [DecidableEq α] (init 
     ¬ IsCommutingOrOverwriting (casObj init) := by
   intro hco
   have h := hco ⟨a, b⟩ ⟨a, c⟩ a
-  simp only [casObj, ↓reduceIte, hab.symm, hac.symm] at h
-  rcases h with h₁ | h₂ | h₃
-  · exact hbc h₁
-  · exact hbc h₂
-  · exact hbc h₃.symm
+  simp [casObj, hab.symm, hac.symm, hbc, hbc.symm] at h
 
 /-- `casObj` over `Option V` (for any `[Nontrivial V]`, including `Option Bool`) is not
 commuting-or-overwriting. -/
@@ -909,16 +903,15 @@ theorem solvesWaitFreeConsensus_cas {P V : Type*} [Finite P] [DecidableEq P] [De
           simp only [π, casConsensusProtocol, casObj, hst q, reduceCtorEq, ↓reduceIte]
       rw [hstep_c]
       refine ⟨fun p => ?_, ⟨fun hn => ?_, fun w hw => ?_⟩⟩
-      · by_cases hpq : p = q
-        · subst hpq; simp only [Function.update_self]
-        · simp only [Function.update_of_ne hpq]; exact hst p
+      · rcases eq_or_ne p q with rfl | hpq
+        · simp only [Function.update_self]
+        · simpa only [Function.update_of_ne hpq] using hst p
       · simp only [Function.update_self, reduceCtorEq] at hn
       · simp only [Function.update_self, Option.some.injEq] at hw
         subst hw
         refine ⟨hw_valid, fun p v hpv => ?_⟩
-        by_cases hpq : p = q
-        · subst hpq
-          simp only [Function.update_self, Option.some.injEq] at hpv
+        rcases eq_or_ne p q with rfl | hpq
+        · simp only [Function.update_self, Option.some.injEq] at hpv
           exact hpv.symm
         · simp only [Function.update_of_ne hpq] at hpv
           exact hw_dec p v hpv

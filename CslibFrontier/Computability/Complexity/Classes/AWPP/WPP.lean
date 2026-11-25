@@ -49,9 +49,9 @@ theorem WPP_subset_AWPP : WPP enc ⊆ AWPP enc := by
     (ComputableInPolyTime.encoding_length encNat).comp hk
   let D a : ℤ := 2 ^ r a
   have hD : D ∈ GapP enc := by
-    have := SharpP.natCast_mem_GapP
-      (mem_SharpP_of_polyTime ((ComputableInPolyTime.binary_two_pow.comp hr)))
-    simpa only [Function.comp_apply, Nat.cast_pow, Nat.cast_ofNat, D] using this
+    simpa only [Function.comp_apply, Nat.cast_pow, Nat.cast_ofNat, D] using
+      SharpP.natCast_mem_GapP
+        (mem_SharpP_of_polyTime (ComputableInPolyTime.binary_two_pow.comp hr))
   let G := g * g
   have hG : G ∈ GapP enc := GapP.mul_mem hg hg
   have hnum := GapP.sub_mem' (GapP.add_mem (GapP.mul_mem hG hD) (GapP.mul_mem hG hD))
@@ -67,24 +67,19 @@ theorem WPP_subset_AWPP : WPP enc ⊆ AWPP enc := by
     have he : 2 ^ (k a).size = 2 * 2 ^ ((k a).size - 1) := by
       rw [← pow_succ', Nat.sub_add_cancel hs]
     dsimp only [D]
-    rw [hrs]
-    exact_mod_cast (by omega : 2 ^ (k a).size ≤ 2 * k a)
+    exact mod_cast hrs ▸ (by omega : 2 ^ (k a).size ≤ 2 * k a)
   have hupp : (k a : ℤ) ≤ D a := by
     dsimp only [D]
-    rw [hrs]
-    exact_mod_cast (Nat.lt_size_self (k a)).le
+    exact mod_cast hrs ▸ (Nat.lt_size_self (k a)).le
   simp only [Pi.sub_apply, Pi.add_apply, Pi.mul_apply, Function.comp_apply, pow_add]
   change (0 ≤ G a * D a + G a * D a - G a * G a ∧
       G a * D a + G a * D a - G a * G a ≤ D a * D a) ∧
     (a ∈ A → 2 * (D a * D a) ≤ 3 * (G a * D a + G a * D a - G a * G a)) ∧
     (a ∉ A → 3 * (G a * D a + G a * D a - G a * G a) ≤ D a * D a)
   rcases hrange a with hz | ht
-  · have hn : a ∉ A := by rw [hA a, hz]; exact (hf0 a).symm
-    have hG0 : G a = 0 := by simp [G, hz]
-    simp [hG0, hn, mul_self_nonneg]
+  · simp [G, hz, hA a, (hf0 a).symm, mul_self_nonneg]
   · have hy : a ∈ A := (hA a).mpr ht
-    have hGk : G a = (k a : ℤ) := by simp [G, ht, hkcast]
-    rw [hGk]
+    simp only [G, Pi.mul_apply, ht, ← hkcast]
     have hprod : 0 ≤ (2 * (k a : ℤ) - D a) * (D a - k a) := mul_nonneg (by omega) (by omega)
     refine ⟨⟨by nlinarith, by nlinarith [sq_nonneg (D a - k a)]⟩,
       fun _ => by nlinarith [sq_nonneg (k a : ℤ)], fun hn => (hn hy).elim⟩

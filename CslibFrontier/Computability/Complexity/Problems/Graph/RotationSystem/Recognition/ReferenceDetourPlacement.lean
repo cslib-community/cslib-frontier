@@ -65,6 +65,12 @@ private theorem placed_support (p : Route) (flip : Bool) (z : ℂ) :
   cases flip <;> simp only [placed, Bool.false_eq_true, ↓reduceIte,
     Route.support_translate, Route.support_reverse]
 
+private theorem mem_placed_support {p : Route} {flip : Bool} {z w : ℂ} :
+    w ∈ (placed p flip z).support ↔ w - z ∈ p.support := by
+  rw [placed_support]
+  exact ⟨fun ⟨u, hu, h⟩ => by rwa [← h, add_sub_cancel_left],
+    fun h => ⟨w - z, h, add_sub_cancel _ _⟩⟩
+
 private theorem placed_simple {p : Route} (hp : p.IsSimple) (flip : Bool) (z : ℂ) :
     (placed p flip z).IsSimple := by
   cases flip
@@ -344,28 +350,21 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
       placed_simple (hends e).2.2.1 (flip e) z, hball e⟩
   · intro e f hef
     obtain ⟨w, ⟨he, hf⟩, huniq⟩ := hpair e f hef
-    refine ⟨z + w, ?_, ?_⟩
-    · exact ⟨(placed_support (R e) (flip e) z).symm ▸ Set.mem_image_of_mem _ he,
-        (placed_support (R f) (flip f) z).symm ▸ Set.mem_image_of_mem _ hf⟩
-    · intro v hv
-      obtain ⟨u, hue, huv⟩ := (placed_support (R e) (flip e) z) ▸ hv.1
-      obtain ⟨u', huf, hufv⟩ := (placed_support (R f) (flip f) z) ▸ hv.2
-      have huu : u = u' := add_left_cancel (huv.trans hufv.symm)
-      have hu : u = w := huniq u ⟨hue, huu.symm ▸ huf⟩
-      exact huv.symm.trans (congrArg (fun x => z + x) hu)
+    refine ⟨z + w, ⟨mem_placed_support.mpr (by simpa using he),
+      mem_placed_support.mpr (by simpa using hf)⟩, fun v hv => ?_⟩
+    rw [← add_sub_cancel z v,
+      huniq (v - z) ⟨mem_placed_support.mp hv.1, mem_placed_support.mp hv.2⟩]
   · intro e f hef w hwe hwf
-    obtain ⟨u, hue, hu⟩ := (placed_support (R e) (flip e) z) ▸ hwe
-    obtain ⟨v, hvf, hv⟩ := (placed_support (R f) (flip f) z) ▸ hwf
-    have huv : u = v := add_left_cancel (hu.trans hv.symm)
-    obtain ⟨_, _, t, t', ht, ht', hete, hetf⟩ := hcontact e f hef u hue (huv.symm ▸ hvf)
+    obtain ⟨_, _, t, t', ht, ht', hete, hetf⟩ :=
+      hcontact e f hef (w - z) (mem_placed_support.mp hwe) (mem_placed_support.mp hwf)
     refine ⟨contactIndex (R e) (flip e) z, contactIndex (R f) (flip f) z,
       contactTime (flip e) t, contactTime (flip f) t', ?_, ?_, ?_, ?_, ?_⟩
     · cases flip e <;> dsimp [contactTime] <;> constructor <;> linarith [ht.1, ht.2]
     · cases flip f <;> dsimp [contactTime] <;> constructor <;> linarith [ht'.1, ht'.2]
     · exact (placed_contact_eval (R e) (flip e) z t).trans
-        ((congrArg (fun x => z + x) ((hraw_eval e t).symm.trans hete)).trans hu)
+        (by rw [← hraw_eval, hete, add_sub_cancel])
     · exact (placed_contact_eval (R f) (flip f) z t').trans
-        ((congrArg (fun x => z + x) ((hraw_eval f t').symm.trans hetf)).trans hu)
+        (by rw [← hraw_eval, hetf, add_sub_cancel])
     · have hve := placed_vector (R e) (flip e) z
       have hvf := placed_vector (R f) (flip f) z
       dsimp only [placed, flip, a, b, D] at hve hvf ⊢
@@ -378,11 +377,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         try simp only [Complex.neg_re, Complex.neg_im] at hzero
         nlinarith only [hzero]
   · intro e f g hef heg hfg w hwe hwf hwg
-    obtain ⟨u, hue, hu⟩ := (placed_support (R e) (flip e) z) ▸ hwe
-    obtain ⟨v, hvf, hv⟩ := (placed_support (R f) (flip f) z) ▸ hwf
-    obtain ⟨v', hvg, hv'⟩ := (placed_support (R g) (flip g) z) ▸ hwg
-    have huv : u = v := add_left_cancel (hu.trans hv.symm)
-    have huv' : u = v' := add_left_cancel (hu.trans hv'.symm)
-    exact hno3 e f g hef heg hfg u hue (huv.symm ▸ hvf) (huv'.symm ▸ hvg)
+    exact hno3 e f g hef heg hfg (w - z) (mem_placed_support.mp hwe)
+      (mem_placed_support.mp hwf) (mem_placed_support.mp hwg)
 
 end Cslib.Complexity.Graph.RotationRecognition

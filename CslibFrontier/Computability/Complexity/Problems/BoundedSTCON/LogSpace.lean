@@ -122,42 +122,29 @@ private theorem read_header (hB : I.graph.n ≤ B) :
       (encBoundedSTCON I)[2 * (I.graph.n + 1 + I.graph.s + 1 + i) + 1]? =
         some (decide (i < I.graph.t)) := by
     rw [I.input_graph (by rw [I.graph.length_encode]; omega), I.graph.getElem?_encode_t hi]
+  have hfalse {x : Option Bool} {n : ℕ} (hx : x = some (decide (n < n))) : x ≠ some true := by
+    simp [hx]
   have hn := reachesOut_count (P := writer) (w := encBoundedSTCON I)
     (n := I.graph.n) (u := 0) (c := 0) (fun j => [j, 0, 0, 0, 0, 0, 0, 0])
     (by rfl) (by rfl) (fun _ _ => by simp)
     (fun j hj => hb hj (by omega) (by omega))
-    (fun j hj => by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-        hN j hj.le, Option.some.injEq, decide_eq_true_eq, hj])
-    (by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-        hN _ le_rfl, lt_irrefl, decide_false, ne_eq, Option.some.injEq, Bool.false_eq_true,
-        not_false_eq_true])
+    (fun j hj => by exact decide_eq_true hj ▸ hN j hj.le)
+    (by exact hfalse (hN _ le_rfl))
     0 (Nat.zero_le _)
   have hs' := reachesOut_count (P := writer) (w := encBoundedSTCON I)
     (n := I.graph.s) (u := 1) (c := 2) (fun j => [I.graph.n, j, 0, 0, 0, 0, 0, 0])
     (by rfl) (by rfl) (fun _ _ => by simp)
     (fun j hj => hb le_rfl (by omega) (by omega))
-    (fun j hj => by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_succ,
-        List.getD_cons_zero, hS j hj.le, Option.some.injEq, decide_eq_true_eq, hj])
-    (by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_succ,
-        List.getD_cons_zero, hS _ le_rfl, lt_irrefl, decide_false, ne_eq, Option.some.injEq,
-        Bool.false_eq_true, not_false_eq_true])
+    (fun j hj => by exact decide_eq_true hj ▸ hS j hj.le)
+    (by exact hfalse (hS _ le_rfl))
     0 (Nat.zero_le _)
   have ht' := reachesOut_count (P := writer) (w := encBoundedSTCON I)
     (n := I.graph.t) (u := 2) (c := 4)
     (fun j => [I.graph.n, I.graph.s, j, 0, 0, 0, 0, 0])
     (by rfl) (by rfl) (fun _ _ => by simp)
     (fun j hj => hb le_rfl (by omega) (by omega))
-    (fun j hj => by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_succ,
-        List.getD_cons_zero, hT j hj.le, Option.some.injEq, decide_eq_true_eq, hj])
-    (by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_succ,
-        List.getD_cons_zero, hT _ le_rfl, lt_irrefl, decide_false, ne_eq, Option.some.injEq,
-        Bool.false_eq_true, not_false_eq_true])
+    (fun j hj => by exact decide_eq_true hj ▸ hT j hj.le)
+    (by exact hfalse (hT _ le_rfl))
     0 (Nat.zero_le _)
   exact hn.trans (hs'.trans ht')
 

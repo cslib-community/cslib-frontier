@@ -105,17 +105,13 @@ theorem exists_runsInTime (a : α) {time : ℕ}
     rw [R.boundary_flag] at hflag
     have hnext : M.halted (M.step (enc a) s b) = false := by
       cases h : M.halted (M.step (enc a) s b) <;> simp_all [flagWord]
-    have hsLive : M.halted s = false := by
-      cases h : M.halted s
-      · rfl
-      · rw [M.step_of_halted _ h] at hnext
-        simp [h] at hnext
+    have hsLive : M.halted s = false :=
+      Bool.eq_false_iff.mpr fun h => by simp [M.step_of_halted _ h, h] at hnext
     simp only [R.boundaryState_eq]
     exact (M.withInit (start a)).remainingSteps_step_lt _
       ⟨time, (M.withInit (start a)).haltsFrom_of_reachable _ hhalt hs⟩ hsLive b
   · intro ws hws
-    obtain ⟨t, ht⟩ := R.finish_spec a ws hws
-    exact ⟨t, R.c * S a, ht⟩
+    exact (R.finish_spec a ws hws).imp fun _ ht => ⟨R.c * S a, ht⟩
 
 private theorem runPath_length_pos {a : α} {p : R.machine.RunPath (enc a)}
     {q : Native.State R.SI R.SP R.SF} {ws : Fin R.k → List Bool} {out : List Bool}
@@ -215,8 +211,7 @@ private theorem exists_finish_path (a : α) (s : σ)
   let p := q.map (Native.finishHom R.I R.P R.F R.C)
   have hlast : p.last = wordsCfg (enc a) none ws' (out ++ [M.accept s]) := by
     simp [p, hlast', hqlast, Native.finishState, he]
-  refine ⟨p, ?_, by rw [hlast]; rfl, by rw [hlast]; rfl⟩
-  simp [p, hhead', hqhead, Native.finishState]
+  exact ⟨p, by simp [p, hhead', hqhead, Native.finishState], hlast ▸ rfl, congrArg Cfg.output hlast⟩
 
 private theorem exists_pass_path (a : α) (s : σ)
     (hs : (M.withInit (start a)).Reachable (enc a) s)
@@ -310,12 +305,10 @@ private theorem check_realizes (a : α) (choices : List Bool) (s : σ)
       simpa [hn, M.replay_of_halted (enc a) hn] using R.exists_finish_path a s hs false out
   let initial := wordsCfg (enc a) (some (.check : Native.State R.SI R.SP R.SF))
     (R.boundary s (!M.halted s)) out
-  have hstep : R.machine.Step initial p.head := by
-    rw [hphead]
-    apply (Native.step_iff R.I R.P R.F R.C).mpr
-    refine ⟨false, ?_⟩
-    rw [Native.step_check_words R.I R.P R.F R.C false, R.boundary_flag]
-    cases M.halted s <;> simp [flagWord]
+  have hstep : R.machine.Step initial p.head :=
+    (Native.step_iff R.I R.P R.F R.C).mpr ⟨false, by
+      rw [hphead, Native.step_check_words R.I R.P R.F R.C false, R.boundary_flag]
+      cases M.halted s <;> simp [flagWord]⟩
   exact ⟨p.cons initial hstep, rfl, by simpa using hphalt, by simpa using hpout⟩
 
 /-- Native acceptance is exactly existential halted acceptance of the query machine. -/

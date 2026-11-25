@@ -175,16 +175,15 @@ private theorem two_mul_card_filter_edge {U V : Finset (Fin n)} {S : Finset (Col
       ∀ c, (flipOn {w} c (.inl e.1) = flipOn {w} c (.inr e.2) ↔
         ¬c (.inl e.1) = c (.inr e.2)) := by
     rcases he with he | he
-    · refine ⟨.inl e.1, fun c hc => hS c _ (fun u hu => ?_) (fun v _ => ?_) hc, fun c => ?_⟩
-      · have hu' : u ≠ e.1 := fun h => he (h ▸ hu)
-        exact (flipOn_singleton_of_ne (Sum.inl_injective.ne hu') c).symm
-      · exact (flipOn_singleton_of_ne Sum.inr_ne_inl c).symm
+    · refine ⟨.inl e.1, fun c hc => hS c _ (fun u hu => ?_)
+        (fun _ _ => (flipOn_singleton_of_ne Sum.inr_ne_inl c).symm) hc, fun c => ?_⟩
+      · exact (flipOn_singleton_of_ne (Sum.inl_injective.ne (ne_of_mem_of_not_mem hu he)) c).symm
       · rw [flipOn_singleton_self, flipOn_singleton_of_ne Sum.inr_ne_inl]
         cases c (.inl e.1) <;> cases c (.inr e.2) <;> decide
-    · refine ⟨.inr e.2, fun c hc => hS c _ (fun u _ => ?_) (fun v hv => ?_) hc, fun c => ?_⟩
-      · exact (flipOn_singleton_of_ne Sum.inl_ne_inr c).symm
-      · have hv' : v ≠ e.2 := fun h => he (h ▸ hv)
-        exact (flipOn_singleton_of_ne (Sum.inr_injective.ne hv') c).symm
+    · refine ⟨.inr e.2, fun c hc => hS c _
+        (fun _ _ => (flipOn_singleton_of_ne Sum.inl_ne_inr c).symm) (fun v hv => ?_) hc,
+        fun c => ?_⟩
+      · exact (flipOn_singleton_of_ne (Sum.inr_injective.ne (ne_of_mem_of_not_mem hv he)) c).symm
       · rw [flipOn_singleton_self, flipOn_singleton_of_ne Sum.inl_ne_inr]
         cases c (.inl e.1) <;> cases c (.inr e.2) <;> decide
   have hbij : #{c ∈ S | c (.inl e.1) = c (.inr e.2)} = #{c ∈ S | ¬c (.inl e.1) = c (.inr e.2)} :=
@@ -409,12 +408,9 @@ theorem card_stepExceptions_le_of_step {F G : Finset (Finset (Fin n × Fin n))}
     refine eq_empty_of_forall_notMem fun e he => ?_
     obtain ⟨⟨hei, heW⟩, ⟨hej, -⟩⟩ := (mem_inter.1 he).imp mem_sdiff.1 mem_sdiff.1
     exact heW (hVW i j hij (mem_inter.2 ⟨hei, hej⟩))
-  have hinj : Function.Injective fun i => V i \ W := by
-    intro i j hij
-    by_contra hne
-    have h := hinter i j hne
-    rw [show V j \ W = V i \ W from hij.symm, inter_self, sdiff_eq_empty_iff_subset] at h
-    exact hsub i h
+  have hinj : Function.Injective fun i => V i \ W := fun i j hij =>
+    by_contra fun hne => hsub i <| sdiff_eq_empty_iff_subset.1 <| by
+      simpa only [hij, inter_self] using hinter i j hne
   set 𝒟 := univ.image fun i => V i \ W
   have hcount := card_filter_forall_not_contains_mul_le (𝒟 := 𝒟) (s := s) (q := q)
     (Finset.forall_mem_image.2 fun i _ => (mem_matchings.1 (hF (hV i))).1.mono sdiff_subset)
@@ -500,19 +496,15 @@ theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n 
   cases op with
   | const b => simpa using h
   | and =>
-    rw [decode_eq_true, terms_interpretation_and] at h
-    obtain ⟨W, hW, hcW⟩ := h
+    obtain ⟨W, hW, hcW⟩ := terms_interpretation_and A ▸ decode_eq_true.1 h
     rw [Monotone.interpretation_and, Bool.and_eq_true, decode_eq_true, decode_eq_true]
     exact ⟨⟨W, (mem_inter.1 hW).1, hcW⟩, ⟨W, (mem_inter.1 hW).2, hcW⟩⟩
   | or =>
     rw [decode_eq_true, terms_interpretation_or] at h
-    have hG : Accepts ((A 0).terms ∪ (A 1).terms) (ofColoring c) :=
+    obtain ⟨W, hW, hcW⟩ : Accepts ((A 0).terms ∪ (A 1).terms) (ofColoring c) :=
       not_not.1 fun hG => hc (mem_stepExceptions.2 ⟨h, hG⟩)
-    obtain ⟨W, hW, hcW⟩ := hG
     rw [Monotone.interpretation_or, Bool.or_eq_true, decode_eq_true, decode_eq_true]
-    rcases mem_union.1 hW with hW | hW
-    · exact Or.inl ⟨W, hW, hcW⟩
-    · exact Or.inr ⟨W, hW, hcW⟩
+    exact (mem_union.1 hW).imp (⟨W, ·, hcW⟩) (⟨W, ·, hcW⟩)
 
 variable [Fact (2 ≤ r)]
 
