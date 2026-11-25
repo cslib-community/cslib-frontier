@@ -41,6 +41,7 @@ SOURCES = ROOT / "manual" / "sources.md"
 
 # A list item: its marker and the text after it.
 LIST_ITEM = re.compile(r"(?P<marker>(?:[-*+]|\d{1,9}[.)])[ ]+)(?P<text>\S.*)")
+EMPTY_LIST_ITEM = re.compile(r" {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]*$")
 # A Setext heading underline: `=` or `-` characters after at most three spaces.
 SETEXT = re.compile(r" {0,3}(?:=+|-+)[ \t]*$")
 # A link or footnote reference definition (`[label]: url`), kept as its own line at block start.
@@ -49,6 +50,7 @@ REFERENCE_DEF = re.compile(r" {0,3}\[[^\]]+\]:(?:\s|$)")
 # anchors and other HTML, ATX headings, block quotes, tables, fences, thematic breaks and
 # Pandoc's `:::` divs.
 BLOCK_OPENER = re.compile(r" {0,3}(?:<|#|>|\||`{3,}|~{3,}|:::|([-*_])( *\1){2,}[ \t]*$)")
+NON_PIPE_OPENER = re.compile(r" {0,3}(?:<|#|>|`{3,}|~{3,}|:::|([-*_])( *\1){2,}[ \t]*$)")
 # The opening line of a fenced code block, whose lines up to the closing fence are kept.
 FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
 # Display math (`$$...$$`) and CommonMark §4.6 HTML block forms, kept across their full spans.
@@ -240,33 +242,89 @@ def display_math_end(lines: list[str], i: int) -> int | None:
     return close + 1
 
 
-def is_table_delimiter(line: str) -> bool:
-    """Whether `line` is a GFM pipe-table delimiter row (`| --- |` or `--- | ---`)."""
+def delimiter_cells(line: str) -> int:
+    """Number of cells in a GFM pipe-table delimiter row (`| --- |` or `--- | ---`), else 0."""
     if len(line) - len(line.lstrip(" ")) > 3 or "|" not in line:
-        return False
+        return 0
     stripped = line.strip()
     cells = stripped.split("|")
     if stripped.startswith("|"):
         cells = cells[1:]
     if stripped.endswith("|"):
         cells = cells[:-1]
-    return bool(cells) and all(TABLE_CELL.fullmatch(cell) for cell in cells)
+    return len(cells) if cells and all(TABLE_CELL.fullmatch(cell) for cell in cells) else 0
 
 
 def table_end(lines: list[str], i: int) -> int | None:
-    """Exclusive end line of a GFM pipe table starting at header `lines[i]`, else None."""
-    if i + 1 >= len(lines) or not is_table_delimiter(lines[i + 1]):
+    """Exclusive end line of a GFM §4.10 pipe table starting at header `lines[i]`, else None."""
+    if i + 1 >= len(lines):
+        return None
+    cols = delimiter_cells(lines[i + 1])
+    if not cols:
         return None
     header = lines[i]
-    if (not header.strip() or len(header) - len(header.lstrip(" ")) > 3 or "|" not in header
-            or FENCE.match(header) or SETEXT.match(header) or LIST_ITEM.fullmatch(header)):
+    if (not header.strip() or len(header) - len(header.lstrip(" ")) > 3
+            or ("|" not in header and cols > 1)
+            or FENCE.match(header) or SETEXT.match(header)
+            or LIST_ITEM.fullmatch(header) or EMPTY_LIST_ITEM.match(header)
+            or NON_PIPE_OPENER.match(header) or display_math_end(lines, i) is not None):
         return None
+    # GFM §4.10: every non-blank line after the delimiter row continues the table (including a
+    # single-cell row with no `|`) until a blank line or another block-opening construct.
     j = i + 2
-    while (j < len(lines) and lines[j].strip() and "|" in lines[j]
-           and not FENCE.match(lines[j]) and html_block_end(lines, j, in_paragraph=True) is None
+    while (j < len(lines) and lines[j].strip()
+           and not LIST_ITEM.fullmatch(lines[j]) and not EMPTY_LIST_ITEM.match(lines[j])
+           and not NON_PIPE_OPENER.match(lines[j])
+           and html_block_end(lines, j, in_paragraph=True) is None
            and display_math_end(lines, j) is None):
         j += 1
     return j
+
+
+def blockquote_end(lines: list[str], i: int) -> int | None:
+    """Exclusive end line of a `>` block quote (including lazy continuation lines), else None."""
+    if not re.match(r" {0,3}>", lines[i]):
+        return None
+    j = i + 1
+    while j < len(lines) and lines[j].strip():
+        if re.match(r" {0,3}>", lines[j]):
+            j += 1
+            continue
+        if (LIST_ITEM.fullmatch(lines[j]) or EMPTY_LIST_ITEM.match(lines[j])
+                or NON_PIPE_OPENER.match(lines[j])
+                or html_block_end(lines, j, in_paragraph=True) is not None
+                or display_math_end(lines, j) is not None
+                or table_end(lines, j) is not None):
+            break
+        j += 1
+    return j
+
+
+def list_item_opaque_end(lines: list[str], i: int, item: re.Match[str]) -> int | None:
+    """Exclusive end line when list item `lines[i]` contains a non-prose block, nested list or
+    indented code, else None."""
+    marker = item.group("marker")
+    indent = " " * len(marker)
+    end = i + 1
+    while end < len(lines):
+        if lines[end].startswith(indent):
+            end += 1
+            continue
+        if not lines[end].strip():
+            nxt = next((k for k in range(end + 1, len(lines)) if lines[k].strip()), len(lines))
+            if nxt < len(lines) and lines[nxt].startswith(indent):
+                end = nxt + 1
+                continue
+        break
+    if len(marker) - len(marker.rstrip(" ")) >= 5:  # CommonMark §5.2 Rule 2 indented code
+        return end
+    inner = [lines[i][len(marker):],
+             *(part[len(indent):] if part.startswith(indent) else ""
+               for part in lines[i + 1:end])]
+    if any(kind == "opaque" or (kind == "prose" and payload[0] != "")
+           for kind, payload in _iter_blocks(inner)):
+        return end
+    return None
 
 
 def _iter_blocks(lines: list[str]):
@@ -290,12 +348,13 @@ def _iter_blocks(lines: list[str]):
             i = j + 1
             continue
         if end := (html_block_end(lines, i) or display_math_end(lines, i)
-                   or table_end(lines, i)):
+                   or table_end(lines, i) or blockquote_end(lines, i)
+                   or (list_item_opaque_end(lines, i, item) if item else None)):
             yield ("opaque", lines[i:end])
             i = end
             continue
-        if ((BLOCK_OPENER.match(line) and not item) or SETEXT.match(line)
-                or REFERENCE_DEF.match(line) or line[:1].isspace()):
+        if ((BLOCK_OPENER.match(line) and not item) or EMPTY_LIST_ITEM.match(line)
+                or SETEXT.match(line) or REFERENCE_DEF.match(line) or line[:1].isspace()):
             yield ("opaque", [line])
             i += 1
             continue
@@ -303,6 +362,7 @@ def _iter_blocks(lines: list[str]):
         # blank line, another list item, a Setext underline or a line that opens another block.
         j = i + 1
         while (j < len(lines) and lines[j].strip() and not LIST_ITEM.fullmatch(lines[j])
+               and not EMPTY_LIST_ITEM.match(lines[j])
                and not (not item and SETEXT.match(lines[j]))
                and html_block_end(lines, j, in_paragraph=True) is None
                and display_math_end(lines, j) is None
@@ -324,7 +384,7 @@ def _iter_blocks(lines: list[str]):
                 or (item and part.startswith(indent)
                     and (BLOCK_OPENER.match(part[len(indent):])
                          or DISPLAY_MATH.match(part[len(indent):])
-                         or is_table_delimiter(part[len(indent):])))
+                         or bool(delimiter_cells(part[len(indent):]))))
                 or (part[:1].isspace() and (not item or not part.startswith(indent)
                                             or part[len(indent):][:1].isspace()))
                 for part in block[1:]):
