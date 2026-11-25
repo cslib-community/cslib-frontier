@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Probability.Hellinger
 public import CslibFrontier.Probability.HypothesisSelection.LeCamBirge
 public import CslibFrontier.Probability.IID
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Probability.HypothesisSelection.Likelihood
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
@@ -347,7 +348,7 @@ theorem scheffeSelectFin_ge_le_of_log (p : _root_.PMF α) {M : ℕ} [NeZero M]
   have hM : (1 : ℝ) ≤ M := by exact_mod_cast NeZero.pos M
   have hcK : 2 * ((M : ℝ) * ((M : ℝ) - 1)) ≤ 2 * (M : ℝ) ^ 2 := by nlinarith
   rw [show (-2 : ℝ) * (n : ℝ) * γ ^ 2 = -(2 * γ ^ 2 * (n : ℝ)) by ring]
-  exact mul_exp_neg_le_of_log hcK (by positivity) (by positivity) hδ hn
+  exact Real.mul_exp_neg_le_of_log hcK (by positivity) (by positivity) hδ hn
 
 /-- Agnostic finite-cover TV guarantee for `scheffeSelect`: if `models` on `s` forms an `r`-cover
 of `ℱ` in TV distance, then for every `p ∈ ℱ`, `scheffeSelect` recovers a model within
@@ -657,7 +658,7 @@ theorem birgeTournamentSelectFin_ge_le_of_log [Finite α] {p : _root_.PMF α} {M
   have hcK : 2 * ((M : ℝ) - 1) ≤ 2 * (M : ℝ) := by linarith
   have hK : 0 < 2 * (M : ℝ) := by linarith
   rw [show (-4 : ℝ) * (n : ℝ) * r ^ 2 = -(4 * r ^ 2 * (n : ℝ)) by ring]
-  exact mul_exp_neg_le_of_log hcK hK (by positivity) hδ hn
+  exact Real.mul_exp_neg_le_of_log hcK hK (by positivity) hδ hn
 
 /-- Agnostic finite-cover Hellinger guarantee: if `models` on `s` is a finite Hellinger `r`-cover
 of a class `ℱ`, then for every `p ∈ ℱ`, `birgeTournamentSelect` outputs a model within Hellinger

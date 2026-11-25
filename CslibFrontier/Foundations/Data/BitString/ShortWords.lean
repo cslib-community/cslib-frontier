@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Data.Set.Card
-public import Mathlib.Data.Set.Finite.List
+public import CslibFrontier.Foundations.Data.List.WordsLe
 public import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 import Mathlib.Algebra.Ring.GeomSum
 import Mathlib.Data.Fintype.BigOperators
@@ -26,7 +26,8 @@ leaves some word of length `n` unused.
 
 ## Main definitions
 
-* `Cslib.BitString.shortWords`: the binary words of length at most `L`.
+* `Cslib.BitString.shortWords`: the binary words of length at most `L`, the case `Γ = Bool` of
+  `List.wordsLe`.
 
 ## Main results
 
@@ -73,12 +74,12 @@ theorem exists_length_eq_notMem (Q : List (List Bool)) (n : ℕ) (hQ : Q.length 
 
 /-- The binary words of length at most `L`. -/
 noncomputable def shortWords (L : ℕ) : Finset (List Bool) :=
-  (List.finite_length_le Bool L).toFinset
+  List.wordsLe Bool L
 
 /-- A word lies in `shortWords L` exactly when its length is at most `L`. -/
 @[simp]
-theorem mem_shortWords {L : ℕ} {w : List Bool} : w ∈ shortWords L ↔ w.length ≤ L := by
-  simp [shortWords]
+theorem mem_shortWords {L : ℕ} {w : List Bool} : w ∈ shortWords L ↔ w.length ≤ L :=
+  List.mem_wordsLe
 
 /-- The empty word lies in `shortWords L`. -/
 theorem nil_mem_shortWords (L : ℕ) : [] ∈ shortWords L := by simp

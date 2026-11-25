@@ -93,9 +93,14 @@ checked `delc id : ω` of one core constraint, with an optional subproof. Orders
 accepted only at top level, as the format requires. Two steps of the augmented format are also
 accepted: `del id`, read as the untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a
 deletion of a core constraint counts as unchecked), and `rup` without hints, read as
-`Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol` operations `c`, `m`, `n` and `-`,
-relative constraint numbers, `i` and `ia`, `del spec`, levels, and the conclusion `UNSAT` without an
-ID) is rejected.
+`Cslib.Logic.PL.VeriPB.Step.rupSearch`. The implication `ia C : j;`, which VeriPB's elaborator
+writes in kernel proofs and CakePB checks as an implication by the constraint `j`, is read as
+`rup C : ~ j;`: unit propagation from the negation of `C` and then `j`. That is sound, and accepts
+every `ia` whose constraint `C` is a clause (coefficients and degree `1`), for which an implication
+by `j` is exactly a conflict of `j` under the negation of `C`; for other constraints it may reject
+an implication that CakePB accepts. Everything else (`pol` operations `c`, `m`, `n` and `-`,
+relative constraint numbers, `i`, `ia` without a constraint number, `del spec`, levels, and the
+conclusion `UNSAT` without an ID) is rejected.
 
 **Output sections.** `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput` takes the output formula of
 `output g FILE;` as a third text, and checks the section with
@@ -985,6 +990,10 @@ private def step (N : Names) : ℕ → List String → Option (Step × List Stri
       match hints rest with
       | some (hs, ";" :: rest) => some (.rup c hs, rest)
       | _ => none
+    | _ => none
+  | _ + 1, "ia" :: ts =>
+    match geq N ts with
+    | some (c, ":" :: n :: ";" :: rest) => (id? n).map fun j => (.rup c [.neg, .id j], rest)
     | _ => none
   | fuel + 1, "pbc" :: ts =>
     match geq N ts with
