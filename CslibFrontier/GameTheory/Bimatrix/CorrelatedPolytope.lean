@@ -673,12 +673,8 @@ theorem IsNondegenerate.exists_unique_maximizer_correlatedPolytope {G : Bimatrix
         by_cases hxi : 0 < x i
         · simp only [c₂, hxi, ↓reduceIte, true_and, sum_mul]
           rw [sum_comm]
-          refine sum_congr rfl fun i' _ => ?_
-          by_cases hxi' : 0 < x i'
-          · simp only [hxi', ↓reduceIte]
-            exact sum_congr rfl fun _ _ => mul_comm _ _
-          · simp only [hxi', ↓reduceIte, zero_mul, sum_const_zero]
-        · simp only [c₂, hxi, ↓reduceIte, false_and, zero_mul, sum_const_zero]
+          exact sum_congr rfl fun i' _ => by split_ifs <;> simp [mul_comm]
+        · simp [c₂, hxi]
     have hc₃_sum : (∑ i : M, ∑ j : N, c₃ i j * P i j) =
         ∑ j : N, ∑ j' : N,
           if 0 < y j ∧ 0 < y j' then ∑ i : M, P i j * (G.B i j - G.B i j') else 0 := by
@@ -687,23 +683,16 @@ theorem IsNondegenerate.exists_unique_maximizer_correlatedPolytope {G : Bimatrix
         by_cases hyj : 0 < y j
         · simp only [c₃, hyj, ↓reduceIte, true_and, sum_mul]
           rw [sum_comm]
-          refine sum_congr rfl fun j' _ => ?_
-          by_cases hyj' : 0 < y j'
-          · simp only [hyj', ↓reduceIte]
-            exact sum_congr rfl fun _ _ => mul_comm _ _
-          · simp only [hyj', ↓reduceIte, zero_mul, sum_const_zero]
-        · simp only [c₃, hyj, ↓reduceIte, false_and, zero_mul, sum_const_zero]
+          exact sum_congr rfl fun j' _ => by split_ifs <;> simp [mul_comm]
+        · simp [c₃, hyj]
     rw [hW_expand, hc₂_sum, hc₃_sum]
   -- At `vecMulVec x y`, all three slack penalties vanish.
   have hopt_zero : ∑ i : M, ∑ j : N, W i j * Matrix.vecMulVec x y i j = 0 := by
     suffices -(∑ i : M, ∑ j : N, W i j * Matrix.vecMulVec x y i j) = 0 by linarith
     have h₁_zero : ∑ i : M, ∑ j : N, c₁ i j * Matrix.vecMulVec x y i j = 0 :=
       sum_eq_zero fun i _ => sum_eq_zero fun j _ => by
-        dsimp only [c₁]
-        rw [vecMulVec_apply]
-        by_cases hxy : x i = 0 ∨ y j = 0
-        · rcases hxy with h0 | h0 <;> simp [h0]
-        · simp [hxy]
+        rcases eq_or_ne (x i) 0 with h0 | hx0 <;> rcases eq_or_ne (y j) 0 with h0' | hy0 <;>
+          simp [c₁, vecMulVec_apply, *]
     have h₂_zero : (∑ i : M, ∑ i' : M,
         if 0 < x i ∧ 0 < x i' then
           ∑ j : N, Matrix.vecMulVec x y i j * (G.A i j - G.A i' j) else 0) = 0 :=
@@ -735,21 +724,13 @@ theorem IsNondegenerate.exists_unique_maximizer_correlatedPolytope {G : Bimatrix
   have hP := mem_correlatedPolytope_iff.1 hP_mem
   have hc₁_nn : ∀ i j, 0 ≤ c₁ i j * P i j := fun i j => by
     dsimp only [c₁]
-    split_ifs
-    · exact mul_nonneg zero_le_one (hP.nonneg i j)
-    · rw [zero_mul]
+    split_ifs <;> simp [hP.nonneg i j]
   have hrow_nn : ∀ i i' : M,
       0 ≤ if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0 := fun i i' => by
-    split_ifs
-    · simp only [mul_sub, sum_sub_distrib]
-      exact sub_nonneg.2 (hP.row_le i i')
-    · exact le_rfl
+    split_ifs <;> simp [mul_sub, sum_sub_distrib, sub_nonneg, hP.row_le i i']
   have hcol_nn : ∀ j j' : N,
       0 ≤ if 0 < y j ∧ 0 < y j' then ∑ i : M, P i j * (G.B i j - G.B i j') else 0 := fun j j' => by
-    split_ifs
-    · simp only [mul_sub, sum_sub_distrib]
-      exact sub_nonneg.2 (hP.col_le j j')
-    · exact le_rfl
+    split_ifs <;> simp [mul_sub, sum_sub_distrib, sub_nonneg, hP.col_le j j']
   have hb₁_nn : 0 ≤ ∑ i : M, ∑ j : N, c₁ i j * P i j :=
     sum_nonneg fun i _ => sum_nonneg fun j _ => hc₁_nn i j
   have hb₂_nn : 0 ≤ ∑ i : M, ∑ i' : M,

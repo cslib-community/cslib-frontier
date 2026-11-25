@@ -94,12 +94,9 @@ private theorem sum_sum_diamLowerTerm [DecidableEq V] (G : SimpleGraph V) [Decid
       2 * (Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ) := by
     have hinner : ∀ u : V, (∑ v : V, if u = v then (0 : ℝ) else 2) =
         2 * ((Fintype.card V - 1 : ℕ) : ℝ) := fun u => by
-      rw [← sum_erase_add _ _ (mem_univ u)]
-      simp only [↓reduceIte, add_zero]
-      have h1 : ∀ v ∈ univ.erase u, (if u = v then (0 : ℝ) else 2) = 2 := fun v hv => by
-        simp only [(ne_of_mem_erase hv).symm, ↓reduceIte]
-      rw [sum_congr rfl h1, sum_const, card_erase_of_mem (mem_univ u), card_univ, nsmul_eq_mul,
-        mul_comm]
+      rw [← sum_erase_add _ _ (mem_univ u), ite_eq_left rfl, add_zero,
+        sum_congr rfl fun v hv => ite_eq_right (ne_of_mem_erase hv).symm,
+        sum_const, card_erase_of_mem (mem_univ u), card_univ, nsmul_eq_mul, mul_comm]
     simp only [hinner, sum_const, card_univ, nsmul_eq_mul]
     ring
   have hadj1 : (∑ u : V, ∑ v : V, if G.Adj u v then (1 : ℝ) else 0) =
@@ -128,26 +125,18 @@ theorem networkCost_eq_iff_diam_le_two {α : ℝ} {G : SimpleGraph V} (hc : G.Pr
     constructor <;> intro h <;> linarith
   rw [heq_iff, sum_eq_sum_iff_of_le
     fun u _ => sum_le_sum fun v _ => diamLowerTerm_le_dist hc u v]
-  simp only [mem_univ, forall_true_left]
-  refine ⟨fun h u v => ?_, fun h u => sum_congr rfl fun v _ => ?_⟩
-  · have huv := (sum_eq_sum_iff_of_le fun w _ => diamLowerTerm_le_dist hc u w).mp (h u) v
-      (mem_univ v)
-    unfold diamLowerTerm at huv
-    by_cases heq : u = v
-    · subst heq; simp
-    · by_cases hadj : G.Adj u v
-      · rw [dist_eq_one_iff_adj.mpr hadj]; omega
-      · simp only [heq, ↓reduceIte, hadj, sub_zero] at huv
-        exact_mod_cast huv.symm.le
-  · apply le_antisymm (diamLowerTerm_le_dist hc u v)
-    unfold diamLowerTerm
-    by_cases heq : u = v
-    · subst heq; simp
-    · by_cases hadj : G.Adj u v
-      · simp only [heq, ↓reduceIte, hadj, dist_eq_one_iff_adj.mpr hadj, Nat.cast_one]
-        norm_num
-      · simp only [heq, ↓reduceIte, hadj, sub_zero]
-        exact_mod_cast h u v
+  simp only [mem_univ, forall_true_left,
+    sum_eq_sum_iff_of_le fun v _ => diamLowerTerm_le_dist hc _ v]
+  refine forall₂_congr fun u v => ?_
+  simp only [le_antisymm_iff, diamLowerTerm_le_dist hc u v, true_and]
+  unfold diamLowerTerm
+  by_cases heq : u = v
+  · subst heq; simp
+  · by_cases hadj : G.Adj u v
+    · simp only [heq, ↓reduceIte, hadj, dist_eq_one_iff_adj.mpr hadj, Nat.cast_one]
+      norm_num
+    · simp only [heq, ↓reduceIte, hadj, sub_zero]
+      norm_cast
 
 private theorem networkCost_top_eq_diam_form (α : ℝ) :
     networkCost α (⊤ : SimpleGraph V) =
@@ -195,19 +184,15 @@ theorem isOptimalNetwork_iff_eq_top_of_lt_two {α : ℝ} (hα₀ : 0 ≤ α) (h�
       networkECost_eq_ofReal_of_preconnected hα₀ preconnected_top,
       ENNReal.ofReal_le_ofReal_iff (networkCost_nonneg hα₀ ⊤)] at hleE
     have hlow := le_networkCost_of_preconnected (α := α) hconn.preconnected
-    have hle_m : G.edgeSet.ncard ≤ (⊤ : SimpleGraph V).edgeSet.ncard := by
-      simp only [ncard_edgeSet_eq_card_edgeFinset]
-      exact card_le_card (edgeFinset_mono le_top)
-    have hle_mR : (G.edgeSet.ncard : ℝ) ≤ ((⊤ : SimpleGraph V).edgeSet.ncard : ℝ) := by
-      exact_mod_cast hle_m
+    have hle_m : G.edgeFinset.card ≤ (⊤ : SimpleGraph V).edgeFinset.card :=
+      card_le_card (edgeFinset_mono le_top)
+    have hle_mR : (G.edgeFinset.card : ℝ) ≤ ((⊤ : SimpleGraph V).edgeFinset.card : ℝ) :=
+      Nat.cast_le.mpr hle_m
     have hcost_top := networkCost_top_eq_diam_form (V := V) α
-    have heq_mR : (G.edgeSet.ncard : ℝ) = ((⊤ : SimpleGraph V).edgeSet.ncard : ℝ) := by
-      nlinarith
-    have heq_card : G.edgeFinset.card = (⊤ : SimpleGraph V).edgeFinset.card := by
-      simp only [ncard_edgeSet_eq_card_edgeFinset] at heq_mR
-      exact_mod_cast heq_mR
-    rw [← edgeFinset_inj]
-    exact eq_of_subset_of_card_le (edgeFinset_mono le_top) heq_card.ge
+    simp only [ncard_edgeSet_eq_card_edgeFinset] at hlow hcost_top
+    have heq_card : G.edgeFinset.card = (⊤ : SimpleGraph V).edgeFinset.card :=
+      Nat.cast_injective (by nlinarith : (G.edgeFinset.card : ℝ) = _)
+    exact edgeFinset_inj.mp (eq_of_subset_of_card_le (edgeFinset_mono le_top) heq_card.ge)
 
 omit [Fintype V] in
 /-- Every finite tree of diameter at most `2` is `SimpleGraph.starGraph r` for some center `r`. -/
@@ -259,24 +244,17 @@ theorem isOptimalNetwork_iff_exists_starGraph_of_two_lt [Nonempty V] {α : ℝ} 
     have hlow := le_networkCost_of_preconnected (α := α) hconn.preconnected
     have hconn_card := hconn.card_vert_le_card_edgeSet_add_one
     rw [Nat.card_eq_fintype_card, Nat.card_coe_set_eq] at hconn_card
-    have hm_ge : ((Fintype.card V - 1 : ℕ) : ℝ) ≤ (G.edgeSet.ncard : ℝ) := by
-      exact_mod_cast (show Fintype.card V - 1 ≤ G.edgeSet.ncard by omega)
+    have hm_ge : ((Fintype.card V - 1 : ℕ) : ℝ) ≤ (G.edgeSet.ncard : ℝ) :=
+      Nat.cast_le.mpr (by omega)
     rw [networkCost_starGraph_eq_diam_form] at hleE
-    have hm_eqR : (G.edgeSet.ncard : ℝ) = ((Fintype.card V - 1 : ℕ) : ℝ) := by
-      nlinarith
-    have hm_eq : G.edgeFinset.card + 1 = Fintype.card V := by
-      have hcard : 1 ≤ Fintype.card V := Fintype.card_pos
-      rw [← ncard_edgeSet_eq_card_edgeFinset]
-      have h1 : G.edgeSet.ncard = Fintype.card V - 1 := by exact_mod_cast hm_eqR
-      omega
+    have hm_eq : G.edgeSet.ncard = Fintype.card V - 1 :=
+      Nat.cast_injective (by nlinarith : (G.edgeSet.ncard : ℝ) = _)
     have hT : G.IsTree := by
-      rw [isTree_iff_connected_and_card, Nat.card_eq_fintype_card, Nat.card_eq_fintype_card,
-        ← edgeFinset_card]
-      exact ⟨hconn, hm_eq⟩
-    have hdiam : ∀ u v : V, G.dist u v ≤ 2 := by
-      refine (networkCost_eq_iff_diam_le_two (α := α) hconn.preconnected).mp ?_
-      nlinarith
-    exact exists_eq_starGraph_of_isTree_of_diam_le_two hT hdiam
+      rw [isTree_iff_connected_and_card, Nat.card_coe_set_eq, Nat.card_eq_fintype_card]
+      have : 1 ≤ Fintype.card V := Fintype.card_pos
+      exact ⟨hconn, by omega⟩
+    exact exists_eq_starGraph_of_isTree_of_diam_le_two hT
+      ((networkCost_eq_iff_diam_le_two (α := α) hconn.preconnected).mp (by nlinarith))
   · rintro ⟨r, rfl⟩
     exact isOptimalNetwork_starGraph hα.le r
 
@@ -595,16 +573,14 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
             (mem_edgeSide_swap hT hcw u).mpr hside.2
           let S := edgeSide (formedGraph s) c w
           have hS_card : (Fintype.card V : ℝ) ≤ 2 * (S.card : ℝ) := by
-            have hcompl : S = (edgeSide (formedGraph s) w c)ᶜ := edgeSide_swap hT hcw.symm
             have hadd : S.card + (edgeSide (formedGraph s) w c).card = Fintype.card V := by
-              rw [hcompl, card_compl_add_card]
+              dsimp only [S]
+              rw [edgeSide_swap hT hcw.symm, card_compl_add_card]
             have hcw_le := hc w hcw
             exact_mod_cast (by omega : Fintype.card V ≤ 2 * S.card)
           let s_dev := addLink s u c
           have hadj_uc : (formedGraph s_dev).Adj u c := adj_addLink huc
           have hmono : formedGraph s ≤ formedGraph s_dev := formedGraph_le_addLink s u c
-          have hreach_dev : ∀ x, (formedGraph s_dev).Reachable u x :=
-            fun x => (hT.connected u x).mono hmono
           have hpt : ∀ x ∈ S,
               (((formedGraph s).dist u c : ℝ) - 1) ≤
                 ((formedGraph s).dist u x : ℝ) - ((formedGraph s_dev).dist u x : ℝ) := by
@@ -614,21 +590,15 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
             have hux_eq : (formedGraph s).dist u x =
                 (formedGraph s).dist u c + (formedGraph s).dist c x :=
               dist_eq_add_of_edgeSide hT hu_side hx_not
-            have hcx_le : (formedGraph s_dev).dist c x ≤ (formedGraph s).dist c x := by
-              have he := edist_anti hmono (u := c) (v := x)
-              rw [← ((hreach_dev c).symm.trans (hreach_dev x)).coe_dist_eq_edist,
-                ← (hT.connected c x).coe_dist_eq_edist] at he
-              exact_mod_cast he
-            have hux'_le : (formedGraph s_dev).dist u x ≤ 1 + (formedGraph s).dist c x := by
-              have htri := (hreach_dev c).dist_triangle_left x
-              have huc1 : (formedGraph s_dev).dist u c = 1 := dist_eq_one_iff_adj.mpr hadj_uc
-              omega
-            have hux_eqR : ((formedGraph s).dist u x : ℝ) =
-                ((formedGraph s).dist u c : ℝ) + ((formedGraph s).dist c x : ℝ) := by
-              exact_mod_cast hux_eq
-            have hux'_leR : ((formedGraph s_dev).dist u x : ℝ) ≤
-                1 + ((formedGraph s).dist c x : ℝ) := by
-              exact_mod_cast hux'_le
+            have hcx_le : (formedGraph s_dev).dist c x ≤ (formedGraph s).dist c x :=
+              (hT.connected c x).dist_anti hmono
+            have htri := hadj_uc.reachable.dist_triangle_left x
+            have huc1 : (formedGraph s_dev).dist u c = 1 := dist_eq_one_iff_adj.mpr hadj_uc
+            have hnat : ((formedGraph s).dist u c : ℝ) + (formedGraph s_dev).dist u x ≤
+                (formedGraph s).dist u x + 1 := by
+              exact_mod_cast (by omega :
+                (formedGraph s).dist u c + (formedGraph s_dev).dist u x ≤
+                  (formedGraph s).dist u x + 1)
             linarith
           have hsum_ge : (S.card : ℝ) * (((formedGraph s).dist u c : ℝ) - 1) ≤
               ∑ x ∈ S, (((formedGraph s).dist u x : ℝ) - ((formedGraph s_dev).dist u x : ℝ)) := by
@@ -639,14 +609,10 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
                   sum_le_sum hpt
           have hmul : (S.card : ℝ) * (((formedGraph s).dist u c : ℝ) - 1) ≤ α :=
             hsum_ge.trans (sum_dist_sub_addLink_le hα₀ hs u c S)
-          rcases le_or_gt (((formedGraph s).dist u c : ℝ) - 1) 0 with hnonpos | hpos
-          · have hdiv_nn : 0 ≤ 2 * α / (Fintype.card V : ℝ) := by positivity
-            linarith
-          · have hn_mul : (Fintype.card V : ℝ) * (((formedGraph s).dist u c : ℝ) - 1) ≤ 2 * α := by
-              nlinarith
-            have hdiv : ((formedGraph s).dist u c : ℝ) - 1 ≤ 2 * α / (Fintype.card V : ℝ) :=
-              (le_div_iff₀ hn_pos).mpr (by linarith)
-            linarith
+          have huc_pos : (1 : ℝ) ≤ (formedGraph s).dist u c :=
+            Nat.one_le_cast.mpr (hT.connected.pos_dist_of_ne huc)
+          rw [← sub_le_iff_le_add', le_div_iff₀ hn_pos]
+          nlinarith
       have hsum_uc : ∑ u : V, ((formedGraph s).dist u c : ℝ) ≤
           ((Fintype.card V - 1 : ℕ) : ℝ) * (1 + 2 * α / (Fintype.card V : ℝ)) :=
         sum_le_card_sub_one_mul (by simp) hdist_c
@@ -883,15 +849,10 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
             _ ≤ ((Fintype.card V - 1 : ℕ) : ℝ) * (2 * d - 1) :=
                 sum_le_card_sub_one_mul (u := u) (by simp)
                   fun x hx => by
-                    have h1 : (1 : ℝ) ≤ (H.dist u x : ℝ) := by
-                      exact_mod_cast hconn.pos_dist_of_ne hx.symm
-                    have h2 : ((formedGraph s_dev).dist u x : ℝ) ≤ 2 * d := by
-                      have he := edist_anti hle_dev (u := u) (v := x)
-                      rw [← (hconn_dev u x).coe_dist_eq_edist, ← (hH₀_conn u x).coe_dist_eq_edist]
-                        at he
-                      have hle0 : ((formedGraph s_dev).dist u x : ℝ) ≤ (H₀.dist u x : ℝ) := by
-                        exact_mod_cast he
-                      exact hle0.trans (hH₀_diam u x)
+                    have h1 : (1 : ℝ) ≤ (H.dist u x : ℝ) :=
+                      Nat.one_le_cast.mpr (hconn.pos_dist_of_ne hx.symm)
+                    have h2 : ((formedGraph s_dev).dist u x : ℝ) ≤ 2 * d :=
+                      (Nat.cast_le.mpr ((hH₀_conn u x).dist_anti hle_dev)).trans (hH₀_diam u x)
                     linarith
             _ = (2 * d - 1) * (Fintype.card V - 1 : ℕ) := mul_comm _ _
         rw [sum_sub_distrib] at hdist_diff

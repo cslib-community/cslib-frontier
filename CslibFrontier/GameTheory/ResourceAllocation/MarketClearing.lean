@@ -812,12 +812,8 @@ private theorem IsRegularMarketClearing.priceScale_props {D : ℝ → ℝ → �
         C * (t / (t + θ 1)) * Λ ((t + θ 1) / C) := by
     intro C hC θ t ht0 hθ1 hsum_pos
     set θ' := Function.update θ 0 t
-    have hθ'_nonneg : ∀ i : Fin 2, 0 ≤ θ' i := fun i => by
-      fin_cases i
-      · simp [θ', ht0]
-      · simp [θ', hθ1]
-    have hsum_θ' : ∑ i : Fin 2, θ' i = t + θ 1 := by
-      simp [Fin.sum_univ_two, θ']
+    have hθ'_nonneg : ∀ i : Fin 2, 0 ≤ θ' i := fun i => by fin_cases i <;> simp [θ', ht0, hθ1]
+    have hsum_θ' : ∑ i : Fin 2, θ' i = t + θ 1 := by simp [Fin.sum_univ_two, θ']
     obtain ⟨i₀, -, hi₀⟩ := Finset.exists_ne_zero_of_sum_ne_zero (hsum_θ'.symm ▸ hsum_pos.ne')
     have hθ'_ne : ∃ i : Fin 2, θ' i ≠ 0 := ⟨i₀, hi₀⟩
     set μ := (t + θ 1) / C
@@ -833,18 +829,14 @@ private theorem IsRegularMarketClearing.priceScale_props {D : ℝ → ℝ → �
     rw [hp_eq, halloc_eq]
     ring
   have hΛ_conv : ConvexOn ℝ (Ioi 0) Λ := by
-    have hconv_pay := hD.convexOn_payment_pos le_rfl zero_lt_one 0 (θ := ![0, 0])
-      (fun s hs => by
-        fin_cases s
-        · exact absurd rfl hs
-        · rfl)
-    refine hconv_pay.congr fun t ht => ?_
+    refine (hD.convexOn_payment_pos le_rfl zero_lt_one 0 (θ := ![0, 0]) fun s hs => by
+      fin_cases s
+      · exact absurd rfl hs
+      · rfl).congr fun t ht => ?_
     have ht_pos : 0 < t := mem_Ioi.mp ht
-    have hform := hpay_formula zero_lt_one (θ := ![0, 0]) t ht_pos.le le_rfl
+    simpa only [Matrix.cons_val_one, Matrix.cons_val_zero, add_zero, div_self ht_pos.ne',
+      one_mul, div_one] using hpay_formula zero_lt_one (θ := ![0, 0]) t ht_pos.le le_rfl
       (by simp [ht_pos])
-    simp only [Matrix.cons_val_one, Matrix.cons_val_zero, add_zero, div_self ht_pos.ne',
-      one_mul, div_one] at hform
-    exact hform
   have hsecant_mono : ∀ μ₁ μ₂, 0 < μ₁ → μ₁ < μ₂ → Λ μ₁ / μ₁ ≤ Λ μ₂ / μ₂ := by
     intro μ₁ μ₂ hμ₁ hlt
     set S := μ₁ / 2
@@ -1138,6 +1130,10 @@ private theorem IsAdmissibleUtility.continuousOn_derivWithin {u : ℝ → ℝ}
       (continuousWithinAt_const.sub continuousWithinAt_id) (by linarith [mem_Ioi.mp hx₂_gt])
   have huR_x : derivWithin u (Ici 0) x - ε / 2 < uR x := by
     simpa only [uR, slope_def_field] using hx₂_sl
+  have hge {t : ℝ} (ht_mem : t ∈ Ici 0) (ht_lt : t < x₂) : uR t ≤ derivWithin u (Ici 0) t := by
+    dsimp only [uR]
+    rw [div_le_iff₀ (by linarith)]
+    linarith [hu.le_add_derivWithin ht_mem hx₂_0]
   rcases eq_or_lt_of_le hx0 with rfl | hx_pos
   · have hnhds : {t : ℝ | t < x₂ ∧ derivWithin u (Ici 0) 0 - ε < uR t} ∈ 𝓝[Ici 0] 0 :=
       Filter.inter_mem (nhdsWithin_le_nhds (Iio_mem_nhds hx₂_gt))
@@ -1145,13 +1141,9 @@ private theorem IsAdmissibleUtility.continuousOn_derivWithin {u : ℝ → ℝ}
     obtain ⟨δ, hδ_pos, hδ_sub⟩ := Metric.mem_nhdsWithin_iff.mp hnhds
     refine ⟨δ, hδ_pos, fun t ht_mem ht_dist => ?_⟩
     obtain ⟨ht_lt, ht_uR⟩ := hδ_sub ⟨ht_dist, ht_mem⟩
-    have hge : uR t ≤ derivWithin u (Ici 0) t := by
-      have h := hu.le_add_derivWithin ht_mem hx₂_0
-      dsimp only [uR]
-      rw [div_le_iff₀ (by linarith)]
-      linarith
     have hle : derivWithin u (Ici 0) t ≤ derivWithin u (Ici 0) 0 :=
       hu.derivWithin_antitoneOn le_rfl ht_mem ht_mem
+    have := hge ht_mem ht_lt
     rw [Real.dist_eq, abs_lt]
     exact ⟨by linarith, by linarith⟩
   · have hhd : HasDerivAt u (derivWithin u (Ici 0) x) x :=
@@ -1178,16 +1170,12 @@ private theorem IsAdmissibleUtility.continuousOn_derivWithin {u : ℝ → ℝ}
     obtain ⟨δ, hδ_pos, hδ_sub⟩ := Metric.mem_nhdsWithin_iff.mp hnhds
     refine ⟨δ, hδ_pos, fun t ht_mem ht_dist => ?_⟩
     obtain ⟨ht_gt, ht_lt, ht_uR, ht_uL⟩ := hδ_sub ⟨ht_dist, ht_mem⟩
-    have hge : uR t ≤ derivWithin u (Ici 0) t := by
-      have h := hu.le_add_derivWithin ht_mem hx₂_0
-      dsimp only [uR]
-      rw [div_le_iff₀ (by linarith)]
-      linarith
     have hle : derivWithin u (Ici 0) t ≤ uL t := by
       have h := hu.le_add_derivWithin ht_mem hx₁_pos.1.le
       dsimp only [uL]
       rw [le_div_iff₀ (by linarith)]
       linarith
+    have := hge ht_mem ht_lt
     rw [Real.dist_eq, abs_lt]
     exact ⟨by linarith, by linarith⟩
 
@@ -1660,15 +1648,15 @@ theorem IsRegularMarketClearing.existsUnique_isMarketNashEquilibrium
     rw [zero_div, sub_zero, mul_one, mul_zero, add_zero, hΛ_hi]
     exact hle_M
   set x_mid := C * (3 / 4)
+  have hx_mid_div : x_mid / C = 3 / 4 := mul_div_cancel_left₀ _ hC.ne'
   have hx_mid_mem : x_mid ∈ Icc 0 C :=
     ⟨by dsimp only [x_mid]; positivity, by dsimp only [x_mid]; linarith⟩
   obtain ⟨i_min, -, hi_min_le⟩ := Finset.exists_min_image Finset.univ (fun i => lhs i x_mid)
     Finset.univ_nonempty
   set m_lo := lhs i_min x_mid
   have hm_lo_pos : 0 < m_lo := by
-    dsimp only [m_lo, lhs, x_mid]
-    have : 1 - C * (3 / 4) / C = 1 / 4 := by field_simp [hC.ne']; ring
-    rw [this]
+    dsimp only [m_lo, lhs]
+    rw [hx_mid_div]
     exact mul_pos ((hU i_min).derivWithin_pos hx_mid_mem.1) (by norm_num)
   set μ_lo := B (m_lo / 2) / 2
   have hμ_lo_pos : 0 < μ_lo := half_pos (hB_bij.mapsTo (half_pos hm_lo_pos))
@@ -1685,10 +1673,8 @@ theorem IsRegularMarketClearing.existsUnique_isMarketNashEquilibrium
     rw [h2sub, hΛ_2μ_lo] at htan_lo
     have hΛ_lo_pos : 0 < Λ μ_lo := (hΛ_spec μ_lo hμ_lo_pos).2
     have hrhs_lt : rhs μ_lo x_mid < m_lo := by
-      dsimp only [rhs, x_mid]
-      have h1 : 1 - C * (3 / 4) / C = 1 / 4 := by field_simp [hC.ne']; ring
-      have h2 : C * (3 / 4) / C = 3 / 4 := by field_simp [hC.ne']
-      rw [h1, h2]
+      dsimp only [rhs]
+      rw [hx_mid_div]
       linarith [hΛ_elast μ_lo hμ_lo_pos]
     have hgt_mid : ∀ i, x_mid < sol i μ_lo := fun i => by
       have hsp := hsol_spec i hμ_lo_pos
@@ -2416,45 +2402,29 @@ theorem isRegularMarketClearing_powerElasticity {c : ℝ} (hc : 1 ≤ c) :
         positivity
       linarith
     set g : ℝ → ℝ := fun t => t * (t + S) ^ (c - 1)
+    have hd_shift (p q : ℝ) (hpq : p - 1 = q) {t : ℝ} (htS : 0 < t + S) :
+        HasDerivAt (fun x : ℝ => (x + S) ^ p) (p * (t + S) ^ q) t := by
+      have h := (Real.hasDerivAt_rpow_const (Or.inl htS.ne') (p := p)).comp t
+        ((hasDerivAt_id' t).add_const S)
+      rwa [hpq, mul_one] at h
+    have hrpow_step (p q : ℝ) (hpq : q + 1 = p) {t : ℝ} (htS : 0 < t + S) :
+        (t + S) ^ p = (t + S) ^ q * (t + S) := by
+      rw [← hpq, Real.rpow_add_one htS.ne']
     have hg_deriv : ∀ t > -S, HasDerivAt g ((t + S) ^ (c - 2) * (c * t + S)) t := by
       intro t htS
       have htS_pos : 0 < t + S := by linarith
-      have hd_pow : HasDerivAt (fun x : ℝ => (x + S) ^ (c - 1))
-          ((c - 1) * (t + S) ^ (c - 2)) t := by
-        have h1 := (Real.hasDerivAt_rpow_const (Or.inl htS_pos.ne') (p := c - 1)).comp t
-          ((hasDerivAt_id' t).add_const S)
-        have h2 : c - 1 - 1 = c - 2 := by ring
-        rw [h2, mul_one] at h1
-        exact h1
-      have hmul := (hasDerivAt_id' t).mul hd_pow
-      have hval : 1 * (t + S) ^ (c - 1) + t * ((c - 1) * (t + S) ^ (c - 2)) =
-          (t + S) ^ (c - 2) * (c * t + S) := by
-        have hsplit : (t + S) ^ (c - 1) = (t + S) ^ (c - 2) * (t + S) := by
-          rw [← Real.rpow_add_one htS_pos.ne']
-          congr 1; ring
-        rw [hsplit]; ring
-      rwa [hval] at hmul
+      refine ((hasDerivAt_id' t).mul (hd_shift (c - 1) (c - 2) (by ring) htS_pos)).congr_deriv ?_
+      rw [hrpow_step (c - 1) (c - 2) (by ring) htS_pos]
+      ring
     have hg'_deriv : ∀ t > -S, HasDerivAt (fun x => (x + S) ^ (c - 2) * (c * x + S))
         ((c - 1) * (t + S) ^ (c - 3) * (c * t + 2 * S)) t := by
       intro t htS
       have htS_pos : 0 < t + S := by linarith
-      have hd1 : HasDerivAt (fun x : ℝ => (x + S) ^ (c - 2))
-          ((c - 2) * (t + S) ^ (c - 3)) t := by
-        have h1 := (Real.hasDerivAt_rpow_const (Or.inl htS_pos.ne') (p := c - 2)).comp t
-          ((hasDerivAt_id' t).add_const S)
-        have h2 : c - 2 - 1 = c - 3 := by ring
-        rw [h2, mul_one] at h1
-        exact h1
       have hd2 : HasDerivAt (fun x : ℝ => c * x + S) c t := by
         simpa only [mul_one] using ((hasDerivAt_id' t).const_mul c).add_const S
-      have hmul := hd1.mul hd2
-      have hval : (c - 2) * (t + S) ^ (c - 3) * (c * t + S) + (t + S) ^ (c - 2) * c =
-          (c - 1) * (t + S) ^ (c - 3) * (c * t + 2 * S) := by
-        have hsplit : (t + S) ^ (c - 2) = (t + S) ^ (c - 3) * (t + S) := by
-          rw [← Real.rpow_add_one htS_pos.ne']
-          congr 1; ring
-        rw [hsplit]; ring
-      rwa [hval] at hmul
+      refine ((hd_shift (c - 2) (c - 3) (by ring) htS_pos).mul hd2).congr_deriv ?_
+      rw [hrpow_step (c - 2) (c - 3) (by ring) htS_pos]
+      ring
     have hg_conv : ConvexOn ℝ (Ici 0) g := by
       have hg_cont : ContinuousOn g (Ici 0) := fun t ht =>
         (hg_deriv t (by linarith [mem_Ici.mp ht])).continuousAt.continuousWithinAt

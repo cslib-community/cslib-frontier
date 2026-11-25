@@ -579,14 +579,10 @@ theorem shapleyScheme_share_eq_shShare (R : Finset A) (i : A) :
     simp only [Finset.mem_filter, Finset.mem_univ, true_and]
     split_ifs with hanc
     · congr 2
-      have hcard : (Finset.univ.filter fun x : R => M.tree.IsAncestor v (M.loc x.1)).card =
-          (R.filter fun j => M.tree.IsAncestor v (M.loc j)).card := by
-        refine Finset.card_nbij (fun x : R => x.1)
-          (fun x hx => Finset.mem_filter.mpr ⟨x.2, (Finset.mem_filter.mp hx).2⟩)
-          (fun _ _ _ _ h => Subtype.ext h)
-          fun j hj => ⟨⟨j, (Finset.mem_filter.mp hj).1⟩,
-            Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hj).2⟩, rfl⟩
-      exact_mod_cast hcard
+      rw [Finset.univ_eq_attach, ← Finset.card_map ⟨Subtype.val, Subtype.val_injective⟩]
+      congr 1
+      ext a
+      simp [and_comm]
     · rfl
   · simp [shShare, hi]
 
@@ -1104,21 +1100,19 @@ theorem isGreatest_isWelfareMaximizingSet_mcReceivers (b : A → ℝ) :
     (Finset.univ : Finset (Finset A)) (M.netWelfare b) Finset.univ_nonempty
   have hW_ne : W.Nonempty :=
     ⟨R₀, Finset.mem_filter.mpr ⟨Finset.mem_univ R₀, fun S => hR₀ S (Finset.mem_univ S)⟩⟩
-  have hbi_max : ∀ U : Finset (Finset A), U.Nonempty →
+  have hbi_max : ∀ {U : Finset (Finset A)}, U.Nonempty →
       (∀ R ∈ U, M.IsWelfareMaximizingSet b R) →
       M.IsWelfareMaximizingSet b (U.biUnion id) := by
-    intro U
-    induction U using Finset.induction_on with
-    | empty => exact fun h => absurd rfl h.ne_empty
-    | insert R U _ ih =>
-      intro _ hall
-      rcases U.eq_empty_or_nonempty with rfl | hUne
-      · simpa using hall R (Finset.mem_singleton_self R)
-      · rw [Finset.biUnion_insert]
-        exact (hall R (Finset.mem_insert_self R U)).union
-          (ih hUne fun S hS => hall S (Finset.mem_insert_of_mem hS))
+    intro U hU
+    induction hU using Finset.Nonempty.cons_induction with
+    | singleton R => simp
+    | cons R U hRU _ ih =>
+      intro hall
+      rw [Finset.cons_eq_insert, Finset.biUnion_insert]
+      exact (hall R (Finset.mem_cons_self R U)).union
+        (ih fun S hS => hall S (Finset.mem_cons.mpr (Or.inr hS)))
   change IsGreatest _ (W.biUnion id)
-  exact ⟨hbi_max W hW_ne fun R hR => (Finset.mem_filter.mp hR).2,
+  exact ⟨hbi_max hW_ne fun R hR => (Finset.mem_filter.mp hR).2,
     fun R hR => Finset.subset_biUnion_of_mem id (Finset.mem_filter.mpr ⟨Finset.mem_univ R, hR⟩)⟩
 
 theorem netWelfare_mcReceivers (b : A → ℝ) :
@@ -1513,17 +1507,10 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
         have hu_ne : u ≠ M.tree.root := fun hr => by rw [hr, M.tree.depth_root] at hd; omega
         rw [M.topDownThreshold_of_ne_root b hu_ne]
         have ihp := ih (M.tree.parent u) (by have := M.tree.depth_parent u; omega)
-        cases hth : M.topDownThreshold b (M.tree.parent u) with
-        | none =>
-          rw [hth] at ihp
-          dsimp only at ihp ⊢
-          conv_lhs => rw [ihp]
-          exact hshift d u (b i)
-        | some mp =>
-          rw [hth] at ihp
-          dsimp only at ihp ⊢
-          conv_lhs => rw [← min_assoc, ihp]
-          exact hshift d u (b i)
+        rw [← hshift d u (b i), ← ihp]
+        cases M.topDownThreshold b (M.tree.parent u)
+        · rfl
+        · exact (min_assoc _ _ _).symm
     have hroot_nw := hup_nw (M.tree.depth (M.loc i)) le_rfl
     rw [M.tree.parent_iter_depth] at hroot_nw
     have hdrop_match := hthresh_eq (M.tree.depth (M.loc i)) (M.loc i) rfl
@@ -1531,14 +1518,14 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
       ← M.nodeWelfare_root_eq_maxNetWelfare hb', M.netWelfare_mcReceivers,
       ← M.nodeWelfare_root_eq_maxNetWelfare hb, hroot_nw]
     simp only [twoPassPayment, hact, ↓reduceIte]
-    cases hth : M.topDownThreshold b (M.loc i) with
-    | none =>
-      rw [hth] at hdrop_match
-      dsimp only [upDrop] at hdrop_match ⊢; linarith
+    dsimp only [upDrop] at hdrop_match ⊢
+    rw [← hdrop_match]
+    cases M.topDownThreshold b (M.loc i) with
+    | none => ring
     | some m =>
-      rw [hth] at hdrop_match
-      dsimp only [upDrop] at hdrop_match ⊢
-      rw [← hdrop_match, hclamp (b i) m (hb i), min_comm]; ring
+      dsimp only
+      rw [hclamp (b i) m (hb i), min_comm]
+      ring
   · have hfalse : M.topDownActive b (M.loc i) = false := Bool.eq_false_iff.mpr hact
     have hi_not : i ∉ M.mcReceivers b := by
       rw [← hserv]
@@ -2005,14 +1992,11 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
           exact hshare₀ t'
         · simp only [seq₁, Fin.snoc_last, Fin.val_last]
           have hflt : (Finset.univ.filter fun s : Fin (r + 1) => Fin.last r ≤ s) =
-              {Fin.last r} := by
-            ext s
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-            exact ⟨fun h => le_antisymm (Fin.le_last s) h, fun h => h ▸ le_rfl⟩
+              {Fin.last r} :=
+            Finset.eq_singleton_iff_unique_mem.mpr
+              ⟨by simp, fun s hs => le_antisymm (Fin.le_last s) (Finset.mem_filter.mp hs).2⟩
           have hset_W₀ : W₁ ∪ ({Fin.last r} : Finset (Fin (r + 1))).image seq₁ = W₀ := by
-            rw [Finset.image_singleton]
-            simp only [seq₁, Fin.snoc_last, W₁]
-            rw [Finset.union_comm, Finset.singleton_union, Finset.insert_erase haW₀]
+            simp [Finset.image_singleton, seq₁, W₁, Finset.insert_erase haW₀]
           rw [hflt, hset_W₀, ← hW₀_card]
           exact ha_ge
   obtain ⟨W, seq, hW_card, hinj, _, hshare⟩ := hchain n le_rfl

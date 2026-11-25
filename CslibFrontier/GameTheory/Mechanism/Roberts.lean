@@ -256,9 +256,8 @@ private theorem pad_range_of_isWeaklyMonotoneOn [Finite ι] [DecidableEq ι]
     | @insert i S hi ih =>
       have hdom : ∀ j, j ≠ i → hybrid S j ∈ V j := fun j _ => by
         by_cases hj : j ∈ S <;> simp [hybrid, hj, hv' j, hv j]
-      have h1 : Function.update (hybrid S) i (v i) = hybrid S := by
-        ext j
-        by_cases h : j = i <;> simp [h, hybrid, hi]
+      have h1 : Function.update (hybrid S) i (v i) = hybrid S :=
+        Function.update_eq_self_iff.mpr (ite_eq_right hi).symm
       have h2 : Function.update (hybrid S) i (v' i) = hybrid (insert i S) := by
         ext j
         by_cases h : j = i <;> simp [h, hybrid]
@@ -686,12 +685,8 @@ private theorem openShifted_smul_pos [Finite ι] [Nonempty ι] [Fintype Ω] [Dec
     | succ k ih =>
       rcases k with _ | k
       · simpa using hβ
-      · have hsucc : ((k + 2 : ℕ) : ℝ) • β = ((k + 1 : ℕ) : ℝ) • β + β := by
-          ext
-          simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Nat.cast_add, Nat.cast_one]
-          ring
-        rw [hsucc]
-        exact openShifted_add hf_onto hpad hgw hcard hxy (ih (by omega)) hβ
+      · rw [Nat.cast_succ, add_smul, one_smul]
+        exact openShifted_add hf_onto hpad hgw hcard hxy (ih (Nat.succ_pos k)) hβ
   have hpow : ∀ (m : ℕ) (β : ι → ℝ), β ∈ openShifted f x₀ y₀ →
       ((1 / 2 : ℝ) ^ m) • β ∈ openShifted f x₀ y₀ := by
     intro m β hβ
@@ -859,16 +854,12 @@ private theorem roberts_with_gamma [Fintype ι] [DecidableEq ι] [Fintype Ω] [D
       linarith [hL_pos α hα]
     have hdiv : 0 ≤ ∑ i, w i * (b i x - b i y) - gamma f x y := by
       refine nonneg_of_mul_nonneg_left ?_ hsum_pos
-      have hsum_eq : ∑ i, w i * (b i x - b i y) * S = ∑ i, w₀ i * (b i x - b i y) :=
-        Finset.sum_congr rfl fun i _ => by
-          dsimp only [w]
-          rw [mul_right_comm, div_mul_cancel₀ _ hSne]
       have h1 : (∑ i, w i * (b i x - b i y) - gamma f x y) * S =
           ∑ i, w₀ i * ((b i x - b i y) - gamma f x y) := by
-        rw [sub_mul, Finset.sum_mul, hsum_eq]
-        simp only [mul_sub, Finset.sum_sub_distrib, ← Finset.sum_mul, S]
+        rw [sub_mul, Finset.sum_mul]
+        simp only [w, div_mul_eq_mul_div, div_mul_cancel₀ _ hSne]
+        simp only [mul_sub, Finset.sum_sub_distrib, ← Finset.sum_mul]
         ring
-      change 0 ≤ (∑ i, w i * (b i x - b i y) - gamma f x y) * S
       rwa [h1]
     simp only [affineScore]
     linarith [gamma_add hf_onto hpad hgw x₀ x y,
@@ -958,9 +949,8 @@ theorem exists_weightedWelfare_of_isNeutral_of_isWeaklyMonotone [Fintype ι] [De
       linarith
   obtain ⟨x₀⟩ := ‹Nonempty Ω›
   obtain ⟨w, hw, hsum, hmax⟩ := roberts_with_gamma hf_onto hf_wmon hcard x₀
-  refine ⟨w, hw, hsum, fun b ω => ?_⟩
-  have h := (hmax b).2 ω (Set.mem_univ _)
-  simpa only [affineScore, hgamma_zero, zero_add] using h
+  exact ⟨w, hw, hsum, fun b ω => by
+    simpa only [affineScore, hgamma_zero, zero_add] using (hmax b).2 ω (Set.mem_univ _)⟩
 
 /-- **Neutral Roberts' theorem** ([Lavi2007], Theorem 12.26, §12.4, p. 318): every neutral,
 DSIC-implementable rule on the unrestricted domain `ℝ^Ω` with `3 ≤ |Ω|` maximizes a pure

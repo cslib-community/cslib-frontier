@@ -433,9 +433,8 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
             div_nonneg ((relatedMixedLower k B).weight_nonneg _)
               ((relatedMixedLower k B).speed_pos _).le
           have hlt : (x.tier.val : ℝ) + 1 ≤ (k : ℝ) - 1 := by
-            have := x.tier.isLt
-            have h2 : ((x.tier.val + 1 : ℕ) : ℝ) ≤ ((k - 1 : ℕ) : ℝ) := by exact_mod_cast (by omega)
-            simpa [Nat.cast_sub hk] using h2
+            simpa [Nat.cast_sub hk] using
+              (Nat.cast_le (α := ℝ)).mpr (Nat.succ_le_of_lt x.tier.isLt)
           push_cast; linarith
         · rw [ite_eq_right hj'_last]
           simp only [relatedMixedLower]
@@ -461,8 +460,7 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
             hj'_last (Fin.ext (by simpa using h))
         have hge := add_two_pow_div_ge (a := k - 1) (b := j'.tier.val) (by omega)
         rw [Nat.cast_sub hk, Nat.cast_one] at hge
-        have hinv_nn : 0 ≤ 1 / (B : ℝ) := by positivity
-        linarith
+        linarith [show 0 ≤ 1 / (B : ℝ) by positivity]
 
 /-- Lift a top-tier assignment `f : Fin ((2 * k - 1) * B) → Fin B` to a full pure assignment of
 `relatedMixedLower k B` by fixing all lower-tier jobs to their pure machines. -/
@@ -591,10 +589,8 @@ private theorem ballsIntoBins_params_of_ge_sixteen {k : ℕ} (hk : 16 ≤ k) :
     have h1 : (k : ℝ) * (x / y) = (k : ℝ) * x / y := by ring
     have h2 : 3 * (k : ℝ) * x / y + (k : ℝ) * x / y = 4 * (k : ℝ) * x / y := by ring
     nlinarith
-  have hB2 : 2 ≤ B := by
-    have : 16 ^ 1 ≤ k ^ (18 * k) :=
-      (Nat.pow_le_pow_left hk 1).trans (Nat.pow_le_pow_right (by omega) (by omega))
-    omega
+  have hB2 : 2 ≤ B := (by omega : 2 ≤ 16 ^ 1).trans <|
+    (Nat.pow_le_pow_left hk 1).trans (Nat.pow_le_pow_right (by omega) (by omega))
   have hd_ge_2a : 2 * (2 * k - 1) ≤ d := by
     have h2a_r : ((2 * (2 * k - 1) : ℕ) : ℝ) ≤ 8 * (k : ℝ) := by
       exact_mod_cast (by omega : 2 * (2 * k - 1) ≤ 8 * k)
@@ -623,8 +619,7 @@ private theorem ballsIntoBins_params_of_ge_sixteen {k : ℕ} (hk : 16 ≤ k) :
         Real.log_mul (by positivity) (by positivity),
         Real.log_pow, Real.log_pow, Real.log_pow, Real.log_pow]
       have hlogB : Real.log (B : ℝ) = (18 * (k : ℝ)) * x := by
-        have hBcast : (B : ℝ) = (k : ℝ) ^ (18 * k) := by exact_mod_cast rfl
-        rw [hBcast, Real.log_pow]
+        rw [show (B : ℝ) = (k : ℝ) ^ (18 * k) by exact_mod_cast rfl, Real.log_pow]
         push_cast; ring
       rw [hlogB]
       -- Term 1: `a * log 3 ≤ 2 * k * x`.
@@ -780,10 +775,8 @@ private theorem equilibrium_cost_relatedMixedLowerNE_le_k {k B : ℕ} [NeZero B]
     rw [ite_eq_right hnotlast, relatedMixedLowerNE_inl, ite_eq_left rfl, sub_self, zero_mul,
       add_zero]
     simp only [relatedMixedLower, relatedMixedDetTarget]
-    have hlt_k : ((t.tier.val + 1 : ℕ) : ℝ) ≤ (k : ℝ) := by
-      have := t.tier.isLt
-      exact_mod_cast (by omega : t.tier.val + 1 ≤ k)
-    exact ⟨hlt_k, one_le_pow₀ (by norm_num)⟩
+    exact ⟨Nat.cast_le.mpr ((Nat.succ_le_of_lt t.tier.isLt).trans (Nat.sub_le k 1)),
+      one_le_pow₀ (by norm_num)⟩
   | inr r =>
     have hlast : y.tier = Fin.last k := by
       by_contra hne
@@ -791,8 +784,8 @@ private theorem equilibrium_cost_relatedMixedLowerNE_le_k {k B : ℕ} [NeZero B]
     rw [ite_eq_left hlast]
     simp only [relatedMixedLowerNE, hlast, ↓reduceIte, relatedMixedLower, Fin.val_last,
       two_pow_sub_one_div_two_pow hk]
-    have hinv_nn : 0 ≤ 1 / (B : ℝ) := by positivity
-    exact ⟨by linarith, one_le_pow₀ (by norm_num)⟩
+    exact ⟨by linarith [one_div_nonneg.mpr (Nat.cast_nonneg (α := ℝ) B)],
+      one_le_pow₀ (by norm_num)⟩
 
 /-- **Asymptotic uniformly related mixed PoA lower bound along the `(k, k ^ (18 * k))` family**:
 for every `k ≥ 16` and `B = k ^ (18 * k)`, `relatedMixedLowerNE k B` achieves expected makespan at
@@ -979,12 +972,10 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
         G.load (fun i => embedM (A (eJ i))) j =
           if h : j.val < Mfn k then (relatedMixedLower k B).load A (eM ⟨j.val, h⟩) else 0 := by
       intro A j
-      rw [LoadBalancingGame.load_eq_sum_div, sum_filter]
-      have hnum : (∑ i : Fin n, if embedM (A (eJ i)) = j then G.weight i else 0) =
-          ∑ x : RelatedMixedLowerJob k B,
-            if embedM (A x) = j then (relatedMixedLower k B).weight x else 0 :=
-        Fintype.sum_equiv eJ _ _ fun _ => rfl
-      rw [hnum]
+      rw [LoadBalancingGame.load_eq_sum_div, sum_filter,
+        Fintype.sum_equiv eJ _
+          (fun x => if embedM (A x) = j then (relatedMixedLower k B).weight x else 0)
+          fun _ => rfl]
       by_cases h : j.val < Mfn k
       · simp only [G, dite_eq_left h, LoadBalancingGame.load_eq_sum_div, sum_filter]
         congr 1
@@ -1021,10 +1012,8 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
     have hx_pos : 0 < x := (Real.exp_pos 1).trans hx_gt_e
     set y : ℝ := Real.log x
     have hB_le_m : B ≤ m :=
-      (show B ≤ Mfn k by
-        dsimp only [Mfn]
-        rw [card_relatedMixedLowerMachine]
-        exact Nat.le_mul_of_pos_left _ Fintype.card_pos).trans hMk_le
+      (Nat.le_mul_of_pos_left B Fintype.card_pos).trans
+        ((card_relatedMixedLowerMachine k B).symm.le.trans hMk_le)
     obtain ⟨_, _, hy_lt_log3m⟩ := log_log_lt_log_log_log_of_pow_le hk16 hB_eq hB_le_m
     have hlog3m_pos : 0 < Real.log (Real.log (Real.log (m : ℝ))) := by linarith
     -- Upper bound `log m ≤ log (Mfn (k + 1)) ≤ 80 * k * log k`.

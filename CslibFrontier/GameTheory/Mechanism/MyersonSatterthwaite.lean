@@ -233,19 +233,14 @@ private theorem isTruthfulOn_utility_eq {X P : ℝ → ℝ} {a b v : ℝ}
     v * X v - P v = (a * X a - P a) + ∫ t in a..v, X t := by
   let X' : ℝ → ℝ := fun u => X (a + u)
   let P' : ℝ → ℝ := fun u => P (a + u) - a * X (a + u)
-  have hT' : SingleParameter.IsTruthfulOn X' P' (Icc 0 (b - a)) := by
-    intro u hu w hw
-    have hu' : a + u ∈ Icc a b := ⟨by linarith [hu.1], by linarith [hu.2]⟩
-    have hw' : a + w ∈ Icc a b := ⟨by linarith [hw.1], by linarith [hw.2]⟩
+  have hT' : SingleParameter.IsTruthfulOn X' P' (Icc 0 (b - a)) := fun u hu w hw => by
+    have hu' : a + u ∈ Icc a b := ⟨le_add_of_nonneg_right hu.1, le_sub_iff_add_le'.1 hu.2⟩
+    have hw' : a + w ∈ Icc a b := ⟨le_add_of_nonneg_right hw.1, le_sub_iff_add_le'.1 hw.2⟩
     have h := hT (a + u) hu' (a + w) hw'
     simp only [X', P']
     linarith
   have hpay := hT'.payment_eq (v := v - a) ⟨sub_nonneg.2 hv.1, sub_le_sub_right hv.2 a⟩
-  have hint : ∫ z in (0 : ℝ)..(v - a), X (a + z) = ∫ t in a..v, X t := by
-    have := intervalIntegral.integral_comp_add_left X a (a := 0) (b := v - a)
-    simpa only [add_zero, add_sub_cancel] using this
-  simp only [X', P', add_zero, add_sub_cancel] at hpay
-  rw [hint] at hpay
+  simp only [X', P', add_zero, add_sub_cancel, intervalIntegral.integral_comp_add_left] at hpay
   linarith
 
 /-- Seller interim utility identity on `[a_s, b_s]`:
@@ -292,18 +287,16 @@ private theorem integral_intervalIntegral_left_eq {μ : Measure ℝ} [IsFiniteMe
   have hGint : Integrable G (μ.prod (volume.restrict (Ioc a b))) := (hg.comp_snd μ).indicator hSm
   have hL : ∀ᵐ v ∂μ, ∫ t in Ioc a b, G (v, t) = ∫ t in a..v, g t := by
     filter_upwards [hμ] with v hv
-    have hfun : (fun t => G (v, t)) = (Iic v).indicator g := by
-      ext t
-      simp only [G, S, indicator_apply, mem_ofPred_eq, mem_Iic]
+    have hfun : (fun t => G (v, t)) = (Iic v).indicator g :=
+      funext fun t => by simp [G, S, indicator_apply]
     have hset : Iic v ∩ Ioc a b = Ioc a v := by
       ext t
       exact ⟨fun ⟨h1, h2, _⟩ => ⟨h2, h1⟩, fun ⟨h1, h2⟩ => ⟨h2, h1, h2.trans hv.2⟩⟩
     rw [hfun, integral_indicator measurableSet_Iic, Measure.restrict_restrict measurableSet_Iic,
       hset, intervalIntegral.integral_of_le hv.1]
   have hR : ∀ t, ∫ v, G (v, t) ∂μ = μ.real (Ici t) * g t := fun t => by
-    have hfun : (fun v => G (v, t)) = (Ici t).indicator (fun _ => g t) := by
-      ext v
-      simp only [G, S, indicator_apply, mem_ofPred_eq, mem_Ici]
+    have hfun : (fun v => G (v, t)) = (Ici t).indicator (fun _ => g t) :=
+      funext fun v => by simp [G, S, indicator_apply]
     rw [hfun, integral_indicator measurableSet_Ici, setIntegral_const, smul_eq_mul]
   rw [← integral_congr_ae hL,
     integral_integral_swap (μ := μ) (ν := volume.restrict (Ioc a b)) (f := fun v t => G (v, t))
@@ -321,9 +314,8 @@ private theorem integral_intervalIntegral_right_eq {μ : Measure ℝ} [IsFiniteM
   have hGint : Integrable G (μ.prod (volume.restrict (Ioc a b))) := (hg.comp_snd μ).indicator hSm
   have hL : ∀ᵐ v ∂μ, ∫ t in Ioc a b, G (v, t) = ∫ t in v..b, g t := by
     filter_upwards [hμ] with v hv
-    have hfun : (fun t => G (v, t)) = (Ici v).indicator g := by
-      ext t
-      simp only [G, S, indicator_apply, mem_ofPred_eq, mem_Ici]
+    have hfun : (fun t => G (v, t)) = (Ici v).indicator g :=
+      funext fun t => by simp [G, S, indicator_apply]
     rw [hfun, integral_indicator measurableSet_Ici, Measure.restrict_restrict measurableSet_Ici,
       intervalIntegral.integral_of_le hv.2]
     rcases eq_or_lt_of_le hv.1 with rfl | hav
@@ -333,9 +325,8 @@ private theorem integral_intervalIntegral_right_eq {μ : Measure ℝ} [IsFiniteM
         exact ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h2⟩ => ⟨h1, hav.trans_le h1, h2⟩⟩
       rw [hset, integral_Icc_eq_integral_Ioc]
   have hR : ∀ t, ∫ v, G (v, t) ∂μ = μ.real (Iic t) * g t := fun t => by
-    have hfun : (fun v => G (v, t)) = (Iic t).indicator (fun _ => g t) := by
-      ext v
-      simp only [G, S, indicator_apply, mem_ofPred_eq, mem_Iic]
+    have hfun : (fun v => G (v, t)) = (Iic t).indicator (fun _ => g t) :=
+      funext fun v => by simp [G, S, indicator_apply]
     rw [hfun, integral_indicator measurableSet_Iic, setIntegral_const, smul_eq_mul]
   rw [← integral_congr_ae hL,
     integral_integral_swap (μ := μ) (ν := volume.restrict (Ioc a b)) (f := fun v t => G (v, t))
