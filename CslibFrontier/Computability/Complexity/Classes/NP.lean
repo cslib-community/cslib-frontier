@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import Mathlib.Algebra.Polynomial.Eval.Defs

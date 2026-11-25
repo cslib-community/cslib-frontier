@@ -6512,7 +6512,6 @@ public import CslibFrontier.Foundations.Data.Polynomial.FiniteExponential
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Completeness
 public import CslibFrontier.Computability.Kolmogorov.ConditionalPartrec
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GaussJordan
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.EdgeConnectivity
 public import CslibFrontier.Foundations.Combinatorics.Sunflower.Pluck
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.SpecU
