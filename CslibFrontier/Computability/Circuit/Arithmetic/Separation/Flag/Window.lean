@@ -103,7 +103,7 @@ namespace IsoAct
 @[expose] def W (p n : ℕ) : IsoAct (U n) Z := A.comp (wh h p n)
 
 /-- The displacement by a generator. -/
-noncomputable def e (j : ℕ) (z : Z) : ℝ :=
+@[expose] noncomputable def e (j : ℕ) (z : Z) : ℝ :=
   if hj : j < h - 1 then dist z (A (x h ⟨j, hj⟩) z) else 0
 
 theorem e_nonneg (j : ℕ) (z : Z) : 0 ≤ A.e j z := by

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.Polygonal
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.IntervalOrder
 import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.CutVertex
+import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.Connected
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.VertexConnectivity
 
 /-!
@@ -139,22 +140,19 @@ theorem not_alternates_of_component_after_deleting_pair {G : Graph}
     rintro z ⟨x, hx, hzx⟩ ⟨y, hy, hzy⟩
     have hxy : x = y := Subtype.ext (hzx.trans hzy.symm)
     exact hy (hxy ▸ hx)
-  let inside : C.toSimpleGraph →g G.toSimpleGraph.induce S :=
-    { toFun := fun ⟨x, hx⟩ => ⟨x.val.val, ⟨x.val, ⟨x, hx, rfl⟩, rfl⟩⟩
-      map_rel' := fun h => h }
+  let projection : (K.induce {w | w ≠ u}) →g G.toSimpleGraph :=
+    ⟨fun w => w.val.val, fun h => h⟩
   let outside : K.induce Wᶜ →g G.toSimpleGraph.induce T :=
     { toFun := fun x => ⟨x.val.val, ⟨x.val, x.property, rfl⟩⟩
       map_rel' := fun h => h }
   have hP : (G.toSimpleGraph.induce S).Reachable
       ⟨a.reverse.vertex, haS⟩ ⟨b.reverse.vertex, hbS⟩ := by
-    have haIn := haS
-    have hbIn := hbS
-    obtain ⟨_, ⟨x, hx, rfl⟩, ha'⟩ := haIn
-    obtain ⟨_, ⟨y, hy, rfl⟩, hb'⟩ := hbIn
-    have haEq : inside ⟨x, hx⟩ = ⟨a.reverse.vertex, haS⟩ := Subtype.ext ha'
-    have hbEq : inside ⟨y, hy⟩ = ⟨b.reverse.vertex, hbS⟩ := Subtype.ext hb'
-    rw [← haEq, ← hbEq]
-    exact (C.reachable_toSimpleGraph hx hy).map inside
+    have transport (U : Set ℕ) (hU : U = projection '' C.supp)
+        (h₁ : a.reverse.vertex ∈ U) (h₂ : b.reverse.vertex ∈ U) :
+        (G.toSimpleGraph.induce U).Reachable ⟨a.reverse.vertex, h₁⟩ ⟨b.reverse.vertex, h₂⟩ := by
+      subst U
+      exact C.reachable_induce_image projection h₁ h₂
+    exact transport S (Set.image_image _ _ _) haS hbS
   have hcW : (⟨c.reverse.vertex, hc⟩ : {w : ℕ // w ≠ v}) ∉ W :=
     fun h => hcS ⟨⟨c.reverse.vertex, hc⟩, h, rfl⟩
   have hdW : (⟨d.reverse.vertex, hd⟩ : {w : ℕ // w ≠ v}) ∉ W :=

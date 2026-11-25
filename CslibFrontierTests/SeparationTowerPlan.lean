@@ -7,6 +7,7 @@ Authors: Anthropic, PBC, Aviv Bar Natan
 module
 -- upstream: local-only (test driver)
 
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Capacity
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Rules
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.Fintype.BigOperators
@@ -22,6 +23,10 @@ import Mathlib.Data.Fintype.BigOperators
   party `1`: the unit goes over the edge, it is given at the slot of the relay of the edge, the
   load of the edge and the number of units of the relay are positive, and by the rule
   `holder_given` of `towerPlan_ok` that slot joins the parties `0` and `1`.
+* The capacity of that tower: the edge is at both chambers (`Tower.incidentSum`) and its type is
+  chosen (`Tower.IsChosenType`); with the ratio `D = 2` the tower and its laws satisfy `StageRate`
+  at the rate `1`, the boundary case of `towerPlan_ok_moveCap`; `startBound` and `moveCap` on its
+  numbers are `10` and `33`, and the relay of the edge uses between `1` and `moveCap` units.
 * `towerPlan_ok` for an arbitrary tower, under its hypotheses: a slot is given at most `cap`
   units. -/
 
@@ -78,7 +83,7 @@ example : (Relay.final e : Relay T m A).input = .edge (Fin.last J) e := rfl
 example (d : Bool) : (Relay.final e : Relay T m A).target R ch d = .done := rfl
 
 /-- The two ends of an edge of the last stage are different nodes. -/
-example : Node.ofChamber le_rfl (T.e0 e) ≠ Node.ofChamber le_rfl (T.e1 e) := fun he =>
+example : (.ofChamber le_rfl (T.e0 e) : T.Node) ≠ .ofChamber le_rfl (T.e1 e) := fun he =>
   absurd (Relay.party_injective (R := R) (ch := ch) (x := .final e) trivial (a₁ := .source)
     (a₂ := .sink) he)
     (by decide)
@@ -213,8 +218,9 @@ example (hr : 0 < r) :
 /-! ### A tower with one edge -/
 
 /-- Two chambers on the one level, joined by an edge of the one type; every chamber is a vertex
-of its own. -/
-@[reducible] private def edgeTower : Tower 1 1 1 0 1 where
+of its own. Its ratio `D = 2` concerns only the levels below `J = 0`, of which there are none, and
+makes the rate `1` admissible (`2 ≤ 1 · D`). -/
+@[reducible] private def edgeTower : Tower 1 1 2 0 1 where
   X _ := Bool
   Ed _ := Unit
   V _ _ := Bool
@@ -338,20 +344,71 @@ example : 0 < load 2 (initialCounts edgeCounts) (outcomeOf _ _ edgePlacement o)
   exact card_pos.2 ⟨_, mem_filter.2 ⟨mem_aliveUnits.2 (isAlive_of_mem_givenUnits hu).1,
     initialTarget_edge 0⟩⟩
 
+/-- The slot of the relay of the edge. -/
+private noncomputable def edgeSlot : (moves edgeRoutes (edgeLaws F) edgePlacement).Slot :=
+  (moveSlotEquiv _ _ edgePlacement).symm ⟨edgeRelay, ()⟩
+
+/-- In the tower plan, the unit from the party `0` to the party `1` is given at the slot of the
+relay of the edge. -/
+private theorem init_mem_given : UnitId.init 0 1 0 ∈
+    (towerPlan edgeRoutes (edgeLaws F) edgePlacement 2 1 1).given edgeCounts (fun _ => 0)
+      edgeSlot := by
+  simpa [towerPlan, edgeSlot] using init_mem_givenUnits (F := F) (U1 := 1) (fun _ => 0)
+
 /-- The plan obeys the rules, and the unit from the party `0` to the party `1` is given at the
 slot of the relay of the edge: so that slot joins the parties `0` and `1`. -/
-example : s((moves edgeRoutes (edgeLaws F) edgePlacement).slotParty
-      ((moveSlotEquiv _ _ edgePlacement).symm ⟨edgeRelay, ()⟩) false,
-    (moves edgeRoutes (edgeLaws F) edgePlacement).slotParty
-      ((moveSlotEquiv _ _ edgePlacement).symm ⟨edgeRelay, ()⟩) true) = s(0, 1) := by
+example : s((moves edgeRoutes (edgeLaws F) edgePlacement).slotParty edgeSlot false,
+    (moves edgeRoutes (edgeLaws F) edgePlacement).slotParty edgeSlot true) = s(0, 1) := by
   obtain ⟨d, hd⟩ := (towerPlan_ok Nat.one_pos Nat.one_pos
-    (moveCount_le (F := F) 2 1 1)).holder_given edgeCounts (fun _ => 0)
-    ((moveSlotEquiv _ _ edgePlacement).symm ⟨edgeRelay, ()⟩) (.init 0 1 0)
-    (by simpa [towerPlan] using init_mem_givenUnits (F := F) (U1 := 1) (fun _ => 0))
+    (moveCount_le (F := F) 2 1 1)).holder_given edgeCounts (fun _ => 0) edgeSlot (.init 0 1 0)
+    init_mem_given
   have h0 := hd false
   have h1 := hd true
   cases d <;> simp only [UnitId.holder, Bool.xor_false, Bool.xor_true, Bool.not_false,
     Bool.not_true, Bool.cond_false, Bool.cond_true] at h0 h1 <;> rw [← h0, ← h1] <;> decide
+
+/-! ### The capacity of the tower with one edge -/
+
+/-- Both chambers are ends of the edge: the units between a chamber and its parent are the load
+of the edge. -/
+example (n : edgeTower.Ed 0 → ℕ) (c : Bool) : edgeTower.incidentSum n c = n () := by
+  cases c <;> simp [Tower.incidentSum]
+
+/-- The one type is chosen for the loads of the edges. -/
+example : edgeTower.IsChosenType (j := 0) (fun _ => 3) 0 := by decide
+
+/-- The tower with one edge and its laws satisfy the conditions of the stages at the rate `1`:
+`1 + 8 · 0 ≤ 1² · 1` and `2 ≤ 1 · 2`. -/
+private theorem edgeStageRate : StageRate (edgeLaws F) 1 where
+  r_pos := Nat.one_pos
+  b_pos := Nat.one_pos
+  h_pos := Nat.one_pos
+  b_le := by decide
+  ρ_pos := one_pos
+  one_add_le := by simp [unitLaws]
+  two_le := by norm_num
+
+/-- After the start, the edge carries at most `2 * (2 / 2 + 2 * 2) = 10` units: the routes use it
+at most `2` times, there are `2` chambers and `2` base parties, and every base party has at most
+`2` initial units. -/
+example : startBound edgeTower 2 2 2 = 10 := by decide
+
+/-- The bound for the norms is the bound `10` after the start, since the laws have no
+contraction; so a move uses at most `1 + 2 + ⌈3 · 1 · 10⌉ = 33` units. -/
+example : moveCap (edgeLaws ℕ) 1 2 2 2 = 33 := by
+  have hX : Fintype.card (edgeTower.X 0) = 2 := rfl
+  norm_num [moveCap, normBound, startBound, unitLaws, hX]
+
+/-- At the rate `1` the tower plan obeys the rules with the bound `moveCap`
+(`towerPlan_ok_moveCap`), so the relay of the edge, whose slot is given the unit from the party
+`0` to the party `1`, uses between `1` and `moveCap` units. -/
+example : 1 ≤ (towerPlan edgeRoutes (edgeLaws F) edgePlacement 2 1 1).count edgeCounts
+      (fun _ => 0) edgeSlot.1 ∧
+    (towerPlan edgeRoutes (edgeLaws F) edgePlacement 2 1 1).count edgeCounts (fun _ => 0)
+      edgeSlot.1 ≤ moveCap (edgeLaws F) 1 2 2 2 :=
+  have hP := towerPlan_ok_moveCap (R := edgeRoutes) (Pl := edgePlacement) (lhat := 2) (U0 := 1)
+    (U1 := 1) edgeStageRate le_rfl
+  ⟨(card_pos.2 ⟨_, init_mem_given⟩).trans_le (hP.card_given_le _ _ _), hP.count_le _ _ _⟩
 
 /-! ### The rules for an arbitrary tower -/
 
