@@ -4380,6 +4380,14 @@ public import CslibFrontier.Computability.Machines.AuxPDA.Basic
 public import CslibFrontier.Computability.Machines.AuxPDA.BoundedSurface
 public import CslibFrontier.Computability.Machines.AuxPDA.Counting
 public import CslibFrontier.Computability.Machines.AuxPDA.Surface
+public import CslibFrontier.Computability.Machines.Memory.Basic
+public import CslibFrontier.Computability.Machines.Memory.DA
+public import CslibFrontier.Computability.Machines.Memory.DPDA
+public import CslibFrontier.Computability.Machines.Memory.MultiTape
+public import CslibFrontier.Computability.Machines.Memory.PointerMachine
+public import CslibFrontier.Computability.Machines.Memory.SingleTape
+public import CslibFrontier.Computability.Machines.Memory.Tape
+public import CslibFrontier.Computability.Machines.Memory.URM
 public import CslibFrontier.Computability.Machines.ReadMachine.Basic
 public import CslibFrontier.Computability.Machines.ReadMachine.StepMachine
 public import CslibFrontier.Computability.Machines.ReadMachine.Tidy
