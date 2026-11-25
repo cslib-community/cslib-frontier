@@ -97,6 +97,12 @@ def tseitinClause (op : Op) (w a b : V) (j : Fin 3) : Clause V :=
   | .or, 1 => [(w, true), (b, false), (b, false)]
   | .or, _ => [(w, false), (a, true), (b, true)]
 
+/-- Every variable occurring in `tseitinClause op w a b j` is `w`, `a`, or `b`. -/
+theorem mem_tseitinClause {op : Op} {w a b v : V} {s : Bool} {j : Fin 3}
+    (h : (v, s) ∈ tseitinClause op w a b j) : v = w ∨ v = a ∨ v = b := by
+  fin_cases j <;> cases op <;> simp only [tseitinClause, List.mem_cons, List.not_mem_nil,
+    or_false, Prod.mk.injEq] at h <;> tauto
+
 /-- Every clause of a gate has three literals. -/
 @[simp] theorem length_tseitinClause (op : Op) (w a b : V) (j : Fin 3) :
     (tseitinClause op w a b j).length = 3 := by
@@ -149,13 +155,9 @@ private theorem getD_lt_of_isCodeFrom {n : ℕ} {gates : List (Op × List ℕ)}
     (1 ≤ signature.Arity gates[g].1 → gates[g].2.getD 0 0 < n + g) ∧
       (2 ≤ signature.Arity gates[g].1 → gates[g].2.getD 1 0 < n + g) := by
   obtain ⟨hlen, hlt⟩ := h.getElem g hg
-  refine ⟨fun h₁ => ?_, fun h₂ => ?_⟩
-  · have h₀ : 0 < gates[g].2.length := by omega
-    rw [List.getD_eq_getElem _ _ h₀]
-    simpa using hlt _ (List.getElem_mem h₀)
-  · have h₀ : 1 < gates[g].2.length := by omega
-    rw [List.getD_eq_getElem _ _ h₀]
-    simpa using hlt _ (List.getElem_mem h₀)
+  refine ⟨fun h₁ => ?_, fun h₂ => ?_⟩ <;> (
+    rw [List.getD_eq_getElem _ _ (by omega)]
+    simpa using hlt _ (List.getElem_mem (by omega)))
 
 /-- **The satisfying assignments of the Tseitin formula** of a well-formed gate list are its
 evaluations: every wire carries the value that the list computes from the inputs. -/
@@ -164,33 +166,31 @@ theorem eval_tseitinCNF_eq_true_iff_evalCode {n : ℕ} {gates : List (Op × List
     (tseitinCNF n gates).eval σ = true ↔ ∀ w < n + gates.length, σ w =
       (evalCode interpretation false (List.ofFn fun i : Fin n => σ i) gates).getD w false := by
   rw [eval_tseitinCNF_eq_true_iff]
-  set x : List Bool := List.ofFn fun i : Fin n => σ i with hx
-  have hxlen : x.length = n := by simp [hx]
-  set vals := evalCode interpretation false x gates with hvals
-  have hgate (g : ℕ) (hg : g < gates.length) : vals.getD (n + g) false =
-      gates[g].1.value (vals.getD (gates[g].2.getD 0 0) false)
-        (vals.getD (gates[g].2.getD 1 0) false) := by
-    have := getD_evalCode interpretation false x (hxlen ▸ h) (List.getElem?_eq_getElem hg)
-    rw [hxlen] at this
-    rw [hvals, this, interpretation_eq_value _ (h.getElem g hg).1]
-  have hin (w : ℕ) (hw : w < n) : vals.getD w false = σ w := by
+  let x : List Bool := List.ofFn fun i : Fin n => σ i
+  have hxlen : x.length = n := List.length_ofFn
+  have hgate (g : ℕ) (hg : g < gates.length) :
+      (evalCode interpretation false x gates).getD (n + g) false =
+        gates[g].1.value
+          ((evalCode interpretation false x gates).getD (gates[g].2.getD 0 0) false)
+          ((evalCode interpretation false x gates).getD (gates[g].2.getD 1 0) false) := by
+    simpa only [hxlen, interpretation_eq_value _ (h.getElem g hg).1] using
+      getD_evalCode interpretation false x (hxlen ▸ h) (List.getElem?_eq_getElem hg)
+  have hin (w : ℕ) (hw : w < n) :
+      (evalCode interpretation false x gates).getD w false = σ w := by
     obtain ⟨r, hr⟩ := prefix_evalCode interpretation false x gates
-    rw [hvals, ← hr, List.getD_append _ _ _ _ (by omega), hx, List.getD_eq_getElem _ _ (by simpa),
-      List.getElem_ofFn]
-  constructor
-  · intro hσ w hw
-    induction w using Nat.strong_induction_on with
-    | _ w ih =>
-      by_cases hwn : w < n
-      · exact (hin w hwn).symm
-      · obtain ⟨g, rfl⟩ : ∃ g, w = n + g := ⟨w - n, by omega⟩
-        have hg : g < gates.length := by omega
-        have hargs := getD_lt_of_isCodeFrom h hg
-        rw [hσ g hg, hgate g hg]
-        exact Op.value_congr _ (fun h₁ => ih _ (hargs.1 h₁) (by omega))
-          (fun h₂ => ih _ (hargs.2 h₂) (by omega))
-  · intro hσ g hg
-    have hargs := getD_lt_of_isCodeFrom h hg
+    rw [← hr, List.getD_append _ _ _ _ (by simp [x, hw]),
+      List.getD_eq_getElem _ _ (by simp [x, hw]), List.getElem_ofFn]
+  refine ⟨fun hσ w hw => ?_, fun hσ g hg => ?_⟩
+  · induction w using Nat.strong_induction_on with | _ w ih =>
+    by_cases hwn : w < n
+    · exact (hin w hwn).symm
+    · obtain ⟨g, rfl⟩ : ∃ g, w = n + g := ⟨w - n, by omega⟩
+      have hg : g < gates.length := by omega
+      have hargs := getD_lt_of_isCodeFrom h hg
+      rw [hσ g hg, hgate g hg]
+      exact Op.value_congr _ (fun h₁ => ih _ (hargs.1 h₁) (by omega))
+        (fun h₂ => ih _ (hargs.2 h₂) (by omega))
+  · have hargs := getD_lt_of_isCodeFrom h hg
     rw [hσ (n + g) (by omega), hgate g hg]
     exact Op.value_congr _ (fun h₁ => (hσ _ (by have := hargs.1 h₁; omega)).symm)
       (fun h₂ => (hσ _ (by have := hargs.2 h₂; omega)).symm)
@@ -214,13 +214,11 @@ def tseitinSatCNF (x : List Bool) (n : ℕ) (gates : List (Op × List ℕ)) (o :
 theorem eval_mapIdx_unitClause_eq_true_iff (x : List Bool) (σ : ℕ → Bool) :
     CNF.eval σ (x.mapIdx fun i b => unitClause (i, b)) = true ↔
       ∀ i (hi : i < x.length), σ i = x[i] := by
-  rw [CNF.eval_eq_true_iff]
-  simp only [List.mem_mapIdx, forall_exists_index]
-  constructor
-  · intro h i hi
-    simpa using h _ i hi rfl
-  · rintro h c i hi rfl
-    simpa using h i hi
+  simp only [CNF.eval_eq_true_iff, List.mem_mapIdx, forall_exists_index]
+  exact ⟨fun h i hi => by simpa using h _ i hi rfl,
+    fun h _ i hi hc => by
+      subst hc
+      simpa using h i hi⟩
 
 /-- An assignment satisfies `tseitinSatCNF` when it makes wire `o` true, agrees with `x` on the
 first inputs and satisfies the Tseitin formula. -/
@@ -242,24 +240,22 @@ theorem satisfiable_tseitinSatCNF_iff {x : List Bool} {n : ℕ} {gates : List (O
   constructor
   · rintro ⟨σ, hσ⟩
     obtain ⟨hσo, hσx, hσφ⟩ := (eval_tseitinSatCNF_eq_true_iff x n gates o σ).1 hσ
-    have hval := (eval_tseitinCNF_eq_true_iff_evalCode h σ).1 hσφ
-    refine ⟨List.ofFn fun i : Fin n => σ i, by simp, ?_, ?_⟩
-    · rw [List.prefix_iff_eq_take]
-      refine List.ext_getElem (by simp; omega) fun i h₁ h₂ => ?_
-      simpa using (hσx i h₁).symm
-    · rw [evalOutput, ← hval o ho, hσo]
+    refine ⟨List.ofFn fun i : Fin n => σ i, List.length_ofFn, List.prefix_iff_eq_take.2
+      (List.ext_getElem (by simp; omega)
+        fun i h₁ _ => by simpa using (hσx i h₁).symm), ?_⟩
+    rw [evalOutput, ← (eval_tseitinCNF_eq_true_iff_evalCode h σ).1 hσφ o ho, hσo]
   · rintro ⟨y, hy, hxy, hout⟩
-    set σ : ℕ → Bool := fun w => (evalCode interpretation false y gates).getD w false with hσ
+    let σ : ℕ → Bool := fun w => (evalCode interpretation false y gates).getD w false
     have hσy (i : ℕ) (hi : i < n) : σ i = y[i]'(by omega) := by
       obtain ⟨r, hr⟩ := prefix_evalCode interpretation false y gates
-      change (evalCode interpretation false y gates).getD i false = _
+      dsimp only [σ]
       rw [← hr, List.getD_append _ _ _ _ (by omega), List.getD_eq_getElem]
-    have hyσ : (List.ofFn fun i : Fin n => σ i) = y :=
-      List.ext_getElem (by simp [hy]) fun i h₁ h₂ => by simp [hσy i (by simpa using h₁)]
-    refine ⟨σ, (eval_tseitinSatCNF_eq_true_iff x n gates o σ).2 ⟨hout, fun i hi => ?_, ?_⟩⟩
-    · rw [hσy i (by omega), hxy.getElem hi]
-    · rw [eval_tseitinCNF_eq_true_iff_evalCode h, hyσ]
-      exact fun _ _ => rfl
+    refine ⟨σ, (eval_tseitinSatCNF_eq_true_iff x n gates o σ).2
+      ⟨hout, fun i hi => (hσy i (by omega)).trans (hxy.getElem hi).symm, ?_⟩⟩
+    have hofFn : (List.ofFn fun i : Fin n => σ i) = y :=
+      List.ext_getElem (by simp [hy]) fun i h₁ _ => by simp [hσy i (by simpa using h₁)]
+    rw [eval_tseitinCNF_eq_true_iff_evalCode h, hofFn]
+    exact fun _ _ => rfl
 
 /-- **Circuit satisfiability as a formula**: the Tseitin formula of a single-output De Morgan
 circuit, with the output fixed to `true` and the inputs fixed to the bits of `x`, is satisfiable
@@ -272,18 +268,21 @@ theorem satisfiable_tseitinSatCNF_circuit_iff {n : ℕ} (c : Circuit signature n
     (by simp [Circuit.ofCode_code])
   rw [satisfiable_tseitinSatCNF_iff hcode.1 hx
     (by simpa using hcode.2.2 _ (by simp [Circuit.code]))]
-  constructor
-  · rintro ⟨y, hy, hxy, hout⟩
-    refine ⟨fun i => y[i.val]'(by omega), ?_, ?_⟩
-    · have : (List.ofFn fun i : Fin n => y[i.val]'(by omega)) = y :=
-        List.ext_getElem (by simp [hy]) fun i _ _ => by simp
-      rwa [this]
-    · rw [Circuit.eval_eq_evalOutput]
-      have : (List.ofFn fun i : Fin n => y[i.val]'(by omega)) = y :=
-        List.ext_getElem (by simp [hy]) fun i _ _ => by simp
-      rwa [this]
-  · rintro ⟨y, hxy, hout⟩
-    exact ⟨List.ofFn y, by simp, hxy, by rwa [← Circuit.eval_eq_evalOutput]⟩
+  refine ⟨?_, fun ⟨y, hxy, hout⟩ =>
+    ⟨List.ofFn y, List.length_ofFn, hxy, by rwa [← Circuit.eval_eq_evalOutput]⟩⟩
+  rintro ⟨y, hy, hxy, hout⟩
+  have hy' : (List.ofFn fun i : Fin n => y[i.val]'(by omega)) = y :=
+    List.ext_getElem (by simp [hy]) fun _ _ _ => by simp
+  exact ⟨fun i => y[i.val]'(by omega), hy'.symm ▸ hxy,
+    by rwa [Circuit.eval_eq_evalOutput, hy']⟩
+
+/-- Evaluating more De Morgan gates preserves the values of the wires computed so far. -/
+theorem getD_evalCode_append_of_lt {x : List Bool} {gates rest : List (Op × List ℕ)}
+    {i : ℕ} (hi : i < x.length + gates.length) :
+    (evalCode interpretation false x (gates ++ rest)).getD i false =
+      (evalCode interpretation false x gates).getD i false := by
+  rw [evalCode_append]
+  exact getD_evalCode_of_lt _ _ _ _ (by simpa using hi)
 
 /-! ### Size -/
 
@@ -292,10 +291,7 @@ theorem length_of_mem_tseitinSatCNF {x : List Bool} {n : ℕ} {gates : List (Op 
     {C : Clause ℕ} (hC : C ∈ tseitinSatCNF x n gates o) : C.length = 3 := by
   simp only [tseitinSatCNF, List.cons_append, List.mem_cons, List.mem_append, List.mem_mapIdx,
     tseitinCNF, List.mem_flatMap, gateClauses, List.mem_ofFn] at hC
-  rcases hC with rfl | ⟨i, -, rfl⟩ | ⟨g, -, j, rfl⟩
-  · rfl
-  · rfl
-  · exact length_tseitinClause _ _ _ _ _
+  rcases hC with rfl | ⟨_, -, rfl⟩ | ⟨_, -, _, rfl⟩ <;> simp [unitClause]
 
 /-- `tseitinSatCNF` has one clause for the output, one for each fixed input and three for each
 gate. -/

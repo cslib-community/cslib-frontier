@@ -154,23 +154,17 @@ private theorem twoValStep_iterate : ∀ (k m v : ℕ),
     refine ⟨?_, fun m' v' => ?_⟩
     · rw [Function.iterate_succ_apply]
       by_cases hm : m ≠ 0 ∧ m % 2 = 0
-      · have h1 : twoValStep (m, v, false) = (m / 2, v + 1, false) := by
-          simp [twoValStep, hm.1, hm.2]
-        have h2 : twoValAux (k + 1) m = twoValAux k (m / 2) + 1 := by
-          simp [twoValAux, hm.1, hm.2]
-        rw [h1, h2, (twoValStep_iterate k (m / 2) (v + 1)).1]
+      · have hstep : twoValStep (m, v, false) = (m / 2, v + 1, false) := by
+          simp [twoValStep, hm]
+        rw [hstep, (twoValStep_iterate k (m / 2) (v + 1)).1]
+        simp only [twoValAux, hm.1, hm.2, ne_eq, not_false_eq_true, and_self, ↓reduceIte]
         ring
-      · have h1 : twoValStep (m, v, false) = (m, v, true) := by
-          simp only [twoValStep]
-          split_ifs with h
-          · exact absurd ⟨h.2.1, h.2.2⟩ hm
-          · rfl
-        have h2 : twoValAux (k + 1) m = 0 := by
-          simp only [twoValAux, hm, ↓reduceIte]
-        rw [h1, h2, (twoValStep_iterate k m v).2]
-        simp
-    · have h1 : twoValStep (m', v', true) = (m', v', true) := by simp [twoValStep]
-      rw [Function.iterate_succ_apply, h1, (twoValStep_iterate k m' v').2]
+      · have hstep : twoValStep (m, v, false) = (m, v, true) := by
+          simp only [twoValStep, ↓reduceIte, true_and, hm]
+        rw [hstep, (twoValStep_iterate k m v).2]
+        simp [twoValAux, hm]
+    · rw [Function.iterate_succ_apply]
+      simpa [twoValStep] using (twoValStep_iterate k m v).2 m' v'
 
 private theorem foldl_range_eq_iterate {β : Type} (f : β → β) : ∀ (k : ℕ) (s : β),
     (List.range k).foldl (fun s _ => f s) s = f^[k] s
@@ -246,18 +240,16 @@ end PolyTime
 theorem ediv_two_pow_twoVal (n : ℤ) :
     n / 2 ^ twoVal n = if n < 0 then -((n.natAbs / 2 ^ twoVal n : ℕ) : ℤ)
       else ((n.natAbs / 2 ^ twoVal n : ℕ) : ℤ) := by
-  have hdvd : 2 ^ twoVal n ∣ n.natAbs := by
-    rw [twoVal_eq]; exact pow_multiplicity_dvd _ _
-  have hdvd' : (2 : ℤ) ^ twoVal n ∣ (n.natAbs : ℤ) := by exact_mod_cast hdvd
+  have hdvd : (2 : ℤ) ^ twoVal n ∣ (n.natAbs : ℤ) := by
+    rw [twoVal_eq]
+    exact_mod_cast pow_multiplicity_dvd 2 n.natAbs
   generalize twoVal n = v at *
   split_ifs with h
-  · have hn : n = -(n.natAbs : ℤ) := by rw [Int.ofNat_natAbs_of_nonpos h.le, neg_neg]
-    conv_lhs => rw [hn]
-    rw [Int.neg_ediv_of_dvd hdvd']
+  · conv_lhs => rw [← neg_neg n, ← Int.ofNat_natAbs_of_nonpos h.le]
+    rw [Int.neg_ediv_of_dvd hdvd]
     push_cast
     rfl
-  · have hn : n = (n.natAbs : ℤ) := (Int.natAbs_of_nonneg (not_lt.mp h)).symm
-    conv_lhs => rw [hn]
+  · conv_lhs => rw [← Int.natAbs_of_nonneg (not_lt.mp h)]
     push_cast
     rfl
 
@@ -798,12 +790,9 @@ theorem packetTerms_polyTime : packetTerms.PolyTime PacketCtx.enc (encPair encNa
   modes := by
     have hrange : ComputableInPolyTime (fun c : PacketCtx => List.range (c.tiles * c.nb))
         PacketCtx.enc (encList encNat) :=
-      (ComputableInPolyTime.mapWithInput (f := fun _ (k : ℕ) => k)
+      ((ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
         (ComputableInPolyTime.range.comp (ComputableInPolyTime.unary_mul'
-          PacketCtx.tiles_polyTime PacketCtx.nb_polyTime))
-        (ComputableInPolyTime.unary_to_binary.comp
-          (ComputableInPolyTime.snd PacketCtx.enc encUnary))).of_enc_eq fun c => by
-        simp
+          PacketCtx.tiles_polyTime PacketCtx.nb_polyTime))).of_enc_eq fun _ => by simp
     have h1 := ComputableInPolyTime.fst PacketCtx.enc encNat
     have h2 := ComputableInPolyTime.snd PacketCtx.enc encNat
     have hy := ComputableInPolyTime.binary_div.comp
@@ -919,9 +908,8 @@ theorem node_polyTime :
       (encPair (encList (encPair encNat encBool)) (encList encUnary)))
   have hβ' : ComputableInPolyTime (fun q : PacketCtx × (List (ℕ × Bool) × List ℕ) => q.2.2)
       encEntryInput (encList encNat) :=
-    (ComputableInPolyTime.mapWithInput (f := fun _ (k : ℕ) => k) hβ
-      (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _))).of_enc_eq
-      fun q => by simp
+    ((ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp hβ).of_enc_eq
+      fun _ => by simp
   exact (ComputableInPolyTime.fst _ _).prod
     (((ComputableInPolyTime.fst (encList (encPair encNat encBool)) (encList encUnary)).comp
       (ComputableInPolyTime.snd _ _)).prod hβ')
@@ -939,11 +927,10 @@ theorem sourceProduct_polyTime :
   have hfl := PacketCtx.fl_polyTime.comp hc
   have hrange : ComputableInPolyTime (fun q : PacketCtx × (List (ℕ × Bool) × List ℕ) =>
       List.range (q.1.tiles * q.1.nb)) encEntryInput (encList encNat) :=
-    (ComputableInPolyTime.mapWithInput (f := fun _ (k : ℕ) => k)
+    ((ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
       (ComputableInPolyTime.range.comp (ComputableInPolyTime.unary_mul'
-        (PacketCtx.tiles_polyTime.comp hc) (PacketCtx.nb_polyTime.comp hc)))
-      (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _))).of_enc_eq
-      fun q => by simp
+        (PacketCtx.tiles_polyTime.comp hc) (PacketCtx.nb_polyTime.comp hc)))).of_enc_eq
+      fun _ => by simp
   have h1 := ComputableInPolyTime.fst encEntryInput encNat
   have h2 := ComputableInPolyTime.snd encEntryInput encNat
   have hnb := ComputableInPolyTime.unary_to_binary.comp (PacketCtx.nb_polyTime.comp (hc.comp h1))
@@ -1183,18 +1170,12 @@ theorem entryInput_polyTime :
     (encList encUnary)).comp ((ComputableInPolyTime.snd _ _).comp hd)
   have hcols := sidePorts_polyTime hports hbs (ComputableInPolyTime.const false)
   have hrows := sidePorts_polyTime hports hbs (ComputableInPolyTime.const true)
-  have h01 := (PacketCtx.p_polyTime.comp hc).prod (PacketCtx.fl_polyTime.comp hc)
-  have h23 := (PacketCtx.a_polyTime.comp hc).prod (PacketCtx.L_polyTime.comp hc)
-  have h45 := (PacketCtx.i_polyTime.comp hc).prod (PacketCtx.tiles_polyTime.comp hc)
-  have hsyms := (PacketCtx.e₁_polyTime.comp hc).prod ((PacketCtx.e₂_polyTime.comp hc).prod
-    (PacketCtx.differ_polyTime.comp hc))
-  have hlast := hcols.prod (PacketCtx.ζ_polyTime.comp hc)
-  have htuple := h01.prod (h23.prod (h45.prod ((PacketCtx.t_polyTime.comp hc).prod
-    ((PacketCtx.nb_polyTime.comp hc).prod (hsyms.prod hlast)))))
-  have hctx : ComputableInPolyTime (fun q : PacketDesc × List Bool =>
-      ({ q.1.1 with cols := sidePorts q.1.2.1 q.2 false } : PacketCtx))
-      (encPair encPacketDesc encBits) PacketCtx.enc :=
-    htuple.of_enc_eq fun _ => rfl
+  have hctx := PacketCtx.mk_polyTime (PacketCtx.p_polyTime.comp hc)
+    (PacketCtx.fl_polyTime.comp hc) (PacketCtx.a_polyTime.comp hc) (PacketCtx.L_polyTime.comp hc)
+    (PacketCtx.i_polyTime.comp hc) (PacketCtx.tiles_polyTime.comp hc)
+    (PacketCtx.t_polyTime.comp hc) (PacketCtx.nb_polyTime.comp hc)
+    (PacketCtx.e₁_polyTime.comp hc) (PacketCtx.e₂_polyTime.comp hc)
+    (PacketCtx.differ_polyTime.comp hc) hcols (PacketCtx.ζ_polyTime.comp hc)
   exact hctx.prod (hrows.prod hβ)
 
 /-- **The native packet evaluator on descriptors**: one native machine for the entry of a packet

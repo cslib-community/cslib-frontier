@@ -104,9 +104,9 @@ theorem exists_forall_exists_mul_mem_of_card_mul_card_compl_pow_lt [DecidableEq 
     {k : ℕ}
     (h : Fintype.card G * #Sᶜ ^ k < Fintype.card G ^ k) :
     ∃ u : Fin k → G, ∀ g, ∃ i, g * u i ∈ S := by
-  have hlt : #{u : Fin k → G | ∃ g : G, ∀ i, g * u i ∈ Sᶜ} < #(univ : Finset (Fin k → G)) := by
-    simpa [card_univ] using (card_filter_exists_forall_mul_mem_le Sᶜ k).trans_lt h
-  obtain ⟨u, -, hu⟩ := exists_mem_notMem_of_card_lt_card hlt
+  obtain ⟨u, -, hu⟩ := exists_mem_notMem_of_card_lt_card
+    (s := {u : Fin k → G | ∃ g : G, ∀ i, g * u i ∈ Sᶜ}) (t := univ)
+    (by simpa [card_univ] using (card_filter_exists_forall_mul_mem_le Sᶜ k).trans_lt h)
   exact ⟨u, by simpa using hu⟩
 
 /-- **Lautemann's covering lemma**, density form: if `S` misses at most a `1 / q` fraction of the
@@ -133,14 +133,13 @@ elements `g : G` satisfy `g + u i ∈ S` for some `i`. -/]
 theorem card_filter_exists_mul_mem_le [DecidableEq G] (S : Finset G) {k : ℕ} (u : Fin k → G) :
     #{g : G | ∃ i, g * u i ∈ S} ≤ k * #S := by
   have hsub : (univ.filter fun g : G => ∃ i, g * u i ∈ S) ⊆
-      univ.biUnion fun i => {g | g * u i ∈ S} := fun g hg => by
-    obtain ⟨i, hi⟩ := (mem_filter.1 hg).2
-    exact mem_biUnion.2 ⟨i, mem_univ _, mem_filter.2 ⟨mem_univ _, hi⟩⟩
+      univ.biUnion fun i => {g | g * u i ∈ S} := fun _ hg =>
+    let ⟨i, hi⟩ := (mem_filter.1 hg).2
+    mem_biUnion.2 ⟨i, mem_univ _, mem_filter.2 ⟨mem_univ _, hi⟩⟩
   have hcard (i : Fin k) : #{g | g * u i ∈ S} = #S :=
-    card_nbij' (· * u i) (· * (u i)⁻¹) (fun _ => by simp) (fun _ => by simp) (fun _ _ => by simp)
-      (fun _ _ => by simp)
-  refine (card_le_card hsub).trans (card_biUnion_le.trans ?_)
-  rw [sum_const_nat fun i _ => hcard i, card_univ, Fintype.card_fin]
+    card_nbij' (· * u i) (· * (u i)⁻¹) (fun _ => by simp) (fun _ => by simp)
+      (fun _ _ => by simp) (fun _ _ => by simp)
+  simpa [sum_const_nat fun i _ => hcard i] using (card_le_card hsub).trans card_biUnion_le
 
 /-- **The converse of Lautemann's covering lemma**: if `k |S| < |G|`, then for any `k` shifts
 `u i` of the finite group `G`, some `g : G` has `g * u i ∉ S` for every `i`. -/
@@ -150,9 +149,9 @@ theorem card_filter_exists_mul_mem_le [DecidableEq G] (S : Finset G) {k : ℕ} (
 theorem exists_forall_mul_notMem_of_mul_card_lt (S : Finset G) {k : ℕ}
     (h : k * #S < Fintype.card G) (u : Fin k → G) : ∃ g, ∀ i, g * u i ∉ S := by
   classical
-  have hlt : #{g : G | ∃ i, g * u i ∈ S} < #(univ : Finset G) := by
-    simpa [card_univ] using (card_filter_exists_mul_mem_le S u).trans_lt h
-  obtain ⟨g, -, hg⟩ := exists_mem_notMem_of_card_lt_card hlt
+  obtain ⟨g, -, hg⟩ := exists_mem_notMem_of_card_lt_card
+    (s := {g : G | ∃ i, g * u i ∈ S}) (t := univ)
+    (by simpa [card_univ] using (card_filter_exists_mul_mem_le S u).trans_lt h)
   exact ⟨g, by simpa using hg⟩
 
 /-- **The converse of Lautemann's covering lemma**, density form: if `S` is at most a `1 / q`

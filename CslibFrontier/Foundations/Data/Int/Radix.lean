@@ -48,17 +48,13 @@ theorem eq_zero_of_sum_mul_pow_eq_zero :
       ⟨-(∑ i ∈ Finset.range n, a (i + 1) * K ^ i), by linarith [hsum, hsplit]⟩
     have ha0 : a 0 = 0 := by
       by_contra hne
-      have hle : K ≤ |a 0| := Int.le_of_dvd (abs_pos.2 hne)
-        ((Int.natCast_natAbs (a 0)).symm ▸ Int.dvd_natAbs.2 ha0_dvd)
-      exact absurd (ha 0 (Nat.zero_lt_succ n)) (not_lt.2 hle)
-    have htail : ∑ i ∈ Finset.range n, a (i + 1) * K ^ i = 0 := by
-      have hmul : K * ∑ i ∈ Finset.range n, a (i + 1) * K ^ i = 0 := by
-        linarith [hsum, hsplit, ha0]
-      exact (mul_eq_zero.1 hmul).resolve_left hK.ne'
-    have ih := eq_zero_of_sum_mul_pow_eq_zero
-      (fun i hi => ha (i + 1) (Nat.succ_lt_succ hi)) htail
+      exact (ha 0 (Nat.zero_lt_succ n)).not_ge (Int.le_of_dvd (abs_pos.2 hne)
+        ((Int.natCast_natAbs (a 0)).symm ▸ Int.dvd_natAbs.2 ha0_dvd))
+    have htail : ∑ i ∈ Finset.range n, a (i + 1) * K ^ i = 0 :=
+      (mul_eq_zero.1 (by linarith [hsum, hsplit, ha0] : K * _ = 0)).resolve_left hK.ne'
     rcases k with _ | k
     · exact ha0
-    · exact ih k (Nat.lt_of_succ_lt_succ hk)
+    · exact eq_zero_of_sum_mul_pow_eq_zero
+        (fun i hi => ha (i + 1) (Nat.succ_lt_succ hi)) htail k (Nat.lt_of_succ_lt_succ hk)
 
 end Int

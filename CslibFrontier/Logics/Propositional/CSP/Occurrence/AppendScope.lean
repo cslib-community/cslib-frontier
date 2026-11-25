@@ -71,39 +71,19 @@ private theorem appendedScopeRecord_bijective (F : CSP Rel V) (r : Rel) (scope :
       (⟨appendedScopeRecord F scope o, appendedScopeRecord_mem F r scope o⟩ :
         {record // record ∈ (F ++ [Constraint.mk r scope]).occurrences})) := by
   constructor
-  · intro a b he
-    have h := congrArg Subtype.val he
-    cases a with
-    | inl a =>
-      cases b with
-      | inl b => exact congrArg Sum.inl (Occurrence.record_injective h)
-      | inr b =>
-        have hc := congrArg Prod.fst h
-        change a.1.val = F.length at hc
-        exact (Nat.ne_of_lt a.1.isLt hc).elim
-    | inr a =>
-      cases b with
-      | inl b =>
-        have hc := congrArg Prod.fst h
-        change F.length = b.1.val at hc
-        exact (Nat.ne_of_lt b.1.isLt hc.symm).elim
-      | inr b =>
-        apply congrArg Sum.inr
-        exact Fin.ext (congrArg (fun record => record.2.1) h)
-  · intro record
-    rcases record with ⟨record, hm⟩
-    have hm' : record ∈ F.occurrences ∨
-        record ∈ scope.zipIdx.map (fun (v, j) => (F.length, j, v)) := by
-      simpa only [occurrences_append_scope, List.mem_append] using hm
-    rcases hm' with hm' | hm'
-    · obtain ⟨o, ho⟩ := mem_occurrences.mp hm'
+  · rintro (a | a) (b | b) he
+    · exact congrArg Sum.inl (Occurrence.record_injective (Subtype.mk.inj he))
+    · exact absurd (congrArg Prod.fst (Subtype.mk.inj he)) a.1.isLt.ne
+    · exact absurd (congrArg Prod.fst (Subtype.mk.inj he)).symm b.1.isLt.ne
+    · exact congrArg Sum.inr (Fin.ext (congrArg (·.2.1) (Subtype.mk.inj he)))
+  · rintro ⟨record, hm⟩
+    rw [occurrences_append_scope, List.mem_append] at hm
+    rcases hm with hm | hm
+    · obtain ⟨o, ho⟩ := mem_occurrences.mp hm
       exact ⟨Sum.inl o, Subtype.ext ho⟩
-    · obtain ⟨⟨v, j⟩, hj, he⟩ := List.mem_map.mp hm'
+    · obtain ⟨⟨v, j⟩, hj, rfl⟩ := List.mem_map.mp hm
       obtain ⟨hjl, hjv⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp hj)
-      refine ⟨Sum.inr ⟨j, hjl⟩, Subtype.ext ?_⟩
-      change (F.length, j, scope[j]) = record
-      rw [hjv]
-      exact he
+      exact ⟨Sum.inr ⟨j, hjl⟩, Subtype.ext (Prod.ext rfl (Prod.ext rfl hjv))⟩
 
 /-- Original-body occurrences and the appended scope indices parametrize the exact original
 occurrence type. Constraint and argument positions remain distinct when variable labels repeat. -/

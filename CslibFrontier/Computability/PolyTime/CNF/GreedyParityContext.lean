@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -86,21 +87,18 @@ private def augment (s : ℕ × C × SelectBestAcc) : C × List (List Bool) :=
 
 private theorem augment_polyTime : ComputableInPolyTime (augment (C := C))
     (encPair encNat (encAcc encC)) (encPair encC (encList encBits)) := by
+  have := computableInPolyTime_augCandidateRows
   unfold augment encAcc
-  exact (by fun_prop : ComputableInPolyTime (fun s : ℕ × C × SelectBestAcc => s.2.1)
-    (encPair encNat (encPair encC encSelectBestAcc)) encC).prod
-      (computableInPolyTime_augCandidateRows.comp (by fun_prop))
+  fun_prop
 
 private def finish (p : (ℕ × C × SelectBestAcc) × ℕ) : C × SelectBestAcc :=
   (p.1.2.1, finishSelectBestStep ((p.1.1, p.1.2.2), p.2))
 
 private theorem finish_polyTime : ComputableInPolyTime (finish (C := C))
     (encPair (encPair encNat (encAcc encC)) encNat) (encAcc encC) := by
+  have := computableInPolyTime_finishSelectBestStep
   unfold finish encAcc
-  exact (by fun_prop : ComputableInPolyTime
-    (fun p : (ℕ × C × SelectBestAcc) × ℕ => p.1.2.1)
-    (encPair (encPair encNat (encPair encC encSelectBestAcc)) encNat) encC).prod
-      (computableInPolyTime_finishSelectBestStep.comp (by fun_prop))
+  fun_prop
 
 private def step (count : C × List (List Bool) → ℕ)
     (s : ℕ × C × SelectBestAcc) : C × SelectBestAcc :=
@@ -386,20 +384,18 @@ private theorem select_bounds {count : C × List (List Bool) → ℕ}
         fun _ => ⟨by simp only [NativeCertificate.comp_space]; omega,
           fun _ _ => by simp only [NativeCertificate.comp_time, one_mul]; omega⟩⟩
       (fun _ => le_rfl)).comp_ofPolyTime (fun _ => le_rfl) finish_polyTime
-  have hidx : PolyBounded (fun p : ℕ × C × SelectBestAcc => (encPair encNat (encAcc encC) p).length)
-      (fun p => (encNat p.1).length + 1) :=
-    (PolyBounded.self.mono fun p => by simp only [length_encPair]; omega).add (.const 1)
   have hRound : AdditiveBounds (IndexFold.roundCertificate (stepCertificate cCount))
       (fun _ => 1) (fun s R => cCount.time (augment s) ≤ R) :=
-    ⟨_, (PolyBounded.self.add (hidx.pow 2)).add hPs, fun p => ⟨by
+    ⟨fun p => (encPair encNat (encAcc encC) p).length + ((encNat p.1).length + 1) ^ 2 + Ps p,
+      by growth_poly, fun p => ⟨by
       have := (hBs p).1; have : (encNat p.1).length + 1 ≤ ((encNat p.1).length + 1) ^ 2 := by
         rw [sq]; nlinarith
       change (encPair encNat (encAcc encC) p).length + ((encNat p.1).length + 1) +
-        (stepCertificate cCount).space p ≤ _; omega,
+        (stepCertificate cCount).space p ≤ _; dsimp only; omega,
       fun R hR => by
         have h := (hBs p).2 R hR; rw [one_mul] at h ⊢
         change (encPair encNat (encAcc encC) p).length + ((encNat p.1).length + 1) ^ 2 +
-          (stepCertificate cCount).time p ≤ _; omega⟩⟩
+          (stepCertificate cCount).time p ≤ _; dsimp only; omega⟩⟩
   let qSys (L : ℕ) := pSp (5 * L + 2); let vBound (L : ℕ) := cOut * (qSys L + 1)
   let bAcc (L : ℕ) := 12 * L + vBound L + 7; let lIdx (L : ℕ) := 2 * L * L + 1
   let bFull (L : ℕ) := 2 * lIdx L + 1 + bAcc L
@@ -589,9 +585,8 @@ private noncomputable def unitCounter {countSys : List (List Bool) → ℕ}
 private theorem unitCounter_space {countSys : List (List Bool) → ℕ}
     (cCount : NativeCertificate countSys (encList encBits) encNat)
     (hSpace : PolyBounded (fun r => (encList encBits r).length) cCount.space) :
-    PolyBounded (fun p => (encContextRows encUnit p).length) (unitCounter cCount).space :=
-  PolyBounded.self.add (hSpace.comp (PolyBounded.self.mono fun p => by
-    simp only [encContextRows, length_encPair]; omega))
+    PolyBounded (fun p => (encContextRows encUnit p).length) (unitCounter cCount).space := by
+  growth_poly
 
 /-- Re-encode a fixed-counter input as a unit-context input. -/
 private theorem unitInput {α : Type} (enc : α ↪ List Bool) :

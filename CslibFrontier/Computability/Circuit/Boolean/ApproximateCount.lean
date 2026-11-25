@@ -106,8 +106,7 @@ theorem eval_borrowFormula_overlap (radix high estimate : ℕ) :
   change decide ((high.testBit 0).toNat + 2 * (high.testBit 1).toNat =
     (((estimate / radix).testBit 0).toNat + 2 * ((estimate / radix).testBit 1).toNat + 1) % 4) = _
   simp only [Nat.toNat_testBit, pow_zero, pow_one, Nat.div_one, correctBlock]
-  apply decide_eq_decide.mpr
-  omega
+  exact decide_eq_decide.mpr (by omega)
 
 /-- The corrected low digit is a radix digit, even without the approximation invariant. -/
 theorem digit_correctBlock_lt {radix : ℕ} (hr : 0 < radix) (high estimate : ℕ) :
@@ -148,12 +147,10 @@ theorem extend_correctBlock_of_rounding {radix value high estimate : ℕ} (hr : 
     · exact Or.inl (extend_correctBlock_same _ _ _ rfl)
     · exact Or.inl (extend_correctBlock_ahead _ _ _ rfl)
   · have hbound : value + 1 ≤ radix * (value / radix + 1) := by
-      have := Nat.mod_lt value hr
-      have := Nat.div_add_mod value radix
-      nlinarith
+      nlinarith [Nat.mod_lt value hr, Nat.div_add_mod value radix]
     have hquot : (value + 1) / radix = value / radix ∨
         (value + 1) / radix = value / radix + 1 := by
-      have := Nat.div_le_div_right (show value ≤ value + 1 by omega) (c := radix)
+      have := Nat.div_le_div_right (by omega : value ≤ value + 1) (c := radix)
       have := Nat.div_le_of_le_mul hbound
       omega
     rcases hquot with hquot | hquot
@@ -161,10 +158,8 @@ theorem extend_correctBlock_of_rounding {radix value high estimate : ℕ} (hr : 
       · exact Or.inr (extend_correctBlock_same _ _ _ hquot)
       · exact Or.inr (extend_correctBlock_ahead _ _ _ (by omega))
     · rcases hhigh with rfl | rfl
-      · have hcarry : value + 1 = (value / radix + 1) * radix := by
-          apply le_antisymm
-          · simpa only [Nat.mul_comm] using hbound
-          · simpa only [hquot] using Nat.div_mul_le_self (value + 1) radix
+      · have hcarry : value + 1 = (value / radix + 1) * radix := le_antisymm
+          (Nat.mul_comm _ _ ▸ hbound) (hquot ▸ Nat.div_mul_le_self (value + 1) radix)
         have h₁ : ¬ value / radix % 4 = ((value + 1) / radix + 1) % 4 := by omega
         have h₂ : (value + 1) / radix % 4 = (value / radix + 1) % 4 := by rw [hquot]
         left
@@ -194,10 +189,9 @@ theorem reconstruct_of_rounding {radix : ℕ} (hr : 0 < radix) (levels value : �
   induction levels generalizing value estimate with
   | zero => simpa [reconstruct] using hestimate 0 (by omega)
   | succ levels ih =>
-      apply extend_correctBlock_of_rounding hr
-      · apply ih (value / radix)
-        intro i hi
-        simpa only [Nat.div_div_eq_div_mul, ← pow_succ'] using hestimate (i + 1) (by omega)
-      · simpa using hestimate 0 (by omega)
+      exact extend_correctBlock_of_rounding hr
+        (ih (value / radix) _ fun i hi => by
+          simpa only [Nat.div_div_eq_div_mul, ← pow_succ'] using hestimate (i + 1) (by omega))
+        (by simpa using hestimate 0 (by omega))
 
 end Cslib.Circuits.Boolean.ApproximateCount

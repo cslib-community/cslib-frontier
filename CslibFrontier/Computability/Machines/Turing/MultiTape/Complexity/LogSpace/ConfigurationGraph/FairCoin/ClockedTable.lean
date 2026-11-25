@@ -121,12 +121,11 @@ theorem reachesOut_clockedCoinTableProgram (hinput : (frame w).length ≤ S)
     ∃ regs, (clockedCoinTableProgram machine D d).ReachesOut (frame w)
       ((clockedCoinTableProgram machine D d).Active S) (clockedCoinTableProgram machine D d).init
       (22, regs) (clockedCoinTable machine D d w) ∧ ∀ r ∈ regs, r ≤ S := by
-  apply reachesOut_inputCountTableProgram
+  refine reachesOut_inputCountTableProgram
     (count := fun u v => clockedCoinCountWithSymbol machine (radix D w.length) w.length u v
-      w[queryIndex (k := k) (radix D w.length)
-        (u % vertexBound (k := k) (radix D w.length))]?)
-    (fun u v y => by simp) ?_ (fun u v => clockedCoinCountWithSymbol_le_two ..) hinput hN h2
-  intro u v y
+      w[queryIndex (k := k) (radix D w.length) (u % vertexBound (k := k) (radix D w.length))]?)
+    (fun _ _ _ => by simp) (fun u v _ => ?_) (fun _ _ => clockedCoinCountWithSymbol_le_two ..)
+    hinput hN h2
   simpa only [eval_queryIndexExpr, eval_radixExpr, eval_reg, eval_mod, eval_vertexBoundExpr,
     List.getD_cons_zero, List.getD_cons_succ] using
       eval_clockedCoinCountExpr machine (B := radixExpr D (reg 0))
@@ -150,7 +149,7 @@ theorem computableInLogSpace_clockedCoinTable :
       ((frame w).length + 1) ^ (D * Fintype.card (Register k) + d + 2) :=
     le_self_pow (by omega) (by omega)
   have h2 : 2 ≤ ((frame w).length + 1) ^ (D * Fintype.card (Register k) + d + 2) :=
-    (by rw [hframe]; omega : 2 ≤ (frame w).length + 1).trans hF
+    (show 2 ≤ (frame w).length + 1 by omega).trans hF
   obtain ⟨regs, hr, hregs⟩ := reachesOut_clockedCoinTableProgram machine D d w
     ((Nat.le_succ _).trans hF) (by omega) h2
   exact ⟨(22, regs), _, [], hr, rfl, by simp, hregs⟩

@@ -203,9 +203,8 @@ theorem Loop.run {x : X} {a a' : A} {n h : ℕ} (hl : R.Loop I x a a' n h) (st :
   induction hl generalizing st with
   | done hn => exact R.resume_of_next_none st hn
   | @leaf x c a a' n h _ hn _ hl _ _ ih =>
-    rw [show 2 * (n + 1) = 2 * n + 1 + 1 by ring]
-    simp only [Function.iterate_add_apply, Function.iterate_one]
-    rw [R.resume_of_next_some st hn, R.step_leaf _ _ hl, R.step_return, ih]
+    rw [Nat.mul_succ, Function.iterate_succ_apply, Function.iterate_succ_apply,
+      R.resume_of_next_some st hn, R.step_leaf _ _ hl, R.step_return, ih]
   | @call x c a b a' n₁ h₁ n₂ h₂ _ hn _ hl _ _ _ ih₁ ih₂ =>
     rw [show 2 * (n₁ + 1 + n₂) = 2 * n₂ + 1 + 2 * n₁ + 1 by ring]
     simp only [Function.iterate_add_apply, Function.iterate_one]
@@ -216,8 +215,8 @@ theorem Eval.run {x : X} {y : Y} {n h : ℕ} (he : R.Eval I x y n h) (st : List 
     R.step^[2 * n - 1] (st, some x, none) = (st, none, some y) := by
   obtain ⟨-, -, ⟨hl, rfl, rfl, rfl⟩ | ⟨hl, b, n', h', hloop, rfl, rfl, rfl⟩⟩ := he
   · exact R.step_leaf st none hl
-  · rw [show 2 * (n' + 1) - 1 = 2 * n' + 1 by omega, Function.iterate_add_apply,
-      Function.iterate_one, R.step_call _ _ hl, hloop.run]
+  · rw [show 2 * (n' + 1) - 1 = 2 * n' + 1 by omega, Function.iterate_succ_apply,
+      R.step_call _ _ hl, hloop.run]
 
 /-! ### The states met -/
 
@@ -234,12 +233,8 @@ theorem Good.mono {H H' : ℕ} {σ : State X A Y} (hσ : Good I H σ) (h : H ≤
 private theorem good_push {x : X} {a : A} {st : List (X × A)} {H : ℕ} {r : Option X × Option Y}
     (hst : ∀ f ∈ st, I.frame f.1 f.2) (hf : I.frame x a) (hH : st.length + 1 ≤ H)
     (hr : (∃ x, r = (some x, none) ∧ I.node x) ∨ (∃ y, r = (none, some y) ∧ I.value y)) :
-    Good I H ((x, a) :: st, r) := by
-  refine ⟨by simpa using hH, ?_, hr⟩
-  intro f hf'
-  rcases List.mem_cons.mp hf' with rfl | hf'
-  · exact hf
-  · exact hst f hf'
+    Good I H ((x, a) :: st, r) :=
+  ⟨by simpa using hH, List.forall_mem_cons.mpr ⟨hf, hst⟩, hr⟩
 
 /-- **The states of a loop are good**, strictly before it returns. -/
 theorem Loop.good {x : X} {a a' : A} {n h : ℕ} (hl : R.Loop I x a a' n h) {st : List (X × A)}
@@ -254,49 +249,36 @@ theorem Loop.good {x : X} {a a' : A} {n h : ℕ} (hl : R.Loop I x a a' n h) {st 
     · exact good_push hst hf (by omega) (.inl ⟨c, rfl, hc⟩)
     · rw [Function.iterate_one, R.step_leaf _ _ hl]
       exact good_push hst hf (by omega) (.inr ⟨_, rfl, hv⟩)
-    · rw [show j + 1 + 1 = j + 2 by ring, Function.iterate_add_apply,
-        show R.step^[2] ((x, a) :: st, some c, none) = R.resume x (R.absorb x a (R.leaf c)) st by
-          simp only [show (2 : ℕ) = 1 + 1 from rfl, Function.iterate_add_apply,
-            Function.iterate_one]
-          rw [R.step_leaf _ _ hl, R.step_return]]
+    · rw [Function.iterate_succ_apply, Function.iterate_succ_apply, R.step_leaf _ _ hl,
+        R.step_return]
       exact ih hst j (by omega)
   | @call x c a b a' n₁ h₁ n₂ h₂ hf hn hc hl hloop₁ hv _ ih₁ ih₂ =>
     intro j hj
     rw [R.resume_of_next_some st hn]
-    have hst' : ∀ f ∈ (x, a) :: st, I.frame f.1 f.2 := fun f hf' => by
-      rcases List.mem_cons.mp hf' with rfl | hf'
-      · exact hf
-      · exact hst f hf'
-    have hbegin : R.step^[1] ((x, a) :: st, some c, none) = R.resume c (R.start c) ((x, a) :: st) :=
-      by rw [Function.iterate_one, R.step_call _ _ hl]
     rcases j with _ | j
     · exact good_push hst hf (by omega) (.inl ⟨c, rfl, hc⟩)
+    rw [Function.iterate_succ_apply, R.step_call _ _ hl]
     rcases Nat.lt_or_ge j (2 * n₁) with hj₁ | hj₁
-    · rw [show j + 1 = j + 1 from rfl, Function.iterate_add_apply, hbegin]
-      exact (ih₁ hst' j hj₁).mono (by simp only [List.length_cons]; omega)
+    · exact (ih₁ (List.forall_mem_cons.mpr ⟨hf, hst⟩) j hj₁).mono
+        (by simp only [List.length_cons]; omega)
     obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hj₁
-    rw [show 2 * n₁ + k + 1 = k + 2 * n₁ + 1 by ring, Function.iterate_add_apply,
-      Function.iterate_add_apply, hbegin, hloop₁.run]
+    rw [Nat.add_comm (2 * n₁) k, Function.iterate_add_apply, hloop₁.run]
     rcases k with _ | k
     · exact good_push hst hf (by omega) (.inr ⟨_, rfl, hv⟩)
-    · rw [show k + 1 = k + 1 from rfl, Function.iterate_add_apply, Function.iterate_one,
-        R.step_return]
+    · rw [Function.iterate_succ_apply, R.step_return]
       exact (ih₂ hst k (by omega)).mono (by omega)
 
 /-- **The states of an evaluation are good**, up to and including its returned value. -/
 theorem Eval.good {x : X} {y : Y} {n h : ℕ} (he : R.Eval I x y n h) {st : List (X × A)}
     (hst : ∀ f ∈ st, I.frame f.1 f.2) :
     ∀ j ≤ 2 * n - 1, Good I (st.length + h) (R.step^[j] (st, some x, none)) := by
-  obtain ⟨hx, hy, ⟨hl, rfl, rfl, rfl⟩ | ⟨hl, b, n', h', hloop, rfl, rfl, rfl⟩⟩ := he
-  · intro j hj
-    rcases j with _ | j
-    · exact ⟨by simp, hst, .inl ⟨x, rfl, hx⟩⟩
-    · rw [show j = 0 by omega, Function.iterate_one, R.step_leaf _ _ hl]
-      exact ⟨by simp, hst, .inr ⟨_, rfl, hy⟩⟩
-  · intro j hj
-    rcases j with _ | j
-    · exact ⟨by simp, hst, .inl ⟨x, rfl, hx⟩⟩
-    rw [Function.iterate_add_apply, Function.iterate_one, R.step_call _ _ hl]
+  obtain ⟨hx, hy, ⟨hl, rfl, rfl, rfl⟩ | ⟨hl, b, n', h', hloop, rfl, rfl, rfl⟩⟩ := he <;>
+    rintro (_ | j) hj
+  · exact ⟨by simp, hst, .inl ⟨x, rfl, hx⟩⟩
+  · rw [show j = 0 by omega, Function.iterate_one, R.step_leaf _ _ hl]
+    exact ⟨by simp, hst, .inr ⟨_, rfl, hy⟩⟩
+  · exact ⟨by simp, hst, .inl ⟨x, rfl, hx⟩⟩
+  · rw [Function.iterate_succ_apply, R.step_call _ _ hl]
     rcases Nat.lt_or_ge j (2 * n') with hj' | hj'
     · exact (hloop.good hst j hj').mono (by omega)
     · rw [show j = 2 * n' by omega, hloop.run]

@@ -20,10 +20,13 @@ A finite sum of `m i - 1` over positive natural numbers is at most `∏ m i - 1`
 `CslibFrontier/Crypto/Primitives/Garbling/Arithmetic/CRT.lean` uses it to bound a linear combination
 of residues.
 
+A finite sum of quotients by `d` is at most the quotient of the sum (`Nat.sum_div_le_sum_div`).
+
 ## Main results
 
 * `Nat.sum_sub_one_le_prod_sub_one`: `∑ i ∈ t, (m i - 1) ≤ ∏ i ∈ t, m i - 1` when every `m i` is
   positive.
+* `Nat.sum_div_le_sum_div`: `∑ i ∈ s, f i / d ≤ (∑ i ∈ s, f i) / d`.
 -/
 
 public section
@@ -43,5 +46,16 @@ theorem sum_sub_one_le_prod_sub_one {ι : Type*} (t : Finset ι) {m : ι → ℕ
     have ha' := hm a (Finset.mem_insert_self a t)
     have key : m a + ∏ i ∈ t, m i ≤ m a * ∏ i ∈ t, m i + 1 := by nlinarith
     omega
+
+/-- A sum of quotients by `d` is at most the quotient of the sum, the case of finite sums of
+`Nat.div_add_div_le_add_div`. -/
+theorem sum_div_le_sum_div {ι : Type*} (s : Finset ι) (f : ι → ℕ) (d : ℕ) :
+    ∑ i ∈ s, f i / d ≤ (∑ i ∈ s, f i) / d := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp
+  | insert i s hi ih =>
+    rw [Finset.sum_insert hi, Finset.sum_insert hi]
+    exact (Nat.add_le_add_left ih _).trans Nat.div_add_div_le_add_div
 
 end Nat

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.RelativeRank
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinear
 public import CslibFrontier.Computability.Circuit.Arithmetic.Word
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.NumberTheory.Real.Irrational
 
 /-!
@@ -171,12 +172,8 @@ theorem relRank_le_two_rpow_abs_sum (w : Fin d → ℤ)
   have hcols : Fintype.card (BlockChoice blk (wordNeg w ∩ S)) = 2 ^ q := by
     rw [card_blockChoice, Finset.prod_congr rfl fun i _ => hblk i, Finset.prod_pow_eq_pow_sum]
   have hsum : ∑ i ∈ S, (w i : ℝ) = (p : ℝ) - q := by
-    have hP : wordPos w ∩ S = S.filter fun i => 0 ≤ w i := by
-      ext i
-      simp [and_comm]
-    have hN : wordNeg w ∩ S = S.filter fun i => ¬ 0 ≤ w i := by
-      ext i
-      simp [and_comm]
+    have hP : wordPos w ∩ S = S.filter fun i => 0 ≤ w i := by ext i; simp [and_comm]
+    have hN : wordNeg w ∩ S = S.filter fun i => ¬ 0 ≤ w i := by ext i; simp [and_comm]
     rw [← Finset.sum_filter_add_sum_filter_not S fun i => 0 ≤ w i, ← hP, ← hN]
     simp only [p, q, Nat.cast_sum, sub_eq_add_neg, ← Finset.sum_neg_distrib]
     congr 1
@@ -306,9 +303,7 @@ private theorem div_le_abs_sum_of_card_le {k : ℕ} {w : Fin d → ℤ}
   have hτk : τ ≤ k / (10 * τ) := by
     rw [le_div_iff₀ (by positivity)]
     nlinarith
-  have h52 : (k : ℝ) / (5 * τ) = 2 * (k / (10 * τ)) := by
-    field_simp
-    ring
+  have h52 : (k : ℝ) / (5 * τ) = 2 * (k / (10 * τ)) := by ring
   rw [add_comm]
   linarith
 
@@ -331,9 +326,7 @@ theorem relRank_le_two_rpow_of_card_le {k : ℕ} {w : Fin d → ℤ}
     have h1 : (T.card : ℝ) * (k / (20 * τ ^ 2)) ≤ k / (20 * τ) := by
       rw [show (k : ℝ) / (20 * τ) = τ * (k / (20 * τ ^ 2)) by field_simp]
       exact mul_le_mul_of_nonneg_right hTτ (by positivity)
-    have h2 : (k : ℝ) / (20 * τ) = (k / (10 * τ)) / 2 := by
-      field_simp
-      ring
+    have h2 : (k : ℝ) / (20 * τ) = (k / (10 * τ)) / 2 := by ring
     linarith
 
 end WordSum
@@ -410,8 +403,7 @@ theorem relRank_polynomial_le_nodeCount_mul (A B : Finset (Fin d)) (Δ : ℕ)
           exact (relRank_smul_le _ _ _ _ _).trans (ih j (hΔ j (Finset.mem_univ j)))
       _ ≤ (((∑ j, (F j).nodeCount) + 1 : ℕ) : ℝ) * β S := by
           rw [← Finset.sum_mul]
-          push_cast
-          nlinarith [hβ S]
+          cast_nlinarith [hβ S]
   | mul F T hT hF _ =>
     rw [productDepth_mul] at hΔ
     exact hmul _ F T hT hF fun j =>
@@ -420,11 +412,8 @@ theorem relRank_polynomial_le_nodeCount_mul (A B : Finset (Fin d)) (Δ : ℕ)
 
 /-- `0 < 1 / (2 ^ Δ - 1)` for `Δ ≥ 1`. -/
 private theorem one_div_two_pow_sub_one_pos {Δ : ℕ} (hΔ : 1 ≤ Δ) :
-    0 < 1 / ((2 : ℝ) ^ Δ - 1) := by
-  have : (2 : ℝ) ≤ 2 ^ Δ := by
-    calc (2 : ℝ) = 2 ^ 1 := (pow_one 2).symm
-      _ ≤ 2 ^ Δ := pow_le_pow_right₀ one_le_two hΔ
-  exact one_div_pos.mpr (by linarith)
+    0 < 1 / ((2 : ℝ) ^ Δ - 1) :=
+  one_div_pos.mpr (by linarith [pow_le_pow_right₀ (one_le_two : (1 : ℝ) ≤ 2) hΔ, pow_one (2 : ℝ)])
 
 /-- On at most one block, the exponent of LST Claim 16 is the number of blocks. -/
 private theorem rpow_of_le_one {Δ : ℕ} (hΔ : 1 ≤ Δ) {m : ℕ} (hm : m ≤ 1) :
@@ -514,18 +503,12 @@ theorem IsSetMultilinear.relRank_polynomial_le {k : ℕ} {w : Fin d → ℤ}
       exact (relRank_le_one _ _ _ _).trans (hnode _)
     set U := Finset.univ.biUnion T with hU
     set M : ℝ := (U.card : ℝ) with hM
-    have hM1 : 1 ≤ M := by
-      rw [hM]
-      exact_mod_cast hUne.card_pos
+    have hM1 : 1 ≤ M := Nat.one_le_cast.mpr hUne.card_pos
     have hM0 : 0 < M := by linarith
     set u : ℝ := 2 ^ Δ - 1 with hu
     set v : ℝ := 2 ^ (Δ + 1) - 1 with hv
     have hu1 : 1 ≤ u := by
-      have := one_div_two_pow_sub_one_pos hΔ
-      have h2 : (2 : ℝ) ≤ 2 ^ Δ := by
-        calc (2 : ℝ) = 2 ^ 1 := (pow_one 2).symm
-          _ ≤ 2 ^ Δ := pow_le_pow_right₀ one_le_two hΔ
-      linarith
+      linarith [pow_le_pow_right₀ (one_le_two : (1 : ℝ) ≤ 2) hΔ, pow_one (2 : ℝ)]
     have hvu : v = 2 * u + 1 := by
       rw [hv, hu, pow_succ]
       ring
@@ -554,15 +537,10 @@ theorem IsSetMultilinear.relRank_polynomial_le {k : ℕ} {w : Fin d → ℤ}
       push Not at htype
       have hτ2 : τ ^ 2 ≤ M := by
         rw [hτ, ← Real.rpow_natCast, ← Real.rpow_mul hM0.le]
-        calc M ^ (u / v * ((2 : ℕ) : ℝ)) ≤ M ^ (1 : ℝ) := by
-              refine Real.rpow_le_rpow_of_exponent_le hM1 ?_
-              rw [Nat.cast_two, div_mul_eq_mul_div, div_le_one hv0]
-              linarith
-          _ = M := Real.rpow_one M
-      have hk' : 10 * τ ^ 2 ≤ k := by
-        have h1 := hcard U
-        have h2 : (10 : ℝ) * d ≤ k := by exact_mod_cast hk
+        refine (Real.rpow_le_rpow_of_exponent_le hM1 ?_).trans_eq (Real.rpow_one M)
+        rw [Nat.cast_two, div_mul_eq_mul_div, div_le_one hv0]
         linarith
+      have hk' : 10 * τ ^ 2 ≤ k := by cast_linarith [hcard U, hk]
       refine (relRank_prod_le_two_rpow _ _ Finset.univ T _ hdisj hGp ((k : ℝ) / (20 * τ ^ 2))
         fun j _ => relRank_le_two_rpow_of_card_le hblk hw (htype j) (by positivity) hk' _).trans ?_
       have hMv : M / τ ^ 2 = M ^ (1 / v) := by

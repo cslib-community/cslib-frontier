@@ -27,10 +27,8 @@ open Finset Cslib.Algorithms.MatrixMultiplication.Schonhage
 
 /-- An eligible slot with a positive star count has a highest star. -/
 theorem slotCube_stars_nonempty {L H s : ℕ} (hv : Eligible L H s)
-    (he : 0 < recordStars L s) : (slotCube L s).starLevels.Nonempty := by
-  apply card_pos.mp
-  rw [slotCube_star_count hv]
-  exact he
+    (he : 0 < recordStars L s) : (slotCube L s).starLevels.Nonempty :=
+  card_pos.mp ((slotCube_star_count hv).symm ▸ he)
 
 /-- The native child completion code obtained by replacing the selected P0 digit. -/
 @[expose] def childCode (L s : ℕ) (d : Fin 10) : ℕ :=
@@ -55,33 +53,20 @@ theorem recordStride_eq_pow_highest {L H s : ℕ} (hv : Eligible L H s)
   have hne : (lowest e (P0Levels τ)).Nonempty := by
     simpa only [slotCube, starLevels_starLowest] using slotCube_stars_nonempty hv he
   let q := (lowest e (P0Levels τ)).max' hne
-  have hq : q ∈ P0Levels τ := lowest_subset _ _ (max'_mem _ hne)
   have hd : digitAt (recordCode L s) q.val = 9 :=
-    (leafAt_eq_P0_iff _ q).mp (mem_P0Levels.mp hq)
+    (leafAt_eq_P0_iff _ q).mp (mem_P0Levels.mp (lowest_subset _ _ (max'_mem _ hne)))
   have hrank : population (recordCode L s) (q.val + 1) = e := by
-    rw [population_succ, hd, ite_eq_left rfl]
-    have hp := population_eq_card_P0Levels_filter
-      (⟨recordCode L s, Nat.mod_lt _ (pow_pos (by decide) L)⟩ : Fin (10 ^ L))
-      (Nat.le_of_lt q.isLt)
-    have hc := card_filter_lt_max_lowest hpop hne
-    have hf : ((P0Levels τ).filter fun ℓ => ℓ.val < q.val) =
-        (P0Levels τ).filter fun ℓ => ℓ < q := by rfl
-    rw [hp]
-    change ((P0Levels τ).filter fun ℓ => ℓ.val < q.val).card + 1 = e
-    rw [hf]
-    exact hc
-  have hs := starStride_of_rank q.isLt hd hrank
+    rw [population_succ, hd, ite_eq_left rfl, population_eq_card_P0Levels_filter
+      (⟨recordCode L s, Nat.mod_lt _ (pow_pos (by decide) L)⟩ : Fin (10 ^ L)) q.isLt.le]
+    exact card_filter_lt_max_lowest hpop hne
   change starStride (recordCode L s) (recordStars L s) L = _
-  simpa only [slotCube, starLevels_starLowest] using hs
+  simpa only [slotCube, starLevels_starLowest] using starStride_of_rank q.isLt hd hrank
 
 /-- Completion of a replacement changes exactly that completed-leaf coordinate. -/
 theorem starsToP0_replace {L : ℕ} (π : Cube L) (q : Fin L)
     (lam : Term) : (π.replace q lam).starsToP0 = Function.update π.starsToP0 q lam := by
   funext ℓ
-  by_cases h : ℓ = q
-  · subst ℓ
-    simp [Cube.replace, Cube.starsToP0]
-  · simp [Cube.replace, Cube.starsToP0, Function.update_of_ne h]
+  by_cases h : ℓ = q <;> simp [Cube.replace, Cube.starsToP0, h]
 
 /-- Native child arithmetic computes the exact canonical key of the replacement box. -/
 theorem childSlot_eq_cubeSlot_replace {L H s : ℕ} (hv : Eligible L H s)
@@ -93,14 +78,9 @@ theorem childSlot_eq_cubeSlot_replace {L H s : ℕ} (hv : Eligible L H s)
   let q := π.starLevels.max' (slotCube_stars_nonempty hv he)
   have hq : π q = .star := Cube.mem_starLevels.mp (max'_mem _ _)
   have hτ : π.starsToP0 q = .P0 := by simp [Cube.starsToP0, hq]
-  have hc : π.starLevels.card = recordStars L s := slotCube_star_count hv
-  have hpow : recordStride L s = 10 ^ q.val := recordStride_eq_pow_highest hv he
-  have hchild : (π.replace q (Encoding.termDigits d)).starLevels.card =
-      recordStars L s - 1 := by
-    rw [Cube.starLevels_replace, card_erase_of_mem (max'_mem _ _), hc]
   change childSlot L s d = cubeSlot (π.replace q (Encoding.termDigits d))
-  rw [cubeSlot, hchild, starsToP0_replace, leafIndex_update_P0 _ _ _ hτ,
-    ← hpow]
+  rw [cubeSlot, Cube.starLevels_replace, card_erase_of_mem (max'_mem _ _), slotCube_star_count hv,
+    starsToP0_replace, leafIndex_update_P0 _ _ _ hτ, ← recordStride_eq_pow_highest hv he]
   simp only [π, starsToP0_slotCube, completionAt, leafIndex_leafAt, childSlot, childCode]
 
 /-- A child is a genuine finite box with exactly one fewer star. -/
@@ -110,10 +90,9 @@ theorem replace_mem_boxesWithStars {L H s : ℕ} (hv : Eligible L H s)
       (slotCube_stars_nonempty hv he)) (Encoding.termDigits d) ∈
       boxesWithStars L H 0 (recordStars L s - 1) := by
   apply replace_highest_mem_boxesWithStars
-  refine mem_boxesWithStars.mpr ⟨?_, ?_⟩
-  · exact slotCube_isBox (by simpa using hv)
-  · rw [slotCube_star_count hv]
-    omega
+  refine mem_boxesWithStars.mpr ⟨slotCube_isBox (by simpa using hv), ?_⟩
+  rw [slotCube_star_count hv]
+  omega
 
 /-- Child directory lookups always address valid emitted entries. -/
 theorem eligible_childSlot {L H s : ℕ} (hv : Eligible L H s)
@@ -134,10 +113,8 @@ theorem slotCube_childSlot {L H s : ℕ} (hv : Eligible L H s)
 theorem childCode_lt {L H s : ℕ} (hv : Eligible L H s)
     (he : 0 < recordStars L s) (d : Fin 10) : childCode L s d < 10 ^ L := by
   have hkey := childSlot_eq_cubeSlot_replace hv he d
-  have hc := (mem_boxesWithStars.mp (replace_mem_boxesWithStars hv he d)).2
-  rw [childSlot, cubeSlot, hc] at hkey
-  have heq := Nat.add_left_cancel hkey
-  exact heq ▸ (Encoding.leafIndex _).isLt
+  rw [childSlot, cubeSlot, (mem_boxesWithStars.mp (replace_mem_boxesWithStars hv he d)).2] at hkey
+  exact Nat.add_left_cancel hkey ▸ (Encoding.leafIndex _).isLt
 
 /-- Decreasing the exact star count puts every child before its parent in the raw catalogue. -/
 theorem childSlot_lt {L H s : ℕ} (hv : Eligible L H s)
@@ -161,10 +138,8 @@ theorem boxValue_eq_sum_childSlots {L H s : ℕ} (hv : Eligible L H s)
     boxValue encA encB (recordStars L s) (slotCube L s) =
       ∑ d : Fin 10, boxValue encA encB (recordStars L s - 1)
         (slotCube L (childSlot L s d)) := by
-  have heq : recordStars L s = (recordStars L s - 1) + 1 := by omega
-  conv_lhs => rw [heq]
-  rw [boxValue, dite_eq_left (slotCube_stars_nonempty hv he)]
-  rw [← Encoding.termDigits.sum_comp]
+  conv_lhs => rw [show recordStars L s = (recordStars L s - 1) + 1 by omega]
+  rw [boxValue, dite_eq_left (slotCube_stars_nonempty hv he), ← Encoding.termDigits.sum_comp]
   exact sum_congr rfl fun d _ => by rw [slotCube_childSlot hv he d]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable

@@ -274,20 +274,10 @@ theorem isQueryBounded_merkleVerifyProg (d : ℕ) (root : List Bool) (i : ℕ) (
     (path : List (List Bool)) :
     OracleComp.IsQueryBounded (merkleVerifyProg d root i leaf path) (path.length + 1) := by
   unfold merkleVerifyProg merkleRootOfPathProg merkleInputsProg
-  have hinputs : OracleComp.IsQueryBounded
-      (path.foldlM merkleInputsStepProg ([leaf], i) >>= fun x => pure x.1)
-      path.length := by
-    simpa only [Nat.add_zero] using
-      (isQueryBounded_foldlM_merkleInputsStepProg path ([leaf], i)).bind fun x =>
-        OracleComp.IsCostBounded.pure x.1 0
-  have hroot : OracleComp.IsQueryBounded
-      ((path.foldlM merkleInputsStepProg ([leaf], i) >>= fun x => pure x.1) >>= fun inputs =>
-        OracleComp.query (spec := MerkleHashSpec) (inputs.headD []))
-      (path.length + 1) :=
-    hinputs.bind fun inputs =>
-      OracleComp.IsCostBounded.query (cost := fun _ => 1) (inputs.headD [])
-  simpa only [Nat.add_zero] using hroot.bind fun cand =>
-    OracleComp.IsCostBounded.pure _ 0
+  simpa only [Nat.add_zero] using
+    (((isQueryBounded_foldlM_merkleInputsStepProg path ([leaf], i)).bind fun x => .pure x.1 0).bind
+      fun inputs => OracleComp.IsCostBounded.query (cost := fun _ => 1) (inputs.headD [])).bind
+      fun _ => .pure _ 0
 
 /-- Multi-step invariant of `memoize`: running `prog` from `tr` produces `tr'` extending `tr` with
 `Nodup` keys and supported values, and `res = evalPure h prog` for every `h` consistent with
@@ -320,6 +310,18 @@ theorem mem_support_run_memoize_invariant {Query : Type} [BEq Query] [LawfulBEq 
     simp only [OracleComp.evalPure_bind, OracleComp.evalPure_query, hq_eq]
     exact heval h hcons
 
+private theorem mem_trace_of_headD_tail {l : List (List Bool)} {tr : List (List Bool × List Bool)}
+    {v : List Bool} (hl : l ≠ []) (hhd : (l.headD [], v) ∈ tr)
+    (htl : ∀ q ∈ l.tail, ∃ ans, (q, ans) ∈ tr) :
+    ∀ q ∈ l, ∃ ans, (q, ans) ∈ tr := by
+  cases l with
+  | nil => exact absurd rfl hl
+  | cons hd tl =>
+    intro q hq
+    rcases List.mem_cons.mp hq with rfl | hq
+    · exact ⟨v, hhd⟩
+    · exact htl q hq
+
 private theorem mem_support_foldlM_merkleInputsStepProg (dist : List Bool → PMF (List Bool))
     (path : List (List Bool)) (init : List (List Bool) × ℕ) (hinit : init.1 ≠ [])
     {tr tr' : List (List Bool × List Bool)} {out : List (List Bool) × ℕ}
@@ -341,17 +343,8 @@ private theorem mem_support_foldlM_merkleInputsStepProg (dist : List Bool → PM
     obtain ⟨hq_mem, hsub₁, hnodup₁, hsupp₁⟩ :=
       mem_support_memoize_nodup dist (init.1.headD []) hnodup hsupp hnode
     refine ih _ (List.cons_ne_nil _ _) hnodup₁ hsupp₁ ?_ hrest
-    intro q hq
-    simp only [List.tail_cons] at hq
-    cases hlist : init.1 with
-    | nil => exact False.elim (hinit hlist)
-    | cons hd tl =>
-      rw [hlist, List.headD_cons] at hq_mem
-      rw [hlist] at hq htail_init
-      rcases List.mem_cons.mp hq with rfl | htl
-      · exact ⟨node, hq_mem⟩
-      · obtain ⟨ans, hans⟩ := htail_init q htl
-        exact ⟨ans, hsub₁ _ hans⟩
+    exact mem_trace_of_headD_tail hinit hq_mem fun q hq =>
+      let ⟨ans, hans⟩ := htail_init q hq; ⟨ans, hsub₁ _ hans⟩
 
 /-- Running `merkleVerifyProg d root i leaf path` under `memoize dist` records every hash step of
 `merkleInputs` in the final trace `tr'`. -/
@@ -380,21 +373,9 @@ theorem pathQueriedInTrace_of_mem_support_merkleVerifyProg (dist : List Bool →
   obtain ⟨hne, htail⟩ := mem_support_foldlM_merkleInputsStepProg dist path ([leaf], i)
     (List.cons_ne_nil _ _) hnodup hsupp (by simp) hfold
   intro q hq
-  rw [← hinputs_eq] at hq
-  cases hlist : inputs with
-  | nil => exact False.elim (hne hlist)
-  | cons hd tl =>
-    rw [hlist, List.headD_cons] at hhead_mem
-    rw [hlist] at hq htail
-    rcases List.mem_cons.mp hq with rfl | htl
-    · have hc : h q = cand := hcons (q, cand) hhead_mem
-      dsimp only
-      rwa [hc]
-    · obtain ⟨ans, hans⟩ := htail q htl
-      have hans' := hsub₂ (q, ans) hans
-      have hc : h q = ans := hcons (q, ans) hans'
-      dsimp only
-      rwa [hc]
+  obtain ⟨ans, hans⟩ := mem_trace_of_headD_tail hne hhead_mem
+    (fun q' hq' => let ⟨ans, hans⟩ := htail q' hq'; ⟨ans, hsub₂ _ hans⟩) q (hinputs_eq ▸ hq)
+  simpa only [hcons (q, ans) hans] using hans
 
 /-- Running a list of Merkle verifications under `memoize dist` records every hash step of each
 checked opening in the final trace `tr'`. Item `b` is checked by `check b`, which verifies the

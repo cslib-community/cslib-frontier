@@ -809,16 +809,11 @@ private theorem cwRandomNonceAccept_imp_checkRandomNonceSUF
       hdrop, hfullTag]
   simp only [checkRandomNonceSUF, Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
     decide_eq_false_iff_not]
-  refine ⟨?_, ?_⟩
-  · intro hin
-    have hmem : cand ∈ tr.map ofRandomBitTriple := by
-      rw [← hround]
-      exact List.mem_map_of_mem hin
-    exact hnotmem (List.mem_reverse.mp (hsub.subset hmem))
-  · simp only [verify, toRandomBitTriple, BitString.ofFn_ofList hmsg, decide_eq_true_eq]
-    rw [hdrop]
-    simp only [randomFunctionOracle, hnonce, ↓reduceIte, BitString.listXor_pair,
-      BitString.ofList_take, BitString.ofList_ofFn]
+  refine ⟨fun hin => hnotmem (List.mem_reverse.mp (hsub.subset (hround ▸ List.mem_map_of_mem hin))),
+    ?_⟩
+  simp only [verify, toRandomBitTriple, BitString.ofFn_ofList hmsg, decide_eq_true_eq, hdrop,
+    randomFunctionOracle, hnonce, ↓reduceIte, BitString.listXor_pair, BitString.ofList_take,
+    BitString.ofList_ofFn]
 
 private theorem step_cwRandomNonceLogHandler_randomFunctionOracle
     (msgLen : ℕ → ℕ) (hash : ℕ → List Bool → List Bool → List Bool)
@@ -861,22 +856,16 @@ private theorem step_cwRandomNonceLogHandler_randomFunctionOracle
     · congr 1; funext x; simp [mBit, tOf, htag]
     · rintro _ _ _ hmem
       simp only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
-      rcases hmem with ⟨x, -, h⟩
-      cases h
-      dsimp only [id_eq]
-      rw [List.map_append, List.map_singleton, List.reverse_cons]
-      have he : ofRandomBitTriple ((mBit, x), tOf x) =
-          (msg, encPair encBits encBits (List.ofFn x, List.ofFn (tOf x))) := by
-        simp [ofRandomBitTriple, mBit, BitString.ofFn_ofList hcond]
-      rw [he]
+      rcases hmem with ⟨x, -, ⟨⟩⟩
+      simp only [id_eq, List.map_append, List.map_singleton, List.reverse_cons,
+        ofRandomBitTriple, BitString.ofFn_ofList hcond]
       exact hsub.append (List.Sublist.refl _)
   · have hcond' : (msg.length == msgLen n) = false := Bool.eq_false_iff.mpr hcond
     simp only [hcond', Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
       OracleComp.interpret_pure, ProbComp.eval_pure, PMF.pure_map, PMF.support_pure,
       Set.mem_singleton_iff]
     refine ⟨trivial, ?_⟩
-    rintro _ _ _ h
-    cases h
+    rintro _ _ _ ⟨⟩
     exact hsub
 
 /-- **Ideal-game bound for `prfRandomNonceToPrfDistinguisher`**, a step of the proof of
@@ -951,12 +940,10 @@ theorem sufCmaGame_carterWegmanRandomMAC_toReal_le
     ENNReal.div_ne_top (ENNReal.pow_ne_top (ENNReal.natCast_ne_top Q))
       (mul_ne_zero (by norm_num) (pow_ne_zero n (by norm_num)))
   have hinv_ne_top : ((2 : ℝ≥0∞) ^ n)⁻¹ ≠ ⊤ := by simp
-  have htr := ENNReal.toReal_le_add
-    (eval_prfIdealGame_prfRandomNonceToPrfDistinguisher_le hh hq)
-    (ENNReal.add_ne_top.mpr ⟨hcol_ne_top, hinv_ne_top⟩) hε
   simpa only [ENNReal.toReal_add hcol_ne_top hinv_ne_top, ENNReal.toReal_div, ENNReal.toReal_pow,
-    ENNReal.toReal_natCast, ENNReal.toReal_mul, ENNReal.toReal_ofNat,
-    ENNReal.toReal_inv] using htr
+    ENNReal.toReal_natCast, ENNReal.toReal_mul, ENNReal.toReal_ofNat, ENNReal.toReal_inv] using
+    ENNReal.toReal_le_add (eval_prfIdealGame_prfRandomNonceToPrfDistinguisher_le hh hq)
+      (ENNReal.add_ne_top.mpr ⟨hcol_ne_top, hinv_ne_top⟩) hε
 
 /-- Statistical-DUF step toward [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), not the cited
 result: if `family` is a `PseudorandomFunction` and `(seed n, hash n)` is an

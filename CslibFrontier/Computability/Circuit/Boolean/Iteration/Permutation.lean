@@ -48,10 +48,8 @@ theorem iterate_factorial_pred_eq_symm (p : Equiv.Perm α) :
   funext x
   have h := congrFun (Function.injective_iff_iterate_factorial_card_eq_id.mp p.injective)
     (p.symm x)
-  have hpos := Nat.factorial_pos (Fintype.card α)
-  rw [show Nat.factorial (Fintype.card α) = (Nat.factorial (Fintype.card α) - 1) + 1 by omega,
+  rwa [← Nat.sub_add_cancel (Nat.factorial_pos (Fintype.card α)),
     Function.iterate_succ_apply, p.apply_symm_apply] at h
-  exact h
 
 /-- **Permutation inversion.** A permutation computed by a circuit of size `s` has an inverse
 circuit of size at most `40000 * powerBudget n s (2 ^ n) L`. -/
@@ -62,8 +60,7 @@ theorem permutation_inverse (c : Circuit signature n n) (p : Equiv.Perm (BitStri
       out.size ≤ 40000 * powerBudget n c.size (2 ^ n) L := by
   obtain ⟨out, hout, hs⟩ :=
     fixed_power n c (Nat.factorial (Fintype.card (BitString n)) - 1) L hL hLN
-  have he : c.eval interpretation = p := funext hc
-  exact ⟨out, by simpa only [he, iterate_factorial_pred_eq_symm] using hout, hs⟩
+  exact ⟨out, by simpa only [funext hc, iterate_factorial_pred_eq_symm] using hout, hs⟩
 
 /-- **Encoded permutation inversion.** A permutation of a finite type of any universe, realized
 by a circuit on an encoding, has an inverse circuit whose storage term counts the type. The

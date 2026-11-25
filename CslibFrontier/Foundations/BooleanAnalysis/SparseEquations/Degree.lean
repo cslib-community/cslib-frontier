@@ -62,29 +62,15 @@ theorem coeff_parityFactor_mem_lowDegree (ℓ : ℕ) {P : Finset (Finset ι)} {k
       have hfun : (fun x => evalInt (y x) (parityBaseDigit ℓ j)) =
           (fun _ => (parityBaseDigit ℓ j).coeff 0) + (parityBaseDigit ℓ j).coeff 1 • y := by
         funext x
-        have h := congrArg (eval (y x)) (parityBaseDigit_eq_C_add_C_mul_X ℓ j)
-        simp only [eval_add, eval_mul, eval_C, eval_X] at h
-        rw [evalInt_int, h]
-        rfl
+        simpa [evalInt_int] using congrArg (eval (y x)) (parityBaseDigit_eq_C_add_C_mul_X ℓ j)
       rw [hfun]
       exact Submodule.add_mem _ (const_mem_lowDegree k _) (Submodule.smul_mem _ _ hy)
     have hh : (fun x => evalInt (y x) hPoly) ∈ lowDegree ℤ ι (2 * k) := by
-      have hfun : (fun x => evalInt (y x) hPoly) = y ^ 2 - y := by
-        funext x
-        simp only [evalInt_hPoly, Pi.sub_apply, Pi.pow_apply]
-      rw [hfun]
+      simp only [evalInt_hPoly]
       exact Submodule.sub_mem _ (pow_mem_lowDegree hy 2) (lowDegree_mono (by omega) hy)
-    have hfun : (fun x => (parityFactor ℓ (y x)).coeff j) =
-        (fun x => evalInt (y x) (parityBaseDigit ℓ j)) * (fun x => evalInt (y x) hPoly) ^ j := by
-      funext x
-      simp only [coeff_parityFactor, hj, ↓reduceIte, Pi.mul_apply, Pi.pow_apply]
-    rw [hfun]
-    refine lowDegree_mono (le_of_eq ?_) (mul_mem_lowDegree he (pow_mem_lowDegree hh j))
-    ring
-  · have hfun : (fun x => (parityFactor ℓ (y x)).coeff j) = 0 := by
-      funext x
-      simp only [coeff_parityFactor, hj, ↓reduceIte, Pi.zero_apply]
-    rw [hfun]
+    simp only [coeff_parityFactor, hj, ↓reduceIte]
+    exact lowDegree_mono (le_of_eq (by ring)) (mul_mem_lowDegree he (pow_mem_lowDegree hh j))
+  · simp only [coeff_parityFactor, hj, ↓reduceIte]
     exact Submodule.zero_mem _
 
 end Cslib.BitString

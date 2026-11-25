@@ -49,9 +49,8 @@ noncomputable def sampled (γ : ℝ → ℂ) (m : ℕ) : Route :=
 /-- Sampling retains the final endpoint. -/
 @[simp] theorem sampled_finish (γ : ℝ → ℂ) (m : ℕ) :
     (sampled γ m).finish = γ 1 := by
-  have hm : (m + 1 : ℝ) ≠ 0 := by positivity
   change γ (((m + 1 : ℕ) : ℝ) / (m + 1 : ℝ)) = γ 1
-  rw [Nat.cast_add, Nat.cast_one, div_self hm]
+  rw [Nat.cast_add, Nat.cast_one, div_self (by positivity)]
 
 private theorem eventually_uniform_mesh_lt {δ : ℝ} (hδ : 0 < δ) :
     ∀ᶠ m : ℕ in atTop, 1 / (m + 1 : ℝ) < δ :=
@@ -79,18 +78,14 @@ theorem eventually_sampled_support_subset (γ : ℝ → ℂ)
     ∀ᶠ m : ℕ in atTop, (sampled γ m).support ⊆ Metric.thickening ε (γ '' Icc 0 1) := by
   obtain ⟨δ, hδ, hclose⟩ := Metric.uniformContinuousOn_iff.mp
     (isCompact_Icc.uniformContinuousOn_of_continuous hγ) ε hε
-  filter_upwards [eventually_uniform_mesh_lt hδ] with m hmesh
-  intro x hx
+  filter_upwards [eventually_uniform_mesh_lt hδ] with m hmesh x hx
   obtain ⟨i, t, ht, rfl⟩ := ((sampled γ m).mem_support_iff x).mp hx
   obtain ⟨a, b, ha, hb, hsub, hleft, hright⟩ := sampled_segment γ m i
-  have hdist : dist b a < δ := by
-    rw [Real.dist_eq, hsub, abs_of_nonneg (by positivity)]
-    exact hmesh
-  have hpa : γ a ∈ Metric.ball (γ a) ε := Metric.mem_ball_self hε
-  have hpb : γ b ∈ Metric.ball (γ a) ε := Metric.mem_ball.mpr (hclose b hb a ha hdist)
+  have hdist : dist b a < δ := by rwa [Real.dist_eq, hsub, abs_of_nonneg (by positivity)]
   rw [eval, hleft, hright]
   exact Metric.mem_thickening_iff.mpr ⟨γ a, mem_image_of_mem γ ha,
-    (convex_ball (γ a) ε).segment_subset hpa hpb (lineMap_mem_segment ℝ _ _ ht)⟩
+    (convex_ball (γ a) ε).segment_subset (Metric.mem_ball_self hε)
+      (Metric.mem_ball.mpr (hclose b hb a ha hdist)) (lineMap_mem_segment ℝ _ _ ht)⟩
 
 /-- Pairwise disjoint continuous path images give pairwise disjoint sampled route supports
 on every sufficiently fine common mesh. -/
@@ -99,15 +94,12 @@ theorem eventually_pairwise_disjoint_sampled {ι : Type*} [Finite ι] (γ : ι �
     (hdisj : Pairwise (fun i j => Disjoint (γ i '' Icc 0 1) (γ j '' Icc 0 1))) :
     ∀ᶠ m : ℕ in atTop, Pairwise (fun i j => Disjoint (sampled (γ i) m).support
       (sampled (γ j) m).support) := by
-  have hcompact (i : ι) : IsCompact (γ i '' Icc 0 1) :=
-    isCompact_Icc.image_of_continuousOn (hγ i)
-  apply Filter.eventually_all.mpr
-  intro i
-  apply Filter.eventually_all.mpr
-  intro j
+  refine Filter.eventually_all.mpr fun i => Filter.eventually_all.mpr fun j => ?_
   by_cases h : i = j
   · exact Filter.Eventually.of_forall fun _ hne => (hne h).elim
-  obtain ⟨δ, hδ, hsep⟩ := (hdisj h).exists_thickenings (hcompact i) (hcompact j).isClosed
+  obtain ⟨δ, hδ, hsep⟩ := (hdisj h).exists_thickenings
+    (isCompact_Icc.image_of_continuousOn (hγ i))
+    (isCompact_Icc.image_of_continuousOn (hγ j)).isClosed
   filter_upwards [eventually_sampled_support_subset (γ i) (hγ i) hδ,
     eventually_sampled_support_subset (γ j) (hγ j) hδ] with _ hi hj _
   exact hsep.mono hi hj

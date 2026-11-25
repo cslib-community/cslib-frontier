@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Core
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiGaussian
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 
@@ -71,8 +72,7 @@ theorem vertexCoefficient_pos {d : ℕ} (hd : 3 ≤ d) : 0 < vertexCoefficient d
 
 /-- The layout coefficient `degreeCoefficient d` is positive for `d ≥ 3`. -/
 theorem degreeCoefficient_pos {d : ℕ} (hd : 3 ≤ d) : 0 < degreeCoefficient d := by
-  have hD : (3 : ℝ) ≤ d := by exact_mod_cast hd
-  exact mul_pos (div_pos (by linarith) (by linarith)) (vertexCoefficient_pos hd)
+  exact mul_pos (div_pos (by cast_linarith [hd]) (by cast_linarith)) (vertexCoefficient_pos hd)
 
 /-- In degree three the coefficient `3 arccos (2√2/3) / π ≈ 0.3245` is at most `1/3`, since
 `cos (π/9) ≤ 2√2/3`. -/
@@ -111,11 +111,10 @@ theorem Multigraph.Compression.Saturated.card_external_le_div_mul_cycleRank
     {Q : G.Compression d} (hQ : Q.Saturated) (hG : G.toSimpleGraph.Connected)
     (two : 1 < Nat.card Q.blocks) :
     (Nat.card Q.external : ℝ) ≤ 3 * d / (2 * d - 3) * G.cycleRank := by
-  have hD : (3 : ℝ) ≤ d := by exact_mod_cast hd
   have h := Nat.cast_le (α := ℝ).mpr (hQ.mul_card_external_le hG two)
   push_cast [Nat.cast_sub (by omega : 3 ≤ 2 * d)] at h
-  rw [div_mul_eq_mul_div, le_div_iff₀ (by linarith)]
-  linarith
+  rw [div_mul_eq_mul_div, le_div_iff₀ (by cast_linarith [hd])]
+  cast_linarith
 
 /-- Since `3 d / (2 d - 3) ≤ 3` for `d ≥ 3`, a saturated quotient has at most `3 β₁` external edges
 and at most `3 β₁` blocks. -/
@@ -125,12 +124,11 @@ theorem Multigraph.Compression.Saturated.card_external_and_blocks_le_three_mul_c
     (two : 1 < Nat.card Q.blocks) :
     (Nat.card Q.external : ℝ) ≤ 3 * G.cycleRank ∧
       (Nat.card Q.blocks : ℝ) ≤ 3 * G.cycleRank := by
-  have hD : (3 : ℝ) ≤ d := by exact_mod_cast hd
   have hE3 : (Nat.card Q.external : ℝ) ≤ 3 * G.cycleRank := by
     refine (hQ.card_external_le_div_mul_cycleRank hd hG two).trans
       (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg _))
-    rw [div_le_iff₀ (by linarith)]
-    linarith
+    rw [div_le_iff₀ (by cast_linarith [hd])]
+    cast_linarith
   exact ⟨hE3, (Nat.cast_le.mpr (hQ.card_blocks_le_card_external hG two)).trans hE3⟩
 
 /-- **Gaussian vertex-score layouts.** For `d ≥ 3`, connected, loopless multigraphs of maximum

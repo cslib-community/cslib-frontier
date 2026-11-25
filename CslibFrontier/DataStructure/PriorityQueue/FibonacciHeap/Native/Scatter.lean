@@ -191,11 +191,7 @@ theorem realizes_scatter : Realizes .exact
     (fun d : Fin 4 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (scatter (d 0 + 1) (d 2) (d 3)))
     (.refl _) (WordEncoding.encode (α := ℕ)) scatterSafe (fun _ _ => 0) := by
-  conv =>
-    arg 2
-    ext d
-    rw [link_scatter_eq_boundedWhile]
-  realize [realizes_scatterStep]
+  realize [realizes_scatterStep] rewriting [link_scatter_eq_boundedWhile]
   all_goals first
     | exact h.1.of_le (by omega)
     | exact fun _ => h.2.2

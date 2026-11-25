@@ -113,14 +113,9 @@ theorem sqNormProd_le_pow {S : Fin n → E} {B : ℝ} (hB : ∀ i, ‖S i‖ ^ 2
     _ = B ^ n := by simp
 
 private theorem pi_norm_update_le {S : Fin n → E} {i : Fin n} {u : E} (hu : ‖u‖ ≤ ‖S‖) :
-    ‖Function.update S i u‖ ≤ ‖S‖ := by
-  rw [pi_norm_le_iff_of_nonneg (norm_nonneg S)]
-  intro j
-  by_cases hji : j = i
-  · subst hji
-    simpa only [Function.update_self] using hu
-  · rw [Function.update_of_ne hji]
-    exact norm_le_pi_norm S j
+    ‖Function.update S i u‖ ≤ ‖S‖ :=
+  (pi_norm_le_iff_of_nonneg (norm_nonneg S)).2
+    ((Function.forall_update_iff S fun _ v => ‖v‖ ≤ ‖S‖).2 ⟨hu, fun j _ => norm_le_pi_norm S j⟩)
 
 /-- The replacement vector `u` has norm at most `(13 / 16) * ‖S‖`. -/
 theorem shortenStep_norm_le {S : Fin n → E} {t u : E}
@@ -146,19 +141,13 @@ theorem shortenStep_sqNormProd_le {S : Fin n → E} {i : Fin n} {t u : E}
     (hu_dist : ‖u - t‖ ≤ (1 / 4 : ℝ) * ‖S‖) :
     sqNormProd (Function.update S i u) ≤ (13 / 16 : ℝ) ^ 2 * sqNormProd S := by
   have hu : ‖u‖ ^ 2 ≤ (13 / 16 : ℝ) ^ 2 * ‖S i‖ ^ 2 := by
-    have h1 := shortenStep_norm_le ht_hi hu_dist
-    rw [← hi] at h1
-    rw [← mul_pow]
-    exact pow_le_pow_left₀ (norm_nonneg u) h1 2
+    rw [← mul_pow, hi]
+    exact pow_le_pow_left₀ (norm_nonneg u) (shortenStep_norm_le ht_hi hu_dist) 2
   unfold sqNormProd
   rw [← Finset.mul_prod_erase _ _ (Finset.mem_univ i),
-      ← Finset.mul_prod_erase _ _ (Finset.mem_univ i),
-      Function.update_self]
-  have hrest :
-      ∏ j ∈ Finset.univ.erase i, ‖Function.update S i u j‖ ^ 2 =
-        ∏ j ∈ Finset.univ.erase i, ‖S j‖ ^ 2 :=
-    Finset.prod_congr rfl fun j hj => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-  rw [hrest, ← mul_assoc]
+    ← Finset.mul_prod_erase _ _ (Finset.mem_univ i), Function.update_self,
+    Finset.prod_congr rfl fun j hj => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)],
+    ← mul_assoc]
   exact mul_le_mul_of_nonneg_right hu (Finset.prod_nonneg fun _ _ => sq_nonneg _)
 
 /-- Dichotomy: a full-rank family `S` in `L` either already solves `GIVP^φ_{8γ}` or forms a valid
@@ -170,10 +159,7 @@ theorem isSolution_givp_or_isValidInstance_incGDD [NormedSpace ℝ E]
     GIVP.IsSolution φ (8 * γ) L S ∨ IncGDD.IsValidInstance φ γ L S (‖S‖ / 8) := by
   by_cases h : γ * φ L < ‖S‖ / 8
   · exact Or.inr ⟨hS_li, hS_mem, h⟩
-  · left
-    refine ⟨hS_li, hS_mem, fun j => ?_⟩
-    have hle : ‖S‖ ≤ 8 * γ * φ L := by linarith
-    exact (norm_le_pi_norm S j).trans hle
+  · exact Or.inl ⟨hS_li, hS_mem, fun j => (norm_le_pi_norm S j).trans (by linarith)⟩
 
 end NormedGeometry
 
@@ -200,14 +186,9 @@ theorem shortenStep_linearIndependent {S : Fin n → E} (hS : LinearIndependent 
     let w : E := ∑ j ∈ Finset.univ.erase i, (-(c j / c i)) • S j
     have hu_eq : u = w := by
       have hsplit : c i • u + ∑ j ∈ Finset.univ.erase i, c j • S j = 0 := by
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)] at hc
-        simpa only [Function.update_self, Function.update_of_ne] using
-          (by
-            rw [← hc]
-            congr 1
-            · simp
-            · refine Finset.sum_congr rfl fun j hj => ?_
-              rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)])
+        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i), Function.update_self] at hc
+        rwa [Finset.sum_congr rfl fun j hj => by
+          rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]] at hc
       have hcu : c i • u = -(∑ j ∈ Finset.univ.erase i, c j • S j) :=
         eq_neg_of_add_eq_zero_left hsplit
       calc u = (c i)⁻¹ • (c i • u) := (inv_smul_smul₀ hne u).symm
@@ -252,12 +233,9 @@ theorem shortenStep_of_incGDD {L : Submodule ℤ E} {S : Fin (finrank ℤ L) →
       ‖Function.update S i u‖ ≤ ‖S‖ ∧
       sqNormProd (Function.update S i u) ≤ (13 / 16 : ℝ) ^ 2 * sqNormProd S := by
   have hu_dist : ‖u - t‖ ≤ (1 / 4 : ℝ) * ‖S‖ := by linarith [hu.dist_le]
-  refine ⟨shortenStep_linearIndependent hS_li ht_orth ht_lo hu_dist, ?_,
+  exact ⟨shortenStep_linearIndependent hS_li ht_orth ht_lo hu_dist,
+    (Function.forall_update_iff S fun _ v => v ∈ L).2 ⟨hu.mem, fun j _ => hS_mem j⟩,
     shortenStep_pi_norm_le ht_hi hu_dist, shortenStep_sqNormProd_le hi ht_hi hu_dist⟩
-  intro j
-  by_cases hji : j = i
-  · subst hji; simpa using hu.mem
-  · rw [Function.update_of_ne hji]; exact hS_mem j
 
 /-! ### 2. Hadamard Potential Lower Bound & Finite Iteration Bound -/
 
@@ -266,10 +244,7 @@ proved via `Cslib.Algorithms.LatticeReduction.one_le_gramPrefixDet`. -/
 theorem one_le_sqNormProd {S : Fin n → E} (hS : LinearIndependent ℝ S)
     (hGram : HasIntegralGram S) : 1 ≤ sqNormProd S := by
   have hdet : 1 ≤ gramPrefixDet S n := one_le_gramPrefixDet hS hGram le_rfl
-  have hfilter : Finset.univ.filter (fun j : Fin n => (j : ℕ) < n) = Finset.univ := by
-    ext j
-    simp
-  rw [gramPrefixDet, hfilter] at hdet
+  rw [gramPrefixDet, Finset.filter_true_of_mem fun j _ => j.isLt] at hdet
   exact hdet.trans <| Finset.prod_le_prod₀ (fun _ _ => sq_nonneg _) fun j _ =>
     pow_le_pow_left₀ (norm_nonneg _) (norm_gramSchmidt_le ℝ S j) 2
 
@@ -313,8 +288,7 @@ theorem shortenSteps_lt_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSp
     (hstep : ∀ j < k, sqNormProd (seq (j + 1)) ≤ (13 / 16 : ℝ) ^ 2 * sqNormProd (seq j))
     (hli : LinearIndependent ℝ (seq k)) (hGram : HasIntegralGram (seq k)) :
     k < shortenRoundBound n B := by
-  by_contra hge
-  push Not at hge
+  by_contra! hge
   have hchain : ∀ m ≤ k, sqNormProd (seq m) ≤ ((13 / 16 : ℝ) ^ 2) ^ m * sqNormProd (seq 0) := by
     intro m hm
     induction m with
@@ -360,14 +334,8 @@ theorem sqNormRat_cast_eq_norm_sq {n : ℕ} (v : Fin n → ℚ) :
 
 /-- Every nonzero rational vector has strictly positive `sqNormRat`. -/
 theorem sqNormRat_pos_of_ne_zero {n : ℕ} {v : Fin n → ℚ} (hv : v ≠ 0) : 0 < sqNormRat v := by
-  obtain ⟨k, hk⟩ : ∃ k, v k ≠ 0 := by
-    by_contra h
-    push Not at h
-    exact hv (funext h)
-  have hpos : 0 < (v k) ^ 2 := sq_pos_of_ne_zero hk
-  have hle : (v k) ^ 2 ≤ ∑ j : Fin n, (v j) ^ 2 :=
-    Finset.single_le_sum (fun j _ => sq_nonneg (v j)) (Finset.mem_univ k)
-  exact lt_of_lt_of_le hpos hle
+  obtain ⟨k, hk⟩ := Function.ne_iff.mp hv
+  exact Finset.sum_pos' (fun j _ => sq_nonneg (v j)) ⟨k, Finset.mem_univ k, sq_pos_of_ne_zero hk⟩
 
 /-- Computable exact rational index maximizing squared Euclidean norm among
 `S : Fin (m + 1) → Fin (m + 1) → ℚ`. -/
@@ -453,10 +421,7 @@ theorem ratOrthoScale_sq_bounds {sqS sqV : ℚ} (hS : 0 < sqS) (hV : 0 < sqV) :
       calc k ^ 2 ≤ 64 * m := hle_nat
         _ ≤ 64 * (m * m) := Nat.mul_le_mul_left 64 (Nat.le_mul_of_pos_right m hm_pos)
         _ = (8 * m) ^ 2 := by ring
-    by_contra hlt
-    push Not at hlt
-    have h2 : (8 * m) ^ 2 < k ^ 2 := by nlinarith
-    omega
+    exact (Nat.pow_le_pow_iff_left two_ne_zero).mp h1
   have hhi_nat : (k + 1) ^ 2 ≤ 81 * m := by
     calc (k + 1) ^ 2 = k ^ 2 + 2 * k + 1 := by ring
       _ ≤ 64 * m + 2 * (8 * m) + m := by omega
@@ -527,8 +492,7 @@ theorem ratOrthoTarget_spec {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ)
   change res.rank = M.toMatrix.rank at hrank_eq
   change res.kernelBasis.length = m + 1 - res.rank at hker_len
   have hrank_le : M.toMatrix.rank ≤ m := by
-    have h1 := Matrix.rank_le_card_height M.toMatrix
-    simpa [M, omitRowTable] using h1
+    simpa [M, omitRowTable] using Matrix.rank_le_card_height M.toMatrix
   have hker_pos : 0 < res.kernelBasis.length := by omega
   have hhead : (Cslib.LinearAlgebra.ratKernelBasis M).headD [] = res.kernelBasis[0]'hker_pos :=
     list_headD_eq_getElem_zero hker_pos
@@ -559,11 +523,8 @@ theorem ratOrthoTarget_spec {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ)
       (sqNormRat fun k => ((Cslib.LinearAlgebra.ratKernelBasis M).headD []).getD k.val 0) *
       ((Cslib.LinearAlgebra.ratKernelBasis M).headD []).getD k.val 0 = ρ * v k
     rw [hhead]
-  have hS_pos : 0 < sqNormRat (S iStar) := by
-    have hne : S iStar ≠ 0 := by
-      intro h0
-      exact hS.ne_zero iStar (by ext k; simp [toEuclidean, h0])
-    exact sqNormRat_pos_of_ne_zero hne
+  have hS_pos : 0 < sqNormRat (S iStar) :=
+    sqNormRat_pos_of_ne_zero fun h0 => hS.ne_zero iStar (by ext k; simp [toEuclidean, h0])
   have hv_pos : 0 < sqNormRat v := sqNormRat_pos_of_ne_zero hv_ne
   obtain ⟨hlo_q, hhi_q⟩ := ratOrthoScale_sq_bounds hS_pos hv_pos
   have hnorm_t_sq : ‖toEuclidean (ratOrthoTarget S)‖ ^ 2 =
@@ -707,12 +668,10 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
     have ⟨hi, horth, hlo, hhi⟩ := hTarget S hli hmem
     cases hcall : oracles r S (stepTarget S).2 (‖S‖ / 8) with
     | none =>
-      have hnone := shortenLoopFrom_succ_none L stepTarget oracles r fuel S hcall
       dsimp only
-      rw [hnone]
-      refine ⟨hli, hmem, le_rfl, Or.inl ⟨0, Nat.zero_lt_succ fuel, ?_, ?_⟩⟩
-      · rfl
-      · simp [shortenLoopFrom, hcall]
+      rw [shortenLoopFrom_succ_none L stepTarget oracles r fuel S hcall]
+      exact ⟨hli, hmem, le_rfl, Or.inl ⟨0, Nat.zero_lt_succ fuel, rfl, by
+        simp [shortenLoopFrom, hcall]⟩⟩
     | some u =>
       by_cases hvalid : u ∈ L ∧ ‖u - (stepTarget S).2‖ ≤ (1 / 4 : ℝ) * ‖S‖
       · have hpos := shortenLoopFrom_succ_some_pos L stepTarget oracles r fuel S hcall hvalid
@@ -720,27 +679,20 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
         rw [hpos]
         have hli' : LinearIndependent ℝ (Function.update S (stepTarget S).1 u) :=
           shortenStep_linearIndependent hli horth hlo hvalid.2
-        have hmem' : ∀ j, Function.update S (stepTarget S).1 u j ∈ L := fun j => by
-          by_cases hji : j = (stepTarget S).1
-          · subst hji; simpa using hvalid.1
-          · rw [Function.update_of_ne hji]; exact hmem j
-        have hnorm' : ‖Function.update S (stepTarget S).1 u‖ ≤ ‖S‖ :=
-          shortenStep_pi_norm_le hhi hvalid.2
+        have hmem' : ∀ j, Function.update S (stepTarget S).1 u j ∈ L :=
+          (Function.forall_update_iff S fun _ v => v ∈ L).2 ⟨hvalid.1, fun j _ => hmem j⟩
         have hpot' : sqNormProd (Function.update S (stepTarget S).1 u) ≤
             (13 / 16 : ℝ) ^ 2 * sqNormProd S :=
           shortenStep_sqNormProd_le hi hhi hvalid.2
         obtain ⟨hli_o, hmem_o, hnorm_o, hor⟩ :=
           shortenLoopFrom_invariant L stepTarget oracles hTarget fuel (r + 1) _ hli' hmem'
-        refine ⟨hli_o, hmem_o, hnorm_o.trans hnorm', ?_⟩
+        refine ⟨hli_o, hmem_o, hnorm_o.trans (shortenStep_pi_norm_le hhi hvalid.2), ?_⟩
         rcases hor with ⟨k, hk, heq, hhalt⟩ | hpot_o
         · left
           refine ⟨k + 1, Nat.succ_lt_succ hk, ?_, ?_⟩
-          · rw [shortenLoopFrom_succ_some_pos L stepTarget oracles r k S hcall hvalid]
-            exact heq
-          · rw [shortenLoopFrom_succ_some_pos L stepTarget oracles r k S hcall hvalid]
-            have hadd : r + (k + 1) = r + 1 + k := by omega
-            rw [hadd]
-            exact hhalt
+          · rwa [shortenLoopFrom_succ_some_pos L stepTarget oracles r k S hcall hvalid]
+          · rwa [shortenLoopFrom_succ_some_pos L stepTarget oracles r k S hcall hvalid,
+              show r + (k + 1) = r + 1 + k by omega]
         · right
           calc sqNormProd (shortenLoopFrom L stepTarget oracles (r + 1) fuel
                   (Function.update S (stepTarget S).1 u))
@@ -748,12 +700,10 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
                   sqNormProd (Function.update S (stepTarget S).1 u) := hpot_o
             _ ≤ ((13 / 16 : ℝ) ^ 2) ^ fuel * ((13 / 16 : ℝ) ^ 2 * sqNormProd S) := by gcongr
             _ = ((13 / 16 : ℝ) ^ 2) ^ (fuel + 1) * sqNormProd S := by rw [pow_succ]; ring
-      · have hneg := shortenLoopFrom_succ_some_neg L stepTarget oracles r fuel S hcall hvalid
-        dsimp only
-        rw [hneg]
-        refine ⟨hli, hmem, le_rfl, Or.inl ⟨0, Nat.zero_lt_succ fuel, rfl, ?_⟩⟩
-        simp only [add_zero, shortenLoopFrom, hcall]
-        exact hvalid
+      · dsimp only
+        rw [shortenLoopFrom_succ_some_neg L stepTarget oracles r fuel S hcall hvalid]
+        exact ⟨hli, hmem, le_rfl, Or.inl ⟨0, Nat.zero_lt_succ fuel, rfl, by
+          simpa only [add_zero, shortenLoopFrom, hcall] using hvalid⟩⟩
 
 /-- Finite round-by-round soundness of the MR07 Lemma 5.10 shortening loop: starting from a
 full-rank family `S₀` in a lattice `L` with integral inner products (`∀ x ∈ L, ∀ y ∈ L,
@@ -787,34 +737,22 @@ theorem shortenLoop_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : ℝ)
     set K := shortenRoundBound (finrank ℤ L) B
     obtain ⟨hli_o, hmem_o, hnorm_o, hor⟩ :=
       shortenLoopFrom_invariant L stepTarget oracles hTarget K 0 S₀ hS₀_li hS₀_mem
-    have hhalt_exists :
-        ∃ k < K,
-          let Sk := shortenLoop L stepTarget oracles k S₀
-          shortenLoop L stepTarget oracles K S₀ = Sk ∧
-          match oracles k Sk (stepTarget Sk).2 (‖Sk‖ / 8) with
-          | some u => ¬ (u ∈ L ∧ ‖u - (stepTarget Sk).2‖ ≤ (1 / 4 : ℝ) * ‖Sk‖)
-          | none => True := by
-      rcases hor with ⟨k, hk, heq, hhalt⟩ | hpot_o
-      · exact ⟨k, hk, heq, by simpa only [zero_add] using hhalt⟩
-      · exfalso
-        have hGram_o : HasIntegralGram (shortenLoop L stepTarget oracles K S₀) :=
-          fun i j => hL_gram _ (hmem_o i) _ (hmem_o j)
-        have h1 : (1 : ℝ) ≤ sqNormProd (shortenLoop L stepTarget oracles K S₀) :=
-          one_le_sqNormProd hli_o hGram_o
-        have hlt1 := pow_shortenRoundBound_mul_lt_one (B := B) hnpos
-        have hleB := mul_le_mul_of_nonneg_left (sqNormProd_le_pow hB)
-          (by positivity : (0 : ℝ) ≤ ((13 / 16 : ℝ) ^ 2) ^ K)
-        linarith
-    obtain ⟨k, hk, heq, hhalt⟩ := hhalt_exists
     refine ⟨?_, hnorm_o⟩
-    rcases isSolution_givp_or_isValidInstance_incGDD φ γ L
-        (shortenLoop L stepTarget oracles K S₀) hli_o hmem_o with hsol | hval
-    · exact hsol
-    · exfalso
-      rw [heq] at hval
-      obtain ⟨u, hcall, hsol⟩ := hOracle k hk hval
-      rw [hcall] at hhalt
-      exact hhalt ⟨hsol.mem, by linarith [hsol.dist_le]⟩
+    rcases hor with ⟨k, hk, heq, hhalt⟩ | hpot_o
+    · simp only [zero_add] at hhalt
+      rcases isSolution_givp_or_isValidInstance_incGDD φ γ L
+          (shortenLoop L stepTarget oracles K S₀) hli_o hmem_o with hsol | hval
+      · exact hsol
+      · rw [shortenLoop, heq] at hval
+        obtain ⟨u, hcall, hsol⟩ := hOracle k hk hval
+        rw [hcall] at hhalt
+        exact False.elim (hhalt ⟨hsol.mem, by linarith [hsol.dist_le]⟩)
+    · have h1 : (1 : ℝ) ≤ sqNormProd (shortenLoop L stepTarget oracles K S₀) :=
+        one_le_sqNormProd hli_o fun i j => hL_gram _ (hmem_o i) _ (hmem_o j)
+      have hlt1 := pow_shortenRoundBound_mul_lt_one (B := B) hnpos
+      have hleB := mul_le_mul_of_nonneg_left (sqNormProd_le_pow hB)
+        (by positivity : (0 : ℝ) ≤ ((13 / 16 : ℝ) ^ 2) ^ K)
+      linarith
 
 /-- Unconditional guarded shortening step for fixed-iteration loops (`IsPPTOn.iterateWith_spec`):
 replaces `S i` by `u` when `u ∈ L`, `‖u‖ < ‖S i‖`, and `Function.update S i u` is linearly
@@ -836,10 +774,8 @@ theorem shortenGuardedStep_invariants {L : Submodule ℤ E} {S : Fin (finrank �
     LinearIndependent ℝ S' ∧ (∀ j, S' j ∈ L) ∧ ‖S'‖ ≤ ‖S‖ := by
   dsimp only [shortenGuardedStep]
   split_ifs with h
-  · refine ⟨h.2.2, fun j => ?_, pi_norm_update_le (h.2.1.le.trans (norm_le_pi_norm S i))⟩
-    by_cases hji : j = i
-    · subst hji; simpa using h.1
-    · rw [Function.update_of_ne hji]; exact hS_mem j
+  · exact ⟨h.2.2, (Function.forall_update_iff S fun _ v => v ∈ L).2 ⟨h.1, fun j _ => hS_mem j⟩,
+      pi_norm_update_le (h.2.1.le.trans (norm_le_pi_norm S i))⟩
   · exact ⟨hS_li, hS_mem, le_rfl⟩
 
 /-- On every valid `IncGDD` shortening candidate, `shortenGuardedStep` accepts and contracts
@@ -855,9 +791,7 @@ theorem shortenGuardedStep_of_incGDD {L : Submodule ℤ E} {S : Fin (finrank ℤ
       sqNormProd (shortenGuardedStep L S i u) ≤ (13 / 16 : ℝ) ^ 2 * sqNormProd S := by
   have hu_dist : ‖u - t‖ ≤ (1 / 4 : ℝ) * ‖S‖ := by linarith [hu.dist_le]
   have hSpos : 0 < ‖S‖ := pi_norm_pos_of_linearIndependent hS_li i
-  have hlt : ‖u‖ < ‖S i‖ := by
-    have h1 := shortenStep_norm_le ht_hi hu_dist
-    linarith
+  have hlt : ‖u‖ < ‖S i‖ := by linarith [shortenStep_norm_le ht_hi hu_dist]
   have hli' := shortenStep_linearIndependent hS_li ht_orth ht_lo hu_dist
   have hcond : u ∈ L ∧ ‖u‖ < ‖S i‖ ∧ LinearIndependent ℝ (Function.update S i u) :=
     ⟨hu.mem, hlt, hli'⟩
@@ -900,9 +834,7 @@ theorem shortenGuardedIter_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : 
   have hmono_norm : ∀ a b, a ≤ b → b ≤ K → ‖seq b‖ ≤ ‖seq a‖ := by
     intro a b hab hbK
     induction b with
-    | zero =>
-      have : a = 0 := Nat.le_zero.mp hab
-      subst this; exact le_rfl
+    | zero => rw [Nat.le_zero.mp hab]
     | succ b ih =>
       rcases eq_or_lt_of_le hab with rfl | hlt
       · exact le_rfl
@@ -926,14 +858,9 @@ theorem shortenGuardedIter_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : 
       · exfalso
         apply hnot
         refine ⟨hliK, hmemK, fun j => ?_⟩
-        have hle_k : ‖seq k‖ ≤ 8 * γ * φ L := by
-          have hne : (Finset.univ : Finset (Fin (finrank ℤ L))).Nonempty :=
-            Finset.univ_nonempty_iff.mpr ⟨⟨0, hnpos⟩⟩
-          obtain ⟨i0, _, hi0⟩ := Finset.exists_max_image Finset.univ (fun j => ‖seq k j‖) hne
-          have hpi : ‖seq k‖ ≤ ‖seq k i0‖ := by
-            rw [pi_norm_le_iff_of_nonneg (norm_nonneg _)]
-            exact fun j => hi0 j (Finset.mem_univ j)
-          exact hpi.trans (hsol.norm_le i0)
+        have hle_k : ‖seq k‖ ≤ 8 * γ * φ L :=
+          (pi_norm_le_iff_of_nonneg ((norm_nonneg _).trans (hsol.norm_le ⟨0, hnpos⟩))).2
+            hsol.norm_le
         exact (norm_le_pi_norm (seq K) j).trans ((hmono_norm k K hk.le le_rfl).trans hle_k)
       · exact hval
     have hdrop : ∀ k < K, sqNormProd (seq (k + 1)) ≤ (13 / 16 : ℝ) ^ 2 * sqNormProd (seq k) := by

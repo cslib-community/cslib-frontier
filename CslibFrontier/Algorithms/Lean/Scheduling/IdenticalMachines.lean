@@ -17,7 +17,6 @@ import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # List Scheduling on Identical Machines
@@ -129,26 +128,10 @@ theorem prefixLoad_succ (p : Fin n → α) (σ : Fin n → Fin m) (j : Fin n) (i
       (univ.filter fun k : Fin n => (k : ℕ) < j ∧ σ k = i) ∪
         (univ.filter fun k : Fin n => k = j ∧ σ k = i) := by
     ext k
-    simp only [mem_filter, mem_univ, true_and, mem_union]
-    constructor
-    · rintro ⟨hk, hσ⟩
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hk with h | h
-      · exact Or.inl ⟨h, hσ⟩
-      · exact Or.inr ⟨Fin.ext h, hσ⟩
-    · rintro (⟨hk, hσ⟩ | ⟨rfl, hσ⟩)
-      · exact ⟨by omega, hσ⟩
-      · exact ⟨by omega, hσ⟩
+    simp only [mem_filter, mem_univ, true_and, mem_union, Fin.ext_iff]
+    omega
   rw [this, sum_union]
-  · congr 1
-    split_ifs with h
-    · rw [show (univ.filter fun k : Fin n => k = j ∧ σ k = i) = {j} by
-        ext k; simp only [mem_filter, mem_univ, true_and, mem_singleton]
-        exact ⟨fun h' => h'.1, fun h' => ⟨h', h' ▸ h⟩⟩]
-      simp
-    · rw [sum_eq_zero]
-      intro k hk
-      simp only [mem_filter, mem_univ, true_and] at hk
-      exact absurd (hk.1 ▸ hk.2) h
+  · simp [sum_filter, ite_and]
   · rw [disjoint_filter]
     rintro k - ⟨hk, -⟩ ⟨rfl, -⟩
     omega
@@ -199,6 +182,7 @@ theorem optMakespan_le (p : Fin n → α) (σ : Fin n → Fin m) :
     optMakespan m p ≤ makespan p σ :=
   inf'_le _ (mem_univ σ)
 
+variable (m) in
 theorem exists_makespan_eq_optMakespan (p : Fin n → α) :
     ∃ σ : Fin n → Fin m, makespan p σ = optMakespan m p := by
   obtain ⟨σ, -, h⟩ := exists_mem_eq_inf' (univ_nonempty (α := Fin n → Fin m)) (makespan p)
@@ -227,14 +211,14 @@ theorem le_makespan (p : Fin n → α) (hp : ∀ j, 0 ≤ p j) (σ : Fin n → F
 
 /-- Average-load lower bound on the optimum, `∑ p ≤ m · OPT` ([WilliamsonShmoys2011], (2.4)). -/
 theorem sum_le_card_nsmul_optMakespan (p : Fin n → α) : ∑ j, p j ≤ m • optMakespan m p := by
-  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m p
   rw [← hσ]
   exact sum_le_card_nsmul_makespan p σ
 
 /-- Longest-job lower bound on the optimum ([WilliamsonShmoys2011], (2.3)). -/
 theorem le_optMakespan (p : Fin n → α) (hp : ∀ j, 0 ≤ p j) (j : Fin n) :
     p j ≤ optMakespan m p := by
-  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m p
   rw [← hσ]
   exact le_makespan p hp σ j
 
@@ -320,7 +304,7 @@ theorem IsListSchedule.card_mul_makespan_le {p : Fin n → α} {σ : Fin n → F
 theorem IsListSchedule.makespan_le_optMakespan {p : Fin n → α} {σ : Fin n → Fin m}
     (hσ : IsListSchedule p σ) (hp : ∀ j, 0 ≤ p j) :
     makespan p σ ≤ (2 - 1 / m) * optMakespan m p := by
-  obtain ⟨τ, hτ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  obtain ⟨τ, hτ⟩ := exists_makespan_eq_optMakespan m p
   have h := hσ.card_mul_makespan_le hp τ
   rw [hτ] at h
   have hmpos : (0 : α) < m := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne m)
@@ -495,11 +479,7 @@ private theorem IsListSchedule.load_grahamTight {σ : Fin (m * (m - 1) + 1) → 
       rw [hstep k (by omega), hstep k (by omega)]
       have h1 := ih (by omega) i i'
       have h2 := hmin k (by omega) i'
-      split_ifs with hi hi' hi'
-      · omega
-      · rw [← hi]; omega
-      · omega
-      · omega
+      split_ifs with hi <;> (try subst hi) <;> omega
   have hsum : ∑ i, c (m * (m - 1)) i = m * (m - 1) := by
     simp only [hc]
     rw [sum_prefixLoad, sum_const, smul_eq_mul, mul_one]
@@ -523,9 +503,8 @@ private theorem IsListSchedule.load_grahamTight {σ : Fin (m * (m - 1) + 1) → 
       _ ≤ c (m * (m - 1)) i₀ + (m - 1) * (c (m * (m - 1)) i₀ + 1) := Nat.add_le_add_left hrest _
   have hload : load (grahamTight α m) σ i₀ = (c (m * (m - 1)) i₀ : α) + m := by
     have h := prefixLoad_succ (grahamTight α m) σ (Fin.last _) i₀
-    rw [Fin.val_last, prefixLoad_of_le _ σ le_rfl, hpc _ le_rfl, ← hi₀, ite_eq_left rfl,
+    rwa [Fin.val_last, prefixLoad_of_le _ σ le_rfl, hpc _ le_rfl, ← hi₀, ite_eq_left rfl,
       grahamTight_last] at h
-    exact h
   rw [hload]
   have hm : (1 : ℕ) ≤ m := Nat.one_le_iff_ne_zero.mpr (NeZero.ne m)
   have h1 : ((m - 1 : ℕ) : α) ≤ c (m * (m - 1)) i₀ := by exact_mod_cast hc₀
@@ -558,34 +537,25 @@ theorem optMakespan_grahamTight : optMakespan m (grahamTight α m) = m := by
     unfold load
     by_cases hi : i.val = 0
     · calc ∑ j with τ j = i, grahamTight α m j ≤ ∑ j ∈ {Fin.last _}, grahamTight α m j := by
-            refine sum_le_sum_of_subset_of_nonneg (fun j hj => ?_)
+            refine sum_le_sum_of_subset_of_nonneg (fun j hj => mem_singleton.2 ?_)
               fun j _ _ => grahamTight_nonneg j
-            rw [mem_filter] at hj
-            rcases hτ j i hj.2 with h | h
-            · exact absurd (h.2.symm.trans hi) (Nat.succ_ne_zero _)
-            · exact mem_singleton.mpr h.1
+            exact ((hτ j i (mem_filter.1 hj).2).resolve_left
+              fun h => Nat.succ_ne_zero _ (h.2.symm.trans hi)).1
         _ = m := by rw [sum_singleton, grahamTight_last]
-    · have hunit : ∀ j ∈ univ.filter fun j => τ j = i, grahamTight α m j = 1 := by
-        intro j hj
-        rw [mem_filter] at hj
-        rcases hτ j i hj.2 with h | h
-        · exact grahamTight_of_lt h.1
-        · omega
-      rw [sum_congr rfl hunit, sum_const, nsmul_eq_mul, mul_one]
+    · have hτ' : ∀ j ∈ univ.filter fun j => τ j = i,
+          j.val < m * (m - 1) ∧ i.val = j.val / m + 1 :=
+        fun j hj => (hτ j i (mem_filter.1 hj).2).resolve_right fun h => hi h.2
+      rw [sum_congr rfl fun j hj => grahamTight_of_lt (hτ' j hj).1, sum_const, nsmul_eq_mul,
+        mul_one]
       have hcard : #(univ.filter fun j => τ j = i) ≤ m := by
         calc #(univ.filter fun j => τ j = i) ≤ #(range m) := by
               refine card_le_card_of_injOn (fun j => j.val % m) (fun j _ => ?_) ?_
               · exact mem_range.mpr (Nat.mod_lt _ (by omega))
               · intro j hj j' hj' hjj'
-                rw [mem_coe, mem_filter] at hj hj'
-                rcases hτ j i hj.2 with h | h
-                · rcases hτ j' i hj'.2 with h' | h'
-                  · apply Fin.ext
-                    rw [← Nat.div_add_mod j.val m, ← Nat.div_add_mod j'.val m]
-                    simp only at hjj'
-                    rw [hjj', Nat.add_right_cancel (h.2.symm.trans h'.2)]
-                  · exact absurd (h.2.symm.trans h'.2) (Nat.succ_ne_zero _)
-                · omega
+                apply Fin.ext
+                rw [← Nat.div_add_mod j.val m, ← Nat.div_add_mod j'.val m]
+                simp only at hjj'
+                rw [hjj', Nat.add_right_cancel ((hτ' j hj).2.symm.trans (hτ' j' hj').2)]
           _ = m := card_range m
       exact_mod_cast hcard
   · calc (m : α) = grahamTight α m (Fin.last _) := grahamTight_last.symm

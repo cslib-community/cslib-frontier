@@ -195,6 +195,13 @@ private theorem scan_eq (n a p : ℕ) (bs : List Bool) (ha : a ≤ n) :
     congr 1
     cases b <;> simp [Nat.bit] <;> ring
 
+/-- The registers while the bound is read stay below `B`. -/
+private theorem bounded_scan (hn : I.graph.n ≤ B) {a p j : ℕ} (ha : a ≤ I.graph.n)
+    (hp : p ≤ I.graph.n) (hj : j ≤ B) :
+    ∀ r ∈ [I.graph.n, I.graph.s, I.graph.t, a, p, j, 0, 0], r ≤ B :=
+  bounded hn (by have := I.graph.s.isLt; omega) (by have := I.graph.t.isLt; omega)
+    (by omega) (by omega) hj (by omega) (by omega)
+
 private theorem read_bound_loop (bs : List Bool) {j a p : ℕ}
     (hlookup : ∀ i, (encBoundedSTCON I)[j + i]? = bs[i]?)
     (hn : I.graph.n ≤ B) (hj : j + bs.length ≤ B)
@@ -205,20 +212,14 @@ private theorem read_bound_loop (bs : List Bool) {j a p : ℕ}
         p', j + bs.length, 0, 0]) [] := by
   induction bs generalizing j a p with
   | nil =>
-    refine ⟨p, hp, ReachesOut.read (by rfl) ?_ ?_⟩
-    · exact bounded hn (by have := I.graph.s.isLt; omega)
-        (by have := I.graph.t.isLt; omega) (by omega) (by omega) (by simp at hj; omega)
-        (by omega) (by omega)
-    · have hend : (encBoundedSTCON I)[j]? = none := by simpa using hlookup 0
-      simp only [eval_reg, List.getD_cons_succ, List.getD_cons_zero, hend, readLabel]
-      simpa [scan] using
-        (ReachesOut.refl (P := writer) (w := encBoundedSTCON I)
-          (Q := writer.Active B) (12, [I.graph.n, I.graph.s, I.graph.t, a, p, j, 0, 0]))
+    refine ⟨p, hp, ReachesOut.read (by rfl) (I.bounded_scan hn ha hp (by simp at hj; omega)) ?_⟩
+    have hend : (encBoundedSTCON I)[j]? = none := by simpa using hlookup 0
+    simp only [eval_reg, List.getD_cons_succ, List.getD_cons_zero, hend, readLabel]
+    simpa [scan] using
+      (ReachesOut.refl (P := writer) (w := encBoundedSTCON I)
+        (Q := writer.Active B) (12, [I.graph.n, I.graph.s, I.graph.t, a, p, j, 0, 0]))
   | cons b bs ih =>
-    have hb {a p j : ℕ} (ha : a ≤ I.graph.n) (hp : p ≤ I.graph.n) (hj : j ≤ B) :
-        ∀ r ∈ [I.graph.n, I.graph.s, I.graph.t, a, p, j, 0, 0], r ≤ B :=
-      bounded hn (by have := I.graph.s.isLt; omega) (by have := I.graph.t.isLt; omega)
-        (by omega) (by omega) hj (by omega) (by omega)
+    have hb {a p j : ℕ} := I.bounded_scan hn (a := a) (p := p) (j := j)
     obtain ⟨p', hp', hr⟩ := ih (j := j + 1)
       (a := min I.graph.n (a + p * b.toNat)) (p := min I.graph.n (2 * p))
       (fun i => by simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hlookup (i + 1))
@@ -398,10 +399,7 @@ theorem computableInLogSpace_layered :
     rw [scan_eq _ _ _ _ (Nat.zero_le _), Nat.foldr_bit_bits]
     simp [cap, Nat.min_comm]
   rw [hparsed, show 2 * I.graph.encode.length + 1 + I.bound.bits.length = L by omega] at hparse
-  have hb {a p j : ℕ} (ha : a ≤ I.graph.n) (hp : p ≤ I.graph.n) (hj : j ≤ B) :
-      ∀ r ∈ [I.graph.n, I.graph.s, I.graph.t, a, p, j, 0, 0], r ≤ B :=
-    bounded hnB (by have := I.graph.s.isLt; omega) (by have := I.graph.t.isLt; omega)
-      (by omega) (by omega) hj (by omega) (by omega)
+  have hb {a p j : ℕ} := I.bounded_scan hnB (a := a) (p := p) (j := j)
   have hstart := (I.read_header hnB).trans
     (ReachesOut.assign (show writer.instr 6 = _ from rfl)
       (hb (a := 0) (p := 0) (j := 0) (by omega) (by omega) (by omega))

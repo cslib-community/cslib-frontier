@@ -22,6 +22,7 @@ import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -311,15 +312,11 @@ theorem isOraclePPTOn_ctrKeystreamQueries {α : Type} {input : α ↪ List Bool}
       (fun pair : α × (ℕ × List Bool) => ctrKeystreamStep (n pair.1) (iv pair.1) pair.2) :=
     hquery.map_with (f := fun pair block => (pair.2.1 + 1, pair.2.2 ++ block))
       (hcounter.prod houtput)
-  have hnBound : PolyBounded (fun a => (input a).length) n := by
-    simpa only [encUnary_apply, List.length_replicate] using hn.polyBounded_length
-  have hgrowthPoly : PolyBounded (fun a => (input a).length) (fun a => n a + 2) :=
-    hnBound.add (PolyBounded.const 2)
   have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth
     (stateEncoding := encPair encUnary encBits)
     (initial := fun _ => ((0 : ℕ), ([] : List Bool))) (count := blocks)
     (step := fun a state => ctrKeystreamStep (n a) (iv a) state)
-    hblocks (ComputableInPolyTime.const _) hstep (growth := fun a => n a + 2) hgrowthPoly
+    hblocks (ComputableInPolyTime.const _) hstep (growth := fun a => n a + 2) (by growth_poly)
     (fun a state next hnext => by
       obtain ⟨block, hblock, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
       obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hblock

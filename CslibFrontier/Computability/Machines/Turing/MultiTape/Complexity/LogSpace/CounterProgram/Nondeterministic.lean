@@ -249,7 +249,7 @@ private theorem withChoice_inSpace :
       (encPair encConfig encBool) (encList encNat)
       fun q => (encPair encConfig encBool q).length :=
     budget_comp_lin (snd _ _) (.refl _) hs
-  have hv := budget_prod hregs (budget_prod (budget_const (encB := encNat) 0 (.refl _))
+  have hv := budget_prod hregs (budget_prod (budget_const (encB := encNat) 0)
     (budget_finite (encC := encNat) Bool.toNat (snd encConfig encBool)))
   exact budget_prod (budget_comp_lin (fst _ _) (.refl _) hs)
     (budget_comp ComputableInSpace.set hv
@@ -281,7 +281,7 @@ private theorem accept_inSpace :
     ComputableInSpace P.toNondeterministicQueryMachine.accept encConfig encBool
       fun s => (encConfig s).length :=
   dispatch P.code (.halt []) (fun i _ => decide (i.finish = [true]))
-    (fun _ => budget_const _ (.refl _)) (fst _ _)
+    (fun _ => budget_const _) (fst _ _)
 
 /-- The labels of every branch are bounded by the largest label of the program, and the number of
 registers is fixed. -/
@@ -325,7 +325,7 @@ theorem exists_decidesInLogSpace (P : CounterProgram) {α : Type} {enc : α ↪ 
     (query_inSpace (P := P)) hnext (halted_inSpace (P := P))
     (accept_inSpace (P := P)) (fun _ => P.toNondeterministicQueryMachine.init) time hhalt hA
     (fun a => Nat.log2 (enc a).length + 1) (fun _ => le_rfl)
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
+    (ComputableInSpace.budget_const _)
     ⟨2 * (encNat P.maxLabel).length + 1 + P.registers * (2 * d + 3), fun a choices => ?_⟩
   have hinit : P.init.1 ≤ P.maxLabel ∧ P.init.2.length = P.registers :=
     ⟨Nat.zero_le _, List.length_replicate⟩

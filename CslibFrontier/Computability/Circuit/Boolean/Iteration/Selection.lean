@@ -104,10 +104,7 @@ theorem chooseRecord_map {β : Type*} (g : α → β) (flags : Fin R → Bool)
 theorem chooseRecord_of_forall_eq_false (flags : Fin R → Bool) (records : Fin R → α)
     (fallback : α) (h : ∀ j, flags j = false) (t : ℕ) :
     chooseRecord flags records fallback t = fallback := by
-  induction t with
-  | zero => rfl
-  | succ t ih => simp only [chooseRecord, h, Bool.false_eq_true, ite_false, ih, dite_eq_ite,
-      ite_self]
+  induction t with | zero => rfl | succ t ih => simp [chooseRecord, h, ih]
 
 /-- If some record among the first `t` is flagged, the scan returns a flagged record. -/
 theorem chooseRecord_spec (flags : Fin R → Bool) (records : Fin R → α) (fallback : α)
@@ -118,16 +115,16 @@ theorem chooseRecord_spec (flags : Fin R → Bool) (records : Fin R → α) (fal
   | case1 => obtain ⟨j, hj, _⟩ := hex; omega -- t = 0
   | case2 t ht hf => exact ⟨⟨t, ht⟩, by simp, hf, rfl⟩ -- t < R, record t flagged
   | case3 t ht hf ih => -- t < R, record t not flagged
-    obtain ⟨j, hj, hflag, hout⟩ := ih (by
+    obtain ⟨j, hj, hflag, hout⟩ := ih <| by
       obtain ⟨j, hj, hflag⟩ := hex
       refine ⟨j, ?_, hflag⟩
-      have hne : j.val ≠ t := fun h => hf ((Fin.ext h : j = ⟨t, ht⟩) ▸ hflag)
-      omega)
+      have : j.val ≠ t := fun h => hf ((Fin.ext h : j = ⟨t, ht⟩) ▸ hflag)
+      omega
     exact ⟨j, by omega, hflag, hout⟩
   | case4 t ht ih => -- t ≥ R: skip
-    obtain ⟨j, hj, hflag, hout⟩ := ih (by
+    obtain ⟨j, hj, hflag, hout⟩ := ih <| by
       obtain ⟨j, _, hflag⟩ := hex
-      exact ⟨j, by have := j.isLt; omega, hflag⟩)
+      exact ⟨j, by have := j.isLt; omega, hflag⟩
     exact ⟨j, by omega, hflag, hout⟩
 
 /-- Selecting among available records costs four gates per record bit. -/
@@ -141,18 +138,19 @@ theorem synthesis_chooseRecord {n w : ℕ} (s : Set (BooleanFunction n))
     Synthesis interpretation s
       (Set.range fun bit x => chooseRecord (flags x) (records x) (fallback x) R bit)
       (R * (4 * w)) := by
-  let q := fun t => Set.range fun bit x =>
-    chooseRecord (flags x) (records x) (fallback x) t bit
-  have hs := Synthesis.steps (I := interpretation) (s := s) q (4 * w) R
-    (by rintro _ ⟨bit, rfl⟩; exact hzero bit) fun t ht => ?_
-  · exact hs.mono Set.Subset.rfl (Synthesis.subset_stages q le_rfl) le_rfl
-  · have h := Synthesis.family (I := interpretation) (s := s ∪ Synthesis.stages q t)
+  let q := fun t => Set.range fun bit x => chooseRecord (flags x) (records x) (fallback x) t bit
+  have hq0 : q 0 ⊆ s := by
+    rintro _ ⟨bit, rfl⟩
+    exact hzero bit
+  refine (Synthesis.steps (I := interpretation) (s := s) q (4 * w) R hq0 fun t ht => ?_).mono
+    Set.Subset.rfl (Synthesis.subset_stages q le_rfl) le_rfl
+  simpa [q, chooseRecord, ht, ite_apply, Nat.mul_comm] using
+    Synthesis.family (I := interpretation) (s := s ∪ Synthesis.stages q t)
       (fun bit x => if flags x ⟨t, ht⟩ then records x ⟨t, ht⟩ bit
         else chooseRecord (flags x) (records x) (fallback x) t bit)
       (fun _ => 4) fun bit => Synthesis.mux
         (Or.inl (hf ⟨t, ht⟩)) (Or.inl (hr ⟨t, ht⟩ bit))
         (Or.inr (Synthesis.subset_stages q le_rfl ⟨bit, rfl⟩))
-    simpa [q, chooseRecord, ht, ite_apply, Nat.mul_comm] using h
 
 /-- Construct all flagged records and select one, sharing every flag across its
 output bits. The all-false fallback is an already available constant. -/
@@ -166,14 +164,11 @@ theorem synthesis_flaggedRecords {n w : ℕ} (s : Set (BooleanFunction n))
       (Set.range fun i x => chooseRecord (fun j => flags j x)
         (fun j => records j x) (fun _ => false) R i)
       (R * (K + 4 * w)) := by
-  have hall := Synthesis.iUnion
-    (fun j => {flags j} ∪ Set.range (fun i x => records j x i)) (fun _ => K) hrows
-  have hselect := synthesis_chooseRecord
-    (s ∪ ⋃ j, {flags j} ∪ Set.range (fun i x => records j x i))
-    (fun x j => flags j x) (fun x j => records j x) (fun _ _ => false)
-    (fun j => Or.inr (Set.mem_iUnion.mpr ⟨j, Or.inl rfl⟩))
-    (fun j bit => Or.inr (Set.mem_iUnion.mpr ⟨j, Or.inr ⟨bit, rfl⟩⟩))
-    (fun _ => Or.inl hz)
-  simpa [Nat.mul_add] using hall.trans hselect
+  simpa [Nat.mul_add] using (Synthesis.iUnion
+    (fun j => {flags j} ∪ Set.range (fun i x => records j x i)) (fun _ => K) hrows).trans
+    (synthesis_chooseRecord (s ∪ ⋃ j, {flags j} ∪ Set.range (fun i x => records j x i))
+      (fun x j => flags j x) (fun x j => records j x) (fun _ _ => false)
+      (fun j => Or.inr (Set.mem_iUnion.mpr ⟨j, Or.inl rfl⟩))
+      (fun j bit => Or.inr (Set.mem_iUnion.mpr ⟨j, Or.inr ⟨bit, rfl⟩⟩)) (fun _ => Or.inl hz))
 
 end Cslib.Circuits.Boolean.Iteration

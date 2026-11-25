@@ -111,14 +111,8 @@ omit [DecidableEq α] in
 private theorem sum_mul_quadratic (A B C : ℝ) :
     ∑ c, (μ c).toReal * (A + B * (μ c).toReal + C * (μ c).toReal ^ 2) =
       A + B * ∑ a, (μ a).toReal ^ 2 + C * ∑ a, (μ a).toReal ^ 3 := by
-  have h1 : ∑ c, (μ c).toReal * A = A := by rw [← sum_mul, sum_toReal, one_mul]
-  have h2 : ∑ c, (μ c).toReal * (B * (μ c).toReal) = B * ∑ a, (μ a).toReal ^ 2 := by
-    rw [mul_sum]
-    exact sum_congr rfl fun _ _ => by ring
-  have h3 : ∑ c, (μ c).toReal * (C * (μ c).toReal ^ 2) = C * ∑ a, (μ a).toReal ^ 3 := by
-    rw [mul_sum]
-    exact sum_congr rfl fun _ _ => by ring
-  simp only [mul_add, sum_add_distrib, h1, h2, h3]
+  simp only [mul_add, sum_add_distrib, ← sum_mul, sum_toReal, one_mul, mul_left_comm _ B,
+    mul_left_comm _ C, ← mul_sum, ← sq, ← pow_succ']
 
 private theorem sum_mul_ite_mul (b : α) (g : α → ℝ) :
     ∑ a, (μ a).toReal * ((if a = b then 1 else 0) * g a) = (μ b).toReal * g b := by
@@ -130,9 +124,8 @@ private theorem ex_occ (b : α) (k : ℕ) :
   | zero => simp [ex, occurrenceCount_eq_sum]
   | succ k ih =>
     rw [ex_succ]
-    simp only [occurrenceCount_cons]
-    simp only [ex_add, ex_const, ih, mul_add, sum_add_distrib, sum_mul_ite μ b (fun _ => 1),
-      ← sum_mul, sum_toReal]
+    simp only [occurrenceCount_cons, ex_add, ex_const, ih, mul_add, sum_add_distrib,
+      sum_mul_ite μ b (fun _ => 1), ← sum_mul, sum_toReal]
     push_cast
     ring
 
@@ -157,10 +150,8 @@ private theorem ex_occ_mul_occ (a b : α) (k : ℕ) :
           ((if c = a then 1 else 0) * (if c = b then 1 else 0) +
             ((if c = a then 1 else 0) * (occurrenceCount x b : ℝ) +
               (if c = b then 1 else 0) * (occurrenceCount x a : ℝ))) +
-            (occurrenceCount x a : ℝ) * occurrenceCount x b := by
-        funext x
-        rw [occurrenceCount_cons, occurrenceCount_cons]
-        ring
+            (occurrenceCount x a : ℝ) * occurrenceCount x b :=
+        funext fun x => by rw [occurrenceCount_cons, occurrenceCount_cons]; ring
       rw [hfun, ex_add, ex_add, ex_const, ex_add, ex_const_mul, ex_const_mul, ex_occ, ex_occ, ih]
     simp only [hinner]
     by_cases hab : a = b
@@ -176,12 +167,8 @@ private theorem ex_collisionCount (k : ℕ) :
   | zero => simp [ex, collisionCount]
   | succ k ih =>
     rw [ex_succ]
-    have hinner (c : α) : ex μ k (fun x => (collisionCount (Fin.cons c x : Fin (k + 1) → α) : ℝ)) =
-        k * (μ c).toReal + k * (k - 1) / 2 * ∑ a, (μ a).toReal ^ 2 := by
-      simp only [collisionCount_cons]
-      rw [ex_add, ex_occ, ih]
-    simp only [hinner, mul_add, sum_add_distrib, ← sum_mul, sum_toReal, mul_left_comm _ (k : ℝ),
-      ← mul_sum, ← sq]
+    simp only [collisionCount_cons, ex_add, ex_occ, ih, mul_add, sum_add_distrib, ← sum_mul,
+      sum_toReal, mul_left_comm _ (k : ℝ), ← mul_sum, ← sq]
     push_cast
     ring
 
@@ -204,10 +191,8 @@ private theorem ex_collisionCount_mul_occ (b : α) (k : ℕ) :
           occurrenceCount (Fin.cons c x : Fin (k + 1) → α) b) = fun x =>
           (if c = b then 1 else 0) * ((occurrenceCount x c : ℝ) + collisionCount x) +
             ((occurrenceCount x c : ℝ) * occurrenceCount x b +
-              (collisionCount x : ℝ) * occurrenceCount x b) := by
-        funext x
-        rw [collisionCount_cons, occurrenceCount_cons]
-        ring
+              (collisionCount x : ℝ) * occurrenceCount x b) :=
+        funext fun x => by rw [collisionCount_cons, occurrenceCount_cons]; ring
       rw [hfun, ex_add, ex_const_mul, ex_add, ex_add, ex_occ, ex_collisionCount, ih,
         ex_occ_mul_occ]
     have hsq : ∑ a, (μ a).toReal * (k * (k - 1) * (μ a).toReal * (μ b).toReal) =
@@ -241,10 +226,8 @@ private theorem ex_collisionCount_sq (k : ℕ) :
       have hfun : (fun x : Fin k → α =>
           (collisionCount (Fin.cons c x : Fin (k + 1) → α) : ℝ) ^ 2) =
           fun x => (occurrenceCount x c : ℝ) * occurrenceCount x c +
-            (2 * ((collisionCount x : ℝ) * occurrenceCount x c) + (collisionCount x : ℝ) ^ 2) := by
-        funext x
-        rw [collisionCount_cons]
-        ring
+            (2 * ((collisionCount x : ℝ) * occurrenceCount x c) + (collisionCount x : ℝ) ^ 2) :=
+        funext fun x => by rw [collisionCount_cons]; ring
       rw [hfun, ex_add, ex_add, ex_const_mul, ex_occ_mul_occ, ex_collisionCount_mul_occ, ih,
         ite_eq_left rfl]
       ring
@@ -270,9 +253,8 @@ theorem sum_iid_mul_collisionCount_sub_sq (k : ℕ) :
   have hfun : (fun x : Fin k → α =>
       ((collisionCount x : ℝ) - k.choose 2 * collisionProbability μ) ^ 2) = fun x =>
       (collisionCount x : ℝ) ^ 2 + ((-2 * (k.choose 2 * collisionProbability μ)) *
-        collisionCount x + (k.choose 2 * collisionProbability μ) ^ 2) := by
-    funext x
-    ring
+        collisionCount x + (k.choose 2 * collisionProbability μ) ^ 2) :=
+    funext fun x => by ring
   change ex μ k _ = _
   rw [hfun, ex_add, ex_add, ex_const_mul, ex_const, ex_collisionCount_sq, ex_collisionCount,
     Nat.cast_choose_two, collisionProbability_eq_sum]
@@ -281,15 +263,15 @@ theorem sum_iid_mul_collisionCount_sub_sq (k : ℕ) :
 /-- **Mean of an occurrence count**: among `k` independent draws from `μ`, the value `b` occurs
 `k μ(b)` times on average. -/
 theorem sum_iid_mul_occurrenceCount (b : α) (k : ℕ) :
-    ∑ x, (iid μ k x).toReal * occurrenceCount x b = k * (μ b).toReal := by
-  exact ex_occ μ b k
+    ∑ x, (iid μ k x).toReal * occurrenceCount x b = k * (μ b).toReal :=
+  ex_occ μ b k
 
 /-- **Joint moment of two occurrence counts** among `k` independent draws from `μ`:
 `E[N_a N_b] = k (k - 1) μ(a) μ(b) + k [a = b] μ(a)`. -/
 theorem sum_iid_mul_occurrenceCount_mul_occurrenceCount (a b : α) (k : ℕ) :
     ∑ x, (iid μ k x).toReal * ((occurrenceCount x a : ℝ) * occurrenceCount x b) =
-      k * (k - 1) * (μ a).toReal * (μ b).toReal + k * (if a = b then (μ a).toReal else 0) := by
-  exact ex_occ_mul_occ μ a b k
+      k * (k - 1) * (μ a).toReal * (μ b).toReal + k * (if a = b then (μ a).toReal else 0) :=
+  ex_occ_mul_occ μ a b k
 
 /-- **Joint moment of the collision count and an occurrence count** among `k` independent draws
 from `μ`: `E[C N_b] = k (k - 1) (k - 2) ‖μ‖₂² μ(b) / 2 + k (k - 1) μ(b)²`. -/

@@ -185,11 +185,8 @@ private theorem reconstructPadFn_congr_of_forall_ne [DecidableEq N] (hash : K �
   | nil => exact h
   | cons e tr ih =>
     rcases e with ⟨⟨m', x'⟩, t'⟩
-    simp only [reconstructPadFn_cons]
     refine ih fun z hz => ?_
-    by_cases he : z = x'
-    · subst he; simp
-    · simp [Function.update_of_ne he, h z hz]
+    by_cases he : z = x' <;> simp [he, h z hz]
 
 private theorem reconstructPadFn_append_update_self [DecidableEq N] (hash : K → M → Y) (k : K)
     (tr : List ((M × N) × Y)) (m : M) (x : N) (t r : Y) (table : N → Y) :
@@ -466,12 +463,10 @@ theorem seed_uniform_checkNonceSUF_le {seed : PMF K} {hash : K → M → Y} {ε 
       max ε (Fintype.card Y : ℝ≥0∞)⁻¹ := by
   by_cases hnodup : (tr.map (fun e => e.1.2)).Nodup
   · by_cases hx : out.1.2 ∈ tr.map (fun e => e.1.2)
-    · rw [List.mem_map] at hx
-      rcases hx with ⟨⟨⟨m, x⟩, t⟩, he, hex⟩
+    · rcases List.mem_map.mp hx with ⟨⟨⟨m, x⟩, t⟩, he, rfl⟩
       have hpad (k : K) (table : N → Y) :
-          reconstructPadFn hash k tr table out.1.2 = -hash k m + t := by
-        rw [← hex]
-        exact reconstructPadFn_apply_of_mem_of_nodup hash k he hnodup table
+          reconstructPadFn hash k tr table out.1.2 = -hash k m + t :=
+        reconstructPadFn_apply_of_mem_of_nodup hash k he hnodup table
       have hbind (k : K) :
           ((PMF.uniformOfFintype (N → Y)).bind fun table =>
             PMF.pure (checkNonceSUF hash k (reconstructPadFn hash k tr table) tr out)) =
@@ -485,24 +480,19 @@ theorem seed_uniform_checkNonceSUF_le {seed : PMF K} {hash : K → M → Y} {ε 
       rcases hcheck with ⟨⟨-, hnotmem⟩, hv⟩
       have valid := (verify_eq_true_iff _ _ _ _ _).mp hv
       have hne : out.1.1 ≠ m := by
-        intro hmeq
-        apply hnotmem
-        have hteq : out.2 = t := by
-          have hv' := (add_recovered_offset_eq_iff (hash k m) (hash k out.1.1) t out.2).mp valid
-          rw [hmeq, sub_self] at hv'
-          exact sub_eq_zero.mp hv'.symm
-        have hout : out = ((m, x), t) := Prod.ext (Prod.ext hmeq hex.symm) hteq
-        rwa [hout]
+        rintro rfl
+        have hv' :=
+          (add_recovered_offset_eq_iff (hash k out.1.1) (hash k out.1.1) t out.2).mp valid
+        rw [sub_self] at hv'
+        obtain rfl : out.2 = t := sub_eq_zero.mp hv'.symm
+        exact hnotmem he
       simp [hne, valid]
     · rw [PMF.bind_apply]
       refine (tsum_mul_le_of_forall_le seed fun k => ?_).trans (le_max_right _ _)
-      have hpad (table : N → Y) :
-          reconstructPadFn hash k tr table out.1.2 = table out.1.2 :=
-        reconstructPadFn_apply_of_not_mem hash k hx table
       refine (bind_apply_mono_on_support (PMF.uniformOfFintype (N → Y))
         (g := fun table => PMF.pure (verify hash k (table out.1.2) out.1.1 out.2)) true
         fun table _ => ?_).trans (le_of_eq ?_)
-      · simp only [checkNonceSUF, hpad]
+      · simp only [checkNonceSUF, reconstructPadFn_apply_of_not_mem hash k hx]
         cases decide (tr.map (fun e => e.1.2)).Nodup && !tr.contains out <;> simp
       rw [PMF.bind_uniformOfFintype_update out.1.2]
       simp only [Function.update_self, PMF.bind_const]
@@ -814,20 +804,13 @@ private theorem cwNonceAccept_imp_checkNonceSUF (msgLen : ℕ → ℕ)
   have hround : ofBitTriple (toBitTriple (msgLen n) n cand) = cand :=
     ofBitTriple_toBitTriple hmsg hnonce htag_len
   have htr_nodup : (tr.map (fun e => e.1.2)).Nodup := by
-    have hrev : (init.reverse.map (fun e => e.1.2)).Nodup := by
-      rw [List.map_reverse]
-      exact List.nodup_reverse.mpr hnodup
     have hsub_map : (tr.map (fun e => e.1.2)).map List.ofFn <+
-        init.reverse.map (fun e => e.1.2) := by
-      simpa only [List.map_map, Function.comp_def, ofBitTriple] using
+        (init.map (fun e => e.1.2)).reverse := by
+      simpa only [List.map_map, Function.comp_def, ofBitTriple, List.map_reverse] using
         hsub.map (fun e => e.1.2)
-    exact List.Nodup.of_map List.ofFn (hrev.sublist hsub_map)
-  have htr_notmem : toBitTriple (msgLen n) n cand ∉ tr := by
-    intro hmem
-    have hmem_map : cand ∈ tr.map ofBitTriple := by
-      rw [← hround]
-      exact List.mem_map_of_mem hmem
-    exact hnotmem (List.mem_reverse.mp (hsub.subset hmem_map))
+    exact .of_map List.ofFn ((List.nodup_reverse.mpr hnodup).sublist hsub_map)
+  have htr_notmem : toBitTriple (msgLen n) n cand ∉ tr := fun hmem =>
+    hnotmem (List.mem_reverse.mp (hsub.subset (hround ▸ List.mem_map_of_mem hmem)))
   have hverify :
       verify (fun k (m : BitString (msgLen n)) => BitString.ofList n (hash n k (List.ofFn m)))
         k (table (toBitTriple (msgLen n) n cand).1.2)
@@ -877,23 +860,20 @@ private theorem step_cwNonceLogHandler_randomFunctionOracle
     refine ⟨?_, ?_⟩
     · simp [pmf_norm, Functor.map_map, OracleComp.interpret_map, ProbOracleComp.interpret_query,
         ← htag, t]
-    · rintro _ _ _ h
-      cases h
+    · rintro _ _ _ ⟨⟩
       dsimp only [id_eq]
       rw [List.map_append, List.map_singleton, List.reverse_cons]
       have he : ofBitTriple ((BitString.ofList (msgLen n) msg, BitString.ofList n nonce), t) =
           ((msg, nonce), List.ofFn t) := by
         simp [ofBitTriple, BitString.ofFn_ofList hmsg, BitString.ofFn_ofList hnonce]
       rw [he]
-      exact hsub.append (List.Sublist.refl _)
-  · have hcond' : (msg.length == msgLen n && nonce.length == n) = false :=
-      Bool.eq_false_iff.mpr hcond
-    simp only [hcond', Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
+      exact hsub.append (.refl _)
+  · simp only [Bool.not_eq_true] at hcond
+    simp only [hcond, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
       OracleComp.interpret_pure, ProbComp.eval_pure, PMF.pure_map, PMF.support_pure,
       Set.mem_singleton_iff]
     refine ⟨trivial, ?_⟩
-    rintro _ _ _ h
-    cases h
+    rintro _ _ _ ⟨⟩
     exact hsub
 
 /-- **Ideal-game bound for `prfNonceToPrfDistinguisher`**, a step of the proof of

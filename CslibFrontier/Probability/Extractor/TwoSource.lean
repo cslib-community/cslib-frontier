@@ -137,7 +137,8 @@ theorem dist_map_uniformOfFintype_bool {α : Type*} [Fintype α] (p : PMF α) (f
       1 - 2 * ∑ a, if true = f a then (p a).toReal else 0 := by
     rw [mul_sum, ← sum_toReal p, ← sum_sub_distrib]
     refine sum_congr rfl fun a _ => ?_
-    cases f a <;> simp [signVal]; ring
+    cases f a <;> simp [signVal]
+    ring
   rw [hsign, show (1 : ℝ) - 2 * ∑ a, (if true = f a then (p a).toReal else 0) =
     -(2 * ((∑ a, if true = f a then (p a).toReal else 0) - 1 / 2)) by ring, abs_neg, abs_mul,
     abs_two]
@@ -163,26 +164,21 @@ theorem sum_mul_abs_bias_dotProduct_le {p q : PMF (ι → Bool)} (hp : k₁ ≤ 
     ∑ y, (q y).toReal * |∑ x, (p x).toReal * signVal (x ⬝ᵥ y)| ≤
       2 ^ ((Fintype.card ι - k₁ - k₂) / 2) := by
   set c : (ι → Bool) → ℝ := fun y => ∑ x, (p x).toReal * signVal (x ⬝ᵥ y)
-  have hsq : (∑ y, (q y).toReal * |c y|) ^ 2 ≤
-      (2 ^ ((Fintype.card ι - k₁ - k₂) / 2)) ^ 2 := by
-    calc
-      (∑ y, (q y).toReal * |c y|) ^ 2 ≤ (∑ y, (q y).toReal ^ 2) * ∑ y, |c y| ^ 2 :=
-        sum_mul_sq_le_sq_mul_sq _ _ _
-      _ = (∑ y, (q y).toReal ^ 2) * (2 ^ Fintype.card ι * ∑ x, (p x).toReal ^ 2) := by
-        simp only [sq_abs, c]
-        rw [sum_sq_sum_mul_signVal_dotProduct]
-      _ ≤ 2 ^ (-k₂) * (2 ^ Fintype.card ι * 2 ^ (-k₁)) := by
-        gcongr
-        · exact sum_sq_le_of_le_minEntropy hq
-        · exact sum_sq_le_of_le_minEntropy hp
-      _ = (2 ^ ((Fintype.card ι - k₁ - k₂) / 2)) ^ 2 := by
-        rw [← Real.rpow_natCast (2 : ℝ) (Fintype.card ι), ← Real.rpow_natCast _ 2,
-          ← Real.rpow_mul zero_le_two, ← Real.rpow_add two_pos, ← Real.rpow_add two_pos]
-        congr 1
-        push_cast
-        ring
-  exact (pow_le_pow_iff_left₀ (sum_nonneg fun y _ => mul_nonneg ENNReal.toReal_nonneg
-    (abs_nonneg _)) (by positivity) two_ne_zero).mp hsq
+  refine (pow_le_pow_iff_left₀ (sum_nonneg fun y _ => mul_nonneg ENNReal.toReal_nonneg
+    (abs_nonneg _)) (by positivity) two_ne_zero).mp ?_
+  calc
+    (∑ y, (q y).toReal * |c y|) ^ 2 ≤ (∑ y, (q y).toReal ^ 2) * ∑ y, |c y| ^ 2 :=
+      sum_mul_sq_le_sq_mul_sq _ _ _
+    _ = (∑ y, (q y).toReal ^ 2) * (2 ^ Fintype.card ι * ∑ x, (p x).toReal ^ 2) := by
+      simp only [sq_abs, c, sum_sq_sum_mul_signVal_dotProduct]
+    _ ≤ 2 ^ (-k₂) * (2 ^ Fintype.card ι * 2 ^ (-k₁)) := by
+      gcongr
+      · exact sum_sq_le_of_le_minEntropy hq
+      · exact sum_sq_le_of_le_minEntropy hp
+    _ = (2 ^ ((Fintype.card ι - k₁ - k₂) / 2)) ^ 2 := by
+      rw [← Real.rpow_natCast (2 : ℝ) (Fintype.card ι), ← Real.rpow_natCast _ 2,
+        ← Real.rpow_mul zero_le_two, ← Real.rpow_add two_pos, ← Real.rpow_add two_pos]
+      exact congrArg _ (by push_cast; ring)
 
 /-- **The Chor–Goldreich theorem, strong form.** The inner product modulo two of bit strings
 indexed by `ι`, with `n = |ι|`, is a two-source extractor strong in the second source: for
@@ -247,27 +243,22 @@ theorem exists_minEntropy_bind_dotProduct_eq_pure (S : Finset ι) :
   refine ⟨uniformOfFinset (supportedOn S) (supportedOn_nonempty S),
     uniformOfFinset (supportedOn Sᶜ) (supportedOn_nonempty Sᶜ),
     minEntropy_uniformOfFinset_supportedOn S, minEntropy_uniformOfFinset_supportedOn Sᶜ, ?_⟩
-  have horth : ∀ x ∈ supportedOn S, ∀ y ∈ supportedOn Sᶜ, x ⬝ᵥ y = false := by
-    intro x hx y hy
-    refine sum_eq_zero fun i _ => ?_
-    by_cases hi : i ∈ S
-    · rw [eq_false_of_mem_supportedOn hy (by simpa using hi)]
-      exact mul_zero (x i)
-    · rw [eq_false_of_mem_supportedOn hx hi]
-      exact zero_mul (y i)
   refine (bind_congr_on_support _ _ (fun _ => PMF.pure false) fun x hx => ?_).trans
     (PMF.bind_const _ _)
   refine (map_congr_on_support _ _ (fun _ => false) fun y hy => ?_).trans (PMF.map_const _ _)
   rw [mem_support_uniformOfFinset_iff] at hx hy
-  exact horth x hx y hy
+  refine sum_eq_zero fun i _ => ?_
+  by_cases hi : i ∈ S
+  · exact eq_false_of_mem_supportedOn hy (by simpa using hi) ▸ mul_zero (x i)
+  · exact eq_false_of_mem_supportedOn hx hi ▸ zero_mul (y i)
 
 /-- **The threshold `k₁ + k₂ > n` is necessary.** For every set `S` of coordinates, the inner
 product is not a two-source extractor for min-entropies `|S|` and `|Sᶜ|`, which sum to `n`, with
 error less than `1 / 2` (`exists_minEntropy_bind_dotProduct_eq_pure`). -/
 theorem not_isTwoSourceExtractor_dotProduct (S : Finset ι) (hε : ε < 1 / 2) :
     ¬ IsTwoSourceExtractor (fun x y : ι → Bool => x ⬝ᵥ y) S.card Sᶜ.card ε := by
-  intro h
   obtain ⟨p, q, hp, hq, hconst⟩ := exists_minEntropy_bind_dotProduct_eq_pure S
+  intro h
   have hdist := h p q hp.ge hq.ge
   rw [hconst, dist_uniformOfFintype_bool] at hdist
   norm_num at hdist

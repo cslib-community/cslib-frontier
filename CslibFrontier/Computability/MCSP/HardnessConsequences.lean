@@ -158,9 +158,8 @@ private theorem EXP_encPair_subset_PPolyOn_of_EXP_subset_PPoly
   have hpre : decodePair ⁻¹' L ∈ DTIME encBits fun n => 2 ^ (n + 1) ^ (k + 1) := by
     refine preimage_mem_DTIME (C := 3) hk' hdecO fun w => ?_
     set n := w.length
-    have h₁ : n + 1 ≤ (n + 1) ^ (k + 1) := Nat.le_self_pow (by omega) (n + 1)
-    have h₂ : (n + 1) ^ (k + 1) ≤ 2 ^ (n + 1) ^ (k + 1) := Nat.lt_two_pow_self.le
-    have h₃ : n ≤ 2 ^ (n + 1) ^ (k + 1) := by omega
+    have h₁ : n + 1 ≤ 2 ^ (n + 1) ^ (k + 1) :=
+      (Nat.le_self_pow (by omega) (n + 1)).trans Nat.lt_two_pow_self.le
     have h₄ : 2 ^ (encPair encBits encBits (decodePair w)).length ^ (k + 1) ≤
         2 ^ (n + 1) ^ (k + 1) :=
       Nat.pow_le_pow_right (by norm_num)
@@ -168,13 +167,12 @@ private theorem EXP_encPair_subset_PPolyOn_of_EXP_subset_PPoly
     change n + n + 2 ^ (encPair encBits encBits (decodePair w)).length ^ (k + 1) ≤
       3 * 2 ^ (n + 1) ^ (k + 1) + 3
     omega
-  have hpre_EXP : decodePair ⁻¹' L ∈ EXP encBits := DTIME_two_pow_subset_EXP (by fun_prop) hpre
-  have hpre_PPoly : decodePair ⁻¹' L ∈ PPolyOn encBits := hEXP hpre_EXP
-  have hred : PolyTimeReducible (encPair encBits encBits) encBits L (decodePair ⁻¹' L) :=
+  have hpre_PPoly : decodePair ⁻¹' L ∈ PPolyOn encBits :=
+    hEXP (DTIME_two_pow_subset_EXP (by fun_prop) hpre)
+  exact PolyTimeReducible.mem_PPolyOn
     ⟨encPair encBits encBits, .of_eq fun _ => rfl, fun p => by
       change p ∈ L ↔ decodePair (encPair encBits encBits p) ∈ L
-      rw [decodePair_encPair]⟩
-  exact hred.mem_PPolyOn hpre_PPoly
+      rw [decodePair_encPair]⟩ hpre_PPoly
 
 end Cslib.Complexity
 
@@ -304,16 +302,13 @@ theorem boundedMCSPSearch_eq_true_iff {m S K : ℕ} {T : List Bool} (hT : T.leng
   constructor
   · rintro ⟨u, -, hu⟩
     obtain ⟨c, hcS, hall⟩ := exists_circuit_of_checkCertificate hu
-    refine complexity_le_iff.2 ⟨c, Circuit.computes_single_iff.2 fun y => ?_, hcS⟩
-    have hy := hall y
-    simp only [beq_iff_eq] at hy
-    exact hy
+    exact complexity_le_iff.2
+      ⟨c, Circuit.computes_single_iff.2 fun y => beq_iff_eq.mp (hall y), hcS⟩
   · intro hcomp
     obtain ⟨c, hc, hsize⟩ := exists_computes_size_eq_complexity (I := interpretation)
       (f := single (tableFunction m T))
-    have hcS : c.size ≤ S := hsize ▸ hcomp
     obtain ⟨u, hu_len, hV⟩ := exists_checkCertificate_append
-      (accept := fun y out => out == tableValue T y) hcS fun y => by
+      (accept := fun y out => out == tableValue T y) (hsize ▸ hcomp) fun y => by
         rw [Circuit.computes_single_iff.1 hc y]
         exact beq_self_eq_true _
     exact ⟨u, hu_len, by simpa using hV []⟩
@@ -325,11 +320,8 @@ theorem boundedMCSPSearch_ofFn_eq_true_iff (x : Instance) {S K : ℕ}
     (hK : certLength x.arity S ≤ Nat.log 2 K) :
     boundedMCSPSearch (List.ofFn x.table) S K = true ↔
       complexity interpretation (single x.function) ≤ S := by
-  rw [boundedMCSPSearch_eq_true_iff List.length_ofFn hK]
-  have hfun : tableFunction x.arity (List.ofFn x.table) = x.function := by
-    funext y
-    exact tableValue_ofFn x y
-  rw [hfun]
+  rw [boundedMCSPSearch_eq_true_iff List.length_ofFn hK,
+    (funext (tableValue_ofFn x) : tableFunction x.arity (List.ofFn x.table) = x.function)]
 
 end Cslib.MCSP
 
@@ -478,8 +470,6 @@ theorem NEXP_subset_EXP_of_MCSP_npHard_of_EXP_subset_PPoly
     ext a
     set x := enc a
     set n := x.length
-    have hunframe_zx : (unframe (z x)).length = n := by
-      simp [z, n]
     have hcert_le :
         certLength (R (z x)).arity (min (s_bound n) (R (z x)).threshold) ≤
           Nat.log 2 (2 ^ g n) := by
@@ -490,9 +480,9 @@ theorem NEXP_subset_EXP_of_MCSP_npHard_of_EXP_subset_PPoly
       change boundedMCSPSearch (List.ofFn (R (z x)).table)
         (min (s_bound (unframe (z x)).length) (R (z x)).threshold) (2 ^ g n) = true ↔
         R (z x) ∈ MCSP
-      rw [hunframe_zx, boundedMCSPSearch_ofFn_eq_true_iff (R (z x)) hcert_le,
-        le_min_iff, MCSP.mem_iff]
-      exact ⟨fun h => h.2, fun h => ⟨hcomp_le x, h⟩⟩
+      simp only [z, unframe_frame_append, n]
+      rw [boundedMCSPSearch_ofFn_eq_true_iff (R (z x)) hcert_le, le_min_iff, MCSP.mem_iff]
+      exact ⟨And.right, fun h => ⟨hcomp_le x, h⟩⟩
     have hpad_iff : a ∈ A ↔ z x ∈ ntm.padded c := by
       refine (hdec.frame_append_mem_padded_iff ?_).symm
       change Nat.card (Turing.Action k_tapes Bool State) * (c₁ * 2 ^ n ^ k + c₂) ≤
@@ -501,14 +491,11 @@ theorem NEXP_subset_EXP_of_MCSP_npHard_of_EXP_subset_PPoly
       have hpow_le : 2 ^ n ^ k ≤ 2 ^ f n := by
         refine Nat.pow_le_pow_right (by norm_num) ?_
         rcases Nat.eq_zero_or_pos n with h0 | hpos
-        · rcases k with _ | k <;> simp [f, h0]
+        · cases k <;> simp [f, h0]
         · exact (Nat.pow_le_pow_right hpos (Nat.le_succ k)).trans (Nat.le_succ _)
-      have hmul : c₁ * 2 ^ n ^ k + c₂ ≤ (c₁ + c₂) * (2 * n + 1 + 2 ^ f n) := by
-        have : 1 ≤ 2 * n + 1 + 2 ^ f n :=
-          (Nat.le_add_left 1 (2 * n)).trans (Nat.le_add_right _ _)
-        nlinarith
+      have h1 : 1 ≤ 2 * n + 1 + 2 ^ f n := Nat.succ_le_of_lt (by positivity)
       rw [Nat.mul_assoc]
-      exact Nat.mul_le_mul_left _ hmul
+      exact Nat.mul_le_mul_left _ (by nlinarith)
     exact (hpad_iff.trans (hR_iff (z x))).trans hsearch_iff.symm
   exact hA_eq ▸ hEXP_pre
 

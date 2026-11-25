@@ -104,24 +104,18 @@ theorem denote_evalOp (k : M.Config) (o : Op M r) (s : FiniteState M r) :
     (evalOp k o s).map (fun t => t.denote.data) = o.eval k s.denote.data := by
   cases o with
   | const d c =>
-    rw [Model.eval_const_eq_map_checkedConstant]
-    simp only [evalOp, Option.map_map]
-    rfl
+    rw [Model.eval_const_eq_map_checkedConstant, evalOp, Option.map_map]; rfl
   | copy d src => exact denote_move k s d (s.regs src)
   | alu f d args =>
-    rw [Model.eval_alu_eq_map_checkedOp]
-    simp only [evalOp, Option.map_map]
-    rfl
+    rw [Model.eval_alu_eq_map_checkedOp, evalOp, Option.map_map]; rfl
   | load d a =>
-    change ((M.address k (s.regs a)).bind _).map _ =
-      (M.address k (s.regs a)).bind _
-    cases h : M.address k (s.regs a) with
+    change ((M.address k (s.regs a)).bind _).map _ = (M.address k (s.regs a)).bind _
+    cases M.address k (s.regs a) with
     | none => rfl
     | some p => exact denote_move k s d (SparseMemory.read s.default p s.memory)
   | store a src =>
-    change ((M.address k (s.regs a)).bind _).map _ =
-      (M.address k (s.regs a)).bind _
-    cases h : M.address k (s.regs a) with
+    change ((M.address k (s.regs a)).bind _).map _ = (M.address k (s.regs a)).bind _
+    cases M.address k (s.regs a) with
     | none => rfl
     | some p =>
       simp only [Option.bind_some]
@@ -182,8 +176,8 @@ theorem dispatch_eq_getElem? (k : M.Config) (p : Program M r) (pc : ℕ)
   | cons i p ih =>
     by_cases he : s.pc = pc
     · simp [dispatch, he]
-    · have hn : s.pc - pc = (s.pc - (pc + 1)) + 1 := by omega
-      simp only [dispatch, ite_eq_right he, hn, List.getElem?_cons_succ]
+    · simp only [dispatch, ite_eq_right he, show s.pc - pc = (s.pc - (pc + 1)) + 1 by omega,
+        List.getElem?_cons_succ]
       exact ih (pc + 1) (by omega)
 
 /-- Exact one-step refinement for arbitrary finite configurations, including all faults.
@@ -192,33 +186,27 @@ theorem denote_step (k : M.Config) (p : Program M r) (s : FiniteState M r) :
     denoteResult (step k p s) = GenericRAM.step k p s.denote := by
   by_cases hc : M.validPC k s.pc = true
   · simp only [step, hc, ite_true, GenericRAM.step, show s.denote.pc = s.pc from rfl]
-    rw [dispatch_eq_getElem? k p 0 s (Nat.zero_le _)]
-    simp only [Nat.sub_zero]
+    rw [dispatch_eq_getElem? k p 0 s (Nat.zero_le _), Nat.sub_zero]
     cases hp : p[s.pc]? with
     | none => rfl
     | some i =>
       simp only [bind, Option.bind_some]
       cases i with
       | op o =>
-        have h := denote_evalOp k o s
+        have h := (denote_evalOp k o s).symm
         cases he : evalOp k o s with
-        | none =>
-          simp only [he, Option.map_none] at h
-          simp only [evalInstr, he, bind, Option.bind_none, denoteResult, ← h]
-        | some t =>
-          simp only [he, Option.map_some] at h
-          simp only [evalInstr, he, bind, Option.bind_some, denote_resume, ← h]
+        | none => simp_all [evalInstr, bind, denoteResult]
+        | some t => simp_all [evalInstr, bind]
       | jump t => exact denote_resume k t s
       | branch c t =>
-        cases c with
-        | test f args =>
-          change denoteResult ((M.evalTest k f (s.regs ∘ args)).bind _) =
-            match M.evalTest k f (s.regs ∘ args) with
-            | some b => Outcome.continue k ⟨if b then t else s.pc + 1, s.denote.data⟩
-            | none => Outcome.fault
-          cases hb : M.evalTest k f (s.regs ∘ args) with
-          | none => rfl
-          | some b => exact denote_resume k (if b then t else s.pc + 1) s
+        rcases c with ⟨f, args⟩
+        change denoteResult ((M.evalTest k f (s.regs ∘ args)).bind _) =
+          match M.evalTest k f (s.regs ∘ args) with
+          | some b => Outcome.continue k ⟨if b then t else s.pc + 1, s.denote.data⟩
+          | none => Outcome.fault
+        cases M.evalTest k f (s.regs ∘ args) with
+        | none => rfl
+        | some b => exact denote_resume k (if b then t else s.pc + 1) s
       | halt i =>
         by_cases hm : M.validMove k (s.regs i) = true <;>
           simp [evalInstr, denoteResult, denote, hm]

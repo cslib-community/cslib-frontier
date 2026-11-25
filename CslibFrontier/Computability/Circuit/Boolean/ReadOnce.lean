@@ -782,14 +782,10 @@ private theorem sum_lastCases_leafSize (hn : 0 < n) (p : Program signature n g) 
     rw [← Finset.sum_erase_add _ _ hlast, hsum_prior, hlast_leaf,
       ← Finset.sum_union hdisj, ← hdef, hF'_sum, hopened_eq, hcost_gate]
     omega
-  · have herase : frontier.erase (.gate (.last g)) = frontier :=
-      Finset.erase_eq_of_notMem hlast
-    have hsum_f : ∑ w ∈ frontier, (F w).leafSize =
-        ∑ w' ∈ priorFrontier frontier, (F' w').leafSize := by
-      rw [← hsum_prior, herase]
+  · rw [Finset.erase_eq_of_notMem hlast] at hsum_prior
     have hdef : openedFrontier frontier wires = priorFrontier frontier := by
       simp [openedFrontier, hlast]
-    rw [hsum_f, ← hdef, hF'_sum, hopened_eq, hcost_gate]
+    rw [hsum_prior, ← hdef, hF'_sum, hopened_eq, hcost_gate]
     omega
 
 /-- When a frontier of wires in a De Morgan program achieves the binary-cost support bound
@@ -874,10 +870,7 @@ theorem Circuit.exists_posFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
       ∀ x, F.eval x = c.eval interpretation x 0 := by
   have hess (i : Fin n) : EssentialAt (c.eval interpretation) i := by
     obtain ⟨y₀, y₁, hdiff, _, _, hy₀, hy₁⟩ := hpos i
-    refine ⟨y₀, y₁, hdiff, fun h => ?_⟩
-    have h0 := congrFun h 0
-    rw [hy₀, hy₁] at h0
-    exact Bool.false_ne_true h0
+    exact ⟨y₀, y₁, hdiff, fun h => by simpa [hy₀, hy₁] using congrFun h 0⟩
   have hsupp_eq : c.inputSupport = Finset.univ :=
     Finset.eq_univ_iff_forall.mpr fun i => (hess i).mem_support (c.dependsOn_eval interpretation)
   have hsupp : n ≤ c.inputSupport.card := by
@@ -899,10 +892,8 @@ theorem Circuit.exists_posFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
   let F := T.toPosFormula
   have hF_leaf : F.leafSize = n := by
     rw [LitFormula.leafSize_toPosFormula, hT_leaf]
-  have hF_supp : F.leafSupport = Finset.univ := by
-    refine Finset.Subset.antisymm (Finset.subset_univ _) ?_
-    rw [← hpos_univ]
-    exact T.posSupport_subset_leafSupport
+  have hF_supp : F.leafSupport = Finset.univ :=
+    Finset.Subset.antisymm (Finset.subset_univ _) (hpos_univ ▸ T.posSupport_subset_leafSupport)
   have hF_ro : F.IsReadOnce := by
     rw [PosFormula.isReadOnce_iff_card_leafSupport_eq_leafSize, hF_supp, Finset.card_univ,
       Fintype.card_fin, hF_leaf]

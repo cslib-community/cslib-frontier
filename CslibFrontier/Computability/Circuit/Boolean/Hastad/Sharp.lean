@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Depth
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Data.Nat.Div
 import CslibFrontier.Logics.Propositional.Parity
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Positivity
 
 /-!
@@ -227,19 +228,15 @@ theorem two_pow_mul_card_filter_exists_not_shallow_le_depthWith {p : Program sig
         omega)]
       refine card_le_card fun k hk => ?_
       simp only [mem_union, mem_filter, mem_univ, true_and] at hk ⊢
-      rcases hk with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
-      · exact ⟨h₁, by omega⟩
-      · exact ⟨h₁, h₂.le⟩
+      rcases hk with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ <;> exact ⟨h₁, by omega⟩
     refine PartialAssignment.mul_card_filter_withFree_le hℓ'ℓ hℓn ih (fun ρ hρ hb => ?_) hG
     -- a later stage switches conjunctions and disjunctions of shallow functions
     have hρℓ := PartialAssignment.mem_withFree.1 hρ
     refine two_pow_mul_card_filter_extensions_le_depthWith (k := s - 1) (j := i + 1) (by omega)
       (by omega) hsm ?_ fun k' hk' => ?_
-    · rw [hρℓ]
-      refine le_trans (Nat.mul_le_mul_right _ (by omega)) hℓ
+    · exact hρℓ ▸ (Nat.mul_le_mul_right _ (by omega)).trans hℓ
     · rw [Nat.sub_add_cancel (by omega)]
-      by_contra hdeep
-      exact hb ⟨k', hk', hdeep⟩
+      exact not_not.1 fun hdeep => hb ⟨k', hk', hdeep⟩
 
 /-- Under a restriction leaving at least `s ≥ 2` bits free and making every gate of AND/OR depth at
 most `j` `s`-shallow, no wire of AND/OR depth at most `j + 1` computes restricted parity, up to
@@ -325,9 +322,8 @@ private theorem two_pow_le_card_andOr_of_trace_eq_parity {p : Program signature 
     exact Nat.mul_lt_mul_of_pos_right (hcard.trans_lt hS) hW
   obtain ⟨ρ, hρ, hgood⟩ := exists_mem_notMem_of_card_lt_card hlt
   have hall : ∀ k, p.depthsWith andOrCost k ≤ e + 1 →
-      Shallow s ρ fun x => p.eval interpretation x k := fun k hk => by
-    by_contra hdeep
-    exact hgood (mem_filter.2 ⟨hρ, k, hk, hdeep⟩)
+      Shallow s ρ fun x => p.eval interpretation x k := fun k hk =>
+    not_not.1 fun hdeep => hgood (mem_filter.2 ⟨hρ, k, hk, hdeep⟩)
   exact not_forall_trace_fill_eq_parity_bne hs ((PartialAssignment.mem_withFree.1 hρ).symm ▸ hsℓ)
     hall w (by omega) false fun y => by rw [hw, Bool.bne_false]
 
@@ -388,12 +384,11 @@ private theorem two_rpow_le_two_mul_of_forall {d m : ℕ} (hd₂ : 2 ≤ d) (hn 
       pow_le_pow_left₀ (by positivity) (by exact_mod_cast hsr) _
     rw [hr] at this
     exact_mod_cast this
-  have hsize : (2 : ℝ) ^ s ≤ m := by exact_mod_cast h s hs hsn
   calc (2 : ℝ) ^ (r / 17) ≤ 2 ^ ((s + 1 : ℕ) : ℝ) :=
         Real.rpow_le_rpow_of_exponent_le (by norm_num)
           (by push_cast; exact (Nat.lt_floor_add_one _).le)
     _ = 2 * 2 ^ s := by rw [Real.rpow_natCast, pow_succ']
-    _ ≤ 2 * m := by linarith
+    _ ≤ 2 * m := by cast_linarith [h s hs hsn]
 
 /-- **Håstad's theorem with the sharp exponent**, in round numbers. A circuit of negations and
 unbounded fan-in conjunctions and disjunctions of AND/OR depth at most `d ≥ 2` computing the

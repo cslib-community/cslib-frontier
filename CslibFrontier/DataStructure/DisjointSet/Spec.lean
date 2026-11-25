@@ -109,8 +109,8 @@ theorem rel_refl (p : Partition n) (x : Fin n) : p.rel x x = true :=
 theorem rel_comm (p : Partition n) (x y : Fin n) : p.rel x y = p.rel y x := by
   cases hxy : p.rel x y <;> cases hyx : p.rel y x
   · rfl
-  · exact absurd (p.symm hyx) (by simp [hxy])
-  · exact absurd (p.symm hxy) (by simp [hyx])
+  · simp [p.symm hyx] at hxy
+  · simp [p.symm hxy] at hyx
   · rfl
 
 /-- View a `Partition n` as a `Setoid (Fin n)`. -/
@@ -157,22 +157,17 @@ theorem classOf_nonempty (p : Partition n) (x : Fin n) : (p.classOf x).Nonempty 
 /-- Two elements have the same equivalence class iff they are related in `p`. -/
 theorem classOf_eq_iff {p : Partition n} {x y : Fin n} :
     p.classOf x = p.classOf y ↔ p.rel x y = true := by
-  constructor
-  · intro h
-    have hy : y ∈ p.classOf x := h ▸ p.self_mem_classOf y
-    exact mem_classOf.mp hy
-  · intro hxy
-    ext z
-    simp only [mem_classOf]
-    exact ⟨fun hxz => p.trans (p.symm hxy) hxz, fun hyz => p.trans hxy hyz⟩
+  refine ⟨fun h => mem_classOf.mp (h ▸ p.self_mem_classOf y : y ∈ p.classOf x), fun hxy => ?_⟩
+  ext z
+  simp only [mem_classOf]
+  exact ⟨fun hxz => p.trans (p.symm hxy) hxz, fun hyz => p.trans hxy hyz⟩
 
 /-- Unrelated elements have disjoint equivalence classes. -/
 theorem disjoint_classOf_of_rel_eq_false {p : Partition n} {x y : Fin n}
     (h : p.rel x y = false) : Disjoint (p.classOf x) (p.classOf y) := by
   refine Finset.disjoint_left.mpr fun z hzx hzy => ?_
   have hxy : p.rel x y = true := p.trans (mem_classOf.mp hzx) (p.symm (mem_classOf.mp hzy))
-  rw [h] at hxy
-  cases hxy
+  simp [h] at hxy
 
 /-- The finite set of equivalence classes (connected components) of `p`. -/
 @[expose] def components (p : Partition n) : Finset (Finset (Fin n)) :=
@@ -207,10 +202,8 @@ theorem numComponents_pos (hn : 0 < n) (p : Partition n) : 0 < p.numComponents :
 @[simp]
 theorem numComponents_discrete (n : ℕ) : (discrete n).numComponents = n := by
   unfold numComponents components
-  rw [Finset.card_image_of_injective]
-  · exact Finset.card_fin n
-  · intro x y h
-    exact rel_discrete_eq_true.mp (classOf_eq_iff.mp h)
+  rw [Finset.card_image_of_injective _ fun x y h => rel_discrete_eq_true.mp (classOf_eq_iff.mp h),
+    Finset.card_fin]
 
 /-- Merge the equivalence classes of `x` and `y` in `p`. -/
 @[expose] def merge (p : Partition n) (x y : Fin n) : Partition n where
@@ -253,34 +246,17 @@ theorem rel_merge_eq_true {p : Partition n} {x y a b : Fin n} :
 theorem rel_merge_iff_eqvGen {p : Partition n} {x y a b : Fin n} :
     (p.merge x y).rel a b = true ↔
       Relation.EqvGen (fun u v => p.rel u v = true ∨ (u = x ∧ v = y)) a b := by
-  constructor
-  · intro h
-    rcases rel_merge_eq_true.mp h with hab | ⟨hax, hyb⟩ | ⟨hay, hxb⟩
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · rcases rel_merge_eq_true.mp h with hab | ⟨hax, hyb⟩ | ⟨hay, hxb⟩
     · exact .rel _ _ (.inl hab)
     · exact .trans _ x _ (.rel _ _ (.inl hax))
         (.trans _ y _ (.rel _ _ (.inr ⟨rfl, rfl⟩)) (.rel _ _ (.inl hyb)))
     · exact .trans _ y _ (.rel _ _ (.inl hay))
         (.trans _ x _ (.symm _ _ (.rel _ _ (.inr ⟨rfl, rfl⟩))) (.rel _ _ (.inl hxb)))
-  · intro h
-    induction h with
-    | rel u v huv =>
-      rcases huv with huv | ⟨rfl, rfl⟩
-      · exact rel_merge_eq_true.mpr (.inl huv)
-      · exact rel_merge_eq_true.mpr (.inr (.inl ⟨p.refl u, p.refl v⟩))
-    | refl u => exact (p.merge x y).refl u
-    | symm u v _ ih => exact (p.merge x y).symm ih
-    | trans u v w _ _ ih₁ ih₂ => exact (p.merge x y).trans ih₁ ih₂
-
-@[simp]
-theorem merge_self (p : Partition n) (x : Fin n) : p.merge x x = p := by
-  ext a b
-  cases h : p.rel a b
-  · simp only [rel_merge, h, Bool.false_or, Bool.or_self, Bool.and_eq_false_imp]
-    intro hax
-    cases hxb : p.rel x b
-    · rfl
-    · exact absurd (p.trans hax hxb) (by simp [h])
-  · simp [rel_merge, h]
+  · refine (p.merge x y).toSetoid.iseqv.eqvGen_iff.mp (h.mono ?_)
+    rintro u v (huv | ⟨rfl, rfl⟩)
+    exacts [rel_merge_eq_true.mpr (.inl huv),
+      rel_merge_eq_true.mpr (.inr (.inl ⟨p.refl u, p.refl v⟩))]
 
 theorem merge_comm (p : Partition n) (x y : Fin n) : p.merge x y = p.merge y x := by
   ext a b
@@ -294,14 +270,15 @@ theorem merge_of_rel {p : Partition n} {x y : Fin n} (h : p.rel x y = true) :
   ext a b
   cases hab : p.rel a b
   · simp only [rel_merge, hab, Bool.false_or, Bool.or_eq_false_iff, Bool.and_eq_false_imp]
-    refine ⟨fun hax => ?_, fun hay => ?_⟩
-    · cases hyb : p.rel y b
-      · rfl
-      · exact absurd (p.trans (p.trans hax h) hyb) (by simp [hab])
-    · cases hxb : p.rel x b
-      · rfl
-      · exact absurd (p.trans (p.trans hay (p.symm h)) hxb) (by simp [hab])
+    refine ⟨fun hax => Bool.eq_false_iff.mpr fun hyb => ?_,
+      fun hay => Bool.eq_false_iff.mpr fun hxb => ?_⟩
+    · simp [p.trans (p.trans hax h) hyb] at hab
+    · simp [p.trans (p.trans hay (p.symm h)) hxb] at hab
   · simp [rel_merge, hab]
+
+@[simp]
+theorem merge_self (p : Partition n) (x : Fin n) : p.merge x x = p :=
+  merge_of_rel (p.refl x)
 
 /-- Redundant merges preserve the number of components. -/
 theorem numComponents_merge_of_rel {p : Partition n} {x y : Fin n} (h : p.rel x y = true) :
@@ -313,23 +290,15 @@ private theorem classOf_merge_eq_union {p : Partition n} {x y z : Fin n}
     (p.merge x y).classOf z = p.classOf x ∪ p.classOf y := by
   ext w
   simp only [mem_classOf, Finset.mem_union, rel_merge_eq_true]
-  rcases hz with hzx | hzy
-  · constructor
-    · rintro (hzw | ⟨_, hyw⟩ | ⟨_, hxw⟩)
-      · exact .inl (p.trans (p.symm hzx) hzw)
-      · exact .inr hyw
-      · exact .inl hxw
-    · rintro (hxw | hyw)
-      · exact .inl (p.trans hzx hxw)
-      · exact .inr (.inl ⟨hzx, hyw⟩)
-  · constructor
-    · rintro (hzw | ⟨_, hyw⟩ | ⟨_, hxw⟩)
-      · exact .inr (p.trans (p.symm hzy) hzw)
-      · exact .inr hyw
-      · exact .inl hxw
-    · rintro (hxw | hyw)
-      · exact .inr (.inr ⟨hzy, hxw⟩)
-      · exact .inl (p.trans hzy hyw)
+  rcases hz with hzx | hzy <;> constructor
+  · rintro (hzw | ⟨_, hyw⟩ | ⟨_, hxw⟩)
+    exacts [.inl (p.trans (p.symm hzx) hzw), .inr hyw, .inl hxw]
+  · rintro (hxw | hyw)
+    exacts [.inl (p.trans hzx hxw), .inr (.inl ⟨hzx, hyw⟩)]
+  · rintro (hzw | ⟨_, hyw⟩ | ⟨_, hxw⟩)
+    exacts [.inr (p.trans (p.symm hzy) hzw), .inr hyw, .inl hxw]
+  · rintro (hxw | hyw)
+    exacts [.inr (.inr ⟨hzy, hxw⟩), .inl (p.trans hzy hyw)]
 
 private theorem classOf_merge_of_not_rel {p : Partition n} {x y z : Fin n}
     (hzx : p.rel z x = false) (hzy : p.rel z y = false) :
@@ -347,32 +316,15 @@ private theorem components_merge (p : Partition n) (x y : Fin n) :
   · rintro ⟨z, rfl⟩
     cases hzx : p.rel z x
     · cases hzy : p.rel z y
-      · right
-        rw [classOf_merge_of_not_rel hzx hzy]
-        refine ⟨?_, ?_, z, rfl⟩
-        · intro heq
-          have h := classOf_eq_iff.mp heq
-          rw [hzy] at h
-          cases h
-        · intro heq
-          have h := classOf_eq_iff.mp heq
-          rw [hzx] at h
-          cases h
-      · left
-        exact classOf_merge_eq_union (.inr hzy)
-    · left
-      exact classOf_merge_eq_union (.inl hzx)
+      · rw [classOf_merge_of_not_rel hzx hzy]
+        exact .inr ⟨fun heq => by simp [classOf_eq_iff.mp heq] at hzy,
+          fun heq => by simp [classOf_eq_iff.mp heq] at hzx, z, rfl⟩
+      · exact .inl (classOf_merge_eq_union (.inr hzy))
+    · exact .inl (classOf_merge_eq_union (.inl hzx))
   · rintro (rfl | ⟨hcy, hcx, z, rfl⟩)
     · exact ⟨x, classOf_merge_eq_union (.inl (p.refl x))⟩
-    · have hzx : p.rel z x = false := by
-        cases h : p.rel z x
-        · rfl
-        · exact absurd (classOf_eq_iff.mpr h) hcx
-      have hzy : p.rel z y = false := by
-        cases h : p.rel z y
-        · rfl
-        · exact absurd (classOf_eq_iff.mpr h) hcy
-      exact ⟨z, classOf_merge_of_not_rel hzx hzy⟩
+    · exact ⟨z, classOf_merge_of_not_rel (Bool.eq_false_iff.mpr fun h => hcx (classOf_eq_iff.mpr h))
+        (Bool.eq_false_iff.mpr fun h => hcy (classOf_eq_iff.mpr h))⟩
 
 /-- Merging two distinct equivalence classes decreases the number of components by exactly `1`. -/
 theorem numComponents_merge_of_not_rel {p : Partition n} {x y : Fin n}
@@ -381,30 +333,23 @@ theorem numComponents_merge_of_not_rel {p : Partition n} {x y : Fin n}
   unfold numComponents
   rw [components_merge]
   have hne : p.classOf y ≠ p.classOf x := fun heq => by
-    have hyx := classOf_eq_iff.mp heq
-    rw [p.symm hyx] at h
-    cases h
+    simp [p.symm (classOf_eq_iff.mp heq)] at h
   have hunion_not_mem : p.classOf x ∪ p.classOf y ∉ p.components := by
     intro hm
     obtain ⟨z, hz⟩ := mem_components.mp hm
-    have hzx : p.rel z x = true := by
-      have hx : x ∈ p.classOf z := hz ▸ Finset.mem_union_left _ (p.self_mem_classOf x)
-      exact mem_classOf.mp hx
-    have hzy : p.rel z y = true := by
-      have hy : y ∈ p.classOf z := hz ▸ Finset.mem_union_right _ (p.self_mem_classOf y)
-      exact mem_classOf.mp hy
-    have hxy := p.trans (p.symm hzx) hzy
-    rw [h] at hxy
-    cases hxy
+    have hzx : p.rel z x = true :=
+      mem_classOf.mp (hz ▸ Finset.mem_union_left _ (p.self_mem_classOf x) : x ∈ p.classOf z)
+    have hzy : p.rel z y = true :=
+      mem_classOf.mp (hz ▸ Finset.mem_union_right _ (p.self_mem_classOf y) : y ∈ p.classOf z)
+    simp [p.trans (p.symm hzx) hzy] at h
   have hunion_not_erase :
       p.classOf x ∪ p.classOf y ∉ (p.components.erase (p.classOf x)).erase (p.classOf y) :=
     fun hm => hunion_not_mem (Finset.erase_subset _ _ (Finset.erase_subset _ _ hm))
   rw [Finset.card_insert_of_notMem hunion_not_erase]
   have hy_mem : p.classOf y ∈ p.components.erase (p.classOf x) :=
     Finset.mem_erase.mpr ⟨hne, p.classOf_mem_components y⟩
-  have hx_mem : p.classOf x ∈ p.components := p.classOf_mem_components x
   have hcard₁ := Finset.card_erase_add_one hy_mem
-  have hcard₂ := Finset.card_erase_add_one hx_mem
+  have hcard₂ := Finset.card_erase_add_one (p.classOf_mem_components x)
   omega
 
 end Partition
@@ -566,40 +511,22 @@ theorem spanningForestEdges_rel_iff_eqvGen {n : ℕ} {E : Type} (endpts : E → 
   induction es generalizing p with
   | nil =>
     simp only [eval_spanningForestEdges_nil, List.not_mem_nil, false_and, exists_false, or_false]
-    constructor
-    · exact fun h => .rel _ _ h
-    · intro h
-      induction h with
-      | rel _ _ huv => exact huv
-      | refl u => exact p.refl u
-      | symm _ _ _ ih => exact p.symm ih
-      | trans _ _ _ _ _ ih₁ ih₂ => exact p.trans ih₁ ih₂
+    exact p.toSetoid.iseqv.eqvGen_iff.symm
   | cons e es ih =>
     rw [eval_spanningForestEdges_cons, ih (p.merge (endpts e).1 (endpts e).2)]
     clear ih
-    constructor
-    · intro h
-      induction h with
-      | rel u v huv =>
-        rcases huv with huv | ⟨f, hf, rfl, rfl⟩
-        · exact (Partition.rel_merge_iff_eqvGen.mp huv).mono fun w z hwz =>
-            hwz.elim .inl fun ⟨hw, hz⟩ => .inr ⟨e, List.mem_cons_self, hw, hz⟩
-        · exact .rel _ _ (.inr ⟨f, List.mem_cons_of_mem e hf, rfl, rfl⟩)
-      | refl u => exact .refl u
-      | symm _ _ _ ih' => exact .symm _ _ ih'
-      | trans _ _ _ _ _ ih₁ ih₂ => exact .trans _ _ _ ih₁ ih₂
-    · intro h
-      induction h with
-      | rel u v huv =>
-        rcases huv with huv | ⟨f, hf, rfl, rfl⟩
-        · exact .rel _ _ (.inl (Partition.rel_merge_eq_true.mpr (.inl huv)))
-        · rcases List.mem_cons.mp hf with rfl | hmem
-          · exact .rel _ _ (.inl (Partition.rel_merge_eq_true.mpr
-              (.inr (.inl ⟨p.refl (endpts f).1, p.refl (endpts f).2⟩))))
-          · exact .rel _ _ (.inr ⟨f, hmem, rfl, rfl⟩)
-      | refl u => exact .refl u
-      | symm _ _ _ ih' => exact .symm _ _ ih'
-      | trans _ _ _ _ _ ih₁ ih₂ => exact .trans _ _ _ ih₁ ih₂
+    refine ⟨fun h => (Relation.EqvGen.is_equivalence _).eqvGen_iff.mp (h.mono ?_),
+      fun h => h.mono ?_⟩
+    · rintro u v (huv | ⟨f, hf, rfl, rfl⟩)
+      · exact (Partition.rel_merge_iff_eqvGen.mp huv).mono fun w z hwz =>
+          hwz.elim .inl fun ⟨hw, hz⟩ => .inr ⟨e, List.mem_cons_self, hw, hz⟩
+      · exact .rel _ _ (.inr ⟨f, List.mem_cons_of_mem e hf, rfl, rfl⟩)
+    · rintro u v (huv | ⟨f, hf, rfl, rfl⟩)
+      · exact .inl (Partition.rel_merge_eq_true.mpr (.inl huv))
+      · rcases List.mem_cons.mp hf with rfl | hmem
+        · exact .inl (Partition.rel_merge_eq_true.mpr
+            (.inr (.inl ⟨p.refl (endpts f).1, p.refl (endpts f).2⟩)))
+        · exact .inr ⟨f, hmem, rfl, rfl⟩
 
 /-- Discarding cycle edges preserves connectivity: running `spanningForestEdges` on the retained
 forest edges reaches the exact same partition as running it on `es`. -/

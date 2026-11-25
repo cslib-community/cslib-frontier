@@ -68,13 +68,10 @@ theorem exec_scatterStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ
   have hn2 : Fits w (n * 2) := hl.of_le (by omega)
   have ha0 : Fits w (n * 2 + 5) := hl.of_le (by omega)
   have ha1 : Fits w (n * 2 + 5 + 1) := hl.of_le (by omega)
-  have hI : x.mem (n * 2 + 5) = I.val :=
-    (congrArg x.mem (by omega : n * 2 + 5 = 5 + 2 * n)).trans hinput.1
-  have hJ : x.mem (n * 2 + 5 + 1) = J.val :=
-    (congrArg x.mem (by omega : n * 2 + 5 + 1 = 5 + 2 * n + 1)).trans hinput.2
-  have hrfit : Fits w (routeBudget L m N (tableAddress L Q)) := hfit.of_le (by
-    unfold wordBudget
-    omega)
+  obtain ⟨hI, hJ⟩ : x.mem (n * 2 + 5) = I.val ∧ x.mem (n * 2 + 5 + 1) = J.val := by
+    simpa only [Nat.mul_comm n 2, Nat.add_comm (2 * n) 5] using hinput
+  have hrfit : Fits w (routeBudget L m N (tableAddress L Q)) :=
+    hfit.of_le (by unfold wordBudget; omega)
   refine WP.exists_execWithin ?_
   unfold scatterStep loadQuery
   wram_exec * [hn2, ha0, ha1, hI, hJ]
@@ -84,30 +81,21 @@ theorem exec_scatterStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ
   wram_simp at hrmem
   have rp : Parameters L m N Q routed := by regs_frame
   have hidx : routed.regs index = n := by regs_frame
-  have hcursor : routed.mem (cursorAddressBase L m N Q + key n) = p := by
-    rw [hrmem]
-    exact hcursors _ hk
+  have hcursor : routed.mem (cursorAddressBase L m N Q + key n) = p :=
+    (congrFun hrmem _).trans (hcursors _ hk)
   wram_call (exec_scatterWrite key hn hk routed rp hidx htile hvalue hcursor hfit)
     with y ⟨yp, hiy, hcode, horig, hcur, hf⟩
-  refine ⟨by omega, yp, hiy, ?_, hcode, horig, ?_⟩
-  · intro t ht
-    change y.mem (cursorAddressBase L m N Q + t) =
-      Nat.count (fun k => key k < t) Q + Nat.count (fun k => key k = t) (n + 1)
-    rw [Nat.count_succ]
-    by_cases h : key n = t
-    · subst t
-      rw [hcur]
-      simp only [↓reduceIte]
-      rfl
-    · have hlow : cursorAddressBase L m N Q + t < codeAddress L m N Q := by
-        unfold codeAddress
-        omega
-      have horiglow : codeAddress L m N Q ≤ originalAddress L m N Q := by
-        unfold originalAddress
-        omega
-      rw [hf _ (by omega) (by omega) (by omega), hrmem, hcursors t ht, ite_eq_right h]
-      rfl
-  · intro a hc hv ho
-    exact (hf a hc hv ho).trans (congrFun hrmem a)
+  refine ⟨by omega, yp, hiy, fun t ht => ?_, hcode, horig,
+    fun a hc hv ho => (hf a hc hv ho).trans (congrFun hrmem a)⟩
+  change y.mem (cursorAddressBase L m N Q + t) =
+    Nat.count (fun k => key k < t) Q + Nat.count (fun k => key k = t) (n + 1)
+  rw [Nat.count_succ]
+  by_cases h : key n = t
+  · subst t; rw [hcur]; simp only [↓reduceIte]; rfl
+  have hlow : cursorAddressBase L m N Q + t < codeAddress L m N Q := by unfold codeAddress; omega
+  have horiglow : codeAddress L m N Q ≤ originalAddress L m N Q := by
+    unfold originalAddress; omega
+  rw [hf _ (by omega) (by omega) (by omega), hrmem, hcursors t ht, ite_eq_right h]
+  rfl
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

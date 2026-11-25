@@ -246,8 +246,8 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       MembershipTally.encContext budget :=
     MembershipTally.encContext_mk_budget hn (encSeedSearchSetup_sourceID_budget hsetup)
       (encSeedSearchSetup_targetID_budget hsetup)
-      ((ComputableInSpace.constZero 0).mono_le fun _ => Nat.zero_le _)
-      ((ComputableInSpace.constZero (⟨0, 0⟩ : Tally)).mono_le fun _ => Nat.zero_le _)
+      (ComputableInSpace.budget_const 0)
+      (ComputableInSpace.budget_const (⟨0, 0⟩ : Tally))
   have hrank (w : List Bool) :
       0 < (configurationSeedSearchParameters ntm c (encBits w)).search.seedLimit :=
     Nat.two_pow_pos _
@@ -363,8 +363,9 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       ComputableInSpace round.next encStep E (fun p => (encStep p).length) := by
   intro E encStep round
   obtain ⟨hq, hn, hh, hr⟩ := justesenRoundCallback_parts_inSpace ntm c
-  have hadj := budget_const (encIn := SourceRound.encState)
-    (encB := encJustesenSubdivisionContext) adjacency (.refl _)
+  have hadj :=
+    budget_const (Bs := fun a => (SourceRound.encState a).length) (encIn := SourceRound.encState)
+    (encB := encJustesenSubdivisionContext) adjacency
   have hid := budget_id (enc := SourceRound.encState) (.refl _)
   have hentry := budget_comp_linear justesenRoundCallbackStart_inSpace (budget_prod hadj hid)
   exact ⟨SourceRound.machine_query_inSpace encJustesenRoundCallbackState initial
@@ -509,7 +510,7 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       encJustesenSubdivisionContext budget :=
     hadj.mono_le fun _ => Nat.le_succ _
   have hzero : ComputableInSpace (fun _ => 0) encBits encNat budget :=
-    (ComputableInSpace.constZero 0).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const 0
   have hc := encJustesenSourceContext_mk_budget hadj' hzero hzero
   have hreg := SourceRoundLoop.start_budget encJustesenSourceContext hc
     (encJustesenSourceContext_size_budget hc)

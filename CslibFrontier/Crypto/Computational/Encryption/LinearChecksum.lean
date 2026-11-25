@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Computational.Encryption.Authenticated.Malleability
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 public import CslibFrontier.Crypto.Computational.Encryption.IVStream.Malleability
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
@@ -182,32 +183,72 @@ Section 9.10, Attack 3): ask for an encryption of `0ⁿ` and output it with `1�
 after its initial value. -/
 @[expose]
 def prfChecksumCIAdversary (csLen : ℕ → ℕ) (L : List Bool → List Bool) : CIAdversary :=
-  fun n _ => do
-    let delta := List.replicate n true
-    let ct ← List.take (2 * (n + csLen n)) <$> ProbOracleComp.query ((), List.replicate n false)
-    return ivStreamXorBody (n + csLen n) (delta ++ L delta) ct
+  SymmetricCipher.maulCIAdversary
+    (fun n ct => ivStreamXorBody (n + csLen n)
+      (List.replicate n true ++ L (List.replicate n true)) ct)
+    false fun n => 2 * (n + csLen n)
+
+/-- XORing `1ⁿ ++ L 1ⁿ` into a word after its initial value, as a function of `(n, word)`, is
+polynomial-time when the checksum length and `L` are. -/
+private theorem computableInPolyTime_prfChecksumMaul {csLen : ℕ → ℕ} {L : List Bool → List Bool}
+    (hcsLenPoly : ComputableInPolyTime csLen encUnary encUnary)
+    (hLPoly : ComputableInPolyTime L encBits encBits) :
+    ComputableInPolyTime (fun p : ℕ × List Bool => ivStreamXorBody (p.1 + csLen p.1)
+        (List.replicate p.1 true ++ L (List.replicate p.1 true)) p.2)
+      (encPair encUnary encBits) encBits := by
+  have hp := ComputableInPolyTime.id' (encIn := encPair encUnary encBits)
+  have hdelta := (ComputableInPolyTime.bitsReplicate true).comp hp.fst'
+  exact computableInPolyTime_ivStreamXorBody
+    (ComputableInPolyTime.unary_add' hp.fst' (hcsLenPoly.comp hp.fst'))
+    (ComputableInPolyTime.bitsAppend hdelta (hLPoly.comp hdelta)) hp.snd'
 
 /-- `prfChecksumCIAdversary` is an efficient oracle adversary when the checksum length and `L`
 are computable in polynomial time. -/
 theorem isOraclePPT_prfChecksumCIAdversary {csLen : ℕ → ℕ} {L : List Bool → List Bool}
     (hcsLenPoly : ComputableInPolyTime csLen encUnary encUnary)
     (hLPoly : ComputableInPolyTime L encBits encBits) :
-    IsOraclePPT encBits (prfChecksumCIAdversary csLen L) := by
-  change IsOraclePPTOn (encPair encUnary encBits) encBits
-    (fun p => prfChecksumCIAdversary csLen L p.1 p.2)
-  have hp := ComputableInPolyTime.id' (encIn := encPair encUnary encBits)
-  have hwidth := ComputableInPolyTime.unary_add' hp.fst' (hcsLenPoly.comp hp.fst')
-  have hquery := IsOraclePPTOn.query_take ()
-    ((ComputableInPolyTime.bitsReplicate false).comp hp.fst')
-    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hwidth)
-  have hq := ComputableInPolyTime.id'
-    (encIn := encPair (encPair encUnary encBits) encBits)
-  have hdelta := (ComputableInPolyTime.bitsReplicate true).comp hq.fst'.fst'
-  have hout := computableInPolyTime_ivStreamXorBody
-    (hwidth.comp (ComputableInPolyTime.fst _ _))
-    (ComputableInPolyTime.bitsAppend hdelta (hLPoly.comp hdelta)) hq.snd'
-  simpa only [prfChecksumCIAdversary, bind_pure_comp, Function.comp_def] using
-    hquery.map_with hout
+    IsOraclePPT encBits (prfChecksumCIAdversary csLen L) :=
+  SymmetricCipher.isOraclePPT_maulCIAdversary
+    (computableInPolyTime_prfChecksumMaul hcsLenPoly hLPoly) false
+    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
+      (ComputableInPolyTime.unary_add' .id' hcsLenPoly))
+
+/-- For `n ≥ 1`, the transformation of `prfChecksumCIAdversary` changes every honest encryption
+of `0ⁿ` under `prfChecksumCipher` into a different word that decrypts (to `1ⁿ`). -/
+private theorem maul_prfChecksumCipher (family : List Bool → List Bool → List Bool)
+    (hpoly : ComputableInPolyTime (fun pair => family pair.1 pair.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
+    (checksum : List Bool → List Bool)
+    (hcsPoly : ComputableInPolyTime checksum encBits encBits)
+    (csLen : ℕ → ℕ)
+    (hcsLenPoly : ComputableInPolyTime csLen encUnary encUnary)
+    (hcsLen : ∀ m, (checksum m).length = csLen m.length)
+    (L : List Bool → List Bool)
+    (hlinear : ∀ m d, m.length = d.length →
+      checksum (List.zipWith xor m d) = List.zipWith xor (checksum m) (L d))
+    {n : ℕ} (hn : 1 ≤ n) {k ct : List Bool}
+    (hk : k ∈ (ProbComp.eval ((prfChecksumCipher family hpoly hlen checksum hcsPoly csLen
+      hcsLenPoly hcsLen).keyGen n)).support)
+    (hct : ct ∈ (ProbComp.eval ((prfChecksumCipher family hpoly hlen checksum hcsPoly csLen
+      hcsLenPoly hcsLen).encrypt n k (List.replicate n false))).support) :
+    ivStreamXorBody (n + csLen n) (List.replicate n true ++ L (List.replicate n true)) ct ≠ ct ∧
+      ((prfChecksumCipher family hpoly hlen checksum hcsPoly csLen hcsLenPoly hcsLen).decrypt n k
+        (ivStreamXorBody (n + csLen n)
+          (List.replicate n true ++ L (List.replicate n true)) ct)).isSome = true := by
+  set E := prfChecksumCipher family hpoly hlen checksum hcsPoly csLen hcsLenPoly hcsLen
+  have hmod := ivStreamXorBody_mem_support_encrypt_prfChecksumCipher family hpoly hlen
+    checksum hcsPoly csLen hcsLenPoly hcsLen L hlinear List.length_replicate
+    (List.length_replicate (a := true)) hct
+  have hflip : List.zipWith xor (List.replicate n false) (List.replicate n true) =
+      List.replicate n true := by
+    simp
+  rw [hflip] at hmod
+  have hdec := E.decrypt_encrypt n k hk _ List.length_replicate _ hmod
+  refine ⟨fun heq => ?_, by rw [hdec]; rfl⟩
+  rw [heq, E.decrypt_encrypt n k hk _ List.length_replicate ct hct] at hdec
+  simp only [Option.some.injEq, List.replicate_inj, Bool.false_eq_true, or_false] at hdec
+  omega
 
 /-- `prfChecksumCIAdversary` wins the one-time ciphertext-integrity game against
 `prfChecksumCipher` with probability `1` for every linear checksum and every `1 ≤ n`
@@ -226,30 +267,12 @@ theorem eval_ciOneTimeGame_prfChecksumCipher (family : List Bool → List Bool �
       checksum (List.zipWith xor m d) = List.zipWith xor (checksum m) (L d))
     {n : ℕ} (hn : 1 ≤ n) :
     ProbComp.eval ((prfChecksumCipher family hpoly hlen checksum hcsPoly csLen hcsLenPoly
-        hcsLen).ciOneTimeGame (prfChecksumCIAdversary csLen L) n) = PMF.pure true := by
-  set E := prfChecksumCipher family hpoly hlen checksum hcsPoly csLen hcsLenPoly hcsLen
-  simp only [SymmetricCipher.ciOneTimeGame, prfChecksumCIAdversary,
-    SymmetricCipher.oneTimeCIEncryptionOracle, List.isEmpty_nil, List.length_replicate,
-    beq_self_eq_true, Bool.and_self, ↓reduceIte, runWith_norm, pmf_norm]
-  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk =>
-    PMF.bind_eq_pure_of_forall_mem_support fun ct hct => ?_
-  rw [List.take_of_length_le (prfCipher_ciphertext_length family hpoly hlen (n + csLen n) k hk _
-    (by simp [hcsLen]) ct hct).le]
-  have hmod := ivStreamXorBody_mem_support_encrypt_prfChecksumCipher family hpoly hlen
-    checksum hcsPoly csLen hcsLenPoly hcsLen L hlinear List.length_replicate
-    (List.length_replicate (a := true)) hct
-  have hflip : List.zipWith xor (List.replicate n false) (List.replicate n true) =
-      List.replicate n true := by
-    simp
-  rw [hflip] at hmod
-  have hdec := E.decrypt_encrypt n k hk _ List.length_replicate _ hmod
-  have hne : ivStreamXorBody (n + csLen n)
-      (List.replicate n true ++ L (List.replicate n true)) ct ≠ ct := by
-    intro heq
-    rw [heq, E.decrypt_encrypt n k hk _ List.length_replicate ct hct] at hdec
-    simp only [Option.some.injEq, List.replicate_inj, Bool.false_eq_true, or_false] at hdec
-    omega
-  simp [hne, hdec]
+        hcsLen).ciOneTimeGame (prfChecksumCIAdversary csLen L) n) = PMF.pure true :=
+  SymmetricCipher.eval_ciOneTimeGame_maulCIAdversary _ false _ n
+    (fun k hk msg hmsg ct hct => (prfCipher_ciphertext_length family hpoly hlen (n + csLen n) k hk
+      _ (by simp [hmsg, hcsLen]) ct hct).le) fun _ hk _ hct =>
+    maul_prfChecksumCipher family hpoly hlen checksum hcsPoly csLen hcsLenPoly hcsLen L hlinear hn
+      hk hct
 
 /-- The PRF stream cipher over message ‖ linear checksum is not one-time ciphertext-integral
 ([BonehShoup2023], Section 9.10, Attack 3). -/
@@ -268,14 +291,11 @@ theorem not_oneTimeCiphertextIntegrity_prfChecksumCipher
     (hlinear : ∀ m d, m.length = d.length →
       checksum (List.zipWith xor m d) = List.zipWith xor (checksum m) (L d)) :
     ¬ (prfChecksumCipher family hpoly hlen checksum hcsPoly csLen hcsLenPoly
-        hcsLen).OneTimeCiphertextIntegrity := by
-  intro hci
-  have hcomp := (hci.negligible (prfChecksumCIAdversary csLen L)
-    (isOraclePPT_prfChecksumCIAdversary hcsLenPoly hLPoly)).shift 1
-  refine not_negligible_const (one_ne_zero (α := ℝ≥0)) (hcomp.congr fun n => ?_)
-  rw [eval_ciOneTimeGame_prfChecksumCipher family hpoly hlen checksum hcsPoly csLen hcsLenPoly
-    hcsLen L hlinear (Nat.le_add_left 1 n)]
-  simp [Game.succProbability]
+        hcsLen).OneTimeCiphertextIntegrity :=
+  SymmetricCipher.not_oneTimeCiphertextIntegrity_of_maul _
+    (computableInPolyTime_prfChecksumMaul hcsLenPoly hLPoly) false 1 fun _ hn _ hk _ hct =>
+      maul_prfChecksumCipher family hpoly hlen checksum hcsPoly csLen hcsLenPoly hcsLen L hlinear
+        hn hk hct
 
 /-- The PRF stream cipher over message ‖ linear checksum has no ciphertext integrity
 ([BonehShoup2023], Section 9.10, Attack 3). -/

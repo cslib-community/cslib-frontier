@@ -34,8 +34,8 @@ open Cslib.WordRAM Cslib.WordRAM.Signed
 /-- The exact original payload word, including the common zero default beyond the input. -/
 theorem input_word (n p : ℕ) (values : List ℤ) (q : ℕ) :
     (Data.init (inputWords n p values) : Data 128).mem (3 + q) = encode (values.getD q 0) := by
-  rw [show 3 + q = (2 + q) + 1 by omega, Data.init_mem_succ]
-  rw [inputWords, List.getD_append_right _ _ _ _ (by simp)]
+  rw [show 3 + q = (2 + q) + 1 by omega, Data.init_mem_succ, inputWords,
+    List.getD_append_right _ _ _ _ (by simp)]
   simp only [List.length_cons, List.length_nil, Nat.reduceAdd, Nat.add_sub_cancel_left]
   exact List.getD_map values 0 encode
 
@@ -82,23 +82,19 @@ theorem exec_input_at {w n p A : ℕ} (values : List ℤ)
   have hA : A ≤ magnitudeBudget p k A := by unfold magnitudeBudget; omega
   have original (q : ℕ) (hq : q < 3 * (n * n)) : (values.getD q 0).natAbs ≤ A :=
     hv (values.getD q 0) (List.getD_mem 0 (by omega))
-  have hi : InputFits (w + 2) (inputWords n p values) := by
-    refine ⟨?_, ?_⟩
-    · simpa only [inputWords, List.length_append, List.length_cons, List.length_nil,
-        List.length_map, hlen, Nat.reduceAdd] using
-        hw.of_le (by unfold addressBudget; dsimp only [k] at *; omega :
-          2 + 3 * (n * n) ≤ _)
-    · intro v hm
+  have hw' := hw
+  unfold addressBudget at hw'
+  have hi : InputFits (w + 2) (inputWords n p values) := ⟨by
+      simpa only [inputWords, List.length_append, List.length_cons, List.length_nil,
+        List.length_map, hlen, Nat.reduceAdd] using hw'.of_le (by dsimp only [k] at *; omega),
+    fun v hm => by
       rcases List.mem_append.mp hm with hm | hm
       · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
-        rcases hm with rfl | rfl
-        · exact hw.of_le (by unfold addressBudget; dsimp only [k] at *; omega)
-        · exact hw.of_le (by unfold addressBudget; dsimp only [k] at *; omega)
+        rcases hm with rfl | rfl <;> exact hw'.of_le (by dsimp only [k] at *; omega)
       · obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hm
-        exact (encode_fits (hmag.of_natAbs_le ((hv z hz).trans hA))).mono (by omega)
+        exact (encode_fits (hmag.of_natAbs_le ((hv z hz).trans hA))).mono (by omega)⟩
   obtain ⟨x0, headerRun, memory, hn, hpReg, hAB, hBC, hAC, hs⟩ := exec_header (n := n) (p := p)
-    (.init (inputWords n p values)) (by rfl) (by rfl)
-    (hw.of_le (by unfold addressBudget; dsimp only [k] at *; omega))
+    (.init (inputWords n p values)) rfl rfl (hw'.of_le (by dsimp only [k] at *; omega))
   obtain ⟨y, counterRun, _, result, frame⟩ := exec x0
     (fun i => values.getD i 0) (fun i => values.getD (n * n + i) 0)
     (fun i => values.getD (2 * (n * n) + i) 0)
@@ -108,11 +104,8 @@ theorem exec_input_at {w n p A : ℕ} (values : List ℤ)
     (fun i _ => (congrFun memory _).trans (input_word n p values i))
     (fun i _ => (congrFun memory _).trans (input_word_add n p values (n * n) i))
     (fun i _ => (congrFun memory _).trans (input_word_add n p values (2 * (n * n)) i)) hmag hw
-  have full : ExecWithin (w + 2) entryProgram (.init (inputWords n p values)) y
-      (cost n p + 9) := (headerRun.seq counterRun).mono (by omega)
-  refine ⟨hi, y, full, ?_, full.bounded (.init hi), ?_⟩
-  · simpa only [Nat.add_assoc] using result
-  · intro d hd
-    exact (frame d hd).trans (congrFun memory d)
+  have full := (headerRun.seq counterRun).mono (by omega : 9 + cost n p ≤ cost n p + 9)
+  exact ⟨hi, y, full, by simpa only [Nat.add_assoc] using result, full.bounded (.init hi),
+    fun d hd => (frame d hd).trans (congrFun memory d)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

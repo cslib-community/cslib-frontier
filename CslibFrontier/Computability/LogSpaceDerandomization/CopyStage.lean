@@ -414,9 +414,7 @@ theorem card_mul_le_of_incidences {V : Type*} [Fintype V] {k : ℕ}
   classical
   -- the indicator of a large entry, scaled by `δ`, is at most the entry
   have hind : ∀ i x y, (if δ < G i x y then δ else 0) ≤ G i x y := fun i x y => by
-    split_ifs with h
-    · exact h.le
-    · exact hG0 i x y
+    split_ifs with h <;> [exact h.le; exact hG0 i x y]
   have hcount : ∀ i y, (#{x | δ < G i x y} : ℝ) * δ = ∑ x, if δ < G i x y then δ else 0 :=
     fun i y => by rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const,
       nsmul_eq_mul]
@@ -425,8 +423,7 @@ theorem card_mul_le_of_incidences {V : Type*} [Fintype V] {k : ℕ}
     split_ifs with hx
     · exact (Finset.sum_le_sum fun y _ => hind i x y).trans (hGs i x)
     · refine le_of_eq (Finset.sum_eq_zero fun y _ => ?_)
-      have : G i x y = 0 := by by_contra h; exact hx (hGA i x y h)
-      simp [this, not_lt.mpr hδ.le]
+      simp [not_imp_comm.1 (hGA i x y) hx, not_lt.mpr hδ.le]
   calc (#O * N : ℝ) * δ = ∑ y ∈ O, (N : ℝ) * δ := by
         rw [Finset.sum_const, nsmul_eq_mul, mul_assoc]
     _ ≤ ∑ y ∈ O, ∑ i, ∑ x, if δ < G i x y then δ else 0 := by

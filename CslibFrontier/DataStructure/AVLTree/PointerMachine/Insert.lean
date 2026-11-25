@@ -169,10 +169,8 @@ private theorem createLeaf_correct [LinearOrder M.Value] (zero maxSucc : M.Op)
       (insertLeaf (leafRegisters field source) 1)).length }
   refine ⟨result, ?_, ?_, ?_, ?_, size, cursor, rootReg, ?_, ptr⟩
   · convert execution using 1 <;> first | rfl | omega
-  · rw [keyData] at heap
-    exact heap
-  · rw [keyData] at rep
-    exact rep
+  · rwa [keyData] at heap
+  · rwa [keyData] at rep
   · simp [Matches, AVLTree.insert, mkNode, Ne.symm notKey]
   · intro i h1 h2
     simp [result, data, q, initialized, State.setData, h1, h2]
@@ -221,16 +219,13 @@ private theorem ancestorStep_correct (zero maxSucc : M.Op) (heavy le : M.Test)
       (sequence (reconnect (M := M) (extra := extra) (regs := regs + 1))
         [.loadPtr 0 2 0, .halt]).length }
     refine ⟨out, .node a left right, tb + (tc + 2 + 1) + 1, run, by omega,
-      ?_, mb, resultC.distinct, ab, cursorD, ?_, ?_, ?_, ?_⟩
+      ?_, mb, resultC.distinct, ab, cursorD, (ptrD 1 (by simp [layout])).trans resultC.root,
+      (congrArg List.length heapD).trans (resultC.size.trans sizeB),
+      fun i h1 h2 => (congrFun dataD i).trans ((congrFun resultC.data i).trans (dataB i h1 h2)),
+      fun z f hf => ?_⟩
     · simpa only [out, heapD] using resultC.rep
-    · exact (ptrD 1 (by simp [layout])).trans resultC.root
-    · exact (congrArg List.length heapD).trans (resultC.size.trans sizeB)
-    · intro i h1 h2
-      exact (congrFun dataD i).trans ((congrFun resultC.data i).trans (dataB i h1 h2))
-    · intro z f hf
-      change (d.heap[z]?).map (fun n => n.data f) = _
-      rw [heapD, resultC.payload]
-      exact payloadB z f hf
+    · change (d.heap[z]?).map (fun n => n.data f) = _
+      rw [heapD, resultC.payload]; exact payloadB z f hf
 
 private theorem nullLoop_done (body : List (Instr M (layout extra (regs + 1))))
     (s : State M (layout extra (regs + 1))) (pc : s.pc = 0) (cursor : s.ptr 0 = none) :
@@ -303,11 +298,9 @@ private theorem rebalance_correct [LinearOrder M.Value]
       focusedValid.heightConsistent.eq_of_toBinaryTree_eq valid.heightConsistent
         (focusedMatch.keys.symm.trans originalMatch.keys)
     refine ⟨_, after, 3, rebalance_done zero maxSucc heavy le field s pc cursor,
-      by simp, rep, ?_, distinct, rfl, ?_, rootReg, rfl, ?_, ?_⟩
+      by simp, rep, ?_, distinct, rfl, ?_, rootReg, rfl, fun _ _ _ => rfl, fun _ _ _ => rfl⟩
     · simpa only [same] using changedMatch
     · simpa [State.setPtr, contextParent] using cursor
-    · intro i _ _; rfl
-    · intro a f _; rfl
   | cons frame cs ih =>
     let oldParent := match frame with
       | .left label sibling => BinaryTree.node label before sibling
@@ -387,15 +380,11 @@ private theorem rebalance_correct [LinearOrder M.Value]
     obtain ⟨n, en, halt, cost⟩ := eb
     refine ⟨b, result, 2 + time + tb,
       ⟨2 + time + n, first.trans en, halt, by omega⟩, ?_, rb, mb, db, ?_,
-      cb, rootB, sizeB.trans size, ?_, ?_⟩
-    · simp only [List.length_cons]
-      omega
+      cb, rootB, sizeB.trans size, fun i h1 h2 => (dataB i h1 h2).trans (data i h1 h2),
+      fun z f hf => (payloadB z f hf).trans (payload z f hf)⟩
+    · simp only [List.length_cons]; omega
     · rw [ab, addresses_plug, footprint, ← addresses_plug]
       cases frame <;> rfl
-    · intro i h1 h2
-      exact (dataB i h1 h2).trans (data i h1 h2)
-    · intro z f hf
-      exact (payloadB z f hf).trans (payload z f hf)
 
 /-- Linked-tree, register and scalar-payload outcome of set insertion. Existing records retain
 all scalar fields except the height cache; a new record receives its explicit client payload.
@@ -450,11 +439,11 @@ theorem InsertResult.before [LinearOrder M.Value]
   have h02 : (0 : Fin ((regs + 1) + 2)) ≠ 2 := by
     simp [Fin.ext_iff, Nat.mod_eq_of_lt (by omega : 2 < (regs + 1) + 2)]
   have query := data 0 h01 h02
-  refine ⟨h.rep, ?_, h.distinct, h.root, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨h.rep, ?_, h.distinct, h.root, ?_, ?_, fun i h1 h2 => (h.data i h1 h2).trans
+    (data i h1 h2), ?_, ?_⟩
   · simpa only [query] using h.matched
   · simpa only [heap] using h.space
   · simpa only [heap] using h.footprint
-  · intro i h1 h2; exact (h.data i h1 h2).trans (data i h1 h2)
   · intro z f hz hf
     simpa only [heap] using h.payload z f (by simpa only [heap] using hz) hf
   · intro grows f hf
@@ -499,8 +488,7 @@ private theorem missing_correct [LinearOrder M.Value]
     | nil => trivial
     | cons frame cs => cases frame <;> exact chosen)
   have repA : Represents a.heap none (plug cs (.node label .nil .nil)) := by
-    rw [heapA, parent]
-    exact graft.1
+    rw [heapA, parent]; exact graft.1
   have rootA' : a.ptr 1 = root (plug cs (.node label .nil .nil)) := by
     rw [rootA, parent, rootReg, graft.2.2.2]
   obtain ⟨b, eb, heapB, dataB, cursorB, ptrB⟩ :=
@@ -521,11 +509,10 @@ private theorem missing_correct [LinearOrder M.Value]
   have size : t.heap.length = s.heap.length + 1 :=
     sizeC.trans ((congrArg List.length heapB).trans sizeA)
   refine ⟨t, tree, extra + 16 + (2 + time + 1) + 1, run, by omega,
-    ⟨repC, matchC, distinctC, rootC, ⟨by omega, by omega⟩, ?_, ?_, ?_, ?_⟩⟩
+    ⟨repC, matchC, distinctC, rootC, ⟨by omega, by omega⟩, ?_,
+      fun i h1 h2 => (dataC i h1 h2).trans ((congrFun dataB i).trans (dataA i h1 h2)), ?_, ?_⟩⟩
   · rw [addressesC, graft.2.2.1]
     exact ⟨Finset.subset_insert _ _, Finset.Subset.refl _⟩
-  · intro i h1 h2
-    exact (dataC i h1 h2).trans ((congrFun dataB i).trans (dataA i h1 h2))
   · intro z f hz hf
     change (c.heap[z]?).map (fun n => n.data f) = _
     rw [payloadC z f hf, heapB, heapA]
@@ -615,8 +602,7 @@ theorem insert_correct [LinearOrder M.Value]
   have rootA : a.ptr 1 = root tree :=
     (ra.ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])).trans rootReg
   have visits : SearchTree.searchVisits (s.data 0) (keys tree) ≤ original.cachedHeight := by
-    rw [matched.keys]
-    exact searchVisits_le_cachedHeight valid.heightConsistent _
+    rw [matched.keys]; exact searchVisits_le_cachedHeight valid.heightConsistent _
   have searchTime : ta ≤ 7 * original.cachedHeight + 4 := by omega
   have endpoint : ∃ t result time,
       Executes (insert zero maxSucc lt heavy le field source) s t time ∧
@@ -626,8 +612,7 @@ theorem insert_correct [LinearOrder M.Value]
     | nil =>
       let cleared := { a.setPtr 5 none with pc := 0 }
       have complete : Represents cleared.heap none (plug cs .nil) := by
-        rw [show cleared.heap = s.heap from ra.heap, ← ra.reconstruction]
-        exact rep
+        rw [show cleared.heap = s.heap from ra.heap, ← ra.reconstruction]; exact rep
       have separated : AddressesDistinct (plug cs .nil) := ra.reconstruction ▸ distinct
       have m : Matches encode field (plug cs .nil) original := ra.reconstruction ▸ matched
       have path : SearchPath (cleared.data 0) cs := by
@@ -644,8 +629,7 @@ theorem insert_correct [LinearOrder M.Value]
       let t := { b with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
         (insertAfterSeek zero maxSucc lt heavy le field source).length }
       have before : InsertResult encode field source s b tree result original := by
-        rw [ra.reconstruction]
-        exact rb.before ra.heap (fun i h1 _ => ra.data i h1) safe
+        rw [ra.reconstruction]; exact rb.before ra.heap (fun i h1 _ => ra.data i h1) safe
       have depth := height_add_context_length_le cs (.nil : BinaryTree (Label M extra))
       rw [← ra.reconstruction, matched.shape_height,
         ← cachedHeight_eq_height valid.heightConsistent] at depth
@@ -660,19 +644,15 @@ theorem insert_correct [LinearOrder M.Value]
         (afterSeek_found zero maxSucc lt heavy le field source { a with pc := 0 } rfl nonempty)
       let t := { a.setPtr 5 none with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
         (insertAfterSeek zero maxSucc lt heavy le field source).length }
-      refine ⟨t, tree, ta + 3 + 1, run, by omega, ?_⟩
-      refine ⟨?_, ?_, distinct, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      refine ⟨t, tree, ta + 3 + 1, run, by omega, ?_, ?_, distinct, ?_, ?_,
+        ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩, fun i h1 _ => ra.data i h1, ?_, ?_⟩
       · simpa only [t, State.setPtr, ra.heap] using rep
       · simpa only [unchanged] using matched
       · simpa [t, State.setPtr] using rootA
       · simp [t, State.setPtr, ra.heap]
-      · exact ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩
-      · intro i h1 _; exact ra.data i h1
       · intro z f _ _; simp only [t, State.setPtr, ra.heap]
       · intro grows
-        have bad : s.heap.length < s.heap.length := by
-          simpa only [t, State.setPtr, ra.heap] using grows
-        omega
+        simp only [t, State.setPtr, ra.heap] at grows; omega
   obtain ⟨t, result, time, exec, bound, outcome⟩ := endpoint
   refine ⟨t, result, time, exec, bound, ?_, outcome⟩
   have logarithmic := valid.cachedHeight_le_two_mul_log

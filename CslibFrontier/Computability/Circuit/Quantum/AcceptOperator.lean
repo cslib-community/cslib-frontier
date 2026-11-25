@@ -154,12 +154,8 @@ theorem re_trace_acceptOp_pow (x : List Bool) (d : ℕ) :
     RCLike.re (LinearMap.trace ℂ _ (V.acceptOp x ^ d)) =
       (V.traceGap x d : ℝ) / 2 ^ (hadamardCount (V.gates x.length) * d) := by
   rw [trace_acceptOp_pow]
-  have : ((V.traceGap x d : ℂ) / 2 ^ (hadamardCount (V.gates x.length) * d)) =
-      (((V.traceGap x d : ℝ) / 2 ^ (hadamardCount (V.gates x.length) * d) : ℝ) : ℂ) := by
-    push_cast
-    rfl
-  rw [this]
-  exact Complex.ofReal_re _
+  simpa using Complex.ofReal_re
+    ((V.traceGap x d : ℝ) / 2 ^ (hadamardCount (V.gates x.length) * d))
 
 /-- **Completeness bound**: if some unit witness is accepted with probability at least `c ≥ 0`,
 then `c^d 2^{hd} ≤ traceGap x d`. -/
