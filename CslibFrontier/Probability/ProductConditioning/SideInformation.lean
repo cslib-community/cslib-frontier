@@ -192,14 +192,17 @@ theorem map_fst_filter_sideJoint_toReal [Finite ι] [∀ i, Finite (β i)] [Fini
     ((((sideJoint μ J).filter W hW).map Prod.fst) (t, v)).toReal =
       (μ t).toReal * ((J t).toOuterMeasure (sliceEvent W t v)).toReal /
         ((sideJoint μ J).toOuterMeasure W).toReal := by
-  let _ := Fintype.ofFinite ι
-  let _ := fun i => Fintype.ofFinite (β i)
-  rw [map_fst_apply, tsum_fintype, ENNReal.toReal_sum
-    (fun _ _ => PMF.apply_ne_top _ _), toOuterMeasure_sliceEvent_toReal,
-    Finset.mul_sum, Finset.sum_div]
-  refine Finset.sum_congr rfl fun u _ => ?_
-  rw [filter_apply_toReal, sideJoint_apply, ENNReal.toReal_mul]
-  split_ifs <;> ring
+  have := Fintype.ofFinite ι
+  have := fun i => Fintype.ofFinite (β i)
+  have := Fintype.ofFinite T
+  have := Fintype.ofFinite V
+  rw [map_apply_toReal, Fintype.sum_prod_type, Finset.sum_eq_single (t, v),
+    toOuterMeasure_sliceEvent_toReal, Finset.mul_sum, Finset.sum_div]
+  · refine Finset.sum_congr rfl fun u _ => ?_
+    rw [ite_eq_left rfl, filter_apply_toReal, sideJoint_apply, ENNReal.toReal_mul]
+    split_ifs <;> ring
+  · exact fun s _ hs => Finset.sum_eq_zero fun u _ => ite_eq_right fun h => absurd h.symm hs
+  · simp
 
 omit [Fintype ι] [∀ i, Fintype (β i)] [Fintype T] [Fintype V] in
 open Classical in
