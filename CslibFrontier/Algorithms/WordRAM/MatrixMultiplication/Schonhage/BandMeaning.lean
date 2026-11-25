@@ -223,6 +223,29 @@ def bandValue (L m N β : ℕ) (rightSide : Bool) (matrix : ℕ → ℕ → ℤ)
     let r := (β * K0 L m + b) * N0 L m + p.outer
     if r < N then matrix r p.inner else 0
 
+/-- No table entry has a mask whose inverse-table word is zero. -/
+private theorem table_ne_of_lookup_eq_zero {L m c : ℕ} (hm : m ≤ L) {S : Finset (Fin L)}
+    (hc : c = (MaskTable.maskCode S).val) (hz : MaskTable.lookup L m c = 0)
+    (gh : Fin (K0 L m) × Fin (K0 L m)) : (MaskTable.layout hm).table gh ≠ S := by
+  intro heq
+  have h := congrArg (fun Q => (MaskTable.maskCode Q).val) heq
+  change (MaskTable.maskCode (MaskTable.maskSet (MaskTable.selectedMask gh))).val = _ at h
+  rw [MaskTable.maskCode_maskSet, ← hc] at h
+  have := MaskTable.lookup_selectedMask gh
+  rw [h] at this
+  omega
+
+/-- A nonzero inverse-table word selects the table entry with that mask. -/
+private theorem exists_table_eq_of_lookup_ne_zero {L m c : ℕ} (hm : m ≤ L)
+    {S : Finset (Fin L)} (hc : c = (MaskTable.maskCode S).val)
+    (hz : MaskTable.lookup L m c ≠ 0) :
+    ∃ gh, (MaskTable.selectedMask gh).val = c ∧ (MaskTable.layout hm).table gh = S := by
+  obtain ⟨gh, hs⟩ := MaskTable.exists_selectedMask_of_lookup hz
+  refine ⟨gh, hs, ?_⟩
+  change MaskTable.maskSet (MaskTable.selectedMask gh) = _
+  rw [show MaskTable.selectedMask gh = MaskTable.maskCode S from Fin.ext (hs.trans hc),
+    MaskTable.maskSet_maskCode]
+
 /-- The numeric left-band specification is the unchanged mathematical `bandArrayL` for
 the computed deterministic layout, including all unselected strings and padding. -/
 theorem bandValue_left {L m N : ℕ} (hm : m ≤ L)
@@ -235,27 +258,12 @@ theorem bandValue_left {L m N : ℕ} (hm : m ≤ L)
   have hmask : (parts L a.val).mask = (MaskTable.maskCode (innerSetL u)).val :=
     parts_mask_left a
   by_cases hz : MaskTable.lookup L m (parts L a.val).mask = 0
-  · have hmissing : ∀ gh, lay.table gh ≠ innerSetL u := by
-      intro gh heq
-      have hc := congrArg (fun Q => (MaskTable.maskCode Q).val) heq
-      change (MaskTable.maskCode (MaskTable.maskSet (MaskTable.selectedMask gh))).val = _ at hc
-      rw [MaskTable.maskCode_maskSet] at hc
-      have ha : (MaskTable.selectedMask gh).val = (parts L a.val).mask := hc.trans hmask.symm
-      have hne : MaskTable.lookup L m (MaskTable.selectedMask gh).val ≠ 0 := by
-        rw [MaskTable.lookup_selectedMask]
-        omega
-      exact hne (ha ▸ hz)
-    have hf := bandFamilyL_eq_zero lay X β hmissing
+  · have hf := bandFamilyL_eq_zero lay X β (table_ne_of_lookup_eq_zero hm hmask hz)
     simp only [bandValue, ↓reduceIte, hz]
     change 0 = (arrayL m (bandFamilyL lay X β)) u
     unfold arrayL
     split <;> simp only [hf, Matrix.zero_apply]
-  · obtain ⟨gh, hs⟩ := MaskTable.exists_selectedMask_of_lookup hz
-    have hcode : MaskTable.selectedMask gh = MaskTable.maskCode (innerSetL u) :=
-      Fin.ext (hs.trans hmask)
-    have hset : lay.table gh = innerSetL u := by
-      change MaskTable.maskSet (MaskTable.selectedMask gh) = _
-      rw [hcode, MaskTable.maskSet_maskCode]
+  · obtain ⟨gh, hs, hset⟩ := exists_table_eq_of_lookup_ne_zero hm hmask hz
     have hcard : (innerSetL u).card = m := hset ▸ lay.table_card gh
     have hf : bandFamilyL lay X β (innerSetL u) = rowBlock lay X (β * K0 L m + gh.1) := by
       rw [← hset]
@@ -289,27 +297,12 @@ theorem bandValue_right {L m N : ℕ} (hm : m ≤ L)
   have hmask : (parts L a.val).mask = (MaskTable.maskCode (innerSetR u)).val :=
     parts_mask_right a
   by_cases hz : MaskTable.lookup L m (parts L a.val).mask = 0
-  · have hmissing : ∀ gh, lay.table gh ≠ innerSetR u := by
-      intro gh heq
-      have hc := congrArg (fun Q => (MaskTable.maskCode Q).val) heq
-      change (MaskTable.maskCode (MaskTable.maskSet (MaskTable.selectedMask gh))).val = _ at hc
-      rw [MaskTable.maskCode_maskSet] at hc
-      have ha : (MaskTable.selectedMask gh).val = (parts L a.val).mask := hc.trans hmask.symm
-      have hne : MaskTable.lookup L m (MaskTable.selectedMask gh).val ≠ 0 := by
-        rw [MaskTable.lookup_selectedMask]
-        omega
-      exact hne (ha ▸ hz)
-    have hf := bandFamilyR_eq_zero lay Y β hmissing
+  · have hf := bandFamilyR_eq_zero lay Y β (table_ne_of_lookup_eq_zero hm hmask hz)
     simp only [bandValue, ↓reduceIte, hz]
     change 0 = (arrayR m (bandFamilyR lay Y β)) u
     unfold arrayR
     split <;> simp only [hf, Matrix.zero_apply]
-  · obtain ⟨gh, hs⟩ := MaskTable.exists_selectedMask_of_lookup hz
-    have hcode : MaskTable.selectedMask gh = MaskTable.maskCode (innerSetR u) :=
-      Fin.ext (hs.trans hmask)
-    have hset : lay.table gh = innerSetR u := by
-      change MaskTable.maskSet (MaskTable.selectedMask gh) = _
-      rw [hcode, MaskTable.maskSet_maskCode]
+  · obtain ⟨gh, hs, hset⟩ := exists_table_eq_of_lookup_ne_zero hm hmask hz
     have hcard : (innerSetR u).card = m := hset ▸ lay.table_card gh
     have hf : bandFamilyR lay Y β (innerSetR u) = colBlock lay Y (β * K0 L m + gh.2) := by
       rw [← hset]

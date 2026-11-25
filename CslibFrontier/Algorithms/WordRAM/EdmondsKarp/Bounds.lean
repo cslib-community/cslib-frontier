@@ -296,9 +296,7 @@ private theorem validHistory_readResCap {w : ℕ} {d : (Ctx × ℕ) × ℕ} {t :
   have h2 := List.mul_add_lt_sq hv hu
   have hfr := ht.2
   unfold readResCap
-  refine validHistory_read_bind (by ek_omega) ?_
-  refine validHistory_read_bind (by ek_omega) ?_
-  refine validHistory_read_bind (by ek_omega) ?_
+  iterate 3 refine validHistory_read_bind (by ek_omega) ?_
   exact validHistory_ite (fun _ => validHistory_pure _ _ _) (fun _ => validHistory_pure _ _ _)
 
 private theorem validHistory_bfsProg {w : ℕ} {d : Ctx × ℕ} {t : Memory.State}

@@ -434,64 +434,39 @@ private theorem copyBagProg_spec {w : ℕ} (args : BagCopyArgs) {xs : List ℕ} 
     have hrun := this xs args.src args.dst s hwf hxs (by omega) (by omega)
     rw [hlen] at hrun
     unfold copyBagProg
-    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ ()), ?_, ?_, ?_, hcost⟩
-    · rw [StateTransitionSpec.clientState_bind]
-      exact hrun.2.1
-    · rw [StateTransitionSpec.clientState_bind]
-      exact hrun.2.2.1
-    · rw [StateTransitionSpec.clientState_bind]
-      exact hrun.2.2.2
+    rw [StateTransitionSpec.clientState_bind]
+    exact ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ ()), hrun.2.1, hrun.2.2.1,
+      hrun.2.2.2, hcost⟩
   intro ys
   induction ys with
   | nil =>
     intro src dst st _ _ _ hdst_st
-    have h0 : iterate copyBagStep () 0 ⟨src, dst⟩ = pure ⟨src, dst⟩ := rfl
     simp only [List.length_nil, Nat.add_zero] at hdst_st ⊢
-    rw [h0]
     exact ⟨validHistory_pure w st _, rfl, PreservesBelow.refl hdst_st, HoldsIn.nil hdst_st⟩
   | cons u rest ih =>
     intro src dst st hwf_st hsrc_st hdisj_st hdst_st
-    rw [HoldsIn.cons_iff] at hsrc_st
-    obtain ⟨hsrc_b, hmem_u, hrest_src⟩ := hsrc_st
+    obtain ⟨hsrc_b, hmem_u, hrest_src⟩ := HoldsIn.cons_iff.1 hsrc_st
     simp only [List.length_cons] at hdisj_st hdst_st ⊢
-    have hsrc_lt : src < st.frontier := by omega
-    have hdst_lt : dst < st.frontier := by omega
-    have hv_fit : Fits w (st.mem src) := hwf_st.mem_fits src
     let st₁ : Memory.State := ⟨Function.update st.mem dst (st.mem src), st.frontier⟩
     have hv_step : (Memory.spec w).ValidHistory st
         ((Memory.spec w).clientHistory st (copyBagStep ((), ⟨src, dst⟩))) :=
-      validHistory_read_bind hsrc_lt (validHistory_write_bind hdst_lt hv_fit
-        (validHistory_pure w st₁ _))
+      validHistory_read_bind (show src < st.frontier by omega) (validHistory_write_bind
+        (show dst < st.frontier by omega) (hwf_st.mem_fits src) (validHistory_pure w st₁ _))
+    have hp₁ : PreservesBelow dst st st₁ := preservesBelow_write le_rfl (by omega)
     have hst₁ : (Memory.spec 0).clientState st (copyBagStep ((), ⟨src, dst⟩)) = st₁ := rfl
     have hres₁ : (Memory.spec 0).clientResult st (copyBagStep ((), ⟨src, dst⟩)) =
         ⟨src + 1, dst + 1⟩ := rfl
-    have hwf₁ : Memory.WellFormed w st₁ := hst₁ ▸ wellFormed_clientState hwf_st hv_step
-    have hp₁ : PreservesBelow dst st st₁ := preservesBelow_write le_rfl hdst_lt
-    have hrest_st₁ : HoldsIn (src + 1) rest st₁ := hrest_src.mono (by omega) hp₁
-    have hst₁_fr : st₁.frontier = st.frontier := rfl
+    have hiter : iterate copyBagStep () (rest.length + 1) ⟨src, dst⟩ =
+        copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length := rfl
     obtain ⟨hv_rest, hfr_rest, hp_rest, hhold_rest⟩ :=
-      ih (src + 1) (dst + 1) st₁ hwf₁ hrest_st₁ (by omega) (by rw [hst₁_fr]; omega)
-    change (Memory.spec w).ValidHistory st
-        ((Memory.spec w).clientHistory st
-          (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length)) ∧
-      ((Memory.spec 0).clientState st
-        (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length)).frontier =
-        st.frontier ∧
-      PreservesBelow dst st
-        ((Memory.spec 0).clientState st
-          (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length)) ∧
-      HoldsIn dst (u :: rest)
-        ((Memory.spec 0).clientState st
-          (copyBagStep ((), ⟨src, dst⟩) >>= iterate copyBagStep () rest.length))
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst₁, hres₁]), ?_, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind, hst₁, hres₁]
-      exact hfr_rest
-    · rw [StateTransitionSpec.clientState_bind, hst₁, hres₁]
-      exact hp₁.trans (hp_rest.mono_bound (by omega))
-    · rw [StateTransitionSpec.clientState_bind, hst₁, hres₁, HoldsIn.cons_iff]
-      refine ⟨by rw [hfr_rest, hst₁_fr]; omega, ?_, hhold_rest⟩
-      rw [hp_rest.2.2 dst (by omega)]
-      simp only [st₁, Function.update_self, hmem_u]
+      ih (src + 1) (dst + 1) st₁ (hst₁ ▸ wellFormed_clientState hwf_st hv_step)
+        (hrest_src.mono (by omega) hp₁) (by omega) (by dsimp only [st₁]; omega)
+    rw [hiter, StateTransitionSpec.clientState_bind, hst₁, hres₁]
+    refine ⟨validHistory_bind_step hv_step hv_rest, hfr_rest,
+      hp₁.trans (hp_rest.mono_bound (by omega)),
+      HoldsIn.cons_iff.2 ⟨by rw [hfr_rest]; dsimp only [st₁]; omega, ?_, hhold_rest⟩⟩
+    rw [hp_rest.2.2 dst (by omega)]
+    simp only [st₁, Function.update_self, hmem_u]
 
 private theorem copyBagProg_realizes :
     Realizes .exact copyBagProg WordEncoding.encode WordEncoding.encode
@@ -671,8 +646,6 @@ theorem introNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : IntroNodeArgs)
   dsimp only at hm0 hm1 hm2 hm3
   let sEnd := (Memory.spec 0).clientState s₅
     (writeDescProg ⟨a.dCur, bagPtr, bagLen, tblPtr, tblLen⟩)
-  have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
-  have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
   have ha1_s : (Memory.spec 0).clientState s (Memory.allocDirty bagLen) = s₁ := rfl
   have ha1_r : (Memory.spec 0).clientResult s (Memory.allocDirty bagLen) = bagPtr := rfl
   have hw_s : (Memory.spec 0).clientState s₁ (Memory.write bagPtr a.v) = s₂ := rfl
@@ -681,7 +654,7 @@ theorem introNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : IntroNodeArgs)
   have hsEnd_eq : (Memory.spec 0).clientState s (introNodeProg a) = sEnd := by
     unfold introNodeProg
     dsimp only
-    iterate 4 rw [StateTransitionSpec.clientState_bind, hr_s, hr_r]
+    iterate 4 rw [clientState_bind_read]
     rw [hm_cbLen, hm_ctLen]
     rw [StateTransitionSpec.clientState_bind, ha1_s, ha1_r,
       StateTransitionSpec.clientState_bind, hw_s,
@@ -694,21 +667,12 @@ theorem introNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : IntroNodeArgs)
       StateTransitionSpec.clientState_bind]
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · unfold introNodeProg
-    dsimp only
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
-    refine validHistory_read_bind (by omega) ?_
+    refine validHistory_read_bind (by omega) <| validHistory_read_bind (by omega) <|
+      validHistory_read_bind (by omega) <| validHistory_read_bind (by omega) ?_
     rw [hm_cbLen, hm_ctLen]
-    refine validHistory_bind_step hv₁ ?_
-    rw [ha1_s, ha1_r]
-    refine validHistory_bind_step hv₂ ?_
-    rw [hw_s]
-    refine validHistory_bind_step hv_cp ?_
-    change (Memory.spec w).ValidHistory s₃ _
-    refine validHistory_bind_step hv₄ ?_
-    rw [ha4_s, ha4_r]
-    exact validHistory_bind_step hv_fill hv_wd
+    exact validHistory_bind_step hv₁ <| validHistory_bind_step hv₂ <|
+      validHistory_bind_step hv_cp <| validHistory_bind_step hv₄ <|
+        validHistory_bind_step hv_fill hv_wd
   · rw [hsEnd_eq, hfr_wd, hs₅_fr]
     dsimp only [tblPtr]
     rw [hs₃_fr, hbagLen_eq, ← htblLen_eq]
@@ -728,9 +692,16 @@ theorem introNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : IntroNodeArgs)
       exact htbl_fill.frame_outsideRange
         (.inr (by dsimp only [fillArgs, tblPtr]; rw [hs₃_fr]; dsimp only [bagPtr]; omega))
         hframe_wd
-  · unfold introNodeProg
+  · have hcost_eq :
+        a.q ^ (a.v :: bagList child).length *
+          (2 + 3 * a.numCons +
+            (cs.map fun ct => ct.scope.length).sum * (2 * (a.v :: bagList child).length + 3)) =
+          tblLen *
+            (2 + 3 * a.numCons + (cs.map fun ct => ct.scope.length).sum * (2 * bagLen + 3)) := by
+      rw [htblLen_eq, hbagLen_eq]
+    unfold introNodeProg
     dsimp only
-    iterate 4 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
+    iterate 4 rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read]
     rw [hm_cbLen, hm_ctLen, memoryCost_bind', memoryCost_allocDirty, ha1_s, ha1_r,
       memoryCost_bind', memoryCost_write, hw_s, memoryCost_bind']
     change 1 + (1 + (1 + (1 + (1 + (1 + (memoryCost (copyBagProg _) s₂ +
@@ -739,13 +710,6 @@ theorem introNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : IntroNodeArgs)
     change 1 + (1 + (1 + (1 + (1 + (1 + (memoryCost (copyBagProg _) s₂ +
       (1 + (memoryCost (introFillProg fillArgs) s₄ +
         memoryCost (writeDescProg ⟨a.dCur, bagPtr, bagLen, tblPtr, tblLen⟩) s₅)))))))) ≤ _
-    have hcost_eq :
-        a.q ^ (a.v :: bagList child).length *
-          (2 + 3 * a.numCons +
-            (cs.map fun ct => ct.scope.length).sum * (2 * (a.v :: bagList child).length + 3)) =
-          tblLen *
-            (2 + 3 * a.numCons + (cs.map fun ct => ct.scope.length).sum * (2 * bagLen + 3)) := by
-      rw [htblLen_eq, hbagLen_eq]
     dsimp only [s₅, fillArgs, cBagPtr, cBagLen, cTblPtr, cTblLen, bagPtr, bagLen, tblPtr, tblLen]
       at hc_cp hc_fill hc_wd hcost_eq ⊢
     omega
@@ -834,24 +798,6 @@ theorem introNodeProg_realizes :
         HoldsIn d.consRawPtr (cs.flatMap ConstraintTable.encode) s₄ ∧
         Fits w (d.consRawPtr + (cs.flatMap ConstraintTable.encode).length) :=
       ⟨cs, hcs_len, by rw [hs₃_fr]; omega, hcs_h.mono_frontier hp_all, hfit_peak.of_le (by omega)⟩
-    repeat (
-      first
-      | exact hexists_cs
-      | exact hq
-      | exact h1
-      | exact h2
-      | exact hfit_q
-      | exact hdCh
-      | exact hdCur
-      | exact hf_ch1
-      | exact hf_ch2
-      | exact hf_bagLen
-      | exact hf_fr1
-      | exact hf_csrc
-      | exact hf_cdst
-      | exact hf_tblLen
-      | exact hf_bagEnd
-      | exact hf_ctEnd
-      | exact hf_tEnd)
+    assumption
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

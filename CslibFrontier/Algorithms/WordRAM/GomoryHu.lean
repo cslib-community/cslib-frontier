@@ -356,9 +356,8 @@ private theorem rehang_spec (n s t : ℕ) (st : Memory.State) :
         then s else st.mem (parBase n + y))
     (fun rem z u ⟨hsum, hfr, hpar⟩ => by
       have hz : z < n := by omega
-      have hpz : u.mem (parBase n + z) = st.mem (parBase n + z) := by
-        rw [hpar z hz, ite_eq_right_iff]
-        exact fun h => absurd h.1 (lt_irrefl z)
+      have hpz : u.mem (parBase n + z) = st.mem (parBase n + z) :=
+        (hpar z hz).trans (ite_eq_right fun h => absurd h.1 (lt_irrefl z))
       have hdz : u.mem (distBase n + z) = st.mem (distBase n + z) :=
         hfr _ (Or.inr (by dsimp only [distBase, parBase]; omega))
       unfold rehangStep
@@ -369,23 +368,18 @@ private theorem rehang_spec (n s t : ℕ) (st : Memory.State) :
       · rw [ite_eq_left hc, clientResult_bind_write, clientState_bind_write,
           StateTransitionSpec.clientResult_pure, StateTransitionSpec.clientState_pure]
         refine ⟨by omega, fun a ha => ?_, fun y hy => ?_⟩
+        · dsimp only; rw [Function.update_of_ne (by omega)]; exact hfr a ha
         · dsimp only
-          rw [Function.update_of_ne (by omega)]
-          exact hfr a ha
-        · dsimp only
-          by_cases hyz : y = z
-          · subst hyz
-            rw [Function.update_self, ite_eq_left ⟨Nat.lt_succ_self y, hc⟩]
+          obtain rfl | hyz := eq_or_ne y z
+          · rw [Function.update_self, ite_eq_left ⟨Nat.lt_succ_self _, hc⟩]
           · rw [Function.update_of_ne (by omega), hpar y hy]
             split_ifs <;> omega
       · rw [ite_eq_right hc, StateTransitionSpec.clientResult_pure,
           StateTransitionSpec.clientState_pure]
         refine ⟨by omega, hfr, fun y hy => ?_⟩
         rw [hpar y hy]
-        by_cases hyz : y = z
-        · subst hyz
-          rw [ite_eq_right (fun h => absurd h.1 (lt_irrefl y)),
-            ite_eq_right (fun h => hc h.2)]
+        obtain rfl | hyz := eq_or_ne y z
+        · rw [ite_eq_right (fun h => absurd h.1 (lt_irrefl _)), ite_eq_right (fun h => hc h.2)]
         · split_ifs <;> omega)
     (n := n) (a := 0) (s := st) ⟨Nat.zero_add _, fun _ _ => rfl, fun y _ =>
       (ite_eq_right (fun h => absurd h.1 (Nat.not_lt_zero y))).symm⟩
@@ -483,44 +477,23 @@ private theorem ghStep_spec {n r B k t : ℕ} {st : Memory.State} (hk : k < n) (
       rw [Function.update_of_ne (hne' _), hlow2 a ha]
   · by_cases hX : st1.mem (distBase n + st.mem (parBase n + t)) < n
     · rw [key, ite_eq_left hX]
-      dsimp only
       simp only [Function.update_apply, hX, ↓reduceIte]
       by_cases hzk : z = k
-      · subst hzk
-        simp only [parBase, wtBase] at *
-        split_ifs <;> omega
-      · by_cases hzt : z = t
-        · subst hzt
-          simp only [parBase, wtBase] at *
-          split_ifs <;> omega
-        · rw [hP2 z hz]
-          simp only [parBase, wtBase] at *
-          split_ifs <;> omega
+      · subst hzk; simp only [parBase, wtBase] at *; split_ifs <;> omega
+      by_cases hzt : z = t
+      · subst hzt; simp only [parBase, wtBase] at *; split_ifs <;> omega
+      rw [hP2 z hz]; simp only [parBase, wtBase] at *; split_ifs <;> omega
     · rw [key, ite_eq_right hX]
-      dsimp only
       simp only [Function.update_apply, hX, ↓reduceIte]
       by_cases hzk : z = k
-      · subst hzk
-        rw [hP2 z hz]
-        simp only [parBase, wtBase] at *
-        split_ifs <;> omega
-      · by_cases hzt : z = t
-        · subst hzt
-          rw [hP2 z hz]
-          simp only [parBase, wtBase] at *
-          split_ifs <;> omega
-        · rw [hP2 z hz]
-          simp only [parBase, wtBase] at *
-          split_ifs <;> omega
+      · subst hzk; rw [hP2 z hz]; simp only [parBase, wtBase] at *; split_ifs <;> omega
+      by_cases hzt : z = t
+      · subst hzt; rw [hP2 z hz]; simp only [parBase, wtBase] at *; split_ifs <;> omega
+      rw [hP2 z hz]; simp only [parBase, wtBase] at *; split_ifs <;> omega
   · by_cases hX : st1.mem (distBase n + st.mem (parBase n + t)) < n
-    · rw [key, ite_eq_left hX]
-      dsimp only
-      simp only [Function.update_apply, hX, ↓reduceIte, hW2 z hz]
-      simp only [parBase, wtBase] at *
-      split_ifs <;> omega
-    · rw [key, ite_eq_right hX]
-      dsimp only
-      simp only [Function.update_apply, hX, ↓reduceIte, hW2 z hz]
+    all_goals
+      rw [key]
+      simp only [hX, ↓reduceIte, Function.update_apply, hW2 z hz]
       simp only [parBase, wtBase] at *
       split_ifs <;> omega
 
@@ -635,12 +608,10 @@ private theorem gusfieldAt_ghStep {n : ℕ} {W : Fin n → Fin n → ℕ} {r : F
   obtain ⟨hlow, hpar', hwt'⟩ := ghStep_spec (r := r.1) (B := M) hk hkr hpar (hP ⟨k, hk⟩)
   set X : Finset (Fin n) := Finset.univ.filter fun x =>
     ((Memory.spec 0).clientState st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))).mem
-      (distBase n + x.1) < n with hX
+      (distBase n + x.1) < n
   have hmemX : ∀ x : Fin n, x ∈ X ↔
       ((Memory.spec 0).clientState st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))).mem
-        (distBase n + x.1) < n := fun x => by
-    rw [hX, Finset.mem_filter]
-    exact and_iff_right (Finset.mem_univ x)
+        (distBase n + x.1) < n := fun x => Finset.mem_filter_univ x
   have hspec : (⟨k, hk⟩ : Fin n) ≠ res.1 ⟨k, hk⟩ →
       IsMinCutBetween (cutWeight W) ⟨k, hk⟩ (res.1 ⟨k, hk⟩) X ∧
         (Memory.spec 0).clientResult st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1))) =
@@ -653,22 +624,14 @@ private theorem gusfieldAt_ghStep {n : ℕ} {W : Fin n → Fin n → ℕ} {r : F
     if a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩ then
       (Memory.spec 0).clientResult st (ekProg (ghCtx n M, (k, (res.1 ⟨k, hk⟩).1)))
     else val a b
-  have hC' : ∀ a b, a ≠ b → IsMinCutBetween (cutWeight W) a b (C' a b) := by
-    intro a b hab
-    by_cases h : a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩
-    · obtain ⟨rfl, rfl⟩ := h
-      simp only [C', and_self, ↓reduceIte]
-      exact (hspec hab).1
-    · simp only [C', h, ↓reduceIte]
-      exact hC a b hab
-  have hval' : ∀ a b, a ≠ b → val' a b = cutWeight W (C' a b) := by
-    intro a b hab
-    by_cases h : a = ⟨k, hk⟩ ∧ b = res.1 ⟨k, hk⟩
-    · obtain ⟨rfl, rfl⟩ := h
-      simp only [val', C', and_self, ↓reduceIte]
-      exact (hspec hab).2
-    · simp only [val', C', h, ↓reduceIte]
-      exact hval a b hab
+  have hC' : ∀ a b, a ≠ b → IsMinCutBetween (cutWeight W) a b (C' a b) := fun a b hab => by
+    dsimp only [C']; split_ifs with h
+    · obtain ⟨rfl, rfl⟩ := h; exact (hspec hab).1
+    · exact hC a b hab
+  have hval' : ∀ a b, a ≠ b → val' a b = cutWeight W (C' a b) := fun a b hab => by
+    dsimp only [val', C']; split_ifs with h
+    · obtain ⟨rfl, rfl⟩ := h; exact (hspec hab).2
+    · exact hval a b hab
   have hpre : gusfieldWeightLoop C' val' r ((List.finRange n).take k) (fun _ => r)
       (fun _ => 0) = res := by
     rw [← hres]
@@ -1029,9 +992,7 @@ private theorem gusfieldAt_ghProg {n : ℕ} {W : Fin n → Fin n → ℕ} (r : F
       obtain ⟨h1, h2⟩ := gusfieldAt_ghStep (by omega) hWM hW hG
       exact ⟨by omega, h1, h2⟩)
     (n := n) (a := 0) (s := s_w) ⟨Nat.zero_add _, hWw, hG0⟩
-  rw [Nat.add_zero] at hsum
-  rw [hsum] at hG
-  exact hG
+  rw [Nat.add_zero] at hsum; rwa [hsum] at hG
 
 /-! ### The uniform program -/
 
@@ -1086,14 +1047,11 @@ theorem exists_gomoryHu_program :
       _ ≤ C₀ * (40 * (n + 1) ^ 6 + 1) + 1 :=
           Nat.add_le_add_right (Nat.mul_le_mul_left _ (by omega)) 1
       _ ≤ (41 * C₀ + 2) * (n + 1) ^ 6 := by nlinarith
-  · rw [hymem]
-    exact (hcells u).1
-  · rw [hymem]
-    refine (hcells u).2.trans ?_
+  · rw [hymem]; exact (hcells u).1
+  · rw [hymem]; refine (hcells u).2.trans ?_
     change (gusfieldWithWeights C val r 0 (List.finRange n)).2 u = _
-    by_cases hur : u = r
-    · subst hur
-      rw [hwroot, hroot, minCutBetween_self]
+    obtain rfl | hur := eq_or_ne u r
+    · rw [hwroot, hroot, minCutBetween_self]
     · obtain ⟨hcut, hwt⟩ := hside u hur
       rw [hwt]
       exact ((isMinCutBetween_cutWeight_iff W).mp hcut).2.2

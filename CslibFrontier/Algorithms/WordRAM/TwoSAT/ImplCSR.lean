@@ -81,12 +81,7 @@ theorem buildImplCSRCode_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBoun
       (by dsimp only [x₂]; wram_simp)
       (by dsimp only [x₂]; wram_simp)
   have hx₃_fr0 : ∀ r : Fin 28, r.val < 18 → x₃.regs r = x.regs r := fun r hr => by
-    have h3 := hx₃_fr r hr
-    have hne1 : r ≠ pReg := by reg_ne
-    have hne2 : r ≠ iReg := by reg_ne
-    dsimp only [x₂] at h3
-    rw [h3, Data.set_regs_of_ne hne1, Data.set_regs_of_ne hne2]
-    exact hx₁_fr r hr
+    rw [hx₃_fr r hr]; dsimp only [x₂]; regs_lt; exact hx₁_fr r hr
   have hfit_ps : Fits w (curBase + N + Mc + 2) :=
     G.fits_of_le hfit (by
       simp only [curBase, N, Mc, kCurAddr, Instance.workBase, Instance.outAddrBase,
@@ -141,12 +136,7 @@ theorem buildImplCSRCode_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBoun
       hx₃_out _ (by dsimp only [kCurAddr]; omega)]
     dsimp only [x₂]; mem_upd
     exact hx₁_out _ (by dsimp only [curBase, N, Mc, kCurAddr]; omega)
-  · have h5 := hy_fr r hr
-    have hne1 : r ≠ pReg := by reg_ne
-    have hne2 : r ≠ iReg := by reg_ne
-    dsimp only [x₅] at h5
-    rw [h5, Data.set_regs_of_ne hne1, Data.set_regs_of_ne hne2]
-    exact hx₄_fr0 r hr
+  · rw [hy_fr r hr]; dsimp only [x₅]; regs_lt; exact hx₄_fr0 r hr
 
 theorem not_readsWidth_buildImplCSRCode : ¬ buildImplCSRCode.ReadsWidth := by
   simp [buildImplCSRCode, Code.ReadsWidth, Op.ReadsWidth,

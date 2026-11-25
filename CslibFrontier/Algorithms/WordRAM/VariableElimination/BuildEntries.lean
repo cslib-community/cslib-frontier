@@ -106,17 +106,15 @@ private theorem buildEntryStep_state (env : BuildEntryEnv) (curIdx : ℕ) (t : M
           ⟨env.dom, env.x, env.outPtr, env.outLen, curIdx, env.bucketPtr, env.bucketLen⟩)),
         t.frontier⟩ := by
   unfold buildEntryStep
-  have hr : (Memory.spec 0).clientState t (Memory.read 0) = t := rfl
-  rw [StateTransitionSpec.clientState_bind, hr, StateTransitionSpec.clientState_bind,
-    sumDomainValues_state, StateTransitionSpec.clientState_bind]
+  rw [clientState_bind_read, StateTransitionSpec.clientState_bind, sumDomainValues_state,
+    StateTransitionSpec.clientState_bind]
   rfl
 
 private theorem buildEntryStep_result (env : BuildEntryEnv) (curIdx : ℕ) (t : Memory.State) :
     (Memory.spec 0).clientResult t (buildEntryStep (env, curIdx)) = curIdx + 1 := by
   unfold buildEntryStep
-  have hr : (Memory.spec 0).clientState t (Memory.read 0) = t := rfl
-  rw [StateTransitionSpec.clientResult_bind, hr, StateTransitionSpec.clientResult_bind,
-    sumDomainValues_state, StateTransitionSpec.clientResult_bind]
+  rw [clientResult_bind_read, StateTransitionSpec.clientResult_bind, sumDomainValues_state,
+    StateTransitionSpec.clientResult_bind]
   rfl
 
 theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List ℕ}
@@ -148,21 +146,14 @@ theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List �
     by_cases ho0 : args.outLen = 0
     · rw [ite_eq_left ho0]
       have hfit1 : Fits w (s.frontier + 1) := by simpa [hd0, ho0] using hfit_fr
-      have halloc_val : (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s (Memory.alloc 1)) := validHistory_alloc hfit1
       have htab_len : (bucketOutScope args.x bucket).length = 0 := by
         rw [← hout_eq, hout_len, ho0]
       have htab_sz : (elimBucketTable args.dom args.x bucket).entries.size = 1 := by
         simp [elimBucketTable, hd0, htab_len]
       have htab_list : (elimBucketTable args.dom args.x bucket).entries.toList = [0] := by
-        apply List.ext_getElem
-        · simp [htab_sz]
-        · intro i hi1 hi2
-          have hi0 : i = 0 := by simp at hi2; omega
-          subst hi0
-          simp [elimBucketTable, hd0]
-      refine ⟨validHistory_bind_step halloc_val (validHistory_pure w _ _), ?_, ?_, le_rfl, ?_, ?_,
-        ?_⟩
+        simp [elimBucketTable, hd0, htab_len]
+      refine ⟨validHistory_bind_step (validHistory_alloc hfit1) (validHistory_pure w _ _), ?_, ?_,
+        le_rfl, ?_, ?_, ?_⟩
       · refine ⟨le_rfl, by change s.frontier ≤ s.frontier + 1; omega, fun a ha => ?_⟩
         change clear s.mem s.frontier 1 a = s.mem a
         exact clear_of_not_owns (by simp [Block.Owns]; omega)
@@ -178,16 +169,14 @@ theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List �
         omega
     · rw [ite_eq_right ho0]
       have hfit0 : Fits w (s.frontier + 0) := by simpa using hwf.frontier_fits
-      have halloc_val : (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s (Memory.alloc 0)) := validHistory_alloc hfit0
       have htab_len : (bucketOutScope args.x bucket).length ≠ 0 := by
         rw [← hout_eq, hout_len]; exact ho0
       have htab_sz : (elimBucketTable args.dom args.x bucket).entries.size = 0 := by
         simp [elimBucketTable, hd0, Nat.zero_pow (Nat.pos_of_ne_zero htab_len)]
       have htab_list : (elimBucketTable args.dom args.x bucket).entries.toList = [] :=
         Array.toList_eq_nil_iff.mpr (Array.size_eq_zero_iff.mp htab_sz)
-      refine ⟨validHistory_bind_step halloc_val (validHistory_pure w _ _), ?_, ?_, le_rfl, ?_, ?_,
-        ?_⟩
+      refine ⟨validHistory_bind_step (validHistory_alloc hfit0) (validHistory_pure w _ _), ?_, ?_,
+        le_rfl, ?_, ?_, ?_⟩
       · refine ⟨le_rfl, by change s.frontier ≤ s.frontier + 0; omega, fun a ha => ?_⟩
         change clear s.mem s.frontier 0 a = s.mem a
         exact clear_of_not_owns (by simp [Block.Owns])
@@ -206,18 +195,12 @@ theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List �
       simpa [numEntries, hmax_dom] using hfit_fr
     have hcapB' : args.dom * (bucket.map capFactor).prod ≤ B := by
       simpa [hmax_dom] using hcapB
-    have hpow_val : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (powProg ⟨args.dom, args.outLen⟩)) :=
-      powProg_valid _ hs0
     have hpow_res : (Memory.spec 0).clientResult s (powProg ⟨args.dom, args.outLen⟩) =
         numEntries := powProg_result _ s
     have hpow_st : (Memory.spec 0).clientState s (powProg ⟨args.dom, args.outLen⟩) = s :=
       powProg_state _ s
     let s₀ : Memory.State := ⟨s.mem, s.frontier + numEntries⟩
     have hwf₀ : Memory.WellFormed w s₀ := hwf.step (o := .allocDirty numEntries) hfit_fr'
-    have halloc_val : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (Memory.allocDirty numEntries)) :=
-      validHistory_allocDirty hfit_fr'
     let env : BuildEntryEnv :=
       ⟨args.dom, args.x, args.outPtr, args.outLen, args.bucketPtr, args.bucketLen, s.frontier⟩
     let entryFn : ℕ → ℕ := fun idx =>
@@ -266,8 +249,7 @@ theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List �
             ((Memory.spec w).clientHistory t (buildEntryStep (env, curIdx))) := by
           unfold buildEntryStep
           dsimp only [env]
-          refine validHistory_read_bind hs0_t ?_
-          refine validHistory_bind_step hsd_val ?_
+          refine validHistory_read_bind hs0_t <| validHistory_bind_step hsd_val ?_
           rw [sumDomainValues_state, hsd_res]
           exact validHistory_write_bind haddr_lt hval_fit (validHistory_pure w _ _)
         let t₁ : Memory.State :=
@@ -279,12 +261,8 @@ theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List �
         have hwf₁ : Memory.WellFormed w t₁ :=
           hwf_t.step (o := .write (s.frontier + curIdx) (entryFn curIdx)) ⟨haddr_lt, hval_fit⟩
         have hfr₁ : t₁.frontier = s.frontier + numEntries := hfr
-        have hpres₁ : PreservesBelow s.frontier s t₁ := by
-          refine ⟨le_rfl, by omega, fun a ha => ?_⟩
-          have hne : a ≠ s.frontier + curIdx := by omega
-          change Function.update t.mem (s.frontier + curIdx) (entryFn curIdx) a = s.mem a
-          rw [Function.update_of_ne hne]
-          exact hpres.2.2 a ha
+        have hpres₁ : PreservesBelow s.frontier s t₁ := ⟨le_rfl, by omega,
+          fun a ha => (Function.update_of_ne (by omega) _ _).trans (hpres.2.2 a ha)⟩
         have hlist₁ :
             Block.HoldsList s.frontier ((List.range (curIdx + 1)).map entryFn) t₁.mem := by
           rw [List.range_succ, List.map_append, List.map_singleton]
@@ -294,9 +272,8 @@ theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List �
             3 + args.dom * (1 + args.bucketLen * (5 + maxScope * (args.outLen + 1))) := by
           unfold buildEntryStep
           dsimp only [env]
-          have hr : (Memory.spec 0).clientState t (Memory.read 0) = t := rfl
-          rw [memoryCost_bind', memoryCost_read, hr, memoryCost_bind', sumDomainValues_state,
-            memoryCost_bind', memoryCost_write, memoryCost_pure]
+          rw [memoryCost_bind', memoryCost_read, clientState_read, memoryCost_bind',
+            sumDomainValues_state, memoryCost_bind', memoryCost_write, memoryCost_pure]
           have hscost := sumDomainValues_cost (args := sdArgs) hb_t hlen hmax
           dsimp only [sdArgs] at hscost
           omega
@@ -308,14 +285,8 @@ theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List �
         rw [hiter_eq, StateTransitionSpec.clientState_bind, hstep_st, buildEntryStep_result]
         refine ⟨validHistory_bind_step hstep_val
           (by simpa [hstep_st, buildEntryStep_result] using hv_r), hfr_r, hpres_r, hlist_r, ?_⟩
-        rw [memoryCost_bind', hstep_st, buildEntryStep_result]
-        calc memoryCost (buildEntryStep (env, curIdx)) t + _
-            ≤ (3 + args.dom * (1 + args.bucketLen * (5 + maxScope * (args.outLen + 1)))) +
-                rem * (3 + args.dom * (1 + args.bucketLen * (5 + maxScope * (args.outLen + 1)))) :=
-              Nat.add_le_add hstep_cost hcost_r
-          _ = (rem + 1) *
-                (3 + args.dom * (1 + args.bucketLen * (5 + maxScope * (args.outLen + 1)))) := by
-              ring
+        rw [memoryCost_bind', hstep_st, buildEntryStep_result, Nat.succ_mul]
+        omega
     have hpres₀ : PreservesBelow s.frontier s s₀ := ⟨le_rfl, Nat.le_add_right _ _, fun _ _ => rfl⟩
     obtain ⟨hv_l, hfr_l, hpres_l, hlist_l, hcost_l⟩ :=
       hloop numEntries 0 s₀ (by simp) hwf₀ rfl hpres₀ (Block.holdsList_nil _ _)
@@ -345,9 +316,10 @@ theorem buildOutEntries_spec {w : ℕ} {args : BuildOutArgs} {outScope : List �
         simp only [elimBucketTable, Array.getElem_ofFn, entryFn]
         subst hout_eq
         rfl
-    refine ⟨validHistory_bind_step hpow_val ?_, hpres_l, ?_, le_rfl, htab_sz.symm, ?_, ?_⟩
+    refine ⟨validHistory_bind_step (powProg_valid _ hs0) ?_, hpres_l, ?_, le_rfl, htab_sz.symm,
+      ?_, ?_⟩
     · rw [hpow_st, hpow_res]
-      refine validHistory_bind_step halloc_val ?_
+      refine validHistory_bind_step (validHistory_allocDirty hfit_fr') ?_
       rw [ha_st, ha_res]
       exact validHistory_bind_step hv_l (validHistory_pure w _ _)
     · rw [hfr_l, hmax_dom]
