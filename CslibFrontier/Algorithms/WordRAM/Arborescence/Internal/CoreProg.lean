@@ -138,13 +138,10 @@ private theorem bestEntryOuterStep_realizes :
   realize [fillBestEntryRowProg_realizes, argMinArrayProg_realizes]
   all_goals
     obtain ⟨hu, hk, hws, hrow, harg⟩ := h
-    first
-    | exact hrow
-    | exact harg
-    | exact hws.of_le (by
-        dsimp only [wsSize, frameMaskBase, frameBEntryBase, frameBase, curAdjBase, curCostBase,
-          candPredBase, candCostBase]
-        nlinarith)
+    first | exact hrow | exact harg | exact hws.of_le (by
+      dsimp only [wsSize, frameMaskBase, frameBEntryBase, frameBase, curAdjBase, curCostBase,
+        candPredBase, candCostBase]
+      nlinarith)
 
 /-- Populates `frameBEntryBase` at level `a.k` across all `u < a.n`. -/
 @[expose] public def bestEntryProg (a : LevelArgs) : Memory.Prog ℕ :=
@@ -224,17 +221,8 @@ private theorem bestExitRowStep_realizes :
   all_goals
     obtain ⟨h2, hm, ha, hc, hp, hpo, hco, hx, hsub⟩ := h
     first
-    | exact h2
-    | exact h2.of_le (by omega)
-    | exact hm
-    | exact ha
-    | exact hc
-    | exact hp
-    | exact hpo
-    | exact hco
-    | exact hx
-    | exact (hsub ‹_›).1
-    | exact (hsub ‹_›).2.1
+    | exact h2 | exact h2.of_le (by omega) | exact hm | exact ha | exact hc | exact hp
+    | exact hpo | exact hco | exact hx | exact (hsub ‹_›).1 | exact (hsub ‹_›).2.1
     | exact (hsub ‹_›).2.2
 
 /-- Fills candidate exit feasibility and reduced cost arrays for target column `a.col`. -/
@@ -284,13 +272,10 @@ private theorem bestExitOuterStep_realizes :
   realize [fillBestExitRowProg_realizes, argMinArrayProg_realizes]
   all_goals
     obtain ⟨hcol, hk, hws, hrow, harg⟩ := h
-    first
-    | exact hrow
-    | exact harg
-    | exact hws.of_le (by
-        dsimp only [wsSize, frameParentBase, frameMaskBase, frameBExitBase, frameBase, curAdjBase,
-          curCostBase, candPredBase, candCostBase]
-        nlinarith)
+    first | exact hrow | exact harg | exact hws.of_le (by
+      dsimp only [wsSize, frameParentBase, frameMaskBase, frameBExitBase, frameBase, curAdjBase,
+        curCostBase, candPredBase, candCostBase]
+      nlinarith)
 
 /-- Populates `frameBExitBase` at level `a.k` across all `col < a.n`. -/
 @[expose] public def bestExitProg (a : LevelArgs) : Memory.Prog ℕ :=
@@ -361,8 +346,8 @@ private theorem contractAdjCellProg_realizes :
   all_goals
     obtain ⟨hu, hcol, hk, hws⟩ := h
     exact hws.of_le (by
-      dsimp only [wsSize, frameMaskBase, frameBEntryBase, frameBExitBase, frameBase,
-        curAdjBase, nextAdjBase]
+      dsimp only [wsSize, frameMaskBase, frameBEntryBase, frameBExitBase, frameBase, curAdjBase,
+        nextAdjBase]
       nlinarith)
 
 /-- Writes contracted signed cost `(u, col)` into `nextCostBase` using reduced exit costs. -/
@@ -416,8 +401,7 @@ private theorem contractCostCellProg_realizes :
     have hfr := frame_le_frames hk
     have huc := List.mul_add_lt_sq hu hcol
     first
-    | exact (hsub ‹_› ‹_› ‹_› ‹_›).2.1
-    | exact (hsub ‹_› ‹_› ‹_› ‹_›).2.2
+    | exact (hsub ‹_› ‹_› ‹_› ‹_›).2.1 | exact (hsub ‹_› ‹_› ‹_› ‹_›).2.2
     | exact hws.of_le (by
         dsimp only [wsSize, frameParentBase, frameMaskBase, frameBEntryBase, frameBExitBase,
           frameBase, curAdjBase, curCostBase, nextCostBase]
@@ -425,9 +409,7 @@ private theorem contractCostCellProg_realizes :
     | exact hws.of_le (by
         have hbx : s.mem (frameBExitBase d.1.ws d.1.n d.1.k + d.2) < d.1.n := ‹_›
         have hbx_c := List.mul_add_lt_sq hbx hcol
-        have hfx : s.mem (frameParentBase d.1.ws d.1.n d.1.k +
-            s.mem (frameBExitBase d.1.ws d.1.n d.1.k + d.2)) < d.1.n :=
-          (hsub ‹_› ‹_› ‹_› hbx).1
+        have hfx := (hsub ‹_› ‹_› ‹_› hbx).1
         have hbx_f := List.mul_add_lt_sq hbx hfx
         dsimp only [wsSize, frameParentBase, frameMaskBase, frameBEntryBase, frameBExitBase,
           frameBase, curAdjBase, curCostBase, nextCostBase] at hbx hbx_c hfx hbx_f ⊢
@@ -453,8 +435,7 @@ private theorem contractRowStep_realizes :
   all_goals
     obtain ⟨hu, hcol, hk, hws, hadd⟩ := h
     first
-    | exact ⟨hu, hcol, hk, hws, hadd⟩
-    | exact ⟨hu, hcol, hk, hws⟩
+    | exact ⟨hu, hcol, hk, hws, hadd⟩ | exact ⟨hu, hcol, hk, hws⟩
     | exact hws.of_le (by dsimp only [wsSize]; nlinarith)
 
 /-- Contracts row `a.u` across all columns into `nextAdjBase`/`nextCostBase`. -/
@@ -540,12 +521,9 @@ private theorem contractTablesProg_realizes :
   realize [contractLoopProg_realizes, copyWordsProg_realizes]
   all_goals
     obtain ⟨hws, hloop, hcp⟩ := h
-    first
-    | exact hloop
-    | exact hcp
-    | exact hws.of_le (by
-        dsimp only [wsSize, curAdjBase, nextAdjBase]
-        nlinarith)
+    first | exact hloop | exact hcp | exact hws.of_le (by
+      dsimp only [wsSize, curAdjBase, nextAdjBase]
+      nlinarith)
 
 -- 9. `expandLevelProg`
 
@@ -646,13 +624,10 @@ private theorem expandLevelProg_realizes :
   realize [fillExpandRowProg_realizes, copyWordsProg_realizes]
   all_goals
     obtain ⟨hk, hws, hx0, hqx0, hexp, hcopy⟩ := h
-    first
-    | exact hexp
-    | exact hcopy
-    | exact hws.of_le (by
-        dsimp only [wsSize, frameRepAddr, frameBExitBase, frameBase, curParentBase,
-          nextParentBase] at hx0 hqx0 ⊢
-        nlinarith)
+    first | exact hexp | exact hcopy | exact hws.of_le (by
+      dsimp only [wsSize, frameRepAddr, frameBExitBase, frameBase, curParentBase, nextParentBase]
+        at hx0 hqx0 ⊢
+      nlinarith)
 
 -- 10. `edmondsCoreProg`: forward contraction pass + backward expansion pass
 
@@ -718,18 +693,12 @@ private theorem contractRoundBodyProg_realizes :
     Realizes .exact contractRoundBodyProg encContractArgs wordWords
       ContractRoundBodySafe (fun _ _ => 0) := by
   unfold contractRoundBodyProg
-  realize [cycleMaskProg_realizes, bestEntryProg_realizes,
-    bestExitProg_realizes, contractTablesProg_realizes]
+  realize [cycleMaskProg_realizes, bestEntryProg_realizes, bestExitProg_realizes,
+    contractTablesProg_realizes]
   all_goals
     obtain ⟨hk, hws, hz, hcm, hbe, hbx, hct, hcp⟩ := h
     first
-    | exact hz
-    | exact hcm
-    | exact hbe
-    | exact hbx
-    | exact hct
-    | exact hcp
-    | exact hws
+    | exact hz | exact hcm | exact hbe | exact hbx | exact hct | exact hcp | exact hws
     | exact hws.of_le (by
         dsimp only [wsSize, frameRepAddr, frameParentBase, frameMaskBase, frameBase]
         nlinarith)
@@ -781,11 +750,8 @@ private theorem forwardStep_realizes :
   all_goals
     obtain ⟨hk, hws, hst0⟩ := h
     first
-    | exact (hst0 ‹_›).1
-    | exact ((hst0 ‹_›).2 ‹_›).1
-    | exact ((hst0 ‹_›).2 ‹_›).2.1 ‹_›
-    | exact ((hst0 ‹_›).2 ‹_›).2.2 ‹_›
-    | exact hws.of_le (by
+    | exact (hst0 ‹_›).1 | exact ((hst0 ‹_›).2 ‹_›).1 | exact ((hst0 ‹_›).2 ‹_›).2.1 ‹_›
+    | exact ((hst0 ‹_›).2 ‹_›).2.2 ‹_› | exact hws.of_le (by
         dsimp only [wsSize, frameParentBase, frameBase, curParentBase]
         nlinarith)
 
