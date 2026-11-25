@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.BCS.ROM
 public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.LigeroProximity
 public import CslibFrontier.Foundations.Data.Code.InterleavedCurve
 import CslibFrontier.Foundations.Data.Hamming
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.VecMul
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
@@ -140,16 +141,10 @@ theorem ligeroPowWeights_apply {F : Type*} [Semiring F] (m : ℕ) (z : F) (i : F
     ligeroPowWeights m z i = z ^ (i : ℕ) :=
   rfl
 
-private lemma vecMul_eq_sum_smul_swap {F : Type*} [CommSemiring F] {m n : ℕ}
-    (r : Fin m → F) (M : Matrix (Fin m) (Fin n) F) :
-    r ᵥ* M = fun j => ∑ i : Fin m, r i • Function.swap M j i := by
-  funext j
-  simp only [Matrix.vecMul, dotProduct, Function.swap, smul_eq_mul]
-
 private lemma vecMul_ligeroPowWeights_eq_sum_pow {F : Type*} [CommSemiring F] {m n : ℕ}
     (z : F) (M : Matrix (Fin m) (Fin n) F) :
     ligeroPowWeights m z ᵥ* M = fun j => ∑ i : Fin m, z ^ (i : ℕ) • Function.swap M j i :=
-  vecMul_eq_sum_smul_swap (ligeroPowWeights m z) M
+  Matrix.vecMul_eq_sum_smul_swap (ligeroPowWeights m z) M
 
 /-- Round specification of a weight-parameterized batched proximity reduction with batching
 challenge space `BatchChal`, message length `l`, codeword length `n`, and `q` column queries. -/
@@ -314,7 +309,7 @@ theorem ligeroAffineProximityReduction_reedSolomon_rbrSound_johnson_exact
     (by simpa only [Fintype.card_fin] using hinterp)
     (by simpa only [Fintype.card_fin] using hroot)
     (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-  simpa only [codeOfGenerator_reedSolomonGenerator, vecMul_eq_sum_smul_swap, id_eq,
+  simpa only [codeOfGenerator_reedSolomonGenerator, Matrix.vecMul_eq_sum_smul_swap, id_eq,
     Fintype.card_fin] using hbound
 
 /-- **Round-by-round soundness of full-vector `ligeroBatchProximityReduction` up to `1 - √ρ - η`
@@ -340,7 +335,7 @@ theorem ligeroAffineProximityReduction_reedSolomon_rbrSound_johnson_of_eta
     (by simpa only [Fintype.card_fin] using hkn) hη
     (by simpa only [Fintype.card_fin] using he)
     (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-  simpa only [codeOfGenerator_reedSolomonGenerator, vecMul_eq_sum_smul_swap, id_eq,
+  simpa only [codeOfGenerator_reedSolomonGenerator, Matrix.vecMul_eq_sum_smul_swap, id_eq,
     Fintype.card_fin] using hbound
 
 /-- **Plain-model soundness of full-vector `ligeroBatchProximityReduction` up to `1 - √ρ - η`
@@ -794,7 +789,7 @@ theorem ligeroAffineEvalReduction_reedSolomon_rbrSound
   have hbound := toOuterMeasure_sum_smul_reedSolomon_close_le hα
     (by simpa only [Fintype.card_fin] using hunique)
     (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-  simpa only [codeOfGenerator_reedSolomonGenerator, vecMul_eq_sum_smul_swap, id_eq,
+  simpa only [codeOfGenerator_reedSolomonGenerator, Matrix.vecMul_eq_sum_smul_swap, id_eq,
     Fintype.card_fin] using hbound
 
 /-- **Plain-model soundness of full-vector `ligeroBatchEvalReduction` across the Reed–Solomon
@@ -1275,7 +1270,7 @@ theorem rsAffineBatchProximityBCS_romSoundness_unique {F : Type}
       have hb := toOuterMeasure_sum_smul_reedSolomon_close_le hα
         (by simpa only [Fintype.card_fin] using hunique)
         (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-      simpa only [vecMul_eq_sum_smul_swap, id_eq, Fintype.card_fin, Nat.cast_pow,
+      simpa only [Matrix.vecMul_eq_sum_smul_swap, id_eq, Fintype.card_fin, Nat.cast_pow,
         Nat.cast_ofNat] using hb)
     hdec defaultSym σ hMT hFS hV
   simpa only [Fintype.card_fun, Fintype.card_fin] using hbound
@@ -1316,7 +1311,7 @@ theorem rsAffineBatchProximityBCS_romSoundness_johnson_of_eta {F : Type}
         (by simpa only [Fintype.card_fin] using hk) hη
         (by simpa only [Fintype.card_fin] using he)
         (forall_lt_interleaved_reedSolomon_of_not_mem hM)
-      simpa only [vecMul_eq_sum_smul_swap, id_eq, Fintype.card_fin] using hb)
+      simpa only [Matrix.vecMul_eq_sum_smul_swap, id_eq, Fintype.card_fin] using hb)
     hdec defaultSym σ hMT hFS hV
   simpa only [Fintype.card_fun, Fintype.card_fin] using hbound
 
