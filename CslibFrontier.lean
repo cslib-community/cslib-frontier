@@ -2573,6 +2573,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy.Closure
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy.Kadin
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy.PH
+public import CslibFrontier.Computability.Complexity.Classes.CZK
 public import CslibFrontier.Computability.Complexity.Classes.CeqP
 public import CslibFrontier.Computability.Complexity.Classes.CeqP.Time
 public import CslibFrontier.Computability.Complexity.Classes.Constructible
