@@ -168,8 +168,6 @@ theorem norm_inner_valueOracle_valueOracle_ge [DecidableEq α]
       2 * ∑ i with x i ≠ y i, ‖querySlice i ψ‖ * ‖querySlice i φ‖ := by
     rw [hdiff, mul_sum]
     refine (norm_sum_le _ _).trans (sum_le_sum fun i _ => ?_)
-    have h₁ : ‖inner ℂ (querySlice i ψ) (querySlice i φ)‖ ≤
-        ‖querySlice i ψ‖ * ‖querySlice i φ‖ := norm_inner_le_norm _ _
     have h₂ : ‖inner ℂ (querySlice i (valueOracle step x ψ))
         (querySlice i (valueOracle step y φ))‖ ≤
         ‖querySlice i ψ‖ * ‖querySlice i φ‖ := by
@@ -178,10 +176,9 @@ theorem norm_inner_valueOracle_valueOracle_ge [DecidableEq α]
           (querySlice i (valueOracle step y φ))
     have htri := norm_sub_le (inner ℂ (querySlice i ψ) (querySlice i φ))
       (inner ℂ (querySlice i (valueOracle step x ψ)) (querySlice i (valueOracle step y φ)))
-    linarith
-  have hsub := norm_sub_norm_le (inner ℂ ψ φ)
-    (inner ℂ (valueOracle step x ψ) (valueOracle step y φ))
-  linarith
+    linarith [norm_inner_le_norm (𝕜 := ℂ) (querySlice i ψ) (querySlice i φ)]
+  linarith [norm_sub_norm_le (inner ℂ ψ φ)
+    (inner ℂ (valueOracle step x ψ) (valueOracle step y φ))]
 
 end QuerySlice
 
@@ -282,14 +279,7 @@ theorem valueWeightedProgress_zero_sub_le [DecidableEq α]
       rw [LinearIsometry.inner_map_map]
       have hmul := mul_le_mul_of_nonneg_left horacle (hγ p hp)
       rw [mul_sub, ← mul_assoc, mul_comm (γ p) 2, mul_sum] at hmul
-      have h1 : γ p * ‖inner ℂ (runValue step U ψ₀ p.1 t) (runValue step U ψ₀ p.2 t)‖ -
-            γ p * ‖inner ℂ (valueOracle step p.1 (runValue step U ψ₀ p.1 t))
-              (valueOracle step p.2 (runValue step U ψ₀ p.2 t))‖ ≤
-          ∑ i with p.1 i ≠ p.2 i,
-            2 * γ p * (‖querySlice i (runValue step U ψ₀ p.1 t)‖ *
-              ‖querySlice i (runValue step U ψ₀ p.2 t)‖) := by
-        linarith
-      refine h1.trans (sum_le_sum fun i hi => ?_)
+      refine (sub_le_comm.1 hmul).trans (sum_le_sum fun i hi => ?_)
       have hi' := (mem_filter.1 hi).2
       exact two_mul_mul_le_of_sq_le_mul (norm_nonneg _) (norm_nonneg _)
         (ha p hp i hi') (hb p hp i hi') (hγsq p hp i hi')
@@ -299,9 +289,8 @@ theorem valueWeightedProgress_zero_sub_le [DecidableEq α]
   induction T with
   | zero => simp
   | succ t ih =>
-    have hs := hstep t
     push_cast
-    linarith
+    linarith [hstep t]
 
 /-- **Weighted quantum adversary inequality for value-query algorithms**: if after `T` value queries
 the states on every pair in `R` have overlap at most `δ`, and nonnegative step weights `a, b`
@@ -365,13 +354,9 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sqrt_value [DecidableEq α]
   have hX : (0 : ℝ) < #X := Nat.cast_pos.2 (card_pos.2 (hR.image _))
   have hY : (0 : ℝ) < #Y := Nat.cast_pos.2 (card_pos.2 (hR.image _))
   have hRX : (m : ℝ) * #X ≤ #R := by
-    exact_mod_cast mul_card_image_le_card (f := Prod.fst) R m fun _ hx => by
-      obtain ⟨p, hp, rfl⟩ := mem_image.1 hx
-      exact hm p hp
+    exact_mod_cast mul_card_image_le_card (f := Prod.fst) R m (forall_mem_image.2 hm)
   have hRY : (m' : ℝ) * #Y ≤ #R := by
-    exact_mod_cast mul_card_image_le_card (f := Prod.snd) R m' fun _ hy => by
-      obtain ⟨p, hp, rfl⟩ := mem_image.1 hy
-      exact hm' p hp
+    exact_mod_cast mul_card_image_le_card (f := Prod.snd) R m' (forall_mem_image.2 hm')
   set wXY : ℝ := (#X : ℝ) * (#Y : ℝ)
   have hwXY : 0 < wXY := mul_pos hX hY
   have htel := one_sub_mul_sum_le_of_sq_le_value step U hψ₀ T R (fun _ => √wXY) hδ
