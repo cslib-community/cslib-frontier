@@ -121,32 +121,14 @@ private theorem initAuction_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin
           clientResult_pure]
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
       · rw [hst_eq]
-        dsimp only
-        simp only [Function.update_of_ne (by omega : x ≠ ws.bStack + k),
-          Function.update_of_ne (by omega : x ≠ ws.bPrice + k),
-          Function.update_of_ne (by omega : x ≠ ws.bOwner + k)]
+        simp (disch := omega) only [Function.update_of_ne]
       · rw [hst_eq, hres_eq]
-        dsimp only
         refine ⟨rfl, hsfr, fun j hj => ?_⟩
         rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt' | rfl
         · obtain ⟨ho, hp, hst⟩ := hprev j hlt'
-          refine ⟨?_, ?_, ?_⟩
-          · simp only [Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bStack + k),
-              Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bPrice + k),
-              Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bOwner + k), ho]
-          · simp only [Function.update_of_ne (by omega : ws.bPrice + j ≠ ws.bStack + k),
-              Function.update_of_ne (by omega : ws.bPrice + j ≠ ws.bPrice + k),
-              Function.update_of_ne (by omega : ws.bPrice + j ≠ ws.bOwner + k), hp]
-          · simp only [Function.update_of_ne (by omega : ws.bStack + j ≠ ws.bStack + k),
-              Function.update_of_ne (by omega : ws.bStack + j ≠ ws.bPrice + k),
-              Function.update_of_ne (by omega : ws.bStack + j ≠ ws.bOwner + k), hst]
-        · refine ⟨?_, ?_, ?_⟩
-          · simp only [Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bStack + j),
-              Function.update_of_ne (by omega : ws.bOwner + j ≠ ws.bPrice + j),
-              Function.update_self]
-          · simp only [Function.update_of_ne (by omega : ws.bPrice + j ≠ ws.bStack + j),
-              Function.update_self]
-          · simp only [Function.update_self])
+          refine ⟨?_, ?_, ?_⟩ <;> simp (disch := omega) only [Function.update_of_ne, ho, hp, hst]
+        · refine ⟨?_, ?_, ?_⟩ <;>
+            simp (disch := omega) only [Function.update_of_ne, Function.update_self])
     0 s₀ ⟨rfl, rfl, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   obtain ⟨hsafe, hv, hmc, hfr', hmod, _, _, hprev⟩ := hit
   refine ⟨hsafe, hv, hmc, hfr', hmod, ?_⟩
@@ -230,19 +212,6 @@ private theorem boundedWhile_auctionLoop_spec {w W : ℕ} (ws : AuctionWS)
           auctionLoop cZ (ws.eps : ℤ) fuel st₁ := by
         rw [auctionLoop, hs_free]
       simp only [← hs_free]
-      change ((auctionLoop cZ (ws.eps : ℤ) (fuel + 1) st).free = [] → _) ∧
-        (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s
-            (boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1) st.free.length)) ∧
-        memoryCost
-          (boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1) st.free.length) s ≤
-          ((auctionLoop cZ (ws.eps : ℤ) (fuel + 1) st).bids - st.bids) * (4 * ws.n + 6) ∧
-        ((Memory.spec 0).clientState s
-          (boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1)
-            st.free.length)).frontier = s.frontier ∧
-        AuctionMem ws C (auctionLoop cZ (ws.eps : ℤ) (fuel + 1) st)
-          ((Memory.spec 0).clientState s
-            (boundedWhile (fun _ (sp : ℕ) => 0 < sp) bidStepProg ws (fuel + 1) st.free.length))
       rw [hbw_eq, hloop_step]
       refine ⟨fun hfree => ?_, ?_, ?_, ?_, ?_⟩
       · rw [whileSafe, ite_eq_left hpos, hres_step]
