@@ -117,9 +117,9 @@ theorem exists_fourierCoeff_signVal_eq_intCast_div_two_pow_of_mem_lowDegree
     convert signVal_comp_mem_lowDegree_iff.1 hf using 2 with x
     cases f x <;> simp
   obtain ⟨z, hz⟩ := exists_fourierCoeff_eq_intCast_div_two_pow_of_mem_lowDegree _ hmem S
-  rw [show (fun x => signVal (f x)) = fun x => 1 - 2 * ((bitVal ℤ (f x) : ℤ) : ℝ) from
-    funext fun x => by cases f x <;> norm_num,
-    fourierCoeff_sub, fourierCoeff_const, fourierCoeff_const_mul, hz]
+  have hsign : (fun x => signVal (f x)) = fun x => 1 - 2 * ((bitVal ℤ (f x) : ℤ) : ℝ) :=
+    funext fun x => by cases f x <;> norm_num
+  rw [hsign, fourierCoeff_sub, fourierCoeff_const, fourierCoeff_const_mul, hz]
   rcases k with _ | k
   · exact ⟨(if S = ∅ then 1 else 0) - 2 * z, by split_ifs <;> push_cast <;> ring⟩
   · refine ⟨(if S = ∅ then 2 ^ k else 0) - z, ?_⟩

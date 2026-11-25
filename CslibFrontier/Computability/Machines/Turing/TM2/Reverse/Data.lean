@@ -140,9 +140,10 @@ theorem totalStep (h : d.Represents cfg) (tm : MultiTapeTM k Bool State) :
   | none =>
     rwa [Data.totalStep_of_halt tm hs, tm.step_of_halt (h.state.symm.trans hs)]
   | some q =>
+    have hheads : (fun i => (d.work i).head) = cfg.workTapeSymbols :=
+      funext fun i => (h.work i).head
     rw [Data.totalStep_of_state tm hs, tm.step_of_state (h.state.symm.trans hs),
-      h.input.read_eq_inputSymbol, show (fun i => (d.work i).head) = cfg.workTapeSymbols from
-        funext fun i => (h.work i).head]
+      h.input.read_eq_inputSymbol, hheads]
     exact h.step _
 
 /-- Any number of raw total steps represents the same number of native total steps. -/
@@ -241,10 +242,11 @@ theorem Represents.work_totalStep {d : Data k State} {sourceInput : List Bool}
   cases hs : d.state with
   | none => rw [totalStep_of_halt tm hs, RawTape.nativeAction, h.state.symm.trans hs]; rfl
   | some q =>
+    have hheads : (fun j => (d.work j).head) = cfg.workTapeSymbols :=
+      funext fun j => (h.work j).head
     rw [totalStep_of_state tm hs, RawTape.nativeAction, h.state.symm.trans hs]
     change (d.work i).step _ = (d.work i).step _
-    rw [h.input.read_eq_inputSymbol, show (fun j => (d.work j).head) = cfg.workTapeSymbols from
-      funext fun j => (h.work j).head]
+    rw [h.input.read_eq_inputSymbol, hheads]
 
 /-- The work tapes coincide with the raw tapes used by the exact visited-space theorem. -/
 theorem work_run_eq_tape_run (tm : MultiTapeTM k Bool State) (input : List Bool)

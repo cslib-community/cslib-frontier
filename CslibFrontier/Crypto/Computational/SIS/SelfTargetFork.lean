@@ -161,9 +161,10 @@ private theorem solution_of_fork (A : Matrix (Fin d) (Fin (k + 1)) (Fin n → ZM
       _ ≤ |y i j| + |y' i j| := abs_sub _ _
       _ ≤ (radius : ℤ) + radius := add_le_add (hy.1 i j) (hy'.1 i j)
       _ = _ := by push_cast; ring
-  · rw [show (fun i j => ((y - y') i j : ZMod q)) =
-        (fun i j => (y i j : ZMod q)) - fun i j => (y' i j : ZMod q) from
-      funext₂ fun _ _ => Int.cast_sub _ _]
+  · have hcast : (fun i j => ((y - y') i j : ZMod q)) =
+        (fun i j => (y i j : ZMod q)) - fun i j => (y' i j : ZMod q) :=
+      funext₂ fun _ _ => Int.cast_sub _ _
+    rw [hcast]
     exact add_right_cancel (b := product A y')
       (by simpa only [product, ← moduleSISMap_add, sub_add_cancel, zero_add] using hprod)
 
