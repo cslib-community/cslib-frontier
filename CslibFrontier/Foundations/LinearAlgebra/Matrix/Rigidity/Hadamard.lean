@@ -185,7 +185,7 @@ private theorem card_sq_le_four_mul_rigidity_of_submatrix {n K : Type*} [Fintype
   have hJ_compl : #J + #badCols = N := by
     simpa only [J] using card_compl_add_card badCols
   have hN_le : N ≤ 2 * #badCols := by omega
-  nlinarith [Nat.mul_le_mul_left N hN_le]
+  linarith [Nat.mul_le_mul_left N hN_le]
 
 /-! ### General Hadamard matrices -/
 
