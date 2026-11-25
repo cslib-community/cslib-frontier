@@ -97,10 +97,8 @@ theorem answersUpTo_const (pts : Fin q → ι → Bool) (f : (ι → Bool) → B
     funext j
     simp only [answersUpTo, answersUpTo_const pts f k]
     refine Fin.lastCases ?_ (fun j => ?_) j
-    · rw [Fin.snoc_last]
-      rfl
-    · rw [Fin.snoc_castSucc]
-      rfl
+    · exact (Fin.snoc_last ..).trans rfl
+    · exact (Fin.snoc_castSucc ..).trans rfl
 
 /-- The decision tree asking the remaining `r` adaptive queries after the answers `a` to the first
 `k`, then outputting `H` of all `q` answers. -/
@@ -135,8 +133,7 @@ theorem depth_adaptiveTree_le {β : Type*} (Q : (i : Fin q) → (Fin i → Bool)
   | 0, _, _, _ => by simp [adaptiveTree]
   | r + 1, k, h, a => by
     simp only [adaptiveTree, DecisionTree.depth]
-    exact Nat.succ_le_succ (max_le (depth_adaptiveTree_le Q H r (k + 1) _ _)
-      (depth_adaptiveTree_le Q H r (k + 1) _ _))
+    exact Nat.succ_le_succ (max_le (depth_adaptiveTree_le ..) (depth_adaptiveTree_le ..))
 
 /-- The adaptive learner: on the seed `ω`, it asks the queries `Q ω`, each computed from the
 answers to the earlier ones, and outputs the hypothesis `H ω` of all `q` answers. -/
