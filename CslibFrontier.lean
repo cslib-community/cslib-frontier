@@ -6712,6 +6712,7 @@ public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalDeterminan
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalValueCutoff
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeFiberSeparation
 public import CslibFrontier.Foundations.Analysis.Normed.Close
 public import CslibFrontier.Foundations.Analysis.Normed.Ring.PowSub
 public import CslibFrontier.Foundations.Analysis.Normed.UnitSphere

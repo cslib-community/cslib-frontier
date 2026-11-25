@@ -29,6 +29,7 @@ import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DegreePieceSeparati
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
+import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeFiberSeparation
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.RelativeValueSection
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
@@ -815,5 +816,27 @@ example :
   · intro r
     simpa [F] using (not_exists_zero_iff_tendsto_criticalMinimumValue
       (by decide : 1 ≤ 1) (by decide) a (fun _ => le_rfl) (F r) (hFn r))
+
+-- On each degree piece for the input r², the empty-fiber locus is the nonzero parameters.
+example (k : ℕ) :
+    let P : MvPolynomial (Fin (1 + 1)) ℤ := X (Fin.natAdd 1 0) ^ 2
+    let hP : P.totalDegree ≤ 3 := (totalDegree_pow _ _).trans (by simp)
+    let Q (r : ℝ) := specializedRelativeValueSection (n := 1) (m := 1) (ell := 3) (by decide)
+      P hP (fun _ => r)
+    IsClopen {r : {r : ℝ // (Q r).natDegree ≤ k ∧ (Q r).coeff k ≠ 0} | r.val ≠ 0} := by
+  intro P hP Q
+  let A := {r : ℝ // (Q r).natDegree ≤ k ∧ (Q r).coeff k ≠ 0}
+  have heval (r : A) (z : Fin 1 → ℝ) :
+      eval₂ (Int.castRingHom ℝ) (Fin.addCases z (fun _ : Fin 1 => r.val)) P = r.val ^ 2 := by
+    simp only [P, eval₂_pow, eval₂_X, Fin.addCases_right]
+  have hc := isClopen_relative_emptyFibers_of_fixed_degree (by decide) (by decide) P hP
+    (fun (r : A) (_ : Fin 1) => r.val) (continuous_pi fun _ => continuous_subtype_val)
+    (fun r z => by rw [heval]; exact sq_nonneg _) k
+    (fun r => r.property.1) (fun r => r.property.2)
+  convert hc using 1
+  ext r
+  change r.val ≠ 0 ↔ ¬∃ z : Fin 1 → ℝ,
+    eval₂ (Int.castRingHom ℝ) (Fin.addCases z (fun _ : Fin 1 => r.val)) P = 0
+  simp only [heval, pow_eq_zero_iff (by decide : (2 : ℕ) ≠ 0), exists_const]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
