@@ -122,7 +122,9 @@ private theorem le_countP_range_of_forall_true (P : ℕ → Bool) {m n : ℕ} (h
     | succ m ih =>
       rw [List.range_succ, List.countP_append, List.countP_singleton,
         ite_eq_left (htrue m (Nat.lt_succ_self m)), ih fun j hj => htrue j (by omega)]
-  | step _ ih => rw [List.range_succ, List.countP_append]; exact ih.trans (Nat.le_add_right _ _)
+  | step _ ih =>
+    rw [List.range_succ, List.countP_append]
+    exact ih.trans (Nat.le_add_right _ _)
 
 /-- Floor fifth root `⌊N ^ (1 / 5)⌋`. -/
 @[expose] def fifthRoot (N : ℕ) : ℕ :=
@@ -143,7 +145,8 @@ theorem fifthRoot_spec (N : ℕ) :
     | succ k =>
       exact of_decide_eq_true (countP_range_true_lt (P := P)
         (fun hab hb => decide_eq_true ((Nat.pow_le_pow_left (by omega) 5).trans
-          (of_decide_eq_true hb))) (by change k < fifthRoot N; omega))
+          (of_decide_eq_true hb)))
+        (hr ▸ Nat.lt_succ_self k : k < fifthRoot N))
   · have hle' := Nat.not_lt.mp hle
     have hcount : fifthRoot N + 1 ≤ fifthRoot N := le_countP_range_of_forall_true P
       ((Nat.le_self_pow (by decide : 5 ≠ 0) _).trans hle') fun j hj =>
@@ -170,13 +173,16 @@ theorem primeDeg_spec (N : ℕ) :
   have hM : 8 ≤ M := eight_le_primeThresholdBound N
   obtain ⟨q, hqp, hMq, hq2M⟩ := Nat.exists_prime_lt_and_le_two_mul M (by omega)
   let L := (List.range M).map fun i => M + 1 + i
-  have hsome : (L.find? Nat.Prime).isSome = true := List.find?_isSome.mpr
-    ⟨q, List.mem_map.mpr ⟨q - (M + 1), List.mem_range.mpr (by omega), by omega⟩, by simp [hqp]⟩
+  have hsome : (L.find? Nat.Prime).isSome = true :=
+    List.find?_isSome.mpr ⟨q, List.mem_map.mpr
+      ⟨q - (M + 1), List.mem_range.mpr (by omega), by omega⟩, by simp [hqp]⟩
   obtain ⟨p, hp⟩ := Option.isSome_iff_exists.mp hsome
   obtain ⟨i, hi, rfl⟩ := List.mem_map.mp (List.mem_of_find?_eq_some hp)
   have hi_lt := List.mem_range.mp hi
-  rw [show primeDeg N = M + 1 + i by
-    change (L.find? Nat.Prime).getD (2 * M) = _; rw [hp, Option.getD_some]]
+  have hdeg : primeDeg N = M + 1 + i := by
+    change (L.find? Nat.Prime).getD (2 * M) = _
+    rw [hp, Option.getD_some]
+  rw [hdeg]
   exact ⟨by simpa using List.find?_some hp, by omega, by omega⟩
 
 /-- `9 ≤ primeDeg N` for every `N`. -/
@@ -262,10 +268,12 @@ theorem ordTwoMod_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) :
       beq_iff_eq.mpr (by rw [Nat.sub_add_cancel hd_pos, hu_pow]; exact pow_orderOf_eq_one u)⟩
   obtain ⟨r, hr_eq⟩ := Option.isSome_iff_exists.mp hsome
   obtain ⟨hr_pred, k, hk_lt, hk_get, hk_min⟩ := List.find?_eq_some_iff_getElem.mp hr_eq
-  simp only [L, List.length_range, List.getElem_range] at hk_lt hk_get; subst hk_get
+  simp only [L, List.length_range, List.getElem_range] at hk_lt hk_get
+  subst hk_get
   have hmod : 2 ^ (k + 1) % q = 1 := beq_iff_eq.mp hr_pred
   have hnot_lt : ∀ j, 0 < j → j < k + 1 → 2 ^ j % q ≠ 1 := fun j hj0 hjl hm => by
-    have := hk_min (j - 1) (by omega); simp [L, Nat.sub_add_cancel hj0, hm] at this
+    have := hk_min (j - 1) (by omega)
+    simp [L, Nat.sub_add_cancel hj0, hm] at this
   have hkd : k + 1 = d := Nat.le_antisymm
     (by_contra fun hlt => hnot_lt d hd_pos (by omega) ((hu_pow d).mpr (pow_orderOf_eq_one u)))
     (Nat.le_of_dvd (by omega) (orderOf_dvd_iff_pow_eq_one.mpr ((hu_pow _).mp hmod)))
@@ -499,7 +507,8 @@ private theorem irreducible_X_pow_sub_C_of_orderOf {q k m : ℕ} {f : (ZMod 2)[X
       mul_inv_cancel₀ (pow_ne_zero (v * q) hζ_ne), one_mul]
   have hord := orderOf_of_pow_prime hq hk1 (Units.ext (by simp [hη_pow]) :
       (Units.mk0 η hη_ne) ^ q = Units.mk0 ζ hζ_ne) <| by
-    rw [← orderOf_injective (Units.coeHom K) Units.coeHom_injective]; exact hζ_prim.eq_orderOf.symm
+    rw [← orderOf_injective (Units.coeHom K) Units.coeHom_injective]
+    exact hζ_prim.eq_orderOf.symm
   exact hk1_ndvd <| by
     simpa only [hord, Fintype.card_units, hcardK] using orderOf_dvd_card (x := Units.mk0 η hη_ne)
 
@@ -690,7 +699,8 @@ private theorem shoupPowers_getD (q : ℕ) (f : List Bool) (β : List (List Bool
     (shoupPowers q f β).getD c [] =
       (fun x => shoupLMul q f x β)^[c]
         ((List.range q).map fun i => if i == 0 then [true] else []) := by
-  unfold shoupPowers; dsimp only
+  unfold shoupPowers
+  dsimp only
   rw [shoupPowers_foldl (fun x => shoupLMul q f x β)]
   exact List.getD_map_range _ _ hc
 
@@ -725,7 +735,10 @@ private theorem two_pow_mod_pow_eq {q : ℕ} (hq : q.Prime) (s : ℕ) :
     2 ^ (s * q) % q = 2 ^ s % q := by
   have : Fact q.Prime := ⟨hq⟩
   rw [← ZMod.natCast_eq_natCast_iff']
-  simp [mul_comm s q, pow_mul, ZMod.pow_card]
+  calc ((2 ^ (s * q) : ℕ) : ZMod q)
+      = ((2 : ZMod q) ^ q) ^ s := by rw [Nat.cast_pow, Nat.cast_ofNat, mul_comm, pow_mul]
+    _ = (2 : ZMod q) ^ s := by rw [ZMod.pow_card]
+    _ = ((2 ^ s : ℕ) : ZMod q) := by rw [Nat.cast_pow, Nat.cast_ofNat]
 
 private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] [Algebra (ZMod 2) L] [IsScalarTower (ZMod 2) K L]
@@ -777,7 +790,9 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
           ⟨idx.1 % m, Nat.mod_lt _ hm0⟩ := fun idx => by
     simp only [Matrix.mulVec, dotProduct, rowsToZModMatrix, bitsToZModVec]
     refine Finset.sum_congr rfl fun c _ => ?_
-    have hc : c.1 < pows.length := by rw [hpows_len]; exact c.2
+    have hc : c.1 < pows.length := by
+      rw [hpows_len]
+      exact c.2
     rw [shoupMinPolyMatrix, List.getD_map_range _ _ idx.2,
       List.getD_eq_getElem _ _ (by simp [hc]), List.getElem_map,
       ← List.getD_eq_getElem pows [] hc, mul_comm]
@@ -856,16 +871,22 @@ private theorem shoupBeta_minpoly_natDegree {K L : Type*} [Field K] [Field L]
   let : Fintype E := Fintype.ofFinite E
   let S_if : IntermediateField (ZMod 2) L :=
     { carrier := {x : L | x ^ (2 ^ q) = x}
-      mul_mem' := fun hx hy => by dsimp at hx hy ⊢; rw [mul_pow, hx, hy]
+      mul_mem' := fun hx hy => by
+        dsimp at hx hy ⊢
+        rw [mul_pow, hx, hy]
       one_mem' := one_pow _
-      add_mem' := fun hx hy => by dsimp at hx hy ⊢; rw [add_pow_char_pow, hx, hy]
+      add_mem' := fun hx hy => by
+        dsimp at hx hy ⊢
+        rw [add_pow_char_pow, hx, hy]
       zero_mem' := zero_pow (by positivity)
       algebraMap_mem' := fun c => by
         dsimp
         rw [← map_pow]
         congr 1
         fin_cases c <;> [exact zero_pow (by positivity); exact one_pow _]
-      inv_mem' := fun {x} hx => by dsimp at hx ⊢; rw [inv_pow, hx] }
+      inv_mem' := fun {x} hx => by
+        dsimp at hx ⊢
+        rw [inv_pow, hx] }
   have hE_le : E ≤ S_if :=
     IntermediateField.adjoin_le_iff.mpr (Set.singleton_subset_iff.mpr hβ_frob)
   obtain ⟨w, hw⟩ := IsCyclic.exists_generator (α := Eˣ)
@@ -1073,15 +1094,19 @@ theorem isAffineDisperser_primeDisperser (N : ℕ) :
       have hcard := Cslib.card_subfield_le_of_lt_prime (n := q) (L := q - 1) hfinrank
         (fun p hp hpq => by rw [(Nat.prime_dvd_prime_iff_eq hp hq).mp hpq]; omega) K hK
       rwa [Nat.sub_add_cancel hq.one_lt.le, Nat.div_self hq.pos] at hcard
-  rw [show primeDisperser N = traceSymBits 1 (N / q) (primeSymDeg N) b (blockPos (N := N) hrn) from
-    funext fun x => by unfold primeDisperser primeDisperserBits; rw [traceSymCoords_eq hmul ht hrn,
-      ofList_ofFn]]
+  have heq_fn : primeDisperser N =
+      traceSymBits 1 (N / q) (primeSymDeg N) b (blockPos (N := N) hrn) := funext fun x => by
+    unfold primeDisperser primeDisperserBits
+    rw [traceSymCoords_eq hmul ht hrn, ofList_ofFn]
+  rw [heq_fn]
   refine isAffineDisperser_of_forall_exists_ne fun V hV =>
     exists_traceSymBits_ne hfinrank hsub one_ne_zero ht b (pos := blockPos (N := N) hrn)
       (fun _ _ h => finProdFinEquiv.injective (Fin.ext (by
         have hv := congrArg Fin.val h; rwa [blockPos, blockPos] at hv))) V ?_
-  rw [hV]; change _ + (_ * max (_ + 1) 1 + _ + _ + _) < _ + (_ * (_ + 1) + _ + _ + _) + 1
-  rw [max_eq_left (Nat.le_add_left 1 _)]; exact Nat.lt_succ_self _
+  rw [hV]
+  change _ + (_ * max (_ + 1) 1 + _ + _ + _) < _ + (_ * (_ + 1) + _ + _ + _) + 1
+  rw [max_eq_left (Nat.le_add_left 1 _)]
+  exact Nat.lt_succ_self _
 
 /-- For all sufficiently large `N`, `primeThreshold N + 1 ≤ 2148 * (fifthRoot N) ^ 4`. -/
 theorem eventually_primeThreshold_le :
@@ -1090,7 +1115,8 @@ theorem eventually_primeThreshold_le :
   set u := fifthRoot N; set q := primeDeg N; set r := N / q
   have hN_lt : N < (u + 1) ^ 5 := (fifthRoot_spec N).2
   have hu2 : 2 ≤ u := by_contra fun hlt => by
-    have := Nat.pow_le_pow_left (show u + 1 ≤ 2 by omega) 5; omega
+    have := Nat.pow_le_pow_left (show u + 1 ≤ 2 by omega) 5
+    omega
   obtain ⟨_, hq_low, hq_high⟩ := primeDeg_spec N
   rw [show primeThresholdBound N = u ^ 3 by rw [primeThresholdBound, max_eq_right hu2]]
     at hq_low hq_high
@@ -1098,16 +1124,19 @@ theorem eventually_primeThreshold_le :
     have := Nat.pow_le_pow_left (show u + 1 ≤ 2 * u by omega) 5
     linarith [show (2 * u) ^ 5 = 32 * u ^ 5 by ring]
   have hr_ub : r ≤ 32 * u ^ 2 := Nat.div_le_of_le_mul <|
-    hN_ub.trans ((by ring : 32 * u ^ 5 = u ^ 3 * (32 * u ^ 2)) ▸ Nat.mul_le_mul_right _ hq_low.le)
+    hN_ub.trans ((by ring : 32 * u ^ 5 = u ^ 3 * (32 * u ^ 2)) ▸
+      Nat.mul_le_mul_right _ hq_low.le)
   have hu2_pos : 1 ≤ u ^ 2 := Nat.pow_pos (by omega)
   have hrr1_ub : r * (r + 1) ≤ 1056 * u ^ 4 :=
     (Nat.mul_le_mul hr_ub (show r + 1 ≤ 33 * u ^ 2 by nlinarith)).trans_eq (by ring)
-  have hq_u4 : q ≤ u ^ 4 := hq_high.trans ((Nat.mul_le_mul_right _ hu2).trans_eq (by ring))
+  have hq_u4 : q ≤ u ^ 4 :=
+    hq_high.trans ((Nat.mul_le_mul_right _ hu2).trans_eq (by ring))
   have hwaste : N - r * q ≤ u ^ 4 := by
     have hdiv : q * r + N % q = N := Nat.div_add_mod N q
     have hmod : N % q < q := Nat.mod_lt N (by omega)
     rw [mul_comm r q]; omega
-  have hqt_ub : q * u ≤ 2 * u ^ 4 := (Nat.mul_le_mul_right u hq_high).trans_eq (by ring)
+  have hqt_ub : q * u ≤ 2 * u ^ 4 :=
+    (Nat.mul_le_mul_right u hq_high).trans_eq (by ring)
   have hqr_t_ub : q * r / u ≤ 32 * u ^ 4 := Nat.div_le_of_le_mul <|
     (Nat.mul_div_le N q).trans (hN_ub.trans_eq (by ring))
   have h1_u4 : 1 ≤ u ^ 4 := Nat.pow_pos (by omega)
@@ -1119,12 +1148,12 @@ theorem eventually_primeThreshold_le :
 theorem eventually_primeThreshold_real_le :
     ∀ᶠ N in atTop, ((primeThreshold N + 1 : ℕ) : ℝ) ≤ 2148 * (N : ℝ) ^ ((4 : ℝ) / 5) := by
   filter_upwards [eventually_primeThreshold_le] with N hle
+  have hu5 : (fifthRoot N : ℝ) ^ 5 ≤ N := by exact_mod_cast (fifthRoot_spec N).1
   have hu0 : (0 : ℝ) ≤ fifthRoot N := Nat.cast_nonneg _
-  have hu4 : (fifthRoot N : ℝ) ^ 4 ≤ (N : ℝ) ^ ((4 : ℝ) / 5) := by
-    rw [show (fifthRoot N : ℝ) ^ 4 = ((fifthRoot N : ℝ) ^ (5 : ℕ)) ^ ((4 : ℝ) / 5) by
-      rw [← Real.rpow_natCast, ← Real.rpow_natCast, ← Real.rpow_mul hu0]; norm_num]
-    exact Real.rpow_le_rpow (pow_nonneg hu0 5) (by exact_mod_cast (fifthRoot_spec N).1)
-      (by norm_num)
+  have hu4 : (fifthRoot N : ℝ) ^ 4 ≤ (N : ℝ) ^ ((4 : ℝ) / 5) := calc
+    (fifthRoot N : ℝ) ^ 4 = ((fifthRoot N : ℝ) ^ (5 : ℕ)) ^ ((4 : ℝ) / 5) := by
+      rw [← Real.rpow_natCast, ← Real.rpow_natCast, ← Real.rpow_mul hu0]; norm_num
+    _ ≤ (N : ℝ) ^ ((4 : ℝ) / 5) := Real.rpow_le_rpow (pow_nonneg hu0 5) hu5 (by norm_num)
   exact ((Nat.cast_le (α := ℝ)).mpr hle).trans (by push_cast; gcongr)
 
 /-- Asymptotic threshold bound `primeThreshold N + 1 = O(N ^ (4 / 5))`. -/
@@ -1141,8 +1170,10 @@ theorem eventually_primeThreshold_lt : ∀ᶠ N in atTop, primeThreshold N + 1 <
   have hltN : N < (u + 1) ^ 5 := (fifthRoot_spec N).2
   have hu2149 : 2149 ≤ u := by_contra fun hlt => by
     have := Nat.pow_le_pow_left (show u + 1 ≤ 2149 by omega) 5; omega
-  have hlt : 2148 * u ^ 4 < u ^ 5 := by
-    calc 2148 * u ^ 4 < 2149 * u ^ 4 := by nlinarith [Nat.pow_pos (show 0 < u by omega) (n := 4)]
+  have hlt : 2148 * u ^ 4 < u ^ 5 :=
+    calc 2148 * u ^ 4
+        < 2149 * u ^ 4 := by
+          nlinarith [Nat.pow_pos (by omega : 0 < u) (n := 4)]
       _ ≤ u * u ^ 4 := Nat.mul_le_mul_right _ hu2149
       _ = u ^ 5 := by ring
   exact hle.trans_lt (hlt.trans_le (fifthRoot_spec N).1)

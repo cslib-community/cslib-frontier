@@ -893,7 +893,8 @@ theorem micaliProofBits_micaliProvePure_le_log {enc : α ↪ List Bool} {c : ℕ
   have hℓ : 1 ≤ ℓ := Nat.le_add_left 1 _
   refine (micaliProofBits_micaliProvePure_le hlen hm hρs hq).trans ?_
   have hstep : σ + m * (q * (1 + (V.coins x + L) * σ)) ≤
-      σ + m * (q * (1 + (c * ℓ + L) * σ)) := by gcongr
+      σ + m * (q * (1 + (c * ℓ + L) * σ)) := by
+    gcongr
   refine hstep.trans ?_
   have hms : m * σ ≤ (σ + m + 1) ^ 2 := by nlinarith
   have h₄ : m * σ ≤ (σ + m + 1) ^ 2 * ℓ := by nlinarith

@@ -217,7 +217,8 @@ theorem polyTimeReducible_GapExactThreeLin_GapLin {c s s' : ℝ} (hc1 : c ≤ 1)
     rw [mem_yes_GapLin]
     rcases eq_or_ne F [] with rfl | he
     · refine ⟨fun _ => false, ?_⟩
-      change c ≤ ((1 : ℕ) : ℝ) / ((1 : ℕ) : ℝ); simpa using hc1
+      change c ≤ ((1 : ℕ) : ℝ) / ((1 : ℕ) : ℝ)
+      simpa using hc1
     · obtain ⟨σ, hσ⟩ := CSP.exists_countUnsat_div_eq_unsatVal CSP.paritySem F
       refine ⟨σ, ?_⟩
       simp only [toGapLin, List.isEmpty_eq_false_iff.mpr he, Bool.false_eq_true, ↓reduceIte,
@@ -225,7 +226,10 @@ theorem polyTimeReducible_GapExactThreeLin_GapLin {c s s' : ℝ} (hc1 : c ≤ 1)
       linarith [countSat_div_add_countUnsat_div (List.length_pos_of_ne_nil he) σ]
   · rw [mem_no_GapExactThreeLin (hs.trans_le hs'c)] at hF
     rw [mem_no_GapLin]
-    have he : F ≠ [] := by rintro rfl; simp only [CSP.unsatVal_nil, sub_zero] at hF; linarith
+    have he : F ≠ [] := by
+      rintro rfl
+      simp only [CSP.unsatVal_nil, sub_zero] at hF
+      linarith
     refine ⟨hs'c, fun σ => ?_⟩
     simp only [toGapLin, List.isEmpty_eq_false_iff.mpr he, Bool.false_eq_true, ↓reduceIte,
       countSat_map_affine, List.length_map]
@@ -258,6 +262,7 @@ value at most `1 / 2 + ε` is NP-hard. -/
 theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
     (h : 1 / 2 + ε < 1 - δ) :
     PromiseProblem.NPHard (encCSP encBool encNat) (GapExactThreeLin (1 - δ) (1 / 2 + ε)) := by
+  -- Step 1: choose rational noise rate `1 / m ≤ δ / 2` with `3 ≤ m` (so `1 / m < 1 / 2`).
   let m : ℕ := Nat.ceil (2 / δ) + 3
   have hm2 : 2 ≤ m := by omega
   have hm0 : (0 : ℝ) < m := by positivity
@@ -267,18 +272,23 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
     rw [div_le_iff₀ hδ] at hm_ge; linarith
   have hinv_lt_half : 1 / (m : ℝ) < 1 / 2 :=
     one_div_lt_one_div_of_lt two_pos (by exact_mod_cast (by omega : 2 < m))
+  -- Step 2: obtain the Label Cover soundness threshold `η ∈ (0, 1)` for `ε' = ε / 8`.
   obtain ⟨η, hη0, hη1, hdich⟩ :=
     gapLabelCover_dichotomy_lt_one (ε := ε / 8) (δ := 1 / (m : ℝ))
       (by linarith) (by positivity) hinv_lt_half
+  -- Step 3: choose `k = 21 * n` large enough for both Label Cover soundness `≤ η` and
+  -- degenerate-equation share `(1 - 1 / m) ^ |β| < min (δ / 2) (ε / 4)`.
+  let wMax : ℝ := min (δ / 2) (ε / 4)
   let baseLC : ℝ := 1 - 1 / (6000 * 2 ^ 186)
   let baseDrop : ℝ := 1 - 1 / (m : ℝ)
   have hbaseDrop1 : baseDrop < 1 := by
     dsimp only [baseDrop]; linarith [show (0 : ℝ) < 1 / m by positivity]
   obtain ⟨n₁, hn₁⟩ := exists_pow_lt_of_lt_one hη0 (by norm_num : baseLC < 1)
   obtain ⟨n₂, hn₂⟩ := exists_pow_lt_of_lt_one (lt_min (by linarith) (by linarith) :
-    0 < min (δ / 2) (ε / 4)) hbaseDrop1
+    0 < wMax) hbaseDrop1
   let n : ℕ := max n₁ n₂ + 1
   let k : ℕ := 21 * n
+  -- Instantiate the `k`-round Label Cover hardness at soundness `η`.
   let A := Bool × (Fin 6 → Bool)
   let β := Fin k → A × A
   let γ := Fin k → A
@@ -286,12 +296,18 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
       (Graph.encoding (encPi (encPi (encPair encBool (encPi encBool)))))
       (GapLabelCover β γ 1 η) := by
     refine (GapLabelCover_npHard_pow (by positivity : 0 < k)).mono (fun _ hg => hg) fun g hg => ?_
+    have hpow : baseLC ^ ((k : ℝ) / 21) = baseLC ^ n := by
+      rw [← Real.rpow_natCast]
+      congr 1
+      dsimp only [k]
+      push_cast
+      ring
     rw [GapLabelCover, PromiseProblem.mem_no_gapMax] at hg ⊢
     change 1 - (g.toGraph projectionEval).unsatVal ≤ baseLC ^ ((k : ℝ) / 21) ∧ _ at hg
-    rw [show baseLC ^ ((k : ℝ) / 21) = baseLC ^ n by
-      rw [← Real.rpow_natCast]; congr 1; dsimp only [k]; push_cast; ring] at hg
+    rw [hpow] at hg
     exact ⟨hg.1.trans <| (pow_le_pow_of_le_one (by norm_num) (by norm_num)
       ((le_max_left n₁ n₂).trans (Nat.le_succ _))).trans hn₁.le, hη1⟩
+  -- Bound the degenerate-equation share `w = (1 - 1 / m) ^ |β| < wMax`.
   have hcard_ge : n₂ ≤ Fintype.card β := by
     have hcard_β : Fintype.card β = (128 * 128) ^ k := by simp [β, A, Fintype.card_prod]
     have := Nat.lt_two_pow_self (n := k)
@@ -299,10 +315,11 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
     have : n₂ ≤ n := (le_max_right n₁ n₂).trans (Nat.le_succ _)
     dsimp only [k] at *; omega
   set w : ℝ := (1 - 1 / (m : ℝ)) ^ Fintype.card β with hw_def
-  have hw_lt : w < min (δ / 2) (ε / 4) :=
+  have hw_lt : w < wMax :=
     (pow_le_pow_of_le_one (by dsimp only [baseDrop]; linarith) hbaseDrop1.le hcard_ge).trans_lt hn₂
   have hw_lt_δ : w < δ / 2 := hw_lt.trans_le (min_le_left _ _)
   have hw_lt_ε : w < ε / 4 := hw_lt.trans_le (min_le_right _ _)
+  -- Step 4: reduce `GapLabelCover β γ 1 η` to `GapExactThreeLin (1 - δ) (1 / 2 + ε)`.
   let y₀ : γ := fun _ => (false, fun _ => false)
   let T : Tables β γ m := Tables.ofFintype m y₀
   have hT : T.Valid := Tables.valid_ofFintype m y₀
@@ -379,7 +396,9 @@ private theorem exists_gap_params_of_gt {t ρ : ℝ} (ht0 : 0 ≤ t) (ht1 : t < 
   have hγ_le : γ ≤ 1 - t := by dsimp only [γ]; linarith [min_le_right ρ 1]
   refine ⟨γ / 4, γ / 4, by linarith, by linarith, by linarith, ?_⟩
   exact (by nlinarith : t + γ / 4 < (t + γ) * (1 - γ / 4)).trans_le <|
-    mul_le_mul_of_nonneg_right (by dsimp only [γ]; linarith [min_le_left ρ 1]) (by linarith)
+    mul_le_mul_of_nonneg_right
+      (by dsimp only [γ]; linarith [min_le_left ρ 1])
+      (by linarith)
 
 /-- Generic rational-threshold decider turning a polynomial-time `ρ`-approximation algorithm into a
 `PromiseP` decider for a restricted `gapMax (1 - uval)` problem when `0 ≤ s < c ≤ 1` and
@@ -400,11 +419,13 @@ private theorem gapMax_restrict_mem_PromiseP_of_approx {α : Type} {enc : α ↪
   have hb : (0 : ℝ) < b := by exact_mod_cast q.den_pos
   have hab : (q : ℝ) = a / b := by
     have hnum : (0 : ℤ) ≤ q.num := Rat.num_nonneg.2 (by exact_mod_cast (hs0.trans_lt hsq).le)
-    rw [← Rat.num_div_den q]; push_cast
+    rw [← Rat.num_div_den q]
+    push_cast
     rw [show ((q.num : ℤ) : ℝ) = (a : ℝ) by exact_mod_cast (Int.toNat_of_nonneg hnum).symm]
   have hiff (x : α) :
       a * len x + b * u x ≤ b * len x ↔ (q : ℝ) * len x ≤ (len x : ℝ) - u x := by
-    rw [hab, div_mul_eq_mul_div, div_le_iff₀ hb, ← @Nat.cast_le ℝ]; push_cast
+    rw [hab, div_mul_eq_mul_div, div_le_iff₀ hb, ← @Nat.cast_le ℝ]
+    push_cast
     constructor <;> intro h <;> nlinarith
   refine mem_PromiseP_iff.2
     ⟨fun x => decide (a * len x + b * u x ≤ b * len x),

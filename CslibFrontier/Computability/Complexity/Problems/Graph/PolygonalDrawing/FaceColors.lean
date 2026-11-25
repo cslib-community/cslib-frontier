@@ -115,10 +115,12 @@ private theorem Frame.remote (F : Frame D)
     (rayEndpoint F.a F.b k).im ≠ (F.a j).im ∧
       (rayEndpoint F.a F.b k).im ≠ (F.b j).im ∧
       rayEndpoint F.a F.b k ∉ segment ℝ (F.a j) (F.b j) := by
-  have ha' : D.segmentStart j ≠ rayEndpoint D.segmentStart D.segmentFinish k :=
-    fun h => ha (by rw [F.endpoint]; exact congrArg (F.u * ·) h)
-  have hb' : D.segmentFinish j ≠ rayEndpoint D.segmentStart D.segmentFinish k :=
-    fun h => hb (by rw [F.endpoint]; exact congrArg (F.u * ·) h)
+  have ha' : D.segmentStart j ≠ rayEndpoint D.segmentStart D.segmentFinish k := fun h => ha <| by
+    rw [F.endpoint]
+    exact congrArg (F.u * ·) h
+  have hb' : D.segmentFinish j ≠ rayEndpoint D.segmentStart D.segmentFinish k := fun h => hb <| by
+    rw [F.endpoint]
+    exact congrArg (F.u * ·) h
   refine ⟨fun h => ha'
       (F.heights (F.mem_endpoint k) (F.mem_start j) (by rwa [F.endpoint] at h)).symm,
     fun h => hb' (F.heights (F.mem_endpoint k) (F.mem_finish j) (by rwa [F.endpoint] at h)).symm,
@@ -326,15 +328,18 @@ private theorem Frame.sum_crossingParity (F : Frame D) (x : Fin G.edges.length �
   rw [Finset.sum_comm]
   refine Finset.sum_congr rfl fun f _ => ?_
   by_cases hfe : f = e
-  · subst f; rw [ite_eq_left rfl, zero_mul]
+  · subst f
+    rw [ite_eq_left rfl, zero_mul]
     refine Finset.sum_eq_zero fun i _ => Finset.sum_eq_zero fun j _ => ?_
     by_cases hji : j = i
-    · subst j; simp
+    · subst j
+      simp
     · have hn : ¬(openSegment ℝ (D.segmentStart ⟨e, j⟩) (D.segmentFinish ⟨e, j⟩) ∩
           openSegment ℝ (D.segmentStart ⟨e, i⟩) (D.segmentFinish ⟨e, i⟩)).Nonempty := by
         rintro ⟨z, hj, hi⟩
         rw [openSegment_eq_image_lineMap] at hj hi
-        obtain ⟨s, hs, hsz⟩ := hj; obtain ⟨t, ht, htz⟩ := hi
+        obtain ⟨s, hs, hsz⟩ := hj
+        obtain ⟨t, ht, htz⟩ := hi
         exact hji (hsimple.index_time_eq_of_eval_eq_of_mem_Ioo j i hs
           ⟨ht.1.le, ht.2.le⟩ (hsz.trans htz.symm)).1
       simp [hn, ← Bool.zero_eq_false]
@@ -381,7 +386,8 @@ private theorem faceColors_of_route_and_sector_colors {r : RotationSystem G}
   · have step := add_left_cancel ((add_comm _ _).trans ((edge (r.rotate d).reverse).trans
       (hsector (r.rotate d).reverse.reverse).symm))
     simpa only [RotationSystem.faceNext, Dart.reverse_reverse, Equiv.symm_apply_apply] using step
-  · rw [Dart.reverse_reverse, ← Bool.add_eq_xor, add_comm]; exact edge d
+  · rw [Dart.reverse_reverse, ← Bool.add_eq_xor, add_comm]
+    exact edge d
 
 /-- In a regular polygonal drawing with simple routes and even crossings between
 every distinct edge pair, every vertex-even selection is an actual face boundary

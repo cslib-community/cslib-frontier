@@ -154,7 +154,8 @@ theorem AnswersWithin.mono {A : κ → ι → Bool} {y : κ → ℝ} {d : ι →
   have hcard : (#({j | |y j - signDot (A j) d| ≤ α} : Finset κ) : ℝ) ≤
       #({j | |y j - signDot (A j) d| ≤ α'} : Finset κ) :=
     Nat.cast_le.mpr <| card_le_card fun j hj => by
-      simp only [mem_filter, mem_univ, true_and] at hj ⊢; exact hj.trans hα
+      simp only [mem_filter, mem_univ, true_and] at hj ⊢
+      exact hj.trans hα
   have : (0 : ℝ) ≤ Fintype.card κ := Nat.cast_nonneg _
   nlinarith
 
@@ -196,7 +197,8 @@ private theorem card_abs_sum_le [DecidableEq ι] (z : ι → SignType) (α : ℝ
   set N := ⌊α⌋₊ + 1
   set L := (Z - α) / 2
   have hN : α < N := by
-    simp only [N, Nat.cast_add, Nat.cast_one]; exact Nat.lt_floor_add_one α
+    simp only [N, Nat.cast_add, Nat.cast_one]
+    exact Nat.lt_floor_add_one α
   have hsum (v : ι → Bool) : ∑ i, signVal (v i) * a i = Z - 2 * g v := by
     simp only [Z, g, mul_sum, ← sum_sub_distrib]
     refine sum_congr rfl fun i _ => ?_
@@ -208,13 +210,15 @@ private theorem card_abs_sum_le [DecidableEq ι] (z : ι → SignType) (α : ℝ
     simp only [mem_filter, mem_univ, true_and] at hv ⊢
     rw [show ∑ i, signVal (v i) * (z i : ℝ) = Z - 2 * g v from hsum v, abs_le] at hv
     rw [sum_const, card_range, nsmul_eq_mul, mul_one]
-    exact ⟨by simp only [L]; linarith [hv.1, hv.2], by simp only [L]; linarith [hv.1, hv.2]⟩
+    simp only [L]
+    constructor <;> linarith [hv.1, hv.2]
   have hcover := Combinatorics.LittlewoodOfford.card_filter_Ico_sum_le g (range N) (fun _ => 1)
     (fun _ => 2 ^ Fintype.card ι / Real.sqrt (#{i | z i ≠ 0} + 1))
     (fun _ _ c => Combinatorics.LittlewoodOfford.card_filter_sum_bool_Ico_le_two_pow_div_sqrt a
       {i | z i ≠ 0} c fun i hi => by
         simp only [mem_filter, mem_univ, true_and, a] at hi ⊢
-        revert hi; cases z i <;> simp) (L + N)
+        revert hi
+        cases z i <;> simp) (L + N)
   rw [sum_const, card_range, nsmul_eq_mul] at hcover hsub
   refine hsub.trans (hcover.trans ?_)
   rw [mul_div_assoc, sum_const, card_range, nsmul_eq_mul]
@@ -561,9 +565,11 @@ theorem exists_answersWithin_answersWithin_hammingDist_eq_two {i₁ i₂ : ι}
   have hhd (c d : ι → Bool) (hdiff : ∀ i, c i ≠ d i ↔ i = i₁ ∨ i = i₂) : hammingDist c d = 2 := by
     rw [hammingDist, card_eq_two]
     exact ⟨i₁, i₂, hi, by
-      ext i; simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton, hdiff]⟩
+      ext i
+      simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton, hdiff]⟩
   by_cases hS : Fintype.card κ ≤ 2 * #{j | A j i₁ = A j i₂}
-  · have hsub : ({j | A j i₁ = A j i₂} : Finset κ) ⊆
+  · -- Where the two query bits agree, moving the one `true` from `i₁` to `i₂` keeps the answer.
+    have hsub : ({j | A j i₁ = A j i₂} : Finset κ) ⊆
         ({j | signDot (A j) (fun i => decide (i = i₁)) =
           signDot (A j) (fun i => decide (i = i₂))} : Finset κ) := fun j hj => by
       simp only [mem_filter, mem_univ, true_and] at hj ⊢
@@ -574,13 +580,15 @@ theorem exists_answersWithin_answersWithin_hammingDist_eq_two {i₁ i₂ : ι}
     exact ⟨y, fun i => decide (i = i₁), fun i => decide (i = i₂), hc, hd,
       hhd _ _ fun i => by
         by_cases h1 : i = i₁ <;> by_cases h2 : i = i₂ <;> simp [h1, h2, hi, hi.symm]⟩
-  · have hsub : ({j | ¬ A j i₁ = A j i₂} : Finset κ) ⊆
+  · -- Where they differ, flipping both rows keeps the answer.
+    have hsub : ({j | ¬ A j i₁ = A j i₂} : Finset κ) ⊆
         ({j | signDot (A j) (fun i => decide (i = i₁ ∨ i = i₂)) =
           signDot (A j) (fun _ => false)} : Finset κ) := fun j hj => by
       simp only [mem_filter, mem_univ, true_and] at hj ⊢
       rw [← sub_eq_zero, signDot_sub_signDot_eq_add hi (fun i h => by simp [h.1, h.2])]
       simp only [true_or, or_true, decide_true, signVal_true, signVal_false]
-      revert hj; cases A j i₁ <;> cases A j i₂ <;> simp only [signVal_true, signVal_false] <;>
+      revert hj
+      cases A j i₁ <;> cases A j i₂ <;> simp only [signVal_true, signVal_false] <;>
         norm_num
     obtain ⟨y, hc, hd⟩ := exists_answersWithin_zero_of_le_two_mul hm
       ((show Fintype.card κ ≤ 2 * #({j | ¬ A j i₁ = A j i₂} : Finset κ) by finset_card).trans

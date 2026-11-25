@@ -127,9 +127,11 @@ theorem Feasible.mul_rowCost_le_of_le_two_mul {β n n' b_occ w_width M' : ℕ}
       (n' : ℝ) * (Nat.clog 2 (Nat.clog 2 n') : ℝ) ^ 2 / Real.sqrt (Nat.clog 2 n') ≤
         2 * ((n : ℝ) * (Nat.clog 2 (Nat.clog 2 n) : ℝ) ^ 2 / Real.sqrt (Nat.clog 2 n)) := by
     rw [mul_div_assoc', div_le_div_iff₀ hsqrt'_pos hsqrt_pos]
-    exact (show (n' : ℝ) * (Nat.clog 2 (Nat.clog 2 n') : ℝ) ^ 2 * Real.sqrt (Nat.clog 2 n) ≤
-      (n : ℝ) * (Nat.clog 2 (Nat.clog 2 n) : ℝ) ^ 2 * (2 * Real.sqrt (Nat.clog 2 n')) by
-        gcongr).trans_eq (by ring)
+    calc (n' : ℝ) * (Nat.clog 2 (Nat.clog 2 n') : ℝ) ^ 2 * Real.sqrt (Nat.clog 2 n)
+        ≤ (n : ℝ) * (Nat.clog 2 (Nat.clog 2 n) : ℝ) ^ 2 *
+            (2 * Real.sqrt (Nat.clog 2 n')) := by gcongr
+      _ = 2 * ((n : ℝ) * (Nat.clog 2 (Nat.clog 2 n) : ℝ) ^ 2) *
+            Real.sqrt (Nat.clog 2 n') := by ring
   calc (n' : ℝ) * rowCost β n'
       ≤ (n' : ℝ) * (1028 * ((β : ℝ) + 3) * (Nat.clog 2 (Nat.clog 2 n') : ℝ) ^ 2 /
           Real.sqrt (Nat.clog 2 n')) := by gcongr; exact hF.rowCost_bound
@@ -149,11 +151,14 @@ private theorem two_mul_cube_le_two_pow_pred {m : ℕ} (hm : 14 ≤ m) :
   | base => norm_num
   | succ m hm ih =>
     obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hm
-    have hstep : (14 + k + 1) ^ 3 ≤ 2 * (14 + k) ^ 3 :=
-      Nat.le.intro (by ring : (14 + k + 1) ^ 3 + (k ^ 3 + 39 * k ^ 2 + 501 * k + 2113) = _)
-    have hpow : 2 * 2 ^ (14 + k - 1) = 2 ^ (14 + k) := by
-      conv_rhs => rw [show 14 + k = (14 + k - 1) + 1 by omega, pow_succ']
-    simp only [Nat.add_sub_cancel]; linarith
+    calc 2 * (14 + k + 1) ^ 3
+        ≤ 2 * (2 * (14 + k) ^ 3) :=
+          Nat.mul_le_mul_left 2 (Nat.le.intro
+            (by ring : (14 + k + 1) ^ 3 + (k ^ 3 + 39 * k ^ 2 + 501 * k + 2113) = _))
+      _ ≤ 2 * 2 ^ (14 + k - 1) := Nat.mul_le_mul_left 2 ih
+      _ = 2 ^ (14 + k + 1 - 1) := by
+          simp only [Nat.add_sub_cancel]
+          conv_rhs => rw [show 14 + k = (14 + k - 1) + 1 by omega, pow_succ']
 
 private theorem log_add_sixteen_bounds {n : ℕ} (hn : 16384 ≤ n) :
     14 ≤ Nat.clog 2 n ∧
@@ -185,7 +190,9 @@ private theorem log_add_sixteen_bounds {n : ℕ} (hn : 16384 ≤ n) :
     have hlog : X ≤ ((lam : ℝ) + 1) * Real.log 2 := by
       simpa only [Real.log_pow, Nat.cast_add, Nat.cast_one] using
         Real.log_le_log (by positivity) hn_pow
-    linarith [mul_le_mul_of_nonneg_left Real.log_two_lt_d9.le (by positivity : (0 : ℝ) ≤ lam + 1)]
+    calc X ≤ ((lam : ℝ) + 1) * 0.7 :=
+          hlog.trans (mul_le_mul_of_nonneg_left (by linarith [Real.log_two_lt_d9]) (by positivity))
+      _ ≤ lam := by linarith
   have hlam_lt_4X : (lam : ℝ) < 4 * X := by
     have hpow_r : (2 : ℝ) ^ (lam - 1) < (n : ℝ) + 16 := by
       exact_mod_cast (by omega : 2 ^ (lam - 1) < n + 16)
@@ -199,7 +206,8 @@ private theorem log_add_sixteen_bounds {n : ℕ} (hn : 16384 ≤ n) :
     have hpow_nu : (2 : ℝ) ^ (nu - 1) < 4 * X := by
       have hc : ((2 ^ (nu - 1) : ℕ) : ℝ) < (lam : ℝ) :=
         Nat.cast_lt.mpr ((Nat.lt_clog_iff_pow_lt one_lt_two).mp (by change nu - 1 < nu; omega))
-      push_cast at hc; exact hc.trans hlam_lt_4X
+      push_cast at hc
+      exact hc.trans hlam_lt_4X
     have h1 := Real.log_lt_log (by positivity) hpow_nu
     rw [Real.log_pow, Real.log_mul (by norm_num) hX_pos.ne',
       show (4 : ℝ) = (2 : ℝ) ^ (2 : ℕ) by norm_num, Real.log_pow, Nat.cast_ofNat,
@@ -377,9 +385,12 @@ theorem Feasible.branch_domainExaminationBound_le_two_pow_interpolationScale [Fi
   set N := Fintype.card ι
   have hpre_pow :
       2 * (numNodes n' : ℝ) * (numGroups n' : ℝ) ≤ (2 : ℝ) ^ (2 * interpolationScale N) :=
-    ((two_mul_numNodes_mul_numGroups_le_interpolationScale hn hn'_le).trans
-      ((le_add_of_nonneg_right zero_le_one).trans (Real.add_one_le_exp _))).trans
-      (exp_le_two_rpow_two_mul (interpolationScale_nonneg N))
+    calc 2 * (numNodes n' : ℝ) * (numGroups n' : ℝ)
+        ≤ interpolationScale N := two_mul_numNodes_mul_numGroups_le_interpolationScale hn hn'_le
+      _ ≤ Real.exp (interpolationScale N) :=
+          (le_add_of_nonneg_right zero_le_one).trans (Real.add_one_le_exp _)
+      _ ≤ (2 : ℝ) ^ (2 * interpolationScale N) :=
+          exp_le_two_rpow_two_mul (interpolationScale_nonneg N)
   have hrc := hF.mul_rowCost_le_interpolationScale hn hn_le hn'_le
   have hrc_nonneg : 0 ≤ (n' : ℝ) * rowCost β n' := by
     unfold rowCost tau
@@ -396,14 +407,23 @@ theorem Feasible.branch_domainExaminationBound_le_two_pow_interpolationScale [Fi
   have hexp_pow :
       Real.exp ((M_coeff : ℝ) * (n' : ℝ) * rowCost β n') ≤
         (2 : ℝ) ^ ((65792 * M_coeff * (β + 3) : ℕ) * interpolationScale N) :=
-    (exp_le_two_rpow_two_mul (by rw [mul_assoc]; positivity)).trans
-      (Real.rpow_le_rpow_of_exponent_le one_le_two (by push_cast; nlinarith))
-  refine (mul_le_mul hpre_pow hexp_pow (Real.exp_pos _).le (by positivity)).trans_eq ?_
-  rw [← Real.rpow_add two_pos]; congr 1
-  unfold branchExamScaleCoeff
-  dsimp only [M_coeff]
-  push_cast
-  ring
+    calc Real.exp ((M_coeff : ℝ) * (n' : ℝ) * rowCost β n')
+        ≤ (2 : ℝ) ^ (2 * ((M_coeff : ℝ) * (n' : ℝ) * rowCost β n')) :=
+          exp_le_two_rpow_two_mul (by rw [mul_assoc]; positivity)
+      _ ≤ (2 : ℝ) ^ ((65792 * M_coeff * (β + 3) : ℕ) * interpolationScale N) :=
+          Real.rpow_le_rpow_of_exponent_le one_le_two (by push_cast; nlinarith)
+  calc 2 * (numNodes n' : ℝ) * (numGroups n' : ℝ) *
+        Real.exp ((M_coeff : ℝ) * (n' : ℝ) * rowCost β n')
+      ≤ (2 : ℝ) ^ (2 * interpolationScale N) *
+          (2 : ℝ) ^ ((65792 * M_coeff * (β + 3) : ℕ) * interpolationScale N) :=
+        mul_le_mul hpre_pow hexp_pow (Real.exp_pos _).le (by positivity)
+    _ = (2 : ℝ) ^ ((branchExamScaleCoeff β k c : ℝ) * interpolationScale N) := by
+        rw [← Real.rpow_add two_pos]
+        congr 1
+        unfold branchExamScaleCoeff
+        dsimp only [M_coeff]
+        push_cast
+        ring
 
 /-- **Branch-assignment sum bound against `interpolationScale`:**
 Whenever `16384 ≤ Fintype.card ι` and

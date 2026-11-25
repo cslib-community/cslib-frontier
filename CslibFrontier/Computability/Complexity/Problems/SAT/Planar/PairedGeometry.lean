@@ -178,7 +178,8 @@ private theorem TileSpec.clause_endpoints {V : Type} {t : TileSpec V} {n : ℕ}
       List.getElem?_eq_getElem (by simpa using hk1), List.getElem_map, List.getElem_map,
       Option.some.injEq] at hv
   obtain ⟨hhead, hlast⟩ := hend _ he_mem.1
-  rw [beq_iff_eq.mp he_mem.2] at hhead; rw [he_var] at hlast
+  rw [beq_iff_eq.mp he_mem.2] at hhead
+  rw [he_var] at hlast
   exact ⟨by simp only [translate, List.head?_map, hhead, Option.map_some, add_comm],
     by simp only [translate, List.getLast?_map, hlast, Option.map_some, Prod.map_fst, htag,
       add_comm]⟩
@@ -338,7 +339,8 @@ theorem pathBoundaries_nodup {φ : CNF ℕ}
         not_false_eq_true, and_true]
       exact fun h => Fin.zero_ne_one
         (congrArg Prod.snd (boundary_injective e.1 (a₁ := (_, 0)) (a₂ := (_, 1)) h))
-    · apply (List.pairwise_map.mp hn).imp_of_mem; intro e f he hf hmid x hx hy
+    · apply (List.pairwise_map.mp hn).imp_of_mem
+      intro e f he hf hmid x hx hy
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hx hy
       rcases hx with rfl | rfl <;> rcases hy with hy | hy <;>
         exact hmid (boundary_step_midpoint_eq (path_step_unit he) (path_step_unit hf) hy).2
@@ -444,8 +446,10 @@ private theorem raw_variable_cases (φ : CNF ℕ) {v : Variable} (hv : v ∈ (ra
     exact Or.inr (Or.inr ⟨_, ho, _,
       penultimate_mem_dropLast (PlanarCompile.occurrencePath_length_ge_two ho), _, _,
       (congrArg Prod.fst heq).symm⟩)
-  · exact let ⟨x, hx⟩ := ordTile.mem_var hpc hv; Or.inl ⟨p, hp, x, hx⟩
-  · exact let ⟨x, hx⟩ := crossTile.mem_var hpc hv; Or.inr (Or.inl ⟨p, hp, x, hx⟩)
+  · obtain ⟨x, rfl⟩ := ordTile.mem_var hpc hv
+    exact Or.inl ⟨p, hp, x, rfl⟩
+  · obtain ⟨x, rfl⟩ := crossTile.mem_var hpc hv
+    exact Or.inr (Or.inl ⟨p, hp, x, rfl⟩)
   · have ⟨h1, h2⟩ := List.of_mem_zip he
     rcases hpc with rfl | rfl <;> rcases link_literal_cases _ _ _ _ hv with heq | heq
     all_goals exact Or.inr (Or.inr ⟨o, ho, _, by first | exact h1 | exact List.mem_of_mem_tail h2,
@@ -465,7 +469,8 @@ theorem variablePosition_injOn_rawVars (φ : CNF ℕ) :
   rintro ⟨p, v⟩ hv ⟨q, w⟩ hw heq
   obtain rfl : p = q := cell_eq_of_open (variablePosition_mem_openCell (p, v))
     (congrArg realPoint heq ▸ variablePosition_mem_openCell (q, w))
-  have hvk := raw_variable_cell_kind φ hv; have hwk := raw_variable_cell_kind φ hw
+  have hvk := raw_variable_cell_kind φ hv
+  have hwk := raw_variable_cell_kind φ hw
   cases v <;> cases w
   · exact congrArg (p, Sum.inl ·) (PairedPorts.variablePosition_injective (add_left_cancel heq))
   · exact absurd (hwk.mpr (hvk.mp rfl)) Bool.false_ne_true
@@ -786,7 +791,8 @@ private theorem TileSpec.variable_contact {V : Type} {t : TileSpec V} {c : Point
   obtain ⟨_, _, rfl⟩ := List.mem_map.mp hpc
   obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
   have he' := (List.mem_filter.mp he).1
-  have hcell : v.1 = c := cell_eq_of_open (variablePosition_mem_openCell v) (hcore e he' hp)
+  have hcell : v.1 = c :=
+    cell_eq_of_open (variablePosition_mem_openCell v) (hcore e he' hp)
   obtain ⟨w, hvw⟩ := hmatch hcell
   have hv_eq : v = (c, t.tag w) := Prod.ext hcell hvw
   have hwe : w = e.2.1 := by_contra fun hne => havoid he' w hne

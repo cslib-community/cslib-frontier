@@ -447,9 +447,13 @@ theorem length_normalizedPotentialSucc
 to its binary representation. -/
 theorem size_normalizedPotential_le (V : α × List Bool → ℕ) (a : α) (w : List Bool) :
     (normalizedPotential V (a, w)).size ≤ (V (a, w.tail)).size + 1 := by
-  unfold normalizedPotential; split_ifs
-  · dsimp only
-    exact Nat.size_le.2 (by rw [Nat.pow_succ]; have := Nat.lt_size_self (V (a, w.tail)); omega)
+  unfold normalizedPotential
+  dsimp only
+  split_ifs
+  · refine Nat.size_le.2 ?_
+    rw [Nat.pow_succ]
+    have hlt := Nat.lt_size_self (V (a, w.tail))
+    omega
   · simp
 
 /-- If `V` lies below `B` on `{0, 1} ^ (n a)`, then `normalizedPotential V` lies below `B + 1` on

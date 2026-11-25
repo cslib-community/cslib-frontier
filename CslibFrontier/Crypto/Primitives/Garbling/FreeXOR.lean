@@ -194,7 +194,8 @@ private theorem flipped_eq_false_of_eq {τ : Circuit.Topology n m s} {free : Fin
     {A : Wire n s → K × Bool} {r : GarbledRow τ free}
     (h : r.2 = fun k => (A (τ.wires r.gate k)).2) (k : Fin (τ.arity r.gate)) :
     flipped A r k = false := by
-  rw [flipped, h]; exact BooleanRing.add_self _
+  rw [flipped, h]
+  exact BooleanRing.add_self _
 
 variable (C : Circuit σ n m) (I : Interpretation σ Bool) {free : Fin C.size → Bool}
   (H : K → T → K × Bool) (tw : GarbledSlot C.topology free → T) (x : Fin n → Bool)
@@ -414,9 +415,11 @@ theorem evalStep_activeLabel
     · have hbit (k) : (activeLabel C I x free δ base (C.topology.wires g k)).2 +
           (propagate C.topology free base (C.topology.wires g k)).2 =
             C.program.trace I x (C.topology.wires g k) := by
-        rw [activeLabel, label_snd]; exact bool_add_add_self _ _
+        rw [activeLabel, label_snd]
+        exact bool_add_add_self _ _
       simp only [evalStep, dite_eq_left hg, garbleWith, garbleTable, hbit]
-      rw [activeLabel, trace_gate' C I x g]; exact add_sub_cancel_right _ _
+      rw [activeLabel, trace_gate' C I x g]
+      exact add_sub_cancel_right _ _
     · have hg' : free g = true := by simpa using hg
       simp only [evalStep, dite_eq_right hg, activeLabel, sum_label hK,
         ← propagate_gate_of_free C.isOrdered_topology base hg',
