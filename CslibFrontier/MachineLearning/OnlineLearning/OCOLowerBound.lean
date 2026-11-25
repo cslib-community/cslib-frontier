@@ -219,14 +219,10 @@ theorem sum_rademacherLinear_eval_eq_zero {K : Set E} {T : ℕ} (L : CausalLearn
     ∑ σ : Fin T → Bool, ∑ t : Fin T, rademacherLinear e G (σ t) (L.eval σ t) = 0 := by
   rw [Finset.sum_comm]
   refine Finset.sum_eq_zero fun t _ => ?_
-  have heq : ∀ σ : Fin T → Bool,
-      rademacherLinear e G (σ t) (L.eval σ t) = signVal (σ t) * (G * ⟪e, L.eval σ t⟫) :=
-    fun σ => by simp only [rademacherLinear]; ring
-  rw [Finset.sum_congr rfl fun σ _ => heq σ]
+  simp_rw [rademacherLinear, mul_assoc]
   refine sum_signVal_mul_eq_zero t (fun σ => G * ⟪e, L.eval σ t⟫) fun σ b => ?_
-  have hpref : (fun i (hi : i < t) => Function.update σ t b i) = fun i _ => σ i := by
-    ext i hi
-    exact Function.update_of_ne (ne_of_lt hi) b σ
+  have hpref : (fun i (hi : i < t) => Function.update σ t b i) = fun i _ => σ i :=
+    funext₂ fun _ hi => Function.update_of_ne hi.ne b σ
   simp only [CausalLearner.eval, hpref]
 
 /-- **Minimax `Ω(D * G * √T)` regret lower bound for online convex optimization** [Hazan2022]
@@ -250,11 +246,8 @@ theorem exists_oco_regret_ge {K : Set E} {x₀ e : E} {D G : ℝ}
   have huOf_sum (σ : Fin T → Bool) :
       ∑ t : Fin T, rademacherLinear e G (σ t) (uOf σ) =
         radSum σ * G * ⟪e, x₀⟫ - D * G / 2 * |radSum σ| := by
-    have hfac : ∑ t : Fin T, rademacherLinear e G (σ t) (uOf σ) = radSum σ * (G * ⟪e, uOf σ⟫) := by
-      simp only [rademacherLinear, radSum, Finset.sum_mul]
-      exact Finset.sum_congr rfl fun _ _ => by ring
-    rw [hfac]
-    dsimp only [uOf]
+    simp_rw [rademacherLinear, mul_assoc, ← Finset.sum_mul]
+    dsimp only [radSum, uOf]
     split_ifs with hs
     · rw [inner_sub_right, real_inner_smul_right, hee, mul_one, abs_of_nonneg hs]; ring
     · rw [inner_add_right, real_inner_smul_right, hee, mul_one, abs_of_neg (lt_of_not_ge hs)]; ring
