@@ -71,17 +71,18 @@ theorem toNat_compressedTime (f : BitString n → BitString n) (x : BitString n)
     (compressedTime n (BitVec.ofNat (n + 3) (cycleLength f x)) bits).toNat =
       normalizedTime f x (BitString.equivBitVec bits).toNat := by
   have h8 : 2 ^ (n + 3) = 8 * 2 ^ n := by rw [pow_add]; ring
+  have hNm : 2 ^ n < 2 ^ m := Nat.pow_lt_pow_right (by decide) hnm
   have hl := cycleLength_le_two_pow f x
   have hp := cycleLength_pos f x
   have hell := toNat_ofNat_cycleLength f x
+  have hcard : Fintype.card (BitString n) = 2 ^ n := by simp
   simp only [compressedTime, normalizedTime, BitVec.ult, BitVec.toNat_ofNat,
-    Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide : 1 < 2) hnm),
-    show Fintype.card (BitString n) = 2 ^ n by simp]
+    Nat.mod_eq_of_lt hNm, hcard]
   split_ifs with ht
   · simp only [ht, decide_true, periodicTimeIndex, ↓reduceIte, BitVec.toNat_setWidth,
       Nat.mod_eq_of_lt (by lia : (BitString.equivBitVec bits).toNat < 2 ^ (n + 3))]
   · rw [decide_eq_false ht, toNat_periodicTimeIndex_long _ _ _ (le_of_not_gt ht) (by lia)
-      (by lia) (by lia), toNat_ofNat_cycleLength]
+      (by lia) (by lia), hell]
 
 /-- Compressing an available time with an available cycle length: one streaming remainder over
 the time bits, one modular difference, one addition, one comparison and one selection. -/
@@ -93,7 +94,8 @@ private theorem synthesis_compressedTime (s : Set (BooleanFunction a))
       (m * (22 * (n + 3) + 3) + 50 * (n + 4) ^ 2 + 16 * (n + 3) + 1 + (5 * m + 2)) := by
   let short := fun x => (BitString.equivBitVec (bits x)).ult (BitVec.ofNat m (2 ^ n))
   have hword : wordWires (fun x => BitString.equivBitVec (bits x)) ⊆ s := by
-    rintro _ ⟨i, rfl⟩; simpa only [BitString.getLsbD_equivBitVec] using hb i
+    rintro _ ⟨i, rfl⟩
+    simpa only [BitString.getLsbD_equivBitVec] using hb i
   let b := Synthesis.Builder.start interpretation s
   synthesis_step b using
     Synthesis.word_ult (fun x => BitString.equivBitVec (bits x)) (fun _ => BitVec.ofNat m (2 ^ n))
@@ -128,11 +130,14 @@ private theorem long_time_circuit (c : Circuit signature n n) (m L : ℕ) (hnm :
     refine (Synthesis.circuit (I := interpretation) (s := b.wires) labels (fun i z => init z i)
       (by synthesis_available)).mono Set.Subset.rfl ?_ le_rfl
     rintro _ ⟨bit, rfl⟩
-    exact ⟨bit, funext fun z => by change labels.eval interpretation (init z) bit = _; rw [hl]⟩
+    exact ⟨bit, funext fun z => by
+      change labels.eval interpretation (init z) bit = _
+      rw [hl]⟩
   let b := b.add hlabels
   let ell := fun z => labelLength (canonicalLabel f (init z))
   have hlength : wordWires ell ⊆ b.wires := by
-    rintro _ ⟨i, rfl⟩; simp only [ell, labelLength, BitString.getLsbD_equivBitVec]
+    rintro _ ⟨i, rfl⟩
+    simp only [ell, labelLength, BitString.getLsbD_equivBitVec]
     synthesis_available
   synthesis_step b using synthesis_compressedTime b.wires ell bits
   let time := fun z => compressedTime n (ell z) (bits z)
@@ -142,15 +147,18 @@ private theorem long_time_circuit (c : Circuit signature n n) (m L : ℕ) (hnm :
   have h := b.finish (t := wires fun z =>
     f^[(BitString.equivBitVec fun i : Fin (n + 3) => (time z).getLsbD i.val).toNat] (init z))
     (by synthesis_available) (k := longTimeBudget n c.size m L)
-    (by dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start]
-        unfold longTimeBudget; omega)
+    (by
+      dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start]
+      unfold longTimeBudget
+      omega)
   obtain ⟨out, ho, hs⟩ := h.exists_circuit_outputs
   refine ⟨out, fun z => ?_, hs⟩
-  rw [ho z]
-  change f^[(BitString.equivBitVec fun i : Fin (n + 3) => (time z).getLsbD i.val).toNat]
-    (init z) = f^[(BitString.equivBitVec (bits z)).toNat] (init z)
-  simp only [BitString.equivBitVec_getLsbD, time, ell, canonicalLabel, labelLength_labelBits,
-    toNat_compressedTime f _ _ hnm, iterate_normalizedTime]
+  · rw [ho z]
+    change f^[(BitString.equivBitVec fun i : Fin (n + 3) => (time z).getLsbD i.val).toNat]
+      (init z) = f^[(BitString.equivBitVec (bits z)).toNat] (init z)
+    rw [BitString.equivBitVec_getLsbD]
+    simp only [time, ell, canonicalLabel, labelLength_labelBits]
+    rw [toNat_compressedTime f _ _ hnm, iterate_normalizedTime]
 
 private theorem longTimeBudget_le (n s m L : ℕ) :
     longTimeBudget n s m L ≤
@@ -191,10 +199,11 @@ theorem variable_time_additive_optimized (c : Circuit signature n n) (m : ℕ) :
       (out.size : ℝ) ≤ 400000 * (n + 1) * optimizedBudget n c.size (2 ^ n) + 80 * m * (n + 1) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := variable_time_additive c m L hL hLN
+  refine ⟨out, ho, ?_⟩
   have hs' : (out.size : ℝ) ≤
       200000 * (n + 1) * (powerBudget n c.size (2 ^ n) L : ℝ) + 80 * m * (n + 1) := by
     exact_mod_cast hs
-  exact ⟨out, ho, by
-    nlinarith [mul_le_mul_of_nonneg_left hopt (by positivity : (0 : ℝ) ≤ 200000 * (n + 1))]⟩
+  have h := mul_le_mul_of_nonneg_left hopt (show 0 ≤ 200000 * (n + 1 : ℝ) by positivity)
+  nlinarith
 
 end Cslib.Circuits.Boolean.Iteration

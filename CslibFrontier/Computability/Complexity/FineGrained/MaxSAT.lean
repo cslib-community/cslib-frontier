@@ -115,20 +115,12 @@ def clauseCircuit (n : ℕ) (c : Clause ℕ) : Circuit signature n 1 :=
 /-- The clause compiler returns its disjunction, including false for an empty clause. -/
 @[simp] theorem eval_clauseCircuit (n : ℕ) (c : Clause ℕ) (x : BitString n) :
     (clauseCircuit n c).eval interpretation x 0 = Clause.eval (assignment n x) c := by
-  have h := List.balancedFold_hom (fun C : Circuit signature n 1 => C.eval interpretation x 0)
-    (op' := (· || ·)) (op := fun C D => clauseJoin.comp (C.append D))
-    (e := Circuit.oneGate (.const false) Fin.elim0) (f := id)
+  rw [clauseCircuit, Circuit.balanced, List.balancedFold_hom
+    (fun C : Circuit signature n 1 => C.eval interpretation x 0) (op' := (· || ·))
     (fun C D => by
       simp only [circuit_simps, clauseJoin]
-      rfl)
-    (c.map (literalCircuit n))
-  change (clauseCircuit n c).eval interpretation x 0 = _ at h
-  rw [h]
-  change (c.map (literalCircuit n)).balancedFold (· || ·) false
-    (fun C => C.eval interpretation x 0) = _
-  rw [List.balancedFold_eq_foldr]
+      rfl), List.balancedFold_eq_foldr]
   simp only [List.map_map, Function.comp_def, eval_literalCircuit]
-  clear h
   induction c with
   | nil => rfl
   | cons l c ih =>
@@ -151,9 +143,8 @@ theorem weight_eval_scoreCircuit (F : Instance) (x : BitString F.1) :
   simp only [scoreCircuit, Circuit.eval_pi, eval_clauseCircuit]
   have he : List.ofFn (fun i : Fin F.2.length => Clause.eval (assignment F.1 x) F.2[i]) =
       F.2.map (Clause.eval (assignment F.1 x)) := by
-    apply List.ext_getElem (by simp)
-    intro i hi hj
-    simp
+    simpa only [List.map_ofFn, Function.comp_def, Fin.getElem_fin] using
+      congrArg (List.map (Clause.eval (assignment F.1 x))) (List.ofFn_getElem (xs := F.2))
   rw [he, List.count_eq_countP]
   simp [score, List.countP_map, Function.comp_def]
 
@@ -167,10 +158,9 @@ theorem size_scoreCircuit_le (F : Instance) :
     _ = 2 * F.2.vars.length + F.2.length := by
       have he : (∑ i : Fin F.2.length, F.2[i].length) = (F.2.map List.length).sum := by
         rw [← List.sum_ofFn]
-        congr 1
-        apply List.ext_getElem (by simp)
-        intro i hi hj
-        simp
+        exact congrArg List.sum (by
+          simpa only [List.map_ofFn, Function.comp_def, Fin.getElem_fin] using
+            congrArg (List.map List.length) (List.ofFn_getElem (xs := F.2)))
       simp only [CNF.length_vars, Finset.sum_add_distrib, ← Finset.mul_sum, he,
         Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, Nat.mul_one]
 

@@ -167,11 +167,8 @@ theorem uniformOfFintype_bind_units_smul_of_ne_zero [Fact q.Prime] {g h : G}
     ((PMF.uniformOfFintype (ZMod q)ˣ).bind fun ρ => f (ρ • h)) =
       (PMF.uniformOfFintype (ZMod q)ˣ).bind fun ρ => f (ρ • g) := by
   obtain ⟨a, rfl⟩ := hg h
-  have ha : a ≠ 0 := by
-    rintro rfl
-    exact hh (zero_smul _ _)
   simpa only [Units.smul_def, Units.val_mk0] using
-    uniformOfFintype_bind_units_smul_smul (Units.mk0 a ha) g f
+    uniformOfFintype_bind_units_smul_smul (Units.mk0 a fun ha => hh (ha ▸ zero_smul _ _)) g f
 
 /-- The receiver's message law in Protocol `OPRF2` ([BonehShoup2023], Section 11.6.3, p. 456): when
 `g` generates `G`, for every hashed input `h` and every `ρ : (ZMod q)ˣ`, `maskedBlind g ρ τ h`
@@ -196,17 +193,11 @@ theorem uniformOfFintype_bind_maskedUnblind_add {g : G}
           (maskedUnblind (k • g) ρ τ (k • maskedBlind g ρ τ h + d (maskedBlind g ρ τ h)))) =
       (PMF.uniformOfFintype (ZMod q)).bind fun τ => (PMF.uniformOfFintype (ZMod q)ˣ).bind fun ρ =>
         f (τ • g) (k • h + ρ • d (τ • g)) := by
-  simp only [maskedUnblind_smul_maskedBlind_add]
-  have hρ : ∀ ρ : (ZMod q)ˣ,
-      ((PMF.uniformOfFintype (ZMod q)).bind fun τ =>
-        f (maskedBlind g ρ τ h) (k • h + ρ⁻¹ • d (maskedBlind g ρ τ h))) =
-      (PMF.uniformOfFintype (ZMod q)).bind fun τ => f (τ • g) (k • h + ρ⁻¹ • d (τ • g)) :=
-    fun ρ => uniformOfFintype_bind_maskedBlind hg ρ h fun v => f v (k • h + ρ⁻¹ • d v)
-  simp only [hρ]
+  simp only [maskedUnblind_smul_maskedBlind_add, fun ρ =>
+    uniformOfFintype_bind_maskedBlind hg ρ h fun v => f v (k • h + ρ⁻¹ • d v)]
   rw [PMF.bind_comm]
-  refine congrArg _ (funext fun τ => ?_)
-  exact PMF.uniformOfFintype_bind_equiv (Equiv.inv (ZMod q)ˣ)
-    fun ρ => f (τ • g) (k • h + ρ • d (τ • g))
+  exact congrArg _ (funext fun τ => PMF.uniformOfFintype_bind_equiv (Equiv.inv (ZMod q)ˣ)
+    fun ρ => f (τ • g) (k • h + ρ • d (τ • g)))
 
 /-- Joint law of the receiver's message and unblinded group element against a deviating `OPRF2`
 sender in a prime-order group ([BonehShoup2023], Section 11.6.3, p. 456): when `q` is prime, `g`
@@ -228,8 +219,8 @@ theorem uniformOfFintype_bind_maskedUnblind_add_of_ne_zero [Fact q.Prime] {g : G
       (PMF.uniformOfFintype (ZMod q)).bind fun τ => (PMF.uniformOfFintype (ZMod q)ˣ).bind fun ρ =>
         f (τ • g) (k • h + ρ • g) := by
   rw [uniformOfFintype_bind_maskedUnblind_add hg]
-  refine congrArg _ (funext fun τ => ?_)
-  exact uniformOfFintype_bind_units_smul_of_ne_zero hg (hd _) fun x => f (τ • g) (k • h + x)
+  exact congrArg _ (funext fun τ =>
+    uniformOfFintype_bind_units_smul_of_ne_zero hg (hd _) fun x => f (τ • g) (k • h + x))
 
 end Laws
 

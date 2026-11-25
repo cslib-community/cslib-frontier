@@ -173,12 +173,11 @@ private theorem parityReduction_advantage_eq {K M C : Type} (E : Cipher K M C)
         simp only [exp, ← PMF.bind_pure_comp, Function.comp_def, pmf_norm]
         rw [← hflip_map, PMF.bind_map]
       rfl
+  have habs (p : ℝ) : |p - (1 - p)| = 2 * |p - 1 / 2| := by
+    rw [show p - (1 - p) = 2 * (p - 1 / 2) by ring, abs_mul, abs_of_pos (by norm_num)]
   rw [Game.coe_guessingAdvantage, Experiment.advantage, heval0, heval1, Game.coe_advantage,
     Game.succProbability_not, Game.failProbability_eq,
-    NNReal.coe_sub (Game.succProbability_le_one _), NNReal.coe_one,
-    show ∀ p : ℝ, |p - (1 - p)| = 2 * |p - 1 / 2| from fun p => by
-      rw [show p - (1 - p) = 2 * (p - 1 / 2) by ring, abs_mul, abs_of_pos (by norm_num)],
-    abs_sub_comm]
+    NNReal.coe_sub (Game.succProbability_le_one _), NNReal.coe_one, habs, abs_sub_comm]
   ring
 
 /-- **Concrete advantage relation for Theorem 2.8** ([BonehShoup2023], p. 21):

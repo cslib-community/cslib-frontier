@@ -122,15 +122,12 @@ theorem chainLabelsList_ofEnum {α : Type*} {n : ℕ} [LT α] [DecidableLT α] (
 theorem antichainList_ofEnum {α : Type*} {n : ℕ} [LT α] [DecidableLT α] (e : Fin n ≃ α) :
     (ofEnum e).antichainList =
       ((List.finRange n).filter fun i => decide (i ∈ (minChainCover e).antichain)).map Fin.val := by
-  have heq : (ofEnum e).lt = enumLtGraph e := rfl
   have hanti : (minChainCover e).antichain =
       (hopcroftKarpDense (enumLtGraph e)).cover.uncovered := by
     simp [minChainCover, foldl_uncoveredStep]
-  dsimp only [antichainList]
-  rw [heq]
+  dsimp only [antichainList, ofEnum]
   congr 1
-  refine List.filter_congr fun i _ => ?_
-  exact decide_eq_decide.mpr (by rw [hanti]; rfl)
+  exact List.filter_congr fun _ _ => decide_eq_decide.mpr (by rw [hanti])
 
 theorem length_antichainList_ofEnum {α : Type*} {n : ℕ} [LT α] [DecidableLT α] (e : Fin n ≃ α) :
     (ofEnum e).antichainList.length = (minChainCover e).antichain.card := by
@@ -273,21 +270,16 @@ private def rowMateOf {n : ℕ} (mate : Vector (Option (Fin n)) n) (i : Fin n) :
 private theorem rowMateOf_eq_some_iff {n : ℕ} {G : Fin n × Fin n → Bool}
     {mate : Vector (Option (Fin n)) n} (hM : IsMatching G (mateMatching mate))
     (i j : Fin n) : rowMateOf mate i = some j ↔ (i, j) ∈ mateMatching mate := by
-  let p : Fin n → Bool := fun j' => decide (vget mate j' = some i)
-  change (List.finRange n).find? p = some j ↔ (i, j) ∈ mateMatching mate
-  constructor
-  · intro hf
-    have hp : p j = true := List.find?_some hf
-    exact mem_mateMatching.mpr (of_decide_eq_true hp)
-  · intro hm
-    have hvj : vget mate j = some i := mem_mateMatching.mp hm
-    cases hf : (List.finRange n).find? p with
+  unfold rowMateOf
+  refine ⟨fun hf => ?_, fun hm => ?_⟩
+  · exact mem_mateMatching.mpr (by simpa using List.find?_some hf)
+  · have hvj : vget mate j = some i := mem_mateMatching.mp hm
+    cases hf : ((List.finRange n).find? fun j' => decide (vget mate j' = some i)) with
     | none =>
       have hfalse := (List.find?_eq_none.mp hf) j (List.mem_finRange j)
-      simp [p, hvj] at hfalse
+      simp [hvj] at hfalse
     | some j₁ =>
-      have hp₁ : p j₁ = true := List.find?_some hf
-      have hvj₁ : vget mate j₁ = some i := of_decide_eq_true hp₁
+      have hvj₁ : vget mate j₁ = some i := by simpa using List.find?_some hf
       exact congrArg some (hM.2.1 i j₁ j (mem_mateMatching.mpr hvj₁) hm)
 
 private abbrev posetSparse (inst : PosetInstance) : SparseInstance :=
@@ -318,9 +310,7 @@ private theorem exec_posetCoreCode {w : ℕ} (inst : PosetInstance) (hw : Fits w
       (fun u v => inst.init_mem_entry u v) (hfit_all.of_le (by simp; omega))
   have hE_le : (posetSparse inst).numEdges ≤ inst.n * inst.n := inst.toDense.numEdges_toSparse_le
   have hnu_le : (posetSparse inst).maxMatchingCard ≤ inst.n := by
-    have := (posetSparse inst).maxMatchingCard_le_min
-    change (posetSparse inst).maxMatchingCard ≤ min inst.n inst.n at this
-    simpa using this
+    simpa using (posetSparse inst).maxMatchingCard_le_min
   have hsqrt_le : Nat.sqrt (posetSparse inst).maxMatchingCard ≤ Nat.sqrt inst.n :=
     Nat.sqrt_le_sqrt hnu_le
   have hfit_core : Fits w ((2 + inst.n * inst.n) + 7 * (posetSparse inst).m +
@@ -531,14 +521,14 @@ private theorem exec_chainLabelsTail {w : ℕ} (inst : PosetInstance)
   have hf_ob : Fits w bOut := hfit_all.of_le (by dsimp only [bOut]; omega)
   have hb₁_ob : y₁.regs outBase = bOut := hb₁.houtBase
   have hb₁_rm : y₁.regs rm = inst.n := hb₁.hrm
-  have hs_il₀ : ∃ s_il, ExecWithin w
-      (ram[ addr ← outBase; *addr ← rm; idx ← #0 ] : Code .standard 34) y₁ s_il 3 ∧
-      s_il = ((y₁.set addr bOut).write bOut inst.n).set idx 0 := by
-    refine WP.exists_execWithin ?_
+  let s_il := ((y₁.set addr bOut).write bOut inst.n).set idx 0
+  have he_il₀ : ExecWithin w (ram[
+      addr ← outBase;
+      *addr ← rm;
+      idx ← #0 ] : Code .standard 34) y₁ s_il 3 := by
+    refine WP.execWithin ?_
     wram_exec [hb₁_ob, hb₁_rm, hf_ob]
     rfl
-  obtain ⟨s_il, he_il₀, rfl⟩ := hs_il₀
-  let s_il := ((y₁.set addr bOut).write bOut inst.n).set idx 0
   let PI (t : ℕ) (w_st : Data 34) : Prop :=
     t ≤ inst.n ∧
       (∀ i : Fin 34, i.val < 19 → w_st.regs i = y₁.regs i) ∧
@@ -619,16 +609,14 @@ private theorem exec_chainLabelsTail {w : ℕ} (inst : PosetInstance)
     have hf_ml_i : Fits w (bML + w_st.regs qHead) :=
       hfit_all.of_le (by dsimp only [bML]; omega)
     have hf_qh1 : Fits w (w_st.regs qHead + 1) := hfit_all.of_le (by omega)
-    have hchk : ∃ w_chk, ExecWithin w
-        (ram[ addr ← bMLReg + qHead; qTail ← *addr ] : Code .standard 34) w_st w_chk 2 ∧
-        w_chk = (w_st.set addr (bML + w_st.regs qHead)).set qTail
-          (encodeOptFin (rowMateOf (posetLoopRes inst).mate i₀)) := by
-      refine WP.exists_execWithin ?_
-      wram_exec [hbw_ml, hrm_i₀, hf_ml_i]
-      rfl
-    obtain ⟨w_chk, he_chk, rfl⟩ := hchk
     let w_chk := (w_st.set addr (bML + w_st.regs qHead)).set qTail
       (encodeOptFin (rowMateOf (posetLoopRes inst).mate i₀))
+    have he_chk : ExecWithin w (ram[
+        addr ← bMLReg + qHead;
+        qTail ← *addr ] : Code .standard 34) w_st w_chk 2 := by
+      refine WP.execWithin ?_
+      wram_exec [hbw_ml, hrm_i₀, hf_ml_i]
+      rfl
     have hlab_succ : labAt (w_st.regs qHead + 1) = stepFn (labAt (w_st.regs qHead)) i₀ := by
       dsimp only [labAt]
       rw [List.take_succ_finRange hk_lt, List.foldl_append, List.foldl_cons, List.foldl_nil]
@@ -812,9 +800,8 @@ private theorem exec_chainLabelsTail {w : ℕ} (inst : PosetInstance)
   have hout_z : outputList z.mem (z.regs outBase) = inst.chainLabelsList := by
     rw [hbz_ob, outputList_eq_iff, hcl_len]
     refine ⟨hobz, fun i => ?_⟩
-    have hi_val : i.val < inst.chainLabelsList.length := i.isLt
-    have hi_lt : i.val < inst.n := hi_val.trans_eq hcl_len
-    change z.mem (bOut + 1 + i.val) = inst.chainLabelsList[i.val]'hi_val
+    have hi_lt : i.val < inst.n := i.isLt.trans_eq hcl_len
+    change z.mem (bOut + 1 + i.val) = inst.chainLabelsList[i.val]'i.isLt
     rw [hlabz ⟨i.val, hi_lt⟩, hlab_full]
     simp [PosetInstance.chainLabelsList]
   have hfit_out : Fits w (z.regs outBase + inst.chainLabelsList.length) := by
@@ -1026,24 +1013,22 @@ private theorem exec_maxAntichainTail {w : ℕ} (inst : PosetInstance)
     dsimp only [ac, PosetInstance.antichainList, hk]
     rw [List.take_of_length_le (by simp)]
   have hf_ob : Fits w bOut := hfit_all.of_le (by dsimp only [bOut]; omega)
-  have htail : ∃ z, ExecWithin w
-      (ram[ addr ← outBase; *addr ← acc ] : Code .standard 34) y₁ z 2 ∧
-      z = (y₁.set addr bOut).write bOut inst.antichainList.length := by
-    refine WP.exists_execWithin ?_
+  let z := (y₁.set addr bOut).write bOut inst.antichainList.length
+  have he_tail : ExecWithin w (ram[
+      addr ← outBase;
+      *addr ← acc ] : Code .standard 34) y₁ z 2 := by
+    refine WP.execWithin ?_
     rw [hac_full] at hacc₁
     wram_exec [hb₁_ob, hacc₁, hf_ob]
     rfl
-  obtain ⟨z, he_tail, rfl⟩ := htail
-  let z := (y₁.set addr bOut).write bOut inst.antichainList.length
   have hbz : BaseRegs (posetSparse inst) (2 + inst.n * inst.n) z :=
     hb₁.of_eq fun i hi => by dsimp only [z]; wram_simp
   have hbz_ob : z.regs outBase = bOut := hbz.houtBase
   have hout_z : outputList z.mem (z.regs outBase) = inst.antichainList := by
     rw [hbz_ob, outputList_eq_iff]
     refine ⟨by dsimp only [z]; wram_simp, fun i => ?_⟩
-    have hi_val : i.val < inst.antichainList.length := i.isLt
-    have hi_ac : i.val < (ac inst.n).length := by rwa [hac_full]
-    change z.mem (bOut + 1 + i.val) = inst.antichainList[i.val]'hi_val
+    have hi_ac : i.val < (ac inst.n).length := by simp [hac_full]
+    change z.mem (bOut + 1 + i.val) = inst.antichainList[i.val]'i.isLt
     have hmem_i : z.mem (bOut + 1 + i.val) = y₁.mem (bOut + 1 + i.val) := by
       dsimp only [z]; wram_simp
     rw [hmem_i]

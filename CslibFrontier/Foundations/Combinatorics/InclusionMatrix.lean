@@ -64,15 +64,20 @@ counts each `t`-subset `A` of `B` once for each of the `#B - t` elements of `B \
 theorem sum_sum_powersetCard_erase {M : Type*} [AddCommMonoid M] (a : Finset α → M) (t : ℕ)
     (B : Finset α) :
     ∑ i ∈ B, ∑ A ∈ (B.erase i).powersetCard t, a A = (#B - t) • ∑ A ∈ B.powersetCard t, a A := by
-  have h1 (i : α) : ∑ A ∈ (B.erase i).powersetCard t, a A =
-      ∑ A ∈ B.powersetCard t, if i ∉ A then a A else 0 := by
-    rw [← sum_filter]
-    exact sum_congr (by ext; simp [mem_powersetCard, subset_erase]; tauto) fun _ _ => rfl
-  simp_rw [h1]
-  rw [sum_comm, smul_sum]
-  refine sum_congr rfl fun A hA => ?_
-  rw [mem_powersetCard] at hA
-  rw [← sum_filter, sum_const, ← sdiff_eq_filter, card_sdiff_of_subset hA.1, hA.2]
+  calc ∑ i ∈ B, ∑ A ∈ (B.erase i).powersetCard t, a A
+      = ∑ i ∈ B, ∑ A ∈ B.powersetCard t, if i ∉ A then a A else 0 := by
+        refine sum_congr rfl fun i hi => ?_
+        rw [← sum_filter]
+        refine sum_congr ?_ fun _ _ => rfl
+        ext A
+        simp only [mem_powersetCard, mem_filter, subset_erase]
+        tauto
+    _ = ∑ A ∈ B.powersetCard t, ∑ i ∈ B, if i ∉ A then a A else 0 := sum_comm
+    _ = ∑ A ∈ B.powersetCard t, (#B - t) • a A := by
+        refine sum_congr rfl fun A hA => ?_
+        rw [mem_powersetCard] at hA
+        rw [← sum_filter, sum_const, ← sdiff_eq_filter, card_sdiff_of_subset hA.1, hA.2]
+    _ = _ := (smul_sum ..).symm
 
 /-- The `(t + 1)`-subsets of `insert x B`, for `x ∉ B`, are the `(t + 1)`-subsets of `B` and the
 sets `insert x A` for the `t`-subsets `A` of `B`. -/
@@ -116,14 +121,17 @@ theorem eq_zero_of_sum_powersetCard_eq_zero {U : Finset α} {t s : ℕ} (hts : t
       simpa [card_eq_zero.1 (mem_powersetCard.1 hA).2] using ha B hB
     obtain ⟨t', rfl⟩ : ∃ t', t = t' + 1 := ⟨t - 1, by omega⟩
     obtain ⟨s', rfl⟩ : ∃ s', s = s' + 1 := ⟨s - 1, by omega⟩
+    -- the `s`-subsets avoiding `x`
     have eq1 : ∀ B ∈ U.powersetCard (s' + 1), ∑ A ∈ B.powersetCard (t' + 1), a A = 0 :=
       fun B hB => ha B (powersetCard_mono (subset_insert x U) hB)
+    -- the `s`-subsets containing `x`
     have eq2 : ∀ B ∈ U.powersetCard s', ∑ A ∈ B.powersetCard (t' + 1), a A +
         ∑ A ∈ B.powersetCard t', a (insert x A) = 0 := fun B hB => by
       obtain ⟨hBU, hBc⟩ := mem_powersetCard.1 hB
       have hxB : x ∉ B := fun h => hx (hBU h)
       rw [← sum_powersetCard_succ_insert a hxB]
       exact ha _ (mem_powersetCard.2 ⟨insert_subset_insert x hBU, by simp [hxB, hBc]⟩)
+    -- double counting gives the hypothesis for the weights `A ↦ a (insert x A)`
     have eq3 : ∀ B ∈ U.powersetCard (s' + 1), ∑ A ∈ B.powersetCard t', a (insert x A) = 0 := by
       intro B hB
       obtain ⟨hBU, hBc⟩ := mem_powersetCard.1 hB

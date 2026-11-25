@@ -83,9 +83,10 @@ theorem mem_freeBoundaryBlock_iff (g : PPGadget arity sem R) (w : GadgetWitness 
   rw [← exists_probe_prefix_occurrence_iff g.body (List.ofFn Sum.inl) index (Sum.inl i),
     getD_freeBoundaryBlocks]
   obtain ⟨hc, _, _⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp w.probe_accepted
+  have hp : g.body.occurrences.length ≤ incidenceEdgeIndex (gadgetProbeOccurrence g i) := by
+    rw [incidenceEdgeIndex_gadgetProbeOccurrence, length_occurrences_body]; omega
   simpa only [var_gadgetProbeOccurrence] using mem_probe_cycleBlock_iff g.body _
-    (List.nodup_ofFn.mpr Sum.inl_injective) w.certificate hc (gadgetProbeOccurrence g i)
-    (by rw [incidenceEdgeIndex_gadgetProbeOccurrence, length_occurrences_body]; omega) index
+    (List.nodup_ofFn.mpr Sum.inl_injective) w.certificate hc (gadgetProbeOccurrence g i) hp index
 
 /-- Each free block is a duplicate-free occurrence word, even at unused free ports. -/
 theorem nodup_freeBoundaryBlock (g : PPGadget arity sem R) (w : GadgetWitness g) (i : Fin n) :
@@ -156,8 +157,9 @@ theorem mem_boundaryBlock_iff (g : PPGadget arity sem R) (w : GadgetWitness g)
     (v : Fin n ⊕ Fin g.numAux) (index : ℕ) :
     index ∈ boundaryBlock g w v ↔
       ∃ o : g.body.Occurrence, incidenceEdgeIndex o = index ∧ o.var = v := by
-  cases v <;> [exact mem_freeBoundaryBlock_iff g w _ index;
-    exact mem_auxiliaryBoundaryBlock_iff g w _ index]
+  cases v with
+  | inl i => exact mem_freeBoundaryBlock_iff g w i index
+  | inr j => exact mem_auxiliaryBoundaryBlock_iff g w j index
 
 /-- Shifting a local variable word retains the exact copy offset and original occurrence. -/
 theorem mem_shiftBlock_boundaryBlock_iff (g : PPGadget arity sem R) (w : GadgetWitness g)
@@ -170,7 +172,9 @@ theorem mem_shiftBlock_boundaryBlock_iff (g : PPGadget arity sem R) (w : GadgetW
 /-- Every selected word has no repeated occurrence positions. -/
 theorem nodup_boundaryBlock (g : PPGadget arity sem R) (w : GadgetWitness g)
     (v : Fin n ⊕ Fin g.numAux) : (boundaryBlock g w v).Nodup := by
-  cases v <;> [exact nodup_freeBoundaryBlock g w _; exact nodup_auxiliaryBoundaryBlock g w _]
+  cases v with
+  | inl i => exact nodup_freeBoundaryBlock g w i
+  | inr j => exact nodup_auxiliaryBoundaryBlock g w j
 
 /-- Different canonical variables own disjoint occurrence words. Repeated source names
 have no role here: canonical free ports remain distinct local variables. -/
@@ -187,23 +191,25 @@ private theorem boundaryBlocks_eq_map (g : PPGadget arity sem R) (w : GadgetWitn
       ((List.finRange n).map Sum.inl ++ (List.finRange g.numAux).map Sum.inr).map
         (boundaryBlock g w) := by
   rw [List.map_append, List.map_map, List.map_map]
-  exact congrArg₂ _
-    (List.ext_getElem (by simp [length_freeBoundaryBlocks]) fun i hi _ => by
-      simp only [List.getElem_map, List.getElem_finRange, Function.comp_apply, boundaryBlock,
-        Sum.elim_inl, Fin.val_cast, List.getD_eq_getElem _ [] hi])
-    (List.ext_getElem (by simp [length_auxiliaryBoundaryBlocks]) fun i hi _ => by
-      simp only [List.getElem_map, List.getElem_finRange, Function.comp_apply, boundaryBlock,
-        Sum.elim_inr, Fin.val_cast, List.getD_eq_getElem _ [] hi])
+  congr 1
+  · refine List.ext_getElem (by simp [length_freeBoundaryBlocks]) fun i hi _ => ?_
+    simp only [List.getElem_map, List.getElem_finRange, Function.comp_apply, boundaryBlock,
+      Sum.elim_inl, Fin.val_cast, List.getD_eq_getElem _ [] hi]
+  · refine List.ext_getElem (by simp [length_auxiliaryBoundaryBlocks]) fun i hi _ => ?_
+    simp only [List.getElem_map, List.getElem_finRange, Function.comp_apply, boundaryBlock,
+      Sum.elim_inr, Fin.val_cast, List.getD_eq_getElem _ [] hi]
 
 /-- The complete free-plus-auxiliary table partitions local occurrence positions without
 any duplication, including zero arities and unused ports. -/
 theorem nodup_flatten_boundaryBlocks (g : PPGadget arity sem R) (w : GadgetWitness g) :
     (freeBoundaryBlocks g w ++ auxiliaryBoundaryBlocks g w).flatten.Nodup := by
   rw [boundaryBlocks_eq_map, ← List.flatMap]
-  refine List.nodup_flatMap.mpr ⟨fun v _ => nodup_boundaryBlock g w v, ?_⟩
-  exact (by simp [List.nodup_append, List.nodup_map_iff, Sum.inl_injective, Sum.inr_injective,
-    List.nodup_finRange] : (((List.finRange n).map (Sum.inl : Fin n → Fin n ⊕ Fin g.numAux) ++
-      (List.finRange g.numAux).map Sum.inr).Nodup)).imp fun h => disjoint_boundaryBlock g w h
+  have hn : ((List.finRange n).map (Sum.inl : Fin n → Fin n ⊕ Fin g.numAux) ++
+      (List.finRange g.numAux).map Sum.inr).Nodup := by
+    simp [List.nodup_append, List.nodup_map_iff, Sum.inl_injective, Sum.inr_injective,
+      List.nodup_finRange]
+  exact List.nodup_flatMap.mpr ⟨fun v _ => nodup_boundaryBlock g w v,
+    hn.imp fun h => disjoint_boundaryBlock g w h⟩
 
 /-- The local partition covers exactly the actual body's bounded occurrence indices.
 No interval of variable names, unused port labels, or binary magnitudes is enumerated. -/

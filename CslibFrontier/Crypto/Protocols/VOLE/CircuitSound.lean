@@ -130,7 +130,7 @@ theorem circuitVerify_sample_iff (C : Circuit (arithSignature F) (p + k) m)
     simp only [maskedMulCheckValue, VOLECorrelation.receiverView, voleSample] at hadjust ⊢
     rw [hadjust]
     change _ + (u (Fin.last _) * delta + v (Fin.last _)) = _ ↔ _
-    exact ⟨fun h => by linear_combination h, fun h => by linear_combination h⟩
+    constructor <;> intro h <;> linear_combination h
 
 
 end Ring

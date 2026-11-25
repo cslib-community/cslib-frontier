@@ -98,9 +98,8 @@ theorem mem_support_runWith_answer_invariant [DecidableEq ι] (dist : (q : ι) �
     obtain ⟨hq_ans, hsub₁, hsupp₁⟩ := mem_support_answer_invariant dist q hsupp hans
     obtain ⟨hsub₂, hsupp', heval⟩ := ih ans hsupp₁ hcont
     refine ⟨fun q' v' h => hsub₂ q' v' (hsub₁ q' v' h), hsupp', fun h hh => ?_⟩
-    have hq_eq : h q = ans := hh q ans (hsub₂ q ans hq_ans)
-    rw [PFunctor.FreeM.bind_eq_bind]
-    simp only [evalPure_bind, evalPure_query, hq_eq]
+    simp only [PFunctor.FreeM.bind_eq_bind, evalPure_bind, evalPure_query,
+      hh q ans (hsub₂ q ans hq_ans)]
     exact heval h hh
 
 /-- Extend a partial cache `cache` to a total deterministic oracle by returning `v` when

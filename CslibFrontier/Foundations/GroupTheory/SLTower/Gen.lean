@@ -94,8 +94,10 @@ private theorem el_mem {i j : Fin h} (hij : i < j) : el hij ∈ closure (Set.ran
   | succ d ih =>
     have hkj : (⟨j.1 - 1, by omega⟩ : Fin h) < j := Fin.lt_def.2 (by simp; omega)
     have hik : i < ⟨j.1 - 1, by omega⟩ := Fin.lt_def.2 (by simp; omega)
-    have hm := mul_mem (ih hik (by simp; omega)) (el_mem_of_succ hkj (by simp; omega))
-    exact el_comm hik hkj ▸ mul_mem hm hm
+    have h1 := ih hik (by simp; omega)
+    have h2 := el_mem_of_succ hkj (by simp; omega)
+    rw [← el_comm hik hkj]
+    exact mul_mem (mul_mem h1 h2) (mul_mem h1 h2)
 
 /-- **The simple root elements generate `U h`.** -/
 theorem closure_range_x : closure (Set.range (x h)) = ⊤ := by

@@ -94,8 +94,9 @@ theorem phase_even_of_involutive {β : Type*} (φ : ℤ → ℤ → β) (e n : �
     simpa only [show a + 2 = a + 1 + 1 by omega, east] using he _
   have hy : Function.Periodic (fun b : ℤ => φ x b) 2 := fun b => by
     simpa only [show b + 2 = b + 1 + 1 by omega, north] using hn _
-  exact Eq.trans (by simpa [mul_comm] using hx.int_mul u x)
-    (by simpa [mul_comm] using hy.int_mul v y)
+  calc φ (x + 2 * u) (y + 2 * v) = φ x (y + 2 * v) := by
+        simpa [mul_comm] using hx.int_mul u x
+    _ = φ x y := by simpa [mul_comm] using hy.int_mul v y
 
 private theorem exists_phase_origin (p : IndexPlane) :
     ∃ x y : Fin 2, (components (p.index x.val y.val)).thin = .a := by

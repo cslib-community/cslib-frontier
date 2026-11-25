@@ -82,7 +82,8 @@ lemma twistPoly_Δ : (twistPoly α β γ).Δ = cubicPoly α β γ ^ 6 * C (ofCub
 lemma equation_P₀ :
     (twistPoly α β γ).toAffine.Equation (cubicPoly α β γ * X) (cubicPoly α β γ ^ 2) := by
   rw [Affine.equation_iff]
-  simp only [twistPoly_a₁, twistPoly_a₂, twistPoly_a₃, twistPoly_a₄, twistPoly_a₆, cubicPoly]
+  simp only [twistPoly_a₁, twistPoly_a₂, twistPoly_a₃, twistPoly_a₄, twistPoly_a₆]
+  unfold cubicPoly
   ring
 
 variable {α β γ}
@@ -211,7 +212,8 @@ private lemma exists_twistScale_sym2x (P Q : (twist α β γ).toAffine.Point) :
         (sym2Pair (xPair P).1 (xPair P).2 (xPair Q).1 (xPair Q).2 i) := by
   obtain ⟨l, hl, h0, h1⟩ := exists_xRep_eq P
   obtain ⟨l', hl', h0', h1'⟩ := exists_xRep_eq Q
-  refine ⟨l * l', mul_ne_zero hl hl', funext fun i ↦ ?_⟩
+  refine ⟨l * l', mul_ne_zero hl hl', ?_⟩
+  funext i
   fin_cases i
   · simp [twistScale, Affine.Point.sym2x_eq, sym2Pair, h0, h0']
     ring

@@ -66,11 +66,13 @@ variable {R}
 
 theorem IsDescendant.trans {i j k : Fin (n + 1)} (hkj : R.IsDescendant k j)
     (hji : R.IsDescendant j i) : R.IsDescendant k i :=
-  let ⟨a, ha⟩ := hkj; let ⟨b, hb⟩ := hji
+  let ⟨a, ha⟩ := hkj
+  let ⟨b, hb⟩ := hji
   ⟨b + a, by rw [Function.iterate_add_apply, ha, hb]⟩
 
 theorem IsDescendant.le {i j : Fin (n + 1)} (h : R.IsDescendant j i) : i ≤ j :=
-  let ⟨a, ha⟩ := h; ha ▸ R.parent_iterate_le a j
+  let ⟨a, ha⟩ := h
+  ha ▸ R.parent_iterate_le a j
 
 theorem IsDescendant.antisymm {i j : Fin (n + 1)} (hji : R.IsDescendant j i)
     (hij : R.IsDescendant i j) : i = j :=
@@ -116,7 +118,8 @@ theorem mem_children {i c : Fin (n + 1)} : c ∈ R.children i ↔ c ≠ 0 ∧ R.
   simp [children]
 
 theorem lt_of_mem_children {i c : Fin (n + 1)} (h : c ∈ R.children i) : i < c :=
-  let ⟨hc, h⟩ := mem_children.1 h; h ▸ R.parent_lt c hc
+  let ⟨hc, h⟩ := mem_children.1 h
+  h ▸ R.parent_lt c hc
 
 theorem isDescendant_of_mem_children {i c : Fin (n + 1)} (h : c ∈ R.children i) :
     R.IsDescendant c i :=
@@ -130,9 +133,10 @@ theorem exists_mem_children_of_isDescendant {i j : Fin (n + 1)} (h : R.IsDescend
   | zero => exact absurd ha hne
   | succ a ih =>
     rw [Function.iterate_succ_apply'] at ha
-    exact if hx : R.parent^[a] j = i then ih hx
-      else ⟨R.parent^[a] j, mem_children.2 ⟨fun h0 => hx (by rw [← ha, h0, R.parent_zero]), ha⟩,
-        a, rfl⟩
+    by_cases hx : R.parent^[a] j = i
+    · exact ih hx
+    · refine ⟨R.parent^[a] j, mem_children.2 ⟨fun h0 => hx ?_, ha⟩, a, rfl⟩
+      rw [← ha, h0, R.parent_zero]
 
 private theorem eq_of_mem_children_of_isDescendant {i c c' : Fin (n + 1)}
     (hc : c ∈ R.children i) (hc' : c' ∈ R.children i) (h : R.IsDescendant c c') : c = c' := by
@@ -161,7 +165,8 @@ variable {R}
 
 theorem mem_subtreeVerts {i : Fin (n + 1)} {v : V} :
     v ∈ R.subtreeVerts i ↔ ∃ j, R.IsDescendant j i ∧ v ∈ R.bag j := by
-  classical simp [subtreeVerts]
+  classical
+  simp [subtreeVerts]
 
 variable (R)
 
@@ -170,13 +175,15 @@ theorem bag_subset_subtreeVerts (i : Fin (n + 1)) : R.bag i ⊆ R.subtreeVerts i
 
 /-- Every vertex lies in the subtree of the root. -/
 theorem mem_subtreeVerts_zero (v : V) : v ∈ R.subtreeVerts 0 :=
-  let ⟨i, hi⟩ := R.exists_mem_bag v; mem_subtreeVerts.2 ⟨i, R.isDescendant_zero i, hi⟩
+  let ⟨i, hi⟩ := R.exists_mem_bag v
+  mem_subtreeVerts.2 ⟨i, R.isDescendant_zero i, hi⟩
 
 variable {R}
 
 theorem subtreeVerts_mono {i j : Fin (n + 1)} (h : R.IsDescendant j i) :
-    R.subtreeVerts j ⊆ R.subtreeVerts i :=
-  fun _ hv => let ⟨d, hd, hv⟩ := mem_subtreeVerts.1 hv; mem_subtreeVerts.2 ⟨d, hd.trans h, hv⟩
+    R.subtreeVerts j ⊆ R.subtreeVerts i := fun _ hv => by
+  obtain ⟨d, hd, hv⟩ := mem_subtreeVerts.1 hv
+  exact mem_subtreeVerts.2 ⟨d, hd.trans h, hv⟩
 
 theorem isDescendant_top {v : V} {d : Fin (n + 1)} (hd : v ∈ R.bag d) :
     R.IsDescendant d (R.top v) :=
@@ -194,10 +201,12 @@ theorem mem_bag_of_isDescendant {v : V} {c d : Fin (n + 1)} (hd : v ∈ R.bag d)
 theorem mem_bag_of_mem_subtreeVerts_of_mem_bag_parent {v : V} {c : Fin (n + 1)}
     (hv : v ∈ R.subtreeVerts c) (hp : v ∈ R.bag (R.parent c)) : v ∈ R.bag c := by
   by_cases hc : c = 0
-  · subst hc; rwa [R.parent_zero] at hp
+  · subst hc
+    rwa [R.parent_zero] at hp
   obtain ⟨d, hdc, hd⟩ := mem_subtreeVerts.1 hv
-  exact (hdc.total (isDescendant_top hd)).elim (mem_bag_of_isDescendant hd hdc) fun h =>
-    absurd (R.parent_lt c hc) (not_lt.2 (h.le.trans (isDescendant_top hp).le))
+  rcases hdc.total (isDescendant_top hd) with h | h
+  · exact mem_bag_of_isDescendant hd hdc h
+  · exact absurd (R.parent_lt c hc) (not_lt.2 (h.le.trans (isDescendant_top hp).le))
 
 /-- A vertex below `c` that is not in the parent's bag has its topmost node below `c`. -/
 theorem isDescendant_top_of_notMem_bag_parent {v : V} {c : Fin (n + 1)}

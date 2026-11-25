@@ -63,15 +63,10 @@ private theorem close_double_of_abs_mul_sub_mul_lt {a b p q : ℕ}
     (hclose : |(a : ℝ) * p - b * q| < (4 * (a : ℝ) * b * p * q) ^ (1 / 4 : ℝ)) :
     |((2 * a * p : ℕ) : ℝ) - (2 * b * q : ℕ)| <
       2 * (((2 * a * p : ℕ) : ℝ) * (2 * b * q : ℕ)) ^ (1 / 4 : ℝ) := by
-  have h1 : |((2 * a * p : ℕ) : ℝ) - (2 * b * q : ℕ)| = 2 * |(a : ℝ) * p - b * q| := by
-    push_cast
-    rw [show 2 * (a : ℝ) * p - 2 * b * q = 2 * ((a : ℝ) * p - b * q) by ring, abs_mul,
-      abs_of_pos two_pos]
-  have h2 : (((2 * a * p : ℕ) : ℝ) * (2 * b * q : ℕ)) = 4 * (a : ℝ) * b * p * q := by
-    push_cast
-    ring
-  rw [h1, h2]
-  linarith
+  push_cast
+  rw [show 2 * (a : ℝ) * p - 2 * b * q = 2 * ((a : ℝ) * p - b * q) by ring, abs_mul,
+    abs_of_pos two_pos, show 2 * (a : ℝ) * p * (2 * b * q) = 4 * a * b * p * q by ring]
+  exact mul_lt_mul_of_pos_left hclose two_pos
 
 /-- Under `|(a : ℝ) * p - b * q| < (4 * a * b * p * q) ^ (1 / 4)`, `fermatFactor` on
 `4 * a * b * (p * q)` returns `(2 * a * p, 2 * b * q)` when `b * q ≤ a * p` and the swapped
@@ -113,14 +108,9 @@ theorem fermatFactorLinear_mul_eq_of_lt_rpow {a b p q : ℕ}
     (hcop_a : Nat.Coprime (2 * a) q) (hcop_b : Nat.Coprime (2 * b) p)
     (hclose : |(a : ℝ) * p - b * q| < ((p : ℝ) * q) ^ (1 / 4 : ℝ)) :
     fermatFactorLinear a b (p * q) = if b * q ≤ a * p then (p, q) else (q, p) := by
-  have ha1 : (1 : ℝ) ≤ a := by exact_mod_cast ha
-  have hb1 : (1 : ℝ) ≤ b := by exact_mod_cast hb
-  have hab : (1 : ℝ) ≤ 4 * a * b := by nlinarith
   have hle : (p : ℝ) * q ≤ 4 * (a : ℝ) * b * p * q := by
-    have hpq : 0 ≤ (p : ℝ) * q := by positivity
-    calc (p : ℝ) * q = 1 * (p * q) := (one_mul _).symm
-      _ ≤ 4 * a * b * (p * q) := mul_le_mul_of_nonneg_right hab hpq
-      _ = 4 * a * b * p * q := by ring
+    exact_mod_cast (mul_assoc (4 * a * b) p q ▸
+      Nat.le_mul_of_pos_left (p * q) (by positivity) : p * q ≤ 4 * a * b * p * q)
   have hrpow : ((p : ℝ) * q) ^ (1 / 4 : ℝ) ≤ (4 * (a : ℝ) * b * p * q) ^ (1 / 4 : ℝ) :=
     Real.rpow_le_rpow (by positivity) hle (by positivity)
   exact fermatFactorLinear_mul_eq hcop_a hcop_b (hclose.trans_le hrpow)

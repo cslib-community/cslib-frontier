@@ -253,8 +253,9 @@ theorem eval_ofList (items : List (ι × Λ)) (start : S) (step : Λ → S → B
     | cons a suf ih =>
       rw [List.foldlIdx_cons, List.foldl_cons, ← ih (pre ++ [a]) (by simp [h])]
       simp [P, stepAt, ofList, h]
-  rw [eval, finalState_eq, show List.ofFn (x ∘ listOrder items) = items.map (x ·.1) by
-    rw [← List.ofFn_getElem_eq_map]; rfl, List.foldlIdx_map]
+  have hofn : List.ofFn (x ∘ listOrder items) = items.map (x ·.1) :=
+    List.ofFn_getElem_eq_map items (x ·.1)
+  rw [eval, finalState_eq, hofn, List.foldlIdx_map]
   exact congrArg accept (key [] items rfl P.start)
 
 end Cslib.BranchingPrograms.ReadOnceProgram

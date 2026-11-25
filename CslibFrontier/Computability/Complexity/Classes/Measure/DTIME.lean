@@ -128,13 +128,9 @@ prediction. -/
 private theorem agrees_append {k : ℕ} {w : List Bool} {i : ℕ} (hi : i ≤ w.length) (b : Bool) :
     agrees k (w ++ [b]) i = (agrees k w i && (b == predicts k i w.length)) := by
   rw [Bool.eq_iff_iff, Bool.and_eq_true, beq_iff_eq, agrees_iff, agrees_iff]
-  constructor
-  · intro h
-    refine ⟨fun j hj hij => ?_, ?_⟩
-    · have := h j (by simp; omega) hij
-      rwa [List.getElem_append_left hj] at this
-    · have := h w.length (by simp) hi
-      simpa using this
+  refine ⟨fun h => ⟨fun j hj hij => ?_, by simpa using h w.length (by simp) hi⟩, ?_⟩
+  · have := h j (by simp; omega) hij
+    rwa [List.getElem_append_left hj] at this
   · rintro ⟨h, hb⟩ j hj hij
     rw [List.length_append, List.length_singleton] at hj
     rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | rfl
@@ -146,45 +142,39 @@ private theorem agrees_append {k : ℕ} {w : List Bool} {i : ℕ} (hi : i ≤ w.
 private theorem term_append_add {k : ℕ} {w : List Bool} {i : ℕ} (hi : i ≤ w.length) :
     term k (w ++ [false]) i + term k (w ++ [true]) i =
       (if agrees k w i then 4 * 2 ^ (2 * (w.length - i)) else 0) := by
-  have hlen : ∀ b : Bool, (w ++ [b]).length - i = w.length - i + 1 := fun b => by
-    simp only [List.length_append, List.length_singleton]
-    omega
+  have hlen (b : Bool) : (w ++ [b]).length - i = w.length - i + 1 := by simp; omega
   simp only [term, agrees_append hi, hlen]
   cases agrees k w i <;> cases predicts k i w.length <;> simp [pow_succ, mul_add] <;> ring
 
 /-- **The fairness of the martingale**: `num (w0) + num (w1) = 4 num w`. -/
 theorem num_append_add (k : ℕ) (w : List Bool) :
     num k (w ++ [false]) + num k (w ++ [true]) = 4 * num k w := by
-  have hlen : ∀ b : Bool, (w ++ [b]).length = w.length + 1 := fun b => by simp
-  simp only [num, hlen, List.range_succ, List.map_append, List.map_singleton, List.sum_append,
-    List.sum_singleton]
+  simp only [num, List.length_append, List.length_singleton, List.range_succ, List.map_append,
+    List.map_singleton, List.sum_append, List.sum_singleton]
   -- the machine `|w|` starts betting and contributes `4` to one extension and `0` to the other
   have hlast : term k (w ++ [false]) w.length + term k (w ++ [true]) w.length = 4 := by
     rw [term_append_add le_rfl, Nat.sub_self]
-    have : agrees k w w.length = true :=
-      agrees_iff.mpr fun j hj hij => absurd hj (by omega)
-    simp [this]
+    simp [show agrees k w w.length = true from agrees_iff.mpr fun _ hj hij => absurd hj (by omega)]
   -- the machines below `|w|` contribute four times as much
   have hmid : ((List.range w.length).map (term k (w ++ [false]))).sum +
       ((List.range w.length).map (term k (w ++ [true]))).sum =
       4 * ((List.range w.length).map (term k w)).sum := by
     rw [← List.sum_map_add, ← List.sum_map_mul_left]
-    congr 1
-    refine List.map_congr_left fun i hi => ?_
+    refine congrArg List.sum (List.map_congr_left fun i hi => ?_)
     rw [term_append_add (List.mem_range.mp hi).le, term]
     split <;> simp
   omega
 
 /-- **The martingale is a martingale.** -/
 theorem isMartingale (k : ℕ) : IsMartingale (martingale k) where
-  nonneg w := by unfold martingale; positivity
+  nonneg _ := by
+    unfold martingale
+    positivity
   average w := by
-    have h := num_append_add k w
     have h' : (num k (w ++ [false]) : ℝ) + num k (w ++ [true]) = 4 * num k w := by
-      exact_mod_cast h
+      exact_mod_cast num_append_add k w
     simp only [martingale, List.length_append, List.length_singleton, pow_succ]
-    field_simp
-    linarith
+    field_simp; linarith
 
 /-- The approximation is polynomial-time. -/
 theorem computableInPolyTime_approx (k : ℕ) :
@@ -195,25 +185,19 @@ theorem computableInPolyTime_approx (k : ℕ) :
       (fun q : (List Bool × ℕ) × ℕ =>
         decide (q.2 < q.1.2) || (q.1.1.getD q.2 false == predicts k q.1.2 q.2))
       (encPair (encPair encBits encUnary) encUnary) encBool := by
-    have hword : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.1.1)
-        (encPair (encPair encBits encUnary) encUnary) encBits :=
-      (ComputableInPolyTime.fst encBits encUnary).comp (.fst _ _)
-    have hi : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.1.2)
+    let hi : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.1.2)
         (encPair (encPair encBits encUnary) encUnary) encUnary :=
       (ComputableInPolyTime.snd encBits encUnary).comp (.fst _ _)
-    have hj : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.2)
+    let hj : ComputableInPolyTime (fun q : (List Bool × ℕ) × ℕ => q.2)
         (encPair (encPair encBits encUnary) encUnary) encUnary := .snd _ _
-    have hbeq : ComputableInPolyTime (fun p : Bool × Bool => p.1 == p.2)
-        (encPair encBool encBool) encBool := ComputableInPolyTime.of_finite _
-    exact ComputableInPolyTime.bool_or'
-      (ComputableInPolyTime.unary_lt.comp (hj.prod hi))
-      (hbeq.comp ((ComputableInPolyTime.bitsGetDWithInput hword hj false).prod
-        (hpredicts.comp (hi.prod hj))))
+    exact .bool_or' (.comp .unary_lt (hj.prod hi))
+      ((ComputableInPolyTime.of_finite (fun p : Bool × Bool => p.1 == p.2)).comp
+        ((ComputableInPolyTime.bitsGetDWithInput
+          ((ComputableInPolyTime.fst encBits encUnary).comp (.fst _ _)) hj false).prod
+          (hpredicts.comp (hi.prod hj))))
   have hagrees : ComputableInPolyTime (fun q : List Bool × ℕ => agrees k q.1 q.2)
       (encPair encBits encUnary) encBool :=
-    ComputableInPolyTime.allWithInput
-      (ComputableInPolyTime.range.comp
-        (ComputableInPolyTime.length_bits.comp (.fst encBits encUnary))) htest
+    .allWithInput (.comp .range (.comp .length_bits (.fst encBits encUnary))) htest
   have hterm : ComputableInPolyTime (fun q : List Bool × ℕ => term k q.1 q.2)
       (encPair encBits encUnary) encNat := by fun_prop [term]
   have hnum : ComputableInPolyTime (num k) encBits encNat := by fun_prop [num]
@@ -223,20 +207,17 @@ theorem computableInPolyTime_approx (k : ℕ) :
 theorem abs_approx_sub_le (k r : ℕ) (w : List Bool) :
     |(approx k (r, w) : ℝ) / 2 ^ r - martingale k w| ≤ 1 / 2 ^ r := by
   set q := approx k (r, w)
-  have hq₁ : q * 2 ^ w.length ≤ num k w * 2 ^ r := Nat.div_mul_le_self _ _
-  have hq₂ : num k w * 2 ^ r < (q + 1) * 2 ^ w.length := by
-    rw [Nat.add_one_mul]
-    exact Nat.lt_div_mul_add (by positivity)
-  have hq₁' : (q : ℝ) * 2 ^ w.length ≤ num k w * 2 ^ r := by exact_mod_cast hq₁
-  have hq₂' : (num k w : ℝ) * 2 ^ r < (q + 1) * 2 ^ w.length := by exact_mod_cast hq₂
+  have hq₁' : (q : ℝ) * 2 ^ w.length ≤ num k w * 2 ^ r := by
+    exact_mod_cast Nat.div_mul_le_self _ _
+  have hq₂' : (num k w : ℝ) * 2 ^ r < (q + 1) * 2 ^ w.length := by
+    exact_mod_cast (Nat.add_one_mul q (2 ^ w.length)).symm ▸ Nat.lt_div_mul_add (by positivity)
   have hP : (0 : ℝ) < 2 ^ r := by positivity
   have hL : (0 : ℝ) < 2 ^ w.length := by positivity
-  have hx : martingale k w = (num k w : ℝ) * 2 ^ r / 2 ^ w.length / 2 ^ r := by
-    rw [martingale]
-    field_simp
-  have h₁ : (q : ℝ) ≤ num k w * 2 ^ r / 2 ^ w.length := by rwa [le_div_iff₀ hL]
-  have h₂ : (num k w : ℝ) * 2 ^ r / 2 ^ w.length < q + 1 := by rwa [div_lt_iff₀ hL]
-  rw [hx, ← sub_div, abs_div, abs_of_pos hP, div_le_div_iff_of_pos_right hP, abs_le]
+  have h₁ : (q : ℝ) ≤ num k w * 2 ^ r / 2 ^ w.length := (le_div_iff₀ hL).mpr hq₁'
+  have h₂ : (num k w : ℝ) * 2 ^ r / 2 ^ w.length < q + 1 := (div_lt_iff₀ hL).mpr hq₂'
+  have hm : martingale k w = (num k w : ℝ) * 2 ^ r / 2 ^ w.length / 2 ^ r := by
+    rw [martingale]; field_simp
+  rw [hm, ← sub_div, abs_div, abs_of_pos hP, div_le_div_iff_of_pos_right hP, abs_le]
   constructor <;> linarith
 
 /-- **The martingale is a p-martingale**, with the exact approximation `approx`. -/
@@ -271,18 +252,13 @@ theorem exists_predicts_iff {k : ℕ} {A : Set (List Bool)}
     (t := fun x => c₁ * 2 ^ (k * x.length) + c₂) (fun x => (htm x).runFrom_of_le le_rfl) (c₁ + c₂)
   refine ⟨i, fun j hij => ?_⟩
   rw [predicts, decide_eq_true_iff, hrun _ _ (time_le (by omega)), hg]
-  constructor
-  · intro h
-    exact eBit.injective (List.singleton_inj.mp (Prod.mk.inj h).1)
-  · intro h
-    rw [h]
+  exact ⟨fun h => eBit.injective (List.singleton_inj.mp (Prod.mk.inj h).1), fun h => by rw [h]⟩
 
 /-- The capital at `w` is at least the contribution of machine `i`. -/
 private theorem term_le_num (k : ℕ) {w : List Bool} {i : ℕ} (hi : i < w.length) :
     term k w i ≤ num k w := by
   have := List.le_sum_of_mem (List.mem_map_of_mem (f := term k w) (List.mem_range.mpr hi))
-  rw [num]
-  omega
+  rw [num]; omega
 
 /-- **The martingale succeeds on every language in `DTIME (2 ^ (k * n))`.** -/
 theorem DTIME_subset_successSet (k : ℕ) :
@@ -292,17 +268,16 @@ theorem DTIME_subset_successSet (k : ℕ) :
   intro C
   obtain ⟨i, hi⟩ := exists_predicts_iff hA
   -- from bit `i` on, machine `i` predicts the characteristic sequence of `A`
-  have hagree (n : ℕ) : agrees k (charPrefix A n) i = true := by
-    refine agrees_iff.mpr fun j hj hij => ?_
-    rw [Bool.eq_iff_iff, getElem_charPrefix_eq_true_iff, hi j hij]
+  have hagree (n : ℕ) : agrees k (charPrefix A n) i = true :=
+    agrees_iff.mpr fun j _ hij => by
+      rw [Bool.eq_iff_iff, getElem_charPrefix_eq_true_iff, hi j hij]
   obtain ⟨m, hm⟩ := exists_nat_gt (C * 2 ^ i)
   refine ⟨i + m + 1, ?_⟩
   have hnum : 2 ^ (2 * (m + 1)) ≤ num k (charPrefix A (i + m + 1)) := by
-    have := term_le_num k (w := charPrefix A (i + m + 1)) (i := i) (by simp)
-    rwa [term, ite_eq_left (hagree _), length_charPrefix,
-      show i + m + 1 - i = m + 1 by omega] at this
-  have hnum' : (2 : ℝ) ^ (2 * (m + 1)) ≤ num k (charPrefix A (i + m + 1)) := by
-    exact_mod_cast hnum
+    simpa only [term, ite_eq_left (hagree _), length_charPrefix,
+      show i + m + 1 - i = m + 1 by omega] using
+      term_le_num k (w := charPrefix A (i + m + 1)) (i := i) (by simp)
+  have hnum' : (2 : ℝ) ^ (2 * (m + 1)) ≤ num k (charPrefix A (i + m + 1)) := by exact_mod_cast hnum
   have hmpow : (m : ℝ) < 2 ^ m := by exact_mod_cast Nat.lt_two_pow_self
   rw [martingale, length_charPrefix, lt_div_iff₀ (by positivity)]
   have h₁ : C * 2 ^ (i + m + 1) < 2 ^ m * 2 ^ (m + 1) := by
