@@ -796,6 +796,27 @@ def AllGoodSeeds (seeds : P.SeedAssignment) (S : Finset (Fin P.paddedUniv)) : Pr
     ∀ (ℓ : ℕ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)),
       P.IsGoodNodeSeed ℓ (seeds.seed ℓ hℓ u) (seeds.primSetAt S ℓ hℓ u)
 
+/-- At a level `k + 1`, a good seed at `u` makes `idAt (k + 1)` injective on the active set of `u`
+whenever the primary coordinates are injective there. -/
+private theorem injOn_idAt_succ_of_good (seeds : P.SeedAssignment)
+    {S : Finset (Fin P.paddedUniv)} {k : ℕ} (hk : k + 1 ≤ P.depth) {u : Fin (P.numNodes (k + 1))}
+    (hinj : Set.InjOn (fun x => (seeds.primCoordAt (k + 1) hk x).2) (seeds.activeAt S (k + 1) hk u))
+    (hg : P.IsGoodNodeSeed (k + 1) (seeds.seed (k + 1) hk u) (seeds.primSetAt S (k + 1) hk u)) :
+    Set.InjOn (seeds.idAt (k + 1) (by omega) hk) (seeds.activeAt S (k + 1) hk u) := by
+  have hhead_inj : Set.InjOn
+      (FeistelPerm.idCompressorHead (P.idBits (k + 1)) (P.idCompRightUniv (k + 1))
+        (P.idSeedOfNodeSeed (seeds.seed (k + 1) hk u)))
+      (seeds.primSetAt S (k + 1) hk u : Set (P.PrimId (k + 1))) := by
+    rcases hs : seeds.seed (k + 1) hk u with _ | ⟨_, idS, _⟩ | ⟨_, idS⟩
+    · rw [hs] at hg; exact hg.1
+    · rw [hs] at hg; exact hg
+  intro x hx y hy hxy
+  have hnx : seeds.nodeAt (k + 1) hk x = u := (mem_activeAt_iff.mp hx).2
+  have hny : seeds.nodeAt (k + 1) hk y = u := (mem_activeAt_iff.mp hy).2
+  rw [seeds.idAt_succ_eq_idCompressorHead hk x, seeds.idAt_succ_eq_idCompressorHead hk y,
+    hnx, hny] at hxy
+  exact hinj hx hy (hhead_inj (mem_image_of_mem _ hx) (mem_image_of_mem _ hy) hxy)
+
 /-- Ancestor-local routing invariants at `(ℓ, u)`: whenever `#S ∈ [nLow 0, nHigh 0]` and every
 strict ancestor `j < ℓ` of `u` satisfies `IsGoodNodeSeed`, `(primCoordAt ℓ hℓ ·).2` is injective on
 `activeAt S ℓ hℓ u`, `nLow ℓ ≤ #(activeAt S ℓ hℓ u) ≤ nHigh ℓ`, and (if `u`'s seed is good) `idAt ℓ`
@@ -824,9 +845,9 @@ theorem ancestorsGood_invariants (seeds : P.SeedAssignment) {S : Finset (Fin P.p
     have hanc_m : ∀ (j : ℕ) (hj : j < m),
         P.IsGoodNodeSeed j (seeds.seed j (hj.le.trans (by omega)) (P.ancestorAt hj.le u_m))
           (seeds.primSetAt S j (hj.le.trans (by omega)) (P.ancestorAt hj.le u_m)) := fun j hj => by
-      have heq : P.ancestorAt hj.le u_m = P.ancestorAt (Nat.le_succ_of_le hj.le) u_next :=
-        (P.ancestorAt_succ hj.le u_next).symm
-      rw [heq]; exact hanc j (Nat.lt_succ_of_lt hj)
+      rw [show P.ancestorAt hj.le u_m = P.ancestorAt (Nat.le_succ_of_le hj.le) u_next from
+        (P.ancestorAt_succ hj.le u_next).symm]
+      exact hanc j (Nat.lt_succ_of_lt hj)
     have hgm : P.IsGoodNodeSeed m (seeds.seed m (by omega) u_m)
         (seeds.primSetAt S m (by omega) u_m) := by
       have heq : u_m = P.ancestorAt (Nat.le_succ m) u_next := by
@@ -880,20 +901,8 @@ theorem ancestorsGood_invariants (seeds : P.SeedAssignment) {S : Finset (Fin P.p
         rw [hset0, ← card_image_of_injOn (hf0_inj.mono (filter_subset _ _))]
         dsimp only [FeistelPerm.bucketLoad, primSetAt]
         rw [Finset.filter_image]
-      refine ⟨hinj1, hcard_eq ▸ hbl_bounds, fun hg1 _ => ?_⟩
-      have hhead_inj : Set.InjOn
-          (FeistelPerm.idCompressorHead (P.idBits 1) (P.idCompRightUniv 1)
-            (P.idSeedOfNodeSeed (seeds.seed 1 hℓ u_next)))
-          (seeds.primSetAt S 1 hℓ u_next : Set (P.PrimId 1)) := by
-        rcases hs1 : seeds.seed 1 hℓ u_next with _ | ⟨_, idS, _⟩ | ⟨_, idS⟩
-        · rw [hs1] at hg1; exact hg1.1
-        · rw [hs1] at hg1; exact hg1
-      intro x hx y hy hxy
-      have hnx : seeds.nodeAt 1 hℓ x = u_next := (mem_activeAt_iff.mp hx).2
-      have hny : seeds.nodeAt 1 hℓ y = u_next := (mem_activeAt_iff.mp hy).2
-      rw [seeds.idAt_succ_eq_idCompressorHead hℓ x, seeds.idAt_succ_eq_idCompressorHead hℓ y,
-        hnx, hny] at hxy
-      exact hinj1 hx hy (hhead_inj (mem_image_of_mem _ hx) (mem_image_of_mem _ hy) hxy)
+      exact ⟨hinj1, hcard_eq ▸ hbl_bounds,
+        fun hg1 _ => seeds.injOn_idAt_succ_of_good (k := 0) hℓ hinj1 hg1⟩
     | succ k =>
       have h1_m : 1 ≤ k + 1 := by omega
       have hlt_m : k + 1 < P.depth := by omega
@@ -970,21 +979,8 @@ theorem ancestorsGood_invariants (seeds : P.SeedAssignment) {S : Finset (Fin P.p
           rw [hset_eq, ← card_image_of_injOn (hf_inj.mono (filter_subset _ _))]
           dsimp only [FeistelPerm.bucketLoad]
           rw [hSid_eq, Finset.filter_image]
-        refine ⟨hinj_prim_next, hcard_eq ▸ hbl_bounds, fun hg_next _ => ?_⟩
-        have hhead_inj : Set.InjOn
-            (FeistelPerm.idCompressorHead (P.idBits (k + 2)) (P.idCompRightUniv (k + 2))
-              (P.idSeedOfNodeSeed (seeds.seed (k + 2) hℓ u_next)))
-            (seeds.primSetAt S (k + 2) hℓ u_next : Set (P.PrimId (k + 2))) := by
-          rcases hsn : seeds.seed (k + 2) hℓ u_next with _ | ⟨_, idSn, _⟩ | ⟨_, idSn⟩
-          · rw [hsn] at hg_next; exact hg_next.1
-          · rw [hsn] at hg_next; exact hg_next
-        intro x hx y hy hxy
-        have hnx : seeds.nodeAt (k + 2) hℓ x = u_next := (mem_activeAt_iff.mp hx).2
-        have hny : seeds.nodeAt (k + 2) hℓ y = u_next := (mem_activeAt_iff.mp hy).2
-        rw [seeds.idAt_succ_eq_idCompressorHead hℓ x, seeds.idAt_succ_eq_idCompressorHead hℓ y,
-          hnx, hny] at hxy
-        exact hinj_prim_next hx hy
-          (hhead_inj (mem_image_of_mem _ hx) (mem_image_of_mem _ hy) hxy)
+        exact ⟨hinj_prim_next, hcard_eq ▸ hbl_bounds,
+          fun hg_next _ => seeds.injOn_idAt_succ_of_good (k := k + 1) hℓ hinj_prim_next hg_next⟩
       · exact False.elim (hge hlt_m)
 
 theorem allGoodSeeds_invariants (seeds : P.SeedAssignment) {S : Finset (Fin P.paddedUniv)}
