@@ -115,11 +115,8 @@ private theorem mulVec_incidenceMatrix_le_iff [DecidableEq A] (G : CostSharingGa
 
 private theorem vecMul_incidenceMatrix_eq_iff [DecidableEq A] (w : Finset A → ℝ) :
     (0 ≤ w ∧ w ᵥ* incidenceMatrix = fun _ => 1) ↔ IsBalancedWeights w := by
-  refine and_congr Iff.rfl ⟨fun h j => ?_, fun h => funext fun j => ?_⟩
-  · simpa only [Matrix.vecMul, dotProduct, incidenceMatrix, mul_ite, mul_one, mul_zero,
-      ← Finset.sum_filter] using congr_fun h j
-  · simpa only [Matrix.vecMul, dotProduct, incidenceMatrix, mul_ite, mul_one, mul_zero,
-      ← Finset.sum_filter] using h j
+  simp only [IsBalancedWeights, Pi.le_def, Pi.zero_apply, funext_iff, Matrix.vecMul, dotProduct,
+    incidenceMatrix, mul_ite, mul_one, mul_zero, ← Finset.sum_filter]
 
 /-- **Strong LP duality for LPs `(15.1)` and `(15.2)`** ([JainMahdian2007], proof of Theorem 15.6,
 p. 388): the primal maximum `max {∑_j α_j | IsCoreFeasible α}` and the dual balanced-weights
@@ -297,10 +294,9 @@ private theorem integralBalanced_support_spec [DecidableEq A] (G : CostSharingGa
   have hP_union : P.biUnion id = Finset.univ := by
     ext j
     simp only [Finset.mem_biUnion, id_eq, Finset.mem_univ, iff_true]
-    have hpos : 0 < ∑ T with j ∈ T, w T := by rw [hw j]; exact Nat.zero_lt_one
-    obtain ⟨T, hT, hwT⟩ := Finset.sum_pos_iff.1 hpos
-    have hjT : j ∈ T := (Finset.mem_filter.1 hT).2
-    exact ⟨T, Finset.mem_filter.2 ⟨Finset.mem_univ T, ⟨j, hjT⟩, hwT.ne'⟩, hjT⟩
+    obtain ⟨T, hT, hwT⟩ := Finset.sum_pos_iff.1 (by rw [hw j]; omega)
+    exact ⟨T, Finset.mem_filter.2 ⟨Finset.mem_univ T, ⟨j, (Finset.mem_filter.1 hT).2⟩, hwT.ne'⟩,
+      (Finset.mem_filter.1 hT).2⟩
   refine ⟨hP_disj, hP_union, ?_⟩
   calc
     ∑ S : Finset A, (w S : ℝ) * G.cost S
@@ -409,13 +405,11 @@ integrality gap `G.integralityGapLP = G.lpOpt / G.integralLpOpt` of LP `(15.2)`.
 theorem IsSubadditive.isGreatest_nonemptyApproxCore_integralityGapLP [DecidableEq A]
     {G : CostSharingGame A} (hsub : G.IsSubadditive) (hpos : 0 < G.cost Finset.univ) :
     IsGreatest {γ : ℝ | G.NonemptyApproxCore γ} G.integralityGapLP := by
-  refine ⟨?_, ?_⟩
+  refine ⟨?_, fun γ hγ => ?_⟩
   · change G.NonemptyApproxCore G.integralityGapLP
     rw [G.nonemptyApproxCore_iff_le_lpOpt, integralityGapLP, hsub.integralLpOpt_eq_cost_univ,
       div_mul_cancel₀ _ hpos.ne']
-  · intro γ hγ
-    change G.NonemptyApproxCore γ at hγ
-    rw [G.nonemptyApproxCore_iff_le_lpOpt] at hγ
+  · rw [Set.mem_ofPred_eq, G.nonemptyApproxCore_iff_le_lpOpt] at hγ
     rwa [integralityGapLP, hsub.integralLpOpt_eq_cost_univ, le_div_iff₀ hpos]
 
 end IntegralityGap
