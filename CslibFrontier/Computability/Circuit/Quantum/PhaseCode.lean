@@ -196,19 +196,7 @@ theorem im_toPlacedGate?_gate {g : GateCode} {p : PlacedGate m}
     rw [Gate.hadamard_apply]
     split_ifs <;> simp
   | (true, t, _ :: _), hp => simp [toPlacedGate?] at hp
-  | (false, t, []), hp =>
-    simp only [toPlacedGate?] at hp
-    split_ifs at hp
-    simp only [Option.some.injEq] at hp
-    subst hp
-    exact hperm _ y x
-  | (false, t, [c]), hp =>
-    simp only [toPlacedGate?] at hp
-    split_ifs at hp
-    simp only [Option.some.injEq] at hp
-    subst hp
-    exact hperm _ y x
-  | (false, t, [c₁, c₂]), hp =>
+  | (false, t, []), hp | (false, t, [_]), hp | (false, t, [_, _]), hp =>
     simp only [toPlacedGate?] at hp
     split_ifs at hp
     simp only [Option.some.injEq] at hp
