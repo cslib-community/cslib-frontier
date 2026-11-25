@@ -99,45 +99,38 @@ theorem rowClause_repair_cases {k r h : ℕ} {I : Type} [DecidableEq ((Fin k × 
   · subst j
     have hton := ((rowClause_eq_true_iff T label F q _ i).mp hf).1 c
     rw [recursiveChild_flip_same] at hton
-    have htoff : F (Fin.last h) (recursiveChild x i c) = false := by grind
+    have htoff : F (Fin.last h) (recursiveChild x i c) = false := by
+      rw [hton] at ht
+      exact Bool.eq_false_iff.mpr (Ne.symm ht)
     have htargets : targetFailures F x i = {c} := by
       ext c'
       simp only [targetFailures, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-      constructor
-      · intro hfalse
-        exact congrArg Prod.snd (repaired_target_location T label F q x i i c c' a hf hfalse)
-      · rintro rfl
-        exact htoff
-    have hgates : gateFailures T label F q x i = ∅ := by
-      apply Finset.eq_empty_iff_forall_notMem.mpr
-      intro j' hj'
-      have h := (Finset.mem_filter.mp hj').2
-      have heq := repaired_gate_location T label F q x i i j' c a hf h.1 h.2
-      exact T.ne_of_adj h.1 (congrArg Prod.fst heq).symm
-    have hmem : i ∈ targetCandidates T label F q x := by
-      simp [targetCandidates, htargets, hgates]
-    exact Or.inl ⟨hmem, rfl, htoff, hton⟩
+      exact ⟨fun hfalse =>
+        congrArg Prod.snd (repaired_target_location T label F q x i i c c' a hf hfalse),
+        fun h' => h' ▸ htoff⟩
+    have hgates : gateFailures T label F q x i = ∅ :=
+      Finset.eq_empty_iff_forall_notMem.mpr fun j' hj' =>
+        let h := (Finset.mem_filter.mp hj').2
+        T.ne_of_adj h.1
+          (congrArg Prod.fst (repaired_gate_location T label F q x i i j' c a hf h.1 h.2)).symm
+    exact Or.inl ⟨by simp [targetCandidates, htargets, hgates], rfl, htoff, hton⟩
   · have hgoff := ((rowClause_eq_true_iff T label F q _ i).mp hf).2 j hij
     rw [recursiveChild_flip_same] at hgoff
-    have hgon : F (gateIndex q) (recursiveChild x j (label i j)) = true := by grind
-    have htargets : targetFailures F x i = ∅ := by
-      apply Finset.eq_empty_iff_forall_notMem.mpr
-      intro c' hc'
-      have heq := repaired_target_location T label F q x i j (label i j) c' a hf
-        (Finset.mem_filter.mp hc').2
-      exact T.ne_of_adj hij (congrArg Prod.fst heq)
+    have hgon : F (gateIndex q) (recursiveChild x j (label i j)) = true := by
+      rw [hgoff] at hg
+      exact Bool.eq_true_of_not_eq_false (Ne.symm hg)
+    have htargets : targetFailures F x i = ∅ :=
+      Finset.eq_empty_iff_forall_notMem.mpr fun c' hc' =>
+        T.ne_of_adj hij (congrArg Prod.fst
+          (repaired_target_location T label F q x i j (label i j) c' a hf
+            (Finset.mem_filter.mp hc').2))
     have hgates : gateFailures T label F q x i = {j} := by
       ext j'
       simp only [gateFailures, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-      constructor
-      · rintro ⟨hij', hon⟩
-        exact congrArg Prod.fst
-          (repaired_gate_location T label F q x i j j' (label i j) a hf hij' hon)
-      · rintro rfl
-        exact ⟨hij, hgon⟩
-    have hmem : i ∈ gateCandidates T label F q x := by
-      simp [gateCandidates, htargets, hgates]
-    exact Or.inr ⟨hmem, hij, rfl, hgon, hgoff⟩
+      exact ⟨fun ⟨hij', hon⟩ =>
+        congrArg Prod.fst (repaired_gate_location T label F q x i j j' (label i j) a hf hij' hon),
+        fun h' => h' ▸ ⟨hij, hgon⟩⟩
+    exact Or.inr ⟨by simp [gateCandidates, htargets, hgates], hij, rfl, hgon, hgoff⟩
 
 end Internal
 
