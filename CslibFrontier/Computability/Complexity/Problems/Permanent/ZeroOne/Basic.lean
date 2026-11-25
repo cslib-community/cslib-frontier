@@ -243,12 +243,9 @@ theorem permanent_entryChain (L : ℕ) :
         (edgeMatrix N (E ++ [⟨u, v, w⟩])).permanent := by
   induction L with
   | zero =>
-    intro N M u v w E hM _ _ _ hw
-    subst hM
-    have hw : w = 0 := by simpa using hw
-    subst hw
-    congr 1
-    ext i j
+    rintro N _ u v w E rfl _ _ _ hw
+    obtain rfl : w = 0 := by simpa using hw
+    refine congrArg Matrix.permanent (Matrix.ext fun i j => ?_)
     simp [edgeMatrix, entryChain_zero]
   | succ L ih =>
     intro N M u v w E hM hE hu hv hw
@@ -270,12 +267,9 @@ theorem permanent_entryChain (L : ℕ) :
         (by omega) (by omega) ?_ ?_ ?_,
       permanent_edgeMatrix_relay (K := N) (s := u) (t := v) (a := w / 2) (b := 2) _ hu hv
         ?_ ?_ ?_]
-    · refine congrArg Matrix.permanent ?_
-      ext i j
-      have hi := i.isLt
-      have hj := j.isLt
+    · refine congrArg Matrix.permanent (Matrix.ext fun i j => ?_)
       simp only [edgeMatrix, Matrix.of_apply, edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
-        edgeWeight_chainLevel_zero_of_lt hi hj]
+        edgeWeight_chainLevel_zero_of_lt i.isLt j.isLt]
       split_ifs <;> omega
     all_goals
       try intro k hk
@@ -301,8 +295,7 @@ theorem permanent_tableChain (L : ℕ) :
   intro ts
   induction ts with
   | nil =>
-    intro N M E hM _ _
-    subst hM
+    rintro N _ E rfl _ _
     simp [tableChain_nil]
   | cons t ts ih =>
     intro N M E hM hE hts
@@ -400,8 +393,7 @@ theorem edgeWeight_gridEdges (n : ℕ) (g : ℕ → ℕ → ℕ) (i j : ℕ) :
 
 theorem mem_gridEdges {n : ℕ} {g : ℕ → ℕ → ℕ} {t : WeightedEdge} (ht : t ∈ gridEdges n g) :
     t.src < n ∧ t.dst < n ∧ t.weight = g t.src t.dst := by
-  simp only [gridEdges, List.mem_flatMap, List.mem_range, List.mem_map] at ht
-  obtain ⟨i, hi, j, hj, rfl⟩ := ht
+  obtain ⟨i, hi, j, hj, rfl⟩ := by simpa [gridEdges] using ht
   exact ⟨hi, hj, rfl⟩
 
 /-- Entries of the chains of a table between old vertices: the parities of the replaced
@@ -528,10 +520,8 @@ theorem zeroOnePermanent_edgeTable {N : ℕ} {E : List WeightedEdge}
 
 theorem natTableTriples_bounds {A : List (List ℕ)} {t : WeightedEdge} (ht : t ∈ natTableTriples A) :
     t.src < A.length ∧ t.dst < A.length ∧ t.weight < 2 ^ natChainLength A := by
-  obtain ⟨h1, h2, h3⟩ := mem_gridEdges ht
-  refine ⟨h1, h2, ?_⟩
-  refine lt_of_le_of_lt ?_ (Nat.lt_size_self _)
-  exact List.le_sum_of_mem (List.mem_map_of_mem ht)
+  obtain ⟨h1, h2, -⟩ := mem_gridEdges ht
+  exact ⟨h1, h2, (List.le_sum_of_mem (List.mem_map_of_mem ht)).trans_lt (Nat.lt_size_self _)⟩
 
 /-- **The nonnegative step of Goldreich's Proposition 6.22**: the 0/1 table `natTableToZeroOne A`
 has the same permanent as the table of natural numbers `A`. -/

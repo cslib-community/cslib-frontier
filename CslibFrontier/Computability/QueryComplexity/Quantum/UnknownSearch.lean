@@ -179,9 +179,7 @@ theorem le_sum_sin_sq (θ : ℝ) (m : ℕ) (hθ : 0 < Real.sin (2 * θ)) :
     two_mul_sin_mul_sum_cos (2 * θ) m ▸ Real.sin_le_one _
   rw [sum_sin_sq_eq, show 4 * Real.sin (2 * θ) = 2 * Real.sin (2 * θ) * 2 by ring,
     div_mul_eq_div_div]
-  have : ∑ j ∈ range m, Real.cos ((2 * j + 1) * (2 * θ)) ≤ 1 / (2 * Real.sin (2 * θ)) := by
-    rw [le_div_iff₀ (by positivity)]
-    linarith
+  have hdiv := (le_div_iff₀ (by positivity)).mpr (mul_comm (2 * Real.sin (2 * θ)) _ ▸ hle)
   linarith
 
 /-- For `1 ≤ t < N` marked items and `c² N ≤ m²`, the range `m` is at least `c / sin 2θ`. -/
@@ -199,10 +197,7 @@ theorem le_mul_sin_two_mul_searchAngle {t m : ℕ} {c : ℝ} (ht : 1 ≤ t) (htN
   have ha : 0 ≤ a := Real.sqrt_nonneg _
   have hb : 0 ≤ b := Real.sqrt_nonneg _
   -- `(m sin 2θ)² = 4 m² t (N - t) / N² ≥ c²`, since `4 t (N - t) ≥ N`.
-  have hkey : (N : ℝ) ≤ 4 * t * (N - t) := by
-    have hprod := mul_nonneg (show (0 : ℝ) ≤ 2 * t - 1 by linarith)
-      (show (0 : ℝ) ≤ 2 * (N - t) - 1 by linarith)
-    linarith [show (2 * (t : ℝ) - 1) * (2 * (N - t) - 1) = 4 * t * (N - t) - 2 * N + 1 by ring]
+  have hkey : (N : ℝ) ≤ 4 * t * (N - t) := by nlinarith only [ht1, htN1]
   have hab : a ^ 2 * b ^ 2 = t * (N - t) / N ^ 2 := by
     rw [hs, hco]
     field_simp
@@ -248,12 +243,10 @@ theorem slice_run_randomGrover (hN : 0 < N) {m T : ℕ} (hT : m ≤ T + 1) (x : 
     (j : Fin m) :
     slice j (run (randomGrover N m) (randomGroverInit N m) x T) =
       (((Real.sqrt m)⁻¹ : ℝ) : ℂ) • flipCtrl (run (grover N) (uniform N) x j) := by
-  have hctrl : ∀ i' w, (run (grover N) (uniform N) x j).ofLp (i', false, w) = 0 := by
-    intro i' w
-    simp [run_grover_of_weight hN]
   rw [show run (randomGrover N m) = run (fun s => controlled fun (j : Fin m) =>
       park (j : ℕ) (grover N) s) from rfl, slice_run, slice_randomGroverInit, run_smul,
-    run_park hctrl (by omega)]
+    run_park (fun _ _ => by simp [run_grover_of_weight hN])
+      (Nat.lt_succ_iff.mp (j.isLt.trans_le hT))]
 
 /-- After `T ≥ m - 1` queries every branch of `randomGrover` is parked: the control bit is `0`. -/
 theorem run_randomGrover_ctrl (hN : 0 < N) {m T : ℕ} (hT : m ≤ T + 1) (x : Fin N → Bool)
@@ -290,10 +283,8 @@ theorem le_sum_regProb_run_randomGrover (hN : 0 < N) {m : ℕ} {c : ℝ} (hc : 0
     (hm : c ^ 2 * N ≤ m ^ 2) (x : Fin N → Bool) (hx : ∃ i, x i = true) :
     1 / 2 - 1 / (4 * c) ≤ ∑ i with x i = true,
       regProb (run (randomGrover N m) (randomGroverInit N m) x (m - 1)) i := by
-  have hm0 : 0 < m := Nat.pos_of_ne_zero fun h => by
-    have : (0 : ℝ) < c ^ 2 * N := by positivity
-    simp [h] at hm
-    linarith
+  have hm0 : 0 < m := Nat.pos_of_ne_zero fun h =>
+    (mul_pos (pow_pos hc 2) (Nat.cast_pos.mpr hN)).not_ge (by simpa [h] using hm)
   have hm' : (0 : ℝ) < m := Nat.cast_pos.mpr hm0
   rw [sum_regProb_run_randomGrover hN (by omega), le_div_iff₀ hm']
   obtain ⟨i, hi⟩ := hx
@@ -310,8 +301,7 @@ theorem le_sum_regProb_run_randomGrover (hN : 0 < N) {m : ℕ} {c : ℝ} (hc : 0
     have : (1 / 2 - 1 / (4 * c)) * m = m / 2 - m / (4 * c) := by ring
     linarith
   · -- `t = N`: every number of iterations succeeds.
-    have hone : ∀ j : ℕ, Real.sin ((2 * j + 1) * searchAngle N (weight x)) ^ 2 = 1 := by
-      intro j
+    have hone (j : ℕ) : Real.sin ((2 * j + 1) * searchAngle N (weight x)) ^ 2 = 1 := by
       rw [htN, searchAngle_self hN, Real.sin_sq,
         show (2 * (j : ℝ) + 1) * (π / 2) = j * π + π / 2 by ring, Real.cos_add_pi_div_two,
         Real.sin_nat_mul_pi]

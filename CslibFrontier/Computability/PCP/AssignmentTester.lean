@@ -246,9 +246,7 @@ private theorem hadamardCode_oneHot_endEmbed (σ : Fin 2 → α) (b : Fin 2) (r 
     hadamardCode (oneHot σ) (endEmbed b r) = longCode (σ b) r := by
   rw [hadamardCode_endEmbed, longCode_eq_hadamardCode]
   congr 1 with a : 1
-  rcases eq_or_ne (σ b) a with rfl | h
-  · simp
-  · simp [h, h.symm, Bool.zero_eq_false]
+  by_cases h : σ b = a <;> simp [h, Ne.symm, Bool.zero_eq_false]
 
 /-! ### The checks, as local tests -/
 
@@ -516,24 +514,19 @@ private theorem acceptProb_le (π : Pos α → Bool) :
       (hadamardTester C).acceptProb π ≤
         (inputTest α).acceptProb (Sum.elim (fun p ↦ inputTable π p.1 p.2) (linTable π)) := by
   open LocalTest in
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · refine (acceptProb_and_le_left _ π).trans_eq ?_
-    rw [acceptProb_map]
-    exact acceptProb_blrTest _
-  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_left _ π).trans_eq ?_
-    rw [acceptProb_map]
-    exact acceptProb_blrTest _
-  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans <|
-      (acceptProb_and_le_left _ π).trans_eq ?_
-    rw [acceptProb_map, Sum.comp_elim]
+  have h1 : (hadamardTester C).acceptProb π ≤ _ := acceptProb_and_le_right _ π
+  have h2 : (hadamardTester C).acceptProb π ≤ _ := h1.trans (acceptProb_and_le_right _ π)
+  have h3 : (hadamardTester C).acceptProb π ≤ _ := h2.trans (acceptProb_and_le_right _ π)
+  refine ⟨(acceptProb_and_le_left _ π).trans_eq ((acceptProb_map ..).trans (acceptProb_blrTest _)),
+    (h1.trans (acceptProb_and_le_left _ π)).trans_eq
+      ((acceptProb_map ..).trans (acceptProb_blrTest _)),
+    (h2.trans (acceptProb_and_le_left _ π)).trans_eq ?_,
+    (h3.trans (acceptProb_and_le_left _ π)).trans_eq
+      ((acceptProb_map ..).trans (acceptProb_equationTest _ _ _)),
+    (h3.trans (acceptProb_and_le_right _ π)).trans_eq ?_⟩
+  · rw [acceptProb_map, Sum.comp_elim]
     exact acceptProb_tensorTest _ _
-  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans <|
-      (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_left _ π).trans_eq ?_
-    rw [acceptProb_map]
-    exact acceptProb_equationTest _ _ _
-  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans <|
-      (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans_eq ?_
-    rw [acceptProb_map, Sum.comp_elim]
+  · rw [acceptProb_map, Sum.comp_elim]
     rfl
 
 /-! ### Soundness -/

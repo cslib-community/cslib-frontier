@@ -44,17 +44,14 @@ def appendPoint (x : F) : Point F m ↪ Point F (m + 1) where
 /-- The slice embedding appends the chosen last coordinate. -/
 theorem appendPoint_apply (x : F) (u : Point F m) :
     appendPoint x u = Fin.snoc u x := by
-  unfold appendPoint
   rfl
 
 @[simp] theorem appendPoint_apply_castSucc (x : F) (u : Point F m) (i : Fin m) :
     appendPoint x u i.castSucc = u i := by
-  change Fin.snoc (α := fun _ : Fin (m + 1) => F) u x i.castSucc = _
   exact Fin.snoc_castSucc (α := fun _ : Fin (m + 1) => F) x u i
 
 @[simp] theorem appendPoint_apply_last (x : F) (u : Point F m) :
     appendPoint x u (Fin.last m) = x := by
-  change Fin.snoc (α := fun _ : Fin (m + 1) => F) u x (Fin.last m) = _
   exact Fin.snoc_last (α := fun _ : Fin (m + 1) => F) x u
 
 /-- Append the fixed coordinate to every point on a geometric line. -/
@@ -235,10 +232,9 @@ theorem lineHasDegree_append_iff (x : F) (u v : Point F m) (d : ℕ)
     have ht : f (e.symm (b t)) = p.eval t := hpEval t
     rwa [← he, e.symm_apply_apply] at ht
   · obtain ⟨p, hp, hpEval⟩ := h.exists_polynomial
-    refine ⟨appendPoint x u, appendPoint 0 v, hL, p, hp, fun t => ?_⟩
-    change f (e.symm (b t)) = p.eval t
-    rw [← he, e.symm_apply_apply]
-    exact hpEval t
+    exact ⟨appendPoint x u, appendPoint 0 v, hL, p, hp, fun t => by
+      change f (e.symm (b t)) = p.eval t
+      simpa only [← he, e.symm_apply_apply] using hpEval t⟩
 
 /-- A line answer is transported by pulling its point values along the slice equivalence. -/
 noncomputable def appendLineAnswer (x : F) (answer : Σ L : Finset (Point F m), L → F) :
@@ -311,14 +307,12 @@ noncomputable def restrictAnswer (x : F) : Answer F (m + 1) → Answer F m
 omit [Fintype F] [DecidableEq F] in
 @[simp] theorem restrictAnswer_inl (x a : F) :
     restrictAnswer (m := m) x (.inl a) = .inl a := by
-  unfold restrictAnswer
   rfl
 
 omit [Fintype F] [DecidableEq F] in
 /-- Line answers remain line answers under restriction. -/
 theorem restrictAnswer_inr_exists (x : F) (a : Σ L : Finset (Point F (m + 1)), L → F) :
     ∃ b, restrictAnswer (m := m) x (.inr a) = .inr b := by
-  unfold restrictAnswer
   exact ⟨_, rfl⟩
 
 private theorem restrictAnswer_lineAgrees (x : F) (L : Finset (Point F m)) (u : Point F m)
@@ -409,15 +403,13 @@ theorem branchLoss_restrict_le (n d D : ℕ) (b : Branch)
   have hn (q : Question F (n + 2) × Question F (n + 2)) : 0 ≤ lossAt d D ans q :=
     ENNReal.toReal_nonneg
   cases b
-  · simp only [branchQuestions_axis] at h ⊢
-    simp only [ite_eq_right (by decide : Branch.axis ≠ .consistency)]
+  · simp only [branchQuestions_axis, ite_eq_right (by decide : Branch.axis ≠ .consistency)] at h ⊢
     exact (mul_le_mul_of_nonneg_left h (by positivity)).trans
       (axisQuestions_slices_le (lossAt d D ans) hn)
-  · simp only [branchQuestions_consistency] at h ⊢
-    simp only [↓reduceIte, one_mul]
+  · simp only [branchQuestions_consistency, ↓reduceIte, one_mul] at h ⊢
     exact h.trans_eq (consistencyQuestions_slices (lossAt d D ans)).symm
-  · simp only [branchQuestions_diagonal] at h ⊢
-    simp only [ite_eq_right (by decide : Branch.diagonal ≠ .consistency)]
+  · simp only [branchQuestions_diagonal,
+      ite_eq_right (by decide : Branch.diagonal ≠ .consistency)] at h ⊢
     exact (mul_le_mul_of_nonneg_left h (by positivity)).trans
       (diagonalQuestions_slices_le (lossAt d D ans) hn)
 

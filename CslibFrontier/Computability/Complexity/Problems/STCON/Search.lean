@@ -152,13 +152,10 @@ def Inv (cfg : Config) : Prop :=
 private theorem inv_mk {l c n s t cur steps v : ℕ} :
     Inv I (l, [c, n, s, t, cur, steps, v]) ↔
       c ≤ 1 ∧ Bounded I n s t cur steps v ∧ Phase I l n s t cur steps v := by
-  constructor
-  · rintro ⟨c, n, s, t, cur, steps, v, h, hc⟩
-    simp only [List.cons.injEq, and_true] at h
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
-    exact hc
-  · intro h
-    exact ⟨c, n, s, t, cur, steps, v, rfl, h⟩
+  refine ⟨fun ⟨_, _, _, _, _, _, _, h, hc⟩ => ?_, fun h => ⟨c, n, s, t, cur, steps, v, rfl, h⟩⟩
+  simp only [List.cons.injEq, and_true] at h
+  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+  exact hc
 
 /-- The total budget of the rank. -/
 def budget : ℕ := 2 * I.n + 2 * I.s + 2 * I.t + 4 + (3 * I.n + 12) * (I.n + 1) + 1
@@ -498,21 +495,16 @@ private theorem branches_step {cur steps c v next : ℕ} (hc : cur < I.n) (hnext
 private theorem branches_walk : ∀ (m cur steps c v : ℕ) (hc : cur < I.n),
     Relation.RelatesInSteps I.Adj ⟨cur, hc⟩ I.t m → steps + m < I.n →
       ∃ regs, Branches (P := searchProgram) (w := I.encode)
-        (7, [c, I.n, I.s, I.t, cur, steps, v]) (17, regs) := by
-  intro m
-  induction m with
-  | zero =>
-    intro cur steps c v hc hpath _
-    have hct : cur = I.t := congrArg Fin.val (Relation.RelatesInSteps.zero hpath)
-    subst hct
+        (7, [c, I.n, I.s, I.t, cur, steps, v]) (17, regs)
+  | 0, cur, steps, c, v, hc, hpath, _ => by
+    obtain rfl : cur = I.t := congrArg Fin.val (Relation.RelatesInSteps.zero hpath)
     exact ⟨_, branches_at_target I steps c v⟩
-  | succ m ih =>
-    intro cur steps c v hc hpath hlt
+  | m + 1, cur, steps, c, v, hc, hpath, hlt => by
     obtain ⟨⟨next, hnext⟩, hadj, hrest⟩ := hpath.succ'
     by_cases hct : cur = I.t
     · subst hct
       exact ⟨_, branches_at_target I steps c v⟩
-    · obtain ⟨regs, hregs⟩ := ih next (steps + 1) 0 next hnext hrest (by omega)
+    · obtain ⟨regs, hregs⟩ := branches_walk m next (steps + 1) 0 next hnext hrest (by omega)
       exact ⟨regs, (branches_step I hc hnext hct (by omega) hadj).trans hregs⟩
 
 /-- **An accepting branch exists** when `t` is reachable from `s`: a shortest path has fewer

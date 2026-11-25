@@ -372,11 +372,8 @@ theorem stepRand_isQueryBounded_zero_of_isRandFree {w : ℕ} {p : Program B r}
     (hp : p.IsRandFree) (cfg : RandCfg r) :
     OracleComp.IsQueryBounded (stepRand w p cfg) 0 := by
   cases cfg with
-  | halted v d => exact .pure _ 0
-  | faulted => exact .pure _ 0
-  | running s =>
-    rw [stepRand_eq_of_isRandFree hp s]
-    exact .pure _ 0
+  | halted _ _ | faulted => exact .pure _ 0
+  | running s => exact stepRand_eq_of_isRandFree hp s ▸ .pure _ 0
 
 /-- On a `rand`-free program, clocked execution makes zero oracle calls. -/
 theorem runRand_isQueryBounded_zero_of_isRandFree {w T : ℕ} {p : Program B r}
@@ -472,14 +469,11 @@ theorem RandHaltsWithin.randFaultFree {w T : ℕ} {p : Program B r} {s : State r
     (h : RandHaltsWithin w p s T) :
     RandFaultFree w p s := by
   intro t hmem
-  have hmem_max : RandCfg.faulted ∈ (runRand w p (max t T) (.running s)).support := by
-    have heq : max t T = t + (max t T - t) := by omega
-    rw [heq, runRand_add]
+  have hmem' : .faulted ∈ (runRand w p T (.running s)).support := by
+    rw [← runRand_eq_of_randHaltsWithin h (Nat.le_add_left T t), runRand_add]
     exact OracleComp.mem_supportWith_bind_iff.mpr
-      ⟨.faulted, hmem, by simp only [runRand_faulted]; rfl⟩
-  rw [runRand_eq_of_randHaltsWithin h (le_max_right t T)] at hmem_max
-  obtain ⟨v, d, hvd⟩ := h RandCfg.faulted hmem_max
-  cases hvd
+      ⟨.faulted, hmem, by rw [runRand_faulted]; rfl⟩
+  rcases h .faulted hmem' with ⟨_, _, ⟨⟩⟩
 
 /-- Worst-case `rand`-call budget: at most `R` `rand` instructions are executed on every path within
 `T` steps (including `rand(0)`). -/
@@ -515,8 +509,7 @@ theorem unifBitCost_two_pow_sub_one (w : ℕ) : unifBitCost (2 ^ w - 1) = w := b
   cases w with
   | zero => rfl
   | succ w =>
-    have hpos : 1 ≤ 2 ^ (w + 1) := Nat.one_le_two_pow
-    simp only [unifBitCost, Nat.sub_add_cancel hpos]
+    simp only [unifBitCost, Nat.sub_add_cancel (Nat.one_le_two_pow (n := w + 1))]
     exact Nat.clog_pow 2 (w + 1) (by decide)
 
 theorem unifBitCost_le_of_fits {w n : ℕ} (h : Fits w n) : unifBitCost n ≤ w :=
@@ -537,10 +530,8 @@ theorem stepRand_queriesSatisfy_fits (w : ℕ) (p : Program B r) (cfg : RandCfg 
       by_cases hfit : Fits w (s.data.regs src)
       · rw [stepRand_rand_of_fits hpc hfit]
         exact (OracleComp.QueriesSatisfy.query hfit).bind fun _ => .pure _
-      · rw [stepRand_rand_of_not_fits hpc hfit]
-        exact .pure _
-    · rw [stepRand_eq_ofOutcome_of_ne_rand fun dst src hpc => hr ⟨dst, src, hpc⟩]
-      exact .pure _
+      · exact stepRand_rand_of_not_fits hpc hfit ▸ .pure _
+    · exact stepRand_eq_ofOutcome_of_ne_rand (fun dst src hpc => hr ⟨dst, src, hpc⟩) ▸ .pure _
 
 /-- Every `ProbComp.unifFin n` query issued by `runRand` satisfies `Fits w n`. -/
 theorem runRand_queriesSatisfy_fits (w : ℕ) (p : Program B r) (T : ℕ) (cfg : RandCfg r) :

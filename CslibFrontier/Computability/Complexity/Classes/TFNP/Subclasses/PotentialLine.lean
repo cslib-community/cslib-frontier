@@ -400,10 +400,7 @@ theorem potentialLineBack_of_promise (h : LineSourcePromise n P S a) :
 
 theorem potentialLineBack_of_not_promise (h : ¬LineSourcePromise n P S a) :
     potentialLineBack n P S V (a, u) = zeroVertex (n a) := by
-  have h' : ¬(P (a, zeroVertex (n a)) = zeroVertex (n a) ∧
-      S (a, zeroVertex (n a)) ≠ zeroVertex (n a)) := h
-  simp only [potentialLineBack, Bool.and_eq_true, decide_eq_true_eq]
-  rw [ite_eq_right h']
+  simp [potentialLineBack, LineSourcePromise] at h ⊢; tauto
 
 /-- Under the promise, a sink of the potential line is fixed by `potentialLineBack`. -/
 private theorem potentialLineBack_eq_self (h : LineSourcePromise n P S a)
@@ -412,8 +409,7 @@ private theorem potentialLineBack_eq_self (h : LineSourcePromise n P S a)
   rw [potentialLineBack_of_promise h, ite_eq_right]
   rcases hu with rfl | hu
   · simp
-  · obtain ⟨-, -, -, hV⟩ := hasPotentialIn_eq_true_iff.mp hu
-    simp [Nat.not_le.mpr hV]
+  · simp [Nat.not_le.mpr (hasPotentialIn_eq_true_iff.mp hu).2.2.2]
 
 /-- Under the promise, a sink of the potential line has no consistent potential-increasing outgoing
 edge in the raw instance: it is an (R1) end-of-line violation or an (R2) potential violation. -/
@@ -490,8 +486,7 @@ theorem computableInPolyTime_hasPotentialOut {enc : α ↪ List Bool}
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (fun x : α × List Bool => hasPotentialOut n P S V x.1 x.2)
       (encPair enc encBits) encBool := by
-  unfold hasPotentialOut
-  fun_prop
+  fun_prop [hasPotentialOut]
 
 @[fun_prop]
 theorem computableInPolyTime_hasPotentialIn {enc : α ↪ List Bool}
@@ -501,8 +496,7 @@ theorem computableInPolyTime_hasPotentialIn {enc : α ↪ List Bool}
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (fun x : α × List Bool => hasPotentialIn n P S V x.1 x.2)
       (encPair enc encBits) encBool := by
-  unfold hasPotentialIn
-  fun_prop
+  fun_prop [hasPotentialIn]
 
 theorem computableInPolyTime_potentialSucc {enc : α ↪ List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
@@ -510,8 +504,7 @@ theorem computableInPolyTime_potentialSucc {enc : α ↪ List Bool}
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits)
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (potentialSucc n P S V) (encPair enc encBits) encBits := by
-  unfold potentialSucc
-  fun_prop
+  fun_prop [potentialSucc]
 
 theorem computableInPolyTime_potentialPred {enc : α ↪ List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
@@ -519,8 +512,7 @@ theorem computableInPolyTime_potentialPred {enc : α ↪ List Bool}
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits)
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (potentialPred n P S V) (encPair enc encBits) encBits := by
-  unfold potentialPred
-  fun_prop
+  fun_prop [potentialPred]
 
 theorem computableInPolyTime_potentialLineBack {enc : α ↪ List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
@@ -528,8 +520,7 @@ theorem computableInPolyTime_potentialLineBack {enc : α ↪ List Bool}
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits)
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (potentialLineBack n P S V) (encPair enc encBits) encBits := by
-  unfold potentialLineBack
-  fun_prop
+  fun_prop [potentialLineBack]
 
 /-! ### `FNP` and `TFNP` membership -/
 
@@ -896,8 +887,7 @@ theorem SOPL_subset_PLS : SOPL enc ⊆ PLS enc := by
   have hC : ComputableInPolyTime (soplCost (fun a => 2 ^ m a) n P S V) (encPair enc encBits)
       encNat := by
     fun_prop [soplCost]
-  have hlen : PreservesWidth n (soplNeighbor n P S V) :=
-    fun a _ hu => length_soplNeighbor (hS_len a) hu
+  have hlen : PreservesWidth n (soplNeighbor n P S V) := fun a _ => length_soplNeighbor (hS_len a)
   exact ⟨hR, n, soplNeighbor n P S V, soplCost (fun a => 2 ^ m a) n P S V, hn, hN, hC, hlen,
     hred.trans (.of_isTotalSearch (isTotalSearch_localOptRel hlen) ComputableInPolyTime.id'
       (snd enc encBits) fun a _ hw =>

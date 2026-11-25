@@ -215,17 +215,13 @@ private theorem expect_pivWeight {j : Fin s} (hj : j ∈ T) :
     simp only [mem_filter, mem_erase, mem_univ, and_true] at hj'
     simp only [pivFactor, hj'.1, hj'.2, ite_false]
     rw [expect_ite_exists_mem_eq, card_univ, Fintype.card_fin]
-  have c1 : #((univ.erase j).filter (· ∈ T)) = #T - 1 := by
-    have : (univ.erase j).filter (· ∈ T) = T.erase j := by
-      ext k
-      simp only [mem_filter, mem_erase, mem_univ, and_true]
-    rw [this, card_erase_of_mem hj]
+  have c1 : #((univ.erase j).filter (· ∈ T)) = #T - 1 :=
+    (congrArg card (Finset.ext fun _ => by simp)).trans (card_erase_of_mem hj)
   have c2 : #((univ.erase j).filter (· ∉ T)) = s - #T := by
-    have : (univ.erase j).filter (· ∉ T) = Tᶜ := by
-      ext k
-      simp only [mem_filter, mem_erase, mem_univ, and_true, mem_compl]
-      exact ⟨fun h => h.2, fun h => ⟨fun hk => h (hk ▸ hj), h⟩⟩
-    rw [this, card_compl, Fintype.card_fin]
+    suffices (univ.erase j).filter (· ∉ T) = Tᶜ by rw [this, card_compl, Fintype.card_fin]
+    ext k
+    simp only [mem_filter, mem_erase, mem_univ, and_true, mem_compl]
+    exact ⟨And.right, fun h => ⟨fun hk => h (hk ▸ hj), h⟩⟩
   rw [e0, prod_congr rfl e1, prod_congr rfl e2, prod_const, prod_const, c1, c2]
 
 /-- A function of the coordinates `J` disagrees with Tribes on half of each pivotality event of a
@@ -245,8 +241,7 @@ private theorem card_mul_le_hammingDist_tribes_div {g : BitString (s * w) → Bo
         tribes_eq_of_pivWeight_ne_zero hx, update_self]
   have hdist : (hammingDist (tribes w s) g : ℝ) / 2 ^ (s * w) =
       𝔼 x, (if tribes w s x ≠ g x then (1 : ℝ) else 0) := by
-    rw [← hammingDist_div_eq_expect]
-    simp
+    simpa using hammingDist_div_eq_expect (𝕜 := ℝ) (tribes w s) g
   rw [hdist]
   calc (#T : ℝ) *
         (2⁻¹ ^ (w - 1) * ((1 - 2⁻¹ ^ (w - 1)) ^ (#T - 1) * (1 - 2⁻¹ ^ w) ^ (s - #T)) / 2)

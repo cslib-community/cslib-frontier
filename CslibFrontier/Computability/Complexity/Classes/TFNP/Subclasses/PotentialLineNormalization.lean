@@ -299,10 +299,6 @@ theorem zeroVertex_normalizedPotentialWidth (n : α → ℕ) (a : α) :
     zeroVertex (normalizedPotentialWidth n a) = false :: zeroVertex (n a) :=
   List.replicate_succ
 
-private theorem cons_eq_zeroVertex_succ_iff {k : ℕ} {b : Bool} {v : List Bool} :
-    b :: v = zeroVertex (k + 1) ↔ b = false ∧ v = zeroVertex k := by
-  simp
-
 @[simp]
 theorem normalizedPotentialPred_false (n : α → ℕ) (P S : α × List Bool → List Bool)
     (V : α × List Bool → ℕ) (a : α) (u : List Bool) :
@@ -543,8 +539,7 @@ theorem potentialPred_normalized_cons (b : Bool) (u : List Bool) :
       (normalizedPotential V) (a, b :: u) =
     normalizedPotentialPred n P S V (a, b :: u) := by
   cases b
-  · rw [potentialPred_of_false (hasPotentialIn_normalized_false n P S V a u)]
-    rfl
+  · exact potentialPred_of_false (hasPotentialIn_normalized_false n P S V a u)
   · by_cases huz : u = zeroVertex (n a)
     · subst huz
       exact potentialPred_of_true (hasPotentialIn_normalized_true_zeroVertex n P S V a)
@@ -586,9 +581,8 @@ theorem endOfPotentialLineRel_normalized_iff :
     cases b
     · by_cases huz : u = zeroVertex (n a)
       · subst huz
-        have hout := hasPotentialOut_normalized_zeroVertex n P S V a
-        rw [zeroVertex_normalizedPotentialWidth] at hout
-        simp [endOfPotentialLineRel, hout, hasPotentialIn_normalized_false]
+        simp [endOfPotentialLineRel, hasPotentialIn_normalized_false,
+          zeroVertex_normalizedPotentialWidth n a ▸ hasPotentialOut_normalized_zeroVertex n P S V a]
       · simp [endOfPotentialLineRel, hasPotentialIn_normalized_false,
           hasPotentialOut_normalized_false_of_ne huz, huz]
     · simp only [List.cons.injEq, true_and, exists_eq_left']
@@ -649,12 +643,9 @@ theorem endOfPotentialLinePromisedRel_normalized_iff :
       obtain ⟨bS, uS, hS_eq⟩ := nonEmpty_normalizedSucc (n := n) (P := P) (S := S) (V := V)
         (a := a) b u
       refine ⟨h.1, ?_⟩
-      rw [potentialPred_normalized_cons, potentialSucc_normalized_cons,
-        show normalizedPotentialPred n P S V (a, b :: u) = bP :: uP from hP_eq,
-        show normalizedPotentialSucc n P S V (a, b :: u) = bS :: uS from hS_eq,
+      rw [potentialPred_normalized_cons, potentialSucc_normalized_cons, hP_eq, hS_eq,
         potentialSucc_normalized_cons, potentialPred_normalized_cons, ← hP_eq, ← hS_eq]
-      exact h.2.resolve_left (fun ⟨_, hnp⟩ => hnp (lineSourcePromise_normalized n P S V a))
-        |> .inr
+      exact .inr (h.2.resolve_left fun ⟨_, hnp⟩ => hnp (lineSourcePromise_normalized n P S V a))
   · obtain ⟨u, rfl, hu⟩ := endOfPotentialLineRel_normalized_iff.mp h
     rcases endOfPotentialLineRel_iff.mp hu with ⟨hlen, hout, rfl | hin⟩ | ⟨hlen, huz, hin, hout⟩
     · exact ⟨by simp, .inr (.inr (.inl (by simp [potentialSucc_of_false hout])))⟩
@@ -683,9 +674,7 @@ theorem sinkOfPotentialLinePromisedRel_normalized_iff :
       obtain ⟨bS, uS, hS_eq⟩ := nonEmpty_normalizedSucc (n := n) (P := P) (S := S) (V := V)
         (a := a) b u
       refine ⟨h.1, ?_⟩
-      rw [potentialSucc_normalized_cons,
-        show normalizedPotentialSucc n P S V (a, b :: u) = bS :: uS from hS_eq,
-        potentialPred_normalized_cons, ← hS_eq]
+      rw [potentialSucc_normalized_cons, hS_eq, potentialPred_normalized_cons, ← hS_eq]
       exact .inr (h.2.resolve_left fun ⟨_, hnp⟩ => hnp (lineSourcePromise_normalized n P S V a))
   · obtain ⟨u, rfl, hlen, hout, rfl | hin⟩ := sinkOfPotentialLineRel_normalized_iff.mp h
     · exact ⟨by simp [hlen], .inr (.inl (by simp [potentialSucc_of_false hout]))⟩
