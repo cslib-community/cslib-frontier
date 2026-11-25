@@ -284,46 +284,19 @@ private theorem edgeBoundaryMass_le {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMo
     classical
     rw [Nat.mul_zero, pow_zero]
     rcases x with v | e
-    · have hsub : (Finset.univ.filter fun z : HyperNode c =>
-          bipAdj c K₀ prev (.inl v) ∧
-          walkMax c K₀ r θ 0 prev z < walkMax c K₀ r θ 1 prev z ∧
-          walkMax c K₀ r θ 1 prev z = stepWeight c K₀ r θ prev (.inl v) *
-            walkMax c K₀ r θ 0 (.inl v) z) ⊆ {v} := by
-        intro z hz
-        have hlt := (Finset.mem_filter.mp hz).2.2.1
-        have heq := (Finset.mem_filter.mp hz).2.2.2
-        have h0 : 0 ≤ walkMax c K₀ r θ 0 prev z := walkMax_nonneg c K₀ r hθ0.le 0 prev z
-        refine Finset.mem_singleton.mpr ?_
-        by_contra hzv
-        have hzv' : v ≠ z := fun h => hzv h.symm
-        have hw0 : walkMax c K₀ r θ 0 (.inl v) z = 0 := by
-          dsimp only [walkMax]
-          exact ite_eq_right hzv'
-        rw [hw0, mul_zero] at heq
-        linarith
-      calc edgeBoundaryMass c K₀ r θ 0 prev (.inl v)
-          ≤ ∑ z ∈ ({v} : Finset (HyperNode c)),
-              walkMax c K₀ r θ 0 (.inl v) z ^ 2 / √(bipBranch c K₀ r (.inl v) : ℝ) :=
-            Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
-        _ = 1 / √(r : ℝ) := by simp [walkMax, bipBranch]
+    · calc edgeBoundaryMass c K₀ r θ 0 prev (.inl v)
+          ≤ ∑ z, walkMax c K₀ r θ 0 (.inl v) z ^ 2 / √(bipBranch c K₀ r (.inl v) : ℝ) :=
+            Finset.sum_le_sum_of_subset_of_nonneg (Finset.filter_subset _ _)
+              fun _ _ _ => by positivity
+        _ = 1 / √(r : ℝ) := by
+            rw [Fintype.sum_eq_single v (fun z hz => by simp [walkMax, Ne.symm hz])]
+            simp [walkMax, bipBranch]
         _ ≤ 1 := div_le_one_of_le₀
             ((le_sqrt zero_le_one (Nat.cast_nonneg _)).mpr
               (by norm_num; exact_mod_cast Nat.one_le_of_lt hr))
             (sqrt_nonneg _)
-    · have hemp : (Finset.univ.filter fun z : HyperNode c =>
-          bipAdj c K₀ prev (.inr e) ∧
-          walkMax c K₀ r θ 0 prev z < walkMax c K₀ r θ 1 prev z ∧
-          walkMax c K₀ r θ 1 prev z = stepWeight c K₀ r θ prev (.inr e) *
-            walkMax c K₀ r θ 0 (.inr e) z) = ∅ := by
-        ext z
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false,
-          not_and]
-        intro _ hlt heq
-        have h0 : 0 ≤ walkMax c K₀ r θ 0 prev z := walkMax_nonneg c K₀ r hθ0.le 0 prev z
-        have hw0 : walkMax c K₀ r θ 0 (.inr e) z = 0 := rfl
-        rw [hw0, mul_zero] at heq
-        linarith
-      simp [edgeBoundaryMass, hemp]
+    · have hw0 (z : HyperNode c) : walkMax c K₀ r θ 0 (.inr e) z = 0 := rfl
+      simp [edgeBoundaryMass, hw0]
   | m + 1, prev, x => by
     classical
     by_cases hpx : bipAdj c K₀ prev x
@@ -348,23 +321,14 @@ private theorem edgeBoundaryMass_le {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMo
           linarith
         obtain ⟨y, hadj_xy, heq1⟩ := exists_step_of_walkMax_lt c K₀ r θ m hlt1
         have hy_ne : y ≠ prev := by
+          -- A backtracking step `prev → x → prev` cannot improve `walkMax` at `prev`.
           rintro rfl
-          have hsw1 := stepWeight_le c K₀ hr hθ0.le y x
-          have hsw2 := stepWeight_le c K₀ hr hθ0.le x y
-          have hw0 := walkMax_nonneg c K₀ r hθ0.le m y z
-          have hmono := walkMax_mono_step c K₀ r θ m y z
-          have hprod : stepWeight c K₀ r θ y x *
-              (stepWeight c K₀ r θ x y * walkMax c K₀ r θ m y z) ≤
-              walkMax c K₀ r θ m y z := by
-            have h1 : stepWeight c K₀ r θ x y * walkMax c K₀ r θ m y z ≤
-                1 * walkMax c K₀ r θ m y z :=
-              mul_le_mul_of_nonneg_right (hsw2.trans hθ1) hw0
-            have h2 : stepWeight c K₀ r θ y x * walkMax c K₀ r θ m y z ≤
-                1 * walkMax c K₀ r θ m y z :=
-              mul_le_mul_of_nonneg_right (hsw1.trans hθ1) hw0
-            nlinarith [stepWeight_nonneg c K₀ r hθ0.le y x]
+          have h0 := walkMax_nonneg c K₀ r hθ0.le m y z
+          have hxy := mul_le_of_le_one_left h0 ((stepWeight_le c K₀ hr hθ0.le x y).trans hθ1)
+          have hyx := mul_le_of_le_one_left (mul_nonneg (stepWeight_nonneg c K₀ r hθ0.le x y) h0)
+            ((stepWeight_le c K₀ hr hθ0.le y x).trans hθ1)
           rw [heq1] at heq2
-          linarith
+          linarith [walkMax_mono_step c K₀ r θ m y z]
         exact Finset.mem_biUnion.mpr ⟨y, Finset.mem_filter.mpr ⟨Finset.mem_univ y, hadj_xy, hy_ne⟩,
           Finset.mem_filter.mpr ⟨Finset.mem_univ z, hadj_xy, hlt1, heq1⟩⟩
       have hbr_pos : (0 : ℝ) < bipBranch c K₀ r x := by
@@ -379,13 +343,11 @@ private theorem edgeBoundaryMass_le {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMo
           have heq1 := (Finset.mem_filter.mp hz).2.2.2
           rw [heq1, mul_pow, stepWeight_sq]
           have hsx_ne : √(bipBranch c K₀ r x : ℝ) ≠ 0 := (sqrt_pos.mpr hbr_pos).ne'
-          by_cases hby : (bipBranch c K₀ r y : ℝ) = 0
-          · simp [hby]
-          · have hsy_ne : √(bipBranch c K₀ r y : ℝ) ≠ 0 :=
-              (sqrt_pos.mpr (lt_of_le_of_ne (Nat.cast_nonneg _) (Ne.symm hby))).ne'
-            field_simp
-            rw [sq_sqrt hbr_pos.le]
-            ring
+          have hsy_ne : √(bipBranch c K₀ r y : ℝ) ≠ 0 :=
+            (sqrt_pos.mpr (by exact_mod_cast one_le_bipBranch c K₀ hr y)).ne'
+          field_simp
+          rw [sq_sqrt hbr_pos.le]
+          ring
         rw [hrew]
         exact mul_le_mul_of_nonneg_left (edgeBoundaryMass_le hr hfan hθ0 hθ1 m x y) (by positivity)
       calc edgeBoundaryMass c K₀ r θ (m + 1) prev x
@@ -409,14 +371,7 @@ private theorem edgeBoundaryMass_le {r : ℕ} (hr : 2 ≤ r) (hfan : c.FanInAtMo
             have hne := hbr_pos.ne'
             field_simp
             ring
-    · have hemp : (Finset.univ.filter fun z : HyperNode c =>
-          bipAdj c K₀ prev x ∧
-          walkMax c K₀ r θ (m + 1) prev z < walkMax c K₀ r θ (m + 2) prev z ∧
-          walkMax c K₀ r θ (m + 2) prev z =
-            stepWeight c K₀ r θ prev x * walkMax c K₀ r θ (m + 1) x z) = ∅ := by
-        ext z
-        simp [hpx]
-      rw [edgeBoundaryMass, hemp, Finset.sum_empty]
+    · simp only [edgeBoundaryMass, hpx, false_and, Finset.filter_false, Finset.sum_empty]
       positivity
 
 /-- **Non-backtracking boundary-mass bound:** for every `x : BipNode c K₀` and `m : ℕ`, the sum of
@@ -518,14 +473,8 @@ private theorem sum_sq_walkMax_twoStep_strict_le {r : ℕ} (hr : 2 ≤ r) (hfan 
             (fun _ _ _ => sq_nonneg _)
       _ ≤ (max (r + 1) K₀ : ℝ) * θ ^ (2 * (m + 1)) :=
           sum_sq_walkMax_strict_le c K₀ hr hfan hθ0 hθ1 m x
-  set D_val : ℝ := (max (r + 1) K₀ : ℝ)
-  change ∑ z ∈ A1, walkMax c K₀ r θ (m + 2) x z ^ 2 ≤ D_val * θ ^ (2 * (m + 2)) at hsum1
-  change ∑ z ∈ A2, walkMax c K₀ r θ (m + 2) x z ^ 2 ≤ D_val * θ ^ (2 * (m + 1)) at hsum2
-  have hD_nn : 0 ≤ D_val := by positivity
   have hpow : θ ^ (2 * (m + 2)) ≤ θ ^ (2 * m + 2) :=
     pow_le_pow_of_le_one hθ0.le hθ1 (by omega)
-  have hexp : 2 * (m + 1) = 2 * m + 2 := by ring
-  rw [hexp] at hsum2
   calc ∑ z ∈ Finset.univ.filter (fun z => walkMax c K₀ r θ m x z < walkMax c K₀ r θ (m + 2) x z),
         walkMax c K₀ r θ (m + 2) x z ^ 2
       ≤ ∑ z ∈ A1 ∪ A2, walkMax c K₀ r θ (m + 2) x z ^ 2 :=
@@ -533,8 +482,11 @@ private theorem sum_sq_walkMax_twoStep_strict_le {r : ℕ} (hr : 2 ≤ r) (hfan 
     _ ≤ (∑ z ∈ A1, walkMax c K₀ r θ (m + 2) x z ^ 2) +
           ∑ z ∈ A2, walkMax c K₀ r θ (m + 2) x z ^ 2 :=
         sum_union_le_of_nonneg fun _ => sq_nonneg _
-    _ ≤ D_val * θ ^ (2 * (m + 2)) + D_val * θ ^ (2 * m + 2) := add_le_add hsum1 hsum2
-    _ ≤ 2 * D_val * θ ^ (2 * m + 2) := by nlinarith
+    _ ≤ (max (r + 1) K₀ : ℝ) * θ ^ (2 * (m + 2)) + (max (r + 1) K₀ : ℝ) * θ ^ (2 * (m + 1)) :=
+        add_le_add hsum1 hsum2
+    _ ≤ 2 * (max (r + 1) K₀ : ℝ) * θ ^ (2 * m + 2) := by
+        rw [show 2 * (m + 1) = 2 * m + 2 by ring]
+        linarith [mul_le_mul_of_nonneg_left hpow (by positivity : (0 : ℝ) ≤ (max (r + 1) K₀ : ℝ))]
 
 
 end BipartiteKernel
