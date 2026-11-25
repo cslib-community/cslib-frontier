@@ -7652,6 +7652,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Sturm
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SturmBitBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalIsolation
+public import CslibFrontier.Foundations.Algebra.Polynomial.Roots
 public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
 public import CslibFrontier.Foundations.Algebra.Quaternion.BpInfinity

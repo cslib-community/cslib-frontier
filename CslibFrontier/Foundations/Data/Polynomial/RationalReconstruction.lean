@@ -12,6 +12,7 @@ public import Mathlib.Algebra.Field.ZMod
 public import Mathlib.Algebra.Polynomial.FieldDivision
 public import Mathlib.Data.ZMod.Basic
 public import Mathlib.LinearAlgebra.Lagrange
+import CslibFrontier.Foundations.Algebra.Polynomial.Roots
 import Mathlib.Algebra.EuclideanDomain.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.LinearCombination
@@ -588,16 +589,6 @@ via `Lagrange.interpolate` and `PolyRat.reconstruct`. -/
 def cauchy (s : Finset F) (vals : F → F) (N D : ℕ) : Option (PolyRat F) :=
   reconstruct (∏ a ∈ s, (X - C a)) (Lagrange.interpolate s id vals) N D
 
-open scoped Function in
-open Classical in
-private theorem dvd_prod_X_sub_C_iff {s : Finset F} {f : F[X]} :
-    (∏ a ∈ s, (X - C a)) ∣ f ↔ ∀ a ∈ s, f.eval a = 0 := by
-  refine ⟨fun hdvd a ha => Polynomial.dvd_iff_isRoot.mp
-    (dvd_trans (Finset.dvd_prod_of_mem (fun x => X - C x) ha) hdvd), fun h => ?_⟩
-  exact Finset.prod_dvd_of_coprime
-    ((Polynomial.pairwise_coprime_X_sub_C Function.injective_id).set_pairwise _)
-    fun a ha => Polynomial.dvd_iff_isRoot.mpr (h a ha)
-
 open Classical in
 private theorem isCoprime_prod_X_sub_C_iff {s : Finset F} {b : F[X]} :
     IsCoprime b (∏ a ∈ s, (X - C a)) ↔ ∀ a ∈ s, b.eval a ≠ 0 := by
@@ -629,7 +620,7 @@ theorem cauchy_eq_some {s : Finset F} {vals : F → F} {N D : ℕ} {p : PolyRat 
   rcases reconstruct_eq_some hp with ⟨_, hmonic, hdegN, hdegD, hcop, hcM, hmod⟩
   refine ⟨hmonic, hdegN, hdegD, hcop, fun a ha => ?_⟩
   have hda : p.den.eval a ≠ 0 := isCoprime_prod_X_sub_C_iff.mp hcM a ha
-  have hev := dvd_prod_X_sub_C_iff.mp hmod a ha
+  have hev := (prod_X_sub_C_dvd_iff_forall_eval_eq_zero s _).mp hmod a ha
   have hlag : (Lagrange.interpolate s id vals).eval a = vals a :=
     Lagrange.eval_interpolate_at_node vals Function.injective_id.injOn ha
   simp only [Polynomial.eval_sub, Polynomial.eval_mul, sub_eq_zero] at hev
@@ -648,7 +639,7 @@ theorem cauchy_of_eq {s : Finset F} {vals : F → F} {N D : ℕ} {p : PolyRat F}
   have hcM : IsCoprime p.den (∏ a ∈ s, (X - C a)) :=
     isCoprime_prod_X_sub_C_iff.mpr fun a ha => (heval a ha).1
   have hmod : (∏ a ∈ s, (X - C a)) ∣ p.num - p.den * Lagrange.interpolate s id vals := by
-    rw [dvd_prod_X_sub_C_iff]
+    rw [prod_X_sub_C_dvd_iff_forall_eval_eq_zero]
     intro a ha
     rcases heval a ha with ⟨hda, hdiv⟩
     have hlag : (Lagrange.interpolate s id vals).eval a = vals a :=
