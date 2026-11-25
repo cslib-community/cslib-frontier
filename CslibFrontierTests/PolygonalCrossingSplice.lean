@@ -24,6 +24,27 @@ open Cslib.Polygonal
 private def route : Route :=
   ⟨5, ![-2, 2, 2 + 2 * Complex.I, 2 * Complex.I, -2 * Complex.I, -2 - 2 * Complex.I, -2]⟩
 
+private theorem route_segments_nondegenerate (k : Fin route.segments) :
+    route.point k.castSucc ≠ route.point k.succ := by
+  fin_cases k <;> intro he
+  · change (-2 : ℂ) = 2 at he
+    norm_num at he
+  · change (2 : ℂ) = 2 + 2 * Complex.I at he
+    have h := congrArg Complex.im he
+    norm_num [Complex.add_im, Complex.mul_im] at h
+  · change (2 : ℂ) + 2 * Complex.I = 2 * Complex.I at he
+    have h := congrArg Complex.re he
+    norm_num [Complex.add_re, Complex.mul_re] at h
+  · change (2 : ℂ) * Complex.I = -2 * Complex.I at he
+    have h := congrArg Complex.im he
+    norm_num [Complex.mul_im] at h
+  · change (-2 : ℂ) * Complex.I = -2 - 2 * Complex.I at he
+    have h := congrArg Complex.re he
+    norm_num [Complex.sub_re, Complex.mul_re] at h
+  · change (-2 : ℂ) - 2 * Complex.I = -2 at he
+    have h := congrArg Complex.im he
+    norm_num [Complex.sub_im, Complex.mul_im] at h
+
 private theorem constant_coordinate (f : ℂ →ᵃ[ℝ] ℝ) {a b w : ℂ} {c : ℝ}
     (ha : f a = c) (hb : f b = c) (hw : w ∈ segment ℝ a b) : f w = c := by
   simpa only [image_segment, ha, hb, segment_same, Set.mem_singleton_iff] using
@@ -104,9 +125,9 @@ private theorem observer_disjoint_disk : Disjoint (Metric.closedBall (0 : ℂ) 1
   linarith
 
 /-- The orthogonal splice strictly reduces the set of interior crossings. It preserves endpoints,
-outgoing directions, exterior support and parity against an exterior observer. Points in the
-closed disk have unique positions. The shared start and finish outside the disk trace back to
-distinct original positions at original segment endpoints. -/
+outgoing directions, nondegenerate segments, exterior support and parity against an exterior
+observer. Points in the closed disk have unique positions. The shared start and finish outside
+the disk trace back to distinct original positions at original segment endpoints. -/
 theorem removes_orthogonal_crossing :
     let r := Route.line (((-3 / 2 : ℝ) : ℂ) - Complex.I) (((-3 / 2 : ℝ) : ℂ) + Complex.I)
     let crossings (p : Route) := openSegmentCrossings
@@ -122,6 +143,7 @@ theorem removes_orthogonal_crossing :
       (∃ (a b : Fin p.segments) (u v : ℝ), u ∈ Set.Icc 0 1 ∧ v ∈ Set.Icc 0 1 ∧
         p.eval a u = q.start ∧ p.eval b v = q.finish ∧ p.position a u ≠ p.position b v ∧
         u ∉ Set.Ioo 0 1 ∧ v ∉ Set.Ioo 0 1) ∧
+      (∀ k : Fin q.segments, q.point k.castSucc ≠ q.point k.succ) ∧
       q.intersectionParity r = p.intersectionParity r := by
   have hx : (0 : ℂ) ∈ openSegment ℝ (route.point (0 : Fin route.segments).castSucc)
       (route.point (0 : Fin route.segments).succ) := by
@@ -148,10 +170,11 @@ theorem removes_orthogonal_crossing :
   intro r crossings
   have hz : (0 : ℂ) ∈ crossings route := ⟨0, 3, by decide, hx, hy⟩
   refine ⟨route, hz, ?_⟩
-  obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, hcross, hpositions, hExterior, _⟩ :=
+  obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, hcross, hpos, hExterior, hNondeg, _⟩ :=
     route.exists_splice_of_isolated_crossing 0 3 (by decide) (by norm_num) hx hy hpair
       route_ends_outside connector_segments_outside
-  refine ⟨q, hstart, hfinish, hn, hout, ?_, ?_, hpositions, ?_, hparity r observer_disjoint_disk⟩
+  refine ⟨q, hstart, hfinish, hn, hout, ?_, ?_, hpos, ?_,
+    hNondeg route_segments_nondegenerate, hparity r observer_disjoint_disk⟩
   · intro b
     obtain ⟨c, hc, he⟩ := hgerm b
     rw [he, Complex.real_smul, Complex.arg_real_mul _ hc]
