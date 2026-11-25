@@ -1160,6 +1160,10 @@ private theorem execRCodeDist_of_demonic_outcome {U : ℕ} {α : Type*} {w L_pea
     ExecRCodeDist w c x ((PMF.pure q_out).map StepROutcome.data) steps L_peak :=
   (ExecRCodeDist.of_demonicExec h).congr_dist (by simp) le_rfl
 
+private theorem tsum_pmf_pure_mul {α : Type*} (a : α) (f : α → ℝ≥0∞) :
+    ∑' x, PMF.pure a x * f x = f a := by
+  rw [tsum_eq_single a fun b hb => by simp [PMF.pure_apply, hb], PMF.pure_apply_self, one_mul]
+
 private theorem package_active_inEpoch_step {U V w base overhead stepsOp : ℕ}
     {st : EpochState U} {ls : LatentSeed U} {o : Dynamic.Op U} {x : RData rResize}
     {q_out : StepROutcome (LatentSeed U) o.Result rResize}
@@ -1212,9 +1216,7 @@ private theorem package_active_inEpoch_step {U V w base overhead stepsOp : ℕ}
   · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
     exact ⟨hqrep, hqres, hqdec, hqbel⟩
   · rw [ite_eq_left hcap_same]; exact ⟨hn_pos, by simp [hqls]⟩
-  · rw [ite_eq_left (show 0 < (Dictionary.dom st.dict).card from hn_pos),
-      tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
-    simp only [PMF.pure_apply_self, one_mul]
+  · rw [ite_eq_left (show 0 < (Dictionary.dom st.dict).card from hn_pos), tsum_pmf_pure_mul]
     have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr hqcost
     simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hc
     calc ((overhead + stepsOp : ℕ) : ℝ≥0∞) +
@@ -1369,8 +1371,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         rw [hN0, hinit0, hs_emp, Dictionary.dom_empty]
         exact compactedRep_empty hzb hfr8 hhdr0
       · rw [ite_eq_right (by omega : ¬0 < n), add_zero, hpot_x_zero, Nat.cast_zero, zero_add]
-        rw [tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
-        simp only [PMF.pure_apply_self, one_mul]
+        rw [tsum_pmf_pure_mul]
         dsimp only [st', EpochState.step, nextEpochCap, nextEpochInit, n']
         rw [hN0, hinit0, show (Dictionary.dom st.dict).card = 0 from hn0,
           resizablePotential_zero, Nat.cast_zero, add_zero]
@@ -1453,21 +1454,10 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           dsimp only [mkOut]
           unfold resizablePotential
           rw [Nat.dist_self, Nat.mul_zero, Nat.add_zero]
-        rw [htsum_pot]
-        have hb_ge :
-            (initFirstCharge : ℝ≥0∞) + ((10 : ℕ) : ℝ≥0∞) ≤ (resizableBaseCharge : ℝ≥0∞) := by
-          rw [← Nat.cast_add]
-          exact (Nat.cast_le (α := ℝ≥0∞)).mpr
-            (Nat.add_le_add (le_max_left _ _) (by decide : 10 ≤ 50))
-        have h9_le_10 : (9 : ℝ≥0∞) ≤ ((10 : ℕ) : ℝ≥0∞) :=
-          (Nat.cast_le (α := ℝ≥0∞)).mpr (by decide : 9 ≤ 10)
-        calc (T_init + 9) +
-              (∑' θ', μ_u θ' * (inEpochPotential U w (targetCap U 1) base (zOf θ') : ℝ≥0∞))
-            = (T_init + ∑' θ', μ_u θ' *
-                (inEpochPotential U w (targetCap U 1) base (zOf θ') : ℝ≥0∞)) + 9 :=
-                add_right_comm T_init 9 _
-          _ ≤ (initFirstCharge : ℝ≥0∞) + ((10 : ℕ) : ℝ≥0∞) := add_le_add hcost_init h9_le_10
-          _ ≤ (resizableBaseCharge : ℝ≥0∞) := hb_ge
+        rw [htsum_pot, add_right_comm]
+        refine (add_le_add hcost_init (by norm_num : (9 : ℝ≥0∞) ≤ 10)).trans ?_
+        exact_mod_cast (show initFirstCharge + 10 ≤ resizableBaseCharge from
+          Nat.add_le_add (le_max_left _ _) (by decide))
     | delete u =>
       have hnc_t0 : ¬(Cond.eq mTag mZero).Holds x₂.toData := by
         change x₂.regs mTag ≠ x₂.regs mZero; rw [hx₂_arg.1, hx₂_z]; decide
@@ -1501,8 +1491,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         rw [hcap0, hinit0', hs'_emp, Dictionary.dom_empty]
         exact compactedRep_empty hzb hfr8 hhdr0
       · rw [ite_eq_right (by omega : ¬0 < n), add_zero, hpot_x_zero, Nat.cast_zero, zero_add]
-        rw [tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
-        simp only [PMF.pure_apply_self, one_mul]
+        rw [tsum_pmf_pure_mul]
         rw [hcap0, hinit0', hn'0, resizablePotential_zero, Nat.cast_zero, add_zero]
         exact (Nat.cast_le (α := ℝ≥0∞)).mpr (by unfold resizableBaseCharge; omega)
   · -- Active epoch: `1 ≤ n`
@@ -1533,23 +1522,19 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         (off := 5) hx₂b hL_x (mReg_ne (by decide)) hx₂_base (hfit6.of_le (by decide))
         (by change base + 5 < x.frontier; rw [hfr]; omega)
       set x₃ := (x₂.set mCur (base + 5)).set mNNew (x.mem (base + 5))
-      have hx₃_base : x₃.regs mBase = base := by
-        rw [show x₃.regs mBase = x₂.regs mBase by simp [x₃, RData.set], hx₂_base]
+      have hx₃_base : x₃.regs mBase = base := by simp [x₃, RData.set, hx₂_base]
       obtain ⟨hex_ldU, hx₄b⟩ := loadAtOffCode_exec (rAddr := mBase) (rDst := mTmpA) (rTmp := mCur)
         (off := 0) hx₃b hL_x (mReg_ne (by decide)) hx₃_base (fits_zero w)
         (by change base + 0 < x.frontier; rw [hfr]; omega)
       set x₄ := (x₃.set mCur (base + 0)).set mTmpA (x.mem (base + 0))
-      have hx₄_cnt : x₄.regs mCnt = n := by
-        rw [show x₄.regs mCnt = x₂.regs mCnt by simp [x₄, x₃, RData.set], hx₂_cnt]
+      have hx₄_cnt : x₄.regs mCnt = n := by simp [x₄, x₃, RData.set, hx₂_cnt]
       have hx₄_nn : x₄.regs mNNew = st.cap := by simp [x₄, x₃, RData.set, hhdr.hdr_N]
       have hx₄_u1 : x₄.regs mTmpA = U - 1 := by
         change x.mem (base + 0) = U - 1; rw [Nat.add_zero]; exact hhdr.hdr_U
-      have hx₄_base : x₄.regs mBase = base := by
-        rw [show x₄.regs mBase = x₃.regs mBase by simp [x₄, RData.set], hx₃_base]
-      have hx₄_arg : resizableArgMatch (.insert u v) x₄.regs := by
-        exact ⟨by rw [show x₄.regs mTag = x₂.regs mTag by simp [x₄, x₃, RData.set], hx₂_arg.1],
-          by rw [show x₄.regs mArgU = x₂.regs mArgU by simp [x₄, x₃, RData.set], hx₂_arg.2.1],
-          by rw [show x₄.regs mArgV = x₂.regs mArgV by simp [x₄, x₃, RData.set], hx₂_arg.2.2]⟩
+      have hx₄_base : x₄.regs mBase = base := by simp [x₄, hx₃_base]
+      have hx₄_arg : resizableArgMatch (.insert u v) x₄.regs :=
+        ⟨by simp [x₄, x₃, RData.set, hx₂_arg.1], by simp [x₄, x₃, RData.set, hx₂_arg.2.1],
+          by simp [x₄, x₃, RData.set, hx₂_arg.2.2]⟩
       obtain ⟨hn_le_n', hn'_le_n1⟩ : n ≤ n' ∧ n' ≤ n + 1 := card_dom_insert_bounds st.dict u v
       have hdist_ins : Nat.dist n n' ≤ 1 := by unfold Nat.dist; omega
       by_cases hmig : n = st.cap ∧ st.cap < U
@@ -1687,9 +1672,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
               rfl, rfl, hbel_z⟩
             rw [hcap0, hinit0', hs'_emp, Dictionary.dom_empty]
             exact hrep_z
-          · rw [ite_eq_left (show 0 < n from hn_pos),
-              tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
-            simp only [PMF.pure_apply_self, one_mul]
+          · rw [ite_eq_left (show 0 < n from hn_pos), tsum_pmf_pure_mul]
             rw [hcap0, hinit0', hn'0, resizablePotential_zero, Nat.cast_zero, add_zero]
             exact hle_b.trans (le_self_add.trans le_add_self)
         · rw [ite_eq_right hsome] at hd1_cases
@@ -1713,9 +1696,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
             · rw [hcap_same, hinit_same, hs'_same, show (Dictionary.dom st.dict).card = 1 from hn1]
               exact hsplit_z
           · rw [ite_eq_left hcap_same]; exact ⟨hn_pos, by simp [q_out, θ]⟩
-          · rw [ite_eq_left (show 0 < n from hn_pos),
-              tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
-            simp only [PMF.pure_apply_self, one_mul]
+          · rw [ite_eq_left (show 0 < n from hn_pos), tsum_pmf_pure_mul]
             have hpot_full : resizablePotential U w st'.cap n' st'.initCount base q_out.data =
                 resizablePotential U w st.cap n st.initCount base x := by
               rw [hcap_same, hinit_same, hn'1, hn1]
@@ -1737,11 +1718,9 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           (rTmp := mCur) (off := 5) hx₂b hL_x (mReg_ne (by decide)) hx₂_base
           (hfit6.of_le (by decide)) (by change base + 5 < x.frontier; rw [hfr]; omega)
         set x₃ := (x₂.set mCur (base + 5)).set mNNew (x.mem (base + 5))
-        have hx₃_cnt : x₃.regs mCnt = n := by
-          rw [show x₃.regs mCnt = x₂.regs mCnt by simp [x₃, RData.set], hx₂_cnt]
+        have hx₃_cnt : x₃.regs mCnt = n := by simp [x₃, RData.set, hx₂_cnt]
         have hx₃_nn : x₃.regs mNNew = st.cap := by simp [x₃, RData.set, hhdr.hdr_N]
-        have hx₃_one : x₃.regs mOne = 1 := by
-          rw [show x₃.regs mOne = x₂.regs mOne by simp [x₃, RData.set], hx₂_o]
+        have hx₃_one : x₃.regs mOne = 1 := by simp [x₃, RData.set, hx₂_o]
         -- 2. `mTmpA := mCnt - mOne; mTmpB := mNNew - mOne; mCur := 2; mTmpB := mTmpB >>> mCur`
         set x₄ := x₃.set mTmpA (n - 1)
         have hex_s1 := RDemonicExec.exactBin (f := .sub) (d := mTmpA) (i := mCnt) (j := mOne)
@@ -1751,12 +1730,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         set x₅ := x₄.set mTmpB (st.cap - 1)
         have hex_s2 := RDemonicExec.exactBin (f := .sub) (d := mTmpB) (i := mNNew) (j := mOne)
           (w := w) (L_peak := L_peak) (x := x₄) hL_x (v := st.cap - 1)
-          (by
-            have h4n : x₄.regs mNNew = st.cap := by
-              rw [show x₄.regs mNNew = x₃.regs mNNew by simp [x₄, RData.set], hx₃_nn]
-            have h4o : x₄.regs mOne = 1 := by
-              rw [show x₄.regs mOne = x₃.regs mOne by simp [x₄, RData.set], hx₃_one]
-            simp [BinOp.evalExact, h4n, h4o, show 1 ≤ st.cap by omega])
+          (by simp [BinOp.evalExact, x₄, RData.set, hx₃_nn, hx₃_one, show 1 ≤ st.cap by omega])
           (hhdr.fits_U.of_le (by omega))
         set x₆ := x₅.set mCur 2
         have hex_c2 := RDemonicExec.const (B := .exact) (d := mCur) (v := 2) (x := x₅) hL_x hfit2
@@ -1772,13 +1746,10 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
             hfit2).set (hhdr.fits_U.of_le (by omega))
         have hx₇_ta : x₇.regs mTmpA = n - 1 := by simp [x₇, x₆, x₅, x₄, RData.set]
         have hx₇_tb : x₇.regs mTmpB = (st.cap - 1) / 4 := by simp [x₇, RData.set]
-        have hx₇_base : x₇.regs mBase = base := by
-          rw [show x₇.regs mBase = x₂.regs mBase by simp [x₇, x₆, x₅, x₄, x₃, RData.set], hx₂_base]
+        have hx₇_base : x₇.regs mBase = base := by simp [x₇, x₆, x₅, x₄, x₃, RData.set, hx₂_base]
         have hx₇_arg : resizableArgMatch (.delete u) x₇.regs :=
-          ⟨by rw [show x₇.regs mTag = x₂.regs mTag by simp [x₇, x₆, x₅, x₄, x₃, RData.set],
-                hx₂_arg.1],
-           by rw [show x₇.regs mArgU = x₂.regs mArgU by simp [x₇, x₆, x₅, x₄, x₃, RData.set],
-                hx₂_arg.2]⟩
+          ⟨by simp [x₇, x₆, x₅, x₄, x₃, RData.set, hx₂_arg.1],
+           by simp [x₇, x₆, x₅, x₄, x₃, RData.set, hx₂_arg.2]⟩
         by_cases hmig : 4 * (n - 1) < st.cap
         · -- Capacity-halving migration!
           have hnc_lt : ¬(Cond.lt mTmpB mTmpA).Holds x₇.toData := by
