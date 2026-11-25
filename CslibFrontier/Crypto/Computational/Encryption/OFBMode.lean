@@ -264,11 +264,8 @@ private theorem toOuterMeasure_bad_freshQuery_le (ℓ : ℕ) (b : Bool) (q : Blo
     exact (Nat.div_le_self _ _).trans (Nat.mul_le_mul_left _ (Nat.sub_le _ _))))
   rintro ⟨iv, us⟩ ⟨hflag, hp⟩
   have hlen : us.length = blockModeBlocks ℓ q := length_snd_of_mem_support_uniformDraws hp
-  have hs' : s.2 = false := by simpa using hs
-  have hflag' : chainFlag s.1 iv us = true := by simpa [hs'] using hflag
-  have h := not_goodChain_of_chainFlag s.1 iv us hflag'
-  rw [hlen] at h
-  exact h
+  have h := not_goodChain_of_chainFlag s.1 iv us (by simpa [hs] using hflag)
+  rwa [hlen] at h
 
 /-- The flag is raised with probability at most `K (K + ℓ) / 2 ^ n` when the queries ask at most
 `K` blocks in total and at most `ℓ` blocks each. -/
