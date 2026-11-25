@@ -6712,6 +6712,7 @@ public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalDeterminan
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalValueCutoff
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeCandidateCoverage
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeFiberSeparation
 public import CslibFrontier.Foundations.Analysis.Normed.Close
 public import CslibFrontier.Foundations.Analysis.Normed.Ring.PowSub
@@ -7379,6 +7380,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
 public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffSumBounds
 public import CslibFrontier.Foundations.Data.MvPolynomial.CoefficientDegree
 public import CslibFrontier.Foundations.Data.MvPolynomial.CriticalSystem
+public import CslibFrontier.Foundations.Data.MvPolynomial.DegreePiecePolynomial
 public import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 public import CslibFrontier.Foundations.Data.MvPolynomial.Determinant
 public import CslibFrontier.Foundations.Data.MvPolynomial.DividedDifferences

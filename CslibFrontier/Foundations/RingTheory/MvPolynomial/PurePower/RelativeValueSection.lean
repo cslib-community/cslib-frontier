@@ -86,6 +86,15 @@ theorem coeff_specializedRelativeValueSection_eq_eval₂ (hell : 1 ≤ ell)
         ((finSuccEquiv ℤ m (finiteRelativeValueSection hell F hF)).coeff i) :=
   Polynomial.coeff_map _ _
 
+/-- The specialized degree is bounded by the total degree of the unspecialized section. -/
+theorem natDegree_specializedRelativeValueSection_le (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) :
+    (specializedRelativeValueSection hell F hF x).natDegree ≤
+      (finiteRelativeValueSection hell F hF).totalDegree := by
+  rw [specializedRelativeValueSection]
+  exact Polynomial.natDegree_map_le.trans ((natDegree_finSuccEquiv _).le.trans
+    (degreeOf_le_totalDegree _ _))
+
 /-- The univariate fiber evaluates to the fixed-power section at the supplied critical value. -/
 theorem eval_specializedRelativeValueSection (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) (y : T) :
