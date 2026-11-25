@@ -248,9 +248,7 @@ private lemma snd_modInvStep_le (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)) (h�
   · exact ⟨h₁, h₂⟩
   · refine ⟨h₂, ?_⟩
     rcases Nat.eq_zero_or_pos m with rfl | hm
-    · have hs₁ : s.2.1 = 0 := by lia
-      have hs₂ : s.2.2 = 0 := by lia
-      simp [hs₁, hs₂]
+    · simp [Nat.le_zero.mp h₁, Nat.le_zero.mp h₂]
     · exact (Nat.mod_lt _ hm).le
 
 private lemma snd_iterate_modInvStep_le (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ))
@@ -260,8 +258,7 @@ private lemma snd_iterate_modInvStep_le (m : ℕ) (s : (ℕ × ℕ) × (ℕ × �
   | zero => exact ⟨h₁, h₂⟩
   | succ i ih =>
     rw [Function.iterate_succ_apply]
-    obtain ⟨h₁', h₂'⟩ := snd_modInvStep_le m s h₁ h₂
-    exact ih (modInvStep m s) h₁' h₂'
+    exact ih _ (snd_modInvStep_le m s h₁ h₂).1 (snd_modInvStep_le m s h₁ h₂).2
 
 private lemma snd_modInvInit_le (a m : ℕ) :
     (modInvInit a m).2.1 ≤ m ∧ (modInvInit a m).2.2 ≤ m := by
@@ -283,8 +280,7 @@ private lemma snd_iterate_modInvStep_lt {m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ)
   | zero => exact ⟨h₁, h₂⟩
   | succ i ih =>
     rw [Function.iterate_succ_apply]
-    obtain ⟨h₁', h₂'⟩ := snd_modInvStep_lt hm s h₁ h₂
-    exact ih (modInvStep m s) h₁' h₂'
+    exact ih _ (snd_modInvStep_lt hm s h₁ h₂).1 (snd_modInvStep_lt hm s h₁ h₂).2
 
 /-- When `0 < m`, `modInv a m < m`. -/
 theorem modInv_lt {a m : ℕ} (hm : 0 < m) : modInv a m < m := by
@@ -305,40 +301,12 @@ private lemma modEq_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (�
   dsimp only [modInvStep, modInvRem0, modInvRem1, modInvCoeff0, modInvCoeff1, modInvNext]
   split_ifs with hr
   · exact ⟨hm₁, hm₂⟩
-  · refine ⟨hm₂, ?_⟩
-    set q := s.1.1 / s.1.2
-    set u := (q * s.2.2) % m
-    set t' := (s.2.1 + m - u) % m
-    have hu_lt : u < m := Nat.mod_lt _ hm
-    have hsub : (s.2.1 + m - u) + u = s.2.1 + m := Nat.sub_add_cancel (by lia)
-    have ht' : t' ≡ s.2.1 + m - u [MOD m] := Nat.mod_modEq _ m
-    have hu : u ≡ q * s.2.2 [MOD m] := Nat.mod_modEq _ m
-    have hsum : a * t' + a * (q * s.2.2) ≡ a * (s.2.1 + m) [MOD m] := by
-      calc a * t' + a * (q * s.2.2)
-          ≡ a * (s.2.1 + m - u) + a * u [MOD m] :=
-            (ht'.mul_left a).add (hu.symm.mul_left a)
-        _ = a * ((s.2.1 + m - u) + u) := (Nat.mul_add a _ _).symm
-        _ = a * (s.2.1 + m) := by rw [hsub]
-    have hmul_q : a * (q * s.2.2) ≡ s.1.2 * q [MOD m] := by
-      calc a * (q * s.2.2)
-          = q * (a * s.2.2) := by ring
-        _ ≡ q * s.1.2 [MOD m] := hm₂.mul_left q
-        _ = s.1.2 * q := Nat.mul_comm q s.1.2
-    have hrhs : a * (s.2.1 + m) ≡ s.1.1 % s.1.2 + s.1.2 * q [MOD m] := by
-      have ham : a * m ≡ 0 [MOD m] :=
-        Nat.modEq_zero_iff_dvd.mpr (dvd_mul_left m a)
-      calc a * (s.2.1 + m)
-          = a * s.2.1 + a * m := Nat.mul_add a s.2.1 m
-        _ ≡ s.1.1 + 0 [MOD m] := hm₁.add ham
-        _ = s.1.1 := Nat.add_zero s.1.1
-        _ = s.1.1 % s.1.2 + s.1.2 * q := (Nat.mod_add_div s.1.1 s.1.2).symm
-    have hboth : a * t' + s.1.2 * q ≡ s.1.1 % s.1.2 + s.1.2 * q [MOD m] := by
-      calc a * t' + s.1.2 * q
-          ≡ a * t' + a * (q * s.2.2) [MOD m] :=
-            (Nat.ModEq.refl (a * t')).add hmul_q.symm
-        _ ≡ a * (s.2.1 + m) [MOD m] := hsum
-        _ ≡ s.1.1 % s.1.2 + s.1.2 * q [MOD m] := hrhs
-    exact Nat.ModEq.add_right_cancel' (s.1.2 * q) hboth
+  · refine ⟨hm₂, (ZMod.natCast_eq_natCast_iff _ _ _).1 ?_⟩
+    have hu : s.1.1 / s.1.2 * s.2.2 % m ≤ s.2.1 + m := (Nat.mod_lt _ hm).le.trans (by lia)
+    have hd := congrArg (Nat.cast : ℕ → ZMod m) (Nat.mod_add_div s.1.1 s.1.2)
+    rw [← ZMod.natCast_eq_natCast_iff] at hm₁ hm₂
+    push_cast [ZMod.natCast_mod, Nat.cast_sub hu, ZMod.natCast_self] at hm₁ hm₂ hd ⊢
+    linear_combination hm₁ - ((s.1.1 / s.1.2 : ℕ) : ZMod m) * hm₂ - hd
 
 private lemma modEq_iterate_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (ℕ × ℕ))
     (hm₁ : a * s.2.1 ≡ s.1.1 [MOD m]) (hm₂ : a * s.2.2 ≡ s.1.2 [MOD m]) (i : ℕ) :
@@ -348,37 +316,29 @@ private lemma modEq_iterate_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ
   | zero => exact ⟨hm₁, hm₂⟩
   | succ i ih =>
     rw [Function.iterate_succ_apply]
-    obtain ⟨hm₁', hm₂'⟩ := modEq_modInvStep hm s hm₁ hm₂
-    exact ih (modInvStep m s) hm₁' hm₂'
+    exact ih _ (modEq_modInvStep hm s hm₁ hm₂).1 (modEq_modInvStep hm s hm₁ hm₂).2
 
 /-- Extended Euclidean correctness modulo `m`: `a * modInv a m ≡ Nat.gcd m a [MOD m]`. -/
 theorem mul_modInv_modEq_gcd (a : ℕ) {m : ℕ} (hm : 0 < m) :
     a * modInv a m ≡ Nat.gcd m a [MOD m] := by
   have hm₁ : a * (modInvInit a m).2.1 ≡ (modInvInit a m).1.1 [MOD m] := by
     change a * 0 ≡ m [MOD m]
-    rw [Nat.mul_zero]
-    exact (Nat.modEq_zero_iff_dvd.mpr (dvd_refl m)).symm
+    simp [Nat.ModEq]
   have hm₂ : a * (modInvInit a m).2.2 ≡ (modInvInit a m).1.2 [MOD m] := by
     change a * (if m ≤ 1 then 0 else 1) ≡ a [MOD m]
     split_ifs with hle
-    · have hm1 : m = 1 := by lia
-      subst hm1
+    · obtain rfl : m = 1 := by lia
       exact Nat.modEq_one
     · rw [Nat.mul_one]
   have hiter := (modEq_iterate_modInvStep hm (modInvInit a m) hm₁ hm₂ (gcdCount (m, a))).1
   have hfst : ((modInvStep m)^[gcdCount (m, a)] (modInvInit a m)).1.1 = Nat.gcd m a := by
-    rw [fst_iterate_modInvStep]
-    change (gcdStep^[gcdCount (m, a)] (m, a)).1 = Nat.gcd m a
-    rw [iterate_gcdStep_eq]
+    rw [fst_iterate_modInvStep, show (modInvInit a m).1 = (m, a) from rfl, iterate_gcdStep_eq]
   simpa [modInv, modInvCoeff0, hfst] using hiter
 
 /-- Modular inverse correctness: when `Nat.Coprime a m`, `a * modInv a m ≡ 1 [MOD m]`. -/
 theorem mul_modInv_modEq_one {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m) :
     a * modInv a m ≡ 1 [MOD m] := by
-  have hgcd : Nat.gcd m a = 1 := by
-    rw [Nat.gcd_comm]
-    exact hcop
-  simpa [hgcd] using mul_modInv_modEq_gcd a hm
+  simpa [Nat.gcd_comm, hcop.gcd_eq_one] using mul_modInv_modEq_gcd a hm
 
 /-- When `0 < m` and `Nat.Coprime a m`, `modInv a m` equals the canonical natural-number
 representative `((a : ZMod m)⁻¹).val` of the modular inverse in `ZMod m`. -/
@@ -389,15 +349,11 @@ theorem modInv_eq_zmod_inv_val {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m)
   · have hlt := modInv_lt (a := a) zero_lt_one
     have hval := ZMod.val_lt ((a : ZMod 1)⁻¹)
     lia
-  · have hm1 : 1 < m + 2 := by lia
-    have : Fact (1 < m + 2) := ⟨hm1⟩
+  · have : Fact (1 < m + 2) := ⟨by lia⟩
     have hmul : (a : ZMod (m + 2)) * (modInv a (m + 2) : ZMod (m + 2)) = 1 := by
-      have hmod := (ZMod.natCast_eq_natCast_iff (a * modInv a (m + 2)) 1 (m + 2)).mpr
+      simpa using (ZMod.natCast_eq_natCast_iff (a * modInv a (m + 2)) 1 (m + 2)).mpr
         (mul_modInv_modEq_one (by lia) hcop)
-      simpa using hmod
-    have hinv := ZMod.inv_eq_of_mul_eq_one (m + 2) (a : ZMod (m + 2))
-      (modInv a (m + 2) : ZMod (m + 2)) hmul
-    rw [hinv, ZMod.val_natCast_of_lt (modInv_lt (by lia))]
+    rw [ZMod.inv_eq_of_mul_eq_one (m + 2) _ _ hmul, ZMod.val_natCast_of_lt (modInv_lt (by lia))]
 
 /-- At every extended-Euclidean step, the encoded state has length at most
 `9 * (encPair encNat encNat (a, m)).length`. -/

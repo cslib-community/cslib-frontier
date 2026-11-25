@@ -94,7 +94,7 @@ theorem mw_regret_le_sq {η : ℝ} (hη : 0 < η) (hℓ : ∀ s < T, ∀ i, η *
     ∑ t ∈ range T, ∑ j, prob (mwFactor η) ℓ t j * ℓ t j ≤
       ∑ t ∈ range T, ℓ t i + η * ∑ t ∈ range T, ℓ t i ^ 2 + log (Fintype.card ι) / η := by
   have : Nonempty ι := ⟨i⟩
-  have hφ : ∀ s < T, ∀ j, 0 < mwFactor η (ℓ s j) := fun s hs j => by
+  have hφ (s : ℕ) (hs : s < T) (j : ι) : 0 < mwFactor η (ℓ s j) := by
     rw [mwFactor_apply]; linarith [hℓ s hs j]
   have hmaster := sum_log_le_log_card_add hφ i
   have hlow : -(η * ∑ t ∈ range T, ℓ t i) - η ^ 2 * ∑ t ∈ range T, ℓ t i ^ 2 ≤
@@ -109,16 +109,13 @@ theorem mw_regret_le_sq {η : ℝ} (hη : 0 < η) (hℓ : ∀ s < T, ∀ i, η *
       -(η * ∑ t ∈ range T, ∑ j, prob (mwFactor η) ℓ t j * ℓ t j) := by
     rw [mul_sum, ← sum_neg_distrib]
     refine sum_le_sum fun t ht => ?_
-    have ht' := mem_range.mp ht
     have hpos := sum_prob_mul_pos (φ := mwFactor η) (ℓ := ℓ) (t := t)
-      fun s hs => hφ s (by omega)
-    rw [sum_prob_mul_mwFactor fun s hs => hφ s (by omega)] at hpos ⊢
+      fun s hs => hφ s ((Nat.lt_succ_iff.mp hs).trans_lt (mem_range.mp ht))
+    rw [sum_prob_mul_mwFactor fun s hs => hφ s (lt_trans hs (mem_range.mp ht))] at hpos ⊢
     linarith [log_le_sub_one_of_pos hpos]
-  have key : η * ∑ t ∈ range T, ∑ j, prob (mwFactor η) ℓ t j * ℓ t j ≤
-      η * (∑ t ∈ range T, ℓ t i + η * ∑ t ∈ range T, ℓ t i ^ 2 + log (Fintype.card ι) / η) := by
-    rw [mul_add, mul_add, mul_div_cancel₀ _ hη.ne']
-    nlinarith
-  exact le_of_mul_le_mul_left key hη
+  refine le_of_mul_le_mul_left ?_ hη
+  rw [mul_add, mul_add, mul_div_cancel₀ _ hη.ne']
+  nlinarith
 
 /-- **Regret of multiplicative weights** [AroraHazanKale2012, Theorem 2.1]: for losses in
 `[-1, 1]` and `0 < η ≤ 1 / 2`, for every expert `i`,
@@ -127,13 +124,10 @@ theorem mw_regret_le {η : ℝ} (hη : 0 < η) (hη' : η ≤ 1 / 2) (hℓ : ∀
     (i : ι) :
     ∑ t ∈ range T, ∑ j, prob (mwFactor η) ℓ t j * ℓ t j ≤
       ∑ t ∈ range T, ℓ t i + η * ∑ t ∈ range T, |ℓ t i| + log (Fintype.card ι) / η := by
-  refine (mw_regret_le_sq hη (fun s hs j => ?_) i).trans ?_
-  · have h := (abs_le.mp (hℓ s hs j)).2
-    nlinarith
-  · gcongr with t ht
-    have h := hℓ t (mem_range.mp ht) i
-    rw [← sq_abs]
-    nlinarith [abs_nonneg (ℓ t i)]
+  refine (mw_regret_le_sq hη (fun s hs j => by nlinarith [(abs_le.mp (hℓ s hs j)).2]) i).trans ?_
+  gcongr with t ht
+  rw [← sq_abs]
+  nlinarith [hℓ t (mem_range.mp ht) i, abs_nonneg (ℓ t i)]
 
 /-- **Regret against mixed strategies** [AroraHazanKale2012, Corollary 2.2]: for losses in
 `[-1, 1]`, `0 < η ≤ 1 / 2` and every distribution `q` on the experts,
@@ -161,19 +155,17 @@ theorem mw_regret_le_sqrt (hn : 2 ≤ Fintype.card ι) (hT : 4 * log (Fintype.ca
     (hℓ : ∀ s < T, ∀ i, |ℓ s i| ≤ 1) (i : ι) :
     ∑ t ∈ range T, ∑ j, prob (mwFactor √(log (Fintype.card ι) / T)) ℓ t j * ℓ t j ≤
       ∑ t ∈ range T, ℓ t i + 2 * √(T * log (Fintype.card ι)) := by
-  set L := log (Fintype.card ι) with hLdef
+  set L := log (Fintype.card ι)
   have hL : 0 < L := log_pos (by exact_mod_cast hn)
   have hT0 : (0 : ℝ) < T := by linarith
   have hη : 0 < √(L / T) := sqrt_pos.mpr (div_pos hL hT0)
-  have hη' : √(L / T) ≤ 1 / 2 := by
-    rw [show (1 / 2 : ℝ) = √(1 / 4) by rw [show (1 / 4 : ℝ) = (1 / 2) ^ 2 by norm_num,
-      sqrt_sq (by norm_num)]]
-    exact sqrt_le_sqrt (by rw [div_le_iff₀ hT0]; linarith)
+  have hdiv : L / T ≤ (1 / 2) ^ 2 := by rw [div_le_iff₀ hT0]; linarith
+  have hη' : √(L / T) ≤ 1 / 2 := sqrt_le_iff.mpr ⟨by norm_num, hdiv⟩
   refine (mw_regret_le hη hη' hℓ i).trans ?_
   have habs : ∑ t ∈ range T, |ℓ t i| ≤ T := by
-    calc ∑ t ∈ range T, |ℓ t i| ≤ ∑ t ∈ range T, (1 : ℝ) :=
+    calc ∑ t ∈ range T, |ℓ t i| ≤ ∑ _t ∈ range T, (1 : ℝ) :=
           sum_le_sum fun t ht => hℓ t (mem_range.mp ht) i
-      _ = T := by simp only [sum_const, card_range, nsmul_eq_mul, mul_one]
+      _ = T := by simp
   rw [← sqrt_div_mul_add_div_sqrt_div hL hT0]
   nlinarith [mul_le_mul_of_nonneg_left habs hη.le]
 
@@ -191,55 +183,42 @@ theorem mw_regret_le_sqrt_of_mem_Icc
       ∑ t ∈ range T, ℓ t i + 2 * √(T * log (Fintype.card ι)) := by
   have : Nonempty ι := ⟨i⟩
   rcases Nat.eq_zero_or_pos T with rfl | hTpos
-  · simp only [range_zero, sum_empty, Nat.cast_zero, zero_mul, sqrt_zero, mul_zero, add_zero,
-      le_rfl]
+  · simp
   by_cases hn : 2 ≤ Fintype.card ι
-  · set L := log (Fintype.card ι) with hLdef
+  · set L := log (Fintype.card ι)
     have hL : 0 < L := log_pos (by exact_mod_cast hn)
     have hT0 : (0 : ℝ) < T := Nat.cast_pos.mpr hTpos
-    have hhalf : (1 / 2 : ℝ) = √(1 / 4) := by
-      rw [show (1 / 4 : ℝ) = (1 / 2) ^ 2 by norm_num, sqrt_sq (by norm_num)]
     by_cases h4 : 4 * L ≤ T
-    · have hle : √(L / T) ≤ 1 / 2 := by
-        rw [hhalf]
-        exact sqrt_le_sqrt (by rw [div_le_iff₀ hT0]; linarith)
-      rw [min_eq_left hle]
+    · have hdiv : L / T ≤ (1 / 2) ^ 2 := by rw [div_le_iff₀ hT0]; linarith
+      rw [min_eq_left (sqrt_le_iff.mpr ⟨by norm_num, hdiv⟩)]
       exact mw_regret_le_sqrt hn h4 (fun s hs j =>
         abs_le.mpr ⟨by linarith [(hℓ s hs j).1], (hℓ s hs j).2⟩) i
-    · have hge : (1 / 2 : ℝ) ≤ √(L / T) := by
-        rw [hhalf]
-        exact sqrt_le_sqrt (by rw [le_div_iff₀ hT0]; linarith)
-      rw [min_eq_right hge]
-      have hφ : ∀ s < T, ∀ j, 0 < mwFactor (1 / 2) (ℓ s j) := fun s hs j => by
+    · rw [min_eq_right (le_sqrt_of_sq_le (by rw [le_div_iff₀ hT0]; linarith))]
+      have hφ (s : ℕ) (hs : s < T) (j : ι) : 0 < mwFactor (1 / 2) (ℓ s j) := by
         rw [mwFactor_apply]; linarith [(hℓ s hs j).2]
       have hloss : ∑ t ∈ range T, ∑ j, prob (mwFactor (1 / 2)) ℓ t j * ℓ t j ≤ T := by
-        calc ∑ t ∈ range T, ∑ j, prob (mwFactor (1 / 2)) ℓ t j * ℓ t j
-            ≤ ∑ t ∈ range T, ∑ j, prob (mwFactor (1 / 2)) ℓ t j * 1 :=
-              sum_le_sum fun t ht => sum_le_sum fun j _ =>
-                mul_le_mul_of_nonneg_left (hℓ t (mem_range.mp ht) j).2
-                  (prob_nonneg (fun s hs => hφ s (lt_trans hs (mem_range.mp ht))) j)
-          _ = ∑ _t ∈ range T, (1 : ℝ) := sum_congr rfl fun t ht => by
-              simp only [mul_one, sum_prob (fun s hs => hφ s (lt_trans hs (mem_range.mp ht)))]
-          _ = T := by simp only [sum_const, card_range, nsmul_eq_mul, mul_one]
-      have hi_nn : 0 ≤ ∑ t ∈ range T, ℓ t i :=
-        sum_nonneg fun t ht => (hℓ t (mem_range.mp ht) i).1
+        refine (sum_le_card_nsmul _ _ 1 fun t ht => ?_).trans_eq (by simp)
+        calc ∑ j, prob (mwFactor (1 / 2)) ℓ t j * ℓ t j
+            ≤ ∑ j, prob (mwFactor (1 / 2)) ℓ t j * 1 := sum_le_sum fun j _ =>
+              mul_le_mul_of_nonneg_left (hℓ t (mem_range.mp ht) j).2
+                (prob_nonneg (fun s hs => hφ s (lt_trans hs (mem_range.mp ht))) j)
+          _ = 1 := by
+              simp only [mul_one]
+              exact sum_prob fun s hs => hφ s (lt_trans hs (mem_range.mp ht))
+      have hi_nn : 0 ≤ ∑ t ∈ range T, ℓ t i := sum_nonneg fun t ht => (hℓ t (mem_range.mp ht) i).1
       have hT_le : (T : ℝ) ≤ 2 * √(T * L) := by
-        refine le_of_sq_le_sq ?_ (mul_nonneg zero_le_two (sqrt_nonneg _))
-        rw [mul_pow, sq_sqrt (mul_nonneg hT0.le hL.le)]
-        nlinarith
+        refine le_of_sq_le_sq ?_ (by positivity)
+        rw [mul_pow, sq_sqrt (by positivity)]; nlinarith
       linarith
   · have hcard : Fintype.card ι = 1 := le_antisymm (by omega) Fintype.card_pos
     have : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.mp hcard.le
-    have hlog : log (Fintype.card ι) = 0 := by rw [hcard, Nat.cast_one, log_one]
-    have hmin : min √(log (Fintype.card ι) / T) (1 / 2) = 0 := by
-      rw [hlog, zero_div, sqrt_zero, min_eq_left (by norm_num)]
-    rw [hmin, hlog, mul_zero, sqrt_zero, mul_zero, add_zero]
-    have hφ : ∀ s < T, ∀ j, 0 < mwFactor 0 (ℓ s j) := fun _ _ _ => by
-      rw [mwFactor_apply, zero_mul, sub_zero]; exact zero_lt_one
+    have hlog : log (Fintype.card ι) = 0 := by simp [hcard]
+    rw [hlog, zero_div, sqrt_zero, min_eq_left (by norm_num), mul_zero, sqrt_zero, mul_zero,
+      add_zero]
+    have hφ (s : ℕ) (_ : s < T) (j : ι) : 0 < mwFactor 0 (ℓ s j) := by simp [mwFactor_apply]
     refine (sum_congr rfl fun t ht => ?_).le
-    have h1 : prob (mwFactor 0) ℓ t i = 1 := by
-      have hs := sum_prob (fun s hs => hφ s (lt_trans hs (mem_range.mp ht)))
-      rwa [Fintype.sum_subsingleton _ i] at hs
-    rw [Fintype.sum_subsingleton _ i, h1, one_mul]
+    have h1 := sum_prob (ℓ := ℓ) (t := t) fun s hs => hφ s (lt_trans hs (mem_range.mp ht))
+    rw [Fintype.sum_subsingleton _ i] at h1 ⊢
+    rw [h1, one_mul]
 
 end Cslib.MachineLearning.OnlineLearning.Experts

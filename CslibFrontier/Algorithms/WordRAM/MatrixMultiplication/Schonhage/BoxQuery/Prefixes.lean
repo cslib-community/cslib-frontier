@@ -75,18 +75,13 @@ instance {L : ℕ} (η : OutStr L) (t : ℕ) (xs : List Term) : Decidable (Good 
 theorem prefixCode_append (xs : List Term) (lam : Term) :
     prefixCode (xs ++ [lam]) = prefixCode xs +
       (Encoding.termDigits.symm lam).val * 10 ^ xs.length := by
-  simp only [prefixCode, List.map_append, List.map_cons, List.map_nil,
-    Nat.ofDigits_append, List.length_map, Nat.ofDigits_singleton]
-  rw [Nat.mul_comm]
+  simp [prefixCode, Nat.ofDigits_append, Nat.mul_comm]
 
 /-- Every partial code is below the next actual decimal power. -/
 theorem prefixCode_lt (xs : List Term) : prefixCode xs < 10 ^ xs.length := by
-  simpa only [prefixCode, List.length_map] using Nat.ofDigits_lt_base_pow_length
-    (l := xs.map fun lam => (Encoding.termDigits.symm lam).val)
-    (by decide : 1 < (10 : ℕ)) (by
-      intro x hx
-      obtain ⟨lam, _, rfl⟩ := List.mem_map.mp hx
-      exact (Encoding.termDigits.symm lam).isLt)
+  simpa only [prefixCode, List.length_map] using
+    Nat.ofDigits_lt_base_pow_length (by decide)
+      (List.forall_mem_map.mpr fun lam _ => (Encoding.termDigits.symm lam).isLt)
 
 theorem usedFrom_le {L : ℕ} (η : OutStr L) (k : ℕ) (xs : List Term) :
     usedFrom η k xs ≤ xs.length := by
@@ -102,9 +97,7 @@ theorem starsFrom_le {L : ℕ} (η : OutStr L) (k : ℕ) (xs : List Term) :
   | nil => simp [starsFrom]
   | cons lam xs ih =>
     simp only [starsFrom, List.length_cons]
-    split
-    · split <;> have := ih (k + 1) <;> omega
-    · exact (ih (k + 1)).trans (by omega)
+    split_ifs <;> have := ih (k + 1) <;> omega
 
 /-- Inner-choice counts add across adjacent prefix segments. -/
 theorem usedFrom_append {L : ℕ} (η : OutStr L) (k : ℕ) (xs ys : List Term) :
@@ -124,8 +117,8 @@ theorem starsFrom_append {L : ℕ} (η : OutStr L) (k : ℕ) (xs ys : List Term)
     simp only [List.cons_append, starsFrom, usedFrom, List.length_cons]
     have hshift : k + (xs.length + 1) = k + 1 + xs.length := by omega
     rw [hshift]
-    by_cases hi : (outAt η k).IsInner <;> by_cases hp : lam = .P0
-    all_goals simp [hi, hp, ih, Nat.add_assoc]
+    by_cases hi : (outAt η k).IsInner <;> by_cases hp : lam = .P0 <;>
+      simp [hi, hp, ih, Nat.add_assoc]
 
 /-- Compatibility composes along real adjacent coordinates. -/
 theorem compatible_append {L : ℕ} (η : OutStr L) (k : ℕ) (xs ys : List Term) :
@@ -147,8 +140,8 @@ theorem starsFrom_append_one {L : ℕ} (η : OutStr L) (xs : List Term) (lam : T
       if (outAt η xs.length).IsInner ∧ lam = .P0 ∧ usedFrom η 0 xs = 0 then 1 else 0 := by
   rw [starsFrom_append]
   by_cases hused : usedFrom η 0 xs = 0 <;>
-    by_cases hi : (outAt η xs.length).IsInner <;> by_cases hp : lam = .P0
-  all_goals simp [starsFrom, hused, hi, hp]
+    by_cases hi : (outAt η xs.length).IsInner <;> by_cases hp : lam = .P0 <;>
+    simp [starsFrom, hused, hi, hp]
 
 /-- Permitted child terms, expressed using existing contribution and the real order budget. -/
 @[expose] def allowedTerms {L : ℕ} (η : OutStr L) (t : ℕ) (xs : List Term) : Finset Term :=
@@ -174,9 +167,7 @@ theorem mem_allowedTerms_inner {L t : ℕ} {η : OutStr L} {xs : List Term}
   simp only [allowedTerms, mem_filter, mem_univ, true_and, hc, hi, true_and]
   by_cases hp : lam = .P0
   · simp [hp, hx]
-  · rw [ite_eq_left hp]
-    simp only [hp, false_or]
-    omega
+  · simp [hp]
 
 /-- At an outer coordinate only its existing private term is permitted. -/
 theorem mem_allowedTerms_outer {L t : ℕ} {η : OutStr L} {xs : List Term}
@@ -217,29 +208,20 @@ theorem mem_children {L t : ℕ} {η : OutStr L} {xs ys : List Term}
   · rw [children, ite_eq_left hi]
     by_cases hu : usedFrom η 0 xs < t
     · simp only [hu, ite_true, List.mem_cons, List.mem_ofFn]
-      constructor
+      refine ⟨?_, fun ⟨lam, _, h⟩ => ?_⟩
       · rintro (rfl | ⟨d, rfl⟩)
         · exact ⟨.P0, (mem_allowedTerms_inner hx hi _).mpr (Or.inl rfl), rfl⟩
         · exact ⟨_, (mem_allowedTerms_inner hx hi _).mpr (Or.inr hu), rfl⟩
-      · rintro ⟨lam, _, rfl⟩
-        by_cases hp : lam = .P0
-        · exact Or.inl (by rw [hp])
-        · obtain ⟨d, hd⟩ := (ne_P0_iff_indexed lam).mp hp
-          exact Or.inr ⟨d, by rw [hd]⟩
+      · rcases eq_or_ne lam .P0 with rfl | hp
+        · exact Or.inl h
+        · obtain ⟨d, rfl⟩ := (ne_P0_iff_indexed lam).mp hp
+          exact Or.inr ⟨d, h.symm⟩
     · simp only [hu, ite_false, List.mem_cons, List.not_mem_nil, or_false]
-      constructor
-      · rintro rfl
-        exact ⟨.P0, (mem_allowedTerms_inner hx hi _).mpr (Or.inl rfl), rfl⟩
-      · rintro ⟨lam, hlam, rfl⟩
-        have hp := ((mem_allowedTerms_inner hx hi lam).mp hlam).resolve_right hu
-        rw [hp]
-  · rw [children, ite_eq_right hi]
-    simp only [List.mem_singleton]
-    constructor
-    · rintro rfl
-      exact ⟨_, (mem_allowedTerms_outer hx hi _).mpr rfl, rfl⟩
-    · rintro ⟨lam, hlam, rfl⟩
-      rw [(mem_allowedTerms_outer hx hi lam).mp hlam]
+      exact ⟨fun h => ⟨.P0, (mem_allowedTerms_inner hx hi _).mpr (Or.inl rfl), h⟩,
+        fun ⟨lam, hlam, h⟩ => ((mem_allowedTerms_inner hx hi lam).mp hlam).resolve_right hu ▸ h⟩
+  · simp only [children, hi, ↓reduceIte, List.mem_singleton]
+    exact ⟨fun h => ⟨_, (mem_allowedTerms_outer hx hi _).mpr rfl, h⟩,
+      fun ⟨lam, hlam, h⟩ => (mem_allowedTerms_outer hx hi lam).mp hlam ▸ h⟩
 
 /-- Each native child is a valid later prefix. -/
 theorem good_of_mem_children {L t : ℕ} {η : OutStr L} {xs ys : List Term}
@@ -256,42 +238,26 @@ theorem length_of_mem_children {L t : ℕ} {η : OutStr L} {xs ys : List Term}
 /-- Distinct native labels give distinct children, including the distinguished P0 branch. -/
 theorem children_nodup {L : ℕ} (η : OutStr L) (t : ℕ) (xs : List Term) :
     (children η t xs).Nodup := by
-  let indexed := List.ofFn fun d : Fin 9 => xs ++ [Encoding.termDigits ⟨d.val, by omega⟩]
-  have hinj : (fun d : Fin 9 => xs ++ [Encoding.termDigits ⟨d.val, by omega⟩]).Injective := by
-    intro i j hij
-    have hd : Encoding.termDigits ⟨i.val, by omega⟩ =
-        Encoding.termDigits ⟨j.val, by omega⟩ := by
-      simpa only [List.cons.injEq, and_true] using List.append_cancel_left hij
-    exact Fin.ext (congrArg (fun z : Fin 10 => z.val) (Encoding.termDigits.injective hd))
-  have hn : indexed.Nodup := List.nodup_ofFn.mpr hinj
-  have hnot : xs ++ [.P0] ∉ indexed := by
-    intro h
-    obtain ⟨d, hd⟩ := List.mem_ofFn.mp h
-    have hp : Encoding.termDigits ⟨d.val, by omega⟩ = Term.P0 := by
-      simpa only [List.cons.injEq, and_true] using List.append_cancel_left hd
-    exact indexed_ne_P0 d hp
   unfold children
-  split
-  · split
-    · exact List.nodup_cons.mpr ⟨hnot, hn⟩
-    · simp
+  split_ifs
+  · refine List.nodup_cons.mpr ⟨fun h => ?_, List.nodup_ofFn.mpr fun i j hij => ?_⟩
+    · obtain ⟨d, hd⟩ := List.mem_ofFn.mp h
+      exact indexed_ne_P0 d (by simpa using List.append_cancel_left hd)
+    · exact Fin.ext (by simpa using List.append_cancel_left hij)
+  · simp
   · simp
 
 /-- The native constant-size fanout never exceeds ten tasks. -/
 theorem children_length_le {L : ℕ} (η : OutStr L) (t : ℕ) (xs : List Term) :
     (children η t xs).length ≤ 10 := by
   unfold children
-  split
-  · split <;> simp
-  · simp
+  split_ifs <;> simp
 
 /-- The ordered native children are the image of the finite permitted label set. -/
 theorem children_toFinset {L t : ℕ} {η : OutStr L} {xs : List Term}
     (hx : usedFrom η 0 xs ≤ t) :
     (children η t xs).toFinset = (allowedTerms η t xs).image (fun lam => xs ++ [lam]) := by
   ext ys
-  simp only [List.mem_toFinset, mem_image]
-  rw [mem_children hx]
-  exact exists_congr fun lam => and_congr_right fun _ => eq_comm
+  simp [mem_children hx, eq_comm]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery

@@ -57,34 +57,20 @@ theorem exists_transvections (A : SL2 h) : ∃ l : List (TransvectionStruct (Fin
 theorem th0_toSpecialLinearGroup (τ : TransvectionStruct (Fin h) (ZMod 2)) :
     (th0 0 τ.toSpecialLinearGroup : G h n) =
     SpecialLinearGroup.transvection τ.hij (cst (n + 1) τ.c) := by
-  refine Subtype.ext ?_
-  ext a b
-  have hw : ∀ a : Fin h, (wt 0 a : (R (n + 1))ˣ) = 1 := fun a => ite_eq_right (Fin.not_lt_zero a)
-  rw [th0_val, shMat_apply, hw, hw, sub_zero, sub_zero, SpecialLinearGroup.transvection_coe]
-  rw [TransvectionStruct.toSpecialLinearGroup_def, SpecialLinearGroup.transvection_coe,
+  refine Subtype.ext (Matrix.ext fun a b => ?_)
+  have hw (x : Fin h) : (wt 0 x : (R (n + 1))ˣ) = 1 := ite_eq_right (Fin.not_lt_zero x)
+  rw [th0_val, shMat_apply, hw, hw, sub_zero, sub_zero, SpecialLinearGroup.transvection_coe,
+    TransvectionStruct.toSpecialLinearGroup_def, SpecialLinearGroup.transvection_coe,
     Matrix.add_apply, Matrix.add_apply, map_add, Matrix.single_apply, Matrix.single_apply]
-  simp only [Units.val_one, inv_one, one_mul, mul_one]
-  congr 1
-  · by_cases hab : a = b
-    · subst hab; simp
-    · rw [Matrix.one_apply_ne hab, Matrix.one_apply_ne hab, map_zero]
-  · split_ifs
-    · rfl
-    · exact map_zero _
+  simp only [Units.val_one, inv_one, one_mul, mul_one, Matrix.one_apply]
+  congr 1 <;> split_ifs <;> simp
 
 theorem WL.transvectionStruct (h3 : 3 ≤ h) (τ : TransvectionStruct (Fin h) (ZMod 2)) : ∃ N,
     WL h2 (th0 0 τ.toSpecialLinearGroup : G h n) N := by
   rw [th0_toSpecialLinearGroup]
-  have key : ∀ c : ZMod 2, c = 0 ∨ c = 1 := by decide
-  rcases key τ.c with h0 | h1
-  · refine ⟨0, ?_⟩
-    have : (SpecialLinearGroup.transvection τ.hij (cst (n + 1) τ.c) : G h n) = 1 := by
-      rw [h0, map_zero, SpecialLinearGroup.transvection_coeff_zero]
-    rw [this]
-    exact WL.one
-  · refine ⟨4 ^ (h + 3) * (2 * (n + 1)) ^ 3, ?_⟩
-    rw [h1, map_one]
-    exact WL.el_one h3 τ.i τ.j τ.hij
+  rcases (show ∀ c : ZMod 2, c = 0 ∨ c = 1 by decide) τ.c with h0 | h1
+  · exact ⟨0, by simpa [h0, SpecialLinearGroup.transvection_coeff_zero] using WL.one⟩
+  · exact ⟨4 ^ (h + 3) * (2 * (n + 1)) ^ 3, by simpa [h1] using WL.el_one h3 τ.i τ.j τ.hij⟩
 
 theorem WL.const (h3 : 3 ≤ h) (A : SL2 h) : ∃ N, WL h2 (th0 0 A : G h n) N := by
   obtain ⟨l, rfl⟩ := exists_transvections A

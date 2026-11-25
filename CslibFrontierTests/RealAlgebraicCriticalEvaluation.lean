@@ -8,8 +8,12 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
@@ -469,10 +473,125 @@ example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
     let C : Controlled (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ)) encNat 0 :=
       Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
     let lifted := C.onCoordinate (n := fun _ => 2) (.const 2) (fun _ => 1) (.const 1)
-    lifted.cutoff w < p → lifted.evaluate (w, p, z) = z.getD 1 0 % p := by
-  intro C lifted hcut
+    lifted.evaluate (w, p, z) = z.getD 1 0 % p := by
+  intro C lifted
+  have hcut : lifted.cutoff w < p := by
+    simpa only [lifted, Controlled.cutoff_onCoordinate, C, Controlled.coordinate] using hp.pos
   rw [lifted.evaluate_eq w p z hp hcut]
   simp only [evaluation, MvPolynomial.rename_X, MvPolynomial.eval₂_X, ZMod.val_natCast,
     List.getD_eq_getElem?_getD, Fin.val_one]
+
+-- Address 3 selects coordinate 1 of the two-variable source.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let F : MvPolynomial (Fin 2) ℤ := X 0
+    let hF : F.totalDegree ≤ 2 := (totalDegree_X_le 0).trans (by decide)
+    let C : Controlled (fun _ : ℕ => F) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let equations := C.indexedCoordinateEquations (d := fun _ => 1) Decoder.nat
+      (fun _ => by decide) (fun _ => by decide) (fun _ => hF) (.const 1)
+    let Q := (Polynomial.Bivariate.swap (parametricCoordinatePolynomial
+      (by decide : 1 ≤ 2) F hF 1)).leadingCoeff
+    equations.evaluate ∈ CountingFunction 18 (encEvaluation (encPair encNat encNat)) encNat ∧
+      (equations.cutoff (w, 3) < p → equations.evaluate ((w, 3), p, z) =
+        (Q.eval₂ (Int.castRingHom (ZMod p)) (z.getD 1 0 : ZMod p)).val) := by
+  intro F hF C equations Q
+  refine ⟨equations.evaluate_mem, fun hcut => ?_⟩
+  rw [equations.evaluate_eq (w, 3) p z hp hcut]
+  simp only [evaluation, eval₂_indexedCoordinateEquation]
+  rw [List.getD_eq_getElem?_getD]
+  rfl
+
+-- Row zero reads the source even though the family also contains its coordinate equations.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let C : Controlled (fun _ : ℕ => F) encNat 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let rows := C.selectionEquations (d := fun _ => 1) Decoder.nat
+      (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+      (.const 1)
+    rows.evaluate ∈ CountingFunction 18 (encEvaluation (encPair encNat encNat)) encNat ∧
+      (rows.cutoff (w, 0) < p → rows.evaluate ((w, 0), p, z) = z.getD 0 0 % p) := by
+  intro F C rows
+  refine ⟨rows.evaluate_mem, fun hcut => ?_⟩
+  rw [rows.evaluate_eq (w, 0) p z hp hcut, selectionEquation_zero]
+  simp only [F, evaluation, MvPolynomial.eval₂_X, ZMod.val_natCast,
+    List.getD_eq_getElem?_getD, Fin.val_zero]
+
+-- Squaring the two addressed rows and adding their values costs one counting level.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let C : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let squares := C.sumSquares Decoder.nat (.const 1) (fun _ => 2) (fun _ => 1)
+      (fun _ => 0) (fun _ => 0) (.const 2) (.const 1) (.const 0) (.const 0)
+      (fun _ _ _ => totalDegree_X_le 0) (fun _ _ _ => by simp) (fun _ _ _ => le_rfl)
+    squares.evaluate ∈ CountingFunction 1 (encEvaluation encNat) encNat ∧
+      (squares.cutoff w < p →
+        squares.evaluate (w, p, z) = (z.getD 0 0 ^ 2 + z.getD 0 0 ^ 2) % p) := by
+  intro C squares
+  refine ⟨squares.evaluate_mem, fun hcut => ?_⟩
+  rw [squares.evaluate_eq w p z hp hcut]
+  simp only [evaluation, MvPolynomial.eval₂_sum, MvPolynomial.eval₂_pow, MvPolynomial.eval₂_X,
+    Fin.val_zero, List.getD_eq_getElem?_getD]
+  rw [Finset.sum_const, Finset.card_range, two_nsmul, ← Nat.cast_pow, ← Nat.cast_add,
+    ZMod.val_natCast]
+
+-- The in-range row reads the appended coordinate. Extra list entries do not extend the arity.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let CQ : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let rows := CQ.positivityEquations (n := fun _ : ℕ => 1) (fun _ => 1) (.const 1)
+    rows.evaluate ∈ CountingFunction 0 (encEvaluation (encPair encNat encNat)) encNat ∧
+      rows.evaluate ((w, 0), p, z) =
+        ((z.getD 0 0 : ZMod p) * (z.getD 1 0 : ZMod p) ^ 2 - 1).val ∧
+      rows.evaluate ((w, 2), p, z) = (-1 : ZMod p).val := by
+  intro CQ rows
+  have hcut (j : ℕ) : rows.cutoff (w, j) < p := by
+    simpa only [rows, Controlled.cutoff_positivityEquations, CQ, Controlled.coordinate]
+      using hp.pos
+  refine ⟨rows.evaluate_mem, ?_, ?_⟩
+  · rw [rows.evaluate_eq (w, 0) p z hp (hcut 0), positivityEquation_of_lt _ (by decide : 0 < 1)]
+    simp [evaluation, List.getD_eq_getElem?_getD, sub_eq_add_neg]
+  · rw [rows.evaluate_eq (w, 2) p z hp (hcut 2), positivityEquation_of_le _ (by decide : 1 ≤ 2)]
+    simp [evaluation]
+
+-- The system x = 0, 1 > 0 has a real zero and evaluates both rows modulo a prime.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let CP : Controlled (fun _ : ℕ × ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let CQ : Controlled (fun _ : ℕ × ℕ => (1 : MvPolynomial (Fin 1) ℤ))
+        (encPair encNat encNat) 0 :=
+      Controlled.constant (.const 1) (fun _ => 1) (.const 1)
+    let system := CP.indexedFeasibility (n := fun _ : ℕ => 1) CQ Decoder.nat
+      (fun _ => 1) (fun _ => 1) (fun _ => 1) (fun _ => 0) (fun _ => 0)
+      (.const 1) (.const 1) (.const 1) (.const 0) (.const 0)
+      (fun _ _ _ => totalDegree_X_le 0) (fun _ _ _ => by simp)
+      (fun _ _ _ => by simp) (fun _ _ _ => by simp) (fun _ _ _ => le_rfl) (fun _ _ _ => le_rfl)
+    system.evaluate ∈ CountingFunction 1 (encEvaluation encNat) encNat ∧
+      (system.cutoff w < p → system.evaluate (w, p, z) =
+        ((z.getD 0 0 : ZMod p) ^ 2 + ((z.getD 1 0 : ZMod p) ^ 2 - 1) ^ 2).val) ∧
+      ∃ z : Fin 2 → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+        (indexedFeasibilityPolynomial (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+          (fun _ => 1) 1 1) = 0 := by
+  intro CP CQ system
+  refine ⟨system.evaluate_mem, fun hcut => ?_, ?_⟩
+  · rw [system.evaluate_eq w p z hp hcut, evaluation,
+      eval₂_indexedFeasibilityPolynomial (n := 1) _ (fun _ => X 0) (fun _ => 1) 1 1]
+    simp [List.getD_eq_getElem?_getD]
+  · apply (exists_indexedFeasibilityPolynomial_zero_iff (n := 1)
+      (fun _ => X 0) (fun _ => 1) 1 1).mpr
+    exact ⟨fun _ => 0, fun _ _ => by simp, fun _ _ => by simp⟩
+
+-- The system x = 0, x > 0 has no real zero even with an auxiliary coordinate.
+example :
+    ¬ ∃ z : Fin 2 → ℝ, MvPolynomial.eval₂ (Int.castRingHom ℝ) z
+      (indexedFeasibilityPolynomial (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ))
+        (fun _ => X 0) 1 1) = 0 := by
+  intro h
+  obtain ⟨x, he, hq⟩ :=
+    (exists_indexedFeasibilityPolynomial_zero_iff (n := 1) (fun _ => X 0) (fun _ => X 0) 1 1).mp h
+  exact (ne_of_gt (hq 0 (by decide))) (he 0 (by decide))
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

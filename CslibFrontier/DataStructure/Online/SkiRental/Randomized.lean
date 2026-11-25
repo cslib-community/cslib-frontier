@@ -167,10 +167,8 @@ private theorem sum_buy_aux (m n : ℕ) (hn : n ≤ m + 1) :
   induction n with
   | zero => rw [Finset.sum_range_zero, zero_add, pow_zero, one_mul, Nat.sub_zero]
   | succ n ih =>
-    rw [Finset.sum_range_succ, add_right_comm, ih (by omega)]
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + j := ⟨m - n, by omega⟩
-    rw [show n + j - n = j by omega, show n + j + 1 - n = j + 1 by omega,
-      show n + j + 1 - (n + 1) = j by omega]
+    rw [Finset.sum_range_succ, add_right_comm, ih (by omega),
+      show m + 1 - (n + 1) = m - n by omega, show m + 1 - n = m - n + 1 by omega]
     ring
 
 private theorem sum_buy_mul_aux (m n : ℕ) (hn : n ≤ m + 1) :
@@ -179,10 +177,8 @@ private theorem sum_buy_mul_aux (m n : ℕ) (hn : n ≤ m + 1) :
   induction n with
   | zero => rw [Finset.sum_range_zero, zero_mul]
   | succ n ih =>
-    rw [Finset.sum_range_succ, ih (by omega)]
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + j := ⟨m - n, by omega⟩
-    rw [show n + j - n = j by omega, show n + j + 1 - n = j + 1 by omega,
-      show n + j + 1 - (n + 1) = j by omega]
+    rw [Finset.sum_range_succ, ih (by omega),
+      show m + 1 - (n + 1) = m - n by omega, show m + 1 - n = m - n + 1 by omega]
     ring
 
 private theorem sum_Ico_buy_aux (m n : ℕ) (hn : n ≤ m + 1) :
@@ -216,11 +212,8 @@ private theorem sum_adv_aux (m n : ℕ) (hn : n ≤ m) :
   induction n with
   | zero => rw [Finset.sum_range_zero, zero_add, pow_zero, one_mul, Nat.sub_zero]
   | succ n ih =>
-    rw [← ih (by omega), Finset.sum_range_succ, add_assoc]
-    congr 1
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + 1 + j := ⟨m - n - 1, by omega⟩
-    rw [show n + 1 + j - 1 - n = j by omega, show n + 1 + j - (n + 1) = j by omega,
-      show n + 1 + j - n = j + 1 by omega]
+    rw [← ih (by omega), Finset.sum_range_succ, show m - (n + 1) = m - 1 - n by omega,
+      show m - n = m - 1 - n + 1 by omega]
     ring
 
 private theorem sum_adv_mul_aux (m n : ℕ) (hn : n ≤ m) :
@@ -229,11 +222,8 @@ private theorem sum_adv_mul_aux (m n : ℕ) (hn : n ≤ m) :
   induction n with
   | zero => rw [Finset.sum_range_zero, Nat.sub_zero]; ring
   | succ n ih =>
-    rw [← ih (by omega), Finset.sum_range_succ, add_assoc]
-    congr 1
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + 1 + j := ⟨m - n - 1, by omega⟩
-    rw [show n + 1 + j - 1 - n = j by omega, show n + 1 + j - (n + 1) = j by omega,
-      show n + 1 + j - n = j + 1 by omega]
+    rw [← ih (by omega), Finset.sum_range_succ, show m - (n + 1) = m - 1 - n by omega,
+      show m - n = m - 1 - n + 1 by omega]
     ring
 
 /-- Mean cost bound for the equalizing adversary: against the threshold strategy that rents for
@@ -450,11 +440,7 @@ theorem le_sum_advWeight_mul_cost (B : ℕ) [NeZero B] (A : DetStrategy (problem
     B ^ B ≤ ∑ o, advWeight B o * A.cost false (List.replicate (advDays B o) ()) := by
   obtain ⟨t, ht⟩ := exists_rentThenBuy_cost_eq A (2 * B - 1)
   have hle : ∀ o, advDays B o ≤ 2 * B - 1 := by
-    rintro (_ | k)
-    · exact le_rfl
-    · have := k.isLt
-      simp only [advDays]
-      omega
+    rintro (_ | k) <;> simp only [advDays] <;> omega
   have hcost : ∀ o, A.cost false (List.replicate (advDays B o) ()) =
       if advDays B o ≤ t then advDays B o else t + B := fun o => by
     rw [ht _ (hle o), cost_rentThenBuy, List.length_replicate]
@@ -466,9 +452,7 @@ theorem le_sum_advWeight_mul_cost (B : ℕ) [NeZero B] (A : DetStrategy (problem
 private theorem one_le_min_advDays (B : ℕ) [NeZero B] (o : Option (Fin (B - 1))) :
     1 ≤ min (advDays B o) B := by
   have := NeZero.pos B
-  cases o with
-  | none => simp only [advDays]; omega
-  | some k => simp only [advDays]; omega
+  cases o <;> simp only [advDays] <;> omega
 
 /-- The oblivious adversary distribution on ski-day counts, with probabilities
 `advWeight B o / B^(B-1)`. -/

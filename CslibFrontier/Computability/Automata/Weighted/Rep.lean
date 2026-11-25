@@ -127,23 +127,19 @@ theorem mul_tail (r₁ : Rep F Ω Q₁) (r₂ : Rep F Ω Q₂) (o : List Ω) :
     simp only [mul, Matrix.fromBlocks_mulVec, Matrix.zero_mulVec, zero_add,
       Sum.elim_comp_inl, Sum.elim_comp_inr]
     congr 1
-    rw [List.length_cons, Finset.sum_range_succ']
+    rw [List.length_cons, Finset.sum_range_succ', Matrix.mulVec_sum]
     congr 1
-    · rw [Matrix.mulVec_sum]
-      refine Finset.sum_congr rfl fun k _ => ?_
-      simp [tail, Matrix.mulVec_smul]
-    · ext i
+    · exact Finset.sum_congr rfl fun _ _ => by simp [tail, Matrix.mulVec_smul]
+    · ext
       simp [tail, series, Matrix.vecMulVec_mulVec, mul_comm]
 
 theorem mul_series (r₁ : Rep F Ω Q₁) (r₂ : Rep F Ω Q₂) (o : List Ω) :
     (r₁.mul r₂).series o = Series.mul r₁.series r₂.series o := by
   rw [series, mul_tail, Series.mul, Finset.sum_range_succ']
-  have e : (r₁.mul r₂).lam = Sum.elim r₁.lam ((r₁.lam ⬝ᵥ r₁.gam) • r₂.lam) := rfl
-  rw [e, sumElim_dotProduct_sumElim, dotProduct_sum]
-  congr 1
-  · refine Finset.sum_congr rfl fun k _ => ?_
-    simp [series, mul_comm]
-  · simp [series, tail]
+  change Sum.elim r₁.lam ((r₁.lam ⬝ᵥ r₁.gam) • r₂.lam) ⬝ᵥ _ = _
+  rw [sumElim_dotProduct_sumElim, dotProduct_sum]
+  exact congrArg₂ (· + ·) (Finset.sum_congr rfl fun _ _ => by simp [series, mul_comm])
+    (by simp [series, tail])
 
 /-- Star of a linear representation (over non-empty factors). -/
 @[expose] def star (r : Rep F Ω Q) : Rep F Ω (Unit ⊕ Q) where
@@ -162,43 +158,30 @@ theorem star_tail (r : Rep F Ω Q) (o : List Ω) :
   | nil => ext q; rcases q with q | q <;> simp [tail, star, Series.kstar_nil]
   | cons a o ih =>
     rw [tail, ih]
-    have h2 : ∑ k ∈ range (a :: o).length,
-        (Series.kstar r.series ((a :: o).drop (k + 1))) • r.tail ((a :: o).take (k + 1)) =
-        r.mu a *ᵥ (∑ k ∈ range o.length,
-          (Series.kstar r.series (o.drop (k + 1))) • r.tail (o.take (k + 1))) +
-          (Series.kstar r.series o) • (r.mu a *ᵥ r.gam) := by
-      rw [List.length_cons, Finset.sum_range_succ']
-      congr 1
-      rw [Matrix.mulVec_sum]
-      refine Finset.sum_congr rfl fun k _ => ?_
-      simp [tail, Matrix.mulVec_smul]
     simp only [star, Matrix.fromBlocks_mulVec, Sum.elim_comp_inl, Sum.elim_comp_inr]
     congr 1
-    · ext _
-      rw [Series.kstar_cons, Finset.sum_range_succ']
-      simp only [Pi.add_apply]
-      rw [add_comm]
+    · ext ⟨⟩
+      have hdot (v : Q → F) :
+          ((Matrix.of fun (_ : Unit) q => (r.lam ᵥ* r.mu a) q) *ᵥ v) () =
+            r.lam ⬝ᵥ (r.mu a *ᵥ v) := by
+        rw [Matrix.dotProduct_mulVec]
+        simp [Matrix.mulVec, dotProduct]
+      rw [Series.kstar_cons, Finset.sum_range_succ', Pi.add_apply, add_comm, hdot,
+        Matrix.mulVec_sum, dotProduct_sum]
+      exact congrArg₂ (· + ·)
+        (Finset.sum_congr rfl fun _ _ => by simp [series, tail, Matrix.mulVec_smul, mul_comm])
+        (by simp [series, tail, Matrix.mulVec, dotProduct])
+    · rw [List.length_cons, Finset.sum_range_succ', add_comm, Matrix.mulVec_sum]
       congr 1
-      · have hdot : ∀ v : Q → F,
-            ((Matrix.of fun (_ : Unit) q => (r.lam ᵥ* r.mu a) q) *ᵥ v) () =
-              r.lam ⬝ᵥ (r.mu a *ᵥ v) := by
-          intro v
-          rw [Matrix.dotProduct_mulVec]
-          simp [Matrix.mulVec, dotProduct]
-        rw [hdot, Matrix.mulVec_sum, dotProduct_sum]
-        refine Finset.sum_congr rfl fun k _ => ?_
-        simp [series, tail, Matrix.mulVec_smul, mul_comm]
-      · simp [series, tail, Matrix.mulVec, dotProduct]
-    · rw [h2, add_comm]
-      congr 1
-      ext q
-      simp [Matrix.mulVec, dotProduct, mul_comm]
+      · exact Finset.sum_congr rfl fun _ _ => by simp [tail, Matrix.mulVec_smul]
+      · ext
+        simp [tail, Matrix.mulVec, dotProduct, mul_comm]
 
 theorem star_series (r : Rep F Ω Q) (o : List Ω) :
     r.star.series o = Series.kstar r.series o := by
   rw [series, star_tail]
-  have e : r.star.lam = Sum.elim (1 : Unit → F) (0 : Q → F) := rfl
-  rw [e, sumElim_dotProduct_sumElim]
+  change Sum.elim (1 : Unit → F) (0 : Q → F) ⬝ᵥ _ = _
+  rw [sumElim_dotProduct_sumElim]
   simp [dotProduct]
 
 end Rep

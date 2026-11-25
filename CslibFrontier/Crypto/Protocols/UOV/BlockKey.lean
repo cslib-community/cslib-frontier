@@ -175,9 +175,8 @@ theorem signatureVector_eq_append (O : Matrix (Fin v) (Fin m) R)
     (u : Fin v → R) (x : Fin m → R) :
     signatureVector O u x = Fin.append (u + O *ᵥ x) x := by
   ext k
-  obtain ⟨i | j, rfl⟩ := finSumFinEquiv.surjective k
-  · simp [signatureVector, vinegarEmbed, oilEmbed_apply, Fin.append_left]
-  · simp [signatureVector, vinegarEmbed, oilEmbed_apply, Fin.append_right]
+  obtain ⟨i | j, rfl⟩ := finSumFinEquiv.surjective k <;>
+    simp [signatureVector, vinegarEmbed, oilEmbed_apply]
 
 /-- The lower-right oil block `Pᵢ⁽³⁾ = Upper(-Oᵀ Pᵢ⁽¹⁾ O - Oᵀ Pᵢ⁽²⁾)` ([UOV2026], §3.1, p. 12,
 and Figure 2, line 5, p. 16). -/
@@ -211,19 +210,14 @@ theorem isUpperTriangular_blockMatrix {P1 : Matrix (Fin v) (Fin v) R}
   intro a b hab
   obtain ⟨i | i, rfl⟩ := finSumFinEquiv.surjective a <;>
     obtain ⟨j | j, rfl⟩ := finSumFinEquiv.surjective b
-  · have hij : j < i := by
-      simp only [id_eq, finSumFinEquiv_apply_left, Fin.lt_def, Fin.val_castAdd] at hab
-      exact hab
-    simpa [blockMatrix] using hP1 hij
-  · exfalso
-    simp only [id_eq, finSumFinEquiv_apply_left, finSumFinEquiv_apply_right, Fin.lt_def,
+  · simp only [id_eq, finSumFinEquiv_apply_left, Fin.lt_def, Fin.val_castAdd] at hab
+    simpa [blockMatrix] using hP1 hab
+  · simp only [id_eq, finSumFinEquiv_apply_left, finSumFinEquiv_apply_right, Fin.lt_def,
       Fin.val_castAdd, Fin.val_natAdd] at hab
     omega
   · simp [blockMatrix]
-  · have hij : j < i := by
-      simp only [id_eq, finSumFinEquiv_apply_right, Fin.lt_def, Fin.val_natAdd] at hab
-      omega
-    simpa [blockMatrix] using hP3 hij
+  · simp only [id_eq, finSumFinEquiv_apply_right, Fin.lt_def, Fin.val_natAdd] at hab
+    simpa [blockMatrix] using hP3 (show j < i by omega)
 
 /-- The restricted oil-space matrix `Oᵀ P1 O + Oᵀ P2 + oilBlock O P1 P2` (`[Oᵀ Iₘ] Pᵢ [O; Iₘ]`)
 induces an alternating bilinear form in every characteristic ([UOV2026], §3.1, p. 12). -/
@@ -259,16 +253,13 @@ private theorem toQuadraticForm'_blockMatrix_oilEmbed (O : Matrix (Fin v) (Fin m
     (P3 : Matrix (Fin m) (Fin m) R) (x : Fin m → R) :
     (blockMatrix P1 P2 P3).toQuadraticForm' (oilEmbed O x) =
       P3.toQuadraticForm' x - (-O.transpose * P1 * O - O.transpose * P2).toQuadraticForm' x := by
-  rw [Matrix.toQuadraticForm'_apply, Matrix.toQuadraticForm'_apply, Matrix.toQuadraticForm'_apply,
-    oilEmbed_apply, append_dotProduct_blockMatrix_mulVec]
   have h1 : (O *ᵥ x) ⬝ᵥ (P1 *ᵥ (O *ᵥ x)) = x ⬝ᵥ ((O.transpose * P1 * O) *ᵥ x) := by
-    symm
     rw [Matrix.mul_assoc, ← Matrix.mulVec_mulVec, ← Matrix.mulVec_mulVec,
       Matrix.dotProduct_transpose_mulVec, dotProduct_comm]
   have h2 : (O *ᵥ x) ⬝ᵥ (P2 *ᵥ x) = x ⬝ᵥ ((O.transpose * P2) *ᵥ x) := by
-    symm
     rw [← Matrix.mulVec_mulVec, Matrix.dotProduct_transpose_mulVec, dotProduct_comm]
-  rw [h1, h2]
+  rw [Matrix.toQuadraticForm'_apply, Matrix.toQuadraticForm'_apply, Matrix.toQuadraticForm'_apply,
+    oilEmbed_apply, append_dotProduct_blockMatrix_mulVec, h1, h2]
   simp only [Matrix.sub_mulVec, Matrix.neg_mul, Matrix.neg_mulVec, dotProduct_sub, dotProduct_neg]
   ring
 
@@ -284,17 +275,14 @@ theorem eq_oilBlock_iff (O : Matrix (Fin v) (Fin m) R)
       P3 = oilBlock O P1 P2 := by
   have hvan : MultivariateQuadraticMap.VanishesOn
       (blockMatrix P1 P2 P3).toQuadraticForm' (blockOilSubspace O) ↔
-        P3.toQuadraticForm' = (-O.transpose * P1 * O - O.transpose * P2).toQuadraticForm' := by
-    constructor
-    · intro h
+        P3.toQuadraticForm' = (-O.transpose * P1 * O - O.transpose * P2).toQuadraticForm' :=
+    ⟨fun h => by
       ext x
-      have hx : (blockMatrix P1 P2 P3).toQuadraticForm' (oilEmbed O x) = 0 :=
-        h (oilEmbed O x) (oilEmbed_mem_blockOilSubspace O x)
-      rw [toQuadraticForm'_blockMatrix_oilEmbed] at hx
-      exact sub_eq_zero.mp hx
-    · intro h z hz
+      have hx := h (oilEmbed O x) (oilEmbed_mem_blockOilSubspace O x)
+      rwa [toQuadraticForm'_blockMatrix_oilEmbed, sub_eq_zero] at hx,
+     fun h _ hz => by
       obtain ⟨x, rfl⟩ := mem_blockOilSubspace.mp hz
-      rw [toQuadraticForm'_blockMatrix_oilEmbed, h, sub_self]
+      rw [toQuadraticForm'_blockMatrix_oilEmbed, h, sub_self]⟩
   rw [hvan, oilBlock, Matrix.eq_upperQuadratic_iff_toQuadraticForm'_eq]
 
 /-- `i`-th public polynomial matrix `Pᵢ` constructed from `key`. -/
@@ -391,12 +379,10 @@ theorem BlockKeyMaterial.publicMap_signatureVector_apply (key : BlockKeyMaterial
       u ⬝ᵥ (key.vinegarBlock i *ᵥ u) +
         (u ᵥ* linearizationMatrix key.oilMatrix
           (key.vinegarBlock i) (key.mixedBlock i)) ⬝ᵥ x := by
-  have hlin := MultivariateQuadraticMap.map_add_of_mem key.publicMap_vanishesOn
-    (vinegarEmbed u) (oilEmbed_mem_blockOilSubspace key.oilMatrix x)
-  have hi := congrFun hlin i
   simpa only [signatureVector, Pi.add_apply, BlockKeyMaterial.publicMap_vinegarEmbed, vinegarEval,
-    QuadraticMap.polarBilin_apply_apply,
-    BlockKeyMaterial.polar_vinegarEmbed_oilEmbed_apply] using hi
+    QuadraticMap.polarBilin_apply_apply, BlockKeyMaterial.polar_vinegarEmbed_oilEmbed_apply] using
+    congrFun (MultivariateQuadraticMap.map_add_of_mem key.publicMap_vanishesOn
+      (vinegarEmbed u) (oilEmbed_mem_blockOilSubspace key.oilMatrix x)) i
 
 /-- **UOV vector signing linearization** ([UOV2026], §3.1, p. 13):
 `P([u; 0] + [O; Iₘ] x) = y + L x`. -/

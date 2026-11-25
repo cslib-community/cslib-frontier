@@ -155,11 +155,9 @@ theorem expand_eq_self_iff {found : List α} :
 /-- A round that adds something makes the list longer. -/
 private theorem length_lt_expand {found : List α} (h : expand succ found ≠ found) :
     found.length < (expand succ found).length := by
-  obtain ⟨rest, hrest⟩ := prefix_expand (succ := succ) found
-  rcases rest with _ | ⟨a, rest⟩
+  rcases prefix_expand (succ := succ) found with ⟨_ | ⟨a, rest⟩, hrest⟩
   · exact absurd (by simpa using hrest.symm) h
-  · rw [← hrest]
-    simp
+  · simp [← hrest]
 
 /-- The rounds only append. -/
 theorem prefix_search {i j : ℕ} (hij : i ≤ j) (start : α) :

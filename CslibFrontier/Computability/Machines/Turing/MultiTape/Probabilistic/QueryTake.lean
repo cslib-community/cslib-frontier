@@ -160,9 +160,7 @@ omit [DecidableEq Operation] in
 private theorem getElem?_toList_append_drop_take (answer : List Bool) (pos r : ℕ) :
     (answer[pos]?).toList ++ (answer.drop (pos + 1)).take r =
       (answer.drop pos).take (r + 1) := by
-  have hhead : answer[pos]? = (answer.drop pos).head? := by simp
-  have htail : answer.drop (pos + 1) = (answer.drop pos).tail := by simp
-  rw [hhead, htail, head_toList_append_tail_take]
+  simpa using head_toList_append_tail_take (answer.drop pos) r
 
 omit [DecidableEq Operation] in
 private theorem inputSymbol_config_append {x pre suf : List Bool} {b : Bool}
@@ -248,11 +246,9 @@ theorem run_copyReply (x : List Bool)
     have hstep := step_config_right (some .copyReply) (some .copyReply) hlt (by simp)
       (by subst h; simp : (pre ++ [true]).length ≤ x.length) out (out ++ (answer[pos]?).toList)
       answer[pos]? rfl ch ch' (fun _ => none) (Function.update (fun _ => 0) op 1)
-      (by
-        funext other
-        by_cases heq : other = op
-        · subst other; simp [Config.step, config, ch', hch, Nat.cast_add]
-        · simp [Config.step, config, ch', heq])
+      (funext fun other => by
+        by_cases heq : other = op <;>
+          simp [Config.step, config, ch', hch, Nat.cast_add, heq])
     have hsplit : pre ++ List.replicate (remLimit + 1) true =
         (pre ++ [true]) ++ List.replicate remLimit true := by
       rw [List.replicate_succ, ← List.singleton_append, List.append_assoc]
@@ -322,11 +318,8 @@ theorem run_frame (x : List Bool)
     have hstep₂ := step_config_right (some .bit) (some .marker) hlt₂ (by simp)
       (by subst h; simp : (pre ++ [true, b]).length ≤ x.length) out out none (by simp) ch ch'
       (Function.update (fun _ => none) op (some b)) (fun _ => 0)
-      (by
-        funext other
-        by_cases heq : other = op
-        · subst other; simp [Config.step, config, ch']
-        · simp [Config.step, config, ch', heq])
+      (funext fun other => by
+        by_cases heq : other = op <;> simp [Config.step, config, ch', heq])
     have h2 : 2 * (b :: rem).length + 2 = (2 * rem.length + 2) + 1 + 1 := by simp; lia
     have hsplit : pre ++ frame (b :: rem) ++ suf = (pre ++ [true, b]) ++ frame rem ++ suf := by
       simp [frame_cons, List.append_assoc]
@@ -351,10 +344,7 @@ theorem run_frame (x : List Bool)
           Nat.reduceAdd, length_frame, frame_cons, Nat.add_right_cancel_iff]
         lia
       · funext other
-        by_cases heq : other = op
-        · subst other
-          simp [config, ch']
-        · simp [config, ch', heq]
+        by_cases heq : other = op <;> simp [config, ch', heq]
     · simp [ch', List.append_assoc]
 
 end QueryTakeCore
@@ -449,9 +439,7 @@ theorem computesTidily_queryTakePTM (op : Operation) (q : List Bool) (limit : �
     rfl
   · rintro ⟨finalCfg, finalState⟩ hfinal other
     supp_cases hfinal [run_interpret_runOracleConfigFrom_ofDeterministic, hrew]
-    by_cases heq : other = op
-    · subst other
-      simp [Sequential.right, Sequential.start, QueryTakeCore.config]
-    · simp [Sequential.right, Sequential.start, QueryTakeCore.config, heq, hbuf other]
+    by_cases heq : other = op <;>
+      simp [Sequential.right, Sequential.start, QueryTakeCore.config, heq, hbuf]
 
 end Turing.MultiTapePTM

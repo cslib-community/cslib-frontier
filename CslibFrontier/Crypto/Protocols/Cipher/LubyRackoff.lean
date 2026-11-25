@@ -1680,8 +1680,7 @@ theorem advantage_feistel4StrongRandomRoundsGame_idealStrongGame_le
     (feistel4StrongRandomRoundsGame_apply_le hQ true)
     (idealStrongGame_apply_le_feistel4StrongRandomRoundsGame hQ true)
   ennreal_to_real at h
-  rw [Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at h
-  exact h
+  rwa [Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at h
 
 /-- Concrete instantiation of the 4-round strong Luby–Rackoff theorem on `BitString n`
 (block size `2n`): the information-theoretic chosen-ciphertext collision error is at most

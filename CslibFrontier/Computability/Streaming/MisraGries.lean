@@ -193,26 +193,20 @@ theorem mul_count_sub_run_add_card_le (s : List α) (a : α) :
 the estimate of the frequency `f_a` of `a` lies in `[f_a - m / (k + 1), f_a]`. -/
 theorem count_sub_div_le_run (s : List α) (a : α) :
     (s.count a : ℝ) - s.length / (k + 1) ≤ (misraGries k).run s a := by
-  have h := mul_count_sub_run_add_card_le (k := k) s a
-  have hle := run_le_count (k := k) s a
-  have hk : (0 : ℝ) < k + 1 := by positivity
-  rw [sub_le_iff_le_add, ← sub_le_iff_le_add', le_div_iff₀ hk]
-  have : ((k + 1) * (s.count a - (misraGries k).run s a) : ℕ) ≤ (s.length : ℝ) := by
-    exact_mod_cast (Nat.le_add_right _ _).trans h
-  push_cast [Nat.cast_sub hle] at this
+  have h : (((k + 1) * (s.count a - (misraGries k).run s a) : ℕ) : ℝ) ≤ s.length := by
+    exact_mod_cast (Nat.le_add_right _ _).trans (mul_count_sub_run_add_card_le (k := k) s a)
+  push_cast [Nat.cast_sub (run_le_count (k := k) s a)] at h
+  rw [sub_le_iff_le_add, ← sub_le_iff_le_add', le_div_iff₀ (by positivity)]
   linarith
 
 /-- **Frequent items are kept** [Chakrabarti2025, Section 1.4]: an item occurring more than
 `m / (k + 1)` times in a stream of `m` items has a positive counter. -/
 theorem mem_state_of_length_lt_mul_count {s : List α} {a : α}
     (h : s.length < (k + 1) * s.count a) : a ∈ (misraGries k).state s := by
-  rw [← Multiset.count_pos]
-  have := mul_count_sub_run_add_card_le (k := k) s a
-  change (k + 1) * (s.count a - ((misraGries k).state s).count a) + _ ≤ _ at this
-  by_contra h0
-  rw [Nat.lt_iff_add_one_le, Nat.not_le, Nat.lt_one_iff] at h0
-  rw [h0, Nat.sub_zero] at this
-  omega
+  by_contra ha
+  have h0 : (misraGries k).run s a = 0 := Multiset.count_eq_zero.2 ha
+  have hle := mul_count_sub_run_add_card_le (k := k) s a
+  rw [h0, Nat.sub_zero] at hle; omega
 
 /-- **The majority vote** [Chakrabarti2025, Section 1.1]: with one counter, an item occurring in
 more than half of the stream is the only item with a counter. -/

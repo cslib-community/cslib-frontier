@@ -158,20 +158,13 @@ theorem two_pow_mul_two_pow_lt_size_of_computes_clique {n k t : ℕ} (ht : 3 ≤
   have htw : t ≤ w := Nat.lt_two_pow_self.le
   have hww : w ≤ w ^ 2 := Nat.le_self_pow (by norm_num) w
   have hkn : k ≤ n := (Nat.le_self_pow (by norm_num) k).trans hn
-  have hp : 4 * w * t ≤ n := by
-    calc 4 * w * t ≤ 4 * w * w := Nat.mul_le_mul_left _ htw
-      _ = 4 * w ^ 2 := by ring
-      _ ≤ k - 1 := hk
-      _ ≤ n := (Nat.sub_le _ _).trans hkn
+  have hp : 4 * w * t ≤ n :=
+    (Nat.mul_le_mul_left _ htw).trans (by rw [mul_assoc, ← sq]; omega)
   have hB : sunflowerBound (4 * w * t) w ^ 2 * w ^ w ≤ (32 * w ^ 6) ^ w := by
     refine (sunflower_sq_mul_pow_le t w w).trans (Nat.pow_le_pow_left ?_ w)
     calc 16 * t ^ 2 * w ^ 4 * w ≤ 16 * (2 * w) * w ^ 4 * w := by gcongr
       _ = 32 * w ^ 6 := by ring
-  have hq : 1 < k ^ 3 := by
-    have : 2 ≤ k := by omega
-    have := Nat.pow_le_pow_left this 3
-    norm_num at this
-    omega
+  have hq : 1 < k ^ 3 := Nat.one_lt_pow (by norm_num) (by omega)
   have hpos : Positive.errorCap n k (4 * w * t) w * w ^ w < n.choose k := by
     apply positive_budget_of_pow hq (by omega) (q := k ^ 3)
     · simpa [pow_succ] using hn
@@ -215,11 +208,8 @@ theorem sixtyFour_pow_two_pow_lt_size_of_computes_clique {n k t : ℕ} (ht : 4 �
     dsimp only [q]
     nlinarith
   have hkn : k ≤ n := (Nat.le_mul_of_pos_left k (by omega : 0 < q)).trans hn
-  have hp : 4 * w * t ≤ n := by
-    calc 4 * w * t ≤ 4 * w * w := Nat.mul_le_mul_left _ htw
-      _ = 4 * w ^ 2 := by ring
-      _ ≤ k - 1 := hk
-      _ ≤ n := (Nat.sub_le _ _).trans hkn
+  have hp : 4 * w * t ≤ n :=
+    (Nat.mul_le_mul_left _ htw).trans (by rw [mul_assoc, ← sq]; omega)
   have hB : sunflowerBound (4 * w * t) w ^ 2 * 64 ^ w ≤ q ^ w := by
     refine (sunflower_sq_mul_pow_le t w 64).trans_eq ?_
     congr 1

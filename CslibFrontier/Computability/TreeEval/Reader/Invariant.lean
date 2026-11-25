@@ -75,43 +75,35 @@ private theorem inv_step {s : State} (hs : Inv ℓ H s) (hh : machine.halt s = f
   cases c with
   | hdrLength n =>
     obtain ⟨heq, hn⟩ := hs
-    simp only [State.mk.injEq] at heq
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, -⟩ := heq
+    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
     rcases Nat.lt_or_ge n ℓ with hlt | hge
-    · have hb := getElem?_encode_lt_ell (T := T) hlt
-      simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD, hb,
-        Option.getD_some, ↓reduceIte]
+    · simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD,
+        getElem?_encode_lt_ell (T := T) hlt, Option.getD_some, ↓reduceIte]
       exact ⟨rfl, by omega⟩
     · obtain rfl : n = ℓ := by omega
-      have hb := getElem?_encode_ell (T := T)
-      simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD, hb,
-        Option.getD_some, Bool.false_eq_true, ↓reduceIte]
+      simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD,
+        getElem?_encode_ell (T := T), Option.getD_some, Bool.false_eq_true, ↓reduceIte]
       exact ⟨rfl, Nat.zero_le _⟩
   | hdrHeight n =>
     obtain ⟨heq, hn⟩ := hs
-    simp only [State.mk.injEq] at heq
-    obtain ⟨he, rfl, rfl, rfl, rfl, rfl, -⟩ := heq
+    obtain ⟨he, rfl, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
     subst e
     rcases Nat.lt_or_ge n H with hlt | hge
-    · have hb := getElem?_encode_height (T := T) hlt
-      simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD, hb,
-        Option.getD_some, ↓reduceIte]
+    · simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD,
+        getElem?_encode_height (T := T) hlt, Option.getD_some, ↓reduceIte]
       exact ⟨rfl, by omega⟩
     · obtain rfl : n = H := by omega
-      have hb := getElem?_encode_height_end (T := T)
-      simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD, hb,
-        Option.getD_some, Bool.false_eq_true, ↓reduceIte]
+      simp only [machine, step, addr, ReadMachine.readBit, List.getD_eq_getElem?_getD,
+        getElem?_encode_height_end (T := T), Option.getD_some, Bool.false_eq_true, ↓reduceIte]
       exact ⟨rfl, le_rfl, le_primeFor ℓ, le_rfl, by omega⟩
   | prime q d =>
     obtain ⟨heq, hq, hqp, hd, hdq⟩ := hs
-    simp only [State.mk.injEq] at heq
-    obtain ⟨he, hh₁, rfl, rfl, rfl, rfl, -⟩ := heq
+    obtain ⟨he, hh₁, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
     subst e h
     by_cases hlt : d < q
     · by_cases hmod : q % d = 0
-      · have hne : q ≠ primeFor ℓ := fun he => by
-          have := (Nat.prime_def_lt'.mp (he ▸ primeFor_prime ℓ)).2 d hd hlt
-          exact this (Nat.dvd_of_mod_eq_zero hmod)
+      · have hne : q ≠ primeFor ℓ := fun he =>
+          (Nat.prime_def_lt'.mp (he ▸ primeFor_prime ℓ)).2 d hd hlt (Nat.dvd_of_mod_eq_zero hmod)
         simp only [machine, step, hlt, hmod, ↓reduceIte]
         exact ⟨rfl, by omega, by omega, le_rfl, by omega⟩
       · simp only [machine, step, hlt, hmod, ↓reduceIte]
@@ -141,8 +133,7 @@ private theorem inv_step {s : State} (hs : Inv ℓ H s) (hh : machine.halt s = f
             List.forall_mem_cons.2 ⟨hj, hrd'⟩, trivial⟩
         · simp only [machine, step, runStep]
           refine ⟨rfl, rfl, hp2, hpp, hR, by simp; omega, hrd, by simp [tableLength], by simp,
-            fun v hv => ?_⟩
-          rw [(List.mem_replicate.mp hv).2]; exact hp
+            fun v hv => (List.mem_replicate.mp hv).2 ▸ hp⟩
         · simp only [machine, step, runStep]
           exact ⟨rfl, rfl, hp2, hpp, hR.scale hp _ _, by simp; omega,
             List.forall_mem_cons.2 ⟨hj, hrd'⟩, trivial⟩
@@ -155,11 +146,10 @@ private theorem inv_step {s : State} (hs : Inv ℓ H s) (hh : machine.halt s = f
   | leaf i =>
     dsimp only [Inv, RunInv] at hs
     obtain ⟨rfl, rfl, hp2, hpp, hR, hst, hrd, hi⟩ := hs
-    have hp : 0 < p := by omega
     rcases m with ⟨neg, t⟩ | _
     · by_cases hlt : i < e
       · simp only [machine, step, hlt, ↓reduceIte]
-        exact ⟨rfl, rfl, hp2, hpp, hR.set_modifyAt hp _ _ _, hst, hrd, by omega⟩
+        exact ⟨rfl, rfl, hp2, hpp, hR.set_modifyAt (by omega) _ _ _, hst, hrd, by omega⟩
       · simp only [machine, step, hlt, ↓reduceIte]
         exact ⟨rfl, rfl, hp2, hpp, hR, hst, hrd, trivial⟩
     · simp only [machine, step]
@@ -167,7 +157,6 @@ private theorem inv_step {s : State} (hs : Inv ℓ H s) (hh : machine.halt s = f
   | scan k acc =>
     dsimp only [Inv, RunInv] at hs
     obtain ⟨rfl, rfl, hp2, hpp, hR, hst, hrd, hk, hacc, hacc'⟩ := hs
-    have hp : 0 < p := by omega
     rcases st with _ | ⟨fr, st⟩
     · simp only [machine, step]
       exact ⟨rfl, rfl, hp2, hpp, hR, hst, hrd, hk, hacc, hacc'⟩
@@ -176,13 +165,12 @@ private theorem inv_step {s : State} (hs : Inv ℓ H s) (hh : machine.halt s = f
         · simp only [machine, step, hlt, ↓reduceIte, Bool.false_eq_true]
           exact ⟨rfl, rfl, hp2, hpp, hR, hst, hrd, by omega, hacc, hacc'⟩
         · simp only [machine, step, hlt, ↓reduceIte]
-          obtain ⟨h₁, h₂⟩ := modifyAt_addMod_wf hp hacc' (k % e)
+          obtain ⟨h₁, h₂⟩ := modifyAt_addMod_wf (by omega) hacc' (k % e)
             (weight p e (k / e) (R.get (fr.target + 1)) (R.get (fr.target + 2)))
           exact ⟨rfl, rfl, hp2, hpp, hR, hst, hrd, by omega, by rw [h₁, hacc], h₂⟩
       · simp only [machine, step, hlt, ↓reduceIte]
-        obtain ⟨hj, hrd'⟩ := List.forall_mem_cons.1 hrd
-        exact ⟨rfl, rfl, hp2, hpp, hR.subtractSums hp _ _ _, by simpa using hst,
-          List.forall_mem_cons.2 ⟨hj, hrd'⟩, trivial⟩
+        exact ⟨rfl, rfl, hp2, hpp, hR.subtractSums (by omega) _ _ _, by simpa using hst,
+          List.forall_mem_cons.2 (List.forall_mem_cons.1 hrd), trivial⟩
   | done => simp [machine] at hh
 
 /-- **Every state reached on the encoding satisfies the invariant.** -/

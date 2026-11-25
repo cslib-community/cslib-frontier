@@ -265,23 +265,15 @@ theorem semiHonestAdvantage_ddhOTProb_receiver_le (n : ℕ) (d : F.Desc)
     semiHonestAdvantage (F.ddhOTProbProtocol n d) noOracleWorld (otFunctionality (F.Carrier d))
         {1} (F.ddhOTReceiverSimProb n d) x D ≤
       ddhAdvantage (F.order d) (F.generator d) (F.ddhOTProbReduction n d x D) + 14 / 2 ^ n := by
-  have h₃ : Game.advantage
-      (ProbComp.eval (ddhRandomExperiment (F.order d) (F.generator d)
-        (F.ddhOTProbReduction n d x D)))
-      (ProbComp.eval (ddhRealExperiment (F.order d) (F.generator d)
-        (F.ddhOTProbReduction n d x D))) =
-      ddhAdvantage (F.order d) (F.generator d) (F.ddhOTProbReduction n d x D) := by
-    rw [Game.advantage_comm]
-    rfl
   calc semiHonestAdvantage (F.ddhOTProbProtocol n d) noOracleWorld
         (otFunctionality (F.Carrier d)) {1} (F.ddhOTReceiverSimProb n d) x D
       ≤ 7 / 2 ^ n +
         (ddhAdvantage (F.order d) (F.generator d) (F.ddhOTProbReduction n d x D) + 7 / 2 ^ n) := by
-        rw [semiHonestAdvantage]
-        refine (Game.advantage_triangle _ _ _).trans (add_le_add
-          (F.advantage_idealJoint_ddhRandomExperiment_ddhOTProbReduction_le n d x D) ?_)
-        exact (Game.advantage_triangle _ _ _).trans (add_le_add h₃.le
-          (F.advantage_ddhRealExperiment_ddhOTProbReduction_realJoint_le n d x D))
+        rw [semiHonestAdvantage, ddhAdvantage]
+        exact (Game.advantage_triangle _ _ _).trans (add_le_add
+          (F.advantage_idealJoint_ddhRandomExperiment_ddhOTProbReduction_le n d x D)
+          ((Game.advantage_triangle _ _ _).trans (add_le_add (Game.advantage_comm _ _).le
+            (F.advantage_ddhRealExperiment_ddhOTProbReduction_realJoint_le n d x D))))
     _ = _ := by ring
 
 /-! ### A corrupted receiver of the masked transfer over the fair-coin DDH transfer -/

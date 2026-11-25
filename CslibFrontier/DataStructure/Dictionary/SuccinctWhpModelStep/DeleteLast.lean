@@ -134,7 +134,7 @@ theorem fastDelete_afterDel_last_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_ma
     obtain ⟨⟨hs2, _, hdb, hcs, _⟩, hlt_r, _⟩ := hcond
     have hstg := hv.stage_valid
     dsimp only [ValidEpochStage] at hstg
-    simp only [hs2, show ¬(2 = 0) by decide, show ¬(2 = 1) by decide, ↓reduceIte] at hstg
+    simp only [hs2, Nat.reduceEqDiff, ↓reduceIte] at hstg
     obtain ⟨hcur_or, _⟩ := hstg.2.2.2.2.2.2 hcs
     rw [hdb] at hcur_or
     rcases hcur_or with ⟨hc0, _⟩ | ⟨_, hc_lt, _⟩ <;> omega
@@ -342,7 +342,7 @@ theorem fastDelete_afterDel_last_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_ma
       (fun hlt => absurd hlt hnot_lt) fun hs2 => ?_
     have hstg_full := hv.stage_valid
     dsimp only [ValidEpochStage] at hstg_full
-    simp only [hs2, show ¬(2 = 0) by decide, show ¬(2 = 1) by decide, ↓reduceIte] at hstg_full
+    simp only [hs2, Nat.reduceEqDiff, ↓reduceIte] at hstg_full
     rcases hstg_full with ⟨hd1, hd2, hd3, hd4, hd5, hd6, hreb⟩
     refine ⟨hd1, hd2, hd3, hd4, hd5, fun b' hb' loc hloc hst_old => ?_, fun hcs => ?_⟩
     · rw [hls_pres b' hb' loc hloc] at hst_old
@@ -372,42 +372,28 @@ theorem fastDelete_afterDel_last_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_ma
       have hri_eq : fsA.rebInsCount = fs.rebInsCount := rfl
       have hcs_eq : fsA.rebCandSalt = fs.rebCandSalt := rfl
       rw [hrc_eq, hri_eq, hcs_eq, hsl_bc, hfp_bc]
-      by_cases hbb : bc = b
-      · rw [hbb] at hcur_r hinj_r hvr hrr ⊢
-        have hcntA_b : fsA.bktCount b = loc_last := by
-          dsimp only [fsA]; exact Function.update_self _ _ _
-        rw [hcntA_b]
-        have hcur_le_ll : fs.rebScanCursor ≤ loc_last := by
+      -- The scanned prefix `min count cursor` is unchanged and lies below the new count.
+      have hcnt_bc : fsA.bktCount bc ≤ fs.bktCount bc ∧ fs.rebScanCursor ≤ fsA.bktCount bc := by
+        dsimp only [fsA]
+        by_cases hbb : bc = b
+        · rw [hbb] at hcur_r ⊢; rw [Function.update_self]
           rcases hcur_r with ⟨hc0, _⟩ | ⟨_, hc_lt, _⟩ <;> omega
-        have hmin_old : min (fs.bktCount b) fs.rebScanCursor = fs.rebScanCursor :=
-          Nat.min_eq_right (by omega)
-        have hmin_new : min loc_last fs.rebScanCursor = fs.rebScanCursor :=
-          Nat.min_eq_right hcur_le_ll
-        rw [hmin_old] at hinj_r hrr
-        rw [hmin_new]
-        refine ⟨?_, ?_, rm, hvr, ?_⟩
-        · rcases hcur_r with ⟨hc0, hi0⟩ | ⟨h16, _, hins⟩
-          · exact Or.inl ⟨hc0, hi0⟩
-          · exact Or.inr ⟨h16, hcur_le_ll, by omega⟩
-        · intro l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-          rw [hls_pres b hb l₁ (by rw [hcntA_b]; exact hl₁.trans_le hcur_le_ll)] at hp₁
-          rw [hls_pres b hb l₂ (by rw [hcntA_b]; exact hl₂.trans_le hcur_le_ll)] at hp₂
-          exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-        · refine hrr.congr (fun _ _ => rfl) fun loc hlt => ?_
-          rw [hls_pres b hb loc (by rw [hcntA_b]; exact hlt.trans_le hcur_le_ll)]
-      · have hcntA_bc : fsA.bktCount bc = fs.bktCount bc := by
-          dsimp only [fsA]; exact Function.update_of_ne hbb _ _
-        rw [hcntA_bc]
-        refine ⟨?_, ?_, rm, hvr, ?_⟩
-        · rcases hcur_r with ⟨hc0, hi0⟩ | ⟨h16, hc_lt, hins⟩
-          · exact Or.inl ⟨hc0, hi0⟩
-          · exact Or.inr ⟨h16, hc_lt.le, by omega⟩
-        · intro l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-          rw [hls_pres bc hbc l₁ (hcntA_bc ▸ (Nat.min_le_left _ _).trans_lt' hl₁)] at hp₁
-          rw [hls_pres bc hbc l₂ (hcntA_bc ▸ (Nat.min_le_left _ _).trans_lt' hl₂)] at hp₂
-          exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
-        · refine hrr.congr (fun _ _ => rfl) fun loc hlt => ?_
-          rw [hls_pres bc hbc loc (hcntA_bc ▸ (Nat.min_le_left _ _).trans_lt' hlt)]
+        · rw [Function.update_of_ne hbb]
+          rcases hcur_r with ⟨hc0, _⟩ | ⟨_, hc_lt, _⟩ <;> omega
+      have hpre : ∀ l < min (fs.bktCount bc) fs.rebScanCursor, l < fsA.bktCount bc :=
+        fun l hl => by omega
+      rw [show min (fsA.bktCount bc) fs.rebScanCursor = min (fs.bktCount bc) fs.rebScanCursor by
+        omega]
+      refine ⟨?_, ?_, rm, hvr, ?_⟩
+      · rcases hcur_r with ⟨hc0, hi0⟩ | ⟨h16, _, hins⟩
+        · exact Or.inl ⟨hc0, hi0⟩
+        · exact Or.inr ⟨h16, hcnt_bc.2, by omega⟩
+      · intro l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
+        rw [hls_pres bc hbc l₁ (hpre l₁ hl₁)] at hp₁
+        rw [hls_pres bc hbc l₂ (hpre l₂ hl₂)] at hp₂
+        exact hinj_r l₁ hl₁ l₂ hl₂ hp₁ hp₂ hfeq
+      · refine hrr.congr (fun _ _ => rfl) fun loc hlt => ?_
+        rw [hls_pres bc hbc loc (hpre loc hlt)]
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp
 

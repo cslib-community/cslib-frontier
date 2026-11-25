@@ -61,12 +61,11 @@ private theorem certificateComplexityAt_le_sensitivityFor_true (hf : Monotone f)
     ⟨x, mem_filter.2 ⟨mem_univ _, le_rfl, hx⟩⟩
   obtain ⟨hyx, hfy⟩ := (mem_filter.1 hy).2
   -- clearing a true bit of `y` gives a lighter input below `x`, of value `0`
-  have hsens : ∀ i ∈ univ.filter fun i => y i = true, IsSensitiveCoord f y i := by
-    intro i hi
+  have hsens : ∀ i ∈ univ.filter fun i => y i = true, IsSensitiveCoord f y i := fun i hi => by
     have hyi : y i = true := (mem_filter.1 hi).2
     rw [IsSensitiveCoord, hyi, Bool.not_true, hfy]
     intro h
-    have hw := weight_update_false hyi
+    have := weight_update_false hyi
     have := hmin _ (mem_filter.2 ⟨mem_univ _,
       (update_le_iff.2 ⟨Bool.false_le _, fun _ _ => le_rfl⟩).trans hyx, h⟩)
     omega
@@ -74,13 +73,11 @@ private theorem certificateComplexityAt_le_sensitivityFor_true (hf : Monotone f)
   refine (certificateComplexityAt_le (S := univ.filter fun i => y i = true) fun z hz => ?_).trans
     ((card_le_sensitivityAt hsens).trans (sensitivityAt_le_sensitivityFor hfy))
   have hyz : y ≤ z := fun k => by
-    cases hk : y k with
-    | false => exact Bool.false_le _
-    | true => exact hk ▸ (hyx k).trans_eq (hz k (mem_filter.2 ⟨mem_univ _, hk⟩)).symm
-  have := hf hyz
-  rw [hfy] at this
+    cases hk : y k
+    · exact Bool.false_le _
+    · exact hk ▸ (hyx k).trans_eq (hz k (mem_filter.2 ⟨mem_univ _, hk⟩)).symm
   rw [hx]
-  exact le_antisymm (Bool.le_true _) this
+  exact le_antisymm (Bool.le_true _) (hfy ▸ hf hyz)
 
 /-- At an input of value `0`, a monotone function has a certificate of size at most `s₀(f)`: the
 false bits of an input of value `0` of largest weight above it. -/
@@ -91,12 +88,11 @@ private theorem certificateComplexityAt_le_sensitivityFor_false (hf : Monotone f
     ⟨x, mem_filter.2 ⟨mem_univ _, le_rfl, hx⟩⟩
   obtain ⟨hxy, hfy⟩ := (mem_filter.1 hy).2
   -- setting a false bit of `y` gives a heavier input above `x`, of value `1`
-  have hsens : ∀ i ∈ univ.filter fun i => y i = false, IsSensitiveCoord f y i := by
-    intro i hi
+  have hsens : ∀ i ∈ univ.filter fun i => y i = false, IsSensitiveCoord f y i := fun i hi => by
     have hyi : y i = false := (mem_filter.1 hi).2
     rw [IsSensitiveCoord, hyi, Bool.not_false, hfy]
     intro h
-    have hw := weight_update_true hyi
+    have := weight_update_true hyi
     have := hmax _ (mem_filter.2 ⟨mem_univ _,
       hxy.trans (le_update_iff.2 ⟨Bool.le_true _, fun _ _ => le_rfl⟩), by simpa using h⟩)
     omega
@@ -104,13 +100,11 @@ private theorem certificateComplexityAt_le_sensitivityFor_false (hf : Monotone f
   refine (certificateComplexityAt_le (S := univ.filter fun i => y i = false) fun z hz => ?_).trans
     ((card_le_sensitivityAt hsens).trans (sensitivityAt_le_sensitivityFor hfy))
   have hzy : z ≤ y := fun k => by
-    cases hk : y k with
-    | false => exact hk ▸ (hz k (mem_filter.2 ⟨mem_univ _, hk⟩)).trans_le (hxy k)
-    | true => exact Bool.le_true _
-  have := hf hzy
-  rw [hfy] at this
+    cases hk : y k
+    · exact hk ▸ (hz k (mem_filter.2 ⟨mem_univ _, hk⟩)).trans_le (hxy k)
+    · exact Bool.le_true _
   rw [hx]
-  exact le_antisymm this (Bool.false_le _)
+  exact le_antisymm (hfy ▸ hf hzy) (Bool.false_le _)
 
 /-- For a monotone function, `C(f, x) ≤ s_{f(x)}(f)`. -/
 theorem certificateComplexityAt_le_sensitivityFor_of_monotone (hf : Monotone f)

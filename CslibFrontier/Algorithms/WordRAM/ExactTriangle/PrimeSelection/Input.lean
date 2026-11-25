@@ -72,8 +72,7 @@ theorem exec_input_at {w W n D A : ℕ} (values : List ℤ)
       rcases List.mem_append.mp hm with hm | hm
       · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
         rcases hm with rfl | rfl
-        · exact hwW.of_le (by unfold CountPrime.addressBudget; omega)
-        · exact hctrl.of_le (by nlinarith)
+        exacts [hwW.of_le (by unfold CountPrime.addressBudget; omega), hctrl.of_le (by nlinarith)]
       · obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hm
         exact (encode_fits (hmag.of_natAbs_le ((hv z hz).trans hA))).mono (by omega)
   obtain ⟨x, hx, memory, hn, hd, ha, hb, hc, hs⟩ := exec_header (n := n) (D := D)
@@ -91,10 +90,8 @@ theorem exec_input_at {w W n D A : ℕ} (values : List ℤ)
     hmag hw hwidth hctrl
   have full : ExecWithin W entryProgram (.init (CountPrime.inputWords n D values)) y
       (timeBound n D + 15) := (hx.seq he).mono (by omega)
-  refine ⟨hi, y, full, hf, ?_, ?_, full.bounded (.init hi), ?_⟩
-  · simpa only [Nat.add_assoc] using hp
-  · simpa only [Nat.add_assoc] using hvCount
-  · intro d hd
-    exact (frame d hd).trans (congrFun memory d)
+  exact ⟨hi, y, full, hf, by simpa only [Nat.add_assoc] using hp,
+    by simpa only [Nat.add_assoc] using hvCount, full.bounded (.init hi),
+    fun d hd => (frame d hd).trans (congrFun memory d)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.PrimeSelection

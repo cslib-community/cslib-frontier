@@ -132,10 +132,8 @@ private def viewWords {a : α} (u : V.View a) : List Bool × List Bool :=
 
 private theorem viewWords_injective (a : α) : Function.Injective (V.viewWords (a := a)) := by
   rintro ⟨u, x⟩ ⟨v, y⟩ h
-  have huv : u = v := List.ofFn_injective (congrArg Prod.fst h)
-  subst v
-  have hxy : x = y := List.ofFn_injective (congrArg Prod.snd h)
-  subst y
+  obtain rfl := List.ofFn_injective (congrArg Prod.fst h)
+  obtain rfl := List.ofFn_injective (congrArg Prod.snd h)
   rfl
 
 private theorem mem_viewsFrom_iff (a : α) (word : List Bool × List Bool) :
@@ -152,33 +150,25 @@ private theorem mem_viewsFrom_iff (a : α) (word : List Bool × List Bool) :
   constructor
   · intro hm
     obtain ⟨w, hw, hm⟩ := List.mem_flatMap.mp hm
-    obtain ⟨hm, hk⟩ := List.mem_filter.mp hm
-    obtain ⟨bs, hbs, he⟩ := List.mem_map.mp hm
-    cases he
+    obtain ⟨⟨bs, hbs, he⟩, hk⟩ := (List.mem_filter.mp hm).imp_left List.mem_map.mp
+    rcases Prod.mk.inj he with ⟨rfl, rfl⟩
     have hρ := BitString.mem_enumList.mp hw
     have hb := BitString.mem_enumList.mp hbs
     rw [hwidth hρ] at hb
-    have hr : List.ofFn (fun i : Fin (V.coins a) => ρ[i.val]'(hρ.symm ▸ i.isLt)) = ρ := by
-      apply List.ext_getElem (by simp [hρ])
-      simp
-    let u : V.View a := ⟨fun i => ρ[i.val]'(hρ.symm ▸ i.isLt),
-      fun i => bits[i.val]'(by simpa only [hr, ← hb] using i.isLt)⟩
-    have huv : V.viewWords u = (ρ, bits) := by
-      refine Prod.ext hr (List.ext_getElem (by simp [viewWords, u, hr, hb]) ?_)
-      intros
-      simp [viewWords, u]
-    have hu : V.keep a (V.viewWords u) = true := huv ▸ hk
-    obtain ⟨haccepts, hconsistent⟩ := Bool.and_eq_true_iff.mp hu
+    have hr : List.ofFn (fun i : Fin (V.coins a) => w[i.val]'(hρ.symm ▸ i.isLt)) = w :=
+      List.ext_getElem (by simp [hρ]) (by simp)
+    let u : V.View a := ⟨fun i => w[i.val]'(hρ.symm ▸ i.isLt),
+      fun i => bs[i.val]'(by simpa only [hr, ← hb] using i.isLt)⟩
+    have huv : V.viewWords u = (w, bs) :=
+      Prod.ext hr (List.ext_getElem (by simp [viewWords, u, hr, hb]) (by simp [viewWords, u]))
+    obtain ⟨haccepts, hconsistent⟩ := Bool.and_eq_true_iff.mp (huv ▸ hk : V.keep a (V.viewWords u))
     exact ⟨u, ⟨haccepts, (V.consistent_assigned_iff u u).mp hconsistent⟩, huv⟩
   · rintro ⟨u, hu, h⟩
-    have hr : List.ofFn u.random = ρ := congrArg Prod.fst h
-    have hb : List.ofFn u.answers = bits := congrArg Prod.snd h
-    have hρ : ρ.length = V.coins a := by rw [← hr, List.length_ofFn]
-    refine List.mem_flatMap.mpr ⟨ρ, BitString.mem_enumList.mpr hρ, List.mem_filter.mpr ⟨?_, ?_⟩⟩
-    · refine List.mem_map.mpr ⟨bits, BitString.mem_enumList.mpr ?_, rfl⟩
-      rw [hwidth hρ, ← hb, List.length_ofFn, hr]
-    · rw [← h]
-      exact Bool.and_eq_true_iff.mpr ⟨hu.accepts, (V.consistent_assigned_iff u u).mpr hu.consistent⟩
+    rcases Prod.mk.inj h with ⟨rfl, rfl⟩
+    refine List.mem_flatMap.mpr ⟨_, BitString.mem_enumList.mpr List.length_ofFn,
+      List.mem_filter.mpr ⟨List.mem_map.mpr ⟨_, BitString.mem_enumList.mpr ?_, rfl⟩, ?_⟩⟩
+    · rw [hwidth List.length_ofFn, List.length_ofFn]
+    · exact Bool.and_eq_true_iff.mpr ⟨hu.accepts, (V.consistent_assigned_iff u u).mpr hu.consistent⟩
 
 /-- The edge-list realization has exactly the vertices and edges of the mathematical FGLSS
 graph, up to relabeling. -/

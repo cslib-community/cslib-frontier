@@ -98,8 +98,8 @@ theorem goemansWilliamsonConstant_mul_le_arccos {y : ℝ} (hy : -1 ≤ y) (hy1 :
     goemansWilliamsonConstant * ((1 - y) / 2) ≤ arccos y / π := by
   have h := goemansWilliamsonConstant_mul_one_sub_cos_le (arccos_nonneg y) (arccos_le_pi y)
   rw [cos_arccos hy hy1] at h
+  rw [le_div_iff₀ pi_pos]
   have := pi_pos
-  rw [le_div_iff₀ this]
   field_simp at h ⊢
   linarith
 
@@ -168,15 +168,11 @@ theorem goemansWilliamsonConstant_lt : goemansWilliamsonConstant < 0.87857 := by
   have hplo := pi_gt_d6
   have hphi := pi_lt_d6
   norm_num at hplo hphi
-  have hpi := pi_pos
   obtain ⟨hc1, hc2⟩ := cos_x0_bounds
   generalize hx : (810474 / 1000000 : ℝ) = x₀ at hc1 hc2
-  have h0 : 0 < π - x₀ := by linarith
-  have h1 : π - x₀ ≤ π := by linarith
-  refine lt_of_le_of_lt (ciInf_le gw_bddBelow (⟨π - x₀, h0, h1⟩ : Ioc (0 : ℝ) π)) ?_
-  simp only [cos_pi_sub]
-  rw [div_lt_iff₀ (by linarith), show 2 / π * (π - x₀) = 2 * (π - x₀) / π by ring,
-    div_lt_iff₀ hpi]
+  refine (ciInf_le gw_bddBelow (⟨π - x₀, by linarith, by linarith⟩ : Ioc (0 : ℝ) π)).trans_lt ?_
+  have hdiv : 2 / π * (π - x₀) = 2 * (π - x₀) / π := by ring
+  rw [cos_pi_sub, div_lt_iff₀ (by linarith), hdiv, div_lt_iff₀ pi_pos]
   norm_num
   nlinarith
 

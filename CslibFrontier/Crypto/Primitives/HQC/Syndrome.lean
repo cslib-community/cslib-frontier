@@ -155,27 +155,23 @@ theorem mem_support_realTruncatedSyndromeLaw_iff {n m w : ℕ} [NeZero n]
           weight x = w ∧ weight y = w ∧ weight z = w ∧
             sample.firstValue = syndrome sample.firstBlock x z ∧
               sample.secondValue = syndrome sample.secondBlock y z ∘ Fin.castLEEmb hm := by
+  rcases sample with ⟨h₁, h₂, fv, sv⟩
   simp only [realTruncatedSyndromeLaw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff]
   constructor
-  · rintro ⟨h₁, hh₁, h₂, hh₂, x, hx, y, hy, z, hz, rfl⟩
+  · rintro ⟨h₁, hh₁, h₂, hh₂, x, hx, y, hy, z, hz, ⟨rfl, rfl, rfl, rfl⟩⟩
     exact ⟨(mem_support_uniformParity b₁ h₁).mp hh₁,
       (mem_support_uniformParity b₂ h₂).mp hh₂,
       x, y, z,
       mem_weightLayer.mp ((PMF.mem_support_uniformOfFinset_iff _ x).mp hx),
       mem_weightLayer.mp ((PMF.mem_support_uniformOfFinset_iff _ y).mp hy),
       mem_weightLayer.mp ((PMF.mem_support_uniformOfFinset_iff _ z).mp hz), rfl, rfl⟩
-  · rintro ⟨hh₁, hh₂, x, y, z, hx, hy, hz, hfirst, hsecond⟩
-    have hsample : sample =
-        ⟨sample.firstBlock, sample.secondBlock, syndrome sample.firstBlock x z,
-          syndrome sample.secondBlock y z ∘ Fin.castLEEmb hm⟩ := by
-      cases sample
-      simp_all
-    exact ⟨sample.firstBlock, (mem_support_uniformParity b₁ sample.firstBlock).mpr hh₁,
-      sample.secondBlock, (mem_support_uniformParity b₂ sample.secondBlock).mpr hh₂,
+  · rintro ⟨hh₁, hh₂, x, y, z, hx, hy, hz, rfl, rfl⟩
+    exact ⟨h₁, (mem_support_uniformParity b₁ h₁).mpr hh₁,
+      h₂, (mem_support_uniformParity b₂ h₂).mpr hh₂,
       x, (PMF.mem_support_uniformOfFinset_iff _ x).mpr (mem_weightLayer.mpr hx),
       y, (PMF.mem_support_uniformOfFinset_iff _ y).mpr (mem_weightLayer.mpr hy),
-      z, (PMF.mem_support_uniformOfFinset_iff _ z).mpr (mem_weightLayer.mpr hz), hsample⟩
+      z, (PMF.mem_support_uniformOfFinset_iff _ z).mpr (mem_weightLayer.mpr hz), rfl⟩
 
 /-- All real two-block samples satisfy both parity constraints. -/
 theorem parity_of_mem_support_realSyndromeLaw {n w : ℕ} [NeZero n] (hw : w ≤ n) (b : Bool)
@@ -196,14 +192,9 @@ theorem parity_of_mem_support_realTruncatedSyndromeLaw {n m w : ℕ} [NeZero n]
     (hs : sample ∈ (realTruncatedSyndromeLaw n m w hm hw b₁ b₂).support) :
     parity n sample.firstBlock = b₁ ∧ parity n sample.secondBlock = b₂ ∧
       parity n sample.firstValue = syndromeParity w b₁ := by
-  simp only [realTruncatedSyndromeLaw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hs
-  obtain ⟨h₁, hh₁, h₂, hh₂, x, hx, y, _, z, hz, rfl⟩ := hs
-  have hh₁' := (mem_support_uniformParity b₁ h₁).mp hh₁
-  exact ⟨hh₁', (mem_support_uniformParity b₂ h₂).mp hh₂,
-    parity_syndrome_of_weight h₁ x z b₁ hh₁'
-      (mem_weightLayer.mp ((PMF.mem_support_uniformOfFinset_iff _ x).mp hx))
-      (mem_weightLayer.mp ((PMF.mem_support_uniformOfFinset_iff _ z).mp hz))⟩
+  obtain ⟨hh₁, hh₂, x, _, z, hx, _, hz, hfirst, _⟩ :=
+    (mem_support_realTruncatedSyndromeLaw_iff hm hw b₁ b₂ sample).mp hs
+  exact ⟨hh₁, hh₂, hfirst ▸ parity_syndrome_of_weight _ x z b₁ hh₁ hx hz⟩
 
 /-- The public parity test is deterministic on real two-block samples. This is why their
 comparison distribution must also constrain the syndrome parity. -/

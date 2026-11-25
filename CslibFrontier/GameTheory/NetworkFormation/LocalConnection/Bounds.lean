@@ -168,6 +168,14 @@ private theorem networkCost_starGraph_eq_diam_form [Nonempty V] (α : ℝ) (r : 
   rw [networkCost_starGraph, hcast]
   ring
 
+private theorem connected_of_isOptimalNetwork_of_preconnected [Nonempty V] {α : ℝ} (hα₀ : 0 ≤ α)
+    {G H : SimpleGraph V} (hopt : IsOptimalNetwork α G) (hH : H.Preconnected) :
+    G.Connected := by
+  by_contra hnc
+  have hle := hopt H
+  rw [networkECost_eq_top_iff.mpr hnc, networkECost_eq_ofReal_of_preconnected hα₀ hH] at hle
+  exact absurd hle (by simp)
+
 /-- **Strict uniqueness of `K_n` for `0 ≤ α < 2`** ([TardosWexler2007], Exercise 19.1, locator not
 re-verified against primary PDF): a network minimizes `networkECost α` iff it is the complete
 graph `⊤`. -/
@@ -180,12 +188,9 @@ theorem isOptimalNetwork_iff_eq_top_of_lt_two {α : ℝ} (hα₀ : 0 ≤ α) (h�
   · have := hE
     exact Subsingleton.elim G ⊤
   · have : Nonempty V := hNE
+    have hconn : G.Connected :=
+      connected_of_isOptimalNetwork_of_preconnected hα₀ hopt preconnected_top
     have hleE := hopt ⊤
-    have hconn : G.Connected := by
-      by_contra hnc
-      rw [networkECost_eq_top_iff.mpr hnc,
-        networkECost_eq_ofReal_of_preconnected hα₀ preconnected_top] at hleE
-      exact absurd hleE (by simp)
     rw [networkECost_eq_ofReal_of_connected hα₀ hconn,
       networkECost_eq_ofReal_of_preconnected hα₀ preconnected_top,
       ENNReal.ofReal_le_ofReal_iff (networkCost_nonneg hα₀ ⊤)] at hleE
@@ -215,8 +220,7 @@ private theorem exists_eq_starGraph_of_isTree_of_diam_le_two [Finite V] {G : Sim
   by_cases hsub : Subsingleton V
   · refine ⟨Classical.arbitrary V, ?_⟩
     ext u v
-    have huv : u = v := Subsingleton.elim u v
-    subst huv
+    cases Subsingleton.elim u v
     simp
   · rw [not_subsingleton_iff_nontrivial] at hsub
     obtain ⟨l, hl⟩ := hT.exists_vert_degree_one_of_nontrivial
@@ -234,9 +238,7 @@ private theorem exists_eq_starGraph_of_isTree_of_diam_le_two [Finite V] {G : Sim
         rfl
       obtain ⟨_, -, ⟨x, hx⟩⟩ := edist_eq_two_iff.mp hed2
       rw [mem_commonNeighbors] at hx
-      have hxc : x = c := hc_uniq x hx.1
-      subst hxc
-      exact hx.2.symm
+      exact hc_uniq x hx.1 ▸ hx.2.symm
 
 /-- **Strict uniqueness of star graphs for `α > 2`** ([TardosWexler2007], Exercise 19.1, locator not
 re-verified against primary PDF): on a nonempty vertex set, a network minimizes `networkECost α`
@@ -248,12 +250,9 @@ theorem isOptimalNetwork_iff_exists_starGraph_of_two_lt [Nonempty V] {α : ℝ} 
   have hα₀ : 0 ≤ α := by linarith
   refine ⟨fun hopt => ?_, ?_⟩
   · obtain ⟨r₀⟩ := ‹Nonempty V›
+    have hconn : G.Connected :=
+      connected_of_isOptimalNetwork_of_preconnected hα₀ hopt (connected_starGraph r₀).preconnected
     have hleE := hopt (starGraph r₀)
-    have hconn : G.Connected := by
-      by_contra hnc
-      rw [networkECost_eq_top_iff.mpr hnc,
-        networkECost_eq_ofReal_of_connected hα₀ (connected_starGraph r₀)] at hleE
-      exact absurd hleE (by simp)
     rw [networkECost_eq_ofReal_of_connected hα₀ hconn,
       networkECost_eq_ofReal_of_connected hα₀ (connected_starGraph r₀),
       ENNReal.ofReal_le_ofReal_iff (networkCost_nonneg hα₀ _)] at hleE
@@ -293,12 +292,9 @@ theorem isOptimalNetwork_two_iff [Nonempty V] {G : SimpleGraph V} :
     rw [networkCost_top_eq_diam_form]
     ring
   refine ⟨fun hopt => ?_, fun ⟨hc, hdiam⟩ G' => ?_⟩
-  · have hleE := hopt ⊤
-    have hconn : G.Connected := by
-      by_contra hnc
-      rw [networkECost_eq_top_iff.mpr hnc,
-        networkECost_eq_ofReal_of_preconnected (by norm_num) preconnected_top] at hleE
-      exact absurd hleE (by simp)
+  · have hconn : G.Connected :=
+      connected_of_isOptimalNetwork_of_preconnected (by norm_num) hopt preconnected_top
+    have hleE := hopt ⊤
     rw [networkECost_eq_ofReal_of_connected (by norm_num) hconn,
       networkECost_eq_ofReal_of_preconnected (by norm_num) preconnected_top,
       ENNReal.ofReal_le_ofReal_iff (networkCost_nonneg (by norm_num) _), hcost_top2] at hleE
@@ -440,6 +436,28 @@ private theorem IsPureNash.socialCost_eq_zero_of_subsingleton [Subsingleton V] {
       rw [Subsingleton.elim u v, SimpleGraph.dist_self, Nat.cast_zero]
   rw [he0, Set.ncard_empty, Nat.cast_zero, mul_zero, hd0, add_zero]
 
+private theorem IsPureNash.socialCost_le_mul_of_card_le_one {α c : ℝ} (hα₀ : 0 ≤ α) (hc : 0 ≤ c)
+    {s : Profile V} (hs : IsPureNash α s) (s' : Profile V) (hV : Fintype.card V ≤ 1) :
+    socialCost α s ≤ c * socialCost α s' := by
+  have : Subsingleton V := Fintype.card_le_one_iff_subsingleton.mp hV
+  rw [hs.socialCost_eq_zero_of_subsingleton hα₀]
+  exact mul_nonneg hc (socialCost_nonneg hα₀ s')
+
+private theorem IsPureNash.socialECost_le_ofReal_mul {α c : ℝ} (hα₀ : 0 ≤ α) (hc : 0 < c)
+    {s : Profile V} (hs : IsPureNash α s) (s' : Profile V)
+    (hle : ∀ [Nonempty V], (formedGraph s').Connected → socialCost α s ≤ c * socialCost α s') :
+    socialECost α s ≤ ENNReal.ofReal c * socialECost α s' := by
+  rcases isEmpty_or_nonempty V with hE | hNE
+  · have := hE
+    simp only [socialECost_def, univ_eq_empty, sum_empty, zero_le]
+  · have : Nonempty V := hNE
+    by_cases hc' : (formedGraph s').Connected
+    · rw [socialECost_eq_ofReal_of_connected hα₀ hs.connected,
+        socialECost_eq_ofReal_of_connected hα₀ hc', ← ENNReal.ofReal_mul hc.le]
+      exact ENNReal.ofReal_le_ofReal (hle hc')
+    · rw [socialECost_eq_top_iff.mpr hc', ENNReal.mul_top (by positivity)]
+      exact le_top
+
 /-- **`PoA ≤ 4 / 3` for `0 ≤ α < 2`** (real-valued, against connected profiles): every pure Nash
 equilibrium has diameter at most `2`, hence social cost at most `(4 / 3)` times any connected
 profile's cost. -/
@@ -452,14 +470,9 @@ theorem IsPureNash.socialCost_le_four_thirds_mul_of_lt_two {α : ℝ} (hα₀ : 
     rw [socialECost_eq_ofReal_of_connected hα₀ hs.connected,
       socialECost_eq_ofReal_of_connected hα₀ hc',
       ENNReal.ofReal_le_ofReal_iff (socialCost_nonneg hα₀ s')] at hopt
-    have hnn := socialCost_nonneg hα₀ s'
-    linarith
+    linarith [socialCost_nonneg hα₀ s']
   · rcases le_or_gt (Fintype.card V) 1 with hV | hV
-    · have : Subsingleton V := Fintype.card_le_one_iff_subsingleton.mp hV
-      have hsc0 := hs.socialCost_eq_zero_of_subsingleton hα₀
-      have hnn := socialCost_nonneg hα₀ s'
-      rw [hsc0]
-      linarith
+    · exact hs.socialCost_le_mul_of_card_le_one hα₀ (by norm_num) s' hV
     · obtain ⟨r⟩ := hc'.nonempty
       have hc := hs.connected
       have heq := (networkCost_eq_iff_diam_le_two (α := α) hc.preconnected).mpr
@@ -478,24 +491,24 @@ theorem IsPureNash.socialCost_le_four_thirds_mul_of_lt_two {α : ℝ} (hα₀ : 
 /-- **`PoA ≤ 4 / 3` for `0 ≤ α < 2`** (extended, for all strategy profiles `s'`). -/
 theorem IsPureNash.socialECost_le_four_thirds_mul_of_lt_two {α : ℝ} (hα₀ : 0 ≤ α) (hα : α < 2)
     {s : Profile V} (hs : IsPureNash α s) (s' : Profile V) :
-    socialECost α s ≤ ENNReal.ofReal (4 / 3) * socialECost α s' := by
-  rcases isEmpty_or_nonempty V with hE | hNE
-  · have := hE
-    simp only [socialECost_def, univ_eq_empty, sum_empty, zero_le]
-  · have : Nonempty V := hNE
-    by_cases hc' : (formedGraph s').Connected
-    · rw [socialECost_eq_ofReal_of_connected hα₀ hs.connected,
-        socialECost_eq_ofReal_of_connected hα₀ hc',
-        ← ENNReal.ofReal_mul (by norm_num)]
-      exact ENNReal.ofReal_le_ofReal (hs.socialCost_le_four_thirds_mul_of_lt_two hα₀ hα hc')
-    · rw [socialECost_eq_top_iff.mpr hc', ENNReal.mul_top (by positivity)]
-      exact le_top
+    socialECost α s ≤ ENNReal.ofReal (4 / 3) * socialECost α s' :=
+  hs.socialECost_le_ofReal_mul hα₀ (by norm_num) s' fun hc' =>
+    hs.socialCost_le_four_thirds_mul_of_lt_two hα₀ hα hc'
 
 end PriceOfAnarchySmallAlpha
 
 section TreeEquilibria
 
 variable {V : Type*} [Fintype V]
+
+/-- A sum over `V` vanishing at `u` and bounded by `c` elsewhere is at most `(|V| - 1) * c`. -/
+private theorem sum_le_card_sub_one_mul {f : V → ℝ} {u : V} {c : ℝ}
+    (hu : f u = 0) (hf : ∀ x, x ≠ u → f x ≤ c) :
+    ∑ x, f x ≤ ((Fintype.card V - 1 : ℕ) : ℝ) * c := by
+  classical
+  rw [← sum_erase_add _ _ (mem_univ u), hu, add_zero, ← card_univ,
+    ← card_erase_of_mem (mem_univ u), ← nsmul_eq_mul, ← sum_const]
+  exact sum_le_sum fun x hx => hf x (ne_of_mem_erase hx)
 
 /-- In a tree `T`, if `u ∈ edgeSide T a b` and `v ∉ edgeSide T a b`, every walk from `u` to `v`
 crosses `s(a, b)` and `T.dist u v = T.dist u b + T.dist b v`. -/
@@ -562,15 +575,9 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
     socialCost α s ≤ 5 * socialCost α s' := by
   have : Nonempty V := hT.connected.nonempty
   rcases lt_or_ge α 2 with hα2 | hα2
-  · have h43 := hs.socialCost_le_four_thirds_mul_of_lt_two hα₀ hα2 hc'
-    have hnn := socialCost_nonneg hα₀ s'
-    linarith
+  · linarith [hs.socialCost_le_four_thirds_mul_of_lt_two hα₀ hα2 hc', socialCost_nonneg hα₀ s']
   · rcases le_or_gt (Fintype.card V) 1 with hn | hn
-    · have : Subsingleton V := Fintype.card_le_one_iff_subsingleton.mp hn
-      have hsc0 := hs.socialCost_eq_zero_of_subsingleton hα₀
-      have hnn := socialCost_nonneg hα₀ s'
-      rw [hsc0]
-      linarith
+    · exact hs.socialCost_le_mul_of_card_le_one hα₀ (by norm_num) s' hn
     · obtain ⟨c, hc⟩ := exists_tree_centroid hT
       have hn_pos : (0 : ℝ) < (Fintype.card V : ℝ) := by
         exact_mod_cast (by omega : 0 < Fintype.card V)
@@ -641,14 +648,8 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
               (le_div_iff₀ hn_pos).mpr (by linarith)
             linarith
       have hsum_uc : ∑ u : V, ((formedGraph s).dist u c : ℝ) ≤
-          ((Fintype.card V - 1 : ℕ) : ℝ) * (1 + 2 * α / (Fintype.card V : ℝ)) := by
-        rw [← sum_erase_add _ _ (mem_univ c)]
-        simp only [SimpleGraph.dist_self, Nat.cast_zero, add_zero]
-        calc ∑ u ∈ univ.erase c, ((formedGraph s).dist u c : ℝ)
-          _ ≤ ∑ _u ∈ univ.erase c, (1 + 2 * α / (Fintype.card V : ℝ)) :=
-              sum_le_sum fun u hu => hdist_c u (ne_of_mem_erase hu)
-          _ = ((Fintype.card V - 1 : ℕ) : ℝ) * (1 + 2 * α / (Fintype.card V : ℝ)) := by
-              rw [sum_const, card_erase_of_mem (mem_univ c), card_univ, nsmul_eq_mul]
+          ((Fintype.card V - 1 : ℕ) : ℝ) * (1 + 2 * α / (Fintype.card V : ℝ)) :=
+        sum_le_card_sub_one_mul (by simp) hdist_c
       have hpair_sum : ∑ u : V, ∑ v : V, ((formedGraph s).dist u v : ℝ) ≤
           2 * ((Fintype.card V - 1 : ℕ) : ℝ) * ∑ u : V, ((formedGraph s).dist u c : ℝ) := by
         have hinner : ∀ u : V, ∑ v : V, ((formedGraph s).dist u v : ℝ) ≤
@@ -671,23 +672,10 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
         rw [sum_add_distrib, ← mul_sum] at h1
         have h2 : (∑ u : V, ∑ v ∈ univ.erase u, ((formedGraph s).dist v c : ℝ)) =
             ((Fintype.card V - 1 : ℕ) : ℝ) * ∑ v : V, ((formedGraph s).dist v c : ℝ) := by
-          have hex : ∀ u : V, (∑ v ∈ univ.erase u, ((formedGraph s).dist v c : ℝ)) =
-              ∑ v : V, if v = u then 0 else ((formedGraph s).dist v c : ℝ) := fun u => by
-            rw [← sum_erase_add (s := univ) (a := u)
-              (f := fun v => if v = u then 0 else ((formedGraph s).dist v c : ℝ)) (mem_univ u)]
-            simp only [↓reduceIte, add_zero]
-            refine sum_congr rfl fun v hv => ?_
-            simp [ne_of_mem_erase hv]
-          simp only [hex]
-          rw [sum_comm, mul_sum]
-          refine sum_congr rfl fun v _ => ?_
-          rw [← sum_erase_add _ _ (mem_univ v)]
-          simp only [↓reduceIte, add_zero]
-          have hc_eq : (∑ u ∈ univ.erase v,
-              if v = u then 0 else ((formedGraph s).dist v c : ℝ)) =
-              ∑ _u ∈ univ.erase v, ((formedGraph s).dist v c : ℝ) :=
-            sum_congr rfl fun u hu => by simp [(ne_of_mem_erase hu).symm]
-          rw [hc_eq, sum_const, card_erase_of_mem (mem_univ v), card_univ, nsmul_eq_mul]
+          simp only [sum_erase_eq_sub (mem_univ _), sum_sub_distrib, sum_const, card_univ,
+            nsmul_eq_mul]
+          rw [Nat.cast_sub hn.le, Nat.cast_one]
+          ring
         linarith
       have hm : (formedGraph s).edgeSet.ncard = Fintype.card V - 1 := by
         have hc_edge := hT.card_edgeFinset
@@ -719,15 +707,9 @@ PDF). -/
 theorem IsPureNash.socialECost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (hα₀ : 0 ≤ α)
     {s : Profile V} (hs : IsPureNash α s) (hT : (formedGraph s).IsTree) (s' : Profile V) :
     socialECost α s ≤ 5 * socialECost α s' := by
-  have : Nonempty V := hT.connected.nonempty
-  by_cases hc' : (formedGraph s').Connected
-  · rw [socialECost_eq_ofReal_of_connected hα₀ hT.connected,
-      socialECost_eq_ofReal_of_connected hα₀ hc']
-    have h5 : (5 : ℝ≥0∞) = ENNReal.ofReal 5 := by norm_num
-    rw [h5, ← ENNReal.ofReal_mul (by norm_num)]
-    exact ENNReal.ofReal_le_ofReal (hs.socialCost_le_five_mul_of_isTree hα₀ hT hc')
-  · rw [socialECost_eq_top_iff.mpr hc', ENNReal.mul_top (by norm_num)]
-    exact le_top
+  rw [show (5 : ℝ≥0∞) = ENNReal.ofReal 5 by norm_num]
+  exact hs.socialECost_le_ofReal_mul hα₀ (by norm_num) s' fun hc' =>
+    hs.socialCost_le_five_mul_of_isTree hα₀ hT hc'
 
 end TreeEquilibria
 
@@ -746,23 +728,17 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
     socialCost α s ≤ (3 * d - 1) * socialCost α s' := by
   have h3d : 0 ≤ 3 * d - 1 := by linarith
   rcases le_or_gt (Fintype.card V) 1 with hn | hn
-  · have : Subsingleton V := Fintype.card_le_one_iff_subsingleton.mp hn
-    have hsc0 := hs.socialCost_eq_zero_of_subsingleton hα₀
-    have hnn := socialCost_nonneg hα₀ s'
-    rw [hsc0]
-    exact mul_nonneg h3d hnn
+  · exact hs.socialCost_le_mul_of_card_le_one hα₀ h3d s' hn
   · have : Nonempty V := hc'.nonempty
     let H := formedGraph s
     have hconn : H.Connected := hs.connected
     have hdist_total : ∑ u : V, ∑ v : V, (H.dist u v : ℝ) ≤
         d * ((Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ)) := by
-      have hinner : ∀ u : V, ∑ v : V, (H.dist u v : ℝ) ≤ d * (Fintype.card V - 1 : ℕ) := fun u => by
-        rw [← sum_erase_add _ _ (mem_univ u)]
-        simp only [SimpleGraph.dist_self, Nat.cast_zero, add_zero]
-        calc ∑ v ∈ univ.erase u, (H.dist u v : ℝ)
-          _ ≤ ∑ _v ∈ univ.erase u, d := sum_le_sum fun v _ => hd u v
-          _ = d * (Fintype.card V - 1 : ℕ) := by
-              rw [sum_const, card_erase_of_mem (mem_univ u), card_univ, nsmul_eq_mul, mul_comm]
+      have hinner : ∀ u : V, ∑ v : V, (H.dist u v : ℝ) ≤ d * (Fintype.card V - 1 : ℕ) := fun u =>
+        calc ∑ v : V, (H.dist u v : ℝ)
+          _ ≤ ((Fintype.card V - 1 : ℕ) : ℝ) * d :=
+              sum_le_card_sub_one_mul (u := u) (by simp) fun v _ => hd u v
+          _ = d * (Fintype.card V - 1 : ℕ) := mul_comm _ _
       calc ∑ u : V, ∑ v : V, (H.dist u v : ℝ)
         _ ≤ ∑ _u : V, d * (Fintype.card V - 1 : ℕ) := sum_le_sum fun u _ => hinner u
         _ = d * ((Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ)) := by
@@ -802,28 +778,20 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
         exact ⟨p, hpw, by omega⟩
       let par : V → V := fun w => if hw : w ≠ v₀ then (hex_par w hw).choose else v₀
       let H₀ : SimpleGraph V := parentGraph par
+      have hpar0 : par v₀ = v₀ := by simp [par]
+      have hpar_adj : ∀ x, par x ≠ x → H.Adj (par x) x := fun x hx => by
+        by_cases hx0 : x ≠ v₀
+        · simpa [par, hx0] using (hex_par x hx0).choose_spec.1
+        · rw [not_not.1 hx0] at hx
+          exact absurd hpar0 hx
       have hH₀_le : H₀ ≤ H := by
         intro x y hxy
         rw [parentGraph_adj] at hxy
         rcases hxy.2 with hp | hp
-        · by_cases hx : x ≠ v₀
-          · have hspec := (hex_par x hx).choose_spec.1
-            have hpx : (hex_par x hx).choose = y := by simpa [par, hx] using hp
-            rw [hpx] at hspec
-            exact hspec.symm
-          · push Not at hx
-            subst x
-            simp only [par, ne_eq, not_true_eq_false, ↓reduceDIte] at hp
-            exact absurd hp hxy.1
-        · by_cases hy : y ≠ v₀
-          · have hspec := (hex_par y hy).choose_spec.1
-            have hpy : (hex_par y hy).choose = x := by simpa [par, hy] using hp
-            rw [hpy] at hspec
-            exact hspec
-          · push Not at hy
-            subst y
-            simp only [par, ne_eq, not_true_eq_false, ↓reduceDIte] at hp
-            exact absurd hp.symm hxy.1
+        · rw [← hp]
+          exact (hpar_adj x (hp ▸ hxy.1.symm)).symm
+        · rw [← hp]
+          exact hpar_adj y (hp ▸ hxy.1)
       have hH₀_dist_root : ∀ k : ℕ, ∀ x : V, H.dist v₀ x = k →
           H₀.Reachable v₀ x ∧ H₀.dist v₀ x ≤ k := by
         intro k
@@ -867,15 +835,13 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
             rw [mem_edgeFinset, mem_edgeSet, parentGraph_adj] at he
             rw [mem_image]
             rcases he.2 with hp | hp
-            · have hx : x ≠ v₀ := fun h => by
-                subst h
-                simp only [par, ne_eq, not_true_eq_false, ↓reduceDIte] at hp
-                exact he.1 hp
+            · have hx : x ≠ v₀ := fun h => he.1 <| by
+                rw [h] at hp ⊢
+                exact hpar0.symm.trans hp
               exact ⟨x, mem_erase.mpr ⟨hx, mem_univ x⟩, by rw [hp]⟩
-            · have hy : y ≠ v₀ := fun h => by
-                subst h
-                simp only [par, ne_eq, not_true_eq_false, ↓reduceDIte] at hp
-                exact he.1 hp.symm
+            · have hy : y ≠ v₀ := fun h => he.1 <| by
+                rw [h] at hp ⊢
+                exact hp.symm.trans hpar0
               exact ⟨y, mem_erase.mpr ⟨hy, mem_univ y⟩, by rw [hp, Sym2.eq_swap]⟩
         calc H₀.edgeFinset.card
           _ ≤ ((univ.erase v₀).image fun x => s(x, par x)).card := card_le_card hsub
@@ -912,25 +878,22 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
         have hne_u := hs.playerCost_le hα₀ fun x => hconn_dev u x
         rw [playerCost_def, playerCost_def, Function.update_self] at hne_u
         have hdist_diff : ∑ x : V, (((formedGraph s_dev).dist u x : ℝ) - (H.dist u x : ℝ)) ≤
-            (2 * d - 1) * (Fintype.card V - 1 : ℕ) := by
-          rw [← sum_erase_add _ _ (mem_univ u)]
-          simp only [SimpleGraph.dist_self, Nat.cast_zero, sub_self, add_zero]
-          calc ∑ x ∈ univ.erase u, (((formedGraph s_dev).dist u x : ℝ) - (H.dist u x : ℝ))
-            _ ≤ ∑ _x ∈ univ.erase u, (2 * d - 1) :=
-                sum_le_sum fun x hx => by
-                  have hxu : u ≠ x := (ne_of_mem_erase hx).symm
-                  have h1 : (1 : ℝ) ≤ (H.dist u x : ℝ) := by
-                    exact_mod_cast hconn.pos_dist_of_ne hxu
-                  have h2 : ((formedGraph s_dev).dist u x : ℝ) ≤ 2 * d := by
-                    have he := edist_anti hle_dev (u := u) (v := x)
-                    rw [← (hconn_dev u x).coe_dist_eq_edist, ← (hH₀_conn u x).coe_dist_eq_edist]
-                      at he
-                    have hle0 : ((formedGraph s_dev).dist u x : ℝ) ≤ (H₀.dist u x : ℝ) := by
-                      exact_mod_cast he
-                    exact hle0.trans (hH₀_diam u x)
-                  linarith
-            _ = (2 * d - 1) * (Fintype.card V - 1 : ℕ) := by
-                rw [sum_const, card_erase_of_mem (mem_univ u), card_univ, nsmul_eq_mul, mul_comm]
+            (2 * d - 1) * (Fintype.card V - 1 : ℕ) :=
+          calc ∑ x : V, (((formedGraph s_dev).dist u x : ℝ) - (H.dist u x : ℝ))
+            _ ≤ ((Fintype.card V - 1 : ℕ) : ℝ) * (2 * d - 1) :=
+                sum_le_card_sub_one_mul (u := u) (by simp)
+                  fun x hx => by
+                    have h1 : (1 : ℝ) ≤ (H.dist u x : ℝ) := by
+                      exact_mod_cast hconn.pos_dist_of_ne hx.symm
+                    have h2 : ((formedGraph s_dev).dist u x : ℝ) ≤ 2 * d := by
+                      have he := edist_anti hle_dev (u := u) (v := x)
+                      rw [← (hconn_dev u x).coe_dist_eq_edist, ← (hH₀_conn u x).coe_dist_eq_edist]
+                        at he
+                      have hle0 : ((formedGraph s_dev).dist u x : ℝ) ≤ (H₀.dist u x : ℝ) := by
+                        exact_mod_cast he
+                      exact hle0.trans (hH₀_diam u x)
+                    linarith
+            _ = (2 * d - 1) * (Fintype.card V - 1 : ℕ) := mul_comm _ _
         rw [sum_sub_distrib] at hdist_diff
         dsimp only [s_dev, H] at hdist_diff
         linarith
@@ -990,13 +953,8 @@ theorem IsPureNash.socialECost_le_three_diam_sub_one_mul [Nontrivial V] {α : �
   have hed : (formedGraph s).ediam ≠ ⊤ := connected_iff_ediam_ne_top.mp hs.connected
   have hd1 : (1 : ℝ) ≤ ((formedGraph s).diam : ℝ) := by
     exact_mod_cast Nat.pos_of_ne_zero (diam_ne_zero_of_ediam_ne_top hed)
-  have hpos : 0 < 3 * ((formedGraph s).diam : ℝ) - 1 := by linarith
-  by_cases hc' : (formedGraph s').Connected
-  · rw [socialECost_eq_ofReal_of_connected hα₀ hs.connected,
-      socialECost_eq_ofReal_of_connected hα₀ hc', ← ENNReal.ofReal_mul hpos.le]
-    exact ENNReal.ofReal_le_ofReal (hs.socialCost_le_three_diam_sub_one_mul hα₀ hc')
-  · rw [socialECost_eq_top_iff.mpr hc', ENNReal.mul_top (by positivity)]
-    exact le_top
+  exact hs.socialECost_le_ofReal_mul hα₀ (by linarith) s' fun hc' =>
+    hs.socialCost_le_three_diam_sub_one_mul hα₀ hc'
 
 /-- **Sharp `O(√α)` Price of Anarchy `(3√(4α + 1) - 1)`**
 ([FabrikantLuthraManevaPapadimitriouShenker2003]; [TardosWexler2007], Theorem 19.5, p. 492,
@@ -1010,23 +968,11 @@ theorem IsPureNash.socialECost_le_three_mul_sqrt_four_add_one_sub_one_mul {α : 
   have hsq1 : 1 ≤ Real.sqrt (4 * α + 1) :=
     calc (1 : ℝ) = Real.sqrt 1 := Real.sqrt_one.symm
       _ ≤ Real.sqrt (4 * α + 1) := Real.sqrt_le_sqrt (by linarith)
-  have hpos : 0 < 3 * Real.sqrt (4 * α + 1) - 1 := by linarith
-  rcases isEmpty_or_nonempty V with hE | hNE
-  · have := hE
-    simp only [socialECost_def, univ_eq_empty, sum_empty, zero_le]
-  · have : Nonempty V := hNE
-    by_cases hc' : (formedGraph s').Connected
-    · have hed : (formedGraph s).ediam ≠ ⊤ := connected_iff_ediam_ne_top.mp hs.connected
-      have hdist : ∀ u v : V, ((formedGraph s).dist u v : ℝ) ≤ Real.sqrt (4 * α + 1) :=
-        fun u v =>
-          (Nat.cast_le.mpr (dist_le_diam hed (u := u) (v := v))).trans
-            (hs.diam_le_sqrt_four_mul_add_one hα₀)
-      rw [socialECost_eq_ofReal_of_connected hα₀ hs.connected,
-        socialECost_eq_ofReal_of_connected hα₀ hc', ← ENNReal.ofReal_mul hpos.le]
-      exact ENNReal.ofReal_le_ofReal
-        (hs.socialCost_le_three_mul_sub_one_of_dist_le hα₀ hsq1 hdist hc')
-    · rw [socialECost_eq_top_iff.mpr hc', ENNReal.mul_top (by positivity)]
-      exact le_top
+  refine hs.socialECost_le_ofReal_mul hα₀ (by linarith) s' fun hc' => ?_
+  have hed : (formedGraph s).ediam ≠ ⊤ := connected_iff_ediam_ne_top.mp hs.connected
+  exact hs.socialCost_le_three_mul_sub_one_of_dist_le hα₀ hsq1
+    (fun u v => (Nat.cast_le.mpr (dist_le_diam hed)).trans (hs.diam_le_sqrt_four_mul_add_one hα₀))
+    hc'
 
 /-- **`O(√α)` Price of Anarchy `(6√α + 2)`**
 ([FabrikantLuthraManevaPapadimitriouShenker2003]; [TardosWexler2007], Theorem 19.5, p. 492,

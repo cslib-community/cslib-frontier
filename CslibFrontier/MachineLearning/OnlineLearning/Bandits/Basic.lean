@@ -205,24 +205,18 @@ theorem sum_pullCount_eq_length [Fintype ι] (hist : List (BanditStep ι)) :
     ∑ i : ι, pullCount hist i = hist.length := by
   induction hist with
   | nil => simp
-  | cons s rest ih =>
-    simp only [pullCount_cons, sum_add_distrib, ih, List.length_cons]
-    simp
+  | cons _ _ ih => simp [pullCount_cons, sum_add_distrib, ih]
 
 /-- Across all arms, per-arm feedback sums partition the total observed feedback. -/
 theorem sum_feedbackSum_eq [Fintype ι] (hist : List (BanditStep ι)) :
     ∑ i : ι, feedbackSum hist i = (hist.map BanditStep.value).sum := by
   induction hist with
   | nil => simp
-  | cons s rest ih =>
-    simp only [feedbackSum_cons, sum_add_distrib, ih, List.map_cons, List.sum_cons]
-    simp
+  | cons _ _ ih => simp [feedbackSum_cons, sum_add_distrib, ih]
 
 theorem pullCount_ofFn {n : ℕ} (f : Fin n → BanditStep ι) (i : ι) :
     pullCount (List.ofFn f) i = (univ.filter fun r : Fin n => (f r).arm = i).card := by
-  unfold pullCount
-  rw [List.countP_ofFn]
-  simp
+  simp [pullCount, List.countP_ofFn]
 
 theorem feedbackSum_ofFn {n : ℕ} (f : Fin n → BanditStep ι) (i : ι) :
     feedbackSum (List.ofFn f) i = ∑ r : Fin n, if (f r).arm = i then (f r).value else 0 := by
@@ -254,23 +248,8 @@ theorem historyOfArms_zero {ι : Type*} (env : ℕ → ι → ℝ) (traj : Fin 0
 theorem historyOfArms_snoc {ι : Type*} (env : ℕ → ι → ℝ) {T : ℕ} (traj : Fin T → ι) (a : ι) :
     historyOfArms env (Fin.snoc (α := fun _ => ι) traj a) =
       historyOfArms env traj ++ [⟨a, env T a⟩] := by
-  apply List.ext_getElem (by simp [historyOfArms])
-  intro n hn1 hn2
-  have hn1' : n < T + 1 := by simpa [historyOfArms] using hn1
-  by_cases hn : n < T
-  · have hn_len : n < (historyOfArms env traj).length := by simpa [historyOfArms] using hn
-    rw [List.getElem_append_left hn_len]
-    simp only [historyOfArms, List.getElem_ofFn]
-    have hcast : (⟨n, hn1'⟩ : Fin (T + 1)) = (⟨n, hn⟩ : Fin T).castSucc := rfl
-    rw [hcast, Fin.snoc_castSucc]
-  · have heq : n = T := by omega
-    have hge : (historyOfArms env traj).length ≤ n := by simp [historyOfArms, heq]
-    rw [List.getElem_append_right hge]
-    simp only [historyOfArms, List.getElem_ofFn, List.length_ofFn]
-    subst heq
-    have hlast : (⟨n, hn1'⟩ : Fin (n + 1)) = Fin.last n := rfl
-    rw [hlast, Fin.snoc_last]
-    simp
+  rw [historyOfArms, List.ofFn_succ']
+  simp [historyOfArms, Fin.snoc_castSucc, Fin.snoc_last]
 
 @[simp]
 theorem length_historyOfArms {ι : Type*} (env : ℕ → ι → ℝ) {T : ℕ} (traj : Fin T → ι) :
@@ -322,21 +301,16 @@ theorem expectedTotal_succ {ι : Type*} [Fintype ι] (pol : RandomizedPolicy ι)
           ∑ a : ι, (pol.play (historyOfArms env prev) a).toReal * env T a := by
   unfold expectedTotal
   rw [trajectoryPMF_succ, Cslib.Probability.PMF.sum_bind_mul]
-  have hstep : ∀ prev : Fin T → ι,
+  have hstep (prev : Fin T → ι) :
       (∑ b : Fin (T + 1) → ι,
           (((pol.play (historyOfArms env prev)).map (Fin.snoc (α := fun _ => ι) prev)) b).toReal *
             ∑ t : Fin (T + 1), env t (b t)) =
         (∑ t : Fin T, env t (prev t)) +
           ∑ a : ι, (pol.play (historyOfArms env prev) a).toReal * env T a := by
-    intro prev
     rw [Cslib.Probability.PMF.sum_map_mul]
-    have hsnoc : ∀ a : ι,
-        (∑ t : Fin (T + 1), env t (Fin.snoc (α := fun _ => ι) prev a t)) =
-          (∑ t : Fin T, env t (prev t)) + env T a := fun a => by
-      rw [Fin.sum_univ_castSucc]
-      simp [Fin.snoc_castSucc, Fin.snoc_last]
-    simp only [hsnoc, mul_add, sum_add_distrib, ← sum_mul,
-      Cslib.Probability.PMF.sum_toReal, one_mul]
+    simp_rw [Fin.sum_univ_castSucc]
+    simp only [Fin.snoc_castSucc, Fin.snoc_last, Fin.val_castSucc, Fin.val_last, mul_add,
+      sum_add_distrib, ← sum_mul, Cslib.Probability.PMF.sum_toReal, one_mul]
   simp only [hstep, mul_add, sum_add_distrib]
 
 theorem expectedTotal_nonneg {ι : Type*} [Fintype ι] (pol : RandomizedPolicy ι)
@@ -399,14 +373,12 @@ theorem pseudoRegret_eq_sup_regretAt [Fintype ι] [Nonempty ι] (pol : Randomize
     E.pseudoRegret pol T = univ.sup' univ_nonempty (E.regretAt pol T) := by
   apply le_antisymm
   · obtain ⟨i, _, hi⟩ := exists_mem_eq_inf' univ_nonempty (E.cumLoss T)
-    have hle : E.regretAt pol T i ≤ univ.sup' univ_nonempty (E.regretAt pol T) :=
-      le_sup' (E.regretAt pol T) (mem_univ i)
+    have hle := le_sup' (E.regretAt pol T) (mem_univ i)
     unfold pseudoRegret bestCumLoss regretAt at *
     linarith
-  · rw [Finset.sup'_le_iff]
-    intro i _
-    have hle : E.bestCumLoss T ≤ E.cumLoss T i := inf'_le (E.cumLoss T) (mem_univ i)
-    unfold pseudoRegret regretAt
+  · refine (Finset.sup'_le_iff _ _).mpr fun i _ => ?_
+    have hle := inf'_le (E.cumLoss T) (mem_univ i)
+    unfold pseudoRegret bestCumLoss regretAt at *
     linarith
 
 /-- Bounding `regretAt` uniformly by `B` against every arm `i` bounds `pseudoRegret` by `B`. -/
@@ -479,18 +451,15 @@ theorem runStochastic_succ_of_lt {t : ℕ} (ht : t < T) :
       hist ++ [⟨a, X (a, ⟨pullCount hist a,
         (pullCount_le_length hist a).trans_lt
           (ht.trans_eq' (length_runStochastic pol X t).symm)⟩)⟩] := by
-  rw [runStochastic_succ]
-  dsimp only
   have hs : pullCount (runStochastic pol X t) (pol.choose (runStochastic pol X t)) < T :=
     (pullCount_le_length _ _).trans_lt (ht.trans_eq' (length_runStochastic pol X t).symm)
-  split_ifs
-  rfl
+  simp only [runStochastic_succ, hs, ↓reduceDIte]
 
 theorem pullCount_runStochastic_mono {t₁ t₂ : ℕ} (h : t₁ ≤ t₂) (i : ι) :
     pullCount (runStochastic pol X t₁) i ≤ pullCount (runStochastic pol X t₂) i := by
   induction h with
   | refl => exact le_rfl
-  | @step m _ ih =>
+  | @step _ _ ih =>
     rw [runStochastic_succ, pullCount_append]
     exact ih.trans (Nat.le_add_right _ _)
 
@@ -513,23 +482,16 @@ theorem feedbackSum_runStochastic_eq {t : ℕ} (ht : t ≤ T) (i : ι) :
       have hu : u < T :=
         (pullCount_le_length hist a).trans_lt (ht'.trans_eq' (length_runStochastic pol X t).symm)
       simp only [↓reduceIte]
-      have hsplit : ∀ s : Fin T,
-          (if (s : ℕ) < u + 1 then X (a, s) else 0) =
-            (if (s : ℕ) < u then X (a, s) else 0) +
-              if s = ⟨u, hu⟩ then X (a, ⟨u, hu⟩) else 0 := fun s => by
-        by_cases h1 : (s : ℕ) < u
-        · have hne : s ≠ ⟨u, hu⟩ := fun h => by
-            have := congrArg Fin.val h
-            dsimp at this
-            omega
-          simp [h1, Nat.lt_succ_of_lt h1, hne]
-        · by_cases h2 : (s : ℕ) = u
-          · have heq : s = ⟨u, hu⟩ := Fin.ext h2
-            subst heq
-            simp
-          · have h3 : ¬ (s : ℕ) < u + 1 := by omega
-            have hne : s ≠ ⟨u, hu⟩ := fun h => h2 (congrArg Fin.val h)
-            simp [h1, h3, hne]
+      have hsplit (s : Fin T) : (if (s : ℕ) < u + 1 then X (a, s) else 0) =
+          (if (s : ℕ) < u then X (a, s) else 0) +
+            if s = ⟨u, hu⟩ then X (a, ⟨u, hu⟩) else 0 := by
+        rcases lt_trichotomy (s : ℕ) u with h1 | h2 | h3
+        · simp [h1, Nat.lt_succ_of_lt h1,
+            show s ≠ ⟨u, hu⟩ from fun h => h1.ne (congrArg Fin.val h)]
+        · obtain rfl : s = ⟨u, hu⟩ := Fin.ext h2
+          simp
+        · simp [show ¬(s : ℕ) < u by omega, show ¬(s : ℕ) < u + 1 by omega,
+            show s ≠ ⟨u, hu⟩ from fun h => h3.ne' (congrArg Fin.val h)]
       simp_rw [hsplit]
       rw [sum_add_distrib]
       simp only [sum_ite_eq', mem_univ, ↓reduceIte]
@@ -545,44 +507,28 @@ theorem runStochastic_update_eq_of_pullCount_le {t : ℕ} (ht : t ≤ T) (i : ι
   | zero => simp
   | succ t ih =>
     have ht' : t < T := Nat.lt_of_succ_le ht
-    have hprev_le : pullCount (runStochastic pol X t) i ≤ s :=
-      (pullCount_runStochastic_mono pol X (Nat.le_succ t) i).trans hle
-    have hprev := ih ht'.le hprev_le
+    have hprev := ih ht'.le ((pullCount_runStochastic_mono pol X (Nat.le_succ t) i).trans hle)
     rw [runStochastic_succ_of_lt _ _ ht', runStochastic_succ_of_lt _ _ ht']
     simp only [hprev]
-    set hist := runStochastic pol X t
-    set a := pol.choose hist
-    have hne : (a, (⟨pullCount hist a,
-        (pullCount_le_length hist a).trans_lt
-          (ht'.trans_eq' (length_runStochastic pol X t).symm)⟩ : Fin T)) ≠ (i, s) := by
-      intro hpair
-      rcases Prod.mk.inj hpair with ⟨rfl, hfin⟩
-      have hval : pullCount hist a = (s : ℕ) := congrArg Fin.val hfin
-      have hsucc : pullCount (runStochastic pol X (t + 1)) a = pullCount hist a + 1 := by
-        rw [runStochastic_succ_of_lt pol X ht', pullCount_append, pullCount_singleton]
-        simp [hist, a]
-      omega
-    rw [Function.update_of_ne hne]
+    rw [Function.update_of_ne]
+    intro hpair
+    rcases Prod.mk.inj hpair with ⟨rfl, hfin⟩
+    have hval : pullCount (runStochastic pol X t) _ = (s : ℕ) := congrArg Fin.val hfin
+    rw [runStochastic_succ_of_lt pol X ht', pullCount_append, pullCount_singleton, ite_eq_left rfl]
+      at hle
+    omega
 
 /-- Crucial stopping-event invariance: whether arm `i` is pulled at least `s + 1` times in `t ≤ T`
 rounds does not depend on the `(s + 1)`-th reward `X (i, s)` of arm `i`. -/
 theorem lt_pullCount_runStochastic_update_iff {t : ℕ} (ht : t ≤ T) (i : ι) (s : Fin T) (z : ℝ) :
     (s : ℕ) < pullCount (runStochastic pol (Function.update X (i, s) z) t) i ↔
       (s : ℕ) < pullCount (runStochastic pol X t) i := by
-  constructor
-  · contrapose!
-    intro hle
-    rw [runStochastic_update_eq_of_pullCount_le pol X ht i s z hle]
-    exact hle
-  · contrapose!
-    intro hle
-    have hrestore : Function.update (Function.update X (i, s) z) (i, s) (X (i, s)) = X := by
-      simp
-    have h2 := runStochastic_update_eq_of_pullCount_le pol (Function.update X (i, s) z) ht i s
+  refine ⟨fun h => not_le.mp fun hle => ?_, fun h => not_le.mp fun hle => ?_⟩
+  · rw [runStochastic_update_eq_of_pullCount_le pol X ht i s z hle] at h; omega
+  · have h2 := runStochastic_update_eq_of_pullCount_le pol (Function.update X (i, s) z) ht i s
       (X (i, s)) hle
-    rw [hrestore] at h2
-    rw [h2]
-    exact hle
+    simp only [Function.update_idem, Function.update_eq_self] at h2
+    rw [h2] at h; omega
 
 /-- Measurability of `{X | pullCount (runStochastic pol X t) a = s}` given measurability of the
 individual arm fibers up to round `t`. -/
@@ -602,21 +548,17 @@ private theorem measurableSet_pullCount_eq_of_arms [Finite ι] {t : ℕ}
         (univ.filter fun r : Fin t =>
           ((runStochastic pol X t)[r.1]'(by simp)).arm = a).card := by
       have hl : runStochastic pol X t =
-          List.ofFn (fun r : Fin t => (runStochastic pol X t)[r.1]'(by simp)) := by
-        apply List.ext_getElem (by simp)
-        intro n _ _
-        simp
+          List.ofFn (fun r : Fin t => (runStochastic pol X t)[r.1]'(by simp)) :=
+        List.ext_getElem (by simp) fun _ _ _ => by simp
       conv_lhs => rw [hl]
       exact pullCount_ofFn _ a
-    constructor
-    · intro hs
-      exact ⟨fun r => ((runStochastic pol X t)[r.1]'(by simp)).arm,
-        by simpa [hcnt] using hs, fun _ => rfl⟩
-    · rintro ⟨arms, hcard, harms⟩
-      rw [hcnt, ← hcard]
-      congr 1
-      ext r
-      simp [harms r]
+    exact ⟨fun hs => ⟨fun r => ((runStochastic pol X t)[r.1]'(by simp)).arm,
+        by simpa [hcnt] using hs, fun _ => rfl⟩,
+      fun ⟨arms, hcard, harms⟩ => by
+        rw [hcnt, ← hcard]
+        congr 1
+        ext r
+        simp [harms r]⟩
   rw [heq]
   exact Set.Finite.measurableSet_biUnion (Finset.finite_toSet _) fun arms _ =>
     MeasurableSet.iInter fun r => hA r (arms r)
@@ -634,12 +576,10 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
   | zero => exact ⟨fun r => r.elim0, fun r => r.elim0⟩
   | succ t ih =>
     obtain ⟨hA, hV⟩ := ih
-    have hchoose : ∀ i : ι,
+    have hchoose (i : ι) :
         MeasurableSet {X : ι × Fin T → ℝ | pol.choose (runStochastic pol X t) = i} := by
-      intro i
       let valsFn : (ι × Fin T → ℝ) → (Fin t → ℝ) :=
         fun X r => ((runStochastic pol X t)[r.1]'(by simp)).value
-      have hvals_meas : Measurable valsFn := Measurable.of_eval hV
       have heq : {X : ι × Fin T → ℝ | pol.choose (runStochastic pol X t) = i} =
           ⋃ arms : Fin t → ι,
             (⋂ r : Fin t, {X | ((runStochastic pol X t)[r.1]'(by simp)).arm = arms r}) ∩
@@ -648,108 +588,74 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
         ext X
         simp only [Set.mem_ofPred_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_iInter,
           Set.mem_preimage]
-        constructor
-        · intro hX
-          refine ⟨fun r => ((runStochastic pol X t)[r.1]'(by simp)).arm, fun _ => rfl, ?_⟩
-          have hlist : (List.ofFn fun r : Fin t =>
-              (⟨((runStochastic pol X t)[r.1]'(by simp)).arm, valsFn X r⟩ : BanditStep ι)) =
+        have hlist (arms : Fin t → ι)
+            (harms : ∀ r : Fin t, ((runStochastic pol X t)[r.1]'(by simp)).arm = arms r) :
+            (List.ofFn fun r : Fin t => (⟨arms r, valsFn X r⟩ : BanditStep ι)) =
               runStochastic pol X t := by
-            apply List.ext_getElem (by simp)
-            intro n hn1 hn2
-            simp [valsFn]
-          simpa [hlist] using hX
-        · rintro ⟨arms, harms, hval⟩
-          have hlist : (List.ofFn fun r : Fin t =>
-              (⟨arms r, valsFn X r⟩ : BanditStep ι)) = runStochastic pol X t := by
-            apply List.ext_getElem (by simp)
-            intro n hn1 hn2
-            simp [valsFn, ← harms ⟨n, by simpa using hn2⟩]
-          simpa [hlist] using hval
+          apply List.ext_getElem (by simp)
+          intro n _ hn2
+          simp [valsFn, ← harms ⟨n, by simpa using hn2⟩]
+        exact ⟨fun hX => ⟨_, fun _ => rfl, by simpa [hlist _ fun _ => rfl] using hX⟩,
+          fun ⟨arms, harms, hval⟩ => by simpa [hlist arms harms] using hval⟩
       rw [heq]
-      exact MeasurableSet.iUnion fun arms =>
-        (MeasurableSet.iInter fun r => hA r (arms r)).inter (hvals_meas (hpol t arms i))
-    have hpull : ∀ (a : ι) (s : ℕ),
-        MeasurableSet {X : ι × Fin T → ℝ | pullCount (runStochastic pol X t) a = s} :=
-      measurableSet_pullCount_eq_of_arms pol hA
-    constructor
-    · intro r i
-      refine Fin.lastCases ?_ (fun r₀ => ?_) r
-      · have hlast : {X : ι × Fin T → ℝ |
-            ((runStochastic pol X (t + 1))[(Fin.last t).1]'(by simp)).arm = i} =
-            {X | pol.choose (runStochastic pol X t) = i} := by
-          ext X
-          simp [runStochastic_succ]
-        rw [hlast]
-        exact hchoose i
-      · have hinit : {X : ι × Fin T → ℝ |
-            ((runStochastic pol X (t + 1))[r₀.castSucc.1]'(by simp)).arm = i} =
-            {X | ((runStochastic pol X t)[r₀.1]'(by simp)).arm = i} := by
-          ext X
-          simp [runStochastic_succ]
-        rw [hinit]
-        exact hA r₀ i
-    · intro r
-      refine Fin.lastCases ?_ (fun r₀ => ?_) r
-      · have hlast : (fun X : ι × Fin T → ℝ =>
-            ((runStochastic pol X (t + 1))[(Fin.last t).1]'(by simp)).value) =
-            fun X => ∑ a : ι, ∑ s : Fin T,
-              Set.indicator
-                ({X | pol.choose (runStochastic pol X t) = a} ∩
-                  {X | pullCount (runStochastic pol X t) a = s.1})
-                (fun X => X (a, s)) X := by
-          funext X
-          have hget : ((runStochastic pol X (t + 1))[(Fin.last t).1]'(by simp)).value =
-              if hs : pullCount (runStochastic pol X t)
-                  (pol.choose (runStochastic pol X t)) < T then
-                X (pol.choose (runStochastic pol X t), ⟨_, hs⟩)
-              else 0 := by
-            simp [runStochastic_succ]
-          rw [hget]
-          set a₀ := pol.choose (runStochastic pol X t)
-          set s₀ := pullCount (runStochastic pol X t) a₀
-          split_ifs with hs₀
-          · rw [sum_eq_single a₀, sum_eq_single ⟨s₀, hs₀⟩]
-            · simp [Set.indicator_of_mem, a₀, s₀]
-            · intro b _ hb
-              have hnot : X ∉ {X | pol.choose (runStochastic pol X t) = a₀} ∩
-                  {X | pullCount (runStochastic pol X t) a₀ = b.1} := by
-                simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, not_and]
-                intro _ hval
-                exact hb (Fin.ext hval.symm)
-              exact Set.indicator_of_notMem hnot _
-            · simp
-            · intro b _ hb
-              refine sum_eq_zero fun s _ => ?_
-              have hnot : X ∉ {X | pol.choose (runStochastic pol X t) = b} ∩
-                  {X | pullCount (runStochastic pol X t) b = s.1} := by
-                simp [a₀, hb.symm]
-              exact Set.indicator_of_notMem hnot _
-            · simp
-          · symm
-            refine sum_eq_zero fun b _ => sum_eq_zero fun s _ => ?_
-            by_cases hb : a₀ = b
-            · subst hb
-              have hnot : X ∉ {X | pol.choose (runStochastic pol X t) = a₀} ∩
-                  {X | pullCount (runStochastic pol X t) a₀ = s.1} := by
-                simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, not_and]
-                intro _ hval
-                exact hs₀ (by simp [s₀, hval])
-              exact Set.indicator_of_notMem hnot _
-            · have hnot : X ∉ {X | pol.choose (runStochastic pol X t) = b} ∩
-                  {X | pullCount (runStochastic pol X t) b = s.1} := by
-                simp [a₀, hb]
-              exact Set.indicator_of_notMem hnot _
+      exact MeasurableSet.iUnion fun arms => (MeasurableSet.iInter fun r => hA r (arms r)).inter
+        ((Measurable.of_eval hV) (hpol t arms i))
+    have hpull := measurableSet_pullCount_eq_of_arms pol hA
+    refine ⟨fun r i => Fin.lastCases ?_ (fun r₀ => ?_) r,
+      fun r => Fin.lastCases ?_ (fun r₀ => ?_) r⟩
+    · convert hchoose i using 1
+      ext X
+      simp [runStochastic_succ]
+    · convert hA r₀ i using 1
+      ext X
+      simp [runStochastic_succ]
+    · suffices hlast : (fun X : ι × Fin T → ℝ =>
+          ((runStochastic pol X (t + 1))[(Fin.last t).1]'(by simp)).value) =
+          fun X => ∑ a : ι, ∑ s : Fin T,
+            Set.indicator ({X | pol.choose (runStochastic pol X t) = a} ∩
+              {X | pullCount (runStochastic pol X t) a = s.1}) (fun X => X (a, s)) X by
         rw [hlast]
         exact Finset.measurable_sum univ fun a _ => Finset.measurable_sum univ fun s _ =>
           (measurable_pi_apply (a, s)).indicator ((hchoose a).inter (hpull a s.1))
-      · have hinit : (fun X : ι × Fin T → ℝ =>
-            ((runStochastic pol X (t + 1))[r₀.castSucc.1]'(by simp)).value) =
-            fun X => ((runStochastic pol X t)[r₀.1]'(r₀.isLt.trans_eq
-              (length_runStochastic pol X t).symm)).value := by
-          funext X
-          simp [runStochastic_succ]
-        rw [hinit]
-        exact hV r₀
+      funext X
+      have hget : ((runStochastic pol X (t + 1))[(Fin.last t).1]'(by simp)).value =
+          if hs : pullCount (runStochastic pol X t) (pol.choose (runStochastic pol X t)) < T then
+            X (pol.choose (runStochastic pol X t), ⟨_, hs⟩) else 0 := by
+        simp [runStochastic_succ]
+      rw [hget]
+      set a₀ := pol.choose (runStochastic pol X t)
+      set s₀ := pullCount (runStochastic pol X t) a₀
+      have hind (a : ι) (s : Fin T) :
+          Set.indicator ({X | pol.choose (runStochastic pol X t) = a} ∩
+            {X | pullCount (runStochastic pol X t) a = s.1}) (fun X => X (a, s)) X =
+            if a₀ = a ∧ s₀ = s.1 then X (a, s) else 0 := by
+        by_cases h : a₀ = a ∧ s₀ = s.1
+        · have hmem : X ∈ {X | pol.choose (runStochastic pol X t) = a} ∩
+              {X | pullCount (runStochastic pol X t) a = s.1} := by
+            refine ⟨h.1, ?_⟩
+            change pullCount (runStochastic pol X t) a = s.1
+            rw [← h.1]
+            exact h.2
+          rw [ite_eq_left h, Set.indicator_of_mem hmem]
+        · rw [ite_eq_right h, Set.indicator_of_notMem]
+          rintro ⟨ha, hs⟩
+          apply h
+          refine ⟨ha, ?_⟩
+          dsimp only [a₀, s₀]
+          rwa [ha]
+      simp_rw [hind]
+      split_ifs with hs₀
+      · rw [sum_eq_single a₀
+            (fun b _ hb => sum_eq_zero fun _ _ => ite_eq_right fun h => hb h.1.symm) (by simp),
+          sum_eq_single ⟨s₀, hs₀⟩
+            (fun _ _ hs => ite_eq_right fun h => hs (Fin.ext h.2.symm)) (by simp)]
+        simp
+      · symm
+        refine sum_eq_zero fun _ _ => sum_eq_zero fun s _ => ite_eq_right fun h => ?_
+        exact hs₀ (h.2 ▸ s.isLt)
+    · convert hV r₀ using 1
+      funext X
+      simp [runStochastic_succ]
 
 theorem measurableSet_pullCount_eq [Finite ι] (hpol : pol.IsMeasurable) (t : ℕ) (i : ι)
     (s : ℕ) :
@@ -901,16 +807,13 @@ private theorem natCast_pullCount_eq_sum_ite (pol : DeterministicPolicy ι) {T :
       ∑ s : Fin T, if (s : ℕ) < pullCount (runStochastic pol X T) i then (1 : ℝ) else 0 := by
   have hle : pullCount (runStochastic pol X T) i ≤ T :=
     (pullCount_le_length _ i).trans_eq (length_runStochastic pol X T)
-  have hcard : (univ.filter fun s : Fin T => (s : ℕ) < pullCount (runStochastic pol X T) i).card =
-      pullCount (runStochastic pol X T) i := by
-    have hbij : Finset.map ⟨fun k : Fin (pullCount (runStochastic pol X T) i) =>
-        (⟨k.1, k.isLt.trans_le hle⟩ : Fin T), fun a b h => Fin.ext (Fin.mk.inj h)⟩ univ =
-        univ.filter fun s : Fin T => (s : ℕ) < pullCount (runStochastic pol X T) i := by
-      ext s
-      simp only [mem_map, mem_univ, true_and, mem_filter]
-      exact ⟨fun ⟨k, hk⟩ => hk ▸ k.isLt, fun hs => ⟨⟨s.1, hs⟩, rfl⟩⟩
-    rw [← hbij, card_map, card_fin]
-  simp [sum_boole, hcard]
+  rw [sum_boole]
+  norm_cast
+  refine (Finset.card_fin (pullCount (runStochastic pol X T) i)).symm.trans ?_
+  exact Finset.card_bij (fun k _ => ⟨k.1, k.isLt.trans_le hle⟩)
+    (fun k _ => mem_filter.mpr ⟨mem_univ _, k.isLt⟩)
+    (fun _ _ _ _ h => Fin.ext (Fin.mk.inj h))
+    (fun s hs => ⟨⟨s.1, (mem_filter.mp hs).2⟩, mem_univ _, rfl⟩)
 
 /-- **Wald's identity for stochastic bandits**: for every Borel-measurable deterministic policy
 `pol`, the expected cumulative reward over `T` rounds is `∑ i, μ_i * 𝔼[N_i(T)]`. -/
@@ -918,76 +821,55 @@ theorem expectedReward_eq_sum_mean {pol : DeterministicPolicy ι}
     (hpol : pol.IsMeasurable) (T : ℕ) :
     B.expectedReward pol T = ∑ i : ι, B.mean i * B.expectedPulls pol T i := by
   unfold expectedReward
-  have htot : ∀ X : ι × Fin T → ℝ,
-      ((runStochastic pol X T).map BanditStep.value).sum =
-        ∑ i : ι, ∑ s : Fin T,
-          if (s : ℕ) < pullCount (runStochastic pol X T) i then X (i, s) else 0 := fun X => by
+  have htot (X : ι × Fin T → ℝ) : ((runStochastic pol X T).map BanditStep.value).sum =
+      ∑ i : ι, ∑ s : Fin T,
+        if (s : ℕ) < pullCount (runStochastic pol X T) i then X (i, s) else 0 := by
     rw [← sum_feedbackSum_eq]
     exact sum_congr rfl fun i _ => feedbackSum_runStochastic_eq pol X le_rfl i
   simp_rw [htot]
-  have hint_term : ∀ (i : ι) (s : Fin T),
+  have hint_term (i : ι) (s : Fin T) :
       Integrable (fun X : ι × Fin T → ℝ =>
         if (s : ℕ) < pullCount (runStochastic pol X T) i then X (i, s) else 0)
         (B.sampleMeasure T) := by
-    intro i s
     have hcoord : Integrable (fun X : ι × Fin T → ℝ => X (i, s)) (B.sampleMeasure T) :=
       (measurePreserving_eval (fun p : ι × Fin T => B.law p.1) (i, s)).integrable_comp_of_integrable
         (B.integrable_id i)
-    have hmeas : Measurable (fun X : ι × Fin T → ℝ =>
-        if (s : ℕ) < pullCount (runStochastic pol X T) i then X (i, s) else 0) := by
-      have heq : (fun X : ι × Fin T → ℝ =>
-          if (s : ℕ) < pullCount (runStochastic pol X T) i then X (i, s) else 0) =
-          Set.indicator {X | (s : ℕ) < pullCount (runStochastic pol X T) i}
-            (fun X => X (i, s)) := by
-        funext X
-        by_cases h : (s : ℕ) < pullCount (runStochastic pol X T) i <;> simp [h]
-      rw [heq]
-      exact (measurable_pi_apply (i, s)).indicator (measurableSet_lt_pullCount pol hpol T i s)
-    refine hcoord.norm.mono' hmeas.aestronglyMeasurable (ae_of_all _ fun X => ?_)
+    refine hcoord.norm.mono' ((Measurable.ite (measurableSet_lt_pullCount pol hpol T i s)
+      (measurable_pi_apply (i, s)) measurable_const).aestronglyMeasurable) (ae_of_all _ fun X => ?_)
     split_ifs <;> simp [abs_nonneg]
   rw [integral_finsetSum univ fun i _ =>
     integrable_finsetSum univ fun s _ => hint_term i s]
   refine sum_congr rfl fun i _ => ?_
   rw [integral_finsetSum univ fun s _ => hint_term i s]
-  have hstep : ∀ s : Fin T,
+  have hstep (s : Fin T) :
       ∫ X, (if (s : ℕ) < pullCount (runStochastic pol X T) i then X (i, s) else 0)
         ∂(B.sampleMeasure T) =
         B.mean i * ∫ X, (if (s : ℕ) < pullCount (runStochastic pol X T) i then (1 : ℝ) else 0)
           ∂(B.sampleMeasure T) := by
-    intro s
     unfold sampleMeasure
-    have hfresh := integral_apply_eval_eq_integral_integral
-      (μ := fun p : ι × Fin T => B.law p.1) (i := (i, s))
+    rw [integral_apply_eval_eq_integral_integral (μ := fun p : ι × Fin T => B.law p.1) (i := (i, s))
       (Φ := fun (X : ι × Fin T → ℝ) (z : ℝ) =>
         if (s : ℕ) < pullCount (runStochastic pol X T) i then z else 0)
-      (fun X z => by
-        funext w
+      (fun X z => funext fun _ => by
         simp [lt_pullCount_runStochastic_update_iff pol X le_rfl i s z])
-      (hint_term i s)
-    rw [hfresh]
-    have hinner : ∀ X : ι × Fin T → ℝ,
+      (hint_term i s)]
+    have hinner (X : ι × Fin T → ℝ) :
         (∫ z, (if (s : ℕ) < pullCount (runStochastic pol X T) i then z else 0) ∂B.law i) =
           B.mean i * (if (s : ℕ) < pullCount (runStochastic pol X T) i then (1 : ℝ) else 0) := by
-      intro X
       by_cases h : (s : ℕ) < pullCount (runStochastic pol X T) i <;> simp [h, mean]
     simp_rw [hinner]
     exact integral_const_mul _ _
   simp_rw [hstep, ← mul_sum]
   congr 1
   unfold expectedPulls sampleMeasure
-  have hind_int : ∀ s : Fin T,
+  have hind_int (s : Fin T) :
       Integrable (fun X : ι × Fin T → ℝ =>
         if (s : ℕ) < pullCount (runStochastic pol X T) i then (1 : ℝ) else 0)
-        (Measure.pi fun p : ι × Fin T => B.law p.1) := by
-    intro s
-    refine Integrable.of_mem_Icc 0 1 ?_ (ae_of_all _ fun X => by split_ifs <;> norm_num)
-    have heq : (fun X : ι × Fin T → ℝ =>
-        if (s : ℕ) < pullCount (runStochastic pol X T) i then (1 : ℝ) else 0) =
-        Set.indicator {X | (s : ℕ) < pullCount (runStochastic pol X T) i} (fun _ => (1 : ℝ)) := by
-      funext X
-      by_cases h : (s : ℕ) < pullCount (runStochastic pol X T) i <;> simp [h]
-    rw [heq]
-    exact (measurable_const.indicator (measurableSet_lt_pullCount pol hpol T i s)).aemeasurable
+        (Measure.pi fun p : ι × Fin T => B.law p.1) :=
+    Integrable.of_mem_Icc 0 1
+      ((Measurable.ite (measurableSet_lt_pullCount pol hpol T i s)
+        measurable_const measurable_const).aemeasurable)
+      (ae_of_all _ fun _ => by split_ifs <;> norm_num)
   rw [← integral_finsetSum univ fun s _ => hind_int s]
   exact integral_congr_ae (ae_of_all _ fun X => (natCast_pullCount_eq_sum_ite pol X i).symm)
 

@@ -80,11 +80,9 @@ theorem contraction_eq_of_ports {k l : ℕ} (N : TensorNetwork R Bool V E) (ev :
   rw [← (ee.arrowCongr (Equiv.refl Bool)).symm.sum_comp]
   refine sum_congr rfl fun x _ => ?_
   rw [← ev.symm.prod_comp]
-  refine prod_congr rfl fun v _ => ?_
-  simp only [Function.comp_apply]
-  rw [← h]
-  congr 1
-  simp only [wordBits, List.map_map]
+  refine prod_congr rfl fun v _ =>
+    (congrArg (eval (desc (ev.symm v))) ?_).trans (h (ev.symm v) _)
+  rw [wordBits, List.map_map]
   refine List.map_congr_left fun e _ => ?_
   simp only [Function.comp_apply, Equiv.arrowCongr_symm, Equiv.arrowCongr_apply,
     Equiv.symm_symm, Equiv.refl_symm, Equiv.coe_refl, id_eq]
@@ -110,15 +108,7 @@ theorem sidePorts_map {α : Type*} (cs : List α) (tag : α → Bool) (sl : α �
     simp only [sidePorts, List.map_cons, List.length_cons, List.length_map,
       List.range_succ_eq_map, List.filter_cons, List.filter_map, List.getD_cons_zero,
       Function.comp_def, List.getD_cons_succ]
-    by_cases hc : tag c == side
-    · rw [ite_eq_left hc, ite_eq_left hc]
-      simp only [List.map_cons, List.map_map]
-      rw [← ih]
-      rfl
-    · rw [ite_eq_right hc, ite_eq_right hc]
-      simp only [List.map_map]
-      rw [← ih]
-      rfl
+    split_ifs <;> simp only [List.map_cons, List.map_map] <;> rw [← ih] <;> rfl
 
 end NativePacket
 
@@ -140,26 +130,17 @@ theorem child_tensor_inl_eq_tensor (β : M → ℕ) (g : G) (v : {v // S.group v
     (S.child β g).tensor (.inl v) y = N.tensor v.1 fun e =>
       if S.side v.1 then (if h : S.group (N.src e) = g then y (.inl ⟨e, h⟩) else false)
       else (if h : S.group (N.tgt e) = g then y (.inr ⟨e, h⟩) else false) := by
-  simp only [child]
-  by_cases hv : S.side v.1
-  · rw [ite_eq_left hv]
+  cases hv : S.side v.1
+  · simp only [child, hv, Bool.false_eq_true, ↓reduceIte]
     refine N.tensor_congr _ _ _ fun e he => ?_
-    simp only [ite_eq_left hv]
-    by_cases hs : N.src e = v.1
-    · rw [dite_eq_left hs, dite_eq_left (hs ▸ v.2)]
-    · have ht : N.tgt e = v.1 := he.resolve_left hs
-      have := S.side_tgt e
-      rw [ht, hv] at this
-      exact absurd this (by decide)
-  · rw [ite_eq_right hv]
-    refine N.tensor_congr _ _ _ fun e he => ?_
-    simp only [ite_eq_right hv]
     by_cases ht : N.tgt e = v.1
     · rw [dite_eq_left ht, dite_eq_left (ht ▸ v.2)]
-    · have hs : N.src e = v.1 := he.resolve_right ht
-      have := S.side_src e
-      rw [hs] at this
-      exact absurd this hv
+    · exact absurd (he.resolve_right ht ▸ S.side_src e) (hv ▸ Bool.noConfusion)
+  · simp only [child, hv, ↓reduceIte]
+    refine N.tensor_congr _ _ _ fun e he => ?_
+    by_cases hs : N.src e = v.1
+    · rw [dite_eq_left hs, dite_eq_left (hs ▸ v.2)]
+    · exact absurd (he.resolve_left hs ▸ S.side_tgt e) (hv ▸ Bool.noConfusion)
 
 end ModeSplitting
 
@@ -251,48 +232,41 @@ theorem map_val_entry_child_inr [DecidableEq V] {T : Type} {ev : T → List Bool
       ((cauchyModeSplitting side hsrc htgt horient hslot hia κ ζ hp ht hti hti').child β g).tensor
         (.inr q) y := by
   subst ha hi ht' hnb
-  have hports : ∀ x ∈ cs.map (fun e => (e.isLeft, slot (Sum.elim Subtype.val Subtype.val e))),
-      x.2 < 2 ^ c.a := by
-    intro x hx
-    obtain ⟨e, -, rfl⟩ := List.mem_map.mp hx
-    exact hslot _
-  have key := VertexDesc.map_val_entry_inr ev (c, cs.map fun e => (e.isLeft,
-    slot (Sum.elim Subtype.val Subtype.val e)), βd) (cs.map y) ψ hp κ hL hia htiles ht hti hti'
-    hports
+  have key := VertexDesc.map_val_entry_inr ev
+    (c, cs.map fun e => (e.isLeft, slot (Sum.elim Subtype.val Subtype.val e)), βd) (cs.map y)
+    ψ hp κ hL hia htiles ht hti hti' fun _ hx => by
+      obtain ⟨e, -, rfl⟩ := List.mem_map.mp hx
+      exact hslot _
   have hgoal : ψ (val c.p c.fl (VertexDesc.entry ev (.inr (c, cs.map fun e => (e.isLeft,
     slot (Sum.elim Subtype.val Subtype.val e)), βd)) (cs.map y))) = _ := key
   rw [hgoal]
   dsimp only
   have hrows : ((cs.filterMap Sum.getLeft?).map Subtype.val).Nodup :=
-    ((hcs.filterMap fun _ _ _ h₁ h₂ => by
-      rw [Option.mem_def, Sum.getLeft?_eq_some_iff] at h₁ h₂; rw [h₁, h₂])).map
-      Subtype.val_injective
+    (hcs.filterMap fun _ _ _ h₁ h₂ => by
+      rw [Option.mem_def, Sum.getLeft?_eq_some_iff] at h₁ h₂
+      exact h₁.trans h₂.symm).map Subtype.val_injective
   have hcols : ((cs.filterMap Sum.getRight?).map Subtype.val).Nodup :=
-    ((hcs.filterMap fun _ _ _ h₁ h₂ => by
-      rw [Option.mem_def, Sum.getRight?_eq_some_iff] at h₁ h₂; rw [h₁, h₂])).map
-      Subtype.val_injective
-  have hrows' : ∀ e, e ∈ (cs.filterMap Sum.getLeft?).map Subtype.val ↔
+    (hcs.filterMap fun _ _ _ h₁ h₂ => by
+      rw [Option.mem_def, Sum.getRight?_eq_some_iff] at h₁ h₂
+      exact h₁.trans h₂.symm).map Subtype.val_injective
+  have hrows' (e : E) : e ∈ (cs.filterMap Sum.getLeft?).map Subtype.val ↔
       packet e = q ∧ group (N.src e) = g := by
-    intro e
     simp only [List.mem_map, List.mem_filterMap, Sum.getLeft?_eq_some_iff]
-    constructor
-    · rintro ⟨e', ⟨c, hc, rfl⟩, rfl⟩
+    refine ⟨?_, fun ⟨hq, hg⟩ => ?_⟩
+    · rintro ⟨e', ⟨_, hc, rfl⟩, rfl⟩
       exact ⟨(hcs' _).1 hc, by simpa using e'.2⟩
-    · rintro ⟨hq, hg⟩
-      have hg' : (cauchyModeSplitting side hsrc htgt horient hslot hia κ ζ hp ht hti hti').group
+    · have hg' : (cauchyModeSplitting side hsrc htgt horient hslot hia κ ζ hp ht hti hti').group
           (N.src e) = g := by simpa using hg
-      exact ⟨⟨e, hg'⟩, ⟨_, (hcs' (.inl ⟨e, hg'⟩)).2 hq, rfl⟩, rfl⟩
-  have hcols' : ∀ e, e ∈ (cs.filterMap Sum.getRight?).map Subtype.val ↔
+      exact ⟨⟨e, hg'⟩, ⟨.inl ⟨e, hg'⟩, (hcs' _).2 hq, rfl⟩, rfl⟩
+  have hcols' (e : E) : e ∈ (cs.filterMap Sum.getRight?).map Subtype.val ↔
       packet e = q ∧ group (N.tgt e) = g := by
-    intro e
     simp only [List.mem_map, List.mem_filterMap, Sum.getRight?_eq_some_iff]
-    constructor
-    · rintro ⟨e', ⟨c, hc, rfl⟩, rfl⟩
+    refine ⟨?_, fun ⟨hq, hg⟩ => ?_⟩
+    · rintro ⟨e', ⟨_, hc, rfl⟩, rfl⟩
       exact ⟨(hcs' _).1 hc, by simpa using e'.2⟩
-    · rintro ⟨hq, hg⟩
-      have hg' : (cauchyModeSplitting side hsrc htgt horient hslot hia κ ζ hp ht hti hti').group
+    · have hg' : (cauchyModeSplitting side hsrc htgt horient hslot hia κ ζ hp ht hti hti').group
           (N.tgt e) = g := by simpa using hg
-      exact ⟨⟨e, hg'⟩, ⟨_, (hcs' (.inr ⟨e, hg'⟩)).2 hq, rfl⟩, rfl⟩
+      exact ⟨⟨e, hg'⟩, ⟨.inr ⟨e, hg'⟩, (hcs' _).2 hq, rfl⟩, rfl⟩
   rw [child_tensor_inr_cauchyModeSplitting side hsrc htgt horient hslot hia κ _ hp ht hti hti' β
     g q y hrows hrows' hcols hcols', sidePorts_map, sidePorts_map, filter_isLeft_map,
     filter_isLeft_false_map, hζ, he₁, he₂, hdiffer]

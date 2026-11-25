@@ -173,14 +173,13 @@ theorem totalDegree_coeff_affineInput_le [Fintype ι]
     ((affineInput row t x).coeff j).totalDegree ≤ j := by
   rw [affineInput, Polynomial.coeff_add]
   refine (MvPolynomial.totalDegree_add _ _).trans (max_le ?_ ?_)
-  · by_cases hj : j = 0
-    · subst j
-      simp only [Polynomial.coeff_C_zero, MvPolynomial.totalDegree_C, le_refl]
+  · rcases eq_or_ne j 0 with rfl | hj
+    · simp only [Polynomial.coeff_C_zero, MvPolynomial.totalDegree_C, le_rfl]
     · rw [Polynomial.coeff_C_of_ne_zero hj]
       exact Nat.zero_le j
   · rw [Polynomial.finsetSum_coeff]
-    refine MvPolynomial.totalDegree_finsetSum_le fun i _ => ?_
-    exact MvPolynomial.totalDegree_coeff_X_mul_map_le i _ (coeff_zero_taylor_sub_C_eval t (row i)) j
+    exact MvPolynomial.totalDegree_finsetSum_le fun i _ =>
+      MvPolynomial.totalDegree_coeff_X_mul_map_le i _ (coeff_zero_taylor_sub_C_eval t (row i)) j
 
 /-- Every outer Taylor coefficient `j` of `affineFactor` has multivariate total degree at most `j`
 in the formal variables `X`. -/
@@ -200,23 +199,20 @@ theorem totalDegree_coeff_factorProduct_le [Fintype ι]
   unfold factorProduct
   induction s using Finset.cons_induction with
   | empty =>
-      intro k
-      have h1 := MvPolynomial.totalDegree_coeff_eval₂_le (ι := ι) (1 : MvPolynomial Empty A)
-        Empty.elim (fun v => Empty.elim v) k
-      rwa [Finset.prod_empty,
-        ← MvPolynomial.eval₂_one (Polynomial.C.comp MvPolynomial.C) Empty.elim]
+    intro k
+    have h1 := MvPolynomial.totalDegree_coeff_eval₂_le (ι := ι) (1 : MvPolynomial Empty A)
+      Empty.elim (fun v => Empty.elim v) k
+    rwa [Finset.prod_empty,
+      ← MvPolynomial.eval₂_one (Polynomial.C.comp MvPolynomial.C) Empty.elim]
   | cons f s hf ih =>
-      intro k
-      rw [Finset.prod_cons]
-      let Q : Bool → Polynomial (MvPolynomial ι A) :=
-        fun b => cond b (affineFactor (Φ f) (P f) t x) (∏ g ∈ s, affineFactor (Φ g) (P g) t x)
-      have hmul := MvPolynomial.totalDegree_coeff_eval₂_le
-        (MvPolynomial.X true * MvPolynomial.X false : MvPolynomial Bool A) Q
-        (fun b m => by
-          cases b
-          · exact ih m
-          · exact totalDegree_coeff_affineFactor_le _ _ _ _ m) k
-      rwa [MvPolynomial.eval₂_mul, MvPolynomial.eval₂_X, MvPolynomial.eval₂_X] at hmul
+    intro k
+    rw [Finset.prod_cons]
+    let Q : Bool → Polynomial (MvPolynomial ι A) :=
+      fun b => cond b (affineFactor (Φ f) (P f) t x) (∏ g ∈ s, affineFactor (Φ g) (P g) t x)
+    have hmul := MvPolynomial.totalDegree_coeff_eval₂_le
+      (MvPolynomial.X true * MvPolynomial.X false : MvPolynomial Bool A) Q
+      (fun b => Bool.casesOn b ih (totalDegree_coeff_affineFactor_le (Φ f) (P f) t x)) k
+    rwa [MvPolynomial.eval₂_mul, MvPolynomial.eval₂_X, MvPolynomial.eval₂_X] at hmul
 
 /-! ### Evaluation in formal variables and diagonal Taylor shift -/
 
@@ -231,11 +227,10 @@ theorem map_eval_affineInput [Fintype ι]
   rw [affineInput, Polynomial.map_add, Polynomial.map_C, MvPolynomial.eval_C, Polynomial.map_sum]
   congr 1
   refine Finset.sum_congr rfl fun i _ => ?_
-  rw [Polynomial.map_mul, Polynomial.map_C, MvPolynomial.eval_X, Polynomial.map_map]
-  have hcomp : (MvPolynomial.eval y).comp MvPolynomial.C = RingHom.id A := by
-    ext a
-    exact MvPolynomial.eval_C a
-  rw [hcomp, Polynomial.map_id]
+  have hcomp : (MvPolynomial.eval y).comp MvPolynomial.C = RingHom.id A :=
+    RingHom.ext MvPolynomial.eval_C
+  rw [Polynomial.map_mul, Polynomial.map_C, MvPolynomial.eval_X, Polynomial.map_map, hcomp,
+    Polynomial.map_id]
 
 /-- Evaluating the formal variables `X` of `affineInput` diagonally at `x` cancels the baseline
 subtraction and produces the Taylor shift of `∑ i, row i * C (bitVal A (x i))` at `t`. -/
@@ -243,8 +238,8 @@ theorem map_eval_self_affineInput [Fintype ι]
     (row : ι → Polynomial A) (t : A) (x : ι → Bool) :
     (affineInput row t x).map (MvPolynomial.eval fun i => bitVal A (x i)) =
       Polynomial.taylor t (∑ i : ι, row i * Polynomial.C (bitVal A (x i))) := by
-  rw [map_eval_affineInput, map_sum (Polynomial.taylor t), map_sum Polynomial.C]
-  rw [← Finset.sum_add_distrib]
+  rw [map_eval_affineInput, map_sum (Polynomial.taylor t), map_sum Polynomial.C,
+    ← Finset.sum_add_distrib]
   refine Finset.sum_congr rfl fun i _ => ?_
   rw [Polynomial.taylor_mul, Polynomial.taylor_C, map_mul]
   ring
@@ -309,8 +304,8 @@ theorem map_eval_self_factorProduct [Fintype ι]
   rw [map_eval_factorProduct]
   change _ = (Polynomial.taylorAlgHom t) _
   rw [map_prod]
-  refine Finset.prod_congr rfl fun f _ => ?_
-  rw [Polynomial.taylorAlgHom_apply, map_eval_self_affineFactor]
+  exact Finset.prod_congr rfl fun f _ => by
+    rw [Polynomial.taylorAlgHom_apply, map_eval_self_affineFactor]
 
 open Classical in
 /-- Summing the diagonal formal evaluations of `factorProduct` over the Boolean cube yields the
@@ -323,8 +318,7 @@ theorem taylor_replacedSum_eq_sum_map_eval [Fintype ι]
       ∑ x : ι → Bool,
         (factorProduct s Φ P t x).map (MvPolynomial.eval fun i => bitVal A (x i)) := by
   rw [replacedSum, map_sum (Polynomial.taylor t)]
-  refine Finset.sum_congr rfl fun x _ => ?_
-  exact (map_eval_self_factorProduct s Φ P t x).symm
+  exact Finset.sum_congr rfl fun x _ => (map_eval_self_factorProduct s Φ P t x).symm
 
 open Classical in
 /-- Scalar evaluation of `replacedSum` at any point `t : A`. -/
@@ -355,8 +349,7 @@ theorem coeff_taylor_replacedSum_eq_sum_eval [Fintype ι]
       ∑ x : ι → Bool,
         MvPolynomial.eval (fun i => bitVal A (x i)) ((factorProduct s Φ P t x).coeff j) := by
   rw [taylor_replacedSum_eq_sum_map_eval, Polynomial.finsetSum_coeff]
-  refine Finset.sum_congr rfl fun x _ => ?_
-  rw [Polynomial.coeff_map]
+  exact Finset.sum_congr rfl fun _ _ => Polynomial.coeff_map _ _
 
 open Classical in
 /-- **Restricted-subset Taylor jet identity** (equations (3.9)–(3.10), p. 24 of [OpenAI2026ETH]).

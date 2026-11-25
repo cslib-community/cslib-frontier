@@ -308,6 +308,13 @@ theorem length_lifoNext_le {k : Nat} {q : List α} (hq : q.length ≤ k) (p : α
       omega
     · exact List.length_take_le k _
 
+private theorem lifoNext_cons_of_length_eq {k : Nat} {e p : α} {rest : List α}
+    (hk : 1 ≤ k) (hlen : rest.length = k - 1) (hp : p ∉ e :: rest) :
+    lifoNext k (e :: rest) p = p :: rest := by
+  have hnotlt : ¬ (e :: rest).length < k := by simp only [List.length_cons, hlen]; omega
+  simp only [lifoNext, hp, hnotlt, ↓reduceIte, List.drop_succ_cons, List.drop_zero]
+  exact List.take_of_length_le (by simp only [List.length_cons, hlen]; omega)
+
 /-- For `0 < k`, `lifoNext` induces a valid demand-paging transition on `q.toFinset`. -/
 theorem validStep_lifoNext {k : Nat} (hk : 0 < k) {q : List α} (hnodup : q.Nodup)
     (hlen : q.length ≤ k) (p : α) :
@@ -319,25 +326,18 @@ theorem validStep_lifoNext {k : Nat} (hk : 0 < k) {q : List α} (hnodup : q.Nodu
     by_cases hlt : q.length < k
     · simp only [lifoNext, hp, hlt, ↓reduceIte, List.toFinset_cons]
       exact validStep_insert ((List.toFinset_card_le q).trans_lt hlt) hps
-    · have hqeq : q.length = k := by omega
-      have hqpos : 0 < q.length := by omega
-      cases q with
-      | nil =>
-        simp only [List.length_nil] at hqpos
+    · rcases q with _ | ⟨e, rest⟩
+      · simp only [List.length_nil] at hlt
         omega
-      | cons e rest =>
-        simp only [List.length_cons] at hqeq
-        rcases List.nodup_cons.mp hnodup with ⟨herest, _⟩
-        have hstep : lifoNext k (e :: rest) p = p :: rest := by
-          simp only [lifoNext, hp, hlt, ↓reduceIte, List.drop_succ_cons, List.drop_zero]
-          exact List.take_of_length_le (by simp only [List.length_cons]; omega)
-        rw [hstep]
+      · have hlen' : rest.length = k - 1 := by
+          simp only [List.length_cons] at hlen hlt
+          omega
         have herase : ((e :: rest).toFinset).erase e = rest.toFinset := by
-          rw [List.toFinset_cons,
-            Finset.erase_insert (by simpa only [List.mem_toFinset] using herest)]
-        rw [List.toFinset_cons (a := p), ← herase]
-        exact validStep_replace ((List.toFinset_card_le _).trans hlen) hps
-          (List.mem_toFinset.mpr List.mem_cons_self)
+          rw [List.toFinset_cons, Finset.erase_insert
+            (by simpa only [List.mem_toFinset] using (List.nodup_cons.mp hnodup).1)]
+        rw [lifoNext_cons_of_length_eq hk hlen' hp, List.toFinset_cons (a := p), ← herase]
+        exact validStep_replace ((List.toFinset_card_le _).trans hlen)
+          hps (List.mem_toFinset.mpr List.mem_cons_self)
 
 /-- Deterministic online strategy realizing LIFO for demand paging with positive capacity `k`. -/
 noncomputable abbrev lifoStrategy (k : Nat) (hk : 0 < k) : DetStrategy (problem α k) where
@@ -435,21 +435,13 @@ private theorem lifoFaults_alternating {k : Nat} {base : List α} {a b : α}
         lifoFaults k (b :: base) ((List.replicate t [a, b]).flatten) = 2 * t
   | 0 => ⟨rfl, rfl⟩
   | t + 1 => by
-    have hab_not : a ∉ b :: base := by
-      simp only [List.mem_cons, hab, ha, or_self, not_false_eq_true]
-    have hba_not : b ∉ a :: base := by
-      simp only [List.mem_cons, hab.symm, hb, or_self, not_false_eq_true]
-    have hnotlt_b : ¬ (b :: base).length < k := by simp only [List.length_cons, hlen]; omega
-    have hnotlt_a : ¬ (a :: base).length < k := by simp only [List.length_cons, hlen]; omega
-    have hstep_a : lifoNext k (b :: base) a = a :: base := by
-      simp only [lifoNext, hab_not, hnotlt_b, ↓reduceIte, List.drop_succ_cons, List.drop_zero]
-      exact List.take_of_length_le (by simp only [List.length_cons, hlen]; omega)
-    have hstep_b : lifoNext k (a :: base) b = b :: base := by
-      simp only [lifoNext, hba_not, hnotlt_a, ↓reduceIte, List.drop_succ_cons, List.drop_zero]
-      exact List.take_of_length_le (by simp only [List.length_cons, hlen]; omega)
+    have hab_not : a ∉ b :: base := by simp [hab, ha]
+    have hba_not : b ∉ a :: base := by simp [hab.symm, hb]
     obtain ⟨hrun, hfault⟩ := lifoFaults_alternating hlen hk ha hb hab t
     simp only [List.replicate_succ, List.flatten_cons, List.cons_append, List.nil_append,
-      lifoRun_cons, lifoFaults_cons, hab_not, hba_not, ↓reduceIte, hstep_a, hstep_b, hrun, hfault]
+      lifoRun_cons, lifoFaults_cons, hab_not, hba_not, ↓reduceIte,
+      lifoNext_cons_of_length_eq hk hlen hab_not, lifoNext_cons_of_length_eq hk hlen hba_not,
+      hrun, hfault]
     exact ⟨trivial, by omega⟩
 
 omit [DecidableEq α] in
@@ -474,20 +466,14 @@ theorem lifoFaults_lifoCounterexample {k : Nat} (hk : 1 ≤ k) {init : List α} 
   have ha_rev : a ∉ init.reverse := by simpa only [List.mem_reverse] using ha_init
   have hb_rev : b ∉ init.reverse := by simpa only [List.mem_reverse] using hb_init
   have hrev_len : init.reverse.length = k - 1 := by simp only [List.length_reverse, hinit]
-  have hlt_rev : init.reverse.length < k := by omega
   have hstep1 : lifoNext k init.reverse a = a :: init.reverse := by
-    simp only [lifoNext, ha_rev, hlt_rev, ↓reduceIte]
-  have hba_not : b ∉ a :: init.reverse := by
-    simp only [List.mem_cons, hab.symm, hb_rev, or_self, not_false_eq_true]
-  have hnotlt_a : ¬ (a :: init.reverse).length < k := by
-    simp only [List.length_cons, hrev_len]; omega
-  have hstep2 : lifoNext k (a :: init.reverse) b = b :: init.reverse := by
-    simp only [lifoNext, hba_not, hnotlt_a, ↓reduceIte, List.drop_succ_cons, List.drop_zero]
-    exact List.take_of_length_le (by simp only [List.length_cons, hrev_len]; omega)
+    simp only [lifoNext, ha_rev, show init.reverse.length < k by omega, ↓reduceIte]
+  have hba_not : b ∉ a :: init.reverse := by simp [hab.symm, hb_rev]
   obtain ⟨_, hfault_alt⟩ := lifoFaults_alternating hrev_len hk ha_rev hb_rev hab t
   simp only [lifoCounterexample, lifoFaults_append, hrun_w, hfault_w, hinit,
     List.replicate_succ, List.flatten_cons, List.cons_append, List.nil_append,
-    lifoFaults_cons, ha_rev, hba_not, ↓reduceIte, hstep1, hstep2, hfault_alt]
+    lifoFaults_cons, ha_rev, hba_not, ↓reduceIte, hstep1,
+    lifoNext_cons_of_length_eq hk hrev_len hba_not, hfault_alt]
   omega
 
 private theorem exists_validSchedule_insertAll {k : Nat} :
@@ -592,16 +578,8 @@ theorem lifo_not_isCompetitiveFrom_empty {k : Nat} (hk2 : 2 ≤ k) {pages : List
   have hsplit : pages.take (k - 1) ++ pages.drop (k - 1) = pages := List.take_append_drop _ _
   have hdrop_len : (pages.drop (k - 1)).length = 2 := by
     simp only [List.length_drop, hlen]; omega
-  obtain ⟨a, b_pg, hdrop⟩ : ∃ a b_pg, pages.drop (k - 1) = [a, b_pg] := by
-    cases h1 : pages.drop (k - 1) with
-    | nil => simp only [h1, List.length_nil] at hdrop_len; omega
-    | cons a rest =>
-      cases rest with
-      | nil => simp only [h1, List.length_singleton] at hdrop_len; omega
-      | cons b_pg rest' =>
-        simp only [h1, List.length_cons] at hdrop_len
-        exact ⟨a, b_pg, congrArg (fun l => a :: b_pg :: l)
-          (List.eq_nil_of_length_eq_zero (by omega))⟩
+  rcases hdrop : pages.drop (k - 1) with _ | ⟨a, _ | ⟨b_pg, _ | _⟩⟩ <;>
+    simp only [hdrop, List.length_cons, List.length_nil] at hdrop_len <;> try omega
   set init := pages.take (k - 1)
   have hinit_len : init.length = k - 1 := by
     simp only [init, List.length_take, hlen]; omega

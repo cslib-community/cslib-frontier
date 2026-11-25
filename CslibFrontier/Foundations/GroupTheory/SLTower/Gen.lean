@@ -61,8 +61,7 @@ private theorem el_mul_el {i j : Fin h} (hij : i < j) : el hij * el hij = 1 := b
   refine Subtype.ext (Subtype.ext ?_)
   simp only [Subgroup.coe_mul, SpecialLinearGroup.coe_mul, coe_el,
     transvection_mul_transvection_same i j hij.ne]
-  rw [show (1 + 1 : ZMod 2) = 0 from rfl, transvection_zero]
-  rfl
+  exact transvection_zero i j
 
 /-- The commutator of `1 + E_{ik}` and `1 + E_{kj}` is `1 + E_{ij}`. -/
 private theorem el_comm {i k j : Fin h} (hik : i < k) (hkj : k < j) :
@@ -71,8 +70,8 @@ private theorem el_comm {i k j : Fin h} (hik : i < k) (hkj : k < j) :
   simp only [Subgroup.coe_mul, SpecialLinearGroup.coe_mul, coe_el, transvection]
   set a := single i k (1 : ZMod 2)
   set b := single k j (1 : ZMod 2)
-  have two : ∀ M : Matrix (Fin h) (Fin h) (ZMod 2), M + M = 0 := fun M => by
-    ext; exact CharTwo.add_self_eq_zero _
+  have two (M : Matrix (Fin h) (Fin h) (ZMod 2)) : M + M = 0 :=
+    Matrix.ext fun _ _ => CharTwo.add_self_eq_zero _
   have e : (1 + a) * (1 + b) * ((1 + a) * (1 + b)) = 1 + a * b + ((a + b + a * b) +
       (a + b + a * b)) + (a * a + a * a * b + b * a + b * b + b * a * b + a * (b * a) +
         a * (b * b) + a * (b * a) * b) := by noncomm_ring
@@ -113,22 +112,21 @@ theorem closure_range_x : closure (Set.range (x h)) = ⊤ := by
   intro A hA
   rcases (D A).eq_empty_or_nonempty with h0 | hne
   · convert H.one_mem
-    refine Subtype.ext (Subtype.ext (Matrix.ext fun a b => ?_))
-    by_contra hab
-    exact Finset.notMem_empty (a, b) (h0 ▸ by simpa [D] using hab)
+    exact Subtype.ext <| Subtype.ext <| Matrix.ext fun a b =>
+      of_not_not fun hab => Finset.notMem_empty (a, b) (h0 ▸ by simpa [D] using hab)
   -- the lowest row `i` that differs from the identity, and an entry `(i, j)` there
   obtain ⟨⟨i, j⟩, hp, hmax⟩ := (D A).exists_max_image Prod.fst hne
   have hM : ((A : SL2 h) : Matrix (Fin h) (Fin h) (ZMod 2)) i j ≠ (1 : Matrix _ _ (ZMod 2)) i j :=
     by simpa [D] using hp
-  have hij : i < j := by
-    refine lt_of_not_ge fun hji => hM ?_
+  have hij : i < j := lt_of_not_ge fun hji => hM <| by
     rcases hji.lt_or_eq with hji | rfl
-    · rw [one_apply_ne hji.ne']; exact (mem_U.1 A.2 i j).1 hji
-    · rw [one_apply_eq]; exact (mem_U.1 A.2 j j).2
-  have hrow : ∀ b, ((A : SL2 h) : Matrix (Fin h) (Fin h) (ZMod 2)) j b =
-      (1 : Matrix _ _ (ZMod 2)) j b := fun b => by
-    by_contra hb
-    exact absurd (hmax (j, b) (by simpa [D] using hb)) (not_le.2 hij)
+    · rw [one_apply_ne hji.ne']
+      exact (mem_U.1 A.2 i j).1 hji
+    · rw [one_apply_eq]
+      exact (mem_U.1 A.2 j j).2
+  have hrow (b : Fin h) : ((A : SL2 h) : Matrix (Fin h) (Fin h) (ZMod 2)) j b =
+      (1 : Matrix _ _ (ZMod 2)) j b :=
+    of_not_not fun hb => (hmax (j, b) (by simpa [D] using hb)).not_gt hij
   have hB : (((el hij * A : U h) : SL2 h) : Matrix (Fin h) (Fin h) (ZMod 2)) =
       ((A : SL2 h) : Matrix (Fin h) (Fin h) (ZMod 2)) + single i j 1 := by
     ext a b
@@ -136,27 +134,23 @@ theorem closure_range_x : closure (Set.range (x h)) = ⊤ := by
     by_cases ha : a = i
     · subst ha
       rw [transvection_mul_apply_same, hrow, Matrix.add_apply, one_mul]
-      by_cases hb : b = j
-      · subst hb; simp only [one_apply_eq, single_apply_same]
-      · simp [one_apply_ne (Ne.symm hb), Ne.symm hb]
+      rcases eq_or_ne j b with rfl | hb
+      · simp only [one_apply_eq, single_apply_same]
+      · simp [hb, one_apply_ne hb]
     · rw [transvection_mul_apply_of_ne _ _ _ _ ha]
       simp [Ne.symm ha]
-  have hsub : D (el hij * A) ⊆ (D A).erase (i, j) := by
-    intro p hp'
+  have hsub : D (el hij * A) ⊆ (D A).erase (i, j) := fun p hp' => by
     simp only [D, Finset.mem_filter, Finset.mem_univ, true_and, hB] at hp'
-    rw [Finset.mem_erase]
     by_cases hpij : p = (i, j)
     · subst hpij
       rw [one_apply_ne hij.ne] at hM hp'
-      have h1 := (by decide : ∀ c : ZMod 2, c ≠ 0 → c + 1 = 0) _ hM
-      exact absurd (by simpa using h1) hp'
-    · refine ⟨hpij, ?_⟩
-      have : single i j (1 : ZMod 2) p.1 p.2 = 0 :=
+      exact absurd (by simpa using (by decide : ∀ c : ZMod 2, c ≠ 0 → c + 1 = 0) _ hM) hp'
+    · refine Finset.mem_erase.2 ⟨hpij, ?_⟩
+      have h0 : single i j (1 : ZMod 2) p.1 p.2 = 0 :=
         single_apply_of_ne _ _ _ _ _ fun e => hpij (Prod.ext e.1.symm e.2.symm)
-      simpa [D, this] using hp'
+      simpa [D, h0] using hp'
   have hlt := (Finset.card_le_card hsub).trans_lt (Finset.card_erase_lt_of_mem hp)
-  have hA' : A = el hij * (el hij * A) := by rw [← mul_assoc, el_mul_el, one_mul]
-  rw [hA']
+  rw [show A = el hij * (el hij * A) by rw [← mul_assoc, el_mul_el, one_mul]]
   exact mul_mem (el_mem hij) (ih _ (hA ▸ hlt) _ rfl)
 
 /-- A function on `U h` that does not change under left multiplication by the simple root

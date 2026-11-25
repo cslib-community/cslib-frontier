@@ -748,58 +748,12 @@ private theorem seam_51 : seamChunk 51 = true := by decide +kernel
 
 private theorem seam_chunks (chunk : Fin 52) : seamChunk chunk.val = true := by
   fin_cases chunk
-  · exact seam_0
-  · exact seam_1
-  · exact seam_2
-  · exact seam_3
-  · exact seam_4
-  · exact seam_5
-  · exact seam_6
-  · exact seam_7
-  · exact seam_8
-  · exact seam_9
-  · exact seam_10
-  · exact seam_11
-  · exact seam_12
-  · exact seam_13
-  · exact seam_14
-  · exact seam_15
-  · exact seam_16
-  · exact seam_17
-  · exact seam_18
-  · exact seam_19
-  · exact seam_20
-  · exact seam_21
-  · exact seam_22
-  · exact seam_23
-  · exact seam_24
-  · exact seam_25
-  · exact seam_26
-  · exact seam_27
-  · exact seam_28
-  · exact seam_29
-  · exact seam_30
-  · exact seam_31
-  · exact seam_32
-  · exact seam_33
-  · exact seam_34
-  · exact seam_35
-  · exact seam_36
-  · exact seam_37
-  · exact seam_38
-  · exact seam_39
-  · exact seam_40
-  · exact seam_41
-  · exact seam_42
-  · exact seam_43
-  · exact seam_44
-  · exact seam_45
-  · exact seam_46
-  · exact seam_47
-  · exact seam_48
-  · exact seam_49
-  · exact seam_50
-  · exact seam_51
+  exacts [seam_0, seam_1, seam_2, seam_3, seam_4, seam_5, seam_6, seam_7, seam_8, seam_9, seam_10,
+    seam_11, seam_12, seam_13, seam_14, seam_15, seam_16, seam_17, seam_18, seam_19, seam_20,
+    seam_21, seam_22, seam_23, seam_24, seam_25, seam_26, seam_27, seam_28, seam_29, seam_30,
+    seam_31, seam_32, seam_33, seam_34, seam_35, seam_36, seam_37, seam_38, seam_39, seam_40,
+    seam_41, seam_42, seam_43, seam_44, seam_45, seam_46, seam_47, seam_48, seam_49, seam_50,
+    seam_51]
 
 private theorem checked_from_chunks (check : Node → Bool)
     (chunks : ∀ chunk : Fin 52, (List.range 6).all (fun offset =>
@@ -913,58 +867,12 @@ private theorem node_51 : nodeChunk 51 = true := by decide +kernel
 
 private theorem node_chunks (chunk : Fin 52) : nodeChunk chunk.val = true := by
   fin_cases chunk
-  · exact node_0
-  · exact node_1
-  · exact node_2
-  · exact node_3
-  · exact node_4
-  · exact node_5
-  · exact node_6
-  · exact node_7
-  · exact node_8
-  · exact node_9
-  · exact node_10
-  · exact node_11
-  · exact node_12
-  · exact node_13
-  · exact node_14
-  · exact node_15
-  · exact node_16
-  · exact node_17
-  · exact node_18
-  · exact node_19
-  · exact node_20
-  · exact node_21
-  · exact node_22
-  · exact node_23
-  · exact node_24
-  · exact node_25
-  · exact node_26
-  · exact node_27
-  · exact node_28
-  · exact node_29
-  · exact node_30
-  · exact node_31
-  · exact node_32
-  · exact node_33
-  · exact node_34
-  · exact node_35
-  · exact node_36
-  · exact node_37
-  · exact node_38
-  · exact node_39
-  · exact node_40
-  · exact node_41
-  · exact node_42
-  · exact node_43
-  · exact node_44
-  · exact node_45
-  · exact node_46
-  · exact node_47
-  · exact node_48
-  · exact node_49
-  · exact node_50
-  · exact node_51
+  exacts [node_0, node_1, node_2, node_3, node_4, node_5, node_6, node_7, node_8, node_9, node_10,
+    node_11, node_12, node_13, node_14, node_15, node_16, node_17, node_18, node_19, node_20,
+    node_21, node_22, node_23, node_24, node_25, node_26, node_27, node_28, node_29, node_30,
+    node_31, node_32, node_33, node_34, node_35, node_36, node_37, node_38, node_39, node_40,
+    node_41, node_42, node_43, node_44, node_45, node_46, node_47, node_48, node_49, node_50,
+    node_51]
 
 private theorem pair_checked (left right : Node) :
     (HCompatible left right → ∀ y : Fin 4, HCompatible
@@ -995,49 +903,37 @@ private theorem node_checked (node : Node) : nodeCheck node = true :=
 /-- Every quarter of a selected node satisfies the actual local shade rule. -/
 theorem Node.block_allowed (node : Node) (x y : Fin 2) :
     locallyAllowed ⟨node.parent, quadrantAt x.val y.val⟩
-      (node.block.at x.val y.val) = true := by
-  have h := node_checked node
-  simp only [nodeCheck, decide_eq_true_eq] at h
-  exact h.1 x y
+      (node.block.at x.val y.val) = true :=
+  (of_decide_eq_true (node_checked node)).1 x y
 
 /-- All four internal shade seams of a selected node match. -/
 theorem Node.block_internal (node : Node) :
     node.block.southwest.east = node.block.southeast.west ∧
     node.block.northwest.east = node.block.northeast.west ∧
     node.block.southwest.north = node.block.northwest.south ∧
-    node.block.southeast.north = node.block.northeast.south := by
-  have h := node_checked node
-  simp only [nodeCheck, decide_eq_true_eq] at h
-  exact h.2.1
+    node.block.southeast.north = node.block.northeast.south :=
+  (of_decide_eq_true (node_checked node)).2.1
 
 /-- The chosen child has exactly the parent prescribed by two Robinson substitutions. -/
 theorem Node.child_parent (node : Node) (position : Fin 16) :
-    (node.child position).parent = fineGrid node.parent (position.val % 4) (position.val / 4) := by
-  have h := node_checked node
-  simp only [nodeCheck, decide_eq_true_eq] at h
-  exact h.2.2.1 position
+    (node.child position).parent = fineGrid node.parent (position.val % 4) (position.val / 4) :=
+  (of_decide_eq_true (node_checked node)).2.2.1 position
 
 /-- The sparse southwest child retains the preceding shade block. -/
-theorem Node.child_zero_block (node : Node) : (node.child 0).block = node.block := by
-  have h := node_checked node
-  simp only [nodeCheck, decide_eq_true_eq] at h
-  exact h.2.2.2.1
+theorem Node.child_zero_block (node : Node) : (node.child 0).block = node.block :=
+  (of_decide_eq_true (node_checked node)).2.2.2.1
 
 /-- Horizontal neighbors within a selected expansion are compatible. -/
 theorem children_hCompatible_within (node : Node) (x : Fin 3) (y : Fin 4) :
     HCompatible (node.child (blockPosition ⟨x.val, by omega⟩ y))
-      (node.child (blockPosition ⟨x.val + 1, by omega⟩ y)) := by
-  have h := node_checked node
-  simp only [nodeCheck, decide_eq_true_eq] at h
-  exact (hCompatible_cached _ _).mpr (h.2.2.2.2.1 x y)
+      (node.child (blockPosition ⟨x.val + 1, by omega⟩ y)) :=
+  (hCompatible_cached _ _).mpr ((of_decide_eq_true (node_checked node)).2.2.2.2.1 x y)
 
 /-- Vertical neighbors within a selected expansion are compatible. -/
 theorem children_vCompatible_within (node : Node) (x : Fin 4) (y : Fin 3) :
     VCompatible (node.child (blockPosition x ⟨y.val, by omega⟩))
-      (node.child (blockPosition x ⟨y.val + 1, by omega⟩)) := by
-  have h := node_checked node
-  simp only [nodeCheck, decide_eq_true_eq] at h
-  exact (vCompatible_cached _ _).mpr (h.2.2.2.2.2 x y)
+      (node.child (blockPosition x ⟨y.val + 1, by omega⟩)) :=
+  (vCompatible_cached _ _).mpr ((of_decide_eq_true (node_checked node)).2.2.2.2.2 x y)
 
 /-- Expansion preserves horizontal matching across neighboring parent blocks. -/
 theorem children_hCompatible_boundary {left right : Node}

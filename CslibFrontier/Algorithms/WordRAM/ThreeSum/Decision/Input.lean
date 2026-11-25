@@ -48,33 +48,28 @@ open Cslib.Algorithms.ThreeSum (HasSolution)
 
 /-- The complete charged budget always includes the seven small-branch instructions. -/
 theorem seven_le_cost {r : ℕ} (κ : ℕ) (c : Host.Callee r) (n : ℕ) : 7 ≤ cost κ c n := by
-  dsimp only [cost]
-  omega
+  dsimp only [cost]; omega
 
 open Visitor in
 /-- The fixed ordinary host is independent of physical word width. -/
 theorem not_readsWidth {r : ℕ} (κ : ℕ) (c : Host.Callee r) :
     ¬(program κ c.code).ReadsWidth := by
-  have hr : ¬readLength.ReadsWidth := by decide
-  have hp : ¬power.ReadsWidth := by decide
-  have hd : ¬ChanHe.Traversal.localVisit.ReadsWidth := by decide
-  have hc : ¬ChanHe.Traversal.pushChildren.ReadsWidth := by decide
-  have hpop : ¬ChanHe.Traversal.popFrame.ReadsWidth := by decide
-  have hpush : ¬ChanHe.Traversal.pushFrame.ReadsWidth := by decide
-  have hs : ¬ChanHe.Preprocessing.snapshot.ReadsWidth := by decide
-  have hpr : ¬ChanHe.Preprocessing.preparePrimes.ReadsWidth := by decide
-  have hprime : ¬PrimeTable.program.ReadsWidth := by decide
-  have hst : ¬ChanHe.Preprocessing.setupTraversal.ReadsWidth := by decide
-  have hre : ¬ChanHe.Preprocessing.reserve.ReadsWidth := by decide
-  have hfi : ¬ChanHe.Preprocessing.finishLayout.ReadsWidth := by decide
-  have hload : ¬ChanHe.Preprocessing.loadRoot.ReadsWidth := by decide
   simp only [program, large, forest, oneRoot, body, visit, consume, releasePacked, prepareHost,
-    receive,
-    prepareEnvelope, prepareTraversal, Code.ReadsWidth, Code.readsWidth_rename,
-    Op.bin, Op.ReadsWidth,
-    reduceCtorEq, hr, hp, hd, hc, hpop, hpush, hs, hpr, hprime, hst, hre, hfi, hload,
-    Frontend.not_readsWidth κ, c.not_readsWidth_bodyAt, or_self,
-    not_false_eq_true]
+    receive, prepareEnvelope, prepareTraversal, Code.ReadsWidth, Code.readsWidth_rename,
+    Op.bin, Op.ReadsWidth, reduceCtorEq, (by decide : ¬readLength.ReadsWidth),
+    (by decide : ¬power.ReadsWidth),
+    (by decide : ¬ChanHe.Traversal.localVisit.ReadsWidth),
+    (by decide : ¬ChanHe.Traversal.pushChildren.ReadsWidth),
+    (by decide : ¬ChanHe.Traversal.popFrame.ReadsWidth),
+    (by decide : ¬ChanHe.Traversal.pushFrame.ReadsWidth),
+    (by decide : ¬ChanHe.Preprocessing.snapshot.ReadsWidth),
+    (by decide : ¬ChanHe.Preprocessing.preparePrimes.ReadsWidth),
+    (by decide : ¬PrimeTable.program.ReadsWidth),
+    (by decide : ¬ChanHe.Preprocessing.setupTraversal.ReadsWidth),
+    (by decide : ¬ChanHe.Preprocessing.reserve.ReadsWidth),
+    (by decide : ¬ChanHe.Preprocessing.finishLayout.ReadsWidth),
+    (by decide : ¬ChanHe.Preprocessing.loadRoot.ReadsWidth),
+    Frontend.not_readsWidth κ, c.not_readsWidth_bodyAt, or_self, not_false_eq_true]
 
 /-- Actual execution from initialized signed input, uniformly over all admitted wider words. -/
 theorem exec_input {κ w r : ℕ} (input : List ℤ) (c : Host.Callee r)
@@ -89,18 +84,13 @@ theorem exec_input {κ w r : ℕ} (input : List ℤ) (c : Host.Callee r)
   have h3 : Fits w 3 := (envelope_fits hw).2.2.2
   by_cases hn : input.length < 3
   · obtain ⟨y, hy, ha, hno⟩ := exec_small (κ := κ) input c hn h3
-    refine ⟨y, hy.mono (by omega), by omega, ?_⟩
-    simp only [ha, reduceCtorEq, false_iff]
-    exact hno
+    exact ⟨y, hy.mono (by omega), by omega, by simpa only [ha, reduceCtorEq, false_iff] using hno⟩
   obtain ⟨q, hread, hqa, hqn, hq3, hqpp⟩ := exec_readLength_init (r := r) input h3
   have hqb := hread.bounded (Data.Bounded.init (ChanHe.Preprocessing.input_fits input
     ((preprocessing_width_le κ c.widthCoefficient input.length).trans hw) hvalues))
   obtain ⟨y, hy, hb, hans⟩ := exec_large input c q hw hqb (by omega) hvalues hqpp hqn hqa
-  refine ⟨y, ?_, hb, hans⟩
-  unfold program
-  exact (hread.seq (hy.branch_neg (show
-      ¬(Cond.lt (controllerRegisters r inputLength) (controllerRegisters r three)).Holds q by
-    simpa only [Cond.holds_lt, hqn, hq3] using hn))).mono (by omega)
+  exact ⟨y, (hread.seq (hy.branch_neg
+    (by simpa only [Cond.holds_lt, hqn, hq3] using hn))).mono (by omega), hb, hans⟩
 
 /-- Complete actual flat execution and actual pre-halt output-state witness.
 The output is raw `0` or `1`; the input and every generated matrix cell use signed encoding. -/

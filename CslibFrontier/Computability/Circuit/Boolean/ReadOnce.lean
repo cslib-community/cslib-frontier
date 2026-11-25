@@ -242,12 +242,8 @@ theorem eval_eq_of_eq_on_leafSupport (F : PosFormula n) {x y : BitString n}
     (h : ∀ i ∈ F.leafSupport, x i = y i) : F.eval x = F.eval y := by
   induction F with
   | var i => exact h i (Finset.mem_singleton_self i)
-  | and L R ihL ihR =>
-    simp only [eval_and]
-    rw [ihL fun i hi => h i (Finset.mem_union_left _ hi),
-      ihR fun i hi => h i (Finset.mem_union_right _ hi)]
-  | or L R ihL ihR =>
-    simp only [eval_or]
+  | and L R ihL ihR | or L R ihL ihR =>
+    simp only [eval_and, eval_or]
     rw [ihL fun i hi => h i (Finset.mem_union_left _ hi),
       ihR fun i hi => h i (Finset.mem_union_right _ hi)]
 
@@ -782,14 +778,10 @@ private theorem sum_lastCases_leafSize (hn : 0 < n) (p : Program signature n g) 
     rw [← Finset.sum_erase_add _ _ hlast, hsum_prior, hlast_leaf,
       ← Finset.sum_union hdisj, ← hdef, hF'_sum, hopened_eq, hcost_gate]
     omega
-  · have herase : frontier.erase (.gate (.last g)) = frontier :=
-      Finset.erase_eq_of_notMem hlast
-    have hsum_f : ∑ w ∈ frontier, (F w).leafSize =
-        ∑ w' ∈ priorFrontier frontier, (F' w').leafSize := by
-      rw [← hsum_prior, herase]
+  · rw [Finset.erase_eq_of_notMem hlast] at hsum_prior
     have hdef : openedFrontier frontier wires = priorFrontier frontier := by
       simp [openedFrontier, hlast]
-    rw [hsum_f, ← hdef, hF'_sum, hopened_eq, hcost_gate]
+    rw [hsum_prior, ← hdef, hF'_sum, hopened_eq, hcost_gate]
     omega
 
 /-- When a frontier of wires in a De Morgan program achieves the binary-cost support bound
@@ -839,24 +831,18 @@ theorem Circuit.exists_litFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
     (hsupp : n ≤ c.inputSupport.card) (hcost : c.program.cost binaryCost + 1 ≤ n) :
     ∃ F : LitFormula n, (∀ x, F.eval x = c.eval interpretation x 0) ∧ F.leafSize = n := by
   let frontier : Finset (Wire n c.size) := {c.outputs 0}
-  have hsub : c.inputSupport ⊆ frontier.biUnion c.program.wireSupport := by
-    intro i hi
-    rw [Circuit.mem_inputSupport] at hi
-    obtain ⟨o, ho⟩ := hi
-    rw [Subsingleton.elim o 0] at ho
-    exact Finset.mem_biUnion.mpr ⟨c.outputs 0, Finset.mem_singleton_self _, ho⟩
+  have hsub : c.inputSupport ⊆ frontier.biUnion c.program.wireSupport := fun i hi => by
+    obtain ⟨o, ho⟩ := Circuit.mem_inputSupport.mp hi
+    exact Finset.mem_biUnion.mpr ⟨c.outputs 0, Finset.mem_singleton_self _,
+      Subsingleton.elim o 0 ▸ ho⟩
   have hcard_le := Finset.card_le_card hsub
   have hf_card : frontier.card = 1 := Finset.card_singleton _
-  have hcard : frontier.card + c.program.cost binaryCost ≤
-      (frontier.biUnion c.program.wireSupport).card := by
-    omega
-  have hcost_eq : 1 + c.program.cost binaryCost = n := by
-    have := c.card_inputSupport_le_cost_binaryCost
-    omega
+  have hbound := c.card_inputSupport_le_cost_binaryCost
   obtain ⟨F, hF_eval, hF_sum⟩ :=
-    c.program.exists_litFormula_of_card_biUnion_wireSupport_ge hn frontier hcard
+    c.program.exists_litFormula_of_card_biUnion_wireSupport_ge hn frontier (by omega)
   refine ⟨F (c.outputs 0), fun x => hF_eval _ (Finset.mem_singleton_self _) x, ?_⟩
-  simpa [frontier, hcost_eq] using hF_sum
+  rw [Finset.sum_singleton] at hF_sum
+  omega
 
 /-- **Unfolding a tight binary-cost circuit into a positive read-once formula**
 [Ilango2020FOCS, Section III.B; ECCC TR20-183, Section 3, Claim 13, p. 24]: if `c` is a one-output
@@ -874,10 +860,7 @@ theorem Circuit.exists_posFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
       ∀ x, F.eval x = c.eval interpretation x 0 := by
   have hess (i : Fin n) : EssentialAt (c.eval interpretation) i := by
     obtain ⟨y₀, y₁, hdiff, _, _, hy₀, hy₁⟩ := hpos i
-    refine ⟨y₀, y₁, hdiff, fun h => ?_⟩
-    have h0 := congrFun h 0
-    rw [hy₀, hy₁] at h0
-    exact Bool.false_ne_true h0
+    exact ⟨y₀, y₁, hdiff, fun h => by simpa [hy₀, hy₁] using congrFun h 0⟩
   have hsupp_eq : c.inputSupport = Finset.univ :=
     Finset.eq_univ_iff_forall.mpr fun i => (hess i).mem_support (c.dependsOn_eval interpretation)
   have hsupp : n ≤ c.inputSupport.card := by
@@ -899,10 +882,8 @@ theorem Circuit.exists_posFormula_of_cost_binaryCost_le (hn : 0 < n) (c : Circui
   let F := T.toPosFormula
   have hF_leaf : F.leafSize = n := by
     rw [LitFormula.leafSize_toPosFormula, hT_leaf]
-  have hF_supp : F.leafSupport = Finset.univ := by
-    refine Finset.Subset.antisymm (Finset.subset_univ _) ?_
-    rw [← hpos_univ]
-    exact T.posSupport_subset_leafSupport
+  have hF_supp : F.leafSupport = Finset.univ :=
+    Finset.Subset.antisymm (Finset.subset_univ _) (hpos_univ ▸ T.posSupport_subset_leafSupport)
   have hF_ro : F.IsReadOnce := by
     rw [PosFormula.isReadOnce_iff_card_leafSupport_eq_leafSize, hF_supp, Finset.card_univ,
       Fintype.card_fin, hF_leaf]

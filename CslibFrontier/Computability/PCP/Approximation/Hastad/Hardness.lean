@@ -103,13 +103,12 @@ four on every system of three-variable parity equations (including the empty sys
 theorem unsatVal_toCNFBounded_parity {V : Type*} {F : CSP Bool V}
     (hF : ∀ c ∈ F, c.scope.length = 3) :
     (F.toCNFBounded 3 paritySem).unsatVal = F.unsatVal paritySem / 4 := by
-  refine le_antisymm ?_ ((CNF.le_unsatVal_iff _).2 fun σ => ?_)
-  · obtain ⟨σ, hσ⟩ := CSP.exists_countUnsat_div_eq_unsatVal paritySem F
-    have hle := (F.toCNFBounded 3 paritySem).unsatVal_le σ
-    rw [proportion_countUnsat_toCNFBounded_parity hF σ, hσ] at hle
-    exact hle
-  · rw [proportion_countUnsat_toCNFBounded_parity hF σ]
-    exact div_le_div_of_nonneg_right (CSP.unsatVal_le paritySem F σ) (by norm_num)
+  refine le_antisymm ?_ ((CNF.le_unsatVal_iff _).2 fun σ => by
+    rw [proportion_countUnsat_toCNFBounded_parity hF σ]
+    exact div_le_div_of_nonneg_right (CSP.unsatVal_le paritySem F σ) (by norm_num))
+  obtain ⟨σ, hσ⟩ := CSP.exists_countUnsat_div_eq_unsatVal paritySem F
+  simpa only [proportion_countUnsat_toCNFBounded_parity hF σ, hσ] using
+    (F.toCNFBounded 3 paritySem).unsatVal_le σ
 
 end Cslib.Logic.PL.CSP
 
@@ -178,27 +177,18 @@ maps to a nonempty yes-instance of `GapLin`. -/
 `XORSAT.encoding`. -/
 @[fun_prop]
 theorem computableInPolyTime_toGapLin :
-    ComputableInPolyTime toGapLin (encCSP encBool encNat) XORSAT.encoding := by
-  have hempty : ComputableInPolyTime (fun F : CSP Bool ℕ => F.isEmpty)
-      (encCSP encBool encNat) encBool :=
-    ComputableInPolyTime.listIsEmpty' (encConstraint encBool encNat)
-  have hsingle : ComputableInPolyTime
-      (fun c : Constraint Bool ℕ => (⟨c.scope, c.rel⟩ : AffineEquation ℕ))
-      (encConstraint encBool encNat) (encAffineEquation encNat) := by
-    fun_prop
-  have hmap : ComputableInPolyTime
-      (fun F : CSP Bool ℕ => F.map fun c => (⟨c.scope, c.rel⟩ : AffineEquation ℕ))
-      (encCSP encBool encNat) XORSAT.encoding :=
-    ComputableInPolyTime.map hsingle
-  exact ComputableInPolyTime.ite hempty (.const ([⟨[0, 1, 2], false⟩] : XORSAT.System)) hmap
+    ComputableInPolyTime toGapLin (encCSP encBool encNat) XORSAT.encoding :=
+  ComputableInPolyTime.ite (ComputableInPolyTime.listIsEmpty' (encConstraint encBool encNat))
+    (.const ([⟨[0, 1, 2], false⟩] : XORSAT.System))
+    (ComputableInPolyTime.map (by fun_prop : ComputableInPolyTime
+      (fun c : Constraint Bool ℕ => (⟨c.scope, c.rel⟩ : AffineEquation ℕ)) _ _))
 
 private theorem eval_paritySem_eq_holds (c : Constraint Bool ℕ) (σ : ℕ → Bool) :
     Constraint.eval CSP.paritySem σ c = decide (AffineEquation.Holds ⟨c.scope, c.rel⟩ σ) := by
   have hsum : (c.scope.map σ).foldl Bool.xor false = (c.scope.map σ).sum := by
-    rw [List.sum_eq_foldl]
-    rfl
-  simp only [Constraint.eval, CSP.paritySem, AffineEquation.Holds, hsum]
-  by_cases h : (c.scope.map σ).sum = c.rel <;> simp [h]
+    rw [List.sum_eq_foldl]; rfl
+  by_cases h : (c.scope.map σ).sum = c.rel <;>
+    simp [Constraint.eval, CSP.paritySem, AffineEquation.Holds, hsum, h]
 
 private theorem countSat_map_affine (F : CSP Bool ℕ) (σ : ℕ → Bool) :
     AffineSystem.countSat (F.map fun c => (⟨c.scope, c.rel⟩ : AffineEquation ℕ)) σ =
@@ -213,8 +203,7 @@ private theorem countSat_div_add_countUnsat_div {F : CSP Bool ℕ} (hF : 0 < F.l
   have hsplit : F.countP (Constraint.eval CSP.paritySem σ) +
       F.countP (fun c => !Constraint.eval CSP.paritySem σ c) = F.length :=
     (List.length_eq_countP_add_countP (Constraint.eval CSP.paritySem σ) (l := F)).symm
-  have hlen : (F.length : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hF.ne'
-  rw [← add_div, ← Nat.cast_add, hsplit, div_self hlen]
+  rw [← add_div, ← Nat.cast_add, hsplit, div_self (Nat.cast_ne_zero.2 hF.ne')]
 
 /-- **`GapExactThreeLin` reduces to `GapLin`**: for `c ≤ 1` and `s < s' ≤ c`, `toGapLin` maps
 `GapExactThreeLin c s` to `GapLin c s'` in polynomial time. The strict slack `s < s'` bridges
@@ -226,41 +215,26 @@ theorem polyTimeReducible_GapExactThreeLin_GapLin {c s s' : ℝ} (hc1 : c ≤ 1)
   refine ⟨toGapLin, computableInPolyTime_toGapLin, fun F hF => ?_, fun F hF => ?_⟩
   · rw [mem_yes_GapExactThreeLin] at hF
     rw [mem_yes_GapLin]
-    by_cases he : F = []
-    · subst he
-      refine ⟨fun _ => false, ?_⟩
-      have hsat : AffineSystem.countSat (toGapLin []) (fun _ => false) = 1 := rfl
-      have hlen : (toGapLin []).length = 1 := rfl
-      rw [hsat, hlen]
+    rcases eq_or_ne F [] with rfl | he
+    · refine ⟨fun _ => false, ?_⟩
+      change c ≤ ((1 : ℕ) : ℝ) / ((1 : ℕ) : ℝ)
       simpa using hc1
-    · have hne : F.isEmpty = false := by
-        cases F with
-        | nil => exact (he rfl).elim
-        | cons _ _ => rfl
-      have hpos : 0 < F.length := List.length_pos_of_ne_nil he
-      obtain ⟨σ, hσ⟩ := CSP.exists_countUnsat_div_eq_unsatVal CSP.paritySem F
+    · obtain ⟨σ, hσ⟩ := CSP.exists_countUnsat_div_eq_unsatVal CSP.paritySem F
       refine ⟨σ, ?_⟩
-      simp only [toGapLin, hne, Bool.false_eq_true, ↓reduceIte, countSat_map_affine,
-        List.length_map]
-      have hadd := countSat_div_add_countUnsat_div hpos σ
-      linarith
+      simp only [toGapLin, List.isEmpty_eq_false_iff.mpr he, Bool.false_eq_true, ↓reduceIte,
+        countSat_map_affine, List.length_map]
+      linarith [countSat_div_add_countUnsat_div (List.length_pos_of_ne_nil he) σ]
   · rw [mem_no_GapExactThreeLin (hs.trans_le hs'c)] at hF
     rw [mem_no_GapLin]
-    have hne_nil : F ≠ [] := by
+    have he : F ≠ [] := by
       rintro rfl
       simp only [CSP.unsatVal_nil, sub_zero] at hF
       linarith
-    have hne : F.isEmpty = false := by
-      cases F with
-      | nil => exact (hne_nil rfl).elim
-      | cons _ _ => rfl
-    have hpos : 0 < F.length := List.length_pos_of_ne_nil hne_nil
     refine ⟨hs'c, fun σ => ?_⟩
-    simp only [toGapLin, hne, Bool.false_eq_true, ↓reduceIte, countSat_map_affine,
-      List.length_map]
-    have hle := CSP.unsatVal_le CSP.paritySem F σ
-    have hadd := countSat_div_add_countUnsat_div hpos σ
-    linarith
+    simp only [toGapLin, List.isEmpty_eq_false_iff.mpr he, Bool.false_eq_true, ↓reduceIte,
+      countSat_map_affine, List.length_map]
+    linarith [CSP.unsatVal_le CSP.paritySem F σ,
+      countSat_div_add_countUnsat_div (List.length_pos_of_ne_nil he) σ]
 
 /-- **The four-clause reduction from MAX-E3LIN-2 to MAX-E3SAT** (`[Hastad2001]`, proof of
 Theorem 6.1, author PDF p. 38 / JACM p. 831): `CSP.toCNFBounded 3 CSP.paritySem` maps
@@ -272,15 +246,12 @@ theorem polyTimeReducible_GapExactThreeLin_GapMaxExactThreeSAT {c s : ℝ} (hsc 
   refine ⟨CSP.toCNFBounded 3 CSP.paritySem,
     CSP.computableInPolyTime_toCNFBounded_parity encNat, fun F hF => ?_, fun F hF => ?_⟩
   · rw [mem_yes_GapExactThreeLin] at hF
-    rw [mem_yes_GapMaxExactThreeSAT]
-    refine ⟨CSP.isExactThreeDistinct_toCNFBounded_parity hF.1, ?_⟩
-    rw [CSP.unsatVal_toCNFBounded_parity fun e he => (hF.1 e he).1]
-    linarith
+    rw [mem_yes_GapMaxExactThreeSAT, CSP.unsatVal_toCNFBounded_parity fun e he => (hF.1 e he).1]
+    exact ⟨CSP.isExactThreeDistinct_toCNFBounded_parity hF.1, by linarith⟩
   · rw [mem_no_GapExactThreeLin hsc] at hF
-    rw [mem_no_GapMaxExactThreeSAT (by linarith)]
-    refine ⟨CSP.isExactThreeDistinct_toCNFBounded_parity hF.1, ?_⟩
-    rw [CSP.unsatVal_toCNFBounded_parity fun e he => (hF.1 e he).1]
-    linarith
+    rw [mem_no_GapMaxExactThreeSAT (by linarith),
+      CSP.unsatVal_toCNFBounded_parity fun e he => (hF.1 e he).1]
+    exact ⟨CSP.isExactThreeDistinct_toCNFBounded_parity hF.1, by linarith⟩
 
 /-! ### NP-hardness of MAX-E3LIN-2, `GapLin`, and imperfect-completeness MAX-E3SAT -/
 
@@ -293,21 +264,14 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
     PromiseProblem.NPHard (encCSP encBool encNat) (GapExactThreeLin (1 - δ) (1 / 2 + ε)) := by
   -- Step 1: choose rational noise rate `1 / m ≤ δ / 2` with `3 ≤ m` (so `1 / m < 1 / 2`).
   let m : ℕ := Nat.ceil (2 / δ) + 3
-  have hm3 : 3 ≤ m := Nat.le_add_left 3 _
   have hm2 : 2 ≤ m := by omega
-  have hm0 : (0 : ℝ) < m := by exact_mod_cast (by omega : 0 < m)
+  have hm0 : (0 : ℝ) < m := by positivity
   have hinv_le : 1 / (m : ℝ) ≤ δ / 2 := by
-    have hceil : 2 / δ ≤ (Nat.ceil (2 / δ) : ℝ) := Nat.le_ceil _
-    have hm_ge : 2 / δ ≤ (m : ℝ) := by
-      have : (Nat.ceil (2 / δ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast Nat.le_add_right _ 3
-      linarith
-    rw [div_le_iff₀ hm0, div_mul_eq_mul_div, le_div_iff₀ (by norm_num : (0 : ℝ) < 2)]
-    rw [div_le_iff₀ hδ] at hm_ge
-    linarith
-  have hinv_lt_half : 1 / (m : ℝ) < 1 / 2 := by
-    have hm_ge3 : (3 : ℝ) ≤ m := by exact_mod_cast hm3
-    rw [div_lt_div_iff₀ hm0 (by norm_num : (0 : ℝ) < 2)]
-    linarith
+    have hm_ge : 2 / δ ≤ (m : ℝ) := (Nat.le_ceil _).trans (by exact_mod_cast Nat.le_add_right _ 3)
+    rw [div_le_iff₀ hm0, div_mul_eq_mul_div, le_div_iff₀ two_pos]
+    rw [div_le_iff₀ hδ] at hm_ge; linarith
+  have hinv_lt_half : 1 / (m : ℝ) < 1 / 2 :=
+    one_div_lt_one_div_of_lt two_pos (by exact_mod_cast (by omega : 2 < m))
   -- Step 2: obtain the Label Cover soundness threshold `η ∈ (0, 1)` for `ε' = ε / 8`.
   obtain ⟨η, hη0, hη1, hdich⟩ :=
     gapLabelCover_dichotomy_lt_one (ε := ε / 8) (δ := 1 / (m : ℝ))
@@ -315,20 +279,15 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
   -- Step 3: choose `k = 21 * n` large enough for both Label Cover soundness `≤ η` and
   -- degenerate-equation share `(1 - 1 / m) ^ |β| < min (δ / 2) (ε / 4)`.
   let wMax : ℝ := min (δ / 2) (ε / 4)
-  have hwMax : 0 < wMax := lt_min (by linarith) (by linarith)
   let baseLC : ℝ := 1 - 1 / (6000 * 2 ^ 186)
-  have hbaseLC0 : 0 ≤ baseLC := by dsimp only [baseLC]; norm_num
-  have hbaseLC1 : baseLC < 1 := by dsimp only [baseLC]; norm_num
   let baseDrop : ℝ := 1 - 1 / (m : ℝ)
-  have hbaseDrop0 : 0 ≤ baseDrop := by dsimp only [baseDrop]; linarith
   have hbaseDrop1 : baseDrop < 1 := by
-    dsimp only [baseDrop]
-    linarith [show (0 : ℝ) < 1 / m by positivity]
-  obtain ⟨n₁, hn₁⟩ := exists_pow_lt_of_lt_one hη0 hbaseLC1
-  obtain ⟨n₂, hn₂⟩ := exists_pow_lt_of_lt_one hwMax hbaseDrop1
+    dsimp only [baseDrop]; linarith [show (0 : ℝ) < 1 / m by positivity]
+  obtain ⟨n₁, hn₁⟩ := exists_pow_lt_of_lt_one hη0 (by norm_num : baseLC < 1)
+  obtain ⟨n₂, hn₂⟩ := exists_pow_lt_of_lt_one (lt_min (by linarith) (by linarith) :
+    0 < wMax) hbaseDrop1
   let n : ℕ := max n₁ n₂ + 1
   let k : ℕ := 21 * n
-  have hk : 0 < k := by positivity
   -- Instantiate the `k`-round Label Cover hardness at soundness `η`.
   let A := Bool × (Fin 6 → Bool)
   let β := Fin k → A × A
@@ -336,7 +295,7 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
   have hLC_npHard : PromiseProblem.NPHard
       (Graph.encoding (encPi (encPi (encPair encBool (encPi encBool)))))
       (GapLabelCover β γ 1 η) := by
-    refine (GapLabelCover_npHard_pow hk).mono (fun _ hg => hg) fun g hg => ?_
+    refine (GapLabelCover_npHard_pow (by positivity : 0 < k)).mono (fun _ hg => hg) fun g hg => ?_
     have hpow : baseLC ^ ((k : ℝ) / 21) = baseLC ^ n := by
       rw [← Real.rpow_natCast]
       congr 1
@@ -346,83 +305,57 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
     rw [GapLabelCover, PromiseProblem.mem_no_gapMax] at hg ⊢
     change 1 - (g.toGraph projectionEval).unsatVal ≤ baseLC ^ ((k : ℝ) / 21) ∧ _ at hg
     rw [hpow] at hg
-    have hle : baseLC ^ n ≤ η :=
-      (pow_le_pow_of_le_one hbaseLC0 hbaseLC1.le
-        ((le_max_left n₁ n₂).trans (Nat.le_succ _))).trans hn₁.le
-    exact ⟨hg.1.trans hle, hη1⟩
+    exact ⟨hg.1.trans <| (pow_le_pow_of_le_one (by norm_num) (by norm_num)
+      ((le_max_left n₁ n₂).trans (Nat.le_succ _))).trans hn₁.le, hη1⟩
   -- Bound the degenerate-equation share `w = (1 - 1 / m) ^ |β| < wMax`.
   have hcard_ge : n₂ ≤ Fintype.card β := by
-    have hcard_A : Fintype.card A = 128 := by
-      simp [A, Fintype.card_prod, Fintype.card_bool]
-    have hcard_β : Fintype.card β = (128 * 128) ^ k := by
-      simp [β, Fintype.card_prod, hcard_A]
-    have h2k : k < 2 ^ k := Nat.lt_two_pow_self
-    have hpow_le : 2 ^ k ≤ (128 * 128) ^ k := Nat.pow_le_pow_left (by norm_num) k
-    have hn2_le_k : n₂ ≤ k := by
-      have : n₂ ≤ n := (le_max_right n₁ n₂).trans (Nat.le_succ _)
-      dsimp only [k]
-      omega
-    omega
+    have hcard_β : Fintype.card β = (128 * 128) ^ k := by simp [β, A, Fintype.card_prod]
+    have := Nat.lt_two_pow_self (n := k)
+    have := Nat.pow_le_pow_left (by norm_num : 2 ≤ 128 * 128) k
+    have : n₂ ≤ n := (le_max_right n₁ n₂).trans (Nat.le_succ _)
+    dsimp only [k] at *; omega
   set w : ℝ := (1 - 1 / (m : ℝ)) ^ Fintype.card β with hw_def
   have hw_lt : w < wMax :=
-    (pow_le_pow_of_le_one hbaseDrop0 hbaseDrop1.le hcard_ge).trans_lt hn₂
+    (pow_le_pow_of_le_one (by dsimp only [baseDrop]; linarith) hbaseDrop1.le hcard_ge).trans_lt hn₂
   have hw_lt_δ : w < δ / 2 := hw_lt.trans_le (min_le_left _ _)
   have hw_lt_ε : w < ε / 4 := hw_lt.trans_le (min_le_right _ _)
-  have hw_nonneg : 0 ≤ w := pow_nonneg hbaseDrop0 _
-  have hw_lt_one : w < 1 := by linarith
   -- Step 4: reduce `GapLabelCover β γ 1 η` to `GapExactThreeLin (1 - δ) (1 / 2 + ε)`.
   let y₀ : γ := fun _ => (false, fun _ => false)
   let T : Tables β γ m := Tables.ofFintype m y₀
   have hT : T.Valid := Tables.valid_ofFintype m y₀
-  have hred : PromiseProblem.PolyTimeReducible
-      (Graph.encoding (encPi (encPi (encPair encBool (encPi encBool)))))
-      (encCSP encBool encNat)
-      (GapLabelCover β γ 1 η) (GapExactThreeLin (1 - δ) (1 / 2 + ε)) := by
-    refine ⟨reduce T, isPolyTime_reduce T (encPi (encPair encBool (encPi encBool))),
-      fun g hg => ?_, fun g hg => ?_⟩
-    · rw [mem_yes_GapExactThreeLin]
-      refine ⟨scopes_reduce hT g, ?_⟩
-      by_cases hedge : g.edges = []
-      · rw [reduce_of_edges_nil T hedge]
-        have hsat : CSP.Satisfiable CSP.paritySem [trivialEq] :=
-          ⟨fun _ => false, by decide⟩
-        rw [(CSP.unsatVal_eq_zero_iff CSP.paritySem [trivialEq]).2 hsat]
-        linarith
-      · obtain ⟨B, A_tbl, hB, hprob⟩ := (hdich hedge).1 hg
-        obtain ⟨σ, hσ⟩ := exists_countSat_reduce_ge hm2 hT hedge hB A_tbl
-        rw [hprob] at hσ
-        have hpos : 0 < (reduce T g).length := length_reduce_pos hm2 hT g
-        have hadd := countSat_div_add_countUnsat_div hpos σ
-        have hle := CSP.unsatVal_le CSP.paritySem (reduce T g) σ
-        linarith
-    · rw [mem_no_GapExactThreeLin h]
-      refine ⟨scopes_reduce hT g, ?_⟩
-      have hedge : g.edges ≠ [] := by
-        intro hnil
-        rw [GapLabelCover, PromiseProblem.mem_no_gapMax] at hg
-        have hsat : (g.toGraph projectionEval).Satisfiable :=
-          ⟨fun _ => ((fun _ => ((false, fun _ => false), (false, fun _ => false))), y₀),
-            fun i => absurd (i.isLt.trans_eq (congrArg List.length hnil)) (Nat.not_lt_zero _)⟩
-        rw [(ConstraintGraph.unsatVal_eq_zero_iff _).2 hsat] at hg
-        linarith
-      have hpos : 0 < (reduce T g).length := length_reduce_pos hm2 hT g
-      have hunsat : 1 - (1 / 2 + ε) ≤ (reduce T g).unsatVal CSP.paritySem := by
-        rw [CSP.le_unsatVal_iff]
-        intro σ
-        have hprob := (hdich hedge).2 hg (decodeRight T σ) (decodeLeft T σ) (isOdd_decodeRight T σ)
-        have hsat := countSat_reduce_div_length_le hm2 hT hedge σ
-        have h1w : 0 < 1 - w := sub_pos.2 hw_lt_one
-        have hratio : (1 / 2 + 4 * (ε / 8)) / (1 - w) ≤ 1 / 2 + ε := by
-          rw [div_le_iff₀ h1w]
-          nlinarith
-        have hsat_le :
-            ((reduce T g).countP (Constraint.eval CSP.paritySem σ) : ℝ) / (reduce T g).length ≤
-              1 / 2 + ε :=
-          hsat.trans ((div_le_div_of_nonneg_right hprob h1w.le).trans hratio)
-        have hadd := countSat_div_add_countUnsat_div hpos σ
-        linarith
+  refine hLC_npHard.trans ⟨reduce T, isPolyTime_reduce T (encPi (encPair encBool (encPi encBool))),
+    fun g hg => ?_, fun g hg => ?_⟩
+  · rw [mem_yes_GapExactThreeLin]
+    refine ⟨scopes_reduce hT g, ?_⟩
+    by_cases hedge : g.edges = []
+    · rw [reduce_of_edges_nil T hedge, (CSP.unsatVal_eq_zero_iff CSP.paritySem [trivialEq]).2
+        ⟨fun _ => false, by decide⟩]
       linarith
-  exact hLC_npHard.trans hred
+    · obtain ⟨B, A_tbl, hB, hprob⟩ := (hdich hedge).1 hg
+      obtain ⟨σ, hσ⟩ := exists_countSat_reduce_ge hm2 hT hedge hB A_tbl
+      rw [hprob] at hσ
+      linarith [countSat_div_add_countUnsat_div (length_reduce_pos hm2 hT g) σ,
+        CSP.unsatVal_le CSP.paritySem (reduce T g) σ]
+  · rw [mem_no_GapExactThreeLin h]
+    refine ⟨scopes_reduce hT g, ?_⟩
+    have hedge : g.edges ≠ [] := by
+      intro hnil
+      rw [GapLabelCover, PromiseProblem.mem_no_gapMax] at hg
+      have hsat : (g.toGraph projectionEval).Satisfiable :=
+        ⟨fun _ => ((fun _ => ((false, fun _ => false), (false, fun _ => false))), y₀),
+          fun i => absurd (i.isLt.trans_eq (congrArg List.length hnil)) (Nat.not_lt_zero _)⟩
+      rw [(ConstraintGraph.unsatVal_eq_zero_iff _).2 hsat] at hg; linarith
+    have hunsat : 1 - (1 / 2 + ε) ≤ (reduce T g).unsatVal CSP.paritySem := by
+      refine (CSP.le_unsatVal_iff _ _).2 fun σ => ?_
+      have hprob := (hdich hedge).2 hg (decodeRight T σ) (decodeLeft T σ) (isOdd_decodeRight T σ)
+      have h1w : 0 < 1 - w := by linarith
+      have hsat_le :
+          ((reduce T g).countP (Constraint.eval CSP.paritySem σ) : ℝ) / (reduce T g).length ≤
+            1 / 2 + ε :=
+        (countSat_reduce_div_length_le hm2 hT hedge σ).trans <|
+          (div_le_div_of_nonneg_right hprob h1w.le).trans ((div_le_iff₀ h1w).2 (by nlinarith))
+      linarith [countSat_div_add_countUnsat_div (length_reduce_pos hm2 hT g) σ]
+    linarith
 
 /-- **Goldreich Theorem 10.9 (`gapLin_{1 - δ, 1 / 2 + ε}` is NP-hard)** `[Goldreich2007DraftR5]`
 (r5.pdf PDF p. 80 / printed p. 462, in the corrected separated range `1 / 2 + ε < 1 - δ`;
@@ -458,20 +391,14 @@ theorem GapMaxExactThreeSAT_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
 `t + ε < 1 - δ` and `t + ε < ρ * (1 - δ)`. -/
 private theorem exists_gap_params_of_gt {t ρ : ℝ} (ht0 : 0 ≤ t) (ht1 : t < 1) (hρ : t < ρ) :
     ∃ δ ε : ℝ, 0 < δ ∧ 0 < ε ∧ t + ε < 1 - δ ∧ t + ε < ρ * (1 - δ) := by
-  let r : ℝ := min ρ 1
-  have hr_gt : t < r := lt_min hρ ht1
-  have hr_le : r ≤ 1 := min_le_right _ _
-  have hr_le_ρ : r ≤ ρ := min_le_left _ _
-  let γ : ℝ := r - t
-  have hγ0 : 0 < γ := by dsimp only [γ]; linarith
-  have hγ_le : γ ≤ 1 - t := by dsimp only [γ]; linarith
+  let γ : ℝ := min ρ 1 - t
+  have hγ0 : 0 < γ := by dsimp only [γ]; linarith [lt_min hρ ht1]
+  have hγ_le : γ ≤ 1 - t := by dsimp only [γ]; linarith [min_le_right ρ 1]
   refine ⟨γ / 4, γ / 4, by linarith, by linarith, by linarith, ?_⟩
-  have h1 : t + γ / 4 < r * (1 - γ / 4) := by
-    have hmul : γ * (t + γ) ≤ γ := by nlinarith
-    have hr_eq : r = t + γ := by dsimp only [γ]; ring
-    rw [hr_eq]
-    nlinarith
-  exact h1.trans_le (mul_le_mul_of_nonneg_right hr_le_ρ (by linarith))
+  exact (by nlinarith : t + γ / 4 < (t + γ) * (1 - γ / 4)).trans_le <|
+    mul_le_mul_of_nonneg_right
+      (by dsimp only [γ]; linarith [min_le_left ρ 1])
+      (by linarith)
 
 /-- Generic rational-threshold decider turning a polynomial-time `ρ`-approximation algorithm into a
 `PromiseP` decider for a restricted `gapMax (1 - uval)` problem when `0 ≤ s < c ≤ 1` and
@@ -487,43 +414,38 @@ private theorem gapMax_restrict_mem_PromiseP_of_approx {α : Type} {enc : α ↪
     (PromiseProblem.gapMax (fun x => 1 - uval x) (fun _ => c) (fun _ => s)).restrict {x | P x} ∈
       PromiseP enc := by
   obtain ⟨q, hsq, hqρc⟩ := exists_rat_btwn hsρc
-  have hq0 : (0 : ℝ) < q := hs0.trans_lt hsq
   set a := q.num.toNat
   set b := q.den
+  have hb : (0 : ℝ) < b := by exact_mod_cast q.den_pos
   have hab : (q : ℝ) = a / b := by
-    have hnum : (0 : ℤ) ≤ q.num := Rat.num_nonneg.2 (by exact_mod_cast hq0.le)
+    have hnum : (0 : ℤ) ≤ q.num := Rat.num_nonneg.2 (by exact_mod_cast (hs0.trans_lt hsq).le)
     rw [← Rat.num_div_den q]
     push_cast
     rw [show ((q.num : ℤ) : ℝ) = (a : ℝ) by exact_mod_cast (Int.toNat_of_nonneg hnum).symm]
-  have hb : (0 : ℝ) < b := by exact_mod_cast q.den_pos
   have hiff (x : α) :
       a * len x + b * u x ≤ b * len x ↔ (q : ℝ) * len x ≤ (len x : ℝ) - u x := by
     rw [hab, div_mul_eq_mul_div, div_le_iff₀ hb, ← @Nat.cast_le ℝ]
     push_cast
     constructor <;> intro h <;> nlinarith
   refine mem_PromiseP_iff.2
-    ⟨fun x => decide (a * len x + b * u x ≤ b * len x), ?_, fun x hx => ?_, fun x hx => ?_⟩
-  · exact binary_le' (binary_add' (binary_mul' (const a) hlen) (binary_mul' (const b) hu))
-      (binary_mul' (const b) hlen)
+    ⟨fun x => decide (a * len x + b * u x ≤ b * len x),
+      binary_le' (binary_add' (binary_mul' (const a) hlen) (binary_mul' (const b) hu))
+        (binary_mul' (const b) hlen),
+      fun x hx => ?_, fun x hx => ?_⟩
   · simp only [PromiseProblem.yes_restrict, Set.mem_inter_iff, PromiseProblem.mem_yes_gapMax,
       Set.mem_ofPred_eq] at hx
-    have hρ0 : 0 ≤ ρ := by
-      have hc0 : 0 < c := hs0.trans_lt hsc
-      nlinarith
-    have h1 : (q : ℝ) * len x ≤ ρ * (1 - uval x) * len x :=
-      mul_le_mul_of_nonneg_right (hqρc.le.trans (mul_le_mul_of_nonneg_left hx.1 hρ0))
-        (Nat.cast_nonneg _)
-    exact decide_eq_true ((hiff x).2 (h1.trans (happrox x hx.2)))
+    have hρ0 : 0 ≤ ρ := by nlinarith
+    exact decide_eq_true ((hiff x).2 <|
+      (mul_le_mul_of_nonneg_right (hqρc.le.trans (mul_le_mul_of_nonneg_left hx.1 hρ0))
+        (Nat.cast_nonneg _)).trans (happrox x hx.2))
   · simp only [PromiseProblem.no_restrict, Set.mem_inter_iff,
       PromiseProblem.mem_no_gapMax_of_lt (c := fun _ => c) (s := fun _ => s) hsc,
       Set.mem_ofPred_eq] at hx
     refine decide_eq_false fun h => ?_
     have h := (hiff x).1 h
-    have hle : uval x ≤ (u x : ℝ) / len x := huval_le x hx.2
+    have hle := huval_le x hx.2
     have hpos : (0 : ℝ) < len x := by exact_mod_cast hlen_pos x hx.2 (by linarith)
-    have hle' : (len x : ℝ) - (u x : ℝ) ≤ s * len x := by
-      rw [le_div_iff₀ hpos] at hle
-      nlinarith
+    rw [le_div_iff₀ hpos] at hle
     nlinarith
 
 /-- **Håstad's Theorem 5.4: MAX-E3LIN-2 has no polynomial-time `(1 / 2 + ε)`-approximation

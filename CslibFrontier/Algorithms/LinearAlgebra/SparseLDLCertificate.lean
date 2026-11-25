@@ -1059,21 +1059,13 @@ semidefinite over `ℝ`. -/
 theorem posSemidef_of_factorsWith {rows : List (List (ℕ × ℚ))} (hlen : rows.length = n)
     (hsymm : (ofSparse n n rows)ᵀ = ofSparse n n rows) (h : c.factorsWith n rows = true)
     (hd : c.diag.all (0 ≤ ·) = true) : ((ofSparse n n rows).map ((↑) : ℚ → ℝ)).PosSemidef := by
-  obtain ⟨hl, -, hu⟩ := c.shape_of_factorsWith h
+  obtain ⟨hl, hdl, hu⟩ := c.shape_of_factorsWith h
   rw [c.eq_add_of_factorsWith hlen hsymm h, Matrix.map_add _ Rat.cast_add]
   refine PosSemidef.add ?_ (c.posSemidef_rem h)
-  obtain ⟨L, hL, h1, hM⟩ := c.toLDLCert.map_eq_of_eq hl hu rfl
+  obtain ⟨hmem, L, hL, h1, hM⟩ := c.toLDLCert.map_eq_of_eq hl hdl hu rfl
   rw [hM, posSemidef_mul_diagonal_mul_conjTranspose_iff hL h1]
-  intro i
   simp only [List.all_eq_true, decide_eq_true_eq] at hd
-  have : 0 ≤ c.toLDLCert.d n i := by
-    rw [LDLCert.d, ofList_apply]
-    change 0 ≤ c.diag.getD i 0
-    rcases Nat.lt_or_ge i c.diag.length with hi | hi
-    · rw [List.getD_eq_getElem _ _ hi]
-      exact hd _ (List.getElem_mem hi)
-    · rw [List.getD_eq_default _ _ hi]
-  exact_mod_cast this
+  exact fun i => by exact_mod_cast hd _ (hmem i)
 
 private theorem symm_of_factors {rows : List (List (ℕ × ℚ))} (h : c.factors n rows = true) :
     rows.length = n ∧ (ofSparse n n rows)ᵀ = ofSparse n n rows ∧ c.factorsWith n rows = true := by

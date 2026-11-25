@@ -49,23 +49,19 @@ theorem isEndpointCheckpoint_of_min {L : ℕ} {x : α}
   let idx (j : Fin (L + 1)) : Fin (2 * L) := ⟨j.val + d, by have := j.isLt; lia⟩
   have hshift (j : Fin (L + 1)) : f^[j.val] (f^[d] x) = f^[(idx j).val] x :=
     (Function.iterate_add_apply f j.val d x).symm
-  change IsEndpointCheckpoint f rank L (f^[d] x)
-  constructor
-  · intro j k heq
-    have h := congrArg Fin.val (hinj ((hshift j).symm.trans (heq.trans (hshift k))))
-    apply Fin.ext
-    change j.val + d = k.val + d at h
+  refine ⟨fun j k heq => Fin.ext ?_, ?_⟩
+  · have h : j.val + d = k.val + d :=
+      congrArg Fin.val (hinj ((hshift j).symm.trans (heq.trans (hshift k))))
     lia
   · by_cases hi : i.val < L
-    · left
-      intro j
+    · refine .inl fun j => ?_
       rw [hshift]
       simpa only [d, ite_eq_left hi] using hmin (idx j)
-    · right
-      intro j
-      rw [hshift, ← Function.iterate_add_apply]
-      have he : L + d = i.val := by simp only [d, ite_eq_right hi]; lia
-      rw [he]
+    · refine .inr fun j => ?_
+      have he : L + d = i.val := by
+        simp only [d, ite_eq_right hi]
+        lia
+      rw [hshift, ← Function.iterate_add_apply, he]
       exact hmin (idx j)
 
 /-- Every simple prefix of length `2 * L` reaches an endpoint checkpoint within its first
@@ -93,14 +89,12 @@ theorem exists_endpointCheckpoint_near_transient [Finite α] {L t : ℕ} (hL : 0
   let z := f^[b] x
   have hb : b + 2 * L = t := Nat.sub_add_cancel hfar
   have hz : transientDepth f z = transientDepth f x - b := transientDepth_iterate f x b
-  have hinj : Function.Injective (fun i : Fin (2 * L) => f^[i.val] z) := by
-    intro i j he
+  have hinj : Function.Injective (fun i : Fin (2 * L) => f^[i.val] z) := fun i j he => by
     have hd := congrArg (transientDepth f) he
     simp only [transientDepth_iterate, hz] at hd
-    apply Fin.ext
-    have hi := i.isLt
-    have hj := j.isLt
-    lia
+    have := i.isLt
+    have := j.isLt
+    exact Fin.ext (by lia)
   obtain ⟨d, hd, ha⟩ := exists_endpointCheckpoint f rank hL hinj
   refine ⟨f^[d] z, ha, ⟨d + b, by lia, Function.iterate_add_apply f d b x⟩, ?_⟩
   simp only [transientDepth_iterate, hz]
@@ -116,10 +110,8 @@ theorem iterate_of_ancestor_depth_window [Finite α] {x a : α} {t K : ℕ}
     k ≤ K ∧ f^[k] a = f^[t] x := by
   obtain ⟨j, hj, rfl⟩ := ha
   simp only [transientDepth_iterate] at hlo hhi ⊢
-  constructor
-  · lia
-  · rw [← Function.iterate_add_apply]
-    congr 1
-    lia
+  refine ⟨by lia, ?_⟩
+  rw [← Function.iterate_add_apply]
+  exact congrArg (f^[·] x) (by lia)
 
 end Cslib.FunctionalGraph

@@ -66,11 +66,9 @@ theorem CleanWindowFast.step {c U V n_max : ℕ} (hnU : n_max ≤ U) {θ : SeedW
     obtain ⟨fs', htick, hv', hw', hs', hbuf_or⟩ :=
       epochTick_some_of_work_bound hv.toCore hv.overmars_valid hv.stage_valid.toPreTick
         hdom_sub hsalt_all hcw.salt_bound hcw.work_le
-    refine ⟨fs', fastQuery c U n_max θ fs u, ?_, ⟨hv', ?_, hw', hs'⟩⟩
-    · dsimp only [fastStepPure]; rw [htick]
-    · rcases hbuf_or with hbeq | hia0
-      · rw [hbeq]; exact hcw.buf_alloc
-      · rw [hia0]; exact Nat.zero_le _
+    refine ⟨fs', fastQuery c U n_max θ fs u, ?_,
+      ⟨hv', hbuf_or.elim (fun h => h ▸ hcw.buf_alloc) fun h => h ▸ Nat.zero_le _, hw', hs'⟩⟩
+    simp only [fastStepPure, htick]
   | delete u =>
     obtain ⟨hc1, hom1, hpre1, _⟩ := hv.fastDelete_spec u
     obtain ⟨hclk1, hep1, hia1, hev1, hw1_le, hs1⟩ :=
@@ -95,11 +93,9 @@ theorem CleanWindowFast.step {c U V n_max : ℕ} (hnU : n_max ≤ U) {θ : SeedW
     obtain ⟨fs', htick, hv', hw', hs', hbuf_or⟩ :=
       epochTick_some_of_work_bound hc1 hom1 hst1.toPreTick hdom_nxt hsalt_all hs1
         (by rw [hclk1, hw1_eq]; exact hcw.work_le)
-    refine ⟨fs', none, ?_, ⟨hv', ?_, hw', hs'⟩⟩
-    · dsimp only [fastStepPure]; rw [hins]; dsimp only; rw [htick]
-    · rcases hbuf_or with hbeq | hia0
-      · rw [hbeq]; exact hba1
-      · rw [hia0]; exact Nat.zero_le _
+    refine ⟨fs', none, ?_,
+      ⟨hv', hbuf_or.elim (fun h => h ▸ hba1) fun h => h ▸ Nat.zero_le _, hw', hs'⟩⟩
+    simp only [fastStepPure, hins, htick]
 
 /-- Burn-in countdown budget to reach `CleanWindowFast` within the trailing window. -/
 @[expose] def HasBurnInBudget (c U V n_max : ℕ) (θ : SeedWhp c U n_max)
@@ -185,40 +181,22 @@ private theorem HasBurnInBudget.step {c U V n_max : ℕ} (hnU : n_max ≤ U)
           cases op with
           | query u =>
             dsimp only [fastStepPure] at hf
-            cases ht : epochTick c U n_max θ fs with
-            | none => rw [ht] at hf; cases hf
-            | some fs2 =>
-              rw [ht] at hf; injection hf with hp; injection hp with hfs2 _
-              rw [← hfs2] at hv' ⊢
-              exact epochTick_clean_or_clock hv.toCore hv' ht
+            split at hf <;> cases hf
+            exact epochTick_clean_or_clock hv.toCore hv' ‹_›
           | delete u =>
             dsimp only [fastStepPure] at hf
-            have hc1 := (hv.fastDelete_spec u).1
-            have hclk1 := fastDelete_epochClock c U n_max θ fs u
-            cases ht : epochTick c U n_max θ (fastDelete c U n_max θ fs u) with
-            | none => rw [ht] at hf; cases hf
-            | some fs2 =>
-              rw [ht] at hf; injection hf with hp; injection hp with hfs2 _
-              rw [← hfs2] at hv' ⊢
-              rcases epochTick_clean_or_clock hc1 hv' ht with hcw' | ⟨hc2, hlt2⟩
-              · exact Or.inl hcw'
-              · rw [hclk1] at hc2 hlt2; exact Or.inr ⟨hc2, hlt2⟩
+            split at hf <;> cases hf
+            exact (epochTick_clean_or_clock (hv.fastDelete_spec u).1 hv' ‹_›).imp_right
+              fun h => by rwa [fastDelete_epochClock] at h
           | insert u v =>
             dsimp only [fastStepPure] at hf
             cases hi : fastInsert c U n_max θ fs u v with
             | none => rw [hi] at hf; cases hf
             | some fs1 =>
               rw [hi] at hf; dsimp only at hf
-              have hc1 := (hv.fastInsert_spec hnU hval hi).1
-              have hclk1 := fastInsert_epochClock hi
-              cases ht : epochTick c U n_max θ fs1 with
-              | none => rw [ht] at hf; cases hf
-              | some fs2 =>
-                rw [ht] at hf; injection hf with hp; injection hp with hfs2 _
-                rw [← hfs2] at hv' ⊢
-                rcases epochTick_clean_or_clock hc1 hv' ht with hcw' | ⟨hc2, hlt2⟩
-                · exact Or.inl hcw'
-                · rw [hclk1] at hc2 hlt2; exact Or.inr ⟨hc2, hlt2⟩
+              split at hf <;> cases hf
+              exact (epochTick_clean_or_clock (hv.fastInsert_spec hnU hval hi).1 hv' ‹_›).imp_right
+                fun h => by rwa [fastInsert_epochClock hi] at h
         rcases hor with hcw' | ⟨hclk', hlt_q⟩
         · exact Or.inl ⟨fs', rfl, hcw'⟩
         · exact Or.inr ⟨by omega, hv', by dsimp only; omega⟩
@@ -326,9 +304,7 @@ theorem whpRunFrom_small {c U n_max : ℕ} (θ : SeedWhp c U n_max) :
       ∃ sm', whpRunFrom c U n_max θ (.small sm) ops = .small sm' := by
   intro ops
   induction ops with
-  | nil => intro sm; exact ⟨sm, rfl⟩
-  | cons o rest ih =>
-    intro sm
-    cases o <;> exact ih _
+  | nil => exact fun sm => ⟨sm, rfl⟩
+  | cons o _ ih => exact fun _ => by cases o <;> exact ih _
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

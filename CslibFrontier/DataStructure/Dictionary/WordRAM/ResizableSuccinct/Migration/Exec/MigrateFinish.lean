@@ -143,35 +143,30 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     unfold migratePeakWords
     dsimp only [arenaB, arenaW, newMeta, offNew, N_new, iwOld, iwNew]
     ring
-  have hpeak_eq : peakF = arenaB + arenaW := hpeak_raw
   have hfit_ar : Fits w (arenaB + arenaW) := hpeak_raw ▸ hfit_peak
   have hfit_nm : Fits w (newMeta + offNew) := hfit_ar.of_le (Nat.le_add_right _ _)
-  have hnm_le_peak : newMeta + offNew ≤ peakF := by
-    rw [hpeak_eq]; exact Nat.le_add_right _ _
+  have hnm_le_peak : newMeta + offNew ≤ peakF :=
+    (Nat.le_add_right (newMeta + offNew) _ : newMeta + offNew ≤ arenaB + arenaW).trans_eq
+      hpeak_raw.symm
   obtain ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,
       hrep_new_im, _, hpot_im, h_empty_im, hkeep_set_2, hz₂_not_im⟩ :=
-    exec_postResample_initMeta mNewMeta
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)
+    exec_postResample_initMeta mNewMeta (by simp)
       hw hU hN_new_pos hNU_new hhdr_set.fits_U hV hy_set_b hy_set_fr hnm_le_peak hfit_nm
       hr_nm hr_fr hr_nhp hr_ncp hrs_fr hrs_seed hrs_mem hrs_reg
   set z₃ := z₂.set mZero 0
   have hex_z3 := RDemonicExec.const (B := .exact) (d := mZero) (v := 0) (x := z₂) hz₂f_eq.le
     (fits_zero w)
   have hz₃b : z₃.Bounded w := hz₂b.set (fits_zero w)
-  have hms₃ : memoryState mFr z₃.toData = ⟨z₂.mem, peakF⟩ :=
-    Memory.State.ext rfl (by
-      dsimp only [memoryState, z₃, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mZero)]
-      exact hz₂_fr_reg)
+  have hms₃ : memoryState mFr z₃.toData = ⟨z₂.mem, peakF⟩ := Memory.State.ext rfl
+    (by simp [memoryState, z₃, RData.set, RData.toData, hz₂_fr_reg, peakF])
   have hkeep_set_to_3 : ∀ reg : Fin rResize, reg.val < 160 →
       reg ∉ ([mFr, mTmpA, mZero, mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) →
       z₃.regs reg = y_set.regs reg := fun reg h160 hnot => by
     simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
-    obtain ⟨hfr', hta, hz, hcur, hidx, hk, ho, hres⟩ := hnot
-    refine (by dsimp only [z₃, RData.set]; rw [Function.update_of_ne hz] :
-      z₃.regs reg = z₂.regs reg).trans (hkeep_set_2 reg h160 ?_)
-    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-    exact ⟨hfr', hta, hcur, hidx, hk, ho, hres⟩
+    rw [← hkeep_set_2 reg h160 (by simp [hnot])]
+    exact Function.update_of_ne hnot.2.2.1 _ _
+  have hk3 : ∀ reg : Fin rResize, 13 ≤ reg.val ∧ reg.val < 156 → z₃.regs reg = y_set.regs reg :=
+    fun reg h => hkeep_set_to_3 reg (by omega) (by clear * - h; simp [Fin.ext_iff]; omega)
   let d_sa := (((((mkHashParams w (qBits U N_old) (hashB N_old) (totalMicroBits N_old) 3,
       mkCompParams U V w N_old), (base, oldItemDst)),
     ((mkHashParams w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3,
@@ -188,49 +183,22 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
             (regs_pairSrc (regs_reg1_eq mNewMeta ?_) (regs_reg1_eq mArena ?_))))
         (regs_reg1_eq mZero (by simp [z₃, RData.set])))
       (regs_reg1_eq mCnt ?_)).eq
-    · refine (hkeep_set_to_3 (mOldHp i) (mOldHp_lt_160 i) ?_).trans (hr_ohp i)
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-      exact ⟨mOldHp_ne_mReg i (Or.inl (by decide)), mOldHp_ne_mReg i (Or.inr (by decide)),
-        mOldHp_ne_mReg i (Or.inl (by decide)), mOldHp_ne_mReg i (Or.inl (by decide)),
-        mOldHp_ne_mReg i (Or.inl (by decide)), mOldHp_ne_mReg i (Or.inl (by decide)),
-        mOldHp_ne_mReg i (Or.inl (by decide)), mOldHp_ne_mReg i (Or.inl (by decide))⟩
-    · refine (hkeep_set_to_3 (mOldCp i) (mOldCp_lt_160 i) ?_).trans (hr_ocp i)
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-      exact ⟨mOldCp_ne_mReg i (Or.inl (by decide)), mOldCp_ne_mReg i (Or.inr (by decide)),
-        mOldCp_ne_mReg i (Or.inl (by decide)), mOldCp_ne_mReg i (Or.inl (by decide)),
-        mOldCp_ne_mReg i (Or.inl (by decide)), mOldCp_ne_mReg i (Or.inl (by decide)),
-        mOldCp_ne_mReg i (Or.inl (by decide)), mOldCp_ne_mReg i (Or.inl (by decide))⟩
-    · exact (hkeep_set_to_3 mBase (mReg_lt_160 _)
-        (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_base
-    · exact (hkeep_set_to_3 mOldItemDst (mReg_lt_160 _)
-        (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_oid
-    · refine (hkeep_set_to_3 (mNewHp i) (mNewHp_lt_160 i) ?_).trans (hr_nhp i)
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-      exact ⟨mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inr (by decide)),
-        mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inl (by decide)),
-        mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inl (by decide)),
-        mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inl (by decide))⟩
-    · refine (hkeep_set_to_3 (mNewCp i) (mNewCp_lt_160 i) ?_).trans (hr_ncp i)
-      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-      exact ⟨mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inr (by decide)),
-        mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inl (by decide)),
-        mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inl (by decide)),
-        mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inl (by decide))⟩
-    · exact (hkeep_set_to_3 mNewMeta (mReg_lt_160 _)
-        (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_nm
-    · exact (hkeep_set_to_3 mArena (mReg_lt_160 _)
-        (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_ar
-    · exact (hkeep_set_to_3 mCnt (mReg_lt_160 _)
-        (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_cnt
+    · exact (hk3 _ (by simp only [val_mOldHp]; omega)).trans (hr_ohp i)
+    · exact (hk3 _ (by simp only [val_mOldCp]; omega)).trans (hr_ocp i)
+    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_base
+    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_oid
+    · exact (hk3 _ (by simp only [val_mNewHp]; omega)).trans (hr_nhp i)
+    · exact (hk3 _ (by simp only [val_mNewCp]; omega)).trans (hr_ncp i)
+    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_nm
+    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_ar
+    · exact (hkeep_set_to_3 _ (mReg_lt_160 _) (by simp)).trans hr_cnt
   have heh_val : epochHdrWords = 225 := rfl
   obtain ⟨s_fix_old, hinv_old, htot_old, hcpl_old_set⟩ := hcpl_old
   have hsp_le_old : 225 + ReducedKWise.space w (qBits U N_old) (hashB N_old)
       (totalMicroBits N_old) 3 ≤ offCompItems U w N_old := by
-    have hlm : offCompLM U w N_old ≤ offCompItems U w N_old := by
-      unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
-    dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
-      at hlm ⊢
-    exact hlm
+    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM
+    dsimp only [epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
+    omega
   have hrep_old_z₂ : ReducedKWise.Rep (base + epochHdrWords) w (qBits U N_old) (hashB N_old)
       (totalMicroBits N_old) 3 θ_old z₂.mem :=
     ⟨ReducedKWise.tableRep_congr hrep_old.1
@@ -252,8 +220,7 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   have henv_sa : StreamRebuildEnv U V w N_old N_new n base newMeta arenaB θ_old θ_new s_abs
       ⟨z₂.mem, peakF⟩ :=
     ⟨hw, hn, hn_old, hNU_old, hn_new, hNU_new, hhdr_set.fits_U, hV, hvals,
-      le_rfl, le_rfl, by change arenaB + arenaW ≤ peakF; rw [hpeak_eq], hfit_nm,
-      hrep_old_z₂,
+      le_rfl, le_rfl, hpeak_raw.ge, hfit_nm, hrep_old_z₂,
       ⟨s_fix_old, hinv_old, (congrArg (totalSlots N_old) hgm_old_z₂).trans htot_old, hcpl_old_z₂⟩,
       hrep_new_im,
       hpot_im,
@@ -279,30 +246,17 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
   have hz₄_keep3 : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mCur → z₄.regs reg = z₃.regs reg :=
     fun reg h1 h160 hcur => hframe_reg_sa reg h1
       (mkTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hcur.symm))
-  have hz₄_nm : z₄.regs mNewMeta = newMeta :=
-    (hz₄_keep3 mNewMeta (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans <|
-    (hkeep_set_to_3 mNewMeta (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_nm
-  have hz₄_base : z₄.regs mBase = base :=
-    (hz₄_keep3 mBase (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans <|
-    (hkeep_set_to_3 mBase (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_base
-  have hz₄_off : z₄.regs mOffNew = offNew :=
-    (hz₄_keep3 mOffNew (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans <|
-    (hkeep_set_to_3 mOffNew (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_off
-  have hz₄_ar : z₄.regs mArena = arenaB :=
-    (hz₄_keep3 mArena (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans <|
-    (hkeep_set_to_3 mArena (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_ar
-  have hz₄_iwn : z₄.regs mIwNew = iwNew :=
-    (hz₄_keep3 mIwNew (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans <|
-    (hkeep_set_to_3 mIwNew (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_iwn
-  have hz₄_pf : z₄.regs mPeakFront = peakF :=
-    (hz₄_keep3 mPeakFront (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans <|
-    (hkeep_set_to_3 mPeakFront (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hr_pf
+  have hz₄_set : ∀ reg : Fin rResize, reg.val < 160 →
+      reg ∉ ([mFr, mTmpA, mZero, mCur, mIdx, mK, mOne, mRes] : List (Fin rResize)) →
+      z₄.regs reg = y_set.regs reg := fun reg h160 hnot =>
+    (hz₄_keep3 reg (fun h => hnot (by simp [h])) h160 (fun h => hnot (by simp [h]))).trans
+      (hkeep_set_to_3 reg h160 hnot)
+  have hz₄_nm : z₄.regs mNewMeta = newMeta := (hz₄_set _ (mReg_lt_160 _) (by simp)).trans hr_nm
+  have hz₄_base : z₄.regs mBase = base := (hz₄_set _ (mReg_lt_160 _) (by simp)).trans hr_base
+  have hz₄_off : z₄.regs mOffNew = offNew := (hz₄_set _ (mReg_lt_160 _) (by simp)).trans hr_off
+  have hz₄_ar : z₄.regs mArena = arenaB := (hz₄_set _ (mReg_lt_160 _) (by simp)).trans hr_ar
+  have hz₄_iwn : z₄.regs mIwNew = iwNew := (hz₄_set _ (mReg_lt_160 _) (by simp)).trans hr_iwn
+  have hz₄_pf : z₄.regs mPeakFront = peakF := (hz₄_set _ (mReg_lt_160 _) (by simp)).trans hr_pf
   have hlow_z₄ : ∀ a, newMeta ≤ a ∧ a < newMeta + 63 → z₄.mem a = y_set.mem a := fun a ha => by
     rw [hz₄_mem_eq, hmid_sa a ha]
     exact hz₂_not_im a (fun h => by linarith only [ha.2, h.1, heh_val])
@@ -319,18 +273,8 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
       hhdr_z₄ hpar_z₄ (hz₄_mem_eq ▸ hrep_sa)
       (by obtain ⟨s_fix', hi', hc'⟩ := hcpl_sa; exact ⟨s_fix', hi', hs_z₄_eq ▸ hc'⟩)
   have habi_set_4 : abiPreserved y_set z₄ :=
-    ⟨(hz₄_keep3 mBase (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans
-        (hkeep_set_to_3 mBase (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)),
-     (hz₄_keep3 mTag (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans
-        (hkeep_set_to_3 mTag (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)),
-     (hz₄_keep3 mArgU (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans
-        (hkeep_set_to_3 mArgU (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)),
-     (hz₄_keep3 mArgV (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans
-        (hkeep_set_to_3 mArgV (mReg_lt_160 _)
-          (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide))⟩
+    ⟨hz₄_set mBase (mReg_lt_160 _) (by simp), hz₄_set mTag (mReg_lt_160 _) (by simp),
+     hz₄_set mArgU (mReg_lt_160 _) (by simp), hz₄_set mArgV (mReg_lt_160 _) (by simp)⟩
   have hf1 := one_le_migFactor
   have hc_im_mul : migFactor * (memoryCost
       (initNewEpochMetaProg ((mkHashParams w (qBits U N_new) (hashB N_new) (totalMicroBits N_new) 3,
@@ -347,19 +291,17 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     have hmul := Nat.mul_le_mul_left migFactor hc_sa
     rw [← hz₄_mem_eq] at hmul
     linarith only [hmul, hpot_le]
-  have hex_build : RDemonicExec w peakF migrateStreamBuildCode
-      (((((y_rs.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) _ (· = z₄) :=
-    hex_c1.seq_eq ((hex_im.mono hc_im_mul (fun _ h => h)).seq_eq (hex_z3.seq_eq hex_sa))
-  have hex_clean := hex_build.seq_eq hex_back
+  have hex_clean : RDemonicExec w peakF migrateFinishCleanCode
+      (((((y_rs.set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) _ (· = z) :=
+    (hex_c1.seq_eq ((hex_im.mono hc_im_mul fun _ h => h).seq_eq (hex_z3.seq_eq hex_sa))).seq_eq
+      hex_back
   refine ⟨z, _, hex_clean, hzb, hzf, hsplit_z,
     abiPreserved_trans habi_set (abiPreserved_trans habi_set_4 habi_4z),
-    fun addr haddr => ?_, ?_⟩
-  · exact (hbelow_4z addr haddr).trans <|
-      (congrFun hz₄_mem_eq addr).trans <|
-      (hlo_sa addr (by linarith only [haddr])).trans <|
-      (hz₂_not_im addr (fun h => by dsimp only [newMeta] at h; linarith only [haddr, h.1])).trans <|
-      hbelow_set addr haddr
-  · nlinarith only [hsa_pot, hc_back, hn, hf1]
+    fun addr haddr => ?_, by nlinarith only [hsa_pot, hc_back, hn, hf1]⟩
+  exact (hbelow_4z addr haddr).trans <| (congrFun hz₄_mem_eq addr).trans <|
+    (hlo_sa addr (by linarith only [haddr])).trans <|
+    (hz₂_not_im addr (fun h => by dsimp only [newMeta] at h; linarith only [haddr, h.1])).trans <|
+    hbelow_set addr haddr
 
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

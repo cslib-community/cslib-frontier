@@ -24,6 +24,17 @@ open Cslib.Algorithms.Lean.Arborescence
 
 /-! ### Edmonds §4 reduced exit costs and row-potential equivalence -/
 
+/-- A step of `List.argAux` returns either the new candidate or the accumulator. -/
+private theorem argAux_eq_some {α : Type*} {r : α → α → Prop} [DecidableRel r]
+    {acc : Option α} {i a : α} (h : List.argAux r acc i = some a) : i = a ∨ acc = some a := by
+  cases acc with
+  | none => simp only [List.argAux, Option.some.injEq] at h; exact Or.inl h
+  | some z =>
+    simp only [List.argAux] at h
+    split_ifs at h <;> simp only [Option.some.injEq] at h
+    · exact Or.inl h
+    · exact Or.inr (congrArg some h)
+
 public theorem argMinFin_of_lt_iff {β γ : Type*} [LinearOrder β] [LinearOrder γ] {n : ℕ}
     (pred : Fin n → Bool) (f : Fin n → β) (g : Fin n → γ)
     (h : ∀ x y, pred x = true → pred y = true → (f x < f y ↔ g x < g y)) :
@@ -50,16 +61,7 @@ public theorem argMinFin_of_lt_iff {β γ : Type*} [LinearOrder β] [LinearOrder
         | none => rfl
         | some z => simp [List.argAux, h i z hp (hacc z rfl)]
       rw [harg_eq]
-      refine ih _ fun y hy => ?_
-      cases acc with
-      | none =>
-        simp only [List.argAux, Option.some.injEq] at hy
-        exact hy ▸ hp
-      | some z =>
-        simp only [List.argAux] at hy
-        split_ifs at hy <;> simp only [Option.some.injEq] at hy
-        · exact hy ▸ hp
-        · exact hacc y (congrArg some hy)
+      exact ih _ fun y hy => (argAux_eq_some hy).elim (· ▸ hp) (hacc y)
 
 private theorem argMinFin_spec {β : Type*} [LinearOrder β] {n : ℕ} (pred : Fin n → Bool)
     (val : Fin n → β) {x : Fin n} (hx : argMinFin n pred val = some x) :
@@ -88,16 +90,8 @@ private theorem argMinFin_spec {β : Type*} [LinearOrder β] {n : ℕ} (pred : F
         · simp [hp] at hpy
         · exact hls_le y hmem hpy
       · simp only [hp, ↓reduceIte] at hx'
-        have hacc' : ∀ a,
-            List.argAux (fun u v => val u < val v) acc i = some a → pred a = true := by
-          intro a ha
-          cases acc with
-          | none => simp only [List.argAux, Option.some.injEq] at ha; exact ha ▸ hp
-          | some z =>
-            simp only [List.argAux] at ha
-            split_ifs at ha <;> simp only [Option.some.injEq] at ha
-            · exact ha ▸ hp
-            · exact hacc a (congrArg some ha)
+        have hacc' : ∀ a, List.argAux (fun u v => val u < val v) acc i = some a → pred a = true :=
+          fun a ha => (argAux_eq_some ha).elim (· ▸ hp) (hacc a)
         obtain ⟨hpx, hacc'_le, hls_le⟩ := ih _ hacc' x hx'
         refine ⟨hpx, ?_, ?_⟩
         · intro a ha
@@ -484,31 +478,25 @@ public theorem contractReducedCostTable_bounds {n k M₀ : ℕ} {a : AdjTable n}
       have hM0 : (0 : ℤ) ≤ M₀ := Int.natCast_nonneg M₀
       dsimp only
       exact ⟨by linarith only [hM0, hnonneg], by linarith only [hhi_w, hlo_f]⟩
-  · exact hzero
-  · exact hzero
-  · cases bEntry[u.1] with
-    | none => exact hzero
-    | some y => exact hle_step u y
-  · exact hzero
-  · exact hle_step u w
-  · exact hzero
+  all_goals first
+    | exact hzero
+    | exact hle_step u w
+    | cases bEntry[u.1] <;> first | exact hzero | exact hle_step u ‹_›
 
 public theorem contractReducedCostTable_natAbs_le {n B_k : ℕ} (a : AdjTable n) (c : CostTable ℤ n)
     (f : ParentTable n) (inCycle : Vector Bool n) (bEntry bExit : Vector (Option (Fin n)) n)
     (x0 : Fin n) (hB : ∀ u col : Fin n, (c[u.1][col.1]).natAbs ≤ B_k) (u col : Fin n) :
     ((contractReducedCostTable a c f inCycle bEntry bExit x0)[u.1][col.1]).natAbs ≤ 2 * B_k := by
   rw [getElem_contractReducedCostTable]
+  have hz : (0 : ℤ).natAbs ≤ 2 * B_k := Nat.zero_le _
+  have h2 : B_k ≤ 2 * B_k := by omega
   split_ifs
   · cases bExit[col.1] with
-    | none => simp
+    | none => exact hz
     | some xs => exact (Int.natAbs_sub_le _ _).trans (by linarith only [hB xs col, hB xs f[xs.1]])
-  · simp
-  · simp
-  · cases bEntry[u.1] with
-    | none => simp
-    | some ys => exact (hB u ys).trans (by omega)
-  · simp
-  · exact (hB u col).trans (by omega)
-  · simp
+  all_goals first
+    | exact hz
+    | exact (hB u col).trans h2
+    | cases bEntry[u.1] <;> first | exact hz | exact (hB u ‹_›).trans h2
 
 end Cslib.Algorithms.WordRAM.Arborescence.Internal

@@ -52,12 +52,9 @@ theorem exists_mem_counting_node_subset
     (hstep : ∀ i < N, ψ (i + 1) = countingChild (ψ i) (c i) (H i) (b i))
     {t : ℕ} (ht : t ≤ N) {C : Finset (Literal V)} (hC : C ∈ ψ 0) :
     ∃ D ∈ ψ t, D ⊆ C := by
-  suffices ∀ t, t ≤ N → ∃ D ∈ ψ t, D ⊆ C from this t ht
-  intro t
   induction t with
-  | zero => exact fun _ => ⟨C, hC, subset_rfl⟩
+  | zero => exact ⟨C, hC, subset_rfl⟩
   | succ t ih =>
-    intro ht
     obtain ⟨D, hD, hDC⟩ := ih (by omega)
     rw [hstep t (by omega), countingChild_eq_reduce_union]
     obtain ⟨E, hE, hED⟩ := exists_mem_reduce_subset
@@ -96,51 +93,37 @@ theorem card_counting_deleted_marked_le {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ �
   change E.card ≤ ∑ i ∈ Ico 1 j, 2 * θ (j - i) * (I.filter fun D => D.card = i).card
   have hredm := reduced_counting_node N ψ c H b hstep hred hm.le
   have hcover : E ⊆ (I.filter (·.card < j)).biUnion fun D =>
-      (ψ m).filter fun C => C ∉ ψ 0 ∧ C.card = j ∧ D ⊆ C := by
-    intro C hC
+      (ψ m).filter fun C => C ∉ ψ 0 ∧ C.card = j ∧ D ⊆ C := fun C hC => by
     obtain ⟨hCψ, hCroot, hCj, hCgone⟩ := mem_filter.mp hC
     rw [hstep m hm, countingChild_eq_reduce_union] at hCgone
     obtain ⟨D, hD, hDC⟩ := exists_ssubset_of_notMem_reduce hredm hCψ hCgone
-    have hDψ : D ∉ ψ m := fun h => hredm C hCψ D h hDC
-    have hDroot : D ∉ ψ 0 := by
-      intro hD0
-      obtain ⟨F, hF, hFD⟩ := exists_mem_counting_node_subset N ψ c H b hstep hm.le hD0
-      exact hredm C hCψ F hF (Finset.ssubset_of_subset_of_ssubset hFD hDC)
-    have hDI : D ∈ I := by
-      refine mem_sdiff.mpr ⟨hD, ?_⟩
-      exact fun h => (mem_union.mp h).elim hDψ hDroot
-    refine mem_biUnion.mpr ⟨D, mem_filter.mpr ⟨hDI, ?_⟩, ?_⟩
-    · exact hCj ▸ card_lt_card hDC
-    · exact mem_filter.mpr ⟨hCψ, hCroot, hCj, hDC.subset⟩
-  have hmaps : ∀ D ∈ I.filter (·.card < j), D.card ∈ Ico 1 j := by
-    intro D hD
+    have hDI : D ∈ I := mem_sdiff.mpr ⟨hD, fun h => (mem_union.mp h).elim
+      (fun hDm => hredm C hCψ D hDm hDC) fun hD0 =>
+        let ⟨F, hF, hFD⟩ := exists_mem_counting_node_subset N ψ c H b hstep hm.le hD0
+        hredm C hCψ F hF (Finset.ssubset_of_subset_of_ssubset hFD hDC)⟩
+    exact mem_biUnion.mpr ⟨D, mem_filter.mpr ⟨hDI, hCj ▸ card_lt_card hDC⟩,
+      mem_filter.mpr ⟨hCψ, hCroot, hCj, hDC.subset⟩⟩
+  have hmaps : ∀ D ∈ I.filter (·.card < j), D.card ∈ Ico 1 j := fun D hD => by
     obtain ⟨hDI, hDj⟩ := mem_filter.mp hD
-    have hDpos := countingIntro_nonempty (hchoice m hm).1.1 (hchoice m hm).1.2.1
+    have hDpos := card_pos.mpr <| countingIntro_nonempty (hchoice m hm).1.1 (hchoice m hm).1.2.1
       (mem_sdiff.mp hDI).1
-    rw [← card_pos] at hDpos
-    exact mem_Ico.mpr ⟨by omega, hDj⟩
+    exact mem_Ico.mpr ⟨hDpos, hDj⟩
   have hsum : (∑ D ∈ I.filter (·.card < j),
       ((ψ m).filter fun C => C ∉ ψ 0 ∧ C.card = j ∧ D ⊆ C).card) ≤
-      ∑ i ∈ Ico 1 j, 2 * θ (j - i) * (I.filter fun D => D.card = i).card := by
-    calc
-      _ ≤ ∑ D ∈ I.filter (·.card < j), 2 * θ (j - D.card) := by
-        refine sum_le_sum fun D hD => ?_
-        exact (card_counting_newContaining_lt hθ N ψ c H b hstep hchoice hm.le
-          (mem_Ico.mp (hmaps D hD)).1 (mem_filter.mp hD).2).le
-      _ = ∑ i ∈ Ico 1 j, ∑ D ∈ (I.filter (·.card < j)).filter (·.card = i),
-          2 * θ (j - i) := (sum_fiberwise_of_maps_to' hmaps fun i => 2 * θ (j - i)).symm
-      _ = ∑ i ∈ Ico 1 j, 2 * θ (j - i) * (I.filter fun D => D.card = i).card := by
-        refine sum_congr rfl fun i hi => ?_
-        have hij := (mem_Ico.mp hi).2
-        rw [sum_const, smul_eq_mul, mul_comm]
-        congr 2
-        ext D
-        simp only [mem_filter]
-        constructor
-        · rintro ⟨⟨hDI, -⟩, hDi⟩
-          exact ⟨hDI, hDi⟩
-        · rintro ⟨hDI, hDi⟩
-          exact ⟨⟨hDI, hDi ▸ hij⟩, hDi⟩
+      ∑ i ∈ Ico 1 j, 2 * θ (j - i) * (I.filter fun D => D.card = i).card := calc
+    _ ≤ ∑ D ∈ I.filter (·.card < j), 2 * θ (j - D.card) :=
+      sum_le_sum fun D hD => (card_counting_newContaining_lt hθ N ψ c H b hstep hchoice hm.le
+        (mem_Ico.mp (hmaps D hD)).1 (mem_filter.mp hD).2).le
+    _ = ∑ i ∈ Ico 1 j, ∑ D ∈ (I.filter (·.card < j)).filter (·.card = i), 2 * θ (j - i) :=
+      (sum_fiberwise_of_maps_to' hmaps fun i => 2 * θ (j - i)).symm
+    _ = ∑ i ∈ Ico 1 j, 2 * θ (j - i) * (I.filter fun D => D.card = i).card := by
+      refine sum_congr rfl fun i hi => ?_
+      rw [sum_const, smul_eq_mul, mul_comm]
+      congr 2
+      ext D
+      simp only [mem_filter]
+      exact ⟨fun ⟨⟨hDI, _⟩, hDi⟩ => ⟨hDI, hDi⟩,
+        fun ⟨hDI, hDi⟩ => ⟨⟨hDI, hDi ▸ (mem_Ico.mp hi).2⟩, hDi⟩⟩
   exact (card_le_card hcover).trans (card_biUnion_le.trans hsum)
 
 end Cslib.Logic.PL.ClauseSet.Sparsification

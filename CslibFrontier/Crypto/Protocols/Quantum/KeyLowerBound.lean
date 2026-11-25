@@ -139,6 +139,38 @@ private theorem encryptAvg_sum {β : Type*} (p : PMF K) (U : K → unitaryGroup 
   | insert b s hb ih =>
     rw [Finset.sum_insert hb, Finset.sum_insert hb, encryptAvg_add, ih]
 
+private theorem pureState_ket_eq_single {ι : Type*} [DecidableEq ι] (z : ι) :
+    pureState (ket z) = single z z (1 : ℂ) := by
+  ext u u'
+  by_cases hu : u = z <;> by_cases hu' : u' = z <;> simp [pureState_apply, hu, hu', Ne.symm]
+
+private theorem mul_single_one_mul_apply {α β γ δ : Type*} [Fintype β] [Fintype γ]
+    [DecidableEq β] [DecidableEq γ] (A : Matrix α β ℂ) (C : Matrix γ δ ℂ)
+    (i : β) (j : γ) (r : α) (c : δ) :
+    (A * single i j (1 : ℂ) * C) r c = A r i * C j c := by
+  rw [Matrix.mul_apply, Finset.sum_eq_single j
+      (fun y _ hy => by simp [Matrix.mul_apply, Ne.symm hy]) (by simp),
+    Matrix.mul_apply, Finset.sum_eq_single i
+      (fun x _ hx => by simp [Ne.symm hx]) (by simp),
+    single_apply_same, mul_one]
+
+private theorem isDensityMatrix_kronecker {ι κ : Type*} [Fintype ι] [Fintype κ]
+    {A : Matrix ι ι ℂ} {B : Matrix κ κ ℂ}
+    (hA : IsDensityMatrix A) (hB : IsDensityMatrix B) :
+    IsDensityMatrix (A ⊗ₖ B) :=
+  ⟨hA.posSemidef.kronecker hB.posSemidef, by
+    rw [trace_kronecker, hA.trace_eq_one, hB.trace_eq_one, mul_one]⟩
+
+private theorem vonNeumannEntropy_conj_unitary_kronecker {ι κ : Type*} [Fintype ι] [DecidableEq ι]
+    [Fintype κ] [DecidableEq κ] (U : unitaryGroup (ι × κ) ℂ) {A : Matrix ι ι ℂ} {B : Matrix κ κ ℂ}
+    (hA : IsDensityMatrix A) (hB : IsDensityMatrix B) :
+    vonNeumannEntropy ((U : Matrix (ι × κ) (ι × κ) ℂ) * (A ⊗ₖ B) *
+        (U : Matrix (ι × κ) (ι × κ) ℂ)ᴴ) =
+      vonNeumannEntropy A + vonNeumannEntropy B := by
+  rw [vonNeumannEntropy_conj_isometry ((mem_unitaryGroup_iff').mp U.2)
+      (isDensityMatrix_kronecker hA hB).posSemidef.isHermitian,
+    vonNeumannEntropy_kronecker hA hB]
+
 /-- **Quantum Shannon lower bound for classical basis messages**
 ([Ambainis, Mosca, Tapp, de Wolf][AmbainisMoscaTappdeWolf2000], Theorem 5.3): any private quantum
 channel (with arbitrary ancilla `ρa`) that hides all computational-basis states `{|x⟩ | x : ι}` of
@@ -149,75 +181,46 @@ theorem logb_card_le_entropy_of_basis [Nonempty ι]
     (h : IsPrivateQuantumChannel (Set.range (ket (ι := ι))) p U ρa ρ₀) :
     Real.logb 2 (Fintype.card ι) ≤ entropy p := by
   let x₀ : ι := Classical.arbitrary ι
-  have hx₀ : encryptAvg p U ρa (pureState (ket x₀)) = ρ₀ :=
-    h.encryptAvg_eq (ket x₀) ⟨x₀, rfl⟩
-  let σ₁ (k : K) : Matrix (ι × κ) (ι × κ) ℂ :=
-    (U k : Matrix (ι × κ) (ι × κ) ℂ) * (pureState (ket x₀) ⊗ₖ ρa) *
-      (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ
-  have hket_dens : IsDensityMatrix (pureState (ket x₀)) :=
-    isDensityMatrix_pureState (norm_ket x₀)
-  have hprod₁ : IsDensityMatrix (pureState (ket x₀) ⊗ₖ ρa) := by
-    refine ⟨hket_dens.posSemidef.kronecker h.ancilla_density.posSemidef, ?_⟩
-    rw [trace_kronecker, hket_dens.trace_eq_one, h.ancilla_density.trace_eq_one, mul_one]
-  have hσ₁ (k : K) : IsDensityMatrix (σ₁ k) := hprod₁.conj_unitary (U k).2
-  have hσ₁_S (k : K) : vonNeumannEntropy (σ₁ k) = vonNeumannEntropy ρa := by
-    have hU : (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ * (U k : Matrix (ι × κ) (ι × κ) ℂ) = 1 :=
-      (mem_unitaryGroup_iff').mp (U k).2
-    rw [vonNeumannEntropy_conj_isometry hU hprod₁.posSemidef.isHermitian,
-      vonNeumannEntropy_kronecker hket_dens h.ancilla_density,
-      vonNeumannEntropy_pureState (norm_ket x₀), zero_add]
+  have hket_dens : IsDensityMatrix (pureState (ket x₀)) := isDensityMatrix_pureState (norm_ket x₀)
   have hupper : vonNeumannEntropy ρ₀ - vonNeumannEntropy ρa ≤ entropy p := by
-    have hle := holevoInformation_le_entropy p hσ₁
-    rw [holevoInformation, show ∑ k, (p k).toReal • σ₁ k = ρ₀ from hx₀] at hle
-    simp_rw [hσ₁_S, ← Finset.sum_mul, sum_toReal p, one_mul] at hle
+    have hle := holevoInformation_le_entropy p fun k =>
+      (isDensityMatrix_kronecker hket_dens h.ancilla_density).conj_unitary (U k).2
+    have hx₀ : ∑ k, (p k).toReal • ((U k : Matrix (ι × κ) (ι × κ) ℂ) *
+        (pureState (ket x₀) ⊗ₖ ρa) * (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ) = ρ₀ :=
+      h.encryptAvg_eq (ket x₀) ⟨x₀, rfl⟩
+    rw [holevoInformation, hx₀] at hle
+    simp_rw [vonNeumannEntropy_conj_unitary_kronecker _ hket_dens h.ancilla_density,
+      vonNeumannEntropy_pureState (norm_ket x₀), zero_add, ← Finset.sum_mul, sum_toReal p,
+      one_mul] at hle
     exact hle
   let π : Matrix ι ι ℂ := (Fintype.card ι : ℂ)⁻¹ • 1
   have hπ_dens : IsDensityMatrix π := by
-    constructor
-    · rw [show π = (Fintype.card ι : ℝ)⁻¹ • (1 : Matrix ι ι ℂ) by ext i j; simp [π]]
-      exact PosSemidef.one.smul (inv_nonneg.mpr (Nat.cast_nonneg _))
-    · simp [π, trace_smul, trace_one]
-  have hone_sum : (1 : Matrix ι ι ℂ) = ∑ x : ι, pureState (ket x) := by
-    ext i j
-    rw [Matrix.sum_apply]
-    by_cases hij : i = j
-    · subst hij
-      rw [Matrix.one_apply_eq, Finset.sum_eq_single i]
-      · simp [pureState_apply]
-      · intro x _ hx; simp [pureState_apply, Ne.symm hx]
-      · simp
-    · rw [Matrix.one_apply_ne hij]
-      refine (Finset.sum_eq_zero fun x _ => ?_).symm
-      by_cases hix : i = x
-      · subst hix; simp [pureState_apply, Ne.symm hij]
-      · simp [pureState_apply, hix]
+    refine ⟨?_, by simp [π, trace_smul, trace_one]⟩
+    have hπ_real : π = (Fintype.card ι : ℝ)⁻¹ • (1 : Matrix ι ι ℂ) := by
+      ext i j
+      simp [π]
+    rw [hπ_real]
+    exact PosSemidef.one.smul (inv_nonneg.mpr (Nat.cast_nonneg _))
   have hπ_avg : encryptAvg p U ρa π = ρ₀ := by
-    have hcard_ne : (Fintype.card ι : ℂ) ≠ 0 :=
-      Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-    dsimp only [π]
-    rw [hone_sum, encryptAvg_smul, encryptAvg_sum]
+    have hcard_ne : (Fintype.card ι : ℂ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
+    have hπ_sum : π = (Fintype.card ι : ℂ)⁻¹ • ∑ x : ι, pureState (ket x) := by
+      simp only [π, pureState_ket_eq_single, sum_single_one]
     have hall (x : ι) : encryptAvg p U ρa (pureState (ket x)) = ρ₀ :=
       h.encryptAvg_eq (ket x) ⟨x, rfl⟩
+    rw [hπ_sum, encryptAvg_smul, encryptAvg_sum]
     simp_rw [hall]
     ext p₁ p₂
     rw [Matrix.smul_apply, Matrix.sum_apply, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
       smul_eq_mul, inv_mul_cancel_left₀ hcard_ne]
-  let σ₂ (k : K) : Matrix (ι × κ) (ι × κ) ℂ :=
-    (U k : Matrix (ι × κ) (ι × κ) ℂ) * (π ⊗ₖ ρa) * (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ
-  have hprod₂ : IsDensityMatrix (π ⊗ₖ ρa) := by
-    refine ⟨hπ_dens.posSemidef.kronecker h.ancilla_density.posSemidef, ?_⟩
-    rw [trace_kronecker, hπ_dens.trace_eq_one, h.ancilla_density.trace_eq_one, mul_one]
-  have hσ₂ (k : K) : IsDensityMatrix (σ₂ k) := hprod₂.conj_unitary (U k).2
-  have hσ₂_S (k : K) :
-      vonNeumannEntropy (σ₂ k) = Real.logb 2 (Fintype.card ι) + vonNeumannEntropy ρa := by
-    have hU : (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ * (U k : Matrix (ι × κ) (ι × κ) ℂ) = 1 :=
-      (mem_unitaryGroup_iff').mp (U k).2
-    rw [vonNeumannEntropy_conj_isometry hU hprod₂.posSemidef.isHermitian,
-      vonNeumannEntropy_kronecker hπ_dens h.ancilla_density, vonNeumannEntropy_maximallyMixed]
   have hlower : Real.logb 2 (Fintype.card ι) + vonNeumannEntropy ρa ≤ vonNeumannEntropy ρ₀ := by
-    have hnn := holevoInformation_nonneg p hσ₂
-    rw [holevoInformation, show ∑ k, (p k).toReal • σ₂ k = ρ₀ from hπ_avg] at hnn
-    simp_rw [hσ₂_S, ← Finset.sum_mul, sum_toReal p, one_mul] at hnn
+    have hnn := holevoInformation_nonneg p fun k =>
+      (isDensityMatrix_kronecker hπ_dens h.ancilla_density).conj_unitary (U k).2
+    have hπ_sum_avg : ∑ k, (p k).toReal • ((U k : Matrix (ι × κ) (ι × κ) ℂ) *
+        (π ⊗ₖ ρa) * (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ) = ρ₀ := hπ_avg
+    rw [holevoInformation, hπ_sum_avg] at hnn
+    simp_rw [vonNeumannEntropy_conj_unitary_kronecker _ hπ_dens h.ancilla_density,
+      show vonNeumannEntropy π = Real.logb 2 (Fintype.card ι) from vonNeumannEntropy_maximallyMixed,
+      ← Finset.sum_mul, sum_toReal p, one_mul] at hnn
     linarith
   linarith
 
@@ -274,6 +277,14 @@ theorem ket_mem_unentangledPureStates (x : α → Bool) :
     simp only [ket_apply, hux, ite_false]
     exact (Finset.prod_eq_zero (Finset.mem_univ i₀) (by simp [hi₀])).symm
 
+private theorem encryptAvg_single_diag_eq {p : PMF K}
+    {U : K → unitaryGroup ((α → Bool) × κ) ℂ} {ρa : Matrix κ κ ℂ}
+    {ρ₀ : Matrix ((α → Bool) × κ) ((α → Bool) × κ) ℂ}
+    (h : IsPrivateQuantumChannel (unentangledPureStates α) p U ρa ρ₀) (z : α → Bool) :
+    encryptAvg p U ρa (single z z 1) = ρ₀ := by
+  rw [← pureState_ket_eq_single]
+  exact h.encryptAvg_eq (ket z) (ket_mem_unentangledPureStates z)
+
 /-- **Off-diagonal annihilation** ([Ambainis, Mosca, Tapp, de Wolf][AmbainisMoscaTappdeWolf2000],
 Lemma 4.4): if a private quantum channel hides every unentangled `n`-qubit pure state, then it
 annihilates every off-diagonal computational-basis unit `|x⟩⟨y|` (`x ≠ y`). -/
@@ -283,13 +294,6 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
     (h : IsPrivateQuantumChannel (unentangledPureStates α) p U ρa ρ₀)
     {x y : α → Bool} (hxy : x ≠ y) :
     encryptAvg p U ρa (single x y 1) = 0 := by
-  have hdiag (z : α → Bool) : encryptAvg p U ρa (single z z 1) = ρ₀ := by
-    have hpure : pureState (ket z) = single z z (1 : ℂ) := by
-      ext u u'
-      by_cases hu : u = z <;> by_cases hu' : u' = z <;>
-        simp [pureState_apply, hu, hu', Ne.symm]
-    rw [← hpure]
-    exact h.encryptAvg_eq (ket z) (ket_mem_unentangledPureStates z)
   have main : ∀ d : ℕ, ∀ x y : α → Bool, x ≠ y →
       (univ.filter fun i => x i ≠ y i).card = d →
         encryptAvg p U ρa (single x y 1) = 0 := by
@@ -297,14 +301,11 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
     induction d using Nat.strong_induction_on with
     | ind d ih =>
       intro x y hxy hd
-      let D : Finset α := univ.filter fun i => x i ≠ y i
-      have hD_card : D.card = d := hd
+      set D : Finset α := univ.filter fun i => x i ≠ y i
       let embed (w : ↥D → Bool) : α → Bool :=
         fun i => if hi : i ∈ D then (if w ⟨i, hi⟩ then y i else x i) else x i
       let flip (w : ↥D → Bool) : ↥D → Bool := fun j => !w j
-      have hembed_inj : Function.Injective embed := by
-        intro w₁ w₂ hw
-        funext ⟨i, hi⟩
+      have hembed_inj : Function.Injective embed := fun w₁ w₂ hw => funext fun ⟨i, hi⟩ => by
         have hxy_i : x i ≠ y i := (Finset.mem_filter.mp hi).2
         have hi_eq := congrFun hw i
         simp only [embed, hi, ↓reduceDIte] at hi_eq
@@ -314,17 +315,12 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
         · exact absurd hi_eq hxy_i
         · exact absurd hi_eq.symm hxy_i
         · rfl
-      have hembed_zero : embed (fun _ => false) = x := by
-        funext i; simp [embed]
-      have hembed_flip_zero : embed (flip (fun _ => false)) = y := by
-        funext i
-        dsimp only [embed, flip]
+      have hembed_zero : embed (fun _ => false) = x := funext fun i => by simp [embed]
+      have hembed_flip_zero : embed (flip (fun _ => false)) = y := funext fun i => by
         by_cases hi : i ∈ D
-        · simp [hi]
-        · have heq : x i = y i := by
-            by_contra hne
-            exact hi (Finset.mem_filter.mpr ⟨Finset.mem_univ i, hne⟩)
-          simp [hi, heq]
+        · simp [embed, flip, hi]
+        · have : x i = y i := by simpa [D] using hi
+          simp [embed, flip, hi, this]
       have hphase_eq (v : ↥D → Bool) :
           ∑ w : ↥D → Bool,
             (∏ j : ↥D, if w j && v j then (-1 : ℂ) else 1) •
@@ -338,11 +334,8 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
           by_cases hi : i ∈ D
           · simp only [φ, hi, ↓reduceDIte]
             have hne_i : x i ≠ y i := (Finset.mem_filter.mp hi).2
-            let z : EuclideanSpace ℂ Bool :=
-              (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) •
-                (ket (x i) + (if v ⟨i, hi⟩ then Complex.I else 1) • ket (y i))
-            have hsq : ‖z‖ ^ 2 = 1 := by
-              dsimp only [z]
+            have hsq : ‖(((Real.sqrt 2)⁻¹ : ℝ) : ℂ) •
+                (ket (x i) + (if v ⟨i, hi⟩ then Complex.I else 1) • ket (y i))‖ ^ 2 = 1 := by
               rw [norm_smul, mul_pow, Complex.norm_real, Real.norm_eq_abs, sq_abs, inv_pow,
                 Real.sq_sqrt (by norm_num), EuclideanSpace.norm_sq_eq, Fintype.sum_bool]
               cases hxi : x i <;> cases hyi : y i
@@ -352,95 +345,78 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
               · rcases Bool.eq_false_or_eq_true (v ⟨i, hi⟩) with hv | hv <;>
                   simp [hv] <;> norm_num
               · exact absurd (hxi.trans hyi.symm) hne_i
-            exact (sq_eq_one_iff.mp hsq).resolve_right (by linarith [norm_nonneg z])
+            exact (sq_eq_one_iff.mp hsq).resolve_right
+              (ne_of_gt (lt_of_lt_of_le (by norm_num : (-1 : ℝ) < 0) (norm_nonneg _)))
           · simp only [φ, hi, ↓reduceDIte]
             exact norm_ket (x i)
         let Ψ : EuclideanSpace ℂ (α → Bool) :=
           WithLp.toLp 2 fun u => ∏ i : α, (φ i).ofLp (u i)
-        have hΨ_mem : Ψ ∈ unentangledPureStates α := ⟨φ, hφ_norm, fun _ => rfl⟩
-        have hΨ_support (u : α → Bool) (hu : ¬ ∀ i, i ∉ D → u i = x i) :
-            Ψ.ofLp u = 0 := by
+        have hΨ_support (u : α → Bool) (hu : ¬ ∀ i, i ∉ D → u i = x i) : Ψ.ofLp u = 0 := by
           push Not at hu
           obtain ⟨i, hiD, hui⟩ := hu
-          refine Finset.prod_eq_zero (Finset.mem_univ i) ?_
-          dsimp only [φ]
-          simp [hiD, hui]
+          exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp [φ, hiD, hui])
         have hΨ_range (u : α → Bool) (hu : ∀ i, i ∉ D → u i = x i) :
-            ∃ w : ↥D → Bool, embed w = u := by
-          refine ⟨fun j => decide (u j.1 ≠ x j.1), ?_⟩
-          funext i
-          by_cases hi : i ∈ D
-          · simp only [embed, hi, ↓reduceDIte]
-            have hxy_i : x i ≠ y i := (Finset.mem_filter.mp hi).2
-            by_cases hux : u i = x i
-            · simp [hux]
-            · simp only [decide_eq_true_eq.mpr hux, ↓reduceIte]
-              cases hx : x i <;> cases hy : y i <;> cases hu_i : u i <;> simp_all
-          · simp only [embed, hi, ↓reduceDIte, hu i hi]
+            ∃ w : ↥D → Bool, embed w = u :=
+          ⟨fun j => decide (u j.1 ≠ x j.1), funext fun i => by
+            by_cases hi : i ∈ D
+            · have hxy_i : x i ≠ y i := (Finset.mem_filter.mp hi).2
+              simp only [embed, hi, ↓reduceDIte]
+              by_cases hux : u i = x i
+              · simp [hux]
+              · simp only [decide_eq_true_eq.mpr hux, ↓reduceIte]
+                cases hx : x i <;> cases hy : y i <;> cases hu_i : u i <;>
+                  first | rfl | exact absurd (hx.trans hy.symm) hxy_i |
+                    exact absurd (hu_i.trans hx.symm) hux
+            · simp [embed, hi, hu i hi]⟩
         have hΨ_embed (w : ↥D → Bool) :
             Ψ.ofLp (embed w) =
               (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ d *
                 ∏ j : ↥D, (if w j && v j then Complex.I else 1) := by
           change (∏ i : α, (φ i).ofLp (embed w i)) = _
-          rw [← Finset.prod_subset (Finset.subset_univ D)]
-          · rw [← Finset.prod_coe_sort D (fun i => (φ i).ofLp (embed w i))]
-            have hfactor (j : ↥D) :
-                (φ j.1).ofLp (embed w j.1) =
-                  (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) * (if w j && v j then Complex.I else 1) := by
-              have hxy_j : x j.1 ≠ y j.1 := (Finset.mem_filter.mp j.2).2
-              simp only [φ, embed, j.2, ↓reduceDIte]
-              rcases Bool.eq_false_or_eq_true (w j) with hwj | hwj <;>
-                rcases Bool.eq_false_or_eq_true (v j) with hvj | hvj <;>
-                simp [hwj, hvj, ket_apply, hxy_j, Ne.symm hxy_j]
-            simp_rw [hfactor]
-            rw [Finset.prod_mul_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_coe,
-              hD_card]
-          · intro i _ hiD
-            dsimp only [φ, embed]
-            simp [hiD]
+          rw [← Finset.prod_subset (Finset.subset_univ D) (fun i _ hiD => by simp [φ, embed, hiD]),
+            ← Finset.prod_coe_sort D]
+          have hfactor (j : ↥D) :
+              (φ j.1).ofLp (embed w j.1) =
+                (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) * (if w j && v j then Complex.I else 1) := by
+            have hxy_j : x j.1 ≠ y j.1 := (Finset.mem_filter.mp j.2).2
+            simp only [φ, embed, j.2, ↓reduceDIte]
+            cases w j <;> cases v j <;> simp [ket_apply, hxy_j, Ne.symm hxy_j]
+          simp_rw [hfactor]
+          rw [Finset.prod_mul_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_coe, hd]
         have hpure_sum :
             pureState Ψ =
               ∑ w : ↥D → Bool, ∑ w' : ↥D → Bool,
                 (Ψ.ofLp (embed w) * star (Ψ.ofLp (embed w'))) •
                   single (embed w) (embed w') (1 : ℂ) := by
           ext u u'
-          rw [pureState_apply, Matrix.sum_apply]
-          simp only [Matrix.sum_apply, Matrix.smul_apply, single_apply, smul_eq_mul, mul_ite,
-            mul_one, mul_zero]
-          by_cases hu : ∀ i, i ∉ D → u i = x i
-          · by_cases hu' : ∀ i, i ∉ D → u' i = x i
-            · obtain ⟨w, rfl⟩ := hΨ_range u hu
-              obtain ⟨w', rfl⟩ := hΨ_range u' hu'
-              rw [Finset.sum_eq_single w]
-              · rw [Finset.sum_eq_single w']
-                · simp
-                · intro w₂ _ hw₂
-                  have hne : embed w₂ ≠ embed w' := fun he => hw₂ (hembed_inj he)
-                  simp [hne]
-                · simp
-              · intro w₁ _ hw₁
-                refine Finset.sum_eq_zero fun w₂ _ => ?_
-                have hne : embed w₁ ≠ embed w := fun he => hw₁ (hembed_inj he)
-                simp [hne]
-              · simp
-            · rw [hΨ_support u' hu', star_zero, mul_zero]
-              refine (Finset.sum_eq_zero fun w₁ _ => Finset.sum_eq_zero fun w₂ _ => ?_).symm
-              have hne : embed w₂ ≠ u' := by
-                intro he; subst he
-                exact hu' fun i hi => by simp [embed, hi]
-              simp [hne]
-          · rw [hΨ_support u hu, zero_mul]
-            refine (Finset.sum_eq_zero fun w₁ _ => Finset.sum_eq_zero fun w₂ _ => ?_).symm
-            have hne : embed w₁ ≠ u := by
-              intro he; subst he
-              exact hu fun i hi => by simp [embed, hi]
-            simp [hne]
-        have henc_Ψ := h.encryptAvg_eq Ψ hΨ_mem
+          simp only [pureState_apply, Matrix.sum_apply, Matrix.smul_apply, single_apply,
+            smul_eq_mul, mul_ite, mul_one, mul_zero]
+          by_cases hu : ∃ w, embed w = u
+          · obtain ⟨w, rfl⟩ := hu
+            rw [Finset.sum_eq_single w (fun w₁ _ hw₁ =>
+              Finset.sum_eq_zero fun _ _ => by simp [hembed_inj.ne hw₁]) (by simp)]
+            by_cases hu' : ∃ w', embed w' = u'
+            · obtain ⟨w', rfl⟩ := hu'
+              rw [Finset.sum_eq_single w' (fun w₂ _ hw₂ => by simp [hembed_inj.ne hw₂]) (by simp)]
+              simp
+            · rw [hΨ_support u' fun h => hu' (hΨ_range u' h), star_zero, mul_zero]
+              exact (Finset.sum_eq_zero fun w₂ _ => by
+                simp [show embed w₂ ≠ u' from fun h => hu' ⟨w₂, h⟩]).symm
+          · rw [hΨ_support u fun h => hu (hΨ_range u h), zero_mul]
+            exact (Finset.sum_eq_zero fun w₁ _ => Finset.sum_eq_zero fun _ _ => by
+              simp [show embed w₁ ≠ u from fun h => hu ⟨w₁, h⟩]).symm
+        have henc_Ψ := h.encryptAvg_eq Ψ ⟨φ, hφ_norm, fun _ => rfl⟩
         rw [hpure_sum, encryptAvg_sum] at henc_Ψ
         simp_rw [encryptAvg_sum, encryptAvg_smul] at henc_Ψ
         have hsqrt_sq : (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) * (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) = (2 : ℂ)⁻¹ := by
-          rw [← Complex.ofReal_mul, ← mul_inv, Real.mul_self_sqrt (by norm_num)]
-          norm_num
+          rw [← Complex.ofReal_mul, ← mul_inv, Real.mul_self_sqrt (by norm_num)]; norm_num
+        have hmul_amp (w w' : ↥D → Bool) :
+            Ψ.ofLp (embed w) * star (Ψ.ofLp (embed w')) =
+              (2 : ℂ)⁻¹ ^ d * ∏ j : ↥D,
+                (if w j && v j then Complex.I else 1) *
+                  star (if w' j && v j then Complex.I else 1) := by
+          rw [hΨ_embed w, hΨ_embed w', star_mul', star_pow, star_prod, Complex.star_def,
+            Complex.conj_ofReal, mul_mul_mul_comm, ← mul_pow, hsqrt_sq, ← Finset.prod_mul_distrib]
         have hinner (w : ↥D → Bool) :
             ∑ w' : ↥D → Bool,
               (Ψ.ofLp (embed w) * star (Ψ.ofLp (embed w'))) •
@@ -450,15 +426,10 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
                   (∏ j : ↥D, if w j && v j then (-1 : ℂ) else 1)) •
                   encryptAvg p U ρa (single (embed w) (embed (flip w)) 1) := by
           have hflip_ne : flip w ≠ w := by
-            obtain ⟨i₀, hi₀⟩ : D.Nonempty := by
-              have hex : ∃ i, x i ≠ y i := by
-                by_contra hall; push Not at hall; exact hxy (funext hall)
-              obtain ⟨i₀, hi₀⟩ := hex
-              exact ⟨i₀, Finset.mem_filter.mpr ⟨Finset.mem_univ i₀, hi₀⟩⟩
+            obtain ⟨i₀, hi₀⟩ := Function.ne_iff.mp hxy
             intro hfw
-            have := congrFun hfw ⟨i₀, hi₀⟩
-            dsimp only [flip] at this
-            cases w ⟨i₀, hi₀⟩ <;> simp at this
+            have := congrFun hfw ⟨i₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi₀⟩⟩
+            cases w ⟨i₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi₀⟩⟩ <;> simp [flip] at this
           rw [← Finset.add_sum_erase _ _ (Finset.mem_univ w),
             ← Finset.add_sum_erase _ _ (Finset.mem_erase.mpr ⟨hflip_ne, Finset.mem_univ _⟩)]
           have hrest :
@@ -468,91 +439,49 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
             refine Finset.sum_eq_zero fun w' hw' => ?_
             have hw'_ne_flip : w' ≠ flip w := (Finset.mem_erase.mp hw').1
             have hw'_ne_w : w' ≠ w := (Finset.mem_erase.mp (Finset.mem_erase.mp hw').2).1
-            have hne_emb : embed w ≠ embed w' := fun he => hw'_ne_w (hembed_inj he).symm
             have hlt : (univ.filter fun i => embed w i ≠ embed w' i).card < d := by
-              have hsub : (univ.filter fun i => embed w i ≠ embed w' i) ⊂ D := by
-                rw [Finset.ssubset_iff_subset_ne]
-                refine ⟨fun i hi => ?_, fun heq => hw'_ne_flip ?_⟩
-                · by_contra hiD
-                  have hne_i := (Finset.mem_filter.mp hi).2
-                  simp only [embed, hiD, ↓reduceDIte] at hne_i
-                  exact hne_i rfl
-                · funext ⟨i, hi⟩
-                  have hi' : i ∈ univ.filter (fun i => embed w i ≠ embed w' i) := heq ▸ hi
-                  have hne_i := (Finset.mem_filter.mp hi').2
-                  simp only [embed, flip, hi, ↓reduceDIte] at hne_i ⊢
-                  cases hw_i : w ⟨i, hi⟩ <;> cases hw'_i : w' ⟨i, hi⟩
-                  · rw [ite_eq_right (by simp [hw_i]), ite_eq_right (by simp [hw'_i])] at hne_i
-                    exact absurd rfl hne_i
-                  · rfl
-                  · rfl
-                  · rw [ite_eq_left (by simp [hw_i]), ite_eq_left (by simp [hw'_i])] at hne_i
-                    exact absurd rfl hne_i
-              rw [← hD_card]
-              exact Finset.card_lt_card hsub
-            rw [ih _ hlt (embed w) (embed w') hne_emb rfl, smul_zero]
-          rw [hrest, add_zero, hdiag (embed w)]
+              rw [← hd]
+              refine Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr
+                ⟨fun i hi => by_contra fun hiD => by
+                    have hne_i := (Finset.mem_filter.mp hi).2
+                    simp [embed, hiD] at hne_i,
+                  fun heq => hw'_ne_flip <| funext fun ⟨i, hi⟩ => by
+                    have hne_i := (Finset.mem_filter.mp (heq ▸ hi)).2
+                    simp only [embed, flip, hi, ↓reduceDIte] at hne_i ⊢
+                    cases hw_i : w ⟨i, hi⟩ <;> cases hw'_i : w' ⟨i, hi⟩ <;>
+                      simp only [hw_i, hw'_i, Bool.false_eq_true, ↓reduceIte, Bool.not_false,
+                        Bool.not_true] at hne_i ⊢ <;> exact absurd rfl hne_i⟩)
+            rw [ih _ hlt (embed w) (embed w') (fun he => hw'_ne_w (hembed_inj he).symm) rfl,
+              smul_zero]
+          rw [hrest, add_zero, encryptAvg_single_diag_eq h (embed w)]
           congr 2
-          · rw [hΨ_embed w]
-            have h1 : ∏ j : ↥D, (if w j && v j then Complex.I else 1) *
-                star (if w j && v j then Complex.I else 1) = 1 := by
-              refine Finset.prod_eq_one fun j _ => ?_
-              rcases Bool.eq_false_or_eq_true (w j) with hw | hw <;>
-                rcases Bool.eq_false_or_eq_true (v j) with hv | hv <;>
-                simp [hw, hv]
-            calc
-              ((((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ d *
-                  ∏ j : ↥D, if w j && v j then Complex.I else 1) *
-                star ((((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ d *
-                  ∏ j : ↥D, if w j && v j then Complex.I else 1)
-                  = ((((Real.sqrt 2)⁻¹ : ℝ) : ℂ) * (((Real.sqrt 2)⁻¹ : ℝ) : ℂ)) ^ d *
-                      ∏ j : ↥D, (if w j && v j then Complex.I else 1) *
-                        star (if w j && v j then Complex.I else 1) := by
-                    rw [star_mul', star_pow, star_prod, Complex.star_def, Complex.conj_ofReal,
-                      mul_mul_mul_comm, ← mul_pow, ← Finset.prod_mul_distrib]
-              _ = (2 : ℂ)⁻¹ ^ d := by rw [hsqrt_sq, h1, mul_one]
-          · rw [hΨ_embed w, hΨ_embed (flip w)]
-            have h2 :
-                (∏ j : ↥D, (if w j && v j then Complex.I else 1)) *
-                   star (∏ j : ↥D, (if flip w j && v j then Complex.I else 1)) =
-                  (∏ j : ↥D, if v j then -Complex.I else 1) *
-                    (∏ j : ↥D, if w j && v j then (-1 : ℂ) else 1) := by
-              rw [star_prod, ← Finset.prod_mul_distrib, ← Finset.prod_mul_distrib]
-              refine Finset.prod_congr rfl fun j _ => ?_
-              dsimp only [flip]
-              rcases Bool.eq_false_or_eq_true (w j) with hw | hw <;>
-                rcases Bool.eq_false_or_eq_true (v j) with hv | hv <;>
-                simp [hw, hv]
-            calc
-              ((((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ d *
-                  ∏ j : ↥D, if w j && v j then Complex.I else 1) *
-                star ((((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ d *
-                  ∏ j : ↥D, if flip w j && v j then Complex.I else 1)
-                  = ((((Real.sqrt 2)⁻¹ : ℝ) : ℂ) * (((Real.sqrt 2)⁻¹ : ℝ) : ℂ)) ^ d *
-                      ((∏ j : ↥D, if w j && v j then Complex.I else 1) *
-                        star (∏ j : ↥D, if flip w j && v j then Complex.I else 1)) := by
-                    rw [star_mul', star_pow, Complex.star_def, Complex.conj_ofReal,
-                      mul_mul_mul_comm, ← mul_pow]
+          · calc Ψ.ofLp (embed w) * star (Ψ.ofLp (embed w))
+                = (2 : ℂ)⁻¹ ^ d * ∏ j : ↥D,
+                    (if w j && v j then Complex.I else 1) *
+                      star (if w j && v j then Complex.I else 1) := hmul_amp w w
+              _ = (2 : ℂ)⁻¹ ^ d := by
+                  rw [Finset.prod_eq_one fun j _ => by cases w j <;> cases v j <;> simp, mul_one]
+          · calc Ψ.ofLp (embed w) * star (Ψ.ofLp (embed (flip w)))
+                = (2 : ℂ)⁻¹ ^ d * ∏ j : ↥D,
+                    (if w j && v j then Complex.I else 1) *
+                      star (if flip w j && v j then Complex.I else 1) := hmul_amp w (flip w)
               _ = (2 : ℂ)⁻¹ ^ d * (∏ j : ↥D, if v j then -Complex.I else 1) *
                     (∏ j : ↥D, if w j && v j then (-1 : ℂ) else 1) := by
-                    rw [hsqrt_sq, h2, mul_assoc]
-        simp_rw [hinner] at henc_Ψ
-        rw [Finset.sum_add_distrib] at henc_Ψ
-        have hdiag_sum : ∑ _w : ↥D → Bool, ((2 : ℂ)⁻¹ ^ d) • ρ₀ = ρ₀ := by
+                  rw [mul_assoc, ← Finset.prod_mul_distrib]
+                  congr 1
+                  refine Finset.prod_congr rfl fun j _ => ?_
+                  dsimp only [flip]
+                  rcases Bool.eq_false_or_eq_true (w j) with hw | hw <;>
+                    rcases Bool.eq_false_or_eq_true (v j) with hv | hv <;> simp [hw, hv]
+        have hdiag_sum : (∑ _w : ↥D → Bool, ((2 : ℂ)⁻¹ ^ d) • ρ₀) = ρ₀ := by
           ext p₁ p₂
-          simp [Matrix.sum_apply, hD_card]
-        rw [hdiag_sum] at henc_Ψ
-        have hzero :
-            ∑ w : ↥D → Bool,
-              ((2 : ℂ)⁻¹ ^ d * (∏ j : ↥D, if v j then -Complex.I else 1) *
-                (∏ j : ↥D, if w j && v j then (-1 : ℂ) else 1)) •
-                encryptAvg p U ρa (single (embed w) (embed (flip w)) 1) = 0 :=
-          add_eq_left.mp henc_Ψ
-        have hc_ne : ((2 : ℂ)⁻¹ ^ d * ∏ j : ↥D, if v j then -Complex.I else 1) ≠ 0 := by
-          refine mul_ne_zero (pow_ne_zero d (inv_ne_zero (by norm_num))) ?_
-          rw [Finset.prod_ne_zero_iff]
-          intro j _
-          rcases Bool.eq_false_or_eq_true (v j) with hv | hv <;> simp [hv, Complex.I_ne_zero]
+          simp [Matrix.sum_apply, hd]
+        simp_rw [hinner] at henc_Ψ
+        rw [Finset.sum_add_distrib, hdiag_sum] at henc_Ψ
+        have hzero := add_eq_left.mp henc_Ψ
+        have hc_ne : ((2 : ℂ)⁻¹ ^ d * ∏ j : ↥D, if v j then -Complex.I else 1) ≠ 0 :=
+          mul_ne_zero (pow_ne_zero d (inv_ne_zero (by norm_num)))
+            (Finset.prod_ne_zero_iff.mpr fun j _ => by cases v j <;> simp [Complex.I_ne_zero])
         simp_rw [← smul_smul ((2 : ℂ)⁻¹ ^ d * ∏ j : ↥D, if v j then -Complex.I else 1),
           ← Finset.smul_sum] at hzero
         exact (smul_eq_zero.mp hzero).resolve_left hc_ne
@@ -570,20 +499,13 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
         by_cases hw0 : w = fun _ => false
         · subst hw0
           simp only [Bool.false_and, ↓reduceIte, Fintype.sum_bool, Finset.prod_const,
-            Finset.card_univ, Fintype.card_coe, hD_card]
+            Finset.card_univ, Fintype.card_coe, hd]
           norm_num
         · rw [ite_eq_right hw0]
-          have hex : ∃ j : ↥D, w j = true := by
-            by_contra hall
-            apply hw0
-            funext j
-            cases hwj : w j
-            · rfl
-            · exact absurd hwj (by push Not at hall; exact hall j)
-          obtain ⟨j₀, hj₀⟩ := hex
-          refine Finset.prod_eq_zero (Finset.mem_univ j₀) ?_
-          rw [hj₀, Fintype.sum_bool]
-          simp
+          obtain ⟨j₀, hj₀⟩ := Function.ne_iff.mp hw0
+          exact Finset.prod_eq_zero (Finset.mem_univ j₀) (by
+            rw [Bool.eq_true_of_not_eq_false hj₀, Fintype.sum_bool]
+            simp)
       simp_rw [hchar, ite_smul, zero_smul, Finset.sum_ite_eq', Finset.mem_univ, ite_true,
         hembed_zero, hembed_flip_zero] at hsum_v
       exact (smul_eq_zero.mp hsum_v).resolve_left (pow_ne_zero d (by norm_num))
@@ -609,7 +531,8 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
         ((Real.sqrt (Fintype.card Q) : ℂ))⁻¹ =
         (Fintype.card Q : ℂ)⁻¹ := by
     rw [← mul_inv, ← Complex.ofReal_mul, Real.mul_self_sqrt (Nat.cast_nonneg _)]
-    push_cast; rfl
+    push_cast
+    rfl
   let B : Matrix (Q × Q) (Q × Q) ℂ :=
     Matrix.of fun yz ab => ((Real.sqrt (Fintype.card Q) : ℂ))⁻¹ *
       pauliString ab.1 ab.2 yz.1 yz.2
@@ -626,18 +549,15 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
       simp only [B, conjTranspose_apply, of_apply, pauliString_apply]
       by_cases ha : a = a'
       · subst ha
-        rw [ite_eq_left rfl, Finset.sum_eq_single (y + a)]
-        · simp only [↓reduceIte, star_mul', star_inv₀, Complex.star_def, Complex.conj_ofReal]
-          push_cast
-          linear_combination ((signVal (b ⬝ᵥ (y + a)) : ℂ) * signVal (b' ⬝ᵥ (y + a))) * hscale
-        · intro z _ hz; simp [hz]
-        · simp
+        rw [ite_eq_left rfl, Finset.sum_eq_single (y + a) (fun _ _ hz => by simp [hz]) (by simp)]
+        simp only [↓reduceIte, star_mul', star_inv₀, Complex.star_def, Complex.conj_ofReal]
+        push_cast
+        linear_combination ((signVal (b ⬝ᵥ (y + a)) : ℂ) * signVal (b' ⬝ᵥ (y + a))) * hscale
       · rw [ite_eq_right ha]
         refine Finset.sum_eq_zero fun z _ => ?_
         by_cases hza : z = y + a
         · subst hza
-          have hne : y + a ≠ y + a' := fun he => ha (add_left_cancel he)
-          simp [hne]
+          simp [show y + a ≠ y + a' from fun he => ha (add_left_cancel he)]
         · simp [hza]
     simp_rw [hinner]
     by_cases ha : a = a'
@@ -646,29 +566,25 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
       have hbij : (∑ y : Q, ((signVal (b ⬝ᵥ (y + a)) * signVal (b' ⬝ᵥ (y + a)) : ℝ) : ℂ)) =
           ∑ z : Q, ((signVal (b ⬝ᵥ z) * signVal (b' ⬝ᵥ z) : ℝ) : ℂ) :=
         Fintype.sum_equiv (Equiv.addRight a) _ _ fun _ => rfl
-      have horth := sum_signVal_dotProduct_mul_signVal_dotProduct b b'
-      rw [hbij, ← Complex.ofReal_sum, horth]
+      rw [hbij, ← Complex.ofReal_sum, sum_signVal_dotProduct_mul_signVal_dotProduct b b']
       by_cases hb : b = b'
       · subst hb
         simp only [↓reduceIte, Matrix.one_apply_eq, Complex.ofReal_pow, Complex.ofReal_ofNat,
           hcardQ, Nat.cast_pow, Nat.cast_ofNat]
         exact inv_mul_cancel₀ (pow_ne_zero _ (by norm_num))
-      · have hne : ((a, b) : Q × Q) ≠ (a, b') := fun hp => hb (Prod.mk.inj hp).2
-        rw [ite_eq_right hb, Matrix.one_apply_ne hne, Complex.ofReal_zero, mul_zero]
-    · have hne : ((a, b) : Q × Q) ≠ (a', b') := fun hp => ha (Prod.mk.inj hp).1
-      rw [Matrix.one_apply_ne hne]
+      · rw [ite_eq_right hb, Matrix.one_apply_ne (fun hp => hb (Prod.mk.inj hp).2),
+          Complex.ofReal_zero, mul_zero]
+    · rw [Matrix.one_apply_ne (fun hp => ha (Prod.mk.inj hp).1)]
       simp [ha]
   let e : ((Q × Q) × κ) ≃ (Q × (Q × κ)) := Equiv.prodAssoc Q Q κ
   let reind := reindexAlgEquiv ℂ ℂ e.symm
-  have hreind_conjTranspose (M : Matrix (Q × (Q × κ)) (Q × (Q × κ)) ℂ) :
-      (reind M)ᴴ = reind Mᴴ := rfl
   have hreind_unitary {M : Matrix (Q × (Q × κ)) (Q × (Q × κ)) ℂ}
       (hM : M ∈ unitaryGroup (Q × (Q × κ)) ℂ) :
       reind M ∈ unitaryGroup ((Q × Q) × κ) ℂ := by
     have hMM : Mᴴ * M = 1 := by
       simpa only [star_eq_conjTranspose] using (mem_unitaryGroup_iff').mp hM
-    rw [mem_unitaryGroup_iff', star_eq_conjTranspose, hreind_conjTranspose, ← map_mul, hMM,
-      map_one]
+    rw [mem_unitaryGroup_iff', star_eq_conjTranspose, show (reind M)ᴴ = reind Mᴴ from rfl,
+      ← map_mul, hMM, map_one]
   let U' (k : K) : unitaryGroup ((Q × Q) × κ) ℂ :=
     ⟨reind ((1 : Matrix Q Q ℂ) ⊗ₖ (U k : Matrix (Q × κ) (Q × κ) ℂ)) *
         (B ⊗ₖ (1 : Matrix κ κ ℂ)),
@@ -679,13 +595,6 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
     reind (((Fintype.card Q : ℂ)⁻¹ • (1 : Matrix Q Q ℂ)) ⊗ₖ ρ₀)
   refine ⟨U', ρ₀', h.ancilla_density, ?_⟩
   rintro _ ⟨⟨a, b⟩, rfl⟩
-  have hdiag (z : Q) : encryptAvg p U ρa (single z z 1) = ρ₀ := by
-    have hpure : pureState (ket z) = single z z (1 : ℂ) := by
-      ext u u'
-      by_cases hu : u = z <;> by_cases hu' : u' = z <;>
-        simp [pureState_apply, hu, hu', Ne.symm]
-    rw [← hpure]
-    exact h.encryptAvg_eq (ket z) (ket_mem_unentangledPureStates z)
   have hBell_ket :
       B * pureState (ket (a, b)) * Bᴴ =
         (Fintype.card Q : ℂ)⁻¹ •
@@ -693,52 +602,17 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
             (pauliString a b * single z z' (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ
               single z z' (1 : ℂ) := by
     ext ⟨y, z₀⟩ ⟨y', z₀'⟩
-    have hstar_sqrt : star ((Real.sqrt (Fintype.card Q) : ℂ)) =
-        (Real.sqrt (Fintype.card Q) : ℂ) :=
-      Complex.conj_ofReal _
-    have hL :
-        (B * pureState (ket (a, b)) * Bᴴ) (y, z₀) (y', z₀') =
-          (Fintype.card Q : ℂ)⁻¹ *
-            (pauliString a b y z₀ * star (pauliString a b y' z₀')) := by
-      rw [Matrix.mul_apply, Finset.sum_eq_single (a, b)]
-      · rw [Matrix.mul_apply, Finset.sum_eq_single (a, b)]
-        · simp only [B, of_apply, pureState_apply, ket_apply, ↓reduceIte, mul_one, star_one,
-            conjTranspose_apply, star_mul', star_inv₀, hstar_sqrt]
-          linear_combination (pauliString a b y z₀ * star (pauliString a b y' z₀')) * hscale
-        · intro pq _ hpq; simp [pureState_apply, hpq]
-        · simp
-      · intro pq _ hpq
-        have h0 : (B * pureState (ket (a, b))) (y, z₀) pq = 0 := by
-          rw [Matrix.mul_apply]
-          refine Finset.sum_eq_zero fun rs _ => ?_
-          by_cases hrs : rs = (a, b)
-          · subst hrs; simp [pureState_apply, hpq]
-          · simp [pureState_apply, hrs]
-        rw [h0, zero_mul]
-      · simp
-    rw [hL, Matrix.smul_apply, Matrix.sum_apply, Finset.sum_eq_single z₀]
-    · rw [Matrix.sum_apply, Finset.sum_eq_single z₀']
-      · simp only [kroneckerMap_apply, single_apply_same, mul_one, smul_eq_mul]
-        congr 1
-        rw [Matrix.mul_apply, Finset.sum_eq_single z₀']
-        · rw [Matrix.mul_apply, Finset.sum_eq_single z₀]
-          · simp [conjTranspose_apply]
-          · intro w _ hw; simp [Ne.symm hw]
-          · simp
-        · intro w _ hw
-          have h0 : (pauliString a b * single z₀ z₀' (1 : ℂ)) y w = 0 := by
-            rw [Matrix.mul_apply]
-            refine Finset.sum_eq_zero fun v _ => ?_
-            simp [Ne.symm hw]
-          rw [h0, zero_mul]
-        · simp
-      · intro z' _ hz'; simp [kroneckerMap_apply, hz']
-      · simp
-    · intro z _ hz
-      rw [Matrix.sum_apply]
-      refine Finset.sum_eq_zero fun z' _ => ?_
-      simp [kroneckerMap_apply, hz]
-    · simp
+    rw [pureState_ket_eq_single, mul_single_one_mul_apply, Matrix.smul_apply, Matrix.sum_apply,
+      Finset.sum_eq_single z₀ (fun _ _ hz => by
+        rw [Matrix.sum_apply]
+        exact Finset.sum_eq_zero fun _ _ => by simp [kroneckerMap_apply, hz])
+        (by simp),
+      Matrix.sum_apply,
+      Finset.sum_eq_single z₀' (fun _ _ hz' => by simp [kroneckerMap_apply, hz']) (by simp)]
+    simp only [B, of_apply, conjTranspose_apply, kroneckerMap_apply, single_apply_same, mul_one,
+      smul_eq_mul, mul_single_one_mul_apply, star_mul', star_inv₀, Complex.star_def,
+      Complex.conj_ofReal]
+    linear_combination (pauliString a b y z₀ * (starRingEnd ℂ) (pauliString a b y' z₀')) * hscale
   have hreind_assoc (X Y : Matrix Q Q ℂ) (Z : Matrix κ κ ℂ) :
       (X ⊗ₖ Y) ⊗ₖ Z = reind (X ⊗ₖ (Y ⊗ₖ Z)) := by
     ext ⟨⟨q₁, q₂⟩, r₁⟩ ⟨⟨q₁', q₂'⟩, r₂⟩
@@ -756,26 +630,24 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
     let M₁ := reind ((1 : Matrix Q Q ℂ) ⊗ₖ (U k : Matrix (Q × κ) (Q × κ) ℂ))
     have hassoc :
         (M₁ * (B ⊗ₖ (1 : Matrix κ κ ℂ))) * (pureState (ket (a, b)) ⊗ₖ ρa) *
-            (M₁ * (B ⊗ₖ (1 : Matrix κ κ ℂ)))ᴴ =
+            ((B ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ * M₁ᴴ) =
           M₁ * ((B ⊗ₖ (1 : Matrix κ κ ℂ)) * (pureState (ket (a, b)) ⊗ₖ ρa) *
             (B ⊗ₖ (1 : Matrix κ κ ℂ))ᴴ) * M₁ᴴ := by
-      rw [conjTranspose_mul]
       simp only [Matrix.mul_assoc]
     change (M₁ * (B ⊗ₖ (1 : Matrix κ κ ℂ))) * (pureState (ket (a, b)) ⊗ₖ ρa) *
         (M₁ * (B ⊗ₖ (1 : Matrix κ κ ℂ)))ᴴ = _
-    rw [hassoc, conjTranspose_kronecker B (1 : Matrix κ κ ℂ), conjTranspose_one,
-      ← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.one_mul, Matrix.mul_one,
-      hBell_ket, smul_kronecker, sum_kronecker]
+    rw [conjTranspose_mul, hassoc,
+      conjTranspose_kronecker, conjTranspose_one, ← mul_kronecker_mul, ← mul_kronecker_mul,
+      Matrix.one_mul, Matrix.mul_one, hBell_ket, smul_kronecker, sum_kronecker]
     simp_rw [sum_kronecker, hreind_assoc]
     rw [Matrix.mul_smul, Matrix.smul_mul, Finset.mul_sum, Finset.sum_mul]
-    congr 1
-    refine sum_congr rfl fun z _ => ?_
+    refine congrArg _ (sum_congr rfl fun z _ => ?_)
     rw [Finset.mul_sum, Finset.sum_mul]
     refine sum_congr rfl fun z' _ => ?_
     dsimp only [M₁]
-    rw [hreind_conjTranspose, ← map_mul, ← map_mul, conjTranspose_kronecker,
-      conjTranspose_one, ← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.one_mul,
-      Matrix.mul_one]
+    rw [show (reind _ : Matrix _ _ ℂ)ᴴ = reind _ᴴ from rfl, ← map_mul, ← map_mul,
+      conjTranspose_kronecker, conjTranspose_one, ← mul_kronecker_mul, ← mul_kronecker_mul,
+      Matrix.one_mul, Matrix.mul_one]
   unfold encryptAvg
   simp_rw [hstep, smul_comm _ (Fintype.card Q : ℂ)⁻¹, ← Finset.smul_sum]
   have hswap :
@@ -792,33 +664,26 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
     rw [Finset.sum_comm]
     refine sum_congr rfl fun z _ => ?_
     rw [Finset.sum_comm]
-    refine sum_congr rfl fun z' _ => sum_congr rfl fun k _ => by ring
+    exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by ring
   rw [hswap]
   have hcollapse (z : Q) :
       (∑ z' : Q,
           reind ((pauliString a b * single z z' (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ
             encryptAvg p U ρa (single z z' (1 : ℂ)))) =
         reind ((pauliString a b * single z z (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ ρ₀) := by
-    rw [Finset.sum_eq_single z]
-    · rw [hdiag z]
-    · intro z' _ hz'
-      rw [encryptAvg_single_eq_zero_of_ne h (Ne.symm hz'), kronecker_zero]
-      rfl
-    · simp
+    rw [Finset.sum_eq_single z
+      (fun z' _ hz' => by
+        rw [encryptAvg_single_eq_zero_of_ne h (Ne.symm hz'), kronecker_zero]
+        rfl)
+      (by simp),
+      encryptAvg_single_diag_eq h z]
   simp_rw [hcollapse]
   have hsum_pauli :
       (∑ z : Q, pauliString a b * single z z (1 : ℂ) * (pauliString a b)ᴴ) = 1 := by
     rw [← Finset.sum_mul, ← Finset.mul_sum, sum_single_one, Matrix.mul_one]
-    have hP := pauliString_mem_unitaryGroup a b
-    rw [mem_unitaryGroup_iff, star_eq_conjTranspose] at hP
-    exact hP
-  have hreind_sum :
-      (Fintype.card Q : ℂ)⁻¹ •
-          (∑ z : Q, reind ((pauliString a b * single z z (1 : ℂ) * (pauliString a b)ᴴ) ⊗ₖ ρ₀)) =
-        ρ₀' := by
-    dsimp only [ρ₀']
-    rw [← hsum_pauli, smul_kronecker, sum_kronecker, map_smul, map_sum]
-  exact hreind_sum
+    simpa only [mem_unitaryGroup_iff, star_eq_conjTranspose] using pauliString_mem_unitaryGroup a b
+  dsimp only [ρ₀']
+  rw [← hsum_pauli, smul_kronecker, sum_kronecker, map_smul, map_sum]
 
 /-- **Key-entropy lower bound for unentangled `n`-qubit states**
 ([Ambainis, Mosca, Tapp, de Wolf][AmbainisMoscaTappdeWolf2000], Corollary 5.4): any private quantum

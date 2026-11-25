@@ -117,23 +117,18 @@ theorem IsConsistent.measure_pi_lt_error_le_card_mul_pow {H : Finset (α → β)
     (hA : IsConsistent A (H : Set (α → β))) {D : Measure (α × β)} [IsProbabilityMeasure D]
     (hD : IsRealizableBy D (H : Set (α → β))) (ε : ℝ≥0∞) :
     Measure.pi (fun _ : Fin m => D) {S | ε < error D (A S)} ≤ H.card * (1 - ε) ^ m := by
-  have hsub : {S | ε < error D (A S)} ≤ᵐ[Measure.pi (fun _ : Fin m => D)]
-      {S : LabeledSample α β m | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2} := by
-    filter_upwards [hA.ae_mem_versionSpace hD] with S hS hlt
-    obtain ⟨hAH, hAS⟩ := hS
-    exact ⟨A S, Finset.mem_coe.1 hAH, hlt, hAS⟩
-  exact (measure_mono_ae hsub).trans
-    (measure_pi_exists_consistent_lt_error_le_card_mul_pow hH D ε)
+  refine (measure_mono_ae ?_).trans (measure_pi_exists_consistent_lt_error_le_card_mul_pow hH D ε)
+  filter_upwards [hA.ae_mem_versionSpace hD] with S ⟨hAH, hAS⟩ hlt
+  exact ⟨A S, Finset.mem_coe.1 hAH, hlt, hAS⟩
 
 /-- `n exp (-(ε m)) ≤ δ` once `log n + log (1 / δ) ≤ ε m`. -/
 private theorem natCast_mul_exp_neg_le {n m : ℕ} {ε δ : ℝ} (hδ : 0 < δ)
     (hm : Real.log n + Real.log δ⁻¹ ≤ ε * m) : n * Real.exp (-(ε * m)) ≤ δ := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simpa using hδ.le
-  have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   rw [Real.log_inv] at hm
   calc (n : ℝ) * Real.exp (-(ε * m)) = Real.exp (Real.log n + -(ε * m)) := by
-        rw [Real.exp_add, Real.exp_log hn']
+        rw [Real.exp_add, Real.exp_log (mod_cast hn)]
     _ ≤ Real.exp (Real.log δ) := Real.exp_le_exp.2 (by linarith)
     _ = δ := Real.exp_log hδ
 
@@ -189,20 +184,17 @@ theorem isPACLearnerFor_realizableDistributions_of_log_card_add_log_inv_le
     IsPACLearnerFor m ε δ (H : Set (α → β)) (realizableDistributions (H : Set (α → β))) := by
   rcases H.eq_empty_or_nonempty with rfl | hne
   · have hδ : 0 < Real.log (δ.val : ℝ)⁻¹ :=
-      Real.log_pos ((one_lt_inv₀ (by exact_mod_cast δ.2.1)).2 (by exact_mod_cast δ.2.2))
+      Real.log_pos ((one_lt_inv₀ (mod_cast δ.2.1)).2 (mod_cast δ.2.2))
     have hm0 : 0 < m := Nat.pos_of_ne_zero fun h => by
       subst h
-      simp only [Finset.card_empty, Nat.cast_zero, Real.log_zero, zero_add, mul_zero] at hm
-      linarith
+      simp only [Finset.card_empty, Nat.cast_zero, Real.log_zero] at hm; linarith
     simpa only [Finset.coe_empty] using
       isPACLearnerFor_realizableDistributions_empty (fun S _ => (S ⟨0, hm0⟩).2) ε δ
-  obtain ⟨A, hA⟩ := exists_isConsistent (m := m) (C := (H : Set (α → β))) (by exact_mod_cast hne)
+  obtain ⟨A, hA⟩ := exists_isConsistent (m := m) (C := (H : Set (α → β))) (mod_cast hne)
   refine ⟨A, fun D _ hD => ?_⟩
-  have h := hA.measure_pi_lt_error_le_of_log_card_add_log_inv_le hH hD ε.val.coe_nonneg
-    (by exact_mod_cast δ.2.1) hm
-  rw [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_coe_nnreal] at h
-  rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
-  exact h
+  simpa only [ENNReal.ofReal_coe_nnreal, IsRealizableBy.optimalError_eq_zero hD, zero_add] using
+    hA.measure_pi_lt_error_le_of_log_card_add_log_inv_le hH hD ε.val.coe_nonneg
+      (mod_cast δ.2.1) hm
 
 /-- The realizable sample complexity of a finite class `H` is at most
 `⌈(log |H| + log (1 / δ)) / ε⌉` [ShalevShwartzBenDavid2014, Corollary 2.3]. -/

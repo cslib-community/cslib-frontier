@@ -141,30 +141,25 @@ private theorem succProbability_oneTimeExperiment_messageRecoveryReduction_false
       (E.oneTimeExperiment sampleKey valid
         (messageRecoveryReduction (ProbComp.uniform M) A) false)) =
       (Fintype.card M : ℝ≥0)⁻¹ := by
-  have htrue :
+  have hrewrite :
       ProbComp.eval (E.oneTimeExperiment sampleKey valid
-          (messageRecoveryReduction (ProbComp.uniform M) A) false) true =
-        ((Fintype.card M : ℝ≥0∞)⁻¹) := by
-    have hrewrite :
-        ProbComp.eval (E.oneTimeExperiment sampleKey valid
-            (messageRecoveryReduction (ProbComp.uniform M) A) false) =
-          ((ProbComp.eval sampleKey).bind fun k =>
-            (PMF.uniformOfFintype M).bind fun m₀ =>
-            (ProbComp.eval (E.encrypt k m₀)).bind fun c =>
-            (ProbComp.eval (A c)).bind fun mHat =>
-            (PMF.uniformOfFintype M).map fun m₁ => (mHat == m₁)) := by
-      simp only [Cipher.oneTimeExperiment, messageRecoveryReduction, lrExperiment,
-        MessagePair.select_false, hvalid, ↓reduceIte, ProbComp.eval_uniform, pmf_norm]
-      pmf_swap
-    rw [hrewrite]
-    apply Probability.PMF.bind_apply_of_forall; intro k
-    apply Probability.PMF.bind_apply_of_forall; intro m₀
-    apply Probability.PMF.bind_apply_of_forall; intro c
-    apply Probability.PMF.bind_apply_of_forall; intro mHat
-    exact Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true mHat
+          (messageRecoveryReduction (ProbComp.uniform M) A) false) =
+        ((ProbComp.eval sampleKey).bind fun k =>
+          (PMF.uniformOfFintype M).bind fun m₀ =>
+          (ProbComp.eval (E.encrypt k m₀)).bind fun c =>
+          (ProbComp.eval (A c)).bind fun mHat =>
+          (PMF.uniformOfFintype M).map fun m₁ => (mHat == m₁)) := by
+    simp only [Cipher.oneTimeExperiment, messageRecoveryReduction, lrExperiment,
+      MessagePair.select_false, hvalid, ↓reduceIte, ProbComp.eval_uniform, pmf_norm]
+    pmf_swap
+  have htrue : _ = ((Fintype.card M : ℝ≥0∞)⁻¹) := hrewrite ▸
+    Probability.PMF.bind_apply_of_forall _ fun k =>
+      Probability.PMF.bind_apply_of_forall _ fun m₀ =>
+      Probability.PMF.bind_apply_of_forall _ fun c =>
+      Probability.PMF.bind_apply_of_forall _ fun mHat =>
+      Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true mHat
   apply NNReal.coe_injective
-  rw [Game.coe_succProbability, htrue, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-    NNReal.coe_inv, NNReal.coe_natCast]
+  simp [Game.coe_succProbability, htrue]
 
 /-- **Concrete advantage equality for Theorem 2.7** ([BonehShoup2023], p. 19):
 `MRadv[A, E] = SSadv[messageRecoveryReduction (ProbComp.uniform M) A, E]` whenever `valid` admits
@@ -258,11 +253,9 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
           (fun mHat => PMF.pure (BitString.ofList (msgLen n) mHat == m₁)) =
         (ProbComp.eval (A n c)).bind (fun mHat => PMF.pure (mHat == List.ofFn m₁)) := by
     intro c m₁
-    refine Probability.PMF.bind_congr_on_support _ _ _ fun mHat hmHat => ?_
-    have hm := hA_len n c mHat hmHat
-    congr 1
+    refine Probability.PMF.bind_congr_on_support _ _ _ fun mHat hmHat => congrArg PMF.pure ?_
     rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
-    exact ⟨fun h => by rw [← h, BitString.ofFn_ofList hm],
+    exact ⟨fun h => by rw [← h, BitString.ofFn_ofList (hA_len n c mHat hmHat)],
       fun h => by rw [h, BitString.ofList_ofFn]⟩
   have hmr : ProbComp.eval (messageRecoveryExperiment E sampleKey A') =
       ProbComp.eval (messageRecoveryWordExperiment msgLen keyLen encryptSym A n) := by
@@ -284,10 +277,10 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
       A', ↓reduceIte, ProbComp.eval_uniform, BitString.eval_sampleList, BitString.uniformList,
       List.length_ofFn, beq_self_eq_true, Bool.and_self, pmf_norm]
     congr 1; funext k; congr 1; funext m₀; congr 1; funext m₁
-    cases bit <;> simp only [MessagePair.select_false, MessagePair.select_true,
-      Bool.false_eq_true, ↓reduceIte]
-    · congr 1; funext c; exact hdecode c m₁
-    · congr 1; funext c; exact hdecode c m₁
+    have hsel : (⟨m₀, m₁⟩ : MessagePair _).select bit = if bit = true then m₁ else m₀ := by
+      cases bit <;> rfl
+    rw [hsel, apply_ite List.ofFn]
+    exact congrArg _ (funext fun c => hdecode c m₁)
   have hconc := messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction
     E sampleKey (fun _ _ => rfl) A'
   rw [messageRecoveryAdvantage, hmr, hcard] at hconc

@@ -240,40 +240,26 @@ private theorem not_halts_loopMachine {tm : MultiTapeTM k Symbol State}
     obtain ⟨n, -, hfalse, -⟩ := (whileCond_halted_run_iff (c := nextNonEmpty k Symbol)
       (tm := loopRound tm mark) cfg hbody _).mp ⟨hu, u, rfl⟩
     exact Bool.noConfusion ((hcond n).symm.trans hfalse)
-  let tailTM := (emitWord (emitEmb k) mark).seq
-    ((clearWork Symbol).extendTapes (tapeEmb (curTape k)))
-  have hwhileTailDiv : ∀ u, ¬(((whileCond (nextNonEmpty k Symbol) (loopRound tm mark)).seq
-      tailTM).runFrom
-      (((cfg 0).withState (some (.inr ()))).mapState (handOver tailTM.q₀)) u).Halted :=
-    fun u => not_halted_seq_of_left hwhileDiv u
-  have hloopTailDiv : ∀ u, ¬(((loopRound tm mark).seq
-      ((whileCond (nextNonEmpty k Symbol) (loopRound tm mark)).seq tailTM)).runFrom
-      ((wordsCfg (w 0) (some (loopRound tm mark).q₀) (words [] (w 0)) []).mapState
-        (handOver _)) u).Halted :=
-    fun u => not_halted_seq_of_right hfirstRun rfl hwhileTailDiv u
   rw [loopMachine, initCfg_seq_eq_wordsCfg] at hhalt
-  exact not_halted_seq_of_right hloadRun rfl hloopTailDiv t hhalt
+  refine not_halted_seq_of_right hloadRun rfl (fun u => ?_) t hhalt
+  exact not_halted_seq_of_right hfirstRun rfl (not_halted_seq_of_left hwhileDiv) u
 
 private theorem not_halts_extendTapes {k' : ℕ} {tm : MultiTapeTM k Symbol State}
     (e : Fin k ↪ Fin k') {x : List Symbol} (h : ¬tm.Halts x) :
     ¬(tm.extendTapes e).Halts x := by
   rintro ⟨t, hhalt⟩
-  apply h
-  refine ⟨t, ?_⟩
+  refine h ⟨t, ?_⟩
   have hinit : (tm.extendTapes e).initCfg x =
       embed e (tm.initCfg x) (fun _ _ => none) (fun _ => 0) :=
     (embed_eq_of_forall_embed e (tm.initCfg x) (fun _ => rfl) (fun _ => rfl)).symm
-  rw [hinit, ← embedHom_apply tm, runFrom_map, embedHom_apply] at hhalt
-  exact hhalt
+  rwa [hinit, ← embedHom_apply tm, runFrom_map, embedHom_apply] at hhalt
 
 private theorem not_halted_outputToTape {tm : MultiTapeTM k Symbol State}
     {x : List Symbol} (h : ¬tm.Halts x) (t : ℕ) :
     ¬(tm.outputToTape.runFrom (tm.outputToTape.initCfg x) t).Halted := by
   intro hhalt
-  apply h
-  refine ⟨t, ?_⟩
-  rw [initCfg_outputToTape, ← outCfgHom_apply tm, runFrom_map, outCfgHom_apply] at hhalt
-  exact hhalt
+  refine h ⟨t, ?_⟩
+  rwa [initCfg_outputToTape, ← outCfgHom_apply tm, runFrom_map, outCfgHom_apply] at hhalt
 
 private theorem not_halts_comp_of_left {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
     {tm₁ : MultiTapeTM k₁ Symbol S₁} {tm₂ : MultiTapeTM k₂ Symbol S₂}
@@ -334,8 +320,7 @@ private theorem not_halts_comp_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
       ((inCfg mark (wordsCfg w (none : Option MarkWorkState) (fun _ : Fin K => []) []) x).withState
         (some tm2e.inputFromTape.q₀)) u).Halted := by
     intro u hu
-    apply h2ext
-    refine ⟨u, ?_⟩
+    refine h2ext ⟨u, ?_⟩
     have hstart : (inCfg mark (wordsCfg w (none : Option MarkWorkState)
         (fun _ : Fin K => []) []) x).withState (some tm2e.inputFromTape.q₀) =
         inCfg mark (tm2e.initCfg w) x := by
@@ -344,25 +329,13 @@ private theorem not_halts_comp_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
           simp [K, Cfg.withState, inCfg, wordsCfg, Cfg.init, MultiTapeNTM.initCfg, tapeOfList_nil]
       · induction l using Fin.addCases <;>
           simp [K, Cfg.withState, inCfg, wordsCfg, Cfg.init, MultiTapeNTM.initCfg]
-    rw [hstart, ← inCfgHom_apply, runFrom_map, inCfgHom_apply] at hu
-    exact hu
-  have h2bDiv : ∀ u, ¬((tm2e.inputFromTape.seq (markFlag K none)).runFrom
-      ((inCfg mark (wordsCfg w (none : Option MarkWorkState) (fun _ : Fin K => []) []) x).withState
-        (some (tm2e.inputFromTape.seq (markFlag K none)).q₀)) u).Halted :=
-    fun u => not_halted_seq_of_left hinpDiv u
-  have h2Div : ∀ u, ¬((tm2e.inputFromWord mark).runFrom
-      (wordsCfg x (some (tm2e.inputFromWord mark).q₀)
-        (Function.update (fun _ => []) A w) []) u).Halted :=
-    fun u => not_halted_seq_of_right huFlag rfl h2bDiv u
-  have h23Div : ∀ u, ¬(((tm2e.inputFromWord mark).seq
-      ((clearWork Symbol).extendTapes (tapeEmb A))).runFrom
-      ((wordsCfg x (none : Option (S₁ ⊕ RewindWorkState))
-        (Function.update (fun _ => []) A w) []).withState
-        (some ((tm2e.inputFromWord mark).seq
-          ((clearWork Symbol).extendTapes (tapeEmb A))).q₀)) u).Halted :=
-    fun u => not_halted_seq_of_left h2Div u
+    rwa [hstart, ← inCfgHom_apply, runFrom_map, inCfgHom_apply] at hu
   rw [MultiTapeTM.comp, initCfg_seq_eq_wordsCfg] at hhalt
-  exact not_halted_seq_of_right hp₁Run rfl h23Div t hhalt
+  refine not_halted_seq_of_right hp₁Run rfl (fun u => ?_) t hhalt
+  refine not_halted_seq_of_left
+    (cfg := wordsCfg x (some (tm2e.inputFromWord mark).q₀) (Function.update (fun _ => []) A w) [])
+    (fun v => ?_) u
+  exact not_halted_seq_of_right huFlag rfl (not_halted_seq_of_left hinpDiv) v
 
 end Machinery
 

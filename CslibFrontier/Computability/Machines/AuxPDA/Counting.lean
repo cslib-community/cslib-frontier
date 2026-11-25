@@ -165,11 +165,7 @@ theorem step?_eq_some_iff (M : CountingAuxPDA k Symbol StackSym State)
     M.step? cfg index = some final ↔
       ∃ h : index < (M.actions cfg).length, (M.actions cfg)[index].apply? cfg = some final := by
   simp only [step?, Option.bind_eq_some_iff, List.getElem?_eq_some_iff]
-  constructor
-  · rintro ⟨act, ⟨h, rfl⟩, hact⟩
-    exact ⟨h, hact⟩
-  · rintro ⟨h, hact⟩
-    exact ⟨_, ⟨h, rfl⟩, hact⟩
+  exact ⟨fun ⟨_, ⟨h, rfl⟩, hact⟩ => ⟨h, hact⟩, fun ⟨h, hact⟩ => ⟨_, ⟨h, rfl⟩, hact⟩⟩
 
 /-- Before halting, an unlabelled `toAuxPDA` step is precisely a valid occurrence index. -/
 theorem step_toAuxPDA_iff (M : CountingAuxPDA k Symbol StackSym State)
@@ -232,24 +228,12 @@ theorem cons_mem_branches (M : CountingAuxPDA k Symbol StackSym State)
     simp only [branches, hs, Finset.mem_biUnion, Finset.mem_univ, true_and, step?_eq_some_iff]
     constructor
     · rintro ⟨i, hi⟩
-      cases hact : (M.actions cfg)[i.val].apply? cfg with
-      | none =>
-        rw [hact] at hi
-        exact absurd hi (Finset.notMem_empty _)
-      | some next =>
-        rw [hact] at hi
-        obtain ⟨r, hr, hcons⟩ := Finset.mem_image.mp hi
-        obtain ⟨hidx, rfl⟩ := List.cons.inj hcons
-        subst hidx
-        exact ⟨next, ⟨i.isLt, hact⟩, hr⟩
+      cases hact : (M.actions cfg)[i.val].apply? cfg <;> rw [hact] at hi
+      · exact absurd hi (Finset.notMem_empty _)
+      · obtain ⟨r, hr, ⟨⟩⟩ := Finset.mem_image.mp hi
+        exact ⟨_, ⟨i.isLt, hact⟩, hr⟩
     · rintro ⟨next, ⟨hidx, hact⟩, hrest⟩
-      refine ⟨⟨index, hidx⟩, ?_⟩
-      change index :: rest ∈
-        match (M.actions cfg)[index].apply? cfg with
-        | none => ∅
-        | some next => (M.branches fuel next).image (List.cons index)
-      rw [hact]
-      exact Finset.mem_image.mpr ⟨rest, hrest, rfl⟩
+      exact ⟨⟨index, hidx⟩, by simpa [hact] using hrest⟩
 
 /-- `branches` enumerates precisely the first-halting occurrence traces within `fuel` steps. -/
 theorem mem_branches_iff (M : CountingAuxPDA k Symbol StackSym State)
@@ -375,11 +359,8 @@ theorem HaltsWithin.branches_eq {M : CountingAuxPDA k Symbol StackSym State}
     M.branches larger cfg = M.branches fuel cfg := by
   ext choices
   simp only [mem_branches_iff]
-  constructor
-  · rintro ⟨_, final, hrun, hhalt⟩
-    exact ⟨h.length_le hrun, final, hrun, hhalt⟩
-  · rintro ⟨hlen, hrun⟩
-    exact ⟨hlen.trans hle, hrun⟩
+  exact ⟨fun ⟨_, final, hrun, hhalt⟩ => ⟨h.length_le hrun, final, hrun, hhalt⟩,
+    fun ⟨hlen, hrun⟩ => ⟨hlen.trans hle, hrun⟩⟩
 
 /-- A `HaltsWithin` clock guarantees at least one terminal branch. -/
 theorem HaltsWithin.branches_nonempty {M : CountingAuxPDA k Symbol StackSym State}
@@ -475,40 +456,25 @@ theorem branchCount_succ (M : CountingAuxPDA k Symbol StackSym State)
     cases hact : (M.actions cfg)[index.val].apply? cfg with
     | none => simp
     | some next =>
-      rw [Finset.filter_image]
-      have hcongr :
-          (M.branches fuel next).filter (fun choices =>
-            (M.runBranch cfg (index.val :: choices)).any
-              (fun final => verdict final.tapes.output)) =
-          (M.branches fuel next).filter (fun choices =>
-            (M.runBranch next choices).any (fun final => verdict final.tapes.output)) := by
-        apply Finset.filter_congr
-        intro choices _
-        have hstep : M.step? cfg index.val = some next :=
-          (M.step?_eq_some_iff cfg next index.val).mpr ⟨index.isLt, hact⟩
-        simp [runBranch_cons, hstep]
-      rw [hcongr, Finset.card_image_of_injective _ List.cons_injective]
-      rfl
+      have hstep : M.step? cfg index.val = some next :=
+        (M.step?_eq_some_iff cfg next index.val).mpr ⟨index.isLt, hact⟩
+      rw [Finset.filter_image, Finset.card_image_of_injective _ List.cons_injective]
+      exact congrArg Finset.card
+        (Finset.filter_congr fun choices _ => by simp [runBranch_cons, hstep])
   unfold branchCount
   simp only [branches, h, Finset.filter_biUnion]
   rw [Finset.card_biUnion]
   · exact Finset.sum_congr rfl fun index _ => hfilter index
   · intro left _ right _ hne
-    apply Finset.disjoint_left.mpr
-    intro choices hleft hright
-    obtain ⟨hleft, _⟩ := Finset.mem_filter.mp hleft
-    obtain ⟨hright, _⟩ := Finset.mem_filter.mp hright
-    cases hl : (M.actions cfg)[left.val].apply? cfg with
-    | none => rw [hl] at hleft; exact absurd hleft (Finset.notMem_empty _)
-    | some nextL =>
-      cases hr : (M.actions cfg)[right.val].apply? cfg with
-      | none => rw [hr] at hright; exact absurd hright (Finset.notMem_empty _)
-      | some nextR =>
-        rw [hl] at hleft
-        rw [hr] at hright
-        obtain ⟨_, _, hleftEq⟩ := Finset.mem_image.mp hleft
-        obtain ⟨_, _, hrightEq⟩ := Finset.mem_image.mp hright
-        exact hne (Fin.ext (List.cons.inj (hleftEq.trans hrightEq.symm)).1)
+    refine Finset.disjoint_left.mpr fun choices hleft hright => hne (Fin.ext ?_)
+    simp only [Finset.mem_filter] at hleft hright
+    split at hleft <;> split at hright <;>
+      try simp only [Finset.notMem_empty, false_and] at hleft hright
+    obtain ⟨hleft, -⟩ := hleft
+    obtain ⟨hright, -⟩ := hright
+    obtain ⟨_, _, rfl⟩ := Finset.mem_image.mp hleft
+    obtain ⟨_, _, h⟩ := Finset.mem_image.mp hright
+    exact (List.cons.inj h).1.symm
 
 /-- Accepting branch count under the standard `[true]` output convention. -/
 def acceptCount (M : CountingAuxPDA k Bool StackSym State)
@@ -586,27 +552,20 @@ theorem ofMultiTapeCTM_toAuxPDA (M : MultiTapeCTM k Symbol State) :
   cases M
   simp only [toAuxPDA, ofMultiTapeCTM, AuxPDA.ofMultiTapeNTM, MultiTapeCTM.toNTM]
   congr 1
-  funext q inp work top act
-  simp only [List.mem_map, eq_iff_iff]
+  funext q inp work top ⟨tape, stackOp⟩
+  simp only [List.mem_map, AuxPDA.Action.mk.injEq, eq_iff_iff]
   constructor
-  · rintro ⟨a, ha, rfl⟩
+  · rintro ⟨a, ha, rfl, rfl⟩
     exact ⟨rfl, by simpa using ha⟩
-  · rintro ⟨hstay, ha⟩
-    refine ⟨MultiTapeMachine.Action.emptyOracleEquiv.symm act.tape, ha, ?_⟩
-    cases act with
-    | mk tape stackOp =>
-      simp only at hstay
-      subst hstay
-      simp
+  · rintro ⟨rfl, ha⟩
+    exact ⟨MultiTapeMachine.Action.emptyOracleEquiv.symm tape, ha, by simp, rfl⟩
 
 lemma ofMultiTapeCTM_step? (M : MultiTapeCTM k Symbol State)
     (c : Turing.Cfg k Symbol State input) (s : List PUnit) (i : ℕ) :
     (ofMultiTapeCTM M).step? ⟨c, s⟩ i = (M.step? c i).map (fun c' => ⟨c', s⟩) := by
   simp only [step?, MultiTapeCTM.step?, ofMultiTapeCTM_actions, List.getElem?_map,
     Option.bind_map, Option.map_map]
-  cases h : (M.actions c)[i]? with
-  | none => rfl
-  | some act => rfl
+  cases (M.actions c)[i]? <;> rfl
 
 lemma ofMultiTapeCTM_runBranch (M : MultiTapeCTM k Symbol State)
     (c : Turing.Cfg k Symbol State input) (s : List PUnit) (choices : List ℕ) :
@@ -616,9 +575,7 @@ lemma ofMultiTapeCTM_runBranch (M : MultiTapeCTM k Symbol State)
   | nil => rfl
   | cons i rest ih =>
     simp only [runBranch_cons, MultiTapeCTM.runBranch_cons, ofMultiTapeCTM_step?]
-    cases h : M.step? c i with
-    | none => rfl
-    | some c' => exact ih c'
+    cases M.step? c i <;> [rfl; exact ih _]
 
 theorem ofMultiTapeCTM_branches (M : MultiTapeCTM k Symbol State) (fuel : ℕ)
     (c : Turing.Cfg k Symbol State input) (s : List PUnit) :
@@ -626,29 +583,22 @@ theorem ofMultiTapeCTM_branches (M : MultiTapeCTM k Symbol State) (fuel : ℕ)
   ext choices
   simp only [mem_branches_iff, MultiTapeCTM.mem_branches_iff, ofMultiTapeCTM_runBranch,
     Option.map_eq_some_iff]
-  constructor
-  · rintro ⟨hlen, final, ⟨c', hc', rfl⟩, hh⟩
-    exact ⟨hlen, c', hc', hh⟩
-  · rintro ⟨hlen, c', hc', hh⟩
-    exact ⟨hlen, ⟨c', s⟩, ⟨c', hc', rfl⟩, hh⟩
+  exact ⟨fun ⟨hlen, _, ⟨c', hc', rfl⟩, hh⟩ => ⟨hlen, c', hc', hh⟩,
+    fun ⟨hlen, c', hc', hh⟩ => ⟨hlen, ⟨c', s⟩, ⟨c', hc', rfl⟩, hh⟩⟩
 
 theorem ofMultiTapeCTM_haltsWithin_iff (M : MultiTapeCTM k Symbol State) (fuel : ℕ)
     (c : Turing.Cfg k Symbol State input) (s : List PUnit) :
     (ofMultiTapeCTM M).HaltsWithin fuel ⟨c, s⟩ ↔ M.HaltsWithin fuel c := by
   induction fuel generalizing c with
-  | zero =>
-    constructor
-    · intro h; cases h with | halt hh => exact .halt hh
-    · intro h; cases h with | halt hh => exact .halt hh
+  | zero => constructor <;> rintro ⟨hh⟩ <;> exact .halt hh
   | succ fuel ih =>
     constructor
     · intro h
       cases h with
       | halt hh => exact .halt hh
       | step hne _ hnext =>
-        have hne' : M.actions c ≠ [] := by
-          simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne
-        refine .step hne' fun idx => ?_
+        refine .step (by simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne)
+          fun idx => ?_
         have hlt : idx.val < ((ofMultiTapeCTM M).actions ⟨c, s⟩).length := by
           simpa only [ofMultiTapeCTM_actions, List.length_map] using idx.isLt
         have hact : ((ofMultiTapeCTM M).actions ⟨c, s⟩)[idx.val].apply? ⟨c, s⟩ =
@@ -659,9 +609,8 @@ theorem ofMultiTapeCTM_haltsWithin_iff (M : MultiTapeCTM k Symbol State) (fuel :
       cases h with
       | halt hh => exact .halt hh
       | step hne hnext =>
-        have hne' : (ofMultiTapeCTM M).actions ⟨c, s⟩ ≠ [] := by
-          simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne
-        refine .step hne' (fun idx => ?_) (fun idx nextCfg hact => ?_)
+        refine .step (by simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne)
+          (fun idx => ?_) (fun idx nextCfg hact => ?_)
         · simp [ofMultiTapeCTM_actions, AuxPDA.Action.apply?]
         · have hlt : idx.val < (M.actions c).length := by
             simpa only [ofMultiTapeCTM_actions, List.length_map] using idx.isLt

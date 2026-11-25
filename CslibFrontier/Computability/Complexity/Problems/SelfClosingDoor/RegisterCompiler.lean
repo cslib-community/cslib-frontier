@@ -265,30 +265,20 @@ private theorem MachineStep.actual {p : Program} {s t : MachineState}
   have hv := MachineState.actual_valid hs
   cases h with
   | @jump registers markers a ha =>
-    right
-    refine ⟨hv, ⟨external a.source, external a.target⟩, ?_, rfl, rfl⟩
-    exact List.mem_append_left _ (List.mem_append_left _ (List.mem_map.mpr ⟨_, ha, rfl⟩))
+    exact Or.inr ⟨hv, ⟨external a.source, external a.target⟩,
+      List.mem_append_left _ (List.mem_append_left _ (List.mem_map.mpr ⟨_, ha, rfl⟩)), rfl, rfl⟩
   | enter j =>
-    right
-    refine ⟨hv, ⟨external p.instructions[j].source, entry j.val⟩, ?_, rfl, rfl⟩
-    apply List.mem_append_right
-    apply List.mem_flatMap.mpr
-    exact ⟨(p.instructions[j], j.val), indexed_instruction_mem p j, by simp⟩
+    exact Or.inr ⟨hv, ⟨external p.instructions[j].source, entry j.val⟩,
+      List.mem_append_right _ (List.mem_flatMap.mpr ⟨_, indexed_instruction_mem p j, by simp⟩),
+      rfl, rfl⟩
   | approach j =>
-    right
-    refine ⟨hv, ⟨entry j.val, input p.instructions[j].register p.instructions[j].guard⟩,
-      ?_, rfl, rfl⟩
-    apply List.mem_append_right
-    apply List.mem_flatMap.mpr
-    exact ⟨(p.instructions[j], j.val), indexed_instruction_mem p j, by simp⟩
+    exact Or.inr ⟨hv, ⟨entry j.val, input p.instructions[j].register p.instructions[j].guard⟩,
+      List.mem_append_right _ (List.mem_flatMap.mpr ⟨_, indexed_instruction_mem p j, by simp⟩),
+      rfl, rfl⟩
   | connect r b =>
-    right
-    refine ⟨hv, ⟨output r.val b, input r.val (!b)⟩, ?_, rfl, rfl⟩
-    apply List.mem_append_left
-    apply List.mem_append_right
-    apply List.mem_flatMap.mpr
-    refine ⟨r.val, List.mem_range.mpr r.isLt, ?_⟩
-    cases b <;> simp [Bool.not_false]
+    exact Or.inr ⟨hv, ⟨output r.val b, input r.val (!b)⟩, List.mem_append_left _
+      (List.mem_append_right _ (List.mem_flatMap.mpr ⟨r.val, List.mem_range.mpr r.isLt,
+        by cases b <;> simp⟩)), rfl, rfl⟩
   | register r b hb =>
     exact Or.inl (actual_register_step p _ _ hs.1 hs.2 r b hb)
   | openMarker j hb =>
@@ -310,11 +300,9 @@ private theorem actual_door_complete {p : Program} {s : MachineState} {t : State
     dsimp only [r] at hd
     have hb : (registers ++ markers).getD i.val false = b :=
       List.getD_append _ _ _ _ (by omega)
-    have hl : location = .input i.val b := by
-      apply Place.code_injective
-      simpa only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb,
-        register_tunnel] using hp
-    subst location
+    obtain rfl : location = .input i.val b := Place.code_injective (by
+      simpa only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb, register_tunnel]
+        using hp)
     refine ⟨⟨.output i.val b, registers.set i.val (!b), markers⟩,
       MachineStep.register r b rfl, ?_⟩
     simp only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb,
@@ -326,8 +314,8 @@ private theorem actual_door_complete {p : Program} {s : MachineState} {t : State
       omega
     let j : Fin p.instructions.length := ⟨i.val - p.initial.length, hj⟩
     have hd : (principalDoors p)[i.val] = markerDoor j.val p.instructions[j] := by
-      have hd := principal_marker_get p j
-      simpa only [j, Nat.add_sub_of_le (by omega : p.initial.length ≤ i.val)] using hd
+      simpa only [j, Nat.add_sub_of_le (by omega : p.initial.length ≤ i.val)] using
+        principal_marker_get p j
     have hb : (registers ++ markers).getD i.val false = markers.getD j.val false := by
       rw [List.getD_append_right _ _ _ _ (by omega), hr]
     have hset (b : Bool) : (registers ++ markers).set i.val b =
@@ -335,21 +323,18 @@ private theorem actual_door_complete {p : Program} {s : MachineState} {t : State
       rw [List.set_append_right _ _ (by omega), hr]
     cases hmj : markers.getD j.val false with
     | false =>
-      have hl : location = .entry j.val := by
-        apply Place.code_injective
+      obtain rfl : location = .entry j.val := Place.code_injective (by
         simpa only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb, hmj,
-          marker_tunnel_false] using hp
-      subst location
+          marker_tunnel_false] using hp)
       refine ⟨⟨.entry j.val, registers, markers.set j.val true⟩,
         MachineStep.openMarker j hmj, ?_⟩
       simp only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb, hmj,
         marker_tunnel_false, Bool.not_false, hset]
     | true =>
-      have hl : location = .output p.instructions[j].register (!p.instructions[j].write) := by
-        apply Place.code_injective
-        simpa only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb, hmj,
-          marker_tunnel_true] using hp
-      subst location
+      obtain rfl : location = .output p.instructions[j].register (!p.instructions[j].write) :=
+        Place.code_injective (by
+          simpa only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb, hmj,
+            marker_tunnel_true] using hp)
       refine ⟨⟨.external p.instructions[j].target, registers, markers.set j.val false⟩,
         MachineStep.returnMarker j hmj, ?_⟩
       simp only [MachineState.toState, Place.code, Fin.getElem_fin, hd, hb, hmj,
@@ -364,33 +349,25 @@ private theorem actual_step_complete {p : Program} {s : MachineState} {t : State
     simp only [wiring, List.mem_append] at ha
     rcases ha with (ha | ha) | ha
     · obtain ⟨b, hb, rfl⟩ := List.mem_map.1 ha
-      have hl : location = .external b.source := Place.code_injective hp
-      subst location
+      obtain rfl : location = .external b.source := Place.code_injective hp
       exact ⟨⟨.external b.target, registers, markers⟩, MachineStep.jump hb, rfl⟩
     · obtain ⟨r, hr, ha⟩ := List.mem_flatMap.1 ha
       have hr := List.mem_range.1 hr
       simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
       rcases ha with rfl | rfl
-      · have hl : location = .output r false := Place.code_injective hp
-        subst location
-        exact ⟨⟨.input r true, registers, markers⟩,
-          MachineStep.connect ⟨r, hr⟩ false, rfl⟩
-      · have hl : location = .output r true := Place.code_injective hp
-        subst location
-        exact ⟨⟨.input r false, registers, markers⟩,
-          MachineStep.connect ⟨r, hr⟩ true, rfl⟩
+      · obtain rfl : location = .output r false := Place.code_injective hp
+        exact ⟨⟨.input r true, registers, markers⟩, MachineStep.connect ⟨r, hr⟩ false, rfl⟩
+      · obtain rfl : location = .output r true := Place.code_injective hp
+        exact ⟨⟨.input r false, registers, markers⟩, MachineStep.connect ⟨r, hr⟩ true, rfl⟩
     · obtain ⟨⟨i, j⟩, hj, ha⟩ := List.mem_flatMap.1 ha
       obtain ⟨hbound, hi⟩ := List.getElem?_eq_some_iff.1 (List.mem_zipIdx_iff_getElem?.1 hj)
       change j < p.instructions.length at hbound
-      change p.instructions[j] = i at hi
-      subst i
+      obtain rfl : p.instructions[j] = i := hi
       simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
       rcases ha with rfl | rfl
-      · have hl : location = .external p.instructions[j].source := Place.code_injective hp
-        subst location
+      · obtain rfl : location = .external p.instructions[j].source := Place.code_injective hp
         exact ⟨⟨.entry j, registers, markers⟩, MachineStep.enter ⟨j, hbound⟩, rfl⟩
-      · have hl : location = .entry j := Place.code_injective hp
-        subst location
+      · obtain rfl : location = .entry j := Place.code_injective hp
         exact ⟨⟨.input p.instructions[j].register p.instructions[j].guard, registers, markers⟩,
           MachineStep.approach ⟨j, hbound⟩, rfl⟩
 
@@ -447,32 +424,23 @@ private theorem Certified.step {p : Program} {s t : MachineState}
   all_goals
     obtain ⟨hloc, hregs, hmarkers⟩ := MachineState.mk.inj hsource
     try cases hloc
-  case boundary.jump source hr registers markers a ha =>
-    subst registers
-    subst markers
+  all_goals subst hregs hmarkers
+  case boundary.jump source hr a ha =>
     apply Certified.boundary ⟨a.target, source.bits⟩
     apply hr.tail
     exact ⟨hr.length rfl, Or.inl ⟨a, ha, Place.external.inj hloc, rfl⟩⟩
-  case boundary.enter source hr registers markers j =>
-    subst registers
-    subst markers
+  case boundary.enter source hr j =>
     rw [← selectedMarkers_false p j]
     exact Certified.entry source hr j (Place.external.inj hloc) false
-  case entry.approach source hr j hp m registers markers k =>
-    subst registers
-    subst markers
+  case entry.approach source hr j hp m k =>
     have he : j = k := Fin.ext (Place.entry.inj hloc)
     subst k
     exact Certified.ready source hr j hp m
-  case entry.openMarker source hr j hp m registers markers k hb =>
-    subst registers
-    subst markers
+  case entry.openMarker source hr j hp m k hb =>
     have he : j = k := Fin.ext (Place.entry.inj hloc)
     subst k
     simpa only [selectedMarkers, List.set_set] using Certified.entry source hr j hp true
-  case ready.register source hr j hp m registers markers r b hb =>
-    subst registers
-    subst markers
+  case ready.register source hr j hp m r b hb =>
     obtain ⟨hri, hbi⟩ := Place.input.inj hloc
     have hg : source.bits.getD p.instructions[j].register false = p.instructions[j].guard := by
       simpa only [hri, hbi] using hb
@@ -482,19 +450,13 @@ private theorem Certified.step {p : Program} {s t : MachineState}
       exact r.isLt
     simpa only [hri, hbi] using
       Certified.output source hr j hp hg hreg m p.instructions[j].guard
-  case input.register source hr j hp hg hreg m b₀ registers markers r b hb =>
-    subst registers
-    subst markers
+  case input.register source hr j hp hg hreg m b₀ r b hb =>
     obtain ⟨hri, hbi⟩ := Place.input.inj hloc
     simpa only [hri, hbi, List.set_set] using Certified.output source hr j hp hg hreg m b₀
-  case output.connect source hr j hp hg hreg m b₀ registers markers r b =>
-    subst registers
-    subst markers
+  case output.connect source hr j hp hg hreg m b₀ r b =>
     obtain ⟨hri, hbi⟩ := Place.output.inj hloc
     simpa only [hri, hbi] using Certified.input source hr j hp hg hreg m (!b₀)
-  case output.returnMarker source hr j hp hg hreg m b registers markers k hb =>
-    subst registers
-    subst markers
+  case output.returnMarker source hr j hp hg hreg m b k hb =>
     obtain ⟨he, hm⟩ := selectedMarkers_true hb
     subst k
     subst m
@@ -520,10 +482,7 @@ private theorem machine_instruction_path (p : Program) (j : Fin p.instructions.l
   have hoff : off.getD j.val false = false := by
     simp [off, List.getD_eq_getElem?_getD]
   have hon : on.getD j.val false = true := by
-    rw [List.getD_eq_getElem _ _
-      (by simpa only [on, off, List.length_set, List.length_replicate] using j.isLt)]
-    exact List.getElem_set_self
-      (by simpa only [on, off, List.length_set, List.length_replicate] using j.isLt)
+    simp [on, off, List.getD_eq_getElem?_getD, j.isLt]
   have hstart : MachineStep p (boundary p s) ⟨.entry j.val, s.bits, off⟩ := by
     simpa only [boundary, hsource] using
       (MachineStep.enter (registers := s.bits) (markers := off) j)
@@ -540,9 +499,7 @@ private theorem machine_instruction_path (p : Program) (j : Fin p.instructions.l
       have hcycle := (hfirst.tail (MachineStep.connect r p.instructions[j].guard)).tail
         (MachineStep.register r (!p.instructions[j].guard) hsecond)
       simpa only [r, hsame, Bool.not_not, List.set_set] using hcycle
-    · have hother : p.instructions[j].guard = !p.instructions[j].write := by
-        cases hg : p.instructions[j].guard <;> cases hw : p.instructions[j].write <;>
-          simp_all
+    · have hother : p.instructions[j].guard = !p.instructions[j].write := by grind
       simpa only [r, hother, Bool.not_not] using hfirst
   have hfinish := hready.tail (MachineStep.returnMarker j hon)
   simpa only [boundary, on, List.set_set, List.set_replicate_self, off] using hfinish

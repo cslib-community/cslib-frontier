@@ -106,25 +106,21 @@ private theorem exists_pow_four_mul_le {β₀ β : ℝ} (hnn : 0 ≤ β₀) (hlt
   obtain ⟨r, hr⟩ := exists_pow_lt_of_lt_one hβ hbase1
   exact ⟨r, (pow_le_pow_of_le_one hbase0 hbase1.le (Nat.le_succ r)).trans hr.le⟩
 
+private theorem exists_neZero_mul_pow_le (M : ℝ) {r ε : ℝ} (hr₀ : 0 ≤ r) (hr₁ : r < 1)
+    (hε : 0 < ε) : ∃ (n : ℕ) (_ : NeZero n), M * r ^ n ≤ ε := by
+  have hlim : Filter.Tendsto (fun n : ℕ => M * r ^ n) Filter.atTop (nhds 0) := by
+    simpa only [mul_zero] using (tendsto_pow_atTop_nhds_zero_of_lt_one hr₀ hr₁).const_mul M
+  obtain ⟨n, hlt, hn⟩ := (((tendsto_order.1 hlim).2 ε hε).and
+    (Filter.eventually_ge_atTop (1 : ℕ))).exists
+  exact ⟨n, ⟨(Nat.succ_le_iff.1 hn).ne'⟩, hlt.le⟩
+
 private theorem exp_decay_exists (M : ℝ) {δ : ℝ} (hδ : 0 < δ) {ε : ℝ} (hε : 0 < ε) :
     ∃ (k : ℕ) (_ : NeZero k), M * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2)) ≤ ε := by
-  let B : ℝ := max (2 * M) 1
-  have hB : 0 < B := zero_lt_one.trans_le (le_max_right _ _)
-  obtain ⟨k, hk⟩ := exists_nat_gt (max (Real.log (B / ε) / (2 * δ ^ 2)) 0)
-  have hkpos : 0 < k := by exact_mod_cast (le_max_right _ 0).trans_lt hk
-  have harg : Real.log (B / ε) < 2 * (k : ℝ) * δ ^ 2 := by
-    have hlt := (div_lt_iff₀ (by positivity : 0 < 2 * δ ^ 2)).mp ((le_max_left _ 0).trans_lt hk)
-    linarith
-  have hexp : Real.exp (-2 * (k : ℝ) * δ ^ 2) ≤ ε / B := by
-    rw [show -2 * (k : ℝ) * δ ^ 2 = -(2 * (k : ℝ) * δ ^ 2) by ring, Real.exp_neg,
-      inv_eq_one_div, one_div_le (Real.exp_pos _) (div_pos hε hB), one_div_div,
-      ← Real.exp_log (div_pos hB hε)]
-    exact Real.exp_le_exp.mpr harg.le
-  refine ⟨k, ⟨hkpos.ne'⟩, ?_⟩
-  calc M * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2)) = (2 * M) * Real.exp (-2 * (k : ℝ) * δ ^ 2) :=
-        by ring
-    _ ≤ B * (ε / B) := mul_le_mul (le_max_left _ _) hexp (Real.exp_pos _).le hB.le
-    _ = ε := mul_div_cancel₀ ε hB.ne'
+  have hr : Real.exp (-2 * δ ^ 2) < 1 :=
+    Real.exp_lt_one_iff.mpr (by nlinarith [sq_pos_of_pos hδ])
+  obtain ⟨k, hk, hle⟩ := exists_neZero_mul_pow_le (M * 2) (Real.exp_nonneg _) hr hε
+  refine ⟨k, hk, ?_⟩
+  rwa [show -2 * (k : ℝ) * δ ^ 2 = k * (-2 * δ ^ 2) by ring, Real.exp_nat_mul, ← mul_assoc]
 
 private theorem exists_nat_div_le (M : ℝ) {ε : ℝ} (hε : 0 < ε) :
     ∃ (N : ℕ) (_ : NeZero N), M / N ≤ ε := by
@@ -145,10 +141,9 @@ private theorem isAccurateFor_replicate_map {X : Type u} {Ω : Type v} {α : Typ
       ((4 * β₀ * (1 - β₀)) ^ (r + 1)) := by
   intro D hD
   have hq : (((A.marginal D).map (bad D)) true).toReal ≤ β₀ := by
-    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
     have hpre : bad D ⁻¹' {true} = (good D)ᶜ := Set.ext fun x => by simpa using hbad_eq D x
-    rw [hpre]
-    exact hacc D hD
+    simpa only [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply, hpre] using
+      hacc D hD
   rw [Algorithm.marginal_map, Algorithm.marginal_replicate, PMF.toOuterMeasure_map_apply]
   refine (Probability.PMF.toOuterMeasure_toReal_mono _
     (t := (fun v : Fin (2 * (r + 1)) → α => fun j => bad D (v j)) ⁻¹'
@@ -336,14 +331,12 @@ private theorem empFreq_concentrates [DecidableEq α] (q : PMF α) (k : ℕ) [Ne
     simp only [empFreq, empiricalMean, f, Finset.card_filter, Nat.cast_sum]
     congr 1; exact Finset.sum_congr rfl fun j _ => by split_ifs <;> simp
   have hexp : (q y).toReal = distExpectation q f := by
-    rw [distExpectation, tsum_eq_single y]
-    · simp [f]
-    · intro z hz; simp [f, hz]
+    rw [distExpectation, tsum_eq_single y fun z hz => by simp [f, hz]]
+    simp [f]
   have hf : ∀ z ∈ q.support, f z ∈ Set.Icc (0 : ℝ) 1 := fun z _ => by
     dsimp only [f]; split_ifs <;> simp
-  have hconc := boundedMean_concentrates q f hf k hδ
   have hmax : max ((1 : ℝ) - 0) 1 = 1 := by norm_num
-  simpa only [hfreq, hexp, hmax, one_pow, div_one] using hconc
+  simpa only [hfreq, hexp, hmax, one_pow, div_one] using boundedMean_concentrates q f hf k hδ
 
 private theorem empFreq_all_concentrates [Fintype α] [DecidableEq α] (q : PMF α) (k : ℕ)
     [NeZero k] {δ : ℝ} (hδ : 0 ≤ δ) :
@@ -372,10 +365,9 @@ theorem isReplicable_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
   let good : Set (Fin k → α) := {v | ∀ y : α, |empFreq k v y - (A.marginal D y).toReal| ≤ δ}
   have hgoodc : ((Probability.PMF.iid (A.marginal D) k).toOuterMeasure goodᶜ).toReal ≤
       (Fintype.card α : ℝ) * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2)) := by
-    have heq : goodᶜ =
-        {v : Fin k → α | ∃ y : α, δ < |empFreq k v y - (A.marginal D y).toReal|} := by
-      ext v; simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_forall, not_le, good]
-    rw [heq]; exact empFreq_all_concentrates (A.marginal D) k hδ
+    have heq : goodᶜ = {v | ∃ y, δ < |empFreq k v y - (A.marginal D y).toReal|} :=
+      Set.ext fun _ => by simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_forall, not_le, good]
+    exact heq ▸ empFreq_all_concentrates (A.marginal D) k hδ
   have hba : 0 < b - a := sub_pos.mpr hab
   refine paired_bind_disagree_le _ good (fun i v => pickThresholded a b N k i v) hgoodc
     (by positivity) fun v₁ hv₁ v₂ hv₂ => thresholdRound_union_disagree_le hab N hv₁ hv₂ ?_
@@ -401,23 +393,18 @@ theorem isAccurateFor_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
   have hM : (0 : ℝ) < Fintype.card α := Nat.cast_pos.mpr Fintype.card_pos
   have hβ₀_nn : 0 ≤ β₀ := ENNReal.toReal_nonneg.trans (hacc D hD)
   have hdiv_pos : 0 < (1 - β₀) / Fintype.card α := by linarith
-  have hex_heavy : ∃ y₀ ∈ good D, (1 - β₀) / Fintype.card α ≤ (A.marginal D y₀).toReal := by
-    by_contra hnone; push Not at hnone
-    have hsum_good := (isAccurateFor_iff_prob_good.mp hacc) D hD
-    rw [Probability.PMF.toOuterMeasure_apply_toReal] at hsum_good
-    have hsum_lt : (∑ y : α, if y ∈ good D then (A.marginal D y).toReal else 0) <
-        ∑ _y : α, (1 - β₀) / Fintype.card α :=
-      Finset.sum_lt_sum (fun y _ => by
-          split_ifs with hy
-          · exact (hnone y hy).le
-          · exact hdiv_pos.le)
-        ⟨Classical.arbitrary α, Finset.mem_univ _, by
-          split_ifs with hy
-          · exact hnone _ hy
-          · exact hdiv_pos⟩
-    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_div_cancel₀ _ hM.ne'] at hsum_lt
-    linarith
-  obtain ⟨y₀, _, hy₀_mass⟩ := hex_heavy
+  obtain ⟨y₀, _, hy₀_mass⟩ :
+      ∃ y₀ ∈ good D, (1 - β₀) / Fintype.card α ≤ (A.marginal D y₀).toReal := by
+    have hsum := (isAccurateFor_iff_prob_good.mp hacc) D hD
+    rw [Probability.PMF.toOuterMeasure_apply_toReal] at hsum
+    obtain ⟨y, _, hy⟩ := Finset.exists_le_of_sum_le Finset.univ_nonempty
+      (f := fun _ : α => (1 - β₀) / Fintype.card α)
+      (g := fun y : α => if y ∈ good D then (A.marginal D y).toReal else 0) (by
+        simpa only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
+          mul_div_cancel₀ _ hM.ne'] using hsum)
+    split_ifs at hy with hgood
+    · exact ⟨y, hgood, hy⟩
+    · exact (hdiv_pos.not_ge hy).elim
   rw [marginal_amplifyFinite]
   refine (Probability.PMF.toOuterMeasure_bind_failure_toReal_le _ _ Set.univ _
     (error := (Fintype.card α : ℝ) * (2 * Real.exp (-2 * (k : ℝ) * δ ^ 2)))
@@ -441,9 +428,9 @@ theorem isAccurateFor_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
     rw [← PMF.toOuterMeasure_apply_singleton]
     exact (Probability.PMF.toOuterMeasure_toReal_mono _
       (Set.singleton_subset_iff.mpr hv)).trans (hacc D hD)
-  have hlt : empFreq k v (pickThresholded a b N k i v) < a := by
-    linarith [(abs_sub_le_iff.mp (hconc (pickThresholded a b N k i v))).1]
-  have hfalse := thresholdRound_false_of_lt_left hab i hlt
+  have hfalse := thresholdRound_false_of_lt_left hab i
+    (show empFreq k v (pickThresholded a b N k i v) < a by
+      linarith [(abs_sub_le_iff.mp (hconc (pickThresholded a b N k i v))).1])
   exact absurd (Finset.mem_filter.mp hmem).2 (by rw [hfalse]; decide)
 
 /-- **Finite-domain amplification theorem** [ImpagliazzoLeiPitassiSorrell2022]: for any finite
@@ -746,18 +733,8 @@ private theorem trialRunMarginal_single_fail [DecidableEq α] (A : Algorithm X �
       (strictMajorityCandidate_fail_le μ yStar (by linarith) hyStar k₂)
     simp only [Set.mem_preimage, Set.mem_compl_iff, Set.mem_ofPred_eq, not_and] at hzs
     exact hzs hcs fun _ y hy => hEq.trans (huniq y hy).symm
-  · have hempty : (fun zs : Fin k₂ → α =>
-        (empFreq k₁ cs true, strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩))) ⁻¹'
-        {pr : ℝ × α | |pr.1 - seedColl A D r| ≤ δ ∧
-          (a - δ ≤ seedColl A D r → ∀ y : α, a - δ ≤ (μ y).toReal → pr.2 = y)}ᶜ = ∅ :=
-      Set.eq_empty_iff_forall_notMem.mpr fun _ h => h ⟨hcs, fun hc => absurd hc hcoll⟩
-    change ((Probability.PMF.iid μ k₂).toOuterMeasure _).toReal ≤ _
-    rw [show (fun zs : Fin k₂ → α =>
-        (((Finset.univ.filter fun l : Fin k₁ => cs l = true).card : ℝ) / k₁,
-          strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩))) =
-        (fun zs : Fin k₂ → α =>
-          (empFreq k₁ cs true, strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩))) from rfl,
-      hempty]
+  · refine (Probability.PMF.toOuterMeasure_toReal_mono _ (t := ∅) fun _ h => ?_).trans ?_
+    · exact h ⟨hcs, fun hc => absurd hc hcoll⟩
     simp only [MeasureTheory.measure_empty, ENNReal.toReal_zero]; positivity
 
 private theorem seed_markov_err_lt (A : Algorithm X Ω α m) (D : PMF X) (good : Set α)
@@ -766,11 +743,11 @@ private theorem seed_markov_err_lt (A : Algorithm X Ω α m) (D : PMF X) (good :
       {r : Ω | c ≤ ((seedOutput A D r).toOuterMeasure goodᶜ).toReal}).toReal ≤ β₀ / c := by
   have hm_sum :
       ∑' r : Ω, (A.seed r).toReal * ((seedOutput A D r).toOuterMeasure goodᶜ).toReal ≤ β₀ := by
-    refine le_trans ?_ hacc
-    rw [Algorithm.marginal_eq_seed_bind, PMF.toOuterMeasure_bind_apply, ENNReal.tsum_toReal_eq]
-    · exact le_of_eq (tsum_congr fun r => ENNReal.toReal_mul.symm)
-    · intro r
-      exact ENNReal.mul_ne_top (PMF.apply_ne_top _ _) (Probability.PMF.toOuterMeasure_ne_top _ _)
+    refine Eq.trans_le ?_ hacc
+    rw [Algorithm.marginal_eq_seed_bind, PMF.toOuterMeasure_bind_apply,
+      ENNReal.tsum_toReal_eq fun _ =>
+        ENNReal.mul_ne_top (PMF.apply_ne_top _ _) (Probability.PMF.toOuterMeasure_ne_top _ _)]
+    exact tsum_congr fun r => ENNReal.toReal_mul.symm
   exact (Probability.PMF.toOuterMeasure_toReal_le_tsum_div A.seed
     (fun _ => ENNReal.toReal_nonneg) (fun r => Probability.PMF.toOuterMeasure_toReal_le_one _ _)
     hc).trans (div_le_div_of_nonneg_right hm_sum hc.le)
@@ -781,9 +758,8 @@ private theorem bad_goodSeeds_le (A : Algorithm X Ω α m) (D : PMF X) {θ_acc :
       ({rs : Fin T → Ω | ∃ t : Fin T, θ_acc ≤ seedColl A D (rs t)})ᶜ).toReal ≤
       (A.disagreeProb D / (1 - θ_acc)) ^ T := by
   have heqc : ({rs : Fin T → Ω | ∃ t : Fin T, θ_acc ≤ seedColl A D (rs t)})ᶜ =
-      {rs : Fin T → Ω | ∀ t : Fin T, rs t ∈ {r | seedColl A D r < θ_acc}} := by
-    ext rs
-    simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_exists, not_le]
+      {rs : Fin T → Ω | ∀ t : Fin T, rs t ∈ {r | seedColl A D r < θ_acc}} :=
+    Set.ext fun _ => by simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_exists, not_le]
   rw [heqc, PMF.piFin_const, PMF.toOuterMeasure_iid_forall, ENNReal.toReal_pow]
   exact pow_le_pow_left₀ ENNReal.toReal_nonneg (seed_markov_coll_lt A D hθ_lt) T
 
@@ -805,14 +781,14 @@ private theorem goodTrials_fail_le [DecidableEq α] (A : Algorithm X Ω α m) (D
     {pr | |pr.1 - seedColl A D (rs t)| ≤ δ ∧
       (a - δ ≤ seedColl A D (rs t) →
         ∀ y : α, a - δ ≤ (seedOutput A D (rs t) y).toReal → pr.2 = y)}ᶜ
-  have hunion : (goodTrialsSet A D a δ rs)ᶜ = {trials | ∃ t, trials t ∈ bad t} := by
-    ext trials
-    simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_forall, goodTrialsSet, bad]
+  have hunion : (goodTrialsSet A D a δ rs)ᶜ = {trials | ∃ t, trials t ∈ bad t} :=
+    Set.ext fun _ => by
+      simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_forall, goodTrialsSet, bad]
   rw [hunion]
-  refine (PMF.toOuterMeasure_toReal_piFin_exists_le _ bad).trans ?_
-  refine (Finset.sum_le_sum fun t _ =>
-    trialRunMarginal_single_fail A D (rs t) hδ ha_half k₁ k₂).trans_eq ?_
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  exact (PMF.toOuterMeasure_toReal_piFin_exists_le _ bad).trans <|
+    (Finset.sum_le_sum fun t _ =>
+      trialRunMarginal_single_fail A D (rs t) hδ ha_half k₁ k₂).trans_eq
+      (by simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul])
 
 private theorem goodTrial_heavy_of_thresholdPass (A : Algorithm X Ω α m) (D : PMF X)
     {a b δ : ℝ} (hab : a ≤ b) {T N : ℕ} {rs : Fin T → Ω} {trials : Fin T → ℝ × α}
@@ -822,13 +798,9 @@ private theorem goodTrial_heavy_of_thresholdPass (A : Algorithm X Ω α m) (D : 
       a - δ ≤ seedColl A D (rs t) ∧
       a - δ ≤ (seedOutput A D (rs t) yStar).toReal ∧
       (trials t).2 = yStar := by
-  have ht_ge : a ≤ (trials t).1 := by
-    by_contra hlt
-    rw [not_le] at hlt
-    exact absurd ht_pass (by rw [thresholdRound_false_of_lt_left hab i hlt]; decide)
-  have hcoll_ge : a - δ ≤ seedColl A D (rs t) := by
-    have h2 := (abs_sub_le_iff.mp (htr t).1).1
-    linarith
+  have ht_ge : a ≤ (trials t).1 := le_of_not_gt fun hlt =>
+    absurd ht_pass (by rw [thresholdRound_false_of_lt_left hab i hlt]; decide)
+  have hcoll_ge : a - δ ≤ seedColl A D (rs t) := by linarith [(abs_sub_le_iff.mp (htr t).1).1]
   obtain ⟨yStar, hyStar⟩ :=
     Probability.PMF.exists_le_toReal_of_le_collisionProbability (seedOutput A D (rs t)) hcoll_ge
   exact ⟨yStar, hcoll_ge, hyStar, (htr t).2 hcoll_ge yStar hyStar⟩
@@ -947,14 +919,11 @@ theorem isAccurateFor_amplifyReplicability [DecidableEq α] (A : Algorithm X Ω 
         (by simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul])
   have hgoodRS_c : (seeds.toOuterMeasure (goodSeeds ∩ badErrSeedsᶜ)ᶜ).toReal ≤
       (ρ₀ / (1 - θ_acc)) ^ T + (T : ℝ) * (β₀ / (a - δ)) := by
-    have hsub : (goodSeeds ∩ badErrSeedsᶜ)ᶜ = goodSeedsᶜ ∪ badErrSeeds := by
-      rw [Set.compl_inter, compl_compl]
     have hnt : ∀ s, seeds.toOuterMeasure s ≠ ⊤ := fun s => Probability.PMF.toOuterMeasure_ne_top _ s
-    rw [hsub]
-    refine (ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨hnt _, hnt _⟩)
-      (MeasureTheory.measure_union_le goodSeedsᶜ badErrSeeds)).trans ?_
-    rw [ENNReal.toReal_add (hnt _) (hnt _)]
-    exact add_le_add hbad_coll hbad_err
+    rw [Set.compl_inter, compl_compl]
+    exact (ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨hnt _, hnt _⟩)
+      (MeasureTheory.measure_union_le goodSeedsᶜ badErrSeeds)).trans
+      ((ENNReal.toReal_add (hnt _) (hnt _)).trans_le (add_le_add hbad_coll hbad_err))
   let trialFail : ℝ := (T : ℝ) * (2 * Real.exp (-2 * (k₁ : ℝ) * δ ^ 2) +
     2 * Real.exp (-2 * (k₂ : ℝ) * ((a - δ - 1 / 2) / 2) ^ 2))
   refine (Probability.PMF.toOuterMeasure_bind_failure_toReal_le seeds _
@@ -1003,12 +972,10 @@ theorem exists_amplifyReplicability_accurate {ρ₀ ρ β : ℝ} (hρ₀_nonneg 
   let q : ℝ := ρ₀ / (1 - θ_acc)
   have hq0 : 0 ≤ q := div_nonneg hρ₀_nonneg (sub_pos.mpr hθ_lt).le
   have hq1 : q < 1 := (div_lt_one (sub_pos.mpr hθ_lt)).mpr (by dsimp only [θ_acc, γ]; linarith)
-  obtain ⟨T0, hT0⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < ε / 4) hq1
-  let T : ℕ := max T0 1
-  have hT_inst : NeZero T := ⟨Nat.ne_of_gt (lt_of_lt_of_le Nat.zero_lt_one (le_max_right _ _))⟩
+  obtain ⟨T, hT_inst, hT_pow⟩ :=
+    exists_neZero_mul_pow_le 1 hq0 hq1 (show 0 < ε / 4 by positivity)
+  rw [one_mul] at hT_pow
   have hTR : (0 : ℝ) < T := Nat.cast_pos.mpr (NeZero.pos T)
-  have hT_pow : q ^ T ≤ ε / 4 :=
-    (pow_le_pow_of_le_one hq0 hq1.le (le_max_left T0 1)).trans hT0.le
   obtain ⟨N, hN_inst, hN_bound⟩ := exists_nat_div_le (T : ℝ) (by positivity : 0 < ρ / 4)
   let δ : ℝ := min (γ / 2) ((ρ / (8 * (T : ℝ))) * (b - a))
   have hδ : 0 < δ := lt_min (by dsimp only [γ]; linarith) (by positivity)
@@ -1042,10 +1009,8 @@ theorem exists_amplifyReplicability_accurate {ρ₀ ρ β : ℝ} (hρ₀_nonneg 
   · have h2 : (T : ℝ) * (β₀ / (a - δ)) ≤ β / 4 := calc
       (T : ℝ) * (β₀ / (a - δ)) ≤ (T : ℝ) * (β₀_req / (a - δ)) := by gcongr
       _ = β / 4 := by dsimp only [β₀_req]; field_simp [hTR.ne', had_pos.ne']
-    have hnn₁ : 0 ≤ (T : ℝ) * (2 * Real.exp (-2 * (k₁ : ℝ) * δ ^ 2)) := by positivity
-    have hnn₂ :
-        0 ≤ (T : ℝ) * (2 * Real.exp (-2 * (k₂ : ℝ) * ((a - δ - 1 / 2) / 2) ^ 2)) := by positivity
-    linarith [hT_pow]
+    linarith [hT_pow, (by positivity : 0 ≤ (T : ℝ) * (2 * Real.exp (-2 * (k₁ : ℝ) * δ ^ 2))),
+      (by positivity : 0 ≤ (T : ℝ) * (2 * Real.exp (-2 * (k₂ : ℝ) * ((a - δ - 1 / 2) / 2) ^ 2)))]
 
 /-- **General-domain replicability amplification** [ImpagliazzoLeiPitassiSorrell2022]: over any
 `[DecidableEq α]` output type, any algorithm `A` that is weakly (or strongly) `ρ₀`-replicable on

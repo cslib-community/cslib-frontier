@@ -62,9 +62,7 @@ theorem relax_valid_queue {n K V : ℕ}
   · rw [hd] at hv
     exact hv.2.2.2.1
   · intro hc
-    rw [hd] at hv
-    dsimp only at hv
-    rw [ite_eq_left hc] at hv
+    simp only [hd, ite_eq_left hc] at hv
     exact hv.2.2.2.1
 
 
@@ -77,10 +75,8 @@ theorem remainingEdges_cons {n K V : ℕ} (u : Fin n) (du b i : ℕ) (hi : i < b
     remainingEdges (K := K) (V := V) u du b i = (do
       relaxEdge u du i
       remainingEdges u du b (i + 1)) := by
-  unfold remainingEdges
   have he : b - i = (b - (i + 1)) + 1 := by omega
-  rw [he, List.range'_succ]
-  rfl
+  rw [remainingEdges, he, List.range'_succ]; rfl
 
 /-- A valid scan suffix retains the refinement invariant and next suffix validity. -/
 theorem remainingEdges_step {n K V w : ℕ}
@@ -99,9 +95,7 @@ theorem remainingEdges_step {n K V w : ℕ}
   rw [remainingEdges_cons u du b i hi, StateTransitionSpec.clientHistory_bind,
     StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient] at hv
   obtain ⟨_, _, he, hinv'⟩ := M.simulates_client (relaxEdge u du i) hinv hv.1
-  refine ⟨hv.1, hinv', ?_⟩
-  rw [he]
-  exact hv.2
+  exact ⟨hv.1, hinv', he.symm ▸ hv.2⟩
 
 /-- An admissible `scan u du` history supplies an admissible `remainingEdges` suffix from `0`. -/
 theorem scan_valid_remainingEdges {n K V : ℕ}
@@ -129,18 +123,14 @@ theorem loopStepWord_result_le (extract : Memory.Prog (Option (ℕ × ℕ)))
     (Memory.spec 0).clientResult s (loopStepWord extract ins dec T A n x) ≤ x.2 - 1 := by
   unfold loopStepWord
   rw [StateTransitionSpec.clientResult_bind]
-  cases he : (Memory.spec 0).clientResult s extract with
-  | none =>
-    change 0 ≤ x.2 - 1
-    omega
+  cases (Memory.spec 0).clientResult s extract with
+  | none => exact Nat.zero_le _
   | some e =>
     rcases e with ⟨u, du⟩
     by_cases hu : u < n
-    · simp only [ite_eq_left hu, StateTransitionSpec.clientResult_bind]
-      rfl
+    · simp only [ite_eq_left hu, StateTransitionSpec.clientResult_bind]; rfl
     · simp only [ite_eq_right hu]
-      change 0 ≤ x.2 - 1
-      omega
+      exact Nat.zero_le _
 
 /-- One original abstract extraction and scan, with its early-exit round counter. -/
 @[expose] def abstractLoopStep {n K V : ℕ} (a : ℕ) : (spec n K V).Client ℕ := do
@@ -274,17 +264,11 @@ theorem scan_while_safe {n K V w : ℕ}
       simp only [client_simps]
     have hstate : (Memory.spec 0).clientState s (do step a; pure (a + 1)) =
         (Memory.spec w).clientState s (link M.methods (relaxEdge u du a)) := by
-      rw [StateTransitionSpec.clientState_bind]
-      change (Memory.spec 0).clientState s (step a) = _
-      rw [← clientState_width w, heq]
+      simpa only [client_simps, heq] using (clientState_width w (step a) s).symm
     refine ⟨⟨hsafe a s ha hi.2.1 hfirst, hfit.of_le (by omega)⟩, ?_, ?_⟩
-    · change I ((Memory.spec 0).clientResult s (do step a; pure (a + 1)))
-        ((Memory.spec 0).clientState s (do step a; pure (a + 1)))
-      rw [hres, hstate]
+    · simp only [I, hres, hstate]
       exact ⟨by omega, hinv, hrest⟩
-    · change b - (Memory.spec 0).clientResult s (do step a; pure (a + 1)) < b - a
-      rw [hres]
-      omega
+    · simp only [hres]; omega
 
 /-- The original remaining-round history and a strictly decreasing native counter justify a
 complete early-exit loop. The existing key invariant is retained through every abstract step. -/
@@ -319,15 +303,12 @@ theorem loop_while_safe {n K V w : ℕ} {ε : Type}
     have hp := hi.2.2
     rw [loop_eq_step a (by omega), StateTransitionSpec.clientHistory_bind,
       StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient] at hp
-    have hs := M.simulates_client (abstractLoopStep a) hi.1 hp.1
+    obtain ⟨_, hres, hst, hinv⟩ := M.simulates_client (abstractLoopStep a) hi.1 hp.1
     refine ⟨hsafe a s hpos hi.1 hi.2.1 hp.1, ?_, ?_⟩
     · rw [heq, ← clientResult_width w, ← clientState_width w]
-      refine ⟨hs.2.2.2, ?_, ?_⟩
-      · rw [hs.2.2.1]
-        exact client_keys (M.abs s) (abstractLoopStep a) hp.1 hi.2.1
-      · rw [hs.2.2.1, hs.2.1]
-        exact hp.2
-    · have hl := hdown a s
+      exact ⟨hinv, hst ▸ client_keys (M.abs s) (abstractLoopStep a) hp.1 hi.2.1,
+        hst ▸ hres ▸ hp.2⟩
+    · have := hdown a s
       omega
 
 /-- Running an erased native `extractMin` on an admissible `abstractLoopStep` state either yields

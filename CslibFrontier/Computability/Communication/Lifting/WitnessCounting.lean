@@ -72,14 +72,10 @@ theorem card_conditioningAssignment {α : Type*} (U : Finset α) (m k : ℕ) :
     (∑ J ∈ U.powerset.filter (fun J => J.card ≤ k), m ^ J.card) =
         ∑ j ∈ range (k + 1),
           ∑ J ∈ (U.powerset.filter fun J => J.card ≤ k).filter (fun J => J.card = j),
-            m ^ J.card := by
-      symm
-      apply sum_fiberwise_of_maps_to
-      intro J hJ
-      exact mem_range.mpr (Nat.lt_succ_of_le (mem_filter.mp hJ).2)
-    _ = _ := by
-      apply sum_congr rfl
-      intro j hj
+            m ^ J.card :=
+      (sum_fiberwise_of_maps_to
+        (fun _ hJ => mem_range.mpr (Nat.lt_succ_of_le (mem_filter.mp hJ).2)) _).symm
+    _ = _ := sum_congr rfl fun j hj => by
       have heq : (U.powerset.filter fun J => J.card ≤ k).filter (fun J => J.card = j) =
           U.powersetCard j := by
         ext J
@@ -88,10 +84,8 @@ theorem card_conditioningAssignment {α : Type*} (U : Finset α) (m k : ℕ) :
           fun h => ⟨⟨h.1, h.2.le.trans (Nat.le_of_lt_succ (mem_range.mp hj))⟩, h.2⟩⟩
       rw [heq]
       calc
-        _ = ∑ _J ∈ U.powersetCard j, m ^ j := by
-          apply sum_congr rfl
-          intro J hJ
-          rw [(mem_powersetCard.mp hJ).2]
+        _ = ∑ _J ∈ U.powersetCard j, m ^ j :=
+          sum_congr rfl fun _ hJ => by rw [(mem_powersetCard.mp hJ).2]
         _ = _ := by simp
 
 /-- Counting by the actual coordinate universe avoids a factor depending on an oversized
@@ -110,20 +104,16 @@ theorem card_conditioningAssignment_le {α : Type*} (U : Finset α) (m k N : ℕ
       Fintype.card (ConditioningAssignment U m (min k U.card)) := by
     rw [Fintype.card_congr (ConditioningAssignment.equivSigma U m k),
       Fintype.card_congr (ConditioningAssignment.equivSigma U m (min k U.card))]
-    apply Fintype.card_congr'
-    rw [hsets]
+    exact Fintype.card_congr' (by rw [hsets])
   rw [heq, card_conditioningAssignment]
   calc
-    _ ≤ ∑ _j ∈ range (min k U.card + 1), (N * m) ^ k := by
-      apply sum_le_sum
-      intro j hj
-      have hjk : j ≤ k := (Nat.le_of_lt_succ (mem_range.mp hj)).trans (min_le_left _ _)
-      calc
-        U.card.choose j * m ^ j ≤ U.card ^ j * m ^ j :=
-          Nat.mul_le_mul_right _ (Nat.choose_le_pow _ _)
-        _ ≤ N ^ j * m ^ j := Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hU _)
-        _ = (N * m) ^ j := (mul_pow _ _ _).symm
-        _ ≤ (N * m) ^ k := Nat.pow_le_pow_right (by omega) hjk
+    _ ≤ ∑ _j ∈ range (min k U.card + 1), (N * m) ^ k :=
+      sum_le_sum fun j hj => by
+        have hjk : j ≤ k := (Nat.le_of_lt_succ (mem_range.mp hj)).trans (min_le_left _ _)
+        calc U.card.choose j * m ^ j ≤ N ^ j * m ^ j :=
+              Nat.mul_le_mul_right _ ((Nat.choose_le_pow _ _).trans (Nat.pow_le_pow_left hU _))
+          _ = (N * m) ^ j := (mul_pow N m j).symm
+          _ ≤ (N * m) ^ k := Nat.pow_le_pow_right hNm hjk
     _ = (min k U.card + 1) * (N * m) ^ k := by simp
     _ ≤ _ := Nat.mul_le_mul_right _ (Nat.add_le_add_right ((min_le_right _ _).trans hU) 1)
 
@@ -134,22 +124,18 @@ theorem sum_conditioningAssignment_mul_pow_le (n m k : ℕ) (hNm : 1 ≤ n * m)
     (∑ S ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty,
       (Fintype.card (ConditioningAssignment (univ \ S) m k) : ℝ) * q ^ S.card) ≤
         (n + 1 : ℕ) * ((n * m : ℕ) : ℝ) ^ k := by
-  classical
-  have hweight := sum_nonempty_powerset_pow_card_le_one (univ : Finset (Fin n))
-    hq hq1 (by simpa using hnq)
-  calc
-    _ ≤ ∑ S ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty,
-        ((n + 1 : ℕ) * ((n * m : ℕ) : ℝ) ^ k) * q ^ S.card := by
-      apply sum_le_sum
-      intro S _
-      apply mul_le_mul_of_nonneg_right _ (pow_nonneg hq _)
-      exact_mod_cast card_conditioningAssignment_le (univ \ S) m k n
-        (by simpa using card_le_card (sdiff_subset : univ \ S ⊆ univ)) hNm
+  have hweight := sum_nonempty_powerset_pow_card_le_one (univ : Finset (Fin n)) hq hq1
+    (by simpa using hnq)
+  calc _ ≤ ∑ S ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty,
+          ((n + 1 : ℕ) * ((n * m : ℕ) : ℝ) ^ k) * q ^ S.card :=
+        sum_le_sum fun S _ => mul_le_mul_of_nonneg_right
+          (mod_cast card_conditioningAssignment_le (univ \ S) m k n
+            (by simpa using card_le_card (sdiff_subset : univ \ S ⊆ univ)) hNm) (pow_nonneg hq _)
     _ = ((n + 1 : ℕ) * ((n * m : ℕ) : ℝ) ^ k) *
-        ∑ S ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty,
-          q ^ S.card := by rw [mul_sum]
+          ∑ S ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty, q ^ S.card :=
+        (mul_sum _ _ _).symm
     _ ≤ _ := mul_le_of_le_one_right
-      (mul_nonneg (Nat.cast_nonneg _) (pow_nonneg (Nat.cast_nonneg _) _)) hweight
+        (mul_nonneg (Nat.cast_nonneg _) (pow_nonneg (Nat.cast_nonneg _) _)) hweight
 
 /-- A size-dependent conditioning budget gives a geometric witness count for each nonempty
 parity support. The factor `n + 1` is absorbed once per parity coordinate. -/
@@ -158,17 +144,15 @@ theorem card_conditioningAssignment_le_pow {n m k : ℕ} (hNm : 1 ≤ n * m)
     (hk : ((n * m : ℕ) : ℝ) ^ k ≤ u ^ S.card) :
     (Fintype.card (ConditioningAssignment (univ \ S) m k) : ℝ) ≤
       (((n + 1 : ℕ) : ℝ) * u) ^ S.card := by
-  have hc : (Fintype.card (ConditioningAssignment (univ \ S) m k) : ℝ) ≤
-      ((n + 1 : ℕ) : ℝ) * ((n * m : ℕ) : ℝ) ^ k := by
-    exact_mod_cast card_conditioningAssignment_le (univ \ S) m k n
+  have hc0 : (Fintype.card (ConditioningAssignment (univ \ S) m k) : ℝ) ≤
+      ((n + 1 : ℕ) : ℝ) * ((n * m : ℕ) : ℝ) ^ k :=
+    mod_cast card_conditioningAssignment_le (univ \ S) m k n
       (by simpa using card_le_card (sdiff_subset : univ \ S ⊆ univ)) hNm
-  calc
-    _ ≤ ((n + 1 : ℕ) : ℝ) * u ^ S.card :=
-      hc.trans (mul_le_mul_of_nonneg_left hk (Nat.cast_nonneg _))
-    _ ≤ (((n + 1 : ℕ) : ℝ) ^ S.card) * u ^ S.card :=
-      mul_le_mul_of_nonneg_right
-        (le_self_pow₀ (by exact_mod_cast Nat.le_add_left 1 n) hS.card_pos.ne')
-        (pow_nonneg hu _)
+  calc _ ≤ ((n + 1 : ℕ) : ℝ) * u ^ S.card :=
+        hc0.trans (mul_le_mul_of_nonneg_left hk (Nat.cast_nonneg _))
+    _ ≤ ((n + 1 : ℕ) : ℝ) ^ S.card * u ^ S.card :=
+        mul_le_mul_of_nonneg_right
+          (le_self_pow₀ (mod_cast Nat.le_add_left 1 n) hS.card_pos.ne') (pow_nonneg hu _)
     _ = _ := (mul_pow _ _ _).symm
 
 /-- Geometric summation of canonical witnesses with a support-dependent size budget. -/
@@ -181,17 +165,14 @@ theorem sum_conditioningAssignment_mul_pow_le_one (n m : ℕ)
     (hnw : n * (((n + 1 : ℕ) : ℝ) * u * q) ≤ 1 / 2) :
     (∑ S ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty,
       (Fintype.card (ConditioningAssignment (univ \ S) m (k S)) : ℝ) * q ^ S.card) ≤ 1 := by
-  classical
-  calc
-    _ ≤ ∑ S ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty,
-        (((n + 1 : ℕ) : ℝ) * u * q) ^ S.card := by
-      apply sum_le_sum
-      intro S hS
-      rw [mul_pow]
-      exact mul_le_mul_of_nonneg_right
-        (card_conditioningAssignment_le_pow hNm S (mem_filter.mp hS).2 hu
-          (hk S (mem_filter.mp hS).2)) (pow_nonneg hq _)
+  calc _ ≤ ∑ S ∈ (univ : Finset (Fin n)).powerset.filter Finset.Nonempty,
+          (((n + 1 : ℕ) : ℝ) * u * q) ^ S.card :=
+        sum_le_sum fun S hS => by
+          rw [mul_pow]
+          exact mul_le_mul_of_nonneg_right
+            (card_conditioningAssignment_le_pow hNm S (mem_filter.mp hS).2 hu
+              (hk S (mem_filter.mp hS).2)) (pow_nonneg hq _)
     _ ≤ 1 := sum_nonempty_powerset_pow_card_le_one _
-      (mul_nonneg (mul_nonneg (Nat.cast_nonneg _) hu) hq) hw (by simpa using hnw)
+        (mul_nonneg (mul_nonneg (Nat.cast_nonneg _) hu) hq) hw (by simpa using hnw)
 
 end Cslib.Communication.Lifting

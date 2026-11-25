@@ -115,13 +115,11 @@ variable {s marked : Finset ι} {n : ℕ → ℕ} {K : ℕ} {ρ : ℕ → ℝ} {
 private theorem raw_first_gt_of_sum_abs_lt {m j : ℕ} {y : ι} (hj : j ≤ m)
     (hvar : 3 * R + ∑ i ∈ range m, |Δ i y 0| < a.row y 0) :
     3 * R < uncompressedRow Δ a.row j y 0 := by
-  have hsum : ∑ i ∈ range j, |Δ i y 0| ≤ ∑ i ∈ range m, |Δ i y 0| :=
-    sum_le_sum_of_subset_of_nonneg (range_mono hj) (fun _ _ _ => abs_nonneg _)
   have habs : |∑ i ∈ range j, Δ i y 0| ≤ ∑ i ∈ range m, |Δ i y 0| :=
-    (abs_sum_le_sum_abs _ _).trans hsum
-  have hlo := (abs_le.mp habs).1
+    (abs_sum_le_sum_abs _ _).trans
+      (sum_le_sum_of_subset_of_nonneg (range_mono hj) (fun _ _ _ => abs_nonneg _))
   change 3 * R < a.row y 0 + ∑ i ∈ range j, Δ i y 0
-  linarith
+  linarith [(abs_le.mp habs).1]
 
 /-- **Actual multi-step sentinel removal**. Only the modified run's input ranks and thresholds
 are assumed bounded. Total raw first-channel variation proves that original marked inputs stay
@@ -145,25 +143,15 @@ theorem iterate_sentinelState_of_sum_abs_lt (m : ℕ) (hmarked : marked ⊆ s)
         (0 < j → firstRank s K original.defaultValue original.row =
           firstRank s K modified.defaultValue modified.row ∧
             firstRank s K modified.defaultValue modified.row ≤ R) := by
-  let Δ' := fun i => sentinelFirst marked 0 (Δ i)
-  let b := sentinelState marked L a
-  let A := iterate s n (fun _ => K) ρ Δ a
-  let B := iterate s n (fun _ => K) ρ Δ' b
-  change (∀ i < m, firstRank s K (B i).defaultValue
-      (inputRow s n (fun _ => K) ρ Δ' b i) ≤ R) →
-    (∀ i < m, stepThreshold s n (fun _ => K) ρ Δ' b i ≤ R) →
-    ∀ j ≤ m, B j = sentinelState marked L (A j) ∧
-      (∀ y ∈ marked, (A j).row y = uncompressedRow Δ a.row j y) ∧
-      (0 < j → firstRank s K (A j).defaultValue (A j).row =
-        firstRank s K (B j).defaultValue (B j).row ∧
-          firstRank s K (B j).defaultValue (B j).row ≤ R)
-  intro hq hu j
+  intro Δ' b hq hu
+  set A := iterate s n (fun _ => K) ρ Δ a
+  set B := iterate s n (fun _ => K) ρ Δ' b with hB
+  dsimp only
+  intro j
   induction j with
   | zero =>
-    intro _
-    refine ⟨rfl, ?_, fun h => (Nat.not_lt_zero _ h).elim⟩
-    intro y _
-    simp only [uncompressedRow_zero, A, iterate_zero]
+    exact fun _ => ⟨rfl, fun y _ => by simp only [uncompressedRow_zero, A, iterate_zero],
+      fun h => (Nat.not_lt_zero _ h).elim⟩
   | succ j ih =>
     intro hj
     have hjm : j < m := (Nat.lt_succ_self j).trans_le hj
@@ -176,35 +164,26 @@ theorem iterate_sentinelState_of_sum_abs_lt (m : ℕ) (hmarked : marked ⊆ s)
       exact (sentinelFirst_add marked L (A j).row (Δ j)).symm
     have hq' : firstRank s K (A j).defaultValue
         (sentinelFirst marked L (inputRow s n (fun _ => K) ρ Δ a j)) ≤ R := by
-      have h := hq j hjm
-      rw [hinput, heq] at h
-      exact h
+      simpa only [hinput, heq, sentinelState] using hq j hjm
     have hu' : threshold s (n j) (ρ j) (A j).defaultValue
         (sentinelFirst marked L (inputRow s n (fun _ => K) ρ Δ a j)) ≤ R := by
-      have h := hu j hjm
-      change threshold s (n j) (ρ j) (B j).defaultValue
-        (inputRow s n (fun _ => K) ρ Δ' b j) ≤ R at h
-      rw [hinput, heq] at h
-      exact h
+      simpa only [stepThreshold, ← hB, hinput, heq, sentinelState] using hu j hjm
     have hrawInput (y : ι) (hy : y ∈ marked) :
         inputRow s n (fun _ => K) ρ Δ a j y = uncompressedRow Δ a.row (j + 1) y := by
       funext ν
       change (A j).row y ν + Δ j y ν = _
       rw [hraw y hy, uncompressedRow_succ]
     have hhigh : ∀ y ∈ s, y ∈ marked →
-        3 * R < inputRow s n (fun _ => K) ρ Δ a j y 0 := by
-      intro y _ hy
-      rw [hrawInput y hy]
-      exact raw_first_gt_of_sum_abs_lt hj (hvar y hy)
+        3 * R < inputRow s n (fun _ => K) ρ Δ a j y 0 :=
+      fun y _ hy => hrawInput y hy ▸ raw_first_gt_of_sum_abs_lt hj (hvar y hy)
     have hnext : B (j + 1) = sentinelState marked L (A (j + 1)) := by
       change advance s (n j) K (ρ j) (Δ' j) (B j) =
         sentinelState marked L (advance s (n j) K (ρ j) (Δ j) (A j))
       rw [heq]
       exact advance_sentinelState hmarked hL hhigh hq' hu'
     have hrawNext (y : ι) (hy : y ∈ marked) :
-        (A (j + 1)).row y = uncompressedRow Δ a.row (j + 1) y := by
-      exact (update_eq_self_of_mem_sentinelFirst hL hhigh hu' (hmarked hy) hy).1.trans
-        (hrawInput y hy)
+        (A (j + 1)).row y = uncompressedRow Δ a.row (j + 1) y :=
+      (update_eq_self_of_mem_sentinelFirst hL hhigh hu' (hmarked hy) hy).1.trans (hrawInput y hy)
     have hbound : firstRank s K (B (j + 1)).defaultValue (B (j + 1)).row ≤ R :=
       firstRank_update_le_of_le hK hR (hq j hjm) (hu j hjm)
     have hfinal : firstRank s K (A (j + 1)).defaultValue (A (j + 1)).row =
@@ -213,8 +192,7 @@ theorem iterate_sentinelState_of_sum_abs_lt (m : ℕ) (hmarked : marked ⊆ s)
       apply firstRank_eq_sentinelFirst (by linarith) _ hbound
       intro y _ hy
       rw [hrawNext y hy]
-      have h := raw_first_gt_of_sum_abs_lt hj (hvar y hy)
-      linarith
+      linarith [raw_first_gt_of_sum_abs_lt hj (hvar y hy)]
     exact ⟨hnext, hrawNext, fun _ => ⟨hfinal, hbound⟩⟩
 
 end Iteration

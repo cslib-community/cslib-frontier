@@ -56,20 +56,15 @@ sharing at most `d` of them has at least `2 ^ (d + 1)` blocks. -/
 theorem two_pow_succ_le_length_greedyMasks {ℓ n d : ℕ} (hdn : d < n) (hℓ : 10 * n ^ 2 < ℓ * d) :
     2 ^ (d + 1) ≤ (greedyMasks ℓ n d).length := by
   set k := d + 1
-  have hd : 0 < d := by
-    rcases Nat.eq_zero_or_pos d with rfl | hd
-    · simp at hℓ
-    · exact hd
+  have hd : 0 < d := Nat.pos_of_ne_zero fun h => by simp [h] at hℓ
   have hdℓ : 10 * d < ℓ := by
-    by_contra h
-    push Not at h
-    have : ℓ * d ≤ 10 * d * d := Nat.mul_le_mul_right d h
+    by_contra! h
+    have := Nat.mul_le_mul_right d h
     nlinarith
   have hnℓ : n ≤ ℓ := by nlinarith
   have hkey : 6 * n ^ 2 ≤ (ℓ - d) * k := by
-    have h1 : (ℓ - d) * d ≤ (ℓ - d) * k := Nat.mul_le_mul_left _ (Nat.le_succ d)
-    have h2 : (ℓ - d) * d + d * d = ℓ * d := by
-      rw [← Nat.add_mul, Nat.sub_add_cancel (by omega)]
+    have : (ℓ - d) * d ≤ (ℓ - d) * k := Nat.mul_le_mul_left (ℓ - d) (Nat.le_succ d)
+    have : (ℓ - d) * d + d * d = ℓ * d := by rw [← Nat.add_mul, Nat.sub_add_cancel (by omega)]
     nlinarith
   -- `n ^ (2k) 6 ^ k ≤ (ℓ - d) ^ k k ^ k ≤ (ℓ - d) ^ k 3 ^ k k!`.
   have hpow : 2 ^ k * n ^ (2 * k) * 3 ^ k ≤ (ℓ - d) ^ k * k ! * 3 ^ k := by
@@ -111,12 +106,11 @@ blocks, so `Design.greedy ℓ n d ⌈2 ^ (d / 10)⌉ _` is an `(ℓ, n, d)`-desi
 theorem natCeil_rpow_le_length_greedyMasks {ℓ n d : ℕ} (hdn : d < n)
     (hℓ : 10 * n ^ 2 < ℓ * d) :
     ⌈(2 : ℝ) ^ ((d : ℝ) / 10)⌉₊ ≤ (greedyMasks ℓ n d).length := by
-  refine Nat.ceil_le.2 ?_
-  have h := two_pow_succ_le_length_greedyMasks hdn hℓ
-  have h' : ((2 ^ (d + 1) : ℕ) : ℝ) ≤ (greedyMasks ℓ n d).length := by exact_mod_cast h
-  refine le_trans ?_ h'
+  have h' : ((2 ^ (d + 1) : ℕ) : ℝ) ≤ (greedyMasks ℓ n d).length := by
+    exact_mod_cast two_pow_succ_le_length_greedyMasks hdn hℓ
+  refine Nat.ceil_le.2 (le_trans ?_ h')
   rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
-  have hd : (0 : ℝ) ≤ d := Nat.cast_nonneg d
+  have := Nat.cast_nonneg (α := ℝ) d
   exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by push_cast; linarith)
 
 end Cslib.Crypto.PRG.NisanWigderson

@@ -105,8 +105,7 @@ theorem classicalDensityBranch_apply (f : ι → A) (y : A) (ρ : Matrix ι ι �
 /-- Conjugation by an outcome projector preserves positivity. -/
 theorem classicalDensityBranch_posSemidef (f : ι → A) (y : A) {ρ : Matrix ι ι ℂ}
     (hρ : ρ.PosSemidef) : (classicalDensityBranch f y ρ).PosSemidef := by
-  change (densityConj (outcomeProjection f y) ρ).PosSemidef
-  rw [densityConj_apply]
+  rw [classicalDensityBranch, densityConj_apply]
   exact hρ.mul_mul_conjTranspose_same _
 
 /-- Branch mass is the sum of the diagonal entries in its fiber. -/

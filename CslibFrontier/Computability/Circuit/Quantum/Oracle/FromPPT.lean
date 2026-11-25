@@ -140,18 +140,15 @@ private theorem decisionLaw_ofCircuitFamily_apply_true (F : UniformCircuitFamily
           fun g => OracleGateCode.gate (false, g)))
       (ket (inputState (F.width (2 * n + 1 + x.length))
         (word ++ List.ofFn fun _ : Fin 0 => false))) = _
-    have hz : List.ofFn (fun _ : Fin 0 => false) = [] :=
-      List.eq_nil_of_length_eq_zero (by simp)
-    rw [hz, List.append_nil]
+    rw [List.ofFn_zero, List.append_nil]
     rw [show ((F.gates (2 * n + 1 + x.length)).map
           fun g => OracleGateCode.gate (false, g)) =
         ((F.gates (2 * n + 1 + x.length)).map fun g => (false, g)).map
           OracleGateCode.gate by simp only [List.map_map]; rfl,
       OracleCircuit.toCircuit_map_gate, Circuit.ofPhaseCodes_map]
     rfl
-  have hwidth : 0 < ((ofCircuitFamily F).description n x.length).width := by
-    change 0 < F.width (2 * n + 1 + x.length)
-    exact F.width_pos _
+  have hwidth : 0 < ((ofCircuitFamily F).description n x.length).width :=
+    F.width_pos (2 * n + 1 + x.length)
   have hfiber :
       (Finset.univ.filter fun y :
           Fin ((ofCircuitFamily F).description n x.length).width → Bool =>
@@ -159,14 +156,11 @@ private theorem decisionLaw_ofCircuitFamily_apply_true (F : UniformCircuitFamily
           y (Fin.castLEEmb ((ofCircuitFamily F).wellFormed n x.length).output_le i)).headD
             false = true) =
         accepting ((ofCircuitFamily F).description n x.length).width := by
-    apply Finset.ext
-    intro y
+    ext y
     rw [Finset.mem_filter, mem_accepting hwidth]
     simp only [Finset.mem_univ, true_and, List.ofFn_succ,
       List.ofFn_zero, List.headD_cons]
-    have hi : Fin.castLEEmb ((ofCircuitFamily F).wellFormed n x.length).output_le (0 : Fin 1) =
-        ⟨0, hwidth⟩ := Fin.ext rfl
-    rw [hi]
+    exact Iff.of_eq (congrArg (fun i => y i = true) (Fin.ext rfl))
   rw [UniformOracleCircuitFamily.output_eq, measureOut, PMF.map_comp]
   change measureOut ((ofCircuitFamily F).run n x H (ket fun _ => false)) _
       (fun y => (List.ofFn fun i : Fin 1 =>
@@ -232,12 +226,11 @@ theorem IsPPTOn.exists_uniformOracleCircuitFamily {program : List Bool → ProbC
     simp [p]
   have haccept (word : List Bool) : ordinary.acceptProb word =
       (univ.filter fun r : Fin (p.eval word.length) → Bool =>
-        evaluate word (List.ofFn r)).card / 2 ^ p.eval word.length := by
-    exact UniformVerifierFamily.acceptProb_ofMA_zeroWitness F p word (evaluate word)
+        evaluate word (List.ofFn r)).card / 2 ^ p.eval word.length :=
+    UniformVerifierFamily.acceptProb_ofMA_zeroWitness F p word (evaluate word)
       fun w _ => by simpa only [encPair_apply, encBits_apply] using hF (word, w)
-  refine ⟨family, certificate, ?_, ?_⟩
-  · intro n x
-    rw [UniformOracleCircuitFamily.decisionLaw_ofCircuitFamily]
+  refine ⟨family, certificate, fun n x => ?_, fun n ℓ => ?_⟩
+  · rw [UniformOracleCircuitFamily.decisionLaw_ofCircuitFamily]
     apply Cslib.Probability.PMF.ext_bool
     rw [Cslib.Probability.PMF.coin_apply]
     simp only [ite_true]
@@ -246,10 +239,7 @@ theorem IsPPTOn.exists_uniformOracleCircuitFamily {program : List Bool → ProbC
     rw [ENNReal.ofReal_div_of_pos (by positivity), ENNReal.ofReal_natCast,
       ENNReal.ofReal_pow (by positivity), ENNReal.ofReal_ofNat]
     rfl
-  · intro n ℓ
-    have hresources :=
-      UniformOracleCircuitFamily.within_resources_ofCircuitFamily ordinary n ℓ
-    rw [OracleCircuit.Within] at hresources ⊢
-    exact ⟨le_rfl, le_rfl, hresources.2.2.1, le_rfl⟩
+  · exact ⟨le_rfl, le_rfl,
+      (UniformOracleCircuitFamily.within_resources_ofCircuitFamily ordinary n ℓ).2.2.1, le_rfl⟩
 
 end Cslib.Probability

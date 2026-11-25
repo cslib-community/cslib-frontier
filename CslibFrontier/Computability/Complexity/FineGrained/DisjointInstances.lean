@@ -432,11 +432,9 @@ length at most `3 * (k + 1) + 2`. -/
 theorem length_encCappedNatAcc_le_of_le_two_pow {acc : CappedNatAcc} {k : ℕ}
     (htot : acc.total ≤ acc.cap) (hcap : acc.cap ≤ 2 ^ k) :
     (encCappedNatAcc acc).length ≤ 3 * (k + 1) + 2 := by
-  have hpow : (encNat (2 ^ k)).length = k + 1 := by
-    rw [length_encNat_two_pow]
-  have hc : (encNat acc.cap).length ≤ k + 1 := hpow ▸ length_encNat_mono hcap
+  have hc : (encNat acc.cap).length ≤ k + 1 := length_encNat_two_pow k ▸ length_encNat_mono hcap
   have ht : (encNat acc.total).length ≤ k + 1 :=
-    hpow ▸ length_encNat_mono (htot.trans hcap)
+    length_encNat_two_pow k ▸ length_encNat_mono (htot.trans hcap)
   rw [encCappedNatAcc_apply]
   enc_len [encCappedNatAccFields]
 
@@ -588,34 +586,27 @@ private theorem batch_exp_absorb_le {base itemsLen listLen perItem maxT Cp k e o
     ((base + (itemsLen + 1) * (perItem + maxT) : ℕ) : ℝ) ≤
       Cp * (1 + k * 2 ^ (δ * offset) + k) * (X * P) := by
   have hl_e : ((listLen : ℝ) + 1) * ((listLen : ℝ) + 1) ^ e ≤ Cp * P := by
-    have h0 : (0 : ℝ) ≤ (base : ℝ) + ((listLen : ℝ) + 1) * (perItem : ℝ) := by positivity
-    linarith
-  have hl_1 : ((listLen : ℝ) + 1) ≤ Cp * P := by
-    have hge1 : (1 : ℝ) ≤ ((listLen : ℝ) + 1) ^ e :=
-      one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _))
-    nlinarith
+    linarith [show (0 : ℝ) ≤ (base : ℝ) + ((listLen : ℝ) + 1) * (perItem : ℝ) by positivity]
+  have hl_1 : ((listLen : ℝ) + 1) ≤ Cp * P :=
+    (le_mul_of_one_le_right (by positivity)
+      (one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg listLen)))).trans hl_e
   have hit_len : ((itemsLen : ℝ) + 1) ≤ (listLen : ℝ) + 1 := by
     exact_mod_cast Nat.add_le_add_right hitems 1
   have hXP : P ≤ X * P := le_mul_of_one_le_left hP0 hX1
   have hbase_le : (base : ℝ) + ((itemsLen : ℝ) + 1) * (perItem : ℝ) ≤ Cp * (X * P) := by
     have h₁ : ((itemsLen : ℝ) + 1) * (perItem : ℝ) ≤
-        ((listLen : ℝ) + 1) * ((perItem : ℝ) + ((listLen : ℝ) + 1) ^ e) := by
-      have : (0 : ℝ) ≤ ((listLen : ℝ) + 1) ^ e := by positivity
-      exact mul_le_mul hit_len (by linarith) (by positivity) (by positivity)
-    have h₂ : (Cp : ℝ) * P ≤ Cp * (X * P) :=
-      mul_le_mul_of_nonneg_left hXP (Nat.cast_nonneg Cp)
-    linarith
+        ((listLen : ℝ) + 1) * ((perItem : ℝ) + ((listLen : ℝ) + 1) ^ e) :=
+      mul_le_mul hit_len (le_add_of_nonneg_right (by positivity)) (by positivity) (by positivity)
+    linarith [mul_le_mul_of_nonneg_left hXP (Nat.cast_nonneg Cp)]
   have hmax_mul : ((itemsLen : ℝ) + 1) * (maxT : ℝ) ≤
       Cp * (k * 2 ^ (δ * offset) + k) * (X * P) := by
     have h₁ := mul_le_mul hit_len hmax (by positivity) (by positivity)
     have h₂ := mul_le_mul_of_nonneg_left hl_e
       (by positivity : (0 : ℝ) ≤ k * 2 ^ (δ * offset) * X)
-    have h₃ : ((listLen : ℝ) + 1) * k ≤ Cp * k * (X * P) := by
-      have hk := mul_le_mul_of_nonneg_right hl_1 (Nat.cast_nonneg k)
-      have hk' : Cp * P * (k : ℝ) ≤ Cp * (X * P) * k :=
-        mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hXP (Nat.cast_nonneg Cp))
-          (Nat.cast_nonneg k)
-      linarith
+    have h₃ : ((listLen : ℝ) + 1) * k ≤ Cp * k * (X * P) :=
+      (mul_le_mul_of_nonneg_right
+        (hl_1.trans (mul_le_mul_of_nonneg_left hXP (Nat.cast_nonneg Cp)))
+        (Nat.cast_nonneg k)).trans_eq (mul_right_comm _ _ _)
     linarith
   push_cast
   linarith
@@ -1160,55 +1151,18 @@ theorem exists_computableInO_step (S : StackAccumulationSpec encA encK encS encB
               (encG (g (S.leafInstance (S.topNode st)))).length + 1) ^ d
         else 0) := by
   let encSt := encStackSearchState encK encS encD
-  have hstk : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.stack)
-      encSt (encList encS) :=
-    computableInPolyTime_stackSearchState_stack .id'
-  have hctx : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.ctx) encSt encK :=
-    computableInPolyTime_stackSearchState_ctx .id'
-  have hacc : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.acc) encSt encD :=
-    computableInPolyTime_stackSearchState_acc .id'
-  have hdone : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.stack.isEmpty)
-      encSt encBool :=
-    (listIsEmpty (encA := encS) (encL := encList encS)).comp hstk
-  have hhead : ComputableInPolyTime
-      (fun st : StackSearchState κ σ δ => st.stack.headD S.defaultNode) encSt encS :=
-    (headD S.defaultNode).comp hstk
-  have htail : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.stack.tail)
-      encSt (encList encS) :=
-    (tail (encA := encS) (encL := encList encS)).comp hstk
+  have := S.computableInPolyTime_isLeaf
+  have := S.computableInPolyTime_leafInstance
+  have := S.computableInPolyTime_expand
+  have := S.computableInPolyTime_combine
   have htopNode : ComputableInPolyTime S.topNode encSt (encStackNodeInput encK encS) :=
-    computableInPolyTime_stackNodeInput_mk hctx hhead
-  have hleaf : ComputableInPolyTime (fun st => S.isLeaf (S.topNode st)) encSt encBool :=
-    S.computableInPolyTime_isLeaf.comp htopNode
-  have htop : ComputableInPolyTime (fun st => S.leafInstance (S.topNode st)) encSt encB :=
-    S.computableInPolyTime_leafInstance.comp htopNode
-  have hexpList : ComputableInPolyTime
-      (fun st : StackSearchState κ σ δ => S.expand (S.topNode st) ++ st.stack.tail)
-      encSt (encList encS) :=
-    listAppend' (S.computableInPolyTime_expand.comp htopNode) htail
-  have hexpand : ComputableInPolyTime
-      (fun st : StackSearchState κ σ δ =>
-        StackSearchState.mk st.ctx (S.expand (S.topNode st) ++ st.stack.tail) st.acc)
-      encSt encSt :=
-    computableInPolyTime_stackSearchState_mk hctx hexpList hacc
-  have hpSt : ComputableInPolyTime (fun p : StackSearchState κ σ δ × γ => p.1)
-      (encPair encSt encG) encSt := fst encSt encG
-  have hpG : ComputableInPolyTime (fun p : StackSearchState κ σ δ × γ => p.2)
-      (encPair encSt encG) encG := snd encSt encG
-  have hcombIn : ComputableInPolyTime
-      (fun p : StackSearchState κ σ δ × γ => StackCombineInput.mk p.1.ctx p.1.acc p.2)
-      (encPair encSt encG) (encStackCombineInput encK encD encG) :=
-    computableInPolyTime_stackCombineInput_mk
-      (computableInPolyTime_stackSearchState_ctx hpSt)
-      (computableInPolyTime_stackSearchState_acc hpSt) hpG
-  have hrecord : ComputableInPolyTime
-      (fun p : StackSearchState κ σ δ × γ =>
-        StackSearchState.mk p.1.ctx p.1.stack.tail (S.combine ⟨p.1.ctx, p.1.acc, p.2⟩))
-      (encPair encSt encG) encSt :=
-    computableInPolyTime_stackSearchState_mk
-      (computableInPolyTime_stackSearchState_ctx hpSt)
-      (htail.comp hpSt) (S.computableInPolyTime_combine.comp hcombIn)
-  obtain ⟨d, h⟩ := exists_computableInO_searchStep hdone hleaf htop hexpand hrecord hg
+    computableInPolyTime_stackNodeInput_mk (by fun_prop) (by fun_prop)
+  obtain ⟨d, h⟩ := exists_computableInO_searchStep (encS := encSt)
+    (done := fun st => st.stack.isEmpty) (isLeaf := fun st => S.isLeaf (S.topNode st))
+    (top := fun st => S.leafInstance (S.topNode st))
+    (expand := fun st => ⟨st.ctx, S.expand (S.topNode st) ++ st.stack.tail, st.acc⟩)
+    (record := fun p => ⟨p.1.ctx, p.1.stack.tail, S.combine ⟨p.1.ctx, p.1.acc, p.2⟩⟩)
+    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) hg
   exact ⟨d, h.of_enc_eq fun _ => rfl⟩
 
 private theorem topNode_encLength_le (S : StackAccumulationSpec encA encK encS encB encG encD)
@@ -1254,34 +1208,25 @@ private theorem stack_exp_absorb {A_ov B_ov R_cnt leafMax Cp : ℝ} {K₀ K₁ M
       push_cast
       ring
     have hmul := mul_le_mul_of_nonneg_left hll
-      (show (0 : ℝ) ≤ k * ((2 : ℝ) ^ (δ * offset) * Y) from
-        mul_nonneg (Nat.cast_nonneg k) (mul_nonneg (Real.rpow_nonneg (by norm_num) _)
-          (by positivity)))
-    rw [hexp] at hleaf
-    have heq1 : (k : ℝ) * ((2 : ℝ) ^ (δ * offset) * Y * ((leafLen : ℝ) + 1) ^ e) =
-        k * ((2 : ℝ) ^ (δ * offset) * Y) * ((leafLen : ℝ) + 1) ^ e := by ring
-    have heq2 : (k : ℝ) * ((2 : ℝ) ^ (δ * offset) * Y) * (Cp * P) =
-        k * (2 : ℝ) ^ (δ * offset) * Cp * Y * P := by ring
-    linarith
+      (by positivity : (0 : ℝ) ≤ k * 2 ^ (δ * offset) * Y)
+    rw [hexp, ← mul_assoc] at hleaf
+    linarith [show (k : ℝ) * (2 : ℝ) ^ (δ * offset) * Y * (Cp * P) =
+      k * (2 : ℝ) ^ (δ * offset) * Cp * Y * P by ring]
   have hXY : (2 : ℝ) ^ ((1 / M + scale * δ) * μ) = X * Y := by
     dsimp only [X, Y]
     rw [← Real.rpow_add (by norm_num)]
     congr 1
     ring
-  have hYP1 : 1 ≤ Y * P := one_le_mul_of_one_le_of_one_le hY1 hP1
   have hround_sum : B_ov + leafMax ≤ (Cp + k * 2 ^ (δ * offset) * Cp + (k + 1)) * (Y * P) := by
-    have h₁ : Cp * P ≤ Cp * (Y * P) :=
-      mul_le_mul_of_nonneg_left (le_mul_of_one_le_left (by positivity) hY1) hCp0
-    have h₂ : ((k : ℝ) + 1) ≤ (k + 1) * (Y * P) :=
-      le_mul_of_one_le_right (by positivity) hYP1
-    linarith
+    linarith [mul_le_mul_of_nonneg_left (le_mul_of_one_le_left (by positivity : 0 ≤ P) hY1) hCp0,
+      le_mul_of_one_le_right (by positivity : (0 : ℝ) ≤ k + 1)
+        (one_le_mul_of_one_le_of_one_le hY1 hP1)]
   have hprod : R_cnt * (B_ov + leafMax) ≤
       (K₀ * 2 ^ K₁ + 1) * (Cp + k * 2 ^ (δ * offset) * Cp + (k + 1)) * (X * Y * P) := by
-    have h₁ := mul_le_mul hR hround_sum (by linarith) (by positivity)
-    linarith
-  have hA_xyp : Cp * P ≤ Cp * (X * Y * P) := by
-    have hXY1 : 1 ≤ X * Y := one_le_mul_of_one_le_of_one_le hX1 hY1
-    exact mul_le_mul_of_nonneg_left (le_mul_of_one_le_left (by positivity) hXY1) hCp0
+    linarith [mul_le_mul hR hround_sum (by linarith) (by positivity)]
+  have hA_xyp : Cp * P ≤ Cp * (X * Y * P) :=
+    mul_le_mul_of_nonneg_left
+      (le_mul_of_one_le_left (by positivity) (one_le_mul_of_one_le_of_one_le hX1 hY1)) hCp0
   rw [hXY]
   linarith
 
@@ -1685,11 +1630,9 @@ theorem iterate_step_eq_binaryBranching
       | nil => rfl
       | cons s rest =>
         by_cases hs : T.IsLeaf s
-        · have hs' : S.isLeaf ⟨c, s⟩ = true := (hleaf s).mpr hs
-          simp [step, topNode, BinaryBranching.searchStep, hs, hs']
-        · have hs' : S.isLeaf ⟨c, s⟩ = false :=
-            Bool.eq_false_iff.mpr fun h => hs ((hleaf s).mp h)
-          simp [step, topNode, BinaryBranching.searchStep, hs, hs', hexp s hs]
+        · simp [step, topNode, BinaryBranching.searchStep, hs, (hleaf s).mpr hs]
+        · simp [step, topNode, BinaryBranching.searchStep, hs,
+            Bool.eq_false_iff.mpr (mt (hleaf s).mp hs), hexp s hs]
     rw [Function.iterate_succ_apply, Function.iterate_succ_apply, hone]
     exact ih _ _
 
