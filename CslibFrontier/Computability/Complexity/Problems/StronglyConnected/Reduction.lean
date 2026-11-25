@@ -122,6 +122,26 @@ private theorem entry_eq (a b : Fin (ofSTCON I).n) : (ofSTCON I).adj a b = entry
   by_cases hbs : b = I.s <;> by_cases hat : a = I.t <;>
     simp [ofSTCON, entry, Fin.ext_iff, ha, hb, hbs, hat]
 
+/-- Two `lt` instructions at `l` and `l + 1` comparing registers `r₁` and `r₂` branch to `eq` when
+their values agree and to `neq` otherwise. -/
+private theorem reachesOut_eq_branch {l r₁ r₂ neq eq : ℕ}
+    (h₁ : writer.instr l = lt (reg r₁) (reg r₂) neq (l + 1))
+    (h₂ : writer.instr (l + 1) = lt (reg r₂) (reg r₁) neq eq)
+    {regs : List ℕ} (hb : ∀ z ∈ regs, z ≤ B) :
+    writer.ReachesOut I.encode (writer.Active B) (l, regs)
+      (if regs.getD r₁ 0 = regs.getD r₂ 0 then eq else neq, regs) [] := by
+  refine ReachesOut.lt h₁ hb ?_
+  by_cases hlt : regs.getD r₁ 0 < regs.getD r₂ 0
+  · simp only [eval_reg, hlt, ↓reduceIte, show regs.getD r₁ 0 ≠ regs.getD r₂ 0 by omega]
+    exact ReachesOut.refl _
+  · simp only [eval_reg, hlt, ↓reduceIte]
+    refine ReachesOut.lt h₂ hb ?_
+    by_cases hgt : regs.getD r₂ 0 < regs.getD r₁ 0
+    · simp only [eval_reg, hgt, ↓reduceIte, show regs.getD r₁ 0 ≠ regs.getD r₂ 0 by omega]
+      exact ReachesOut.refl _
+    · simp only [eval_reg, show regs.getD r₁ 0 = regs.getD r₂ 0 by omega, lt_irrefl, ↓reduceIte]
+      exact ReachesOut.refl _
+
 /-- Writing the entry `(u, v)` of the matrix. -/
 private theorem reachesOut_entry (hB : I.n ≤ B) {u v : ℕ} (hu : u < I.n) (hv : v < I.n) :
     writer.ReachesOut I.encode (writer.Active B)
@@ -133,51 +153,26 @@ private theorem reachesOut_entry (hB : I.n ≤ B) {u v : ℕ} (hu : u < I.n) (hv
   have hone : writer.ReachesOut I.encode (writer.Active B) (23, [I.n, I.s, I.t, u, v])
       (16, [I.n, I.s, I.t, u, v]) [true] :=
     ReachesOut.emit (show writer.instr 23 = _ from rfl) hb (ReachesOut.refl _)
-  -- the column is `s`, or the row is `t`, or the entry of the instance is read
-  refine ReachesOut.lt (show writer.instr 17 = _ from rfl) hb ?_
-  simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ]
+  have h17 := reachesOut_eq_branch I (l := 17) (r₁ := 4) (r₂ := 1) (neq := 19) (eq := 23) rfl rfl hb
+  have h19 := reachesOut_eq_branch I (l := 19) (r₁ := 3) (r₂ := 2) (neq := 21) (eq := 23) rfl rfl hb
+  simp only [List.getD_cons_zero, List.getD_cons_succ] at h17 h19
   by_cases hvs : v = I.s
-  · subst hvs
-    simp only [lt_irrefl, ↓reduceIte]
-    refine ReachesOut.lt (show writer.instr 18 = _ from rfl) hb ?_
-    simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ, lt_irrefl, ↓reduceIte]
-    simpa [entry] using hone
-  have hto19 : ∀ {out}, writer.ReachesOut I.encode (writer.Active B) (19, [I.n, I.s, I.t, u, v])
-      (16, [I.n, I.s, I.t, u, v]) out →
-      writer.ReachesOut I.encode (writer.Active B)
-        (if v < I.s then 19 else 18, [I.n, I.s, I.t, u, v]) (16, [I.n, I.s, I.t, u, v]) out := by
-    intro out h
-    split_ifs with h'
-    · exact h
-    · refine ReachesOut.lt (show writer.instr 18 = _ from rfl) hb ?_
-      simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ,
-        show (I.s : ℕ) < v by omega, ↓reduceIte]
-      exact h
-  refine hto19 (ReachesOut.lt (show writer.instr 19 = _ from rfl) hb ?_)
-  simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ]
-  by_cases hut : u = I.t
-  · subst hut
-    simp only [lt_irrefl, ↓reduceIte]
-    refine ReachesOut.lt (show writer.instr 20 = _ from rfl) hb ?_
-    simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ, lt_irrefl, ↓reduceIte]
-    simpa [entry] using hone
-  have hread : writer.ReachesOut I.encode (writer.Active B) (21, [I.n, I.s, I.t, u, v])
-      (16, [I.n, I.s, I.t, u, v]) [entry I u v] := by
-    refine ReachesOut.read (show writer.instr 21 = _ from rfl) hb ?_
-    simp only [eval_add, eval_mul, eval_reg, eval_const, List.getD_cons_zero,
-      List.getD_cons_succ, I.getElem?_encode_matrix hu hv]
-    have he : entry I u v = I.adj ⟨u, hu⟩ ⟨v, hv⟩ := by
-      simp [entry, hvs, hut, hu, hv]
-    rw [he]
-    cases I.adj ⟨u, hu⟩ ⟨v, hv⟩
-    · exact ReachesOut.emit (show writer.instr 22 = _ from rfl) hb (ReachesOut.refl _)
-    · exact hone
-  split_ifs with h'
-  · exact hread
-  · refine ReachesOut.lt (show writer.instr 20 = _ from rfl) hb ?_
-    simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ,
-      show (I.t : ℕ) < u by omega, ↓reduceIte]
-    exact hread
+  · rw [ite_eq_left hvs] at h17
+    simpa [entry, hvs] using h17.trans hone
+  · rw [ite_eq_right hvs] at h17
+    refine h17.trans ?_
+    by_cases hut : u = I.t
+    · rw [ite_eq_left hut] at h19
+      simpa [entry, hut] using h19.trans hone
+    · rw [ite_eq_right hut] at h19
+      refine h19.trans (ReachesOut.read (show writer.instr 21 = _ from rfl) hb ?_)
+      simp only [eval_add, eval_mul, eval_reg, eval_const, List.getD_cons_zero,
+        List.getD_cons_succ, I.getElem?_encode_matrix hu hv]
+      have he : entry I u v = I.adj ⟨u, hu⟩ ⟨v, hv⟩ := by simp [entry, hvs, hut, hu, hv]
+      rw [he]
+      cases I.adj ⟨u, hu⟩ ⟨v, hv⟩
+      · exact ReachesOut.emit (show writer.instr 22 = _ from rfl) hb (ReachesOut.refl _)
+      · exact hone
 
 /-- **The matrix row by row**, by the nested loops at labels `11` and `14`. -/
 private theorem reachesOut_rows (hB : I.n ≤ B) {i₀ : ℕ} (hi₀ : i₀ ≤ I.n) :
