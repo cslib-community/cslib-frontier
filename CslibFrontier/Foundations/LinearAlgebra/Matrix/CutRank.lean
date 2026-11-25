@@ -103,8 +103,10 @@ theorem blockRank_mono_right [Finite n] (S : Set m) {T T' : Set n} (h : T' ⊆ T
 
 /-- Deleting rows does not increase the rank of a block. -/
 theorem blockRank_mono_left [Finite n] {S S' : Set m} (T : Set n) (h : S' ⊆ S) :
-    M.blockRank S' T ≤ M.blockRank S T :=
-  Submodule.finrank_mono (span_mono (by rintro _ ⟨i, rfl⟩; exact ⟨⟨i, h i.2⟩, rfl⟩))
+    M.blockRank S' T ≤ M.blockRank S T := by
+  refine Submodule.finrank_mono (span_mono ?_)
+  rintro _ ⟨i, rfl⟩
+  exact ⟨⟨i, h i.2⟩, rfl⟩
 
 /-- A sub-block has at most the rank of the block. -/
 theorem blockRank_mono [Finite n] {S S' : Set m} {T T' : Set n} (hS : S' ⊆ S) (hT : T' ⊆ T) :
@@ -114,8 +116,8 @@ theorem blockRank_mono [Finite n] {S S' : Set m} {T T' : Set n} (hS : S' ⊆ S) 
 /-- The rank of a block is at most the number of its rows. -/
 theorem blockRank_le_ncard [Finite m] (S : Set m) (T : Set n) : M.blockRank S T ≤ S.ncard := by
   have := Fintype.ofFinite S
-  exact (finrank_range_le_card _).trans_eq
-    (by rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq])
+  calc M.blockRank S T ≤ Fintype.card S := finrank_range_le_card _
+    _ = S.ncard := by rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
 
 /-- Deleting the rows outside `S'` lowers the rank of a block by at most their number. -/
 theorem blockRank_le_add_ncard_sdiff [Finite m] [Finite n] {S S' : Set m} (T : Set n)
@@ -124,11 +126,14 @@ theorem blockRank_le_add_ncard_sdiff [Finite m] [Finite n] {S S' : Set m} (T : S
       range (M.submatrix ((↑) : S' → m) ((↑) : T → n)).row ∪
         range (M.submatrix ((↑) : ↥(S \ S') → m) ((↑) : T → n)).row := by
     ext v
-    refine ⟨?_, by rintro (⟨i, rfl⟩ | ⟨i, rfl⟩); exacts [⟨⟨i, h i.2⟩, rfl⟩, ⟨⟨i, i.2.1⟩, rfl⟩]⟩
-    rintro ⟨⟨i, hi⟩, rfl⟩
-    by_cases hi' : i ∈ S'
-    · exact Or.inl ⟨⟨i, hi'⟩, rfl⟩
-    · exact Or.inr ⟨⟨i, hi, hi'⟩, rfl⟩
+    constructor
+    · rintro ⟨⟨i, hi⟩, rfl⟩
+      by_cases hi' : i ∈ S'
+      · exact Or.inl ⟨⟨i, hi'⟩, rfl⟩
+      · exact Or.inr ⟨⟨i, hi, hi'⟩, rfl⟩
+    · rintro (⟨i, rfl⟩ | ⟨i, rfl⟩)
+      · exact ⟨⟨i, h i.2⟩, rfl⟩
+      · exact ⟨⟨i, i.2.1⟩, rfl⟩
   have h₁ := Submodule.finrank_add_le_finrank_add_finrank
     (span K (range (M.submatrix ((↑) : S' → m) ((↑) : T → n)).row))
     (span K (range (M.submatrix ((↑) : ↥(S \ S') → m) ((↑) : T → n)).row))
@@ -140,9 +145,9 @@ theorem blockRank_le_add_ncard_sdiff [Finite m] [Finite n] {S S' : Set m} (T : S
 /-- Blocks that agree entrywise have the same rank. -/
 theorem blockRank_congr {M M' : Matrix m n K} {S : Set m} {T : Set n}
     (h : ∀ i ∈ S, ∀ j ∈ T, M i j = M' i j) : M.blockRank S T = M'.blockRank S T := by
-  rw [blockRank, blockRank,
-    show M.submatrix ((↑) : S → m) ((↑) : T → n) = M'.submatrix (↑) (↑) from
-      Matrix.ext fun i j => h i i.2 j j.2]
+  have : M.submatrix ((↑) : S → m) ((↑) : T → n) = M'.submatrix (↑) (↑) :=
+    Matrix.ext fun i j => h i i.2 j j.2
+  rw [blockRank, blockRank, this]
 
 /-- Row rank equals column rank: transposing a matrix transposes its blocks. -/
 theorem blockRank_transpose [Finite m] [Finite n] (S : Set m) (T : Set n) :
@@ -179,6 +184,7 @@ theorem add_blockRank_le_of_disjoint [Finite n] {S S₁ S₂ : Set m} {T T₁ T�
     M.blockRank S₁ T + M.blockRank S₂ T ≤ M.blockRank S T := by
   set V₁ := span K (range (M.submatrix ((↑) : S₁ → m) ((↑) : T → n)).row)
   set V₂ := span K (range (M.submatrix ((↑) : S₂ → m) ((↑) : T → n)).row)
+  -- The rows of a block vanishing off `B` span vectors vanishing off `B`.
   have hsupp (A : Set m) (B : Set n) (hM : ∀ i ∈ A, ∀ j ∈ T, j ∉ B → M i j = 0)
       (v : T → K) (hv : v ∈ span K (range (M.submatrix ((↑) : A → m) ((↑) : T → n)).row))
       (j : T) (hj : (j : n) ∉ B) : v j = 0 := by
@@ -197,9 +203,11 @@ theorem add_blockRank_le_of_disjoint [Finite n] {S S₁ S₂ : Set m} {T T₁ T�
   have hsum := Submodule.finrank_sup_add_finrank_inf_eq V₁ V₂
   rw [hinf, finrank_bot, add_zero] at hsum
   rw [blockRank, blockRank, ← hsum]
-  exact Submodule.finrank_mono (sup_le
-    (span_mono (by rintro _ ⟨i, rfl⟩; exact ⟨⟨i, h₁ i.2⟩, rfl⟩))
-    (span_mono (by rintro _ ⟨i, rfl⟩; exact ⟨⟨i, h₂ i.2⟩, rfl⟩)))
+  refine Submodule.finrank_mono (sup_le (span_mono ?_) (span_mono ?_))
+  · rintro _ ⟨i, rfl⟩
+    exact ⟨⟨i, h₁ i.2⟩, rfl⟩
+  · rintro _ ⟨i, rfl⟩
+    exact ⟨⟨i, h₂ i.2⟩, rfl⟩
 
 end BlockRank
 
@@ -255,8 +263,10 @@ theorem dotProduct_mulVec_self_eq_add {R : Type*} [CommRing R] [Fintype ι] (Q :
         Xᶜ.domRestrict v ⬝ᵥ Q.submatrix ((↑) : ↥Xᶜ → ι) ((↑) : ↥Xᶜ → ι) *ᵥ Xᶜ.domRestrict v +
           X.domRestrict v ⬝ᵥ (Q + Qᵀ).submatrix ((↑) : X → ι) ((↑) : ↥Xᶜ → ι) *ᵥ
             Xᶜ.domRestrict v := by
+  -- Split every sum over `ι` into the indices in `X` and those outside.
   have hsplit (f : ι → R) : ∑ i, f i = ∑ i : X, f i + ∑ i : ↥Xᶜ, f i :=
     (Fintype.sum_subtype_add_sum_subtype (· ∈ X) f).symm
+  -- The transposed half of the polar block is the sum from outside `X` into `X`.
   have hswap : ∑ i : X, ∑ j : ↥Xᶜ, v i * Q j i * v j =
       ∑ j : ↥Xᶜ, ∑ i : X, v j * Q j i * v i :=
     Finset.sum_comm.trans <| Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring

@@ -63,7 +63,9 @@ private lemma polynomialMap_single (M : ℕ) (b : Fin M) :
 
 /-- The inverse of `taylorCoordinates M a` is `taylorCoordinates M (-a)`. -/
 lemma taylorCoordinates_symm (M : ℕ) (a : K) :
-    (taylorCoordinates M a).symm = taylorCoordinates M (-a) := by ext x i; rfl
+    (taylorCoordinates M a).symm = taylorCoordinates M (-a) := by
+  ext x i
+  rfl
 
 /-- `(reverseCoordinates M).symm` reverses the index `j` to `j.rev`. -/
 lemma reverseCoordinates_symm_apply (M : ℕ) (x : Fin M → K) :
@@ -217,10 +219,14 @@ satisfies `(q - 1) * M < q * N`. -/
 lemma numeric_gap (w B M N q : ℕ) (hq : 1 ≤ q) (hqB : q ≤ B)
     (hMN : M = N + 2 * w ^ 3 * B) (hM : B * (2 * w ^ 3 * B) < M) : (q - 1) * M < q * N := by
   have hh : q * (2 * w ^ 3 * B) < M := (Nat.mul_le_mul_right _ hqB).trans_lt hM
-  have heq : q * N + q * (2 * w ^ 3 * B) = (q - 1) * M + M := by
-    calc q * N + q * (2 * w ^ 3 * B) = q * M := by rw [hMN]; ring
+  have heq : q * M = (q - 1) * M + M :=
+    calc
       _ = (q - 1 + 1) * M := by rw [Nat.sub_add_cancel hq]
-      _ = (q - 1) * M + M := by ring
+      _ = _ := by ring
+  have heq' : q * N + q * (2 * w ^ 3 * B) = (q - 1) * M + M :=
+    calc
+      _ = q * M := by rw [hMN]; ring
+      _ = _ := heq
   omega
 
 end

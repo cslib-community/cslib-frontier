@@ -130,9 +130,10 @@ private theorem pathSum_card_eq (w : ℕ → α → R) (T : Finset α) :
           mul_zero],
       add_zero, filter_mem_eq_inter, univ_inter]
     refine sum_congr rfl fun y hy => ?_
-    rw [sum_eq_single_of_mem (T.erase y) (by simp) fun x hx hne => by
-      rw [ite_eq_right fun h => hne (by rw [← h, erase_insert (mem_filter.mp hx).2]), mul_zero],
-      ite_eq_left (insert_erase hy)]
+    rw [sum_eq_single_of_mem (T.erase y) (by simp)]
+    · rw [ite_eq_left (insert_erase hy)]
+    · intro x hx hne
+      rw [ite_eq_right fun h => hne (by rw [← h, erase_insert (mem_filter.mp hx).2]), mul_zero]
   rw [hsum]
   rcases T.eq_empty_or_nonempty with rfl | hT
   · simp [pathSum_zero]
@@ -259,7 +260,9 @@ theorem grenetMatrix_apply_eq {n : ℕ} (A : Matrix (Fin n) (Fin n) R) (a b : Fi
         ite_eq_right fun hj'T : insert j' S = T =>
           hne ((mem_insert.mp (hjT ▸ hj'T ▸ mem_insert_self j' S)).resolve_right (mem_compl.1 hj')),
       ite_eq_left hjT, weight]
-    split_ifs <;> [exact Or.inl ⟨_, _, rfl⟩; exact Or.inr (Or.inl rfl)]
+    split_ifs with hk
+    · exact Or.inl ⟨_, _, rfl⟩
+    · exact Or.inr (Or.inl rfl)
   · exact Or.inr (Or.inl
       (sum_eq_zero fun j hj' => ite_eq_right fun h => hj ⟨j, mem_compl.1 hj', h⟩))
 

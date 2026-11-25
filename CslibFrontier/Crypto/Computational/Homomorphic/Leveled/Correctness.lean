@@ -120,12 +120,12 @@ theorem encryptedWires_evaluateCircuit_drop (hE : E.Correct)
     (by omega) hchain (List.ofFn x) inputs hinputs
     (by simpa only [List.length_ofFn] using (Layered.wellFormed_compile c).padTo (2 * step))
     row hrow
-  rw [show Layered.eval (List.ofFn x)
+  have heval : Layered.eval (List.ofFn x)
       (Layered.padTo inputCount (2 * step) (Layered.compile inputCount c.code).1) =
-      Layered.eval (List.ofFn x) (Layered.compile inputCount c.code).1 by
-        simpa only [List.length_ofFn] using
-          Layered.eval_padTo (List.ofFn x) (2 * step) (Layered.compile inputCount c.code).1,
-    hlength, ← Nat.mul_add] at h
+        Layered.eval (List.ofFn x) (Layered.compile inputCount c.code).1 := by
+    simpa only [List.length_ofFn] using
+      Layered.eval_padTo (List.ofFn x) (2 * step) (Layered.compile inputCount c.code).1
+  rw [heval, hlength, ← Nat.mul_add] at h
   simpa only [Layered.readPositions_eval_compile] using
     h.select (outputs := (Layered.compile inputCount c.code).2)
       (by simpa only [Layered.length_eval, List.length_ofFn] using Layered.outputs_valid_compile c)
@@ -196,9 +196,10 @@ theorem evaluateHop_spec (hE : E.Correct) (hwidth : E.FixedWidth secretWidth cip
   have hout := (encryptedWires_evaluateCircuit_drop D hE hwidth hD n total offset step chain links
     c.2 hstep htotal hchain (BitString.ofList c.1 bits) (inputs.map List.tail)
     (by simpa only [BitString.ofFn_ofList hbits] using hinputs) row hrow).getD (i := 0) (by simp)
-  exact ⟨by simpa only [List.length_cons, List.headD_eq_getD, Nat.add_right_cancel_iff]
-      using hout.1, rfl,
-    by rw [List.tail_cons, List.headD_eq_getD]; simpa using hout.2⟩
+  refine ⟨by simpa only [List.length_cons, List.headD_eq_getD, Nat.add_right_cancel_iff]
+    using hout.1, rfl, ?_⟩
+  rw [List.tail_cons, List.headD_eq_getD]
+  simpa using hout.2
 
 /-- Pointwise hop evaluations at offset `offset` with step budget `step` advance `EncryptedWires`
 on the stripped ciphertext payloads to `2 * (offset + step)`. -/

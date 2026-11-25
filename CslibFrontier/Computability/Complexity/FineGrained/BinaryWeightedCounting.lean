@@ -179,13 +179,14 @@ theorem certificate_bound :
           (ContractionPartitionFunction.computableInPolyTime_fallback encRel)).time F) ≤ _
     split
     · next hg =>
-      refine (Nat.add_le_add ((hguard F).1.trans hpX) (hcore F hg).1).trans ?_
-      dsimp only [Q, n, X]
-      rw [← Nat.add_mul]
-      exact Nat.mul_le_mul_right _ (by omega)
-    · refine (Nat.add_le_add ((hguard F).1.trans hpX) ((hfallback F).1.trans hqX)).trans ?_
-      rw [← Nat.add_mul]
-      exact Nat.mul_le_mul_right _ (by dsimp only [Q]; omega)
+      calc _ ≤ p n * X + (H * (n + 1) ^ H) * X :=
+          Nat.add_le_add ((hguard F).1.trans hpX) (hcore F hg).1
+        _ = (p n + H * (n + 1) ^ H) * X := by ring
+        _ ≤ Q n * X := Nat.mul_le_mul_right _ (by dsimp only [Q]; omega)
+    · calc _ ≤ p n * X + q n * X :=
+          Nat.add_le_add ((hguard F).1.trans hpX) ((hfallback F).1.trans hqX)
+        _ = (p n + q n) * X := by ring
+        _ ≤ Q n * X := Nat.mul_le_mul_right _ (by dsimp only [Q]; omega)
   have hspace : (certificate encRel k D d wt hwt).space F ≤ Q n := by
     change (NativeCertificate.ofPolyTime (guard_polyTime encRel k D d wt hwt)).space F +
       (if guard k D d wt F then (coreCertificate encRel k wt hwt).space F else
@@ -193,8 +194,10 @@ theorem certificate_bound :
           (ContractionPartitionFunction.computableInPolyTime_fallback encRel)).space F) ≤ _
     split
     · next hg =>
-      exact (Nat.add_le_add (hguard F).2 (hcore F hg).2).trans (by dsimp only [Q, n]; omega)
-    · exact (Nat.add_le_add (hguard F).2 (hfallback F).2).trans (by dsimp only [Q, n]; omega)
+      calc _ ≤ p n + H * (n + 1) ^ H := Nat.add_le_add (hguard F).2 (hcore F hg).2
+        _ ≤ Q n := by dsimp only [Q]; omega
+    · calc _ ≤ p n + q n := Nat.add_le_add (hguard F).2 (hfallback F).2
+        _ ≤ Q n := by dsimp only [Q]; omega
   exact ⟨htime.trans (Nat.mul_le_mul_right _ (hCe n)), hspace.trans (hCe n)⟩
 
 /-- Exact natural weighted counting with a fixed polynomial table-bit budget. The relation
@@ -213,7 +216,10 @@ theorem exists_partitionFunctionCounter :
   refine ⟨count k D d wt, A, e, e, fun F hk hB => count_eq hk hB,
     (certificate encRel k D d wt hwt).computes.mono C (fun F => ?_)
       fun F => (h F).2.trans (Nat.mul_le_mul_left _ (Nat.le_succ _))⟩
-  exact ((h F).1.trans_eq (by ring)).trans (Nat.mul_le_mul_left _ (Nat.le_succ _))
+  calc _ ≤ C * (2 ^ (A * (F.vars.length + 1) / Nat.sqrt (Nat.log 2 (F.vars.length + 2))) *
+      ((encCSP encRel encNat F).length + 1) ^ e) := by
+        simpa only [mul_assoc, mul_comm, mul_left_comm] using (h F).1
+    _ ≤ _ := Nat.mul_le_mul_left _ (Nat.le_succ _)
 
 /-- Bounded variable occurrence converts the occurrence numerator to a variable numerator.
 The machine and polynomial exponents are selected before the occurrence bound. -/
@@ -234,9 +240,12 @@ theorem exists_partitionFunctionCounter_boundedDegree :
     fun Δ => ⟨A * (Δ + 1), fun F hF => ?_⟩⟩
   have hn : F.numVars ≤ F.vars.length := List.toFinset_card_le _
   have h := CSP.length_vars_le_mul_numVars hF
-  exact Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide)
-    (Nat.div_le_div (by nlinarith) (Nat.sqrt_le_sqrt (Nat.log_mono_right (by omega)))
+  refine Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide)
+    (Nat.div_le_div ?_ (Nat.sqrt_le_sqrt (Nat.log_mono_right (by omega)))
       (Nat.sqrt_eq_zero.not.mpr (Nat.log_pos (by decide) (by omega)).ne')))
+  calc A * (F.vars.length + 1) ≤ A * ((Δ + 1) * (F.numVars + 1)) :=
+      Nat.mul_le_mul_left _ (by nlinarith)
+    _ = A * (Δ + 1) * (F.numVars + 1) := by ring
 
 /-- Polynomially many bits per local weight suffice: the total network bit budget follows with
 the explicit coefficient `3 * 2 ^ (max k 4) + 1` and exponent `d + 1`. The natural weight

@@ -140,7 +140,9 @@ private theorem interpret_oracleSteps {m : Type → Type*} [Monad m] [LawfulMona
         (oracleSteps H tw n x A) = pure (runSteps H tw f n x A) := by
   induction n with
   | zero => simp only [oracleSteps, OracleComp.interpret_pure, runSteps]
-  | succ n ih => simp only [oracleSteps, interp_norm, ih, pure_bind]; rfl
+  | succ n ih =>
+    simp only [oracleSteps, interp_norm, ih, pure_bind]
+    rfl
 
 /-- The reduction's evaluation makes one oracle query per doubling step. -/
 private theorem isQueryBounded_oracleSteps (H : L → T → L)
@@ -201,9 +203,10 @@ private theorem runSteps_oracle [Module (ZMod 2) L] (H : L → T → L)
     exact Prod.ext (funext fun i => i.elim0)
       (by simpa only [evaluate, runSteps] using evaluate_garble H tw Δ 0 X x)
   | succ n ih =>
+    have hA : (Fin.init fun t => X t + bitOffset Δ (x t)) =
+        fun t => Fin.init X t + bitOffset Δ (Fin.init x t) := rfl
     simp only [runSteps]
-    rw [show (Fin.init fun t => X t + bitOffset Δ (x t)) =
-      fun t => Fin.init X t + bitOffset Δ (Fin.init x t) from rfl, ih (Fin.init x) (Fin.init X)]
+    rw [hA, ih (Fin.init x) (Fin.init X)]
     set G := (garble H tw Δ n (Fin.init X)).1
     have hrest : ∑ j ∈ Finset.univ.erase (Fin.init x),
         H (G j + bitOffset Δ (oneHot (Fin.init x) j)) (tw n j) =
@@ -222,7 +225,10 @@ private theorem runSteps_oracle [Module (ZMod 2) L] (H : L → T → L)
       exact sub_eq_zero.mp ((by abel : _ = bitOffset Δ (x (Fin.last (n + 1))) +
         bitOffset Δ (x (Fin.last (n + 1)))).trans (ZModModule.add_self _))
     rw [hct]
-    exact Prod.ext rfl (by simp only; rw [evalStep_garbleStep, Fin.snoc_init_self]; rfl)
+    refine Prod.ext rfl ?_
+    simp only
+    rw [evalStep_garbleStep, Fin.snoc_init_self]
+    rfl
 
 variable [Fintype L]
 
@@ -324,13 +330,22 @@ private theorem eval_run_oracleSteps_bind_fst {β : Type} (H : L → T → L)
     simp only [oracleSteps, ProbOracleComp.run_bind, ProbOracleComp.run_query,
       ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
       PMF.bind_bind, PMF.pure_bind]
-    refine (congrArg _ (funext fun prev => ?_)).trans
-      ((ih (Fin.init x) (Fin.init A) fun ct =>
-        (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c)).trans ?_)
-    · relabel_uniform (Equiv.addLeft (A (Fin.last (n + 1)) +
-        ∑ j ∈ Finset.univ.erase (Fin.init x), H (prev.2 j) (tw n j))) with r
-      congr 2; simp only [Equiv.coe_addLeft]; abel
-    · relabel_uniform ((Equiv.prodComm (Fin n → L) L).trans (Fin.snocEquiv fun _ => L))
+    calc _
+        = (ProbComp.eval ((oracleSteps H tw n (Fin.init x) (Fin.init A)).run
+            fun _ => ProbComp.uniform L)).bind fun prev =>
+              (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc prev.1 c) := by
+          refine congrArg _ (funext fun prev => ?_)
+          relabel_uniform (Equiv.addLeft (A (Fin.last (n + 1)) +
+            ∑ j ∈ Finset.univ.erase (Fin.init x), H (prev.2 j) (tw n j))) with r
+          congr 2
+          simp only [Equiv.coe_addLeft]
+          abel
+      _ = (PMF.uniformOfFintype (Fin n → L)).bind fun ct =>
+            (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c) :=
+          ih (Fin.init x) (Fin.init A) fun ct =>
+            (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c)
+      _ = (PMF.uniformOfFintype (Fin (n + 1) → L)).bind g := by
+          relabel_uniform ((Equiv.prodComm (Fin n → L) L).trans (Fin.snocEquiv fun _ => L))
 
 variable [DecidableEq L] [Fintype T] [DecidableEq T]
 

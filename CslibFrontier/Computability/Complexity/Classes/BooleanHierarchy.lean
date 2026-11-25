@@ -66,30 +66,43 @@ theorem differenceHierarchy_zero (C : Set (Set α)) : differenceHierarchy C 0 = 
 /-- At level one, taking a difference with the empty set recovers the base class. -/
 @[simp]
 theorem differenceHierarchy_one (C : Set (Set α)) : differenceHierarchy C 1 = C := by
-  ext; simp [differenceHierarchy]
+  ext A
+  simp [differenceHierarchy]
 
 /-- Every level lies in a difference-closed class containing the base class and the empty set. -/
 theorem differenceHierarchy_subset {C D : Set (Set α)} (hC : C ⊆ D) (h0 : ∅ ∈ D)
     (hD : ∀ A ∈ D, ∀ B ∈ D, A \ B ∈ D) (n : ℕ) :
     differenceHierarchy C n ⊆ D := by
   induction n with
-  | zero => rintro A (rfl : A = ∅); exact h0
-  | succ n ih => rintro A ⟨B, hB, E, hE, rfl⟩; exact hD B (hC hB) E (ih hE)
+  | zero =>
+    rintro A (rfl : A = ∅)
+    exact h0
+  | succ n ih =>
+    rintro A ⟨B, hB, E, hE, rfl⟩
+    exact hD B (hC hB) E (ih hE)
 
 /-- Inverse images preserve every level whenever they preserve the base classes. -/
 theorem preimage_mem_differenceHierarchy {C : Set (Set α)} {D : Set (Set β)}
     {f : α → β} (hf : ∀ B ∈ D, f ⁻¹' B ∈ C) {n : ℕ} {A : Set β}
     (hA : A ∈ differenceHierarchy D n) : f ⁻¹' A ∈ differenceHierarchy C n := by
   induction n generalizing A with
-  | zero => rw [Set.mem_singleton_iff.mp hA]; exact Set.preimage_empty
-  | succ n ih => obtain ⟨B, hB, E, hE, rfl⟩ := hA; exact ⟨f ⁻¹' B, hf B hB, f ⁻¹' E, ih hE, rfl⟩
+  | zero =>
+    rw [Set.mem_singleton_iff.mp hA]
+    exact Set.preimage_empty
+  | succ n ih =>
+    obtain ⟨B, hB, E, hE, rfl⟩ := hA
+    exact ⟨f ⁻¹' B, hf B hB, f ⁻¹' E, ih hE, rfl⟩
 
 /-- Empty membership makes the levels increasing. -/
 theorem differenceHierarchy_subset_succ {C : Set (Set α)} (hC : ∅ ∈ C) (n : ℕ) :
     differenceHierarchy C n ⊆ differenceHierarchy C (n + 1) := by
   induction n with
-  | zero => rintro A (rfl : A = ∅); exact ⟨∅, hC, ∅, rfl, by simp⟩
-  | succ n ih => rintro A ⟨B, hB, D, hD, rfl⟩; exact ⟨B, hB, D, ih hD, rfl⟩
+  | zero =>
+    rintro A (rfl : A = ∅)
+    exact ⟨∅, hC, ∅, rfl, by simp⟩
+  | succ n ih =>
+    rintro A ⟨B, hB, D, hD, rfl⟩
+    exact ⟨B, hB, D, ih hD, rfl⟩
 
 /-- If the universe belongs to the base class, complementation costs one level. -/
 theorem compl_mem_differenceHierarchy_succ {C : Set (Set α)} (hC : Set.univ ∈ C)
@@ -104,10 +117,14 @@ theorem inter_mem_differenceHierarchy_right {C : Set (Set α)}
     (hA : A ∈ differenceHierarchy C n) (hB : B ∈ C) :
     A ∩ B ∈ differenceHierarchy C n := by
   cases n with
-  | zero => rw [Set.mem_singleton_iff.mp hA]; simp [differenceHierarchy]
+  | zero =>
+    rw [Set.mem_singleton_iff.mp hA]
+    simp [differenceHierarchy]
   | succ n =>
     obtain ⟨E, hE, D, hD, rfl⟩ := hA
-    exact ⟨E ∩ B, hC E hE B hB, D, hD, by ext; simp [and_right_comm]⟩
+    refine ⟨E ∩ B, hC E hE B hB, D, hD, ?_⟩
+    ext a
+    simp [and_right_comm]
 
 private theorem diff_and_union_mem_differenceHierarchy_right {C : Set (Set α)} (h0 : ∅ ∈ C)
     (hU : ∀ B₁ ∈ C, ∀ B₂ ∈ C, B₁ ∪ B₂ ∈ C) :
@@ -118,12 +135,13 @@ private theorem diff_and_union_mem_differenceHierarchy_right {C : Set (Set α)} 
     exact ⟨⟨∅, h0, ∅, rfl, by simp⟩, ⟨B, hB, ∅, rfl, by simp⟩⟩
   | n + 1, _, B, ⟨E, hE, D, hD, rfl⟩, hB => by
     obtain ⟨hdiff, hunion⟩ := diff_and_union_mem_differenceHierarchy_right h0 hU hD hB
-    exact ⟨⟨E, hE, D ∪ B, hunion, by
-        ext; simp only [Set.mem_sdiff, Set.mem_union]
-        tauto⟩,
-      ⟨E ∪ B, hU E hE B hB, D \ B, hdiff, by
-        ext; simp only [Set.mem_sdiff, Set.mem_union]
-        tauto⟩⟩
+    refine ⟨⟨E, hE, D ∪ B, hunion, ?_⟩, ⟨E ∪ B, hU E hE B hB, D \ B, hdiff, ?_⟩⟩
+    · ext a
+      simp only [Set.mem_sdiff, Set.mem_union]
+      tauto
+    · ext a
+      simp only [Set.mem_sdiff, Set.mem_union]
+      tauto
 
 /-- Subtracting a member of the base class costs at most one level when the base class contains `∅`
 and is closed under union. -/
@@ -148,8 +166,8 @@ theorem differenceHierarchy_succ_subset_of_compl {C : Set (Set α)}
     (hcompl : ∀ D ∈ differenceHierarchy C k, Dᶜ ∈ differenceHierarchy C k) :
     differenceHierarchy C (k + 1) ⊆ differenceHierarchy C k := by
   rintro A ⟨B, hB, D, hD, rfl⟩
-  simpa only [show B \ D = Dᶜ ∩ B by ext; simp [and_comm]] using
-    inter_mem_differenceHierarchy_right hI (hcompl D hD) hB
+  rw [Set.sdiff_eq, Set.inter_comm]
+  exact inter_mem_differenceHierarchy_right hI (hcompl D hD) hB
 
 /-- Once a successor level is contained in the previous level, all higher levels coincide with
 that level. -/
@@ -160,7 +178,8 @@ theorem differenceHierarchy_eq_of_succ_subset {C : Set (Set α)} (h0 : ∅ ∈ C
   | base => rfl
   | succ m _ ih =>
     refine Set.Subset.antisymm ?_ (ih ▸ differenceHierarchy_subset_succ h0 m)
-    rintro A ⟨B, hB, D, hD, rfl⟩; exact h ⟨B, hB, D, ih ▸ hD, rfl⟩
+    rintro A ⟨B, hB, D, hD, rfl⟩
+    exact h ⟨B, hB, D, ih ▸ hD, rfl⟩
 
 variable {α β : Type} {enc : α ↪ List Bool} {A : Set α}
 
@@ -339,8 +358,10 @@ theorem BH_eq_of_coBH_subset {k m : ℕ} (h : coBH enc k ⊆ BH enc k) (hm : k �
 `coBH enc k ⊆ BH enc k`, then `coBH enc m = BH enc k` for every `m ≥ k`. -/
 theorem coBH_eq_BH_of_coBH_subset {k m : ℕ} (h : coBH enc k ⊆ BH enc k) (hm : k ≤ m) :
     coBH enc m = BH enc k := by
-  rw [show coBH enc m = coBH enc k by ext; simp only [mem_coBH, BH_eq_of_coBH_subset h hm],
-    ← BH_eq_coBH_iff_BH_succ_eq.mpr (BH_succ_eq_iff_coBH_subset.mpr h)]
+  have hm_eq : coBH enc m = coBH enc k := by
+    ext A
+    simp only [mem_coBH, BH_eq_of_coBH_subset h hm]
+  rw [hm_eq, ← BH_eq_coBH_iff_BH_succ_eq.mpr (BH_succ_eq_iff_coBH_subset.mpr h)]
 
 /-- **Full Boolean-hierarchy collapse** [Cai et al., Section 2][CaiEtAl1988]; [Kadin][Kadin1988]:
 if `coBH enc k ⊆ BH enc k`, then the entire Boolean hierarchy collapses to `BH enc k`. -/
@@ -355,6 +376,8 @@ theorem BooleanHierarchy_eq_BH_of_coBH_subset {k : ℕ} (h : coBH enc k ⊆ BH e
 theorem BooleanHierarchy_eq_NP_of_NP_eq_coNP (h : NP enc = coNP enc) :
     BooleanHierarchy enc = NP enc := by
   rw [← BH_one]
-  exact BooleanHierarchy_eq_BH_of_coBH_subset (by rw [coBH_one, BH_one]; exact h.symm.subset)
+  refine BooleanHierarchy_eq_BH_of_coBH_subset ?_
+  rw [coBH_one, BH_one]
+  exact h.symm.subset
 
 end Cslib.Complexity

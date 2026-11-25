@@ -254,8 +254,9 @@ private theorem collapseRun_spec [Fintype T] [DecidableEq T] (C : SymAnd T)
     obtain ⟨hp, hpB, hq⟩ := hLs L List.mem_cons_self
     have hB : 1 ≤ B := hp.one_lt.le.trans hpB
     have hk : C.size < L.p ^ (B + 1) :=
-      hs.trans_lt ((Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_self B)).trans_le
-        (Nat.pow_le_pow_left hp.two_le _))
+      calc C.size ≤ 2 ^ B := hs
+        _ < 2 ^ (B + 1) := Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_self B)
+        _ ≤ L.p ^ (B + 1) := Nat.pow_le_pow_left hp.two_le _
     have he := tower_fanIn_le hf hpB
     have hB₁ : B ≤ 5 * B ^ 5 := by
       have := Nat.le_self_pow (by decide : 5 ≠ 0) B
@@ -268,9 +269,13 @@ private theorem collapseRun_spec [Fintype T] [DecidableEq T] (C : SymAnd T)
       ((fanIn_collapseStep_le C L (B + 1) B).trans (he.trans (by gcongr <;> omega)))
       ((size_collapseStep_le C L hp.pos (B + 1) B).trans
         (tower_size_le (hpB.trans Nat.lt_two_pow_self.le) hT (tower_log_size_le hB he)))
+    have hbase : 2 * (5 * B ^ 5) ≤ (2 * B) ^ 5 :=
+      calc 2 * (5 * B ^ 5) = 10 * B ^ 5 := by ring
+        _ ≤ 32 * B ^ 5 := Nat.mul_le_mul_right _ (by norm_num)
+        _ = (2 * B) ^ 5 := by ring
     have hexp : (2 * (5 * B ^ 5)) ^ 5 ^ Ls.length ≤ (2 * B) ^ 5 ^ (L :: Ls).length := by
       conv_rhs => rw [List.length_cons, pow_succ', pow_mul]
-      exact Nat.pow_le_pow_left (by ring_nf; omega) _
+      exact Nat.pow_le_pow_left hbase _
     exact ⟨fun v => by rw [collapseRun, hC', ModPolyLayer.run_cons, eval_collapseStep C L hp hq hk],
       hf'.trans hexp, hs'.trans (Nat.pow_le_pow_right (by norm_num) hexp)⟩
 

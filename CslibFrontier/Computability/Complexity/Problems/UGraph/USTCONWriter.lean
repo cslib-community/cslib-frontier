@@ -96,13 +96,15 @@ private theorem reachesOut_entry {r c : ℕ} (hb : ∀ z ∈ [G.n, r, c], z ≤ 
   refine ReachesOut.lt rfl hb ?_
   rw [eval_const]
   by_cases hw : 0 < within.eval [G.n, r, c]
-  · rw [ite_eq_left hw, entryOf, ite_eq_left hw]
+  · -- an entry that copies an input bit
+    rw [ite_eq_left hw, entryOf, ite_eq_left hw]
     refine ReachesOut.read rfl hb ?_
     rcases G.encode[position.eval [G.n, r, c]]? with _ | _ | _
     · exact hemit false 20 rfl
     · exact hemit false 20 rfl
     · exact hemit true 19 rfl
-  · rw [ite_eq_right hw, entryOf, ite_eq_right hw]
+  · -- an arithmetic entry
+    rw [ite_eq_right hw, entryOf, ite_eq_right hw]
     refine ReachesOut.lt rfl hb ?_
     rw [eval_const]
     by_cases he : 0 < endpoint.eval [G.n, r, c]
@@ -126,13 +128,17 @@ private theorem reachesOut_rows {N : ℕ} (hN : ∀ r c, numV.eval [G.n, r, c] =
   obtain ⟨regs, hreach, x, rfl, -, hx⟩ := reachesOut_forCode (w := G.encode)
     (N := N) (o := fun r => (List.range N).map (entryOf within position endpoint G r))
     hcode₁ (fun r regs => ∃ x, regs = [G.n, r, x] ∧ r ≤ N ∧ x ≤ N) hB
-    (by rintro r _ ⟨x, rfl, hr, hx⟩; exact ⟨rfl, hN r x, by simp, hreg hr hx⟩)
+    (by
+      rintro r _ ⟨x, rfl, hr, hx⟩
+      exact ⟨rfl, hN r x, by simp, hreg hr hx⟩)
     (by
       rintro r hr _ ⟨x, rfl, -, hx⟩
       obtain ⟨_, hreach, rfl, -⟩ := reachesOut_forCode (w := G.encode)
         (N := N) (o := fun c => [entryOf within position endpoint G r c]) hcode₂
         (fun c regs => regs = [G.n, r, c] ∧ c ≤ N) hB
-        (by rintro c _ ⟨rfl, hc⟩; exact ⟨rfl, hN r c, by simp, hreg hr.le hc⟩)
+        (by
+          rintro c _ ⟨rfl, hc⟩
+          exact ⟨rfl, hN r c, by simp, hreg hr.le hc⟩)
         (by
           rintro c hc _ ⟨rfl, -⟩
           exact ⟨_, reachesOut_entry G (hreg hr.le hc.le), rfl, hreg hr.le hc.le,
@@ -164,19 +170,29 @@ theorem computableInLogSpace_of_entryExprs {F : UGraphInstance → USTCONInstanc
   set B := (G.encode.length + 1) ^ (k + 1)
   have hlen := G.length_encode
   have hB : (F G).n ≤ B := (hbound G).trans (Nat.pow_le_pow_right (by omega) (by omega))
-  have hn : G.n ≤ B := (show G.n ≤ G.encode.length + 1 by omega).trans
-    (by rw [← pow_one (G.encode.length + 1)]; exact Nat.pow_le_pow_right (by omega) (by omega))
+  have hn : G.n ≤ B :=
+    calc G.n ≤ G.encode.length + 1 := by omega
+      _ = (G.encode.length + 1) ^ 1 := (pow_one _).symm
+      _ ≤ B := Nat.pow_le_pow_right (by omega) (by omega)
   have hreg {u : ℕ} (hu : u ≤ (F G).n) := bounded3 hn (hu.trans hB) (Nat.zero_le _)
+  -- the header of the input
   have hcount := reachesOut_count (P := ustconWriter numV within position endpoint)
     (w := G.encode) (c := 0) (n := G.n) (fun j => [j, 0, 0]) (u := 0) rfl rfl (fun _ _ => by simp)
     (fun j hj => bounded3 (hj.trans hn) (Nat.zero_le _) (Nat.zero_le _))
-    (fun j hj => by rw [eval_reg, List.getD_cons_zero, G.getElem?_encode_n hj.le]; simp [hj])
-    (by rw [eval_reg, List.getD_cons_zero, G.getElem?_encode_n le_rfl]; simp) 0 (Nat.zero_le _)
+    (fun j hj => by
+      rw [eval_reg, List.getD_cons_zero, G.getElem?_encode_n hj.le]
+      simp [hj])
+    (by
+      rw [eval_reg, List.getD_cons_zero, G.getElem?_encode_n le_rfl]
+      simp) 0 (Nat.zero_le _)
+  -- the unary header `1^N` of the output
   have hcode : (ustconWriter numV within position endpoint).CodeAt 2 (forCode 2 1 numV 5 6) :=
     codeAt_of_prefix ⟨_, rfl⟩
   obtain ⟨_, hones, rfl, -⟩ := reachesOut_forCode (w := G.encode) (N := (F G).n)
     (o := fun _ => [true]) hcode (fun u regs => regs = [G.n, u, 0] ∧ u ≤ (F G).n) hB
-    (by rintro u _ ⟨rfl, hu⟩; exact ⟨rfl, hN G u 0, by simp, hreg hu⟩)
+    (by
+      rintro u _ ⟨rfl, hu⟩
+      exact ⟨rfl, hN G u 0, by simp, hreg hu⟩)
     (by
       rintro u hu _ ⟨rfl, -⟩
       exact ⟨_, ReachesOut.emit rfl (hreg hu.le) (.refl _), rfl, hreg hu.le, by simp, by omega⟩)
