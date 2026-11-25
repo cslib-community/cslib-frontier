@@ -111,8 +111,7 @@ theorem exists_encryptBitsCoins_time_bound
     obtain ⟨hbit, hseed⟩ := List.of_mem_zip hrow
     apply hciphertext a row.1 hbit
     rw [hencrypt a row.1 hbit]
-    apply (PMF.mem_support_map_iff _ _ _).mpr
-    exact ⟨row.2, BitString.mem_support_uniformList_iff.mpr
+    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨row.2, BitString.mem_support_uniformList_iff.mpr
       (BitString.length_of_mem_listRows hseed), rfl⟩
   have hleft := ComputableInO.fst encP encR
   have hright := ComputableInO.snd encP encR
