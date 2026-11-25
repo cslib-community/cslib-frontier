@@ -269,12 +269,9 @@ private theorem scanPrefix_observe (h : ScanPrefix N edge bad source s)
   simp only [instruction, hp, ScanPrefix]
   obtain ⟨S, hsub, hlt, hd, hh⟩ := h
   have hnot : s.candidate ∉ S := fun h => Nat.lt_irrefl _ (hlt _ h)
-  refine ⟨insert s.candidate S, ?_, ?_, ?_, ?_⟩
-  · exact Finset.insert_subset hu hsub
-  · intro u hu
-    rcases Finset.mem_insert.mp hu with rfl | hu
-    · exact Nat.lt_succ_self _
-    · exact (hlt _ hu).trans (Nat.lt_succ_self _)
+  refine ⟨insert s.candidate S, Finset.insert_subset hu hsub,
+    Finset.forall_mem_insert _ _ _ |>.2 ⟨Nat.lt_succ_self _,
+      fun u hu => (hlt _ hu).trans (Nat.lt_succ_self _)⟩, ?_, ?_⟩
   · simpa [Finset.card_insert_of_notMem hnot] using hd
   · cases hf : s.finalScan <;>
       simp_all [answer, query, Observed, Finset.mem_insert, or_assoc, or_left_comm, or_comm]
@@ -312,62 +309,37 @@ private theorem invariant_instruction (hsource : source < N)
   cases hp : s.phase with
   | round =>
     simp only [Invariant, hp] at h
-    change RoundCorrect N edge source s at h
     simp only [instruction, hp]
     split_ifs with hk
-    · change RoundCorrect N edge source _ ∧ _
-      exact ⟨h, rfl, hk, Nat.zero_le _, by simp⟩
-    · change ScanContext N edge source _ ∧ ScanPrefix N edge bad source _ ∧ _
-      refine ⟨⟨h, ?_⟩, ?_, Nat.zero_le _⟩
-      · change s.round + 1 = N
-        have := h.1
-        omega
-      · exact scanPrefix_start { s with finalScan := true }
+    · exact ⟨h, rfl, hk, Nat.zero_le _, by simp⟩
+    · exact ⟨⟨h, (by have := h.1; omega : s.round + 1 = N)⟩,
+        scanPrefix_start { s with finalScan := true }, Nat.zero_le _⟩
   | target =>
     simp only [Invariant, hp] at h
-    change RoundCorrect N edge source s ∧ s.finalScan = false ∧
-      s.round + 1 < N ∧ s.target ≤ N ∧
-      s.nextCount = prefixCount N edge source s.round s.target at h
     obtain ⟨hc, hf, hk, hv, hn⟩ := h
     simp only [instruction, hp]
     split_ifs with ht
-    · change ScanContext N edge source _ ∧ ScanPrefix N edge bad source _ ∧ _
-      exact ⟨⟨hc, by simpa [hf] using And.intro hk (And.intro ht hn)⟩,
+    · exact ⟨⟨hc, by simpa [hf] using And.intro hk (And.intro ht hn)⟩,
         scanPrefix_start _, Nat.zero_le _⟩
-    · change RoundCorrect N edge source _
-      have hv' : s.target = N := by omega
-      refine ⟨hk, ?_⟩
-      simpa only [hv', prefixCount_full] using hn
+    · exact ⟨hk, by simpa only [(by omega : s.target = N), prefixCount_full] using hn⟩
   | candidate =>
     simp only [Invariant, hp] at h
-    change ScanContext N edge source s ∧ ScanPrefix N edge bad source s ∧ s.candidate ≤ N at h
     obtain ⟨hc, hs, hu⟩ := h
     simp only [instruction, hp]
     split_ifs with ht hb
-    · change ScanContext N edge source _ ∧ ScanPrefix N edge bad source _ ∧ _
-      exact ⟨hc, hs, ht, Nat.le_refl _, by simp [roundSet_zero hsource]⟩
-    · change ScanContext N edge source _ ∧ ScanPrefix N edge bad source _ ∧ _
-      exact ⟨hc, scanPrefix_skip hs, by dsimp; omega⟩
-    · change ScanContext N edge source _ ∧ ScanPrefix N edge bad source _ ∧ _
-      exact ⟨hc, hs, by dsimp; omega⟩
+    · exact ⟨hc, hs, ht, Nat.le_refl _, by simp [roundSet_zero hsource]⟩
+    · exact ⟨hc, scanPrefix_skip hs, by dsimp; omega⟩
+    · exact ⟨hc, hs, by dsimp; omega⟩
   | walk =>
     simp only [Invariant, hp] at h
-    change ScanContext N edge source s ∧ ScanPrefix N edge bad source s ∧
-      s.candidate < N ∧ s.remaining ≤ s.round ∧
-      s.current ∈ roundSet N edge source (s.round - s.remaining) at h
     obtain ⟨hc, hs, hu, hr, hw⟩ := h
     simp only [instruction, hp]
     split_ifs with hz he
-    · change ScanContext N edge source _ ∧ ScanPrefix N edge bad source _ ∧ _
-      exact ⟨hc, hs, hu, by simpa only [hz, Nat.sub_zero, he] using hw⟩
+    · exact ⟨hc, hs, hu, by simpa only [hz, Nat.sub_zero, he] using hw⟩
     · trivial
-    · change ScanContext N edge source _ ∧ ScanPrefix N edge bad source _ ∧ _
-      exact ⟨hc, hs, hu, Nat.pos_of_ne_zero hz, hr, hw⟩
+    · exact ⟨hc, hs, hu, Nat.pos_of_ne_zero hz, hr, hw⟩
   | guess =>
     simp only [Invariant, hp] at h
-    change ScanContext N edge source s ∧ ScanPrefix N edge bad source s ∧
-      s.candidate < N ∧ 0 < s.remaining ∧ s.remaining ≤ s.round ∧
-      s.current ∈ roundSet N edge source (s.round - s.remaining) at h
     simp only [instruction, hp]
     split_ifs with hz hv
     · exact ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2, hv⟩
@@ -375,41 +347,30 @@ private theorem invariant_instruction (hsource : source < N)
     · exact h
   | edge =>
     simp only [Invariant, hp] at h
-    change ScanContext N edge source s ∧ ScanPrefix N edge bad source s ∧
-      s.candidate < N ∧ 0 < s.remaining ∧ s.remaining ≤ s.round ∧
-      s.current ∈ roundSet N edge source (s.round - s.remaining) ∧ s.guess < N at h
     obtain ⟨hc, hs, hu, hr, hrk, hw, hv⟩ := h
     simp only [instruction, hp]
     split_ifs with he
-    · change ScanContext N edge source _ ∧ ScanPrefix N edge bad source _ ∧ _
-      refine ⟨hc, hs, hu, by dsimp; omega, ?_⟩
-      have he' : s.current = s.guess ∨ edge s.current s.guess = true := by
-        simpa [answer, query, hp] using he
-      have heq : s.round - (s.remaining - 1) = (s.round - s.remaining) + 1 := by omega
-      rw [heq, mem_roundSet_succ hsource hv]
-      exact ⟨s.current, hw, he'⟩
+    · refine ⟨hc, hs, hu, by dsimp; omega, ?_⟩
+      rw [(by omega : s.round - (s.remaining - 1) = s.round - s.remaining + 1),
+        mem_roundSet_succ hsource hv]
+      exact ⟨s.current, hw, by simpa [answer, query, hp] using he⟩
     · trivial
   | observe =>
     simp only [Invariant, hp] at h
-    change ScanContext N edge source s ∧ ScanPrefix N edge bad source s ∧
-      s.candidate < N ∧ s.candidate ∈ roundSet N edge source s.round at h
     obtain ⟨hc, hs, hu, hw⟩ := h
     simp only [instruction, hp]
-    change ScanContext N edge source _ ∧ ScanPrefix N edge bad source _ ∧ _
     refine ⟨hc, ?_, by dsimp; omega⟩
     simpa only [instruction, hp] using
       scanPrefix_observe (width := width) (choice := choice) hs hw hp
   | done =>
     simp only [Invariant, hp] at h
-    change ScanContext N edge source s ∧ ScanPrefix N edge bad source s ∧ s.candidate = N at h
     obtain ⟨⟨hc, hm⟩, hs, hu⟩ := h
     simp only [instruction, hp]
     split_ifs with he hf hh
     · trivial
     · exact scan_final_safe hsource hc hs he hf (by simpa [hf] using hm)
         (Bool.eq_false_iff.mpr hh)
-    · change RoundCorrect N edge source _ ∧ _
-      have hf' : s.finalScan = false := Bool.eq_false_iff.mpr hf
+    · have hf' : s.finalScan = false := Bool.eq_false_iff.mpr hf
       simp only [hf', Bool.false_eq_true, ↓reduceIte] at hm
       obtain ⟨hk, hv, hn⟩ := hm
       have hh' := scan_hit_succ hsource hc hs he hf' hv
