@@ -89,7 +89,8 @@ private theorem replayStepFactor_mem_SharpP [Finite Control] [Finite Operation]
   have hreq := machine.replayPrefix_pendingRequest_pt.comp hreplay
   have hbit : ComputableInPolyTime
       (fun x : (α × List Bool) × ℕ => x.1.2.getD x.2 false)
-      (encPair (encPair enc encBits) encUnary) encBool := by fun_prop
+      (encPair (encPair enc encBits) encUnary) encBool := by
+    fun_prop
   exact SharpP.ite_mem hquery
     (SharpP.ite_mem hbit (SharpP.comp_mem hYes hreq)
       (SharpP.comp_mem hNo hreq))
@@ -117,12 +118,11 @@ private theorem replayStepFactor_pos_iff (machine : MultiTapePTM k Bool Control 
         if (machine.pendingQuery cfg).isSome then g (machine.pendingRequest cfg) else false := by
   unfold replayStepFactor
   dsimp only
-  set cfg := machine.replayPrefix (input a) answers i
-  cases hq : (machine.pendingQuery cfg).isSome
-  · cases hb : answers.getD i false <;> simp
-  · cases hb : answers.getD i false
-    · simp [← hNo (machine.pendingRequest cfg)]
-    · simp [← hYes (machine.pendingRequest cfg)]
+  cases (machine.pendingQuery (machine.replayPrefix (input a) answers i)).isSome
+  · cases answers.getD i false <;> simp
+  · cases answers.getD i false
+    · simp [← hNo (machine.pendingRequest _)]
+    · simp [← hYes (machine.pendingRequest _)]
 
 /-- A path count is positive exactly on the canonical instruction-indexed oracle transcript. -/
 theorem replayPathCount_pos_iff (machine : MultiTapePTM k Bool Control Operation)
@@ -131,10 +131,8 @@ theorem replayPathCount_pos_iff (machine : MultiTapePTM k Bool Control Operation
     (a : α) (answers : List Bool) :
     0 < replayPathCount machine input fYes fNo (a, answers) ↔
       answers = machine.oracleReplies g answers.length (input a) := by
-  unfold replayPathCount
-  rw [CanonicallyOrderedAdd.prod_pos, machine.eq_oracleReplies_iff]
-  simp only [mem_range,
-    replayStepFactor_pos_iff machine input hYes hNo a answers]
+  rw [replayPathCount, CanonicallyOrderedAdd.prod_pos, machine.eq_oracleReplies_iff]
+  simp only [mem_range, replayStepFactor_pos_iff machine input hYes hNo a answers]
 
 /-- Unambiguous oracle certificate counts give an unambiguous step certificate. -/
 private theorem replayStepFactor_le_one (machine : MultiTapePTM k Bool Control Operation)
@@ -179,7 +177,8 @@ theorem replayWeightedSum_mem_SharpP [Finite Control] [Finite Operation]
   have hpath := replayPathCount_mem_SharpP machine hinput hYes hNo
   have hpair : ComputableInPolyTime
       (fun x : α × List Bool => (input x.1, x.2))
-      (encPair enc encBits) (encPair encBits encBits) := by fun_prop
+      (encPair enc encBits) (encPair encBits encBits) := by
+    fun_prop
   have hout : (fun x : α × List Bool => F (x.1, machine.replayOutput (input x.1) x.2)) ∈
       SharpP (encPair enc encBits) :=
     SharpP.comp_mem hF ((ComputableInPolyTime.fst enc encBits).prod
@@ -202,15 +201,11 @@ theorem replayWeightedSum_pos_iff (machine : MultiTapePTM k Bool Control Operati
     (F : α × List Bool → ℕ) (a : α) :
     0 < replayWeightedSum machine input T fYes fNo F a ↔
       0 < F (a, machine.replayOutput (input a) (machine.oracleReplies g (T a) (input a))) := by
-  unfold replayWeightedSum
-  simp only [Finset.sum_pos_iff, mem_univ, true_and, CanonicallyOrderedAdd.mul_pos,
-    replayPathCount_pos_iff machine input hYes hNo, List.length_ofFn]
-  constructor
-  · rintro ⟨w, hw, hF⟩
-    rwa [← hw]
-  · intro hF
-    obtain ⟨w, hw⟩ := exists_ofFn_eq_oracleReplies machine g (T a) (input a)
-    exact ⟨w, hw, hw ▸ hF⟩
+  simp only [replayWeightedSum, Finset.sum_pos_iff, mem_univ, true_and,
+    CanonicallyOrderedAdd.mul_pos, replayPathCount_pos_iff machine input hYes hNo, List.length_ofFn]
+  refine ⟨fun ⟨_, hw, hF⟩ => hw ▸ hF, fun hF => ?_⟩
+  obtain ⟨w, hw⟩ := exists_ofFn_eq_oracleReplies machine g (T a) (input a)
+  exact ⟨w, hw, hw ▸ hF⟩
 
 /-- For unambiguous oracle certificate counts the weighted sum is the weight of the canonical
 replay: the canonical transcript has path count `1` and every other transcript `0`. -/
@@ -222,21 +217,16 @@ theorem replayWeightedSum_eq_of_le_one (machine : MultiTapePTM k Bool Control Op
     replayWeightedSum machine input T fYes fNo F a =
       F (a, machine.replayOutput (input a) (machine.oracleReplies g (T a) (input a))) := by
   obtain ⟨w₀, hw₀⟩ := exists_ofFn_eq_oracleReplies machine g (T a) (input a)
-  unfold replayWeightedSum
-  rw [Finset.sum_eq_single w₀]
+  rw [replayWeightedSum, Finset.sum_eq_single w₀]
   · have hpos : 0 < replayPathCount machine input fYes fNo (a, List.ofFn w₀) := by
-      rw [replayPathCount_pos_iff machine input hYes hNo, List.length_ofFn]
-      exact hw₀
+      rwa [replayPathCount_pos_iff machine input hYes hNo, List.length_ofFn]
     have hle := replayPathCount_le_one machine input hYes_le hNo_le (a, List.ofFn w₀)
-    have heq : replayPathCount machine input fYes fNo (a, List.ofFn w₀) = 1 := by omega
-    rw [heq, one_mul, hw₀]
+    rw [show replayPathCount machine input fYes fNo (a, List.ofFn w₀) = 1 by omega, one_mul, hw₀]
   · intro w _ hw
     have hnot : ¬0 < replayPathCount machine input fYes fNo (a, List.ofFn w) := by
       rw [replayPathCount_pos_iff machine input hYes hNo, List.length_ofFn, ← hw₀]
       exact fun h => hw (List.ofFn_injective h)
-    have hz : replayPathCount machine input fYes fNo (a, List.ofFn w) = 0 := by omega
-    rw [hz, zero_mul]
-  · intro hmem
-    exact False.elim (hmem (mem_univ w₀))
+    rw [show replayPathCount machine input fYes fNo (a, List.ofFn w) = 0 by omega, zero_mul]
+  · exact fun hmem => (hmem (mem_univ w₀)).elim
 
 end Cslib.Complexity

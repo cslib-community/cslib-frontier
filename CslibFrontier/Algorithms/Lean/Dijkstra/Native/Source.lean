@@ -51,10 +51,9 @@ private theorem range'_forM_eq (f : ℕ → Memory.Prog Unit) (b k i : ℕ)
   induction k generalizing i with
   | zero => rfl
   | succ k ih =>
-    have hg : i < b := by omega
     rw [List.range'_succ]
     change (f i >>= fun _ => (List.range' (i + 1) k).forM f) = _
-    rw [boundedWhile, ite_eq_left hg]
+    rw [boundedWhile, ite_eq_left (by omega)]
     simp only [bind_assoc, pure_bind]
     exact congrArg (fun p => f i >>= fun _ => p) (ih (i + 1) (by omega))
 
@@ -90,13 +89,10 @@ theorem scanView_eq (M : Methods (spec n K V) (Memory.spec w)) (u : Fin n) (du :
       rw [link_forM, List.range_eq_range']
       exact (range'_forM_eq (fun i => link M (relaxEdge u du i)) d d 0 (by omega)).symm
     _ = link M (scan u du) := by
-      have hd : (degree (K := K) (V := V) u).liftM M =
-          M (.inr (.inr (.degree u))) :=
+      have hd : (degree (K := K) (V := V) u).liftM M = M (.inr (.inr (.degree u))) :=
         PFunctor.FreeM.liftM_lift (P := (spec n K V).signature) M (.inr (.inr (.degree u)))
-      exact (congrArg (fun p : Memory.Prog ℕ =>
-        p >>= fun d => link M ((List.range d).forM (relaxEdge u du))) hd.symm).trans
-          (PFunctor.FreeM.liftM_bind M (degree u)
-            (fun d => (List.range d).forM (relaxEdge u du))).symm
+      exact (congrArg (· >>= fun d => link M ((List.range d).forM (relaxEdge u du)))
+        hd.symm).trans (PFunctor.FreeM.liftM_bind M (degree u) _).symm
 
 /-- One extraction and scan, setting the counter to zero when the queue is empty. -/
 def loopStep (M : Methods (spec n K V) (Memory.spec w)) (x : Unit × ℕ) :
@@ -118,21 +114,17 @@ theorem loopView_eq (M : Methods (spec n K V) (Memory.spec w)) (k : ℕ) :
   induction k with
   | zero => rfl
   | succ k ih =>
-    have hg : k + 1 ≠ 0 := by omega
     unfold loopView
-    rw [boundedWhile, ite_eq_left hg]
+    rw [boundedWhile, ite_eq_left (by omega)]
     simp only [loopStep, bind_assoc, Nat.add_sub_cancel]
     change (M (.inl .extractMin) >>= _) = _
     unfold loop link queue
     congr 1 with e : 1
-    cases e with
-    | none =>
-      simp only [pure_bind, boundedWhile_of_not (fun (_ : Unit) (a : ℕ) => a ≠ 0)
+    rcases e with _ | ⟨u, du⟩
+    · simp only [pure_bind, boundedWhile_of_not (fun (_ : Unit) (a : ℕ) => a ≠ 0)
         (loopStep M) () k 0 (by simp)]
       rfl
-    | some e =>
-      rcases e with ⟨u, du⟩
-      dsimp only
+    · dsimp only
       rw [scanView_eq]
       simp only [bind_assoc, pure_bind]
       change (link M (scan (K := K) (V := V) u du) >>= fun _ => loopView M k) =
@@ -150,7 +142,6 @@ def clientView (M : Methods (spec n K V) (Memory.spec w)) (src : Fin n) : Memory
 theorem clientView_eq (M : Methods (spec n K V) (Memory.spec w)) (src : Fin n) :
     clientView M src = link M (dijkstra src) := by
   unfold clientView dijkstra
-  rw [loopView_eq]
-  rfl
+  rw [loopView_eq]; rfl
 
 end Cslib.Algorithms.Lean.Dijkstra.Native

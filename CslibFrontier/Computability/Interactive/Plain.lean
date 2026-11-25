@@ -59,21 +59,20 @@ private noncomputable def runLaw {α : Type}
 private theorem plain_eval {α : Type}
     (p : ProbOracleComp (OracleSpec.empty ⊕ₒ OracleSpec.empty) α) :
     World.plain.eval p = runLaw p := by
-  have h := OracleComp.run_interpret_stateless (m := PMF) (State := Unit)
-    (OracleComp.sumHandler ProbComp.unifOracle
-      (OracleComp.sumHandler (fun e => e.elim) fun e => e.elim)) p ()
   have hh : (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n))
       World.plain.impl) =
       fun q s => (fun a => (a, s)) <$> OracleComp.sumHandler ProbComp.unifOracle
         (OracleComp.sumHandler (fun e => e.elim) fun e => e.elim) q := by
     funext q s
-    rcases q with n | e | e
+    rcases q with _ | e | e
     · rfl
     · exact e.elim
     · exact e.elim
   unfold World.eval
   rw [ProbOracleComp.runWith_eq_run_interpret]
-  erw [hh, h]
+  erw [hh, OracleComp.run_interpret_stateless (m := PMF) (State := Unit)
+    (OracleComp.sumHandler ProbComp.unifOracle
+      (OracleComp.sumHandler (fun e => e.elim) fun e => e.elim)) p ()]
   exact (PMF.map_comp _ _ _).trans (PMF.map_id _)
 
 private theorem runLaw_liftProver {α : Type} (p : ProbOracleComp OracleSpec.empty α) :
@@ -81,7 +80,7 @@ private theorem runLaw_liftProver {α : Type} (p : ProbOracleComp OracleSpec.emp
   rw [runLaw, liftProver, OracleComp.interpret_interpret, plainLaw]
   congr 1
   funext q
-  rcases q with n | e
+  rcases q with _ | e
   · simp [OracleComp.sumHandler]
   · exact e.elim
 
@@ -139,18 +138,17 @@ private theorem runLaw_output {s : Spec} {StmtIn StmtOut : Type}
     (V : Verifier OracleSpec.empty s StmtIn StmtOut)
     (x : StmtIn) (τ : Transcript s) :
     runLaw (V.output (oP := OracleSpec.empty) x τ) = PMF.pure (V.outputOn x τ) := by
-  rw [runLaw, Verifier.output, OracleComp.interpret_interpret, Verifier.outputOn]
-  rw [← interpret_pure_handler]
+  rw [runLaw, Verifier.output, OracleComp.interpret_interpret, Verifier.outputOn,
+    ← interpret_pure_handler]
   congr 1
   funext q
-  rcases q with e | q
+  rcases q with e | _
   · exact e.elim
   · rfl
 
 private theorem toOuterMeasure_bind_pure {α β : Type} (p : PMF α) (g : α → β) (t : Set β) :
     (p.bind fun a => PMF.pure (g a)).toOuterMeasure t = p.toOuterMeasure (g ⁻¹' t) := by
-  rw [← PMF.toOuterMeasure_map_apply]
-  rfl
+  rw [← PMF.toOuterMeasure_map_apply]; rfl
 
 /-- **The law of an execution in the plain model**: run the prover's strategy against the
 challenge samplers, then apply the verifier's decision to the transcript. -/
@@ -170,26 +168,20 @@ theorem rbrFrom_le : ∀ (s : Spec) (smp : PerChallenge ProbComp s)
     RbrFrom s smp ε S wins → ¬ S (Prefix.empty s) →
     ∀ {α : Type} (st : ProverStrategy (ProbOracleComp OracleSpec.empty) s α),
       (plainLaw (runStrategy s smp st)).toOuterMeasure {r | wins r.1} ≤ PerChallenge.sum s ε
-  | [], _, _, _, wins, h, hS, _, st => by
-    have hw : ¬ wins () := h hS
-    simp [runStrategy, hw]
-  | .prover M I :: s, smp, ε, S, wins, h, hS, _, st => by
+  | [], _, _, _, _, h, hS, _, _ => by simp [runStrategy, h hS]
+  | .prover _ _ :: s, smp, ε, S, wins, h, hS, _, st => by
     simp only [runStrategy, plainLaw_bind]
-    refine Probability.PMF.toOuterMeasure_bind_le _ _ _ fun p => ?_
-    rcases p with ⟨msg, st'⟩
-    simp only [plainLaw_pure]
-    rw [toOuterMeasure_bind_pure]
-    exact rbrFrom_le s smp ε (fun p => S (some (msg, p))) (fun τ => wins (msg, τ)) (h.2 msg)
-      (h.1 hS msg) st'
+    refine Probability.PMF.toOuterMeasure_bind_le _ _ _ fun ⟨msg, st'⟩ => ?_
+    simp only [plainLaw_pure, toOuterMeasure_bind_pure]
+    exact rbrFrom_le s smp ε _ _ (h.2 msg) (h.1 hS msg) st'
   | .verifier C :: s, smp, ε, S, wins, h, hS, _, st => by
     simp only [runStrategy, plainLaw_bind, plainLaw_sample]
-    set A : Set C := {c | S (some (c, Prefix.empty s))}
-    refine (Probability.PMF.toOuterMeasure_bind_le_add _ _ A _ (PerChallenge.sum s ε.2)
-      fun c _ hc => ?_).trans (add_le_add (h.1 hS) le_rfl)
+    refine (Probability.PMF.toOuterMeasure_bind_le_add _ _
+      {c | S (some (c, Prefix.empty s))} _ (PerChallenge.sum s ε.2) fun c _ hc => ?_).trans
+      (add_le_add (h.1 hS) le_rfl)
     refine Probability.PMF.toOuterMeasure_bind_le _ _ _ fun st' => ?_
-    simp only [plainLaw_pure]
-    rw [toOuterMeasure_bind_pure]
-    exact rbrFrom_le s smp.2 ε.2 (fun p => S (some (c, p))) (fun τ => wins (c, τ)) (h.2 c) hc st'
+    simp only [plainLaw_pure, toOuterMeasure_bind_pure]
+    exact rbrFrom_le s smp.2 ε.2 _ _ (h.2 c) hc st'
 
 /-- **Round-by-round soundness implies soundness**, with the sum of the per-round errors. -/
 theorem Verifier.RbrSound.sound {s : Spec} {StmtIn StmtOut : Type}

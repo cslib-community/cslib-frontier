@@ -116,8 +116,7 @@ theorem eval_inputSymbolExpr {p : Expr} {symbol : Option Bool}
   rw [inputSymbolExpr, eval_iteB (eval_orB eval_eqB eval_eqB), inputSymbol]
   by_cases h : p.eval regs = 0 ∨ p.eval regs = n.eval regs + 1
   · rcases h with h | h <;> simp [h, symbolCode]
-  · push Not at h
-    simp [h.1, h.2, hs]
+  · simp [not_or.1 h, hs]
 
 /-- The test that a vertex observes a fixed entry of the transition table. -/
 noncomputable def matchesExpr (n : Expr) (r : Register k → Expr) (sym : Expr)
@@ -181,19 +180,11 @@ theorem eval_nextExpr {r : Register k → Expr} {g : Register k → ℕ}
   | output =>
     cases h : a.output with
     | none => simp [nextExpr, nextRegisters, outputStep, h, hr]
-    | some b =>
+    | some _ =>
       simp only [nextExpr, nextRegisters, outputStep, h]
       rw [eval_iteB eval_eqB]
       simp [hr]
-  | head j =>
-    simp only [nextExpr, nextRegisters, ← hr]
-    rw [← ht j]
-  | left j =>
-    simp only [nextExpr, nextRegisters, ← hr]
-    rw [← ht j]
-  | right j =>
-    simp only [nextExpr, nextRegisters, ← hr]
-    rw [← ht j]
+  | head j | left j | right j => simp [nextExpr, nextRegisters, ← hr, ← ht j]
 
 /-- The test that all registers fit below the radix. -/
 noncomputable def fitsExpr (B : Expr) (r : Register k → Expr) : Expr :=
@@ -221,9 +212,7 @@ theorem eval_edgeExpr (ntm : MultiTapeNTM k Bool State) {symbol : Option Bool}
     (edgeExpr ntm B n u v sym).eval regs =
       (edgeWithSymbol ntm (B.eval regs) (n.eval regs) (u.eval regs) (v.eval regs)
         symbol).toNat := by
-  have hr : ∀ i, (readRegistersExpr (k := k) B u i).eval regs =
-      readRegisters (k := k) (B.eval regs) (u.eval regs) i := fun i =>
-    eval_readRegistersExpr i
+  have hr (i : Register k) := eval_readRegistersExpr (regs := regs) (B := B) (u := u) i
   rw [edgeExpr, eval_andB (eval_andB eval_validExpr eval_validExpr)
     (eval_orB (eval_andB eval_eqB eval_eqB) (eval_anyB_map _ _
       (fun t => matchesEntry (n.eval regs) (readRegisters (B.eval regs) (u.eval regs)) symbol t
@@ -231,10 +220,11 @@ theorem eval_edgeExpr (ntm : MultiTapeNTM k Bool State) {symbol : Option Bool}
           (nextRegisters (n.eval regs) (readRegisters (B.eval regs) (u.eval regs)) t.2.2.2)
         && decide (v.eval regs = Cslib.Radix.pack (B.eval regs)
           (nextRegisters (n.eval regs) (readRegisters (B.eval regs) (u.eval regs)) t.2.2.2)))
-      fun t _ => ?_))]
-  · simp [edgeWithSymbol, hr]
-  · rw [eval_andB (eval_andB (eval_matchesExpr hr hs t) (eval_fitsExpr (eval_nextExpr hr _)))
-      eval_eqB, eval_packExpr (eval_nextExpr hr _)]
+      fun t _ => by
+        rw [eval_andB (eval_andB (eval_matchesExpr hr hs t)
+          (eval_fitsExpr (eval_nextExpr hr _))) eval_eqB,
+          eval_packExpr (eval_nextExpr hr _)]))]
+  simp [edgeWithSymbol, hr]
 
 variable (k State) in
 /-- The test for accepting halted vertices. -/

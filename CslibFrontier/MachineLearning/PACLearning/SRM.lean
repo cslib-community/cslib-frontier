@@ -146,8 +146,8 @@ theorem HasUniformConvergenceRate.mono {H : ConceptClass α β} {𝒟 : Set (Mea
     {ε ε' : ℕ → ℝ → ℝ} (hH : HasUniformConvergenceRate H 𝒟 ε) (hε : ∀ m δ, ε m δ ≤ ε' m δ) :
     HasUniformConvergenceRate H 𝒟 ε' := by
   intro D _ hD m hm δ hδ
-  refine (measure_mono fun S hS => ?_).trans (hH D hD m hm δ hδ)
-  exact fun hrep => hS (hrep.mono (hε m δ))
+  exact (measure_mono fun _ hS => mt (fun hrep => hrep.mono (hε m δ)) hS).trans
+    (hH D hD m hm δ hδ)
 
 /-- **Uniform convergence for a finite class**, rate form [ShalevShwartzBenDavid2014, Corollary
 4.6]: a finite class `H` has uniform convergence rate `√(log (2 |H| / δ) / (2 m))` over all
@@ -158,28 +158,24 @@ theorem hasUniformConvergenceRate_finset {H : Finset (α → β)}
       fun m δ => √(Real.log (2 * H.card / δ) / (2 * m)) := by
   intro D _ _ m hm δ hδ
   refine measure_pi_not_isRepresentative_le_of_log_le D hH (Real.sqrt_nonneg _) hδ ?_
-  set L := Real.log (2 * H.card / δ)
-  rcases le_or_gt L 0 with hL | hL
+  rcases le_or_gt (Real.log (2 * H.card / δ)) 0 with hL | hL
   · exact hL.trans (by positivity)
   · have hmR : (0 : ℝ) < m := by exact_mod_cast hm
     rw [Real.sq_sqrt (by positivity)]
-    field_simp
-    rfl
+    field_simp; rfl
 
 /-- **Hoeffding's inequality as a rate**: one hypothesis with a measurable misclassification set
 has uniform convergence rate `√(log (2 / δ) / (2 m))` over all distributions. -/
 theorem hasUniformConvergenceRate_singleton {h : α → β}
     (hh : MeasurableSet {p : α × β | h p.1 ≠ p.2}) :
     HasUniformConvergenceRate {h} Set.univ fun m δ => √(Real.log (2 / δ) / (2 * m)) := by
-  have := hasUniformConvergenceRate_finset (H := {h}) (by simpa using hh)
-  simpa using this
+  simpa using hasUniformConvergenceRate_finset (H := {h}) (by simpa using hh)
 
 /-- The Hoeffding rate `√(log c / (2 m))` tends to `0` as `m → ∞`. -/
 theorem tendsto_sqrt_log_div_two_mul_atTop (c : ℝ) :
     Tendsto (fun m : ℕ => √(Real.log c / (2 * m))) atTop (𝓝 0) := by
-  have h := (tendsto_const_div_atTop_nhds_zero_nat (Real.log c / 2 : ℝ)).sqrt
-  rw [Real.sqrt_zero] at h
-  exact h.congr fun m => by rw [div_div]
+  simpa only [Real.sqrt_zero, div_div] using
+    (tendsto_const_div_atTop_nhds_zero_nat (Real.log c / 2 : ℝ)).sqrt
 
 end Rates
 
@@ -206,30 +202,27 @@ theorem exists_isSRM {m : ℕ} {H : ι → ConceptClass α β} (hne : ∃ i, (H 
     ∃ A : Learner α β m, IsSRM A H pen := by
   classical
   obtain ⟨i₀, h₀, hh₀⟩ := hne
-  have key : ∀ S : LabeledSample α β m, ∃ i, ∃ g ∈ H i, ∀ j, ∀ h ∈ H j,
+  have key (S : LabeledSample α β m) : ∃ i, ∃ g ∈ H i, ∀ j, ∀ h ∈ H j,
       (empiricalMiscount g S : ℝ) / m + pen i ≤ (empiricalMiscount h S : ℝ) / m + pen j := by
-    intro S
     set c := (empiricalMiscount h₀ S : ℝ) / m + pen i₀
     have hfin : {i | pen i ≤ c}.Finite :=
       (eventually_cofinite.1 (hpen.eventually (eventually_gt_atTop c))).subset
-        fun i (hi : pen i ≤ c) => not_lt.2 hi
+        fun _ hi => not_lt.2 hi
     -- Candidate pairs `(i, k)`: an index with small penalty and a miscount attained in `H i`.
     let P : Set (ι × ℕ) := {p | pen p.1 ≤ c ∧ p.2 ≤ m ∧ ∃ h ∈ H p.1, empiricalMiscount h S = p.2}
-    have hPfin : P.Finite :=
-      (hfin.prod (Set.finite_le_nat m)).subset fun p hp => ⟨hp.1, hp.2.1⟩
-    have hmis : ∀ h : α → β, empiricalMiscount h S ≤ m := fun h =>
+    have hmis (h : α → β) : empiricalMiscount h S ≤ m :=
       (Finset.card_filter_le _ _).trans_eq (Finset.card_fin m)
     have hP₀ : (i₀, empiricalMiscount h₀ S) ∈ P :=
       ⟨le_add_of_nonneg_left (by positivity), hmis h₀, h₀, hh₀, rfl⟩
-    obtain ⟨⟨i, k⟩, ⟨-, -, g, hg, rfl⟩, hle⟩ :=
-      P.exists_min_image (fun p : ι × ℕ => (p.2 : ℝ) / m + pen p.1) hPfin ⟨_, hP₀⟩
+    obtain ⟨⟨i, _⟩, ⟨-, -, g, hg, rfl⟩, hle⟩ := P.exists_min_image
+      (fun p : ι × ℕ => (p.2 : ℝ) / m + pen p.1)
+      ((hfin.prod (Set.finite_le_nat m)).subset fun p hp => ⟨hp.1, hp.2.1⟩) ⟨_, hP₀⟩
     refine ⟨i, g, hg, fun j h hh => ?_⟩
     by_cases hj : pen j ≤ c
     · exact hle (j, empiricalMiscount h S) ⟨hj, hmis h, h, hh, rfl⟩
     · calc (empiricalMiscount g S : ℝ) / m + pen i ≤ c := hle _ hP₀
         _ ≤ (empiricalMiscount h S : ℝ) / m + pen j := by
-          have : (0 : ℝ) ≤ (empiricalMiscount h S : ℝ) / m := by positivity
-          linarith [not_le.1 hj]
+          linarith [not_le.1 hj, show (0 : ℝ) ≤ (empiricalMiscount h S : ℝ) / m by positivity]
   choose I g hg hmin using key
   exact ⟨g, fun S => ⟨I S, hg S, hmin S⟩⟩
 
@@ -262,9 +255,8 @@ theorem Weighting.measure_pi_exists_not_isRepresentative_le {H : ι → ConceptC
         (ENNReal.ofReal_tsum_of_nonneg (fun i => (mul_pos (w.pos i) hδ).le)
           (w.summable.mul_right δ)).symm
     _ ≤ ENNReal.ofReal δ := by
-        refine ENNReal.ofReal_le_ofReal ?_
         rw [tsum_mul_right]
-        exact mul_le_of_le_one_left hδ.le w.tsum_le_one
+        exact ENNReal.ofReal_le_ofReal (mul_le_of_le_one_left hδ.le w.tsum_le_one)
 
 /-- **The SRM bound** [ShalevShwartzBenDavid2014, Theorem 7.4]: with probability at least `1 - δ`,
 every `h ∈ H i` has `L_D(h) ≤ L_S(h) + ε i m (w i · δ)`. -/
@@ -297,13 +289,11 @@ theorem IsSRM.measure_pi_exists_lt_error_le {H : ι → ConceptClass α β}
   refine (measure_mono fun S => ?_).trans
     (w.measure_pi_exists_not_isRepresentative_le hH D hD hm hδ)
   rintro ⟨j, h, hh, hlt⟩
-  by_contra hbad
-  have hall : ∀ i, IsRepresentative D (H i) (ε i m (w i * δ)) S := fun i =>
-    by_contra fun hi => hbad ⟨i, hi⟩
+  rw [mem_ofPred_eq]
+  by_contra! hbad
   obtain ⟨i, hAi, hmin⟩ := hA S
-  have hA' := (abs_le.1 (((hall i).mono (hpen i)) _ hAi)).1
-  have hh' := (abs_le.1 (((hall j).mono (hpen j)) h hh)).2
-  linarith [hmin j h hh]
+  linarith [(abs_le.1 (((hbad i).mono (hpen i)) _ hAi)).1,
+    (abs_le.1 (((hbad j).mono (hpen j)) h hh)).2, hmin j h hh]
 
 end SRM
 

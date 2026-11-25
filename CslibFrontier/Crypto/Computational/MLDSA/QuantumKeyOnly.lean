@@ -58,8 +58,7 @@ def pointReply (H : DigestTable s) (p : ModuleSIS.SelfTarget.Point s.params.k 25
 private theorem pointReply_grid (H : DigestTable s) (p : GridPoint s) :
     pointReply s H (List.ofFn p.1, p.2.val) =
       (Keccak.fixedBytesEquivBitsLE _).symm (H (gridAddress s p)) := by
-  simp only [pointReply, List.length_ofFn, ite_true]
-  rfl
+  simp only [pointReply, List.length_ofFn, ite_true]; rfl
 
 /-- On the full canonical grid the expanded random-oracle table has *independent*
 coordinates, each with precisely the pushforward of a uniform digest through Algorithm 29.
@@ -72,8 +71,6 @@ theorem expanded_grid_table_law :
   classical
   let convertBytes := Equiv.piCongrRight fun _ : GridPoint s =>
     (Keccak.fixedBytesEquivBitsLE (digestBytes s)).symm
-  have restriction := PMF.uniformOfFintype_pi_map_comp_embedding
-    (α := BitString (8 * digestBytes s)) (gridAddress s)
   calc
     _ = (PMF.uniformOfFintype (DigestTable s)).map
         (fun H (p : GridPoint s) =>
@@ -83,8 +80,10 @@ theorem expanded_grid_table_law :
       funext H p
       exact congrArg (expandDigest s) (pointReply_grid s H p)
     _ = _ := by
-      rw [PMF.pi_map, PMF.pi_uniformOfFintype, ← PMF.uniformOfFintype_map_equiv convertBytes,
-        ← restriction, PMF.map_comp, PMF.map_comp]
+      rw [PMF.pi_map, PMF.pi_uniformOfFintype,
+        ← PMF.uniformOfFintype_map_equiv convertBytes,
+        ← PMF.uniformOfFintype_pi_map_comp_embedding
+          (α := BitString (8 * digestBytes s)) (gridAddress s), PMF.map_comp, PMF.map_comp]
       rfl
 
 /-- The oracle word involves neither truncation nor padding on a verifier input. Substituting
@@ -156,12 +155,11 @@ private theorem decodeBytes_encode (bytes : List Byte) :
     (bitsToFixedBytesBE bytes.length (bytesToBitsBE bytes)).toList = bytes := by
   let out := (bitsToFixedBytesBE bytes.length (bytesToBitsBE bytes)).toList
   have hl : out.length = bytes.length := FixedBytes.length_toList _
-  have bits : bytesToBitsBE out = bytesToBitsBE bytes :=
-    bytesToBitsBE_bitsToFixedBytesBE _ _ (length_bytesToBitsBE bytes)
+  have bits := bytesToBitsBE_bitsToFixedBytesBE bytes.length _ (length_bytesToBitsBE bytes)
   rcases lt_trichotomy out bytes with h | h | h
-  · exact ((lt_irrefl _) (bits ▸ (bytesToBitsBE_lt_iff_lt hl).2 h)).elim
+  · exact absurd (bits ▸ (bytesToBitsBE_lt_iff_lt hl).2 h) (lt_irrefl _)
   · exact h
-  · exact ((lt_irrefl _) (bits ▸ (bytesToBitsBE_lt_iff_lt hl.symm).2 h)).elim
+  · exact absurd (bits ▸ (bytesToBitsBE_lt_iff_lt hl.symm).2 h) (lt_irrefl _)
 
 /-- Every message, context and byte signature is representable by a controller output. -/
 theorem readForgery_encoded (f : Forgery) :

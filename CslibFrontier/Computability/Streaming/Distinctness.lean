@@ -78,15 +78,13 @@ open Communication
 have disjoint supports. -/
 theorem nodup_positions_append {n : ℕ} (x y : BitString n) :
     (BitString.positions x ++ BitString.positions y).Nodup ↔ disjointness x y = true := by
-  rw [List.nodup_append]
-  simp only [BitString.nodup_positions, true_and, BitString.mem_positions, disjointness,
-    decide_eq_true_eq, Bool.and_eq_false_iff]
-  constructor
-  · intro h i
-    by_contra hi
+  simp only [List.nodup_append, BitString.nodup_positions, true_and, BitString.mem_positions,
+    disjointness, decide_eq_true_eq, Bool.and_eq_false_iff]
+  refine ⟨fun h i => ?_, fun h i hi j hj hij => ?_⟩
+  · by_contra hi
     simp only [not_or, Bool.not_eq_false] at hi
     exact h i hi.1 i hi.2 rfl
-  · rintro h i hi j hj rfl
+  · subst hij
     rcases h i with h | h <;> simp_all
 
 /-- **Detecting a repeated item needs `Ω(n)` bits of memory**: a randomized streaming algorithm that
@@ -99,13 +97,11 @@ theorem le_of_solves_nodup {σ : Type*} {n b r : ℕ} {ε : ℝ} (hε : ε ≤ 1
     (hμ : μ.Solves ε (fun s c => c = decide s.Nodup) (2 * n)) (hspace : μ.SpaceLE n b) :
     n ≤ 2 ^ 10 * r * (b + 1) + 2 ^ 12 := by
   have hcc := μ.ecomplexityFun_le_of_spaceLE hspace BitString.positions BitString.positions
-    BitString.length_positions_le id
-    disjointness (ε := ε) fun x y => by
+    BitString.length_positions_le id disjointness (ε := ε) fun x y => by
       have hlen : (BitString.positions x ++ BitString.positions y).length ≤ 2 * n := by
-        rw [List.length_append]
         have := BitString.length_positions_le x
         have := BitString.length_positions_le y
-        omega
+        rw [List.length_append]; omega
       refine le_of_eq_of_le ?_ (hμ _ hlen)
       unfold Randomized.errorProb
       congr 2
@@ -132,18 +128,13 @@ theorem Algorithm.le_of_run_eq_decide_nodup {σ : Type*} {n b : ℕ}
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · exact Nat.zero_le _
   have h := A.ecomplexityFun_le_of_spaceLE hspace BitString.positions BitString.positions
-    BitString.length_positions_le id
-    disjointness fun x y => by
-      rw [id, hA _ (by
-        rw [List.length_append]
-        have := BitString.length_positions_le x
-        have := BitString.length_positions_le y
-        omega)]
-      rw [Bool.eq_iff_iff, decide_eq_true_iff, nodup_positions_append]
-  have h2 := ecomplexity_disjointness hn
-  unfold Protocol.ecomplexityFun at h
-  rw [h2] at h
-  have h3 : n + 1 ≤ b + 1 := by exact_mod_cast h
+    BitString.length_positions_le id disjointness fun x y => by
+      have := BitString.length_positions_le x
+      have := BitString.length_positions_le y
+      rw [id, hA _ (by rw [List.length_append]; omega), Bool.eq_iff_iff, decide_eq_true_iff,
+        nodup_positions_append]
+  rw [Protocol.ecomplexityFun, ecomplexity_disjointness hn] at h
+  have : n + 1 ≤ b + 1 := by exact_mod_cast h
   omega
 
 /-! ### The largest frequency -/
@@ -157,11 +148,9 @@ theorem decide_lt_four_thirds_eq {α : Type*} [DecidableEq α] {s : List α} (hs
   · have h1 : (maxFreq s : ℝ) = 1 := by
       exact_mod_cast le_antisymm (maxFreq_le_one_of_nodup hnd) (one_le_maxFreq hs)
     rw [h1] at hY
-    simp only [hnd, decide_true, decide_eq_true_eq]
-    linarith
+    simp only [hnd, decide_true, decide_eq_true_eq]; linarith
   · have h2 : (2 : ℝ) ≤ maxFreq s := by exact_mod_cast two_le_maxFreq_of_not_nodup hnd
-    simp only [hnd, decide_false, decide_eq_false_iff_not, not_lt]
-    linarith
+    simp only [hnd, decide_false, decide_eq_false_iff_not, not_lt]; linarith
 
 /-- **Approximating `F∞` needs `Ω(n)` bits of memory** [AlonMatiasSzegedy1999, Proposition 3.1]:
 a randomized streaming algorithm that estimates the largest frequency of a nonempty stream of at
@@ -176,21 +165,17 @@ theorem le_of_solves_maxFreq {σ : Type*} {n b r : ℕ} {ε : ℝ} (hε : ε ≤
   classical
   let p : List (Fin (n + 1)) := [Fin.last n]
   let d : ℝ → Bool := fun Y => decide (Y < 4 / 3)
-  have hspace' : Randomized.SpaceLE (μ.map fun A => A.reduce p Fin.castSucc d) n b :=
-    Randomized.SpaceLE.map_reduce p (by rwa [List.length_singleton, Nat.add_comm 1 n])
-      Fin.castSucc d
   refine le_of_solves_nodup hε hr (μ.map fun A => A.reduce p Fin.castSucc d) (fun s hs => ?_)
-    hspace'
+    (Randomized.SpaceLE.map_reduce p (by rwa [List.length_singleton, Nat.add_comm 1 n])
+      Fin.castSucc d)
   refine (μ.errorProb_map_reduce_le p Fin.castSucc _ s fun Y hY => ?_).trans
     (hμ _ (by simp only [p, List.length_append, List.length_singleton, List.length_map]; omega))
-  have hne : p ++ s.map Fin.castSucc ≠ [] := by simp [p]
-  change decide (Y < 4 / 3) = decide s.Nodup
-  rw [decide_lt_four_thirds_eq hne (hY hne)]
-  have hnd : (p ++ s.map Fin.castSucc).Nodup ↔ s.Nodup := by
-    simp only [p, List.singleton_append, List.nodup_cons, List.mem_map, not_exists, not_and,
-      List.nodup_map_iff (Fin.castSucc_injective n)]
-    exact ⟨fun h => h.2, fun h => ⟨fun a _ => Fin.castSucc_ne_last a, h⟩⟩
-  exact decide_eq_decide.2 hnd
+  have hne : p ++ s.map Fin.castSucc ≠ [] := by simp only [p, List.singleton_append, ne_eq,
+    reduceCtorEq, not_false_eq_true]
+  refine (decide_lt_four_thirds_eq hne (hY hne)).trans (decide_eq_decide.2 ?_)
+  simp only [p, List.singleton_append, List.nodup_cons, List.mem_map, Fin.castSucc_ne_last,
+    and_false, exists_false, not_false_eq_true, true_and,
+    List.nodup_map_iff (Fin.castSucc_injective n)]
 
 /-- **Approximating `F∞` needs `Ω(n)` bits of memory** [AlonMatiasSzegedy1999, Proposition 3.1],
 for error `1 / 3`: `n ≤ 36864 (b + 1) + 2 ^ 12`. -/

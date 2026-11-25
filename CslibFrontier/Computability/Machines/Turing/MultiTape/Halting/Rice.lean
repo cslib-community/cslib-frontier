@@ -86,10 +86,9 @@ theorem computableInPolyTime_selfHardwire :
     ComputableInPolyTime (fun y : List Bool => eDesc (hardwire (decodeDesc y) (frame y)))
       encBits encBits := by
   obtain ⟨_, _, hdec⟩ := exists_computableInDegree_decodeDesc
-  have hpair := hdec.computableInPolyTime.prod
-    (ComputableInPolyTime.bitsFrame encBits)
   exact (ComputableInPolyTime.of_eq (f := fun d : Desc => eDesc d) (encIn := eDesc)
-    (encOut := encBits) fun _ => rfl).comp (computableInPolyTime_hardwire.comp hpair)
+    (encOut := encBits) fun _ => rfl).comp
+      (computableInPolyTime_hardwire.comp (hdec.computableInPolyTime.prod (.bitsFrame encBits)))
 
 /-- **Kleene's recursion theorem, in its two-way case.** For every computable verdict `f` on words
 and descriptions `d false`, `d true`, some word `e` describes a machine behaving on inputs of bits
@@ -104,14 +103,11 @@ theorem exists_behavior_eq {f : List Bool → Bool} (hf : IsComputable f encBits
       (decodeDesc e).Computes (x.map eBit) o ↔ (d (f e)).Computes (x.map eBit) o := by
   set s : List Bool → List Bool := fun y => eDesc (hardwire (decodeDesc y) (frame y))
   have hs : IsComputable s encBits encBits := computableInPolyTime_selfHardwire.isComputable
-  have hcons : IsComputable (fun p : Bool × List Bool => p.1 :: p.2) (encPair encBool encBits)
-      encBits :=
-    (ComputableInPolyTime.bitsCons (ComputableInPolyTime.fst _ _)
-      (ComputableInPolyTime.snd _ _)).isComputable
   have hg : IsComputable (fun p : List Bool × List Bool => f (s p.1) :: p.2)
       (encPair encBits encBits) encBits :=
-    hcons.comp ((hf.comp (hs.comp (ComputableInPolyTime.fst encBits encBits).isComputable)
-      ).prod (ComputableInPolyTime.snd encBits encBits).isComputable)
+    (ComputableInPolyTime.bitsCons (.fst _ _) (.snd _ _)).isComputable.comp
+      ((hf.comp (hs.comp (ComputableInPolyTime.fst encBits encBits).isComputable)).prod
+        (ComputableInPolyTime.snd encBits encBits).isComputable)
   obtain ⟨_, _, k, State, hfin, tm, htm⟩ := Internal.TotalComputability.normalizedMachine hg
   have := Fintype.ofFinite State
   set eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
@@ -119,10 +115,9 @@ theorem exists_behavior_eq {f : List Bool → Bool} (hf : IsComputable f encBits
   have hsT : s (eDesc T) = eDesc (hardwire T (frame (eDesc T))) := by
     simp only [s, decodeDesc_eDesc]
   refine ⟨s (eDesc T), fun x o => ?_⟩
-  have h := Desc.computes_dispatch (w := frame (eDesc T) ++ x) (b := f (s (eDesc T))) (v := x) eS
+  rw [hsT, decodeDesc_eDesc, Desc.computes_hardwire, ← hsT]
+  exact Desc.computes_dispatch (w := frame (eDesc T) ++ x) (b := f (s (eDesc T))) (v := x) eS
     tm d (htm (eDesc T, x)) o
-  rw [hsT, decodeDesc_eDesc, Desc.computes_hardwire]
-  rwa [hsT] at h
 
 /-- **Rice's theorem.** Every nontrivial property of the behavior of machines is undecidable on
 their descriptions: if `C` contains the behavior of the machine described by some word and not that
@@ -133,15 +128,10 @@ theorem rice {C : Set (List Bool → List ℕ → Prop)} {w₀ w₁ : List Bool}
   intro hdec
   obtain ⟨f, hf, hP⟩ := hdec.exists_isComputable
   obtain ⟨e, he⟩ := exists_behavior_eq hf fun b => decodeDesc (if b then w₀ else w₁)
-  have hbeh : behavior e = behavior (if f e then w₀ else w₁) :=
-    funext fun x => funext fun o => propext (he x o)
   have hmem := hP e
-  simp only [Set.mem_ofPred_eq, hbeh] at hmem
-  cases hfe : f e
-  · simp only [hfe, Bool.false_eq_true, ↓reduceIte, iff_false] at hmem
-    exact hmem h₁
-  · simp only [hfe, ↓reduceIte, iff_true] at hmem
-    exact h₀ hmem
+  rw [Set.mem_ofPred_eq, show behavior e = behavior (if f e then w₀ else w₁) from
+    funext fun x => funext fun o => propext (he x o)] at hmem
+  cases hfe : f e <;> simp_all
 
 /-- **Rice's theorem, for sets of words.** A set of words that holds of a word or not according to
 the behavior of the machine it describes, and is neither empty nor everything, is undecidable.
@@ -149,10 +139,8 @@ This is the counterpart of Mathlib's `ComputablePred.rice₂` for partial recurs
 theorem not_isDecidable_of_behavior {P : Set (List Bool)}
     (hP : ∀ w w', behavior w = behavior w' → w ∈ P → w' ∈ P) {w₀ w₁ : List Bool} (h₀ : w₀ ∉ P)
     (h₁ : w₁ ∈ P) : ¬IsDecidable P encBits := by
-  have hset : {w | behavior w ∈ {B | ∃ w ∈ P, behavior w = B}} = P := by
-    ext w
-    exact ⟨fun ⟨w', hw', h⟩ => hP w' w h hw', fun hw => ⟨w, hw, rfl⟩⟩
-  rw [← hset]
+  rw [show P = {w | behavior w ∈ {B | ∃ w ∈ P, behavior w = B}} from
+    Set.ext fun w => ⟨fun hw => ⟨w, hw, rfl⟩, fun ⟨w', hw', h⟩ => hP w' w h hw'⟩]
   exact rice (fun ⟨w, hw, h⟩ => h₀ (hP w w₀ h hw)) ⟨w₁, h₁, rfl⟩
 
 /-! ### Halting on a fixed input -/
@@ -175,12 +163,10 @@ private theorem iterate_stepOut_loopDesc (x : List Bool) (t : ℕ) :
   have he : ((⟨0, inputSymbol (x.map eBit) 1, []⟩, ⟨.zero, [], none, some 0⟩) : Key × Act) ∈
       loopDesc.table := List.mem_map.mpr ⟨_, inputSymbol_map_eBit_mem x 1, rfl⟩
   have hf := find?_eq_some_of_mem he fun e' he' _ => by
-    obtain ⟨i, -, rfl⟩ := List.mem_map.mp he'
+    obtain ⟨_, -, rfl⟩ := List.mem_map.mp he'
     rfl
-  have hstep : stepOut loopDesc (x.map eBit) (init loopDesc, []) = (init loopDesc, []) := by
-    rw [stepOut, step_of_find? (c := init loopDesc) (q := 0) rfl hf]
-    rfl
-  exact Function.iterate_fixed hstep t
+  exact Function.iterate_fixed
+    (by rw [stepOut, step_of_find? (c := init loopDesc) (q := 0) rfl hf]; rfl) t
 
 private theorem not_computes_loopDesc (x : List Bool) (o : List ℕ) :
     ¬loopDesc.Computes (x.map eBit) o := fun ⟨t, ht⟩ => by
@@ -193,11 +179,9 @@ function decides, of a word, whether the machine it describes halts on `x`. This
 counterpart of Mathlib's `ComputablePred.halting_problem`, a corollary of Rice's theorem. -/
 theorem not_isDecidable_halts (x : List Bool) :
     ¬IsDecidable {w | (decodeDesc w).Halts (x.map eBit)} encBits := by
-  have hset : {w | (decodeDesc w).Halts (x.map eBit)} =
-      {w | behavior w ∈ {B : List Bool → List ℕ → Prop | ∃ o, B x o}} := by
-    ext w
-    exact Desc.halts_iff_exists_computes
-  rw [hset]
+  rw [show {w | (decodeDesc w).Halts (x.map eBit)} =
+    {w | behavior w ∈ {B : List Bool → List ℕ → Prop | ∃ o, B x o}} from
+      Set.ext fun _ => Desc.halts_iff_exists_computes]
   refine rice (w₀ := eDesc loopDesc) (w₁ := eDesc haltDesc) (fun ⟨o, h⟩ => ?_) ⟨[], ?_⟩
   · rw [behavior, decodeDesc_eDesc] at h
     exact not_computes_loopDesc x o h

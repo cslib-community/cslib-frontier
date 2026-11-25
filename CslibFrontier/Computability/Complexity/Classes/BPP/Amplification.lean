@@ -128,12 +128,11 @@ theorem card_filter_repeatMajority_eq_not_le {enc : α ↪ List Bool} {r p : Pol
   rw [mem_filter, repeatMajority_ofFn] at hx
   cases b
   · rw [Bool.not_false, decide_eq_true_iff] at hx
-    have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 *
-      r.eval (enc a).length))))
+    have hsum := card_filter_add_card_filter_not
+      (s := (univ : Finset (Fin (2 * r.eval (enc a).length))))
       fun i => V (a, List.ofFn (BitString.block x i)) = true
     simp only [Bool.not_eq_true, card_univ, Fintype.card_fin] at hsum
-    refine mem_filter.2 ⟨mem_univ _, ?_⟩
-    omega
+    exact mem_filter.2 ⟨mem_univ _, by omega⟩
   · rw [Bool.not_true, decide_eq_false_iff_not, not_lt] at hx
     exact mem_filter.2 ⟨mem_univ _, hx.2⟩
 
@@ -147,12 +146,10 @@ theorem BoundedErrorAt.repeatMajority {enc : α ↪ List Bool} {p : Polynomial �
   unfold ErrorExponentAt
   have hlen : (12 * q * p).eval (enc a).length =
       2 * (6 * q).eval (enc a).length * p.eval (enc a).length := by
-    simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]
-    ring
-  have hR : (6 * q).eval (enc a).length = 6 * q.eval (enc a).length := by simp
+    simp only [Polynomial.eval_mul, Polynomial.eval_ofNat]; ring
   rw [hlen]
   exact (Nat.mul_le_mul_left _ (card_filter_repeatMajority_eq_not_le a b)).trans
-    (BitString.two_pow_mul_card_filter_card_filter_block_le hR
+    (BitString.two_pow_mul_card_filter_card_filter_block_le (by simp)
       (fun s => V (a, List.ofFn s) = b) h)
 
 /-- Error at most `2 ^ (-q(n)) ≤ 1 / 4` on an instance is bounded error on that instance. -/
@@ -161,11 +158,8 @@ theorem ErrorExponentAt.boundedErrorAt {enc : α ↪ List Bool} {q p : Polynomia
     (hq : 2 ≤ q.eval (enc a).length) : BoundedErrorAt enc p V a b := by
   refine BitString.two_mul_two_pow_le_of_four_mul_card_filter_not_le
     (fun r => V (a, List.ofFn r) = b) ?_
-  have hnot : (univ.filter fun r : BitString (p.eval (enc a).length) => ¬V (a, List.ofFn r) = b) =
-      univ.filter fun r : BitString (p.eval (enc a).length) => V (a, List.ofFn r) = !b :=
-    filter_congr fun _ _ => by cases b <;> simp
-  rw [hnot]
-  exact (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) hq)).trans h
+  cases b <;> simpa using
+    (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) hq)).trans h
 
 namespace PromiseProblem
 
@@ -241,26 +235,22 @@ theorem inter_mem_BPP {A B : Set α} (hA : A ∈ BPP enc) (hB : B ∈ BPP enc) :
   refine mem_BPP.2 ⟨p₁ + p₂, andVerifier (fun a => p₁.eval (enc a).length) V₁ V₂,
     by fun_prop, fun a => ?_⟩
   have hc : acceptCount (andVerifier (fun a => p₁.eval (enc a).length) V₁ V₂) a
-      ((p₁ + p₂).eval (enc a).length) =
-      acceptCount V₁ a (p₁.eval (enc a).length) *
+      ((p₁ + p₂).eval (enc a).length) = acceptCount V₁ a (p₁.eval (enc a).length) *
         acceptCount V₂ a (p₂.eval (enc a).length) := by
     rw [Polynomial.eval_add]
-    exact acceptCount_andVerifier (fun a => p₁.eval (enc a).length) V₁ V₂ a (p₂.eval (enc a).length)
+    exact acceptCount_andVerifier _ V₁ V₂ a _
   have hb₁ := acceptCount_le_two_pow (V := V₁) (a := a) (n := p₁.eval (enc a).length)
   have hb₂ := acceptCount_le_two_pow (V := V₂) (a := a) (n := p₂.eval (enc a).length)
-  constructor
-  · intro ha
-    have e₁ := errorExponentAt_true_iff.1 ((h₁ a).1 ha.1)
+  refine ⟨fun ha => ?_, fun ha => ?_⟩
+  · have e₁ := errorExponentAt_true_iff.1 ((h₁ a).1 ha.1)
     have e₂ := errorExponentAt_true_iff.1 ((h₂ a).1 ha.2)
     simp only [Polynomial.eval_ofNat] at e₁ e₂
-    have f₁ : 7 * 2 ^ p₁.eval (enc a).length ≤
-        8 * acceptCount V₁ a (p₁.eval (enc a).length) := by omega
-    have f₂ : 7 * 2 ^ p₂.eval (enc a).length ≤
-        8 * acceptCount V₂ a (p₂.eval (enc a).length) := by omega
     rw [boundedErrorAt_true_iff, hc, Polynomial.eval_add, pow_add]
-    nlinarith [Nat.mul_le_mul f₁ f₂]
-  · intro ha
-    rw [boundedErrorAt_false_iff, hc, Polynomial.eval_add, pow_add]
+    nlinarith [Nat.mul_le_mul
+      (show 7 * 2 ^ p₁.eval (enc a).length ≤ 8 * acceptCount V₁ a (p₁.eval (enc a).length) by omega)
+      (show 7 * 2 ^ p₂.eval (enc a).length ≤
+        8 * acceptCount V₂ a (p₂.eval (enc a).length) by omega)]
+  · rw [boundedErrorAt_false_iff, hc, Polynomial.eval_add, pow_add]
     by_cases ha₁ : a ∈ A
     · have e₂ := errorExponentAt_false_iff.1 ((h₂ a).2 fun hb => ha ⟨ha₁, hb⟩)
       simp only [Polynomial.eval_ofNat] at e₂

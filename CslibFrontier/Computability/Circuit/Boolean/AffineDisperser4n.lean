@@ -110,21 +110,16 @@ theorem initialState_valid {n : ℕ} {f : BooleanFunction n}
   wf := wellFormed_ofCircuitBinary C
   pair_mem _ h := absurd h (Finset.notMem_empty _)
   pairs_disjoint _ h := absurd h (Finset.notMem_empty _)
-  phi_congr val val' hv := by
-    ext i
-    exact hv i (by
-      change ↑i ∈ (ofCircuitBinary C).params
-      rw [ofCircuitBinary_params]
-      exact Finset.mem_range.2 i.isLt)
+  phi_congr val val' hv := funext fun i => hv i (by
+    change ↑i ∈ (ofCircuitBinary C).params
+    rw [ofCircuitBinary_params]
+    exact Finset.mem_range.2 i.isLt)
   phi_affine _ _ _ := rfl
   phi_injective val val' hv j hj := by
     change j ∈ (ofCircuitBinary C).params at hj
-    rw [ofCircuitBinary_params, Finset.mem_range] at hj
-    exact congrFun hv ⟨j, hj⟩
+    exact congrFun hv ⟨j, Finset.mem_range.1 (ofCircuitBinary_params C ▸ hj)⟩
   computes val hval _ := by
-    change (ofCircuitBinary C).out.eval val = f (fun i => val i)
-    rw [out_eval_ofCircuitBinary C hval]
-    exact congrFun (hC fun i => val i) 0
+    exact (out_eval_ofCircuitBinary C hval).trans (congrFun (hC fun i => val i) 0)
 
 /-- The initial state has effective affine dimension `n`. -/
 theorem initialState_a {n : ℕ} (C : Circuit (fullSignature 2 Bool) n 1) :
@@ -159,9 +154,9 @@ theorem four_mul_le_cost_add {n : ℕ} {f : BooleanFunction n} {d : ℕ}
     (hf : IsAffineDisperser f d) (C : Circuit (fullSignature 2 Bool) n 1)
     (hC : C.Computes fullInterpretation (single f)) :
     4 * n ≤ C.program.cost binaryB2Cost + 9 * d := by
-  have hW := State.Valid.nine_mul_a_le (initialState_valid hC) hf
-  have ha := initialState_a C
-  have hWle := initialState_W_le C
+  have := State.Valid.nine_mul_a_le (initialState_valid hC) hf
+  have := initialState_a C
+  have := initialState_W_le C
   omega
 
 /-- Size lower bound `4 * n ≤ C.size + 9 * d` for any `fullSignature 2 Bool` circuit computing a
@@ -179,17 +174,12 @@ theorem exists_affine_subspace_const_of_cost_lt {n d : ℕ}
     (C : Circuit (fullSignature 2 Bool) n 1) (hC : C.program.cost binaryB2Cost + 9 * d < 4 * n) :
     ∃ g : BitString d → BitString n, IsAffine g ∧ Function.Injective g ∧
       ∃ b : Bool, ∀ u, C.eval fullInterpretation (g u) 0 = b := by
-  by_contra hno
-  push Not at hno
+  by_contra! hno
   let fC : BooleanFunction n := fun x => C.eval fullInterpretation x 0
   have hfC : IsAffineDisperser fC d := fun g hg hinj => by
     obtain ⟨u, hu⟩ := hno g hg hinj (fC (g 0))
     exact ⟨u, 0, hu⟩
-  have hcomp : C.Computes fullInterpretation (single fC) := fun x => by
-    ext i
-    rw [Fin.eq_zero i]
-    rfl
-  have hlb := four_mul_le_cost_add hfC C hcomp
+  have hlb := four_mul_le_cost_add hfC C fun x => funext fun i => by rw [Fin.eq_zero i]; rfl
   omega
 
 /-- Any circuit of size strictly below `4 * n - 9 * d` is constant on some `d`-dimensional
@@ -210,9 +200,7 @@ theorem exists_disagreeing_input_of_cost_lt {n d : ℕ} {f : BooleanFunction n}
   obtain ⟨g, hg, hinj, b, hb⟩ := exists_affine_subspace_const_of_cost_lt C hC
   obtain ⟨u, v, huv⟩ := hf g hg hinj
   by_cases hu : C.eval fullInterpretation (g u) 0 = f (g u)
-  · refine ⟨g v, ?_⟩
-    rw [hb v, ← hb u, hu]
-    exact huv
+  · exact ⟨g v, by rwa [hb v, ← hb u, hu]⟩
   · exact ⟨g u, hu⟩
 
 /-- Every circuit of size strictly below `4 * n - 9 * d` disagrees with any `d`-affine disperser on

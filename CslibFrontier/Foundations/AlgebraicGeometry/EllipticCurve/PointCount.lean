@@ -133,32 +133,26 @@ private lemma ofCubic_b₂ (h2 : (2 : F) ≠ 0) :
     (ofCubic (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).b₂ = W.b₂ := by
   have := four_ne_zero_of_two h2
   simp only [b₂, ofCubic_a₁, ofCubic_a₂]
-  field_simp
-  ring
+  field_simp; ring
 
 private lemma ofCubic_b₄ (h2 : (2 : F) ≠ 0) :
     (ofCubic (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).b₄ = W.b₄ := by
   simp only [b₄, ofCubic_a₁, ofCubic_a₃, ofCubic_a₄]
-  field_simp
-  ring
+  field_simp; ring
 
 private lemma ofCubic_b₆ (h2 : (2 : F) ≠ 0) :
     (ofCubic (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).b₆ = W.b₆ := by
   have := four_ne_zero_of_two h2
   simp only [b₆, ofCubic_a₃, ofCubic_a₆]
-  field_simp
-  ring
+  field_simp; ring
 
 private lemma ofCubic_b₈ (h2 : (2 : F) ≠ 0) :
     (ofCubic (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).b₈ = W.b₈ := by
   have h4 := four_ne_zero_of_two h2
-  have hb8 : W.b₈ = (W.b₂ * W.b₆ - W.b₄ ^ 2) / 4 := by
-    rw [eq_div_iff h4, mul_comm]
-    exact W.b_relation
-  rw [hb8]
+  rw [show W.b₈ = (W.b₂ * W.b₆ - W.b₄ ^ 2) / 4 from
+    (eq_div_iff h4).2 (mul_comm W.b₈ 4 ▸ W.b_relation)]
   simp only [b₈, ofCubic_a₁, ofCubic_a₂, ofCubic_a₃, ofCubic_a₄, ofCubic_a₆]
-  field_simp
-  ring
+  field_simp; ring
 
 /-- Completing the square preserves the discriminant: when `2 ≠ 0`, the curve
 `Y² = X³ + (b₂/4) X² + (b₄/2) X + b₆/4` has the discriminant of `W`. -/
@@ -174,16 +168,11 @@ lemma equation_iff_sq_eq (h2 : (2 : F) ≠ 0) (x y : F) :
   have hg : 4 * (cubicPoly (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).eval x =
       4 * x ^ 3 + W.b₂ * x ^ 2 + 2 * W.b₄ * x + W.b₆ := by
     rw [eval_cubicPoly]
-    field_simp
-    ring
+    field_simp; ring
   rw [Affine.equation_iff, hg]
   simp only [b₂, b₄, b₆]
-  constructor
-  · intro h
-    linear_combination 4 * h
-  · intro h
-    apply mul_left_cancel₀ h4
-    linear_combination h
+  exact ⟨fun h => by linear_combination 4 * h,
+    fun h => mul_left_cancel₀ h4 (by linear_combination h)⟩
 
 end CompleteSquare
 
@@ -197,9 +186,7 @@ variable {F : Type*} [Field F] [Fintype F] [DecidableEq F]
 private lemma natCard_sqrts (hF : ringChar F ≠ 2) (a : F) :
     (Nat.card {z : F // z ^ 2 = a} : ℤ) = 1 + quadraticChar F a := by
   have h := quadraticChar_card_sqrts hF a
-  rw [← Nat.card_eq_card_toFinset] at h
-  rw [add_comm]
-  exact h
+  rwa [← Nat.card_eq_card_toFinset, add_comm] at h
 
 /-- The fibre of the affine curve over `x` has `1 + χ(g(x))` points, where
 `g = X³ + (b₂/4) X² + (b₄/2) X + b₆/4`. -/
@@ -207,8 +194,8 @@ theorem natCard_fiber (hF : ringChar F ≠ 2) (W : WeierstrassCurve F) (x : F) :
     (Nat.card {y : F // W.toAffine.Equation x y} : ℤ) =
       1 + quadraticChar F ((cubicPoly (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).eval x) := by
   have h2 : (2 : F) ≠ 0 := Ring.two_ne_zero hF
-  set g := (cubicPoly (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).eval x
-  have e : {y : F // W.toAffine.Equation x y} ≃ {z : F // z ^ 2 = 4 * g} :=
+  have e : {y : F // W.toAffine.Equation x y} ≃
+      {z : F // z ^ 2 = 4 * (cubicPoly (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).eval x} :=
     Equiv.subtypeEquiv ((Equiv.mulLeft₀ (2 : F) h2).trans (Equiv.addRight (W.a₁ * x + W.a₃)))
       fun y ↦ by
         rw [equation_iff_sq_eq W h2, add_assoc]
@@ -239,9 +226,8 @@ end Count
 /-- Over `ZMod 2` every Weierstrass curve has between `1` and `5` points. -/
 theorem natCard_point_zmod_two (W : WeierstrassCurve (ZMod 2)) :
     1 ≤ Nat.card W.toAffine.Point ∧ Nat.card W.toAffine.Point ≤ 5 := by
-  have hle : Nat.card {xy : ZMod 2 × ZMod 2 // W.toAffine.Nonsingular xy.1 xy.2} ≤ 4 := by
-    have h := Finite.card_subtype_le fun xy : ZMod 2 × ZMod 2 ↦ W.toAffine.Nonsingular xy.1 xy.2
-    rwa [Nat.card_prod, Nat.card_zmod] at h
+  have h := Finite.card_subtype_le fun xy : ZMod 2 × ZMod 2 ↦ W.toAffine.Nonsingular xy.1 xy.2
+  rw [Nat.card_prod, Nat.card_zmod] at h
   rw [W.toAffine.natCard_point_eq_one_add_nonsingular]
   omega
 

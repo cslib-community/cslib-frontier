@@ -81,9 +81,7 @@ namespace CopyBlock
 theorem writeBlock_apply (tape : ℤ → Option Symbol) (start : ℤ)
     (values : ℤ → Option Symbol) {count j : ℕ} (hj : j < count) :
     writeBlock tape start values count (start + j) = values j := by
-  rw [writeBlock, ite_eq_left (by omega)]
-  congr 1
-  omega
+  rw [writeBlock, ite_eq_left (by omega), add_sub_cancel_left]
 
 /-- Exterior cells are unchanged. -/
 theorem writeBlock_apply_of_outside (tape : ℤ → Option Symbol) (start : ℤ)
@@ -103,14 +101,10 @@ private theorem writeBlock_succ (tape : ℤ → Option Symbol) (start : ℤ)
   funext z
   by_cases hz : z = start + count
   · subst z
-    rw [Function.update_self, writeBlock, ite_eq_left (by omega)]
-    congr 1
-    omega
+    rw [Function.update_self, writeBlock, ite_eq_left (by omega), add_sub_cancel_left]
   · rw [Function.update_of_ne hz]
-    simp only [writeBlock]
-    have hiff : (start ≤ z ∧ z < start + (count : ℤ)) ↔
-        (start ≤ z ∧ z < start + ((count + 1 : ℕ) : ℤ)) := by omega
-    simp only [hiff]
+    simp only [writeBlock, show (start ≤ z ∧ z < start + (count : ℤ)) ↔
+      (start ≤ z ∧ z < start + ((count + 1 : ℕ) : ℤ)) by omega]
 
 /-- The tapes after `count` transfers, before or after the final halting transition. -/
 @[expose] def tapes (erase : Bool) (cfg : Cfg 3 Symbol Unit input) (count : ℕ) :
@@ -136,11 +130,8 @@ unchanged input position and output. -/
 
 @[simp] theorem progress_zero (erase : Bool) (cfg : Cfg 3 Symbol Unit input)
     (hstate : cfg.state = some ()) : progress erase cfg 0 = cfg := by
-  refine Cfg.ext hstate.symm rfl ?_ ?_ rfl
-  · funext i
-    fin_cases i <;> simp [progress, tapes]
-  · funext i
-    simp [progress]
+  refine Cfg.ext hstate.symm rfl (funext fun i => ?_) (funext fun i => by simp [progress]) rfl
+  fin_cases i <;> simp [progress, tapes]
 
 private theorem source_at_progress (erase : Bool) (cfg : Cfg 3 Symbol Unit input) (count : ℕ) :
     (progress erase cfg count).workTapeSymbols 0 =
@@ -155,22 +146,18 @@ private theorem counter_at_progress (erase : Bool) (cfg : Cfg 3 Symbol Unit inpu
 private theorem step_progress (erase : Bool) (cfg : Cfg 3 Symbol Unit input) (count : ℕ)
     (hcount : cfg.workTapes 2 (cfg.workTapePos 2 + count) ≠ none) :
     (copyBlock erase).step (progress erase cfg count) = progress erase cfg (count + 1) := by
-  rw [step_of_state (by rfl)]
+  rw [step_of_state rfl]
   simp only [copyBlock, tr_ofTr, counter_at_progress, source_at_progress]
   cases hc : cfg.workTapes 2 (cfg.workTapePos 2 + count) with
-  | none => exact False.elim (hcount hc)
-  | some a =>
-    refine Cfg.ext rfl ?_ ?_ ?_ ?_
-    · simp [Action.apply, progress]
-    · funext i
-      fin_cases i
-      · cases erase <;> simp [Action.apply, progress, tapes, writeBlock_succ]
-      · simp only [Action.apply, progress, tapes]
-        simp [writeBlock_succ]
-      · simp [Action.apply, progress, tapes, writeBlock_succ]
-    · funext i
-      simp [Action.apply, progress, Nat.cast_add, add_assoc]
-    · simp [Action.apply, progress]
+  | none => exact (hcount hc).elim
+  | some _ =>
+    refine Cfg.ext rfl (by simp [Action.apply, progress]) (funext fun i => ?_)
+      (funext fun i => by simp [Action.apply, progress, Nat.cast_add, add_assoc])
+      (by simp [Action.apply, progress])
+    fin_cases i
+    · cases erase <;> simp [Action.apply, progress, tapes, writeBlock_succ]
+    · simp [Action.apply, progress, tapes, writeBlock_succ]
+    · simp [Action.apply, progress, tapes, writeBlock_succ]
 
 /-- Each nonblank counter cell permits one native transfer. -/
 theorem runFrom_progress (erase : Bool) (cfg : Cfg 3 Symbol Unit input) (count : ℕ)
@@ -202,12 +189,9 @@ theorem haltsAt_copyBlock (erase : Bool) (cfg : Cfg 3 Symbol Unit input) (count 
     (hcount : ∀ j < count, cfg.workTapes 2 (cfg.workTapePos 2 + j) ≠ none)
     (hend : cfg.workTapes 2 (cfg.workTapePos 2 + count) = none) :
     (copyBlock erase).HaltsAt cfg (count + 1) := by
-  constructor
-  · rw [runFrom_copyBlock erase cfg count hstate hcount hend]
-    rfl
-  · intro j hj
-    rw [runFrom_progress erase cfg j hstate (fun i hi => hcount i (by omega))]
-    simp [Cfg.Halted, progress]
+  refine ⟨by rw [runFrom_copyBlock erase cfg count hstate hcount hend]; rfl, fun j hj => ?_⟩
+  rw [runFrom_progress erase cfg j hstate fun i hi => hcount i (by omega)]
+  simp [Cfg.Halted, progress]
 
 /-- Every visited head position lies in the transferred interval together with its right
 boundary. The final halting transition visits no additional cell. -/
@@ -217,12 +201,11 @@ theorem workTapePos_runFrom (erase : Bool) (cfg : Cfg 3 Symbol Unit input) (coun
     (hend : cfg.workTapes 2 (cfg.workTapePos 2 + count) = none) (time : ℕ) (i : Fin 3) :
     ((copyBlock erase).runFrom cfg time).workTapePos i = cfg.workTapePos i + min time count := by
   by_cases ht : time ≤ count
-  · rw [runFrom_progress erase cfg time hstate (fun j hj => hcount j (by omega)),
+  · rw [runFrom_progress erase cfg time hstate fun j hj => hcount j (by omega),
       Nat.min_eq_left ht]
     rfl
-  · have hhalt := haltsAt_copyBlock erase cfg count hstate hcount hend
-    rw [hhalt.runFrom_eq (by omega), runFrom_copyBlock erase cfg count hstate hcount hend,
-      Nat.min_eq_right (by omega)]
+  · rw [(haltsAt_copyBlock erase cfg count hstate hcount hend).runFrom_eq (by omega),
+      runFrom_copyBlock erase cfg count hstate hcount hend, Nat.min_eq_right (by omega)]
     rfl
 
 /-- A native run path for a length-`count` block visits at most `3 * (count + 1)` work-tape
@@ -234,14 +217,13 @@ theorem space_copyBlock_le (erase : Bool) (cfg : Cfg 3 Symbol Unit input) (count
     (MultiTapeNTM.RunPath.ofDeterministic (copyBlock erase) cfg (count + 1)).space ≤
       3 * (count + 1) := by
   classical
-  apply le_trans (MultiTapeNTM.RunPath.space_le_sum_card _
-    (S := fun i => Finset.Icc (cfg.workTapePos i) (cfg.workTapePos i + count)) ?_)
-  · simp [add_assoc]
-  · rintro c ⟨t, rfl⟩ i
-    change ((copyBlock erase).runFrom cfg t.val).workTapePos i ∈ _
-    rw [workTapePos_runFrom erase cfg count hstate hcount hend]
-    simp only [Finset.mem_Icc]
-    constructor <;> omega
+  refine (MultiTapeNTM.RunPath.space_le_sum_card _
+    (S := fun i => Finset.Icc (cfg.workTapePos i) (cfg.workTapePos i + count)) ?_).trans
+    (by simp [add_assoc])
+  rintro c ⟨t, rfl⟩ i
+  change ((copyBlock erase).runFrom cfg t.val).workTapePos i ∈ _
+  rw [workTapePos_runFrom erase cfg count hstate hcount hend]
+  exact Finset.mem_Icc.2 ⟨by omega, by omega⟩
 
 end CopyBlock
 

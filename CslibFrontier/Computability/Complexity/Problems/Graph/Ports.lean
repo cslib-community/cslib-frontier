@@ -46,28 +46,26 @@ def incidenceVertices (G : Graph) : List ℕ := G.edges.flatMap fun e => [e.1, e
 /-- The even endpoint occurrence is the first endpoint of the corresponding listed edge. -/
 theorem getD_incidenceVertices_even (G : Graph) (i : ℕ) :
     G.incidenceVertices.getD (2 * i) 0 = (G.edges.getD i (0, 0)).1 := by
-  rcases G with ⟨V, E⟩
+  rcases G with ⟨_, E⟩
   induction E generalizing i with
   | nil => simp [incidenceVertices]
-  | cons e E ih =>
-    cases i with
-    | zero => simp [incidenceVertices]
-    | succ i =>
-      simpa only [incidenceVertices, List.flatMap_cons, List.cons_append, List.nil_append,
-        Nat.mul_succ, List.getD_cons_succ, Nat.add_succ_sub_one, Nat.add_zero] using ih i
+  | cons _ _ ih =>
+    cases i
+    · simp [incidenceVertices]
+    · simpa only [incidenceVertices, List.flatMap_cons, List.cons_append, List.nil_append,
+        Nat.mul_succ, List.getD_cons_succ, Nat.add_succ_sub_one, Nat.add_zero] using ih _
 
 /-- The odd endpoint occurrence is the second endpoint of the corresponding listed edge. -/
 theorem getD_incidenceVertices_odd (G : Graph) (i : ℕ) :
     G.incidenceVertices.getD (2 * i + 1) 0 = (G.edges.getD i (0, 0)).2 := by
-  rcases G with ⟨V, E⟩
+  rcases G with ⟨_, E⟩
   induction E generalizing i with
   | nil => simp [incidenceVertices]
-  | cons e E ih =>
-    cases i with
-    | zero => simp [incidenceVertices]
-    | succ i =>
-      simpa only [incidenceVertices, List.flatMap_cons, List.cons_append, List.nil_append,
-        Nat.mul_succ, Nat.add_assoc, List.getD_cons_succ] using ih i
+  | cons _ _ ih =>
+    cases i
+    · simp [incidenceVertices]
+    · simpa only [incidenceVertices, List.flatMap_cons, List.cons_append, List.nil_append,
+        Nat.mul_succ, Nat.add_assoc, List.getD_cons_succ] using ih _
 
 /-- Executable port assignment; under the degree hypothesis the remainder is the rank itself. -/
 def incidencePort (G : Graph) (k : ℕ) : Fin 3 :=
@@ -97,7 +95,7 @@ theorem incidencePort_val (G : Graph)
       G.incidenceVertices.count G.incidenceVertices[k] := by
     rw [← List.countBefore_eq_count_take]
     exact List.countBefore_lt_count_getElem
-  have htotal := hdeg G.incidenceVertices[k]
+  have := hdeg G.incidenceVertices[k]
   simp only [incidencePort, List.getD_eq_getElem _ _ hk]
   exact Nat.mod_eq_of_lt (by omega)
 
@@ -146,9 +144,8 @@ theorem endpoint_port_injective (G : Graph)
   have hj' := endpoint_index_lt G hj right
   have hv' : G.incidenceVertices[2 * i + left.toNat] =
       G.incidenceVertices[2 * j + right.toNat] := by
-    rw [← List.getD_eq_getElem _ 0 hi', ← List.getD_eq_getElem _ 0 hj',
+    rwa [← List.getD_eq_getElem _ 0 hi', ← List.getD_eq_getElem _ 0 hj',
       getD_incidenceVertices_endpoint, getD_incidenceVertices_endpoint]
-    exact hv
   have h := incidencePort_injective G hdeg hi' hj' hv' hp
   cases left <;> cases right <;> simp only [Bool.toNat_false, Bool.toNat_true] at h ⊢ <;>
     constructor <;> first | omega | trivial
