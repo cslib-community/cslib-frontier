@@ -192,7 +192,6 @@ the full threshold ladder and later-estimation regularity for all cutoffs and th
 complements remain open. -/
 theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
     Nonempty (HierarchyParams q cπ Cπ Cpair Cvar) := by
-  have hq0 : 0 < q := hq
   set θ : ℝ := 1 / (4 * q)
   have hθ : 0 < θ := by positivity
   obtain ⟨k, hk⟩ := exists_factorial_bound_le θ 1 (δ := 1 / (4 * q)) (by positivity)
@@ -200,8 +199,7 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
   set J : ℕ := ⌈4 * Cπ * m * k * (k + 1)⌉₊ + 1
   set K : ℕ := ⌈160 * (1 + Cpair * k / (1 / 2))⌉₊
   set R : ℝ := (4 * J + 40 * |Cvar|) / cπ
-  have hR : 4 * (J : ℝ) + 40 * |Cvar| ≤ cπ * R := by
-    simp only [R]; rw [mul_div_cancel₀ _ hcπ.ne']
+  have hR : 4 * (J : ℝ) + 40 * |Cvar| ≤ cπ * R := (mul_div_cancel₀ _ hcπ.ne').ge
   refine ⟨{
     Q := fun t => max (t - θ) 0
     θ := θ
@@ -234,7 +232,7 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
     χ_le_one := up_le_one _
     χ_zero := fun _ h => up_of_le h
     χ_one := fun t h => up_of_lt (lt_of_lt_of_le (by
-      rw [div_lt_div_iff_of_pos_left one_pos (by positivity) hq0]; linarith) h)
+      rw [div_lt_div_iff_of_pos_left one_pos (by positivity) hq]; linarith) h)
     τ₁_le := le_rfl
     copies := ?_
     δ₀_pos := by norm_num
@@ -266,11 +264,9 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
   · have h2 : (1 : ℝ) / (2 * q) = 1 / (4 * q) + 1 / (4 * q) := by field_simp; norm_num
     rw [h2]
     exact add_le_add le_rfl hk
-  · rw [div_le_div_iff₀ (by positivity) hq0, one_mul]
-    have hqc : q ≤ ⌈q⌉₊ := Nat.le_ceil q
-    have : (m : ℝ) = ⌈q⌉₊ * (k + 1) := by simp only [m]; push_cast; ring
-    rw [this]
-    nlinarith [(Nat.cast_nonneg (α := ℝ) k)]
+  · rw [div_le_div_iff₀ (by positivity) hq, one_mul]
+    push_cast [m]
+    nlinarith [Nat.le_ceil q, (Nat.cast_nonneg (α := ℝ) k)]
   · have h1 : 4 * Cπ * m * k * (k + 1) ≤ (J : ℝ) := by
       simp only [J]; push_cast
       exact (Nat.le_ceil _).trans (by linarith)
@@ -395,18 +391,10 @@ theorem stage_rates [LinearOrder V] {π : ℝ} (hch : RetentionChannels X Y f π
           ofLex b ∈ copyCover A (overloaded (P.pilot X Y f C))) ∧
       #(copyCover (m := P.m) A (overloaded (P.pilot X Y f C))) ≤ 2 * #A := by
   have hτ₀ : P.θ₂ * f + f * Real.exp (1 / P.θ) * (P.L / P.θ) ^ P.k / P.k.factorial ≤
-      P.τ₀ * f := by
-    have := mul_le_mul_of_nonneg_right P.truncation hf.le
-    calc P.θ₂ * f + f * Real.exp (1 / P.θ) * (P.L / P.θ) ^ P.k / P.k.factorial
-        = (P.θ₂ + Real.exp (1 / P.θ) * (P.L / P.θ) ^ P.k / P.k.factorial) * f := by ring
-      _ ≤ P.τ₀ * f := this
-  have hτ₁ : P.τ₁ * f ≤ f / q :=
-    calc P.τ₁ * f ≤ 1 / q * f := mul_le_mul_of_nonneg_right P.τ₁_le hf.le
-      _ = f / q := by ring
+      P.τ₀ * f := (Eq.trans_le (by ring) (mul_le_mul_of_nonneg_right P.truncation hf.le))
+  have hτ₁ : P.τ₁ * f ≤ f / q := (mul_le_mul_of_nonneg_right P.τ₁_le hf.le).trans_eq (by ring)
   have hcopies : (P.k + 1) * f / (P.m + 1) ≤ f / q :=
-    calc (P.k + 1) * f / (P.m + 1) = (P.k + 1) / (P.m + 1) * f := by ring
-      _ ≤ 1 / q * f := mul_le_mul_of_nonneg_right P.copies hf.le
-      _ = f / q := by ring
+    (Eq.trans_le (by ring) (mul_le_mul_of_nonneg_right P.copies hf.le)).trans_eq (by ring)
   obtain ⟨h1, h2, h3, h4⟩ := detectedStage_rates (c := P.cutoff f) (γ := P.γ) (κ := P.κ)
     (χ := P.copyCutoff f) (θ := P.θ) (L := P.L) (θ₂ := P.θ₂) (τ₀ := P.τ₀ * f) (τ₁ := P.τ₁ * f)
     (q := q) (k := P.k) (m := P.m) (K := P.K) (δ₀ := P.δ₀) hch hC hC0 hCf hC1 hA hf
@@ -422,9 +410,7 @@ theorem stage_rates [LinearOrder V] {π : ℝ} (hch : RetentionChannels X Y f π
         copyWeight (P.weight X Y f C)).submatrix ofLex id :=
     submatrix_mul _ _ _ _ _ ofLex.bijective
   have hr : P.proj X Y f C * P.residual X Y f C =
-      (copyWeight (P.weight X Y f C) * P.residual X Y f C).submatrix ofLex id := by
-    ext a z
-    rfl
+      (copyWeight (P.weight X Y f C) * P.residual X Y f C).submatrix ofLex id := rfl
   rw [hl, hr]
   exact congrArg (fun M => M.submatrix ofLex id) h2
 
