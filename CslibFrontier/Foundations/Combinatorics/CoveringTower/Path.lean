@@ -150,6 +150,9 @@ def pl (c c' γ : T.X 0) : ℕ := Nat.find (R.exists_end c c' γ)
 /-- The chamber after `s` steps. -/
 def pn (c c' γ : T.X 0) (s : ℕ) : T.X 0 := Tower.nodeAt c (R.path c c' γ) s
 
+/-- A route is at its first chamber after no steps. -/
+theorem pn_zero (c c' γ : T.X 0) : R.pn c c' γ 0 = c := by rfl
+
 theorem pn_pl (c c' γ : T.X 0) : R.pn c c' γ (R.pl c c' γ) = c' :=
     Nat.find_spec (R.exists_end c c' γ)
 
