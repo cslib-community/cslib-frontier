@@ -161,7 +161,7 @@ private theorem one_sub_binomialTail_real_le {k d : ℕ} (hk : 0 < k) {θ p : �
     have hexp : -2 * ((k : ℝ) * p - d) ^ 2 / k ≤ -(θ ^ 2 * k) / 2 := by
       have hsq := pow_le_pow_left₀ (by positivity : 0 ≤ θ * k / 2) hgap 2
       apply (div_le_iff₀ hk').2
-      nlinarith
+      linarith [show -(θ ^ 2 * k) / 2 * k = -2 * (θ * k / 2) ^ 2 by ring]
     exact (Real.exp_le_exp.mpr hexp).trans
       (le_add_of_nonneg_left (div_nonneg (sub_nonneg.mpr hp₁) hθ.le))
 
