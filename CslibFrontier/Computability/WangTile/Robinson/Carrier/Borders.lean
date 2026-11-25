@@ -126,7 +126,11 @@ private theorem depthAt_eq_some_iff {bound coordinate depth : ℕ} :
         ∀ smaller, 0 < smaller → smaller < depth → inFrame smaller coordinate = false := by
   rw [depthAt_eq_find?, List.find?_range'_eq_some, List.mem_range'_1]
   simp only [Bool.not_eq_eq_eq_not, Bool.not_true]
-  exact ⟨fun ⟨h1, h2, h3⟩ => ⟨by omega, h1, h3⟩, fun ⟨h1, h2, h3⟩ => ⟨h2, by omega, h3⟩⟩
+  constructor
+  · rintro ⟨inside, range, least⟩
+    exact ⟨by omega, inside, fun smaller positive below => least smaller positive below⟩
+  · rintro ⟨range, inside, least⟩
+    exact ⟨inside, by omega, fun smaller positive below => least smaller positive below⟩
 
 private theorem depthAt_eq_none_iff {bound coordinate : ℕ} :
     depthAt bound coordinate = none ↔
@@ -314,19 +318,33 @@ theorem inFrame_succ_iff_ceilDivFour (depth coordinate : ℕ) :
     unfold ceilDivFour
     rw [periodEq] at residueLt
     omega
-  apply Bool.eq_iff_iff.mpr
   by_cases coarseLt : ceilDivFour residue < period depth
-  · rw [inFrame, inFrame, Nat.mod_eq_of_lt residueLt, Nat.mod_eq_of_lt coarseLt]
+  · rw [inFrame, inFrame, Nat.mod_eq_of_lt residueLt,
+      Nat.mod_eq_of_lt coarseLt]
+    apply Bool.eq_iff_iff.mpr
     simp only [Bool.and_eq_true, decide_eq_true_eq]
     unfold ceilDivFour
     omega
   · have coarseEq : ceilDivFour residue = period depth := by omega
-    have : 0 < scale depth := scale_pos depth
-    rw [inFrame, inFrame, Nat.mod_eq_of_lt residueLt, coarseEq, Nat.mod_self]
-    simp only [Bool.and_eq_true, decide_eq_true_eq, endEq]
-    simp only [frameStartResidue, frameEndResidue, period_eq_four_mul_scale] at coarseEq ⊢
-    unfold ceilDivFour at coarseEq
-    omega
+    have scalePositive : 0 < scale depth := scale_pos depth
+    have fineFalse : inFrame (depth + 1) residue = false := by
+      apply Bool.eq_false_iff.mpr
+      intro inside
+      have insideData :
+          frameStartResidue (depth + 1) ≤ residue ∧
+            residue ≤ frameEndResidue (depth + 1) := by
+        simpa only [Nat.mod_eq_of_lt residueLt] using
+          (inFrame_eq_true_iff _ _).mp inside
+      unfold ceilDivFour at coarseEq
+      rw [endEq] at insideData
+      have periodScale := period_eq_four_mul_scale depth
+      simp only [frameEndResidue] at insideData
+      omega
+    have coarseFalse :
+        inFrame depth (ceilDivFour residue) = false := by
+      rw [coarseEq]
+      simp [inFrame, frameStartResidue]
+    rw [fineFalse, coarseFalse]
 
 private theorem boundaryLiftCondition_periodic
     (side : FrameSide) (depth : ℕ) :
@@ -370,18 +388,31 @@ private theorem boundary_succ_iff
     omega
   by_cases coarseLt : ceilDivFour residue < period depth
   · rw [Nat.mod_eq_of_lt coarseLt]
-    have : 0 < frameStartResidue depth := by simp [frameStartResidue]
-    unfold ceilDivFour
-    cases side <;>
-      simp only [FrameSide.boundaryResidue, FrameSide.fineResidue, frameStartResidue_succ,
-        frameEndResidue_succ] <;>
-      omega
+    cases side with
+    | opening =>
+        simp only [FrameSide.boundaryResidue, FrameSide.fineResidue]
+        rw [frameStartResidue_succ]
+        have startPositive : 0 < frameStartResidue depth := by
+          simp [frameStartResidue]
+        unfold ceilDivFour
+        omega
+    | closing =>
+        simp only [FrameSide.boundaryResidue, FrameSide.fineResidue]
+        rw [frameEndResidue_succ]
+        unfold ceilDivFour
+        omega
   · have coarseEq : ceilDivFour residue = period depth := by omega
-    refine ⟨fun left => absurd (coarseEq.symm.trans
-        (left ▸ side.ceilDivFour_boundaryResidue_succ depth))
-        (side.boundaryResidue_lt_period depth).ne', fun ⟨right, _⟩ => ?_⟩
-    rw [coarseEq, Nat.mod_self] at right
-    exact absurd right.symm (side.boundaryResidue_pos depth).ne'
+    have boundaryPositive := side.boundaryResidue_pos depth
+    have boundaryLt := side.boundaryResidue_lt_period depth
+    constructor
+    · intro left
+      have ceilEq : ceilDivFour residue = side.boundaryResidue depth := by
+        rw [left]
+        exact side.ceilDivFour_boundaryResidue_succ depth
+      exact ((Nat.ne_of_gt boundaryLt) (coarseEq.symm.trans ceilEq)).elim
+    · rintro ⟨right, _⟩
+      rw [coarseEq, Nat.mod_self] at right
+      exact ((Nat.ne_of_gt boundaryPositive) right.symm).elim
 
 /-- An opening boundary survives refinement exactly at fine residue one. -/
 theorem openingBoundary_succ_iff (depth coordinate : ℕ) :
@@ -485,12 +516,21 @@ private theorem outerBorder_lift (coordinate transverse : ℕ) :
         (outerBorder (ceilDivFour coordinate) (ceilDivFour transverse)) =
       outerBorder coordinate transverse := by
   unfold outerBorder ceilDivFour
-  by_cases hcoarse : (coordinate + 3) / 4 = 1 ∧ 1 ≤ (transverse + 3) / 4
-  · have ht : 1 ≤ transverse := by omega
-    by_cases hc : coordinate = 1 <;>
-      simp [liftBorder, hcoarse, hc, ht, show coordinate % 4 = 1 ↔ coordinate = 1 by omega]
-  · rw [ite_eq_right hcoarse, ite_eq_right fun h => hcoarse ⟨by omega, by omega⟩]
-    rfl
+  by_cases hcoarse : (coordinate + 3) / 4 = 1 ∧
+      1 ≤ (transverse + 3) / 4
+  · rw [ite_eq_left hcoarse]
+    have coordinateRange : 1 ≤ coordinate ∧ coordinate ≤ 4 := by omega
+    have transversePositive : 1 ≤ transverse := by omega
+    by_cases hcoordinate : coordinate = 1
+    · simp [liftBorder, hcoordinate, transversePositive]
+    · have coordinateMod : coordinate % 4 ≠ 1 := by omega
+      simp [liftBorder, hcoordinate, coordinateMod]
+  · rw [ite_eq_right hcoarse]
+    by_cases hfine : coordinate = 1 ∧ 1 ≤ transverse
+    · exfalso
+      apply hcoarse
+      omega
+    · simp [liftBorder, hfine]
 
 /-- The opening precedes the closing in every frame period. -/
 theorem frameStartResidue_lt_frameEndResidue (depth : ℕ) :
@@ -572,6 +612,15 @@ private theorem outerBorder_frameBorder_disjoint
   have boundary := frameBorder_residue_gt_one frame
   omega
 
+private theorem liftBorder_eq_some_imp
+    {coordinate : ℕ} {border : Option Bool} {orientation : Bool}
+    (lifted : liftBorder coordinate border = some orientation) :
+    border = some orientation := by
+  cases border with
+  | none => simp [liftBorder] at lifted
+  | some value =>
+      cases value <;> cases orientation <;> simp_all [liftBorder]
+
 /- Because all candidate borders are pairwise disjoint, the executable
 `Fin.findSome?` selector has the simple extensional description below.  Its
 lifted form then separates the inherited depths `2 .. level + 1` from the new
@@ -621,18 +670,35 @@ private theorem lift_selectedBorder_eq_some_iff
       outerBorder coordinate transverse = some orientation ∨
         ∃ depth, 2 ≤ depth ∧ depth ≤ level + 1 ∧
           frameBorder depth coordinate transverse = some orientation := by
-  have hlift {b : Option Bool} : liftBorder coordinate b = some orientation ↔
-      b = some orientation ∧ liftBorder coordinate (some orientation) = some orientation := by
-    cases b with
-    | none => simp [liftBorder]
-    | some v => cases v <;> cases orientation <;> simp [liftBorder]
-  rw [hlift, selectedBorder_eq_some_iff, or_and_right, ← hlift, outerBorder_lift]
-  refine or_congr_right ⟨fun ⟨⟨d, hd1, hd2, hb⟩, ho⟩ =>
-    ⟨d + 1, by omega, by omega, frameBorder_succ _ _ _ ▸ hlift.mpr ⟨hb, ho⟩⟩, ?_⟩
-  rintro ⟨_ | d, hd1, hd2, hb⟩
-  · omega
-  · rw [← frameBorder_succ, hlift] at hb
-    exact ⟨⟨d, by omega, by omega, hb.1⟩, hb.2⟩
+  constructor
+  · intro lifted
+    have coarse := liftBorder_eq_some_imp lifted
+    rcases (selectedBorder_eq_some_iff _ _ _ _).1 coarse with outer | frame
+    · left
+      rw [← outerBorder_lift]
+      simpa only [outer, coarse] using lifted
+    · rcases frame with ⟨depth, positive, bounded, border⟩
+      right
+      refine ⟨depth + 1, by omega, by omega, ?_⟩
+      rw [← frameBorder_succ]
+      simpa only [border, coarse] using lifted
+  · rintro (outer | ⟨depth, depthLower, depthUpper, border⟩)
+    · have coarseLift := outerBorder_lift coordinate transverse
+      rw [outer] at coarseLift
+      have coarseOuter := liftBorder_eq_some_imp coarseLift
+      have coarseSelected := (selectedBorder_eq_some_iff level
+        (ceilDivFour coordinate) (ceilDivFour transverse) orientation).2
+        (Or.inl coarseOuter)
+      simpa only [coarseSelected, coarseOuter] using coarseLift
+    · obtain ⟨prior, depthEq⟩ : ∃ prior, depth = prior + 1 :=
+        ⟨depth - 1, by omega⟩
+      rw [depthEq] at depthLower depthUpper border
+      rw [← frameBorder_succ prior coordinate transverse] at border
+      have coarseBorder := liftBorder_eq_some_imp border
+      have coarseSelected := (selectedBorder_eq_some_iff level
+        (ceilDivFour coordinate) (ceilDivFour transverse) orientation).2
+        (Or.inr ⟨prior, by omega, by omega, coarseBorder⟩)
+      simpa only [coarseSelected, coarseBorder] using border
 
 private theorem ceilDivFour_eight_mul_add (block offset : ℕ) :
     ceilDivFour (8 * block + offset) =
@@ -826,8 +892,21 @@ theorem supertileIndexGrid_zero_cases
     exact indexZero
   have transition := BorderState.corner_transition
     (arithmeticState_admissible level _ _ hx' hy') i j childZero
-  simpa only [arithmeticState, i, j, supertileIndexGrid, Fin.ext_iff, Fin.val_zero, Fin.val_one,
-    Fin.val_two] using transition
+  change
+    (i = 0 ∧ j = 0 ∧ supertileIndexGrid level seedNode (x / 4) (y / 4) = 0 ∧
+      (⟨x / 4 % 2, _⟩ : Fin 2) = 0 ∧ (⟨y / 4 % 2, _⟩ : Fin 2) = 0) ∨
+    (i = 0 ∧ j = 0 ∧ supertileIndexGrid level seedNode (x / 4) (y / 4) = 4 ∧
+      (⟨x / 4 % 2, _⟩ : Fin 2) = 1 ∧ (⟨y / 4 % 2, _⟩ : Fin 2) = 1) ∨
+    (i = 2 ∧ j = 2 ∧ (⟨x / 4 % 2, _⟩ : Fin 2) = 0 ∧
+      (⟨y / 4 % 2, _⟩ : Fin 2) = 0) at transition
+  rcases transition with ⟨hi, hj, hnode, hpx, hpy⟩ | ⟨hi, hj, hnode, hpx, hpy⟩ |
+    ⟨hi, hj, hpx, hpy⟩
+  · exact Or.inl ⟨congrArg Fin.val hi, congrArg Fin.val hj, hnode,
+      congrArg Fin.val hpx, congrArg Fin.val hpy⟩
+  · exact Or.inr (Or.inl ⟨congrArg Fin.val hi, congrArg Fin.val hj, hnode,
+      congrArg Fin.val hpx, congrArg Fin.val hpy⟩)
+  · exact Or.inr (Or.inr ⟨congrArg Fin.val hi, congrArg Fin.val hj,
+      congrArg Fin.val hpx, congrArg Fin.val hpy⟩)
 
 private theorem interiors_seed_eq_selectedBorder
     (level x y : ℕ) (hx : x < side level) (hy : y < side level) :
