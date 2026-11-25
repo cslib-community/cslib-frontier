@@ -141,14 +141,8 @@ theorem sccIndexCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N)
     wram_simp [s₃, hs₂_fr0 r hr h1 h2]
   have hs₃_dregs : DfsRegs (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc)
       (kVisAddr wb N Mc) (kFinAddr wb N Mc) (kStkAddr wb N Mc) s₃ :=
-    { czero := (hs₃_fr cZero (by decide) (by decide) (by decide) (by decide)).trans hregs.czero
-      cone := (hs₃_fr cOne (by decide) (by decide) (by decide) (by decide)).trans hregs.cone
-      cthree := (hs₃_fr cThree (by decide) (by decide) (by decide) (by decide)).trans hregs.cthree
-      hoff := by simp only [s₃]; rw [Data.set_regs_of_ne (by decide)]; exact hs₂_off
-      hedge := by simp only [s₃]; rw [Data.set_regs_of_ne (by decide)]; exact hs₂_edge
-      hvis := (hs₃_fr visB (by decide) (by decide) (by decide) (by decide)).trans hregs.hvis
-      hfin := Data.set_regs_self _ _ _
-      hstk := (hs₃_fr stkB (by decide) (by decide) (by decide) (by decide)).trans hregs.hstk }
+    by constructor <;> wram_simp [s₃, hs₂_fr0, hs₂_off, hs₂_edge, hregs.czero, hregs.cone,
+      hregs.cthree, hregs.hvis, hregs.hstk]
   have hs₃_omem : ∀ idx (hidx : idx < N),
       s₃.mem (kOrdAddr wb N Mc + (N - 1 - idx)) =
         ((topologicalSort adj (List.finRange N))[idx]'(by
@@ -159,9 +153,7 @@ theorem sccIndexCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N)
       exact hs₁_omem idx hidx
   obtain ⟨y, hy_ex, hy_comp, hy_out, hy_fr⟩ :=
     kosarajuIndexCode_spec hN adj wb Mc hmc hfit hs₃_dregs
-      ((hs₃_fr nVerts (by decide) (by decide) (by decide) (by decide)).trans hNv)
-      ((hs₃_fr ordB (by decide) (by decide) (by decide) (by decide)).trans hordB)
-      ((hs₃_fr compB (by decide) (by decide) (by decide) (by decide)).trans hcompB)
+      (by wram_simp [hs₃_fr, hNv]) (by wram_simp [hs₃_fr, hordB]) (by wram_simp [hs₃_fr, hcompB])
       hs₂_rcsr hs₁_olen hs₃_omem
   refine ⟨y, (hs₁_ex.seq (hs₂_ex.seq (hs₃_ex.seq hy_ex))).mono (by omega), hy_comp,
     fun a ha => ?_, fun r hr h1 h2 h3 => (hy_fr r hr).trans (hs₃_fr r hr h1 h2 h3)⟩
