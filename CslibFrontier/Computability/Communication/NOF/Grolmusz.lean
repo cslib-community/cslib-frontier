@@ -129,10 +129,11 @@ theorem sum_chainTerm (z : Fin k → Bool) (c₀ : Bool) (c : Fin k → Bool) (h
   have hsum : ∑ t, chainTerm z c₀ c t = ∑ t ∈ range k, (E t + E (t + 1)) :=
     (Finset.sum_congr rfl fun t _ => chainTerm_eq z c₀ c t).trans
       (Fin.sum_univ_eq_sum_range (fun t => E t + E (t + 1)) k)
-  have h0 : E 0 = 0 := by
+  have h0 : E 0 = false := by
     have hz : chain z 0 = z := funext fun _ => by simp [chain]
     simp [hE, hz, hc]
-  rw [hsum, sum_range_add_succ, h0, zero_add, prod_bool_eq_decide]
+  rw [hsum, sum_range_add_succ, h0, show (false : Bool) = 0 from rfl, zero_add,
+    prod_bool_eq_decide]
   simp only [hE, show chain z k = fun _ => true from funext fun l => by simp [chain, l.isLt],
     Bool.mul_eq_and]
   exact congrArg (c₀ && ·) (decide_eq_decide.mpr funext_iff)

@@ -250,8 +250,8 @@ most `D` coordinates. -/
 theorem finrank_lowDegree_le [StrongRankCondition R] (D : ℕ) :
     Module.finrank R (lowDegree R ι D) ≤ #{S : Finset ι | #S ≤ D} := by
   classical
-  have himg : monomial R '' {S | #S ≤ D} =
-      (({S : Finset ι | #S ≤ D} : Finset _).image (monomial R) : Set _) := by
+  have himg : monomial R '' {S : Finset ι | #S ≤ D} =
+      ↑(({S : Finset ι | #S ≤ D} : Finset _).image (monomial R)) := by
     ext
     simp
   rw [lowDegree, himg]
