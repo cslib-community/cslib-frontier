@@ -148,17 +148,8 @@ theorem recovers_resample {k : ℕ} (hφ : φ.IsExactDistinct k) {x : ℕ → Bo
 theorem recovers_step {k : ℕ} (hφ : φ.IsExactDistinct k) (t : ℕ) (x : ℕ → Bool)
     {s : State n φ.length} (hs : Recovers φ k x s) : Recovers φ k x (step φ k t x s) := by
   rcases move_cases t s with ⟨hm, -⟩ | ⟨c, hm, -, -, hev, -⟩ | ⟨e, st, d, hm, -, -, hev, -⟩ |
-    ⟨e, st, hm, -⟩ | ⟨hm, -⟩
-  · simp only [Recovers, step, hm, apply]
-    exact hs
-  · simp only [Recovers, step, hm, apply, List.length_cons]
-    exact recovers_resample hφ hs hev
-  · simp only [Recovers, step, hm, apply, List.length_cons]
-    exact recovers_resample hφ hs hev
-  · simp only [Recovers, step, hm, apply]
-    exact hs
-  · simp only [Recovers, step, hm, apply]
-    exact hs
+    ⟨e, st, hm, -⟩ | ⟨hm, -⟩ <;> simp only [Recovers, step, hm, apply, List.length_cons]
+  exacts [hs, recovers_resample hφ hs hev, recovers_resample hφ hs hev, hs, hs]
 
 theorem recovers_run {k : ℕ} (hφ : φ.IsExactDistinct k) (t : ℕ) (x : ℕ → Bool) (N : ℕ) :
     Recovers φ k x (run φ k t x N) := by
@@ -174,18 +165,12 @@ theorem ptr_run_le (k t : ℕ) (x : ℕ → Bool) (N : ℕ) : (run φ k t x N).p
   | succ N ih =>
     rw [run_succ]
     rcases move_cases t (run φ k t x N) with ⟨hm, -, hp, -⟩ | ⟨c, hm, -, hc, -⟩ |
-      ⟨e, st, d, hm, -⟩ | ⟨e, st, hm, -⟩ | ⟨hm, -⟩
-    · simp only [step, hm, apply]
-      omega
-    · have := c.2
-      simp only [step, hm, apply]
-      omega
-    · simp only [step, hm, apply]
-      exact ih
-    · simp only [step, hm, apply]
-      exact ih
-    · simp only [step, hm, apply]
-      exact ih
+      ⟨_, _, _, hm, -⟩ | ⟨_, _, hm, -⟩ | ⟨hm, -⟩ <;> simp only [step, hm, apply]
+    · omega
+    · exact hc ▸ c.2
+    · exact ih
+    · exact ih
+    · exact ih
 
 theorem length_log_add_le (k t L : ℕ) (x : ℕ → Bool) (N : ℕ) :
     (log φ k t L x N).length + (run φ k t x N).stack.length ≤
@@ -194,23 +179,10 @@ theorem length_log_add_le (k t L : ℕ) (x : ℕ → Bool) (N : ℕ) :
   | zero => simp [log, run, init]
   | succ N ih =>
     rw [log, run_succ]
-    rcases move_cases t (run φ k t x N) with ⟨hm, -⟩ | ⟨c, hm, hst, -⟩ | ⟨e, st, d, hm, -⟩ |
-      ⟨e, st, hm, hst, -⟩ | ⟨hm, -⟩
-    · simp only [step, hm, apply, bits, List.length_append, List.length_singleton]
-      omega
-    · simp only [hst, List.length_nil] at ih
-      simp only [step, hm, apply, bits, List.length_append, List.length_cons, List.length_nil,
-        add_mul, one_mul]
-      omega
-    · simp only [step, hm, apply, bits, List.length_append, List.length_cons,
-        BitString.length_lowBits, add_mul, one_mul]
-      omega
-    · simp only [hst, List.length_cons] at ih
-      simp only [step, hm, apply, bits, List.length_append, List.length_singleton, hst,
-        List.tail_cons]
-      omega
-    · simp only [step, hm, apply, bits, List.length_append, List.length_nil]
-      omega
+    rcases move_cases t (run φ k t x N) with ⟨hm, -⟩ | ⟨_, hm, hst, -⟩ | ⟨_, _, _, hm, -⟩ |
+      ⟨_, _, hm, hst, -⟩ | ⟨hm, -⟩ <;>
+      simp_all only [step, apply, bits, List.length_append, List.length_cons, List.length_nil,
+        List.tail_cons, BitString.length_lowBits, add_mul, one_mul] <;> omega
 
 /-- **Log length.** The execution log of a run with a budget of `t` resamplings has at most
 `m + t (L + 2)` bits. -/
@@ -230,33 +202,22 @@ theorem replay_step {L : ℕ} (hL : ∀ c : Fin φ.length, degree φ c < 2 ^ L) 
     (x : ℕ → Bool) (s : State n φ.length) (w : List Bool) :
     replay φ L s.toControl (bits φ L (move φ t s) ++ w) =
       replay φ L (step φ k t x s).toControl w := by
-  rcases move_cases t s with ⟨hm, hst, -⟩ | ⟨c, hm, hst, hc, -⟩ | ⟨e, st, d, hm, hst, hd, -⟩ |
-    ⟨e, st, hm, hst, -⟩ | ⟨hm, -⟩
-  · obtain ⟨⟨stack, ptr, trace⟩, σ⟩ := s
-    simp only at hst
-    subst hst
-    simp only [hm, bits, step, apply, List.cons_append, List.nil_append, replay]
-  · obtain ⟨⟨stack, ptr, trace⟩, σ⟩ := s
-    obtain ⟨c, hcm⟩ := c
-    simp only at hst hc
-    subst hst hc
-    simp only [hm, bits, step, apply, List.cons_append, List.nil_append, replay, hcm,
-      ↓reduceDIte]
-  · obtain ⟨⟨stack, ptr, trace⟩, σ⟩ := s
-    simp only at hst
-    subst hst
+  obtain ⟨⟨stack, ptr, trace⟩, σ⟩ := s
+  rcases move_cases t ⟨⟨stack, ptr, trace⟩, σ⟩ with ⟨hm, hst, -⟩ | ⟨⟨c, hcm⟩, hm, hst, hc, -⟩ |
+    ⟨e, st, d, hm, hst, hd, -⟩ | ⟨e, st, hm, hst, -⟩ | ⟨hm, -⟩
+  · cases hst
+    simp [hm, bits, step, apply, replay]
+  · cases hst
+    cases hc
+    simp [hm, bits, step, apply, replay, hcm]
+  · cases hst
     have hpos : (neighbors φ e).idxOf d < 2 ^ L :=
-      lt_of_lt_of_le (List.idxOf_lt_length_of_mem hd)
-        ((length_neighbors_le e).trans (Nat.succ_le_of_lt (hL e)))
-    simp only [hm, bits, step, apply, List.cons_append, replay,
-      List.take_left' (BitString.length_lowBits L ((neighbors φ e).idxOf d)),
-      List.drop_left' (BitString.length_lowBits L ((neighbors φ e).idxOf d)),
+      (List.idxOf_lt_length_of_mem hd).trans_le ((length_neighbors_le e).trans (hL e))
+    simp [hm, bits, step, apply, replay, BitString.length_lowBits,
       BitString.lsbValue_lowBits hpos, List.getElem?_idxOf hd]
-  · obtain ⟨⟨stack, ptr, trace⟩, σ⟩ := s
-    simp only at hst
-    subst hst
-    simp only [hm, bits, step, apply, List.cons_append, List.nil_append, replay, List.tail_cons]
-  · simp only [hm, bits, step, apply, List.nil_append]
+  · cases hst
+    simp [hm, bits, step, apply, replay]
+  · simp [hm, bits, step, apply]
 
 theorem replay_log {L : ℕ} (hL : ∀ c : Fin φ.length, degree φ c < 2 ^ L) (k t : ℕ)
     (x : ℕ → Bool) (N : ℕ) (w : List Bool) :
@@ -288,35 +249,21 @@ theorem card_exhausts_lt {k L : ℕ} (hφ : φ.IsExactDistinct k)
     #{y : Fin (n + t * k) → Bool | Exhausts φ k t (Function.extend Fin.val y fun _ => false)} <
       2 ^ (n + φ.length + 1 + t * (L + 2)) := by
   classical
-  calc #{y : Fin (n + t * k) → Bool | Exhausts φ k t (Function.extend Fin.val y fun _ => false)}
+  let ext (y : Fin (n + t * k) → Bool) : ℕ → Bool := Function.extend Fin.val y fun _ => false
+  calc #{y : Fin (n + t * k) → Bool | Exhausts φ k t (ext y)}
       ≤ #((univ : Finset (Fin n → Bool)) ×ˢ BitString.shortWords (φ.length + t * (L + 2))) := by
         refine card_le_card_of_injOn
-          (fun y => ((final φ k t (Function.extend Fin.val y fun _ => false)).assignment,
-            log φ k t L (Function.extend Fin.val y fun _ => false) (fuel φ t)))
-          (fun y _ => ?_) (fun y hy y' hy' hyy' => ?_)
-        · simp only [coe_product, coe_univ, Set.mem_prod, Set.mem_univ, true_and, mem_coe,
-            BitString.mem_shortWords]
-          exact length_log_le k t L _ _
-        · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hy hy'
-          simp only [Prod.mk.injEq] at hyy'
-          obtain ⟨h1, h2⟩ := hyy'
-          funext i
-          have hle (z : Fin (n + t * k) → Bool)
-              (hz : Exhausts φ k t (Function.extend Fin.val z fun _ => false)) :
-              (i : ℕ) < n + (final φ k t (Function.extend Fin.val z fun _ => false)).trace.length *
-                k := by
-            rw [length_trace_final_eq hz]
-            exact i.2
-          have e1 := decode_run hφ hL t (Function.extend Fin.val y fun _ => false) (fuel φ t) i
-            (hle y hy)
-          have e2 := decode_run hφ hL t (Function.extend Fin.val y' fun _ => false) (fuel φ t) i
-            (hle y' hy')
-          change decode φ k L (final φ k t _).assignment _ i = _ at e1
-          change decode φ k L (final φ k t _).assignment _ i = _ at e2
-          rw [h1, h2, e2, Fin.val_injective.extend_apply, Fin.val_injective.extend_apply] at e1
-          exact e1.symm
-    _ = 2 ^ n * #(BitString.shortWords (φ.length + t * (L + 2))) := by
-        rw [card_product, card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
+          (fun y => ((final φ k t (ext y)).assignment, log φ k t L (ext y) (fuel φ t)))
+          (fun _ _ => by simp [BitString.mem_shortWords, length_log_le])
+          fun y hy y' hy' h => funext fun i => ?_
+        have h1 := decode_run hφ hL t (ext y) (fuel φ t) i
+          (by rw [← final, length_trace_final_eq (mem_filter.mp hy).2]; exact i.2)
+        have h2 := decode_run hφ hL t (ext y') (fuel φ t) i
+          (by rw [← final, length_trace_final_eq (mem_filter.mp hy').2]; exact i.2)
+        rw [← final] at h1 h2
+        simpa only [ext, (Prod.mk.inj h).1, (Prod.mk.inj h).2, h2,
+          Fin.val_injective.extend_apply] using h1.symm
+    _ = 2 ^ n * #(BitString.shortWords (φ.length + t * (L + 2))) := by simp
     _ < 2 ^ n * 2 ^ (φ.length + t * (L + 2) + 1) :=
         Nat.mul_lt_mul_of_pos_left (BitString.card_shortWords_lt _) (Nat.two_pow_pos n)
     _ = 2 ^ (n + φ.length + 1 + t * (L + 2)) := by
