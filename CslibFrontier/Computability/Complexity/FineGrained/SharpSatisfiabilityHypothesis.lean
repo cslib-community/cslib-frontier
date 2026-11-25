@@ -75,8 +75,9 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
     apply h p hp hp₁
     have hcomp : SharpKSAT k ∘ toSharpThreeSAT = SharpSAT := by
       funext φ
-      exact (SharpKSAT_of_width fun c hc => (length_le_three_of_mem_toSharpThreeSAT hc).trans hk)
-        .trans (modelCount_toSharpThreeSAT φ)
+      have hw : ∀ c ∈ toSharpThreeSAT φ, c.length ≤ k :=
+        fun _ hc => (length_le_three_of_mem_toSharpThreeSAT hc).trans hk
+      exact (SharpKSAT_of_width hw).trans (modelCount_toSharpThreeSAT φ)
     have hsize (φ : CNF ℕ) :
         (((toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length : ℕ) + 1 : ℝ) ≤
           (11 + 1 : ℝ) * ((φ.numVars + φ.length + φ.vars.length : ℕ) + 1 : ℝ) ^ (1 : ℝ) := by
@@ -115,6 +116,8 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
         _ ≤ _ := mul_le_mul_of_nonneg_right (Nat.le_ceil _) (by positivity)
     obtain ⟨e', hguard⟩ := hsolver.ite_polyTime_of_le (computableInPolyTime_all_length_le k)
       (ComputableInPolyTime.const 0) (fun _ => by positivity) hscale
-    exact ⟨D, e', by simpa only [SharpKSAT] using hguard⟩
+    refine ⟨D, e', ?_⟩
+    delta SharpKSAT
+    exact hguard
 
 end Cslib.Complexity
