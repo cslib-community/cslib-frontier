@@ -75,14 +75,16 @@ theorem interpolationScale_mono : Monotone interpolationScale := by
         rw [Real.log_div hy.ne' hx.ne'] at hle
         linarith
       have hn2 : (n : ℝ) ^ 2 * (1 / x) ≤ (n : ℝ) := by
-        rw [mul_one_div, div_le_iff₀ hx]
-        have : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-        dsimp only [x]
-        nlinarith
-      have hmul := mul_le_mul_of_nonneg_left hlog_diff (sq_nonneg (n : ℝ))
-      push_cast
-      have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-      nlinarith
+        rw [mul_one_div, div_le_iff₀ hx, sq]
+        exact mul_le_mul_of_nonneg_left (by simp only [x]; linarith) (Nat.cast_nonneg n)
+      calc (n : ℝ) ^ 2 * Real.log y
+          ≤ (n : ℝ) ^ 2 * (Real.log x + 1 / x) := by gcongr
+        _ = (n : ℝ) ^ 2 * Real.log x + (n : ℝ) ^ 2 * (1 / x) := by ring
+        _ ≤ (n : ℝ) ^ 2 * Real.log x + (n : ℝ) * 1 := by linarith
+        _ ≤ (n : ℝ) ^ 2 * Real.log x + (2 * (n : ℝ) + 1) * Real.log x := by
+              gcongr
+              linarith [Nat.cast_nonneg (α := ℝ) n]
+        _ = ((n + 1 : ℕ) : ℝ) ^ 2 * Real.log x := by push_cast; ring
     exact nonneg_le_nonneg_of_sq_le_sq (by positivity)
       (by simpa only [sq] using hsq)
   have hrew (m : ℕ) : interpolationScale m =
@@ -105,12 +107,12 @@ theorem interpolationScale_two_mul_le (n : ℕ) :
     simp only [x, y, Nat.cast_mul, Nat.cast_ofNat]
     linarith [(Nat.cast_nonneg n : (0 : ℝ) ≤ n)]
   have hy_sq : y ≤ x ^ 2 := by
+    have hsq : 0 ≤ (n : ℝ) ^ 2 + 30 * n + 240 := by positivity
     simp only [x, y, Nat.cast_mul, Nat.cast_ofNat]
-    have : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-    nlinarith
+    linarith [show ((n : ℝ) + 16) ^ 2 = (n : ℝ) ^ 2 + 32 * n + 256 by ring]
   have hlogx : 0 < Real.log x := log_add_sixteen_pos n
   have hlogy : 0 < Real.log y := log_add_sixteen_pos (2 * n)
-  have hlogy_le : Real.log y ≤ 2 * Real.log x := by
+  have hlogy_le : Real.log y ≤ 2 * Real.log x :=
     calc Real.log y ≤ Real.log (x ^ 2) := Real.log_le_log hy hy_sq
       _ = 2 * Real.log x := by rw [Real.log_pow]; norm_num
   have hlly_le : Real.log (Real.log y) ≤ 2 * Real.log (Real.log x) := by
@@ -127,16 +129,11 @@ theorem interpolationScale_two_mul_le (n : ℕ) :
   have hsqrt_le : Real.sqrt (Real.log x) ≤ Real.sqrt (Real.log y) :=
     Real.sqrt_le_sqrt (Real.log_le_log hx hxy_le)
   have hsqx : 0 < Real.sqrt (Real.log x) := Real.sqrt_pos.mpr hlogx
-  have hnum : ((2 * n : ℕ) : ℝ) * Real.log (Real.log y) ^ 2 ≤
-      8 * ((n : ℝ) * Real.log (Real.log x) ^ 2) := by
-    push_cast
-    have hn : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-    nlinarith
   calc ((2 * n : ℕ) : ℝ) * Real.log (Real.log y) ^ 2 / Real.sqrt (Real.log y)
       ≤ ((2 * n : ℕ) : ℝ) * Real.log (Real.log y) ^ 2 / Real.sqrt (Real.log x) := by gcongr
-    _ ≤ 8 * ((n : ℝ) * Real.log (Real.log x) ^ 2) / Real.sqrt (Real.log x) := by gcongr
-    _ = 8 * ((n : ℝ) * Real.log (Real.log x) ^ 2 / Real.sqrt (Real.log x)) :=
-        mul_div_assoc _ _ _
+    _ ≤ (2 * (n : ℝ)) * (4 * Real.log (Real.log x) ^ 2) / Real.sqrt (Real.log x) := by
+        push_cast; gcongr
+    _ = 8 * ((n : ℝ) * Real.log (Real.log x) ^ 2 / Real.sqrt (Real.log x)) := by ring
 
 /-- Scaling the argument by `2 ^ k` multiplies `interpolationScale` by at most `8 ^ k`. -/
 theorem interpolationScale_two_pow_mul_le (k n : ℕ) :
@@ -163,18 +160,14 @@ theorem interpolationScale_le_of_linear {a b C D : ℕ} (h : a ≤ C * b + D) :
     interpolationScale a ≤
       (8 ^ (2 * C) : ℕ) * interpolationScale b + 8 * interpolationScale D := by
   rcases le_total (C * b) D with hCD | hDC
-  · have ha : a ≤ 2 * D := by omega
-    have h1 : interpolationScale a ≤ 8 * interpolationScale D :=
-      (interpolationScale_mono ha).trans (interpolationScale_two_mul_le D)
-    have hnonneg : 0 ≤ ((8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b :=
+  · have h1 := (interpolationScale_mono (show a ≤ 2 * D by omega)).trans
+      (interpolationScale_two_mul_le D)
+    have h2 : 0 ≤ ((8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b :=
       mul_nonneg (Nat.cast_nonneg _) (interpolationScale_nonneg b)
     linarith
-  · have ha : a ≤ (2 * C) * b := by rw [mul_assoc]; omega
-    have h1 : interpolationScale a ≤ (8 ^ (2 * C) : ℕ) * interpolationScale b :=
-      (interpolationScale_mono ha).trans (interpolationScale_mul_le (2 * C) b)
-    have hnonneg : 0 ≤ 8 * interpolationScale D :=
-      mul_nonneg (by norm_num) (interpolationScale_nonneg D)
-    linarith
+  · have h1 := (interpolationScale_mono (show a ≤ (2 * C) * b by rw [mul_assoc]; omega)).trans
+      (interpolationScale_mul_le (2 * C) b)
+    linarith [interpolationScale_nonneg D]
 
 /-- Under an affine bound `a ≤ C * b + D`, the ceiling `⌈2 ^ (A * interpolationScale a)⌉₊` is at
 most a constant natural multiple of `⌈2 ^ ((A * 8 ^ (2 * C)) * interpolationScale b)⌉₊`. -/
@@ -183,26 +176,23 @@ theorem ceil_two_pow_interpolationScale_le_of_linear (A C D : ℕ) :
       ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale a)⌉₊ ≤
         K * ⌈(2 : ℝ) ^ (((A * 8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b)⌉₊ := by
   let K : ℕ := ⌈(2 : ℝ) ^ ((A : ℝ) * (8 * interpolationScale D))⌉₊
-  have hK1 : 1 ≤ K := Nat.one_le_ceil_iff.mpr (Real.rpow_pos_of_pos (by norm_num) _)
-  refine ⟨K, hK1, fun {a b} hab => ?_⟩
-  have hlin := interpolationScale_le_of_linear hab
+  refine ⟨K, Nat.one_le_ceil_iff.mpr (Real.rpow_pos_of_pos (by norm_num) _), fun {a b} hab => ?_⟩
   have hexp : (A : ℝ) * interpolationScale a ≤
       (A : ℝ) * (8 * interpolationScale D) +
         ((A * 8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b := by
-    have hmul := mul_le_mul_of_nonneg_left hlin (Nat.cast_nonneg A)
+    have hmul := mul_le_mul_of_nonneg_left (interpolationScale_le_of_linear hab) (Nat.cast_nonneg A)
     push_cast at hmul ⊢
     linarith
-  have hrpow : (2 : ℝ) ^ ((A : ℝ) * interpolationScale a) ≤
-      (K : ℝ) * ⌈(2 : ℝ) ^ (((A * 8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b)⌉₊ := by
-    calc (2 : ℝ) ^ ((A : ℝ) * interpolationScale a)
-        ≤ (2 : ℝ) ^ ((A : ℝ) * (8 * interpolationScale D) +
-            ((A * 8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b) :=
-          Real.rpow_le_rpow_of_exponent_le (by norm_num) hexp
-      _ = (2 : ℝ) ^ ((A : ℝ) * (8 * interpolationScale D)) *
-            (2 : ℝ) ^ (((A * 8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b) :=
-          Real.rpow_add (by norm_num) _ _
-      _ ≤ (K : ℝ) * ⌈(2 : ℝ) ^ (((A * 8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b)⌉₊ :=
-          mul_le_mul (Nat.le_ceil _) (Nat.le_ceil _) (by positivity) (by positivity)
-  exact Nat.ceil_le.mpr (by simpa only [Nat.cast_mul] using hrpow)
+  refine Nat.ceil_le.mpr ?_
+  rw [Nat.cast_mul]
+  calc (2 : ℝ) ^ ((A : ℝ) * interpolationScale a)
+      ≤ (2 : ℝ) ^ ((A : ℝ) * (8 * interpolationScale D) +
+          ((A * 8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b) :=
+        Real.rpow_le_rpow_of_exponent_le (by norm_num) hexp
+    _ = (2 : ℝ) ^ ((A : ℝ) * (8 * interpolationScale D)) *
+          (2 : ℝ) ^ (((A * 8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b) :=
+        Real.rpow_add (by norm_num) _ _
+    _ ≤ (K : ℝ) * ⌈(2 : ℝ) ^ (((A * 8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b)⌉₊ :=
+        mul_le_mul (Nat.le_ceil _) (Nat.le_ceil _) (by positivity) (by positivity)
 
 end Cslib.Complexity.SubexponentialSAT
