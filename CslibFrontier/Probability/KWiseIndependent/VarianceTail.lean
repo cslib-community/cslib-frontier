@@ -176,7 +176,8 @@ theorem expect_sum_pow_le_of_sq_le {m : ℕ} (hm : 1 ≤ m) (hh : IsKWiseIndepen
     have : Nonempty Y := ⟨h (Classical.arbitrary ι) x⟩
     refine (abs_expect_le _ _).trans ((Finset.expect_le_expect fun y _ => ?_).trans
       (hZ₂ x (htS x hx)))
-    obtain ⟨k, hk⟩ : ∃ k, #{j | t j = x} = 2 + k := ⟨#{j | t j = x} - 2, by have := hge2 x hx; omega⟩
+    obtain ⟨k, hk⟩ : ∃ k, #{j | t j = x} = 2 + k :=
+      ⟨#{j | t j = x} - 2, by have := hge2 x hx; omega⟩
     rw [abs_pow, hk, pow_add, sq_abs]
     exact mul_le_of_le_one_right (sq_nonneg _) (pow_le_one₀ (abs_nonneg _) (hZ₁ x (htS x hx) y))
   let P_all := piFinset fun _ : Fin (2 * m) => S
@@ -307,7 +308,8 @@ theorem dens_fresh_pair_collisions_le {r : ℕ} {H : ι → Z → Y}
   let V_pts : Finset Z := univ.image b
   let T : Finset Z := U_pts ∪ V_pts
   have ha_inj : Function.Injective a := fun j k hjk =>
-    le_antisymm (not_lt.1 fun h => (hfresh k j h).1 hjk) (not_lt.1 fun h => (hfresh j k h).1 hjk.symm)
+    le_antisymm (not_lt.1 fun h => (hfresh k j h).1 hjk)
+      (not_lt.1 fun h => (hfresh j k h).1 hjk.symm)
   have hcard_U : #U_pts = r := by
     rw [card_image_of_injective _ ha_inj, card_univ, Fintype.card_fin]
   have hcard_T : #T ≤ 2 * r := (card_union_le _ _).trans <| by
@@ -417,7 +419,8 @@ theorem dens_forall_salt_exists_collision_le {s_max : ℕ} {Q : Type*} [Decidabl
   have hcard_Tuples : (#Tuples : ℝ) ≤ ((#S_b : ℝ) ^ 2) ^ s_max := by
     rw [card_piFinset, prod_const, card_univ, Fintype.card_fin]
     exact_mod_cast Nat.pow_le_pow_left ((card_filter_le _ _).trans (by rw [card_product, sq])) _
-  exact dens_le_of_subset_biUnion_fresh hh Tuples (fun t s => (s, (t s).1)) (fun t s => (s, (t s).2))
+  exact dens_le_of_subset_biUnion_fresh hh Tuples (fun t s => (s, (t s).1))
+    (fun t s => (s, (t s).2))
     (fun t ht s h => (mem_filter.mp (mem_piFinset.mp ht s)).2 (congrArg Prod.snd h))
     (fun t _ j k hjk => ⟨fun h => hjk.ne' (congrArg Prod.fst h),
       fun h => hjk.ne' (congrArg Prod.fst h)⟩) hsub hcard_Tuples
