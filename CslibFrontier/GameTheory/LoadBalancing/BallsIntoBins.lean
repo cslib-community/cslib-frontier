@@ -180,11 +180,8 @@ private theorem card_filter_binLoad_eq (n B d : ℕ) (j : Fin B) :
       Set.PairwiseDisjoint
         ((univ.powersetCard d : Finset (Finset (Fin n))) : Set (Finset (Fin n))) fibre := by
     intro S₁ _ S₂ _ hne
-    dsimp only [Function.onFun]
-    rw [Finset.disjoint_left]
-    intro A h1 h2
-    simp only [fibre, mem_filter, mem_univ, true_and] at h1 h2
-    exact hne (h1.symm.trans h2)
+    exact Finset.disjoint_left.2 fun A h1 h2 =>
+      hne ((mem_filter.mp h1).2.symm.trans (mem_filter.mp h2).2)
   rw [hpart, card_biUnion hdisj]
   have hfib_card : ∀ S ∈ univ.powersetCard d, #(fibre S) = (B - 1) ^ (n - d) := by
     intro S hS
@@ -223,16 +220,8 @@ private theorem card_filter_binLoad_eq (n B d : ℕ) (j : Fin B) :
     have hcard_dom : Fintype.card {i : Fin n // i ∉ S} = n - d := by
       rw [Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_coe, hSd]
     have hcard_cod : Fintype.card {x : Fin B // x ≠ j} = B - 1 := by
-      have heq : (univ.filter fun x : Fin B => x ≠ j) = univ.erase j := by
-        ext x
-        simp [mem_erase]
-      rw [Fintype.card_subtype, heq, card_erase_of_mem (mem_univ j), card_univ, Fintype.card_fin]
-    calc #(fibre S) = Fintype.card {A : Fin n → Fin B // A ∈ fibre S} :=
-          (Fintype.card_coe (fibre S)).symm
-      _ = Fintype.card ({i : Fin n // i ∉ S} → {x : Fin B // x ≠ j}) := Fintype.card_congr e
-      _ = (Fintype.card {x : Fin B // x ≠ j}) ^ (Fintype.card {i : Fin n // i ∉ S}) :=
-          Fintype.card_fun
-      _ = (B - 1) ^ (n - d) := by rw [hcard_dom, hcard_cod]
+      rw [Fintype.card_subtype_compl, Fintype.card_fin, Fintype.card_subtype_eq]
+    rw [← Fintype.card_coe, Fintype.card_congr e, Fintype.card_fun, hcard_dom, hcard_cod]
   rw [sum_congr rfl hfib_card, sum_const, card_powersetCard, card_univ, Fintype.card_fin,
     smul_eq_mul]
 
@@ -267,27 +256,21 @@ private theorem card_filter_binLoad_pair_eq (n B d : ℕ) {j₁ j₂ : Fin B} (h
       intro h1i
       exact hne (h1i.symm.trans hi)
     · rintro ⟨⟨S₁, S₂⟩, ⟨S₁', hS₁', S₂', ⟨_, hS₂'⟩, hpair⟩, hA1, hA2⟩
-      have h1 : S₁' = S₁ := congrArg Prod.fst hpair
-      have h2 : S₂' = S₂ := congrArg Prod.snd hpair
-      rw [hA1, hA2, ← h1, ← h2]
+      rw [hA1, hA2, ← congrArg Prod.fst hpair, ← congrArg Prod.snd hpair]
       exact ⟨hS₁', hS₂'⟩
   have hdisj : Set.PairwiseDisjoint (pairs : Set (Finset (Fin n) × Finset (Fin n))) fibre := by
     intro P₁ _ P₂ _ hPne
-    dsimp only [Function.onFun]
-    rw [Finset.disjoint_left]
-    intro A h1 h2
+    refine Finset.disjoint_left.2 fun A h1 h2 => hPne ?_
     simp only [fibre, mem_filter, mem_univ, true_and] at h1 h2
-    exact hPne (Prod.ext (h1.1.symm.trans h2.1) (h1.2.symm.trans h2.2))
+    exact Prod.ext (h1.1.symm.trans h2.1) (h1.2.symm.trans h2.2)
   rw [hpart, card_biUnion hdisj]
   have hfib_card : ∀ P ∈ pairs, #(fibre P) = (B - 2) ^ (n - 2 * d) := by
     intro ⟨S₁, S₂⟩ hP
     simp only [pairs, mem_biUnion, mem_powersetCard, subset_univ, true_and, mem_image,
       Prod.mk.injEq] at hP
     obtain ⟨S₁', hS₁', S₂', ⟨hsub, hS₂'⟩, rfl, rfl⟩ := hP
-    have hdisjS : Disjoint S₁' S₂' := by
-      rw [Finset.disjoint_left]
-      intro i hi1 hi2
-      exact (mem_sdiff.mp (hsub hi2)).2 hi1
+    have hdisjS : Disjoint S₁' S₂' :=
+      Finset.disjoint_left.2 fun i hi1 hi2 => (mem_sdiff.mp (hsub hi2)).2 hi1
     let e : {A : Fin n → Fin B // A ∈ fibre (S₁', S₂')} ≃
         ({i : Fin n // i ∉ S₁' ∪ S₂'} → {x : Fin B // x ≠ j₁ ∧ x ≠ j₂}) :=
       { toFun := fun ⟨A, hA⟩ ⟨i, hi⟩ =>
@@ -355,25 +338,16 @@ private theorem card_filter_binLoad_pair_eq (n B d : ℕ) {j₁ j₂ : Fin B} (h
         simp [mem_sdiff, mem_insert, mem_singleton, not_or]
       rw [Fintype.card_subtype, heq, card_sdiff_of_subset (subset_univ _), card_univ,
         Fintype.card_fin, card_pair hne]
-    calc #(fibre (S₁', S₂')) = Fintype.card {A : Fin n → Fin B // A ∈ fibre (S₁', S₂')} :=
-          (Fintype.card_coe _).symm
-      _ = Fintype.card ({i : Fin n // i ∉ S₁' ∪ S₂'} → {x : Fin B // x ≠ j₁ ∧ x ≠ j₂}) :=
-          Fintype.card_congr e
-      _ = (Fintype.card {x : Fin B // x ≠ j₁ ∧ x ≠ j₂}) ^
-            (Fintype.card {i : Fin n // i ∉ S₁' ∪ S₂'}) := Fintype.card_fun
-      _ = (B - 2) ^ (n - 2 * d) := by rw [hcard_dom, hcard_cod]
+    rw [← Fintype.card_coe, Fintype.card_congr e, Fintype.card_fun, hcard_dom, hcard_cod]
   have hcard_pairs : #pairs = n.choose d * (n - d).choose d := by
     have hdisjP :
         Set.PairwiseDisjoint
           ((univ.powersetCard d : Finset (Finset (Fin n))) : Set (Finset (Fin n)))
           (fun S₁ => ((univ \ S₁).powersetCard d).image fun S₂ => (S₁, S₂)) := by
       intro S₁ _ S₁' _ hneS
-      dsimp only [Function.onFun]
-      rw [Finset.disjoint_left]
-      intro P h1 h2
-      simp only [mem_image] at h1 h2
-      obtain ⟨_, _, rfl⟩ := h1
-      obtain ⟨_, _, hEq⟩ := h2
+      refine Finset.disjoint_left.2 fun P h1 h2 => ?_
+      obtain ⟨_, _, rfl⟩ := mem_image.mp h1
+      obtain ⟨_, _, hEq⟩ := mem_image.mp h2
       exact hneS (congrArg Prod.fst hEq).symm
     dsimp only [pairs]
     rw [card_biUnion hdisjP]
@@ -653,8 +627,7 @@ theorem ballsIntoBins_mul_tail_ge_half {n a B d : ℕ} [NeZero B] (hn : n = a * 
   have hEY_good : ∑ A ∈ good, w * Y A = ∑ A : Fin n → Fin B, w * Y A := by
     refine sum_subset (subset_univ good) fun A _ hA => ?_
     simp only [good, mem_filter, mem_univ, true_and, not_lt] at hA
-    have h0 : Y A = 0 := le_antisymm hA (hY_nn A)
-    rw [h0, mul_zero]
+    rw [le_antisymm hA (hY_nn A), mul_zero]
   have hCS : (∑ A ∈ good, w * Y A) ^ 2 ≤
       (∑ A ∈ good, w) * (∑ A ∈ good, w * (Y A) ^ 2) := by
     have h1 := Finset.sum_mul_sq_le_sq_mul_sq good
@@ -666,8 +639,7 @@ theorem ballsIntoBins_mul_tail_ge_half {n a B d : ℕ} [NeZero B] (hn : n = a * 
       sum_congr rfl fun _ _ => Real.sq_sqrt hw_nn
     have hrhs2 : ∑ A ∈ good, (Real.sqrt w * Y A) ^ 2 = ∑ A ∈ good, w * (Y A) ^ 2 :=
       sum_congr rfl fun A _ => by rw [mul_pow, Real.sq_sqrt hw_nn]
-    rw [hlhs, hrhs1, hrhs2] at h1
-    exact h1
+    rwa [hlhs, hrhs1, hrhs2] at h1
   have hEY2_mono : ∑ A ∈ good, w * (Y A) ^ 2 ≤ ∑ A : Fin n → Fin B, w * (Y A) ^ 2 :=
     sum_le_univ_sum_of_nonneg fun A => mul_nonneg hw_nn (sq_nonneg _)
   have hPZ : ((B : ℝ) * p) ^ 2 ≤
@@ -682,14 +654,10 @@ theorem ballsIntoBins_mul_tail_ge_half {n a B d : ℕ} [NeZero B] (hn : n = a * 
   have hBp_ge1 : 1 ≤ (B : ℝ) * p := one_le_expected_count_exact hn ha hB hd h2d hcond
   have hEY2_le : (B : ℝ) * p + (B : ℝ) * ((B : ℝ) - 1) * q ≤ 2 * ((B : ℝ) * p) ^ 2 := by
     have hB1_nn : 0 ≤ (B : ℝ) - 1 := by
-      have : (1 : ℝ) ≤ (B : ℝ) := Nat.one_le_cast.mpr (NeZero.pos B)
-      linarith
+      linarith [(Nat.one_le_cast.mpr (NeZero.pos B) : (1 : ℝ) ≤ B)]
     have hq_term : (B : ℝ) * ((B : ℝ) - 1) * q ≤ ((B : ℝ) * p) ^ 2 := by
-      calc (B : ℝ) * ((B : ℝ) - 1) * q
-          ≤ (B : ℝ) * ((B : ℝ) - 1) * p ^ 2 :=
-            mul_le_mul_of_nonneg_left hq_le (mul_nonneg hB_pos.le hB1_nn)
-        _ ≤ (B : ℝ) * (B : ℝ) * p ^ 2 := by nlinarith [sq_nonneg p]
-        _ = ((B : ℝ) * p) ^ 2 := by ring
+      linarith [mul_le_mul_of_nonneg_left hq_le (mul_nonneg hB_pos.le hB1_nn),
+        mul_nonneg hB_pos.le (sq_nonneg p)]
     nlinarith
   have hprob_good : (1 / 2 : ℝ) ≤ ∑ A ∈ good, w := by
     have hsum_nn : 0 ≤ ∑ A ∈ good, w := sum_nonneg fun _ _ => hw_nn
@@ -700,29 +668,16 @@ theorem ballsIntoBins_mul_tail_ge_half {n a B d : ℕ} [NeZero B] (hn : n = a * 
   have hgood_sub : ∀ A ∈ good, ∃ j : Fin B, d ≤ #(univ.filter fun i : Fin n => A i = j) := by
     intro A hA
     simp only [good, mem_filter, mem_univ, true_and] at hA
-    have hex : ∃ j : Fin B, 0 < ind A j := by
-      by_contra hall
-      push Not at hall
-      have h0 : Y A = 0 := sum_eq_zero fun j _ =>
-        le_antisymm (hall j) (by simp only [ind]; split_ifs <;> norm_num)
-      linarith
-    obtain ⟨j, hj⟩ := hex
-    have hload_d : #(univ.filter fun i : Fin n => A i = j) = d := by
-      by_contra hne
-      simp only [ind, ite_eq_right hne] at hj
-      exact lt_irrefl 0 hj
-    exact ⟨j, hload_d.ge⟩
+    obtain ⟨j, -, hj⟩ := exists_lt_of_sum_lt (s := univ) (f := fun _ => (0 : ℝ))
+      (by simpa only [sum_const_zero] using hA)
+    exact ⟨j, (not_ne_iff.1 fun hne => by simp [ind, hne] at hj).ge⟩
   calc (1 / 2 : ℝ) ≤ ∑ A ∈ good, w := hprob_good
     _ = ∑ A ∈ good,
           if ∃ j : Fin B, d ≤ #(univ.filter fun i : Fin n => A i = j) then w else 0 := by
-        refine sum_congr rfl fun A hA => ?_
-        rw [ite_eq_left (hgood_sub A hA)]
+        exact sum_congr rfl fun A hA => (ite_eq_left (hgood_sub A hA)).symm
     _ ≤ ∑ A : Fin n → Fin B,
           if ∃ j : Fin B, d ≤ #(univ.filter fun i : Fin n => A i = j) then w else 0 := by
-        refine sum_le_univ_sum_of_nonneg fun A => ?_
-        split_ifs
-        · exact hw_nn
-        · exact le_rfl
+        exact sum_le_univ_sum_of_nonneg fun A => by split_ifs <;> [exact hw_nn; exact le_rfl]
 
 /-- **Balls-into-bins lower tail** ([Vocking2007], Proposition 20.11; locator not re-verified
 against primary PDF): when `m` balls are thrown uniformly and independently into `m` bins, if
@@ -737,10 +692,7 @@ theorem ballsIntoBins_tail_ge_half {m k : ℕ} [NeZero m] (hk : 2 ≤ k)
         else 0 := by
   have h2k : 2 * k ≤ m := by
     have hk_le : k ≤ 2 ^ k := Nat.lt_two_pow_self.le
-    have hfac : 2 ≤ k.factorial := by
-      have := Nat.factorial_le hk
-      norm_num [Nat.factorial] at this
-      exact this
+    have hfac : 2 ≤ k.factorial := Nat.factorial_le hk
     nlinarith
   have hm2 : 2 ≤ m := by omega
   have hmul := ballsIntoBins_mul_tail_ge_half (n := m) (a := 1) (B := m) (d := k)
