@@ -588,18 +588,13 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
     compQueryWithHashGenProg_dict_spec henv₄ hfit_off hinv₄ hcpl₄ htot₄.le u
   set h_q := hValOfSeed U N θ (keyQuotient (bucketBits N) u.val)
   set d_q := ((mkCompParams U V w N, (base, base + offCompItems U w N)), (u.val, h_q))
-  have hx₄_base : x₄.regs rBase = base :=
-    (hx₄_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_base
-  have hx₄_item : x₄.regs rItemBase = base + offCompItems U w N :=
-    (hx₄_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_item
-  have hx₄_u : x₄.regs rArgU = u.val :=
-    (hx₄_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans (hx₃_u.trans hx₂_u)
-  have hx₄_cp : ∀ i : Fin 36, x₄.regs (cpReg i) = mkCompParams U V w N i := fun i =>
-    (hx₄_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
-      (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₃_cp i)
+  obtain ⟨hx₄_base, hx₄_item, hx₄_u⟩ : x₄.regs rBase = base ∧
+      x₄.regs rItemBase = base + offCompItems U w N ∧ x₄.regs rArgU = u.val := by
+    have := hx₃_u.trans hx₂_u
+    refine ⟨?_, ?_, ?_⟩ <;> rw [hx₄_pres] <;>
+      first | exact eReg_ne (by decide) | exact eReg_lt_88 _ | assumption
+  have hx₄_cp : ∀ i : Fin 36, x₄.regs (cpReg i) = mkCompParams U V w N i := fun i => by
+    rw [hx₄_pres, hx₃_cp i] <;> first | exact cpReg_ne_eReg i (by decide) | exact cpReg_lt_88 i
   have hin_q : x₄.regs ∘ srcKeyHashOp = WordEncoding.encode d_q :=
     (regs_pairSrc
       (regs_pairSrc (regs_cp_eq hx₄_cp)
@@ -638,15 +633,7 @@ private theorem inEpochQueryCode_active_exec {U V w N n n_init base L_peak : ℕ
           (12 * inEpochFactor) *
             probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
     rw [hms₄]
-    calc inEpochFactor * (memoryCost (compQueryWithHashGenProg d_q) ⟨x₄.mem, x₄.frontier⟩ + 1)
-        ≤ inEpochFactor *
-            (38 + 12 * probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
-              (Dictionary.dom s_abs) u + 1) :=
-          Nat.mul_le_mul_left _ (Nat.add_le_add_right hcost_q 1)
-      _ = 39 * inEpochFactor +
-            (12 * inEpochFactor) *
-              probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
-          ring
+    exact (Nat.mul_le_mul_left _ (Nat.add_le_add_right hcost_q 1)).trans_eq (by ring)
   have hf1 := one_le_inEpochFactor
   refine ⟨y, _, hex_tot, hy_dec, hyb, hyf.trans hx₄_ff,
     by rw [hym, hyf]; exact hsplit₄,
@@ -803,8 +790,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
         Finset.insert_eq_of_mem (Dictionary.mem_dom_iff_isSome.mpr hsome), hsplit.card_eq]
     have hcond_pos : (Cond.eq rFound rOne).Holds x₅.toData := by
       change x₅.regs rFound = x₅.regs rOne
-      simp [x₅, RData.set,
-        hx₄_found, hhit]
+      simp [x₅, RData.set, hx₄_found, hhit]
     obtain ⟨hpre_wv, hfr_wv, hgm_wv, hcost_wv, s_fix', hinv', hcpl'⟩ :=
       compInsertHit_dict_spec henv₃ hfit_off hinv₃ hcpl₃ htot₃.le u v hv_lt_V hhit
     set d_wv := (((mkCompParams U V w N, (base, base + offCompItems U w N)), res_sb.2), v)
@@ -878,13 +864,10 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
     have hn_lt_N : n < N := by
       have hev' : EpochValid U n' N := hval.2
       rw [hn'_eq] at hev'
-      rcases hev' with ⟨hn0, _⟩ | ⟨_, hn1N, _, _⟩
-      · exact absurd hn0 (Nat.succ_ne_zero n)
-      · exact hn1N
+      rcases hev' with ⟨hn0, _⟩ | ⟨_, hn1N, _, _⟩ <;> omega
     have hcond_neg : ¬(Cond.eq rFound rOne).Holds x₅.toData := by
       change x₅.regs rFound ≠ x₅.regs rOne
-      simp [x₅, RData.set,
-        hx₄_found, hhit]
+      simp [x₅, RData.set, hx₄_found, hhit]
     have hpeak_eq : inEpochPeakWords V w N n s_abs (.insert u v) =
         compactedEpochWords U V w N (n + 1) := by
       unfold inEpochPeakWords
@@ -1267,13 +1250,9 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       hpre_fin, hfr_fin, ⟨s_fix', hinv', hcpl'⟩, hcost_del⟩ :=
     compDeleteWithHashGenProg_dict_spec (s_mid := ⟨x₇.mem, x₇.frontier⟩)
       henv₄ hfit_off hinv₄ hcpl₄ htot₄.le hmid_fr hmid_out u
-  have hquad_eq : (((found, j_del), phys_del), q_last) =
-      (((found0, j_del0), phys_del0), q_last0) := hres_prep.symm.trans hres_prep0
-  have hf_eq : found = found0 := congrArg (fun t => t.1.1.1) hquad_eq
-  have hj_eq : j_del = j_del0 := congrArg (fun t => t.1.1.2) hquad_eq
-  have hp_eq : phys_del = phys_del0 := congrArg (fun t => t.1.2) hquad_eq
-  have hql_eq : q_last = q_last0 := congrArg Prod.snd hquad_eq
-  subst hf_eq hj_eq hp_eq hql_eq
+  have hquad := hres_prep.symm.trans hres_prep0
+  simp only [Prod.mk.injEq] at hquad
+  obtain ⟨⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩ := hquad
   set h_q_last := hValOfSeed U N θ q_last
   set d_fin := ((((mkCompParams U V w N, (base, base + offCompItems U w N)), (u.val, h_q)),
     ((found, j_del), phys_del)), h_q_last)
@@ -1401,12 +1380,8 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       fun addr haddr => (hbelow_y addr haddr).trans (hbelow_x₈ addr haddr),
       delete_hit_steps_le hsteps_h (by rw [hpot_y]; exact hcost_del_mul)⟩
   · have hnot_some : ¬(s_abs u).isSome := mt hf_iff.mpr hhit
-    have hs_abs'_eq : s_abs' = s_abs := by
-      dsimp only [s_abs']
-      funext k
-      by_cases hku : k = u
-      · subst hku; simp [Option.not_isSome_iff_eq_none.mp hnot_some]
-      · simp [Function.update_of_ne hku]
+    have hs_abs'_eq : s_abs' = s_abs :=
+      Function.update_eq_self_iff.mpr (Option.not_isSome_iff_eq_none.mp hnot_some).symm
     have hn'_eq : n' = n := by dsimp only [n']; rw [hs_abs'_eq, hsplit.card_eq]
     have hcond_neg : ¬(Cond.eq rFound rOne).Holds x₉.toData := by
       change x₉.regs rFound ≠ x₉.regs rOne
@@ -1584,21 +1559,21 @@ theorem inEpochOpCode_demonicExec {U V w N n n_init base : ℕ}
     have hx₁b : x₁.Bounded w := (hx.set (fits_zero w)).set hfit1
     have hx₁_base : x₁.regs rBase = base := by
       simp [x₁, RData.set, hbase]
+    obtain ⟨hex_ld, hx₂b⟩ := loadAtOffCode_exec (rAddr := rBase) (rDst := rCnt) (rTmp := rCur)
+      hx₁b hL (eReg_ne (by decide)) hx₁_base hfit6
+      (by simp only [x₁, RData.set_frontier, hrep.frontier_eq]; omega)
+    set x₂ := (x₁.set rCur (base + 6)).set rCnt (x₁.mem (base + 6))
+    set x₃ := x₂.set rZero 0
+    have hex_z := RDemonicExec.const (B := .exact) (d := rZero) (x := x₂) hL (fits_zero w)
+    have hc_cnt : (Cond.eq rCnt rZero).Holds x₃.toData := by
+      change x₃.regs rCnt = x₃.regs rZero
+      simp [x₃, x₂, x₁, RData.set, hrep.root_hdr.hdr_n]
     cases o with
     | query u =>
       obtain ⟨htag, _⟩ := harg
       have hc0 : (Cond.eq rTag rZero).Holds x₁.toData := by
         change x₁.regs rTag = x₁.regs rZero
         simp [x₁, RData.set, htag]
-      obtain ⟨hex_ld, hx₂b⟩ := loadAtOffCode_exec (rAddr := rBase) (rDst := rCnt) (rTmp := rCur)
-        hx₁b hL (eReg_ne (by decide)) hx₁_base hfit6
-        (by simp only [x₁, RData.set_frontier, hrep.frontier_eq]; omega)
-      set x₂ := (x₁.set rCur (base + 6)).set rCnt (x₁.mem (base + 6))
-      set x₃ := x₂.set rZero 0
-      have hex_z := RDemonicExec.const (B := .exact) (d := rZero) (x := x₂) hL (fits_zero w)
-      have hc_cnt : (Cond.eq rCnt rZero).Holds x₃.toData := by
-        change x₃.regs rCnt = x₃.regs rZero
-        simp [x₃, x₂, x₁, RData.set, hrep.root_hdr.hdr_n]
       set y := (x₃.set rOutTag 0).set rOutVal 0
       have hex_out :=
         (RDemonicExec.const (B := .exact) (d := rOutTag) (x := x₃) hL (fits_zero w)).seq_eq
@@ -1630,15 +1605,6 @@ theorem inEpochOpCode_demonicExec {U V w N n n_init base : ℕ}
       have hnc1 : ¬(Cond.eq rTag rOne).Holds x₁.toData := by
         change x₁.regs rTag ≠ x₁.regs rOne
         simp [x₁, RData.set, htag]
-      obtain ⟨hex_ld, hx₂b⟩ := loadAtOffCode_exec (rAddr := rBase) (rDst := rCnt) (rTmp := rCur)
-        hx₁b hL (eReg_ne (by decide)) hx₁_base hfit6
-        (by simp only [x₁, RData.set_frontier, hrep.frontier_eq]; omega)
-      set x₂ := (x₁.set rCur (base + 6)).set rCnt (x₁.mem (base + 6))
-      set x₃ := x₂.set rZero 0
-      have hex_z := RDemonicExec.const (B := .exact) (d := rZero) (x := x₂) hL (fits_zero w)
-      have hc_cnt : (Cond.eq rCnt rZero).Holds x₃.toData := by
-        change x₃.regs rCnt = x₃.regs rZero
-        simp [x₃, x₂, x₁, RData.set, hrep.root_hdr.hdr_n]
       set y := x₃.set rZero (x₃.regs rZero)
       have hex_nop := RDemonicExec.copy (B := .exact) (w := w) (d := rZero) (s := rZero)
         (x := x₃) hL
@@ -1646,11 +1612,7 @@ theorem inEpochOpCode_demonicExec {U V w N n n_init base : ℕ}
       have hyb : y.Bounded w := hx₃b.set (hx₃b.regs_fits rZero)
       have hex_d : RDemonicExec w L_peak inEpochDeleteCode x₁ _ (· = y) :=
         hex_ld.seq_eq (hex_z.seq_eq (RDemonicExec.branch_pos hc_cnt hex_nop))
-      have hs_eq : s_abs' = s_abs := by
-        dsimp only [s_abs']; funext k
-        by_cases hk : k = u
-        · subst hk; simp [hs_none k]
-        · simp [Function.update_of_ne hk]
+      have hs_eq : s_abs' = s_abs := Function.update_eq_self_iff.mpr (hs_none u).symm
       have hn'_eq : n' = 0 := by dsimp only [n']; rw [hs_eq, hrep.card_eq]
       refine ⟨y, _,
         s_z0.seq_eq (s_o1.seq_eq
