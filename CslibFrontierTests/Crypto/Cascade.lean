@@ -9,6 +9,7 @@ module
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.FiniteChildTable
 import Mathlib.Data.Set.Finite.List
 
 /-!
@@ -260,3 +261,28 @@ example :
   simp only [encodedCascadeChildRouter, cascadeChildRouter, bind_pure_comp,
     OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query]
   simp [StateT.run, cascadeChildRoute, boundedWords, Functor.map_map]
+
+-- Skipping channel zero cannot allocate channel one. Once zero is assigned, channel one
+-- can be used and its subsequent calls leave the cursor unchanged.
+example (table : Fin 2 → BitString 1 → BitString 2) :
+    cascadeChildFiniteOracle table (1, [true]) 0 = PMF.pure ([], 0) ∧
+      cascadeChildFiniteOracle table (1, [true]) 1 =
+        PMF.pure (List.ofFn (table 1 (BitString.ofList 1 [true])), 2) ∧
+      cascadeChildFiniteOracle table (1, [true]) 2 =
+        PMF.pure (List.ofFn (table 1 (BitString.ofList 1 [true])), 2) :=
+  ⟨rfl, rfl, rfl⟩
+
+example :
+    let source := PMF.uniformOfFintype (BitString 1 → BitString 2)
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    (ProbOracleComp.runWith (cascadeChildChannelOracle source) router []).map Prod.fst =
+      (PMF.pi (fun _ : Fin 4 => source)).bind fun table =>
+        (ProbOracleComp.runWith (cascadeChildFiniteOracle table) router 0).map Prod.fst := by
+  have hA : visitBothParents.IsQueryBounded 4 :=
+    (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+      (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+        (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+          (ProbOracleComp.IsQueryBounded.query _).bind fun _ => .pure _ 0
+  exact runWith_cascadeChildChannelOracle_eq_finite
+    (PMF.uniformOfFintype (BitString 1 → BitString 2))
+    (isQueryBounded_cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 hA)
