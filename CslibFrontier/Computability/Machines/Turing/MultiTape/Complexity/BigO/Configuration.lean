@@ -158,11 +158,10 @@ theorem biTape_step (enc : Symbol ↪ List Bool) (action : Option (Option Symbol
   rcases action with ⟨write, move⟩
   have hwritten : ComputableInO (fun tape : BiTape Symbol => write.elim tape tape.write)
       (encBiTape enc) (encBiTape enc)
-      (fun tape => (encBiTape enc tape).length) (fun tape => (encBiTape enc tape).length) := by
-    cases write with
-    | none => exact id'
-    | some symbol =>
-      exact (biTape_mk (const symbol) (biTape_left enc) (biTape_right enc)).mono 3
+      (fun tape => (encBiTape enc tape).length) (fun tape => (encBiTape enc tape).length) :=
+    match write with
+    | none => id'
+    | some s => (biTape_mk (const s) (biTape_left enc) (biTape_right enc)).mono 3
         (fun _ => by omega) fun _ => by omega
   cases move with
   | zero => exact hwritten
@@ -256,17 +255,15 @@ theorem finiteCfg_moveInputPos (move : SignType) : ComputableInO
     (fun cfg => (encFiniteCfg cfg).length) := by
   cases move with
   | neg =>
-    refine ((unaryPred'.comp_linear finiteCfg_inputPos).of_enc_eq fun cfg => ?_).mono 1
-      (fun cfg => by nlinarith) fun cfg => by omega
-    apply congrArg encUnary
+    refine ((unaryPred'.comp_linear finiteCfg_inputPos).of_enc_eq fun cfg =>
+      congrArg encUnary ?_).mono 1 (fun _ => by nlinarith) fun _ => by omega
     have h := val_moveInputPos_eq cfg.inputPos .neg
     have hp := cfg.inputPos.isLt
     simp only [SignType.cast, Function.comp_def] at h ⊢
     lia
   | zero =>
-    refine (finiteCfg_inputPos.of_enc_eq fun cfg => ?_).mono 1
-      (fun cfg => by nlinarith) fun cfg => by omega
-    apply congrArg encUnary
+    refine (finiteCfg_inputPos.of_enc_eq fun cfg => congrArg encUnary ?_).mono 1
+      (fun _ => by nlinarith) fun _ => by omega
     have h := val_moveInputPos_eq cfg.inputPos .zero
     simp only [SignType.cast] at h ⊢
     lia
@@ -274,9 +271,8 @@ theorem finiteCfg_moveInputPos (move : SignType) : ComputableInO
     have hle := unaryLe.comp ((finiteCfg_inputPos (k := k) (State := State)).prod
       (bitsLengthUnary' finiteCfg_input))
     refine ((hle.ite (unarySucc'.comp_linear finiteCfg_inputPos) finiteCfg_inputPos).of_enc_eq
-      fun cfg => ?_).mono 9 (fun cfg => ?_) fun cfg => ?_
-    · apply congrArg encUnary
-      have h := val_moveInputPos_eq cfg.inputPos .pos
+      fun cfg => congrArg encUnary ?_).mono 9 (fun cfg => ?_) fun cfg => ?_
+    · have h := val_moveInputPos_eq cfg.inputPos .pos
       have hp := cfg.inputPos.isLt
       simp only [SignType.cast, Function.comp_def] at h ⊢
       split_ifs with hc <;> simp only [decide_eq_true_eq] at hc <;> omega
@@ -358,9 +354,7 @@ theorem finiteCfg_inputSymbol : ComputableInO (FiniteCfg.inputSymbol (k := k) (S
     ((ComputableInDegree.head?_one (enc := encBool)).inO_one.comp_linear hcells)
   refine (((ComputableInDegree.of_finite (encIn := encOption encBool)
     (encMid := encFinEnum (Option Bool)) id).inO_one.comp_linear hsymbol).of_enc_eq
-    fun cfg => congrArg _ ?_).mono 3 (fun cfg => ?_) fun cfg => ?_
-  · rw [inputSymbol_eq]
-    rfl
+    fun cfg => congrArg _ (inputSymbol_eq cfg)).mono 3 (fun cfg => ?_) fun cfg => ?_
   all_goals split_ifs <;> omega
 
 /-- Observe all work heads of a configuration as one finite value, in linear time and space. -/

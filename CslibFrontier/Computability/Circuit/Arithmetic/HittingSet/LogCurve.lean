@@ -93,10 +93,8 @@ theorem logDenom_mul_derivative_logSeries (i : Fin n) :
   have h₂ := congrArg (fun p : F[X] => (p : F⟦X⟧)) (logCoeff_mul (F := F) i)
   simp only [Polynomial.coe_mul, Polynomial.coe_add, Polynomial.coe_one, Polynomial.coe_C,
     Polynomial.coe_X] at h₂
-  have hunit : (1 + PowerSeries.C ((i : ℕ) + 1 : F) * PowerSeries.X : F⟦X⟧) ≠ 0 := by
-    intro h
-    simpa using congrArg PowerSeries.constantCoeff h
-  refine mul_right_cancel₀ hunit ?_
+  apply mul_right_cancel₀ (b := 1 + PowerSeries.C ((i : ℕ) + 1 : F) * PowerSeries.X)
+    fun h => by simpa using congrArg PowerSeries.constantCoeff h
   rw [mul_assoc, h₁, h₂, mul_comm]
 
 section CoeffDeriv
@@ -111,9 +109,7 @@ omit [CharZero F] in
 theorem coeff_coeffDerivFun (g : MvPolynomial σ F[X]) (m : σ →₀ ℕ) :
     (coeffDerivFun g).coeff m = Polynomial.derivative (g.coeff m) := by
   classical
-  rw [coeffDerivFun, MvPolynomial.coeff_sum]
-  simp only [MvPolynomial.coeff_monomial]
-  rw [sum_ite_eq' g.support m]
+  simp only [coeffDerivFun, MvPolynomial.coeff_sum, MvPolynomial.coeff_monomial, sum_ite_eq']
   split_ifs with h
   · rfl
   · rw [MvPolynomial.notMem_support_iff.1 h, map_zero]
@@ -171,17 +167,14 @@ omit [CharZero F] in
 theorem logDeriv_apply (g : MvPolynomial (Fin n) F[X]) :
     logDeriv F n g = MvPolynomial.C (logDenom F n) * coeffDeriv g +
       ∑ i, MvPolynomial.C (logCoeff F n i) * MvPolynomial.pderiv i g := by
-  have hsum (s : Finset (Fin n)) :
-      (∑ i ∈ s, (MvPolynomial.C (logCoeff F n i) : MvPolynomial (Fin n) F[X]) •
-        (MvPolynomial.pderiv (R := F[X]) (σ := Fin n) i).restrictScalars F) g =
-      ∑ i ∈ s, MvPolynomial.C (logCoeff F n i) * MvPolynomial.pderiv i g := by
-    classical
-    induction s using Finset.induction_on with
-    | empty => simp
-    | insert a s ha ih =>
-      rw [sum_insert ha, sum_insert ha, add_apply, ih, smul_apply, smul_eq_mul]
-      rfl
-  rw [logDeriv, add_apply, hsum, smul_apply, smul_eq_mul]
+  classical
+  rw [logDeriv, add_apply, smul_apply, smul_eq_mul]
+  congr 1
+  induction (univ : Finset (Fin n)) using Finset.induction_on with
+  | empty => simp
+  | insert a s ha ih =>
+    rw [sum_insert ha, sum_insert ha, add_apply, ih, smul_apply, smul_eq_mul]
+    rfl
 
 omit [CharZero F] in
 theorem logDeriv_C (a : F[X]) :
@@ -207,26 +200,18 @@ theorem logDeriv_pderiv (i : Fin n) (g : MvPolynomial (Fin n) F[X]) :
     logDeriv F n (MvPolynomial.pderiv i g) = MvPolynomial.pderiv i (logDeriv F n g) := by
   refine MvPolynomial.ext _ _ fun m => ?_
   rw [coeff_logDeriv, MvPolynomial.coeff_pderiv (logDeriv F n g) m, coeff_logDeriv,
-    MvPolynomial.coeff_pderiv g m, add_mul, sum_mul]
-  have hnat : Polynomial.derivative (g.coeff (m + Finsupp.single i 1) * ((m i : F[X]) + 1)) =
-      Polynomial.derivative (g.coeff (m + Finsupp.single i 1)) * ((m i : F[X]) + 1) := by
-    have h0 : Polynomial.derivative ((m i : F[X]) + 1) = 0 := by
-      rw [Polynomial.derivative_add, Polynomial.derivative_natCast, Polynomial.derivative_one,
-        add_zero]
-    rw [Polynomial.derivative_mul, h0, mul_zero, add_zero]
-  rw [hnat]
-  congr 1
-  · ring
-  · refine sum_congr rfl fun j _ => ?_
-    rw [MvPolynomial.coeff_pderiv, add_right_comm m (Finsupp.single j 1) (Finsupp.single i 1)]
-    by_cases hij : j = i
-    · subst hij
-      simp only [Finsupp.add_apply, Finsupp.single_eq_same]
-      push_cast
-      ring
-    · simp only [Finsupp.add_apply, Finsupp.single_eq_of_ne hij,
-        Finsupp.single_eq_of_ne (Ne.symm hij), add_zero]
-      ring
+    MvPolynomial.coeff_pderiv g m, add_mul, sum_mul, Polynomial.derivative_mul,
+    show Polynomial.derivative ((m i : F[X]) + 1) = 0 by simp, mul_zero, add_zero]
+  refine congrArg₂ _ (by ring) (sum_congr rfl fun j _ => ?_)
+  rw [MvPolynomial.coeff_pderiv, add_right_comm m (Finsupp.single j 1) (Finsupp.single i 1)]
+  by_cases hij : j = i
+  · subst hij
+    simp only [Finsupp.add_apply, Finsupp.single_eq_same]
+    push_cast
+    ring
+  · simp only [Finsupp.add_apply, Finsupp.single_eq_of_ne hij,
+      Finsupp.single_eq_of_ne (Ne.symm hij), add_zero]
+    ring
 
 /-- The chain rule: `D` lifts `Q * d/dt` along the substitution of the logarithms. -/
 theorem aeval_logDeriv (g : MvPolynomial (Fin n) F[X]) :
@@ -235,10 +220,8 @@ theorem aeval_logDeriv (g : MvPolynomial (Fin n) F[X]) :
   have halg (a : F[X]) : algebraMap F[X] F⟦X⟧ a = (a : F⟦X⟧) := by
     simp [PowerSeries.algebraMap_apply']
   induction g using MvPolynomial.induction_on with
-  | C a =>
-    rw [logDeriv_C, MvPolynomial.aeval_C, MvPolynomial.aeval_C, halg, halg, Polynomial.coe_mul,
-      PowerSeries.derivative_coe]
-  | add p q hp hq => rw [map_add, map_add, hp, hq, map_add, map_add, mul_add]
+  | C => simp [logDeriv_C, halg, PowerSeries.derivative_coe]
+  | add _ _ hp hq => simp [hp, hq, mul_add]
   | mul_X p i hp =>
     rw [Derivation.leibniz, map_add, smul_eq_mul, smul_eq_mul, map_mul, map_mul, hp, logDeriv_X,
       MvPolynomial.aeval_C, MvPolynomial.aeval_X, halg, map_mul, Derivation.leibniz,

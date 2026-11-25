@@ -65,12 +65,10 @@ theorem minimalPeriod_eq_of_periodic_iterates (x : α) {a b : ℕ}
     (ha : f^[a] x ∈ periodicPts f) (hb : f^[b] x ∈ periodicPts f) :
     minimalPeriod f (f^[a] x) = minimalPeriod f (f^[b] x) := by
   rcases le_total a b with h | h
-  · have ht : f^[b] x = f^[b - a] (f^[a] x) := by
-      rw [← iterate_add_apply, Nat.sub_add_cancel h]
-    rw [ht, minimalPeriod_apply_iterate ha]
-  · have ht : f^[a] x = f^[a - b] (f^[b] x) := by
-      rw [← iterate_add_apply, Nat.sub_add_cancel h]
-    rw [ht, minimalPeriod_apply_iterate hb]
+  · rw [show f^[b] x = f^[b - a] (f^[a] x) by rw [← iterate_add_apply, Nat.sub_add_cancel h],
+      minimalPeriod_apply_iterate ha]
+  · rw [show f^[a] x = f^[a - b] (f^[b] x) by rw [← iterate_add_apply, Nat.sub_add_cancel h],
+      minimalPeriod_apply_iterate hb]
 
 /-- Advancing along the orbit does not change the cycle length. -/
 @[simp] theorem cycleLength_iterate (x : α) (t : ℕ) :
@@ -95,19 +93,14 @@ theorem iterate_eq_iterate_iff_modEq (x : α) {a b : ℕ}
     f^[a] x = f^[b] x ↔ a ≡ b [MOD cycleLength f x] := by
   set μ := transientDepth f x
   set ell := cycleLength f x
-  have hp := isPeriodicPt_cycleLength f x
   have hreduce {c : ℕ} (hc : μ ≤ c) : f^[c] x = f^[(c - μ) % ell] (f^[μ] x) := by
-    rw [hp.iterate_mod_apply, ← iterate_add_apply, Nat.sub_add_cancel hc]
-  have hi := iterate_eq_iterate_iff_of_lt_minimalPeriod (f := f) (x := f^[μ] x)
+    rw [(isPeriodicPt_cycleLength f x).iterate_mod_apply, ← iterate_add_apply,
+      Nat.sub_add_cancel hc]
+  rw [hreduce ha, hreduce hb, iterate_eq_iterate_iff_of_lt_minimalPeriod (f := f) (x := f^[μ] x)
     (m := (a - μ) % ell) (n := (b - μ) % ell)
-    (Nat.mod_lt _ (cycleLength_pos f x)) (Nat.mod_lt _ (cycleLength_pos f x))
-  rw [hreduce ha, hreduce hb, hi]
-  constructor
-  · intro h
-    simpa only [Nat.sub_add_cancel ha, Nat.sub_add_cancel hb] using
-      (show (a - μ) ≡ (b - μ) [MOD ell] from h).add_right μ
-  · intro h
-    exact h.sub ha hb Nat.ModEq.rfl
+    (Nat.mod_lt _ (cycleLength_pos f x)) (Nat.mod_lt _ (cycleLength_pos f x))]
+  exact ⟨fun h => by simpa only [Nat.sub_add_cancel ha, Nat.sub_add_cancel hb] using
+    (show (a - μ) ≡ (b - μ) [MOD ell] from h).add_right μ, fun h => h.sub ha hb .rfl⟩
 
 open scoped Classical in
 /-- The eventual cycle of `x`, as a finite set. -/
@@ -121,9 +114,8 @@ noncomputable def cycleSet (x : α) : Finset α :=
   exact Multiset.mem_toFinset
 
 /-- The eventual cycle is nonempty. -/
-theorem cycleSet_nonempty (x : α) : (cycleSet f x).Nonempty := by
-  classical
-  exact ⟨_, (mem_cycleSet_iff f x _).mpr
+theorem cycleSet_nonempty (x : α) : (cycleSet f x).Nonempty :=
+  ⟨_, (mem_cycleSet_iff f x _).mpr
     (self_mem_periodicOrbit (iterate_transientDepth_mem_periodicPts f x))⟩
 
 /-- Advancing along the orbit does not change the eventual cycle. -/
@@ -134,28 +126,23 @@ theorem cycleSet_nonempty (x : α) : (cycleSet f x).Nonempty := by
   let a := transientDepth f (f^[t] x) + t
   let b := transientDepth f x
   have ha : f^[a] x ∈ periodicPts f := by
-    dsimp [a]
     rw [iterate_add_apply]
     exact iterate_transientDepth_mem_periodicPts f _
   have hb : f^[b] x ∈ periodicPts f := iterate_transientDepth_mem_periodicPts f x
   change y ∈ periodicOrbit f (f^[a] x) ↔ y ∈ periodicOrbit f (f^[b] x)
   rcases le_total a b with h | h
-  · have ht : f^[b] x = f^[b - a] (f^[a] x) := by
-      rw [← iterate_add_apply, Nat.sub_add_cancel h]
-    rw [ht, periodicOrbit_apply_iterate_eq ha]
-  · have ht : f^[a] x = f^[a - b] (f^[b] x) := by
-      rw [← iterate_add_apply, Nat.sub_add_cancel h]
-    rw [ht, periodicOrbit_apply_iterate_eq hb]
+  · rw [show f^[b] x = f^[b - a] (f^[a] x) by rw [← iterate_add_apply, Nat.sub_add_cancel h],
+      periodicOrbit_apply_iterate_eq ha]
+  · rw [show f^[a] x = f^[a - b] (f^[b] x) by rw [← iterate_add_apply, Nat.sub_add_cancel h],
+      periodicOrbit_apply_iterate_eq hb]
 
 /-- Every state on the eventual cycle of `x` is periodic and reachable from `x`. -/
 theorem cycleSet_spec {x y : α} (hy : y ∈ cycleSet f x) :
     y ∈ periodicPts f ∧ ∃ t, f^[t] x = y := by
   obtain ⟨n, rfl⟩ := (mem_periodicOrbit_iff (iterate_transientDepth_mem_periodicPts f x)).mp
     ((mem_cycleSet_iff f x y).mp hy)
-  constructor
-  · obtain ⟨p, hp, hper⟩ := mem_periodicPts.mp (iterate_transientDepth_mem_periodicPts f x)
-    exact mk_mem_periodicPts hp (hper.apply_iterate n)
-  · exact ⟨n + transientDepth f x, iterate_add_apply _ _ _ _⟩
+  obtain ⟨p, hp, hper⟩ := mem_periodicPts.mp (iterate_transientDepth_mem_periodicPts f x)
+  exact ⟨mk_mem_periodicPts hp (hper.apply_iterate n), n + _, iterate_add_apply _ _ _ _⟩
 
 variable [LinearOrder α]
 
@@ -173,8 +160,7 @@ theorem canonicalCycle_le (x : α) {y : α} (hy : y ∈ cycleSet f x) : canonica
 /-- Advancing along the orbit does not change the canonical representative. -/
 @[simp] theorem canonicalCycle_iterate (x : α) (t : ℕ) :
     canonicalCycle f (f^[t] x) = canonicalCycle f x := by
-  unfold canonicalCycle
-  simp only [cycleSet_iterate]
+  simp only [canonicalCycle, cycleSet_iterate]
 
 /-- The canonical representative is periodic. -/
 theorem canonicalCycle_periodic (x : α) : canonicalCycle f x ∈ periodicPts f :=
@@ -187,22 +173,14 @@ theorem canonicalCycle_reachable (x : α) : ∃ t, f^[t] x = canonicalCycle f x 
 /-- A canonical representative completely identifies the eventual cycle. -/
 theorem exists_iterate_eq_iff_canonicalCycle_eq (x y : α) (hy : y ∈ periodicPts f) :
     (∃ t, f^[t] x = y) ↔ canonicalCycle f x = canonicalCycle f y := by
-  constructor
-  · rintro ⟨t, rfl⟩
-    exact (canonicalCycle_iterate f x t).symm
-  · intro he
-    obtain ⟨a, ha⟩ := canonicalCycle_reachable f x
-    obtain ⟨b, hb⟩ := canonicalCycle_reachable f y
-    have hp := isPeriodicPt_minimalPeriod f y
-    let d := minimalPeriod f y
-    have hd : 0 < d := minimalPeriod_pos_of_mem_periodicPts hy
-    have hback : f^[d - b % d] (canonicalCycle f y) = y := by
-      rw [← hb, ← hp.iterate_mod_apply b, ← iterate_add_apply,
-        Nat.sub_add_cancel (Nat.mod_lt b hd).le]
-      exact hp
-    refine ⟨(d - b % d) + a, ?_⟩
-    rw [iterate_add_apply, ha, he]
-    exact hback
+  refine ⟨fun ⟨t, h⟩ => h ▸ (canonicalCycle_iterate f x t).symm, fun he => ?_⟩
+  obtain ⟨a, ha⟩ := canonicalCycle_reachable f x
+  obtain ⟨b, hb⟩ := canonicalCycle_reachable f y
+  have hp := isPeriodicPt_minimalPeriod f y
+  refine ⟨minimalPeriod f y - b % minimalPeriod f y + a, ?_⟩
+  rw [iterate_add_apply, ha, he, ← hb, ← hp.iterate_mod_apply b, ← iterate_add_apply,
+    Nat.sub_add_cancel (Nat.mod_lt b (minimalPeriod_pos_of_mem_periodicPts hy)).le]
+  exact hp
 
 /-- The first visit to the canonical cycle representative, always below the state count. -/
 noncomputable def canonicalTime (x : α) : ℕ := Nat.find (canonicalCycle_reachable f x)

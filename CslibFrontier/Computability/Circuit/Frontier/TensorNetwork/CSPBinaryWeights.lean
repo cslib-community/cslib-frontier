@@ -52,8 +52,8 @@ theorem size_entry_cspNetwork_le (hW : 1 ≤ W)
     (hwt : ∀ c ∈ F, ∀ w : List Bool, w.length = c.scope.length → (wt c.rel w).size ≤ W) :
     ∀ v ∈ (cspNetwork k wt F).2.vertices, ∀ n ∈ v.2, n.size ≤ W := by
   have hrow (i j : ℕ) : (cspRow k wt F i j).size ≤ W := by
-    apply size_getD_le
-    intro n hn
+    unfold cspRow
+    refine size_getD_le (fun n hn => ?_) i
     obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hn
     rw [cspEntry, List.getD_eq_getElem _ _ (by
       simpa only [List.length_map, List.length_range] using Nat.lt_succ_of_le (hk c hc)),
@@ -64,10 +64,8 @@ theorem size_entry_cspNetwork_le (hW : 1 ≤ W)
   rcases hv with (⟨i, _, rfl⟩ | ⟨u, _, rfl⟩) | ⟨w, _, rfl⟩
   · obtain ⟨j, _, rfl⟩ := List.mem_map.mp hn
     exact hrow i j
-  · have hn' : n = 1 ∨ n = 0 := by
-      have h : n = 1 ∨ n = 0 ∨ n = 1 := by simpa [linkVertex] using hn
-      tauto
-    rcases hn' with rfl | rfl
+  · have h : n = 1 ∨ n = 0 ∨ n = 1 := by simpa [linkVertex] using hn
+    rcases (by tauto : n = 1 ∨ n = 0) with rfl | rfl
     · simpa only [Nat.size_one] using hW
     · exact Nat.zero_le _
   · obtain ⟨j, _, rfl⟩ := List.mem_map.mp hn
@@ -98,21 +96,18 @@ theorem binaryTableBound_cspNetwork_le (d : ℕ)
   have hv : G.vertices.length ≤ s := by
     dsimp only [G, s]
     rw [length_vertices_cspNetwork, numEdges_cspNetwork]
-    have hm := CSP.length_le_length_vars fun c hc => (hk c hc).1
+    have := CSP.length_le_length_vars fun c hc => (hk c hc).1
     omega
   have hN : F.vars.length + 1 ≤ s + 1 := by
     dsimp only [s, G]
-    rw [numEdges_cspNetwork]
-    omega
+    rw [numEdges_cspNetwork]; omega
   have hpow : (F.vars.length + 1) ^ d ≤ (s + 1) ^ d := Nat.pow_le_pow_left hN d
   have hpos : 1 ≤ (s + 1) ^ d := Nat.one_le_pow _ _ (by omega)
   have hpos' : 1 ≤ (s + 1) ^ (d + 1) := Nat.one_le_pow _ _ (by omega)
-  calc G.binaryTableBound ≤ G.vertices.length * M * (2 * (F.vars.length + 1) ^ d + 1) + 1 :=
-      htable
-    _ ≤ s * M * (3 * (s + 1) ^ d) + 1 := Nat.add_le_add_right
-      (Nat.mul_le_mul (Nat.mul_le_mul_right _ hv) (by omega)) 1
-    _ ≤ (s + 1) * M * (3 * (s + 1) ^ d) + 1 := Nat.add_le_add_right
-      (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.le_succ s))) 1
+  refine htable.trans ?_
+  calc G.vertices.length * M * (2 * (F.vars.length + 1) ^ d + 1) + 1
+      ≤ (s + 1) * M * (3 * (s + 1) ^ d) + 1 := Nat.add_le_add_right
+        (Nat.mul_le_mul (Nat.mul_le_mul_right _ (hv.trans (Nat.le_succ s))) (by omega)) 1
     _ = 3 * M * (s + 1) ^ (d + 1) + 1 := by rw [pow_succ]; ring
     _ ≤ (3 * M + 1) * (s + 1) ^ (d + 1) := by nlinarith
 

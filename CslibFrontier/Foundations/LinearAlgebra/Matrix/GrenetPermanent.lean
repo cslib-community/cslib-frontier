@@ -78,9 +78,8 @@ private def pathSum (w : ℕ → α → R) (k : ℕ) (T : Finset α) : R :=
 omit [Fintype α] in
 /-- The image of `Fin.snoc g j` is the image of `g` with `j` added. -/
 private theorem image_snoc {k : ℕ} (g : Fin k → α) (j : α) :
-    univ.image (Fin.snoc g j : Fin (k + 1) → α) = insert j (univ.image g) := by
-  apply coe_injective
-  simp [Set.image_univ, Fin.range_snoc]
+    univ.image (Fin.snoc g j : Fin (k + 1) → α) = insert j (univ.image g) :=
+  coe_injective (by simp [Set.image_univ, Fin.range_snoc])
 
 omit [Fintype α] in
 /-- `Fin.snoc g j` enumerates `T` exactly when `j ∈ T` and `g` enumerates `T.erase j`. -/
@@ -90,18 +89,11 @@ private theorem snoc_injective_and_image_eq_iff {k : ℕ} (g : Fin k → α) (j 
         univ.image (Fin.snoc g j : Fin (k + 1) → α) = T) ↔
       j ∈ T ∧ Function.Injective g ∧ univ.image g = T.erase j := by
   rw [Fin.snoc_injective_iff, image_snoc]
-  constructor
+  refine ⟨?_, fun ⟨hjT, hg, hT⟩ => ⟨⟨hg, ?_⟩, by rw [hT, insert_erase hjT]⟩⟩
   · rintro ⟨⟨hg, hj⟩, rfl⟩
-    refine ⟨mem_insert_self _ _, hg, ?_⟩
-    rw [erase_insert]
-    simpa using hj
-  · rintro ⟨hjT, hg, hT⟩
-    refine ⟨⟨hg, fun hj => ?_⟩, ?_⟩
-    · obtain ⟨i, rfl⟩ := hj
-      have : g i ∈ univ.image g := mem_image_of_mem _ (mem_univ _)
-      rw [hT] at this
-      simp at this
-    · rw [hT, insert_erase hjT]
+    exact ⟨mem_insert_self _ _, hg, (erase_insert (by simpa using hj)).symm⟩
+  · rintro ⟨i, rfl⟩
+    exact (mem_erase.mp (hT ▸ mem_image_of_mem _ (mem_univ i))).1 rfl
 
 /-- A path of length `k + 1` into `T` is a path of length `k` into `T.erase j` followed by an
 arc adding `j`. -/
@@ -111,28 +103,18 @@ private theorem pathSum_succ (w : ℕ → α → R) (k : ℕ) (T : Finset α) :
   rw [sum_filter, ← (Fin.snocEquiv fun _ => α).sum_comp, Fintype.sum_prod_type]
   simp only [Fin.snocEquiv_apply, snoc_injective_and_image_eq_iff, Fin.prod_univ_castSucc,
     Fin.snoc_castSucc, Fin.snoc_last, Fin.val_castSucc, Fin.val_last]
-  rw [← sum_filter_add_sum_filter_not univ (· ∈ T)]
-  rw [sum_eq_zero (s := univ.filter (· ∉ T)) (fun j hj => by
-    rw [mem_filter] at hj
-    exact sum_eq_zero fun g _ => by simp [hj.2])]
-  rw [add_zero, filter_mem_eq_inter, univ_inter]
-  refine sum_congr rfl fun j hj => ?_
-  rw [sum_filter, sum_mul]
-  refine sum_congr rfl fun g _ => ?_
-  simp [hj]
+  rw [← sum_filter_add_sum_filter_not univ (· ∈ T),
+    sum_eq_zero (s := univ.filter (· ∉ T)) fun j hj => sum_eq_zero fun _ _ =>
+      by simp [(mem_filter.mp hj).2],
+    add_zero, filter_mem_eq_inter, univ_inter]
+  exact sum_congr rfl fun j hj => by simp [sum_filter, sum_mul, hj]
 
 /-- The only path of length `0` is the empty path into `∅`. -/
 private theorem pathSum_zero (w : ℕ → α → R) (T : Finset α) :
     pathSum w 0 T = if T = ∅ then 1 else 0 := by
   unfold pathSum
   rw [sum_filter, Fintype.sum_unique]
-  by_cases hT : T = ∅
-  · subst hT
-    simp [Function.injective_of_subsingleton]
-  · simp only [hT, ↓reduceIte, univ_eq_empty, image_empty]
-    rw [ite_eq_right_iff]
-    rintro ⟨-, h⟩
-    exact absurd h.symm hT
+  by_cases hT : T = ∅ <;> simp [hT, Function.injective_of_subsingleton, eq_comm]
 
 /-- The path sums `q T = pathSum w #T T` satisfy `q = Pi.single ∅ 1 + q ᵥ* arc w`. -/
 private theorem pathSum_card_eq (w : ℕ → α → R) (T : Finset α) :
@@ -141,37 +123,29 @@ private theorem pathSum_card_eq (w : ℕ → α → R) (T : Finset α) :
   have hsum : ∑ S : Finset α, pathSum w #S S * arc w S T =
       ∑ j ∈ T, pathSum w #(T.erase j) (T.erase j) * w #(T.erase j) j := by
     simp only [arc, mul_sum]
-    rw [sum_comm' (t' := univ) (s' := fun j => univ.filter fun S => j ∉ S)
-      (h := fun S j => by simp)]
-    rw [← sum_filter_add_sum_filter_not univ (· ∈ T), sum_eq_zero (s := univ.filter (· ∉ T)),
+    rw [sum_comm' (t' := univ) (s' := fun j => univ.filter (j ∉ ·)) (fun _ _ => by simp),
+      ← sum_filter_add_sum_filter_not univ (· ∈ T),
+      sum_eq_zero (s := univ.filter (· ∉ T)) fun y hy => sum_eq_zero fun x _ => by
+        rw [ite_eq_right fun h : insert y x = T => (mem_filter.mp hy).2 (h ▸ mem_insert_self y x),
+          mul_zero],
       add_zero, filter_mem_eq_inter, univ_inter]
-    · refine sum_congr rfl fun y hy => ?_
-      rw [sum_eq_single_of_mem (T.erase y) (by simp)]
-      · simp only [insert_erase hy, ↓reduceIte]
-      · intro x hx hne
-        rw [mem_filter] at hx
-        have : insert y x ≠ T := fun h => hne (by rw [← h, erase_insert hx.2])
-        simp [this]
-    · intro y hy
-      rw [mem_filter] at hy
-      refine sum_eq_zero fun x _ => ?_
-      have : insert y x ≠ T := fun h => hy.2 (h ▸ mem_insert_self y x)
-      simp [this]
+    refine sum_congr rfl fun y hy => ?_
+    rw [sum_eq_single_of_mem (T.erase y) (by simp)]
+    · rw [ite_eq_left (insert_erase hy)]
+    · intro x hx hne
+      rw [ite_eq_right fun h => hne (by rw [← h, erase_insert (mem_filter.mp hx).2]), mul_zero]
   rw [hsum]
   rcases T.eq_empty_or_nonempty with rfl | hT
   · simp [pathSum_zero]
-  · obtain ⟨k, hk⟩ : ∃ k, #T = k + 1 := Nat.exists_eq_succ_of_ne_zero (card_ne_zero.2 hT)
+  · obtain ⟨k, hk⟩ := Nat.exists_eq_succ_of_ne_zero (card_ne_zero.2 hT)
     rw [hk, pathSum_succ, Pi.single_eq_of_ne hT.ne_empty, zero_add]
-    refine sum_congr rfl fun j hj => ?_
-    rw [card_erase_of_mem hj, hk, Nat.add_sub_cancel]
+    exact sum_congr rfl fun j hj => by rw [card_erase_of_mem hj, hk, Nat.succ_sub_one]
 
 /-- Arcs only go from a set to a strictly larger set. -/
 private theorem arc_eq_zero_of_not_ssubset (w : ℕ → α → R) {S T : Finset α} (h : ¬S ⊂ T) :
-    arc w S T = 0 := by
-  refine sum_eq_zero fun j hj => ?_
-  rw [ite_eq_right_iff]
-  rintro rfl
-  exact absurd (ssubset_insert (by simpa using hj)) h
+    arc w S T = 0 :=
+  sum_eq_zero fun _ hj =>
+    ite_eq_right fun hST : insert _ S = T => h (hST ▸ ssubset_insert (mem_compl.1 hj))
 
 /-- The layer weights of the permanent: row `k` of `A`, or `0` past the last row. -/
 private def weight {n : ℕ} (A : Matrix (Fin n) (Fin n) R) (k : ℕ) (j : Fin n) : R :=
@@ -259,23 +233,13 @@ theorem permanent_eq_det_grenetMatrix {n : ℕ} (A : Matrix (Fin n) (Fin n) R) :
     pathSum (weight A) #(colexEquiv n i) (colexEquiv n i)
   have hN : ∀ i j, j ≤ i → N i j = 0 := fun i j hji =>
     arc_eq_zero_of_not_ssubset _ fun h => (lt_of_colexEquiv_ssubset h).not_ge hji
-  have hq : q = Pi.single 0 1 + q ᵥ* N := by
-    funext i
-    simp only [q, N, Pi.add_apply]
-    rw [pathSum_card_eq]
-    congr 1
-    · by_cases hi : i = 0
-      · subst hi
-        rw [colexEquiv_zero, Pi.single_eq_same, Pi.single_eq_same]
-      · rw [Pi.single_eq_of_ne hi, Pi.single_eq_of_ne]
-        rw [← colexEquiv_zero n]
-        exact fun h => hi ((colexEquiv n).injective h)
-    · rw [vecMul, dotProduct, ← (colexEquiv n).sum_comp]
-      rfl
-  have := eq_det_submatrix_sub_one_of_eq_single_add_vecMul N hN hq
-  simp only [q, colexEquiv_last, card_univ, Fintype.card_fin] at this
-  rw [← pathSum_univ_fin]
-  exact this
+  have hq : q = Pi.single 0 1 + q ᵥ* N := funext fun i => by
+    simp only [q, N, Pi.add_apply, vecMul, dotProduct, of_apply]
+    rw [pathSum_card_eq, ← (colexEquiv n).sum_comp]
+    simp only [← colexEquiv_zero n, Pi.single_apply, (colexEquiv n).injective.eq_iff]
+  have hdet := eq_det_submatrix_sub_one_of_eq_single_add_vecMul N hN hq
+  simp only [q, colexEquiv_last, card_univ, Fintype.card_fin, pathSum_univ_fin] at hdet
+  exact hdet
 
 /-- Every entry of Grenet's matrix is an entry of `A`, `0` or `-1`. -/
 theorem grenetMatrix_apply_eq {n : ℕ} (A : Matrix (Fin n) (Fin n) R) (a b : Fin (2 ^ n - 1)) :
@@ -283,30 +247,23 @@ theorem grenetMatrix_apply_eq {n : ℕ} (A : Matrix (Fin n) (Fin n) R) (a b : Fi
       A.grenetMatrix a b = -1 := by
   have happ : A.grenetMatrix a b =
       arc (weight A) (colexEquiv n a.castSucc) (colexEquiv n b.succ) -
-        (1 : Matrix (Fin (2 ^ n - 1 + 1)) (Fin (2 ^ n - 1 + 1)) R) a.castSucc b.succ :=
-    rfl
+        (1 : Matrix _ _ R) a.castSucc b.succ := rfl
   by_cases hab : a.castSucc = b.succ
-  · right; right
-    rw [happ, hab, one_apply_eq, arc_eq_zero_of_not_ssubset _ (ssubset_irrefl _), zero_sub]
-  rw [happ, one_apply_ne hab, sub_zero]
+  · exact Or.inr (Or.inr (by
+      rw [happ, hab, one_apply_eq, arc_eq_zero_of_not_ssubset _ (ssubset_irrefl _), zero_sub]))
+  rw [happ, one_apply_ne hab, sub_zero, arc]
   set S := colexEquiv n a.castSucc
   set T := colexEquiv n b.succ
   by_cases hj : ∃ j ∉ S, insert j S = T
   · obtain ⟨j, hjS, hjT⟩ := hj
-    rw [arc, sum_eq_single_of_mem j (mem_compl.2 hjS)]
-    · rw [ite_eq_left hjT, weight]
-      split_ifs with hk
-      · exact Or.inl ⟨_, _, rfl⟩
-      · exact Or.inr (Or.inl rfl)
-    · intro j' hj' hne
-      rw [ite_eq_right_iff]
-      intro hj'T
-      have : j' ∈ T := hj'T ▸ mem_insert_self _ _
-      rw [← hjT, mem_insert] at this
-      exact absurd (this.resolve_right (mem_compl.1 hj')) hne
-  · right; left
-    refine sum_eq_zero fun j hj' => ?_
-    rw [ite_eq_right_iff]
-    exact fun h => absurd ⟨j, mem_compl.1 hj', h⟩ hj
+    rw [sum_eq_single_of_mem j (mem_compl.2 hjS) fun j' hj' hne =>
+        ite_eq_right fun hj'T : insert j' S = T =>
+          hne ((mem_insert.mp (hjT ▸ hj'T ▸ mem_insert_self j' S)).resolve_right (mem_compl.1 hj')),
+      ite_eq_left hjT, weight]
+    split_ifs with hk
+    · exact Or.inl ⟨_, _, rfl⟩
+    · exact Or.inr (Or.inl rfl)
+  · exact Or.inr (Or.inl
+      (sum_eq_zero fun j hj' => ite_eq_right fun h => hj ⟨j, mem_compl.1 hj', h⟩))
 
 end Matrix

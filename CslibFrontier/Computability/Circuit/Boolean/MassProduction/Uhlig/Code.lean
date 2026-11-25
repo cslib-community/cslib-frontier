@@ -135,12 +135,8 @@ theorem sum_second_code_route {Z : Type*} {h : Z → ℕ → Bool} {M b : ℕ}
       h z' b := by
   rw [← sum_second_code (hM z') hb a]
   refine sum_congr rfl fun j _ => ?_
-  cases hs : second a b j
+  cases hf : first a b j
   · rfl
-  · have hf : first a b j = false := by
-      cases hf : first a b j
-      · rfl
-      · exact absurd (second_eq_false_of_first hf) (by simp [hs])
-    simp [hf]
+  · simp [second_eq_false_of_first hf]
 
 end Cslib.BitString.Uhlig

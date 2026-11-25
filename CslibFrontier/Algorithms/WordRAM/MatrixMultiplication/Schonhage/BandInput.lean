@@ -67,18 +67,18 @@ private theorem init_matrix {L m N : ℕ} (X : Matrix (Fin N) (Fin (D m)) ℤ)
   simp only [List.getD_cons_succ]
   cases side
   · have hi : r * D m + k < N * D m := by
-      have h := (finProdFinEquiv (⟨r, hr⟩, ⟨k, hk⟩)).isLt
-      simpa only [finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_comm, Nat.mul_comm] using h
+      simpa only [finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_comm, Nat.mul_comm] using
+        (finProdFinEquiv (⟨r, hr⟩, ⟨k, hk⟩)).isLt
     simp only [matrixOffset, Bool.false_eq_true, ↓reduceIte]
     rw [List.getD_append _ _ _ _ (by simpa only [hxs] using hi)]
     simpa only [xs, matrixValues, dite_eq_left hr, dite_eq_left hk,
       Bool.false_eq_true, ↓reduceIte] using
-      (List.getD_flatMap_ofFn (fun i k => encode (X i k)) 0 ⟨r, hr⟩ ⟨k, hk⟩)
+      List.getD_flatMap_ofFn (fun i k => encode (X i k)) 0 ⟨r, hr⟩ ⟨k, hk⟩
   · simp only [matrixOffset, ↓reduceIte]
     rw [List.getD_append_right _ _ _ _ (by rw [hxs]; omega), hxs,
       Nat.add_sub_cancel_right]
     simpa only [ys, matrixValues, dite_eq_left hr, dite_eq_left hk, ↓reduceIte] using
-      (List.getD_flatMap_ofFn (fun k j => encode (Y k j)) 0 ⟨k, hk⟩ ⟨r, hr⟩)
+      List.getD_flatMap_ofFn (fun k j => encode (Y k j)) 0 ⟨k, hk⟩ ⟨r, hr⟩
 
 /-- The sign/magnitude input encoding uses at most `w+1` bits; the actual native program
 uses `w+2` bits for its signed arithmetic kernels. Every input word is covered. -/
@@ -93,24 +93,20 @@ theorem input_fits {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L)
   have hpow : (1 : ℤ) ≤ (7 ^ L : ℕ) := by
     exact_mod_cast Nat.one_le_pow L 7 (by decide)
   have hAfit : A < (2 : ℤ) ^ (w - 1) := by nlinarith only [hpow, hA, hmag]
-  have hvalue (z : ℤ) (hz : |z| ≤ A) : Fits (w + 2) (encode z) := by
-    have hb := abs_lt.mp (hz.trans_lt hAfit)
-    exact (encode_fits (show GenericRAM.Signed.Fits w z from ⟨hw, hb.1.le, hb.2⟩)).mono
-      (by omega)
-  refine ⟨?_, ?_⟩
-  · apply ((memory_fits hfit).of_le (input_le_memoryEnd L m N)).of_le
-    have := input_length L X Y
-    omega
-  · intro v hv
-    simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
-    rcases hv with (hv | hv) | hv
-    · rcases hv with rfl | rfl | rfl <;> exact hscalar.of_le (by omega)
-    · obtain ⟨i, _, hv⟩ := List.mem_flatMap.mp hv
-      obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hv
-      exact hvalue _ (hX i k)
-    · obtain ⟨k, _, hv⟩ := List.mem_flatMap.mp hv
-      obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hv
-      exact hvalue _ (hY k j)
+  have hvalue (z : ℤ) (hz : |z| ≤ A) : Fits (w + 2) (encode z) :=
+    let hb := abs_lt.mp (hz.trans_lt hAfit)
+    (encode_fits (show GenericRAM.Signed.Fits w z from ⟨hw, hb.1.le, hb.2⟩)).mono (by omega)
+  refine ⟨((memory_fits hfit).of_le (input_le_memoryEnd L m N)).of_le
+    (by have := input_length L X Y; omega), fun v hv => ?_⟩
+  simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
+  rcases hv with (hv | hv) | hv
+  · rcases hv with rfl | rfl | rfl <;> exact hscalar.of_le (by omega)
+  · obtain ⟨i, _, hv⟩ := List.mem_flatMap.mp hv
+    obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hv
+    exact hvalue _ (hX i k)
+  · obtain ⟨k, _, hv⟩ := List.mem_flatMap.mp hv
+    obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hv
+    exact hvalue _ (hY k j)
 
 /-- Complete actual `State.init` execution, with both encoded catalogues, computed tables,
 preserved input and outside frame, bounded final state and the complete charged time bound. -/
@@ -133,17 +129,14 @@ theorem exec_input {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L)
         y.mem b = (State.init (input L m N X Y) : State 96).data.mem b) := by
   have hi := input_fits hw hm X Y A hA hX hY hmag hfit
   let x : Data 96 := (State.init (input L m N X Y)).data
-  have hL : x.mem 1 = L := by simp [x, State.init, Data.init, input]
-  have hm' : x.mem 2 = m := by simp [x, State.init, Data.init, input]
-  have hN : x.mem 3 = N := by simp [x, State.init, Data.init, input]
-  have hvalues (side : Bool) (r : ℕ) (hr : r < N) (k : ℕ) (hk : k < D m) :
-      |matrixValues X Y side r k| ≤ A := by
-    cases side <;> simp only [matrixValues, dite_eq_left hr, dite_eq_left hk,
-      Bool.false_eq_true, ↓reduceIte]
-    · exact hX _ _
-    · exact hY _ _
-  obtain ⟨y, he, hp, hv, ht, hf, hframe⟩ := exec hw hm x hL hm' hN
-    (matrixValues X Y) (init_matrix X Y) A hA hvalues hmag hfit
+  obtain ⟨y, he, hp, hv, ht, hf, hframe⟩ := exec hw hm x
+    (by simp [x, State.init, Data.init, input]) (by simp [x, State.init, Data.init, input])
+    (by simp [x, State.init, Data.init, input]) (matrixValues X Y) (init_matrix X Y) A hA
+    (fun side _ hr _ hk => by
+      cases side <;> simp only [matrixValues, dite_eq_left hr, dite_eq_left hk,
+        Bool.false_eq_true, ↓reduceIte]
+      · exact hX _ _
+      · exact hY _ _) hmag hfit
   exact ⟨hi, y, he, he.bounded (Data.Bounded.init hi), hp, hv, ht, hf, hframe⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

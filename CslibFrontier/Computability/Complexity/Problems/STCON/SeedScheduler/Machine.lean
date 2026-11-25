@@ -213,10 +213,9 @@ theorem init_budget {α σ : Type} {enc : α ↪ List Bool} {S : α → ℕ}
       (fun r => (encSeedScanRequest r).length))
     {setup : α → SeedSearchSetup} (hsetup : ComputableInSpace setup enc encSeedSearchSetup S) :
     ComputableInSpace (fun a => (machine (setup a) scan start verdict).init)
-      enc (encState encScan) S := by
-  have hunit := budget_const (encIn := enc) (Bs := S) (encB := encUnit) ()
-  exact init_withContext_budget encUnit encScan scan (fun p => start p.1) verdict
-    (budget_comp_linear hstart (fst encSeedScanRequest encUnit)) hsetup hunit
+      enc (encState encScan) S :=
+  init_withContext_budget encUnit encScan scan (fun p => start p.1) verdict
+    (budget_comp_linear hstart (fst encSeedScanRequest encUnit)) hsetup (budget_const ())
 
 open _root_.Turing.MultiTapeTM.ComputableInSpace in
 private theorem resume_withContext_inSpace {κ σ : Type}
@@ -275,11 +274,9 @@ theorem resume_inSpace {σ : Type} (encScan : σ ↪ List Bool) (start : SeedSca
     ComputableInSpace (fun p => resume start p.1 p.2) E (encState encScan)
       (fun p => (E p).length) := by
   intro E
-  have hresume := resume_withContext_inSpace encUnit encScan (fun p => start p.1)
-    (budget_comp_linear hstart (fst encSeedScanRequest encUnit))
-  have hid := budget_id (enc := E) (.refl _)
-  have hunit := budget_const (Bs := fun a => (E a).length) (encIn := E) (encB := encUnit) ()
-  exact budget_comp_linear hresume (budget_prod hunit hid)
+  exact budget_comp_linear (resume_withContext_inSpace encUnit encScan (fun p => start p.1)
+    (budget_comp_linear hstart (fst encSeedScanRequest encUnit)))
+    (budget_prod (budget_const ()) (budget_id (.refl _)))
 
 open _root_.Turing.MultiTapeTM.ComputableInSpace in
 /-- Query, read the phase tag or terminal reply, and test acceptance in space linear in
@@ -295,28 +292,15 @@ theorem observations_inSpace {σ : Type} (encScan : σ ↪ List Bool) (setup : S
       ComputableInSpace reply E (encOption (encOption encAnswer)) (fun s => (E s).length) ∧
       ComputableInSpace M.accept E encBool (fun s => (E s).length) := by
   intro E M
-  let live := encSum encSeedSchedulerFrame (encPair encSeedSchedulerFrame encScan)
-  let terminal := encOption (encOption encAnswer)
-  have hquerySkip :=
-    budget_const (Bs := fun a => (encSeedSchedulerFrame a).length) (encIn := encSeedSchedulerFrame)
-      (encB := encNat) 0
-  have hqueryScan := budget_comp_linear hquery (snd encSeedSchedulerFrame encScan)
-  have hqueryTerminal :=
-    budget_const (Bs := fun a => (terminal a).length) (encIn := terminal) (encB := encNat) 0
   have hqueryMachine : ComputableInSpace M.query E encNat (fun s => (E s).length) :=
-    (sumElim (sumElim hquerySkip hqueryScan) hqueryTerminal).of_enc_eq fun
-      | .inl (.inl _) | .inl (.inr _) | .inr _ => rfl
-  have hhaltLive :=
-    budget_const (Bs := fun a => (live a).length) (encIn := live) (encB := encBool) false
-  have hhaltTerminal :=
-    budget_const (Bs := fun a => (terminal a).length) (encIn := terminal) (encB := encBool) true
+    (sumElim (sumElim (budget_const 0)
+      (budget_comp_linear hquery (snd encSeedSchedulerFrame encScan)))
+      (budget_const 0)).of_enc_eq fun | .inl (.inl _) | .inl (.inr _) | .inr _ => rfl
   have hhalt : ComputableInSpace M.halted E encBool (fun s => (E s).length) :=
-    (sumElim hhaltLive hhaltTerminal).of_enc_eq fun | .inl _ | .inr _ => rfl
-  have hreplyLive :=
-    budget_const (Bs := fun a => (live a).length) (encIn := live) (encB := terminal) none
-  have hreplyTerminal := budget_id (enc := terminal) (.refl _)
-  have hreply : ComputableInSpace reply E terminal (fun s => (E s).length) :=
-    (sumElim hreplyLive hreplyTerminal).of_enc_eq fun | .inl _ | .inr _ => rfl
+    (sumElim (budget_const false) (budget_const true)).of_enc_eq fun | .inl _ | .inr _ => rfl
+  have hreply : ComputableInSpace reply E (encOption (encOption encAnswer))
+      (fun s => (E s).length) :=
+    (sumElim (budget_const none) (budget_id (.refl _))).of_enc_eq fun | .inl _ | .inr _ => rfl
   have hanswer := encAnswer_reachable_budget (budget_id (enc := encAnswer) (.refl _))
   have haccept := budget_comp_linear (optionElim false (optionElim false hanswer)) hreply
   exact ⟨hqueryMachine, hhalt, hreply, haccept.of_enc_eq fun

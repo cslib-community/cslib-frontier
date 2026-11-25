@@ -259,9 +259,8 @@ private theorem naorReingoldWordHybridAt_self (F : PrimeOrderGroupFamily) (d : F
   simp only [PMF.monad_bind_eq_bind]
   congr 1; funext B
   have hfn (α : Fin m → ZMod (F.order d)) :
-      F.naorReingoldHybridEval d m B α = fun x => B x • F.generator d := by
-    funext x
-    simp [naorReingoldHybridEval]
+      F.naorReingoldHybridEval d m B α = fun x => B x • F.generator d :=
+    funext fun x => by simp [naorReingoldHybridEval]
   simp_rw [hfn, PMF.bind_const]
 
 private noncomputable def naorReingoldWordLevelTest (F : PrimeOrderGroupFamily) (d : F.Desc)
@@ -514,9 +513,8 @@ theorem isPPT_naorReingoldDescToDDHDistinguisher
         (F.encode caller.1.1.groupParameters caller.1.1.rightPublic)
         (F.encode caller.1.1.groupParameters caller.1.1.candidateShared))).support) :
       isEncodedPair caller.1.1.groupParameters vw := by
-    unfold sampleNaorReingoldPair at hvw
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-      PMF.mem_support_pure_iff] at hvw
+    simp only [sampleNaorReingoldPair, ProbComp.eval_bind, ProbComp.eval_pure,
+      PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hvw
     obtain ⟨σ, _, τ, _, rfl⟩ := hvw
     exact ⟨_, _, F.ddhFixedUWordRerandomize_encode _ _ _ _ σ τ⟩
   let runFrontier (caller : DDHCaller F) : ProbComp (Bool × NaorReingoldCache) :=
@@ -563,19 +561,19 @@ theorem isPPT_naorReingoldDescToDDHDistinguisher
           obtain ⟨y₁, y₂, rfl⟩ := hpair_enc caller val hval
           rw [length_encPair, encBits_apply, encBits_apply]
           have h1 := hE d y₁; have h2 := hE d y₂
-          dsimp only [elemBound, d] at h1 h2 ⊢
-          omega)
+          dsimp only [elemBound, d] at h1 h2 ⊢; omega)
         (vw, cache') hvw
       have hchild : (if request.2.getD caller.1.2 false then vw.2 else vw.1) =
           F.encode d (if request.2.getD caller.1.2 false then x₂ else x₁) := by
-        dsimp only at hvw_eq; rw [hvw_eq]; split_ifs <;> rfl
+        dsimp only at hvw_eq
+        rw [hvw_eq]
+        split_ifs <;> rfl
       refine ⟨hcache', ?_, ?_⟩
       · rw [hchild, F.naorReingoldWordSuffix_encode]
         exact (hE d _).trans (by dsimp only [resources, d]; lia)
-      · unfold naorReingoldCacheEncoding
-        dsimp only [encMemoCache, encBits_apply] at hgrowth
+      · dsimp only [naorReingoldCacheEncoding, encMemoCache, encBits_apply, resources, d]
+          at hgrowth ⊢
         rw [List.length_take] at hgrowth
-        dsimp only [resources, d] at hgrowth ⊢
         lia
     · simp only [hq, ↓reduceIte, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
       subst result
@@ -1062,16 +1060,10 @@ private theorem advantage_naorReingoldDescGame_le (F : PrimeOrderGroupFamily)
   let m := inLen n
   let cap := dyadicSize m
   let H : ℕ → Game := fun k => (setup n).bind fun d => naorReingoldWordHybridAt F d m k (adv n d)
-  have hH0 : H 0 = naorReingoldDescRealGame F setup inLen adv n := by
-    unfold naorReingoldDescRealGame
-    simp only [H, PMF.monad_bind_eq_bind]
-    exact congrArg ((setup n).bind ·)
-      (funext fun d => naorReingoldWordHybridAt_zero F d m (adv n d))
-  have hHm : H m = naorReingoldDescIdealGame F setup inLen adv n := by
-    unfold naorReingoldDescIdealGame
-    simp only [H, PMF.monad_bind_eq_bind]
-    exact congrArg ((setup n).bind ·)
-      (funext fun d => naorReingoldWordHybridAt_self F d m (adv n d))
+  have hH0 : H 0 = naorReingoldDescRealGame F setup inLen adv n :=
+    congrArg ((setup n).bind ·) (funext fun d => naorReingoldWordHybridAt_zero F d m (adv n d))
+  have hHm : H m = naorReingoldDescIdealGame F setup inLen adv n :=
+    congrArg ((setup n).bind ·) (funext fun d => naorReingoldWordHybridAt_self F d m (adv n d))
   rw [← hH0, ← hHm, Game.advantage_hybrid_average H m cap (lt_dyadicSize m).le]
   refine mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg _)
   let ddhReal := F.ddhRealGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n
@@ -1183,22 +1175,20 @@ private theorem advantage_sampleModZModLaw_bind_le (n : ℕ) (d : F.Desc) {m : �
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₀ =>
         (PMF.uniformOfFintype (Fin m → ZMod (F.order d))).bind fun α => detRun (α₀, α)) ≤
       ((m + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n := by
+  let μ := F.sampleModZModLaw (n + (F.encDesc d).length) d
+  let ν := PMF.uniformOfFintype (ZMod (F.order d))
   have hword :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₀ =>
-        (PMF.uniformOfFintype (Fin m → ZMod (F.order d))).bind fun α =>
-          detRun (α₀, α)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₀ =>
-        (PMF.iid (PMF.uniformOfFintype (ZMod (F.order d))) m).map (α₀, ·)).bind detRun := by
+      (ν.bind fun α₀ => (PMF.uniformOfFintype (Fin m → ZMod (F.order d))).bind fun α =>
+        detRun (α₀, α)) =
+      (ν.bind fun α₀ => (PMF.iid ν m).map (α₀, ·)).bind detRun := by
     rw [iid_uniformOfFintype]
     simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]
   rw [hword, Game.advantage_eq_nndist, ← NNReal.coe_le_coe, coe_nndist]
-  let μ := F.sampleModZModLaw (n + (F.encDesc d).length) d
-  let ν := PMF.uniformOfFintype (ZMod (F.order d))
   have hd_step : dist μ ν ≤ 1 / 2 ^ n := by
     rw [dist_comm]
-    refine (F.dist_sampleModZModLaw_le (n + (F.encDesc d).length) d).trans ?_
-    exact one_div_le_one_div_of_le (by positivity)
-      (pow_le_pow_right₀ (by norm_num) (Nat.le_add_right n _))
+    exact (F.dist_sampleModZModLaw_le (n + (F.encDesc d).length) d).trans <|
+      one_div_le_one_div_of_le (by positivity)
+        (pow_le_pow_right₀ (by norm_num) (Nat.le_add_right n _))
   calc dist ((μ.bind fun x => (PMF.iid μ m).map (x, ·)).bind detRun)
         ((ν.bind fun x => (PMF.iid ν m).map (x, ·)).bind detRun)
       ≤ dist μ ν + dist (PMF.iid μ m) (PMF.iid ν m) := dist_bind_pair_le μ ν _ _ detRun
@@ -1234,43 +1224,29 @@ private theorem advantage_probNaorReingold_le (F : PrimeOrderGroupFamily)
           post (F.encode d (F.naorReingoldEval d p.1 p.2 (BitString.ofList m request.2)))
         else []))
       prog
-  have hprob :
-      ProbComp.eval (do
-        let α₀ ← F.sampleNaorReingoldExp n d
-        let αs ← OracleComp.replicate m (F.sampleNaorReingoldExp n d)
-        OracleComp.interpret
-          (OracleComp.sumHandler ProbComp.unifFin fun request =>
-            pure (if request.2.length = m then
-              post (F.naorReingoldWordEval d α₀ αs request.2)
-            else []))
-          prog) =
-      ((F.sampleModZModLaw (n + (F.encDesc d).length) d).bind fun α₀ =>
-        (PMF.iid (F.sampleModZModLaw (n + (F.encDesc d).length) d) m).map (α₀, ·)).bind
-        detRun := by
-    simp only [ProbComp.eval_bind, ProbOracleComp.eval_interpret, ProbComp.eval_pure,
-      eval_sampleNaorReingoldExp_eq_map_val F n d,
-      eval_replicate_sampleNaorReingoldExp_eq_iid F n m d,
-      PMF.bind_bind, PMF.bind_map, Function.comp_def]
-    congr 1; funext α₀; congr 1; funext α
-    dsimp only [detRun]
-    congr 1; funext q
-    cases q with
-    | inl r => rfl
-    | inr request =>
-      dsimp only [OracleComp.sumHandler]
-      by_cases hq : request.2.length = m
-      · simp only [hq, ↓reduceIte]
-        have heval := F.naorReingoldWordEval_eq_encode d α₀.val (fun i => (α i).val)
-          (BitString.ofList m request.2)
-        simp only [ZMod.natCast_zmod_val, BitString.ofFn_ofList hq] at heval
-        rw [heval]
-      · simp [hq]
-  change Game.advantage _
-    ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α₀ =>
-      (PMF.uniformOfFintype (Fin m → ZMod (F.order d))).bind fun α =>
-        detRun (α₀, α)) ≤ _
-  rw [hprob]
-  exact F.advantage_sampleModZModLaw_bind_le n d detRun
+  refine Eq.trans_le (congrArg (Game.advantage · _) ?_)
+    (F.advantage_sampleModZModLaw_bind_le n d detRun)
+  simp only [ProbComp.eval_bind, ProbOracleComp.eval_interpret, ProbComp.eval_pure,
+    eval_sampleNaorReingoldExp_eq_map_val F n d,
+    eval_replicate_sampleNaorReingoldExp_eq_iid F n m d,
+    PMF.bind_bind, PMF.bind_map, Function.comp_def]
+  congr 1
+  funext α₀
+  congr 1
+  funext α
+  dsimp only [detRun]
+  congr 1; funext q
+  cases q with
+  | inl r => rfl
+  | inr request =>
+    dsimp only [OracleComp.sumHandler]
+    by_cases hq : request.2.length = m
+    · simp only [hq, ↓reduceIte]
+      have heval := F.naorReingoldWordEval_eq_encode d α₀.val (fun i => (α i).val)
+        (BitString.ofList m request.2)
+      simp only [ZMod.natCast_zmod_val, BitString.ofFn_ofList hq] at heval
+      rw [heval]
+    · simp [hq]
 
 /-- **Modular-sampling distance between `naorReingoldProbRealGame` and `naorReingoldWordRealGame`**:
 replacing `(inLen n + 1)` calls to `sampleNaorReingoldExp` by exact uniform `ZMod (F.order d)`
@@ -1303,9 +1279,6 @@ private theorem DDH.negligible_naorReingoldDescGame {F : PrimeOrderGroupFamily}
     cQ * ((encPair encUnary F.encDesc (n, d)).length + 1) ^ eQ
   let ε : ℕ → ℝ≥0 := fun n =>
     ((inLen n + 2 * cQ * C * (2 * n + 6) ^ eQ : ℕ) : ℝ≥0) * ((2 : ℝ≥0)⁻¹) ^ n
-  have hQ_supp (n : ℕ) (d : F.Desc) (_ : d ∈ (setup n).support) :
-      (adv n d).IsQueryBounded (Q n d) :=
-    (hQb (n, d)).1
   have hε_supp (n : ℕ) (d : F.Desc) (_ : d ∈ (setup n).support) :
       ((inLen n + 2 * Q n d : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ (n + (F.encDesc d).length) ≤ ε n := by
     let L := (F.encDesc d).length
@@ -1313,29 +1286,28 @@ private theorem DDH.negligible_naorReingoldDescGame {F : PrimeOrderGroupFamily}
       simp only [length_encPair, encUnary_apply, List.length_replicate, Nat.add_mul]
       have : 2 * n ≤ 2 * n * (L + 1) := Nat.le_mul_of_pos_right _ (Nat.add_pos_right L zero_lt_one)
       dsimp only [L] at *; omega
-    have hQd_le : Q n d ≤ cQ * C * (2 * n + 6) ^ eQ * 2 ^ L := by
-      calc Q n d
-          ≤ cQ * ((2 * n + 6) * (L + 1)) ^ eQ :=
-            Nat.mul_le_mul_left cQ (Nat.pow_le_pow_left hlen eQ)
-        _ = cQ * ((2 * n + 6) ^ eQ * (L + 1) ^ eQ) := by rw [Nat.mul_pow]
-        _ ≤ cQ * ((2 * n + 6) ^ eQ * (C * 2 ^ L)) :=
-            Nat.mul_le_mul_left cQ (Nat.mul_le_mul_left _ (hC L))
-        _ = cQ * C * (2 * n + 6) ^ eQ * 2 ^ L := by ring
+    have hQd_le : Q n d ≤ cQ * C * (2 * n + 6) ^ eQ * 2 ^ L := calc
+      Q n d ≤ cQ * ((2 * n + 6) * (L + 1)) ^ eQ := by
+        dsimp only [Q]
+        gcongr
+      _ = cQ * ((2 * n + 6) ^ eQ * (L + 1) ^ eQ) := by rw [Nat.mul_pow]
+      _ ≤ cQ * ((2 * n + 6) ^ eQ * (C * 2 ^ L)) := by
+        gcongr
+        exact hC L
+      _ = cQ * C * (2 * n + 6) ^ eQ * 2 ^ L := by ring
     have hnum_le : inLen n + 2 * Q n d ≤ (inLen n + 2 * cQ * C * (2 * n + 6) ^ eQ) * 2 ^ L := by
       have := Nat.le_mul_of_pos_right (inLen n) (Nat.two_pow_pos L)
-      rw [Nat.add_mul, Nat.mul_assoc (2 * cQ * C), Nat.mul_assoc (2 * cQ), Nat.mul_assoc 2]
-      rw [Nat.mul_assoc (cQ * C), Nat.mul_assoc cQ] at hQd_le
-      omega
-    have h2L : ((2 : ℝ≥0) ^ L) ≠ 0 := by positivity
+      rw [Nat.add_mul]; nlinarith
     rw [pow_add]
     refine (div_le_div_of_nonneg_right
       (by exact_mod_cast hnum_le : _ ≤ ((inLen n + 2 * cQ * C * (2 * n + 6) ^ eQ : ℕ) : ℝ≥0) *
         (2 : ℝ≥0) ^ L) (by positivity)).trans_eq ?_
-    rw [mul_div_mul_right _ _ h2L, div_eq_mul_inv, ← inv_pow]
+    rw [mul_div_mul_right _ _ (by positivity), div_eq_mul_inv, ← inv_pow]
   have hddh_neg := hDDH _ (isPPT_naorReingoldDescToDDHDistinguisher F hinLen hadv)
   have hinv_neg := hDDH.negligible_expected_inv_order
   negligible using fun n =>
-    advantage_naorReingoldDescGame_le F setup inLen adv n (Q n) (hQ_supp n) (hε_supp n)
+    advantage_naorReingoldDescGame_le F setup inLen adv n (Q n) (fun d _ => (hQb (n, d)).1)
+      (hε_supp n)
 
 /-- Ideal-sampling step toward [BonehShoup2023], Exercise 10.4 (p. 424), not the cited result: if
 `F.DDH setup` holds and `inLen` is computable in polynomial time in unary, no `IsOraclePPT`
@@ -1510,19 +1482,14 @@ private theorem run_eager_bitStringTable_eq_presample {m ℓ Q : ℕ}
     ⟨List.ofFn, List.ofFn_injective⟩ (List.ofFn : BitString ℓ → List Bool) (fun _ => outLaw)
     sample' (fun _ => rfl) (BitString.ofList m) (fun xs => xs)
     (fun hq => BitString.ofFn_ofList hq) (fun _ v => v) prog
-  have hrhs :
-      ((OracleComp.interpret
-        (OracleComp.sumHandler (fun r => StateT.lift (ProbComp.unifOracle r))
-          fun request (cache : List (List Bool × List Bool)) =>
-            if request.2.length = m then
-              (memoize sample' request.2 cache).bind fun res => PMF.pure (res.1, res.2)
-            else PMF.pure ([], cache))
-        prog).run []).map Prod.fst =
-      ((OracleComp.interpret
-        (OracleComp.sumHandler (fun r => StateT.lift (ProbComp.unifOracle r))
-          fun request cache => (outLaw.map List.ofFn).bind fun fresh => step fresh request cache)
-        prog).run []).map Prod.fst := by
-    refine congrArg (PMF.map Prod.fst)
+  have hpre := congrArg (PMF.map Prod.fst)
+    (hQ.run_interpret_presample (outLaw.map List.ofFn) [] step [])
+  rw [hmemo]
+  trans (((OracleComp.interpret
+    (OracleComp.sumHandler (fun r => StateT.lift (ProbComp.unifOracle r))
+      fun request cache => (outLaw.map List.ofFn).bind fun fresh => step fresh request cache)
+    prog).run []).map Prod.fst)
+  · refine congrArg (PMF.map Prod.fst)
       (congrArg (fun h => StateT.run (OracleComp.interpret h prog) []) ?_)
     funext q
     cases q with
@@ -1530,17 +1497,14 @@ private theorem run_eager_bitStringTable_eq_presample {m ℓ Q : ℕ}
     | inr request =>
       funext cache
       by_cases hq : request.2.length = m
-      · cases h : cache.lookup request.2
-        · simp [OracleComp.sumHandler, hq, step, h, memoize_of_none, sample',
-            PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-        · simp [OracleComp.sumHandler, hq, step, h, memoize_of_some,
-            PMF.monad_pure_eq_pure, PMF.bind_const]
+      · cases h : cache.lookup request.2 <;>
+          simp [OracleComp.sumHandler, hq, step, h, memoize_of_none, memoize_of_some, sample',
+            PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_const]
       · simp [OracleComp.sumHandler, hq, step, PMF.bind_const]
-  have hpre := congrArg (PMF.map Prod.fst)
-    (hQ.run_interpret_presample (outLaw.map List.ofFn) [] step [])
-  rw [hmemo, hrhs, ← hpre, PMF.map_bind, PMF.iid_map, PMF.iid_eq_pi, PMF.map_comp, PMF.bind_map]
-  congr 1; funext tbl
-  simp only [Function.comp_def, PMF.map_comp, step]
+  · rw [← hpre, PMF.map_bind, PMF.iid_map, PMF.iid_eq_pi, PMF.map_comp, PMF.bind_map]
+    congr 1
+    funext tbl
+    simp only [Function.comp_def, PMF.map_comp, step]
 
 private theorem advantage_naorReingoldHashedIdeal_at_le (F : PrimeOrderGroupFamily)
     (inLen outLen : ℕ → ℕ) (bound : F.Desc → ℕ) (adversary : OracleDistinguisher)
@@ -1591,53 +1555,41 @@ private theorem advantage_naorReingoldHashedIdeal_at_le (F : PrimeOrderGroupFami
             else PMF.pure ([], cache))))
       (adversary n (F.withSeed.encDesc (d, List.ofFn pair.1)))).run
         ([], List.ofFn fun i => List.ofFn (pair.2 i))).map fun res => res.1)
-  have hreal :
-      ((Cslib.BitString.uniformList (F.linearHashSeedLen outLen bound n d)).bind fun seed =>
-        (PMF.uniformOfFintype (BitString m → ZMod (F.order d))).bind fun B =>
-          OracleComp.interpret
-            (OracleComp.sumHandler ProbComp.unifOracle fun request =>
-              PMF.pure (if request.2.length = m then
-                F.linearHashKDF (fun _ => ℓ) bound
-                  ((d, seed), F.encode d (B (BitString.ofList m request.2) • F.generator d))
-              else []))
-            (adversary n (F.withSeed.encDesc (d, seed)))) =
-      (tableWith fun seed => source.map (hashSeed seed)).bind detKernel := by
-    simp only [linearHashSeedLen, Cslib.BitString.uniformList, PMF.bind_map, PMF.bind_bind,
-      Function.comp_def, tableWith, seedLaw]
-    congr 1; funext seed
-    rw [← run_eager_bitStringTable_eq_presample (hQ seed) (source.map (hashSeed seed))]
-    have hpi : PMF.pi (fun _ : BitString m => source.map (hashSeed seed)) =
-        (PMF.uniformOfFintype (BitString m → ZMod (F.order d))).map
-          (fun B x => hashSeed seed (F.paddedGeneratorMultiple bound d (B x))) := by
-      dsimp only [source]; simp_rw [PMF.map_comp]; rw [PMF.pi_map, PMF.pi_uniformOfFintype]; rfl
-    rw [hpi, PMF.bind_map]
-    congr 1; funext B; dsimp only [Function.comp_apply]
-    congr 1; funext q
-    cases q with
-    | inl _ => rfl
-    | inr request =>
-      dsimp only [OracleComp.sumHandler]
-      by_cases hq : request.2.length = m
-      · simp only [hq, ↓reduceIte, linearHashKDF, SeededDesc.seed,
-          ← F.ofFn_paddedGeneratorMultiple hbound (B (BitString.ofList m request.2)),
-          Cslib.BitString.LinearHash.wordHash_eq_ofFn, Cslib.BitString.ofList_ofFn,
-          Cslib.BitString.blocksEquiv_apply, hashSeed]
-      · simp [hq]
-  have hideal :
-      ((Cslib.BitString.uniformList (F.linearHashSeedLen outLen bound n d)).bind fun seed =>
-        (PMF.uniformOfFintype (BitString m → BitString ℓ)).bind fun f =>
-          OracleComp.interpret
-            (OracleComp.sumHandler ProbComp.unifOracle fun request =>
-              PMF.pure (if request.2.length = m then
-                List.ofFn (f (BitString.ofList m request.2))
-              else []))
-            (adversary n (F.withSeed.encDesc (d, seed)))) =
-      (tableWith fun _ => PMF.uniformOfFintype (BitString ℓ)).bind detKernel := by
-    simp only [linearHashSeedLen, Cslib.BitString.uniformList, PMF.bind_map, PMF.bind_bind,
-      Function.comp_def, tableWith, seedLaw]
-    congr 1; funext seed
-    rw [← PMF.pi_uniformOfFintype, run_eager_bitStringTable_eq_presample (hQ seed)]
-  rw [hreal, hideal, Game.advantage_eq_nndist, ← NNReal.coe_le_coe, coe_nndist]
+  suffices h : Game.advantage ((tableWith fun seed => source.map (hashSeed seed)).bind detKernel)
+      ((tableWith fun _ => PMF.uniformOfFintype (BitString ℓ)).bind detKernel) ≤
+      (Q : ℝ≥0) * (NNReal.sqrt ((2 : ℝ≥0) ^ ℓ / (F.order d : ℝ≥0)) / 2) by
+    refine Eq.trans_le (congrArg₂ Game.advantage ?_ ?_) h
+    · simp only [linearHashSeedLen, Cslib.BitString.uniformList, PMF.bind_map, PMF.bind_bind,
+        Function.comp_def, tableWith, seedLaw]
+      congr 1; funext seed
+      have hpi : PMF.pi (fun _ : BitString m => source.map (hashSeed seed)) =
+          (PMF.uniformOfFintype (BitString m → ZMod (F.order d))).map
+            (fun B x => hashSeed seed (F.paddedGeneratorMultiple bound d (B x))) := by
+        dsimp only [source]
+        simp_rw [PMF.map_comp]
+        rw [PMF.pi_map, PMF.pi_uniformOfFintype]
+        rfl
+      rw [← run_eager_bitStringTable_eq_presample (hQ seed) (source.map (hashSeed seed)),
+        hpi, PMF.bind_map]
+      congr 1
+      funext B
+      dsimp only [Function.comp_apply]
+      congr 1; funext q
+      cases q with
+      | inl _ => rfl
+      | inr request =>
+        dsimp only [OracleComp.sumHandler]
+        by_cases hq : request.2.length = m
+        · simp only [hq, ↓reduceIte, linearHashKDF, SeededDesc.seed,
+            ← F.ofFn_paddedGeneratorMultiple hbound (B (BitString.ofList m request.2)),
+            Cslib.BitString.LinearHash.wordHash_eq_ofFn, Cslib.BitString.ofList_ofFn,
+            Cslib.BitString.blocksEquiv_apply, hashSeed]
+        · simp [hq]
+    · simp only [linearHashSeedLen, Cslib.BitString.uniformList, PMF.bind_map, PMF.bind_bind,
+        Function.comp_def, tableWith, seedLaw]
+      congr 1; funext seed
+      rw [← PMF.pi_uniformOfFintype, run_eager_bitStringTable_eq_presample (hQ seed)]
+  rw [Game.advantage_eq_nndist, ← NNReal.coe_le_coe, coe_nndist]
   have hlhl :
       dist (seedLaw.bind fun seed => (source.map (hashSeed seed)).map (seed, ·))
         (seedLaw.bind fun seed => (PMF.uniformOfFintype (BitString ℓ)).map (seed, ·)) ≤
@@ -1985,89 +1937,57 @@ theorem DDH.negligible_naorReingoldHashedGame_ideal_const {F : PrimeOrderGroupFa
   obtain ⟨Q, hQ_poly, hQ_supp⟩ :=
     exists_queryBound_hashedAdvGroup houtLen hbound_poly hdesc_poly hdesc hadversary
   let ε : ℕ → ℝ≥0 := fun n => (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal
-  have hε_neg : Negligible ε := hDDH.negligible_expected_inv_order
-  let lhlBound : ℕ → ℝ≥0 := fun n =>
-    (Q n : ℝ≥0) * (2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n)) + NNReal.sqrt (ε n)
-  have hlhl_neg : Negligible lhlBound := by
-    have h1 : Negligible fun n => (2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n)) :=
-      (hε_neg.sqrt.sqrt).const_mul ((2 : ℝ≥0) ^ c)
-    have h2 : Negligible fun n =>
-        (Q n : ℝ≥0) * ((2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n))) :=
-      h1.polynomiallyBounded_mul hQ_poly
-    exact (by simpa only [mul_assoc] using h2 : Negligible fun n =>
-      (Q n : ℝ≥0) * (2 : ℝ≥0) ^ c * NNReal.sqrt (NNReal.sqrt (ε n))).add hε_neg.sqrt
-  refine negligible_naorReingoldHashedGame_of_ideal_le hDDH hinLen houtLen hbound_poly hbound
-    hadversary hlhl_neg fun n => ?_
   let K : ℝ≥0 := NNReal.sqrt ((2 : ℝ≥0) ^ c) / 2
-  have htight :
-      Game.advantage
-        (naorReingoldHashedGroupIdealGame F setup inLen (fun _ => c) bound adversary n)
-        (F.naorReingoldHashedIdealGame setup inLen (fun _ => c) bound adversary n) ≤
-      (Q n : ℝ≥0) * K * NNReal.sqrt (ε n) := by
-    simp only [naorReingoldHashedGroupIdealGame, naorReingoldHashedIdealGame, seededSetup,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
-    let g : F.Desc → ℝ≥0 := fun d => NNReal.sqrt ((F.order d : ℝ≥0)⁻¹)
-    have hg_le_one (d : F.Desc) : g d ≤ 1 := by
+  have hbound_neg : Negligible fun n => (Q n : ℝ≥0) * K * NNReal.sqrt (ε n) := by
+    simpa only [mul_assoc] using
+      (hDDH.negligible_expected_inv_order.sqrt.const_mul K).polynomiallyBounded_mul hQ_poly
+  refine negligible_naorReingoldHashedGame_of_ideal_le hDDH hinLen houtLen hbound_poly hbound
+    hadversary hbound_neg fun n => ?_
+  simp only [naorReingoldHashedGroupIdealGame, naorReingoldHashedIdealGame, seededSetup,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+  let g : F.Desc → ℝ≥0 := fun d => NNReal.sqrt ((F.order d : ℝ≥0)⁻¹)
+  have hg_le_one (d : F.Desc) : g d ≤ 1 :=
+    NNReal.sqrt_le_one.mpr (inv_le_one_of_one_le₀ (by exact_mod_cast (F.prime_order d).pos))
+  have hclose := CloseTo.bind_right_tsum (setup n)
+    (err := fun d => (((Q n : ℝ≥0) * K * g d : ℝ≥0) : ℝ≥0∞)) fun d hd => by
+      refine Game.closeTo_iff_advantage_le.mpr
+        ((advantage_naorReingoldHashedIdeal_at_le F inLen (fun _ => c) bound adversary n (Q n) d
+          (hbound n d hd) (hQ_supp n d hd)).trans_eq ?_)
+      dsimp only [K, g]
+      rw [div_eq_mul_inv ((2 : ℝ≥0) ^ c), NNReal.sqrt_mul, mul_div_right_comm, ← mul_assoc]
+  have hadv : (Game.advantage _ _ : ℝ≥0∞) ≤
+      (((Q n : ℝ≥0) : ℝ≥0∞) * K) * ∑' d, setup n d * (g d : ℝ≥0∞) :=
+    (Game.closeTo_iff_coe_advantage_le.mp hclose).trans_eq (by
+      rw [← ENNReal.tsum_mul_left]
+      exact tsum_congr fun d => by simp only [ENNReal.coe_mul]; ring)
+  have hE_top : (∑' d, setup n d * (g d : ℝ≥0∞)) ≠ ⊤ :=
+    ne_top_of_le_ne_top ENNReal.one_ne_top <|
+      (tsum_le_tsum fun x => mul_le_mul_of_nonneg_left
+        (ENNReal.coe_le_one_iff.mpr (hg_le_one x)) zero_le).trans_eq (by simp [(setup n).tsum_coe])
+  have hjensen : (∑' d, setup n d * (g d : ℝ≥0∞)).toReal ≤ Real.sqrt (ε n : ℝ) := by
+    have hE_eq :
+        (∑' d, setup n d * (g d : ℝ≥0∞)).toReal = ∑' d, (setup n d).toReal * (g d : ℝ) := by
+      rw [ENNReal.tsum_toReal_eq fun d =>
+        ENNReal.mul_ne_top ((setup n).apply_ne_top d) ENNReal.coe_ne_top]
+      exact tsum_congr fun d => ENNReal.toReal_mul
+    have hε_eq : (ε n : ℝ) = ∑' d, (setup n d).toReal * (g d : ℝ) ^ 2 := by
+      change (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toReal = _
+      rw [ENNReal.tsum_toReal_eq fun d => ENNReal.mul_ne_top ((setup n).apply_ne_top d)
+        (ENNReal.inv_ne_top.mpr (by exact_mod_cast (F.prime_order d).ne_zero))]
+      refine tsum_congr fun d => ?_
+      rw [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_natCast]
       dsimp only [g]
-      exact NNReal.sqrt_le_one.mpr (inv_le_one_of_one_le₀ (by exact_mod_cast (F.prime_order d).pos))
-    have hclose := CloseTo.bind_right_tsum (setup n)
-      (err := fun d => (((Q n : ℝ≥0) * K * g d : ℝ≥0) : ℝ≥0∞)) fun d hd => by
-        refine Game.closeTo_iff_advantage_le.mpr
-          ((advantage_naorReingoldHashedIdeal_at_le F inLen (fun _ => c) bound adversary n (Q n) d
-            (hbound n d hd) (hQ_supp n d hd)).trans_eq ?_)
-        dsimp only [K, g]
-        rw [div_eq_mul_inv ((2 : ℝ≥0) ^ c), NNReal.sqrt_mul, mul_div_right_comm, ← mul_assoc]
-    have hadv : (Game.advantage _ _ : ℝ≥0∞) ≤
-        (((Q n : ℝ≥0) : ℝ≥0∞) * K) * ∑' d, setup n d * (g d : ℝ≥0∞) :=
-      (Game.closeTo_iff_coe_advantage_le.mp hclose).trans_eq (by
-        rw [← ENNReal.tsum_mul_left]
-        refine tsum_congr fun d => ?_
-        simp only [ENNReal.coe_mul]; ring)
-    have hE_top : (∑' d, setup n d * (g d : ℝ≥0∞)) ≠ ⊤ :=
-      ne_top_of_le_ne_top ENNReal.one_ne_top <|
-        (tsum_le_tsum fun d => mul_le_mul_of_nonneg_left
-          (ENNReal.coe_le_one_iff.mpr (hg_le_one d)) zero_le).trans_eq
-          (by simp [(setup n).tsum_coe])
-    have hjensen : (∑' d, setup n d * (g d : ℝ≥0∞)).toReal ≤ Real.sqrt (ε n : ℝ) := by
-      have hE_eq :
-          (∑' d, setup n d * (g d : ℝ≥0∞)).toReal = ∑' d, (setup n d).toReal * (g d : ℝ) := by
-        rw [ENNReal.tsum_toReal_eq fun d =>
-          ENNReal.mul_ne_top ((setup n).apply_ne_top d) ENNReal.coe_ne_top]
-        exact tsum_congr fun d => ENNReal.toReal_mul
-      have hε_eq : (ε n : ℝ) = ∑' d, (setup n d).toReal * (g d : ℝ) ^ 2 := by
-        change (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toReal = _
-        rw [ENNReal.tsum_toReal_eq fun d => ENNReal.mul_ne_top ((setup n).apply_ne_top d)
-          (ENNReal.inv_ne_top.mpr (by exact_mod_cast (F.prime_order d).ne_zero))]
-        refine tsum_congr fun d => ?_
-        rw [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-        dsimp only [g]
-        rw [← NNReal.coe_pow, NNReal.sq_sqrt, NNReal.coe_inv, NNReal.coe_natCast]
-      rw [hE_eq, hε_eq]
-      exact Real.le_sqrt_of_sq_le (PMF.sq_tsum_le_tsum_sq (setup n) (fun _ => NNReal.coe_nonneg _)
-        fun d => by exact_mod_cast hg_le_one d)
-    rw [← NNReal.coe_le_coe]
-    calc (Game.advantage _ _ : ℝ)
-        = ((Game.advantage _ _ : ℝ≥0∞)).toReal := rfl
-      _ ≤ ((((Q n : ℝ≥0) : ℝ≥0∞) * K) * ∑' d, setup n d * (g d : ℝ≥0∞)).toReal :=
-          ENNReal.toReal_mono (ENNReal.mul_ne_top (by finiteness) hE_top) hadv
-      _ = ((Q n : ℝ) * (K : ℝ)) * (∑' d, setup n d * (g d : ℝ≥0∞)).toReal := by
-          rw [ENNReal.toReal_mul, ENNReal.toReal_mul]; rfl
-      _ ≤ ((Q n : ℝ) * (K : ℝ)) * Real.sqrt (ε n : ℝ) := by gcongr
-      _ = (((Q n : ℝ≥0) * K * NNReal.sqrt (ε n) : ℝ≥0) : ℝ) := by push_cast; rfl
-  have hK_le : K ≤ (2 : ℝ≥0) ^ c :=
-    (div_le_self zero_le (by norm_num)).trans
-      ((NNReal.sqrt_le_sqrt.mpr (by
-          rw [sq]; exact le_mul_of_one_le_right zero_le (one_le_pow₀ (by norm_num)))).trans_eq
-        (NNReal.sqrt_sq _))
-  have hε_le_one : ε n ≤ 1 :=
-    (ENNReal.toNNReal_mono ENNReal.one_ne_top <|
-      (tsum_le_tsum fun d => mul_le_mul_of_nonneg_left
-        (ENNReal.inv_le_one.mpr (by exact_mod_cast (F.prime_order d).pos)) zero_le).trans_eq
-        (by simp [(setup n).tsum_coe])).trans_eq ENNReal.toNNReal_one
-  have hsqrt_le : NNReal.sqrt (ε n) ≤ NNReal.sqrt (NNReal.sqrt (ε n)) :=
-    (NNReal.sqrt_sq _).symm.trans_le (NNReal.sqrt_le_sqrt.mpr
-      (pow_le_of_le_one zero_le (NNReal.sqrt_le_one.mpr hε_le_one) two_ne_zero))
-  exact htight.trans ((mul_le_mul' (mul_le_mul_of_nonneg_left hK_le zero_le) hsqrt_le).trans
-    le_self_add)
+      rw [← NNReal.coe_pow, NNReal.sq_sqrt, NNReal.coe_inv, NNReal.coe_natCast]
+    rw [hE_eq, hε_eq]
+    exact Real.le_sqrt_of_sq_le (PMF.sq_tsum_le_tsum_sq (setup n) (fun _ => NNReal.coe_nonneg _)
+      fun d => by exact_mod_cast hg_le_one d)
+  rw [← NNReal.coe_le_coe]
+  calc (Game.advantage _ _ : ℝ)
+      ≤ ((((Q n : ℝ≥0) : ℝ≥0∞) * K) * ∑' d, setup n d * (g d : ℝ≥0∞)).toReal :=
+        ENNReal.toReal_mono (ENNReal.mul_ne_top (by finiteness) hE_top) hadv
+    _ = ((Q n : ℝ) * (K : ℝ)) * (∑' d, setup n d * (g d : ℝ≥0∞)).toReal := by
+        rw [ENNReal.toReal_mul, ENNReal.toReal_mul]; rfl
+    _ ≤ ((Q n : ℝ) * (K : ℝ)) * Real.sqrt (ε n : ℝ) := by gcongr
+    _ = (((Q n : ℝ≥0) * K * NNReal.sqrt (ε n) : ℝ≥0) : ℝ) := by push_cast; rfl
 
 end Cslib.Crypto.PrimeOrderGroupFamily

@@ -368,7 +368,7 @@ theorem mem_support_dhExecution {d : F.Desc} {outcome : KeyExchange.Outcome F.DH
 theorem dhKeyExchange_correct (setup : ℕ → PMF F.Desc) : (F.dhKeyExchange setup).Correct := by
   intro n outcome h
   supp_cases h [dhKeyExchange] with ⟨d, -, h⟩
-  obtain ⟨x, y, rfl⟩ := F.mem_support_dhExecution h
+  rcases F.mem_support_dhExecution h with ⟨_, _, rfl⟩
   rfl
 
 /-- The ideal key of [KatzLindell2020], Theorem 11.3 (p. 394): a uniform element of the group
@@ -506,25 +506,12 @@ theorem advantage_bind_dhKeyExchangeProb_le (setup : ℕ → PMF F.Desc) (n : �
       2 / 2 ^ n := by
   simp only [dhKeyExchangeProb, dhKeyExchange, PMF.bind_bind]
   refine Game.advantage_bind_le_nnreal (setup n) _ _ fun d => ?_
-  let outcomeOf (d : F.Desc) (α β : ZMod (F.order d)) :
-      KeyExchange.Outcome F.DHTranscript F.DHKey :=
-    { transcript := ⟨d, α • F.generator d, β • F.generator d⟩
-      aliceKey := α • (β • F.generator d)
-      bobKey := β • (α • F.generator d) }
-  have hprob : (ProbComp.eval (F.dhExecutionProb n d)).bind k =
-      (ProbComp.eval (F.sampleExp n d)).bind fun x =>
-        (ProbComp.eval (F.sampleExp n d)).bind fun y =>
-          k (outcomeOf d x y) := by
-    simp only [dhExecutionProb, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-      PMF.pure_bind, outcomeOf]
-  have hideal : (F.dhExecution d).bind k =
-      (PMF.uniformOfFintype (ZMod (F.order d))).bind fun α =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β =>
-          k (outcomeOf d α β) := by
-    simp only [dhExecution, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.pure_bind, outcomeOf]
-  rw [hprob, hideal]
-  exact F.advantage_bind_sampleExp_pair_le n d (fun α β => k (outcomeOf d α β))
+  simpa only [dhExecutionProb, dhExecution, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind] using
+    F.advantage_bind_sampleExp_pair_le n d fun α β => k
+      { transcript := ⟨d, α • F.generator d, β • F.generator d⟩
+        aliceKey := α • (β • F.generator d)
+        bobKey := β • (α • F.generator d) }
 
 /-- Against `dhKeyExchangeProb`, any eavesdropper's advantage between the real key and the uniform
 group-element ideal key `dhIdealKey` is at most its DDH advantage via `dhEavToDDH` plus the
@@ -554,10 +541,8 @@ theorem advantage_eavGame_dhKeyExchangeProb_le (setup : ℕ → PMF F.Desc)
           fun key => ProbComp.eval (adversary n ⟨outcome.transcript, key⟩))
   have h4 := Game.advantage_four_hop_le hreal hideal
   rw [F.realGame_dhKeyExchange, F.idealGame_dhKeyExchange] at h4
-  refine h4.trans_eq ?_
-  ext
-  push_cast
-  ring
+  refine h4.trans_eq (NNReal.eq ?_)
+  push_cast; ring
 
 /-- **Under DDH, Diffie–Hellman key exchange is secure against passive eavesdroppers**
 ([KatzLindell2020], Section 11.3, Theorem 11.3, p. 394, locator not verified; registration pending
@@ -686,10 +671,11 @@ private theorem xor_identities : ∀ k r t : List Bool, r.length = k.length → 
   | _ :: _, [], _, hr, _ => by simp at hr
   | _ :: _, _ :: _, [], _, ht => by simp at ht
   | a :: k, b :: r, c :: t, hr, ht => by
-    simp only [List.length_cons, Nat.add_right_cancel_iff] at hr ht
-    obtain ⟨h₁, h₂⟩ := xor_identities k r t hr ht
+    obtain ⟨h₁, h₂⟩ := xor_identities k r t (Nat.succ.inj hr) (Nat.succ.inj ht)
     simp only [List.zipWith_cons_cons, h₁, h₂, List.cons.injEq, and_true]
-    cases a <;> cases b <;> cases c <;> decide
+    clear hr ht
+    revert a b c
+    decide
 
 /-- Every honest execution of the XOR protocol comes from `n`-bit words `k`, `r` and `t`. -/
 theorem mem_support_xorKeyExchange {n : ℕ} {outcome : Outcome XorTranscript fun _ => List Bool}
@@ -749,36 +735,30 @@ theorem half_le_advantage_xorEavesdropper {n : ℕ} (hn : n ≠ 0) :
       (xorKeyExchange.idealGame (fun n _ => BitString.uniformList n) xorEavesdropper n) := by
   have hle : xorKeyExchange.idealGame (fun n _ => BitString.uniformList n) xorEavesdropper n
       true ≤ 2⁻¹ :=
-    (idealGame_xorEavesdropper_true_le n).trans (by
-      rw [one_div]
-      exact ENNReal.inv_le_inv.mpr (le_self_pow₀ (by norm_num) hn))
+    (idealGame_xorEavesdropper_true_le n).trans
+      (one_div ((2 : ℝ≥0∞) ^ n) ▸ ENNReal.inv_le_inv.mpr (le_self_pow₀ (by norm_num) hn))
   have hreal := ENNReal.toReal_mono (by simp) hle
   rw [← NNReal.coe_le_coe, Game.coe_advantage, realGame_xorEavesdropper]
   simp only [Game.coe_succProbability, PMF.pure_apply, ite_true, ENNReal.toReal_one,
     ENNReal.toReal_inv, ENNReal.toReal_ofNat] at hreal ⊢
   rw [abs_of_nonneg (by linarith)]
-  push_cast
-  linarith
+  push_cast; linarith
 
 /-- The XOR eavesdropper is uniform strict PPT. -/
 theorem isPPT_xorEavesdropper : xorEavesdropper.IsPPT encXorTranscript fun _ => encBits := by
-  have hkey : ComputableInPolyTime (fun input : ℕ × View XorTranscript (fun _ => List Bool) =>
-      input.2.key) (encEavInput encXorTranscript fun _ => encBits) encBits :=
-    encView_key_polyTime encXorTranscript (fun _ => encBits) (.snd _ _)
-  have hrec : ComputableInPolyTime (fun input : ℕ × View XorTranscript (fun _ => List Bool) =>
-      input.2.transcript.xorAll) (encEavInput encXorTranscript fun _ => encBits) encBits := by
-    unfold XorTranscript.xorAll
-    fun_prop
-  exact (hkey.decide_eq' hrec).isPPTOn
+  refine ((encView_key_polyTime encXorTranscript (fun _ => encBits) (.snd _ _)).decide_eq'
+    (right := fun input : ℕ × View XorTranscript (fun _ => List Bool) =>
+      input.2.transcript.xorAll) ?_).isPPTOn
+  unfold XorTranscript.xorAll
+  fun_prop
 
 /-- **The XOR protocol is not secure against eavesdroppers** ([KatzLindell2020], Exercise 11.4,
 p. 400): the XOR of the three transcript words is the key, so the eavesdropper
 `xorEavesdropper` has advantage at least `1 / 2` at every parameter `n ≥ 1`. -/
-theorem not_eavSecureBits_xorKeyExchange : ¬ xorKeyExchange.EavSecureBits encXorTranscript := by
-  intro h
-  refine not_negligible_const (c := (1 / 2 : ℝ≥0)) (by norm_num) ?_
-  exact negligible_of_le ((h xorEavesdropper isPPT_xorEavesdropper).shift 1)
-    fun n => half_le_advantage_xorEavesdropper n.succ_ne_zero
+theorem not_eavSecureBits_xorKeyExchange : ¬ xorKeyExchange.EavSecureBits encXorTranscript :=
+  fun h => not_negligible_const (c := (1 / 2 : ℝ≥0)) (by norm_num) <|
+    negligible_of_le ((h xorEavesdropper isPPT_xorEavesdropper).shift 1)
+      fun n => half_le_advantage_xorEavesdropper n.succ_ne_zero
 
 end KeyExchange
 

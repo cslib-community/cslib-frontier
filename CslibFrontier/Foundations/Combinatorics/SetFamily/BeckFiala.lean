@@ -177,6 +177,10 @@ private theorem beckFiala_rounding_aux {ι κ 𝕜 : Type*} [Fintype ι] [Decida
   classical
   let U : Finset κ := univ.biUnion A
   let F : Finset κ := floating U x
+  have h01 (v : κ) (hvU : v ∈ U) (hvF : v ∉ F) : x v = 0 ∨ x v = 1 := by
+    rcases (hx0 v).eq_or_lt with h | h
+    · exact Or.inl h.symm
+    · exact Or.inr ((hx1 v).antisymm (not_lt.1 fun hlt => hvF (mem_floating_iff.2 ⟨hvU, h, hlt⟩)))
   by_cases hF : F.Nonempty
   · obtain ⟨d, hd_ne, hd_supp, hd_active⟩ := exists_kernel_step (𝕜 := 𝕜) A hdeg hF
     let M : Finset κ := F.filter fun v => d v ≠ 0
@@ -195,6 +199,8 @@ private theorem beckFiala_rounding_aux {ι κ 𝕜 : Type*} [Fintype ι] [Decida
       · exact div_pos (sub_pos.mpr hxlt) hpos
       · exact div_pos hxpos (neg_pos.mpr (lt_of_le_of_ne (not_lt.1 hpos) hdv))
     have hlam_pos : 0 < lam := hratio_pos v₀ hv₀M
+    have hdM (v : κ) (hv : v ∉ M) : d v = 0 :=
+      by_contra fun h => hv (mem_filter.2 ⟨by_contra fun hF' => h (hd_supp v hF'), h⟩)
     let x' : κ → 𝕜 := fun v => x v + lam * d v
     have hx'0 : ∀ v, 0 ≤ x' v := by
       intro v
@@ -209,10 +215,7 @@ private theorem beckFiala_rounding_aux {ι κ 𝕜 : Type*} [Fintype ι] [Decida
           have hle : lam ≤ x v / (-d v) := (hv₀_min v hv).trans_eq hratio
           rw [le_div_iff₀ (neg_pos.mpr hneg)] at hle
           linarith
-      · have hdv : d v = 0 := by
-          by_contra h
-          exact hv (mem_filter.2 ⟨by_contra fun hF' => h (hd_supp v hF'), h⟩)
-        simp [hdv, hx0 v]
+      · simp [hdM v hv, hx0 v]
     have hx'1 : ∀ v, x' v ≤ 1 := by
       intro v
       dsimp only [x']
@@ -226,10 +229,7 @@ private theorem beckFiala_rounding_aux {ι κ 𝕜 : Type*} [Fintype ι] [Decida
           linarith
         · have hneg : d v < 0 := lt_of_le_of_ne (not_lt.1 hpos) hdv
           linarith [mul_nonpos_of_nonneg_of_nonpos hlam_pos.le hneg.le, hx1 v]
-      · have hdv : d v = 0 := by
-          by_contra h
-          exact hv (mem_filter.2 ⟨by_contra fun hF' => h (hd_supp v hF'), h⟩)
-        simp [hdv, hx1 v]
+      · simp [hdM v hv, hx1 v]
     have hv₀_bnd : x' v₀ = 0 ∨ x' v₀ = 1 := by
       obtain ⟨_, hdv₀⟩ := mem_filter.1 hv₀M
       dsimp only [x', lam, ratio]
@@ -265,21 +265,11 @@ private theorem beckFiala_rounding_aux {ι κ 𝕜 : Type*} [Fintype ι] [Decida
       by_cases hi : i ∈ activeSets A t F
       · have hx'_eq : ∑ v ∈ A i, x' v = ∑ v ∈ A i, x v := by
           simp only [x', sum_add_distrib, ← mul_sum, hd_active i hi, mul_zero, add_zero]
-        have hsum_eq :
-            ∑ v ∈ A i, ((χ v : 𝕜) - x v) = ∑ v ∈ A i, ((χ v : 𝕜) - x' v) := by
-          simp only [sum_sub_distrib, hx'_eq]
-        rw [hsum_eq]
-        exact hχ_sum i
+        simpa only [sum_sub_distrib, hx'_eq] using hχ_sum i
       · have hle_t : #(A i ∩ F) ≤ t := Nat.le_of_not_lt (mt mem_activeSets_iff.2 hi)
         have hzero : ∀ v ∈ A i, v ∉ F → (χ v : 𝕜) - x v = 0 := by
           intro v hvAi hvF
-          have hvU : v ∈ U := mem_biUnion.2 ⟨i, mem_univ i, hvAi⟩
-          have hnot : ¬(0 < x v ∧ x v < 1) := fun h => hvF (mem_floating_iff.2 ⟨hvU, h⟩)
-          have h01 : x v = 0 ∨ x v = 1 := by
-            rcases eq_or_lt_of_le (hx0 v) with h | h
-            · exact Or.inl h.symm
-            · exact Or.inr (le_antisymm (hx1 v) (not_lt.1 fun hlt => hnot ⟨h, hlt⟩))
-          rcases h01 with hv0 | hv1
+          rcases h01 v (mem_biUnion.2 ⟨i, mem_univ i, hvAi⟩) hvF with hv0 | hv1
           · have := hχ0 v (by simp [x', hd_supp v hvF, hv0])
             simp [this, hv0]
           · have := hχ1 v (by simp [x', hd_supp v hvF, hv1])
@@ -294,9 +284,8 @@ private theorem beckFiala_rounding_aux {ι κ 𝕜 : Type*} [Fintype ι] [Decida
         · have hterm : ∀ v ∈ A i ∩ F, |(χ v : 𝕜) - x v| < 1 := by
             intro v hv
             obtain ⟨_, hxpos, hxlt⟩ := mem_floating_iff.1 (mem_inter.1 hv).2
-            rcases hχ01 v with h0 | h1
-            · rw [h0, Int.cast_zero, zero_sub, abs_neg, abs_lt]; constructor <;> linarith
-            · rw [h1, Int.cast_one, abs_lt]; constructor <;> linarith
+            rcases hχ01 v with h | h <;> simp only [h, Int.cast_zero, Int.cast_one, abs_lt] <;>
+              constructor <;> linarith
           calc |∑ v ∈ A i ∩ F, ((χ v : 𝕜) - x v)|
               ≤ ∑ v ∈ A i ∩ F, |(χ v : 𝕜) - x v| := abs_sum_le_sum_abs _ _
             _ < ∑ _v ∈ A i ∩ F, (1 : 𝕜) := sum_lt_sum_of_nonempty hne hterm
@@ -310,16 +299,8 @@ private theorem beckFiala_rounding_aux {ι κ 𝕜 : Type*} [Fintype ι] [Decida
     · intro i
       have hzero : ∑ v ∈ A i, ((↑(if x v = 1 then (1 : ℤ) else 0) : 𝕜) - x v) = 0 := by
         refine sum_eq_zero fun v hvAi => ?_
-        have hvU : v ∈ U := mem_biUnion.2 ⟨i, mem_univ i, hvAi⟩
-        have hnot : v ∉ F := by simp [hF]
-        rw [mem_floating_iff] at hnot
-        have h01 : x v = 0 ∨ x v = 1 := by
-          rcases eq_or_lt_of_le (hx0 v) with h | h
-          · exact Or.inl h.symm
-          · exact Or.inr (le_antisymm (hx1 v) (not_lt.1 fun hlt => hnot ⟨hvU, h, hlt⟩))
-        rcases h01 with hv0 | hv1
-        · simp [hv0]
-        · simp [hv1]
+        rcases h01 v (mem_biUnion.2 ⟨i, mem_univ i, hvAi⟩) (by simp [hF]) with hv | hv <;>
+          simp [hv]
       rw [hzero, abs_zero]
       exact_mod_cast ht
 termination_by (floating (univ.biUnion A) x).card
@@ -353,13 +334,9 @@ theorem beckFiala {ι κ : Type*} [Fintype ι] [DecidableEq κ]
   classical
   rcases Nat.eq_zero_or_pos t with rfl | ht
   · refine ⟨fun _ => 1, fun _ => Or.inl rfl, fun i => ?_⟩
-    have hempty : A i = ∅ := by
-      ext v
-      simp only [Finset.notMem_empty, iff_false]
-      intro hv
+    have hempty : A i = ∅ := Finset.eq_empty_of_forall_notMem fun v hv => by
       have := hdeg v
-      have hpos : 0 < #{j : ι | v ∈ A j} := Finset.card_pos.2 ⟨i, Finset.mem_filter.2
-        ⟨Finset.mem_univ i, hv⟩⟩
+      have hpos : 0 < #{j : ι | v ∈ A j} := Finset.card_pos.2 ⟨i, by simpa using hv⟩
       omega
     simp [hempty]
   · obtain ⟨χ₀, hχ01, -, -, hbound⟩ := beckFiala_rounding A ht hdeg

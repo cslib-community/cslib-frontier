@@ -386,39 +386,25 @@ private theorem length_le_execFlatProgramOps
         _ ≤ ∑' p, ν_cur p * T_step p :=
             Cslib.Probability.PMF.tsum_mul_mono_support ν_cur fun p hp =>
               one_le_of_execProgramDist_no_halt0 hno (hstep p hp).2.1
-    simp only [List.length_cons, Nat.cast_add, Nat.cast_one]
-    calc (ops_rem.length : ℝ≥0∞) + 1
-      _ = 1 + (ops_rem.length : ℝ≥0∞) := add_comm _ _
-      _ ≤ (∑' p, ν_cur p * T_step p) + T_rest := add_le_add hstep_ge ih
+    rw [List.length_cons, Nat.cast_succ, add_comm]
+    exact add_le_add hstep_ge ih
 
 private theorem code_size_pos {B : Basis} {r : ℕ} (c : Code B r) : 1 ≤ c.size := by
-  induction c with
-  | op _ => simp
-  | seq _ _ ih₁ _ => simp only [Code.size]; omega
-  | branch _ _ _ _ _ => simp only [Code.size]; omega
-  | loop _ _ _ => simp only [Code.size]; omega
-  | rand _ _ => simp
+  induction c <;> simp only [Code.size] <;> omega
 
 private theorem code_assemble_zero_ne_halt {B : Basis} {r : ℕ} (c : Code B r) (pc : ℕ)
     (retReg : Fin r) :
     (c.assemble pc)[0]? ≠ some (.halt retReg) := by
   induction c generalizing pc with
-  | op _ => simp [Code.assemble]
   | seq c₁ c₂ ih₁ _ =>
-    have h0 : 0 < (c₁.assemble pc).length := by
-      rw [Code.length_assemble]
-      exact code_size_pos c₁
+    have h0 : 0 < (c₁.assemble pc).length := by rw [Code.length_assemble]; exact code_size_pos c₁
     simp only [Code.assemble, List.getElem?_append_left h0]
     exact ih₁ pc
-  | branch _ _ _ _ _ => simp [Code.assemble]
-  | loop _ _ _ => simp [Code.assemble]
-  | rand _ _ => simp [Code.assemble]
+  | _ => simp [Code.assemble]
 
 private theorem code_program_zero_ne_halt {B : Basis} {r : ℕ} (c : Code B r) (out retReg : Fin r) :
     (c.program out)[0]? ≠ some (.halt retReg) := by
-  have h0 : 0 < (c.assemble 0).length := by
-    rw [Code.length_assemble]
-    exact code_size_pos c
+  have h0 : 0 < (c.assemble 0).length := by rw [Code.length_assemble]; exact code_size_pos c
   simp only [Code.program, List.getElem?_append_left h0]
   exact code_assemble_zero_ne_halt c 0 retReg
 
@@ -531,26 +517,13 @@ private theorem ofReal_div_pers_le_of_le_add_mul {B : ℝ} {p L : ℕ} {T : ℝ�
     (hL : (L : ℝ≥0∞) ≤ T)
     (hB : ENNReal.ofReal B ≤ T + ((2 * p : ℕ) : ℝ≥0∞) * (L : ℝ≥0∞)) :
     ENNReal.ofReal (B / (2 * (p : ℝ) + 1)) ≤ T := by
-  by_cases hB0 : B ≤ 0
-  · have hnp : B / (2 * (p : ℝ) + 1) ≤ 0 := div_nonpos_of_nonpos_of_nonneg hB0 (by positivity)
-    rw [ENNReal.ofReal_eq_zero.mpr hnp]
-    exact zero_le
-  · push Not at hB0
-    have hmul_T : ENNReal.ofReal B ≤ ((2 * p + 1 : ℕ) : ℝ≥0∞) * T := by
-      calc ENNReal.ofReal B
-        _ ≤ T + ((2 * p : ℕ) : ℝ≥0∞) * (L : ℝ≥0∞) := hB
-        _ ≤ T + ((2 * p : ℕ) : ℝ≥0∞) * T := add_le_add le_rfl (mul_le_mul' le_rfl hL)
-        _ = ((2 * p + 1 : ℕ) : ℝ≥0∞) * T := by push_cast; ring
-    have hden_pos : (0 : ℝ) < 2 * (p : ℝ) + 1 := by positivity
-    have hcast_den : ((2 * p + 1 : ℕ) : ℝ≥0∞) = ENNReal.ofReal (2 * (p : ℝ) + 1) := by
-      have hden_eq : 2 * (p : ℝ) + 1 = ((2 * p + 1 : ℕ) : ℝ) := by push_cast; ring
-      rw [hden_eq, ENNReal.ofReal_natCast]
-    have hprod :
-        ((2 * p + 1 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (B / (2 * (p : ℝ) + 1)) = ENNReal.ofReal B := by
-      rw [hcast_den, ← ENNReal.ofReal_mul hden_pos.le, mul_div_cancel₀ B hden_pos.ne']
-    have hne0 : ((2 * p + 1 : ℕ) : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by omega : 2 * p + 1 ≠ 0)
-    have hnetop : ((2 * p + 1 : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-    exact (ENNReal.mul_le_mul_iff_right hne0 hnetop).mp (hprod.trans_le hmul_T)
+  have hden : ENNReal.ofReal (2 * (p : ℝ) + 1) = ((2 * p + 1 : ℕ) : ℝ≥0∞) := by
+    exact_mod_cast ENNReal.ofReal_natCast (2 * p + 1)
+  rw [ENNReal.ofReal_div_of_pos (by positivity), hden]
+  refine ENNReal.div_le_of_le_mul (hB.trans ?_)
+  calc T + ((2 * p : ℕ) : ℝ≥0∞) * (L : ℝ≥0∞)
+    _ ≤ T + ((2 * p : ℕ) : ℝ≥0∞) * T := add_le_add le_rfl (mul_le_mul' le_rfl hL)
+    _ = T * ((2 * p + 1 : ℕ) : ℝ≥0∞) := by push_cast; ring
 
 /-! ### 2. Generic Dictionary Cell-Probe-to-Word-RAM Lower-Bound Transfer Bridges -/
 
@@ -856,8 +829,7 @@ private theorem scale_div_pers_le {c_cp X : ℝ} {p r_max : ℕ}
     (hc : 0 < c_cp) (hX : 0 ≤ X) (hp : p ≤ r_max) :
     (c_cp / (2 * (r_max : ℝ) + 1)) * X ≤ (c_cp * X) / (2 * (p : ℝ) + 1) := by
   have hle : 2 * (p : ℝ) + 1 ≤ 2 * (r_max : ℝ) + 1 := by
-    have : (p : ℝ) ≤ (r_max : ℝ) := Nat.cast_le.mpr hp
-    linarith
+    linarith [(Nat.cast_le.mpr hp : (p : ℝ) ≤ r_max)]
   rw [div_mul_eq_mul_div]
   exact div_le_div_of_nonneg_left (mul_nonneg hc.le hX) (by positivity) hle
 

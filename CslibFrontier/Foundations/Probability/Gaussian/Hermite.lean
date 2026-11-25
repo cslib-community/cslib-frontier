@@ -110,9 +110,8 @@ private theorem gaussE_one : gaussE 1 = 1 := by
 
 /-- Stein's lemma for the standard Gaussian: `E[x p x] = E[p' x]`. -/
 private theorem gaussE_X_mul (p : ℝ[X]) : gaussE (X * p) = gaussE (derivative p) := by
-  have h := integral_sub_mul_eval_gaussianReal (μ := 0) (v := 1) p
-  simp only [sub_zero, NNReal.coe_one, one_mul] at h
-  simp only [gaussE_apply, eval_mul, eval_X, h]
+  simpa only [gaussE_apply, eval_mul, eval_X, sub_zero, NNReal.coe_one, one_mul] using
+    integral_sub_mul_eval_gaussianReal (μ := 0) (v := 1) p
 
 /-- The Hermite polynomial `H_n` with real coefficients. -/
 private noncomputable abbrev hermiteR (n : ℕ) : ℝ[X] := (hermite n).map (algebraMap ℤ ℝ)
@@ -130,8 +129,7 @@ private theorem hermiteR_succ (n : ℕ) :
 
 private theorem derivative_hermiteR_succ (n : ℕ) :
     derivative (hermiteR (n + 1)) = C ((n : ℝ) + 1) * hermiteR n := by
-  rw [hermiteR, hermiteR, derivative_map, derivative_hermite_succ, Polynomial.map_mul]
-  congr 1
+  rw [hermiteR, hermiteR, derivative_map, derivative_hermite_succ]
   simp
 
 /-- Integration by parts against `H_{k+1}`: `E[p H_{k+1}] = E[p' H_k]`. -/
@@ -162,32 +160,26 @@ private theorem gaussE_hermiteR_mul_hermiteR (j k : ℕ) :
     gaussE (hermiteR j * hermiteR k) = if j = k then (k ! : ℝ) else 0 := by
   induction k generalizing j with
   | zero =>
-    rw [hermiteR_zero, mul_one]
     cases j with
-    | zero => rw [hermiteR_zero, gaussE_one, ite_eq_left rfl, Nat.factorial_zero, Nat.cast_one]
-    | succ j =>
-      rw [hermiteR_succ, map_sub, gaussE_X_mul, sub_self, ite_eq_right (Nat.succ_ne_zero j)]
+    | zero => simp [hermiteR_zero, gaussE_one]
+    | succ j => simp [hermiteR_zero, hermiteR_succ, gaussE_X_mul]
   | succ k ih =>
     rw [gaussE_mul_hermiteR_succ]
     cases j with
-    | zero =>
-      rw [hermiteR_zero, derivative_one, zero_mul, map_zero, ite_eq_right (Nat.succ_ne_zero k).symm]
+    | zero => simp [hermiteR_zero]
     | succ j =>
       rw [derivative_hermiteR_succ, mul_assoc, gaussE_C_mul, ih]
-      by_cases h : j = k
-      · subst h
-        rw [ite_eq_left rfl, ite_eq_left rfl, Nat.factorial_succ, Nat.cast_mul, Nat.cast_succ]
-      · rw [ite_eq_right h, ite_eq_right (by omega), mul_zero]
+      rcases eq_or_ne j k with rfl | h
+      · simp [Nat.factorial_succ]
+      · simp [h]
 
 /-- **Orthogonality of the Hermite polynomials** [O'Donnell, (11.9)][ODonnell2014]:
 `⟨H_j, H_k⟩ = j!` if `j = k` and `0` otherwise, in `L²` of the standard Gaussian. -/
 theorem integral_aeval_hermite_mul_aeval_hermite (j k : ℕ) :
     ∫ x, aeval x (hermite j) * aeval x (hermite k) ∂gaussianReal 0 1 =
       if j = k then (j ! : ℝ) else 0 := by
-  have h := gaussE_hermiteR_mul_hermiteR j k
-  simp only [gaussE_apply, eval_mul] at h
-  simp only [aeval_hermite, h]
-  split_ifs with hjk <;> simp only [hjk]
+  simpa only [gaussE_apply, eval_mul, aeval_hermite] using
+    (gaussE_hermiteR_mul_hermiteR j k).trans (by split_ifs with h <;> simp [h])
 
 /-- The noisy point `ρ x + √(1 - ρ²) g` as a polynomial in `g`. -/
 private noncomputable abbrev noisyPoly (ρ x : ℝ) : ℝ[X] := C (ρ * x) + C √(1 - ρ ^ 2) * X
@@ -208,8 +200,7 @@ private theorem gaussE_hermiteR_comp_noisyPoly {ρ : ℝ} (hρ : |ρ| ≤ 1) (x 
     have hD : ρ * gaussE ((derivative (hermiteR n)).comp (noisyPoly ρ x)) =
         ρ ^ n * (derivative (hermiteR n)).eval x := by
       cases n with
-      | zero => rw [hermiteR_zero, derivative_one, zero_comp, map_zero, eval_zero, mul_zero,
-          mul_zero]
+      | zero => simp [hermiteR_zero]
       | succ m =>
         rw [derivative_hermiteR_succ, mul_comp, C_comp, gaussE_C_mul,
           gaussE_hermiteR_comp_noisyPoly hρ x m, eval_mul, eval_C]
@@ -235,9 +226,8 @@ the identity behind [O'Donnell, Proposition 11.31][ODonnell2014]: for `|ρ| ≤ 
 theorem integral_aeval_hermite_gaussianNoise {ρ : ℝ} (hρ : |ρ| ≤ 1) (n : ℕ) (x : ℝ) :
     ∫ g, aeval (ρ * x + √(1 - ρ ^ 2) * g) (hermite n) ∂gaussianReal 0 1 =
       ρ ^ n * aeval x (hermite n) := by
-  have h := gaussE_hermiteR_comp_noisyPoly hρ x n
-  simp only [gaussE_apply, eval_comp, eval_noisyPoly] at h
-  simp only [aeval_hermite, h]
+  simpa only [gaussE_apply, eval_comp, eval_noisyPoly, aeval_hermite] using
+    gaussE_hermiteR_comp_noisyPoly hρ x n
 
 /-- The **normalized Hermite polynomial** `h_j = H_j / √(j!)`
 [O'Donnell, Definition 11.29][ODonnell2014], as a function on `ℝ`. The book defines `H_j` by the
@@ -279,12 +269,11 @@ Gaussian. -/
 theorem integral_normalizedHermite_mul_normalizedHermite (j k : ℕ) :
     ∫ x, normalizedHermite j x * normalizedHermite k x ∂gaussianReal 0 1 =
       if j = k then 1 else 0 := by
-  simp only [normalizedHermite, div_mul_div_comm]
-  rw [integral_div, integral_aeval_hermite_mul_aeval_hermite]
+  simp only [normalizedHermite, div_mul_div_comm, integral_div,
+    integral_aeval_hermite_mul_aeval_hermite]
   split_ifs with h
-  · subst h
-    rw [← sq, sq_sqrt (Nat.cast_nonneg _), div_self (Nat.cast_ne_zero.2 (Nat.factorial_ne_zero _))]
-  · rw [zero_div]
+  · rw [h, ← sq, sq_sqrt (Nat.cast_nonneg _), div_self (by positivity)]
+  · exact zero_div _
 
 /-- **Normalized Hermite polynomials are eigenfunctions of the Gaussian noise operator**, in one
 dimension; the identity behind [O'Donnell, Proposition 11.31][ODonnell2014]: for `|ρ| ≤ 1`,
@@ -339,9 +328,7 @@ combination `∑_S c_S h_S`. That this is its Hermite expansion, the rest of Rem
 theorem multiHermite_indicator [DecidableEq ι] (S : Finset ι) (z : ι → ℝ) :
     multiHermite (fun i => if i ∈ S then 1 else 0) z = ∏ i ∈ S, z i := by
   have h (i : ι) : normalizedHermite (if i ∈ S then 1 else 0) (z i) = if i ∈ S then z i else 1 := by
-    split_ifs
-    · exact normalizedHermite_one _
-    · exact normalizedHermite_zero _
+    split_ifs <;> simp
   simp only [multiHermite, h, Fintype.prod_ite_mem]
 
 /-- **Multivariate Hermite polynomials are eigenfunctions of the Gaussian noise operator**, the
@@ -388,11 +375,9 @@ theorem integral_multiHermite_mul_gaussianNoiseOp {ρ : ℝ} (hρ : |ρ| ≤ 1) 
     ∫ z, multiHermite α z * gaussianNoiseOp ρ (multiHermite β) z
         ∂Measure.pi (fun _ : ι => gaussianReal 0 1) =
       if α = β then ρ ^ (∑ i, α i) else 0 := by
-  simp only [gaussianNoiseOp_multiHermite hρ, mul_left_comm (multiHermite α _)]
-  rw [integral_const_mul, integral_multiHermite_mul_multiHermite]
-  split_ifs with h
-  · rw [h, mul_one]
-  · rw [mul_zero]
+  simp only [gaussianNoiseOp_multiHermite hρ, mul_left_comm (multiHermite α _),
+    integral_const_mul, integral_multiHermite_mul_multiHermite]
+  split_ifs with h <;> simp [h]
 
 /-- **Correlations of multivariate Hermite polynomials**
 [O'Donnell, Proposition 11.33][ODonnell2014]: for `ρ`-correlated standard Gaussian vectors
@@ -411,10 +396,9 @@ theorem integral_correlatedGaussian_normalizedHermite {ρ : ℝ} (hρ : |ρ| ≤
     ∫ p, normalizedHermite j p.1 * normalizedHermite k p.2 ∂correlatedGaussian ρ =
       if j = k then ρ ^ j else 0 := by
   rw [← correlatedGaussianPi_map_eval Unit ρ (), integral_map (by fun_prop) (by fun_prop)]
-  have h := integral_correlatedGaussianPi_multiHermite (ι := Unit) hρ (fun _ => j) (fun _ => k)
-  simp only [multiHermite, Finset.univ_unique, Finset.prod_singleton, Finset.sum_singleton,
-    funext_iff, forall_const] at h
-  exact h
+  simpa only [multiHermite, Finset.univ_unique, Finset.prod_singleton, Finset.sum_singleton,
+    funext_iff, forall_const] using
+    integral_correlatedGaussianPi_multiHermite (ι := Unit) hρ (fun _ => j) (fun _ => k)
 
 end Multivariate
 

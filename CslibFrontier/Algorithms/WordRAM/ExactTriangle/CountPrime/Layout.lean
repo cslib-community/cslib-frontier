@@ -109,23 +109,11 @@ theorem exec_layout {w n p k scratch : ℕ} (x : Data 128)
       by wram_simp; omega, by wram_simp; omega, by wram_simp; omega⟩,
     by wram_simp [memory], fun i hi => ?_⟩
   have hn' (j : Fin 128) (hj : LayoutLocal j) : i ≠ j := fun he => hi (he ▸ hj)
-  have hval : 5 ≤ i.val := by have : ¬i.val < 5 := fun h => hi (Or.inl h); omega
+  have hval : 5 ≤ i.val := Nat.le_of_not_lt fun h => hi (Or.inl h)
   have hne2 : i ≠ Reg.low2 ∧ i ≠ Reg.low3 := by
     constructor <;> (intro h; subst i; contradiction)
-  rw [Data.set_regs_of_ne (hn' Reg.productScratch (by decide)),
-      Data.set_regs_of_ne (hn' Reg.matrixR (by decide)),
-      Data.set_regs_of_ne (hn' Reg.matrixQ (by decide)),
-      Data.set_regs_of_ne (hn' Reg.matrixP (by decide)),
-      Data.set_regs_of_ne (hn' Reg.spread (by decide)),
-      Data.set_regs_of_ne (hn' Reg.residueAC (by decide)),
-      Data.set_regs_of_ne (hn' Reg.residueBC (by decide)),
-      Data.set_regs_of_ne (hn' Reg.residueAB (by decide)),
-      Data.set_regs_of_ne (hn' Reg.encodedModulus (by decide)),
-      Data.set_regs_of_ne (hn' Reg.area (by decide)),
-      Data.set_regs_of_ne (hn' Reg.paddedCells (by decide)),
-      Data.set_regs_of_ne (hn' Reg.cells (by decide)),
-      Data.set_regs_of_ne (hn' Reg.paddedSide (by decide)),
-      Data.extend_castLE_regs_of_le _ _ i hval]
+  repeat rw [Data.set_regs_of_ne (hn' _ (by decide))]
+  rw [Data.extend_castLE_regs_of_le _ _ i hval]
   wram_simp [hne2.1, hne2.2]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

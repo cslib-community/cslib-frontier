@@ -70,16 +70,11 @@ theorem existsUnique_good (i e : Q) (u : Fin n → List Γ) (hM : N + t < M)
   rcases d with τ | τ | ⟨z, τ⟩ | ⟨s, p⟩
   · exact congrFun h1 τ
   · exact congrFun h2 τ
-  · refine Fin.ext ?_
-    have e1 := hg.place z τ
-    have e2 := hg'.place z τ
-    rw [hg.place_zero] at e1
-    rw [hg'.place_zero, ← h1] at e2
-    exact e1.trans e2.symm
-  · have e1 := hg.contents s false p
-    have e2 := hg'.contents s false p
-    rw [← h1] at e2
-    exact e1.trans e2.symm
+  · apply Fin.ext
+    change (g.place z τ : ℕ) = g'.place z τ
+    rw [hg.place z τ, hg'.place z τ, hg.place_zero, hg'.place_zero, h1]
+  · change g.content s p = g'.content s p
+    rw [hg.contents s false p, hg'.contents s false p, h1]
 
 open scoped Classical in
 /-- **The value of an automaton is a clause sum**: at the code of the input `u`, the clause sum
@@ -95,14 +90,10 @@ theorem runVal_eq_domainClauseSum [Fintype Γ] [Fintype S] [Fintype Q] [Decidabl
           ∏ τ, mu (g.letter τ) (g.state τ.castSucc) (g.state τ.succ) else 0 := by
     unfold domainClauseSum
     refine sum_congr rfl fun (g : RunAssignment Γ S Q n t M) _ => ?_
-    rw [Fintype.prod_sum_type]
-    refine Eq.trans (b := (∏ τ, mu (g.letter τ) (g.state τ.castSucc) (g.state τ.succ)) *
-      if Good i e (code N u) g.letter g.state g.place g.content then 1 else 0) ?_ (by simp)
-    refine congrArg₂ (· * ·) ?_ ?_
-    · refine Eq.trans ?_ (prod_stepLits mu (code N u) g)
-      exact prod_congr rfl fun _ _ => by congr
-    · refine Eq.trans ?_ (prod_ruleLits (F := F) i e (code N u) g)
-      exact prod_congr rfl fun _ _ => by congr
+    rw [Fintype.prod_sum_type, ← mul_boole]
+    exact congrArg₂ (· * ·)
+      ((prod_congr rfl fun _ _ => by congr).trans (prod_stepLits mu (code N u) g))
+      ((prod_congr rfl fun _ _ => by congr).trans (prod_ruleLits (F := F) i e (code N u) g))
   have hr : runVal mu i e t u = ∑ y : (Fin t → Letter S (Fin n) Γ) × (Fin (t + 1) → Q),
       if Matched (List.ofFn y.1) u ∧ y.2 0 = i ∧ y.2 (Fin.last t) = e then
         ∏ τ, mu (y.1 τ) (y.2 τ.castSucc) (y.2 τ.succ) else 0 := by
@@ -111,24 +102,19 @@ theorem runVal_eq_domainClauseSum [Fintype Γ] [Fintype S] [Fintype Q] [Decidabl
     refine sum_congr rfl fun o _ => ?_
     by_cases ho : Matched (List.ofFn o) u
     · rw [ite_eq_left ho, List.map_ofFn, Matrix.list_prod_ofFn_apply]
-      exact sum_congr rfl fun q _ => by simp [ho]
+      exact sum_congr rfl fun _ _ => by simp [ho]
     · simp [ho]
   rw [hl, hr, ← sum_filter, ← sum_filter]
-  refine sum_bij (fun (g : RunAssignment Γ S Q n t M) _ => (g.letter, g.state)) ?_ ?_ ?_ ?_
-  · intro (g : RunAssignment Γ S Q n t M) hg
-    rw [mem_filter] at hg ⊢
-    exact ⟨mem_univ _, (existsUnique_good i e u hM hN _ _).2 g rfl rfl hg.2⟩
-  · intro (g : RunAssignment Γ S Q n t M) hg (g' : RunAssignment Γ S Q n t M) hg' heq
-    rw [mem_filter] at hg hg'
+  refine sum_bij (fun g _ => (g.letter, g.state)) ?_ ?_ ?_ fun _ _ => rfl
+  · exact fun g hg => mem_filter.mpr
+      ⟨mem_univ _, (existsUnique_good i e u hM hN _ _).2 g rfl rfl (mem_filter.mp hg).2⟩
+  · intro g hg g' hg' heq
     obtain ⟨h1, h2⟩ := Prod.mk.inj heq
     exact ((existsUnique_good i e u hM hN _ _).1
-      ((existsUnique_good i e u hM hN _ _).2 g' rfl rfl hg'.2)).unique
-      ⟨⟨h1, h2⟩, hg.2⟩ ⟨⟨rfl, rfl⟩, hg'.2⟩
+      ((existsUnique_good i e u hM hN _ _).2 g' rfl rfl (mem_filter.mp hg').2)).unique
+      ⟨⟨h1, h2⟩, (mem_filter.mp hg).2⟩ ⟨⟨rfl, rfl⟩, (mem_filter.mp hg').2⟩
   · rintro ⟨o, q⟩ hy
-    rw [mem_filter] at hy
-    obtain ⟨g, ⟨⟨h1, h2⟩, hg⟩, -⟩ := (existsUnique_good i e u hM hN o q).1 hy.2
-    exact ⟨g, by rw [mem_filter]; exact ⟨mem_univ _, hg⟩, by rw [h1, h2]⟩
-  · intros
-    rfl
+    obtain ⟨g, ⟨⟨h1, h2⟩, hg⟩, -⟩ := (existsUnique_good i e u hM hN o q).1 (mem_filter.mp hy).2
+    exact ⟨g, mem_filter.mpr ⟨mem_univ _, hg⟩, Prod.ext h1 h2⟩
 
 end Cslib.Circuits.Arithmetic.Separation.Tape

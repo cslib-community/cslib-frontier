@@ -143,16 +143,13 @@ theorem isVertexConnected_zero {G : SimpleGraph V} : G.IsVertexConnected 0 ↔ N
 
 theorem isVertexConnected_one {G : SimpleGraph V} :
     G.IsVertexConnected 1 ↔ Nontrivial V ∧ G.Connected := by
-  refine ⟨fun h => ⟨h.nontrivial le_rfl, h.connected le_rfl⟩, fun ⟨hn, hc⟩ => ?_⟩
-  refine ⟨by simp, fun X hX => ?_⟩
-  have hXe : X = ∅ := by
-    rw [Nat.cast_one, Order.lt_one_iff, Set.encard_eq_zero] at hX
-    exact hX
-  subst hXe
+  refine ⟨fun h => ⟨h.nontrivial le_rfl, h.connected le_rfl⟩,
+    fun ⟨hn, hc⟩ => ⟨by simp, fun X hX => ?_⟩⟩
+  obtain rfl : X = ∅ := by simpa [Order.lt_one_iff] using hX
   have : Nonempty (∅ᶜ : Set V) := ⟨⟨Classical.arbitrary V, Set.notMem_empty _⟩⟩
   refine ⟨fun ⟨u, _⟩ ⟨v, _⟩ => ?_⟩
   obtain ⟨w⟩ := hc.preconnected u v
-  exact ⟨w.induce _ fun x _ => Set.notMem_empty x⟩
+  exact ⟨w.induce _ fun _ _ => id⟩
 
 /-- A graph `G` is `k`-vertex-connected iff `|V| > k` and no two distinct vertices are separated
 by fewer than `k` vertices. -/
@@ -160,40 +157,28 @@ theorem isVertexConnected_iff_forall_isVertexSeparator {G : SimpleGraph V} {k : 
     G.IsVertexConnected k ↔
       (k : ℕ∞) < ENat.card V ∧
         ∀ ⦃u v : V⦄, u ≠ v → ∀ T : Finset V, G.IsVertexSeparator u v T → k ≤ T.card := by
-  constructor
-  · intro h
-    refine ⟨h.1, fun u v _ T hT => ?_⟩
-    by_contra! hTk
-    have hconn := h.2 (T : Set V) (by simpa [Set.encard_coe_eq_coe_finsetCard] using hTk)
-    rw [isVertexSeparator_iff_not_reachable_induce] at hT
-    obtain ⟨hu, hv, hnr⟩ := hT
-    exact hnr (hconn.preconnected ⟨u, hu⟩ ⟨v, hv⟩)
-  · rintro ⟨hcard, hsep⟩
-    refine ⟨hcard, fun X hX => ?_⟩
-    have hfin : X.Finite := Set.encard_lt_top_iff.mp (lt_of_lt_of_le hX le_top)
+  refine ⟨fun h => ⟨h.1, fun u v _ T hT => by_contra fun hTk => ?_⟩,
+    fun ⟨hcard, hsep⟩ => ⟨hcard, fun X hX => ?_⟩⟩
+  · obtain ⟨hu, hv, hnr⟩ := isVertexSeparator_iff_not_reachable_induce.mp hT
+    exact hnr ((h.2 T
+      (by simpa [Set.encard_coe_eq_coe_finsetCard] using lt_of_not_ge hTk)).preconnected
+      ⟨u, hu⟩ ⟨v, hv⟩)
+  · have hfin : X.Finite := Set.encard_lt_top_iff.mp (hX.trans_le le_top)
     let T := hfin.toFinset
     have hTX : (T : Set V) = X := hfin.coe_toFinset
-    have hTcard : T.card < k := by
-      have : (T.card : ℕ∞) < k := by
-        simpa [← Set.encard_coe_eq_coe_finsetCard, hTX] using hX
-      exact_mod_cast this
-    have hne : Xᶜ.Nonempty := by
-      rw [Set.nonempty_iff_ne_empty, ne_eq, Set.compl_empty_iff]
-      intro huniv
-      have := huniv ▸ hX
-      rw [Set.encard_univ] at this
-      exact absurd (lt_trans this hcard) (lt_irrefl _)
-    have : Nonempty (Xᶜ : Set V) := hne.to_subtype
+    have hTcard : T.card < k := mod_cast
+      (by simpa [← Set.encard_coe_eq_coe_finsetCard, hTX] using hX :
+      (T.card : ℕ∞) < k)
+    have : Nonempty (Xᶜ : Set V) := (Set.nonempty_iff_ne_empty.mpr fun h =>
+      lt_irrefl _ ((Set.encard_univ V ▸ Set.compl_empty_iff.mp h ▸ hX).trans hcard)).to_subtype
     refine ⟨fun ⟨u, hu⟩ ⟨v, hv⟩ => ?_⟩
     by_cases huv : u = v
-    · subst huv; exact Reachable.refl _
-    · have huT : u ∉ T := fun h => hu (hTX ▸ Finset.mem_coe.mpr h)
-      have hvT : v ∉ T := fun h => hv (hTX ▸ Finset.mem_coe.mpr h)
-      by_contra hnr
+    · subst huv
+      exact .rfl
+    · by_contra hnr
       let f : G.induce (T : Set V)ᶜ →g G.induce Xᶜ := ⟨fun y => ⟨y.1, hTX ▸ y.2⟩, id⟩
-      have hTsep : G.IsVertexSeparator u v T :=
-        isVertexSeparator_iff_not_reachable_induce.mpr ⟨huT, hvT, fun hr => hnr (hr.map f)⟩
-      exact absurd (hsep huv T hTsep) (not_le_of_gt hTcard)
+      exact not_le_of_gt hTcard <| hsep huv T <| isVertexSeparator_iff_not_reachable_induce.mpr
+        ⟨fun h => hu (hTX ▸ h), fun h => hv (hTX ▸ h), fun hr => hnr (hr.map f)⟩
 
 /-- A `u`–`v` path (`u ≠ v`) whose support is not `[u, v]` contains an internal vertex `∉ {u, v}`.
 -/
@@ -236,29 +221,16 @@ theorem card_gt_of_injective_internallyDisjoint {G : SimpleGraph V} {u v : V} (h
     exists_internal_mem_support_of_support_ne huv (hW i) (Finset.mem_filter.mp hi).2
   let S : Finset V := insert u (insert v (I.attach.image fun i => x i.1 i.2))
   have hxinj : Function.Injective fun i : I => x i.1 i.2 := by
-    intro ⟨i, hi⟩ ⟨j, hj⟩ hij
-    by_contra hne
-    have hne' : i ≠ j := fun h => hne (Subtype.ext h)
-    have heq : x i hi = x j hj := hij
-    rcases hdisj hne' (x i hi) (hxm i hi) (heq ▸ hxm j hj) with h | h
-    · exact hxu i hi h
-    · exact hxv i hi h
-  have hScard : k + 1 ≤ S.card := by
-    have huS : u ∉ insert v (I.attach.image fun i => x i.1 i.2) := by
-      simp only [Finset.mem_insert, Finset.mem_image, Finset.mem_attach, true_and, not_or,
-        not_exists]
-      exact ⟨huv, fun i hi => hxu i.1 i.2 hi⟩
-    have hvS : v ∉ I.attach.image fun i => x i.1 i.2 := by
-      simp only [Finset.mem_image, Finset.mem_attach, true_and, not_exists]
-      exact fun i hi => hxv i.1 i.2 hi
-    rw [Finset.card_insert_of_notMem huS, Finset.card_insert_of_notMem hvS,
+    rintro ⟨i, hi⟩ ⟨j, hj⟩ (hij : x i hi = x j hj)
+    exact by_contra fun hne => (hdisj (fun h => hne (Subtype.ext h)) _ (hxm i hi)
+      (hij ▸ hxm j hj)).elim (hxu i hi) (hxv i hi)
+  have hScard : k < S.card := by
+    rw [Finset.card_insert_of_notMem (by simp [huv, hxu]),
+      Finset.card_insert_of_notMem (by simp [hxv]),
       Finset.card_image_of_injective _ hxinj, Finset.card_attach]
     omega
-  have hle : (S.card : ℕ∞) ≤ ENat.card V := by
-    rw [← Set.encard_coe_eq_coe_finsetCard]
-    exact Set.encard_le_card (s := (S : Set V))
-  refine lt_of_lt_of_le ?_ hle
-  exact_mod_cast (show k < S.card by omega)
+  exact (mod_cast hScard : (k : ℕ∞) < S.card).trans_le
+    (Set.encard_coe_eq_coe_finsetCard S ▸ Set.encard_le_card)
 
 /-- If `|V| > k` and every pair of distinct vertices has `k` pairwise internally disjoint paths,
 then `G` is `k`-vertex-connected. -/
@@ -335,23 +307,16 @@ theorem exists_injective_internallyDisjoint_iff_exists_finset {G : SimpleGraph V
 /-- A simple `u`–`v` path containing the edge `s(u, v)` must be the single-edge walk `[u, v]`. -/
 theorem support_eq_pair_of_mem_edges_of_isPath {G : SimpleGraph V} {u v : V} {w : G.Walk u v}
     (hw : w.IsPath) (he : s(u, v) ∈ w.edges) : w.support = [u, v] := by
-  cases w with
-  | nil => simp at he
-  | @cons _ w₁ _ h₁ p =>
-    cases p with
-    | nil => rfl
-    | @cons _ w₂ _ h₂ q =>
-      exfalso
-      have hnd := hw.support_nodup
-      rw [Walk.support_cons, List.nodup_cons] at hnd
-      rw [Walk.edges_cons, List.mem_cons] at he
-      rcases he with he | he
-      · rcases Sym2.eq_iff.mp he with ⟨_, hvw⟩ | ⟨huw, _⟩
-        · have hnd2 := hnd.2
-          rw [Walk.support_cons, List.nodup_cons] at hnd2
-          exact hnd2.1 (hvw ▸ Walk.end_mem_support q)
-        · exact G.ne_of_adj h₁ huw
-      · exact hnd.1 (Walk.fst_mem_support_of_mem_edges _ he)
+  rcases w with _ | @⟨_, w₁, _, h₁, _ | @⟨_, w₂, _, h₂, q⟩⟩
+  · simp at he
+  · rfl
+  · exfalso
+    have hnd := hw.support_nodup
+    simp only [Walk.support_cons, List.nodup_cons] at hnd
+    rcases List.mem_cons.mp he with he | he
+    · exact (Sym2.eq_iff.mp he).elim (fun ⟨_, hvw⟩ => hnd.2.1 (hvw ▸ Walk.end_mem_support q))
+        fun ⟨huw, _⟩ => G.ne_of_adj h₁ huw
+    · exact hnd.1 (Walk.fst_mem_support_of_mem_edges _ he)
 
 /-- Distinct pairwise internally disjoint paths between `u` and `v` are pairwise edge-disjoint. -/
 theorem edgeDisjoint_of_injective_internallyDisjoint {G : SimpleGraph V} {u v : V} {ι : Type*}

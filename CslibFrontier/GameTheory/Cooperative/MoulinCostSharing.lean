@@ -346,20 +346,12 @@ theorem moulinStep_eq_self_iff (ξ : CostSharingScheme A) (b : A → ℝ) (S : F
 private theorem iterate_shrinking_fixed {f : Finset A → Finset A} (hf : ∀ S, f S ⊆ S) :
     ∀ (k : ℕ) (S : Finset A), S.card ≤ k → f (f^[k] S) = f^[k] S
   | 0, S, hcard => by
-    have hS : S = ∅ := Finset.card_eq_zero.1 (Nat.eq_zero_of_le_zero hcard)
-    subst hS
-    simp only [Function.iterate_zero, id_eq]
+    rw [Finset.card_eq_zero.1 (Nat.le_zero.1 hcard)]
     exact Finset.subset_empty.1 (hf ∅)
   | k + 1, S, hcard => by
     by_cases heq : f S = S
-    · have hiter : ∀ m, f^[m] S = S := by
-        intro m
-        induction m with
-        | zero => rfl
-        | succ m ih => rw [Function.iterate_succ_apply', ih, heq]
-      rw [hiter (k + 1), heq]
-    · have hssub : f S ⊂ S := ssubset_of_subset_of_ne (hf S) heq
-      have hlt : (f S).card < S.card := Finset.card_lt_card hssub
+    · rw [Function.iterate_fixed heq, heq]
+    · have hlt : (f S).card < S.card := Finset.card_lt_card (ssubset_of_subset_of_ne (hf S) heq)
       rw [Function.iterate_succ_apply]
       exact iterate_shrinking_fixed hf k (f S) (Nat.le_of_lt_succ (hlt.trans_le hcard))
 
@@ -517,12 +509,11 @@ theorem moulinMechanism_isGroupStrategyproof [Fintype A] [DecidableEq A]
     intro j hj
     refine le_min (ξ.isWilling_moulinServiced b' j hj) ?_
     by_cases hjC : j ∈ C
-    · have h0 : 0 ≤ ξ.moulinMechanism.utility u u j := hvp.utility_truthful_nonneg u j
-      have hben : 0 ≤ ξ.moulinMechanism.utility u b' j := h0.trans (hle j hjC)
+    · have hben : 0 ≤ ξ.moulinMechanism.utility u b' j :=
+        (hvp.utility_truthful_nonneg u j).trans (hle j hjC)
       rw [ξ.moulinMechanism_utility_of_mem hj] at hben
       linarith
-    · have hb'j : b' j = u j := by simp [b', hjC]
-      exact hb'j ▸ ξ.isWilling_moulinServiced b' j hj
+    · simpa [b', hjC] using ξ.isWilling_moulinServiced b' j hj
   -- Since `b'' ≤ u`, `moulinServiced b'` is willing under `u`, hence `⊆ moulinServiced u`.
   have hQ'_willing_u : ξ.IsWilling u (ξ.moulinServiced b') :=
     fun j hj => (hQ'_willing_b'' j hj).trans (min_le_right _ _)
@@ -634,14 +625,11 @@ theorem isGreatest_maximalTightSet {G : CostSharingGame A} {T : Finset A} {α : 
       Q.biUnion id ⊆ T ∧ G.IsTight α (Q.biUnion id) := by
     intro Q
     induction Q using Finset.induction_on with
-    | empty =>
-      intro _
-      exact ⟨Finset.empty_subset T, G.isTight_empty α⟩
+    | empty => exact fun _ => ⟨Finset.empty_subset T, G.isTight_empty α⟩
     | insert S Q hSQ ih =>
       intro hQP
-      have hS_mem : S ∈ P := hQP (Finset.mem_insert_self S Q)
-      have hS_sub : S ⊆ T := Finset.mem_powerset.1 (Finset.mem_filter.1 hS_mem).1
-      have hS_tight : G.IsTight α S := (Finset.mem_filter.1 hS_mem).2
+      obtain ⟨hS_sub, hS_tight⟩ := Finset.mem_filter.1 (hQP (Finset.mem_insert_self S Q))
+      rw [Finset.mem_powerset] at hS_sub
       obtain ⟨hQ_sub, hQ_tight⟩ := ih ((Finset.subset_insert S Q).trans hQP)
       rw [Finset.biUnion_insert, id_eq]
       exact ⟨Finset.union_subset hS_sub hQ_sub,
@@ -687,12 +675,15 @@ private theorem nextFreezeDelta_le (G : CostSharingGame A) {T F S : Finset A}
       (G.cost x.1 - ∑ j ∈ x.1, α j) / ((x.1 \ F).card : ℝ))
     (Finset.mem_attach _ ⟨S, hmem⟩)
 
+/-- Raising the unfrozen shares `S \ F` of a core-feasible `α` by `nextFreezeDelta` keeps the
+coalition `S ⊆ T` feasible. -/
 private theorem mul_nextFreezeDelta_le (G : CostSharingGame A) {T F S : Finset A}
-    (hne : (T \ F).Nonempty) (α : A → ℝ) (hST : S ⊆ T) (hSF : (S \ F).Nonempty) :
+    (hne : (T \ F).Nonempty) {α : A → ℝ} (hfeas : G.IsCoreFeasibleOn T α) (hST : S ⊆ T) :
     ((S \ F).card : ℝ) * G.nextFreezeDelta T F hne α ≤ G.cost S - ∑ j ∈ S, α j := by
+  rcases (S \ F).eq_empty_or_nonempty with hSF | hSF
+  · simpa [hSF] using hfeas hST
   have hcard_pos : (0 : ℝ) < (S \ F).card := by exact_mod_cast Finset.card_pos.2 hSF
-  have hle := G.nextFreezeDelta_le hne α hST hSF
-  have hmul := (le_div_iff₀ hcard_pos).1 hle
+  have hmul := (le_div_iff₀ hcard_pos).1 (G.nextFreezeDelta_le hne α hST hSF)
   linarith
 
 /-- Fuel-bounded primal-dual water-filling loop for `SubmodularCostShare` ([JainMahdian2007],
@@ -741,19 +732,11 @@ private structure WaterFillingState (G : CostSharingGame A) (T : Finset A) (α :
 private theorem sum_shift_on_sdiff {T F S : Finset A} (hST : S ⊆ T) (α : A → ℝ) (δ : ℝ) :
     (∑ j ∈ S, if j ∈ T \ F then α j + δ else α j) =
       (∑ j ∈ S, α j) + ((S \ F).card : ℝ) * δ := by
-  have hcongr : (∑ j ∈ S, if j ∈ T \ F then α j + δ else α j) =
-      ∑ j ∈ S, (α j + if j ∈ S \ F then δ else 0) := by
-    refine Finset.sum_congr rfl fun j hj => ?_
-    have hmem : (j ∈ T \ F) ↔ (j ∈ S \ F) := by
-      simp only [Finset.mem_sdiff, hj, hST hj, true_and]
-    by_cases h : j ∈ S \ F
-    · simp only [hmem.2 h, h, ↓reduceIte]
-    · simp only [mt hmem.1 h, h, ↓reduceIte, add_zero]
-  rw [hcongr, Finset.sum_add_distrib, ← Finset.sum_filter]
-  have hfilt : S.filter (fun j => j ∈ S \ F) = S \ F := by
-    ext j
-    simp only [Finset.mem_filter, Finset.mem_sdiff, and_self_left]
-  rw [hfilt, Finset.sum_const, nsmul_eq_mul]
+  have hcongr : ∀ j ∈ S, (if j ∈ T \ F then α j + δ else α j) =
+      α j + if j ∈ S \ F then δ else 0 := fun j hj => by
+    by_cases hjF : j ∈ F <;> simp [hjF, hj, hST hj]
+  rw [Finset.sum_congr rfl hcongr, Finset.sum_add_distrib, Finset.sum_ite_mem,
+    Finset.inter_eq_right.2 Finset.sdiff_subset, Finset.sum_const, nsmul_eq_mul]
 
 private theorem waterFilling_step_history {G : CostSharingGame A} {T : Finset A} {α : A → ℝ}
     {t₀ : ℝ} (hsub : G.IsSubmodular) (st : WaterFillingState G T α t₀)
@@ -773,54 +756,37 @@ private theorem waterFilling_step_history {G : CostSharingGame A} {T : Finset A}
     have hmin_eq : (fun j => min (α' j) t) = (fun j => min (α j) t) := by
       ext j
       by_cases hjTF : j ∈ T \ F
-      · have hαj : α j = t₀ := st.eq_t₀_unfrozen j hjTF
-        simp only [α', hjTF, ↓reduceIte, hαj, min_eq_right htt₀.le, min_eq_right htt']
+      · simp only [α', hjTF, ↓reduceIte, st.eq_t₀_unfrozen j hjTF, min_eq_right htt₀.le,
+          min_eq_right htt']
       · simp only [α', hjTF, ↓reduceIte]
     have hfilt_eq : T.filter (fun j => α' j ≤ t) = T.filter (fun j => α j ≤ t) := by
-      ext j
-      simp only [Finset.mem_filter]
-      refine and_congr_right fun hjT => ?_
-      by_cases hjF : j ∈ F
-      · have hjTF : j ∉ T \ F := fun h => (Finset.mem_sdiff.1 h).2 hjF
-        simp only [α', hjTF, ↓reduceIte]
-      · have hjTF : j ∈ T \ F := Finset.mem_sdiff.2 ⟨hjT, hjF⟩
-        simp only [α', hjTF, ↓reduceIte, st.eq_t₀_unfrozen j hjTF]
-        exact ⟨fun h => absurd h (not_le.2 htt), fun h => absurd h (not_le.2 htt₀)⟩
+      refine Finset.filter_congr fun j _ => ?_
+      by_cases hjTF : j ∈ T \ F
+      · simp only [α', hjTF, ↓reduceIte, st.eq_t₀_unfrozen j hjTF]
+        exact iff_of_false (not_le.2 htt) (not_le.2 htt₀)
+      · simp only [α', hjTF, ↓reduceIte]
     rw [hmin_eq, hfilt_eq]
     exact st.history t ht0 htt₀
   · -- Current interval `t₀ ≤ t < t₀ + δ`: `min (α' ·) t` shifts `T \ F` by `t - t₀ < δ`.
-    have hmin_shift : ∀ j ∈ T,
-        min (α' j) t = if j ∈ T \ F then α j + (t - t₀) else α j := by
-      intro j hjT
-      by_cases hjF : j ∈ F
-      · have hjTF : j ∉ T \ F := fun h => (Finset.mem_sdiff.1 h).2 hjF
-        have hle : α j ≤ t := (st.le_t₀_frozen j hjF).trans ht₀t
-        simp only [α', hjTF, ↓reduceIte, min_eq_left hle]
-      · have hjTF : j ∈ T \ F := Finset.mem_sdiff.2 ⟨hjT, hjF⟩
-        have hαj : α j = t₀ := st.eq_t₀_unfrozen j hjTF
-        simp only [α', hjTF, ↓reduceIte, hαj, min_eq_right htt']
-        ring
     have hsum_t : ∀ ⦃S : Finset A⦄, S ⊆ T →
         (∑ j ∈ S, min (α' j) t) = (∑ j ∈ S, α j) + ((S \ F).card : ℝ) * (t - t₀) := by
       intro S hST
-      calc
-        (∑ j ∈ S, min (α' j) t) =
-            ∑ j ∈ S, if j ∈ T \ F then α j + (t - t₀) else α j :=
-          Finset.sum_congr rfl fun j hj => hmin_shift j (hST hj)
-        _ = (∑ j ∈ S, α j) + ((S \ F).card : ℝ) * (t - t₀) :=
-          sum_shift_on_sdiff hST α (t - t₀)
-    have hfeas_t : G.IsCoreFeasibleOn T (fun j => min (α' j) t) := by
+      rw [← sum_shift_on_sdiff hST α (t - t₀)]
+      refine Finset.sum_congr rfl fun j hj => ?_
+      by_cases hjTF : j ∈ T \ F
+      · simp only [α', hjTF, ↓reduceIte, st.eq_t₀_unfrozen j hjTF, min_eq_right htt']
+        ring
+      · have hjF : j ∈ F := by simpa [hST hj] using hjTF
+        simp only [α', hjTF, ↓reduceIte, min_eq_left ((st.le_t₀_frozen j hjF).trans ht₀t)]
+    -- Every `S ⊆ T` keeps slack `(S \ F).card * (t₀ + δ - t)` below its cost.
+    have hgap : 0 < t₀ + δ - t := by linarith
+    have hslack : ∀ ⦃S : Finset A⦄, S ⊆ T →
+        (∑ j ∈ S, min (α' j) t) + ((S \ F).card : ℝ) * (t₀ + δ - t) ≤ G.cost S := by
       intro S hST
       rw [hsum_t hST]
-      by_cases hSF : (S \ F).Nonempty
-      · have hmul := G.mul_nextFreezeDelta_le hne α hST hSF
-        have hcard_pos : (0 : ℝ) < (S \ F).card := by exact_mod_cast Finset.card_pos.2 hSF
-        have hlt_mul : ((S \ F).card : ℝ) * (t - t₀) < ((S \ F).card : ℝ) * δ :=
-          mul_lt_mul_of_pos_left (by linarith) hcard_pos
-        linarith
-      · rw [Finset.not_nonempty_iff_eq_empty.1 hSF, Finset.card_empty, Nat.cast_zero, zero_mul,
-          add_zero]
-        exact st.feasible hST
+      linarith [G.mul_nextFreezeDelta_le hne st.feasible hST]
+    have hfeas_t : G.IsCoreFeasibleOn T (fun j => min (α' j) t) := fun S hST => by
+      linarith [hslack hST, mul_nonneg (Nat.cast_nonneg (α := ℝ) (S \ F).card) hgap.le]
     have hfilt_F : T.filter (fun j => α' j ≤ t) = F := by
       ext j
       simp only [Finset.mem_filter]
@@ -831,31 +797,21 @@ private theorem waterFilling_step_history {G : CostSharingGame A} {T : Finset A}
         simp only [α', hjTF, ↓reduceIte, st.eq_t₀_unfrozen j hjTF] at hle
         linarith
       · intro hjF
-        have hjT : j ∈ T := hF_sub_T hjF
         have hjTF : j ∉ T \ F := fun h => (Finset.mem_sdiff.1 h).2 hjF
-        refine ⟨hjT, ?_⟩
         simp only [α', hjTF, ↓reduceIte]
-        exact (st.le_t₀_frozen j hjF).trans ht₀t
+        exact ⟨hF_sub_T hjF, (st.le_t₀_frozen j hjF).trans ht₀t⟩
     have htight_sub : ∀ S ⊆ T, G.IsTight (fun k => min (α' k) t) S → S ⊆ F := by
       intro S hST hSt
       by_contra hnot
-      have hSF : (S \ F).Nonempty := Finset.nonempty_iff_ne_empty.2
-        (mt Finset.sdiff_eq_empty_iff_subset.1 hnot)
-      have hmul := G.mul_nextFreezeDelta_le hne α hST hSF
-      have hcard_pos : (0 : ℝ) < (S \ F).card := by exact_mod_cast Finset.card_pos.2 hSF
-      have hlt_mul : ((S \ F).card : ℝ) * (t - t₀) < ((S \ F).card : ℝ) * δ :=
-        mul_lt_mul_of_pos_left (by linarith) hcard_pos
+      have hcard_pos : (0 : ℝ) < (S \ F).card := by
+        exact_mod_cast Finset.card_pos.2 (Finset.sdiff_nonempty.2 hnot)
       have heq : (∑ k ∈ S, min (α' k) t) = G.cost S := hSt
-      rw [hsum_t hST] at heq
-      linarith
-    have hmax_F : G.maximalTightSet T (fun j => min (α' j) t) = F := by
-      refine le_antisymm ?_ ?_
-      · exact htight_sub _ (G.maximalTightSet_subset T _)
-          (G.isTight_maximalTightSet hsub hfeas_t)
-      · refine G.subset_maximalTightSet_of_isTight hsub hfeas_t hF_sub_T ?_
-        rw [IsTight, hsum_t hF_sub_T, sdiff_self, Finset.bot_eq_empty, Finset.card_empty,
-          Nat.cast_zero, zero_mul, add_zero]
-        exact G.isTight_maximalTightSet hsub st.feasible
+      linarith [hslack hST, mul_pos hcard_pos hgap]
+    have hmax_F : G.maximalTightSet T (fun j => min (α' j) t) = F :=
+      (htight_sub _ (G.maximalTightSet_subset T _)
+        (G.isTight_maximalTightSet hsub hfeas_t)).antisymm
+        (G.subset_maximalTightSet_of_isTight hsub hfeas_t hF_sub_T
+          (by simpa [IsTight, hsum_t hF_sub_T] using G.isTight_maximalTightSet hsub st.feasible))
     exact ⟨hfeas_t, hfilt_F.trans hmax_F.symm⟩
 
 private theorem waterFilling_step {G : CostSharingGame A} {T : Finset A} {α : A → ℝ} {t₀ : ℝ}
@@ -871,77 +827,48 @@ private theorem waterFilling_step {G : CostSharingGame A} {T : Finset A} {α : A
       (fun x : {S // S ∈ T.powerset.filter (fun S => (S \ F).Nonempty)} =>
         (G.cost x.1 - ∑ j ∈ x.1, α j) / ((x.1 \ F).card : ℝ))
   have hδ_val : δ = (G.cost SStar - ∑ j ∈ SStar, α j) / ((SStar \ F).card : ℝ) := hδ_eq
-  have hSStar_T : SStar ⊆ T := Finset.mem_powerset.1 (Finset.mem_filter.1 hSStar_mem).1
-  have hSStar_SF : (SStar \ F).Nonempty := (Finset.mem_filter.1 hSStar_mem).2
+  obtain ⟨hSStar_T, hSStar_SF⟩ := Finset.mem_filter.1 hSStar_mem
+  rw [Finset.mem_powerset] at hSStar_T
+  have hSStar_F : ¬SStar ⊆ F := Finset.sdiff_nonempty.1 hSStar_SF
+  have hcard_pos : (0 : ℝ) < (SStar \ F).card := by exact_mod_cast Finset.card_pos.2 hSStar_SF
   have hδ_pos : 0 < δ := by
-    have hle : ∑ j ∈ SStar, α j ≤ G.cost SStar := st.feasible hSStar_T
-    have hne_cost : ∑ j ∈ SStar, α j ≠ G.cost SStar := by
-      intro heq
-      have hsubF : SStar ⊆ F := G.subset_maximalTightSet_of_isTight hsub st.feasible hSStar_T heq
-      obtain ⟨x, hx⟩ := hSStar_SF
-      exact (Finset.mem_sdiff.1 hx).2 (hsubF (Finset.mem_sdiff.1 hx).1)
-    have hlt_cost : 0 < G.cost SStar - ∑ j ∈ SStar, α j := sub_pos.2 (lt_of_le_of_ne hle hne_cost)
-    have hcard_pos : (0 : ℝ) < (SStar \ F).card := by exact_mod_cast Finset.card_pos.2 hSStar_SF
     rw [hδ_val]
-    exact div_pos hlt_cost hcard_pos
-  have hfeas' : G.IsCoreFeasibleOn T α' := by
-    intro S hST
-    dsimp only [α']
-    rw [sum_shift_on_sdiff hST α δ]
-    by_cases hSF : (S \ F).Nonempty
-    · have hmul := G.mul_nextFreezeDelta_le hne α hST hSF
-      linarith
-    · rw [Finset.not_nonempty_iff_eq_empty.1 hSF, Finset.card_empty, Nat.cast_zero, zero_mul,
-        add_zero]
-      exact st.feasible hST
-  set F' := G.maximalTightSet T α'
+    refine div_pos (sub_pos.2 ((st.feasible hSStar_T).lt_of_ne fun heq => hSStar_F ?_)) hcard_pos
+    exact G.subset_maximalTightSet_of_isTight hsub st.feasible hSStar_T heq
+  have hsum' : ∀ ⦃S : Finset A⦄, S ⊆ T →
+      ∑ j ∈ S, α' j = (∑ j ∈ S, α j) + ((S \ F).card : ℝ) * δ :=
+    fun S hST => sum_shift_on_sdiff hST α δ
+  have hfeas' : G.IsCoreFeasibleOn T α' := fun S hST => by
+    rw [hsum' hST]
+    linarith [G.mul_nextFreezeDelta_le hne st.feasible hST]
   have hF_sub_T : F ⊆ T := G.maximalTightSet_subset T α
-  have hF_tight' : G.IsTight α' F := by
-    rw [IsTight]
-    dsimp only [α']
-    rw [sum_shift_on_sdiff hF_sub_T α δ, sdiff_self, Finset.bot_eq_empty, Finset.card_empty,
-      Nat.cast_zero, zero_mul, add_zero]
-    exact G.isTight_maximalTightSet hsub st.feasible
-  have hF_sub_F' : F ⊆ F' :=
-    G.subset_maximalTightSet_of_isTight hsub hfeas' hF_sub_T hF_tight'
-  have hSStar_tight' : G.IsTight α' SStar := by
-    rw [IsTight]
-    dsimp only [α']
-    rw [sum_shift_on_sdiff hSStar_T α δ, hδ_val]
-    have hcard_ne : ((SStar \ F).card : ℝ) ≠ 0 := by
-      exact_mod_cast (Finset.card_pos.2 hSStar_SF).ne'
+  have hF_sub_F' : F ⊆ G.maximalTightSet T α' :=
+    G.subset_maximalTightSet_of_isTight hsub hfeas' hF_sub_T
+      (by simpa [IsTight, hsum' hF_sub_T] using G.isTight_maximalTightSet hsub st.feasible)
+  have hSStar_sub_F' : SStar ⊆ G.maximalTightSet T α' := by
+    refine G.subset_maximalTightSet_of_isTight hsub hfeas' hSStar_T ?_
+    rw [IsTight, hsum' hSStar_T, hδ_val]
+    have := hcard_pos.ne'
     field_simp
     ring
-  have hSStar_sub_F' : SStar ⊆ F' :=
-    G.subset_maximalTightSet_of_isTight hsub hfeas' hSStar_T hSStar_tight'
-  have hF_ssub_F' : F ⊂ F' := by
-    refine ssubset_of_subset_not_subset hF_sub_F' fun hF'_sub_F => ?_
-    obtain ⟨x, hx⟩ := hSStar_SF
-    exact (Finset.mem_sdiff.1 hx).2 (hF'_sub_F (hSStar_sub_F' (Finset.mem_sdiff.1 hx).1))
-  refine ⟨hδ_pos, hF_ssub_F',
+  refine ⟨hδ_pos, ssubset_of_subset_not_subset hF_sub_F' fun h => hSStar_F (hSStar_sub_F'.trans h),
     { t₀_nonneg := by linarith [st.t₀_nonneg]
       feasible := hfeas'
-      zero_outside := fun j hj => by
-        have hjTF : j ∉ T \ F := fun h => hj (Finset.mem_sdiff.1 h).1
-        simp only [α', hjTF, ↓reduceIte, st.zero_outside j hj]
+      zero_outside := fun j hj => by simp [α', hj, st.zero_outside j hj]
       nonneg := fun j => by
         simp only [α']
-        split_ifs
-        · linarith [st.nonneg j]
-        · exact st.nonneg j
+        split_ifs <;> linarith [st.nonneg j]
       eq_t₀_unfrozen := fun j hj => by
         have hjTF : j ∈ T \ F :=
           Finset.mem_sdiff.2 ⟨(Finset.mem_sdiff.1 hj).1,
             fun hjF => (Finset.mem_sdiff.1 hj).2 (hF_sub_F' hjF)⟩
         simp only [α', hjTF, ↓reduceIte, st.eq_t₀_unfrozen j hjTF]
       le_t₀_frozen := fun j hjF' => by
-        have hjT : j ∈ T := G.maximalTightSet_subset T α' hjF'
-        by_cases hjF : j ∈ F
-        · have hnot : j ∉ T \ F := fun h => (Finset.mem_sdiff.1 h).2 hjF
-          simp only [α', hnot, ↓reduceIte]
+        simp only [α']
+        split_ifs with hjTF
+        · linarith [st.eq_t₀_unfrozen j hjTF]
+        · have hjF : j ∈ F := by simpa [G.maximalTightSet_subset T α' hjF'] using hjTF
           linarith [st.le_t₀_frozen j hjF]
-        · have hjTF : j ∈ T \ F := Finset.mem_sdiff.2 ⟨hjT, hjF⟩
-          simp only [α', hjTF, ↓reduceIte, st.eq_t₀_unfrozen j hjTF, le_rfl]
       history := fun _ ht0 htt => waterFilling_step_history hsub st hne ht0 htt }⟩
 
 private theorem waterFilling_loop_spec {G : CostSharingGame A} {T : Finset A}
@@ -951,31 +878,15 @@ private theorem waterFilling_loop_spec {G : CostSharingGame A} {T : Finset A}
       T.card - (G.maximalTightSet T α).card ≤ fuel →
       let αf := G.submodularCostShareLoop T fuel α
       ∃ tf : ℝ, WaterFillingState G T αf tf ∧ G.maximalTightSet T αf = T
-  | 0, α, t₀, st, hfuel => by
-    have hsubF : G.maximalTightSet T α ⊆ T := G.maximalTightSet_subset T α
-    have hcard_ge : T.card ≤ (G.maximalTightSet T α).card := by omega
-    have hFT : G.maximalTightSet T α = T :=
-      Finset.eq_of_subset_of_card_le hsubF hcard_ge
-    exact ⟨t₀, st, hFT⟩
+  | 0, α, t₀, st, hfuel =>
+    ⟨t₀, st, (Finset.eq_of_subset_of_card_le (G.maximalTightSet_subset T α) (by omega) :)⟩
   | fuel + 1, α, t₀, st, hfuel => by
     dsimp only [submodularCostShareLoop]
-    by_cases hne : (T \ G.maximalTightSet T α).Nonempty
-    · simp only [hne, ↓reduceDIte]
-      let α' : A → ℝ := fun j =>
-        if j ∈ T \ G.maximalTightSet T α then
-          α j + G.nextFreezeDelta T (G.maximalTightSet T α) hne α
-        else α j
-      obtain ⟨_, hssub, st'⟩ := waterFilling_step hsub st hne
-      have hcard_lt : (G.maximalTightSet T α).card < (G.maximalTightSet T α').card :=
-        Finset.card_lt_card hssub
-      have hfuel' : T.card - (G.maximalTightSet T α').card ≤ fuel := by omega
-      exact waterFilling_loop_spec hsub fuel st' hfuel'
-    · simp only [hne, ↓reduceDIte]
-      have hT_sub_F : T ⊆ G.maximalTightSet T α :=
-        Finset.sdiff_eq_empty_iff_subset.1 (Finset.not_nonempty_iff_eq_empty.1 hne)
-      have hFT : G.maximalTightSet T α = T :=
-        le_antisymm (G.maximalTightSet_subset T α) hT_sub_F
-      exact ⟨t₀, st, hFT⟩
+    split_ifs with hne
+    · obtain ⟨_, hssub, st'⟩ := waterFilling_step hsub st hne
+      have hcard_lt := Finset.card_lt_card hssub
+      exact waterFilling_loop_spec hsub fuel st' (by omega)
+    · exact ⟨t₀, st, (G.maximalTightSet_subset T α).antisymm (by simpa using hne)⟩
 
 private theorem submodularCostShare_waterFilling {G : CostSharingGame A}
     (hsub : G.IsSubmodular) (hnn : G.IsNonneg) (T : Finset A) :
@@ -1001,17 +912,11 @@ private theorem submodularCostShare_waterFilling {G : CostSharingGame A}
   refine ⟨stf.feasible, htightT, stf.zero_outside, stf.nonneg, fun t ht0 => ?_⟩
   rcases lt_or_ge t tf with httf | htft
   · exact stf.history t ht0 httf
-  · have hmin_eq : (fun j => min (α j) t) = α := by
-      ext j
-      by_cases hjT : j ∈ T
-      · have hjF : j ∈ G.maximalTightSet T α := hFT.symm ▸ hjT
-        exact min_eq_left ((stf.le_t₀_frozen j hjF).trans htft)
-      · rw [stf.zero_outside j hjT, min_eq_left ht0]
-    have hfilt_T : T.filter (fun j => α j ≤ t) = T := by
-      refine Finset.filter_true_of_mem fun j hjT => ?_
-      have hjF : j ∈ G.maximalTightSet T α := hFT.symm ▸ hjT
-      exact (stf.le_t₀_frozen j hjF).trans htft
-    rw [hmin_eq, hfilt_T, hFT]
+  · have hle : ∀ j ∈ T, α j ≤ t := fun j hjT =>
+      (stf.le_t₀_frozen j (hFT.symm ▸ hjT)).trans htft
+    have hmin_eq : (fun j => min (α j) t) = α := funext fun j => min_eq_left <|
+      if hjT : j ∈ T then hle j hjT else (stf.zero_outside j hjT).trans_le ht0
+    rw [hmin_eq, Finset.filter_true_of_mem hle, hFT]
     exact ⟨stf.feasible, rfl⟩
 
 /-- The cost-sharing scheme defined by `SubmodularCostShare` ([JainMahdian2007], Figure 15.3,
@@ -1069,29 +974,19 @@ theorem submodularCostShareScheme_isCrossMonotone {G : CostSharingGame A}
   -- Every `j ∈ F₁ \ F₂` lies in `T₂` and is unfrozen at time `t` in the `T₂`-run, so `α₂t j = t`.
   have hsdiff_le : ∑ j ∈ F₁ \ F₂, α₁t j ≤ ∑ j ∈ F₁ \ F₂, α₂t j := by
     refine Finset.sum_le_sum fun j hj => ?_
-    have hjF₁ : j ∈ F₁ := (Finset.mem_sdiff.1 hj).1
-    have hjF₂ : j ∉ F₂ := (Finset.mem_sdiff.1 hj).2
-    have hjT₂ : j ∈ T₂ := hT₁₂ (hF₁_sub_T₁ hjF₁)
-    have hgt : t < α₂ j := by
-      by_contra hle
-      exact hjF₂ (Finset.mem_filter.2 ⟨hjT₂, not_lt.1 hle⟩)
-    have hα₂tj : α₂t j = t := min_eq_right hgt.le
-    rw [hα₂tj]
-    exact min_le_right (α₁ j) t
+    obtain ⟨hjF₁, hjF₂⟩ := Finset.mem_sdiff.1 hj
+    have hgt : t < α₂ j :=
+      not_le.1 fun hle => hjF₂ (Finset.mem_filter.2 ⟨hT₁₂ (hF₁_sub_T₁ hjF₁), hle⟩)
+    simp only [α₁t, α₂t, min_eq_right hgt.le, min_le_right]
   -- Submodularity uncrosses `F₁` and `F₂` to show `F₁ ∪ F₂` is tight for `α₂t`.
   have hU_sub_T₂ : F₁ ∪ F₂ ⊆ T₂ := Finset.union_subset (hF₁_sub_T₁.trans hT₁₂) hF₂_sub_T₂
   have hU_tight : G.IsTight α₂t (F₁ ∪ F₂) := by
     have hU_le : ∑ j ∈ F₁ ∪ F₂, α₂t j ≤ G.cost (F₁ ∪ F₂) := hfeas₂ hU_sub_T₂
     have hmod : G.cost (F₁ ∪ F₂) + G.cost (F₁ ∩ F₂) ≤ G.cost F₁ + G.cost F₂ := hsub F₁ F₂
     have hsplit₁ : ∑ j ∈ F₁, α₁t j = (∑ j ∈ F₁ \ F₂, α₁t j) + ∑ j ∈ F₁ ∩ F₂, α₁t j := by
-      have hunion₁ : (F₁ \ F₂) ∪ (F₁ ∩ F₂) = F₁ := Finset.sdiff_union_inter F₁ F₂
-      have hdisj₁ : Disjoint (F₁ \ F₂) (F₁ ∩ F₂) := Finset.disjoint_sdiff_inter F₁ F₂
-      conv_lhs => rw [← hunion₁]
-      exact Finset.sum_union hdisj₁
+      rw [← Finset.sum_union (Finset.disjoint_sdiff_inter F₁ F₂), Finset.sdiff_union_inter]
     have hsplit₂ : ∑ j ∈ F₁ ∪ F₂, α₂t j = (∑ j ∈ F₁ \ F₂, α₂t j) + ∑ j ∈ F₂, α₂t j := by
-      have hdisj : Disjoint (F₁ \ F₂) F₂ := Finset.sdiff_disjoint
-      have hunion : (F₁ \ F₂) ∪ F₂ = F₁ ∪ F₂ := Finset.sdiff_union_self_eq_union
-      rw [← hunion, Finset.sum_union hdisj]
+      rw [← Finset.sum_union Finset.sdiff_disjoint, Finset.sdiff_union_self_eq_union]
     rw [IsTight] at hF₁_tight hF₂_tight ⊢
     linarith
   have hU_sub_F₂ : F₁ ∪ F₂ ⊆ F₂ := by

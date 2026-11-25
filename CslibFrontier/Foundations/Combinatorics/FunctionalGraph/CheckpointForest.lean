@@ -86,8 +86,7 @@ theorem subset_checkpointHull (H : Finset α) : H ⊆ checkpointHull f H := by
 
 /-- The checkpoint hull is monotone in the checkpoint set. -/
 theorem checkpointHull_subset_of_subset {H₁ H₂ : Finset α} (h : H₁ ⊆ H₂) :
-    checkpointHull f H₁ ⊆ checkpointHull f H₂ := by
-  intro x hx
+    checkpointHull f H₁ ⊆ checkpointHull f H₂ := fun x hx => by
   obtain ⟨a, ha, t, ht, rfl⟩ := (mem_checkpointHull f H₁ x).mp hx
   exact (mem_checkpointHull f H₂ _).mpr ⟨a, h ha, t, ht, rfl⟩
 
@@ -156,16 +155,14 @@ noncomputable def forestMarks (H : Finset α) : Finset α :=
 
 /-- The forest sources are exactly the hull states of positive transient depth. -/
 @[simp] theorem mem_forestSources (H : Finset α) (x : α) :
-    x ∈ forestSources f H ↔ x ∈ checkpointHull f H ∧ 0 < transientDepth f x := by
-  classical
-  exact Finset.mem_filter
+    x ∈ forestSources f H ↔ x ∈ checkpointHull f H ∧ 0 < transientDepth f x :=
+  Finset.mem_filter
 
 /-- The children of `x` are exactly the hull states of positive transient depth that `f` maps
 to `x`. -/
 @[simp] theorem mem_forestChildren (H : Finset α) (x y : α) :
     y ∈ forestChildren f H x ↔ y ∈ checkpointHull f H ∧
       0 < transientDepth f y ∧ f y = x := by
-  classical
   simp only [forestChildren, Finset.mem_filter, mem_forestSources, and_assoc]
 
 /-- The forest roots are exactly the hull states of transient depth zero. -/
@@ -177,15 +174,13 @@ to `x`. -/
 
 /-- The forest leaves are exactly the hull states with no children. -/
 @[simp] theorem mem_forestLeaves (H : Finset α) (x : α) :
-    x ∈ forestLeaves f H ↔ x ∈ checkpointHull f H ∧ (forestChildren f H x).card = 0 := by
-  classical
-  exact Finset.mem_filter
+    x ∈ forestLeaves f H ↔ x ∈ checkpointHull f H ∧ (forestChildren f H x).card = 0 :=
+  Finset.mem_filter
 
 /-- The forest branches are exactly the hull states with at least two children. -/
 @[simp] theorem mem_forestBranches (H : Finset α) (x : α) :
-    x ∈ forestBranches f H ↔ x ∈ checkpointHull f H ∧ 2 ≤ (forestChildren f H x).card := by
-  classical
-  exact Finset.mem_filter
+    x ∈ forestBranches f H ↔ x ∈ checkpointHull f H ∧ 2 ≤ (forestChildren f H x).card :=
+  Finset.mem_filter
 
 /-- A state is marked exactly when it is a checkpoint, a forest root, or a forest branch. -/
 @[simp] theorem mem_forestMarks (H : Finset α) (x : α) :
@@ -194,14 +189,12 @@ to `x`. -/
   simp only [forestMarks, Finset.mem_union]
 
 /-- Every leaf of the checkpoint hull belongs to `H`. -/
-theorem forestLeaves_subset (H : Finset α) : forestLeaves f H ⊆ H := by
+theorem forestLeaves_subset (H : Finset α) : forestLeaves f H ⊆ H := fun x hx => by
   classical
-  intro x hx
   obtain ⟨hx, hz⟩ := Finset.mem_filter.mp hx
   by_contra hH
   obtain ⟨y, hy, hd, he⟩ := checkpointHull_predecessor f H hx hH
-  have hmem := (mem_forestChildren f H x y).mpr ⟨hy, hd, he⟩
-  have := Finset.card_pos.mpr ⟨y, hmem⟩
+  have := Finset.card_pos.mpr ⟨y, (mem_forestChildren f H x y).mpr ⟨hy, hd, he⟩⟩
   lia
 
 /-- Count each nonroot's outgoing edge at its parent. -/
@@ -221,12 +214,11 @@ theorem forestBranches_roots_le_leaves (H : Finset α) :
   have hsum := Finset.sum_le_sum (s := checkpointHull f H)
     (f := fun x => 1 + if 2 ≤ (forestChildren f H x).card then 1 else 0)
     (g := fun x => (forestChildren f H x).card +
-      if (forestChildren f H x).card = 0 then 1 else 0) (fun x _ => by split_ifs <;> lia)
+      if (forestChildren f H x).card = 0 then 1 else 0) fun _ _ => by split_ifs <;> lia
   simp only [Finset.sum_add_distrib, Finset.sum_const, Nat.nsmul_eq_mul,
     Nat.mul_one, Nat.cast_id, Finset.sum_boole, sum_forestChildren] at hsum
-  have hcard := Finset.card_sdiff_add_card_eq_card
-    (show forestSources f H ⊆ checkpointHull f H from Finset.filter_subset _ _)
-  change (forestRoots f H).card + (forestSources f H).card = (checkpointHull f H).card at hcard
+  have hcard : (forestRoots f H).card + (forestSources f H).card = (checkpointHull f H).card :=
+    Finset.card_sdiff_add_card_eq_card (Finset.filter_subset _ _)
   change (checkpointHull f H).card + (forestBranches f H).card ≤
     (forestSources f H).card + (forestLeaves f H).card at hsum
   lia
@@ -255,18 +247,19 @@ theorem forestMarks_subset_hull (H : Finset α) : forestMarks f H ⊆ checkpoint
 /-- Refinement to a compressed forest needs at most twice as many marks. -/
 theorem forestMarks_card (H : Finset α) : (forestMarks f H).card ≤ 2 * H.card := by
   classical
-  have hcard : (forestMarks f H).card ≤ H.card +
-      ((forestRoots f H).card + (forestBranches f H).card) :=
-    (Finset.card_union_le ..).trans (Nat.add_le_add_left (Finset.card_union_le ..) H.card)
-  have hbound := forestBranches_roots_le_leaves f H
-  have hleaves := Finset.card_le_card (forestLeaves_subset f H)
+  rw [forestMarks]
+  have := (Finset.card_union_le H _).trans
+    (Nat.add_le_add_left (Finset.card_union_le (forestRoots f H) (forestBranches f H)) H.card)
+  have := forestBranches_roots_le_leaves f H
+  have := Finset.card_le_card (forestLeaves_subset f H)
   lia
 
 /-- A hull state of transient depth zero is marked. -/
 theorem forestRoot_mem_marks (H : Finset α) {x : α} (hx : x ∈ checkpointHull f H)
     (hd : transientDepth f x = 0) : x ∈ forestMarks f H := by
   classical
-  exact Finset.mem_union_right _ (Finset.mem_union_left _ ((mem_forestRoots f H x).mpr ⟨hx, hd⟩))
+  exact Finset.mem_union_right _ (Finset.mem_union_left _
+    ((mem_forestRoots f H x).mpr ⟨hx, hd⟩))
 
 /-- Between marks, two hull paths cannot merge. -/
 theorem forestPredecessor_unique (H : Finset α) {x y z : α}
@@ -274,13 +267,10 @@ theorem forestPredecessor_unique (H : Finset α) {x y z : α}
     (hfx : f x = z) (hfy : f y = z) (hz : z ∉ forestMarks f H) : x = y := by
   classical
   by_contra hne
-  have hzx : x ∈ forestChildren f H z := Finset.mem_filter.mpr ⟨hx, hfx⟩
-  have hzy : y ∈ forestChildren f H z := Finset.mem_filter.mpr ⟨hy, hfy⟩
-  have hdeg : 2 ≤ (forestChildren f H z).card :=
-    Finset.one_lt_card.mpr ⟨x, hzx, y, hzy, hne⟩
-  have hxs := (mem_forestSources f H x).mp hx
-  have hzS : z ∈ checkpointHull f H := hfx ▸ checkpointHull_step f H hxs.1 hxs.2
+  have hdeg : 2 ≤ (forestChildren f H z).card := Finset.one_lt_card.mpr
+    ⟨x, Finset.mem_filter.mpr ⟨hx, hfx⟩, y, Finset.mem_filter.mpr ⟨hy, hfy⟩, hne⟩
+  obtain ⟨hx1, hx2⟩ := (mem_forestSources f H x).mp hx
   exact hz (Finset.mem_union_right _ (Finset.mem_union_right _
-    (Finset.mem_filter.mpr ⟨hzS, hdeg⟩)))
+    (Finset.mem_filter.mpr ⟨hfx ▸ checkpointHull_step f H hx1 hx2, hdeg⟩)))
 
 end Cslib.FunctionalGraph

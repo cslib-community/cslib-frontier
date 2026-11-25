@@ -147,14 +147,10 @@ theorem minHash_eq_of_isMin {σ : Equiv.Perm α} {A : Finset α} {s : α} (hs : 
 /-- A set whose MinHash value is the rank `σ s` contains `s`. -/
 private theorem mem_of_minHash_eq_coe {σ : Equiv.Perm α} {B : Finset α} {s : α}
     (h : minHash σ B = σ s) : s ∈ B := by
-  have hB0 : B.Nonempty := by
-    by_contra hB0
-    rw [Finset.not_nonempty_iff_eq_empty] at hB0
-    rw [hB0, minHash_empty] at h
-    exact WithTop.top_ne_coe h
+  have hB0 : B.Nonempty := Finset.nonempty_iff_ne_empty.2 fun h0 =>
+    WithTop.top_ne_coe ((h0 ▸ minHash_empty σ).symm.trans h)
   obtain ⟨t, ht, hbt⟩ := Finset.exists_mem_eq_inf B hB0 fun b => (σ b : WithTop α)
-  rw [minHash, hbt] at h
-  rwa [← σ.injective (WithTop.coe_injective h)]
+  rwa [← σ.injective (WithTop.coe_injective (hbt.symm.trans h))]
 
 variable [Fintype α]
 
@@ -163,61 +159,47 @@ private def argminSet (S : Finset α) (s : α) : Finset (Equiv.Perm α) :=
   Finset.univ.filter fun σ => ∀ a ∈ S, σ s ≤ σ a
 
 private theorem exists_mem_argminSet (S : Finset α) (hS : S.Nonempty) (σ : Equiv.Perm α) :
-    ∃ s ∈ S, σ ∈ argminSet S s := by
-  obtain ⟨s, hs, hmin⟩ := S.exists_min_image σ hS
-  exact ⟨s, hs, Finset.mem_filter.2 ⟨Finset.mem_univ _, hmin⟩⟩
+    ∃ s ∈ S, σ ∈ argminSet S s :=
+  let ⟨s, hs, hmin⟩ := S.exists_min_image σ hS
+  ⟨s, hs, Finset.mem_filter.2 ⟨Finset.mem_univ _, hmin⟩⟩
 
 private theorem argminSet_disjoint {S : Finset α} {s t : α} (hs : s ∈ S) (ht : t ∈ S)
-    (hst : s ≠ t) : Disjoint (argminSet S s) (argminSet S t) := by
-  rw [Finset.disjoint_left]
-  intro σ h₁ h₂
-  simp only [argminSet, Finset.mem_filter, Finset.mem_univ, true_and] at h₁ h₂
-  exact hst (σ.injective (le_antisymm (h₁ t ht) (h₂ s hs)))
+    (hst : s ≠ t) : Disjoint (argminSet S s) (argminSet S t) :=
+  Finset.disjoint_left.2 fun σ h₁ h₂ =>
+    hst <| σ.injective <| le_antisymm ((Finset.mem_filter.1 h₁).2 t ht)
+      ((Finset.mem_filter.1 h₂).2 s hs)
 
 /-- Composing with the transposition of `s` and `t` exchanges the permutations ranking `s` first
 with those ranking `t` first. -/
 private theorem card_argminSet_eq {S : Finset α} {s t : α} (hs : s ∈ S) (ht : t ∈ S) :
     (argminSet S s).card = (argminSet S t).card := by
   classical
-  refine Finset.card_bij' (fun σ _ => σ * Equiv.swap s t) (fun σ _ => σ * Equiv.swap s t)
-    ?_ ?_ ?_ ?_
-  · intro σ hσ
+  have step {u v : α} (hu : u ∈ S) (hv : v ∈ S) {σ : Equiv.Perm α} (hσ : σ ∈ argminSet S u) :
+      σ * Equiv.swap u v ∈ argminSet S v := by
     simp only [argminSet, Finset.mem_filter, Finset.mem_univ, true_and, Equiv.Perm.coe_mul,
       Function.comp_apply, Equiv.swap_apply_right] at hσ ⊢
     intro a ha
-    rcases eq_or_ne a s with rfl | has
+    rcases eq_or_ne a u with rfl | hau
     · rw [Equiv.swap_apply_left]
-      exact hσ t ht
-    rcases eq_or_ne a t with rfl | hat
+      exact hσ v hv
+    rcases eq_or_ne a v with rfl | hav
     · rw [Equiv.swap_apply_right]
-    · rw [Equiv.swap_apply_of_ne_of_ne has hat]
+    · rw [Equiv.swap_apply_of_ne_of_ne hau hav]
       exact hσ a ha
-  · intro σ hσ
-    simp only [argminSet, Finset.mem_filter, Finset.mem_univ, true_and, Equiv.Perm.coe_mul,
-      Function.comp_apply, Equiv.swap_apply_left] at hσ ⊢
-    intro a ha
-    rcases eq_or_ne a t with rfl | hat
-    · rw [Equiv.swap_apply_right]
-      exact hσ s hs
-    rcases eq_or_ne a s with rfl | has
-    · rw [Equiv.swap_apply_left]
-    · rw [Equiv.swap_apply_of_ne_of_ne has hat]
-      exact hσ a ha
-  · intro σ _
-    rw [mul_assoc, Equiv.swap_mul_self, mul_one]
-  · intro σ _
-    rw [mul_assoc, Equiv.swap_mul_self, mul_one]
+  exact Finset.card_bij' (fun σ _ => σ * Equiv.swap s t) (fun σ _ => σ * Equiv.swap s t)
+    (fun _ hσ => step hs ht hσ) (fun _ hσ => Equiv.swap_comm s t ▸ step ht hs hσ)
+    (fun σ _ => by rw [mul_assoc, Equiv.swap_mul_self, mul_one])
+    (fun σ _ => by rw [mul_assoc, Equiv.swap_mul_self, mul_one])
 
 /-- Each element of `S` has the least rank under the same number `|α|! / |S|` of permutations. -/
 private theorem card_mul_card_argminSet {S : Finset α} {s : α} (hs : s ∈ S) :
     S.card * (argminSet S s).card = Fintype.card (Equiv.Perm α) := by
   have hcover : (Finset.univ : Finset (Equiv.Perm α)) = S.biUnion (argminSet S) := by
     ext σ
-    simp only [Finset.mem_univ, Finset.mem_biUnion, true_iff]
-    exact exists_mem_argminSet S ⟨s, hs⟩ σ
-  rw [← Finset.card_univ, hcover, Finset.card_biUnion
-    (fun t ht u hu htu => argminSet_disjoint ht hu htu),
-    Finset.sum_congr rfl (fun t ht => card_argminSet_eq ht hs), Finset.sum_const, smul_eq_mul]
+    simpa using exists_mem_argminSet S ⟨s, hs⟩ σ
+  rw [← Finset.card_univ, hcover,
+    Finset.card_biUnion fun _ ht _ hu htu => argminSet_disjoint ht hu htu,
+    Finset.sum_congr rfl fun _ ht => card_argminSet_eq ht hs, Finset.sum_const, smul_eq_mul]
 
 /-- If `s` has the least rank in `A ∪ B`, the MinHash values of `A` and `B` agree exactly when
 `s ∈ A ∩ B`. -/
@@ -225,19 +207,13 @@ private theorem minHash_eq_minHash_iff {σ : Equiv.Perm α} {A B : Finset α} {s
     (hs : s ∈ A ∪ B) (hσ : σ ∈ argminSet (A ∪ B) s) :
     minHash σ A = minHash σ B ↔ s ∈ A ∩ B := by
   simp only [argminSet, Finset.mem_filter, Finset.mem_univ, true_and] at hσ
-  have hA : s ∈ A → minHash σ A = σ s := fun h =>
-    minHash_eq_of_isMin h fun a ha => hσ a (Finset.mem_union_left _ ha)
-  have hB : s ∈ B → minHash σ B = σ s := fun h =>
-    minHash_eq_of_isMin h fun a ha => hσ a (Finset.mem_union_right _ ha)
-  constructor
-  · intro heq
-    rw [Finset.mem_inter]
-    rcases Finset.mem_union.1 hs with hsA | hsB
-    · exact ⟨hsA, mem_of_minHash_eq_coe (heq.symm.trans (hA hsA))⟩
-    · exact ⟨mem_of_minHash_eq_coe (heq.trans (hB hsB)), hsB⟩
-  · intro h
-    rw [Finset.mem_inter] at h
-    rw [hA h.1, hB h.2]
+  have hA (h : s ∈ A) := minHash_eq_of_isMin h fun a ha => hσ a (Finset.mem_union_left _ ha)
+  have hB (h : s ∈ B) := minHash_eq_of_isMin h fun a ha => hσ a (Finset.mem_union_right _ ha)
+  refine ⟨fun heq => Finset.mem_inter.2 ?_, fun h => ?_⟩
+  · exact (Finset.mem_union.1 hs).elim
+      (fun hsA => ⟨hsA, mem_of_minHash_eq_coe (heq.symm.trans (hA hsA))⟩)
+      fun hsB => ⟨mem_of_minHash_eq_coe (heq.trans (hB hsB)), hsB⟩
+  · rw [hA (Finset.mem_inter.1 h).1, hB (Finset.mem_inter.1 h).2]
 
 /-- **Broder's theorem** ([Broder1997]; [LeskovecRajaramanUllman2020], Section 3.3.3): under a
 uniformly random permutation of `α`, two finite sets have equal MinHash values with probability
@@ -247,9 +223,7 @@ theorem collisionProb_minHash (A B : Finset α) :
   classical
   rw [collisionProb, PMF.toOuterMeasure_uniformOfFintype_toReal, jaccard]
   split_ifs with hS
-  · have hA : A = ∅ := Finset.subset_empty.1 (hS ▸ Finset.subset_union_left)
-    have hB : B = ∅ := Finset.subset_empty.1 (hS ▸ Finset.subset_union_right)
-    subst hA hB
+  · obtain ⟨rfl, rfl⟩ := Finset.union_eq_empty.1 hS
     simp only [Set.mem_ofPred_eq, Finset.filter_true, Finset.card_univ, Rat.cast_one]
     exact div_self (by exact_mod_cast Fintype.card_ne_zero)
   · obtain ⟨s, hs⟩ := Finset.nonempty_iff_ne_empty.2 hS
@@ -260,30 +234,20 @@ theorem collisionProb_minHash (A B : Finset α) :
         Finset.mem_biUnion]
       obtain ⟨t, ht, hσ⟩ := exists_mem_argminSet (A ∪ B) ⟨s, hs⟩ σ
       rw [minHash_eq_minHash_iff ht hσ]
-      constructor
-      · intro h
-        exact ⟨t, h, hσ⟩
-      · rintro ⟨u, hu, hσu⟩
-        by_contra htu
-        have hne : u ≠ t := fun h => htu (h ▸ hu)
-        exact Finset.disjoint_left.1 (argminSet_disjoint
-          (Finset.inter_subset_union hu) ht hne) hσu hσ
-    have hcard : (Finset.univ.filter
-        (· ∈ {σ : Equiv.Perm α | minHash σ A = minHash σ B})).card =
-        (A ∩ B).card * (argminSet (A ∪ B) s).card := by
-      rw [hcoll, Finset.card_biUnion (fun t ht u hu htu => argminSet_disjoint
-        (Finset.inter_subset_union ht) (Finset.inter_subset_union hu) htu),
-        Finset.sum_congr rfl (fun t ht => card_argminSet_eq (Finset.inter_subset_union ht) hs),
-        Finset.sum_const, smul_eq_mul]
+      exact ⟨fun h => ⟨t, h, hσ⟩, fun ⟨u, hu, hσu⟩ => by_contra fun htu =>
+        Finset.disjoint_left.1 (argminSet_disjoint (Finset.inter_subset_union hu) ht
+          fun h => htu (h ▸ hu)) hσu hσ⟩
     have htot := card_mul_card_argminSet hs
     have hpos : ((argminSet (A ∪ B) s).card : ℝ) ≠ 0 := by
-      intro h0
-      rw [Nat.cast_eq_zero] at h0
-      rw [h0, mul_zero] at htot
+      rintro h0
+      rw [Nat.cast_eq_zero.1 h0, mul_zero] at htot
       exact Fintype.card_ne_zero htot.symm
-    rw [hcard, ← htot]
+    rw [hcoll, Finset.card_biUnion fun _ ht _ hu htu => argminSet_disjoint
+        (Finset.inter_subset_union ht) (Finset.inter_subset_union hu) htu,
+      Finset.sum_congr rfl fun _ ht => card_argminSet_eq (Finset.inter_subset_union ht) hs,
+      Finset.sum_const, smul_eq_mul, ← htot]
     push_cast
-    rw [mul_div_mul_right _ _ hpos]
+    exact mul_div_mul_right _ _ hpos
 
 /-- MinHash is `(d₁, d₂, 1 - d₁, 1 - d₂)`-sensitive for the Jaccard distance `1 - J`
 ([LeskovecRajaramanUllman2020], Section 3.6.2). -/
@@ -321,17 +285,13 @@ private theorem jaccard_triangle_of_linearOrder {α : Type*} [LinearOrder α] [F
 `A ∪ B ∪ C`, ordered arbitrarily, where Broder's theorem applies. -/
 theorem jaccard_triangle {α : Type*} [DecidableEq α] (A B C : Finset α) :
     1 - jaccard A C ≤ (1 - jaccard A B) + (1 - jaccard B C) := by
-  set S := A ∪ B ∪ C
+  let S := A ∪ B ∪ C
   let _ : LinearOrder S := LinearOrder.lift' (Fintype.equivFin S) (Equiv.injective _)
-  have hA : (A.subtype (· ∈ S)).map (Function.Embedding.subtype _) = A :=
-    Finset.subtype_map_of_mem fun x hx => by simp [S, hx]
-  have hB : (B.subtype (· ∈ S)).map (Function.Embedding.subtype _) = B :=
-    Finset.subtype_map_of_mem fun x hx => by simp [S, hx]
-  have hC : (C.subtype (· ∈ S)).map (Function.Embedding.subtype _) = C :=
-    Finset.subtype_map_of_mem fun x hx => by simp [S, hx]
   have h := jaccard_triangle_of_linearOrder (A.subtype (· ∈ S)) (B.subtype (· ∈ S))
     (C.subtype (· ∈ S))
-  rw [← hA, ← hB, ← hC]
+  rw [← Finset.subtype_map_of_mem (p := (· ∈ S)) (s := A) fun x hx => by simp [S, hx],
+    ← Finset.subtype_map_of_mem (p := (· ∈ S)) (s := B) fun x hx => by simp [S, hx],
+    ← Finset.subtype_map_of_mem (p := (· ∈ S)) (s := C) fun x hx => by simp [S, hx] ]
   convert h using 3 <;> convert jaccard_map (Function.Embedding.subtype (· ∈ S)) _ _
 
 end Cslib.Probability

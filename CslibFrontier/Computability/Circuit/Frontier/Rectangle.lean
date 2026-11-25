@@ -132,17 +132,16 @@ theorem exists_thick_or_ncard_lt [Finite ι] [Finite U] [Nonempty U] {T : Set (�
       T = rectangle X A B ∧ K ≤ A.ncard ∧ K ≤ B.ncard) ∨ T.ncard < Nat.card U * K ^ 2 := by
   have hq : 0 < Nat.card U := Nat.card_pos
   have hex : ∃ d, K ≤ Nat.card U ^ d := ⟨_, hle⟩
-  obtain ⟨d, hdK, hdmin⟩ : ∃ d, K ≤ Nat.card U ^ d ∧ ∀ d' < d, Nat.card U ^ d' < K :=
-    ⟨Nat.find hex, Nat.find_spec hex, fun d' hd' => not_le.mp (Nat.find_min hex hd')⟩
-  have hdR : d ≤ Rᶜ.ncard := by grind
-  obtain ⟨D, hDR, rfl⟩ := exists_subset_card_eq hdR
+  have hdK := Nat.find_spec hex
+  have hdmin (d') (hd' : d' < Nat.find hex) : Nat.card U ^ d' < K :=
+    not_le.mp (Nat.find_min hex hd')
+  obtain ⟨D, hDR, hD⟩ := exists_subset_card_eq (by grind : Nat.find hex ≤ Rᶜ.ncard)
   set B : Set (↥Dᶜ → U) := Dᶜ.domRestrict '' T
-  have hT : T = rectangle D univ B :=
-    eq_rectangle_of_dependsOn (hR.mono (subset_compl_comm.mp hDR))
   have hA : (univ : Set (D → U)).ncard = Nat.card U ^ D.ncard := by
     rw [ncard_univ, Nat.card_fun, Nat.card_coe_set_eq]
   by_cases hB : K ≤ B.ncard
-  · exact Or.inl ⟨D, univ, B, hT, hA ▸ hdK, hB⟩
+  · exact Or.inl ⟨D, univ, B, eq_rectangle_of_dependsOn (hR.mono (subset_compl_comm.mp hDR)),
+      by rwa [hA, hD], hB⟩
   refine Or.inr ?_
   have hcard : T.ncard ≤ Nat.card U ^ D.ncard * (K - 1) := by
     calc T.ncard
@@ -166,8 +165,7 @@ theorem exists_thick_or_ncard_lt [Finite ι] [Finite U] [Nonempty U] {T : Set (�
     calc T.ncard ≤ Nat.card U ^ D.ncard * (K - 1) := hcard
       _ ≤ Nat.card U * (K - 1) * (K - 1) := by
           rw [hpow]
-          gcongr
-          omega
+          gcongr; omega
       _ < Nat.card U * K ^ 2 := by
           rw [mul_assoc, sq]
           exact Nat.mul_lt_mul_of_pos_left (Nat.mul_lt_mul'' (by omega) (by omega)) hq
@@ -252,12 +250,10 @@ on the others. -/
 theorem signedCount_eq_sum [Fintype ι] [Fintype U] [DecidableEq ι] (S R : Set (ι → U))
     [DecidablePred (· ∈ S)] [DecidablePred (· ∈ R)] :
     signedCount S R = ∑ x with x ∈ R, if x ∈ S then (1 : ℝ) else -1 := by
-  have h₁ : (R ∩ S).toFinset = Finset.univ.filter fun x => x ∈ R ∧ x ∈ S := by
-    ext x
-    simp
-  have h₂ : (R \ S).toFinset = Finset.univ.filter fun x => x ∈ R ∧ x ∉ S := by
-    ext x
-    simp
+  have h₁ : (R ∩ S).toFinset = Finset.univ.filter fun x => x ∈ R ∧ x ∈ S :=
+    Finset.ext fun _ => by simp
+  have h₂ : (R \ S).toFinset = Finset.univ.filter fun x => x ∈ R ∧ x ∉ S :=
+    Finset.ext fun _ => by simp
   rw [Finset.sum_ite, Finset.sum_const, Finset.sum_const, nsmul_eq_mul, nsmul_eq_mul, mul_one,
     mul_neg_one, signedCount, ncard_eq_toFinset_card', ncard_eq_toFinset_card', h₁, h₂,
     Finset.filter_filter, Finset.filter_filter, sub_eq_add_neg]
@@ -283,10 +279,9 @@ theorem signedCount_eq_add_sdiff (S : Set (ι → U)) {R D : Set (ι → U)} (h 
     have := @h x
     tauto
   have hdisj (P : Set (ι → U)) : Disjoint (R ∩ P) ((D \ R) ∩ P) :=
-    disjoint_left.mpr fun x hx hx' => hx'.1.2 hx.1
-  have hi := ncard_union_eq (hdisj S)
-  have hd := ncard_union_eq (hdisj Sᶜ)
-  rw [← hsplit] at hi hd
+    disjoint_left.mpr fun _ hx hx' => hx'.1.2 hx.1
+  have hi := hsplit S ▸ ncard_union_eq (hdisj S)
+  have hd := hsplit Sᶜ ▸ ncard_union_eq (hdisj Sᶜ)
   simp only [← sdiff_eq] at hd
   rw [signedCount, signedCount, signedCount, hi, hd]
   push_cast
@@ -354,10 +349,9 @@ theorem nonneg [Nonempty U] (hS : RectangleBias S K b) (hK : K ≤ Nat.card U ^ 
   have hB : K ≤ (univ : Set (↥Xᶜ → U)).ncard := by
     rw [ncard_univ, Nat.card_fun, Nat.card_coe_set_eq]
     exact hK.trans (Nat.pow_le_pow_right Nat.card_pos hXc)
-  have hR : (0 : ℝ) < (rectangle X (univ : Set (X → U)) univ).ncard := by
-    rw [show rectangle X (univ : Set (X → U)) univ = univ by ext; simp [rectangle], ncard_univ]
-    exact_mod_cast Nat.card_pos
-  exact nonneg_of_mul_nonneg_left ((abs_nonneg _).trans (hS X univ univ hA hB)) hR
+  refine nonneg_of_mul_nonneg_left ((abs_nonneg _).trans (hS X univ univ hA hB)) ?_
+  rw [show rectangle X (univ : Set (X → U)) univ = univ by ext; simp [rectangle], ncard_univ]
+  exact_mod_cast Nat.card_pos
 
 /-- **Bias on a set that ignores many coordinates.** If `T` depends only on the coordinates in
 `R` and the others carry at least `K ≥ 1` assignments, then either `T` is a rectangle with both

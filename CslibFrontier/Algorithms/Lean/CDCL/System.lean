@@ -314,13 +314,18 @@ in `V`. -/
 theorem RunInv.push {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ} (h : RunInv φ V M F)
     {l : Literal ℕ} (b : Bool) (hundef : l.1 ∉ Trail.vars M) (hv : l.1 ∈ V) :
     (Trail.vars (⟨l, b⟩ :: M)).Nodup ∧ ∀ x ∈ Trail.vars (⟨l, b⟩ :: M), x ∈ V := by
-  refine ⟨?_, fun x hx => ?_⟩
-  · simp only [Trail.vars, List.map_cons, List.nodup_cons]
-    exact ⟨hundef, h.nodup⟩
-  · simp only [Trail.vars, List.map_cons, List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · exact hv
-    · exact h.subset x hx
+  refine ⟨List.nodup_cons.2 ⟨hundef, h.nodup⟩, fun x hx => ?_⟩
+  rcases List.mem_cons.1 hx with rfl | hx
+  · exact hv
+  · exact h.subset x hx
+
+/-- A variable occurring in the database or on the trail lies in `V`. -/
+private theorem RunInv.mem_of_occurs {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ}
+    (h : RunInv φ V M F) {x : ℕ} (hx : x ∈ F.vars ∨ x ∈ Trail.vars M) : x ∈ V := by
+  rcases hx with hx | hx
+  · obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hx
+    exact h.db_vars c hc (_, b) hb
+  · exact h.subset _ hx
 
 /-- **Steps keep the invariant** [NieuwenhuisOliverasTinelli2006, Lemma 2.7]. -/
 theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S') (h : Inv φ V S) :
@@ -333,14 +338,13 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
       exact Trail.eval_of_forall_ne
         ((CNF.eval_eq_true_iff σ F).1 (by rw [h.models]; exact hσ) c hc) hM hfalse
     | @decide M F l hundef hv =>
-      obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hv
-      obtain ⟨hnd, hsub⟩ := RunInv.push h true hundef (h.db_vars c hc (_, b) hb)
+      obtain ⟨hnd, hsub⟩ := RunInv.push h true hundef (h.mem_of_occurs (.inl hv))
       exact ⟨h.models, h.pmodels, hnd, hsub, h.db_vars, .decision l h.entailed⟩
     | @fail M F c hc hconf hnodec =>
       rintro ⟨σ, hσ⟩
       have hM := Trail.sat_of_entailed h.entailed hσ fun l hl => by simpa using hnodec _ hl
       obtain ⟨l, hl, hlσ⟩ := (Clause.eval_eq_true_iff σ c).1
-        ((CNF.eval_eq_true_iff σ F).1 (by rw [h.models]; exact hσ) c hc)
+        ((CNF.eval_eq_true_iff σ F).1 (h.models σ ▸ hσ) c hc)
       have := hM _ (hconf l hl)
       rw [Literal.eval_negate] at this
       simp [Literal.eval, hlσ] at this
@@ -349,16 +353,10 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
         have := h.nodup
         simp only [Trail.vars, List.map_append, List.map_cons] at this
         exact (List.nodup_cons.1 (List.nodup_append.1 this).2.1).2
-      refine ⟨h.models, h.pmodels, ?_, ?_, h.db_vars, ?_⟩
-      · simp only [Trail.vars, List.map_cons, List.nodup_cons]
-        exact ⟨hundef, hnodup⟩
-      · intro x hx
-        simp only [Trail.vars, List.map_cons, List.mem_cons] at hx
-        rcases hx with rfl | hx
-        · rcases hocc with hocc | hocc
-          · obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hocc
-            exact h.db_vars c' hc' (_, b) hb
-          · exact h.subset _ hocc
+      refine ⟨h.models, h.pmodels, List.nodup_cons.2 ⟨hundef, hnodup⟩, fun x hx => ?_,
+        h.db_vars, ?_⟩
+      · rcases List.mem_cons.1 hx with rfl | hx
+        · exact h.mem_of_occurs hocc
         · exact h.subset x (by simp [Trail.vars] at hx ⊢; tauto)
       · refine .implied l (Trail.entailed_append (N := N ++ [⟨d, true⟩])
           (by simpa using h.entailed)) fun σ hσ hM => ?_
@@ -368,30 +366,23 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
       refine ⟨fun σ => ?_, fun ρ hρ => h.pmodels ρ fun c hc => hρ c (List.mem_cons_of_mem _ hc),
         h.nodup, h.subset, ?_, h.entailed⟩
       · rw [CNF.eval_cons, ← h.models]
-        cases hF : CNF.eval σ F
-        · simp
-        · simp [hC σ hF]
+        cases hF : CNF.eval σ F <;> simp [hC σ, hF]
       · intro c hc l hl
         rcases List.mem_cons.1 hc with rfl | hc
-        · rcases hCV l hl with hocc | hocc
-          · obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hocc
-            exact h.db_vars c' hc' (_, b) hb
-          · exact h.subset _ hocc
+        · exact h.mem_of_occurs (hCV l hl)
         · exact h.db_vars c hc l hl
   · cases hstep with
     | @forget M F₁ F₂ C hC =>
       refine ⟨fun σ => ?_, fun ρ hρ => h.pmodels ρ fun c hc => ?_, h.nodup, h.subset,
         fun c hc => h.db_vars c (by simp at hc ⊢; tauto), h.entailed⟩
-      swap
-      · simp only [List.mem_append, List.mem_cons] at hc
-        rcases hc with hc | rfl | hc
+      · rw [← h.models]
+        have := hC.eval σ
+        simp only [CNF.eval_append, CNF.eval_cons, Bool.and_eq_true] at this ⊢
+        cases h₁ : CNF.eval σ F₁ <;> cases h₂ : CNF.eval σ F₂ <;> simp_all
+      · rcases (by simpa using hc : c ∈ F₁ ∨ c = C ∨ c ∈ F₂) with hc | rfl | hc
         · exact hρ c (List.mem_append_left _ hc)
         · exact hC ρ hρ
         · exact hρ c (List.mem_append_right _ hc)
-      rw [← h.models]
-      have := hC.eval σ
-      simp only [CNF.eval_append, CNF.eval_cons, Bool.and_eq_true] at this ⊢
-      cases h₁ : CNF.eval σ F₁ <;> cases h₂ : CNF.eval σ F₂ <;> simp_all
 
 /-! ### Final states -/
 
@@ -480,21 +471,15 @@ theorem RunInv.backjump_decisions {φ : CNF ℕ} {V : List ℕ} {N M₀ : Trail}
     hc hcM ?_ List.mem_cons_self ?_ ?_ (.inr (by simp [Trail.vars, Std.Sat.Literal.negate]))
   · -- the decisions cannot all hold in a model
     intro σ hFσ
-    have hσ : φ.eval σ = true := by rw [← h.models]; exact hFσ
     by_contra hfalse
     simp only [Bool.not_eq_true, Clause.eval, List.any_eq_false, List.mem_cons,
       forall_eq_or_imp] at hfalse
-    have hsat := Trail.sat_of_entailed h.entailed hσ (σ := σ) fun l hl => by
-      simp only [List.mem_append, List.mem_cons] at hl
-      rcases hl with hl | hl | hl
+    have hsat := Trail.sat_of_entailed h.entailed (h.models σ ▸ hFσ) (σ := σ) fun l hl => by
+      rcases (by simpa using hl : _ ∨ _ = _ ∨ _) with hl | ⟨rfl, -⟩ | hl
       · exact absurd (hN _ hl) (by simp)
-      · cases hl
-        have := hfalse.1
-        rw [Literal.eval_negate] at this
-        simpa using this
-      · have := hfalse.2 _ (List.mem_map.2 ⟨⟨l, true⟩, List.mem_filter.2 ⟨hl, rfl⟩, rfl⟩)
-        rw [Literal.eval_negate] at this
-        simpa using this
+      · simpa [Literal.eval_negate] using hfalse.1
+      · simpa [Literal.eval_negate] using
+          hfalse.2 _ (List.mem_map.2 ⟨⟨l, true⟩, List.mem_filter.2 ⟨hl, rfl⟩, rfl⟩)
     obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ c).1
       ((CNF.eval_eq_true_iff σ F).1 hFσ c hc)
     have := hsat _ (hcM l' hl')

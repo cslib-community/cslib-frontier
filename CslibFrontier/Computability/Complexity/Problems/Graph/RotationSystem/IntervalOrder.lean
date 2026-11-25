@@ -69,16 +69,11 @@ theorem rotationDistance_pow (o : Dart G) (k : ℕ) :
   · rw [← r.rotate.iterate_eq_pow, Function.iterate_mod_minimalPeriod_eq,
       r.rotate.iterate_eq_pow]
   · intro j hj heq
-    have heq' : (r.rotate ^ j) o =
-        (r.rotate ^ (k % Function.minimalPeriod r.rotate o)) o := by
-      have hmod := Function.iterate_mod_minimalPeriod_eq (f := r.rotate) (x := o) (n := k)
-      rw [r.rotate.iterate_eq_pow, r.rotate.iterate_eq_pow] at hmod
-      exact heq.trans hmod.symm
-    have h := (Function.iterate_eq_iterate_iff_of_lt_minimalPeriod
-      (hj.trans (Nat.mod_lt _ (r.period_pos o))) (Nat.mod_lt _ (r.period_pos o))).mp
-        (show (r.rotate : Dart G → Dart G)^[j] o =
-          (r.rotate : Dart G → Dart G)^[k % Function.minimalPeriod r.rotate o] o by
-          simpa only [r.rotate.iterate_eq_pow] using heq')
+    have hlt := Nat.mod_lt k (r.period_pos o)
+    have hiter : (r.rotate^[j]) o = (r.rotate^[k % Function.minimalPeriod r.rotate o]) o := by
+      rw [r.rotate.iterate_eq_pow, heq, ← r.rotate.iterate_eq_pow,
+        Function.iterate_mod_minimalPeriod_eq]
+    have := (Function.iterate_eq_iterate_iff_of_lt_minimalPeriod (hj.trans hlt) hlt).mp hiter
     omega
 
 /-- Forward rotation adds to a rank modulo the same vertex period. -/
@@ -152,23 +147,18 @@ theorem mem_rotationInterval_iff_ranks (o a b c : Dart G)
     omega
   · intro horder
     change (ra < rb ∧ rb < rc) ∨ (rb < rc ∧ rc < ra) ∨ (rc < ra ∧ ra < rb) at horder
-    by_cases hlt : ra < rb
-    · have hpos : 0 < rb - ra := by omega
-      have hle : rb - ra ≤ dist := by omega
-      apply Finset.mem_image.mpr
-      refine ⟨rb - ra - 1, Finset.mem_range.mpr (by omega), ?_⟩
-      apply (pow_iff _).mpr
-      rw [show rb - ra - 1 + 1 = rb - ra by omega]
-      apply (add_mod_eq_iff ha (by omega) hb).mpr
-      exact Or.inl (by omega)
-    · have hpos : 0 < rb + n - ra := by omega
-      have hle : rb + n - ra ≤ dist := by omega
-      apply Finset.mem_image.mpr
-      refine ⟨rb + n - ra - 1, Finset.mem_range.mpr (by omega), ?_⟩
-      apply (pow_iff _).mpr
-      rw [show rb + n - ra - 1 + 1 = rb + n - ra by omega]
-      apply (add_mod_eq_iff ha (by omega) hb).mpr
-      exact Or.inr (by omega)
+    let m := if ra < rb then rb - ra else rb + n - ra
+    have hm_pos : 0 < m := by
+      dsimp [m]
+      split_ifs <;> omega
+    have hm_le : m ≤ dist := by
+      dsimp [m]
+      split_ifs <;> omega
+    refine Finset.mem_image.mpr ⟨m - 1, Finset.mem_range.mpr (by omega), (pow_iff _).mpr ?_⟩
+    rw [Nat.sub_add_cancel hm_pos]
+    refine (add_mod_eq_iff ha (by omega) hb).mpr ?_
+    dsimp [m]
+    split_ifs <;> omega
 
 private noncomputable def vertexDart (v : ℕ) (h : ∃ d : Dart G, d.vertex = v) : Dart G :=
   Classical.choose h
@@ -260,13 +250,11 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
     have hA := hnA d hd hda
     have hB := hnB d hd hda
     have hout : r.portRank d < r.portRank a ∨ r.portRank b < r.portRank d := by omega
-    have hzda : z ≠ d := by
-      intro he
-      subst d
+    have hzda : z ≠ d := fun he => by
+      subst he
       omega
-    have hab' : a ≠ b := by
-      intro he
-      subst b
+    have hab' : a ≠ b := fun he => by
+      subst he
       omega
     have hza' : z ≠ a := fun h => hza (congrArg color h)
     have hzb' : z ≠ b := fun h => hza ((congrArg color h).trans hab.symm)
@@ -308,24 +296,14 @@ specified cycle cut. -/
 theorem rotationDistance_rotate_of_ne {G : Graph} (r : RotationSystem G)
     (o a : Dart G) (hoa : o.vertex = a.vertex) (hne : r.rotate a ≠ o) :
     r.rotationDistance o (r.rotate a) = r.rotationDistance o a + 1 := by
-  let n := Function.minimalPeriod r.rotate o
-  let k := r.rotationDistance o a
-  have hk : k < n := r.rotationDistance_lt_period hoa
-  have hiter : (r.rotate ^ (k + 1)) o = r.rotate a := by
-    rw [pow_succ', Equiv.Perm.mul_apply, r.pow_rotationDistance o a hoa]
-  have hkn : k + 1 < n := by
-    by_contra hn
-    have heq : k + 1 = n := by omega
-    rw [heq] at hiter
-    have hperiod : (r.rotate ^ n) o = o := by
-      rw [← r.rotate.iterate_eq_pow]
-      exact Function.iterate_minimalPeriod (f := r.rotate) (x := o)
-    exact hne (hiter.symm.trans hperiod)
-  have h := r.rotationDistance_pow_from o a hoa 1
-  simp only [pow_one] at h
-  change r.rotationDistance o (r.rotate a) = (k + 1) % n at h
-  rw [Nat.mod_eq_of_lt hkn] at h
-  exact h
+  have hk := r.rotationDistance_lt_period hoa
+  have hkn : r.rotationDistance o a + 1 < Function.minimalPeriod r.rotate o := by
+    refine lt_of_le_of_ne hk fun heq => hne ?_
+    calc r.rotate a = (r.rotate ^ (r.rotationDistance o a + 1)) o := by
+          rw [pow_succ', Equiv.Perm.mul_apply, r.pow_rotationDistance o a hoa]
+      _ = o := by rw [heq, ← r.rotate.iterate_eq_pow, Function.iterate_minimalPeriod]
+  have hp := r.rotationDistance_pow_from o a hoa 1
+  rwa [pow_one, Nat.mod_eq_of_lt hkn] at hp
 
 /-- The predecessor of a source cycle cut has its last rank, including unary cycles. -/
 theorem rotationDistance_of_rotate_eq {G : Graph} (r : RotationSystem G)

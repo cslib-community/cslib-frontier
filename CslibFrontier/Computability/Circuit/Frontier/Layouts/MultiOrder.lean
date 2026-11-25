@@ -53,9 +53,8 @@ private theorem exists_ends_of_mem_edgeCut {P : Set V} {e : E} (he : e ∈ G.edg
 /-- An edge with an end in `S` touches `S`. -/
 private theorem mem_touching_of_ends {S : Set V} {e : E} {u w : V}
     (h : G.src e = u ∧ G.tgt e = w ∨ G.src e = w ∧ G.tgt e = u) (hu : u ∈ S) :
-    e ∈ G.touching S := by
-  rcases h with ⟨rfl, -⟩ | ⟨-, rfl⟩
-  exacts [Or.inl hu, Or.inr hu]
+    e ∈ G.touching S :=
+  h.elim (fun h => .inl (h.1 ▸ hu)) (fun h => .inr (h.2 ▸ hu))
 
 /-- An edge with one end in `S` and the other outside leaves `S`. -/
 private theorem mem_edgeCut_of_ends {S : Set V} {e : E} {u w : V}
@@ -82,27 +81,26 @@ theorem ncard_edgeCut_le_grid [Finite V] [Finite E] {d : ℕ} (hd : G.MaxDegreeL
   by_cases hlo : m < a
   · -- Below the grid: the end in `P` scores below `a`.
     refine (count {v | score v < a} fun e he => ?_).trans low
-    obtain ⟨u, w, hends, hu, -⟩ := G.exists_ends_of_mem_edgeCut he
+    let ⟨u, _, hends, hu, _⟩ := G.exists_ends_of_mem_edgeCut he
     exact G.mem_touching_of_ends hends ((hP u hu).trans_lt hlo)
   by_cases hhi : a + M * δ ≤ m
   · -- Above the grid: the end outside `P` scores at least `a + M δ`.
     refine (count {v | a + M * δ ≤ score v} fun e he => ?_).trans high
-    obtain ⟨u, w, hends, -, hw⟩ := G.exists_ends_of_mem_edgeCut he
-    exact G.mem_touching_of_ends (u := w) (w := u) (hends.elim Or.inr Or.inl)
-      (hhi.trans (hPc w hw))
+    let ⟨u, w, hends, _, hw⟩ := G.exists_ends_of_mem_edgeCut he
+    exact G.mem_touching_of_ends (u := w) (w := u) hends.symm (hhi.trans (hPc w hw))
   -- Inside the grid: `a + i δ ≤ m < a + (i + 1) δ`.
   obtain ⟨i, hi, ht, ht'⟩ := exists_grid_index hδ (M := M) (not_lt.mp hlo) (not_le.mp hhi)
   set W := {v | a + i * δ ≤ score v ∧ score v < a + (i + 1) * δ}
-  have hsub : G.edgeCut P ⊆ G.edgeCut {v | score v < a + i * δ} ∪ G.touching W := by
-    intro e he
+  have hsub : G.edgeCut P ⊆ G.edgeCut {v | score v < a + i * δ} ∪ G.touching W := fun e he => by
+    classical
     obtain ⟨u, w, hends, hu, hw⟩ := G.exists_ends_of_mem_edgeCut he
-    by_cases hut : score u < a + i * δ
-    · exact Or.inl (G.mem_edgeCut_of_ends hends hut (not_lt.mpr (ht.trans (hPc w hw))))
-    · exact Or.inr (G.mem_touching_of_ends hends ⟨not_lt.mp hut, (hP u hu).trans_lt ht'⟩)
-  have hnat := (ncard_le_ncard hsub).trans ((ncard_union_le _ _).trans
-    (Nat.add_le_add_left (G.ncard_touching_le hd W) _))
+    exact if hut : score u < a + i * δ then
+      .inl (G.mem_edgeCut_of_ends hends hut (not_lt.mpr (ht.trans (hPc w hw))))
+    else .inr (G.mem_touching_of_ends hends ⟨not_lt.mp hut, (hP u hu).trans_lt ht'⟩)
   have hreal : ((G.edgeCut P).ncard : ℝ) ≤
-      (G.edgeCut {v | score v < a + i * δ}).ncard + d * W.ncard := by exact_mod_cast hnat
+      (G.edgeCut {v | score v < a + i * δ}).ncard + d * W.ncard := by
+    exact_mod_cast (ncard_le_ncard hsub).trans ((ncard_union_le _ _).trans
+      (Nat.add_le_add_left (G.ncard_touching_le hd W) _))
   exact hreal.trans (mid i hi)
 
 /-- **The layout by a vertex score.** Under the grid hypotheses of `ncard_edgeCut_le_grid`,
@@ -113,10 +111,10 @@ theorem exists_width_le_of_vertexScore [Finite V] [Finite E] {d : ℕ} (hd : G.M
     (high : d * ({v | a + M * δ ≤ score v}.ncard : ℝ) ≤ B)
     (mid : ∀ i < M, ((G.edgeCut {v | score v < a + i * δ}).ncard : ℝ) +
       d * ({v | a + i * δ ≤ score v ∧ score v < a + (i + 1) * δ}.ncard : ℝ) ≤ B) :
-    ∃ π : Layout V, (G.width π : ℝ) ≤ B := by
-  obtain ⟨π, hπ⟩ := Layout.exists_threshold score
-  refine ⟨π, G.width_le_of_ncard_frontier_le π (le_trans (by positivity) low) fun t ht => ?_⟩
-  obtain ⟨m, hP, hPc⟩ := hπ t ht
-  exact G.ncard_edgeCut_le_grid hd score hP hPc hδ M low high mid
+    ∃ π : Layout V, (G.width π : ℝ) ≤ B :=
+  let ⟨π, hπ⟩ := Layout.exists_threshold score
+  ⟨π, G.width_le_of_ncard_frontier_le π (le_trans (by positivity) low) fun t ht =>
+    let ⟨_, hP, hPc⟩ := hπ t ht
+    G.ncard_edgeCut_le_grid hd score hP hPc hδ M low high mid⟩
 
 end Cslib.Circuits.Frontier.Multigraph

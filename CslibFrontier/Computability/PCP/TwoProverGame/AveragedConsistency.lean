@@ -156,8 +156,7 @@ theorem oddExpect_norm_sub_sq_le_of_pauliConsistency [Nonempty ι]
         4 * (1 - (pauliSameBasisTest ι basis).commutingWinProb S) := by
       cases basis
       · exact hlocal
-      · rw [expect_comm]
-        exact hlocal
+      · rwa [expect_comm]
     have havg' : (𝔼 x, 𝔼 z, S.state.norm (Aavg x z - Bavg x z) ^ 2) ≤
         4 * (1 - (pauliSameBasisTest ι basis).commutingWinProb S) := by
       cases basis
@@ -177,8 +176,7 @@ theorem oddExpect_norm_sub_sq_le_of_pauliConsistency [Nonempty ι]
     rw [oddExpect_def]
     refine expect_le_expect fun x _ => expect_le_expect fun z _ => ?_
     split_ifs
-    · exact le_rfl
-    · exact sq_nonneg _
+    exacts [le_rfl, sq_nonneg _]
   have he : oddExpect e ≤ ((oddPairs ι).dens : ℝ) *
       (4 * (1 - (pauliSpecialQuestionTest ι basis).commutingWinProb T)) := by
     rw [oddExpect_eq_dens_smul]

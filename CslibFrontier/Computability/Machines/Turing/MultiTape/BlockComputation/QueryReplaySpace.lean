@@ -212,9 +212,9 @@ private theorem fixedActionTick_inSpace (a : Option (Action k Bool Q)) :
       | neg => exact budget_natPred inputPos_inSpace
       | zero => exact inputPos_inSpace
       | pos =>
-        have hpos := budget_natSucc (inputPos_inSpace (k := k) (Q := Q))
-        have hN := budget_natSucc (inputLength_inSpace (k := k) (Q := Q))
-        simpa only [MultiTapeNTM.ConfigurationGraph.inputMove, hd] using budget_natMin hpos hN
+        simpa only [MultiTapeNTM.ConfigurationGraph.inputMove, hd] using budget_natMin
+          (budget_natSucc (inputPos_inSpace (k := k) (Q := Q)))
+          (budget_natSucc (inputLength_inSpace (k := k) (Q := Q)))
     have hh : ComputableInSpace (fun s : Config k Q =>
         fun h => move (s.heads h) (a.workTapes h).2) encConfig (encPi encNat)
         (fun s => (encConfig s).length) := by
@@ -253,34 +253,23 @@ theorem machine_next_inSpace (M : MultiTapeTM k Bool Q) :
   classical
   have hs := fst (encConfig (k := k) (Q := Q)) (encOption encBool)
   have hsymbol := snd (encConfig (k := k) (Q := Q)) (encOption encBool)
-  have hN := budget_comp_linear inputLength_inSpace hs
   have hp := budget_comp_linear inputPos_inSpace hs
   have hcontrol := budget_comp_linear control_inSpace hs
-  have hsymbols := budget_comp_linear symbols_inSpace hs
-  have hsymbols' := budget_finite (encC := encFinite (Fin k → Option Bool))
-    (fun x : Fin k → Option Bool => x) hsymbols
-  have hsymbol' := budget_finite (encC := encFinite (Option Bool))
-    (fun x : Option Bool => x) hsymbol
-  have hleft := budget_natIsZero hp
-  have hright := budget_natEq hp (budget_natSucc hN)
+  have hsymbols' := budget_finite (encC := encFinite (Fin k → Option Bool)) id
+    (budget_comp_linear symbols_inSpace hs)
+  have hsymbol' := budget_finite (encC := encFinite (Option Bool)) id hsymbol
   have hboundary := budget_finite (encC := encBool) (fun q : Bool × Bool => q.1 || q.2)
-    (budget_prod hleft hright)
+    (budget_prod (budget_natIsZero hp)
+      (budget_natEq hp (budget_natSucc (budget_comp_linear inputLength_inSpace hs))))
   have hread := budget_ite hboundary (budget_const none) hsymbol'
   have ha := budget_finite (encC := encFinite (Option (Action k Bool Q)))
     (fun q : Option Q × Option Bool × (Fin k → Option Bool) =>
       q.1.map (fun c => M.tr c q.2.1 q.2.2))
     (budget_prod hcontrol (budget_prod hread hsymbols'))
-  have hbranches (a : Option (Action k Bool Q)) :=
-    budget_comp_linear (fixedActionTick_inSpace a) hs
-  refine (finite_cases ha hbranches).of_enc_eq ?_
-  intro p
-  simp only [machine, tick]
-  have hread_eq : (if (decide (p.1.inputPos = 0) ||
-      decide (p.1.inputPos = p.1.inputLength + 1)) then none else p.2) =
-      MultiTapeNTM.ConfigurationGraph.inputSymbol p.1.inputLength p.1.inputPos p.2 := by
-    simp only [MultiTapeNTM.ConfigurationGraph.inputSymbol, Bool.or_eq_true,
-      Bool.decide_iff]
-  rw [hread_eq]
+  refine (finite_cases ha fun a => budget_comp_linear (fixedActionTick_inSpace a) hs).of_enc_eq
+    fun p => ?_
+  simp only [machine, tick, MultiTapeNTM.ConfigurationGraph.inputSymbol, Bool.or_eq_true,
+    Bool.decide_iff, id_eq]
   cases p.1.control <;> rfl
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay

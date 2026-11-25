@@ -448,10 +448,9 @@ theorem toList_popMin {tr : BTree α β} :
   | leaf => simp
   | node first rest ihf _ =>
     rw [popMin_node]
-    rcases hf : popMin t first with _ | ⟨e, first'⟩ <;>
-      rcases rest with _ | ⟨⟨k, v, c⟩, rest⟩
-    · simp [ihf.1 hf]
-    · simp [ihf.1 hf]
+    rcases hf : popMin t first with _ | ⟨e, first'⟩
+    · cases rest <;> simp [ihf.1 hf]
+    rcases rest with _ | ⟨⟨k, v, c⟩, rest⟩
     · simp [ihf.2 _ _ hf]
     · refine ⟨by simp, fun e' tr' h => ?_⟩
       simp only [Option.some.injEq, Prod.mk.injEq] at h
@@ -616,13 +615,26 @@ theorem mended_mergeSplit {l r : BTree α β} {h : ℕ} (hl : Underfull t (h + 1
       by have := hc.balanced.height_of_mem_children hx; rw [hc.height_eq] at this; omega,
       hc.children_occupied x hx⟩
   simp only [rootKeys_node] at hlo hhi
-  refine InsertResult.mended_ofNode (hgood hl List.mem_cons_self) (fun e he => ?_)
+  exact InsertResult.mended_ofNode (hgood hl List.mem_cons_self)
+    (List.forall_mem_append.2
+      ⟨fun _ he => hgood hl (List.mem_cons_of_mem _ (List.mem_map_of_mem he)),
+        List.forall_mem_cons.2 ⟨hgood hr List.mem_cons_self,
+          fun _ he => hgood hr (List.mem_cons_of_mem _ (List.mem_map_of_mem he))⟩⟩)
     (by simp; omega) (by simp; omega)
-  rcases List.mem_append.1 he with he | he
-  · exact hgood hl (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
-  · rcases List.mem_cons.1 he with rfl | he
-    · exact hgood hr List.mem_cons_self
-    · exact hgood hr (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
+
+/-- An underflowing child can merge with an occupied sibling on either side. -/
+private theorem Underfull.mended_merge_with {c s : BTree α β} {h : ℕ} (ht : 2 ≤ t)
+    (hc : Underfull t h c) (hs : Good t h s) (hu : underflows t c = true) (k : α) (v : β) :
+    (mergeSplit t c k v s).Mended t h ∧ (mergeSplit t s k v c).Mended t h := by
+  have hh := hc.one_le_height_of_underflows hu
+  obtain ⟨h', rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hh)
+  have hc₀ := ne_leaf_of_underflows hu
+  have hs₀ := hs.ne_leaf hh
+  have hcWidth := hc.rootKeys_eq_of_underflows hu
+  have hsLo := hs.occupied.le_rootKeys hs₀
+  have hsHi := hs.occupied.rootKeys_le
+  exact ⟨mended_mergeSplit hc hs.underfull hc₀ hs₀ k v (by lia) (by lia),
+    mended_mergeSplit hs.underfull hc hs₀ hc₀ k v (by lia) (by lia)⟩
 
 /-- Repair against the right sibling: the results are good, with one key fewer or none. -/
 theorem good_rebalanceRight (ht : 2 ≤ t) {c s : BTree α β} {h : ℕ} (hc : Underfull t h c)
@@ -635,14 +647,7 @@ theorem good_rebalanceRight (ht : 2 ≤ t) {c s : BTree α β} {h : ℕ} (hc : U
   rw [rebalanceRight_eq_ite]
   split
   · next hu =>
-    have hck := hc.rootKeys_eq_of_underflows hu
-    have hh := hc.one_le_height_of_underflows hu
-    obtain ⟨h', rfl⟩ : ∃ h', h = h' + 1 := ⟨h - 1, by omega⟩
-    have hs₀ := hs.ne_leaf hh
-    have := hs.occupied.le_rootKeys hs₀
-    have := hs.occupied.rootKeys_le
-    exact InsertResult.mended_withRest (mended_mergeSplit hc hs.underfull
-      (ne_leaf_of_underflows hu) hs₀ k v (by omega) (by omega)) hr
+    exact InsertResult.mended_withRest (hc.mended_merge_with ht hs hu k v).1 hr
   · next hu =>
     exact ⟨hc.good (by simpa using hu), List.forall_mem_cons.2 ⟨hs, hr⟩, Nat.le_succ _, le_rfl⟩
 
@@ -656,15 +661,8 @@ theorem good_rebalanceLast (ht : 2 ≤ t) {prev c : BTree α β} {h : ℕ} (hp :
   rw [rebalanceLast_eq_ite]
   split
   · next hu =>
-    have hck := hc.rootKeys_eq_of_underflows hu
-    have hh := hc.one_le_height_of_underflows hu
-    obtain ⟨h', rfl⟩ : ∃ h', h = h' + 1 := ⟨h - 1, by omega⟩
-    have hp₀ := hp.ne_leaf hh
-    have := hp.occupied.le_rootKeys hp₀
-    have := hp.occupied.rootKeys_le
     obtain ⟨h₁, h₂, -, h₃⟩ := InsertResult.mended_withRest (rest := [])
-      (mended_mergeSplit hp.underfull hc hp₀ (ne_leaf_of_underflows hu) k v (by omega)
-        (by omega)) (by simp)
+      (hc.mended_merge_with ht hp hu k v).2 (by simp)
     exact ⟨h₁, h₂, by simpa using h₃⟩
   · next hu =>
     exact ⟨hp, List.forall_mem_cons.2 ⟨hc.good (by simpa using hu), by simp⟩, by simp⟩
@@ -822,10 +820,8 @@ theorem eraseRest_spec {rest : List (Triple α β)}
         simp only [h₁, h₂, ↓reduceIte]
         have htail : SortedAssoc.erase k ((k', v') :: (c.toList ++ toListRest rest)) =
             (k', v') :: (c.toList ++ toListRest rest) := by
-          refine SortedAssoc.erase_of_forall_ne fun p hp => ?_
-          rcases List.mem_cons.1 hp with rfl | hp
-          · exact hk.ne'
-          · exact (hk.trans (hgt p hp)).ne'
+          exact SortedAssoc.erase_of_forall_ne
+            (List.forall_mem_cons.2 ⟨hk.ne', fun p hp => (hk.trans (hgt p hp)).ne'⟩)
         rw [toList_rebalanceRight, hpe hpre, toListRest_cons, SortedAssoc.erase_append, htail]
         simp
     · -- the key is above this triple: move on, or at the last triple erase from its child

@@ -190,12 +190,9 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     (hx₂_r mBase (mReg_ne (by decide)) (fun i => mOldCp_ne_mReg i (Or.inl (by decide)))).trans
       hx₁_base
   have hx₄_cp34 : x₄.regs (mOldCp ⟨34, by decide⟩) = off := by
-    rw [hx₄_keep3 (mOldCp ⟨34, by decide⟩) (mOldCp_ne_mReg _ (Or.inl (by decide)))
-      (mOldCp_lt_160 _) (mOldCp_ne_mReg _ (Or.inr (by decide)))]
-    dsimp only [x₃, RData.set]
-    rw [Function.update_of_ne (mOldCp_ne_mReg _ (c := 1) (Or.inl (by decide))),
-      Function.update_of_ne (mOldCp_ne_mReg _ (c := 13) (Or.inl (by decide))),
-      hx₂_cp_all ⟨34, by decide⟩]
+    rw [hx₄_keep3 _ (by simp [Fin.ext_iff]) (mOldCp_lt_160 _) (by simp [Fin.ext_iff]),
+      show x₃.regs (mOldCp ⟨34, by decide⟩) = x₂.regs (mOldCp ⟨34, by decide⟩) by
+        simp [x₃, RData.set, Fin.ext_iff], hx₂_cp_all]
     exact cpOffItems_mk U V w N
   set x₅ := x₄.set mItemBase (base + off)
   have hex_ib := RDemonicExec.exactBin (f := .add) (d := mItemBase) (i := mBase)
@@ -213,11 +210,17 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     (fits_zero w)
   have hx₇b : x₇.Bounded w := ((hx₄b.set hfit_off).set hfit_fr).set (fits_zero w)
   have hms₇ : memoryState mFr x₇.toData = ⟨x.mem, x.frontier⟩ :=
-    Memory.State.ext hx₄m (by
-      dsimp only [memoryState, x₇, x₆, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mZero), Function.update_self])
+    Memory.State.ext hx₄m (by simp [memoryState, x₇, x₆, RData.set, RData.toData])
   let d_ro := (((mkHashParams w (qBits U N) (hashB N) (totalMicroBits N) 3,
     mkCompParams U V w N), (base, base + off)), 0)
+  have hx₇_x₂ : ∀ reg, reg.val < 160 →
+      reg ∉ ([mZero, mFr, mItemBase, mIwOld, mCnt] : List (Fin rResize)) →
+      x₇.regs reg = x₂.regs reg := fun reg h160 h => by
+    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at h
+    obtain ⟨hz, hfr', hib, hiw, hcnt⟩ := h
+    rw [show x₇.regs reg = x₄.regs reg by simp [x₇, x₆, x₅, RData.set, hz, hfr', hib],
+      hx₄_keep3 reg hfr' h160 hiw]
+    simp [x₃, RData.set, hfr', hcnt]
   have hin_ro : x₇.regs ∘ srcReadOldKV = WordEncoding.encode d_ro := by
     refine (regs_pairSrc
       (regs_pairSrc
@@ -225,26 +228,10 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
         (regs_pairSrc (regs_reg1_eq mBase (by simp [x₇, x₆, x₅, RData.set, hx₄_base]))
           (regs_reg1_eq mItemBase (by simp [x₇, x₆, x₅, RData.set]))))
       (regs_reg1_eq mZero (by simp [x₇, RData.set]))).eq
-    · dsimp only [x₇, x₆, x₅, RData.set]
-      rw [Function.update_of_ne (mOldHp_ne_mReg i (c := 11) (Or.inl (by decide))),
-        Function.update_of_ne (mOldHp_ne_mReg i (c := 1) (Or.inl (by decide))),
-        Function.update_of_ne (mOldHp_ne_mReg i (c := 14) (Or.inl (by decide))),
-        hx₄_keep3 (mOldHp i) (mOldHp_ne_mReg i (Or.inl (by decide))) (mOldHp_lt_160 i)
-          (mOldHp_ne_mReg i (Or.inr (by decide)))]
-      dsimp only [x₃, RData.set]
-      rw [Function.update_of_ne (mOldHp_ne_mReg i (c := 1) (Or.inl (by decide))),
-        Function.update_of_ne (mOldHp_ne_mReg i (c := 13) (Or.inl (by decide)))]
-      exact hx₂_hp_all i
-    · dsimp only [x₇, x₆, x₅, RData.set]
-      rw [Function.update_of_ne (mOldCp_ne_mReg i (c := 11) (Or.inl (by decide))),
-        Function.update_of_ne (mOldCp_ne_mReg i (c := 1) (Or.inl (by decide))),
-        Function.update_of_ne (mOldCp_ne_mReg i (c := 14) (Or.inl (by decide))),
-        hx₄_keep3 (mOldCp i) (mOldCp_ne_mReg i (Or.inl (by decide))) (mOldCp_lt_160 i)
-          (mOldCp_ne_mReg i (Or.inr (by decide)))]
-      dsimp only [x₃, RData.set]
-      rw [Function.update_of_ne (mOldCp_ne_mReg i (c := 1) (Or.inl (by decide))),
-        Function.update_of_ne (mOldCp_ne_mReg i (c := 13) (Or.inl (by decide)))]
-      exact hx₂_cp_all i
+    · exact (hx₇_x₂ _ (mOldHp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
+        (hx₂_hp_all i)
+    · exact (hx₇_x₂ _ (mOldCp_lt_160 i) (by clear * -; simp [Fin.ext_iff]; omega)).trans
+        (hx₂_cp_all i)
   obtain ⟨s_fix, hinv, htot, hcpl⟩ := hsplit.coupled
   obtain ⟨L_b, hb_inv⟩ := hinv.hbucket
   have hslot : SlotStoreInv N (compGmAt base U w N x.mem) := by
@@ -280,19 +267,11 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
       y.regs reg = x₇.regs reg := fun reg h1 h160 hu0 hv0 =>
     hframe_ro reg h1
       (mkTmp_ne_reg _ h160 (fun a => by fin_cases a <;> [exact hu0.symm; exact hv0.symm]))
-  have hy_argu : y.regs mArgU = x.regs mArgU := by
-    rw [hy_keep7 mArgU (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))
-      (mReg_ne (by decide))]
-    dsimp only [x₇, x₆, x₅, RData.set]
-    rw [Function.update_of_ne (mReg_ne (by decide)),
-      Function.update_of_ne (mReg_ne (by decide)),
-      Function.update_of_ne (mReg_ne (by decide)),
-      hx₄_keep3 mArgU (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))]
-    dsimp only [x₃, RData.set]
-    rw [Function.update_of_ne (mReg_ne (by decide)),
-      Function.update_of_ne (mReg_ne (by decide)),
-      hx₂_r mArgU (mReg_ne (by decide)) (fun i => mOldCp_ne_mReg i (Or.inl (by decide))),
-      hx₁_r mArgU (mReg_ne (by decide)) (fun i => mOldHp_ne_mReg i (Or.inl (by decide)))]
+  have hy_argu : y.regs mArgU = x.regs mArgU :=
+    (hy_keep7 mArgU (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))
+      (mReg_ne (by decide))).trans <| (hx₇_x₂ mArgU (mReg_lt_160 _) (by simp)).trans <|
+    (hx₂_r mArgU (mReg_ne (by decide)) (fun i => mOldCp_ne_mReg i (Or.inl (by decide)))).trans
+      (hx₁_r mArgU (mReg_ne (by decide)) (fun i => mOldHp_ne_mReg i (Or.inl (by decide))))
   have hc_ro_mul :
       migFactor * (memoryCost (readOldItemKeyValGenProg d_ro) ⟨x.mem, x.frontier⟩ + 1) ≤
         migFactor * 45181 :=
@@ -407,39 +386,23 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
       (hz_lt8 (base + 2) (by omega)).trans ((hy₄_lt5 (base + 2) (by omega)).trans hhdr.hdr_w),
       (hz_lt8 (base + 3) (by omega)).trans ((hy₄_lt5 (base + 3) (by omega)).trans hhdr.hdr_keyBits),
       (hz_lt8 (base + 4) (by omega)).trans ((hy₄_lt5 (base + 4) (by omega)).trans hhdr.hdr_valBits),
-      (hz_lt8 (base + 5) (by omega)).trans (by
-        dsimp only [y₄, y₃, y₂, RData.write, RData.set]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_self]),
-      (hz_lt8 (base + 6) (by omega)).trans (by
-        dsimp only [y₄, y₃, RData.write, RData.set]
-        rw [Function.update_of_ne (by omega), Function.update_self]),
-      (hz_lt8 (base + 7) (by omega)).trans (by
-        dsimp only [y₄, RData.write, RData.set]; rw [Function.update_self])⟩
+      (hz_lt8 (base + 5) (by omega)).trans (by simp [y₄, y₃, y₂, RData.write, RData.set]),
+      (hz_lt8 (base + 6) (by omega)).trans (by simp [y₄, y₃, RData.write, RData.set]),
+      (hz_lt8 (base + 7) (by omega)).trans (by simp [y₄, RData.write, RData.set])⟩
   have hoff_lin : off ≤ 1447 :=
     (offCompItems_le_linear hw hNU hhdr.fits_U).trans (by linarith only [hN4])
   have hiw_lin : iw ≤ 4 :=
     (compactedItemWords_le_linear (U := U) (V := V) (w := w) (N := N) (n := 1) hw hU.le hV).trans
       (by decide)
   have hc_sh : 4 * (x.frontier - (base + 8)) + 5 ≤ 5810 := by
-    have hsub : x.frontier - (base + 8) ≤ off + iw := by
-      rw [hfr_eq]
-      exact (Nat.sub_le_sub_left (Nat.le_add_right base 8) _).trans_eq
-        (by rw [Nat.add_assoc, Nat.add_sub_cancel_left])
-    linarith only [hsub, hoff_lin, hiw_lin]
+    clear * - hfr_eq hoff_lin hiw_lin; omega
   have hex_tail :=
     hex_z0.seq_eq (hex_st5.seq_eq (hex_st6.seq_eq (hex_st7.seq_eq
       (hex_c8.seq_eq (hex_add.seq_eq (hex_sub.seq_eq
         (hex_sh.mono hc_sh (fun _ h => h))))))))
-  refine ⟨z, _, hex_tail, by linarith only, compactedRep_empty hzb hzf hhdr_z, ?_,
+  exact ⟨z, _, hex_tail, by linarith only, compactedRep_empty hzb hzf hhdr_z,
+    by simp [z, shrinkPost, y₇, RData.set, hy₄_base],
     fun addr haddr => (hz_lt8 addr (by omega)).trans (hy₄_lt5 addr (by omega))⟩
-  dsimp only [z, shrinkPost, y₇, RData.set]
-  rw [Function.update_of_ne (mReg_ne (by decide)),
-    Function.update_of_ne (mReg_ne (by decide)),
-    Function.update_of_ne (mReg_ne (by decide)),
-    Function.update_of_ne (mReg_ne (by decide)),
-    Function.update_of_ne (mReg_ne (by decide))]
-  exact hy₄_base
 
 /-- **Deterministic Singleton Delete (`deleteLastOneCode_demonicExec`):**
 From an active singleton epoch (`n = 1`, `EpochValid U 1 N`) at `base` with seed `θ`:

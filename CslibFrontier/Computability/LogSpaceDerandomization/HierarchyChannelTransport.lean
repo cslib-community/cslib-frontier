@@ -49,17 +49,10 @@ theorem columnDetector_equiv {A' B' : Type*} [Fintype A'] [Fintype B']
     columnDetector X Y ϕ ρ J K f G = columnDetector X' Y' ϕ ρ J K f G := by
   classical
   funext y
-  apply Fintype.expect_equiv e
-  intro a
-  apply expect_equiv d
-  · intro b
-    simp only [mem_filter, mem_univ, true_and]
+  refine Fintype.expect_equiv e _ _ fun a => expect_equiv d (fun b => ?_) fun b _ => ?_
+  · simp only [mem_filter, mem_univ, true_and]
     exact hY b y
-  · intro b _
-    rw [show ({v | X a v} : Finset V) = ({v | X' (e a) v} : Finset V) from
-      filter_congr fun v _ => hX a v,
-      show ({v | Y b v} : Finset V) = ({v | Y' (d b) v} : Finset V) from
-        filter_congr fun v _ => hY b v]
+  · simp only [filter_congr fun v _ => hX a v, filter_congr fun v _ => hY b v]
 
 omit [Nonempty B] in
 /-- Integrating a source coordinate leaves the original detector. The terminal seed and

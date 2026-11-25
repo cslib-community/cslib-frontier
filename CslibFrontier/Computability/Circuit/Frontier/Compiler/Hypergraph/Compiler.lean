@@ -397,21 +397,12 @@ theorem card_arg_signals_at_gate_le {c : Circuit σ n 1} {r : ℕ} (hfan : c.Fan
   let fiber : Fin m → Finset (LiveSignal c) := fun a =>
     Finset.univ.filter fun w =>
       rootSignal c ((c.program.lines g.1).wires a) = some (signalRoot w)
-  have hsub : (Finset.univ.filter fun w : LiveSignal c =>
-      ∃ a : Fin m, rootSignal c ((c.program.lines g.1).wires a) = some (signalRoot w)) ⊆
-      Finset.univ.biUnion fiber := by
-    intro w hw
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hw
-    obtain ⟨a, ha⟩ := hw
-    exact Finset.mem_biUnion.mpr
-      ⟨a, Finset.mem_univ a, Finset.mem_filter.mpr ⟨Finset.mem_univ w, ha⟩⟩
   have hfiber_le (a : Fin m) : (fiber a).card ≤ 1 := by
     refine Finset.card_le_one.mpr fun w₁ hw₁ w₂ hw₂ => ?_
     simp only [fiber, Finset.mem_filter, Finset.mem_univ, true_and] at hw₁ hw₂
     exact signalRoot_injective (Option.some.inj (hw₁.symm.trans hw₂))
-  calc (Finset.univ.filter fun w : LiveSignal c =>
-        ∃ a : Fin m, rootSignal c ((c.program.lines g.1).wires a) = some (signalRoot w)).card
-      ≤ (Finset.univ.biUnion fiber).card := Finset.card_le_card hsub
+  calc _ ≤ (Finset.univ.biUnion fiber).card :=
+        Finset.card_le_card fun w hw => by simpa [fiber] using hw
     _ ≤ ∑ a : Fin m, (fiber a).card := Finset.card_biUnion_le
     _ ≤ ∑ _a : Fin m, 1 := Finset.sum_le_sum fun a _ => hfiber_le a
     _ = m := by simp [m]
@@ -459,14 +450,9 @@ theorem sum_card_hyperEdge_le {c : Circuit σ n 1} {r : ℕ} (hfan : c.FanInAtMo
     exact Finset.sum_comm
   rw [hswap, Fintype.sum_sum_type, Finset.univ_unique (α := Unit), PUnit.default_eq_unit,
     Finset.sum_singleton]
-  have hgates : ∑ g : LiveGate c,
-      (Finset.univ.filter fun w : LiveSignal c => (.inl g : HyperNode c) ∈ hyperEdge c w).card ≤
-      (r + 1) * Fintype.card (LiveGate c) := by
-    calc ∑ g : LiveGate c,
-          (Finset.univ.filter fun w : LiveSignal c => (.inl g : HyperNode c) ∈ hyperEdge c w).card
-        ≤ ∑ _g : LiveGate c, (r + 1) := Finset.sum_le_sum fun g _ => card_signals_at_gate_le hfan g
-      _ = (r + 1) * Fintype.card (LiveGate c) := by simp [Nat.mul_comm]
-  exact Nat.add_le_add hgates (card_signals_at_output_le c)
+  refine Nat.add_le_add ?_ (card_signals_at_output_le c)
+  calc _ ≤ ∑ _g : LiveGate c, (r + 1) := Finset.sum_le_sum fun g _ => card_signals_at_gate_le hfan g
+    _ = (r + 1) * Fintype.card (LiveGate c) := by simp [Nat.mul_comm]
 
 /-! ### Signal cuts and hypergraph layout width -/
 
@@ -607,6 +593,24 @@ private theorem extendLocalVal_eq {U : Type*} {c : Circuit σ n 1} (u : HyperNod
   · simp [signalRoot, extendLocalVal, hi, hu]
   · simp [signalRoot, extendLocalVal, hg, hu]
 
+/-- Every root read by an argument of a live gate `g` is the root of a live signal whose hyperedge
+contains `.inl g`. -/
+private theorem exists_signal_of_arg {c : Circuit σ n 1} (g : LiveGate c)
+    {a : Fin (σ.Arity (c.program.lines g.1).op)} {r : Fin n ⊕ Fin c.size}
+    (hr : rootSignal c ((c.program.lines g.1).wires a) = some r) :
+    ∃ w : LiveSignal c, (.inl g : HyperNode c) ∈ hyperEdge c w ∧ signalRoot w = r :=
+  ⟨liftLiveSignal r (.arg (mem_liveGates_iff.mp g.2) a hr),
+    mem_hyperEdge_iff.mpr (Or.inr ⟨a, by rw [signalRoot_liftLiveSignal]; exact hr⟩),
+    signalRoot_liftLiveSignal _ _⟩
+
+/-- The root of the output wire is the root of a live signal whose hyperedge contains the output
+vertex. -/
+private theorem exists_signal_of_output {c : Circuit σ n 1} {r : Fin n ⊕ Fin c.size}
+    (hr : rootSignal c (c.outputs 0) = some r) :
+    ∃ w : LiveSignal c, (.inr () : HyperNode c) ∈ hyperEdge c w ∧ signalRoot w = r :=
+  ⟨liftLiveSignal r (.output hr), mem_hyperEdge_iff.mpr (by simp [NodeInEdge, hr]),
+    signalRoot_liftLiveSignal _ _⟩
+
 open Classical in
 /-- Post-layout Steiner constraint network for `c : Circuit σ n 1` along layout `π`. -/
 noncomputable def hyperNetwork {U : Type*} (c : Circuit σ n 1) (I : Interpretation σ U)
@@ -639,24 +643,14 @@ noncomputable def hyperNetwork {U : Type*} (c : Circuit σ n 1) (I : Interpretat
         congr 1
         funext a
         refine evalFromRoots_congr c I ((c.program.lines g.1).wires a) fun r hr => ?_
-        have hlive : LiveRoot c r := .arg (mem_liveGates_iff.mp g.2) a hr
-        let w := liftLiveSignal r hlive
-        have hw_root : signalRoot w = r := signalRoot_liftLiveSignal r hlive
-        have hmem : (.inl g : HyperNode c) ∈ hyperEdge c w :=
-          mem_hyperEdge_iff.mpr (Or.inr ⟨a, by rw [hw_root]; exact hr⟩)
-        rw [← hw_root, extendLocalVal_eq (.inl g) _ val w hmem,
-          extendLocalVal_eq (.inl g) _ val w hmem]
+        obtain ⟨w, hw, rfl⟩ := exists_signal_of_arg g hr
+        simp only [extendLocalVal_eq _ _ _ w hw]
       · dsimp only at hsem ⊢
         have heq : evalFromRoots c I (extendLocalVal (.inr ()) (c.eval I x 0) val) (c.outputs 0) =
             evalFromRoots c I (extendLocalVal (.inr ()) (c.eval I x' 0) val) (c.outputs 0) := by
           refine evalFromRoots_congr c I (c.outputs 0) fun r hr => ?_
-          have hlive : LiveRoot c r := .output hr
-          let w := liftLiveSignal r hlive
-          have hw_root : signalRoot w = r := signalRoot_liftLiveSignal r hlive
-          have hmem : (.inr () : HyperNode c) ∈ hyperEdge c w :=
-            mem_hyperEdge_iff.mpr (by simp [NodeInEdge, hw_root, hr])
-          rw [← hw_root, extendLocalVal_eq (.inr ()) _ val w hmem,
-            extendLocalVal_eq (.inr ()) _ val w hmem]
+          obtain ⟨w, hw, rfl⟩ := exists_signal_of_output hr
+          simp only [extendLocalVal_eq _ _ _ w hw]
         rwa [← heq]
 
 /-! ### Exact width, degree, read-count, and semantic exactness of `hyperNetwork` -/
@@ -681,20 +675,13 @@ theorem ncard_frontier_hyperNetwork {U : Type*} (c : Circuit σ n 1) (I : Interp
     rw [hmem_F] at h₁ h₂
     dsimp only at h₁ h₂
     suffices hjeq : (j₁ : ℕ) = (j₂ : ℕ) from congrArg (Sigma.mk w₁) (Fin.ext hjeq)
+    -- The chain positions increase, so two edges of one chain cannot both cross `t`.
+    have hmono {a b : Fin ((hyperEdge c w₁).card - 1)} (hab : a.1 < b.1) :
+        (π (steinerNode π w₁ ⟨a.1 + 1, by omega⟩) : ℕ) ≤ π (steinerNode π w₁ ⟨b.1, by omega⟩) :=
+      Fin.le_iff_val_le_val.mp <|
+        (pi_steinerNode_strictMono π w₁).monotone (by simp [Fin.le_def]; omega)
     by_contra hne
-    rcases lt_or_gt_of_ne hne with hlt | hgt
-    · have hmono : π (steinerNode π w₁ ⟨j₁.1 + 1, by omega⟩) ≤
-          π (steinerNode π w₁ ⟨j₂.1, by omega⟩) :=
-        (pi_steinerNode_strictMono π w₁).monotone (by simp [Fin.le_def]; omega)
-      have hmono_val : (π (steinerNode π w₁ ⟨j₁.1 + 1, by omega⟩) : ℕ) ≤
-          (π (steinerNode π w₁ ⟨j₂.1, by omega⟩) : ℕ) := Fin.le_iff_val_le_val.mp hmono
-      omega
-    · have hmono : π (steinerNode π w₁ ⟨j₂.1 + 1, by omega⟩) ≤
-          π (steinerNode π w₁ ⟨j₁.1, by omega⟩) :=
-        (pi_steinerNode_strictMono π w₁).monotone (by simp [Fin.le_def]; omega)
-      have hmono_val : (π (steinerNode π w₁ ⟨j₂.1 + 1, by omega⟩) : ℕ) ≤
-          (π (steinerNode π w₁ ⟨j₁.1, by omega⟩) : ℕ) := Fin.le_iff_val_le_val.mp hmono
-      omega
+    rcases lt_or_gt_of_ne hne with hlt | hlt <;> have := hmono hlt <;> omega
   have himg : (fun e : SteinerEdge c => e.1) '' F =
       (hyperCut c (π.initial t) : Set (LiveSignal c)) := by
     ext w
@@ -762,18 +749,14 @@ theorem maxDegreeLE_hyperNetwork {U : Type*} {c : Circuit σ n 1} {r : ℕ} (hfa
     by_cases hs₁ : (steinerGraph c π).src ⟨w₁, j₁⟩ = u
     · have hs₂ : (steinerGraph c π).src ⟨w₁, j₂⟩ = u := by simpa [tag, hs₁] using hb
       dsimp only [steinerGraph] at hs₁ hs₂
-      have hinj_j := steinerNode_injective π w₁ (hs₁.trans hs₂.symm)
-      have hjeq : (j₁ : ℕ) = (j₂ : ℕ) :=
-        congrArg (Fin.val : Fin (hyperEdge c w₁).card → ℕ) hinj_j
-      exact Subtype.ext (congrArg (Sigma.mk w₁) (Fin.ext hjeq))
+      exact Subtype.ext (congrArg (Sigma.mk w₁)
+        (Fin.ext (Fin.mk.inj_iff.mp (steinerNode_injective π w₁ (hs₁.trans hs₂.symm)))))
     · have hs₂ : ¬(steinerGraph c π).src ⟨w₁, j₂⟩ = u := by simpa [tag, hs₁] using hb
       have ht₁ : (steinerGraph c π).tgt ⟨w₁, j₁⟩ = u := he₁.resolve_left hs₁
       have ht₂ : (steinerGraph c π).tgt ⟨w₁, j₂⟩ = u := he₂.resolve_left hs₂
       dsimp only [steinerGraph] at ht₁ ht₂
-      have hinj_j := steinerNode_injective π w₁ (ht₁.trans ht₂.symm)
-      have hjeq : (j₁ : ℕ) + 1 = (j₂ : ℕ) + 1 :=
-        congrArg (Fin.val : Fin (hyperEdge c w₁).card → ℕ) hinj_j
-      exact Subtype.ext (congrArg (Sigma.mk w₁) (Fin.ext (by omega)))
+      exact Subtype.ext (congrArg (Sigma.mk w₁) (Fin.ext
+        (Nat.succ_injective (Fin.mk.inj_iff.mp (steinerNode_injective π w₁ (ht₁.trans ht₂.symm))))))
   rw [← Nat.card_coe_set_eq]
   calc Nat.card ↥((hyperNetwork c I Acc π).incidenceSet u)
       ≤ Nat.card (S × Bool) := Nat.card_le_card_of_injective tag htag_inj
@@ -804,9 +787,7 @@ theorem ncard_readAt_hyperNetwork_le {U : Type*} {c : Circuit σ n 1} {r : ℕ}
       rintro ⟨i₁, h₁⟩ ⟨i₂, h₂⟩ h
       have hval : (.inl ⟨i₁, (hmem_read i₁ h₁).1⟩ : LiveSignal c) =
           .inl ⟨i₂, (hmem_read i₂ h₂).1⟩ := congrArg Subtype.val h
-      have hinl := Sum.inl.inj hval
-      have hi_eq : i₁ = i₂ := congrArg (Subtype.val : LiveInput c → Fin n) hinl
-      exact Subtype.ext hi_eq
+      exact Subtype.ext (congrArg (Subtype.val : LiveInput c → Fin n) (Sum.inl.inj hval))
     rw [← Nat.card_coe_set_eq]
     calc Nat.card ↥((hyperNetwork c I Acc π).readAt (.inl g))
         ≤ Nat.card {w : LiveSignal c // ∃ a : Fin (σ.Arity (c.program.lines g.1).op),
@@ -854,6 +835,16 @@ theorem satisfies_iff_eq_traceSteinerVal {U : Type*} (c : Circuit σ n 1) (I : I
     (Acc : Set U) (π : Layout (HyperNode c)) (x : Fin n → U) (α : SteinerEdge c → U) :
     (hyperNetwork c I Acc π).Satisfies x α ↔
       α = traceSteinerVal c I x ∧ c.eval I x 0 ∈ Acc := by
+  -- An output valuation carrying the true root values evaluates the output wire correctly.
+  have hout (v : {w : LiveSignal c // (.inr () : HyperNode c) ∈ hyperEdge c w} → U)
+      (hv : ∀ w hw, v ⟨w, hw⟩ = trueRootVal c I x (signalRoot w)) :
+      evalFromRoots c I (extendLocalVal (.inr ()) (c.eval I x 0) v) (c.outputs 0) =
+        c.eval I x 0 := by
+    rw [show c.eval I x 0 = c.program.trace I x (c.outputs 0) from rfl,
+      ← evalFromRoots_trueRootVal c I x (c.outputs 0)]
+    refine evalFromRoots_congr c I (c.outputs 0) fun r hr => ?_
+    obtain ⟨w, hw, rfl⟩ := exists_signal_of_output hr
+    rw [extendLocalVal_eq (.inr ()) _ v w hw, hv]
   constructor
   · intro hsat
     choose val hedge hinp hsem using hsat
@@ -893,19 +884,15 @@ theorem satisfies_iff_eq_traceSteinerVal {U : Type*} (c : Circuit σ n 1) (I : I
         funext a
         rw [← evalFromRoots_trueRootVal c I x ((c.program.lines g.1).wires a)]
         refine evalFromRoots_congr c I ((c.program.lines g.1).wires a) fun r hr => ?_
-        have hlive : LiveRoot c r := .arg (mem_liveGates_iff.mp g.2) a hr
-        let w := liftLiveSignal r hlive
-        have hw_root : signalRoot w = r := signalRoot_liftLiveSignal r hlive
-        have hmem_g : (.inl g : HyperNode c) ∈ hyperEdge c w :=
-          mem_hyperEdge_iff.mpr (Or.inr ⟨a, by rw [hw_root]; exact hr⟩)
-        rw [← hw_root, extendLocalVal_eq (.inl g) _ (val (.inl g)) w hmem_g]
-        rcases r with j | k
-        · exact hval_inp ⟨j, mem_liveInputs_iff.mpr hlive⟩ (.inl g) hmem_g
-        · have hlt : (k : ℕ) < m := by
+        obtain ⟨w, hw, rfl⟩ := exists_signal_of_arg g hr
+        rw [extendLocalVal_eq (.inl g) _ (val (.inl g)) w hw]
+        rcases w with i | k
+        · exact hval_inp i (.inl g) hw
+        · have hlt : (k.1 : ℕ) < m := by
             have := (rootSignal_gate_rank_le c _ hr).trans_lt (wireRank_arg_lt c.program g.1 a)
             simp only [wireRank] at this
             omega
-          exact ih k hlt ⟨k, mem_liveGates_iff.mpr hlive⟩ rfl (.inl g) hmem_g
+          exact ih k.1 hlt k rfl (.inl g) hw
     have hval_true (w : LiveSignal c) (u : HyperNode c) (hu : u ∈ hyperEdge c w) :
         val u ⟨w, hu⟩ = trueRootVal c I x (signalRoot w) := by
       rcases w with i | g
@@ -916,20 +903,7 @@ theorem satisfies_iff_eq_traceSteinerVal {U : Type*} (c : Circuit σ n 1) (I : I
       rw [hedge ((steinerGraph c π).src e) e (Or.inl rfl),
         hval_true e.1 _ (steinerGraph_src_mem π e)]
       rfl
-    have hout_eq :
-        evalFromRoots c I (extendLocalVal (.inr ()) (c.eval I x 0) (val (.inr ()))) (c.outputs 0) =
-          c.eval I x 0 := by
-      have heval : c.eval I x 0 = c.program.trace I x (c.outputs 0) := rfl
-      rw [heval, ← evalFromRoots_trueRootVal c I x (c.outputs 0)]
-      refine evalFromRoots_congr c I (c.outputs 0) fun r hr => ?_
-      have hlive : LiveRoot c r := .output hr
-      let w := liftLiveSignal r hlive
-      have hw_root : signalRoot w = r := signalRoot_liftLiveSignal r hlive
-      have hmem : (.inr () : HyperNode c) ∈ hyperEdge c w :=
-        mem_hyperEdge_iff.mpr (by simp [NodeInEdge, hw_root, hr])
-      rw [← hw_root, extendLocalVal_eq (.inr ()) _ (val (.inr ())) w hmem,
-        hval_true w (.inr ()) hmem]
-    exact ⟨hα, hout_eq ▸ hsem (.inr ())⟩
+    exact ⟨hα, hout (val (.inr ())) (fun w => hval_true w _) ▸ hsem (.inr ())⟩
   · rintro ⟨rfl, hacc⟩
     intro u
     let val : {w : LiveSignal c // u ∈ hyperEdge c w} → U :=
@@ -943,26 +917,10 @@ theorem satisfies_iff_eq_traceSteinerVal {U : Type*} (c : Circuit σ n 1) (I : I
       funext a
       rw [← evalFromRoots_trueRootVal c I x ((c.program.lines g.1).wires a)]
       refine evalFromRoots_congr c I ((c.program.lines g.1).wires a) fun r hr => ?_
-      have hlive : LiveRoot c r := .arg (mem_liveGates_iff.mp g.2) a hr
-      let w := liftLiveSignal r hlive
-      have hw_root : signalRoot w = r := signalRoot_liftLiveSignal r hlive
-      have hmem : (.inl g : HyperNode c) ∈ hyperEdge c w :=
-        mem_hyperEdge_iff.mpr (Or.inr ⟨a, by rw [hw_root]; exact hr⟩)
-      rw [← hw_root, extendLocalVal_eq (.inl g) _ val w hmem]
+      obtain ⟨w, hw, rfl⟩ := exists_signal_of_arg g hr
+      rw [extendLocalVal_eq (.inl g) _ val w hw]
     · dsimp only
-      have hout_eq :
-          evalFromRoots c I (extendLocalVal (.inr ()) (c.eval I x 0) val) (c.outputs 0) =
-            c.eval I x 0 := by
-        have heval : c.eval I x 0 = c.program.trace I x (c.outputs 0) := rfl
-        rw [heval, ← evalFromRoots_trueRootVal c I x (c.outputs 0)]
-        refine evalFromRoots_congr c I (c.outputs 0) fun r hr => ?_
-        have hlive : LiveRoot c r := .output hr
-        let w := liftLiveSignal r hlive
-        have hw_root : signalRoot w = r := signalRoot_liftLiveSignal r hlive
-        have hmem : (.inr () : HyperNode c) ∈ hyperEdge c w :=
-          mem_hyperEdge_iff.mpr (by simp [NodeInEdge, hw_root, hr])
-        rw [← hw_root, extendLocalVal_eq (.inr ()) _ val w hmem]
-      rwa [hout_eq]
+      rwa [hout val fun _ _ => rfl]
 
 /-- Satisfying assignments of `hyperNetwork c I Acc π` are unique on every input `x`. -/
 theorem satisfies_unique {U : Type*} (c : Circuit σ n 1) (I : Interpretation σ U)

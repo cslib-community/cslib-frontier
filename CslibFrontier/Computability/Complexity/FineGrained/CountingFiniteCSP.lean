@@ -284,23 +284,14 @@ theorem exists_counter_of_polyTime_toFiniteDeclaredCSP {α : Type} {encA : α �
         Finset.mem_range.mp (hsub (List.mem_toFinset.mpr hv))
     · rfl
   · refine (hT₀ x).trans ?_
-    have hscale :
-        interpolationScale ((f x).numVars * b) ≤
-          (8 ^ b : ℕ) * interpolationScale (f x).numVars := by
-      rw [Nat.mul_comm]
-      exact interpolationScale_mul_le b (f x).numVars
     have hexp : (A₀ : ℝ) * interpolationScale ((f x).numVars * b) ≤
-        ((A₀ * 8 ^ b : ℕ) : ℝ) * interpolationScale (f x).numVars := by
-      have hmul := mul_le_mul_of_nonneg_left hscale (Nat.cast_nonneg A₀)
-      push_cast at hmul ⊢
-      linarith
-    have hrpow : (2 : ℝ) ^ ((A₀ : ℝ) * interpolationScale ((f x).numVars * b)) ≤
-        (2 : ℝ) ^ (((A₀ * 8 ^ b : ℕ) : ℝ) * interpolationScale (f x).numVars) :=
-      Real.rpow_le_rpow_of_exponent_le (by norm_num) hexp
-    have h1 := mul_le_mul_of_nonneg_right hrpow
-      (by positivity : (0 : ℝ) ≤ (((encA x).length : ℝ) + 1) ^ e)
-    have h2 := mul_le_mul_of_nonneg_left h1 (Nat.cast_nonneg c)
-    linarith
+        ((A₀ * 8 ^ b : ℕ) : ℝ) * interpolationScale (f x).numVars :=
+      calc (A₀ : ℝ) * interpolationScale ((f x).numVars * b)
+          ≤ (A₀ : ℝ) * ((8 ^ b : ℕ) * interpolationScale (f x).numVars) := by
+            gcongr; rw [Nat.mul_comm]; exact interpolationScale_mul_le b (f x).numVars
+        _ = ((A₀ * 8 ^ b : ℕ) : ℝ) * interpolationScale (f x).numVars := by push_cast; ring
+    gcongr
+    norm_num
 
 /-- **Declared-variable exact counting for bounded-arity finite-domain `#CSP` (pattern-wise
 hypothesis).** Whenever `fun R => sem R w` is computable in polynomial time for each domain tuple

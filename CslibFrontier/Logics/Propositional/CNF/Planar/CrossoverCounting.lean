@@ -69,11 +69,9 @@ theorem eq_canonicalExtension_of_holds {σ : Variable → Bool}
       (σ .bInnerBottom) (σ .upperRight) (σ .lowerRight) (σ .aInnerRight) = σ := by
     funext v
     cases v <;> first | rfl | exact horizontal | exact vertical
-  have hfull := assignment_eq_canonicalExtension (σ .aLeft) (σ .bTop)
+  exact funext ((heq ▸ assignment_eq_canonicalExtension (σ .aLeft) (σ .bTop)
     (σ .aInnerLeft) (σ .upperLeft) (σ .lowerLeft) (σ .bInnerTop) (σ .center)
-    (σ .bInnerBottom) (σ .upperRight) (σ .lowerRight) (σ .aInnerRight)
-  rw [heq] at hfull
-  exact funext (hfull h)
+    (σ .bInnerBottom) (σ .upperRight) (σ .lowerRight) (σ .aInnerRight)) h)
 
 /-- Satisfying assignments agreeing on the incoming ports agree on every variable. -/
 theorem ext_of_holds {σ τ : Variable → Bool}
@@ -84,10 +82,9 @@ theorem ext_of_holds {σ τ : Variable → Bool}
 /-- Each pair of incoming values extends uniquely to a satisfying full assignment. -/
 theorem existsUnique_holds (a b : Bool) :
     ∃! σ : Variable → Bool,
-      formula.eval σ = true ∧ σ .aLeft = a ∧ σ .bTop = b := by
-  refine ⟨canonicalExtension a b, ⟨eval_canonicalExtension a b, rfl, rfl⟩, ?_⟩
-  rintro σ ⟨hσ, ha, hb⟩
-  rw [eq_canonicalExtension_of_holds hσ, ha, hb]
+      formula.eval σ = true ∧ σ .aLeft = a ∧ σ .bTop = b :=
+  ⟨canonicalExtension a b, ⟨eval_canonicalExtension a b, rfl, rfl⟩,
+    fun _ ⟨hσ, ha, hb⟩ => by rw [eq_canonicalExtension_of_holds hσ, ha, hb]⟩
 
 /-- The explicit full split assignment: every local copy receives its original variable's
 canonical value, determined by the left and top inputs. -/
@@ -111,11 +108,7 @@ theorem eq_canonicalSplitExtension_of_holds {σ : SplitVariable → Bool}
   have hv := congrFun heq v.origin
   cases v with
   | aLeft | aRight | bTop | bBottom | center => exact hv
-  | copy v i =>
-    have hzero : σ (.copy v 0) = canonicalSplitExtension (σ .aLeft) (σ .bTop)
-        (.copy v i) := by
-      cases v <;> exact hv
-    exact (hagree v i).trans hzero
+  | copy v i => cases v <;> exact (hagree _ i).trans hv
 
 /-- Satisfying split assignments agreeing on the two incoming ports agree everywhere. -/
 theorem split_ext_of_holds {σ τ : SplitVariable → Bool}
@@ -126,9 +119,8 @@ theorem split_ext_of_holds {σ τ : SplitVariable → Bool}
 /-- Each pair of incoming values extends uniquely to a satisfying full split assignment. -/
 theorem existsUnique_split_holds (a b : Bool) :
     ∃! σ : SplitVariable → Bool,
-      splitFormula.eval σ = true ∧ σ .aLeft = a ∧ σ .bTop = b := by
-  refine ⟨canonicalSplitExtension a b, ⟨eval_canonicalSplitExtension a b, rfl, rfl⟩, ?_⟩
-  rintro σ ⟨hσ, ha, hb⟩
-  rw [eq_canonicalSplitExtension_of_holds hσ, ha, hb]
+      splitFormula.eval σ = true ∧ σ .aLeft = a ∧ σ .bTop = b :=
+  ⟨canonicalSplitExtension a b, ⟨eval_canonicalSplitExtension a b, rfl, rfl⟩,
+    fun _ ⟨hσ, ha, hb⟩ => by rw [eq_canonicalSplitExtension_of_holds hσ, ha, hb]⟩
 
 end Cslib.Logic.PL.CNF.Crossover

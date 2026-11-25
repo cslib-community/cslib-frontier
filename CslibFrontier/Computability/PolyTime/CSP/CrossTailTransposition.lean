@@ -158,16 +158,12 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (by simpa only [J4, List.append_assoc, List.cons_append, List.nil_append] using h4.2)
   have h6 := seam_fields J5 Y 1 ([3, 5, 7] ++ E ++ [X])
     (by simpa only [J5, List.append_assoc, List.cons_append, List.nil_append] using h5.2)
-  have he0 (z : ℕ) : u0 (2 * z) = 2 * z := by
-    dsimp only [u0]
-    rw [Function.update_of_ne (by omega)]
-    rfl
-  have hE0 : E.map u0 = E := by
-    dsimp only [E]
+  have hE {a : ℕ} (b : ℕ) (ha : a % 2 = 1) : E.map (Function.update id a b) = E := by
     rw [List.map_map]
-    apply List.map_congr_left
-    intro z _
-    exact he0 z
+    exact List.map_congr_left fun z _ => by
+      rw [Function.comp_apply, Function.update_of_ne (by omega)]
+      rfl
+  have hE0 : E.map u0 = E := hE Y rfl
   have hp6 : J6.ports = [3, 5, 7] ++ E ++ [X] := by
     have hp := h6.2
     change J6.ports = ([3, 5, 7] ++ E ++ [X]).map u0 at hp
@@ -178,16 +174,7 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     (by simpa only [List.append_assoc] using hp6)
   have h8 := seam_fields J7 X 3 ([5, 7] ++ E)
     (by simpa only [J7, List.append_assoc, List.cons_append, List.nil_append] using h7.2)
-  have he1 (z : ℕ) : u1 (2 * z) = 2 * z := by
-    dsimp only [u1]
-    rw [Function.update_of_ne (by omega)]
-    rfl
-  have hE1 : E.map u1 = E := by
-    dsimp only [E]
-    rw [List.map_map]
-    apply List.map_congr_left
-    intro z _
-    exact he1 z
+  have hE1 : E.map u1 = E := hE X rfl
   have hp8 : J8.ports = [5, 7] ++ E := by
     have hp := h8.2
     change J8.ports = ([5, 7] ++ E).map u1 at hp
@@ -249,12 +236,9 @@ theorem recover_transposeTail (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   have hsource := (eval_insert_iff g w I σ a).mpr ⟨ρ, hr, he, fun _ => rfl⟩
   have ha := hsource.2
   have h5 : τ 5 = τ (2 * y) := by
-    have h := ha.1
-    simpa [a, ρ, u0, u1, cross, Function.comp_def,
-      show 2 * y ≠ 3 from by omega] using h.symm
+    simpa [a, ρ, u0, u1, cross, Function.comp_def, show 2 * y ≠ 3 from by omega] using ha.1.symm
   have h7 : τ 7 = τ (2 * x) := by
-    have h := ha.2
-    simpa [a, ρ, u0, u1, cross, Function.comp_def] using h.symm
+    simpa [a, ρ, u0, u1, cross, Function.comp_def] using ha.2.symm
   refine ⟨hsource.1, ?_⟩
   rw [ports_transposeTail, List.map_append, List.map_map]
   simp only [Function.comp_def, List.map_cons, List.map_nil, h5, h7]
@@ -295,8 +279,8 @@ theorem eval_transposeTail_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
         Function.update id 1 (2 * y) = τ from hsame]
       exact ht
     · rw [ports_transposeTail, List.map_append, List.map_map]
-      have hL : (L.map (fun z => τ (2 * z))) = L.map σ := by
-        exact congrArg (fun f : ℕ → Bool => L.map f) (funext he)
+      have hL : (L.map (fun z => τ (2 * z))) = L.map σ :=
+        congrArg (fun f : ℕ → Bool => L.map f) (funext he)
       simp only [Function.comp_def, List.map_cons, List.map_nil, hL,
         show τ 5 = σ y from by simpa [a] using hf (2 : Fin 4),
         show τ 7 = σ x from by simpa [a] using hf (3 : Fin 4)]
@@ -309,12 +293,10 @@ the fixed actual gadget supplies all new arity obligations. -/
 theorem wellFormed_transposeTail_iff (I : State Rel) :
     (transposeTail g w I).body.WellFormed ar ↔ I.body.WellFormed ar := by
   have hrel (F : CSP Rel ℕ) (f : ℕ → ℕ) :
-      (F.relabel f).WellFormed ar ↔ F.WellFormed ar := by
-    constructor
-    · intro h c hc
+      (F.relabel f).WellFormed ar ↔ F.WellFormed ar :=
+    ⟨fun h c hc => by
       have h' := h (c.relabel f) (List.mem_map.mpr ⟨c, hc, rfl⟩)
-      simpa only [Constraint.relabel, List.length_map] using h'
-    · exact fun h => h.relabel f
+      simpa only [Constraint.relabel, List.length_map] using h', fun h => h.relabel f⟩
   by_cases hs : I.ports.length < 2
   · rw [transposeTail_short g w I hs]
   · rcases I with ⟨F, ports, c⟩
@@ -413,41 +395,29 @@ theorem emitted_rotation_lengths_le (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
       J.rotation.successor.length ≤ 2 * (M + P)) := primitive_bounds J M P h.1 h.2.1 h.2.2
   let J0 := insert g w I
   let J1 := rotateRight J0
-  have h1 := step J0 h0 J1
-    (by simp only [List.mem_cons]; exact Or.inl rfl)
+  have h1 := step J0 h0 J1 (by simp [J1])
   let J2 := rotateRight J1
-  have h2 := step J1 h1 J2
-    (by simp only [List.mem_cons]; exact Or.inl rfl)
+  have h2 := step J1 h1 J2 (by simp [J2])
   let J3 := rotateRight J2
-  have h3 := step J2 h2 J3
-    (by simp only [List.mem_cons]; exact Or.inl rfl)
+  have h3 := step J2 h2 J3 (by simp [J3])
   let J4 := rotateRight J3
-  have h4 := step J3 h3 J4
-    (by simp only [List.mem_cons]; exact Or.inl rfl)
+  have h4 := step J3 h3 J4 (by simp [J4])
   let J5 := rotateRight J4
-  have h5 := step J4 h4 J5
-    (by simp only [List.mem_cons]; exact Or.inl rfl)
+  have h5 := step J4 h4 J5 (by simp [J5])
   let J6 := fuseHead J5
-  have h6 := step J5 h5 J6
-    (by simp only [List.mem_cons]; exact Or.inr (Or.inr (Or.inl rfl)))
+  have h6 := step J5 h5 J6 (by simp [J6])
   let J7 := hideHead J6
-  have h7 := step J6 h6 J7
-    (by simp only [List.mem_cons]; exact Or.inr (Or.inr (Or.inr (Or.inl rfl))))
+  have h7 := step J6 h6 J7 (by simp [J7])
   let J8 := rotateRight J7
-  have h8 := step J7 h7 J8
-    (by simp only [List.mem_cons]; exact Or.inl rfl)
+  have h8 := step J7 h7 J8 (by simp [J8])
   let J9 := fuseHead J8
-  have h9 := step J8 h8 J9
-    (by simp only [List.mem_cons]; exact Or.inr (Or.inr (Or.inl rfl)))
+  have h9 := step J8 h8 J9 (by simp [J9])
   let J10 := hideHead J9
-  have h10 := step J9 h9 J10
-    (by simp only [List.mem_cons]; exact Or.inr (Or.inr (Or.inr (Or.inl rfl))))
+  have h10 := step J9 h9 J10 (by simp [J10])
   let J11 := rotateLeft J10
-  have h11 := step J10 h10 J11
-    (by simp only [List.mem_cons]; exact Or.inr (Or.inl rfl))
+  have h11 := step J10 h10 J11 (by simp [J11])
   let J12 := rotateLeft J11
-  have h12 := step J11 h11 J12
-    (by simp only [List.mem_cons]; exact Or.inr (Or.inl rfl))
+  have h12 := step J11 h11 J12 (by simp [J12])
   intro K hK
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hK
   rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
@@ -593,16 +563,12 @@ theorem storage_transposeTail (I : State Rel) (h : 2 ≤ I.ports.length) :
       omega
     exact ⟨by simpa only [← hI,hlen] using length_transposeTail_ports g w I.body L x y I.rotation,
       by simpa only [← hI] using length_transposeTail_occurrences g w I.body L x y I.rotation⟩
-  have hports := hcounts.1
-  have hocc := hcounts.2
+  obtain ⟨hports, hocc⟩ := hcounts
   have hpJ : J.ports.length = I.ports.length := by
-    rw [hout, rotateLeft_ports, List.length_rotate, rotateLeft_ports,
-      List.length_rotate] at hports
-    exact hports
+    rwa [hout, rotateLeft_ports, List.length_rotate, rotateLeft_ports, List.length_rotate] at hports
   have hmJ : J.body.occurrences.length =
       I.body.occurrences.length + g.body.occurrences.length := by
-    rw [hout, rotateLeft_body, rotateLeft_body] at hocc
-    exact hocc
+    rwa [hout, rotateLeft_body, rotateLeft_body] at hocc
   let B := (2 * (I.body.occurrences.length + g.body.occurrences.length +
     I.ports.length + 4)).size
   have hB : (2 * (J.body.occurrences.length + J.ports.length)).size ≤ B := by

@@ -78,8 +78,7 @@ theorem realizes_readRebAndOmRoleGen :
     dsimp only at *
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
-    have hth := henv.2.2.2.1
-    simp only [wp_large_M hth] at *
+    simp only [wp_large_M henv.2.2.2.1] at *
     first
     | decide
     | omega
@@ -108,29 +107,20 @@ theorem readRebAndOmRoleGenProg_spec {c U V w n_max base b : ℕ} {fs : FastStat
   simp only [pure_bind]
   refine ⟨?_, ?_, ?_, ?_⟩
   · rw [clientState_bind, h2_st, h2_res, clientState_bind, h4_st, h4_res]
-    by_cases hlr3 : fs.liveRole b ≤ 3
-    · simp only [hlr3, ↓reduceIte]; split_ifs <;> rfl
-    · simp only [hlr3, ↓reduceIte]; rfl
+    split_ifs <;> rfl
   · rw [clientResult_bind, h2_st, h2_res, clientResult_bind, h4_st, h4_res]
-    by_cases hlr3 : fs.liveRole b ≤ 3
-    · simp only [hlr3, ↓reduceIte, true_and]
-      by_cases hor3 : fs.overmarsRole b ≤ 3 - fs.liveRole b <;>
-        simp only [hor3, ↓reduceIte, clientResult_pure_whp]
-    · simp only [hlr3, ↓reduceIte, false_and, clientResult_pure_whp]
+    by_cases hlr3 : fs.liveRole b ≤ 3 <;> by_cases hor3 : fs.overmarsRole b ≤ 3 - fs.liveRole b <;>
+      simp only [hlr3, hor3, ↓reduceIte, true_and, false_and, clientResult_pure_whp]
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     rw [h2_st, h2_res, h2_mc, h4_st, h4_res, h4_mc]
-    by_cases hlr3 : fs.liveRole b ≤ 3
-    · simp only [hlr3, ↓reduceIte]
-      by_cases hor3 : fs.overmarsRole b ≤ 3 - fs.liveRole b <;>
-        simp [hor3]
-    · simp [hlr3]
-  · refine validProg_bind h2_vp ?_; rw [h2_st, h2_res]
-    refine validProg_bind h4_vp ?_; rw [h4_st, h4_res]
-    by_cases hlr3 : fs.liveRole b ≤ 3
-    · simp only [hlr3, ↓reduceIte]
-      by_cases hor3 : fs.overmarsRole b ≤ 3 - fs.liveRole b <;>
-        (simp only [hor3, ↓reduceIte]; exact validProg_pure _)
-    · simp only [hlr3, ↓reduceIte]; exact validProg_pure _
+    by_cases hlr3 : fs.liveRole b ≤ 3 <;> by_cases hor3 : fs.overmarsRole b ≤ 3 - fs.liveRole b <;>
+      simp [hlr3, hor3]
+  · refine validProg_bind h2_vp ?_
+    rw [h2_st, h2_res]
+    refine validProg_bind h4_vp ?_
+    rw [h4_st, h4_res]
+    by_cases hlr3 : fs.liveRole b ≤ 3 <;> by_cases hor3 : fs.overmarsRole b ≤ 3 - fs.liveRole b <;>
+      simp only [hlr3, hor3, ↓reduceIte] <;> exact validProg_pure _
 
 private theorem readRebAndOmRoleGenProg_fst_le (cp : WhpCoreParams) (base b : ℕ)
     (s : Memory.State) :
@@ -159,11 +149,11 @@ theorem realizes_readRebSliceIdxGen :
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
-    have hth := henv.2.2.2.1
-    have h3M := (large_index_bounds hth).2.2.2.2.1
+    have hw_eq := henv.2.2.1
+    subst hw_eq
+    have h3M := (large_index_bounds henv.2.2.2.1).2.2.2.2.1
     have hfst := readRebAndOmRoleGenProg_fst_le (mkWhpCoreParams c U V w n_max) base b s
-    simp only [wp_large_M hth] at *
+    simp only [wp_large_M henv.2.2.2.1] at *
     first
     | exact hb
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
@@ -184,14 +174,16 @@ theorem readRebSliceIdxGenProg_spec {c U V w n_max base b : ℕ} {fs : FastState
   obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ :=
     readRebAndOmRoleGenProg_spec henv hb hrep (s := s)
   unfold readRebSliceIdxGenProg FastState.rebSliceIdx
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hro_st]; rfl
+  refine ⟨by rw [clientState_bind, hro_st]; rfl, ?_, ?_, ?_⟩
   · rw [clientResult_bind, hro_st, hro_res, clientResult_pure_whp]
     dsimp only [FastState.rebRole]
     split_ifs <;> omega
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hro_st, hro_mc]; simp
-  · refine validProg_bind hro_vp ?_; rw [hro_st]; exact validProg_pure _
+    rw [hro_st, hro_mc]
+    simp
+  · refine validProg_bind hro_vp ?_
+    rw [hro_st]
+    exact validProg_pure _
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

@@ -151,13 +151,9 @@ private theorem notMem_foldl_applyGossipPacket {P : Type*} [DecidableEq P]
   induction l generalizing out with
   | nil => exact hout
   | cons pkt rest ih =>
-    apply ih
-    · simp only [applyGossipPacket, mem_sdiff, mem_union, mem_singleton, not_and]
-      intro hp
-      rcases hp with h1 | h2
-      · exact absurd h1 hout
-      · exact absurd h2 (hl pkt List.mem_cons_self)
-    · exact fun pkt' hpkt' => hl pkt' (List.mem_cons_of_mem pkt hpkt')
+    refine ih ?_ fun pkt' hpkt' => hl pkt' (List.mem_cons_of_mem pkt hpkt')
+    simp only [applyGossipPacket, mem_sdiff, mem_union, hout, hl pkt List.mem_cons_self,
+      or_self, false_and, not_false_eq_true]
 
 private theorem mem_foldl_applyGossipPacket_of_mem {P : Type*} [DecidableEq P]
     (H : DetectorHistory P) {p : P} {l : List (GossipPacket P)} {out : Finset P}
@@ -166,11 +162,9 @@ private theorem mem_foldl_applyGossipPacket_of_mem {P : Type*} [DecidableEq P]
   induction l generalizing out with
   | nil => exact hout
   | cons pkt rest ih =>
-    apply ih
-    · have hne : p ≠ pkt.sender := (hnsend pkt List.mem_cons_self).symm
-      simp only [applyGossipPacket, mem_sdiff, mem_union, hout, true_or, mem_singleton, hne,
-        not_false_eq_true, and_self]
-    · exact fun pkt' hpkt' => hnsend pkt' (List.mem_cons_of_mem pkt hpkt')
+    refine ih ?_ fun pkt' hpkt' => hnsend pkt' (List.mem_cons_of_mem pkt hpkt')
+    simp only [applyGossipPacket, mem_sdiff, mem_union, hout, true_or, mem_singleton,
+      (hnsend pkt List.mem_cons_self).symm, not_false_eq_true, and_self]
 
 private theorem mem_foldl_applyGossipPacket_of_pkt {P : Type*} [DecidableEq P]
     (H : DetectorHistory P) {p : P} {l : List (GossipPacket P)} {out : Finset P}
@@ -183,9 +177,8 @@ private theorem mem_foldl_applyGossipPacket_of_pkt {P : Type*} [DecidableEq P]
     rcases List.mem_cons.mp hpkt₀ with rfl | hrest
     · apply mem_foldl_applyGossipPacket_of_mem H _
         (fun pkt' hpkt' => hnsend pkt' (List.mem_cons_of_mem pkt₀ hpkt'))
-      have hne : p ≠ pkt₀.sender := (hnsend pkt₀ List.mem_cons_self).symm
-      simp only [applyGossipPacket, mem_sdiff, mem_union, hsusp, or_true, mem_singleton, hne,
-        not_false_eq_true, and_self]
+      simp only [applyGossipPacket, mem_sdiff, mem_union, hsusp, or_true, mem_singleton,
+        (hnsend pkt₀ List.mem_cons_self).symm, not_false_eq_true, and_self]
     · exact ih hrest (fun pkt' hpkt' => hnsend pkt' (List.mem_cons_of_mem pkt hpkt'))
 
 private theorem notMem_foldl_applyGossipPacket_of_sender {P : Type*} [DecidableEq P]
@@ -248,6 +241,16 @@ private theorem exists_tick_disjoint_packets {P : Type*} {F : FailurePattern P}
     simpa only [lastPlusOne, hex, ↓reduceDIte] using Finset.le_sup (f := lastPlusOne) hmem
   omega
 
+/-- On a finite process type, per-process thresholds after which `R p` holds combine into one
+uniform threshold. -/
+private theorem exists_uniform_threshold {P : Type*} [Finite P] {S : P → Prop} {R : P → ℕ → Prop}
+    (h : ∀ p, S p → ∃ T, ∀ t, T ≤ t → R p t) : ∃ T, ∀ t, T ≤ t → ∀ p, S p → R p t := by
+  classical
+  let _ := Fintype.ofFinite P
+  let bound : P → ℕ := fun p => if hp : S p then (h p hp).choose else 0
+  refine ⟨univ.sup bound, fun t ht p hp => (h p hp).choose_spec t (le_trans ?_ ht)⟩
+  simpa only [bound, hp, ↓reduceDIte] using le_sup (f := bound) (mem_univ p)
+
 /-! ### Lemmas 3.1, 3.2, and 3.3 of Chandra–Toueg (1996, p. 237) -/
 
 /-- Discrete-tick gossip-transducer step for #7503 (Property P2, after
@@ -260,17 +263,14 @@ theorem gossipHistory_preserves_perpetual_notMem {P : Type*} [DecidableEq P]
     (hH : ∀ t', t' < t → ∀ r ∉ F t', p ∉ H r t') :
     ∀ q, p ∉ gossipHistory H sched q t := by
   induction t with
-  | zero =>
-    intro q
-    simp only [gossipHistory_zero, notMem_empty, not_false_eq_true]
+  | zero => exact fun q => notMem_empty p
   | succ t ih =>
     intro q
     rw [gossipHistory_succ]
-    apply notMem_foldl_applyGossipPacket H
-    · exact ih (fun t' ht' r hr => hH t' (by omega) r hr) q
-    · intro pkt hpkt
-      obtain ⟨_, hle, hsend⟩ := hadm.valid_delivery q t pkt hpkt
-      exact hH pkt.sendTick (by omega) pkt.sender hsend
+    refine notMem_foldl_applyGossipPacket H (ih (fun t' ht' r hr => hH t' (by omega) r hr) q)
+      fun pkt hpkt => ?_
+    obtain ⟨_, hle, hsend⟩ := hadm.valid_delivery q t pkt hpkt
+    exact hH pkt.sendTick (by omega) pkt.sender hsend
 
 /-- Discrete-tick gossip-transducer step for #7503 (after
 [Chandra and Toueg, Lemma 3.2, p. 237][ChandraToueg1996]): `gossipHistory` preserves
@@ -281,10 +281,8 @@ theorem gossipHistory_strongAccuracy {P : Type*} [DecidableEq P]
     (hSA : StrongAccuracy F H) :
     StrongAccuracy F (gossipHistory H sched) := by
   intro t p hp q _
-  apply gossipHistory_preserves_perpetual_notMem hadm H _ q
-  intro t' ht' r hr
-  have hp' : p ∉ F t' := fun hmem => hp (F.mem_of_le (Nat.le_of_lt ht') hmem)
-  exact hSA t' p hp' r hr
+  exact gossipHistory_preserves_perpetual_notMem hadm H (fun t' ht' r hr =>
+    hSA t' p (fun hmem => hp (F.mem_of_le (Nat.le_of_lt ht') hmem)) r hr) q
 
 /-- Discrete-tick gossip-transducer step for #7503 (after
 [Chandra and Toueg, Lemma 3.2, p. 237][ChandraToueg1996]): `gossipHistory` preserves
@@ -323,46 +321,21 @@ theorem gossipHistory_strongCompleteness {P : Type*} [Finite P] [DecidableEq P]
       intro t ht pkt hpkt hsend
       have hval := (hadm.valid_delivery q t pkt hpkt).2.2
       rw [hsend] at hval
-      have hslt : pkt.sendTick < t_crash := by
-        by_contra hge
-        exact hval (F.mem_of_le (by omega) hcrash)
-      apply hB t ht pkt hpkt
-      rw [mem_image]
-      exact ⟨pkt.sendTick, mem_range.mpr hslt, by cases pkt; subst hsend; rfl⟩
+      have hslt : pkt.sendTick < t_crash := not_le.mp fun hge => hval (F.mem_of_le hge hcrash)
+      exact hB t ht pkt hpkt
+        (mem_image.mpr ⟨pkt.sendTick, mem_range.mpr hslt, by cases pkt; subst hsend; rfl⟩)
     obtain ⟨t_send, t_recv, hts_ge, htr_ge, hdeliv⟩ :=
       hadm.fair_delivery w hw q hq (max t₁ B)
-    have hbase : p ∈ gossipHistory H sched q (t_recv + 1) := by
-      rw [gossipHistory_succ]
-      exact mem_foldl_applyGossipPacket_of_pkt H hdeliv
-        (hw_susp t_send ((le_max_left t₁ B).trans hts_ge))
-        (hno_p t_recv (((le_max_right t₁ B).trans hts_ge).trans htr_ge))
+    have hBt : B ≤ t_recv := ((le_max_right t₁ B).trans hts_ge).trans htr_ge
     refine ⟨t_recv + 1, fun t' ht' => ?_⟩
-    obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le ht'
-    clear ht'
-    induction k with
-    | zero => simpa only [Nat.add_zero] using hbase
-    | succ k ih =>
-      rw [Nat.add_succ, gossipHistory_succ]
-      exact mem_foldl_applyGossipPacket_of_mem H ih
-        (hno_p (t_recv + 1 + k) (by
-          have : B ≤ t_recv := ((le_max_right t₁ B).trans hts_ge).trans htr_ge
-          omega))
-  -- Take a uniform maximum threshold across `q ∈ univ` and then `p ∈ univ`.
-  have hper_p : ∀ p ∈ F.Crashed,
-      ∃ Tp, ∀ q ∈ F.Correct, ∀ t', Tp ≤ t' → p ∈ gossipHistory H sched q t' := by
-    intro p hp
-    let qBound : P → ℕ := fun q => if hq : q ∈ F.Correct then (hpair p hp q hq).choose else 0
-    let Tp := (Finset.univ : Finset P).sup qBound
-    refine ⟨Tp, fun q hq t' ht' => ?_⟩
-    have hle : (hpair p hp q hq).choose ≤ Tp := by
-      simpa only [qBound, hq, ↓reduceDIte] using Finset.le_sup (f := qBound) (mem_univ q)
-    exact (hpair p hp q hq).choose_spec t' (hle.trans ht')
-  let pBound : P → ℕ := fun p => if hp : p ∈ F.Crashed then (hper_p p hp).choose else 0
-  let T := (Finset.univ : Finset P).sup pBound
-  refine ⟨T, fun p hp q hq t' ht' => ?_⟩
-  have hle : (hper_p p hp).choose ≤ T := by
-    simpa only [pBound, hp, ↓reduceDIte] using Finset.le_sup (f := pBound) (mem_univ p)
-  exact (hper_p p hp).choose_spec q hq t' (hle.trans ht')
+    induction t', ht' using Nat.le_induction with
+    | base =>
+      exact mem_foldl_applyGossipPacket_of_pkt H hdeliv
+        (hw_susp t_send ((le_max_left t₁ B).trans hts_ge)) (hno_p t_recv hBt)
+    | succ n hn ih => exact mem_foldl_applyGossipPacket_of_mem H ih (hno_p n (by omega))
+  -- Take a uniform threshold across correct `q`, then across crashed `p`.
+  obtain ⟨T, hT⟩ := exists_uniform_threshold fun p hp => exists_uniform_threshold (hpair p hp)
+  exact ⟨T, fun p hp q hq t' ht' => hT t' ht' p hp q hq⟩
 
 /-- Discrete-tick gossip-transducer step for #7503 (Property P3, after
 [Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]): on finite `P`, if `p ∈ F.Correct` and
@@ -397,23 +370,11 @@ theorem gossipHistory_preserves_eventual_notMem {P : Type*} [Finite P] [Decidabl
         exact hH pkt.sendTick ((le_max_left t₁ t_stab).trans hsge) pkt.sender hcorr_s hsusp
     obtain ⟨t_send, t_recv, hts_ge, htr_ge, hdeliv⟩ := hadm.fair_delivery p hp q hq B
     have htr_B : B ≤ t_recv := hts_ge.trans htr_ge
-    have hbase : p ∉ gossipHistory H sched q (t_recv + 1) := by
-      rw [gossipHistory_succ]
-      exact notMem_foldl_applyGossipPacket_of_sender H hdeliv rfl (hno_susp t_recv htr_B)
     refine ⟨t_recv + 1, fun t' ht' => ?_⟩
-    obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le ht'
-    clear ht'
-    induction k with
-    | zero => simpa only [Nat.add_zero] using hbase
-    | succ k ih =>
-      rw [Nat.add_succ, gossipHistory_succ]
-      exact notMem_foldl_applyGossipPacket H ih (hno_susp (t_recv + 1 + k) (by omega))
-  let qBound : P → ℕ := fun q => if hq : q ∈ F.Correct then (hper_q q hq).choose else 0
-  let T := (Finset.univ : Finset P).sup qBound
-  refine ⟨T, fun t' ht' q hq => ?_⟩
-  have hle : (hper_q q hq).choose ≤ T := by
-    simpa only [qBound, hq, ↓reduceDIte] using Finset.le_sup (f := qBound) (mem_univ q)
-  exact (hper_q q hq).choose_spec t' (hle.trans ht')
+    induction t', ht' using Nat.le_induction with
+    | base => exact notMem_foldl_applyGossipPacket_of_sender H hdeliv rfl (hno_susp t_recv htr_B)
+    | succ n hn ih => exact notMem_foldl_applyGossipPacket H ih (hno_susp n (by omega))
+  exact exists_uniform_threshold hper_q
 
 /-- Discrete-tick gossip-transducer step for #7503 (after
 [Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]): `gossipHistory` preserves
@@ -423,18 +384,10 @@ theorem gossipHistory_eventualStrongAccuracy {P : Type*} [Finite P] [DecidableEq
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
     (hESA : EventualStrongAccuracy F H) :
     EventualStrongAccuracy F (gossipHistory H sched) := by
-  classical
-  let _ := Fintype.ofFinite P
   obtain ⟨t₁, ht₁⟩ := hESA
-  have hper_p : ∀ p ∈ F.Correct,
-      ∃ Tp, ∀ t', Tp ≤ t' → ∀ q ∈ F.Correct, p ∉ gossipHistory H sched q t' := fun p hp =>
+  obtain ⟨T, hT⟩ := exists_uniform_threshold fun p hp =>
     gossipHistory_preserves_eventual_notMem hadm H hp (fun t' ht' r hr => ht₁ t' ht' p hp r hr)
-  let pBound : P → ℕ := fun p => if hp : p ∈ F.Correct then (hper_p p hp).choose else 0
-  let T := (Finset.univ : Finset P).sup pBound
-  refine ⟨T, fun t' ht' p hp q hq => ?_⟩
-  have hle : (hper_p p hp).choose ≤ T := by
-    simpa only [pBound, hp, ↓reduceDIte] using Finset.le_sup (f := pBound) (mem_univ p)
-  exact (hper_p p hp).choose_spec t' (hle.trans ht') q hq
+  exact ⟨T, hT⟩
 
 /-- Discrete-tick gossip-transducer step for #7503 (after
 [Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]): `gossipHistory` preserves
@@ -564,17 +517,13 @@ theorem admissible_syncGossipSchedule {P : Type*} [DecidableEq P]
     · by_cases hp₂ : p ∈ F t₂
       · simp only [syncGossipSchedule, hp₂, ↓reduceIte, List.not_mem_nil] at h₂
       · simp only [syncGossipSchedule, hp₁, hp₂, ↓reduceIte, List.mem_map] at h₁ h₂
-        obtain ⟨_, _, heq₁⟩ := h₁
-        obtain ⟨_, _, heq₂⟩ := h₂
-        have ht₁ : t₁ = pkt.sendTick := congrArg GossipPacket.sendTick heq₁
-        have ht₂ : t₂ = pkt.sendTick := congrArg GossipPacket.sendTick heq₂
-        exact ht₁.trans ht₂.symm
+        obtain ⟨_, _, rfl⟩ := h₁
+        obtain ⟨_, _, heq⟩ := h₂
+        exact (congrArg GossipPacket.sendTick heq).symm
   fair_delivery q hq p hp t₀ := by
     refine ⟨t₀, t₀, le_rfl, le_rfl, ?_⟩
-    have hp₀ : p ∉ F t₀ := hp t₀
-    have hq₀ : q ∉ F t₀ := hq t₀
-    simp only [syncGossipSchedule, hp₀, ↓reduceIte, List.mem_map, List.mem_filter,
+    simp only [syncGossipSchedule, hp t₀, ↓reduceIte, List.mem_map, List.mem_filter,
       List.mem_dedup, decide_eq_true_eq]
-    exact ⟨q, ⟨hprocs q, hq₀⟩, rfl⟩
+    exact ⟨q, ⟨hprocs q, hq t₀⟩, rfl⟩
 
 end Cslib.Distributed.FailureDetectors

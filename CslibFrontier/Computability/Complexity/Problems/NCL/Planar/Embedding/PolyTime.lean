@@ -65,12 +65,10 @@ private def emitInstance (x : AndOrNCL.Instance) : PlaneWordAndOrNCL.Instance :=
 
 private theorem computableInPolyTime_emitInstance :
     ComputableInPolyTime emitInstance encAndOrNCL encPlaneWordAndOrNCL := by
-  have hi : ComputableInPolyTime (fun x : AndOrNCL.Instance => Emit.program x x.initial)
-      encAndOrNCL encProgram :=
-    Emit.computableInPolyTime_program.comp (ComputableInPolyTime.id'.prod (by fun_prop))
-  have ht : ComputableInPolyTime (fun x : AndOrNCL.Instance => Emit.program x x.target)
-      encAndOrNCL encProgram :=
-    Emit.computableInPolyTime_program.comp (ComputableInPolyTime.id'.prod (by fun_prop))
+  have hi := Emit.computableInPolyTime_program.comp
+    (ComputableInPolyTime.id'.prod (g := AndOrNCL.Instance.initial) (by fun_prop))
+  have ht := Emit.computableInPolyTime_program.comp
+    (ComputableInPolyTime.id'.prod (g := AndOrNCL.Instance.target) (by fun_prop))
   unfold emitInstance
   fun_prop
 
@@ -110,14 +108,14 @@ theorem mem_compile_iff (x : Input) : compile x ∈ PlaneWordAndOrNCL ↔ x.val 
   change (compile x).word.checkPlane = true ∧ (compile x).word.WellTyped [] [] ∧
     (⟨Word.compile (compile x).word, (compile x).initial, (compile x).target⟩ :
       AndOrNCL.Instance) ∈ AndOrNCL ↔ _
-  rw [compile_word, compile_initial, compile_target]
-  rw [and_iff_right (planarize_checkPlane _ _), and_iff_right (planarize_wellTyped _ _)]
+  rw [compile_word, compile_initial, compile_target, and_iff_right (planarize_checkPlane _ _),
+    and_iff_right (planarize_wellTyped _ _)]
   unfold planarize
   rw [mem_compile_AndOrNCL_iff Prim.interp _ (planarize_compile_valid _ _)]
-  let sim := planarizeDiagramSimulation x.val.graph (Input.valid x) (Input.loopFree x)
-  refine (and_congr sim.legal_enc_iff sim.reachable_enc_iff).trans ?_
+  refine (and_congr (planarizeDiagramSimulation x.val.graph x.valid x.loopFree).legal_enc_iff
+    (planarizeDiagramSimulation x.val.graph x.valid x.loopFree).reachable_enc_iff).trans ?_
   change _ ↔ x.val.graph.Valid ∧ x.val.initial.length = x.val.graph.edgeCount ∧
     x.val.target.length = x.val.graph.edgeCount ∧ _
-  simp only [(Input.valid x), (Input.initial_length x), (Input.target_length x), true_and]
+  simp only [x.valid, x.initial_length, x.target_length, true_and]
 
 end Cslib.Complexity.NCL.Planar.Embedding.PolyTime

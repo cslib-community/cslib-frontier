@@ -104,23 +104,19 @@ theorem exists_computableInO_decodeOutput_seeded {enc : α ↪ List Bool}
   obtain ⟨C, d, hcodes⟩ := hgs.polyBounded_length.exists_le
   have hseed (p : SeededInput gs) :
       p.seed.length ≤ C * ((enc p.input).length + 1) ^ d := by
-    rw [SeededInput.seed_length]
-    have hh : hadamardCount (gs p.input) ≤ (gs p.input).length := by
-      rw [hadamardCount_eq_countP]
-      exact List.countP_le_length
-    exact hh.trans ((length_le_length_encList encGateCode (gs p.input)).trans (hcodes p.input))
+    rw [SeededInput.seed_length, hadamardCount_eq_countP]
+    exact List.countP_le_length.trans
+      ((length_le_length_encList encGateCode (gs p.input)).trans (hcodes p.input))
   have hpair (p : SeededInput gs) :
       (encPair enc encBits p.val).length + 1 ≤
         (C + 2) * ((enc p.input).length + 1) ^ (d + 1) := by
-    have hbase : (enc p.input).length + 1 ≤ ((enc p.input).length + 1) ^ (d + 1) := by
-      simpa only [pow_one] using Nat.pow_le_pow_right (Nat.succ_pos (enc p.input).length)
-        (show 1 ≤ d + 1 by omega)
-    have hpow : ((enc p.input).length + 1) ^ d ≤
-        ((enc p.input).length + 1) ^ (d + 1) :=
+    have hbase : (enc p.input).length + 1 ≤ ((enc p.input).length + 1) ^ (d + 1) :=
+      Nat.le_self_pow (Nat.succ_ne_zero d) _
+    have hpow : ((enc p.input).length + 1) ^ d ≤ ((enc p.input).length + 1) ^ (d + 1) :=
       Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_succ d)
+    have hs := hseed p
     rw [length_encPair, encBits_apply]
     change 2 * (enc p.input).length + 1 + p.seed.length + 1 ≤ _
-    have hs := hseed p
     nlinarith
   have hpower (p : SeededInput gs) :
       ((encPair enc encBits p.val).length + 1) ^ e ≤

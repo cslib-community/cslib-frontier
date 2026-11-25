@@ -178,25 +178,21 @@ theorem card_disjointPairs (U : Finset α) : (disjointPairs U).card = 3 ^ U.card
             (fun _ h => insertPair_mem hx h) (insertPair_injOn hx) fun ⟨a, b⟩ hab => ?_
           rw [mem_disjointPairs] at hab
           obtain ⟨ha, hb, habd⟩ := hab
-          have hsub : ∀ s : Finset α, s ⊆ insert x U → s.erase x ⊆ U :=
-            fun s hs y hy => by
-              have hmem := hs (mem_of_mem_erase hy)
-              exact (mem_insert.1 hmem).resolve_left (ne_of_mem_erase hy)
+          have hsub (s : Finset α) (hs : s ⊆ insert x U) (hxs : x ∉ s) : s ⊆ U :=
+            fun y hy => (mem_insert.1 (hs hy)).resolve_left fun hyx => hxs (hyx ▸ hy)
+          have herase (s : Finset α) (hs : s ⊆ insert x U) : s.erase x ⊆ U :=
+            hsub _ ((erase_subset x s).trans hs) (notMem_erase x s)
           by_cases hxa : x ∈ a
           · have hxb : x ∉ b := Finset.disjoint_left.1 habd hxa
             refine ⟨(1, a.erase x, b), mem_product.2 ⟨mem_univ _, mem_disjointPairs.2
-              ⟨hsub a ha, fun y hy => (mem_insert.1 (hb hy)).resolve_left
-                (fun hyx => hxb (hyx ▸ hy)), habd.mono_left (erase_subset x a)⟩⟩, ?_⟩
+              ⟨herase a ha, hsub b hb hxb, habd.mono_left (erase_subset x a)⟩⟩, ?_⟩
             simp only [insertPair, insert_erase hxa]
           · by_cases hxb : x ∈ b
             · refine ⟨(2, a, b.erase x), mem_product.2 ⟨mem_univ _, mem_disjointPairs.2
-                ⟨fun y hy => (mem_insert.1 (ha hy)).resolve_left (fun hyx => hxa (hyx ▸ hy)),
-                  hsub b hb, habd.mono_right (erase_subset x b)⟩⟩, ?_⟩
+                ⟨hsub a ha hxa, herase b hb, habd.mono_right (erase_subset x b)⟩⟩, ?_⟩
               simp only [insertPair, insert_erase hxb]
-            · refine ⟨(0, a, b), mem_product.2 ⟨mem_univ _, mem_disjointPairs.2
-                ⟨fun y hy => (mem_insert.1 (ha hy)).resolve_left (fun hyx => hxa (hyx ▸ hy)),
-                  fun y hy => (mem_insert.1 (hb hy)).resolve_left (fun hyx => hxb (hyx ▸ hy)),
-                  habd⟩⟩, rfl⟩
+            · exact ⟨(0, a, b), mem_product.2 ⟨mem_univ _, mem_disjointPairs.2
+                ⟨hsub a ha hxa, hsub b hb hxb, habd⟩⟩, rfl⟩
 
 private def flipPair (p : Finset α × Finset α) : Finset α × Finset α :=
   (p.2, p.1)
@@ -292,16 +288,8 @@ private theorem subset_leftSplit_union {x : α} {U : Finset α} {R : Finset (Fin
       · by_cases hib : (a, insert x b) ∈ R
         · exfalso
           have hne := hR.2 (insert x a, b) hia (a, insert x b) hib
-          have hinter : insert x a ∩ insert x b = {x} := by
-            ext y
-            simp only [mem_inter, mem_insert, mem_singleton]
-            refine ⟨fun ⟨hy₁, hy₂⟩ => ?_, fun hy => ⟨Or.inl hy, Or.inl hy⟩⟩
-            rcases hy₁ with rfl | hya
-            · rfl
-            · rcases hy₂ with rfl | hyb
-              · rfl
-              · exact absurd (Finset.disjoint_left.1 habd hya) (fun h => h hyb)
-          rw [hinter, card_singleton] at hne
+          rw [← insert_inter_distrib, disjoint_iff_inter_eq_empty.1 habd, insert_empty,
+            card_singleton] at hne
           exact hne rfl
         · right
           refine ⟨(b, a), mem_filter.2 ⟨mem_image.2 ⟨(a, b), hab, rfl⟩, hxa,

@@ -140,10 +140,8 @@ private def qcost : BlockKind → ℕ
 private theorem cost_eq_mul (κ : BlockKind) : κ.cost = κ.pcost * κ.qcost := by
   cases κ with
   | oneDim T =>
-    by_cases hT : T = 0
-    · simp [cost, pcost, qcost, hT]
-    · simp only [cost, pcost, qcost, hT, ite_false]
-      ring
+    simp only [cost, pcost, qcost]
+    split_ifs <;> ring
   | summary V => simp [cost, pcost, qcost]
 
 private theorem qcost_pos (κ : BlockKind) : 0 < κ.qcost := by
@@ -155,10 +153,8 @@ private theorem pcost_pos_of_step {H : Type*} {κ : BlockKind} {prev next : (Fin
     (h : κ.Step prev next) : 0 < κ.pcost := by
   cases κ with
   | oneDim T =>
-    by_cases hT : T = 0
-    · simp [pcost, hT]
-    · simp only [pcost, hT, ite_false]
-      omega
+    simp only [pcost]
+    split_ifs <;> omega
   | summary V =>
     obtain ⟨σ, -, -⟩ := h ∅
     exact Fin.pos (σ fun _ => false)
@@ -177,14 +173,12 @@ variable {f : Cslib.BooleanFunction n} {H : Type*}
 
 private theorem reachable_zero (D : BlockDecomposition f H) (U : Finset (Fin n)) :
     Reachable D U 0 (2 ^ U.card) (2 ^ Uᶜ.card) := by
-  refine ⟨Finset.univ, Finset.univ, fun _ => D.history 0 (fun _ => false), ?_, ?_, ?_⟩
+  refine ⟨Finset.univ, Finset.univ, fun _ => D.history 0 (fun _ => false), ?_, ?_,
+    fun _ _ _ _ => D.history_zero _ _⟩
   · simp [Finset.card_univ, Fintype.card_bool]
   · simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_bool]
     change 2 ^ Uᶜ.card ≤ 2 ^ Fintype.card {i : Fin n // i ∉ U}
-    rw [Fintype.card_subtype_compl]
-    simp [Finset.card_compl]
-  · intro p _ q _
-    exact D.history_zero _ _
+    simp [Fintype.card_subtype_compl, Finset.card_compl]
 
 private theorem reachable_succ (D : BlockDecomposition f H) (U : Finset (Fin n)) {i NP NQ : ℕ}
     (hi : i < D.length) (h : Reachable D U i NP NQ) :
@@ -215,23 +209,13 @@ private theorem reachable_succ (D : BlockDecomposition f H) (U : Finset (Fin n))
       fun q => if h : P'.Nonempty then Ψ q (α h.choose) else Ψ q 0, ?_, ?_, ?_⟩
     · exact (Nat.div_le_div_right hP).trans hcardP
     · have hsplit := Finset.card_filter_add_card_filter_not (s := Q) (fun q => q ∈ Qbad)
-      have hin : Q.filter (· ∈ Qbad) = Qbad := by
-        ext q
-        simp only [Finset.mem_filter, and_iff_right_iff_imp]
-        exact fun hq => hQbad hq
-      rw [hin] at hsplit
+      rw [Finset.filter_mem_eq_inter, Finset.inter_eq_right.mpr hQbad] at hsplit
       by_cases hT : T = 0
-      · simp only [BlockKind.pcost, BlockKind.qcost, hT, ite_true, zero_mul, one_mul,
-          Nat.le_zero, Finset.card_eq_zero] at hcardQ ⊢
-        subst hcardQ
-        simp only [Finset.card_empty, zero_add] at hsplit
+      · simp only [BlockKind.pcost, BlockKind.qcost, hT, ite_true, zero_mul, one_mul] at hcardQ ⊢
         omega
       · simp only [BlockKind.pcost, BlockKind.qcost, hT, ite_false] at hcardQ ⊢
-        have h2 : 2 * Qbad.card ≤ Q.card := by
-          have hTpos : 0 < T := Nat.pos_of_ne_zero hT
-          have : T * (2 * Qbad.card) ≤ T * Q.card := by linarith
-          exact Nat.le_of_mul_le_mul_left this hTpos
-        have : NQ / 2 ≤ Q.card / 2 := Nat.div_le_div_right hQ
+        have h2 : 2 * Qbad.card ≤ Q.card :=
+          Nat.le_of_mul_le_mul_left (by linarith) (Nat.pos_of_ne_zero hT)
         omega
     · intro p hp q hq
       have hq' := Finset.mem_filter.mp hq
@@ -274,26 +258,17 @@ private theorem not_reachable {K : ℕ}
     intro p hp q hq
     rw [← D.output_history, hη p hp q hq]
   have hsplit := Finset.card_filter_add_card_filter_not (s := Q) (fun q => o q = true)
-  have hfalse : (Q.filter fun q => ¬ o q = true) = Q.filter fun q => o q = false := by
-    ext q
-    simp
-  rw [hfalse] at hsplit
-  have hlarge : ∃ b : Bool, K ≤ (Q.filter fun q => o q = b).card := by
-    by_contra hno
-    push Not at hno
-    have h1 := hno true
-    have h2 := hno false
-    omega
-  obtain ⟨b, hb⟩ := hlarge
+  simp only [Bool.not_eq_true] at hsplit
+  obtain ⟨b, hb⟩ : ∃ b : Bool, K ≤ (Q.filter fun q => o q = b).card := by
+    by_contra! hno
+    linarith [hno true, hno false]
   have hrect : Frontier.rectangle (↑U) (↑P)
       (↑(Q.filter fun q => o q = b)) ⊆ {x | f x = b} := by
     intro x hx
-    have h := hf' _ hx.1 _ (Finset.mem_filter.mp hx.2).1
     have hx' : glue U ((↑U : Set (Fin n)).domRestrict x)
         ((↑U : Set (Fin n))ᶜ.domRestrict x) = x :=
       (Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).symm_apply_apply x
-    rw [hx'] at h
-    exact h.trans (Finset.mem_filter.mp hx.2).2
+    exact hx' ▸ (hf' _ hx.1 _ (Finset.mem_filter.mp hx.2).1).trans (Finset.mem_filter.mp hx.2).2
   rcases (hf b).ncard_lt_or _ _ _ hrect with h | h <;>
     simp only [Set.ncard_coe_finset] at h <;> omega
 
@@ -322,23 +297,17 @@ theorem BlockDecomposition.two_pow_lt_mul_cost {K : ℕ}
           Nat.mul_lt_mul_of_pos_right ha2 hpos
       _ = 4 * K ^ 2 * (Dp * Dq) := by ring
       _ ≤ 2 ^ n := by rw [← hcost]; exact hle
-  have han : a ≤ n := by
-    by_contra hna
-    push Not at hna
-    have : 2 ^ n ≤ 2 ^ a := Nat.pow_le_pow_right two_pos hna.le
-    have : 2 ^ a ≤ 2 ^ a * (2 * K * Dq) := Nat.le_mul_of_pos_right _ hpos
-    omega
+  have han : a ≤ n :=
+    ((Nat.pow_lt_pow_iff_right one_lt_two).mp ((Nat.le_mul_of_pos_right _ hpos).trans_lt key)).le
   obtain ⟨U, -, hU⟩ := Finset.exists_subset_card_eq
     (s := (Finset.univ : Finset (Fin n))) (n := a) (by simpa using han)
   have hUc : Uᶜ.card = n - a := by rw [Finset.card_compl, hU, Fintype.card_fin]
   have reach := reachable_le D U D.length le_rfl
   rw [hU, hUc, ← hDpdef, ← hDqdef] at reach
   refine not_reachable hf D U reach ?_ ?_
-  · rw [Nat.le_div_iff_mul_le hDp]
-    exact ha1
+  · exact (Nat.le_div_iff_mul_le hDp).mpr ha1
   · rw [Nat.le_div_iff_mul_le hDq]
-    have hsplit : 2 ^ n = 2 ^ a * 2 ^ (n - a) := by rw [← pow_add, Nat.add_sub_cancel' han]
-    rw [hsplit] at key
-    exact (Nat.lt_of_mul_lt_mul_left key).le
+    refine (Nat.lt_of_mul_lt_mul_left (a := 2 ^ a) ?_).le
+    rwa [← pow_add, Nat.add_sub_cancel' han]
 
 end Cslib.Circuits.Boolean.WeightedThreshold

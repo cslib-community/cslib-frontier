@@ -105,22 +105,17 @@ theorem components_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
   have hf := fields_closeMetadataRuns J (compute keys).sortedKeys ha
   rw [intermediate g w I keys hl]
   dsimp only at hs hc hf ⊢
-  refine ⟨hc.1.trans hs.1,hc.2.1.trans hs.2.1,hf.2.1,hc.2.2.1,?_,?_⟩
-  · have hr := congrArg (List.map Prod.fst) hc.2.2.1
-    have he : (closeMetadataRuns J (compute keys).sortedKeys).body.map Constraint.rel=
-        J.body.map Constraint.rel := by simpa only [List.map_map,Function.comp_def] using hr
+  refine ⟨hc.1.trans hs.1, hc.2.1.trans hs.2.1, hf.2.1, hc.2.2.1, ?_, ?_⟩
+  · have he := congrArg (List.map Prod.fst) hc.2.2.1
+    simp only [List.map_map, Function.comp_def] at he
     exact he.trans hs.2.2.2
   · intro hn
-    have hsorted : (compute keys).sortedKeys≠[] := by
-      intro he
-      have hh := congrArg List.length (components_compute keys).1
-      simp only [he,List.length_nil,List.length_insertionSort] at hh
-      exact hn (List.length_eq_zero_iff.mp hh.symm)
+    have hsorted : (compute keys).sortedKeys ≠ [] := by
+      rwa [ne_eq, ← List.length_eq_zero_iff, (components_compute keys).1,
+        List.length_insertionSort, List.length_eq_zero_iff]
     have ht := hf.2.2 hsorted
-    constructor
-    · exact ht.1.trans (congrArg (fun n => 2*n) hc.2.1.symm)
-    · intro v hv
-      exact (ht.2 v hv).trans_eq (congrArg (fun n => 2*n) hc.2.1.symm)
+    have hlen := congrArg (fun n => 2 * n) hc.2.1.symm
+    exact ⟨ht.1.trans hlen, fun v hv => (ht.2 v hv).trans_eq hlen⟩
 
 /-- All coalescing steps select post-sort names. The one scheduled linear bit-growth
 bound therefore suffices for the full driver, including raw cross-group name repetitions. -/
@@ -161,29 +156,25 @@ private theorem equal_key_values (xs : List (ℕ × Bool))
     (hs : xs.Pairwise (fun a b => a.1 ≤ b.1))
     (hc : xs.IsChain (fun a b => a.1 = b.1 → a.2 = b.2))
     (x y : ℕ × Bool) (hx : x ∈ xs) (hy : y ∈ xs) (he : x.1 = y.1) : x.2 = y.2 := by
-  let block := xs.filter (fun q => q.1=x.1)
+  set block := xs.filter (fun q => q.1 = x.1)
   have hb := List.Pairwise.filter_key_eq Prod.fst x.1 hs
-  have hchain : block.IsChain (fun a b => a.1=b.1 → a.2=b.2) := by
-    rw [show block=xs.filter (fun q => q.1=x.1) from rfl,hb]
+  have hchain : block.IsChain (fun a b => a.1 = b.1 → a.2 = b.2) := by
+    dsimp only [block]
+    rw [hb]
     exact (hc.drop _).take _
-  have hall : ∀ q∈block, q.1=x.1 := by
-    intro q hq
-    exact of_decide_eq_true (List.mem_filter.mp hq).2
-  have hvalues : (block.map Prod.snd).IsChain (· = ·) := by
-    apply (List.isChain_map Prod.snd).mpr
-    exact hchain.imp_of_mem_imp (fun a b ha hb hab => hab ((hall a ha).trans (hall b hb).symm))
-  have hxm : x.2∈block.map Prod.snd := List.mem_map.mpr ⟨x,by simp [block,hx],rfl⟩
-  have hym : y.2∈block.map Prod.snd := List.mem_map.mpr ⟨y,by simp [block,hy,he],rfl⟩
+  have hall (q) (hq : q ∈ block) : q.1 = x.1 := of_decide_eq_true (List.mem_filter.mp hq).2
+  have hvalues : (block.map Prod.snd).IsChain (· = ·) :=
+    (List.isChain_map Prod.snd).mpr
+      (hchain.imp_of_mem_imp fun a b ha hb hab => hab ((hall a ha).trans (hall b hb).symm))
+  have hxm : x.2 ∈ block.map Prod.snd := List.mem_map.mpr ⟨x, by simp [block, hx], rfl⟩
+  have hym : y.2 ∈ block.map Prod.snd := List.mem_map.mpr ⟨y, by simp [block, hy, he], rfl⟩
   cases hv : block.map Prod.snd with
-  | nil => simp only [hv,List.not_mem_nil] at hxm
+  | nil => simp only [hv, List.not_mem_nil] at hxm
   | cons a vs =>
-    have hvchain : (a::vs).IsChain (· = ·) := by rwa [hv] at hvalues
-    have hconst : ∀ v∈a::vs, v=a := by
-      intro v hm
-      rcases List.mem_cons.mp hm with rfl | hm
-      · rfl
-      · exact (hvchain.rel_cons hm).symm
-    exact (hconst _ (hv ▸ hxm)).trans (hconst _ (hv ▸ hym)).symm
+    rw [hv] at hvalues hxm hym
+    have hconst (v) (hm : v ∈ a :: vs) : v = a :=
+      (List.mem_cons.mp hm).elim id fun hm => (hvalues.rel_cons hm).symm
+    exact (hconst _ hxm).trans (hconst _ hym).symm
 
 private theorem paired_word (I : State Rel) (keys : List ℕ) (σ ν : ℕ → Bool)
     (hword : (sortBoundaryMetadata g w I keys).ports.map ν = ((compute keys).requests.foldl (fun
@@ -217,52 +208,27 @@ theorem recover_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
       false) ∧
       ∀ i j, i < keys.length → j < keys.length → keys.getD i 0 = keys.getD j 0 →
         (I.ports.map ρ).getD i false = (I.ports.map ρ).getD j false := by
-  let R := compute keys
-  let J := sortBoundaryMetadata g w I keys
-  let sorted := R.sortedKeys
-  let states := fun s => (fun K : State Rel => closeFirstMetadataRun K
-    (sorted.drop (sorted.length-K.ports.length)))^[s] J
-  let Phi := (List.range sorted.length).foldl (fun f s => fun z =>
-    if f z ∈ (states s).ports.take
-        ((sorted.drop (sorted.length-(states s).ports.length)).takeWhile
-          (fun b => decide (b=(sorted.drop (sorted.length-(states s).ports.length)).headD
-            0))).length
-    then (states s).ports.headD 0 else f z) id
-  let ρ := fun z => τ (Phi (2^R.requests.length*z))
-  let ids := R.requests.foldl (fun ps j => ps.swap j (j + 1)) (List.range keys.length)
+  intro R J sorted states Phi ρ ids
   have ha := sortedKeys_length_sortBoundaryMetadata g w I keys hl
-  have hlow := recover_closeMetadataRuns sem J sorted ha τ (by
-    rw [← intermediate g w I keys hl]
-    exact ht)
-  change J.body.eval sem (τ ∘ Phi)=true ∧
-    (sorted.zip (J.ports.map (τ ∘ Phi))).IsChain (fun a b => a.1=b.1 → a.2=b.2) at hlow
+  have hlow := recover_closeMetadataRuns sem J sorted ha τ
+    (by rwa [← intermediate g w I keys hl])
   have hs := recover_sortBoundaryMetadata g w I keys hl (τ ∘ Phi) hlow.1
-  change I.body.eval sem ρ=true ∧ J.ports.map (τ ∘ Phi)=
-    ids.map (fun i => (I.ports.map ρ).getD i false) at hs
-  change I.body.eval sem ρ=true ∧ J.ports.map (τ ∘ Phi)=_ ∧ _
-  refine ⟨hs.1,hs.2,?_⟩
+  refine ⟨hs.1, hs.2, ?_⟩
   let pairs := sorted.zip (J.ports.map (τ ∘ Phi))
-  have hpairs := paired_word g w I keys ρ (τ ∘ Phi) hs.2
-  change pairs=ids.map (fun i => (keys.getD i 0,(I.ports.map ρ).getD i false)) at hpairs
-  have hsort : sorted.Pairwise (· ≤ ·) := by
-    change (compute keys).sortedKeys.Pairwise (· ≤ ·)
-    rw [(components_compute keys).1]
-    exact List.pairwise_insertionSort _ _
-  have hproj : pairs.map Prod.fst=sorted :=
+  have hpairs : pairs = ids.map (fun i => (keys.getD i 0, (I.ports.map ρ).getD i false)) :=
+    paired_word g w I keys ρ (τ ∘ Phi) hs.2
+  have hproj : pairs.map Prod.fst = (compute keys).sortedKeys :=
     List.map_fst_zip (by simpa only [List.length_map] using ha.le)
-  have horder : pairs.Pairwise (fun a b => a.1≤b.1) := by
-    have hh : (pairs.map Prod.fst).Pairwise (· ≤ ·) := by rwa [hproj]
-    simpa only [List.pairwise_map] using hh
+  have horder : pairs.Pairwise (fun a b => a.1 ≤ b.1) := by
+    rw [← List.pairwise_map, hproj, (components_compute keys).1]
+    exact List.pairwise_insertionSort _ _
   intro i j hi hj he
   have hperm : ids.Perm (List.range keys.length) := (indices_payload.{0} keys).1
-  have hmi : i∈ids := hperm.mem_iff.mpr (List.mem_range.mpr hi)
-  have hmj : j∈ids := hperm.mem_iff.mpr (List.mem_range.mpr hj)
-  apply equal_key_values pairs horder hlow.2
-    (keys.getD i 0,(I.ports.map ρ).getD i false)
-    (keys.getD j 0,(I.ports.map ρ).getD j false)
-  · rw [hpairs]; exact List.mem_map.mpr ⟨i,hmi,rfl⟩
-  · rw [hpairs]; exact List.mem_map.mpr ⟨j,hmj,rfl⟩
-  · exact he
+  refine equal_key_values pairs horder hlow.2
+    (keys.getD i 0, (I.ports.map ρ).getD i false)
+    (keys.getD j 0, (I.ports.map ρ).getD j false) ?_ ?_ he
+  · exact hpairs ▸ List.mem_map.mpr ⟨i, hperm.mem_iff.mpr (List.mem_range.mpr hi), rfl⟩
+  · exact hpairs ▸ List.mem_map.mpr ⟨j, hperm.mem_iff.mpr (List.mem_range.mpr hj), rfl⟩
 
 /-- A satisfying source assignment consistent at equal ORIGINAL metadata keys extends on
 EVERY `2^T*z`, including unused names. The same actual sorter assignment forwards through

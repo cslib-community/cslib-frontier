@@ -402,8 +402,7 @@ theorem run_readFin {cells wCell : ℕ} :
   | 0, _, m => Prod.ext (funext fun j => j.elim0) rfl
   | _ + 1, idx, m => by
     simp only [readFin, ProbeTree.run_bind, ProbeTree.run_read, run_readFin, ProbeTree.run_pure]
-    refine Prod.ext (funext fun j => ?_) rfl
-    exact j.cases rfl (fun _ => rfl)
+    exact Prod.ext (funext fun j => j.cases rfl fun _ => rfl) rfl
 
 @[simp]
 theorem probes_readFin {cells wCell : ℕ} :
@@ -784,10 +783,8 @@ private theorem reconstructData_init {r : ℕ} {input : Fin r → Bool}
     {base S w regCells wCell : ℕ} (L : RegLayout r input base S w regCells wCell)
     (argRegs : Fin r → ℕ) (m : Mem (S + regCells) wCell) :
     reconstructData (w := w) base m (L.unpack argRegs m).regs (fun _ => none) (fun _ => 0) =
-      L.unpack argRegs m := by
-  ext i
-  · rfl
-  · simp only [reconstructData, L.unpack_mem]
+      L.unpack argRegs m :=
+  Data.ext rfl (funext fun a => (L.unpack_mem argRegs m a).symm)
 
 /-- Buffering a store inside `[base, base + S)` is a memory write on the reconstructed data. -/
 private theorem reconstructData_update_buf {r S regCells w wCell : ℕ} (base : ℕ)
@@ -797,12 +794,10 @@ private theorem reconstructData_update_buf {r S regCells w wCell : ℕ} (base : 
         (Function.update writeBuf ⟨a - base, by omega⟩ (some (wordOfNat w v))) extMem =
       (reconstructData base m regs writeBuf extMem).write a v := by
   refine Data.ext rfl (funext fun b => ?_)
-  dsimp only [reconstructData, Data.write]
-  by_cases hb : b = a
-  · subst hb
-    rw [Function.update_self, dite_eq_left ha, Function.update_self]
-    exact wordOfNat_val_of_lt hv
-  · rw [Function.update_of_ne hb]
+  rcases eq_or_ne b a with rfl | hb
+  · simp [reconstructData, Data.write, ha, wordOfNat_val_of_lt hv]
+  · dsimp only [reconstructData, Data.write]
+    rw [Function.update_of_ne hb]
     split_ifs with hba
     · rw [Function.update_of_ne (by fin_index)]
     · rfl
@@ -865,8 +860,7 @@ private theorem flushAux_spec {S regCells w wCell : ℕ} (hw : w ≤ wCell)
       refine ⟨fun idx hidx => ?_, fun c hc => hge c (by omega)⟩
       obtain hlt_k | rfl := hsplit idx hidx
       · exact hlt idx hlt_k
-      · rw [hwb]
-        exact hge (Fin.castAdd regCells ⟨k, hk⟩) le_rfl
+      · exact hwb ▸ hge (Fin.castAdd regCells ⟨k, hk⟩) le_rfl
     | some v =>
       simp only [ProbeTree.probes_bind, ProbeTree.probes_write, ProbeTree.run_bind,
         ProbeTree.run_write, Option.isSome_some, ↓reduceIte, true_and]
@@ -906,16 +900,12 @@ theorem commitHalted_spec {r : ℕ} {input : Fin r → Bool} {base S w regCells 
   simp only [commitHalted, ProbeTree.run_bind, flushWriteBuf]
   by_cases hc : c.1 < S
   · obtain ⟨idx, rfl⟩ : ∃ idx : Fin S, c = Fin.castAdd regCells idx := ⟨⟨c.1, hc⟩, rfl⟩
-    have hymem : y.mem (base + idx.1) =
-        match writeBuf idx with
-        | some v => v.1
-        | none => (m (Fin.castAdd regCells idx)).1 % 2 ^ w := by
-      simp only [y, reconstructData, Nat.le_add_right, Nat.add_lt_add_iff_left, idx.isLt, and_self,
-        ↓reduceDIte, Nat.add_sub_cancel_left, Fin.eta]
     have hlt_m := L.validMem_data hm idx
-    rw [L.nextMem_spill_data, L.pack_data y idx, hlt_f idx hc, hymem]
     cases hwb : writeBuf idx <;>
-      simp [liftCellWord, Nat.mod_eq_of_lt hlt_m, wordOfNat_val_of_lt hlt_m]
+      · rw [L.nextMem_spill_data, L.pack_data y idx, hlt_f idx hc]
+        simp only [y, reconstructData, Nat.le_add_right, Nat.add_lt_add_iff_left, idx.isLt,
+          and_self, ↓reduceDIte, Nat.add_sub_cancel_left, Fin.eta, hwb]
+        simp [liftCellWord, Nat.mod_eq_of_lt hlt_m, wordOfNat_val_of_lt hlt_m]
   · exact L.nextMem_spill_reg y _ c
       (fun h0 d hd => (hge_f d hd).trans (L.validMem_reg_zero hm h0 y d hd)) (Nat.le_of_not_lt hc)
 
@@ -1154,13 +1144,12 @@ theorem simProgDet_spec {B : Basis} {r S regCells w wCell : ℕ} {input : Fin r 
       (reconstructData_init L argRegs m) (L.unpack_bounded harg m)
   obtain ⟨hcommit_mem, hcommit_pr⟩ := commitHalted_spec L hm t.data.regs wb' ext'
   rw [hrec'] at hcommit_mem
-  simp only [dirtyCount_empty] at hloop_run hloop_pr
-  constructor
-  · simp only [simProgDet, ProbeTree.run_bind, L.run_reload, hloop_run, ProbeTree.run_pure,
-      hcommit_mem]
-  · simp only [simProgDet, ProbeTree.probes_bind, L.probes_reload, L.run_reload, hloop_run,
-      hcommit_pr, ProbeTree.probes_pure, add_zero, RegLayout.overhead]
-    omega
+  simp only [dirtyCount_empty] at hloop_pr
+  refine ⟨by simp only [simProgDet, ProbeTree.run_bind, L.run_reload, hloop_run,
+    ProbeTree.run_pure, hcommit_mem], ?_⟩
+  simp only [simProgDet, ProbeTree.probes_bind, L.probes_reload, L.run_reload, hloop_run,
+    hcommit_pr, ProbeTree.probes_pure, add_zero, RegLayout.overhead]
+  omega
 
 /-- Clocked deterministic `ProbeTree` initializer simulator: starts from externally supplied
 initial registers `initRegs` (`0` reload probes), runs `K` buffered steps of `p` on zeroed cell
@@ -1195,7 +1184,7 @@ theorem simProgInitDet_spec {B : Basis} {r S regCells w wCell : ℕ} {input : Fi
       (Data.ext rfl (funext fun a => by simp [reconstructData])) ⟨hregs, fun _ => fits_zero w⟩
   obtain ⟨hcommit_mem, hcommit_pr⟩ := commitHalted_spec L hm₀ t.data.regs wb' ext'
   rw [hrec'] at hcommit_mem
-  simp only [dirtyCount_empty] at hloop_run hloop_pr
+  simp only [dirtyCount_empty] at hloop_pr
   constructor
   · simp only [simProgInitDet, ProbeTree.run_bind, hloop_run]
     exact Prod.ext rfl hcommit_mem
@@ -1388,18 +1377,14 @@ private theorem simStepRand_spec {B : Basis} {r S regCells w wCell : ℕ} (base 
       have hcont : isContinuingCfg p (.running ⟨pc, x⟩) = true :=
         (isContinuingCfg_running_iff w p _).mpr (by simp [step_rand (s := ⟨pc, x⟩) hp])
       by_cases hfit : Fits w (regs src)
-      · refine ⟨?_, ?_⟩
-        · rw [stepRand_rand_of_fits (s := ⟨pc, x⟩) hp hfit]
-          simp only [hfit, ↓reduceIte, RandProbeTree.run_bind, RandProbeTree.run_sample,
-            PMF.map_bind, PMF.bind_map, RandProbeTree.run_pure, PMF.pure_map, ProbComp.eval_pure,
-            ProbComp.eval_bind, Function.comp_def, zero_add]
-          rfl
-        · intro z hz
-          simp only [hfit, ↓reduceIte, RandProbeTree.run_bind, RandProbeTree.run_sample,
-            PMF.mem_support_bind_iff, PMF.mem_support_map_iff, RandProbeTree.run_pure,
-            PMF.support_pure, Set.mem_singleton_iff] at hz
-          obtain ⟨_, ⟨k, _, rfl⟩, _, rfl, rfl⟩ := hz
-          exact ⟨rfl, by simp [hcont, SimOutcome.dirty]⟩
+      · simp only [hfit, ↓reduceIte, stepRand_rand_of_fits (s := ⟨pc, x⟩) hp hfit,
+          RandProbeTree.run_bind, RandProbeTree.run_sample, PMF.map_bind, PMF.bind_map,
+          RandProbeTree.run_pure, PMF.pure_map, ProbComp.eval_pure, ProbComp.eval_bind,
+          Function.comp_def, zero_add, PMF.mem_support_bind_iff,
+          PMF.support_pure, Set.mem_singleton_iff]
+        refine ⟨rfl, ?_⟩
+        rintro _ ⟨_, _, rfl⟩
+        exact ⟨rfl, by simp [hcont, SimOutcome.dirty]⟩
       · simp [hfit, stepRand_rand_of_not_fits (s := ⟨pc, x⟩) hp hfit, hcont, SimOutcome.dirty]
     · next hnot_rand =>
       obtain ⟨hm_eq, hdet_out⟩ :=
@@ -1415,12 +1400,9 @@ private theorem simStepRand_spec {B : Basis} {r S regCells w wCell : ℕ} (base 
           (isContinuingCfg_running_iff w p _).mpr (by simp [hs_out])
         simpa [hrun1, hrec', RandCfg.ofOutcome, SimOutcome.toRandCfg, SimOutcome.dirty, hcont]
           using hpr1
-      | halt v =>
+      | halt v | fault =>
         rintro ⟨hrun1, hpr1⟩
         simp [hrun1, hpr1, RandCfg.ofOutcome, SimOutcome.dirty, x]
-      | fault =>
-        rintro ⟨hrun1, hpr1⟩
-        simp [hrun1, hpr1, RandCfg.ofOutcome, SimOutcome.dirty]
 
 /-- Clocked `K`-step buffered randomized execution in `RandProbeTree`. -/
 def simLoopRand {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Program B r) :
@@ -2039,12 +2021,8 @@ theorem snd_le_probCompMaxSnd {α : Type} :
     cases OracleComp.eq_of_mem_supportWith_pure hz
     exact le_rfl
   | .liftBind n cont, z, hz => by
-    rw [← ProbComp.support_eval] at hz
-    change z ∈ ((ProbComp.unifOracle n).bind fun c => ProbComp.eval (cont c)).support at hz
-    rw [PMF.mem_support_bind_iff] at hz
-    obtain ⟨c, -, hc⟩ := hz
-    rw [ProbComp.support_eval] at hc
-    exact (snd_le_probCompMaxSnd (cont c) hc).trans
+    obtain ⟨c, -, hc⟩ := (PMF.mem_support_bind_iff _ _ _).mp (ProbComp.support_eval _ ▸ hz)
+    exact (snd_le_probCompMaxSnd (cont c) ((ProbComp.support_eval _).symm ▸ hc)).trans
       (Finset.le_sup (f := fun c' : Fin (n + 1) => probCompMaxSnd (cont c')) (Finset.mem_univ c))
 
 /-- Uniform finite-tree fuel across all `m : Mem (S + regCells) wCell` on which `ExecRand` holds. -/

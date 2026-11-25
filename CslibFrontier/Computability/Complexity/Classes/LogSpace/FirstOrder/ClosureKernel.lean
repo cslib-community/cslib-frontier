@@ -63,8 +63,7 @@ theorem eval_termE_of_atomic {v : Vocabulary L} {a : EncodedStructure} [L.Struct
     (h0 : regs.getD 0 0 = a.1) (hv : ∀ x, regs.getD (fv x) 0 = val x)
     (t : (language L).Term α) : (termE fv t).eval regs = ((t.realize val : Fin a.1) : ℕ) := by
   have := hC.term regs (Fin.elim0 : Fin 0 → Fin a.1) h0 hv (fun i => i.elim0) (t.relabel Sum.inl)
-  rw [Term.realize_relabel] at this
-  exact this
+  rwa [Term.realize_relabel] at this
 
 /-- The test of the closure loop: positive exactly when the current tuple differs from the
 target tuple. -/
@@ -147,10 +146,9 @@ theorem reaches_loadCode {P : CounterProgram} {w : List Bool} {B b base k n : �
       simp only [hi, ↓reduceDIte]
       rw [hsrc regs₀ (fun _ _ => rfl)]
       exact (Fin.isLt _).le.trans hnB)
-  refine ⟨regs', hr, hlen', hout, fun i => ?_, hB'⟩
-  rw [hin i i.isLt]
-  simp only [i.isLt, ↓reduceDIte]
-  exact hsrc regs₀ (fun _ _ => rfl) i
+  exact ⟨regs', hr, hlen', hout, fun i => by
+    rw [hin i i.isLt]
+    simpa only [i.isLt, ↓reduceDIte] using hsrc regs₀ (fun _ _ => rfl) i, hB'⟩
 
 private theorem pair_apply_lt {A : Type*} {k : ℕ} (xs ys : Fin k → A) (i : Fin (2 * k))
     (h : (i : ℕ) < k) : TC.pair xs ys i = xs ⟨i, h⟩ := by
@@ -171,9 +169,7 @@ theorem getD_pair {regs : List ℕ} {base k n : ℕ} {us vs : Fin k → Fin n}
   by_cases h : (i : ℕ) < k
   · rw [pair_apply_lt _ _ _ h]; exact hu ⟨i, h⟩
   · rw [pair_apply_ge _ _ _ (by omega), ← hv]
-    congr 1
-    simp only
-    omega
+    exact congrArg (regs.getD · 0) (by dsimp only; omega)
 
 /-- The registers of the extended assignment of an existential body: the new variable in
 register `base`, the others in their registers. -/

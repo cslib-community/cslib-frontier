@@ -256,14 +256,12 @@ theorem slabBijection_gmPushSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     split_ifs with hc
     · rw [hOwnB, ite_eq_left rfl, hc.1]
     · have ho := hs_old_of_ne b' hb' s hs hc
-      have hp := hslab.ptr_lt b' hb' s ho
-      rw [hOwnB, ite_eq_right (by omega)]; exact hslab.ownerB_ptr b' hb' s ho
+      rw [hOwnB, ite_eq_right (hslab.ptr_lt b' hb' s ho).ne]; exact hslab.ownerB_ptr b' hb' s ho
   · intro b' hb' s hs
     split_ifs with hc
     · rw [hOwnS, ite_eq_left rfl, hc.2]
     · have ho := hs_old_of_ne b' hb' s hs hc
-      have hp := hslab.ptr_lt b' hb' s ho
-      rw [hOwnS, ite_eq_right (by omega)]; exact hslab.ownerS_ptr b' hb' s ho
+      rw [hOwnS, ite_eq_right (hslab.ptr_lt b' hb' s ho).ne]; exact hslab.ownerS_ptr b' hb' s ho
   · intro p hp
     rw [h0] at hp
     rw [hOwnB p, hOwnS p]
@@ -295,9 +293,8 @@ theorem slabBijection_gmPushSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
       rw [ite_eq_left ⟨rfl, rfl⟩, ite_eq_right (by omega), hBel, ite_eq_left rfl]
       exact hslab.top_eq b' hb' (gm (gmQIdx b') - 1) (by omega) (by omega)
     · have ho := hs_old_of_ne b' hb' s hs hc
-      have hp := hslab.ptr_lt b' hb' s ho
       have hc1 : ¬(b' = b ∧ s - 1 = gm (gmQIdx b)) := by rintro ⟨rfl, heq⟩; omega
-      rw [ite_eq_right hc, ite_eq_right hc1, hBel, ite_eq_right (by omega)]
+      rw [ite_eq_right hc, ite_eq_right hc1, hBel, ite_eq_right (hslab.ptr_lt b' hb' s ho).ne]
       exact hslab.below_eq b' hb' s ho hpos
   · intro b' hb' s hs habv
     have hnot1 : ¬(b' = b ∧ s = gm (gmQIdx b)) := by
@@ -696,10 +693,7 @@ private theorem slabBijection_gmPopSlab_lt {n_max : ℕ} {gm : ℕ → ℕ} {b :
       (bwd_last := gm (gmSlabAboveIdx n_max p_last))
       (fun p => by rw [hcBel p, hBel p]) hb' hs_old hs1_old (by omega) hne_del
       (hslab.below_eq b' hb' s hs_old hpos)
-      (fun hbeq hseq => by
-        subst hbeq
-        have heq : s = s_last + 1 := by omega
-        rwa [← heq])
+      (fun hbeq hseq => by subst hbeq; rwa [show s_last + 1 = s by omega])
       (fun hq_lt => ⟨s_last + 1, (hact_s _ hb_last _ hq_lt).1,
         by have h := hslab.above_eq _ hb_last _ hs_last_old (hact_s _ hb_last _ hq_lt).1
            rw [hptr_last] at h; exact h,

@@ -288,6 +288,35 @@ private theorem filter_ne_take_props {f : BooleanFunction n} {S : State n} (hS :
   rw [hfe, List.length_erase_of_mem hp, length_freeParams hS]
   omega
 
+/-- The search pinning the free parameter `t` to `c A`, and reading the other parameters with
+`terminalVal` over `d` further free parameters, succeeds when the output is constant on the
+corresponding consistent assignments. -/
+private theorem findSome_isSome_pin {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
+    (f : BitString n → Bool) (hf : IsAffineDisperser f d) {S : State n}
+    (hS : S.Valid (fun x => C.eval fullInterpretation x 0)) {t : ℕ} (ht : t ∈ freeParams S)
+    (ha : d < S.a) (c : List Bool → Bool) (hc : IsAffine fun u : BitString d => c (List.ofFn u))
+    (b : Bool) (hout : ∀ A val, S.Consistent val → (∀ j ∈ S.params, val j =
+      if j = t then c A else terminalVal S (((freeParams S).filter (· ≠ t)).take d) A j) →
+      S.out.eval val = b) :
+    ((allAssignments d).findSome? fun A =>
+      let σ := fun y => if y = t then c A else
+        terminalVal S (((freeParams S).filter (· ≠ t)).take d) A y
+      let x_vec : BitString n := S.phi fun y =>
+        if decide (y ∈ S.params) then σ y else evaluateAux S y σ
+      if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none).isSome := by
+  obtain ⟨hL, hLt⟩ := filter_ne_take_props hS ht ha
+  refine findSome_isSome_of_family C f hf hS
+    (fun A y => if y = t then c A else terminalVal S (((freeParams S).filter (· ≠ t)).take d) A y)
+    (fun x => ?_) (fun x hx => (mem_freeParams.1 (hL.2.1 x hx)).1) hL.2.2 (fun A j hj => ?_)
+    (fun A => locus_of_fst fun pr hpr => ?_) b hout
+  · by_cases hx : x = t
+    · simpa [hx] using hc
+    · simpa [hx] using isAffine_terminalVal S _ x
+  · rw [ite_eq_right (hLt _ (List.getElem_mem hj))]
+    exact terminalVal_coord hL.1 hL.2.1 A j hj
+  · rw [ite_eq_right (fst_ne_of_mem_freeParams hS ht hpr)]
+    exact terminalVal_fst hS _ A hpr
+
 private theorem op_const_of_not_isAffineOp :
     ∀ op : Bool → Bool → Bool, ¬ IsAffineOp op →
       op (decide ((op true false == op true true) = true)) false =
@@ -399,16 +428,11 @@ private theorem terminal_gate_shape {f : BooleanFunction n} {S : State n} (hS : 
     have := hS.wf.reads_live G hG t ht
     simp only [live, Finset.mem_union] at this
     tauto
-  have ht₁a : t₁ ∉ S.aux := fun h => by
+  have hta : ∀ {t}, (S.gate G).Reads t → t ∉ S.aux := fun ht h => by
     unfold State.auxIn State.auxArg at haux
-    rw [hl] at haux
-    simp [h] at haux
-  have ht₂a : t₂ ∉ S.aux := fun h => by
-    unfold State.auxIn State.auxArg at haux
-    rw [hr] at haux
-    simp [h] at haux
-  have ht₁p := hparam t₁ (Or.inl hl) ht₁a
-  have ht₂p := hparam t₂ (Or.inr hr) ht₂a
+    rcases ht with ht | ht <;> rw [ht] at haux <;> simp [h] at haux
+  have ht₁p := hparam t₁ (Or.inl hl) (hta (Or.inl hl))
+  have ht₂p := hparam t₂ (Or.inr hr) (hta (Or.inr hr))
   have hnaff : ¬ IsAffineOp (S.gate G).op := by
     have := List.find?_eq_none.1 hm G hGs
     simpa [hl, hr, isGate, hnotgate t₁ (Or.inl hl), hnotgate t₂ (Or.inr hr)] using this
@@ -449,40 +473,22 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
           exact affineIn_param hup
         · simp only [hup, decide_false, Bool.false_eq_true, ite_false] at hpair
           have hg : S.gates = ∅ := by simpa [hup] using hcase
-          have hu_aux : u ∈ S.aux := by
-            have := hS.wf.out_live u hu
-            simpa [live, hup, hg] using this
-          have := hrep u hu_aux
-          rw [hpair] at this
-          exact this
+          have hu_aux : u ∈ S.aux := by simpa [live, hup, hg] using hS.wf.out_live u hu
+          simpa only [hpair] using hrep u hu_aux
       dsimp only
       split
       · rename_i pivot hpiv
         have hpF : pivot ∈ freeParams S := List.mem_of_find?_eq_some hpiv
         have hpT : pivot ∈ T_out := by simpa using List.find?_some hpiv
         set L := ((freeParams S).filter (fun x => decide (x ≠ pivot))).take d with hL_def
-        obtain ⟨hLp, hLne⟩ := filter_ne_take_props hS hpF ha
-        refine findSome_isSome_of_family C f hf hS
-          (fun A y => if y = pivot then (c_out ^^ S.out.neg ^^
+        refine findSome_isSome_pin C f hf hS hpF ha (fun A => c_out ^^ S.out.neg ^^
             List.foldl (fun acc y => acc ^^ terminalVal S L A y) false
-              ({x ∈ T_out | x ≠ pivot}.sort (· ≤ ·))) else terminalVal S L A y)
-          ?_ (fun x hx => (mem_freeParams.1 (hLp.2.1 x hx)).1) hLp.2.2 ?_ ?_ false ?_
-        · intro x
-          by_cases hx : x = pivot
-          · simp only [hx, ite_true, foldl_xor_eq_sum]
-            have := isAffine_const_add_sum
-              (σ := fun u : BitString d => fun y => terminalVal S L (List.ofFn u) y)
-              (fun a b c => funext fun y => isAffine_terminalVal S L y a b c)
-              (c_out ^^ S.out.neg) {x ∈ T_out | x ≠ pivot}
-            exact this
-          · simpa [hx] using isAffine_terminalVal S L x
-        · intro A j hj
-          rw [ite_eq_right (hLne _ (List.getElem_mem hj))]
-          exact terminalVal_coord hLp.1 hLp.2.1 A j hj
-        · intro A
-          refine locus_of_fst fun pr hpr => ?_
-          rw [ite_eq_right (fst_ne_of_mem_freeParams hS hpF hpr)]
-          exact terminalVal_fst hS L A hpr
+              ({x ∈ T_out | x ≠ pivot}.sort (· ≤ ·))) ?_ false ?_
+        · simp only [foldl_xor_eq_sum]
+          exact isAffine_const_add_sum
+            (σ := fun u : BitString d => fun y => terminalVal S L (List.ofFn u) y)
+            (fun a b c => funext fun y => isAffine_terminalVal S L y a b c)
+            (c_out ^^ S.out.neg) {x ∈ T_out | x ≠ pivot}
         · intro A val hcons hval
           have h1 := hAff.2 val hcons.1
           simp only [Lit.eval, hu, Arg.eval, h1]
@@ -525,19 +531,16 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
           rintro ⟨pr', hpr', heq⟩
           by_cases hsame : pr' = pr
           · exact hpr_ne (hsame ▸ heq)
-          · have hdisj := hS.pairs_disjoint pr' hpr' pr hprm hsame
-            exact hdisj.2.1 heq⟩
+          · exact (hS.pairs_disjoint pr' hpr' pr hprm hsame).2.1 heq⟩
         set L := ((freeParams S).filter (fun x => decide (x ≠ pr.snd))).take d
         obtain ⟨hLp, hLne⟩ := filter_ne_take_props hS hsndF ha
         have hL_not_pr : ∀ x ∈ L, x ≠ p ∧ x ≠ pr.partner p := fun x hx => by
           have hxF := hLp.2.1 x hx
           have hx_ne_fst : x ≠ pr.fst := (fst_ne_of_mem_freeParams hS hxF hprm).symm
           have hx_ne_snd : x ≠ pr.snd := hLne x hx
-          have hp_or : p = pr.fst ∨ p = pr.snd := by
-            rcases hprp with h | h <;> [exact Or.inl h.symm; exact Or.inr h.symm]
-          have hr_or : pr.partner p = pr.fst ∨ pr.partner p = pr.snd := by
-            rcases pr.contains_partner hprp with h | h <;>
-              [exact Or.inl h.symm; exact Or.inr h.symm]
+          have hp_or : p = pr.fst ∨ p = pr.snd := hprp.imp Eq.symm Eq.symm
+          have hr_or : pr.partner p = pr.fst ∨ pr.partner p = pr.snd :=
+            (pr.contains_partner hprp).imp Eq.symm Eq.symm
           exact ⟨by rcases hp_or with h | h <;> rw [h] <;> assumption,
             by rcases hr_or with h | h <;> rw [h] <;> assumption⟩
         have hr_ne_p : pr.partner p ≠ p := pr.partner_ne hpr_ne hprp
@@ -574,8 +577,7 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
             simp [ZeroPair.bias]
         · intro A val hcons hval
           have hvalG := hcons.2 G hG
-          have hvp : val p = (fixArg (S.gate G) p).1 := by
-            rw [hval p hppar, ite_eq_left rfl]
+          have hvp : val p = (fixArg (S.gate G) p).1 := by rw [hval p hppar, ite_eq_left rfl]
           have hGe : (S.gate G).eval val = (fixArg (S.gate G) p).2 :=
             fixArg_spec hna hpw.symm (Gate.args_of_reads hpw.symm hGw hGp) val hvp
           simp only [Lit.eval, hu, huG, Arg.eval, hvalG, hGe]
@@ -592,41 +594,21 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
             exact ht₁u ⟨pr, hpr, Or.inl rfl⟩⟩
           dsimp only
           simp only [hl]
-          set L := ((freeParams S).filter (fun x => decide (x ≠ t₁))).take d with hL_def
-          obtain ⟨hLp, hLne⟩ := filter_ne_take_props hS ht₁F ha
           set op := (S.gate (S.gates.min' hne)).op with hop
-          refine findSome_isSome_of_family C f hf hS
-            (fun A y => if y = t₁ then decide ((op true false == op true true) = true)
-              else terminalVal S L A y)
-            ?_ (fun x hx => (mem_freeParams.1 (hLp.2.1 x hx)).1) hLp.2.2 ?_ ?_
-            (op (decide ((op true false == op true true) = true)) false ^^ S.out.neg) ?_
-          · intro x
-            by_cases hx : x = t₁
-            · simpa [hx] using
-                Cslib.BitString.isAffine_const (fun b => Bool.xor_self b)
-                  (decide ((op true false == op true true) = true))
-            · simpa [hx] using isAffine_terminalVal S L x
-          · intro A j hj
-            rw [ite_eq_right (hLne _ (List.getElem_mem hj))]
-            exact terminalVal_coord hLp.1 hLp.2.1 A j hj
-          · intro A
-            refine locus_of_fst fun pr hpr => ?_
-            rw [ite_eq_right (fun h => ht₁u ⟨pr, hpr, Or.inl h⟩)]
-            exact terminalVal_fst hS L A hpr
-          · intro A val hcons hval
-            have hG := hcons.2 _ (Finset.min'_mem _ hne)
-            have h1 : val t₁ = decide ((op true false == op true true) = true) := by
-              rw [hval _ ht₁p, ite_eq_left rfl]
-            simp only [Lit.eval, hu, Arg.eval, huG, hG, Gate.eval, hl, hr, h1]
-            rw [← hop]
-            congr 1
-            cases val t₂
-            · rfl
-            · exact (op_const_of_not_isAffineOp op hnaff).symm
+          refine findSome_isSome_pin C f hf hS ht₁F ha
+            (fun _ => decide ((op true false == op true true) = true))
+            (Cslib.BitString.isAffine_const (fun b => Bool.xor_self b) _)
+            (op (decide ((op true false == op true true) = true)) false ^^ S.out.neg)
+            fun A val hcons hval => ?_
+          have hG := hcons.2 _ (Finset.min'_mem _ hne)
+          have h1 : val t₁ = decide ((op true false == op true true) = true) := by
+            rw [hval _ ht₁p, ite_eq_left rfl]
+          simp only [Lit.eval, hu, Arg.eval, huG, hG, Gate.eval, hl, hr, h1]
+          rw [← hop]
+          congr 1
+          cases val t₂ <;> [rfl; exact (op_const_of_not_isAffineOp op hnaff).symm]
         · rename_i hne
-          exfalso
-          have hcard : S.gates.card ≠ 0 := fun h => by simp [h] at hcase
-          exact hne (Finset.card_pos.1 (Nat.pos_of_ne_zero hcard))
+          exact (hne (Finset.card_pos.1 (Nat.pos_of_ne_zero fun h => by simp [h] at hcase))).elim
 
 private theorem findSome_neq {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
     (f : BitString n → Bool)

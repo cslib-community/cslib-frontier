@@ -14,7 +14,7 @@ public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Regs
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Triple
 import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Enumeration
 import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Trie
-import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Per-query dispatch for trimmed Yates on the word RAM
@@ -41,12 +41,7 @@ open Finset Cslib.BitString Cslib.WordRAM Cslib.Algorithms.Lean.TrimmedYates
 
 private theorem tripleSpace_mono {d a b : ℕ} (hab : a ≤ b) :
     tripleSpace d a ≤ tripleSpace d b := by
-  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hab
-  dsimp only [tripleSpace]
-  have hid :
-      (3 * (d + 1 + d * (2 * d * a + 2)) + (2 + 2 * d * a)) + k * (6 * d ^ 2 + 2 * d) =
-      3 * (d + 1 + d * (2 * d * (a + k) + 2)) + (2 + 2 * d * (a + k)) := by ring
-  omega
+  unfold tripleSpace; gcongr
 
 private theorem shortBranch_budget_le {d H_pos : ℕ} (hH : 1 ≤ H_pos) {n_b : ℕ}
     (hn : n_b ≤ 2 + (9 * d + 8)) :
@@ -62,17 +57,8 @@ private theorem longBranch_budget_le {d cl H_q H_pos : ℕ} (hH : 1 ≤ H_pos)
       (12 * H_q + 3 + (5 + (tripleTime d H_q + (4 + (9 * d + 8))))))) :
     n_el + 2 ≤ 180 * (d + 1) ^ 2 * H_pos - (5 + (11 * d + 5) + 3) := by
   have hpt := phaseTime_le (d := d) hH
-  have hcl_le : cl * (20 * H_q + 12) ≤ d * (20 * H_pos + 12) :=
-    Nat.mul_le_mul hcl (by omega)
-  have htr_le : tripleTime d H_q ≤ tripleTime d H_pos := by
-    obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hHq
-    dsimp only [tripleTime]
-    have hid :
-        (3 * (d * (H_q * (32 * d + 63) + 22) + 7) + (H_q * (32 * d + 53) + 9) + 15) +
-        k * (96 * d ^ 2 + 221 * d + 53) =
-        3 * (d * ((H_q + k) * (32 * d + 63) + 22) + 7) +
-          ((H_q + k) * (32 * d + 53) + 9) + 15 := by ring
-    omega
+  have : cl * (20 * H_q + 12) + tripleTime d H_q ≤ d * (20 * H_pos + 12) + tripleTime d H_pos := by
+    unfold tripleTime; gcongr
   omega
 
 private theorem queryStep_base_le {d H_pos : ℕ} (hH : 1 ≤ H_pos) :
@@ -148,15 +134,12 @@ private theorem qBranchCode_preserves (i : Fin numRegs)
       qHighPrepCode_preserves i hprep, runTransformTriple_preserves i htriple,
       qHighReadCode_preserves i hread, trieGet_preserves i hget⟩⟩
 
-private theorem qBranchCode_preserves_one : qBranchCode.Preserves rOne :=
-  qBranchCode_preserves rOne (by decide) (by decide) (by decide) (by decide)
-    (by decide) (by decide) (by decide) (by decide)
-private theorem qBranchCode_preserves_out : qBranchCode.Preserves Reg.outPtr :=
-  qBranchCode_preserves Reg.outPtr (by decide) (by decide) (by decide) (by decide)
-    (by decide) (by decide) (by decide) (by decide)
-private theorem qBranchCode_preserves_qi : qBranchCode.Preserves rQueryIdx :=
-  qBranchCode_preserves rQueryIdx (by decide) (by decide) (by decide) (by decide)
-    (by decide) (by decide) (by decide) (by decide)
+private theorem qBranchCode_preserves_one : qBranchCode.Preserves rOne := by
+  apply qBranchCode_preserves <;> decide
+private theorem qBranchCode_preserves_out : qBranchCode.Preserves Reg.outPtr := by
+  apply qBranchCode_preserves <;> decide
+private theorem qBranchCode_preserves_qi : qBranchCode.Preserves rQueryIdx := by
+  apply qBranchCode_preserves <;> decide
 
 private def qWriteCode : Code .standard numRegs := ram[
   rQueryIdx ← rQueryIdx + rOne;
@@ -176,18 +159,8 @@ private abbrev IsQueryKept (i : Fin numRegs) : Prop :=
 private theorem queryStep_preserves (i : Fin numRegs) :
     IsQueryKept i → queryStep.Preserves i := by
   intro hi
-  exact ⟨qLoadCode_preserves i (by revert i hi; decide +kernel),
-    extractCoords_preserves i (by revert i hi; decide +kernel),
-    qBranchCode_preserves i
-      (by revert i hi; decide +kernel)
-      (by revert i hi; decide +kernel)
-      (by revert i hi; decide +kernel)
-      (by revert i hi; decide +kernel)
-      (by revert i hi; decide +kernel)
-      (by revert i hi; decide +kernel)
-      (by revert i hi; decide +kernel)
-      (by revert i hi; decide +kernel),
-    by revert i hi; decide +kernel⟩
+  refine ⟨qLoadCode_preserves i ?_, extractCoords_preserves i ?_,
+    qBranchCode_preserves i ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_, ?_⟩ <;> revert i hi <;> decide +kernel
 
 private theorem HoldsTrie.congr_root {mem : ℕ → ℕ} {bound d r₁ r₂ : ℕ} {fn : ℕ → ℕ}
     (hr : r₁ = r₂) (h : HoldsTrie mem bound d r₂ fn) : HoldsTrie mem bound d r₁ fn :=
@@ -242,232 +215,101 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
       (∀ a < qWorkStart, u_ans.mem a = stMem a) := by
   have hfit_mask : Fits w (2 ^ d) := mask_fits_of_valueEnvelope hfit_val
   have hfit_d : Fits w d := hfit_mask.of_le Nat.lt_two_pow_self.le
-  have hlt_Cs : ¬ #C < s := Nat.not_lt_of_ge hsC
-  have hcond : ¬ (Cond.lt rCoordsLen Reg.thresh).Holds u₁ := by
-    simp [Cond.holds_lt, hclen, hs_reg, hlt_Cs]
-  let highDomBase := qWorkStart + d
-  have hf_sub : Fits w (#C - s) :=
-    hfit_d.of_le ((by have := Finset.card_le_univ C; simp at this; omega : #C - s ≤ d))
-  have hw0_st : ∃ w₀, ExecWithin (B := .standard) w
-      (ram[ rMaxCard ← rCoordsLen - Reg.thresh; rDomPtr ← Reg.free ]) u₁ w₀ 2 ∧
-      w₀.regs rZero = 0 ∧ w₀.regs rOne = 1 ∧ w₀.regs Reg.thresh = s ∧
-      w₀.regs rTrieKey = setMask C ∧ w₀.regs rCoordsPtr = qWorkStart ∧
-      w₀.regs rCoordsLen = #C ∧ w₀.regs rMaxCard = #C - s ∧
-      w₀.regs rDomPtr = highDomBase ∧ w₀.regs Reg.dim = d ∧
-      w₀.regs Reg.trieF = rootF ∧ w₀.regs Reg.trieG = rootG ∧
-      w₀.regs Reg.queryPtr = qPtr ∧ w₀.regs rQueryIdx = q ∧
-      w₀.regs rPreFsBase = preFs ∧ w₀.regs rPreGsBase = preGs ∧
-      w₀.regs rPreHsBase = preHs ∧ w₀.mem = u₁.mem := by
-    wram_exec [hclen, hs_reg, hfr]
-    wram_simp [hz, ho, hs_reg, hkey, hcp, hclen, hd, htF_reg, htG_reg, hqp, hqi,
-      hpFs, hpGs, hpHs, highDomBase]
-  obtain ⟨w₀, he_w0, hw₀z, hw₀o, hw₀s, hw₀key, hw₀cp, hw₀cl, hw₀mc, hw₀dp,
-    hw₀d, hw₀tF, hw₀tG, hw₀qp, hw₀qi, hw₀pFs, hw₀pGs, hw₀pHs, hw₀mem⟩ := hw0_st
+  have hcList_le_d : cList.length ≤ d := hcList_len ▸ by simpa using Finset.card_le_univ C
   obtain ⟨H_q, hHq_def⟩ : ∃ H_q, highCount #C s = H_q := ⟨_, rfl⟩
   have hHq_le : H_q ≤ H_pos := hHq_def ▸ hC_H
   have hts_mono : tripleSpace d H_q ≤ tripleSpace d H_pos := tripleSpace_mono hHq_le
   have hsum_Hq : ∑ j ∈ range (#C - s + 1), cList.length.choose j = H_q := by
     rw [hcList_len, sum_range_sub_eq_highCount hsC, hHq_def]
-  clear hHq_def
-  have hcList_le_d : cList.length ≤ d := by
-    rw [hcList_len]; simpa using Finset.card_le_univ C
-  obtain ⟨w₁, he_ghigh_raw, hw₁_dlen, hw₁_dom, hw₁_fr, hw₁_regs⟩ :=
-    exec_genLowSubsets cList w₀ hw₀z hw₀o hw₀cp (hw₀cl.trans hcList_len.symm)
-      hw₀mc hw₀dp hcList_nd (by rwa [hw₀mem]) (by dsimp only [highDomBase]; omega)
-      (by rw [hsum_Hq]; exact hfit_space.of_le (by dsimp only [highDomBase]; omega))
-      hfit_mask
-  have he_ghigh : ExecWithin w genLowSubsets w₀ w₁ (cList.length * (20 * H_q + 12) + 8) := by
-    rwa [hsum_Hq] at he_ghigh_raw
-  clear he_ghigh_raw
-  have hys_len_raw : (prefixesUpTo (#C - s) cList).length = H_q := by
+  -- Enumerate the subsets `Y ⊆ C` with `#Y ≤ #C - s` and complement them in `C`.
+  let w₀ := (u₁.set rMaxCard (#C - s)).set rDomPtr (qWorkStart + d)
+  have he_w0 : ExecWithin (B := .standard) w
+      (ram[ rMaxCard ← rCoordsLen - Reg.thresh; rDomPtr ← Reg.free ]) u₁ w₀ 2 := by
+    wram_exec [hclen, hs_reg, hfr]
+  obtain ⟨w₁, he_low, hw₁_dlen, hw₁_dom, hw₁_fr, hw₁_regs⟩ :=
+    exec_genLowSubsets cList w₀ (by regs_frame) (by regs_frame) (by regs_frame)
+      (by rw [hcList_len]; regs_frame) (by regs_frame) (by regs_frame) hcList_nd hcmem (by omega)
+      (by rw [hsum_Hq]; exact hfit_space.of_le (by omega)) hfit_mask
+  have hys_spec := prefixesUpTo_spec (#C - s) hcList_nd
+  have hys_len : (prefixesUpTo (#C - s) cList).length = H_q := by
     rw [length_prefixesUpTo (#C - s) hcList_nd, hsum_Hq]
-  clear hsum_Hq
-  have hys_spec_raw := prefixesUpTo_spec (#C - s) hcList_nd
-  generalize hys_def : prefixesUpTo (#C - s) cList = ys
-    at hw₁_dlen hw₁_dom hys_len_raw hys_spec_raw
-  have hys_len : ys.length = H_q := hys_len_raw
-  have hys_spec := hys_spec_raw
-  have hys_sub : ∀ Y ∈ ys, Y ⊆ C := by
-    intro Y hY
-    have hsub := ((hys_spec.2 Y).mp hY).1
-    rwa [hcList_tf] at hsub
+  generalize prefixesUpTo (#C - s) cList = ys at hw₁_dlen hw₁_dom hys_spec hys_len
+  have hys_sub : ∀ Y ∈ ys, Y ⊆ C := fun Y hY => hcList_tf ▸ ((hys_spec.2 Y).mp hY).1
   obtain ⟨w₂, he_flip, hw₂_dom, hw₂_fr, hw₂_regs⟩ :=
-    exec_flipHighDom C ys w₁
-      ((hw₁_regs rOne (by decide)).trans hw₀o)
-      ((hw₁_regs rTrieKey (by decide)).trans hw₀key)
-      ((hw₁_regs rCoordsLen (by decide)).trans hw₀cl)
-      ((hw₁_regs rDomPtr (by decide)).trans hw₀dp)
-      hw₁_dlen hys_sub hw₁_dom
-      (by rw [hys_len]; exact hfit_space.of_le (by dsimp only [highDomBase]; omega))
-      hfit_mask
-  have hhigh_len_raw : (ys.map (C \ ·)).length = H_q := by simp [hys_len]
-  have hhigh_nd_raw : (ys.map (C \ ·)).Nodup := by
-    refine hys_spec.1.map_on fun Y₁ h₁ Y₂ h₂ heq => ?_
-    have h₁C := hys_sub Y₁ h₁
-    have h₂C := hys_sub Y₂ h₂
-    calc Y₁ = C \ (C \ Y₁) := (Finset.sdiff_sdiff_eq_self h₁C).symm
-      _ = C \ (C \ Y₂) := by rw [heq]
-      _ = Y₂ := Finset.sdiff_sdiff_eq_self h₂C
-  have hhigh_mem_raw : ∀ X, X ∈ ys.map (C \ ·) ↔ X ⊆ C ∧ s ≤ #X := by
-    intro X
+    exec_flipHighDom C ys w₁ (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+      hw₁_dlen hys_sub hw₁_dom (by rw [hys_len]; exact hfit_space.of_le (by omega)) hfit_mask
+  have hhigh_len : (ys.map (C \ ·)).length = H_q := by simp [hys_len]
+  have hhigh_nd : (ys.map (C \ ·)).Nodup := hys_spec.1.map_on fun Y₁ h₁ Y₂ h₂ heq => by
+    rw [← Finset.sdiff_sdiff_eq_self (hys_sub Y₁ h₁), heq,
+      Finset.sdiff_sdiff_eq_self (hys_sub Y₂ h₂)]
+  have hhigh_mem : ∀ X, X ∈ ys.map (C \ ·) ↔ X ⊆ C ∧ s ≤ #X := fun X => by
     simp only [List.mem_map]
-    constructor
+    refine ⟨?_, fun ⟨hXC, hsX⟩ => ⟨C \ X, (hys_spec.2 _).mpr ⟨hcList_tf ▸ sdiff_subset, ?_⟩,
+      Finset.sdiff_sdiff_eq_self hXC⟩⟩
     · rintro ⟨Y, hY, rfl⟩
-      have hYC := hys_sub Y hY
-      have hYcard := ((hys_spec.2 Y).mp hY).2
-      rw [Finset.card_sdiff_of_subset hYC]
+      have := ((hys_spec.2 Y).mp hY).2
+      rw [Finset.card_sdiff_of_subset (hys_sub Y hY)]
       exact ⟨sdiff_subset, by omega⟩
-    · rintro ⟨hXC, hsX⟩
-      refine ⟨C \ X, (hys_spec.2 _).mpr ⟨?_, ?_⟩, Finset.sdiff_sdiff_eq_self hXC⟩
-      · rw [hcList_tf]; exact sdiff_subset
-      · rw [Finset.card_sdiff_of_subset hXC]; omega
-  generalize hhigh_def : ys.map (C \ ·) = highDom
-    at hw₂_dom hhigh_len_raw hhigh_nd_raw hhigh_mem_raw
-  have hhigh_len : highDom.length = H_q := hhigh_len_raw
-  have hhigh_nd : highDom.Nodup := hhigh_nd_raw
-  have hhigh_mem_iff : ∀ X, X ∈ highDom ↔ X ⊆ C ∧ s ≤ #X := hhigh_mem_raw
-  let qTrStart := highDomBase + 2 * H_q
-  have hf_2Hq : Fits w (H_q + H_q) := hfit_space.of_le (by omega)
-  have hf_qts : Fits w (highDomBase + (H_q + H_q)) :=
-    hfit_space.of_le (by dsimp only [highDomBase]; omega)
-  have hw₂_dp : w₂.regs rDomPtr = highDomBase :=
-    (hw₂_regs rDomPtr (by decide)).trans ((hw₁_regs rDomPtr (by decide)).trans hw₀dp)
-  have hw₂_dl : w₂.regs rDomLen = H_q := by
-    rw [hw₂_regs rDomLen (by decide), hw₁_dlen, hys_len]
-  have hw₂_s : w₂.regs Reg.thresh = s :=
-    (hw₂_regs Reg.thresh (by decide)).trans ((hw₁_regs Reg.thresh (by decide)).trans hw₀s)
-  have hst3 : ∃ w₃, ExecWithin w qHighPrepCode w₂ w₃ 5 ∧
-      w₃.regs Reg.entryPtr = highDomBase ∧ w₃.regs Reg.entryCount = highDom.length ∧
-      w₃.regs Reg.free = qTrStart ∧ w₃.regs rStageCutoff = s ∧ w₃.mem = w₂.mem := by
+    · rw [Finset.card_sdiff_of_subset hXC]; omega
+  -- Run the three high-domain Yates transforms with the precomputed low stages as fallback.
+  obtain ⟨w₃, he_w3, hw₃_dp, hw₃_dl, hw₃_fr, hw₃_cut, hw₃_mem⟩ :
+      ∃ w₃, ExecWithin w qHighPrepCode w₂ w₃ 5 ∧ w₃.regs Reg.entryPtr = qWorkStart + d ∧
+        w₃.regs Reg.entryCount = H_q ∧ w₃.regs Reg.free = qWorkStart + d + 2 * H_q ∧
+        w₃.regs rStageCutoff = s ∧ w₃.mem = w₂.mem := by
     unfold qHighPrepCode
-    wram_exec [hw₂_dp, hw₂_dl, hw₂_s]
-    refine ⟨rfl, hhigh_len.symm, ?_, rfl, rfl⟩
-    wram_simp [qTrStart]; omega
-  obtain ⟨w₃, he_w3, hw₃_cdp, hw₃_cdl, hw₃_fr, hw₃_cut, hw₃_mem⟩ := hst3
-  have hw₃_regs : ∀ i,
-      i ≠ Reg.entryPtr ∧ i ≠ Reg.entryCount ∧ i ≠ rGenTmp ∧ i ≠ Reg.free ∧ i ≠ rStageCutoff →
-        w₃.regs i = w₂.regs i :=
-    fun i hi => he_w3.regs_eq (qHighPrepCode_preserves i hi)
-  have w₃_below_qw : ∀ a < qWorkStart, w₃.mem a = stMem a := fun a ha => by
-    rw [hw₃_mem, hw₂_fr a (Or.inl (by dsimp only [highDomBase]; omega)),
-      hw₁_fr a (Or.inl (by dsimp only [highDomBase]; omega)), hw₀mem]
+    wram_exec *
+    wram_simp [hys_len]; omega
+  have hw₃_below : ∀ a < qWorkStart, w₃.mem a = stMem a := fun a ha => by
+    rw [hw₃_mem, hw₂_fr a (.inl (by omega)), hw₁_fr a (.inl (by omega))]
     exact hu₁_below_qw a ha
-  have w₃_below_ob : ∀ a < outBase, w₃.mem a = preMem a := fun a ha =>
-    (w₃_below_qw a (by omega)).trans (hs_pre a ha)
-  have w₃_below_bf : ∀ a < baseFree, w₃.mem a = initMem a := fun a ha =>
-    (w₃_below_ob a (by omega)).trans (hpre_below_bf a ha)
-  have hhigh_closed : ∀ X ∈ highDom, ∀ coord : Fin d, coord ∈ X →
-      (s ≤ #(X.erase coord) → X.erase coord ∈ highDom) ∧
-      (#(X.erase coord) < s → #(X.erase coord) ≤ s) := by
-    intro X hX coord _
-    have hXC := ((hhigh_mem_iff X).mp hX).1
-    exact ⟨fun hge => (hhigh_mem_iff _).mpr ⟨(erase_subset _ _).trans hXC, hge⟩,
-      fun _ => by omega⟩
-  have hfb_q : 0 < s →
-      preFs + d ≤ qTrStart ∧ preGs + d ≤ qTrStart ∧ preHs + d ≤ qTrStart ∧
-      (∀ k < d, ∃ fbFn, HoldsTrie w₃.mem qTrStart d (w₃.mem (preFs + k)) fbFn ∧
-        ∀ Y, #Y < s → #Y ≤ s →
-          fbFn (setMask Y) =
-            Signed.encode (yatesTransform (1 : ℤ) ((List.finRange d).take k) f Y)) ∧
-      (∀ k < d, ∃ fbFn, HoldsTrie w₃.mem qTrStart d (w₃.mem (preGs + k)) fbFn ∧
-        ∀ Y, #Y < s → #Y ≤ s →
-          fbFn (setMask Y) =
-            Signed.encode (yatesTransform (1 : ℤ) ((List.finRange d).take k) g Y)) ∧
-      (∀ k < d, ∃ fbFn, HoldsTrie w₃.mem qTrStart d (w₃.mem (preHs + k)) fbFn ∧
-        ∀ Y, #Y < s → #Y ≤ s →
-          fbFn (setMask Y) =
-            Signed.encode (yatesTransform (-1 : ℤ) ((List.finRange d).take k)
-              (fun S => subsetZeta f S * subsetZeta g S) Y)) := by
-    intro _
-    have hlt_qts : outBase ≤ qTrStart := by dsimp only [qTrStart, highDomBase]; omega
-    refine ⟨by omega, by omega, by omega, fun k hk => ?_, fun k hk => ?_, fun k hk => ?_⟩
-    · obtain ⟨fbFn, htr, heq⟩ := hpreF_st k hk.le
-      exact ⟨fbFn,
-        ((htr.congr_below w₃_below_ob).mono_bound hlt_qts).congr_root
-          (w₃_below_ob (preFs + k) (by omega)),
-        fun Y _ hYle => heq Y hYle⟩
-    · obtain ⟨fbFn, htr, heq⟩ := hpreG_st k hk.le
-      exact ⟨fbFn,
-        ((htr.congr_below w₃_below_ob).mono_bound hlt_qts).congr_root
-          (w₃_below_ob (preGs + k) (by omega)),
-        fun Y _ hYle => heq Y hYle⟩
-    · obtain ⟨fbFn, htr, heq⟩ := hpreH_st k hk.le
-      exact ⟨fbFn,
-        ((htr.congr_below w₃_below_ob).mono_bound hlt_qts).congr_root
-          (w₃_below_ob (preHs + k) (by omega)),
-        fun Y _ hYle => heq Y hYle⟩
-  have kw₃_w₀ (i : Fin numRegs)
-      (h3 : i ≠ Reg.entryPtr ∧ i ≠ Reg.entryCount ∧ i ≠ rGenTmp ∧ i ≠ Reg.free ∧ i ≠ rStageCutoff)
-      (h2 : i ≠ rTrieTmp ∧ i ≠ rGenPos ∧ i ≠ rGenTmp)
-      (h1g : i ≠ rTrieTmp ∧ i ≠ Reg.builtRoot ∧ (i.val < 27 ∨ 33 ≤ i.val)) :
-      w₃.regs i = w₀.regs i :=
-    (hw₃_regs i h3).trans ((hw₂_regs i h2).trans (hw₁_regs i h1g))
-  obtain ⟨w₄, _, _, qHs, qEndFree, he_qtr, _, _, hw₄_ro, _, _, hqef_hi,
-    _, _, hqHs_lt, _, _, _, ⟨qOutFn, hqOut_tr, hqOut_eq⟩, hw₄_frame, hw₄_regs⟩ :=
-    exec_runTransformTriple (P_low := fun Y => #Y ≤ s) (W := W) w₃
-      ((kw₃_w₀ rZero (by decide) (by decide) (by decide)).trans hw₀z)
-      ((kw₃_w₀ rOne (by decide) (by decide) (by decide)).trans hw₀o)
-      ((kw₃_w₀ Reg.dim (by decide) (by decide) (by decide)).trans hw₀d)
-      hw₃_cdp hw₃_cdl hw₃_cut
-      ((kw₃_w₀ Reg.trieF (by decide) (by decide) (by decide)).trans hw₀tF)
-      ((kw₃_w₀ Reg.trieG (by decide) (by decide) (by decide)).trans hw₀tG)
-      ((kw₃_w₀ rPreFsBase (by decide) (by decide) (by decide)).trans hw₀pFs)
-      ((kw₃_w₀ rPreGsBase (by decide) (by decide) (by decide)).trans hw₀pGs)
-      ((kw₃_w₀ rPreHsBase (by decide) (by decide) (by decide)).trans hw₀pHs)
-      hw₃_fr (by dsimp only [qTrStart, highDomBase]; omega)
-      hhigh_nd (by rwa [hw₃_mem]) (by rw [hhigh_len]) hhigh_closed
-      ((htrieF.congr_below w₃_below_bf).mono_bound (by dsimp only [qTrStart, highDomBase]; omega))
-      ((htrieG.congr_below w₃_below_bf).mono_bound (by dsimp only [qTrStart, highDomBase]; omega))
-      hf_eq hg_eq hf_le hg_le hfb_q hfit_val
-      (by
-        rw [hhigh_len]
-        refine hfit_space.of_le ?_
-        dsimp only [qTrStart, highDomBase]
-        omega)
-  have hw₄_qp : w₄.regs Reg.queryPtr = qPtr :=
-    (hw₄_regs Reg.queryPtr (by decide)).trans
-      ((kw₃_w₀ Reg.queryPtr (by decide) (by decide) (by decide)).trans hw₀qp)
-  have hw₄_qi : w₄.regs rQueryIdx = q :=
-    (hw₄_regs rQueryIdx (by decide)).trans
-      ((kw₃_w₀ rQueryIdx (by decide) (by decide) (by decide)).trans hw₀qi)
-  have hw₄_d : w₄.regs Reg.dim = d :=
-    (hw₄_regs Reg.dim (by decide)).trans
-      ((kw₃_w₀ Reg.dim (by decide) (by decide) (by decide)).trans hw₀d)
-  have hw₄_below_qw : ∀ a < qWorkStart, w₄.mem a = stMem a := fun a ha =>
-    (hw₄_frame a (Or.inl (by dsimp only [qTrStart, highDomBase]; omega))).trans
-      (w₃_below_qw a ha)
-  have hw₄_read_q : w₄.mem (qPtr + q) = setMask C := by
-    rw [hw₄_below_qw _ hq_lt]; exact hread_q
-  have hf_qef : Fits w qEndFree := by
-    rw [hhigh_len] at hqef_hi
-    exact hfit_space.of_le (by dsimp only [qTrStart, highDomBase] at hqef_hi; omega)
+  have hw₃_ob : ∀ a < outBase, w₃.mem a = preMem a := fun a ha =>
+    (hw₃_below a (by omega)).trans (hs_pre a ha)
+  have hw₃_bf : ∀ a < baseFree, w₃.mem a = initMem a := fun a ha =>
+    (hw₃_ob a (by omega)).trans (hpre_below_bf a ha)
+  have hfb : ∀ base (G : ℕ → Finset (Fin d) → ℤ), base + d < outBase →
+      (∀ k ≤ d, ∃ stFn, HoldsTrie preMem outBase d (preMem (base + k)) stFn ∧
+        ∀ Y : Finset (Fin d), #Y ≤ s → stFn (setMask Y) = Signed.encode (G k Y)) →
+      ∀ k < d, ∃ fbFn, HoldsTrie w₃.mem (qWorkStart + d + 2 * H_q) d (w₃.mem (base + k)) fbFn ∧
+        ∀ Y, #Y < s → #Y ≤ s → fbFn (setMask Y) = Signed.encode (G k Y) := by
+    intro base G hb h k hk
+    obtain ⟨fbFn, htr, heq⟩ := h k hk.le
+    exact ⟨fbFn, ((htr.congr_below hw₃_ob).mono_bound (by omega)).congr_root
+      (hw₃_ob _ (by omega)), fun Y _ => heq Y⟩
+  obtain ⟨w₄, -, -, qHs, qEndFree, he_qtr, -, -, hw₄_ro, -, -, hqef_hi, -, -, hqHs_lt, -, -, -,
+      ⟨qOutFn, hqOut_tr, hqOut_eq⟩, hw₄_fr, hw₄_regs⟩ :=
+    exec_runTransformTriple (P_low := fun Y => #Y ≤ s) (W := W) w₃ (by regs_frame)
+      (by regs_frame) (by regs_frame) hw₃_dp (by rw [hhigh_len]; exact hw₃_dl) hw₃_cut
+      (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) hw₃_fr
+      (by omega) hhigh_nd (by rwa [hw₃_mem]) (by omega)
+      (fun X hX coord _ => ⟨fun h => (hhigh_mem _).mpr
+        ⟨(erase_subset _ _).trans ((hhigh_mem X).mp hX).1, h⟩, le_of_lt⟩)
+      ((htrieF.congr_below hw₃_bf).mono_bound (by omega))
+      ((htrieG.congr_below hw₃_bf).mono_bound (by omega)) hf_eq hg_eq hf_le hg_le
+      (fun _ => ⟨by omega, by omega, by omega, hfb _ _ hpFs_lt hpreF_st,
+        hfb _ _ hpGs_lt hpreG_st, hfb _ _ hpHs_lt hpreH_st⟩)
+      hfit_val (by rw [hhigh_len]; exact hfit_space.of_le (by omega))
+  -- Look up `C` in the output trie.
+  rw [hhigh_len] at hqef_hi
+  have hf_qef : Fits w qEndFree := hfit_space.of_le (by omega)
   have hf_qhs_d : Fits w (qHs + d) := hf_qef.of_le (by omega)
-  have hst5 : ∃ w₅, ExecWithin w qHighReadCode w₄ w₅ 4 ∧
-      w₅.regs rTrieKey = setMask C ∧ w₅.regs rTrieRoot = w₄.mem (qHs + d) ∧
-      w₅.mem = w₄.mem := by
+  have hw₄_below : ∀ a < qWorkStart, w₄.mem a = stMem a := fun a ha =>
+    (hw₄_fr a (.inl (by omega))).trans (hw₃_below a ha)
+  have hw₄_read_q : w₄.mem (qPtr + q) = setMask C := (hw₄_below _ hq_lt).trans hread_q
+  obtain ⟨w₅, he_w5, hw₅_key, hw₅_root, hw₅_mem⟩ : ∃ w₅, ExecWithin w qHighReadCode w₄ w₅ 4 ∧
+      w₅.regs rTrieKey = setMask C ∧ w₅.regs rTrieRoot = w₄.mem (qHs + d) ∧ w₅.mem = w₄.mem := by
     unfold qHighReadCode
-    wram_exec [hw₄_qp, hw₄_qi, hw₄_ro, hw₄_d, hw₄_read_q]
-    wram_simp [hw₄_read_q]
-  obtain ⟨w₅, he_w5, hw₅_key, hw₅_root, hw₅_mem⟩ := hst5
-  have hw₅_regs : ∀ i, i ≠ rGenTmp ∧ i ≠ rTrieKey ∧ i ≠ rTrieRoot →
-      w₅.regs i = w₄.regs i :=
-    fun i hi => he_w5.regs_eq (qHighReadCode_preserves i hi)
-  obtain ⟨w₆, he_get, hw₆_val, hw₆_mem, _⟩ :=
-    exec_trieGet w₅
-      ((hw₅_regs rZero (by decide)).trans ((hw₄_regs rZero (by decide)).trans
-        ((kw₃_w₀ rZero (by decide) (by decide) (by decide)).trans hw₀z)))
-      ((hw₅_regs rOne (by decide)).trans ((hw₄_regs rOne (by decide)).trans
-        ((kw₃_w₀ rOne (by decide) (by decide) (by decide)).trans hw₀o)))
-      ((hw₅_regs Reg.dim (by decide)).trans hw₄_d)
-      hw₅_root hw₅_key (by rwa [hw₅_mem]) hf_qef hfit_d (hfit_mask.of_le (setMask_lt C).le)
-  rw [hqOut_eq C ((hhigh_mem_iff C).mpr ⟨subset_rfl, hsC⟩)] at hw₆_val
-  have helse_ex := he_w0.seq (he_ghigh.seq (he_flip.seq (he_w3.seq
-    (he_qtr.seq (he_w5.seq he_get)))))
-  obtain ⟨n_el, hn_el, hex_el⟩ := helse_ex
-  rw [hys_len, hhigh_len] at hn_el
-  refine ⟨w₆, ⟨n_el + 2, longBranch_budget_le hH_pos1 hcList_le_d hHq_le hn_el,
-    Exec.branch_neg hcond hex_el⟩, hw₆_val,
-    fun a ha => (congrFun (hw₆_mem.trans hw₅_mem) a).trans (hw₄_below_qw a ha)⟩
+    wram_exec * [hw₄_read_q]
+    wram_simp
+  obtain ⟨w₆, he_get, hw₆_val, hw₆_mem, -⟩ :=
+    exec_trieGet w₅ (by regs_frame) (by regs_frame) (by regs_frame) hw₅_root hw₅_key
+      (by rwa [hw₅_mem]) hf_qef hfit_d (hfit_mask.of_le (setMask_lt C).le)
+  rw [hqOut_eq C ((hhigh_mem C).mpr ⟨subset_rfl, hsC⟩)] at hw₆_val
+  obtain ⟨n_el, hn_el, hex_el⟩ :=
+    he_w0.seq (he_low.seq (he_flip.seq (he_w3.seq (he_qtr.seq (he_w5.seq he_get)))))
+  rw [hsum_Hq, hys_len, hhigh_len] at hn_el
+  exact ⟨w₆, ⟨n_el + 2, longBranch_budget_le hH_pos1 hcList_le_d hHq_le hn_el,
+    Exec.branch_neg (by simp [Cond.holds_lt, hclen, hs_reg, hsC]) hex_el⟩, hw₆_val,
+    fun a ha => (congrFun (hw₆_mem.trans hw₅_mem) a).trans (hw₄_below a ha)⟩
 
 theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preHs
     W H_pos spVal : ℕ}
@@ -511,171 +353,100 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
       z.regs rQueryIdx = st.regs rQueryIdx + 1 := by
   have hfit_mask : Fits w (2 ^ d) := mask_fits_of_valueEnvelope hfit_val
   have hfit_d : Fits w d := hfit_mask.of_le Nat.lt_two_pow_self.le
-  let qWorkStart := outBase + 1 + Cs.length
   have hf_ob : Fits w outBase := hfit_space.of_le (by omega)
-  have hf_qw : Fits w qWorkStart := hfit_space.of_le (by dsimp only [qWorkStart]; omega)
+  obtain ⟨qWorkStart, hqw⟩ : ∃ n, n = outBase + 1 + Cs.length := ⟨_, rfl⟩
+  rw [← hqw] at hqw_bound
   generalize hq_eq : st.regs rQueryIdx = q at hst hq ⊢
-  dsimp only [QueryInv] at hst
   obtain ⟨hsz, hso, hsd, hss, hsout, hspf, hstF, hstG, hsqp, hsqc,
     hspFs, hspGs, hspHs, hs_pre, hs_ob, hs_ans⟩ := hst
+  rw [← hqw] at hspf
   generalize hC_def : Cs[q] = C
   have hC_mem : C ∈ Cs := hC_def ▸ List.getElem_mem hq
   have hread_q : st.mem (qPtr + q) = setMask C := by
     rw [hs_pre _ (by omega), hpre_below_bf _ (by omega), ← hC_def]; exact hq_mem q hq
   have hf_qp_q : Fits w (qPtr + q) := hfit_space.of_le (by omega)
-  have hf_qw_d : Fits w (qWorkStart + d) := hfit_space.of_le (by dsimp only [qWorkStart]; omega)
-  have hq0_st : ∃ u₀, ExecWithin w qLoadCode st u₀ 5 ∧
+  have hf_qw_d : Fits w (qWorkStart + d) := hfit_space.of_le (by omega)
+  -- Load the query mask and extract its coordinates.
+  obtain ⟨u₀, he_q0, hu₀_key, hu₀_cp, hu₀_fr, hu₀_mem⟩ : ∃ u₀, ExecWithin w qLoadCode st u₀ 5 ∧
       u₀.regs rTrieKey = setMask C ∧ u₀.regs rCoordsPtr = qWorkStart ∧
       u₀.regs Reg.free = qWorkStart + d ∧ u₀.mem = st.mem := by
     unfold qLoadCode
     wram_exec [hspf, hsqp, hq_eq, hsd, hread_q]
-    wram_simp [hread_q, qWorkStart]
-  obtain ⟨u₀, he_q0, hu₀_key, hu₀_cp, hu₀_fr, hu₀_mem⟩ := hq0_st
-  have hu₀_regs : ∀ i, i ≠ Reg.free ∧ i ≠ rGenTmp ∧ i ≠ rTrieKey ∧ i ≠ rCoordsPtr →
-      u₀.regs i = st.regs i :=
-    fun i hi => he_q0.regs_eq (qLoadCode_preserves i hi)
+    wram_simp [hread_q]
   obtain ⟨u₁, he_ext, hu₁_clen, hu₁_cmem, hu₁_cfr, hu₁_regs⟩ :=
-    exec_extractCoords C u₀
-      ((hu₀_regs rZero (by decide)).trans hsz)
-      ((hu₀_regs rOne (by decide)).trans hso)
-      ((hu₀_regs Reg.dim (by decide)).trans hsd)
-      hu₀_key hu₀_cp hf_qw_d hfit_mask
-  have hcList_nd_raw : ((List.finRange d).filter (· ∈ C)).Nodup :=
-    (List.nodup_finRange d).filter _
-  have hcList_tf_raw : ((List.finRange d).filter (· ∈ C)).toFinset = C := by ext i; simp
-  generalize hcList_def : (List.finRange d).filter (· ∈ C) = cList
-    at hu₁_clen hu₁_cmem hcList_nd_raw hcList_tf_raw
-  have hcList_nd : cList.Nodup := hcList_nd_raw
-  have hcList_toFinset : cList.toFinset = C := hcList_tf_raw
+    exec_extractCoords C u₀ (by regs_frame) (by regs_frame) (by regs_frame) hu₀_key hu₀_cp hf_qw_d
+      hfit_mask
+  generalize hcList_def : (List.finRange d).filter (· ∈ C) = cList at hu₁_clen hu₁_cmem
+  have hcList_nd : cList.Nodup := hcList_def ▸ (List.nodup_finRange d).filter _
+  have hcList_tf : cList.toFinset = C := by rw [← hcList_def]; ext; simp
   have hcList_len : cList.length = #C := by
-    rw [← List.toFinset_card_of_nodup hcList_nd, hcList_toFinset]
+    rw [← List.toFinset_card_of_nodup hcList_nd, hcList_tf]
   rw [hcList_len] at hu₁_clen
-  have keep_u₁ (i : Fin numRegs)
-      (h1 : i ≠ rTrieRem ∧ i ≠ rCoordsLen ∧ i ≠ rGenIdx ∧ i ≠ rGenTmp)
-      (h0 : i ≠ Reg.free ∧ i ≠ rGenTmp ∧ i ≠ rTrieKey ∧ i ≠ rCoordsPtr) :
-      u₁.regs i = st.regs i :=
-    (hu₁_regs i h1).trans (hu₀_regs i h0)
-  have u₁_below_qw : ∀ a < qWorkStart, u₁.mem a = st.mem a :=
-    fun a ha => (hu₁_cfr a (Or.inl ha)).trans (congrFun hu₀_mem a)
-  have u₁_below_ob : ∀ a < outBase, u₁.mem a = preMem a :=
-    fun a ha => (u₁_below_qw a (by dsimp only [qWorkStart]; omega)).trans (hs_pre a ha)
-  have hu₁_s : u₁.regs Reg.thresh = s := (keep_u₁ Reg.thresh (by decide) (by decide)).trans hss
-  have hbr_eval : ∃ u_ans,
-      ExecWithin w qBranchCode u₁ u_ans
+  have hu₁_below : ∀ a < qWorkStart, u₁.mem a = st.mem a :=
+    fun a ha => (hu₁_cfr a (.inl ha)).trans (congrFun hu₀_mem a)
+  have hu₁_ob : ∀ a < outBase, u₁.mem a = preMem a :=
+    fun a ha => (hu₁_below a (by omega)).trans (hs_pre a ha)
+  have hu₁_s : u₁.regs Reg.thresh = s := by regs_frame
+  -- Answer the query: by one lookup when `#C < s`, by the high-domain transforms otherwise.
+  have hbr : ∃ u_ans, ExecWithin w qBranchCode u₁ u_ans
         (180 * (d + 1) ^ 2 * H_pos - (5 + (11 * d + 5) + 3)) ∧
       u_ans.regs rTrieVal = Signed.encode (coveringProduct f g C) ∧
       (∀ a < qWorkStart, u_ans.mem a = st.mem a) := by
     by_cases hlt_Cs : #C < s
-    · have hcond : (Cond.lt rCoordsLen Reg.thresh).Holds u₁ := by
-        simp [Cond.holds_lt, hu₁_clen, hu₁_s, hlt_Cs]
-      have hf_phs_d : Fits w (preHs + d) := hfit_space.of_le (by omega)
-      have hu₁_pHs : u₁.regs rPreHsBase = preHs :=
-        (keep_u₁ rPreHsBase (by decide) (by decide)).trans hspHs
-      have hu₁_d : u₁.regs Reg.dim = d :=
-        (keep_u₁ Reg.dim (by decide) (by decide)).trans hsd
-      have hread_phs : u₁.mem (preHs + d) = preMem (preHs + d) :=
-        u₁_below_ob _ hpHs_lt
-      have hst0 : ∃ v₀, ExecWithin w qShortLoadCode u₁ v₀ 2 ∧
+    · obtain ⟨v₀, he_ld, hv₀_root, hv₀_mem⟩ : ∃ v₀, ExecWithin w qShortLoadCode u₁ v₀ 2 ∧
           v₀.regs rTrieRoot = preMem (preHs + d) ∧ v₀.mem = u₁.mem := by
+        have hf_phs_d : Fits w (preHs + d) := hfit_space.of_le (by omega)
         unfold qShortLoadCode
-        wram_exec [hu₁_pHs, hu₁_d, hread_phs]
-        wram_simp [hread_phs]
-      obtain ⟨v₀, he_ld, hv₀_root, hv₀_mem⟩ := hst0
-      have hv₀_regs : ∀ i, i ≠ rGenTmp ∧ i ≠ rTrieRoot → v₀.regs i = u₁.regs i :=
-        fun i hi => he_ld.regs_eq (qShortLoadCode_preserves i hi)
-      have htr_v₀ : HoldsTrie v₀.mem outBase d (preMem (preHs + d)) preOutFn := by
-        rw [hv₀_mem]; exact hpreOut_tr.congr_below u₁_below_ob
-      have hv₀_key : v₀.regs rTrieKey = setMask C :=
-        (hv₀_regs rTrieKey (by decide)).trans ((hu₁_regs rTrieKey (by decide)).trans hu₀_key)
-      obtain ⟨v₁, he_get, hv₁_val, hv₁_mem, _⟩ :=
-        exec_trieGet v₀
-          ((hv₀_regs rZero (by decide)).trans
-            ((keep_u₁ rZero (by decide) (by decide)).trans hsz))
-          ((hv₀_regs rOne (by decide)).trans
-            ((keep_u₁ rOne (by decide) (by decide)).trans hso))
-          ((hv₀_regs Reg.dim (by decide)).trans hu₁_d)
-          hv₀_root hv₀_key htr_v₀ hf_ob hfit_d (hfit_mask.of_le (setMask_lt C).le)
+        wram_exec * [hu₁_ob _ hpHs_lt]
+        wram_simp [hu₁_ob _ hpHs_lt]
+      obtain ⟨v₁, he_get, hv₁_val, hv₁_mem, -⟩ :=
+        exec_trieGet v₀ (by regs_frame) (by regs_frame) (by regs_frame) hv₀_root (by regs_frame)
+          (hv₀_mem ▸ hpreOut_tr.congr_below hu₁_ob) hf_ob hfit_d (hfit_mask.of_le (setMask_lt C).le)
       rw [hpreOut_eq C (by omega)] at hv₁_val
       obtain ⟨n_b, hn_b, hex_b⟩ := he_ld.seq he_get
-      refine ⟨v₁, ⟨n_b + 1, shortBranch_budget_le hH_pos1 hn_b,
-        Exec.branch_pos hcond hex_b⟩, hv₁_val,
-        fun a ha => (congrFun (hv₁_mem.trans hv₀_mem) a).trans (u₁_below_qw a ha)⟩
-    · exact exec_qLongBranch u₁
-        ((keep_u₁ rZero (by decide) (by decide)).trans hsz)
-        ((keep_u₁ rOne (by decide) (by decide)).trans hso)
-        ((keep_u₁ Reg.dim (by decide) (by decide)).trans hsd)
-        hu₁_s
-        ((hu₁_regs rTrieKey (by decide)).trans hu₀_key)
-        ((hu₁_regs rCoordsPtr (by decide)).trans hu₀_cp)
-        hu₁_clen
-        ((hu₁_regs Reg.free (by decide)).trans hu₀_fr)
-        ((keep_u₁ Reg.trieF (by decide) (by decide)).trans hstF)
-        ((keep_u₁ Reg.trieG (by decide) (by decide)).trans hstG)
-        ((keep_u₁ Reg.queryPtr (by decide) (by decide)).trans hsqp)
-        ((keep_u₁ rQueryIdx (by decide) (by decide)).trans hq_eq)
-        ((keep_u₁ rPreFsBase (by decide) (by decide)).trans hspFs)
-        ((keep_u₁ rPreGsBase (by decide) (by decide)).trans hspGs)
-        ((keep_u₁ rPreHsBase (by decide) (by decide)).trans hspHs)
-        hcList_nd hcList_toFinset hcList_len hu₁_cmem u₁_below_qw hs_pre hpre_below_bf
-        hob_gt_bf (by dsimp only [qWorkStart]; omega) (by dsimp only [qWorkStart]; omega) hread_q
-        htrieF htrieG hf_eq hg_eq hf_le hg_le hpFs_lt hpGs_lt hpHs_lt
-        hpreF_st hpreG_st hpreH_st
-        (Nat.le_of_not_lt hlt_Cs) hH_pos1 (hCs_H C hC_mem) hqw_bound hfit_space hfit_val
-  obtain ⟨u_ans, he_br, hu_val, hu_below⟩ := hbr_eval
+      exact ⟨v₁, ⟨n_b + 1, shortBranch_budget_le hH_pos1 hn_b,
+        Exec.branch_pos (by simp [Cond.holds_lt, hu₁_clen, hu₁_s, hlt_Cs]) hex_b⟩, hv₁_val,
+        fun a ha => (congrFun (hv₁_mem.trans hv₀_mem) a).trans (hu₁_below a ha)⟩
+    · exact exec_qLongBranch u₁ (by regs_frame) (by regs_frame) (by regs_frame) hu₁_s
+        (by regs_frame) (by regs_frame) hu₁_clen (by regs_frame) (by regs_frame) (by regs_frame)
+        (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+        hcList_nd hcList_tf hcList_len hu₁_cmem hu₁_below hs_pre hpre_below_bf hob_gt_bf
+        (by omega) (by omega) hread_q htrieF htrieG hf_eq hg_eq hf_le hg_le hpFs_lt hpGs_lt hpHs_lt
+        hpreF_st hpreG_st hpreH_st (by omega) hH_pos1 (hCs_H C hC_mem) hqw_bound hfit_space
+        hfit_val
+  -- Write the answer and advance the query index.
+  obtain ⟨u_ans, he_br, hu_val, hu_below⟩ := hbr
   have hu_one : u_ans.regs rOne = 1 :=
-    (he_br.regs_eq qBranchCode_preserves_one).trans
-      ((keep_u₁ rOne (by decide) (by decide)).trans hso)
+    (he_br.regs_eq qBranchCode_preserves_one).trans (by regs_frame)
   have hu_out : u_ans.regs Reg.outPtr = outBase :=
-    (he_br.regs_eq qBranchCode_preserves_out).trans
-      ((keep_u₁ Reg.outPtr (by decide) (by decide)).trans hsout)
+    (he_br.regs_eq qBranchCode_preserves_out).trans (by regs_frame)
   have hu_qi : u_ans.regs rQueryIdx = q :=
-    (he_br.regs_eq qBranchCode_preserves_qi).trans
-      ((keep_u₁ rQueryIdx (by decide) (by decide)).trans hq_eq)
+    (he_br.regs_eq qBranchCode_preserves_qi).trans (by regs_frame)
   have hf_q1 : Fits w (q + 1) := hfit_space.of_le (by omega)
-  have hf_out_q1 : Fits w (outBase + (q + 1)) := hf_qw.of_le (by dsimp only [qWorkStart]; omega)
-  have hst_w : ∃ z, ExecWithin w qWriteCode u_ans z 3 ∧
+  have hf_out_q1 : Fits w (outBase + (q + 1)) := hfit_space.of_le (by omega)
+  obtain ⟨z, he_wr, hz_qi, hz_mem⟩ : ∃ z, ExecWithin w qWriteCode u_ans z 3 ∧
       z.regs rQueryIdx = q + 1 ∧
       z.mem = Function.update u_ans.mem (outBase + (q + 1))
         (Signed.encode (coveringProduct f g C)) := by
     unfold qWriteCode
     wram_exec [hu_qi, hu_one, hu_out, hu_val]
     wram_simp
-  obtain ⟨z, he_wr, hz_qi, hz_mem⟩ := hst_w
-  have hpt_pos := queryStep_base_le (d := d) hH_pos1
   have hqstep_tot : ExecWithin w queryStep st z (180 * (d + 1) ^ 2 * H_pos) :=
-    (he_q0.seq (he_ext.seq (he_br.seq he_wr))).mono (by omega)
+    (he_q0.seq (he_ext.seq (he_br.seq he_wr))).mono
+      (by have := queryStep_base_le (d := d) hH_pos1; omega)
   have kq (i : Fin numRegs) (hi : IsQueryKept i) : z.regs i = st.regs i :=
     hqstep_tot.regs_eq (queryStep_preserves i hi)
-  refine ⟨z, hqstep_tot, ?_, hz_qi⟩
-  dsimp only [QueryInv]
-  refine ⟨(kq rZero (by decide)).trans hsz,
-    (kq rOne (by decide)).trans hso,
-    (kq Reg.dim (by decide)).trans hsd,
-    (kq Reg.thresh (by decide)).trans hss,
-    (kq Reg.outPtr (by decide)).trans hsout,
-    (kq rPreFree (by decide)).trans hspf,
-    (kq Reg.trieF (by decide)).trans hstF,
-    (kq Reg.trieG (by decide)).trans hstG,
-    (kq Reg.queryPtr (by decide)).trans hsqp,
-    (kq Reg.queryCount (by decide)).trans hsqc,
-    (kq rPreFsBase (by decide)).trans hspFs,
-    (kq rPreGsBase (by decide)).trans hspGs,
-    (kq rPreHsBase (by decide)).trans hspHs,
-    ?_, ?_, ?_⟩
-  · intro a ha
-    rw [hz_mem, Function.update_of_ne (by omega),
-      hu_below a (by dsimp only [qWorkStart]; omega)]
+  refine ⟨z, hqstep_tot, ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, by regs_frame, by regs_frame, fun a ha => ?_, ?_, fun j hj hj_lt => ?_⟩, hz_qi⟩
+  · rw [hz_mem, Function.update_of_ne (by omega), hu_below a (by omega)]
     exact hs_pre a ha
-  · rw [hz_mem, Function.update_of_ne (by omega),
-      hu_below outBase (by dsimp only [qWorkStart]; omega)]
+  · rw [hz_mem, Function.update_of_ne (by omega), hu_below outBase (by omega)]
     exact hs_ob
-  · intro j hj hj_lt
-    by_cases hjq : j = q
+  · by_cases hjq : j = q
     · subst hjq
-      have : outBase + 1 + j = outBase + (j + 1) := by omega
-      rw [this, hz_mem, Function.update_self, ← hC_def]
-    · rw [hz_mem, Function.update_of_ne (by omega),
-        hu_below (outBase + 1 + j) (by dsimp only [qWorkStart]; omega)]
+      rw [show outBase + 1 + j = outBase + (j + 1) by omega, hz_mem, Function.update_self, ← hC_def]
+    · rw [hz_mem, Function.update_of_ne (by omega), hu_below _ (by omega)]
       exact hs_ans j hj (by omega)
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

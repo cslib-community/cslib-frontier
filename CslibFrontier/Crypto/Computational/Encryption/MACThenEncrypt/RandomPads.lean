@@ -220,12 +220,10 @@ private theorem mteFaithfulOracle_step_lazyProgramHandler (M : MACScheme) (n m :
         (fun (a, s') => (a, (⟨s'.1, s'.2⟩ : MteState))) =
       mteFaithfulOracle M n m km request ⟨s.1, s.2⟩ := by
   rcases s with ⟨cache, history⟩
-  unfold mteFaithfulOracle RandomOracle.lazyProgramHandler
-  by_cases hlen : (request.2.length == n) = true
-  · simp only [hlen, ↓reduceDIte, ↓reduceIte, mteCoins, mteFinish,
+  cases hlen : request.2.length == n <;>
+    simp [mteFaithfulOracle, RandomOracle.lazyProgramHandler, hlen, mteCoins, mteFinish,
       Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.map, Function.comp_def, PMF.pure_bind]
-  · simp [hlen]
+      PMF.map, Function.comp_def]
 
 /-- Game 1 represents the programming channel of `RandomOracle.overwriteProgramHandler`. -/
 private theorem mteForgetfulOracle_step_overwriteProgramHandler (M : MACScheme) (n m : ℕ)
@@ -238,12 +236,10 @@ private theorem mteForgetfulOracle_step_overwriteProgramHandler (M : MACScheme) 
         (fun (a, s') => (a, (⟨s'.1, s'.2⟩ : MteState))) =
       mteForgetfulOracle M n m km request ⟨s.1, s.2⟩ := by
   rcases s with ⟨cache, history⟩
-  unfold mteForgetfulOracle RandomOracle.overwriteProgramHandler
-  by_cases hlen : (request.2.length == n) = true
-  · simp only [hlen, ↓reduceDIte, ↓reduceIte, mteCoins, mteFinish,
+  cases hlen : request.2.length == n <;>
+    simp [mteForgetfulOracle, RandomOracle.overwriteProgramHandler, hlen, mteCoins, mteFinish,
       Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.map, Function.comp_def, PMF.pure_bind]
-  · simp [hlen]
+      PMF.map, Function.comp_def]
 
 /-- Replacing the lazily sampled random function by a fresh pad for every query raises the
 probability that a final check accepts by at most `Q.choose 2 / 2 ^ m`: an instance of
@@ -362,25 +358,24 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
   refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
   dsimp only [macThenEncrypt, prfCipher]
   rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
-  by_cases hfresh : (!out.2.contains out.1) = true
-  · by_cases hlenCt : (out.1.length == 2 * ptLen n) = true
-    · have htakeLen : (out.1.take (ptLen n)).length = ptLen n := by
-        rw [List.length_take, beq_iff_eq.mp hlenCt]; omega
-      have hpadLen : (family ke (out.1.take (ptLen n))).length = ptLen n := by
-        rw [hlen _ _ (by rw [htakeLen, hkeLen]), hkeLen]
-      simp only [runWith_norm, pmf_norm, prfOracle, htakeLen, ↓reduceIte,
-        List.take_of_length_le hpadLen.le, hfresh, hlenCt, Bool.true_and, Option.elim,
-        mtePlaintextValid, hmsgLen]
-      congr 1
-      split_ifs with h
-      · rw [h]; rfl
-      · rw [Bool.not_eq_true] at h; rw [h]; rfl
-    · have hlenCt' : (out.1.length == 2 * ptLen n) = false := (Bool.not_eq_true _).mp hlenCt
-      simp only [hlenCt', Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm, hfresh,
-        Bool.true_and, Option.elim, Option.isSome_none]
-  · have hfresh' : (!out.2.contains out.1) = false := (Bool.not_eq_true _).mp hfresh
-    simp only [Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm, hfresh',
-      Bool.false_and]
+  by_cases hcond : (!out.2.contains out.1 && out.1.length == 2 * ptLen n) = true
+  · obtain ⟨hfresh, hlenCt⟩ := Bool.and_eq_true_iff.mp hcond
+    have htakeLen : (out.1.take (ptLen n)).length = ptLen n := by
+      rw [List.length_take, beq_iff_eq.mp hlenCt]; omega
+    have hpadLen : (family ke (out.1.take (ptLen n))).length = ptLen n := by
+      rw [hlen _ _ (by rw [htakeLen, hkeLen]), hkeLen]
+    simp only [runWith_norm, pmf_norm, prfOracle, htakeLen, ↓reduceIte,
+      List.take_of_length_le hpadLen.le, hfresh, hlenCt, Bool.true_and, Option.elim,
+      mtePlaintextValid, hmsgLen]
+    congr 1
+    split_ifs with h
+    · exact h
+    · exact (Bool.not_eq_true _).mp h
+  · simp only [hcond, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
+    rcases Bool.and_eq_false_iff.mp (Bool.eq_false_iff.mpr hcond) with hfresh | hlenCt
+    · simp only [hfresh, Bool.false_and]
+    · simp only [hlenCt, Bool.false_eq_true, ↓reduceIte, Option.elim,
+        Option.isSome_none, Bool.and_false]
 
 /-- The ideal PRF game of `mteCIToPrfDistinguisher` is the ciphertext-integrity game over a lazily
 sampled random function. -/
@@ -533,21 +528,7 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
     IsOraclePPT encBool (mteCIToPrfDistinguisher M ptLen adversary) := by
   have hparam : ComputableInPolyTime (GeneratorReindex.parameter ptLen) encUnary encUnary :=
     GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
-  let ECaller := encPair encUnary encBits
-  let EStateCaller := encPair ECaller encBits
-  have hhandler := isOraclePPTOn_mteCIToPrfHandler M ptLen hptLenPoly
-  have hprepare : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × List Bool =>
-        (GeneratorReindex.parameter ptLen p.1.1, ([] : List Bool)))
-      EStateCaller ECaller := by
-    dsimp only [EStateCaller, ECaller]
-    exact ((hparam.comp ((ComputableInPolyTime.fst encUnary encBits).comp
-      (ComputableInPolyTime.fst ECaller encBits))).prod
-      (ComputableInPolyTime.const ([] : List Bool)))
-  have hres : ComputableInPolyTime
-      (fun pair : ((ℕ × List Bool) × List Bool) × List Bool => 4 * pair.1.1.1 + 2)
-      (encPair EStateCaller encBits) encUnary := by
-    dsimp only [EStateCaller, ECaller]; fun_prop
+  let EStateCaller := encPair (encPair encUnary encBits) encBits
   have hrun : IsOraclePPTOn (Operation := Unit) EStateCaller (encPair encBits (encList encBits))
       (fun p : (ℕ × List Bool) × List Bool =>
         (OracleComp.interpret
@@ -563,18 +544,17 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
         (GeneratorReindex.parameter ptLen p.1.1, ([] : List Bool)))
       (initial := fun _ => ([] : List (List Bool)))
       (resources := fun p _ => 4 * p.1.1 + 2)
-      hprepare hhandler (ComputableInPolyTime.const [])
-      (fun _ _ => True) (fun _ => trivial) hres
+      (by dsimp only [EStateCaller]; fun_prop) (isOraclePPTOn_mteCIToPrfHandler M ptLen hptLenPoly)
+      (ComputableInPolyTime.const []) (fun _ _ => True) (fun _ => trivial)
+      (by dsimp only [EStateCaller]; fun_prop)
     intro p request log _ result hresult
     unfold mteCIToPrfHandler at hresult
     dsimp only at hresult
     split_ifs at hresult with hlenEq
     · obtain ⟨tag, _, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨r, hr, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
-      change r ∈ OracleComp.support
-        (ProbOracleComp.sample (BitString.sampleList p.1.1)) at hr
-      rw [ProbOracleComp.support_sample, BitString.eval_sampleList] at hr
-      have hrLen : r.length = p.1.1 := BitString.length_of_mem_support_uniformList hr
+      have hrLen : r.length = p.1.1 := BitString.length_of_mem_support_uniformList <| by
+        rwa [← BitString.eval_sampleList, ← ProbOracleComp.support_sample]
       obtain ⟨pad, hpad, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨rawPad, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hpad
       cases OracleComp.eq_of_mem_supportWith_pure hresult
@@ -587,49 +567,11 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
         lia
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, Nat.le_add_right _ _⟩
-  have hkm : IsOraclePPTOn (Operation := Unit) ECaller encBits
-      (fun caller : ℕ × List Bool =>
-        ProbOracleComp.sample (M.keyGen (GeneratorReindex.parameter ptLen caller.1))) :=
-    (M.keyGen_ppt.preprocess
-      (hparam.comp (ComputableInPolyTime.fst encUnary encBits))).isOraclePPTOn
-  have hpost := isOraclePPTOn_mteCIToPrfPost M ptLen hptLenPoly
-  have hinner : IsOraclePPTOn (Operation := Unit) EStateCaller encBool
-      (fun p : (ℕ × List Bool) × List Bool => do
-        let out ← (OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun u => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin u)))
-            (mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1) p.1.1 p.2))
-          (adversary (GeneratorReindex.parameter ptLen p.1.1) [])).run []
-        if !out.2.contains out.1 && out.1.length == 2 * p.1.1 then do
-          let pad ← List.take p.1.1 <$> ProbOracleComp.query ((), out.1.take p.1.1)
-          pure (mtePlaintextValid M (GeneratorReindex.parameter ptLen p.1.1) p.2
-            (List.zipWith xor pad (out.1.drop p.1.1)))
-        else
-          pure false) :=
-    hrun.bind_with hpost
-  have hbody : IsOraclePPTOn (Operation := Unit) ECaller encBool
-      (fun caller : ℕ × List Bool => do
-        let km ← ProbOracleComp.sample (M.keyGen (GeneratorReindex.parameter ptLen caller.1))
-        let out ← (OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun u => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin u)))
-            (mteCIToPrfHandler M (GeneratorReindex.parameter ptLen caller.1) caller.1 km))
-          (adversary (GeneratorReindex.parameter ptLen caller.1) [])).run []
-        if !out.2.contains out.1 && out.1.length == 2 * caller.1 then do
-          let pad ← List.take caller.1 <$> ProbOracleComp.query ((), out.1.take caller.1)
-          pure (mtePlaintextValid M (GeneratorReindex.parameter ptLen caller.1) km
-            (List.zipWith xor pad (out.1.drop caller.1)))
-        else
-          pure false) :=
-    hkm.bind_with hinner
-  have houterCond : ComputableInPolyTime
-      (fun caller : ℕ × List Bool => ptLen (GeneratorReindex.parameter ptLen caller.1) == caller.1)
-      ECaller encBool := by
-    polytime
-  have houterNo : IsOraclePPTOn (Operation := Unit) ECaller encBool
-      (fun _ : ℕ × List Bool => (pure false : WordOracleComp Unit Bool)) :=
-    (ComputableInPolyTime.const false).isOraclePPTOn (Operation := Unit)
   unfold mteCIToPrfDistinguisher
-  exact (IsOraclePPTOn.cond houterCond hbody houterNo).isOraclePPT
+  exact (IsOraclePPTOn.cond (by polytime)
+    ((M.keyGen_ppt.preprocess
+        (hparam.comp (ComputableInPolyTime.fst encUnary encBits))).isOraclePPTOn.bind_with
+      (hrun.bind_with (isOraclePPTOn_mteCIToPrfPost M ptLen hptLenPoly)))
+    (ComputableInPolyTime.const false).isOraclePPTOn).isOraclePPT
 
 end Cslib.Crypto

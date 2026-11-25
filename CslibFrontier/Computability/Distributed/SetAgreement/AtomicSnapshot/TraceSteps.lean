@@ -202,16 +202,12 @@ theorem TraceInv.of_complete {τ : SnapshotTrace ord dInit} {t : ℕ}
   have hlen_eq : (τ.stateAt (t + 1)).history.length = (τ.stateAt t).history.length := by
     rw [hset, List.length_set]
   have hnew_at : ∀ h₁ : activeId < (τ.stateAt (t + 1)).history.length,
-      (τ.stateAt (t + 1)).history[activeId]'h₁ = ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩ := by
-    intro h₁
-    rw [List.getElem_of_eq hset h₁]
-    exact List.getElem_set_self (by simp only [List.length_set]; exact hId)
+      (τ.stateAt (t + 1)).history[activeId]'h₁ = ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩ :=
+    fun h₁ => (List.getElem_of_eq hset h₁).trans (List.getElem_set_self _)
   have hunch : ∀ id (h₁ : id < (τ.stateAt (t + 1)).history.length)
       (h₀ : id < (τ.stateAt t).history.length), id ≠ activeId →
-      (τ.stateAt (t + 1)).history[id]'h₁ = (τ.stateAt t).history[id]'h₀ := by
-    intro id h₁ h₀ hne
-    rw [List.getElem_of_eq hset h₁]
-    exact List.getElem_set_ne (Ne.symm hne) (by simp only [List.length_set]; exact h₀)
+      (τ.stateAt (t + 1)).history[id]'h₁ = (τ.stateAt t).history[id]'h₀ :=
+    fun id h₁ _ hne => (List.getElem_of_eq hset h₁).trans (List.getElem_set_ne (Ne.symm hne) _)
   refine inv.of_actor_step i activeId hstepCount
     (fun p hp => by rw [hproc_eq, Function.update_of_ne hp])
     (by omega)

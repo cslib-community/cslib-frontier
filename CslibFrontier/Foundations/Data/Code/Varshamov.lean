@@ -90,20 +90,16 @@ theorem exists_mulVec_ne_zero_of_card_lt {B : Finset (ι → ZMod 2)} (h0 : 0 �
     obtain ⟨x, hx, hHx⟩ := hbad H
     exact mem_biUnion.2 ⟨x, hx, by simpa using hHx⟩
   have hle := (card_le_card hcover).trans card_biUnion_le
-  rw [sum_congr rfl fun x _ => card_filter_forall_mulVec_eq_zero {x} c] at hle
-  have hker (x : ι → ZMod 2) (hx : x ∈ B) :
-      #{r : ι → ZMod 2 | ∀ y ∈ ({x} : Finset _), r ⬝ᵥ y = 0} ^ c * 2 ^ c =
-        2 ^ (Fintype.card ι * c) := by
-    have h := card_filter_dotProduct_eq_zero_mul_two (ι := ι) (x := x) (by rintro rfl; exact h0 hx)
-    simp only [mem_singleton, forall_eq]
-    rw [← mul_pow, h, pow_mul]
   have hcard : Fintype.card (Matrix (Fin c) ι (ZMod 2)) = 2 ^ (Fintype.card ι * c) := by
     change Fintype.card (Fin c → ι → ZMod 2) = _
     simp [ZMod.card, ← pow_mul, mul_comm]
-  rw [card_univ, hcard] at hle
+  rw [sum_congr rfl fun x _ => card_filter_forall_mulVec_eq_zero {x} c, card_univ, hcard] at hle
   have hsum : (∑ x ∈ B, #{r : ι → ZMod 2 | ∀ y ∈ ({x} : Finset _), r ⬝ᵥ y = 0} ^ c) * 2 ^ c =
       #B * 2 ^ (Fintype.card ι * c) := by
-    rw [sum_mul, sum_congr rfl hker, sum_const, smul_eq_mul]
+    rw [sum_mul, sum_congr rfl fun x hx => ?_, sum_const, smul_eq_mul]
+    have h := card_filter_dotProduct_eq_zero_mul_two (ι := ι) (x := x) (fun hx0 => h0 (hx0 ▸ hx))
+    simp only [mem_singleton, forall_eq]
+    rw [← mul_pow, h, pow_mul]
   have := Nat.mul_le_mul_right (2 ^ c) hle
   rw [hsum, mul_comm #B] at this
   have := Nat.le_of_mul_le_mul_left this (by positivity)
@@ -119,20 +115,17 @@ theorem exists_linearMap_injective_and_le_hammingDist {δ : ℝ} (hδ₀ : 0 ≤
   have hlog : 0 < log 2 := log_pos one_lt_two
   have hH₀ : 0 ≤ binEntropy δ := binEntropy_nonneg hδ₀ (by linarith)
   have hnm : n ≤ m := by
-    have : (n : ℝ) ≤ m := h.trans (mul_le_of_le_one_right (Nat.cast_nonneg m)
+    exact_mod_cast h.trans (mul_le_of_le_one_right (Nat.cast_nonneg m)
       (sub_le_self _ (div_nonneg hH₀ hlog.le)))
-    exact_mod_cast this
   -- The nonzero words of weight less than `δ m`.
   set B : Finset (Fin m → ZMod 2) := {x | x ≠ 0 ∧ (hammingNorm x : ℝ) < δ * m}
   have hB : #B < 2 ^ (m - n) := by
-    set ball : Finset (Fin m → ZMod 2) := {y | hammingDist 0 y ≤ ⌊δ * m⌋₊}
-    have hsub : insert 0 B ⊆ ball := by
-      intro x hx
-      simp only [ball, mem_filter, mem_univ, true_and, hammingDist_zero_left]
-      rcases mem_insert.1 hx with rfl | hx
-      · simp
-      · exact Nat.le_floor (mem_filter.1 hx).2.2.le
-    have hcard := card_le_card hsub
+    have hcard := card_le_card (s := insert 0 B) (t := {y | hammingDist 0 y ≤ ⌊δ * m⌋₊})
+      fun x hx => by
+        simp only [mem_filter, mem_univ, true_and, hammingDist_zero_left]
+        rcases mem_insert.1 hx with rfl | hx
+        · simp
+        · exact Nat.le_floor (mem_filter.1 hx).2.2.le
     rw [card_insert_of_notMem (by simp [B])] at hcard
     have hvol := card_filter_hammingDist_le_le_exp_mul_qaryEntropy (β := fun _ : Fin m => ZMod 2)
       (q := 2) (fun _ => ZMod.card 2) 0 (α := δ) (by norm_num; linarith)
@@ -160,17 +153,15 @@ theorem exists_linearMap_injective_and_le_hammingDist {δ : ℝ} (hδ₀ : 0 ≤
   set z := ((parityCheckCode H).subtype ∘ₗ f) (y - x)
   have hz : z ≠ 0 := fun h0 => hxy.symm (sub_eq_zero.1 (Subtype.val_injective.comp hf (by
     simpa [z] using h0)))
-  have hzd : hammingDist (((parityCheckCode H).subtype ∘ₗ f) x)
-      (((parityCheckCode H).subtype ∘ₗ f) y) = hammingNorm z := by
-    rw [_root_.hammingDist_eq_hammingNorm, neg_add_eq_sub, ← map_sub]
-  exact hH z (mem_filter.2 ⟨mem_univ _, hz, hzd ▸ hlt⟩) (mem_parityCheckCode.1 (f (y - x)).2)
+  rw [_root_.hammingDist_eq_hammingNorm, neg_add_eq_sub, ← map_sub] at hlt
+  exact hH z (mem_filter.2 ⟨mem_univ _, hz, hlt⟩) (mem_parityCheckCode.1 (f (y - x)).2)
 
 /-- `1 - H(δ)` is positive for `0 ≤ δ < 1 / 2`. -/
 private theorem sub_binEntropy_div_log_two_pos {δ : ℝ} (hδ : δ < 1 / 2) :
     0 < 1 - binEntropy δ / log 2 := by
-  have hlt : binEntropy δ < log 2 := binEntropy_lt_log_two.2 (by norm_num; linarith)
-  rw [sub_pos, div_lt_one (log_pos one_lt_two)]
-  exact hlt
+  rw [sub_pos, div_lt_one (log_pos one_lt_two), binEntropy_lt_log_two]
+  norm_num at hδ ⊢
+  linarith
 
 /-- **Constant-rate codes exist** [Arora and Barak, Lemma 17.9][AroraBarak09]. For `0 ≤ δ < 1 / 2`
 and every `n`, there is an injective map `E : {0,1}ⁿ → {0,1}ᵐ`, here linear, with
@@ -200,10 +191,9 @@ binary entropy in bits. The draft states this for large `n` and leaves the lengt
 theorem exists_linearMap_ceil_div {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ : δ < 1 / 2) (n : ℕ) :
     ∃ E : (Fin n → ZMod 2) →ₗ[ZMod 2] (Fin ⌈n / (1 - binEntropy δ / log 2)⌉₊ → ZMod 2),
       Function.Injective E ∧ ∀ x y, x ≠ y →
-        δ * ⌈n / (1 - binEntropy δ / log 2)⌉₊ ≤ hammingDist (E x) (E y) := by
-  have ha := sub_binEntropy_div_log_two_pos hδ
-  refine exists_linearMap_injective_and_le_hammingDist hδ₀ hδ.le ?_
-  exact (div_le_iff₀ ha).1 (Nat.le_ceil _)
+        δ * ⌈n / (1 - binEntropy δ / log 2)⌉₊ ≤ hammingDist (E x) (E y) :=
+  exists_linearMap_injective_and_le_hammingDist hδ₀ hδ.le
+    ((div_le_iff₀ (sub_binEntropy_div_log_two_pos hδ)).1 (Nat.le_ceil _))
 
 /-- **Linear codes** [Arora and Barak, Exercise 17.10(b)][AroraBarak09], corrected. For
 `0 ≤ δ < 1 / 2` and every `n`, there is an injective linear map `E : {0,1}ⁿ → {0,1}ᵐ` with

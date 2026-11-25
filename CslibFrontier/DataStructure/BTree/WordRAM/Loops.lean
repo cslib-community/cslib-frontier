@@ -150,24 +150,18 @@ theorem copyArrayCode_spec {w srcBase dstBase N : ℕ} {x : Data 20}
   obtain ⟨hi, ht1, ht2⟩ := hnot
   by_cases hor : reg = rOne
   · subst hor; exact ho.symm
-  · dsimp only [y]
-    rw [Data.set_regs_of_ne hor]
-    by_cases hs : reg = rSrc
-    · subst hs; exact hzs.trans hsrc.symm
-    · by_cases hd : reg = rDst
-      · subst hd; exact hzd.trans hdst.symm
-      · by_cases hl : reg = rLim
-        · subst hl; exact hzl.trans hlim.symm
-        · refine hframe reg (fun j => ?_)
-          rcases j with ⟨_ | _ | _ | _ | _ | _ | _ | j, hj⟩
-          · exact Ne.symm hs
-          · exact Ne.symm hd
-          · exact Ne.symm hl
-          · exact Ne.symm hi
-          · exact Ne.symm ht1
-          · exact Ne.symm ht2
-          · exact Ne.symm hor
-          · omega
+  dsimp only [y]
+  rw [Data.set_regs_of_ne hor]
+  by_cases hs : reg = rSrc
+  · subst hs; exact hzs.trans hsrc.symm
+  by_cases hd : reg = rDst
+  · subst hd; exact hzd.trans hdst.symm
+  by_cases hl : reg = rLim
+  · subst hl; exact hzl.trans hlim.symm
+  refine hframe reg (fun j => ?_)
+  rcases j with ⟨_ | _ | _ | _ | _ | _ | _ | j, hj⟩
+  exacts [Ne.symm hs, Ne.symm hd, Ne.symm hl, Ne.symm hi, Ne.symm ht1, Ne.symm ht2, Ne.symm hor,
+    by omega]
 
 private def shiftBody : Code .standard 20 := ram[
   rTmp1 ← rDst - rIdx;
@@ -381,17 +375,14 @@ private theorem loadNodeHeader_spec {w base capNodes t u : ℕ} {x : Data 20}
         y.regs reg = x.regs reg := by
   have ha_le : nodeAddr base t u + 6 * t ≤ base + arenaWords t capNodes :=
     nodeAddr_add_le_arena hu_cap le_rfl
-  have hf_mul : Fits w (u * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at ha_le; omega)
-  have hf_b0 : Fits w (base + u * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at ha_le; omega)
-  have hf_b1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at ha_le; omega)
+  have hna_eq : base + u * (6 * t) + 1 + 1 = nodeAddr base t u := by
+    simp only [nodeAddr, nodeStride]; omega
+  have hf_mul : Fits w (u * (6 * t)) := hfit.of_le (by omega)
+  have hf_b0 : Fits w (base + u * (6 * t)) := hfit.of_le (by omega)
+  have hf_b1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by omega)
   have hf_au : Fits w (nodeAddr base t u) := hfit.of_le (by omega)
   have hf_au1 : Fits w (nodeAddr base t u + 1) := hfit.of_le (by omega)
   have hf_au2 : Fits w (nodeAddr base t u + 2) := hfit.of_le (by omega)
-  have hna_eq : base + u * (6 * t) + 1 + 1 = nodeAddr base t u := by
-    simp only [nodeAddr, nodeStride]; omega
   let m := numKeys base t x.mem u
   let y : Data 20 :=
     (((((((x.set rSrc (u * (6 * t))).set rSrc (base + u * (6 * t))).set rSrc

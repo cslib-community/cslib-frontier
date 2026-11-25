@@ -89,50 +89,36 @@ theorem littlestoneDim_add_one_le_of_soa_ne [Nonempty β] (C : ConceptClass α �
     littlestoneDim (versionSpace C (h ++ [(x, y)])) + 1 ≤ littlestoneDim (versionSpace C h) := by
   classical
   by_cases hex : ∃ y₀ : β, IsMaxBranch C h x y₀
-  · have hsoa : soa C h x = hex.choose := dite_eq_left hex
-    set y₀ := hex.choose
-    have hne₀ : y ≠ y₀ := fun h => hne (hsoa.trans h.symm)
-    obtain ⟨hy₀, hle⟩ := hex.choose_spec
-    have hy' : (versionSpace (versionSpace C h) [(x, y)]).Nonempty := by
-      rwa [← versionSpace_append]
-    have hy₀' : (versionSpace (versionSpace C h) [(x, y₀)]).Nonempty := by
-      rwa [← versionSpace_append]
-    have hmin := min_littlestoneDim_add_one_le (versionSpace C h) x hne₀ hy' hy₀'
-    simp only [← versionSpace_append] at hmin
-    rwa [min_eq_left (hle y hy)] at hmin
-  · have hstep : ∀ z : β, (versionSpace C (h ++ [(x, z)])).Nonempty →
-        ∃ z' : β, (versionSpace C (h ++ [(x, z')])).Nonempty ∧
+  · obtain ⟨hy₀, hle⟩ := hex.choose_spec
+    have hne₀ : y ≠ hex.choose := fun h => hne ((dite_eq_left hex).trans h.symm)
+    have hmin := min_littlestoneDim_add_one_le (versionSpace C h) x hne₀
+      (by rwa [← versionSpace_append]) (by rwa [← versionSpace_append])
+    simpa only [← versionSpace_append, min_eq_left (hle y hy)] using hmin
+  · have hstep (z : β) (hz : (versionSpace C (h ++ [(x, z)])).Nonempty) :
+        ∃ z', (versionSpace C (h ++ [(x, z')])).Nonempty ∧
           littlestoneDim (versionSpace C (h ++ [(x, z)])) <
             littlestoneDim (versionSpace C (h ++ [(x, z')])) := by
-      intro z hz
       have hnot : ¬ IsMaxBranch C h x z := fun hm => hex ⟨z, hm⟩
-      simp only [IsMaxBranch, not_and, not_forall, not_le] at hnot
-      obtain ⟨z', hz', hlt⟩ := hnot hz
-      exact ⟨z', hz', hlt⟩
-    have hchain : ∀ n : ℕ, ∃ z : β, (versionSpace C (h ++ [(x, z)])).Nonempty ∧
+      simp only [IsMaxBranch, not_and, not_forall, not_le, exists_prop] at hnot
+      exact hnot hz
+    have hchain (n : ℕ) : ∃ z, (versionSpace C (h ++ [(x, z)])).Nonempty ∧
         (n : ℕ∞) ≤ littlestoneDim (versionSpace C (h ++ [(x, z)])) := by
-      intro n
       induction n with
       | zero => exact ⟨y, hy, bot_le⟩
       | succ n ih =>
         obtain ⟨z, hz, hnz⟩ := ih
         obtain ⟨z', hz', hlt⟩ := hstep z hz
         exact ⟨z', hz', Order.add_one_le_of_lt (hnz.trans_lt hlt)⟩
-    have htop : littlestoneDim (versionSpace C h) = ⊤ := by
-      refine ENat.eq_top_iff_forall_ge.mpr fun n => ?_
-      obtain ⟨z₀, hz₀, hn₀⟩ := hchain n
-      obtain ⟨z₁, hz₁, hlt⟩ := hstep z₀ hz₀
-      have hne01 : z₀ ≠ z₁ := fun heq => (heq ▸ hlt).false
-      have hz₀' : (versionSpace (versionSpace C h) [(x, z₀)]).Nonempty := by
-        rwa [← versionSpace_append]
-      have hz₁' : (versionSpace (versionSpace C h) [(x, z₁)]).Nonempty := by
-        rwa [← versionSpace_append]
-      have hmin := min_littlestoneDim_add_one_le (versionSpace C h) x hne01 hz₀' hz₁'
-      simp only [← versionSpace_append] at hmin
-      rw [min_eq_left hlt.le] at hmin
-      exact hn₀.trans ((le_self_add).trans hmin)
-    rw [htop]
-    exact le_top
+    have htop : littlestoneDim (versionSpace C h) = ⊤ :=
+      ENat.eq_top_iff_forall_ge.mpr fun n => by
+        obtain ⟨z₀, hz₀, hn₀⟩ := hchain n
+        obtain ⟨z₁, hz₁, hlt⟩ := hstep z₀ hz₀
+        have hmin := min_littlestoneDim_add_one_le (versionSpace C h) x (y₀ := z₀) (y₁ := z₁)
+          (fun heq => (heq ▸ hlt).false) (by rwa [← versionSpace_append])
+          (by rwa [← versionSpace_append])
+        simp only [← versionSpace_append, min_eq_left hlt.le] at hmin
+        exact hn₀.trans (le_self_add.trans hmin)
+    simp [htop]
 
 section MistakeBound
 
@@ -150,29 +136,24 @@ theorem mistakesFrom_soa_le (C : ConceptClass α β) (h S : List (α × β))
     obtain ⟨x, y⟩ := p
     have hS' : Realizable C ((h ++ [(x, y)]) ++ S) := by simpa using hS
     have ih' := ih _ hS'
-    have hy : (versionSpace C (h ++ [(x, y)])).Nonempty := by
-      obtain ⟨c, hc⟩ := hS'
-      rw [versionSpace_append] at hc
-      exact ⟨c, hc.1⟩
+    obtain ⟨c, hc⟩ := hS'
+    rw [versionSpace_append] at hc
     rw [mistakesFrom_cons]
     split
-    · rw [zero_add]
-      refine ih'.trans (littlestoneDim_mono ?_)
-      rw [versionSpace_append]
-      exact versionSpace_subset _ _
+    · simpa only [zero_add] using
+        ih'.trans (littlestoneDim_mono (versionSpace_append .. ▸ versionSpace_subset _ _))
     · rename_i hne
-      have hdrop := littlestoneDim_add_one_le_of_soa_ne C h x y hne hy
       push_cast
       rw [add_comm]
       calc ((mistakesFrom (soa C) (h ++ [(x, y)]) S : ℕ∞) + 1)
           ≤ littlestoneDim (versionSpace C (h ++ [(x, y)])) + 1 := by gcongr
-        _ ≤ _ := hdrop
+        _ ≤ _ := littlestoneDim_add_one_le_of_soa_ne C h x y hne ⟨c, hc.1⟩
 
 theorem mistakeBound_soa_le (C : ConceptClass α β) :
     mistakeBound (soa C) C ≤ littlestoneDim C :=
   mistakeBound_le_iff.mpr fun S hS => by
-    have := mistakesFrom_soa_le C [] S (by simpa using hS)
-    rwa [versionSpace_nil] at this
+    have h := mistakesFrom_soa_le C [] S (by simpa using hS)
+    rwa [versionSpace_nil] at h
 
 /-- SOA makes exactly `littlestoneDim C` mistakes in the worst case. -/
 theorem mistakeBound_soa (C : ConceptClass α β) :
