@@ -132,8 +132,7 @@ theorem exec_input {w L A B : ℕ} (hw : 0 < w) (a b : Fin (10 ^ L) → ℤ)
     (by intro v; rw [humem]; exact hright _)
     (by unfold scratchBase outputBase; omega) (by unfold scratchBase outputBase; omega)
     (by unfold outputBase; omega) (by unfold scratchBase; omega)
-    (fun q _ => by
-      rw [humem, hzero _ (by rw [length_input]; unfold scratchBase outputBase; omega)])
+    (fun q _ => by rw [humem, hzero _ (by rw [length_input]; unfold scratchBase outputBase; omega)])
     (fun v => ha _) (fun v => hb _) hw hmag
     (haddr.of_le (evaluationBudget_input_le L qs.length))
   have he : ExecWithin (w + 2) program x y (timeBound qs) := by
