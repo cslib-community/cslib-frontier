@@ -5128,35 +5128,6 @@ private theorem romExtractedIssuerHandler_invariant
         obtain ⟨_, rfl, rfl⟩ := hstep
         exact hinv
 
-private theorem rom_findNoteForgery_eq_none_iff [DecidableEq Nullifier] [DecidableEq Context]
-    (reqs : List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)) :
-    AnonymousToken.Conservation.findNoteForgery reqs = none ↔
-      ∀ s ∈ AnonymousToken.Conservation.spends reqs,
-        s.inputNote ∈ reqs.map (fun r => r.outputPayload.message) := by
-  simp only [AnonymousToken.Conservation.findNoteForgery, List.findSome?_eq_none_iff]
-  constructor
-  · intro h s hs
-    by_contra hnot
-    have := h s hs
-    simp [hnot] at this
-  · intro h s hs
-    simp [h s hs]
-
-private theorem rom_findNoteForgery_eq_some [DecidableEq Nullifier] [DecidableEq Context]
-    {reqs : List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)}
-    {tok : AnonymousToken.Token (AnonymousToken.Credit.Note Nullifier Context) Opening Sig}
-    (h : AnonymousToken.Conservation.findNoteForgery reqs = some tok) :
-    ∃ s ∈ AnonymousToken.Conservation.spends reqs,
-      tok = ⟨s.inputPayload, s.signature⟩ ∧
-        s.inputNote ∉ reqs.map (fun r => r.outputPayload.message) := by
-  simp only [AnonymousToken.Conservation.findNoteForgery, List.findSome?_eq_some_iff] at h
-  obtain ⟨prefixSp, s, suffixSp, hsp, hfound, _⟩ := h
-  by_cases hmem : s.inputNote ∈ reqs.map (fun r => r.outputPayload.message)
-  · simp [hmem] at hfound
-  · simp only [hmem, ↓reduceIte, Option.some.injEq] at hfound
-    refine ⟨s, ?_, hfound.symm, hmem⟩
-    rw [hsp]; simp
-
 private theorem rom_worldGame_targetForger_eq
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     [DecidableEq Query] [Fintype Digest] [Nonempty Digest]
@@ -5509,13 +5480,13 @@ theorem romExtractedConservationExperiment_succProbability_le
       cases hfn : AnonymousToken.Conservation.findNoteForgery accepted with
       | none =>
         exfalso
-        have hcert := (rom_findNoteForgery_eq_none_iff accepted).mp hfn
+        have hcert := (AnonymousToken.Conservation.findNoteForgery_eq_none_iff accepted).mp hfn
         have hle := AnonymousToken.Conservation.spentDebit_le_of_certified accepted hbal hinv.2
           hcert ctx
         have hlt := of_decide_eq_true hwin
         exact (Nat.not_le.mpr hlt) hle
       | some tok =>
-        obtain ⟨s, hs, rfl, hnotmem⟩ := rom_findNoteForgery_eq_some hfn
+        obtain ⟨s, hs, rfl, hnotmem⟩ := AnonymousToken.Conservation.findNoteForgery_eq_some hfn
         let tgt := AnonymousToken.Credit.target com Prod.mk s.inputNote s.oldOpening
         by_cases hmem_tgt : (accepted.map (fun r => r.signedMessage Prod.mk)).contains tgt
         · -- Case 2: target collision -> commitment binding collision!
