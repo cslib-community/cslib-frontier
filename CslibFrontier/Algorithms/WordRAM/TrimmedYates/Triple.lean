@@ -108,14 +108,9 @@ theorem runTransformTriple_preserves (i : Fin numRegs) :
     ¬ IsTripleMod i → runTransformTriple.Preserves i := by
   intro hi
   have hst : ¬ IsStageMod i := fun hs => hi (Or.inl hs)
-  exact ⟨by clear hst; revert i hi; decide +kernel,
-    stagesCode_preserves i hst,
-    by clear hst; revert i hi; decide +kernel,
-    stagesCode_preserves i hst,
-    by clear hst; revert i hi; decide +kernel,
-    tabulateMul_preserves i (fun ht => hst (Or.inl ht)),
-    by clear hst; revert i hi; decide +kernel,
-    stagesCode_preserves i hst⟩
+  refine ⟨?_, stagesCode_preserves i hst, ?_, stagesCode_preserves i hst, ?_,
+    tabulateMul_preserves i (fun ht => hst (Or.inl ht)), ?_, stagesCode_preserves i hst⟩ <;>
+    clear hst <;> revert i hi <;> decide +kernel
 
 /-- Trie tables stored at `pre + k` below `lo` survive any change of memory at or above `lo`. -/
 private theorem tables_transport {d lo hi pre : ℕ} {m m' : ℕ → ℕ} {K : ℕ → Prop}
