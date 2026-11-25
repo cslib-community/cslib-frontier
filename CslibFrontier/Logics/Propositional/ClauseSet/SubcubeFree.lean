@@ -170,8 +170,7 @@ theorem card_compl_isolatedDirections_le {ψ : ClauseSet (Fin N)} {Δ D : ℕ}
     (hx : x ∈ ψ.solutions) :
     (univ \ isolatedDirections ψ.solutions x).card ≤ (D - 1) * (Δ + 1) := by
   set NI := univ \ isolatedDirections ψ.solutions x with hNI
-  have hmemNI : ∀ i, i ∈ NI ↔ flipOn {i} x ∈ ψ.solutions := by
-    intro i
+  have hmemNI : ∀ i, i ∈ NI ↔ flipOn {i} x ∈ ψ.solutions := fun i => by
     simp [hNI, isolatedDirections]
   let Ind : Finset (Finset (Fin N)) := NI.powerset.filter fun M =>
     ∀ u ∈ M, ∀ w ∈ M, u ≠ w → w ∉ ψ.neighbors u
@@ -182,8 +181,7 @@ theorem card_compl_isolatedDirections_le {ψ : ClauseSet (Fin N)} {Δ D : ℕ}
   have hmove : ∀ i ∈ M, flipOn {i} x ∈ ψ.solutions := fun i hi => (hmemNI i).mp (hMNI hi)
   -- the independent set is small
   have hMcard : M.card ≤ D - 1 := by
-    by_contra hlt
-    push Not at hlt
+    by_contra! hlt
     obtain ⟨J, hJM, hJcard⟩ := exists_subset_card_eq (s := M) (n := D) (by omega)
     exact hfree ⟨x, J, hJcard, fun T hT =>
       flipOn_mem_solutions_of_independent hx hmove hMind (hT.trans hJM)⟩
@@ -193,22 +191,16 @@ theorem card_compl_isolatedDirections_le {ψ : ClauseSet (Fin N)} {Δ D : ℕ}
     by_cases hiM : i ∈ M
     · exact mem_union_left _ hiM
     · refine mem_union_right _ (mem_biUnion.mpr ?_)
-      by_contra hnone
-      push Not at hnone
+      by_contra! hnone
       have hins : insert i M ∈ Ind := by
         simp only [Ind, mem_filter, mem_powerset]
         refine ⟨insert_subset hi hMNI, fun u hu w hw hne => ?_⟩
         rw [mem_insert] at hu hw
-        by_cases hui : u = i
-        · subst hui
-          rcases hw with hwi | hwM
-          · exact absurd hwi.symm hne
-          · exact fun h => hnone w hwM (mem_neighbors_comm.mp h)
-        · have huM : u ∈ M := hu.resolve_left hui
-          by_cases hwi : w = i
-          · subst hwi
-            exact hnone u huM
-          · exact hMind u huM w (hw.resolve_left hwi) hne
+        rcases hu with rfl | huM <;> rcases hw with rfl | hwM
+        · exact absurd rfl hne
+        · exact fun h => hnone w hwM (mem_neighbors_comm.mp h)
+        · exact hnone u huM
+        · exact hMind u huM w hwM hne
       have := hmax _ hins
       rw [card_insert_of_notMem hiM] at this
       omega
