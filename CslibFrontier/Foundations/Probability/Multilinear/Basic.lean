@@ -180,7 +180,8 @@ omit [Fintype ι] in
 theorem multilinearDerivCoeff_eq_zero_of_card_lt {c : Finset ι → ℝ} {k : ℕ}
     (hc : ∀ S, k + 1 < #S → c S = 0) (i : ι) (S : Finset ι) (hS : k < #S) :
     multilinearDerivCoeff c i S = 0 := by
-  rw [multilinearDerivCoeff]; split_ifs with h
+  rw [multilinearDerivCoeff]
+  split_ifs with h
   · rfl
   · exact hc _ (by rw [card_insert_of_notMem h]; omega)
 
@@ -247,7 +248,8 @@ omit [Fintype ι] in
 theorem multilinearExpectCoeff_eq_zero_of_not_subset {c : Finset ι → ℝ} {i : ι} {T : Finset ι}
     (hc : ∀ S, ¬ S ⊆ insert i T → c S = 0) (S : Finset ι) (hS : ¬ S ⊆ T) :
     multilinearExpectCoeff c i S = 0 := by
-  rw [multilinearExpectCoeff]; split_ifs with h
+  rw [multilinearExpectCoeff]
+  split_ifs with h
   · rfl
   · exact hc S (by rwa [subset_insert_iff_of_notMem h])
 
@@ -256,7 +258,8 @@ omit [Fintype ι] in
 theorem multilinearDerivCoeff_eq_zero_of_not_subset {c : Finset ι → ℝ} {i : ι} {T : Finset ι}
     (hc : ∀ S, ¬ S ⊆ insert i T → c S = 0) (S : Finset ι) (hS : ¬ S ⊆ T) :
     multilinearDerivCoeff c i S = 0 := by
-  rw [multilinearDerivCoeff]; split_ifs with h
+  rw [multilinearDerivCoeff]
+  split_ifs with h
   · rfl
   · exact hc _ (by rwa [insert_subset_insert_iff h])
 

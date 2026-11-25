@@ -69,11 +69,12 @@ theorem Recurrence.eq_of_initial {ℓ : ℕ} {c : ℝ} {x y : ℕ → ℝ}
 /-- At parameter one, a path solution is affine in its vertex index. -/
 theorem Recurrence.affine_identity {ℓ : ℕ} {x : ℕ → ℝ} (hx : Recurrence ℓ 1 x) :
     ∀ j : ℕ, j ≤ ℓ → x j = x 0 + (j : ℝ) * (x 1 - x 0) :=
-  Nat.twoStepInduction (by simp) (by simp) fun j ih₀ ih₁ hj => by
-    have h₀ := ih₀ (by omega)
-    have h₁ := ih₁ (by omega)
-    simp only [Nat.cast_add, Nat.cast_ofNat, Nat.cast_one] at h₀ h₁ ⊢
-    linear_combination hx j hj + 2 * h₁ - h₀
+  Nat.twoStepInduction (by simp) (by simp)
+    fun j ih₀ ih₁ hj => by
+      have h₀ := ih₀ (by omega)
+      have h₁ := ih₁ (by omega)
+      simp only [Nat.cast_add, Nat.cast_ofNat, Nat.cast_one] at h₀ h₁ ⊢
+      linear_combination hx j hj + 2 * h₁ - h₀
 
 /-- The first-neighbor identity at parameter one, where sine interpolation has a zero
 denominator. -/
@@ -116,12 +117,13 @@ theorem Recurrence.sin_identity {ℓ : ℕ} {θ : ℝ} {x : ℕ → ℝ}
     ∀ j : ℕ, j ≤ ℓ →
       Real.sin θ * x j =
         Real.sin ((j : ℝ) * θ) * x 1 - Real.sin ((j : ℝ) * θ - θ) * x 0 :=
-  Nat.twoStepInduction (by simp) (by simp) fun j ih₀ ih₁ hj => by
-    have hs := sin_affine_step 0 θ j
-    have ht := sin_affine_step (-θ) θ j
-    simp only [zero_add, neg_add_eq_sub] at hs ht
-    linear_combination Real.sin θ * hx j hj + 2 * Real.cos θ * ih₁ (by omega) - ih₀ (by omega) -
-      x 1 * hs + x 0 * ht
+  Nat.twoStepInduction (by simp) (by simp)
+    fun j ih₀ ih₁ hj => by
+      have hs := sin_affine_step 0 θ j
+      have ht := sin_affine_step (-θ) θ j
+      simp only [zero_add, neg_add_eq_sub] at hs ht
+      linear_combination Real.sin θ * hx j hj + 2 * Real.cos θ * ih₁ (by omega) - ih₀ (by omega) -
+        x 1 * hs + x 0 * ht
 
 /-- The first internal value in terms of the two endpoints, away from Dirichlet resonance. -/
 theorem Recurrence.first_eq {ℓ : ℕ} {θ : ℝ} {x : ℕ → ℝ}
@@ -129,10 +131,14 @@ theorem Recurrence.first_eq {ℓ : ℕ} {θ : ℝ} {x : ℕ → ℝ}
     x 1 = Real.cos θ * x 0 +
       (Real.sin θ / Real.sin ((ℓ : ℝ) * θ)) *
         (x ℓ - Real.cos ((ℓ : ℝ) * θ) * x 0) := by
-  rw [show x 1 = (Real.sin θ * x ℓ + Real.sin ((ℓ : ℝ) * θ - θ) * x 0) / Real.sin ((ℓ : ℝ) * θ)
-    from (eq_div_iff hSin).2 (by linarith [hx.sin_identity ℓ le_rfl]), Real.sin_sub]
-  field_simp
-  ring
+  calc
+    x 1 = (Real.sin θ * x ℓ + Real.sin ((ℓ : ℝ) * θ - θ) * x 0) /
+        Real.sin ((ℓ : ℝ) * θ) :=
+      (eq_div_iff hSin).2 (by linarith [hx.sin_identity ℓ le_rfl])
+    _ = _ := by
+      rw [Real.sin_sub]
+      field_simp
+      ring
 
 /-- The sine interpolation of values `a` and `b` at positions zero and `ℓ`. -/
 @[expose] noncomputable def sineInterpolation (ℓ : ℕ) (θ a b : ℝ) (j : ℕ) : ℝ :=
@@ -159,7 +165,8 @@ theorem sineInterpolation_recurrence (ℓ : ℕ) (θ a b : ℝ) :
   have hright := sin_affine_step 0 θ j
   simp only [Real.cos_neg, mul_neg, ← sub_eq_add_neg, zero_add] at hleft hright
   dsimp only [sineInterpolation]
-  linear_combination (a / Real.sin ((ℓ : ℝ) * θ)) * hleft + (b / Real.sin ((ℓ : ℝ) * θ)) * hright
+  linear_combination (a / Real.sin ((ℓ : ℝ) * θ)) * hleft +
+    (b / Real.sin ((ℓ : ℝ) * θ)) * hright
 
 /-- A solution of the nonresonant path equation is its endpoint sine interpolant. -/
 theorem Recurrence.eq_sineInterpolation {ℓ : ℕ} {θ : ℝ} {x : ℕ → ℝ}
@@ -184,8 +191,9 @@ theorem sin_chord_le {z τ : ℝ} (hz : 0 ≤ z) (hzτ : z ≤ τ)
     (sub_nonneg.2 ((div_le_one hτ).2 hzτ)) (div_nonneg hz hτ.le) (by ring)
   have hchord : (z / τ) * Real.sin τ ≤ Real.sin z := by
     simpa [div_mul_cancel₀ _ hτ.ne'] using hconc
-  exact (by field_simp : z * Real.sin τ = τ * ((z / τ) * Real.sin τ)) ▸
-    mul_le_mul_of_nonneg_left hchord hτ.le
+  calc
+    z * Real.sin τ = τ * ((z / τ) * Real.sin τ) := by field_simp
+    _ ≤ τ * Real.sin z := mul_le_mul_of_nonneg_left hchord hτ.le
 
 /-- A uniform bound on the transfer coefficient for lengths up to the angle τ < π. -/
 theorem transferWeight_le {L θ τ : ℝ} (hL : 0 < L) (hθ : 0 < θ)

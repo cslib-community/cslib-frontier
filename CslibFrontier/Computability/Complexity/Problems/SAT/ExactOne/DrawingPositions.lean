@@ -178,9 +178,11 @@ theorem positivePositionTable_covers (φ : CNF ℕ) (d : Graph.OrthogonalDrawing
     ⟨p, List.mem_append.mpr (Or.inr (List.mem_flatMap.mpr ⟨(c, i), hci, hp⟩))⟩
   rcases w with (j | _) | _
   · have hj : j < c.length := hscope.trans_le (profileSource_length_le c)
-    have hvar : (c.getD j (0, true)).1 ∈ φ.vars := CNF.mem_vars.mpr
-      ⟨c, List.fst_mem_of_mem_zipIdx hci, (c.getD j (0, true)).2, by
-        rw [List.getD_eq_getElem _ _ hj]; exact List.getElem_mem hj⟩
+    have hmem : c.getD j (0, true) ∈ c := by
+      rw [List.getD_eq_getElem _ _ hj]
+      exact List.getElem_mem hj
+    have hvar : (c.getD j (0, true)).1 ∈ φ.vars :=
+      CNF.mem_vars.mpr ⟨c, List.fst_mem_of_mem_zipIdx hci, (c.getD j (0, true)).2, hmem⟩
     exact ⟨positiveScale • Graph.drawingPosition (SAT.incidenceGraph φ) d
       (φ.distinctVars.idxOf (c.getD j (0, true)).1) + positiveTranslation,
       List.mem_append.mpr (Or.inl (List.mem_map.mpr ⟨_, CNF.mem_distinctVars.mpr hvar, rfl⟩))⟩

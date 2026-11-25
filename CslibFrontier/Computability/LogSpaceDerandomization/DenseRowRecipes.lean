@@ -45,7 +45,8 @@ theorem mul_routedBinCutoff {χ route : ℝ → ℝ} {b : ℕ → ℝ} {i : ℕ}
     (hb : b i ≠ 0) (w : ℝ) :
     b i * routedBinCutoff χ b i route (w / b i) =
       w * Cslib.binWeight χ b i w * route w := by
-  simp only [routedBinCutoff, mul_div_cancel₀ _ hb]; field_simp
+  simp only [routedBinCutoff, mul_div_cancel₀ _ hb]
+  field_simp
 
 /-- Finite coverage of the true entry suffices; a zero entry needs no positive lower cutoff. -/
 theorem sum_routedBinCutoff {χ route : ℝ → ℝ} {b : ℕ → ℝ} (n : ℕ)
@@ -69,7 +70,8 @@ terminal/usage tuples. Direct and right children may be different estimates of t
 /-- Substitution of exact children recovers the existing matrix expression. -/
 theorem residual_eq {V : Type*} [Fintype V] (C E : Matrix V V ℝ) :
     residual C E E C = C - E + E * C := by
-  ext x y; rfl
+  ext x y
+  rfl
 
 end CorrectionRowRecipe
 
@@ -105,12 +107,16 @@ theorem boundedRoutedBinCutoff_eq_zero {χ : ℝ → ℝ} {b : ℕ → ℝ} {cap
   cases i with
   | zero =>
     have hc : min cap (max 0 d) ≤ 1 / 2 := by
-      rw [max_eq_right hd0]; exact (min_le_right _ _).trans hd
+      rw [max_eq_right hd0]
+      exact (min_le_right _ _).trans hd
     simp [boundedRoutedBinCutoff, routedBinCutoff, Cslib.binWeight,
       mul_div_cancel_left₀ _ (hb 0).ne', hχ0 _ hc]
   | succ i =>
-    have hu : b (i + 1) * d / b i ≤ 1 / 2 := (div_le_iff₀ (hb i)).mpr <|
-      (mul_le_mul_of_nonneg_left hd (hb _).le).trans <| by nlinarith [hanti (Nat.le_succ i)]
+    have hu : b (i + 1) * d / b i ≤ 1 / 2 := by
+      apply (div_le_iff₀ (hb i)).mpr
+      calc
+        b (i + 1) * d ≤ b (i + 1) * (1 / 2) := mul_le_mul_of_nonneg_left hd (hb _).le
+        _ ≤ (1 / 2) * b i := by nlinarith [hanti (Nat.le_succ i)]
     simp [boundedRoutedBinCutoff, not_lt.mpr hd0, routedBinCutoff, Cslib.binWeight,
       mul_div_cancel_left₀ _ (hb (i + 1)).ne', hχ0 _ hd, hχ0 _ hu]
 
@@ -146,7 +152,8 @@ theorem boundedRoutedBinCutoff_mem_Icc {χ : ℝ → ℝ} {b : ℕ → ℝ} {cap
       (Cslib.binWeight_nonneg hχ (hχ0 _ (by norm_num)) hb hanti (k := j)
         (mul_nonneg (hb j).le hv))
     exact ⟨mul_nonneg hp0 (hr _).1,
-      (mul_le_of_le_one_right hp0 (hr _).2).trans ((mul_le_of_le_one_right hv hw1).trans hvB)⟩
+      (mul_le_of_le_one_right hp0 (hr _).2).trans
+        ((mul_le_of_le_one_right hv hw1).trans hvB)⟩
   cases i with
   | zero => exact bound 0 _ (le_min hcap (le_max_left _ _)) ((min_le_left _ _).trans hcapB)
   | succ i =>
@@ -154,7 +161,8 @@ theorem boundedRoutedBinCutoff_mem_Icc {χ : ℝ → ℝ} {b : ℕ → ℝ} {cap
     · simp [boundedRoutedBinCutoff, hd, hB]
     simp only [boundedRoutedBinCutoff, Nat.succ_ne_zero, ↓reduceIte, hd]
     by_cases hz : routedBinCutoff χ b (i + 1) route d = 0
-    · rw [hz]; exact ⟨le_rfl, hB⟩
+    · rw [hz]
+      exact ⟨le_rfl, hB⟩
     · exact bound _ _ (not_lt.mp hd)
         ((routedBinCutoff_succ_lt hχ0 hχ1 hb hanti hz).le.trans (hratio i))
 
@@ -188,10 +196,15 @@ theorem normalized_mem_Icc (k ρ : ℝ → ℝ) (K : ℕ) (b : ℝ)
     (σ : Γ × Ω) (x y : V) : normalized k ρ K b X Y Yt raw prep σ x y ∈ Set.Icc 0 (2 * B) := by
   have hc : (1 / 2 : ℝ) ≤ max (1 / 2)
       (min 1 (CorrectionRowRecipe.normalizer X Yt prep x y)) := le_max_left _ _
-  have hc0 : 0 < max (1 / 2) (min 1 (CorrectionRowRecipe.normalizer X Yt prep x y)) := by linarith
-  unfold normalized; split_ifs
-  · exact ⟨div_nonneg (mul_nonneg (hk _).1 (hρ _).1) hc0.le, (div_le_iff₀ hc0).mpr <|
-      ((mul_le_of_le_one_right (hk _).1 (hρ _).2).trans (hk _).2).trans (by nlinarith)⟩
+  have hc0 : 0 < max (1 / 2)
+      (min 1 (CorrectionRowRecipe.normalizer X Yt prep x y)) := by linarith
+  unfold normalized
+  split_ifs
+  · refine ⟨div_nonneg (mul_nonneg (hk _).1 (hρ _).1) hc0.le, (div_le_iff₀ hc0).mpr ?_⟩
+    calc
+      _ ≤ k (raw x y / b) := mul_le_of_le_one_right (hk _).1 (hρ _).2
+      _ ≤ B := (hk _).2
+      _ ≤ _ := by nlinarith
   · exact ⟨le_rfl, mul_nonneg (by norm_num) hB⟩
 
 /-- Output support is controlled by ranks on the original raw matrix, independent of the
@@ -205,10 +218,13 @@ theorem card_filter_normalized_ne_zero_lt (k ρ : ℝ → ℝ) (K : ℕ) (b : �
     (raw : Matrix V V ℝ) (prep : Γ × Ω → Matrix V V ℝ) (σ : Γ × Ω) (x : V) :
     #{y | normalized k ρ K b X Y Yt raw prep σ x y ≠ 0} < K := by
   refine lt_of_le_of_lt (card_le_card fun y hy => ?_)
-    (card_filter_mul_rowGate_ne_zero_lt (G := raw) (a := b) {w | Y σ.2 w} x hK he hk hg hρ)
+    (card_filter_mul_rowGate_ne_zero_lt (G := raw) (a := b)
+      {w | Y σ.2 w} x hK he hk hg hρ)
   simp only [mem_filter, mem_univ, true_and] at hy
-  unfold normalized at hy; split_ifs at hy with ht
-  · exact mem_filter.mpr ⟨by simpa using hsub _ _ ht, fun hz => hy (by rw [hz, zero_div])⟩
+  unfold normalized at hy
+  split_ifs at hy with ht
+  · exact mem_filter.mpr ⟨by simpa using hsub _ _ ht,
+      fun hz => hy (by rw [hz, zero_div])⟩
   · exact (hy rfl).elim
 
 /-- Exact preparation loses its source dependence after the source slice is fixed. -/
@@ -222,7 +238,8 @@ theorem normalized_eq_denseAtom (k h ρ : ℝ → ℝ) (K : ℕ) (b : ℝ)
   have hm : CorrectionRowRecipe.normalizer X Yt
       (fun σ => preparation h ρ K b Y raw σ.2) x y = atomNormalizer Y Yt h ρ K b raw x y := by
     rw [CorrectionRowRecipe.normalizer, expect_product]
-    simp only [preparation, atomNormalizer]; exact expect_const hx _
+    simp only [preparation, atomNormalizer]
+    exact expect_const hx _
   simp only [normalized, hm, denseAtom]
 
 end DenseRowRecipe

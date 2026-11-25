@@ -70,7 +70,8 @@ theorem constCiphertext_hasError {n w : ℕ} (t : Fin n → ZMod (2 ^ w)) (μ : 
     HasError t (constCiphertext n w μ) μ 0 := by
   unfold HasError constCiphertext
   rw [flattenMatrix_mulVec, _root_.Matrix.smul_mulVec, _root_.Matrix.one_mulVec]
-  ext; simp
+  funext i
+  simp
 
 /-- The constant is the bit decomposition of `μ • G`. -/
 theorem constCiphertext_eq_decomposeMatrix (n w : ℕ) (μ : Bool) :
@@ -126,7 +127,8 @@ variable {n w : ℕ} {secret : List Bool} {bound bound₁ bound₂ : ℕ} {μ μ
 /-- A bound may be weakened. -/
 theorem mono (h : BoundedError n w secret bound μ ciphertext) {bound' : ℕ}
     (hle : bound ≤ bound') : BoundedError n w secret bound' μ ciphertext :=
-  let ⟨hl, e, he, hb⟩ := h; ⟨hl, e, he, fun i => (hb i).trans hle⟩
+  let ⟨hl, e, he, hb⟩ := h
+  ⟨hl, e, he, fun i => (hb i).trans hle⟩
 
 /-- A word with error strictly below a quarter of the modulus decrypts to its plaintext. -/
 theorem decryptSerialized_eq (h : BoundedError n w secret bound μ ciphertext) (hw : 0 < w)
@@ -141,7 +143,8 @@ theorem nandSerialized (hleft : BoundedError n w secret bound₁ μ₁ left)
     (hright : BoundedError n w secret bound₂ μ₂ right) :
     BoundedError n w secret (bound₁ + (n + 1) * w * bound₂) (!(μ₁ && μ₂))
       (GSW.nandSerialized n w left right) := by
-  obtain ⟨_, error₁, herror₁, hbound₁⟩ := hleft; obtain ⟨_, error₂, herror₂, hbound₂⟩ := hright
+  obtain ⟨_, error₁, herror₁, hbound₁⟩ := hleft
+  obtain ⟨_, error₂, herror₂, hbound₂⟩ := hright
   refine ⟨length_nandSerialized n w left right, _,
     nandSerialized_hasError secret left right μ₁ μ₂ error₁ error₂ herror₁ herror₂, fun i => ?_⟩
   simpa using nandError_natAbs_le _ μ₂ error₁ error₂ hbound₁ hbound₂ i
@@ -289,6 +292,8 @@ theorem evaluateCircuit_correct {m η : ℕ} (hw : 0 < w) {keys : List Bool × L
         C.2.eval interpretation (BitString.ofList C.1 bits) 0 := by
   have h := boundedError_evaluateCircuit C hbits
     (hinputs.imp fun μ c hc => boundedError_encryptSerialized hkeys μ hc)
-  exact ⟨h.1, h.decryptSerialized_eq hw (by convert hmargin using 1; ring)⟩
+  refine ⟨h.1, h.decryptSerialized_eq hw ?_⟩
+  convert hmargin using 1
+  ring
 
 end Cslib.Crypto.Homomorphic.GSW

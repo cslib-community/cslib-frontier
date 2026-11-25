@@ -164,16 +164,19 @@ theorem abs_expect_comp_noiseOp_sub_integral_comp_multilinearEval_le_add_pow
   · gcongr
     refine Real.sqrt_le_iff.2 ⟨by positivity, ?_⟩
     rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq] at hvar
-    refine ((sum_le_sum fun S hS => ?_).trans
-      (sum_le_sum_of_subset_of_nonneg (fun S hS => ?_) fun _ _ _ => by positivity)).trans
-      ((mul_sum _ _ _).symm.trans_le (mul_le_of_le_one_right (by positivity) hvar))
-    · rw [fourierCoeff_noiseOp, mul_pow, ← pow_mul, ← pow_mul]
-      exact mul_le_mul_of_nonneg_right
-        (pow_le_pow_of_le_one hρ0 hρ1 (by simp only [mem_filter, mem_univ, true_and] at hS; omega))
-        (sq_nonneg _)
-    · simp only [mem_filter, mem_univ, true_and] at hS ⊢
-      rintro rfl
-      simp at hS
+    calc ∑ S with k < #S, fourierCoeff (noiseOp (1 - δ) h) S ^ 2
+        ≤ ∑ S with S ≠ ∅, ((1 - δ) ^ k) ^ 2 * fourierCoeff h S ^ 2 := by
+          refine (sum_le_sum fun S hS => ?_).trans
+            (sum_le_sum_of_subset_of_nonneg (fun S hS => ?_) fun _ _ _ => by positivity)
+          · rw [fourierCoeff_noiseOp, mul_pow, ← pow_mul, ← pow_mul]
+            refine mul_le_mul_of_nonneg_right (pow_le_pow_of_le_one hρ0 hρ1 ?_) (sq_nonneg _)
+            simp only [mem_filter, mem_univ, true_and] at hS
+            omega
+          · simp only [mem_filter, mem_univ, true_and] at hS ⊢
+            rintro rfl
+            simp at hS
+      _ = ((1 - δ) ^ k) ^ 2 * ∑ S with S ≠ ∅, fourierCoeff h S ^ 2 := (mul_sum _ _ _).symm
+      _ ≤ ((1 - δ) ^ k) ^ 2 := mul_le_of_le_one_right (by positivity) hvar
 
 /-- The arithmetic of [O'Donnell, Corollary 11.69][ODonnell2014]: for `0 < ε ≤ 1`,
 `0 ≤ δ ≤ 1/20` and `k = ⌊ln(1/ε) / 3⌋`, both `2ᵏ ε^(1/4) ≤ ε^(δ/3)` and
@@ -195,16 +198,18 @@ private theorem pow_mul_rpow_le_and_pow_le {ε δ : ℝ} (hε₀ : 0 < ε) (hε�
       mul_le_mul_of_nonneg_right hkL (log_pos one_lt_two).le
     simp only [L] at this
     nlinarith [log_two_lt_d9, log_pos one_lt_two, log_nonpos hε₀.le hε₁]
-  · calc (1 - δ) ^ k ≤ exp (-δ) ^ k :=
-          pow_le_pow_left₀ (by linarith) (by linarith [add_one_le_exp (-δ)]) k
+  · calc (1 - δ) ^ k ≤ exp (-δ) ^ k := by
+          gcongr
+          · linarith
+          · linarith [add_one_le_exp (-δ)]
       _ = exp (-δ * k) := by rw [← exp_nat_mul]; ring_nf
       _ ≤ exp δ * exp (log ε * (δ / 3)) := by
           rw [← exp_add]
           exact exp_le_exp.2 (by simp only [L] at hLk; nlinarith)
-      _ ≤ 3 * exp (log ε * (δ / 3)) :=
-          mul_le_mul_of_nonneg_right
-            ((exp_le_exp.2 (by linarith : δ ≤ 1)).trans (by linarith [exp_one_lt_d9]))
-            (exp_pos _).le
+      _ ≤ 3 * exp (log ε * (δ / 3)) := by
+          gcongr
+          calc exp δ ≤ exp 1 := exp_le_exp.2 (by linarith)
+            _ ≤ 3 := by linarith [exp_one_lt_d9]
 
 /-- **Corollary 11.69**, second statement [O'Donnell, Corollary 11.69][ODonnell2014]: if `h` on
 the cube has variance at most `1` and no `(ε, δ)`-notable coordinates, i.e.

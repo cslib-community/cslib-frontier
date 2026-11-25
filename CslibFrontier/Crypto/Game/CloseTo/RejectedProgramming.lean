@@ -81,10 +81,11 @@ private theorem runJoint_perturb (dist : (q : Q) → PMF (Coins q))
         simp only [changeState, hx, ↓reduceIte, (hstep (addr x) q r _ _ hx (hrel x)).1]
     · have hbad : μ.toOuterMeasure bad ≤ ((readAt q).isSome.toNat : ℕ) * δ := by
         cases he : readAt q with
-        | none => simp [bad, he]
+        | none =>
+          simp [bad, he]
         | some k =>
-          rw [show bad = addr ⁻¹' {k} by ext; simp [bad, he, eq_comm],
-            ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton]
+          have hb : bad = addr ⁻¹' {k} := Set.ext fun _ => by simp [bad, he, eq_comm]
+          rw [hb, ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton]
           simpa using hδ k
       simpa only [Nat.cast_add, add_mul, add_comm] using add_le_add_right hbad (n * δ)
 
@@ -126,7 +127,9 @@ private def off (k : Key) (s t : List (Key × Value)) : Prop :=
 omit [LawfulBEq Key] in
 private theorem off_cons {k : Key} {s t : List (Key × Value)} (h : off k s t)
     (q : Key × Value) : off k (q :: s) (q :: t) := by
-  rcases q with ⟨_, _⟩; exact fun j hj => by simp only [List.lookup_cons, h j hj]
+  rcases q with ⟨_, _⟩
+  intro j hj
+  simp only [List.lookup_cons, h j hj]
 
 private theorem erase_here (μ : PMF Ω) (point : Msg → Ω → Key) (digest : Ω → Value)
     (reply : Msg → Ω → Option Out) (m : Msg) (cont : Option Out → OracleComp

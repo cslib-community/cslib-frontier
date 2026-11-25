@@ -123,22 +123,27 @@ theorem IsEmbedding.exists_wall_refinement {G : Graph} {D : PolygonalDrawing G}
         (t : ℝ) (_ : t ∈ Set.Icc 0 1) :
         id (AffineMap.lineMap z w t) = AffineMap.lineMap (id z) (id w) t := rfl
     let E := P.mapAtCuts (S := {0}) (c := f) (F := id) hline
-    refine ⟨E, hP.mapAtCuts (c := f) hline Function.injective_id, hpoints, fun e => ?_,
-      fun e => ?_⟩
-    · have h := Route.support_mapAtCuts (c := f) hline (P.route e)
+    refine ⟨E, hP.mapAtCuts (c := f) hline Function.injective_id, hpoints, ?_, ?_⟩
+    · intro e
+      have h := Route.support_mapAtCuts (c := f) hline (P.route e)
       change (E.route e).support = id '' (P.route e).support at h
       simpa only [Set.image_id, hsupport e] using h
-    · let q := (P.route e).mapAtCuts {0} f id
+    · intro e
+      let q := (P.route e).mapAtCuts {0} f id
       change ∀ (i : Fin q.segments) g, g ∈ f :: walls →
         0 ∉ Set.Ioo (min (g (q.point i.castSucc)) (g (q.point i.succ)))
           (max (g (q.point i.castSucc)) (g (q.point i.succ)))
       intro i g hg
       obtain ⟨j, a, b, ha, hab, hb, hcut, h⟩ :=
         Route.eval_mapAtCuts (S := {0}) (c := f) (F := id) hline (P.route e) i
-      have hleft : q.point i.castSucc = (P.route e).eval j a := by
-        simpa [Route.eval] using (h 0 ⟨le_rfl, zero_le_one⟩).1
-      have hright : q.point i.succ = (P.route e).eval j b := by
-        simpa [Route.eval] using (h 1 ⟨zero_le_one, le_rfl⟩).1
+      have hleft : q.point i.castSucc = (P.route e).eval j a := calc
+        _ = q.eval i 0 := (AffineMap.lineMap_apply_zero _ _).symm
+        _ = (P.route e).eval j (AffineMap.lineMap a b 0) := (h 0 ⟨le_rfl, zero_le_one⟩).1
+        _ = _ := congrArg ((P.route e).eval j) (AffineMap.lineMap_apply_zero a b)
+      have hright : q.point i.succ = (P.route e).eval j b := calc
+        _ = q.eval i 1 := (AffineMap.lineMap_apply_one _ _).symm
+        _ = (P.route e).eval j (AffineMap.lineMap a b 1) := (h 1 ⟨zero_le_one, le_rfl⟩).1
+        _ = _ := congrArg ((P.route e).eval j) (AffineMap.lineMap_apply_one a b)
       rw [hleft, hright]
       rcases List.mem_cons.mp hg with rfl | hg
       · exact hcut 0 (Finset.mem_singleton_self 0)

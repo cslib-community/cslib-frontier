@@ -131,7 +131,8 @@ theorem signedAdjacency_signedAdjacency (S : Finset ι) (v : (ι → Bool) → �
   have hanti (i j : ι) (hi : i ∈ S) (hj : j ∈ S) :
       (if j = i then 0 else T i j) = -(if i = j then 0 else T j i) := by
     rcases lt_trichotomy i j with hij | rfl | hij
-    · simp only [hij.ne', hij.ne, ↓reduceIte, hT]; exact square_sign hi hij v x
+    · simp only [hij.ne', hij.ne, ↓reduceIte, hT]
+      exact square_sign hi hij v x
     · simp
     · simp only [hij.ne', hij.ne, ↓reduceIte, hT, square_sign hj hij v x, neg_neg]
   -- split off the diagonal; the rest is its own negative
@@ -212,7 +213,9 @@ private theorem exists_nonneg_ne_zero_sqrt_card_mul_le_sum_of_linearOrder
       √(#S : ℝ) * v x ≤ ∑ i ∈ S with update x i (!x i) ∈ V, v (update x i (!x i)) := by
   rcases S.eq_empty_or_nonempty with rfl | hS
   · -- the indicator of `V`, which is nonempty
-    obtain ⟨x, hx⟩ := card_pos.1 (Nat.pos_of_ne_zero fun h => by rw [h] at hV; lia)
+    obtain ⟨x, hx⟩ := card_pos.1 (Nat.pos_of_ne_zero fun h => by
+      rw [h] at hV
+      lia)
     refine ⟨fun y => if y ∈ V then 1 else 0, fun y => by dsimp only; split_ifs <;> norm_num,
       fun h => by simpa [hx] using congrFun h x, fun y hy => by simp [hy], fun y => by simp⟩
   obtain ⟨μ, hμ, hdim⟩ := exists_abs_eq_sqrt_two_pow_le_two_mul_finrank hS

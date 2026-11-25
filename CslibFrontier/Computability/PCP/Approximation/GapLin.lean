@@ -197,7 +197,9 @@ private theorem nonempty_spec {φ : CNF ℕ} (h3 : ∀ c ∈ φ, c.length = 3) :
       (φ.Satisfiable → (nonempty φ).Satisfiable) := by
   unfold nonempty
   split_ifs with he
-  · exact ⟨fun c hc => by rw [List.mem_singleton.1 hc]; rfl, by simp, fun _ => ⟨fun _ => true, rfl⟩⟩
+  · refine ⟨fun c hc => ?_, by simp, fun _ => ⟨fun _ => true, rfl⟩⟩
+    rw [List.mem_singleton.1 hc]
+    rfl
   · exact ⟨h3, List.length_pos_iff.2 fun h0 => he (by simp [h0]), id⟩
 
 /-- A satisfiable formula with clauses of exactly three literals is mapped to a system in which
@@ -239,13 +241,19 @@ theorem GapLin.computableInPolyTime_reduce :
     ComputableInPolyTime reduce encCNF XORSAT.encoding := by
   have := XORSAT.computableInPolyTime_sum
   have hodd : ComputableInPolyTime oddEquation (encList (encPair encNat encBool))
-      (encAffineEquation encNat) := by unfold oddEquation; fun_prop
+      (encAffineEquation encNat) := by
+    unfold oddEquation
+    fun_prop
   have hclause : ComputableInPolyTime clauseEquations (encList (encPair encNat encBool))
-      XORSAT.encoding := by unfold clauseEquations XORSAT.encoding; fun_prop
+      XORSAT.encoding := by
+    unfold clauseEquations XORSAT.encoding
+    fun_prop
   have hne : ComputableInPolyTime nonempty encCNF encCNF :=
     ComputableInPolyTime.ite
-      (by unfold encCNF; exact (ListEncoding.isEmpty (enc₁ := encList (encPair encNat encBool))
-        (enc := encList (encList (encPair encNat encBool)))).computableInPolyTime)
+      (by
+        unfold encCNF
+        exact (ListEncoding.isEmpty (enc₁ := encList (encPair encNat encBool))
+          (enc := encList (encList (encPair encNat encBool)))).computableInPolyTime)
       (.const _) (ComputableInPolyTime.id' (encIn := encCNF))
   unfold reduce XORSAT.encoding
   unfold encCNF at hne

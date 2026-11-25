@@ -61,10 +61,10 @@ theorem canonicalFilter_inequality (u v : V) (h : u ≠ v)
       diagonal u ∈ s ∨ diagonal v ∈ s := by
   have row : outsideRow (inequality V) u = {diagonal u} := Set.ext fun x =>
     ⟨fun hx => Subtype.ext <| Prod.ext hx ((Classical.not_not.mp x.property).symm.trans hx),
-      by rintro rfl; rfl⟩
+      fun h => h.symm ▸ rfl⟩
   have col : outsideColumn (inequality V) v = {diagonal v} := Set.ext fun x =>
     ⟨fun hx => Subtype.ext <| Prod.ext ((Classical.not_not.mp x.property).trans hx) hx,
-      by rintro rfl; rfl⟩
+      fun h => h.symm ▸ rfl⟩
   change (outsideRow (inequality V) u ⊆ s ∨ outsideColumn (inequality V) v ⊆ s) ↔ _
   rw [row, col, Set.singleton_subset_iff, Set.singleton_subset_iff]
 

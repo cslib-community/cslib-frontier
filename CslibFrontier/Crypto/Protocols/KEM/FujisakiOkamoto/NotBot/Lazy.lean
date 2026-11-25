@@ -171,10 +171,12 @@ theorem coupledFilterHandler_eq_interpret (S : Scheme PK SK M R CT K)
   | decaps c =>
     by_cases hc : c = cStar
     · simp only [coupledFilterHandler, simFilterDispatch, coupledProgram, ROQuery.dispatch, hc,
-        ↓reduceIte, OracleComp.interpret_pure]; rfl
+        ↓reduceIte, OracleComp.interpret_pure]
+      rfl
     · simp only [coupledFilterHandler, simFilterDispatch, coupledProgram, ROQuery.dispatch, hc,
         ↓reduceIte, filterDecaps]
-      cases d st.gCache c <;> simp only [Bool.cond_true, Bool.cond_false, interp_norm] <;> rfl
+      cases d st.gCache c <;>
+        simp only [Bool.cond_true, Bool.cond_false, interp_norm] <;> rfl
 
 /-- Answering the coupled oracles from a complete table `T` turns `coupledProgram` into the
 stateless dispatcher that reads `G`, `coupledH` and, for accepted ciphertexts, `Hq` from `T`. -/

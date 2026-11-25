@@ -202,7 +202,8 @@ theorem noSetReal_le_noSet {s : ℕ → ℕ} {δ : ℕ → ℝ} (hδ : ∀ n, 0 
         ((⌈1 / δ n⌉₊ : ℝ) - ⌈1 / δ n⌉₊ * δ n) * 2 ^ n by ring]
       exact mul_le_mul_of_nonneg_right (by linarith) (by positivity)
   exact_mod_cast (show ((⌈1 / δ n⌉₊ * a : ℕ) : ℝ) ≤ (((⌈1 / δ n⌉₊ - 1) * 2 ^ n : ℕ) : ℝ) by
-    push_cast [Nat.cast_sub hk1]; exact hreal)
+    push_cast [Nat.cast_sub hk1]
+    exact hreal)
 
 end Cslib.ApproxMCSP
 

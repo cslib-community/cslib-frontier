@@ -81,7 +81,8 @@ theorem length_le_of_mem_support_xorHashWordQueries {ℓ width : ℕ}
     (fun reply => List.zipWith Bool.xor acc (reply.take acc.length)) <$>
       ProbOracleComp.query ((), request)
   have hfold (requests : List (List Bool)) (acc : List Bool)
-      (h : out ∈ OracleComp.support (requests.foldlM step acc)) : out.length ≤ acc.length := by
+      (h : out ∈ OracleComp.support (requests.foldlM step acc)) :
+      out.length ≤ acc.length := by
     induction requests generalizing acc with
     | nil =>
       obtain rfl : out = acc := by simpa [OracleComp.supportWith_pure] using h
@@ -102,13 +103,13 @@ theorem isOraclePPTOn_xorHashWordQueries :
   have hrequests : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × List (List Bool) =>
         (p.2.take p.1.1).zipIdx.map fun (block, i) => xorHashTaggedWord p.1.1 block i)
-      input (encList encBits) :=
-    ComputableInPolyTime.mapWithInput
-      ((ComputableInPolyTime.zipIdx encBits).comp (by fun_prop)) <| by
-        unfold xorHashTaggedWord
-        exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend
-          ((ComputableInPolyTime.bitsReplicate true).comp (by fun_prop))
-          ((ComputableInPolyTime.bitsReplicate false).comp (by fun_prop))) (by fun_prop)
+      input (encList encBits) := by
+    refine ComputableInPolyTime.mapWithInput
+      ((ComputableInPolyTime.zipIdx encBits).comp (by fun_prop)) ?_
+    unfold xorHashTaggedWord
+    exact ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend
+      ((ComputableInPolyTime.bitsReplicate true).comp (by fun_prop))
+      ((ComputableInPolyTime.bitsReplicate false).comp (by fun_prop))) (by fun_prop)
   have hstep : IsOraclePPTOn (encPair encBits encBits) encBits
       (fun p : List Bool × List Bool =>
         (fun reply => List.zipWith Bool.xor p.1 (reply.take p.1.length)) <$>
@@ -173,14 +174,15 @@ theorem run_xorHashWordQueries {X : Type} {ℓ width : ℕ} (m : {xs : List X //
   have hrequests :
       (m.val.map encode).zipIdx.map (fun (block, i) => xorHashTaggedWord ℓ block i) =
         (List.ofFn (xorHashQueryAt m)).map
-          (fun (block, i) => xorHashTaggedWord ℓ (encode block) i.val) :=
-    List.ext_getElem (by simp) fun i _ _ => by
-      simp only [List.getElem_map, List.getElem_zipIdx, List.getElem_ofFn, xorHashQueryAt,
-        Function.Embedding.coeFn_mk, Fin.val_castLE, Nat.zero_add, Fin.getElem_fin]
+          (fun (block, i) => xorHashTaggedWord ℓ (encode block) i.val) := by
+    refine List.ext_getElem (by simp) fun i _ _ => ?_
+    simp only [List.getElem_map, List.getElem_zipIdx, List.getElem_ofFn, xorHashQueryAt,
+      Function.Embedding.coeFn_mk, Fin.val_castLE, Nat.zero_add, Fin.getElem_fin]
   have hlen : (m.val.map encode).length ≤ ℓ := by simpa only [List.length_map] using m.property
   have hzero : List.ofFn (0 : BitString width) = List.replicate width false :=
     List.ofFn_const width false
-  unfold xorHashWordQueries; dsimp only
+  unfold xorHashWordQueries
+  dsimp only
   rw [List.take_of_length_le hlen, hrequests, ← hzero]
   simpa only [List.map_ofFn, List.sum_ofFn, zero_add, xorHash, Function.comp_def] using
     run_wordFold (fun (block, i) => xorHashTaggedWord ℓ (encode block) i.val) f table

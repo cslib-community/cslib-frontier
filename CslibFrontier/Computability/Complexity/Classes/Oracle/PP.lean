@@ -238,7 +238,8 @@ theorem PWithSharpPOracle_subset_PWithPPOracle : PWithSharpPOracle enc ⊆ PWith
         languageOracle A' := funext fun q => by
       obtain ⟨bit, hbit⟩ : ∃ bit, OracleComp.interpret (m := Id) (languageOracle A)
           (bitQuery r ((), q.2)) = [bit] := by
-        simp only [bitQuery, OracleComp.interpret_map]; exact ⟨_, rfl⟩
+        simp only [bitQuery, OracleComp.interpret_map]
+        exact ⟨_, rfl⟩
       rw [languageOracle_apply, show q = ((), q.2) from rfl, hbit]
       by_cases hq : q.2 ∈ A'
       · rw [decide_eq_true hq, (List.cons.inj (hbit.symm.trans hq)).1]

@@ -133,7 +133,8 @@ theorem isPPTOn_dcrDistinguisher {adversary : AdversaryOf ℕ} (hA : adversary.I
       (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) × List Bool =>
         validMessages p.1.1 (encNat p.1.2.1) p.2.1.1 p.2.1.2) (encPair EIn EChoice) encBool := by
     simpa only [validMessages, ofBits_encNat, Function.comp_def] using
-      ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' hm0 hN)
+      ComputableInPolyTime.decide_and
+        (ComputableInPolyTime.binary_lt' hm0 hN)
         (ComputableInPolyTime.binary_lt' hm1 hN)
   refine (hA.choose.on.preprocess
     (prepare := fun input : ℕ × ℕ × ℕ => (input.1, encNat input.2.1))
@@ -169,12 +170,13 @@ private theorem powMod_mul_val_pow_eq_ciphertext (N : ℕ) [NeZero N] (m : ℕ)
   have hN2 : N ^ 2 ≠ 0 := pow_ne_zero 2 (NeZero.ne N)
   rw [unitOrOne_val_coe_unit]
   refine Nat.ModEq.eq_of_lt_of_lt ((ZMod.natCast_eq_natCast_iff _ _ _).mp ?_)
-    (Nat.mod_lt _ (Nat.pos_of_ne_zero hN2))
-    (by unfold ciphertext; exact Nat.mod_lt _ (Nat.pos_of_ne_zero hN2))
-  rw [natCast_ciphertext (NeZero.ne N), ZMod.unitsMap_val, ZMod.cast_eq_val, ZMod.val_natCast,
-    ← ZMod.natCast_pow_self_mod, ZMod.natCast_zmod_val]
-  simp only [powMod_of_ne_zero hN2, ZMod.natCast_mod, Nat.cast_mul, Nat.cast_pow, Nat.cast_add,
-    Nat.cast_one, ZMod.natCast_zmod_val, Units.val_pow_eq_pow_val]
+    (Nat.mod_lt _ (Nat.pos_of_ne_zero hN2)) ?_
+  · rw [natCast_ciphertext (NeZero.ne N), ZMod.unitsMap_val, ZMod.cast_eq_val, ZMod.val_natCast,
+      ← ZMod.natCast_pow_self_mod, ZMod.natCast_zmod_val]
+    simp only [powMod_of_ne_zero hN2, ZMod.natCast_mod, Nat.cast_mul, Nat.cast_pow, Nat.cast_add,
+      Nat.cast_one, ZMod.natCast_zmod_val, Units.val_pow_eq_pow_val]
+  · unfold ciphertext
+    exact Nat.mod_lt _ (Nat.pos_of_ne_zero hN2)
 
 /-! ### The typed reduction -/
 

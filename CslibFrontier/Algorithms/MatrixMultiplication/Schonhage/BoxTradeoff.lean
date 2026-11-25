@@ -65,7 +65,8 @@ theorem card_boxes_pos (L m t : ℕ) : 0 < (boxes L m t).card := by
 
 /-- The decay rate is nonnegative whenever the total depth contains the inner depth. -/
 theorem rho_nonneg {L m : ℕ} (hm : m ≤ L) : 0 ≤ rho L m := by
-  exact div_nonneg (by positivity) (by linarith [show (m : ℝ) ≤ L by exact_mod_cast hm])
+  have hm' : (m : ℝ) ≤ L := by exact_mod_cast hm
+  exact div_nonneg (by positivity) (by linarith)
 
 /-- The source's depth condition makes the geometric tail summable, including `m = 0`. -/
 theorem rho_lt_one {L m : ℕ} (hL : 10 * m ≤ L) : rho L m < 1 := by
@@ -147,12 +148,14 @@ theorem total_boxes_le_unpadded {L m t N : ℕ} (hL : 10 * m ≤ L) (ht : t ≤ 
     (hN : K0 L m * N0 L m ≤ N) :
     ((tiles L m N).card : ℝ) * ((boxes L m t).card : ℝ) ≤
       16 * ((m : ℝ) + 1) * (rho L m ^ t / (1 - rho L m)) * (N : ℝ) ^ 2 := by
-  have hpad : (padN L m N : ℝ) ≤ 2 * (N : ℝ) := by exact_mod_cast padN_le_two_mul L m N hN
+  have hpad : (padN L m N : ℝ) ≤ 2 * (N : ℝ) := by
+    exact_mod_cast padN_le_two_mul L m N hN
   have hdecay : 0 ≤ rho L m ^ t / (1 - rho L m) :=
     div_nonneg (pow_nonneg (rho_nonneg (by omega)) _) (by linarith [rho_lt_one hL])
-  refine (total_boxes_le hL ht).trans ?_
-  calc 4 * ((m : ℝ) + 1) * (rho L m ^ t / (1 - rho L m)) * (padN L m N : ℝ) ^ 2
-      ≤ 4 * ((m : ℝ) + 1) * (rho L m ^ t / (1 - rho L m)) * (2 * (N : ℝ)) ^ 2 := by gcongr
+  calc ((tiles L m N).card : ℝ) * ((boxes L m t).card : ℝ)
+      ≤ 4 * ((m : ℝ) + 1) * (rho L m ^ t / (1 - rho L m)) * (padN L m N : ℝ) ^ 2 :=
+        total_boxes_le hL ht
+    _ ≤ 4 * ((m : ℝ) + 1) * (rho L m ^ t / (1 - rho L m)) * (2 * (N : ℝ)) ^ 2 := by gcongr
     _ = 16 * ((m : ℝ) + 1) * (rho L m ^ t / (1 - rho L m)) * (N : ℝ) ^ 2 := by ring
 
 /-- Weighted binomial-prefix estimate from Section 4.4. With `x=8`, this gives
@@ -162,15 +165,15 @@ theorem sum_alpha_le {x : ℝ} (hx : 0 < x) (h9x : 1 ≤ 9 * x) {m t : ℕ} (ht 
   calc ∑ d ∈ range (t + 1), (alpha m d : ℝ)
       ≤ ∑ d ∈ range (t + 1), (9 * x) ^ t * ((1 / x) ^ d * 1 ^ (m - d) * (m.choose d : ℝ)) :=
         sum_le_sum fun d hd => by
-          have hα : (alpha m d : ℝ) =
+          have hpow : (9 * x) ^ d ≤ (9 * x) ^ t :=
+            pow_le_pow_right₀ h9x (Nat.lt_succ_iff.mp (mem_range.mp hd))
+          calc (alpha m d : ℝ) =
               (9 * x) ^ d * ((1 / x) ^ d * 1 ^ (m - d) * (m.choose d : ℝ)) := by
-            rw [alpha, one_pow, mul_one, ← mul_assoc, ← mul_pow,
-              show 9 * x * (1 / x) = 9 by field_simp]
-            push_cast
-            ring
-          rw [hα]
-          exact mul_le_mul_of_nonneg_right
-            (pow_le_pow_right₀ h9x (Nat.lt_succ_iff.mp (mem_range.mp hd))) (by positivity)
+                rw [alpha, one_pow, mul_one, ← mul_assoc, ← mul_pow,
+                  show 9 * x * (1 / x) = 9 by field_simp]
+                push_cast
+                ring
+            _ ≤ (9 * x) ^ t * ((1 / x) ^ d * 1 ^ (m - d) * (m.choose d : ℝ)) := by gcongr
     _ ≤ ∑ d ∈ range (m + 1), (9 * x) ^ t * ((1 / x) ^ d * 1 ^ (m - d) * (m.choose d : ℝ)) :=
       sum_le_sum_of_subset_of_nonneg (range_subset_range.2 (by omega)) fun _ _ _ => by positivity
     _ = (9 * x) ^ t * (1 + 1 / x) ^ m := by rw [← mul_sum, ← add_pow, add_comm]
@@ -196,12 +199,14 @@ theorem sum_beta_twentyone (m t : ℕ) :
     ∑ d ∈ Icc t m, (beta (21 * m) m d : ℝ) ≤
       2 * (M (21 * m) m : ℝ) * (9 / 20 : ℝ) ^ t := by
   obtain ⟨hrho, hfactor⟩ := rho_twentyone m
-  refine (sum_beta_le t (by omega)).trans ?_
-  rw [div_eq_mul_one_div, show 2 * (M (21 * m) m : ℝ) * (9 / 20 : ℝ) ^ t =
-    (M (21 * m) m : ℝ) * ((9 / 20 : ℝ) ^ t * 2) by ring]
-  exact mul_le_mul_of_nonneg_left
-    (mul_le_mul (pow_le_pow_left₀ (rho_nonneg (by omega)) hrho.le _) hfactor.le
-      (one_div_nonneg.mpr (by linarith)) (by positivity))
-    (Nat.cast_nonneg _)
+  have hdecay : rho (21 * m) m ^ t / (1 - rho (21 * m) m) ≤ (9 / 20 : ℝ) ^ t * 2 := by
+    rw [div_eq_mul_one_div]
+    exact mul_le_mul (pow_le_pow_left₀ (rho_nonneg (by omega)) hrho.le _) hfactor.le
+      (one_div_nonneg.mpr (by linarith)) (by positivity)
+  calc ∑ d ∈ Icc t m, (beta (21 * m) m d : ℝ)
+      ≤ (M (21 * m) m : ℝ) * (rho (21 * m) m ^ t / (1 - rho (21 * m) m)) :=
+        sum_beta_le t (by omega)
+    _ ≤ (M (21 * m) m : ℝ) * ((9 / 20 : ℝ) ^ t * 2) := by gcongr
+    _ = _ := by ring
 
 end Cslib.Algorithms.MatrixMultiplication.Schonhage.BoxTradeoff

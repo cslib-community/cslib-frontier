@@ -90,8 +90,9 @@ theorem exists_forall_weight_le {h : ℕ}
   rcases Nat.eq_zero_or_pos d with rfl | hd
   · obtain ⟨w, hw, -⟩ := hne fun _ i => i.elim0
     exact hw (funext fun i => i.elim0)
-  rw [show (2 ^ d) ^ c = 2 ^ c * (2 ^ (d - 1)) ^ c by
-    rw [← mul_pow, ← pow_succ', Nat.sub_add_cancel hd]] at h1
+  have e : (2 ^ d) ^ c = 2 ^ c * (2 ^ (d - 1)) ^ c := by
+    rw [← mul_pow, ← pow_succ', Nat.sub_add_cancel hd]
+  rw [e] at h1
   have := Nat.le_of_mul_le_mul_right h1 (by positivity : 0 < (2 ^ (d - 1)) ^ c)
   omega
 

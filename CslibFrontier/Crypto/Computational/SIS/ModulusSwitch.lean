@@ -116,15 +116,18 @@ theorem exists_moduleLWEModulusSwitch_phase_of_lifts {k n q p : ℕ}
     linear_combination c * hi + (w i : ℚ) * hc
   have hδ (j : Fin k) (l : Fin n) : |δ j l| ≤ 1 / 2 := by
     dsimp only [δ, ur, Pi.sub_apply]
-    rw [abs_sub_comm]; exact abs_sub_round _
+    rw [abs_sub_comm]
+    exact abs_sub_round _
   have hnear (i : Fin n) : |(e' i : ℚ) - c * e i| ≤
       (1 + ∑ j, ∑ l, |(s j l : ℚ)|) / 2 := by
-    have hvr : |(vr i : ℚ) - c * v i| ≤ 1 / 2 := by
-      dsimp only [vr]
-      rw [abs_sub_comm]; exact abs_sub_round _
     rw [herr]
-    exact ((abs_sub ((vr i : ℚ) - c * v i) (innerPoly δ b i)).trans
-      (add_le_add hvr (abs_innerPoly_le_half_sum δ b hδ i))).trans_eq (by ring)
+    calc
+      |(vr i : ℚ) - c * v i - innerPoly δ b i| ≤
+          |(vr i : ℚ) - c * v i| + |innerPoly δ b i| := abs_sub _ _
+      _ ≤ 1 / 2 + (∑ j, ∑ l, |(s j l : ℚ)|) / 2 :=
+        add_le_add (abs_sub_comm (vr i : ℚ) (c * v i) ▸ abs_sub_round _)
+          (abs_innerPoly_le_half_sum δ b hδ i)
+      _ = _ := by ring
   refine ⟨e', funext fun i => ?_, hnear, fun i => ?_⟩
   · have hs := congrFun (map_innerPoly (Int.castRingHom (ZMod p)) ur s) i
     simp only [moduleLWEModulusSwitch, ← hu, ← hv, ZMod.modulusSwitch_intCast hq.ne',
@@ -134,10 +137,13 @@ theorem exists_moduleLWEModulusSwitch_phase_of_lifts {k n q p : ℕ}
       sub_zero]
     exact congrArg (fun x : ZMod p => (round ((p : ℚ) / q * v i) : ℤ) - x) hs.symm
   · have hc : 0 ≤ c := div_nonneg (by positivity) (by positivity)
-    have htri := (abs_add_le ((e' i : ℚ) - c * e i) (c * e i)).trans
-      (add_le_add (hnear i) (by rw [abs_mul, abs_of_nonneg hc]))
-    rw [sub_add_cancel, add_comm] at htri
-    exact htri
+    calc
+      |(e' i : ℚ)| = |((e' i : ℚ) - c * e i) + c * e i| := by ring_nf
+      _ ≤ |(e' i : ℚ) - c * e i| + |c * e i| := abs_add_le _ _
+      _ ≤ (1 + ∑ j, ∑ l, |(s j l : ℚ)|) / 2 + c * |(e i : ℚ)| := by
+        rw [abs_mul, abs_of_nonneg hc]
+        exact add_le_add (hnear i) le_rfl
+      _ = _ := by ring
 
 /-- The phase bound for any supplied integer representative of the original phase.
 Carries are constructed from the modular phase identity, including representatives outside

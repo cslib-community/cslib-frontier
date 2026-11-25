@@ -142,8 +142,10 @@ theorem eval_modLinkAdversary_choose_eq_map_coins (E : Scheme)
     ProbComp.sampleBinaryNat, BitString.eval_sampleList]
   refine congrArg _ (funext fun first => congrArg _ (funext fun second => ?_))
   split_ifs with hi hj
-  · simpa only [show depth n - index (depth n) first - 1 + index (depth n) first + 1 = depth n by
-      dsimp only [index]; omega, index] using
+  · have hidx : depth n - index (depth n) first - 1 + index (depth n) first + 1 = depth n := by
+      dsimp only [index]
+      omega
+    simpa only [hidx, index] using
       E.eval_chooseLinkAt_eq_map_coins evaluateKey n keyCoins
         (depth n - index (depth n) first - 1) (index (depth n) first)
         (index (capacity n) second) challengePk hkey

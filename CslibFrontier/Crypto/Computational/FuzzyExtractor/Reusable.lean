@@ -567,7 +567,10 @@ theorem commonMatrix_recover_key_of_zero_shift
     (A.mulVec sStar + wStar) - (A.mulVec s₁ + wStar) = A.mulVec (sStar - s₁) ∧
       (fun i => (sStar - s₁) (Fin.castAdd l i)) + (fun i => s₁ (Fin.castAdd l i)) =
         fun i => sStar (Fin.castAdd l i) := by
-  exact ⟨by rw [add_sub_add_right_eq_sub, ← Matrix.mulVec_sub], by ext; simp⟩
+  constructor
+  · rw [add_sub_add_right_eq_sub, ← Matrix.mulVec_sub]
+  · ext
+    simp
 
 /-- The 1-query strong-reusability attacker against `commonMatrixFuzzyExtractor`
 ([AponChoEldefrawyKatz2017], Section 3.3, p. 10): it queries shift `δ = 0`, receives
@@ -662,10 +665,13 @@ theorem strongReuseAdvantage_commonMatrixStrongAttack_ge
     exact_mod_cast Game.succProbability_add_failProbability real
   have hfail : (Game.failProbability real : ℝ) ≤ δ := by
     exact_mod_cast failProbability_strongReuseRealGame_commonMatrixStrongAttack_le hdec W t
-  rw [strongReuseAdvantage, Game.coe_advantage,
-    show (Game.succProbability (strongReuseIdealGame _ _ _ _ _) : ℝ) = 1 / (q : ℝ) ^ k by
-      rw [Game.coe_succProbability, strongReuseIdealGame_commonMatrixStrongAttack_apply_true]
-      simp [ENNReal.toReal_inv]]
+  have hideal : (Game.succProbability (strongReuseIdealGame
+      (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+      (commonMatrixFuzzyExtractor m k l q decode) W t (commonMatrixStrongAttack decode)) : ℝ) =
+      1 / (q : ℝ) ^ k := by
+    rw [Game.coe_succProbability, strongReuseIdealGame_commonMatrixStrongAttack_apply_true]
+    simp [ENNReal.toReal_inv]
+  rw [strongReuseAdvantage, Game.coe_advantage, hideal]
   exact le_trans (by linarith) (le_abs_self _)
 
 end CommonMatrix

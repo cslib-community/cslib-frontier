@@ -109,7 +109,9 @@ theorem reflTransGen_viewSucc_iff {finite next : FiniteCfg k Bool State} :
       exact hstep ▸ ih
     · simp only [hs] at hstep
       obtain ⟨action, htr, rfl⟩ := hstep
-      exact ih.tail (by simp only [viewSucc, hs, List.mem_map, mem_actions]; exact ⟨_, htr, rfl⟩)
+      refine ih.tail ?_
+      simp only [viewSucc, hs, List.mem_map, mem_actions]
+      exact ⟨action, htr, rfl⟩
 
 open scoped Classical in
 /-- **Enough rounds find every reachable view**: under a space bound `s`, breadth-first search

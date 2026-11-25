@@ -180,8 +180,9 @@ private theorem planted_real {s : Level} (H : Xofs) (seed : FixedBytes 32) (run 
     idealShortPair p.2 (run p.1 (fun j => rho[j.val]!))
   have eq := congrArg (PMF.bind · use) (uniform_expandA_programMatrixPrefixes H s rho)
   simp only [PMF.bind_map, Function.comp_def] at eq
-  have hgame (t : MatrixPrefixes s) : matrixGame (H.withMatrixPrefixes s rho t) seed run =
-      use (H.withMatrixPrefixes s rho t, (H.withMatrixPrefixes s rho t).expandA s rho) := by
+  have hgame (t : MatrixPrefixes s) :
+      matrixGame (H.withMatrixPrefixes s rho t) seed run =
+        use (H.withMatrixPrefixes s rho t, (H.withMatrixPrefixes s rho t).expandA s rho) := by
     simp only [matrixGame, Xofs.expandKeySeed, Xofs.withMatrixPrefixes_h256, rho, use]
   simp_rw [hgame]
   refine eq.symm.trans ?_

@@ -99,8 +99,12 @@ theorem mw_regret_le_sq {η : ℝ} (hη : 0 < η) (hℓ : ∀ s < T, ∀ i, η *
   have hmaster := sum_log_le_log_card_add hφ i
   have hlow : -(η * ∑ t ∈ range T, ℓ t i) - η ^ 2 * ∑ t ∈ range T, ℓ t i ^ 2 ≤
       ∑ t ∈ range T, log (mwFactor η (ℓ t i)) := by
-    simp only [mul_sum, ← mul_pow, ← sum_neg_distrib, ← sum_sub_distrib, mwFactor_apply]
-    exact sum_le_sum fun t ht => neg_sub_sq_le_log_one_sub (hℓ t (mem_range.mp ht) i)
+    calc -(η * ∑ t ∈ range T, ℓ t i) - η ^ 2 * ∑ t ∈ range T, ℓ t i ^ 2
+        = ∑ t ∈ range T, (-(η * ℓ t i) - (η * ℓ t i) ^ 2) := by
+          simp only [sum_sub_distrib, sum_neg_distrib, mul_sum, mul_pow]
+      _ ≤ ∑ t ∈ range T, log (mwFactor η (ℓ t i)) := sum_le_sum fun t ht => by
+          rw [mwFactor_apply]
+          exact neg_sub_sq_le_log_one_sub (hℓ t (mem_range.mp ht) i)
   have hup : ∑ t ∈ range T, log (∑ j, prob (mwFactor η) ℓ t j * mwFactor η (ℓ t j)) ≤
       -(η * ∑ t ∈ range T, ∑ j, prob (mwFactor η) ℓ t j * ℓ t j) := by
     rw [mul_sum, ← sum_neg_distrib]
@@ -155,10 +159,13 @@ theorem mw_regret_le_sqrt (hn : 2 ≤ Fintype.card ι) (hT : 4 * log (Fintype.ca
   have hL : 0 < L := log_pos (by exact_mod_cast hn)
   have hT0 : (0 : ℝ) < T := by linarith
   have hη : 0 < √(L / T) := sqrt_pos.mpr (div_pos hL hT0)
-  have hη' : √(L / T) ≤ 1 / 2 := sqrt_le_iff.mpr ⟨by norm_num, by rw [div_le_iff₀ hT0]; linarith⟩
+  have hdiv : L / T ≤ (1 / 2) ^ 2 := by rw [div_le_iff₀ hT0]; linarith
+  have hη' : √(L / T) ≤ 1 / 2 := sqrt_le_iff.mpr ⟨by norm_num, hdiv⟩
   refine (mw_regret_le hη hη' hℓ i).trans ?_
-  have habs : ∑ t ∈ range T, |ℓ t i| ≤ T :=
-    (sum_le_card_nsmul _ _ 1 fun t ht => hℓ t (mem_range.mp ht) i).trans_eq (by simp)
+  have habs : ∑ t ∈ range T, |ℓ t i| ≤ T := by
+    calc ∑ t ∈ range T, |ℓ t i| ≤ ∑ _t ∈ range T, (1 : ℝ) :=
+          sum_le_sum fun t ht => hℓ t (mem_range.mp ht) i
+      _ = T := by simp
   rw [← sqrt_div_mul_add_div_sqrt_div hL hT0]
   nlinarith [mul_le_mul_of_nonneg_left habs hη.le]
 
@@ -182,7 +189,8 @@ theorem mw_regret_le_sqrt_of_mem_Icc
     have hL : 0 < L := log_pos (by exact_mod_cast hn)
     have hT0 : (0 : ℝ) < T := Nat.cast_pos.mpr hTpos
     by_cases h4 : 4 * L ≤ T
-    · rw [min_eq_left (sqrt_le_iff.mpr ⟨by norm_num, by rw [div_le_iff₀ hT0]; linarith⟩)]
+    · have hdiv : L / T ≤ (1 / 2) ^ 2 := by rw [div_le_iff₀ hT0]; linarith
+      rw [min_eq_left (sqrt_le_iff.mpr ⟨by norm_num, hdiv⟩)]
       exact mw_regret_le_sqrt hn h4 (fun s hs j =>
         abs_le.mpr ⟨by linarith [(hℓ s hs j).1], (hℓ s hs j).2⟩) i
     · rw [min_eq_right (le_sqrt_of_sq_le (by rw [le_div_iff₀ hT0]; linarith))]

@@ -95,20 +95,23 @@ private theorem mul_bound_le {n : ℕ} (hn : 64 ≤ n) :
   -- The powers of two involved, with `P = 2 ^ (2 l + 2) > n ^ 2`.
   have hA : 2 ^ k = 2 * 2 ^ (2 * l + 2) := by
     rw [show k = 1 + (2 * l + 2) by omega, pow_add, pow_one]
-  have hP : n * n < 2 ^ (2 * l + 2) :=
-    (Nat.mul_lt_mul'' hhigh hhigh).trans_eq (by rw [← pow_add]; exact congrArg (2 ^ ·) (by omega))
+  have hP : n * n < 2 ^ (2 * l + 2) := by
+    calc n * n < 2 ^ (l + 1) * 2 ^ (l + 1) := Nat.mul_lt_mul'' hhigh hhigh
+      _ = 2 ^ (2 * l + 2) := by rw [← pow_add]; congr 1; omega
   have hAB : 2 * (2 ^ (2 * l + 2) * 2 ^ d) = 2 ^ n := by
     rw [← mul_assoc, ← hA, ← pow_add, hkd]
   have hAC : 2 * (2 ^ (l + 1) * (2 ^ (2 * l + 2) * 2 ^ s)) = 2 ^ n := by
     rw [← pow_add, ← pow_add, ← pow_succ']; congr 1; omega
   have hCP : 4 * (2 ^ s * 2 ^ (2 * l + 2)) ≤ 2 ^ n := by
-    rw [show 4 * (2 ^ s * 2 ^ (2 * l + 2)) = 2 ^ (s + (2 * l + 2) + 2) by
-      rw [pow_add, pow_add]; ring]
-    exact Nat.pow_le_pow_right two_pos (by omega)
+    calc 4 * (2 ^ s * 2 ^ (2 * l + 2)) = 2 ^ (s + (2 * l + 4)) := by
+          rw [show 2 * l + 4 = 2 * l + 2 + 2 by omega, pow_add, pow_add]; ring
+      _ ≤ 2 ^ n := Nat.pow_le_pow_right two_pos (by omega)
   have hPP : 8 * (2 ^ (2 * l + 2) * 2 ^ (2 * l + 2)) ≤ 2 ^ n := by
-    rw [show 8 * (2 ^ (2 * l + 2) * 2 ^ (2 * l + 2)) = 2 ^ ((2 * l + 2) + (2 * l + 2) + 3) by
-      rw [pow_add, pow_add]; ring]
-    exact Nat.pow_le_pow_right two_pos (by omega)
+    calc 8 * (2 ^ (2 * l + 2) * 2 ^ (2 * l + 2)) = 2 ^ (4 * l + 7) := by
+          rw [← pow_add, show (8 : ℕ) = 2 ^ 3 by norm_num, ← pow_add]
+          congr 1
+          omega
+      _ ≤ 2 ^ n := Nat.pow_le_pow_right two_pos (by omega)
   have hn2 : n ≤ 2 ^ n := Nat.lt_two_pow_self.le
   have hq : 2 ^ k / s * s ≤ 2 * 2 ^ (2 * l + 2) := hA ▸ Nat.div_mul_le_self _ _
   have hbound : n * Lupanov.bound k d s =
@@ -124,22 +127,24 @@ private theorem mul_bound_le {n : ℕ} (hn : 64 ≤ n) :
   generalize 2 ^ n = N at hAB hAC hCP hPP hn2 ⊢
   generalize 2 ^ d = B at hAB ⊢
   generalize 2 ^ s = C at hAC hCP ⊢
+  have h1 : 1 ≤ n := by omega
   have hnn : n ≤ n * n := Nat.le_mul_self n
   have ha : n * n * P ≤ P * P := Nat.mul_le_mul_right P hP.le
   have ha' : n * P ≤ P * P := (Nat.mul_le_mul_right P hnn).trans ha
   have hb : n * n * B ≤ P * B := Nat.mul_le_mul_right B hP.le
   have hb' : n * B ≤ P * B := (Nat.mul_le_mul_right B hnn).trans hb
-  have hc : n * (q * (C * (2 * s + 4))) ≤ 3 * (H * (P * C)) * 2 :=
+  have hc : n * (q * (C * (2 * s + 4))) ≤ 3 * (H * (P * C)) * 2 := by
     calc n * (q * (C * (2 * s + 4))) ≤ n * (q * (C * (3 * s))) := by gcongr; omega
       _ = 3 * (n * C * (q * s)) := by ring
-      _ ≤ 3 * (H * C * (2 * P)) := by gcongr
+      _ ≤ 3 * (H * C * (2 * P)) :=
+        Nat.mul_le_mul_left 3 (Nat.mul_le_mul (Nat.mul_le_mul_right C hhigh.le) hq)
       _ = 3 * (H * (P * C)) * 2 := by ring
-  have hd : n * (q * B) ≤ 2 * (2 * (P * B)) :=
-    calc n * (q * B) ≤ 2 * s * (q * B) := by gcongr
+  have hd : n * (q * B) ≤ 2 * (2 * (P * B)) := by
+    calc n * (q * B) ≤ 2 * s * (q * B) := Nat.mul_le_mul_right _ hns
       _ = 2 * (q * s * B) := by ring
-      _ ≤ 2 * (2 * P * B) := by gcongr
+      _ ≤ 2 * (2 * P * B) := Nat.mul_le_mul_left 2 (Nat.mul_le_mul_right B hq)
       _ = 2 * (2 * (P * B)) := by ring
-  have he : n * (C * (2 * s + 4)) ≤ 3 * (C * P) :=
+  have he : n * (C * (2 * s + 4)) ≤ 3 * (C * P) := by
     calc n * (C * (2 * s + 4)) ≤ n * (C * (3 * n)) := by gcongr; omega
       _ = 3 * (n * n * C) := by ring
       _ ≤ 3 * (P * C) := by gcongr
@@ -174,12 +179,13 @@ theorem ncard_setOf_mem_le (hn : 16 ≤ n) :
 threshold `2 ^ n / (5 n)`. -/
 theorem exists_notMem (hn : 16 ≤ n) : ∃ T : BitString (2 ^ n), ⟨n, T, 2 ^ n / (5 * n)⟩ ∉ MCSP := by
   by_contra! h
-  have hc := ncard_setOf_mem_le hn
-  rw [show {T : BitString (2 ^ n) | ⟨n, T, 2 ^ n / (5 * n)⟩ ∈ MCSP} = .univ from
-    Set.eq_univ_of_forall h, Set.ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fun,
-    Fintype.card_bool, Fintype.card_fin] at hc
-  exact absurd hc (not_le.mpr (Nat.pow_lt_pow_right one_lt_two
-    (Nat.div_lt_self (Nat.two_pow_pos n) (by norm_num))))
+  have huniv : {T : BitString (2 ^ n) | ⟨n, T, 2 ^ n / (5 * n)⟩ ∈ MCSP} = Set.univ :=
+    Set.eq_univ_of_forall h
+  have := ncard_setOf_mem_le hn
+  rw [huniv, Set.ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool,
+    Fintype.card_fin] at this
+  exact absurd this (not_le.mpr (Nat.pow_lt_pow_right one_lt_two (Nat.div_lt_self
+    (Nat.two_pow_pos n) (by norm_num))))
 
 /-! ### The sharp window -/
 
@@ -200,8 +206,8 @@ theorem eventually_exists_notMem :
   refine ⟨N, fun n hn => ?_⟩
   obtain ⟨f, hf⟩ := hN n hn
   refine ⟨truthTable n f, fun h => ?_⟩
-  have hle : (complexity interpretation (single f) : ℝ) ≤ (2 ^ n / n : ℕ) := by
-    exact_mod_cast mk_truthTable_mem_iff.mp h
-  exact absurd (hf.trans_le hle) (not_lt.mpr (by exact_mod_cast Nat.cast_div_le))
+  rw [mk_truthTable_mem_iff] at h
+  have : ((2 ^ n / n : ℕ) : ℝ) ≤ 2 ^ n / n := by exact_mod_cast Nat.cast_div_le
+  exact absurd (hf.trans_le (by exact_mod_cast h)) (not_lt.mpr this)
 
 end Cslib.MCSP

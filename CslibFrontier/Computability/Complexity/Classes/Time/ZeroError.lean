@@ -128,7 +128,7 @@ theorem output_eq_of_halted (h : machine.DecidesWithZeroErrorInExpectedTime enc 
     have h₁ := machine.toOuterMeasure_halted_monotone (machine.initialConfig (enc a))
       (S := G) (fun _ hc => hc.1) (le_max_left s' s)
     have h₂ := machine.toOuterMeasure_halted_monotone (machine.initialConfig (enc a))
-      (S := {final}) (by rintro _ rfl; exact hhalt) (le_max_right s' s)
+      (S := {final}) (fun _ hc => Set.mem_singleton_iff.mp hc ▸ hhalt) (le_max_right s' s)
     simp only [PMF.toOuterMeasure_apply_singleton] at h₂
     -- the wrong halted run lies in the complement of the event of a right halted run
     exact (add_le_add h₁ (h₂.trans ((PMF.toOuterMeasure_apply_singleton _ final).symm.trans_le
@@ -155,8 +155,9 @@ theorem decidesWithOneSidedError (h : machine.DecidesWithZeroErrorInExpectedTime
       {a | MultiTapeTM.indicator A a = b} := by
   intro a
   set Q := q.eval (enc a).length
-  rw [show (Polynomial.C (2 : ℕ) * q).eval (enc a).length = 2 * Q by
-    simp only [Polynomial.eval_mul, Polynomial.eval_C, Q]]
+  have hQ : (Polynomial.C (2 : ℕ) * q).eval (enc a).length = 2 * Q := by
+    simp only [Polynomial.eval_mul, Polynomial.eval_C, Q]
+  rw [hQ]
   set T := 2 * Q
   have hE : machine.expectedTime (enc a) ≤ Q := (h a).1.trans (by exact_mod_cast ht a)
   refine ⟨fun hb => ?_, fun hb r => ?_⟩

@@ -131,8 +131,11 @@ private theorem mem_sparseDetours {d : Detour} :
       d = ⟨o.clause, φ.distinctVars.idxOf o.lit.1, (occurrencePositions φ o.lit.1).idxOf p,
         o.lit.2⟩ := by
   simp only [sparseDetours, List.mem_map, Prod.exists, List.mem_zipIdx_iff_getElem?]
-  exact ⟨by rintro ⟨o, p, h, rfl⟩; exact ⟨o, p, h, rfl⟩,
-    by rintro ⟨o, p, h, rfl⟩; exact ⟨o, p, h, rfl⟩⟩
+  constructor
+  · rintro ⟨o, p, h, rfl⟩
+    exact ⟨o, p, h, rfl⟩
+  · rintro ⟨o, p, h, rfl⟩
+    exact ⟨o, p, h, rfl⟩
 
 /-- The position of an occurrence is a position of its variable. -/
 private theorem mem_occurrencePositions_of_getElem? {o : Occurrence ℕ} {p : ℕ}
@@ -162,14 +165,16 @@ theorem wellFormed_sparseDetours :
     rw [List.idxOf_inj (CNF.mem_distinctVars.2
       (variable_mem_of_mem_occurrences (List.mem_of_getElem? h)))] at hrow
     rw [hrow, List.idxOf_inj (hrow ▸ mem_occurrencePositions_of_getElem? h)] at hslot
-    cases h.symm.trans (hslot ▸ h'); rfl
+    cases h.symm.trans (hslot ▸ h')
+    rfl
 
 /-- Directions of the rows satisfying every clause are satisfying assignments. -/
 theorem satisfiable_sparseDetours_iff :
     Satisfiable φ.length (sparseDetours φ) ↔ φ ∈ SAT := by
-  refine ⟨?_, ?_⟩
+  constructor
   · rintro ⟨dir, hdir⟩
-    refine ⟨fun x => dir (φ.distinctVars.idxOf x), (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_⟩
+    refine ⟨fun x => dir (φ.distinctVars.idxOf x),
+      (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_⟩
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hc
     obtain ⟨d, hd, hdj, hdd⟩ := hdir j hj
     obtain ⟨o, p, h, rfl⟩ := mem_sparseDetours.1 hd
@@ -276,7 +281,8 @@ theorem computableInPolyTime_sparseSlots :
       (encPair encCNF encUnary) encUnary := by
   have := computableInPolyTime_distinctVars
   have := computableInPolyTime_occurrencePositions
-  unfold sparseSlots; fun_prop
+  unfold sparseSlots
+  fun_prop
 
 /-- The detours are computable in polynomial time. -/
 theorem computableInPolyTime_sparseDetours :
@@ -284,7 +290,8 @@ theorem computableInPolyTime_sparseDetours :
   have := computableInPolyTime_distinctVars
   have := computableInPolyTime_occurrencePositions
   have := computableInPolyTime_occurrences
-  unfold sparseDetours; fun_prop
+  unfold sparseDetours
+  fun_prop
 
 private theorem computableInPolyTime_numDiamonds :
     ComputableInPolyTime (fun φ : CNF ℕ => φ.distinctVars.length) encCNF

@@ -268,7 +268,8 @@ theorem take_oracleRepliesFrom (g : List Bool → Bool)
   | succ index ih =>
     cases fuel with
     | zero => rfl
-    | succ fuel => simp only [oracleRepliesFrom, List.take_succ_cons, Nat.succ_min_succ, ih]
+    | succ fuel =>
+      simp only [oracleRepliesFrom, List.take_succ_cons, Nat.succ_min_succ, ih]
 
 private theorem replyStep_oracleBit (g : List Bool → Bool)
     (cfg : FiniteConfig k Bool Control Operation) :
@@ -356,12 +357,19 @@ theorem eq_oracleReplies_iff (g : List Bool → Bool) (input answers : List Bool
   | zero => rfl
   | succ m ih =>
     have hm_lt : m < answers.length := Nat.lt_of_succ_le hm
-    have ih_m := ih hm_lt.le
-    rw [List.take_succ_eq_append_getElem hm_lt, List.take_succ_eq_append_getElem (hlen ▸ hm_lt),
-      ih_m, ← List.getD_eq_getElem answers false hm_lt,
-      ← List.getD_eq_getElem oracle false (hlen ▸ hm_lt), h m hm_lt,
-      machine.getD_oracleReplies g answers.length input m hm_lt]
-    simp only [replayPrefix, ih_m]; rfl
+    have hm_or : m < oracle.length := hlen ▸ hm_lt
+    have ih_m : answers.take m = oracle.take m := ih hm_lt.le
+    have hcfg : machine.replayPrefix input answers m = machine.replayPrefix input oracle m := by
+      simp only [replayPrefix, ih_m]
+    have hbit : answers[m] = oracle[m] := by
+      rw [← List.getD_eq_getElem answers false hm_lt,
+        ← List.getD_eq_getElem oracle false hm_or, h m hm_lt,
+        machine.getD_oracleReplies g answers.length input m hm_lt, hcfg]
+    calc
+      answers.take (m + 1) = answers.take m ++ [answers[m]] :=
+        List.take_succ_eq_append_getElem hm_lt
+      _ = oracle.take m ++ [oracle[m]] := by rw [ih_m, hbit]
+      _ = oracle.take (m + 1) := (List.take_succ_eq_append_getElem hm_or).symm
 
 /-- Replayed canonical outputs agree exactly with interpretation of the clocked oracle program. -/
 theorem replayOutput_oracleReplies (g : List Bool → Bool) (fuel : ℕ) (input : List Bool) :

@@ -150,10 +150,11 @@ private theorem numVars_guarded_le (d : ℕ) (F : CSP Unit ℕ) :
   · simp only [List.all_eq_true, decide_eq_true_eq] at hg
     refine (List.toFinset_card_le _).trans ?_
     rw [CSP.vars, List.length_flatMap]
-    refine (List.sum_le_length_nsmul _ d fun x hx => ?_).trans
-      (by rw [List.length_map, smul_eq_mul, Nat.mul_comm]; exact Nat.le_succ _)
-    obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hx
-    exact (hg c hc).2
+    refine (List.sum_le_length_nsmul _ d fun x hx => ?_).trans ?_
+    · obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hx
+      exact (hg c hc).2
+    · rw [List.length_map, smul_eq_mul, Nat.mul_comm]
+      exact Nat.le_succ _
   · exact (show zeroInstance.numVars = 1 by decide).trans_le (Nat.le_add_left _ _)
 
 /-- **Exactly-one counting on bounded-occurrence instances by tensor contraction.** Let `inst` be

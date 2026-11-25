@@ -115,11 +115,12 @@ private theorem eval_round (p : Program signature n g) (x : Fin n → Bool)
       wireDepthsCode_getD_toNat p (.gate j)
     rw [Wire.toNat_gate, getD_eval_finishLayer_gate _ _ _ _ _ hj, hdepth]
     by_cases hactive : p.depths j = k + 1
-    · rw [ite_eq_left hactive, Program.getD_code p j (.const false, []), Line.code_fst,
+    · have hargs : (fun a => inputs.getD ((p.lines j).wires a).toNat false) =
+          fun a => p.trace interpretation x ((p.lines j).wires a) :=
+        funext fun a => hvalues _ (Nat.le_of_lt_succ ((p.wireDepths_lines_lt j a).trans_eq hactive))
+      rw [ite_eq_left hactive, Program.getD_code p j (.const false, []), Line.code_fst,
         finish_prepare_eq _ _ _ _ hj (p.lines j) (Program.getD_code p j (.const false, []))
-          (hdepth.trans hactive), show (fun a => inputs.getD ((p.lines j).wires a).toNat false) =
-          fun a => p.trace interpretation x ((p.lines j).wires a) from funext fun a =>
-          hvalues _ (Nat.le_of_lt_succ ((p.wireDepths_lines_lt j a).trans_eq hactive))]
+          (hdepth.trans hactive), hargs]
       exact p.lines_eval interpretation x j
     · have hlt : p.depths j < k + 1 := Nat.lt_of_le_of_ne hw hactive
       rw [ite_eq_right hactive, carry, hdepth, ite_eq_left hlt, Node.eval,
@@ -155,7 +156,8 @@ private theorem schedule_correct (p : Program signature n g) (x : Fin n → Bool
         length_eval, List.length_ofFn] using
           And.intro hprepare (valid_finishLayer n p.code (wireDepthsCode n p.code) (k + 1))
     · rw [length_eval_schedule]
-      have := w.toNat_lt; have := p.length_code
+      have := w.toNat_lt
+      have := p.length_code
       omega
     · rw [schedule_succ, eval_append, eval_cons, eval_cons, eval_nil]
       exact eval_round p x k _ (fun w hw => (ih.2 w hw).2) w hw

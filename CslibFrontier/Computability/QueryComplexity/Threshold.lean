@@ -80,16 +80,19 @@ theorem isSensitiveCoord_threshold_iff (x : BitString n) (i : Fin n) :
 /-- At an input of weight `j`, the sensitive coordinates of `Th^n_j` are its true bits. -/
 theorem sensitivityAt_threshold_of_weight_eq {x : BitString n} (hx : weight x = j) :
     sensitivityAt (threshold n j) x = j := by
-  rw [sensitivityAt, show sensitiveCoords (threshold n j) x = univ.filter fun i => x i = true by
-    ext; simp [isSensitiveCoord_threshold_iff, hx], ← weight, hx]
+  have hs : sensitiveCoords (threshold n j) x = univ.filter fun i => x i = true := by
+    ext i
+    simp [isSensitiveCoord_threshold_iff, hx]
+  rw [sensitivityAt, hs, ← weight, hx]
 
 /-- At an input of weight `j - 1`, for `j ≥ 1`, the sensitive coordinates of `Th^n_j` are its
 false bits. -/
 theorem sensitivityAt_threshold_of_weight_add_one_eq {x : BitString n}
     (hx : weight x + 1 = j) : sensitivityAt (threshold n j) x = n + 1 - j := by
-  rw [sensitivityAt, show sensitiveCoords (threshold n j) x = univ.filter fun i => x i = false by
-    ext; simp [isSensitiveCoord_threshold_iff, show weight x ≠ j by omega, hx],
-    card_filter_eq_false_eq_card_sub_weight, Fintype.card_fin]
+  have hs : sensitiveCoords (threshold n j) x = univ.filter fun i => x i = false := by
+    ext i
+    simp [isSensitiveCoord_threshold_iff, show weight x ≠ j by omega, hx]
+  rw [sensitivityAt, hs, card_filter_eq_false_eq_card_sub_weight, Fintype.card_fin]
   omega
 
 end BitString

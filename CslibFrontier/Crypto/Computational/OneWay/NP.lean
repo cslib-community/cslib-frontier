@@ -205,8 +205,9 @@ theorem apply_preimageSearch {D : ℕ × List Bool × List Bool → Bool}
       exact preimageSearchStep_mem hD (ih (by omega))
         (by rw [length_iterate_preimageSearchStep]; omega)
   obtain ⟨x', hx', hpre, hfx'⟩ := mem_preimagePrefix.mp (hmem x.length le_rfl)
-  exact (congrArg f (hpre.eq_of_length
-    (by rw [length_iterate_preimageSearchStep]; exact hx'.symm))).trans hfx'
+  exact (congrArg f (hpre.eq_of_length (by
+    rw [length_iterate_preimageSearchStep]
+    exact hx'.symm))).trans hfx'
 
 /-- The search with `D'` follows the search with `D` as long as `D'` answers the queries of the
 search with `D` as `D` does. -/

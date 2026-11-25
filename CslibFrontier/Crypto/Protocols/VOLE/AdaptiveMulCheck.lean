@@ -192,17 +192,19 @@ private theorem maskedMulCheckReceiverView_eq (left right output : ι → Fin n)
       let terminal ← receiverLaw c.receiverView (continuation reply)
       let view ← receiverLaw c.receiverView terminal
       return (c.receiverView, (d, r, reply, ()), view)) := by
+  have hinit : (voleWorld F (n + 1)).impl (.inr ()) none =
+      (voleIdealDist F (n + 1)).map fun c => (c.receiverView, some c) := by
+    simp [voleWorld, PMF.map, Function.comp_def]
   unfold maskedMulCheckReceiverView World.eval
   change (ProbOracleComp.runWith (State := Option (VOLECorrelation F (n + 1)))
     (voleWorld F (n + 1)).impl _ none).map Prod.fst = _
-  erw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
-    show (voleWorld F (n + 1)).impl (.inr ()) none =
-      (voleIdealDist F (n + 1)).map fun c => (c.receiverView, some c) by
-      simp [voleWorld, PMF.map, Function.comp_def],
+  erw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hinit,
     PMF.bind_map, PMF.map_bind]
   conv_lhs =>
-    arg 2; ext c
-    dsimp only [Function.comp_def]; erw [voleWorld_cached_run (F := F) (n := n + 1) c]
+    arg 2
+    ext c
+    dsimp only [Function.comp_def]
+    erw [voleWorld_cached_run (F := F) (n := n + 1) c]
   dsimp only [voleWorld]
   simp only [pmf_norm]
   congr 1 with c : 1
@@ -234,7 +236,8 @@ private theorem maskedMulCheckReceiverSimulate_eq (left right output : ι → Fi
           receiverLaw share program := by
     change ProbComp.eval (OracleComp.interpret
       (OracleComp.sumHandler ProbComp.unifFin (fun _ => pure share)) program) = _
-    rw [ProbOracleComp.eval_interpret]; simp [receiverLaw]
+    rw [ProbOracleComp.eval_interpret]
+    simp [receiverLaw]
   simp [maskedMulCheckReceiverSimulate, ProbComp.eval_bind, ProbComp.eval_uniform,
     heval, PMF.map, Function.comp_def]
 

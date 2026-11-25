@@ -136,8 +136,10 @@ theorem isPolyTime_composePosition [Finite I] [Finite P] (number : ComposeSlot I
   refine ComputableInPolyTime.finite_cases
     (branch := fun p x => composePosition number (edge x) (src x) (dst x) p) hposition ?_
   rintro (⟨b, r⟩ | p)
-  · dsimp only [composePosition, Sum.elim_inl]; split_ifs <;> fun_prop
-  · dsimp only [composePosition, Sum.elim_inr]; fun_prop
+  · dsimp only [composePosition, Sum.elim_inl]
+    split_ifs <;> fun_prop
+  · dsimp only [composePosition, Sum.elim_inr]
+    fun_prop
 
 /-- A gadget edge is computed uniformly in the original edge, its index, coins, and query. -/
 @[fun_prop]
@@ -190,8 +192,10 @@ theorem isPolyTime_compose [Fintype α] [Finite I] [Finite P] [Finite R] [Finite
   have hdarts : ComputableInPolyTime (composeDarts (α := α) coins queries)
       (encoding (encPi (encPi encBool)))
       (encList (encPair (encPair encUnary coinsEncoding) queryEncoding)) := by
-    unfold composeDarts List.product; fun_prop
-  unfold compose; fun_prop
+    unfold composeDarts List.product
+    fun_prop
+  unfold compose
+  fun_prop
 
 /-- Return composition to the fixed Boolean-table descriptor type over its answer alphabet. -/
 def composeTabulated [BEq Γ] (number : ComposeSlot I P R ≃ Fin width) (coins : List R)
@@ -248,9 +252,12 @@ theorem composeVertex_injective [Nonempty R] {E : Type} (number : ComposeSlot I 
     rintro ((⟨v, r⟩ | ⟨e, p⟩) | ⟨e, ω⟩) ((⟨v', r'⟩ | ⟨e', p'⟩) | ⟨e', ω'⟩) h <;>
       simp only [composeOwner, Sum.elim_inl, Sum.elim_inr, Prod.mk.injEq, Sum.inl.injEq,
         Sum.inr.injEq, reduceCtorEq, and_false] at h
-    · rcases h with ⟨rfl, rfl⟩; rfl
-    · rcases h with ⟨h, rfl⟩; rw [hindex h]
-    · rcases h with ⟨h, rfl⟩; rw [hindex h]
+    · rcases h with ⟨rfl, rfl⟩
+      rfl
+    · rcases h with ⟨h, rfl⟩
+      rw [hindex h]
+    · rcases h with ⟨h, rfl⟩
+      rw [hindex h]
   let : NeZero width := (number (.inr (.inr (Classical.arbitrary R)))).neZero
   exact (Nat.divModEquiv width).symm.injective.comp
     ((Equiv.prodCongr (Equiv.refl ℕ) number).injective.comp howner)
@@ -260,7 +267,9 @@ theorem composePosition_eq (number : ComposeSlot I P R ≃ Fin width)
     (g : Graph (α → α → Bool)) (e : Fin g.edges.length) (p : ((Fin 2 × I) ⊕ P)) :
     composePosition number e.val (g.edges.get e).src (g.edges.get e).dst p =
       composeVertex number Fin.val (.inl (AssignmentTester.testerPos (g.toGraph id) e p)) := by
-  rcases p with ⟨b, r⟩ | p <;> [fin_cases b <;> rfl; rfl]
+  rcases p with ⟨b, r⟩ | p
+  · fin_cases b <;> rfl
+  · rfl
 
 /-- The dart enumeration includes exactly the valid old indices and listed coins/queries. -/
 @[simp]
@@ -336,7 +345,8 @@ theorem toGraph_compose (hreal : impl.Realizes T) [BEq Γ] [LawfulBEq Γ]
     rfl
   · simp only [composeEdge, edgeAt, List.getD_eq_get, AssignmentTester.compose,
       LocalTest.toConstraintGraph, AssignmentTester.composeTest, LocalTest.mix, LocalTest.map,
-      composeEval, Bool.and_eq_true, beq_iff_eq, hreal.accepts_eq_true, toGraph, id_eq]
+      composeEval, Bool.and_eq_true, beq_iff_eq, hreal.accepts_eq_true,
+      toGraph, id_eq]
 
 /-- Exact interpretation and injective numbering preserve the mathematical composition value. -/
 theorem unsatVal_compose_eq (hreal : impl.Realizes T) [Fintype R] [Fintype Q] [Nonempty R]

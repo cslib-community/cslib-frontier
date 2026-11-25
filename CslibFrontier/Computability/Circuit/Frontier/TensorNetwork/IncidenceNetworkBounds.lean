@@ -82,7 +82,8 @@ theorem sum_length_pairInc_row (hJ : 0 < J) (g : ℕ) :
       ((List.residueClass J sys.length g).map fun i =>
         (equationVars (sys.getD i [])).length).sum := by
   simp only [length_pairInc]
-  rw [Finset.sum_list_sum_comm]; simp only [List.sum_length_filter_mod hJ]
+  rw [Finset.sum_list_sum_comm]
+  simp only [List.sum_length_filter_mod hJ]
 
 
 /-- **The incidences of all pairs** are the incidences of the system. -/
@@ -171,10 +172,15 @@ theorem two_pow_clog_choose_le (N d : ℕ) :
     2 ^ Nat.clog 2 (N.choose d) ≤ 2 * N.choose (if d ≤ N then d else 0) := by
   split_ifs with hd
   · rcases Nat.lt_or_ge 1 (N.choose d) with h1 | h1
-    · rw [← Nat.succ_pred_eq_of_pos (Nat.clog_pos one_lt_two h1), pow_succ']
-      exact Nat.mul_le_mul_left 2 (Nat.pow_pred_clog_lt_self one_lt_two h1).le
-    · rw [Nat.le_antisymm h1 (Nat.choose_pos hd)]; simp
-  · rw [Nat.choose_eq_zero_of_lt (by omega)]; simp
+    · calc 2 ^ Nat.clog 2 (N.choose d)
+          = 2 * 2 ^ (Nat.clog 2 (N.choose d)).pred := by
+            conv_lhs => rw [← Nat.succ_pred_eq_of_pos (Nat.clog_pos one_lt_two h1), pow_succ']
+        _ ≤ 2 * N.choose d :=
+            Nat.mul_le_mul_left 2 (Nat.pow_pred_clog_lt_self one_lt_two h1).le
+    · rw [Nat.le_antisymm h1 (Nat.choose_pos hd)]
+      simp
+  · rw [Nat.choose_eq_zero_of_lt (by omega)]
+    simp
 
 /-- The entries of the array below `J²`, pair by pair. -/
 theorem sum_getD_eq (J : ℕ) (d : List ℕ) :

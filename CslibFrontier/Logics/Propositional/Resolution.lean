@@ -81,12 +81,14 @@ theorem Clause.length_resolvent_le (c₁ c₂ : Clause V) (v : V) :
 /-- A literal of `c₁` missing from `c₁.resolvent c₂ v` is the resolved literal `(v, true)`. -/
 theorem Clause.eq_of_mem_of_notMem_resolvent_left {c₁ c₂ : Clause V} {v : V} {l : Literal V}
     (hl : l ∈ c₁) (h : l ∉ c₁.resolvent c₂ v) : l = (v, true) := by
-  by_contra hne; exact h (mem_resolvent.2 (Or.inl ⟨hl, hne⟩))
+  by_contra hne
+  exact h (mem_resolvent.2 (Or.inl ⟨hl, hne⟩))
 
 /-- A literal of `c₂` missing from `c₁.resolvent c₂ v` is the resolved literal `(v, false)`. -/
 theorem Clause.eq_of_mem_of_notMem_resolvent_right {c₁ c₂ : Clause V} {v : V} {l : Literal V}
     (hl : l ∈ c₂) (h : l ∉ c₁.resolvent c₂ v) : l = (v, false) := by
-  by_contra hne; exact h (mem_resolvent.2 (Or.inr ⟨hl, hne⟩))
+  by_contra hne
+  exact h (mem_resolvent.2 (Or.inr ⟨hl, hne⟩))
 
 /-- A subclause of `c₁` without the resolved literal `(v, true)` is a subclause of the
 resolvent. -/
@@ -120,10 +122,15 @@ resolvent. -/
 theorem Clause.eval_resolvent {σ : V → Bool} {c₁ c₂ : Clause V} (v : V)
     (h₁ : c₁.eval σ = true) (h₂ : c₂.eval σ = true) : (c₁.resolvent c₂ v).eval σ = true := by
   rw [Clause.eval_eq_true_iff] at h₁ h₂ ⊢
-  obtain ⟨l₁, hl₁, he₁⟩ := h₁; obtain ⟨l₂, hl₂, he₂⟩ := h₂
+  obtain ⟨l₁, hl₁, he₁⟩ := h₁
+  obtain ⟨l₂, hl₂, he₂⟩ := h₂
   cases hv : σ v
-  · exact ⟨l₁, mem_resolvent.2 (Or.inl ⟨hl₁, by rintro rfl; simp [hv] at he₁⟩), he₁⟩
-  · exact ⟨l₂, mem_resolvent.2 (Or.inr ⟨hl₂, by rintro rfl; simp [hv] at he₂⟩), he₂⟩
+  · refine ⟨l₁, mem_resolvent.2 (Or.inl ⟨hl₁, ?_⟩), he₁⟩
+    rintro rfl
+    simp [hv] at he₁
+  · refine ⟨l₂, mem_resolvent.2 (Or.inr ⟨hl₂, ?_⟩), he₂⟩
+    rintro rfl
+    simp [hv] at he₂
 
 /-- Relabelling along an injective map commutes with resolution. -/
 theorem Clause.relabel_resolvent {W : Type*} [DecidableEq W] {f : V → W}

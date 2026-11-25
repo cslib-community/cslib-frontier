@@ -70,14 +70,16 @@ theorem sum_finsuppAntidiag_prod_choose (hS : S.Nonempty) (t : ℕ) (d : ι → 
     congr 2
     simp_rw [invOneSubPow_eq_inv_one_sub_pow]
     rw [prod_pow_eq_pow_sum, sum_add_distrib, sum_const, smul_eq_mul, mul_one]
-    congr 1; omega
+    congr 1
+    omega
   have h := congrArg (coeff t) hprod
   rw [coeff_prod, coeff_X_pow_mul', invOneSubPow_val_succ_eq_mk_add_choose, coeff_mk] at h
   simp_rw [coeff_X_pow_mul_invOneSubPow] at h
   rw [← Nat.cast_inj (R := ℤ)]
   simp only [Nat.cast_sum, Nat.cast_prod, h]
   split_ifs with hH
-  · congr 2; omega
+  · congr 2
+    omega
   · rw [Nat.choose_eq_zero_of_lt (by omega), Nat.cast_zero]
 
 /-- The sum over the weak compositions `M` of `t` of the product of falling factorials
@@ -114,7 +116,8 @@ private theorem choose_le {t r : ℕ} (hr : 0 < r) (H : ℕ) :
           · exact_mod_cast Nat.sub_le t H
           · exact le_add_of_nonneg_right (Nat.cast_nonneg H)
       _ ≤ r.multichoose t * ((t : ℝ) / r) ^ H * ((t : ℝ) / r) := by
-          rw [mul_div_assoc]; gcongr
+          rw [mul_div_assoc]
+          gcongr
 
 private theorem exp_step {t r H : ℝ} (ht : 0 < t) (hr : 0 < r) (hH : 0 ≤ H) (h : 2 * H ≤ t) :
     Real.exp (-((H + 1) ^ 2 / t) - (H + 1) ^ 2 / (2 * r)) * (t / r) ≤
@@ -123,8 +126,9 @@ private theorem exp_step {t r H : ℝ} (ht : 0 < t) (hr : 0 < r) (hH : 0 ≤ H) 
     rw [Real.exp_neg, inv_le_iff_one_le_mul₀ (Real.exp_pos _)]
     have : H / t ≤ 1 / 2 := (div_le_iff₀ ht).mpr (by linarith)
     nlinarith [Real.add_one_le_exp (2 * (H / t)), div_nonneg hH ht.le]
-  have h₂ : Real.exp (-(H / r)) ≤ (1 + H / r)⁻¹ :=
-    Real.exp_neg _ ▸ inv_anti₀ (by positivity) (by linarith [Real.add_one_le_exp (H / r)])
+  have h₂ : Real.exp (-(H / r)) ≤ (1 + H / r)⁻¹ := by
+    rw [Real.exp_neg]
+    exact inv_anti₀ (by positivity) (by linarith [Real.add_one_le_exp (H / r)])
   have h₃ : -((H + 1) ^ 2 / t) - (H + 1) ^ 2 / (2 * r) ≤
       (-(H ^ 2 / t) - H ^ 2 / (2 * r)) + (-(2 * (H / t)) + -(H / r)) := by
     have e₁ : (H + 1) ^ 2 / t = H ^ 2 / t + 2 * (H / t) + 1 / t := by field_simp; ring

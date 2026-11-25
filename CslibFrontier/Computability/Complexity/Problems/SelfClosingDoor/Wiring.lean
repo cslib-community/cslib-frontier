@@ -71,7 +71,8 @@ private theorem project_step {doors : List Door} {arcs : List Tunnel} {s t : Sta
   obtain ⟨hs, i, hp, rfl⟩ := h
   have hv := project_valid (arcs := arcs) hs
   by_cases hi : i.val < doors.length
-  · have hd : (doors ++ arcs.map diode)[i.val] = doors[i.val] := List.getElem_append_left hi
+  · have hd : (doors ++ arcs.map diode)[i.val] = doors[i.val] :=
+      List.getElem_append_left hi
     have hb : (s.bits.take doors.length).getD i.val false = s.bits.getD i.val false := by
       simp [List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi]
     exact .inr (.inl ⟨hv, ⟨i.val, hi⟩,
@@ -110,12 +111,13 @@ private theorem append_step {doors more : List Door} {s t : State} (aux : List B
       ⟨t.location, t.bits ++ aux⟩ := by
   obtain ⟨hs, i, hp, rfl⟩ := h
   have hi : i.val < s.bits.length := i.isLt.trans_eq hs.symm
-  exact ⟨by simp only [State.Valid, List.length_append, hlen]; exact congrArg (· + more.length) hs,
-    ⟨i.val, Nat.lt_of_lt_of_le i.isLt (by simp)⟩,
-    by simpa only [Fin.getElem_fin, List.getElem_append_left i.isLt,
-      List.getD_append _ _ _ _ hi] using hp,
-    by simp only [Fin.getElem_fin, List.getElem_append_left i.isLt,
-      List.getD_append _ _ _ _ hi, List.set_append_left _ _ hi]⟩
+  refine ⟨?_, ⟨i.val, Nat.lt_of_lt_of_le i.isLt (by simp)⟩, ?_, ?_⟩
+  · simp only [State.Valid, List.length_append, hlen]
+    exact congrArg (· + more.length) hs
+  · simpa only [Fin.getElem_fin, List.getElem_append_left i.isLt,
+      List.getD_append _ _ _ _ hi] using hp
+  · simp only [Fin.getElem_fin, List.getElem_append_left i.isLt,
+      List.getD_append _ _ _ _ hi, List.set_append_left _ _ hi]
 
 private theorem diode_step {doors : List Door} {arcs : List Tunnel} (s : State)
     (hs : s.Valid doors) (aux : List Bool) (hlen : aux.length = arcs.length)

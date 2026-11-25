@@ -226,7 +226,8 @@ theorem computableInPolyTime_inputLength
     (hkeyBits : ComputableInPolyTime keyBits encUnary encUnary)
     (hsamples : ComputableInPolyTime samples encUnary encUnary) :
     ComputableInPolyTime (inputLength keyBits samples) encUnary encUnary := by
-  unfold inputLength; fun_prop
+  unfold inputLength
+  fun_prop
 
 /-- The labelling map is polynomial-time computable when the scale-indexed predicate `F`, the key
 length and the sample count are. -/
@@ -239,11 +240,13 @@ theorem computableInPolyTime_labelMap
       (encPair encUnary encBits) encBits := by
   have hrows : ComputableInPolyTime
       (fun p : ℕ × List Bool => BitString.listRows (samples p.1) p.1 (p.2.drop (keyBits p.1)))
-      (encPair encUnary encBits) (encList encBits) := by fun_prop
+      (encPair encUnary encBits) (encList encBits) := by
+    fun_prop
   have hword : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool =>
         (p.1.1, BitString.listRow (keyBits p.1.1) 0 p.1.2 ++ p.2))
-      (encPair (encPair encUnary encBits) encBits) (encPair encUnary encBits) := by fun_prop
+      (encPair (encPair encUnary encBits) encBits) (encPair encUnary encBits) := by
+    fun_prop
   exact hrows.bitsFlatten.bitsAppend (.mapToBitsWithInput hrows (hF.comp hword))
 
 /-! ### A good inverter from the absence of weak one-way functions -/
@@ -276,11 +279,14 @@ theorem exists_isPPT_inverter_frequently_learningExperiment_le_of_not_exists_wea
             BitString (keyBits n) |
             ε < uniformError (family keyBits F n K) (family keyBits F n K')} ≤
         ((q.eval n : ℕ) : ℝ≥0∞)⁻¹ + 2 ^ keyBits n * (1 - ENNReal.ofReal ε) ^ samples n := by
-  have hex : ¬ _ := fun hcon =>
-    hOWF ⟨_, OneWayReindex.weakOneWay (computableInPolyTime_inputLength _ _ hkeyBits hsamples)
+  have hex : ∃ A : Inverter, IsPPT encBits A ∧ ∃ᶠ n in atTop,
+      1 - 1 / ((q.eval n : ℕ) : ℝ) < (Game.succProbability (ProbComp.eval
+        (OneWayReindex.familyInversionGame (inputLength keyBits samples)
+          (labelMap keyBits samples F) A n)) : ℝ) := by
+    by_contra! hcon
+    exact hOWF ⟨_, OneWayReindex.weakOneWay (computableInPolyTime_inputLength _ _ hkeyBits hsamples)
       (fun _ => Nat.le_add_left _ _) (computableInPolyTime_labelMap _ _ _ hkeyBits hsamples hF) hq
       hcon⟩
-  push Not at hex
   obtain ⟨A, hA, hfreq⟩ := hex
   refine ⟨A, hA, hfreq.mono fun n hn ε hε => ?_⟩
   set G := ProbComp.eval (OneWayReindex.familyInversionGame (inputLength keyBits samples)
@@ -293,10 +299,12 @@ theorem exists_isPPT_inverter_frequently_learningExperiment_le_of_not_exists_wea
     rw [← ENNReal.ofReal_toReal (G.apply_ne_top false), ← ENNReal.ofReal_natCast,
       ← ENNReal.ofReal_inv_of_pos (Nat.cast_pos.mpr (hq n)), ← one_div]
     exact ENNReal.ofReal_le_ofReal hlt.le
-  refine (bind_labelInversion_lt_uniformError_le (family keyBits F n)
-    (inverterLearner keyBits A n) _ hε).trans ?_
-  gcongr
-  · exact (learningExperiment_inconsistent_le keyBits samples F A n).trans hfail
-  · simp
+  calc _ ≤ _ + Fintype.card (BitString (keyBits n)) * (1 - ENNReal.ofReal ε) ^ samples n :=
+        bind_labelInversion_lt_uniformError_le (family keyBits F n) (inverterLearner keyBits A n)
+          _ hε
+    _ ≤ _ := by
+        gcongr
+        · exact (learningExperiment_inconsistent_le keyBits samples F A n).trans hfail
+        · simp
 
 end Cslib.MachineLearning.UniformLearning.OneWayInversion

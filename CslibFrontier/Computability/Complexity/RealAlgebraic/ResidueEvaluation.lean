@@ -102,13 +102,17 @@ private theorem sum_residue_grid {M : Type*} [AddCommMonoid M] (B n : ℕ)
   classical
   simp_rw [fun s (i : Fin n) => gridPoint_get (p := B + 1) (r := s) i.isLt]
   rw [← Fin.sum_univ_eq_sum_range]
-  refine ((finFunctionFinEquiv : (Fin n → Fin (B + 1)) ≃ Fin ((B + 1) ^ n)).symm.sum_comp
-    (fun z => F (fun i => (z i).val))).trans (Finset.sum_bij (fun z _ i => (z i).val)
-      (fun z _ => mem_indices.mpr fun i => Nat.lt_succ_iff.mp (z i).isLt)
-      (fun _ _ _ _ h => funext fun i => Fin.ext (congrFun h i))
-      (fun j hj => ⟨fun i => ⟨j i, Nat.lt_succ_iff.mpr (mem_indices.mp hj i)⟩,
-        Finset.mem_univ _, rfl⟩)
-      fun _ _ => rfl)
+  calc
+    _ = ∑ z : Fin n → Fin (B + 1), F (fun i => (z i).val) :=
+      (finFunctionFinEquiv : (Fin n → Fin (B + 1)) ≃ Fin ((B + 1) ^ n)).symm.sum_comp
+        (fun z => F (fun i => (z i).val))
+    _ = ∑ j ∈ indices n B, F j :=
+      Finset.sum_bij (fun z _ i => (z i).val)
+        (fun z _ => mem_indices.mpr fun i => Nat.lt_succ_iff.mp (z i).isLt)
+        (fun _ _ _ _ h => funext fun i => Fin.ext (congrFun h i))
+        (fun j hj => ⟨fun i => ⟨j i, Nat.lt_succ_iff.mpr (mem_indices.mp hj i)⟩,
+          Finset.mem_univ _, rfl⟩)
+        fun _ _ => rfl
 
 private theorem grid_sum (b n s : ℕ) :
     (gridPoint b n s).sum =
@@ -142,9 +146,9 @@ theorem residueValue_cast {p n ell B : ℕ} [Fact p.Prime] (hell : 1 ≤ ell)
     by_cases hs : (gridPoint (B + 1) n s).sum ≤ B
     · rw [ite_eq_left hs]
       have hsum : (∑ i, j i) ≤ B := by simpa only [grid_sum] using hs
-      have heq : B + (ell - 1) * B = ell * B := by
-        rw [show ell * B = (1 + (ell - 1)) * B from congrArg (· * B) (by omega)]
-        ring
+      have heq : B + (ell - 1) * B = ell * B := calc
+        _ = (1 + (ell - 1)) * B := by ring
+        _ = _ := congrArg (· * B) (by omega)
       have hdeg : (v * ∏ i, r i ^ j i).totalDegree < p - 1 := by
         have hb := (numerator_degree r hr v j).trans
           (Nat.add_le_add hv (Nat.mul_le_mul_left (ell - 1) hsum))

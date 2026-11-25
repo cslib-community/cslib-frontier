@@ -86,9 +86,11 @@ private theorem two_pow_le_length (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k) :
   set B := 10 * q ^ 2 + 1
   set t := k / B
   have ht : 0 < t := Nat.div_pos hk (by omega)
-  exact two_pow_succ_le_length_greedyMasks (by nlinarith)
-    (lt_of_lt_of_le (b := t * B * t) (by simp only [B]; nlinarith)
-      (Nat.mul_le_mul_right t (Nat.div_mul_le_self k B)))
+  refine two_pow_succ_le_length_greedyMasks (by nlinarith) ?_
+  calc 10 * (q * t) ^ 2 < t * B * t := by
+        simp only [B]
+        nlinarith
+    _ ≤ k * t := Nat.mul_le_mul_right t (Nat.div_mul_le_self k B)
 
 private theorem mem_of_lt (hq : 2 ≤ q) (hk : 10 * q ^ 2 + 1 ≤ k)
     (hi : i < 2 ^ (k / (10 * q ^ 2 + 1) + 1)) :
@@ -159,12 +161,14 @@ theorem computableInExpTime_expDesign (q : ℕ) :
       (encPair encUnary encNat) encBits (fun p => p.1) δ := by
   obtain ⟨C, D, h⟩ := (computableInPolyTime_paddedDesign q).exists_computableInO_pad
     (ν := fun p : ℕ × ℕ => p.1) (.fst _ _)
-  rw [show (fun p : ℕ × ℕ => expDesign q p.1 p.2) = fun p => paddedDesign q (p, 2 ^ p.1) from
-    funext fun p => (paddedDesign_two_pow q p.1 p.2).symm]
+  have heq : (fun p : ℕ × ℕ => expDesign q p.1 p.2) = fun p => paddedDesign q (p, 2 ^ p.1) :=
+    funext fun p => (paddedDesign_two_pow q p.1 p.2).symm
+  rw [heq]
   refine ⟨D, Complexity.ComputableInExpTime.of_computableInO h C D fun p => ?_⟩
   rw [show (D : ℝ) * (p.1 : ℝ) = ((D * p.1 : ℕ) : ℝ) by push_cast; ring, Real.rpow_natCast]
   push_cast
-  ring_nf; rfl
+  ring_nf
+  rfl
 
 /-- **Goldreich Exercise 8.19** [Goldreich2007DraftR4]: for every `γ > 0` there is an
 exponential-time computable set system `S` as in Condition 2 of Theorem 8.18, with
@@ -185,8 +189,9 @@ theorem exists_computableInExpTime_design {γ : ℝ} (hγ : 0 < γ) :
   set B := 10 * q ^ 2 + 1
   have hq : 2 ≤ q := le_max_left _ _
   have hγq : 1 ≤ γ * q :=
-    (mul_inv_cancel₀ hγ.ne').symm.trans_le <| mul_le_mul_of_nonneg_left
-      ((Nat.le_ceil _).trans (by exact_mod_cast le_max_right _ _)) hγ.le
+    calc (1 : ℝ) = γ * γ⁻¹ := (mul_inv_cancel₀ hγ.ne').symm
+      _ ≤ γ * q := mul_le_mul_of_nonneg_left
+        ((Nat.le_ceil _).trans (by exact_mod_cast le_max_right _ _)) hγ.le
   have hB : (0 : ℝ) < B := by positivity
   obtain ⟨δ, hδ⟩ := computableInExpTime_expDesign q
   refine ⟨fun p => expDesign q p.1 p.2, fun k => if B ≤ k then 2 ^ (k / B + 1) else 0,
@@ -197,8 +202,12 @@ theorem exists_computableInExpTime_design {γ : ℝ} (hγ : 0 < γ) :
     exact ⟨length_expDesign hq hk hi, card_maskBlock_expDesign hq hk hi⟩
   · have hk : B ≤ k := by by_contra h; simp [h] at hi
     simp only [hk, ite_true] at hi hj
-    exact (Nat.cast_le.mpr (card_maskBlock_inter_expDesign_le hq hk hi hj hij)).trans
-      ((le_mul_of_one_le_left (Nat.cast_nonneg _) hγq).trans_eq (by push_cast; ring))
+    calc (#(maskBlock k (expDesign q k i) ∩ maskBlock k (expDesign q k j)) : ℝ)
+        ≤ (k / B : ℕ) := mod_cast card_maskBlock_inter_expDesign_le hq hk hi hj hij
+      _ ≤ γ * q * (k / B : ℕ) := le_mul_of_one_le_left (Nat.cast_nonneg _) hγq
+      _ = γ * ((q * (k / B) : ℕ) : ℝ) := by
+        push_cast
+        ring
   · have hkB : B ≤ k := by omega
     simp only [hkB, ite_true]
     -- `⌊k / B⌋ ≥ k / (2 B)` once `k ≥ 2 B`
@@ -207,11 +216,11 @@ theorem exists_computableInExpTime_design {γ : ℝ} (hγ : 0 < γ) :
       have : (k : ℝ) < (k / B : ℕ) * B + B := mod_cast Nat.lt_div_mul_add (by omega : 0 < B)
       have : (2 * B : ℝ) ≤ k := mod_cast hk
       linarith
-    refine ⟨hhalf.trans (by
-      push_cast
-      exact le_mul_of_one_le_left (Nat.cast_nonneg _) (by exact_mod_cast (by omega : 1 ≤ q))), ?_⟩
-    push_cast
-    rw [← Real.rpow_natCast]
-    exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by push_cast; linarith)
+    refine ⟨hhalf.trans ?_, ?_⟩
+    · push_cast
+      exact le_mul_of_one_le_left (Nat.cast_nonneg _) (by exact_mod_cast (by omega : 1 ≤ q))
+    · push_cast
+      rw [← Real.rpow_natCast]
+      exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by push_cast; linarith)
 
 end Cslib.Crypto.PRG.NisanWigderson

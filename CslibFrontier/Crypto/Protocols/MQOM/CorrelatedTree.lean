@@ -129,8 +129,12 @@ private theorem siblingNode_cases {height : Nat} (leaf : LeafIndex height) (leve
     exact (Nat.pow_le_pow_right (by decide) (Nat.succ_le_iff.mpr level.isLt)).trans
       (Nat.le_add_right _ _)
   · rcases Nat.even_or_odd (hiddenNode leaf (Fin.castSucc level)) with ⟨k, hk⟩ | ⟨k, hk⟩
-    · exact ⟨k, .inl ⟨by omega, by rw [siblingNode, Nat.xor_one_of_even ⟨k, hk⟩]; omega⟩⟩
-    · exact ⟨k, .inr ⟨hk, by rw [siblingNode, Nat.xor_one_of_odd ⟨k, hk⟩]; omega⟩⟩
+    · refine ⟨k, .inl ⟨by omega, ?_⟩⟩
+      rw [siblingNode, Nat.xor_one_of_even ⟨k, hk⟩]
+      omega
+    · refine ⟨k, .inr ⟨hk, ?_⟩⟩
+      rw [siblingNode, Nat.xor_one_of_odd ⟨k, hk⟩]
+      omega
 
 /-- A sibling-path index is nonzero, as required by the source tree array. -/
 theorem siblingNode_pos {height : Nat} (leaf : LeafIndex height) (level : Fin height) :

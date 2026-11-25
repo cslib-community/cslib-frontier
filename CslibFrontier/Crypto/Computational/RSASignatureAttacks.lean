@@ -102,15 +102,19 @@ def rsaUnblind (N r σ : ℕ) : ℕ := σ * BinaryGcd.modInv r N % N
 theorem rsaEval_rsaUnblind {N e m r σ : ℕ} (hN : 0 < N) (hr : Nat.Coprime r N)
     (hσ : rsaEval N e σ = rsaBlind N e m r) :
     rsaEval N e (rsaUnblind N r σ) = m % N := by
-  have h1 : σ ^ e ≡ m * r ^ e [MOD N] :=
-    Nat.ModEq.trans hσ (Nat.ModEq.mul_left _ (Nat.mod_modEq _ _))
+  have h1 : σ ^ e ≡ m * r ^ e [MOD N] := by
+    have : σ ^ e % N = m * (r ^ e % N) % N := hσ
+    calc σ ^ e ≡ m * (r ^ e % N) [MOD N] := this
+      _ ≡ m * r ^ e [MOD N] := Nat.ModEq.mul_left _ (Nat.mod_modEq _ _)
   have h2 : (σ * BinaryGcd.modInv r N) ^ e ≡ m [MOD N] := by
     calc (σ * BinaryGcd.modInv r N) ^ e = σ ^ e * BinaryGcd.modInv r N ^ e := mul_pow _ _ _
       _ ≡ m * r ^ e * BinaryGcd.modInv r N ^ e [MOD N] := h1.mul_right _
       _ = m * (r * BinaryGcd.modInv r N) ^ e := by rw [mul_pow, mul_assoc]
       _ ≡ m * 1 ^ e [MOD N] := ((BinaryGcd.mul_modInv_modEq_one hN hr).pow e).mul_left _
       _ = m := by rw [one_pow, mul_one]
-  exact (Nat.pow_mod _ _ _).symm.trans h2
+  unfold rsaEval rsaUnblind
+  rw [← Nat.pow_mod]
+  exact h2
 
 /-- The signature on the blinded message is `m ^ d * r` modulo `N`, the signature on `m` times
 the blinding factor. -/

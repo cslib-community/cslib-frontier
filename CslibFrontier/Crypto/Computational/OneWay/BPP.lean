@@ -169,7 +169,9 @@ theorem half_le_succProbability_inversionGame {p : Polynomial ℕ}
       n ≤ (encPreimagePrefix (query j)).length ∧
         p.eval (encPreimagePrefix (query j)).length ≤ searchCoinLength p (n, f x) := by
     have hj' := length_iterate_preimageSearchStep D (n, f x) j
-    exact ⟨by enc_len [query], Polynomial.eval_mono p (by enc_len [query, hj'])⟩
+    constructor
+    · enc_len [query]
+    · exact Polynomial.eval_mono p (by enc_len [query, hj'])
   have hbad (j : ℕ) (hj : j < n) : μ.toOuterMeasure (bad j) ≤ 1 / 2 ^ (n + 1) := by
     refine (toOuterMeasure_take_wrong_le hV (query j) (hlen j hj).2).trans ?_
     simp only [Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]

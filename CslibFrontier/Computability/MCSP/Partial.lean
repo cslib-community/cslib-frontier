@@ -386,7 +386,8 @@ def Instance.ofTotal (x : MCSP.Instance) : Instance where
 
 @[simp] theorem Instance.definedInputs_ofTotal (x : MCSP.Instance) :
     (Instance.ofTotal x).definedInputs = Set.univ := by
-  ext; simp [Instance.definedInputs, Instance.ofTotal]
+  ext
+  simp [Instance.definedInputs, Instance.ofTotal]
 
 @[simp] theorem Instance.completion_ofTotal (x : MCSP.Instance) :
     (Instance.ofTotal x).completion = x.function :=

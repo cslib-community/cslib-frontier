@@ -298,8 +298,9 @@ private theorem pi_toOuterMeasure_eq {ι γ : Type} [Fintype ι] [Fintype γ] [N
     (pi (α := fun _ : ι => γ) fun _ => uniformOfFintype γ).toOuterMeasure {H | H a = H b} =
       (Fintype.card γ : ℝ≥0∞)⁻¹ := by
   classical
-  rw [show {H : ι → γ | H a = H b} = (fun H => decide (H a = H b)) ⁻¹' {true} by ext; simp,
-    ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton, PMF.map,
+  have hset : {H : ι → γ | H a = H b} = (fun H => decide (H a = H b)) ⁻¹' {true} :=
+    Set.ext fun _ => by simp
+  rw [hset, ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton, PMF.map,
     Function.comp_def, ← bind_pi_update (fun _ : ι => uniformOfFintype γ) b
       (fun w H => PMF.pure (decide (H a = w)))]
   refine bind_apply_of_forall _ fun w => ?_
@@ -315,8 +316,10 @@ private theorem pi_toOuterMeasure_exists_le {ι γ J : Type} [Fintype ι] [Finty
     [Fintype J] {a b : J → ι} (hab : ∀ j, a j ≠ b j) :
     (pi (α := fun _ : ι => γ) fun _ => uniformOfFintype γ).toOuterMeasure
         {H | ∃ j, H (a j) = H (b j)} ≤ Fintype.card J * (Fintype.card γ : ℝ≥0∞)⁻¹ := by
-  rw [show {H : ι → γ | ∃ j, H (a j) = H (b j)} =
-    ⋃ j ∈ (Finset.univ : Finset J), {H | H (a j) = H (b j)} by ext; simp]
+  have hset : {H : ι → γ | ∃ j, H (a j) = H (b j)} =
+      ⋃ j ∈ (Finset.univ : Finset J), {H | H (a j) = H (b j)} :=
+    Set.ext fun _ => by simp
+  rw [hset]
   exact (MeasureTheory.measure_biUnion_finset_le _ _).trans_eq
     (by simp [pi_toOuterMeasure_eq (hab _)])
 

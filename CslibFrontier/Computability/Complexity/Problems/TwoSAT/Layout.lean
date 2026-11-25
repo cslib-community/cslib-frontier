@@ -101,14 +101,14 @@ variable {w u v : List Bool} {p : ℕ}
 
 theorem append : InfixAt w p (u ++ v) ↔ InfixAt w p u ∧ InfixAt w (p + u.length) v := by
   refine ⟨fun h => ⟨fun q hq => by rw [h q (by simp; omega), List.getElem?_append_left hq],
-    fun q hq => by
-      rw [Nat.add_assoc, h _ (by simp; omega), List.getElem?_append_right (by omega)]
-      simp⟩,
-    fun ⟨h₁, h₂⟩ q hq => ?_⟩
-  rcases lt_or_ge q u.length with hlt | hge
-  · rw [h₁ q hlt, List.getElem?_append_left hlt]
-  · rw [show p + q = p + u.length + (q - u.length) by omega,
-      h₂ (q - u.length) (by simp at hq; omega), List.getElem?_append_right hge]
+    fun q hq => ?_⟩, fun ⟨h₁, h₂⟩ q hq => ?_⟩
+  · have hlt : u.length + q < (u ++ v).length := by simpa using Nat.add_lt_add_left hq u.length
+    rw [Nat.add_assoc, h _ hlt, List.getElem?_append_right (Nat.le_add_right _ _)]
+    simp
+  · rcases lt_or_ge q u.length with hlt | hge
+    · rw [h₁ q hlt, List.getElem?_append_left hlt]
+    · rw [show p + q = p + u.length + (q - u.length) by omega,
+        h₂ (q - u.length) (by simp at hq; omega), List.getElem?_append_right hge]
 
 /-- The word of an element of a list, in the concatenation of the words of the elements. -/
 theorem flatMap {α : Type*} {L : List α} {f : α → List Bool} (h : InfixAt w p (L.flatMap f))
@@ -128,8 +128,9 @@ theorem literal_digit {v : ℕ} {b : Bool} (h : InfixAt w p (literalBits v b)) {
     w[p + 8 * k]? = some true ∧ w[p + 8 * k + 3]? = some true ∧
       w[p + 8 * k + 7]? = some v.bits[k] := by
   have h₂ := (append.mp h).1.flatMap (f := fun y => List.replicate 7 true ++ [y]) hk
-  rw [show ((v.bits.take k).map fun y => (List.replicate 7 true ++ [y]).length).sum = 8 * k by
-    simp [Nat.min_eq_left hk.le, Nat.mul_comm]] at h₂
+  have hsum : ((v.bits.take k).map fun y => (List.replicate 7 true ++ [y]).length).sum = 8 * k := by
+    simp [Nat.min_eq_left hk.le, Nat.mul_comm]
+  rw [hsum] at h₂
   exact ⟨by simpa using h₂ 0 (by simp), by simpa [Nat.add_assoc] using h₂ 3 (by simp),
     by simpa [Nat.add_assoc] using h₂ 7 (by simp)⟩
 
@@ -139,8 +140,10 @@ theorem literal_end {v : ℕ} {b : Bool} (h : InfixAt w p (literalBits v b)) :
     w[p + 8 * v.bits.length]? = some true ∧ w[p + 8 * v.bits.length + 3]? = some false ∧
       w[p + 8 * v.bits.length + 7]? = some b := by
   have h₂ := (append.mp h).2
-  rw [show (v.bits.flatMap fun y => List.replicate 7 true ++ [y]).length = 8 * v.bits.length by
-    simp [List.length_flatMap, Nat.mul_comm]] at h₂
+  have hlen : (v.bits.flatMap fun y => List.replicate 7 true ++ [y]).length =
+      8 * v.bits.length := by
+    simp [List.length_flatMap, Nat.mul_comm]
+  rw [hlen] at h₂
   exact ⟨h₂ 0 (by simp), by simpa [Nat.add_assoc] using h₂ 3 (by simp),
     by simpa [Nat.add_assoc] using h₂ 7 (by simp)⟩
 
@@ -196,8 +199,8 @@ theorem le_length (h : InfixAt w p u) (hu : u ≠ []) : p + u.length ≤ w.lengt
 /-- A literal starts with a marker. -/
 theorem literal_start {v : ℕ} {b : Bool} (h : InfixAt w p (literalBits v b)) :
     w[p]? = some true := by
-  simpa only [Nat.add_zero] using
-    (h 0 (by simp)).trans (by rcases hv : v.bits with _ | ⟨y, ys⟩ <;> simp [literalBits, hv])
+  rw [← Nat.add_zero p, h 0 (by simp)]
+  rcases hv : v.bits with _ | ⟨y, ys⟩ <;> simp [literalBits, hv]
 
 end InfixAt
 

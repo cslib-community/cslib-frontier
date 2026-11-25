@@ -67,7 +67,9 @@ an event impossible. -/
     y ∈ patternAt m ps ↔ ∀ p ∈ ps, p.1 < m ∧ readBit y p.1 = p.2 := by
   simp [patternAt]
 
-@[simp] theorem patternAt_nil : patternAt m [] = univ := by ext y; simp
+@[simp] theorem patternAt_nil : patternAt m [] = univ := by
+  ext y
+  simp
 
 /-- Appending one specified bit intersects the previous event with that bit's event. -/
 theorem mem_patternAt_append {ps : List (ℕ × Bool)} {j : ℕ} {b : Bool}
@@ -115,7 +117,8 @@ theorem readBit_classicalRun_flipCodes {S : List ℕ} (hS : S.Nodup)
     rw [show flipCodes (a :: S) = (false, a, []) :: flipCodes S from rfl, classicalRun_cons,
       ih hS (fun j hj => hvalid j (List.mem_cons_of_mem a hj)), readBit_classicalStep]
     by_cases hca : c = a
-    · subst hca; simp [ha, hvalid c List.mem_cons_self]
+    · subst hca
+      simp [ha, hvalid c List.mem_cons_self]
     · simp [hca]
 
 /-- Terminal NOT gates use no Hadamards. -/
@@ -176,9 +179,11 @@ theorem classicalRun_flipCodes_mem_onesAt_iff {ps : List (ℕ × Bool)}
         onesAt m (patternWires ps) ↔ y ∈ patternAt m ps := by
   simp only [mem_onesAt_iff, mem_patternAt, patternWires, List.forall_mem_map]
   refine forall₂_congr fun p hp => ?_
+  have hdec : decide (p.1 ∈ patternZeros ps) = !p.2 := by
+    simp only [mem_patternZeros_iff hps hp]
+    cases p.2 <;> rfl
   rw [GateCode.readBit_classicalRun_flipCodes (nodup_patternZeros hps) (patternZeros_lt hvalid),
-    show decide (p.1 ∈ patternZeros ps) = !p.2 by
-      simp only [mem_patternZeros_iff hps hp]; cases p.2 <;> rfl]
+    hdec]
   cases p.2 <;> cases readBit y p.1 <;> simp
 
 /-- The probability of an arbitrary pattern is the existing all-one probability after terminal
@@ -235,7 +240,9 @@ theorem mem_patternAt_zip_iff {S : List ℕ} {bs : List Bool}
     (hS : ∀ j ∈ S, j < m) (hlen : bs.length = S.length) (y : Fin m → Bool) :
     y ∈ patternAt m (S.zip bs) ↔ S.map (readBit y) = bs := by
   induction S generalizing bs with
-  | nil => obtain rfl := List.eq_nil_of_length_eq_zero hlen; simp
+  | nil =>
+    obtain rfl := List.eq_nil_of_length_eq_zero hlen
+    simp
   | cons j S ih =>
     cases bs with
     | nil => simp at hlen

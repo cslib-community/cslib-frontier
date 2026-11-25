@@ -51,8 +51,13 @@ theorem adjacentPair_eq_true_iff {n : ℕ} {x : BitString n} :
 theorem weight_eq_two_of_adjacentPair {n : ℕ} {x : BitString n}
     (h : adjacentPair n x = true) : weight x = 2 := by
   obtain ⟨a, b, hab, hx⟩ := adjacentPair_eq_true_iff.mp h
-  rw [weight, show ({i | x i = true} : Finset (Fin n)) = {a, b} by ext; simp [hx]]
-  exact card_pair fun he => by subst he; omega
+  have hset : ({i | x i = true} : Finset (Fin n)) = {a, b} := by
+    ext
+    simp [hx]
+  rw [weight, hset]
+  refine card_pair fun he => ?_
+  subst he
+  omega
 
 /-- The all-false word is not an adjacent pair, including lengths zero and one. -/
 @[simp] theorem adjacentPair_zero (n : ℕ) : adjacentPair n (fun _ => false) = false := by
@@ -69,8 +74,10 @@ theorem weight_eq_two_of_adjacentPair {n : ℕ} {x : BitString n}
   | false => rfl
   | true =>
     have hw := weight_eq_two_of_adjacentPair h
-    rw [weight, show ({i : Fin n | decide (i = a) = true} : Finset (Fin n)) = {a} by ext; simp,
-      card_singleton] at hw
+    have hset : ({i : Fin n | decide (i = a) = true} : Finset (Fin n)) = {a} := by
+      ext
+      simp
+    rw [weight, hset, card_singleton] at hw
     omega
 
 /-- Every pair of consecutive positions gives an accepted input. -/

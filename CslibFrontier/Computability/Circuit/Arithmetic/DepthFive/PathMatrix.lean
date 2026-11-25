@@ -103,7 +103,10 @@ theorem weight_uPart (hcard : (Finset.univ.filter fun t => p.isV t).card = p.k) 
   rw [hcard, Finset.card_univ, Fintype.card_fin] at h
   have := p.hkm
   rw [uPart, weight_part, Finset.filter_filter, Finset.filter_filter]
-  exact Prod.ext (by simp) (by simp only [and_self]; omega)
+  apply Prod.ext
+  · simp
+  · simp only [and_self]
+    omega
 
 theorem coeff_eq_mul (M : Fin p.n × Fin p.n × Fin p.n →₀ ℕ) :
     P.coeff p M = (∏ t with p.isV t, M (P.edge t)) * ∏ t with ¬ p.isV t, (M (P.edge t) + 1) := by

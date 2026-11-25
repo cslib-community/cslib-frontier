@@ -81,7 +81,8 @@ private theorem isSome_ofCode (f : ValidCircuit) :
     exact ⟨rfl, by rintro _ (rfl | rfl) <;> omega⟩
   · have hm := hf.m_le_q
     simp only [topo, outputCode, gateCode, List.mem_ofFn, List.length_ofFn] at hm ⊢
-    rintro _ ⟨o, rfl⟩; omega
+    rintro _ ⟨o, rfl⟩
+    omega
 
 /-- A valid conventional circuit as a circuit over the full binary basis, decoded from its
 gate list. -/
@@ -174,7 +175,8 @@ theorem lines_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size) :
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
     rcases hi with rfl | rfl <;> omega)] at h
   rw [← Option.some_inj.mp h]
-  congr 1; funext a
+  congr 1
+  funext a
   match a with | ⟨0, _⟩ | ⟨1, _⟩ => rfl
 
 /-- Output `o` of `toCircuit f` is the 0-indexed wire `n + q - m + o`. -/

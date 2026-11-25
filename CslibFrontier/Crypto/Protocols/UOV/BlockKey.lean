@@ -190,8 +190,10 @@ and Figure 2, line 5, p. 16). -/
 theorem oilBlock_eq_of_charTwo [CharP R 2] (O : Matrix (Fin v) (Fin m) R)
     (P1 : Matrix (Fin v) (Fin v) R) (P2 : Matrix (Fin v) (Fin m) R) :
     oilBlock O P1 P2 = (O.transpose * P1 * O + O.transpose * P2).upperQuadratic := by
-  rw [oilBlock]; congr 1
-  ext i j; simp [Matrix.neg_mul, CharTwo.sub_eq_add, CharTwo.neg_eq]
+  rw [oilBlock]
+  congr 1
+  ext i j
+  simp [Matrix.neg_mul, CharTwo.sub_eq_add, CharTwo.neg_eq]
 
 /-- Assemble the `(v + m) × (v + m)` public polynomial matrix `[[P1, P2], [0, P3]]` indexed on
 `Fin (v + m)` via `finSumFinEquiv` ([UOV2026], §3.1, p. 12). -/
@@ -224,10 +226,12 @@ theorem isAlt_oilRestriction (O : Matrix (Fin v) (Fin m) R)
     (Matrix.toLinearMap₂' R (S₁ := R) (S₂ := R)
       (O.transpose * P1 * O + O.transpose * P2 + oilBlock O P1 P2)).IsAlt := by
   let M : Matrix (Fin m) (Fin m) R := -O.transpose * P1 * O - O.transpose * P2
-  rw [show O.transpose * P1 * O + O.transpose * P2 + oilBlock O P1 P2 = M.upperQuadratic - M by
+  have hsub : O.transpose * P1 * O + O.transpose * P2 + oilBlock O P1 P2 =
+      M.upperQuadratic - M := by
     ext i j
     simp only [oilBlock, M, Matrix.add_apply, Matrix.sub_apply, Matrix.neg_mul, Matrix.neg_apply]
-    ring]
+    ring
+  rw [hsub]
   exact Matrix.isAlt_toLinearMap₂'_upperQuadratic_sub M
 
 private theorem append_dotProduct_blockMatrix_mulVec (P1 : Matrix (Fin v) (Fin v) R)
@@ -249,13 +253,13 @@ private theorem toQuadraticForm'_blockMatrix_oilEmbed (O : Matrix (Fin v) (Fin m
     (P3 : Matrix (Fin m) (Fin m) R) (x : Fin m → R) :
     (blockMatrix P1 P2 P3).toQuadraticForm' (oilEmbed O x) =
       P3.toQuadraticForm' x - (-O.transpose * P1 * O - O.transpose * P2).toQuadraticForm' x := by
+  have h1 : (O *ᵥ x) ⬝ᵥ (P1 *ᵥ (O *ᵥ x)) = x ⬝ᵥ ((O.transpose * P1 * O) *ᵥ x) := by
+    rw [Matrix.mul_assoc, ← Matrix.mulVec_mulVec, ← Matrix.mulVec_mulVec,
+      Matrix.dotProduct_transpose_mulVec, dotProduct_comm]
+  have h2 : (O *ᵥ x) ⬝ᵥ (P2 *ᵥ x) = x ⬝ᵥ ((O.transpose * P2) *ᵥ x) := by
+    rw [← Matrix.mulVec_mulVec, Matrix.dotProduct_transpose_mulVec, dotProduct_comm]
   rw [Matrix.toQuadraticForm'_apply, Matrix.toQuadraticForm'_apply, Matrix.toQuadraticForm'_apply,
-    oilEmbed_apply, append_dotProduct_blockMatrix_mulVec,
-    show (O *ᵥ x) ⬝ᵥ (P1 *ᵥ (O *ᵥ x)) = x ⬝ᵥ ((O.transpose * P1 * O) *ᵥ x) by
-      rw [Matrix.mul_assoc, ← Matrix.mulVec_mulVec, ← Matrix.mulVec_mulVec,
-        Matrix.dotProduct_transpose_mulVec, dotProduct_comm],
-    show (O *ᵥ x) ⬝ᵥ (P2 *ᵥ x) = x ⬝ᵥ ((O.transpose * P2) *ᵥ x) by
-      rw [← Matrix.mulVec_mulVec, Matrix.dotProduct_transpose_mulVec, dotProduct_comm]]
+    oilEmbed_apply, append_dotProduct_blockMatrix_mulVec, h1, h2]
   simp only [Matrix.sub_mulVec, Matrix.neg_mul, Matrix.neg_mulVec, dotProduct_sub, dotProduct_neg]
   ring
 
@@ -359,9 +363,10 @@ theorem BlockKeyMaterial.polar_vinegarEmbed_oilEmbed_apply (key : BlockKeyMateri
     BlockKeyMaterial.publicMatrix, vinegarEmbed, oilEmbed_apply,
     append_dotProduct_blockMatrix_mulVec, append_dotProduct_blockMatrix_mulVec]
   simp only [mulVec_zero, dotProduct_zero, zero_dotProduct, add_zero]
-  rw [show (key.oilMatrix *ᵥ x) ⬝ᵥ (key.vinegarBlock i *ᵥ u) =
-    u ⬝ᵥ ((key.vinegarBlock i).transpose *ᵥ (key.oilMatrix *ᵥ x)) by
-      rw [Matrix.dotProduct_transpose_mulVec, dotProduct_comm], ← dotProduct_mulVec]
+  have htrans : (key.oilMatrix *ᵥ x) ⬝ᵥ (key.vinegarBlock i *ᵥ u) =
+      u ⬝ᵥ ((key.vinegarBlock i).transpose *ᵥ (key.oilMatrix *ᵥ x)) := by
+    rw [Matrix.dotProduct_transpose_mulVec, dotProduct_comm]
+  rw [htrans, ← dotProduct_mulVec]
   simp only [linearizationMatrix, Matrix.add_mul, add_mulVec, ← Matrix.mulVec_mulVec,
     dotProduct_add]
   ring
@@ -385,7 +390,8 @@ theorem BlockKeyMaterial.publicMap_signatureVector (key : BlockKeyMaterial R v m
     (u : Fin v → R) (x : Fin m → R) :
     key.publicMap (signatureVector key.oilMatrix u x) =
       vinegarEval key.vinegarBlock u + key.signingSystemMatrix u *ᵥ x := by
-  ext i; exact key.publicMap_signatureVector_apply u x i
+  ext i
+  exact key.publicMap_signatureVector_apply u x i
 
 /-- **UOV signing linear-system equivalence** ([UOV2026], §3.1, p. 13, and `UOV.Sign` /
 `UOV.Verify`, Figure 2, pp. 16–17): `P([u; 0] + [O; Iₘ] x) = t` if and only if `L x = t - y`. -/

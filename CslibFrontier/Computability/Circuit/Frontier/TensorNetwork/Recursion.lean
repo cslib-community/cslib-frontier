@@ -323,14 +323,18 @@ theorem mk_contraction_finLift [DecidableEq E] (N : TensorNetwork (B ⧸ twoPowI
 theorem RowsToColumnsLE.finLift [DecidableEq V] {N : TensorNetwork (B ⧸ twoPowIdeal B p) Bool V E}
     {side : V → Bool} {Δ : ℕ} (h : N.RowsToColumnsLE side Δ) :
     (TensorNetwork.finLift N).RowsToColumnsLE (side ∘ (Fintype.equivFin V).symm) Δ where
-  side_src _ := by
+  side_src e := by
     simp only [TensorNetwork.finLift, Function.comp_apply, reindex_src, Equiv.symm_apply_apply]
     exact h.side_src _
-  side_tgt _ := by
+  side_tgt e := by
     simp only [TensorNetwork.finLift, Function.comp_apply, reindex_tgt, Equiv.symm_apply_apply]
     exact h.side_tgt _
-  src_le _ := by rw [TensorNetwork.finLift, card_reindex_src]; exact h.src_le _
-  tgt_le _ := by rw [TensorNetwork.finLift, card_reindex_tgt]; exact h.tgt_le _
+  src_le v := by
+    rw [TensorNetwork.finLift, card_reindex_src]
+    exact h.src_le _
+  tgt_le w := by
+    rw [TensorNetwork.finLift, card_reindex_tgt]
+    exact h.tgt_le _
 
 end FinLift
 
@@ -479,18 +483,24 @@ theorem rowsToColumnsLE_child {Δ a : ℕ} {slot : E → ℕ} (hrow : ∀ v, #{e
     rintro (v | q)
     · rw [S.card_child_src_inl]
       cases hv : S.side v.1
-      · have h0 : #{e | N.src e = v.1} = 0 := card_eq_zero.mpr
-          (filter_eq_empty_iff.mpr fun e _ he => by rw [← he, S.side_src] at hv; cases hv)
+      · have h0 : #{e | N.src e = v.1} = 0 := by
+          refine card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => ?_)
+          rw [← he, S.side_src] at hv
+          cases hv
         rw [h0, zero_add]
         exact hcol _
-      · have h0 : #{e | N.tgt e = v.1} = 0 := card_eq_zero.mpr
-          (filter_eq_empty_iff.mpr fun e _ he => by rw [← he, S.side_tgt] at hv; cases hv)
+      · have h0 : #{e | N.tgt e = v.1} = 0 := by
+          refine card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => ?_)
+          rw [← he, S.side_tgt] at hv
+          cases hv
         rw [h0, add_zero]
         exact hrow _
-    · rw [S.card_child_src_inr]; exact Nat.zero_le _
+    · rw [S.card_child_src_inr]
+      exact Nat.zero_le _
   tgt_le := by
     rintro (v | q)
-    · rw [S.card_child_tgt_inl]; exact Nat.zero_le _
+    · rw [S.card_child_tgt_inl]
+      exact Nat.zero_le _
     · exact (S.card_child_tgt_inr_le hslot hinj β g q).trans hL
 
 end ModeSplitting

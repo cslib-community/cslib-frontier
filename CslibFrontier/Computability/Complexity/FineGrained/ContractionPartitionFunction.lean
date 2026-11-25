@@ -102,11 +102,13 @@ variable (encRel : Rel ↪ List Bool)
 
 theorem computableInPolyTime_guard (k : ℕ) :
     ComputableInPolyTime (guard (Rel := Rel) k) (encCSP encRel encNat) encBool := by
-  unfold guard; fun_prop
+  unfold guard
+  fun_prop
 
 theorem computableInPolyTime_fallback :
     ComputableInPolyTime (fallback (Rel := Rel)) (encCSP encRel encNat) encNat := by
-  unfold fallback; fun_prop
+  unfold fallback
+  fun_prop
 
 theorem computableInPolyTime_contractionInput (k W : ℕ) (wt : Rel → List Bool → ℕ)
     (hwt : ∀ w : List Bool, w.length ≤ k →
@@ -219,8 +221,8 @@ theorem exists_partitionFunctionCounter (encRel : Rel ↪ List Bool) (k W : ℕ)
       obtain ⟨hne, hcl⟩ := guard_eq_true_iff.mp hg
       have : 1 ≤ F.vars.length :=
         (List.length_pos_iff.mpr hne).trans_le (CSP.length_le_length_vars fun c hc => (hcl c hc).1)
-      exact ⟨by omega, by dsimp [contractionInput, precision]; nlinarith,
-        le_rfl, explicitAdmissible_cspNetwork hg⟩
+      dsimp only [contractionInput, precision]
+      exact ⟨by omega, by nlinarith, le_rfl, explicitAdmissible_cspNetwork hg⟩
   obtain ⟨e, he⟩ := (h
     (fun F => 3 * K * (F.vars.length + 1) / Nat.sqrt (Nat.log 2 (F.numVars + 2)))
     fun F hg => by
@@ -255,9 +257,10 @@ theorem exists_partitionFunctionCounter_boundedDegree (encRel : Rel ↪ List Boo
   obtain ⟨count, A, e, b, hcount, hc⟩ := exists_partitionFunctionCounter encRel k W wt hwt hW
   refine ⟨count, _, _, e, b, hcount, hc, fun _ => rfl, fun Δ => ⟨A * (Δ + 1), fun F hF => ?_⟩⟩
   refine Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by norm_num) (Nat.div_le_div_right ?_))
-  have := CSP.length_vars_le_mul_numVars hF
-  exact (Nat.mul_le_mul_left A
-    (by nlinarith : F.vars.length + 1 ≤ (Δ + 1) * (F.numVars + 1))).trans_eq (by ring)
+  have h := CSP.length_vars_le_mul_numVars hF
+  calc A * (F.vars.length + 1)
+      ≤ A * ((Δ + 1) * (F.numVars + 1)) := Nat.mul_le_mul_left _ (by nlinarith)
+    _ = A * (Δ + 1) * (F.numVars + 1) := by ring
 
 /-- **Weighted `#CSP` by tensor contraction over a finite relation alphabet**: the weights at
 patterns of length at most `k` are then bounded and polynomial-time in the relation symbol. -/

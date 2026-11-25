@@ -129,28 +129,32 @@ private theorem nw_design_and_size_bounds {c m Tc τ : ℕ} (hc : 0 < c) (hτ3 :
   set P := 2 ^ τ with hP
   have hP8 : 8 ≤ P := (Nat.pow_le_pow_right two_pos hτ3).trans_eq' rfl
   have hc4 : c * 4 ≤ b + 1 := by
-    have := Nat.lt_two_pow_self (n := c)
-    have : 2 ^ c * 4 ≤ b := by
+    have h₁ : c < 2 ^ c := Nat.lt_two_pow_self
+    have h₂ : 2 ^ c * 4 ≤ b := by
       rw [hb, show 2 ^ c * 4 = 2 ^ (c + 2) by rw [pow_add]; rfl]
       exact Nat.pow_le_pow_right two_pos (by omega)
     omega
-  have hlen : m ≤ (greedyMasks ((b + 1) * τ) (c * (4 * τ)) (τ - 1)).length :=
-    le_length_greedyMasks (by omega) (by nlinarith) (by nlinarith) <|
-      (Nat.mul_le_mul_left _ (by omega : m ≤ P)).trans_eq
-        (by rw [hb, hP, ← pow_mul, show (4 : ℕ) = 2 ^ 2 from rfl, ← pow_mul, ← pow_add]; ring_nf)
+  have hlen : m ≤ (greedyMasks ((b + 1) * τ) (c * (4 * τ)) (τ - 1)).length := by
+    refine le_length_greedyMasks (by omega) (by nlinarith) (by nlinarith) ?_
+    calc 4 ^ (c * (4 * τ)) * m ≤ 4 ^ (c * (4 * τ)) * P := Nat.mul_le_mul_left _ (by omega)
+      _ = b ^ τ := by
+        rw [hb, hP, ← pow_mul, show (4 : ℕ) = 2 ^ 2 by rfl, ← pow_mul, ← pow_add]; ring_nf
   have hY : 2 ^ (τ - 1) * (2 * (τ - 1) + 3) + 1 ≤ P ^ 2 := by
     have hQ : 2 ^ (τ - 1) * 2 = P := by rw [hP, ← pow_succ, Nat.sub_add_cancel (by omega)]
-    rw [← hQ]
-    nlinarith [Nat.lt_two_pow_self (n := τ - 1), @Nat.one_le_two_pow (τ - 1)]
-  have h₂ : 8 * (m * P ^ 2) ≤ P ^ 3 := by
-    nlinarith [Nat.mul_le_mul_right (P ^ 2) (by omega : 8 * m ≤ P)]
+    have := Nat.lt_two_pow_self (n := τ - 1); have := @Nat.one_le_two_pow (τ - 1)
+    rw [← hQ]; nlinarith
+  have h₂ : 8 * (m * P ^ 2) ≤ P ^ 3 :=
+    calc 8 * (m * P ^ 2) = 8 * m * P ^ 2 := by ring
+      _ ≤ P * P ^ 2 := Nat.mul_le_mul_right _ (by omega)
+      _ = P ^ 3 := by ring
   have h₃ : 8 * P ^ 3 ≤ P ^ 4 := by
     rw [pow_succ P 3, mul_comm (P ^ 3)]; exact Nat.mul_le_mul_right _ hP8
-  have h₄ := Nat.le_self_pow (by norm_num : 4 ≠ 0) P
+  have h₄ : P ≤ P ^ 4 := Nat.le_self_pow (by norm_num) P
   have h₁ := Nat.mul_le_mul_left m hY
-  have h6m : (6 : ℝ) * (m : ℝ) < ((2 ^ (4 * τ) : ℕ) : ℝ) := by
-    exact_mod_cast (show 6 * m < 2 ^ (4 * τ) by rw [mul_comm 4 τ, pow_mul, ← hP]; omega)
-  exact ⟨hlen, by rw [mul_comm 4 τ, pow_mul, ← hP]; omega, by linarith⟩
+  have h6m : 6 * m < 2 ^ (4 * τ) := by rw [mul_comm 4 τ, pow_mul, ← hP]; omega
+  refine ⟨hlen, by rw [mul_comm 4 τ, pow_mul, ← hP]; omega, ?_⟩
+  have h6m' : (6 * m : ℝ) < ((2 ^ (4 * τ) : ℕ) : ℝ) := by exact_mod_cast h6m
+  linarith
 
 /-- **Hardness versus randomness for promise problems: average-case hardness in `E` derandomizes
 `PromiseBPP`** [NisanWigderson1994], [Arora and Barak, Chapter 20][AroraBarak09]. Let `L` be a
@@ -176,10 +180,11 @@ theorem PromiseBPP_subset_PromiseP_of_isAverageCaseHard {L : Language Bool} {c :
   obtain ⟨L', hL', hVL'⟩ := PPoly.exists_of_polyTime hV
   set Tc : ℕ → ℕ := fun N =>
     complexity interpretation (single (L'.slice (2 * N + 1 + p.eval N)))
-  set B : ℕ → ℕ := fun N => p.eval N + Tc N + 5 with hB
   have hTcpoly : PolynomiallyBounded Tc :=
     (mem_PPoly.1 hL').comp (g := fun N => 2 * N + 1 + p.eval N) (by fun_prop)
-  obtain ⟨e, he⟩ := (show PolynomiallyBounded B by simp only [hB]; fun_prop).exists_clog_le_mul_log
+  set B : ℕ → ℕ := fun N => p.eval N + Tc N + 5 with hB
+  have hBpoly : PolynomiallyBounded B := by simp only [hB]; fun_prop
+  obtain ⟨e, he⟩ := hBpoly.exists_clog_le_mul_log
   obtain ⟨n₀, hn₀⟩ := eventually_atTop.1 hard
   set t : ℕ → ℕ := fun N => n₀ + 3 + e * (Nat.log 2 N + 1) with ht
   set b := 2 ^ (8 * c + 1)
@@ -194,30 +199,33 @@ theorem PromiseBPP_subset_PromiseP_of_isAverageCaseHard {L : Language Bool} {c :
   set N := (enc x).length
   set τ := t N with hτ
   set m := p.eval N
+  have hτ3 : n₀ + 3 ≤ τ := by simp only [hτ, ht]; omega
   have hBτ : 8 * B N ≤ 2 ^ τ := by
     rw [hτ, ht, pow_add]
     exact Nat.mul_le_mul (by rw [pow_add]; exact Nat.le_mul_of_pos_left _ (Nat.two_pow_pos _))
       ((Nat.le_pow_clog one_lt_two _).trans (Nat.pow_le_pow_right two_pos (he N)))
-  obtain ⟨hlen, hs, hεs⟩ := nw_design_and_size_bounds hc (by simp only [hτ, ht]; omega) hBτ
+  obtain ⟨hlen, hs, hεs⟩ := nw_design_and_size_bounds hc (by omega) hBτ
   have hhard : IsAverageCaseHard (L.slice (c * (4 * τ))) (2 ^ (4 * τ)) := by
-    have h := hn₀ (c * (4 * τ)) ((by simp only [hτ, ht]; omega : n₀ ≤ τ).trans
-      ((Nat.le_mul_of_pos_left τ (by omega)).trans (Nat.le_mul_of_pos_left _ hc)))
+    have h := hn₀ (c * (4 * τ)) (by nlinarith)
     rwa [Nat.mul_div_cancel_left _ hc] at h
   set test : BooleanFunction m := fun r => V (x, List.ofFn r) with htest_def
   have htest : complexity interpretation (single test) ≤ Tc N + 2 := by
     have h := complexity_le_of_append_take L' (frame (enc x)) le_rfl (f := test) fun r => by
       rw [htest_def, List.take_of_length_le (by simp), hVL', encPair_apply, encBits_apply]
     rwa [length_frame] at h
+  have hgap := abs_card_div_sub_card_div_lt (Design.greedy _ _ _ _ hlen) hhard hs hεs test htest
   refine seedDecider_eq_of_boundedError (fun h => boundedErrorAt_true_iff.1 (h ▸ hans))
     (fun h => boundedErrorAt_false_iff.1 (h ▸ hans)) _ _ ?_
-  rw [show #{z : Fin ((b + 1) * τ) → Bool |
+  have hseeds : #{z : Fin ((b + 1) * τ) → Bool |
       V (x, nwGen g (fun x => (b + 1) * t (enc x).length) (fun x => c * (4 * t (enc x).length))
-        (fun x => t (enc x).length - 1) (fun x => p.eval (enc x).length) x (List.ofFn z)) = true} =
-    #{z | test (generator (Design.greedy ((b + 1) * τ) (c * (4 * τ)) (τ - 1) m hlen)
-      (L.slice (c * (4 * τ))) z) = true} from
-    congrArg _ (filter_congr fun _ _ => by
-      rw [htest_def, nwGen, listGenerator_take_greedyMasks hlen, hslice])]
-  exact abs_card_div_sub_card_div_lt (Design.greedy _ _ _ _ hlen) hhard hs hεs test htest
+        (fun x => t (enc x).length - 1) (fun x => p.eval (enc x).length) x (List.ofFn z)) =
+          true} =
+      #{z | test (generator (Design.greedy ((b + 1) * τ) (c * (4 * τ)) (τ - 1) m hlen)
+        (L.slice (c * (4 * τ))) z) = true} := by
+    refine congrArg _ (filter_congr fun z _ => ?_)
+    rw [htest_def, nwGen, listGenerator_take_greedyMasks hlen, hslice]
+  rw [hseeds]
+  exact hgap
 
 /-- **Hardness versus randomness: average-case hardness in `E` derandomizes `BPP`**
 [NisanWigderson1994], [Arora and Barak, Chapter 20][AroraBarak09]: under the hypothesis of

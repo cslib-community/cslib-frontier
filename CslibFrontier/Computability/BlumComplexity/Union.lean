@@ -159,8 +159,11 @@ private theorem exists_index (T : ℕ → ℕ → ℕ) (c : Code) (N : ℕ)
     by_contra! hnone
     obtain ⟨y, hy1, hy2⟩ := (hfreq.and_eventually (eventually_not_eligible hnone)).exists
     rw [← Bool.not_eq_true, elig_eq_true] at hy2
-    exact hy2 ⟨by rw [hup]; exact Nat.le_add_right _ _,
-      by rw [hup]; simpa only [ofNat_encode] using hy1⟩
+    refine hy2 ⟨?_, ?_⟩
+    · rw [hup]
+      exact Nat.le_add_right _ _
+    · rw [hup]
+      simpa only [ofNat_encode] using hy1
   have hNy : N ≤ y :=
     (Nat.le_add_left N (encode c)).trans ((Nat.right_le_pair _ _).trans (canc_le hy).2)
   have hidx : idx Φ T y = i := by simp [idx, hy, hup]
@@ -215,7 +218,9 @@ theorem exists_union_bound {T : ℕ → ℕ → ℕ} (hT : Computable₂ T)
   refine ⟨fun n => T (idx Φ T n) n, hT.comp (computable_idx Φ hT) Computable.id,
     fun n => ⟨idx Φ T n, idx_le Φ T n, rfl⟩,
     fun i => (eventually_le_idx Φ T i).mono fun n hn => monotone_nat_of_le_succ (hmono · n) hn,
-    fun c hc => let ⟨N, hN⟩ := eventually_atTop.1 hc; exists_index Φ T c N hN⟩
+    fun c hc => ?_⟩
+  obtain ⟨N, hN⟩ := eventually_atTop.1 hc
+  exact exists_index Φ T c N hN
 
 /-- **The union theorem** [Odifreddi1999, Theorem VII.3.7] [McCreightMeyer1969]. For a uniformly
 computable family of bounds `T` that increases pointwise in the index, some computable `t` has

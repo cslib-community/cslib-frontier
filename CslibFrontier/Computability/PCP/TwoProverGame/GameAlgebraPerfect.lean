@@ -146,7 +146,9 @@ private theorem gns_faithful (τ : AlgState B) (hτ : τ.IsTracial) (P : X → M
     let R := τ.gnsRight hτ (op a)
     have hc : S.aliceAlgebra ≤ StarSubalgebra.centralizer ℂ {R} := by
       refine S.aliceAlgebra_le
-        (by rw [StarSubalgebra.coe_centralizer]; exact Set.isClosed_centralizer _) fun x b => ?_
+        (by
+          rw [StarSubalgebra.coe_centralizer]
+          exact Set.isClosed_centralizer _) fun x b => ?_
       refine (StarSubalgebra.mem_centralizer_iff ℂ).mpr ?_
       rintro _ rfl
       dsimp only [S]
@@ -157,9 +159,9 @@ private theorem gns_faithful (τ : AlgState B) (hτ : τ.IsTracial) (P : X → M
     exact ((StarSubalgebra.mem_centralizer_iff ℂ).mp (hc z.property) R rfl).1.symm
   suffices hT : T = 0 from Subtype.ext hT
   refine τ.gns_ext fun a => ?_
-  rw [show (τ.toPreGNS a : τ.toPositiveLinearMap.GNS) = τ.gnsRight hτ (op a) ξ by
-      rw [show ξ = τ.toPreGNS 1 from rfl, τ.gnsRight_toPreGNS, one_mul],
-    ← mul_apply_eq_comp, (hcomm a).eq, mul_apply_eq_comp, hξ, map_zero, zero_apply]
+  have hpre : (τ.toPreGNS a : τ.toPositiveLinearMap.GNS) = τ.gnsRight hτ (op a) ξ := by
+    rw [show ξ = τ.toPreGNS 1 from rfl, τ.gnsRight_toPreGNS, one_mul]
+  rw [hpre, ← mul_apply_eq_comp, (hcomm a).eq, mul_apply_eq_comp, hξ, map_zero, zero_apply]
 
 private theorem projective_of_synchronous_of_faithful
     (S : CommutingStrategy X X A A B) (hS : S.IsSynchronous) (hfaith : S.aliceState.IsFaithful)

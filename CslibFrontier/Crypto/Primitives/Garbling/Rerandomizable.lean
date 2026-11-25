@@ -239,8 +239,10 @@ def permInput (π : Fin m → G.Perm) (X : Fin m → G.Label) : Fin m → G.Labe
 
 /-- Encoding commutes with permuting the labels. -/
 theorem encode_permEncoding (π : Fin m → G.Perm) (e : Fin m → G.Label × G.Label)
-    (x : Fin m → Bool) : G.encode (G.permEncoding π e) x = G.permInput π (G.encode e x) :=
-  funext fun i => by simp only [encode, permEncoding, permInput]; split <;> rfl
+    (x : Fin m → Bool) : G.encode (G.permEncoding π e) x = G.permInput π (G.encode e x) := by
+  funext i
+  simp only [encode, permEncoding, permInput]
+  split <;> rfl
 
 /-- Evaluate a garbling on input `x`: run its circuit on the encoding of `x`. -/
 def evalGarbled (g : Garbled G.GC G.Label m) (x : Fin m → Bool) : G.Out :=
@@ -575,7 +577,8 @@ theorem explainGbAdvantage_eq (rc : G.RandomnessComposition) (hinv : rc.Invertib
     · rintro ⟨r₁, r'₁⟩ ⟨r₂, r'₂⟩ h
       obtain rfl := hinv.invRerand.injective (Prod.mk.inj h).2
       exact Prod.ext ((hinv.explainGb_bijective _).injective (Prod.mk.inj h).1) rfl
-    · rw [rc.garble_explainGb]; dsimp only [rerandGarbled]
+    · rw [rc.garble_explainGb]
+      dsimp only [rerandGarbled]
       rw [hinv.rerand_invRerand, encode_permEncoding, hinv.permInput_invRerand]
   have hideal : ProbComp.eval (G.explainGbIdealExperiment f x D) =
       ProbComp.eval (G.rerandIdealExperiment f x (G.explainGbReduction f D)) := by
@@ -618,8 +621,10 @@ theorem explainRerandAdvantage_le (rc : G.RandomnessComposition) (hinv : rc.Inve
       obtain rfl := hinv.invRerand.injective (Prod.mk.inj h2).1
       obtain rfl := (hinv.explainRerand_bijective _).injective (Prod.mk.inj h2).2
       exact Prod.ext ((hinv.explainGb_bijective _).injective hgb) rfl
-    · rw [hinv.unexplainGb_explainGb, rc.garble_explainGb]; dsimp only [rerandGarbled]
-      rw [rc.rerand_explainRerand]; dsimp only [rerandTwice]
+    · rw [hinv.unexplainGb_explainGb, rc.garble_explainGb]
+      dsimp only [rerandGarbled]
+      rw [rc.rerand_explainRerand]
+      dsimp only [rerandTwice]
       rw [hinv.rerand_invRerand, encode_permEncoding, permInput_comp hcomp,
         hinv.permInput_invRerand]
   have hhyb : ProbComp.eval (G.rerandIdealExperiment f x (G.explainRerandReductionRight f D)) =
@@ -634,10 +639,16 @@ theorem explainRerandAdvantage_le (rc : G.RandomnessComposition) (hinv : rc.Inve
       rcases h with ⟨hr, rfl, rfl⟩
       exact Prod.ext ((hinv.explainGb_bijective _).injective hr) rfl
     · rw [hinv.unexplainGb_explainGb]
-  refine (Game.advantage_triangle _
-    (ProbComp.eval (G.rerandIdealExperiment f x (G.explainRerandReductionRight f D))) _).trans_eq ?_
-  rw [rerandAdvantage, rerandAdvantage, rerandRealExperiment_explainRerandReductionRight,
-    Game.advantage_comm (ProbComp.eval (G.explainRerandIdealExperiment f x D)), hreal, hhyb]
+  calc G.explainRerandAdvantage rc f x D
+      ≤ Game.advantage (ProbComp.eval (G.explainRerandRealExperiment rc f x D))
+          (ProbComp.eval (G.rerandIdealExperiment f x (G.explainRerandReductionRight f D))) +
+        Game.advantage
+          (ProbComp.eval (G.rerandIdealExperiment f x (G.explainRerandReductionRight f D)))
+          (ProbComp.eval (G.explainRerandIdealExperiment f x D)) :=
+        Game.advantage_triangle _ _ _
+    _ = _ := by
+        rw [rerandAdvantage, rerandAdvantage, rerandRealExperiment_explainRerandReductionRight,
+          Game.advantage_comm (ProbComp.eval (G.explainRerandIdealExperiment f x D)), hreal, hhyb]
 
 /-! ### Zero error under bijectivity in the second argument -/
 
@@ -648,9 +659,11 @@ theorem eval_rerandRealView (rc : G.RandomnessComposition)
     ProbComp.eval (G.rerandRealView f x) = ProbComp.eval (G.rerandIdealView f x) := by
   simp only [rerandRealView, rerandIdealView, ProbComp.eval_bind, ProbComp.eval_uniform,
     ProbComp.eval_pure]
-  congr 1; funext r
+  congr 1
+  funext r
   relabel_uniform (rc.explainGb r) with r'
-  rw [rc.garble_explainGb]; dsimp only [rerandGarbled]
+  rw [rc.garble_explainGb]
+  dsimp only [rerandGarbled]
   rw [encode_permEncoding]
 
 /-- If `explainGb r` is a bijection, explainable garbling with fixed coins `r` holds with zero

@@ -135,11 +135,13 @@ private theorem ChainInv.merge {f : α → γ} {M : Finset (α × α)} (h : Chai
   · have himage : Finset.univ.image (mergeLabel f (u, v)) = (Finset.univ.image f).erase (f v) := by
       ext c
       simp only [Finset.mem_image, Finset.mem_univ, true_and, Finset.mem_erase, mergeLabel]
-      refine ⟨?_, by rintro ⟨hc, x, rfl⟩; exact ⟨x, ite_eq_right hc⟩⟩
-      rintro ⟨x, rfl⟩
-      split_ifs with hx
-      · exact ⟨hne, u, rfl⟩
-      · exact ⟨hx, x, rfl⟩
+      refine ⟨?_, ?_⟩
+      · rintro ⟨x, rfl⟩
+        split_ifs with hx
+        · exact ⟨hne, u, rfl⟩
+        · exact ⟨hx, x, rfl⟩
+      · rintro ⟨hc, x, rfl⟩
+        exact ⟨x, ite_eq_right hc⟩
     have hmem := Finset.mem_image_of_mem f (Finset.mem_univ v)
     rw [himage, Finset.card_insert_of_notMem huvM, Finset.card_erase_of_mem hmem]
     have := h.card
@@ -226,8 +228,10 @@ omit [PartialOrder α] in
 /-- A vertex cover of size `|C|` misses at least `|α| - |C|` elements on both sides. -/
 theorem card_sub_size_le_card_uncovered (C : VertexCover α α) :
     Fintype.card α - C.size ≤ C.uncovered.card := by
-  rw [show C.uncovered = Finset.univ \ (C.left ∪ C.right) by ext; simp [VertexCover.uncovered],
-    VertexCover.size]
+  have hunc : C.uncovered = Finset.univ \ (C.left ∪ C.right) := by
+    ext
+    simp [VertexCover.uncovered]
+  rw [hunc, VertexCover.size]
   have h1 := Finset.card_union_le C.left C.right
   have h2 := Finset.card_sdiff_add_card_inter Finset.univ (C.left ∪ C.right)
   rw [Finset.univ_inter, Finset.card_univ] at h2

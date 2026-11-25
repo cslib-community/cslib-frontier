@@ -81,11 +81,15 @@ private theorem response_nonempty (hβ : P.β < P.γ₁) : (responseSet P).Nonem
 private theorem mem_response_iff [NeZero P.q] (hq : 2 * P.γ₁ < P.q)
     (z : Fin P.ℓ → Fin P.n → ZMod P.q) : z ∈ responseSet P ↔ ResponseShort P z := by
   rw [mem_intervalVectors]
-  refine ⟨fun hz i j => ?_, fun hz i j => ?_⟩
-  · obtain ⟨x, ⟨hl, hu⟩, hx⟩ := hz i j
-    rw [(ZMod.valMinAbs_spec _ _).2 ⟨hx.symm, by lia, by lia⟩, abs_lt]
+  constructor
+  · intro hz i j
+    obtain ⟨x, ⟨hl, hu⟩, hx⟩ := hz i j
+    have he : (z i j).valMinAbs = x := (ZMod.valMinAbs_spec _ _).2 ⟨hx.symm, by
+      exact ⟨by lia, by lia⟩⟩
+    rw [he, abs_lt]
     exact ⟨by lia, by lia⟩
-  · obtain ⟨hl, hu⟩ := abs_lt.mp (hz i j)
+  · intro hz i j
+    obtain ⟨hl, hu⟩ := abs_lt.mp (hz i j)
     exact ⟨_, ⟨by lia, by lia⟩, ZMod.coe_valMinAbs _⟩
 
 private theorem sub_mem_mask {v z : Fin P.ℓ → Fin P.n → ZMod P.q}
@@ -206,8 +210,10 @@ theorem freshSigningAttempt_eq_simulate (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
     (abs_valMinAbs_negacyclicMul_le hc (hs₁ i) j).trans (by exact_mod_cast hP.τ_mul_η_le_β)
   have hgate := PMF.shiftReject_eq_sampleWithRatio (hB := mask_nonempty P (by lia))
     (fun z hz => sub_mem_mask P ((mem_response_iff P hq z).1 hz) hv) (response_nonempty P hβ)
-  have hr : (responseSet P).card = (2 * (P.γ₁ - P.β) - 1) ^ (P.ℓ * P.n) :=
-    (intervalVectors_card P (by lia) (by lia)).trans (congrArg (· ^ (P.ℓ * P.n)) (by lia))
+  have hr : (responseSet P).card = (2 * (P.γ₁ - P.β) - 1) ^ (P.ℓ * P.n) := by
+    rw [intervalVectors_card P (by lia) (by lia)]
+    congr 1
+    lia
   unfold simulateFreshSigningAttempt
   simp only [← mask_card P (by lia) hq, ← hr, ← hgate, PMF.shiftReject, PMF.map_comp,
     Function.comp_def, freshSigningAttempt, signingMaskLaw]

@@ -199,7 +199,8 @@ theorem eval_hashSamples (count seedBits bound observationBits labelBits remaini
           hashSamples count seedBits bound observationBits labelBits remainingBits samples
             firstKey middleKey lastKey) := by
   have hlength := length_flatten_padWord bound (samples.map fun s => s.1.1) (fun _ hobs => by
-    obtain ⟨sample, hsample, rfl⟩ := List.mem_map.mp hobs; exact hbound sample hsample)
+    obtain ⟨sample, hsample, rfl⟩ := List.mem_map.mp hobs
+    exact hbound sample hsample)
   simp only [List.length_map, hcount, List.map_map, Function.comp_def] at hlength
   simp only [ProbComp.eval_bind, extractWordSeeds, extractWordLabels, extractMatrixLabels,
     extractLabels, finish, extractWordObservations, LinearHash.extract,
@@ -236,7 +237,9 @@ theorem length_generate (count seedBits bound observationBits labelBits remainin
     (generate count seedBits bound observationBits labelBits remainingBits evaluate tape).length =
       outputLength count seedBits bound observationBits labelBits remainingBits := by
   refine length_extract count seedBits bound observationBits labelBits remainingBits
-    (do let seed ← BitString.sampleList seedBits; return (evaluate seed, seed))
+    (do
+      let seed ← BitString.sampleList seedBits
+      return (evaluate seed, seed))
     (fun _ hsample => ?_) ?_
   · simp only [bind_pure_comp, ProbComp.eval_map, BitString.eval_sampleList,
       PMF.mem_support_map_iff] at hsample
@@ -244,7 +247,8 @@ theorem length_generate (count seedBits bound observationBits labelBits remainin
     exact hbound seed (mem_support_uniformList_iff.mp hseed)
   · rw [← eval_generate count seedBits bound observationBits labelBits remainingBits
       evaluate hbound]
-    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨tape, mem_support_uniformList_iff.mpr htape, rfl⟩
+    exact (PMF.mem_support_map_iff _ _ _).mpr
+      ⟨tape, mem_support_uniformList_iff.mpr htape, rfl⟩
 
 /-- The sampler's saved-seed evaluator implements the exact ensemble in the security theorem.
 The observation bound only concerns outcomes in the support of the finite pair. -/

@@ -49,10 +49,12 @@ theorem identificationDartEquiv_vertex_eq_iff (F : CSP Rel V) (f : V → W) (x y
   obtain ⟨a, rfl⟩ := (mergeDartEquiv h k).surjective a
   obtain ⟨b, rfl⟩ := (mergeDartEquiv h k).surjective b
   simp only [identificationDartEquiv, Equiv.trans_apply, Equiv.symm_apply_apply]
-  obtain ⟨o, ho⟩ := exists_incidenceDart a; obtain ⟨p, hp⟩ := exists_incidenceDart b
+  obtain ⟨o, ho⟩ := exists_incidenceDart a
+  obtain ⟨p, hp⟩ := exists_incidenceDart b
   have hm (q : F.Occurrence) : q.var ∈ F.distinctVars := CSP.mem_distinctVars.mpr q.var_mem
-  have hmt (q : F.Occurrence) : f q.var ∈ (F.relabel f).distinctVars :=
-    CSP.mem_distinctVars.mpr (by rw [CSP.vars_relabel]; exact List.mem_map_of_mem q.var_mem)
+  have hmt (q : F.Occurrence) : f q.var ∈ (F.relabel f).distinctVars := by
+    rw [CSP.mem_distinctVars, CSP.vars_relabel]
+    exact List.mem_map_of_mem q.var_mem
   have hidx_lt {W' : Type} [DecidableEq W'] (G : CSP Rel W') {v : W'} (hv : v ∈ G.distinctVars) :
       G.distinctVars.idxOf v < G.numVars :=
     CSP.length_distinctVars (F := G) ▸ List.idxOf_lt_length_of_mem hv
@@ -66,8 +68,10 @@ theorem identificationDartEquiv_vertex_eq_iff (F : CSP Rel V) (f : V → W) (x y
   have hc (i : ℕ) : Function.update id (F.distinctVars.idxOf y)
       (F.distinctVars.idxOf x) (F.numVars + i) = F.numVars + i :=
     Function.update_of_ne (by omega) _ id
-  have hto := hidx_lt _ (hmt o); have htp := hidx_lt _ (hmt p)
-  have hio := himage o; have hip := himage p
+  have hto := hidx_lt _ (hmt o)
+  have htp := hidx_lt _ (hmt p)
+  have hio := himage o
+  have hip := himage p
   rw [← ho, ← hp, vertex_relabelDartEquiv, vertex_relabelDartEquiv,
     vertex_mergeDartEquiv, vertex_mergeDartEquiv, hh, hk,
     vertex_incidenceDart, vertex_incidenceDart]

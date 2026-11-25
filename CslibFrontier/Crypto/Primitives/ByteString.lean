@@ -71,7 +71,8 @@ def ofListExact {n : ℕ} (X : List Byte) (h : X.length = n) : FixedBytes n := f
 /-- The list view of `ofListExact X h` is the list `X` it was built from. -/
 @[simp] theorem toList_ofListExact {n : ℕ} (X : List Byte) (h : X.length = n) :
     (ofListExact X h).toList = X := by
-  subst h; exact List.ofFn_get X
+  subst h
+  exact List.ofFn_get X
 
 /-- A byte string of length `n` is the list view of a fixed-length byte string. -/
 theorem exists_toList {n : ℕ} {bytes : List Byte} (h : bytes.length = n) :
@@ -166,14 +167,15 @@ def bitsToFixedBytesBE (n : ℕ) (bits : List Bool) : FixedBytes n := fun i =>
       FixedBytes.toList, bytesToBitsBE]
   | succ n ih =>
     have h8 : 8 ≤ bits.length := by omega
+    have hdrop : (bits.drop 8).length = 8 * n := by simp; omega
     have hlist : (bitsToFixedBytesBE (n + 1) bits).toList =
         byteOfBitsBE (bits.take 8) :: (bitsToFixedBytesBE n (bits.drop 8)).toList := by
       simp only [bitsToFixedBytesBE, FixedBytes.toList, List.ofFn_succ, List.cons.injEq,
         List.ofFn_inj]
-      exact ⟨by simp, funext fun i => by
-        simp [bitsToFixedBytesBE, List.drop_drop, Nat.mul_add, Nat.add_comm]⟩
+      refine ⟨by simp, funext fun i => ?_⟩
+      simp [bitsToFixedBytesBE, List.drop_drop, Nat.mul_add, Nat.add_comm]
     simp only [hlist, bytesToBitsBE]
-    rw [byteBitsBE_byteOfBitsBE _ (by simp [h8]), ih _ (by simp; omega), List.take_append_drop]
+    rw [byteBitsBE_byteOfBitsBE _ (by simp [h8]), ih _ hdrop, List.take_append_drop]
 
 /-- Encode a natural number as exactly `n` big-endian bytes, retaining its low `8n` bits. -/
 def natToFixedBytesBE (n value : ℕ) : FixedBytes n := fun i =>
@@ -186,7 +188,8 @@ private theorem natToFixedBytesBE_toList_succ (n value : ℕ) :
   simp only [natToFixedBytesBE, FixedBytes.toList, List.ofFn_succ, List.cons.injEq, List.ofFn_inj]
   refine ⟨rfl, funext fun i => Fin.ext ?_⟩
   simp only [Fin.val_succ]
-  congr 3; omega
+  congr 3
+  omega
 
 /-- Serializing a natural number as `n` bytes produces its low `8n` bits in big-endian order. -/
 theorem bytesToBitsBE_natToFixedBytesBE (n value : ℕ) :
@@ -204,8 +207,12 @@ theorem bytesToBitsBE_natToFixedBytesBE (n value : ℕ) :
       omega
     · rw [binaryValue_append, binaryValue_binaryWord, binaryValue_binaryWord,
         binaryValue_binaryWord, length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _)),
-        show 2 ^ (8 * (n + 1)) = 2 ^ (8 * n) * 256 by rw [Nat.mul_add, Nat.pow_add],
-        ← Nat.mod_mul_right_div_self, ← Nat.mod_mul_right_mod value (2 ^ (8 * n)) 256]
-      exact Nat.div_add_mod' _ _
+        show 2 ^ (8 * (n + 1)) = 2 ^ (8 * n) * 256 by rw [Nat.mul_add, Nat.pow_add]]
+      calc
+        _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) + value % 2 ^ (8 * n) := by
+          rw [Nat.mod_mul_right_div_self]
+        _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) +
+            value % (2 ^ (8 * n) * 256) % 2 ^ (8 * n) := by rw [Nat.mod_mul_right_mod]
+        _ = _ := Nat.div_add_mod' _ _
 
 end Cslib.Crypto

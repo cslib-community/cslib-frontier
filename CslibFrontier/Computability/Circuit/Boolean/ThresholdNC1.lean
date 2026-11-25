@@ -315,10 +315,15 @@ theorem mem_NC_succ_of_threshold_fanInAtMost {L : Language Bool} {i c : ℕ} {s 
     by fun_prop, fun n => ?_⟩
   obtain ⟨C, hCc, hCd, hCs, hCf⟩ := hC n
   obtain ⟨D, hDe, hDs, hDd⟩ := Threshold.exists_deMorgan_simulation_of_fanInAtMost C hCf
-  refine ⟨D, fun x => (congrFun hDe x).trans (hCc x), ?_, hDs.trans (by beta_reduce; gcongr)⟩
-  have hlog : 2 + 23 * Nat.clog 2 (F n + 1) ≤ (23 * e + 2) * (Nat.log 2 n + 1) := by
-    linarith [he n]
-  exact hDd.trans ((Nat.mul_le_mul hlog hCd).trans_eq (by ring))
+  refine ⟨D, fun x => (congrFun hDe x).trans (hCc x), ?_, ?_⟩
+  · have hlog : 2 + 23 * Nat.clog 2 (F n + 1) ≤ (23 * e + 2) * (Nat.log 2 n + 1) := by
+      linarith [he n]
+    calc D.depth ≤ (2 + 23 * Nat.clog 2 (F n + 1)) * C.depth := hDd
+      _ ≤ ((23 * e + 2) * (Nat.log 2 n + 1)) * (c * (Nat.log 2 n + 1) ^ i) := by gcongr
+      _ = c * (23 * e + 2) * (Nat.log 2 n + 1) ^ (i + 1) := by ring
+  · refine hDs.trans ?_
+    beta_reduce
+    gcongr
 
 /-- Any language decided by polynomial-size, polynomially fan-in-bounded `TC` circuits of depth
 `O((log n) ^ i)` belongs to **NCⁱ⁺¹** [Vollmer, Theorem 4.22][Vollmer1999]. -/

@@ -318,7 +318,8 @@ private theorem advantage_elGamalGroupCPAGameOn_true_ddhRandomGame_le
   rw [← hmask]
   simp only [add_comm ((α * β) • F.generator (d n))]
   exact F.advantage_bind_sampleExp_le n (d n) fun γ => ProbComp.eval
-    (W n (d n, F.encode (d n) (α • F.generator (d n)), F.encode (d n) (β • F.generator (d n)),
+    (W n (d n, F.encode (d n) (α • F.generator (d n)),
+      F.encode (d n) (β • F.generator (d n)),
       F.encode (d n) (γ • F.generator (d n) + (α * β) • F.generator (d n))))
 
 /-- **Quantitative reduction from word-level DDH to native `Encryption.gameOn`** (after

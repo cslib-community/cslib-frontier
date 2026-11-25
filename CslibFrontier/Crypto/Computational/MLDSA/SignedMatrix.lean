@@ -52,7 +52,9 @@ private theorem matrix_of_programmed_keyGen (H : Xofs) (s : Level) (seed : Fixed
   rw [seedEq]
   dsimp only [G] at present ⊢
   rw [expandA_programMatrixPrefixes] at present ⊢
-  cases hm : (H.withMatrixPrefixes s rho t).expandA s rho <;> [simp [hm] at present; rfl]
+  cases hm : (H.withMatrixPrefixes s rho t).expandA s rho with
+  | none => simp [hm] at present
+  | some _ => rfl
 
 /-- Draw an external uniform coefficient matrix and program the literal SHAKE128 matrix
 addresses derived by Algorithm 6. The joint law of the entire XOF, both byte keys and the
@@ -305,19 +307,17 @@ theorem SignedMatrixTrial.bound_of_verifiedLog {s : Level}
   simp only [← ENNReal.coe_le_coe, ENNReal.coe_add, Game.coe_succProbability_ennreal, PMF.map_bind]
   let U := PMF.uniformOfFintype (PublicMatrix s)
   let rest (r : Option (SignedMatrixTrial s)) := r.any fun u => u.wins && !u.newDigestWin
-  refine le_trans (PMF.bind_apply_le_add_on_support _ true fun A _ =>
-    PMF.map_true_le_add _ fun
+  refine le_trans ?_ (add_le_add le_rfl (?_ : (U.bind fun A => (run A).map rest) true ≤ _))
+  · refine PMF.bind_apply_le_add_on_support _ true fun A _ => PMF.map_true_le_add _ fun
       | none, _, h => by simp at h
-      | some u, _, h => by cases hn : u.newDigestWin <;> simp_all [rest])
-    (add_le_add le_rfl ((PMF.bind_apply_le_add_on_support _ true fun A _ =>
-      PMF.map_true_le_add _ fun
-        | none, _, h => by simp [rest] at h
-        | some u, hr, h => by
-          obtain ⟨rfl, hm, log⟩ := verified A u hr
-          obtain ⟨hw, hn⟩ := Bool.and_eq_true_iff.mp (show u.wins && !u.newDigestWin from h)
-          simpa only [Option.any_some, decide_eq_true_eq] using
-            (u.cases_of_win hm log hw).resolve_left (by simpa using hn) :
-      (U.bind fun A => (run A).map rest) true ≤ _)))
+      | some u, _, h => by cases hn : u.newDigestWin <;> simp_all [rest]
+  · refine PMF.bind_apply_le_add_on_support _ true fun A _ => PMF.map_true_le_add _ fun
+      | none, _, h => by simp [rest] at h
+      | some u, hr, h => by
+        obtain ⟨rfl, hm, log⟩ := verified A u hr
+        obtain ⟨hw, hn⟩ := Bool.and_eq_true_iff.mp (show u.wins && !u.newDigestWin from h)
+        simpa only [Option.any_some, decide_eq_true_eq] using
+          (u.cases_of_win hm log hw).resolve_left (by simpa using hn)
 
 /-- In the experiment with fresh SHAKE128 matrix prefixes, bound the whole strong forgery
 event by the remaining fresh-digest event, a computed SHAKE256 collision and success of an

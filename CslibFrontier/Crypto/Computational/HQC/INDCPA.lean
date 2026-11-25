@@ -88,7 +88,8 @@ private theorem bind_uniformParity_eq_uniform (n : ℕ) [NeZero n] :
       Finset.sum_singleton, uniformParity_apply, h, ite_false, ite_true, Fintype.card_pi,
       Finset.prod_const, Finset.card_univ, Fintype.card_fin, pow_succ, mul_comm,
       Nat.succ_sub_one, Nat.cast_mul, zero_mul, add_zero, zero_add]
-    rw [ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by finiteness)), Nat.cast_pow]
+    rw [ENNReal.mul_inv (Or.inl (by norm_num))
+      (Or.inl (by finiteness)), Nat.cast_pow]
     norm_num [mul_comm]
 
 /-- The real 2-DQCSD-P public-key law, mixing the parity `b₁` read from the sampled public word. -/
@@ -321,7 +322,8 @@ private theorem uniformMaskGame_eq_uniform {State : Type}
       (ProbComp.eval (adversary.guess choice.2
         ⟨u, encode (choice.1.select bit) + mask⟩)).bind fun guess =>
       PMF.pure (guess == bit)) = PMF.uniformOfFintype Bool := by
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Codeword P)) (ProbComp.eval (adversary.choose pk))]
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Codeword P))
+    (ProbComp.eval (adversary.choose pk))]
   conv_rhs =>
     rw [← PMF.bind_const (ProbComp.eval (adversary.choose pk)) (PMF.uniformOfFintype Bool)]
   refine congrArg (ProbComp.eval (adversary.choose pk)).bind (funext fun choice => ?_)
