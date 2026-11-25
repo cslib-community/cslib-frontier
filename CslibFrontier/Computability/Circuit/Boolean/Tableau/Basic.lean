@@ -289,27 +289,52 @@ private theorem attr_offset_lt (v : Attr k State) (j : Fin (numSit k State + 1))
   omega
 
 omit [DecidableEq State] in
+/-- References occurring in feature terms read earlier wires than any gate at or after `gfStart`. -/
+private theorem resolve_lt_of_gfStart_le {n T t c : ℕ} (ht : 1 ≤ t) (hc : c < numCols T)
+    {l : Loc k State} (hl : gfStart k State T ≤ l.offset T c) {r : Ref k State}
+    (hr : match r with
+      | .fls | .tru | .inp => True
+      | .node true _ cs gd => cs = .next → gd = .ltLast
+      | .node false (.glob (.attr _ _)) _ _ => True
+      | .node false (.scan _) .same _ => True
+      | _ => False) :
+    r.resolve n T t c < wire n T t l c := by
+  rcases r with _ | _ | _ | ⟨_ | _, l', cs, gd⟩
+  · exact resolve_fls_lt
+  · exact resolve_tru_lt
+  · exact resolve_inp_lt
+  · rcases l' with l' | (⟨_, _⟩ | ⟨v, j⟩) | _ | _
+    · cases cs <;> try contradiction
+      exact resolve_cur_lt fun _ =>
+        ((scan_offset_lt_globStart hc l').trans_le globStart_le_gfStart).trans_le hl
+    · contradiction
+    · exact resolve_cur_lt fun _ => (attr_offset_lt v j).trans_le hl
+    · contradiction
+    · contradiction
+  · refine resolve_prev_lt ht fun hg => ?_
+    cases cs with
+    | same => exact hc
+    | prev => simp only [ColSel.apply]; omega
+    | next =>
+      have := hr rfl
+      subst this
+      simpa only [ColSel.apply, Guard.test, decide_eq_true_eq] using hg
+    | last => simp [ColSel.apply, numCols]
+
+omit [DecidableEq State] in
 /-- The references of a term of a global feature read earlier wires than the gates of the
 feature. -/
 private theorem gfTerms_lt {n T t : ℕ} (ht : 1 ≤ t) {f : GFeat State} {b : Bool} {j : Fin 8}
     {f' : GFeat State} {p : Ref k State × Ref k State} (hp : p ∈ gfTerms f' ∨ p = (.fls, .fls)) :
     p.1.resolve n T t 0 < wire (k := k) n T t (.gf f b j) 0 ∧
       p.2.resolve n T t 0 < wire (k := k) n T t (.gf f b j) 0 := by
-  have hok {r : Ref k State} (hr : r = .tru ∨ r = .fls ∨ (∃ g, gfF g = r) ∨ ∃ v, act v = r) :
-      r.resolve n T t 0 < wire (k := k) n T t (.gf f b j) 0 := by
-    rcases hr with rfl | rfl | ⟨g, rfl⟩ | ⟨v, rfl⟩
-    · exact resolve_tru_lt
-    · exact resolve_fls_lt
-    · exact resolve_prev_lt ht fun _ => by simp [ColSel.apply, numCols]
-    · refine resolve_cur_lt fun _ => ?_
-      have := attr_offset_lt (T := T) v (Fin.last _)
-      simp only [Loc.offset]
-      omega
+  have hok {r : Ref k State} := resolve_lt_of_gfStart_le (k := k) (n := n) (T := T) (t := t)
+    (c := 0) (l := .gf f b j) ht (by simp [numCols]) (Nat.le_add_right _ _) (r := r)
   rcases hp with hp | rfl
-  · rcases f' with (_ | q) | ((_ | _) | _) | _ <;> simp only [gfTerms, List.mem_cons,
-      List.not_mem_nil, or_false] at hp <;>
+  · rcases f' with (_ | q) | ((_ | _) | _) | _ <;>
+      simp only [gfTerms, List.mem_cons, List.not_mem_nil, or_false] at hp <;>
       rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-      exact ⟨hok (by simp), hok (by simp)⟩
+      exact ⟨hok (by simp [halted, gfF, act]), hok (by simp [gfF])⟩
   · exact ⟨resolve_fls_lt, resolve_fls_lt⟩
 
 omit [DecidableEq State] in
@@ -320,45 +345,30 @@ private theorem colTerms_lt {n T t c : ℕ} (ht : 1 ≤ t) (hc : c < numCols T)
     (hp : p ∈ colTerms f' ∨ p = (.fls, .fls)) :
     p.1.resolve n T t c < wire (State := State) n T t (.col f b j) c ∧
       p.2.resolve n T t c < wire (State := State) n T t (.col f b j) c := by
-  have hcol (g : ColFeat k) (cs : ColSel) (gd : Guard)
-      (h : gd.test n T c = true → cs.apply T c < numCols T) :
-      (colF g cs gd : Ref k State).resolve n T t c < wire (State := State) n T t (.col f b j) c :=
-    resolve_prev_lt ht h
-  have hok {r : Ref k State} (hr : r = .tru ∨ r = .fls ∨ (∃ g, gfF g = r) ∨ (∃ v, act v = r) ∨
-      (∃ g, colF g .same .always = r) ∨ (∃ g, colF g .prev .pos = r) ∨
-      (∃ g, colF g .prev .leEnd = r) ∨ (∃ g, colF g .next .ltLast = r) ∨
-      (∃ g, colF g .same .isZero = r) ∨ (∃ g, colF g .same .isEnd = r) ∨
-      (∃ i, scanAt (.nh i) .same .always = r)) :
-      r.resolve n T t c < wire (State := State) n T t (.col f b j) c := by
-    rcases hr with rfl | rfl | ⟨g, rfl⟩ | ⟨v, rfl⟩ | ⟨g, rfl⟩ | ⟨g, rfl⟩ | ⟨g, rfl⟩ | ⟨g, rfl⟩ |
-      ⟨g, rfl⟩ | ⟨g, rfl⟩ | ⟨i, rfl⟩
-    · exact resolve_tru_lt
-    · exact resolve_fls_lt
-    · exact resolve_prev_lt ht fun _ => hc
-    · refine resolve_cur_lt fun _ => ?_
-      have := attr_offset_lt (T := T) v (Fin.last _)
-      have := gfStart_le_colStart (k := k) (State := State) (T := T)
-      simp only [Loc.offset]
-      omega
-    · exact hcol g _ _ fun _ => hc
-    · exact hcol g _ _ fun _ => by simp only [ColSel.apply]; omega
-    · exact hcol g _ _ fun _ => by simp only [ColSel.apply]; omega
-    · exact hcol g _ _ fun hg => by
-        simpa only [ColSel.apply, Guard.test, decide_eq_true_eq] using hg
-    · exact hcol g _ _ fun _ => hc
-    · exact hcol g _ _ fun _ => hc
-    · refine resolve_cur_lt fun _ => ?_
-      have := scan_offset_lt_globStart hc (.nh i)
-      have := globStart_le_gfStart (k := k) (State := State) (T := T)
-      have := gfStart_le_colStart (k := k) (State := State) (T := T)
-      simp only [Loc.offset, ColSel.apply]
-      omega
+  have hok {r : Ref k State} := resolve_lt_of_gfStart_le (State := State) (n := n) (T := T) (t := t)
+    (c := c) (l := .col f b j) ht hc
+    ((gfStart_le_colStart.trans (Nat.le_add_right _ _)).trans (Nat.le_add_right _ _)) (r := r)
   rcases hp with hp | rfl
-  · rcases f' with _ | i | ⟨i, s⟩ <;> simp only [colTerms, List.mem_cons,
-      List.not_mem_nil, or_false] at hp <;>
+  · rcases f' with _ | i | ⟨i, s⟩ <;>
+      simp only [colTerms, List.mem_cons, List.not_mem_nil, or_false] at hp <;>
       rcases hp with rfl | rfl | rfl | rfl | rfl | rfl <;>
-      exact ⟨hok (by simp), hok (by simp)⟩
+      exact ⟨hok (by simp [halted, gfF, colF, act, scanAt]),
+        hok (by simp [colF, act])⟩
   · exact ⟨resolve_fls_lt, resolve_fls_lt⟩
+
+omit [DecidableEq State] in
+private theorem resolve_orChain_lt {n T t c : ℕ} {j : Fin 8} {mk : Bool → Fin 8 → Loc k State}
+    (hfalse : (mk false j).offset T c < (mk true j).offset T c)
+    (hprev : ∀ j' : Fin 7, j = j'.succ →
+      (mk true j'.castSucc).offset T c < (mk true j'.succ).offset T c) :
+    (Fin.cases (motive := fun _ => Ref k State) .fls
+        (fun j' => .node false (mk true j'.castSucc) .same .always) j).resolve n T t c <
+        wire n T t (mk true j) c ∧
+      (Ref.node false (mk false j) .same .always).resolve n T t c < wire n T t (mk true j) c := by
+  refine ⟨?_, resolve_cur_lt fun _ => by simpa only [ColSel.apply] using hfalse⟩
+  cases j using Fin.cases with
+  | zero => exact resolve_fls_lt
+  | succ j' => exact resolve_cur_lt fun _ => by simpa only [ColSel.apply] using hprev j' rfl
 
 /-- **The references of a gate read earlier wires.** -/
 private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State} (hl : l.ColOK T c) :
@@ -368,8 +378,6 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
   have hprevS (g : ColFeat k) :
       (colF g .same .always : Ref k State).resolve n T t c < wire n T t l c :=
     resolve_prev_lt ht fun _ => hc
-  have hgs := globStart_le_gfStart (k := k) (State := State) (T := T)
-  have hgc := gfStart_le_colStart (k := k) (State := State) (T := T)
   rcases l with l | l | ⟨f, b, j⟩ | ⟨f, b, j⟩
   · rcases l with i | _ | q | q
     · exact ⟨hprevS _, resolve_fls_lt⟩
@@ -377,8 +385,7 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
     · rcases q with (_ | (_ | _)) | ⟨i, s⟩
       · exact ⟨resolve_prev_lt ht fun _ => hc, resolve_tru_lt⟩
       · refine ⟨resolve_prev_lt ht fun _ => hc, resolve_cur_lt fun _ => ?_⟩
-        simp only [Loc.offset, ColSel.apply, ScanLoc.idx, ScanQ.idx, symIdx]
-        omega
+        simp only [Loc.offset, ColSel.apply, ScanLoc.idx, ScanQ.idx, symIdx]; omega
       · exact ⟨resolve_prev_lt ht fun _ => hc, resolve_inp_lt⟩
       · exact ⟨hprevS _, hprevS _⟩
     · refine ⟨resolve_cur_lt fun hg => ?_, resolve_cur_lt fun _ => ?_⟩
@@ -388,17 +395,13 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
           rw [← Nat.succ_mul, Nat.succ_eq_add_one, Nat.sub_add_cancel hg]
         have := scanWidth_pos (k := k)
         omega
-      · simp only [Loc.offset, ColSel.apply, ScanLoc.idx]
-        omega
-  · simp only [Loc.ColOK] at hl
-    subst hl
+      · simp only [Loc.offset, ColSel.apply, ScanLoc.idx]; omega
+  · simp only [Loc.ColOK] at hl; subst hl
     have hlast (l' : ScanLoc k) (g : GlobLoc k State) :
         (scanAt l' .last .always : Ref k State).resolve n T t 0 < wire n T t (.glob g) 0 :=
       resolve_cur_lt fun _ => by
-        have := scan_offset_lt_globStart (k := k) (T := T) (c := 2 * T)
-          (by simp [numCols]) l'
-        simp only [Loc.offset, ColSel.apply]
-        omega
+        have := scan_offset_lt_globStart (k := k) (T := T) (c := 2 * T) (by simp [numCols]) l'
+        simp only [Loc.offset, ColSel.apply]; omega
     rcases l with ⟨j, i⟩ | ⟨v, j⟩
     · cases i using Fin.cases with
       | zero =>
@@ -407,8 +410,7 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
       | succ i =>
         simp only [table, Fin.cases_succ]
         refine ⟨resolve_cur_lt fun _ => ?_, hlast _ _⟩
-        simp only [Loc.offset, GlobLoc.idx, Fin.val_castSucc, Fin.val_succ]
-        omega
+        simp only [Loc.offset, GlobLoc.idx, Fin.val_castSucc, Fin.val_succ]; omega
     · cases j using Fin.cases with
       | zero =>
         simp only [table, Fin.cases_zero]
@@ -416,49 +418,27 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
       | succ j =>
         simp only [table, Fin.cases_succ]
         refine ⟨resolve_cur_lt fun _ => ?_, ?_⟩
-        · simp only [Loc.offset, GlobLoc.idx, Fin.val_castSucc, Fin.val_succ]
-          omega
+        · simp only [Loc.offset, GlobLoc.idx, Fin.val_castSucc, Fin.val_succ]; omega
         · split_ifs
           · refine resolve_cur_lt fun _ => ?_
-            have := (GlobLoc.sit (State := State) j (Fin.last k)).idx_lt
-            have h₁ : (GlobLoc.sit (State := State) j (Fin.last k)).idx <
-                numSit k State * (k + 1) := by
-              simp only [GlobLoc.idx, Fin.val_last]
-              have : ((j : ℕ) + 1) * (k + 1) ≤ numSit k State * (k + 1) :=
-                Nat.mul_le_mul_right _ j.isLt
-              rw [Nat.succ_mul] at this
-              omega
-            simp only [Loc.offset, GlobLoc.idx] at h₁ ⊢
+            simp only [Loc.offset, GlobLoc.idx, Fin.val_last]
+            have := Nat.mul_le_mul_right (k + 1) j.isLt
+            rw [Nat.succ_mul] at this
             omega
           · exact resolve_fls_lt
-  · simp only [Loc.ColOK] at hl
-    subst hl
+  · simp only [Loc.ColOK] at hl; subst hl
     rcases b with _ | _
     · exact gfTerms_lt ht (List.getD_mem_or _ _ _)
-    · cases j using Fin.cases with
-      | zero =>
-        simp only [table, Fin.cases_zero]
-        refine ⟨resolve_fls_lt, resolve_cur_lt fun _ => ?_⟩
-        simp only [Loc.offset, gadgetIdx, Bool.toNat_false, Bool.toNat_true]
-        omega
-      | succ j =>
-        simp only [table, Fin.cases_succ]
-        refine ⟨resolve_cur_lt fun _ => ?_, resolve_cur_lt fun _ => ?_⟩ <;>
-          simp only [Loc.offset, gadgetIdx, Bool.toNat_false, Bool.toNat_true,
-            Fin.val_castSucc, Fin.val_succ] <;> omega
+    · exact resolve_orChain_lt (mk := .gf f)
+        (by simp only [Loc.offset, gadgetIdx, Bool.toNat_false, Bool.toNat_true]; omega)
+        (fun j' _ => by
+          simp only [Loc.offset, gadgetIdx, Bool.toNat_true, Fin.val_castSucc, Fin.val_succ]; omega)
   · rcases b with _ | _
     · exact colTerms_lt ht hc (List.getD_mem_or _ _ _)
-    · cases j using Fin.cases with
-      | zero =>
-        simp only [table, Fin.cases_zero]
-        refine ⟨resolve_fls_lt, resolve_cur_lt fun _ => ?_⟩
-        simp only [Loc.offset, gadgetIdx, Bool.toNat_false, Bool.toNat_true, ColSel.apply]
-        omega
-      | succ j =>
-        simp only [table, Fin.cases_succ]
-        refine ⟨resolve_cur_lt fun _ => ?_, resolve_cur_lt fun _ => ?_⟩ <;>
-          simp only [Loc.offset, gadgetIdx, Bool.toNat_false, Bool.toNat_true,
-            Fin.val_castSucc, Fin.val_succ, ColSel.apply] <;> omega
+    · exact resolve_orChain_lt (mk := .col f)
+        (by simp only [Loc.offset, gadgetIdx, Bool.toNat_false, Bool.toNat_true]; omega)
+        (fun j' _ => by
+          simp only [Loc.offset, gadgetIdx, Bool.toNat_true, Fin.val_castSucc, Fin.val_succ]; omega)
 
 /-! ### The gate list is the code of a circuit -/
 
