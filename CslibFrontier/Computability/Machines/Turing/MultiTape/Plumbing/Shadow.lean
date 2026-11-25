@@ -55,10 +55,12 @@ def pairIdx (j : Fin (k + k)) : Fin k :=
   Fin.addCases (motive := fun _ => Fin k) id id j
 
 @[simp] theorem pairIdx_castAdd (i : Fin k) : pairIdx (Fin.castAdd k i) = i := by
-  rw [pairIdx, Fin.addCases_left]; rfl
+  rw [pairIdx, Fin.addCases_left]
+  rfl
 
 theorem pairIdx_natAdd (i : Fin k) : pairIdx (Fin.natAdd k i) = i := by
-  rw [pairIdx, Fin.addCases_right]; rfl
+  rw [pairIdx, Fin.addCases_right]
+  rfl
 
 /-- `pairIdx_natAdd` in simp normal form, since `Fin.natAdd k i` simplifies to `i.addNat k`. -/
 @[simp] theorem pairIdx_addNat (i : Fin k) : pairIdx (i.addNat k) = i := by
@@ -89,13 +91,17 @@ theorem shadowTape_insert (V : Finset ℤ) (x : ℤ) :
   by_cases hx : shadowTape m₀ m₁ V x = none
   · rw [hx, Option.isNone_none, ite_eq_left rfl]
     rw [shadowTape_eq_none_iff] at hx
-    by_cases hy : y = x <;> simp [shadowTape, hy, hx.1]
-  · rw [ite_eq_right (mt Option.isNone_iff_eq_none.1 hx)]
-    rw [shadowTape_eq_none_iff, not_and_or, not_not, not_not] at hx
     by_cases hy : y = x
     · subst hy
-      rcases hx with rfl | hx <;> simp_all [shadowTape]
+      simp [shadowTape, hx.1]
     · simp [shadowTape, hy]
+  · rw [Option.isNone_iff_eq_none.not.2 hx |> Bool.eq_false_iff.2, ite_eq_right (by simp)]
+    rw [shadowTape_eq_none_iff, not_and_or, not_not, not_not] at hx
+    unfold shadowTape
+    by_cases hy : y = x
+    · subst hy
+      rcases hx with rfl | hx <;> simp_all
+    · simp [hy]
 
 variable (m₀ m₁)
 
@@ -139,11 +145,14 @@ theorem visitedByTapeHead_eq_insert (c : Cfg k Symbol State input) (n : ℕ) (i 
   ext x
   simp only [MultiTapeNTM.RunPath.mem_visitedByTapeHead_ofDeterministic, Finset.mem_insert,
     visited, Finset.mem_image, Finset.mem_range]
-  exact ⟨by rintro ⟨m, hm, rfl⟩
-            exact (Nat.lt_or_eq_of_le hm).elim (fun hlt => .inr ⟨m, hlt, rfl⟩)
-              (by rintro rfl; exact .inl rfl),
-    by rintro (rfl | ⟨m, hm, rfl⟩)
-       exacts [⟨n, le_rfl, rfl⟩, ⟨m, hm.le, rfl⟩]⟩
+  constructor
+  · rintro ⟨m, hm, rfl⟩
+    rcases Nat.lt_or_ge m n with h | h
+    · exact Or.inr ⟨m, h, rfl⟩
+    · exact Or.inl (by rw [show m = n by omega])
+  · rintro (rfl | ⟨m, hm, rfl⟩)
+    · exact ⟨n, by omega, rfl⟩
+    · exact ⟨m, by omega, rfl⟩
 
 variable (m₀ m₁)
 
@@ -165,17 +174,20 @@ theorem step_initCfg :
       cfg m₀ m₁ (tm.initCfg input) fun _ => ∅ := by
   rw [step_of_state (q := none) rfl]
   simp only [shadow, tr_ofTr]
-  refine Cfg.ext rfl (by simp [cfg, MultiTapeNTM.initCfg])
-    (funext fun l => Fin.addCases
-      (fun _ => by simp only [Action.apply, Fin.append_left, cfg, MultiTapeNTM.initCfg, Cfg.init])
-      (fun _ => funext fun y => by
-        simp only [Action.apply, Fin.append_right, cfg, MultiTapeNTM.initCfg, Cfg.init]
-        by_cases hy : y = 0 <;> simp [shadowTape, hy]) l)
-    (funext fun l => by
-      refine Fin.addCases (fun _ => ?_) (fun _ => ?_) l <;>
-        simp only [Action.apply, Fin.append_left, Fin.append_right, cfg, MultiTapeNTM.initCfg,
-          Cfg.init] <;> rfl)
+  refine Cfg.ext rfl (by simp [cfg, MultiTapeNTM.initCfg]) ?_ ?_
     (by simp [cfg, MultiTapeNTM.initCfg])
+  · funext l y
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) l
+    · simp only [Action.apply, Fin.append_left, cfg, MultiTapeNTM.initCfg, Cfg.init]
+    · simp only [Action.apply, Fin.append_right, cfg, MultiTapeNTM.initCfg, Cfg.init]
+      by_cases hy : y = 0
+      · subst hy
+        simp [shadowTape]
+      · simp [shadowTape, hy]
+  · funext l
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) l <;>
+      simp only [Action.apply, Fin.append_left, Fin.append_right, cfg, MultiTapeNTM.initCfg,
+        Cfg.init] <;> rfl
 
 /-- A live step of `tm` is mirrored by one step of `shadow m₀ m₁ tm`, which marks the cells under
 the heads. -/
@@ -184,20 +196,21 @@ theorem step_cfg {c : Cfg k Symbol State input} {q : State} (hq : c.state = some
     (shadow m₀ m₁ tm).step (cfg m₀ m₁ c V) =
       cfg m₀ m₁ (tm.step c) fun i => insert (c.workTapePos i) (V i) := by
   have hsym : (cfg m₀ m₁ c V).workTapeSymbols = Fin.append c.workTapeSymbols
-      fun i => shadowTape m₀ m₁ (V i) (c.workTapePos i) :=
-    funext fun l => by
-      refine Fin.addCases (fun _ => ?_) (fun _ => ?_) l <;>
-        simp only [cfg, Cfg.workTapeSymbols, Fin.append_left, Fin.append_right]
+      fun i => shadowTape m₀ m₁ (V i) (c.workTapePos i) := by
+    funext l
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) l <;>
+      simp only [cfg, Cfg.workTapeSymbols, Fin.append_left, Fin.append_right]
   rw [step_of_state (q := some q) (by simp [cfg, hq]), step_of_state hq]
   simp only [shadow, tr_ofTr, hsym, inputSymbol_cfg, Fin.append_left, Fin.append_right]
-  refine Cfg.ext rfl rfl
-    (funext fun l => Fin.addCases (fun _ => by simp only [Action.apply, Fin.append_left, cfg])
-      (fun _ => by
-        simp only [Action.apply, Fin.append_right, cfg, shadowTape_insert]
-        split_ifs <;> rfl) l)
-    (funext fun l => by
-      refine Fin.addCases (fun _ => ?_) (fun _ => ?_) l <;>
-        simp only [Action.apply, cfg, Fin.append_left, Fin.append_right]) rfl
+  refine Cfg.ext rfl rfl ?_ ?_ rfl
+  · funext l
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) l
+    · simp only [Action.apply, Fin.append_left, cfg]
+    · simp only [Action.apply, Fin.append_right, cfg, shadowTape_insert]
+      split_ifs <;> rfl
+  · funext l
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) l <;>
+      simp only [Action.apply, cfg, Fin.append_left, Fin.append_right]
 
 /-- While `tm` runs, `shadow m₀ m₁ tm` mirrors it, marking the visited cells. -/
 theorem runFrom_cfg (c : Cfg k Symbol State input) (V : Fin k → Finset ℤ) (n : ℕ)
@@ -243,32 +256,40 @@ theorem space_shadow {tm : MultiTapeTM k Symbol State} {u : ℕ}
     (MultiTapeNTM.RunPath.ofDeterministic (shadow m₀ m₁ tm) ((shadow m₀ m₁ tm).initCfg input)
         (u + 1)).space =
       2 * (MultiTapeNTM.RunPath.ofDeterministic tm (tm.initCfg input) u).space := by
-  have hpos (m) (hm : m ≤ u) :
-      ((shadow m₀ m₁ tm).runFrom ((shadow m₀ m₁ tm).initCfg input) (m + 1)).workTapePos =
-        Fin.append (tm.runFrom (tm.initCfg input) m).workTapePos
-          (tm.runFrom (tm.initCfg input) m).workTapePos := by
+  -- every tape of `shadow m₀ m₁ tm` visits the cells its copy of the tape of `tm` visits
+  have hpos : ∀ m ≤ u, ((shadow m₀ m₁ tm).runFrom ((shadow m₀ m₁ tm).initCfg input)
+      (m + 1)).workTapePos = Fin.append (tm.runFrom (tm.initCfg input) m).workTapePos
+        (tm.runFrom (tm.initCfg input) m).workTapePos := fun m hm => by
     rw [runFrom_succ_initCfg h hm]
     rfl
-  have hvis (l : Fin (k + k)) :
+  have hvis : ∀ l : Fin (k + k),
       (MultiTapeNTM.RunPath.ofDeterministic (shadow m₀ m₁ tm) ((shadow m₀ m₁ tm).initCfg input)
           (u + 1)).visitedByTapeHead l =
         (MultiTapeNTM.RunPath.ofDeterministic tm (tm.initCfg input) u).visitedByTapeHead
           (pairIdx l) := by
+    intro l
     ext x
     simp only [MultiTapeNTM.RunPath.mem_visitedByTapeHead_ofDeterministic]
-    refine ⟨?_, fun ⟨m, hm, hx⟩ => ⟨m + 1, by omega, ?_⟩⟩
-    · rintro ⟨_ | m, hm, rfl⟩
-      · exact ⟨0, by omega, Fin.addCases (fun _ => by simp only [pairIdx_castAdd]; rfl)
-          (fun _ => by simp only [pairIdx_natAdd]; rfl) l⟩
-      · refine ⟨m, by omega, ?_⟩
+    constructor
+    · rintro ⟨m, hm, rfl⟩
+      cases m with
+      | zero =>
+        refine ⟨0, by omega, ?_⟩
+        refine Fin.addCases (fun i => ?_) (fun i => ?_) l <;>
+          simp only [pairIdx_castAdd, pairIdx_natAdd] <;> rfl
+      | succ m =>
+        refine ⟨m, by omega, ?_⟩
         rw [hpos m (by omega)]
-        refine Fin.addCases (fun _ => ?_) (fun _ => ?_) l <;>
+        refine Fin.addCases (fun i => ?_) (fun i => ?_) l <;>
           simp only [pairIdx_castAdd, pairIdx_natAdd, Fin.append_left, Fin.append_right]
-    · rw [← hx, hpos m (by omega)]
-      refine Fin.addCases (fun _ => ?_) (fun _ => ?_) l <;>
+    · rintro ⟨m, hm, rfl⟩
+      refine ⟨m + 1, by omega, ?_⟩
+      rw [hpos m (by omega)]
+      refine Fin.addCases (fun i => ?_) (fun i => ?_) l <;>
         simp only [pairIdx_castAdd, pairIdx_natAdd, Fin.append_left, Fin.append_right]
-  simp only [MultiTapeNTM.RunPath.space, MultiTapeNTM.RunPath.spaceUsedByTape, hvis,
-    Fin.sum_univ_add, pairIdx_castAdd, pairIdx_natAdd, two_mul]
+  simp only [MultiTapeNTM.RunPath.space, MultiTapeNTM.RunPath.spaceUsedByTape, hvis]
+  rw [Fin.sum_univ_add]
+  simp only [pairIdx_castAdd, pairIdx_natAdd, two_mul]
 
 end Turing.MultiTapeTM
 

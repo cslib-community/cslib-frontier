@@ -76,9 +76,10 @@ theorem isCostBounded_sample (cost : Query → ℕ) (program : ProbComp α) :
     IsCostBounded (Sum.elim (fun _ => 0) cost) (sample (spec := spec) program) 0 := by
   induction program using OracleComp.induction with
   | pure a => exact .pure a 0
-  | query_bind n _ ih =>
-    rw [sample_freeMBind, show sample (spec := spec) (OracleComp.query n) =
-      OracleComp.query (Sum.inl n) from OracleComp.substitute_query _ _]
+  | query_bind n cont ih =>
+    have hquery : sample (spec := spec) (OracleComp.query n) = OracleComp.query (Sum.inl n) :=
+      OracleComp.substitute_query _ _
+    rw [sample_freeMBind, hquery]
     simpa using (IsCostBounded.query (Sum.inl n)).bind fun a => ih a
 
 /-- A single external query costs its cost. -/
@@ -124,7 +125,10 @@ theorem QueriesSatisfy.query {p : Query → Prop} {q : Query} (hq : p q) :
 /-- A weaker predicate on external queries is still satisfied. -/
 theorem QueriesSatisfy.mono {p p' : Query → Prop} {program : ProbOracleComp spec α}
     (h : program.QueriesSatisfy p) (hp : ∀ q, p q → p' q) : program.QueriesSatisfy p' :=
-  OracleComp.QueriesSatisfy.mono h fun | .inl _, _ => trivial | .inr q, hq => hp q hq
+  OracleComp.QueriesSatisfy.mono h fun q hq => by
+    cases q with
+    | inl _ => trivial
+    | inr q => exact hp q hq
 
 /-- Every program satisfies a predicate that holds for every external query. -/
 theorem QueriesSatisfy.of_forall {p : Query → Prop} (hp : ∀ q, p q)
@@ -147,9 +151,12 @@ theorem transcript_cost_le {cost : Query → ℕ} {program : ProbOracleComp spec
         (s, [])).support) :
     (transcript.map fun entry => cost entry.1).sum ≤ n := by
   induction h generalizing s s' result transcript with
-  | pure a n => supp_cases hmem [runWith_pure]; simp
+  | pure a n =>
+    supp_cases hmem [runWith_pure]
+    simp
   | liftBind q cont n _ ih =>
-    supp_cases hmem [ProbOracleComp.runWith, OracleComp.runWith_bind, OracleComp.runWith_query]
+    supp_cases hmem [ProbOracleComp.runWith, OracleComp.runWith_bind,
+      OracleComp.runWith_query]
       with ⟨⟨a, middle, seen⟩, hfirst, hrest⟩
     cases q with
     | inl k =>
@@ -160,10 +167,11 @@ theorem transcript_cost_le {cost : Query → ℕ} {program : ProbOracleComp spec
         with ⟨⟨answer, next⟩, -, rfl, rfl, rfl⟩
       change _ ∈ (runWith _ _ _).support at hrest
       rw [run_interpret_withTranscript_append] at hrest
-      supp_cases hrest with ⟨⟨_, _, fresh⟩, hfresh, rfl, rfl, rfl⟩
+      supp_cases hrest with ⟨⟨result', final, fresh⟩, hfresh, rfl, rfl, rfl⟩
       have := ih answer hfresh
       simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil, List.sum_cons,
-        List.sum_nil, Sum.elim_inr]; omega
+        List.sum_nil, Sum.elim_inr]
+      omega
 
 /-- If, against every stateful oracle, the external queries recorded on every supported run cost
 at most `n`, and every reply type is nonempty, then the program's external queries cost at most
@@ -189,9 +197,11 @@ theorem isCostBounded_of_transcript_cost_le [hne : ∀ q, Nonempty (spec q)] {co
     | inl k =>
       refine IsCostBounded.liftBind_iff.mpr ⟨Nat.zero_le n, fun a => ?_⟩
       rw [Sum.elim_inl, Nat.sub_zero]
-      exact ih a fun State oracle s s' result transcript hmem => h State oracle s s' result
-        transcript (by rw [hrun, PMF.mem_support_bind_iff]; exact
-          ⟨(a, s, []), by simp [sumHandler, ProbComp.unifOracle], hmem⟩)
+      refine ih a fun State oracle s s' result transcript hmem => h State oracle s s' result
+        transcript ?_
+      rw [hrun, PMF.mem_support_bind_iff]
+      refine ⟨(a, s, []), ?_, hmem⟩
+      simp [sumHandler, ProbComp.unifOracle]
     | inr q =>
       -- Every supported run of a continuation, with the first call answered as chosen, is part
       -- of a supported run of the whole program.
@@ -212,7 +222,8 @@ theorem isCostBounded_of_transcript_cost_le [hne : ∀ q, Nonempty (spec q)] {co
           (transcript ++ [⟨q, a⟩]) (by
             rw [hrun, PMF.mem_support_bind_iff]
             refine ⟨(a, some s, [⟨q, a⟩]), ?_, ?_⟩
-            · simp only [sumHandler, StateT.run, withTranscript, PMF.mem_support_map_iff]
+            · change (a, some s, [⟨q, a⟩]) ∈ ((withTranscript oracle' q) (none, [])).support
+              simp only [withTranscript, PMF.mem_support_map_iff]
               exact ⟨(a, some s), by simp [oracle', first], rfl⟩
             · rw [run_interpret_withTranscript_append, PMF.mem_support_map_iff]
               refine ⟨(result, some s', transcript), ?_, rfl⟩
@@ -223,10 +234,13 @@ theorem isCostBounded_of_transcript_cost_le [hne : ∀ q, Nonempty (spec q)] {co
         PMF.pure (Classical.choice (hne q'), ())
       obtain ⟨⟨result, s', transcript⟩, hmem⟩ := PMF.support_nonempty
         (ProbOracleComp.runWith (withTranscript default) (cont (Classical.choice (hne q))) ((), []))
-      have := key _ Unit _ () s' result transcript hmem
-      simp only [IsCostBounded.liftBind_iff, Sum.elim_inr]
-      refine ⟨by omega, fun a => ih a fun State oracle s s' result transcript hmem => ?_⟩
+      have hle : cost q ≤ n := by
+        have := key _ Unit _ () s' result transcript hmem
+        omega
+      refine IsCostBounded.liftBind_iff.mpr ⟨hle, fun a => ?_⟩
+      refine ih a fun State oracle s s' result transcript hmem => ?_
       have := key a State oracle s s' result transcript hmem
+      simp only [Sum.elim_inr]
       omega
 
 /-- When every reply type is nonempty, a program's external queries cost at most `n` on every
@@ -264,12 +278,13 @@ theorem QueriesSatisfy.forall_mem_transcript {p : Query → Prop}
   classical
   have hsum := transcript_cost_le (cost := fun q => if p q then 0 else 1)
     (h.of_le fun q => by
-      cases q <;> simp only [Sum.elim_inl, Sum.elim_inr] <;> split_ifs <;> simp_all)
-    oracle hmem
-  intro entry hentry; by_contra hp
-  have := List.le_sum_of_mem (List.mem_map_of_mem
-    (f := fun e : (q : Query) × spec q => if p e.1 then 0 else 1) hentry)
-  simp only [hp, ite_false] at this; omega
+      cases q <;> simp only [Sum.elim_inl, Sum.elim_inr] <;> split_ifs <;> simp_all) oracle hmem
+  intro entry hentry
+  by_contra hp
+  have hle := List.le_sum_of_mem (List.mem_map_of_mem (f := fun entry : (q : Query) × spec q =>
+    if p entry.1 then 0 else 1) hentry)
+  simp only [hp, ite_false] at hle
+  omega
 
 /-- When every reply type is nonempty and, against every stateful oracle, every supported run
 records at most `n` external queries, the program makes at most `n` external queries. -/
@@ -295,11 +310,13 @@ theorem queriesSatisfy_of_forall_mem_transcript [∀ q, Nonempty (spec q)] {p : 
       ∀ entry ∈ transcript, p entry.1) :
     program.QueriesSatisfy p := by
   classical
-  refine (isCostBounded_of_transcript_cost_le (cost := fun q => if p q then 0 else 1)
-    (program := program) (n := 0) fun State oracle s s' result transcript hmem => ?_).of_le
-      fun q => by cases q <;> simp only [Sum.elim_inl, Sum.elim_inr] <;> split_ifs <;> simp_all
-  refine Nat.le_zero.mpr (List.sum_eq_zero fun x hx => ?_)
-  obtain ⟨entry, hentry, rfl⟩ := List.mem_map.mp hx
-  simp [h State oracle s s' result transcript hmem entry hentry]
+  have hcost := isCostBounded_of_transcript_cost_le (cost := fun q => if p q then 0 else 1)
+    (program := program) (n := 0) fun State oracle s s' result transcript hmem => by
+      have hall := h State oracle s s' result transcript hmem
+      refine Nat.le_zero.mpr (List.sum_eq_zero fun x hx => ?_)
+      obtain ⟨entry, hentry, rfl⟩ := List.mem_map.mp hx
+      simp [hall entry hentry]
+  exact hcost.of_le fun q => by
+    cases q <;> simp only [Sum.elim_inl, Sum.elim_inr] <;> split_ifs <;> simp_all
 
 end Cslib.ProbOracleComp
