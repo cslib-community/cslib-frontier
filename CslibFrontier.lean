@@ -9657,6 +9657,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.OffMedian
 public import CslibFrontier.Computability.QueryComplexity.SensitivitySeparation.Internal.SeedAmplification
 public import CslibFrontier.Probability.Entropy.BitString
 public import CslibFrontier.Foundations.Data.List.WordsLe
+public import CslibFrontier.Computability.Circuit.Boolean.CycleMinorLowerBound
 public import CslibFrontier.Foundations.Combinatorics.LineCode.Menu.Collision
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PathBounds
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionCutEnds
