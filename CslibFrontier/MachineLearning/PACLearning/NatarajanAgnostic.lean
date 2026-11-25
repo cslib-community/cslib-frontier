@@ -86,30 +86,25 @@ theorem card_le_of_setShatters_lossClass_of_natarajan [Fintype β] [DecidableEq 
   set n := W.card
   set k := Fintype.card β
   have hk : 0 < k := Fintype.card_pos
-  have hT : (1 : ℝ) ≤ 3 := by norm_num
-  have hpow : (2 : ℝ) ^ n ≤ (k : ℝ) ^ (2 * d) * (Real.exp (n / 3) * 3 ^ d) := by
-    calc (2 : ℝ) ^ n = (growthFunction (lossClass C) n : ℝ) := by
-          rw [growthFunction_eq_two_pow_of_setShatters hW]
-          push_cast
-          rfl
-      _ ≤ natarajanSum n k d := by exact_mod_cast growthFunction_lossClass_le_natarajanSum hC n
-      _ ≤ (k : ℝ) ^ (2 * d) * (Real.exp (n / 3) * 3 ^ d) :=
-          natarajanSum_le_pow_mul_exp_mul_pow n d hk hT
-  have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
+  have hpow : (2 : ℝ) ^ n ≤ (k : ℝ) ^ (2 * d) * (Real.exp (n / 3) * 3 ^ d) := calc
+    (2 : ℝ) ^ n = (growthFunction (lossClass C) n : ℝ) := by
+      rw [growthFunction_eq_two_pow_of_setShatters hW]
+      push_cast
+      rfl
+    _ ≤ natarajanSum n k d := mod_cast growthFunction_lossClass_le_natarajanSum hC n
+    _ ≤ (k : ℝ) ^ (2 * d) * (Real.exp (n / 3) * 3 ^ d) :=
+      natarajanSum_le_pow_mul_exp_mul_pow n d hk (by norm_num)
   have hlog := Real.log_le_log (by positivity) hpow
   rw [Real.log_mul (by positivity) (by positivity), Real.log_mul (by positivity) (by positivity),
     Real.log_exp, Real.log_pow, Real.log_pow, Real.log_pow] at hlog
   have hlog2 : (2 : ℝ) / 3 < Real.log 2 := lt_trans (by norm_num) Real.log_two_gt_d9
   have hlog3 : Real.log 3 ≤ 2 := by
-    rw [Real.log_le_iff_le_exp (by norm_num)]
-    have h := Real.exp_one_gt_d9
-    calc (3 : ℝ) ≤ Real.exp 1 * Real.exp 1 := by nlinarith
-      _ = Real.exp 2 := by rw [← Real.exp_add]; norm_num
-  have hlogk : 0 ≤ Real.log k := Real.log_nonneg hk1
-  have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-  have hd0 : (0 : ℝ) ≤ d := Nat.cast_nonneg d
+    rw [Real.log_le_iff_le_exp (by norm_num), show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add]
+    nlinarith [Real.exp_one_gt_d9]
+  have hlogk : 0 ≤ Real.log k := Real.log_nonneg (mod_cast hk)
   push_cast at hlog
-  nlinarith [mul_le_mul_of_nonneg_left hlog2.le hn0, mul_le_mul_of_nonneg_left hlog3 hd0]
+  nlinarith [mul_le_mul_of_nonneg_left hlog2.le (Nat.cast_nonneg n),
+    mul_le_mul_of_nonneg_left hlog3 (Nat.cast_nonneg d)]
 
 /-- The chaining sample size `(98304 d (log k + 1) + 32 log (4 / δ)) / ε²` for `ε`-representative
 multiclass samples (`98304 = 16384 · 6`). -/

@@ -144,11 +144,8 @@ private theorem prefix_eq (x : Input) (j : ℕ) :
     simp [start]
   rw [encInput_apply]
   simp only [encInputFields, encPair_apply, encBits_apply, List.take_append, List.foldl_append]
-  rw [show start x = ⟨(frame (encParameters x.parameters)).length, (start x).reader⟩ by
-    cases hx : start x with
-    | mk k r =>
-      apply congrArg (fun k => Context.mk k r)
-      simpa only [hx] using hh]
+  rw [show start x = ⟨(frame (encParameters x.parameters)).length, (start x).reader⟩ from
+    hh ▸ rfl]
   rw [fold_skip (start x).reader ((frame (encParameters x.parameters)).take j)
     (frame (encParameters x.parameters)).length (by simp only [List.length_take]; omega)]
   dsimp only
@@ -179,19 +176,17 @@ theorem run_eq (x : Input) :
   rw [run, hstate]
   cases hp : prepare x.parameters with
   | none =>
-    have hi : (start x).reader = rejected := by simp [start, hp, rejected]
-    rw [hi, fold_rejected]
+    simp only [start, hp, Option.getD_none, fold_rejected]
     simp [finish, rejected, result]
   | some s =>
     obtain ⟨hw, rfl⟩ := (prepare_eq_some_iff _ _).mp hp
-    have hf := feed_run x.parameters.dimension x.choices x.choices.length le_rfl
-    rw [List.take_length] at hf
+    have hf := List.take_length (l := x.choices) ▸
+      feed_run x.parameters.dimension x.choices x.choices.length le_rfl
     simp only [start, hp, Option.getD_some, hf, finish, true_and, Option.bind_some]
     rw [runFrom_prepare _ _ hp, hw]
     by_cases hl : x.parameters.dimension.size ≤ x.choices.length
-    · have hh := (halted_iff x.parameters.dimension x.choices
-        x.parameters.dimension.size).mpr le_rfl
-      rw [(machine x.parameters.dimension).run_eq_of_le x.choices hh hl]
+    · rw [(machine x.parameters.dimension).run_eq_of_le x.choices
+        ((halted_iff _ _ _).mpr le_rfl) hl]
       simp [run_eq_prefix]
     · have hc : min x.choices.length x.parameters.dimension.size ≠
           x.parameters.dimension.size := by omega
@@ -203,20 +198,18 @@ private theorem reader_length_le (p : Parameters) (bits : List Bool) :
       8 * (encParameters p).length + 9 := by
   cases hp : prepare p with
   | none =>
-    simp only [Option.getD_none, fold_rejected]
+    rw [Option.getD_none, fold_rejected]
     simp [rejected, encState_apply, encStateFields]
   | some s =>
     obtain ⟨_, rfl⟩ := (prepare_eq_some_iff p s).mp hp
-    simp only [Option.getD_some]
-    have hf := feed_run p.dimension bits bits.length le_rfl
-    rw [List.take_length] at hf
-    rw [hf]
-    have hr := length_run_le p.dimension bits bits.length
-    have hn : p.dimension.size ≤ (encParameters p).length := by
+    simp only [Option.getD_some,
+      List.take_length (l := bits) ▸ feed_run p.dimension bits bits.length le_rfl]
+    have := length_run_le p.dimension bits bits.length
+    have : p.dimension.size ≤ (encParameters p).length := by
       simp only [encParameters_apply, encParametersFields, length_encPair,
         encNat_apply, ← Nat.size_eq_bits_len]
       omega
-    have hl := Nat.log2_le_self p.dimension.size
+    have := Nat.log2_le_self p.dimension.size
     omega
 
 /-- All retained dispatch/reader context is bounded independently of the choice suffix length. -/
@@ -279,13 +272,12 @@ private theorem feed_inSpace : ComputableInSpace (fun p : State × Bool => feed 
 theorem step_inSpace : ComputableInSpace step (encPair encContext encBool) encContext
     (fun p => (encPair encContext encBool p).length) := by
   have hc := fst encContext encBool
-  have hb := snd encContext encBool
   have hk := encContext_skip_budget hc
   have hr := encContext_reader_budget hc
-  have hf := budget_comp_linear feed_inSpace (budget_prod hr hb)
   exact (encContext_mk_budget (budget_natPred hk)
-    (budget_ite (budget_natIsZero hk) hf hr)).of_enc_eq fun (⟨k, r⟩, b) => by
-      cases k <;> simp [step]
+    (budget_ite (budget_natIsZero hk)
+      (budget_comp_linear feed_inSpace (budget_prod hr (snd encContext encBool))) hr)).of_enc_eq
+    fun (⟨k, _⟩, _) => by cases k <;> simp [step]
 
 /-- Native completion checks account for truncated IDs and retained reader context. -/
 theorem finish_inSpace : ComputableInSpace finish encContext (encOption encNat)
@@ -293,12 +285,11 @@ theorem finish_inSpace : ComputableInSpace finish encContext (encOption encNat)
   have hid := of_inO
     (ComputableInO.of_eq (encIn := encContext) (encMid := encContext) fun _ => rfl)
   have hr := encContext_reader_budget hid
-  have hc := budget_natEq (encState_cursor_budget hr) (encState_width_budget hr)
-  have hk := budget_natIsZero (encContext_skip_budget hid)
-  have hboth := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
-    (budget_prod hk hc)
-  exact (budget_ite hboth (budget_comp_linear result_inSpace hr)
-    (budget_const none)).of_enc_eq fun s => by simp [finish, Bool.and_eq_true]
+  exact (budget_ite (budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
+      (budget_prod (budget_natIsZero (encContext_skip_budget hid))
+        (budget_natEq (encState_cursor_budget hr) (encState_width_budget hr))))
+    (budget_comp_linear result_inSpace hr) (budget_const none)).of_enc_eq fun s => by
+      simp [finish, Bool.and_eq_true]
 
 /-- One actual native machine performs prefix dispatch, parameter preparation and streaming
 ID decoding. Its workspace is uniform in runtime parameters and independent of suffix length.

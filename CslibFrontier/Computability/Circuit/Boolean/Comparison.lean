@@ -132,11 +132,10 @@ def lowBits (w : ℕ) : Fin (w + w) → Fin (w + 1 + (w + 1)) :=
   Fin.append (fun i => Fin.castAdd (w + 1) i.castSucc) fun i => Fin.natAdd (w + 1) i.castSucc
 
 theorem append_comp_lowBits (x y : BitString (w + 1)) :
-    Fin.append x y ∘ lowBits w = Fin.append (Fin.init x) (Fin.init y) := by
-  funext j
-  refine Fin.addCases (fun i => ?_) (fun i => ?_) j
-  · simp only [Function.comp_apply, lowBits, Fin.append_left, Fin.init]
-  · simp only [Function.comp_apply, lowBits, Fin.append_right, Fin.init]
+    Fin.append x y ∘ lowBits w = Fin.append (Fin.init x) (Fin.init y) :=
+  funext <| Fin.addCases
+    (fun _ => by simp only [Function.comp_apply, lowBits, Fin.append_left, Fin.init])
+    (fun _ => by simp only [Function.comp_apply, lowBits, Fin.append_right, Fin.init])
 
 /-- The last bit of each of two words of `w + 1` bits. -/
 def topBits (w : ℕ) : Fin 2 → Fin (w + 1 + (w + 1)) :=
@@ -146,8 +145,7 @@ theorem append_comp_topBits (x y : BitString (w + 1)) :
     Fin.append x y ∘ topBits w = ![x (Fin.last w), y (Fin.last w)] := by
   funext j
   fin_cases j
-  · exact Fin.append_left x y (Fin.last w)
-  · exact Fin.append_right x y (Fin.last w)
+  exacts [Fin.append_left x y (Fin.last w), Fin.append_right x y (Fin.last w)]
 
 /-- The *comparator*: reading words `x` and `y` of `w` bits, it outputs whether `x ≤ y` as numbers
 with the least significant bit first. -/
@@ -161,10 +159,9 @@ def leCircuit : (w : ℕ) → Circuit signature (w + w) 1
       fun _ => decide (BitString.equivFin w x ≤ BitString.equivFin w y) := by
   induction w with
   | zero =>
-    funext j
-    have hx : (BitString.equivFin 0 x : ℕ) < 1 := (BitString.equivFin 0 x).isLt
-    have hy : (BitString.equivFin 0 y : ℕ) < 1 := (BitString.equivFin 0 y).isLt
-    exact (decide_eq_true (Fin.le_iff_val_le_val.2 (by omega))).symm
+    have := (BitString.equivFin 0 x).isLt
+    have := (BitString.equivFin 0 y).isLt
+    exact funext fun _ => (decide_eq_true (Fin.le_iff_val_le_val.2 (by omega))).symm
   | succ w ih =>
     simp only [circuit_simps, leCircuit, append_comp_lowBits, ih, BitString.decide_equivFin_le_succ,
       append_comp_topBits, eval_leStep]
@@ -176,8 +173,8 @@ def leCircuit : (w : ℕ) → Circuit signature (w + w) 1
   induction w with
   | zero => rfl
   | succ w ih =>
-    rw [leCircuit, Circuit.size_comp, Circuit.size_append, Circuit.size_comp, ih]
-    simp only [Circuit.size_wiring, size_leStep]
+    simp only [leCircuit, Circuit.size_comp, Circuit.size_append, ih, Circuit.size_wiring,
+      size_leStep]
     ring
 
 @[circuit_bound]
@@ -195,8 +192,8 @@ def minCircuit (w : ℕ) : Circuit signature (w + w) w :=
 @[simp] theorem eval_minCircuit (x y : BitString w) :
     (minCircuit w).eval interpretation (Fin.append x y) =
       if BitString.equivFin w x ≤ BitString.equivFin w y then x else y := by
-  simp only [circuit_simps, minCircuit, eval_leCircuit, Function.comp_id, eval_muxCircuit]
-  simp only [decide_eq_true_eq]
+  simp only [circuit_simps, minCircuit, eval_leCircuit, Function.comp_id, eval_muxCircuit,
+    decide_eq_true_eq]
 
 @[simp] theorem size_minCircuit (w : ℕ) : (minCircuit w).size = 8 * w + 2 := by
   simp only [circuit_simps, minCircuit, size_leCircuit, size_muxCircuit]
@@ -211,11 +208,13 @@ def keyBits (k p : ℕ) : Fin (k + k) → Fin (k + p + (k + p)) :=
     fun i => Fin.natAdd (k + p) (Fin.castAdd p i)
 
 theorem append_comp_keyBits (r s : BitString (k + p)) :
-    Fin.append r s ∘ keyBits k p = Fin.append (recordKey r) (recordKey s) := by
-  funext j
-  refine Fin.addCases (fun i => ?_) (fun i => ?_) j
-  · simp only [Function.comp_apply, keyBits, Fin.append_left, recordKey, BitString.fstBits_apply]
-  · simp only [Function.comp_apply, keyBits, Fin.append_right, recordKey, BitString.fstBits_apply]
+    Fin.append r s ∘ keyBits k p = Fin.append (recordKey r) (recordKey s) :=
+  funext <| Fin.addCases
+    (fun _ => by
+      simp only [Function.comp_apply, keyBits, Fin.append_left, recordKey, BitString.fstBits_apply])
+    (fun _ => by
+      simp only [Function.comp_apply, keyBits, Fin.append_right, recordKey,
+        BitString.fstBits_apply])
 
 /-- The *keyed minimum*: reading two records of a key of `k` bits followed by a payload of `p`
 bits, it outputs the one with the smaller key, the first on ties. -/
@@ -227,8 +226,7 @@ def keyedMinCircuit (k p : ℕ) : Circuit signature (k + p + (k + p)) (k + p) :=
 @[simp] theorem eval_keyedMinCircuit (r s : BitString (k + p)) :
     (keyedMinCircuit k p).eval interpretation (Fin.append r s) = keyedMinFn r s := by
   simp only [circuit_simps, keyedMinCircuit, append_comp_keyBits, eval_leCircuit, Function.comp_id,
-    eval_muxCircuit, keyedMinFn]
-  simp only [decide_eq_true_eq]
+    eval_muxCircuit, keyedMinFn, decide_eq_true_eq]
 
 @[simp] theorem size_keyedMinCircuit (k p : ℕ) :
     (keyedMinCircuit k p).size = 8 * k + 3 * p + 2 := by

@@ -111,12 +111,11 @@ private theorem sum_prod_blockWeight [CommSemiring F] (mu : Letter S J Γ → Ma
   simp only [blockWeight, prod_univ_sum, Fintype.piFinset_univ, prod_ite_zero, ite_sum_zero]
   rw [sum_comm]
   refine sum_congr rfl fun o _ => ?_
-  rw [sum_eq_single_of_mem fun k => emit (List.ofFn (o k))]
-  · simp
-  · simpa [Fintype.mem_piFinset] using fun k z => emit_length_le (List.ofFn (o k)) z
-  · intro v _ hv
-    have hne : ¬∀ k, emit (List.ofFn (o k)) = v k := fun h => hv (funext h).symm
-    simp [hne]
+  rw [sum_eq_single_of_mem (fun k => emit (List.ofFn (o k)))
+    (by simpa [Fintype.mem_piFinset] using fun k z => emit_length_le (List.ofFn (o k)) z)
+    fun v _ hv => by
+      simp [show ¬∀ k, emit (List.ofFn (o k)) = v k from fun h => hv (funext h).symm]]
+  simp
 
 /-- **Blocks.** The value of an automaton on a run of `K * T` steps is the sum, over the states
 `q 0 = i, q 1, …, q K = e` between `K` blocks of `T` steps and over the words `v k z` of at most
@@ -144,8 +143,7 @@ theorem runVal_blocks [CommRing F] (mu : Letter S J Γ → Matrix Q Q F) (i e : 
   simp only [hE, Matched, emit_flatten, List.map_flatten, List.prod_flatten, List.map_ofFn,
     Function.comp_def, Matrix.list_prod_ofFn_apply, sum_prod_blockWeight, ite_sum_zero]
   rw [sum_comm]
-  refine sum_congr rfl fun q _ => sum_congr rfl fun o _ => ?_
-  split_ifs <;> rfl
+  exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by split_ifs <;> rfl
 
 end Cut
 

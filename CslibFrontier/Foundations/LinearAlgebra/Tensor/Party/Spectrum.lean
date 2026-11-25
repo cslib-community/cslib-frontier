@@ -73,26 +73,23 @@ variable {K : Type} [CommSemiring K] {I J : Type} [Fintype I] [DecidableEq I] [F
 a sum of `r` products of vectors. -/
 theorem le_unit_iff [Nonempty I] {t : PartyTensor K I} {r : ℕ} :
     t ≤ unit K I r ↔ ∃ u : Fin r → ∀ p, t.Index p → K, ∀ x, t.entry x = ∑ s, ∏ p, u s p (x p) := by
-  have key : ∀ (L : ∀ p, t.Index p → Fin r → K) (x : ∀ p, t.Index p),
+  have key (L : ∀ p, t.Index p → Fin r → K) (x : ∀ p, t.Index p) :
       localApply L (unit K I r).entry x = ∑ s, ∏ p, L p (x p) s := by
-    intro L x
     let p₀ : I := Classical.arbitrary I
     symm
     refine Finset.sum_of_injOn (fun s _ => s) (fun a _ b _ h => congr_fun h p₀)
       (fun _ _ => by simp) (fun y _ hy => ?_) (fun s _ => by simp [unit_entry])
     rw [unit_entry, ite_eq_right fun h => hy ⟨y p₀, by simp, funext fun p => h p₀ p⟩, mul_zero]
-  constructor
-  · rintro ⟨L, hL⟩
-    exact ⟨fun s p a => L p a s, fun x => (hL x).trans (key L x)⟩
-  · rintro ⟨u, hu⟩
-    exact ⟨fun p a s => u s p a, fun x => (hu x).trans (key (fun p a s => u s p a) x).symm⟩
+  exact ⟨fun ⟨L, hL⟩ => ⟨fun s p a => L p a s, fun x => (hL x).trans (key L x)⟩,
+    fun ⟨u, hu⟩ => ⟨fun p a s => u s p a,
+      fun x => (hu x).trans (key (fun p a s => u s p a) x).symm⟩⟩
 
 /-- A tensor of rank at most `r` is covered by `r` copies of `1`. -/
 theorem coveredBy_one_of_le_unit [Nonempty I] {t : PartyTensor K I} {r : ℕ}
     (h : t ≤ unit K I r) : t.CoveredBy fun _ : Fin r => (1 : PartyTensor K I) := by
   obtain ⟨u, hu⟩ := le_unit_iff.1 h
-  refine coveredBy_iff.2 ⟨fun s x => ∏ p, u s p (x p), hu, fun s => ?_⟩
-  exact le_of_map (fun p a => u s p a) (fun _ _ => ()) fun x => (mul_one _).symm
+  exact coveredBy_iff.2 ⟨fun s x => ∏ p, u s p (x p), hu,
+    fun s => le_of_map (fun p a => u s p a) (fun _ _ => ()) fun _ => (mul_one _).symm⟩
 
 /-- Every tensor has rank at most the number of its entries. -/
 theorem le_unit_card [Nonempty I] (t : PartyTensor K I) :
@@ -102,12 +99,10 @@ theorem le_unit_card [Nonempty I] (t : PartyTensor K I) :
   let e := (Fintype.equivFin (∀ p, t.Index p)).symm
   refine le_unit_iff.2
     ⟨fun s p a => if a = e s p then (if p = p₀ then t.entry (e s) else 1) else 0, fun x => ?_⟩
-  rw [Finset.sum_eq_single (e.symm x)]
+  rw [Finset.sum_eq_single (e.symm x) (fun s _ hs => ?_) (by simp)]
   · simp
-  · intro s _ hs
-    obtain ⟨p, hp⟩ := Function.ne_iff.1 (show x ≠ e s from fun h => hs (by simp [h]))
-    exact Finset.prod_eq_zero (Finset.mem_univ p) (ite_eq_right hp)
-  · simp
+  obtain ⟨p, hp⟩ := Function.ne_iff.1 (show x ≠ e s from fun h => hs (by simp [h]))
+  exact Finset.prod_eq_zero (Finset.mem_univ p) (ite_eq_right hp)
 
 /-! ### Upper functionals -/
 
