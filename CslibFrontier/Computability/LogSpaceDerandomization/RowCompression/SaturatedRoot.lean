@@ -108,6 +108,8 @@ private theorem eval_iterate_eq_sentinel {ι : Type u} {s : Finset ι} {n : ℕ 
   change H (actual.row y 0) (actual.row y 1) (firstRank s K actual.defaultValue actual.row) =
     H (modified.row y 0) (modified.row y 1) (firstRank s K modified.defaultValue modified.row)
   rw [(hc.2.2 hm).1, hc.1]
+  change H (actual.row y 0) (actual.row y 1) _ =
+    H (sentinelFirst marked L actual.row y 0) (sentinelFirst marked L actual.row y 1) _
   by_cases hmarked : y ∈ marked
   · have hE : prefixErrorBudget ε m ≤ 1 / 8 :=
       (le_mul_of_one_le_left (prefixErrorBudget_nonneg hε)
@@ -120,19 +122,11 @@ private theorem eval_iterate_eq_sentinel {ι : Type u} {s : Finset ι} {n : ℕ 
     have hv : θ ≤ actual.row y 0 := by
       rw [hc.2.1 y hmarked]
       change θ ≤ uncompressedRow Δ (raw₀ + loss) m y 0
-      have heq : uncompressedRow Δ (raw₀ + loss) m y 0 =
-          uncompressedRow Δ raw₀ m y 0 + loss y 0 := by
-        simp only [uncompressedRow, Pi.add_apply]
-        ring
-      rw [heq]
+      simp only [uncompressedRow, Pi.add_apply] at hlarge ⊢
       linarith
-    change H (actual.row y 0) (actual.row y 1) _ =
-      H (sentinelFirst marked L actual.row y 0) (sentinelFirst marked L actual.row y 1) _
     rw [sentinelFirst_zero_of_mem hmarked, sentinelFirst_one]
     exact hsaturate _ _ _ _ hv (by dsimp only [L]; linarith)
-  · change H (actual.row y 0) (actual.row y 1) _ =
-      H (sentinelFirst marked L actual.row y 0) (sentinelFirst marked L actual.row y 1) _
-    rw [sentinelFirst_of_not_mem hmarked]
+  · rw [sentinelFirst_of_not_mem hmarked]
 
 variable (R : ℝ) (hR : 0 ≤ R)
   (hrange : ∀ {ι : Type u} (s : Finset ι) (K : ℕ) (a b : State ι) (y : ι),
