@@ -1539,7 +1539,7 @@ theorem orTech_pou_le_two {n : ℕ} (hn : 1 ≤ n) {γ c : ℝ} (hγ₀ : 0 < γ
   rw [firstBestWelfare_anon (t := orTech n γ) (f := orProb n γ) (fun _ => rfl),
     agencyPrincipalUtility_anon (t := orTech n γ) (f := orProb n γ) (fun _ => rfl)]
   refine Finset.sup'_le Finset.nonempty_range_add_one _ fun k hk => ?_
-  show orProb n γ k * v - (k : ℝ) * c ≤ _
+  change orProb n γ k * v - (k : ℝ) * c ≤ _
   have hk_le : k ≤ n := Nat.lt_succ_iff.mp (Finset.mem_range.mp hk)
   -- The hidden-action optimum is at least the utility of inducing `0` or `1` agents.
   have hU : ∀ j ≤ n, orProb n γ j * v - anonOptPayment (orProb n γ) c j ≤
