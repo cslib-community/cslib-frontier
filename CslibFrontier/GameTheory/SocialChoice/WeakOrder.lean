@@ -347,18 +347,20 @@ is the principal ultrafilter `pure i`. -/
 theorem isDictator_ultrafilter_iff [Nontrivial A] (U : Ultrafilter V) (i : V) :
     (ultrafilter (A := A) U).IsDictator i ↔ U = pure i := by
   classical
-  refine ⟨fun hi => ?_, by rintro rfl P a b h; rwa [ultrafilter_prefers]⟩
-  obtain ⟨a, b, hab⟩ := exists_pair_ne A
-  obtain ⟨r₀⟩ := Ranking.nonempty A
-  let r := r₀.toTop a
-  have hr : r.Prefers a b := r₀.isTop_toTop a b hab.symm
-  let P : Profile V A := fun j => if j = i then r else r.reverse
-  have hsing : {j : V | (P j).Prefers a b} = {i} := by
-    ext j
-    by_cases hj : j = i <;> simp [P, hj, hr, r.asymm hr]
-  obtain ⟨x, hx, hU⟩ := U.eq_pure_of_finite_mem (Set.finite_singleton i)
-    (hsing ▸ (ultrafilter_prefers U P).1 (hi P a b (by simp [P, hr])))
-  exact Set.mem_singleton_iff.1 hx ▸ hU
+  refine ⟨fun hi => ?_, ?_⟩
+  · obtain ⟨a, b, hab⟩ := exists_pair_ne A
+    obtain ⟨r₀⟩ := Ranking.nonempty A
+    let r := r₀.toTop a
+    have hr : r.Prefers a b := r₀.isTop_toTop a b hab.symm
+    let P : Profile V A := fun j => if j = i then r else r.reverse
+    have hsing : {j : V | (P j).Prefers a b} = {i} := by
+      ext j
+      by_cases hj : j = i <;> simp [P, hj, hr, r.asymm hr]
+    obtain ⟨x, hx, hU⟩ := U.eq_pure_of_finite_mem (Set.finite_singleton i)
+      (hsing ▸ (ultrafilter_prefers U P).1 (hi P a b (by simp [P, hr])))
+    exact Set.mem_singleton_iff.1 hx ▸ hU
+  · rintro rfl P a b h
+    rwa [ultrafilter_prefers]
 
 /-- On an infinite electorate, the social welfare function defined by `Filter.hyperfilter V`
 has no dictator. -/

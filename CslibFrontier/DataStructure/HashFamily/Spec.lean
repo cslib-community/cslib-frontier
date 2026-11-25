@@ -162,7 +162,10 @@ theorem resampleCount_eq_zero_of_afterCurrentEpoch_eq_none {U : ℕ} {ops : List
     (h : afterCurrentEpoch ops = none) : resampleCount ops = 0 := by
   induction ops with
   | nil => rfl
-  | cons o _ ih => cases o <;> [cases h; exact ih h]
+  | cons o _ ih =>
+    cases o with
+    | resample => cases h
+    | eval _ => exact ih h
 
 theorem resampleCount_eq_succ_of_afterCurrentEpoch_eq_some {U : ℕ} {ops rest : List (Op U)}
     (h : afterCurrentEpoch ops = some rest) : resampleCount ops = 1 + resampleCount rest := by
@@ -429,10 +432,10 @@ private theorem coupledWithin_evalOps_prod {TopSeed : Type u} {BotSeed : Type v}
     rw [evalOps_eq_of_afterCurrentEpoch_eq_none _ _ hafter]
     simpa [epochCount, resampleCount_eq_zero_of_afterCurrentEpoch_eq_none hafter] using hepoch
   | some rest =>
-    rw [evalOps_eq_of_afterCurrentEpoch_eq_some _ _ hafter,
-      show (epochCount ops : ℝ≥0∞) * δ = δ + (epochCount rest : ℝ≥0∞) * δ by
-        simp only [epochCount, resampleCount_eq_succ_of_afterCurrentEpoch_eq_some hafter]
-        push_cast; ring]
+    have hepoch_cnt : (epochCount ops : ℝ≥0∞) * δ = δ + (epochCount rest : ℝ≥0∞) * δ := by
+      simp only [epochCount, resampleCount_eq_succ_of_afterCurrentEpoch_eq_some hafter]
+      push_cast; ring
+    rw [evalOps_eq_of_afterCurrentEpoch_eq_some _ _ hafter, hepoch_cnt]
     exact hepoch.map₂
       (coupledWithin_evalOps_prod eval GoodTop hgood (hv.of_afterCurrentEpoch_eq_some hafter))
       fun pref tailOut => pref ++ (⟨.resample, PUnit.unit⟩ :: tailOut)

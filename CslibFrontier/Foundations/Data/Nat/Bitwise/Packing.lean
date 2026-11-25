@@ -184,11 +184,10 @@ theorem packWords_readPackedField {h B s : ℕ} (hh : 0 < h) (hs : 0 < s)
   by_cases hb : b < h
   · have ha : r.val * h + b < B * h := (Nat.add_lt_add_left hb _).trans_le
       (Nat.succ_mul r.val h ▸ Nat.mul_le_mul_right h r.isLt)
+    have haddress : (r.val * h + b) / s * s + (r.val * h + b) % s = r.val * h + b := by
+      simpa only [Nat.mul_comm] using Nat.div_add_mod (r.val * h + b) s
     rw [packWords, Nat.testBit_ofBits_lt _ _ hb, readPackedField,
-      Nat.testBit_ofBits_lt _ _ (Nat.mod_lt _ hs),
-      show (r.val * h + b) / s * s + (r.val * h + b) % s = r.val * h + b by
-        simpa only [Nat.mul_comm] using Nat.div_add_mod (r.val * h + b) s,
-      readPackedBit_eq_word hh w ha]
+      Nat.testBit_ofBits_lt _ _ (Nat.mod_lt _ hs), haddress, readPackedBit_eq_word hh w ha]
     have hdiv : (r.val * h + b) / h = r.val := by
       rw [Nat.mul_comm, Nat.mul_add_div hh, Nat.div_eq_of_lt hb, Nat.add_zero]
     have hmod : (r.val * h + b) % h = b := by

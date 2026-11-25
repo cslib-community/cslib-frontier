@@ -119,7 +119,8 @@ private theorem init_decode (inst : MWISInstance) :
       (inst.bags.flatMap encodeBag).length = s₀.frontier := by
     rw [hfr]
     simp only [MWISInstance.encode, List.length_append, List.length_cons, List.length_nil,
-      inst.weights_len, inst.adjMatrix_len, inst.parents_len]; omega
+      inst.weights_len, inst.adjMatrix_len, inst.parents_len]
+    omega
   exact ⟨hfr, hlen_eq, hm1, hm2, hwt, hadj, hpar, hbags⟩
 
 /-- End-to-end validity, output equality with `inst.result`, and `memoryCost ≤ inst.stepBound` for
@@ -175,10 +176,15 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     (L0 := inst.bagAt zeroFin) (tbl0 := tblFinal zeroFin)
     (arr0 := (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt n)[zeroFin]) (s := s₂)
     hlay₂.adj_holds hlay₂.wt_holds rfl h0_bag h0_len.symm (inst.bagAt_mem_lt zeroFin)
-    h0_tbl (by dsimp only [rpArgs]; rwa [h0_pow])
+    h0_tbl (by
+      dsimp only [rpArgs]
+      rwa [h0_pow])
     (by
       dsimp only [rpArgs]
-      rw [h0_pow]; exact hagree₂ zeroFin)
+      rw [h0_pow]
+      exact hagree₂ zeroFin)
+  have hm1' : s₀.mem 1 = m := hm1
+  have hm2' : s₀.mem 2 = n := hm2
   have hd_lt (off : ℕ) (hoff : off < 4) : descBase + off < s₂.frontier := by
     have hdesc : descBase + 4 * (n + 1) ≤ s₂.frontier := hlay₂.desc_hi
     omega
@@ -189,9 +195,9 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
   · unfold runMWISProg
     dsimp only
     refine validHistory_read_bind (by omega) ?_
-    rw [show s₀.mem 1 = m from hm1]
+    rw [hm1']
     refine validHistory_read_bind (by omega) ?_
-    rw [show s₀.mem 2 = n from hm2]
+    rw [hm2']
     refine validHistory_bind_step hv_init (validHistory_bind_step hv_proc ?_)
     refine validHistory_read_bind (by simpa only [Nat.add_zero] using hd_lt 0 (by decide)) ?_
     refine validHistory_read_bind (hd_lt 1 (by decide)) ?_
@@ -199,8 +205,8 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     exact validHistory_read_bind (hd_lt 3 (by decide)) hv_rp
   · unfold runMWISProg
     dsimp only
-    rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, show s₀.mem 1 = m from hm1,
-      StateTransitionSpec.clientResult_bind, hr_st, hr_res, show s₀.mem 2 = n from hm2,
+    rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm1',
+      StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm2',
       StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind]
     change (Memory.spec 0).clientResult s₂ (Memory.read descBase >>= _) = inst.result
     iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
@@ -209,8 +215,8 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     rw [h0_pow]
   · unfold runMWISProg
     dsimp only
-    rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, show s₀.mem 1 = m from hm1,
-      memoryCost_bind', memoryCost_read, hr_st, hr_res, show s₀.mem 2 = n from hm2,
+    rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hm1',
+      memoryCost_bind', memoryCost_read, hr_st, hr_res, hm2',
       memoryCost_bind', memoryCost_bind']
     change 1 + (1 + (memoryCost (initNodesProg ⟨rawBagsPtr, n + 1⟩) s₀ +
       (memoryCost (processNodesProg procArgs) s₁ +

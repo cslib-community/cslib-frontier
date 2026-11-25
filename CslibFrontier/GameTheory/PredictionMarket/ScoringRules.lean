@@ -401,8 +401,9 @@ theorem isProperOn_iff_exists_savage {P : Set (Ω → ℝ)} (hP : P ⊆ probSimp
     exact ⟨fun p => S.expectedScore p p, S.score,
       convexOn_of_forall_add_le (g := fun p => dotCLM (S.score p)) hPconv
         (fun p hp q hq => by simpa only [dotCLM_apply] using hsub p hp q hq),
-      hsub, fun p _ ω => by simp only [savageScoringRule_score,
-        ScoringRule.expectedScore_eq_dotProduct]; ring⟩
+      hsub, fun p _ ω => by
+        simp only [savageScoringRule_score, ScoringRule.expectedScore_eq_dotProduct]
+        ring⟩
   · rw [ScoringRule.expectedScore_congr (heq p hp) q,
       ScoringRule.expectedScore_congr (heq q hq) q]
     exact (savageScoringRule_isProperOn_iff hP).2 hsub q hq p hp
@@ -427,8 +428,9 @@ theorem isStrictlyProperOn_iff_exists_savage {P : Set (Ω → ℝ)} (hP : P ⊆ 
     exact ⟨fun p => S.expectedScore p p, S.score,
       strictConvexOn_of_forall_add_lt (g := fun p => dotCLM (S.score p)) hPconv
         (fun p hp q hq hqp => by simpa only [dotCLM_apply] using hsub p hp q hq hqp),
-      hsub, fun p _ ω => by simp only [savageScoringRule_score,
-        ScoringRule.expectedScore_eq_dotProduct]; ring⟩
+      hsub, fun p _ ω => by
+        simp only [savageScoringRule_score, ScoringRule.expectedScore_eq_dotProduct]
+        ring⟩
   · rw [ScoringRule.expectedScore_congr (heq p hp) q,
       ScoringRule.expectedScore_congr (heq q hq) q]
     exact (savageScoringRule_isStrictlyProperOn_iff hP).2 hsub q hq p hp hpq
@@ -474,10 +476,10 @@ theorem quadraticScore_expectedScore_sub {Ω : Type*} [Fintype Ω] {q p : Ω →
     rw [mul_sum]
     congr 1
     exact sum_congr rfl fun _ _ => by ring
-  rw [heval q, heval p,
-    show ∑ ω, q ω * q ω = ∑ ω, q ω ^ 2 from sum_congr rfl fun _ _ => (sq _).symm,
-    show ∑ ω, (q ω - p ω) ^ 2 = ∑ ω, (q ω ^ 2 - 2 * (q ω * p ω) + p ω ^ 2) from
-      sum_congr rfl fun _ _ => by ring]
+  have hqq : ∑ ω, q ω * q ω = ∑ ω, q ω ^ 2 := sum_congr rfl fun _ _ => (sq _).symm
+  have hsq : ∑ ω, (q ω - p ω) ^ 2 = ∑ ω, (q ω ^ 2 - 2 * (q ω * p ω) + p ω ^ 2) :=
+    sum_congr rfl fun _ _ => by ring
+  rw [heval q, heval p, hqq, hsq]
   simp only [sum_add_distrib, sum_sub_distrib, ← mul_sum]
   ring
 
@@ -501,7 +503,9 @@ theorem quadraticScore_bounds {Ω : Type*} [Fintype Ω] {p : Ω → ℝ} (hp : I
   refine ⟨?_, by
     nlinarith [single_le_sum (fun i _ => sq_nonneg (p i)) (mem_univ ω), sq_nonneg (p ω - 1)]⟩
   have hsum_le : ∑ i, p i ^ 2 ≤ 1 :=
-    (sum_le_sum fun i _ => by nlinarith [hp.nonneg i, hp_le_one i]).trans_eq hp.sum_eq_one
+    calc ∑ i, p i ^ 2
+        ≤ ∑ i, p i := sum_le_sum fun i _ => by nlinarith [hp.nonneg i, hp_le_one i]
+      _ = 1 := hp.sum_eq_one
   linarith [hp.nonneg ω]
 
 /-- The **Brier scoring rule** [Brier1950]: `S(p, ω) = -∑ ω', (1_{ω' = ω} - p ω') ^ 2`. -/
@@ -623,10 +627,11 @@ theorem sphericalScore_eq_savage {Ω : Type*} [Fintype Ω] {p : Ω → ℝ} (hp 
       (savageScoringRule (fun r => Real.sqrt (∑ i, r i ^ 2))
         (fun r i => r i / Real.sqrt (∑ j, r j ^ 2))).score p ω := by
   have hpos := sum_sq_pos_of_isMixedStrategy hp
-  simp only [sphericalScore_score, savageScoringRule_score, dotProduct,
-    show ∑ i, p i * (p i / Real.sqrt (∑ j, p j ^ 2)) =
-      (∑ i, p i ^ 2) / Real.sqrt (∑ j, p j ^ 2) by
-      rw [sum_div]; exact sum_congr rfl fun _ _ => by ring]
+  have h1 : ∑ i, p i * (p i / Real.sqrt (∑ j, p j ^ 2)) =
+      (∑ i, p i ^ 2) / Real.sqrt (∑ j, p j ^ 2) := by
+    rw [sum_div]
+    exact sum_congr rfl fun _ _ => by ring
+  simp only [sphericalScore_score, savageScoringRule_score, dotProduct, h1]
   have hdiv : (∑ i, p i ^ 2) / Real.sqrt (∑ j, p j ^ 2) = Real.sqrt (∑ i, p i ^ 2) := by
     rw [div_eq_iff (Real.sqrt_pos.mpr hpos).ne', Real.mul_self_sqrt hpos.le]
   rw [hdiv]
@@ -674,11 +679,11 @@ theorem isStrictlyProper_sphericalScore {Ω : Type*} [Fintype Ω] :
   have hsq_eq : (Real.sqrt (∑ ω, q ω ^ 2) * Real.sqrt (∑ ω, p ω ^ 2)) ^ 2 =
       (∑ ω, q ω ^ 2) * (∑ ω, p ω ^ 2) := by
     rw [mul_pow, Real.sq_sqrt hqpos.le, Real.sq_sqrt hppos.le]
-  rw [show (sphericalScore Ω).expectedScore q p =
-      (∑ ω, q ω * p ω) / Real.sqrt (∑ ω, p ω ^ 2) by
-      simp only [ScoringRule.expectedScore_apply, sphericalScore_score, sum_div]
-      exact sum_congr rfl fun _ _ => by ring,
-    sphericalScore_expectedScore_self hq, div_lt_iff₀ hpsqrt]
+  have heval_p : (sphericalScore Ω).expectedScore q p =
+      (∑ ω, q ω * p ω) / Real.sqrt (∑ ω, p ω ^ 2) := by
+    simp only [ScoringRule.expectedScore_apply, sphericalScore_score, sum_div]
+    exact sum_congr rfl fun _ _ => by ring
+  rw [heval_p, sphericalScore_expectedScore_self hq, div_lt_iff₀ hpsqrt]
   nlinarith [lagrange_identity q p, mul_pos hqsqrt hpsqrt]
 
 end CanonicalRules

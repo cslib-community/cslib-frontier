@@ -881,14 +881,14 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
         h0 | h1 | h2 | h3
       · rw [Finset.card_eq_zero.mp h0]
         exact iff_of_false (E.empty_false hq₀) (by rintro (⟨_, h⟩ | ⟨_, h⟩ | h) <;> simp at h)
-      · rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀
-          (show S.card = ({0} : Finset (Fin 3)).card by simp [h1]), hP₁]
-        exact ⟨fun h => Or.inl ⟨h, by omega⟩, fun h => by
-          rcases h with ⟨h, _⟩ | ⟨_, h⟩ | h <;> first | exact h | omega⟩
-      · rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀
-          (show S.card = ({0, 1} : Finset (Fin 3)).card by simp [h2]), hP₂]
-        exact ⟨fun h => Or.inr (Or.inl ⟨h, by omega⟩), fun h => by
-          rcases h with ⟨h, _⟩ | ⟨h, _⟩ | h <;> first | exact h12 h | exact h | omega⟩
+      · have hc1 : S.card = ({0} : Finset (Fin 3)).card := by simp [h1]
+        rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀ hc1, hP₁]
+        refine ⟨fun h => Or.inl ⟨h, by omega⟩, fun h => ?_⟩
+        rcases h with ⟨h, _⟩ | ⟨_, h⟩ | h <;> first | exact h | omega
+      · have hc2 : S.card = ({0, 1} : Finset (Fin 3)).card := by simp [h2]
+        rw [win_congr_card_of_isAnonymous hT E hf_anon hq₀ hc2, hP₂]
+        refine ⟨fun h => Or.inr (Or.inl ⟨h, by omega⟩), fun h => ?_⟩
+        rcases h with ⟨h, _⟩ | ⟨h, _⟩ | h <;> first | exact h12 h | exact h | omega
       · rw [Finset.eq_univ_of_card S (by simpa using h3)]
         exact iff_of_true (E.univ_true hq₀) (Or.inr (Or.inr (by decide)))
     have hwin_out (r : Fin 3) (hy : y ∈ interval T.center (T.leaf r)) (hyl : y ≠ T.leaf r) :

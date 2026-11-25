@@ -330,7 +330,9 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
       dsimp only [cand, fw, fc]
       rw [hfc_eq]
       exact hcand_le curC hcur_lt
-    have hnext_fit : Fits w nextVal := hfit_cap.of_le (by dsimp only [nextVal]; split_ifs <;> omega)
+    have hnext_fit : Fits w nextVal := hfit_cap.of_le <| by
+      dsimp only [nextVal]
+      split_ifs <;> omega
     let st₁ : Memory.State := ⟨Function.update st.mem (args.bestPtr + key) nextVal, st.frontier⟩
     obtain ⟨hst_step, hres_step⟩ := childPassStep_eval args curC st
     rw [hr_ind, hr_key, hr_fw] at hst_step
@@ -380,13 +382,17 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
     obtain ⟨hv_rem, hfr_rem, hp_rem, hbest_rem, hc_rem⟩ :=
       ih (curC + 1) st₁ (by omega) hfr
         (hpres.trans (preservesBelow_write (Nat.le_add_right _ _) hbest_addr_lt)) hbest_next
-    rw [show iterate childPassStep args (rem + 1) curC =
-      (childPassStep (args, curC) >>= iterate childPassStep args rem) from rfl]
+    have hiter_eq : iterate childPassStep args (rem + 1) curC =
+        (childPassStep (args, curC) >>= iterate childPassStep args rem) := rfl
+    have hadd : curC + (rem + 1) = curC + 1 + rem := by omega
+    rw [hiter_eq]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_⟩
-    rw [StateTransitionSpec.clientState_bind, memoryCost_bind', hst_step, hres_step,
-      show curC + (rem + 1) = curC + 1 + rem by omega]
-    exact ⟨hfr_rem, hp_rem, hbest_rem,
-      (Nat.add_le_add hc_step hc_rem).trans_eq (by rw [Nat.succ_mul, Nat.add_comm])⟩
+    rw [StateTransitionSpec.clientState_bind, memoryCost_bind', hst_step, hres_step, hadd]
+    refine ⟨hfr_rem, hp_rem, hbest_rem, ?_⟩
+    calc memoryCost (childPassStep (args, curC)) st +
+          memoryCost (iterate childPassStep args rem (curC + 1)) st₁
+        ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
+      _ = (rem + 1) * stepCost := by rw [Nat.succ_mul, Nat.add_comm]
 
 /-- Exact-basis Word-RAM realization certificate for `childPassProg`. -/
 theorem childPassProg_realizes :

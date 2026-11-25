@@ -195,8 +195,9 @@ theorem omResolve_eq_omResolve {F : Finset P} {val : P → List P → Bool}
       refine strictMajorityOn_congr fun l hl => ?_
       by_cases hlF : l ∈ F
       · -- A faulty lieutenant `l` contributes the same value to all, by Theorem 1 for `OM(m)`.
-        simp only [show l ≠ p from fun h => hp (h ▸ hlF), show l ≠ q from fun h => hq (h ▸ hlF),
-          ↓reduceIte]
+        have hlp : l ≠ p := fun h => hp (h ▸ hlF)
+        have hlq : l ≠ q := fun h => hq (h ▸ hlF)
+        simp only [hlp, hlq, ↓reduceIte]
         exact ih l (j :: τ) (by simpa using hl) hF' (by omega) p hp q hq
       · rw [hvote l hl hlF p hp, hvote l hl hlF q hq]
     · rw [omResolve_eq_of_notMem hval (m + 1) j τ hj hF (by omega) p hp,
@@ -364,8 +365,11 @@ theorem om1_decision_eq_om_decision (adv : ℕ → P → P → P → Bool) {R : 
   obtain ⟨-, _, hreport⟩ := om_one_state_two F x adv i
   rw [Protocol.decision, om1_state_add_two, om_decision]
   refine strictMajorityOn_congr fun c _ => ?_
+  have hcompl : [c].toFinsetᶜ = univ.erase c := by
+    ext
+    simp
   rw [omValue, omResolve_congr i 1 [c] fun τ hτ => om_one_state_eq_two F x adv R i τ hτ,
-    omResolve, show [c].toFinsetᶜ = univ.erase c by ext; simp]
+    omResolve, hcompl]
   refine strictMajorityOn_congr fun l _ => ?_
   rw [← hreport]
   split_ifs with hli

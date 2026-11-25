@@ -201,7 +201,9 @@ theorem exists_radius_eq_optRadius (d : V → V → α) (k : ℕ) :
 
 theorem optRadius_le_iff {r : WithTop α} :
     optRadius d k ≤ r ↔ ∃ S : Finset V, S.card ≤ k ∧ radius d S ≤ r :=
-  ⟨fun h => let ⟨S, hS, hSr⟩ := exists_radius_eq_optRadius d k; ⟨S, hS, hSr ▸ h⟩,
+  ⟨fun h =>
+    let ⟨S, hS, hSr⟩ := exists_radius_eq_optRadius d k
+    ⟨S, hS, hSr ▸ h⟩,
     fun ⟨_, hS, hSr⟩ => (optRadius_le_radius hS).trans hSr⟩
 
 theorem le_optRadius_iff {r : WithTop α} :

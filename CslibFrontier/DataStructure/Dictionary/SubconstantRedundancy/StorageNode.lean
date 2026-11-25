@@ -314,11 +314,14 @@ theorem isSome_locateSlot_iff (tm : StorageTableMeta I m) (k : Fin (2 ^ I)) :
   simp [dom]
 
 theorem card_dom_le (tm : StorageTableMeta I m) : tm.dom.card ≤ m :=
-  (card_le_card (t := univ.biUnion fun i : Fin m => (tm.slots i).toFinset) fun k hk =>
-    let ⟨i, hi⟩ := (tm.mem_dom_iff k).mp hk
-    mem_biUnion.mpr ⟨i, mem_univ i, Option.mem_toFinset.mpr hi⟩).trans
-    (card_biUnion_le.trans ((sum_le_sum (g := fun _ => 1) fun i _ => by
-      cases tm.slots i <;> simp).trans (by simp)))
+  calc tm.dom.card
+      ≤ (univ.biUnion fun i : Fin m => (tm.slots i).toFinset).card :=
+        card_le_card fun k hk =>
+          let ⟨i, hi⟩ := (tm.mem_dom_iff k).mp hk
+          mem_biUnion.mpr ⟨i, mem_univ i, Option.mem_toFinset.mpr hi⟩
+    _ ≤ ∑ i : Fin m, (tm.slots i).toFinset.card := card_biUnion_le
+    _ ≤ ∑ _i : Fin m, 1 := sum_le_sum fun i _ => by cases tm.slots i <;> simp
+    _ = m := by simp
 
 theorem exists_free_slot (tm : StorageTableMeta I m) (hlt : tm.dom.card < m) :
     ∃ i : Fin m, tm.slots i = none := by
@@ -326,8 +329,10 @@ theorem exists_free_slot (tm : StorageTableMeta I m) (hlt : tm.dom.card < m) :
   choose f hf using fun i => Option.ne_none_iff_exists'.mp (hno i)
   have hinj : Function.Injective f := fun i j hij => tm.inj_slots i j (f j) (hij ▸ hf i) (hf j)
   have hle : m ≤ tm.dom.card := by
-    simpa only [card_map, card_univ, Fintype.card_fin] using card_le_card (s := univ.map ⟨f, hinj⟩)
-      fun _ hk => let ⟨i, _, hfi⟩ := mem_map.mp hk; hfi ▸ (tm.mem_dom_iff (f i)).mpr ⟨i, hf i⟩
+    simpa only [card_map, card_univ, Fintype.card_fin] using
+      card_le_card (s := univ.map ⟨f, hinj⟩) fun _ hk => by
+        rcases mem_map.mp hk with ⟨i, _, rfl⟩
+        exact (tm.mem_dom_iff (f i)).mpr ⟨i, hf i⟩
   omega
 
 /-- Empty storage-table metadata. -/
@@ -531,7 +536,9 @@ theorem dom_delete (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) :
   refine ⟨?_, fun ⟨hne, i, hi⟩ => ⟨i, by simp [hi, hne]⟩⟩
   rintro ⟨i, hi⟩
   split_ifs at hi with h
-  exact ⟨fun hkk => by subst k'; simp [hi] at h, i, hi⟩
+  refine ⟨fun hkk => ?_, i, hi⟩
+  subst k'
+  simp [hi] at h
 
 @[simp]
 theorem query_delete (tbl : StorageTable I m Q V) (k k' : Fin (2 ^ I)) :

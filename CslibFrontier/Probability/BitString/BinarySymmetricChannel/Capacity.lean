@@ -79,9 +79,8 @@ theorem isAchievableRate_of_nonpos (p : I) {R : ℝ} (hR : R ≤ 0) : IsAchievab
   classical
   have h1 : (2 : ℕ) ^ ⌈R * n⌉₊ = 1 := by
     rw [Nat.ceil_eq_zero.mpr (mul_nonpos_of_nonpos_of_nonneg hR n.cast_nonneg), pow_zero]
-  have hm : (⟨0, by positivity⟩ : Fin (2 ^ ⌈R * n⌉₊)) = m := by
-    have := m.isLt
-    exact Fin.ext (by omega)
+  have hm : (⟨0, by positivity⟩ : Fin (2 ^ ⌈R * n⌉₊)) = m :=
+    Fin.ext (by have := m.isLt; omega)
   simpa only [decodingError_eq_bernoulliAverage, hm, ne_self_iff_false, ↓reduceIte,
     bernoulliAverage_const] using hε.le
 

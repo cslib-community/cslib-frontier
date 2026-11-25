@@ -194,31 +194,31 @@ private theorem lift_branch_child_insert {isRoot : Bool} {fpBits W_val tMin idx 
     exact fun v hvi hvj => (hns i v hvi).elim (disjoint_left.mp (hdisj i j hij) · hvj)
       (hlt j v hvj).not_ge
   refine ⟨halloc_le, hroot, fun v hv_lt hv_not => hfr v hv_lt fun hvc => hv_not (hmem r_b hvc),
-    .branch idx m (Function.update cs_b r_b T_c'), rfl,
-    by simp only [BTreeTree.height, hht_eq], ?_,
-    by
-      have := sum_potential_update_add cs_b r_b T_c' tMin
-      simp only [BTreeTree.potential]
-      omega,
-    ?_⟩
+    .branch idx m (Function.update cs_b r_b T_c'), rfl, ?_, ?_, ?_, ?_⟩
+  · simp only [BTreeTree.height, hht_eq]
   · intro v hv_in
-    rcases mem_insert.mp hv_in with rfl | hv_bi
+    rw [BTreeTree.nodeSet, mem_insert, mem_biUnion] at hv_in
+    rcases hv_in with rfl | ⟨i, _, hvi⟩
     · exact .inl (mem_insert_self _ _)
-    · obtain ⟨i, _, hvi⟩ := mem_biUnion.mp hv_bi
-      exact (hns i v hvi).imp_left (hmem i ·)
+    · exact (hns i v hvi).imp_left (hmem i ·)
+  · have hsum := sum_potential_update_add cs_b r_b T_c' tMin
+    simp only [BTreeTree.potential]
+    omega
   · dsimp only [ValidSubtree]
     rw [hfr idx hidx (hnot r_b)]
     refine ⟨hidx.trans_le halloc_le, hmeta, hdeg, hcnt_le, hkw, hvw, hlo0, hhi_last, hmono,
-      fun i hmem => (hns i idx hmem).elim (hnot i) hidx.not_ge, fun i j hij =>
-        if hj : j = r_b then (hdisj' j i hij.symm (hj ▸ hij)).symm else hdisj' i j hij hj,
+      fun i hmem => (hns i idx hmem).elim (hnot i) hidx.not_ge, fun i j hij => ?_,
       fun i => by rw [hht_eq, hht_eq]; exact hht i, fun i => ?_⟩
-    rcases eq_or_ne i r_b with rfl | hi
-    · rw [Function.update_self]
-      exact ⟨(hcs i).1.trans hrt_c.symm, hv_c'⟩
-    · rw [Function.update_of_ne hi]
-      exact ⟨(hcs i).1, (hcs i).2.frame halloc_le
-        (fun v hv => hfr v (hlt i v hv) (disjoint_left.mp (hdisj i r_b hi) hv))
-        fun q' h1 h2 => Function.update_of_ne (hother_b i (Fin.val_ne_of_ne hi) q' h1 h2) _ _⟩
+    · by_cases hj : j = r_b
+      · exact (hdisj' j i hij.symm (hj ▸ hij)).symm
+      · exact hdisj' i j hij hj
+    · rcases eq_or_ne i r_b with rfl | hi
+      · rw [Function.update_self]
+        exact ⟨(hcs i).1.trans hrt_c.symm, hv_c'⟩
+      · rw [Function.update_of_ne hi]
+        exact ⟨(hcs i).1, (hcs i).2.frame halloc_le
+          (fun v hv => hfr v (hlt i v hv) (disjoint_left.mp (hdisj i r_b hi) hv))
+          fun q' h1 h2 => Function.update_of_ne (hother_b i (Fin.val_ne_of_ne hi) q' h1 h2) _ _⟩
 
 /-- Full inductive specification of `descendSplitToLeaf` followed by `finishLeafInsert` on any
 non-full valid subtree `T`. -/
@@ -246,15 +246,17 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
   induction fuel generalizing T isRoot sl lo hi <;> rcases T with ⟨idx, cnt⟩ | ⟨idx, cnt, cs⟩
   case zero.leaf | succ.leaf =>
     -- A leaf: no descent, `finishLeafInsert` acts on `idx` itself.
+    have hdesc : ∀ f, descendSplitToLeaf fpBits W_val tMin f sl idx q = (sl, idx) := fun f => by
+      cases f <;> simp [descendSplitToLeaf, hv.2.1]
     rw [BTreeTree.rootIdx, hv.2.1, metaCount_mkNodeMeta] at hnonfull
     obtain ⟨halloc_eq, hrt_eq, hframe, cnt', hcnt', hv'⟩ :=
       finishLeafInsert_leaf_spec (by omega) hcap hval hhi hqlo hqhi hv hnonfull
-    simp only [BTreeTree.rootIdx, show ∀ f, descendSplitToLeaf fpBits W_val tMin f sl idx q =
-      (sl, idx) from fun f => by cases f <;> simp [descendSplitToLeaf, hv.2.1]]
-    exact ⟨halloc_eq.ge, hrt_eq,
+    simp only [BTreeTree.rootIdx, hdesc]
+    refine ⟨halloc_eq.ge, hrt_eq,
       fun v _ hv_not => hframe v (by simpa [BTreeTree.nodeSet] using hv_not),
-      .leaf idx cnt', rfl, rfl, fun _ hv_in => .inl hv_in,
-      by simp [halloc_eq, BTreeTree.potential]; omega, hv'⟩
+      .leaf idx cnt', rfl, rfl, fun v hv_in => Or.inl hv_in, ?_, hv'⟩
+    simp [halloc_eq, BTreeTree.potential]
+    omega
   case zero.branch => simp [BTreeTree.height] at hfuel
   case succ.branch fuel' ih =>
     obtain ⟨hr_le, hclo_q, hq_chi, hother⟩ :=
@@ -275,10 +277,11 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
     rcases ne_or_eq (metaCount (sl.nodes (cs r).rootIdx).metaWord) (2 * tMin - 1) with
       hfull_c | hfull_c
     · -- Subcase A: child `cs r` is not full; descend into it.
+      have hstep : descendSplitToLeaf fpBits W_val tMin (fuel' + 1) sl idx q =
+          descendSplitToLeaf fpBits W_val tMin fuel' sl (cs r).rootIdx q := by
+        simp [descendSplitToLeaf, hmeta, ← hr, (hcs r).1, hfull_c]
       have hcnt_c := (hcs r).2.metaCount_rootIdx_le
-      rw [show descendSplitToLeaf fpBits W_val tMin (fuel' + 1) sl idx q =
-          descendSplitToLeaf fpBits W_val tMin fuel' sl (cs r).rootIdx q by
-        simp [descendSplitToLeaf, hmeta, ← hr, (hcs r).1, hfull_c]]
+      rw [hstep]
       exact lift_branch_child_insert hvT hother
         (ih (hchi_le.trans_lt hhi) hclo_q hq_chi (hcs r).2 (by omega) (by rw [hht r]; omega)
           (by rw [hht r]; omega))
@@ -330,10 +333,10 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
       have heightOld : ∀ i, (cs_mid i).height = (cs ⟨0, Nat.succ_pos cnt⟩).height :=
         everyChild (P := fun t => t.height = _) (hhtL.trans (hht r)) (hhtR.trans (hht r))
           fun k _ => hht k
-      obtain ⟨h7, h8, h9⟩ :=
-        wordInsertAt_sorted hsep_lt_W r.is_le hlo0 hhi_last hmono hclo_sep hsep_chi
       have hv_mid : ValidSubtree isRoot fpBits W_val tMin sl_mid.alloc sl_mid.nodes lo hi
           mapFn (.branch idx (cnt + 1) cs_mid) := by
+        obtain ⟨h7, h8, h9⟩ :=
+          wordInsertAt_sorted hsep_lt_W r.is_le hlo0 hhi_last hmono hclo_sep hsep_chi
         simp only [ValidSubtree, sl_mid, Function.update_self]
         refine ⟨by omega, trivial, by split_ifs at hdeg ⊢ <;> omega, by omega,
           wordInsertAt_lt r.is_le hsep_lt_W hkw, wordInsertAt_lt (by omega) hright_lt hvw,
@@ -353,10 +356,12 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
           rcases r.succ.eq_self_or_eq_succAbove i with rfl | ⟨k, rfl⟩ <;>
             rcases r.succ.eq_self_or_eq_succAbove j with rfl | ⟨l, rfl⟩
           · exact (hij rfl).elim
-          · exact hmidR ▸ hmidS l ▸ (hright l).symm
-          · exact hmidS k ▸ hmidR ▸ hright k
-          · exact hmidS k ▸ hmidS l ▸
-              (hdisj k l fun h => hij (congrArg _ h)).mono (hsub k) (hsub l)
+          · rw [hmidR, hmidS]
+            exact (hright l).symm
+          · rw [hmidR, hmidS]
+            exact hright k
+          · rw [hmidS, hmidS]
+            exact (hdisj k l fun h => hij (congrArg _ h)).mono (hsub k) (hsub l)
         · -- each child is rooted at its value lane and valid on its interval
           refine (Fin.forall_iff_succAbove r.succ).2 ⟨?_, fun k => ?_⟩
           · rw [hmidR, childLo_wordInsertAt_succ hsep_lt_W, childHi_wordInsertAt_succ hsep_lt_W]
@@ -374,7 +379,7 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
       -- Potential drop from `T` to `T_mid`.
       have hpot_mid : 2 * (BTreeTree.branch idx (cnt + 1) cs_mid).potential tMin + (tMin - 2) ≤
           2 * (BTreeTree.branch idx cnt cs).potential tMin := by
-        have := sum_potential_update_add cs r leftT tMin
+        have hsum := sum_potential_update_add cs r leftT tMin
         simp only [BTreeTree.potential, Fin.sum_univ_succAbove _ r.succ, hmidR, hmidS]
         omega
       -- Route `q` in `T_mid`: it goes to the right half exactly when `sep < q`.
@@ -398,13 +403,15 @@ private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
       have hstep : descendSplitToLeaf fpBits W_val tMin (fuel' + 1) sl idx q =
           descendSplitToLeaf fpBits W_val tMin fuel' sl_mid (cs_mid r').rootIdx q := by
         rw [← hnext_rt]
-        simp [descendSplitToLeaf, hmeta, ← hr, (hcs r).1, hfull_c, sl_mid, res, sep]
+        simp only [descendSplitToLeaf, hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta, ← hr,
+          (hcs r).1, hfull_c, beq_self_eq_true, Bool.false_eq_true, ↓reduceIte]
+        rfl
       -- Descend into the non-full child `cs_mid r'` of `T_mid` and lift the result twice.
+      have hv_mid' := hv_mid
+      obtain ⟨-, -, -, -, -, -, -, hhi_m, hmono_m, -, -, -, hcs_m⟩ := hv_mid'
       obtain ⟨halloc_rec, hrt_rec, hfr_mid, T', hrt_T', hht_T', hns_T', hpot_T', hv_T'⟩ :=
         lift_branch_child_insert hv_mid hother'
-          (ih ((childHi_le (by simpa [sl_mid] using h8.le)
-              (by simpa [sl_mid] using h9)).trans_lt hhi)
-            hclo'_q hq_chi' (hv_mid.2.2.2.2.2.2.2.2.2.2.2.2 r').2 hnext_nf
+          (ih ((childHi_le hhi_m.le hmono_m).trans_lt hhi) hclo'_q hq_chi' (hcs_m r').2 hnext_nf
             (by rw [heightOld]; omega) (by rw [heightOld]; omega))
       have hsub_mid : (BTreeTree.branch idx (cnt + 1) cs_mid).nodeSet ⊆
           insert sl.alloc (BTreeTree.branch idx cnt cs).nodeSet :=

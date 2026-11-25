@@ -139,10 +139,13 @@ theorem step_mem_cyclicPairs {α : Type*} (l : List α) [NeZero l.length] (hl : 
       (l.getLast hl, l.head hl) :: List.consecutivePairs l := by
   have h1 : (1 : Fin l.length).1 = 1 := by rw [Fin.val_one']; exact Nat.mod_eq_of_lt (by omega)
   by_cases hlast : i.1 + 1 = l.length
-  · have hi1 : (i + 1 : Fin l.length).1 = 0 := by rw [Fin.val_add, h1, hlast, Nat.mod_self]
-    rw [show l[i.1] = l.getLast hl by
+  · have hi1 : (i + 1 : Fin l.length).1 = 0 := by
+      rw [Fin.val_add, h1, hlast, Nat.mod_self]
+    have hlast_eq : l[i.1] = l.getLast hl := by
       rw [List.getLast_eq_getElem hl]
-      congr 1; omega]
+      congr 1
+      omega
+    rw [hlast_eq]
     simp only [hi1, ← List.head_eq_getElem hl, List.mem_cons, true_or]
   · have hlt : i.1 + 1 < l.length := by omega
     have hi1 : (i + 1 : Fin l.length).1 = i.1 + 1 := by

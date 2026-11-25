@@ -125,7 +125,9 @@ theorem spillUniv_pos {X : ℕ} (hX : 1 ≤ X) (r_sp : ℕ) : 0 < spillUniv X r_
 
 theorem encode_div_lt {X : ℕ} (r_sp : ℕ) (x : Fin X) :
     x.val / 2 ^ memBits X r_sp < spillUniv X r_sp :=
-  Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact x.isLt.trans_le (le_spillUniv_mul_two_pow _ _))
+  Nat.div_lt_of_lt_mul <| by
+    rw [Nat.mul_comm]
+    exact x.isLt.trans_le (le_spillUniv_mul_two_pow _ _)
 
 /-- Encode `x : Fin X` into spillover index `k = x / 2 ^ M` and memory word `m = x % 2 ^ M`. -/
 @[expose]
@@ -160,7 +162,9 @@ theorem decodeVal_injective (X r_sp : ℕ) :
     rw [Nat.mul_comm, Nat.mul_add_div (Nat.two_pow_pos _),
       Nat.div_eq_zero_iff.mpr (.inr m.isLt), add_zero]
   have hk : k₁.val = k₂.val := by rw [← hdiv k₁ m₁, ← hdiv k₂ m₂, h]
-  exact Prod.ext (Fin.ext hk) (Fin.ext (by rw [hk] at h; exact Nat.add_left_cancel h))
+  refine Prod.ext (Fin.ext hk) (Fin.ext ?_)
+  rw [hk] at h
+  exact Nat.add_left_cancel h
 
 @[simp]
 theorem encode_decodeVal {X r_sp : ℕ}
@@ -180,7 +184,7 @@ theorem decode?_encode {X : ℕ} (r_sp : ℕ) (x : Fin X) :
 theorem decode?_eq_some_iff {X : ℕ} (r_sp : ℕ)
     (km : Fin (spillUniv X r_sp) × Fin (2 ^ memBits X r_sp)) (x : Fin X) :
     decode? r_sp km = some x ↔ encode r_sp x = km := by
-  refine ⟨fun h => ?_, by rintro rfl; exact decode?_encode r_sp x⟩
+  refine ⟨fun h => ?_, fun h => h ▸ decode?_encode r_sp x⟩
   dsimp only [decode?] at h
   split_ifs at h with hlt
   injection h with hx
@@ -281,14 +285,20 @@ theorem memBits_add_logb_spillUniv_le {X r_sp : ℕ} (hX : 1 ≤ X) (hr : 1 ≤ 
     linarith [Real.log_le_sub_one_of_pos (by positivity : (0 : ℝ) < 1 + 1 / (r_sp : ℝ))]
   have hlogb : Real.logb 2 (1 + 1 / (r_sp : ℝ)) ≤ 2 / (r_sp : ℝ) := by
     rw [Real.logb, div_le_div_iff₀ (Real.log_pos (by norm_num)) hrpos]
-    linarith [Real.log_two_gt_d9,
-      (mul_le_mul_of_nonneg_right hlog1 hrpos.le).trans_eq (one_div_mul_cancel hrpos.ne')]
-  have hlhs : (memBits X r_sp : ℝ) + Real.logb 2 (spillUniv X r_sp) =
-      Real.logb 2 ((spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp) := by
-    rw [Real.logb_mul hKpos.ne' (by positivity), Real.logb_two_pow]
-    ring
-  linarith [Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hprod_le,
-    Real.logb_mul (b := 2) hXpos.ne' (by positivity : (1 + 1 / (r_sp : ℝ)) ≠ 0)]
+    have hmul : Real.log (1 + 1 / (r_sp : ℝ)) * r_sp ≤ 1 :=
+      calc Real.log (1 + 1 / (r_sp : ℝ)) * r_sp
+          ≤ (1 / (r_sp : ℝ)) * r_sp := mul_le_mul_of_nonneg_right hlog1 hrpos.le
+        _ = 1 := one_div_mul_cancel hrpos.ne'
+    linarith [Real.log_two_gt_d9]
+  calc (memBits X r_sp : ℝ) + Real.logb 2 (spillUniv X r_sp)
+      = Real.logb 2 ((spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp) := by
+          rw [Real.logb_mul hKpos.ne' (by positivity), Real.logb_two_pow]
+          ring
+    _ ≤ Real.logb 2 (X * (1 + 1 / (r_sp : ℝ))) :=
+          Real.logb_le_logb_of_le (by norm_num) (by positivity) hprod_le
+    _ = Real.logb 2 X + Real.logb 2 (1 + 1 / (r_sp : ℝ)) :=
+          Real.logb_mul hXpos.ne' (by positivity)
+    _ ≤ Real.logb 2 X + 2 / (r_sp : ℝ) := by linarith
 
 /-- Batch `ℕ` bound across `n` payloads at spillover parameter `r_sp = n`:
 `(K * 2 ^ M) ^ n ≤ 3 * X ^ n` (since `(1 + 1 / n) ^ n ≤ e < 3`). -/
@@ -304,9 +314,10 @@ theorem pow_spillUniv_mul_two_pow_le_three_mul {X n : ℕ} (hn : 1 ≤ n) :
           exact congrArg Real.exp (by field_simp)
       _ ≤ 3 := by linarith [Real.exp_one_lt_d9]
   have hpow_nat : (n + 1) ^ n ≤ 3 * n ^ n := by
-    exact_mod_cast (show ((n : ℝ) + 1) ^ n = (1 + 1 / (n : ℝ)) ^ n * (n : ℝ) ^ n by
-      rw [← mul_pow]; exact congrArg (· ^ n) (by field_simp)).trans_le
-      (mul_le_mul_of_nonneg_right h1n (by positivity))
+    have heq : ((n : ℝ) + 1) ^ n = (1 + 1 / (n : ℝ)) ^ n * (n : ℝ) ^ n := by
+      rw [← mul_pow]
+      exact congrArg (· ^ n) (by field_simp)
+    exact_mod_cast heq.trans_le (mul_le_mul_of_nonneg_right h1n (by positivity))
   refine Nat.le_of_mul_le_mul_left ?_ (Nat.pow_pos (n := n) hn)
   calc n ^ n * (spillUniv X n * 2 ^ memBits X n) ^ n
       = (n * (spillUniv X n * 2 ^ memBits X n)) ^ n := (Nat.mul_pow _ _ _).symm

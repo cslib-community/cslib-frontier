@@ -132,7 +132,9 @@ theorem inputPrefix_exec {r k w : ℕ} (frontier ptr : Fin r) (src : Fin k → F
       rw [hframe frontier hp.symm hf]
       simp [x₄, Memory.State.init]),
     fun i => by simpa [x₄, x₃, x₂, x₁, x] using ho i,
-    fun j hj hptr hs => by rw [hframe j hptr hs]; simp [x₄, x₃, x₂, x₁, x, hj, hptr]⟩
+    fun j hj hptr hs => ?_⟩
+  rw [hframe j hptr hs]
+  simp [x₄, x₃, x₂, x₁, x, hj, hptr]
 
 end Cslib.WordRAM.Realization
 
@@ -241,9 +243,9 @@ theorem exists_unit_refines {p : δ → Memory.Prog Unit} {output : Unit ↪ (Fi
   obtain ⟨n, C, emit, he⟩ := h.exists_refines
   refine ⟨n, C, emit, fun frontier src tmp hi hd hf hs w d => Refines.ofFn fun s x hx => ?_⟩
   obtain ⟨hv, y, ey, hm, _⟩ := (he frontier src tmp hi hd hf hs w d).toOfFn hx
-  exact ⟨hv, y.set (tmp 0) 0, ey.seq (ExecWithin.const (fits_zero w)),
-    by rw [← hm]; exact Memory.State.ext rfl (by simp [memoryState, Data.set, (hf 0).symm]),
-    by simp⟩
+  refine ⟨hv, y.set (tmp 0) 0, ey.seq (ExecWithin.const (fits_zero w)), ?_, by simp⟩
+  rw [← hm]
+  exact Memory.State.ext rfl (by simp [memoryState, Data.set, (hf 0).symm])
 
 /-- A zero-output Unit client has a uniform flat scalar observation after a charged zero write
 and halt. Both instructions are included, without a positive-width premise. -/

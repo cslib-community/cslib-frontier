@@ -223,8 +223,10 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
     have hδ_pos : 0 < δ := lt_min hxi (div_pos (sub_pos.mpr hltB) hmid_pos)
     have hδ_le_alloc : δ ≤ o.alloc i := min_le_left _ _
     have hδ_mul_le : mid * δ ≤ B j - o.payment j :=
-      (mul_le_mul_of_nonneg_left (min_le_right _ _) hmid_pos.le).trans_eq
-        (mul_div_cancel₀ _ hmid_pos.ne')
+      calc
+        mid * δ ≤ mid * ((B j - o.payment j) / mid) :=
+          mul_le_mul_of_nonneg_left (min_le_right _ _) hmid_pos.le
+        _ = B j - o.payment j := mul_div_cancel₀ _ hmid_pos.ne'
     let t : ℝ := mid * δ
     let o' : Outcome ι :=
       { alloc := Function.update (Function.update o.alloc i (o.alloc i - δ)) j (o.alloc j + δ)
@@ -276,10 +278,14 @@ private theorem isParetoOptimal_of_isClearedAndExhausted
     obtain ⟨j₀, hj₀_mem, hj₀_eq⟩ := Finset.mem_image.mp (Finset.max'_mem (slackSet.image v) _)
     obtain ⟨hj₀_v, hj₀_pay⟩ := (Finset.mem_filter.mp hj₀_mem).2
     obtain ⟨hsum_eq, -⟩ := hclear ⟨j₀, hj₀_v⟩
-    have hpStar_pos : 0 < pStar := by dsimp only [pStar]; rwa [← hj₀_eq]
+    have hpStar_pos : 0 < pStar := by
+      dsimp only [pStar]
+      rwa [← hj₀_eq]
     have hge_of_alloc_pos (i : ι) (hi : 0 < o.alloc i) : pStar ≤ v i :=
       le_of_not_gt fun hlt =>
-        hj₀_pay.ne (hexh i j₀ hi (by dsimp only [pStar] at hlt; rwa [hj₀_eq]))
+        hj₀_pay.ne <| hexh i j₀ hi <| by
+          dsimp only [pStar] at hlt
+          rwa [hj₀_eq]
     have hbudget_of_gt (i : ι) (hi : pStar < v i) : o.payment i = B i :=
       by_contra fun hne => hi.not_ge <| Finset.le_max' (slackSet.image v) (v i) <|
         Finset.mem_image_of_mem v <| Finset.mem_filter.mpr

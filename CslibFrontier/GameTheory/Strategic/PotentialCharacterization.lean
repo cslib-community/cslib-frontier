@@ -445,8 +445,9 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
   have hnd_all : L_all.Nodup := Finset.nodup_toList _
   have hi_notMem : i ∉ L_rem := by simp [L_rem]
   have hnd_split : (L_rem ++ [i]).Nodup := List.nodup_append.2
-    ⟨Finset.nodup_toList _, List.nodup_singleton i,
-      fun x hx y hy => by rintro rfl; exact hi_notMem (List.mem_singleton.1 hy ▸ hx)⟩
+    ⟨Finset.nodup_toList _, List.nodup_singleton i, fun x hx y hy => by
+      rintro rfl
+      exact hi_notMem (List.mem_singleton.1 hy ▸ hx)⟩
   have hperm : L_all.Perm (L_rem ++ [i]) :=
     (List.perm_ext_iff_of_nodup hnd_all hnd_split).2 fun x => by
       simp only [L_all, L_rem, List.mem_append, Finset.mem_toList, Finset.mem_univ,

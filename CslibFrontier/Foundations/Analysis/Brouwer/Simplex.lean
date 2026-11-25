@@ -54,7 +54,10 @@ theorem exists_isFixedPt_of_leftInvOn {X Y : Type*} [TopologicalSpace X] [Topolo
     (hfc : ContinuousOn f B) : ∃ y ∈ B, IsFixedPt f y := by
   obtain ⟨x, hx, hfix⟩ := hA (ψ ∘ f ∘ φ) (hψ.comp (hf.comp hφ))
     (hψc.comp (hfc.comp hφc hφ) (hf.comp hφ))
-  exact ⟨φ x, hφ hx, (hinv (hf (hφ hx))).symm.trans (congrArg φ hfix)⟩
+  refine ⟨φ x, hφ hx, ?_⟩
+  have h : φ (ψ (f (φ x))) = φ x := congrArg φ hfix
+  rw [hinv (hf (hφ hx))] at h
+  exact h
 
 /-- **Brouwer's fixed-point theorem** for the cube `[0, 1] ^ κ` over a finite type `κ`. -/
 theorem exists_isFixedPt_cube_of_finite {κ : Type*} [Finite κ] {f : (κ → ℝ) → κ → ℝ}
@@ -62,14 +65,16 @@ theorem exists_isFixedPt_cube_of_finite {κ : Type*} [Finite κ] {f : (κ → �
     ∃ x ∈ Icc (0 : κ → ℝ) 1, IsFixedPt f x := by
   have := Fintype.ofFinite κ
   let e := Fintype.equivFin κ
-  exact exists_isFixedPt_of_leftInvOn (A := Icc (0 : Fin (Fintype.card κ) → ℝ) 1)
-    (B := Icc (0 : κ → ℝ) 1) (fun _ hg hgc => exists_isFixedPt_cube hg hgc)
-    (φ := fun x k => x (e k)) (ψ := fun y j => y (e.symm j))
-    (fun x hx => ⟨fun k => hx.1 (e k), fun k => hx.2 (e k)⟩)
-    (fun y hy => ⟨fun j => hy.1 (e.symm j), fun j => hy.2 (e.symm j)⟩)
+  refine exists_isFixedPt_of_leftInvOn (A := Icc (0 : Fin (Fintype.card κ) → ℝ) 1)
+    (B := Icc (0 : κ → ℝ) 1) (fun g hg hgc => exists_isFixedPt_cube hg hgc)
+    (φ := fun x k => x (e k)) (ψ := fun y j => y (e.symm j)) ?_ ?_
     (continuous_pi fun k => continuous_apply (e k)).continuousOn
-    (continuous_pi fun j => continuous_apply (e.symm j)).continuousOn
-    (fun y _ => funext fun k => congrArg y (e.symm_apply_apply k)) hf hc
+    (continuous_pi fun j => continuous_apply (e.symm j)).continuousOn ?_ hf hc
+  · exact fun x hx => ⟨fun k => hx.1 (e k), fun k => hx.2 (e k)⟩
+  · exact fun y hy => ⟨fun j => hy.1 (e.symm j), fun j => hy.2 (e.symm j)⟩
+  · intro y _
+    funext k
+    simp only [Equiv.symm_apply_apply]
 
 /-- The total positive mass `∑ k, max (x k) 0` of a vector. -/
 private noncomputable def posMass {κ : Type*} [Fintype κ] (x : κ → ℝ) : ℝ :=
@@ -102,12 +107,17 @@ private theorem sum_simplexRetraction {κ : Type*} [Fintype κ] [Nonempty κ] (x
   rw [sum_add_distrib, ← sum_div, sum_const, card_univ, nsmul_eq_mul, mul_div_cancel₀ _ hcard]
   change posMass x / max (posMass x) 1 + (1 - min (posMass x) 1) = 1
   rcases le_total (posMass x) 1 with h | h
-  · rw [max_eq_right h, min_eq_left h, div_one]; ring
-  · rw [max_eq_left h, min_eq_right h, div_self (zero_lt_one.trans_le h).ne']; ring
+  · rw [max_eq_right h, min_eq_left h, div_one]
+    ring
+  · rw [max_eq_left h, min_eq_right h, div_self (zero_lt_one.trans_le h).ne']
+    ring
 
 private theorem simplexRetraction_eq {κ : Type*} [Fintype κ] {x : κ → ℝ}
     (hx₀ : ∀ k, 0 ≤ x k) (hx₁ : ∑ k, x k = 1) : simplexRetraction x = x := by
-  have hm : posMass x = 1 := (sum_congr rfl fun k _ => max_eq_left (hx₀ k)).trans hx₁
+  have hm : posMass x = 1 := by
+    unfold posMass
+    rw [← hx₁]
+    exact sum_congr rfl fun k _ => max_eq_left (hx₀ k)
   funext k
   unfold simplexRetraction
   rw [hm, max_self, min_self, sub_self, zero_div, add_zero, div_one, max_eq_left (hx₀ k)]
@@ -123,16 +133,22 @@ theorem exists_isFixedPt_pi_simplex {ι : Type*} [Finite ι] {S : ι → Type*}
     ∃ p : ∀ i, S i → ℝ, (∀ i, (∀ a, 0 ≤ p i a) ∧ ∑ a, p i a = 1) ∧ IsFixedPt f p := by
   have := Fintype.ofFinite ι
   refine exists_isFixedPt_of_leftInvOn (A := Icc (0 : (Σ i, S i) → ℝ) 1)
-    (fun _ hg hgc => exists_isFixedPt_cube_of_finite hg hgc)
+    (fun g hg hgc => exists_isFixedPt_cube_of_finite hg hgc)
     (φ := fun z i => simplexRetraction fun a => z ⟨i, a⟩) (ψ := fun p z => p z.1 z.2)
-    ?_ ?_ ?_
-    (continuous_pi fun z => (continuous_apply z.2).comp (continuous_apply z.1)).continuousOn
-    (fun p hp => funext fun i => simplexRetraction_eq (hp i).1 (hp i).2) hf hc
-  · exact fun _ _ _ => ⟨simplexRetraction_nonneg _, sum_simplexRetraction _⟩
-  · exact fun p hp => ⟨fun z => (hp z.1).1 z.2, fun z =>
-      (single_le_sum (f := p z.1) (fun a _ => (hp z.1).1 a) (mem_univ z.2)).trans_eq (hp z.1).2⟩
-  · exact (continuous_pi fun i => continuous_pi fun a => (continuous_simplexRetraction a).comp
-      (f := fun z : (Σ i, S i) → ℝ => fun b => z ⟨i, b⟩)
-      (continuous_pi fun _ => continuous_apply _)).continuousOn
+    ?_ ?_ ?_ ?_ ?_ hf hc
+  · exact fun z _ i => ⟨simplexRetraction_nonneg _, sum_simplexRetraction _⟩
+  · intro p hp
+    rw [mem_ofPred_eq] at hp
+    refine ⟨fun z => (hp z.1).1 z.2, fun z => ?_⟩
+    calc p z.1 z.2 ≤ ∑ a, p z.1 a := single_le_sum (fun a _ => (hp z.1).1 a) (mem_univ z.2)
+      _ = 1 := (hp z.1).2
+  · refine (continuous_pi fun i => continuous_pi fun a => ?_).continuousOn
+    exact (continuous_simplexRetraction a).comp (f := fun z : (Σ i, S i) → ℝ => fun b => z ⟨i, b⟩)
+      (continuous_pi fun b => continuous_apply _)
+  · exact (continuous_pi fun z => (continuous_apply z.2).comp (continuous_apply z.1)).continuousOn
+  · intro p hp
+    rw [mem_ofPred_eq] at hp
+    funext i
+    exact simplexRetraction_eq (hp i).1 (hp i).2
 
 end Cslib.Brouwer

@@ -188,7 +188,9 @@ private theorem sum_clinchAmt_le {d : ι → ℝ} (hd : ∀ k, 0 ≤ d k) {S : �
   classical
   set D := ∑ j, d j
   by_cases hDS : D ≤ S
-  · exact (Finset.sum_le_sum fun k _ => clinchAmt_le_demand d S k).trans hDS
+  · calc ∑ k, clinchAmt d S k
+        ≤ ∑ k, d k := Finset.sum_le_sum fun k _ => clinchAmt_le_demand d S k
+      _ ≤ S := hDS
   · set A : Finset ι := Finset.univ.filter fun k => 0 < S - (D - d k)
     rw [← Finset.sum_subset (Finset.subset_univ A) fun k _ hk => by
       have hnp : S - (D - d k) ≤ 0 := by
@@ -229,7 +231,9 @@ private theorem clinchAmt_clinchDemands_eq_zero_of_lt (rule : DemandRule ι) (B 
   have hd : clinchDemands rule B v p s i = 0 := by
     dsimp only [clinchDemands]
     rw [ite_eq_right (not_le.mpr h)]
-  exact ⟨by rw [clinchAmt, hd]; exact min_eq_left (le_max_left _ _), hd⟩
+  refine ⟨?_, hd⟩
+  rw [clinchAmt, hd]
+  exact min_eq_left (le_max_left _ _)
 
 private theorem clinchStep_payment_le (rule : DemandRule ι) (B v : ι → ℝ) {p : ℝ} (hp : 0 < p)
     (s : ClinchState ι) (hbf : ∀ k, s.payment k ≤ B k) (k : ι) :

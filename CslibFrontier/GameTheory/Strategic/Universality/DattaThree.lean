@@ -221,8 +221,9 @@ theorem card_sparseTable_add_le (F : Fin m → MvPolynomial (Fin n) ℝ) :
   calc #(sparseTable F) + m
       ≤ (1 + ∑ j, #((Iic (degreeVec (F j))).erase 0)) + ∑ _j : Fin m, 1 := by
         simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
-        exact Nat.add_le_add_right ((card_le_card hsub).trans ((card_insert_le _ _).trans
-          (by rw [add_comm]; exact Nat.add_le_add_left card_biUnion_le 1))) _
+        refine Nat.add_le_add_right ((card_le_card hsub).trans ((card_insert_le _ _).trans ?_)) _
+        rw [add_comm]
+        exact Nat.add_le_add_left card_biUnion_le 1
     _ = 1 + ∑ j, ∏ i, (1 + degreeOf i (F j)) := by
         rw [add_assoc, ← sum_add_distrib]
         refine congrArg (1 + ·) (sum_congr rfl fun j _ => ?_)
@@ -254,9 +255,11 @@ theorem expoPow_sub_single (x : Fin n → ℝ) {e : Fin n →₀ ℕ} {l : Fin n
   ring
 
 private theorem sum_sub_single_lt {e : Fin n →₀ ℕ} {l : Fin n} (hl : e l ≠ 0) :
-    ∑ i, (e - Finsupp.single l 1 : Fin n →₀ ℕ) i < ∑ i, e i :=
-  sum_lt_sum (fun _ _ => by simp) ⟨l, mem_univ l, by
-    simp only [Finsupp.tsub_apply, Finsupp.single_eq_same]; omega⟩
+    ∑ i, (e - Finsupp.single l 1 : Fin n →₀ ℕ) i < ∑ i, e i := by
+  refine sum_lt_sum (fun _ _ => ?_) ⟨l, mem_univ l, ?_⟩
+  · simp
+  · simp only [Finsupp.tsub_apply, Finsupp.single_eq_same]
+    omega
 
 theorem expoPow_zero (x : Fin n → ℝ) : expoPow x 0 = 1 := by
   simp [expoPow]
@@ -399,9 +402,11 @@ theorem isTotallyMixedNash_game_iff (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)
       (∀ e, q (cCoord (.inl e)) = critterWeight E m) ∧
       (∀ j : Fin m, j.val < n → q (cCoord (.inr j)) = critterWeight E m) ∧
       (∀ j, 0 < q (cCoord (.inr j))) ∧ ∑ s, q (cCoord s) < 1 := by
+  have hb : (∀ e : E, q (bCoord e) = expoPow (fun i => q (aCoord i)) e / bobScale E) ↔
+      ∀ e : E, bobScale E * q (bCoord e) = expoPow (fun i => q (aCoord i)) e :=
+    forall_congr' fun _ => by rw [eq_div_iff bobScale_pos.ne', mul_comm]
   rw [game, CostGame.isTotallyMixedNash_simplexGame_iff (isBlockAffine_equation F)
-    (notMem_vars_equation F), forall_congr' fun e : E => by
-      rw [eq_div_iff bobScale_pos.ne', mul_comm]]
+    (notMem_vars_equation F), hb]
   refine ⟨fun ⟨hpos, hsum, heq⟩ => ?_,
     fun ⟨⟨ha, hasum, hF0⟩, hchain, hcb, hca, hcpos, hcsum⟩ => ⟨?_, ?_, ?_⟩⟩
   · have hchain := bobScale_mul_eq_expoPow hE fun e => heq .critter (.inl e)

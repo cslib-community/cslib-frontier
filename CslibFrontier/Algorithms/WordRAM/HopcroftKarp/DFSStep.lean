@@ -179,12 +179,13 @@ theorem dfsPot_replicate_le {inst : SparseInstance}
       (fun v : Fin inst.r => vget (Vector.replicate inst.r false) v = false), 14) ≤
       14 * inst.r :=
     (Finset.sum_le_sum_of_subset (Finset.filter_subset _ _)).trans (by simp [Nat.mul_comm])
-  rw [show dfsPot inst mate (Vector.replicate inst.r false) =
+  have heq : dfsPot inst mate (Vector.replicate inst.r false) =
       38 * vecPotential (fun b : Bool => b = false) (hkDfsCost inst.adj mate)
         (Vector.replicate inst.r false) +
       ∑ _ ∈ Finset.univ.filter
-        (fun v : Fin inst.r => vget (Vector.replicate inst.r false) v = false), 14 by
-    simp only [dfsPot, vecPotential, dfsVertWeight, Finset.sum_add_distrib, ← Finset.mul_sum]]
+        (fun v : Fin inst.r => vget (Vector.replicate inst.r false) v = false), 14 := by
+    simp only [dfsPot, vecPotential, dfsVertWeight, Finset.sum_add_distrib, ← Finset.mul_sum]
+  rw [heq]
   change _ ≤ 38 * bipAdjSteps inst.adj + 14 * inst.r
   omega
 
@@ -260,9 +261,10 @@ theorem hkDfsLevel_pure_props {inst : SparseInstance}
             rw [hrw] at hres_w
             dsimp only
             have hf_ne : f ≠ 0 := fun h => by simp [h] at hb
-            exact ⟨hmono_step, by omega, by simpa [List.append_assoc] using hres_w.1, by
-              have := hres_w.2
-              simp only [List.length_cons]; omega⟩
+            refine ⟨hmono_step, by omega, ?_, ?_⟩
+            · simpa [List.append_assoc] using hres_w.1
+            · have := hres_w.2
+              simp only [List.length_cons]; omega
           | none =>
             rw [hrw] at hres_w
             dsimp only
@@ -457,8 +459,14 @@ private theorem exec_copyAugCode {w bOff k : ℕ} {inst : SparseInstance}
         (augPairs ++ stackPairs.take (y.regs idx)) ++ [stackPairs[y.regs idx]'hlt_st] := by
       rw [List.take_add_one, List.getElem?_eq_getElem hlt_st, Option.toList_some,
         ← List.append_assoc]
-    refine ⟨⟨by omega, fun i hi => by wram_simp [hr i hi], by wram_simp [hact_y],
-      by wram_simp [hlim_y], by wram_simp; omega, ?_,
+    refine ⟨⟨by omega,
+      fun i hi => by wram_simp [hr i hi],
+      by wram_simp [hact_y],
+      by wram_simp [hlim_y],
+      by
+        wram_simp
+        omega,
+      ?_,
       fun a ha => by
         wram_simp
         exact hf_y a ha⟩, by wram_simp⟩
@@ -759,14 +767,17 @@ theorem exec_dfsStep_skip {w bOff k d : ℕ} {inst : SparseInstance}
       hvisM := hfr.hvisM.of_outside fun _ _ => hout _ (by omega)
       haugM := hfr.haugM.of_outside haug_le fun _ _ => hout _ (by omega)
       hstack := fun i hi => by
-        rw [hout _ (by omega), hout _ (by omega)]; exact hfr.hstack i hi
+        rw [hout _ (by omega), hout _ (by omega)]
+        exact hfr.hstack i hi
       hsu := (hout _ (by omega)).trans hfr.hsu
       hsp := by rw [hmem₁, Function.update_self]; simp [Nat.add_assoc]
       hrk := (hr₁ rk (by decide)).trans hfr.hrk
       hrd := hrd₁
       hal := hal₁
       hact := hact₁ },
-    fun a ha => by simp only [DfsSubtreeOutside] at ha; exact hout a (by omega),
+    fun a ha => by
+      simp only [DfsSubtreeOutside] at ha
+      exact hout a (by omega),
     fun a _ => hout a (by omega)⟩
 
 theorem exec_dfsStep_accept {w bOff k : ℕ} {inst : SparseInstance}
@@ -842,7 +853,8 @@ theorem exec_dfsStep_accept {w bOff k : ℕ} {inst : SparseInstance}
         (by
           wram_simp
           rw [hf_cp _ (by omega)]
-          subst hx_mid; wram_simp)
+          subst hx_mid
+          wram_simp)
         fun v₀ hne => by
           have := v₀.isLt
           have hne_val : v₀.val ≠ v.val := fun h => hne (Fin.ext h)

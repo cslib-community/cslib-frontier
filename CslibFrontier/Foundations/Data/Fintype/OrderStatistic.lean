@@ -229,16 +229,21 @@ theorem sum_abs_sub_le_of_median_counts {ι : Type*} [Fintype ι] {x : ι → �
         Finset.card_filter_add_card_filter_not (s := Finset.univ) (p := fun i => x i < y)
     have hLR : (L.card : ℝ) ≤ R.card := Nat.cast_le.2 (by omega)
     have hL : ∑ i ∈ L, |x i - y| ≤ ∑ i ∈ L, |x i - z| + (L.card : ℝ) * (y - z) :=
-      (Finset.sum_le_sum fun i _ => by
-        simpa only [abs_of_nonpos (sub_nonpos.2 hzy), neg_sub] using abs_sub_le (x i) z y).trans_eq
-        (by rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul])
-    have hR : ∑ i ∈ R, |x i - y| = ∑ i ∈ R, |x i - z| - (R.card : ℝ) * (y - z) := by
-      have hcongr : ∑ i ∈ R, |x i - y| = ∑ i ∈ R, (|x i - z| - (y - z)) :=
-        Finset.sum_congr rfl fun i hi => by
-          have hxi := not_lt.1 (Finset.mem_filter.1 hi).2
-          rw [abs_of_nonneg (sub_nonneg.2 hxi), abs_of_nonneg (sub_nonneg.2 (hzy.trans hxi))]
-          ring
-      rw [hcongr, Finset.sum_sub_distrib, Finset.sum_const, nsmul_eq_mul]
+      calc ∑ i ∈ L, |x i - y|
+        _ ≤ ∑ i ∈ L, (|x i - z| + (y - z)) :=
+              Finset.sum_le_sum fun i _ => by
+                simpa only [abs_of_nonpos (sub_nonpos.2 hzy), neg_sub] using abs_sub_le (x i) z y
+        _ = ∑ i ∈ L, |x i - z| + (L.card : ℝ) * (y - z) := by
+              rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul]
+    have hR : ∑ i ∈ R, |x i - y| = ∑ i ∈ R, |x i - z| - (R.card : ℝ) * (y - z) :=
+      calc ∑ i ∈ R, |x i - y|
+        _ = ∑ i ∈ R, (|x i - z| - (y - z)) :=
+              Finset.sum_congr rfl fun i hi => by
+                have hxi := not_lt.1 (Finset.mem_filter.1 hi).2
+                rw [abs_of_nonneg (sub_nonneg.2 hxi), abs_of_nonneg (sub_nonneg.2 (hzy.trans hxi))]
+                ring
+        _ = ∑ i ∈ R, |x i - z| - (R.card : ℝ) * (y - z) := by
+              rw [Finset.sum_sub_distrib, Finset.sum_const, nsmul_eq_mul]
     have hsplit_y := Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => x i < y)
       (fun i => |x i - y|)
     have hsplit_z := Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => x i < y)

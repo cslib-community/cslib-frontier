@@ -179,7 +179,9 @@ theorem demonicGrow_clear (w L k : ℕ) (mem : ℕ → ℕ) (hz : ∀ a, L ≤ a
     DemonicGrow w L k mem (clear mem L k) :=
   ⟨fun _ _ => clear_of_not_owns (by wram_omega),
     fun _ hlo hhi => clear_of_owns ⟨hlo, hhi⟩ ▸ fits_zero w,
-    fun a _ => (clear_of_not_owns (by wram_omega)).trans (hz a (by omega))⟩
+    fun a _ =>
+      (clear_of_not_owns (by wram_omega)).trans
+        (hz a (by omega))⟩
 /-- `DemonicGrow w x.frontier k` preserves `RData.Bounded w` when `Fits w (x.frontier + k)`. -/
 theorem RData.Bounded.grow {w : ℕ} {x : RData r} (hx : x.Bounded w) {dst : Fin r} {k : ℕ}
     {mem' : ℕ → ℕ} (hfit : Fits w (x.frontier + k))
@@ -202,7 +204,8 @@ theorem RData.Bounded.shrink {w : ℕ} {x : RData r} (hx : x.Bounded w) {k : ℕ
     · exact clear_of_not_owns hown ▸ hx.mem_fits a
   · dsimp only at ha ⊢; by_cases hlt : a < x.frontier
     · exact clear_of_owns (by wram_omega)
-    · exact (clear_of_not_owns (by wram_omega)).trans (hx.zero_above (by omega))
+    · rw [clear_of_not_owns (by wram_omega)]
+      exact hx.zero_above (by omega)
 
 /-- Clearing `[frontier, frontier + k)` after `DemonicGrow` recovers `x.mem` when `x.Bounded w`. -/
 theorem clear_demonicGrow_eq {w k : ℕ} {x : RData r} {mem' : ℕ → ℕ}
@@ -210,10 +213,11 @@ theorem clear_demonicGrow_eq {w k : ℕ} {x : RData r} {mem' : ℕ → ℕ}
     clear mem' x.frontier k = x.mem := by
   funext a
   by_cases ha_lt : a < x.frontier
-  · exact (clear_of_not_owns (by wram_omega)).trans (hdem.1 a ha_lt)
+  · rw [clear_of_not_owns (by wram_omega), hdem.1 a ha_lt]
   · by_cases ha_in : a < x.frontier + k
-    · exact (clear_of_owns (by wram_omega)).trans (hx.zero_above (by omega)).symm
-    · rw [clear_of_not_owns (by wram_omega), hdem.2.2 a (by omega), hx.zero_above (by omega)]
+    · rw [clear_of_owns (by wram_omega), hx.zero_above (by omega)]
+    · rw [clear_of_not_owns (by wram_omega),
+        hdem.2.2 a (by omega), hx.zero_above (by omega)]
 
 /-! ## Bounds-checked data instruction evaluation on `RData r` -/
 
@@ -246,8 +250,8 @@ theorem evalResizable_of_boundedAccess {w L : ℕ} {o : Op B r} {x : RData r} {y
     simp [evalResizable, bind, hv, RData.put_of_fits hf, RData.set, Data.set]
   | load d a | store a s =>
     cases he
-    simp [evalResizable, show x.regs _ < x.frontier from lt_of_lt_of_le hb hL,
-      RData.set, Data.set, RData.write, Data.write]
+    have hlt : x.regs _ < x.frontier := lt_of_lt_of_le hb hL
+    simp [evalResizable, hlt, RData.set, Data.set, RData.write, Data.write]
 
 /-- `evalResizable` preserves `RData.Bounded w`. -/
 theorem RData.Bounded.evalResizable {w : ℕ} {o : Op B r} {x y : RData r}

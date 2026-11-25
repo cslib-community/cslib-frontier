@@ -205,7 +205,7 @@ theorem scaled_mem_convexHull_of_integralityGap [Finite Ω] (embed : Ω → κ �
     Finset.centerMass_mem_convexHull (s := Set.range embed) (t := Finset.univ)
       (w := fun ω : Ω => (p ω).toReal)
       (fun _ _ => ENNReal.toReal_nonneg)
-      (by rw [Cslib.Probability.PMF.sum_toReal p]; exact zero_lt_one)
+      ((Cslib.Probability.PMF.sum_toReal p).symm ▸ zero_lt_one)
       (fun ω _ => Set.mem_range_self ω)
 
 omit [Fintype Ω] in
@@ -220,16 +220,21 @@ theorem integralityGap_of_nonneg_approx [DecidableEq κ] {embed : Ω → κ → 
     (hnonneg : ∀ w : κ → ℝ, 0 ≤ w → ∃ ω : Ω, (w ⬝ᵥ x) / α ≤ w ⬝ᵥ embed ω) :
     ∀ w : κ → ℝ, ∃ ω : Ω, (w ⬝ᵥ x) / α ≤ w ⬝ᵥ embed ω := by
   intro w
-  obtain ⟨ω, hω⟩ := hnonneg (fun k => max 0 (w k)) fun k => le_max_left 0 (w k)
+  let wPos : κ → ℝ := fun k => max 0 (w k)
+  obtain ⟨ω, hω⟩ := hnonneg wPos fun k => le_max_left 0 (w k)
   obtain ⟨ω', hω'⟩ := hdown ω (Finset.univ.filter fun k : κ => 0 ≤ w k)
-  refine ⟨ω', (div_le_div_of_nonneg_right
-    (Finset.sum_le_sum fun k _ => mul_le_mul_of_nonneg_right (le_max_right 0 (w k)) (hx k))
-    hα.le).trans (hω.trans_eq (Finset.sum_congr rfl fun k _ => ?_))⟩
-  rw [hω' k]
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-  split_ifs with hk
-  · rw [max_eq_right hk]
-  · rw [max_eq_left (le_of_not_ge hk), zero_mul, mul_zero]
+  refine ⟨ω', ?_⟩
+  calc (w ⬝ᵥ x) / α
+    _ ≤ (wPos ⬝ᵥ x) / α := div_le_div_of_nonneg_right
+          (Finset.sum_le_sum fun k _ => mul_le_mul_of_nonneg_right (le_max_right 0 (w k)) (hx k))
+          hα.le
+    _ ≤ wPos ⬝ᵥ embed ω := hω
+    _ = w ⬝ᵥ embed ω' := Finset.sum_congr rfl fun k _ => by
+          rw [hω' k]
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and, wPos]
+          split_ifs with hk
+          · rw [max_eq_right hk]
+          · rw [max_eq_left (le_of_not_ge hk), zero_mul, mul_zero]
 
 end Decomposition
 
@@ -458,8 +463,8 @@ theorem laviSwamyExPost_isTruthfulInExpectationOn {P : Set (κ → ℝ)} {embed 
     (hgap : VerifiesIntegralityGap P embed α) (hP_nonneg : ∀ x ∈ P, 0 ≤ x) :
     (laviSwamyExPost hx othersMax hgap).IsTruthfulInExpectationOn embed nonnegValProfiles := by
   intro b hb i v hv
-  simp only [RandomizedLinearMechanism.expectedUtility, expectedVal_sub,
-    show (laviSwamyExPost hx othersMax hgap).outcomeDist = decompDist hx hgap from rfl,
+  have hout : (laviSwamyExPost hx othersMax hgap).outcomeDist = decompDist hx hgap := rfl
+  simp only [RandomizedLinearMechanism.expectedUtility, expectedVal_sub, hout,
     laviSwamyExPost_expectedPayment_eq hx ho hgap hP_nonneg hb i,
     laviSwamyExPost_expectedPayment_eq hx ho hgap hP_nonneg hv i,
     decompDist_expectedVal_dotProduct]
@@ -478,9 +483,11 @@ theorem laviSwamyExPost_isExPostIROn {P : Set (κ → ℝ)} {embed : Ω → κ �
   simp only [laviSwamyExPost, sub_nonneg]
   have hval := dotProduct_nonneg_of_nonneg (hb i) (hembed_nonneg ω)
   split_ifs with hpos
-  · simpa only [mul_one] using mul_le_mul_of_nonneg_left ((div_le_one hpos).mpr
-      (fracVcgPayment_le_val hx ho i
-        (dotProduct_nonneg_of_nonneg (hb i) (hP_nonneg _ (ho.1 i b).1)))) hval
+  · calc (b i ⬝ᵥ embed ω) * (fracVcgPayment xStar othersMax b i / (b i ⬝ᵥ xStar b))
+      _ ≤ (b i ⬝ᵥ embed ω) * 1 := mul_le_mul_of_nonneg_left ((div_le_one hpos).mpr
+            (fracVcgPayment_le_val hx ho i
+              (dotProduct_nonneg_of_nonneg (hb i) (hP_nonneg _ (ho.1 i b).1)))) hval
+      _ = b i ⬝ᵥ embed ω := mul_one _
   · exact hval
 
 /-- **Ex-post no positive transfers (NPT) of `laviSwamyExPost`** on nonnegative valuation profiles

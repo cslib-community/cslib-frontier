@@ -158,13 +158,14 @@ theorem socialCost_fairCostSharing_biUnion (s : ∀ i, S i) :
     (fairCostSharing resources c).toCostGame.socialCost s =
       ∑ e ∈ Finset.univ.biUnion (fun i => resources i (s i)), c e := by
   set U := Finset.univ.biUnion fun i => resources i (s i)
-  rw [CostGame.socialCost, Finset.sum_congr rfl fun i (_ : i ∈ Finset.univ) => show
+  have hpad (i : ι) (_ : i ∈ (Finset.univ : Finset ι)) :
       (fairCostSharing resources c).toCostGame.cost i s =
         ∑ e ∈ U, if e ∈ resources i (s i) then
-          c e / (fairCostSharing resources c).load s e else 0 by
+          c e / (fairCostSharing resources c).load s e else 0 := by
     rw [toCostGame_cost, fairCostSharing_resources, Finset.sum_ite_mem,
       Finset.inter_eq_right.2 (Finset.subset_biUnion_of_mem _ (Finset.mem_univ i))]
-    exact Finset.sum_congr rfl fun _ _ => fairCostSharing_latency .., Finset.sum_comm]
+    exact Finset.sum_congr rfl fun _ _ => fairCostSharing_latency ..
+  rw [CostGame.socialCost, Finset.sum_congr rfl hpad, Finset.sum_comm]
   refine Finset.sum_congr rfl fun e he => ?_
   obtain ⟨i, hi, hei⟩ := Finset.mem_biUnion.1 he
   have hpos : 0 < (fairCostSharing resources c).load s e :=
@@ -434,22 +435,23 @@ private theorem optOut_latency (e : Option (Fin k)) (n : ℕ) :
 /-- The private resource of player `j` has load `1` if `j` opts out and `0` otherwise. -/
 private theorem optOut_load_some (s : Fin k → Bool) (j : Fin k) :
     (optOut k ε).load s (some j) = if s j then 1 else 0 := by
-  unfold load
-  rw [Finset.filter_congr fun i _ => show some j ∈ (optOut k ε).resources i (s i) ↔
-      i = j ∧ s j = true by
+  have hmem (i : Fin k) : some j ∈ (optOut k ε).resources i (s i) ↔ i = j ∧ s j = true := by
     rw [optOut_resources]
     by_cases hij : i = j
     · subst hij
       cases s i <;> simp
-    · cases s i <;> simp [hij, Ne.symm hij]]
+    · cases s i <;> simp [hij, Ne.symm hij]
+  unfold load
+  rw [Finset.filter_congr fun i _ => hmem i]
   cases s j <;> simp [Finset.filter_eq']
 
 /-- The shared resource is used by the players that do not opt out. -/
 private theorem optOut_load_none (s : Fin k → Bool) :
     (optOut k ε).load s none = (Finset.univ.filter fun i => s i = false).card := by
   unfold load
-  exact congrArg Finset.card (Finset.filter_congr fun i _ => by
-    rw [optOut_resources]; cases s i <;> simp)
+  refine congrArg Finset.card (Finset.filter_congr fun i _ => ?_)
+  rw [optOut_resources]
+  cases s i <;> simp
 
 /-- The cost of player `i` in the opt-out game: `1 / (i + 1)` if it opts out, and the share
 `(1 + ε) / m` of the shared resource if `m` players (including `i`) do not opt out. -/
@@ -498,20 +500,21 @@ theorem isPureNash_optOut_iff (hε : 0 < ε) (s : Fin k → Bool) :
   · rintro rfl i (_ | _)
     · rw [optOut_cost, optOut_cost, Function.update_self]
       simp only [Bool.false_eq_true, ↓reduceIte]
-      rw [show (Finset.univ.filter fun j =>
-          Function.update (fun _ : Fin k => true) i false j = false) = {i} by
+      have hflt : (Finset.univ.filter fun j =>
+          Function.update (fun _ : Fin k => true) i false j = false) = {i} := by
         ext j
-        by_cases hji : j = i <;> simp [hji],
-        Finset.card_singleton, Nat.cast_one, div_one, div_le_iff₀ (by positivity)]
+        by_cases hji : j = i <;> simp [hji]
+      rw [hflt, Finset.card_singleton, Nat.cast_one, div_one, div_le_iff₀ (by positivity)]
       nlinarith [Nat.cast_nonneg (α := ℝ) i]
     · rw [Function.update_eq_self]
 
 /-- In the opt-out game, the profile in which every player opts out has social cost `H k`. -/
 theorem socialCost_optOut_true :
     (optOut k ε).toCostGame.socialCost (fun _ => true) = harmonic k := by
+  have h (i : Fin k) : (optOut k ε).toCostGame.cost i (fun _ => true) = 1 / ((i : ℕ) + 1 : ℝ) := by
+    simp [optOut_cost]
   unfold CostGame.socialCost
-  rw [Finset.sum_congr rfl fun i _ => show (optOut k ε).toCostGame.cost i (fun _ => true) =
-      1 / ((i : ℕ) + 1 : ℝ) by simp [optOut_cost],
+  rw [Finset.sum_congr rfl fun i _ => h i,
     Fin.sum_univ_eq_sum_range (fun i : ℕ => 1 / ((i : ℝ) + 1)), cast_harmonic]
   simp only [one_div]
 
@@ -519,10 +522,12 @@ theorem socialCost_optOut_true :
 cost `1 + ε`. -/
 theorem socialCost_optOut_false (hk : k ≠ 0) :
     (optOut k ε).toCostGame.socialCost (fun _ => false) = 1 + ε := by
+  have h (i : Fin k) : (optOut k ε).toCostGame.cost i (fun _ => false) = (1 + ε) / k := by
+    rw [optOut_cost]
+    simp
   unfold CostGame.socialCost
-  rw [Finset.sum_congr rfl fun i _ => show (optOut k ε).toCostGame.cost i (fun _ => false) =
-      (1 + ε) / k by rw [optOut_cost]; simp,
-    Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  rw [Finset.sum_congr rfl fun i _ => h i, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+    nsmul_eq_mul]
   have : (k : ℝ) ≠ 0 := by exact_mod_cast hk
   field_simp
 

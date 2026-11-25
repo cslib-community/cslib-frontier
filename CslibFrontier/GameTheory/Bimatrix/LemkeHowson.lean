@@ -238,15 +238,17 @@ theorem graph_adj_iff {p q : Node A₁ b₁ A₂ b₂ k} :
   refine ⟨?_, ?_⟩
   · rintro (⟨hxe, hadj⟩ | ⟨hye, hadj⟩)
     · obtain ⟨l, hl, hq⟩ := (vertexAdj_iff_exists_pivotVertex hnd₂ hrec₂ p.isVertex_y).1 hadj
-      exact .inr ⟨l, hl, (acl_pivot_iff (fun j hj => (p.almostCompletelyLabeled j hj).symm)
+      refine .inr ⟨l, hl, (acl_pivot_iff (fun j hj => (p.almostCompletelyLabeled j hj).symm)
         (p.isVertex_y.pivotVertex_spec hnd₂ hrec₂ hl).2.2
-        (p.isVertex_y.notMem_tightRows_pivotVertex hnd₂ hrec₂ hl)).1
-        (fun j hj => by rw [← hq, hxe]; exact (q.almostCompletelyLabeled j hj).symm), hq, hxe.symm⟩
+        (p.isVertex_y.notMem_tightRows_pivotVertex hnd₂ hrec₂ hl)).1 (fun j hj => ?_), hq, hxe.symm⟩
+      rw [← hq, hxe]
+      exact (q.almostCompletelyLabeled j hj).symm
     · obtain ⟨l, hl, hq⟩ := (vertexAdj_iff_exists_pivotVertex hnd₁ hrec₁ p.isVertex_x).1 hadj
-      exact .inl ⟨l, hl, (acl_pivot_iff p.almostCompletelyLabeled
+      refine .inl ⟨l, hl, (acl_pivot_iff p.almostCompletelyLabeled
         (p.isVertex_x.pivotVertex_spec hnd₁ hrec₁ hl).2.2
-        (p.isVertex_x.notMem_tightRows_pivotVertex hnd₁ hrec₁ hl)).1
-        (fun j hj => by rw [← hq, hye]; exact q.almostCompletelyLabeled j hj), hq, hye.symm⟩
+        (p.isVertex_x.notMem_tightRows_pivotVertex hnd₁ hrec₁ hl)).1 (fun j hj => ?_), hq, hye.symm⟩
+      rw [← hq, hye]
+      exact q.almostCompletelyLabeled j hj
   · rintro (⟨l, hl, -, hqx, hqy⟩ | ⟨l, hl, -, hqy, hqx⟩)
     · exact .inr ⟨hqy.symm, hqx ▸ (vertexAdj_iff_exists_pivotVertex hnd₁ hrec₁ p.isVertex_x).2
         ⟨l, hl, rfl⟩⟩
@@ -347,6 +349,6 @@ theorem even_ncard_completelyLabeled [Nonempty κ]
   simp only [Set.mem_ofPred_eq, coe_filter, mem_univ, true_and, Set.mem_image, Node.toProd,
     Prod.mk.injEq]
   exact ⟨fun ⟨hx, hy, hcl⟩ => ⟨⟨x, y, hx, hy, fun j _ => hcl j⟩, hcl, rfl, rfl⟩,
-    fun ⟨p, hcl, hx, hy⟩ => by rw [← hx, ← hy]; exact ⟨p.isVertex_x, p.isVertex_y, hcl⟩⟩
+    fun ⟨p, hcl, hx, hy⟩ => hx ▸ hy ▸ ⟨p.isVertex_x, p.isVertex_y, hcl⟩⟩
 
 end Cslib.GameTheory.LemkeHowson

@@ -105,7 +105,7 @@ private theorem degZ_polyOfTable_le (M : Finset (ℕ × ℕ)) (B : ℕ)
     degZ (polyOfTable M B c) ≤ B := by
   refine degZ_le_iff.2 fun a b => natDegree_le_iff_coeff_eq_zero.2 fun t ht => ?_
   rw [coeff_coeff_coeff_polyOfTable]
-  split_ifs <;> [omega; rfl; rfl]
+  split_ifs <;> first | rfl | omega
 
 private theorem natDegree_coeff_shift_polyOfTable_le {d D B r : ℕ}
     (c : (Sudan.monomials d D × Fin (B + 1)) → F) (x : F) (w : F[X]) (hw : w.natDegree ≤ r)
@@ -120,12 +120,14 @@ private theorem natDegree_coeff_shift_polyOfTable_le {d D B r : ℕ}
   change ((((shift (C x) w (C (C cz * X ^ p.1.1) * X ^ p.1.2)).coeff v).coeff u).natDegree) ≤ _
   rw [C_mul_X_pow_eq_monomial, C_mul_X_pow_eq_monomial, coeff_coeff_shift_monomial]
   refine natDegree_mul_le.trans (Nat.add_le_add ?_ (natDegree_pow_le.trans ?_))
-  · rw [show (p.1.1.choose u : F[X]) * (p.1.2.choose v : F[X]) * cz * (C x) ^ (p.1.1 - u) =
-      C ((p.1.1.choose u : F) * (p.1.2.choose v : F) * x ^ (p.1.1 - u)) * cz by
-      simp only [map_mul, map_pow, map_natCast]; ring]
-    exact (natDegree_C_mul_le _ _).trans hcz_deg
-  · exact (Nat.mul_le_mul (Nat.sub_le _ _) hw).trans
-      (mul_comm _ r ▸ Nat.mul_le_mul_right r (Finset.le_sup (f := Prod.snd) p.2))
+  · have hre : (p.1.1.choose u : F[X]) * (p.1.2.choose v : F[X]) * cz * (C x) ^ (p.1.1 - u) =
+        C ((p.1.1.choose u : F) * (p.1.2.choose v : F) * x ^ (p.1.1 - u)) * cz := by
+      simp only [map_mul, map_pow, map_natCast]
+      ring
+    exact hre ▸ (natDegree_C_mul_le _ _).trans hcz_deg
+  · calc (p.1.2 - v) * w.natDegree ≤ p.1.2 * r := Nat.mul_le_mul (Nat.sub_le _ _) hw
+      _ ≤ r * maxYDeg d D :=
+        mul_comm _ r ▸ Nat.mul_le_mul_right r (Finset.le_sup (f := Prod.snd) p.2)
 
 /-- Step 1 (Siegel interpolation in `F[Z][X][Y]`): zero-denominator multiplicity-`m` interpolant
 with explicit `Z`-degree bound `siegelZDeg n m d D r`. -/

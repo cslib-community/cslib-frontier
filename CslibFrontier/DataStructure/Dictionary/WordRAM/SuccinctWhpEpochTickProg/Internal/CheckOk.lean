@@ -100,13 +100,17 @@ private theorem buf_oldEp_ite_locState {α : Type*} {fs : FastState}
      else if s = 3 then Function.update buf 1 b3
      else buf) fs.oldEp = buf fs.oldEp := by
   rcases hce_or with hce | hce
-  · have ho : fs.oldEp = 1 := by unfold FastState.oldEp; omega
+  · have ho : fs.oldEp = 1 := by
+      unfold FastState.oldEp
+      omega
     rw [ho]
     split_ifs with h2 h3
     · exact Function.update_of_ne (by decide) _ _
     · exact absurd h3 (h1 ho)
     · rfl
-  · have ho : fs.oldEp = 0 := by unfold FastState.oldEp; omega
+  · have ho : fs.oldEp = 0 := by
+      unfold FastState.oldEp
+      omega
     rw [ho]
     split_ifs with h2 h3
     · exact absurd h2 (h0 ho)
@@ -146,8 +150,8 @@ theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_
       have hrem_buf : fs1.buf fs.oldEp = fs.buf fs.oldEp := by
         have hne_d := hno_old b hb loc_del hspec.1
         exact buf_oldEp_ite_locState hv.curEp_or
-          (fun ho => by rw [ho] at hne_d; exact hne_d)
-          (fun ho => by rw [ho] at hne_d; exact hne_d) _ _ _
+          (fun ho => by rwa [ho] at hne_d)
+          (fun ho => by rwa [ho] at hne_d) _ _ _
       have hmv_buf : fs2.buf fs.oldEp = fs.buf fs.oldEp := by
         dsimp only [fs2]
         split_ifs with hlt_l
@@ -156,8 +160,8 @@ theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_
           dsimp only [fastDeleteMoveLast]
           rw [hls1]
           exact (buf_oldEp_ite_locState hv.curEp_or
-            (fun ho => by rw [ho] at hne_l; exact hne_l)
-            (fun ho => by rw [ho] at hne_l; exact hne_l) _ _ _).trans hrem_buf
+            (fun ho => by rwa [ho] at hne_l)
+            (fun ho => by rwa [ho] at hne_l) _ _ _).trans hrem_buf
         · exact hrem_buf
       have hce2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).curEp = fs.curEp := by
         dsimp only [fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl
@@ -295,8 +299,9 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
   unfold epochTickWillSucceed
   by_cases hlt : fs.epochClock + 1 < qEpochWhp n_max
   · rw [decide_eq_true (Or.inl hlt)]
-    exact step hck_st hck_res (by omega) hck_vp (c₁ := 1) (c₂ := 0) (by omega)
-      (by rw [ite_eq_left hlt]; exact hpure 0 1)
+    refine step hck_st hck_res (by omega) hck_vp (c₁ := 1) (c₂ := 0) (by omega) ?_
+    rw [ite_eq_left hlt]
+    exact hpure 0 1
   · obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
       (by dsimp [hdrRebStage]; omega) (s := s)
@@ -321,10 +326,10 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
         by_cases h8 : (fs.buf fs.oldEp).nodeAlloc ≤ 8
         · rw [decide_eq_true (Or.inr (Or.inr ⟨hs4, h8⟩)), ite_eq_left h8]
           exact hpure 0 1
-        · rw [decide_eq_false (by intro h; rcases h with h1 | h2 | ⟨_, h3⟩ <;> omega),
+        · rw [decide_eq_false (fun h => by rcases h with h1 | h2 | ⟨_, h3⟩ <;> omega),
             ite_eq_right h8]
           exact hpure 0 0
-      · rw [decide_eq_false (by intro h; rcases h with h1 | h2 | ⟨h3, _⟩ <;> omega),
+      · rw [decide_eq_false (fun h => by rcases h with h1 | h2 | ⟨h3, _⟩ <;> omega),
           ite_eq_right hs4]
         exact hpure 3 0
 

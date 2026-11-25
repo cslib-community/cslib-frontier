@@ -196,15 +196,22 @@ theorem tsum_iid_mul_countP_candidates_le [DecidableEq Y] {far : X → X → Pro
       L * (P.length * ENNReal.ofReal P₂) := by
   simp only [countP_candidates, Nat.cast_sum, Finset.mul_sum]
   rw [Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable)]
-  refine (Finset.sum_le_sum fun j _ => PMF.tsum_mul_countP_le (PMF.iid ν L)
-    (fun s x => g (s j) x = g (s j) q ∧ far x q) _ P fun x hx => ?_).trans_eq
-    (by rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul])
-  by_cases hxf : far x q
-  · rw [show {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} =
-        {s | s j ∈ {i | g i x = g i q}} by ext; simp only [Set.mem_ofPred_eq, hxf, and_true],
-      PMF.toOuterMeasure_iid_eval, ← ENNReal.ofReal_toReal (PMF.toOuterMeasure_ne_top _ _)]
-    exact ENNReal.ofReal_le_ofReal (hfar x hx hxf)
-  · simp only [hxf, and_false, Set.ofPred_false, MeasureTheory.measure_empty, zero_le]
+  calc ∑ j : Fin L, ∑' s, PMF.iid ν L s *
+        ((P.countP fun x => decide (g (s j) x = g (s j) q ∧ far x q) : ℕ) : ℝ≥0∞)
+      ≤ ∑ _j : Fin L, (P.length * ENNReal.ofReal P₂) := by
+        refine Finset.sum_le_sum fun j _ => PMF.tsum_mul_countP_le (PMF.iid ν L)
+          (fun s x => g (s j) x = g (s j) q ∧ far x q) _ P fun x hx => ?_
+        by_cases hxf : far x q
+        · have hset : {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} =
+              {s | s j ∈ {i | g i x = g i q}} := by
+            ext
+            simp only [Set.mem_ofPred_eq, hxf, and_true]
+          rw [hset, PMF.toOuterMeasure_iid_eval,
+            ← ENNReal.ofReal_toReal (PMF.toOuterMeasure_ne_top _ _)]
+          exact ENNReal.ofReal_le_ofReal (hfar x hx hxf)
+        · simp only [hxf, and_false, Set.ofPred_false, MeasureTheory.measure_empty, zero_le]
+    _ = L * (P.length * ENNReal.ofReal P₂) := by
+        rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
 
 /-- **The LSH failure bound.** Let `x₀ ∈ P` be not far from `q` and collide with `q` under `g` with
 probability at least `P₁`, and let every far point of `P` collide with `q` with probability at most
@@ -239,8 +246,9 @@ theorem toOuterMeasure_query_eq_none_le [DecidableEq Y] {far : X → X → Prop}
       (by exact_mod_cast hT.ne')
   have hle : μ.toOuterMeasure {s | query g far s T P q = none} ≤
       ν.toOuterMeasure {i | g i x₀ = g i q}ᶜ ^ L + L * (P.length * ENNReal.ofReal P₂) / T :=
-    (MeasureTheory.measure_mono hsub).trans ((MeasureTheory.measure_union_le A B).trans
-      (by rw [PMF.toOuterMeasure_iid_forall]; exact add_le_add le_rfl hB))
+    (MeasureTheory.measure_mono hsub).trans ((MeasureTheory.measure_union_le A B).trans (by
+      rw [PMF.toOuterMeasure_iid_forall]
+      exact add_le_add le_rfl hB))
   ennreal_to_real at hle
   refine hle.trans ?_
   rw [hcompl, ← mul_assoc]
@@ -300,8 +308,9 @@ theorem mul_pow_numHashes_le {n : ℕ} (hn : 0 < n) {p₂ : ℝ} (hp₂ : 0 < p�
     rw [Real.log_pow, ← div_le_iff₀ ha]
     exact Nat.le_ceil _
   have hle := (Real.log_le_log_iff (Nat.cast_pos.2 hn) (pow_pos (one_div_pos.2 hp₂) k)).1 hlog
-  simpa only [← mul_pow, one_div, inv_mul_cancel₀ hp₂.ne', one_pow] using
-    mul_le_mul_of_nonneg_right hle (pow_nonneg hp₂.le k)
+  calc (n : ℝ) * p₂ ^ k ≤ (1 / p₂) ^ k * p₂ ^ k :=
+        mul_le_mul_of_nonneg_right hle (pow_nonneg hp₂.le k)
+    _ = 1 := by rw [← mul_pow, one_div, inv_mul_cancel₀ hp₂.ne', one_pow]
 
 /-- With `k = numHashes n p₂` and `L = numTables n p₁ p₂`, near points are found:
 `L p₁ ^ k ≥ 1`. -/
@@ -317,7 +326,10 @@ theorem one_le_numTables_mul_pow {n : ℕ} (hn : 0 < n) {p₁ p₂ : ℝ} (hp₂
     Nat.ceil_lt_add_one (div_nonneg (Real.log_natCast_nonneg n) ha.le)
   -- `(k - 1) log (1 / p₁) ≤ ρ log n`
   have hkb : ((k : ℝ) - 1) * Real.log (1 / p₁) ≤ rho p₁ p₂ * Real.log n :=
-    (mul_le_mul_of_nonneg_right (by linarith) hb).trans_eq (by rw [rho]; ring)
+    calc ((k : ℝ) - 1) * Real.log (1 / p₁)
+        ≤ Real.log n / Real.log (1 / p₂) * Real.log (1 / p₁) :=
+          mul_le_mul_of_nonneg_right (by linarith) hb
+      _ = rho p₁ p₂ * Real.log n := by rw [rho]; ring
   have hpos : 0 < (n : ℝ) ^ rho p₁ p₂ / p₁ * p₁ ^ k :=
     mul_pos (div_pos (Real.rpow_pos_of_pos hn' _) hp₁0) (pow_pos hp₁0 k)
   have hone : 1 ≤ (n : ℝ) ^ rho p₁ p₂ / p₁ * p₁ ^ k := by
@@ -326,7 +338,9 @@ theorem one_le_numTables_mul_pow {n : ℕ} (hn : 0 < n) {p₁ p₂ : ℝ} (hp₂
       Real.log_rpow hn', Real.log_pow]
     rw [one_div, Real.log_inv] at hkb
     linarith
-  exact hone.trans (mul_le_mul_of_nonneg_right (Nat.le_ceil _) (pow_nonneg hp₁0.le k))
+  calc (1 : ℝ) ≤ (n : ℝ) ^ rho p₁ p₂ / p₁ * p₁ ^ k := hone
+    _ ≤ numTables n p₁ p₂ * p₁ ^ k :=
+        mul_le_mul_of_nonneg_right (Nat.le_ceil _) (pow_nonneg hp₁0.le k)
 
 theorem numHashes_lt (n : ℕ) {p₂ : ℝ} (hp₂ : 0 < p₂) (hp₂₁ : p₂ < 1) :
     (numHashes n p₂ : ℝ) < Real.log n / Real.log (1 / p₂) + 1 :=
@@ -357,10 +371,11 @@ theorem numTables_failure_bound_le {n : ℕ} (hn : 0 < n) {p₁ p₂ : ℝ} (hp�
     rw [h0, Nat.cast_zero, zero_mul] at hLp
     linarith
   refine ⟨hL, add_le_add ?_ ?_⟩
-  · refine (pow_le_pow_left₀ (sub_nonneg.2 hpk1)
-      (show 1 - p₁ ^ k ≤ Real.exp (-p₁ ^ k) by linarith [Real.add_one_le_exp (-p₁ ^ k)]) L).trans ?_
-    rw [← Real.exp_nat_mul]
-    exact Real.exp_le_exp.2 (by linarith)
+  · calc (1 - p₁ ^ k) ^ L
+        ≤ Real.exp (-p₁ ^ k) ^ L := pow_le_pow_left₀ (sub_nonneg.2 hpk1)
+          (by linarith [Real.add_one_le_exp (-p₁ ^ k)]) L
+      _ = Real.exp (-(L * p₁ ^ k)) := by rw [← Real.exp_nat_mul]; ring_nf
+      _ ≤ Real.exp (-1) := Real.exp_le_exp.2 (by linarith)
   · have hL' : (0 : ℝ) < L := Nat.cast_pos.2 hL
     rw [div_le_iff₀ (by positivity)]
     nlinarith

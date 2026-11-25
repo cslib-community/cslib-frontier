@@ -401,7 +401,9 @@ private theorem childDecision_update_eq {i p : ι} {A : Type} {instF : Fintype A
     (fun j => (Function.update s i σ' j).childDecision a) =
       Function.update (fun j => (s j).childDecision a) i (σ'.childDecision a) := by
   funext j
-  rcases eq_or_ne j i with rfl | hj <;> [simp; simp [hj]]
+  rcases eq_or_ne j i with rfl | hj
+  · simp
+  · simp [hj]
 
 private theorem childChance_update_eq {i : ι} {C : Type} {instF : Fintype C} {prob : C → ℝ}
     {hprob : IsMixedStrategy prob} {next : C → PerfectInfoTree ι}
@@ -410,7 +412,9 @@ private theorem childChance_update_eq {i : ι} {C : Type} {instF : Fintype C} {p
     (fun j => (Function.update s i σ' j).childChance c) =
       Function.update (fun j => (s j).childChance c) i (σ'.childChance c) := by
   funext j
-  rcases eq_or_ne j i with rfl | hj <;> [simp; simp [hj]]
+  rcases eq_or_ne j i with rfl | hj
+  · simp
+  · simp [hj]
 
 /-- **One-shot deviation principle** for finite extensive games of perfect information: a pure
 strategy profile is a subgame-perfect equilibrium iff no player can strictly gain by a single
@@ -584,7 +588,10 @@ payoffs for the deciding player, every pure subgame-perfect equilibrium coincide
 theorem eq_backwardInduction_of_isPureSPE [DecidableEq ι] :
     ∀ {T : PerfectInfoTree ι} {s : ∀ i, PureStrategy i T},
       T.HasNoContinuationTies → T.IsPureSPE s → s = T.backwardInduction.strategy
-  | .leaf _, s, _, _ => funext fun i => by cases s i; rfl
+  | .leaf _, s, _, _ => by
+    funext i
+    cases s i
+    rfl
   | @PerfectInfoTree.decision _ p A instF instN next, s, ⟨htie, hsub⟩, hspe => by
     let _ := instF
     let _ := instN
@@ -599,7 +606,7 @@ theorem eq_backwardInduction_of_isPureSPE [DecidableEq ι] :
       by_contra hne
       exact htie _ _ hne (le_antisymm (hex.choose_spec.2 _ (mem_univ _))
         (by simpa [hval] using hopt hex.choose))
-    exact funext fun i => PureStrategy.decision_ext (by rintro rfl; exact ha) fun a =>
+    exact funext fun i => PureStrategy.decision_ext (fun | rfl => ha) fun a =>
       congrFun (hchild a) i
   | @PerfectInfoTree.chance _ _ instF prob hprob next, s, htie, hspe => by
     let _ := instF

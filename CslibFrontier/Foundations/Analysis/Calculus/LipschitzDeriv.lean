@@ -97,4 +97,5 @@ theorem norm_sq_le_of_lipschitzWith_hasFDerivAt {f : E → ℝ} {f' : E → E �
   have hop : ‖f' x‖ ≤ √(2 * β * f x) :=
     ContinuousLinearMap.opNorm_le_bound _ (Real.sqrt_nonneg _) fun h =>
       Real.norm_eq_abs _ ▸ hdir h
-  exact (pow_le_pow_left₀ (norm_nonneg _) hop 2).trans_eq (Real.sq_sqrt (by positivity))
+  calc ‖f' x‖ ^ 2 ≤ √(2 * β * f x) ^ 2 := by gcongr
+    _ = 2 * β * f x := Real.sq_sqrt (by positivity)

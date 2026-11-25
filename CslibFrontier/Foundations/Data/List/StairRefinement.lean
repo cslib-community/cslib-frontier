@@ -243,15 +243,21 @@ theorem IsRef.exists {A B : Fin K → List Γ} (h : cat A = cat B) : ∃ X, IsRe
         · exact absurd (key _ _ n1).2.1 (not_le.2 hlt)
         · exact hX.stair _ _ _ _ m1 m2 hlt
     · rcases eq_or_ne a' a with rfl | e
-      · rw [upd_row, cat_of_cons (a := c) (i := b) (l := X a' b)
-          (fun j hj => by rw [Function.update_of_ne hj.ne]; exact hcol j hj a') (by simp),
-          Function.update_idem, Function.update_eq_self, hX.row, Function.update_self, h2]
+      · rw [upd_row, cat_of_cons (a := c) (i := b) (l := X a' b), Function.update_idem,
+          Function.update_eq_self, hX.row, Function.update_self, h2]
+        · intro j hj
+          rw [Function.update_of_ne hj.ne]
+          exact hcol j hj a'
+        · simp
       · rw [upd_row_ne _ _ _ _ e, hX.row, Function.update_of_ne e]
     · rcases eq_or_ne b' b with rfl | e
-      · rw [upd_col, cat_of_cons (i := a) (l := X a b') (a := c)
-          (fun j hj => by rw [Function.update_of_ne hj.ne]; exact hrow j hj b') (by simp),
-          Function.update_idem, Function.update_eq_self (f := fun a' => X a' b') a,
-          hX.col, Function.update_self, g2]
+      · rw [upd_col, cat_of_cons (i := a) (l := X a b') (a := c), Function.update_idem]
+        · rw [Function.update_eq_self (f := fun a' => X a' b') a,
+            hX.col, Function.update_self, g2]
+        · intro j hj
+          rw [Function.update_of_ne hj.ne]
+          exact hrow j hj b'
+        · simp
       · rw [upd_col_ne _ _ _ _ e, hX.col, Function.update_of_ne e]
 
 section Lengths

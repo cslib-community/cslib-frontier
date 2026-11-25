@@ -57,7 +57,9 @@ theorem tsum_uniformOfFintype_le_of_sum_le {α : Type*} [Fintype α] [Nonempty �
   rw [tsum_fintype]
   simp only [PMF.uniformOfFintype_apply, ← Finset.mul_sum, ← Nat.cast_sum]
   calc (Fintype.card α : ℝ≥0∞)⁻¹ * ((∑ a : α, f a : ℕ) : ℝ≥0∞)
-      ≤ (Fintype.card α : ℝ≥0∞)⁻¹ * ((C : ℝ≥0∞) * Fintype.card α) := by gcongr; exact_mod_cast hle
+      ≤ (Fintype.card α : ℝ≥0∞)⁻¹ * ((C : ℝ≥0∞) * Fintype.card α) := by
+        gcongr
+        exact_mod_cast hle
     _ = (C : ℝ≥0∞) * ((Fintype.card α : ℝ≥0∞)⁻¹ * Fintype.card α) := by ring
     _ = C := by
       rw [ENNReal.inv_mul_cancel (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)

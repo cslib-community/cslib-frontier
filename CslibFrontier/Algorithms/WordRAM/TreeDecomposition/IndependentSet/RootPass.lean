@@ -164,7 +164,7 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
     unfold rootPassProg
     exact ⟨validHistory_bind_step hv_run (validHistory_pure w _ _), rootPassProg_state args s,
       by rwa [StateTransitionSpec.clientResult_bind],
-      by rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]; exact hc_run⟩
+      by rwa [memoryCost_bind', memoryCost_pure, Nat.add_zero]⟩
   intro rem
   induction rem with
   | zero =>
@@ -220,14 +220,20 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
       dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (curC + 1) (by omega)
-    rw [show iterate rootPassStep args (rem + 1) ⟨curC, bCur⟩ =
-        (rootPassStep (args, ⟨curC, bCur⟩) >>= iterate rootPassStep args rem) from rfl]
+    have hiter_eq : iterate rootPassStep args (rem + 1) ⟨curC, bCur⟩ =
+        (rootPassStep (args, ⟨curC, bCur⟩) >>= iterate rootPassStep args rem) := rfl
+    rw [hiter_eq]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step,
-        show curC + (rem + 1) = curC + 1 + rem by omega]
-      exact hr_rem
-    · rw [memoryCost_bind', hst_step, hres_step, Nat.succ_mul, Nat.add_comm (rem * stepCost)]
-      exact Nat.add_le_add hc_step hc_rem
+    · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step]
+      have hadd : curC + (rem + 1) = curC + 1 + rem := by omega
+      rwa [hadd]
+    · rw [memoryCost_bind', hst_step, hres_step]
+      calc memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s +
+            memoryCost
+              (iterate rootPassStep args rem
+                ⟨curC + 1, rootPassInst inst.adj inst.wt L0 arr0 (curC + 1)⟩) s
+          ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
+        _ = (rem + 1) * stepCost := by rw [Nat.succ_mul, Nat.add_comm]
 
 /-- Exact-basis Word-RAM realization certificate for `rootPassProg`. -/
 theorem rootPassProg_realizes :

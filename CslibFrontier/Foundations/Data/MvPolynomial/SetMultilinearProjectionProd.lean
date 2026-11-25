@@ -233,7 +233,9 @@ private theorem sum_embedding_eq_C_mul_rectPermSurj (blk : σ → Fin d) {S : Fi
     have hau : (∏ j ∈ M, a' j) * ∏ j ∈ M, u j = 1 := by
       rw [← prod_mul_distrib]
       refine prod_eq_one fun j _ => ?_
-      by_cases hj : j ∈ Z <;> [simp [a', hj, hu₀ j hj]; simpa [a', hj, mul_comm] using hu j hj]
+      by_cases hj : j ∈ Z
+      · simp [a', hj, hu₀ j hj]
+      · simpa [a', hj, mul_comm] using hu j hj
     have key : ∏ j ∈ Mᶜ, a j = (∏ j ∈ Zᶜ, a j) * ∏ r, u (e r) := by
       rw [ha', ← prod_mul_prod_compl M a', ← prod_map univ e u, mul_right_comm, hau, one_mul]
       exact prod_congr rfl fun j hj => (ite_eq_right fun hjZ => mem_compl.1 hj (hZe hjZ)).symm

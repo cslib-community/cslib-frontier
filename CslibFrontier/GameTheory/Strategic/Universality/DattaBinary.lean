@@ -297,8 +297,11 @@ theorem isTotallyMixedNash_game_iff {F : Fin m → MvPolynomial (Fin n) ℝ}
     rw [← eval_encode (hF j) hpow]
     by_cases hj : j.val < n
     · simpa [equation, j.2] using h (var ⟨j, hj⟩)
-    · simpa only [equation, show (⟨n + (j.val - n), _⟩ : Fin m) = j from
-        Fin.ext (by dsimp only; omega)] using h (extra ⟨j - n, by omega⟩)
+    · have hj' : (⟨n + (j.val - n), by omega⟩ : Fin m) = j :=
+        Fin.ext <| by
+          dsimp only
+          omega
+      simpa only [equation, hj'] using h (extra ⟨j - n, by omega⟩)
   · rintro ⟨hF0, hpow⟩ (i | c | e)
     · simp only [equation]
       split_ifs with h

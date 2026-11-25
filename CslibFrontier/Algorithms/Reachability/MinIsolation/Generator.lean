@@ -76,11 +76,14 @@ theorem exists_generatedWeight_isMinIsolating {w n : ℕ}
   have hsize : ((n + 1) ^ 2 * Fintype.card (Fin w) ^ 4) * 2 ^ (codeLength w n - d) <
       2 ^ codeLength w n := by
     rw [Fintype.card_fin]
-    exact (Nat.mul_lt_mul_of_pos_right hbound (by positivity)).trans_eq
-      (by rw [← pow_add, Nat.add_sub_of_le hd])
+    calc (n + 1) ^ 2 * w ^ 4 * 2 ^ (codeLength w n - d)
+      _ < 2 ^ d * 2 ^ (codeLength w n - d) := Nat.mul_lt_mul_of_pos_right hbound (by positivity)
+      _ = 2 ^ codeLength w n := by rw [← pow_add, Nat.add_sub_of_le hd]
   obtain ⟨seed, hseed⟩ := exists_minIsolating_seed G hlayer indexedCodeword
     (fun _ _ => log_le_hammingDist_indexedCodeword) hsize
-  exact ⟨seed, by unfold generatedWeight; simpa only [hlayer] using hseed⟩
+  refine ⟨seed, ?_⟩
+  unfold generatedWeight
+  simpa only [hlayer] using hseed
 
 private theorem layerValuation_le_log {layer limit : ℕ} (h : layer ≤ limit) :
     padicValNat 2 layer ≤ Nat.log 2 limit := by
@@ -99,15 +102,17 @@ private theorem generatedWeight_lt_pow {w n C : ℕ} (seed : Fin (codeLength w n
     dsimp only [m, L] at hlen ⊢
     rw [Nat.add_mul, Nat.one_mul]; omega
   have hpow : 2 ^ L ≤ 2 * (m + 1) := by
-    rw [show L = Nat.log 2 m + 1 from rfl, pow_succ']
+    dsimp only [L]
+    rw [pow_succ']
     exact Nat.mul_le_mul_left _ (Nat.pow_log_le_add_one _ _)
   calc
     generatedWeight seed z < 6 ^ (padicValNat 2 z.1.val + codeLength w n) :=
       vertexWeight_lt_pow indexedCodeword seed z.1.val z.2
-    _ ≤ (2 ^ 3) ^ ((C + 1) * L) :=
-      (Nat.pow_le_pow_right (by decide) hexp).trans (Nat.pow_le_pow_left (by decide) _)
+    _ ≤ 6 ^ ((C + 1) * L) := Nat.pow_le_pow_right (by decide) hexp
+    _ ≤ (2 ^ 3) ^ ((C + 1) * L) := Nat.pow_le_pow_left (by decide) _
     _ = (2 ^ L) ^ (3 * (C + 1)) := by
-      rw [← pow_mul, ← pow_mul, show 3 * ((C + 1) * L) = L * (3 * (C + 1)) by ring]
+      have hab : 3 * ((C + 1) * L) = L * (3 * (C + 1)) := by ring
+      rw [← pow_mul, ← pow_mul, hab]
     _ ≤ _ := Nat.pow_le_pow_left hpow (3 * (C + 1))
 
 /-- A seed-independent chain bound using the actual code length and the binary width

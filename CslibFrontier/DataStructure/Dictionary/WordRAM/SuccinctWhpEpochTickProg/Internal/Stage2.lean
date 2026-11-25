@@ -269,9 +269,12 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
         simp only [memoryCost_bind]
         rw [hrd_mc] at this
         rw [hrd_st, hrd_res, hrd_mc, hcd_st, hcd_res, hcd_mc]; omega
-      · refine validProg_bind hdi_vp ?_; rw [hdi_st, hdi_res]
-        refine validProg_bind hdc_vp ?_; rw [hdc_st, hdc_res, ite_eq_left hdi_lt]
-        refine validProg_bind hrd_vp ?_; rw [hrd_st, hrd_res]
+      · refine validProg_bind hdi_vp ?_
+        rw [hdi_st, hdi_res]
+        refine validProg_bind hdc_vp ?_
+        rw [hdc_st, hdc_res, ite_eq_left hdi_lt]
+        refine validProg_bind hrd_vp ?_
+        rw [hrd_st, hrd_res]
         refine validProg_bind hcd_vp ?_
         rw [hcd_st, hcd_res]
         exact hbody.2.1
@@ -314,7 +317,8 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
       refine validProg_bind hdc_vp ?_
       rw [hdc_st, hdc_res, ite_eq_right hdi_lt]
       exact ht3_vp
-    · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res, ite_eq_right hdi_lt]
+    · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res,
+        ite_eq_right hdi_lt]
       exact ht3_step
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.EpochTickInternal

@@ -167,7 +167,8 @@ theorem IsStrategyProof.isMaskinMonotone [Finite V] (hf : f.IsStrategyProof) :
       rw [ih] at hy ⊢
       simp only [R, hi, ite_false, Finset.mem_insert, true_or, ite_true] at hy ⊢
       exact h i y hy
-  simpa only [show R Finset.univ = Q from funext fun _ => by simp [R]] using key Finset.univ
+  have hQ : R Finset.univ = Q := funext fun _ => by simp [R]
+  simpa only [hQ] using key Finset.univ
 
 /-- **Maskin monotonicity implies strategy-proofness** ([MullerSatterthwaite1977]). Suppose
 voter `i` gains by reporting `Q i`, so that `i` ranks `f Q` above `f P`. Let `i` instead report
@@ -438,8 +439,9 @@ theorem isStrategyProof_dictatorship [Finite A] [Nonempty A] (i : V) :
 theorem isDictator_iff_eq_dictatorship [Finite A] [Nonempty A] (hs : Function.Surjective f)
     {i : V} : f.IsDictator i ↔ f = dictatorship (A := A) i := by
   rw [isDictator_iff_of_surjective hs]
-  exact ⟨fun h => funext fun P => (P i).isTop_iff_eq_top.1 (h P),
-    by rintro rfl P; exact (P i).isTop_top⟩
+  refine ⟨fun h => funext fun P => (P i).isTop_iff_eq_top.1 (h P), ?_⟩
+  rintro rfl P
+  exact (P i).isTop_top
 
 /-- With finitely many voters and finitely many alternatives, at least three, the strategy-proof
 social choice functions onto `A` are exactly the dictatorships. -/

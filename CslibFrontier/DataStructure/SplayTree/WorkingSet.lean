@@ -467,8 +467,10 @@ theorem splaySeqTime_le_working_set (xs : List α) {t : BinaryTree α} (ht : Ord
   -- Initial potential: total weight at most `2`, so every rank is at most `1`.
   have hΦ₀ := potential_le_sum_logb_of_le (mtfWeight_pos ([] ++ xs ++ R)) ht hW
   rw [Real.logb_self_eq_one (by norm_num), Finset.sum_const, nsmul_eq_mul, mul_one] at hΦ₀
-  have hsetₘ : (xs.reverse ++ [] ++ R).toFinset = elements t := by ext z; simp [← hset]
   -- Final potential: every final weight is at least `1/n²`.
+  have hsetₘ : (xs.reverse ++ [] ++ R).toFinset = elements t := by
+    ext z
+    simp [← hset]
   have hΦₘ : -((elements t).card * (2 * Real.logb 2 (elements t).card)) ≤
       potential (mtfWeight (xs.reverse ++ [] ++ R)) (splaySeq xs t).1 := by
     refine le_trans ?_ (he_end ▸ sum_logb_weight_le_potential

@@ -218,17 +218,24 @@ theorem IsNondegenerate.isNondegenerateSystem_matP (hG : G.IsNondegenerate) :
   rw [isNondegenerateSystem_iff]
   intro x hx
   obtain ⟨hx₀, hxB⟩ := matP_mulVec_le_iff.1 hx
-  rw [← card_toLeft_add_card_toRight,
-    show (tightRows G.matP (rhsP M N) x).toLeft = univ.filter (x · = 0) by ext; simp]
+  have hL : (tightRows G.matP (rhsP M N) x).toLeft = univ.filter (x · = 0) := by
+    ext
+    simp
+  rw [← card_toLeft_add_card_toRight, hL]
   rcases eq_or_ne x 0 with rfl | hx0
-  · rw [show (tightRows G.matP (rhsP M N) 0).toRight = ∅ by ext; simp, card_empty, add_zero]
+  · have hR : (tightRows G.matP (rhsP M N) 0).toRight = ∅ := by
+      ext
+      simp
+    rw [hR, card_empty, add_zero]
     exact card_le_univ _
   obtain ⟨i₀, hi₀⟩ := Function.ne_iff.1 hx0
   have hpos : 0 < ∑ i, x i :=
     (sum_pos_iff_of_nonneg fun j _ => hx₀ j).2 ⟨i₀, mem_univ _, (hx₀ i₀).lt_of_ne' hi₀⟩
   have hsupp : (Function.support ((∑ i, x i)⁻¹ • x)).ncard = #(univ.filter fun i => ¬x i = 0) := by
     rw [Function.support_const_smul_of_ne_zero _ _ (inv_ne_zero hpos.ne'), ← Set.ncard_coe_finset]
-    exact congrArg Set.ncard (by ext; simp)
+    congr 1
+    ext
+    simp
   have hT : ((tightRows G.matP (rhsP M N) x).toRight : Set N) ⊆
       {j | G.IsPureBestResponse₂ ((∑ i, x i)⁻¹ • x) j} := fun j hj => by
     rw [Finset.mem_coe, mem_toRight, inr_mem_tightRows_matP] at hj
@@ -311,8 +318,13 @@ theorem eq_zero_iff_eq_zero_of_completelyLabeled (hx : G.matP *ᵥ x ≤ rhsP M 
     (hcl : LemkeHowson.CompletelyLabeled G.matP (rhsP M N) G.matQ (rhsQ M N) x y) :
     x = 0 ↔ y = 0 := by
   obtain ⟨hcl₁, hcl₂⟩ := completelyLabeled_iff_forall.1 hcl
-  exact ⟨by rintro rfl; exact funext fun j => by simpa using hcl₂ j,
-    by rintro rfl; exact funext fun i => by simpa using hcl₁ i⟩
+  constructor
+  · rintro rfl
+    funext j
+    simpa using hcl₂ j
+  · rintro rfl
+    funext i
+    simpa using hcl₁ i
 
 private theorem isBestResponse₁_of_completelyLabeled (hx : G.matP *ᵥ x ≤ rhsP M N)
     (hy : G.matQ *ᵥ y ≤ rhsQ M N)

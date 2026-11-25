@@ -226,8 +226,10 @@ private theorem DegBound.natCast_eq_zero {R : Type*} [CommRing R] (db : DegBound
 private theorem DegBound.derivative_coeff_le {R : Type*} [CommRing R] (db : DegBound R)
     {f : R[X]} {B : ℕ} (hf : ∀ b, db.deg (f.coeff b) ≤ B) (b : ℕ) :
     db.deg (f.derivative.coeff b) ≤ B := by
-  rw [coeff_derivative, ← Nat.cast_succ]
-  exact (db.mul_le _ _).trans (by rw [db.natCast_eq_zero, add_zero]; exact hf (b + 1))
+  rw [coeff_derivative]
+  refine (db.mul_le _ _).trans ?_
+  rw [← Nat.cast_succ, db.natCast_eq_zero (b + 1), add_zero]
+  exact hf (b + 1)
 
 theorem DegBound.resultant_le {R : Type*} [CommRing R] (db : DegBound R)
     {f g : R[X]} (m n : ℕ) {Bf Bg : ℕ}
@@ -235,8 +237,9 @@ theorem DegBound.resultant_le {R : Type*} [CommRing R] (db : DegBound R)
     db.deg (Polynomial.resultant f g m n) ≤ m * Bg + n * Bf := by
   rw [Polynomial.resultant, Matrix.det_apply]
   refine db.sum_le _ _ fun σ _ => ?_
-  rw [show ∀ (s : ℤˣ) (x : R), db.deg (s • x) = db.deg x from fun s x => by
-    rcases Int.units_eq_one_or s with rfl | rfl <;> simp [Units.smul_def, db.neg]]
+  have hz : ∀ (s : ℤˣ) (x : R), db.deg (s • x) = db.deg x := fun s x => by
+    rcases Int.units_eq_one_or s with rfl | rfl <;> simp [Units.smul_def, db.neg]
+  rw [hz]
   let bnd : Fin (m + n) → ℕ := Fin.addCases (fun _ => Bg) (fun _ => Bf)
   refine (db.prod_le Finset.univ _ bnd fun j _ => ?_).trans_eq (by simp [bnd, Fin.sum_univ_add])
   induction j using Fin.addCases with

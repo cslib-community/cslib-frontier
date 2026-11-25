@@ -65,19 +65,23 @@ theorem sqrt_log_two_mono : Monotone fun n => sqrt (log 2 n) :=
 at most the ceiling convention for the square root of the ceiling logarithm. -/
 theorem sqrt_log_two_le_sqrt_clog_two_sub_one_add_one (n : ℕ) :
     sqrt (log 2 n) ≤ sqrt (clog 2 n - 1) + 1 := by
-  refine (sqrt_le_sqrt (log_le_clog 2 n)).trans (le_of_lt_succ (sqrt_lt'.mpr ?_))
+  refine (sqrt_le_sqrt (log_le_clog 2 n)).trans ?_
+  refine le_of_lt_succ (sqrt_lt'.mpr ?_)
   rcases eq_zero_or_pos (clog 2 n) with h | h
-  · simp [h]
-  · obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero h.ne'
-    rw [hm, Nat.succ_sub_one]
+  · rw [h]; exact Nat.pow_pos (succ_pos _)
+  · obtain ⟨m, hm⟩ : ∃ m, clog 2 n = m + 1 := ⟨clog 2 n - 1, by omega⟩
+    rw [hm, Nat.add_sub_cancel]
     exact (Nat.succ_le_of_lt (lt_succ_sqrt' m)).trans_lt
       (Nat.pow_lt_pow_left (Nat.lt_succ_self _) two_ne_zero)
 
 /-- `m ^ 3 ≤ 4 ^ m`. -/
 private theorem cube_le_four_pow : ∀ m : ℕ, m ^ 3 ≤ 4 ^ m
-  | 0 | 1 | 2 => by decide
-  | m + 3 =>
-    calc (m + 3) ^ 3 ≤ 4 * (m + 2) ^ 3 := by ring_nf; omega
+  | 0 => by decide
+  | 1 => by decide
+  | 2 => by decide
+  | m + 3 => by
+    have h : (m + 3) ^ 3 ≤ 4 * (m + 2) ^ 3 := by ring_nf; omega
+    calc (m + 3) ^ 3 ≤ 4 * (m + 2) ^ 3 := h
       _ ≤ 4 * 4 ^ (m + 2) := Nat.mul_le_mul_left 4 (cube_le_four_pow (m + 2))
       _ = 4 ^ (m + 3) := by ring
 
@@ -86,13 +90,14 @@ theorem log_two_mul_sqrt_log_two_le (n : ℕ) : log 2 n * sqrt (log 2 n) ≤ n :
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
   set L := log 2 n
+  have h2L : 2 ^ L ≤ n := pow_log_le_self 2 hn.ne'
   have hsq : (L * sqrt L) ^ 2 ≤ (2 ^ L) ^ 2 := by
     calc (L * sqrt L) ^ 2 = L * L * (sqrt L * sqrt L) := by ring
       _ ≤ L * L * L := Nat.mul_le_mul_left _ (sqrt_le L)
       _ = L ^ 3 := by ring
       _ ≤ 4 ^ L := cube_le_four_pow L
       _ = (2 ^ L) ^ 2 := by rw [← pow_mul, mul_comm, pow_mul]; norm_num
-  exact ((Nat.pow_le_pow_iff_left (by norm_num)).1 hsq).trans (pow_log_le_self 2 hn.ne')
+  exact ((Nat.pow_le_pow_iff_left (by norm_num)).1 hsq).trans h2L
 
 /-- **The scale dominates the logarithm**: `⌊log₂ n⌋ ≤ n / √⌊log₂ n⌋`. -/
 theorem log_two_le_div_sqrt_log_two (n : ℕ) : log 2 n ≤ n / sqrt (log 2 n) := by
@@ -107,34 +112,45 @@ theorem one_le_div_sqrt_log_two {n : ℕ} (hn : 2 ≤ n) : 1 ≤ n / sqrt (log 2
 /-- **Time blocks.** There are at most `n / √⌊log₂ n⌋ + 1` blocks of length `⌈log₂ (n + 2)⌉` in
 `n` steps, since `√⌊log₂ n⌋ ≤ ⌈log₂ (n + 2)⌉`. -/
 theorem ceilDiv_clog_two_le (n : ℕ) : n ⌈/⌉ clog 2 (n + 2) ≤ n / sqrt (log 2 n) + 1 := by
-  rw [ceilDiv_le_iff (clog_pos one_lt_two (by omega))]
+  have hb : 0 < clog 2 (n + 2) := clog_pos one_lt_two (by omega)
+  rw [ceilDiv_le_iff hb]
   rcases Nat.lt_or_ge n 2 with hn | hn
   · interval_cases n
     · exact Nat.zero_le _
-    · simp [show clog 2 3 = 2 from rfl]
-  · have := lt_div_mul_add (a := n) (one_le_sqrt_log_two hn)
-    exact (show n ≤ (n / sqrt (log 2 n) + 1) * sqrt (log 2 n) by rw [add_mul, one_mul]; omega).trans
-      (Nat.mul_le_mul_left _ ((sqrt_le_self _).trans
-        ((log_mono_right (by omega : n ≤ n + 2)).trans (log_le_clog 2 _))))
+    · simp [show clog 2 3 = 2 by decide]
+  · have hr := one_le_sqrt_log_two hn
+    have hle : sqrt (log 2 n) ≤ clog 2 (n + 2) :=
+      (sqrt_le_self _).trans ((log_mono_right (by omega : n ≤ n + 2)).trans (log_le_clog 2 _))
+    calc n ≤ (n / sqrt (log 2 n) + 1) * sqrt (log 2 n) := by
+          have := lt_div_mul_add (a := n) hr
+          rw [add_mul, one_mul]
+          omega
+      _ ≤ _ := Nat.mul_le_mul_left _ hle
 
 /-- Multiplying before dividing gains less than the multiplier: `c * n / r ≤ c * (n / r) + c`. -/
 theorem mul_div_le_mul_div_add (c n r : ℕ) : c * n / r ≤ c * (n / r) + c := by
   rcases Nat.eq_zero_or_pos r with rfl | hr
   · simp
-  refine Nat.div_le_of_le_mul ((Nat.mul_le_mul_left c (m := r * (n / r + 1)) ?_).trans_eq (by ring))
+  apply Nat.div_le_of_le_mul
   have := lt_div_mul_add (a := n) hr
-  rw [mul_add, mul_one, mul_comm]; omega
+  have h : n ≤ r * (n / r + 1) := by rw [mul_add, mul_one, mul_comm]; omega
+  calc c * n ≤ c * (r * (n / r + 1)) := Nat.mul_le_mul_left _ h
+    _ = r * (c * (n / r) + c) := by ring
 
 /-- **Scaling.** The scale of `c * n` is at most `c` times the scale of `n`, plus `c`: the divisor
 only grows. -/
 theorem mul_div_sqrt_log_two_le (c n : ℕ) :
     c * n / sqrt (log 2 (c * n)) ≤ c * (n / sqrt (log 2 n)) + c := by
   rcases Nat.lt_or_ge n 2 with hn | hn
-  · exact (div_le_self _ _).trans ((Nat.mul_le_mul_left c (m := 1) (by omega)).trans (by omega))
+  · calc c * n / _ ≤ c * n := div_le_self _ _
+      _ ≤ c * 1 := Nat.mul_le_mul_left _ (by omega)
+      _ ≤ _ := by omega
   rcases Nat.eq_zero_or_pos c with rfl | hc
   · simp
-  exact (div_le_div_left (sqrt_log_two_mono (Nat.le_mul_of_pos_left n hc))
-    (one_le_sqrt_log_two hn)).trans (mul_div_le_mul_div_add c n _)
+  have hr := one_le_sqrt_log_two hn
+  calc c * n / sqrt (log 2 (c * n)) ≤ c * n / sqrt (log 2 n) :=
+        div_le_div_left (sqrt_log_two_mono (Nat.le_mul_of_pos_left n hc)) hr
+    _ ≤ c * (n / sqrt (log 2 n)) + c := mul_div_le_mul_div_add c n _
 
 /-- **The scale is monotone up to constants**: `m ≤ n` gives
 `m / √⌊log₂ m⌋ ≤ 2 * (n / √⌊log₂ n⌋) + 2`. When the divisors are within a factor `2` of each other
@@ -157,19 +173,20 @@ theorem div_sqrt_log_two_le_of_le {m n : ℕ} (h : m ≤ n) :
     have hm2 : m < 2 ^ ((a + 1) * (a + 1)) :=
       (lt_pow_succ_log_self one_lt_two m).trans_le
         (Nat.pow_le_pow_right two_pos (lt_succ_sqrt (log 2 m)))
+    have hn2 : 2 ^ (b * b) ≤ n :=
+      (Nat.pow_le_pow_right two_pos (sqrt_le (log 2 n))).trans (pow_log_le_self 2 (by omega))
     have hexp : (a + 1) * (a + 1) + b ≤ b * b := by
       obtain ⟨d, hd⟩ : ∃ d, b = 2 * a + 1 + d := ⟨b - (2 * a + 1), by omega⟩
-      have := Nat.one_le_pow 2 a ha
-      rw [hd]
-      ring_nf; omega
+      have := Nat.one_le_pow 2 a ha; rw [hd]; ring_nf; omega
     have hmb : m * b ≤ n :=
       calc m * b ≤ 2 ^ ((a + 1) * (a + 1)) * 2 ^ b :=
             Nat.mul_le_mul hm2.le Nat.lt_two_pow_self.le
         _ = 2 ^ ((a + 1) * (a + 1) + b) := (pow_add _ _ _).symm
         _ ≤ 2 ^ (b * b) := Nat.pow_le_pow_right two_pos hexp
-        _ ≤ n := (Nat.pow_le_pow_right two_pos (sqrt_le _)).trans (pow_log_le_self 2 (by omega))
-    exact (Nat.div_le_self _ _).trans
-      (((Nat.le_div_iff_mul_le (by omega)).2 hmb).trans (by omega))
+        _ ≤ n := hn2
+    calc m / a ≤ m := Nat.div_le_self _ _
+      _ ≤ n / b := (Nat.le_div_iff_mul_le (by omega)).2 hmb
+      _ ≤ 2 * (n / b) + 2 := by omega
 
 /-- **The cost of the counting simulation is `2 ^ O(T / √(log T))`** (#1833). For `t = c * T`,
 time blocks of length `b = ⌈log₂ (t + 2)⌉` and `q = ⌈t / b⌉` blocks, the number `3 ^ (K * q)` of
@@ -241,30 +258,30 @@ theorem mul_two_pow_div_sqrt_log_two_add_le {a b C T : ℕ} (hT : 2 ≤ T) :
   have hx : 1 ≤ x :=
     (one_le_div_sqrt_log_two hT).trans
       ((Nat.le_mul_of_pos_left _ (Nat.succ_pos C)).trans (mul_div_le_mul_div_assoc _ _ _))
-  calc a * 2 ^ (C * T / sqrt (log 2 T)) + b
-      ≤ a * 2 ^ (1 * x) + b := by
-        rw [one_mul]
+  have hCx : C * T / sqrt (log 2 T) ≤ 1 * x := by
+    rw [one_mul]
+    exact Nat.div_le_div_right (Nat.mul_le_mul_right _ (Nat.le_succ C))
+  calc a * 2 ^ (C * T / sqrt (log 2 T)) + b ≤ a * 2 ^ (1 * x) + b := by
         gcongr
-        exact Nat.div_le_div_right (Nat.mul_le_mul_right _ (Nat.le_succ C))
     _ ≤ 2 ^ ((a + b + 1) * x) := mul_two_pow_add_le_two_pow hx
-    _ ≤ 2 ^ ((a + b + 1) * (C + 1) * T / sqrt (log 2 T)) :=
-        Nat.pow_le_pow_right (by norm_num) (by rw [mul_assoc]; exact mul_div_le_mul_div_assoc _ _ _)
+    _ ≤ 2 ^ ((a + b + 1) * (C + 1) * T / sqrt (log 2 T)) := by
+        refine Nat.pow_le_pow_right (by norm_num) ?_
+        rw [mul_assoc]
+        exact mul_div_le_mul_div_assoc _ _ _
 
 /-- A constant factor and an additive constant are absorbed by the degree from `n = 2` on:
 `a * (n + 1) ^ d + b ≤ n ^ (a + b + 2 * d)`. -/
 theorem mul_add_one_pow_add_le_pow {a b d n : ℕ} (hn : 2 ≤ n) :
     a * (n + 1) ^ d + b ≤ n ^ (a + b + 2 * d) := by
   have hsq : (n + 1) ^ d ≤ n ^ (2 * d) := by
-    rw [pow_mul]
-    refine Nat.pow_le_pow_left ?_ d
-    obtain ⟨k, rfl⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩
-    ring_nf; omega
+    rw [pow_mul]; refine Nat.pow_le_pow_left ?_ d
+    obtain ⟨k, rfl⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩; ring_nf; omega
   have hb1 : b ≤ b * n ^ (2 * d) := Nat.le_mul_of_pos_right b (Nat.one_le_pow _ _ (by omega))
+  have hab : a + b < 2 ^ (a + b) := Nat.lt_two_pow_self
+  have hab' : 2 ^ (a + b) ≤ n ^ (a + b) := Nat.pow_le_pow_left hn _
   calc a * (n + 1) ^ d + b ≤ (a + b) * n ^ (2 * d) := by
-        have := Nat.mul_le_mul_left a hsq
-        rw [add_mul]; omega
-    _ ≤ n ^ (a + b) * n ^ (2 * d) :=
-        Nat.mul_le_mul_right _ (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left hn _))
+        have := Nat.mul_le_mul_left a hsq; rw [add_mul]; omega
+    _ ≤ n ^ (a + b) * n ^ (2 * d) := Nat.mul_le_mul_right _ (hab.le.trans hab')
     _ = n ^ (a + b + 2 * d) := by rw [← pow_add]
 
 end Nat

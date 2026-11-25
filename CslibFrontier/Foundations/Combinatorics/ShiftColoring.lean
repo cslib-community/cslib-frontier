@@ -67,14 +67,17 @@ noncomputable def speedup (m : ℕ) (f : (Fin (k + 2) → ℕ) → C) : (Fin (k 
     (fun y => f (Fin.snoc b y))
 
 private theorem tail_snoc {n : ℕ} (a : Fin (n + 1) → ℕ) (y : ℕ) :
-    Fin.tail (Fin.snoc a y : Fin (n + 2) → ℕ) = Fin.snoc (Fin.tail a) y :=
-  funext <| Fin.lastCases (by simp only [Fin.tail, Fin.succ_last, Fin.snoc_last]) fun _ => by
-    simp only [Fin.tail, Fin.succ_castSucc, Fin.snoc_castSucc]
+    Fin.tail (Fin.snoc a y : Fin (n + 2) → ℕ) = Fin.snoc (Fin.tail a) y := by
+  funext i
+  refine Fin.lastCases ?_ (fun j => ?_) i
+  · simp only [Fin.tail, Fin.succ_last, Fin.snoc_last]
+  · simp only [Fin.tail, Fin.succ_castSucc, Fin.snoc_castSucc]
 
 private theorem strictMono_snoc {n : ℕ} {a : Fin (n + 1) → ℕ} (ha : StrictMono a) {y : ℕ}
-    (hy : a (Fin.last n) < y) : StrictMono (Fin.snoc a y : Fin (n + 2) → ℕ) :=
-  Fin.strictMono_iff_lt_succ.2 <| Fin.lastCases (by simpa) fun _ => by
-    rw [Fin.succ_castSucc, Fin.snoc_castSucc, Fin.snoc_castSucc]
+    (hy : a (Fin.last n) < y) : StrictMono (Fin.snoc a y : Fin (n + 2) → ℕ) := by
+  refine Fin.strictMono_iff_lt_succ.2 (Fin.lastCases ?_ fun _ => ?_)
+  · simpa
+  · rw [Fin.succ_castSucc, Fin.snoc_castSucc, Fin.snoc_castSucc]
     exact ha Fin.castSucc_lt_succ
 
 /-- **The speedup lemma** [Laurinharju and Suomela][LaurinharjuSuomela2014]: the speedup of a shift
@@ -105,8 +108,11 @@ theorem card_le {f : (Fin 1 → ℕ) → C} [Fintype C] (hf : IsShiftColoring m 
     exact (lt_or_gt_of_ne (Fin.val_injective.ne hne)).elim
       (fun h => hlt y y' h hyy) (fun h => hlt y' y h hyy.symm)
   intro y y' hlt
-  have h := hf ![(y : ℕ), y'] (Fin.strictMono_iff_lt_succ.2 fun i => by fin_cases i; exact hlt)
-    fun i => by fin_cases i <;> simp
+  have hmono : StrictMono (![(y : ℕ), y'] : Fin 2 → ℕ) :=
+    Fin.strictMono_iff_lt_succ.2 fun i => by
+      fin_cases i
+      exact hlt
+  have h := hf ![(y : ℕ), y'] hmono fun i => by fin_cases i <;> simp
   have hinit : Fin.init (![(y : ℕ), y'] : Fin 2 → ℕ) = ![(y : ℕ)] := List.ofFn_inj.mp rfl
   have htail : Fin.tail (![(y : ℕ), y'] : Fin 2 → ℕ) = ![(y' : ℕ)] := List.ofFn_inj.mp rfl
   rwa [hinit, htail] at h

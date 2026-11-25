@@ -140,8 +140,11 @@ theorem card_filter_hammingDist_le_le_pow {q : ℕ} (hq : ∀ i, Fintype.card (�
   rw [card_filter_hammingDist_le_eq_sum, add_pow]
   refine sum_le_sum fun j hj => ?_
   rw [card_filter_hammingDist_eq_choose_mul_pow hq x j, one_pow, mul_one, mul_pow]
-  exact (Nat.mul_le_mul_right _ (Nat.choose_le_pow _ j)).trans
-    (Nat.le_mul_of_pos_right _ (Nat.choose_pos (Nat.lt_succ_iff.mp (mem_range.mp hj))))
+  calc (Fintype.card ι).choose j * (q - 1) ^ j
+      ≤ Fintype.card ι ^ j * (q - 1) ^ j :=
+        Nat.mul_le_mul_right _ (Nat.choose_le_pow _ j)
+    _ ≤ Fintype.card ι ^ j * (q - 1) ^ j * r.choose j :=
+        Nat.le_mul_of_pos_right _ (Nat.choose_pos (Nat.lt_succ_iff.mp (mem_range.mp hj)))
 
 /-- **The Hamming bound**: a code of minimum distance more than `2 r` has at most `∏ i, |β i|`
 words in all of its balls of radius `r` together. -/
@@ -263,11 +266,13 @@ private theorem sum_range_choose_mul_fifteen_pow_le (L : ℕ) :
       ≤ ∑ j ∈ range ((L + 1) / 2), L.choose j * 4 ^ L := by
         refine sum_le_sum fun j hj => Nat.mul_le_mul_left _ ?_
         have := mem_range.1 hj
-        exact (Nat.pow_le_pow_left (by norm_num : 15 ≤ 16) j).trans
-          ((show 16 ^ j = 4 ^ (2 * j) by rw [pow_mul]; norm_num) ▸
-            Nat.pow_le_pow_right (by norm_num) (by omega))
+        calc 15 ^ j ≤ 16 ^ j := Nat.pow_le_pow_left (by norm_num) j
+          _ = 4 ^ (2 * j) := by rw [pow_mul]; norm_num
+          _ ≤ 4 ^ L := Nat.pow_le_pow_right (by norm_num) (by omega)
     _ = (∑ j ∈ range ((L + 1) / 2), L.choose j) * 4 ^ L := by rw [sum_mul]
-    _ ≤ (∑ j ∈ range (L + 1), L.choose j) * 4 ^ L := by gcongr; omega
+    _ ≤ (∑ j ∈ range (L + 1), L.choose j) * 4 ^ L := by
+        gcongr
+        omega
     _ = 8 ^ L := by rw [Nat.sum_range_choose, ← mul_pow]; norm_num
 
 /-- **A code of rate `1 / 4` and relative distance `1 / 2`**: some code of length `L` over `16`

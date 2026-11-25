@@ -277,9 +277,11 @@ private theorem envyCyclePerm_spec (hn : 0 < n) (A : BundleAllocation n m)
     · exact Or.inl (by rwa [ite_eq_right hyO] at hτy)
   · have hj₀O : j₀ ∈ O :=
       Finset.mem_image.2 ⟨0, Finset.mem_range.2 hn, rfl⟩
-    have hτj₀ : pred j₀ = j₀ := by
-      simpa only [hτ_apply, ite_eq_left hj₀O] using
-        (congrArg σ.symm hEq).symm.trans (σ.symm_apply_apply j₀)
+    have hτj₀ : σ.symm j₀ = j₀ :=
+      calc
+        σ.symm j₀ = σ.symm (σ j₀) := by rw [hEq]
+        _ = j₀ := σ.symm_apply_apply j₀
+    rw [hτ_apply, ite_eq_left hj₀O] at hτj₀
     exact lt_irrefl _ (hτj₀ ▸ hpred_env j₀)
 
 /-- Fuel-bounded envy-cycle elimination loop. -/
@@ -384,13 +386,16 @@ private theorem lmmsSteps_spec (hn : 0 < n) :
       exact Nat.lt_irrefl k
     dsimp only [lmmsSteps]
     rw [dite_eq_left hg]
-    refine ⟨hEF1_cyc.giveGood_of_isUnenvied hUn hg, fun x => ?_,
-      (Nat.add_le_add hswaps_prev hswaps_cyc).trans_eq (Nat.succ_mul k _).symm⟩
-    rw [BundleAllocation.allocatedGoods_giveGood, halloc_cyc, Finset.mem_insert, halloc_prev,
-      Fin.ext_iff]
-    dsimp only [g]
-    exact ⟨fun h => h.elim (fun heq => by omega) Nat.lt_succ_of_lt,
-      fun hlt => (Nat.lt_succ_iff_lt_or_eq.1 hlt).symm⟩
+    refine ⟨hEF1_cyc.giveGood_of_isUnenvied hUn hg, fun x => ?_, ?_⟩
+    · rw [BundleAllocation.allocatedGoods_giveGood, halloc_cyc, Finset.mem_insert, halloc_prev,
+        Fin.ext_iff]
+      dsimp only [g]
+      exact ⟨fun h => h.elim (fun heq => by omega) Nat.lt_succ_of_lt,
+        fun hlt => (Nat.lt_succ_iff_lt_or_eq.1 hlt).symm⟩
+    · calc
+        prev.totalCycleSwaps + (V.eliminateCycles hn prev.alloc).cycleSwaps
+            ≤ k * (n * (n - 1)) + n * (n - 1) := Nat.add_le_add hswaps_prev hswaps_cyc
+        _ = (k + 1) * (n * (n - 1)) := (Nat.succ_mul k (n * (n - 1))).symm
 
 /-- Full `m`-item Lipton–Markakis–Mossel–Saberi run with cycle-swap count. -/
 @[expose] def lmmsRun (hn : 0 < n) : LMMSResult n m :=

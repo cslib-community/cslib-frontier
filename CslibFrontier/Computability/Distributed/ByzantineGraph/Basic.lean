@@ -200,7 +200,9 @@ against any number of faults and for any decision round `R`. -/
 theorem solvesByzantineAgreement_ownInput [DecidableEq P] [Subsingleton P] (G : SimpleGraph P)
     (t R : ℕ) : (ownInput G).SolvesByzantineAgreement t R := by
   have hstate (F adv x r i) : (ownInput G).state F adv x r i = x i := by
-    induction r <;> [rfl; assumption]
+    induction r with
+    | zero => rfl
+    | succ _ ih => exact ih
   exact ⟨fun _ _ _ _ i _ j _ => by rw [Subsingleton.elim i j],
     fun F _ adv x v hv i hi => (hstate F adv x R i).trans (hv i hi)⟩
 

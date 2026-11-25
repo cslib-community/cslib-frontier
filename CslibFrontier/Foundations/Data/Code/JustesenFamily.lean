@@ -67,9 +67,12 @@ private theorem scaleDegree_ne_zero (s : ℕ) : scaleDegree s ≠ 0 := by
   unfold scaleDegree
   omega
 
-private theorem le_capacity (s : ℕ) : s ≤ capacity s :=
-  (show s ≤ scaleDegree s by unfold scaleDegree; omega).trans
-    (Nat.le_mul_of_pos_left _ (Nat.two_pow_pos _))
+private theorem le_capacity (s : ℕ) : s ≤ capacity s := by
+  calc s
+      ≤ scaleDegree s := by
+        unfold scaleDegree
+        omega
+    _ ≤ capacity s := Nat.le_mul_of_pos_left _ (Nat.two_pow_pos _)
 
 /-- Moving to the next scale multiplies the message dimension by `2 ^ 16`. -/
 theorem dimension_succ (s : ℕ) : dimension (s + 1) = dimension s * 65536 := by
@@ -80,9 +83,13 @@ theorem dimension_succ (s : ℕ) : dimension (s + 1) = dimension s * 65536 := by
   rfl
 
 private theorem capacity_succ_le (s : ℕ) : capacity (s + 1) ≤ 131072 * capacity s := by
-  rw [capacity, dimension_succ, capacity]
-  exact (Nat.mul_le_mul_left _ (by unfold scaleDegree; omega :
-    scaleDegree (s + 1) ≤ 2 * scaleDegree s)).trans_eq (by ring)
+  have hb : scaleDegree (s + 1) ≤ 2 * scaleDegree s := by
+    unfold scaleDegree
+    omega
+  simp only [capacity, dimension_succ]
+  calc dimension s * 65536 * scaleDegree (s + 1)
+      ≤ dimension s * 65536 * (2 * scaleDegree s) := Nat.mul_le_mul_left _ hb
+    _ = 131072 * (dimension s * scaleDegree s) := by ring
 
 private def target (w n : ℕ) : ℕ := Nat.log 2 (w * (n + 1)) + 1
 
@@ -100,7 +107,7 @@ private theorem capacity_le (w n : ℕ) : capacity (scale w n) ≤ 67108864 * ta
     change 524288 ≤ 67108864 * (Nat.log 2 (w * (n + 1)) + 1)
     omega
   | succ s =>
-    have hlt : s < scale w n := by rw [hs]; exact Nat.lt_succ_self s
+    have hlt : s < scale w n := by rw [hs]; omega
     have hprev := Nat.lt_of_not_ge (Nat.find_min (exists_scale w n) hlt)
     exact (capacity_succ_le s).trans (by omega)
 
@@ -173,8 +180,11 @@ private theorem message_injective (w n : ℕ) :
         (congrFun ((degreeLTEquiv _ _).symm.injective h) i)
       simpa only [coefficientBits, congrArg Fin.val hik] using congrFun hi k
     · have hcap := target_le_capacity w n
-      have hp : w * (n + 1) < 2 ^ j := (Nat.lt_pow_succ_log_self (by decide) _).trans_le
-        (Nat.pow_le_pow_right (by decide) (by unfold target at hcap; omega))
+      have hj' : Nat.log 2 (w * (n + 1)) + 1 ≤ j := by
+        unfold target at hcap
+        omega
+      have hp : w * (n + 1) < 2 ^ j :=
+        (Nat.lt_pow_succ_log_self (by decide) _).trans_le (Nat.pow_le_pow_right (by decide) hj')
       have hw : w ≤ w * (n + 1) := Nat.le_mul_of_pos_right _ (Nat.succ_pos _)
       rw [Nat.testBit_eq_false_of_lt (v.isLt.trans_le hw |>.trans hp),
         Nat.testBit_eq_false_of_lt (v'.isLt.trans_le hw |>.trans hp)]
@@ -205,13 +215,20 @@ theorem length_bounds (w n : ℕ) :
       Fintype.card (Coordinate w n) ≤ 268435456 * (Nat.log 2 (w * (n + 1)) + 1) := by
   change 512 * target w n ≤ _ ∧ _ ≤ 268435456 * target w n
   rw [card_coordinate]
-  refine ⟨(target_le_capacity w n).trans ((Nat.mul_le_mul_right _ (dimension_le _)).trans
-    (Nat.mul_le_mul_left _ (by omega))), ?_⟩
-  have h1 : (2 ^ scaleDegree (scale w n) - 1) * (2 * scaleDegree (scale w n)) ≤
-      4 * capacity (scale w n) :=
-    (Nat.mul_le_mul_right _ (Nat.sub_le _ _)).trans_eq (by rw [pow_scaleDegree, capacity]; ring)
-  have h2 := capacity_le w n
-  omega
+  set s := scale w n
+  constructor
+  · refine (target_le_capacity w n).trans ?_
+    calc
+      capacity s ≤ (2 ^ scaleDegree s - 1) * scaleDegree s :=
+        Nat.mul_le_mul_right _ (dimension_le s)
+      _ ≤ (2 ^ scaleDegree s - 1) * (2 * scaleDegree s) := Nat.mul_le_mul_left _ (by omega)
+  · calc
+      (2 ^ scaleDegree s - 1) * (2 * scaleDegree s) ≤ 2 ^ scaleDegree s * (2 * scaleDegree s) :=
+        Nat.mul_le_mul_right _ (Nat.sub_le _ _)
+      _ = 4 * capacity s := by rw [pow_scaleDegree, capacity]; ring
+      _ ≤ 268435456 * target w n := by
+        have h : capacity s ≤ 67108864 * target w n := capacity_le w n
+        omega
 
 /-- Distinct labels differ on at least one hundred twenty-eighth of the coordinates. -/
 theorem length_le_mul_hammingDist {w n : ℕ} {v v' : Fin w} (hne : v ≠ v') :

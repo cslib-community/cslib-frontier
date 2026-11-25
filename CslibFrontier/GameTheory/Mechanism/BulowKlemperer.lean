@@ -233,12 +233,16 @@ theorem integral_sum_payment_reserve_le_vickrey_succ
     rcases eq_or_ne i w with rfl | hi
     · exact le_rfl
     · exact (hreg.strictMonoOn_Ioi hμ).monotoneOn (hv i) (hv w) (hw i hi).1
-  conv_rhs =>
-    rw [Finset.sum_eq_single w
-      (fun j _ hj => by rw [allocation_eq_zero_iff.2 fun h => hj (h.unique hw), mul_zero])
-      (fun h => absurd (Finset.mem_univ w) h), allocation_eq_one_iff.2 hw, mul_one]
-  simpa only [← Finset.mul_sum, sum_auxAllocation, mul_one] using Finset.sum_le_sum
-    (s := Finset.univ) fun i _ => mul_le_mul_of_nonneg_right (hle i) (auxAllocation_nonneg φ v i)
+  calc ∑ i : Fin (n + 1), φ (v i) * auxAllocation φ v i
+    _ ≤ ∑ i : Fin (n + 1), φ (v w) * auxAllocation φ v i :=
+          Finset.sum_le_sum fun i _ =>
+            mul_le_mul_of_nonneg_right (hle i) (auxAllocation_nonneg φ v i)
+    _ = φ (v w) := by rw [← Finset.mul_sum, sum_auxAllocation, mul_one]
+    _ = ∑ i : Fin (n + 1), φ (v i) * allocation v i := by
+          rw [Finset.sum_eq_single w
+            (fun j _ hj => by rw [allocation_eq_zero_iff.2 fun h => hj (h.unique hw), mul_zero])
+            (fun h => absurd (Finset.mem_univ w) h),
+            allocation_eq_one_iff.2 hw, mul_one]
 
 /-- **Bulow–Klemperer theorem (DSIC form)** ([BulowKlemperer1996]; [Roughgarden2016], Theorem 5.6;
 locators not re-verified against primary PDF): for i.i.d. regular bidders drawn from `μ`, every

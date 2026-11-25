@@ -69,7 +69,8 @@ open Polynomial Finset GaloisRingArith
 theorem getD_truncFl (ℓ i : ℕ) : (truncFl ℓ).getD i 0 = 0 := by
   unfold truncFl
   by_cases h : i < ℓ
-  · rw [List.getD_eq_getElem _ _ (by simpa using h)]; simp
+  · rw [List.getD_eq_getElem _ _ (by simpa using h)]
+    simp
   · exact List.getD_eq_default _ _ (by simpa using h)
 
 /-- The monic polynomial with lower coefficients `truncFl ℓ` is `V ^ ℓ`. -/
@@ -119,8 +120,8 @@ theorem truncNatHom_eq_iff {p q : ℕ[X]} :
     truncNatHom P ℓ p = truncNatHom P ℓ q ↔ ∀ j < ℓ, p.coeff j % 2 ^ P = q.coeff j % 2 ^ P := by
   rw [truncNatHom, RingHom.comp_apply, RingHom.comp_apply, truncRingHom_eq_iff]
   refine forall₂_congr fun j _ => ?_
-  simp only [coe_mapRingHom, coeff_map, Nat.coe_castRingHom,
-    show (2 : ℤ) ^ P = ((2 ^ P : ℕ) : ℤ) by push_cast; rfl, Int.natCast_modEq_iff]
+  simp only [coe_mapRingHom, coeff_map, Nat.coe_castRingHom]
+  rw [show (2 : ℤ) ^ P = ((2 ^ P : ℕ) : ℤ) by push_cast; rfl, Int.natCast_modEq_iff]
   rfl
 
 /-- **A coefficient list maps to its value**: the image of `ofCoeffList c` in `B_{P,ℓ}` is

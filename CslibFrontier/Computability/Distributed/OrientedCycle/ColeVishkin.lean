@@ -268,8 +268,11 @@ theorem state_of_le (hx : IsProperColoring x) (hN : ∀ v, x v < N) {s : ℕ} (h
     have hst (v) : (threeColoring K).state x (s + 1) v =
         cvColor ((threeColoring K).state x s v) ((threeColoring K).state x s (v + 1)) := by
       rw [Algorithm.state_succ, step_of_lt (by omega)]
-    exact ⟨fun v => by rw [hst, hst]; exact cvColor_ne (hp v),
-      fun v => by rw [hst, Function.iterate_succ_apply']; exact cvColor_lt (hp v) (hb v) (hb _)⟩
+    refine ⟨fun v => ?_, fun v => ?_⟩
+    · rw [hst, hst]
+      exact cvColor_ne (hp v)
+    · rw [hst, Function.iterate_succ_apply']
+      exact cvColor_lt (hp v) (hb v) (hb _)
 
 /-- In the three colour-removal rounds after round `K`, the colouring stays proper and loses colours
 `5`, `4` and `3`, provided `K` Cole–Vishkin rounds leave at most `6` colours. -/
@@ -288,11 +291,12 @@ theorem state_add_of_le (hx : IsProperColoring x) (hN : ∀ v, x v < N) (h6 : cv
           ((threeColoring K).state x (K + i) v) ((threeColoring K).state x (K + i) (v + 1)) := by
       rw [← Nat.add_assoc, Algorithm.state_succ, step_of_le_of_lt (by omega) (by omega),
         Nat.add_sub_cancel_left]
-    refine ⟨fun v => by rw [hst, hst, add_sub_cancel_right]; exact reduceColor_ne (hp v),
-      fun v => ?_⟩
-    rw [hst]
-    have := hb v
-    exact (reduceColor_lt (by omega) (by omega)).trans_le (by omega)
+    refine ⟨fun v => ?_, fun v => ?_⟩
+    · rw [hst, hst, add_sub_cancel_right]
+      exact reduceColor_ne (hp v)
+    · rw [hst]
+      have := hb v
+      exact (reduceColor_lt (by omega) (by omega)).trans_le (by omega)
 
 /-- After round `K + 3` every node keeps its colour. -/
 theorem state_add_three_add (j : ℕ) :
@@ -416,8 +420,10 @@ theorem fastThreeColoring_run {n N s : ℕ} {x : ZMod n → ℕ} (hx : IsProperC
       ∀ v, (fastThreeColoring s).run x r v < 3 := by
   obtain ⟨t, rfl⟩ := Nat.exists_eq_add_of_le hr
   have hrun : (fastThreeColoring s).run x (s + 3 + t) =
-      (threeColoring 0).run ((cvRule s).apply x) (3 + t) :=
-    funext fun v => by rw [Nat.add_assoc]; exact LocalRule.andThen_run _ _ x _ v
+      (threeColoring 0).run ((cvRule s).apply x) (3 + t) := by
+    funext v
+    rw [Nat.add_assoc]
+    exact LocalRule.andThen_run _ _ x _ v
   rw [hrun]
   exact threeColoring_run_of_iterate_le (cvRule_apply_isProperColoring hx s)
     (cvRule_apply_lt hx hN hs) le_rfl (by omega)

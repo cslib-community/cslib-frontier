@@ -297,7 +297,9 @@ theorem sketch_le_lowerBoundary {positions : Finset ℕ} {x q p : ℕ}
     rw [testBit_lowerBoundary]
     split_ifs with hpb
     · exact (Nat.testBit_eq_of_shiftRight_eq hprefix (by omega)).symm.trans hb
-    · exact decide_eq_true (lt_of_le_of_ne (not_lt.mp hpb) fun h => by subst h; simp [hbit] at hb)
+    · refine decide_eq_true (lt_of_le_of_ne (not_lt.mp hpb) fun h => ?_)
+      subst h
+      simp [hbit] at hb
 
 /-- Within a prefix block whose bit `p` is one, the upper correction boundary has a sketch
 at most as large as every word in that block. -/

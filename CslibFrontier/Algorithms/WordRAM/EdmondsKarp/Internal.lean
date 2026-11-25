@@ -239,10 +239,11 @@ private theorem bfsMidStep_realizes :
   all_goals
     obtain ⟨⟨hlay, hws, hwb⟩, hl, hu⟩ := h
     try ek_side
-  exact iterationSafe_of_stepInv _ _ w _ (fun rem (v : ℕ) _ => v + rem = d.1.1.n)
-    (fun _ _ _ _ => ⟨⟨⟨hlay, hws, hwb⟩, hl, hu, by dsimp only at *; omega⟩, by
-      dsimp only at *
-      rw [clientResult_bfsInnerStep]; omega⟩) (Nat.zero_add _)
+  refine iterationSafe_of_stepInv _ _ w _ (fun rem (v : ℕ) _ => v + rem = d.1.1.n)
+    (fun _ _ _ _ => ?_) (Nat.zero_add _)
+  dsimp only at *
+  refine ⟨⟨⟨hlay, hws, hwb⟩, hl, hu, by omega⟩, ?_⟩
+  rw [clientResult_bfsInnerStep]; omega
 
 private theorem bfsLayerStep_realizes :
     Realizes .exact bfsLayerStep (WordEncoding.encode (α := Ctx × ℕ))
@@ -253,10 +254,11 @@ private theorem bfsLayerStep_realizes :
   all_goals
     obtain ⟨⟨hlay, hws, hwb⟩, hl⟩ := h
     try ek_side
-  exact iterationSafe_of_stepInv _ _ w _ (fun rem (u : ℕ) _ => u + rem = d.1.n)
-    (fun _ _ _ _ => ⟨⟨⟨hlay, hws, hwb⟩, hl, by dsimp only at *; omega⟩, by
-      dsimp only at *
-      rw [clientResult_bfsMidStep]; omega⟩) (Nat.zero_add _)
+  refine iterationSafe_of_stepInv _ _ w _ (fun rem (u : ℕ) _ => u + rem = d.1.n)
+    (fun _ _ _ _ => ?_) (Nat.zero_add _)
+  dsimp only at *
+  refine ⟨⟨⟨hlay, hws, hwb⟩, hl, by omega⟩, ?_⟩
+  rw [clientResult_bfsMidStep]; omega
 
 private theorem bfsProg_realizes :
     Realizes .exact bfsProg (WordEncoding.encode (α := Ctx × ℕ))
@@ -267,10 +269,12 @@ private theorem bfsProg_realizes :
   all_goals
     obtain ⟨⟨hlay, hws, hwb⟩, hs⟩ := h
     try ek_side
-  exact iterationSafe_of_stepInv _ _ w _ (fun rem (layer : ℕ) _ => layer + rem = d.1.n - 1)
-    (fun _ _ _ _ => ⟨⟨⟨hlay, hws, hwb⟩, by dsimp only at *; omega⟩, by
-      dsimp only [bfsLayerStep] at *
-      simp only [client_simps]; omega⟩) (Nat.zero_add _)
+  refine iterationSafe_of_stepInv _ _ w _ (fun rem (layer : ℕ) _ => layer + rem = d.1.n - 1)
+    (fun _ _ _ _ => ?_) (Nat.zero_add _)
+  dsimp only at *
+  refine ⟨⟨⟨hlay, hws, hwb⟩, by omega⟩, ?_⟩
+  dsimp only [bfsLayerStep]
+  simp only [client_simps]; omega
 
 private theorem bnStep_realizes :
     Realizes .exact bnStep (WordEncoding.encode (α := Ctx × (ℕ × ℕ)))
@@ -328,10 +332,11 @@ theorem cutOuterStep_realizes :
   all_goals
     obtain ⟨⟨hlay, hws, hwb⟩, hu⟩ := h
     try ek_side
-  exact iterationSafe_of_stepInv _ _ w _ (fun rem (va : ℕ × ℕ) _ => va.1 + rem = d.1.n)
-    (fun _ _ _ _ => ⟨⟨⟨hlay, hws, hwb⟩, hu, by dsimp only at *; omega⟩, by
-      dsimp only at *
-      rw [clientResult_cutInnerStep_fst]; omega⟩) (Nat.zero_add _)
+  refine iterationSafe_of_stepInv _ _ w _ (fun rem (va : ℕ × ℕ) _ => va.1 + rem = d.1.n)
+    (fun _ _ _ _ => ?_) (Nat.zero_add _)
+  dsimp only at *
+  refine ⟨⟨⟨hlay, hws, hwb⟩, hu, by omega⟩, ?_⟩
+  rw [clientResult_cutInnerStep_fst]; omega
 
 /-! ### State preservation and distance-monotonicity relation -/
 

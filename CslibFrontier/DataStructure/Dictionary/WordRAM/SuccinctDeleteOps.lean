@@ -965,7 +965,8 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         fun hc => (hinv.hchain_mem b hb m_last hm_last_lt _).mpr
           ⟨by
               dsimp only [d_fin, deletePrepHdr, deletePrepPhys, gm₀, deleteFinishToFound,
-                deleteFinishPair, nestedCallBase, nestedCallBucket] at *; omega,
+                deleteFinishPair, nestedCallBase, nestedCallBucket] at *
+              omega,
             hc, hm_last_eq.symm⟩⟩⟩
     obtain ⟨s_mid, L_mid, hst_mid, hcost_mid, hf_mid, hout_mid, hgm_mid,
         hold_other_mid, hold_b_mid, hval_mid, hmem_other_mid, hmem_b_mid⟩ :=
@@ -1003,7 +1004,9 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
     have hnot_some : ¬(B b q_target).isSome := mt (hinv.hmap_dom b hb q_target).mp hex
     have hB_eq : B' = B := by
       simp only [B', Function.update_eq_self_iff, Option.not_isSome_iff_eq_none.mp hnot_some]
-    have hne1 : prep.1.1.1 ≠ 1 := by dsimp only [prep]; exact ne_of_eq_of_ne hprep.1 (by decide)
+    have hne1 : prep.1.1.1 ≠ 1 := by
+      dsimp only [prep]
+      exact ne_of_eq_of_ne hprep.1 (by decide)
     have hfin : deleteFinishProg U V w₀ n_max h_space d_fin = pure () := by
       simp only [d_fin, deletePrepHdr, deletePrepPhys, deleteFinishProg, deleteFinishGenProg,
         deleteFoundGenProg_mk, deleteFinishFound, pure_bind]

@@ -130,7 +130,8 @@ theorem blockMonomial_restrict_apply (blk : σ → Fin d) {S T : Finset (Fin d)}
   classical
   by_cases hT : blk v ∈ T
   · rw [ite_eq_left hT, blockMonomial_apply, blockMonomial_apply, dite_eq_left hT,
-      dite_eq_left (hTS hT)]; rfl
+      dite_eq_left (hTS hT)]
+    rfl
   · simp [hT, blockMonomial_apply_of_notMem]
 
 /-- Restricting a choice on `A` to the blocks of `A ∩ S` restricts its monomial to the blocks
@@ -261,7 +262,7 @@ theorem IsSetMultilinear.prod {blk : σ → Fin d} {ι : Type*} (s : Finset ι)
       (ih (hT.subset (Finset.coe_subset.2 (Finset.subset_insert a s)))
         fun i hi => hf i (Finset.mem_insert_of_mem hi))
       ((Finset.disjoint_biUnion_right _ _ _).2 fun i hi => hT
-        (Finset.mem_insert_self a s) (Finset.mem_insert_of_mem hi) (by rintro rfl; exact ha hi))
+        (Finset.mem_insert_self a s) (Finset.mem_insert_of_mem hi) fun h => ha (h ▸ hi))
 
 
 /-- A set-multilinear polynomial is multilinear: it has degree at most one in every variable. -/
