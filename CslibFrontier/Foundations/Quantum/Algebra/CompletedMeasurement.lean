@@ -93,11 +93,9 @@ private theorem norm_sum_effect_mul_sq_le (φ : AlgState A)
   classical
   rw [AlgState.norm_sq, star_sum, sum_mul, map_sum, Complex.re_sum]
   refine sum_le_sum fun a _ => ?_
-  rw [mul_sum, map_sum, Complex.re_sum]
-  rw [sum_eq_single_of_mem a (mem_univ a)]
+  rw [mul_sum, map_sum, Complex.re_sum, sum_eq_single_of_mem a (mem_univ a)]
   · rw [← AlgState.norm_sq]
-    apply pow_le_pow_left₀ (φ.norm_nonneg _)
-    refine φ.norm_mul_le_of_star_mul_self_le_one ?_ _
+    refine pow_le_pow_left₀ (φ.norm_nonneg _) (φ.norm_mul_le_of_star_mul_self_le_one ?_ _) 2
     rw [((M.nonneg (ι a)).isSelfAdjoint.star_eq), hM (ι a)]
     exact M.effect_le_one _
   · intro b hb hba
@@ -156,13 +154,9 @@ theorem sum_successfulEffect_commutator_sq_le (φ : AlgState A)
     norm_sum_effect_mul_sq_le φ P hP Function.Embedding.some _
   have hv (b : κ) : φ.norm (V b) ^ 2 ≤ ∑ a, φ.norm (X a b) ^ 2 :=
     norm_sum_effect_mul_sq_le φ R hR Function.Embedding.some _
-  have hw : ∑ b, φ.norm (W b) ^ 2 ≤ ∑ a, φ.norm (D a) ^ 2 := by
-    calc
-      _ ≤ ∑ b, ∑ a, φ.norm (Q.effect (ι b) * D a) ^ 2 := sum_le_sum fun b _ =>
-        norm_sum_effect_mul_sq_le φ P hP Function.Embedding.some _
-      _ ≤ _ := by
-        rw [sum_comm]
-        exact sum_le_sum fun a _ => sum_norm_selected_effect_mul_sq_le φ Q hQ ι _
+  have hw : ∑ b, φ.norm (W b) ^ 2 ≤ ∑ a, φ.norm (D a) ^ 2 :=
+    (sum_le_sum fun b _ => norm_sum_effect_mul_sq_le φ P hP Function.Embedding.some _).trans <|
+      sum_comm.trans_le (sum_le_sum fun a _ => sum_norm_selected_effect_mul_sq_le φ Q hQ ι _)
   have hz : ∑ b, φ.norm (Z b) ^ 2 ≤ ∑ a, φ.norm (D a) ^ 2 :=
     (sum_norm_selected_effect_mul_sq_le φ Q hQ ι _).trans
       (norm_sum_effect_mul_sq_le φ P hP Function.Embedding.some _)
@@ -254,8 +248,7 @@ theorem copyDefect_le_two_mul_successfulCopyDefect (φ : AlgState A)
   unfold copyDefect
   rw [Fintype.sum_option]
   change φ.norm (P.effect none - R.effect none) ^ 2 + successfulCopyDefect φ P R ≤ _
-  rw [two_mul]
-  exact add_le_add_left (norm_none_sub_sq_le_successfulCopyDefect φ P R hP hR hc) _
+  linarith [norm_none_sub_sq_le_successfulCopyDefect φ P R hP hR hc]
 
 /-- Commutator defect restricted to pairs of successful outcomes. -/
 @[expose] noncomputable def successfulPairDefect (φ : AlgState A)
