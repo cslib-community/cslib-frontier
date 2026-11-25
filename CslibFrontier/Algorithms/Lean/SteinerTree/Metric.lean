@@ -252,8 +252,7 @@ theorem mul_totalWeight_kruskalEdges_le {k : ℕ} (δ : Fin k → Fin k → ℕ)
     exact ⟨m, List.max?_eq_some_iff.1 hm⟩
   have hCm : cycleCost δ q ≤ k * m := by
     have := List.sum_le_length_nsmul c m hmax
-    rw [hclen, smul_eq_mul] at this
-    exact this
+    rwa [hclen, smul_eq_mul] at this
   obtain ⟨c₁, c₂, hsplit⟩ := List.append_of_mem hm
   set q' := q.rotate (c₁.length + 1) with hq'
   have hq'nd : q'.Nodup := (List.rotate_perm q _).nodup_iff.2 hq
