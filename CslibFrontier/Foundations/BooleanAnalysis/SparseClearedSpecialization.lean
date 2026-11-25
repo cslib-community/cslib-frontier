@@ -146,11 +146,6 @@ theorem eval_coeff_prod_parityFactorCleared [CommRing R] (I : Finset κ) (ℓ : 
   refine congrArg (fun Q : Polynomial R => Q.coeff s) (prod_congr rfl fun i _ => ?_)
   exact map_parityFactorCleared φ ℓ Δ (A_i i)
 
-private theorem natDegree_sum_le_of_forall {A β : Type*} [Semiring A] (s : Finset β)
-    (f : β → Polynomial A) {n : ℕ} (h : ∀ b ∈ s, (f b).natDegree ≤ n) :
-    (∑ b ∈ s, f b).natDegree ≤ n :=
-  (Polynomial.natDegree_sum_le s f).trans ((Finset.fold_max_le n).2 ⟨Nat.zero_le n, h⟩)
-
 /-- When `Δ` has `natDegree = 0` and `A_i` has `natDegree ≤ d`, `parityBaseDigitCleared ℓ j Δ A_i`
 has `natDegree ≤ d`. -/
 theorem natDegree_parityBaseDigitCleared_le [CommRing R] (ℓ j : ℕ) (Δ A_i : Polynomial R)
@@ -210,7 +205,7 @@ theorem natDegree_coeff_prod_parityFactorCleared_le [CommRing R] (I : Finset κ)
   | insert a I ha ih =>
     intro s
     rw [prod_insert ha, card_insert_of_notMem ha, Polynomial.coeff_mul]
-    refine natDegree_sum_le_of_forall _ _ fun p hp => ?_
+    refine Polynomial.natDegree_sum_le_of_forall_le _ _ fun p hp => ?_
     rw [Finset.mem_antidiagonal] at hp
     have h1 :=
       natDegree_coeff_parityFactorCleared_le ℓ Δ (A_i a) hΔ (hA a (mem_insert_self a I)) p.1
@@ -310,7 +305,7 @@ theorem natDegree_clearedMonomialSumPoly_le (d_den : ℤ) {k R_deg : ℕ} (θ : 
     {𝓜 : Finset (Finset ι)} (hk : ∀ M ∈ 𝓜, #M ≤ k)
     (hθ : ∀ M ∈ 𝓜, ∀ v ∈ M, (θ v).natDegree ≤ R_deg) :
     (clearedMonomialSumPoly d_den k θ 𝓜).natDegree ≤ k * R_deg :=
-  natDegree_sum_le_of_forall 𝓜 _ fun M hM =>
+  Polynomial.natDegree_sum_le_of_forall_le 𝓜 _ fun M hM =>
     (natDegree_clearedMonomialPoly_le d_den k θ (hθ M hM)).trans
       (Nat.mul_le_mul_right R_deg (hk M hM))
 
@@ -385,7 +380,7 @@ theorem natDegree_univariateClearedParityCoord_le [Fintype ι] [DecidableEq ι] 
     (univariateClearedParityCoord I P d_den k ℓ θ s).natDegree ≤
       (k * R_deg) * (#I + 2 * (ℓ - 1)) := by
   rw [univariateClearedParityCoord_eq_sum]
-  exact natDegree_sum_le_of_forall _ _ fun x _ =>
+  exact Polynomial.natDegree_sum_le_of_forall_le _ _ fun x _ =>
     natDegree_coeff_prod_parityFactorCleared_le_of_lt I (Polynomial.C (d_den ^ k))
       (fun i => clearedMonomialSumPoly d_den k (θ x i) (P i))
       (Polynomial.natDegree_C (d_den ^ k))
@@ -401,7 +396,7 @@ theorem natDegree_univariateClearedParityTruncatedSum_le [Fintype ι] [Decidable
     (hθ : ∀ x : ι → Bool, ∀ i ∈ I, ∀ M ∈ P i, ∀ v ∈ M, (θ x i v).natDegree ≤ R_deg) :
     (univariateClearedParityTruncatedSum I P d_den k ℓ θ).natDegree ≤
       (k * R_deg) * (#I + 2 * (ℓ - 1)) :=
-  natDegree_sum_le_of_forall _ _ fun _ hs =>
+  Polynomial.natDegree_sum_le_of_forall_le _ _ fun _ hs =>
     natDegree_univariateClearedParityCoord_le I P d_den k ℓ θ hk hθ (mem_range.1 hs)
 
 /-- **§5.4 & Appendix B.2–B.3 (homogenization of $\tilde{H}_s(T) = \Omega [V^s] H(T)$)**:
