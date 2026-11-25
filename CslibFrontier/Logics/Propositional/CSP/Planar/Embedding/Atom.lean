@@ -115,9 +115,10 @@ private theorem verifyArgumentOrder_finBody (r : Rel) (n : ℕ) :
 theorem incidenceGraph_atom (arity : Rel → ℕ) (sem : Rel → List Bool → Bool) (r : Rel) :
     incidenceGraph (PPGadget.atom (arity := arity) (sem := sem) r).body = starGraph (arity r) := by
   change incidenceGraph ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0)) = _
-  rw [show ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0)) =
-    (finBody r (arity r)).relabel Sum.inl by
-      simp [finBody, CSP.relabel, Constraint.relabel, List.ofFn_eq_map]]
+  have he : ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0)) =
+      (finBody r (arity r)).relabel Sum.inl := by
+    simp [finBody, CSP.relabel, Constraint.relabel, List.ofFn_eq_map]
+  rw [he]
   exact (incidenceGraph_relabel_of_injOn _ _ fun _ _ _ _ h => Sum.inl.inj h).trans
     (incidenceGraph_finBody r (arity r))
 
@@ -135,8 +136,9 @@ table. The relation label and truth value play no role in the graph check. -/
 theorem singleScopeCertificate_accepted {V : Type} [DecidableEq V]
     (r : Rel) (scope : List V) (hn : scope.Nodup) :
     verifyRotationCertificate [⟨r, scope⟩] (atomBodyCertificate scope.length) = true := by
-  rw [← show (finBody r scope.length).relabel scope.get = [⟨r, scope⟩] by
-    simp [finBody, CSP.relabel, Constraint.relabel, List.map_get_finRange]]
+  have he : (finBody r scope.length).relabel scope.get = [⟨r, scope⟩] := by
+    simp [finBody, CSP.relabel, Constraint.relabel, List.map_get_finRange]
+  rw [← he]
   exact (verifyRotationCertificate_relabel_of_injOn _ _
     (fun _ _ _ _ h => Fin.ext (hn.getElem_inj.mp h)) _).trans
     (verifyRotationCertificate_finBody r scope.length)
@@ -148,10 +150,10 @@ theorem atomBodyCertificate_accepted (arity : Rel → ℕ) (sem : Rel → List B
       (atomBodyCertificate (arity r)) = true := by
   change verifyRotationCertificate ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0))
     (atomBodyCertificate (arity r)) = true
-  rw [show ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0)) =
-    (finBody r (arity r)).relabel Sum.inl by
-      simp [finBody, CSP.relabel, Constraint.relabel, List.ofFn_eq_map],
-    verifyRotationCertificate_relabel_of_injOn _ _ fun _ _ _ _ h => Sum.inl.inj h]
+  have he : ([⟨r, List.ofFn Sum.inl⟩] : CSP Rel (Fin (arity r) ⊕ Fin 0)) =
+      (finBody r (arity r)).relabel Sum.inl := by
+    simp [finBody, CSP.relabel, Constraint.relabel, List.ofFn_eq_map]
+  rw [he, verifyRotationCertificate_relabel_of_injOn _ _ fun _ _ _ _ h => Sum.inl.inj h]
   exact verifyRotationCertificate_finBody r (arity r)
 
 /-- Every literal original-language atom internally supplies an ordered numerical realization

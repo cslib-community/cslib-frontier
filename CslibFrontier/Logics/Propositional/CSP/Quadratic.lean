@@ -199,14 +199,19 @@ theorem holds_linearCombination_iff (F : QuadSystem V) (r : List Bool) (a : V �
     rw [← sum_map_filter_zip (fun e : QuadEquation V => (e.terms.map fun p => a p.1 * a p.2).sum)]
     simp only [linearCombination, List.flatMap, List.map_flatten, List.sum_flatten, List.map_map]
     rfl
-  rw [QuadEquation.Holds, hlhs, show (F.linearCombination r).rhs =
-      ∑ i : Fin F.length, if r.getD i false then F[i].rhs else 0 by
-      rw [← sum_map_filter_zip QuadEquation.rhs F r]; rfl,
-    (by decide : ∀ x y : Bool, x = y ↔ x + y = 0), ← Finset.sum_add_distrib,
-    Finset.sum_congr rfl fun (i : Fin F.length) _ =>
-      (by decide : ∀ b x y : Bool, ((if b then x else 0) + if b then y else 0) =
-        if ¬x = y ∧ b = true then 1 else 0) (r.getD i false)
-          ((F[i].terms.map fun p => a p.1 * a p.2).sum) F[i].rhs,
+  have hrhs : (F.linearCombination r).rhs =
+      ∑ i : Fin F.length, if r.getD i false then F[i].rhs else 0 := by
+    rw [← sum_map_filter_zip QuadEquation.rhs F r]
+    rfl
+  have hterm (i : Fin F.length) :
+      ((if r.getD i false then (F[i].terms.map fun p => a p.1 * a p.2).sum else 0) +
+        if r.getD i false then F[i].rhs else 0) =
+        if ¬F[i].Holds a ∧ r.getD i false = true then 1 else 0 :=
+    (by decide : ∀ b x y : Bool, ((if b then x else 0) + if b then y else 0) =
+      if ¬x = y ∧ b = true then 1 else 0) (r.getD i false)
+        ((F[i].terms.map fun p => a p.1 * a p.2).sum) F[i].rhs
+  rw [QuadEquation.Holds, hlhs, hrhs, (by decide : ∀ x y : Bool, x = y ↔ x + y = 0),
+    ← Finset.sum_add_distrib, Finset.sum_congr rfl fun i _ => hterm i,
     Finset.sum_boole, CharTwo.natCast_eq_ite]
   simp [QuadEquation.Holds]
 

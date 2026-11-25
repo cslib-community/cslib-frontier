@@ -134,20 +134,21 @@ theorem synthesis_batched_binary_powering (f : BitString n → BitString n) (C :
       rintro _ ⟨bit, rfl⟩
       refine Or.inr ⟨finProdFinEquiv (member, bit), funext fun x => ?_⟩
       change pow.eval interpretation (packed x) _ = _
-      rw [hp (packed x), blockMap_apply,
-        show BitString.block (packed x) member = state j x member from
-          funext fun _ => by simp only [BitString.block, packed, Equiv.symm_apply_apply]]
+      have hblk : BitString.block (packed x) member = state j x member :=
+        funext fun _ => by simp only [BitString.block, packed, Equiv.symm_apply_apply]
+      rw [hp (packed x), blockMap_apply, hblk]
     have hmux := Synthesis.iUnion (I := interpretation) (s := src')
       (fun member => wires fun x => if bits x member ⟨j, hj⟩ then f^[2 ^ j] (state j x member)
         else state j x member) (fun _ => 4 * n) fun member =>
       synthesis_bits_mux src' _ _ _ (hout member)
         (by rintro _ ⟨bit, rfl⟩; exact Or.inl (hav member bit))
         (Or.inl (Or.inl (hb member ⟨j, hj⟩)))
-    rw [show (⋃ member, wires fun x => if bits x member ⟨j, hj⟩ then
-        f^[2 ^ j] (state j x member) else state j x member) = q (j + 1) by
+    have he : (⋃ member, wires fun x => if bits x member ⟨j, hj⟩ then
+        f^[2 ^ j] (state j x member) else state j x member) = q (j + 1) := by
       congr 1 with member : 1
       congr 1 with x : 1
-      exact (iterate_toNat_equivBitVec_mod_two_pow_succ f (bits x member) hj _).symm] at hmux
+      exact (iterate_toNat_equivBitVec_mod_two_pow_succ f (bits x member) hj _).symm
+    rw [he] at hmux
     refine (hpow.trans hmux).mono Set.Subset.rfl Set.Subset.rfl ?_
     simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
     nlinarith
