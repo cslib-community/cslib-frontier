@@ -390,8 +390,7 @@ private theorem isX_natAdd (k : Fin n) : isX (Fin.natAdd n k) = false := by
 private theorem eq_var_iff {v : Fin (n + n)} {k : Fin n} {b : Bool} :
     v = var k b ↔ pair v = k ∧ isX v = b := by
   constructor
-  · rintro rfl
-    exact ⟨pair_var k b, isX_var k b⟩
+  · rintro rfl; exact ⟨pair_var k b, isX_var k b⟩
   · rintro ⟨rfl, rfl⟩
     induction v using Fin.addCases with
     | left i => rw [pair_castAdd, isX_castAdd, var, ite_eq_left rfl]
@@ -406,9 +405,7 @@ theorem not_basic_var_not (N : ℕ) (j : Fin n) : ¬Basic N (var j (!flipped N j
 private theorem eq_var_self_iff {N : ℕ} {j : Fin n} {v : Fin (n + n)} :
     v = var j (flipped N j) ↔ pair v = j ∧ Basic N v := by
   rw [eq_var_iff, Basic]
-  constructor
-  · rintro ⟨rfl, h⟩; exact ⟨rfl, h⟩
-  · rintro ⟨rfl, h⟩; exact ⟨rfl, h⟩
+  constructor <;> rintro ⟨rfl, h⟩ <;> exact ⟨rfl, h⟩
 
 private theorem eq_var_not_iff {N : ℕ} {j : Fin n} {v : Fin (n + n)} :
     v = var j (!flipped N j) ↔ pair v = j ∧ ¬Basic N v := by
