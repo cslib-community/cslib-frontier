@@ -120,12 +120,8 @@ theorem mem_clique {c : Clause (Fin (edgeCount n) ⊕ Fin k × Fin n)} :
         ∃ u v, u < v ∧ ∃ (i j : Fin n) (h : i ≠ j), c = cliqueEdgeClause u v h := by
   simp only [clique, List.mem_append, List.mem_map, List.mem_finRange, true_and,
     List.mem_flatMap, List.mem_filter, decide_eq_true_eq, List.mem_filterMap,
-    Option.dite_none_left_eq_some, Option.some.injEq]
-  constructor
-  · rintro ((⟨u, rfl⟩ | ⟨u, v, huv, i, rfl⟩) | ⟨u, v, huv, i, j, hij, rfl⟩)
-    exacts [.inl ⟨u, rfl⟩, .inr (.inl ⟨u, v, huv, i, rfl⟩), .inr (.inr ⟨u, v, huv, i, j, hij, rfl⟩)]
-  · rintro (⟨u, rfl⟩ | ⟨u, v, huv, i, rfl⟩ | ⟨u, v, huv, i, j, hij, rfl⟩)
-    exacts [.inl (.inl ⟨u, rfl⟩), .inl (.inr ⟨u, v, huv, i, rfl⟩), .inr ⟨u, v, huv, i, j, hij, rfl⟩]
+    Option.dite_none_left_eq_some, Option.some.injEq, or_assoc]
+  simp only [eq_comm (a := c)]
 
 /-- Clause (1a) holds when the member `u` is some vertex. -/
 @[simp] theorem eval_cliqueMemberClause (σ : Fin (edgeCount n) ⊕ Fin k × Fin n → Bool) (u : Fin k) :
@@ -188,7 +184,9 @@ theorem exists_eval_clique_iff (x : Fin (edgeCount n) → Bool) :
     have hinj : Function.Injective f := by
       intro u v huv
       by_contra hne
-      grind
+      rcases lt_or_gt_of_ne hne with h | h
+      · exact Bool.noConfusion ((hf v).symm.trans (huv ▸ hdist u v h (f u) (hf u)))
+      · exact Bool.noConfusion ((hf u).symm.trans (huv.symm ▸ hdist v u h (f v) (hf v)))
     refine ⟨Finset.univ.image f, (SimpleGraph.isNClique_iff _).2 ⟨?_, ?_⟩⟩
     · intro i hi j hj hij
       simp only [Finset.coe_image, Finset.coe_univ, Set.image_univ, Set.mem_range] at hi hj
@@ -254,12 +252,8 @@ theorem mem_coloring {c : Clause (Fin (edgeCount n) ⊕ Fin n × Fin r)} :
         ∃ a, ∃ (i j : Fin n) (h : i < j), c = colorEdgeClause a h.ne := by
   simp only [coloring, List.mem_append, List.mem_map, List.mem_finRange, true_and,
     List.mem_flatMap, List.mem_filter, decide_eq_true_eq, List.mem_filterMap,
-    Option.dite_none_right_eq_some, Option.some.injEq]
-  constructor
-  · rintro ((⟨i, rfl⟩ | ⟨i, a, b, hab, rfl⟩) | ⟨a, i, j, hij, rfl⟩)
-    exacts [.inl ⟨i, rfl⟩, .inr (.inl ⟨i, a, b, hab, rfl⟩), .inr (.inr ⟨a, i, j, hij, rfl⟩)]
-  · rintro (⟨i, rfl⟩ | ⟨i, a, b, hab, rfl⟩ | ⟨a, i, j, hij, rfl⟩)
-    exacts [.inl (.inl ⟨i, rfl⟩), .inl (.inr ⟨i, a, b, hab, rfl⟩), .inr ⟨a, i, j, hij, rfl⟩]
+    Option.dite_none_right_eq_some, Option.some.injEq, or_assoc]
+  simp only [eq_comm (a := c)]
 
 /-- Clause (2a) holds when the vertex `i` has some colour. -/
 @[simp] theorem eval_colorVertexClause (σ : Fin (edgeCount n) ⊕ Fin n × Fin r → Bool)
@@ -320,7 +314,10 @@ theorem exists_eval_coloring_iff (x : Fin (edgeCount n) → Bool) :
     choose c hc using hcol
     refine ⟨SimpleGraph.Coloring.mk c fun {i j} hij hcij => ?_⟩
     have hx := (graph_adj hij.ne).1 hij
-    grind [edge_comm]
+    rcases lt_or_gt_of_ne hij.ne with h | h
+    · exact Bool.noConfusion (hx.symm.trans (hedge (c i) i j h (hc i) (hcij ▸ hc j)))
+    · rw [edge_comm] at hx
+      exact Bool.noConfusion (hx.symm.trans (hedge (c j) j i h (hc j) (hcij.symm ▸ hc i)))
   · rintro ⟨C⟩
     refine ⟨fun ⟨i, a⟩ => decide (C i = a), (eval_coloring_eq_true_iff _).2 ⟨?_, ?_, ?_⟩⟩
     · exact fun i => ⟨C i, by simp⟩
