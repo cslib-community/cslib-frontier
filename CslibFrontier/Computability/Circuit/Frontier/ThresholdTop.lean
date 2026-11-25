@@ -1204,10 +1204,7 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
   have hlogV_le : Real.log (V + 1) ≤ Real.log (10 * (2 + 1 / A) * n + 11) :=
     Real.log_le_log (by positivity) (by linarith)
   have hpos_edge_step (s : ℕ) : (0 : ℝ) < (B₀.edgeOf s '' univ).ncard := by
-    have x0 : Fin n → U := fun _ => Classical.arbitrary U
-    have : 0 < (B₀.edgeOf s '' univ).ncard :=
-      (ncard_pos (toFinite _)).mpr ⟨B₀.edgeOf s x0, x0, mem_univ x0, rfl⟩
-    exact_mod_cast this
+    exact_mod_cast (ncard_pos (toFinite _)).mpr (univ_nonempty.image _)
   -- Bound the exponent `w_max` of `q ^ w_max` across all steps `s < V`.
   have hstep_le (s : ℕ) (hs : s < V) :
       Real.logb q ((B₀.edgeOf s '' univ).ncard : ℝ) ≤
@@ -1262,20 +1259,17 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
     push_cast
     have h1_le_qM : (1 : ℝ) ≤ (q : ℝ) ^ M_exp := Real.one_le_rpow (by linarith) hM_nonneg
     have hsum_le : ∑ x ∈ Finset.range V, ((B₀.edgeOf x '' univ).ncard : ℝ) ≤
-        (V : ℝ) * (q : ℝ) ^ M_exp := by
-      calc ∑ x ∈ Finset.range V, ((B₀.edgeOf x '' univ).ncard : ℝ)
-          ≤ ∑ _x ∈ Finset.range V, (q : ℝ) ^ M_exp :=
-            Finset.sum_le_sum fun s hs =>
-              (Real.logb_le_iff_le_rpow (by linarith) (hpos_edge_step s)).mp
-                (hstep_le s (Finset.mem_range.mp hs))
-        _ = (V : ℝ) * (q : ℝ) ^ M_exp := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+        (V : ℝ) * (q : ℝ) ^ M_exp :=
+      (Finset.sum_le_sum fun s hs => (Real.logb_le_iff_le_rpow (by linarith)
+        (hpos_edge_step s)).mp (hstep_le s (Finset.mem_range.mp hs))).trans_eq
+        (by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul])
     have hlast_r : ((B₀.edgeOf V '' univ).ncard : ℝ) ≤ (q : ℝ) ^ M_exp :=
       (Nat.cast_le.mpr hlast_le).trans (by simpa only [Nat.cast_one] using h1_le_qM)
     linarith
   have hK'_rpow : (((K' n - 1) ^ 2 : ℕ) : ℝ) ≤ (q : ℝ) ^ (2 * Real.logb q (K' n)) := by
     have hK'_pos : (0 : ℝ) < (K' n : ℕ) := by exact_mod_cast (show 0 < K' n by positivity)
-    rw [mul_comm, Real.rpow_mul (by positivity), Real.rpow_logb (by positivity) (by linarith) hK'_pos,
-      Real.rpow_two]
+    rw [mul_comm, Real.rpow_mul (by positivity),
+      Real.rpow_logb (by positivity) (by linarith) hK'_pos, Real.rpow_two]
     exact_mod_cast Nat.pow_le_pow_left (Nat.sub_le (K' n) 1) 2
   have hV1_rpow : (V + 1 : ℝ) ≤ (q : ℝ) ^ (κ * Real.log (V + 1)) := by
     have hV1_eq : (V + 1 : ℝ) = (q : ℝ) ^ Real.logb q (V + 1) :=
@@ -1578,10 +1572,8 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
     filter_upwards [hdefic_o.bound (by norm_num : (0 : ℝ) < 1 / 8), eventually_ge_atTop 24]
       with n hn hn24
     simp only [Real.norm_eq_abs, Nat.abs_cast] at hn
-    have hd : (defic n : ℝ) ≤ 1 / 8 * n := by linarith [le_abs_self (defic n : ℝ)]
     have hn24' : (24 : ℝ) ≤ n := by exact_mod_cast hn24
-    have hreal : (4 * (defic n + 2) + 4 : ℝ) ≤ n := by linarith
-    exact_mod_cast hreal
+    exact_mod_cast (by linarith [le_abs_self (defic n : ℝ)] : (4 * (defic n + 2) + 4 : ℝ) ≤ n)
   filter_upwards [herr_o.bound (show (0 : ℝ) < A * ε by positivity), hsmall_defic] with n herrn hdn
   simp only [Real.norm_eq_abs, Nat.abs_cast] at herrn
   have herr : (1 + 2 * (A + η)) * (defic n : ℝ) + (2 * |C| + 6 * (A + η) + 4) ≤ A * ε * n := by
@@ -1623,9 +1615,7 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
           not_iff_not.mpr ((Compiler.graph lc).edgeCut_eq_empty_iff.mp hQ e)
       have hQc_eq : Nnet.readIn Qsetᶜ = (Nnet.readIn Qset)ᶜ := readIn_compl_liveNetwork p Qset
       have hsum_n : (Nnet.readIn Qset).ncard + (Nnet.readIn Qsetᶜ).ncard = n := by
-        rw [hQc_eq]
-        have := ncard_add_ncard_compl (Nnet.readIn Qset)
-        rwa [Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin] at this
+        rw [hQc_eq, ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
       have hQc_le := hcut_le Qsetᶜ hQc_cut (by omega)
       omega
   -- Pick the layer `s` where `readIn (lay.initial s)` has size `⌊n / 2⌋`.
@@ -1684,16 +1674,9 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
       (fun _ => univ) hfan_lc hW_cut (Nnet.ncard_component_le_ncard_touching_add_one _)
     rw [hse] at h
     change (Compiler.graph lc).cycleRankOn W + (Nnet.readIn W).ncard ≤ (2 - 1) * se + 1 at h
-    have h' : (Compiler.graph lc).cycleRankOn W + (Nnet.readIn W).ncard ≤ se + 1 := by omega
-    have h_r : ((Compiler.graph lc).cycleRankOn W : ℝ) + (Nnet.readIn W).ncard ≤ se + 1 := by
-      exact_mod_cast h'
-    have hW_r : (n : ℝ) - (defic n + 2 : ℝ) ≤ (Nnet.readIn W).ncard := by
-      have h1 : n ≤ (Nnet.readIn W).ncard + (defic n + 2) := by
-        have := hdn
-        omega
-      have hr : (n : ℝ) ≤ (Nnet.readIn W).ncard + (defic n + 2 : ℕ) := by exact_mod_cast h1
-      push_cast at hr
-      linarith
+    have h_r : ((Compiler.graph lc).cycleRankOn W : ℝ) + n ≤ se + 1 + (defic n + 2 : ℕ) := by
+      exact_mod_cast (by omega : (Compiler.graph lc).cycleRankOn W + n ≤ se + 1 + (defic n + 2))
+    push_cast at h_r
     linarith
   have hV_le : V ≤ 7 * se + 3 * n := by
     have h := Compiler.card_vertex_le hfan_lc
@@ -1725,11 +1708,8 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
     have hC_le := le_abs_self C
     have hAe_pos : 0 < A * ε := by positivity
     linarith [hfront_le, herr]
-  have hn_div2 : (n : ℝ) - 1 ≤ 2 * ((n / 2 : ℕ) : ℝ) := by
-    have h1 : n ≤ 2 * (n / 2) + 1 := by omega
-    have hr : (n : ℝ) ≤ (2 * (n / 2) + 1 : ℕ) := by exact_mod_cast h1
-    push_cast at hr
-    linarith
+  have hn_div2 : (n : ℝ) ≤ 2 * ((n / 2 : ℕ) : ℝ) + 1 := by
+    exact_mod_cast (by omega : n ≤ 2 * (n / 2) + 1)
   have hhalf_r : ((n / 2 : ℕ) : ℝ) ≤ 2 * ((Nnet.frontier lay s).ncard : ℝ) + 2 + defic n := by
     exact_mod_cast hhalf_le
   have hAe_nonneg : 0 ≤ (1 / 2) * (A * ε) * n := by positivity
