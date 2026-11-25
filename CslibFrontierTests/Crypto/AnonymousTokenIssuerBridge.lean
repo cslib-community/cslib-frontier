@@ -108,7 +108,8 @@ example :
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.agreeIssue 1 0)).run st0) =
       PMF.pure (none, ⟨1, [], [], []⟩) := by
-  simp [draftIssuerOracle, draftQueryStep, agreeIssueTransition, detPolicy, StateT.run]
+  simp only [run_draftIssuerOracle_agreeIssue]
+  simp [detPolicy, StateT.run]
   rfl
 
 -- Positive witness: `.agreeIssue` (`hint = 10`) allocates ticket `0` and steps `policyState`.
@@ -118,7 +119,8 @@ example :
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.agreeIssue 1 10)).run st0) =
       PMF.pure (some ⟨0, 10⟩, ⟨1, [⟨1, 10⟩], [], []⟩) := by
-  simp [draftIssuerOracle, draftQueryStep, agreeIssueTransition, detPolicy, StateT.run]
+  simp only [run_draftIssuerOracle_agreeIssue]
+  simp [detPolicy, StateT.run]
   rfl
 
 -- Positive witness: `.issue` on a fresh valid ticket is accepted, signed, consumed, and logged.
@@ -129,8 +131,8 @@ example :
           (.issue issueValid)).run st1) =
       PMF.pure (some ((1, 1, 10), 0),
         ⟨1, [⟨1, 10⟩], [0], [.issue ⟨1, 10, (1, 1, 10), 1, 0⟩]⟩) := by
-  simp [draftIssuerOracle, draftQueryStep, acceptDraftIssue, commitDraftIssue, issueValid, testCom,
-    testSig, StateT.run, Conservation.Request.signedMessage]
+  simp only [run_draftIssuerOracle_issue]
+  simp [acceptDraftIssue, issueValid, testCom, testSig, Conservation.Request.signedMessage]
   rfl
 
 -- Positive witness: `.spend` passing the pre-check is accepted with stateful refund `2`.
@@ -145,8 +147,8 @@ example :
           (.spend req)).run st1) =
       PMF.pure (some ⟨2, ((2, 1, 6), 2)⟩,
         ⟨3, [⟨1, 10⟩], [0], [creq, .spend (req.toSpendRequest 2)]⟩) := by
-  simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, acceptedSpendRefund,
-    commitDraftSpend, DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest,
+  simp only [run_draftIssuerOracle_spend]
+  simp [acceptDraftSpendPre, DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest,
     Conservation.acceptRequest, Conservation.acceptLocal, Conservation.hasSpentNullifier,
     Conservation.SpendRequest.inputNote, Credit.target, Conservation.Request.signedMessage,
     detPolicy, spendStep1, testCom, testSig, StateT.run]
@@ -160,7 +162,8 @@ example :
           (.issue { ticket := 0, commitment := (1, 1, 0), nullifier := 1, opening := 0 })).run
           st0) =
       PMF.pure (none, st0) := by
-  simp [draftIssuerOracle, draftQueryStep, acceptDraftIssue, testCom, StateT.run]
+  simp only [run_draftIssuerOracle_issue]
+  simp [acceptDraftIssue, testCom]
   rfl
 
 -- `T ≥ bound` (`T = 100`, `bound = 16`) agreed via `hint = 2` is rejected by `.issue`.
@@ -171,7 +174,8 @@ example :
           (.issue { ticket := 0, commitment := (1, 1, 100), nullifier := 1, opening := 0 })).run
           st0) =
       PMF.pure (none, st0) := by
-  simp [draftIssuerOracle, draftQueryStep, acceptDraftIssue, testCom, StateT.run]
+  simp only [run_draftIssuerOracle_issue]
+  simp [acceptDraftIssue, testCom]
   rfl
 
 -- Ticket replay: once ticket `0` is in `st.consumed`, a second `.issue` on ticket `0` returns
@@ -185,7 +189,8 @@ example :
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.issue issueValid)).run st1) =
       PMF.pure (none, st1) := by
-  simp [draftIssuerOracle, draftQueryStep, acceptDraftIssue, issueValid, testCom, StateT.run]
+  simp only [run_draftIssuerOracle_issue]
+  simp [acceptDraftIssue, issueValid, testCom]
   rfl
 
 -- Isolated range check on `d = 16 ≥ bound`: `(V1)`–`(V3)` pass (`10 + 8 = 2 + 16`, with
@@ -209,8 +214,8 @@ example :
   · simp [DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
       Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
       testCom, testSig]
-  · simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, DraftSpendRequest.withinRange,
-      StateT.run]
+  · simp only [run_draftIssuerOracle_spend]
+    simp [acceptDraftSpendPre, DraftSpendRequest.withinRange]
     rfl
 
 -- Isolated range checks on `t = 16`, `x = 16`, and `t' = 16`: each satisfies
@@ -256,8 +261,8 @@ example :
     | (simp [DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
         Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
         testCom, testSig]; done)
-    | (simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, DraftSpendRequest.withinRange,
-        StateT.run]; rfl)
+    | (simp only [run_draftIssuerOracle_spend];
+        simp [acceptDraftSpendPre, DraftSpendRequest.withinRange]; rfl)
 
 -- `(V4)` refund range check rejects issuer-proposed `x' = 100 ≥ 16` (triggered by `debit = 7`)
 -- while recording the updated `policyState` from calling `chooseRefund`.
@@ -272,10 +277,11 @@ example :
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.spend req7)).run st1) =
       PMF.pure (none, { st1 with policyState := 2 }) := by
-  simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, acceptedSpendRefund,
-    DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest, Conservation.acceptRequest,
-    Conservation.acceptLocal, Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote,
-    Credit.target, detPolicy, spendStep1, testCom, testSig, StateT.run]
+  simp only [run_draftIssuerOracle_spend]
+  simp [acceptDraftSpendPre, DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest,
+    Conservation.acceptRequest, Conservation.acceptLocal, Conservation.hasSpentNullifier,
+    Conservation.SpendRequest.inputNote, Credit.target, detPolicy, spendStep1, testCom, testSig,
+    StateT.run]
   rfl
 
 -- Policy decline (`chooseRefund = none` at `policyState = 99`) also rejects with `none`.
@@ -289,10 +295,11 @@ example :
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.spend req)).run st99) =
       PMF.pure (none, st99) := by
-  simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, DraftSpendRequest.withinRange,
-    DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
-    Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
-    detPolicy, spendStep1, testCom, testSig, StateT.run]
+  simp only [run_draftIssuerOracle_spend]
+  simp [acceptDraftSpendPre, DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest,
+    Conservation.acceptRequest, Conservation.acceptLocal, Conservation.hasSpentNullifier,
+    Conservation.SpendRequest.inputNote, Credit.target, detPolicy, spendStep1, testCom, testSig,
+    StateT.run]
   rfl
 
 /-! ### Honest transcript, winnable forger, and probabilistic policy -/
@@ -333,9 +340,9 @@ example :
          .spend (s2.toSpendRequest 2)]⟩ := by
   simp only [runExtractedDraftConservation, honestDraftAdversary, testSig, detPolicy,
     ProbOracleComp.runState_bind, ProbOracleComp.runState_query, ProbOracleComp.runState_pure,
-    StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, draftIssuerOracle, draftQueryStep, draftReply, agreeIssueTransition,
-    acceptDraftIssue, commitDraftIssue, acceptDraftSpendPre, acceptedSpendRefund, commitDraftSpend,
+    StateT.run_bind, StateT.run_pure, run_draftIssuerOracle_agreeIssue,
+    run_draftIssuerOracle_issue, run_draftIssuerOracle_spend]
+  simp [StateT.run, draftReply, acceptDraftIssue, acceptDraftSpendPre,
     DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest, Conservation.acceptRequest,
     Conservation.acceptLocal, Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote,
     Credit.target, Conservation.Request.signedMessage, issueValid, spendStep1, spendStep2,
@@ -349,9 +356,9 @@ example :
       0 := by
   simp only [extractedDraftConservationExperiment, runExtractedDraftConservation,
     honestDraftAdversary, testSig, detPolicy, ProbOracleComp.runState_bind,
-    ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, draftIssuerOracle, draftQueryStep, draftReply, agreeIssueTransition,
-    acceptDraftIssue, commitDraftIssue, acceptDraftSpendPre, acceptedSpendRefund, commitDraftSpend,
+    ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure,
+    run_draftIssuerOracle_agreeIssue, run_draftIssuerOracle_issue, run_draftIssuerOracle_spend]
+  simp [StateT.run, draftReply, acceptDraftIssue, acceptDraftSpendPre,
     DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest, Conservation.acceptRequest,
     Conservation.acceptLocal, Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote,
     Credit.target, Conservation.Request.signedMessage, issueValid, spendStep1, spendStep2,
@@ -405,9 +412,8 @@ example :
       1 := by
   simp only [extractedDraftConservationExperiment, runExtractedDraftConservation, forgingAdversary,
     testSig, zeroRefundPolicy, ProbOracleComp.runState_bind, ProbOracleComp.runState_query,
-    ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, draftIssuerOracle, draftQueryStep, draftReply, acceptDraftSpendPre,
-    acceptedSpendRefund, commitDraftSpend, DraftSpendRequest.withinRange,
+    ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure, run_draftIssuerOracle_spend]
+  simp [StateT.run, draftReply, acceptDraftSpendPre, DraftSpendRequest.withinRange,
     DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
     Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
     Conservation.Request.signedMessage, testCom, extractedDraftConservationAccept,
@@ -462,13 +468,13 @@ example :
           ((draftIssuerOracle testCom Prod.mk testSig randPolicy 16 ((), ()) (.spend req)).run
             st1) =
         (Probability.PMF.uniformOfFintype (Fin 2)).bind fun r => PMF.pure (res r.val) := by
-    simp only [draftIssuerOracle, draftQueryStep, hpre, ↓reduceIte, randPolicy, StateT.run,
-      ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_unifFin, PMF.bind_bind, PMF.pure_bind]
+    rw [run_draftIssuerOracle_spend]
+    simp only [hpre, ↓reduceIte, randPolicy, StateT.run]
     change (Probability.PMF.uniformOfFintype (Fin 2)).bind _ = _
     refine congrArg (PMF.bind (Probability.PMF.uniformOfFintype (Fin 2))) (funext fun r => ?_)
     have hr : r.val + 1 < 16 := by omega
-    simp [res, stOf, hr, acceptedSpendRefund, commitDraftSpend, Conservation.Request.signedMessage,
-      DraftSpendRequest.toSpendRequest, req, spendStep1, testSig, st1, draftReply]
+    simp [res, stOf, hr, Conservation.Request.signedMessage, DraftSpendRequest.toSpendRequest,
+      req, spendStep1, testSig, st1, draftReply]
   have hrhs (k : Fin 2) :
       ((Probability.PMF.uniformOfFintype (Fin 2)).bind fun r => PMF.pure (res r.val))
           (res k.val) =
@@ -550,21 +556,19 @@ example :
       (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
   rcases hgap with hleft | hright <;> omega
 
-/-- Vulnerable mod-`2^64` variant of `draftIssuerOracle` replacing integer `(V3)` with `(V3)`
-modulo `2 ^ 64` while keeping `(V4)` `< 2 ^ 64` and `1 ≤ T < 2 ^ 64`. -/
+/-- Vulnerable mod-`2^64` variant of `draftIssuerOracle`: delegates `.agreeIssue` and `.issue`
+unchanged to `draftIssuerOracle`, while replacing integer `(V3)` with `(V3)` modulo `2 ^ 64` in
+`.spend` (keeping `(V4)` `< 2 ^ 64`). -/
 private def mod64ZeroRefundOracle :
     (q : DraftQuery ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ) →
     StateT (IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ) ProbComp
       (draftReply ((ℕ × ℕ × ℕ) × ℕ) q)
-  | .agreeIssue ctx hint => fun st => do
-      let (amt?, pst') ← (zeroRefundPolicy.agreeIssue ctx hint).run st.policyState
-      return agreeIssueTransition ctx amt? pst' st
-  | .issue req => fun st =>
-      match acceptDraftIssue testCom (2 ^ 64) req st with
-      | none => pure (none, st)
-      | some creq => do
-          let σ ← testSig.sign () (creq.signedMessage Prod.mk)
-          return commitDraftIssue req.ticket creq σ st
+  | .agreeIssue ctx hint =>
+      draftIssuerOracle testCom Prod.mk testSig zeroRefundPolicy (2 ^ 64) ((), ())
+        (.agreeIssue ctx hint)
+  | .issue req =>
+      draftIssuerOracle testCom Prod.mk testSig zeroRefundPolicy (2 ^ 64) ((), ())
+        (.issue req)
   | .spend req => fun st =>
       let okV1 := testSig.verify () (Credit.target testCom Prod.mk (⟨req.nullifier, req.ctx,
         req.oldCredit, req.oldRefund⟩) req.oldOpening) req.signature
@@ -578,13 +582,16 @@ private def mod64ZeroRefundOracle :
           (zeroRefundPolicy.chooseRefund req.ctx req.nullifier req.debit req.changeCommitment).run
             st.policyState
         let st' := { st with policyState := pst' }
-        match acceptedSpendRefund (2 ^ 64) refund? with
+        match refund? with
         | none => return (none, st')
         | some refund =>
-            let sreq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
-              .spend (req.toSpendRequest refund)
-            let σ ← testSig.sign () (sreq.signedMessage Prod.mk)
-            return commitDraftSpend refund sreq σ st'
+            if refund < 2 ^ 64 then
+              let sreq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
+                .spend (req.toSpendRequest refund)
+              let σ ← testSig.sign () (sreq.signedMessage Prod.mk)
+              return (some ⟨refund, σ⟩, { st' with accepted := st'.accepted ++ [sreq] })
+            else
+              return (none, st')
       else
         pure (none, st)
 
@@ -637,9 +644,9 @@ example :
       0 := by
   simp only [extractedDraftConservationExperiment, runExtractedDraftConservation,
     wraparoundDraftAdversary, testSig, zeroRefundPolicy, ProbOracleComp.runState_bind,
-    ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, draftIssuerOracle, draftQueryStep, draftReply, agreeIssueTransition,
-    acceptDraftIssue, commitDraftIssue, acceptDraftSpendPre, acceptedSpendRefund, commitDraftSpend,
+    ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure,
+    run_draftIssuerOracle_agreeIssue, run_draftIssuerOracle_issue, run_draftIssuerOracle_spend]
+  simp [StateT.run, draftReply, acceptDraftIssue, acceptDraftSpendPre,
     DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest, Conservation.acceptRequest,
     Conservation.acceptLocal, Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote,
     Credit.target, Conservation.Request.signedMessage, testCom,
@@ -662,12 +669,12 @@ example :
           return ⟨keys.1, targetCtx, st.accepted⟩)) =
       1 := by
   simp only [wraparoundDraftAdversary, testSig, zeroRefundPolicy, ProbOracleComp.runState_bind,
-    ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, mod64ZeroRefundOracle, draftReply, agreeIssueTransition, acceptDraftIssue,
-    commitDraftIssue, acceptedSpendRefund, commitDraftSpend, DraftSpendRequest.withinRange,
+    ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure,
+    mod64ZeroRefundOracle, run_draftIssuerOracle_agreeIssue, run_draftIssuerOracle_issue]
+  simp [StateT.run, draftReply, acceptDraftIssue, DraftSpendRequest.withinRange,
     DraftSpendRequest.toSpendRequest, Conservation.hasSpentNullifier, Credit.target,
-    Conservation.Request.signedMessage, zeroRefundPolicy, testCom, testSig,
-    extractedDraftConservationAccept, Conservation.extractedConservationAccept,
+    Conservation.Request.signedMessage, testCom, extractedDraftConservationAccept,
+    Conservation.extractedConservationAccept,
     Conservation.spentDebit, Conservation.spendsIn, Conservation.spends,
     Conservation.issuedAmount, Conservation.issuesIn, Conservation.grantedRefund,
     Experiment.succProbability, Game.succProbability]

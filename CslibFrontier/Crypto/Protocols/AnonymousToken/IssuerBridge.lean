@@ -69,15 +69,17 @@ collision between sums under `2 * bound` forces an exact `bound`-credit wraparou
 * `IssueAgreement`, `SpendReply`, `AgreedTicket`, `DraftIssueRequest`, `DraftSpendRequest`,
   `DraftQuery`, `draftReply`, `IssuerState`: draft-style queries, named replies, and stateful
   issuer bookkeeping, without adversary-chosen `T` or `x'`.
-* `agreeIssueTransition`, `commitDraftIssue`, `acceptedSpendRefund`, `commitDraftSpend`,
-  `draftQueryStep`, `draftIssuerOracle`, `DraftAdversary`, `ExtractedDraftConservationExecution`,
+* `draftIssuerOracle`, `DraftAdversary`, `ExtractedDraftConservationExecution`,
   `runExtractedDraftConservation`, `extractedDraftConservationAccept`,
-  `extractedDraftConservationExperiment`: shared draft query transition and the draft-style
-  extracted conservation game with range and policy rejections.
+  `extractedDraftConservationExperiment`: draft-style stateful issuer oracle and extracted
+  conservation game with range and policy rejections.
 * `bridgeAdversary`: explicit simulation reduction to `Conservation.ExtractedAdversary`.
 
 ## Main results
 
+* `run_draftIssuerOracle_agreeIssue`, `run_draftIssuerOracle_issue`,
+  `run_draftIssuerOracle_spend`: query-by-query transition laws for `draftIssuerOracle` exposed to
+  ordinary-import callers.
 * `bridgeAdversary_queryBound`: `bridgeAdversary` preserves query budgets (`≤ q`).
 * `eval_extractedDraftConservationExperiment_eq`: exact zero-loss distribution equality between
   `extractedDraftConservationExperiment` and `Conservation.extractedConservationExperiment` on
@@ -237,10 +239,10 @@ structure IssuerState (Nullifier Context Opening Commitment Sig PolicyState : Ty
   /-- Accepted requests recorded in `Conservation.Request` format, oldest first. -/
   accepted : List (Conservation.Request Nullifier Context Opening Commitment Sig)
 
-/-- Validate a `.issue` submission against `st.pending`, single-use `st.consumed`, `1 ≤ amt`
-(`T_init ≠ 0` in `IssueResponse`) and `amt < bound` (the draft's `[1..2^(8*L)]` input domain),
-plus the `IssueRelation` commitment check. A rejected `.issue` leaves `st.consumed` unchanged; once
-accepted, the ticket is marked consumed. -/
+/-- Validate a `.issue` submission for `draftIssuerOracle` and `bridgeAdversary` (via internal
+`bridgeHandler`) against `st.pending`, single-use `st.consumed`, `1 ≤ amt` (`T_init ≠ 0` in
+`IssueResponse`), `amt < bound` (the draft's `[1..2^(8*L)]` input domain), and the `IssueRelation`
+commitment check. Returns `none` on rejection without modifying state. -/
 def acceptDraftIssue [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment) (bound : ℕ)
     (req : DraftIssueRequest Nullifier Opening Commitment)
@@ -255,8 +257,9 @@ def acceptDraftIssue [DecidableEq Commitment]
       else
         none
 
-/-- Pre-refund validity check for `.spend`: enforces `(V4)` `< bound` on `d, t, x, t'`, plus
-`(V1)`–`(V3)` and spent-nullifier uniqueness against `st.accepted`. -/
+/-- Pre-refund validity check for `.spend`, called by `draftIssuerOracle` and `bridgeAdversary`
+(via internal `bridgeHandler`) before `policy.chooseRefund`: enforces `(V4)` `< bound` on
+`d, t, x, t'`, `(V1)`–`(V3)`, and spent-nullifier uniqueness against `st.accepted`. -/
 def acceptDraftSpendPre [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -266,9 +269,9 @@ def acceptDraftSpendPre [DecidableEq Nullifier] [DecidableEq Context] [Decidable
   req.withinRange bound &&
     Conservation.acceptRequest com tag S pk st.accepted (.spend (req.toSpendRequest 0))
 
-/-- Shared local state update after sampling `policy.agreeIssue`: allocates a sequential
-single-use agreement ticket when `amt? = some amt`, and updates `st.policyState`. -/
-def agreeIssueTransition (ctx : Context) (amt? : Option ℕ) (pst' : PolicyState)
+end
+
+private def agreeIssueTransition (ctx : Context) (amt? : Option ℕ) (pst' : PolicyState)
     (st : IssuerState Nullifier Context Opening Commitment Sig PolicyState) :
     Option IssueAgreement × IssuerState Nullifier Context Opening Commitment Sig PolicyState :=
   match amt? with
@@ -277,31 +280,24 @@ def agreeIssueTransition (ctx : Context) (amt? : Option ℕ) (pst' : PolicyState
       (some ⟨st.pending.length, amt⟩,
         { st with policyState := pst', pending := st.pending ++ [⟨ctx, amt⟩] })
 
-/-- Shared local state update on an accepted `.issue` request once signature `σ` is obtained. -/
-def commitDraftIssue (ticket : ℕ)
+private def commitDraftIssue (ticket : ℕ)
     (creq : Conservation.Request Nullifier Context Opening Commitment Sig) (σ : Sig)
     (st : IssuerState Nullifier Context Opening Commitment Sig PolicyState) :
     Option Sig × IssuerState Nullifier Context Opening Commitment Sig PolicyState :=
   (some σ, { st with consumed := ticket :: st.consumed, accepted := st.accepted ++ [creq] })
 
-/-- Range filter on `policy.chooseRefund` output: accepts `refund` iff `refund < bound`. -/
-def acceptedSpendRefund (bound : ℕ) (refund? : Option ℕ) : Option ℕ :=
+private def acceptedSpendRefund (bound : ℕ) (refund? : Option ℕ) : Option ℕ :=
   match refund? with
   | none => none
   | some refund => if refund < bound then some refund else none
 
-/-- Shared local state update on an accepted `.spend` request once signature `σ` is obtained. -/
-def commitDraftSpend (refund : ℕ)
+private def commitDraftSpend (refund : ℕ)
     (creq : Conservation.Request Nullifier Context Opening Commitment Sig) (σ : Sig)
     (st : IssuerState Nullifier Context Opening Commitment Sig PolicyState) :
     Option (SpendReply Sig) × IssuerState Nullifier Context Opening Commitment Sig PolicyState :=
   (some ⟨refund, σ⟩, { st with accepted := st.accepted ++ [creq] })
 
-/-- Shared draft-query state transition parameterized by `OracleComp` sampling (`samplePolicy`)
-and accepted-request certification/forwarding (`certify`). If `certify` returns `none`, the request
-is rejected without appending to `st.consumed` or `st.accepted` (preserving any `policyState`
-update already returned by `policy.chooseRefund`). -/
-def draftQueryStep {ι : Type} {qspec : ι → Type}
+private def draftQueryStep {ι : Type} {qspec : ι → Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -361,6 +357,92 @@ def draftIssuerOracle [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq
   draftQueryStep com tag S policy bound keys.1 (fun p => p)
     (fun creq => some <$> S.sign keys.2 (creq.signedMessage tag))
 
+/-- Transition law of `draftIssuerOracle` on `.agreeIssue`: samples `policy.agreeIssue` and, on
+`some amt`, allocates the next sequential ticket under `ctx`. -/
+theorem run_draftIssuerOracle_agreeIssue
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
+    (bound : ℕ) (keys : PK × SK) (ctx : Context) (hint : IssueHint)
+    (st : IssuerState Nullifier Context Opening Commitment Sig PolicyState) :
+    (draftIssuerOracle com tag S policy bound keys (.agreeIssue ctx hint)).run st = do
+      let (amt?, pst') ← (policy.agreeIssue ctx hint).run st.policyState
+      return match amt? with
+      | none => (none, { st with policyState := pst' })
+      | some amt =>
+          (some ⟨st.pending.length, amt⟩,
+            { st with policyState := pst', pending := st.pending ++ [⟨ctx, amt⟩] }) := by
+  rfl
+
+/-- Transition law of `draftIssuerOracle` on `.issue`: validates via `acceptDraftIssue`, signs the
+accepted request, marks the ticket consumed, and appends to `st.accepted`. -/
+theorem run_draftIssuerOracle_issue
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
+    (bound : ℕ) (keys : PK × SK) (req : DraftIssueRequest Nullifier Opening Commitment)
+    (st : IssuerState Nullifier Context Opening Commitment Sig PolicyState) :
+    (draftIssuerOracle com tag S policy bound keys (.issue req)).run st =
+      match acceptDraftIssue com bound req st with
+      | none => pure (none, st)
+      | some creq => do
+          let σ ← S.sign keys.2 (creq.signedMessage tag)
+          return (some σ,
+            { st with
+              consumed := req.ticket :: st.consumed,
+              accepted := st.accepted ++ [creq] }) := by
+  simp only [draftIssuerOracle, draftQueryStep, commitDraftIssue, StateT.run, draftReply]
+  cases acceptDraftIssue com bound req st with
+  | none => rfl
+  | some creq => simp only [bind_map_left]
+
+/-- Transition law of `draftIssuerOracle` on `.spend`: skips `policy.chooseRefund` when
+`acceptDraftSpendPre` fails, otherwise samples the policy, rejects `none` or `refund ≥ bound`
+retaining the updated `policyState`, and otherwise signs and logs the spend request. -/
+theorem run_draftIssuerOracle_spend
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
+    (bound : ℕ) (keys : PK × SK)
+    (req : DraftSpendRequest Nullifier Context Opening Commitment Sig)
+    (st : IssuerState Nullifier Context Opening Commitment Sig PolicyState) :
+    (draftIssuerOracle com tag S policy bound keys (.spend req)).run st =
+      if acceptDraftSpendPre com tag S bound keys.1 st req then do
+        let (refund?, pst') ←
+          (policy.chooseRefund req.ctx req.nullifier req.debit req.changeCommitment).run
+            st.policyState
+        let st' := { st with policyState := pst' }
+        match refund? with
+        | none => return (none, st')
+        | some refund =>
+            if refund < bound then
+              let creq : Conservation.Request Nullifier Context Opening Commitment Sig :=
+                .spend (req.toSpendRequest refund)
+              let σ ← S.sign keys.2 (creq.signedMessage tag)
+              return (some ⟨refund, σ⟩, { st' with accepted := st'.accepted ++ [creq] })
+            else
+              return (none, st')
+      else
+        pure (none, st) := by
+  simp only [draftIssuerOracle, draftQueryStep, acceptedSpendRefund, commitDraftSpend, StateT.run,
+    draftReply]
+  by_cases hpre : acceptDraftSpendPre com tag S bound keys.1 st req = true
+  · simp only [hpre, ↓reduceIte]
+    congr 1 with ⟨refund?, pst'⟩ : 1
+    cases refund? with
+    | none => rfl
+    | some refund =>
+        by_cases hlt : refund < bound
+        · simp only [hlt, ↓reduceIte, bind_map_left]
+        · simp only [hlt, ↓reduceIte]
+  · simp [hpre]
+
 /-- An adaptive adversary interacting with the draft-style issuer oracle and returning a target
 context `ctx*`. -/
 abbrev DraftAdversary (Nullifier Context Opening Commitment PK Sig IssueHint : Type) :=
@@ -381,7 +463,7 @@ structure ExtractedDraftConservationExecution
   accepted : List (Conservation.Request Nullifier Context Opening Commitment Sig)
 
 /-- Execute `A` against the draft-style stateful issuer in the extracted-witness model. -/
-def runExtractedDraftConservation
+@[expose] def runExtractedDraftConservation
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -399,7 +481,7 @@ def runExtractedDraftConservation
 
 /-- Acceptance predicate of the extracted draft conservation game, delegating directly to
 `Conservation.extractedConservationAccept`. -/
-def extractedDraftConservationAccept [DecidableEq Context]
+@[expose] def extractedDraftConservationAccept [DecidableEq Context]
     (run : ExtractedDraftConservationExecution Nullifier Context Opening Commitment PK Sig) :
     Bool :=
   Conservation.extractedConservationAccept
@@ -411,7 +493,7 @@ agreed via `policy.agreeIssue`, spend refunds `x'` are chosen by `policy.chooseR
 plus `1 ≤ T < bound` range checks are enforced with `none` rejection replies. Because this game is
 still in the extracted-witness model, extraction from VOLEitH proofs, zero-knowledge, RO/ideal-
 permutation arguments, and runtime efficiency certificates remain outside this model (#7068). -/
-def extractedDraftConservationExperiment
+@[expose] def extractedDraftConservationExperiment
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -423,12 +505,10 @@ def extractedDraftConservationExperiment
 
 /-! ### Simulation reduction to `Conservation` -/
 
-end
-
 /-- Simulation handler translating `DraftQuery` calls into `Conservation.extractedIssuerOracle`
-queries via `draftQueryStep`. Out-of-band agreements, policy state, range checks, and rejected
-requests are handled locally without querying `Conservation`'s oracle; accepted issuances and
-spends forward exactly one request each. -/
+queries. Out-of-band agreements, policy state, range checks, and rejected requests are handled
+locally without querying `Conservation`'s oracle; accepted issuances and spends forward exactly one
+request each. -/
 private def bridgeHandler [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
