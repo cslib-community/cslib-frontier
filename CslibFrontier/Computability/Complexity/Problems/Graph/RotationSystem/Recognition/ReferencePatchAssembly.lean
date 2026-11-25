@@ -720,29 +720,22 @@ private theorem free_route_isSimple_of_cuts {I : FixedRotationInput} (hI : Valid
     rw [← hP z, hs z, hf z] at hx
     by_cases hd : (D.route e).finish.re < (D.route e).start.re <;>
       simpa only [D, hd, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte] using hx
-  refine free_route_simple hI e L left middle right ?_
-  rcases lt_or_gt_of_ne hne with hab | hba
-  · left
-    refine word_order_from_cuts L (D.route e).start (D.route e).finish left middle right
-      cutα cutβ Complex.re hab
+  refine free_route_simple hI e L left middle right <| (lt_or_gt_of_ne hne).elim
+    (fun hab => .inl (word_order_from_cuts L (D.route e).start (D.route e).finish left middle
+      right cutα cutβ Complex.re hab
       (fun t => Complex.reCLM.toLinearMap.toAffineMap.apply_lineMap _ _ t)
       (fun z _ => hleft z) (fun z _ => hright z)
-      (fun z _ => (hmargins z).1) (fun z _ => (hmargins z).2.2) (fun z _ => ?_) hsorted
-    have ⟨hl, hr'⟩ := hends z
-    rw [ite_eq_right (not_lt_of_ge hab.le)] at hl hr'
-    rw [hmidRe]
-    constructor <;> linarith [hr z]
-  · right
-    refine (word_order_from_cuts L (D.route e).start (D.route e).finish left middle right
-      cutα cutβ (fun w => -w.re) (neg_lt_neg hba)
+      (fun z _ => (hmargins z).1) (fun z _ => (hmargins z).2.2) (fun z _ => ?_) hsorted))
+    (fun hba => .inr ((word_order_from_cuts L (D.route e).start (D.route e).finish left middle
+      right cutα cutβ (fun w => -w.re) (neg_lt_neg hba)
       (fun t => (-Complex.reCLM).toLinearMap.toAffineMap.apply_lineMap _ _ t)
       (fun z _ => hleft z) (fun z _ => hright z)
       (fun z _ => (hmargins z).1) (fun z _ => (hmargins z).2.2) (fun z _ => ?_) hsorted).imp
-      (fun {_ _} => neg_lt_neg_iff.mp)
-    have ⟨hl, hr'⟩ := hends z
-    rw [ite_eq_left hba] at hl hr'
+      (fun {_ _} => neg_lt_neg_iff.mp)))
+  all_goals
+    obtain ⟨hl, hr'⟩ := hends z
     rw [hmidRe]
-    constructor <;> linarith [hr z]
+    split_ifs at hl hr' <;> constructor <;> linarith [hr z]
 
 private theorem assembled_route_germs {I : FixedRotationInput}
     (e : Fin (subdivisionGraph I).edges.length) (frozen : Bool) {ι : Type*}
@@ -800,36 +793,24 @@ private theorem assembled_patch_embedding {I : FixedRotationInput}
         (P z).eval 0 t) := by
   let z := L[q]
   cases frozen
-  · constructor
-    · intro _ j
-      change ∃ i : Fin (free_route e L left middle right).segments,
-        i.val = 3 * q.val + 1 + j.val ∧
-        ∀ t : ℝ, (free_route e L left middle right).eval i t = (P z).eval j t
-      let j' : Fin 2 := ⟨j.val, hseg rfl z ▸ j.isLt⟩
-      obtain ⟨i, hi, hieval⟩ := free_route_patch_eval e L left middle right q j'
-      refine ⟨i, hi, fun t => ?_⟩
-      rw [hieval]
-      rcases (show j'.val = 0 ∨ j'.val = 1 by have := j'.isLt; omega) with hj | hj
-      · have hj0 : j = 0 := Fin.ext hj
-        have hj0' : j' = 0 := Fin.ext hj
-        rw [hj0, hj0', (hpieces rfl z).1 t]
-        rfl
-      · have hj1 : j = 1 := Fin.ext (by
-          change j'.val = 1 % (P z).segments
-          rw [hseg rfl z]; exact hj)
-        have hj1' : j' = 1 := Fin.ext hj
-        rw [hj1, hj1', (hpieces rfl z).2 t]
-        rfl
-    · intro he
-      contradiction
-  · constructor
-    · intro he
-      contradiction
-    · intro _ t
-      change ((referenceDrawing I).route e).eval 0 (cutα z + (cutβ z - cutα z) * t) =
-        (P z).eval 0 t
-      rw [hkeep rfl z]
-      exact (frozen_cut_parameter _ _ (cutα z) (cutβ z) t).symm
+  · refine ⟨fun _ j => ?_, nofun⟩
+    change ∃ i : Fin (free_route e L left middle right).segments,
+      i.val = 3 * q.val + 1 + j.val ∧
+      ∀ t : ℝ, (free_route e L left middle right).eval i t = (P z).eval j t
+    obtain ⟨i, hi, hieval⟩ :=
+      free_route_patch_eval e L left middle right q ⟨j.val, hseg rfl z ▸ j.isLt⟩
+    refine ⟨i, hi, fun t => (hieval t).trans ?_⟩
+    obtain ⟨_ | _ | k, hj⟩ := j
+    · exact ((hpieces rfl z).1 t).symm
+    · have hj1 : (⟨1, hj⟩ : Fin (P z).segments) = 1 :=
+        Fin.ext (by change 1 = 1 % (P z).segments; rw [hseg rfl z])
+      exact ((congrArg (fun k => (P z).eval k t) hj1).trans ((hpieces rfl z).2 t)).symm
+    · have := hseg rfl L[q]; omega
+  · refine ⟨nofun, fun _ t => ?_⟩
+    change ((referenceDrawing I).route e).eval 0 (cutα z + (cutβ z - cutα z) * t) =
+      (P z).eval 0 t
+    rw [hkeep rfl z]
+    exact (frozen_cut_parameter _ _ (cutα z) (cutβ z) t).symm
 
 private theorem free_raw_first_embedding {I : FixedRotationInput}
     (e : Fin (subdivisionGraph I).edges.length) {ι : Type*}
