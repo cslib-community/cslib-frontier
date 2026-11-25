@@ -88,7 +88,8 @@ theorem polyNorm1_reverse (p : List ℤ) : polyNorm1 p.reverse = polyNorm1 p := 
 /-- Taking a prefix does not increase `polyNorm1`. -/
 theorem polyNorm1_take_le (p : List ℤ) (n : ℕ) : polyNorm1 (p.take n) ≤ polyNorm1 p := by
   rw [polyNorm1, polyNorm1, List.map_take]
-  exact (List.take_sublist _ _).sum_le_sum fun _ _ => Nat.zero_le _
+  have h := List.monotone_sum_take (p.map Int.natAbs) (le_max_left n (p.map Int.natAbs).length)
+  dsimp only at h; rwa [List.take_of_length_le (le_max_right n _)] at h
 
 /-- Every coefficient `z ∈ p` has `z.natAbs ≤ polyNorm1 p`. -/
 theorem natAbs_mem_le_polyNorm1 {p : List ℤ} {z : ℤ} (hz : z ∈ p) : z.natAbs ≤ polyNorm1 p :=
@@ -878,7 +879,21 @@ theorem evalParityFactorJet_row_zero_sum {J ℓ : ℕ} (hJ : 1 ≤ J) (Δ y : �
 /-- `truncZJet` preserves the prefix $\ell_1$-norm. -/
 theorem polyNorm1_truncZJet (J : ℕ) (u : List ℤ) :
     polyNorm1 (truncZJet J u) = polyNorm1 (u.take J) := by
-  simp only [polyNorm1, ← coeffNorm1_ofCoeffList, ofCoeffList_truncZJet]
+  induction J generalizing u with
+  | zero => simp only [truncZJet, List.range_zero, List.map_nil, List.take_zero, polyNorm1_nil]
+  | succ J ih =>
+    cases u with
+    | nil =>
+      rw [List.take_nil, polyNorm1_nil, polyNorm1]; apply List.sum_eq_zero
+      intro _ hx; obtain ⟨_, hz, rfl⟩ := List.mem_map.mp hx
+      obtain ⟨_, _, rfl⟩ := List.mem_map.mp hz; simp only [List.getD_nil, Int.natAbs_zero]
+    | cons a rest =>
+      rw [truncZJet, List.range_succ_eq_map, List.map_cons, List.getD_cons_zero, List.map_map,
+        List.take_succ_cons, polyNorm1_cons, polyNorm1_cons,
+        show (List.range J).map ((fun j => (a :: rest).getD j 0) ∘ Nat.succ) = truncZJet J rest from
+          List.map_congr_left fun j _ => by
+            simp only [Function.comp_apply, Nat.succ_eq_add_one, List.getD_cons_succ],
+        ih rest]
 
 /-- Powering bound for `powZJet` under `polyNorm1`. -/
 theorem polyNorm1_powZJet_le (J : ℕ) (u : List ℤ) (s : ℕ) :
