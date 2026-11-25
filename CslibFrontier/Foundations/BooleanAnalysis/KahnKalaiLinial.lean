@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity
+import CslibFrontier.Foundations.BooleanAnalysis.Monotone
+import CslibFrontier.Foundations.BooleanAnalysis.Variance
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Convex.Jensen
@@ -28,6 +30,11 @@ the book's remark `Ĩ ≥ 1` is not a hypothesis. As in the book, splitting on w
 coordinate has influence at least `Var[F] · log n / (4 n)`
 (`BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence`). Here `Var[F]` is written
 `𝔼 x, (F x - 𝔼 y, F y) ^ 2`, the Fourier weight of `F` on the nonempty sets.
+
+For a monotone `f` the influence of `i` is the degree-one coefficient `F̂({i})`
+[O'Donnell][ODonnell2014], Proposition 2.21, and `(9 / Ĩ²) 9^{-Ĩ} ≥ exp(-5 Ĩ)`, so a nonconstant
+monotone function has a coordinate with `F̂({i})² ≥ exp(-10 Ĩ)`: O'Donnell's Exercise 9.33
+(`BitString.exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone`).
 
 The same use of hypercontractivity, run separately on each coordinate, proves **Talagrand's
 inequality** `Var[F] ≤ 6 ∑ᵢ Infᵢ[F] / log (1 / Infᵢ[F])`, for functions whose influences are all
@@ -69,6 +76,8 @@ this into `6 Infᵢ[F] / log (1 / δ)`; taking `δ = Infᵢ[F]` gives Talagrand'
   Edge-Isoperimetric Theorem.
 * `Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence`: the
   Kahn–Kalai–Linial theorem.
+* `Cslib.BitString.exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone`: a nonconstant
+  monotone function has a large degree-one coefficient [O'Donnell][ODonnell2014], Exercise 9.33.
 * `Cslib.BitString.expect_sub_expect_sq_le_six_mul_sum_influence_div_log`,
   `Cslib.BitString.expect_sub_expect_sq_le_seven_mul_sum_influence_div_one_add_log`: Talagrand's
   inequality.
@@ -89,6 +98,18 @@ compute variances and total influences from Fourier weights, apply the convexity
 `χ_{0} + χ_{0,1}` on two bits (`Var = 2`, `I = 3`, giving `2 · 3^{-3/2} ≤ 4 / 9`), apply the
 theorem to a dictator (`Ĩ = 1`, giving influence `1`, the maximum possible), and apply the
 Kahn–Kalai–Linial bound to the nearly balanced Tribes function.
+
+`expect_sub_expect_sq_signVal_pos` in `CslibFrontier.Foundations.BooleanAnalysis.Variance` turns
+a nonconstancy witness `hc : ∃ x y, f x ≠ f y` into the hypothesis `hV`. For a monotone `f`
+(`hf : Monotone f`), `exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone hf hc` returns a
+coordinate `i` with `exp (-(10 * I / V)) ≤ fourierCoeff (fun x => signVal (f x)) {i} ^ 2`, where
+`I = totalInfluence (fun x => signVal (f x))` and `V` is the variance. Both hypotheses are
+needed: a constant function has `V = 0`, so the bound reads `exp 0 = 1`, while every degree-one
+coefficient is `0`; the parity of two bits is nonconstant and has no nonzero degree-one
+coefficient. The checked client
+[CslibFrontierTests/BooleanAnalysisMonotoneCoefficient.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisMonotoneCoefficient.lean)
+applies it to the conjunction of two bits, with `V = 3 / 4` and `I ≤ 2`, and gets a squared
+degree-one coefficient of at least `exp(-27)`.
 
 ## References
 
@@ -274,6 +295,51 @@ theorem exists_expect_sub_expect_sq_mul_log_card_div_le_influence [Nonempty ι]
         576 * (n * exp (-(L * log 9 / 4))) / L ^ 2 by ring, le_div_iff₀ (by positivity)]
       nlinarith
     nlinarith
+
+/-! ### Monotone functions -/
+
+/-- `exp (-5 t) ≤ (9 / t²) 9^{-t}` for `t > 0`, since `log t ≤ t - 1` and `log 9 < 3`. -/
+private theorem exp_neg_five_mul_le_nine_div_sq_mul {t : ℝ} (ht : 0 < t) :
+    exp (-(5 * t)) ≤ 9 / t ^ 2 * (1 / 9 : ℝ) ^ t := by
+  rw [← le_log_iff_exp_le (by positivity), log_mul (by positivity) (by positivity),
+    log_div (by norm_num) (by positivity), log_pow, log_rpow (by norm_num), one_div, log_inv]
+  have h9 : log 9 < 3 := by
+    have h3 := log_three_lt_d9
+    norm_num at h3
+    rw [show (9 : ℝ) = 3 ^ 2 by norm_num, log_pow]
+    push_cast
+    linarith
+  have h90 : 0 < log 9 := log_pos (by norm_num)
+  have := log_le_sub_one_of_pos ht
+  push_cast
+  nlinarith
+
+/-- **A monotone function has a large degree-one coefficient** [O'Donnell][ODonnell2014],
+Exercise 9.33: a nonconstant monotone Boolean function read as signs `F` has a coordinate `i`
+with `F̂({i})² ≥ exp(-10 I[F] / Var[F])`. The book asks for some `S ≠ ∅` with
+`F̂(S)² ≥ exp(-O(I[F] / Var[F]))`; this takes `S = {i}`, as the book's hint suggests. For monotone
+`f` the influence of `i` is `F̂({i})` (Proposition 2.21), and the KKL Edge-Isoperimetric Theorem
+`exists_nine_div_sq_mul_one_ninth_rpow_le_influence` bounds the largest influence below by
+`(9 / Ĩ²) 9^{-Ĩ} ≥ exp(-5 Ĩ)`. -/
+theorem exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone {f : (ι → Bool) → Bool}
+    (hf : Monotone f) (hc : ∃ x y, f x ≠ f y) :
+    ∃ i, exp (-(10 * totalInfluence (fun x => signVal (f x)) /
+        𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2)) ≤
+      fourierCoeff (fun x => signVal (f x)) {i} ^ 2 := by
+  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
+  set V := 𝔼 x, (F x - 𝔼 y, F y) ^ 2
+  set I := totalInfluence F
+  have hV : 0 < V := expect_sub_expect_sq_signVal_pos hc
+  have hT : 0 < I / V := div_pos (hV.trans_le (expect_sub_expect_sq_le_totalInfluence F)) hV
+  obtain ⟨i, hi⟩ := exists_nine_div_sq_mul_one_ninth_rpow_le_influence f hV
+  refine ⟨i, ?_⟩
+  have h : exp (-(10 * I / V)) = exp (-(5 * (I / V))) ^ 2 := by
+    rw [← exp_nat_mul]
+    congr 1
+    push_cast
+    ring
+  rw [← influence_eq_fourierCoeff_singleton_of_monotone hf, h]
+  exact pow_le_pow_left₀ (exp_pos _).le ((exp_neg_five_mul_le_nine_div_sq_mul hT).trans hi) 2
 
 /-! ### The weight on the sets containing a coordinate -/
 

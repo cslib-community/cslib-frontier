@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
@@ -438,5 +439,15 @@ example :
     labels.evaluate ∈ CountingFunction 20 (encEvaluation encNat) encNat := by
   intro F C labels
   exact labels.evaluate_mem
+
+-- A shared word represents different signed targets at two coordinate addresses.
+example : ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth 2 2 ∧
+    decodeCoordinateFingerprint 2 word 0 = ⟨3, 2, -5⟩ ∧
+    decodeCoordinateFingerprint 2 word 1 = ⟨5, 4, 9⟩ := by
+  let f : Fin 2 → CoordinateFingerprint := fun i => if i = 0 then ⟨3, 2, -5⟩ else ⟨5, 4, 9⟩
+  have hf (i : Fin 2) : (f i).Bounded 2 := by
+    fin_cases i <;> unfold CoordinateFingerprint.Bounded <;> decide
+  obtain ⟨word, hw, hd⟩ := exists_coordinateFingerprintWitness f hf
+  exact ⟨word, hw, hd 0, hd 1⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

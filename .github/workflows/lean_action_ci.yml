@@ -330,10 +330,21 @@ jobs:
         run: python3 -B scripts/cache_handoff.py restore
       # Build the library, the `CslibFrontierTests` library test driver, and the Lean helper
       # executables in one Lake DAG so ready test modules backfill idle cores while long-pole
-      # library stragglers finish.
+      # library stragglers finish. Pull requests, pushes and manual runs build every target, so
+      # one run reports every error and warning.
       - name: "lake build"
         id: build
+        if: github.event_name != 'merge_group'
         run: lake build --wfail --iofail @cslib-frontier CslibFrontierTests @/mk_all @/checkInitImports @mathlib/lint-style
+      # A merge group builds the same targets with `--fail-fast`: after the first failed module
+      # (an error, or a warning under `--wfail`), Lake lets running jobs finish but schedules no
+      # new ones, and the step fails. Any failure ejects the group's entry, so building the rest
+      # only delays the ejection and the rebuild of every group queued behind it. Later steps that
+      # need the build accept the success of either build step.
+      - name: "lake build (merge group, fail fast)"
+        id: build-fail-fast
+        if: github.event_name == 'merge_group'
+        run: lake build --wfail --iofail --fail-fast @cslib-frontier CslibFrontierTests @/mk_all @/checkInitImports @mathlib/lint-style
       # On pull requests, lint only the affected library modules and their local importing clients
       # (#5163), falling back to whole-library `lake lint` on deletions/renames, config/linter edits,
       # ambiguous imports, or wide changes above quick_check.py's thresholds. Merge groups, pushes to
@@ -428,9 +439,11 @@ jobs:
       # the queue ejects the later one instead of landing a break that would fail every open pull
       # request. Pushes to `main`, which can no longer be ejected, only report. The step runs after
       # an earlier check failed, so that one check's failure does not hide its output, but needs a
-      # successful build.
+      # successful build (in a merge group, the fail-fast build).
       - name: "Named assumptions (whole library)"
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'push' }}
+        if: >-
+          ${{ !cancelled() && github.event_name != 'push' &&
+              (steps.build.outcome == 'success' || steps.build-fail-fast.outcome == 'success') }}
         run: |
           set -e
           python3 -B scripts/check_hardness_assumptions.py

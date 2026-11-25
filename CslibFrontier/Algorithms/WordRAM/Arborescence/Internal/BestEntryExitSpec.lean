@@ -29,7 +29,7 @@ open Cslib.WordRAM.Realization.Signed
 
 attribute [local client_simps] StateTransitionSpec.clientState
   StateTransitionSpec.runClient_pure'
-  runClient_read runClient_write runClient_allocDirty runClient_ite runClient_map
+  runClient_read runClient_write runClient_allocDirty runClient_ite
   prog_clientState_ite runClient_signedSubProg
 
 @[local client_simps] private theorem local_fst_snd_signedSubProg (w : ℕ)

@@ -38,6 +38,7 @@ of one move (`Cut.Plan.value_move`, from `Cut.move_identity`).
   units and the units given at a slot.
 * `Cut.Plan.seenAt_succ`, `Cut.Plan.cur_succ`: the units seen, and the current units, after one
   more move.
+* `Cut.Plan.card_filter_holds_seenAt`: the number of units seen before a move that a party holds.
 * `Cut.Plan.value_move`: the identity of one move of a plan.
 * `Cut.Plan.value_moves`: the moves of a plan keep the value.
 
@@ -78,6 +79,34 @@ theorem mem_seenAt_end {id : UnitId A U0 M.Channel U1} :
   obtain _ | ⟨ν, k⟩ := id
   · exact init_mem_seenAt
   · simp [UnitId.index, UnitId.count, Nat.lt_succ_iff]
+
+/-- **The units seen that a party holds.** The units seen before the move `x` (for `x = E`: in
+the end) that the party `p` holds are the initial units of the strings at `p` and, for every end
+at `p` of a channel of an earlier move, the outcome of the channel and one more unit. -/
+theorem card_filter_holds_seenAt (x : ℕ) (p : Fin (A + A')) :
+    ((seenAt n o x).filter (Play.Holds (UnitId.holder M.channelParty) p)).card =
+      (∑ a, ∑ b, if p = Fin.castAdd A' a ∨ p = Fin.castAdd A' b then (n a b : ℕ) else 0) +
+        ∑ ν with (ν.1 : ℕ) < x, ∑ d, if M.channelParty ν d = p then (o ν : ℕ) + 1 else 0 := by
+  have hs : ((seenAt n o x).filter (Play.Holds (UnitId.holder M.channelParty) p)).card =
+      ∑ u, if u ∈ seenAt n o x ∧ Play.Holds (UnitId.holder M.channelParty) p u then 1 else 0 := by
+    simp only [ite_and]
+    rw [sum_ite_mem, univ_inter, card_filter]
+  rw [hs, UnitId.sum_eq, sum_filter]
+  congr 1
+  · refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
+    simp only [init_mem_seenAt, UnitId.holds_init]
+    by_cases hp : p = Fin.castAdd A' a ∨ p = Fin.castAdd A' b <;>
+      simp [hp, Fin.card_filter_val_lt, Nat.le_of_lt_succ (n a b).2]
+  · refine sum_congr rfl fun ν _ => ?_
+    have hne : M.channelParty ν false ≠ M.channelParty ν true := fun h =>
+      (M.law ν.1).channelEnd_ne ν.2 (M.party_injective ν.1 h)
+    simp only [new_mem_seenAt, Play.Holds, UnitId.holder, Fintype.sum_bool]
+    by_cases hx : (ν.1 : ℕ) < x
+    · by_cases H : ∃ d, M.channelParty ν d = p
+      · obtain ⟨d, rfl⟩ := H
+        cases d <;> simp [hx, hne, hne.symm, filter_ge_eq_Iic]
+      · simp [hx, not_exists.1 H]
+    · simp [hx]
 
 theorem mem_cur {x : ℕ} {id : UnitId A U0 M.Channel U1} :
     id ∈ P.cur n o x ↔ id ∈ seenAt n o x ∧ ∀ z : M.Slot, (z.1 : ℕ) < x → id ∉ P.given n o z := by

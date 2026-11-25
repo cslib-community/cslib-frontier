@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
 import Cslib.Foundations.Data.Fin.Tuple

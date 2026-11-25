@@ -170,6 +170,15 @@ theorem formPerm_cycleWord_apply {G : Graph} {c : RotationCertificate}
   have hrot : r.rotate^[k] d = e := (Dart.indexEquiv G).injective (Fin.ext hke)
   rw [hrot, index_decode_rotate h]
 
+/-- Roots at different vertices have disjoint words, even when their edges are parallel. -/
+theorem disjoint_cycleWord {G : Graph} {c : RotationCertificate}
+    (hc : verifyRotation G c = true) (a b : Dart G) (hab : a.vertex ≠ b.vertex) :
+    (cycleWord c a.index).Disjoint (cycleWord c b.index) := by
+  apply List.disjoint_left.mpr
+  intro n ha hb
+  obtain ⟨d, rfl, hd⟩ := (mem_cycleWord_iff_exists_dart hc a n).mp ha
+  exact hab (hd.symm.trans ((mem_cycleWord_iff hc b d).mp hb))
+
 open Equiv in
 /-- The two ways of swapping successors around markers on different vertex cycles give
 opposite block orders after skipping the second marker. The words come from the actual
@@ -198,12 +207,8 @@ theorem formPerm_cycleWord_join_skip_iff {G : Graph} (r : RotationSystem G)
   have hform (root d : Dart G) (hd : d.vertex = root.vertex) :
       (cycleWord c root.index).formPerm d.index = (r.rotate d).index := by
     rw [formPerm_cycleWord_apply hc root d hd, ← index_decode_rotate hc, decode_ofRotation r hG]
-  have hn : (A ++ B).Nodup := by
-    refine List.nodup_append'.mpr ⟨nodup_cycleWord hc a, nodup_cycleWord hc b, ?_⟩
-    apply List.disjoint_left.mpr
-    intro n ha hb
-    obtain ⟨d, rfl, hd⟩ := (mem_cycleWord_iff_exists_dart hc a n).mp ha
-    exact hab (hd.symm.trans ((hmem b d).mp hb))
+  have hn : (A ++ B).Nodup := List.nodup_append'.mpr
+    ⟨nodup_cycleWord hc a, nodup_cycleWord hc b, disjoint_cycleWord hc a b hab⟩
   let p (d : Dart G) := d.vertex = a.vertex ∨ d.vertex = b.vertex
   have hproduct (d : Dart G) (hd : p d) :
       (r.rotate d).index = (A.formPerm * B.formPerm) d.index := by

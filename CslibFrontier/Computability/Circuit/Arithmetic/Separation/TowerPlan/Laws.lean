@@ -31,8 +31,8 @@ need.
 
 ## Main results
 
-* `RelayRole.elim_injective`, `RelayRole.prod_univ`: three different values give an injective
-  function on the roles, and a product over the roles.
+* `RelayRole.elim_injective`, `RelayRole.prod_univ`, `RelayRole.sum_univ`: three different values
+  give an injective function on the roles, and a product and a sum over the roles.
 
 ## References
 
@@ -73,6 +73,7 @@ theorem elim_injective {α : Type*} {x y z : α} (hxy : x ≠ y) (hxz : x ≠ z)
   intro i j h
   cases i <;> cases j <;> simp_all [elim, eq_comm]
 
+@[to_additive]
 theorem prod_univ {M : Type*} [CommMonoid M] (f : RelayRole → M) :
     ∏ p, f p = f source * f via * f sink := by
   rw [show (Finset.univ : Finset RelayRole) = {source, via, sink} from rfl]
