@@ -72,17 +72,11 @@ private theorem bind_evalWith_atProgram {count width n : ℕ}
     Function.update (fun i => if i < selected then idealLaw
       else cascadeKeyedChildFunctionLaw family width n) selected (PMF.pure challenge)
   have hrow (i : Fin count) : keyLaw.bind (fun key => idealLaw.map (choose i key)) = law i := by
-    by_cases heq : i = selected
-    · subst i
-      simp only [choose, lt_self_iff_false, ↓reduceIte, PMF.map, Function.comp_def,
-        PMF.bind_const, law, Function.update_self]
-    · dsimp only [law]
-      rw [Function.update_of_ne heq]
-      by_cases hlt : i < selected
-      · simp only [choose, ite_eq_left hlt, PMF.map, Function.comp_def, PMF.bind_pure,
-          PMF.bind_const]
-      · simp only [choose, ite_eq_right hlt, ite_eq_right heq, PMF.bind_const,
-          cascadeKeyedChildFunctionLaw, PMF.map, Function.comp_def, keyLaw]
+    rcases lt_trichotomy i selected with hlt | rfl | hgt
+    · simp [choose, law, hlt.ne, hlt, PMF.map, Function.comp_def]
+    · simp [choose, law, PMF.map, Function.comp_def]
+    · simp [choose, law, hgt.not_gt, hgt.ne', cascadeKeyedChildFunctionLaw, keyLaw, PMF.map,
+        Function.comp_def]
   have htable : PMF.pi law =
       (PMF.uniformOfFintype (Fin count → BitString n)).bind fun keys =>
         (PMF.uniformOfFintype (Fin count → BitString width → BitString n)).map fun ideal i =>
@@ -96,19 +90,15 @@ private theorem bind_evalWith_atProgram {count width n : ℕ}
   simp only [evalWith_cascadeChildChallengeAtProgram_eq_eager family hlength]
   unfold cascadeChildChallengeAt
   change _ = (PMF.pi law).bind _
-  have hkeys := BitString.uniformList_map_listRow_equiv (Equiv.refl (Fin count)) n
-  simp only [Equiv.refl_apply] at hkeys
-  rw [htable, PMF.bind_bind, ← hkeys, PMF.bind_map]
+  rw [htable, PMF.bind_bind, ← BitString.uniformList_map_listRow_equiv (.refl (Fin count)) n,
+    PMF.bind_map]
   congr 1 with word : 1
-  simp only [Function.comp_def]
   rw [← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin count) (BitString width) (BitString n))]
-  simp only [PMF.bind_map, PMF.map_comp, Function.comp_def]
+  simp only [Function.comp_def, Equiv.refl_apply, PMF.bind_map, PMF.map_comp]
   congr 1 with ideal : 1
-  simp only [choose, Equiv.curry_apply,
-    BitString.ofFn_ofList (BitString.length_listRow _ _ _)]
   congr 3
   funext channel block
-  simp only [ite_apply, Function.curry]
+  simp [choose, Function.curry, BitString.ofFn_ofList (BitString.length_listRow _ _ _), ite_apply]
 
 /-- Under any external function distribution, the wrapper realizes the sampled finite-table
 game with a range of size `2 ^ indexBits`. For the keyed family, keys have width `n`, inputs

@@ -206,14 +206,12 @@ private theorem not_halts_loopMachine {tm : MultiTapeTM k Symbol State}
     (hne : ∀ n, w (n + 1) ≠ []) (mark : Symbol) :
     ¬(loopMachine tm mark).Halts (w 0) := by
   rintro ⟨t, hhalt⟩
-  have hload := transformsTapes_iff_runFrom.mp
+  obtain ⟨ws₀, e₀, hloadRun, ⟨hws₀, he₀⟩, -⟩ := transformsTapes_iff_runFrom.mp
     (transformsTapes_load (k := k) (w 0)) (w 0) (fun _ => []) [] ⟨rfl, rfl⟩
-  obtain ⟨ws₀, e₀, hloadRun, ⟨hws₀, he₀⟩, -⟩ := hload
   rw [hws₀, he₀, List.nil_append] at hloadRun
   obtain ⟨t₀, s₀, h0⟩ := hstep 0
-  have hfirst := transformsTapes_iff_runFrom.mp
+  obtain ⟨ws₁, e₁, hfirstRun, ⟨hws₁, he₁⟩, -⟩ := transformsTapes_iff_runFrom.mp
     (transformsTapes_loopRound mark (vp := []) h0) (w 0) (words [] (w 0)) [] rfl
-  obtain ⟨ws₁, e₁, hfirstRun, ⟨hws₁, he₁⟩, -⟩ := hfirst
   rw [hws₁, he₁, List.nil_append] at hfirstRun
   let cfg : ℕ → Cfg (k + 1 + 2) Symbol Unit (w 0) :=
     fun n => wordsCfg (w 0) none (words (w n) (w (n + 1))) []
@@ -424,13 +422,10 @@ theorem exists_partial_iterateWhile {α β γ : Type}
         nlinarith
       have hrest' : (ci + cf + 52) * P ≤ (r + 1) * ((ci + cf + 52) * P) :=
         Nat.le_mul_of_pos_left _ (Nat.succ_pos r)
-      have hC : cs + 34 + (ci + cf + 52) ≤ C := by dsimp only [C]; omega
       have hsum : (r + 1) * ((cs + 34) * P) + (r + 1) * ((ci + cf + 52) * P) ≤
           C * (r + 1) * P := by
-        have : (r + 1) * ((cs + 34) * P) + (r + 1) * ((ci + cf + 52) * P) =
-            (cs + 34 + (ci + cf + 52)) * ((r + 1) * P) := by ring
-        rw [this, mul_assoc]
-        exact Nat.mul_le_mul_right _ hC
+        rw [← Nat.mul_add, ← Nat.add_mul, ← mul_assoc (r + 1), mul_comm (r + 1)]
+        exact Nat.mul_le_mul_right P (Nat.mul_le_mul_right (r + 1) (by dsimp only [C]; omega))
       simp only [Function.iterate_zero, id_eq] at hfirst ⊢
       omega
     · set P := (l + (encIn a).length + 1) ^ D

@@ -106,18 +106,19 @@ theorem forcedToAtMostOne_iff_const_or_literal {ι : Type*} [DecidableEq ι]
   constructor
   · rintro (hconst | ⟨i₀, hi₀, hdep⟩)
     · exact Or.inl hconst
-    · have h0 (u : ι → Bool) (hu : u i₀ = false) := hdep u (fun _ => false) hu
-      have h1 (u : ι → Bool) (hu : u i₀ = true) := hdep u (fun _ => true) hu
-      cases hb₀ : f (restrictUpdate B w (fun _ => false)) <;>
-        cases hb₁ : f (restrictUpdate B w (fun _ => true))
-      · exact Or.inl ⟨false, fun u => by
-          cases hu : u i₀ <;> [exact (h0 u hu).trans hb₀; exact (h1 u hu).trans hb₁]⟩
-      · exact Or.inr ⟨i₀, hi₀, Or.inl fun u => by
-          cases hu : u i₀ <;> [exact (h0 u hu).trans hb₀; exact (h1 u hu).trans hb₁]⟩
-      · exact Or.inr ⟨i₀, hi₀, Or.inr fun u => by
-          cases hu : u i₀ <;> [exact (h0 u hu).trans hb₀; exact (h1 u hu).trans hb₁]⟩
-      · exact Or.inl ⟨true, fun u => by
-          cases hu : u i₀ <;> [exact (h0 u hu).trans hb₀; exact (h1 u hu).trans hb₁]⟩
+    · have hval (u : ι → Bool) :
+          f (restrictUpdate B w u) =
+            cond (u i₀) (f (restrictUpdate B w fun _ => true))
+              (f (restrictUpdate B w fun _ => false)) := by
+        cases hu : u i₀
+        · exact hdep u _ hu
+        · exact hdep u _ hu
+      cases hb₀ : f (restrictUpdate B w fun _ => false) <;>
+        cases hb₁ : f (restrictUpdate B w fun _ => true)
+      · exact Or.inl ⟨false, fun u => by simp [hval u, hb₀, hb₁]⟩
+      · exact Or.inr ⟨i₀, hi₀, Or.inl fun u => by simp [hval u, hb₀, hb₁]⟩
+      · exact Or.inr ⟨i₀, hi₀, Or.inr fun u => by simp [hval u, hb₀, hb₁]⟩
+      · exact Or.inl ⟨true, fun u => by simp [hval u, hb₀, hb₁]⟩
   · rintro (hconst | ⟨i₀, hi₀, hlit | hneg⟩)
     · exact Or.inl hconst
     · exact Or.inr ⟨i₀, hi₀, fun u₁ u₂ hu => by rw [hlit u₁, hlit u₂, hu]⟩
@@ -193,15 +194,11 @@ theorem not_forcedToConst_ltfEval_iff {ι : Type*} [Fintype ι] [DecidableEq ι]
       simp only [ltfEval, decide_eq_false_iff_not, not_le]
       exact (sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign a B w u).2.trans_lt (not_le.mp hlt')
     exact ⟨by linarith, hlt⟩
-  · rintro ⟨hlow, hhigh⟩ ⟨c, hc⟩
-    have hmin : ltfEval a θ (ltfMinAssign a B w) = false := by
-      simp only [ltfEval, decide_eq_false_iff_not, not_le]; exact hhigh
-    have hmax : ltfEval a θ (ltfMaxAssign a B w) = true := by
-      simp only [ltfEval, decide_eq_true_eq]; linarith
-    have hc_min : ltfEval a θ (ltfMinAssign a B w) = c := hc (fun i => decide (a i < 0))
-    have hc_max : ltfEval a θ (ltfMaxAssign a B w) = c := hc (fun i => decide (0 ≤ a i))
-    rw [hmin] at hc_min; rw [hmax, ← hc_min] at hc_max
-    exact Bool.false_ne_true hc_max.symm
+  · rintro ⟨hlow, hhigh⟩ ⟨_, hc⟩
+    have h12 : ltfEval a θ (ltfMinAssign a B w) = ltfEval a θ (ltfMaxAssign a B w) :=
+      (hc _).trans (hc _).symm
+    simp only [ltfEval, decide_eq_decide] at h12
+    exact not_le.mpr hhigh (h12.mpr (by linarith))
 
 /-- If `B` contains at most one coordinate of `ltfSupport a`, then `ltfEval a θ` is forced to a
 function of at most one input outside `B` at every `w`. -/
@@ -212,10 +209,8 @@ theorem forcedToAtMostOne_ltfEval_of_card_inter_le_one {ι : Type*} [Fintype ι]
   · refine Or.inl ⟨ltfEval a θ w, fun u => ?_⟩
     simp only [ltfEval]; congr 2; refine sum_congr rfl fun i _ => ?_
     by_cases hiB : i ∈ B
-    · have hi0 : a i = 0 := by
-        by_contra hne
-        have : i ∈ B ∩ ltfSupport a := mem_inter.mpr ⟨hiB, (mem_ltfSupport a i).mpr hne⟩
-        rw [hempty] at this; exact notMem_empty i this
+    · have hi0 : a i = 0 := by_contra fun hne =>
+        notMem_empty i (hempty ▸ mem_inter.mpr ⟨hiB, (mem_ltfSupport a i).mpr hne⟩)
       simp [hi0]
     · simp [restrictUpdate, hiB]
   · refine Or.inr ⟨i₀, (mem_inter.mp hi₀).1, fun u₁ u₂ hu => ?_⟩
@@ -223,10 +218,8 @@ theorem forcedToAtMostOne_ltfEval_of_card_inter_le_one {ι : Type*} [Fintype ι]
     by_cases hiB : i ∈ B
     · by_cases hii₀ : i = i₀
       · subst hii₀; simp [restrictUpdate, hiB, hu]
-      · have hi0 : a i = 0 := by
-          by_contra hne
-          have hi_mem : i ∈ B ∩ ltfSupport a := mem_inter.mpr ⟨hiB, (mem_ltfSupport a i).mpr hne⟩
-          have := one_lt_card.mpr ⟨i, hi_mem, i₀, hi₀, hii₀⟩; omega
+      · have hi0 : a i = 0 := by_contra fun hne => (not_lt.mpr hcard)
+          (one_lt_card.mpr ⟨i, mem_inter.mpr ⟨hiB, (mem_ltfSupport a i).mpr hne⟩, i₀, hi₀, hii₀⟩)
         simp [hi0]
     · simp [restrictUpdate, hiB]
 

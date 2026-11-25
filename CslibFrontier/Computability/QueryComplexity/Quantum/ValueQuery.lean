@@ -868,24 +868,18 @@ private theorem prepY_rotBool_gadget (c s μ ν : ℝ) (hcs : c ^ 2 + s ^ 2 = 1)
   have hcs' : (c : ℂ) ^ 2 + (s : ℂ) ^ 2 = 1 := by exact_mod_cast hcs
   have hmu' : (c : ℂ) ^ 2 - (s : ℂ) ^ 2 = μ := by exact_mod_cast hmu
   have hnu' : 2 * (c : ℂ) * s = ν := by exact_mod_cast hnu
-  have hI : Complex.I ^ 2 = -1 := Complex.I_sq
-  have hc2 : (c : ℂ) ^ 2 = (1 + (μ : ℂ)) / 2 := by linear_combination (1 / 2 : ℂ) * hcs' +
-    (1 / 2 : ℂ) * hmu'
-  have hs2 : (s : ℂ) ^ 2 = (1 - (μ : ℂ)) / 2 := by linear_combination (1 / 2 : ℂ) * hcs' -
-    (1 / 2 : ℂ) * hmu'
-  have hcs2 : (c : ℂ) * s = (ν : ℂ) / 2 := by linear_combination (1 / 2 : ℂ) * hnu'
+  have hc2 : (c : ℂ) ^ 2 = (1 + (μ : ℂ)) / 2 := by linear_combination (hcs' + hmu') / 2
+  have hs2 : (s : ℂ) ^ 2 = (1 - (μ : ℂ)) / 2 := by linear_combination (hcs' - hmu') / 2
   ext b
   cases flag <;> cases b <;>
     simp only [LinearIsometryEquiv.trans_apply, prepYBool_symm_apply, rotBool_apply,
       phaseStep_apply, prepYBool_apply, ite_true, Bool.false_eq_true, ite_false,
-      Complex.ofReal_neg, Bool.and_self, Bool.and_false, Bool.false_and]
-  · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]; ring
-  · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]; ring
-  · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]
-    rw [show (1 / 2 : ℂ) * (c : ℂ) * z * (s : ℂ) * Complex.I * 4 =
-      2 * Complex.I * z * ((c : ℂ) * s) by ring, hcs2]
-    ring
-  · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]; ring
+      Complex.ofReal_neg, Bool.and_self, Bool.and_false, Bool.false_and] <;>
+    ring_nf <;> simp only [inv_sqrt_two_sq, Complex.I_sq, hc2, hs2]
+  · ring
+  · ring
+  · linear_combination Complex.I * z * hnu'
+  · ring
 
 private noncomputable def liftBasis {B₁ B₂ : Type*} [Fintype B₁] [Fintype B₂]
     (U : EuclideanSpace ℂ B₁ ≃ₗᵢ[ℂ] EuclideanSpace ℂ B₂) :

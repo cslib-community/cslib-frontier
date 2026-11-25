@@ -334,6 +334,12 @@ private theorem deficit_eq_of_update_same_deficit {P : Type*} [DecidableEq P] (s
       q).deficit = (s.proc q).deficit := by
   by_cases hq : q = u <;> simp [Function.update, hq]
 
+private theorem recvBasicState_deficit {P : Type*} [DecidableEq P] (s : State P)
+    (root src dst p : P) :
+    ((s.recvBasicState root src dst).proc p).deficit = (s.proc p).deficit := by
+  simp only [State.recvBasicState]
+  split_ifs <;> exact deficit_eq_of_update_same_deficit s dst true _ p
+
 private theorem children_attach {P : Type*} [Fintype P] [DecidableEq P] (s : State P)
     {root dst : P} (src : P) (hdst : dst ≠ root) (hpar : (s.proc dst).parent = none) (p : P) :
     let s' : State P :=
@@ -343,54 +349,44 @@ private theorem children_attach {P : Type*} [Fintype P] [DecidableEq P] (s : Sta
     (s'.children root p).card = (if src = p then 1 else 0) + (s.children root p).card := by
   intro s'
   have hnotMem : dst ∉ s.children root p := by simp [State.children, hpar]
-  by_cases h : src = p
-  · subst h
-    have heq : s'.children root src = insert dst (s.children root src) := by
-      ext q
-      rw [State.children, Finset.mem_filter, Finset.mem_insert, State.children, Finset.mem_filter]
-      simp only [Finset.mem_univ, true_and, s']
-      by_cases hq : q = dst
-      · subst hq; simp [hdst]
+  have heq : s'.children root p =
+      if src = p then insert dst (s.children root p) else s.children root p := by
+    ext q
+    split_ifs with h <;>
+      simp only [State.children, s', Finset.mem_insert, Finset.mem_filter, Finset.mem_univ,
+        true_and]
+    · subst h
+      rcases eq_or_ne q dst with rfl | hq
+      · simp [hdst]
       · simp [hq]
-    rw [heq, Finset.card_insert_of_notMem hnotMem]
-    simp [Nat.add_comm]
-  · have heq : s'.children root p = s.children root p := by
-      ext q
-      rw [State.children, Finset.mem_filter, State.children, Finset.mem_filter]
-      simp only [Finset.mem_univ, true_and, s']
-      by_cases hq : q = dst
-      · subst hq; simp [h, hpar]
+    · rcases eq_or_ne q dst with rfl | hq
+      · simp [h, hpar]
       · simp [Function.update_of_ne hq]
-    simp [heq, h]
+  rw [heq]
+  split_ifs <;> simp [Finset.card_insert_of_notMem hnotMem, Nat.add_comm]
 
 private theorem children_detach {P : Type*} [Fintype P] [DecidableEq P] (s : State P)
     {root p q : P} (hp : p ≠ root) (hpar : (s.proc p).parent = some q) (r : P) :
     ((s.detachState p q).children root r).card + (if q = r then 1 else 0) =
       (s.children root r).card := by
-  by_cases hqr : q = r
-  · subst hqr
-    have hmem : p ∈ s.children root q := by
-      simp [State.children, hp, hpar]
-    have heq : (s.detachState p q).children root q = (s.children root q).erase p := by
-      ext x
+  have heq : (s.detachState p q).children root r =
+      if q = r then (s.children root r).erase p else s.children root r := by
+    ext x
+    split_ifs with hqr
+    · subst hqr
       rw [State.children, Finset.mem_filter, Finset.mem_erase, State.children, Finset.mem_filter]
-      simp only [Finset.mem_univ, true_and, State.detachState]
-      by_cases hx : x = p
-      · subst hx; simp
-      · simp [hx]
-    have hpos : 0 < (s.children root q).card := Finset.card_pos.mpr ⟨p, hmem⟩
-    rw [heq, Finset.card_erase_of_mem hmem]
-    simp only [↓reduceIte]
-    omega
-  · have heq : (s.detachState p q).children root r = s.children root r := by
-      ext x
-      rw [State.children, Finset.mem_filter, State.children, Finset.mem_filter]
-      simp only [Finset.mem_univ, true_and, State.detachState]
-      by_cases hx : x = p
-      · subst hx
-        simp [hpar, hqr]
-      · simp [Function.update_of_ne hx]
-    simp [heq, hqr]
+      rcases eq_or_ne x p with rfl | hx
+      · simp [State.detachState]
+      · simp [State.detachState, hx]
+    · rw [State.children, Finset.mem_filter, State.children, Finset.mem_filter]
+      rcases eq_or_ne x p with rfl | hx
+      · simp [State.detachState, hpar, hqr]
+      · simp [State.detachState, Function.update_of_ne hx]
+  rw [heq]
+  split_ifs with hqr
+  · subst hqr
+    exact Finset.card_erase_add_one (by simp [State.children, hp, hpar])
+  · simp
 
 private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq P] (root : P) :
     (lts root).TrInv (fun s =>
@@ -424,30 +420,21 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
       conv_lhs => rw [State.inFlightBasicFrom, ← Multiset.cons_erase hmem]
       simp only [Multiset.filter_cons, Multiset.card_add, apply_ite Multiset.card,
         Multiset.card_singleton, Multiset.card_zero]
+    rw [recvBasicState_deficit]
     simp only [State.recvBasicState]
     split_ifs with hatt
     · have hch := children_attach s src hatt.1 hatt.2 p
       simp only at hch
-      have hdef := deficit_eq_of_update_same_deficit s dst true (some src) p
-      rw [hdef, hch]
+      rw [hch]
       simp only [State.inFlightBasicFrom, State.inFlightSignalTo] at hcons hbasic ⊢
       omega
-    · let s₁ : State P :=
-        { proc := Function.update s.proc dst { s.proc dst with active := true }
-          basicMsgs := s.basicMsgs.erase ⟨src, dst⟩
-          signals := src ::ₘ s.signals }
-      change (s₁.proc p).deficit =
-        s₁.inFlightBasicFrom p + s₁.inFlightSignalTo p + (s₁.children root p).card
-      have hch : s₁.children root p = s.children root p :=
-        children_congr (parent_eq_of_update_same_parent s dst true (s.proc dst).deficit) root p
-      have hsig : s₁.inFlightSignalTo p = s.inFlightSignalTo p + if p = src then 1 else 0 :=
-        Multiset.count_cons p src s.signals
-      have hdef : (s₁.proc p).deficit = (s.proc p).deficit :=
-        deficit_eq_of_update_same_deficit s dst true (s.proc dst).parent p
-      have hb' : s₁.inFlightBasicFrom p =
-          ((s.basicMsgs.erase ⟨src, dst⟩).filter fun m => m.src = p).card := rfl
-      rw [hdef, hb', hsig, hch]
-      simp only [eq_comm (a := p)]
+    · have hch := children_congr
+        (s₁ := ⟨Function.update s.proc dst { s.proc dst with active := true },
+          s.basicMsgs.erase ⟨src, dst⟩, src ::ₘ s.signals⟩)
+        (parent_eq_of_update_same_parent s dst true (s.proc dst).deficit) root p
+      rw [hch]
+      simp only [State.inFlightBasicFrom, State.inFlightSignalTo, Multiset.count_cons,
+        eq_comm (a := p)] at hcons hbasic ⊢
       omega
   | becomeIdle q =>
     obtain ⟨_, rfl⟩ := tr_becomeIdle_iff.mp htr
@@ -461,25 +448,19 @@ private theorem trInv_deficit_conservation {P : Type*} [Fintype P] [DecidableEq 
   | recvSignal q =>
     obtain ⟨hmem, rfl⟩ := tr_recvSignal_iff.mp htr
     have hcons := hinv p
-    let s₁ := s.recvSignalState q
-    change (s₁.proc p).deficit =
-      s₁.inFlightBasicFrom p + s₁.inFlightSignalTo p + (s₁.children root p).card
-    have hsig : s.inFlightSignalTo p = s₁.inFlightSignalTo p + if p = q then 1 else 0 := by
-      simp only [State.inFlightSignalTo, s₁, State.recvSignalState]
+    have hsig : s.inFlightSignalTo p =
+        (s.recvSignalState q).inFlightSignalTo p + if p = q then 1 else 0 := by
+      simp only [State.inFlightSignalTo, State.recvSignalState]
       conv_lhs => rw [← Multiset.cons_erase hmem, Multiset.count_cons]
-    have hch : s₁.children root p = s.children root p :=
+    have hch : (s.recvSignalState q).children root p = s.children root p :=
       children_congr
         (parent_eq_of_update_same_parent s q (s.proc q).active ((s.proc q).deficit - 1)) root p
-    rw [show s₁.inFlightBasicFrom p = s.inFlightBasicFrom p from rfl, hch]
+    rw [show (s.recvSignalState q).inFlightBasicFrom p = s.inFlightBasicFrom p from rfl, hch]
     by_cases hp : p = q
     · subst hp
-      have hdef : (s₁.proc p).deficit = (s.proc p).deficit - 1 := by
-        simp [s₁, State.recvSignalState]
-      simp only [↓reduceIte] at hsig
+      simp only [State.recvSignalState, Function.update_self, ↓reduceIte] at hsig ⊢
       omega
-    · have hdef : (s₁.proc p).deficit = (s.proc p).deficit := by
-        simp [s₁, State.recvSignalState, Function.update_of_ne hp]
-      simp only [hp, ↓reduceIte] at hsig
+    · simp only [State.recvSignalState, Function.update_of_ne hp, hp, ↓reduceIte] at hsig ⊢
       omega
   | detach q r =>
     obtain ⟨⟨hq, _, _, hpar⟩, rfl⟩ := tr_detach_iff.mp htr
@@ -811,16 +792,9 @@ theorem State.ComputationIdle.step_drainMeasure {P : Type*} [Fintype P] [Decidab
         simp [State.engagedNodes, hp_ne, hpar]
       have heng : s₁.engagedNodes root = (s.engagedNodes root).erase p := by
         ext x
-        rw [State.engagedNodes, Finset.mem_filter, Finset.mem_erase, State.engagedNodes,
-          Finset.mem_filter]
-        simp only [Finset.mem_univ, true_and, s₁, State.detachState]
-        by_cases hx : x = p
-        · subst hx; simp
-        · simp [hx]
-      have hpos : 0 < (s.engagedNodes root).card := Finset.card_pos.mpr ⟨p, hmem⟩
+        by_cases hx : x = p <;> simp [State.engagedNodes, s₁, State.detachState, hx]
       have hcard_eng : (s₁.engagedNodes root).card + 1 = (s.engagedNodes root).card := by
-        rw [heng, Finset.card_erase_of_mem hmem]
-        omega
+        rw [heng, Finset.card_erase_add_one hmem]
       have hsig : s₁.inFlightSignals = s.inFlightSignals + 1 := by
         simp [State.inFlightSignals, s₁, State.detachState]
       simp only [State.drainMeasure, State.engagedCount]
@@ -915,27 +889,21 @@ private theorem exists_drain_mtr {P : Type*} [Fintype P] [DecidableEq P] {root :
     intro s hr hidle hm
     by_cases ht : s.Terminated root
     · exact ⟨[], s, .refl, ht, rfl⟩
-    · have hnotTerm : ¬ (lts root).IsTerminal s :=
-        mt (hr.isTerminal_iff_terminated_of_computationIdle hidle).mp ht
-      simp only [LTS.IsTerminal, not_forall, Classical.not_not] at hnotTerm
-      obtain ⟨a, s₁, hstep⟩ := hnotTerm
-      obtain ⟨_, _, hdec⟩ := hidle.step_drainMeasure hstep
+    · obtain ⟨a, s₁, hstep⟩ : ∃ a s₁, (lts root).Tr s a s₁ := by
+        simpa [LTS.IsTerminal] using
+          mt (hr.isTerminal_iff_terminated_of_computationIdle hidle).mp ht
+      have hdec := (hidle.step_drainMeasure hstep).2.2
       omega
   | succ m ih =>
     intro s hr hidle hm
     by_cases ht : s.Terminated root
     · have hq := hr.terminated_implies_quiescent ht
-      have heng0 : s.engagedNodes root = ∅ := by
-        refine Finset.eq_empty_iff_forall_notMem.mpr fun p hp => ?_
-        simp only [State.engagedNodes, Finset.mem_filter, Finset.mem_univ, true_and] at hp
-        exact hp.2 (hq.1 p).2.2
-      simp only [State.drainMeasure, State.engagedCount, State.inFlightSignals, heng0,
-        Finset.card_empty, hq.2.2, Multiset.card_zero] at hm
-      omega
-    · have hnotTerm : ¬ (lts root).IsTerminal s :=
-        mt (hr.isTerminal_iff_terminated_of_computationIdle hidle).mp ht
-      simp only [LTS.IsTerminal, not_forall, Classical.not_not] at hnotTerm
-      obtain ⟨a, s₁, hstep⟩ := hnotTerm
+      have hpar (p : P) : (s.proc p).parent = none := (hq.1 p).2.2
+      simp [State.drainMeasure, State.engagedCount, State.engagedNodes, State.inFlightSignals,
+        hpar, hq.2.2] at hm
+    · obtain ⟨a, s₁, hstep⟩ : ∃ a s₁, (lts root).Tr s a s₁ := by
+        simpa [LTS.IsTerminal] using
+          mt (hr.isTerminal_iff_terminated_of_computationIdle hidle).mp ht
       obtain ⟨_, hidle₁, hdec⟩ := hidle.step_drainMeasure hstep
       obtain ⟨tr, s', hmtr, ht', hlen⟩ := ih (hr.step hstep) hidle₁ (by omega)
       exact ⟨a :: tr, s', .stepL hstep hmtr, ht', by simp [hlen]⟩
@@ -1034,15 +1002,10 @@ theorem exists_phantom_termination_naive_poll {P : Type*} [DecidableEq P] (root 
     split_ifs <;> simp
   have hd₁ : (s₁.proc root).deficit = 1 := by
     simp [s₁, s₀₁, s₀, State.becomeIdleState, State.sendBasicState, initState]
-  have hd₂ : (s₂.proc root).deficit = 1 := by
-    simp [s₂, State.recvBasicState, hr, hs₁_par_r, Function.update_of_ne (Ne.symm hr), hd₁]
+  have hd₂ : (s₂.proc root).deficit = 1 := (recvBasicState_deficit s₁ root root r root).trans hd₁
   have hd₃ : (s₃.proc root).deficit = 1 := by
     simp [s₃, s₂₁, State.becomeIdleState, Ne.symm hr, State.sendBasicState, hd₂]
-  have hd₄ : (s₄.proc root).deficit = 1 := by
-    simp only [s₄, State.recvBasicState]
-    split_ifs with hatt
-    · simpa [Function.update_of_ne (Ne.symm hatt.1)] using hd₃
-    · rw [deficit_eq_of_update_same_deficit s₃ q true (s₃.proc q).parent root, hd₃]
+  have hd₄ : (s₄.proc root).deficit = 1 := (recvBasicState_deficit s₃ root r q root).trans hd₃
   refine ⟨[.sendBasic root r, .becomeIdle root], [.recvBasic root r],
     [.sendBasic r q, .becomeIdle r], s₁, s₂, s₃, s₄, hmtr₁, hmtr₂, hmtr₃, htr₄,
     hs₁_root_idle, hs₂_idle q hqr, hs₂_idle, hs₂_r_act, hs₃_r_idle, hmem₃, hs₄_q_act,

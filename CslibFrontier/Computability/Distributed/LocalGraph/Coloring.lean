@@ -105,17 +105,13 @@ theorem firstFreeColor_lt (Δ : ℕ) (used : Finset ℕ) : firstFreeColor Δ use
 from `used`. -/
 theorem firstFreeColor_notMem {Δ : ℕ} {used : Finset ℕ} (hcard : used.card ≤ Δ) :
     firstFreeColor Δ used ∉ used := by
-  have hex : ∃ c ∈ List.range (Δ + 1), c ∉ used := by
-    by_contra! hall
-    have hle := Finset.card_le_card (s := Finset.range (Δ + 1)) fun c hc =>
-      hall c (List.mem_range.2 (Finset.mem_range.1 hc))
-    rw [Finset.card_range] at hle
-    omega
   unfold firstFreeColor
   cases h : (List.range (Δ + 1)).find? (fun c => decide (c ∉ used)) with
   | none =>
-    obtain ⟨c, hc_mem, hc_not⟩ := hex
-    exact absurd (by simpa using List.find?_eq_none.1 h c hc_mem) hc_not
+    have hle := Finset.card_le_card (s := Finset.range (Δ + 1)) fun c hc => by
+      simpa using List.find?_eq_none.1 h c (List.mem_range.2 (Finset.mem_range.1 hc))
+    rw [Finset.card_range] at hle
+    omega
   | some c => simpa using List.find?_some h
 
 /-- One step of greedy local-maximum color reduction ([Hirvonen and Suomela][HirvonenSuomela2020],
@@ -530,48 +526,44 @@ private theorem state_cv_phase {Δ C : ℕ} {x : V → ℕ} (hx : Function.Injec
       fun i u => by cases s <;> simpa using ih_lt i u
     have hnz : 1 + s ≠ 0 := by omega
     have hlt : 1 + s < 1 + Nat.logStar C := by omega
-    have hstep_eq : ∀ (i : Fin Δ) (u : V),
-        ((deltaPlusOneColoring Δ C).state G x (1 + (s + 1)) u).slotColor i =
-          match (nbrList G x u)[i.val]? with
-          | none =>
-            let a := ((deltaPlusOneColoring Δ C).state G x (1 + s) u).slotColor i
-            cvColor a (if a = 0 then 1 else 0)
-          | some tid =>
-            let target :=
-              ((((G.neighborFinset u).val.map
-                ((deltaPlusOneColoring Δ C).state G x (1 + s))).filterMap fun m =>
-                  if m.uid = tid then some (m.slotColor i) else none).sort (· ≤ ·)).headD 0
-            cvColor (((deltaPlusOneColoring Δ C).state G x (1 + s) u).slotColor i) target := by
-      intro i u
+    let st := (deltaPlusOneColoring Δ C).state G x (1 + s)
+    let st' := (deltaPlusOneColoring Δ C).state G x (1 + (s + 1))
+    have hunfold (u : V) : st' u = deltaPlusOneStep Δ C (1 + s) (st u)
+        ((G.neighborFinset u).val.map st) := by
+      dsimp only [st', st]
       rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-      dsimp only [deltaPlusOneStep]
-      simp only [hnz, ↓reduceIte, hlt, ↓reduceDIte]
-      rw [state_nbrUIDs_of_pos G Δ C x (by omega : 1 ≤ 1 + s) u]
-    have hm_succ : ∀ u, ((deltaPlusOneColoring Δ C).state G x (1 + (s + 1)) u).mergedColor = 0 := by
-      intro u
-      rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-      dsimp only [deltaPlusOneStep]
-      simp only [hnz, ↓reduceIte, hlt, ↓reduceDIte]
-      exact ih_m u
+    have hslot_some {i : Fin Δ} {u w : V} (huw : G.Adj u w)
+        (hout : (nbrList G x u)[i.val]? = some (x w)) :
+        (st' u).slotColor i = cvColor ((st u).slotColor i) ((st w).slotColor i) := by
+      rw [hunfold u]
+      simp only [deltaPlusOneStep, hnz, ↓reduceIte, hlt, ↓reduceDIte,
+        state_nbrUIDs_of_pos G Δ C x (by omega : 1 ≤ 1 + s) u, st, hout]
+      rw [filterMap_unique_neighbor G hx (1 + s) u w huw i]
+    have hm_succ (u : V) : (st' u).mergedColor = 0 := by
+      rw [hunfold u]
+      simp [deltaPlusOneStep, hlt, st, ih_m u]
     refine ⟨fun i u w huw hout => ?_, fun i u => ?_, hm_succ⟩
-    · rw [hstep_eq i u, hout]
-      dsimp only
-      rw [filterMap_unique_neighbor G hx (1 + s) u w huw i, hstep_eq i w]
-      cases (nbrList G x w)[i.val]? <;> exact cvColor_ne (ih_ne i u w huw hout)
+    · change (st' u).slotColor i ≠ (st' w).slotColor i
+      rw [hslot_some huw hout, hunfold w]
+      simp only [deltaPlusOneStep, hnz, ↓reduceIte, hlt, ↓reduceDIte]
+      cases (st w).nbrUIDs[i.val]? <;> exact cvColor_ne (ih_ne i u w huw hout)
     · simp only [Nat.succ_ne_zero, ↓reduceIte, Function.iterate_succ_apply']
-      rw [hstep_eq i u]
       have h2B : 2 ≤ cvBound^[s] C := two_le_iterate_cvBound hC2 s
       cases hopt : (nbrList G x u)[i.val]? with
       | none =>
-        dsimp only
-        have ha := ih_lt' i u
-        exact cvColor_lt (by split_ifs <;> omega) ha (by split_ifs <;> omega)
+        change (st' u).slotColor i < _
+        rw [hunfold u]
+        simp only [deltaPlusOneStep, hnz, ↓reduceIte, hlt, ↓reduceDIte,
+          state_nbrUIDs_of_pos G Δ C x (by omega : 1 ≤ 1 + s) u, st, hopt]
+        split_ifs with ha0
+        · exact cvColor_lt (ha0 ▸ Nat.zero_ne_one) (ih_lt' i u) h2B
+        · exact cvColor_lt ha0 (ih_lt' i u) (Nat.zero_lt_of_lt h2B)
       | some tid =>
         obtain ⟨w, hw_mem, rfl⟩ :=
           Multiset.mem_map.1 ((Multiset.mem_sort _).1 (List.mem_of_getElem? hopt))
         have huw : G.Adj u w := (G.mem_neighborFinset u w).1 hw_mem
-        dsimp only
-        rw [filterMap_unique_neighbor G hx (1 + s) u w huw i]
+        change (st' u).slotColor i < _
+        rw [hslot_some huw hopt]
         exact cvColor_lt (ih_ne i u w huw hopt) (ih_lt' i u) (ih_lt' i w)
 
 /-- After `1 + Nat.logStar C` rounds, all `Δ` slot colorings stay fixed for all subsequent rounds,

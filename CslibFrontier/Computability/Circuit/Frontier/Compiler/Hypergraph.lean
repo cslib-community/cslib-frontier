@@ -313,9 +313,8 @@ theorem eventually_lt_mul_multiarySize_of_cert {U : Type u} [Finite U] [Nontrivi
     n hn hfreen hbign σ I Acc c hfan hS
   obtain ⟨lay, hlay⟩ := hC c hfan
   set N := hyperNetwork c I Acc lay
-  have hacc : N.accepted = S n := by
-    rw [accepted_hyperNetwork]
-    exact Set.ext fun x => (hS x).symm
+  have hacc : N.accepted = S n :=
+    Set.ext fun x => by simpa only [N, accepted_hyperNetwork, mem_ofPred_eq] using (hS x).symm
   rw [← hacc] at hfreen hbign
   have hmr : max r 1 = r := max_eq_left (by have := hcert.hr; omega)
   have hdem := N.logb_ncard_accepted_le hfreen hbign lay (w := hyperWidth c lay)
@@ -360,9 +359,9 @@ theorem eventually_lt_mul_multiarySize_of_nondeterministicDecides_of_cert
     n hn hfreen hbign k σ I Acc c hfan hS
   obtain ⟨lay, hlay⟩ := hC c hfan
   set N := hiddenHyperNetwork c I Acc lay
-  have hacc : N.accepted = S n := by
-    rw [accepted_hiddenHyperNetwork]
-    exact Set.ext fun x => (hS x).symm
+  have hacc : N.accepted = S n :=
+    Set.ext fun x => by
+      simpa only [N, accepted_hiddenHyperNetwork, mem_ofPred_eq] using (hS x).symm
   rw [← hacc] at hfreen hbign
   have hmr : max r 1 = r := max_eq_left (by have := hcert.hr; omega)
   have hreadAt (u : HyperNode c) : (N.readAt u).ncard ≤ r :=
@@ -426,9 +425,8 @@ private theorem agreement_le_of_hyperLayout {U : Type u} [Finite U] [Nontrivial 
       (fun _ _ _ => satisfies_unique c I A lay) hb hS (w := w) (d := 2 * (r + 1)) (m := r)
       (width_hyperNetwork c I A lay).le (maxDegreeLE_hyperNetwork hfan I A lay)
       (fun u => hmr ▸ ncard_readAt_hyperNetwork_le hfan I A lay u)
-    have hread : (hyperNetwork c I A lay).read = (hyperNetwork c I Acc lay).read := by
-      rw [read_hyperNetwork, read_hyperNetwork]
-    rwa [accepted_hyperNetwork, hread, show w + 2 * (r + 1) + r = w + (3 * r + 2) by omega] at h
+    rwa [accepted_hyperNetwork, read_hyperNetwork, ← read_hyperNetwork (Acc := Acc),
+      show w + 2 * (r + 1) + r = w + (3 * r + 2) by omega] at h
   have hres : (K - 1) ^ 2 * (V * q ^ (w + (3 * r + 2)) +
       q ^ (hyperNetwork c I Acc lay).readᶜ.ncard) ≤ K ^ 3 * (V + 1) * q ^ (w + (3 * r + 2)) := by
     have hq1 : 1 ≤ q ^ (w + (3 * r + 2)) := Nat.one_le_pow _ _ Nat.card_pos
@@ -467,13 +465,11 @@ private theorem agreement_le_of_unread_lt_step {U : Type u} [Finite U] [Nontrivi
   obtain ⟨hA, hA_inv, _, h1c_n⟩ := supplyRate_pos_and_inv hcert
   have hr2 : (2 : ℝ) ≤ r := Nat.ofNat_le_cast.mpr hcert.hr
   set c_n := max (b : ℝ) (-a)
-  set A := supplyRate r a b
   set q := Nat.card U
   have hq1 : (1 : ℝ) < q := by exact_mod_cast Finite.one_lt_card
   have hq2 : (2 : ℝ) ≤ q := by exact_mod_cast (Finite.one_lt_card (α := U))
-  have hK0 : 0 < K' := by omega
   have hq0 : 0 < q := Nat.card_pos
-  have hK_pos : (0 : ℝ) < K' := by exact_mod_cast hK0
+  have hK_pos : (0 : ℝ) < K' := by exact_mod_cast (by omega : 0 < K')
   obtain ⟨he_nn, he_in, he_ge⟩ :=
     errTerm_bounds hcert (Real.logb_nonneg hq1 (by exact_mod_cast (show 1 ≤ K' by omega)) :
       0 ≤ Real.logb q K')
@@ -552,11 +548,9 @@ theorem eventually_agreement_le_multiarySize_of_cert {r K₀ : ℕ} {a b : ℚ}
   · have hbound (A_set : Set U) :
         |signedCount (S n) {x | c.eval I x 0 ∈ A_set}| ≤
           2 * b_bias n * {x | c.eval I x 0 ∈ A_set}.ncard + ((q * K' n ^ 2 : ℕ) : ℝ) := by
-      have hread : (hyperNetwork c I A_set lay).read = (hyperNetwork c I Acc lay).read := by
-        rw [read_hyperNetwork, read_hyperNetwork]
-      have h := hS.abs_signedCount_le_of_dependsOn hb_nn
-        (hyperNetwork c I A_set lay).dependsOn_read (by omega) (hread.symm ▸ hu)
-      rwa [accepted_hyperNetwork] at h
+      simpa only [accepted_hyperNetwork] using hS.abs_signedCount_le_of_dependsOn hb_nn
+        (hyperNetwork c I A_set lay).dependsOn_read (by omega)
+        (by simpa only [read_hyperNetwork] using hu)
     have hlogR : Real.logb q ((q * K' n ^ 2 : ℕ) : ℝ) ≤ (1 - μ) * n := by
       push_cast
       rw [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,

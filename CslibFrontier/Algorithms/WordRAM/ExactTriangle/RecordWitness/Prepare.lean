@@ -62,20 +62,11 @@ theorem prepare_input {w m n g p A : ℕ} (values : List ℤ)
     Fin.ext (congrArg (fun k : Fin 320 => k.val) h)
   have hf' : Function.Injective productBank := fun _ _ h =>
     Fin.ext (congrArg (fun k : Fin 400 => k.val) h)
-  let x₀ : Data 320 := .init (PreparationInput.input n (D m) g p values)
-  let x := a.extend RecordProduct.producerBank x₀
-  have hx : ExecWithin (w + 2) RecordProduct.produce x₀ x
-      (RecordProduct.preparationTime n (D m) g p values - 1) := ha'.rename hf
-  let y₀ : Data 400 := .init (PreparationInput.input n (D m) g p values)
-  let y := x.extend productBank y₀
-  have hy : ExecWithin (w + 2) produce y₀ y
-      (RecordProduct.preparationTime n (D m) g p values - 1) := hx.rename hf'
+  let inp := PreparationInput.input n (D m) g p values
+  let y := (a.extend RecordProduct.producerBank (.init inp)).extend productBank (.init inp)
+  have hy : ExecWithin (w + 2) produce (.init inp) y
+      (RecordProduct.preparationTime n (D m) g p values - 1) := (ha'.rename hf).rename hf'
   let z := y.set (productBank RecordProduct.Reg.ordinal) 0
-  have hz : ExecWithin (B := .standard) (w + 2)
-      (.op (.const (productBank RecordProduct.Reg.ordinal) 0)) y z 1 :=
-    ExecWithin.const (fits_zero _)
-  have low (j : Fin 64) : y.regs (productBank (RecordProduct.producerBank j)) = a.regs j :=
-    (hf'.extend_apply _ _ _).trans (hf.extend_apply _ _ _)
   have zmap : (z.comap productBank).comap RecordProduct.producerBank = a := by
     ext j
     · change Function.update y.regs (productBank RecordProduct.Reg.ordinal) 0
@@ -85,20 +76,20 @@ theorem prepare_input {w m n g p A : ℕ} (values : List ℤ)
         have hh := congrArg (fun k : Fin 400 => k.val) he
         change j.val = 64 at hh
         omega
-      exact (Function.update_of_ne hne _ _).trans (low j)
+      exact (Function.update_of_ne hne _ _).trans
+        ((hf'.extend_apply _ _ _).trans (hf.extend_apply _ _ _))
     · rfl
   obtain ⟨idx, hidx, hord⟩ := RecordProduct.first_index (fun q => values.getD q 0)
     hD hDn hg (by omega : p ≠ 0)
   obtain ⟨t, ht, he⟩ := ha'
-  have hr : Runs (w + 2) PreparationInput.flatProgram
-      (State.init (PreparationInput.input n (D m) g p values))
+  have hr : Runs (w + 2) PreparationInput.flatProgram (State.init inp)
       ⟨Instances.program.size, a⟩ t := by
     simpa only [Nat.zero_add, State.init] using he.runs (pc := 0)
       (p := PreparationInput.flatProgram) (Program.Contains.self _).append_left
   have hb := PreparationInput.bounded_reachable values hlen (by omega) hDn hg hp hv hw
     ⟨Instances.program.size, a⟩ t hr
   refine ⟨hi, a, idx, z, ⟨t, ht, he⟩, hout, hidx, hord, ?_, zmap, rfl, ?_⟩
-  · exact (hy.seq hz).mono
+  · exact (hy.seq (ExecWithin.const (B := .standard) (fits_zero _))).mono
       (by dsimp only [RecordProduct.preparationTime, Instances.timeBound]; omega)
   · exact (congrArg (fun d : Data 64 => d.regs Instances.heap) zmap).trans_le (hb.1 _).le
 

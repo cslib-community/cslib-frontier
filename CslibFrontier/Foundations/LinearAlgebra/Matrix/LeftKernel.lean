@@ -85,17 +85,10 @@ theorem exists_parityCheckMatrix (F : Matrix (Fin m) (Fin n) K) :
           smul_eq_mul] using hj
       ext i
       exact linearIndependent_iff'.mp b.linearIndependent Finset.univ c hsum i (Finset.mem_univ i)
-    have hrankT : Hᵀ.rank = leftKernelDim F := by
-      have hrn := Hᵀ.mulVecLin.finrank_range_add_finrank_ker
-      change Hᵀ.rank + Module.finrank K (LinearMap.ker Hᵀ.mulVecLin) =
-        Module.finrank K (Fin (leftKernelDim F) → K) at hrn
-      rw [hHT_inj, finrank_bot, add_zero, Module.finrank_fin_fun] at hrn
-      exact hrn
-    have hrange : LinearMap.range H.mulVecLin = ⊤ := by
-      apply Submodule.eq_top_of_finrank_eq
-      change H.rank = Module.finrank K (Fin (leftKernelDim F) → K)
-      rw [← Matrix.rank_transpose, hrankT, Module.finrank_fin_fun]
-    exact LinearMap.range_eq_top.mp hrange
+    have hrank := leftKernelDim_add_rank H
+    rw [leftKernelDim, hHT_inj, finrank_bot, zero_add] at hrank
+    exact LinearMap.range_eq_top.mp (Submodule.eq_top_of_finrank_eq
+      (hrank.trans (Module.finrank_fin_fun K).symm))
 
 /-- A left-kernel check annihilates every vector in the image of `F`. -/
 theorem parityCheck_mulVec_of_eq_zero {H : Matrix (Fin r) (Fin m) K}
