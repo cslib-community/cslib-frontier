@@ -10650,6 +10650,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.Geome
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Classes
 public import CslibFrontier.Probability.BitString.BinarySymmetricChannel.Converse
 public import CslibFrontier.Crypto.Game.RepeatedInversion
+public import CslibFrontier.Computability.Complexity.Problems.SharpTwoSATParity
 public import CslibFrontier.Foundations.Data.BitString.Threshold
 public import CslibFrontier.Computability.Circuit.Arithmetic.Permanent
 public import CslibFrontier.DataStructure.BTree.OfSortedList
