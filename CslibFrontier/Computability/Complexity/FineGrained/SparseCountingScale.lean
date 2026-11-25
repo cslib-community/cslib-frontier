@@ -551,12 +551,8 @@ private theorem query_count_le_two_pow_succ_clog_pow {n m B P C_B β C_P e_B e_�
     have h4 : 4 ≤ 2 ^ M := (show 4 = 2 ^ 2 by norm_num).trans_le
       (Nat.pow_le_pow_right two_pos (by dsimp only [M]; omega))
     have hM_le : M + 1 ≤ (C_B + β + 4) * lam1 := by
-      have hCB := Nat.le_mul_of_pos_right C_B hlam1
-      have h2lam : 2 + lam1 ≤ 4 * lam1 := by omega
-      calc M + 1 = C_B + lam1 * β + (2 + lam1) := by dsimp only [M]; ring
-        _ ≤ C_B * lam1 + β * lam1 + 4 * lam1 := by
-            rw [mul_comm lam1 β]; exact Nat.add_le_add (Nat.add_le_add_right hCB _) h2lam
-        _ = (C_B + β + 4) * lam1 := by ring
+      dsimp only [M]
+      linarith [Nat.le_mul_of_pos_right C_B hlam1]
     calc 2 * m + 4 ≤ 2 * 2 ^ M := by omega
       _ = 2 ^ (M + 1) := (pow_succ' 2 M).symm
       _ ≤ 2 ^ ((C_B + β + 4) * lam1) := Nat.pow_le_pow_right two_pos hM_le
