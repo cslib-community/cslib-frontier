@@ -209,11 +209,8 @@ private theorem countInr_stepM {indep : Finset α → Bool}
 omit [LinearOrder β] in
 private theorem length_filter_notMem_add_card {u : List α} (hu : u.Nodup) {S : Finset α}
     (hS : S ⊆ u.toFinset) : (u.filter (· ∉ S)).length + S.card = u.length := by
-  have hnodup : (u.filter (· ∉ S)).Nodup := hu.filter _
-  have htoFinset : (u.filter (· ∉ S)).toFinset = u.toFinset \ S := by
-    ext x
-    simp
-  rw [← List.toFinset_card_of_nodup hnodup, htoFinset, Finset.card_sdiff_of_subset hS,
+  have htoFinset : (u.filter (· ∉ S)).toFinset = u.toFinset \ S := Finset.ext fun _ => by simp
+  rw [← List.toFinset_card_of_nodup (hu.filter _), htoFinset, Finset.card_sdiff_of_subset hS,
     ← List.toFinset_card_of_nodup hu, Nat.sub_add_cancel (Finset.card_le_card hS)]
 
 /-! ### Exact counts -/
@@ -241,17 +238,14 @@ private theorem countInr_loopM {f : Finset α → β} {indep : Finset α → Boo
         Finset.sum_singleton]
       omega
     · obtain ⟨c, hc, rfl, -⟩ := exists_of_submodularMatroidGreedyStep_eq_some h
-      have hc' := mem_feasibleCandidates.mp hc
-      have hS' : insert c S ⊆ u.toFinset :=
-        Finset.insert_subset (List.mem_toFinset.mpr hc'.1) hS
-      have hcard : (insert c S).card = S.card + 1 := Finset.card_insert_of_notMem hc'.2.1
+      obtain ⟨hcu, hcS, -⟩ := mem_feasibleCandidates.mp hc
+      have hcard : (insert c S).card = S.card + 1 := Finset.card_insert_of_notMem hcS
       dsimp only
-      rw [ih hS' (by omega), hcard]
+      rw [ih (Finset.insert_subset (List.mem_toFinset.mpr hcu) hS) (by omega), hcard]
       have hlt : S.card < (submodularMatroidGreedyLoop f indep u k (insert c S)).card + 1 := by
         have := Finset.card_le_card (subset_submodularMatroidGreedyLoop f indep u k (insert c S))
         omega
-      rw [Finset.sum_eq_sum_Ico_succ_bot hlt]
-      omega
+      rw [Finset.sum_eq_sum_Ico_succ_bot hlt]; omega
 
 /-- **Exact independence-query count.** With `n = xs.toFinset.card` distinct ground elements and
 greedy output `G`, the query program makes exactly `∑ t ∈ range (|G| + 1), (n - t)` independence
@@ -265,8 +259,7 @@ theorem countInr_submodularMatroidGreedyQuery (xs : List α) :
     (indep := fun S => oracle (.inr (.indep S))) (fun _ => rfl) (fun _ => rfl)
     (List.nodup_eraseDups xs) xs.eraseDups.length (Finset.empty_subset _) (by simp)
   rw [Finset.card_empty, ← Finset.range_eq_Ico] at h
-  rw [← List.length_eraseDups]
-  exact h
+  rwa [← List.length_eraseDups]
 
 private theorem countInl_loopM_chain {f : Finset α → β} {indep : Finset α → Bool}
     (hf : ∀ T, oracle (.inl (.value T)) = f T) (hi : ∀ T, oracle (.inr (.indep T)) = indep T)
@@ -284,11 +277,8 @@ private theorem countInl_loopM_chain {f : Finset α → β} {indep : Finset α �
     rw [Finset.sum_range_succ', Nat.add_zero]
     rcases h : submodularMatroidGreedyStep f indep u (submodularMatroidGreedyChain f indep u t)
       with _ | S'
-    · have hnil := submodularMatroidGreedyStep_eq_none_iff.mp h
-      have hstable : ∀ s, submodularMatroidGreedyChain f indep u (t + (s + 1)) =
-          submodularMatroidGreedyChain f indep u t := fun s =>
-        submodularMatroidGreedyChain_add_of_step_eq_none h (s + 1)
-      simp [hstable, hnil]
+    · simp [submodularMatroidGreedyStep_eq_none_iff.mp h,
+        fun s => submodularMatroidGreedyChain_add_of_step_eq_none h (s + 1)]
     · have hS' : S' = submodularMatroidGreedyChain f indep u (t + 1) := by
         rw [submodularMatroidGreedyChain_succ, h, Option.getD_some]
       dsimp only
@@ -312,8 +302,7 @@ theorem countInl_submodularMatroidGreedyQuery (xs : List α) :
     (indep := fun S => oracle (.inr (.indep S))) (fun _ => rfl) (fun _ => rfl)
     xs.eraseDups xs.eraseDups.length 0
   simp only [Nat.zero_add] at h
-  rw [← List.length_eraseDups]
-  exact h
+  rwa [← List.length_eraseDups]
 
 private theorem countInl_le_countInr_loopM {indep : Finset α → Bool}
     {f : Finset α → β} (hf : ∀ T, oracle (.inl (.value T)) = f T)
@@ -354,15 +343,11 @@ theorem two_mul_countInr_submodularMatroidGreedyQuery_le (xs : List α) :
     (fun S => oracle (.inr (.indep S))) xs
   set n := xs.toFinset.card
   have hG : G.card ≤ n := Finset.card_le_card (submodularMatroidGreedy_subset_toFinset _ _ xs)
-  have hsum : ∑ t ∈ Finset.range (n + 1), (n - t) = ∑ t ∈ Finset.range (n + 1), t := by
-    simpa using Finset.sum_range_reflect (fun t => t) (n + 1)
+  have hmono : ∑ t ∈ Finset.range (G.card + 1), (n - t) ≤ ∑ t ∈ Finset.range (n + 1), t :=
+    (Finset.sum_le_sum_of_subset (Finset.range_mono (Nat.succ_le_succ hG))).trans_eq
+      (by simpa using Finset.sum_range_reflect id (n + 1))
   have hgauss := Finset.sum_range_id_mul_two (n + 1)
-  have hmono : ∑ t ∈ Finset.range (G.card + 1), (n - t) ≤
-      ∑ t ∈ Finset.range (n + 1), (n - t) :=
-    Finset.sum_le_sum_of_subset (Finset.range_mono (Nat.succ_le_succ hG))
-  rw [hsum] at hmono
-  simp only [Nat.add_sub_cancel] at hgauss
-  rw [Nat.mul_comm n]
+  simp only [Nat.add_sub_cancel, Nat.mul_comm _ n] at hgauss
   omega
 
 /-- At most `n (n + 1) / 2` value queries, `n = xs.toFinset.card`, stated without division. -/
@@ -408,8 +393,8 @@ theorem countInr_submodularMatroidGreedyQuery_of_isBasis' {M : Matroid α}
     SumQuery.countInr oracle (submodularMatroidGreedyQuery xs) =
       ∑ t ∈ Finset.range (B.card + 1), (xs.toFinset.card - t) := by
   rw [countInr_submodularMatroidGreedyQuery]
-  have hG := submodularMatroidGreedy_isBasis' hM (fun S => oracle (.inl (.value S))) xs
-  have hcard := Matroid.IsBasis'.encard_eq_encard hG hB
+  have hcard := (submodularMatroidGreedy_isBasis' hM
+    (fun S => oracle (.inl (.value S))) xs).encard_eq_encard hB
   simp only [Set.encard_coe_eq_coe_finsetCard, Nat.cast_inj] at hcard
   rw [hcard]
 

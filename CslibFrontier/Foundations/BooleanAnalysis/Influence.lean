@@ -124,13 +124,6 @@ theorem derivative_chi (i : ι) (S : Finset ι) (x : ι → Bool) :
     ring
   · rw [derivative, chi_update_of_notMem hi, chi_update_of_notMem hi, sub_self, zero_div]
 
-/-- Changing bit `i` of `x` gives the two points with bit `i` set to `false` and to `true`. -/
-private theorem update_false_true_eq (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) :
-    (f (update x i false) = f (update x i true)) ↔ f (update x i !x i) = f x := by
-  cases h : x i
-  · rw [show update x i false = x from update_eq_self_iff.2 h.symm, Bool.not_false, eq_comm]
-  · rw [show update x i true = x from update_eq_self_iff.2 h.symm, Bool.not_true]
-
 /-- The derivative of a Boolean function read as signs takes the values `0` and `±1`, so its
 square is its absolute value. -/
 theorem sq_derivative_signVal (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) :
@@ -142,14 +135,14 @@ theorem sq_derivative_signVal (f : (ι → Bool) → Bool) (i : ι) (x : ι → 
 bit `i` changes the value. -/
 theorem derivative_signVal_ne_zero_iff (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) :
     derivative i (fun x => signVal (f x)) x ≠ 0 ↔ f (update x i !x i) ≠ f x := by
-  rw [ne_eq, ne_eq, ← update_false_true_eq, derivative]
+  rw [ne_eq, ne_eq, ← apply_update_false_eq_apply_update_true_iff, derivative]
   cases f (update x i false) <;> cases f (update x i true) <;> norm_num
 
 /-- The squared derivative of a Boolean function read as signs is `1` where flipping bit `i`
 changes the value and `0` elsewhere. -/
 theorem sq_derivative_signVal_eq_ite (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bool) :
     derivative i (fun x => signVal (f x)) x ^ 2 = if f (update x i !x i) = f x then 0 else 1 := by
-  rw [derivative, ← if_congr (update_false_true_eq f i x) rfl rfl]
+  rw [derivative, ← if_congr (apply_update_false_eq_apply_update_true_iff f i x) rfl rfl]
   cases f (update x i false) <;> cases f (update x i true) <;> norm_num
 
 /-- The derivative commutes with renaming the coordinates: differentiating `g` with its

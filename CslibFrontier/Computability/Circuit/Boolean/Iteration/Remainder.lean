@@ -72,9 +72,7 @@ private theorem equivBitVec_succ (bits : BitString (m + 1)) :
   rw [BitString.getLsbD_equivBitVec bits ⟨i, hi⟩, BitVec.getLsbD_concat]
   rcases i with _ | i
   · rfl
-  · simp only [Nat.add_one_ne_zero, ↓reduceIte, Nat.add_sub_cancel]
-    rw [BitString.getLsbD_equivBitVec _ ⟨i, by omega⟩]
-    rfl
+  · simp [BitString.getLsbD_equivBitVec (fun j : Fin m => bits j.succ) ⟨i, by omega⟩]
 
 /-! ### Streaming remainders -/
 
@@ -99,11 +97,7 @@ private theorem toNat_remainderStep (d r : BitVec w) (b : Bool) (hd : 0 < d.toNa
   unfold remainderStep
   split_ifs with ht
   · rw [hs, Nat.mod_eq_of_lt (by simpa only [BitVec.ult, decide_eq_true_eq, hs] using ht)]
-  · have hle : d ≤ r.shiftConcat b := by
-      change d.toNat ≤ _
-      simp only [BitVec.ult, decide_eq_true_eq, hs, not_lt] at ht
-      rw [hs]
-      exact ht
+  · have hle : d ≤ r.shiftConcat b := BitVec.le_def.mpr (by simpa [BitVec.ult] using ht)
     rw [BitVec.toNat_sub_of_le hle, hs, Nat.mod_eq_sub_mod (by rwa [← hs]),
       Nat.mod_eq_of_lt (by omega)]
 
@@ -113,10 +107,7 @@ theorem toNat_streamRemainder (d : BitVec w) (bits : BitString m) (hd : 0 < d.to
     (hw : 2 * d.toNat ≤ 2 ^ w) :
     (streamRemainder d bits).toNat = (BitString.equivBitVec bits).toNat % d.toNat := by
   induction m with
-  | zero =>
-    have h : (BitString.equivBitVec bits).toNat = 0 := by
-      simpa using (BitString.equivBitVec bits).isLt
-    simp [streamRemainder, h]
+  | zero => simp [streamRemainder, Nat.lt_one_iff.mp (BitString.equivBitVec bits).isLt]
   | succ m ih =>
     rw [streamRemainder, toNat_remainderStep d _ _ hd hw (by rw [ih]; exact Nat.mod_lt _ hd), ih,
       equivBitVec_succ, BitVec.toNat_concat]
@@ -235,15 +226,10 @@ theorem toNat_subMod (a b d : BitVec w) (hd : 0 < d.toNat) (hw : 2 * d.toNat ≤
   · have hfit : a.toNat % d.toNat + d.toNat < 2 ^ w := by omega
     have hle : streamRemainder d (fun i : Fin w => b.getLsbD i.val) ≤
         streamRemainder d (fun i : Fin w => a.getLsbD i.val) + d := by
-      change _ ≤ (_ + _ : BitVec w).toNat
-      rw [BitVec.toNat_add, hra, hrb, Nat.mod_eq_of_lt hfit]
+      rw [BitVec.le_def, BitVec.toNat_add, hra, hrb, Nat.mod_eq_of_lt hfit]
       omega
     rw [BitVec.toNat_sub_of_le hle, BitVec.toNat_add, hra, hrb, Nat.mod_eq_of_lt hfit]
-  · have hle : streamRemainder d (fun i : Fin w => b.getLsbD i.val) ≤
-        streamRemainder d (fun i : Fin w => a.getLsbD i.val) := by
-      rw [BitVec.le_def, hra, hrb]
-      omega
-    rw [BitVec.toNat_sub_of_le hle, hra, hrb]
+  · rw [BitVec.toNat_sub_of_le (BitVec.le_def.mpr (by rw [hra, hrb]; omega)), hra, hrb]
 
 /-- A modular difference of available words costs two streaming remainders and a constant
 number of word operations: at most `50 * (w + 1) ^ 2` gates. -/

@@ -100,22 +100,14 @@ private theorem pos_of_gap {Δ k : ℕ} {δ₀ g a : ℝ} (hδ₀' : δ₀ ≤ 1
     (hg : a < g * (Real.log 2 - Real.binEntropy δ₀)) : 0 < g ∧ 0 < Δ := by
   have hγ0 : 0 ≤ Real.log 2 - Real.binEntropy δ₀ := sub_nonneg.2 Real.binEntropy_le_log_two
   have hgγ : 0 < g * (Real.log 2 - Real.binEntropy δ₀) := ha.trans_lt hg
-  refine ⟨?_, ?_⟩
-  · by_contra hneg
-    exact hgγ.not_ge (mul_nonpos_of_nonpos_of_nonneg (le_of_not_gt hneg) hγ0)
-  · rcases Nat.eq_zero_or_pos Δ with rfl | h
-    · exfalso
-      have h0 : (1 - 2 * δ₀) ^ k ≤ 0 := by simpa using hkδ
-      have hd : δ₀ = 1 / 2 := by
-        by_contra hne
-        have : 0 < 1 - 2 * δ₀ := by
-          rcases lt_or_eq_of_le hδ₀' with h | h
-          · linarith only [h]
-          · exact absurd h hne
-        exact absurd h0 (not_le.2 (pow_pos this k))
-      rw [hd, one_div, Real.binEntropy_two_inv, sub_self, mul_zero] at hgγ
-      exact lt_irrefl _ hgγ
-    · exact h
+  refine ⟨pos_of_mul_pos_left hgγ hγ0, Nat.pos_of_ne_zero fun hΔ => ?_⟩
+  -- At `Δ = 0` the bound forces `δ₀ = 1 / 2`, where the gap vanishes.
+  have h0 : (1 - 2 * δ₀) ^ k ≤ 0 := by simpa [hΔ] using hkδ
+  have hd : δ₀ = 1 / 2 := by
+    by_contra hne
+    exact h0.not_gt (pow_pos (by linarith only [lt_of_le_of_ne hδ₀' hne]) k)
+  rw [hd, one_div, Real.binEntropy_two_inv, sub_self, mul_zero] at hgγ
+  exact lt_irrefl _ hgγ
 
 /-- **The input length is logarithmic in `λ`.** When the numbers of formulas and the weights are
 at most `λ`, the input length is at most `(1 + 2 k Δ²) ⌈log₂ λ⌉ + Δ²`. -/
@@ -277,16 +269,13 @@ theorem three_mul_card_le_of_log_le {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) 
     rw [h2, h2, ← Real.exp_log (show (0 : ℝ) < 3 by norm_num)]
     simp only [← Real.exp_add]
     exact Real.exp_le_one_iff.2 (by linarith only [hlog])
-  have hVF : (0 : ℝ) ≤ Fintype.card (VarFunctions I lam) := Nat.cast_nonneg _
   have key : (3 * #{f : VarFunctions I lam | Good f} : ℝ) ≤ Fintype.card (VarFunctions I lam) :=
     calc (3 * #{f : VarFunctions I lam | Good f} : ℝ)
-        ≤ 3 * #(F.biUnion Bad) :=
-          mul_le_mul_of_nonneg_left (by exact_mod_cast card_le_card hsub) (by norm_num)
-      _ ≤ 3 * ∑ h ∈ F, (#(Bad h) : ℝ) :=
-          mul_le_mul_of_nonneg_left (by exact_mod_cast card_biUnion_le) (by norm_num)
+        ≤ 3 * ∑ h ∈ F, (#(Bad h) : ℝ) := by
+          gcongr; exact_mod_cast (card_le_card hsub).trans card_biUnion_le
       _ ≤ 3 * ∑ h ∈ F,
-            2 ^ I.weights.length * Real.exp (-T) * Fintype.card (VarFunctions I lam) :=
-          mul_le_mul_of_nonneg_left (sum_le_sum fun h _ => hbad h) (by norm_num)
+            2 ^ I.weights.length * Real.exp (-T) * Fintype.card (VarFunctions I lam) := by
+          gcongr with h; exact hbad h
       _ = 3 * #F * (2 ^ I.weights.length * Real.exp (-T)) *
             Fintype.card (VarFunctions I lam) := by
           rw [sum_const, nsmul_eq_mul]
@@ -294,8 +283,8 @@ theorem three_mul_card_le_of_log_le {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) 
       _ ≤ 3 * 2 ^ M * (2 ^ I.weights.length * Real.exp (-T)) *
             Fintype.card (VarFunctions I lam) := by
           gcongr
-      _ ≤ 1 * Fintype.card (VarFunctions I lam) := mul_le_mul_of_nonneg_right hfin hVF
-      _ = Fintype.card (VarFunctions I lam) := one_mul _
+      _ ≤ Fintype.card (VarFunctions I lam) :=
+          (mul_le_mul_of_nonneg_right hfin (Nat.cast_nonneg _)).trans_eq (one_mul _)
   exact_mod_cast key
 
 end Fixed
@@ -365,16 +354,9 @@ theorem three_mul_card_toInstance_mem_PartialMCSP_le (Δ k P : ℕ) (hP : 0 < P)
   have hN1 : lam₀ * (N + 1) ≤ lam :=
     le_trans (Nat.mul_le_mul_left _ (Nat.le_self_pow two_ne_zero _)) hlam
   have hNl : N * lam₀ ≤ lam :=
-    calc N * lam₀ = lam₀ * N := mul_comm _ _
-      _ ≤ lam₀ * (N + 1) := Nat.mul_le_mul_left _ (Nat.le_succ N)
-      _ ≤ lam := hN1
-  have hNlam : N < lam :=
-    calc N < N + 1 := Nat.lt_succ_self _
-      _ ≤ lam₀ * (N + 1) := Nat.le_mul_of_pos_left _ hlam₀
-      _ ≤ lam := hN1
-  have hlam₀lam : lam₀ ≤ lam :=
-    calc lam₀ ≤ lam₀ * (N + 1) ^ 2 := Nat.le_mul_of_pos_right _ (by positivity)
-      _ ≤ lam := hlam
+    (Nat.mul_comm _ _).trans_le ((Nat.mul_le_mul_left _ N.le_succ).trans hN1)
+  have hNlam : N < lam := N.lt_succ_self.trans_le ((Nat.le_mul_of_pos_left _ hlam₀).trans hN1)
+  have hlam₀lam : lam₀ ≤ lam := (Nat.le_mul_of_pos_right _ (by positivity)).trans hlam
   have hL₀lam : 2 ^ L₀ ≤ lam := ((le_max_left _ _).trans (le_max_left _ _)).trans hlam₀lam
   have hΛlam : Λ ≤ lam := ((le_max_right _ _).trans (le_max_left _ _)).trans hlam₀lam
   -- `L' = ⌈log₂ λ⌉`.
@@ -404,13 +386,8 @@ theorem three_mul_card_toInstance_mem_PartialMCSP_le (Δ k P : ℕ) (hP : 0 < P)
   have hLpos : 0 < L := Nat.pos_of_ne_zero fun h => by rw [h, mul_zero] at hL2; omega
   set s := sizeThreshold I lam P with hs
   have hsPL : s * (P * L) ≤ (P + 2) * 2 ^ L := Nat.div_mul_le_self _ _
-  have h2s : 2 * s ≤ 2 ^ L := by
-    have : 2 * s * (P * L) ≤ 2 ^ L * (P * L) := by
-      calc 2 * s * (P * L) = 2 * (s * (P * L)) := by ring
-        _ ≤ 2 * ((P + 2) * 2 ^ L) := Nat.mul_le_mul_left _ hsPL
-        _ = 2 ^ L * (2 * (P + 2)) := by ring
-        _ ≤ 2 ^ L * (P * L) := Nat.mul_le_mul_left _ hL2
-    exact Nat.le_of_mul_le_mul_right this (by positivity)
+  have h2s : 2 * s ≤ 2 ^ L := Nat.le_of_mul_le_mul_right
+    (by linarith only [hsPL, Nat.mul_le_mul_left (2 ^ L) hL2]) (Nat.mul_pos hP hLpos)
   have h2A : 2 * (inputLength I Δ k lam + 1) ≤ 2 ^ L' := by
     have : (2 * (inputLength I Δ k lam + 1) : ℝ) ≤ 2 ^ L' := by
       linarith only [hAr, hE4, Nat.cast_nonneg (α := ℝ) (inputLength I Δ k lam)]
@@ -428,15 +405,10 @@ theorem three_mul_card_toInstance_mem_PartialMCSP_le (Δ k P : ℕ) (hP : 0 < P)
   have hsLr : (s : ℝ) * L ≤ 4 * (1 + 2 / P) * (I.threshold * lam) := by
     have h := (Nat.cast_le (α := ℝ)).2 hsPL
     push_cast at h
-    have h' : (s : ℝ) * L * P ≤ (P + 2) * (4 * I.threshold * lam) :=
-      (by ring : (s : ℝ) * L * P = s * (P * L)).trans_le
-        (h.trans (mul_le_mul_of_nonneg_left hLθr (by positivity)))
     have hPne : (P : ℝ) ≠ 0 := hP'.ne'
-    have hPP : 2 / (P : ℝ) * P = 2 := by field_simp
-    have e : 4 * (1 + 2 / (P : ℝ)) * (I.threshold * lam) * P =
-        (P + 2) * (4 * I.threshold * lam) := by
-      linear_combination (4 * ((I.threshold : ℝ) * lam)) * hPP
-    exact le_of_mul_le_mul_right (h'.trans e.symm.le) hP'
+    rw [show 4 * (1 + 2 / (P : ℝ)) * (I.threshold * lam) = (P + 2) * (4 * I.threshold * lam) / P by
+      field_simp, le_div_iff₀ hP']
+    linarith only [h, mul_le_mul_of_nonneg_left hLθr (by positivity : (0 : ℝ) ≤ P + 2)]
   have hM1 : 2 * (s : ℝ) * L * Real.log 2 ≤
       8 * (1 + 2 / P) * Real.log 2 * (I.threshold * lam) := by
     linarith only [mul_le_mul_of_nonneg_left hsLr hl2']

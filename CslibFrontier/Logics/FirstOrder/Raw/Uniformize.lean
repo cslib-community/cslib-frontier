@@ -79,23 +79,18 @@ theorem finSat_uniformize (φ : RawFormula) : FinSat (uniformize φ.varBound φ)
       I (Nat.unpair (as.length - 1)).1 (as.take (Nat.unpair (as.length - 1)).2)
     refine ⟨M, hf, hn, J, v, (realize_uniformize _ J φ v le_rfl).2 ?_⟩
     refine (realize_congr_rel φ v fun r as _ => ?_).1 h
-    have hk : as.length ≤ padLen r as.length := by
-      have := Nat.right_le_pair r as.length
-      simp only [padLen]
-      omega
     have hl : (as ++ List.replicate (padLen r as.length - as.length) (v φ.varBound)).length - 1 =
         Nat.pair r as.length := by
-      simp only [List.length_append, List.length_replicate, padLen] at hk ⊢
+      have := Nat.right_le_pair r as.length
+      simp only [List.length_append, List.length_replicate, padLen]
       omega
     simp only [uniformInterp, J, hl, Nat.unpair_pair, List.take_left]
 
 theorem atoms_uniformize (B : ℕ) :
     ∀ φ : RawFormula, ∀ a ∈ (uniformize B φ).atoms, a.1 = 0 ∧ 0 < a.2
-  | falsum, _, h => by simp [uniformize, atoms] at h
-  | equal _ _, _, h => by simp [uniformize, atoms] at h
+  | falsum, _, h | equal _ _, _, h => by simp [uniformize, atoms] at h
   | rel r args, a, h => by
-    simp only [uniformize, atoms, List.mem_singleton] at h
-    subst h
+    obtain rfl : a = _ := by simpa only [uniformize, atoms, List.mem_singleton] using h
     simp only [List.length_append, List.length_replicate, padLen, true_and]
     omega
   | imp φ ψ, a, h => by

@@ -77,9 +77,7 @@ theorem gadgetFiber_congr_left (g : Fin m → Fin m → Bool) (Y : Finset (Fin n
     (β : Fin n → Bool) : gadgetFiber g Y I x β = gadgetFiber g Y I x' β := by
   ext y
   simp only [mem_gadgetFiber]
-  apply and_congr_right
-  intro _
-  exact forall_congr' fun i => forall_congr' fun hi => by rw [hx i hi]
+  exact and_congr_right fun _ => forall₂_congr fun i hi => by rw [hx i hi]
 
 /-- Coordinate conditioning and gadget-output conditioning commute. No disjointness assumption
 is required for this set identity. -/
@@ -109,13 +107,8 @@ theorem IsSafe.congr_left {g : Fin m → Fin m → Bool} {σ : ℝ} {F : Finset 
   have heq (I : Finset (Fin n)) (hI : I ⊆ F) (β : Fin n → Bool) :
       gadgetFiber g Y I x β = gadgetFiber g Y I x' β :=
     gadgetFiber_congr_left g Y I (fun i hi => hx i (hI hi)) β
-  constructor
-  · intro I hI β
-    rw [← heq I hI β]
-    exact h.nonleaking I hI β
-  · intro I hI β
-    rw [← heq I hI β]
-    exact h.dense I hI β
+  exact ⟨fun I hI β => heq I hI β ▸ h.nonleaking I hI β,
+    fun I hI β => heq I hI β ▸ h.dense I hI β⟩
 
 /-- Safe conditioning of a nonempty source has a nonempty fiber for every output. -/
 theorem IsSafe.fiber_nonempty {g : Fin m → Fin m → Bool} {σ : ℝ} {F : Finset (Fin n)}
@@ -147,18 +140,13 @@ theorem exists_bayes_card_certificate {g : Fin m → Fin m → Bool} {σ : ℝ}
   change (#(gadgetFiber g Y I x β) : ℝ) <
     #(agreeOn (gadgetFiber g Y I x β) J α) * σ ^ #J at hα
   rw [agreeOn_gadgetFiber] at hα
-  have hdisj : Disjoint I J := by
-    apply disjoint_left.mpr
-    intro i hiI hiJ
-    exact (mem_sdiff.mp (hJ hiJ)).2 hiI
   have hne : (gadgetFiber g (agreeOn Y J α) I x β).Nonempty := by
     by_contra hn
-    rw [not_nonempty_iff_eq_empty] at hn
-    rw [hn, card_empty, Nat.cast_zero, zero_mul] at hα
-    exact (not_lt_of_ge (Nat.cast_nonneg _)) hα
-  refine ⟨J, α, hJ, hJne, hdisj, hne, ?_⟩
-  have hmul := mul_lt_mul_of_pos_left hα (by positivity : (0 : ℝ) < 2 ^ (#I + 1))
-  nlinarith
+    rw [not_nonempty_iff_eq_empty.mp hn, card_empty, Nat.cast_zero, zero_mul] at hα
+    exact (Nat.cast_nonneg _).not_gt hα
+  refine ⟨J, α, hJ, hJne, disjoint_left.mpr fun i hiI hiJ => (mem_sdiff.mp (hJ hiJ)).2 hiI,
+    hne, ?_⟩
+  nlinarith [mul_lt_mul_of_pos_left hα (by positivity : (0 : ℝ) < 2 ^ (#I + 1))]
 
 /-- The same Bayes certificate as a conditional frequency. Its threshold retains
 `#Y / #(agreeOn Y J α)`, rather than replacing a possibly rare coordinate slice by a uniform one. -/

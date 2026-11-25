@@ -85,56 +85,12 @@ def verifier (x : List (List Bool) × List Bool) : Bool :=
             (!(bit x.2 x.1.length i j && bit x.2 x.1.length i k) || j == k) &&
               (!(bit x.2 x.1.length i j && bit x.2 x.1.length k j) || i == k)
 
-section PolyTime
-
-variable {γ : Type} {input : γ ↪ List Bool} {L : γ → List (List Bool)} {w : γ → List Bool}
-  {i j : γ → ℕ}
-
-private theorem polyTime_colCheck (hL : ComputableInPolyTime L input encBoolTable)
-    (hw : ComputableInPolyTime w input encBits) (hi : ComputableInPolyTime i input encUnary)
-    (hj : ComputableInPolyTime j input encUnary) :
-    ComputableInPolyTime (fun x => (List.range (L x).length).all fun k =>
-      (!(bit (w x) (L x).length (i x) (j x) && bit (w x) (L x).length (i x) k) || j x == k) &&
-        (!(bit (w x) (L x).length (i x) (j x) && bit (w x) (L x).length k (j x)) || i x == k))
-      input encBool := by
-  fun_prop
-
-private theorem polyTime_entryCheck (hL : ComputableInPolyTime L input encBoolTable)
-    (hw : ComputableInPolyTime w input encBits) (hi : ComputableInPolyTime i input encUnary) :
-    ComputableInPolyTime (fun x => (List.range (L x).length).all fun j =>
-      (!bit (w x) (L x).length (i x) j || ((L x).getD (i x) []).getD j false) &&
-        (List.range (L x).length).all fun k =>
-          (!(bit (w x) (L x).length (i x) j && bit (w x) (L x).length (i x) k) || j == k) &&
-            (!(bit (w x) (L x).length (i x) j && bit (w x) (L x).length k j) || i x == k))
-      input encBool := by
-  have hn : ComputableInPolyTime (fun x => (L x).length) input encUnary :=
-    (length_list (encList encBool)).comp hL
-  refine allWithInput (range.comp hn) (bool_and' ?_ ?_)
-  · have hrow : ComputableInPolyTime (fun p : γ × ℕ => (L p.1).getD (i p.1) [])
-        (encPair input encUnary) (encList encBool) :=
-      listGetDWithInput (hL.comp (fst _ _)) (hi.comp (fst _ _)) []
-    exact bool_or' (bool_not.comp (computableInPolyTime_bit (hw.comp (fst _ _))
-      (hn.comp (fst _ _)) (hi.comp (fst _ _)) (snd _ _)))
-      (listGetDWithInput hrow (snd _ _) false)
-  · exact polyTime_colCheck (hL.comp (fst _ _)) (hw.comp (fst _ _)) (hi.comp (fst _ _))
-      (snd _ _)
-
-end PolyTime
-
 /-- The verifier is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encBoolTable encBits) encBool := by
-  have hL : ComputableInPolyTime (fun x : List (List Bool) × List Bool => x.1)
-      (encPair encBoolTable encBits) encBoolTable := fst _ _
-  have hw : ComputableInPolyTime (fun x : List (List Bool) × List Bool => x.2)
-      (encPair encBoolTable encBits) encBits := snd _ _
-  have hn := (length_list (encList encBool)).comp hL
-  refine allWithInput (range.comp hn) (bool_and' ?_ ?_)
-  · exact anyWithInput (range.comp (hn.comp (fst _ _))) (computableInPolyTime_bit
-      (hw.comp ((fst _ _).comp (fst _ _))) (hn.comp ((fst _ _).comp (fst _ _)))
-      ((snd _ _).comp (fst _ _)) (snd _ _))
-  · exact polyTime_entryCheck (hL.comp (fst _ _)) (hw.comp (fst _ _)) (snd _ _)
+  unfold verifier encBoolTable
+  fun_prop
 
 /-- The verifier's condition, on a certificate of length `n * n`, read as a Boolean matrix. -/
 theorem verifier_ofFn (A : List (List Bool)) (w : Fin (A.length * A.length) → Bool) :
@@ -148,45 +104,30 @@ theorem verifier_ofFn (A : List (List Bool)) (w : Fin (A.length * A.length) → 
   have hbit : ∀ i j : Fin A.length,
       bit (List.ofFn w) A.length i j = w (finProdFinEquiv (i, j)) := fun i j =>
     List.getD_ofFn_of_lt w (finProdFinEquiv (i, j)).isLt false
+  have hnot_or (a b : Bool) : (!a || b) = true ↔ (a = true → b = true) := by cases a <;> simp
   simp only [verifier, List.all_eq_true, List.any_eq_true, List.mem_range, Bool.and_eq_true,
-    Bool.or_eq_true, Bool.not_eq_true', Bool.and_eq_false_iff, beq_iff_eq]
+    hnot_or, beq_iff_eq]
   constructor
   · intro h
     refine ⟨fun i => ?_, fun i j k hj hk => ?_, fun i k j hi hk => ?_, fun i j hij => ?_⟩
     · obtain ⟨j, hj, hb⟩ := (h i i.isLt).1
-      exact ⟨⟨j, hj⟩, by rw [← hbit]; exact hb⟩
-    · rcases ((h i i.isLt).2 j j.isLt).2 k k.isLt |>.1 with (h' | h') | h'
-      · rw [hbit] at h'; simp [hj] at h'
-      · rw [hbit] at h'; simp [hk] at h'
-      · exact Fin.ext h'
-    · rcases ((h i i.isLt).2 j j.isLt).2 k k.isLt |>.2 with (h' | h') | h'
-      · rw [hbit] at h'; simp [hi] at h'
-      · rw [hbit] at h'; simp [hk] at h'
-      · exact Fin.ext h'
-    · rcases ((h i i.isLt).2 j j.isLt).1 with h' | h'
-      · rw [hbit] at h'; simp [hij] at h'
-      · rwa [List.getD_eq_getElem _ _ i.isLt] at h'
+      exact ⟨⟨j, hj⟩, (hbit i ⟨j, hj⟩).symm.trans hb⟩
+    · exact Fin.ext (((h i i.isLt).2 j j.isLt).2 k k.isLt |>.1
+        ⟨(hbit i j).trans hj, (hbit i k).trans hk⟩)
+    · exact Fin.ext (((h i i.isLt).2 j j.isLt).2 k k.isLt |>.2
+        ⟨(hbit i j).trans hi, (hbit k j).trans hk⟩)
+    · simpa only [List.getD_eq_getElem _ _ i.isLt, Fin.getElem_fin] using
+        ((h i i.isLt).2 j j.isLt).1 ((hbit i j).trans hij)
   · rintro ⟨hrow, huniq, hcol, hsupp⟩ i hi
-    refine ⟨?_, fun j hj => ⟨?_, fun k hk => ⟨?_, ?_⟩⟩⟩
+    refine ⟨?_, fun j hj => ⟨fun h => ?_, fun k hk => ⟨fun ⟨h1, h2⟩ => ?_, fun ⟨h1, h2⟩ => ?_⟩⟩⟩
     · obtain ⟨j, hj⟩ := hrow ⟨i, hi⟩
-      exact ⟨j, j.isLt, by rw [hbit ⟨i, hi⟩ j]; exact hj⟩
-    · by_cases hb : w (finProdFinEquiv (⟨i, hi⟩, ⟨j, hj⟩)) = true
-      · right
-        rw [List.getD_eq_getElem _ _ hi]
-        exact hsupp ⟨i, hi⟩ ⟨j, hj⟩ hb
-      · left
-        rw [hbit ⟨i, hi⟩ ⟨j, hj⟩]
-        simpa using hb
-    · by_cases hb : w (finProdFinEquiv (⟨i, hi⟩, ⟨j, hj⟩)) = true
-      · by_cases hb' : w (finProdFinEquiv (⟨i, hi⟩, ⟨k, hk⟩)) = true
-        · exact Or.inr (congrArg Fin.val (huniq _ _ _ hb hb'))
-        · left; right; rw [hbit ⟨i, hi⟩ ⟨k, hk⟩]; simpa using hb'
-      · left; left; rw [hbit ⟨i, hi⟩ ⟨j, hj⟩]; simpa using hb
-    · by_cases hb : w (finProdFinEquiv (⟨i, hi⟩, ⟨j, hj⟩)) = true
-      · by_cases hb' : w (finProdFinEquiv (⟨k, hk⟩, ⟨j, hj⟩)) = true
-        · exact Or.inr (congrArg Fin.val (hcol _ _ _ hb hb'))
-        · left; right; rw [hbit ⟨k, hk⟩ ⟨j, hj⟩]; simpa using hb'
-      · left; left; rw [hbit ⟨i, hi⟩ ⟨j, hj⟩]; simpa using hb
+      exact ⟨j, j.isLt, (hbit ⟨i, hi⟩ j).trans hj⟩
+    · simpa only [List.getD_eq_getElem _ _ hi, Fin.getElem_fin] using
+        hsupp ⟨i, hi⟩ ⟨j, hj⟩ ((hbit ⟨i, hi⟩ ⟨j, hj⟩).symm.trans h)
+    · exact congrArg Fin.val (huniq ⟨i, hi⟩ ⟨j, hj⟩ ⟨k, hk⟩
+        ((hbit ⟨i, hi⟩ ⟨j, hj⟩).symm.trans h1) ((hbit ⟨i, hi⟩ ⟨k, hk⟩).symm.trans h2))
+    · exact congrArg Fin.val (hcol ⟨i, hi⟩ ⟨k, hk⟩ ⟨j, hj⟩
+        ((hbit ⟨i, hi⟩ ⟨j, hj⟩).symm.trans h1) ((hbit ⟨k, hk⟩ ⟨j, hj⟩).symm.trans h2))
 
 /-- **The verifier counts the 0/1 permanent**: at certificate length `n * n` it accepts exactly
 the row-by-row permutation matrices supported on `true` entries. -/

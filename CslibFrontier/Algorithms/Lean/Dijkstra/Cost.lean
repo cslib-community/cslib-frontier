@@ -177,14 +177,9 @@ private theorem isBigO_budget (cI cE cD : ℕ → ℕ) {g : ℕ × ℕ → ℕ} 
     (h : ∀ n m, 2 ≤ n → budget (cI n) (cE n) (cD n) n m ≤ c * g (n, m)) :
     (fun ((n, m) : ℕ × ℕ) => (budget (cI n) (cE n) (cD n) n m : ℝ))
       =O[Filter.comap Prod.fst Filter.atTop] fun p => (g p : ℝ) := by
-  refine Asymptotics.IsBigO.of_bound (c : ℝ) ?_
-  rw [Filter.eventually_comap]
-  filter_upwards [Filter.eventually_ge_atTop 2] with b hb p hp
-  obtain ⟨n, m⟩ := p
-  simp only at hp
-  subst hp
-  simp only [Real.norm_natCast]
-  exact_mod_cast h n m hb
+  refine Asymptotics.IsBigO.of_bound (c : ℝ) (Filter.eventually_comap.mpr ?_)
+  filter_upwards [Filter.eventually_ge_atTop 2] with _ hb ⟨n, m⟩ rfl
+  simpa only [Real.norm_natCast] using mod_cast h n m hb
 
 /-- **Binary-heap-style charges: `O((m + 1) log n)`.** If every queue operation is charged at
 most `C (⌊log₂ n⌋ + 1)`, as for a binary heap, Dijkstra's algorithm is correct and costs
@@ -200,13 +195,15 @@ theorem exists_costHoare_logLinear (C : ℕ) :
           (spec G.n K V).CostHoare (charge pqCharge) (· = init G) (dijkstra G.source)
             (fun _ => HasDistances G) (fun _ => f (G.n, G.m)) := by
   let c (n : ℕ) : ℕ := C * (Nat.log 2 n + 1)
-  refine ⟨fun (n, m) => budget (c n) (c n) (c n) n m, ?_, ?_, ?_⟩
+  refine ⟨fun (n, m) => budget (c n) (c n) (c n) n m, ?_, ?_, fun G K V hK hV pqCharge h =>
+    costHoare_dijkstra G hK hV pqCharge (fun q _ _ => h q _) (fun q => h q _)
+      fun q _ _ => h q _⟩
   · rintro ⟨n, m⟩ ⟨n', m'⟩ ⟨hn, hm⟩
     have hc : c n ≤ c n' :=
       Nat.mul_le_mul_left C (Nat.add_le_add_right (Nat.log_mono_right hn) 1)
     exact budget_mono hc hc hc hn hm
-  · have := isBigO_budget c c c (g := fun (n, m) => (m + 1) * Nat.log 2 n) (8 * C + 6)
-      fun n m hn => by
+  · simpa only [Nat.cast_mul, Nat.cast_add, Nat.cast_one] using
+      isBigO_budget c c c (g := fun (n, m) => (m + 1) * Nat.log 2 n) (8 * C + 6) fun n m hn => by
         have hL : 1 ≤ Nat.log 2 n := Nat.le_log_of_pow_le (by norm_num) (by simpa using hn)
         refine (min_le_right _ _).trans ?_
         simp only [c]
@@ -214,10 +211,6 @@ theorem exists_costHoare_logLinear (C : ℕ) :
         have hC := Nat.le_mul_of_pos_right C hL
         nlinarith [Nat.mul_le_mul_left (m + 1) hC, Nat.mul_le_mul_left (m + 2) hC,
           Nat.mul_le_mul_left m hC, Nat.le_mul_of_pos_right (m + 1) hL]
-    simpa only [Nat.cast_mul, Nat.cast_add, Nat.cast_one] using this
-  · intro G K V hK hV pqCharge h
-    exact costHoare_dijkstra G hK hV pqCharge (fun q _ _ => h q _) (fun q => h q _)
-      (fun q _ _ => h q _)
 
 /-- **Fibonacci-heap-style charges: `O(m + min(n, m + 1) log n)`.** If insertions and key
 decreases are charged at most `C` and extractions at most `C (⌊log₂ n⌋ + 1)`, as amortized
@@ -236,13 +229,14 @@ theorem exists_costHoare_linearithmic (C : ℕ) :
           (spec G.n K V).CostHoare (charge pqCharge) (· = init G) (dijkstra G.source)
             (fun _ => HasDistances G) (fun _ => f (G.n, G.m)) := by
   let c (n : ℕ) : ℕ := C * (Nat.log 2 n + 1)
-  refine ⟨fun (n, m) => budget C (c n) C n m, ?_, ?_, ?_⟩
+  refine ⟨fun (n, m) => budget C (c n) C n m, ?_, ?_,
+    fun G K V hK hV pqCharge hI hE hD => costHoare_dijkstra G hK hV pqCharge hI hE hD⟩
   · rintro ⟨n, m⟩ ⟨n', m'⟩ ⟨hn, hm⟩
-    have hc : c n ≤ c n' :=
-      Nat.mul_le_mul_left C (Nat.add_le_add_right (Nat.log_mono_right hn) 1)
-    exact budget_mono le_rfl hc le_rfl hn hm
-  · have := isBigO_budget (fun _ => C) c (fun _ => C)
-      (g := fun (n, m) => m + min n (m + 1) * Nat.log 2 n) (5 * C + 6) fun n m hn => by
+    exact budget_mono le_rfl
+      (Nat.mul_le_mul_left C (Nat.add_le_add_right (Nat.log_mono_right hn) 1)) le_rfl hn hm
+  · simpa only [Nat.cast_mul, Nat.cast_add, Nat.cast_min, Nat.cast_one] using
+      isBigO_budget (fun _ => C) c (fun _ => C)
+        (g := fun (n, m) => m + min n (m + 1) * Nat.log 2 n) (5 * C + 6) fun n m hn => by
         have hL : 1 ≤ Nat.log 2 n := Nat.le_log_of_pow_le (by norm_num) (by simpa using hn)
         simp only [c]
         generalize Nat.log 2 n = L at hL ⊢
@@ -255,8 +249,5 @@ theorem exists_costHoare_linearithmic (C : ℕ) :
           refine (min_le_right _ _).trans ?_
           nlinarith [Nat.mul_le_mul_left (m + 1) hC, Nat.mul_le_mul_left (m + 2) hC,
             Nat.le_mul_of_pos_right (m + 1) hL]
-    simpa only [Nat.cast_mul, Nat.cast_add, Nat.cast_min, Nat.cast_one] using this
-  · intro G K V hK hV pqCharge hI hE hD
-    exact costHoare_dijkstra G hK hV pqCharge hI hE hD
 
 end Cslib.Algorithms.Lean.Dijkstra

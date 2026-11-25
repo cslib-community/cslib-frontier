@@ -143,17 +143,17 @@ theorem senderRun_eq {State : Type} (A : Sender State) (k : ℕ) (st : State)
       (fun (ts, final) => (fun i => ts i (boolPairToFin4 (false, choices i)), final)) := by
   induction k generalizing st with
   | zero =>
-      simp only [senderRun, senderTables_zero, Probability.PMF.monad_pure_eq_pure, PMF.pure_map]
-      congr 2 with i : 1
-      exact Fin.elim0 i
+    simp only [senderRun, senderTables_zero, Probability.PMF.monad_pure_eq_pure, PMF.pure_map]
+    congr 2 with i : 1
+    exact Fin.elim0 i
   | succ k ih =>
-      simp only [pmf_norm, senderRun, senderTables_succ, transfer_eq, ih]
-      congr 1
-      funext ⟨t, next⟩
-      congr 1
-      funext ⟨ts, final⟩
-      congr 2 with i : 1
-      refine Fin.cases ?_ (fun j => ?_) i <;> rfl
+    simp only [pmf_norm, senderRun, senderTables_succ, transfer_eq, ih]
+    congr 1
+    funext ⟨t, next⟩
+    congr 1
+    funext ⟨ts, final⟩
+    congr 2 with i : 1
+    exact Fin.cases rfl (fun _ => rfl) i
 
 /-- Test two candidate openings to opposite bits; `none` is abort. -/
 noncomputable def doubleOpens {k : ℕ} (choices received : Fin k → Bool)
@@ -181,21 +181,17 @@ theorem doubleOpens_unique {k : ℕ} (ts : Fin k → Fin 4 → Bool)
     (o : Option (Opening k × Opening k)) {c d : Fin k → Bool}
     (hc : doubleOpens c (fun i => ts i (boolPairToFin4 (false, c i))) o = true)
     (hd : doubleOpens d (fun i => ts i (boolPairToFin4 (false, d i))) o = true) : c = d := by
-  cases o with
-  | none => simp [doubleOpens] at hc
-  | some o =>
-      obtain ⟨o₀, o₁⟩ := o
-      simp only [doubleOpens, decide_eq_true_eq] at hc hd
-      funext i
-      have hc' : o₀ i (c i) = o₁ i (c i) := (hc.1 i).2.trans (hc.2 i).2.symm
-      have hd' : o₀ i (d i) = o₁ i (d i) := (hd.1 i).2.trans (hd.2 i).2.symm
-      have hp₀ := (hc.1 i).1
-      have hp₁ := (hc.2 i).1
-      cases hcbit : c i <;> cases hdbit : d i <;>
-        simp only [hcbit, hdbit] at hc' hd' ⊢
-      all_goals cases h₀ : o₀ i false <;> cases h₁ : o₀ i true <;>
-        cases h₂ : o₁ i false <;> cases h₃ : o₁ i true <;>
-        simp_all
+  rcases o with _ | ⟨o₀, o₁⟩
+  · simp [doubleOpens] at hc
+  · simp only [doubleOpens, decide_eq_true_eq] at hc hd
+    funext i
+    have hc' := (hc.1 i).2.trans (hc.2 i).2.symm
+    have hd' := (hd.1 i).2.trans (hd.2 i).2.symm
+    have hp₀ := (hc.1 i).1
+    have hp₁ := (hc.2 i).1
+    cases hcbit : c i <;> cases hdbit : d i <;> simp only [hcbit, hdbit] at hc' hd' ⊢ <;>
+      cases h₀ : o₀ i false <;> cases h₁ : o₀ i true <;>
+      cases h₂ : o₁ i false <;> cases h₃ : o₁ i true <;> simp_all
 
 private theorem fixed_binding {k : ℕ} (ts : Fin k → Fin 4 → Bool)
     (o : Option (Opening k × Opening k)) :
@@ -311,7 +307,7 @@ private theorem uniform_table (b : Bool) (j : Fin 4) :
     exact PMF.map_id _
   · simp only [table, h]
     exact PMF.map_id _
-  · simpa [table, h, Equiv.boolNot] using PMF.uniformOfFintype_map_equiv (Equiv.boolNot)
+  · simpa [table, h, Equiv.boolNot] using PMF.uniformOfFintype_map_equiv Equiv.boolNot
   · simp only [table, h]
     exact PMF.map_id _
 
@@ -322,15 +318,15 @@ theorem perfectHiding {State : Type} (A : Receiver State) (b b' : Bool) (k : ℕ
   induction k generalizing st with
   | zero => rfl
   | succ k ih =>
-      simp only [pmf_norm, receiverRun_succ, transfer_eq]
-      congr 1
-      funext ⟨j, next⟩
-      simp only [ih]
-      let f : Bool → PMF ((Fin (k + 1) → Fin 4 × Bool) × State) :=
-        fun a => (A.receive next a).bind fun next =>
+    simp only [pmf_norm, receiverRun_succ, transfer_eq]
+    congr 1
+    funext ⟨j, next⟩
+    simp only [ih]
+    let f (a : Bool) : PMF ((Fin (k + 1) → Fin 4 × Bool) × State) :=
+      (A.receive next a).bind fun next =>
         (receiverRun A b' k next).map fun p => (Fin.cons (j, a) p.1, p.2)
-      change (PMF.uniformOfFintype Bool).bind (f ∘ fun r => table b r j) =
-        (PMF.uniformOfFintype Bool).bind (f ∘ fun r => table b' r j)
-      rw [← PMF.bind_map, uniform_table, ← PMF.bind_map, uniform_table]
+    change (PMF.uniformOfFintype Bool).bind (f ∘ fun r => table b r j) =
+      (PMF.uniformOfFintype Bool).bind (f ∘ fun r => table b' r j)
+    rw [← PMF.bind_map, uniform_table, ← PMF.bind_map, uniform_table]
 
 end Cslib.Crypto.Protocols.MPC.OTCommitment

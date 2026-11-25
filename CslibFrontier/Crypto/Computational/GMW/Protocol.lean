@@ -109,12 +109,9 @@ def clauseEvalBits (c : Clause ℕ) (b₀ b₁ b₂ : Bool) : Bool :=
 theorem clauseEvalBits_eq_eval {c : Clause ℕ} (hc : c.length ≤ 3) (σ : ℕ → Bool) :
     clauseEvalBits c (σ (c.getD 0 (0, false)).1) (σ (c.getD 1 (0, false)).1)
       (σ (c.getD 2 (0, false)).1) = c.eval σ := by
-  rcases c with _ | ⟨⟨v₀, p₀⟩, _ | ⟨⟨v₁, p₁⟩, _ | ⟨⟨v₂, p₂⟩, _ | ⟨_, _⟩⟩⟩⟩
-  · rfl
-  · simp [clauseEvalBits]
-  · simp [clauseEvalBits]
-  · simp [clauseEvalBits, Bool.or_assoc]
-  · simp only [List.length_cons] at hc; omega
+  rcases c with _ | ⟨⟨v₀, p₀⟩, _ | ⟨⟨v₁, p₁⟩, _ | ⟨⟨v₂, p₂⟩, _ | ⟨_, _⟩⟩⟩⟩ <;>
+    simp [clauseEvalBits, Bool.or_assoc] at hc ⊢
+  omega
 
 /-- Look up the bit for variable `v` in `vec` at its first occurrence in `φ.vars`, returning
 `false` when `v ∉ φ.vars`. -/
@@ -200,17 +197,14 @@ private theorem naorMaskBits_clauseActiveRow {φ : CNF ℕ} {w m : List Bool} {c
     naorMaskBits (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]) c)
       (clauseTableRow φ m c) =
       clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]) c := by
-  apply naorMaskBits_eq_self_of_imp (by simp)
-  intro t ht
+  refine naorMaskBits_eq_self_of_imp (by simp) fun t ht => ?_
   by_cases hlt : t < 8
   · rw [getD_clauseActiveRow φ _ c hlt, decide_eq_true_eq] at ht
     rw [getD_clauseTableRow φ m c hlt, ht, gmwBit0Of8_gmwActiveIdx, gmwBit1Of8_gmwActiveIdx,
       gmwBit2Of8_gmwActiveIdx]
-    simp only [varBit_listXor, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
-    rw [clauseEvalBits_eq_eval hc_len (varBit φ w), hc_eval]
-  · have hge : (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]) c).length ≤ t := by
-      simp only [length_clauseActiveRow]; omega
-    rw [List.getD_eq_default _ _ hge] at ht
+    simp only [varBit_listXor, Bool.xor_assoc, Bool.xor_self, Bool.xor_false,
+      clauseEvalBits_eq_eval hc_len (varBit φ w), hc_eval]
+  · rw [List.getD_eq_default _ _ (by simp only [length_clauseActiveRow]; omega)] at ht
     cases ht
 
 /-- The `8 * φ.length`-bit concatenation of all clause truth tables of `φ` under mask `m`. -/
@@ -708,34 +702,35 @@ theorem run_gmwProver_fst {α : Type} (generator : List Bool → List Bool) (s m
         Prod.fst <$> runTwoRound (honestReply1 generator m φ coins)
           (honestReply2 s φ coins) prog .init) := by
   let P := gmwProver generator s m φ w
-  let State' := TwoRoundState × ProverCoins
-  let relate : P.State → PMF State' := fun state => match state.2 with
+  let relate : P.State → PMF (TwoRoundState × ProverCoins) := fun state => match state.2 with
     | none => (ProbComp.eval (sampleHonestCoins s φ w)).map (state.1, ·)
     | some coins => PMF.pure (state.1, coins)
-  let oracle' : Unit × List Bool → StateT State' PMF (List Bool) := fun q state =>
-    let step := twoRoundStep (honestReply1 generator m φ state.2)
-      (honestReply2 s φ state.2) q.2 state.1
-    PMF.pure (step.1, (step.2, state.2))
-  have hsim := ProbOracleComp.runWith_simulation P.respond oracle' relate
-    (fun q state => by
-      rcases state with ⟨st, _ | coins⟩ <;>
-        simp [P, gmwProver, relate, oracle', PMF.bind_map, Function.comp_def]) prog P.init
-  have hmap := congrArg (PMF.map Prod.fst) hsim
+  let oracle' : Unit × List Bool → StateT (TwoRoundState × ProverCoins) PMF (List Bool) :=
+    fun q state =>
+      let step := twoRoundStep (honestReply1 generator m φ state.2)
+        (honestReply2 s φ state.2) q.2 state.1
+      PMF.pure (step.1, (step.2, state.2))
+  have hmap := congrArg (PMF.map Prod.fst) <|
+    ProbOracleComp.runWith_simulation P.respond oracle' relate
+      (fun q state => by
+        rcases state with ⟨st, _ | coins⟩ <;>
+          simp [P, gmwProver, relate, oracle', PMF.bind_map, Function.comp_def])
+      prog P.init
   have hlhs : ((ProbOracleComp.runWith P.respond prog P.init).bind
         (fun (a, s') => (relate s').map (a, ·))).map Prod.fst =
       (P.run prog P.init).map Prod.fst := by
-    simp only [pmf_norm, Prover.run]
-    have hconst : ∀ x : α × P.State, PMF.map (fun _ : State' => x.1) (relate x.2) = PMF.pure x.1 :=
-      fun _ => PMF.map_const _ _
-    simp only [hconst]; rfl
-  rw [hlhs] at hmap; rw [hmap]
+    have hconst (x : α × P.State) : PMF.map (fun _ => x.1) (relate x.2) = PMF.pure x.1 :=
+      PMF.map_const _ _
+    simp only [pmf_norm, Prover.run, hconst]
+    rfl
+  rw [hlhs] at hmap
+  rw [hmap]
   simp only [pmf_norm, P, gmwProver, relate]
   congr 1 with coins : 1
-  have hstate := ProbOracleComp.runWith_map_state
-    (fun q (st : TwoRoundState) => PMF.pure (twoRoundStep (honestReply1 generator m φ coins)
+  have hstate_fst := congrArg (PMF.map Prod.fst) <| ProbOracleComp.runWith_map_state
+    (fun q st => PMF.pure (twoRoundStep (honestReply1 generator m φ coins)
         (honestReply2 s φ coins) q.2 st))
     oracle' (fun st => (st, coins)) (fun q st => by simp [oracle']) prog .init
-  have hstate_fst := congrArg (PMF.map Prod.fst) hstate
   simp only [PMF.map_comp, Function.comp_def] at hstate_fst
   rw [← hstate_fst, eval_runTwoRound]
 

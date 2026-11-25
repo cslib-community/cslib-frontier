@@ -239,15 +239,13 @@ theorem exists_isPrefixFree_of_kraft_nat {α : Type*} (s : Finset α) (ℓ : α 
   let sorted := s.toList.mergeSort (fun a b => decide (ℓ a ≤ ℓ b))
   have hperm : sorted.Perm s.toList := List.mergeSort_perm s.toList _
   have hpw_sorted : sorted.Pairwise (fun a b => ℓ a ≤ ℓ b) := by
-    have htot : ∀ a b, (decide (ℓ a ≤ ℓ b) || decide (ℓ b ≤ ℓ a)) = true := by grind
-    have htr : ∀ a b c, decide (ℓ a ≤ ℓ b) = true → decide (ℓ b ≤ ℓ c) = true →
-        decide (ℓ a ≤ ℓ c) = true := by grind
-    simpa [decide_eq_true_eq] using List.pairwise_mergeSort htr htot s.toList
+    simpa [decide_eq_true_eq] using List.pairwise_mergeSort (le := fun a b => decide (ℓ a ≤ ℓ b))
+      (fun a b c => by grind)
+      (fun a b => by grind) s.toList
   have hL_sorted : ∀ a ∈ sorted, ℓ a ≤ L := fun a ha =>
     hL a (Finset.mem_toList.mp (hperm.subset ha))
   have hsum_sorted : 0 + (sorted.map fun x => 2 ^ (L - ℓ x)).sum ≤ 2 ^ L := by
-    rw [Nat.zero_add, (hperm.map _).sum_eq]
-    simpa using hkraft
+    simpa [(hperm.map _).sum_eq] using hkraft
   let pairs := kraftAssign L ℓ 0 sorted
   have hspec := (kraftAssign_spec sorted 0 hL_sorted hpw_sorted (fun _ _ => Nat.dvd_zero _)
     hsum_sorted).2
@@ -313,16 +311,9 @@ theorem exists_isPrefixFree_iff_kraft_le_one {α : Type*} (s : Finset α) (ℓ :
           rw [Finset.sum_insert ha, Nat.cast_add, Finset.sum_insert ha,
             ih fun x hx => ht x (Finset.mem_insert_of_mem hx), mul_add]
           congr 1
-          have hpow : (2 : ℝ) ^ L = (2 : ℝ) ^ (L - ℓ a) * (2 : ℝ) ^ ℓ a := by
-            rw [← pow_add, Nat.sub_add_cancel (ht a (Finset.mem_insert_self a t))]
-          push_cast
-          rw [hpow, mul_assoc, ← mul_pow]
-          norm_num
-      have hreal : ((∑ a ∈ s, 2 ^ (L - ℓ a) : ℕ) : ℝ) ≤ ((2 ^ L : ℕ) : ℝ) := by
-        rw [hcast_mul s hL]
-        push_cast
-        nlinarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 2) L]
-      exact_mod_cast hreal
+          rw [Nat.cast_pow, Nat.cast_ofNat, pow_sub₀ _ two_ne_zero
+            (ht a (Finset.mem_insert_self a t)), one_div_pow, one_div]
+      exact_mod_cast (hcast_mul s hL).trans_le (mul_le_of_le_one_right (by positivity) hkraft)
     exact exists_isPrefixFree_of_kraft_nat s ℓ L hL hnat
 
 /-! ## Prefix-free codebook compaction to `CodeTree` and McMillan reduction -/
@@ -379,23 +370,23 @@ private theorem codebookBitLength_filterMap_add_le {α : Type*} (bit : Bool)
     rcases p with ⟨a, _ | ⟨b, bs⟩⟩
     · simp only [List.filterMap_cons, codebookBitLength, List.map_cons, List.sum_cons] at ih ⊢
       omega
-    · by_cases hb : b = bit
-      · simp only [List.filterMap_cons, hb, beq_self_eq_true, ↓reduceIte, codebookBitLength,
-          List.map_cons, List.sum_cons, List.length_cons] at ih ⊢
-        omega
-      · simp only [List.filterMap_cons, beq_false_of_ne hb, Bool.false_eq_true, ↓reduceIte,
-          codebookBitLength, List.map_cons, List.sum_cons] at ih ⊢
-        omega
+    · by_cases hb : b = bit <;> simp [hb, codebookBitLength] at ih ⊢ <;> omega
 
-private theorem codebookBitLength_leftChildren_add_le {α : Type*} (ps : List (α × List Bool)) :
-    codebookBitLength (leftChildren ps) + (leftChildren ps).length ≤ codebookBitLength ps := by
-  rw [leftChildren_eq_filterMap]
-  exact codebookBitLength_filterMap_add_le false ps
+private theorem codebookBitLength_lt_of_leftChildren_eq {α : Type*} {ps : List (α × List Bool)}
+    {p : α × List Bool} {l : List (α × List Bool)} (h : leftChildren ps = p :: l) :
+    codebookBitLength (p :: l) < codebookBitLength ps := by
+  have := codebookBitLength_filterMap_add_le false ps
+  rw [← leftChildren_eq_filterMap, h] at this
+  simp only [List.length_cons] at this
+  omega
 
-private theorem codebookBitLength_rightChildren_add_le {α : Type*} (ps : List (α × List Bool)) :
-    codebookBitLength (rightChildren ps) + (rightChildren ps).length ≤ codebookBitLength ps := by
-  rw [rightChildren_eq_filterMap]
-  exact codebookBitLength_filterMap_add_le true ps
+private theorem codebookBitLength_lt_of_rightChildren_eq {α : Type*} {ps : List (α × List Bool)}
+    {p : α × List Bool} {l : List (α × List Bool)} (h : rightChildren ps = p :: l) :
+    codebookBitLength (p :: l) < codebookBitLength ps := by
+  have := codebookBitLength_filterMap_add_le true ps
+  rw [← rightChildren_eq_filterMap, h] at this
+  simp only [List.length_cons] at this
+  omega
 
 /-- Compact a binary codebook `pairs : List (α × List Bool)` into a full binary `CodeTree α` by
 recursively branching on first bits and contracting unary internal nodes. -/
@@ -406,30 +397,14 @@ def treeOfCodebook {α : Type*} : List (α × List Bool) → Option (CodeTree α
     match hL : leftChildren (p₁ :: p₂ :: rest), hR : rightChildren (p₁ :: p₂ :: rest) with
     | [], [] => foldLeaves ((p₁ :: p₂ :: rest).map Prod.fst)
     | l₁ :: ls, [] =>
-      have : codebookBitLength (l₁ :: ls) < codebookBitLength (p₁ :: p₂ :: rest) := by
-        have h := codebookBitLength_leftChildren_add_le (p₁ :: p₂ :: rest)
-        rw [hL] at h
-        simp only [List.length_cons] at h
-        omega
+      have := codebookBitLength_lt_of_leftChildren_eq hL
       treeOfCodebook (l₁ :: ls)
     | [], r₁ :: rs =>
-      have : codebookBitLength (r₁ :: rs) < codebookBitLength (p₁ :: p₂ :: rest) := by
-        have h := codebookBitLength_rightChildren_add_le (p₁ :: p₂ :: rest)
-        rw [hR] at h
-        simp only [List.length_cons] at h
-        omega
+      have := codebookBitLength_lt_of_rightChildren_eq hR
       treeOfCodebook (r₁ :: rs)
     | l₁ :: ls, r₁ :: rs => do
-      have : codebookBitLength (l₁ :: ls) < codebookBitLength (p₁ :: p₂ :: rest) := by
-        have h := codebookBitLength_leftChildren_add_le (p₁ :: p₂ :: rest)
-        rw [hL] at h
-        simp only [List.length_cons] at h
-        omega
-      have : codebookBitLength (r₁ :: rs) < codebookBitLength (p₁ :: p₂ :: rest) := by
-        have h := codebookBitLength_rightChildren_add_le (p₁ :: p₂ :: rest)
-        rw [hR] at h
-        simp only [List.length_cons] at h
-        omega
+      have := codebookBitLength_lt_of_leftChildren_eq hL
+      have := codebookBitLength_lt_of_rightChildren_eq hR
       let tl ← treeOfCodebook (l₁ :: ls)
       let tr ← treeOfCodebook (r₁ :: rs)
       pure (.branch tl tr)
@@ -578,22 +553,19 @@ theorem exists_codeTree_of_isPrefixFree {α β : Type*}
       T.weightedPathLength w ≤ (syms.map fun a => (code a).length • w a).sum := by
   let pairs := syms.map fun a => (a, code a)
   have hpairs_ne : pairs ≠ [] := fun hnil => hne (List.map_eq_nil_iff.mp hnil)
-  have hsnd : pairs.map Prod.snd = syms.map code := by
-    simp [pairs, List.map_map, Function.comp_def]
   have hinc : (pairs.map Prod.snd).Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁) := by
-    rw [hsnd, List.pairwise_map]
+    simp only [pairs, List.map_map, Function.comp_def, List.pairwise_map]
     refine hnodup.imp_of_mem fun {a b} ha hb hab => ?_
     have hcne : code a ≠ code b := fun hEq => hab (hinj ha hb hEq)
     exact ⟨fun hp => hcne (hpf _ ⟨a, ha, rfl⟩ _ ⟨b, hb, rfl⟩ hp),
       fun hp => hcne.symm (hpf _ ⟨b, hb, rfl⟩ _ ⟨a, ha, rfl⟩ hp)⟩
-  have hw_pairs : ∀ p ∈ pairs, 0 ≤ w p.1 := fun p hp => by
-    rcases List.mem_map.mp hp with ⟨a, ha, rfl⟩; exact hw a ha
+  have hw_pairs : ∀ p ∈ pairs, 0 ≤ w p.1 := fun _ hp => by
+    obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hp
+    exact hw a ha
   rcases treeOfCodebook_spec hpairs_ne hinc hw_pairs with ⟨T, _, hperm, hwpl⟩
-  have hfst : pairs.map Prod.fst = syms := by simp [pairs, List.map_map, Function.comp_def]
-  have hcost : (pairs.map fun p => p.2.length • w p.1) =
-      syms.map fun a => (code a).length • w a := by
-    simp [pairs, List.map_map, Function.comp_def]
-  exact ⟨T, hfst ▸ hperm, hcost ▸ hwpl⟩
+  refine ⟨T, ?_, ?_⟩
+  · simpa [pairs, List.map_map, Function.comp_def] using hperm
+  · simpa [pairs, List.map_map, Function.comp_def] using hwpl
 
 /-- **McMillan Code Tree Reduction** (derived from McMillan's forward inequality [McMillan1956] /
 [CoverThomas2006], Theorem 5.5.1 in Mathlib together with the finite binary Kraft converse of

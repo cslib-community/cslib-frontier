@@ -79,12 +79,9 @@ theorem codeEdge_code (xs ys : Fin k → Fin n) :
 private theorem graph_iff {c d : ℕ} :
     Graph (n ^ k) (codeEdge E) c d ↔ ∃ (hc : c < n ^ k) (hd : d < n ^ k),
       E (finFunctionFinEquiv.symm ⟨c, hc⟩) (finFunctionFinEquiv.symm ⟨d, hd⟩) := by
-  constructor
-  · rintro ⟨hc, hd, he⟩
-    refine ⟨hc, hd, ?_⟩
-    simpa only [codeEdge, hc, hd, and_self, ↓reduceDIte, decide_eq_true_eq] using he
-  · rintro ⟨hc, hd, he⟩
-    exact ⟨hc, hd, by simpa only [codeEdge, hc, hd, and_self, ↓reduceDIte, decide_eq_true_eq]⟩
+  refine ⟨fun ⟨hc, hd, he⟩ => ⟨hc, hd, ?_⟩, fun ⟨hc, hd, he⟩ => ⟨hc, hd, ?_⟩⟩
+  · simpa only [codeEdge, hc, hd, and_self, ↓reduceDIte, decide_eq_true_eq] using he
+  · simpa only [codeEdge, hc, hd, and_self, ↓reduceDIte, decide_eq_true_eq]
 
 private theorem relatesInSteps_of_graph {xs : Fin k → Fin n} {m : ℕ} :
     ∀ {d : ℕ}, Relation.RelatesInSteps (Graph (n ^ k) (codeEdge E)) (finFunctionFinEquiv xs) d m →
@@ -208,29 +205,12 @@ theorem countTestCode_parts {b base k : ℕ} {src : Fin k → Expr} {wb et ef : 
     length_assignChain, List.length_cons, List.length_nil, length_tcCode] at hP
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨h1, h2, h3, h4, h5, h6, -⟩, h7⟩, h8⟩, h9⟩, h10, h11, h12, h13, h14, h15, h16, h17,
     -⟩, h18⟩, h19, -⟩, h20⟩, h21, h22, -⟩ := hP
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact instr_of_eq h1 (by omega)
-  · exact instr_of_eq h2 (by omega)
-  · exact instr_of_eq h3 (by omega)
-  · exact instr_of_eq h4 (by omega)
-  · exact instr_of_eq h5 (by omega)
-  · exact instr_of_eq h6 (by omega)
-  · exact codeAt_of_eq h7 (by omega)
-  · exact codeAt_of_eq h8 (by omega)
-  · exact codeAt_of_eq h9 (by omega)
-  · exact instr_of_eq h10 (by omega)
-  · exact instr_of_eq h11 (by omega)
-  · exact instr_of_eq h12 (by omega)
-  · exact instr_of_eq h13 (by omega)
-  · exact instr_of_eq h14 (by omega)
-  · exact instr_of_eq h15 (by omega)
-  · exact instr_of_eq h16 (by omega)
-  · exact instr_of_eq h17 (by omega)
-  · exact codeAt_of_eq h18 (by omega)
-  · exact instr_of_eq h19 (by omega)
-  · exact codeAt_of_eq h20 (by omega)
-  · exact instr_of_eq h21 (by omega)
-  · exact instr_of_eq h22 (by omega)
+  refine ⟨instr_of_eq h1 ?_, instr_of_eq h2 ?_, instr_of_eq h3 ?_, instr_of_eq h4 ?_,
+    instr_of_eq h5 ?_, instr_of_eq h6 ?_, codeAt_of_eq h7 ?_, codeAt_of_eq h8 ?_,
+    codeAt_of_eq h9 ?_, instr_of_eq h10 ?_, instr_of_eq h11 ?_, instr_of_eq h12 ?_,
+    instr_of_eq h13 ?_, instr_of_eq h14 ?_, instr_of_eq h15 ?_, instr_of_eq h16 ?_,
+    instr_of_eq h17 ?_, codeAt_of_eq h18 ?_, instr_of_eq h19 ?_, codeAt_of_eq h20 ?_,
+    instr_of_eq h21 ?_, instr_of_eq h22 ?_⟩ <;> omega
 
 theorem countCode_parts {b base k : ℕ} {dst : Fin k → Expr} {t₁ t₂ : List Instr} {T R : ℕ}
     (hP : P.CodeAt b (countCode b base k dst t₁ t₂ T R)) :
@@ -257,21 +237,10 @@ theorem countCode_parts {b base k : ℕ} {dst : Fin k → Expr} {t₁ t₂ : Lis
   simp only [countCode, codeAt_append, codeAt_cons, codeAt_nil, List.length_append,
     List.length_cons, List.length_nil] at hP
   obtain ⟨⟨⟨⟨⟨h1, h2, h3, h4, h5, h6, -⟩, h7⟩, h8, h9, h10, h11, h12, -⟩, h13⟩, h14, -⟩ := hP
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact instr_of_eq h1 (by omega)
-  · exact instr_of_eq h2 (by omega)
-  · exact instr_of_eq h3 (by omega)
-  · exact instr_of_eq h4 (by omega)
-  · exact instr_of_eq h5 (by omega)
-  · exact instr_of_eq h6 (by omega)
-  · exact codeAt_of_eq h7 (by omega)
-  · exact instr_of_eq h8 (by omega)
-  · exact instr_of_eq h9 (by omega)
-  · exact instr_of_eq h10 (by omega)
-  · exact instr_of_eq h11 (by omega)
-  · exact instr_of_eq h12 (by omega)
-  · exact codeAt_of_eq h13 (by omega)
-  · exact instr_of_eq h14 (by omega)
+  refine ⟨instr_of_eq h1 ?_, instr_of_eq h2 ?_, instr_of_eq h3 ?_, instr_of_eq h4 ?_,
+    instr_of_eq h5 ?_, instr_of_eq h6 ?_, codeAt_of_eq h7 ?_, instr_of_eq h8 ?_, instr_of_eq h9 ?_,
+    instr_of_eq h10 ?_, instr_of_eq h11 ?_, instr_of_eq h12 ?_, codeAt_of_eq h13 ?_,
+    instr_of_eq h14 ?_⟩ <;> omega
 
 end Parts
 
@@ -421,10 +390,7 @@ private theorem scan_post {i y x m : ℕ} {regsT regs : List ℕ} (hy : y < n ^ 
     Kept B (base + 4) regsT regs ∧
       regs.getD (base + 6) 0 = if y ∈ countRound E s₀ (i + 1) then 1 else 0 := by
   refine ⟨hinv.kept, ?_⟩
-  rw [hinv.hit]
-  by_cases h : y ∈ countRound E s₀ (i + 1)
-  · rw [ite_eq_left h, ite_eq_left ((mem_countRound_succ hy).mp h)]
-  · rw [ite_eq_right h, ite_eq_right fun h' => h ((mem_countRound_succ hy).mpr h')]
+  simp only [hinv.hit, mem_countRound_succ hy]
 
 private theorem scan_check_sound (hw : w₁ = b + 14 + 5 * k + wb.length)
     (hP : P.CodeAt b (countTestCode b base k src wb et ef T R)) (hB1 : 1 ≤ B)
@@ -595,9 +561,8 @@ private theorem scanInv_hit {i y x : ℕ} {Sel : Finset ℕ} {regsT regs regs' :
     · exact Nat.lt_succ_self _
     · exact (hlt c hc).trans (Nat.lt_succ_self _)
   · rw [List.getD_set_ne (by omega), hS, Finset.card_insert_of_notMem hx]
-  · rw [List.getD_set_self (by omega),
-      ite_eq_left (show ∃ c ∈ insert x Sel, c = y ∨ codeEdge E c y = true from
-        ⟨x, Finset.mem_insert_self x Sel, hhit⟩)]
+  · rw [List.getD_set_self (by omega)]
+    simp only [Finset.exists_mem_insert, hhit, true_or, ↓reduceIte]
 
 private theorem scanInv_nohit {i y x : ℕ} {Sel : Finset ℕ} {regsT regs regs' : List ℕ}
     (hinv : ScanInv B base E s₀ i y x x Sel regsT regs) (hmem : x ∈ countRound E s₀ i)
@@ -607,15 +572,6 @@ private theorem scanInv_nohit {i y x : ℕ} {Sel : Finset ℕ} {regsT regs regs'
     ScanInv B base E s₀ i y x (x + 1) (insert x Sel) regsT regs' := by
   obtain ⟨hk₀, hX, hsub, hlt, -, hH₀⟩ := hinv
   have hx : x ∉ Sel := fun h => Nat.lt_irrefl _ (hlt x h)
-  have hiff : (∃ c ∈ insert x Sel, c = y ∨ codeEdge E c y = true) ↔
-      ∃ c ∈ Sel, c = y ∨ codeEdge E c y = true := by
-    constructor
-    · rintro ⟨c, hc, hcy⟩
-      rcases Finset.mem_insert.mp hc with rfl | hc
-      · exact absurd hcy hnohit
-      · exact ⟨c, hc, hcy⟩
-    · rintro ⟨c, hc, hcy⟩
-      exact ⟨c, Finset.mem_insert_of_mem hc, hcy⟩
   refine ⟨hk₀.trans (hk.mono (by omega)), ?_, Finset.insert_subset hmem hsub, fun c hc => ?_,
     ?_, ?_⟩
   · rw [hk.getD_eq _ (by omega), hX]
@@ -623,10 +579,7 @@ private theorem scanInv_nohit {i y x : ℕ} {Sel : Finset ℕ} {regsT regs regs'
     · exact Nat.lt_succ_self _
     · exact (hlt c hc).trans (Nat.lt_succ_self _)
   · rw [hS, Finset.card_insert_of_notMem hx]
-  · rw [hH, hH₀]
-    by_cases h : ∃ c ∈ Sel, c = y ∨ codeEdge E c y = true
-    · rw [ite_eq_left h, ite_eq_left (hiff.mpr h)]
-    · rw [ite_eq_right h, ite_eq_right fun h' => h (hiff.mp h')]
+  · simp only [Finset.exists_mem_insert, hnohit, false_or, hH, hH₀]
 
 private theorem scanInv_weaken {i y x m : ℕ} {Sel : Finset ℕ} {regsT regs : List ℕ}
     (h : ScanInv B base E s₀ i y x m Sel regsT regs) :
@@ -1029,9 +982,7 @@ private theorem count_y_record (hP : P.CodeAt b (countCode b base k dst t₁ t�
   obtain ⟨-, -, -, -, -, -, -, c8, c9, -⟩ := countCode_parts hP
   obtain ⟨⟨hk, hlen, h0, hI, hi, hC⟩, hi1, hD, hY⟩ := hinv
   have hlen' : regs'.length = regs.length := hk'.length_eq
-  have hD' : regs'.getD (base + 2) 0 =
-      prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i y := by
-    rw [hk'.getD_eq _ (by omega), hD]
+  have hD' := (hk'.getD_eq (base + 2) (by omega)).trans hD
   have hY' : regs'.getD (base + 3) 0 = y := by rw [hk'.getD_eq _ (by omega), hY]
   have hcard : prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i (y + 1) =
       prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i y +

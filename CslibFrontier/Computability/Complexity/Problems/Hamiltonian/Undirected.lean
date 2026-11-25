@@ -152,16 +152,14 @@ private theorem adj_split_iff {G : Graph} {a b : ℕ} :
   toSimpleGraph_adj
 
 private theorem adj_in_mid {G : Graph} {v : ℕ} (hv : v ∈ G.vertices) :
-    G.split.toSimpleGraph.Adj (G.splitVertex v 0) (G.splitVertex v 1) := by
-  refine adj_split_iff.2 ⟨fun h => ?_, Or.inl (mem_split_snd_iff.2 (Or.inl ⟨v, hv, ?_⟩))⟩
-  · simp [splitVertex_eq_splitVertex_iff] at h
-  · exact Or.inl ⟨rfl, rfl⟩
+    G.split.toSimpleGraph.Adj (G.splitVertex v 0) (G.splitVertex v 1) :=
+  adj_split_iff.2 ⟨by simp [splitVertex_eq_splitVertex_iff],
+    Or.inl (mem_split_snd_iff.2 (Or.inl ⟨v, hv, Or.inl ⟨rfl, rfl⟩⟩))⟩
 
 private theorem adj_mid_out {G : Graph} {v : ℕ} (hv : v ∈ G.vertices) :
-    G.split.toSimpleGraph.Adj (G.splitVertex v 1) (G.splitVertex v 2) := by
-  refine adj_split_iff.2 ⟨fun h => ?_, Or.inl (mem_split_snd_iff.2 (Or.inl ⟨v, hv, ?_⟩))⟩
-  · simp [splitVertex_eq_splitVertex_iff] at h
-  · exact Or.inr ⟨rfl, rfl⟩
+    G.split.toSimpleGraph.Adj (G.splitVertex v 1) (G.splitVertex v 2) :=
+  adj_split_iff.2 ⟨by simp [splitVertex_eq_splitVertex_iff],
+    Or.inl (mem_split_snd_iff.2 (Or.inl ⟨v, hv, Or.inr ⟨rfl, rfl⟩⟩))⟩
 
 /-- Between declared vertices, an exit is adjacent to an entry exactly along an arc. -/
 private theorem adj_out_in_iff {G : Graph} {u v : ℕ} (hu : u ∈ G.vertices) (hv : v ∈ G.vertices) :
@@ -239,11 +237,7 @@ private theorem mem_gadgets {G : Graph} {p : List ℕ} {x : ℕ} :
   simp only [gadgets, List.mem_flatMap, mem_triple]
 
 private theorem length_gadgets (G : Graph) (p : List ℕ) : (gadgets G p).length = 3 * p.length := by
-  induction p with
-  | nil => rfl
-  | cons a p ih =>
-    rw [gadgets_cons, List.length_cons, List.length_cons, List.length_cons, ih, List.length_cons]
-    omega
+  simp [gadgets, List.length_flatMap, mul_comm]
 
 private theorem head?_gadgets (G : Graph) (p : List ℕ) :
     (gadgets G p).head? = p.head?.map (G.splitVertex · 0) := by
@@ -360,10 +354,9 @@ private theorem exists_eq_gadgets {G : Graph} (n : ℕ) : ∀ (l : List ℕ) (v 
       apply hlast v
       rw [List.getLast?_eq_getElem?, List.length_cons, Nat.add_sub_cancel,
         (by omega : l₁.length = j + 1), List.getElem?_cons_succ, List.getElem?_eq_getElem hj, hjm]
-    have hsucc : l₁[j + 1] = G.splitVertex v 2 := by
-      rcases eq_of_adj_mid (hjm ▸ hch₁.getElem j hj₁) with h | h
-      · exact absurd (h ▸ List.getElem_mem hj₁) hnd₀
-      · exact h
+    have hsucc : l₁[j + 1] = G.splitVertex v 2 :=
+      (eq_of_adj_mid (hjm ▸ hch₁.getElem j hj₁)).resolve_left fun h =>
+        hnd₀ (h ▸ List.getElem_mem hj₁)
     -- The predecessor of `mid(v)` is `in(v)`, so `mid(v)` is the second vertex.
     have hj₀ : j = 0 := by
       rcases j with _ | i
@@ -463,12 +456,10 @@ theorem split_mem_HamCycle_iff (G : Graph) : G.split ∈ HamCycle ↔ G ∈ DirH
       rintro L (h | h)
       · exact ⟨h.nodup_iff.2 hnd, fun x => h.mem_iff.trans (hcov x), h.perm.length_eq ▸ hlen,
           (Cycle.coe_eq_coe.2 h) ▸ hch⟩
-      · refine ⟨h.nodup_iff.2 (List.nodup_reverse.2 hnd),
-          fun x => h.mem_iff.trans (List.mem_reverse.trans (hcov x)), ?_, ?_⟩
-        · rw [h.perm.length_eq, List.length_reverse]
-          exact hlen
-        · rw [Cycle.coe_eq_coe.2 h, chain_reverse_coe (fun _ _ h => h.symm)]
-          exact hch
+      · exact ⟨h.nodup_iff.2 (List.nodup_reverse.2 hnd),
+          fun x => h.mem_iff.trans (List.mem_reverse.trans (hcov x)),
+          by rw [h.perm.length_eq, List.length_reverse]; exact hlen,
+          by rw [Cycle.coe_eq_coe.2 h, chain_reverse_coe fun _ _ h => h.symm]; exact hch⟩
     -- Rotate to start at `in(u)`, and reverse if the cycle then ends at `mid(u)`.
     obtain ⟨L₁, hL, hlast⟩ : ∃ L₁ : List ℕ,
         ((G.splitVertex u 0 :: L₁) ~r (A ++ G.splitVertex u 0 :: B) ∨
@@ -479,19 +470,12 @@ theorem split_mem_HamCycle_iff (G : Graph) : G.split ∈ HamCycle ↔ G ∈ DirH
         (List.isRotated_append (l := A) (l' := G.splitVertex u 0 :: B)).symm
       by_cases h : (G.splitVertex u 0 :: (B ++ A)).getLast? = some (G.splitVertex u 1)
       · obtain ⟨M, hM⟩ := List.getLast?_eq_some_iff.1 h
-        obtain ⟨M', rfl⟩ : ∃ M', M = G.splitVertex u 0 :: M' := by
-          rcases M with _ | ⟨a, M'⟩
-          · simp [splitVertex_eq_splitVertex_iff] at hM
-          · simp only [List.cons_append, List.cons.injEq] at hM
-            exact ⟨M', by rw [hM.1]⟩
+        rcases M with _ | ⟨_, M'⟩
+        · simp [splitVertex_eq_splitVertex_iff] at hM
+        obtain rfl := (List.cons.inj hM).1
         refine ⟨G.splitVertex u 1 :: M'.reverse, Or.inr ?_, Or.inr ⟨_, rfl⟩⟩
-        have := hrot.reverse
-        rw [hM] at this
-        refine List.IsRotated.trans ?_ this
-        simp only [List.cons_append, List.reverse_cons, List.reverse_append, List.reverse_nil,
-          List.nil_append]
-        exact List.isRotated_append (l := [G.splitVertex u 0])
-          (l' := G.splitVertex u 1 :: M'.reverse)
+        exact (List.isRotated_append (l := [G.splitVertex u 0])
+          (l' := G.splitVertex u 1 :: M'.reverse)).trans (by simpa [hM] using hrot.reverse)
       · exact ⟨B ++ A, Or.inl hrot, Or.inl h⟩
     obtain ⟨hndL, hcovL, hlenL, hchC⟩ := key _ hL
     have hchL := hchC

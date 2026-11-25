@@ -396,18 +396,13 @@ theorem exists_mem_P_forall_ite_ne {A₁ A₂ : Set (List Bool)} (hA₁ : IsDeci
         · obtain ⟨T, hT⟩ := ce₂ (i, w); exact ⟨T, fun t ht => ⟨_, hT t ht⟩⟩
         · obtain ⟨T, hT⟩ := ce₁ (i, w); exact ⟨T, fun t ht => ⟨_, hT t ht⟩⟩ }
   have hinf : ∀ b i, (A b ∆ F b i).Infinite := fun b i => by
-    cases b
-    · exact h₂ i
-    · exact h₁ i
+    cases b <;> [exact h₂ i; exact h₁ i]
   have hD : Set.ite {w : List Bool | side (stage dA dF w.length) = true} A₁ A₂ = D dA dF A := by
     ext w
     simp only [Set.ite, D, Set.mem_union, Set.mem_inter_iff, Set.mem_sdiff, Set.mem_ofPred_eq]
     cases side (stage dA dF w.length) <;> simp [A]
-  refine ⟨_, setOf_side_stage_mem_P dA dF, fun i => ⟨?_, ?_⟩⟩
-  · rw [hD]
-    exact D_ne hS hinf true i
-  · rw [hD]
-    exact D_ne hS hinf false i
+  exact ⟨_, setOf_side_stage_mem_P dA dF,
+    fun i => ⟨hD ▸ D_ne hS hinf true i, hD ▸ D_ne hS hinf false i⟩⟩
 
 /-- **Schöning's uniform diagonalization theorem.** Let `C₁`, `C₂` be recursively presentable
 classes of sets of words, closed under finite variations, and `A₁ ∉ C₁`, `A₂ ∉ C₂` decidable. Some
@@ -509,27 +504,18 @@ theorem isDecidable_markedUnion {A B : Set (List Bool)}
 theorem markedUnion_mem_NP {A B : Set (List Bool)}
     (hA : A ∈ NP encBits) (hB : B ∈ NP encBits) :
     markedUnion A B ∈ NP encBits := by
-  have hL :
-      {w : List Bool | (w.isEmpty = false ∧ w.headD false = false) ∧ w.tail ∈ A} ∈ NP encBits := by
-    have h₁ : {w : List Bool | w.isEmpty = false ∧ w.headD false = false} ∈ P encBits :=
-      ⟨fun w => !w.isEmpty && !w.headD false, by fun_prop, fun w => by
-        cases w with
-        | nil => simp
-        | cons b u => cases b <;> simp⟩
-    have h₂ : {w : List Bool | w.tail ∈ A} ∈ NP encBits :=
-      PolyTimeReducible.mem_NP ⟨List.tail, by fun_prop, fun _ => Iff.rfl⟩ hA
-    exact inter_mem_NP (P_subset_NP h₁) h₂
-  have hR :
-      {w : List Bool | (w.isEmpty = false ∧ w.headD false = true) ∧ w.tail ∈ B} ∈ NP encBits := by
-    have h₁ : {w : List Bool | w.isEmpty = false ∧ w.headD false = true} ∈ P encBits :=
-      ⟨fun w => !w.isEmpty && w.headD false, by fun_prop, fun w => by
-        cases w with
-        | nil => simp
-        | cons b u => cases b <;> simp⟩
-    have h₂ : {w : List Bool | w.tail ∈ B} ∈ NP encBits :=
-      PolyTimeReducible.mem_NP ⟨List.tail, by fun_prop, fun _ => Iff.rfl⟩ hB
-    exact inter_mem_NP (P_subset_NP h₁) h₂
-  convert union_mem_NP hL hR using 1
+  have hside (b : Bool) {S : Set (List Bool)} (hS : S ∈ NP encBits) :
+      {w : List Bool | (w.isEmpty = false ∧ w.headD false = b) ∧ w.tail ∈ S} ∈ NP encBits := by
+    have h₁ : {w : List Bool | w.isEmpty = false ∧ w.headD false = b} ∈ P encBits :=
+      ⟨fun w => !w.isEmpty && (if b then w.headD false else !w.headD false),
+        by cases b <;> fun_prop, fun w => by
+          cases w with
+          | nil => simp
+          | cons c u => cases b <;> cases c <;> simp⟩
+    exact inter_mem_NP (P_subset_NP h₁)
+      (PolyTimeReducible.mem_NP (A := {w : List Bool | w.tail ∈ S})
+        ⟨List.tail, by fun_prop, fun _ => Iff.rfl⟩ hS)
+  convert union_mem_NP (hside false hA) (hside true hB) using 1
   ext w
   cases w with
   | nil =>

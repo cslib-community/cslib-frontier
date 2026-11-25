@@ -92,28 +92,21 @@ theorem configurationWeightedSubdivisionCallback_states_le (ntm : MultiTapeNTM k
   let D := 12 * (radixExponent State c * Fintype.card (Register k) + 1)
   refine ⟨2 * R + 2 * D + 16, fun w ctx hp u v hu hv t ht => ?_⟩
   let index := configurationSubdivisionIndex ntm c w
-  let a := index.symm ⟨u, hu⟩
-  let b := index.symm ⟨v, hv⟩
   have h := weightedSubdivisionCallback_states_le ntm c w encContext ctx params
-    rank seedWidth code hp a b t ht
+    rank seedWidth code hp (index.symm ⟨u, hu⟩) (index.symm ⟨v, hv⟩) t ht
   dsimp only at h
   rw [subdivisionIndex_symm_val, subdivisionIndex_symm_val] at h
-  have hreq := (hR w ctx u v hu hv).2
-  let L := Nat.log2 w.length + 1
-  let budget := (encContext ctx).length + L
-  have hlog : Nat.log2 (w.length + 1) + 1 ≤ 2 * budget := by
-    have hsucc : Nat.log2 (w.length + 1) ≤ Nat.log2 w.length + 1 := by
-      simpa only [Nat.log2_eq_log_two] using Nat.log_add_one_le 2 w.length
-    dsimp [budget, L]
-    omega
+  have hsucc : Nat.log2 (w.length + 1) ≤ Nat.log2 w.length + 1 := by
+    simpa only [Nat.log2_eq_log_two] using Nat.log_add_one_le 2 w.length
+  let budget := (encContext ctx).length + (Nat.log2 w.length + 1)
   calc
     _ ≤ 2 * (R * budget) + D * (2 * budget) + 16 :=
-      h.trans (Nat.add_le_add_right (Nat.add_le_add (Nat.mul_le_mul_left 2 hreq)
-        (Nat.mul_le_mul_left D hlog)) 16)
+      h.trans <| Nat.add_le_add_right (Nat.add_le_add
+        (Nat.mul_le_mul_left 2 (hR w ctx u v hu hv).2)
+        (Nat.mul_le_mul_left D (by omega))) 16
     _ = (2 * R + 2 * D) * budget + 16 := by ring
     _ ≤ (2 * R + 2 * D + 16) * budget := by
       rw [Nat.add_mul (2 * R + 2 * D) 16 budget]
-      have hpos : 0 < budget := by dsimp [budget, L]; omega
-      exact Nat.add_le_add_left (Nat.le_mul_of_pos_right _ hpos) _
+      exact Nat.add_le_add_left (Nat.le_mul_of_pos_right _ (by omega)) _
 
 end Cslib.Complexity.STCON

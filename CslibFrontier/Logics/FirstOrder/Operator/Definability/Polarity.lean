@@ -30,7 +30,8 @@ atoms are available only positively. Unmarked relation atoms are available with 
 
 * `PolarityDefinable.toDefinable`: forget the additional polarity certificate.
 * `PolarityDefinable.neg`, `PolarityDefinable.conj`, `PolarityDefinable.disj`,
-  `PolarityDefinable.ex`, `PolarityDefinable.all`: compositional synthesis rules.
+  `PolarityDefinable.ex`, `PolarityDefinable.exs`, `PolarityDefinable.all`:
+  compositional synthesis rules, including fixed-width tuples of bound variables.
 * `PolarityDefinable.head_vars`: a positive recursive atom in the nearest relation binder.
 -/
 
@@ -116,6 +117,17 @@ theorem ex {P : ∀ i, M i → (α → M i) → Prop}
   obtain ⟨φ, hφ, hp, hP⟩ := hP
   exact ⟨.ex φ, hφ, hp, fun i v => exists_congr fun x => hP i (Option.elim · x v)⟩
 
+/-- Existentially quantify a fixed-width tuple without changing the syntactic polarity. -/
+theorem exs {n : ℕ} {P : ∀ i, (α → M i) → (Fin n → M i) → Prop}
+    (hP : PolarityDefinable (L := L) policy mark sign M I ρ
+      (fun i v => P i (v ∘ Sum.inl) (v ∘ Sum.inr))) :
+    PolarityDefinable (L := L) policy mark sign M I ρ (fun i v => ∃ xs, P i v xs) := by
+  obtain ⟨φ, hφ, hp, hP⟩ := hP
+  refine ⟨φ.exs n, by rw [Formula.wellFormed_exs]; exact hφ,
+    by rw [Formula.checkPolarity_exs]; exact hp, fun i v => ?_⟩
+  rw [Formula.realize_exs]
+  exact exists_congr fun xs => hP i (Sum.elim v xs)
+
 /-- Universal quantification preserves polarity while binding a fresh first-order variable. -/
 theorem all {P : ∀ i, M i → (α → M i) → Prop}
     (hP : PolarityDefinable (L := L) policy mark sign M I ρ
@@ -199,7 +211,7 @@ theorem head_vars {k : ℕ} (mark : Marking (k :: Γ)) (R : ∀ i, Set (Fin k �
   rel .here (fun j => .var (args j))
 
 attribute [aesop safe apply (rule_sets := [FODefinable])]
-  ofFO neg conj disj imp ex all truth falsity equal var_eq relation relation_vars relation₂
+  ofFO neg conj disj imp ex exs all truth falsity equal var_eq relation relation_vars relation₂
   rel rel_unmarked rel_vars rel_vars_unmarked head_vars
 
 end PolarityDefinable

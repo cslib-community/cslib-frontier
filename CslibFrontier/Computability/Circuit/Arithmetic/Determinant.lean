@@ -170,33 +170,31 @@ private theorem synthesis_stage_succ (t : ℕ) :
     Synthesis (interp K n) (inputs (n * n) ∪ (constants K n ∪ stageSet K n t))
       (stageSet K n (t + 1)) (n * n * (3 * n + 3)) := by
   set s := inputs (n * n) ∪ (constants K n ∪ stageSet K n t)
-  have hA (i j : Fin n) : (fun x => entries x i j) ∈ s := Or.inl ⟨finProdFinEquiv (i, j), rfl⟩
-  have hF (i j : Fin n) : (fun x => stage t x i j) ∈ s := Or.inr (Or.inr ⟨(i, j), rfl⟩)
-  have h0 : (fun _ => 0) ∈ s := Or.inr (Or.inl (Or.inl rfl))
-  have hm1 : (fun _ => -1) ∈ s := Or.inr (Or.inl (Or.inr rfl))
   have hentry (p : Fin n × Fin n) :
       Synthesis (interp K n) s {fun x => stage (t + 1) x p.1 p.2} (3 * n + 3) := by
     obtain ⟨i, j⟩ := p
+    have h0 : (fun _ => 0) ∈ s := Or.inr (Or.inl (Or.inl rfl))
     have hD := Synthesis.arith_sum (constant := C) (Finset.Ioi i) (fun k x => stage t x k k)
-      (fun _ => 0) h0 fun k _ => Synthesis.of_mem (hF k k)
-    have hnegD := Synthesis.combine (Synthesis.of_mem (I := interp K n) hm1) hD
+      (fun _ => 0) h0 fun k _ => Synthesis.of_mem (Or.inr (Or.inr ⟨(k, k), rfl⟩))
+    have hnegD := Synthesis.combine
+      (Synthesis.of_mem (I := interp K n) (Or.inr (Or.inl (Or.inr rfl)))) hD
       (Synthesis.arith_mul (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))
-    have hP := Synthesis.combine hnegD (Synthesis.of_mem (I := interp K n) (hA i j))
+    have hP := Synthesis.combine hnegD
+      (Synthesis.of_mem (I := interp K n) (Or.inl ⟨finProdFinEquiv (i, j), rfl⟩))
       (Synthesis.arith_mul (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))
     have hT := Synthesis.arith_sum (constant := C) (Finset.Ioi i)
-      (fun k x => stage t x i k * entries x k j) (fun _ => 1) h0
-      fun k _ => Synthesis.arith_mul (hF i k) (hA k j)
-    have hE := Synthesis.combine hP hT
-      (Synthesis.arith_add (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))
-    refine hE.mono Set.Subset.rfl (Set.singleton_subset_iff.mpr (funext fun x => ?_)) ?_
+      (fun k x => stage t x i k * entries x k j) (fun _ => 1) h0 fun k _ =>
+        Synthesis.arith_mul (Or.inr (Or.inr ⟨(i, k), rfl⟩)) (Or.inl ⟨finProdFinEquiv (k, j), rfl⟩)
+    refine (Synthesis.combine hP hT
+      (Synthesis.arith_add (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))).mono Set.Subset.rfl
+      (Set.singleton_subset_iff.mpr (funext fun x => ?_)) ?_
     · simp only [Function.iterate_succ_apply', BirdDet.Spec.stepEntry_eq, Matrix.of_apply]
       ring
-    · have hcard : (Finset.Ioi i).card ≤ n := (Finset.card_le_univ _).trans (by simp)
+    · have : (Finset.Ioi i).card ≤ n := (Finset.card_le_univ _).trans_eq (Fintype.card_fin n)
       simp only [Finset.sum_const, smul_eq_mul]
       lia
-  have := Synthesis.family _ _ hentry
   simpa only [Finset.sum_const, Finset.card_univ, Fintype.card_prod, Fintype.card_fin,
-    smul_eq_mul] using this
+    smul_eq_mul] using Synthesis.family _ _ hentry
 
 /-- The first `t` stages of Bird's algorithm, with the constants zero and minus one. -/
 private theorem synthesis_stages (t : ℕ) :

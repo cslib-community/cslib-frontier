@@ -17,6 +17,7 @@ import CslibFrontier.Foundations.Combinatorics.SimpleGraph.IndepNum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Independent Set, Clique and Vertex Cover are NP-hard to approximate
@@ -157,15 +158,13 @@ assignment satisfies**, which is at most `(1 - unsatVal φ) * m` for `m` clauses
 theorem indepNum_toIndependentSet_le (φ : CNF ℕ) :
     ((toIndependentSet φ).graph.indepNum : ℝ) ≤ (1 - φ.unsatVal) * φ.length := by
   obtain ⟨σ, hσ⟩ := (le_indepNum_toIndependentSet_iff φ _).1 le_rfl
-  have hcast : (((toIndependentSet φ).graph.indepNum + φ.countUnsat σ : ℕ) : ℝ) ≤
-      φ.length := by exact_mod_cast hσ
+  have hcast : (((toIndependentSet φ).graph.indepNum + φ.countUnsat σ : ℕ) : ℝ) ≤ φ.length := by
+    exact_mod_cast hσ
   push_cast at hcast
   have hle : φ.unsatVal * φ.length ≤ φ.countUnsat σ := by
     rcases Nat.eq_zero_or_pos φ.length with h0 | h0
     · simp [h0]
-    · have h0' : (0 : ℝ) < φ.length := by exact_mod_cast h0
-      have := φ.unsatVal_le σ
-      rwa [le_div_iff₀ h0'] at this
+    · exact (le_div_iff₀ (by exact_mod_cast h0)).mp (φ.unsatVal_le σ)
   linarith
 
 /-- A cover of Karp's graph of a formula whose clauses have three literals is the complement of an
@@ -174,11 +173,9 @@ private theorem vertexCoverNum_toIndependentSet {φ : CNF ℕ} (h3 : ∀ c ∈ �
     ((toIndependentSet φ).graph.vertexCoverNum : ℝ) =
       3 * φ.length - (toIndependentSet φ).graph.indepNum := by
   have hle := Graph.indepNum_le_card (toIndependentSet φ).graph
-  rw [card_toFinset_vertices_toIndependentSet h3] at hle
-  rw [Graph.vertexCoverNum_eq_card_sub_indepNum, card_toFinset_vertices_toIndependentSet h3,
-    Nat.cast_sub hle]
-  push_cast
-  ring
+  rw [Graph.vertexCoverNum_eq_card_sub_indepNum, Nat.cast_sub hle,
+    card_toFinset_vertices_toIndependentSet h3]
+  push_cast; ring
 
 end SAT
 
@@ -253,10 +250,9 @@ theorem computableInPolyTime_fglssToIndependentSet {enc : α ↪ List Bool} (hV 
     (hq : ∀ a ρ, ρ.length = V.coins a → (V.queries (a, ρ)).length ≤ d) :
     ComputableInPolyTime V.fglssToIndependentSet enc encIndependentSetInstance := by
   have hgraph := V.computableInPolyTime_fglssEdgeList hV hcoins hq
-  have hcoins_unary : ComputableInPolyTime V.coins enc encUnary :=
-    .binary_to_unary_bounded hV.coins (by fun_prop) hcoins
   have htarget : ComputableInPolyTime (fun a => 2 ^ V.coins a) enc encNat :=
-    ComputableInPolyTime.binary_two_pow.comp hcoins_unary
+    ComputableInPolyTime.binary_two_pow.comp
+      (.binary_to_unary_bounded hV.coins (by fun_prop) hcoins)
   unfold fglssToIndependentSet
   fun_prop
 
@@ -290,12 +286,10 @@ theorem polyTimeReducible_GapIndependentSet_of_mem_PCPWith {α : Type} {enc : α
       have hs := hpcp.sound a ha π
       rw [PCPVerifier.acceptProb, div_le_iff₀ (by positivity)] at hs
       simpa only [Nat.cast_pow, Nat.cast_ofNat] using hs
-    refine (PromiseProblem.mem_no_gapMax_of_lt ?_).2 ?_
-    · change s * (2 ^ V.coins a : ℕ) < (2 ^ V.coins a : ℕ)
-      nlinarith
-    · change ((V.fglssEdgeList a).indepNum : ℝ) ≤ s * (2 ^ V.coins a : ℕ)
-      rw [PCPVerifier.indepNum_fglssEdgeList, ← hπ]
-      exact hprob
+    refine (PromiseProblem.mem_no_gapMax_of_lt (show s * (2 ^ V.coins a : ℕ) < (2 ^ V.coins a : ℕ)
+      by nlinarith)).2 ?_
+    change ((V.fglssEdgeList a).indepNum : ℝ) ≤ s * (2 ^ V.coins a : ℕ)
+    rwa [PCPVerifier.indepNum_fglssEdgeList, ← hπ]
 
 /-- **MAX-3SAT reduces to maximum independent set with the same gap**, by Karp's graph: a
 satisfiable formula has an independent set with a vertex in each clause, and an independent set
@@ -312,11 +306,8 @@ theorem polyTimeReducible_GapThreeSAT_GapIndependentSet (hs : s < 1) :
     have hm : (0 : ℝ) < φ.length := by
       exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
     have hα := SAT.indepNum_toIndependentSet_le φ
-    refine (PromiseProblem.mem_no_gapMax_of_lt ?_).2 ?_
-    · change s * (φ.length : ℝ) < φ.length
-      nlinarith
-    · change ((SAT.toIndependentSet φ).graph.indepNum : ℝ) ≤ s * φ.length
-      nlinarith
+    exact (PromiseProblem.mem_no_gapMax_of_lt (show s * (φ.length : ℝ) < φ.length by nlinarith)).2
+      (show ((SAT.toIndependentSet φ).graph.indepNum : ℝ) ≤ s * φ.length by nlinarith)
 
 /-- **Maximum independent set reduces to maximum clique with the same gap**, by complementing the
 graph on its declared vertices. -/
@@ -352,8 +343,7 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCover (hs : s < 1) :
       exact_mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
     simp only [GapVertexCover, PromiseProblem.mem_yes_gapMin, hred φ h3,
       SAT.vertexCoverNum_toIndependentSet h3]
-    push_cast
-    linarith
+    cast_linarith
   · obtain ⟨h3, hval⟩ := (mem_no_GapExactThreeSAT hs).1 hφ
     have hm : (0 : ℝ) < φ.length := by
       exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
@@ -382,8 +372,7 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction (hs : s < 1) {
     change ((SAT.toIndependentSet φ).graph.vertexCoverNum : ℝ) ≤
       2 / 3 * (SAT.toIndependentSet φ).graph.vertices.toFinset.card
     rw [SAT.vertexCoverNum_toIndependentSet h3, SAT.card_toFinset_vertices_toIndependentSet h3]
-    push_cast
-    linarith
+    cast_linarith
   · obtain ⟨h3, hval⟩ := (mem_no_GapExactThreeSAT hs).1 hφ
     have hm : (0 : ℝ) < φ.length := by
       exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
@@ -392,8 +381,7 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction (hs : s < 1) {
     change L * (SAT.toIndependentSet φ).graph.vertices.toFinset.card <
       ((SAT.toIndependentSet φ).graph.vertexCoverNum : ℝ)
     rw [SAT.vertexCoverNum_toIndependentSet h3, SAT.card_toFinset_vertices_toIndependentSet h3]
-    push_cast
-    nlinarith
+    cast_nlinarith
 
 /-! ### Inapproximability -/
 

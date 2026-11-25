@@ -93,11 +93,12 @@ theorem half_floor_le_clippedError {ρ d v : ℝ} {w raw : Fin 2 → ℝ}
     have hden : 0 < 1 + d := by linarith
     have hrel : ρ / 2 ≤ |raw 0 - d| / (1 + d) := by
       apply (le_div_iff₀ hden).2
-      calc
-        _ ≤ (ρ / 2) * (5 / 4) := mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+      calc _ ≤ (ρ / 2) * (5 / 4) := mul_le_mul_of_nonneg_left (by linarith) (by positivity)
         _ ≤ _ := by linarith
     exact (le_min hsmall hrel).trans (le_max_left _ _)
-  · have hraw : |w 1| ≤ ρ / 100 + |raw 1| := by grind
+  · have hraw : |w 1| ≤ ρ / 100 + |raw 1| := by
+      linarith [hprev 1, show |w 1| ≤ |w 1 - raw 1| + |raw 1| by
+        simpa only [sub_zero] using abs_sub_le (w 1) (raw 1) 0]
     have hrel : ρ / 2 ≤ |raw 1 - v| := by rw [hv, sub_zero]; linarith
     exact (le_min hsmall hrel).trans (le_max_right _ _)
 
@@ -138,32 +139,23 @@ theorem one_le_sum_clippedError_pow_of_overflow {s : Finset ι} {n : ℕ} {ρ z 
     change 2 * #heavy < n at hheavy
     omega
   have hhalf : (n : ℝ) / 2 ≤ #light := by
-    have hc : (n : ℝ) ≤ 2 * (#light : ℝ) := by exact_mod_cast hcount
-    linarith
+    linarith [show (n : ℝ) ≤ 2 * (#light : ℝ) by exact_mod_cast hcount]
   have hsubset : light ⊆ s := fun _ hy => (mem_filter.mp (mem_filter.mp hy).1).1
   have hsum : (#light : ℝ) * (ρ / 2) ^ p ≤
       ∑ y ∈ s, clippedError (truth y 0) (truth y 1) (raw y) ^ p := by
-    calc
-      _ = ∑ _y ∈ light, (ρ / 2) ^ p := by simp
-      _ ≤ ∑ y ∈ light, clippedError (truth y 0) (truth y 1) (raw y) ^ p := by
-        apply sum_le_sum
-        intro y hy
-        have hys := hsubset hy
-        exact pow_le_pow_left₀ (by positivity) (half_floor_le_clippedError hρ hρ1
-          (hfirst y hys) (mem_filter.mp hy).2 (hsecond y hys (mem_filter.mp hy).2)
-          (hprev y hys) (mem_filter.mp (mem_filter.mp hy).1).2) p
-      _ ≤ _ := sum_le_sum_of_subset_of_nonneg hsubset fun y _ _ =>
+    calc _ = ∑ _y ∈ light, (ρ / 2) ^ p := by simp
+      _ ≤ ∑ y ∈ light, clippedError (truth y 0) (truth y 1) (raw y) ^ p :=
+        sum_le_sum fun y hy => pow_le_pow_left₀ (by positivity)
+          (half_floor_le_clippedError hρ hρ1 (hfirst y (hsubset hy)) (mem_filter.mp hy).2
+            (hsecond y (hsubset hy) (mem_filter.mp hy).2) (hprev y (hsubset hy))
+            (mem_filter.mp (mem_filter.mp hy).1).2) p
+      _ ≤ _ := sum_le_sum_of_subset_of_nonneg hsubset fun _ _ _ =>
         pow_nonneg (clippedError_nonneg _ _ _) _
-  have hcharge := (mul_le_mul_of_nonneg_right hhalf
-    (pow_nonneg (by positivity : 0 ≤ ρ / 2) p)).trans hsum
+  have hcharge := (mul_le_mul_of_nonneg_right hhalf (by positivity)).trans hsum
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
-  have hden : 0 < (n : ℝ) / 2 * (ρ / 2) ^ p := by positivity
-  calc
-    1 ≤ (∑ y ∈ s, clippedError (truth y 0) (truth y 1) (raw y) ^ p) /
-        ((n : ℝ) / 2 * (ρ / 2) ^ p) := (le_div_iff₀ hden).2 (by simpa using hcharge)
-    _ = _ := by
-      rw [div_pow, pow_succ]
-      field_simp
+  calc 1 ≤ (∑ y ∈ s, clippedError (truth y 0) (truth y 1) (raw y) ^ p) /
+        ((n : ℝ) / 2 * (ρ / 2) ^ p) := (le_div_iff₀ (by positivity)).2 (by simpa using hcharge)
+    _ = _ := by rw [div_pow, pow_succ]; field_simp
 
 /-- The false-overflow charge for the actual dyadic compression run. Earlier non-overflow and
 the explicit floor separation imply all default and preloss hypotheses of the local charge. -/
@@ -178,17 +170,15 @@ theorem one_le_sum_clippedError_pow_of_firstOverflow_dyadic {s : Finset ι}
     1 ≤ (2 : ℝ) ^ (p + 1) / ((n j : ℝ) * dyadicFloor η m j ^ p) *
       ∑ y ∈ s, clippedError (truth y 0) (truth y 1)
         (uncompressedRow Δ a.row (j + 1) y) ^ p := by
-  have hρ1 : dyadicFloor η m j ≤ 1 := by
-    have h := dyadicFloor_le_scale_div hη.le m j
-    linarith
+  have hρ1 : dyadicFloor η m j ≤ 1 := by linarith [dyadicFloor_le_scale_div hη.le m j]
   have hsum := six_sum_range_dyadicFloor_le hη.le hj
   have hzabs := abs_iterate_defaultValue_sub_le_of_no_overflow
     (show 0 ≤ a.defaultValue by rw [ha]) j hover.1
   rw [ha, sub_zero] at hzabs
-  have hz : (iterate s n K (dyadicFloor η m) Δ a j).defaultValue ≤ dyadicFloor η m j := by grind
-  apply one_le_sum_clippedError_pow_of_overflow hn (by positivity) hρ1 hz hover.2 hfirst hsecond ?_
-    hheavy p
-  intro y _ ν
+  have hz : (iterate s n K (dyadicFloor η m) Δ a j).defaultValue ≤ dyadicFloor η m j := by
+    linarith [le_of_abs_le hzabs, dyadicFloor_nonneg hη.le m j]
+  refine one_le_sum_clippedError_pow_of_overflow hn (by positivity) hρ1 hz hover.2 hfirst hsecond
+    (fun y _ ν => ?_) hheavy p
   rw [uncompressedRow_succ]
   simp only [inputRow, Pi.add_apply, add_sub_add_right_eq_sub]
   exact (abs_iterate_sub_uncompressed_le_of_no_overflow j hover.1 y ν).trans hsum
@@ -228,17 +218,12 @@ theorem le_of_noOverflow_of_firstOverflow (s : Finset ι) (n K : ℕ → ℕ) (�
     have hf := mul_le_mul_of_nonneg_right (le_max_left Cf Ct) hεfinal
     have htail := mul_nonneg (hCf.trans (le_max_left Cf Ct)) htail0
     linarith
-  · have hex : ∃ j, j < m ∧ ρ j < stepThreshold s n K ρ Δ a j := by
-      push Not at hnone
-      exact hnone
+  · have hex : ∃ j, j < m ∧ ρ j < stepThreshold s n K ρ Δ a j := by push Not at hnone; exact hnone
     let j := Nat.find hex
-    have hj := Nat.find_spec hex
-    have hjm : j < m := hj.1
+    have hjm : j < m := (Nat.find_spec hex).1
     have hjover : IsFirstOverflow s n K ρ Δ a j :=
-      ⟨fun i hi => le_of_not_gt fun h => Nat.find_min hex hi ⟨by omega, h⟩, hj.2⟩
-    have hheavy : heavy j := by
-      by_contra h
-      exact hfalse ⟨j, hjm, hjover, h⟩
+      ⟨fun i hi => le_of_not_gt fun h => Nat.find_min hex hi ⟨by omega, h⟩, (Nat.find_spec hex).2⟩
+    have hheavy : heavy j := by_contra fun h => hfalse ⟨j, hjm, hjover, h⟩
     have hbound := hover j hjm hjover
     have hprefix : (∑ i ∈ range j, ρ i * ε i) ≤ ∑ i ∈ range m, ρ i * ε i :=
       sum_le_sum_of_subset_of_nonneg (range_mono hjm.le) fun i hi _ =>

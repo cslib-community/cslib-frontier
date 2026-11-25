@@ -152,69 +152,17 @@ private theorem mem_addClauseEdges {adj : Literal V → List (Literal V)} {c : C
     (hc1 : 1 ≤ c.length) (hc2 : c.length ≤ 2) (ℓ ℓ' : Literal V) :
     ℓ' ∈ addClauseEdges adj c ℓ ↔
       ℓ' ∈ adj ℓ ∨ (ℓ.negate ∈ c ∧ ℓ' ∈ c ∧ ∀ m ∈ c, m = ℓ.negate ∨ m = ℓ') := by
+  have hneg : ∀ a : Literal V, ℓ = a.negate ↔ ℓ.negate = a := fun a =>
+    ⟨fun h => h ▸ negate_negate a, fun h => h ▸ (negate_negate ℓ).symm⟩
   rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, cs⟩⟩⟩
   · simp at hc1
-  · dsimp only [addClauseEdges]
-    simp only [List.mem_singleton]
-    by_cases hℓ : ℓ = a.negate
-    · subst hℓ
-      rw [negate_negate, Function.update_self, List.mem_cons]
-      constructor
-      · rintro (rfl | h)
-        · exact .inr ⟨rfl, rfl, fun m hm => .inl hm⟩
-        · exact .inl h
-      · rintro (h | ⟨_, rfl, _⟩)
-        · exact .inr h
-        · exact .inl rfl
-    · have hne : ℓ.negate ≠ a := fun h => hℓ (by rw [← h, negate_negate])
-      have hupd : Function.update adj a.negate (a :: adj a.negate) ℓ = adj ℓ :=
-        Function.update_of_ne hℓ _ _
-      rw [hupd]
-      simp [hne]
-  · dsimp only [addClauseEdges]
-    simp only [List.mem_cons, List.not_mem_nil, or_false]
-    have hiff :
-        (ℓ' ∈ (let adj₁ := Function.update adj a.negate (b :: adj a.negate)
-            Function.update adj₁ b.negate (a :: adj₁ b.negate)) ℓ) ↔
-          ℓ' ∈ adj ℓ ∨ (ℓ = a.negate ∧ ℓ' = b) ∨ (ℓ = b.negate ∧ ℓ' = a) := by
-      dsimp only
-      by_cases h₂ : ℓ = b.negate
-      · subst h₂
-        rw [Function.update_self, List.mem_cons]
-        by_cases h₁ : b.negate = a.negate
-        · rw [h₁, Function.update_self, List.mem_cons]
-          tauto
-        · rw [Function.update_of_ne h₁]
-          tauto
-      · rw [Function.update_of_ne h₂]
-        by_cases h₁ : ℓ = a.negate
-        · subst h₁
-          rw [Function.update_self, List.mem_cons]
-          tauto
-        · rw [Function.update_of_ne h₁]
-          tauto
-    rw [hiff]
-    refine or_congr_right ⟨?_, ?_⟩
-    · rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩)
-      · rw [negate_negate]
-        exact ⟨.inl rfl, .inr rfl, fun m hm => hm⟩
-      · rw [negate_negate]
-        exact ⟨.inr rfl, .inl rfl, fun m hm => hm.symm⟩
-    · rintro ⟨hneg, hℓ', hall⟩
-      rcases hall a (.inl rfl) with ha | ha
-      · rcases hall b (.inr rfl) with hb | hb
-        · have hℓa : ℓ = a.negate := by rw [ha, negate_negate]
-          have hba : b = a := hb.trans ha.symm
-          rcases hℓ' with rfl | rfl
-          · exact .inl ⟨hℓa, hba.symm⟩
-          · exact .inl ⟨hℓa, rfl⟩
-        · exact .inl ⟨by rw [ha, negate_negate], hb.symm⟩
-      · rcases hall b (.inr rfl) with hb | hb
-        · exact .inr ⟨by rw [hb, negate_negate], ha.symm⟩
-        · have hba : b = a := hb.trans ha.symm
-          rcases hneg with hna | hnb
-          · exact .inl ⟨by rw [← hna, negate_negate], ha.symm.trans hba.symm⟩
-          · exact .inr ⟨by rw [← hnb, negate_negate], ha.symm⟩
+  · simp only [addClauseEdges, Function.update_apply, hneg, List.mem_cons, List.not_mem_nil,
+      or_false, forall_eq]
+    obtain rfl | ha := eq_or_ne ℓ.negate a <;> simp [*, or_comm]
+  · simp only [addClauseEdges, Function.update_apply, hneg, List.mem_cons, List.not_mem_nil,
+      or_false, forall_eq_or_imp, forall_eq]
+    obtain rfl | ha := eq_or_ne ℓ.negate a <;> obtain rfl | hb := eq_or_ne ℓ.negate b <;>
+      simp [*] <;> grind
   · simp at hc2
 
 private theorem foldl_addClauseEdges_mem :
@@ -228,28 +176,15 @@ private theorem foldl_addClauseEdges_mem :
     have hrest : ∀ c' ∈ cs, 1 ≤ c'.length ∧ c'.length ≤ 2 :=
       fun c' hc' => hcs c' (List.mem_cons_of_mem c hc')
     rw [List.foldl_cons, foldl_addClauseEdges_mem cs _ hrest, mem_addClauseEdges hc.1 hc.2]
-    constructor
-    · rintro ((h | h) | ⟨c', hc', h⟩)
-      · exact .inl h
-      · exact .inr ⟨c, List.mem_cons_self, h⟩
-      · exact .inr ⟨c', List.mem_cons_of_mem c hc', h⟩
-    · rintro (h | ⟨c', hc', h⟩)
-      · exact .inl (.inl h)
-      · rcases List.mem_cons.1 hc' with rfl | hc'
-        · exact .inl (.inr h)
-        · exact .inr ⟨c', hc', h⟩
+    simp only [CNF.Implies, List.mem_cons, exists_eq_or_imp, or_assoc]
 
 /-- When `φ` has no empty clause and all clauses have width at most `2`, `implicationAdj φ`
 realizes `φ.Implies`. -/
 theorem edge_implicationAdj_iff {φ : CNF V} (hw : ∀ c ∈ φ, c.length ≤ 2) (hnil : [] ∉ φ)
     (ℓ ℓ' : Literal V) :
     Edge (implicationAdj φ) ℓ ℓ' ↔ φ.Implies ℓ ℓ' := by
-  have hcs : ∀ c ∈ φ, 1 ≤ c.length ∧ c.length ≤ 2 := by
-    intro c hc
-    refine ⟨?_, hw c hc⟩
-    cases c with
-    | nil => exact absurd hc hnil
-    | cons _ _ => simp
+  have hcs : ∀ c ∈ φ, 1 ≤ c.length ∧ c.length ≤ 2 := fun c hc =>
+    ⟨List.length_pos_iff.2 fun h => hnil (h ▸ hc), hw c hc⟩
   simpa [Edge, implicationAdj] using foldl_addClauseEdges_mem φ (fun _ => []) hcs ℓ ℓ'
 
 private theorem sum_addClauseEdges_le [Fintype V] (adj : Literal V → List (Literal V))
@@ -338,49 +273,29 @@ theorem solve_eq_some (hvs : ∀ v, v ∈ vs) {σ : V → Bool} (h : solve vs φ
     have hcond : IsSCCCondensation adj comps := isSCCCondensation_sccs hlits
     dsimp only [extractAssignment] at h
     split_ifs at h with hdist
-    · injection h with hσ
-      subst hσ
+    · obtain rfl := Option.some.inj h
       have hdist_all : ∀ v, compIdx (v, true) ≠ compIdx (v, false) := by
         rw [foldl_and_eq_and_all, Bool.true_and, List.all_eq_true] at hdist
         exact fun v => of_decide_eq_true (hdist v (hvs v))
+      have hle : ∀ ℓ ℓ', φ.Implies ℓ ℓ' → compIdx ℓ ≤ compIdx ℓ' := fun _ _ h =>
+        hcond.indexComponents_le_of_edge ((edge_implicationAdj_iff hw hnil _ _).2 h)
       refine ⟨hw, (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_⟩
       have hc2 : c.length ≤ 2 := hw c hc
       rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, cs⟩⟩⟩
       · exact absurd hc hnil
       · by_contra hceval
-        have haf :
-            Literal.eval (fun v => decide (compIdx (v, false) < compIdx (v, true))) a = false := by
-          cases he : Literal.eval (fun v => decide (compIdx (v, false) < compIdx (v, true))) a
-          · rfl
-          · exact absurd (by simp [Clause.eval, he]) hceval
-        have hlt := literal_false_lt hdist_all a haf
-        have hedge : Edge adj a.negate a := by
-          rw [edge_implicationAdj_iff hw hnil]
-          exact ⟨[a], hc, by simp, by simp, fun m hm => .inl (by simpa using hm)⟩
-        have hle : compIdx a.negate ≤ compIdx a := hcond.indexComponents_le_of_edge hedge
+        have hlt := literal_false_lt hdist_all a
+          (Bool.eq_false_iff.2 fun he => hceval (by simp [Clause.eval, he]))
+        have := hle a.negate a ⟨[a], hc, by simp, by simp, fun m hm => .inl (by simpa using hm)⟩
         omega
       · by_contra hceval
-        have habf :
-            Literal.eval (fun v => decide (compIdx (v, false) < compIdx (v, true))) a = false ∧
-              Literal.eval (fun v => decide (compIdx (v, false) < compIdx (v, true))) b =
-                false := by
-          cases ha : Literal.eval (fun v => decide (compIdx (v, false) < compIdx (v, true))) a <;>
-            cases hb : Literal.eval (fun v => decide (compIdx (v, false) < compIdx (v, true))) b
-          · exact ⟨rfl, rfl⟩
-          all_goals exact absurd (by simp [Clause.eval, ha, hb]) hceval
-        have hlta := literal_false_lt hdist_all a habf.1
-        have hltb := literal_false_lt hdist_all b habf.2
-        have hedge₁ : Edge adj a.negate b := by
-          rw [edge_implicationAdj_iff hw hnil]
-          exact ⟨[a, b], hc, by simp, by simp, fun m hm => by simpa using hm⟩
-        have hedge₂ : Edge adj b.negate a := by
-          rw [edge_implicationAdj_iff hw hnil]
-          refine ⟨[a, b], hc, by simp, by simp, fun m hm => ?_⟩
-          rcases List.mem_cons.1 hm with rfl | hm
-          · exact .inr rfl
-          · exact .inl (by simpa [negate_negate] using List.mem_singleton.1 hm)
-        have hle₁ : compIdx a.negate ≤ compIdx b := hcond.indexComponents_le_of_edge hedge₁
-        have hle₂ : compIdx b.negate ≤ compIdx a := hcond.indexComponents_le_of_edge hedge₂
+        have hlta := literal_false_lt hdist_all a
+          (Bool.eq_false_iff.2 fun he => hceval (by simp [Clause.eval, he]))
+        have hltb := literal_false_lt hdist_all b
+          (Bool.eq_false_iff.2 fun he => hceval (by simp [Clause.eval, he]))
+        have := hle a.negate b ⟨[a, b], hc, by simp, by simp, fun m hm => by simpa using hm⟩
+        have := hle b.negate a
+          ⟨[a, b], hc, by simp, by simp, fun m hm => by simpa [or_comm] using hm⟩
         omega
       · simp at hc2
 

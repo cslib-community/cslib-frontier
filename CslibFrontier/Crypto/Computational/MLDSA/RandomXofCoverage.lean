@@ -58,24 +58,23 @@ private theorem fixedInputs (ha : honestAddressBits s m ≤ a) : 8704 ≤ a :=
 
 private theorem matrix (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a) (hb : 894 ≤ b)
     {rho : List Byte} (hr : rho.length ≤ 32) : H.expandA s rho = G.expandA s rho := by
+  have hfa := fixedInputs ha
   have raw (i j : Byte) :
-      H.h128.readBytes (rho ++ [i, j]) 894 = G.h128.readBytes (rho ++ [i, j]) 894 := by
-    apply h.shake128 _ _ _ hb
-    simp only [Keccak.length_bytesToBitsLE, List.length_append, List.length_cons, List.length_nil]
-    have := fixedInputs ha
-    lia
-  simp only [Xofs.expandA, raw]
-  rfl
+      H.h128.readBytes (rho ++ [i, j]) 894 = G.h128.readBytes (rho ++ [i, j]) 894 :=
+    h.shake128 _ (by
+      simp only [Keccak.length_bytesToBitsLE, List.length_append, List.length_cons, List.length_nil]
+      lia) _ hb
+  simp only [Xofs.expandA, raw]; rfl
 
 private theorem keyGen (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a) (hb : 894 ≤ b)
     (seed : FixedBytes 32) : H.keyGen s seed = G.keyGen s seed := by
   have af := fixedInputs ha
-  have exp : H.expandKeySeed s seed = G.expandKeySeed s seed := by
-    apply h.bytes256 _ (by lia)
-    simp only [List.length_append, FixedBytes.length_toList, List.length_cons, List.length_nil]
-    lia
+  have exp : H.expandKeySeed s seed = G.expandKeySeed s seed := h.bytes256
+    (by
+      simp only [List.length_append, FixedBytes.length_toList, List.length_cons, List.length_nil]
+      lia)
+    (by lia)
   let e := G.expandKeySeed s seed
-  have mat := h.matrix ha hb (rho := e.take 32) (by simp)
   have secret (i : ℕ) :
       H.secretPoly s ((e.drop 32).take 64) i = G.secretPoly s ((e.drop 32).take 64) i := by
     unfold Xofs.secretPoly
@@ -86,12 +85,12 @@ private theorem keyGen (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a
   have pk (t : Fin s.params.k → Poly) :
       H.h256.readBytes (encodePublic s (e.take 32) t) 64 =
         G.h256.readBytes (encodePublic s (e.take 32) t) 64 := by
-    apply h.bytes256 _ (by lia)
     have := (le_max_left (8 * (32 + 320 * s.params.k)) _).trans ha
+    refine h.bytes256 ?_ (by lia)
     simp only [length_encodePublic, List.length_take]
     lia
   simp only [Xofs.keyGen, Xofs.expandS, exp, ← show e = G.expandKeySeed s seed from rfl,
-    mat, secret, pk]
+    h.matrix ha hb (rho := e.take 32) (by simp), secret, pk]
 
 private theorem representative (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) {tr ctx : List Byte} {msg : List Bool} (ht : tr.length ≤ 64)
@@ -100,35 +99,37 @@ private theorem representative (h : Agreement H G a b) (ha : honestAddressBits s
       G.representativeFromTr tr (formatMessage msg ctx) := by
   unfold Xofs.representativeFromTr
   rw [h.shake256 _ _ 64 (by lia)]
+  have := (le_max_right _ (8 * (64 + 2 + 255) + m)).trans ha
   simp only [representativeInput, formatMessage, List.length_append, Keccak.length_bytesToBitsLE,
     List.length_cons]
-  have := (le_max_right _ (8 * (64 + 2 + 255) + m)).trans ha
   lia
 
 private theorem commitment (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) {μ : List Bool} (hm : μ.length = 512) (w : Fin s.params.k → Fin 256 → ℤ) :
-    H.commitmentDigest s w μ = G.commitmentDigest s w μ := by
-  apply h.shake256
-  · have aw := fixedInputs ha
+    H.commitmentDigest s w μ = G.commitmentDigest s w μ :=
+  h.shake256 _ (by
     rw [commitmentInput, List.length_append, hm, Keccak.length_bytesToBitsLE, length_packCoeffs]
-    exact le_trans (by cases s <;> decide) aw
-  · exact le_trans (by cases s <;> decide) hb
+    exact le_trans (by cases s <;> decide) (fixedInputs ha)) _
+    (le_trans (by cases s <;> decide) hb)
 
 private theorem challenge (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) {d : List Byte} (hd : d.length ≤ digestBytes s) :
     H.sampleInBall s d = G.sampleInBall s d := by
-  have af := fixedInputs ha
-  have sz : digestBytes s ≤ 64 := by cases s <;> decide
-  simp only [Xofs.sampleInBall, h.bytes256 (xs := d) (by lia) (n := 221) (by lia)]
+  have := fixedInputs ha
+  have : digestBytes s ≤ 64 := by cases s <;> decide
+  simp only [Xofs.sampleInBall,
+    h.bytes256 (xs := d) (by lia)
+      (n := 221) (by lia)]
 
 private theorem mask (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
     (hb : 894 ≤ b) {seed : List Byte} (hr : seed.length = 64) (κ : ℕ) :
     H.expandMask s seed κ = G.expandMask s seed κ := by
-  have af := fixedInputs ha
-  have widths : 32 * (s.params.γ₁.log2 + 1) ≤ 894 := by cases s <;> decide
+  have := fixedInputs ha
   have raw (i : ℕ) := h.bytes256 (xs := nonceInput seed i)
-    (by simp only [nonceInput, List.length_append, hr, List.length_cons, List.length_nil]; lia)
-    (widths.trans hb)
+    (by
+      simp only [nonceInput, List.length_append, hr, List.length_cons, List.length_nil]
+      lia)
+    ((show 32 * (s.params.γ₁.log2 + 1) ≤ 894 by cases s <;> decide).trans hb)
   simp only [Xofs.expandMask, raw]
 
 private theorem attempt (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
@@ -152,12 +153,12 @@ private theorem signAttempts (h : Agreement H G a b) (ha : honestAddressBits s m
   let μ := G.representativeFromTr sk.tr (formatMessage msg ctx)
   have len : μ.length = 512 := by
     simp only [μ, Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read]
-  have hedge := h.shake256 (Keccak.bytesToBitsLE (sk.key ++ rnd.toList) ++ μ)
-    (by rw [List.length_append, Keccak.length_bytesToBitsLE, List.length_append,
-          FixedBytes.length_toList, len]
-        have := fixedInputs ha
-        lia) 64 (by lia)
-  rw [hedge]
+  have := fixedInputs ha
+  rw [h.shake256 (Keccak.bytesToBitsLE (sk.key ++ rnd.toList) ++ μ)
+    (by
+      rw [List.length_append, Keccak.length_bytesToBitsLE, List.length_append,
+        FixedBytes.length_toList, len]
+      lia) 64 (by lia)]
   exact h.attempt ha hb sk A len (G.h256.length_read ..)
 
 private theorem signInternal (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
@@ -167,13 +168,10 @@ private theorem signInternal (h : Agreement H G a b) (ha : honestAddressBits s m
       G.signInternal s key (formatMessage msg ctx) rnd := by
   simp only [Xofs.signInternal, Xofs.runSigning, Xofs.startSigning, Xofs.startSigningWithSeed,
     Xofs.startDecodedSigning, bind_assoc, pure_bind]
-  apply Option.bind_congr
-  intro sk hsk
+  refine Option.bind_congr fun sk hsk => ?_
   obtain ⟨hr, hk, ht⟩ := lengths_of_decodePrivate hsk
   rw [h.matrix ha hb hr]
-  apply Option.bind_congr
-  intro A _
-  exact congrArg (fun f => firstAccepted s.params.ℓ f 814 0)
+  exact Option.bind_congr fun A _ => congrArg (fun f => firstAccepted s.params.ℓ f 814 0)
     (h.signAttempts ha hb sk A hm hc rnd ht hk)
 
 private theorem sign (h : Agreement H G a b) (ha : honestAddressBits s m ≤ a)
@@ -212,9 +210,7 @@ namespace QuantumSigningForger
 private theorem unpad_length {x : List Bool} : ∀ w : List Bool,
     Xofs.unpad w = some x → x.length < w.length
   | [], h => by simp [Xofs.unpad] at h
-  | true :: w, h => by
-    obtain rfl := Option.some.inj h
-    exact Nat.lt_succ_self _
+  | true :: w, h => Option.some.inj h ▸ Nat.lt_succ_self _
   | false :: w, h => (unpad_length w h).trans (Nat.lt_succ_self _)
 
 private theorem queryTable_eq (C : QuantumSigningForger) {H G : Xofs} {a b : ℕ}
@@ -227,9 +223,8 @@ private theorem queryTable_eq (C : QuantumSigningForger) {H G : Xofs} {a b : ℕ
   | some x =>
     have len := unpad_length _ hx
     rw [List.length_ofFn] at len
-    cases q 0
-    · simp [h.shake128 x (by lia) _ hb]
-    · simp [h.shake256 x (by lia) _ hb]
+    have hxa : x.length ≤ a := by lia
+    cases q 0 <;> simp [h.shake128 x hxa _ hb, h.shake256 x hxa _ hb]
 
 private theorem forgeryGame_eq (C : QuantumSigningForger) {m a b : ℕ} {s : Level}
     (fit : C.MessagesFit m) {H G : Xofs} (h : Agreement H G a b)
@@ -239,21 +234,19 @@ private theorem forgeryGame_eq (C : QuantumSigningForger) {m a b : ℕ} {s : Lev
       ProbOracleComp.runWith (C.commands H s keys.secretKey) (C.program keys.publicKey) C.initial =
       ProbOracleComp.runWith (C.commands G s keys.secretKey) (C.program keys.publicKey)
         C.initial := by
-    rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
-    apply congrArg (fun z : StateT (State C) PMF _ => z.run C.initial)
-    apply OracleComp.QueriesSatisfy.interpret_congr (fit keys.publicKey).1
-    intro q hq
+    simp only [ProbOracleComp.runWith_eq_run_interpret]
+    refine congrArg (fun z : StateT (State C) PMF _ => z.run C.initial)
+      (OracleComp.QueriesSatisfy.interpret_congr (fit keys.publicKey).1 fun q hq => ?_)
     rcases q with n | dev | req
     · rfl
     · funext st
       simp only [OracleComp.sumHandler, commands, deviceCommand, C.queryTable_eq h hc hd]
     · funext st
+      have eq : H.signAndLog s keys.secretKey req st.2 =
+          G.signAndLog s keys.secretKey req st.2 :=
+        funext fun rnd => by simp only [Xofs.signAndLog, h.sign ha hb keys.secretKey hq]
       change ((H.signingOracle s keys.secretKey req st.2).map _) =
         ((G.signingOracle s keys.secretKey req st.2).map _)
-      have eq : H.signAndLog s keys.secretKey req st.2 =
-          G.signAndLog s keys.secretKey req st.2 := by
-        funext rnd
-        simp only [Xofs.signAndLog, h.sign ha hb keys.secretKey hq]
       simp only [Xofs.signingOracle, eq]
   unfold forgeryGame Xofs.keyExperiment
   congr 1
@@ -265,8 +258,8 @@ private theorem forgeryGame_eq (C : QuantumSigningForger) {m a b : ℕ} {s : Lev
     simp only [transcript, run, PMF.map_comp, Function.comp_def]
     apply PMF.map_congr_on_support
     rintro ⟨f, st⟩ hr
-    have hm := (fit keys.publicKey).2 f (ProbOracleComp.mem_support_of_mem _ hr)
-    simp only [Xofs.winsForgery, h.verify ha hb _ hm]
+    simp only [Xofs.winsForgery,
+      h.verify ha hb _ ((fit keys.publicKey).2 f (ProbOracleComp.mem_support_of_mem _ hr))]
 
 private def cellEmbedding {a b A B : ℕ} (ha : a ≤ A) (hb : b ≤ B) :
     RawWord a × Fin b ↪ RawWord A × Fin B :=
@@ -278,34 +271,27 @@ private theorem read_restrict {a b A B : ℕ} (ha : a ≤ A) (hb : b ≤ B)
     (t : Table A B) (lo hi : ExtendableOutput) (x : List Bool) (hx : x.length ≤ a)
     (n : ℕ) (hn : n ≤ b) :
     (install lo (fun i => t (cellEmbedding ha hb i))).read x n = (install hi t).read x n := by
-  apply List.ext_getElem
-  · simp only [ExtendableOutput.length_read]
-  · intro i hlen _
-    have hin : i < n := by simpa only [ExtendableOutput.length_read] using hlen
-    rw [ExtendableOutput.getElem_read _ _ hin, ExtendableOutput.getElem_read _ _ hin]
-    simp only [byteAt_install, hx, hx.trans ha, hin.trans_le hn, (hin.trans_le hn).trans_le hb,
-      and_self, ↓reduceDIte]
-    rfl
+  refine List.ext_getElem (by simp only [ExtendableOutput.length_read]) fun i hlen _ => ?_
+  have hin : i < n := by simpa only [ExtendableOutput.length_read] using hlen
+  rw [ExtendableOutput.getElem_read _ _ hin, ExtendableOutput.getElem_read _ _ hin]
+  simp only [byteAt_install, hx, hx.trans ha, hin.trans_le hn, (hin.trans_le hn).trans_le hb,
+    and_self, ↓reduceDIte]
+  rfl
 
 private theorem restrict_game {a b A B : ℕ} (ha : a ≤ A) (hb : b ≤ B)
     (lo hi : Xofs) (play : Xofs → Game)
     (congr : ∀ H G, Agreement H G a b → play H = play G) :
     (lo.uniformPrefixes a b).bind play = (hi.uniformPrefixes A B).bind play := by
   classical
-  let cut (t : Table A B) : Table a b := fun i => t (cellEmbedding ha hb i)
-  have unif : (PMF.uniformOfFintype (Table A B)).map cut = PMF.uniformOfFintype (Table a b) :=
+  have unif : (PMF.uniformOfFintype (Table A B)).map (fun t i => t (cellEmbedding ha hb i)) =
+      PMF.uniformOfFintype (Table a b) :=
     PMF.uniformOfFintype_pi_map_comp_embedding (cellEmbedding ha hb)
   rw [independent_tables, independent_tables]
   simp only [PMF.bind_bind, PMF.bind_map]
   rw [← unif]
   simp only [PMF.bind_map]
-  congr 1
-  funext t₂
-  dsimp only [Function.comp_apply]
-  congr 1
-  funext t₁
-  exact congr _ _ ⟨read_restrict ha hb t₁ lo.h128 hi.h128,
-    read_restrict ha hb t₂ lo.h256 hi.h256⟩
+  refine congrArg _ (funext fun t₂ => congrArg _ (funext fun t₁ => congr _ _
+    ⟨read_restrict ha hb t₁ lo.h128 hi.h128, read_restrict ha hb t₂ lo.h256 hi.h256⟩))
 
 /-- The Appendix C capped strong-forgery game has the same law at every larger address or
 output width and for every background outside the sampled SHAKE streams. The smaller widths

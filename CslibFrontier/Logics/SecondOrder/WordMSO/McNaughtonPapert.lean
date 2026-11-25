@@ -101,19 +101,32 @@ theorem wordRankType_append_cons {n : ℕ} {u₁ u₂ v₁ v₂ : List α} (c : 
   wordRankType_eq_iff.2 <|
     WordDuplicatorWins.append_cons c (wordRankType_eq_iff.1 h₁) (wordRankType_eq_iff.1 h₂)
 
+/-- Middle symbol `t.2.1` of a splitting triple `(T₁, c, T₂)`. -/
+abbrev splitSym {n : ℕ}
+    (t : FO.RankType (wordLanguage α) n 0 × α × FO.RankType (wordLanguage α) n 0) : α :=
+  t.2.1
+
+/-- Right rank-`n` type `t.2.2` of a splitting triple `(T₁, c, T₂)`. -/
+abbrev splitRight {n : ℕ}
+    (t : FO.RankType (wordLanguage α) n 0 × α × FO.RankType (wordLanguage α) n 0) :
+    FO.RankType (wordLanguage α) n 0 :=
+  t.2.2
+
 /-- The triples `(T₁, c, T₂)` that produce the one-pebble type `τ`: some (equivalently, every)
 words `u₁` of type `T₁` and `u₂` of type `T₂` give `(u₁ · c · u₂, |u₁|)` the type `τ`. -/
 def ProducesType (n : ℕ) (τ : FO.RankType (wordLanguage α) n 1)
     (t : FO.RankType (wordLanguage α) n 0 × α × FO.RankType (wordLanguage α) n 0) : Prop :=
-  ∃ u₁ u₂ : List α, wordRankType n u₁ Fin.elim0 = t.1 ∧ wordRankType n u₂ Fin.elim0 = t.2.2 ∧
-    wordRankType n (u₁ ++ t.2.1 :: u₂) ![⟨u₁.length, by simp⟩] = τ
+  ∃ u₁ u₂ : List α,
+    wordRankType n u₁ Fin.elim0 = t.1 ∧ wordRankType n u₂ Fin.elim0 = splitRight t ∧
+      wordRankType n (u₁ ++ splitSym t :: u₂) ![⟨u₁.length, by simp⟩] = τ
 
 /-- **Splitting at the pebbled position.** The words with a position of one-pebble type `τ` are
 the union of the products `L(T₁) · {c} · L(T₂)` over the triples producing `τ`. -/
 theorem pointedRankTypeLanguage_eq (n : ℕ) (τ : FO.RankType (wordLanguage α) n 1) :
     pointedRankTypeLanguage n τ =
       ⨆ t : {t // ProducesType n τ t},
-        rankTypeLanguage n t.1.1 * {[t.1.2.1]} * rankTypeLanguage n t.1.2.2 := by
+        rankTypeLanguage n t.val.1 * {[splitSym t.val]} *
+          rankTypeLanguage n (splitRight t.val) := by
   ext x
   rw [Language.mem_iSup]
   constructor
@@ -121,19 +134,18 @@ theorem pointedRankTypeLanguage_eq (n : ℕ) (τ : FO.RankType (wordLanguage α)
     have hx : x = x.take p ++ x[p] :: x.drop (p + 1) := by
       rw [Fin.getElem_fin, ← List.drop_eq_getElem_cons, List.take_append_drop]
     refine ⟨⟨(wordRankType n (x.take p) Fin.elim0, x[p],
-      wordRankType n (x.drop (p + 1)) Fin.elim0), x.take p, x.drop (p + 1), rfl, rfl, ?_⟩, ?_⟩
+      wordRankType n (x.drop (p + 1)) Fin.elim0), x.take p, x.drop (p + 1), rfl, rfl, ?_⟩,
+      Language.mem_mul.2 ⟨x.take p ++ [x[p]], Language.mem_mul.2 ⟨x.take p, rfl, [x[p]], rfl, rfl⟩,
+        x.drop (p + 1), rfl, ?_⟩⟩
     · rw [← hp, wordRankType_congr hx.symm]
       congr 1 with i : 1
       exact Fin.ext (by simp [Matrix.cons_val_fin_one])
-    · refine Language.mem_mul.2 ⟨x.take p ++ [x[p]], Language.mem_mul.2
-        ⟨x.take p, rfl, [x[p]], rfl, rfl⟩, x.drop (p + 1), rfl, ?_⟩
-      rw [List.append_assoc]
+    · rw [List.append_assoc]
       exact hx.symm
   · rintro ⟨⟨⟨T₁, c, T₂⟩, u₁, u₂, hu₁, hu₂, hτ⟩, hx⟩
     obtain ⟨y, hy, y₂, hy₂, rfl⟩ := Language.mem_mul.1 hx
     obtain ⟨y₁, hy₁, c', hc', rfl⟩ := Language.mem_mul.1 hy
-    change c' = [c] at hc'
-    subst hc'
+    obtain rfl : c' = [c] := hc'
     have hx : y₁ ++ c :: y₂ = y₁ ++ [c] ++ y₂ := by simp
     refine ⟨⟨y₁.length, by simp⟩, ?_⟩
     rw [← hτ, wordRankType_congr hx.symm]
@@ -168,7 +180,7 @@ theorem wordRankType_succ_eq_iff {n : ℕ} {v w : List α} :
   rw [wordRankType_eq_iff, WordDuplicatorWins.succ_iff]
   constructor
   · rintro ⟨-, hf, hb⟩ τ
-    constructor
+    refine ⟨?_, ?_⟩
     · rintro ⟨p, rfl⟩
       obtain ⟨q, hq⟩ := hf p
       rw [snoc_elim0, snoc_elim0] at hq
@@ -196,9 +208,8 @@ position of a given one-pebble rank-`n` type: they are finite unions of products
 letters (`pointedRankTypeLanguage_eq`). -/
 theorem isStarFree_pointedRankTypeLanguage {n : ℕ}
     (ih : ∀ T, IsStarFree (rankTypeLanguage (α := α) n T)) (τ : FO.RankType (wordLanguage α) n 1) :
-    IsStarFree (pointedRankTypeLanguage n τ) := by
-  rw [pointedRankTypeLanguage_eq]
-  exact IsStarFree.iSup fun t => ((ih _).mul (.char _)).mul (ih _)
+    IsStarFree (pointedRankTypeLanguage n τ) :=
+  pointedRankTypeLanguage_eq n τ ▸ IsStarFree.iSup fun _ => ((ih _).mul (.char _)).mul (ih _)
 
 /-- **Classes of rank-`n` equivalence are star-free** over a finite alphabet, by induction on `n`.
 A class of rank `0` is empty or everything, and a nonempty class of rank `n + 1`, of a word `w`, is
@@ -211,38 +222,34 @@ theorem isStarFree_rankTypeLanguage (n : ℕ) (T : FO.RankType (wordLanguage α)
   | zero =>
     by_cases hT : ∃ w, w ∈ rankTypeLanguage 0 T
     · obtain ⟨w, hw⟩ := hT
-      have : rankTypeLanguage 0 T = ⊤ := by
+      have htop : rankTypeLanguage 0 T = ⊤ := by
         ext v
         exact iff_of_true ((wordRankType_zero_eq v w).trans hw) trivial
-      rw [this]
-      exact IsStarFree.top
-    · have : rankTypeLanguage 0 T = 0 := by
+      exact htop ▸ IsStarFree.top
+    · have hzero : rankTypeLanguage 0 T = 0 := by
         ext v
         exact iff_of_false (fun hv => hT ⟨v, hv⟩) (Language.notMem_zero v)
-      rw [this]
-      exact IsStarFree.zero
+      exact hzero ▸ IsStarFree.zero
   | succ n ih =>
     by_cases hT : ∃ w, w ∈ rankTypeLanguage (n + 1) T
     · obtain ⟨w, hw⟩ := hT
-      have : rankTypeLanguage (n + 1) T = ⨅ τ, if w ∈ pointedRankTypeLanguage n τ then
+      have hEq : rankTypeLanguage (n + 1) T = ⨅ τ, if w ∈ pointedRankTypeLanguage n τ then
           pointedRankTypeLanguage n τ else (pointedRankTypeLanguage n τ)ᶜ := by
         ext v
-        refine (mem_rankTypeLanguage.trans ?_).trans Set.mem_iInter.symm
-        rw [← mem_rankTypeLanguage.1 hw, wordRankType_succ_eq_iff]
-        refine forall_congr' fun τ => ?_
+        rw [mem_rankTypeLanguage, ← mem_rankTypeLanguage.1 hw, wordRankType_succ_eq_iff]
+        refine (forall_congr' fun τ => ?_).trans Set.mem_iInter.symm
         split_ifs with h
         · exact ⟨fun hv => hv.2 h, fun hv => iff_of_true hv h⟩
         · exact ⟨fun hv hv' => h (hv.1 hv'), fun hv => iff_of_false hv h⟩
-      rw [this]
+      rw [hEq]
       refine IsStarFree.iInf fun τ => ?_
       split_ifs
       · exact isStarFree_pointedRankTypeLanguage ih τ
       · exact (isStarFree_pointedRankTypeLanguage ih τ).compl
-    · have : rankTypeLanguage (n + 1) T = 0 := by
+    · have hzero : rankTypeLanguage (n + 1) T = 0 := by
         ext v
         exact iff_of_false (fun hv => hT ⟨v, hv⟩) (Language.notMem_zero v)
-      rw [this]
-      exact IsStarFree.zero
+      exact hzero ▸ IsStarFree.zero
 
 /-- **First-order definable languages are star-free** over a finite alphabet
 [Libkin, Theorem 7.26][Libkin2004]. The language of a sentence of quantifier rank `n` is the union
@@ -253,13 +260,9 @@ theorem WordFO.isStarFree_language (φ : (wordLanguage α).Sentence) :
       wordRankType (FO.quantifierRank φ) w Fin.elim0 = T}, rankTypeLanguage _ T.1 := by
     ext v
     rw [Language.mem_iSup]
-    constructor
-    · intro hv
-      exact ⟨⟨_, v, hv, rfl⟩, rfl⟩
-    · rintro ⟨⟨T, w, hw, rfl⟩, hv⟩
-      exact ((wordRankType_eq_iff.1 hv).mem_language_iff le_rfl).2 hw
-  rw [h]
-  exact IsStarFree.iSup fun T => isStarFree_rankTypeLanguage _ _
+    exact ⟨fun hv => ⟨⟨_, v, hv, rfl⟩, rfl⟩,
+      fun ⟨⟨_, _, hw, rfl⟩, hv⟩ => ((wordRankType_eq_iff.1 hv).mem_language_iff le_rfl).2 hw⟩
+  exact h ▸ IsStarFree.iSup fun _ => isStarFree_rankTypeLanguage _ _
 
 /-- **First-order definable languages are star-free** over a finite alphabet: the hard direction
 of the McNaughton–Papert theorem [Libkin, Theorem 7.26][Libkin2004]. -/

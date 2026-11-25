@@ -139,30 +139,18 @@ theorem realize_independentSetSentence [Finite M] :
         (fun j => Fin.cases (motive := fun j => Set (Fin (independentSetArity j.succ) → M))
           {v | ∃ h : v (0 : Fin 2) ∈ s, (g ⟨v (0 : Fin 2), h⟩).1 = v (1 : Fin 2)}
           (fun k => k.elim0) j) i
-    refine ⟨R, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨R, ?_, ?_, ?_, fun x hx => ⟨(g ⟨x, hx⟩).1, hx, rfl⟩, ?_,
+      fun _ _ hx hy hxy => hind hx hy hxy⟩
     · rintro x y ⟨hx, hxy⟩
-      change x ∈ s at hx
       change (g ⟨x, hx⟩).1 = y at hxy
-      subst hxy
-      exact ⟨hx, (g ⟨x, hx⟩).2⟩
-    · rintro x y z ⟨hx, hxy⟩ ⟨hx', hxz⟩
-      change x ∈ s at hx hx'
-      change (g ⟨x, hx⟩).1 = y at hxy
-      change (g ⟨x, hx'⟩).1 = z at hxz
+      exact ⟨hx, hxy ▸ (g ⟨x, hx⟩).2⟩
+    · rintro x _ _ ⟨hx, hxy⟩ ⟨_, hxz⟩
       exact hxy.symm.trans hxz
-    · rintro x y z ⟨hx, hxz⟩ ⟨hy, hyz⟩
-      change x ∈ s at hx
-      change y ∈ s at hy
-      change (g ⟨x, hx⟩).1 = z at hxz
-      change (g ⟨y, hy⟩).1 = z at hyz
+    · rintro x y _ ⟨hx, hxz⟩ ⟨hy, hyz⟩
       exact congrArg Subtype.val (g.injective (Subtype.ext (hxz.trans hyz.symm)))
-    · intro x hx
-      exact ⟨(g ⟨x, hx⟩).1, hx, rfl⟩
     · intro y hy
       obtain ⟨⟨x, hx⟩, hxy⟩ := g.surjective ⟨y, hy⟩
       exact ⟨x, hx, congrArg Subtype.val hxy⟩
-    · intro x y hx hy hxy
-      exact hind hx hy hxy
 
 /-- **Independent set is existential second-order definable.** -/
 theorem definable_IndependentSet : ESO.Definable IndependentSet.{w} :=

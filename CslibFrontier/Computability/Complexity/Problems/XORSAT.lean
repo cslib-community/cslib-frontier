@@ -142,15 +142,10 @@ theorem dot_compile_row (F : System) (e : AffineEquation ℕ) (he : e ∈ F) (a 
 /-- The compiler preserves the satisfaction relation on every assignment. -/
 theorem holds_compile (F : System) (a : ℕ → Bool) :
     Dense.Holds (compile F).rows ((labels F).map a) ↔ F.Holds a := by
-  constructor
-  · intro h e he
-    have hh := h _ (List.mem_map.mpr ⟨e, he, rfl⟩)
-    change Dense.dot ((labels F).map (coefficient e.vars)) ((labels F).map a) = e.rhs at hh
-    rwa [dot_compile_row F e he a] at hh
-  · intro h r hr
-    obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
-    rw [dot_compile_row F e he a]
-    exact h e he
+  refine ⟨fun h e he => ?_, fun h r hr => ?_⟩
+  · exact (dot_compile_row F e he a).symm.trans (h _ (List.mem_map.mpr ⟨e, he, rfl⟩))
+  · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
+    exact (dot_compile_row F e he a).trans (h e he)
 
 private theorem exists_assignment {l : List ℕ} (hl : l.Nodup) {a : List Bool}
     (ha : a.length = l.length) : ∃ f : ℕ → Bool, l.map f = a := by
@@ -176,13 +171,10 @@ private theorem exists_assignment {l : List ℕ} (hl : l.Nodup) {a : List Bool}
 /-- Sparse satisfiability is equivalent to satisfiability of the compressed dense system. -/
 theorem satisfiable_compile_iff (F : System) :
     Dense.Satisfiable (compile F).width (compile F).rows ↔ Satisfiable F := by
-  constructor
-  · rintro ⟨a, ha, h⟩
-    obtain ⟨f, hf⟩ := exists_assignment (nodup_labels F) ha
-    refine ⟨f, (holds_compile F f).mp ?_⟩
-    rwa [hf]
-  · rintro ⟨a, ha⟩
-    exact ⟨(labels F).map a, List.length_map _, (holds_compile F a).mpr ha⟩
+  refine ⟨fun ⟨a, ha, h⟩ => ?_, fun ⟨a, ha⟩ =>
+    ⟨(labels F).map a, List.length_map _, (holds_compile F a).mpr ha⟩⟩
+  obtain ⟨f, rfl⟩ := exists_assignment (nodup_labels F) ha
+  exact ⟨f, (holds_compile F f).mp h⟩
 
 /-- The executable solver decides ordinary sparse systems with binary variable labels. -/
 theorem solve_eq_true_iff (F : System) : solve F = true ↔ Satisfiable F := by
@@ -203,12 +195,8 @@ theorem computableInPolyTime_sum :
 
 @[fun_prop] private theorem coefficient_polyTime : ComputableInPolyTime
     (fun q : List ℕ × ℕ => coefficient q.1 q.2)
-      (encPair (encList encNat) encNat) encBool := by
-  have hbits : ComputableInPolyTime
-      (fun q : List ℕ × ℕ => q.1.map fun w => Decidable.decide (w = q.2))
-      (encPair (encList encNat) encNat) encBits := by
-    fun_prop
-  exact computableInPolyTime_sum.comp hbits
+      (encPair (encList encNat) encNat) encBool :=
+  computableInPolyTime_sum.comp (by fun_prop)
 
 section
 open scoped _root_.Cslib.Complexity.XORSAT.Dense

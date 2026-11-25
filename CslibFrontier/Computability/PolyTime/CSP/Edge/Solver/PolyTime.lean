@@ -66,14 +66,11 @@ private theorem checkedStep_growth (F : CSP Table ℕ) (state : OptimizeState) :
       simp [checkedStep, hi, encOptimizeState, encBool_apply]
     | some out =>
       have hw := safeImprove_width ⟨F, bits⟩ hi
-      have ho : (CSP.occurrences F).length = (incidenceList F).length := by
-        simp [occurrences_eq_map_incidenceList]
-      simp only [checkedStep, Bool.false_eq_true, ↓reduceIte, hi, Option.elim_some]
-      simp only [encOptimizeState, length_encPair]
       have hlen : (encList encBool out).length = 3 * out.length := by
         simp [length_encList, encBool_apply, Nat.mul_comm]
-      simp only [hlen, encBool_apply, List.length_cons, List.length_nil]
-      dsimp only at hw
+      simp only [checkedStep, Bool.false_eq_true, ↓reduceIte, hi, Option.elim_some,
+        encOptimizeState, length_encPair, hlen, encBool_apply, List.length_cons,
+        List.length_nil, occurrences_eq_map_incidenceList, List.length_map] at hw ⊢
       omega
 
 private def ValidState (F : CSP Table ℕ) (state : OptimizeState) : Prop :=
@@ -104,14 +101,10 @@ private theorem optimizeStep_valid (F : CSP Table ℕ) (state : OptimizeState)
   | true => exact ⟨f, hf, rfl⟩
   | false =>
     have hs := Solver.improve_spec (F.contractionMeasure + 1) F f (by omega) hF hf hM
+    simp only [optimizeStep, Bool.false_eq_true, ↓reduceIte, improve_eq_source F f hF hf hM]
     cases he : Solver.improve (F.contractionMeasure + 1) F f with
-    | none =>
-      exact ⟨f, hf, by simp only [optimizeStep, Bool.false_eq_true, ↓reduceIte,
-        improve_eq_source F f hF hf hM, he, Option.map_none]⟩
-    | some g =>
-      rw [he] at hs
-      exact ⟨g, hs.1, by simp only [optimizeStep, Bool.false_eq_true, ↓reduceIte,
-        improve_eq_source F f hF hf hM, he, Option.map_some]⟩
+    | none => exact ⟨f, hf, rfl⟩
+    | some g => exact ⟨g, (he ▸ hs).1, rfl⟩
 
 private theorem checked_iterate_eq (F : CSP Table ℕ) (state : OptimizeState)
     (hF : EdgeInstance F) (hM : EdgeInstance.EvenConstraints Table.sem F)
@@ -165,12 +158,9 @@ theorem computableInPolyTime_optimize : ComputableInPolyTime optimize
   apply hresult.of_enc_eq
   intro F
   by_cases hm : checkModel F = true
-  · have model := checkModel_sound F hm
-    have hi := initial_buffer F hm
-    have he := checked_iterate_eq F (buffer (initial F), false) model.1 model.2
-      ⟨initial F, initial_valid F hm, rfl⟩ (F.vars.eraseDups.length + 1)
-    simp only [optimize, hm, ↓reduceIte, Function.comp_def]
-    rw [← hi, he]
+  · obtain ⟨hF, hM⟩ := checkModel_sound F hm
+    simp only [optimize, hm, ↓reduceIte, Function.comp_def, ← initial_buffer F hm,
+      checked_iterate_eq F (buffer (initial F), false) hF hM ⟨initial F, initial_valid F hm, rfl⟩]
   · simp [optimize, hm]
 
 attribute [local fun_prop] EdgeAugmenting.poly_inconsistentWith

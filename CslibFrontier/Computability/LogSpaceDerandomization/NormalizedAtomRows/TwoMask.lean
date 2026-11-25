@@ -113,17 +113,12 @@ theorem actual_walk_prefix_support {E : Type*} [Fintype E]
   dsimp only
   have hp (i : ℕ) := conditionalWalk_zero_off (retainedMask s Ls D sourceSuffix)
     (retainedMask t Lt D suffix) (graphs i) (times i) (child i) σ x y hy
-  constructor
-  · intro i
-    have ht := uncompressed_second_telescope
-      (fun j z => conditionalWalk (retainedMask s Ls D sourceSuffix)
-        (retainedMask t Lt D suffix) (graphs j) (times j) (child j) σ x z)
-      (fun j z => first j σ x z) (raw σ x) (hzero σ x) i y
-    exact ht.trans (hp (i + 1))
-  · intro S n K ρ m
-    apply iterate_second_zero_off S n K ρ _ _ y (hzero σ x y) _ m
-    intro i
-    simp only [Fin.isValue, one_ne_zero, ↓reduceIte, hp, ite_self, sub_self]
+  refine ⟨fun i => (uncompressed_second_telescope
+    (fun j z => conditionalWalk (retainedMask s Ls D sourceSuffix)
+      (retainedMask t Lt D suffix) (graphs j) (times j) (child j) σ x z)
+    (fun j z => first j σ x z) (raw σ x) (hzero σ x) i y).trans (hp (i + 1)),
+    fun S n K ρ m => iterate_second_zero_off S n K ρ _ _ y (hzero σ x y)
+      (fun i => by simp only [Fin.isValue, one_ne_zero, ↓reduceIte, hp, ite_self, sub_self]) m⟩
 
 open Classical in
 /-- Explicit full-rank client for the four-max split, using the genuine target. -/
@@ -156,12 +151,12 @@ theorem actual_two_mask_row_max
   have hd : 0 ≤ G x y / rate k := div_nonneg (hG x y) (rate_pos k).le
   have hb : 0 ≤ min 1 (|twoMaskMean s t Ls La Lt D sourceSuffix suffix F x y 0 - G x y / rate k| /
     (1 + G x y / rate k)) := le_min (by norm_num) (by positivity)
-  have hc : 0 ≤ min 1 |twoMaskMean s t Ls La Lt D sourceSuffix suffix F x y 1-
+  have hc : 0 ≤ min 1 |twoMaskMean s t Ls La Lt D sourceSuffix suffix F x y 1 -
     ζ * genuineMean HP s t Ls Lt (CopyPadding.identifier D sourceSuffix x) D suffix k G x y| :=
     le_min (by norm_num) (abs_nonneg _)
   simpa only [genuineTarget, Fin.isValue, ↓reduceIte, mem_filter, mem_univ, true_and,
-    abs_of_nonneg hb, abs_of_nonneg hc, abs_of_nonneg (div_nonneg (abs_nonneg _) (by linarith : 0
-      ≤ 1 + G x y / rate k)),
+    abs_of_nonneg hb, abs_of_nonneg hc,
+    abs_of_nonneg (div_nonneg (abs_nonneg _) (by linarith : 0 ≤ 1 + G x y / rate k)),
     abs_abs] using hh
 
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

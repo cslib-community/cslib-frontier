@@ -90,16 +90,13 @@ theorem computableInPolyTime_walk :
     (count := fun x => x.1.2) (init := fun x => x.2)
     (step := fun table i => table.getD i 0) (encState := encNat) hpar
     (by unfold encRotationWalk; fun_prop) (by unfold encRotationWalk; fun_prop)
-    (by fun_prop) hpar.polyBounded_length ?_
-  intro x state
-  have hb : (encNat (x.1.1.getD state 0)).length ≤ (encList encNat x.1.1).length := by
-    by_cases hi : state < x.1.1.length
-    · rw [List.getD_eq_getElem _ _ hi]
-      exact SizedListEncoding.length_elem_le (encA := encNat) (encL := encList encNat)
-        x.1.1 _ (List.getElem_mem hi)
-    · rw [List.getD_eq_default _ _ (by omega)]
-      simp [encNat_apply]
-  exact hb.trans (Nat.le_add_left _ _)
+    (by fun_prop) hpar.polyBounded_length fun x state => ?_
+  by_cases hi : state < x.1.1.length
+  · rw [List.getD_eq_getElem _ _ hi]
+    exact (SizedListEncoding.length_elem_le (encA := encNat) (encL := encList encNat)
+      x.1.1 _ (List.getElem_mem hi)).trans (Nat.le_add_left _ _)
+  · rw [List.getD_eq_default _ _ (by omega)]
+    simp [encNat_apply]
 
 /-- Iterating a computed binary-indexed successor table for a computed unary step count from a
 computed binary start index is native polynomial-time. -/
@@ -191,12 +188,10 @@ theorem computableInPolyTime_componentVertices :
     (par := fun p : Graph × ℕ => p.1) (count := fun p => p.1.vertices.length)
     (init := fun p => [p.2]) (step := componentStep)
     (by fun_prop) (by fun_prop) (by fun_prop)
-    componentStep_polyTime hv.polyBounded_length ?_
-  intro p state
-  simp only [componentStep, encList_append, List.length_append]
-  apply Nat.add_le_add_left
-  rw [length_encList, length_encList]
-  exact (List.filter_sublist.map (fun n : ℕ => 2 * (encNat n).length + 1)).sum_le_sum (by simp)
+    componentStep_polyTime hv.polyBounded_length fun p state => ?_
+  simp only [componentStep, encList_append, List.length_append, length_encList]
+  exact Nat.add_le_add_left
+    ((List.filter_sublist.map (fun n : ℕ => 2 * (encNat n).length + 1)).sum_le_sum (by simp)) _
 
 private theorem componentBool_polyTime {α : Type} {enc : α ↪ List Bool}
     {G : α → Graph} {root v : α → ℕ} (hG : ComputableInPolyTime G enc encGraph)

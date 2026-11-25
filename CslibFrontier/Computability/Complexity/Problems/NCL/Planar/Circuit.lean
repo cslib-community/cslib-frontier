@@ -47,32 +47,11 @@ private theorem Gate.expand_properties {a b : List Color} (g : Gate a b) : (expa
     (expand g).checkGens (fun p => p.length == 1) = true := by
   cases g with
   | vert n =>
-    cases a with
-    | cons _ _ => exact ⟨True.intro, rfl⟩
-    | nil =>
-      cases b with
-      | nil => exact ⟨True.intro, rfl⟩
-      | cons c cs =>
-        cases c with
-        | red => exact ⟨True.intro, rfl⟩
-        | blue =>
-          cases cs with
-          | cons _ _ => exact ⟨True.intro, rfl⟩
-          | nil =>
-            cases n with
-            | zero => exact ⟨True.intro, rfl⟩
-            | succ n =>
-              cases n with
-              | zero => exact ⟨True.intro, rfl⟩
-              | succ n =>
-                cases n with
-                | zero => decide +kernel
-                | succ _ => exact ⟨True.intro, rfl⟩
-  | conv => decide +kernel
-  | vnoc => decide +kernel
-  | free => decide +kernel
-  | start => decide +kernel
-  | cap => decide +kernel
+    match a, b, n with
+    | [], [.blue], 2 => decide +kernel
+    | _ :: _, _, _ | [], [], _ | [], .red :: _, _ | [], .blue :: _ :: _, _
+    | [], [.blue], 0 | [], [.blue], 1 | [], [.blue], _ + 3 => exact ⟨True.intro, rfl⟩
+  | _ => decide +kernel
 
 /-- Every circuit-generator implementation contains no swaps. -/
 private theorem Gate.expand_planar {a b : List Color} (g : Gate a b) : (expand g).Planar :=

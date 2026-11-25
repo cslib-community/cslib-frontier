@@ -70,12 +70,5 @@ theorem Submodule.exists_linearIndependent_fin_comp (K : Type*) {V : Type*} [Div
   let : Fintype κ := Fintype.ofInjective a ha
   let e := (Fintype.equivFin κ).symm
   refine ⟨Fintype.card κ, a ∘ e, ha.comp e.injective, ?_, hi.comp e e.injective⟩
-  have he : Set.range (v ∘ a ∘ e) = Set.range (v ∘ a) := by
-    ext y
-    constructor
-    · rintro ⟨j, rfl⟩; exact ⟨e j, rfl⟩
-    · rintro ⟨j, rfl⟩
-      obtain ⟨r, rfl⟩ := e.surjective j
-      exact ⟨r, rfl⟩
-  change Submodule.span K (Set.range (v ∘ a ∘ e)) = _
-  rw [he, hs]
+  change Submodule.span K (Set.range ((v ∘ a) ∘ e)) = _
+  rw [e.surjective.range_comp, hs]

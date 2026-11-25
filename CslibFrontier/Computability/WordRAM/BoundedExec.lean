@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.WordRAM.Glue.Basic
 public import CslibFrontier.Computability.WordRAM.MapOp
 public import CslibFrontier.Computability.WordRAM.RegisterCopy
 public import CslibFrontier.Computability.WordRAM.Subroutine
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Frontier-bounded structured word-RAM executions
@@ -433,131 +434,53 @@ theorem SubroutineCode.zeroFillCode_execBounded {r_ds k_init : ℕ}
       (∀ j, x₂.regs (P.initParams j) = params j) ∧
       (∀ a ∈ (Block.mk base space).footprint, x₂.mem a = 0) ∧
       Modifies (Block.mk base space).footprint x₁.mem x₂.mem := by
-  have hfit0 : Fits w 0 := (hx₁.1 P.baseReg).of_le (Nat.zero_le _)
   have hfit_stop : Fits w (base + space) := hfr₁ ▸ hx₁.1 P.frontierReg
-  obtain ⟨hcur_not, hzero_not, hone_not, hbase_ne_fr, _⟩ :=
-    (List.nodup_cons.mp hclear).imp_right fun h =>
-      (List.nodup_cons.mp h).imp_right fun h =>
-        (List.nodup_cons.mp h).imp_right List.nodup_cons.mp
-  have hcur_ne_zero : P.curReg ≠ P.zeroReg := fun h => hcur_not (by simp [h])
-  have hcur_ne_one : P.curReg ≠ P.oneReg := fun h => hcur_not (by simp [h])
-  have hcur_ne_base : P.curReg ≠ P.baseReg := fun h => hcur_not (by simp [h])
-  have hcur_ne_fr : P.curReg ≠ P.frontierReg := fun h => hcur_not (by simp [h])
-  have hzero_ne_one : P.zeroReg ≠ P.oneReg := fun h => hzero_not (by simp [h])
-  have hzero_ne_base : P.zeroReg ≠ P.baseReg := fun h => hzero_not (by simp [h])
-  have hzero_ne_fr : P.zeroReg ≠ P.frontierReg := fun h => hzero_not (by simp [h])
-  have hone_ne_base : P.oneReg ≠ P.baseReg := fun h => hone_not (by simp [h])
-  have hone_ne_fr : P.oneReg ≠ P.frontierReg := fun h => hone_not (by simp [h])
+  simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, not_or] at hclear
+  obtain ⟨⟨hcz, hco, hcb, hcf⟩, ⟨hzo, hzb, hzf⟩, ⟨hob, hof⟩, -⟩ := hclear
+  have hpar (j) : ¬P.initParams j = P.curReg ∧ ¬P.initParams j = P.zeroReg ∧
+      ¬P.initParams j = P.oneReg := by
+    simpa only [List.mem_cons, List.not_mem_nil, or_false, not_or] using hparams j
   by_cases hsp : 0 < space
-  · have hc_pos : (Cond.lt P.baseReg P.frontierReg).Holds x₁ := by
-      simp only [Cond.Holds, hb₁, hfr₁]; omega
-    have hfit1 : Fits w 1 := hfit_stop.of_le (by omega)
-    let x_z := x₁.set P.zeroReg 0
-    let x_o := x_z.set P.oneReg 1
+  · let x_o := (x₁.set P.zeroReg 0).set P.oneReg 1
     let x_c := x_o.set P.curReg (x_o.regs P.baseReg)
-    have hxc_base : x_c.regs P.baseReg = base := by
-      simp [x_c, x_o, x_z, Data.set, Function.update_of_ne hcur_ne_base.symm,
-        Function.update_of_ne hone_ne_base.symm, Function.update_of_ne hzero_ne_base.symm, hb₁]
-    have hxc_fr : x_c.regs P.frontierReg = base + space := by
-      simp [x_c, x_o, x_z, Data.set, Function.update_of_ne hcur_ne_fr.symm,
-        Function.update_of_ne hone_ne_fr.symm, Function.update_of_ne hzero_ne_fr.symm, hfr₁]
-    have hxc_zero : x_c.regs P.zeroReg = 0 := by
-      simp [x_c, x_o, x_z, Data.set, Function.update_of_ne hcur_ne_zero.symm,
-        Function.update_of_ne hzero_ne_one]
-    have hxc_one : x_c.regs P.oneReg = 1 := by
-      simp [x_c, x_o, x_z, Data.set, Function.update_of_ne hcur_ne_one.symm]
-    have hxc_cur : x_c.regs P.curReg = base := by
-      simp [x_c, x_o, x_z, Data.set, Function.update_of_ne hone_ne_base.symm,
-        Function.update_of_ne hzero_ne_base.symm, hb₁]
-    let xs : ℕ → Data r_ds := fun i =>
-      ⟨Function.update x_c.regs P.curReg (base + i), clear x₁.mem base i⟩
-    have hxs0 : xs 0 = x_c := by
-      ext r'
-      · by_cases hr : r' = P.curReg
-        · subst hr; simp [xs, hxc_cur]
-        · simp [xs, Function.update_of_ne hr, x_c, x_o, x_z, Data.set]
-      · simp [xs, x_c, x_o, x_z, Data.set]
-    have hloop_cond : ∀ i < space, (Cond.lt P.curReg P.frontierReg).Holds (xs i) := by
-      intro i hi
-      simp only [Cond.Holds, xs, Function.update_self,
-        Function.update_of_ne hcur_ne_fr.symm, hxc_fr]
-      omega
-    have hloop_exit : ¬(Cond.lt P.curReg P.frontierReg).Holds (xs space) := by
-      simp only [Cond.Holds, xs, Function.update_self,
-        Function.update_of_ne hcur_ne_fr.symm, hxc_fr]
-      omega
-    have hloop_body : ∀ i < space,
+    let xs : ℕ → Data r_ds := fun i => ⟨(x_c.set P.curReg (base + i)).regs, clear x₁.mem base i⟩
+    have hloop_body (i : ℕ) (hi : i < space) :
         ExecBounded w (base + space) (.seq (.op (.store P.curReg P.zeroReg)) (.op P.incCur))
           (xs i) (xs (i + 1)) 2 := by
-      intro i hi
-      have hsi_zero : (xs i).regs P.zeroReg = 0 := by
-        simp [xs, Function.update_of_ne hcur_ne_zero.symm, hxc_zero]
-      have hsi_one : (xs i).regs P.oneReg = 1 := by
-        simp [xs, Function.update_of_ne hcur_ne_one.symm, hxc_one]
-      have hsi_cur : (xs i).regs P.curReg = base + i := by simp [xs]
-      let x_st := (xs i).write ((xs i).regs P.curReg) ((xs i).regs P.zeroReg)
-      have hst_one : x_st.regs P.oneReg = 1 := hsi_one
-      have hst_fit : Fits w (x_st.regs P.curReg + 1) := by
-        change Fits w ((xs i).regs P.curReg + 1)
-        rw [hsi_cur]
-        exact hfit_stop.of_le (by omega)
-      have he_inc : ExecBounded w (base + space) (.op P.incCur) x_st
-          (x_st.set P.curReg (x_st.regs P.curReg + 1)) 1 :=
-        ExecBounded.op (.of_isRegOnly hinc_reg) (hinc hst_one hst_fit)
-      have htarget : x_st.set P.curReg (x_st.regs P.curReg + 1) = xs (i + 1) := by
-        ext r'
-        · simp only [x_st, Data.set, Data.write, xs, hsi_cur]
-          by_cases hr : r' = P.curReg
-          · subst hr; simp [Nat.add_assoc]
-          · simp [Function.update_of_ne hr]
-        · simp only [x_st, Data.set, Data.write, hsi_cur, hsi_zero]
-          simp [xs, clear_succ]
-      rw [htarget] at he_inc
-      exact (ExecBounded.store (by rw [hsi_cur]; omega)).seq he_inc
+      have hcur : (xs i).regs P.curReg = base + i := by simp [xs]
+      refine (ExecBounded.store (L := base + space) (by rw [hcur]; omega)).seq
+        (ExecBounded.op (.of_isRegOnly hinc_reg) ((hinc ?_ ?_).trans (congrArg some ?_)))
+      · wram_simp [xs, x_c, x_o]
+      · rw [Data.write_regs, hcur]; exact hfit_stop.of_le (by omega)
+      · ext a <;> simp [xs, x_c, x_o, Data.set, Data.write, Function.update_idem, clear_succ,
+          Nat.add_assoc, Function.update_of_ne hzo, Function.update_of_ne (Ne.symm hcz)]
     have hloop : ExecBounded w (base + space)
         (.loop (.lt P.curReg P.frontierReg) (.seq (.op (.store P.curReg P.zeroReg)) (.op P.incCur)))
         x_c (xs space) (space * (2 + 2) + 2) := by
-      simpa [hxs0] using ExecBounded.loop xs space 2 hloop_cond hloop_exit hloop_body
-    have hseq : ExecBounded w (base + space)
-        (.seq (.op (.const P.zeroReg 0)) <|
-         .seq (.op (.const P.oneReg 1)) <|
-         .seq (.op (.copy P.curReg P.baseReg)) <|
-         .loop (.lt P.curReg P.frontierReg)
-           (.seq (.op (.store P.curReg P.zeroReg)) (.op P.incCur)))
-        x₁ (xs space) (1 + (1 + (1 + (space * (2 + 2) + 2)))) :=
-      (ExecBounded.const hfit0).seq
-        ((ExecBounded.const hfit1).seq (ExecBounded.copy.seq hloop))
+      refine (show xs 0 = x_c by
+        ext a <;> simp [xs, x_c, x_o, Data.set, Function.update_of_ne (Ne.symm hob),
+          Function.update_of_ne (Ne.symm hzb), hb₁]) ▸
+        ExecBounded.loop xs space 2 (fun i hi => ?_) ?_ hloop_body
+      all_goals simp only [Cond.holds_lt, xs]; wram_simp [x_c, x_o, hfr₁]
+      omega
     have hbranch : ExecBounded w (base + space) P.zeroFillCode x₁ (xs space) (4 * space + 6) :=
-      (ExecBounded.branch_pos hc_pos hseq).mono (by omega)
-    refine ⟨xs space, hbranch, hbranch.bounded hx₁, ?_, ?_, ?_, ?_, ?_⟩
-    · simp [xs, Function.update_of_ne hcur_ne_base.symm, hxc_base]
-    · simp [xs, Function.update_of_ne hcur_ne_fr.symm, hxc_fr]
-    · intro j
-      have hne_cur : P.initParams j ≠ P.curReg := fun h => hparams j (by simp [h])
-      have hne_one : P.initParams j ≠ P.oneReg := fun h => hparams j (by simp [h])
-      have hne_zero : P.initParams j ≠ P.zeroReg := fun h => hparams j (by simp [h])
-      simp [xs, x_c, x_o, x_z, Data.set, Function.update_of_ne hne_cur,
-        Function.update_of_ne hne_one, Function.update_of_ne hne_zero, hpar₁ j]
-    · intro a ha
-      exact clear_of_owns (Block.mem_footprint.mp ha)
-    · intro a ha
-      exact clear_of_not_owns fun h => ha (Block.mem_footprint.mpr h)
-  · have hsp0 : space = 0 := by omega
-    subst hsp0
-    have hc_neg : ¬(Cond.lt P.baseReg P.frontierReg).Holds x₁ := by
-      simp [Cond.Holds, hb₁, hfr₁]
-    have hbranch : ExecBounded w (base + 0) P.zeroFillCode x₁ (x₁.set P.zeroReg 0)
-        (4 * 0 + 6) :=
-      (ExecBounded.branch_neg hc_neg (ExecBounded.const hfit0)).mono (by omega)
-    refine ⟨x₁.set P.zeroReg 0, hbranch, hbranch.bounded hx₁, ?_, ?_, ?_, ?_, ?_⟩
-    · simp [Data.set, Function.update_of_ne hzero_ne_base.symm, hb₁]
-    · simp [Data.set, Function.update_of_ne hzero_ne_fr.symm, hfr₁]
-    · intro j
-      have hne_zero : P.initParams j ≠ P.zeroReg := fun h => hparams j (by simp [h])
-      simp [Data.set, Function.update_of_ne hne_zero, hpar₁ j]
-    · intro a ha
-      simp [Block.footprint] at ha
-    · intro _ _
-      rfl
+      (ExecBounded.branch_pos (by simp only [Cond.holds_lt, hb₁, hfr₁]; omega)
+        ((ExecBounded.const (hfit_stop.of_le (Nat.zero_le _))).seq
+          ((ExecBounded.const (hfit_stop.of_le (by omega))).seq
+            (ExecBounded.copy.seq hloop)))).mono (by omega)
+    refine ⟨xs space, hbranch, hbranch.bounded hx₁, by wram_simp [xs, x_c, x_o, hb₁],
+      by wram_simp [xs, x_c, x_o, hfr₁], fun j => ?_,
+      fun a ha => clear_of_owns (Block.mem_footprint.mp ha),
+      fun a ha => clear_of_not_owns (mt Block.mem_footprint.mpr ha)⟩
+    obtain ⟨h₁, h₂, h₃⟩ := hpar j
+    wram_simp [xs, x_c, x_o, hpar₁]
+  · have hbranch : ExecBounded w (base + space) P.zeroFillCode x₁ (x₁.set P.zeroReg 0)
+        (4 * space + 6) :=
+      (ExecBounded.branch_neg (by simp only [Cond.holds_lt, hb₁, hfr₁]; omega)
+        (ExecBounded.const (hfit_stop.of_le (Nat.zero_le _)))).mono (by omega)
+    refine ⟨_, hbranch, hbranch.bounded hx₁, by wram_simp [hb₁], by wram_simp [hfr₁], fun j => ?_,
+      fun a ha => by simp [show space = 0 by omega, Block.footprint] at ha, Modifies.refl _ _⟩
+    obtain ⟨-, h₂, -⟩ := hpar j
+    wram_simp [hpar₁]
 
 end Cslib.WordRAM

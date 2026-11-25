@@ -262,9 +262,7 @@ theorem bucketOf_map {r : ℕ} (f : X → Fin (r + 1)) (keys : List X) (j : Fin 
   | nil => rfl
   | cons x xs ih =>
     simp only [bucketOf, List.map_cons, List.zip_cons_cons, List.filter_cons] at ih ⊢
-    by_cases hx : f x = j
-    · simp [hx, ih]
-    · simp [hx, ih]
+    by_cases hx : f x = j <;> simp [hx, ih]
 
 theorem bucketOf_sublist {r : ℕ} (keys : List X) (vs : List (Fin (r + 1))) (j : Fin (r + 1)) :
     (bucketOf keys vs j).Sublist keys := by
@@ -288,12 +286,9 @@ theorem sum_length_bucketOf_le {r : ℕ} (keys : List X) (vs : List (Fin (r + 1)
     cases vs with
     | nil => simp [bucketOf]
     | cons v vs =>
-      have hstep : ∀ j, (bucketOf (x :: xs) (v :: vs) j).length =
+      have hstep (j : Fin (r + 1)) : (bucketOf (x :: xs) (v :: vs) j).length =
           (bucketOf xs vs j).length + if v = j then 1 else 0 := by
-        intro j
-        by_cases hv : v = j
-        · simp [bucketOf, hv]
-        · simp [bucketOf, hv]
+        by_cases hv : v = j <;> simp [bucketOf, hv]
       simp only [hstep, sum_add_distrib, sum_ite_eq, mem_univ, ↓reduceIte, List.length_cons]
       exact Nat.add_le_add_right (ih vs) 1
 
@@ -338,16 +333,10 @@ theorem mem_supportWith_buildSecondary {fuel : ℕ} {bk : List X} {g : Member F}
     (hg : some g ∈ supportWith (fun q => (answer F q).support) (buildSecondary F fuel bk)) :
     g.range = bk.length ^ 2 - 1 ∧ Set.InjOn g.apply {x | x ∈ bk} := by
   rw [buildSecondary, mem_supportWith_map_iff] at hg
-  obtain ⟨o, ho, hog⟩ := hg
-  cases o with
-  | none => cases hog
-  | some t =>
-    cases hog
-    obtain ⟨hgood, ht⟩ := mem_supportWith_retry ho
-    obtain ⟨-, htv⟩ := mem_supportWith_trial ht
-    refine ⟨rfl, fun x hx y hy hxy => ?_⟩
-    have hnodup : (bk.map (F.hash _ t.seed)).Nodup := htv ▸ hgood
-    exact List.inj_on_of_nodup_map hnodup hx hy hxy
+  rcases hg with ⟨none | t, ho, ⟨⟩⟩
+  obtain ⟨hgood, ht⟩ := mem_supportWith_retry ho
+  obtain ⟨-, htv⟩ := mem_supportWith_trial ht
+  exact ⟨rfl, List.inj_on_of_nodup_map (htv ▸ hgood)⟩
 
 /-- **Correctness of the construction.** Under the honest answers, every table the construction
 returns for a duplicate-free key list satisfies the FKS conditions. -/
@@ -365,21 +354,17 @@ theorem valid_of_mem_support_build {fuel : ℕ} {keys : List X} (hkeys : keys.No
     obtain ⟨sec, hsec, hasm⟩ := hD
     obtain ⟨hs, rfl⟩ := assemble_eq_some hasm
     rw [mem_supportWith_pi_iff] at hsec
-    have hvs : t.values = keys.map (Member.apply ⟨keys.length - 1, t.seed⟩) := htv
     have hcard := card_bucket_eq_length (D := ⟨⟨keys.length - 1, t.seed⟩,
-      fun j => (sec j).get (hs j)⟩) hkeys hvs
-    have hsecj : ∀ j, ((sec j).get (hs j)).range = (bucketOf keys t.values j).length ^ 2 - 1 ∧
-        Set.InjOn ((sec j).get (hs j)).apply {x | x ∈ bucketOf keys t.values j} := fun j =>
-      mem_supportWith_buildSecondary (by rw [Option.some_get]; exact hsec j)
-    refine ⟨rfl, ?_, fun j hj => ?_, fun j x hx y hy hxy => ?_⟩
-    · simp only [hcard]
-      exact hgood
+      fun j => (sec j).get (hs j)⟩) hkeys htv
+    have hsecj (j) := mem_supportWith_buildSecondary ((Option.some_get (hs j)).symm ▸ hsec j)
+    refine ⟨rfl, by simpa only [hcard, TopGood] using hgood, fun j hj => ?_,
+      fun j x hx y hy hxy => ?_⟩
     · rw [hcard] at hj ⊢
       have hpos : 0 < (bucketOf keys t.values j).length ^ 2 := by positivity
-      dsimp only
-      rw [(hsecj j).1]
+      have hr := (hsecj j).1
+      dsimp only at hr ⊢
       omega
-    · rw [Finset.mem_coe, mem_bucket_iff_mem_bucketOf hvs] at hx hy
+    · rw [Finset.mem_coe, mem_bucket_iff_mem_bucketOf htv] at hx hy
       exact (hsecj j).2 hx hy hxy
 
 /-- A table returned by the construction answers every lookup correctly. -/
@@ -415,9 +400,8 @@ theorem toOuterMeasure_not_topGood_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.
     omega
   refine le_trans (MeasureTheory.measure_mono fun s hs => ?_)
     ((hF _).toOuterMeasure_four_mul_lt_sum_card_filter_sq_le keys.toFinset hcard)
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, TopGood, not_le] at hs ⊢
-  simp only [card_filter_eq_length hkeys, List.toFinset_card_of_nodup hkeys]
-  exact hs
+  simpa only [Set.mem_preimage, Set.mem_ofPred_eq, TopGood, not_le, card_filter_eq_length hkeys,
+    List.toFinset_card_of_nodup hkeys] using hs
 
 /-- A secondary attempt into `b²` values on a duplicate-free bucket of `b` keys fails with
 probability at most `1 / 2` (`Collisions`). -/
@@ -432,9 +416,8 @@ theorem toOuterMeasure_not_secGood_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.
     omega
   refine le_trans (MeasureTheory.measure_mono fun s hs => ?_)
     ((hF _).toOuterMeasure_not_injOn_le bk.toFinset hcard)
-  intro hinj
-  apply hs
-  exact hbk.map_on fun x hx y hy hxy => hinj (by simpa using hx) (by simpa using hy) hxy
+  exact fun hinj => hs (hbk.map_on fun x hx y hy =>
+    hinj (List.mem_toFinset.mpr hx) (List.mem_toFinset.mpr hy))
 
 private theorem evalWith_map_option_none {α β : Type} (f : α → β)
     (program : OracleComp (buildSpec F) (Option α)) :
@@ -491,9 +474,7 @@ theorem evalWith_build_none_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.hash r)
       ≤ 2⁻¹ ^ fuel + ((keys.length - 1 + 1 : ℕ) : ℝ≥0∞) * 2⁻¹ ^ fuel := by
         gcongr
         exact evalWith_retry_none_le _ _ _ (toOuterMeasure_not_topGood_le hF hkeys) fuel
-    _ = ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) * 2⁻¹ ^ fuel := by
-        push_cast
-        ring
+    _ = ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) * 2⁻¹ ^ fuel := by push_cast; ring
 
 /-- The block of a bucket costs at most twice one attempt in expectation, whatever the fuel. -/
 theorem expectedCost_buildSecondary_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.hash r))
@@ -518,9 +499,8 @@ theorem expectedCost_build_draw_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.has
           (buildSecondary F fuel (bucketOf keys t.values j))
         ≤ ∑ _j : Fin (keys.length - 1 + 1), (2 : ℝ≥0∞) := by
           refine sum_le_sum fun j _ => ?_
-          refine (expectedCost_buildSecondary_le hF drawCost fuel
-            ((bucketOf_sublist keys t.values j).nodup hkeys)).trans ?_
-          simp
+          simpa using expectedCost_buildSecondary_le hF drawCost fuel
+            ((bucketOf_sublist keys t.values j).nodup hkeys)
       _ = 2 * (keys.length - 1 + 1 : ℕ) := by
           rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_comm]
   · calc expectedCost (answer F) drawCost
@@ -528,12 +508,9 @@ theorem expectedCost_build_draw_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.has
           2 * ((keys.length - 1 + 1 : ℕ) : ℝ≥0∞)
         ≤ 2 * 1 + 2 * ((keys.length - 1 + 1 : ℕ) : ℝ≥0∞) := by
           gcongr
-          refine (expectedCost_retry_le_two_mul _ _ _ _
-            (toOuterMeasure_not_topGood_le hF hkeys) fuel).trans ?_
-          simp
-      _ = 2 * ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) := by
-          push_cast
-          ring
+          simpa using expectedCost_retry_le_two_mul _ _ _ drawCost
+            (toOuterMeasure_not_topGood_le hF hkeys) fuel
+      _ = 2 * ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) := by push_cast; ring
 
 /-- **Expected hash evaluations.** The construction for a duplicate-free list of `n` keys makes at
 most `4 n` hash evaluations in expectation, whatever the fuel: two expected attempts of `n`
@@ -548,9 +525,8 @@ theorem expectedCost_build_eval_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.has
           (buildSecondary F fuel (bucketOf keys t.values j))
         ≤ ∑ j : Fin (keys.length - 1 + 1), 2 * ((bucketOf keys t.values j).length : ℝ≥0∞) := by
           refine sum_le_sum fun j _ => ?_
-          refine (expectedCost_buildSecondary_le hF evalCost fuel
-            ((bucketOf_sublist keys t.values j).nodup hkeys)).trans ?_
-          simp
+          simpa using expectedCost_buildSecondary_le hF evalCost fuel
+            ((bucketOf_sublist keys t.values j).nodup hkeys)
       _ ≤ 2 * keys.length := by
           rw [← mul_sum]
           gcongr
@@ -559,9 +535,8 @@ theorem expectedCost_build_eval_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.has
           (retry (TopGood keys) (trial F (keys.length - 1) keys) fuel) + 2 * (keys.length : ℝ≥0∞)
         ≤ 2 * keys.length + 2 * (keys.length : ℝ≥0∞) := by
           gcongr
-          refine (expectedCost_retry_le_two_mul _ _ _ _
-            (toOuterMeasure_not_topGood_le hF hkeys) fuel).trans ?_
-          simp
+          simpa using expectedCost_retry_le_two_mul _ _ _ evalCost
+            (toOuterMeasure_not_topGood_le hF hkeys) fuel
       _ = 4 * keys.length := by ring
 
 end Probability

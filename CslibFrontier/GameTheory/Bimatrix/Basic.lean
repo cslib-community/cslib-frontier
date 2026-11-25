@@ -248,6 +248,20 @@ theorem IsBestResponse₂.le_payoff₂ (h : G.IsBestResponse₂ y x) (j : N) :
   simpa only [payoff₁_swap, swap_A, mulVec_transpose] using
     (isBestResponse₁_swap.2 h).le_payoff₁ j
 
+/-- A mixed strategy is a best response to `y` iff no row earns more against `y` than it does. -/
+theorem isBestResponse₁_iff_le_payoff₁ :
+    G.IsBestResponse₁ x y ↔ IsMixedStrategy x ∧ ∀ i, (G.A *ᵥ y) i ≤ G.payoff₁ x y := by
+  refine ⟨fun h => ⟨h.isMixedStrategy, h.le_payoff₁⟩, fun h => ⟨h.1, fun x' hx' => ?_⟩⟩
+  rw [payoff₁_eq_dotProduct x' y]
+  exact hx'.dotProduct_le_of_forall_le h.2
+
+/-- A mixed strategy is a best response to `x` iff no column earns more against `x` than it
+does. -/
+theorem isBestResponse₂_iff_le_payoff₂ :
+    G.IsBestResponse₂ y x ↔ IsMixedStrategy y ∧ ∀ j, (x ᵥ* G.B) j ≤ G.payoff₂ x y := by
+  rw [← isBestResponse₁_swap, isBestResponse₁_iff_le_payoff₁]
+  simp only [payoff₁_swap, swap_A, mulVec_transpose]
+
 /-- With positive payoffs, player 1 earns a positive expected payoff. -/
 theorem payoff₁_pos (hA : ∀ i j, 0 < G.A i j) (hx : IsMixedStrategy x) (hy : IsMixedStrategy y) :
     0 < G.payoff₁ x y :=

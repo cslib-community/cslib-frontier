@@ -118,7 +118,7 @@ theorem queryLoop {start : α → σ} {query : σ → ℕ} {next : σ × Option 
     runFrom_loopMachine (enc a) (start a) fun i hi => hlt a i (by omega)
   obtain ⟨t, d, h⟩ := M.computableInSpaceFrom (enc := enc) (encOut := encS)
     (f := fun a => (queryRound query next (enc a))^[n a] (start a)) hquery hnext
-    ((constZero ([] : List Bool)).mono_le fun _ => Nat.zero_le _) hdone
+    (budget_const ([] : List Bool)) hdone
     ((budget_id (.refl _)).of_enc_eq fun _ => rfl) n
     (fun a => S a + Nat.log2 (enc a).length + 1)
     (hstart.mono_le fun a => by omega)
