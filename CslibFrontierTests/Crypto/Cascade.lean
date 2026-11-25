@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildChallenge
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReduction
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
 import Mathlib.Data.Set.Finite.List
@@ -308,3 +309,35 @@ example :
 example (source : PMF (BitString 1 → BitString 2)) :
     cascadeChildChallengeGame 0 8 source source source (pure true) = PMF.pure false := by
   simp [cascadeChildChallengeGame]
+
+-- A skipped first-use channel cannot forward even when it is the selected channel.
+example :
+    cascadeChildChallengeHandler toggle 1 2 2 1 [] (1, [true]) ⟨0, []⟩ =
+      pure ([], ⟨0, []⟩) := rfl
+
+-- The challenge receives the normalized block and only the first two reply bits are used.
+example :
+    cascadeChildChallengeHandler toggle 1 2 2 1 [] (1, []) ⟨1, []⟩ = (do
+      let reply ← ProbOracleComp.query ((), [false])
+      return (reply.take 2, ⟨2, []⟩)) := rfl
+
+-- An earlier channel reuses its cached answer on two representations of the same block.
+example :
+    let state : CascadeChildChallengeState := ⟨1, [((0, [false]), [true, true])]⟩
+    cascadeChildChallengeHandler toggle 1 2 2 1 [] (0, []) state =
+      pure ([true, true], state) := rfl
+
+-- A later channel uses its own key row without calling the challenge oracle.
+example :
+    cascadeChildChallengeHandler toggle 1 2 2 0 [true, true, true, false]
+        (1, [true]) ⟨1, []⟩ =
+      pure ([false, true], ⟨2, []⟩) := rfl
+
+example : cascadeChildChallengeProgram toggle 1 2 0 0 (pure true) = pure false := rfl
+
+example :
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    (cascadeChildChallengeProgram toggle 1 2 4 3 router).IsQueryBounded 4 :=
+  isQueryBounded_cascadeChildChallengeProgram toggle 1 2 4 3
+    (isQueryBounded_cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1
+      visitBothParents_isQueryBounded)
