@@ -160,9 +160,7 @@ theorem ceilSqrt_mul_eq_add_div_two {p q : ℕ} (hpq : Even (p + q))
   rw [hA, Nat.mul_div_cancel_left A two_pos]
   have hA1 : 1 ≤ A := by omega
   have hAR : ((p : ℝ) + q) / 2 = A := by
-    have h : ((p + q : ℕ) : ℝ) = ((2 * A : ℕ) : ℝ) := by rw [hA]
-    push_cast at h
-    linarith
+    linarith [(show (p : ℝ) + q = 2 * A by exact_mod_cast hA)]
   have hlemma := abs_add_div_two_sub_sqrt_mul_lt_half (Nat.cast_pos.2 hp) (Nat.cast_pos.2 hq) hclose
   rw [hAR] at hlemma
   have h1 : ((A - 1 : ℕ) : ℝ) < Real.sqrt ((p : ℝ) * q) := by
