@@ -7,6 +7,7 @@ Authors: OpenAI
 -- upstream: candidate
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeDeletionGenus
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeDeletionTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Lifting
 import Mathlib.Tactic.FinCases
 
@@ -142,8 +143,40 @@ example : sphereBigon.deleteLastEdge.NumericalGenusZero :=
 example : RotationCertificate.ofRotation sphereBigon.deleteLastEdge = ⟨[0, 1]⟩ := by
   decide +kernel
 
+-- Each retained end of the digon skips exactly the removed dart at its own vertex.
+example (tag : Bool) : sphereBigon.deleteLastEdge.rotate (0, tag) = (0, tag) := by
+  apply (sphereBigon.rotate_deleteLastEdge_eq_iff (by decide) _ _).mpr
+  refine Or.inr ⟨tag, ?_, ?_⟩
+  · cases tag <;> decide +kernel
+  · cases tag <;> decide +kernel
+
 example : RotationCertificate.verifyGenusZero bridge
     (RotationCertificate.ofRotation sphereBigon.deleteLastEdge) = true := by decide +kernel
+
+-- Selecting the first parallel edge preserves exactly the darts of the second occurrence.
+example : ∃ (H : Graph) (s : RotationSystem H)
+    (lift : Dart H ↪ Dart (lastEdgeGraph bridge 0 1)),
+    H.edges = [(0, 1)] ∧ s.NumericalGenusZero ∧
+      ∀ d, lift d = (⟨1, by decide⟩, d.2) ∧ s.rotate d = d := by
+  obtain ⟨H, s, lift, _, hedges, hz, hcoords, hstep⟩ :=
+    sphereBigon.exists_numericalGenusZero_deleteNonloopEdge (by decide) bigonGenus
+      ⟨0, by decide⟩ (by decide)
+  refine ⟨H, s, lift, hedges, hz, ?_⟩
+  intro d
+  obtain ⟨_, htag, hidx⟩ := hcoords d
+  have hlenH : H.edges.length = 1 := (congrArg List.length hedges).trans (by decide)
+  have hlen : d.1.val < 1 := Nat.lt_of_lt_of_eq d.1.isLt hlenH
+  have hd : lift d = (⟨1, by decide⟩, d.2) := by
+    apply Prod.ext _ htag
+    apply Fin.ext
+    change (lift d).1.val = 1
+    rw [hidx, ite_eq_right (Nat.not_lt_zero _)]
+    omega
+  refine ⟨hd, (hstep d d).mpr (Or.inr ⟨d.2, ?_, ?_⟩)⟩
+  · rw [hd]
+    cases d.2 <;> decide +kernel
+  · rw [hd]
+    cases d.2 <;> decide +kernel
 
 -- Deleting one loop of a positive-genus bouquet still gives the literal sphere-loop
 -- rotation. The genus-zero deletion theorem is not invoked with a false source premise.

@@ -7,7 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (indexed path color regression)
 
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.ThreePathRestriction
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SeparatingPairOrder
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceDartColors
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
 import Mathlib.Data.Fin.VecNotation
@@ -145,13 +145,21 @@ private def spurRotation : RotationSystem withSpurs where
 private def spurArms (k : Fin 3) (i : Fin (armLength k + 1)) : Dart withSpurs :=
   ⟨Fin.castLE (by decide) (arms k i).1, (arms k i).2⟩
 
-private def spurSite (k : Fin 3) (_ : Fin (armLength k)) : ℕ := 2
+private abbrev one : {w : ℕ // w ≠ 0} := ⟨1, by decide⟩
+private abbrev awayPair := (withSpurs.toSimpleGraph.induce {w | w ≠ 0}).induce {w | w ≠ one}
+private abbrev two : {w : {x : ℕ // x ≠ 0} // w ≠ one} := ⟨⟨2, by decide⟩, by decide⟩
+private abbrev armComponent := awayPair.connectedComponentMk two
+
+private def spurComponents (k : Fin 3) : Option awayPair.ConnectedComponent :=
+  if k = 0 then some armComponent else none
 
 -- Extra edges at an internal vertex and a separator do not change the triple comparison.
 example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realizes spurRotation ∧
     spurRotation.rotate.symm (spurArms 0 0).reverse ≠ spurArms 0 1 ∧
-    ((2, false) ∈ spurRotation.rotationInterval (0, false) (3, false) ↔
-      (2, true) ∉ spurRotation.rotationInterval (1, true) (3, true)) := by
+    (spurRotation.rotationDistance (0, false) (2, false) <
+      spurRotation.rotationDistance (0, false) (3, false) ↔
+      spurRotation.rotationDistance (1, true) (3, true) <
+        spurRotation.rotationDistance (1, true) (2, true)) := by
   classical
   have hG : ∀ v ∈ withSpurs.incidenceVertices, v ∈ withSpurs.vertices := by decide
   have genus : spurRotation.NumericalGenusZero := by
@@ -161,10 +169,24 @@ example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realize
   obtain ⟨D, hD, hR⟩ := spurRotation.exists_polygonalDrawing hG genus
   have hreg := hD.hasRegularContacts (fun d => RotationSystem.vertex_mem hG d) (by decide)
   refine ⟨D, hreg, hR, by decide, ?_⟩
-  exact hreg.opposite_three_path_orders hD.simple hR hG (by decide : 0 ≠ 1)
-    spurArms spurSite (by decide) (by decide) (by decide) (by decide) (by decide)
-    (fun a b hab i j => crossingParity_of_embedding hD
-      ((by decide : ∀ a b : Fin 3, a ≠ b → ∀ i j, (spurArms a i).1 ≠ (spurArms b j).1)
-        a b hab i j))
+  let first (k : Fin 3) := spurArms k 0
+  let last (k : Fin 3) := (spurArms k (Fin.last (armLength k))).reverse
+  have heven : D.EvenCrossings (fun w => w = 0 ∨ w = 1) :=
+    fun _ _ hne _ => crossingParity_of_embedding hD hne
+  apply hreg.rotationDistance_lt_iff_of_separating_components hD.simple hR hG heven
+    one (Or.inl rfl) (Or.inr rfl) first last (by decide) (by decide) (by decide)
+    spurComponents _ _ (o := 0) (i := 1) (j := 2) (by decide) (by decide)
+  · intro i j C hi hj
+    have eqZero {k : Fin 3} (h : spurComponents k = some C) : k = 0 := by
+      by_contra hne
+      simp [spurComponents, hne] at h
+    exact (eqZero hi).trans (eqZero hj).symm
+  · have hin : (2 : ℕ) ∈ Subtype.val '' (Subtype.val '' armComponent.supp) :=
+      ⟨two.val, ⟨two, rfl, rfl⟩, rfl⟩
+    intro k
+    fin_cases k
+    · exact ⟨hin, hin⟩
+    · rfl
+    · rfl
 
 end CslibFrontierTests.DartPathColors
