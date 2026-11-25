@@ -102,56 +102,50 @@ theorem mem_NL_of_soundCompleteBlock {S : Set EncodedStructure} {C : ℕ → ℕ
           a ∈ S) ∧
       (a ∈ S → Complete P (encStructure a) b regs T fun _ => True)) :
     S ∈ Complexity.NL encStructure := by
+  obtain ⟨hshape, hguard, hcomp, hacc, hrej⟩ := nblockDecider_layout (v := v) hC s
+  have hrej_halts : ((nblockDecider v C c s).instr (6 + 6 * v.count + c)).halts = true := by
+    rw [hrej]; rfl
+  have hsetup (a : EncodedStructure) :=
+    let ⟨hB1, _, _, hwB, hLB⟩ := decider_bounds v a k
+    And.intro hB1 (reaches_shapeCode
+      (P := padded 0 (shapeCode v 0 (4 + 6 * v.count) (6 + 6 * v.count + c)))
+      (codeAt_padded 0 _) hLB hwB (List.replicate (3 + s) 0) (by simp) (by simp) (by simp))
   refine exists_decidesInLogSpace_of_allBranches (nblockDecider v C c s) (v.maxArity + k)
     (fun a => ?_) fun a ha => ?_
-  · obtain ⟨hshape, hguard, hcomp, hacc, hrej⟩ := nblockDecider_layout (v := v) hC s
-    obtain ⟨hB1, -, -, hwB, hLB⟩ := decider_bounds v a k
+  · obtain ⟨hB1, regs₁, hreach₁, hlen₁, h0₁, hB₁⟩ := hsetup a
     rw [init_nblockDecider]
     suffices h : Sound (nblockDecider v C c s) (encStructure a)
         (((encStructure a).length + 1) ^ (v.maxArity + k))
         (fun x => (nblockDecider v C c s).instr x.1 = .accept → a ∈ S) 0
         (List.replicate (3 + s) 0) 0 (fun _ => False) from
       (h false).mono fun _ ⟨_, _, _, h⟩ => h
-    obtain ⟨regs₁, hreach₁, hlen₁, h0₁, hB₁⟩ :=
-      reaches_shapeCode (P := padded 0 (shapeCode v 0 (4 + 6 * v.count) (6 + 6 * v.count + c)))
-        (codeAt_padded 0 _) hLB hwB (List.replicate (3 + s) 0) (by simp) (by simp) (by simp)
     refine Sound.of_reaches hB1 hshape hreach₁ ?_
-    have hreject : ∀ regs : List ℕ,
-        (∀ r ∈ regs, r ≤ ((encStructure a).length + 1) ^ (v.maxArity + k)) →
-        Sound (nblockDecider v C c s) (encStructure a)
-          (((encStructure a).length + 1) ^ (v.maxArity + k))
-          (fun x => (nblockDecider v C c s).instr x.1 = .accept → a ∈ S)
-          (6 + 6 * v.count + c) regs 0 (fun _ => False) := fun regs hregs =>
-      Sound.halt hB1 (by rw [hrej]; rfl) (fun _ h => by simp [hrej] at h) hregs
+    have hreject := Sound.halt (w := encStructure a)
+      (Post := fun x => (nblockDecider v C c s).instr x.1 = .accept → a ∈ S)
+      (T := 0) (G := fun _ => False) hB1 hrej_halts (fun _ h => by simp [hrej] at h) hB₁
     by_cases hwf : v.WellFormed a
     · rw [ite_eq_left hwf]
       by_cases hn : 2 ≤ a.1
-      · refine Sound.of_oblivious hB1 (l' := 5 + 6 * v.count) (regs' := regs₁) ?_ ?_
-        · cp_step [h0₁ hwf]
-        refine ((hblock a hwf hn _ _ _ _ _ regs₁ hcomp (by rw [hrej]; rfl)
+      · refine Sound.of_oblivious hB1 (l' := 5 + 6 * v.count) (regs' := regs₁)
+          (by cp_step [h0₁ hwf]) ?_
+        refine ((hblock a hwf hn _ _ _ _ _ regs₁ hcomp hrej_halts
           (fun x hx h => by simp [hx, hrej] at h) (by rw [hlen₁, List.length_replicate])
           (h0₁ hwf) hB₁).1).bind fun regs' ⟨hB', haS⟩ =>
             Sound.halt hB1 (by rw [hacc]; rfl) (fun _ _ => haS) hB'
-      · refine Sound.of_oblivious hB1 (l' := 6 + 6 * v.count + c) (regs' := regs₁) ?_
-          (hreject regs₁ hB₁)
-        cp_step [h0₁ hwf]
+      · exact Sound.of_oblivious hB1 (l' := 6 + 6 * v.count + c) (regs' := regs₁)
+          (by cp_step [h0₁ hwf]) hreject
     · rw [ite_eq_right hwf]
-      exact hreject regs₁ hB₁
+      exact hreject
   · obtain ⟨hwf, hn⟩ := hS a ha
-    obtain ⟨hshape, hguard, hcomp, hacc, hrej⟩ := nblockDecider_layout (v := v) hC s
-    obtain ⟨hB1, -, -, hwB, hLB⟩ := decider_bounds v a k
-    obtain ⟨regs₁, hreach₁, hlen₁, h0₁, hB₁⟩ :=
-      reaches_shapeCode (P := padded 0 (shapeCode v 0 (4 + 6 * v.count) (6 + 6 * v.count + c)))
-        (codeAt_padded 0 _) hLB hwB (List.replicate (3 + s) 0) (by simp) (by simp) (by simp)
+    obtain ⟨hB1, regs₁, hreach₁, hlen₁, h0₁, hB₁⟩ := hsetup a
     rw [ite_eq_left hwf] at hreach₁
-    have hguardStep : (nblockDecider v C c s).Reaches (encStructure a)
-        ((nblockDecider v C c s).Oblivious (((encStructure a).length + 1) ^ (v.maxArity + k)))
-        (4 + 6 * v.count, 0 :: regs₁) (5 + 6 * v.count, 0 :: regs₁) := by
-      cp_step [h0₁ hwf]
     obtain ⟨regs', -, hbr⟩ := Complete.of_reaches hshape hreach₁
-      (Complete.of_oblivious hguardStep ((hblock a hwf hn _ (fun _ => True) _ _ _ regs₁ hcomp
-        (by rw [hrej]; rfl) (fun _ _ => trivial) (by rw [hlen₁, List.length_replicate])
-        (h0₁ hwf) hB₁).2 ha))
+      (Complete.of_oblivious
+        (show (nblockDecider v C c s).Reaches (encStructure a)
+            ((nblockDecider v C c s).Oblivious (((encStructure a).length + 1) ^ (v.maxArity + k)))
+            (4 + 6 * v.count, 0 :: regs₁) (5 + 6 * v.count, 0 :: regs₁) by cp_step [h0₁ hwf])
+        ((hblock a hwf hn _ (fun _ => True) _ _ _ regs₁ hcomp hrej_halts (fun _ _ => trivial)
+          (by rw [hlen₁, List.length_replicate]) (h0₁ hwf) hB₁).2 ha))
     obtain ⟨c', hc'⟩ := hbr false
     rw [init_nblockDecider]
     exact ⟨_, hc', hacc⟩
