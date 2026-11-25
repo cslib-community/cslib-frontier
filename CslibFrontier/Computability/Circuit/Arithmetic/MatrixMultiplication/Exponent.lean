@@ -475,15 +475,13 @@ private theorem hasCircuit_mul {α β : Matrix (Fin r) (Fin v × Fin v) K}
   have S₁ : Synthesis (arithInterpretation K) (s₀ ∪ s₁) s₂
       (∑ _p : Fin r × Fin (m * m + m * m), ∑ _q : Fin v × Fin v, (2 + 1)) :=
     Synthesis.family _ _ fun p => synthesis_encInputs α β p.1 p.2
-  have henc : ∀ ν i, encInputs α β ν i ∈ s₀ ∪ (s₁ ∪ s₂) := fun ν i => by
-    simp only [hs₂, Set.mem_union, Set.mem_range]
-    exact Or.inr (Or.inr ⟨(ν, i), rfl⟩)
+  have henc : ∀ ν i, encInputs α β ν i ∈ s₀ ∪ (s₁ ∪ s₂) := fun ν i =>
+    Or.inr (Or.inr ⟨(ν, i), rfl⟩)
   have S₂ : Synthesis (arithInterpretation K) (s₀ ∪ (s₁ ∪ s₂)) s₃ (∑ _ν : Fin r, C.size) :=
     Synthesis.iUnion _ _ fun ν => synthesis_blockProd ν hC (henc ν)
   have h0 : (fun _ => (0 : K)) ∈ s₀ ∪ (s₁ ∪ s₂ ∪ s₃) := by simp [hs₁]
-  have hbp : ∀ ν t, blockProd α β ν t ∈ s₀ ∪ (s₁ ∪ s₂ ∪ s₃) := fun ν t => by
-    simp only [hs₃, Set.mem_union, Set.mem_iUnion, Set.mem_range]
-    exact Or.inr (Or.inr ⟨ν, t, rfl⟩)
+  have hbp : ∀ ν t, blockProd α β ν t ∈ s₀ ∪ (s₁ ∪ s₂ ∪ s₃) := fun ν t =>
+    Or.inr (Or.inr (Set.mem_iUnion.2 ⟨ν, t, rfl⟩))
   have S₃ : Synthesis (arithInterpretation K) (s₀ ∪ (s₁ ∪ s₂ ∪ s₃))
       (Set.range (matMulFun (v * m))) (∑ _t : Fin (v * m * (v * m)), ∑ _ν : Fin r, (2 + 1)) := by
     refine Synthesis.family _ _ fun t => ?_
@@ -614,8 +612,7 @@ theorem admissibleExponent_of_rank {v r : ℕ} (hv : 2 ≤ v) (hr : Rank r (mm v
     | zero =>
       obtain ⟨C, hC, hCs⟩ := exists_circuit_trivial (K := K) 1
       refine ⟨3, HasCircuit.congr (pow_zero v).symm ⟨C, hC, hCs.trans (by norm_num)⟩, ?_⟩
-      rw [pow_zero, mul_one]
-      exact_mod_cast hCc3
+      simpa using hCc3
     | succ j ih =>
       obtain ⟨s, hs, hsR⟩ := ih
       refine ⟨_, HasCircuit.congr (pow_succ' v j).symm (hasCircuit_mul hid hs), ?_⟩
