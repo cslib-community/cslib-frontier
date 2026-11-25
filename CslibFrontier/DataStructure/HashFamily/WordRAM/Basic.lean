@@ -610,10 +610,8 @@ private theorem step_subroutineCode
         x_z (μ_t.map StepOutcome.data) ((H.resampleSteps : ℝ≥0∞) + 1) :=
       (ExecCodeDist.branch_pos hc_pos he_res_ren).congr_dist
         (by simp only [μ_t, PMF.map_comp]; rfl) le_rfl
-    have hunif_t : μ_t.map StepOutcome.latent = PMF.uniformOfFintype H.Seed := by
-      dsimp only [μ_t]
-      rw [PMF.map_comp]
-      exact hunif
+    have hunif_t : μ_t.map StepOutcome.latent = PMF.uniformOfFintype H.Seed :=
+      (PMF.map_comp _ _ _).trans hunif
     refine ⟨μ_t, ?_, fun os => ?_, fun q hq => ?_⟩
     · refine (he_z.seq_pure he_branch).congr_dist rfl (le_of_eq ?_)
       simp only [charge, Nat.cast_add, Nat.cast_ofNat]
@@ -665,8 +663,7 @@ private theorem step_subroutineCode
       have hy_ext_mem : y_ext.mem = t.data.mem := hy_mem
       refine ⟨⟨hy_ext_bdd, hy_base_ext, hy_ext_mem ▸ htab, hy_ext_mem ▸ hseed⟩, ?_, ?_⟩
       · simp [decode, hy_out_ext, (H.eval t.latent u).isLt]
-      · rw [hy_ext_mem]
-        exact Modifies.refl _ _
+      · exact hy_ext_mem ▸ Modifies.refl _ _
 
 private theorem steps_subroutineCode
     (H : Impl B r_core k_init w base U m params)
@@ -763,10 +760,8 @@ theorem evalOps_execSteps
   intro S
   have hsupp_seq : ∀ t ∈ (ν₀.map (SeqOutcome.ofLatentState
       (Result := @HashFamily.Result U m))).support,
-      H.stateInv t.latent t.data := by
-    intro t ht
-    rw [PMF.mem_support_map_iff] at ht
-    obtain ⟨u, hu, rfl⟩ := ht
+      H.stateInv t.latent t.data := fun t ht => by
+    obtain ⟨u, hu, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
     exact hinv.2 u hu
   obtain ⟨ν_final, T_ops, hex, htr, hcost⟩ :=
     H.steps_subroutineCode ValidOpSeq Contract ops (ν₀.map SeqOutcome.ofLatentState) hsupp_seq
