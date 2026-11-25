@@ -69,10 +69,8 @@ theorem exec_prefix {w L m N Q : ℕ} (key : ℕ → ℕ)
         exact ⟨hoff, hcur⟩
       · rw [hf _ (by omega) (by omega), hf _ (by omega) (by omega)]
         exact hz.2.2.1 t (by omega)
-    · rw [hf _ (by omega) (by omega)]
-      exact hz.2.2.2.1 t ht
-    · rw [hf _ (by omega) (by omega)]
-      exact hz.2.2.2.2 a ha
+    · exact (hf _ (by omega) (by omega)).trans (hz.2.2.2.1 t ht)
+    · exact (hf _ (by omega) (by omega)).trans (hz.2.2.2.2 a ha)
   have hl := local_fits hfit
   have hend := memoryLimit_eq L m N Q
   have h10 := Nat.zero_le (10 ^ L)
