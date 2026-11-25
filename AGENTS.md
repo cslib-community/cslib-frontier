@@ -219,7 +219,7 @@ queues the approved head with `scripts/queue_pr.py`, run from a trusted checkout
 `main` ([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
 Authors do not queue their own PRs. Approve without queueing, and say why, when the approval
 names a hold (an unlanded lower PR, a migration, or pending source or advisory-notice review); a
-request for human review is not a hold. A passing check does not release a review hold; do not
+request for human review is not a hold, but a maintainer's hold is. A passing check does not release a review hold; do not
 start `queue_pr.py --wait` while running CI will still produce notices that need review.
 
 **Every merge to `main` goes through the merge queue.** Never call a direct merge endpoint: the

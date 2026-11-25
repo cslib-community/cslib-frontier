@@ -126,8 +126,7 @@ and the affected points are checked again, as a delta, when the statement or a d
 changes in meaning. A headline for a cited result is registered after this check, or is presented
 as a step under [Faithful headlines](statements.md#faithful-headlines) rule 2. An agent's check says that it is an agent's and is never presented as a
 human one. The check is a step of its own, separate from the ordinary independent review, which
-is still required. The same eligibility and record apply when a reviewer confirms a locator in the
-[assumptions inventory](../manual/programs-crypto-and-probability/assumptions.md).
+is still required.
 
 Before approving library changes, read the **Parallel-definition**, **Duplicate-statement** and
 **Repeated-proof-block** notices in the CI job summary or step logs for the reviewed revision. Inspect both
@@ -194,10 +193,10 @@ helper or an old copy. Invoke the trusted script by its path; from private scrat
 explicitly ([queue command](../manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
 Keep the approved PR head; do not refresh its branch just to obtain the tool. The helper queues
 exactly that head once its required check passes; `--wait 30` waits up to 30 minutes for a running
-check. Write access is sufficient authority to queue a head approved under this cycle, and a
-request for human review is not a hold. Approve without queueing, and say why in the approval,
-when the approval names a hold, such as an unlanded lower PR, a migration or an upstream
-dependency; queue once the hold clears.
+check. Write access is sufficient authority to queue a head approved under this cycle. A request
+for human review is not a hold, but a hold a maintainer posts on the PR is. Approve without
+queueing, and say why in the approval, when the approval names a hold, such as an unlanded lower
+PR, a migration or an upstream dependency; queue once the hold clears.
 
 Pending source or advisory-notice review is also a hold. Inspect that material,
 record the hold's resolution and link the existing proof/API/caller assessment before queueing;

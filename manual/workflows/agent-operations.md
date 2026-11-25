@@ -56,7 +56,7 @@ python3 /path/to/trusted-main/scripts/queue_pr.py <PR> <approved-head> \
   --repo cslib-community/cslib-frontier
 ```
 
-The script refuses any other head, a draft, a stacked PR still based on another branch, a conflict and failed checks. It reads every page of check results for that commit before choosing the latest attempt from the required GitHub App; a later page cannot hide a failed or running rerun behind an older success. The reviewer does not queue when the approval names a hold; a request for human review is not a hold. Do not start `--wait` while completing CI will produce unread notices or manual pages; [Approve and queue](../../AGENTS.md#approve-and-queue) gives the rule. Updating `main` does not upgrade an already-running copy; its owner stops an old waiter before replacing it after holds clear.
+The script refuses any other head, a draft, a stacked PR still based on another branch, a conflict and failed checks. It reads every page of check results for that commit before choosing the latest attempt from the required GitHub App; a later page cannot hide a failed or running rerun behind an older success. The reviewer does not queue when the approval names a hold; a request for human review is not a hold, but a maintainer's hold is. Do not start `--wait` while completing CI will produce unread notices or manual pages; [Approve and queue](../../AGENTS.md#approve-and-queue) gives the rule. Updating `main` does not upgrade an already-running copy; its owner stops an old waiter before replacing it after holds clear.
 
 When another PR is already queued, `queue_pr.py` replays the live queue prefix ahead of the
 approved head just before enqueueing (using the trusted checkout, `GIT_DIR` including a full bare
