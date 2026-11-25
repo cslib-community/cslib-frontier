@@ -14,7 +14,7 @@ public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Regs
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Tabulate
 import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Trie
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Multi-stage trimmed Yates transform on the word RAM
@@ -172,19 +172,14 @@ private theorem exec_passCode {w d domPtr free curRoot fbRoot cutoff signMode B 
     let X := dom[p]
     change s.regs rCellKey = setMask X at hsck
     change s.regs rCellCard = #X at hscc
+    suffices h : ∃ u, ExecWithin w passCellBody s u (18 * d + 47) ∧
+        u.regs rTrieVal = Signed.encode (yatesPass c coord G_k X) ∧ u.mem = s.mem by
+      obtain ⟨u, hu, hval, hmem⟩ := h
+      exact ⟨u, hu, hval, hmem, fun i hi => hu.regs_eq (passCellBody_preserves i hi)⟩
     have hX_mem : X ∈ dom := List.getElem_mem hp
     have ht_cur_s : HoldsTrie s.mem free d curRoot curFn := htrie_cur.congr_below hsmem
     have ht_fb_s : HoldsTrie s.mem free d fbRoot fbFn := htrie_fb.congr_below hsmem
-    let u₀ := (s.set rTrieRoot curRoot).set rTrieKey (setMask X)
-    have he₀ : ExecWithin (B := .standard) w
-        (ram[ rTrieRoot ← rStageCurRoot; rTrieKey ← rCellKey ]) s u₀ 2 := by
-      wram_exec [hscr, hsck]
-    obtain ⟨u₁, he₁, hu₁_val, hu₁_mem, hu₁_regs⟩ :=
-      exec_trieGet (root := curRoot) (key := setMask X) u₀
-        (by simp [u₀, hsz]) (by simp [u₀, hso]) (by simp [u₀, hsd])
-        (by simp [u₀]) (by simp [u₀]) ht_cur_s
-        (hfit_free.of_le (by omega)) hfit_d (hfit_mask.of_le (setMask_lt _).le)
-    rw [hcur_eq X hX_mem] at hu₁_val
+    have hfit_bound : Fits w free := hfit_free.of_le (by omega)
     have hand_eq : setMask X &&& (1 <<< coord.val) =
         (if coord ∈ X then 2 ^ coord.val else 0) := by
       apply Nat.eq_of_testBit_eq
@@ -196,186 +191,60 @@ private theorem exec_passCode {w d domPtr free curRoot fbRoot cutoff signMode B 
         by_cases hcX : coord ∈ X <;> simp [hcX]
       · have hne : coord.val ≠ j := Ne.symm hj
         by_cases hcX : coord ∈ X <;> simp [hcX, hne]
-    have hf_and : Fits w (setMask X &&& (1 <<< coord.val)) :=
-      hfit_mask.of_le (Nat.and_le_left.trans (setMask_lt X).le)
-    have hu₁_ck : u₁.regs rCellKey = setMask X := by
-      rw [hu₁_regs rCellKey (Or.inr (by decide))]; simp [u₀, hsck]
-    have hu₁_bm : u₁.regs rGenBitMask = (1 <<< coord.val) := by
-      rw [hu₁_regs rGenBitMask (Or.inr (by decide))]; simp [u₀, hsbm]
-    let u₂ := u₁.set rGenTmp (setMask X &&& (1 <<< coord.val))
-    have he₂ : ExecWithin (B := .standard) w
-        (ram[ rGenTmp ← rCellKey &&& rGenBitMask ]) u₁ u₂ 1 := by
-      wram_exec [hu₁_ck, hu₁_bm]
-    have hu₂_z : u₂.regs rZero = 0 := by
-      simp only [u₂, Data.set_regs_of_ne (by decide : rZero ≠ rGenTmp)]
-      rw [hu₁_regs rZero (Or.inl (by decide))]; simp [u₀, hsz]
+    unfold passCellBody
+    wram_exec [hscr, hsck]
+    wram_call (exec_trieGet (bound := free) (fn := curFn) _ (by wram_simp [hsz]) (by wram_simp [hso])
+      (by wram_simp [hsd]) (by wram_simp) (by wram_simp) ht_cur_s hfit_bound hfit_d
+      (hfit_mask.of_le (setMask_lt X).le)) with u₁ ⟨hu₁_val, hu₁_mem, hu₁_regs⟩
+    rw [hcur_eq X hX_mem] at hu₁_val
     by_cases hcX : coord ∈ X
-    · have hgt_ne : u₂.regs rGenTmp ≠ u₂.regs rZero := by
-        rw [hu₂_z]; simp only [u₂, Data.set_regs_self, hand_eq, hcX, ↓reduceIte]
-        exact (Nat.two_pow_pos coord.val).ne'
-      have hcard_er : #(X.erase coord) + 1 = #X := Finset.card_erase_add_one hcX
-      have hf_xor : Fits w (setMask X ^^^ (1 <<< coord.val)) := by
-        rw [← setMask_erase hcX]; exact hfit_mask.of_le (setMask_lt _).le
-      have hu₂_val : u₂.regs rTrieVal = Signed.encode (G_k X) := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rTrieVal ≠ rGenTmp)]; exact hu₁_val
-      have hu₂_ck : u₂.regs rCellKey = setMask X := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rCellKey ≠ rGenTmp)]; exact hu₁_ck
-      have hu₂_bm : u₂.regs rGenBitMask = (1 <<< coord.val) := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rGenBitMask ≠ rGenTmp)]; exact hu₁_bm
-      have hu₂_cut : u₂.regs rStageCutoff = cutoff := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rStageCutoff ≠ rGenTmp)]
-        rw [hu₁_regs rStageCutoff (Or.inr (by decide))]; simp [u₀, hscut]
-      have hu₂_cc : u₂.regs rCellCard = #X := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rCellCard ≠ rGenTmp)]
-        rw [hu₁_regs rCellCard (Or.inr (by decide))]; simp [u₀, hscc]
-      have hu₂_cr : u₂.regs rStageCurRoot = curRoot := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rStageCurRoot ≠ rGenTmp)]
-        rw [hu₁_regs rStageCurRoot (Or.inr (by decide))]; simp [u₀, hscr]
-      have hu₂_fbr : u₂.regs rStageFbRoot = fbRoot := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rStageFbRoot ≠ rGenTmp)]
-        rw [hu₁_regs rStageFbRoot (Or.inr (by decide))]; simp [u₀, hsfbr]
-      have hsel : ∃ u₃ selRoot selFn,
-          ExecWithin (B := .standard) w (ram[
-            Signed.left ← rTrieVal;
-            rTrieKey ← rCellKey ^^^ rGenBitMask;
-            if rStageCutoff < rCellCard then [
-              rTrieRoot ← rStageCurRoot
-            ] else [
-              rTrieRoot ← rStageFbRoot
-            ] ]) u₂ u₃ 5 ∧
-          u₃.regs (Signed.left (r := 47)) = Signed.encode (G_k X) ∧
-          u₃.regs rTrieKey = setMask (X.erase coord) ∧
-          u₃.regs rTrieRoot = selRoot ∧
-          u₃.regs rZero = 0 ∧ u₃.regs rOne = 1 ∧ u₃.regs Reg.dim = d ∧
-          u₃.regs rSignMode = signMode ∧ u₃.mem = u₂.mem ∧
-          HoldsTrie u₃.mem free d selRoot selFn ∧
+    · have hf_pow : Fits w (2 ^ coord.val) :=
+        hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos coord.isLt.le)
+      have hfit_er : Fits w (setMask (X.erase coord)) := hfit_mask.of_le (setMask_lt _).le
+      obtain ⟨selRoot, selFn, hsel, htsel, hval_er⟩ : ∃ selRoot selFn,
+          (if cutoff < #X then curRoot else fbRoot) = selRoot ∧
+          HoldsTrie s.mem free d selRoot selFn ∧
           selFn (setMask (X.erase coord)) = Signed.encode (G_k (X.erase coord)) := by
-        have hu₂_o : u₂.regs rOne = 1 := by
-          simp only [u₂, Data.set_regs_of_ne (by decide : rOne ≠ rGenTmp)]
-          rw [hu₁_regs rOne (Or.inl (by decide))]; simp [u₀, hso]
-        have hu₂_d : u₂.regs Reg.dim = d := by
-          simp only [u₂, Data.set_regs_of_ne (by decide : Reg.dim ≠ rGenTmp)]
-          rw [hu₁_regs Reg.dim (Or.inl (by decide))]; simp [u₀, hsd]
-        have hu₂_sm : u₂.regs rSignMode = signMode := by
-          simp only [u₂, Data.set_regs_of_ne (by decide : rSignMode ≠ rGenTmp)]
-          rw [hu₁_regs rSignMode (Or.inr (by decide))]; simp [u₀, hssm]
+        have hcard_er : #(X.erase coord) + 1 = #X := Finset.card_erase_add_one hcX
         by_cases hlt_cut : cutoff < #X
-        · have hst : ∃ u₃, ExecWithin (B := .standard) w (ram[
-              Signed.left ← rTrieVal;
-              rTrieKey ← rCellKey ^^^ rGenBitMask;
-              if rStageCutoff < rCellCard then [
-                rTrieRoot ← rStageCurRoot
-              ] else [
-                rTrieRoot ← rStageFbRoot
-              ] ]) u₂ u₃ 5 ∧
-              u₃.regs (Signed.left (r := 47)) = Signed.encode (G_k X) ∧
-              u₃.regs rTrieKey = setMask (X.erase coord) ∧
-              u₃.regs rTrieRoot = curRoot ∧
-              u₃.regs rZero = 0 ∧ u₃.regs rOne = 1 ∧ u₃.regs Reg.dim = d ∧
-              u₃.regs rSignMode = signMode ∧ u₃.mem = u₂.mem := by
-            wram_exec [hu₂_val, hu₂_ck, hu₂_bm, hu₂_cut, hu₂_cc, hu₂_cr, hlt_cut]
-            wram_simp [setMask_erase hcX, hu₂_z, hu₂_o, hu₂_d, hu₂_sm]
-          obtain ⟨u₃, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃⟩ := hst
-          refine ⟨u₃, curRoot, curFn, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃, ?_,
+        · exact ⟨curRoot, curFn, ite_eq_left hlt_cut, ht_cur_s,
             hcur_eq _ ((hdom_closed X hX_mem hcX).1 (by omega))⟩
-          rw [hm₃]; change HoldsTrie u₁.mem free d curRoot curFn; rwa [hu₁_mem]
-        · have hst : ∃ u₃, ExecWithin (B := .standard) w (ram[
-              Signed.left ← rTrieVal;
-              rTrieKey ← rCellKey ^^^ rGenBitMask;
-              if rStageCutoff < rCellCard then [
-                rTrieRoot ← rStageCurRoot
-              ] else [
-                rTrieRoot ← rStageFbRoot
-              ] ]) u₂ u₃ 5 ∧
-              u₃.regs (Signed.left (r := 47)) = Signed.encode (G_k X) ∧
-              u₃.regs rTrieKey = setMask (X.erase coord) ∧
-              u₃.regs rTrieRoot = fbRoot ∧
-              u₃.regs rZero = 0 ∧ u₃.regs rOne = 1 ∧ u₃.regs Reg.dim = d ∧
-              u₃.regs rSignMode = signMode ∧ u₃.mem = u₂.mem := by
-            wram_exec [hu₂_val, hu₂_ck, hu₂_bm, hu₂_cut, hu₂_cc, hu₂_fbr, hlt_cut]
-            wram_simp [setMask_erase hcX, hu₂_z, hu₂_o, hu₂_d, hu₂_sm]
-          obtain ⟨u₃, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃⟩ := hst
-          refine ⟨u₃, fbRoot, fbFn, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃, ?_,
+        · exact ⟨fbRoot, fbFn, ite_eq_right hlt_cut, ht_fb_s,
             hfb_eq _ (by omega) ((hdom_closed X hX_mem hcX).2 (by omega))⟩
-          rw [hm₃]; change HoldsTrie u₁.mem free d fbRoot fbFn; rwa [hu₁_mem]
-      obtain ⟨u₃, selRoot, selFn, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃, htsel, hval_er⟩ :=
-        hsel
-      obtain ⟨u₄, he₄, hu₄_val, hu₄_mem, hu₄_regs⟩ := exec_trieGet u₃ hz₃ ho₃ hd₃ hr₃ hk₃ htsel
-        (hfit_free.of_le (by omega)) hfit_d (hfit_mask.of_le (setMask_lt _).le)
-      rw [hval_er] at hu₄_val
-      have hu₄_left : u₄.regs (Signed.left (r := 47)) = Signed.encode (G_k X) :=
-        (hu₄_regs _ (Or.inl (by decide))).trans hl₃
-      have hu₄_sm : u₄.regs rSignMode = signMode :=
-        (hu₄_regs _ (Or.inr (by decide))).trans hsm₃
-      have hu₄_z : u₄.regs rZero = 0 :=
-        (hu₄_regs _ (Or.inl (by decide))).trans hz₃
-      let u₅ := u₄.set (Signed.right (r := 47)) (Signed.encode (G_k (X.erase coord)))
-      have he₅ : ExecWithin (B := .standard) w (ram[ Signed.right ← rTrieVal ]) u₄ u₅ 1 := by
-        wram_exec [hu₄_val]
-      have harith : ∃ u₆, ExecWithin w
-          (.branch (.eq rSignMode rZero) (Signed.add (r := 47)) (Signed.subtract (r := 47)))
-          u₅ u₆ 19 ∧
-          u₆.regs (Signed.result (r := 47)) = Signed.encode (yatesPass c coord G_k X) ∧
-          u₆.mem = u₅.mem := by
+      have hsign : ∀ u : Data numRegs, u.regs rZero = 0 → u.regs rSignMode = signMode →
+          u.regs (Signed.left (r := 47)) = Signed.encode (G_k X) →
+          u.regs (Signed.right (r := 47)) = Signed.encode (G_k (X.erase coord)) →
+          ∃ v, ExecWithin w (.branch (.eq rSignMode rZero) (Signed.add (r := 47))
+              (Signed.subtract (r := 47))) u v 19 ∧
+            v.regs (Signed.result (r := 47)) = Signed.encode (yatesPass c coord G_k X) ∧
+            v.mem = u.mem := by
+        intro u huz husm hul hur
         by_cases hsm0 : signMode = 0
-        · have hcond : (Cond.eq rSignMode rZero).Holds u₅ := by
-            simp [Cond.holds_eq, u₅, hu₄_sm, hu₄_z, hsm0]
-          obtain ⟨u₆, he₆, hres₆, hmem₆, _⟩ :=
-            exec_signedAdd hfit_val (hG_le X) (hG_le (X.erase coord)) u₅
-              (by simp only [u₅, Data.set_regs_of_ne (by decide :
-                    Signed.left (r := 47) ≠ Signed.right (r := 47))]; exact hu₄_left)
-              (by simp [u₅])
-          refine ⟨u₆, (he₆.branch_pos hcond).mono (by omega), ?_, hmem₆⟩
-          simpa [yatesPass, hcX, c, hsm0] using hres₆
-        · have hcond : ¬ (Cond.eq rSignMode rZero).Holds u₅ := by
-            simp [Cond.holds_eq, u₅, hu₄_sm, hu₄_z, hsm0]
-          obtain ⟨u₆, he₆, hres₆, hmem₆, _⟩ :=
-            exec_signedSub hfit_val (hG_le X) (hG_le (X.erase coord)) u₅
-              (by simp only [u₅, Data.set_regs_of_ne (by decide :
-                    Signed.left (r := 47) ≠ Signed.right (r := 47))]; exact hu₄_left)
-              (by simp [u₅])
-          refine ⟨u₆, (he₆.branch_neg hcond).mono (by omega), ?_, hmem₆⟩
-          simpa [yatesPass, hcX, c, hsm0, sub_eq_add_neg] using hres₆
-      obtain ⟨u₆, he₆, hres₆, hm₆⟩ := harith
-      let u := u₆.set rTrieVal (Signed.encode (yatesPass c coord G_k X))
-      have he₇ : ExecWithin (B := .standard) w (ram[ rTrieVal ← Signed.result ]) u₆ u 1 := by
-        wram_exec [hres₆]
-      have helse : ExecWithin w
-          (.seq (ram[
-              Signed.left ← rTrieVal;
-              rTrieKey ← rCellKey ^^^ rGenBitMask;
-              if rStageCutoff < rCellCard then [
-                rTrieRoot ← rStageCurRoot
-              ] else [
-                rTrieRoot ← rStageFbRoot
-              ] ])
-            (.seq trieGet
-              (.seq (ram[ Signed.right ← rTrieVal ])
-                (.seq (.branch (.eq rSignMode rZero)
-                    (Signed.add (r := 47))
-                    (Signed.subtract (r := 47)))
-                  (ram[ rTrieVal ← Signed.result ])))))
-          u₂ u (9 * d + 34) :=
-        (he₃.seq (he₄.seq (he₅.seq (he₆.seq he₇)))).mono (by omega)
-      have hbr : ExecWithin w
-          (.branch (.eq rGenTmp rZero) (ram[ rTrieVal ← rTrieVal ]) _) u₂ u (9 * d + 36) :=
-        (helse.branch_neg (by simpa [Cond.holds_eq] using hgt_ne)).mono (by omega)
-      have htot : ExecWithin w passCellBody s u (18 * d + 47) :=
-        (he₀.seq (he₁.seq (he₂.seq hbr))).mono (by omega)
-      refine ⟨u, htot, by simp [u, X], hm₆.trans (hu₄_mem.trans (hm₃.trans hu₁_mem)),
-        fun i hi => htot.regs_eq (passCellBody_preserves i hi)⟩
-    · have hgt_eq : u₂.regs rGenTmp = u₂.regs rZero := by
-        rw [hu₂_z]; simp [u₂, hand_eq, hcX]
-      have hu₂_val : u₂.regs rTrieVal = Signed.encode (G_k X) := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rTrieVal ≠ rGenTmp)]; exact hu₁_val
-      let u := u₂.set rTrieVal (Signed.encode (G_k X))
-      have hnop : ExecWithin (B := .standard) w (ram[ rTrieVal ← rTrieVal ]) u₂ u 1 := by
-        wram_exec [hu₂_val]
-      have htot : ExecWithin w passCellBody s u (18 * d + 47) :=
-        (he₀.seq (he₁.seq (he₂.seq
-          (hnop.branch_pos (by simpa [Cond.holds_eq] using hgt_eq))))).mono (by omega)
-      refine ⟨u, htot, by simp [u, X, yatesPass, hcX], hu₁_mem,
-        fun i hi => htot.regs_eq (passCellBody_preserves i hi)⟩
+        · obtain ⟨v, he, hres, hm, -⟩ :=
+            exec_signedAdd hfit_val (hG_le X) (hG_le (X.erase coord)) u hul hur
+          refine ⟨v, (he.branch_pos (by simp [Cond.holds_eq, huz, husm, hsm0])).mono (by omega),
+            ?_, hm⟩
+          simpa [yatesPass, hcX, c, hsm0] using hres
+        · obtain ⟨v, he, hres, hm, -⟩ :=
+            exec_signedSub hfit_val (hG_le X) (hG_le (X.erase coord)) u hul hur
+          refine ⟨v, (he.branch_neg (by simp [Cond.holds_eq, huz, husm, hsm0])).mono (by omega),
+            ?_, hm⟩
+          simpa [yatesPass, hcX, c, hsm0, sub_eq_add_neg] using hres
+      wram_exec * [hand_eq, ite_eq_left hcX, (Nat.two_pow_pos coord.val).ne', ← setMask_erase hcX]
+      all_goals
+        simp only [hc, ↓reduceIte] at hsel
+        wram_call (exec_trieGet (bound := free) (root := selRoot) (fn := selFn) _ (by regs_frame)
+          (by regs_frame) (by regs_frame) (by wram_simp [hsel]) (by wram_simp)
+          (by simpa only [Data.set_mem, hu₁_mem] using htsel) hfit_bound hfit_d hfit_er)
+          with u₄ ⟨hu₄_val, hu₄_mem, hu₄_regs⟩
+        rw [hval_er] at hu₄_val
+        wram_exec * -split [hu₄_val]
+        wram_call (hsign _ (by regs_frame) (by regs_frame) (by regs_frame) (by wram_simp))
+          with u₆ ⟨hres, hm₆⟩
+        wram_exec * [hres]
+        exact ⟨by wram_simp, by simp only [Data.set_mem, hm₆, hu₄_mem, hu₁_mem]⟩
+    · wram_exec * [hand_eq, ite_eq_right hcX]
+      exact ⟨by wram_simp [yatesPass, ite_eq_right hcX], by simp only [Data.set_mem, hu₁_mem]⟩
   obtain ⟨y, free', S', outFn, he, hysav, hyfree, hlo', hhi', hS', hyrep, hydom, hyframe⟩ :=
     exec_tabulateDom (cellBody := passCellBody)
       (cellFn := fun X => Signed.encode (yatesPass c coord G_k X))
