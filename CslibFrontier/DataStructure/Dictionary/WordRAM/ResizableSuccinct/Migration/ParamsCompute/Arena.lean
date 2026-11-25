@@ -102,40 +102,24 @@ theorem newItemEnd_le_oldItemNextWord {U V w N_old N_new n j : ℕ}
     have hb := bOffQ_lt (q_bits := quotientBits U N_old) (v_bits := valBits V) (d := j) hw
     rw [← hid, Nat.mul_comm _ w, Nat.mul_add_div hw, Nat.div_eq_of_lt hb, add_zero]
   rw [hwo_eq]
-  have hj_iw : compactedItemWords U V w N_new j ≤ (j * S_new) / w + 3 := by
-    change (j * S_new + w - 1) / w + 2 ≤ (j * S_new) / w + 3
-    have := div_ceil_le_div_add_one (a := j * S_new) hw
-    omega
-  have hold_iw : compactedItemWords U V w N_old n ≤ (n * S_old) / w + 3 := by
-    change (n * S_old + w - 1) / w + 2 ≤ (n * S_old) / w + 3
-    have := div_ceil_le_div_add_one (a := n * S_old) hw
-    omega
-  have hnew_iw : (n * S_new) / w + 2 ≤ compactedItemWords U V w N_new n := by
-    unfold compactedItemWords
-    have : n * S_new ≤ n * S_new + w - 1 := by omega
-    exact Nat.add_le_add_right (Nat.div_le_div_right this) 2
+  have hceil : ∀ a, (a + w - 1) / w + 2 ≤ a / w + 3 := fun a => by
+    have := div_ceil_le_div_add_one (a := a) hw; omega
+  have hj_iw : compactedItemWords U V w N_new j ≤ (j * S_new) / w + 3 := hceil _
+  have hold_iw : compactedItemWords U V w N_old n ≤ (n * S_old) / w + 3 := hceil _
+  have hnew_iw : (n * S_new) / w + 2 ≤ compactedItemWords U V w N_new n :=
+    Nat.add_le_add_right (Nat.div_le_div_right (by omega : n * S_new ≤ n * S_new + w - 1)) 2
   unfold migrateArenaWords
   rcases le_total S_new S_old with hle | hge
-  · have hmul : j * S_new ≤ j * S_old := Nat.mul_le_mul_left j hle
-    have hdiv : (j * S_new) / w ≤ (j * S_old) / w := Nat.div_le_div_right hmul
-    have hmax : compactedItemWords U V w N_old n ≤
-        max (compactedItemWords U V w N_old n) (compactedItemWords U V w N_new n) :=
-      le_max_left _ _
+  · have hdiv : (j * S_new) / w ≤ (j * S_old) / w :=
+      Nat.div_le_div_right (Nat.mul_le_mul_left j hle)
     omega
   · have hconv : j * S_new + n * S_old ≤ n * S_new + j * S_old := by
       have hsub : (n - j) * S_old ≤ (n - j) * S_new := Nat.mul_le_mul_left (n - j) hge
       have hnj : j + (n - j) = n := Nat.add_sub_of_le hj
       nlinarith
     have hdiv1 := div_add_div_le (a := j * S_new) (b := n * S_old) hw
-    have hdiv2 : (j * S_new + n * S_old) / w ≤ (n * S_new + j * S_old) / w :=
-      Nat.div_le_div_right hconv
+    have hdiv2 := Nat.div_le_div_right (c := w) hconv
     have hdiv3 := Nat.add_div_le_div_add_div_add_one (n * S_new) (j * S_old) w
-    have hmax : compactedItemWords U V w N_new n ≤
-        max (compactedItemWords U V w N_old n) (compactedItemWords U V w N_new n) :=
-      le_max_right _ _
-    have hmax_old : compactedItemWords U V w N_old n ≤
-        max (compactedItemWords U V w N_old n) (compactedItemWords U V w N_new n) :=
-      le_max_left _ _
     omega
 
 /-- Shared metadata bit-packing bound `offCompItems U w N ≤ ⌈84 N log log N / w⌉ + 439` used by
@@ -171,9 +155,7 @@ private theorem offCompItems_le_div_eightyFour_logLog {U w N : ℕ}
   have h84N : (2 * N) * 1 + localMetaLen N * effBucketPosBits N +
       globalMetaLen N * globalPtrBits N + (2 * maxTailItems N) * globalPtrBits N ≤
       84 * N * Dynamic.logLogFactor N := by
-    have h10 : 10 * N ≤ 10 * N * Dynamic.logLogFactor N := by
-      calc 10 * N = 10 * N * 1 := by ring
-        _ ≤ 10 * N * Dynamic.logLogFactor N := by gcongr
+    have h10 : 10 * N ≤ 10 * N * Dynamic.logLogFactor N := Nat.le_mul_of_pos_right _ hll_N1
     nlinarith
   exact hmeta_le.trans (Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 439)
 
@@ -203,9 +185,7 @@ private theorem compactedItemWords_le_div_optBits (U V w : ℕ) {N n : ℕ}
     calc n * (quotientBits U N + valBits V)
         ≤ n * (quotientBits U n + 6 + valBits V) := Nat.mul_le_mul_left n (by omega)
       _ = n * (quotientBits U n + valBits V) + 6 * n := by ring
-  have h6n : 6 * n ≤ 6 * n * Dynamic.logLogFactor n := by
-    calc 6 * n = 6 * n * 1 := by ring
-      _ ≤ 6 * n * Dynamic.logLogFactor n := by gcongr
+  have h6n : 6 * n ≤ 6 * n * Dynamic.logLogFactor n := Nat.le_mul_of_pos_right _ hll_n
   have hnum0 : n * (quotientBits U N + valBits V) ≤
       Dynamic.optBits U V n + 11 * n * Dynamic.logLogFactor n := by nlinarith
   have hnum : n * (quotientBits U N + valBits V) + w - 1 ≤
