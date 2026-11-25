@@ -1604,8 +1604,7 @@ private theorem allowance_recip64ResProg {Struct : Type v} {d : ℕ} (hd : 1 ≤
   · obtain ⟨hr, hwOut⟩ := mem_activeQueries_recipOuterProg_digit s _ sEnv hdOut
     unfold recipChild at hevC
     split_ifs at hevC
-    · exact allowance_recipEarly hd env sEnv (fun _ => rfl) hevC (recipOuter_w_le hwOut)
-    · exact allowance_recipEarly hd env sEnv (fun _ => rfl) hevC (recipOuter_w_le hwOut)
+    any_goals exact allowance_recipEarly hd env sEnv (fun _ => rfl) hevC (recipOuter_w_le hwOut)
     · nomatch hevC
     · rcases List.mem_cons.mp hevC with rfl | hevC
       · have hBase : AllowanceBound (Struct := Struct) d (A₀ + 4) B₀ C₀ s
