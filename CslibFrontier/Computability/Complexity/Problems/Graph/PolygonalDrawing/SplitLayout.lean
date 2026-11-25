@@ -64,12 +64,8 @@ theorem Realizes.exists_contraction_angle_lift {G : Graph} {u v : ℕ}
     have horder : ∀ i j : Fin (n + 1), i ≠ Fin.last n → j ≠ Fin.last n → i ≠ j →
         (sbtw (dir (Fin.last n)) (dir i) (dir j) ↔ j.val < i.val) := by
       intro i j hi hj hij
-      have hni : i.val < n := by
-        have hval : i.val ≠ n := fun h => hi (Fin.ext h)
-        omega
-      have hnj : j.val < n := by
-        have hval : j.val ≠ n := fun h => hj (Fin.ext h)
-        omega
+      have hni := Fin.val_lt_last hi
+      have hnj := Fin.val_lt_last hj
       have hne (i j : Fin (n + 1)) (hij : i ≠ j) : (e.symm i).val ≠ (e.symm j).val :=
         fun h => hij (e.symm.injective (Subtype.ext h))
       have h := hR.clockwise (e.symm j).val (e.symm i).val (e.symm (Fin.last n)).val
