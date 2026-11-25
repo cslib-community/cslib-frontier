@@ -147,9 +147,7 @@ def expandLabels (y : Fin (compactSize pairs) → Bool) : Fin (size pairs) → B
 theorem not_breaksPair_expandLabels (y : Fin (compactSize pairs) → Bool) :
     ¬ BreaksPair pairs (expandLabels pairs y) := by
   rintro ⟨i, hi, hj, hk⟩
-  simp only [expandLabels_left, expandLabels_right] at hi hj
-  rw [expandLabels_inter, hi, hj] at hk
-  cases hk
+  simp_all [expandLabels_left, expandLabels_right, expandLabels_inter]
 
 /-- Compressed consistency checks the fixed empty set and each rejected component, with
 intersection labels supplied by `expandLabels`. -/
@@ -166,11 +164,8 @@ private theorem conflicts_mono {n : ℕ} (sources : Fin n → Set U) (x : Fin n 
     conflicts pairs sources x y s → conflicts pairs sources x y t := by
   rintro (⟨i, hi, hl⟩ | ⟨i, hi, hl⟩ | ⟨i, hi, hl⟩)
   · exact Or.inl ⟨i, hi.trans hst, hl⟩
-  · refine Or.inr (Or.inl ⟨i, ?_, hl⟩)
-    apply Set.Subset.antisymm (Set.subset_univ _)
-    intro u _
-    have hu : u ∈ s ∪ sets pairs i := by rw [hi]; trivial
-    exact hu.elim (fun h => Or.inl (hst h)) Or.inr
+  · exact Or.inr (Or.inl ⟨i, Set.univ_subset_iff.mp
+      (hi ▸ Set.union_subset_union_left _ hst), hl⟩)
   · exact Or.inr (Or.inr ⟨i, hi.trans hst, hl⟩)
 
 /-- Checking rejected intersections adds no constraint: a rejected factor has the same conflict.
@@ -179,21 +174,18 @@ theorem invalid_expandLabels_iff {n : ℕ} (sources : Fin n → Set U) (x : Fin 
     (y : Fin (compactSize pairs) → Bool) :
     Invalid pairs sources x (expandLabels pairs y) ↔ compactInvalid pairs sources x y := by
   constructor
-  · rintro ⟨j, hj, h⟩
-    cases j with
-    | none => exact Or.inl h
-    | some j =>
-      induction j using Fin.addCases with
+  · rintro ⟨_ | j, hj, h⟩
+    · exact Or.inl h
+    · induction j using Fin.addCases with
       | left i =>
-        refine Or.inr (Or.inl ⟨i, ?_, ?_⟩)
-        · simpa only [label, expandLabels, Fin.append_left] using hj
-        · simpa only [sets, Fin.append_left] using h
+        exact Or.inr (Or.inl ⟨i, by simpa only [label, expandLabels, Fin.append_left] using hj,
+          by simpa only [sets, Fin.append_left] using h⟩)
       | right j =>
         induction j using Fin.addCases with
         | left i =>
-          refine Or.inr (Or.inr ⟨i, ?_, ?_⟩)
-          · simpa only [label, expandLabels, Fin.append_left, Fin.append_right] using hj
-          · simpa only [sets, Fin.append_left, Fin.append_right] using h
+          exact Or.inr (Or.inr ⟨i,
+            by simpa only [label, expandLabels, Fin.append_left, Fin.append_right] using hj,
+            by simpa only [sets, Fin.append_left, Fin.append_right] using h⟩)
         | right i =>
           have hconf : conflicts pairs sources x (expandLabels pairs y)
               ((pairs.get i).1 ∩ (pairs.get i).2) := by
@@ -218,23 +210,14 @@ theorem exists_filter_of_not_invalid {n : ℕ} (sources : Fin n → Set U) (x : 
     (y : Fin (size pairs) → Bool) (h : ¬ Invalid pairs sources x y) :
     ∃ F : Semifilter U, F.IsUltra ∧ (∀ i, F (sets pairs i) ↔ label pairs y i = true) ∧
       ∀ l, x l = true → F (sources l) := by
-  have hmono : ∀ i j, sets pairs i ⊆ sets pairs j →
-      label pairs y i = true → label pairs y j = true := by
-    intro i j hij hi
-    by_contra hj
-    exact h ⟨j, by simpa using hj, Or.inl ⟨i, hij, hi⟩⟩
-  have hcover : ∀ i j, sets pairs i ∪ sets pairs j = Set.univ →
-      label pairs y i = true ∨ label pairs y j = true := by
-    intro i j hij
-    by_contra h'
-    have hi : label pairs y i = false := by simpa using (not_or.mp h').1
-    have hj : label pairs y j = false := by simpa using (not_or.mp h').2
-    exact h ⟨i, hi, Or.inr (Or.inl ⟨j, hij, hj⟩)⟩
-  obtain ⟨F, hF, hl, hmax⟩ := Semifilter.exists_isUltra_of_labels
-    (sets pairs) (label pairs y) none rfl rfl hmono hcover
-  refine ⟨F, hF, hl, fun l hx => (hmax _).mpr ?_⟩
-  intro j hj hsub
-  exact h ⟨j, hj, Or.inr (Or.inr ⟨l, hsub, hx⟩)⟩
+  obtain ⟨F, hF, hl, hmax⟩ := Semifilter.exists_isUltra_of_labels (sets pairs) (label pairs y)
+    none rfl rfl
+    (fun i j hij hi => by by_contra hj; exact h ⟨j, by simpa using hj, Or.inl ⟨i, hij, hi⟩⟩)
+    (fun i j hij => by
+      by_contra h'; simp only [not_or, Bool.not_eq_true] at h'
+      exact h ⟨i, h'.1, Or.inr (Or.inl ⟨j, hij, h'.2⟩)⟩)
+  exact ⟨F, hF, hl, fun l hx => (hmax _).mpr fun j hj hsub =>
+    h ⟨j, hj, Or.inr (Or.inr ⟨l, hsub, hx⟩)⟩⟩
 
 /-- A point supplies a consistent certificate, including when the pair list is empty. -/
 noncomputable def pointLabels (u : U) (i : Fin (size pairs)) : Bool :=
@@ -251,23 +234,18 @@ noncomputable def compactPointLabels (u : U) : Fin (compactSize pairs) → Bool 
   funext j
   induction j using Fin.addCases with
   | left i =>
-    change expandLabels pairs (compactPointLabels pairs u) (left pairs i) =
-      pointLabels pairs u (left pairs i)
-    simp only [expandLabels_left, compactPointLabels, Fin.append_left]
+    simp only [show Fin.castAdd _ i = left pairs i from rfl, expandLabels_left,
+      compactPointLabels, Fin.append_left]
   | right j =>
     induction j using Fin.addCases with
     | left i =>
-      change expandLabels pairs (compactPointLabels pairs u) (right pairs i) =
-        pointLabels pairs u (right pairs i)
-      simp only [expandLabels_right, compactPointLabels, Fin.append_right]
+      simp only [show Fin.natAdd pairs.length (Fin.castAdd pairs.length i) = right pairs i from rfl,
+        expandLabels_right, compactPointLabels, Fin.append_right]
     | right i =>
-      change expandLabels pairs (compactPointLabels pairs u) (inter pairs i) =
-        pointLabels pairs u (inter pairs i)
-      rw [expandLabels_inter]
-      apply Bool.eq_iff_iff.mpr
+      rw [show Fin.natAdd pairs.length (Fin.natAdd pairs.length i) = inter pairs i from rfl,
+        expandLabels_inter, Bool.eq_iff_iff]
       simp only [compactPointLabels, Fin.append_left, Fin.append_right, pointLabels,
-        sets_left, sets_right, sets_inter, Bool.and_eq_true, decide_eq_true_eq,
-        Set.mem_inter_iff]
+        sets_left, sets_right, sets_inter, Bool.and_eq_true, decide_eq_true_eq, Set.mem_inter_iff]
 
 /-- The extended point certificate labels `i` by `true` if and only if `u ∈ sets pairs i`. -/
 @[simp] theorem label_pointLabels (u : U) (i : Option (Fin (size pairs))) :
@@ -280,30 +258,16 @@ noncomputable def compactPointLabels (u : U) : Fin (compactSize pairs) → Bool 
 theorem not_invalid_pointLabels {n : ℕ} (sources : Fin n → Set U) (x : Fin n → Bool)
     (u : U) (hx : ∀ l, x l = true → u ∈ sources l) :
     ¬ Invalid pairs sources x (pointLabels pairs u) := by
-  rintro ⟨j, hj, h | h | h⟩
-  · obtain ⟨i, hij, hi⟩ := h
-    have := (label_pointLabels pairs u j).mpr (hij ((label_pointLabels pairs u i).mp hi))
-    simp_all
-  · obtain ⟨k, hjk, hk⟩ := h
-    have hu : u ∈ sets pairs j ∪ sets pairs k := hjk ▸ Set.mem_univ u
-    rcases hu with hu | hu
-    · have := (label_pointLabels pairs u j).mpr hu
-      simp_all
-    · have := (label_pointLabels pairs u k).mpr hu
-      simp_all
-  · obtain ⟨l, hlj, hl⟩ := h
-    have := (label_pointLabels pairs u j).mpr (hlj (hx l hl))
-    simp_all
+  rintro ⟨j, hj, ⟨i, hij, hi⟩ | ⟨k, hjk, hk⟩ | ⟨l, hlj, hl⟩⟩
+  all_goals simp only [Bool.eq_false_iff, ne_eq, label_pointLabels] at *
+  · exact hj (hij hi)
+  · exact (hjk ▸ Set.mem_univ u).elim hj hk
+  · exact hj (hlj (hx l hl))
 
 /-- Point membership preserves every intersection pair. -/
 theorem not_breaksPair_pointLabels (u : U) : ¬ BreaksPair pairs (pointLabels pairs u) := by
   rintro ⟨i, hi, hj, hk⟩
-  have hi' : u ∈ (pairs.get i).1 := by simpa [pointLabels] using hi
-  have hj' : u ∈ (pairs.get i).2 := by simpa [pointLabels] using hj
-  have hk' : pointLabels pairs u (inter pairs i) = true := by
-    simpa only [pointLabels, sets_inter, decide_eq_true_eq, Set.mem_inter_iff] using
-      And.intro hi' hj'
-  simp_all
+  simp_all [pointLabels]
 
 end Cslib.Circuits.Fusion.PairCertificate
 
@@ -320,23 +284,15 @@ theorem PairCover.invalid_or_breaksPair {X : Type*} {n : ℕ} {target : Set X}
       BreaksPair c.pairs y := by
   classical
   by_contra h
-  obtain ⟨F, hF, hl, ha⟩ := exists_filter_of_not_invalid c.pairs _ _ y (not_or.mp h).1
-  let w : SemifilterWitness target input Semifilter.IsUltra :=
-    ⟨x, F, hF, fun i hi => ha i (by simpa using hi)⟩
-  apply c.isCover w
-  intro p hp hleft hright
+  obtain ⟨h1, h2⟩ := not_or.mp h
+  obtain ⟨F, hF, hl, ha⟩ := exists_filter_of_not_invalid c.pairs _ _ y h1
+  refine c.isCover ⟨x, F, hF, fun i hi => ha i (by simpa using hi)⟩ fun p hp hleft hright => ?_
   obtain ⟨i, rfl⟩ := List.mem_iff_get.mp hp
   by_contra hinter
-  have hi : y (left c.pairs i) = true :=
-    (hl (some (left c.pairs i))).mp (by simpa using hleft)
-  have hj : y (right c.pairs i) = true :=
-    (hl (some (right c.pairs i))).mp (by simpa using hright)
-  have hk : y (inter c.pairs i) = false := by
-    by_contra hk
-    apply hinter
-    have := (hl (some (inter c.pairs i))).mpr (by simpa [label] using hk)
-    simpa using this
-  exact (not_or.mp h).2 ⟨i, hi, hj, hk⟩
+  refine h2 ⟨i, (hl (some (left c.pairs i))).mp (by simpa using hleft),
+    (hl (some (right c.pairs i))).mp (by simpa using hright), ?_⟩
+  by_contra hk
+  exact hinter (by simpa using (hl (some (inter c.pairs i))).mpr (by simpa [label] using hk))
 
 end Cslib.Circuits.Fusion
 

@@ -70,12 +70,8 @@ theorem tcCode_parts {P : CounterProgram} {b base k : ℕ} {src dst : Fin k → 
   simp only [tcCode, codeAt_append, codeAt_cons, List.length_append, length_assignChain,
     List.length_cons, List.length_nil, length_guessCode] at hP
   obtain ⟨⟨⟨⟨⟨⟨h1, h2, h3, h4, -⟩, h5⟩, h6⟩, h7⟩, h8⟩, h9, -⟩ := hP
-  refine ⟨h1, h2, h3, h4, ?_, ?_, ?_, ?_, ?_⟩
-  · convert h5 using 2
-  · convert h6 using 2
-  · convert h7 using 1; omega
-  · convert h8 using 1; omega
-  · convert h9 using 2; omega
+  exact ⟨h1, h2, h3, h4, by convert h5 using 2, by convert h6 using 2,
+    by convert h7 using 1; omega, by convert h8 using 1; omega, by convert h9 using 2; omega⟩
 
 section Loop
 
@@ -115,18 +111,14 @@ theorem loop_init (hP : P.CodeAt b (tcCode b base k src dst M body T R))
   obtain ⟨regs₁, hr₁, hlen₁, hout₁, hin₁, hB₁⟩ := reaches_loadCode (w := w)
     (codeAt_padded b (assignsCode b base k (fun i => if h : i < k then src ⟨i, h⟩ else const 0)))
     (by omega) hnB hB hsrc
-  have hr₁' : P.Reaches w (P.Oblivious B) (b, 0 :: regs₀) (b + k, 0 :: regs₁) :=
-    Reaches.unpad (Nat.zero_le B) (assignChain_eq b base k _ ▸ hc) hr₁
-  refine ⟨regs₁.set (base + 2 * k + 1) 0,
-    hr₁'.trans (Reaches.sassign h2 (Nat.zero_le B) hB₁ (Reaches.refl _)), ⟨?_, ?_, ?_⟩, ?_, ?_, ?_⟩
-  · rw [List.length_set, hlen₁]
-  · intro j hj
-    rw [List.getD_set_ne (by omega), hout₁ j (by omega)]
-  · exact List.forall_mem_set_of_forall_mem hB₁ (Nat.zero_le B)
-  · rw [List.length_set, hlen₁]; exact hlen
-  · intro i
-    rw [List.getD_set_ne (by omega), hin₁ i]
-  · exact List.getD_set_self (by omega)
+  refine ⟨regs₁.set (base + 2 * k + 1) 0, (Reaches.unpad (Nat.zero_le B)
+    (assignChain_eq b base k _ ▸ hc) hr₁).trans
+    (Reaches.sassign h2 (Nat.zero_le B) hB₁ (Reaches.refl _)),
+    ⟨by rw [List.length_set, hlen₁],
+      fun j hj => by rw [List.getD_set_ne (by omega), hout₁ j (by omega)],
+      List.forall_mem_set_of_forall_mem hB₁ (Nat.zero_le B)⟩,
+    by rw [List.length_set, hlen₁]; exact hlen,
+    fun i => by rw [List.getD_set_ne (by omega), hin₁ i], List.getD_set_self (by omega)⟩
 
 /-- Copy the decoded successor into the current tuple and count the step. -/
 private theorem loop_copy (hP : P.CodeAt b (tcCode b base k src dst M body T R))
@@ -137,29 +129,21 @@ private theorem loop_copy (hP : P.CodeAt b (tcCode b base k src dst M body T R))
       (b + k + 1, 0 :: regs) ∧ LoopInv n B base k regs₀ ws (t + 1) regs := by
   obtain ⟨-, -, -, -, -, -, -, hc, hinc⟩ := tcCode_parts hP
   obtain ⟨⟨hk₀, hlen₃, hu₃, ht₃⟩, hw₃⟩ := hmid
-  have hlen₄ : base + 2 * k + 2 ≤ regs₄.length := by rw [hk.length_eq]; exact hlen₃
-  have hw₄ : ∀ i : Fin k, regs₄.getD (base + k + i) 0 = ws i := fun i => by
-    rw [hk.getD_eq _ (by omega), hw₃]
+  have hlen₄ : base + 2 * k + 2 ≤ regs₄.length := hk.length_eq.symm ▸ hlen₃
   obtain ⟨regs₅, hr₅, hlen₅, hout₅, hin₅, hB₅⟩ := reaches_assignChain (w := w) hc (by omega)
-    (fun i hi regs' h => by
-      simp only [eval_reg]
-      exact h _ (by omega)) hk.bounded
-    (fun i hi => by simp only [eval_reg]; exact List.getD_le_of_forall_le hk.bounded _)
+    (fun i hi regs' h => by simpa only [eval_reg] using h _ (by omega)) hk.bounded
+    (fun i hi => by simpa only [eval_reg] using List.getD_le_of_forall_le hk.bounded _)
   have ht₅ : regs₅.getD (base + 2 * k + 1) 0 = t := by
     rw [hout₅ _ (by omega), hk.getD_eq _ (by omega), ht₃]
-  refine ⟨regs₅.set (base + 2 * k + 1) (t + 1), hr₅.trans ?_, ⟨?_, ?_, ?_⟩, ?_, ?_, ?_⟩
+  refine ⟨regs₅.set (base + 2 * k + 1) (t + 1), hr₅.trans ?_,
+    ⟨by rw [List.length_set, hlen₅, hk.length_eq, hk₀.length_eq], fun j hj => by
+      rw [List.getD_set_ne (by omega), hout₅ j (by omega), hk.getD_eq j (by omega),
+        hk₀.getD_eq j hj],
+      List.forall_mem_set_of_forall_mem hB₅ (by omega)⟩,
+    by rw [List.length_set, hlen₅]; exact hlen₄, fun i => ?_, List.getD_set_self (by omega)⟩
   · rw [show b + 2 * k + 7 + body.length + k = b + 3 * k + 7 + body.length by omega]
     cp_step [ht₅]
-  · rw [List.length_set, hlen₅, hk.length_eq, hk₀.length_eq]
-  · intro j hj
-    rw [List.getD_set_ne (by omega), hout₅ j (by omega), hk.getD_eq j (by omega), hk₀.getD_eq j hj]
-  · exact List.forall_mem_set_of_forall_mem hB₅ (by omega)
-  · rw [List.length_set, hlen₅]; exact hlen₄
-  · intro i
-    rw [List.getD_set_ne (by omega), hin₅ i i.isLt]
-    simp only [eval_reg]
-    exact hw₄ i
-  · exact List.getD_set_self (by omega)
+  · rw [List.getD_set_ne (by omega), hin₅ i i.isLt, eval_reg, hk.getD_eq _ (by omega), hw₃]
 
 variable {us : Fin k → Fin n} {t M₀ : ℕ} {regs : List ℕ} {z₀ : Fin k → Fin n}
 
@@ -211,15 +195,12 @@ private theorem loop_decode (hP : P.CodeAt b (tcCode b base k src dst M body T R
     (by rw [List.getD_set_ne (by omega)]; exact (hinv.kept.getD_eq 0 hbase).trans h0) hnB
     (List.forall_mem_set_of_forall_mem hinv.kept.bounded (g.isLt.le.trans hNB)) g
     (List.getD_set_self (by omega))
-  refine ⟨regs₃, by rw [show b + 2 * k + 7 = b + k + 7 + k by omega]; exact hr,
-    ⟨⟨?_, ?_, hB₃⟩, ?_, ?_, ?_⟩, hin⟩
-  · rw [hlen₃, List.length_set, hinv.kept.length_eq]
-  · intro j hj
-    rw [hout j (by omega), List.getD_set_ne (by omega), hinv.kept.getD_eq j hj]
-  · rw [hlen₃, List.length_set]; exact hlen
-  · intro i
-    rw [hout _ (by omega), List.getD_set_ne (by omega), hinv.cur i]
-  · rw [hout _ (by omega), List.getD_set_ne (by omega), hinv.counter]
+  refine ⟨regs₃, by rwa [show b + 2 * k + 7 = b + k + 7 + k by omega],
+    ⟨⟨by rw [hlen₃, List.length_set, hinv.kept.length_eq],
+      fun j hj => by rw [hout j (by omega), List.getD_set_ne (by omega), hinv.kept.getD_eq j hj],
+      hB₃⟩, by rw [hlen₃, List.length_set]; exact hlen,
+      fun i => by rw [hout _ (by omega), List.getD_set_ne (by omega), hinv.cur i],
+      by rw [hout _ (by omega), List.getD_set_ne (by omega), hinv.counter]⟩, hin⟩
 
 variable {E : (Fin k → Fin n) → (Fin k → Fin n) → Prop} {s₀ : Fin k → Fin n}
 
@@ -247,27 +228,26 @@ theorem loop_sound (hP : P.CodeAt b (tcCode b base k src dst M body T R)) (hbase
     by_cases heq : us = z₀
     · exact Sound.of_oblivious hB1 (loop_test_eq hP hinv hdst heq)
         (Sound.exit ⟨hinv.kept, heq ▸ hpath.mono ht⟩)
-    · refine Sound.of_oblivious hB1
-        ((loop_test_ne hP hinv hdst heq).trans (loop_bound_ge hP hM hinv (by omega))) ?_
-      exact Sound.halt hB1 hR (fun _ => hPost _ rfl) hinv.kept.bounded
+    · exact Sound.of_oblivious hB1
+        ((loop_test_ne hP hinv hdst heq).trans (loop_bound_ge hP hM hinv (by omega)))
+        (Sound.halt hB1 hR (fun _ => hPost _ rfl) hinv.kept.bounded)
   | succ e ih =>
     intro t us regs he ht hinv hpath
     by_cases heq : us = z₀
     · exact Sound.of_oblivious hB1 (loop_test_eq hP hinv hdst heq)
         (Sound.exit ⟨hinv.kept, heq ▸ hpath.mono ht⟩)
-    refine Sound.of_oblivious hB1
-      ((loop_test_ne hP hinv hdst heq).trans (loop_bound_lt hP hM hinv (by omega))) ?_
     have hNe := eval_pow_reg0 (k := k) ((hinv.kept.getD_eq 0 hbase).trans h0)
-    refine (Sound.guess hB1 hguess hR hPost (by have := hinv.le_length; omega)
-      (fun y => by simp only [eval_pow, eval_reg]; rw [List.getD_set_ne (by omega)])
-      (hNe ▸ hNB) hinv.kept.bounded).bind ?_
+    refine Sound.of_oblivious hB1
+      ((loop_test_ne hP hinv hdst heq).trans (loop_bound_lt hP hM hinv (by omega)))
+      ((Sound.guess hB1 hguess hR hPost (by have := hinv.le_length; omega)
+        (fun _ => by simp only [eval_pow, eval_reg]; rw [List.getD_set_ne (by omega)])
+        (hNe ▸ hNB) hinv.kept.bounded).bind ?_)
     rintro _ ⟨m, hm, rfl⟩
-    rw [hNe] at hm
-    obtain ⟨regs₃, hr₃, hmid⟩ := loop_decode hP hbase hnB hNB h0 hinv ⟨m, hm⟩
+    obtain ⟨regs₃, hr₃, hmid⟩ := loop_decode hP hbase hnB hNB h0 hinv ⟨m, hNe ▸ hm⟩
     refine Sound.of_oblivious hB1 hr₃ ((hbody us _ t regs₃ hmid).bind fun regs₄ ⟨hk₄, hE⟩ => ?_)
     obtain ⟨regs₅, hr₅, hinv₅⟩ := loop_copy (w := w) hP hmid hk₄ (by omega)
     exact Sound.of_oblivious hB1 hr₅ (ih (t + 1) _ regs₅ (by omega) (by omega) hinv₅
-      (hpath.trans (Relation.RelatesWithinSteps.single hE)))
+      (hpath.trans (.single hE)))
 
 /-- **Completeness of the closure loop**: from a state with step counter `t`, a path of `m` steps
 to the target with `t + m ≤ M₀` gives a branch reaching `T`. -/
@@ -286,20 +266,20 @@ theorem loop_complete (hP : P.CodeAt b (tcCode b base k src dst M body T R)) (hb
   intro m
   induction m with
   | zero =>
-    intro t us regs h ht hinv
-    exact Complete.of_oblivious (loop_test_eq hP hinv hdst h.zero) (Complete.refl hinv.kept)
+    exact fun _ _ _ h _ hinv =>
+      Complete.of_oblivious (loop_test_eq hP hinv hdst h.zero) (Complete.refl hinv.kept)
   | succ m ih =>
     intro t us regs h ht hinv
     by_cases heq : us = z₀
     · exact Complete.of_oblivious (loop_test_eq hP hinv hdst heq) (Complete.refl hinv.kept)
     obtain ⟨u₁, he, hrest⟩ := h.succ'
-    refine Complete.of_oblivious
-      ((loop_test_ne hP hinv hdst heq).trans (loop_bound_lt hP hM hinv (by omega))) ?_
     have hNe := eval_pow_reg0 (k := k) ((hinv.kept.getD_eq 0 hbase).trans h0)
-    refine (Complete.guess hguess (by have := hinv.le_length; omega)
-      (fun y => by simp only [eval_pow, eval_reg]; rw [List.getD_set_ne (by omega)])
-      (hNe ▸ hNB) hinv.kept.bounded (m := finFunctionFinEquiv u₁)
-      (by rw [hNe]; exact (finFunctionFinEquiv u₁).isLt)).bind ?_
+    refine Complete.of_oblivious
+      ((loop_test_ne hP hinv hdst heq).trans (loop_bound_lt hP hM hinv (by omega)))
+      ((Complete.guess hguess (by have := hinv.le_length; omega)
+        (fun _ => by simp only [eval_pow, eval_reg]; rw [List.getD_set_ne (by omega)])
+        (hNe ▸ hNB) hinv.kept.bounded (m := finFunctionFinEquiv u₁)
+        (hNe.symm ▸ (finFunctionFinEquiv u₁).isLt)).bind ?_)
     rintro _ rfl
     obtain ⟨regs₃, hr₃, hmid⟩ := loop_decode hP hbase hnB hNB h0 hinv (finFunctionFinEquiv u₁)
     rw [Equiv.symm_apply_apply] at hmid
