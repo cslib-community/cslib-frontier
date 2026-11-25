@@ -56,25 +56,18 @@ theorem exec_accumulate_quarters {w p k a b out scratch frames frame A B : ℕ}
     (by simpa only [hc.product_eq] using hprod)
     (by rw [hx.output_eq, hc.product_eq]; exact haddr.of_le (by unfold addressBound; omega))
     (Or.inr (by rw [hx.output_eq, hc.product_eq]; omega))
-  refine ⟨y, hy, hx.of_regs_eq (fun i hi _ => regs i hi (by
-    intro he; subst i; contradiction)), hc.of_regs_eq (fun i hi _ => regs i (by omega) (by
-    intro he; subst i; contradiction)), ?_, ?_⟩
-  · intro s j hj
-    by_cases he : s = t
-    · subst s
-      simpa only [hx.output_eq, ite_true] using values j hj
-    · have hne : s.val ≠ t.val := fun h => he (Fin.ext h)
-      have hsep : out + s.val * q + j < out + t.val * q ∨
-          out + t.val * q + q ≤ out + s.val * q + j := by
-        rcases lt_or_gt_of_ne hne with hlt | hgt
-        · have hm := Nat.mul_le_mul_right q (Nat.succ_le_of_lt hlt)
-          rw [Nat.succ_mul] at hm
-          omega
-        · have hm := Nat.mul_le_mul_right q (Nat.succ_le_of_lt hgt)
-          rw [Nat.succ_mul] at hm
-          omega
-      rw [frameMem _ (by simpa only [hx.output_eq] using hsep), hout s j hj, ite_eq_right he]
-  · intro d hd
-    exact frameMem d (by simpa only [hx.output_eq] using hd)
+  refine ⟨y, hy, hx.of_regs_eq (fun i hi _ => regs i hi (by rintro rfl; contradiction)),
+    hc.of_regs_eq (fun i hi _ => regs i (by omega) (by rintro rfl; contradiction)), ?_,
+    fun d hd => frameMem d (by simpa only [hx.output_eq] using hd)⟩
+  intro s j hj
+  by_cases he : s = t
+  · subst s
+    simpa only [hx.output_eq, ite_true] using values j hj
+  · have hstep {m n : ℕ} (h : m < n) : m * q + q ≤ n * q :=
+      Nat.succ_mul m q ▸ Nat.mul_le_mul_right q h
+    have hsep : out + s.val * q + j < out + t.val * q ∨
+        out + t.val * q + q ≤ out + s.val * q + j := by
+      rcases lt_or_gt_of_ne (Fin.val_ne_of_ne he) with h | h <;> have := hstep h <;> omega
+    rw [frameMem _ (by simpa only [hx.output_eq] using hsep), hout s j hj, ite_eq_right he]
 
 end Cslib.Algorithms.WordRAM.Strassen
