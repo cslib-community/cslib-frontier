@@ -146,9 +146,9 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
         · change ValidWhpSlice n_max (fs.rebInsCount + 1)
             (Function.update fs.slices rIdx sl' rIdx) _
           rw [Function.update_self]; exact hins.2
-        · rw [show min (fs.bktCount b) cur = cur by omega] at hrr0
+        · rw [Nat.min_eq_right hact.1.le] at hrr0
           change SliceMapRel _ _ (min (fs.bktCount b) (cur + 1)) _
-          rw [hfp1, show min (fs.bktCount b) (cur + 1) = cur + 1 by omega]
+          rw [hfp1, Nat.min_eq_right (Nat.succ_le_of_lt hact.1)]
           exact SliceMapRel.step_true hrr0 hact.2 fun loc hlt hp =>
             fun heq => Nat.ne_of_lt hlt (hinj_all loc (hlt.trans hact.1) cur hact.1 hp hact.2 heq)
     · rw [ite_eq_right hact]
@@ -158,8 +158,8 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
         (fun loc => fs.locState b loc = 1 ∨ fs.locState b loc = 2 + fs.oldEp)
         (min (fs.bktCount b) (cur + 1)) rm0
       by_cases hlt_cnt : cur < fs.bktCount b
-      · rw [show min (fs.bktCount b) cur = cur by omega] at hrr0
-        rw [show min (fs.bktCount b) (cur + 1) = cur + 1 by omega]
+      · rw [Nat.min_eq_right hlt_cnt.le] at hrr0
+        rw [Nat.min_eq_right (Nat.succ_le_of_lt hlt_cnt)]
         exact SliceMapRel.step_false hrr0 fun hp => hact ⟨hlt_cnt, hp⟩
       · rwa [show min (fs.bktCount b) (cur + 1) = min (fs.bktCount b) cur by omega]
 
