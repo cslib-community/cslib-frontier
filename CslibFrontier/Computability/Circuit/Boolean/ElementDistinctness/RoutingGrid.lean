@@ -81,7 +81,7 @@ private def coded {t h r : ℕ} {C : Type*} (upper : t ≤ 4 * r)
     cases hb
     rfl
 
-private theorem terminal_load {t h r : ℕ} {C : Type*} [Finite C] (upper : t ≤ 4 * r)
+private theorem terminal_load {t h r : ℕ} {C : Type*} (upper : t ≤ 4 * r)
     (addr : Fin (2 ^ h) ≃ Fin r × C) (s : Fin r × Fin r × C) :
     let f (l : RoutingSlot t h) := (coded upper addr l).1
     Nat.card {i // Sum.elim f f i = s} ≤ 8 * h := by
