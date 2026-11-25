@@ -223,14 +223,13 @@ private theorem findSome_isSome_of_family {d : ℕ} (C : Circuit (fullSignature 
   have hx : ∀ w, (S.phi fun y => if decide (y ∈ S.params) then σ (List.ofFn w) y else
       evaluateAux S y (σ (List.ofFn w))) = g w :=
     fun w => hS.phi_congr _ _ fun j hj => by simp [hj]
-  have key : ∃ w, C.eval fullInterpretation (g w) 0 ≠ f (g w) := by
-    by_cases hu : C.eval fullInterpretation (g u) 0 = f (g u)
-    · exact ⟨v, fun hv => huv (by rw [← hu, ← hv, hval, hval])⟩
-    · exact ⟨u, hu⟩
-  obtain ⟨w, hw⟩ := key
+  obtain ⟨w, hw⟩ : ∃ w, C.eval fullInterpretation (g w) 0 ≠ f (g w) :=
+    if hu : C.eval fullInterpretation (g u) 0 = f (g u) then
+      ⟨v, fun hv => huv (by rw [← hu, ← hv, hval, hval])⟩
+    else ⟨u, hu⟩
   refine List.findSome?_isSome_iff.2
     ⟨List.ofFn w, mem_allAssignments (A := List.ofFn w) (by simp), ?_⟩
-  simp only [hx w]
+  rw [hx w]
   simp [hw]
 
 private theorem terminalVal_coord {S : State n} {L : List ℕ} (hLn : L.Nodup)
@@ -335,26 +334,12 @@ theorem fixArg_spec {g : Gate} (hg : ¬ IsAffineOp g.op) {a w : ℕ} (haw : a �
   obtain ⟨α, β, γ, H⟩ := exists_and_form hg
   rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩
   · simp only [fixArg, hr, ite_true] at hw ⊢
-    rw [Gate.eval_of_args hl hr, hw]
-    have hβ : β = !decide (g.op false false = g.op true false) := by
-      rw [H false false, H true false]
-      cases α <;> cases β <;> cases γ <;> rfl
-    have H2 : g.op false β = γ := by
-      rw [H]
-      cases α <;> cases β <;> cases γ <;> rfl
-    rw [← hβ, H, H2]
-    cases α <;> cases β <;> cases γ <;> cases val a <;> rfl
+    rw [Gate.eval_of_args hl hr, hw, H false false, H true false, H, H]
+    cases α <;> cases β <;> cases γ <;> cases val a <;> decide
   · have hr' : g.right ≠ .node w := by rw [hr]; simpa using haw
     simp only [fixArg, hr', ite_false] at hw ⊢
-    rw [Gate.eval_of_args hl hr, hw]
-    have hα : α = !decide (g.op false false = g.op false true) := by
-      rw [H false false, H false true]
-      cases α <;> cases β <;> cases γ <;> rfl
-    have H2 : g.op α false = γ := by
-      rw [H]
-      cases α <;> cases β <;> cases γ <;> rfl
-    rw [← hα, H, H2]
-    cases α <;> cases β <;> cases γ <;> cases val a <;> rfl
+    rw [Gate.eval_of_args hl hr, hw, H false false, H false true, H, H]
+    cases α <;> cases β <;> cases γ <;> cases val a <;> decide
 
 /-- Inversion of `findAndOnPair S = some (G, p)`. -/
 theorem findAndOnPair_eq_some {S : State n} {G p : ℕ} (h : findAndOnPair S = some (G, p)) :

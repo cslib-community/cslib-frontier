@@ -1095,13 +1095,12 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
     (honestProposer (Params.default K T)).init B.init
   change _ * lawFrom law (T + 1) [] true ≤
     ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true + _ at hacc
-  change 2 / 3 ≤ ev law (output (T + 1)) true at hyes
   change 3 / 5 ≤ ev law (run (Params.default K T) (honestProposer (Params.default K T)) B) true
-  rw [ev_output] at hyes
   have hfin := PMF.apply_ne_top
     (ev law (run (Params.default K T) (honestProposer (Params.default K T)) B)) true
   have hyes' : (2 / 3 : ℝ) ≤ (lawFrom law (T + 1) [] true).toReal := by
-    simpa using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
+    rw [← ev_output]
+    simpa [ev] using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
   have hreal := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hfin, by
     simp [ENNReal.mul_eq_top]⟩) hacc
   rw [ENNReal.toReal_add hfin (by simp [ENNReal.mul_eq_top]), ENNReal.toReal_mul,
@@ -1109,8 +1108,7 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
     ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_natCast] at hreal
   have hslack : (1 - 1 / 100 : ℝ) * ((T + 1 : ℕ) : ℝ) * (1 / (100 * (T + 1))) = 99 / 10000 := by
     push_cast
-    field_simp
-    ring
+    field_simp; ring
   rw [hslack] at hreal
   rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin]
   linarith [show ((3 / 5 : ℝ≥0∞)).toReal = 3 / 5 by simp]
@@ -1143,7 +1141,6 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     (honestChallenger (Params.default K T)).init
   change _ * rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≤
     ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) false at hrej
-  change ev law (output (T + 1)) true ≤ 1 / 3 at hno
   change ev law (run (Params.default K T) A (honestChallenger (Params.default K T))) true ≤ 2 / 5
   have hclose := hL (bestLaw law (5 / (100 * (K : ℝ))) T) (ENNReal.ofReal (5 / (100 * (K : ℝ))))
     (fun bits => closeTo_bestLaw law (by positivity) T bits) {false}
@@ -1152,11 +1149,10 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     ev (bestLaw law (5 / (100 * (K : ℝ))) T) (output (T + 1)) false + _ at hclose
   rw [ev_output (bestLaw law (5 / (100 * (K : ℝ))) T),
     lawFrom_bestLaw law (5 / (100 * (K : ℝ))) T (T + 1) [] (by simp)] at hclose
-  have hU := rejectValue_le_one law (5 / (100 * (K : ℝ))) (T + 1) []
   have hUtop : rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≠ ⊤ :=
-    ne_top_of_le_ne_top ENNReal.one_ne_top hU
+    ne_top_of_le_ne_top ENNReal.one_ne_top (rejectValue_le_one law _ (T + 1) [])
   have hno' : ((ev law (output (T + 1))) true).toReal ≤ 1 / 3 := by
-    simpa using ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
+    simpa [ev] using ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
   have hout := Probability.PMF.toReal_true_add_toReal_false (ev law (output (T + 1)))
   have hrun := Probability.PMF.toReal_true_add_toReal_false
     (ev law (run (Params.default K T) A (honestChallenger (Params.default K T))))
@@ -1178,16 +1174,11 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
       push_cast
       field_simp
     rw [hcast, ← sub_eq_add_neg, ← sub_eq_add_neg] at h
-    exact (show (99 / 100 : ℝ) = 1 - 1 / 100 by norm_num).trans_le h
+    linarith
   have hU' : (37 / 60 : ℝ) ≤ (rejectValue law (5 / (100 * (K : ℝ))) (T + 1) []).toReal := by
     linarith
-  have hprod : (99 / 100 : ℝ) * (99 / 100) * (37 / 60) ≤
-      (1 - 1 / 100) * (1 - 1 / (100 * ((T : ℝ) + 1))) ^ (T + 1) *
-        (rejectValue law (5 / (100 * (K : ℝ))) (T + 1) []).toReal :=
-    mul_le_mul (mul_le_mul (by norm_num) hbern (by norm_num) (by norm_num)) hU' (by norm_num)
-      (mul_nonneg (by norm_num) (le_trans (by norm_num) hbern))
   rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _)
     (ENNReal.div_ne_top (by simp) (by simp))]
-  linarith [show ((2 / 5 : ℝ≥0∞)).toReal = 2 / 5 by simp]
+  nlinarith [hbern, hU', show ((2 / 5 : ℝ≥0∞)).toReal = 2 / 5 by simp]
 
 end Cslib.Interactive.Debate

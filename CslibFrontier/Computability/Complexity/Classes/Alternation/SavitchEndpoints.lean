@@ -152,28 +152,17 @@ theorem iterate_midpointStep (i : ℕ) (u v z : List Bool) :
   induction i generalizing u v z with
   | zero => simp [lastMidpoint]
   | succ i ih =>
-    have hdrop : (z.drop (2 * w + 2)).drop ((2 * w + 2) * i) = z.drop ((2 * w + 2) * (i + 1)) := by
-      rw [List.drop_drop]
-      congr 1
-      ring
-    have hstep : midpointStep w (u, v, z) = if z.getD (2 * w + 1) false then
+    rw [Function.iterate_succ_apply, lastMidpoint, lastMidpoint]
+    change (midpointStep w)^[i] (if z.getD (2 * w + 1) false then
         (midpointMoves w z, v, z.drop (2 * w + 2))
-      else (u, midpointMoves w z, z.drop (2 * w + 2)) := rfl
-    rw [Function.iterate_succ_apply, hstep]
-    by_cases h : z.getD (2 * w + 1) false = true
-    · simp only [h, ite_true]
-      rw [ih, hdrop]
-      cases hl : lastMidpoint w i (z.drop (2 * w + 2)) true <;>
-        cases hr : lastMidpoint w i (z.drop (2 * w + 2)) false <;>
-        simp only [lastMidpoint, h, hl, hr, Bool.true_eq_false, ite_true, ite_false,
-          Option.none_or, Option.some_or, Option.getD_some, Option.getD_none]
-    · have h' : z.getD (2 * w + 1) false = false := by simpa using h
-      simp only [h', Bool.false_eq_true, ite_false]
-      rw [ih, hdrop]
-      cases hl : lastMidpoint w i (z.drop (2 * w + 2)) true <;>
-        cases hr : lastMidpoint w i (z.drop (2 * w + 2)) false <;>
-        simp only [lastMidpoint, h', hl, hr, Bool.false_eq_true, ite_true, ite_false,
-          Option.none_or, Option.some_or, Option.getD_some, Option.getD_none]
+      else (u, midpointMoves w z, z.drop (2 * w + 2))) = _
+    cases z.getD (2 * w + 1) false
+    · rw [ite_eq_right Bool.false_ne_true, ih, drop_drop_level]
+      cases lastMidpoint w i (z.drop (2 * w + 2)) true <;>
+        cases lastMidpoint w i (z.drop (2 * w + 2)) false <;> rfl
+    · rw [ite_eq_left rfl, ih, drop_drop_level]
+      cases lastMidpoint w i (z.drop (2 * w + 2)) true <;>
+        cases lastMidpoint w i (z.drop (2 * w + 2)) false <;> rfl
 
 /-- **The midpoint game depends on two levels.** The existential player wins a play of the
 midpoint game at level `i` between `u` and `v` exactly when the edge test accepts the midpoint of

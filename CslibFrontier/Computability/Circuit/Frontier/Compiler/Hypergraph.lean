@@ -91,13 +91,8 @@ private theorem supplyRate_pos_and_inv {r K₀ : ℕ} {a b : ℚ} (hcert : Hyper
     0 < supplyRate r a b ∧ 1 / supplyRate r a b = (hyperCoeff r a b : ℝ) ∧
       0 < (((r + 1 : ℕ) : ℝ) * a + b) ∧ 0 < 1 - max (b : ℝ) (-a) := by
   have hr2 : (2 : ℝ) ≤ r := Nat.ofNat_le_cast.mpr hcert.hr
-  have hc_s : 0 < (((r + 1 : ℕ) : ℝ) * a + b) := by
-    have h := (Rat.cast_pos (K := ℝ)).mpr hcert.hdenom
-    push_cast at h ⊢
-    linarith
-  have hc_n : max (b : ℝ) (-a) < 1 := by
-    have h := (Rat.cast_lt (K := ℝ)).mpr hcert.hnum
-    simpa only [Rat.cast_max, Rat.cast_neg, Rat.cast_one] using h
+  have hc_s : 0 < (((r + 1 : ℕ) : ℝ) * a + b) := by exact_mod_cast hcert.hdenom
+  have hc_n : max (b : ℝ) (-a) < 1 := by exact_mod_cast hcert.hnum
   refine ⟨div_pos hc_s (mul_pos (by linarith) (sub_pos.mpr hc_n)), ?_, hc_s, sub_pos.mpr hc_n⟩
   unfold supplyRate hyperCoeff
   rw [one_div_div]
@@ -727,13 +722,11 @@ theorem eventually_agreement_le_44199_two_mul_innerSize {ε : ℝ} (hε : 0 < ε
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) := by
   obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_innerSize_of_cert.{u, v} cert_r3_slepian hε
   refine ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => ?_⟩
-  have hL : (44199 / 10000 : ℝ) ≤
-      (hyperCoeff 3 (17970677 / 100000000) (-18502061 / 100000000) : ℝ) := by
-    norm_num [hyperCoeff]
   filter_upwards [H U S K b_bias hbias hK] with n hn σ I Acc c hfan hs
   rw [show (2 : ℝ) = (3 : ℝ) - 1 by norm_num] at hs
   exact hn σ I Acc c hfan
-    (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
+    (hs.trans (mul_le_mul_of_nonneg_right
+      (sub_le_sub_right (by norm_num [hyperCoeff]) ε) (Nat.cast_nonneg n)))
 
 /-! #### Fan-in `r = 4` (Sheppard + star-cone: `4.4792n`) -/
 

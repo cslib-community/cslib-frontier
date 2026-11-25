@@ -49,17 +49,10 @@ function. -/
 theorem isAffine_lit_eval {α : Type*} [Add α] {τ : α → ℕ → Bool} (hτ : IsAffine τ)
     (ℓ : Lit) : IsAffine fun u => ℓ.eval (τ u) := by
   intro u v w
-  obtain ⟨_ | t, c⟩ := ℓ
-  · simp only [Lit.eval, Arg.eval_const]
-    generalize ‹Bool› = b
-    revert b c
-    decide
+  rcases ℓ with ⟨b | t, c⟩
+  · cases b <;> cases c <;> rfl
   · simp only [Lit.eval, Arg.eval_node, congrFun (hτ u v w) t, Pi.add_apply]
-    generalize τ u t = a
-    generalize τ v t = b
-    generalize τ w t = e
-    revert a b e c
-    decide
+    cases τ u t <;> cases τ v t <;> cases τ w t <;> cases c <;> rfl
 
 /-- Adding coordinate `Q`, constant `c`, and a sum over `R` of an affine family preserves
 affinity. -/
@@ -67,12 +60,8 @@ theorem isAffine_add_add_sum {α : Type*} [Add α] {τ : α → ℕ → Bool} (h
     (Q : ℕ) (c : Bool) (R : Finset ℕ) : IsAffine fun u => τ u Q + c + ∑ j ∈ R, τ u j := by
   intro u v w
   simp only [fun j => congrFun (hτ u v w) j, Pi.add_apply, Finset.sum_add_distrib]
-  generalize τ u Q = a₁
-  generalize τ v Q = a₂
-  generalize τ w Q = a₃
-  generalize ∑ j ∈ R, τ u j = b₁
-  generalize ∑ j ∈ R, τ v j = b₂
-  generalize ∑ j ∈ R, τ w j = b₃
+  generalize τ u Q = a₁, τ v Q = a₂, τ w Q = a₃,
+    ∑ j ∈ R, τ u j = b₁, ∑ j ∈ R, τ v j = b₂, ∑ j ∈ R, τ w j = b₃
   cases a₁ <;> cases a₂ <;> cases a₃ <;> cases b₁ <;> cases b₂ <;> cases b₃ <;> cases c <;> rfl
 
 namespace State
@@ -770,14 +759,11 @@ theorem Valid.swap_W_le_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : B
               ⟨huS₁, fun hp => hup ((paired_congr (swap_pairs S x Q c T)).1 hp)⟩
             have hu0 : u ∈ S.unpaired := mem_unpaired.2 ⟨huS, hup⟩
             rw [wt_of_mem hu1, wt_of_mem hu0, SemiCircuit.deg, SemiCircuit.deg, swap_children]
-  have hlossSum : ∑ u ∈ insert Q S.params, (if u = x then lossX else 0) = lossX := by
-    rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_of_mem h.mem)]
-  have hgainSum : ∑ u ∈ insert Q S.params, (if u = Q then gainQ else 0) = gainQ := by
-    rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_self _ _)]
   have hs1 : S₁.s = S.s := swap_size S x Q c T
   have hq1 : S₁.q = S.q := rfl
   dsimp only [S₁] at hW hs1 hq1
-  rw [hlossSum, hgainSum, hs1, hq1] at hW
+  rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_of_mem h.mem),
+    Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_self _ _), hs1, hq1] at hW
   have hcongr_cs := congrArg (cfg.cs * ·) hs1
   have hcongr_cq := congrArg (cfg.cq * ·) hq1
   omega
