@@ -231,9 +231,9 @@ and sequence tree-wide refactors so they do not stall smaller PRs behind cold re
 
 ### Verdicts, claims and holds
 
-Every review ends in a verdict whose first line is `**APPROVE** at <sha> by <id>` or
-`**REQUEST_CHANGES** at <sha> by <id>`, where ` by <id>` may be omitted only from a formal review
-on the reviewer's own account; a request to split the PR is the latter. A reviewer first posts
+Every review ends in a verdict whose first line begins `**APPROVE** at <sha> by <id>` or
+`**REQUEST_CHANGES** at <sha> by <id>` (` by <id>` is optional only on an account that reviewer
+alone uses); a request to split the PR is the latter. A reviewer first posts
 `CLAIM review head=<sha> by=<id> until=<time>`, an exclusive lease of at most 45 minutes,
 renewable once and ended by its verdict. A hold is a line `HOLD owner=<id> until=<time>
 reason=<text>`. Do not queue during a hold or another reviewer's claim, or over a later

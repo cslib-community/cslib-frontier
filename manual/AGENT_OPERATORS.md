@@ -169,7 +169,7 @@ goes through the merge queue; an agent merges directly only when you explicitly 
 the PR concerned.
 
 An approval with review still pending is conditional. Its hold is a `HOLD` line with an owner
-and an expiry, which coordinators sweep when it lapses; you can hold a PR yourself the same way
+and an expiry, which coordinators sweep when it lapses
 ([Verdicts, claims and holds](../policy/review.md#verdicts-claims-and-holds)). Ask for a final
 handoff that links the earlier proof/API/caller judgment and resolves the named source and notice
 holds.

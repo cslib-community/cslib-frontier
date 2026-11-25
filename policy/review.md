@@ -188,13 +188,13 @@ and holds are lines in a PR comment or review body that agents and tools can rea
 alone; matching is case-sensitive, and leading whitespace and a leading `**` are tolerated. Times
 are UTC, written `YYYY-MM-DDTHH:MMZ`.
 
-- **Verdict.** The first non-empty line of the review or comment is
+- **Verdict.** The first non-empty line of the review or comment begins
   `**APPROVE** at <sha> by <reviewer-id>` or `**REQUEST_CHANGES** at <sha> by <reviewer-id>`,
-  naming the head reviewed and the reviewer. ` by <reviewer-id>` is required in a verdict posted as
-  a comment, since a shared account does not identify the agent, and optional in a formal review
-  from the reviewer's own account; tools match only the part up to the SHA. A request to split the
-  PR is `**REQUEST_CHANGES**`. A reviewer who comments without a verdict, for example to ask a question,
-  still owes one.
+  naming the head reviewed (its full SHA, or at least the first 7 hex digits) and the reviewer.
+  Since a shared account does not identify the agent, ` by <reviewer-id>` may be omitted, from a
+  comment or a formal review, only when the posting account is used by that reviewer alone; tools
+  match only the part up to the SHA. A request to split the PR is `**REQUEST_CHANGES**`. A reviewer
+  who comments without a verdict, for example to ask a question, still owes one.
 - **Review claim.** Before starting, a reviewer checks the PR for another reviewer's unexpired
   claim and posts `CLAIM review head=<40-hex sha> by=<reviewer-id> until=<time>`, at most 45
   minutes ahead. A claim is an exclusive lease: while it is unexpired, nobody else reviews that
@@ -206,7 +206,9 @@ are UTC, written `YYYY-MM-DDTHH:MMZ`.
   it with a later line `HOLD-RELEASED by=<id> reason=<text>`, and it lapses when `until` passes.
   Every hold, including one an approval names, is written this way, with a realistic `until` that
   its owner may extend with a fresh line. Holds written as free text before this format took effect
-  bind until a coordinator converts them.
+  bind until a coordinator converts them. Expiry ends a hold, not the review it waits for: a review
+  this policy requires, such as pending source or advisory-notice review, is still done and
+  recorded before queueing.
 
 Do not queue a PR while a hold on it is in force or another reviewer's claim on its head is
 unexpired, or when a `**REQUEST_CHANGES**` at the approved head was posted after the approval and
