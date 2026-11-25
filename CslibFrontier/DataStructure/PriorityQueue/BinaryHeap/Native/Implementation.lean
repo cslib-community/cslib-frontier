@@ -52,15 +52,10 @@ theorem nativeObservation_eq_some_iff {n K : ℕ} (o : IndexedMinPQ.Op n)
     nativeObservation o regs = some a ↔
       (PQCode.nativeResultType n o).decode (regs ∘ Program.code.nativeResultBank) 0 =
         some (cast (PQCode.nativeResultType_eq n K o) a) := by
-  constructor
-  · intro h
-    obtain ⟨b, hb, ha⟩ := Option.map_eq_some_iff.mp h
-    rw [← ha]
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · obtain ⟨b, hb, rfl⟩ := Option.map_eq_some_iff.mp h
     simpa only [cast_cast, cast_eq] using hb
-  · intro h
-    simp only [nativeObservation, h, Option.map_some]
-    congr 1
-    exact cast_cast ..
+  · simp only [nativeObservation, h, Option.map_some, cast_cast, cast_eq]
 
 private theorem decode_body {w n K : ℕ} (L : Memory.Layout n) (e : Memory.State)
     (o : IndexedMinPQ.Op n) (y z : Data Program.registers)
@@ -238,8 +233,7 @@ private theorem raw_exec
     bound_extend Program.initialization L hL hr₀.1 hv hbe
   obtain ⟨s', hstep, hrepY⟩ := (Backend.implementation hI).correct hr₀.1 hv hbe
   have hlY : ∀ i : Fin 4,
-      y.regs (Program.argument (i.castAdd 2)) = layoutWords ⟨n, L⟩ i := by
-    intro i
+      y.regs (Program.argument (i.castAdd 2)) = layoutWords ⟨n, L⟩ i := fun i =>
     calc
       y.regs (Program.argument (i.castAdd 2)) = x₀.regs (Program.argument (i.castAdd 2)) :=
         hframe _ (by rw [Program.argument_source]; exact Backend.src_ne_frontier _ _ _)
@@ -257,12 +251,11 @@ private theorem raw_exec
       rwa [← Program.code_frontier]
   have hrZ : Representation.Rep base hn hK s' z := hrY.congr
     (fun c _ => congrFun hmz c) (le_of_eq (congrArg Memory.State.frontier hzstate).symm) hlz hbz
-  have hdecoded : Program.code.decode (K_max := K) o z.regs =
+  obtain ⟨hdecode, hnative⟩ : Program.code.decode (K_max := K) o z.regs =
       some ((Memory.spec w).clientResult e (Memory.ops L o)) ∧
       nativeObservation (K := K) o z.regs =
         some ((Memory.spec w).clientResult e (Memory.ops L o)) := by
     cases o <;> exact decode_body L e _ y z hout hflag hvalue hkey
-  obtain ⟨hdecode, hnative⟩ := hdecoded
   have hanswer : (Memory.spec w).clientResult e (Memory.ops L o) = a := congrArg Prod.fst hrun
   have hstateY : memoryState (Backend.frontier Program.family) y =
       (Memory.spec w).clientState e (Memory.ops L o) :=
@@ -274,10 +267,9 @@ private theorem raw_exec
     have hc' : c ∉ L.footprint := by
       change c ∉ (Memory.compactLayout n base).footprint
       rwa [Memory.compactLayout_footprint]
-    have hm := hmodY c (by
+    exact (congrFun hmz c).trans (hmodY c (by
       simpa only [Memory.Framed.region_eq_footprint (Memory.framed hL) rfl,
-        Memory.framed_footprint] using hc')
-    exact (congrFun hmz c).trans hm
+        Memory.framed_footprint] using hc'))
   · rw [hzstate, hstateY]
     exact congrArg (fun e => (Memory.spec w).clientState e (Memory.ops L o)) hm₀
 
@@ -333,8 +325,7 @@ theorem subroutineImpl_exec_memoryState {w n K base : ℕ}
     (subroutineBase_rep_iff hS hK s x).mp hr
   rw [subroutineBase_argMatch] at ha
   obtain ⟨z, _, _, _, hez, _, _, _, _, _, hstate, _⟩ := raw_exec hn hK o hrep hv ha
-  have hy : y = z := (he.unique hez).1
-  rwa [hy]
+  rwa [(he.unique hez).1]
 
 /-- Every actual admissible body run already produces canonical fixed-bank observations.
 The lookup payload remains in the first payload slot even after the legacy key copy. -/
