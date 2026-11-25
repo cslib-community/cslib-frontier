@@ -270,8 +270,7 @@ private theorem dens_le_abs_card_filter_val_lt_sub_le (hh : IsPairwiseIndependen
       D.filter fun a => (h θ a).val < K := by
     ext a
     simp only [mem_filter, mem_Iio, Fin.lt_def]
-  simp only [hfil, Fin.card_Iio, Fintype.card_fin] at this
-  exact this
+  simpa only [hfil, Fin.card_Iio, Fintype.card_fin] using this
 
 /-- The upper tail: the estimate exceeds `(1 + ε) d` only if at least `t` items hash below
 `t M / ((1 + ε) d) - 1`, which is a deviation of at least `t ε / (1 + ε)` from the mean. -/
@@ -462,11 +461,7 @@ theorem dens_abs_kmvEstimate_sub_gt_le (hh : IsPairwiseIndependentHash h) {ε : 
         (1 - ε) * D.card} : Finset ι) := by
     intro θ hθ
     simp only [mem_union, mem_filter, mem_univ, true_and] at hθ ⊢
-    rcases lt_abs.1 hθ with h' | h'
-    · left
-      linarith
-    · right
-      linarith
+    rcases lt_abs.1 hθ with h' | h' <;> [left; right] <;> linarith
   have hunder : (dens {θ | (t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) <
       (1 - ε) * D.card} : ℝ) ≤ (1 - ε) / (t * ε ^ 2) := by
     rcases hε1.lt_or_eq with hlt | rfl
@@ -474,17 +469,9 @@ theorem dens_abs_kmvEstimate_sub_gt_le (hh : IsPairwiseIndependentHash h) {ε : 
     · -- For `ε = 1` the estimate is never negative.
       rw [filter_false_of_mem (fun θ _ => by simp only [sub_self, zero_mul, not_lt]; positivity),
         dens_empty, NNRat.cast_zero, sub_self, zero_div]
-  calc _ ≤ (dens (({θ | (1 + ε) * D.card <
-        (t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1)} : Finset ι) ∪
-        ({θ | (t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) <
-          (1 - ε) * D.card} : Finset ι)) : ℝ) := by exact_mod_cast dens_le_dens hsub
-    _ ≤ (dens {θ | (1 + ε) * D.card <
-        (t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1)} : ℝ) +
-        dens {θ | (t * M : ℝ) / (kmvMaxHash (lowest t (D.image (kmvKey h θ))) + 1) <
-          (1 - ε) * D.card} := by exact_mod_cast dens_union_le _ _
-    _ ≤ (1 + ε) / (t * ε ^ 2) + (1 - ε) / (t * ε ^ 2) :=
-        add_le_add (dens_lt_kmvEstimate_le hh hε ht hD hDM) hunder
-    _ = 2 / (t * ε ^ 2) := by ring
+  refine (NNRat.cast_le.mpr ((dens_le_dens hsub).trans (dens_union_le _ _))).trans ?_
+  rw [NNRat.cast_add]
+  exact (add_le_add (dens_lt_kmvEstimate_le hh hε ht hD hDM) hunder).trans_eq (by ring)
 
 end Error
 
@@ -535,20 +522,9 @@ theorem solves_kmv [Fintype ι] [Nonempty ι] (hh : IsPairwiseIndependentHash h)
 private theorem exists_card_le_image_eq_lowest (θ : ι) (D : Finset α) :
     ∃ E : Finset α, E.card ≤ t ∧ E.image (kmvKey h θ) = lowest t (D.image (kmvKey h θ)) := by
   classical
-  refine ⟨D.filter fun a => kmvKey h θ a ∈ lowest t (D.image (kmvKey h θ)), ?_, ?_⟩
-  · have himg : (D.filter fun a => kmvKey h θ a ∈ lowest t (D.image (kmvKey h θ))).image
-        (kmvKey h θ) = lowest t (D.image (kmvKey h θ)) := by
-      ext p
-      simp only [mem_image, mem_filter]
-      constructor
-      · rintro ⟨a, ⟨-, ha⟩, rfl⟩
-        exact ha
-      · intro hp
-        obtain ⟨a, ha, rfl⟩ := mem_image.1 (lowest_subset _ _ hp)
-        exact ⟨a, ⟨ha, hp⟩, rfl⟩
-    rw [← card_image_kmvKey (h := h) θ, himg, card_lowest]
-    exact min_le_left _ _
-  · ext p
+  have himg : (D.filter fun a => kmvKey h θ a ∈ lowest t (D.image (kmvKey h θ))).image
+      (kmvKey h θ) = lowest t (D.image (kmvKey h θ)) := by
+    ext p
     simp only [mem_image, mem_filter]
     constructor
     · rintro ⟨a, ⟨-, ha⟩, rfl⟩
@@ -556,6 +532,9 @@ private theorem exists_card_le_image_eq_lowest (θ : ι) (D : Finset α) :
     · intro hp
       obtain ⟨a, ha, rfl⟩ := mem_image.1 (lowest_subset _ _ hp)
       exact ⟨a, ⟨ha, hp⟩, rfl⟩
+  refine ⟨_, ?_, himg⟩
+  rw [← card_image_kmvKey (h := h) θ, himg, card_lowest]
+  exact min_le_left _ _
 
 /-- The states reachable from the seeds in `Ω` have an injective `b`-bit encoding as soon as
 `#Ω (n + 1) ^ (c t) ≤ 2 ^ b`, on streams of any length. -/
