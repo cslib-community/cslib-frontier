@@ -173,8 +173,7 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
   suffices h : (ProbOracleComp.sample coins >>= fun words =>
       decideReplies k δ n <$> (validRequests n words).mapM readBit).IsQueryBounded (0 + k) by
     simpa only [Nat.zero_add] using h
-  apply hsample.bind_on_support
-  intro words hwords
+  refine hsample.bind_on_support fun words hwords => ?_
   have hlen' := hlen words (by simpa only [ProbOracleComp.support_sample] using hwords)
   have htraverse : ((validRequests n words).mapM readBit).IsQueryBounded
       ((validRequests n words).length * 1) :=
@@ -186,9 +185,8 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
           (spec := fun _ : Unit × List Bool => List Bool) ((), word)).bind
           (fun reply : List Bool => OracleComp.IsCostBounded.pure (reply.take 1) 0)
   rw [map_eq_bind_pure_comp]
-  have hresult := htraverse.bind
-    (fun replies => OracleComp.IsCostBounded.pure (decideReplies k δ n replies) 0)
-  exact hresult.mono
+  exact (htraverse.bind fun replies =>
+    OracleComp.IsCostBounded.pure (decideReplies k δ n replies) 0).mono
     (by simpa only [Nat.add_zero, Nat.mul_one, validRequests, ← hlen'] using
       List.length_filter_le _ words)
 

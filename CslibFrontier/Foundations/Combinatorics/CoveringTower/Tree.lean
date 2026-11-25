@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Chamber
 public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Incident
+import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.DeriveFintype
 
 /-!
@@ -21,9 +22,13 @@ type of a level is the first type whose edges have the least sum of the squares 
 (`Cslib.CoveringTower.Tower.IsChosenType`); the parent of a chamber of the level `j` is the host
 of its vertex of the chosen type, a chamber of the level `j + 1`, and the units between a chamber
 and its parent are the loads of the edges at the chamber. The hosts of a type are injective
-below the level `J`, so a chamber has at most `b` children: at most one at every place.
+below the level `J`, so a chamber has at most `b` children: at most one at every place. The
+chambers of the level `J` and the root have the root as their parent (`Node.parent`), and the
+units between the children of a chamber and the chamber add up the units between each child and
+its parent (`childUnits`).
 
-From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Net` and `Nc.Tow.Tree`.
+From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Net`, `Nc.Tow.Tree`,
+`Nc.Tow.Ever1` and `Nc.Tow.EndB`.
 
 ## Main definitions
 
@@ -37,6 +42,8 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Net` an
 * `Cslib.CoveringTower.Tower.chosenType`, `Cslib.CoveringTower.Tower.parentChamber`,
   `Cslib.CoveringTower.Tower.parentUnits`: the chosen type of a level, the parent of a chamber,
   and the units between a chamber and its parent.
+* `Cslib.CoveringTower.Tower.childUnits`, `Cslib.CoveringTower.Tower.Node.parent`: the units
+  between the children of a chamber and the chamber, and the parent of a node.
 
 ## Main results
 
@@ -45,12 +52,17 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], modules `Nc.Tow.Net` an
 * `Cslib.CoveringTower.Tower.IsChosenType.mul_sum_sq_le`: the edges of a chosen type carry at most
   the average of the sums of the squares of the loads of the types.
 * `Cslib.CoveringTower.Tower.card_children`: a chamber has at most `b` children.
+* `Cslib.CoveringTower.Tower.Node.sum_ofChamber_castSucc`,
+  `Cslib.CoveringTower.Tower.Node.sum_ofChamber_succ`: `Node.lift` at a node by the chambers of
+  the levels below `J` and of the level `J`, and of the level `0` and of the levels above it.
+* `Cslib.CoveringTower.Tower.sum_ite_childUnits`: the units between the children of the chambers
+  with a property and these chambers, by the chambers whose parents have the property.
 
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  Theorem H.2(a), p. 45, and its proof ("One stage" and "Bounds", p. 47); modules `Nc.Tow.Net`,
-  `Nc.Tow.Tree`
+  Theorem H.2(a), p. 45, Theorem H.2(e), p. 46, and the proof ("One stage" and "Bounds", p. 47;
+  "For (e)", p. 48); modules `Nc.Tow.Net`, `Nc.Tow.Tree`, `Nc.Tow.Ever1`, `Nc.Tow.EndB`
 -/
 
 public section
@@ -100,6 +112,32 @@ root. -/
 theorem lift_ofChamber {α : Type*} (f : ∀ j, T.X j → α) (a : α) (hj : j ≤ J) (c : T.X j) :
     (ofChamber hj c).lift f a = f j c :=
   rfl
+
+variable {M : Type*} [AddCommMonoid M]
+
+/-- The values of `g` at the chambers of all levels that are the node `P`. -/
+private theorem sum_chamber_ite (g : ∀ j, T.X j → M) (P : T.Node) :
+    ∑ j : Fin (J + 1), ∑ c : T.X j, (if chamber j c = P then g j c else 0) = P.lift g 0 := by
+  cases P with
+  | root => simp [lift]
+  | chamber k c =>
+    rw [Fintype.sum_eq_single k fun j hj => sum_eq_zero fun c' _ => by simp [hj]]
+    simp [lift]
+
+/-- The values of `g` at the chambers of the levels below `J` and of the level `J` that are the
+node `P`. -/
+theorem sum_ofChamber_castSucc (g : ∀ j, T.X j → M) (P : T.Node) :
+    (∑ j : Fin J, ∑ c : T.X j, if ofChamber j.2.le c = P then g j c else 0) +
+      ∑ c : T.X J, (if ofChamber le_rfl c = P then g J c else 0) = P.lift g 0 :=
+  (Fin.sum_univ_castSucc _).symm.trans (sum_chamber_ite g P)
+
+/-- The values of `g` at the chambers of the level `0` and of the levels above it that are the
+node `P`. -/
+theorem sum_ofChamber_succ (g : ∀ j, T.X j → M) (P : T.Node) :
+    (∑ c : T.X 0, if ofChamber (Nat.zero_le J) c = P then g 0 c else 0) +
+      ∑ j : Fin J, ∑ c : T.X (j + 1), (if ofChamber j.2 c = P then g (j + 1) c else 0) =
+      P.lift g 0 :=
+  (Fin.sum_univ_succ _).symm.trans (sum_chamber_ite g P)
 
 end Node
 
@@ -174,5 +212,29 @@ theorem card_children {j : ℕ} (hj : j < J) (c' : T.X (j + 1)) :
     fun c hc c₁ hc₁ hco => ?_).trans (card_univ.trans T.card_fl).le
   simp only [coe_filter, Set.mem_ofPred_eq, mem_univ, true_and] at hc hc₁
   exact (T.vx_co hj.le _).1 (Prod.ext (T.host_inj hj _ (hc.trans hc₁.symm)) hco)
+
+variable (T) in
+/-- The units between the children of a chamber and the chamber, for the loads `Lf` on the
+edges: the units between each chamber of the level below whose parent it is and its parent;
+`0` at the level `0`. -/
+@[expose] noncomputable def childUnits : ∀ j, T.X j → ℕ
+  | 0, _ => 0
+  | j + 1, c => ∑ c' ∈ univ.filter (T.parentChamber hh Lf · = c), T.parentUnits Lf j c'
+
+/-- The units between the children of the chambers with a property and these chambers are those
+between the chambers whose parents have the property and their parents. -/
+theorem sum_ite_childUnits {j : ℕ} (p : T.X (j + 1) → Prop) [DecidablePred p] :
+    ∑ c, (if p c then T.childUnits hh Lf (j + 1) c else 0) =
+      ∑ c : T.X j, if p (T.parentChamber hh Lf c) then T.parentUnits Lf j c else 0 := by
+  simp only [childUnits, ite_sum_zero]
+  exact (sum_congr rfl fun c _ => sum_congr rfl fun c' hc' => by
+    rw [(mem_filter.1 hc').2]).trans (sum_fiberwise_of_maps_to (fun _ _ => mem_univ _) _)
+
+/-- The parent of a node in the tree for the loads `Lf` on the edges: the parent chamber of a
+chamber of a level below `J`, and the root for a chamber of the level `J` and for the root. -/
+@[expose] noncomputable def Node.parent : T.Node → T.Node
+  | .root => .root
+  | .chamber j c =>
+    if hj : (j : ℕ) + 1 ≤ J then .ofChamber hj (T.parentChamber hh Lf c) else .root
 
 end Cslib.CoveringTower.Tower

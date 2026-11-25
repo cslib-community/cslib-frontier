@@ -130,9 +130,8 @@ private theorem ex_occ (b : α) (k : ℕ) :
   | zero => simp [ex, occurrenceCount_eq_sum]
   | succ k ih =>
     rw [ex_succ]
-    simp only [occurrenceCount_cons]
-    simp only [ex_add, ex_const, ih, mul_add, sum_add_distrib, sum_mul_ite μ b (fun _ => 1),
-      ← sum_mul, sum_toReal]
+    simp only [occurrenceCount_cons, ex_add, ex_const, ih, mul_add, sum_add_distrib,
+      sum_mul_ite μ b (fun _ => 1), ← sum_mul, sum_toReal]
     push_cast
     ring
 
@@ -157,10 +156,8 @@ private theorem ex_occ_mul_occ (a b : α) (k : ℕ) :
           ((if c = a then 1 else 0) * (if c = b then 1 else 0) +
             ((if c = a then 1 else 0) * (occurrenceCount x b : ℝ) +
               (if c = b then 1 else 0) * (occurrenceCount x a : ℝ))) +
-            (occurrenceCount x a : ℝ) * occurrenceCount x b := by
-        funext x
-        rw [occurrenceCount_cons, occurrenceCount_cons]
-        ring
+            (occurrenceCount x a : ℝ) * occurrenceCount x b :=
+        funext fun x => by rw [occurrenceCount_cons, occurrenceCount_cons]; ring
       rw [hfun, ex_add, ex_add, ex_const, ex_add, ex_const_mul, ex_const_mul, ex_occ, ex_occ, ih]
     simp only [hinner]
     by_cases hab : a = b
@@ -204,10 +201,8 @@ private theorem ex_collisionCount_mul_occ (b : α) (k : ℕ) :
           occurrenceCount (Fin.cons c x : Fin (k + 1) → α) b) = fun x =>
           (if c = b then 1 else 0) * ((occurrenceCount x c : ℝ) + collisionCount x) +
             ((occurrenceCount x c : ℝ) * occurrenceCount x b +
-              (collisionCount x : ℝ) * occurrenceCount x b) := by
-        funext x
-        rw [collisionCount_cons, occurrenceCount_cons]
-        ring
+              (collisionCount x : ℝ) * occurrenceCount x b) :=
+        funext fun x => by rw [collisionCount_cons, occurrenceCount_cons]; ring
       rw [hfun, ex_add, ex_const_mul, ex_add, ex_add, ex_occ, ex_collisionCount, ih,
         ex_occ_mul_occ]
     have hsq : ∑ a, (μ a).toReal * (k * (k - 1) * (μ a).toReal * (μ b).toReal) =
@@ -241,10 +236,8 @@ private theorem ex_collisionCount_sq (k : ℕ) :
       have hfun : (fun x : Fin k → α =>
           (collisionCount (Fin.cons c x : Fin (k + 1) → α) : ℝ) ^ 2) =
           fun x => (occurrenceCount x c : ℝ) * occurrenceCount x c +
-            (2 * ((collisionCount x : ℝ) * occurrenceCount x c) + (collisionCount x : ℝ) ^ 2) := by
-        funext x
-        rw [collisionCount_cons]
-        ring
+            (2 * ((collisionCount x : ℝ) * occurrenceCount x c) + (collisionCount x : ℝ) ^ 2) :=
+        funext fun x => by rw [collisionCount_cons]; ring
       rw [hfun, ex_add, ex_add, ex_const_mul, ex_occ_mul_occ, ex_collisionCount_mul_occ, ih,
         ite_eq_left rfl]
       ring
@@ -270,9 +263,8 @@ theorem sum_iid_mul_collisionCount_sub_sq (k : ℕ) :
   have hfun : (fun x : Fin k → α =>
       ((collisionCount x : ℝ) - k.choose 2 * collisionProbability μ) ^ 2) = fun x =>
       (collisionCount x : ℝ) ^ 2 + ((-2 * (k.choose 2 * collisionProbability μ)) *
-        collisionCount x + (k.choose 2 * collisionProbability μ) ^ 2) := by
-    funext x
-    ring
+        collisionCount x + (k.choose 2 * collisionProbability μ) ^ 2) :=
+    funext fun x => by ring
   change ex μ k _ = _
   rw [hfun, ex_add, ex_add, ex_const_mul, ex_const, ex_collisionCount_sq, ex_collisionCount,
     Nat.cast_choose_two, collisionProbability_eq_sum]

@@ -276,7 +276,7 @@ theorem min_le_div_unsatVal_power_preprocessWith (loss : ℝ) (hloss : 0 < loss)
     convert hgain using 1
     dsimp only [a]
     ring
-  have ha : 0 ≤ a := by nlinarith
+  have ha : 0 ≤ a := nonneg_of_mul_nonneg_left (by linarith) hr
   have hd : (0 : ℝ) < Fintype.card D := Nat.cast_pos.mpr Fintype.card_pos
   have hgap : 0 < (1 - μ) * Fintype.card D / (2 * Fintype.card D + 2) :=
     div_pos (mul_pos (sub_pos.mpr hμ) hd) (by positivity)
@@ -289,8 +289,9 @@ theorem min_le_div_unsatVal_power_preprocessWith (loss : ℝ) (hloss : 0 < loss)
       ≤ a * min (r * G.unsatVal) (r * γ / 2) := by
         rw [mul_min_of_nonneg _ _ ha]
         refine min_le_min ?_ ?_
-        · nlinarith [G.unsatVal_nonneg]
-        · nlinarith
+        · exact (mul_le_mul_of_nonneg_right har G.unsatVal_nonneg).trans_eq (mul_assoc ..)
+        · exact ((by ring : γ = 2 * (γ / 2)).trans_le
+            (mul_le_mul_of_nonneg_right har (by positivity))).trans_eq (by ring)
     _ ≤ a * min (G.preprocessWith X).toConstraintGraph.unsatVal (r * γ / 2) :=
       mul_le_mul_of_nonneg_left (min_le_min_right _ (G.le_unsatVal_preprocessWith X)) ha
     _ = (c ^ 2 / (c + T ^ 2 * (r * γ / 2) + B) *

@@ -73,15 +73,13 @@ variable (h : (q : ι) → PMF (spec q)) (cost : ι → ℝ≥0∞)
 /-- Returning a value makes no call. -/
 @[simp] theorem expectedCost_pure (a : α) :
     expectedCost h cost (pure a : OracleComp spec α) = 0 := by
-  rw [expectedCost.eq_def]
-  rfl
+  rw [expectedCost.eq_def]; rfl
 
 /-- A call costs its cost, followed by the expected cost of the continuation at its answer. -/
 theorem expectedCost_query_bind (q : ι) (cont : spec q → OracleComp spec α) :
     expectedCost h cost (query q >>= cont) =
       cost q + ∑' a, h q a * expectedCost h cost (cont a) := by
-  rw [expectedCost.eq_def]
-  rfl
+  rw [expectedCost.eq_def]; rfl
 
 /-- A single call costs its cost. -/
 @[simp] theorem expectedCost_query (q : ι) :
@@ -101,14 +99,12 @@ theorem expectedCost_bind (program : OracleComp spec α) (next : α → OracleCo
       tsum_eq_single a fun b hb => by rw [PMF.pure_apply_of_ne _ _ hb, zero_mul],
       PMF.pure_apply_self, one_mul]
   | query_bind q cont ih =>
-    rw [PFunctor.FreeM.bind_eq_bind]
-    rw [bind_assoc, expectedCost_query_bind, expectedCost_query_bind, evalWith_bind,
-      evalWith_query, add_assoc]
+    rw [PFunctor.FreeM.bind_eq_bind, bind_assoc, expectedCost_query_bind, expectedCost_query_bind,
+      evalWith_bind, evalWith_query, add_assoc]
     congr 1
-    simp only [ih, mul_add, tsum_add, PMF.bind_apply]
-    congr 1
-    simp only [← ENNReal.tsum_mul_left, ← ENNReal.tsum_mul_right, mul_assoc]
-    exact tsum_comm
+    simp only [ih, mul_add, tsum_add, PMF.bind_apply, ← ENNReal.tsum_mul_left,
+      ← ENNReal.tsum_mul_right, mul_assoc]
+    exact congrArg (_ + ·) tsum_comm
 
 /-- Postprocessing the result makes no call. -/
 @[simp] theorem expectedCost_map (f : α → β) (program : OracleComp spec α) :
@@ -121,12 +117,12 @@ theorem expectedCost_le_of_isCostBounded {cost : ι → ℕ} {program : OracleCo
     (hb : IsCostBounded cost program n) :
     expectedCost h (fun q => (cost q : ℝ≥0∞)) program ≤ n := by
   induction hb with
-  | pure a n => simp
+  | pure => simp
   | liftBind q cont n _ ih =>
     rw [expectedCost_query_bind, Nat.cast_add, add_comm (n : ℝ≥0∞)]
     gcongr
     calc ∑' a, h q a * expectedCost h _ (cont a) ≤ ∑' a, h q a * n :=
-          tsum_le_tsum fun a => by gcongr; exact ih a
+          tsum_le_tsum fun a => mul_le_mul_right (ih a) (h q a)
       _ = n := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
 /-- A program whose calls all cost nothing under one cost has zero expected cost under every cost
@@ -135,12 +131,11 @@ theorem expectedCost_eq_zero_of_isCostBounded {cost' : ι → ℕ} {program : Or
     (hb : IsCostBounded cost' program 0) (hcost : ∀ q, cost' q = 0 → cost q = 0) :
     expectedCost h cost program = 0 := by
   induction program using OracleComp.induction with
-  | pure a => rfl
+  | pure => rfl
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind]
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hb
-    rw [expectedCost_query_bind, hcost q (by omega)]
-    simp [ih _ ((hcont _).mono (by omega))]
+    simp [expectedCost_query_bind, hcost q (by omega), ih _ ((hcont _).mono (by omega))]
 
 end Basic
 
@@ -160,11 +155,10 @@ theorem expectedCost_add (cost cost' : ι → ℝ≥0∞) (program : OracleComp 
     expectedCost h (cost + cost') program =
       expectedCost h cost program + expectedCost h cost' program := by
   induction program using OracleComp.induction with
-  | pure a => simp
+  | pure => simp
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind]
-    simp only [expectedCost_query_bind, ih, mul_add, tsum_add, Pi.add_apply]
-    ring
+    simp only [expectedCost_query_bind, ih, mul_add, tsum_add, Pi.add_apply]; ring
 
 /-- The expected cost of a finite sum of costs is the sum of the expected costs. -/
 theorem expectedCost_sum {κ : Type*} (s : Finset κ) (cost : κ → ι → ℝ≥0∞)
@@ -179,13 +173,10 @@ theorem expectedCost_sum {κ : Type*} (s : Finset κ) (cost : κ → ι → ℝ�
 theorem expectedCost_mono {cost cost' : ι → ℝ≥0∞} (hcost : cost ≤ cost')
     (program : OracleComp spec α) : expectedCost h cost program ≤ expectedCost h cost' program := by
   induction program using OracleComp.induction with
-  | pure a => simp
+  | pure => simp
   | query_bind q cont ih =>
-    rw [PFunctor.FreeM.bind_eq_bind]
-    simp only [expectedCost_query_bind]
-    gcongr with a
-    · exact hcost q
-    · exact ih a
+    rw [PFunctor.FreeM.bind_eq_bind, expectedCost_query_bind, expectedCost_query_bind]
+    exact add_le_add (hcost q) (tsum_le_tsum fun a => mul_le_mul_right (ih a) _)
 
 end Cost
 
@@ -199,10 +190,10 @@ theorem expectedCost_interpret {κ : Type u} {target : OracleSpec.{u, v} κ}
       expectedCost (fun q => evalWith h (handler q)) (fun q => expectedCost h cost (handler q))
         program := by
   induction program using OracleComp.induction with
-  | pure a => rfl
+  | pure => rfl
   | query_bind q cont ih =>
-    rw [PFunctor.FreeM.bind_eq_bind]
-    rw [interpret_bind, interpret_query, expectedCost_bind, expectedCost_query_bind]
+    rw [PFunctor.FreeM.bind_eq_bind, interpret_bind, interpret_query, expectedCost_bind,
+      expectedCost_query_bind]
     simp only [ih]
 
 end Cslib.OracleComp
@@ -218,9 +209,7 @@ queries. -/
 @[simp] theorem expectedCost_sample (h : (q : ℕ ⊕ Query) → PMF (probOracleSpec spec q))
     (cost : Query → ℝ≥0∞) (program : ProbComp α) :
     expectedCost h (Sum.elim 0 cost) (sample (spec := spec) program) = 0 :=
-  expectedCost_eq_zero_of_isCostBounded h _ (IsQueryBounded.sample program) fun q hq => by
-    cases q with
-    | inl n => rfl
-    | inr q => simp at hq
+  expectedCost_eq_zero_of_isCostBounded h _ (IsQueryBounded.sample program)
+    fun | .inl _, _ => rfl | .inr _, hq => by simp at hq
 
 end Cslib.ProbOracleComp

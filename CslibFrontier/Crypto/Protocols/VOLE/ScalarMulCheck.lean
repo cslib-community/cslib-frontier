@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Crypto.Protocols.VOLE.MulCheck
 import CslibFrontier.Crypto.Protocols.VOLE.BatchMulCheck
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Probability.PMF.PolynomialAgreement
 import Mathlib.Algebra.Polynomial.OfFn
 
@@ -232,15 +234,11 @@ private theorem quickSilver_reply_key_le (x y z v_x v_y v_z : Fin t → F) (chi 
       return decide (quickSilverMulCheckValue x y z v_x v_y v_z chi delta =
         uv.1 + uv.2 * delta)).toOuterMeasure {true} ≤
       2 / (Fintype.card F : ℝ≥0∞) := by
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  rw [PMF.toOuterMeasure_bind_apply]
-  refine PMF.tsum_mul_le_of_forall_le reply fun uv => ?_
+  refine PMF.toOuterMeasure_bind_le reply _ {true} fun uv => ?_
   change ((PMF.uniformOfFintype F).map (fun delta => decide _)).toOuterMeasure {true} ≤ _
   rw [PMF.toOuterMeasure_map_apply]
-  refine (MeasureTheory.measure_mono ?_).trans
+  exact (MeasureTheory.measure_mono fun _ h => of_decide_eq_true h).trans
     (toOuterMeasure_quickSilverMulCheck_key_le x y z v_x v_y v_z chi uv hne)
-  intro delta hdelta
-  exact of_decide_eq_true hdelta
 
 /-- A false fixed batch, followed by a uniform scalar challenge, an arbitrary randomized reply
 depending on that challenge, and an independent uniform hidden key, accepts with probability at
@@ -254,44 +252,17 @@ theorem toOuterMeasure_quickSilverMulCheck_le (x y z v_x v_y v_z : Fin t → F)
       return decide (quickSilverMulCheckValue x y z v_x v_y v_z chi delta =
         uv.1 + uv.2 * delta)).toOuterMeasure {true} ≤
       ((t + 2 : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) := by
-  let cancel : Set F :=
-    {chi | ∑ i, quickSilverWeight chi i * (x i * y i - z i) = 0}
-  let kernel (chi : F) : PMF Bool := do
-    let uv ← reply chi
-    let delta ← PMF.uniformOfFintype F
-    return decide (quickSilverMulCheckValue x y z v_x v_y v_z chi delta =
-      uv.1 + uv.2 * delta)
-  have hresidual : ∃ i, x i * y i - z i ≠ 0 := by
-    obtain ⟨i, hi⟩ := hfalse
-    exact ⟨i, sub_ne_zero.mpr hi⟩
-  have hcancel : (PMF.uniformOfFintype F).toOuterMeasure cancel ≤
-      (t : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) :=
-    toOuterMeasure_quickSilverWeight_sum_eq_zero_le
-      (fun i => x i * y i - z i) hresidual
-  change ((PMF.uniformOfFintype F).bind kernel).toOuterMeasure {true} ≤ _
-  rw [PMF.toOuterMeasure_bind_apply]
+  obtain ⟨i, hi⟩ := hfalse
+  refine (PMF.toOuterMeasure_bind_le_add (PMF.uniformOfFintype F) _
+    {chi | ∑ j, quickSilverWeight chi j * (x j * y j - z j) = 0} {true}
+    (2 / (Fintype.card F : ℝ≥0∞)) fun chi _ hchi =>
+      quickSilver_reply_key_le x y z v_x v_y v_z chi (reply chi) hchi).trans ?_
   calc
-    ∑' chi, PMF.uniformOfFintype F chi * (kernel chi).toOuterMeasure {true}
-      ≤ ∑' chi, PMF.uniformOfFintype F chi *
-          (if chi ∈ cancel then 1 else 2 / (Fintype.card F : ℝ≥0∞)) := by
-        refine tsum_le_tsum fun chi => mul_le_mul_of_nonneg_left ?_ zero_le
-        split_ifs with hchi
-        · exact PMF.toOuterMeasure_le_one _ _
-        · exact quickSilver_reply_key_le x y z v_x v_y v_z chi (reply chi) hchi
-    _ = (PMF.uniformOfFintype F).toOuterMeasure cancel +
-        (PMF.uniformOfFintype F).toOuterMeasure cancelᶜ *
-          (2 / (Fintype.card F : ℝ≥0∞)) := by
-        simp only [PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right, ← tsum_add]
-        apply tsum_congr
-        intro chi
-        by_cases hchi : chi ∈ cancel <;> simp [hchi]
-    _ ≤ (t : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) +
-        1 * (2 / (Fintype.card F : ℝ≥0∞)) :=
-      by gcongr; exact PMF.toOuterMeasure_le_one _ _
+    _ ≤ (t : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) + 2 / (Fintype.card F : ℝ≥0∞) := by
+        gcongr
+        exact toOuterMeasure_quickSilverWeight_sum_eq_zero_le _ ⟨i, sub_ne_zero.mpr hi⟩
     _ = _ := by
-      rw [one_mul, div_eq_mul_inv, div_eq_mul_inv, div_eq_mul_inv, Nat.cast_add,
-        Nat.cast_ofNat]
-      ring
+        rw [← ENNReal.add_div, Nat.cast_add, Nat.cast_ofNat]
 
 /-- An arbitrary randomized sender fixes all wires and masks before the scalar challenge. Its
 reply may depend on its state and on `chi`, but not on the subsequently sampled hidden key. The
@@ -307,9 +278,7 @@ theorem toOuterMeasure_quickSilverMulCheck_bind_le {S : Type} (sender : PMF S)
         quickSilverMulCheckValue (x s) (y s) (z s) (v_x s) (v_y s) (v_z s) chi delta =
           uv.1 + uv.2 * delta)).toOuterMeasure {true} ≤
       ((t + 2 : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) := by
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  rw [PMF.toOuterMeasure_bind_apply]
-  refine PMF.tsum_mul_le_of_forall_le sender fun s => ?_
+  refine PMF.toOuterMeasure_bind_le sender _ {true} fun s => ?_
   by_cases hfalse : ∃ i, x s i * y s i ≠ z s i
   · simpa only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, hfalse, true_and] using
       toOuterMeasure_quickSilverMulCheck_le (x s) (y s) (z s) (v_x s) (v_y s) (v_z s)

@@ -158,26 +158,22 @@ theorem sum_range_pow_sub_pow_suffixCount {k : ℕ} (hk : k ≠ 0) (s : List α)
 private theorem sq_succ_pow_sub_pow_add_le (c j : ℕ) :
     ((c + 1) ^ (j + 1) - c ^ (j + 1)) ^ 2 + (j + 1) * c ^ (2 * j + 1) ≤
       (j + 1) * (c + 1) ^ (2 * j + 1) := by
-  obtain ⟨d, hd⟩ : ∃ d, (c + 1) ^ (j + 1) = c ^ (j + 1) + d :=
-    Nat.exists_eq_add_of_le (Nat.pow_le_pow_left (Nat.le_succ c) _)
+  obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le (Nat.pow_le_pow_left (Nat.le_succ c) (j + 1))
   have hdle := Nat.succ_pow_sub_pow_le c j
   rw [hd, Nat.add_sub_cancel_left] at hdle ⊢
   have hcj : c ^ j ≤ (c + 1) ^ j := Nat.pow_le_pow_left (Nat.le_succ _) _
-  have key : d * (c + 1) ^ j + c ^ j * c ^ (j + 1) ≤ (c + 1) ^ j * (c + 1) ^ (j + 1) := by
-    calc d * (c + 1) ^ j + c ^ j * c ^ (j + 1)
-        ≤ d * (c + 1) ^ j + (c + 1) ^ j * c ^ (j + 1) :=
-          Nat.add_le_add_left (Nat.mul_le_mul_right _ hcj) _
-      _ = (c + 1) ^ j * (c ^ (j + 1) + d) := by ring
-      _ = (c + 1) ^ j * (c + 1) ^ (j + 1) := by rw [hd]
-  have e1 : c ^ (2 * j + 1) = c ^ j * c ^ (j + 1) := by ring
-  have e2 : (c + 1) ^ (2 * j + 1) = (c + 1) ^ j * (c + 1) ^ (j + 1) := by ring
-  rw [e1, e2]
+  rw [show c ^ (2 * j + 1) = c ^ j * c ^ (j + 1) by ring,
+    show (c + 1) ^ (2 * j + 1) = (c + 1) ^ j * (c + 1) ^ (j + 1) by ring]
   calc d ^ 2 + (j + 1) * (c ^ j * c ^ (j + 1))
       ≤ d * ((j + 1) * (c + 1) ^ j) + (j + 1) * (c ^ j * c ^ (j + 1)) := by
         rw [sq]
         exact Nat.add_le_add_right (Nat.mul_le_mul_left d hdle) _
     _ = (j + 1) * (d * (c + 1) ^ j + c ^ j * c ^ (j + 1)) := by ring
-    _ ≤ (j + 1) * ((c + 1) ^ j * (c + 1) ^ (j + 1)) := Nat.mul_le_mul_left _ key
+    _ ≤ (j + 1) * (d * (c + 1) ^ j + (c + 1) ^ j * c ^ (j + 1)) :=
+        Nat.mul_le_mul_left _ (Nat.add_le_add_left (Nat.mul_le_mul_right _ hcj) _)
+    _ = (j + 1) * ((c + 1) ^ j * (c + 1) ^ (j + 1)) := by
+        rw [hd]
+        ring
 
 /-- **The second-moment sum** [AlonMatiasSzegedy1999, proof of Theorem 2.1, inequality (1)]:
 summing `(r ^ k - (r - 1) ^ k) ^ 2` over the positions gives at most `k F_{2k-1}`, here with
@@ -190,11 +186,9 @@ theorem sum_range_sq_pow_sub_pow_suffixCount_le (j : ℕ) (s : List α) :
   | cons a s ih =>
     rw [List.length_cons, sum_range_succ']
     simp only [suffixCount_cons_succ, suffixCount_cons_zero, Nat.add_sub_cancel]
-    have h1 := freqMoment_cons_add (k := 2 * j + 1) (by omega) a s
     have h2 := sq_succ_pow_sub_pow_add_le (s.count a) j
-    have h3 : (j + 1) * (freqMoment (2 * j + 1) (a :: s) + s.count a ^ (2 * j + 1)) =
-        (j + 1) * (freqMoment (2 * j + 1) s + (s.count a + 1) ^ (2 * j + 1)) := by rw [h1]
-    rw [mul_add, mul_add] at h3
+    have h3 := congrArg ((j + 1) * ·) (freqMoment_cons_add (k := 2 * j + 1) (by omega) a s)
+    simp only [mul_add] at h3
     omega
 
 /-- **The AMS power-sum inequality for streams** [AlonMatiasSzegedy1999, Fact in the proof of
@@ -203,10 +197,10 @@ the `k`-th power, with `k = j + 1`. -/
 theorem length_mul_freqMoment_pow_le (j : ℕ) (s : List α) :
     (s.length * freqMoment (2 * j + 1) s) ^ (j + 1) ≤
       s.toFinset.card ^ j * freqMoment (j + 1) s ^ (2 * (j + 1)) := by
-  have := Finset.sum_mul_sum_pow_le s.toFinset (c := fun a => s.count a)
+  have h := Finset.sum_mul_sum_pow_le s.toFinset (c := fun a => s.count a)
     (fun _ _ => Nat.zero_le _) j
-  simp only [Nat.cast_id, List.sum_toFinset_count_eq_length] at this
-  exact this
+  simp only [Nat.cast_id, List.sum_toFinset_count_eq_length] at h
+  exact h
 
 /-- The **basic AMS estimator** of `F_k` at position `p` of the stream `s`:
 `X = m (r ^ k - (r - 1) ^ k)` with `m` the length of `s` and `r = suffixCount s p`
@@ -219,8 +213,7 @@ position of the stream its mean is `F_k`, for `k ≠ 0`. -/
 theorem expect_fkBasicEstimate {k : ℕ} (hk : k ≠ 0) (s : List α) :
     𝔼 p : Fin s.length, fkBasicEstimate k s p = freqMoment k s := by
   rcases Nat.eq_zero_or_pos s.length with h0 | hpos
-  · rw [List.length_eq_zero_iff.1 h0]
-    simp [freqMoment]
+  · simp [List.length_eq_zero_iff.1 h0, freqMoment]
   · rw [Fintype.expect_eq_sum_div_card, Fintype.card_fin]
     simp only [fkBasicEstimate]
     rw [← mul_sum, Fin.sum_univ_eq_sum_range (fun p => ((suffixCount s p ^ k -
@@ -235,25 +228,22 @@ theorem expect_fkBasicEstimate_sq_le {k : ℕ} (hk : k ≠ 0) (s : List α) :
     𝔼 p : Fin s.length, fkBasicEstimate k s p ^ 2 ≤
       k * s.length * freqMoment (2 * k - 1) s := by
   obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
-  have e : 2 * (j + 1) - 1 = 2 * j + 1 := by omega
-  rw [e]
+  rw [show 2 * (j + 1) - 1 = 2 * j + 1 by omega]
   rcases Nat.eq_zero_or_pos s.length with h0 | hpos
-  · rw [List.length_eq_zero_iff.1 h0]
-    simp [freqMoment]
+  · simp [List.length_eq_zero_iff.1 h0, freqMoment]
   · rw [Fintype.expect_eq_sum_div_card, Fintype.card_fin]
     simp only [fkBasicEstimate, mul_pow]
     rw [← mul_sum, Fin.sum_univ_eq_sum_range (fun p => ((suffixCount s p ^ (j + 1) -
-      (suffixCount s p - 1) ^ (j + 1) : ℕ) : ℝ) ^ 2)]
+      (suffixCount s p - 1) ^ (j + 1) : ℕ) : ℝ) ^ 2), div_le_iff₀ (Nat.cast_pos.2 hpos)]
     have h : ∑ p ∈ range s.length, ((suffixCount s p ^ (j + 1) -
         (suffixCount s p - 1) ^ (j + 1) : ℕ) : ℝ) ^ 2 ≤
         ((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s := by
       exact_mod_cast sum_range_sq_pow_sub_pow_suffixCount_le j s
-    have hl : (0 : ℝ) < s.length := Nat.cast_pos.2 hpos
-    rw [div_le_iff₀ hl]
-    calc (s.length : ℝ) ^ 2 * ∑ p ∈ range s.length, ((suffixCount s p ^ (j + 1) -
-          (suffixCount s p - 1) ^ (j + 1) : ℕ) : ℝ) ^ 2
+    calc (s.length : ℝ) ^ 2 * _
         ≤ (s.length : ℝ) ^ 2 * (((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s) := by gcongr
-      _ = _ := by push_cast; ring
+      _ = _ := by
+        push_cast
+        ring
 
 /-- The group size condition `(3 k) ^ k n ^ (k - 1) ≤ (K η²) ^ k` bounds three times the second
 moment bound `k F₁ F_{2k-1}` by `K (η F_k)²` on streams with at most `n` distinct items, through
@@ -263,22 +253,21 @@ theorem three_mul_length_mul_freqMoment_le {k K n : ℕ} (hk : k ≠ 0) {η : �
     (hn : s.toFinset.card ≤ n) :
     3 * (k * s.length * freqMoment (2 * k - 1) s : ℝ) ≤ K * (η * freqMoment k s) ^ 2 := by
   obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
-  have e : 2 * (j + 1) - 1 = 2 * j + 1 := by omega
-  simp only [e, Nat.add_sub_cancel] at hK ⊢
+  simp only [show 2 * (j + 1) - 1 = 2 * j + 1 by omega, Nat.add_sub_cancel] at hK ⊢
   have hfact : ((s.length * freqMoment (2 * j + 1) s : ℕ) : ℝ) ^ (j + 1) ≤
-      (n : ℝ) ^ j * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1)) := by
-    have h1 : ((s.length * freqMoment (2 * j + 1) s : ℕ) : ℝ) ^ (j + 1) ≤
-        ((s.toFinset.card : ℕ) : ℝ) ^ j * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1)) := by
-      exact_mod_cast length_mul_freqMoment_pow_le j s
-    refine h1.trans (mul_le_mul_of_nonneg_right ?_ (by positivity))
-    exact pow_le_pow_left₀ (Nat.cast_nonneg _) (by exact_mod_cast hn) j
+      (n : ℝ) ^ j * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1)) :=
+    (by exact_mod_cast length_mul_freqMoment_pow_le j s :
+      _ ≤ ((s.toFinset.card : ℕ) : ℝ) ^ j * _).trans <|
+      mul_le_mul_of_nonneg_right (pow_le_pow_left₀ (Nat.cast_nonneg _) (by exact_mod_cast hn) j)
+        (by positivity)
   rw [← pow_le_pow_iff_left₀ (by positivity) (by positivity) (Nat.succ_ne_zero j)]
   calc (3 * ((j + 1 : ℕ) * s.length * freqMoment (2 * j + 1) s : ℝ)) ^ (j + 1)
       = (3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) *
           ((s.length * freqMoment (2 * j + 1) s : ℕ) : ℝ) ^ (j + 1) := by
         rw [← mul_pow]
+        congr 1
         push_cast
-        ring_nf
+        ring
     _ ≤ (3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) *
           ((n : ℝ) ^ j * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1))) := by gcongr
     _ = ((3 * ((j + 1 : ℕ) : ℝ)) ^ (j + 1) * (n : ℝ) ^ j) *
@@ -366,22 +355,20 @@ private theorem fkCell_eq (s : List α) (a : α) (p : ℕ) :
       ((s ++ [a])[p]?, suffixCount (s ++ [a]) p) := by
   rcases lt_trichotomy p s.length with hp | rfl | hp
   · have hp2 : p < (s ++ [a]).length := by
-      simp only [List.length_append, List.length_singleton]; omega
+      simp only [List.length_append, List.length_singleton]
+      omega
     rw [suffixCount_eq_of_lt hp, suffixCount_eq_of_lt hp2, List.getElem?_eq_getElem hp,
       List.getElem?_eq_getElem hp2, List.getElem_append_left hp,
       List.drop_append_of_le_length hp.le, List.count_append]
-    unfold fkCell
-    by_cases h : s[p] = a
-    · simp [h, hp.ne]
-    · simp [h, hp.ne, Ne.symm h]
-  · have hp2 : s.length < (s ++ [a]).length := by simp
-    rw [suffixCount_eq_of_lt hp2]
-    simp [fkCell]
+    rcases eq_or_ne s[p] a with h | h
+    · simp [fkCell, h, hp.ne]
+    · simp [fkCell, h, hp.ne, h.symm]
+  · simp [fkCell, suffixCount_eq_of_lt (show s.length < (s ++ [a]).length by simp)]
   · have hp2 : (s ++ [a]).length ≤ p := by
-      simp only [List.length_append, List.length_singleton]; omega
-    rw [suffixCount_eq_zero_of_le hp.le, suffixCount_eq_zero_of_le hp2,
+      simp only [List.length_append, List.length_singleton]
+      omega
+    simp [fkCell, hp.ne', suffixCount_eq_zero_of_le hp.le, suffixCount_eq_zero_of_le hp2,
       List.getElem?_eq_none hp.le, List.getElem?_eq_none hp2]
-    simp [fkCell, hp.ne']
 
 /-- After the stream `s`, the step counter is the length of `s`, and the copy with position `p`
 holds the item at position `p` (if any) and `suffixCount s p`. -/
@@ -425,31 +412,27 @@ theorem dens_fkSketch_error_le {n : ℕ} (hk : k ≠ 0) {η : ℝ} (hη : 0 < η
     · rw [pow_zero]
       exact_mod_cast dens_le_one
     have : Nonempty (Fin (2 * r)) := ⟨⟨0, by omega⟩⟩
-    rw [filter_false_of_mem, dens_empty, NNRat.cast_zero]
-    · positivity
-    · intro ω _
-      simp [run_fkSketch, freqMoment]
+    rw [filter_false_of_mem fun _ _ => by simp [run_fkSketch, freqMoment], dens_empty,
+      NNRat.cast_zero]
+    positivity
   have hne : Nonempty (Fin s.length) := ⟨⟨0, List.length_pos_iff.2 hs⟩⟩
   have hn1 : 1 ≤ n :=
     (Finset.card_pos.2 ⟨_, List.mem_toFinset.2 (List.head_mem hs)⟩).trans_le hn
   have hK0 : NeZero K := ⟨by
     rintro rfl
-    have : (0 : ℝ) < (3 * k : ℝ) ^ k * n ^ (k - 1) := by
-      have : (0 : ℝ) < k := Nat.cast_pos.2 (Nat.pos_of_ne_zero hk)
-      have : (0 : ℝ) < n := Nat.cast_pos.2 hn1
-      positivity
+    have : (0 : ℝ) < k := Nat.cast_pos.2 (Nat.pos_of_ne_zero hk)
+    have : (0 : ℝ) < n := Nat.cast_pos.2 hn1
+    have : (0 : ℝ) < (3 * k : ℝ) ^ k * n ^ (k - 1) := by positivity
     simp only [Nat.cast_zero, zero_mul, zero_pow hk] at hK
     linarith⟩
   have hF : (0 : ℝ) < freqMoment k s := by exact_mod_cast freqMoment_pos k hs
-  set g : Fin s.length → ℝ := fun p => fkBasicEstimate k s p
-  have hmean : 𝔼 p, g p = freqMoment k s := expect_fkBasicEstimate hk s
+  let g : Fin s.length → ℝ := fun p => fkBasicEstimate k s p
   have hvar : 3 * 𝔼 p, (g p - 𝔼 p', g p') ^ 2 ≤ K * (η * freqMoment k s) ^ 2 := by
     rw [Fintype.expect_sub_expect_sq]
-    have h1 := expect_fkBasicEstimate_sq_le hk s
-    have h2 := three_mul_length_mul_freqMoment_le hk hK hn
-    nlinarith [sq_nonneg (𝔼 p, g p)]
+    nlinarith [expect_fkBasicEstimate_sq_le hk s, three_mul_length_mul_freqMoment_le hk hK hn,
+      sq_nonneg (𝔼 p, g p)]
   have := dens_abs_medianOfMeans_sub_gt_le (r := r) g (by positivity) hvar
-  rw [hmean] at this
+  rw [expect_fkBasicEstimate hk s] at this
   simpa only [run_fkSketch_eq_medianOfMeans] using this
 
 /-- The error of the randomized `F_k` sketch is the fraction of bad sampled positions. -/

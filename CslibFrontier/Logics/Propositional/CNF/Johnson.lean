@@ -300,13 +300,9 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le (φ : CNF V) :
       obtain ⟨c₀, hc₀, -, rfl⟩ := CNF.mem_restrict.1 hc
       exact (List.mem_cons.1 (hvars w (CNF.mem_vars.2 ⟨c₀, hc₀, b', (List.mem_filter.1 hl).1⟩)))
         |>.resolve_left hne
-    · have hw : w = r ∨ w ∈ T := by
-        cases b
-        · exact .inr hw
-        · exact List.mem_cons.1 hw
+    · have hw : w = r ∨ w ∈ T := by cases b; exacts [.inr hw, List.mem_cons.1 hw]
       rcases hw with rfl | hw
-      · exact hr
-      · exact fun h => hT w hw (List.mem_cons_of_mem _ h)
+      exacts [hr, fun h => hT w hw (List.mem_cons_of_mem _ h)]
     · have hrσ : σ r = b := by
         rw [hσ r hr]
         cases b
@@ -333,9 +329,8 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le (φ : CNF V) :
   obtain ⟨⟨-, -, hvars, -, hcount⟩, hle⟩ :=
     greedy_spec_of_add_le johnsonBranch (fun s => s.1.johnsonWeight L) Inv hbranch havg _ _ hinit
   have hcount := hcount (johnsonAssignment φ) fun v _ => rfl
-  rw [CNF.johnsonWeight_of_vars_eq_nil (fun v hv => by simpa using hvars v hv)
+  rwa [CNF.johnsonWeight_of_vars_eq_nil (fun v hv => by simpa using hvars v hv)
     (johnsonAssignment φ), hcount] at hle
-  exact hle
 
 /-! ### Corollaries -/
 

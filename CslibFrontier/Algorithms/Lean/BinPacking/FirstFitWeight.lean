@@ -306,14 +306,9 @@ private theorem singletons_cases {C : ℕ} {D : List (List ℕ)} (hDp : D.Pairwi
         k ≤ (D.map (Big C)).sum := by
   cases hf : D.find? (fun b => decide (2 * b.sum ≤ C)) with
   | none =>
-    left
-    rw [List.find?_eq_none] at hf
-    apply big_singletons
-    intro b hb
+    refine .inl (big_singletons fun b hb => ?_)
     obtain ⟨d, rfl⟩ := hD1 b hb
-    have := hf _ hb
-    simp only [List.sum_singleton, decide_eq_true_eq, not_le] at this
-    exact ⟨d, rfl, this⟩
+    exact ⟨d, rfl, by simpa using List.find?_eq_none.1 hf _ hb⟩
   | some b0 =>
     right
     rw [List.find?_eq_some_iff_append] at hf
@@ -322,27 +317,17 @@ private theorem singletons_cases {C : ℕ} {D : List (List ℕ)} (hDp : D.Pairwi
     simp only [List.sum_singleton, decide_eq_true_eq] at hb0
     obtain ⟨-, hc, -⟩ := List.pairwise_append.1 hDp
     have hD2 := (List.pairwise_cons.1 (List.pairwise_append.1 hDp).2.1).1
-    have hbig := big_singletons (C := C) (D := D1 ++ D2) (by
-      intro b hb
-      obtain ⟨d', rfl⟩ := hD1 b (by
-        rcases List.mem_append.1 hb with hb | hb
-        · exact List.mem_append_left _ hb
-        · exact List.mem_append_right _ (List.mem_cons_of_mem _ hb))
-      refine ⟨d', rfl, ?_⟩
+    have hbig := big_singletons (C := C) (D := D1 ++ D2) fun b hb => by
       rcases List.mem_append.1 hb with hb | hb
-      · have := hD1' _ hb
-        simp only [List.sum_singleton, Bool.not_eq_true', decide_eq_false_iff_not, not_le] at this
-        exact this
-      · have := hD2 _ hb d' (by simp)
-        simp only [List.sum_singleton] at this
-        omega)
+      · obtain ⟨d', rfl⟩ := hD1 b (List.mem_append_left _ hb)
+        exact ⟨d', rfl, by simpa using hD1' _ hb⟩
+      · obtain ⟨d', rfl⟩ := hD1 b (List.mem_append_right _ (List.mem_cons_of_mem _ hb))
+        have := hD2 _ hb d' (by simp)
+        exact ⟨d', rfl, by simp only [List.sum_singleton] at this; omega⟩
     have hWd : 12 * d ≤ W C [d] := by simp [W, firstFitWeight]
     simp only [List.length_append, List.map_append, List.sum_append] at hbig
-    refine ⟨d, D1.length + D2.length, by simp, hb0, by simp; omega, ?_, ?_⟩
-    · simp only [List.map_append, List.map_cons, List.sum_append, List.sum_cons]
-      omega
-    · simp only [List.map_append, List.map_cons, List.sum_append, List.sum_cons]
-      omega
+    refine ⟨d, D1.length + D2.length, by simp, hb0, by simp; omega, ?_, ?_⟩ <;>
+      simp only [List.map_append, List.map_cons, List.sum_append, List.sum_cons] <;> omega
 
 /-- The bins with at least two items: all but at most one are at least `2/3` full, and every
 bin after a bin less than `2/3` full is at least `2/3` full. -/
@@ -350,21 +335,10 @@ private theorem multi_cases {C : ℕ} {G : List (List ℕ)} :
     (∀ g ∈ G, 2 * C ≤ 3 * g.sum) ∨
       ∃ A c0 B, G = A ++ c0 :: B ∧ 3 * c0.sum < 2 * C ∧ ∀ a ∈ A, 2 * C ≤ 3 * a.sum := by
   cases hf : G.find? (fun g => decide (3 * g.sum < 2 * C)) with
-  | none =>
-    left
-    rw [List.find?_eq_none] at hf
-    intro g hg
-    have := hf g hg
-    simp only [decide_eq_true_eq, not_lt] at this
-    exact this
+  | none => exact .inl fun g hg => by simpa using List.find?_eq_none.1 hf g hg
   | some c0 =>
-    right
-    rw [List.find?_eq_some_iff_append] at hf
-    obtain ⟨h0, A, B, hAB, hA⟩ := hf
-    refine ⟨A, c0, B, hAB, by simpa using h0, fun a ha => ?_⟩
-    have := hA a ha
-    simp only [Bool.not_eq_true', decide_eq_false_iff_not, not_lt] at this
-    exact this
+    obtain ⟨h0, A, B, hAB, hA⟩ := List.find?_eq_some_iff_append.1 hf
+    exact .inr ⟨A, c0, B, hAB, by simpa using h0, fun a ha => by simpa using hA a ha⟩
 
 /-- The amortized weight bound on bins split into those with at least two items and those with
 one item. -/

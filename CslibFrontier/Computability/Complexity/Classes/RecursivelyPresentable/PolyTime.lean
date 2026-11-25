@@ -84,26 +84,23 @@ theorem isComputable_clock :
   have hL : ComputableInPolyTime (fun p : ℕ × ℕ => (p.2 + 1) * p.1)
       (encPair encUnary encUnary) encUnary := by fun_prop
   obtain ⟨_, _, hpad, -⟩ := hL.exists_computableInO_unary_two_pow
-  have hpair := (isComputable_id (encPair encUnary encUnary)).prod
-    (enc := encPair (encPair encUnary encUnary) encUnary) hpad.isComputable
   have hcap : ComputableInPolyTime
       (fun q : (ℕ × ℕ) × ℕ => capPow (2 * q.1.2 + 2) q.1.1 q.2)
       (encPair (encPair encUnary encUnary) encUnary) encUnary := by fun_prop
-  convert hcap.isComputable.comp hpair using 1
+  convert hcap.isComputable.comp ((isComputable_id (encPair encUnary encUnary)).prod
+    (enc := encPair (encPair encUnary encUnary) encUnary) hpad.isComputable) using 1
   funext p
-  have hc := clock_le_two_pow p.1 p.2
-  rw [clock] at hc
-  simp only [Function.comp_apply, id_eq, capPow, clock, min_eq_left hc]
+  simp only [Function.comp_apply, id_eq, capPow, clock,
+    min_eq_left (show (2 * p.2 + 2) ^ p.1 ≤ _ from clock_le_two_pow p.1 p.2)]
 
 /-- Pairing `(i, w)` with its polynomial clock `clock i |w|` is computable. -/
 theorem isComputable_withClock :
     IsComputable (fun p : ℕ × List Bool => (p, clock p.1 p.2.length))
-      (encPair encUnary encBits) (encPair (encPair encUnary encBits) encUnary) := by
-  have hargs : ComputableInPolyTime (fun p : ℕ × List Bool => (p.1, p.2.length))
-      (encPair encUnary encBits) (encPair encUnary encUnary) := by fun_prop
-  exact (isComputable_id (encPair encUnary encBits)).prod
+      (encPair encUnary encBits) (encPair (encPair encUnary encBits) encUnary) :=
+  (isComputable_id (encPair encUnary encBits)).prod
     (enc := encPair (encPair encUnary encBits) encUnary)
-    (isComputable_clock.comp hargs.isComputable)
+    (isComputable_clock.comp (show ComputableInPolyTime
+      (fun p : ℕ × List Bool => (p.1, p.2.length)) _ _ by fun_prop).isComputable)
 
 end Ladner
 
@@ -121,18 +118,14 @@ def pIndexed (p : ℕ × List Bool) : Bool :=
 theorem setOf_pIndexed_mem_P (i : ℕ) : {w | pIndexed (i, w) = true} ∈ P encBits := by
   have hc : ComputableInPolyTime (fun w : List Bool => clock i w.length) encBits encUnary :=
     (unary_pow i).comp (by fun_prop)
-  have hd : ComputableInPolyTime (fun w : List Bool =>
-      decide (runIndexed i w (clock i w.length) = ([eBit true], true))) encBits encBool := by
-    fun_prop
-  exact ⟨fun w => pIndexed (i, w), hd, fun _ => Iff.rfl⟩
+  exact ⟨fun w => pIndexed (i, w), by dsimp only [pIndexed]; fun_prop, fun _ => Iff.rfl⟩
 
 /-- Every problem in `P` on bit words appears in `pIndexed` at arbitrarily large indices. -/
 theorem exists_setOf_pIndexed_eq {A : Set (List Bool)} (h : A ∈ P encBits) (B : ℕ) :
     ∃ i, B ≤ i ∧ {w | pIndexed (i, w) = true} = A := by
   obtain ⟨f, hf, i, hi, hrun⟩ := exists_index_of_mem_P h B
-  refine ⟨i, hi, Set.ext fun w => ?_⟩
-  rw [Set.mem_ofPred_eq, pIndexed, hrun, hf]
-  cases f w <;> decide
+  exact ⟨i, hi, Set.ext fun w => by
+    rw [Set.mem_ofPred_eq, pIndexed, hrun, hf]; cases f w <;> decide⟩
 
 /-- The presentation of `P` with the clock capped at `c`. -/
 def pIndexedCap : (ℕ × List Bool) × ℕ → Bool
@@ -148,32 +141,28 @@ theorem computableInPolyTime_pIndexedCap :
 theorem pIndexedCap_eq_pIndexed_of_le {i : ℕ} {w : List Bool} {c : ℕ}
     (hc : clock i w.length ≤ c) :
     pIndexedCap ((i, w), c) = pIndexed (i, w) := by
-  rw [clock] at hc
-  simp only [pIndexedCap, pIndexed, Ladner.capPow, clock, min_eq_left hc]
-  rfl
+  simp only [pIndexedCap, pIndexed, Ladner.capPow, clock,
+    min_eq_left (show (2 * w.length + 2) ^ i ≤ c from hc)]; rfl
 
 /-- **The presentation of `P` is computable**, by computing `clock` via `isComputable_withClock` and
 running the universal simulator for that many steps. -/
 theorem isComputable_pIndexed : IsComputable pIndexed (encPair encUnary encBits) encBool := by
-  have hstep : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × ℕ => decide (runIndexed q.1.1 q.1.2 q.2 = ([eBit true], true)))
-      (encPair (encPair encUnary encBits) encUnary) encBool := by fun_prop
-  have heq : pIndexed =
-      (fun q : (ℕ × List Bool) × ℕ => decide (runIndexed q.1.1 q.1.2 q.2 = ([eBit true], true))) ∘
-        fun p => (p, clock p.1 p.2.length) := rfl
-  rw [heq]
-  exact hstep.isComputable.comp isComputable_withClock
+  rw [show pIndexed =
+    (fun q : (ℕ × List Bool) × ℕ => decide (runIndexed q.1.1 q.1.2 q.2 = ([eBit true], true))) ∘
+      fun p => (p, clock p.1 p.2.length) from rfl]
+  exact (show ComputableInPolyTime
+    (fun q : (ℕ × List Bool) × ℕ => decide (runIndexed q.1.1 q.1.2 q.2 = ([eBit true], true)))
+    (encPair (encPair encUnary encBits) encUnary) encBool by fun_prop).isComputable.comp
+    isComputable_withClock
 
 end UniformDiagonalization
 
 /-- **`P` is recursively presentable**, by the machines run within polynomial clocks. -/
-theorem recursivelyPresentable_P : RecursivelyPresentable encBits (P encBits) := by
-  refine ⟨UniformDiagonalization.pIndexed, UniformDiagonalization.isComputable_pIndexed,
-    Set.ext fun A => ⟨fun h => ?_, ?_⟩⟩
-  · obtain ⟨i, -, hi⟩ := UniformDiagonalization.exists_setOf_pIndexed_eq h 0
-    exact ⟨i, hi⟩
-  · rintro ⟨i, rfl⟩
-    exact UniformDiagonalization.setOf_pIndexed_mem_P i
+theorem recursivelyPresentable_P : RecursivelyPresentable encBits (P encBits) :=
+  ⟨UniformDiagonalization.pIndexed, UniformDiagonalization.isComputable_pIndexed,
+    Set.ext fun _ => ⟨fun h =>
+      let ⟨i, _, hi⟩ := UniformDiagonalization.exists_setOf_pIndexed_eq h 0; ⟨i, hi⟩,
+      fun ⟨i, hi⟩ => hi ▸ UniformDiagonalization.setOf_pIndexed_mem_P i⟩⟩
 
 /-! ### Enumerating polynomial-time transducers -/
 
@@ -202,9 +191,9 @@ theorem computableInPolyTime_transducerIndexed (i : ℕ) :
     ComputableInPolyTime (fun w => transducerIndexed (i, w)) encBits encBits := by
   have hc : ComputableInPolyTime (fun w : List Bool => clock i w.length) encBits encUnary :=
     (unary_pow i).comp (by fun_prop)
-  have hrun : ComputableInPolyTime (fun w : List Bool => runIndexed i w (clock i w.length))
-      encBits eOut := by fun_prop
-  exact computableInPolyTime_decodeRunOutput.comp hrun
+  exact computableInPolyTime_decodeRunOutput.comp
+    (show ComputableInPolyTime (fun w : List Bool => runIndexed i w (clock i w.length))
+      encBits eOut by fun_prop)
 
 /-- Every polynomial-time function `List Bool → List Bool` is realized by `transducerIndexed` at
 arbitrarily large indices. -/
@@ -226,14 +215,13 @@ theorem exists_transducerIndexed_eq {f : List Bool → List Bool}
 /-- **The enumeration of polynomial-time transducers is computable**, with the index in unary. -/
 theorem isComputable_transducerIndexed :
     IsComputable transducerIndexed (encPair encUnary encBits) encBits := by
-  have hrun : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × ℕ => runIndexed q.1.1 q.1.2 q.2)
-      (encPair (encPair encUnary encBits) encUnary) eOut := by fun_prop
-  have heq : transducerIndexed =
-      (decodeRunOutput ∘ fun q : (ℕ × List Bool) × ℕ => runIndexed q.1.1 q.1.2 q.2) ∘
-        fun p => (p, clock p.1 p.2.length) := rfl
-  rw [heq]
-  exact (computableInPolyTime_decodeRunOutput.comp hrun).isComputable.comp isComputable_withClock
+  rw [show transducerIndexed =
+    (decodeRunOutput ∘ fun q : (ℕ × List Bool) × ℕ => runIndexed q.1.1 q.1.2 q.2) ∘
+      fun p => (p, clock p.1 p.2.length) from rfl]
+  exact (computableInPolyTime_decodeRunOutput.comp (show ComputableInPolyTime
+    (fun q : (ℕ × List Bool) × ℕ => runIndexed q.1.1 q.1.2 q.2)
+    (encPair (encPair encUnary encBits) encUnary) eOut by fun_prop)).isComputable.comp
+    isComputable_withClock
 
 end Ladner
 
@@ -255,13 +243,13 @@ private theorem polyTimeReducible_of_patch {α β : Type} {encA : α ↪ List Bo
   obtain ⟨g₀, hg₀, hG₀⟩ := hS₀
   refine ⟨fun x => if g₁ x then b₁ else if g₀ x then b₀ else f x,
     hg₁.ite (.const b₁) (hg₀.ite (.const b₀) hf), fun x => ?_⟩
-  by_cases hx₁ : x ∈ S₁
-  · simp only [(hG₁ x).mp hx₁, ↓reduceIte, h₁ x hx₁, hb₁]
-  · have hg₁x : g₁ x = false := Bool.eq_false_iff.mpr fun h => hx₁ ((hG₁ x).mpr h)
-    by_cases hx₀ : x ∈ S₀
-    · simp only [hg₁x, (hG₀ x).mp hx₀, Bool.false_eq_true, ↓reduceIte, h₀ x hx₀, hb₀]
-    · have hg₀x : g₀ x = false := Bool.eq_false_iff.mpr fun h => hx₀ ((hG₀ x).mpr h)
-      simp only [hg₁x, hg₀x, Bool.false_eq_true, ↓reduceIte, hrest x hx₁ hx₀]
+  cases hg₁x : g₁ x
+  · cases hg₀x : g₀ x
+    · simpa only [hg₁x, hg₀x, Bool.false_eq_true, ↓reduceIte] using
+        hrest x (fun h => by cases hg₁x.symm.trans ((hG₁ x).mp h))
+          (fun h => by cases hg₀x.symm.trans ((hG₀ x).mp h))
+    · simp only [hg₁x, hg₀x, Bool.false_eq_true, ↓reduceIte, h₀ x ((hG₀ x).mpr hg₀x), hb₀]
+  · simp only [hg₁x, ↓reduceIte, h₁ x ((hG₁ x).mpr hg₁x), hb₁]
 
 /-- Modifying the source of a polynomial-time reduction on finitely many instances preserves
 reducibility whenever the target has a non-member and a member. -/
@@ -273,11 +261,9 @@ theorem polyTimeReducible_of_symmDiff_finite_left {α β : Type} {encA : α ↪ 
   refine polyTimeReducible_of_patch hf
     ((hfin.subset (t := (L ∆ L') ∩ L') Set.inter_subset_left).mem_P (enc := encA))
     ((hfin.subset (t := (L ∆ L') \ L') Set.sdiff_subset).mem_P (enc := encA))
-    hb₀ hb₁ (fun _ hx => hx.2) (fun _ hx => hx.2) fun x hx₁ hx₀ => ?_
-  have hsame : x ∈ L' ↔ x ∈ L := by
-    simp only [Set.mem_inter_iff, Set.mem_sdiff, Set.mem_symmDiff] at hx₁ hx₀
-    tauto
-  exact hsame.trans (hL x)
+    hb₀ hb₁ (fun _ hx => hx.2) (fun _ hx => hx.2) fun x hx₁ hx₀ =>
+      (by simp only [Set.mem_inter_iff, Set.mem_sdiff, Set.mem_symmDiff] at hx₁ hx₀; tauto :
+        x ∈ L' ↔ x ∈ L).trans (hL x)
 
 /-- The lower `≤ₘᵖ`-cone of a problem with a non-member and a member is closed under finite
 variations. -/
@@ -293,17 +279,15 @@ theorem polyTimeReducible_of_symmDiff_finite_right {α β : Type} {encA : α ↪
     (hfin : (L ∆ L').Finite) {z₀ z₁ : β} (hz₀ : z₀ ∉ L') (hz₁ : z₁ ∈ L') :
     PolyTimeReducible encA encB B L' := by
   obtain ⟨r, hr, hB⟩ := hBL
-  have hP₁ : r ⁻¹' ((L ∆ L') ∩ L) ∈ P encA :=
-    PolyTimeReducible.mem_P ⟨r, hr, fun _ => Iff.rfl⟩
-      ((hfin.subset Set.inter_subset_left).mem_P (enc := encB))
-  have hP₀ : r ⁻¹' ((L ∆ L') \ L) ∈ P encA :=
-    PolyTimeReducible.mem_P ⟨r, hr, fun _ => Iff.rfl⟩
-      ((hfin.subset Set.sdiff_subset).mem_P (enc := encB))
-  refine polyTimeReducible_of_patch hr hP₁ hP₀ hz₀ hz₁
-    (fun x hx => (hB x).mpr hx.2) (fun x hx hBx => hx.2 ((hB x).mp hBx))
-    fun x hx₁ hx₀ => (hB x).trans ?_
-  simp only [Set.mem_preimage, Set.mem_inter_iff, Set.mem_sdiff, Set.mem_symmDiff] at hx₁ hx₀
-  tauto
+  refine polyTimeReducible_of_patch hr (S₁ := r ⁻¹' ((L ∆ L') ∩ L)) (S₀ := r ⁻¹' ((L ∆ L') \ L))
+    (PolyTimeReducible.mem_P ⟨r, hr, fun _ => Iff.rfl⟩
+      ((hfin.subset Set.inter_subset_left).mem_P (enc := encB)))
+    (PolyTimeReducible.mem_P ⟨r, hr, fun _ => Iff.rfl⟩
+      ((hfin.subset Set.sdiff_subset).mem_P (enc := encB))) hz₀ hz₁
+    (fun x hx => (hB x).mpr hx.2) (fun x hx hBx => hx.2 ((hB x).mp hBx)) fun x hx₁ hx₀ =>
+      (hB x).trans <| by
+        simp only [Set.mem_preimage, Set.mem_inter_iff, Set.mem_sdiff, Set.mem_symmDiff] at hx₁ hx₀
+        tauto
 
 /-! ### Presenting lower cones and classes with a complete problem -/
 
@@ -312,17 +296,12 @@ theorem recursivelyPresentable_polyTimeReducible_le {B : Set (List Bool)}
     (hB : IsDecidable B encBits) :
     RecursivelyPresentable encBits {L | PolyTimeReducible encBits encBits L B} := by
   obtain ⟨b, hb, hB'⟩ := hB.exists_isComputable
-  refine ⟨b ∘ transducerIndexed, hb.comp isComputable_transducerIndexed, ?_⟩
-  ext L
+  refine ⟨b ∘ transducerIndexed, hb.comp isComputable_transducerIndexed, Set.ext fun L => ?_⟩
   simp only [Set.mem_ofPred_eq, Set.mem_range, Function.comp_apply]
-  constructor
-  · rintro ⟨f, hf, hLB⟩
-    obtain ⟨i, -, hi⟩ := exists_transducerIndexed_eq hf 0
-    refine ⟨i, Set.ext fun w => ?_⟩
-    simp only [Set.mem_ofPred_eq, hi w, ← hB' (f w), ← hLB w]
-  · rintro ⟨i, rfl⟩
-    exact ⟨fun w => transducerIndexed (i, w), computableInPolyTime_transducerIndexed i,
-      fun w => (hB' _).symm⟩
+  refine ⟨fun ⟨f, hf, hLB⟩ => let ⟨i, _, hi⟩ := exists_transducerIndexed_eq hf 0
+      ⟨i, Set.ext fun w => by simp only [Set.mem_ofPred_eq, hi w, ← hB' (f w), ← hLB w]⟩,
+    fun ⟨i, hi⟩ => hi ▸ ⟨fun w => transducerIndexed (i, w),
+      computableInPolyTime_transducerIndexed i, fun w => (hB' _).symm⟩⟩
 
 /-- **Any class on bit words closed under `≤ₘᵖ` that has a decidable `≤ₘᵖ`-complete problem is
 recursively presentable.** -/
@@ -330,9 +309,9 @@ theorem PolyTimeComplete.recursivelyPresentable
     {𝒞 : ∀ {α : Type}, (α ↪ List Bool) → Set (Set α)} {B : Set (List Bool)}
     (hB : PolyTimeComplete 𝒞 encBits B) (hdec : IsDecidable B encBits)
     (hclosed : ∀ ⦃A : Set (List Bool)⦄, PolyTimeReducible encBits encBits A B → A ∈ 𝒞 encBits) :
-    RecursivelyPresentable encBits (𝒞 encBits) := by
-  have heq : 𝒞 encBits = {A | PolyTimeReducible encBits encBits A B} :=
-    Set.ext fun A => ⟨fun hA => hB.2 encBits A hA, fun hAB => hclosed hAB⟩
-  exact heq ▸ recursivelyPresentable_polyTimeReducible_le hdec
+    RecursivelyPresentable encBits (𝒞 encBits) :=
+  (Set.ext fun A => ⟨hB.2 encBits A, @hclosed A⟩ :
+    𝒞 encBits = {A | PolyTimeReducible encBits encBits A B}) ▸
+    recursivelyPresentable_polyTimeReducible_le hdec
 
 end Cslib.Complexity

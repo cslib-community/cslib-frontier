@@ -226,16 +226,11 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
           dsimp only []
           rw [ite_eq_left ⟨rfl, ha_already⟩]
           split_ifs <;> simp only [↓reduceIte] <;> exact Finset.mem_insert_self _ _
-      let stepOf : Acceptor → ℕ := fun a =>
-        if h : a ∈ Q then Classical.choose (hQ_prom a h) else 1
+      choose! stepOf hstep₁ hstep using hQ_prom
       let N_all := max 1 (Q.sup stepOf)
-      have hQ_sub_Nall : Q ⊆ ((ss N_all).proposers p).promised := by
-        intro a haQ
-        have hspec := Classical.choose_spec (hQ_prom a haQ)
-        have hle_sup : Classical.choose (hQ_prom a haQ) ≤ Q.sup stepOf := by
-          simpa only [stepOf, dite_eq_left haQ] using Finset.le_sup (f := stepOf) haQ
-        exact promised_mono qs hexec hprep₀ hno_higher hspec.1
-          (hle_sup.trans (le_max_right 1 _)) hspec.2
+      have hQ_sub_Nall : Q ⊆ ((ss N_all).proposers p).promised := fun a haQ =>
+        promised_mono qs hexec hprep₀ hno_higher (hstep₁ a haQ)
+          ((Finset.le_sup haQ).trans (le_max_right 1 _)) (hstep a haQ)
       have hnot_1 : ¬ (Q ⊆ ((ss 1).proposers p).promised) := by
         rw [hs1_prom_empty]
         obtain ⟨a₀, ha₀⟩ := qs.prepareQuorum_nonempty hQ₁

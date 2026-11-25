@@ -190,16 +190,12 @@ theorem expect_binProductRecipe (hf : 0 < f) (hb : 0 < b)
     simpa only [mulVec, dotProduct, Pi.one_apply, mul_one] using hC1 z
   simp only [binProductRecipe, mul_sum]
   rw [expect_sum_comm]
-  apply sum_congr rfl
-  intro z _
+  refine sum_congr rfl fun z _ => ?_
   calc
     _ = 𝔼 draw ∈ (({s | Xs s x} : Finset Γ) ×ˢ (univ : Finset Ζ)) ×ˢ
         ({s | Ya s y} : Finset Ω),
-        ((f / A.π) * A.atom draw.1 x z) * B.direct C draw.2 z y := by
-      apply expect_congr rfl
-      intro draw _
-      dsimp only [DenseSamplingLaws.direct]
-      ring
+        ((f / A.π) * A.atom draw.1 x z) * B.direct C draw.2 z y :=
+      expect_congr rfl fun draw _ => by dsimp only [DenseSamplingLaws.direct]; ring
     _ = _ := by
       rw [expect_product]
       dsimp only
@@ -243,11 +239,9 @@ theorem identifier_affine {p : ℕ} (D : ZMod p) (suffix : List (ZMod p)) (x : Z
 
 /-- Padding preserves distinct identifiers when the radix is nonzero modulo the prime. -/
 theorem identifier_injective {p : ℕ} [Fact p.Prime] {D : ZMod p} (hD : D ≠ 0)
-    (suffix : List (ZMod p)) : Function.Injective (identifier D suffix) := by
-  intro x y h
-  have heq := (identifier_affine D suffix x).symm.trans
-    (h.trans (identifier_affine D suffix y))
-  exact mul_left_cancel₀ (pow_ne_zero _ hD) (add_right_cancel heq)
+    (suffix : List (ZMod p)) : Function.Injective (identifier D suffix) := fun x y h =>
+  mul_left_cancel₀ (pow_ne_zero _ hD) (add_right_cancel
+    ((identifier_affine D suffix x).symm.trans (h.trans (identifier_affine D suffix y))))
 
 /-- The exact joint frame law for native padding follows from affine substitution.
 This is distributional invariance, not pointwise equality of arbitrary environments. -/
@@ -259,8 +253,8 @@ theorem dens_frame_padding {p H r : ℕ} [Fact p.Prime] {D : ZMod p} (hD : D ≠
       dens {A : Cslib.Probability.FrameChannel p H r | E A.eval} := by
   have hset : ({A : Cslib.Probability.FrameChannel p H r |
       E (fun x => A.eval (identifier D suffix x))} : Finset _) =
-      ({A : Cslib.Probability.FrameChannel p H r |
-        E (fun x => A.eval (D ^ suffix.length * x + identifier D suffix 0))} : Finset _) := by
+    ({A : Cslib.Probability.FrameChannel p H r |
+      E (fun x => A.eval (D ^ suffix.length * x + identifier D suffix 0))} : Finset _) := by
     ext A
     simp only [mem_filter, mem_univ, true_and]
     exact iff_of_eq (congrArg E (funext fun x =>

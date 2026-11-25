@@ -71,13 +71,11 @@ structure Dr (K : Type) where
 @[expose] noncomputable def bsl (K : Type) [Fintype K] : List (Bl K) :=
   List.ofFn (Fintype.equivFin (Bl K)).symm
 
-theorem mem_bsl {K : Type} [Fintype K] (b : Bl K) : b ∈ bsl K := by
-  rw [bsl, List.mem_ofFn]
-  exact ⟨Fintype.equivFin (Bl K) b, by simp⟩
+theorem mem_bsl {K : Type} [Fintype K] (b : Bl K) : b ∈ bsl K :=
+  List.mem_ofFn.mpr ⟨Fintype.equivFin (Bl K) b, by simp⟩
 
-theorem bsl_nodup {K : Type} [Fintype K] : (bsl K).Nodup := by
-  rw [bsl, List.nodup_ofFn]
-  exact Equiv.injective _
+theorem bsl_nodup {K : Type} [Fintype K] : (bsl K).Nodup :=
+  List.nodup_ofFn.mpr (Equiv.injective _)
 
 variable {A : Type*} [CommRing A] {M K : Type} [Fintype K] [DecidableEq K]
 
@@ -100,21 +98,18 @@ theorem runs_dr [Finite M] :
       (Runs.const (F := A) fun z : Zc K =>
         on {lsT} [(Sy.dot : Sy M K)] z ++ on {.tp (.bk b) false} [be b, Sy.dot] z)
   refine (h.congr
-    ⟨fun d => ⟨d.head, (((d.flag, ()), d.tail), ())⟩,
-     fun y => ⟨y.2.1.1.1, y.1, y.2.1.2⟩,
+    ⟨fun d => ⟨d.head, (((d.flag, ()), d.tail), ())⟩, fun y => ⟨y.2.1.1.1, y.1, y.2.1.2⟩,
      fun _ => rfl, fun _ => rfl⟩
     (fun d z => ?_) fun _ => by simp).mono ?_
   · obtain ⟨f, b, w⟩ := d
     simp only [Equiv.coe_fn_mk, emDr, rw']
     by_cases h1 : z = lsT
-    · subst h1
-      simp [on, ol]
+    · simp [on, ol, h1]
     · by_cases h2 : z = .tp (.bk b) false
-      · subst h2
-        simp [on, ol]
+      · simp [on, ol, h2]
       · simp [on, h1, h2]
-  · have hc : ∀ b : Bl K, ({lsT, .tp (.bk b) false} : Finset (Zc K)).card = 2 :=
-      fun _ => Finset.card_pair (by simp)
+  · have hc (b : Bl K) : ({lsT, .tp (.bk b) false} : Finset (Zc K)).card = 2 :=
+      Finset.card_pair (by simp)
     simp only [hc, List.length_append, Finset.sum_add_distrib, sum_on, List.length_cons,
       List.length_nil, zero_add, Finset.card_singleton, mul_one, Fintype.card_bool,
       Finset.sum_const, Finset.card_univ, smul_eq_mul]
@@ -139,33 +134,28 @@ theorem runs_co [Fintype M] :
     Runs (Fintype.card (Bl K) * (Fintype.card (Sy M K) * 5 + 1 + 3) + 1 + 3)
       (emCo : (Bl K → List (NB M K)) → Zc K → List (Sy M K)) (fun _ => (1 : A)) := by
   classical
-  have h0 : ∀ i : Fin (Fintype.card (Bl K)),
+  have h0 (i : Fin (Fintype.card (Bl K))) :
       Runs (Fintype.card (Sy M K) * 5 + 1 + 3)
         (fun (w : List (NB M K)) (z : Zc K) =>
           on {.tp (.bk ((Fintype.equivFin (Bl K)).symm i)) true, lsF}
             (w.map Subtype.val) z ++
           on {.tp (.bk ((Fintype.equivFin (Bl K)).symm i)) true} [Sy.bar] z)
         (fun _ => (1 : A)) := by
-    intro i
-    have h1 :=
-      (Runs.wordstar (F := A) (Z := Zc K)
+    have h1 := (Runs.wordstar (F := A) (Z := Zc K)
           {.tp (.bk ((Fintype.equivFin (Bl K)).symm i)) true, lsF}
           ⟨lsF, by simp⟩ (Subtype.val : NB M K → Sy M K)).mul
         (Runs.word (F := A) (Z := Zc K)
           {.tp (.bk ((Fintype.equivFin (Bl K)).symm i)) true} [(Sy.bar : Sy M K)])
     refine (h1.congr ⟨fun w => (w, ()), Prod.fst, fun _ => rfl, fun _ => rfl⟩
       (fun _ _ => rfl) fun _ => by simp).mono ?_
-    have hc : ({.tp (.bk ((Fintype.equivFin (Bl K)).symm i)) true, lsF} :
-        Finset (Zc K)).card = 2 := Finset.card_pair (by simp)
-    have hs : Fintype.card (NB M K) ≤ Fintype.card (Sy M K) := Fintype.card_subtype_le _
-    rw [hc, Finset.card_singleton, List.length_singleton]
-    exact Nat.add_le_add (Nat.add_le_add_right (Nat.mul_le_mul_right 5 hs) 1) (by omega)
+    rw [Finset.card_pair (by simp), Finset.card_singleton, List.length_singleton]
+    have := Fintype.card_subtype_le (fun γ : Sy M K => γ ≠ .bar)
+    omega
   have h := (Runs.pi h0).mul (Runs.word (F := A) (Z := Zc K) {lsF} [(Sy.bar : Sy M K)])
   refine (h.congr
     ⟨fun m => (fun i => m ((Fintype.equivFin (Bl K)).symm i), ()),
      fun y b => y.1 (Fintype.equivFin (Bl K) b),
-     fun _ => by funext b; simp,
-     fun ⟨_, _⟩ => by ext; simp⟩
+     fun _ => by funext b; simp, fun ⟨_, _⟩ => by ext; simp⟩
     (fun _ _ => rfl) fun _ => by simp).mono ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul,
     Finset.card_singleton, List.length_singleton]
@@ -184,24 +174,19 @@ omit [Fintype K] in
 theorem emDr_ne (d : Dr K) : ∃ z, (emDr d : Zc K → List (Sy M K)) z ≠ [] :=
   ⟨lsT, by simp [emDr, on, rw']⟩
 
-theorem card_barSet : (barSet : Finset (Zc K)).card ≤ Fintype.card (Bl K) + 1 := by
-  unfold barSet
-  refine (Finset.card_insert_le _ _).trans (Nat.add_le_add_right ?_ 1)
-  exact Finset.card_image_le
+theorem card_barSet : (barSet : Finset (Zc K)).card ≤ Fintype.card (Bl K) + 1 :=
+  (Finset.card_insert_le _ _).trans (Nat.add_le_add_right Finset.card_image_le 1)
 
 theorem runs_ps [Fintype M] : Runs (dimPs (Fintype.card (Sy M K)) (Fintype.card (Bl K)))
     (emPs : Ps M K → Zc K → List (Sy M K)) (fun _ => (1 : A)) := by
   classical
-  have h := ((runs_dr (A := A) (M := M) (K := K)).kstar fun d => emDr_ne d).mul
-    ((Runs.word (F := A) (Z := Zc K) barSet [(Sy.bar : Sy M K)]).mul
-      (runs_co (A := A) (M := M) (K := K)))
-  refine (h.congr (em' := emPs) (wt' := fun _ => (1 : A))
+  refine ((((runs_dr (A := A) (M := M) (K := K)).kstar emDr_ne).mul
+      ((Runs.word (F := A) (Z := Zc K) barSet [(Sy.bar : Sy M K)]).mul
+        (runs_co (A := A) (M := M) (K := K)))).congr (em' := emPs) (wt' := fun _ => (1 : A))
     ⟨fun p => (p.1, (), p.2), fun y => (y.1, y.2.2), fun _ => rfl, fun _ => rfl⟩
     (fun _ _ => rfl) fun _ => by simp).mono ?_
-  have hcb : (barSet : Finset (Zc K)).card ≤ Fintype.card (Bl K) + 1 := card_barSet
-  unfold dimPs
-  rw [Fintype.card_option]
-  simp only [List.length_singleton, mul_one]
+  have : (barSet : Finset (Zc K)).card ≤ Fintype.card (Bl K) + 1 := card_barSet
+  simp only [dimPs, Fintype.card_option, List.length_singleton, mul_one]
   omega
 
 /-- Emissions of the final reading: rotation marks have returned to the front and are dropped
@@ -217,43 +202,34 @@ theorem runs_fi [Finite M] : Runs (14 + 3 + (Fintype.card (Bl K) * 7 + 1) + 7 + 
   let : Fintype M := Fintype.ofFinite M
   have hc : ({lsT, .tp (.cm false) false, .tp (.cm true) false} : Finset (Zc K)).card = 3 := by
     rw [Finset.card_insert_of_notMem (by simp), Finset.card_pair (by simp)]
-  have h1 :=
-    (((Runs.letter (F := A) (Z := Zc K)
+  have h2 := ((((Runs.letter (F := A) (Z := Zc K)
         {lsT, .tp (.cm false) false, .tp (.cm true) false}
         (fun f : Bool => (Sy.flag f : Sy M K)) (fun _ => 1)).mul
       (Runs.word (F := A) {lsT} [(Sy.mark : Sy M K)])).mul
       (Runs.wordstar (F := A) {lsT, .tp (.cm false) false, .tp (.cm true) false}
         ⟨lsT, by simp⟩ (be : Bl K → Sy M K))).mul
       (Runs.word (F := A) {lsT, .tp (.cm false) false, .tp (.cm true) false}
-        [(Sy.dot : Sy M K)])
-  have h2 := h1.congr
+        [(Sy.dot : Sy M K)])).congr
     (em' := fun (d : Bool × List (Bl K)) z =>
       on {lsT} (rw' d.1 (none :: d.2.map some)) z ++
         on {.tp (.cm false) false, .tp (.cm true) false} (rw' d.1 (d.2.map some)) z)
     (wt' := fun _ => 1)
-    ⟨fun d => (((d.1, ()), d.2), ()), fun y => (y.1.1.1, y.1.2),
-     fun _ => rfl, fun _ => rfl⟩
-    (fun d z => by
-      obtain ⟨f, w⟩ := d
+    ⟨fun d => (((d.1, ()), d.2), ()), fun y => (y.1.1.1, y.1.2), fun _ => rfl, fun _ => rfl⟩
+    (fun ⟨f, w⟩ z => by
       have hw : (w.map some).map (ol : Option (Bl K) → Sy M K) = w.map be := by
         rw [List.map_map]; rfl
       simp only [Equiv.coe_fn_mk, rw', List.map_cons, hw]
       by_cases h1 : z = lsT
-      · subst h1
-        simp [on, ol]
+      · simp [on, ol, h1]
       · by_cases h2 : z = .tp (.cm false) false
-        · subst h2
-          simp [on]
+        · simp [on, h2]
         · by_cases h3 : z = .tp (.cm true) false
-          · subst h3
-            simp [on]
+          · simp [on, h3]
           · simp [on, h1, h2, h3])
     (fun _ => by simp)
-  have h3 := (h2.kstar fun _ => ⟨lsT, by simp [on, rw']⟩).mul
-    (Runs.word (F := A) (Z := Zc K) {lsT} [(Sy.bar : Sy M K)])
-  refine (h3.congr ⟨fun l => (l, ()), Prod.fst, fun _ => rfl, fun _ => rfl⟩
-    (fun _ _ => rfl) fun _ => by simp).mono ?_
-  rw [hc]
-  simp
+  refine (((h2.kstar fun _ => ⟨lsT, by simp [on, rw']⟩).mul
+      (Runs.word (F := A) (Z := Zc K) {lsT} [(Sy.bar : Sy M K)])).congr
+    ⟨fun l => (l, ()), Prod.fst, fun _ => rfl, fun _ => rfl⟩
+    (fun _ _ => rfl) fun _ => by simp).mono (by rw [hc]; simp)
 
 end Cslib.Circuits.Arithmetic.Separation.Uni

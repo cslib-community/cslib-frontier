@@ -88,8 +88,7 @@ def bitLength (n : ℕ) : ℕ := Nat.log 2 n + 1
 theorem bitLength_eq_max_size (n : ℕ) : bitLength n = max n.size 1 := by
   rcases eq_or_ne n 0 with rfl | hn
   · rfl
-  · rw [bitLength, Nat.size_eq_log_two_add_one hn]
-    omega
+  · simp [bitLength, Nat.size_eq_log_two_add_one hn]
 
 theorem bitLength_eq_size {n : ℕ} (hn : n ≠ 0) : bitLength n = n.size :=
   (Nat.size_eq_log_two_add_one hn).symm
@@ -119,14 +118,10 @@ theorem bitLength_le_iff {n k : ℕ} (hk : k ≠ 0) : bitLength n ≤ k ↔ n < 
   exact and_iff_left (Nat.one_le_iff_ne_zero.2 hk)
 
 theorem bitLength_add_le (m n : ℕ) : bitLength (m + n) ≤ bitLength m + bitLength n := by
-  have hm : 2 ≤ 2 ^ bitLength m := by
-    simpa using Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength m)
-  have hn : 2 ≤ 2 ^ bitLength n := by
-    simpa using Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength n)
+  have hm : 2 ≤ 2 ^ bitLength m := Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength m)
+  have hn : 2 ≤ 2 ^ bitLength n := Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength n)
   rw [bitLength_le_iff (by have := one_le_bitLength m; omega), pow_add]
-  have := lt_two_pow_bitLength m
-  have := lt_two_pow_bitLength n
-  nlinarith
+  nlinarith [lt_two_pow_bitLength m, lt_two_pow_bitLength n]
 
 theorem bitLength_mul_le (m n : ℕ) : bitLength (m * n) ≤ bitLength m + bitLength n := by
   rw [bitLength_le_iff (by have := one_le_bitLength m; omega), pow_add]
@@ -179,9 +174,7 @@ theorem stepCost_of_isHalted (h : s.isHalted p) : stepCost cost p s = 0 := by
 
 theorem stepCost_mono (h : cost ≤ cost') : stepCost cost p s ≤ stepCost cost' p s := by
   unfold stepCost
-  split
-  · exact h _ _
-  · exact le_rfl
+  split <;> [exact h _ _; exact le_rfl]
 
 @[simp]
 theorem time_zero : time cost p 0 s = 0 := rfl
@@ -220,9 +213,8 @@ theorem stepCost_unitCost_le : stepCost unitCost p s ≤ 1 := by
   unfold stepCost
   split <;> simp [unitCost]
 
-theorem stepCost_unitCost (h : ¬s.isHalted p) : stepCost unitCost p s = 1 := by
-  have hlt : s.pc < p.length := by simpa using h
-  exact stepCost_of_getElem? (List.getElem?_eq_getElem hlt)
+theorem stepCost_unitCost (h : ¬s.isHalted p) : stepCost unitCost p s = 1 :=
+  stepCost_of_getElem? (List.getElem?_eq_getElem (by simpa using h))
 
 /-- Unit time is at most the number of steps. -/
 theorem time_unitCost_le : time unitCost p n s ≤ n :=
@@ -252,12 +244,9 @@ theorem time_unitCost_le_time_logCost : time unitCost p n s ≤ time logCost p n
 private theorem bitLength_read_write_le {σ : URM.Regs} {c d v : ℕ}
     (hσ : ∀ r, bitLength (σ.read r) ≤ b) (hv : bitLength v ≤ c) (r : ℕ) :
     bitLength ((σ.write d v).read r) ≤ max b c := by
-  by_cases h : r = d
-  · subst h
-    rw [URM.Regs.write_read_self]
-    exact le_max_of_le_right hv
-  · rw [URM.Regs.write_read_of_ne _ _ _ _ h]
-    exact le_max_of_le_left (hσ r)
+  rcases eq_or_ne r d with rfl | h
+  · simpa only [URM.Regs.write_read_self] using le_max_of_le_right hv
+  · simpa only [URM.Regs.write_read_of_ne _ _ _ _ h] using le_max_of_le_left (hσ r)
 
 /-- An instruction writes no number longer than its logarithmic cost: if the registers of `s` hold
 numbers of length at most `b`, then after executing `i` they hold numbers of length at most the
@@ -279,11 +268,8 @@ theorem bitLength_read_step_le (hs : ∀ r, bitLength (s.regs.read r) ≤ b) (r 
     bitLength ((step p s).regs.read r) ≤ max b (stepCost logCost p s) := by
   cases h : p[s.pc]? with
   | some i =>
-    rw [step_of_getElem? h, stepCost_of_getElem? h]
-    exact bitLength_read_exec_le i hs r
-  | none =>
-    rw [step, h]
-    exact le_max_of_le_left (hs r)
+    simpa only [step_of_getElem? h, stepCost_of_getElem? h] using bitLength_read_exec_le i hs r
+  | none => simpa only [step, h] using le_max_of_le_left (hs r)
 
 /-- **Logarithmic cost bounds the numbers a RAM holds.** If the registers of `s` hold numbers of
 length at most `b`, then after a run of logarithmic time `T` they hold numbers of length at most
@@ -295,8 +281,7 @@ theorem bitLength_read_run_le (hs : ∀ r, bitLength (s.regs.read r) ≤ b) (n r
   | zero => exact le_max_of_le_left (hs r)
   | succ n ih =>
     rw [run_succ', time_succ']
-    refine (bitLength_read_step_le ih r).trans ?_
-    omega
+    exact (bitLength_read_step_le ih r).trans (by omega)
 
 /-! ## Computing within a time bound -/
 
@@ -324,20 +309,17 @@ variable {inputs : List ℕ} {result T T' : ℕ}
 /-- A program halting with a result within a time bound halts with that result. -/
 theorem haltsWithResult (h : HaltsWithResultInTime cost p inputs result T) :
     HaltsWithResult p inputs result :=
-  let ⟨n, hn, hr, _⟩ := h
-  haltsWithResult_iff_exists_run.2 ⟨n, hn, hr⟩
+  haltsWithResult_iff_exists_run.2 <| let ⟨n, hn, hr, _⟩ := h; ⟨n, hn, hr⟩
 
 /-- A time bound can be increased. -/
 theorem mono (h : HaltsWithResultInTime cost p inputs result T) (hT : T ≤ T') :
     HaltsWithResultInTime cost p inputs result T' :=
-  let ⟨n, hn, hr, ht⟩ := h
-  ⟨n, hn, hr, ht.trans hT⟩
+  let ⟨n, hn, hr, ht⟩ := h; ⟨n, hn, hr, ht.trans hT⟩
 
 /-- A cost measure can be decreased. -/
 theorem mono_cost (h : HaltsWithResultInTime cost' p inputs result T) (hc : cost ≤ cost') :
     HaltsWithResultInTime cost p inputs result T :=
-  let ⟨n, hn, hr, ht⟩ := h
-  ⟨n, hn, hr, (time_mono_cost hc).trans ht⟩
+  let ⟨n, hn, hr, ht⟩ := h; ⟨n, hn, hr, (time_mono_cost hc).trans ht⟩
 
 end HaltsWithResultInTime
 

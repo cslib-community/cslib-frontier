@@ -165,12 +165,9 @@ theorem exists_cnf_hammingDist_div_le (φ : CNF ι) {ε : ℝ} (hε : 0 < ε) :
   refine ⟨ψ.negate, by simpa [DNF.negate, hφ] using hlen, fun c hc => ?_, ?_⟩
   · obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hc
     obtain ⟨hnd, hc, hlen⟩ := hwidth t ht
-    refine ⟨hnd.map fun a b h => ?_, by rw [Term.isTautClause_negate, hc, Bool.not_true], ?_⟩
-    · obtain ⟨a₁, a₂⟩ := a
-      obtain ⟨b₁, b₂⟩ := b
-      simp_all only [Prod.mk.injEq, Bool.not_inj_iff]
-    rw [Term.length_negate, ← hφ]
-    exact hlen
+    exact ⟨hnd.map fun ⟨_, _⟩ ⟨_, _⟩ h => by simp_all only [Prod.mk.injEq, Bool.not_inj_iff],
+      by rw [Term.isTautClause_negate, hc, Bool.not_true],
+      by rwa [Term.length_negate, ← hφ]⟩
   · refine le_of_eq_of_le ?_ hdist
     congr 2
     unfold hammingDist

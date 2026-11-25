@@ -146,13 +146,10 @@ theorem realize_reachSentence (M : Structure Language.graph) :
     rfl
   rw [reachSentence, TC.realize_tc_pair, mem_Reach]
   simp only [Matrix.cons_val_fin_one]
-  constructor
-  · intro h
-    exact Relation.ReflTransGen.lift (fun x : Fin M.size => fun _ : Fin 1 => x)
-      (fun a b hab => (hedge _ _).mpr hab) _ _ h
-  · intro h
-    exact Relation.ReflTransGen.lift (fun us : Fin 1 → Fin M.size => us 0)
-      (fun us vs huv => (hedge us vs).mp huv) _ _ h
+  exact ⟨fun h => Relation.ReflTransGen.lift (fun x : Fin M.size => fun _ : Fin 1 => x)
+      (fun a b hab => (hedge _ _).mpr hab) _ _ h,
+    fun h => Relation.ReflTransGen.lift (fun us : Fin 1 → Fin M.size => us 0)
+      (fun us vs huv => (hedge us vs).mp huv) _ _ h⟩
 
 /-- **`Reach` is definable in positive FO(TC).** -/
 theorem posTCDefinable_Reach : PosTCDefinable Reach :=
@@ -169,11 +166,8 @@ private theorem reflTransGen_subtype_iff {α : Type*} {P : α → Prop} {R : α 
   have hrange (z : α)
       (hz : Relation.ReflTransGen (fun u w => (P u ∧ P w) ∧ R u w) x.val z) :
       ∃ w : {a : α // P a}, w.val = z := by
-    cases hz with
-    | refl => exact ⟨x, rfl⟩
-    | tail _ hstep =>
-      rcases hstep with ⟨⟨_, hzP⟩, _⟩
-      exact ⟨⟨z, hzP⟩, rfl⟩
+    rcases hz with _ | ⟨_, ⟨⟨_, hzP⟩, _⟩⟩
+    exacts [⟨x, rfl⟩, ⟨⟨z, hzP⟩, rfl⟩]
   have hrel : (fun u w : {a : α // P a} => (P u.val ∧ P w.val) ∧ R u.val w.val) =
       fun u w => R u.val w.val :=
     funext₂ fun u w => propext ⟨fun ⟨_, h⟩ => h, fun h => ⟨⟨u.property, w.property⟩, h⟩⟩
@@ -235,12 +229,9 @@ theorem PosTCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduce
         (fun p => I.unrank M (![e u, e w] p.1) p.2)
       refine iff_of_eq (congrArg (I.rel Language.adj).Realize (funext fun p => ?_))
       rcases p with ⟨b, j⟩
-      cases b using Fin.cases with
-      | zero => exact (congrFun (I.unrank_rank u.property) j).symm
-      | succ b' =>
-        have hb' : b' = 0 := Subsingleton.elim _ _
-        subst hb'
-        exact (congrFun (I.unrank_rank w.property) j).symm
+      fin_cases b
+      exacts [(congrFun (I.unrank_rank u.property) j).symm,
+        (congrFun (I.unrank_rank w.property) j).symm]
     let z₀ : {x : Fin k → Fin M.size // I.domain.Realize x} :=
       ⟨I.unrank M zeroIdx, I.realize_domain_unrank zeroIdx⟩
     let m₀ : {x : Fin k → Fin M.size // I.domain.Realize x} :=
@@ -274,12 +265,10 @@ theorem PosTCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduce
       Operator.Formula.realize_ofFO, TC.realize_tc, Formula.realize_inf, Formula.realize_relabel,
       Function.comp_def, apply_ite, Sum.elim_inr, hpair_left, hpair_right, hargs_l, hargs_r,
       hleft_id, hright_id, hzero, hmax]
-    constructor
-    · intro hr
-      exact ⟨TC.pair z₀.val m₀.val, TC.left_pair _ _, TC.right_pair _ _, by
-        simpa only [TC.left_pair, TC.right_pair] using hr⟩
-    · rintro ⟨xs, hz, ht, hr⟩
-      rwa [hz, ht] at hr
+    refine ⟨fun hr => ⟨TC.pair z₀.val m₀.val, TC.left_pair _ _, TC.right_pair _ _, by
+      simpa only [TC.left_pair, TC.right_pair] using hr⟩, ?_⟩
+    rintro ⟨xs, hz, ht, hr⟩
+    rwa [hz, ht] at hr
 
 /-- **Ordered first-order reductions to `Reach` pull back FO(TC) definability.** -/
 theorem TCDefinable.of_reduces_Reach {L : Language} {K : Query L} (h : Reduces K Reach) :
@@ -355,15 +344,10 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
     I.card_toDomainInterpretation M
   let e : (Fin (d + 2) → Fin M.size) ≃ Fin (I.toDomainInterpretation.map hI M).size :=
     lexEquiv.trans (finCongr hc.symm)
-  have heZ : e Z = 0 := by
-    apply Fin.ext
-    change lexRank Z = 0
-    exact Ordered.lexRank_constantTuple .zero
-  have heT : e T = (I.toDomainInterpretation.map hI M).maxElem := by
-    apply Fin.ext
+  have heZ : e Z = 0 := Fin.ext (Ordered.lexRank_constantTuple .zero)
+  have heT : e T = (I.toDomainInterpretation.map hI M).maxElem := Fin.ext <| by
     change lexRank T = (I.toDomainInterpretation.map hI M).size - 1
-    rw [hc]
-    exact Ordered.lexRank_constantTuple .max
+    rw [hc]; exact Ordered.lexRank_constantTuple .max
   let IsMid (u : Fin (d + 2) → Fin M.size) : Prop :=
     u (tagZeroIdx d) = 0 ∧ u (tagOneIdx d) = maxElem
   let Edge (u w : Fin (d + 2) → Fin M.size) : Prop :=
@@ -380,12 +364,8 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
           lexEquiv.symm ((Fin.cast hc ∘ ![e u, e w]) p.1) p.2) =
         fun p => ![u, w] p.1 p.2 := by
       funext ⟨b, j⟩
-      cases b using Fin.cases with
-      | zero => exact congrFun (lexEquiv.symm_apply_apply u) j
-      | succ b' =>
-        have hb' : b' = 0 := Subsingleton.elim _ _
-        subst hb'
-        exact congrFun (lexEquiv.symm_apply_apply w) j
+      fin_cases b
+      exacts [congrFun (lexEquiv.symm_apply_apply u) j, congrFun (lexEquiv.symm_apply_apply w) j]
     rw [hsymm]
     have hzero_eq (a : Fin (d + 2) → Fin M.size) : (∀ j, a j = 0) ↔ a = Z :=
       ⟨fun h => funext h, fun h j => h ▸ rfl⟩
@@ -394,9 +374,8 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
     have hsum : ((fun p : Fin 2 × Fin (d + 2) => ![u, w] p.1 p.2) ∘
           Sum.elim (fun i => ((0 : Fin 2), payloadIdx i))
             (fun i => ((1 : Fin 2), payloadIdx i))) =
-        Sum.elim (fun i => u (payloadIdx i)) (fun i => w (payloadIdx i)) := by
-      funext x
-      cases x <;> rfl
+        Sum.elim (fun i => u (payloadIdx i)) (fun i => w (payloadIdx i)) :=
+      funext fun x => by cases x <;> rfl
     simp only [I, boundedReachInterpretation, Formula.realize_sup, Formula.realize_inf,
       Formula.realize_iInf, Formula.realize_relabel, Formula.realize_equal,
       Term.realize_var, realize_zero_eq, realize_max_eq, maxElem, hsum, Function.comp_def,
@@ -424,21 +403,15 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
       | @tail u w _ huw ih =>
         rcases ih with rfl | ⟨hu_mid, x, hx, hxu⟩ | ⟨rfl, -⟩
         · rcases huw with ⟨⟨_, hw_mid⟩, hsrc⟩ | ⟨⟨hZ, _⟩, _⟩ | ⟨⟨hZ, _⟩, _⟩
-          · exact Or.inr (Or.inl ⟨hw_mid, _, hsrc, .refl⟩)
-          · exact False.elim (hZ_not_mid hZ)
-          · exact False.elim (hZ_not_mid hZ)
+          exacts [Or.inr (Or.inl ⟨hw_mid, _, hsrc, .refl⟩), (hZ_not_mid hZ).elim,
+            (hZ_not_mid hZ).elim]
         · rcases huw with ⟨⟨rfl, _⟩, _⟩ | ⟨⟨_, hw_mid⟩, hstep⟩ | ⟨⟨_, rfl⟩, htgt⟩
-          · exact False.elim (hZ_not_mid hu_mid)
-          · exact Or.inr (Or.inl ⟨hw_mid, x, hx, hxu.tail hstep⟩)
-          · exact Or.inr (Or.inr ⟨rfl, x, _, hx, hxu, htgt⟩)
+          exacts [(hZ_not_mid hu_mid).elim, Or.inr (Or.inl ⟨hw_mid, x, hx, hxu.tail hstep⟩),
+            Or.inr (Or.inr ⟨rfl, x, _, hx, hxu, htgt⟩)]
         · rcases huw with ⟨⟨hTZ, _⟩, _⟩ | ⟨⟨hT, _⟩, _⟩ | ⟨⟨hT, _⟩, _⟩
-          · exact False.elim (hZ_ne_T hTZ.symm)
-          · exact False.elim (hT_not_mid hT)
-          · exact False.elim (hT_not_mid hT)
+          exacts [(hZ_ne_T hTZ.symm).elim, (hT_not_mid hT).elim, (hT_not_mid hT).elim]
     rcases hinv hpath with hTZ | ⟨hT, -⟩ | ⟨_, hgoal⟩
-    · exact False.elim (hZ_ne_T hTZ.symm)
-    · exact False.elim (hT_not_mid hT)
-    · exact hgoal
+    exacts [(hZ_ne_T hTZ.symm).elim, (hT_not_mid hT).elim, hgoal]
   · rintro ⟨x, y, hx, hxy, hy⟩
     have hmid (a : Fin d → Fin M.size) : IsMid (midTuple maxElem a) := ⟨rfl, rfl⟩
     have h1 : Edge Z (midTuple maxElem x) := by
@@ -536,11 +509,7 @@ theorem mem_STReach_mkMarkedGraph {n : ℕ} (hn : 2 ≤ n) (G : Language.graph.S
     mkMarkedGraph hn G s t ∈ STReach ↔
       Relation.ReflTransGen (fun x y : Fin n => G.RelMap Language.adj ![x, y]) s t := by
   simp only [mem_STReach, mkMarkedGraph]
-  constructor
-  · rintro ⟨s', t', rfl, rfl, hpath⟩
-    exact hpath
-  · intro hpath
-    exact ⟨s, t, rfl, rfl, hpath⟩
+  exact ⟨fun ⟨_, _, hs, ht, hpath⟩ => hs ▸ ht ▸ hpath, fun hpath => ⟨s, t, rfl, rfl, hpath⟩⟩
 
 /-- Full-tuple interpretation of dimension `3` normalizing `STReach` (arbitrary marked endpoints,
 including `s = t`) into canonical `0`-to-`max` `Reach`. -/
@@ -582,13 +551,10 @@ theorem mem_Reach_stReachToReachInterpretation
       invFun := fun s _ => s
       left_inv := fun x => funext fun i => congrArg x (Subsingleton.elim 0 i)
       right_inv := fun _ => rfl }
-  constructor
-  · rintro ⟨x, y, hx, hxy, hy⟩
-    refine ⟨x 0, y 0, (hmark .source x).mp hx, (hmark .target y).mp hy, ?_⟩
-    exact (Relation.reflTransGen_equiv_iff uEquiv hstep x y).mp hxy
-  · rintro ⟨s, t, hs, ht, hst⟩
-    refine ⟨uEquiv.symm s, uEquiv.symm t, (hmark .source _).mpr hs, ?_, (hmark .target _).mpr ht⟩
-    exact (Relation.reflTransGen_equiv_iff uEquiv hstep (uEquiv.symm s) (uEquiv.symm t)).mpr hst
+  exact ⟨fun ⟨x, y, hx, hxy, hy⟩ => ⟨x 0, y 0, (hmark .source x).mp hx, (hmark .target y).mp hy,
+      (Relation.reflTransGen_equiv_iff uEquiv hstep x y).mp hxy⟩,
+    fun ⟨s, t, hs, ht, hst⟩ => ⟨uEquiv.symm s, uEquiv.symm t, (hmark .source _).mpr hs,
+      (Relation.reflTransGen_equiv_iff uEquiv hstep _ _).mpr hst, (hmark .target _).mpr ht⟩⟩
 
 /-- **Endpoint normalization**: `STReach` first-order reduces to canonical `0`-to-`max` `Reach`
 (including when `s = t`). -/
@@ -636,8 +602,7 @@ theorem mem_STReach_reachToSTReachInterpretation
       Language.Structure.RelMap (L := stGraphLanguage) R ![e s] ↔
         (I.rel R).Realize (fun p => (![s] : Fin 1 → Fin M.size) p.1) := by
     have h := hrel R ![s]
-    have hfn : e ∘ ![s] = ![e s] := funext fun i => by
-      have hi : i = 0 := Subsingleton.elim _ _; subst hi; rfl
+    have hfn : e ∘ ![s] = ![e s] := funext fun i => by fin_cases i; rfl
     rwa [hfn] at h
   have hsrc (s : Fin M.size) :
       Language.Structure.RelMap (L := stGraphLanguage) (.inr .source) ![e s] ↔ s = 0 :=
@@ -654,10 +619,7 @@ theorem mem_STReach_reachToSTReachInterpretation
       graphAdj M x y ↔
         Language.Structure.RelMap (L := stGraphLanguage) (.inl .adj) ![e x, e y] := by
     have h := hrel (.inl .adj) ![x, y]
-    have hfn : e ∘ ![x, y] = ![e x, e y] := funext fun i => by
-      cases i using Fin.cases with
-      | zero => rfl
-      | succ i' => have hi : i' = 0 := Subsingleton.elim _ _; subst hi; rfl
+    have hfn : e ∘ ![x, y] = ![e x, e y] := funext fun i => by fin_cases i <;> rfl
     rw [hfn] at h
     refine Iff.symm (h.trans ?_)
     simp only [I, reachToSTReachInterpretation, Formula.realize_rel₂, Term.realize_var,
@@ -668,8 +630,7 @@ theorem mem_STReach_reachToSTReachInterpretation
   · rintro ⟨s', t', hs', ht', hpath⟩
     obtain ⟨s, rfl⟩ := e.surjective s'
     obtain ⟨t, rfl⟩ := e.surjective t'
-    rw [(hsrc s).mp hs'] at hpath
-    rw [(htgt t).mp ht'] at hpath
+    rw [(hsrc s).mp hs', (htgt t).mp ht'] at hpath
     exact (Relation.reflTransGen_equiv_iff e hadj _ _).mpr hpath
   · intro hpath
     exact ⟨e 0, e M.maxElem,

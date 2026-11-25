@@ -68,11 +68,8 @@ theorem loadNorm_add_le (α : E → ℝ) (hα : ∀ e, 0 < α e) (n n' : E → �
 
 theorem loadNorm_smul (α : E → ℝ) {c : ℝ} (hc : 0 ≤ c) (n : E → ℝ) :
     loadNorm α (fun e => c * n e) = c * loadNorm α n := by
-  rw [loadNorm, loadNorm]
-  have : ∑ e, (c * n e) ^ 2 / α e = c ^ 2 * ∑ e, n e ^ 2 / α e := by
-    rw [Finset.mul_sum]
-    exact Finset.sum_congr rfl fun e _ => by rw [mul_pow, mul_div_assoc]
-  rw [this, Real.sqrt_mul (sq_nonneg c), Real.sqrt_sq hc]
+  simp_rw [loadNorm, mul_pow, mul_div_assoc, ← Finset.mul_sum]
+  rw [Real.sqrt_mul (sq_nonneg c), Real.sqrt_sq hc]
 
 theorem loadNorm_mono (α : E → ℝ) (hα : ∀ e, 0 < α e) {n n' : E → ℝ} (h0 : ∀ e, 0 ≤ n e)
     (h : ∀ e, n e ≤ n' e) : loadNorm α n ≤ loadNorm α n' :=
@@ -92,28 +89,20 @@ theorem loadNorm_sum_le {B : Type*} (s : Finset B) (α : E → ℝ) (hα : ∀ e
 
 theorem le_loadNorm (α : E → ℝ) (hα : ∀ e, 0 < α e) (n : E → ℝ) (e : E) :
     n e ≤ loadNorm α n * √(α e) := by
-  have h1 : n e ^ 2 / α e ≤ ∑ e, n e ^ 2 / α e :=
-    Finset.single_le_sum (f := fun e => n e ^ 2 / α e)
-      (fun e _ => div_nonneg (sq_nonneg _) (hα e).le) (Finset.mem_univ e)
-  rw [div_le_iff₀ (hα e)] at h1
   rw [loadNorm, ← Real.sqrt_mul' _ (hα e).le]
-  exact (le_abs_self _).trans (Real.abs_le_sqrt h1)
+  exact (le_abs_self _).trans <| Real.abs_le_sqrt <| (div_le_iff₀ (hα e)).1 <|
+    Finset.single_le_sum (fun i _ => div_nonneg (sq_nonneg _) (hα i).le) (Finset.mem_univ e)
 
 /-- Cauchy–Schwarz. -/
 theorem sum_mul_le_loadNorm (α : E → ℝ) (hα : ∀ e, 0 < α e) (n w : E → ℝ) :
     ∑ e, n e * w e ≤ loadNorm α n * √(∑ e, α e * w e ^ 2) := by
   rw [loadNorm, ← Real.sqrt_mul (Finset.sum_nonneg fun e _ => div_nonneg (sq_nonneg _) (hα e).le)]
-  refine (le_abs_self _).trans (Real.abs_le_sqrt ?_)
-  have h := Finset.sum_mul_sq_le_sq_mul_sq Finset.univ (fun e => n e / √(α e))
-    (fun e => √(α e) * w e)
-  have e1 : ∀ e, n e / √(α e) * (√(α e) * w e) = n e * w e := fun e => by
+  refine (le_abs_self _).trans <| Real.abs_le_sqrt ?_
+  have e1 (e) : n e / √(α e) * (√(α e) * w e) = n e * w e := by
     have := (Real.sqrt_pos.2 (hα e)).ne'
     field_simp
-  have e2 : ∀ e, (n e / √(α e)) ^ 2 = n e ^ 2 / α e := fun e => by
-    rw [div_pow, Real.sq_sqrt (hα e).le]
-  have e3 : ∀ e, (√(α e) * w e) ^ 2 = α e * w e ^ 2 := fun e => by
-    rw [mul_pow, Real.sq_sqrt (hα e).le]
-  simpa only [e1, e2, e3] using h
+  simpa only [e1, div_pow, mul_pow, fun e => Real.sq_sqrt (hα e).le] using
+    Finset.sum_mul_sq_le_sq_mul_sq Finset.univ (fun e => n e / √(α e)) (fun e => √(α e) * w e)
 
 end Norm
 
@@ -122,13 +111,11 @@ def Loads {N : Type} [Fintype N] (β : N → ℝ) (r : ℝ) : Type :=
   {x : N → ℕ // loadNorm β (fun ν => (x ν : ℝ)) ≤ r}
 
 theorem finite_loads {N : Type} [Fintype N] (β : N → ℝ) (hβ : ∀ ν, 0 < β ν) (r : ℝ) :
-    Finite (Loads β r) := by
-  have : ({x : N → ℕ | loadNorm β (fun ν => (x ν : ℝ)) ≤ r} : Set (N → ℕ)).Finite := by
-    refine (Set.Finite.pi' fun ν : N => Set.finite_Iic ⌊r * √(β ν)⌋₊).subset ?_
-    intro x hx ν
-    refine Nat.le_floor ((le_loadNorm β hβ (fun ν => (x ν : ℝ)) ν).trans ?_)
-    exact mul_le_mul_of_nonneg_right hx (Real.sqrt_nonneg _)
-  exact this.to_subtype
+    Finite (Loads β r) :=
+  Set.Finite.to_subtype (s := {x : N → ℕ | loadNorm β (fun ν => (x ν : ℝ)) ≤ r}) <|
+    (Set.Finite.pi' fun ν : N => Set.finite_Iic ⌊r * √(β ν)⌋₊).subset fun x hx ν =>
+      Nat.le_floor <| (le_loadNorm β hβ (fun ν => (x ν : ℝ)) ν).trans <|
+        mul_le_mul_of_nonneg_right hx (Real.sqrt_nonneg _)
 
 /-- One price: if Σα·w² ≤ Σβ·w′² and ‖n‖ ≤ R, then for S large (S·η·R ≥ ‖1‖) there is a natural load
 x with ‖x‖ ≤ (1+η)·S·R and Σ S·n·w ≤ Σ x·w′. -/

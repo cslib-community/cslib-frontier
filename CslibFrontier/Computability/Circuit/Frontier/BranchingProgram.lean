@@ -163,19 +163,15 @@ theorem IsAcceptingPath.splice {x y z : ι → U} {γ δ : ℕ → M} (hγ : P.I
     (hδ : P.IsAcceptingPath y δ) {t : ℕ} (ht : γ t = δ t) (hzx : EqOn z x (P.revealed t))
     (hzy : EqOn z y (P.revealed t)ᶜ) :
     P.IsAcceptingPath z fun s => if s ≤ t then γ s else δ s := by
-  refine ⟨by simpa using hγ.start, ?_, fun s hs => ?_⟩
-  · split_ifs
-    · exact hγ.accept
-    · exact hδ.accept
+  refine ⟨by simpa using hγ.start, by split_ifs <;> [exact hγ.accept; exact hδ.accept],
+    fun s hs => ?_⟩
   rcases lt_or_ge s t with hst | hts
-  · have hz : (P.newly s).domRestrict z = (P.newly s).domRestrict x :=
-      funext fun i => hzx (P.newly_subset_revealed hst i.2)
-    rw [ite_eq_left hst.le, ite_eq_left (Nat.succ_le_of_lt hst), hz]
-    exact hγ.edge s hs
-  · have hz : (P.newly s).domRestrict z = (P.newly s).domRestrict y :=
-      funext fun i => hzy (P.newly_subset_compl hts i.2)
-    have hδs : (if s ≤ t then γ s else δ s) = δ s := by grind
-    rw [hδs, ite_eq_right (by omega), hz]
+  · simpa only [ite_eq_left hst.le, ite_eq_left (Nat.succ_le_of_lt hst),
+      show (P.newly s).domRestrict z = (P.newly s).domRestrict x from
+        funext fun i => hzx (P.newly_subset_revealed hst i.2)] using hγ.edge s hs
+  · rw [show (if s ≤ t then γ s else δ s) = δ s by grind, ite_eq_right (by omega),
+      show (P.newly s).domRestrict z = (P.newly s).domRestrict y from
+        funext fun i => hzy (P.newly_subset_compl hts i.2)]
     exact hδ.edge s hs
 
 variable (P)
@@ -188,10 +184,7 @@ noncomputable def path (x : ι → U) : ℕ → M :=
 /-- The chosen path of an accepted input is an accepting path. -/
 theorem isAcceptingPath_path {x : ι → U} (hx : x ∈ P.accepted) :
     P.IsAcceptingPath x (P.path x) := by
-  unfold path
-  split_ifs with h
-  · exact h.choose_spec
-  · exact absurd hx h
+  unfold path; split_ifs with h <;> [exact h.choose_spec; exact absurd hx h]
 
 /-- The edge that the chosen path of `x` takes at step `t`. -/
 noncomputable def edgeOf (t : ℕ) (x : ι → U) : M × (P.newly t → U) × M :=
@@ -243,8 +236,7 @@ theorem SmallSides.one_lt [Finite ι] [Finite U] {K : ℕ} (hS : P.SmallSides K)
     (hne : P.accepted.Nonempty) : 1 < K := by
   obtain ⟨x, hx⟩ := hne
   rcases hS 0 (Nat.zero_le _) x hx with h | h
-  · exact (P.sweep.one_le_ncard_pastSide hx 0).trans_lt
-      (encard_lt_coe_iff_finite_ncard_lt.mp h).2
+  · exact (P.sweep.one_le_ncard_pastSide hx 0).trans_lt (encard_lt_coe_iff_finite_ncard_lt.mp h).2
   · exact (P.sweep.one_le_ncard_futureSide hx 0).trans_lt
       (encard_lt_coe_iff_finite_ncard_lt.mp h).2
 
@@ -252,23 +244,20 @@ theorem SmallSides.one_lt [Finite ι] [Finite U] {K : ℕ} (hS : P.SmallSides K)
 theorem one_le_size [Finite ι] [Finite U] [Finite M] (hL : 0 < P.length)
     (hne : P.accepted.Nonempty) : 1 ≤ P.size := by
   obtain ⟨x, hx⟩ := hne
-  have h0 : 1 ≤ (P.edges 0).ncard := (ncard_pos (toFinite _)).mpr ⟨_, P.edgeOf_mem_edges hx hL⟩
-  exact h0.trans (Finset.single_le_sum (f := fun t => (P.edges t).ncard)
-    (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr hL))
+  exact (Nat.succ_le_of_lt ((ncard_pos (toFinite _)).mpr ⟨_, P.edgeOf_mem_edges hx hL⟩)).trans
+    (Finset.single_le_sum (f := fun t => (P.edges t).ncard)
+      (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr hL))
 
 /-- The transitions of the sweep of a program are read off the edges taken by the chosen paths,
 so there are no more of them than edges. -/
 theorem transitionCount_sweep_le_size [Finite ι] [Finite U] [Finite M] :
-    P.sweep.transitionCount ≤ P.size := by
-  refine Finset.sum_le_sum fun t ht => ?_
-  calc (P.sweep.transition t '' P.accepted).ncard
-      ≤ (P.edgeOf t '' P.accepted).ncard :=
-        ncard_image_le_ncard_image_of_factorsThrough (toFinite _) fun x _ y _ h => by
-          simp only [edgeOf, Prod.mk.injEq] at h
-          exact Prod.ext h.1 (Prod.ext h.2.2 h.2.1)
-    _ ≤ (P.edges t).ncard :=
-        ncard_le_ncard (image_subset_iff.mpr fun _ hx =>
-          P.edgeOf_mem_edges hx (Finset.mem_range.mp ht)) (toFinite _)
+    P.sweep.transitionCount ≤ P.size :=
+  Finset.sum_le_sum fun t ht =>
+    (ncard_image_le_ncard_image_of_factorsThrough (toFinite _) fun _ _ _ _ h => by
+      obtain ⟨h1, h2, h3⟩ := Prod.mk.injEq .. ▸ Prod.mk.inj h
+      exact Prod.ext h1 (Prod.ext h3 h2)).trans
+      (ncard_le_ncard (image_subset_iff.mpr fun _ hx =>
+        P.edgeOf_mem_edges hx (Finset.mem_range.mp ht)) (toFinite _))
 
 /-- **The rectangle bound.** If at every layer the inputs sharing the state of an accepted
 input have fewer than `K` distinct parts on one side of the cut, the program has at least
@@ -279,18 +268,13 @@ theorem ncard_accepted_le_of_smallSides [Finite ι] [Finite U] [Finite M] (hL : 
   · simp [h]
   have hK1 := hS.one_lt hne
   by_cases hK : K ≤ P.accepted.ncard
-  · calc P.accepted.ncard ≤ (K - 1) * (K - 1) * P.sweep.transitionCount :=
-          P.sweep.ncard_le_mul_transitionCount hK1 hK fun t ht x hx =>
-            (hS t ht x hx).imp
-              (fun h => (encard_lt_coe_iff_finite_ncard_lt.mp h).2)
-              (fun h => (encard_lt_coe_iff_finite_ncard_lt.mp h).2)
-      _ ≤ (K - 1) ^ 2 * P.size := by
-          rw [sq]
-          exact Nat.mul_le_mul_left _ P.transitionCount_sweep_le_size
+  · rw [sq]
+    exact (P.sweep.ncard_le_mul_transitionCount hK1 hK fun t ht x hx =>
+      (hS t ht x hx).imp (fun h => (encard_lt_coe_iff_finite_ncard_lt.mp h).2)
+        fun h => (encard_lt_coe_iff_finite_ncard_lt.mp h).2).trans
+      (Nat.mul_le_mul_left _ P.transitionCount_sweep_le_size)
   · calc P.accepted.ncard ≤ K - 1 := by omega
-      _ ≤ (K - 1) ^ 2 * 1 := by
-          rw [sq, mul_one]
-          exact Nat.le_mul_of_pos_left _ (by omega)
+      _ ≤ (K - 1) ^ 2 * 1 := by rw [sq, mul_one]; exact Nat.le_mul_of_pos_left _ (by omega)
       _ ≤ (K - 1) ^ 2 * P.size := Nat.mul_le_mul_left _ (P.one_le_size hL hne)
 
 /-- **The rectangle bound for rectangle-free sets.** A read-once branching program whose
@@ -315,20 +299,12 @@ private theorem IsAcceptingPath.of_eraseNode {t : ℕ} {m : M} {x : ι → U} {�
 theorem isAcceptingPath_eraseNode_iff (hL : 0 < P.length) {t : ℕ} (ht : t ≤ P.length) {m : M}
     {x : ι → U} {γ : ℕ → M} :
     (P.eraseNode t m).IsAcceptingPath x γ ↔ P.IsAcceptingPath x γ ∧ γ t ≠ m := by
-  constructor
-  · intro h
-    refine ⟨h.of_eraseNode, fun hγ => ?_⟩
-    rcases ht.lt_or_eq with ht | ht
-    · exact (h.edge t ht).2.1 ⟨rfl, hγ⟩
-    · refine (h.edge (P.length - 1) (Nat.sub_lt hL one_pos)).2.2 ⟨by omega, ?_⟩
-      rw [show P.length - 1 + 1 = t by omega]
-      exact hγ
-  · rintro ⟨h, hγ⟩
-    refine ⟨h.start, h.accept, fun s hs => ⟨h.edge s hs, ?_, ?_⟩⟩
-    · rintro ⟨rfl, hs'⟩
-      exact hγ hs'
-    · rintro ⟨rfl, hs'⟩
-      exact hγ hs'
+  refine ⟨fun h => ⟨h.of_eraseNode, fun hγ => ?_⟩, fun ⟨h, hγ⟩ => ⟨h.start, h.accept,
+    fun s hs => ⟨h.edge s hs, fun ⟨rfl, h'⟩ => hγ h', fun ⟨rfl, h'⟩ => hγ h'⟩⟩⟩
+  rcases ht.lt_or_eq with ht | rfl
+  · exact (h.edge t ht).2.1 ⟨rfl, hγ⟩
+  · exact (h.edge (P.length - 1) (Nat.sub_lt hL one_pos)).2.2
+      ⟨by omega, by rwa [show P.length - 1 + 1 = P.length by omega]⟩
 
 private theorem Unambiguous.eraseNode (hP : P.Unambiguous) (t : ℕ) (m : M) :
     (P.eraseNode t m).Unambiguous :=
@@ -339,13 +315,11 @@ through it. -/
 theorem accepted_eraseNode (hP : P.Unambiguous) (hL : 0 < P.length) {t : ℕ} (ht : t ≤ P.length)
     (m : M) : (P.eraseNode t m).accepted = {x ∈ P.accepted | P.path x t ≠ m} := by
   ext x
-  constructor
-  · rintro ⟨γ, hγ⟩
-    obtain ⟨hγ', hγt⟩ := (isAcceptingPath_eraseNode_iff hL ht).mp hγ
-    have hx : x ∈ P.accepted := ⟨γ, hγ'⟩
-    exact ⟨hx, fun h => hγt ((hP x γ _ hγ' (P.isAcceptingPath_path hx) t ht).trans h)⟩
-  · rintro ⟨hx, hxt⟩
-    exact ⟨_, (isAcceptingPath_eraseNode_iff hL ht).mpr ⟨P.isAcceptingPath_path hx, hxt⟩⟩
+  exact ⟨fun ⟨γ, hγ⟩ =>
+    let ⟨hγ', hγt⟩ := (isAcceptingPath_eraseNode_iff hL ht).mp hγ
+    ⟨⟨γ, hγ'⟩, fun h => hγt ((hP x γ _ hγ' (P.isAcceptingPath_path ⟨γ, hγ'⟩) t ht).trans h)⟩,
+    fun ⟨hx, hxt⟩ =>
+      ⟨_, (isAcceptingPath_eraseNode_iff hL ht).mpr ⟨P.isAcceptingPath_path hx, hxt⟩⟩⟩
 
 /-- Deleting a state does not increase the number of edges of the program. -/
 theorem size_eraseNode_le [Finite ι] [Finite U] [Finite M] (t : ℕ) (m : M) :
@@ -363,11 +337,8 @@ theorem Unambiguous.peers_eq_rectangle (hP : P.Unambiguous) {t : ℕ} (ht : t �
   have hγ := (P.isAcceptingPath_path ha.1).splice (P.isAcceptingPath_path hb.1)
     (ha.2.trans hb.2.symm) (domRestrict_eq_domRestrict_iff.mp haz).symm
     (domRestrict_eq_domRestrict_iff.mp hbz).symm
-  have hz : z ∈ P.accepted := ⟨_, hγ⟩
-  refine ⟨hz, ?_⟩
-  change P.path z t = P.path x t
-  rw [hP z _ _ (P.isAcceptingPath_path hz) hγ t ht, ite_eq_left le_rfl]
-  exact ha.2
+  exact ⟨⟨_, hγ⟩, (hP z _ _ (P.isAcceptingPath_path ⟨_, hγ⟩) hγ t ht).trans
+    ((ite_eq_left le_rfl).trans ha.2)⟩
 
 variable (P)
 
@@ -389,40 +360,29 @@ theorem abs_signedCount_accepted_le [Finite ι] [Finite U] [Finite M] (hP : P.Un
     by_cases hthick : ∃ t ≤ P.length, ∃ x ∈ P.accepted,
         K ≤ (P.sweep.pastSide t x).ncard ∧ K ≤ (P.sweep.futureSide t x).ncard
     · obtain ⟨t, ht, x, hx, hA, hB⟩ := hthick
-      -- The peers of `x` form a large rectangle; delete their state.
       have hR : P.sweep.peers t x ⊆ P.accepted := fun _ hy => hy.1
       have hacc : (P.eraseNode t (P.path x t)).accepted = P.accepted \ P.sweep.peers t x := by
-        rw [accepted_eraseNode hP hL ht]
-        ext y
-        simp only [mem_peers_sweep, mem_ofPred_eq, mem_sdiff]
-        tauto
+        rw [accepted_eraseNode hP hL ht]; ext
+        simp only [mem_peers_sweep, mem_ofPred_eq, mem_sdiff]; tauto
       have hcard := ncard_sdiff_add_ncard_of_subset hR
       have hpos : 0 < (P.sweep.peers t x).ncard := (ncard_pos (toFinite _)).mpr ⟨x, hx, rfl⟩
-      have hrest := ih _ (by rw [hacc]; omega) (P.eraseNode t (P.path x t))
+      have hrest := hacc ▸ ih _ (by rw [hacc]; omega) (P.eraseNode t (P.path x t))
         (hP.eraseNode _ _) hL rfl
-      rw [hacc] at hrest
-      have hrect : |signedCount S (P.sweep.peers t x)| ≤ 2 * b * (P.sweep.peers t x).ncard := by
-        rw [hP.peers_eq_rectangle ht x]
-        exact hS.abs_signedCount_rectangle_le hA hB
+      have hrect : |signedCount S (P.sweep.peers t x)| ≤ 2 * b * (P.sweep.peers t x).ncard :=
+        hP.peers_eq_rectangle ht x ▸ hS.abs_signedCount_rectangle_le hA hB
       have hsize : (((K - 1) ^ 2 * (P.eraseNode t (P.path x t)).size : ℕ) : ℝ) ≤
           ((K - 1) ^ 2 * P.size : ℕ) := by
         exact_mod_cast Nat.mul_le_mul_left _ (P.size_eraseNode_le t (P.path x t))
       have hcardR : ((P.accepted \ P.sweep.peers t x).ncard : ℝ) + (P.sweep.peers t x).ncard =
           P.accepted.ncard := by exact_mod_cast hcard
-      rw [signedCount_eq_add_sdiff S hR]
-      calc |signedCount S (P.sweep.peers t x) + signedCount S (P.accepted \ P.sweep.peers t x)|
-          ≤ |signedCount S (P.sweep.peers t x)| +
-              |signedCount S (P.accepted \ P.sweep.peers t x)| :=
-            abs_add_le _ _
-        _ ≤ 2 * b * P.accepted.ncard + ((K - 1) ^ 2 * P.size : ℕ) := by
-            rw [← hcardR]
-            linarith
+      rw [signedCount_eq_add_sdiff S hR, ← hcardR]
+      linarith [abs_add_le (signedCount S (P.sweep.peers t x))
+        (signedCount S (P.accepted \ P.sweep.peers t x))]
     · push Not at hthick
-      have hsmall : P.SmallSides K := fun t ht x hx => by
-        by_cases hA : K ≤ (P.sweep.pastSide t x).ncard
-        · exact Or.inr (encard_lt_coe_iff_finite_ncard_lt.mpr
-            ⟨toFinite _, hthick t ht x hx hA⟩)
-        · exact Or.inl (encard_lt_coe_iff_finite_ncard_lt.mpr ⟨toFinite _, not_le.mp hA⟩)
+      have hsmall : P.SmallSides K := fun t ht x hx =>
+        if hA : K ≤ (P.sweep.pastSide t x).ncard then
+          Or.inr (encard_lt_coe_iff_finite_ncard_lt.mpr ⟨toFinite _, hthick t ht x hx hA⟩)
+        else Or.inl (encard_lt_coe_iff_finite_ncard_lt.mpr ⟨toFinite _, not_le.mp hA⟩)
       have hcount : (P.accepted.ncard : ℝ) ≤ ((K - 1) ^ 2 * P.size : ℕ) := by
         exact_mod_cast P.ncard_accepted_le_of_smallSides hL hsmall
       linarith [abs_signedCount_le S P.accepted,

@@ -206,6 +206,12 @@ private theorem priorityProtocol_ranks (x : V → ℕ → ℕ) (r : ℕ) (u : V)
     dsimp only
     split_ifs <;> exact ih u
 
+omit [Fintype V] [DecidableEq V] [DecidableRel G.Adj] in
+/-- The second-round `live` update of both `LOCAL` realizations: no neighbour of `u` joined. -/
+private theorem forall_adj_notMem_iff {J : Finset V} {u : V} :
+    (∀ z, G.Adj u z → z ∉ J) ↔ ∀ z ∈ J, ¬ G.Adj z u :=
+  ⟨fun h z hz hadj => h z hadj.symm hz, fun h z hadj hz => h z hz hadj.symm⟩
+
 /-- After `2 * p` synchronous `LOCAL` rounds of `priorityProtocol` on per-phase rankings `σs`, the
 distributed `(chosen, live)` flags match `foldPriorityStep G σs p` at every vertex. -/
 theorem priorityProtocol_state_two_mul (σs : ℕ → LubyMIS.Ranking V) (p : ℕ) (u : V) :
@@ -227,55 +233,26 @@ theorem priorityProtocol_state_two_mul (σs : ℕ → LubyMIS.Ranking V) (p : �
           w ∈ LubyMIS.joiners G (foldPriorityStep G σs p) (σs p) := by
       intro w
       rw [priorityProtocol_state_succ]
-      dsimp only
       simp only [heven_mod, ↓reduceIte, heven_div, Bool.and_eq_true, decide_eq_true_eq,
-        Multiset.mem_map, Finset.mem_val, SimpleGraph.mem_neighborFinset,
-        priorityProtocol_ranks G x (2 * p) w, (ih w).2, LubyMIS.mem_joiners]
-      refine and_congr_right fun _ => ⟨fun h z hz hadj => ?_, fun h m hm hmlive => ?_⟩
-      · have hlt := h _ ⟨z, hadj, rfl⟩ ((ih z).2.2 hz)
-        rw [priorityProtocol_ranks G x (2 * p) z] at hlt
-        exact Fin.lt_def.2 hlt
-      · obtain ⟨z, hadj, rfl⟩ := hm
-        dsimp only at hmlive ⊢
-        rw [priorityProtocol_ranks G x (2 * p) z]
-        have hz : z ∈ (foldPriorityStep G σs p).live := (ih z).2.1 hmlive
-        exact Fin.lt_def.1 (h z hz hadj)
-    have hchosen_mid : ∀ w,
+        Multiset.mem_map, Finset.mem_val, SimpleGraph.mem_neighborFinset, forall_exists_index,
+        and_imp, forall_apply_eq_imp_iff₂, priorityProtocol_ranks, fun z => (ih z).2,
+        LubyMIS.mem_joiners, Fin.lt_def]
+      exact and_congr_right fun _ =>
+        ⟨fun h z hz hadj => h z hadj hz, fun h z hadj hz => h z hz hadj⟩
+    have hmid : ∀ w,
         (priorityProtocol.state G x (2 * p + 1) w).chosen =
-          (priorityProtocol.state G x (2 * p) w).chosen := by
-      intro w
-      rw [priorityProtocol_state_succ]
-      dsimp only
-      simp only [heven_mod, ↓reduceIte]
-    have hlive_mid : ∀ w,
+          (priorityProtocol.state G x (2 * p) w).chosen ∧
         (priorityProtocol.state G x (2 * p + 1) w).live =
-          (priorityProtocol.state G x (2 * p) w).live := by
-      intro w
+          (priorityProtocol.state G x (2 * p) w).live := fun w => by
       rw [priorityProtocol_state_succ]
-      dsimp only
-      simp only [heven_mod, ↓reduceIte]
+      simp only [heven_mod, ↓reduceIte, and_self]
     -- Advance through round `2 * p + 1` to `2 * (p + 1) = (2 * p + 1) + 1`.
-    have hstep2 : 2 * (p + 1) = (2 * p + 1) + 1 := by omega
-    rw [hstep2, priorityProtocol_state_succ, foldPriorityStep]
-    dsimp only
-    simp only [hodd_mod, ↓reduceIte, hchosen_mid u, hlive_mid u]
-    constructor
-    · simp only [Bool.or_eq_true, (ih u).1, hjoin u, LubyMIS.step_chosen, mem_union]
-    · simp only [Bool.and_eq_true, decide_eq_true_eq, Multiset.mem_map, Finset.mem_val,
-        SimpleGraph.mem_neighborFinset, (ih u).2, LubyMIS.mem_step_live, and_assoc]
-      refine and_congr_right fun _ => ?_
-      have hnot_join : ((! (priorityProtocol.state G x (2 * p + 1) u).joining) = true) ↔
-          u ∉ LubyMIS.joiners G (foldPriorityStep G σs p) (σs p) := by
-        rw [Bool.not_eq_true', ← Bool.not_eq_true, hjoin u]
-      rw [hnot_join]
-      refine and_congr_right fun _ => ⟨fun h z hz hadj => ?_, fun h m hm => ?_⟩
-      · have hzf : (priorityProtocol.state G x (2 * p + 1) z).joining = false :=
-          h _ ⟨z, hadj.symm, rfl⟩
-        exact ((hjoin z).2 hz).symm.trans hzf |> Bool.true_eq_false.mp
-      · obtain ⟨z, hadj, rfl⟩ := hm
-        dsimp only
-        rw [← Bool.not_eq_true, hjoin z]
-        exact fun hzj => h z hzj hadj.symm
+    rw [show 2 * (p + 1) = (2 * p + 1) + 1 by omega, priorityProtocol_state_succ, foldPriorityStep]
+    simp only [hodd_mod, ↓reduceIte, (hmid u).1, (hmid u).2, Bool.or_eq_true, (ih u).1, hjoin,
+      LubyMIS.step_chosen, mem_union, Bool.and_eq_true, decide_eq_true_eq, Multiset.mem_map,
+      Finset.mem_val, SimpleGraph.mem_neighborFinset, (ih u).2, LubyMIS.mem_step_live,
+      Bool.not_eq_true', ← Bool.not_eq_true, forall_exists_index, and_imp,
+      forall_apply_eq_imp_iff₂, forall_adj_notMem_iff, and_assoc, iff_self, true_and]
 
 /-- Sample `k` independent uniform vertex rankings and pack them into `ℕ → LubyMIS.Ranking V`. -/
 private noncomputable def sampleRankings : ℕ → ProbComp (ℕ → LubyMIS.Ranking V)
@@ -655,40 +632,22 @@ theorem coinResolveProtocol_run (s : LubyMIS.State V) (uid : V → ℕ) (m : V �
     intro w
     change (coinResolveProtocol.state G inp (0 + 1) w).joining = true ↔ _
     rw [coinResolveProtocol_state_succ]
-    dsimp only
     simp only [↓reduceIte, h0_eq, Bool.and_eq_true, decide_eq_true_eq, Multiset.mem_map,
-      Finset.mem_val, SimpleGraph.mem_neighborFinset, mem_coinJoiners, and_assoc]
-    refine and_congr_right fun _ => and_congr_right fun _ =>
-      ⟨fun h z hz hadj hprio => ?_, fun h msg hmsg hmlive hprio => ?_⟩
-    · exact h _ ⟨z, hadj, rfl⟩ (decide_eq_true hz) hprio
-    · obtain ⟨z, hadj, rfl⟩ := hmsg
-      dsimp only at hmlive hprio ⊢
-      exact h z (of_decide_eq_true hmlive) hadj hprio
+      Finset.mem_val, SimpleGraph.mem_neighborFinset, forall_exists_index, and_imp,
+      forall_apply_eq_imp_iff₂, mem_coinJoiners, and_assoc]
+    exact and_congr_right fun _ => and_congr_right fun _ =>
+      ⟨fun h z hz hadj hprio => h z hadj hz hprio, fun h z hadj hz hprio => h z hz hadj hprio⟩
   have hst2 : coinResolveProtocol.run G inp 2 u =
       { chosen := (coinResolveProtocol.state G inp (1 + 1) u).chosen
         live := (coinResolveProtocol.state G inp (1 + 1) u).live } := rfl
   rw [hst2, coinResolveProtocol_state_succ]
   have h1_chosen : (coinResolveProtocol.state G inp 1 u).chosen = decide (u ∈ s.chosen) := rfl
   have h1_live : (coinResolveProtocol.state G inp 1 u).live = decide (u ∈ s.live) := rfl
-  dsimp only
-  simp only [Nat.one_ne_zero, ↓reduceIte, h1_chosen, h1_live]
-  constructor
-  · simp only [Bool.or_eq_true, decide_eq_true_eq, hjoin u, coinStep_chosen, mem_union]
-  · simp only [Bool.and_eq_true, decide_eq_true_eq, Multiset.mem_map, Finset.mem_val,
-      SimpleGraph.mem_neighborFinset, mem_coinStep_live, and_assoc]
-    refine and_congr_right fun _ => ?_
-    have hnot_join : ((! (coinResolveProtocol.state G inp 1 u).joining) = true) ↔
-        u ∉ coinJoiners G s uid m := by
-      rw [Bool.not_eq_true', ← Bool.not_eq_true, hjoin u]
-    rw [hnot_join]
-    refine and_congr_right fun _ => ⟨fun h z hz hadj => ?_, fun h msg hmsg => ?_⟩
-    · have hzf : (coinResolveProtocol.state G inp 1 z).joining = false :=
-        h _ ⟨z, hadj.symm, rfl⟩
-      exact ((hjoin z).2 hz).symm.trans hzf |> Bool.true_eq_false.mp
-    · obtain ⟨z, hadj, rfl⟩ := hmsg
-      dsimp only
-      rw [← Bool.not_eq_true, hjoin z]
-      exact fun hzj => h z hzj hadj.symm
+  simp only [Nat.one_ne_zero, ↓reduceIte, h1_chosen, h1_live, Bool.or_eq_true, hjoin,
+    coinStep_chosen, mem_union, Bool.and_eq_true, decide_eq_true_eq, Multiset.mem_map,
+    Finset.mem_val, SimpleGraph.mem_neighborFinset, mem_coinStep_live, Bool.not_eq_true',
+    ← Bool.not_eq_true, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂,
+    forall_adj_notMem_iff, and_assoc, iff_self, true_and]
 
 /-- Local marking probability computed by a node solely from its own `live` bit and its locally
 discovered `liveDeg` (`0` if non-live, `1` if `liveDeg = 0`, and `1 / (2 * liveDeg)` otherwise). -/
@@ -863,6 +822,20 @@ private theorem toReal_eval_markCoin_true (s : LubyMIS.State V) (v : V) :
       (markProb G s v : ℝ) :=
   ProbComp.toReal_eval_bernoulliRat_true_of_mem_Icc (markProb_nonneg G s v) (markProb_le_one G s v)
 
+private theorem toReal_eval_markCoin_true_of_degree_ne_zero {s : LubyMIS.State V} {v : V}
+    (hv : v ∈ s.live) (hd : (LubyMIS.liveGraph G s.live).degree v ≠ 0) :
+    (ProbComp.eval (ProbComp.bernoulliRat (markProb G s v)) true).toReal =
+      (1 : ℝ) / (2 * (LubyMIS.liveGraph G s.live).degree v) := by
+  rw [toReal_eval_markCoin_true]
+  simp only [markProb, hv, hd, ↓reduceIte]
+  push_cast
+  rfl
+
+omit [Fintype V] [DecidableEq V] in
+private theorem one_div_two_mul_le_of_le {a b : ℕ} (ha : 0 < a) (hab : a ≤ b) :
+    (1 : ℝ) / (2 * b) ≤ 1 / (2 * a) :=
+  one_div_le_one_div_of_le (mul_pos two_pos (Nat.cast_pos.2 ha)) (by gcongr)
+
 /-- Step towards `#7505` and `#3270` (not the cited endpoint, after [Luby][Luby1986] and Algorithm
 7.6 of [Wattenhofer][Wattenhofer2016], §7.2, p. 73): whenever `s.live` is nonempty, a single phase
 of `coinPhase G uid s` strictly reduces `s.live.card` with probability at least `1 / (2 |V|)`
@@ -906,18 +879,12 @@ theorem inv_two_mul_card_le_prob_live_lt {s : LubyMIS.State V} (hs : s.live.None
   rw [eval_sampleMarks, PMF.toOuterMeasure_pi_eq, toReal_eval_markCoin_true]
   have hcard_one : (1 : ℝ) ≤ Fintype.card V := by
     exact_mod_cast Fintype.card_pos_iff.2 ⟨v⟩
-  unfold markProb
-  dsimp only
-  simp only [hv_live, ↓reduceIte]
-  split_ifs with hd0
-  · rw [Rat.cast_one]
+  by_cases hd0 : (LubyMIS.liveGraph G s.live).degree v = 0
+  · simp only [markProb, hv_live, hd0, ↓reduceIte, Rat.cast_one]
     exact div_le_one_of_le₀ (by linarith) (by positivity)
-  · push_cast
-    have hdeg_le : ((LubyMIS.liveGraph G s.live).degree v : ℝ) ≤ Fintype.card V := by
-      exact_mod_cast (LubyMIS.liveGraph G s.live).degree_lt_card_verts v |>.le
-    have hd_pos : (0 : ℝ) < (LubyMIS.liveGraph G s.live).degree v := by
-      exact_mod_cast Nat.pos_of_ne_zero hd0
-    exact one_div_le_one_div_of_le (by positivity) (by linarith)
+  · rw [← toReal_eval_markCoin_true, toReal_eval_markCoin_true_of_degree_ne_zero G hv_live hd0]
+    exact one_div_two_mul_le_of_le (Nat.pos_of_ne_zero hd0)
+      ((LubyMIS.liveGraph G s.live).degree_lt_card_verts v).le
 
 /-! #### Expected edge removal (`≥ |E(H)| / 72`, after `[Wattenhofer2016]` §7.2) -/
 
@@ -950,35 +917,18 @@ theorem one_div_four_deg_le_prob_coinJoiners {s : LubyMIS.State V} {uid : V → 
        fun h w hwl hadj hprio => h w ⟨⟨hadj, hv, hwl⟩, hprio⟩⟩
   rw [hevent_eq, eval_sampleMarks, PMF.toOuterMeasure_pi_eq_inter p hv_not_high hdep_high,
     ENNReal.toReal_mul]
-  have hpv : (p v true).toReal = (1 : ℝ) / (2 * H.degree v) := by
-    dsimp only [p]
-    rw [toReal_eval_markCoin_true]
-    unfold markProb
-    dsimp only
-    have hne0 : (LubyMIS.liveGraph G s.live).degree v ≠ 0 := by omega
-    simp only [hv, hne0, ↓reduceIte]
-    push_cast
-    rfl
+  have hpv : (p v true).toReal = (1 : ℝ) / (2 * H.degree v) :=
+    toReal_eval_markCoin_true_of_degree_ne_zero G hv (by omega)
   have hany_le : ((PMF.pi p).toOuterMeasure anyHigh).toReal ≤ 1 / 2 := by
     refine (PMF.toOuterMeasure_toReal_biUnion_finset_le (PMF.pi p) highNbrs _).trans ?_
     have hterm : ∀ w ∈ highNbrs,
         ((PMF.pi p).toOuterMeasure {m | m w = true}).toReal ≤ (1 : ℝ) / (2 * H.degree v) := by
       intro w hw
-      rw [PMF.toOuterMeasure_pi_eq]
-      dsimp only [p]
-      rw [toReal_eval_markCoin_true]
       obtain ⟨hnbr, hprio⟩ := Finset.mem_filter.1 hw
-      have hwl : w ∈ s.live := ((H.mem_neighborFinset v w).1 hnbr).2.2
       have hdw_ge : H.degree v ≤ H.degree w := degree_le_of_higherPriority G hprio
-      have hdw_ne : (LubyMIS.liveGraph G s.live).degree w ≠ 0 := by
-        dsimp only [H] at hdw_ge; omega
-      unfold markProb
-      dsimp only
-      simp only [hwl, hdw_ne, ↓reduceIte]
-      push_cast
-      have hdv_pos : (0 : ℝ) < H.degree v := by exact_mod_cast hdeg
-      have hdw_le_r : (H.degree v : ℝ) ≤ H.degree w := by exact_mod_cast hdw_ge
-      exact one_div_le_one_div_of_le (by positivity) (by dsimp only [H] at hdw_le_r ⊢; linarith)
+      rw [PMF.toOuterMeasure_pi_eq, toReal_eval_markCoin_true_of_degree_ne_zero G
+        ((H.mem_neighborFinset v w).1 hnbr).2.2 (Nat.one_le_iff_ne_zero.1 (hdeg.trans hdw_ge))]
+      exact one_div_two_mul_le_of_le hdeg hdw_ge
     have hcard_le : (highNbrs.card : ℝ) ≤ H.degree v := by
       exact_mod_cast (Finset.card_filter_le _ _).trans_eq
         (SimpleGraph.card_neighborFinset_eq_degree H v)
@@ -1090,9 +1040,7 @@ theorem one_div_36_le_prob_removed_of_isGoodVertex {s : LubyMIS.State V} {uid : 
   have hnbr_live_deg : ∀ w ∈ H.neighborFinset v, w ∈ s.live ∧ 1 ≤ H.degree w := by
     intro w hw
     have hadj := (H.mem_neighborFinset v w).1 hw
-    refine ⟨hadj.2.2, ?_⟩
-    rw [← SimpleGraph.card_neighborFinset_eq_degree]
-    exact Finset.card_pos.2 ⟨v, (H.mem_neighborFinset w v).2 hadj.symm⟩
+    exact ⟨hadj.2.2, (H.degree_pos_iff_exists_adj w).2 ⟨v, hadj.symm⟩⟩
   -- Split on whether some live neighbor `w` has `H.degree w ≤ 2`.
   by_cases hlow_deg : ∃ w ∈ H.neighborFinset v, H.degree w ≤ 2
   · obtain ⟨w, hw_nbr, hdw2⟩ := hlow_deg
@@ -1106,12 +1054,9 @@ theorem one_div_36_le_prob_removed_of_isGoodVertex {s : LubyMIS.State V} {uid : 
             {m | v ∉ (coinStep G s uid m).live}).toReal :=
       PMF.toOuterMeasure_toReal_mono _ fun m hm hvl =>
         ((mem_coinStep_live G).1 hvl).2.2 w hm hadj_vw.symm
-    have hdw_r : (H.degree w : ℝ) ≤ 2 := by exact_mod_cast hdw2
-    have hdw_pos : (0 : ℝ) < H.degree w := by exact_mod_cast hdw1
     have h18 : (1 / 8 : ℝ) ≤ (1 : ℝ) / (4 * H.degree w) := by
-      have h8 : (4 * (H.degree w : ℝ)) ≤ 8 := by linarith
-      have hpos8 : (0 : ℝ) < 4 * H.degree w := by positivity
-      exact one_div_le_one_div_of_le hpos8 h8
+      have hdw_r : (H.degree w : ℝ) ≤ 2 := by exact_mod_cast hdw2
+      exact one_div_le_one_div_of_le (by positivity) (by linarith)
     dsimp only [H] at h18
     linarith
   · push Not at hlow_deg
@@ -1150,15 +1095,9 @@ theorem one_div_36_le_prob_removed_of_isGoodVertex {s : LubyMIS.State V} {uid : 
         (∑ q ∈ S.offDiag,
           ((ProbComp.eval (sampleMarks G s)).toOuterMeasure (E q.1 ∩ E q.2)).toReal) ≤
           (∑ u ∈ S, wt u) ^ 2 := by
-      have hwt_mark : ∀ u ∈ S, (p u true).toReal = wt u := by
-        intro u hu
-        obtain ⟨hul, hud⟩ := hnbr_live_deg u (hSN hu)
-        dsimp only [p, wt, H] at hud ⊢
-        rw [toReal_eval_markCoin_true]
-        unfold markProb
-        have hu0 : (LubyMIS.liveGraph G s.live).degree u ≠ 0 := by omega
-        simp only [hul, hu0, ↓reduceIte]
-        push_cast; rfl
+      have hwt_mark : ∀ u ∈ S, (p u true).toReal = wt u := fun u hu =>
+        have ⟨hul, hud⟩ := hnbr_live_deg u (hSN hu)
+        toReal_eval_markCoin_true_of_degree_ne_zero G hul (Nat.one_le_iff_ne_zero.1 hud)
       have hpair : ∀ q ∈ S.offDiag,
           ((ProbComp.eval (sampleMarks G s)).toOuterMeasure (E q.1 ∩ E q.2)).toReal ≤
             wt q.1 * wt q.2 := by
@@ -1276,15 +1215,8 @@ private theorem two_mul_inNbrs_le_outNbrs_of_not_good {s : LubyMIS.State V} {uid
         (1 : ℝ) / (2 * H.degree v) ≤ (1 : ℝ) / (2 * H.degree w) := by
       intro w hw
       obtain ⟨hnbr, hprio⟩ := Finset.mem_filter.1 hw
-      have hadj := (H.mem_neighborFinset v w).1 hnbr
-      have hdw_pos : 1 ≤ H.degree w := by
-        rw [← SimpleGraph.card_neighborFinset_eq_degree]
-        exact Finset.card_pos.2 ⟨v, (H.mem_neighborFinset w v).2 hadj.symm⟩
-      have hdw_le : H.degree w ≤ H.degree v := degree_le_of_higherPriority G hprio
-      have hdw_pos_r : (0 : ℝ) < H.degree w := by exact_mod_cast hdw_pos
-      have hdw_le_r : (H.degree w : ℝ) ≤ H.degree v := by exact_mod_cast hdw_le
-      have h2dw_pos : (0 : ℝ) < 2 * H.degree w := by positivity
-      exact one_div_le_one_div_of_le h2dw_pos (by linarith)
+      exact one_div_two_mul_le_of_le ((H.degree_pos_iff_exists_adj w).2
+        ⟨v, ((H.mem_neighborFinset v w).1 hnbr).symm⟩) (degree_le_of_higherPriority G hprio)
     have hsub : inNbrs G s uid s.live v ⊆ H.neighborFinset v := Finset.filter_subset _ _
     have hsum_ge :
         ((inNbrs G s uid s.live v).card : ℝ) * ((1 : ℝ) / (2 * H.degree v)) ≤
@@ -1358,23 +1290,15 @@ theorem seventyTwo_mul_expect_liveEdges_coinPhase_le {uid : V → ℕ}
       intro m
       rw [← sum_card_inNbrs_eq_liveEdges G s huid (coinStep G s uid m), Nat.cast_sum]
       refine Finset.sum_le_sum fun v _ => ?_
-      by_cases hvl : v ∈ (coinStep G s uid m).live
-      · rw [ite_eq_left hvl]
-        have hsub : inNbrs G s uid (coinStep G s uid m).live v ⊆ inNbrs G s uid s.live v := by
-          intro w hw
-          obtain ⟨hnbr, hp⟩ := Finset.mem_filter.1 hw
-          have hadj := ((LubyMIS.liveGraph G _).mem_neighborFinset v w).1 hnbr
-          refine Finset.mem_filter.2 ⟨((LubyMIS.liveGraph G s.live).mem_neighborFinset v w).2
-            ⟨hadj.1, coinStep_live_subset G s uid m hadj.2.1,
-              coinStep_live_subset G s uid m hadj.2.2⟩, hp⟩
-        exact_mod_cast Finset.card_le_card hsub
-      · rw [ite_eq_right hvl]
-        have hempty : inNbrs G s uid (coinStep G s uid m).live v = ∅ := by
-          rw [Finset.eq_empty_iff_forall_notMem]
-          intro w hw
-          have hnbr := (Finset.mem_filter.1 hw).1
-          exact hvl (((LubyMIS.liveGraph G _).mem_neighborFinset v w).1 hnbr).2.1
-        simp [hempty]
+      have hsub := coinStep_live_subset G s uid m
+      split_ifs with hvl
+      · refine Nat.cast_le.2 (Finset.card_le_card fun w hw => ?_)
+        simp only [inNbrs, Finset.mem_filter, SimpleGraph.mem_neighborFinset,
+          LubyMIS.liveGraph_adj] at hw ⊢
+        exact ⟨⟨hw.1.1, hsub hw.1.2.1, hsub hw.1.2.2⟩, hw.2⟩
+      · refine (Nat.cast_eq_zero.2 (Finset.card_eq_zero.2
+          (Finset.eq_empty_of_forall_notMem fun w hw => hvl ?_))).le
+        exact (((LubyMIS.liveGraph G _).mem_neighborFinset v w).1 (Finset.mem_filter.1 hw).1).2.1
     have hstep1 :
         (∑ m : V → Bool,
           (ProbComp.eval (sampleMarks G s) m).toReal *
@@ -1427,28 +1351,16 @@ theorem seventyTwo_mul_expect_liveEdges_coinPhase_le {uid : V → ℕ}
       have hrem := one_div_36_le_prob_removed_of_isGoodVertex G (uid := uid) hg
       have hcomp := PMF.toOuterMeasure_toReal_add_compl
         (ProbComp.eval (sampleMarks G s)) {m | v ∈ (coinStep G s uid m).live}
-      have hcompl_eq : ({m : V → Bool | v ∈ (coinStep G s uid m).live})ᶜ =
-          {m : V → Bool | v ∉ (coinStep G s uid m).live} := rfl
-      rw [hcompl_eq] at hcomp
-      have hsurv : ((ProbComp.eval (sampleMarks G s)).toOuterMeasure
-          {m | v ∈ (coinStep G s uid m).live}).toReal ≤ 35 / 36 := by linarith
-      calc ((inNbrs G s uid s.live v).card : ℝ) *
-            ((ProbComp.eval (sampleMarks G s)).toOuterMeasure
-              {m | v ∈ (coinStep G s uid m).live}).toReal
-          ≤ ((inNbrs G s uid s.live v).card : ℝ) * (35 / 36) := by gcongr
-        _ = (35 / 36 : ℝ) * (inNbrs G s uid s.live v).card := mul_comm _ _
+      rw [Set.compl_ofPred] at hcomp
+      rw [mul_comm]
+      exact mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg _)
     have hbad_bound :
         (∑ v ∈ badSet, ((inNbrs G s uid s.live v).card : ℝ) *
           ((ProbComp.eval (sampleMarks G s)).toOuterMeasure
             {m | v ∈ (coinStep G s uid m).live}).toReal) ≤
           ∑ v ∈ badSet, ((inNbrs G s uid s.live v).card : ℝ) := by
-      refine Finset.sum_le_sum fun v _ => ?_
-      calc ((inNbrs G s uid s.live v).card : ℝ) *
-            ((ProbComp.eval (sampleMarks G s)).toOuterMeasure
-              {m | v ∈ (coinStep G s uid m).live}).toReal
-          ≤ ((inNbrs G s uid s.live v).card : ℝ) * 1 :=
-            mul_le_mul_of_nonneg_left (PMF.toOuterMeasure_toReal_le_one _ _) (Nat.cast_nonneg _)
-        _ = (inNbrs G s uid s.live v).card := mul_one _
+      exact Finset.sum_le_sum fun v _ =>
+        mul_le_of_le_one_right (Nat.cast_nonneg _) (PMF.toOuterMeasure_toReal_le_one _ _)
     have htot_split :
         (∑ v ∈ goodSet, ((inNbrs G s uid s.live v).card : ℝ)) +
           ∑ v ∈ badSet, ((inNbrs G s uid s.live v).card : ℝ) = LubyMIS.liveEdges G s := by
@@ -1460,8 +1372,7 @@ theorem seventyTwo_mul_expect_liveEdges_coinPhase_le {uid : V → ℕ}
     have hhalf_good :
         (LubyMIS.liveEdges G s : ℝ) ≤
           2 * ∑ v ∈ goodSet, ((inNbrs G s uid s.live v).card : ℝ) := by
-      have hnat := liveEdges_le_two_mul_sum_good_inNbrs G (s := s) huid
-      exact_mod_cast hnat
+      exact_mod_cast liveEdges_le_two_mul_sum_good_inNbrs G (s := s) huid
     linarith
   -- Transfer the finite expectation inequality from `ℝ` to `ℝ≥0∞`.
   rw [eval_coinPhase, PMF.tsum_map_mul, tsum_fintype]
@@ -1499,26 +1410,19 @@ private theorem live_coinStep_eq_empty_of_liveEdges_eq_zero {s : LubyMIS.State V
     (coinStep G s uid m).live = ∅ := by
   have hedge_empty : (LubyMIS.liveGraph G s.live).edgeFinset = ∅ :=
     Finset.card_eq_zero.1 h0
-  have hno_adj : ∀ u ∈ s.live, ∀ w ∈ s.live, ¬ G.Adj u w := by
-    intro u hu w hw hadj
+  have hno_adj : ∀ u ∈ s.live, ∀ w ∈ s.live, ¬ G.Adj u w := fun u hu w hw hadj => by
     have hmem : s(u, w) ∈ (LubyMIS.liveGraph G s.live).edgeFinset :=
       (SimpleGraph.mem_edgeFinset).2 ⟨hadj, hu, hw⟩
-    rw [hedge_empty] at hmem
-    exact Finset.notMem_empty _ hmem
-  have hdeg0 : ∀ v ∈ s.live, (LubyMIS.liveGraph G s.live).degree v = 0 := by
-    intro v hv
-    rw [← SimpleGraph.card_neighborFinset_eq_degree, Finset.card_eq_zero,
-      Finset.eq_empty_iff_forall_notMem]
-    intro w hw
-    have hadj := ((LubyMIS.liveGraph G s.live).mem_neighborFinset v w).1 hw
-    exact hno_adj v hv w hadj.2.2 hadj.1
+    simp [hedge_empty] at hmem
+  have hdeg0 : ∀ v ∈ s.live, (LubyMIS.liveGraph G s.live).degree v = 0 := fun v hv =>
+    Nat.eq_zero_of_not_pos fun hpos =>
+      have ⟨w, hadj⟩ := ((LubyMIS.liveGraph G s.live).degree_pos_iff_exists_adj v).1 hpos
+      hno_adj v hv w hadj.2.2 hadj.1
   have hmv_true : ∀ v ∈ s.live, m v = true := by
     intro v hv
     rw [eval_sampleMarks] at hm
     have hv_supp := (PMF.mem_support_pi_iff _ _).1 hm v
-    have hprob1 : markProb G s v = 1 := by
-      unfold markProb
-      simp [hv, hdeg0 v hv]
+    have hprob1 : markProb G s v = 1 := by simp [markProb, hv, hdeg0 v hv]
     rwa [hprob1, ProbComp.eval_bernoulliRat_of_one_le le_rfl,
       _root_.PMF.mem_support_pure_iff] at hv_supp
   refine Finset.eq_empty_iff_forall_notMem.2 fun v hv => ?_

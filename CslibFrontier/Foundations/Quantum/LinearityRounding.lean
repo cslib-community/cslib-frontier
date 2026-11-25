@@ -112,11 +112,8 @@ theorem exists_isProjective_charObs_of_linear_contractions
   let R := (1 : Matrix ι ι ℂ) - H
   let w : ℝ := (Fintype.card (n → Bool) : ℝ)⁻¹
   have hw0 : 0 ≤ w := by positivity
-  have hw1 : w ≤ 1 := by
-    apply inv_le_one_of_one_le₀
-    exact_mod_cast Fintype.card_pos (α := n → Bool)
-  have hcount : ∑ _ : n → Bool, w = 1 := by
-    simp [w]
+  have hw1 : w ≤ 1 := inv_le_one_of_one_le₀ (by exact_mod_cast Fintype.card_pos (α := n → Bool))
+  have hcount : ∑ _ : n → Bool, w = 1 := by simp [w]
   have hH : 0 ≤ H := sum_nonneg fun u _ => fourierCoeff_mul_self_nonneg hA u
   have hR : 0 ≤ R := sub_nonneg.mpr hTotal
   let B : Measurement (n → Bool) (Matrix ι ι ℂ) :=
@@ -135,14 +132,10 @@ theorem exists_isProjective_charObs_of_linear_contractions
         ← mul_smul]
       abel
     have hlast : (∑ _ : n → Bool, (w * w) • (R * R)) = w • (R * R) := by
-      simp only [mul_smul]
-      rw [← sum_smul, hcount, one_smul]
+      rw [mul_smul, ← sum_smul, hcount, one_smul]
     simp only [he, sum_add_distrib, hlast, ← smul_sum, ← sum_mul, ← mul_sum,
       add_assoc, ← smul_add]
-    have hRem : H * R + (R * H + R * R) = 1 - H * H := by
-      dsimp only [R]
-      noncomm_ring
-    rw [hRem]
+    rw [show H * R + (R * H + R * R) = 1 - H * H by dsimp only [R]; noncomm_ring]
   have hB : 1 - 2 * δ ≤ ∑ u, (φ (B.effect u * B.effect u)).re := by
     rw [← Complex.re_sum, ← map_sum, hsq]
     rw [← Complex.re_sum, ← map_sum] at hfourth

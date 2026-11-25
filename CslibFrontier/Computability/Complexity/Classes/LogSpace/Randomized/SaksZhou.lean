@@ -256,12 +256,7 @@ private theorem saksZhou_one_step_error_le (R d : ℕ) (hR : 1 ≤ R) (hd : d = 
     omega
   calc (2 : ℝ) ^ (s * s) * ((Vcard : ℝ) * (2 / 2 ^ d))
       ≤ 2 ^ (3 * R + 1) * (2 ^ R * (2 / 2 ^ (4 * R + 6))) := by gcongr
-    _ = 1 / 16 := by
-        rw [show (4 * R + 6 : ℕ) = (3 * R + 1) + R + 1 + 4 by omega]
-        simp only [pow_add, pow_one]
-        have hpos : (0 : ℝ) < 2 ^ (3 * R + 1) * 2 ^ R := by positivity
-        field_simp
-        norm_num
+    _ = 1 / 16 := by field_simp; ring
 
 private theorem saksZhou_badSeed_density_le (R d m s Vcard : ℕ) (hR : 1 ≤ R) (hd : d = 5 * R + 5)
     (hm_eq : m = 5 * d) (hs : s = Nat.sqrt R + 1) (hVcard : Vcard ≤ 2 ^ R) :
@@ -290,10 +285,7 @@ private theorem saksZhou_badSeed_density_le (R d m s Vcard : ℕ) (hR : 1 ≤ R)
   · have hm_ge : 19 * R + 23 ≤ m := by omega
     have h2m : (2 : ℝ) ^ (19 * R + 23) ≤ 2 ^ m := pow_le_pow_right₀ (by norm_num) hm_ge
     have hdiv : (2 : ℝ) ^ (19 * R + 23) =
-        (2 ^ (R + 1) * (2 ^ (R + 1) * 2 ^ (R + 1))) * (2 ^ (8 * R + 10)) ^ 2 := by
-      rw [← pow_mul, ← pow_add, ← pow_add, ← pow_add]
-      congr 1
-      omega
+        (2 ^ (R + 1) * (2 ^ (R + 1) * 2 ^ (R + 1))) * (2 ^ (8 * R + 10)) ^ 2 := by ring
     calc (Vcard + 1 : ℝ) * ((2 ^ s - 1) * (Vcard + 1) / 2 ^ m)
         ≤ 2 ^ (R + 1) * (2 ^ (R + 1) * 2 ^ (R + 1) / 2 ^ (19 * R + 23)) := by gcongr
       _ = ((2 : ℝ)⁻¹ ^ (8 * R + 10)) ^ 2 := by
@@ -301,38 +293,21 @@ private theorem saksZhou_badSeed_density_le (R d m s Vcard : ℕ) (hR : 1 ≤ R)
             inv_pow, ← inv_pow]
   · have ht1 : (s : ℝ) * ε ≤ 1 / 24 := by
       have h1 : (2 : ℝ) ^ 17 ≤ 2 ^ (7 * R + 10) := pow_le_pow_right₀ (by norm_num) (by omega)
-      have hpow : (2 : ℝ) ^ (8 * R + 10) = 2 ^ R * 2 ^ (7 * R + 10) := by
-        rw [← pow_add]
-        congr 1
-        omega
+      have hpow : (2 : ℝ) ^ (8 * R + 10) = 2 ^ R * 2 ^ (7 * R + 10) := by ring
       calc (s : ℝ) * ε ≤ 2 ^ R * (2 : ℝ)⁻¹ ^ (8 * R + 10) := by gcongr
         _ = (2 ^ (7 * R + 10) : ℝ)⁻¹ := by
             rw [inv_pow, hpow, mul_inv, ← mul_assoc, mul_inv_cancel₀ (by positivity), one_mul]
         _ ≤ (2 ^ 17 : ℝ)⁻¹ := inv_anti₀ (by positivity) h1
         _ ≤ 1 / 24 := by norm_num
     have ht2 : (s : ℝ) * ((Vcard : ℝ) ^ 2 * (2 ^ d * ε)) ≤ 1 / 24 := by
-      have hpow : (2 : ℝ) ^ (8 * R + 10) =
-          (2 ^ R * (2 ^ R) ^ 2 * 2 ^ (5 * R + 5)) * 2 ^ 5 := by
-        rw [← pow_mul, ← pow_add, ← pow_add, ← pow_add]
-        congr 1
-        omega
       calc (s : ℝ) * ((Vcard : ℝ) ^ 2 * (2 ^ d * ε))
           ≤ 2 ^ R * ((2 ^ R) ^ 2 * (2 ^ (5 * R + 5) * (2 : ℝ)⁻¹ ^ (8 * R + 10))) := by
               rw [hd]; gcongr
-        _ = 1 / 32 := by
-            rw [inv_pow, hpow, mul_inv, show 2 ^ R * ((2 ^ R) ^ 2 * (2 ^ (5 * R + 5) *
-                ((2 ^ R * (2 ^ R) ^ 2 * 2 ^ (5 * R + 5))⁻¹ * (2 ^ 5 : ℝ)⁻¹))) =
-                (2 ^ R * (2 ^ R) ^ 2 * 2 ^ (5 * R + 5)) *
-                  ((2 ^ R * (2 ^ R) ^ 2 * 2 ^ (5 * R + 5))⁻¹ * (2 ^ 5 : ℝ)⁻¹) by ring]
-            rw [← mul_assoc, mul_inv_cancel₀ (by positivity), one_mul]
-            norm_num
+        _ = 1 / 32 := by rw [inv_pow]; field_simp; ring
         _ ≤ 1 / 24 := by norm_num
     have ht3 : (s : ℝ) * ((Vcard : ℝ) ^ 2 * (2 ^ d)⁻¹) ≤ 1 / 24 := by
       have h1 : (2 : ℝ) ^ 7 ≤ 2 ^ (2 * R + 5) := pow_le_pow_right₀ (by norm_num) (by omega)
-      have hpow : (2 : ℝ) ^ (5 * R + 5) = (2 ^ R * (2 ^ R) ^ 2) * 2 ^ (2 * R + 5) := by
-        rw [← pow_mul, ← pow_add, ← pow_add]
-        congr 1
-        omega
+      have hpow : (2 : ℝ) ^ (5 * R + 5) = (2 ^ R * (2 ^ R) ^ 2) * 2 ^ (2 * R + 5) := by ring
       calc (s : ℝ) * ((Vcard : ℝ) ^ 2 * (2 ^ d)⁻¹)
           ≤ 2 ^ R * ((2 ^ R) ^ 2 * (2 ^ (5 * R + 5))⁻¹) := by rw [hd]; gcongr
         _ = (2 ^ (2 * R + 5) : ℝ)⁻¹ := by

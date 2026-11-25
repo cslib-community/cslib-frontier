@@ -78,25 +78,20 @@ private theorem OpenState.sum_comp_eq {d : ℕ} {W : Type} [Fintype W] [Decidabl
         exists_eq_right, false_or, or_false]
       exact (hreach_mem q).symm
   have hd1 : Disjoint (FW.image inV) (FW.image outV ∪ FI.image Sum.inl) := by
-    rw [Finset.disjoint_left]
-    rintro _ hv1 hv2
+    rw [Finset.disjoint_left]; rintro _ hv1 hv2
     obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp hv1
     rcases Finset.mem_union.mp hv2 with hv_out | hv_gate
-    · obtain ⟨q', -, hqq⟩ := Finset.mem_image.mp hv_out
-      exact Sum.inl_ne_inr hqq.symm
+    · obtain ⟨_, -, hqq⟩ := Finset.mem_image.mp hv_out; exact Sum.inl_ne_inr hqq.symm
     · obtain ⟨u, hu, huq⟩ := Finset.mem_image.mp hv_gate
       exact (Finset.mem_filter.mp hu).2.2 ⟨q, Sum.inl.inj huq.symm⟩
   have hd2 : Disjoint (FW.image outV) (FI.image Sum.inl) := by
-    rw [Finset.disjoint_left]
-    rintro _ hv1 hv2
-    obtain ⟨q, -, rfl⟩ := Finset.mem_image.mp hv1
-    obtain ⟨u, -, huq⟩ := Finset.mem_image.mp hv2
-    exact Sum.inl_ne_inr huq
+    rw [Finset.disjoint_left]; rintro _ hv1 hv2
+    obtain ⟨_, -, rfl⟩ := Finset.mem_image.mp hv1
+    obtain ⟨_, -, huq⟩ := Finset.mem_image.mp hv2; exact Sum.inl_ne_inr huq
   rw [hpart, Finset.sum_union hd1, Finset.sum_union hd2,
     Finset.sum_image (fun _ _ _ _ h => inV.injective h),
     Finset.sum_image (fun _ _ _ _ h => outV.injective h),
-    Finset.sum_image (fun _ _ _ _ h => Sum.inl_injective h), ← add_assoc]
-  rfl
+    Finset.sum_image (fun _ _ _ _ h => Sum.inl_injective h), ← add_assoc]; rfl
 
 open Classical in
 /-- Close an `OpenState d W M s` (`d ∈ {3, 4}`, `Nonempty W`) into a `CappedWireNet d W M s`. -/
@@ -187,35 +182,23 @@ private theorem OpenState.toCappedWireNet {d : ℕ} (hd : d = 3 ∨ d = 4) {W : 
       change (∑ q ∈ Finset.univ.filter (· ∈ W_in), (G_fin.incidenceSet (inV q)).ncard) +
         (∑ q ∈ Finset.univ.filter (· ∈ W_in), (G_fin.incidenceSet (outV q)).ncard) +
         ∑ u ∈ Finset.univ.filter (· ∈ I_gate), (G_fin.incidenceSet (.inl u)).ncard = _
-      have hsum1 : ∑ q ∈ Finset.univ.filter (· ∈ W_in), (G_fin.incidenceSet (inV q)).ncard =
-          W_in.ncard := by
-        trans ∑ _q ∈ Finset.univ.filter (· ∈ W_in), 1
-        · exact Finset.sum_congr rfl fun q _ => S.deg_inVert q
-        · rw [Finset.sum_const, smul_eq_mul, mul_one, hcardW]
-      have hsum2 : ∑ q ∈ Finset.univ.filter (· ∈ W_in), (G_fin.incidenceSet (outV q)).ncard =
-          W_in.ncard := by
-        trans ∑ _q ∈ Finset.univ.filter (· ∈ W_in), 1
-        · exact Finset.sum_congr rfl fun q _ => by
-            change ((capGraph S.G S.tip).incidenceSet (.inr q)).ncard = 1
-            rw [capGraph_incidence_inr, ncard_singleton]
-        · rw [Finset.sum_const, smul_eq_mul, mul_one, hcardW]
-      have hsum3 : ∑ u ∈ Finset.univ.filter (· ∈ I_gate), (G_fin.incidenceSet (.inl u)).ncard =
-          d * I_gate.ncard := by
-        trans ∑ _u ∈ Finset.univ.filter (· ∈ I_gate), d
-        · exact Finset.sum_congr rfl fun u hu => S.deg_gate u (Finset.mem_filter.mp hu).2.2
-        · rw [Finset.sum_const, smul_eq_mul, mul_comm, hcardI]
-      rw [hsum1, hsum2, hsum3]
-      omega
+      simp only [G_fin, inV, outV, Function.Embedding.trans_apply, Function.Embedding.coeFn_mk]
+      rw [Finset.sum_congr rfl fun q (_ : q ∈ Finset.univ.filter (· ∈ W_in)) => S.deg_inVert q,
+        Finset.sum_congr rfl fun q (_ : q ∈ Finset.univ.filter (· ∈ W_in)) =>
+          show ((capGraph S.G S.tip).incidenceSet (.inr q)).ncard = 1 by
+            rw [capGraph_incidence_inr, ncard_singleton],
+        Finset.sum_congr rfl fun u (hu : u ∈ Finset.univ.filter (· ∈ I_gate)) =>
+          S.deg_gate u (Finset.mem_filter.mp hu).2.2]
+      simp only [Finset.sum_const, smul_eq_mul, mul_one, hcardW, hcardI]; ring
     have hcard_Comp : Comp.ncard = 2 * W_in.ncard + I_gate.ncard := by
-      have h1 : Comp.ncard = ∑ _w : Comp, 1 := by
-        rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one, ← Nat.card_eq_fintype_card,
-          Nat.card_coe_set_eq]
-      rw [h1, S.sum_comp_eq Comp hreach_mem (fun _ => 1)]
+      rw [show Comp.ncard = ∑ _w : Comp, 1 by
+          rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one, ← Nat.card_eq_fintype_card,
+            Nat.card_coe_set_eq],
+        S.sum_comp_eq Comp hreach_mem (fun _ => 1)]
       change (∑ _q ∈ Finset.univ.filter (· ∈ W_in), 1) +
         (∑ _q ∈ Finset.univ.filter (· ∈ W_in), 1) +
         (∑ _u ∈ Finset.univ.filter (· ∈ I_gate), 1) = _
-      simp only [Finset.sum_const, smul_eq_mul, mul_one, hcardW, hcardI]
-      omega
+      simp only [Finset.sum_const, smul_eq_mul, mul_one, hcardW, hcardI]; omega
     obtain ⟨hc1, hc2⟩ := S.card_V
     rw [Multigraph.cycleRankOn]
     rcases hd with rfl | rfl <;> omega
@@ -224,18 +207,7 @@ private theorem OpenState.toCappedWireNet {d : ℕ} (hd : d = 3 ∨ d = 4) {W : 
     rw [S.contract y x, Finset.mul_sum]
     refine Finset.sum_congr rfl fun γ _ => ?_
     rw [Fintype.prod_sum_type]
-    have hprod_inr : (∏ q : W, F_fin (.inr q) x y γ) =
-        S.scalar * ∏ q : W, S.tipMat q (y q) (γ (.inr q)) := by
-      simp only [F_fin]
-      rw [Finset.prod_mul_distrib]
-      congr 1
-      rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q_star)]
-      simp only [↓reduceIte]
-      have h1 : (∏ x_1 ∈ Finset.univ.erase q_star,
-          if x_1 = q_star then S.scalar else 1) = 1 :=
-        Finset.prod_eq_one fun q hq => by simp only [(Finset.mem_erase.mp hq).1, ↓reduceIte]
-      rw [h1, mul_one]
-    rw [hprod_inr]
+    simp only [F_fin, Finset.prod_mul_distrib, Finset.prod_ite_eq', Finset.mem_univ, ↓reduceIte]
     ring
   · -- Input locality
     rintro (u | q) x₁ x₂ y γ h

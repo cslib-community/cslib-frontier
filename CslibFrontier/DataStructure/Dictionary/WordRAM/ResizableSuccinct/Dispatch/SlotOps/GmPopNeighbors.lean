@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.InEpoch
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps.Env
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps.Internal
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Internal Neighbor-Link Helpers for `compGmPopSlabGenProg`
@@ -34,8 +35,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -56,6 +58,15 @@ private theorem clientState_compGmReadMovedMetaProg (d : (CompParams × ℕ) × 
   rcases d with ⟨⟨cp, metaBase⟩, p_last⟩
   unfold StateTransitionSpec.clientState; simp [compGmReadMovedMetaProg]
 
+/-- The four metadata words of full slab `p` lie in `globalMetaLen N`, and the first one is at
+`gmSlabMetaBase N + 4 * p`. -/
+private theorem gmSlabIdx_facts {N p : ℕ} (hb_pos : 0 < bucketBits N) (hp : p < maxFullSlabs N) :
+    gmSlabOwnerBIdx N p < globalMetaLen N ∧ gmSlabOwnerBIdx N p + 1 < globalMetaLen N ∧
+      gmSlabOwnerBIdx N p + 2 < globalMetaLen N ∧ gmSlabOwnerBIdx N p + 3 < globalMetaLen N ∧
+      gmSlabMetaBase N + (p + p + (p + p)) = gmSlabOwnerBIdx N p :=
+  ⟨gmSlabOwnerBIdx_lt hb_pos hp, gmSlabOwnerSIdx_lt hb_pos hp, gmSlabBelowIdx_lt hb_pos hp,
+    gmSlabAboveIdx_lt hb_pos hp, by unfold gmSlabOwnerBIdx; omega⟩
+
 private theorem clientResult_compGmReadMovedMetaProg {U V w N metaBase p_last : ℕ}
     (hb_pos : 0 < bucketBits N) (hp_last_cap : p_last < maxFullSlabs N) (s : Memory.State) :
     (Memory.spec 0).clientResult s
@@ -64,15 +75,8 @@ private theorem clientResult_compGmReadMovedMetaProg {U V w N metaBase p_last : 
         compGmAt metaBase U w N s.mem (gmSlabOwnerSIdx N p_last)),
        (compGmAt metaBase U w N s.mem (gmSlabBelowIdx N p_last),
         compGmAt metaBase U w N s.mem (gmSlabAboveIdx N p_last))) := by
-  have hownB_last_lt := gmSlabOwnerBIdx_lt hb_pos hp_last_cap
-  have hownS_last_lt : gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N :=
-    gmSlabOwnerSIdx_lt hb_pos hp_last_cap
-  have hbel_last_lt : gmSlabOwnerBIdx N p_last + 2 < globalMetaLen N :=
-    gmSlabBelowIdx_lt hb_pos hp_last_cap
-  have habv_last_lt : gmSlabOwnerBIdx N p_last + 3 < globalMetaLen N :=
-    gmSlabAboveIdx_lt hb_pos hp_last_cap
-  have hpl4 : gmSlabMetaBase N + (p_last + p_last + (p_last + p_last)) =
-      gmSlabOwnerBIdx N p_last := by unfold gmSlabOwnerBIdx; omega
+  obtain ⟨hownB_last_lt, hownS_last_lt, hbel_last_lt, habv_last_lt, hpl4⟩ :=
+    gmSlabIdx_facts hb_pos hp_last_cap
   dsimp only [compGmReadMovedMetaProg, cpGmSlabMetaBase_mk]
   rw [hpl4, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hownB_last_lt,
     clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
@@ -143,13 +147,6 @@ theorem compGmLinkMovedNeighborsGenProg_effect
   let bel_last := gm (gmSlabBelowIdx N p_last)
   let abv_last := gm (gmSlabAboveIdx N p_last)
   let q_last := gm (gmQIdx b_last)
-  have hownB_last_lt := gmSlabOwnerBIdx_lt hb_pos hp_last_cap
-  have hownS_last_lt : gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N :=
-    gmSlabOwnerSIdx_lt hb_pos hp_last_cap
-  have hbel_last_lt : gmSlabOwnerBIdx N p_last + 2 < globalMetaLen N :=
-    gmSlabBelowIdx_lt hb_pos hp_last_cap
-  have habv_last_lt : gmSlabOwnerBIdx N p_last + 3 < globalMetaLen N :=
-    gmSlabAboveIdx_lt hb_pos hp_last_cap
   have hq_last_lt : gmQIdx b_last < globalMetaLen N := gmQIdx_lt hb_pos hb_last
   have hownB_del_lt := gmSlabOwnerBIdx_lt hb_pos hp_del_cap
   have hownS_del_lt := gmSlabOwnerSIdx_lt hb_pos hp_del_cap
@@ -251,15 +248,8 @@ private theorem realizesBounded_compGmReadMovedMeta :
     rcases d with ⟨⟨cp, metaBase⟩, p_last⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hp_last_cap⟩ := h
     have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
-    have hownB_last_lt := gmSlabOwnerBIdx_lt hb_pos hp_last_cap
-    have hownS_last_lt : gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N :=
-      gmSlabOwnerSIdx_lt hb_pos hp_last_cap
-    have hbel_last_lt : gmSlabOwnerBIdx N p_last + 2 < globalMetaLen N :=
-      gmSlabBelowIdx_lt hb_pos hp_last_cap
-    have habv_last_lt : gmSlabOwnerBIdx N p_last + 3 < globalMetaLen N :=
-      gmSlabAboveIdx_lt hb_pos hp_last_cap
-    have hpl4 : gmSlabMetaBase N + (p_last + p_last + (p_last + p_last)) =
-        gmSlabOwnerBIdx N p_last := by unfold gmSlabOwnerBIdx; omega
+    obtain ⟨hownB_last_lt, hownS_last_lt, hbel_last_lt, habv_last_lt, hpl4⟩ :=
+      gmSlabIdx_facts hb_pos hp_last_cap
     simp only [cpGmSlabMetaBase_mk, hpl4, StateTransitionSpec.clientState,
       runClient_state_readCompGMGenProg] at *)
   all_goals try (
@@ -345,15 +335,8 @@ private theorem realizesBounded_compGmCopyMovedMeta :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, p_del⟩, ⟨⟨b_last, s_last⟩, ⟨bel_last, abv_last⟩⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hp_del_cap⟩ := h
-    have hownB_del_lt := gmSlabOwnerBIdx_lt hb_pos hp_del_cap
-    have hownS_del_lt : gmSlabOwnerBIdx N p_del + 1 < globalMetaLen N :=
-      gmSlabOwnerSIdx_lt hb_pos hp_del_cap
-    have hbel_del_lt : gmSlabOwnerBIdx N p_del + 2 < globalMetaLen N :=
-      gmSlabBelowIdx_lt hb_pos hp_del_cap
-    have habv_del_lt : gmSlabOwnerBIdx N p_del + 3 < globalMetaLen N :=
-      gmSlabAboveIdx_lt hb_pos hp_del_cap
-    have hpd4 : gmSlabMetaBase N + (p_del + p_del + (p_del + p_del)) =
-        gmSlabOwnerBIdx N p_del := by unfold gmSlabOwnerBIdx; omega
+    obtain ⟨hownB_del_lt, hownS_del_lt, hbel_del_lt, habv_del_lt, hpd4⟩ :=
+      gmSlabIdx_facts hb_pos hp_del_cap
     simp only [cpGmSlabMetaBase_mk, hpd4, StateTransitionSpec.clientState,
       runClient_state_writeCompGMGenProg] at *)
   all_goals try (
@@ -401,15 +384,7 @@ private theorem validProg_compGmReadMovedMeta {w : ℕ} {d : (CompParams × ℕ)
   obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hp_last_cap⟩ := h
   have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
     ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
-  have hownB_last := gmSlabOwnerBIdx_lt hb_pos hp_last_cap
-  have hownS_last : gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N :=
-    gmSlabOwnerSIdx_lt hb_pos hp_last_cap
-  have hbel_last : gmSlabOwnerBIdx N p_last + 2 < globalMetaLen N :=
-    gmSlabBelowIdx_lt hb_pos hp_last_cap
-  have habv_last : gmSlabOwnerBIdx N p_last + 3 < globalMetaLen N :=
-    gmSlabAboveIdx_lt hb_pos hp_last_cap
-  have hpl4 : gmSlabMetaBase N + (p_last + p_last + (p_last + p_last)) =
-      gmSlabOwnerBIdx N p_last := by unfold gmSlabOwnerBIdx; omega
+  obtain ⟨hownB_last, hownS_last, hbel_last, habv_last, hpl4⟩ := gmSlabIdx_facts hb_pos hp_last_cap
   dsimp only [compGmReadMovedMetaProg, cpGmSlabMetaBase_mk]
   rw [hpl4]
   refine validProg_bind (validProg_readCompGMGen ⟨henv, hownB_last⟩) ?_
@@ -455,15 +430,7 @@ private theorem validProg_compGmCopyMovedMeta {w : ℕ}
   have mkEnv : ∀ s' : Memory.State, s'.frontier = s.frontier →
       CompMetaEnv w (mkCompParams U V w N) metaBase s' :=
     fun s' hs' => ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hs' ▸ hfr⟩
-  have hownB_del := gmSlabOwnerBIdx_lt hb_pos hp_del_cap
-  have hownS_del : gmSlabOwnerBIdx N p_del + 1 < globalMetaLen N :=
-    gmSlabOwnerSIdx_lt hb_pos hp_del_cap
-  have hbel_del : gmSlabOwnerBIdx N p_del + 2 < globalMetaLen N :=
-    gmSlabBelowIdx_lt hb_pos hp_del_cap
-  have habv_del : gmSlabOwnerBIdx N p_del + 3 < globalMetaLen N :=
-    gmSlabAboveIdx_lt hb_pos hp_del_cap
-  have hpd4 : gmSlabMetaBase N + (p_del + p_del + (p_del + p_del)) = gmSlabOwnerBIdx N p_del := by
-    unfold gmSlabOwnerBIdx; omega
+  obtain ⟨hownB_del, hownS_del, hbel_del, habv_del, hpd4⟩ := gmSlabIdx_facts hb_pos hp_del_cap
   dsimp only [compGmCopyMovedMetaProg, cpGmSlabMetaBase_mk]
   rw [hpd4]
   exact validProg_writeCompGM_bind ⟨mkEnv s rfl, hownB_del⟩ fun s1 hs1 =>

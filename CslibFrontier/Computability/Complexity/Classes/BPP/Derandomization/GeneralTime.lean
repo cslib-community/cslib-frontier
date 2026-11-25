@@ -245,8 +245,7 @@ theorem BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth {G : List Bool �
     have h3 := hkt n
     have h4 := ht n
     rcases Nat.eq_zero_or_pos (t n) with h0 | h0
-    · have hn0 : n = 0 := by omega
-      subst hn0
+    · obtain rfl : n = 0 := by omega
       rw [h0]
       omega
     · nlinarith [Nat.mul_le_mul_left c h3, Nat.mul_le_mul_left c h4, Nat.mul_le_mul_left c h0]
@@ -260,8 +259,7 @@ theorem BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth {G : List Bool �
       = 2 ^ (D * d + D * e) * ((2 ^ k n) ^ (D * d) * (n + 1) ^ D) := by
         rw [← pow_mul, mul_left_comm, ← mul_assoc, ← pow_add]
         ring_nf
-    _ ≤ 2 ^ (D * d + D * e) * (P ^ (D * d) * P ^ D) :=
-        by gcongr
+    _ ≤ 2 ^ (D * d + D * e) * (P ^ (D * d) * P ^ D) := by gcongr
     _ = 2 ^ (D * d + D * e) * P ^ (D * d + D) := by rw [pow_add P]
     _ ≤ _ := Nat.le_add_right _ _
 
@@ -315,9 +313,7 @@ private theorem exists_two_pow_le_of_rpow {S : ℕ → ℕ}
   obtain ⟨ε, hε, hev⟩ := h
   obtain ⟨M, hM⟩ := eventually_atTop.1 hev
   obtain ⟨e, he, heε⟩ := Real.exists_nat_pos_inv_lt hε
-  have heε : 1 ≤ (e : ℝ) * ε := by
-    rw [inv_lt_iff_one_lt_mul₀' (by exact_mod_cast he)] at heε
-    exact heε.le
+  have heε : 1 ≤ (e : ℝ) * ε := ((inv_lt_iff_one_lt_mul₀' (by exact_mod_cast he)).1 heε).le
   refine ⟨e, M, he, fun X => ?_⟩
   set m := X ^ e + M
   have hm := hM m (Nat.le_add_left _ _)
@@ -330,11 +326,9 @@ private theorem exists_two_pow_le_of_rpow {S : ℕ → ℕ}
       _ = ((X : ℝ) ^ e) ^ ε := Real.rpow_natCast_mul (by positivity) e ε
       _ ≤ (m : ℝ) ^ ε := Real.rpow_le_rpow (by positivity)
           (by simp only [m]; push_cast; linarith [(Nat.cast_nonneg M : (0 : ℝ) ≤ M)]) hε.le
-  have : (2 : ℝ) ^ X ≤ S m := by
-    calc (2 : ℝ) ^ X = (2 : ℝ) ^ (X : ℝ) := (Real.rpow_natCast _ _).symm
-      _ ≤ (2 : ℝ) ^ ((m : ℝ) ^ ε) := Real.rpow_le_rpow_of_exponent_le (by norm_num) hXm
-      _ ≤ S m := hm
-  exact_mod_cast this
+  exact_mod_cast calc (2 : ℝ) ^ X = (2 : ℝ) ^ (X : ℝ) := (Real.rpow_natCast _ _).symm
+    _ ≤ (2 : ℝ) ^ ((m : ℝ) ^ ε) := Real.rpow_le_rpow_of_exponent_le (by norm_num) hXm
+    _ ≤ S m := hm
 
 /-- Eventually `Q (log₂ n + 1) ^ e ≤ (log₂ n) ^ (e + 1)`. -/
 private theorem eventually_mul_log_succ_pow_le (Q e : ℕ) :

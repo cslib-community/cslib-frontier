@@ -73,33 +73,27 @@ open scoped BigOperators
 /-- Both the prefix slack and the scale cutoff constrain each included positive budget. -/
 theorem le_lastBudget_iff {M d c m : ℕ} {h : ℤ} (hm : 0 < m) :
     m ≤ lastBudget M d c h ↔ m + d ≤ M ∧ m + scaleCutoff c h ≤ M := by
-  unfold lastBudget
-  omega
+  unfold lastBudget; omega
 
 /-- A scale with cutoff at least the parent budget has no layers in any prefix. -/
 theorem lastBudget_eq_zero_of_cutoff_le {M d c : ℕ} {h : ℤ}
     (hM : M ≤ scaleCutoff c h) : lastBudget M d c h = 0 := by
-  unfold lastBudget
-  omega
+  unfold lastBudget; omega
 
 /-- Increasing the required slack can only shorten the prefix. -/
-theorem lastBudget_antitone (M c : ℕ) (h : ℤ) : Antitone fun d => lastBudget M d c h := by
-  intro d e hde
-  dsimp only [lastBudget]
-  omega
+theorem lastBudget_antitone (M c : ℕ) (h : ℤ) : Antitone fun d => lastBudget M d c h :=
+  fun _ _ _ => by dsimp only [lastBudget]; omega
 
 /-- Every included child, including both budgets of each difference, is strictly earlier. -/
 theorem lastBudget_lt {M d c : ℕ} {h : ℤ} (hM : 0 < M) (hc : 0 < c) :
     lastBudget M d c h < M := by
   have : 0 < scaleCutoff c h := Nat.mul_pos hc (by omega)
-  unfold lastBudget
-  omega
+  unfold lastBudget; omega
 
 /-- The loss at the last budget is bounded even when that budget is zero. -/
 theorem budget_loss_le (M d c : ℕ) (h : ℤ) :
     M - lastBudget M d c h ≤ d + scaleCutoff c h := by
-  unfold lastBudget
-  omega
+  unfold lastBudget; omega
 
 /-- The paired differences telescope at each actual endpoint. The zero-budget value is
 explicit: clients may discard it only after proving that their budget-zero sample is zero. -/
@@ -154,38 +148,29 @@ theorem coarse_scale_available {A a a' u : ℝ} (M c i : ℕ) (h : ℤ)
     (hscale : Real.logb 2 (a' / a) = (h : ℝ))
     (hactive : 0 < precision (16 * c) A M i a u) : scaleCutoff c h < M := by
   have hcR : (0 : ℝ) < c := by exact_mod_cast hc
-  have hiR : (1 : ℝ) ≤ i := by exact_mod_cast hi
   have hla := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) ha.le ha1
   have hla' := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) ha'.le ha'1
   have hlu := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) hu.le hu1
+  have hAi : 1 ≤ A * (i : ℝ) := one_le_mul_of_one_le_of_one_le hA (by exact_mod_cast hi)
   rw [Real.logb_div ha'.ne' ha.ne'] at hscale
-  have habs : (h.natAbs : ℝ) = (h : ℝ) := by
-    have heq : |(h : ℝ)| = (h.natAbs : ℝ) := by simp
-    rw [abs_of_nonneg (show (0 : ℝ) ≤ h by exact_mod_cast hh)] at heq
-    exact heq.symm
-  have hhR : (0 : ℝ) ≤ h := by exact_mod_cast hh
-  have hAi : 1 ≤ A * (i : ℝ) := one_le_mul_of_one_le_of_one_le hA hiR
-  have hp : (16 * c : ℝ) * (-(Real.logb 2 a) / 2 + 1) < M := by
-    have hdiv : -Real.logb 2 a / 2 + 1 < (M : ℝ) / (16 * c) := by
-      dsimp only [precision] at hactive
-      linarith
-    simpa only [mul_comm] using
-      (lt_div_iff₀ (show (0 : ℝ) < 16 * c by positivity)).mp hdiv
+  have hp : (16 * c : ℝ) * (-Real.logb 2 a / 2 + 1) < M := by
+    dsimp only [precision] at hactive
+    simpa only [mul_comm] using (lt_div_iff₀ (show (0 : ℝ) < 16 * c by positivity)).mp
+      (show -Real.logb 2 a / 2 + 1 < (M : ℝ) / (16 * c) by linarith)
   have hcut : (c : ℝ) * (1 + (h : ℝ)) < M := by
-    have hcNonneg : (0 : ℝ) ≤ c * (-(Real.logb 2 a)) := mul_nonneg hcR.le (by linarith)
-    have hscaleCost := mul_le_mul_of_nonneg_left (show (h : ℝ) ≤ -Real.logb 2 a by linarith) hcR.le
+    have := mul_le_mul_of_nonneg_left (show (h : ℝ) ≤ -Real.logb 2 a by linarith) hcR.le
     nlinarith
-  have hcast : ((scaleCutoff c h : ℕ) : ℝ) < M := by
-    simpa only [scaleCutoff, Nat.cast_mul, Nat.cast_add, Nat.cast_one, habs] using hcut
-  exact_mod_cast hcast
+  have habs : (h.natAbs : ℝ) = (h : ℝ) := by rw [← Int.cast_natCast, Int.natAbs_of_nonneg hh]
+  exact_mod_cast (by
+    simpa only [scaleCutoff, Nat.cast_mul, Nat.cast_add, Nat.cast_one, habs] using hcut :
+    ((scaleCutoff c h : ℕ) : ℝ) < M)
 
 /-- Nonnegative geometric majorant for both directions of the logarithmic scale grid. -/
 @[expose] noncomputable def scaleMajorant (h : ℤ) : ℝ :=
   (2 : ℝ) ^ (-(h.natAbs : ℝ) / 8)
 
-theorem scaleMajorant_nonneg (h : ℤ) : 0 ≤ scaleMajorant h := by
-  unfold scaleMajorant
-  positivity
+theorem scaleMajorant_nonneg (h : ℤ) : 0 ≤ scaleMajorant h :=
+  Real.rpow_nonneg (by norm_num) _
 
 attribute [local positivity_lemma] binNormCost_pos
 
@@ -206,19 +191,16 @@ theorem scheduled_child_cost_le_of_rate_le {A a a' b c₁ u u' : ℝ} (hA : 0 �
   refine hbase.trans (mul_le_mul_of_nonneg_left ?_ (by positivity))
   have hcR : (0 : ℝ) < c := by exact_mod_cast hc
   have hloss : (M : ℝ) - lastBudget M d c h ≤ d + c * (1 + (h.natAbs : ℝ)) := by
-    have hnat := budget_loss_le M d c h
-    have hle : lastBudget M d c h ≤ M := Nat.sub_le _ _
-    exact_mod_cast hnat
-  rw [scaleMajorant, ← Real.rpow_add (by norm_num : (0 : ℝ) < 2),
-    ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
+    have : lastBudget M d c h ≤ M := Nat.sub_le _ _
+    exact_mod_cast budget_loss_le M d c h
+  rw [scaleMajorant, ← Real.rpow_add (by norm_num), ← Real.rpow_add (by norm_num)]
+  refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
   have hdiv := (div_le_div_iff_of_pos_right (show (0 : ℝ) < 16 * c by positivity)).2 hloss
   have heq : ((d : ℝ) + c * (1 + (h.natAbs : ℝ))) / (16 * c) =
       (d : ℝ) / (16 * c) + (1 + (h.natAbs : ℝ)) / 16 := by field_simp
+  have : (0 : ℝ) ≤ h.natAbs := Nat.cast_nonneg _
   rw [heq] at hdiv
-  have habs : |(h : ℝ)| = (h.natAbs : ℝ) := by simp
-  have hn : (0 : ℝ) ≤ h.natAbs := Nat.cast_nonneg _
-  rw [habs]
+  rw [show |(h : ℝ)| = h.natAbs by simp]
   linarith
 
 /-- The actual last child budget leaves at least one eighth of scale decay in fourth-moment
@@ -248,20 +230,14 @@ theorem scheduled_binNormCost_error_le {A a a' b c₁ u u' C E : ℝ} (hA : 0 �
           (d : ℝ) / (16 * c) + 1 / 16) * scaleMajorant h)) ^ 4 := by
   have hcost := scheduled_child_cost_le_of_rate_le hA M d c i i' hc h hi ha hb hc₁ hba'
     hu huu' hscale
-  calc (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4)) ^ 4 * E
-      ≤ (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4)) ^ 4 *
-          (C * (2 : ℝ) ^ (-precision (16 * c) A (lastBudget M d c h) i' a' u')) ^ 4 :=
-        mul_le_mul_of_nonneg_left hE (by positivity)
-    _ = (C * (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4) *
-          (2 : ℝ) ^ (-precision (16 * c) A (lastBudget M d c h) i' a' u'))) ^ 4 := by ring
-    _ ≤ _ := by
-      simpa only [mul_assoc] using
-        pow_le_pow_left₀ (by positivity) (mul_le_mul_of_nonneg_left hcost hC) 4
+  refine (mul_le_mul_of_nonneg_left hE (by positivity)).trans ?_
+  rw [← mul_pow, mul_left_comm, ← mul_assoc]
+  simpa only [mul_assoc] using
+    pow_le_pow_left₀ (by positivity) (mul_le_mul_of_nonneg_left hcost hC) 4
 
 private theorem scaleMajorant_natCast (n : ℕ) :
     scaleMajorant (n : ℤ) = ((2 : ℝ) ^ (-(1 : ℝ) / 8)) ^ n := by
-  simp only [scaleMajorant, Int.natAbs_natCast]
-  rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+  rw [scaleMajorant, Int.natAbs_natCast, ← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]
   congr 1
   ring
 
@@ -278,18 +254,16 @@ theorem summable_scaleMajorant : Summable scaleMajorant := by
 /-- The two-sided scale sum has an explicit finite value. The zero scale is counted once. -/
 theorem tsum_scaleMajorant : (∑' h, scaleMajorant h) =
     2 / (1 - (2 : ℝ) ^ (-(1 : ℝ) / 8)) - 1 := by
-  let q : ℝ := (2 : ℝ) ^ (-(1 : ℝ) / 8)
   have hnat := (summable_int_iff_summable_nat_and_neg.mp summable_scaleMajorant).1
-  have hsum : (∑' n : ℕ, scaleMajorant (n : ℤ)) = 1 / (1 - q) := by
+  have hsum : (∑' n : ℕ, scaleMajorant (n : ℤ)) = 1 / (1 - (2 : ℝ) ^ (-(1 : ℝ) / 8)) := by
     simp_rw [scaleMajorant_natCast]
-    simpa only [one_div, q] using tsum_geometric_of_lt_one (by positivity)
+    simpa only [one_div] using tsum_geometric_of_lt_one (by positivity)
       (Real.rpow_lt_one_of_one_lt_of_neg (by norm_num) (by norm_num))
   have hboth := tsum_nat_add_neg summable_scaleMajorant
   simp_rw [show ∀ n : ℕ, scaleMajorant (-(n : ℤ)) = scaleMajorant (n : ℤ) from fun _ => by
     simp only [scaleMajorant, Int.natAbs_neg]] at hboth
   rw [hnat.tsum_add hnat, hsum, ← add_div, one_add_one_eq_two,
     show scaleMajorant 0 = 1 by norm_num [scaleMajorant]] at hboth
-  dsimp only [q] at hboth
   linarith
 
 /-- A finite sum whose terms are at most `C` times the scale majorant is at most `C` times the

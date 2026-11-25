@@ -105,9 +105,7 @@ private theorem acceptsWithin_check (a : α) (s : σ) (g : Option Bool) (n : ℕ
     rw [Native.step_check_words, R.boundary_flag, boundaryCfg]
     cases M.halted s <;> rfl
   cases n with
-  | zero =>
-    exact iff_of_false (MultiTapeATM.not_acceptsWithin_zero _ rfl)
-      (fun h => absurd h.1 (by omega))
+  | zero => exact iff_of_false (MultiTapeATM.not_acceptsWithin_zero _ rfl) (by simp)
   | succ n =>
     rw [MultiTapeATM.acceptsWithin_succ_of_next_eq hnext]
     simp
@@ -153,12 +151,8 @@ moves. -/
 theorem accepts_atm_iff (a : α) :
     R.atm.Accepts (enc a) ↔ ∃ n, R.atm.AcceptsWithin n (R.boundaryCfg a (start a) none) := by
   obtain ⟨τ, hτ⟩ := R.exists_init a
-  unfold MultiTapeATM.Accepts
-  constructor
-  · rintro ⟨n, hn⟩
-    exact ⟨n - τ, ((hτ n).mp hn).2⟩
-  · rintro ⟨n, hn⟩
-    exact ⟨n + τ, (hτ (n + τ)).mpr ⟨Nat.le_add_left _ _, by rwa [Nat.add_sub_cancel]⟩⟩
+  exact ⟨fun ⟨n, hn⟩ => ⟨n - τ, ((hτ n).mp hn).2⟩,
+    fun ⟨n, hn⟩ => ⟨n + τ, (hτ (n + τ)).mpr ⟨Nat.le_add_left _ _, by rwa [Nat.add_sub_cancel]⟩⟩⟩
 
 /-- **The boundary of a halted state.** After the finalizer's moves, the boundary of a reachable
 halted state accepts exactly when the state accepts. -/
@@ -198,18 +192,15 @@ theorem exists_acceptsWithin_boundaryCfg_of_live (a : α) (s : σ)
         ∃ b, τ b ≤ n ∧ R.atm.AcceptsWithin (n - τ b)
           (R.boundaryCfg a (M.step (enc a) s b) (Native.nextGuess g b)) := by
   have hb : R.boundaryCfg a s g =
-      wordsCfg (enc a) (some (.choose, g)) (R.boundary s true) [] := by
-    simp [boundaryCfg, hh]
+      wordsCfg (enc a) (some (.choose, g)) (R.boundary s true) [] := by simp [boundaryCfg, hh]
   have hnext (b : Bool) : R.atm.next b (R.boundaryCfg a s g) =
       wordsCfg (enc a) (some (.pass b (R.P b).q₀, Native.nextGuess g b)) (R.boundary s true)
         [] := by
     rw [hb]
-    refine (Native.next_altMachine_mapState R.I R.P R.F R.C b
-      (wordsCfg (enc a) (some .choose) (R.boundary s true) []) rfl g).trans ?_
-    rw [Native.step_choose R.I R.P R.F R.C b _ rfl]
-    rfl
-  have hpass (b : Bool) := R.exists_pass a s hs b true (Native.nextGuess g b)
-  choose τ hτ using hpass
+    exact (Native.next_altMachine_mapState R.I R.P R.F R.C b
+      (wordsCfg (enc a) (some .choose) (R.boundary s true) []) rfl g).trans
+      (by rw [Native.step_choose R.I R.P R.F R.C b _ rfl]; rfl)
+  choose τ hτ using fun b => R.exists_pass a s hs b true (Native.nextGuess g b)
   have hstate : (R.boundaryCfg a s g).state = some (.choose, g) := by rw [hb]; rfl
   refine ⟨τ, fun n => ?_⟩
   by_cases hg : g = some true
@@ -217,10 +208,7 @@ theorem exists_acceptsWithin_boundaryCfg_of_live (a : α) (s : σ)
     rw [ite_eq_left rfl, MultiTapeATM.acceptsWithin_succ_of_universal _ hstate rfl]
     exact forall_congr' fun b => by rw [hnext]; exact hτ b n
   · have hu : R.atm.universal (.choose, g) = false := by
-      rcases g with _ | _ | _
-      · rfl
-      · rfl
-      · exact absurd rfl hg
+      rcases g with _ | _ | _ <;> first | rfl | exact absurd rfl hg
     rw [ite_eq_right hg, MultiTapeATM.acceptsWithin_succ_of_existential _ hstate hu]
     exact exists_congr fun b => by rw [hnext]; exact hτ b n
 

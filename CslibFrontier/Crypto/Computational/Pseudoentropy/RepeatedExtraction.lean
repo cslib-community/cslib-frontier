@@ -133,24 +133,6 @@ theorem eval_replicate_extractLabels_map_pair {α β Label Value Seed Output : T
           (fun result => (result.1.map observe, result.2)) := by
   simp only [pmf_norm, ProbComp.eval_replicate_map hsource, extractLabels_map_pair]
 
-/-- Label extraction composes ordinary sampling, list projections, and an efficient hash. -/
-theorem isPPTOn_extractLabels {Param Observation Seed Output : Type} {input : Param ↪ List Bool}
-    {observation : Observation ↪ List Bool} {key : Seed ↪ List Bool} {output : Output ↪ List Bool}
-    {seed : Param → ProbComp Seed} {hash : Param → Seed → List Bool → Output}
-    {samples : Param → List (Observation × Bool)}
-    (hseed : IsPPTOn input key seed)
-    (hhash : ComputableInPolyTime (fun pair => hash pair.1.1 pair.1.2 pair.2)
-      (encPair (encPair input key) encBits) output)
-    (hsamples : ComputableInPolyTime samples input (encList (encPair observation encBool))) :
-    IsPPTOn input (encPair (encList observation) (encPair key output))
-      (fun a => extractLabels (seed a) (hash a) (samples a)) :=
-  let p0 := ComputableInPolyTime.fst input key; let p1 := ComputableInPolyTime.snd input key
-  let hs := p0.trans hsamples
-  let hobs := hs.mapWithInput ((ComputableInPolyTime.snd _ _).trans (.fst observation encBool))
-  let hlbl := hs.mapWithInput ((ComputableInPolyTime.snd _ _).trans (.snd observation encBool))
-  hseed.bind_with
-    (hobs.prod (p1.prod (((p0.prod p1).prod (hlbl.trans .listToBits)).trans hhash))).isPPTOn
-
 /-- Arbitrary encoded labels use the same extractor, with list encoding charged to the hash. -/
 theorem isPPTOn_extractLabels_list {Param Observation Label Seed Output : Type}
     {input : Param ↪ List Bool} {observation : Observation ↪ List Bool} {label : Label ↪ List Bool}
@@ -168,6 +150,21 @@ theorem isPPTOn_extractLabels_list {Param Observation Label Seed Output : Type}
   let hobs := hs.mapWithInput ((ComputableInPolyTime.snd _ _).trans (.fst observation label))
   let hlbl := hs.mapWithInput ((ComputableInPolyTime.snd _ _).trans (.snd observation label))
   hseed.bind_with (hobs.prod (p1.prod (((p0.prod p1).prod hlbl).trans hhash))).isPPTOn
+
+/-- Label extraction composes ordinary sampling, list projections, and an efficient hash. -/
+theorem isPPTOn_extractLabels {Param Observation Seed Output : Type} {input : Param ↪ List Bool}
+    {observation : Observation ↪ List Bool} {key : Seed ↪ List Bool} {output : Output ↪ List Bool}
+    {seed : Param → ProbComp Seed} {hash : Param → Seed → List Bool → Output}
+    {samples : Param → List (Observation × Bool)}
+    (hseed : IsPPTOn input key seed)
+    (hhash : ComputableInPolyTime (fun pair => hash pair.1.1 pair.1.2 pair.2)
+      (encPair (encPair input key) encBits) output)
+    (hsamples : ComputableInPolyTime samples input (encList (encPair observation encBool))) :
+    IsPPTOn input (encPair (encList observation) (encPair key output))
+      (fun a => extractLabels (seed a) (hash a) (samples a)) :=
+  isPPTOn_extractLabels_list hseed
+    (((ComputableInPolyTime.fst _ _).prod
+      ((ComputableInPolyTime.snd _ _).trans .listToBits)).trans hhash) hsamples
 
 attribute [program_certificate hseed hsamples] isPPTOn_extractLabels isPPTOn_extractLabels_list
 

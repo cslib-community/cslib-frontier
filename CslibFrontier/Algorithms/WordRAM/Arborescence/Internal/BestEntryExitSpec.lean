@@ -29,7 +29,7 @@ open Cslib.WordRAM.Realization.Signed
 
 attribute [local client_simps] StateTransitionSpec.clientState
   StateTransitionSpec.runClient_pure'
-  runClient_read runClient_write runClient_allocDirty runClient_ite runClient_map
+  runClient_read runClient_write runClient_allocDirty runClient_ite
   prog_clientState_ite runClient_signedSubProg
 
 @[local client_simps] private theorem local_fst_snd_signedSubProg (w : ℕ)
@@ -90,6 +90,13 @@ private theorem fillBestEntryRowProg_spec {w n ws k : ℕ} (uFin : Fin n)
         ha_r uFin ⟨y, hy⟩
       have hc_my : sr.mem (curCostBase ws n + uFin.1 * n + y) = Signed.encode c[uFin.1][y] :=
         hc_r uFin ⟨y, hy⟩
+      have hout : ∀ addr, ¬(candPredBase ws n ≤ addr ∧ addr < candCostBase ws n + n) →
+          ((Memory.spec 0).clientState sr (bestEntryRowStep (rowArgs, y))).mem addr =
+            sr.mem addr := by
+        intro addr haddr
+        dsimp only [candPredBase, candCostBase] at haddr
+        simp only [bestEntryRowStep, rowArgs, client_simps, candPredBase, candCostBase]
+        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       refine ⟨by dsimp only [BestEntryRowStepSafe, rowArgs]; exact ⟨h1,
           hws.of_le (by dsimp only [wsSize, frameMaskBase, frameBase]; omega),
           hws.of_le (by dsimp only [wsSize, curAdjBase]; omega),
@@ -97,7 +104,19 @@ private theorem fillBestEntryRowProg_spec {w n ws k : ℕ} (uFin : Fin n)
           hws.of_le (by dsimp only [wsSize, candPredBase]; omega),
           hws.of_le (by dsimp only [wsSize, candCostBase]; omega),
           hws.of_le (by dsimp only [wsSize]; omega)⟩,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+        ?_, ?_, by simp [bestEntryRowStep, rowArgs, client_simps], hout,
+        by simp [bestEntryRowStep, rowArgs, client_simps],
+        by simpa [bestEntryRowStep, rowArgs, client_simps] using hfr_r,
+        fun u col => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curAdjBase, candPredBase, candCostBase]; omega)).trans (ha_r u col),
+        fun u col => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curCostBase, candPredBase, candCostBase]; omega)).trans (hc_r u col),
+        fun z => (hout _ (by
+          have := z.isLt
+          dsimp only [frameMaskBase, frameBase, candPredBase, candCostBase]; omega)).trans (hm_r z),
+        ?_⟩
       · unfold bestEntryRowStep
         dsimp only [rowArgs]
         exact validHistory_read_bind
@@ -120,33 +139,6 @@ private theorem fillBestEntryRowProg_spec {w n ws k : ℕ} (uFin : Fin n)
           memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
           memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_write]
         simp [client_simps]
-      · simp [bestEntryRowStep, rowArgs, client_simps]
-      · intro addr haddr
-        dsimp only [candPredBase, candCostBase] at haddr
-        simp only [bestEntryRowStep, rowArgs, client_simps, candPredBase, candCostBase]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-      · simp [bestEntryRowStep, rowArgs, client_simps]
-      · simpa [bestEntryRowStep, rowArgs, client_simps] using hfr_r
-      · intro u col
-        have := List.mul_add_lt_sq u.isLt col.isLt
-        simp only [bestEntryRowStep, rowArgs, client_simps]
-        rw [Function.update_of_ne (by dsimp only [curAdjBase, candCostBase]; omega),
-          Function.update_of_ne (by dsimp only [curAdjBase, candPredBase]; omega)]
-        exact ha_r u col
-      · intro u col
-        have := List.mul_add_lt_sq u.isLt col.isLt
-        simp only [bestEntryRowStep, rowArgs, client_simps]
-        rw [Function.update_of_ne (by dsimp only [curCostBase, candCostBase]; omega),
-          Function.update_of_ne (by dsimp only [curCostBase, candPredBase]; omega)]
-        exact hc_r u col
-      · intro z
-        have := z.isLt
-        simp only [bestEntryRowStep, rowArgs, client_simps]
-        rw [Function.update_of_ne
-            (by dsimp only [frameMaskBase, frameBase, candCostBase]; omega),
-          Function.update_of_ne
-            (by dsimp only [frameMaskBase, frameBase, candPredBase]; omega)]
-        exact hm_r z
       · intro z hz
         simp only [bestEntryRowStep, rowArgs, client_simps]
         by_cases heq : z.1 = y
@@ -222,11 +214,46 @@ public theorem bestEntryProg_spec {w n ws k : ℕ} (hpos : 0 < n)
         (by dsimp only [wsSize, candCostBase] at hf hfr ⊢; rw [hrow.2.2.2.1]; nlinarith)
         (fun y => (hrow.2.2.2.2.2.2.2.2 y).1)
         (fun y => (hrow.2.2.2.2.2.2.2.2 y).2)
+      have harg_s := harg.2.2.2.1
+      have harg_r := harg.2.2.2.2
+      dsimp only [s1, rowArgs, uFin] at harg_s harg_r
+      have hfr_step :
+          ((Memory.spec 0).clientState s (bestEntryOuterStep (la, m))).frontier = s.frontier := by
+        unfold bestEntryOuterStep
+        dsimp only [la]
+        have hrow_fr := hrow.2.2.2.1
+        dsimp only [s1, rowArgs, uFin] at hrow_fr
+        simp [client_simps, harg_s, hrow_fr]
+      have hout : ∀ addr, ¬((candPredBase ws n ≤ addr ∧ addr < candCostBase ws n + n) ∨
+          (frameBEntryBase ws n k ≤ addr ∧ addr < frameBEntryBase ws n k + n)) →
+          ((Memory.spec 0).clientState s (bestEntryOuterStep (la, m))).mem addr = s.mem addr := by
+        intro addr haddr
+        have hne_be : addr ≠ frameBEntryBase ws n k + m :=
+          fun heq => haddr (Or.inr ⟨by omega, by omega⟩)
+        unfold bestEntryOuterStep
+        dsimp only [la]
+        have hrow_mod := hrow.2.2.2.2.1
+        dsimp only [s1, rowArgs, uFin] at hrow_mod
+        simp only [client_simps, harg_s, Function.update_of_ne hne_be]
+        exact hrow_mod addr (fun hc => haddr (Or.inl hc))
+      have hfr_le := frame_le_frames hk
       refine ⟨by dsimp only [BestEntryOuterStepSafe, la]; exact ⟨hm, hk, hws, hrow.1, harg.1⟩,
-        ?_, ?_, ?_, ?_, ?_⟩
+        ?_, ?_, hfr_step, hout, by simp [bestEntryOuterStep, client_simps], hfr_step.trans hfr,
+        fun u col => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curAdjBase, candPredBase, candCostBase, frameBEntryBase, frameBase]
+          omega)).trans (ha_s u col),
+        fun u col => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curCostBase, candPredBase, candCostBase, frameBEntryBase, frameBase]
+          omega)).trans (hc_s u col),
+        fun y => (hout _ (by
+          have := y.isLt
+          dsimp only [frameMaskBase, candPredBase, candCostBase, frameBEntryBase, frameBase]
+          omega)).trans (hm_s y),
+        fun j hj => ?_⟩
       · unfold bestEntryOuterStep
         dsimp only [la]
-        have hfr_le := frame_le_frames hk
         refine validHistory_read_bind (by omega) ?_
         refine validHistory_bind_step hrow.2.1 ?_
         refine validHistory_bind_step harg.2.1 ?_
@@ -251,56 +278,15 @@ public theorem bestEntryProg_spec {w n ws k : ℕ} (hpos : 0 < n)
         omega
       · unfold bestEntryOuterStep
         dsimp only [la]
-        have harg_s := harg.2.2.2.1
-        have hrow_fr := hrow.2.2.2.1
-        dsimp only [s1, rowArgs, uFin] at harg_s hrow_fr
-        simp [client_simps, harg_s, hrow_fr, hfr]
-      · intro addr haddr
-        have hne_be : addr ≠ frameBEntryBase ws n k + m :=
-          fun heq => haddr (Or.inr ⟨by omega, by omega⟩)
-        unfold bestEntryOuterStep
-        dsimp only [la]
-        have harg_s := harg.2.2.2.1
-        have hrow_mod := hrow.2.2.2.2.1
-        dsimp only [s1, rowArgs, uFin] at harg_s hrow_mod
-        simp only [client_simps, harg_s, Function.update_of_ne hne_be]
-        exact hrow_mod addr (fun hc => haddr (Or.inl hc))
-      · unfold bestEntryOuterStep
-        dsimp only [la]
-        have harg_s := harg.2.2.2.1
-        have harg_r := harg.2.2.2.2
-        have hrow_fr := hrow.2.2.2.1
-        have hrow_mod := hrow.2.2.2.2.1
-        have hrow_a := hrow.2.2.2.2.2.1
-        have hrow_c := hrow.2.2.2.2.2.2.1
-        have hrow_m := hrow.2.2.2.2.2.2.2.1
-        dsimp only [s1, rowArgs, uFin] at harg_s harg_r hrow_fr hrow_mod hrow_a hrow_c hrow_m
         simp only [client_simps, harg_s, harg_r]
-        refine ⟨trivial, hrow_fr.trans hfr, ?_, ?_, ?_, ?_⟩
-        · intro u col
-          have := List.mul_add_lt_sq u.isLt col.isLt
-          rw [Function.update_of_ne
-            (by dsimp only [curAdjBase, frameBEntryBase, frameBase]; omega)]
-          exact hrow_a u col
-        · intro u col
-          have := List.mul_add_lt_sq u.isLt col.isLt
-          rw [Function.update_of_ne
-            (by dsimp only [curCostBase, frameBEntryBase, frameBase]; omega)]
-          exact hrow_c u col
-        · intro y
-          have := y.isLt
-          rw [Function.update_of_ne
-            (by dsimp only [frameMaskBase, frameBEntryBase, frameBase]; omega)]
-          exact hrow_m y
-        · intro j hj
-          by_cases hjm : j.1 = m
-          · have hju : j = uFin := Fin.ext hjm
-            subst hju
-            simp [bestEntryTable, uFin]
-          · rw [Function.update_of_ne (by omega),
-              hrow_mod _ (by
-                dsimp only [candPredBase, candCostBase, frameBEntryBase, frameBase]; omega)]
-            exact hdone_o j (by omega))
+        by_cases hjm : j.1 = m
+        · obtain rfl : j = uFin := Fin.ext hjm
+          simp [bestEntryTable, uFin]
+        · have hrow_mod := hrow.2.2.2.2.1
+          dsimp only [s1, rowArgs, uFin] at hrow_mod
+          rw [Function.update_of_ne (by omega), hrow_mod _ (by
+            dsimp only [candPredBase, candCostBase, frameBEntryBase, frameBase]; omega)]
+          exact hdone_o j (by omega))
     0 s₀ ⟨rfl, rfl, ha, hc, hm, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   obtain ⟨hsafe, hvh, hmc, hfr_end, hmod_end, _, _, _, _, _, hdone_end⟩ := h
   unfold bestEntryProg
@@ -384,6 +370,18 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
           sr.mem (curCostBase ws n + x * n + sr.mem (frameParentBase ws n k + x)) / 2) + 1) := by
         rw [hc_xm, hf_x, hc_xf, Signed.encode_div_two, Signed.encode_div_two]
         exact hfit_diff.of_le (by linarith only [h1b, h2b])
+      have hout : ∀ addr, ¬(candPredBase ws n ≤ addr ∧ addr < candCostBase ws n + n) →
+          ((Memory.spec 0).clientState sr (bestExitRowStep (rowArgs, x))).mem addr =
+            sr.mem addr := by
+        intro addr haddr
+        dsimp only [candPredBase, candCostBase] at haddr
+        have hne1 : addr ≠ ws + 4 * (n * n) + n + x := by omega
+        have hne2 : addr ≠ ws + 4 * (n * n) + x := by omega
+        unfold bestExitRowStep
+        dsimp only [rowArgs]
+        simp only [candPredBase, candCostBase, client_simps]
+        split_ifs <;> simp only [client_simps, Function.update_of_ne hne1,
+          Function.update_of_ne hne2]
       refine ⟨by dsimp only [BestExitRowStepSafe, rowArgs]; exact ⟨h2,
           hws.of_le (by dsimp only [wsSize, frameMaskBase, frameBase]; omega),
           hws.of_le (by dsimp only [wsSize, curAdjBase]; omega),
@@ -394,7 +392,21 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
           hws.of_le (by dsimp only [wsSize]; omega),
           fun _ => ⟨by rw [hf_x]; exact hws.of_le (by dsimp only [wsSize, curCostBase]; omega),
             hcxf_fit1, hsub_fit⟩⟩,
-        ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+        ?_, ?_, ?_, hout, ?_, ?_,
+        fun u col => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curAdjBase, candPredBase, candCostBase]; omega)).trans (ha_r u col),
+        fun u col => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curCostBase, candPredBase, candCostBase]; omega)).trans (hc_r u col),
+        fun y => (hout _ (by
+          have := y.isLt
+          dsimp only [frameMaskBase, frameBase, candPredBase, candCostBase]; omega)).trans (hm_r y),
+        fun z => (hout _ (by
+          have := z.isLt
+          dsimp only [frameParentBase, frameBase, candPredBase, candCostBase]; omega)).trans
+            (hf_r z),
+        ?_⟩
       · unfold bestExitRowStep
         dsimp only [rowArgs]
         refine validHistory_read_bind
@@ -441,15 +453,6 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
         dsimp only [rowArgs]
         simp only [client_simps]
         split_ifs <;> simp only [client_simps]
-      · intro addr haddr
-        dsimp only [candPredBase, candCostBase] at haddr
-        have hne1 : addr ≠ ws + 4 * (n * n) + n + x := by omega
-        have hne2 : addr ≠ ws + 4 * (n * n) + x := by omega
-        unfold bestExitRowStep
-        dsimp only [rowArgs]
-        simp only [candPredBase, candCostBase, client_simps]
-        split_ifs <;> simp only [client_simps, Function.update_of_ne hne1,
-          Function.update_of_ne hne2]
       · unfold bestExitRowStep
         dsimp only [rowArgs]
         simp only [client_simps]
@@ -458,58 +461,6 @@ private theorem fillBestExitRowProg_spec {w n ws k B_k : ℕ} (colFin : Fin n)
         dsimp only [rowArgs]
         simp only [client_simps]
         split_ifs <;> simpa [client_simps] using hfr_r
-      · intro u col
-        have := List.mul_add_lt_sq u.isLt col.isLt
-        unfold bestExitRowStep
-        dsimp only [rowArgs]
-        simp only [client_simps]
-        split_ifs <;> simp only [client_simps]
-        all_goals
-          rw [Function.update_of_ne (by dsimp only [curAdjBase, candCostBase]; omega),
-            Function.update_of_ne (by dsimp only [curAdjBase, candPredBase]; omega),
-            ha_r u col]
-          first | rw [ite_eq_left ‹_›] | rw [ite_eq_right ‹_›]
-      · intro u col
-        have := List.mul_add_lt_sq u.isLt col.isLt
-        unfold bestExitRowStep
-        dsimp only [rowArgs]
-        simp only [client_simps]
-        split_ifs <;> simp only [client_simps]
-        · rw [Function.update_of_ne (by dsimp only [curCostBase, candCostBase]; omega),
-            Function.update_of_ne (by dsimp only [curCostBase, candPredBase]; omega)]
-          exact hc_r u col
-        · rw [Function.update_of_ne (by dsimp only [curCostBase, candCostBase]; omega),
-            Function.update_of_ne (by dsimp only [curCostBase, candPredBase]; omega)]
-          exact hc_r u col
-      · intro y
-        have := y.isLt
-        unfold bestExitRowStep
-        dsimp only [rowArgs]
-        simp only [client_simps]
-        split_ifs <;> simp only [client_simps]
-        all_goals
-          rw [Function.update_of_ne
-              (by dsimp only [frameMaskBase, frameBase, candCostBase]; omega),
-            Function.update_of_ne
-              (by dsimp only [frameMaskBase, frameBase, candPredBase]; omega),
-            hm_r y]
-          first | rw [ite_eq_left ‹_›] | rw [ite_eq_right ‹_›]
-      · intro z
-        have := z.isLt
-        unfold bestExitRowStep
-        dsimp only [rowArgs]
-        simp only [client_simps]
-        split_ifs <;> simp only [client_simps]
-        · rw [Function.update_of_ne
-              (by dsimp only [frameParentBase, frameBase, candCostBase]; omega),
-            Function.update_of_ne
-              (by dsimp only [frameParentBase, frameBase, candPredBase]; omega)]
-          exact hf_r z
-        · rw [Function.update_of_ne
-              (by dsimp only [frameParentBase, frameBase, candCostBase]; omega),
-            Function.update_of_ne
-              (by dsimp only [frameParentBase, frameBase, candPredBase]; omega)]
-          exact hf_r z
       · intro z hz
         unfold bestExitRowStep
         dsimp only [rowArgs]
@@ -633,11 +584,50 @@ public theorem bestExitProg_spec {w n ws k B_k : ℕ} (hpos : 0 < n)
         exact argMinFin_of_lt_iff _ _ _ fun x y hx hy => by
           simp only [Bool.and_eq_true] at hx hy
           simp [exitVal, hx.1, hx.2, hy.1, hy.2]
+      have harg_s := harg.2.2.2.1
+      have harg_r := harg.2.2.2.2
+      dsimp only [s1, rowArgs, colFin] at harg_s harg_r
+      have hfr_step :
+          ((Memory.spec 0).clientState s (bestExitOuterStep (la, m))).frontier = s.frontier := by
+        unfold bestExitOuterStep
+        dsimp only [la]
+        have hrow_fr := hrow.2.2.2.1
+        dsimp only [s1, rowArgs, colFin] at hrow_fr
+        simp [client_simps, harg_s, hrow_fr]
+      have hout : ∀ addr, ¬((candPredBase ws n ≤ addr ∧ addr < candCostBase ws n + n) ∨
+          (frameBExitBase ws n k ≤ addr ∧ addr < frameBExitBase ws n k + n)) →
+          ((Memory.spec 0).clientState s (bestExitOuterStep (la, m))).mem addr = s.mem addr := by
+        intro addr haddr
+        have hne_bx : addr ≠ frameBExitBase ws n k + m :=
+          fun heq => haddr (Or.inr ⟨by omega, by omega⟩)
+        unfold bestExitOuterStep
+        dsimp only [la]
+        have hrow_mod := hrow.2.2.2.2.1
+        dsimp only [s1, rowArgs, colFin] at hrow_mod
+        simp only [client_simps, harg_s, Function.update_of_ne hne_bx]
+        exact hrow_mod addr (fun hc => haddr (Or.inl hc))
+      have hfr_le := frame_le_frames hk
       refine ⟨by dsimp only [BestExitOuterStepSafe, la]; exact ⟨hm, hk, hws, hrow.1, harg.1⟩,
-        ?_, ?_, ?_, ?_, ?_⟩
+        ?_, ?_, hfr_step, hout, by simp [bestExitOuterStep, client_simps], hfr_step.trans hfr,
+        fun u col => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curAdjBase, candPredBase, candCostBase, frameBExitBase, frameBase]
+          omega)).trans (ha_s u col),
+        fun u col => (hout _ (by
+          have := List.mul_add_lt_sq u.isLt col.isLt
+          dsimp only [curCostBase, candPredBase, candCostBase, frameBExitBase, frameBase]
+          omega)).trans (hc_s u col),
+        fun y => (hout _ (by
+          have := y.isLt
+          dsimp only [frameMaskBase, candPredBase, candCostBase, frameBExitBase, frameBase]
+          omega)).trans (hm_s y),
+        fun x => (hout _ (by
+          have := x.isLt
+          dsimp only [frameParentBase, candPredBase, candCostBase, frameBExitBase, frameBase]
+          omega)).trans (hfp_s x),
+        fun j hj => ?_⟩
       · unfold bestExitOuterStep
         dsimp only [la]
-        have hfr_le := frame_le_frames hk
         refine validHistory_read_bind (by omega) ?_
         refine validHistory_bind_step hrow.2.1 ?_
         refine validHistory_bind_step harg.2.1 ?_
@@ -662,61 +652,14 @@ public theorem bestExitProg_spec {w n ws k B_k : ℕ} (hpos : 0 < n)
         omega
       · unfold bestExitOuterStep
         dsimp only [la]
-        have harg_s := harg.2.2.2.1
-        have hrow_fr := hrow.2.2.2.1
-        dsimp only [s1, rowArgs, colFin] at harg_s hrow_fr
-        simp [client_simps, harg_s, hrow_fr, hfr]
-      · intro addr haddr
-        have hne_bx : addr ≠ frameBExitBase ws n k + m :=
-          fun heq => haddr (Or.inr ⟨by omega, by omega⟩)
-        unfold bestExitOuterStep
-        dsimp only [la]
-        have harg_s := harg.2.2.2.1
-        have hrow_mod := hrow.2.2.2.2.1
-        dsimp only [s1, rowArgs, colFin] at harg_s hrow_mod
-        simp only [client_simps, harg_s, Function.update_of_ne hne_bx]
-        exact hrow_mod addr (fun hc => haddr (Or.inl hc))
-      · unfold bestExitOuterStep
-        dsimp only [la]
-        have harg_s := harg.2.2.2.1
-        have harg_r := harg.2.2.2.2
-        have hrow_fr := hrow.2.2.2.1
-        have hrow_mod := hrow.2.2.2.2.1
-        have hrow_a := hrow.2.2.2.2.2.1
-        have hrow_c := hrow.2.2.2.2.2.2.1
-        have hrow_m := hrow.2.2.2.2.2.2.2.1
-        have hrow_f := hrow.2.2.2.2.2.2.2.2.1
-        dsimp only [s1, rowArgs, colFin] at harg_s harg_r hrow_fr hrow_mod hrow_a hrow_c
-        dsimp only [s1, rowArgs, colFin] at hrow_m hrow_f
         simp only [client_simps, harg_s, harg_r, hargmin_eq]
-        refine ⟨trivial, hrow_fr.trans hfr, ?_, ?_, ?_, ?_, ?_⟩
-        · intro u col
-          have := List.mul_add_lt_sq u.isLt col.isLt
-          rw [Function.update_of_ne
-            (by dsimp only [curAdjBase, frameBExitBase, frameBase]; omega)]
-          exact hrow_a u col
-        · intro u col
-          have := List.mul_add_lt_sq u.isLt col.isLt
-          rw [Function.update_of_ne
-            (by dsimp only [curCostBase, frameBExitBase, frameBase]; omega)]
-          exact hrow_c u col
-        · intro y
-          have := y.isLt
-          rw [Function.update_of_ne
-            (by dsimp only [frameMaskBase, frameBExitBase, frameBase]; omega)]
-          exact hrow_m y
-        · intro x
-          have := x.isLt
-          rw [Function.update_of_ne
-            (by dsimp only [frameParentBase, frameBExitBase, frameBase]; omega)]
-          exact hrow_f x
-        · intro j hj
-          by_cases hjm : j.1 = m
-          · simp [hjm]
-          · rw [Function.update_of_ne (by omega),
-              hrow_mod _ (by
-                dsimp only [candPredBase, candCostBase, frameBExitBase, frameBase]; omega)]
-            exact hdone_o j (by omega))
+        by_cases hjm : j.1 = m
+        · simp [hjm]
+        · have hrow_mod := hrow.2.2.2.2.1
+          dsimp only [s1, rowArgs, colFin] at hrow_mod
+          rw [Function.update_of_ne (by omega), hrow_mod _ (by
+            dsimp only [candPredBase, candCostBase, frameBExitBase, frameBase]; omega)]
+          exact hdone_o j (by omega))
     0 s₀ ⟨rfl, rfl, ha, hc, hm, hfp, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   obtain ⟨hsafe, hvh, hmc, hfr_end, hmod_end, _, _, _, _, _, _, hdone_end⟩ := h
   unfold bestExitProg

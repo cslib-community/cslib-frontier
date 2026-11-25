@@ -89,9 +89,7 @@ theorem isEll2Solution_nat_iff {q : ℕ} {ρ ι : Type*} [Fintype ι]
       z ≠ 0 ∧ (∑ i : ι, z i ^ 2) ≤ (β : ℤ) ^ 2 ∧ InKernelLattice A z := by
   refine and_congr_right fun _ => and_congr_left fun _ => ?_
   rw [← sq_le_sq₀ (norm_nonneg _) (Nat.cast_nonneg β), EuclideanSpace.norm_sq_eq]
-  have hsum : ∑ i : ι, ‖(z i : ℝ)‖ ^ 2 = ((∑ i : ι, z i ^ 2 : ℤ) : ℝ) := by
-    simp [Real.norm_eq_abs, sq_abs]
-  rw [hsum]
+  simp only [Real.norm_eq_abs, sq_abs]
   exact_mod_cast Iff.rfl
 
 /-- Increasing the Euclidean norm bound preserves `ℓ₂`-SIS solutions. -/
@@ -105,31 +103,21 @@ theorem IsSolution.isEll2Solution {q : ℕ} {ρ ι : Type*} [Fintype ι]
     {A : Matrix ρ ι (ZMod q)} {β : ℕ} {z : ι → ℤ} (hz : IsSolution A β z) :
     IsEll2Solution A (Real.sqrt (Fintype.card ι) * β) z := by
   refine ⟨hz.1, ?_, hz.2.2⟩
-  rw [← sq_le_sq₀ (norm_nonneg _) (by positivity), EuclideanSpace.norm_sq_eq]
-  calc ∑ i : ι, ‖(z i : ℝ)‖ ^ 2
-      ≤ ∑ _i : ι, (β : ℝ) ^ 2 := by
-        refine Finset.sum_le_sum fun i _ => ?_
-        have hi : |(z i : ℝ)| ≤ (β : ℝ) := by exact_mod_cast hz.2.1 i
-        rw [Real.norm_eq_abs]
-        exact pow_le_pow_left₀ (abs_nonneg _) hi 2
-    _ = (Fintype.card ι : ℝ) * (β : ℝ) ^ 2 := by simp
-    _ = (Real.sqrt (Fintype.card ι) * (β : ℝ)) ^ 2 := by
-        rw [mul_pow, Real.sq_sqrt (Nat.cast_nonneg _)]
+  rw [← sq_le_sq₀ (norm_nonneg _) (by positivity), EuclideanSpace.norm_sq_eq, mul_pow,
+    Real.sq_sqrt (Nat.cast_nonneg _)]
+  exact (Finset.sum_le_sum (g := fun _ => (β : ℝ) ^ 2) fun i _ => by
+    rw [WithLp.ofLp_toLp, Real.norm_eq_abs]
+    exact pow_le_pow_left₀ (abs_nonneg _) (by exact_mod_cast hz.2.1 i) 2).trans_eq (by simp)
 
 /-- Every `ℓ₂`-SIS solution with real bound `β` is an `ℓ_∞`-SIS solution with bound `⌊β⌋₊`. -/
 theorem IsEll2Solution.isSolution {q : ℕ} {ρ ι : Type*} [Fintype ι]
     {A : Matrix ρ ι (ZMod q)} {β : ℝ} {z : ι → ℤ} (hz : IsEll2Solution A β z) :
     IsSolution A ⌊β⌋₊ z := by
   refine ⟨hz.1, fun i => ?_, hz.2.2⟩
-  have hle : ((z i).natAbs : ℝ) ≤ β := by
-    have hcoord : ‖(z i : ℝ)‖ ≤ ‖WithLp.toLp 2 (fun j => (z j : ℝ))‖ :=
-      PiLp.norm_apply_le (WithLp.toLp 2 (fun j => (z j : ℝ))) i
-    have hnat : ((z i).natAbs : ℝ) = ‖(z i : ℝ)‖ := by
-      rw [Real.norm_eq_abs, ← Int.cast_abs, Int.abs_eq_natAbs, Int.cast_natCast]
-    exact hnat.le.trans (hcoord.trans hz.2.1)
-  have hfloor : (z i).natAbs ≤ ⌊β⌋₊ := Nat.le_floor hle
   rw [Int.abs_eq_natAbs]
-  exact_mod_cast hfloor
+  exact_mod_cast Nat.le_floor <| (show ((z i).natAbs : ℝ) = ‖(z i : ℝ)‖ by
+    rw [Real.norm_eq_abs, ← Int.cast_abs, Int.abs_eq_natAbs, Int.cast_natCast]).le.trans <|
+    (PiLp.norm_apply_le (WithLp.toLp 2 fun j => (z j : ℝ)) i).trans hz.2.1
 
 /-- **Existence of short integer solutions in the `ℓ₂` norm** ([MicciancioRegev2007], Lemma 5.2,
 §5.1, p. 17). For every nonzero modulus `q`, dimensions `n` and `m > 0`, matrix `A ∈ ℤ_q^{n×m}`,
@@ -142,46 +130,34 @@ theorem exists_isEll2Solution {q n m : ℕ} [NeZero q] (hm : 0 < m)
   set K : ℕ := ⌊(q : ℝ) ^ ((n : ℝ) / m)⌋₊
   have hq0 : (0 : ℝ) ≤ q := Nat.cast_nonneg q
   have hpow_lt : q ^ n < (K + 1) ^ m := by
-    have hlt_real : (q : ℝ) ^ ((n : ℝ) / m) < (K + 1 : ℝ) := by
-      simpa [K] using Nat.lt_floor_add_one ((q : ℝ) ^ ((n : ℝ) / m))
-    have hpow_real : ((q : ℝ) ^ ((n : ℝ) / m)) ^ m < ((K + 1 : ℝ)) ^ m :=
-      pow_lt_pow_left₀ hlt_real (Real.rpow_nonneg hq0 _) hm.ne'
-    have hlhs : ((q : ℝ) ^ ((n : ℝ) / m)) ^ m = ((q ^ n : ℕ) : ℝ) := by
-      rw [← Real.rpow_natCast, ← Real.rpow_mul hq0,
-        div_mul_cancel₀ _ (Nat.cast_ne_zero.mpr hm.ne'), Real.rpow_natCast, Nat.cast_pow]
-    rw [hlhs] at hpow_real
-    exact_mod_cast hpow_real
-  let f : (Fin m → Fin (K + 1)) → (Fin n → ZMod q) :=
-    fun x => A *ᵥ fun i => ((x i : ℕ) : ZMod q)
-  have hcard : Fintype.card (Fin n → ZMod q) < Fintype.card (Fin m → Fin (K + 1)) := by
-    simpa [Fintype.card_fun, ZMod.card q, Fintype.card_fin] using hpow_lt
-  obtain ⟨x, y, hxy, hf⟩ := Fintype.exists_ne_map_eq_of_card_lt f hcard
+    have hpow := pow_lt_pow_left₀
+      (by simpa [K] using Nat.lt_floor_add_one ((q : ℝ) ^ ((n : ℝ) / m)))
+      (Real.rpow_nonneg hq0 _) hm.ne'
+    rw [← Real.rpow_natCast, ← Real.rpow_mul hq0,
+      div_mul_cancel₀ _ (Nat.cast_ne_zero.mpr hm.ne'), Real.rpow_natCast] at hpow
+    exact_mod_cast hpow
+  obtain ⟨x, y, hxy, hf⟩ := Fintype.exists_ne_map_eq_of_card_lt
+    (fun x : Fin m → Fin (K + 1) => A *ᵥ fun i => ((x i : ℕ) : ZMod q))
+    (by simpa [Fintype.card_fun, ZMod.card q, Fintype.card_fin] using hpow_lt)
   let z : Fin m → ℤ := fun i => (x i : ℤ) - (y i : ℤ)
-  have hz_ne : z ≠ 0 := by
-    intro h0
-    apply hxy
-    funext i
-    have hi : (x i : ℤ) - (y i : ℤ) = 0 := congrFun h0 i
-    exact Fin.ext (by omega)
-  have hz_inf : ∀ i, |z i| ≤ (K : ℤ) := fun i => by
-    have hxi : (x i : ℕ) ≤ K := Nat.lt_succ_iff.mp (x i).isLt
-    have hyi : (y i : ℕ) ≤ K := Nat.lt_succ_iff.mp (y i).isLt
-    simp only [z, abs_le]
-    omega
-  have hz_ker : InKernelLattice A z := by
-    have hcast : (Int.cast ∘ z : Fin m → ZMod q) =
-        (fun i => ((x i : ℕ) : ZMod q)) - (fun i => ((y i : ℕ) : ZMod q)) := by
-      funext i
-      simp [z]
-    rw [InKernelLattice, hcast, Matrix.mulVec_sub]
-    exact sub_eq_zero.mpr hf
-  have hsol : IsSolution A K z := ⟨hz_ne, hz_inf, hz_ker⟩
-  have hK_le : (K : ℝ) ≤ (q : ℝ) ^ ((n : ℝ) / m) :=
-    Nat.floor_le (Real.rpow_nonneg hq0 _)
-  have hbound : Real.sqrt (Fintype.card (Fin m)) * (K : ℝ) ≤ β := by
+  have hsol : IsSolution A K z :=
+    ⟨fun h0 => hxy <| funext fun i => Fin.ext (by
+       have : (x i : ℤ) - (y i : ℤ) = 0 := congrFun h0 i
+       omega),
+     fun i => by
+       have hx := (x i).isLt
+       have hy := (y i).isLt
+       simp only [z, abs_le]
+       omega,
+     by
+       rw [InKernelLattice, show (Int.cast ∘ z : Fin m → ZMod q) =
+         (fun i => ((x i : ℕ) : ZMod q)) - (fun i => ((y i : ℕ) : ZMod q)) by ext i; simp [z],
+         Matrix.mulVec_sub]
+       exact sub_eq_zero.mpr hf⟩
+  exact ⟨z, hsol.isEll2Solution.mono <| by
     rw [Fintype.card_fin]
-    exact (mul_le_mul_of_nonneg_left hK_le (Real.sqrt_nonneg _)).trans hβ
-  exact ⟨z, hsol.isEll2Solution.mono hbound⟩
+    exact (mul_le_mul_of_nonneg_left (Nat.floor_le (Real.rpow_nonneg hq0 _))
+      (Real.sqrt_nonneg _)).trans hβ⟩
 
 end SIS
 
@@ -206,46 +182,46 @@ noncomputable def sisEll2Advantage (β : ℝ)
     (S : Matrix (Fin n) (Fin m) (ZMod q) → ProbComp (Fin m → ℤ)) : ℝ≥0 :=
   Game.succProbability (ProbComp.eval (sisEll2Experiment q β S))
 
+private theorem sisAdvantage_le_of_imp {P Q : Matrix (Fin n) (Fin m) (ZMod q) → (Fin m → ℤ) → Prop}
+    (dP : ∀ A z, Decidable (P A z)) (dQ : ∀ A z, Decidable (Q A z))
+    (S : Matrix (Fin n) (Fin m) (ZMod q) → ProbComp (Fin m → ℤ))
+    (himp : ∀ A z, P A z → Q A z) :
+    Game.succProbability (ProbComp.eval do
+        let A ← ProbComp.uniform (Matrix (Fin n) (Fin m) (ZMod q))
+        let z ← S A
+        return @decide (P A z) (dP A z)) ≤
+      Game.succProbability (ProbComp.eval do
+        let A ← ProbComp.uniform (Matrix (Fin n) (Fin m) (ZMod q))
+        let z ← S A
+        return @decide (Q A z) (dQ A z)) := by
+  refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure]
+  refine PMF.bind_apply_mono_on_support _ _ fun A _ =>
+    PMF.bind_apply_mono_on_support _ _ fun z _ => ?_
+  by_cases h : P A z
+  · simp [h, himp A z h]
+  · simp [h]
+
 /-- Increasing the Euclidean norm bound cannot decrease a solver's `ℓ₂`-SIS advantage. -/
 theorem sisEll2Advantage_mono {β β' : ℝ} (hβ : β ≤ β')
     (S : Matrix (Fin n) (Fin m) (ZMod q) → ProbComp (Fin m → ℤ)) :
-    sisEll2Advantage q β S ≤ sisEll2Advantage q β' S := by
-  refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
-  simp only [sisEll2Experiment, ProbComp.eval_bind, ProbComp.eval_pure]
-  refine PMF.bind_apply_mono_on_support _ _ fun A _ => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun z _ => ?_
-  by_cases h : SIS.IsEll2Solution A β z
-  · simp [h, h.mono hβ]
-  · simp [h]
+    sisEll2Advantage q β S ≤ sisEll2Advantage q β' S :=
+  sisAdvantage_le_of_imp q _ _ S fun _ _ h => h.mono hβ
 
 /-- At a natural-number bound `β`, every solver's `ℓ₂`-SIS advantage is at most its `ℓ_∞`-SIS
 advantage, because `‖z‖_∞ ≤ ‖z‖₂`. -/
 theorem sisEll2Advantage_le_sisAdvantage (β : ℕ)
     (S : Matrix (Fin n) (Fin m) (ZMod q) → ProbComp (Fin m → ℤ)) :
-    sisEll2Advantage q (β : ℝ) S ≤ sisAdvantage q β S := by
-  refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
-  simp only [sisEll2Experiment, sisExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
-  refine PMF.bind_apply_mono_on_support _ _ fun A _ => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun z _ => ?_
-  by_cases h : SIS.IsEll2Solution A (β : ℝ) z
-  · have hinf : SIS.IsSolution A β z := by simpa [Nat.floor_natCast] using h.isSolution
-    simp [h, hinf]
-  · simp [h]
+    sisEll2Advantage q (β : ℝ) S ≤ sisAdvantage q β S :=
+  sisAdvantage_le_of_imp q _ _ S fun _ _ h => by simpa [Nat.floor_natCast] using h.isSolution
 
 /-- Whenever `√m · β ≤ β₂`, every solver's `ℓ_∞`-SIS advantage at bound `β` is at most its
 `ℓ₂`-SIS advantage at bound `β₂`, because `‖z‖₂ ≤ √m · ‖z‖_∞`. -/
 theorem sisAdvantage_le_sisEll2Advantage {β : ℕ} {β₂ : ℝ} (hβ : Real.sqrt m * β ≤ β₂)
     (S : Matrix (Fin n) (Fin m) (ZMod q) → ProbComp (Fin m → ℤ)) :
-    sisAdvantage q β S ≤ sisEll2Advantage q β₂ S := by
-  refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
-  simp only [sisExperiment, sisEll2Experiment, ProbComp.eval_bind, ProbComp.eval_pure]
-  refine PMF.bind_apply_mono_on_support _ _ fun A _ => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun z _ => ?_
-  by_cases h : SIS.IsSolution A β z
-  · have hell2 : SIS.IsEll2Solution A β₂ z :=
-      h.isEll2Solution.mono (by simpa [Fintype.card_fin] using hβ)
-    simp [h, hell2]
-  · simp [h]
+    sisAdvantage q β S ≤ sisEll2Advantage q β₂ S :=
+  sisAdvantage_le_of_imp q _ _ S fun _ _ h =>
+    h.isEll2Solution.mono (by simpa [Fintype.card_fin] using hβ)
 
 end Experiment
 
@@ -287,11 +263,9 @@ modulus, input layout, and solver type, callers can chain this directly with red
 such as `SIS.collisionResistantForOn_ajtaiWordHash`. -/
 theorem SISEll2.toSIS {P : SISParams} {β₁ : ℕ → ℕ} (h : SISEll2 P)
     (hβ : ∀ κ, Real.sqrt (P.m κ) * β₁ κ ≤ P.β κ) :
-    SIS { P with β := β₁ } := by
-  intro S hS
-  have hS' : SISParams.Solver.IsPPT (P := P) S := by
-    obtain ⟨k, State, hfin, machine, c, d, hrun⟩ := hS
-    exact ⟨k, State, hfin, machine, c, d, fun x => hrun ⟨x.secParam, x.matrix⟩⟩
-  exact negligible_of_le (h S hS') fun κ => sisAdvantage_le_sisEll2Advantage (P.q κ) (hβ κ) (S κ)
+    SIS { P with β := β₁ } :=
+  fun S ⟨k, State, hfin, machine, c, d, hrun⟩ =>
+    negligible_of_le (h S ⟨k, State, hfin, machine, c, d, fun x => hrun ⟨x.secParam, x.matrix⟩⟩)
+      fun κ => sisAdvantage_le_sisEll2Advantage (P.q κ) (hβ κ) (S κ)
 
 end Cslib.Crypto

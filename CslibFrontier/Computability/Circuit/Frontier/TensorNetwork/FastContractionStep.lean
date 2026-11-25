@@ -76,24 +76,15 @@ variable {x : Call T}
 /-- The cap of `nativeMk` leaves a tuple of weight below `p` unchanged, for positive weights. -/
 theorem map_min_of_mem_budgetTuples {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) {p : ℕ} {β : List ℕ}
     (hβ : β ∈ BudgetTuples.budgetTuples ws p) : β.map (min · p) = β := by
-  calc β.map (min · p) = β.map id := List.map_congr_left fun b hb => by
-        have := BudgetTuples.lt_of_mem_budgetTuples hw hβ hb
-        simp only [id]
-        omega
-    _ = β := List.map_id β
+  simpa using List.map_congr_left (g := id) fun _ hb =>
+    Nat.min_eq_left (BudgetTuples.lt_of_mem_budgetTuples hw hβ hb).le
 
 /-- **The children of an active call** are the states of a node, a point, a tuple of weight below
 the node's precision and a group. -/
 theorem mem_children {j i g : ℕ} {β : List ℕ} : (j, i, β, g) ∈ children x ↔
     j < (nodes x).length ∧ i < numPoints x ∧
       β ∈ BudgetTuples.budgetTuples (weights x j) (nodePrec x j) ∧ g < 64 := by
-  simp only [children, cursorList, nodeBlock, pointBlock, groupBlock, List.mem_flatMap,
-    List.mem_range, List.mem_map, Prod.mk.injEq]
-  constructor
-  · rintro ⟨j, hj, i, hi, β, hβ, g, hg, rfl, rfl, rfl, rfl⟩
-    exact ⟨hj, hi, hβ, hg⟩
-  · rintro ⟨hj, hi, hβ, hg⟩
-    exact ⟨j, hj, i, hi, β, hβ, g, hg, rfl, rfl, rfl, rfl⟩
+  simp [children, cursorList, nodeBlock, pointBlock, groupBlock]
 
 /-- **The caps of `nativeMk` are inactive** at a well-formed active call and a state of its cursor:
 the builder is the native child of the rows and the exponents of the state. -/
@@ -210,23 +201,16 @@ theorem lt_of_mem_children {c : State} (hc : c ∈ children x) :
 /-- **Well-formedness passes to the native children**: they keep the modulus, and they are
 rows-first (`NativeChild.isRowsFirstBipartite_nativeChild`). -/
 theorem wfChildren_nativeMk : WFChildren (nativeMk (T := T)) WF := by
-  intro x hx ha c hc
-  obtain ⟨hirr, hD⟩ := hx
+  intro x ⟨hirr, hD⟩ ha c hc
   refine ⟨hirr, ?_⟩
   obtain ⟨hj, -, hg⟩ := lt_of_mem_children hc
-  have ha' := ha
-  simp only [active, decide_eq_true_eq] at ha'
-  obtain ⟨-, -, -, hua, -, -, -⟩ := ha'
-  have hkmem : (nodes x).getD c.1 0 ∈ nodes x := by
-    rw [List.getD_eq_getElem _ _ hj]; exact List.getElem_mem hj
-  obtain ⟨hk, -, hq⟩ := mem_nodes.mp hkmem
-  have hia : level x ((nodes x).getD c.1 0) < slots x := by
-    rw [level_eq hk]
-    exact padicValInt_lt_of_taperMult_pos (by rwa [← mult_eq _ _ hk]) hua
-  have h := isRowsFirstBipartite_nativeChild (fl := x.fl) hD (pow_slots_le_edges_of_active ha) hia
-    (nodePrec x c.1) (node (slots x) ((nodes x).getD c.1 0)) ((points x).getD c.2.1 [])
-    c.2.2.1 ⟨c.2.2.2, hg⟩
-  simp only [child, nativeMk_eq ⟨hirr, hD⟩ ha hc]
-  exact h
+  obtain ⟨-, -, -, hua, -⟩ := by simpa only [active, decide_eq_true_eq] using ha
+  obtain ⟨hk, -, hq⟩ := mem_nodes.mp (List.getD_eq_getElem _ 0 hj ▸ List.getElem_mem hj)
+  have hia : level x ((nodes x).getD c.1 0) < slots x :=
+    level_eq hk ▸ padicValInt_lt_of_taperMult_pos (mult_eq _ _ hk ▸ hq) hua
+  simpa only [child, nativeMk_eq ⟨hirr, hD⟩ ha hc] using
+    isRowsFirstBipartite_nativeChild (fl := x.fl) hD (pow_slots_le_edges_of_active ha) hia
+      (nodePrec x c.1) (node (slots x) ((nodes x).getD c.1 0)) ((points x).getD c.2.1 [])
+      c.2.2.1 ⟨c.2.2.2, hg⟩
 
 end Cslib.Circuits.Frontier.FastContraction

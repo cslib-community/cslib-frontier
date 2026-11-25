@@ -256,10 +256,10 @@ theorem dependency_of_mem_children {k : ℕ} {parent child : HierarchyTask k}
     rcases h with rfl | rfl
     · exact .matrixResidual l
     · exact .matrixWeights l
-  | basePreparation l i =>
+  | basePreparation l i | residualPreparation l i =>
     simp only [children, List.mem_singleton] at h
     subst child
-    exact .bin (.basePreparation l i)
+    exact .bin (by constructor)
   | baseNormalized l i =>
     simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
     rcases h with rfl | rfl
@@ -268,10 +268,6 @@ theorem dependency_of_mem_children {k : ℕ} {parent child : HierarchyTask k}
   | residual l =>
     simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
     rcases h with rfl | rfl <;> exact .bin (.residualRow l _)
-  | residualPreparation l i =>
-    simp only [children, List.mem_singleton] at h
-    subst child
-    exact .bin (.residualPreparation l i)
   | residualNormalized l i =>
     simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
     rcases h with rfl | rfl
@@ -289,9 +285,7 @@ theorem dependency_of_mem_children {k : ℕ} {parent child : HierarchyTask k}
     | _ =>
       simp only [children] at h
       obtain ⟨c, hc, rfl⟩ := List.mem_map.mp h
-      apply Dependency.rowChild
-      rw [← BoundedRowTask.children_localTask]
-      exact List.mem_map.mpr ⟨c, hc, rfl⟩
+      exact .rowChild (BoundedRowTask.children_localTask _ ▸ List.mem_map.mpr ⟨c, hc, rfl⟩)
 
 /-- The concrete global call graph decreases, including both former local leaves. -/
 theorem rank_lt_of_mem_children {k : ℕ} {parent child : HierarchyTask k}
@@ -301,12 +295,9 @@ theorem rank_lt_of_mem_children {k : ℕ} {parent child : HierarchyTask k}
 /-- Induction follows bounded calls to original inputs or local zero-iteration constants.
 This is structural task induction, not the estimator's statistical-budget induction. -/
 theorem induction {k : ℕ} {motive : HierarchyTask k → Prop}
-    (step : ∀ t, (∀ c ∈ t.children, motive c) → motive t) (t : HierarchyTask k) : motive t := by
-  induction h : t.rank using Nat.strong_induction_on generalizing t with
-  | ind r ih =>
-    apply step
-    intro c hc
-    exact ih c.rank (h ▸ rank_lt_of_mem_children hc) c rfl
+    (step : ∀ t, (∀ c ∈ t.children, motive c) → motive t) (t : HierarchyTask k) : motive t :=
+  (InvImage.wf HierarchyTask.rank Nat.lt_wfRel.wf).induction t fun _ ih =>
+    step _ fun c hc => ih c (rank_lt_of_mem_children hc)
 
 end HierarchyTask
 end Matrix.HierarchyParams

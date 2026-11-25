@@ -64,20 +64,16 @@ theorem ClauseSet.Sparsification.exists_sum_choose_le {k : ℕ} (hk : 1 ≤ k) {
       (∑ j ∈ range ((k - 1) * N / α + 1),
         (N * (k * Sparsification.base k α ^ (2 * k))).choose j : ℝ) ≤ 2 ^ (ε * N) := by
   have hlog2 : 0 < Real.log 2 := Real.log_pos (by norm_num)
-  -- the parameter `M` controls `exp (Λ / T)`
   obtain ⟨M, hM⟩ := exists_nat_gt (2 / (ε * Real.log 2))
   have hMpos : (0 : ℝ) < M := lt_trans (by positivity) hM
   have hM1 : 1 ≤ M := by exact_mod_cast hMpos
   have hMε : 1 / (M : ℝ) ≤ ε / 2 * Real.log 2 := by
     rw [div_le_iff₀ hMpos]
-    have := (div_lt_iff₀ (by positivity : 0 < ε * Real.log 2)).mp hM
-    nlinarith
-  -- the parameter `α` controls `T ^ ρ`
+    nlinarith [(div_lt_iff₀ (by positivity : 0 < ε * Real.log 2)).mp hM]
   set r : ℝ := (2 : ℝ) ^ (ε / 2) with hr
   have hr1 : 1 < r := Real.one_lt_rpow (by norm_num) (by positivity)
   set C₀ : ℝ := ((M * k * (2 * k) ^ (2 * k) : ℕ) : ℝ) ^ (k - 1)
-  obtain ⟨α, hα, hαbound⟩ :=
-    Real.exists_one_le_and_mul_pow_le_pow C₀ (2 * k * (k - 1)) hr1
+  obtain ⟨α, hα, hαbound⟩ := Real.exists_one_le_and_mul_pow_le_pow C₀ (2 * k * (k - 1)) hr1
   refine ⟨α, hα, fun N => ?_⟩
   set X := Sparsification.base k α
   set Λ := N * (k * X ^ (2 * k))
@@ -87,47 +83,31 @@ theorem ClauseSet.Sparsification.exists_sum_choose_le {k : ℕ} (hk : 1 ≤ k) {
   have hT : 1 ≤ T := Nat.one_le_iff_ne_zero.mpr
     (Nat.mul_ne_zero (by omega) (Nat.mul_ne_zero (by omega) (pow_ne_zero _ (by omega))))
   have hTR1 : (1 : ℝ) ≤ T := by exact_mod_cast hT
-  have hsum := sum_choose_le_exp_mul_pow Λ ρ (T : ℝ) hTR1
-  -- `exp (Λ / T) ≤ 2 ^ (ε N / 2)`
   have hexp : Real.exp (Λ / T) ≤ (2 : ℝ) ^ (ε / 2 * N) := by
+    have hKX : (0 : ℝ) < (k * X ^ (2 * k) : ℕ) := by
+      exact_mod_cast Nat.mul_pos (by omega) (pow_pos (by omega) _)
     have hΛT : (Λ : ℝ) / T = N / M := by
-      have hKX : (0 : ℝ) < (k * X ^ (2 * k) : ℕ) := by
-        exact_mod_cast Nat.mul_pos (by omega) (pow_pos (by omega) _)
-      simp only [Λ, T, Nat.cast_mul] at hKX ⊢
-      field_simp
-    rw [hΛT, Real.rpow_def_of_pos (by norm_num)]
-    refine Real.exp_le_exp.mpr ?_
-    have hN : (0 : ℝ) ≤ N := Nat.cast_nonneg N
-    calc (N : ℝ) / M = N * (1 / M) := by ring
-      _ ≤ N * (ε / 2 * Real.log 2) := mul_le_mul_of_nonneg_left hMε hN
-      _ = Real.log 2 * (ε / 2 * N) := by ring
-  -- `T ^ ρ ≤ 2 ^ (ε N / 2)`
+      simp only [Λ, T, Nat.cast_mul] at hKX ⊢; field_simp
+    rw [hΛT, Real.rpow_def_of_pos (by norm_num), Real.exp_le_exp, div_eq_mul_one_div]
+    linarith [mul_le_mul_of_nonneg_left hMε (Nat.cast_nonneg (α := ℝ) N)]
   have hTK : (T : ℝ) ^ (k - 1) ≤ r ^ α := by
-    have hTeq : (T : ℝ) ^ (k - 1) = C₀ * (α : ℝ) ^ (2 * k * (k - 1)) := by
-      simp only [T, X, Sparsification.base, C₀, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]
-      ring
-    rw [hTeq]
-    exact hαbound
+    rwa [show (T : ℝ) ^ (k - 1) = C₀ * (α : ℝ) ^ (2 * k * (k - 1)) by
+      simp only [T, X, Sparsification.base, C₀, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]; ring]
   have hTρ : (T : ℝ) ^ ρ ≤ (2 : ℝ) ^ (ε / 2 * N) := by
-    have hαρ : ρ * α ≤ (k - 1) * N := Nat.div_mul_le_self _ _
-    have hpow : ((T : ℝ) ^ ρ) ^ α ≤ ((2 : ℝ) ^ (ε / 2 * N)) ^ α := by
-      calc ((T : ℝ) ^ ρ) ^ α = (T : ℝ) ^ (ρ * α) := (pow_mul _ _ _).symm
-        _ ≤ (T : ℝ) ^ ((k - 1) * N) := pow_le_pow_right₀ hTR1 hαρ
-        _ = ((T : ℝ) ^ (k - 1)) ^ N := pow_mul _ _ _
-        _ ≤ (r ^ α) ^ N := pow_le_pow_left₀ (by positivity) hTK N
-        _ = ((2 : ℝ) ^ (ε / 2 * N)) ^ α := by
-            rw [hr, ← pow_mul, ← Real.rpow_natCast, ← Real.rpow_natCast,
-              ← Real.rpow_mul (by norm_num), ← Real.rpow_mul (by norm_num)]
-            congr 1
-            push_cast
-            ring
-    exact (pow_le_pow_iff_left₀ (by positivity) (by positivity) (by omega)).mp hpow
-  calc (∑ j ∈ range (ρ + 1), (Λ.choose j : ℝ))
-      ≤ Real.exp (Λ / T) * (T : ℝ) ^ ρ := hsum
-    _ ≤ (2 : ℝ) ^ (ε / 2 * N) * (2 : ℝ) ^ (ε / 2 * N) := by gcongr
-    _ = 2 ^ (ε * N) := by
-        rw [← Real.rpow_add (by norm_num)]
-        ring_nf
+    refine (pow_le_pow_iff_left₀ (by positivity) (by positivity) (by omega : α ≠ 0)).mp ?_
+    calc ((T : ℝ) ^ ρ) ^ α = (T : ℝ) ^ (ρ * α) := (pow_mul _ _ _).symm
+      _ ≤ (T : ℝ) ^ ((k - 1) * N) := pow_le_pow_right₀ hTR1 (Nat.div_mul_le_self _ _)
+      _ = ((T : ℝ) ^ (k - 1)) ^ N := pow_mul _ _ _
+      _ ≤ (r ^ α) ^ N := pow_le_pow_left₀ (by positivity) hTK N
+      _ = ((2 : ℝ) ^ (ε / 2 * N)) ^ α := by
+          rw [hr, ← pow_mul, ← Real.rpow_natCast, ← Real.rpow_natCast,
+            ← Real.rpow_mul (by norm_num), ← Real.rpow_mul (by norm_num)]
+          congr 1
+          push_cast
+          ring
+  exact (sum_choose_le_exp_mul_pow Λ ρ (T : ℝ) hTR1).trans
+    ((mul_le_mul hexp hTρ (by positivity) (by positivity)).trans_eq
+      (by rw [← Real.rpow_add (by norm_num)]; ring_nf))
 
 /-- **The sparsification lemma** [Impagliazzo, Paturi and Zane][ImpagliazzoPaturiZane2001], **for
 clause sets.** For every width `k` and every `ε > 0` there is a constant `c` such that every clause
@@ -145,20 +125,17 @@ theorem ClauseSet.sparsification (k : ℕ) {ε : ℝ} (hε : 0 < ε) :
   set K := max k 1
   have hK : 1 ≤ K := le_max_right _ _
   obtain ⟨α, hα, hcount⟩ := Sparsification.exists_sum_choose_le hK hε
-  have hθ := Sparsification.one_le_threshold hK hα
   refine ⟨2 * ∑ j ∈ range K, Sparsification.threshold K α j, fun V _ _ φ hφ => ?_⟩
   have hφK : ∀ C ∈ φ, C.card ≤ K := fun C hC => (hφ C hC).trans (le_max_left _ _)
   obtain ⟨Ψ, hcard, hleaves, hcover⟩ := Sparsification.exists_leaves hK hα φ hφK
   refine ⟨Ψ, (Nat.cast_le.mpr hcard).trans (by exact_mod_cast hcount (Fintype.card V)),
     fun ψ hψ => ?_, fun x hx => ?_⟩
   · obtain ⟨hsparse, hrefine, hsat⟩ := hleaves ψ hψ
-    have hψK : ∀ C ∈ ψ, C.card ≤ K := fun C hC => by
-      obtain ⟨D, hD, hCD⟩ := hrefine C hC
-      exact (card_le_card hCD).trans (hφK D hD)
-    refine ⟨fun C hC => ?_, Sparsification.occurrences_le_of_sparse hθ hsparse hψK, fun x hx => ?_⟩
-    · obtain ⟨D, hD, hCD⟩ := hrefine C hC
-      exact (card_le_card hCD).trans (hφ D hD)
-    · exact mem_solutions.mpr (hsat x (mem_solutions.mp hx))
+    have hw {m} (hm : ∀ D ∈ φ, D.card ≤ m) (C) (hC : C ∈ ψ) : C.card ≤ m :=
+      let ⟨D, hD, hCD⟩ := hrefine C hC; (card_le_card hCD).trans (hm D hD)
+    exact ⟨hw hφ, Sparsification.occurrences_le_of_sparse
+      (Sparsification.one_le_threshold hK hα) hsparse (hw hφK),
+      fun x hx => mem_solutions.mpr (hsat x (mem_solutions.mp hx))⟩
   · obtain ⟨ψ, hψ, hψx⟩ := hcover x (mem_solutions.mp hx)
     exact mem_biUnion.mpr ⟨ψ, hψ, mem_solutions.mpr hψx⟩
 
@@ -176,19 +153,18 @@ theorem CNF.sparsification (k : ℕ) {ε : ℝ} (hε : 0 < ε) :
         ∀ x, φ.eval x = true → ∃ F ∈ Fs, F.eval x = true := by
   obtain ⟨c, hc⟩ := ClauseSet.sparsification k hε
   refine ⟨c, fun V _ _ φ hφ => ?_⟩
-  obtain ⟨Ψ, hcard, hleaves, hcover⟩ := hc V φ.toClauseSet fun C hC => by
-    obtain ⟨cl, hcl, hle⟩ := CNF.exists_card_le_of_mem_toClauseSet hC
-    exact hle.trans (hφ cl hcl)
+  obtain ⟨Ψ, hcard, hleaves, hcover⟩ := hc V φ.toClauseSet fun C hC =>
+    let ⟨cl, hcl, hle⟩ := CNF.exists_card_le_of_mem_toClauseSet hC; hle.trans (hφ cl hcl)
   refine ⟨Ψ.toList.map ClauseSet.toCNF, by simpa using hcard, fun F hF => ?_, fun x hx => ?_⟩
   · obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.mp hF
     obtain ⟨hwidth, hocc, hsol⟩ := hleaves ψ (Finset.mem_toList.mp hψ)
-    refine ⟨fun cl hcl => ClauseSet.length_le_of_mem_toCNF hwidth hcl,
+    refine ⟨fun _ => ClauseSet.length_le_of_mem_toCNF hwidth,
       fun v => (ClauseSet.occurrences_toCNF ψ v).trans_le (hocc v), fun x hx => ?_⟩
     rw [← CNF.sat_toClauseSet_iff, ← ClauseSet.mem_solutions]
     exact hsol (ClauseSet.mem_solutions.mpr ((ClauseSet.eval_toCNF_eq_true_iff ψ x).mp hx))
   · obtain ⟨ψ, hψ, hψx⟩ := Finset.mem_biUnion.mp
       (hcover (ClauseSet.mem_solutions.mpr ((CNF.sat_toClauseSet_iff φ x).mpr hx)))
-    refine ⟨ψ.toCNF, List.mem_map.mpr ⟨ψ, Finset.mem_toList.mpr hψ, rfl⟩, ?_⟩
-    exact (ClauseSet.eval_toCNF_eq_true_iff ψ x).mpr (ClauseSet.mem_solutions.mp hψx)
+    exact ⟨ψ.toCNF, List.mem_map.mpr ⟨ψ, Finset.mem_toList.mpr hψ, rfl⟩,
+      (ClauseSet.eval_toCNF_eq_true_iff ψ x).mpr (ClauseSet.mem_solutions.mp hψx)⟩
 
 end Cslib.Logic.PL

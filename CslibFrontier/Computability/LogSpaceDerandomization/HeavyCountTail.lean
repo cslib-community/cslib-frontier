@@ -52,6 +52,14 @@ variable {Ω V : Type*} [Fintype Ω] [Fintype V]
   classical
   exact ∑ j ∈ range m, if Θ j σ x then ∑ i ∈ Ico j m, w i * β i σ x else 0
 
+omit [Fintype Ω] [Fintype V] in
+private theorem eventTail_eq (m : ℕ) (Θ : ℕ → Ω → V → Prop) [∀ j σ x, Decidable (Θ j σ x)]
+    (w : ℕ → ℝ) (β : ℕ → Ω → V → ℝ) (σ : Ω) (x : V) :
+    eventTail m Θ w β σ x =
+      ∑ j ∈ range m, if Θ j σ x then ∑ i ∈ Ico j m, w i * β i σ x else 0 := by
+  unfold eventTail
+  exact sum_congr rfl fun j _ => by by_cases h : Θ j σ x <;> simp only [h, ↓reduceIte]
+
 /-- Conditional rarity for deterministic endpoint errors gives a rooted rarity factor for each
 weighted tail. All retained sets and row events may depend on the same environment. -/
 theorem vertexNormPow_eventTail_le {p : ℕ} (hp : p ≠ 0) {N u : ℝ} (hNu : 0 ≤ N * u)
@@ -92,21 +100,15 @@ theorem vertexNormPow_eventTail_le {p : ℕ} (hp : p ≠ 0) {N u : ℝ} (hNu : 0
     have hsum : (∑ i ∈ Ico j m, w i * ((q j) ^ (p⁻¹ : ℝ) * ε i)) = B j := by
       dsimp only [B]
       rw [mul_sum]
-      apply sum_congr rfl
-      intro i _
-      ring
+      exact sum_congr rfl fun i _ => by ring
     simpa only [hmask, hsum] using h
   have h := vertexNormPow_sum_le_pow_sum hp hNu (range m)
     (fun j σ x => if Θ j σ x then ∑ i ∈ Ico j m, w i * β i σ x else 0)
     (fun _ => 1) B (by intros; norm_num) (fun j hj => hB j (mem_range.mp hj))
     (fun j hj => hterm j (mem_range.mp hj))
   have heq : eventTail m Θ w β = (fun σ x => ∑ j ∈ range m,
-      if Θ j σ x then ∑ i ∈ Ico j m, w i * β i σ x else 0) := by
-    funext σ x
-    unfold eventTail
-    apply sum_congr rfl
-    intro j _
-    by_cases hj : Θ j σ x <;> simp only [hj, ↓reduceIte]
+      if Θ j σ x then ∑ i ∈ Ico j m, w i * β i σ x else 0) :=
+    funext fun σ => funext fun x => eventTail_eq m Θ w β σ x
   change vertexNormPow p N u X (eventTail m Θ w β) ≤ _
   rw [heq]
   simpa only [one_mul, β, B] using h
@@ -252,26 +254,14 @@ theorem vertexNormPow_trueOverflowTail_le {ι : Type*} {p : ℕ} (hp : p ≠ 0)
   have hleft0 : 0 ≤ ∑ j ∈ range m,
       if RowCompression.IsFirstOverflow (S σ x) n capacity floor (Δ σ x) (a σ x) j ∧
           Probability.heavyCountEvent Y univ (d x) (ρ j) (n j) σ then
-        ∑ i ∈ Ico j m, w i * (β i + γ i σ x) else 0 := by
-    refine sum_nonneg fun j _ => ?_
-    split_ifs
-    · exact sum_nonneg fun i hi => mul_nonneg (hw i (mem_Ico.mp hi).2)
-        (add_nonneg (hβ i (mem_Ico.mp hi).2) (hγ i (mem_Ico.mp hi).2 σ x hx'))
-    · exact le_rfl
-  have hright0 : 0 ≤ eventTail m
-      (fun j σ x => Probability.heavyCountEvent Y univ (d x) (ρ j) (n j) σ) w
-      (fun i σ x => kthLargest 1 {y | Yt σ y} (fun y => |b i x y|)) σ x +
-      RowCompression.firstOverflowNoiseTail (S σ x) n capacity floor (Δ σ x) (a σ x) m w
-        (fun i => γ i σ x) := by
-    apply add_nonneg
-    · unfold eventTail
-      refine sum_nonneg fun j _ => ?_
+        ∑ i ∈ Ico j m, w i * (β i + γ i σ x) else 0 :=
+    sum_nonneg fun j _ => by
       split_ifs
-      · exact sum_nonneg fun i hi => mul_nonneg (hw i (mem_Ico.mp hi).2) (hβ i (mem_Ico.mp hi).2)
+      · exact sum_nonneg fun i hi => mul_nonneg (hw i (mem_Ico.mp hi).2)
+          (add_nonneg (hβ i (mem_Ico.mp hi).2) (hγ i (mem_Ico.mp hi).2 σ x hx'))
       · exact le_rfl
-    · exact RowCompression.firstOverflowNoiseTail_nonneg (S σ x) n capacity floor
-        (Δ σ x) (a σ x) m hw (fun i hi => hγ i hi σ x hx')
-  rw [abs_of_nonneg hleft0, abs_of_nonneg hright0]
-  exact pow_le_pow_left₀ hleft0 (by simpa only [eventTail, β] using hselected) p
+  dsimp only
+  rw [eventTail_eq, abs_of_nonneg hleft0, abs_of_nonneg (hleft0.trans hselected)]
+  exact pow_le_pow_left₀ hleft0 hselected p
 
 end Cslib

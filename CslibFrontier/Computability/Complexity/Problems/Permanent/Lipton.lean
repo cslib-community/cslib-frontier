@@ -315,6 +315,20 @@ theorem one_sub_le_eval_run_liptonPermanentTrial_toReal (ν : Fin (n + 1) ↪ F)
   rw [hcompl_set] at hcompl
   linarith [toOuterMeasure_run_liptonPermanentTrial_ne_toReal_le ν hν O A]
 
+private theorem error_ratio_le_of_le_div {d : ℕ} (hd : 0 < d)
+    (O : Matrix (Fin n) (Fin n) F → F)
+    (hO : #{M | O M ≠ M.permanent} ≤ Fintype.card F ^ (n * n) / d) :
+    ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) ≤
+      (n + 1 : ℝ) / d := by
+  have hmul : (#{M | O M ≠ M.permanent} : ℝ) * d ≤ (Fintype.card F : ℝ) ^ (n * n) := by
+    exact_mod_cast Nat.mul_le_of_le_div _ _ _ hO
+  have hN : (0 : ℝ) < (Fintype.card F : ℝ) ^ (n * n) := by positivity
+  have hd' : (0 : ℝ) < d := by exact_mod_cast hd
+  rw [div_le_div_iff₀ hN hd']
+  calc ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) * d
+      = (n + 1 : ℝ) * ((#{M | O M ≠ M.permanent} : ℝ) * d) := by ring
+    _ ≤ (n + 1 : ℝ) * (Fintype.card F : ℝ) ^ (n * n) := by gcongr
+
 /-- Real-valued form of `liptonPermanentTrial_prob_ge`: for `1 ≤ n` and
 `#{M | O M ≠ M.permanent} ≤ |F|^{n²} / (3 * n)`, the single-trial algorithm outputs `A.permanent`
 with probability at least `1 - (n + 1) / (3 * n)`. -/
@@ -325,14 +339,9 @@ theorem liptonPermanentTrial_prob_toReal_ge (hn : 1 ≤ n) (ν : Fin (n + 1) ↪
     1 - (n + 1 : ℝ) / (3 * n) ≤
       (ProbComp.eval ((liptonPermanentTrial ν A).run (fun M => pure (O M)))
         A.permanent).toReal := by
-  have hmul : (#{M | O M ≠ M.permanent} : ℝ) * (3 * n) ≤ (Fintype.card F : ℝ) ^ (n * n) := by
-    exact_mod_cast Nat.mul_le_of_le_div _ _ _ hO
-  have hN : (0 : ℝ) < (Fintype.card F : ℝ) ^ (n * n) := by positivity
-  have h3n : (0 : ℝ) < 3 * n := by positivity
   have hdiv : ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) ≤
       (n + 1 : ℝ) / (3 * n) := by
-    rw [div_le_div_iff₀ hN h3n]
-    nlinarith
+    simpa only [Nat.cast_mul, Nat.cast_ofNat] using error_ratio_le_of_le_div (by omega) O hO
   linarith [one_sub_le_eval_run_liptonPermanentTrial_toReal ν hν O A]
 
 /-- Convenience form of `liptonPermanentTrial_prob_ge` under the textbook hypotheses `1 ≤ n` and
@@ -479,23 +488,13 @@ theorem liptonPermanentPlurality_prob_toReal_ge_of_four_mul (hn : 2 ≤ n) (k : 
     1 - (2 : ℝ) ^ (-((k : ℝ) / 32)) ≤
       (ProbComp.eval ((liptonPermanentPlurality k ν A).run (fun M => pure (O M)))
         A.permanent).toReal := by
-  have hmul : (#{M | O M ≠ M.permanent} : ℝ) * (4 * n) ≤ (Fintype.card F : ℝ) ^ (n * n) := by
-    exact_mod_cast Nat.mul_le_of_le_div _ _ _ hO
-  have hN : (0 : ℝ) < (Fintype.card F : ℝ) ^ (n * n) := by positivity
+  have h1 : ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) ≤
+      (n + 1 : ℝ) / (4 * n) := by
+    simpa only [Nat.cast_mul, Nat.cast_ofNat] using error_ratio_le_of_le_div (by omega) O hO
   have hn_real : (2 : ℝ) ≤ n := by exact_mod_cast hn
-  have h4n : (0 : ℝ) < 4 * n := by positivity
-  have hdiv : ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) ≤
-      1 / 2 - 1 / 8 := by
-    have h1 : ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) ≤
-        (n + 1 : ℝ) / (4 * n) := by
-      rw [div_le_div_iff₀ hN h4n]
-      nlinarith
-    have h2 : (n + 1 : ℝ) / (4 * n) ≤ 3 / 8 := by
-      rw [div_le_iff₀ h4n]
-      linarith
-    linarith
+  have h2 : (n + 1 : ℝ) / (4 * n) ≤ 3 / 8 := by rw [div_le_iff₀ (by positivity)]; linarith
   rw [show -((k : ℝ) / 32) = -(2 * (1 / 8 : ℝ) ^ 2 * k) by ring]
-  exact liptonPermanentPlurality_prob_toReal_ge_of_margin k ν hν O (by norm_num) hdiv A
+  exact liptonPermanentPlurality_prob_toReal_ge_of_margin k ν hν O (by norm_num) (by linarith) A
 
 /-- **Plurality corollary for all `n` under `|F|^{n²} / (3 * (n + 1))` oracle error:**
 each trial succeeds with probability at least `2 / 3 = 1 / 2 + 1 / 6`, so the plurality of `k`
@@ -507,21 +506,14 @@ theorem liptonPermanentPlurality_prob_toReal_ge_of_three_mul_succ (k : ℕ)
     1 - (2 : ℝ) ^ (-((k : ℝ) / 18)) ≤
       (ProbComp.eval ((liptonPermanentPlurality k ν A).run (fun M => pure (O M)))
         A.permanent).toReal := by
-  have hmul : (#{M | O M ≠ M.permanent} : ℝ) * (3 * (n + 1)) ≤ (Fintype.card F : ℝ) ^ (n * n) := by
-    exact_mod_cast Nat.mul_le_of_le_div _ _ _ hO
-  have hN : (0 : ℝ) < (Fintype.card F : ℝ) ^ (n * n) := by positivity
-  have h3n : (0 : ℝ) < 3 * (n + 1) := by positivity
-  have hdiv : ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) ≤
-      1 / 2 - 1 / 6 := by
-    have h1 : ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) ≤
-        (n + 1 : ℝ) / (3 * (n + 1)) := by
-      rw [div_le_div_iff₀ hN h3n]
-      nlinarith
-    have h2 : (n + 1 : ℝ) / (3 * (n + 1)) = 1 / 3 := by
-      have hn1 : (n + 1 : ℝ) ≠ 0 := by positivity
-      field_simp
-    linarith
+  have h1 : ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) ≤
+      (n + 1 : ℝ) / (3 * (n + 1)) := by
+    simpa only [Nat.cast_mul, Nat.cast_add, Nat.cast_one, Nat.cast_ofNat] using
+      error_ratio_le_of_le_div (by omega) O hO
+  have h2 : (n + 1 : ℝ) / (3 * (n + 1)) = 1 / 3 := by
+    have hn1 : (n + 1 : ℝ) ≠ 0 := by positivity
+    field_simp
   rw [show -((k : ℝ) / 18) = -(2 * (1 / 6 : ℝ) ^ 2 * k) by ring]
-  exact liptonPermanentPlurality_prob_toReal_ge_of_margin k ν hν O (by norm_num) hdiv A
+  exact liptonPermanentPlurality_prob_toReal_ge_of_margin k ν hν O (by norm_num) (by linarith) A
 
 end Cslib.Complexity

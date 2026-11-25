@@ -93,22 +93,17 @@ occurs explicitly without changing truth values on any assignment. -/
 @[simp]
 theorem eval_padDeclaredVars (N : ℕ) (φ : CNF ℕ) (σ : ℕ → Bool) :
     (padDeclaredVars N φ).eval σ = φ.eval σ := by
-  rw [padDeclaredVars, CNF.eval_append]
-  have htaut : CNF.eval σ ((List.range N).map fun v => [(v, true), (v, false)]) = true := by
-    rw [CNF.eval, List.all_eq_true]
-    intro c hc
-    obtain ⟨v, _, rfl⟩ := List.mem_map.mp hc
-    rw [Clause.eval]
-    cases σ v <;> simp [Literal.eval]
-  rw [htaut, Bool.true_and]
+  rw [padDeclaredVars, CNF.eval_append, show CNF.eval σ
+    ((List.range N).map fun v => [(v, true), (v, false)]) = true from List.all_eq_true.mpr
+      fun c hc => by
+        obtain ⟨v, _, rfl⟩ := List.mem_map.mp hc; cases σ v <;> simp [Clause.eval, Literal.eval],
+    Bool.true_and]
 
 theorem length_clause_padDeclaredVars_le {k N : ℕ} {φ : CNF ℕ}
     (hφ : ∀ cl ∈ φ, cl.length ≤ k) {cl : Clause ℕ} (hcl : cl ∈ padDeclaredVars N φ) :
     cl.length ≤ max k 2 := by
-  rw [padDeclaredVars, List.mem_append] at hcl
-  rcases hcl with hcl | hcl
-  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hcl
-    exact le_max_right k 2
+  rcases List.mem_append.mp hcl with hcl | hcl
+  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hcl; exact le_max_right k 2
   · exact (hφ cl hcl).trans (le_max_left k 2)
 
 theorem vars_padDeclaredVars_toFinset {N : ℕ} {φ : CNF ℕ}
@@ -117,20 +112,16 @@ theorem vars_padDeclaredVars_toFinset {N : ℕ} {φ : CNF ℕ}
   ext v
   simp only [padDeclaredVars, CNF.vars, List.flatten_append, List.map_append, List.mem_toFinset,
     List.mem_append, Finset.mem_range]
-  constructor
-  · rintro (hv | hv)
-    · simp only [List.mem_map, List.mem_flatten] at hv
-      obtain ⟨l, ⟨c, hc, hl⟩, rfl⟩ := hv
-      obtain ⟨u, hu, rfl⟩ := hc
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-      rcases hl with rfl | rfl <;> exact List.mem_range.mp hu
-    · exact Finset.mem_range.mp (hsub (List.mem_toFinset.mpr hv))
-  · intro hv
-    left
+  refine ⟨?_, fun hv => Or.inl (by
     simp only [List.mem_map, List.mem_flatten]
-    exact ⟨(v, true), ⟨[(v, true), (v, false)],
-      ⟨v, List.mem_range.mpr hv, rfl⟩,
-      List.mem_cons_self⟩, rfl⟩
+    exact ⟨(v, true), ⟨[(v, true), (v, false)], ⟨v, List.mem_range.mpr hv, rfl⟩,
+      List.mem_cons_self⟩, rfl⟩)⟩
+  rintro (hv | hv)
+  · simp only [List.mem_map, List.mem_flatten] at hv
+    obtain ⟨_, ⟨_, ⟨u, hu, rfl⟩, hl⟩, rfl⟩ := hv
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+    rcases hl with rfl | rfl <;> exact List.mem_range.mp hu
+  · exact Finset.mem_range.mp (hsub (List.mem_toFinset.mpr hv))
 
 theorem numVars_padDeclaredVars {N : ℕ} {φ : CNF ℕ}
     (hsub : φ.vars.toFinset ⊆ Finset.range N) :
@@ -180,26 +171,17 @@ private theorem computableInPolyTime_forbidOneHot (q : ℕ) (ts : List (Fin q)) 
       (encList encNat) (encClause encNat) := by
   induction ts with
   | nil =>
-    refine (const (encOut := encClause encNat) []).of_enc_eq fun vs => ?_
-    simp [forbidOneHotClause]
+    exact (const (encOut := encClause encNat) []).of_enc_eq fun _ => by simp [forbidOneHotClause]
   | cons a ts ih =>
-    have hemp : ComputableInPolyTime (fun vs : List ℕ => decide (vs.length = 0))
-        (encList encNat) encBool := by
-      fun_prop
-    have hhd : ComputableInPolyTime (fun vs : List ℕ => vs.getD 0 0) (encList encNat) encNat :=
-      listGetD_binary (encA := encNat) (encL := encList encNat) 0
-        (id' (encIn := encList encNat)) (const 0)
+    have hhd := listGetD_binary (encA := encNat) (encL := encList encNat) 0
+      (id' (encIn := encList encNat)) (const 0)
     have hlit : ComputableInPolyTime (fun vs : List ℕ => (vs.getD 0 0 * q + a.1, false))
         (encList encNat) (encPair encNat encBool) :=
       (binary_add.comp ((binary_mul' hhd (const q)).prod (const a.1))).prod (const false)
-    have htl : ComputableInPolyTime (fun vs : List ℕ => vs.tail)
-        (encList encNat) (encList encNat) := by
-      fun_prop
-    refine (hemp.ite (const []) (hlit.cons' (ih.comp htl))).of_enc_eq fun vs =>
-      congrArg (encClause encNat) ?_
-    cases vs with
-    | nil => rfl
-    | cons v vs => simp [forbidOneHotClause]
+    refine (ComputableInPolyTime.ite (c := fun vs : List ℕ => decide (vs.length = 0))
+      (by fun_prop) (const []) (hlit.cons' (ih.comp (g := List.tail) (by fun_prop)))).of_enc_eq
+      fun vs => congrArg (encClause encNat) ?_
+    cases vs <;> simp [forbidOneHotClause]
 
 private theorem computableInPolyTime_toOneHotCNFAt (encRel : Rel ↪ List Bool) (q r : ℕ)
     (sem : Rel → List (Fin q) → Bool)
@@ -208,14 +190,12 @@ private theorem computableInPolyTime_toOneHotCNFAt (encRel : Rel ↪ List Bool) 
     ComputableInPolyTime
       (fun c : Constraint Rel ℕ =>
         ((finTuples q r).filter fun ts => !sem c.rel ts).map (forbidOneHotClause q c.scope))
-      (encConstraint encRel encNat) encCNF := by
-  refine mapFilterConst (finTuples q r)
+      (encConstraint encRel encNat) encCNF :=
+  mapFilterConst (finTuples q r)
     (test := fun (c : Constraint Rel ℕ) (ts : List (Fin q)) => !sem c.rel ts)
     (f := fun (c : Constraint Rel ℕ) (ts : List (Fin q)) => forbidOneHotClause q c.scope ts)
-    (fun ts hts => ?_) (fun ts _ => ?_)
-  · have hsemt := hsem ts hts
-    fun_prop
-  · exact (computableInPolyTime_forbidOneHot q ts).comp (encConstraint_scope_polyTime id')
+    (fun ts hts => by have := hsem ts hts; fun_prop)
+    fun ts _ => (computableInPolyTime_forbidOneHot q ts).comp (encConstraint_scope_polyTime id')
 
 private theorem computableInPolyTime_constraintToOneHotCNFBounded
     (encRel : Rel ↪ List Bool) (q k : ℕ) (sem : Rel → List (Fin q) → Bool)
@@ -225,41 +205,30 @@ private theorem computableInPolyTime_constraintToOneHotCNFBounded
       (encConstraint encRel encNat) encCNF := by
   induction k with
   | zero =>
-    have htest : ComputableInPolyTime
-        (fun c : Constraint Rel ℕ => decide (c.scope.length = 0))
-        (encConstraint encRel encNat) encBool := by
-      fun_prop
-    refine (htest.ite (computableInPolyTime_toOneHotCNFAt encRel q 0 sem
-        fun ts hts => hsem ts (by simp [(mem_finTuples.mp hts)]))
-      (const [])).of_enc_eq fun c => ?_
-    simp only [Constraint.toOneHotCNFBounded, Constraint.toOneHotCNF, Nat.le_zero]
-    by_cases h : c.scope.length = 0 <;> simp [h]
+    refine (ComputableInPolyTime.ite (c := fun c : Constraint Rel ℕ => decide (c.scope.length = 0))
+      (by fun_prop) (computableInPolyTime_toOneHotCNFAt encRel q 0 sem
+        fun ts hts => hsem ts (by simp [mem_finTuples.mp hts])) (const [])).of_enc_eq fun c => ?_
+    by_cases h : c.scope.length = 0 <;>
+      simp [Constraint.toOneHotCNFBounded, Constraint.toOneHotCNF, h]
   | succ k ih =>
-    have htest : ComputableInPolyTime
-        (fun c : Constraint Rel ℕ => decide (c.scope.length = k + 1))
-        (encConstraint encRel encNat) encBool := by
-      fun_prop
-    refine (htest.ite (computableInPolyTime_toOneHotCNFAt encRel q (k + 1) sem
-        fun ts hts => hsem ts (by simp [(mem_finTuples.mp hts)]))
+    refine (ComputableInPolyTime.ite
+      (c := fun c : Constraint Rel ℕ => decide (c.scope.length = k + 1)) (by fun_prop)
+      (computableInPolyTime_toOneHotCNFAt encRel q (k + 1) sem
+        fun ts hts => hsem ts (by simp [mem_finTuples.mp hts]))
       (ih fun ts hts => hsem ts (hts.trans (Nat.le_succ k)))).of_enc_eq fun c => ?_
     simp only [Constraint.toOneHotCNFBounded, Constraint.toOneHotCNF]
     by_cases h1 : c.scope.length = k + 1
     · simp [h1]
-    · have hle : (c.scope.length ≤ k + 1) ↔ (c.scope.length ≤ k) := by omega
-      simp [h1, hle]
+    · simp [h1, show (c.scope.length ≤ k + 1) ↔ (c.scope.length ≤ k) by omega]
 
 private theorem computableInPolyTime_exactlyOneBlock (q : ℕ) :
     ComputableInPolyTime
       (fun v : ℕ => CNF.exactlyOne ((List.range q).map fun a => v * q + a))
-      encNat encCNF := by
-  have hlist : ComputableInPolyTime
-      (fun v : ℕ => (List.range q).map fun a => v * q + a) encNat (encList encNat) :=
-    ComputableInPolyTime.mapWithInput (const (List.range q))
-      (binary_add.comp ((binary_mul' (fst encNat encNat) (const q)).prod (snd encNat encNat)))
-  have hex : ComputableInPolyTime (CNF.exactlyOne (V := ℕ)) (encList encNat) encCNF := by
-    unfold CNF.exactlyOne CNF.atLeastOne CNF.atMostOne
-    fun_prop
-  exact hex.comp hlist
+      encNat encCNF :=
+  (by unfold CNF.exactlyOne CNF.atLeastOne CNF.atMostOne; fun_prop :
+    ComputableInPolyTime (CNF.exactlyOne (V := ℕ)) (encList encNat) encCNF).comp
+    (ComputableInPolyTime.mapWithInput (const (List.range q))
+      (binary_add.comp ((binary_mul' (fst encNat encNat) (const q)).prod (snd encNat encNat))))
 
 /-- Declared-variable one-hot CNF compilation `⟨x.numVars * q, toOneHotCNFBounded ...⟩`. -/
 @[expose] def toOneHotDeclaredCNF (q k : ℕ) (sem : Rel → List (Fin q) → Bool)
@@ -498,27 +467,16 @@ theorem computableInPolyTime_perfectMatchingDeclaredVars :
   have hE := Graph.computableInPolyTime_edgeList
   have hW : ComputableInPolyTime Graph.perfectMatchingWires
       encGraph (encList (encList encUnary)) := by
-    unfold Graph.perfectMatchingWires Graph.incident
-    fun_prop
+    unfold Graph.perfectMatchingWires Graph.incident; fun_prop
   have hEl : ComputableInPolyTime (fun G : Graph => G.edgeList.length) encGraph encUnary := by
     fun_prop
   have hfl : ComputableInPolyTime (fun G : Graph => G.perfectMatchingWires.flatten.length)
-      encGraph encUnary := by
-    fun_prop
+      encGraph encUnary := by fun_prop
   have hwl : ComputableInPolyTime (fun G : Graph => G.perfectMatchingWires.length)
-      encGraph encUnary := by
-    fun_prop
-  have hexpr : ComputableInPolyTime
-      (fun G : Graph => G.edgeList.length +
-        (1 + (3 * G.perfectMatchingWires.flatten.length + 4 * G.perfectMatchingWires.length)))
-      encGraph encUnary :=
-    unary_add.comp (hEl.prod
-      (unary_add.comp ((const 1).prod
-        (unary_add.comp ((unary_mul.comp ((const 3).prod hfl)).prod
-          (unary_mul.comp ((const 4).prod hwl)))))))
-  refine hexpr.of_enc_eq fun G => congrArg encUnary ?_
-  rw [Graph.perfectMatchingCircuit, Circuits.Boolean.length_seqExactlyOneAll,
-    List.length_flatten]
+      encGraph encUnary := by fun_prop
+  refine (hEl.unary_add' ((const 1).unary_add' (((const 3).unary_mul' hfl).unary_add'
+    ((const 4).unary_mul' hwl)))).of_enc_eq fun G => congrArg encUnary ?_
+  rw [Graph.perfectMatchingCircuit, Circuits.Boolean.length_seqExactlyOneAll, List.length_flatten]
   omega
 
 /-- **Row 3 conditional transfer (`#PerfectMatching`, width `3`, `n ≤ 7 * (|V| + |E|) + 1`)**:

@@ -226,11 +226,9 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
   refine ⟨WP.execWithin (by
       unfold ampSetup ampSetupData ppszExp
       wram_exec [Data.init_regs, hm0, hm1, hm2, hm3, hm4, hm5]; rfl),
-    ⟨by wram_simp [ampSetupData, Data.init_regs], by wram_simp [ampSetupData],
-      by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData],
-      by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData], ?_,
+    ⟨by wram_simp [ampSetupData, Data.init_regs], ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun i => ?_,
       by simp [length_encode]; omega, fun _ _ => rfl⟩⟩
-  intro i
+  iterate 7 wram_simp [ampSetupData]
   have hi : i.val < (encodeClauses φ).length := i.isLt
   change (ampSetupData s a b c φ).mem (6 + i.val) = (encodeClauses φ)[i.val]
   rw [ampSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega),
@@ -464,11 +462,6 @@ theorem ampTime_le {s a b : ℕ} (hb : 0 < b) (c n L : ℕ) :
       (2 : ℝ) ^ e * c * ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ) := by
     simp only [ampTime, ppszRounds, ← he]; push_cast; ring
-  have hPr : ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) ≤ 181 * (K : ℝ) := by
-    exact_mod_cast hP
-  have hSr : ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ) ≤
-      89 * (2 : ℝ) ^ e * (c + 1) := by
-    exact_mod_cast hS
   have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
   have hKc : ((s + 1) ^ 2 : ℕ) * ((N : ℕ) : ℝ) ^ (2 * s + 1) = (K : ℝ) := by
     rw [hK]; push_cast; ring
@@ -477,7 +470,8 @@ theorem ampTime_le {s a b : ℕ} (hb : 0 < b) (c n L : ℕ) :
   calc (2 : ℝ) ^ e * c * ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ)
       ≤ (2 * X) * c * (181 * K) + 89 * (2 * X) * (c + 1) :=
-        add_le_add (by gcongr) (hSr.trans (by gcongr))
+        add_le_add (by gcongr; exact_mod_cast hP)
+          ((show _ ≤ 89 * (2 : ℝ) ^ e * (c + 1) by exact_mod_cast hS).trans (by gcongr))
     _ ≤ 600 * K * X * (c + 1) := by
         nlinarith [mul_le_mul_of_nonneg_left hK1 (mul_nonneg (by linarith : (0 : ℝ) ≤ X)
           (by linarith : (0 : ℝ) ≤ c + 1)), mul_nonneg (mul_nonneg (by positivity : (0 : ℝ) ≤ K)

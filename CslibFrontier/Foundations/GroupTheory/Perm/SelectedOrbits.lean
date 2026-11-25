@@ -226,27 +226,18 @@ theorem card_orbitOn_swap_mul (f : Perm α) (p : α → Prop) (hp : ∀ a, p (f 
     (Equiv.predicate_swap p h k hm (f a)).trans (hp a)
   rw [← Nat.card_congr (subtypeOrbitEquiv (swap h k * f) p hp')]
   by_cases hh : p h
-  · have hk := hm.mp hh
-    let h' : {a // p a} := ⟨h, hh⟩
-    let k' : {a // p a} := ⟨k, hk⟩
-    have he : (swap h k * f).subtypePerm hp' = swap h' k' * f.subtypePerm hp := by
-      apply Equiv.ext
-      intro a
-      apply Subtype.ext
-      change swap h k (f a.val) = (swap h' k' (f.subtypePerm hp a)).val
-      exact (Subtype.val_injective.map_swap h' k' (f.subtypePerm hp a)).symm
-    rw [he]
+  · let h' : {a // p a} := ⟨h, hh⟩
+    let k' : {a // p a} := ⟨k, hm.mp hh⟩
+    have he : (swap h k * f).subtypePerm hp' = swap h' k' * f.subtypePerm hp :=
+      Equiv.ext fun a => Subtype.ext
+        (Subtype.val_injective.map_swap h' k' (f.subtypePerm hp a)).symm
     have h₁ := (card_orbits_swap_mul (f.subtypePerm hp) h' k'
       (fun he => hne (congrArg Subtype.val he))).1 (Perm.sameCycle_subtypePerm.mpr hc)
-    rw [h₁, Nat.card_congr (subtypeOrbitEquiv f p hp)]
+    rw [he, h₁, Nat.card_congr (subtypeOrbitEquiv f p hp)]
     simp only [hh, ite_true]
   · have hk : ¬ p k := fun hk => hh (hm.mpr hk)
-    have he : (swap h k * f).subtypePerm hp' = f.subtypePerm hp := by
-      apply Equiv.ext
-      intro a
-      apply Subtype.ext
-      change swap h k (f a.val) = f a.val
-      exact swap_apply_of_ne_of_ne
+    have he : (swap h k * f).subtypePerm hp' = f.subtypePerm hp :=
+      Equiv.ext fun a => Subtype.ext <| swap_apply_of_ne_of_ne
         (fun he => hh (he ▸ (hp a.val).mpr a.property))
         (fun he => hk (he ▸ (hp a.val).mpr a.property))
     rw [he, Nat.card_congr (subtypeOrbitEquiv f p hp)]

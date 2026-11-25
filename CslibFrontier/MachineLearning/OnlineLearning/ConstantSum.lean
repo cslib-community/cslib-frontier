@@ -81,6 +81,18 @@ open Finset Function Real Convexity Cslib.Probability
 
 variable {I J : Type*} [Fintype I] [Fintype J]
 
+private theorem sum_mul_sum_comm (p : I → ℝ) (q : J → ℝ) (M : I → J → ℝ) :
+    ∑ j, q j * ∑ i, p i * M i j = ∑ i, p i * ∑ j, q j * M i j := by
+  simp only [mul_sum]
+  rw [sum_comm]
+  exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by ring
+
+private theorem sum_mul_mem_Icc {K : Type*} [Fintype K] {w f : K → ℝ} (hw0 : ∀ k, 0 ≤ w k)
+    (hw1 : ∑ k, w k = 1) (hf : ∀ k, f k ∈ Set.Icc (0 : ℝ) 1) :
+    ∑ k, w k * f k ∈ Set.Icc (0 : ℝ) 1 :=
+  ⟨sum_nonneg fun k _ => mul_nonneg (hw0 k) (hf k).1,
+    (sum_le_sum fun k _ => mul_le_of_le_one_right (hw0 k) (hf k).2).trans_eq hw1⟩
+
 /-! ### Constant-sum value duality and Theorem 4.9 -/
 
 /-- If `s₁` and `s₂` sum to `c` on every outcome and `s₁` has minimax value `v₁`, then player 2's
@@ -162,11 +174,7 @@ theorem constantSum_average_loss_mem_Icc {s₁ s₂ : I → J → ℝ} {c v₁ R
   have hstage_sum : ∀ t < T,
       (∑ i, p t i * ∑ j, q t j * s₁ i j) + (∑ j, q t j * ∑ i, p t i * s₂ i j) = c := by
     intro t ht
-    have hswap : ∑ j, q t j * ∑ i, p t i * s₂ i j = ∑ i, p t i * ∑ j, q t j * s₂ i j := by
-      simp only [mul_sum]
-      rw [sum_comm]
-      exact sum_congr rfl fun i _ => sum_congr rfl fun j _ => by ring
-    rw [hswap, ← sum_add_distrib]
+    rw [sum_mul_sum_comm (p t) (q t) s₂, ← sum_add_distrib]
     calc ∑ i, (p t i * ∑ j, q t j * s₁ i j + p t i * ∑ j, q t j * s₂ i j)
         = ∑ i, p t i * ∑ j, q t j * (s₁ i j + s₂ i j) :=
           sum_congr rfl fun i _ => by rw [← mul_add, ← sum_add_distrib]; simp only [mul_add]
@@ -291,18 +299,10 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
       have hq1 : ∑ j, q t j = 1 := sum_prob hφ₂
       refine ⟨fun i => ?_, fun j => ?_, hp0, hp1, hq0, hq1⟩
       · rw [hℓ₁_eq]
-        refine ⟨sum_nonneg fun j _ => mul_nonneg (hq0 j) (hM₀ i j).1, ?_⟩
-        calc ∑ j, q t j * M₀ i j ≤ ∑ j, q t j * 1 :=
-              sum_le_sum fun j _ => mul_le_mul_of_nonneg_left (hM₀ i j).2 (hq0 j)
-          _ = 1 := by simp only [mul_one, hq1]
+        exact sum_mul_mem_Icc hq0 hq1 fun j => hM₀ i j
       · rw [hℓ₂_eq]
-        have h0 : 0 ≤ ∑ i, p t i * M₀ i j :=
-          sum_nonneg fun i _ => mul_nonneg (hp0 i) (hM₀ i j).1
-        have h1 : ∑ i, p t i * M₀ i j ≤ 1 :=
-          calc ∑ i, p t i * M₀ i j ≤ ∑ i, p t i * 1 :=
-                sum_le_sum fun i _ => mul_le_mul_of_nonneg_left (hM₀ i j).2 (hp0 i)
-            _ = 1 := by simp only [mul_one, hp1]
-        exact ⟨by linarith, by linarith⟩
+        have h := sum_mul_mem_Icc hp0 hp1 fun i => hM₀ i j
+        exact ⟨by linarith [h.2], by linarith [h.1]⟩
   have hT_pos : (0 : ℝ) < T := Nat.cast_pos.mpr hT
   have hsT : 0 < √(T : ℝ) := sqrt_pos.mpr hT_pos
   refine ⟨averageProb p T, averageProb q T,
@@ -314,11 +314,7 @@ private theorem coupledMW_gap_le {M₀ : I → J → ℝ} (hM₀ : ∀ i j, M₀
   have hr₂ := mw_regret_le_sqrt_of_mem_Icc (T := T) (fun s _ => (hinv s).2.1) j
   have hround_sum : ∀ t, (∑ i', p t i' * ℓ₁ t i') + (∑ j', q t j' * ℓ₂ t j') = 1 := fun t => by
     simp only [hℓ₁_eq, hℓ₂_eq, mul_sub, mul_one, sum_sub_distrib]
-    have hswap : ∑ j', q t j' * ∑ i', p t i' * M₀ i' j' =
-        ∑ i', p t i' * ∑ j', q t j' * M₀ i' j' := by
-      simp only [mul_sum]
-      rw [sum_comm]
-      exact sum_congr rfl fun i' _ => sum_congr rfl fun j' _ => by ring
+    have hswap := sum_mul_sum_comm (p t) (q t) M₀
     have hq1 : ∑ j', q t j' = 1 := (hinv t).2.2.2.2.2
     linarith
   have htot : (∑ t ∈ range T, ∑ i', p t i' * ℓ₁ t i') +
@@ -372,10 +368,7 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
       _ ≤ ∑ i, p.weights i * ∑ j, q.weights j * M i j :=
           sum_le_sum fun i _ => mul_le_mul_of_nonneg_left
             (inf'_le (fun i' => ∑ j, q.weights j * M i' j) (mem_univ i)) (p.weights_nonneg i)
-      _ = ∑ j, q.weights j * ∑ i, p.weights i * M i j := by
-          simp only [mul_sum]
-          rw [sum_comm]
-          exact sum_congr rfl fun j _ => sum_congr rfl fun i _ => by ring
+      _ = ∑ j, q.weights j * ∑ i, p.weights i * M i j := (sum_mul_sum_comm _ _ _).symm
       _ ≤ ∑ j, q.weights j * (univ.sup' univ_nonempty fun j' => ∑ i, p.weights i * M i j') :=
           sum_le_sum fun j _ => mul_le_mul_of_nonneg_left
             (le_sup' (fun j' => ∑ i, p.weights i * M i j') (mem_univ j)) (q.weights_nonneg j)
@@ -387,12 +380,10 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
     have hB : 0 < B := by linarith
     let M₀ : I → J → ℝ := fun i j => (M i j + B) / (2 * B)
     have hM₀ : ∀ i j, M₀ i j ∈ Set.Icc (0 : ℝ) 1 := fun i j => by
-      have habs : |M i j| ≤ Bmax := by
-        calc |M i j| ≤ ∑ j' : J, |M i j'| :=
-              single_le_sum (f := fun j' : J => |M i j'|) (fun _ _ => abs_nonneg _) (mem_univ j)
-          _ ≤ Bmax :=
-              single_le_sum (f := fun i' : I => ∑ j' : J, |M i' j'|)
-                (fun _ _ => sum_nonneg fun _ _ => abs_nonneg _) (mem_univ i)
+      have habs : |M i j| ≤ Bmax :=
+        (single_le_sum (f := fun j' : J => |M i j'|) (fun _ _ => abs_nonneg _) (mem_univ j)).trans
+          (single_le_sum (f := fun i' : I => ∑ j' : J, |M i' j'|)
+            (fun _ _ => sum_nonneg fun _ _ => abs_nonneg _) (mem_univ i))
       have hlow : -B ≤ M i j := by linarith [neg_le_of_abs_le habs]
       have hhigh : M i j ≤ B := by linarith [le_of_abs_le habs]
       dsimp only [M₀]
@@ -455,11 +446,8 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
       have h1 : (C / δ) ^ 2 < T := by linarith
       calc C / δ ≤ √((C / δ) ^ 2) := le_sqrt_of_sq_le le_rfl
         _ < √(T : ℝ) := sqrt_lt_sqrt (sq_nonneg _) h1
-    have hC_lt : C / √(T : ℝ) < δ := by
-      have hsT_pos : 0 < √(T : ℝ) := sqrt_pos.mpr (Nat.cast_pos.mpr hT_pos)
-      rw [div_lt_iff₀ hsT_pos]
-      have := (div_lt_iff₀ hδ).mp hsT
-      linarith
+    have hC_lt : C / √(T : ℝ) < δ := (div_lt_iff₀ (sqrt_pos.mpr (Nat.cast_pos.mpr hT_pos))).mpr
+      (by linarith [(div_lt_iff₀ hδ).mp hsT])
     linarith [hgap T hT_pos]
 
 /-- **Attained minimax value via coupled no-regret learning**

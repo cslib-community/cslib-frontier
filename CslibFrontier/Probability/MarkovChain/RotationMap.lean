@@ -123,10 +123,7 @@ theorem sum_component_mul_randomWalk (u y : V) :
         G.randomWalk y x := by
       intro x
       by_cases hc : G.edgeCount x y = 0
-      · have h1 : G.randomWalk x y = 0 := by rw [randomWalk_apply, hc]; simp
-        have h0 : G.randomWalk y x = 0 := by
-          rw [randomWalk_apply, G.edgeCount_comm, hc]; simp
-        rw [h0, h1, mul_zero]
+      · rw [randomWalk_apply, randomWalk_apply, G.edgeCount_comm y x, hc]; simp
       · rw [ite_eq_left (hy.trans (reachable_of_edgeCount_ne_zero hc).symm), one_mul,
           randomWalk_apply, randomWalk_apply, G.edgeCount_comm]
     simp_rw [this]
@@ -134,9 +131,8 @@ theorem sum_component_mul_randomWalk (u y : V) :
   · rw [ite_eq_right hy]
     refine sum_eq_zero fun x _ => ?_
     by_cases hx : G.toSimpleGraph.Reachable u x
-    · have : G.edgeCount x y = 0 := by
-        by_contra hc; exact hy (hx.trans (reachable_of_edgeCount_ne_zero hc))
-      rw [randomWalk_apply, this]; simp
+    · rw [randomWalk_apply, not_not.1 fun hc => hy (hx.trans (reachable_of_edgeCount_ne_zero hc))]
+      simp
     · simp [hx]
 
 /-- In a regular multigraph, every vertex reaches every vertex of its component along transitions
@@ -257,8 +253,7 @@ theorem survival_randomWalk_mul_pow (t : V) :
   | 0, s => by
     by_cases hs : s = t
     · subst hs; simp
-    · rw [survival_zero_of_ne hs]
-      simp [hs]
+    · rw [survival_zero_of_ne hs]; simp [hs]
   | T + 1, s => by
     by_cases hs : s = t
     · subst hs
@@ -284,11 +279,9 @@ theorem survival_randomWalk_mul_pow (t : V) :
     rw [hcount, Nat.cast_sum, G.sum_comp_neighbor s (fun y => (#{k : Fin T → D |
       ∀ i ≤ T, G.walkAt (y, k) i ≠ t} : ℝ≥0∞))]
     refine sum_congr rfl fun y _ => ?_
-    rw [← survival_randomWalk_mul_pow t T y, randomWalk_apply, nsmul_eq_mul, pow_succ]
-    rw [div_eq_mul_inv]
-    calc (G.edgeCount s y : ℝ≥0∞) * (Fintype.card D : ℝ≥0∞)⁻¹ * survival G.randomWalk t T y *
-          ((Fintype.card D : ℝ≥0∞) ^ T * Fintype.card D)
-        = G.edgeCount s y * (survival G.randomWalk t T y * (Fintype.card D : ℝ≥0∞) ^ T) *
+    rw [← survival_randomWalk_mul_pow t T y, randomWalk_apply, nsmul_eq_mul, pow_succ,
+      div_eq_mul_inv]
+    calc _ = G.edgeCount s y * (survival G.randomWalk t T y * (Fintype.card D : ℝ≥0∞) ^ T) *
           ((Fintype.card D : ℝ≥0∞)⁻¹ * Fintype.card D) := by ring
       _ = _ := by
         rw [ENNReal.inv_mul_cancel
@@ -310,29 +303,23 @@ theorem ten_mul_card_filter_walkAt_ne_le (hD : Fintype.card D ≤ Fintype.card V
     have hM := mul_survival_le_hittingTime (P := G.randomWalk) t T s
     have hH := hittingTime_randomWalk_le_of_reachable h
     have hnum : ((n - 1 : ℕ) : ℝ≥0∞) * (Fintype.card D * n) ≤ (n : ℝ≥0∞) ^ 3 := by
-      have : (n - 1) * (Fintype.card D * n) ≤ n ^ 3 := by
-        calc (n - 1) * (Fintype.card D * n) ≤ n * (n * n) := by gcongr; omega
-          _ = n ^ 3 := by ring
-      exact_mod_cast this
+      exact_mod_cast (show (n - 1) * (Fintype.card D * n) ≤ n ^ 3 by
+        rw [pow_three]; gcongr; omega)
     have hT : (10 : ℝ≥0∞) * (n : ℝ≥0∞) ^ 3 ≤ (T : ℝ≥0∞) + 1 := by
       have : 10 * n ^ 3 ≤ T + 1 := by omega
       exact_mod_cast this
     have hn3 : (n : ℝ≥0∞) ^ 3 ≠ 0 := pow_ne_zero _ (by exact_mod_cast (by omega : n ≠ 0))
     have hn3' : (n : ℝ≥0∞) ^ 3 ≠ ⊤ := ENNReal.pow_ne_top (ENNReal.natCast_ne_top _)
-    have key : 10 * survival G.randomWalk t T s * (n : ℝ≥0∞) ^ 3 ≤ 1 * (n : ℝ≥0∞) ^ 3 := by
-      calc 10 * survival G.randomWalk t T s * (n : ℝ≥0∞) ^ 3
-          = (10 * (n : ℝ≥0∞) ^ 3) * survival G.randomWalk t T s := by ring
-        _ ≤ ((T : ℝ≥0∞) + 1) * survival G.randomWalk t T s := by gcongr
-        _ ≤ (n : ℝ≥0∞) ^ 3 := hM.trans (hH.trans hnum)
-        _ = 1 * (n : ℝ≥0∞) ^ 3 := (one_mul _).symm
-    exact (ENNReal.mul_le_mul_iff_left hn3 hn3').1 key
-  have hc := survival_randomWalk_mul_pow (G := G) t T s
+    refine (ENNReal.mul_le_mul_iff_left hn3 hn3').1 ?_
+    calc 10 * survival G.randomWalk t T s * (n : ℝ≥0∞) ^ 3
+        = (10 * (n : ℝ≥0∞) ^ 3) * survival G.randomWalk t T s := by ring
+      _ ≤ ((T : ℝ≥0∞) + 1) * survival G.randomWalk t T s := by gcongr
+      _ ≤ (n : ℝ≥0∞) ^ 3 := hM.trans (hH.trans hnum)
+      _ = 1 * (n : ℝ≥0∞) ^ 3 := (one_mul _).symm
   have : (10 * #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t} : ℝ≥0∞) ≤
       (Fintype.card D : ℝ≥0∞) ^ T := by
-    rw [← hc, ← mul_assoc]
-    calc 10 * survival G.randomWalk t T s * (Fintype.card D : ℝ≥0∞) ^ T
-        ≤ 1 * (Fintype.card D : ℝ≥0∞) ^ T := by gcongr
-      _ = _ := one_mul _
+    rw [← survival_randomWalk_mul_pow (G := G) t T s, ← mul_assoc]
+    exact mul_le_of_le_one_left' hsurv
   exact_mod_cast this
 
 /-! ### Uniqueness of the stationary distribution -/
@@ -497,11 +484,10 @@ theorem mixingTime_randomWalk_le [Nonempty V] (hlam : G.spectralExpansion < 1)
     linarith [G.randomWalk.one_sub_absSpectralGap (PMF.uniformOfFintype V),
       G.spectralContraction_randomWalk]
   have hgap : 0 < G.randomWalk.absSpectralGap (PMF.uniformOfFintype V) := by linarith
-  have hinv_v : 1 / (Fintype.card V : ℝ)⁻¹ = Fintype.card V := by rw [one_div, inv_inv]
   refine ((isReversible_uniform_randomWalk (G := G)).mixingTime_le_of_absSpectralGap_pos
     (inv_pos.mpr hcard) hmin hgap hε).trans_eq ?_
   congr 2
-  rw [hgap_eq, hinv_v]
+  rw [hgap_eq, one_div (Fintype.card V : ℝ)⁻¹, inv_inv]
 
 /-- **Cheeger mixing-time bound for the lazy random walk on a regular multigraph**:
 if `0 < h(G)`, then `G.randomWalk.lazy` mixes to within `ε` of uniform in at most
@@ -521,19 +507,11 @@ theorem mixingTime_lazy_randomWalk_le_of_edgeExpansion [Nontrivial V]
   refine (mixingTime_randomWalk_le (G := G.lazy) hlam hε).trans ?_
   set L := (1 / 2) * Real.log (Fintype.card V) + Real.log (1 / (2 * ε))
   by_cases hL : L ≤ 0
-  · have hnp : (1 - G.lazy.spectralExpansion)⁻¹ * L ≤ 0 :=
-      mul_nonpos_of_nonneg_of_nonpos (inv_nonneg.mpr (by linarith)) hL
-    rw [Nat.ceil_eq_zero.mpr hnp]
+  · rw [Nat.ceil_eq_zero.mpr (mul_nonpos_of_nonneg_of_nonpos (inv_nonneg.mpr (by linarith)) hL)]
     exact zero_le
   push Not at hL
-  have hinv : (1 - G.lazy.spectralExpansion)⁻¹ ≤
-      4 * (Fintype.card D : ℝ) ^ 2 / G.edgeExpansion ^ 2 := by
-    calc (1 - G.lazy.spectralExpansion)⁻¹
-        ≤ (G.edgeExpansion ^ 2 / (4 * (Fintype.card D : ℝ) ^ 2))⁻¹ :=
-          inv_anti₀ hpos_lb hgap_lb
-      _ = 4 * (Fintype.card D : ℝ) ^ 2 / G.edgeExpansion ^ 2 := inv_div _ _
-  exact ENat.natCast_le_natCast.mpr
-    (Nat.ceil_mono (mul_le_mul_of_nonneg_right hinv hL.le))
+  exact ENat.natCast_le_natCast.mpr (Nat.ceil_mono (mul_le_mul_of_nonneg_right
+    ((inv_anti₀ hpos_lb hgap_lb).trans_eq (inv_div _ _)) hL.le))
 
 end SpectralMixing
 

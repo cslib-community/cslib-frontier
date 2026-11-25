@@ -143,25 +143,20 @@ theorem merkleBreaksBinding_merkleVectorBindingOutput {H : List Bool → List Bo
     {o₁ o₂ : MerkleIndexedOpening} (ho₁ : o₁ ∈ openings) (ho₂ : o₂ ∈ openings)
     (hpos : o₁.position = o₂.position) (hle : o₁.opening.leaf ≠ o₂.opening.leaf) :
     merkleBreaksBinding H leafSpace n k (merkleVectorBindingOutput root openings) = true := by
-  have hsome : (merkleOpeningConflict openings).isSome = true := by
-    refine List.find?_isSome.mpr ⟨(o₁, o₂),
-      List.mem_flatMap.mpr ⟨o₁, ho₁, List.mem_map.mpr ⟨o₂, ho₂, rfl⟩⟩, ?_⟩
-    simp [hpos, hle]
+  have hsome : (merkleOpeningConflict openings).isSome := List.find?_isSome.mpr ⟨(o₁, o₂),
+    List.mem_flatMap.mpr ⟨o₁, ho₁, List.mem_map.mpr ⟨o₂, ho₂, rfl⟩⟩, by simp [hpos, hle]⟩
   obtain ⟨⟨p₁, p₂⟩, hfind⟩ := Option.isSome_iff_exists.mp hsome
   have hp := List.find?_some hfind
   obtain ⟨q₁, hq₁, hq⟩ := List.mem_flatMap.mp (List.mem_of_find?_eq_some hfind)
   obtain ⟨q₂, hq₂, hqeq⟩ := List.mem_map.mp hq
-  simp only [Prod.mk.injEq] at hqeq
-  obtain ⟨rfl, rfl⟩ := hqeq
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj hqeq
   obtain ⟨hl₁, hv₁⟩ := hvalid q₁ hq₁
   obtain ⟨hl₂, hv₂⟩ := hvalid q₂ hq₂
-  have hd : q₁.opening.path.length = d :=
-    (merkleVerify_eq_true_iff.mp (by simpa using hv₁)).1
   simp only [Bool.and_eq_true, beq_iff_eq, bne_iff_ne, ne_eq] at hp
   rw [← hp.1] at hv₂
   rw [merkleVectorBindingOutput, hfind]
-  simp only [Option.elim_some, merkleBreaksBinding, Bool.and_eq_true, bne_iff_ne, ne_eq,
-    hd, hl₁, hl₂, hv₁, hv₂, hp.2, and_self, not_false_eq_true]
+  simp [merkleBreaksBinding, (merkleVerify_eq_true_iff.mp (by simpa using hv₁)).1,
+    hl₁, hl₂, hv₁, hv₂, hp.2]
 
 /-- When `merkleOpeningConflict openings = none`, every entry below `len` agrees with
 `merkleExtractVector`. -/
@@ -170,20 +165,17 @@ theorem getD_merkleExtractVector_eq_of_conflict_eq_none (len : ℕ) (defaultLeaf
     {entry : MerkleIndexedOpening} (hent : entry ∈ openings) (hlt : entry.position < len) :
     (merkleExtractVector len defaultLeaf openings).getD entry.position defaultLeaf =
       entry.opening.leaf := by
-  have hsome : (openings.find? fun e => e.position == entry.position).isSome = true :=
-    List.find?_isSome.mpr ⟨entry, hent, by simp⟩
-  obtain ⟨found, hfind⟩ := Option.isSome_iff_exists.mp hsome
-  have hfound_mem := List.mem_of_find?_eq_some hfind
-  have hfound_pos : found.position = entry.position := by
-    simpa using List.find?_some hfind
+  obtain ⟨found, hfind⟩ := Option.isSome_iff_exists.mp
+    (List.find?_isSome.mpr ⟨entry, hent, by simp⟩ :
+      (openings.find? fun e => e.position == entry.position).isSome = true)
   have hno := List.find?_eq_none.mp hnone (found, entry)
-    (List.mem_flatMap.mpr ⟨found, hfound_mem, List.mem_map.mpr ⟨entry, hent, rfl⟩⟩)
-  have hleaf : found.opening.leaf = entry.opening.leaf := by
-    by_contra hne
-    exact hno (by simp [hfound_pos, hne])
+    (List.mem_flatMap.mpr ⟨found, List.mem_of_find?_eq_some hfind,
+      List.mem_map.mpr ⟨entry, hent, rfl⟩⟩)
   simp only [merkleExtractVector, List.getD_eq_getElem?_getD, List.getElem?_map,
     List.getElem?_range hlt, Option.map_some, Option.getD_some, hfind, Option.elim_some]
-  exact hleaf
+  by_contra hne
+  exact hno
+    (by simp [show found.position = entry.position by simpa using List.find?_some hfind, hne])
 
 /-- **Commitment-vector consistency or position-binding break**: filtering `openings` to verified
 openings below `len`, either every verified opening in `openings` below `len` agrees with the
@@ -203,20 +195,16 @@ theorem getD_merkleExtractVector_or_merkleBreaksBinding
   intro verified
   cases hconf : merkleOpeningConflict verified with
   | none =>
-    refine Or.inr fun entry hent => ?_
-    exact getD_merkleExtractVector_eq_of_conflict_eq_none len defaultLeaf hconf hent
-      (mem_merkleVerifiedOpenings.mp hent).2.1
+    exact Or.inr fun entry hent => getD_merkleExtractVector_eq_of_conflict_eq_none len defaultLeaf
+      hconf hent (mem_merkleVerifiedOpenings.mp hent).2.1
   | some pair =>
-    rcases pair with ⟨p₁, p₂⟩
     have hp := List.find?_some hconf
     obtain ⟨q₁, hq₁, hq⟩ := List.mem_flatMap.mp (List.mem_of_find?_eq_some hconf)
     obtain ⟨q₂, hq₂, hqeq⟩ := List.mem_map.mp hq
-    simp only [Prod.mk.injEq] at hqeq
-    obtain ⟨rfl, rfl⟩ := hqeq
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj hqeq
     simp only [Bool.and_eq_true, beq_iff_eq, bne_iff_ne, ne_eq] at hp
-    refine Or.inl (merkleBreaksBinding_merkleVectorBindingOutput (d := d) ?_ hq₁ hq₂ hp.1 hp.2)
-    intro e he
-    exact ⟨hleaf e he, (mem_merkleVerifiedOpenings.mp he).2.2⟩
+    exact Or.inl (merkleBreaksBinding_merkleVectorBindingOutput (d := d)
+      (fun e he => ⟨hleaf e he, (mem_merkleVerifiedOpenings.mp he).2.2⟩) hq₁ hq₂ hp.1 hp.2)
 
 end Extract
 
@@ -239,23 +227,17 @@ theorem computableInPolyTime_merkleVerifiedOpenings
     ComputableInPolyTime
       (fun a => merkleVerifiedOpenings H (k a) (d a) (len a) (root a) (openings a))
       encIn (encList encMerkleIndexedOpening) := by
-  have hm := computableInPolyTime_merkleVerify hH hlen
   unfold merkleVerifiedOpenings
   refine ComputableInPolyTime.filterWithInput hopenings ?_
   have ha := ComputableInPolyTime.fst encIn encMerkleIndexedOpening
-  have hlt : ComputableInPolyTime
-      (fun p : γ × MerkleIndexedOpening => decide (p.2.position < len p.1))
-      (encPair encIn encMerkleIndexedOpening) encBool :=
-    ComputableInPolyTime.unary_lt' (by fun_prop) (hlenVec.comp ha)
-  have hargs : ComputableInPolyTime
-      (fun p : γ × MerkleIndexedOpening =>
-        ((k p.1, d p.1), (root p.1, p.2.position), (p.2.opening.leaf, p.2.opening.path)))
-      (encPair encIn encMerkleIndexedOpening)
-      (encPair (encPair encBits encUnary)
-        (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))) := by
-    fun_prop
-  have hver := hm.comp hargs
-  exact ComputableInPolyTime.bool_and.comp (hlt.prod hver)
+  exact ComputableInPolyTime.bool_and.comp
+    ((ComputableInPolyTime.unary_lt' (by fun_prop) (hlenVec.comp ha)).prod
+      ((computableInPolyTime_merkleVerify hH hlen).comp (by fun_prop : ComputableInPolyTime
+        (fun p : γ × MerkleIndexedOpening =>
+          ((k p.1, d p.1), (root p.1, p.2.position), (p.2.opening.leaf, p.2.opening.path)))
+        (encPair encIn encMerkleIndexedOpening)
+        (encPair (encPair encBits encUnary)
+          (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))))))
 
 /-- Reconstructing `merkleExtractVector` from indexed openings takes polynomial time. -/
 @[program_certificate]
@@ -271,12 +253,9 @@ theorem computableInPolyTime_merkleExtractVector
   refine ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hlenVec) ?_
   have ha := ComputableInPolyTime.fst encIn encUnary
   have hj := ComputableInPolyTime.snd encIn encUnary
-  have hfind : ComputableInPolyTime
-      (fun q : γ × ℕ => (openings q.1).find? fun entry => entry.position == q.2)
-      (encPair encIn encUnary) (encOption encMerkleIndexedOpening) :=
-    ComputableInPolyTime.findWithInput (hopenings.comp ha)
-      (ComputableInPolyTime.beq (encB := encUnary) (by fun_prop) (by fun_prop))
-  exact hfind.optionElimWithInput (hdefault.comp ha) (by fun_prop)
+  exact (ComputableInPolyTime.findWithInput (hopenings.comp ha)
+    (ComputableInPolyTime.beq (encB := encUnary) (by fun_prop) (by fun_prop))).optionElimWithInput
+    (hdefault.comp ha) (by fun_prop)
 
 /-- Searching `openings` for a conflicting leaf pair takes polynomial time. -/
 @[program_certificate]
@@ -286,14 +265,11 @@ theorem computableInPolyTime_merkleOpeningConflict
     ComputableInPolyTime (fun a => merkleOpeningConflict (openings a)) encIn
       (encOption (encPair encMerkleIndexedOpening encMerkleIndexedOpening)) := by
   unfold merkleOpeningConflict
-  have hpairs : ComputableInPolyTime
-      (fun a => (openings a).flatMap fun o₁ => (openings a).map fun o₂ => (o₁, o₂))
-      encIn (encList (encPair encMerkleIndexedOpening encMerkleIndexedOpening)) := by
-    refine ComputableInPolyTime.flatMapWithInput hopenings ?_
-    exact ComputableInPolyTime.mapWithInput
-      (hopenings.comp (ComputableInPolyTime.fst encIn encMerkleIndexedOpening))
-      (by fun_prop)
-  exact ComputableInPolyTime.findWithInput hpairs (by fun_prop)
+  exact ComputableInPolyTime.findWithInput
+    (ComputableInPolyTime.flatMapWithInput hopenings
+      (ComputableInPolyTime.mapWithInput
+        (hopenings.comp (ComputableInPolyTime.fst encIn encMerkleIndexedOpening)) (by fun_prop)))
+    (by fun_prop)
 
 /-- Constructing `merkleVectorBindingOutput` takes polynomial time. -/
 @[program_certificate]
@@ -304,13 +280,10 @@ theorem computableInPolyTime_merkleVectorBindingOutput
     ComputableInPolyTime (fun a => merkleVectorBindingOutput (root a) (openings a))
       encIn encMerkleBindingOutput := by
   unfold merkleVectorBindingOutput
-  have hconf := computableInPolyTime_merkleOpeningConflict hopenings
   have hempty : ComputableInPolyTime
-      (fun _ : γ => (⟨[], []⟩ : MerkleOpening (List Bool))) encIn encMerkleOpening :=
-    ComputableInPolyTime.const _
-  exact hconf.optionElimWithInput
-    (encMerkleBindingOutput_mk_polyTime hroot (ComputableInPolyTime.const 0) hempty hempty)
-    (by fun_prop)
+      (fun _ : γ => (⟨[], []⟩ : MerkleOpening (List Bool))) encIn encMerkleOpening := .const _
+  exact (computableInPolyTime_merkleOpeningConflict hopenings).optionElimWithInput
+    (encMerkleBindingOutput_mk_polyTime hroot (.const 0) hempty hempty) (by fun_prop)
 
 end Efficiency
 

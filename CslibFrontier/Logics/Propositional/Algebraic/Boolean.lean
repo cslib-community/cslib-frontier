@@ -196,9 +196,7 @@ omit [Fintype σ] in
 private theorem exists_bitPoint_eq [DecidableEq K] {z : σ → K}
     (hz : ∀ i, z i ∈ ({0, 1} : Finset K)) : ∃ x : σ → Bool, bitPoint x = z := by
   refine ⟨fun i => decide (z i = 1), funext fun i => ?_⟩
-  have h := hz i
-  rw [Finset.mem_insert, Finset.mem_singleton] at h
-  rcases h with h | h <;> simp [bitVal, h]
+  rcases (by simpa using hz i : z i = 0 ∨ z i = 1) with h | h <;> simp [bitVal, h]
 
 /-- **Completeness of Nullstellensatz.** Over a field, if every input has total degree at most `D`
 in the finitely many variables `σ` and there is no Boolean solution, then the inputs together

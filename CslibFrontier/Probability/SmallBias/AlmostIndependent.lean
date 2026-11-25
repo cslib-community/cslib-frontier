@@ -88,43 +88,23 @@ omit [DecidableEq ι] in
 theorem card_filter_nonempty_card_le_pow (k : ℕ) :
     #({S : Finset ι | S.Nonempty ∧ #S ≤ k} : Finset (Finset ι)) ≤ Fintype.card ι ^ k := by
   classical
-  rcases Nat.eq_zero_or_pos k with rfl | hk
-  · have hempty : ({S : Finset ι | S.Nonempty ∧ #S ≤ 0} : Finset (Finset ι)) = ∅ := by
-      ext S
-      simp only [mem_filter, mem_univ, true_and, notMem_empty, iff_false, not_and, Nat.le_zero]
-      intro hS hcard
-      exact hS.ne_empty (card_eq_zero.mp hcard)
-    rw [hempty, card_empty]
-    exact Nat.zero_le _
-  · let cover : (Fin k → ι) → Finset ι := fun f => univ.image f
-    have hsub :
-        ({S : Finset ι | S.Nonempty ∧ #S ≤ k} : Finset (Finset ι)) ⊆ univ.image cover := by
-      intro S hS
-      rw [mem_filter] at hS
-      obtain ⟨⟨a, ha⟩, hSk⟩ := hS.2
-      let e := S.equivFin
-      let f : Fin k → ι := fun i =>
-        if h : (i : ℕ) < #S then (e.symm ⟨i, h⟩ : ι) else a
-      rw [mem_image]
-      refine ⟨f, mem_univ f, ?_⟩
-      ext x
-      simp only [cover, mem_image, mem_univ, true_and]
-      constructor
-      · rintro ⟨i, rfl⟩
-        dsimp [f]
-        split_ifs with h
-        · exact (e.symm ⟨i, h⟩).2
-        · exact ha
-      · intro hx
-        let j := e ⟨x, hx⟩
-        refine ⟨⟨j.1, j.isLt.trans_le hSk⟩, ?_⟩
-        dsimp [f]
-        simp only [j.isLt, ↓reduceIte]
-        exact congrArg Subtype.val (e.symm_apply_apply ⟨x, hx⟩)
-    calc #({S : Finset ι | S.Nonempty ∧ #S ≤ k} : Finset (Finset ι))
-        ≤ #(univ.image cover) := card_le_card hsub
-      _ ≤ #(univ : Finset (Fin k → ι)) := card_image_le
-      _ = Fintype.card ι ^ k := by simp [card_univ]
+  have hsub : ({S : Finset ι | S.Nonempty ∧ #S ≤ k} : Finset (Finset ι)) ⊆
+      univ.image fun f : Fin k → ι => univ.image f := by
+    intro S hS
+    obtain ⟨⟨a, ha⟩, hSk⟩ := (mem_filter.1 hS).2
+    let e := S.equivFin
+    refine mem_image.2 ⟨fun i => if h : (i : ℕ) < #S then e.symm ⟨i, h⟩ else a, mem_univ _, ?_⟩
+    ext x
+    simp only [mem_image, mem_univ, true_and]
+    refine ⟨?_, fun hx => ⟨⟨e ⟨x, hx⟩, (e ⟨x, hx⟩).isLt.trans_le hSk⟩, ?_⟩⟩
+    · rintro ⟨i, rfl⟩
+      split_ifs with h
+      · exact (e.symm ⟨i, h⟩).2
+      · exact ha
+    · simp only [(e ⟨x, hx⟩).isLt, ↓reduceDIte, Fin.eta, Equiv.symm_apply_apply]
+  calc _ ≤ #(univ.image fun f : Fin k → ι => univ.image f) := card_le_card hsub
+    _ ≤ #(univ : Finset (Fin k → ι)) := card_image_le
+    _ = Fintype.card ι ^ k := by simp [card_univ]
 
 /-- If every marginal of `D` on at most `k` coordinates is within statistical distance `γ` of
 uniform, then `D` is `k`-wise `(2 * γ)`-biased. -/
@@ -168,8 +148,8 @@ theorem exists_isKWiseIndependent_dist_le (D : PMF (ι → Bool)) (k : ℕ) :
   have hB : 0 ≤ B := sum_nonneg fun _ _ => abs_nonneg _
   have hN : 0 < N := by positivity
   have h1B : 0 < 1 + B := by linarith
-  have hΔ_bound (x : ι → Bool) : |Δ x| ≤ B := abs_sum_mul_chi_le lowSets (bias D) x
-  have hB_sub_Δ (x : ι → Bool) : 0 ≤ B - Δ x := sub_nonneg.mpr ((le_abs_self _).trans (hΔ_bound x))
+  have hB_sub_Δ (x : ι → Bool) : 0 ≤ B - Δ x :=
+    sub_nonneg.mpr ((le_abs_self _).trans (abs_sum_mul_chi_le lowSets (bias D) x))
   let w : (ι → Bool) → ℝ := fun x => ((D x).toReal + (B - Δ x) / N) / (1 + B)
   have hw_nonneg (x : ι → Bool) : 0 ≤ w x :=
     div_nonneg (add_nonneg ENNReal.toReal_nonneg (div_nonneg (hB_sub_Δ x) hN.le)) h1B.le
@@ -189,75 +169,31 @@ theorem exists_isKWiseIndependent_dist_le (D : PMF (ι → Bool)) (k : ℕ) :
   have hsum_enn : ∑ x, ENNReal.ofReal (w x) = 1 := by
     rw [← ENNReal.ofReal_sum_of_nonneg (fun x _ => hw_nonneg x), hsum_w, ENNReal.ofReal_one]
   let D' : PMF (ι → Bool) := PMF.ofFintype (fun x => ENNReal.ofReal (w x)) hsum_enn
-  have hD'_toReal (x : ι → Bool) : (D' x).toReal = w x := by
-    change (ENNReal.ofReal (w x)).toReal = w x
-    exact ENNReal.toReal_ofReal (hw_nonneg x)
-  refine ⟨D', ?_, ?_⟩
-  · intro U hU hUk
-    have hU_mem : U ∈ lowSets := mem_filter.mpr ⟨mem_univ U, hU, hUk⟩
-    have hsum_chi_U : ∑ x, chi ℝ U x = 0 := by
-      rw [sum_chi, ite_eq_right hU.ne_empty]
+  have hD'_toReal (x : ι → Bool) : (D' x).toReal = w x := ENNReal.toReal_ofReal (hw_nonneg x)
+  refine ⟨D', fun U hU hUk => ?_, ?_⟩
+  · have hU_mem : U ∈ lowSets := mem_filter.mpr ⟨mem_univ U, hU, hUk⟩
     have hsum_Δ_U : ∑ x, Δ x * chi ℝ U x = bias D U * N := by
-      simp only [Δ, sum_mul]
+      simp only [Δ, sum_mul, mul_assoc]
       rw [sum_comm]
-      rw [sum_eq_single U]
-      · simp only [mul_assoc]
-        rw [← mul_sum]
-        have hself : ∑ x, chi ℝ U x * chi ℝ U x = N := by
-          simp_rw [chi_mul_self, sum_const, card_univ, Fintype.card_fun, Fintype.card_bool,
-            nsmul_eq_mul, mul_one]
-          push_cast [N]
-          rfl
-        rw [hself]
-      · intro S _ hSU
-        simp only [mul_assoc]
-        rw [← mul_sum]
-        have horth : ∑ x, chi ℝ S x * chi ℝ U x = 0 := by
-          have hex := expect_chi_mul_chi S U
-          rw [Fintype.expect_eq_sum_div_card, ite_eq_right hSU] at hex
-          have hcard : (Fintype.card (ι → Bool) : ℝ) ≠ 0 := by
-            exact Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-          exact (div_eq_zero_iff.mp hex).resolve_right hcard
-        rw [horth, mul_zero]
-      · intro hU_abs
-        exact absurd hU_mem hU_abs
-    have hbias_D' : bias D' U = 0 := by
-      simp only [bias, hD'_toReal, w, div_mul_eq_mul_div, ← sum_div, add_mul, sum_add_distrib,
-        div_eq_mul_inv (B - Δ _)]
-      have hsub1 : ∑ x, ((B - Δ x) * N⁻¹) * chi ℝ U x = -(bias D U) := by
-        simp_rw [sub_mul, sum_sub_distrib, mul_assoc]
-        have h1 : ∑ x, B * (N⁻¹ * chi ℝ U x) = 0 := by
-          simp_rw [← mul_sum, hsum_chi_U, mul_zero]
-        have h2 : ∑ x, Δ x * (N⁻¹ * chi ℝ U x) = bias D U := by
-          calc ∑ x, Δ x * (N⁻¹ * chi ℝ U x)
-              = N⁻¹ * ∑ x, Δ x * chi ℝ U x := by
-                rw [mul_sum]
-                refine sum_congr rfl fun x _ => by ring
-            _ = N⁻¹ * (bias D U * N) := by rw [hsum_Δ_U]
-            _ = bias D U := by field_simp
-        rw [h1, h2, zero_sub]
-      change (∑ x, (D x).toReal * chi ℝ U x + ∑ x, ((B - Δ x) * N⁻¹) * chi ℝ U x) / (1 + B) = 0
-      rw [← bias, hsub1, add_neg_cancel, zero_div]
-    rw [hbias_D', abs_zero]
-  · rw [dist_eq]
-    have hterm (x : ι → Bool) :
-        |(D x).toReal - (D' x).toReal| ≤ ((B - Δ x) / N + B * (D x).toReal) / (1 + B) := by
+      simp only [← mul_sum, chi_mul_chi, sum_chi, ← bot_eq_empty, symmDiff_eq_bot, mul_ite,
+        mul_zero, sum_ite_eq', ite_eq_left hU_mem, N]
+    have hexp (x : ι → Bool) : (D' x).toReal * chi ℝ U x =
+        ((D x).toReal * chi ℝ U x + (B * chi ℝ U x - Δ x * chi ℝ U x) / N) / (1 + B) := by
       rw [hD'_toReal]
-      have hdiff : (D x).toReal - w x = (B * (D x).toReal - (B - Δ x) / N) / (1 + B) := by
-        dsimp [w]
-        field_simp
-        ring
-      rw [hdiff, abs_div, abs_of_pos h1B]
-      refine div_le_div_of_nonneg_right ?_ h1B.le
-      calc |B * (D x).toReal - (B - Δ x) / N|
-          ≤ |B * (D x).toReal| + |(B - Δ x) / N| := abs_sub _ _
-        _ = B * (D x).toReal + (B - Δ x) / N := by
-            rw [abs_of_nonneg (mul_nonneg hB ENNReal.toReal_nonneg),
-              abs_of_nonneg (div_nonneg (hB_sub_Δ x) hN.le)]
-        _ = (B - Δ x) / N + B * (D x).toReal := add_comm _ _
+      ring
+    rw [abs_nonpos_iff, bias, sum_congr rfl fun x _ => hexp x, ← sum_div, sum_add_distrib,
+      ← sum_div, sum_sub_distrib, ← mul_sum, sum_chi, ite_eq_right hU.ne_empty, hsum_Δ_U, ← bias,
+      mul_zero, zero_sub, neg_div, mul_div_cancel_right₀ _ hN.ne', add_neg_cancel, zero_div]
+  · have hterm (x : ι → Bool) :
+        |(D x).toReal - (D' x).toReal| ≤ ((B - Δ x) / N + B * (D x).toReal) / (1 + B) := by
+      have h1 := mul_nonneg hB (D x).toReal_nonneg
+      have h2 := div_nonneg (hB_sub_Δ x) hN.le
+      rw [hD'_toReal, show (D x).toReal - w x = (B * (D x).toReal - (B - Δ x) / N) / (1 + B) by
+        simp only [w]; field_simp; ring, abs_div, abs_of_pos h1B]
+      exact div_le_div_of_nonneg_right (abs_sub_le_iff.2 ⟨by linarith, by linarith⟩) h1B.le
+    rw [dist_eq]
     calc (∑ x, |(D x).toReal - (D' x).toReal|) / 2
-        ≤ (∑ x, ((B - Δ x) / N + B * (D x).toReal) / (1 + B)) / 2 :=
-          div_le_div_of_nonneg_right (sum_le_sum fun x _ => hterm x) (by norm_num)
+        ≤ (∑ x, ((B - Δ x) / N + B * (D x).toReal) / (1 + B)) / 2 := by gcongr with x; exact hterm x
       _ = B / (1 + B) := by
           rw [← sum_div, sum_add_distrib, hsum_corr, ← mul_sum, sum_toReal, mul_one]
           ring

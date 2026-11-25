@@ -835,6 +835,49 @@ example :
     · simpa [bend] using hε
   exact hmove (bend m).point rfl rfl hdist w hw
 
+-- The observation is the route start. The next node stays fixed and a later bend can move.
+open Classical in
+example :
+    let p (m : ℂ) : Route := ⟨2, ![0, 1, m, 3]⟩
+    ∃ ε : ℝ, 0 < ε ∧ ∀ m : ℂ, dist m ⟨2, 1⟩ < ε →
+      (0 : ℂ) ∈ segment ℝ ((p m).point 0) ((p m).point 1) ∧
+        ∀ u : ℂ, (p m).rayParity u 0 = (p ⟨2, 1⟩).rayParity u 0 := by
+  let p (m : ℂ) : Route := ⟨2, ![0, 1, m, 3]⟩
+  let c : ℂ := ⟨2, 1⟩
+  let K := Complex.reLm ⁻¹' Set.Ici (1 : ℝ)
+  have hK : Convex ℝ K := (convex_Ici _).linear_preimage Complex.reLm
+  have haway {a b : ℂ} (ha : a ∈ K) (hb : b ∈ K) :
+      (0 : ℂ) ∉ segment ℝ a b := by
+    intro h
+    have hh := hK.segment_subset ha hb h
+    change (1 : ℝ) ≤ (0 : ℂ).re at hh
+    norm_num at hh
+  obtain ⟨ε, hε, hmove⟩ :=
+    (p c).exists_pos_rayParity_eq_of_fixed_observation_segments {0}
+  refine ⟨ε, hε, fun m hm => ?_⟩
+  have hdist (i : Fin ((p c).segments + 1)) : dist ((p m).point i) ((p c).point i) < ε := by
+    fin_cases i
+    · simpa [p] using hε
+    · simpa [p] using hε
+    · exact hm
+    · simpa [p] using hε
+  have hfixed (i : Fin (p c).segments)
+      (h : ∃ z ∈ ({0} : Finset ℂ), z ∈ segment ℝ ((p c).point i.castSucc) ((p c).point i.succ)) :
+      (p m).point i.castSucc = (p c).point i.castSucc ∧
+        (p m).point i.succ = (p c).point i.succ := by
+    obtain ⟨z, hz, hzseg⟩ := h
+    rw [Finset.mem_singleton] at hz
+    subst z
+    fin_cases i
+    · exact ⟨rfl, rfl⟩
+    · change (0 : ℂ) ∈ segment ℝ 1 c at hzseg
+      exact (haway (by norm_num [K]) (by norm_num [K, c]) hzseg).elim
+    · change (0 : ℂ) ∈ segment ℝ c 3 at hzseg
+      exact (haway (by norm_num [K, c]) (by norm_num [K]) hzseg).elim
+  obtain ⟨hseg, hpar⟩ :=
+    hmove (p m).point rfl rfl hdist hfixed 0 (Finset.mem_singleton_self 0)
+  exact ⟨(hseg 0).mpr (left_mem_segment ℝ (0 : ℂ) 1), hpar⟩
+
 private def retracedSegment (a b : ℂ) : Route where
   bends := 1
   point i := if i.val = 1 then b else a
@@ -1001,5 +1044,42 @@ example :
     simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
   · intro z
     simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
+
+-- Remove a strictly negative interval from a horizontal segment with one vertical crossing.
+example :
+    let F := AffineMap.lineMap (k := ℝ) (-2 : ℂ) 2
+    let q := Route.line (-Complex.I) Complex.I
+    (Route.line (-2) (F (1 / 8))).intersectionParity q +
+      (Route.line (F (3 / 8)) 2).intersectionParity q = true := by
+  intro F q
+  classical
+  have hsep : Disjoint (segment ℝ (F (1 / 8)) (F (3 / 8))) q.support := by
+    change Disjoint (segment ℝ (F (1 / 8)) (F (3 / 8))) (Route.line (-Complex.I) Complex.I).support
+    rw [Route.support_line]
+    apply Set.disjoint_left.mpr
+    intro w hw hv
+    rw [segment_eq_image_lineMap] at hw hv
+    obtain ⟨s, hs, hes⟩ := hw
+    obtain ⟨t, _, het⟩ := hv
+    have hneg : w.re < 0 := by
+      rw [← hes]
+      norm_num [F, AffineMap.lineMap_apply_module, Complex.add_re, Complex.smul_re]
+      linarith [hs.1, hs.2]
+    have hzero : w.re = 0 := by
+      rw [← het]
+      simp [AffineMap.lineMap_apply_module, Complex.add_re]
+    exact hneg.ne hzero
+  have hcross : (Route.line (-2) 2).intersectionParity (Route.line (-Complex.I) Complex.I) =
+      true := by
+    rw [Route.intersectionParity_line_line, decide_eq_true_eq]
+    refine ⟨0, ?_, ?_⟩
+    · rw [openSegment_eq_image_lineMap]
+      exact ⟨1 / 2, by norm_num, by norm_num [AffineMap.lineMap_apply_module', Complex.real_smul]⟩
+    · rw [openSegment_eq_image_lineMap]
+      refine ⟨1 / 2, by norm_num, ?_⟩
+      have hs : (1 : ℝ) - 1 / 2 = 1 / 2 := by norm_num
+      rw [AffineMap.lineMap_apply_module, hs, smul_neg, neg_add_cancel]
+  exact (Route.intersectionParity_line_split_of_disjoint (a := -2) (b := 2)
+    (l := 1 / 8) (u := 3 / 8) (by norm_num) (by norm_num) (by norm_num) hsep).symm.trans hcross
 
 end CslibFrontierTests.PolygonalRayParityIntersections

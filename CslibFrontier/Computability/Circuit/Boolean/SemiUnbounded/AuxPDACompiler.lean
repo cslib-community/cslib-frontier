@@ -116,20 +116,13 @@ private lemma realTreeMap_size {V V' : Type*} {stay : V → V → Prop}
     (hpp : ∀ {u u' v' v}, pushPop u u' v' v → pushPop' (f u) (f u') (f v') (f v))
     {u v : V} (T : RealTree stay pushPop u v) :
     (realTreeMap f hstay hpp T).size = T.size := by
-  induction T with
-  | refl _ | stay _ => rfl
-  | pushPop _ _ ih => simp [realTreeMap, RealTree.size, ih]
-  | trans _ _ ihl ihr => simp [realTreeMap, RealTree.size, ihl, ihr]
+  induction T <;> simp_all [realTreeMap, RealTree.size]
 
-private lemma realTree_size_cast_left {V : Type*} {stay : V → V → Prop}
-    {pushPop : V → V → V → V → Prop} {u u' v : V} (h : u = u')
-    (T : RealTree stay pushPop u v) : (h ▸ T).size = T.size := by
-  cases h; rfl
-
-private lemma realTree_size_cast_right {V : Type*} {stay : V → V → Prop}
-    {pushPop : V → V → V → V → Prop} {u v v' : V} (h : v = v')
-    (T : RealTree stay pushPop u v) : (h ▸ T).size = T.size := by
-  cases h; rfl
+private lemma realTree_cast {V : Type*} {stay : V → V → Prop}
+    {pushPop : V → V → V → V → Prop} {u v : V} (u' v' : V) (hu : u = u') (hv : v = v')
+    (T : RealTree stay pushPop u v) :
+    ∃ T' : RealTree stay pushPop u' v', T'.size = T.size := by
+  subst hu hv; exact ⟨T, rfl⟩
 
 /-- Every bounded realizability tree lifts to an `AuxPDA.Realizable` witness. -/
 theorem realTree_toRealizable {M : AuxPDA k Bool StackSym State}
@@ -141,9 +134,9 @@ theorem realTree_toRealizable {M : AuxPDA k Bool StackSym State}
   | refl u => exact ⟨0, .refl u.toSurface⟩
   | stay h => exact ⟨1, .stay h⟩
   | pushPop h _ ih =>
-    obtain ⟨γ, hpush, hpop⟩ := h
+    obtain ⟨γ, hp, hq⟩ := h
     obtain ⟨d, hd⟩ := ih
-    exact ⟨d + 2, .pushPop hpush hd hpop⟩
+    exact ⟨d + 2, .pushPop hp hd hq⟩
   | trans _ _ ihl ihr =>
     obtain ⟨d₁, h₁⟩ := ihl
     obtain ⟨d₂, h₂⟩ := ihr
@@ -154,39 +147,30 @@ private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym S
     M.StayStep p.head.surface p.last.surface := by
   have hstep : M.Step p.head p.last := by
     have hs : M.Step (p ⟨0, by omega⟩) (p ⟨1, by omega⟩) := p.step ⟨0, by omega⟩
-    have h1 : p ⟨1, by omega⟩ = p.last :=
-      congrArg p (Fin.ext (by change 1 = p.length; omega))
-    rwa [h1] at hs
+    rwa [show p ⟨1, by omega⟩ = p.last from congrArg p (Fin.ext (by change 1 = p.length; omega))]
+      at hs
   cases hq : p.head.tapes.state with
-  | none =>
-    have heq : p.last = p.head := (AuxPDA.step_of_halt hq).mp hstep
-    exact .inl ⟨hq, congrArg Cfg.surface heq⟩
+  | none => exact .inl ⟨hq, congrArg Cfg.surface ((AuxPDA.step_of_halt hq).mp hstep)⟩
   | some q =>
     simp only [Step, hq] at hstep
     obtain ⟨act, htr, hact⟩ := hstep
     obtain ⟨stack', hstack, hpLast⟩ := Action.apply?_eq_some_iff.mp hact
+    have hlenEq := hsame.1
     cases hop : act.stackOp with
     | stay =>
       rw [hop, StackOp.apply?_stay, Option.some.injEq] at hstack
       subst hstack
-      have hsurf : p.last.surface =
-          applySurfaceTapes act.tape p.head.surface p.head.surface.topSym := by
-        rw [hpLast]
-        exact surface_apply_eq_applySurfaceTapes act.tape p.head p.head.stack
-      exact .inr ⟨q, act, hq, htr, hop, hsurf⟩
+      exact .inr ⟨q, act, hq, htr, hop,
+        hpLast.symm ▸ surface_apply_eq_applySurfaceTapes act.tape p.head p.head.stack⟩
     | push γ =>
       rw [hop, StackOp.apply?_push, Option.some.injEq] at hstack
-      subst hstack
-      have hlenEq := hsame.1
-      simp [hpLast] at hlenEq
+      subst hstack; simp [hpLast] at hlenEq
     | pop =>
       cases hst : p.head.stack with
-      | nil => rw [hop, hst, StackOp.apply?_pop_nil] at hstack; cases hstack
-      | cons _ rest =>
+      | nil => simp [hop, hst] at hstack
+      | cons _ _ =>
         rw [hop, hst, StackOp.apply?_pop_cons, Option.some.injEq] at hstack
-        subst hstack
-        have hlenEq := hsame.1
-        simp [hpLast, hst] at hlenEq
+        subst hstack; simp [hpLast, hst] at hlenEq
 
 private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSym State} (d : ℕ) :
     ∀ (p : M.RunPath input), p.length = d → SameHeightRun p →
@@ -201,80 +185,51 @@ private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSy
     intro p hlen hsame hfits
     match d with
     | 0 =>
-      have hlast : p.last = p.head := congrArg p (Fin.ext hlen)
-      have hsurf : BoundedSurfaceCfg.ofSurface p.last.surface (hfits p.last p.last_mem) =
-          BoundedSurfaceCfg.ofSurface p.head.surface (hfits p.head p.head_mem) := by
-        apply BoundedSurfaceCfg.toSurface_injective
-        simp [hlast]
-      rw [hsurf]
-      exact ⟨.refl _, show 1 ≤ max 1 (2 * 0 - 1) from le_max_left 1 _⟩
+      obtain ⟨T, hT⟩ := realTree_cast _
+        (BoundedSurfaceCfg.ofSurface p.last.surface (hfits p.last p.last_mem)) rfl
+        (BoundedSurfaceCfg.toSurface_injective
+          (by simp [show p.last = p.head from congrArg p (Fin.ext hlen)]))
+        (.refl (BoundedSurfaceCfg.ofSurface p.head.surface (hfits p.head p.head_mem)))
+      exact ⟨T, hT.le.trans (le_max_left 1 _)⟩
     | 1 =>
-      have hstay := stayStep_of_sameHeightRun_length_one p hlen hsame
-      have hbstay : M.BoundedStayStep
-          (BoundedSurfaceCfg.ofSurface p.head.surface (hfits p.head p.head_mem))
-          (BoundedSurfaceCfg.ofSurface p.last.surface (hfits p.last p.last_mem)) := by
-        unfold BoundedStayStep
-        simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using hstay
-      exact ⟨.stay hbstay, le_rfl⟩
+      refine ⟨.stay ?_, ?_⟩
+      · unfold BoundedStayStep
+        simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using
+          stayStep_of_sameHeightRun_length_one p hlen hsame
+      · rfl
     | d' + 2 =>
       rcases sameHeightRun_split_ge_two p hlen hsame with
         ⟨j, hjpos, hjlt, h1, h2⟩ |
         ⟨γ, pmid, hmidLen, hmidSame, hmidSub, hmidHeadStack, hpush, hpopFn⟩
       · have hfits1 : ∀ c ∈ p.take j, c.surface.storage.FitsIn (fun _ => s) := fun c ⟨i, hi⟩ =>
           hfits c ⟨Fin.castLE j.isLt i, hi⟩
-        have hfits2 : ∀ c ∈ p.drop j, c.surface.storage.FitsIn (fun _ => s) := fun c ⟨i, hi⟩ => by
-          rcases i with ⟨iv, hiv⟩
-          dsimp only [RelSeries.drop] at hiv hi
-          exact hfits c ⟨⟨iv + j.val, by omega⟩, hi⟩
+        have hfits2 : ∀ c ∈ p.drop j, c.surface.storage.FitsIn (fun _ => s) :=
+          fun c ⟨⟨iv, hiv⟩, hi⟩ => by
+            dsimp only [RelSeries.drop] at hiv hi
+            exact hfits c ⟨⟨iv + j.val, by omega⟩, hi⟩
         obtain ⟨T₁, hsz₁⟩ := ih j.val (by omega) (p.take j) rfl h1 hfits1
         obtain ⟨T₂, hsz₂⟩ := ih (p.length - j.val) (by omega) (p.drop j)
           (RelSeries.drop_length p j) h2 hfits2
-        let u := BoundedSurfaceCfg.ofSurface p.head.surface (hfits p.head p.head_mem)
-        let w := BoundedSurfaceCfg.ofSurface (p.drop j).head.surface
-          (hfits2 _ (p.drop j).head_mem)
-        let v := BoundedSurfaceCfg.ofSurface p.last.surface (hfits p.last p.last_mem)
-        have hu : BoundedSurfaceCfg.ofSurface (p.take j).head.surface
-            (hfits1 _ (p.take j).head_mem) = u := by
-          apply BoundedSurfaceCfg.toSurface_injective
-          simp [u, RelSeries.head_take]
-        have hw : BoundedSurfaceCfg.ofSurface (p.take j).last.surface
-            (hfits1 _ (p.take j).last_mem) = w := by
-          apply BoundedSurfaceCfg.toSurface_injective
-          simp [w, RelSeries.last_take, RelSeries.head_drop]
-        have hv : BoundedSurfaceCfg.ofSurface (p.drop j).last.surface
-            (hfits2 _ (p.drop j).last_mem) = v := by
-          apply BoundedSurfaceCfg.toSurface_injective
-          simp [v, RelSeries.last_drop]
-        let T₁' : RealTree (M.BoundedStayStep (input := input) (s := s))
-            (M.BoundedPushPopStep (input := input) (s := s)) u w := hu ▸ hw ▸ T₁
-        let T₂' : RealTree (M.BoundedStayStep (input := input) (s := s))
-            (M.BoundedPushPopStep (input := input) (s := s)) w v := hv ▸ T₂
-        have hsz₁' : T₁'.size = T₁.size :=
-          (realTree_size_cast_left hu (hw ▸ T₁)).trans (realTree_size_cast_right hw T₁)
-        have hsz₂' : T₂'.size = T₂.size := realTree_size_cast_right hv T₂
-        refine ⟨.trans T₁' T₂', ?_⟩
-        simp only [RealTree.size, hsz₁', hsz₂']
-        omega
+        obtain ⟨T₁', hsz₁'⟩ := realTree_cast
+          (BoundedSurfaceCfg.ofSurface p.head.surface (hfits p.head p.head_mem))
+          (BoundedSurfaceCfg.ofSurface (p.drop j).head.surface (hfits2 _ (p.drop j).head_mem))
+          (BoundedSurfaceCfg.toSurface_injective (by simp [RelSeries.head_take]))
+          (BoundedSurfaceCfg.toSurface_injective
+            (by simp [RelSeries.last_take, RelSeries.head_drop])) T₁
+        obtain ⟨T₂', hsz₂'⟩ := realTree_cast _
+          (BoundedSurfaceCfg.ofSurface p.last.surface (hfits p.last p.last_mem)) rfl
+          (BoundedSurfaceCfg.toSurface_injective (by simp [RelSeries.last_drop])) T₂
+        exact ⟨.trans T₁' T₂', by simp only [RealTree.size]; omega⟩
       · have hfitsMid : ∀ c ∈ pmid, c.surface.storage.FitsIn (fun _ => s) := fun c hc =>
           hfits c (hmidSub c hc)
         obtain ⟨Tmid, hszMid⟩ := ih d' (by omega) pmid hmidLen hmidSame hfitsMid
-        have hmidStack : pmid.last.stack = γ :: p.head.stack :=
-          hmidSame.last_stack_eq.trans hmidHeadStack
-        obtain ⟨-, hpop⟩ := hpopFn hmidStack
-        have hpp : M.BoundedPushPopStep
-            (BoundedSurfaceCfg.ofSurface p.head.surface (hfits p.head p.head_mem))
-            (BoundedSurfaceCfg.ofSurface pmid.head.surface (hfitsMid pmid.head pmid.head_mem))
-            (BoundedSurfaceCfg.ofSurface pmid.last.surface (hfitsMid pmid.last pmid.last_mem))
-            (BoundedSurfaceCfg.ofSurface p.last.surface (hfits p.last p.last_mem)) := by
-          refine ⟨γ, ?_, ?_⟩
-          · unfold BoundedPushStep
-            simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using hpush
-          · unfold BoundedPopStep
-            rw [BoundedSurfaceCfg.toSurface_ofSurface, BoundedSurfaceCfg.toSurface_ofSurface]
-            exact hpop
-        refine ⟨.pushPop hpp Tmid, ?_⟩
-        simp only [RealTree.size]
-        omega
+        obtain ⟨-, hpop⟩ := hpopFn (hmidSame.last_stack_eq.trans hmidHeadStack)
+        refine ⟨.pushPop ⟨γ, ?_, ?_⟩ Tmid, ?_⟩
+        · unfold BoundedPushStep; simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using hpush
+        · unfold BoundedPopStep
+          rw [BoundedSurfaceCfg.toSurface_ofSurface, BoundedSurfaceCfg.toSurface_ofSurface]
+          exact hpop
+        · simp only [RealTree.size]; omega
 
 /-- Every configuration along a computation path of a space-`s`-bounded `AuxPDA` fits in
 `Turing.window s`. -/
@@ -285,12 +240,8 @@ private lemma computationPath_mem_fitsIn {M : AuxPDA k Bool StackSym State}
   let pi : M.ComputationPath input :=
     ⟨p.toRunPath.take i, by rw [RelSeries.head_take]; exact p.head_eq⟩
   have hle : ∀ j, pi.spaceUsedByTape j ≤ s := fun j =>
-    (Finset.single_le_sum (fun m _ => Nat.zero_le (pi.spaceUsedByTape m)) (Finset.mem_univ j)).trans
-      (hs pi)
-  have hfit := Turing.Storage.FitsIn_mono hle pi.storage_fitsIn
-  have hlast : pi.last = p.toFun i := RelSeries.last_take p.toRunPath i
-  rw [← hlast]
-  exact hfit
+    (Finset.single_le_sum (fun m _ => Nat.zero_le _) (Finset.mem_univ j)).trans (hs pi)
+  exact RelSeries.last_take p.toRunPath i ▸ Turing.Storage.FitsIn_mono hle pi.storage_fitsIn
 
 private lemma accepts_of_boundedRealTree {M : AuxPDA k Bool StackSym State}
     {v : BoundedSurfaceCfg k StackSym (Option State) input s}
@@ -299,13 +250,11 @@ private lemma accepts_of_boundedRealTree {M : AuxPDA k Bool StackSym State}
       (M.withEmptyStackHalt.BoundedPushPopStep (input := input) (s := s))
       (initBoundedSurface M.withEmptyStackHalt input s) v) :
     M.Accepts input := by
-  rcases hv with ⟨hacc, htop⟩
   obtain ⟨d, hd⟩ := realTree_toRealizable T
   rw [toSurface_initBoundedSurface] at hd
   exact withEmptyStackHalt_accepts_iff.mp <|
-    (accepts_iff_exists_realizable_of_emptyStackHalt
-      (fun p hhalt => withEmptyStackHalt_halted_stack_nil p hhalt)).mpr
-      ⟨v.toSurface, d, hacc, htop, hd⟩
+    (accepts_iff_exists_realizable_of_emptyStackHalt withEmptyStackHalt_halted_stack_nil).mpr
+      ⟨v.toSurface, d, hv.1, hv.2, hd⟩
 
 /-- **Bounded realizability tree characterization of `AuxPDA` acceptance**: under work space `s`
 and all-branches time `t`, `M` accepts `input` iff `M.withEmptyStackHalt` has a bounded
@@ -320,60 +269,36 @@ theorem accepts_iff_exists_boundedRealTree {M : AuxPDA k Bool StackSym State} {t
             (M.withEmptyStackHalt.BoundedPushPopStep (input := input) (s := s))
             (initBoundedSurface M.withEmptyStackHalt input s) v,
           T.size ≤ 4 * t + 3 := by
-  constructor
-  · intro hacc
-    rw [← withEmptyStackHalt_accepts_iff] at hacc
-    rcases hacc with ⟨p, hhalt, hout⟩
-    have hs' := withEmptyStackHalt_runsInSpace hs
-    have ht' := withEmptyStackHalt_runsInTime ht
-    -- Truncate `p` at `2 * t + 1` if it ran longer (post-halting steps stay constant).
-    obtain ⟨q, hqLen, hqHalt, hqOut⟩ :
-        ∃ q : M.withEmptyStackHalt.ComputationPath input,
-          q.length ≤ 2 * t + 1 ∧ q.last.Halted ∧ q.last.tapes.output = [true] := by
-      by_cases hle : p.length ≤ 2 * t + 1
-      · exact ⟨p, hle, hhalt, hout⟩
-      · let j : Fin (p.length + 1) := ⟨2 * t + 1, by omega⟩
-        let q : M.withEmptyStackHalt.ComputationPath input :=
-          ⟨p.toRunPath.take j, by rw [RelSeries.head_take]; exact p.head_eq⟩
-        have hqTime : 2 * t + 1 ≤ q.time := by
-          simp [q, ComputationPath.time, RunPath.time, j]
-        have hqHalt : q.last.Halted := ht' q hqTime
-        have hlastEq : p.last = q.last := by
-          have h1 := RunPath.last_eq_of_halted p.toRunPath j
-            (by simpa [q, RelSeries.last_take] using hqHalt)
-          simpa [q, RelSeries.last_take] using h1
-        exact ⟨q, by simp [q, j], hqHalt, hlastEq ▸ hout⟩
-    have hstack : q.last.stack = [] := withEmptyStackHalt_halted_stack_nil q hqHalt
-    have hsame : SameHeightRun q.toRunPath :=
-      ⟨by simp [hstack, q.head_eq], fun i => by simp [q.head_eq]⟩
-    have hfits := computationPath_mem_fitsIn hs' q
-    obtain ⟨T, hsz⟩ := exists_boundedRealTree_of_sameHeightRun q.length q.toRunPath rfl hsame hfits
-    have hinitEq :
-        BoundedSurfaceCfg.ofSurface q.toRunPath.head.surface
-          (hfits q.toRunPath.head q.toRunPath.head_mem) =
-        initBoundedSurface M.withEmptyStackHalt input s := by
-      apply BoundedSurfaceCfg.toSurface_injective
-      refine (BoundedSurfaceCfg.toSurface_ofSurface _ _).trans ?_
-      rw [toSurface_initBoundedSurface, q.head_eq]
-      rfl
-    let v := BoundedSurfaceCfg.ofSurface q.toRunPath.last.surface
-      (hfits q.toRunPath.last q.toRunPath.last_mem)
-    let T' : RealTree (M.withEmptyStackHalt.BoundedStayStep (input := input) (s := s))
-        (M.withEmptyStackHalt.BoundedPushPopStep (input := input) (s := s))
-        (initBoundedSurface M.withEmptyStackHalt input s) v := hinitEq ▸ T
-    have hsz' : T'.size = T.size := realTree_size_cast_left hinitEq T
-    have hvSurf : v.toSurface = q.toRunPath.last.surface :=
-      BoundedSurfaceCfg.toSurface_ofSurface _ _
-    have hvAcc : v.IsAcceptingEmpty := by
-      refine ⟨?_, ?_⟩
-      · change v.toSurface.IsAccepting
-        rw [hvSurf, Cfg.isAccepting_surface_iff]
-        exact ⟨hqHalt, hqOut⟩
-      · change q.last.stack.head? = none
-        simp [hstack]
-    exact ⟨v, hvAcc, T', by omega⟩
-  · rintro ⟨v, hvAcc, T, -⟩
-    exact accepts_of_boundedRealTree hvAcc T
+  refine ⟨fun hacc => ?_, fun ⟨v, hvAcc, T, _⟩ => accepts_of_boundedRealTree hvAcc T⟩
+  obtain ⟨p, hhalt, hout⟩ := withEmptyStackHalt_accepts_iff.mpr hacc
+  have hs' := withEmptyStackHalt_runsInSpace hs
+  have ht' := withEmptyStackHalt_runsInTime ht
+  obtain ⟨q, hqLen, hqHalt, hqOut⟩ :
+      ∃ q : M.withEmptyStackHalt.ComputationPath input,
+        q.length ≤ 2 * t + 1 ∧ q.last.Halted ∧ q.last.tapes.output = [true] := by
+    by_cases hle : p.length ≤ 2 * t + 1
+    · exact ⟨p, hle, hhalt, hout⟩
+    · let j : Fin (p.length + 1) := ⟨2 * t + 1, by omega⟩
+      let q : M.withEmptyStackHalt.ComputationPath input :=
+        ⟨p.toRunPath.take j, by rw [RelSeries.head_take]; exact p.head_eq⟩
+      have hqHalt : q.last.Halted := ht' q (by simp [q, ComputationPath.time, RunPath.time, j])
+      have hlastEq : p.last = q.last := by
+        simpa [q, RelSeries.last_take] using RunPath.last_eq_of_halted p.toRunPath j
+          (by simpa [q, RelSeries.last_take] using hqHalt)
+      exact ⟨q, by simp [q, j], hqHalt, hlastEq ▸ hout⟩
+  have hstack : q.last.stack = [] := withEmptyStackHalt_halted_stack_nil q hqHalt
+  have hsame : SameHeightRun q.toRunPath :=
+    ⟨by simp [hstack, q.head_eq], fun _ => by simp [q.head_eq]⟩
+  have hfits := computationPath_mem_fitsIn hs' q
+  obtain ⟨T, hsz⟩ := exists_boundedRealTree_of_sameHeightRun q.length q.toRunPath rfl hsame hfits
+  let v := BoundedSurfaceCfg.ofSurface q.toRunPath.last.surface
+    (hfits q.toRunPath.last q.toRunPath.last_mem)
+  obtain ⟨T', hsz'⟩ := realTree_cast (initBoundedSurface M.withEmptyStackHalt input s) v
+    (BoundedSurfaceCfg.toSurface_injective (by simp [q.head_eq]; rfl)) rfl T
+  refine ⟨v, ⟨?_, by change q.last.stack.head? = none; simp [hstack]⟩, T', by omega⟩
+  change v.toSurface.IsAccepting
+  rw [BoundedSurfaceCfg.toSurface_ofSurface, Cfg.isAccepting_surface_iff]
+  exact ⟨hqHalt, hqOut⟩
 
 end BoundedRealTree
 
@@ -443,12 +368,8 @@ theorem compileAuxPDA_eval_sound (M : AuxPDA k Bool StackSym State)
     (h : (compileAuxPDA M eStack eState input s t).Eval
       (compiledOutputGate mStack mState k input.length s t)) :
     M.Accepts input := by
-  let e := drainSurfaceEquivFin (k := k) eStack eState input s
   obtain ⟨v, hvAcc, ⟨T⟩⟩ := balancedCircuitFin_eval_output_sound h
-  have Tsurf : RealTree (M.withEmptyStackHalt.BoundedStayStep (input := input) (s := s))
-      (M.withEmptyStackHalt.BoundedPushPopStep (input := input) (s := s))
-      (e.symm (e (initBoundedSurface M.withEmptyStackHalt input s))) (e.symm v) :=
-    realTreeMap e.symm (fun h => h) (fun h => h) T
+  have Tsurf := realTreeMap (drainSurfaceEquivFin (k := k) eStack eState input s).symm id id T
   rw [Equiv.symm_apply_apply] at Tsurf
   exact accepts_of_boundedRealTree hvAcc Tsurf
 
@@ -464,19 +385,12 @@ theorem compileAuxPDA_eval_iff (M : AuxPDA k Bool StackSym State)
   refine ⟨compileAuxPDA_eval_sound M eStack eState input s t, fun hacc => ?_⟩
   let e := drainSurfaceEquivFin (k := k) eStack eState input s
   obtain ⟨v, hvAcc, T, hsz⟩ := (accepts_iff_exists_boundedRealTree hs ht).mp hacc
-  let Tidx : RealTree
-      (fun u v => M.withEmptyStackHalt.BoundedStayStep (e.symm u) (e.symm v))
-      (fun u u' v' v => M.withEmptyStackHalt.BoundedPushPopStep
-        (e.symm u) (e.symm u') (e.symm v') (e.symm v))
-      (e (initBoundedSurface M.withEmptyStackHalt input s)) (e v) :=
-    realTreeMap e (by intro a b h; simpa only [Equiv.symm_apply_apply] using h)
-      (by intro a a' b' b h; simpa only [Equiv.symm_apply_apply] using h) T
-  have hszIdx : Tidx.size ≤ 4 * t + 3 := by
-    rw [realTreeMap_size]
-    exact hsz
-  have hvAcc' : (e.symm (e v)).IsAcceptingEmpty := by
-    simpa only [Equiv.symm_apply_apply] using hvAcc
-  exact balancedCircuitFin_eval_output_complete (sz := 4 * t + 3) le_rfl hvAcc' Tidx hszIdx
+  exact balancedCircuitFin_eval_output_complete (sz := 4 * t + 3) le_rfl
+    (by simpa only [e, Equiv.symm_apply_apply] using hvAcc)
+    (realTreeMap e
+      (fun h => by simpa only [e, Equiv.symm_apply_apply] using h)
+      (fun h => by simpa only [e, Equiv.symm_apply_apply] using h) T)
+    (by rwa [realTreeMap_size])
 
 /-! ### Logarithmic AND-depth and polynomial size bounds -/
 
@@ -503,44 +417,29 @@ theorem compileAuxPDA_andLevel_le_log_gateCount (M : AuxPDA k Bool StackSym Stat
       depthConstant A D * (Nat.log2 (compiledGateCount mStack mState k input.length s t) + 1) := by
   let N := compiledGateCount mStack mState k input.length s t
   let L := Nat.log2 N + 1
+  let B := Nat.log2 (4 * A + 3) + 1
   have hSge : input.length + 2 ≤ compiledSurfaceCount mStack mState k input.length s :=
     input_length_add_two_le_boundedSurfaceCard mStack (mState + 1) k input.length s
   have hNge : compiledSurfaceCount mStack mState k input.length s + 3 ≤ N :=
     le_balancedGateCount _ _
-  have hn1lt : input.length + 1 < 2 ^ L := by
-    have hltN : N < 2 ^ L := by
-      dsimp only [L]
-      rw [Nat.log2_eq_log_two]
-      exact Nat.lt_pow_succ_log_self (by decide) N
-    omega
-  let B := Nat.log2 (4 * A + 3) + 1
-  have hAlt : 4 * A + 3 < 2 ^ B := by
-    dsimp only [B]
-    rw [Nat.log2_eq_log_two]
-    exact Nat.lt_pow_succ_log_self (by decide) (4 * A + 3)
+  have hltN : N < 2 ^ L := Nat.lt_log2_self
+  have hn1lt : input.length + 1 < 2 ^ L := by omega
+  have hAlt : 4 * A + 3 < 2 ^ B := Nat.lt_log2_self
   have h1lePow : 1 ≤ (input.length + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos _)
-  have h4t3 : 4 * t + 3 < 2 ^ (B + D * L) := by
-    calc 4 * t + 3
-        ≤ 4 * (A * (input.length + 1) ^ D) + 3 := by omega
-      _ ≤ (4 * A + 3) * (input.length + 1) ^ D := by nlinarith
-      _ < 2 ^ B * (2 ^ L) ^ D := by
-          have hpow : (input.length + 1) ^ D ≤ (2 ^ L) ^ D := Nat.pow_le_pow_left hn1lt.le D
-          exact (Nat.mul_lt_mul_of_pos_right hAlt (by positivity)).trans_le
-            (Nat.mul_le_mul_left _ hpow)
-      _ = 2 ^ (B + D * L) := by rw [← pow_mul, ← pow_add, Nat.mul_comm L D]
+  have h4t3 : 4 * t + 3 < 2 ^ (B + D * L) := calc
+    4 * t + 3 ≤ (4 * A + 3) * (input.length + 1) ^ D := by nlinarith
+    _ < 2 ^ B * (2 ^ L) ^ D :=
+        (Nat.mul_lt_mul_of_pos_right hAlt (by positivity)).trans_le
+          (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hn1lt.le D))
+    _ = 2 ^ (B + D * L) := by rw [← pow_mul, ← pow_add, Nat.mul_comm L D]
   have hlogLe : Nat.log2 (4 * t + 3) ≤ B + D * L := by
     rw [Nat.log2_eq_log_two]
-    exact Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega) (by
-      rw [pow_succ']
-      have : 0 < 2 ^ (B + D * L) := by positivity
-      omega))
-  have hLpos : 1 ≤ L := Nat.succ_pos _
-  have hlev := compileAuxPDA_andLevel_le M eStack eState input s t g
-  have hrounds : compiledRounds t + 2 ≤ depthConstant A D * L := by
-    unfold compiledRounds roundsForSize depthConstant
-    dsimp only [B] at hlogLe ⊢
-    nlinarith
-  exact hlev.trans hrounds
+    exact Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega) (by rw [pow_succ']; omega))
+  refine (compileAuxPDA_andLevel_le M eStack eState input s t g).trans ?_
+  unfold compiledRounds roundsForSize depthConstant
+  have : 1 ≤ L := Nat.succ_pos _
+  dsimp only [B, L, N] at hlogLe this ⊢
+  nlinarith
 
 /-- **Polynomial compiled gate count in logarithmic space and polynomial time**: when
 `s(n) = c * (Nat.log2 n + 1)` and `t(n) = A * (n + 1) ^ D`, `compiledGateCount` is polynomially
@@ -548,32 +447,22 @@ bounded in `n`. -/
 theorem compileAuxPDA_gateCount_polynomiallyBounded (mStack mState k c A D : ℕ) :
     Cslib.PolynomiallyBounded fun n =>
       compiledGateCount mStack mState k n (c * (Nat.log2 n + 1)) (A * (n + 1) ^ D) := by
+  open Cslib.PolynomiallyBounded in
   have hS : Cslib.PolynomiallyBounded fun n =>
       compiledSurfaceCount mStack mState k n (c * (Nat.log2 n + 1)) :=
     boundedSurfaceCard_log_polynomiallyBounded mStack (mState + 1) k c
-  have hR : Cslib.PolynomiallyBounded fun n =>
-      compiledRounds (A * (n + 1) ^ D) := by
-    have hpoly : Cslib.PolynomiallyBounded fun n => 6 * (4 * (A * (n + 1) ^ D) + 4) := by
-      have hid : Cslib.PolynomiallyBounded (fun n : ℕ => n) := Cslib.PolynomiallyBounded.id
-      have h1 : Cslib.PolynomiallyBounded (fun _ : ℕ => 1) := Cslib.PolynomiallyBounded.const 1
-      have hpow : Cslib.PolynomiallyBounded (fun n : ℕ => (n + 1) ^ D) := (hid.add h1).pow D
-      exact (Cslib.PolynomiallyBounded.const 6).mul
-        (((Cslib.PolynomiallyBounded.const 4).mul
-          ((Cslib.PolynomiallyBounded.const A).mul hpow)).add
-            (Cslib.PolynomiallyBounded.const 4))
-    refine hpoly.mono_of_le fun n => ?_
+  have hR : Cslib.PolynomiallyBounded fun n => compiledRounds (A * (n + 1) ^ D) := by
+    refine ((Cslib.PolynomiallyBounded.const 6).mul
+      (((Cslib.PolynomiallyBounded.const 4).mul ((Cslib.PolynomiallyBounded.const A).mul
+        ((Cslib.PolynomiallyBounded.id.add (Cslib.PolynomiallyBounded.const 1)).pow D))).add
+          (Cslib.PolynomiallyBounded.const 4))).mono_of_le fun n => ?_
     unfold compiledRounds roundsForSize
-    have hlog : Nat.log2 (4 * (A * (n + 1) ^ D) + 3) ≤ 4 * (A * (n + 1) ^ D) + 3 := by
-      rw [Nat.log2_eq_log_two]
-      exact Nat.log_le_self 2 _
-    exact Nat.mul_le_mul_left 6 (Nat.succ_le_succ hlog)
-  have hbound : Cslib.PolynomiallyBounded fun n =>
-      6 * (compiledRounds (A * (n + 1) ^ D) + 1) *
-        (compiledSurfaceCount mStack mState k n (c * (Nat.log2 n + 1)) + 1) ^ 6 :=
-    ((Cslib.PolynomiallyBounded.const 6).mul
-      (hR.add (Cslib.PolynomiallyBounded.const 1))).mul
-        ((hS.add (Cslib.PolynomiallyBounded.const 1)).pow 6)
-  exact hbound.mono_of_le fun n => balancedGateCount_le _ _
+    rw [Nat.log2_eq_log_two]
+    exact Nat.mul_le_mul_left 6 (Nat.succ_le_succ (Nat.log_le_self 2 _))
+  exact (((Cslib.PolynomiallyBounded.const 6).mul
+    (hR.add (Cslib.PolynomiallyBounded.const 1))).mul
+      ((hS.add (Cslib.PolynomiallyBounded.const 1)).pow 6)).mono_of_le
+        fun n => balancedGateCount_le _ _
 
 /-! ### Direct bridge to Work Packages 1 & 2 (`MinIsolation` and `WeightGenerator`) -/
 
@@ -618,44 +507,31 @@ theorem LogCFL.exists_normalForm_circuit_family_certified {α : Type} {enc : α 
           (time input) (spaceFactor * (depthFactor + 1) * (Nat.log2 (N a) + 1))) := by
   classical
   rcases hA with ⟨k, StackSym, State, hfinStack, hfinState, M, cs, t, hpolyT, hdec⟩
-  let _ : Finite StackSym := hfinStack
-  let _ : Finite State := hfinState
-  let _ : Fintype StackSym := Fintype.ofFinite StackSym
-  let _ : Fintype State := Fintype.ofFinite State
+  cases nonempty_fintype StackSym; cases nonempty_fintype State
   let eStack := Fintype.equivFin StackSym
   let eState := Fintype.equivFin State
   obtain ⟨At, Dt, htLe⟩ := hpolyT.exists_le
-  let sFn (n : ℕ) : ℕ := cs * (Nat.log2 n + 1)
-  let tFn (n : ℕ) : ℕ := At * (n + 1) ^ Dt
-  let N (a : α) : ℕ :=
-    compiledGateCount (Fintype.card StackSym) (Fintype.card State) k
-      (enc a).length (sFn (enc a).length) (tFn (enc a).length)
-  let C (a : α) : LayeredSemiUnboundedCircuit (Fin (N a)) :=
-    compileAuxPDA M eStack eState (enc a) (sFn (enc a).length) (tFn (enc a).length)
-  let out (a : α) : Fin (N a) :=
-    compiledOutputGate (Fintype.card StackSym) (Fintype.card State) k
-      (enc a).length (sFn (enc a).length) (tFn (enc a).length)
-  let depthFactor := depthConstant At Dt
-  obtain ⟨seedFactor, spaceFactor, weightDegreeFn, time, kw, StateW, hfinW, tm, hcert⟩ :=
+  let sFn (n : ℕ) := cs * (Nat.log2 n + 1)
+  let tFn (n : ℕ) := At * (n + 1) ^ Dt
+  let N (a : α) := compiledGateCount (Fintype.card StackSym) (Fintype.card State) k
+    (enc a).length (sFn (enc a).length) (tFn (enc a).length)
+  let C (a : α) := compileAuxPDA M eStack eState (enc a) (sFn (enc a).length) (tFn (enc a).length)
+  let out (a : α) := compiledOutputGate (Fintype.card StackSym) (Fintype.card State) k
+    (enc a).length (sFn (enc a).length) (tFn (enc a).length)
+  let df := depthConstant At Dt
+  obtain ⟨sf, spf, wdFn, time, kw, StateW, hfinW, tm, hcert⟩ :=
     WeightGenerator.generatedGateWeight_certified
-  have hNpoly : PolyBounded (fun a => (enc a).length) N :=
-    PolyBounded.of_polynomiallyBounded (fun a => (enc a).length)
-      (compileAuxPDA_gateCount_polynomiallyBounded
-        (Fintype.card StackSym) (Fintype.card State) k cs At Dt)
-  have hdepth : ∀ a (g : Fin (N a)),
-      (C a).andLevel g ≤ depthFactor * (Nat.log2 (N a) + 1) := fun a g =>
-    compileAuxPDA_andLevel_le_log_gateCount M eStack eState (enc a)
-      (sFn (enc a).length) (tFn (enc a).length) At Dt le_rfl g
-  refine ⟨N, C, out, depthFactor, seedFactor, spaceFactor, weightDegreeFn depthFactor,
-    time, kw, StateW, hfinW, tm, hNpoly,
+  have hdepth (a : α) (g : Fin (N a)) : (C a).andLevel g ≤ df * (Nat.log2 (N a) + 1) :=
+    compileAuxPDA_andLevel_le_log_gateCount M eStack eState (enc a) _ _ At Dt le_rfl g
+  refine ⟨N, C, out, df, sf, spf, wdFn df, time, kw, StateW, hfinW, tm,
+    PolyBounded.of_polynomiallyBounded _
+      (compileAuxPDA_gateCount_polynomiallyBounded _ _ k cs At Dt),
     fun a => compileAuxPDA_inNormalForm M eStack eState (enc a) _ _,
-    fun a => ?_,
+    fun a => let ⟨hs, ht, hacc⟩ := hdec a
+      hacc.trans (compileAuxPDA_eval_iff M eStack eState (enc a) hs (ht.mono (htLe a))).symm,
     fun a => (hcert (N a)).1,
     fun a => (hcert (N a)).2.1 (C a) (compileAuxPDA_inNormalForm M eStack eState (enc a) _ _),
-    hdepth,
-    fun a seed g => (hcert (N a)).2.2 depthFactor (C a) seed g (hdepth a g)⟩
-  obtain ⟨hs, ht, hacc⟩ := hdec a
-  exact hacc.trans (compileAuxPDA_eval_iff M eStack eState (enc a) hs (ht.mono (htLe a))).symm
+    hdepth, fun a seed g => (hcert (N a)).2.2 df (C a) seed g (hdepth a g)⟩
 
 /-! ### Computable `orChild` decidability on `compileAuxPDA` -/
 

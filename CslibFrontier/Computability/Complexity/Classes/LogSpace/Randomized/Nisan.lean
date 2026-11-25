@@ -138,15 +138,14 @@ theorem abs_acceptNisanSeeds_div_sub_le {input : List Bool} {V : Finset (FiniteC
   have h := Nisan.abs_dens_eval_bitGenerator_sub_le n r (machine.coinProgram hV hinit (2 ^ r * n))
   rw [Fintype.card_coe, Finset.nnratCast_dens, Finset.nnratCast_dens, Nisan.card_bitSeed,
     Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at h
-  have hseeds : machine.acceptNisanSeeds input n r =
+  rw [show machine.acceptNisanSeeds input n r =
       (Finset.univ.filter fun z : Nisan.BitSeed n r =>
-        (machine.coinProgram hV hinit (2 ^ r * n)).eval (Nisan.bitGenerator n r z) = true).card :=
-    congrArg Finset.card (Finset.filter_congr fun z _ => (eval_coinProgram_iff hV hinit _).symm)
-  have hcoins : machine.acceptCoins input (2 ^ r * n) =
+        (machine.coinProgram hV hinit (2 ^ r * n)).eval (Nisan.bitGenerator n r z) = true).card from
+      congrArg Finset.card (Finset.filter_congr fun _ _ => (eval_coinProgram_iff hV hinit _).symm),
+    show machine.acceptCoins input (2 ^ r * n) =
       (Finset.univ.filter fun w : Fin (2 ^ r * n) → Bool =>
-        (machine.coinProgram hV hinit (2 ^ r * n)).eval w = true).card :=
-    congrArg Finset.card (Finset.filter_congr fun w _ => (eval_coinProgram_iff hV hinit w).symm)
-  rw [hseeds, hcoins]
+        (machine.coinProgram hV hinit (2 ^ r * n)).eval w = true).card from
+      congrArg Finset.card (Finset.filter_congr fun w _ => (eval_coinProgram_iff hV hinit w).symm)]
   exact_mod_cast h
 
 end Turing.MultiTapePTM
@@ -166,8 +165,8 @@ private theorem polyClock_le_two_pow (d m : ℕ) :
     omega
   calc polyClock d m = 2 * (2 * (m + 1)) ^ d := rfl
     _ ≤ 2 * (2 ^ (Nat.log2 m + 2)) ^ d := Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left hm d)
-    _ = 2 ^ (d * (Nat.log2 m + 2) + 1) := by rw [← pow_mul, pow_succ, Nat.mul_comm 2,
-        Nat.mul_comm (Nat.log2 m + 2)]
+    _ = 2 ^ (d * (Nat.log2 m + 2) + 1) := by
+      rw [← pow_mul, pow_succ, Nat.mul_comm 2, Nat.mul_comm (Nat.log2 m + 2)]
 
 /-- The seed length `n + r (3 n - 1)` for `n = 2 (2 r + 3)` and `r = d (ℓ + 2) + 1` is at most
 `39 (2 d + 1) ^ 2 (ℓ + 1) ^ 2`. -/
@@ -176,12 +175,9 @@ private theorem seedLength_le (d ℓ : ℕ) :
         (d * (ℓ + 2) + 1) * (3 * (2 * (2 * (d * (ℓ + 2) + 1) + 3)) - 1) ≤
       39 * (2 * d + 1) ^ 2 * (ℓ + 1) ^ 2 := by
   set r := d * (ℓ + 2) + 1 with hr
-  have hsub : 3 * (2 * (2 * r + 3)) - 1 = 12 * r + 17 := by omega
   have hrR : r ≤ (2 * d + 1) * (ℓ + 1) := by rw [hr]; nlinarith
-  have h1 : 1 ≤ r := by omega
-  rw [hsub]
-  have hR : r * r ≤ ((2 * d + 1) * (ℓ + 1)) * ((2 * d + 1) * (ℓ + 1)) := Nat.mul_le_mul hrR hrR
-  nlinarith
+  rw [show 3 * (2 * (2 * r + 3)) - 1 = 12 * r + 17 by omega]
+  nlinarith [Nat.mul_le_mul hrR hrR, show 1 ≤ r by omega]
 
 /-- **A `BPL` language is decided by majority over the seeds of Nisan's generator**: a step of
 Nisan's proof of `BPL ⊆ DSPACE(log² n)` [Nisan1992], not that inclusion. A `BPL` language has a
@@ -212,20 +208,18 @@ theorem exists_acceptNisanSeeds_of_mem_BPL (h : A ∈ BPL enc) :
   have hL : M.toNTM.RunsInTime (enc a) (2 ^ r * n) :=
     ((MultiTapeNTM.runsInTime_of_runsInSpace hs ht).mono hpoly).mono
       (hT.trans (Nat.le_mul_of_pos_right _ (by omega)))
+  have herr := abs_le.mp (M.abs_acceptNisanSeeds_div_sub_le hV hinit n r)
+  have hsqrt : √((2 : ℝ) ^ n) = 2 ^ r * 2 ^ r * 8 := by
+    rw [show (2 : ℝ) ^ n = (2 ^ r * 2 ^ r * 8) ^ 2 by rw [hn]; ring]
+    exact Real.sqrt_sq (by positivity)
+  have hVr' : (V.card : ℝ) ≤ 2 ^ r := by exact_mod_cast hVr
+  have h1 : (1 : ℝ) ≤ 2 ^ r := one_le_pow₀ one_le_two
+  have hsmall : (2 ^ r - 1) * (V.card : ℝ) / (2 * √(2 ^ n)) ≤ 1 / 16 := by
+    rw [hsqrt, div_le_iff₀ (by positivity)]
+    nlinarith
+  have hpos : (0 : ℝ) < 2 ^ (n + r * (3 * n - 1)) := by positivity
+  have hposL : (0 : ℝ) < 2 ^ (2 ^ r * n) := by positivity
   refine ⟨by subst hn hr; exact seedLength_le d _, fun ha => ?_, fun ha => ?_⟩
-  all_goals
-    have herr := M.abs_acceptNisanSeeds_div_sub_le hV hinit n r
-    have hsqrt : √((2 : ℝ) ^ n) = 2 ^ r * 2 ^ r * 8 := by
-      rw [show (2 : ℝ) ^ n = (2 ^ r * 2 ^ r * 8) ^ 2 by rw [hn]; ring]
-      exact Real.sqrt_sq (by positivity)
-    have hVr' : (V.card : ℝ) ≤ 2 ^ r := by exact_mod_cast hVr
-    have h1 : (1 : ℝ) ≤ 2 ^ r := one_le_pow₀ one_le_two
-    have hsmall : (2 ^ r - 1) * (V.card : ℝ) / (2 * √(2 ^ n)) ≤ 1 / 16 := by
-      rw [hsqrt, div_le_iff₀ (by positivity)]
-      nlinarith
-    have hpos : (0 : ℝ) < 2 ^ (n + r * (3 * n - 1)) := by positivity
-    have hposL : (0 : ℝ) < 2 ^ (2 ^ r * n) := by positivity
-    rw [abs_le] at herr
   · have hacc := (M.two_pow_mul_le_iff ht hL 2 3).mp (hmem ha)
     have hacc' : (2 : ℝ) / 3 ≤ (M.acceptCoins (enc a) (2 ^ r * n) : ℝ) / 2 ^ (2 ^ r * n) := by
       rw [div_le_div_iff₀ (by norm_num) hposL]

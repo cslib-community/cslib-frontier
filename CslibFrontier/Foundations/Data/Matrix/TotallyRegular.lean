@@ -75,15 +75,13 @@ columns, indexed by any finite type, are nonsingular. -/
 theorem isTotallyRegular_iff_fintype.{w} (A : Matrix m n R) : A.IsTotallyRegular ↔
     ∀ (ι : Type w) [Fintype ι] [DecidableEq ι] (f : ι → m) (g : ι → n), f.Injective →
       g.Injective → (A.submatrix f g).det ≠ 0 := by
-  constructor
-  · intro hA ι _ _ f g hf hg
-    have := hA (Fintype.card ι) (f ∘ (Fintype.equivFin ι).symm) (g ∘ (Fintype.equivFin ι).symm)
+  refine ⟨fun hA ι _ _ f g hf hg => ?_, fun hA k f g hf hg => ?_⟩
+  · simpa only [← submatrix_submatrix, det_submatrix_equiv_self] using hA _
+      (f ∘ (Fintype.equivFin ι).symm) (g ∘ (Fintype.equivFin ι).symm)
       (hf.comp (Fintype.equivFin ι).symm.injective) (hg.comp (Fintype.equivFin ι).symm.injective)
-    rwa [← submatrix_submatrix, det_submatrix_equiv_self] at this
-  · intro hA k f g hf hg
-    have := hA (ULift (Fin k)) (f ∘ Equiv.ulift) (g ∘ Equiv.ulift)
-      (hf.comp Equiv.ulift.injective) (hg.comp Equiv.ulift.injective)
-    rwa [← submatrix_submatrix, det_submatrix_equiv_self] at this
+  · simpa only [← submatrix_submatrix, det_submatrix_equiv_self] using hA (ULift (Fin k))
+      (f ∘ Equiv.ulift) (g ∘ Equiv.ulift) (hf.comp Equiv.ulift.injective)
+      (hg.comp Equiv.ulift.injective)
 
 variable {A : Matrix m n R}
 
@@ -130,22 +128,16 @@ theorem IsTotallyRegular.eq_zero_of_mulVec_eq_zero [Fintype n] [NoZeroDivisors R
   -- Pair the columns with some of the rows.
   obtain ⟨r⟩ : Nonempty (cols ↪ rows) :=
     Function.Embedding.nonempty_of_card_le (by simpa only [Fintype.card_coe] using hcard)
-  let f : cols → m := fun j => r j
-  let g : cols → n := Subtype.val
-  have hf : f.Injective := Subtype.val_injective.comp r.injective
   -- On the rows `f`, the vector `A v` is the submatrix on `f` and `g` applied to `v ∘ g`.
-  have hzero : A.submatrix f g *ᵥ (v ∘ g) = 0 := by
-    funext j
-    rw [Pi.zero_apply, ← hAv _ (r j).2]
-    simp only [mulVec, dotProduct, submatrix_apply, Function.comp_apply, g]
-    rw [Finset.sum_coe_sort cols fun j' => A (f j) j' * v j']
-    exact Finset.sum_subset (Finset.subset_univ cols) fun j' _ hj' => by simp [hv j' hj']
-  have hvc := Matrix.eq_zero_of_mulVec_eq_zero
-    ((isTotallyRegular_iff_fintype A).1 hA cols f g hf Subtype.val_injective) hzero
-  funext j
-  by_cases hj : j ∈ cols
-  · simpa using congrFun hvc ⟨j, hj⟩
-  · exact hv j hj
+  have hzero : A.submatrix (fun j : cols => (r j : m)) Subtype.val *ᵥ (v ∘ Subtype.val) = 0 :=
+    funext fun j => by
+      rw [Pi.zero_apply, ← hAv _ (r j).2]
+      simp only [mulVec, dotProduct, submatrix_apply, Function.comp_apply]
+      rw [Finset.sum_coe_sort cols fun j' => A (r j) j' * v j']
+      exact Finset.sum_subset (Finset.subset_univ cols) fun j' _ hj' => by simp [hv j' hj']
+  have hvc := Matrix.eq_zero_of_mulVec_eq_zero ((isTotallyRegular_iff_fintype A).1 hA cols _ _
+    (Subtype.val_injective.comp r.injective) Subtype.val_injective) hzero
+  exact funext fun j => if hj : j ∈ cols then by simpa using congrFun hvc ⟨j, hj⟩ else hv j hj
 
 end CommRing
 
@@ -179,19 +171,16 @@ theorem det_cauchy_ne_zero [Fintype n] [DecidableEq n] {x y : n → F}
   classical
   intro hdet
   obtain ⟨v, hv0, hv⟩ := exists_mulVec_eq_zero_iff.mpr hdet
-  have hweight : ∀ j, Lagrange.nodalWeight Finset.univ y j ≠ 0 := fun j =>
+  have hweight (j : n) : Lagrange.nodalWeight Finset.univ y j ≠ 0 :=
     Lagrange.nodalWeight_ne_zero hy.injOn (Finset.mem_univ j)
-  let w : n → F := fun j => (Lagrange.nodalWeight Finset.univ y j)⁻¹ * v j
-  have hP : Lagrange.interpolate Finset.univ y w = 0 := by
-    refine Polynomial.eq_zero_of_degree_lt_of_eval_index_eq_zero Finset.univ hx.injOn
-      (Lagrange.degree_interpolate_lt w hy.injOn) fun i _ => ?_
-    rw [Lagrange.eval_interpolate_not_at_node w fun j _ => hxy i j]
-    have hsum : ∑ j, Lagrange.nodalWeight Finset.univ y j * (x i - y j)⁻¹ * w j =
-        (cauchy x y *ᵥ v) i := by
-      simp only [mulVec, dotProduct, cauchy_apply, w]
-      refine Finset.sum_congr rfl fun j _ => ?_
-      field_simp [hweight j]
-    rw [hsum, hv, Pi.zero_apply, mul_zero]
+  let w (j : n) : F := (Lagrange.nodalWeight Finset.univ y j)⁻¹ * v j
+  have hP : Lagrange.interpolate Finset.univ y w = 0 :=
+    Polynomial.eq_zero_of_degree_lt_of_eval_index_eq_zero Finset.univ hx.injOn
+      (Lagrange.degree_interpolate_lt w hy.injOn) fun i _ => by
+        rw [Lagrange.eval_interpolate_not_at_node w fun j _ => hxy i j, show
+          ∑ j, Lagrange.nodalWeight Finset.univ y j * (x i - y j)⁻¹ * w j = (cauchy x y *ᵥ v) i from
+            Finset.sum_congr rfl fun j _ => by simp only [cauchy_apply, w]; field_simp [hweight j],
+          hv, Pi.zero_apply, mul_zero]
   refine hv0 (funext fun j => ?_)
   have h := Lagrange.eval_interpolate_at_node w hy.injOn (Finset.mem_univ j)
   rw [hP, Polynomial.eval_zero] at h
@@ -201,9 +190,7 @@ theorem det_cauchy_ne_zero [Fintype n] [DecidableEq n] {x y : n → F}
 matrix. -/
 theorem isTotallyRegular_cauchy {x : m → F} {y : n → F} (hx : Function.Injective x)
     (hy : Function.Injective y) (hxy : ∀ i j, x i ≠ y j) : (cauchy x y).IsTotallyRegular :=
-  fun _ r c hr hc => by
-    rw [submatrix_cauchy]
-    exact det_cauchy_ne_zero (hx.comp hr) (hy.comp hc) fun i j => hxy (r i) (c j)
+  fun _ r c hr hc => det_cauchy_ne_zero (hx.comp hr) (hy.comp hc) fun i j => hxy (r i) (c j)
 
 variable (F) in
 /-- The explicit `N × N` Cauchy matrix `A i j = 1 / (i - (N + j))`, with nodes `0, ..., N - 1`
@@ -213,8 +200,8 @@ def cauchyNat (N : ℕ) : Matrix (Fin N) (Fin N) F :=
 
 /-- **The explicit Cauchy matrices are totally regular** over fields of characteristic zero. -/
 theorem isTotallyRegular_cauchyNat [CharZero F] (N : ℕ) : (cauchyNat F N).IsTotallyRegular :=
-  isTotallyRegular_cauchy (fun i i' h => Fin.ext (by exact_mod_cast h))
-    (fun j j' h => Fin.ext (Nat.add_left_cancel (by exact_mod_cast h)))
+  isTotallyRegular_cauchy (fun _ _ h => Fin.ext (by exact_mod_cast h))
+    (fun _ _ h => Fin.ext (Nat.add_left_cancel (by exact_mod_cast h)))
     fun i j h => by
       have : (i : ℕ) = N + j := by exact_mod_cast h
       omega
@@ -223,14 +210,13 @@ theorem isTotallyRegular_cauchyNat [CharZero F] (N : ℕ) : (cauchyNat F N).IsTo
 `q ≥ 2 N`. -/
 theorem isTotallyRegular_cauchyNat_zmod {q : ℕ} [Fact q.Prime] {N : ℕ} (hq : 2 * N ≤ q) :
     (cauchyNat (ZMod q) N).IsTotallyRegular := by
-  have hcast : ∀ a b : ℕ, a < q → b < q → ((a : ZMod q) = b ↔ a = b) := fun a b ha hb => by
-    rw [ZMod.natCast_eq_natCast_iff', Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb]
-  refine isTotallyRegular_cauchy (fun i i' h => Fin.ext ?_) (fun j j' h => Fin.ext ?_)
-    fun i j h => ?_
-  · exact (hcast _ _ (by omega) (by omega)).mp h
-  · have := (hcast _ _ (by omega) (by omega)).mp h
+  have hcast {a b : ℕ} (ha : a < q) (hb : b < q) (h : (a : ZMod q) = b) : a = b := by
+    rwa [ZMod.natCast_eq_natCast_iff', Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] at h
+  refine isTotallyRegular_cauchy (fun _ _ h => Fin.ext (hcast (by omega) (by omega) h))
+    (fun _ _ h => Fin.ext ?_) fun _ _ h => ?_
+  · have := hcast (by omega) (by omega) h
     omega
-  · have := (hcast _ _ (by omega) (by omega)).mp h
+  · have := hcast (by omega) (by omega) h
     omega
 
 end Cauchy

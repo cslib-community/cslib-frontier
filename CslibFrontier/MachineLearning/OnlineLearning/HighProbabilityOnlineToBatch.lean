@@ -79,25 +79,19 @@ theorem hasSubgaussianMGF_sum_integral_sub {f : Fin T → (Fin T → Z) → Z �
     {a b : ℝ} (hab : ∀ t S z, f t S z ∈ Set.Icc a b) :
     HasSubgaussianMGF (fun S => ∑ t, (∫ z, f t S z ∂D - f t S (S t)))
       (T * (‖b - a‖₊ / 2) ^ 2) (Measure.pi fun _ => D) := by
-  have hint : ∀ t S, Integrable (f t S) D := fun t S =>
-    Integrable.of_mem_Icc a b ((hf t).comp (measurable_const.prodMk measurable_id)).aemeasurable
-      (Filter.Eventually.of_forall (hab t S))
-  have h := hasSubgaussianMGF_sum_pi (μ := fun _ => D)
+  simpa [Finset.sum_const, nsmul_eq_mul] using hasSubgaussianMGF_sum_pi (μ := fun _ => D)
     (Y := fun t S => ∫ z, f t S z ∂D - f t S (S t)) (c := fun _ => ‖b - a‖₊)
     (fun t => (hf t).stronglyMeasurable.integral_prod_right'.measurable.sub
       ((hf t).comp (measurable_id.prodMk (measurable_pi_apply t))))
-    (fun t s hts S z => by
-      simp only [hfresh t s hts.le, Function.update_of_ne hts.ne])
+    (fun t s hts S z => by simp only [hfresh t s hts.le, Function.update_of_ne hts.ne])
     (fun t S => by
       simp only [hfresh t t le_rfl, Function.update_self]
-      rw [integral_sub (integrable_const _) (hint t S)]
-      simp)
+      rw [integral_sub (integrable_const _) (Integrable.of_mem_Icc a b
+        ((hf t).comp (measurable_const.prodMk measurable_id)).aemeasurable
+        (Filter.Eventually.of_forall (hab t S)) : Integrable (f t S) D)]; simp)
     (fun t S => ⟨∫ z, f t S z ∂D - b, fun z => by
       simp only [hfresh t t le_rfl, Function.update_self, coe_nnNorm, Real.norm_eq_abs]
-      constructor
-      · linarith [(hab t S z).2]
-      · linarith [(hab t S z).1, le_abs_self (b - a)]⟩)
-  simpa [Finset.sum_const, nsmul_eq_mul] using h
+      exact ⟨by linarith [(hab t S z).2], by linarith [(hab t S z).1, le_abs_self (b - a)]⟩⟩)
 
 /-- **High-probability online-to-batch conversion, sum form.** If `f t S` depends only on the
 examples before round `t` and takes values in `[a, b]`, then for `δ ∈ (0, 1]`, with probability at
@@ -110,10 +104,9 @@ theorem measureReal_sum_integral_gt_le {f : Fin T → (Fin T → Z) → Z → �
       ∑ t, ∫ z, f t S z ∂D} ≤ δ := by
   rcases Nat.eq_zero_or_pos T with rfl | hT
   · simp [hδ.le]
-  have hle : a ≤ b := by
-    obtain ⟨z⟩ := nonempty_of_isProbabilityMeasure D
-    obtain ⟨S⟩ := nonempty_of_isProbabilityMeasure (Measure.pi fun _ : Fin T => D)
-    exact (hab ⟨0, hT⟩ S z).1.trans (hab ⟨0, hT⟩ S z).2
+  obtain ⟨z⟩ := nonempty_of_isProbabilityMeasure D
+  obtain ⟨S₀⟩ := nonempty_of_isProbabilityMeasure (Measure.pi fun _ : Fin T => D)
+  have hle : a ≤ b := (hab ⟨0, hT⟩ S₀ z).1.trans (hab ⟨0, hT⟩ S₀ z).2
   refine le_trans (measureReal_mono fun S hS => ?_)
     ((hasSubgaussianMGF_sum_integral_sub hf hfresh hab).measure_sqrt_lt_le hδ hδ1)
   have hsq : √(2 * ((T * (‖b - a‖₊ / 2) ^ 2 : ℝ≥0) : ℝ) * log (1 / δ)) =
@@ -124,8 +117,7 @@ theorem measureReal_sum_integral_gt_le {f : Fin T → (Fin T → Z) → Z → �
     push_cast
     simp only [Real.norm_of_nonneg (sub_nonneg.2 hle)]
     ring
-  simp only [Set.mem_ofPred_eq, hsq, Finset.sum_sub_distrib] at hS ⊢
-  linarith
+  simp only [Set.mem_ofPred_eq, hsq, Finset.sum_sub_distrib] at hS ⊢; linarith
 
 /-- **High-probability online-to-batch conversion.** If `f t S` depends only on the examples
 before round `t` and takes values in `[a, b]`, then for `δ ∈ (0, 1]`, with probability at least
@@ -142,15 +134,13 @@ theorem measureReal_average_integral_gt_le {f : Fin T → (Fin T → Z) → Z �
   have hTr : (0 : ℝ) < T := by exact_mod_cast hT
   refine le_trans (measureReal_mono fun S hS => ?_)
     (measureReal_sum_integral_gt_le hf hfresh hab hδ hδ1)
-  have hsq : (T : ℝ) * √(log (1 / δ) / (2 * T)) = √(T * log (1 / δ) / 2) := by
-    rw [show (T : ℝ) * log (1 / δ) / 2 = (T : ℝ) ^ 2 * (log (1 / δ) / (2 * T)) by
-      field_simp, sqrt_mul (sq_nonneg _), sqrt_sq hTr.le]
-  have hcancel : ∀ x : ℝ, (T : ℝ) * ((T : ℝ)⁻¹ * x) = x := fun x => by
-    rw [← mul_assoc, mul_inv_cancel₀ hTr.ne', one_mul]
   simp only [Set.mem_ofPred_eq] at hS ⊢
   have h := mul_lt_mul_of_pos_left hS hTr
-  rw [mul_add, hcancel, hcancel, mul_left_comm (T : ℝ) (b - a), hsq] at h
-  exact h
+  rwa [mul_add, mul_inv_cancel_left₀ hTr.ne', mul_inv_cancel_left₀ hTr.ne',
+    mul_left_comm (T : ℝ) (b - a),
+    show (T : ℝ) * √(log (1 / δ) / (2 * T)) = √(T * log (1 / δ) / 2) by
+      rw [show (T : ℝ) * log (1 / δ) / 2 = (T : ℝ) ^ 2 * (log (1 / δ) / (2 * T)) by field_simp,
+        sqrt_mul (sq_nonneg _), sqrt_sq hTr.le]] at h
 
 /-- **High-probability online-to-batch conversion for the iterates of an online learner.** If the
 iterate `w t S` depends only on the examples before round `t` and the loss `ℓ` takes values in
@@ -189,40 +179,33 @@ theorem measureReal_trueRisk_average_gt_le (hT : 0 < T) {E : Type*} [AddCommGrou
     (hui.norm.add (integrable_const c)).mono'
       (hℓ.comp (measurable_const.prodMk measurable_id)).aestronglyMeasurable
       (Filter.Eventually.of_forall fun z => by
-        have h1 := hc v hv z
-        have h2 := abs_sub_abs_le_abs_sub (ℓ v z) (ℓ u z)
         simp only [Real.norm_eq_abs, Pi.add_apply]
-        linarith)
-  have hgen := measureReal_average_integral_gt_le (D := D)
-    (f := fun t S z => ℓ (w t S) z - ℓ u z)
-    (fun t => (hℓ.comp (((hwm t).comp measurable_fst).prodMk measurable_snd)).sub
-      (hℓ.comp (measurable_const.prodMk measurable_snd)))
-    (fun t s hts S z => by simp only [hfresh t s hts])
-    (a := -c) (b := c) (fun t S z => abs_le.1 (hc _ (hwK t S) z)) hδ hδ1
-  refine le_trans (measureReal_mono fun S hS => ?_) hgen
+        linarith [hc v hv z, abs_sub_abs_le_abs_sub (ℓ v z) (ℓ u z)])
+  refine le_trans (measureReal_mono fun S hS => ?_)
+    (measureReal_average_integral_gt_le (D := D) (f := fun t S z => ℓ (w t S) z - ℓ u z)
+      (fun t => (hℓ.comp (((hwm t).comp measurable_fst).prodMk measurable_snd)).sub
+        (hℓ.comp (measurable_const.prodMk measurable_snd)))
+      (fun t s hts S z => by simp only [hfresh t s hts])
+      (a := -c) (b := c) (fun t S z => abs_le.1 (hc _ (hwK t S) z)) hδ hδ1)
   have hjensen : trueRisk ℓ D ((T : ℝ)⁻¹ • ∑ t, w t S) ≤
       (T : ℝ)⁻¹ * ∑ t, trueRisk ℓ D (w t S) := by
-    have h := (convexOn_trueRisk hK hconv hint).map_sum_le (t := Finset.univ)
-      (w := fun _ => (T : ℝ)⁻¹) (p := fun t => w t S) (fun _ _ => inv_nonneg.2 hTr.le)
-      (by simp [hTr.ne']) (fun t _ => hwK t S)
-    simpa [Finset.smul_sum, Finset.mul_sum] using h
-  have hrisk : ∑ t, ∫ z, (ℓ (w t S) z - ℓ u z) ∂D =
-      ∑ t, trueRisk ℓ D (w t S) - T * trueRisk ℓ D u := by
-    simp only [trueRisk_def]
-    rw [Finset.sum_congr rfl fun t _ => integral_sub (hint _ (hwK t S)) hui,
-      Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+    simpa [Finset.smul_sum, Finset.mul_sum] using
+      (convexOn_trueRisk hK hconv hint).map_sum_le (t := Finset.univ) (w := fun _ => (T : ℝ)⁻¹)
+        (p := fun t => w t S) (fun _ _ => inv_nonneg.2 hTr.le) (by simp [hTr.ne'])
+        fun t _ => hwK t S
   have honline : (T : ℝ)⁻¹ * ∑ t, (ℓ (w t S) (S t) - ℓ u (S t)) ≤ R / T := by
-    rw [div_eq_inv_mul]
-    exact mul_le_mul_of_nonneg_left (hR S) (inv_nonneg.2 hTr.le)
-  have hsplit : (T : ℝ)⁻¹ * (∑ t, trueRisk ℓ D (w t S) - T * trueRisk ℓ D u) =
-      (T : ℝ)⁻¹ * ∑ t, trueRisk ℓ D (w t S) - trueRisk ℓ D u := by
-    rw [mul_sub, ← mul_assoc, inv_mul_cancel₀ hTr.ne', one_mul]
-  have hsqrt : (c - -c) * √(log (1 / δ) / (2 * T)) = c * √(2 * log (1 / δ) / T) := by
-    rw [show 2 * log (1 / δ) / T = (2 : ℝ) ^ 2 * (log (1 / δ) / (2 * T)) by field_simp,
-      sqrt_mul (sq_nonneg _), sqrt_sq zero_le_two]
-    ring
+    rw [div_eq_inv_mul]; exact mul_le_mul_of_nonneg_left (hR S) (inv_nonneg.2 hTr.le)
   simp only [Set.mem_ofPred_eq] at hS ⊢
-  rw [hrisk, hsplit, hsqrt]
+  rw [show ∑ t, ∫ z, (ℓ (w t S) z - ℓ u z) ∂D =
+      ∑ t, trueRisk ℓ D (w t S) - T * trueRisk ℓ D u by
+        simp only [trueRisk_def]
+        rw [Finset.sum_congr rfl fun t _ => integral_sub (hint _ (hwK t S)) hui,
+          Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+          nsmul_eq_mul],
+    mul_sub, ← mul_assoc, inv_mul_cancel₀ hTr.ne', one_mul,
+    show (c - -c) * √(log (1 / δ) / (2 * T)) = c * √(2 * log (1 / δ) / T) by
+      rw [show 2 * log (1 / δ) / T = (2 : ℝ) ^ 2 * (log (1 / δ) / (2 * T)) by field_simp,
+        sqrt_mul (sq_nonneg _), sqrt_sq zero_le_two]; ring]
   linarith
 
 end Cslib.MachineLearning.OnlineLearning

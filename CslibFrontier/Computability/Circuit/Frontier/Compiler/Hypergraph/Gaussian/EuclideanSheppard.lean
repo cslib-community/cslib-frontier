@@ -85,24 +85,20 @@ private theorem two_mul_div_step_defect_le {q a b a₀ b₀ : ℝ} (hq0 : 0 ≤ 
   have hκ1 : 2 * q / (1 + q ^ 2) ≤ 1 := Gaussian.two_mul_div_one_add_sq_le_one q
   have hκ0 : 0 ≤ 2 * q / (1 + q ^ 2) := by positivity
   have hab0 : 0 ≤ a * b := mul_nonneg ha hb
+  have hden : 0 < 1 + q ^ 2 := by positivity
   by_cases ha_lt : a₀ < a
   · rw [ite_eq_left ha_lt]
     by_cases hb_lt : b₀ < b
     · rw [ite_eq_left hb_lt]
       nlinarith [sq_nonneg a, sq_nonneg b]
     · rw [ite_eq_right hb_lt]
-      have hqb : q * b ≤ a := by
-        have hble : b ≤ b₀ := not_lt.mp hb_lt
-        exact (mul_le_mul_of_nonneg_left hble hq0).trans hab
+      have hqb : q * b ≤ a := (mul_le_mul_of_nonneg_left (not_lt.mp hb_lt) hq0).trans hab
       by_cases hqa : q * a ≤ b
       · have hprod : 0 ≤ (a - q * b) * (b - q * a) :=
           mul_nonneg (sub_nonneg.mpr hqb) (sub_nonneg.mpr hqa)
-        have hden : 0 < 1 + q ^ 2 := by positivity
         nlinarith [div_mul_cancel₀ (2 * q) hden.ne', sq_nonneg a]
       · have hba_le : b ≤ a := by
-          have : b < q * a := not_le.mp hqa
-          have : q * a ≤ 1 * a := mul_le_mul_of_nonneg_right hq1 ha
-          linarith
+          linarith [not_le.mp hqa, mul_le_mul_of_nonneg_right hq1 ha]
         have hb_sq : b ^ 2 ≤ a ^ 2 := pow_le_pow_left₀ hb hba_le 2
         nlinarith [sq_nonneg a]
   · rw [ite_eq_right ha_lt]
@@ -113,12 +109,9 @@ private theorem two_mul_div_step_defect_le {q a b a₀ b₀ : ℝ} (hq0 : 0 ≤ 
       by_cases hqb : q * b ≤ a
       · have hprod : 0 ≤ (a - q * b) * (b - q * a) :=
           mul_nonneg (sub_nonneg.mpr hqb) (sub_nonneg.mpr hqa)
-        have hden : 0 < 1 + q ^ 2 := by positivity
         nlinarith [div_mul_cancel₀ (2 * q) hden.ne', sq_nonneg b]
       · have hab_le : a ≤ b := by
-          have : a < q * b := not_le.mp hqb
-          have : q * b ≤ 1 * b := mul_le_mul_of_nonneg_right hq1 hb
-          linarith
+          linarith [not_le.mp hqb, mul_le_mul_of_nonneg_right hq1 hb]
         have ha_sq : a ^ 2 ≤ b ^ 2 := pow_le_pow_left₀ ha hab_le 2
         nlinarith [sq_nonneg b]
     · rw [ite_eq_right hb_lt]
@@ -126,7 +119,6 @@ private theorem two_mul_div_step_defect_le {q a b a₀ b₀ : ℝ} (hq0 : 0 ≤ 
         (mul_le_mul_of_nonneg_left (not_lt.mp hb_lt) hq0).trans hab
       have hprod : 0 ≤ (a - q * b) * (b - q * a) :=
         mul_nonneg (sub_nonneg.mpr hqb) (sub_nonneg.mpr hqa)
-      have hden : 0 < 1 + q ^ 2 := by positivity
       nlinarith [div_mul_cancel₀ (2 * q) hden.ne']
 
 private theorem sum_union_le_of_nonneg {α : Type*} [DecidableEq α] {A B : Finset α} {f : α → ℝ}
@@ -186,14 +178,14 @@ private theorem starCone_sum_offDiag_inner_le {V κ : Type*} [Fintype V]
   set k : ℝ := (s.card : ℝ)
   have hk3 : (3 : ℝ) ≤ k := Nat.ofNat_le_cast.mpr hs
   have hk_pos : 0 < k := by linarith
+  have hk1 : 0 ≤ k - 1 := by linarith
   have hM_pos : 0 < ‖M‖ := zero_lt_one.trans_le hM1
   have hM_sq_pos : 0 < ‖M‖ ^ 2 := sq_pos_of_pos hM_pos
   set w : EuclideanSpace ℝ V := ‖M‖⁻¹ • M
   have hw_norm : ‖w‖ = 1 := by rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hM_pos.ne']
   let u : κ → EuclideanSpace ℝ V := fun v => ‖b v‖⁻¹ • b v
   have hu_norm (v : κ) (hv : v ∈ s) : ‖u v‖ = 1 := by
-    have hbv : 0 < ‖b v‖ := zero_lt_one.trans_le (hb1 v hv)
-    rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hbv.ne']
+    rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ (zero_lt_one.trans_le (hb1 v hv)).ne']
   set Q₀ : ℝ := (1 + (k - 1) * q ^ 2) / k
   have hQ₀_pos : 0 < Q₀ := lt_of_lt_of_le hq0 htan_lo
   set x₀ : ℝ := √Q₀
@@ -223,9 +215,7 @@ private theorem starCone_sum_offDiag_inner_le {V κ : Type*} [Fintype V]
         _ = (1 + q) * ∑ z, M z * b v z := by
             rw [← Finset.mul_sum]
             exact congrArg ((1 + q) * ·) (Finset.sum_congr rfl fun z _ => mul_comm _ _)
-    have hinner_eq : ⟪u v, w⟫ = ‖b v‖⁻¹ * (‖M‖⁻¹ * ⟪b v, M⟫) := by
-      rw [real_inner_smul_left, real_inner_smul_right]
-    rw [hinner_eq]
+    rw [real_inner_smul_left, real_inner_smul_right]
     have hxv_pos := hx_pos v hv
     have hcalc : (x v + q / x v) / (1 + q) =
         (‖b v‖ ^ 2 + q * ‖M‖ ^ 2) / ((1 + q) * ‖b v‖ * ‖M‖) := by
@@ -253,10 +243,7 @@ private theorem starCone_sum_offDiag_inner_le {V κ : Type*} [Fintype V]
       simp_rw [EuclideanSpace.real_norm_sq_eq]
       rw [Finset.mul_sum, Finset.sum_comm]
       exact Finset.sum_le_sum fun z _ => hcoord z
-    have hkx₀ : k * x₀ ^ 2 = 1 + (k - 1) * q ^ 2 := by
-      rw [hx₀_sq]
-      dsimp only [Q₀]
-      field_simp
+    have hkx₀ : k * x₀ ^ 2 = 1 + (k - 1) * q ^ 2 := by rw [hx₀_sq]; dsimp only [Q₀]; field_simp
     calc k * x₀ ^ 2
         = ((1 + (k - 1) * q ^ 2) * ‖M‖ ^ 2) / ‖M‖ ^ 2 := by
           rw [hkx₀, mul_div_cancel_right₀ _ hM_sq_pos.ne']
@@ -286,34 +273,25 @@ private theorem starCone_sum_offDiag_inner_le {V κ : Type*} [Fintype V]
       _ ≤ ∑ v ∈ s, ⟪u v, w⟫ := Finset.sum_le_sum hpt
   have hsimp_tang : k * ((x₀ + q / x₀) / (1 + q)) = (1 + (k - 1) * q) / x₀ := by
     have hnum_id : k * (x₀ ^ 2 + q) = (1 + q) * (1 + (k - 1) * q) := by
-      rw [hx₀_sq]
-      dsimp only [Q₀]
-      field_simp
-      ring
-    have h1 : x₀ + q / x₀ = (x₀ ^ 2 + q) / x₀ := by field_simp
-    rw [h1]
+      rw [hx₀_sq]; dsimp only [Q₀]; field_simp; ring
+    rw [show x₀ + q / x₀ = (x₀ ^ 2 + q) / x₀ by field_simp]
     field_simp
     linarith
   rw [hsimp_tang] at hsum_tang
   have hnorm_sum : (1 + (k - 1) * q) / x₀ ≤ ‖∑ v ∈ s, u v‖ :=
     hsum_tang.trans ((sum_inner (𝕜 := ℝ) s u w).symm.trans_le
       ((real_inner_le_norm _ w).trans_eq (by rw [hw_norm, mul_one])))
-  have h0_lhs : 0 ≤ (1 + (k - 1) * q) / x₀ := by
-    have : 0 ≤ k - 1 := by linarith
-    positivity
+  have h0_lhs : 0 ≤ (1 + (k - 1) * q) / x₀ := by positivity
   have hsq_sum := mul_le_mul hnorm_sum hnorm_sum h0_lhs (h0_lhs.trans hnorm_sum)
   have hexp := norm_sum_sq_real s u
   have hdiag : ∑ v ∈ s, ‖u v‖ ^ 2 = k := by
-    calc ∑ v ∈ s, ‖u v‖ ^ 2 = ∑ _v ∈ s, (1 : ℝ) :=
-          Finset.sum_congr rfl fun v hv => by rw [hu_norm v hv, one_pow]
-      _ = k := by rw [Finset.sum_const, nsmul_one]
+    rw [Finset.sum_congr rfl fun v hv => by rw [hu_norm v hv, one_pow], Finset.sum_const,
+      nsmul_one]
   have hident : ((1 + (k - 1) * q) / x₀) ^ 2 - k =
       k * (k - 1) * ((2 * q + (k - 2) * q ^ 2) / (1 + (k - 1) * q ^ 2)) := by
     rw [div_pow, hx₀_sq]
     dsimp only [Q₀]
-    have hden_pos : 0 < 1 + (k - 1) * q ^ 2 := by
-      have : 0 ≤ k - 1 := by linarith
-      positivity
+    have hden_pos : 0 < 1 + (k - 1) * q ^ 2 := by positivity
     field_simp
     ring
   linarith [sq (‖∑ v ∈ s, u v‖), sq ((1 + (k - 1) * q) / x₀)]
@@ -438,14 +416,9 @@ private theorem measureReal_straddlesOn_le_of_sum_angle {V : Type*} [Fintype V]
   have hk1_pos : (0 : ℝ) < (s.card : ℝ) - 1 := by
     have : (2 : ℝ) ≤ s.card := by exact_mod_cast hs
     linarith
-  have hcomb := hint_le.trans hsum_prob
-  have htarget : P.real E * (2 * π) ≤ s.card * θ_avg := by
-    have hmul := mul_le_mul_of_nonneg_right hcomb pi_pos.le
-    rw [div_mul_cancel₀ _ pi_pos.ne'] at hmul
-    nlinarith
-  calc P.real E ≤ (s.card * θ_avg) / (2 * π) :=
-        (le_div_iff₀ (by positivity)).mpr htarget
-    _ = (s.card : ℝ) / (2 * π) * θ_avg := by ring
+  have hcomb := (le_div_iff₀ pi_pos).mp (hint_le.trans hsum_prob)
+  rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
+  nlinarith
 
 end Helpers
 

@@ -665,26 +665,18 @@ theorem isOraclePPT_vqToSufForger (M : MACScheme) {tagBound width Qv : ℕ → �
     unfold vqToSufHandler at hresult
     have hframe := length_unframe_add_dropFrame_le request.2
     split_ifs at hresult
-    · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-      exact ⟨trivial, by simp, by lia⟩
-    · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-      exact ⟨trivial, by simp, by lia⟩
-    · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-      refine ⟨trivial, by simp, ?_⟩
-      enc_len [encVqPlantedState_apply, encVqPlantedStateFields,
-        encMsgTagPlanted_apply, encMsgTagPlantedFields]
-    · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-      refine ⟨trivial, by simp, ?_⟩
-      enc_len [encVqPlantedState_apply, encVqPlantedStateFields,
-        encMsgTagPlanted_apply, encMsgTagPlantedFields]
+    pick_goal 5
     · obtain ⟨tag, htag, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
       obtain ⟨rawTag, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp htag
       have htake := List.length_take_le (tagBound caller.1.1) rawTag
       refine ⟨trivial, htake.trans (by lia), ?_⟩
       enc_len [encVqPlantedState_apply, encVqPlantedStateFields,
         encMsgTagPlanted_apply, encMsgTagPlantedFields]
-    · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-      exact ⟨trivial, by simp, by lia⟩
+    all_goals
+      rw [OracleComp.eq_of_mem_supportWith_pure hresult]
+      refine ⟨trivial, by simp, ?_⟩
+      enc_len [encVqPlantedState_apply, encVqPlantedStateFields,
+        encMsgTagPlanted_apply, encMsgTagPlantedFields]
   have hpost : ComputableInPolyTime
       (fun out : Unit ×
           ProbOracleComp.PlantedOracleState (List Bool × List Bool)
@@ -1054,21 +1046,18 @@ theorem isOraclePPT_vqMacToPrfDistinguisher {adversary : VqForger}
     intro caller request st _ result hresult
     dsimp only [vqMacToPrfStep] at hresult
     split_ifs at hresult
-    · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
+    any_goals
+      rw [OracleComp.eq_of_mem_supportWith_pure hresult]
       exact ⟨trivial, by simp, by lia⟩
     · obtain ⟨_, htag, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
       obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp htag
       refine ⟨trivial, by simp, ?_⟩
       enc_len [encVqState_apply, encVqStateFields]
-    · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-      exact ⟨trivial, by simp, by lia⟩
     · obtain ⟨tag, htag, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
       obtain ⟨rawTag, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp htag
       have htake := List.length_take_le caller.1 rawTag
       refine ⟨trivial, htake.trans (by lia), ?_⟩
       enc_len [encVqState_apply, encVqStateFields]
-    · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-      exact ⟨trivial, by simp, by lia⟩
   have hpost : ComputableInPolyTime
       (fun out : Unit × VqOracleState (List Bool) (List Bool) => out.2.won)
       (encPair (encFinEnum Unit) encVqState) encBool := by
@@ -1104,20 +1093,11 @@ theorem isQueryBounded_vqMacToPrfDistinguisher_of_wellFormed {adversary : VqForg
     | inr req =>
       rcases req with ⟨b, raw⟩
       dsimp only [OracleComp.sumHandler, vqMacToPrfStep, StateT.run, Sum.elim_inr]
-      cases b
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        split_ifs
-        · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-            ((OracleComp.isCostBounded_map_iff _ _ _).mpr
-              (ProbOracleComp.IsQueryBounded.query ((), raw)))
-        · exact .pure _ 0
-      · simp only [↓reduceIte]
-        split_ifs
-        · exact .pure _ 1
-        · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-            ((OracleComp.isCostBounded_map_iff _ _ _).mpr
-              (ProbOracleComp.IsQueryBounded.query ((), unframe raw)))
-        · exact .pure _ 0
+      cases b <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> split_ifs <;>
+        first
+        | exact .pure _ _
+        | exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+            ((OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query _))
   exact (hrun.bind fun _ => .pure _ 0).mono (by omega)
 
 /-- `vqMacToPrfDistinguisher` makes at most `Q_s + Q_v` PRF queries when `adversary n []` makes at
@@ -1167,24 +1147,12 @@ private theorem isVerificationQueryBounded_toBitStringVq {n Q_v : ℕ}
   | inl k => exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
   | inr req =>
     rcases req with ⟨b, raw⟩
-    cases b
-    · dsimp only [OracleComp.sumHandler]
-      simp only [Bool.false_eq_true, ↓reduceIte]
-      split_ifs
-      · rw [map_eq_bind_pure_comp]
-        exact ((ProbOracleComp.isCostBounded_query
-          (fun q : BitString n ⊕ (BitString n × BitString n) => if q.isRight then 1 else 0)
-          (Sum.inl (BitString.ofList n raw))).bind fun _ => .pure _ 0).mono (by simp)
-      · exact .pure _ 0
-    · dsimp only [OracleComp.sumHandler]
-      simp only [↓reduceIte]
-      split_ifs
-      · rw [map_eq_bind_pure_comp]
-        exact ((ProbOracleComp.isCostBounded_query
-          (fun q : BitString n ⊕ (BitString n × BitString n) => if q.isRight then 1 else 0)
-          (Sum.inr (BitString.ofList n (unframe raw), BitString.ofList n (dropFrame raw)))).bind
-          fun _ => .pure _ 0).mono (by simp)
-      · exact .pure _ 1
+    cases b <;> dsimp only [OracleComp.sumHandler] <;>
+      simp only [Bool.false_eq_true, ↓reduceIte] <;> split_ifs <;>
+      first
+      | exact .pure _ _
+      | rw [map_eq_bind_pure_comp]
+        exact ((ProbOracleComp.isCostBounded_query _ _).bind fun _ => .pure _ 0).mono (by simp)
 
 private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForger) (n : ℕ)
     (table : BitString n → BitString n) :
@@ -1195,6 +1163,24 @@ private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForge
         ((vqMacToPrfAdversary (fun _ => toBitStringVq n (adversary n []))).run
           fun x => pure (table x)) := by
   rw [OracleCodec.run_adapt, wordOracle_bitString]
+  let handler : Bool × List Bool →
+      ProbOracleComp (forgeVqSpec (BitString n) (BitString n)) (List Bool) := fun req =>
+    if req.1 then
+      let msg := unframe req.2
+      let tag := dropFrame req.2
+      if (msg.length == n) && (tag.length == n) then
+        (fun ok : Bool => [ok]) <$>
+          ProbOracleComp.query (spec := forgeVqSpec (BitString n) (BitString n))
+            (Sum.inr (BitString.ofList n msg, BitString.ofList n tag))
+      else
+        pure [false]
+    else
+      if req.2.length == n then
+        List.ofFn <$>
+          ProbOracleComp.query (spec := forgeVqSpec (BitString n) (BitString n))
+            (Sum.inl (BitString.ofList n req.2))
+      else
+        pure []
   have hrun_word :
       ProbComp.eval ((vqMacToPrfDistinguisher adversary n []).run
         fun request => pure (randomFunctionOracle n table request.2)) =
@@ -1232,22 +1218,7 @@ private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForge
               (ProbOracleComp.runWith (fun x (u : Unit) => (PMF.pure (table x)).map (·, u))
                 ((vqMacToPrfHandler q).run state.1) state.2).map
                 (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)))
-            (if req.1 then
-              let msg := unframe req.2
-              let tag := dropFrame req.2
-              if (msg.length == n) && (tag.length == n) then
-                (fun ok : Bool => [ok]) <$>
-                  ProbOracleComp.query (spec := forgeVqSpec (BitString n) (BitString n))
-                    (Sum.inr (BitString.ofList n msg, BitString.ofList n tag))
-              else
-                pure [false]
-            else
-              if req.2.length == n then
-                List.ofFn <$>
-                  ProbOracleComp.query (spec := forgeVqSpec (BitString n) (BitString n))
-                    (Sum.inl (BitString.ofList n req.2))
-              else
-                pure []))
+            (handler req))
         (adversary n []) (⟨[], false⟩, ())).bind (fun x => PMF.pure x.2.1.won) := by
     unfold vqMacToPrfAdversary
     simp only [ProbOracleComp.run, OracleComp.interpret_bind, OracleComp.interpret_pure,
@@ -1282,29 +1253,14 @@ private theorem eval_adapt_vqMacToPrfDistinguisher_run_pure (adversary : VqForge
           (ProbOracleComp.runWith (fun x (u : Unit) => (PMF.pure (table x)).map (·, u))
             ((vqMacToPrfHandler q).run state.1) state.2).map
             (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)))
-        (if req.1 then
-          let msg := unframe req.2
-          let tag := dropFrame req.2
-          if (msg.length == n) && (tag.length == n) then
-            (fun ok : Bool => [ok]) <$>
-              ProbOracleComp.query (spec := forgeVqSpec (BitString n) (BitString n))
-                (Sum.inr (BitString.ofList n msg, BitString.ofList n tag))
-          else
-            pure [false]
-        else
-          if req.2.length == n then
-            List.ofFn <$>
-              ProbOracleComp.query (spec := forgeVqSpec (BitString n) (BitString n))
-                (Sum.inl (BitString.ofList n req.2))
-          else
-            pure []))
+        (handler req))
     (oracle' := fun req st =>
       (ProbOracleComp.runWith
         (fun r (u : Unit) => (PMF.pure (randomFunctionOracle n table r.2)).map (·, u))
         ((vqMacToPrfStep n req).run st.1) st.2).map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)))
     (represent := represent)
     (step := fun ⟨b, raw⟩ ⟨st, ⟨⟩⟩ => by
-      dsimp only [represent, vqMacToPrfStep, vqMacToPrfHandler, StateT.run]
+      dsimp only [represent, vqMacToPrfStep, vqMacToPrfHandler, handler, StateT.run]
       cases b
       · simp only [Bool.false_eq_true, ↓reduceIte]
         by_cases hmsg : raw.length = n

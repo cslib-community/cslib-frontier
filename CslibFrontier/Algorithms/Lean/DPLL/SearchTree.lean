@@ -86,12 +86,10 @@ theorem falsifiedClause_spec {φ : CNF ℕ} {π : List (Literal ℕ)} (h : statu
     falsifiedClause φ π ∈ φ ∧ (falsifiedClause φ π).eval σ = false := by
   unfold status at h
   split at h
-  · rename_i hs
-    obtain ⟨c, hc⟩ := Option.isSome_iff_exists.1 hs
+  · obtain ⟨c, hc⟩ := Option.isSome_iff_exists.1 ‹_›
     rw [falsifiedClause, hc, Option.getD_some]
     refine ⟨List.mem_of_find?_eq_some hc, (Clause.eval_eq_false_iff σ c).2 fun l hl => ?_⟩
-    have := hσ _ (falsifies_iff.1 (List.find?_some hc) l hl)
-    simpa [Std.Sat.Literal.negate] using this
+    simpa [Std.Sat.Literal.negate] using hσ _ (falsifies_iff.1 (List.find?_some hc) l hl)
   · split at h <;> cases h
 
 /-- The tree from `π`, without a model below `π`, finds a falsified clause on the assignments that
@@ -103,39 +101,28 @@ theorem eval_searchTree (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal �
   | fuel, π, hf, hd, σ, hσ => by
     cases hs : status φ π with
     | conflict =>
-      have : searchTree φ fuel π = .leaf (falsifiedClause φ π) := by
+      have hleaf : searchTree φ fuel π = .leaf (falsifiedClause φ π) := by
         cases fuel <;> simp [searchTree, hs]
-      rw [this]
+      rw [hleaf]
       exact falsifiedClause_spec hs hσ
     | sat => cases fuel <;> simp [dfs, hs] at hd
     | branch l =>
       obtain ⟨fuel, rfl, hlen'⟩ := length_openVars_cons_le hs hf
-      have hlen : ∀ b : Bool, (openVars φ ((l.1, b) :: π)).length ≤ fuel := fun b => hlen' _ rfl
       rw [dfs, hs, Option.or_eq_none_iff] at hd
-      have hd' : ∀ b : Bool, dfs φ fuel ((l.1, b) :: π) = none := by
-        obtain ⟨v, c⟩ := l
-        intro b
-        cases b <;> cases c
-        exacts [hd.1, hd.2, hd.2, hd.1]
-      simp only [searchTree, hs, DecisionTree.eval_node]
-      cases hv : σ l.1
-      · exact eval_searchTree φ fuel _ (hlen false) (hd' false) σ fun l' hl' => by
-          rcases List.mem_cons.1 hl' with rfl | hl'
-          exacts [hv, hσ l' hl']
-      · exact eval_searchTree φ fuel _ (hlen true) (hd' true) σ fun l' hl' => by
-          rcases List.mem_cons.1 hl' with rfl | hl'
-          exacts [hv, hσ l' hl']
+      have hd' (b : Bool) : dfs φ fuel ((l.1, b) :: π) = none := by
+        rcases l with ⟨_, _ | _⟩ <;> cases b <;> simp_all [Std.Sat.Literal.negate]
+      have heval : (searchTree φ (fuel + 1) π).eval σ =
+          (searchTree φ fuel ((l.1, σ l.1) :: π)).eval σ := by
+        cases hv : σ l.1 <;> simp [searchTree, hs, hv]
+      rw [heval]
+      exact eval_searchTree φ fuel ((l.1, σ l.1) :: π) (hlen' _ rfl) (hd' _) σ
+        (List.forall_mem_cons.2 ⟨rfl, hσ⟩)
   termination_by fuel => fuel
 
 /-- The search without skipping finds no model of an unsatisfiable formula. -/
 theorem dfs_eq_none_of_not_satisfiable {φ : CNF ℕ} (h : ¬ φ.Satisfiable) :
     dfs φ (depth φ) [] = none := by
-  have hs := isSat_solve_eq_isSome_dfs φ
-  have : (solve φ).isSat = false := by
-    rw [← Bool.not_eq_true, isSat_solve_iff]
-    exact h
-  rw [this, eq_comm, Option.isSome_eq_false_iff, Option.isNone_iff_eq_none] at hs
-  exact hs
+  simpa [Bool.eq_false_iff.2 (mt (isSat_solve_iff φ).1 h)] using (isSat_solve_eq_isSome_dfs φ).symm
 
 /-- **The trail run explores a DPLL tree**: on an unsatisfiable formula, the tree explored from the
 empty partial assignment finds a falsified clause on every assignment. -/
@@ -220,12 +207,10 @@ theorem exists_mem_of_mem_preorder (φ : CNF ℕ) (out : List (Literal ℕ) → 
   | fuel + 1, π, h => by
     unfold preorder at h
     split at h
-    · rename_i l _
-      rcases List.mem_append.1 h with h | h
+    · rcases List.mem_append.1 h with h | h
       · exact ⟨π, h⟩
-      rcases List.mem_append.1 h with h | h
-      · exact exists_mem_of_mem_preorder φ out fuel _ h
-      · exact exists_mem_of_mem_preorder φ out fuel _ h
+      rcases List.mem_append.1 h with h | h <;>
+        exact exists_mem_of_mem_preorder φ out fuel _ h
     · exact ⟨π, h⟩
 
 namespace Trail
@@ -254,27 +239,23 @@ theorem runLog_add_nodes (φ : CNF ℕ) (out : List (Literal ℕ) → List ℕ) 
     cases hs : status φ (lits t) with
     | sat => cases fuel <;> simp [dfs, hs] at hd
     | conflict =>
-      have hn : nodes φ fuel (lits t) = 1 := by cases fuel <;> simp [nodes, hs]
-      have hp : preorder φ out fuel (lits t) = out (lits t) := by
-        cases fuel <;> simp [preorder, hs]
-      rw [hn, hp, runLog, step, hs]
+      rw [show nodes φ fuel (lits t) = 1 by cases fuel <;> simp [nodes, hs],
+        show preorder φ out fuel (lits t) = out (lits t) by cases fuel <;> simp [preorder, hs],
+        runLog, step, hs]
       cases backtrack t <;> rfl
     | branch l =>
       obtain ⟨fuel, rfl, hlen⟩ := length_openVars_cons_le hs hf
-      have hlen₁ := hlen l rfl
-      have hlen₂ := hlen l.negate rfl
       rw [dfs, hs, Option.or_eq_none_iff] at hd
       have ih₁ := runLog_add_nodes φ out fuel (⟨l, false⟩ :: t)
-        (k + nodes φ fuel (l.negate :: lits t)) hlen₁ hd.1
-      have ih₂ := runLog_add_nodes φ out fuel (⟨l.negate, true⟩ :: t) k hlen₂ hd.2
+        (k + nodes φ fuel (l.negate :: lits t)) (hlen l rfl) hd.1
+      have ih₂ := runLog_add_nodes φ out fuel (⟨l.negate, true⟩ :: t) k (hlen l.negate rfl) hd.2
       simp only [lits_cons, backtrack_cons_false, backtrack_cons_true] at ih₁ ih₂
       have hn : k + nodes φ (fuel + 1) (lits t) =
           (k + nodes φ fuel (l.negate :: lits t) + nodes φ fuel (l :: lits t)) + 1 := by
-        simp only [nodes, hs]; omega
+        simp only [nodes, hs]
+        omega
       rw [hn, runLog, step, hs]
-      simp only
-      rw [ih₁, ih₂]
-      simp only [preorder, hs, List.append_assoc]
+      simp only [ih₁, ih₂, preorder, hs, List.append_assoc]
   termination_by fuel => fuel
 
 end Trail

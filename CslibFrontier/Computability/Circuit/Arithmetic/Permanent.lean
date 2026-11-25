@@ -77,23 +77,20 @@ theorem totalDegree_ryserPoly_le (n : ℕ) : (ryserPoly R n).totalDegree ≤ 3 *
   refine (totalDegree_mul _ _).trans ?_
   have h1 : (∏ j : Fin n, (2 * X (Fin.natAdd (n * n) j) - 1 :
       MvPolynomial (Fin (n * n + n)) R)).totalDegree ≤ n := by
-    refine (totalDegree_finsetProd _ _).trans ?_
-    calc _ ≤ ∑ _j : Fin n, 1 := Finset.sum_le_sum fun j _ => ?_
-      _ = n := by simp
-    rw [sub_eq_add_neg, show (2 : MvPolynomial (Fin (n * n + n)) R) = C 2 from (map_ofNat C 2).symm]
-    refine (totalDegree_add _ _).trans (max_le ?_ ?_)
-    · exact (totalDegree_mul _ _).trans (by simpa using totalDegree_X_le _)
-    · rw [← map_one C, ← map_neg C, totalDegree_C]
-      omega
+    refine (totalDegree_finsetProd _ _).trans
+      ((Finset.sum_le_sum (g := fun _ => 1) fun j _ => ?_).trans_eq (by simp))
+    rw [sub_eq_add_neg,
+      show (2 : MvPolynomial (Fin (n * n + n)) R) = C 2 from (map_ofNat C 2).symm,
+      ← map_one C, ← map_neg C]
+    exact (totalDegree_add _ _).trans (max_le
+      ((totalDegree_mul _ _).trans (by simpa using totalDegree_X_le _))
+      (by rw [totalDegree_C]; omega))
   have h2 : (∏ i : Fin n, ∑ j : Fin n,
       (X (Fin.natAdd (n * n) j) * X (Fin.castAdd n (finProdFinEquiv (i, j))) :
-        MvPolynomial (Fin (n * n + n)) R)).totalDegree ≤ 2 * n := by
-    refine (totalDegree_finsetProd _ _).trans ?_
-    calc _ ≤ ∑ _i : Fin n, 2 := Finset.sum_le_sum fun i _ => ?_
-      _ = 2 * n := by simp [mul_comm]
-    refine totalDegree_finsetSum_le fun j _ => ?_
-    refine (totalDegree_mul _ _).trans ?_
-    exact Nat.add_le_add (totalDegree_X_le _) (totalDegree_X_le _)
+        MvPolynomial (Fin (n * n + n)) R)).totalDegree ≤ 2 * n :=
+    (totalDegree_finsetProd _ _).trans <| (Finset.sum_le_sum fun i _ =>
+      totalDegree_finsetSum_le fun j _ => (totalDegree_mul _ _).trans
+        (Nat.add_le_add (totalDegree_X_le _) (totalDegree_X_le _))).trans_eq (by simp [mul_comm])
   omega
 
 /-- The polynomial family of Ryser inner polynomials over `R`. -/
@@ -139,40 +136,28 @@ private theorem synthesis_ryserPoly (n : ℕ) :
       MvPolynomial (Fin (n * n + n)) R) :=
     (({fun _ => 0} ∪ {fun _ => 1}) ∪ {fun _ => C 2}) ∪ {fun _ => C (-1)}
   let s := inputs (n * n + n) ∪ constants
-  have h0 : (fun _ => 0) ∈ s := by simp [s, constants]
   have h1 : (fun _ => 1) ∈ s := by simp [s, constants]
-  have h2 : (fun _ => C (2 : R)) ∈ s := by simp [s, constants]
-  have hn : (fun _ => C (-1 : R)) ∈ s := by simp [s, constants]
   have hx (i : Fin (n * n + n)) : (fun x => x i) ∈ s := Or.inl ⟨i, rfl⟩
-  have hsign (j : Fin n) : Synthesis (interp (R := R) (n * n + n)) s
-      {fun x => C 2 * x (Fin.natAdd (n * n) j) + C (-1)} 2 := by
-    have hmul := Synthesis.arith_mul (constant := C) h2 (hx (Fin.natAdd (n * n) j))
-    exact hmul.trans (Synthesis.arith_add (Set.mem_union_right _ rfl)
-      (Set.mem_union_left _ hn))
-  have hsigns := synthesis_prod univ _ (fun _ : Fin n => 2) h1 (fun j _ => hsign j)
-  have hrow (i : Fin n) : Synthesis (interp (R := R) (n * n + n)) s
-      {fun x => ∑ j : Fin n,
-        x (Fin.natAdd (n * n) j) * x (Fin.castAdd n (finProdFinEquiv (i, j)))} (2 * n) := by
-    have := Synthesis.arith_sum (constant := C) univ
-      (fun j x => x (Fin.natAdd (n * n) j) * x (Fin.castAdd n (finProdFinEquiv (i, j))))
-      (fun _ : Fin n => 1) h0
-      (fun j _ => Synthesis.arith_mul (hx (Fin.natAdd (n * n) j))
-        (hx (Fin.castAdd n (finProdFinEquiv (i, j)))))
-    simpa only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul,
-      mul_comm] using this
-  have hrows := synthesis_prod univ _ (fun _ : Fin n => 2 * n) h1 (fun i _ => hrow i)
+  have hsigns := synthesis_prod univ _ (fun _ : Fin n => 2) h1 fun j _ =>
+    (Synthesis.arith_mul (constant := C) (by simp [s, constants] : (fun _ => C (2 : R)) ∈ s)
+      (hx (Fin.natAdd (n * n) j))).trans
+      (Synthesis.arith_add (Set.mem_union_right _ rfl)
+        (Set.mem_union_left _ (by simp [s, constants] : (fun _ => C (-1 : R)) ∈ s)))
+  have hrows := synthesis_prod univ _ (fun _ : Fin n => 2 * n) h1 fun i _ => by
+    simpa only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_comm] using
+      Synthesis.arith_sum (constant := C) univ
+        (fun j x => x (Fin.natAdd (n * n) j) * x (Fin.castAdd n (finProdFinEquiv (i, j))))
+        (fun _ : Fin n => 1) (by simp [s, constants]) fun j _ =>
+          Synthesis.arith_mul (hx (Fin.natAdd (n * n) j))
+            (hx (Fin.castAdd n (finProdFinEquiv (i, j))))
   have hbody := hsigns.combine hrows
     (Synthesis.arith_mul (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))
   have hc0 : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n)) {fun _ => 0} 1 := by
     simpa only [map_zero] using Synthesis.arith_const (constant := C) (0 : R)
   have hc1 : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n)) {fun _ => 1} 1 := by
     simpa only [map_one] using Synthesis.arith_const (constant := C) (1 : R)
-  have hc2 : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n))
-      {fun _ => C (2 : R)} 1 := Synthesis.arith_const 2
-  have hcn : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n))
-      {fun _ => C (-1 : R)} 1 := Synthesis.arith_const (-1)
   have hc : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n)) constants 4 :=
-    ((hc0.union hc1).union hc2).union hcn
+    ((hc0.union hc1).union (Synthesis.arith_const 2)).union (Synthesis.arith_const (-1))
   refine (hc.trans hbody).mono Set.Subset.rfl Set.Subset.rfl ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
   nlinarith
@@ -198,13 +183,12 @@ theorem booleanSum_ryserPoly (n : ℕ) :
   rw [Matrix.permanent_eq_ryser_bool, booleanSum]
   refine Finset.sum_congr rfl fun e _ => ?_
   rw [ryserPoly, map_mul, map_prod, map_prod]
-  congr 1
-  · refine Finset.prod_congr rfl fun j _ => ?_
-    rw [map_sub, map_mul, map_ofNat, map_one, projection_X]
+  refine congrArg₂ (· * ·) (Finset.prod_congr rfl fun j _ => ?_)
+    (Finset.prod_congr rfl fun i _ => ?_)
+  · rw [map_sub, map_mul, map_ofNat, map_one, projection_X]
     simp only [booleanAssignment, Fin.append_right, Sum.elim_inr]
     cases e j <;> norm_num
-  · refine Finset.prod_congr rfl fun i _ => ?_
-    rw [map_sum]
+  · rw [map_sum]
     refine Finset.sum_congr rfl fun j _ => ?_
     rw [map_mul, projection_X, projection_X]
     simp only [booleanAssignment, Fin.append_right, Fin.append_left, Sum.elim_inr, Sum.elim_inl]

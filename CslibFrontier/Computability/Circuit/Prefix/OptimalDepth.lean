@@ -79,6 +79,16 @@ public section
 
 namespace Cslib.Circuits.Prefix
 
+/-- The segment boundaries telescope: `T D = 1 + ∑_{d < D} (T (d + 1) - T d)`. -/
+private theorem eq_one_add_sum_sub {T : ℕ → ℕ} (hT0 : T 0 = 1) {D : ℕ}
+    (hlt : ∀ d < D, T d < T (d + 1)) : T D = 1 + ∑ d ∈ Finset.range D, (T (d + 1) - T d) := by
+  induction D with
+  | zero => simp only [Finset.range_zero, Finset.sum_empty, Nat.add_zero, hT0]
+  | succ r ih =>
+    rw [Finset.sum_range_succ, ← Nat.add_assoc, ← ih fun d hd => hlt d (by omega)]
+    have := hlt r (by omega)
+    omega
+
 /-- Exact maximum width bound for optimal fanout-2 prefix circuits of positive depth:
 `N ≤ 1 + w_2*(c.depth - 1)` ([Sergeev2025PrefixDepth], p. 3, `w_2(D) = w_2*(D - 1)`). -/
 theorem width_le_one_add_maxCircuitWidthUpper_two {N : ℕ} (hN : 1 ≤ N)
@@ -87,15 +97,7 @@ theorem width_le_one_add_maxCircuitWidthUpper_two {N : ℕ} (hN : 1 ≤ N)
     N ≤ 1 + maxCircuitWidthUpper 2 (c.depth - 1) := by
   obtain ⟨T, hT0, hTD, hseg⟩ := optimal_segment_decomposition hN hopt hfan
   set D := c.depth
-  have htele : ∀ r ≤ D, T r = 1 + ∑ d ∈ Finset.range r, (T (d + 1) - T d) := by
-    intro r hr
-    induction r with
-    | zero => simp only [Finset.range_zero, Finset.sum_empty, Nat.add_zero, hT0]
-    | succ r ih =>
-      rw [Finset.sum_range_succ, ← Nat.add_assoc, ← ih (by omega)]
-      have hlt := (hseg r (by omega)).1
-      omega
-  rw [← hTD, htele D le_rfl]
+  rw [← hTD, eq_one_add_sum_sub hT0 fun d hd => (hseg d hd).1]
   unfold maxCircuitWidthUpper
   rw [show D - 1 + 1 = D by omega]
   refine Nat.add_le_add_left (Finset.sum_le_sum fun d hd => ?_) 1
@@ -166,16 +168,9 @@ private theorem width_le_vStar {N k : ℕ} (hk : 3 ≤ k) (hN : 1 ≤ N)
     (N : ℝ) ≤ vStar k c.depth := by
   obtain ⟨T, hT0, hTD, hseg⟩ := optimal_segment_decomposition hN hopt hfan
   set D := c.depth
-  have htele : ∀ r ≤ D, T r = 1 + ∑ d ∈ Finset.range r, (T (d + 1) - T d) := by
-    intro r hr
-    induction r with
-    | zero => simp only [Finset.range_zero, Finset.sum_empty, Nat.add_zero, hT0]
-    | succ r ih =>
-      rw [Finset.sum_range_succ, ← Nat.add_assoc, ← ih (by omega)]
-      have hlt := (hseg r (by omega)).1
-      omega
   have hN_eq : (N : ℝ) = 1 + ∑ d ∈ Finset.range D, ((T (d + 1) - T d : ℕ) : ℝ) := by
-    rw [← hTD, htele D le_rfl, Nat.cast_add, Nat.cast_one, Nat.cast_sum]
+    rw [← hTD, eq_one_add_sum_sub hT0 fun d hd => (hseg d hd).1, Nat.cast_add, Nat.cast_one,
+      Nat.cast_sum]
   rw [hN_eq]
   unfold vStar
   rw [Finset.sum_range_succ, Nat.sub_self, V_zero_right, add_comm (1 : ℝ)]
@@ -305,10 +300,7 @@ theorem width_le_mul_alphaRoot_pow {k : ℕ} (hk : 2 ≤ k) :
         Finset.sum_nonneg fun d _ => V_nonneg k d (m - d)
       have hbm : 0 ≤ b * (3 / 2 : ℝ) ^ m := mul_nonneg hb_pos.le (by positivity)
       linarith
-    have hA1 : 1 ≤ A := by
-      have hsum_nn : 0 ≤ ∑ m ∈ Finset.range k, (vStar k m + b * (3 / 2 : ℝ) ^ m + 1) :=
-        Finset.sum_nonneg fun m _ => hterm_nn m
-      linarith
+    have hA1 : 1 ≤ A := le_add_of_nonneg_right (Finset.sum_nonneg fun m _ => hterm_nn m)
     set B : ℕ → ℝ := fun D => A * α ^ D - b * (3 / 2 : ℝ) ^ D - 1
     have hV_le_B : ∀ D : ℕ, vStar k D ≤ B D := by
       intro D
@@ -407,21 +399,13 @@ theorem optimalPrefixDepth_two_le_iff {N D : ℕ} (hN : 1 ≤ N) (hD : 1 ≤ D) 
         omega
       have hw := width_le_one_add_maxCircuitWidthUpper_two hN hopt hfan hcD_pos
       refine hw.trans (Nat.add_le_add_left ?_ 1)
-      have hd_le : c.depth - 1 ≤ D - 1 := by omega
-      have hmono : ∀ m₁ m₂, m₁ ≤ m₂ → maxCircuitWidthUpper 2 m₁ ≤ maxCircuitWidthUpper 2 m₂ := by
-        intro m₁ m₂ hm
-        induction hm with
-        | refl => exact le_rfl
-        | @step m _ ihm =>
-          refine ihm.trans ?_
-          unfold maxCircuitWidthUpper
-          rw [Finset.sum_range_succ (n := m + 1)]
-          refine le_trans ?_ (Nat.le_add_right _ _)
-          refine Finset.sum_le_sum fun d hd => ?_
-          rw [Finset.mem_range] at hd
-          rw [maxConsistentWidth_two, maxConsistentWidth_two]
-          exact Nat.pow_le_pow_right (by omega) (by omega)
-      exact hmono _ _ hd_le
+      refine monotone_nat_of_le_succ (fun m => ?_) (by omega : c.depth - 1 ≤ D - 1)
+      unfold maxCircuitWidthUpper
+      rw [Finset.sum_range_succ (n := m + 1)]
+      refine le_trans (Finset.sum_le_sum fun d hd => ?_) (Nat.le_add_right _ _)
+      rw [Finset.mem_range] at hd
+      rw [maxConsistentWidth_two, maxConsistentWidth_two]
+      exact Nat.pow_le_pow_right (by omega) (by omega)
   · intro hN_ub
     obtain ⟨c, hopt, hfan, hd_le⟩ :=
       exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper le_rfl hD hN hN_ub
@@ -442,21 +426,14 @@ theorem abs_optimalPrefixDepth_sub_logb_le {k : ℕ} (hk : 2 ≤ k) :
   have hα1 := one_lt_alphaRoot hk
   have hα_pos : 0 < α := zero_lt_one.trans hα1
   obtain ⟨A, hA1, hA_bound⟩ := width_le_mul_alphaRoot_pow hk
-  have hlogA_nn : 0 ≤ Real.logb α A := by
-    have := Real.logb_le_logb_of_le hα1 zero_lt_one hA1
-    simpa only [Real.logb_one] using this
+  have hlogA_nn : 0 ≤ Real.logb α A := Real.logb_nonneg hα1 hA1
   set C : ℝ := Real.logb α A + ((k : ℝ) + 2)
-  have hC_nn : 0 ≤ C := by
-    dsimp only [C]
-    have hk_nn : (0 : ℝ) ≤ (k : ℝ) := Nat.cast_nonneg k
-    linarith
+  have hC_nn : 0 ≤ C := add_nonneg hlogA_nn (by positivity)
   refine ⟨C, hC_nn, fun N hN => ?_⟩
   set D := optimalPrefixDepth N k
   have hN_pos : (0 : ℝ) < (N : ℝ) := by exact_mod_cast (by omega : 0 < N)
   have hN_ge1 : (1 : ℝ) ≤ (N : ℝ) := by exact_mod_cast hN
-  have hlogN_nn : 0 ≤ Real.logb α N := by
-    have := Real.logb_le_logb_of_le hα1 zero_lt_one hN_ge1
-    simpa only [Real.logb_one] using this
+  have hlogN_nn : 0 ≤ Real.logb α N := Real.logb_nonneg hα1 hN_ge1
   have hlow : Real.logb α N - C ≤ (D : ℝ) := by
     obtain ⟨c, hopt, hfan, hd_eq⟩ := exists_optimalPrefixCircuit_depth_eq hk hN
     change c.depth = D at hd_eq
