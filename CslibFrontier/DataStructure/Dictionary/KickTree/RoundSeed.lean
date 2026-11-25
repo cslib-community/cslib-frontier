@@ -575,9 +575,13 @@ theorem nr_contraction_quotientPerm_le {c n a' : ℕ} (hn : quotientPermThreshol
   generalize quotientPermCharBits n = b_char at *
   generalize quotientPermInd c n = κ at *
   set h_char := b_char / 2
-  have hκ_h2 : κ ≤ h_char ^ 2 := hκ_le.trans <| by
-    have := Nat.mul_le_mul (show 24 * c_tab ≤ h_char by omega) (show b_char ≤ 3 * h_char by omega)
-    nlinarith
+  have hκ_h2 : κ ≤ h_char ^ 2 := by
+    have hb_2h : b_char ≤ 3 * h_char := by omega
+    calc κ ≤ 8 * c_tab * b_char := hκ_le
+      _ ≤ 8 * c_tab * (3 * h_char) := Nat.mul_le_mul_left _ hb_2h
+      _ = (24 * c_tab) * h_char := by ring
+      _ ≤ h_char * h_char := Nat.mul_le_mul_right _ (by omega)
+      _ = h_char ^ 2 := (sq h_char).symm
   have h3κ : 3 * κ ^ 2 ≤ 2 ^ h_char := mul_sq_le_two_pow (by omega) hκ_h2 (by omega)
   have hstep_nat : 3 * κ ^ 2 * 2 ^ h_char ≤ 2 ^ nrHalfLow a' := by
     calc 3 * κ ^ 2 * 2 ^ h_char ≤ 2 ^ h_char * 2 ^ h_char := Nat.mul_le_mul_right _ h3κ
@@ -796,9 +800,11 @@ theorem dist_caseA_reducedDoubleTab_le {a m b_aux c n : ℕ}
       · rw [add_zero]
         exact prob_not_injOn_reduceBits_le hn T_Q hTQ)
   have hτ_le : 1 / (8 * (n : ℝ) ^ (c + 2)) ≤ 1 / (32 * (n : ℝ) ^ (c + 1)) := by
-    have h4r : (4 : ℝ) ≤ (n : ℝ) := by exact_mod_cast h4n
     refine one_div_le_one_div_of_le (by positivity) ?_
-    rw [pow_succ _ (c + 1)]; nlinarith [pow_pos (by positivity : (0 : ℝ) < n) (c + 1)]
+    have h4r : (4 : ℝ) ≤ (n : ℝ) := by exact_mod_cast h4n
+    calc 32 * (n : ℝ) ^ (c + 1) = 8 * ((n : ℝ) ^ (c + 1) * 4) := by ring
+      _ ≤ 8 * ((n : ℝ) ^ (c + 1) * (n : ℝ)) := by gcongr
+      _ = 8 * (n : ℝ) ^ (c + 2) := by ring
   have hr₃ : 1 / (32 * (n : ℝ) ^ (c + 1)) + 1 / (16 * (n : ℝ) ^ (c + 1)) +
       1 / (2 * (n : ℝ) ^ (c + 1)) + 1 / (16 * (n : ℝ) ^ (c + 1)) =
       (21 / 32 : ℝ) * (1 / (n : ℝ) ^ (c + 1)) := by ring
