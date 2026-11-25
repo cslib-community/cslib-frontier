@@ -1029,7 +1029,8 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
         (by rw [Function.update_self])
     -- Profiles giving agent `0` the same type and every other agent except `i` its positive
     -- period as arrival agree, after a common report of `i`, on all agents arrived by period `0`.
-    have hagree0 : ∀ (θ θ' : Fin (2 * m + 1) → AgentType (Fin (m + 1))) (τ : AgentType (Fin (m + 1))),
+    have hagree0 : ∀ (θ θ' : Fin (2 * m + 1) → AgentType (Fin (m + 1)))
+        (τ : AgentType (Fin (m + 1))),
         θ 0 = θ' 0 →
         (∀ x, x ≠ 0 → x ≠ i → (θ x).arrival = periodOf x ∧ (θ' x).arrival = periodOf x) →
         ∀ x, (Function.update θ i τ x).arrival ≤ 0 ∨ (Function.update θ' i τ x).arrival ≤ 0 →
@@ -1090,7 +1091,8 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
         · exact .inr (by simp only [θbig, Function.update_of_ne hji,
             hBase j (Finset.notMem_singleton.1 hj), pointType])
       have hoptY : Y - 1 ≤ optWelfare (fun _ => 1) θbig := by
-        simpa only [θbig, Function.update_self, pointType] using value_le_optWelfare_of_single θbig i
+        simpa only [θbig, Function.update_self, pointType] using
+          value_le_optWelfare_of_single θbig i
       exact hcomp θbig hw_le hoptY (by dsimp only [Y]; linarith)
     -- Claim 2: Agent i MUST win at t = 0 in update θStar i (0, tk, Y)!
     have hwin_tk_at_0 :
