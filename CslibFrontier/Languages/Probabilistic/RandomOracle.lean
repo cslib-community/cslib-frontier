@@ -112,13 +112,11 @@ theorem memoize_invariant [LawfulBEq Query] (distribution : Query → PMF Value)
     (result : Value × List (Query × Value))
     (hresult : result ∈ (memoize distribution key cache).support) :
     property key result.1 ∧ ∀ entry ∈ result.2, property entry.1 entry.2 := by
-  rcases (mem_support_memoize_iff _ _ _ _).mp hresult with
-    ⟨hlookup, hnext⟩ | ⟨_, hvalue, hnext⟩
+  rcases (mem_support_memoize_iff _ _ _ _).mp hresult with ⟨hlookup, hnext⟩ | ⟨_, hvalue, hnext⟩
+  · obtain ⟨_, _, hlist, _⟩ := List.lookup_eq_some_iff.mp hlookup
+    exact ⟨hcache (key, result.1) (by simp [hlist]), hnext ▸ hcache⟩
   · rw [hnext]
-    obtain ⟨before, after, hlist, _⟩ := List.lookup_eq_some_iff.mp hlookup
-    exact ⟨hcache (key, result.1) (by simp [hlist]), hcache⟩
-  · rw [hnext]
-    exact ⟨hsample result.1 hvalue, by simpa using And.intro (hsample result.1 hvalue) hcache⟩
+    exact ⟨hsample result.1 hvalue, List.forall_mem_cons.mpr ⟨hsample result.1 hvalue, hcache⟩⟩
 
 /-- Each memoized call adds at most one entry. Every new entry records an actual query and an
 answer in its sampling distribution's support. Repeated calls still appear in the transcript. -/
@@ -135,11 +133,11 @@ private theorem run_interpret_memoize_transcript (distribution : Query → PMF V
       ∀ entry ∈ current, entry ∈ cache ∨
         (⟨entry.1, entry.2⟩ ∈ seen ∧ entry.2 ∈ (distribution entry.1).support))
     ?_ program (cache, []) (by simp) result (cache', transcript) h
-  rintro q ⟨current, seen⟩ ⟨hcount, hentries⟩ answer next hnext
+  rintro q ⟨current, seen⟩ ⟨hcount, hentries⟩ _ _ hnext
   simp only [OracleComp.withTranscript, PMF.mem_support_map_iff, mem_support_memoize_iff] at hnext
   obtain ⟨⟨value, current'⟩, hvalue, heq⟩ := hnext
   cases heq
-  dsimp only at hvalue
+  dsimp only at hvalue ⊢
   rcases hvalue with ⟨_, rfl⟩ | ⟨_, hfresh, rfl⟩ <;> grind
 
 /-- Query bounds control the number and provenance of all new cache entries. The sampler's own
@@ -155,16 +153,13 @@ theorem memoize_cache_bounds (distribution : Query → PMF Value)
         (size entry.1 ≤ maxSize ∧ entry.2 ∈ (distribution entry.1).support) := by
   rw [← OracleComp.run_interpret_withTranscript (memoize distribution) program cache [],
     PMF.mem_support_map_iff] at h
-  obtain ⟨⟨value, state⟩, hstate, heq⟩ := h
-  cases heq
-  obtain ⟨hcount, hentries⟩ := run_interpret_memoize_transcript distribution program cache state.1
-    result state.2 hstate
+  rcases h with ⟨⟨_, cache', transcript⟩, hstate, ⟨⟩⟩
+  obtain ⟨hcount, hentries⟩ := run_interpret_memoize_transcript distribution program cache cache'
+    result transcript hstate
   refine ⟨hcount.trans (Nat.add_le_add_left
-    (hcalls.length_transcript_le (memoize distribution) hstate) _), ?_⟩
-  intro entry hentry
-  rcases hentries entry hentry with h | ⟨hseen, hsupport⟩
-  · exact Or.inl h
-  · exact Or.inr ⟨hsize.forall_mem_transcript (memoize distribution) hstate _ hseen, hsupport⟩
+    (hcalls.length_transcript_le (memoize distribution) hstate) _), fun entry hentry => ?_⟩
+  exact (hentries entry hentry).imp_right fun ⟨hs, hd⟩ =>
+    ⟨hsize.forall_mem_transcript (memoize distribution) hstate _ hs, hd⟩
 
 /-- Interpret a finite association list as a partial function. The first occurrence of a key
 determines its value, so arbitrary initial lists are supported without a uniqueness invariant. -/
@@ -180,16 +175,11 @@ variable [LawfulBEq Query]
 theorem card_filter_lookup_isSome_le [Fintype Query] (cache : List (Query × Value)) :
     (Finset.univ.filter fun q : Query => (cache.lookup q).isSome = true).card ≤ cache.length := by
   classical
-  calc (Finset.univ.filter fun q : Query => (cache.lookup q).isSome = true).card
-      ≤ (cache.map Prod.fst).toFinset.card := by
-        refine Finset.card_le_card fun q hq => ?_
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Option.isSome_iff_exists] at hq
-        obtain ⟨v, hv⟩ := hq
-        obtain ⟨before, after, hlist, _⟩ := List.lookup_eq_some_iff.mp hv
-        have hmem : (q, v) ∈ cache := by simp [hlist]
-        exact List.mem_toFinset.mpr (List.mem_map_of_mem hmem)
-    _ ≤ (cache.map Prod.fst).length := List.toFinset_card_le _
-    _ = cache.length := List.length_map Prod.fst
+  refine (Finset.card_le_card fun q hq => ?_).trans
+    ((List.toFinset_card_le (cache.map Prod.fst)).trans_eq (List.length_map Prod.fst))
+  obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp (Finset.mem_filter.mp hq).2
+  obtain ⟨_, _, hlist, _⟩ := List.lookup_eq_some_iff.mp hv
+  exact List.mem_toFinset.mpr (List.mem_map_of_mem (a := (q, v)) (by simp [hlist]))
 
 variable [DecidableEq Query]
 
@@ -198,8 +188,7 @@ theorem ofList_cons (cache : List (Query × Value)) (q : Query) (value : Value) 
     ofList ((q, value) :: cache) = Function.update (ofList cache) q (some value) := by
   funext query
   by_cases h : query = q
-  · subst query
-    simp [ofList]
+  · subst query; simp [ofList]
   · simp [ofList, List.lookup_cons, h, beq_eq_false_iff_ne.mpr h]
 
 /-- Mapping the list cache by `ofList` turns one `memoize` call into `answer`. -/
@@ -257,8 +246,7 @@ theorem complete_update [DecidableEq Query] (distribution : (q : Query) → PMF 
   unfold complete
   congr 1 with query : 1
   by_cases h : query = q
-  · subst query
-    simp
+  · subst query; simp
   · simp [Function.update_of_ne h]
 
 /-- Answering one query and completing the cache gives the same joint answer and table as
@@ -386,18 +374,17 @@ theorem interpret_eq_memoize_map {Key' Value' : Type u} [BEq Key'] [LawfulBEq Ke
       OracleComp.interpret (fun key => PMF.pure (valueMap (table key))) program) =
       ((OracleComp.interpret (fun key => memoize sample' (keyMap key)) program).run []).map
         Prod.fst := by
-  let represent := fun cache : List (Query × Value) =>
-    cache.map (fun entry => (keyMap entry.1, valueMap entry.2))
-  have hrun := OracleComp.run_interpret_map_response_state (fun _ => valueMap)
-    (memoize distribution) (fun key => memoize sample' (keyMap key)) represent
-    (fun key cache => by
-      simpa only [represent, PMF.monad_map_eq_map] using
-        memoize_map keyMap valueMap distribution sample' hsample key cache) program []
-  have houtput := congrArg (PMF.map Prod.fst) hrun
-  simp only [PMF.map_comp, Function.comp_def, represent, List.map_nil] at houtput
-  rw [← houtput]
-  simpa only [OracleComp.interpret_interpret, interp_norm,
-    pmf_norm] using interpret_eq_memoize distribution
+  have hrun := congrArg (PMF.map Prod.fst) <|
+    OracleComp.run_interpret_map_response_state (fun _ => valueMap) (memoize distribution)
+      (fun key => memoize sample' (keyMap key))
+      (List.map fun entry => (keyMap entry.1, valueMap entry.2))
+      (fun key cache => by
+        simpa only [PMF.monad_map_eq_map] using
+          memoize_map keyMap valueMap distribution sample' hsample key cache) program []
+  simp only [PMF.map_comp, Function.comp_def, List.map_nil] at hrun
+  rw [← hrun]
+  simpa only [OracleComp.interpret_interpret, interp_norm, pmf_norm] using
+    interpret_eq_memoize distribution
       (OracleComp.interpret (fun key => valueMap <$> OracleComp.query key) program)
 
 end ListFinite
