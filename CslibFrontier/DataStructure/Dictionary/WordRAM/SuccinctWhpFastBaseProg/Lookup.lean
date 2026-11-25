@@ -122,10 +122,6 @@ private theorem mkWhpParams_fst (c U V w n_max : ℕ) :
     (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
   unfold mkWhpParams; split <;> rfl
 
-private theorem oldEp_or {fs : FastState} :
-    fs.curEp = 0 ∨ fs.curEp = 1 → fs.oldEp = 0 ∨ fs.oldEp = 1 := by
-  unfold FastState.oldEp; omega
-
 /-! ## Section 1: Key Verification and Candidate Probe Helpers -/
 
 /-- Check `fs.matchesKey n_max b q_val b_cand loc`
@@ -552,7 +548,7 @@ private theorem realizes_probeOldBufCandGen :
     | exact henv.fits_hdr_addr (by decide)
     | exact hw2
     | (obtain ⟨oldMap, hv_old⟩ := hbo_fn (by omega)
-       exact ⟨c, U, V, w, n_max, fs, oldMap, henv, rfl, hrep, oldEp_or hce_or, hv_old,
+       exact ⟨c, U, V, w, n_max, fs, oldMap, henv, rfl, hrep, fs.oldEp_or hce_or, hv_old,
          hb, hcnt_le, hbp_v⟩)
   )
 
@@ -584,7 +580,7 @@ private theorem probeOldBufCandGenProg_spec {c U V w n_max base b q_val rKey : �
       (F := base + largeSpaceWhp c U V w n_max)
       (by dsimp only [largeSpaceWhp, hdrCurEp]; omega) hce_or hrep.2.2.2.1 (s := s))
     exact .weaken (hst.bind (.if_pos hle3 (hro.bind (probeBufCandGenProg_spec henv
-      (oldEp_or hce_or) hrep hv_old hb hcnt_le hbp_v)))) (by rw [ite_eq_left hle3]) (by omega)
+      (fs.oldEp_or hce_or) hrep hv_old hb hcnt_le hbp_v)))) (by rw [ite_eq_left hle3]) (by omega)
   · exact .weaken (hst.bind (.if_neg hle3 (.pure _))) (by rw [ite_eq_right hle3]) (by omega)
 
 /-- Inner lookup helper given precomputed `(b, q_val)` (`d = (((wp, base), (b, q_val)), u_val)`). -/

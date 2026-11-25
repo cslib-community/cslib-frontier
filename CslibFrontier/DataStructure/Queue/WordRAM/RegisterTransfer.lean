@@ -134,7 +134,7 @@ private theorem transfer_summary (d : Input) (F n : ℕ) {w : ℕ} {s : Memory.S
       rw [memoryCost_bind, hresult, hct, show memoryCost b s = 2 from rfl]
       omega
     · rw [hstate]
-      exact (move_modifies (w := 0) hdom).trans_subset hmt subset_rfl subset_rfl
+      simpa using (move_modifies (w := 0) hdom).trans hmt
 
 /-- Transfer is valid on arbitrary well-formed physical memory under the original room
 envelope. It performs exactly two memory queries per moved element and preserves the entire

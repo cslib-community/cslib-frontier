@@ -308,7 +308,7 @@ private theorem insertDescendOrLeaf_int_spec
       refine WP.of_execWithin hsc_exec ?_
       exact WP.of_execWithin hdas ⟨by omega, rfl⟩
     have hmod_all : Modifies (Block.mk base (arenaWords t capNodes)).footprint mem₀ x₃.mem :=
-      hmod_sc.trans_subset hmod_das subset_rfl subset_rfl
+      by simpa using hmod_sc.trans hmod_das
     rw [hmem_z₂] at hbr_das
     rw [hact_z₂.trans hactz] at hbr_das
     simp only [Nat.add_sub_cancel] at hbr_das
@@ -758,7 +758,7 @@ theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 20}
           exact Finset.mem_union_right _ (Finset.mem_Ico.mpr ⟨by omega, this.2⟩)
       refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
         by omega, by omega, hmb0.trans hm1_b0, hmb1, hby_reg, hdy_reg,
-        hmod₃.trans_subset hmod_rec subset_rfl subset_rfl, fun w_id hnot o ho_lt => ?_, hv_u',
+        by simpa using hmod₃.trans hmod_rec, fun w_id hnot o ho_lt => ?_, hv_u',
         hs_u', by rw [hnk_u', hnk_u1]; omega, hsub_u'.trans hsub_mid, by rw [htr_u', htr_u1]⟩
       rw [hfr_rec w_id (fun hin => hnot (hsub_mid (Finset.union_subset_union hsub_d
         subset_rfl hin))) o ho_lt]
@@ -784,7 +784,7 @@ theorem insertLoop_spec {l w base capNodes t u cnt k v : ℕ} {x : Data 20}
           (hc_def.symm ▸ hnk_c_ge) (hc_def.symm ▸ hsub_c') (hc_def.symm ▸ htr_c')
       refine ⟨y, cnt', (hstep.loop_iter hcond_in hy_rec).mono (by omega), hby,
         hcnt_le, by omega, hmb0, hmb1, hby_reg, hdy_reg,
-        hmod₃.trans_subset hmod_rec subset_rfl subset_rfl,
+        by simpa using hmod₃.trans hmod_rec,
         fun w_id hnot o ho_lt => hfr_rec w_id (fun hin => hnot (Finset.union_subset_union
           (hc_def ▸ child_subset_readNodeSet l base t x.mem u slot hslot_lt1) subset_rfl hin))
           o ho_lt,

@@ -268,7 +268,8 @@ theorem push_exec {α : Type*} {k w baseAddr cap : ℕ} [NeZero k] (R : RecordSp
   have hwords : (fun i => x.regs (fields i)) = R.toWords v := funext hfields
   rw [hwords] at hymem
   have hnk : items.length * k + k = (items.length + 1) * k := (Nat.succ_mul _ _).symm
-  refine ⟨y, hy, hytop, hymem ▸ hstack.push_write v, hymem, hmod_slot.mono fun a ha => ?_, hyregs⟩
+  refine ⟨y, hy, hytop, hymem ▸ hstack.push_write v, hymem,
+    fun a ha => hmod_slot a (mt (fun ha => ?_) ha), hyregs⟩
   simp only [Block.mem_footprint, Block.Owns] at ha ⊢
   omega
 

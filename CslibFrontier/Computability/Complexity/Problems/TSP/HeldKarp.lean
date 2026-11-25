@@ -1462,12 +1462,8 @@ private theorem tmDecide_eq_heldKarpDecide (x : TSPInstance) :
   | succ n =>
     simp only [tmOptCost_eq_heldKarp x h]
 
-private theorem length_encDist_le (x : TSPInstance) :
-    (encList (encList encNat) x.dist).length ≤ (encTSP x).length := by
-  rw [encTSP_apply]; enc_len
-
 private theorem length_dist_le (x : TSPInstance) : x.dist.length ≤ (encTSP x).length :=
-  (length_le_length_encList _ _).trans (length_encDist_le x)
+  (length_le_length_encList _ _).trans (encTSP_dist_length_le x)
 
 /-- The bounds `2 ^ (n - 1) * (|x| + 1) ^ a` grow with the exponent `a`. -/
 private theorem bigO_expBound_mono (a b : ℕ) (h : a ≤ b) :
@@ -1870,7 +1866,7 @@ private theorem computableInO_tmOptCost :
       rw [Nat.add_sub_cancel] at hk ⊢
       obtain ⟨h1, h2, hrow, -, hst_len⟩ := hkState_size_bound x hx hk
       refine ⟨h2.le, listMax_le fun r hr => (hrow r hr).trans (Nat.le_succ _), ?_, ?_, ?_⟩
-      · rw [h1]; exact (length_encDist_le x).trans (Nat.le_succ _)
+      · rw [h1]; exact (encTSP_dist_length_le x).trans (Nat.le_succ _)
       · rw [h1, encUnary_apply, List.length_replicate]
         exact (mod_le_encTSP_length hx hk).trans (Nat.le_succ _)
       · change (encHKState (hkStep^[k] (hkInit x))).length ≤
