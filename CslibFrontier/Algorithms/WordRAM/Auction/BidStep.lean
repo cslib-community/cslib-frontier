@@ -194,17 +194,10 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       have hnp_fit : Fits w (s₀.mem (ws.bPrice + j₀.val) + ws.eps) := by
         rw [hpj_mem]; have := hp_nn j₀; have := hp_le j₀
         exact hfit_p.of_le (by omega)
-      refine ⟨fun _ => hnp_fit, fun hne => absurd hhs0 hne, ?_, ?_, ?_, ?_, hnp_eq ▸ hnp_fit⟩
-      · dsimp only [pBranch, computeNewP]
-        rw [ite_eq_left hhs0]
-        exact validHistory_read_bind (by omega) (validHistory_pure w _ _)
-      · dsimp only [pBranch, computeNewP]
-        rw [ite_eq_left hhs0]
-        exact memoryCost_read_bind_le fun _ _ => Nat.le_refl 0
-      · dsimp only [pBranch, computeNewP]
-        rw [ite_eq_left hhs0, clientState_bind_read, clientState_pure]
-      · dsimp only [pBranch, computeNewP]
-        rw [ite_eq_left hhs0, clientResult_bind_read, clientResult_pure, hnp_eq]
+      refine ⟨fun _ => hnp_fit, fun hne => absurd hhs0 hne, ?_⟩
+      simp only [pBranch, computeNewP, hhs0, ↓reduceIte]
+      exact ⟨validHistory_read_bind (by omega) (validHistory_pure w _ _),
+        memoryCost_read_bind_le fun _ _ => Nat.le_refl 0, rfl, hnp_eq, hnp_eq ▸ hnp_fit⟩
     | some wVal =>
       rw [hsb] at hsec_spec
       obtain ⟨hhs1, hsv_z, hsv_le⟩ := hsec_spec
@@ -227,42 +220,17 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
         hfit_p.of_le (by omega)
       have hfrb_j : Fits w (rowBase + j₀.val) :=
         hfit_ws.of_le (by dsimp only [rowBase]; omega)
-      refine ⟨fun h0 => absurd h0 hhs_ne, fun _ => ⟨hfrb_j, hcj_le, hnp_fit⟩,
-        ?_, ?_, ?_, ?_, hnp_eq ▸ hnp_fit⟩
-      · dsimp only [pBranch, computeNewP]
-        rw [ite_eq_right hhs_ne]
-        exact validHistory_read_bind (by dsimp only [rowBase]; omega) (validHistory_pure w _ _)
-      · dsimp only [pBranch, computeNewP]
-        rw [ite_eq_right hhs_ne]
-        exact memoryCost_read_bind_le fun _ _ => Nat.le_refl 0
-      · dsimp only [pBranch, computeNewP]
-        rw [ite_eq_right hhs_ne, clientState_bind_read, clientState_pure]
-      · dsimp only [pBranch, computeNewP]
-        rw [ite_eq_right hhs_ne, clientResult_bind_read, clientResult_pure, hnp_eq]
+      refine ⟨fun h0 => absurd h0 hhs_ne, fun _ => ⟨hfrb_j, hcj_le, hnp_fit⟩, ?_⟩
+      simp only [pBranch, computeNewP, hhs_ne, ↓reduceIte]
+      exact ⟨validHistory_read_bind (by dsimp only [rowBase]; omega) (validHistory_pure w _ _),
+        memoryCost_read_bind_le fun _ _ => Nat.le_refl 0, rfl, hnp_eq, hnp_eq ▸ hnp_fit⟩
   obtain ⟨hbr_pos, hbr_neg, hv_p, hmc_p, hs_p, hres_p, hfit_np⟩ := hpBranch
   have hsafe_all : BidStepSafe w (ws, st.free.length) s₀ := by
     unfold BidStepSafe
     dsimp only
-    rw [hcurI]
-    change 1 ≤ st.free.length ∧ Fits w 1 ∧ Fits w (ws.bStack + (st.free.length - 1)) ∧
-      Fits w (i₀.val * ws.n) ∧ Fits w rowBase ∧
-      FindBestSafe w dBest s₀ ∧
-      FindSecondSafe w ⟨ws.n, rowBase, ws.bPrice, best.bestJ⟩
-        ((Memory.spec 0).clientState s₀ (findBestProg dBest)) ∧
-      Fits w (ws.bPrice + best.bestJ) ∧ Fits w (ws.bOwner + best.bestJ) ∧ _
-    rw [hs_b, hbj']
-    change _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧
-      (sec.hasSecond = 0 → Fits w (((Memory.spec 0).clientState s₀
-          (findSecondProg dSec)).mem (ws.bPrice + j₀.val) + ws.eps)) ∧
-      (sec.hasSecond ≠ 0 →
-        Fits w (rowBase + j₀.val) ∧
-          ((Memory.spec 0).clientState s₀ (findSecondProg dSec)).mem
-            (rowBase + j₀.val) ≤ sec.secondVal ∧
-          Fits w (sec.secondVal - ((Memory.spec 0).clientState s₀
-            (findSecondProg dSec)).mem (rowBase + j₀.val) + ws.eps))
-    rw [hs_s]
+    rw [hcurI, hs_b, hbj, hs_s]
     exact ⟨by omega, hfit1, hfit_ws.of_le (by omega),
-      hfit_ws.of_le (by omega), hfit_ws.of_le (by dsimp only [rowBase]; omega),
+      hfit_ws.of_le (by omega), hfit_ws.of_le (by omega),
       hsafe_b, hsafe_s, hfit_ws.of_le (by omega), hfit_ws.of_le (by omega),
       hbr_pos, hbr_neg⟩
   have hst'_eq : bidStep cZ (ws.eps : ℤ) st =
