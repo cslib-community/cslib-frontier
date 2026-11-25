@@ -144,9 +144,7 @@ theorem IsAffineOn.comp {f : E → F} {g : F → G} {S : Set E} {T : Set F}
     IsAffineOn (g ∘ f) S := by
   rcases hf with ⟨a, ha⟩
   rcases hg with ⟨b, hb⟩
-  exact ⟨b.comp a, fun x hx => by
-    simp only [Function.comp_apply, AffineMap.coe_comp]
-    rw [← ha hx, hb (hST hx)]⟩
+  exact ⟨b.comp a, fun x hx => (hb (hST hx)).trans (congrArg b (ha hx))⟩
 
 theorem IsAffineOn.map_convex_combo {f : E → F} {S : Set E} (hf : IsAffineOn f S)
     {x y : E} (hx : x ∈ S) (hy : y ∈ S) {a b : ℝ} (hab : a + b = 1)
@@ -217,12 +215,9 @@ omit [NormedAddCommGroup F] [NormedSpace ℝ F] in
 theorem isPiecewiseOn_empty (PropCell : (E → F) → Set E → Prop) (f : E → F) :
     IsPiecewiseOn PropCell (∅ : Set E) f := by
   refine ⟨PolytopalComplex.empty, PolytopalComplex.space_empty, fun Q hQ => ?_⟩
-  exfalso
   obtain ⟨x, hx⟩ := PolytopalComplex.empty.nonempty_of_mem hQ
-  have hxsp : x ∈ (PolytopalComplex.empty : PolytopalComplex E).space :=
-    PolytopalComplex.empty.subset_space hQ hx
-  rw [PolytopalComplex.space_empty] at hxsp
-  exact hxsp
+  have hxsp := PolytopalComplex.empty.subset_space hQ hx
+  simp only [PolytopalComplex.space_empty, Set.mem_empty_iff_false] at hxsp
 
 theorem isPLOn_empty (f : E → F) : IsPLOn (∅ : Set E) f :=
   isPiecewiseOn_empty IsAffineOn f
@@ -285,9 +280,7 @@ theorem isPiecewiseOn_of_finiteCover {F : Type*} {PropCell : (E → F) → Set E
     simp only [Set.mem_iUnion, ℱ]
     constructor
     · rintro ⟨i, hi⟩
-      have hxsp : x ∈ (C i).space := (hC i).1.symm ▸ hi
-      rw [PolytopalComplex.mem_space_iff] at hxsp
-      rcases hxsp with ⟨R, hR, hxR⟩
+      obtain ⟨R, hR, hxR⟩ := PolytopalComplex.mem_space_iff.1 ((hC i).1.symm ▸ hi)
       exact ⟨R, ⟨i, hR⟩, hxR⟩
     · rintro ⟨R, ⟨i, hi⟩, hxR⟩
       exact ⟨i, (hC i).1 ▸ (C i).subset_space hi hxR⟩
@@ -301,23 +294,15 @@ theorem isPiecewiseOn_piecewise_union {F : Type*} {PropCell : (E → F) → Set 
     (hagree : ∀ x ∈ P ∩ Q, f x = g x) :
     IsPiecewiseOn PropCell (P ∪ Q) (fun x => if x ∈ P then f x else g x) := by
   let h := fun x => if x ∈ P then f x else g x
-  have hP : IsPiecewiseOn PropCell P h := isPiecewiseOn_congr hcongr hf fun x hx => by
-    dsimp only [h]
-    split_ifs
-    rfl
+  have hP : IsPiecewiseOn PropCell P h := isPiecewiseOn_congr hcongr hf fun x hx => ite_eq_left hx
   have hQ : IsPiecewiseOn PropCell Q h := isPiecewiseOn_congr hcongr hg fun x hx => by
     dsimp only [h]
     split_ifs with hxP
-    · exact hagree x ⟨hxP, hx⟩
-    · rfl
-  have hcov : (⋃ b : Bool, bif b then P else Q) = P ∪ Q := by
-    ext x
-    simp only [Set.mem_iUnion, Set.mem_union, Bool.exists_bool, Bool.cond_false, Bool.cond_true]
-    tauto
-  refine isPiecewiseOn_of_finiteCover (PropCell := PropCell) (f := h) hmono hcov fun b => ?_
+    exacts [hagree x ⟨hxP, hx⟩, rfl]
+  refine isPiecewiseOn_of_finiteCover (PropCell := PropCell) (f := h) hmono
+    Set.union_eq_iUnion.symm fun b => ?_
   cases b
-  · exact hQ
-  · exact hP
+  exacts [hQ, hP]
 
 theorem isPiecewiseOn_restrict {F : Type*} {PropCell : (E → F) → Set E → Prop}
     (hmono : ∀ {g : E → F} {S T : Set E}, T ⊆ S → PropCell g S → PropCell g T)
@@ -335,11 +320,8 @@ theorem isPiecewiseOn_restrict {F : Type*} {PropCell : (E → F) → Set E → P
     simp only [Set.mem_iUnion, Set.mem_image, Set.mem_prod, Prod.exists, exists_prop, ℱ]
     constructor
     · intro hxQ
-      have hxP : x ∈ CP.space := hCP.symm ▸ hQP hxQ
-      have hxQ' : x ∈ CQ.space := hCQ.symm ▸ hxQ
-      rw [PolytopalComplex.mem_space_iff] at hxP hxQ'
-      rcases hxP with ⟨RP, hRP, hxRP⟩
-      rcases hxQ' with ⟨RQ, hRQ, hxRQ⟩
+      obtain ⟨RP, hRP, hxRP⟩ := PolytopalComplex.mem_space_iff.1 (hCP.symm ▸ hQP hxQ)
+      obtain ⟨RQ, hRQ, hxRQ⟩ := PolytopalComplex.mem_space_iff.1 (hCQ.symm ▸ hxQ)
       exact ⟨RP ∩ RQ, ⟨RP, RQ, ⟨hRP, hRQ⟩, rfl⟩, hxRP, hxRQ⟩
     · rintro ⟨_, ⟨RP, RQ, ⟨_, hRQ⟩, rfl⟩, _, hxRQ⟩
       exact hCQ ▸ CQ.subset_space hRQ hxRQ
@@ -470,10 +452,8 @@ theorem IsPLOn.pi {ι : Type*} [Fintype ι] {H : ι → Type*}
     {f : ∀ i, E → H i} (hf : ∀ i, IsPLOn P (f i)) :
     IsPLOn P (fun x i => f i x) := by
   rcases isEmpty_or_nonempty ι with hemp | hne
-  · refine (IsPLOn.const hP (fun i => False.elim (hemp.false i))).congr ?_
-    intro x _
-    funext i
-    exact False.elim (hemp.false i)
+  · exact (IsPLOn.const hP fun i => (hemp.false i).elim).congr fun _ _ =>
+      funext fun i => (hemp.false i).elim
   · choose C hC using hf
     obtain ⟨K, hKfin, hKsp, href⟩ :=
       exists_common_refinement_of_finite_complexes C fun i => (hC i).1
@@ -507,31 +487,18 @@ theorem IsPLOn.min {P : Set E} {f g : E → ℝ} (hf : IsPLOn P f) (hg : IsPLOn 
     simp only [Set.mem_iUnion, Bool.exists_bool, ↓reduceIte, Q₁, Q₂, mem_inter_iff,
       Set.mem_ofPred_eq, Set.mem_singleton_iff, forall_eq, FunLike.coe_sub, Pi.sub_apply,
       sub_nonpos]
-    constructor
-    · rintro (⟨hx, _⟩ | ⟨hx, _⟩) <;> exact hx
-    · intro hx
-      rcases le_total (a x) (b x) with hle | hge
-      · exact .inr ⟨hx, hle⟩
-      · exact .inl ⟨hx, hge⟩
+    exact ⟨fun h => h.elim And.left And.left,
+      fun hx => (le_total (b x) (a x)).imp (⟨hx, ·⟩) (⟨hx, ·⟩)⟩
   refine IsPLOn.of_finiteCover hcovQ fun t => ?_
   cases t
   · refine (IsPLOn.affineMap hQ₂.isPolyhedron b).congr fun x ⟨hxQ, hxle⟩ => ?_
-    simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff, forall_eq, FunLike.coe_sub,
-      Pi.sub_apply, sub_nonpos] at hxle
-    rw [ha hxQ, hb hxQ, min_eq_right hxle]
+    rw [ha hxQ, hb hxQ, min_eq_right (sub_nonpos.1 (hxle _ rfl))]
   · refine (IsPLOn.affineMap hQ₁.isPolyhedron a).congr fun x ⟨hxQ, hxle⟩ => ?_
-    simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff, forall_eq, FunLike.coe_sub,
-      Pi.sub_apply, sub_nonpos] at hxle
-    rw [ha hxQ, hb hxQ, min_eq_left hxle]
+    rw [ha hxQ, hb hxQ, min_eq_left (sub_nonpos.1 (hxle _ rfl))]
 
 theorem IsPLOn.max {P : Set E} {f g : E → ℝ} (hf : IsPLOn P f) (hg : IsPLOn P g) :
-    IsPLOn P (fun x => max (f x) (g x)) := by
-  have hmin := (hf.neg).min (hg.neg)
-  refine hmin.neg.congr fun x _ => ?_
-  dsimp only
-  rcases le_total (f x) (g x) with hle | hge
-  · rw [max_eq_right hle, min_eq_right (neg_le_neg hle), neg_neg]
-  · rw [max_eq_left hge, min_eq_left (neg_le_neg hge), neg_neg]
+    IsPLOn P (fun x => max (f x) (g x)) :=
+  (hf.neg.min hg.neg).neg.congr fun x _ => by simp only [min_neg_neg, neg_neg]
 
 theorem IsPLOn.abs {P : Set E} {f : E → ℝ} (hf : IsPLOn P f) :
     IsPLOn P (fun x => |f x|) :=
@@ -574,8 +541,7 @@ theorem IsPLOn.exists_preimage_complex [FiniteDimensional ℝ F] {P : Set E} {f 
   let aOf : Set E → E →ᵃ[ℝ] F := fun Q =>
     if h : Q ∈ CP.cells then (haff Q h).choose else AffineMap.const ℝ E 0
   have haOf : ∀ Q ∈ CP.cells, Set.EqOn f (aOf Q) Q := fun Q hQ => by
-    simp only [aOf, dite_eq_left hQ]
-    exact (haff Q hQ).choose_spec
+    simpa only [aOf, dite_eq_left hQ] using (haff Q hQ).choose_spec
   let ℱ : Set (Set E) :=
     (fun p : Set E × Set F => p.1 ∩ (aOf p.1) ⁻¹' p.2) '' (CP.cells ×ˢ CF.cells)
   have hℱ : ℱ.Finite := (CP.finite_cells.prod CF.finite_cells).image _
@@ -590,14 +556,10 @@ theorem IsPLOn.exists_preimage_complex [FiniteDimensional ℝ F] {P : Set E} {f 
       Prod.exists, exists_prop, ℱ]
     constructor
     · rintro ⟨_, ⟨Q, R, ⟨hQ, hR⟩, rfl⟩, hxQ, haxR⟩
-      refine ⟨hCP ▸ CP.subset_space hQ hxQ, ?_⟩
-      rw [haOf Q hQ hxQ]
-      exact CF.subset_space hR haxR
+      exact ⟨hCP ▸ CP.subset_space hQ hxQ, haOf Q hQ hxQ ▸ CF.subset_space hR haxR⟩
     · rintro ⟨hxP, hfxCF⟩
-      have hxCP : x ∈ CP.space := hCP.symm ▸ hxP
-      rw [PolytopalComplex.mem_space_iff] at hxCP hfxCF
-      rcases hxCP with ⟨Q, hQ, hxQ⟩
-      rcases hfxCF with ⟨R, hR, hfxR⟩
+      obtain ⟨Q, hQ, hxQ⟩ := PolytopalComplex.mem_space_iff.1 (hCP.symm ▸ hxP)
+      obtain ⟨R, hR, hfxR⟩ := PolytopalComplex.mem_space_iff.1 hfxCF
       exact ⟨Q ∩ (aOf Q) ⁻¹' R, ⟨Q, R, ⟨hQ, hR⟩, rfl⟩,
         hxQ, Set.mem_preimage.2 (by rw [← haOf Q hQ hxQ]; exact hfxR)⟩
   · obtain ⟨S₀, hS₀ℱ, hSS₀⟩ := PolytopalComplex.ofFinitePolytopes_cell_subset hℱ hpoly hS
@@ -606,8 +568,7 @@ theorem IsPLOn.exists_preimage_complex [FiniteDimensional ℝ F] {P : Set E} {f 
     have hsubR : S ⊆ (aOf Q) ⁻¹' R := hSS₀.trans inter_subset_right
     refine ⟨(haff Q hQ).mono hsubQ, R, hR, ?_⟩
     rintro _ ⟨x, hx, rfl⟩
-    rw [haOf Q hQ (hsubQ hx)]
-    exact hsubR hx
+    exact haOf Q hQ (hsubQ hx) ▸ hsubR hx
 
 theorem IsPLOn.comp [FiniteDimensional ℝ F] {G : Type*} [NormedAddCommGroup G] [NormedSpace ℝ G]
     {P : Set E} {T : Set F} {f : E → F} {g : F → G}
