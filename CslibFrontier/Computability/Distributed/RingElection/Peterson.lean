@@ -816,6 +816,21 @@ private theorem arc_point_inj {n : ℕ} [NeZero n] {A : Finset (Fin n)}
   · exact ⟨add_right_cancel heq, rfl⟩
   · exact (key hp₂ hp₁ hk₁ hgt heq.symm).elim
 
+/-- Delivering the lone message `m` on `t - 1 → t` to a relay `t` with an empty outgoing channel
+moves `m` one edge forward and leaves every node unchanged. -/
+private theorem twoHopStep_relay {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+    {t : Fin n} {cfg : TwoHopConfig n U} {m : TwoHopMsg U}
+    (hc : cfg.chan (t - 1) = [m]) (hn : cfg.node t = .relay) (he : cfg.chan t = []) :
+    (twoHopStep t cfg).node = cfg.node ∧ ∀ e, (twoHopStep t cfg).chan e =
+      if e = t then [m] else if e = t - 1 then [] else cfg.chan e := by
+  refine ⟨by rw [twoHopStep_node_of_cons hc, hn]; exact Function.update_eq_self_iff.mpr hn.symm,
+    fun e => ?_⟩
+  have ht : t - 1 ≠ t := fun h => by rw [h, he] at hc; cases hc
+  rw [twoHopStep_chan_apply hc, hn]
+  by_cases h1 : e = t
+  · subst h1; simp [ht.symm, he, twoHopRecv]
+  · simp only [h1, ↓reduceIte, List.append_nil]
+
 /-- **Single-wave execution lemma (`mtr_wave`).**
 Starting from any configuration `cfg₀` where passive nodes `i ∉ A` are `.relay` and channels hold
 `[payload i]` on `i ∈ A` and `[]` on `i ∉ A`, relaying every message across `Aᶜ` and delivering to
@@ -871,98 +886,57 @@ private theorem mtr_wave {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
         exact nextActive_mem hp
     | succ r ih =>
       intro prog cfg hrem hprog_le hnode hchan_at hchan_else
-      obtain ⟨p, hpA, hp_lt⟩ : ∃ p ∈ A, prog p < arcLen A p - 1 := by
-        by_contra! hall
-        have : ∑ p ∈ A, (arcLen A p - 1 - prog p) = 0 :=
-          Finset.sum_eq_zero fun p hp => Nat.sub_eq_zero_of_le (hall p hp)
-        omega
-      let k := prog p
-      let target := p + Fin.ofNat n (k + 1)
-      have htarget_pred : target - 1 = p + Fin.ofNat n k := by
-        dsimp only [target]
-        rw [ofNat_succ_eq, ← add_assoc, add_sub_cancel_right]
-      have htarget_notA : target ∉ A :=
-        (arcLen_bounds_and_mem hpA).2.2.2 (k + 1) (by omega) (by omega)
-      have htarget_node : cfg.node target = .relay :=
-        (congrFun hnode target).trans (hnode₀ target htarget_notA)
-      have htarget_empty : cfg.chan target = [] := by
-        refine hchan_else target fun p' hp' heq => ?_
-        have hp'_lt : prog p' < arcLen A p' := by
-          have := hprog_le p' hp'
-          have := (arcLen_bounds_and_mem hp').1
+      have hlt : ∀ x ∈ A, prog x < arcLen A x := fun x hx => by
+        have := hprog_le x hx; have := (arcLen_bounds_and_mem hx).1; omega
+      obtain ⟨p, hpA, hp⟩ := Finset.exists_ne_zero_of_sum_ne_zero (hrem.trans_ne r.succ_ne_zero)
+      replace hp : prog p + 1 < arcLen A p := by omega
+      obtain ⟨t, ht⟩ : ∃ t, t = p + Fin.ofNat n (prog p + 1) := ⟨_, rfl⟩
+      have ht_pred : t - 1 = p + Fin.ofNat n (prog p) := by
+        rw [ht, ofNat_succ_eq, ← add_assoc, add_sub_cancel_right]
+      have ht_notA : t ∉ A := ht ▸ (arcLen_bounds_and_mem hpA).2.2.2 _ (by omega) hp
+      have hchan_pred : cfg.chan (t - 1) = [payload p] := by rw [ht_pred, hchan_at p hpA]
+      have hnode_t : cfg.node t = .relay := (congrFun hnode t).trans (hnode₀ t ht_notA)
+      obtain ⟨hnode', hchan'⟩ := twoHopStep_relay hchan_pred hnode_t <|
+        hchan_else t fun x hx h => by
+          obtain ⟨rfl, h⟩ := arc_point_inj hpA hx hp (hlt x hx) (ht.symm.trans h)
           omega
-        obtain ⟨rfl, hk_eq⟩ := arc_point_inj hpA hp' (by omega) hp'_lt heq
-        change k + 1 = k at hk_eq
-        omega
-      have ht_ne_pred : target ≠ target - 1 := fun h => by
-        have h1 := hchan_at p hpA
-        rw [← htarget_pred, ← h, htarget_empty] at h1
-        cases h1
-      have hchan_pred : cfg.chan (target - 1) = [payload p] := by
-        rw [htarget_pred, hchan_at p hpA]
-      have htr : (twoHopLTS n U).Tr cfg target (twoHopStep target cfg) :=
-        ⟨by rw [hchan_pred]; exact List.cons_ne_nil _ _, rfl⟩
-      have hmsgs1 : twoHopStepMsgs target cfg = 1 := by
-        simp only [twoHopStepMsgs, hchan_pred, htarget_node, twoHopRecv, List.length_singleton]
-      let cfg' := twoHopStep target cfg
-      let prog' := Function.update prog p (k + 1)
-      have hnode' : cfg'.node = cfg₀.node := by
-        ext i
-        simp only [cfg', twoHopStep, hchan_pred, htarget_node, twoHopRecv]
-        by_cases hi : i = target
-        · rw [hi, Function.update_self, hnode₀ target htarget_notA]
-        · rw [Function.update_of_ne hi, hnode]
+      let prog' := Function.update prog p (prog p + 1)
       have hrem' : ∑ x ∈ A, (arcLen A x - 1 - prog' x) = r := by
-        have h1 := Finset.add_sum_erase A (fun x => arcLen A x - 1 - prog' x) hpA
-        have h2 := Finset.add_sum_erase A (fun x => arcLen A x - 1 - prog x) hpA
-        have herase : ∑ x ∈ A.erase p, (arcLen A x - 1 - prog' x) =
-            ∑ x ∈ A.erase p, (arcLen A x - 1 - prog x) :=
-          Finset.sum_congr rfl fun x hx => by
-            simp only [prog', Function.update_of_ne (Finset.ne_of_mem_erase hx)]
-        have hp_new : arcLen A p - 1 - prog' p + 1 = arcLen A p - 1 - prog p := by
-          simp only [prog', Function.update_self, k]
-          omega
-        rw [herase] at h1
-        linarith
+        have h : ∑ x ∈ A.erase p, (arcLen A x - 1 - prog' x) =
+            ∑ x ∈ A.erase p, (arcLen A x - 1 - prog x) := Finset.sum_congr rfl fun x hx => by
+          simp only [prog', Function.update_of_ne (Finset.ne_of_mem_erase hx)]
+        rw [← Finset.add_sum_erase _ _ hpA, h]
+        rw [← Finset.add_sum_erase _ _ hpA] at hrem
+        simp only [prog', Function.update_self]
+        omega
       have hprog'_le : ∀ x ∈ A, prog' x ≤ arcLen A x - 1 := fun x hx => by
-        by_cases hxp : x = p
-        · simp only [hxp, prog', Function.update_self]; omega
-        · simp only [prog', Function.update_of_ne hxp]; exact hprog_le x hx
-      have hchan'_at : ∀ x ∈ A, cfg'.chan (x + Fin.ofNat n (prog' x)) = [payload x] := by
+        by_cases hxp : x = p <;> simp [prog', hxp, hprog_le x hx]; omega
+      have hat : ∀ x ∈ A, (twoHopStep t cfg).chan (x + Fin.ofNat n (prog' x)) = [payload x] := by
         intro x hx
+        rw [hchan']
         by_cases hxp : x = p
-        · subst hxp
-          simp only [cfg', prog', Function.update_self]
-          rw [twoHopStep_chan_apply hchan_pred, ite_eq_right ht_ne_pred, ite_eq_left rfl,
-            htarget_empty, htarget_node, twoHopRecv, List.nil_append]
-        · simp only [cfg', prog', Function.update_of_ne hxp]
-          have hx_lt : prog x < arcLen A x := by
-            have := hprog_le x hx; have := (arcLen_bounds_and_mem hx).1; omega
-          have hne_t : x + Fin.ofNat n (prog x) ≠ target := fun h =>
-            hxp (arc_point_inj hx hpA hx_lt (by omega) h).1
-          have hne_tp : x + Fin.ofNat n (prog x) ≠ target - 1 := fun h =>
-            hxp (arc_point_inj hx hpA hx_lt (by omega) (h.trans htarget_pred)).1
-          rw [twoHopStep_chan_apply hchan_pred, ite_eq_right hne_tp, ite_eq_right hne_t,
-            List.append_nil, hchan_at x hx]
-      have hchan'_else : ∀ e : Fin n,
-          (∀ x ∈ A, e ≠ x + Fin.ofNat n (prog' x)) → cfg'.chan e = [] := by
-        intro e he_all
-        have he_ne_t : e ≠ target := by
-          simpa only [prog', Function.update_self] using he_all p hpA
-        rw [show cfg'.chan e = (twoHopStep target cfg).chan e from rfl,
-          twoHopStep_chan_apply hchan_pred, ite_eq_right he_ne_t, List.append_nil]
-        by_cases he_tp : e = target - 1
-        · simp [he_tp]
-        · rw [ite_eq_right he_tp]
-          refine hchan_else e fun x hx hx_eq => ?_
-          by_cases hxp : x = p
-          · exact he_tp (hx_eq.trans (hxp ▸ htarget_pred.symm))
-          · exact he_all x hx (by simpa only [prog', Function.update_of_ne hxp] using hx_eq)
-      obtain ⟨s_rest, cfg₁, hmtr_rest, hmsgs_rest, hnode₁, hchan₁⟩ :=
-        ih prog' cfg' hrem' hprog'_le hnode' hchan'_at hchan'_else
-      refine ⟨target :: s_rest, cfg₁, LTS.MTr.stepL htr hmtr_rest, ?_, hnode₁, hchan₁⟩
-      simp only [twoHopEmittedMsgs, hmsgs1]
-      dsimp only [cfg'] at hmsgs_rest
+        · subst hxp; simp only [prog', Function.update_self, ← ht, ↓reduceIte]
+        · have h1 : x + Fin.ofNat n (prog x) ≠ t := fun h =>
+            hxp (arc_point_inj hx hpA (hlt x hx) hp (h.trans ht)).1
+          have h2 : x + Fin.ofNat n (prog x) ≠ t - 1 := fun h =>
+            hxp (arc_point_inj hx hpA (hlt x hx) (hlt p hpA) (h.trans ht_pred)).1
+          simp only [prog', Function.update_of_ne hxp, h1, h2, ↓reduceIte, hchan_at x hx]
+      have helse : ∀ e : Fin n, (∀ x ∈ A, e ≠ x + Fin.ofNat n (prog' x)) →
+          (twoHopStep t cfg).chan e = [] := by
+        intro e he
+        have h1 : e ≠ t := by rw [ht]; simpa only [prog', Function.update_self] using he p hpA
+        rw [hchan', ite_eq_right h1]
+        split_ifs with h2
+        · rfl
+        refine hchan_else e fun x hx hx_eq => ?_
+        by_cases hxp : x = p
+        · exact h2 (hx_eq.trans (hxp ▸ ht_pred.symm))
+        · exact he x hx (by simpa only [prog', Function.update_of_ne hxp] using hx_eq)
+      obtain ⟨s, cfg₁, hmtr, hmsgs, hnode₁, hchan₁⟩ :=
+        ih prog' _ hrem' hprog'_le (hnode'.trans hnode) hat helse
+      refine ⟨t :: s, cfg₁, LTS.MTr.stepL ⟨by simp [hchan_pred], rfl⟩ hmtr, ?_, hnode₁, hchan₁⟩
+      simp only [twoHopEmittedMsgs, twoHopStepMsgs, hchan_pred, hnode_t, twoHopRecv,
+        List.length_singleton, hmsgs]
       omega
   -- Instantiate Stage 1a with `prog = fun _ => 0`:
   have hrem0 : ∑ p ∈ A, (arcLen A p - 1 - 0) = n - A.card := by
@@ -973,14 +947,8 @@ private theorem mtr_wave {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     omega
   obtain ⟨s₁, cfg₁, hmtr₁, hmsgs₁, hnode₁, hchan₁⟩ :=
     hstage1a (n - A.card) (fun _ => 0) cfg₀ hrem0 (fun _ _ => Nat.zero_le _) rfl
-      (fun p hp => by
-        change cfg₀.chan (p + 0) = [payload p]
-        rw [add_zero, hchan₀ p]
-        simp only [hp, ↓reduceIte])
-      (fun e he => by
-        have he_notA : e ∉ A := fun h => he e h (by change e = e + 0; exact (add_zero e).symm)
-        rw [hchan₀ e]
-        simp only [he_notA, ↓reduceIte])
+      (fun p hp => by simp [hchan₀, hp])
+      (fun e he => by simpa [hchan₀] using fun h => he e h (add_zero e).symm)
   -- Stage 1b: deliver to each active node `q ∈ A` one by one (`rem = (A \ Done).card`):
   let outAt (q : Fin n) := twoHopRecv (cfg₀.node q) (payload (prevActive A q))
   have hstage1b : ∀ rem : ℕ, ∀ (Done : Finset (Fin n)) (cfg : TwoHopConfig n U),
@@ -999,14 +967,11 @@ private theorem mtr_wave {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     induction rem with
     | zero =>
       intro Done cfg hsub hcard0 hnode_d hchan_d
-      have hDone_eq : Done = A := hsub.antisymm
+      obtain rfl : Done = A := hsub.antisymm
         (Finset.sdiff_eq_empty_iff_subset.mp (Finset.card_eq_zero.mp hcard0))
-      rw [hDone_eq] at hnode_d hchan_d ⊢
-      refine ⟨[], cfg, LTS.MTr.refl, by simp [twoHopEmittedMsgs], fun i => ?_, fun e => ?_⟩
-      · by_cases hi : i ∈ A
-        · simp only [hnode_d i, hi, ↓reduceIte]
-        · simp only [hnode_d i, hi, ↓reduceIte, hnode₀ i hi]
-      · simp only [hchan_d e, Finset.sdiff_self, Finset.notMem_empty, ↓reduceIte, List.nil_append]
+      refine ⟨[], cfg, LTS.MTr.refl, by simp [twoHopEmittedMsgs], fun i => ?_,
+        fun e => by simp [hchan_d e]⟩
+      by_cases hi : i ∈ Done <;> simp [hnode_d i, hi, hnode₀ i]
     | succ r ih =>
       intro Done cfg hsub hcard_r hnode_d hchan_d
       obtain ⟨q, hq_sdiff⟩ := Finset.card_pos.mp (by omega : 0 < (A \ Done).card)
@@ -1015,68 +980,26 @@ private theorem mtr_wave {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
           payload (prevActive A q) :: (if q - 1 ∈ Done then (outAt (q - 1)).sent else []) := by
         rw [hchan_d (q - 1), sub_add_cancel]
         simp only [hq_sdiff, ↓reduceIte, List.singleton_append]
-      have hq_node : cfg.node q = cfg₀.node q := by
-        rw [hnode_d q]
-        simp only [hq_notDone, ↓reduceIte]
-      have htr : (twoHopLTS n U).Tr cfg q (twoHopStep q cfg) :=
-        ⟨by rw [hq_pred_chan]; exact List.cons_ne_nil _ _, rfl⟩
-      have hmsgs_q : twoHopStepMsgs q cfg = (outAt q).sent.length := by
-        simp only [twoHopStepMsgs, hq_pred_chan, hq_node, outAt]
-      let Done' := insert q Done
-      let cfg' := twoHopStep q cfg
-      have hsub' : Done' ⊆ A := Finset.insert_subset_iff.mpr ⟨hqA, hsub⟩
-      have hsdiff_erase : A \ Done' = (A \ Done).erase q := by
-        ext x
-        simp only [Done', Finset.mem_sdiff, Finset.mem_insert, Finset.mem_erase, ne_eq]
-        tauto
-      have hcard' : (A \ Done').card = r := by
-        rw [hsdiff_erase]
-        have := Finset.card_erase_add_one hq_sdiff
-        omega
-      have hnode' : ∀ i, cfg'.node i = if i ∈ Done' then (outAt i).nextNode else cfg₀.node i := by
-        intro i
-        simp only [cfg', twoHopStep, hq_pred_chan, hq_node]
-        by_cases hi : i = q
-        · rw [hi, Function.update_self]
-          simp only [Done', Finset.mem_insert_self, ↓reduceIte, outAt]
-        · rw [Function.update_of_ne hi, hnode_d i]
-          simp only [Done', Finset.mem_insert, hi, false_or]
-      have hchan' : ∀ e, cfg'.chan e =
-          (if e + 1 ∈ A \ Done' then [payload (prevActive A (e + 1))] else []) ++
-            (if e ∈ Done' then (outAt e).sent else []) := by
-        intro e
-        rw [show cfg'.chan e = (twoHopStep q cfg).chan e from rfl,
-          twoHopStep_chan_apply hq_pred_chan e, hq_node]
-        have hsent_eq :
-            (if e ∈ Done then (outAt e).sent else []) ++
-              (if e = q then (outAt q).sent else []) =
-            (if e ∈ Done' then (outAt e).sent else []) := by
-          by_cases heq_q : e = q
-          · subst heq_q
-            simp only [hq_notDone, ↓reduceIte, List.nil_append, Done', Finset.mem_insert_self]
-          · simp only [Done', Finset.mem_insert, heq_q, false_or, ↓reduceIte, List.append_nil]
-        by_cases he_pred : e = q - 1
-        · subst he_pred
-          have he1_not : (q - 1) + 1 ∉ A \ Done' := by
-            rw [sub_add_cancel]
-            simp only [Done', Finset.mem_sdiff, Finset.mem_insert_self, not_true_eq_false,
-              and_false, not_false_eq_true]
-          simpa only [↓reduceIte, he1_not, List.nil_append, outAt] using hsent_eq
-        · rw [ite_eq_right he_pred, hchan_d e, List.append_assoc]
-          have he1_ne_q : e + 1 ≠ q := fun h => he_pred (eq_sub_of_add_eq h)
-          have hsdiff_iff : (e + 1 ∈ A \ Done') ↔ (e + 1 ∈ A \ Done) := by
-            rw [hsdiff_erase, Finset.mem_erase]
-            exact ⟨fun h => h.2, fun h => ⟨he1_ne_q, h⟩⟩
-          simp only [hsdiff_iff, outAt] at hsent_eq ⊢
-          rw [hsent_eq]
-      obtain ⟨s_rest, cfg₂, hmtr_rest, hmsgs_rest, hnode₂, hchan₂⟩ :=
-        ih Done' cfg' hsub' hcard' hnode' hchan'
-      refine ⟨q :: s_rest, cfg₂, LTS.MTr.stepL htr hmtr_rest, ?_, hnode₂, hchan₂⟩
-      have hsum_split := Finset.add_sum_erase (A \ Done) (fun x => (outAt x).sent.length) hq_sdiff
-      rw [← hsdiff_erase] at hsum_split
-      simp only [twoHopEmittedMsgs, hmsgs_q]
-      dsimp only [cfg'] at hmsgs_rest
-      linarith
+      have hq_node : cfg.node q = cfg₀.node q := by simp only [hnode_d q, hq_notDone, ↓reduceIte]
+      obtain ⟨s, cfg₂, hmtr, hmsgs, hnode₂, hchan₂⟩ :=
+        ih (insert q Done) (twoHopStep q cfg) (Finset.insert_subset hqA hsub)
+          (by rw [Finset.sdiff_insert, Finset.card_erase_of_mem hq_sdiff]; omega)
+          (fun i => by
+            rw [twoHopStep_node_of_cons hq_pred_chan, Function.update_apply, hnode_d i]
+            by_cases hi : i = q <;> simp [hi, hq_node, outAt])
+          (fun e => by
+            have hs : (if e ∈ Done then (outAt e).sent else []) ++
+                (if e = q then (outAt q).sent else []) =
+                if e ∈ insert q Done then (outAt e).sent else [] := by
+              by_cases h : e = q <;> simp [h, hq_notDone]
+            rw [twoHopStep_chan_apply hq_pred_chan e, hq_node, hchan_d e, ← hs]
+            by_cases h1 : e = q - 1
+            · subst h1; simp [outAt]
+            · have : e + 1 ≠ q := fun h => h1 (eq_sub_of_add_eq h)
+              simp [h1, this, outAt])
+      refine ⟨q :: s, cfg₂, LTS.MTr.stepL ⟨by simp [hq_pred_chan], rfl⟩ hmtr, ?_, hnode₂, hchan₂⟩
+      rw [twoHopEmittedMsgs, hmsgs, Finset.sdiff_insert, ← Finset.add_sum_erase _ _ hq_sdiff]
+      simp only [twoHopStepMsgs, hq_pred_chan, hq_node, outAt]
   -- Combine Stage 1a and Stage 1b:
   obtain ⟨s₂, cfg₂, hmtr₂, hmsgs₂, hnode₂, hchan₂⟩ :=
     hstage1b A.card ∅ cfg₁ (Finset.empty_subset A) (by simp)
