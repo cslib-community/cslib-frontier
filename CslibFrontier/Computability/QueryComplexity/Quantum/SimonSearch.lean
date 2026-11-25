@@ -129,10 +129,10 @@ theorem simonSolve_eq {zs : Fin m × Fin n → Bool} {s : Fin n → Bool}
 
 /-- The outcomes of Simon's algorithm on which the post-processing outputs `s`. -/
 def simonFound (m : ℕ) (s : Fin n → Bool) : Finset (Fin N × Bool × SimonWork m n) :=
-  univ.filter fun p => simonSolve p.2.2.1 = s
+  univ.filter fun (_, _, w) => simonSolve w.xs = s
 
-@[simp] theorem mem_simonFound {s : Fin n → Bool} {p : Fin N × Bool × SimonWork m n} :
-    p ∈ simonFound m s ↔ simonSolve p.2.2.1 = s := by
+@[simp] theorem mem_simonFound {s : Fin n → Bool} {i : Fin N} {b : Bool} {w : SimonWork m n} :
+    (i, b, w) ∈ simonFound m s ↔ simonSolve w.xs = s := by
   simp [simonFound]
 
 /-! ### The analysis -/
@@ -178,18 +178,21 @@ probability at most `(2^n - 1) / 2^m`. -/
 theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : Fin N)
     {X : Fin N → Bool} {s : Fin n → Bool} (hX : SimonPromise (simonFun E X) s) (hs : s ≠ 0) :
     measureProb (run (simonAlg m E i₀) (simonInit i₀) X (m * n))
-        (univ.filter fun p => ¬SimonDetermines p.2.2.1 s) ≤
+        (univ.filter fun (_, _, w) => ¬SimonDetermines w.xs s) ≤
       (2 ^ n - 1) / 2 ^ m := by
   classical
   set Z : Finset (Fin m × Fin n → Bool) := univ.filter fun zs => ¬SimonDetermines zs s with hZ
-  have hfilt : (univ.filter fun p : Fin N × Bool × SimonWork m n => ¬SimonDetermines p.2.2.1 s) =
-      univ.filter fun p => p.2.2.1 ∈ Z := by
-    ext p
+  have hfilt : (univ.filter fun (_, _, w) => ¬SimonDetermines w.xs s :
+        Finset (Fin N × Bool × SimonWork m n)) =
+      univ.filter fun (_, _, w) => w.xs ∈ Z := by
+    ext ⟨i, b, w⟩
     simp [hZ]
-  -- the row matrices orthogonal to `s` that do not determine `s`
-  set T : Finset (Fin m × Fin n → Bool) := univ.filter fun zs => ∃ w : Fin n → Bool,
-    w ≠ 0 ∧ w ≠ s ∧ ∀ r, Function.curry zs r ⬝ᵥ s = false ∧ Function.curry zs r ⬝ᵥ w = false
-    with hT
+  -- the row matrices orthogonal to `s` and to some `w ∉ {0, s}`, which contain those orthogonal
+  -- to `s` that do not determine `s`
+  let K (w : Fin n → Bool) : Finset (Fin m × Fin n → Bool) := univ.filter fun zs =>
+    ∀ r, Function.curry zs r ⬝ᵥ s = false ∧ Function.curry zs r ⬝ᵥ w = false
+  let W := (univ.erase (0 : Fin n → Bool)).erase s
+  let T := W.biUnion K
   have hsub : (Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) ⊆ T := by
     intro zs hzs
     obtain ⟨hzZ, hzs⟩ := mem_filter.mp hzs
@@ -206,31 +209,19 @@ theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fi
       by_contra hc
       exact hw ⟨fun h => absurd h hc, fun h => h.elim (fun h0 => absurd h0 hw0)
         (fun h1 => absurd h1 hws)⟩
-    exact mem_filter.mpr ⟨mem_univ _, w, hw0, hws, fun r => ⟨hzs r, hwo r⟩⟩
-  have hTsub : T ⊆ ((univ.erase (0 : Fin n → Bool)).erase s).biUnion fun w =>
-      (univ.filter fun zs : Fin m × Fin n → Bool => ∀ r,
-        Function.curry zs r ⬝ᵥ s = false ∧ Function.curry zs r ⬝ᵥ w = false) := by
-    intro zs hzs
-    obtain ⟨w, hw0, hws, hw⟩ := (mem_filter.mp hzs).2
     exact mem_biUnion.mpr ⟨w, mem_erase.mpr ⟨hws, mem_erase.mpr ⟨hw0, mem_univ _⟩⟩,
-      mem_filter.mpr ⟨mem_univ _, hw⟩⟩
-  have hpair : ∀ w ∈ (univ.erase (0 : Fin n → Bool)).erase s,
-      #(univ.filter fun zs : Fin m × Fin n → Bool => ∀ r,
-        Function.curry zs r ⬝ᵥ s = false ∧ Function.curry zs r ⬝ᵥ w = false) * 4 ^ m =
-        2 ^ (m * n) := by
+      mem_filter.mpr ⟨mem_univ _, fun r => ⟨hzs r, hwo r⟩⟩⟩
+  have hpair : ∀ w ∈ W, #(K w) * 4 ^ m = 2 ^ (m * n) := by
     intro w hw
     obtain ⟨hws, hw0⟩ := mem_erase.mp hw
     have h := card_kernel_pair (c := m) hs (mem_erase.mp hw0).1 (Ne.symm hws)
     rw [mul_comm m n, ← h]
     congr 1
-    exact card_equiv (Equiv.curry _ _ _) fun zs => by simp
+    exact card_equiv (Equiv.curry _ _ _) fun zs => by simp [K]
   have hcard : #T * 4 ^ m ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
     calc #T * 4 ^ m
-        ≤ (∑ w ∈ (univ.erase (0 : Fin n → Bool)).erase s,
-            #(univ.filter fun zs : Fin m × Fin n → Bool => ∀ r,
-              Function.curry zs r ⬝ᵥ s = false ∧ Function.curry zs r ⬝ᵥ w = false)) * 4 ^ m :=
-          Nat.mul_le_mul_right _ ((card_le_card hTsub).trans card_biUnion_le)
-      _ = ∑ w ∈ (univ.erase (0 : Fin n → Bool)).erase s, 2 ^ (m * n) := by
+        ≤ (∑ w ∈ W, #(K w)) * 4 ^ m := Nat.mul_le_mul_right _ card_biUnion_le
+      _ = ∑ w ∈ W, 2 ^ (m * n) := by
           rw [sum_mul]
           exact sum_congr rfl hpair
       _ ≤ ∑ w ∈ univ.erase (0 : Fin n → Bool), 2 ^ (m * n) :=
@@ -245,9 +236,8 @@ theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fi
       ring
     rw [← mul_pow, ← h1]
     exact_mod_cast hcard
-  have h := measureProb_simonAlg_le E i₀ hX (card_simonG_fiber_le hX) Z
   rw [hfilt]
-  refine h.trans ?_
+  refine (measureProb_simonAlg_le E i₀ hX (card_simonG_fiber_le hX) Z).trans ?_
   have hT' : (#(Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) : ℝ) ≤ #T := by
     exact_mod_cast card_le_card hsub
   push_cast
@@ -274,15 +264,15 @@ theorem le_measureProb_simonFound (E : Fin N ≃ (Fin n → Bool) × Fin n) (i�
   by_cases hs : s = 0
   · subst hs
     have hf := (simonPromise_zero_iff _).mp hX
-    refine hfail (simonAccept m n) (fun p hp => ?_)
+    refine hfail (simonAccept m n) (fun ⟨i, b, w⟩ hp => ?_)
       (measureProb_simonAlg_le_of_injective (m := m) E i₀ hf)
     rw [mem_compl, mem_simonFound] at hp
     by_contra hacc
-    refine hp (simonSolve_eq fun w => ⟨fun hw => Or.inl ?_, ?_⟩)
-    · by_contra hw0
-      exact hacc (mem_simonAccept.mpr ⟨w, hw0, hw⟩)
+    refine hp (simonSolve_eq fun u => ⟨fun hu => Or.inl ?_, ?_⟩)
+    · by_contra hu0
+      exact hacc (mem_simonAccept.mpr ⟨u, hu0, hu⟩)
     · rintro (rfl | rfl) <;> exact fun r => by simp [Bool.zero_eq_false]
-  · refine hfail (univ.filter fun p => ¬SimonDetermines p.2.2.1 s) (fun p hp => ?_)
+  · refine hfail (univ.filter fun (_, _, w) => ¬SimonDetermines w.xs s) (fun ⟨i, b, w⟩ hp => ?_)
       (measureProb_not_simonDetermines_le (m := m) E i₀ hX hs)
     rw [mem_compl, mem_simonFound] at hp
     exact mem_filter.mpr ⟨mem_univ _, fun hd => hp (simonSolve_eq hd)⟩

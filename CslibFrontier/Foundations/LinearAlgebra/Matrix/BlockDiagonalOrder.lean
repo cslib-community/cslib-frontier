@@ -24,6 +24,22 @@ namespace Matrix
 
 open scoped ComplexOrder MatrixOrder
 
+/-- The block diagonal of two positive semidefinite complex matrices is positive semidefinite. -/
+theorem fromBlocks_posSemidef_diagonal {ι κ : Type*} [Finite ι] [Finite κ]
+    (X : Matrix ι ι ℂ) (Y : Matrix κ κ ℂ)
+    (hX : X.PosSemidef) (hY : Y.PosSemidef) : (fromBlocks X 0 0 Y).PosSemidef := by
+  let _ := Fintype.ofFinite ι
+  let _ := Fintype.ofFinite κ
+  apply PosSemidef.of_dotProduct_mulVec_nonneg
+  · change (fromBlocks X 0 0 Y)ᴴ = _
+    rw [fromBlocks_conjTranspose, hX.isHermitian.eq, hY.isHermitian.eq, conjTranspose_zero,
+      conjTranspose_zero]
+  · intro v
+    simp only [fromBlocks_mulVec, zero_mulVec, add_zero, zero_add, dotProduct,
+      Fintype.sum_sum_type, Pi.star_apply, Sum.elim_inl, Sum.elim_inr]
+    exact add_nonneg (hX.dotProduct_mulVec_nonneg (v ∘ Sum.inl))
+      (hY.dotProduct_mulVec_nonneg (v ∘ Sum.inr))
+
 variable {ι α : Type*} [Finite ι] [Finite α] [DecidableEq α]
 
 /-- A block diagonal of positive semidefinite matrices is positive semidefinite. -/

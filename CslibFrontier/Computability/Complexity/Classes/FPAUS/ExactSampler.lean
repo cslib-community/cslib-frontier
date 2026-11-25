@@ -24,7 +24,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
-import Mathlib.Order.Interval.Finset.Fin
 import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Computability.Probabilistic.BoundedUniform
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
@@ -244,9 +243,7 @@ theorem exactWalk_apply_some (R : SelfReducible enc W) {count : α → ℕ}
   | zero =>
     have hWy : W y = {[]} := R.eq_singleton_nil hlen hpos
     rw [exactWalk, hWy, Finset.card_singleton, Nat.cast_one, inv_one]
-    by_cases hw : w = []
-    · subst hw; simp
-    · simp [hw]
+    by_cases hw : w = [] <;> simp [hw]
   | succ k ih =>
     have hy_pos : 0 < R.len y := by omega
     have hsplit := R.card_eq_add hy_pos
@@ -261,94 +258,44 @@ theorem exactWalk_apply_some (R : SelfReducible enc W) {count : α → ℕ}
     cases w with
     | nil =>
       have hnil : [] ∉ W y := fun hm => by
-        have hlen_nil := R.length_eq y [] hm
-        simp at hlen_nil
-        omega
+        have hlen_nil := R.length_eq y [] hm; simp at hlen_nil; omega
       rw [ite_eq_right hnil]
-      refine tsum_eq_zero_iff.mpr fun r => ?_
-      split_ifs <;> simp [PMF.map_apply]
+      exact tsum_eq_zero_iff.mpr fun _ => by split_ifs <;> simp [PMF.map_apply]
     | cons b u =>
+      have hcard : (Finset.univ.filter fun r : Fin (W y).card =>
+          decide ((r : ℕ) < (W (R.child y true)).card) = b).card = (W (R.child y b)).card := by
+        have hlt : (Finset.univ.filter fun r : Fin (W y).card =>
+            (r : ℕ) < (W (R.child y true)).card).card = (W (R.child y true)).card :=
+          Fin.card_filter_val_lt.trans (Nat.min_eq_right hc1_le)
+        cases b
+        · have hadd := Finset.card_filter_add_card_filter_not (s := Finset.univ)
+            (p := fun r : Fin (W y).card => (r : ℕ) < (W (R.child y true)).card)
+          simp only [Finset.card_univ, Fintype.card_fin, hlt] at hadd
+          simpa only [decide_eq_false_iff_not] using show _ = (W (R.child y false)).card by omega
+        · simpa only [decide_eq_true_eq] using hlt
       rw [tsum_fintype]
-      have hsum_eq :
-          (∑ r : Fin (W y).card,
-            PMF.uniformOfFintype (Fin (W y).card) r *
-              (if (r : ℕ) < (W (R.child y true)).card then
-                PMF.map (Option.map (true :: ·))
-                  (R.exactWalk count unif k (R.child y true) (W (R.child y true)).card)
-              else
-                PMF.map (Option.map (false :: ·))
-                  (R.exactWalk count unif k (R.child y false)
-                    ((W y).card - (W (R.child y true)).card)))
-                (some (b :: u))) =
-            ((W (R.child y b)).card : ℝ≥0∞) *
-              (((W y).card : ℝ≥0∞)⁻¹ *
-                R.exactWalk count unif k (R.child y b) (W (R.child y b)).card (some u)) := by
-        have hterm (r : Fin (W y).card) :
-            PMF.uniformOfFintype (Fin (W y).card) r *
-              (if (r : ℕ) < (W (R.child y true)).card then
-                PMF.map (Option.map (true :: ·))
-                  (R.exactWalk count unif k (R.child y true) (W (R.child y true)).card)
-              else
-                PMF.map (Option.map (false :: ·))
-                  (R.exactWalk count unif k (R.child y false)
-                    ((W y).card - (W (R.child y true)).card)))
-                (some (b :: u)) =
-            if decide ((r : ℕ) < (W (R.child y true)).card) = b then
-              ((W y).card : ℝ≥0∞)⁻¹ *
-                R.exactWalk count unif k (R.child y b) (W (R.child y b)).card (some u)
-            else 0 := by
-          rw [PMF.uniformOfFintype_apply, Fintype.card_fin, hc0_eq]
-          cases b <;> by_cases hr : (r : ℕ) < (W (R.child y true)).card <;>
-            simp [hr, pmf_map_option_map_cons_ne _ Bool.false_ne_true,
-              pmf_map_option_map_cons_ne _ Bool.false_ne_true.symm]
-        simp_rw [hterm]
-        rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const, nsmul_eq_mul]
-        congr 1
-        norm_cast
-        rcases hc1_le.eq_or_lt with h_eq | h_lt
-        · cases b
-          · have h0 : (W (R.child y false)).card = 0 := by omega
-            simp [h0, h_eq]
-          · simp only [decide_eq_true_eq]
-            have huniv : Finset.univ.filter
-                (fun r : Fin (W y).card => (r : ℕ) < (W (R.child y true)).card) =
-                Finset.univ := by
-              ext r; simp [h_eq]
-            rw [huniv, Finset.card_fin, h_eq]
-        · cases b
-          · simp only [decide_eq_false_iff_not]
-            have hIci : Finset.univ.filter
-                (fun r : Fin (W y).card => ¬ (r : ℕ) < (W (R.child y true)).card) =
-                Finset.Ici ⟨(W (R.child y true)).card, h_lt⟩ := by
-              ext r; simp [Fin.le_def]
-            rw [hIci, Fin.card_Ici, hc0_eq]
-          · simp only [decide_eq_true_eq]
-            have hIio : Finset.univ.filter
-                (fun r : Fin (W y).card => (r : ℕ) < (W (R.child y true)).card) =
-                Finset.Iio ⟨(W (R.child y true)).card, h_lt⟩ := by
-              ext r; simp [Fin.lt_def]
-            rw [hIio, Fin.card_Iio]
-      rw [hsum_eq]
-      rcases Nat.eq_zero_or_pos (W (R.child y b)).card with hcb | hcb_pos
-      · have hnot : b :: u ∉ W y := by
-          rw [R.cons_mem_iff y hy_pos b u]
-          rw [Finset.card_eq_zero] at hcb
-          simp [hcb]
-        simp [hcb, hnot]
-      · rw [ih (y := R.child y b) (by have := R.len_child y hy_pos b; omega) hcb_pos
-          (fun z hz => hcount z (hz.trans (R.length_child_le y hy_pos b))) u]
-        simp only [← R.cons_mem_iff y hy_pos b u]
-        by_cases hmem : b :: u ∈ W y
-        · simp only [hmem, ↓reduceIte]
-          calc ((W (R.child y b)).card : ℝ≥0∞) *
-                (((W y).card : ℝ≥0∞)⁻¹ * ((W (R.child y b)).card : ℝ≥0∞)⁻¹)
-              = (((W (R.child y b)).card : ℝ≥0∞) *
-                  ((W (R.child y b)).card : ℝ≥0∞)⁻¹) * ((W y).card : ℝ≥0∞)⁻¹ := by ring
-            _ = 1 * ((W y).card : ℝ≥0∞)⁻¹ := by
-                rw [ENNReal.mul_inv_cancel (Nat.cast_ne_zero.mpr (Nat.ne_of_gt hcb_pos))
-                  (ENNReal.natCast_ne_top _)]
-            _ = ((W y).card : ℝ≥0∞)⁻¹ := one_mul _
-        · simp [hmem]
+      trans ∑ r : Fin (W y).card,
+          if decide ((r : ℕ) < (W (R.child y true)).card) = b then
+            ((W y).card : ℝ≥0∞)⁻¹ *
+              R.exactWalk count unif k (R.child y b) (W (R.child y b)).card (some u)
+          else 0
+      · refine Finset.sum_congr rfl fun r _ => ?_
+        rw [PMF.uniformOfFintype_apply, Fintype.card_fin, hc0_eq]
+        cases b <;> by_cases hr : (r : ℕ) < (W (R.child y true)).card <;>
+          simp [hr, pmf_map_option_map_cons_ne _ Bool.false_ne_true,
+            pmf_map_option_map_cons_ne _ Bool.false_ne_true.symm]
+      · rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const, nsmul_eq_mul,
+          hcard]
+        rcases Nat.eq_zero_or_pos (W (R.child y b)).card with hcb | hcb_pos
+        · have hnot : b :: u ∉ W y := by
+            simp [R.cons_mem_iff y hy_pos b u, Finset.card_eq_zero.mp hcb]
+          simp [hcb, hnot]
+        · rw [ih (y := R.child y b) (by have := R.len_child y hy_pos b; omega) hcb_pos
+            (fun z hz => hcount z (hz.trans (R.length_child_le y hy_pos b))) u]
+          simp only [← R.cons_mem_iff y hy_pos b u]
+          by_cases hmem : b :: u ∈ W y <;>
+            simp [hmem, mul_left_comm,
+              ENNReal.mul_inv_cancel (Nat.cast_ne_zero.mpr hcb_pos.ne') (ENNReal.natCast_ne_top _)]
 
 /-- **Exact uniformity from exact counts.** Whenever `unif` samples each positive `Fin n`
 uniformly and `count z = (W z).card` on instances of encoded length at most `(enc x).length`,
@@ -419,22 +366,15 @@ def exactSampleQueries (R : SelfReducible enc W) (count : α → ℕ) (x : α)
 theorem length_exactSampleQueries_le (R : SelfReducible enc W) (count : α → ℕ) (x : α)
     (draws : List ℕ) :
     (R.exactSampleQueries count x draws).length ≤ 1 + R.len x := by
-  have hwalk : ∀ n y c ds, (R.exactWalkQueries count n y c ds).length ≤ n := by
-    intro n
-    induction n with
+  have hwalk (n y c ds) : (R.exactWalkQueries count n y c ds).length ≤ n := by
+    induction n generalizing y c ds with
     | zero => simp [exactWalkQueries]
     | succ k ih =>
-      intro y c ds
       simp only [exactWalkQueries]
-      split_ifs <;> simp only [List.length_cons, List.length_nil]
-      · exact Nat.succ_le_succ (ih _ _ _)
-      · exact Nat.succ_le_succ (ih _ _ _)
-      · omega
+      split_ifs <;> simp [Nat.succ_le_succ (ih _ _ _)]
   simp only [exactSampleQueries]
   split_ifs
-  · simp only [List.length_cons]
-    have := hwalk (R.len x) x (count x) draws
-    omega
+  · simpa [Nat.add_comm] using Nat.succ_le_succ (hwalk (R.len x) x (count x) draws)
   · simp
 
 /-- Every instance queried along `exactSampleQueries` has encoded length at most
@@ -442,34 +382,27 @@ theorem length_exactSampleQueries_le (R : SelfReducible enc W) (count : α → �
 theorem mem_exactSampleQueries_length_le (R : SelfReducible enc W) (count : α → ℕ) (x : α)
     (draws : List ℕ) {z : α} (hz : z ∈ R.exactSampleQueries count x draws) :
     (enc z).length ≤ (enc x).length := by
-  have hwalk : ∀ n y c ds, R.len y = n →
-      ∀ u ∈ R.exactWalkQueries count n y c ds, (enc u).length ≤ (enc y).length := by
-    intro n
-    induction n with
-    | zero => simp [exactWalkQueries]
+  have hwalk (n y c ds) (hlen : R.len y = n) {u}
+      (hu : u ∈ R.exactWalkQueries count n y c ds) : (enc u).length ≤ (enc y).length := by
+    induction n generalizing y c ds with
+    | zero => simp [exactWalkQueries] at hu
     | succ k ih =>
-      intro y c ds hlen u hu
       have hy_pos : 0 < R.len y := by omega
-      have hchild (b : Bool) (c' : ℕ)
-          (htl : u ∈ R.exactWalkQueries count k (R.child y b) c' ds.tail) :
-          (enc u).length ≤ (enc y).length :=
-        (ih (R.child y b) c' ds.tail (by have := R.len_child y hy_pos b; omega) u htl).trans
-          (R.length_child_le y hy_pos b)
       simp only [exactWalkQueries] at hu
       split_ifs at hu with hc hr
       · exact (List.mem_cons.mp hu).elim (fun h => h ▸ R.length_child_le y hy_pos true)
-          (hchild true _)
+          fun htl => (ih _ _ _ (by have := R.len_child y hy_pos true; omega) htl).trans
+            (R.length_child_le y hy_pos true)
       · exact (List.mem_cons.mp hu).elim (fun h => h ▸ R.length_child_le y hy_pos true)
-          (hchild false _)
+          fun htl => (ih _ _ _ (by have := R.len_child y hy_pos false; omega) htl).trans
+            (R.length_child_le y hy_pos false)
       · simp at hu
   simp only [exactSampleQueries] at hz
   split_ifs at hz
   · rcases List.mem_cons.mp hz with rfl | htl
     · exact le_refl _
-    · exact hwalk (R.len x) x (count x) draws rfl z htl
-  · rw [List.mem_singleton] at hz
-    subst hz
-    exact le_refl _
+    · exact hwalk (R.len x) x (count x) draws rfl htl
+  · rw [List.mem_singleton] at hz; subst hz; exact le_refl _
 
 /-- Expected fair-flip cost of `exactWalk` when each index `r : Fin c` is drawn with the
 discrete-distribution-generating tree `Probability.uniformFinTree c` (which generates the uniform
@@ -540,40 +473,28 @@ theorem exactSampleExpectedBits_le (R : SelfReducible enc W)
           · refine add_nonneg ENNReal.toReal_nonneg (Finset.sum_nonneg fun r _ => ?_)
             refine mul_nonneg ENNReal.toReal_nonneg ?_
             split_ifs <;> assumption
-          · have hcard_le : (W y).card ≤ 2 ^ (k + 1) := by
-              simpa [hlen] using R.card_le_two_pow_len y
-            have hclog : Nat.clog 2 (W y).card ≤ k + 1 :=
-              (Nat.clog_le_iff_le_pow (by decide)).mpr hcard_le
+          · have hclog : Nat.clog 2 (W y).card ≤ k + 1 :=
+              (Nat.clog_le_iff_le_pow one_lt_two).mpr
+                (by simpa [hlen] using R.card_le_two_pow_len y)
             have hbits : (Probability.uniformFinTree (W y).card).expectedFlips.toReal ≤
                 2 * ((k + 1 : ℕ) : ℝ) := by
-              have h : (Probability.uniformFinTree (W y).card).expectedFlips ≤
-                  ENNReal.ofReal (2 * ((k + 1 : ℕ) : ℝ)) := by
-                refine (Probability.expectedFlips_uniformFinTree_le (W y).card).trans ?_
-                rw [ENNReal.ofReal_mul (by norm_num), ENNReal.ofReal_ofNat,
-                  ENNReal.ofReal_natCast]
-                gcongr
-              exact ENNReal.toReal_le_of_le_ofReal (by positivity) h
-            have hsum_le : (∑ r : Fin (W y).card,
-                (PMF.uniformOfFintype (Fin (W y).card) r).toReal *
+              have h := ENNReal.toReal_mono
+                (ENNReal.mul_ne_top (by norm_num) (ENNReal.natCast_ne_top _))
+                (Probability.expectedFlips_uniformFinTree_le (W y).card)
+              rw [ENNReal.toReal_mul, ENNReal.toReal_ofNat, ENNReal.toReal_natCast] at h
+              exact h.trans (by gcongr)
+            have hsum_le :
+                (∑ r : Fin (W y).card, (PMF.uniformOfFintype (Fin (W y).card) r).toReal *
                   (if (r : ℕ) < (W (R.child y true)).card then
                     R.exactWalkExpectedBits count k (R.child y true) (W (R.child y true)).card
                   else
                     R.exactWalkExpectedBits count k (R.child y false)
-                      (W (R.child y false)).card))
-                ≤ (k : ℝ) * (k + 1) := by
-              calc _ ≤ ∑ r : Fin (W y).card,
-                    (PMF.uniformOfFintype (Fin (W y).card) r).toReal * ((k : ℝ) * (k + 1)) := by
-                    refine Finset.sum_le_sum fun r _ => ?_
-                    refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-                    split_ifs <;> assumption
-                _ = (∑ r : Fin (W y).card, (PMF.uniformOfFintype (Fin (W y).card) r).toReal) *
-                      ((k : ℝ) * (k + 1)) := (Finset.sum_mul _ _ _).symm
-                _ = 1 * ((k : ℝ) * (k + 1)) := by
-                    congr 1
-                    simp only [PMF.uniformOfFintype_apply, Fintype.card_fin, Finset.sum_const,
-                      Finset.card_univ, nsmul_eq_mul, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-                    exact mul_inv_cancel₀ (Nat.cast_ne_zero.mpr (Nat.ne_of_gt hpos))
-                _ = (k : ℝ) * (k + 1) := one_mul _
+                      (W (R.child y false)).card)) ≤ (k : ℝ) * (k + 1) := by
+              have htot : ∑ r : Fin (W y).card,
+                  (PMF.uniformOfFintype (Fin (W y).card) r).toReal = 1 := by simp
+              refine (Finset.sum_le_sum fun r _ => mul_le_mul_of_nonneg_left
+                (by split_ifs <;> assumption) ENNReal.toReal_nonneg).trans_eq ?_
+              rw [← Finset.sum_mul, htot, one_mul]
             calc (Probability.uniformFinTree (W y).card).expectedFlips.toReal + _
                 ≤ 2 * ((k + 1 : ℕ) : ℝ) + (k : ℝ) * (k + 1) := add_le_add hbits hsum_le
               _ = ((k + 1 : ℕ) : ℝ) * (((k + 1 : ℕ) : ℝ) + 1) := by push_cast; ring
@@ -638,15 +559,11 @@ noncomputable def boundedConditionalSample (R : SelfReducible enc W) (count : α
   R.finishConditionalWalk <$>
     OracleComp.iterate (R.len x) (R.conditionalWalkStep count fuel) ⟨x, c, [], decide (0 < c)⟩
 
-private theorem conditionalWalkStep_inactive (R : SelfReducible enc W) (count : α → ℕ) (fuel : ℕ)
-    (nd : α) (cv : ℕ) (rb : List Bool) :
-    R.conditionalWalkStep count fuel ⟨nd, cv, rb, false⟩ = pure ⟨nd, cv, rb, false⟩ := rfl
-
 private theorem iterate_conditionalWalkStep_inactive (R : SelfReducible enc W) (count : α → ℕ)
     (fuel n : ℕ) (nd : α) (cv : ℕ) (rb : List Bool) :
     OracleComp.iterate n (R.conditionalWalkStep count fuel) ⟨nd, cv, rb, false⟩ =
       pure ⟨nd, cv, rb, false⟩ :=
-  OracleComp.iterate_eq_pure n _ _ (R.conditionalWalkStep_inactive count fuel nd cv rb)
+  OracleComp.iterate_eq_pure n _ _ rfl
 
 /-- Iterative `conditionalWalkStep` agrees with recursive `boundedConditionalWalk`. -/
 theorem map_finish_iterate_conditionalWalkStep (R : SelfReducible enc W) (count : α → ℕ)
@@ -701,19 +618,16 @@ private theorem boundedConditionalWalk_valid (R : SelfReducible enc W) (count : 
       cases ro with
       | none => simp at hout
       | some r =>
-        have hbranch (b : Bool) (k : ℕ) (hs : some w ∈ (ProbComp.eval
-            ((Option.map (b :: ·)) <$>
-              R.boundedConditionalWalk count fuel n (R.child y b) k)).support) :
-            w ∈ W y := by
-          rw [ProbComp.eval_map] at hs
-          obtain ⟨_ | v, hmem, eq⟩ := (PMF.mem_support_map_iff _ _ _).mp hs
+        dsimp only at hout
+        have hlt := R.len_child y hy true
+        have hlf := R.len_child y hy false
+        split_ifs at hout with hr <;>
+        · rw [ProbComp.eval_map] at hout
+          obtain ⟨_ | v, hmem, eq⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
           · simp at eq
           · simp only [Option.map_some, Option.some.injEq] at eq
             subst w
-            apply (R.cons_mem_iff y hy b v).2
-            exact ih (by have := R.len_child y hy b; lia) k v hmem
-        dsimp only at hout
-        split at hout <;> exact hbranch _ _ hout
+            exact (R.cons_mem_iff y hy _ v).2 (ih (by lia) _ v hmem)
     · simp at hw
 
 /-- Pointwise witness probability lower bound for `boundedConditionalWalk`. -/
@@ -747,77 +661,47 @@ theorem le_eval_boundedConditionalWalk_some (R : SelfReducible enc W) {count : �
       have hcb_pos : 0 < (W (R.child y b)).card := Finset.card_pos.mpr ⟨u, hu_mem⟩
       have hsub := ih (y := R.child y b) (by have := R.len_child y hy_pos b; omega)
         (fun z hz => hcount z (hz.trans (R.length_child_le y hy_pos b))) hu_mem hcb_pos
-      have h1_nn : 0 ≤ 1 - (1 / 2 : ℝ) ^ fuel := by
-        have hpow : (1 / 2 : ℝ) ^ fuel ≤ 1 :=
-          (pow_le_pow_left₀ (by positivity) (by norm_num : (1 / 2 : ℝ) ≤ 1) fuel).trans (by simp)
-        linarith
+      have h1_nn : 0 ≤ 1 - (1 / 2 : ℝ) ^ fuel :=
+        sub_nonneg.mpr (pow_le_one₀ (by positivity) (by norm_num))
       have hsplit_pow : ENNReal.ofReal ((1 - (1 / 2 : ℝ) ^ fuel) ^ (k + 1) / (W y).card) =
           (((W (R.child y b)).card : ℝ≥0∞) *
             ENNReal.ofReal ((1 - (1 / 2 : ℝ) ^ fuel) / (W y).card)) *
             ENNReal.ofReal ((1 - (1 / 2 : ℝ) ^ fuel) ^ k / (W (R.child y b)).card) := by
-        have hcb_cast : ((W (R.child y b)).card : ℝ≥0∞) =
-            ENNReal.ofReal ((W (R.child y b)).card : ℝ) :=
-          (ENNReal.ofReal_natCast _).symm
-        rw [hcb_cast, ← ENNReal.ofReal_mul (by positivity),
-          ← ENNReal.ofReal_mul (by positivity)]
+        rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (by positivity),
+          ← ENNReal.ofReal_mul (by positivity), pow_succ']
         congr 1
-        have hcb_ne : ((W (R.child y b)).card : ℝ) ≠ 0 :=
-          Nat.cast_ne_zero.mpr (Nat.ne_of_gt hcb_pos)
-        rw [pow_succ']
-        field_simp
-      have hdraw : ∀ r < (W y).card, ENNReal.ofReal ((1 - (1 / 2 : ℝ) ^ fuel) / (W y).card) ≤
-          ProbComp.eval (sampleUniformIntervalRetry (W y).card fuel) (some r) := fun r hr => by
-        rw [eval_sampleUniformIntervalRetry]
-        exact le_eval_sampleUniformInterval_some hpos fuel hr
+        field_simp [Nat.cast_ne_zero.mpr hcb_pos.ne']
       set c₁ := (W (R.child y true)).card
       set c₀ := (W (R.child y false)).card
       let S : Finset ℕ := if b then Finset.range c₁ else Finset.Ico c₁ (W y).card
       have hS_card : S.card = (W (R.child y b)).card := by
-        cases b <;>
-          simp only [S, Bool.false_eq_true, ↓reduceIte, Nat.card_Ico, Finset.card_range] <;>
-          omega
+        cases b <;> simp only [S, Bool.false_eq_true, ↓reduceIte, Nat.card_Ico, Finset.card_range,
+          c₁]; omega
       have hS_lt : ∀ r ∈ S, r < (W y).card := fun r hr => by
-        cases b <;>
-          simp only [S, Bool.false_eq_true, ↓reduceIte, Finset.mem_Ico, Finset.mem_range] at hr <;>
-          omega
+        cases b <;> simp only [S, Bool.false_eq_true, ↓reduceIte, Finset.mem_Ico,
+          Finset.mem_range] at hr <;> omega
       have hS_branch : ∀ r ∈ S, decide (r < c₁) = b := fun r hr => by
-        cases b <;>
-          simp only [S, Bool.false_eq_true, ↓reduceIte, Finset.mem_Ico, Finset.mem_range,
-            decide_eq_false_iff_not, decide_eq_true_eq] at hr ⊢ <;>
-          omega
+        cases b <;> simp only [S, Bool.false_eq_true, ↓reduceIte, Finset.mem_Ico,
+          Finset.mem_range, decide_eq_false_iff_not, decide_eq_true_eq] at hr ⊢ <;> omega
       refine le_trans ?_ (sum_le_tsum (S.map ⟨some, Option.some_injective ℕ⟩))
       rw [Finset.sum_map]
-      have hcongr : ∑ r ∈ S,
-          ProbComp.eval (sampleUniformIntervalRetry (W y).card fuel)
-            ((⟨some, Option.some_injective ℕ⟩ : ℕ ↪ Option ℕ) r) *
+      dsimp only [Function.Embedding.coeFn_mk]
+      rw [Finset.sum_congr rfl fun r hr => show _ =
+          ProbComp.eval (sampleUniformIntervalRetry (W y).card fuel) (some r) *
             ProbComp.eval
-              (match (⟨some, Option.some_injective ℕ⟩ : ℕ ↪ Option ℕ) r with
-              | none => pure none
-              | some r =>
-                if r < c₁ then
-                  (Option.map (true :: ·)) <$>
-                    R.boundedConditionalWalk count fuel k (R.child y true) c₁
-                else
-                  (Option.map (false :: ·)) <$>
-                    R.boundedConditionalWalk count fuel k (R.child y false) c₀)
-              (some (b :: u)) =
-          ∑ r ∈ S,
-            ProbComp.eval (sampleUniformIntervalRetry (W y).card fuel) (some r) *
-              ProbComp.eval
-                (R.boundedConditionalWalk count fuel k (R.child y b) (W (R.child y b)).card)
-                (some u) := by
-        refine Finset.sum_congr rfl fun r hr => ?_
-        dsimp only [Function.Embedding.coeFn_mk]
-        have hb_r := hS_branch r hr
+              (R.boundedConditionalWalk count fuel k (R.child y b) (W (R.child y b)).card)
+              (some u) by
         cases b
-        · rw [ite_eq_right (of_decide_eq_false hb_r), ProbComp.eval_map,
+        · rw [ite_eq_right (of_decide_eq_false (hS_branch r hr)), ProbComp.eval_map,
             pmf_map_option_map_cons_some]
-        · rw [ite_eq_left (of_decide_eq_true hb_r), ProbComp.eval_map,
-            pmf_map_option_map_cons_some]
-      rw [hcongr, ← Finset.sum_mul, hsplit_pow]
+        · rw [ite_eq_left (of_decide_eq_true (hS_branch r hr)), ProbComp.eval_map,
+            pmf_map_option_map_cons_some]]
+      rw [← Finset.sum_mul, hsplit_pow]
       refine mul_le_mul' ?_ hsub
       rw [← hS_card, ← nsmul_eq_mul, ← Finset.sum_const]
-      exact Finset.sum_le_sum fun r hr => hdraw r (hS_lt r hr)
+      refine Finset.sum_le_sum fun r hr => ?_
+      rw [eval_sampleUniformIntervalRetry]
+      exact le_eval_sampleUniformInterval_some hpos fuel (hS_lt r hr)
 
 /-- **Output-law accuracy of `boundedConditionalSample`.** Whenever `count` agrees with `(W ·).card`
 on instances no longer than `x`, `boundedConditionalSample count x q` lies within total-variation
@@ -830,27 +714,18 @@ theorem closeTo_boundedConditionalSample (R : SelfReducible enc W) {count : α �
   rw [R.boundedConditionalSample_eq_walk, hcx]
   refine closeTo_uniformWitness_of_le (by positivity) (fun w hw => ?_) (fun hempty w => ?_)
   · set ℓ := R.len x
-    have hδ0 : 0 ≤ (1 / 2 : ℝ) ^ (q + ℓ) := by positivity
-    have hδ1 : (1 / 2 : ℝ) ^ (q + ℓ) ≤ 1 :=
-      (pow_le_pow_left₀ (by positivity) (by norm_num : (1 / 2 : ℝ) ≤ 1) (q + ℓ)).trans (by simp)
+    have hδ1 : (1 / 2 : ℝ) ^ (q + ℓ) ≤ 1 := pow_le_one₀ (by positivity) (by norm_num)
     have hbern : 1 - (ℓ : ℝ) * (1 / 2 : ℝ) ^ (q + ℓ) ≤ (1 - (1 / 2 : ℝ) ^ (q + ℓ)) ^ ℓ := by
-      have h := one_add_mul_le_pow (a := -(1 / 2 : ℝ) ^ (q + ℓ)) (by linarith) ℓ
-      simpa only [mul_neg, ← sub_eq_add_neg] using h
-    have hℓ_le : (ℓ : ℝ) ≤ 2 ^ ℓ := by exact_mod_cast Nat.lt_two_pow_self.le
+      simpa only [mul_neg, ← sub_eq_add_neg] using
+        one_add_mul_le_pow (a := -(1 / 2 : ℝ) ^ (q + ℓ)) (by linarith) ℓ
     have hprod : (ℓ : ℝ) * (1 / 2 : ℝ) ^ (q + ℓ) ≤ (1 / 2 : ℝ) ^ q := by
-      rw [pow_add, ← mul_assoc]
-      have h1 : (ℓ : ℝ) * (1 / 2 : ℝ) ^ ℓ ≤ 1 := by
-        rw [one_div, inv_pow, ← div_eq_mul_inv]
-        exact (div_le_one (by positivity)).mpr hℓ_le
-      calc (ℓ : ℝ) * (1 / 2 : ℝ) ^ q * (1 / 2 : ℝ) ^ ℓ
-          = ((ℓ : ℝ) * (1 / 2 : ℝ) ^ ℓ) * (1 / 2 : ℝ) ^ q := by ring
-        _ ≤ 1 * (1 / 2 : ℝ) ^ q := mul_le_mul_of_nonneg_right h1 (by positivity)
-        _ = (1 / 2 : ℝ) ^ q := one_mul _
-    have hstep : ENNReal.ofReal ((1 - (1 / 2 : ℝ) ^ q) / (W x).card) ≤
-        ENNReal.ofReal (((1 - (1 / 2 : ℝ) ^ (q + ℓ)) ^ ℓ) / (W x).card) := by
-      refine ENNReal.ofReal_le_ofReal ?_
-      exact div_le_div_of_nonneg_right (by linarith) (Nat.cast_nonneg _)
-    exact hstep.trans (R.le_eval_boundedConditionalWalk_some rfl hcount hw)
+      have hℓ_le : (ℓ : ℝ) ≤ 2 ^ ℓ := by exact_mod_cast Nat.lt_two_pow_self.le
+      rw [pow_add, mul_left_comm]
+      exact mul_le_of_le_one_right (by positivity)
+        (by rw [one_div, inv_pow, ← div_eq_mul_inv]; exact (div_le_one (by positivity)).mpr hℓ_le)
+    exact (ENNReal.ofReal_le_ofReal
+      (div_le_div_of_nonneg_right (by linarith) (Nat.cast_nonneg _))).trans
+      (R.le_eval_boundedConditionalWalk_some rfl hcount hw)
   · rw [hempty, Finset.card_empty]
     cases hℓ : R.len x <;> simp [boundedConditionalWalk]
 
@@ -861,47 +736,27 @@ private theorem computableInPolyTime_advanceConditionalState (R : SelfReducible 
         R.advanceConditionalState x.1.1 x.1.2 x.2)
       (encPair (encPair (encConditionalWalkState enc) encNat) (encOption encNat))
       (encConditionalWalkState enc) := by
-  have hst := (fst (encConditionalWalkState enc) encNat).comp
-    (fst (encPair (encConditionalWalkState enc) encNat) (encOption encNat))
-  have hc1 := (snd (encConditionalWalkState enc) encNat).comp
-    (fst (encPair (encConditionalWalkState enc) encNat) (encOption encNat))
-  have hro := snd (encPair (encConditionalWalkState enc) encNat) (encOption encNat)
+  let EP := encPair (encConditionalWalkState enc) encNat
+  let E := encPair EP (encOption encNat)
+  have hst := (fst (encConditionalWalkState enc) encNat).comp (fst EP (encOption encNat))
+  have hc1 := (snd (encConditionalWalkState enc) encNat).comp (fst EP (encOption encNat))
   have hnd := encConditionalWalkState_node_polyTime hst
   have hcv := encConditionalWalkState_countVal_polyTime hst
   have hrb := encConditionalWalkState_revBits_polyTime hst
   have hsome_cond : ComputableInPolyTime
-      (fun x : (ConditionalWalkState α × ℕ) × Option ℕ => decide (x.2.isSome = true))
-      (encPair (encPair (encConditionalWalkState enc) encNat) (encOption encNat))
-      encBool := by
-    have hs : ComputableInPolyTime Option.isSome (encOption encNat) encBool := by fun_prop
-    exact (hs.comp hro).of_enc_eq fun ⟨_, ro⟩ => by cases ro <;> rfl
+      (fun x : (ConditionalWalkState α × ℕ) × Option ℕ => x.2.isSome) E encBool := by fun_prop
   have hr_val : ComputableInPolyTime
-      (fun x : (ConditionalWalkState α × ℕ) × Option ℕ => x.2.getD 0)
-      (encPair (encPair (encConditionalWalkState enc) encNat) (encOption encNat))
-      encNat := by
-    have hg : ComputableInPolyTime (fun o : Option ℕ => o.getD 0) (encOption encNat) encNat := by
-      fun_prop
-    exact hg.comp hro
+      (fun x : (ConditionalWalkState α × ℕ) × Option ℕ => x.2.getD 0) E encNat := by fun_prop
   have habort := encConditionalWalkState_mk_polyTime hnd hcv hrb (const false)
   have htrueBr := encConditionalWalkState_mk_polyTime
     (R.child_polytime.comp (hnd.prod (const true))) hc1
-    (ComputableInPolyTime.bitsCons (.const true) hrb)
-    (binary_lt' (const 0) hc1)
+    (ComputableInPolyTime.bitsCons (.const true) hrb) (binary_lt' (const 0) hc1)
   have hc0 := binary_sub' hcv hc1
   have hfalseBr := encConditionalWalkState_mk_polyTime
     (R.child_polytime.comp (hnd.prod (const false))) hc0
-    (ComputableInPolyTime.bitsCons (.const false) hrb)
-    (binary_lt' (const 0) hc0)
-  have hlt : ComputableInPolyTime
-      (fun x : (ConditionalWalkState α × ℕ) × Option ℕ => decide (x.2.getD 0 < x.1.2))
-      (encPair (encPair (encConditionalWalkState enc) encNat) (encOption encNat)) encBool :=
-    binary_lt' hr_val hc1
-  have hgo := ComputableInPolyTime.ite'
-    (c := fun x : (ConditionalWalkState α × ℕ) × Option ℕ => x.2.getD 0 < x.1.2)
-    hlt htrueBr hfalseBr
-  exact (ComputableInPolyTime.ite'
-    (c := fun x : (ConditionalWalkState α × ℕ) × Option ℕ => x.2.isSome = true)
-    hsome_cond hgo habort).of_enc_eq fun ⟨⟨s, c₁⟩, ro⟩ => by
+    (ComputableInPolyTime.bitsCons (.const false) hrb) (binary_lt' (const 0) hc0)
+  have hgo := ite' (binary_lt' hr_val hc1) htrueBr hfalseBr
+  exact (ite' hsome_cond hgo habort).of_enc_eq fun ⟨⟨s, c₁⟩, ro⟩ => by
     cases ro with
     | none => rfl
     | some r =>
@@ -912,54 +767,11 @@ open ComputableInPolyTime in
 private theorem computableInPolyTime_finishConditionalWalk (R : SelfReducible enc W) :
     ComputableInPolyTime R.finishConditionalWalk
       (encConditionalWalkState enc) (encOption encBits) := by
-  have hcond_b := bool_and'
-    (bool_and' (encConditionalWalkState_active_polyTime id')
-      (binary_lt' (const 0) (encConditionalWalkState_countVal_polyTime id')))
-    (R.nil_mem_polytime.comp (encConditionalWalkState_node_polyTime id'))
-  have hcond : ComputableInPolyTime
-      (fun s : ConditionalWalkState α =>
-        decide ((s.active && decide (0 < s.countVal) && decide ([] ∈ W s.node)) = true))
+  have hnil : ComputableInPolyTime (fun s : ConditionalWalkState α => decide ([] ∈ W s.node))
       (encConditionalWalkState enc) encBool :=
-    hcond_b.of_enc_eq fun s => by
-      dsimp only [Function.comp]
-      cases s.active && decide (0 < s.countVal) && decide ([] ∈ W s.node) <;> rfl
-  have hyes : ComputableInPolyTime
-      (fun s : ConditionalWalkState α => (some s.revBits.reverse : Option (List Bool)))
-      (encConditionalWalkState enc) (encOption encBits) := by
-    have hid : ComputableInPolyTime id
-        (encConditionalWalkState enc) (encConditionalWalkState enc) := id'
-    have hrev := (ComputableInPolyTime.bitsReverse).comp
-      (encConditionalWalkState_revBits_polyTime hid)
-    fun_prop
-  exact (ComputableInPolyTime.ite'
-    (c := fun s : ConditionalWalkState α =>
-      (s.active && decide (0 < s.countVal) && decide ([] ∈ W s.node)) = true)
-    hcond hyes (const none)).of_enc_eq fun s => by
-    unfold finishConditionalWalk
-    cases s.active && decide (0 < s.countVal) && decide ([] ∈ W s.node) <;> rfl
-
-open ComputableInPolyTime in
-private theorem boundedConditionalSample_polyTime_helpers (R : SelfReducible enc W) :
-    ComputableInPolyTime (fun p : α × ℕ => p.2 + R.len p.1) (encPair enc encUnary) encUnary ∧
-    ComputableInPolyTime (fun pair : (α × ℕ) × ConditionalWalkState α =>
-      pair.2.active && decide (0 < pair.2.countVal))
-      (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encBool ∧
-    ComputableInPolyTime (fun pair : (α × ℕ) × ConditionalWalkState α => R.child pair.2.node true)
-      (encPair (encPair enc encUnary) (encConditionalWalkState enc)) enc := by
-  have hfuel : ComputableInPolyTime (fun p : α × ℕ => p.2 + R.len p.1)
-      (encPair enc encUnary) encUnary :=
-    unary_add' (snd enc encUnary) (R.len_polytime.comp (fst enc encUnary))
-  have hst := snd (encPair enc encUnary) (encConditionalWalkState enc)
-  have hnd := encConditionalWalkState_node_polyTime hst
-  have hcv := encConditionalWalkState_countVal_polyTime hst
-  have hact := encConditionalWalkState_active_polyTime hst
-  have hcond : ComputableInPolyTime
-      (fun pair : (α × ℕ) × ConditionalWalkState α =>
-        pair.2.active && decide (0 < pair.2.countVal))
-      (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encBool :=
-    bool_and' hact (binary_lt' (const 0) hcv)
-  have hy1 := R.child_polytime.comp (hnd.prod (const true))
-  exact ⟨hfuel, hcond, hy1⟩
+    R.nil_mem_polytime.comp (by fun_prop)
+  unfold finishConditionalWalk
+  fun_prop
 
 private def conditionalWalkInv (R : SelfReducible enc W) (x : α) (B i : ℕ)
     (st : ConditionalWalkState α) : Prop :=
@@ -979,12 +791,8 @@ private theorem conditionalWalkInv_of_not_go (R : SelfReducible enc W) {x : α} 
     (hgo : ¬ (st.active && decide (0 < st.countVal)) = true) :
     R.conditionalWalkInv x B (i + 1) st := by
   obtain ⟨hnd_le, hrb_le, hcv_le, hact_inv⟩ := hinv
-  have hnot_act : st.active = false := by
-    cases h : st.active
-    · rfl
-    · exact False.elim (hgo (by simp [h, (hact_inv h).1]))
   exact ⟨hnd_le, hrb_le.trans (Nat.le_succ i), hcv_le,
-    fun h => Bool.noConfusion (hnot_act.symm.trans h)⟩
+    fun h => absurd (by simp [h, (hact_inv h).1]) hgo⟩
 
 private theorem conditionalWalkInv_advance (R : SelfReducible enc W) {x : α} {B i : ℕ}
     {st : ConditionalWalkState α} (hi : i < R.len x)
@@ -1007,11 +815,9 @@ private theorem conditionalWalkInv_advance (R : SelfReducible enc W) {x : α} {B
       have := R.len_child st.node hlen_pos b
       exact ⟨(R.length_child_le st.node hlen_pos b).trans hnd_le, by simp [hrb_eq], hcv',
         fun hact' => ⟨of_decide_eq_true hact', by simp [hrb_eq], by dsimp only; omega⟩⟩
-    by_cases hr : r < c₁
-    · simp only [advanceConditionalState, hr, ↓reduceIte]
-      exact hmk true c₁ (hc₁_le ((R.length_child_le st.node hlen_pos true).trans hnd_le))
-    · simp only [advanceConditionalState, hr, ↓reduceIte]
-      have hsub_le : (encNat (st.countVal - c₁)).length ≤ (encNat st.countVal).length := by
+    by_cases hr : r < c₁ <;> simp only [advanceConditionalState, hr, ↓reduceIte]
+    · exact hmk true c₁ (hc₁_le ((R.length_child_le st.node hlen_pos true).trans hnd_le))
+    · have hsub_le : (encNat (st.countVal - c₁)).length ≤ (encNat st.countVal).length := by
         simp only [encNat_apply, Nat.size_eq_bits_len]
         exact Nat.size_le_size (Nat.sub_le _ _)
       exact hmk false (st.countVal - c₁) (hsub_le.trans hcv_le)
@@ -1029,8 +835,31 @@ private theorem exists_len_poly_bound (R : SelfReducible enc W) :
     ∃ cL dL, ∀ x, R.len x ≤ cL * ((enc x).length + 1) ^ dL := by
   obtain ⟨_, _, htL, _, hmL⟩ := R.len_polytime
   obtain ⟨cL, dL, hlenL⟩ := polynomiallyBounded_iff_le.mp htL
-  refine ⟨cL, dL, fun x => ?_⟩
-  simpa using (hmL.length_le x).trans (hlenL (enc x).length)
+  exact ⟨cL, dL, fun x => by simpa using (hmL.length_le x).trans (hlenL (enc x).length)⟩
+
+open ComputableInPolyTime in
+private theorem isPPTOn_drawAndAdvance (R : SelfReducible enc W) :
+    IsPPTOn (encPair (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat)
+      (encConditionalWalkState enc)
+      (fun pc : ((α × ℕ) × ConditionalWalkState α) × ℕ =>
+        R.advanceConditionalState pc.1.2 pc.2 <$>
+          sampleUniformIntervalRetry pc.1.2.countVal (pc.1.1.2 + R.len pc.1.1.1)) := by
+  let E := encPair (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat
+  have hlen : ComputableInPolyTime (fun pc : ((α × ℕ) × ConditionalWalkState α) × ℕ =>
+      R.len pc.1.1.1) E encUnary :=
+    R.len_polytime.comp (by fun_prop : ComputableInPolyTime _ E enc)
+  have hdraw : IsPPTOn E (encOption encNat) _ :=
+    isPPTOn_sampleUniformIntervalRetry
+      (by fun_prop : ComputableInPolyTime
+        (fun pc : ((α × ℕ) × ConditionalWalkState α) × ℕ => pc.1.2.countVal) E encNat)
+      (by fun_prop : ComputableInPolyTime
+        (fun pc : ((α × ℕ) × ConditionalWalkState α) × ℕ => pc.1.1.2 + R.len pc.1.1.1) E encUnary)
+  have hadv := R.computableInPolyTime_advanceConditionalState.comp
+    (by fun_prop : ComputableInPolyTime
+      (fun x : (((α × ℕ) × ConditionalWalkState α) × ℕ) × Option ℕ =>
+        ((x.1.1.2, x.1.2), x.2))
+      (encPair E (encOption encNat)) _)
+  exact hdraw.map_with hadv
 
 open ComputableInPolyTime in
 /-- **Strict PPT certificate for `boundedConditionalSample`** when `count` is polynomial-time. -/
@@ -1038,47 +867,41 @@ theorem isPPTOn_boundedConditionalSample (R : SelfReducible enc W) {count : α �
     (hcount : ComputableInPolyTime count enc encNat) :
     IsPPTOn (encPair enc encUnary) (encOption encBits)
       (Function.uncurry (R.boundedConditionalSample count)) := by
-  obtain ⟨hfuel, hcond, hy1⟩ := R.boundedConditionalSample_polyTime_helpers
-  have hst := snd (encPair enc encUnary) (encConditionalWalkState enc)
-  have hstep : IsPPTOn (encPair (encPair enc encUnary) (encConditionalWalkState enc))
-      (encConditionalWalkState enc)
+  let E := encPair enc encUnary
+  let ES := encPair E (encConditionalWalkState enc)
+  have hy1 : ComputableInPolyTime
+      (fun pair : (α × ℕ) × ConditionalWalkState α => R.child pair.2.node true) ES enc :=
+    R.child_polytime.comp (by fun_prop : ComputableInPolyTime
+      (fun pair : (α × ℕ) × ConditionalWalkState α => (pair.2.node, true)) ES (encPair enc encBool))
+  have hstep : IsPPTOn ES (encConditionalWalkState enc)
       (fun pair => R.conditionalWalkStep count (pair.1.2 + R.len pair.1.1) pair.2) := by
-    have hcv := encConditionalWalkState_countVal_polyTime hst
-    have hc1 := hcount.comp hy1
-    have hdraw := isPPTOn_sampleUniformIntervalRetry hcv
-      (hfuel.comp (fst (encPair enc encUnary) (encConditionalWalkState enc)))
-    have hadv : ComputableInPolyTime
-        (fun x : ((α × ℕ) × ConditionalWalkState α) × Option ℕ =>
-          R.advanceConditionalState x.1.2 (count (R.child x.1.2.node true)) x.2)
-        (encPair (encPair (encPair enc encUnary) (encConditionalWalkState enc)) (encOption encNat))
-        (encConditionalWalkState enc) := by
-      have hp1 := fst (encPair (encPair enc encUnary) (encConditionalWalkState enc))
-        (encOption encNat)
-      exact (R.computableInPolyTime_advanceConditionalState).comp
-        (((hst.comp hp1).prod (hc1.comp hp1)).prod
-          (snd (encPair (encPair enc encUnary) (encConditionalWalkState enc)) (encOption encNat)))
-    exact (IsPPTOn.cond hcond (hdraw.map_with hadv) hst.isPPTOn).congr fun pair => by
+    have hcond : ComputableInPolyTime
+        (fun pair : (α × ℕ) × ConditionalWalkState α =>
+          pair.2.active && decide (0 < pair.2.countVal)) ES encBool := by fun_prop
+    have hyes : IsPPTOn ES (encConditionalWalkState enc)
+        (fun pair => R.advanceConditionalState pair.2 (count (R.child pair.2.node true)) <$>
+          sampleUniformIntervalRetry pair.2.countVal (pair.1.2 + R.len pair.1.1)) :=
+      R.isPPTOn_drawAndAdvance.preprocess (id'.prod (hcount.comp hy1))
+    exact (IsPPTOn.cond hcond hyes
+      (snd E (encConditionalWalkState enc)).isPPTOn).congr fun pair => by
       unfold conditionalWalkStep
       cases pair.2.active && decide (0 < pair.2.countVal) <;> rfl
+  have hcx := hcount.comp (fst enc encUnary)
   have hinit : ComputableInPolyTime
       (fun p : α × ℕ => ConditionalWalkState.mk p.1 (count p.1) [] (decide (0 < count p.1)))
-      (encPair enc encUnary) (encConditionalWalkState enc) := by
-    have hcx := hcount.comp (fst enc encUnary)
-    exact encConditionalWalkState_mk_polyTime (fst enc encUnary) hcx (const [])
-      (binary_lt' (const 0) hcx)
+      E (encConditionalWalkState enc) :=
+    encConditionalWalkState_mk_polyTime (fst enc encUnary) hcx (const []) (binary_lt' (const 0) hcx)
   obtain ⟨_, _, htC, _, hmC⟩ := hcount
   obtain ⟨cC, dC, hlenC⟩ := polynomiallyBounded_iff_le.mp htC
   obtain ⟨cL, dL, hlenL⟩ := R.exists_len_poly_bound
-  have hcount_loop : ComputableInPolyTime (fun p : α × ℕ => R.len p.1)
-      (encPair enc encUnary) encUnary := R.len_polytime.comp (fst enc encUnary)
-  have hpx_cert : ComputableInPolyTime (fun p : α × ℕ => p.1) (encPair enc encUnary) enc :=
-    fst enc encUnary
-  have hsize : PolyBounded (fun p : α × ℕ => (encPair enc encUnary p).length)
+  have hcount_loop : ComputableInPolyTime (fun p : α × ℕ => R.len p.1) E encUnary :=
+    R.len_polytime.comp (fst enc encUnary)
+  have hpx_cert : ComputableInPolyTime (fun p : α × ℕ => p.1) E enc := fst enc encUnary
+  have hsize : PolyBounded (fun p : α × ℕ => (E p).length)
       (fun p => 16 * ((enc p.1).length +
-        cC * ((enc p.1).length + 1) ^ dC +
-        cL * ((enc p.1).length + 1) ^ dL + 4)) := by
+        cC * ((enc p.1).length + 1) ^ dC + cL * ((enc p.1).length + 1) ^ dL + 4)) := by
     growth_poly
-  have hit := IsPPTOn.iterateWith_spec (input := encPair enc encUnary)
+  have hit := IsPPTOn.iterateWith_spec (input := E)
     (stateEncoding := encConditionalWalkState enc)
     (count := fun p => R.len p.1)
     (initial := fun p => ConditionalWalkState.mk p.1 (count p.1) [] (decide (0 < count p.1)))
@@ -1205,19 +1028,50 @@ theorem closeTo_boundedConditionalOracleSample (R : SelfReducible enc W) (A : Se
         (R.boundedConditionalOracleSample countProg x q))
       (uniformWitness (W x))
       (ENNReal.ofReal ((1 / 2 : ℝ) ^ q)) := by
-  have heval : OracleComp.interpret
-      (OracleComp.sumHandler ProbComp.unifOracle
-        (fun req => PMF.pure (languageOracle A req)))
-      (R.boundedConditionalOracleSample countProg x q) =
-      ProbComp.eval (R.boundedConditionalSample
-        (fun y => OracleComp.interpret (m := Id) (languageOracle A) (countProg y)) x q) := by
-    have h1 := ProbOracleComp.eval_interpret
-      (fun req => (pure (languageOracle A req) : ProbComp (List Bool)))
-      (R.boundedConditionalOracleSample countProg x q)
-    simp only [ProbComp.eval_pure] at h1
-    rw [← h1, R.interpret_boundedConditionalOracleSample]
-  rw [heval]
+  have h1 := ProbOracleComp.eval_interpret
+    (fun req => (pure (languageOracle A req) : ProbComp (List Bool)))
+    (R.boundedConditionalOracleSample countProg x q)
+  simp only [ProbComp.eval_pure] at h1
+  rw [← h1, R.interpret_boundedConditionalOracleSample]
   exact R.closeTo_boundedConditionalSample hcount q
+
+open ComputableInPolyTime in
+private theorem isOraclePPTOn_conditionalWalkOracleStep (R : SelfReducible enc W)
+    {countProg : α → WordQueryComp Unit ℕ}
+    (hcount : IsOraclePPTOn enc encNat
+      (fun y => OracleComp.interpret ProbOracleComp.query (countProg y))) :
+    IsOraclePPTOn (encPair (encPair enc encUnary) (encConditionalWalkState enc))
+      (encConditionalWalkState enc)
+      (fun pair => R.conditionalWalkOracleStep countProg (pair.1.2 + R.len pair.1.1) pair.2) := by
+  let E := encPair enc encUnary
+  let ES := encPair E (encConditionalWalkState enc)
+  have hc1 : IsOraclePPTOn ES encNat
+      (fun pair =>
+        OracleComp.interpret ProbOracleComp.query (countProg (R.child pair.2.node true))) :=
+    hcount.preprocess (R.child_polytime.comp (by fun_prop : ComputableInPolyTime
+      (fun pair : (α × ℕ) × ConditionalWalkState α => (pair.2.node, true))
+      ES (encPair enc encBool)))
+  have hcond : ComputableInPolyTime
+      (fun pair : (α × ℕ) × ConditionalWalkState α => pair.2.active && decide (0 < pair.2.countVal))
+      ES encBool := by fun_prop
+  have hdraw_oracle : IsOraclePPTOn (Operation := Unit)
+      (encPair ES encNat) (encConditionalWalkState enc)
+      (fun pc : ((α × ℕ) × ConditionalWalkState α) × ℕ => do
+        let ro ← ProbOracleComp.sample
+          (sampleUniformIntervalRetry pc.1.2.countVal (pc.1.1.2 + R.len pc.1.1.1))
+        pure (R.advanceConditionalState pc.1.2 pc.2 ro)) :=
+    (R.isPPTOn_drawAndAdvance.isOraclePPTOn (Operation := Unit)).congr fun _ _ _ _ => by
+      rw [ProbOracleComp.sample_map, ← bind_pure_comp]
+  have hyes := hc1.bind_with
+    (second := fun (pair : (α × ℕ) × ConditionalWalkState α) (c₁ : ℕ) => do
+      let ro ← ProbOracleComp.sample
+        (sampleUniformIntervalRetry pair.2.countVal (pair.1.2 + R.len pair.1.1))
+      pure (R.advanceConditionalState pair.2 c₁ ro))
+    hdraw_oracle
+  exact (IsOraclePPTOn.cond hcond hyes
+    (snd E (encConditionalWalkState enc)).isOraclePPTOn).congr fun pair _ _ _ => by
+      unfold conditionalWalkOracleStep
+      cases pair.2.active && decide (0 < pair.2.countVal) <;> rfl
 
 open ComputableInPolyTime in
 /-- **Strict oracle PPT certificate for `boundedConditionalOracleSample`** from any strict oracle
@@ -1228,6 +1082,8 @@ theorem isOraclePPTOn_boundedConditionalOracleSample (R : SelfReducible enc W)
       (fun y => OracleComp.interpret ProbOracleComp.query (countProg y))) :
     IsOraclePPTOn (encPair enc encUnary) (encOption encBits)
       (Function.uncurry (R.boundedConditionalOracleSample countProg)) := by
+  let E := encPair enc encUnary
+  let EC := encPair E encNat
   obtain ⟨cC, dC, hlen_run⟩ := hcount.length_le
   have hcount_len : ∀ y, ∀ res ∈ OracleComp.support
       (OracleComp.interpret ProbOracleComp.query (countProg y)),
@@ -1238,89 +1094,35 @@ theorem isOraclePPTOn_boundedConditionalOracleSample (R : SelfReducible enc W)
     rw [← ProbOracleComp.runWith_eq_run_interpret] at hrun
     exact hlen_run y State oracle s s' res hrun
   obtain ⟨cL, dL, hlenL⟩ := R.exists_len_poly_bound
-  obtain ⟨hfuel, hcond, hy1⟩ := R.boundedConditionalSample_polyTime_helpers
-  have hstep_oracle : IsOraclePPTOn (encPair (encPair enc encUnary) (encConditionalWalkState enc))
-      (encConditionalWalkState enc)
-      (fun pair => R.conditionalWalkOracleStep countProg
-        (pair.1.2 + R.len pair.1.1) pair.2) := by
-    have hst_o := snd (encPair enc encUnary) (encConditionalWalkState enc)
-    have hcv_o := encConditionalWalkState_countVal_polyTime hst_o
-    have hc1 : IsOraclePPTOn (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat
-        (fun pair => OracleComp.interpret ProbOracleComp.query
-          (countProg (R.child pair.2.node true))) :=
-      hcount.preprocess hy1
-    have hp1 := fst (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat
-    have hdraw_ppt := isPPTOn_sampleUniformIntervalRetry (hcv_o.comp hp1)
-      ((hfuel.comp (fst (encPair enc encUnary) (encConditionalWalkState enc))).comp hp1)
-    have hdraw_oracle : IsOraclePPTOn (Operation := Unit)
-        (encPair (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat)
-        (encConditionalWalkState enc)
-        (fun pc : ((α × ℕ) × ConditionalWalkState α) × ℕ => do
-          let ro ← ProbOracleComp.sample
-            (sampleUniformIntervalRetry pc.1.2.countVal (pc.1.1.2 + R.len pc.1.1.1))
-          pure (R.advanceConditionalState pc.1.2 pc.2 ro)) := by
-      have hp2 := fst
-        (encPair (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat)
-        (encOption encNat)
-      have hsnd1 := snd (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat
-      have hadv := (R.computableInPolyTime_advanceConditionalState).comp
-        ((((hst_o.comp hp1).comp hp2).prod (hsnd1.comp hp2)).prod
-          (snd (encPair (encPair (encPair enc encUnary) (encConditionalWalkState enc)) encNat)
-            (encOption encNat)))
-      exact (((hdraw_ppt.isOraclePPTOn (Operation := Unit)).map_with
-        (f := fun (pc : ((α × ℕ) × ConditionalWalkState α) × ℕ) (ro : Option ℕ) =>
-          R.advanceConditionalState pc.1.2 pc.2 ro) hadv).congr fun pc State oracle s => by
-        dsimp only [Function.comp]
-        rw [← bind_pure_comp])
-    have hyes := hc1.bind_with
-      (second := fun (pair : (α × ℕ) × ConditionalWalkState α) (c₁ : ℕ) => do
-        let ro ← ProbOracleComp.sample
-          (sampleUniformIntervalRetry pair.2.countVal (pair.1.2 + R.len pair.1.1))
-        pure (R.advanceConditionalState pair.2 c₁ ro))
-      hdraw_oracle
-    exact (IsOraclePPTOn.cond hcond hyes hst_o.isOraclePPTOn).congr fun pair State oracle s => by
-      unfold conditionalWalkOracleStep
-      cases pair.2.active && decide (0 < pair.2.countVal) <;> rfl
+  have hstep_oracle := R.isOraclePPTOn_conditionalWalkOracleStep hcount
   -- Run the `R.len x`-step loop given `(p, c)` where `c` is the root count
-  have hbody : IsOraclePPTOn (encPair (encPair enc encUnary) encNat) (encOption encBits)
+  have hbody : IsOraclePPTOn EC (encOption encBits)
       (fun pc : (α × ℕ) × ℕ =>
         R.finishConditionalWalk <$>
           OracleComp.iterate (R.len pc.1.1)
             (R.conditionalWalkOracleStep countProg (pc.1.2 + R.len pc.1.1))
             ⟨pc.1.1, pc.2, [], decide (0 < pc.2)⟩) := by
-    have hp_fst := fst (encPair enc encUnary) encNat
-    have hp_snd := snd (encPair enc encUnary) encNat
-    have hcount_loop : ComputableInPolyTime (fun pc : (α × ℕ) × ℕ => R.len pc.1.1)
-        (encPair (encPair enc encUnary) encNat) encUnary :=
-      R.len_polytime.comp ((fst enc encUnary).comp hp_fst)
+    have hp_snd := snd E encNat
+    have hx_cert : ComputableInPolyTime (fun pc : (α × ℕ) × ℕ => pc.1.1) EC enc := by fun_prop
+    have hcount_loop : ComputableInPolyTime (fun pc : (α × ℕ) × ℕ => R.len pc.1.1) EC encUnary :=
+      R.len_polytime.comp hx_cert
     have hinit : ComputableInPolyTime
-        (fun pc : (α × ℕ) × ℕ =>
-          ConditionalWalkState.mk pc.1.1 pc.2 [] (decide (0 < pc.2)))
-        (encPair (encPair enc encUnary) encNat) (encConditionalWalkState enc) :=
-      encConditionalWalkState_mk_polyTime ((fst enc encUnary).comp hp_fst) hp_snd (const [])
-        (binary_lt' (const 0) hp_snd)
-    have hstep_pc : IsOraclePPTOn
-        (encPair (encPair (encPair enc encUnary) encNat) (encConditionalWalkState enc))
-        (encConditionalWalkState enc)
-        (fun pair => R.conditionalWalkOracleStep countProg
-          (pair.1.1.2 + R.len pair.1.1.1) pair.2) := by
-      have hprep : ComputableInPolyTime
-          (fun pair : ((α × ℕ) × ℕ) × ConditionalWalkState α => (pair.1.1, pair.2))
-          (encPair (encPair (encPair enc encUnary) encNat) (encConditionalWalkState enc))
-          (encPair (encPair enc encUnary) (encConditionalWalkState enc)) :=
-        (hp_fst.comp (fst _ _)).prod (snd _ _)
-      exact hstep_oracle.preprocess hprep
-    have hx_cert : ComputableInPolyTime (fun pc : (α × ℕ) × ℕ => pc.1.1)
-        (encPair (encPair enc encUnary) encNat) enc :=
-      (fst enc encUnary).comp hp_fst
+        (fun pc : (α × ℕ) × ℕ => ConditionalWalkState.mk pc.1.1 pc.2 [] (decide (0 < pc.2)))
+        EC (encConditionalWalkState enc) :=
+      encConditionalWalkState_mk_polyTime hx_cert hp_snd (const []) (binary_lt' (const 0) hp_snd)
+    have hstep_pc := hstep_oracle.preprocess
+      (by fun_prop : ComputableInPolyTime
+        (fun pair : ((α × ℕ) × ℕ) × ConditionalWalkState α => (pair.1.1, pair.2))
+        (encPair EC (encConditionalWalkState enc))
+        (encPair E (encConditionalWalkState enc)))
     have hsize_pc : PolyBounded
-        (fun pc : (α × ℕ) × ℕ => (encPair (encPair enc encUnary) encNat pc).length)
+        (fun pc : (α × ℕ) × ℕ => (EC pc).length)
         (fun pc => 16 * ((enc pc.1.1).length +
           ((encNat pc.2).length + cC * ((enc pc.1.1).length + 1) ^ dC) +
           cL * ((enc pc.1.1).length + 1) ^ dL + 4)) := by
       growth_poly
     have hit := IsOraclePPTOn.iterateWith_spec
-      (input := encPair (encPair enc encUnary) encNat)
+      (input := EC)
       (stateEncoding := encConditionalWalkState enc)
       (count := fun pc => R.len pc.1.1)
       (initial := fun pc => ConditionalWalkState.mk pc.1.1 pc.2 [] (decide (0 < pc.2)))

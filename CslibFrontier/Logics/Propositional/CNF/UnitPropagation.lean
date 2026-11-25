@@ -68,22 +68,12 @@ variable {V : Type*}
 /-- `c.unit? = some l` holds if and only if `c = [l]`. -/
 theorem Clause.unit?_eq_some_iff {c : Clause V} {l : Literal V} :
     c.unit? = some l ↔ c = [l] := by
-  cases c with
-  | nil => simp
-  | cons a t =>
-    cases t with
-    | nil => simp [Clause.unit?]
-    | cons b u => simp [Clause.unit?]
+  rcases c with _ | ⟨a, _ | ⟨b, u⟩⟩ <;> simp [Clause.unit?]
 
 /-- `c.unit? = none` holds if and only if `c.length ≠ 1`. -/
 theorem Clause.unit?_eq_none_iff {c : Clause V} :
     c.unit? = none ↔ c.length ≠ 1 := by
-  cases c with
-  | nil => simp
-  | cons a t =>
-    cases t with
-    | nil => simp [Clause.unit?]
-    | cons b u => simp [Clause.unit?]
+  rcases c with _ | ⟨a, _ | ⟨b, u⟩⟩ <;> simp [Clause.unit?]
 
 namespace CNF
 
@@ -232,24 +222,17 @@ private theorem unitPropagateWithTrailAux_of_none {n : ℕ} {φ : CNF V} (h : φ
 private theorem unitPropagateWithTrailAux_eq_of_le {n m : ℕ} {φ : CNF V}
     (hn : φ.length ≤ n) (hm : φ.length ≤ m) :
     unitPropagateWithTrailAux n φ = unitPropagateWithTrailAux m φ := by
-  induction n generalizing m φ with
-  | zero =>
+  fun_induction unitPropagateWithTrailAux n φ generalizing m with
+  | case1 φ => -- fuel exhausted
     obtain rfl : φ = [] := List.eq_nil_of_length_eq_zero (Nat.eq_zero_of_le_zero hn)
-    exact (unitPropagateWithTrailAux_of_none (φ := []) rfl).trans
-      (unitPropagateWithTrailAux_of_none (φ := []) rfl).symm
-  | succ k ih =>
-    cases h : φ.findUnit? with
-    | none =>
-      exact (unitPropagateWithTrailAux_of_none h).trans
-        (unitPropagateWithTrailAux_of_none h).symm
-    | some l =>
-      have hpos : 0 < φ.length := List.length_pos_of_mem (mem_of_findUnit?_eq_some h)
-      obtain ⟨m', rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : m ≠ 0)
-      have hlt : (φ.restrict l.1 l.2).length < φ.length :=
-        length_restrict_lt (mem_of_findUnit?_eq_some h) List.mem_cons_self
-      have ihstep := ih (by omega : (φ.restrict l.1 l.2).length ≤ k)
-        (by omega : (φ.restrict l.1 l.2).length ≤ m')
-      simp [unitPropagateWithTrailAux, h, ihstep]
+    exact (unitPropagateWithTrailAux_of_none (φ := []) rfl).symm
+  | case2 k φ hnone => exact (unitPropagateWithTrailAux_of_none hnone).symm -- no unit clause
+  | case3 k φ l hunit res ih => -- unit clause [l]: propagate
+    have hpos : 0 < φ.length := List.length_pos_of_mem (mem_of_findUnit?_eq_some hunit)
+    obtain ⟨m', rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : m ≠ 0)
+    have hlt : (φ.restrict l.1 l.2).length < φ.length :=
+      length_restrict_lt (mem_of_findUnit?_eq_some hunit) List.mem_cons_self
+    simp [unitPropagateWithTrailAux, hunit, res, ih (by omega) (by omega : _ ≤ m')]
 
 private theorem unitPropagateWithTrail_of_none {φ : CNF V} (h : φ.findUnit? = none) :
     φ.unitPropagateWithTrail = ([], φ) :=
@@ -268,6 +251,22 @@ private theorem unitPropagateWithTrail_of_some {φ : CNF V} {l : Literal V}
     unitPropagateWithTrailAux_eq_of_le (by omega) le_rfl
   rw [unitPropagateWithTrail, hk]
   simp only [unitPropagateWithTrailAux, h, hfuel, unitTrail, unitPropagate]
+
+private theorem unitPropagate_of_none {φ : CNF V} (h : φ.findUnit? = none) :
+    φ.unitPropagate = φ := by
+  rw [unitPropagate, unitPropagateWithTrail_of_none h]
+
+private theorem unitTrail_of_none {φ : CNF V} (h : φ.findUnit? = none) :
+    φ.unitTrail = [] := by
+  rw [unitTrail, unitPropagateWithTrail_of_none h]
+
+private theorem unitPropagate_of_some {φ : CNF V} {l : Literal V} (h : φ.findUnit? = some l) :
+    φ.unitPropagate = (φ.restrict l.1 l.2).unitPropagate := by
+  rw [unitPropagate, unitPropagateWithTrail_of_some h]
+
+private theorem unitTrail_of_some {φ : CNF V} {l : Literal V} (h : φ.findUnit? = some l) :
+    φ.unitTrail = l :: (φ.restrict l.1 l.2).unitTrail := by
+  rw [unitTrail, unitPropagateWithTrail_of_some h]
 
 /-- Induction principle matching iterated unit propagation: either `φ` has no unit clauses, or
 some unit literal `l` is propagated via `φ.restrict l.1 l.2` with strictly fewer variables. -/
@@ -288,14 +287,9 @@ theorem unitPropagate_ind {motive : CNF V → Prop}
 theorem unitPropagate_eq_restrictList (φ : CNF V) :
     φ.unitPropagate = φ.restrictList φ.unitTrail := by
   induction φ using unitPropagate_ind with
-  | base φ h =>
-    have hwt := unitPropagateWithTrail_of_none h
-    simp [unitPropagate, unitTrail, hwt]
+  | base φ h => simp [unitPropagate_of_none h, unitTrail_of_none h]
   | step φ l h ih =>
-    have hwt := unitPropagateWithTrail_of_some h
-    rw [unitPropagate, unitTrail, hwt]
-    dsimp only
-    rw [restrictList_cons]
+    rw [unitPropagate_of_some h, unitTrail_of_some h, restrictList_cons]
     exact ih
 
 /-- Exact evaluation equivalence for iterated unit propagation together with the forced unit
@@ -303,36 +297,19 @@ trail. -/
 theorem eval_unitPropagate_iff (φ : CNF V) (σ : V → Bool) :
     ((∀ l ∈ φ.unitTrail, σ l.1 = l.2) ∧ φ.unitPropagate.eval σ = true) ↔ φ.eval σ = true := by
   induction φ using unitPropagate_ind with
-  | base φ h =>
-    have hwt := unitPropagateWithTrail_of_none h
-    simp [unitPropagate, unitTrail, hwt]
+  | base φ h => simp [unitPropagate_of_none h, unitTrail_of_none h]
   | step φ l h ih =>
-    have hwt := unitPropagateWithTrail_of_some h
-    rw [unitPropagate, unitTrail, hwt]
-    dsimp only
-    rw [eval_restrict_of_mem_singleton (mem_of_findUnit?_eq_some h)]
-    constructor
-    · rintro ⟨htrail, heval⟩
-      refine ⟨htrail l List.mem_cons_self, ih.mp ⟨fun m hm => ?_, heval⟩⟩
-      exact htrail m (List.mem_cons_of_mem _ hm)
-    · rintro ⟨hl, hres⟩
-      obtain ⟨htrail, heval⟩ := ih.mpr hres
-      refine ⟨fun m hm => ?_, heval⟩
-      rcases List.mem_cons.mp hm with rfl | hm'
-      · exact hl
-      · exact htrail m hm'
+    rw [unitPropagate_of_some h, unitTrail_of_some h,
+      eval_restrict_of_mem_singleton (mem_of_findUnit?_eq_some h),
+      List.forall_mem_cons, and_assoc, ih]
 
 /-- Iterated unit propagation preserves satisfiability. -/
 theorem satisfiable_unitPropagate_iff (φ : CNF V) :
     φ.unitPropagate.Satisfiable ↔ φ.Satisfiable := by
   induction φ using unitPropagate_ind with
-  | base φ h =>
-    have hwt := unitPropagateWithTrail_of_none h
-    simp [unitPropagate, hwt]
+  | base φ h => rw [unitPropagate_of_none h]
   | step φ l h ih =>
-    have hwt := unitPropagateWithTrail_of_some h
-    rw [unitPropagate, hwt]
-    dsimp only
+    rw [unitPropagate_of_some h]
     exact ih.trans (satisfiable_restrict_of_mem_singleton (mem_of_findUnit?_eq_some h))
 
 /-- A unit-propagation conflict (deriving the empty clause) certifies unsatisfiability. -/
@@ -346,53 +323,32 @@ theorem not_satisfiable_of_nil_mem_unitPropagate {φ : CNF V} (h : [] ∈ φ.uni
 /-- Every variable in `φ.unitTrail` occurs in `φ`. -/
 theorem mem_vars_of_mem_unitTrail (φ : CNF V) {l : Literal V} (hl : l ∈ φ.unitTrail) :
     l.1 ∈ φ.vars := by
-  revert hl
   induction φ using unitPropagate_ind with
-  | base φ h =>
-    intro hl
-    have hwt := unitPropagateWithTrail_of_none h
-    simp [unitTrail, hwt] at hl
+  | base φ h => simp [unitTrail_of_none h] at hl
   | step φ u h ih =>
-    intro hl
-    have hwt := unitPropagateWithTrail_of_some h
-    rw [unitTrail, hwt] at hl
-    dsimp only at hl
-    rcases List.mem_cons.mp hl with rfl | hl'
+    rw [unitTrail_of_some h, List.mem_cons] at hl
+    rcases hl with rfl | hl'
     · exact mem_vars_of_findUnit?_eq_some h
-    · exact Finset.mem_of_mem_erase
-        (vars_restrict_subset (List.mem_toFinset.mpr (ih hl')))
-        |> List.mem_toFinset.mp
+    · exact List.mem_toFinset.mp (Finset.mem_of_mem_erase
+        (vars_restrict_subset (List.mem_toFinset.mpr (ih hl'))))
 
 /-- `φ.unitTrail` never repeats a variable. -/
 theorem unitTrail_nodup_vars (φ : CNF V) :
     (φ.unitTrail.map Prod.fst).Nodup := by
   induction φ using unitPropagate_ind with
-  | base φ h =>
-    have hwt := unitPropagateWithTrail_of_none h
-    simp [unitTrail, hwt]
+  | base φ h => simp [unitTrail_of_none h]
   | step φ u h ih =>
-    have hwt := unitPropagateWithTrail_of_some h
-    rw [unitTrail, hwt]
-    dsimp only
-    rw [List.map_cons, List.nodup_cons]
-    refine ⟨?_, ih⟩
-    intro hu
+    rw [unitTrail_of_some h, List.map_cons, List.nodup_cons]
+    refine ⟨fun hu => ?_, ih⟩
     obtain ⟨m, hm, hmu⟩ := List.mem_map.mp hu
-    have hmvars := mem_vars_of_mem_unitTrail (φ.restrict u.1 u.2) hm
-    rw [hmu] at hmvars
-    exact notMem_vars_restrict φ u.1 u.2 hmvars
+    exact notMem_vars_restrict φ u.1 u.2 (hmu ▸ mem_vars_of_mem_unitTrail (φ.restrict u.1 u.2) hm)
 
 /-- No unit clauses remain after `CNF.unitPropagate`. -/
 theorem findUnit?_unitPropagate (φ : CNF V) :
     φ.unitPropagate.findUnit? = none := by
   induction φ using unitPropagate_ind with
-  | base φ h =>
-    have hwt := unitPropagateWithTrail_of_none h
-    simpa [unitPropagate, hwt] using h
-  | step φ u h ih =>
-    have hwt := unitPropagateWithTrail_of_some h
-    rw [unitPropagate, hwt]
-    exact ih
+  | base φ h => rwa [unitPropagate_of_none h]
+  | step φ u h ih => rwa [unitPropagate_of_some h]
 
 /-- Every clause remaining in `φ.unitPropagate` has length distinct from `1`. -/
 theorem length_ne_one_of_mem_unitPropagate {φ : CNF V} {c : Clause V}
@@ -401,9 +357,8 @@ theorem length_ne_one_of_mem_unitPropagate {φ : CNF V} {c : Clause V}
 
 /-- `CNF.unitPropagate` is idempotent. -/
 @[simp] theorem unitPropagate_idem (φ : CNF V) :
-    φ.unitPropagate.unitPropagate = φ.unitPropagate := by
-  have hwt := unitPropagateWithTrail_of_none (findUnit?_unitPropagate φ)
-  rw [unitPropagate, hwt]
+    φ.unitPropagate.unitPropagate = φ.unitPropagate :=
+  unitPropagate_of_none (findUnit?_unitPropagate φ)
 
 /-- Declared-universe model counting is conserved across iterated unit propagation, removing the
 forced trail variables from `declared`. -/
@@ -411,35 +366,16 @@ theorem modelCountOn_unitPropagate (φ : CNF V) (declared : Finset V)
     (htrail : ∀ l ∈ φ.unitTrail, l.1 ∈ declared) :
     φ.modelCountOn declared =
       φ.unitPropagate.modelCountOn (declared \ (φ.unitTrail.map Prod.fst).toFinset) := by
-  revert declared htrail
-  induction φ using unitPropagate_ind with
-  | base φ h =>
-    intro declared _
-    have hwt := unitPropagateWithTrail_of_none h
-    simp [unitPropagate, unitTrail, hwt]
+  induction φ using unitPropagate_ind generalizing declared with
+  | base φ h => simp [unitPropagate_of_none h, unitTrail_of_none h]
   | step φ u h ih =>
-    intro declared htrail
-    have hwt := unitPropagateWithTrail_of_some h
-    have hu : u ∈ φ.unitTrail := by
-      rw [unitTrail, hwt]
-      exact List.mem_cons_self
-    have hudec : u.1 ∈ declared := htrail u hu
-    have hsub : ∀ m ∈ (φ.restrict u.1 u.2).unitTrail, m.1 ∈ declared.erase u.1 := by
-      intro m hm
-      have hm' : m ∈ φ.unitTrail := by
-        rw [unitTrail, hwt]
-        exact List.mem_cons_of_mem _ hm
-      have hnd := unitTrail_nodup_vars φ
-      rw [unitTrail, hwt] at hnd
-      dsimp only at hnd
-      rw [List.map_cons, List.nodup_cons] at hnd
-      have hne : m.1 ≠ u.1 := fun heq =>
-        hnd.1 (List.mem_map.mpr ⟨m, hm, heq⟩)
-      exact Finset.mem_erase.mpr ⟨hne, htrail m hm'⟩
-    have ihstep := ih (declared.erase u.1) hsub
-    rw [modelCountOn_restrict_of_mem_singleton (mem_of_findUnit?_eq_some h) hudec, ihstep]
-    conv_rhs => rw [unitPropagate, unitTrail, hwt]
-    dsimp only
+    rw [unitTrail_of_some h, List.forall_mem_cons] at htrail
+    have hnd := unitTrail_nodup_vars φ
+    rw [unitTrail_of_some h, List.map_cons, List.nodup_cons] at hnd
+    have hsub : ∀ m ∈ (φ.restrict u.1 u.2).unitTrail, m.1 ∈ declared.erase u.1 := fun m hm =>
+      Finset.mem_erase.mpr ⟨fun heq => hnd.1 (List.mem_map.mpr ⟨m, hm, heq⟩), htrail.2 m hm⟩
+    rw [modelCountOn_restrict_of_mem_singleton (mem_of_findUnit?_eq_some h) htrail.1,
+      ih (declared.erase u.1) hsub, unitPropagate_of_some h, unitTrail_of_some h]
     congr 1
     ext v
     simp only [Finset.mem_sdiff, Finset.mem_erase, List.map_cons, List.mem_toFinset,

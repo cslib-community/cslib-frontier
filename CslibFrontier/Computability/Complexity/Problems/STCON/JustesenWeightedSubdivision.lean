@@ -75,10 +75,9 @@ theorem configurationJustesenSubdivisionContext_inLogSpace
     (hword : ComputableInLogSpace word enc encBits)
     (hrank : ComputableInLogSpace rank enc encNat) :
     ComputableInLogSpace (fun a => configurationJustesenSubdivisionContext ntm c (word a) (rank a))
-      enc encJustesenSubdivisionContext := by
-  have hp := (configurationSeedSearchParameters_inLogSpace ntm c).comp hword
-  have hf := (configurationFieldContext_inLogSpace ntm c).comp hword
-  exact (hp.pair (hf.pair hrank)).congr fun _ => rfl
+      enc encJustesenSubdivisionContext :=
+  (((configurationSeedSearchParameters_inLogSpace ntm c).comp hword).pair
+    (((configurationFieldContext_inLogSpace ntm c).comp hword).pair hrank)).congr fun _ => rfl
 
 /-- A valid rank and the initialized parameter and field encodings together fit in logarithmic
 length in the original STCON word. -/
@@ -91,15 +90,10 @@ theorem length_configurationJustesenSubdivisionContext_le_log
   obtain ⟨P, hP⟩ := length_configurationSeedSearchParameters_le_log ntm c
   obtain ⟨F, hF⟩ := length_configurationFieldContext_le_log ntm c
   refine ⟨3 * P + 2 * F + 2, fun w rank hrank => ?_⟩
-  let p := configurationSeedSearchParameters ntm c w
-  have hr : (encNat rank).length ≤ (encSeedSearchParameters p).length :=
-    (length_encNat_mono hrank.le).trans
-      ((encSeedSearchSize_seedLimit_length_le p.search).trans
-        (encSeedSearchParameters_search_length_le p))
-  dsimp only [p] at hr
+  have hr := (length_encNat_mono hrank.le).trans
+    ((encSeedSearchSize_seedLimit_length_le _).trans (encSeedSearchParameters_search_length_le _))
   have hp := hP w
   have hf := hF w
-  have hpos : 1 ≤ Nat.log2 w.length + 1 := Nat.le_add_left _ _
   simp only [configurationJustesenSubdivisionContext, encJustesenSubdivisionContext_apply,
     encJustesenSubdivisionContextFields, length_encPair, Nat.add_mul, Nat.mul_assoc]
   omega
@@ -132,12 +126,12 @@ theorem justesenSubdivisionEdgeStart_inSpace :
   let encIDs := encPair encNat encNat
   have hctx := fst encJustesenSubdivisionContext encIDs
   have hids := snd encJustesenSubdivisionContext encIDs
-  have hsize := encJustesenSubdivisionContext_subdivision_budget hctx
-  have hquery := encFlatQuery_mk_budget encJustesenSubdivisionContext hctx
-    (encSubdivisionSize_chainBound_budget hsize)
-    (budget_comp_linear (fst encNat encNat) hids)
-    (budget_comp_linear (snd encNat encNat) hids)
-  exact (budget_comp_linear (flatCallbackStart_inSpace _ _) hquery).of_enc_eq fun _ => rfl
+  exact (budget_comp_linear (flatCallbackStart_inSpace _ _)
+    (encFlatQuery_mk_budget encJustesenSubdivisionContext hctx
+      (encSubdivisionSize_chainBound_budget
+        (encJustesenSubdivisionContext_subdivision_budget hctx))
+      (budget_comp_linear (fst encNat encNat) hids)
+      (budget_comp_linear (snd encNat encNat) hids))).of_enc_eq fun _ => rfl
 
 /-- Weighted adjacency using the native Justesen bit evaluator and the retained seed rank. -/
 noncomputable def justesenWeightedSubdivisionCallback (ntm : MultiTapeNTM k Bool State) :
@@ -161,24 +155,21 @@ theorem justesenWeightedSubdivisionCallback_parts_inSpace (ntm : MultiTapeNTM k 
   let enc := encJustesenSubdivisionContext
   have hid := budget_id (enc := enc) (.refl _)
   have hp := encJustesenSubdivisionContext_parameters_budget hid
-  have hlimit := encSeedSearchSize_seedLimit_budget (encSeedSearchParameters_search_budget hp)
-  have hwidth := budget_natPred (budget_comp_linear natSize hlimit)
   have hsize : seedWidth ≼ fun ctx => (enc ctx).length := .of_le fun ctx => by
-    unfold seedWidth
-    rw [← length_encNat_eq_size]
-    exact (Nat.sub_le _ _).trans
-      ((encSeedSearchSize_seedLimit_length_le ctx.parameters.search).trans
-        ((encSeedSearchParameters_search_length_le ctx.parameters).trans
-          (encJustesenSubdivisionContext_parameters_length_le ctx)))
+    rw [seedWidth, ← length_encNat_eq_size]
+    exact (Nat.sub_le _ _).trans ((encSeedSearchSize_seedLimit_length_le _).trans
+      ((encSeedSearchParameters_search_length_le _).trans
+        (encJustesenSubdivisionContext_parameters_length_le ctx)))
   have hctxLabel := fst (encPair enc encNat) encNat
-  have hctx := budget_comp_linear (fst enc encNat) hctxLabel
-  have hlabel := budget_comp_linear (snd enc encNat) hctxLabel
-  have hidx := snd (encPair enc encNat) encNat
-  have hbit := budget_comp_linear fieldContext_indexedBit_inSpace
-    (budget_prod (budget_prod (encJustesenSubdivisionContext_field_budget hctx) hlabel) hidx)
+  have hbit := budget_comp_linear fieldContext_indexedBit_inSpace (budget_prod
+    (budget_prod (encJustesenSubdivisionContext_field_budget
+      (budget_comp_linear (fst enc encNat) hctxLabel))
+      (budget_comp_linear (snd enc encNat) hctxLabel))
+    (snd (encPair enc encNat) encNat))
   exact weightedSubdivisionCallback_parts_inSpace ntm enc _ _ _ codeBit
-    (encSeedSearchParameters_graph_budget hp)
-    (encJustesenSubdivisionContext_rank_budget hid) hwidth hsize hbit
+    (encSeedSearchParameters_graph_budget hp) (encJustesenSubdivisionContext_rank_budget hid)
+    (budget_natPred (budget_comp_linear natSize
+      (encSeedSearchSize_seedLimit_budget (encSeedSearchParameters_search_budget hp)))) hsize hbit
 
 /-- At valid scan IDs, every live callback state through return fits the encoded retained
 context plus logarithmic overhead in the original input length. -/
@@ -247,26 +238,66 @@ theorem configurationJustesenSubdivisionEdge_contract
   obtain ⟨D, hD⟩ := length_configurationJustesenSubdivisionContext_le_log ntm c
   refine ⟨C * (D + 1), fun w => ?_⟩
   intro I size index seed u v ctx M start
-  have hparams := (configurationSeedSearchSetup_endpoints ntm c w).1
   have hbound : ctx.parameters.search.subdivision.chainBound = size.chainBound :=
-    congrArg (fun p : SeedSearchParameters => p.search.subdivision.chainBound) hparams.symm
+    congrArg (fun p : SeedSearchParameters => p.search.subdivision.chainBound)
+      (configurationSeedSearchSetup_endpoints ntm c w).1.symm
   have hstart : start = flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩ := by
     dsimp only [start, justesenSubdivisionEdgeStart]
     rw [hbound]
   rw [hstart]
   obtain ⟨hbefore, answer, hrun, hhalt, hedge⟩ :=
     configurationJustesenWeightedSubdivisionCallback_agrees ntm c w u v seed
-  refine ⟨hbefore, hhalt, ?_, fun t ht => ?_⟩
-  · have h : M.runFrom w (flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩) 3 =
-        .inl (.inr answer) := hrun
-    rw [h]
-    exact hedge
-  · have hctx := hD w seed.val seed.isLt
-    calc
-      _ ≤ C * ((encJustesenSubdivisionContext ctx).length + (Nat.log2 w.length + 1)) :=
+  have h3 : M.runFrom w (flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩) 3 =
+      .inl (.inr answer) := hrun
+  refine ⟨hbefore, hhalt, h3.symm ▸ hedge, fun t ht => ?_⟩
+  calc _ ≤ C * ((encJustesenSubdivisionContext ctx).length + (Nat.log2 w.length + 1)) :=
         hC w ctx rfl u.val v.val u.isLt v.isLt t ht
-      _ ≤ C * (D * (Nat.log2 w.length + 1) + (Nat.log2 w.length + 1)) :=
-        Nat.mul_le_mul_left C (Nat.add_le_add_right hctx _)
-      _ = _ := by rw [Nat.mul_assoc, Nat.add_mul, Nat.one_mul]
+    _ ≤ C * (D * (Nat.log2 w.length + 1) + (Nat.log2 w.length + 1)) :=
+        Nat.mul_le_mul_left C (Nat.add_le_add_right (hD w seed.val seed.isLt) _)
+    _ = _ := by rw [Nat.mul_assoc, Nat.add_mul, Nat.one_mul]
+
+/-- Initialize the adjacency context from the encoded input and a valid binary rank,
+including the logarithmic bound on the encoded output. -/
+theorem configurationJustesenSubdivisionContext_inSpace
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) {α : Type} {enc : α ↪ List Bool} {rank : α → ℕ}
+    (hrank : ComputableInLogSpace rank enc encNat)
+    (hvalid : ∀ a, rank a < (configurationSeedSearchParameters ntm c (enc a)).search.seedLimit) :
+    ComputableInSpace (fun a => configurationJustesenSubdivisionContext ntm c (enc a) (rank a))
+      enc encJustesenSubdivisionContext (fun a => Nat.log2 (enc a).length) := by
+  have hword : ComputableInLogSpace (fun a => enc a) enc encBits := .of_eq fun _ => rfl
+  obtain ⟨D, hlen⟩ := length_configurationJustesenSubdivisionContext_le_log ntm c
+  exact (configurationJustesenSubdivisionContext_inLogSpace ntm c hword
+    hrank).inSpace_of_length_log ⟨D, fun a => hlen (enc a) (rank a) (hvalid a)⟩
+
+/-- The generated subdivision adjacency transported to its canonical finite vertex IDs. -/
+@[expose] noncomputable def configurationJustesenSubdivisionAdjacent
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    Fin (2 ^ codeLength I.n (I.n - 1)) → Fin size.vertexCount → Fin size.vertexCount → Bool :=
+  fun seed u v =>
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    let index := configurationSubdivisionIndex ntm c w
+    let G := graph (layeredDigraph I) (generatedWeight ((BitString.equivFin _).symm seed))
+      size.chainBound
+    @decide (G.Adj (index.symm u) (index.symm v)) (Classical.propDecidable _)
+
+/-- At clock three the initialized callback has halted with the typed subdivision adjacency. -/
+theorem configurationJustesenSubdivisionEdge_halts_and_agrees
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (u v : Fin size.vertexCount),
+      let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
+      let M := justesenWeightedSubdivisionCallback ntm
+      let final := M.runFrom w (justesenSubdivisionEdgeStart (ctx, u.val, v.val)) 3
+      M.halted final = true ∧
+        callbackVerdict final = configurationJustesenSubdivisionAdjacent ntm c w seed u v := by
+  intro I size seed u v ctx M final
+  obtain ⟨_, hcall⟩ := configurationJustesenSubdivisionEdge_contract ntm c
+  refine ⟨(hcall w seed u v).2.1, Bool.eq_iff_iff.mpr ?_⟩
+  simpa only [configurationJustesenSubdivisionAdjacent, decide_eq_true_eq] using
+    (hcall w seed u v).2.2.1
 
 end Cslib.Complexity.STCON

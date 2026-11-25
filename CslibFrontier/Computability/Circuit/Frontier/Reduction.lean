@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Computability.Circuit.Complexity
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # From small circuits to wide graphs
@@ -57,13 +58,17 @@ For a dense set `log_q |S| ≈ n`, so a small circuit gives a graph whose cycle 
 * `Cslib.Circuits.Frontier.Network.ncard_accepted_le_pow`,
   `Cslib.Circuits.Frontier.Network.logb_ncard_accepted_le`: frontier demand for any network.
 * `Cslib.Circuits.Frontier.pow_ncard_compl_read_lt`: the support lemma for circuits.
-* `Cslib.Circuits.Frontier.cycleRank_le`: the cycle rank of the graph of a circuit that reads all
+* `Cslib.Circuits.Frontier.cycleRank_le_multiarySize`,
+  `Cslib.Circuits.Frontier.cycleRank_le`: the cycle rank of the graph of a circuit that reads all
   but few of its inputs.
-* `Cslib.Circuits.Frontier.cycleRank_le_of_read`: the same bound from any set of read inputs whose
+* `Cslib.Circuits.Frontier.cycleRank_le_of_read_multiarySize`,
+  `Cslib.Circuits.Frontier.cycleRank_le_of_read`: the same bound from any set of read inputs whose
   complement carries few assignments.
 * `Cslib.Circuits.Frontier.logb_ncard_le_width`: every layout of the graph of such a circuit is
   wide.
-* `Cslib.Circuits.Frontier.exists_graph_of_decides`: the reduction theorem.
+* `Cslib.Circuits.Frontier.exists_graph_of_decides_multiarySize`,
+  `Cslib.Circuits.Frontier.exists_graph_of_decides`: the reduction theorem (charging multiary gates
+  or inner gates).
 -/
 
 @[expose] public section
@@ -175,6 +180,43 @@ theorem pow_ncard_compl_read_lt (hS : c.Decides I Acc S) (hfree : RectangleFree 
   rw [← accepted_network_of_decides hS] at hfree hbig
   exact hfree.pow_ncard_compl_lt (Compiler.network c I _).dependsOn_read hbig
 
+private theorem cycleRank_le_of_read_bound {k s : ℕ} {C : Circuit σ k 1}
+    (hs0 : r = 0 → s = 0) (R : Set (Fin n))
+    (hrank : (Compiler.graph C).cycleRank + R.ncard ≤ (r - 1) * s + 1)
+    (hunread : Nat.card U ^ Rᶜ.ncard < K) :
+    ((Compiler.graph C).cycleRank : ℝ) ≤
+      (r - 1) * s - n + Real.logb (Nat.card U) K + 1 := by
+  have hq : (1 : ℝ) < Nat.card U := by exact_mod_cast Finite.one_lt_card
+  have hrank : ((Compiler.graph C).cycleRank + R.ncard : ℝ) ≤
+      (((r - 1) * s : ℕ) : ℝ) + 1 := by
+    exact_mod_cast hrank
+  have hcast : (((r - 1) * s : ℕ) : ℝ) = (r - 1) * s := by
+    rcases Nat.eq_zero_or_pos r with rfl | hr
+    · simp [hs0 rfl]
+    · rw [Nat.cast_mul, Nat.cast_sub hr, Nat.cast_one]
+  have hunread : (Rᶜ.ncard : ℝ) < Real.logb (Nat.card U) K := by
+    rw [Real.lt_logb_iff_rpow_lt hq (by exact_mod_cast Nat.zero_lt_of_lt hunread),
+      Real.rpow_natCast]
+    exact_mod_cast hunread
+  have hcompl : (Rᶜ.ncard : ℝ) + R.ncard = n := by
+    rw [← Nat.cast_add, add_comm, ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
+  linarith
+
+/-- **The cycle rank from a set of read inputs, charging only multiary gates.** Let `C` have fan-in
+at most `r` and `s` multiary gates, and let `R ⊆ Fin n` satisfy `cycleRank + |R| ≤ (r - 1) s + 1`.
+If the coordinates outside `R` carry fewer than `K` assignments, then the cycle rank is at most
+`(r - 1) s - n + log_q K + 1`. -/
+theorem cycleRank_le_of_read_multiarySize {k : ℕ} {C : Circuit σ k 1} (hfan : C.FanInAtMost r)
+    (R : Set (Fin n))
+    (hrank : (Compiler.graph C).cycleRank + R.ncard ≤ (r - 1) * C.multiarySize + 1)
+    (hunread : Nat.card U ^ Rᶜ.ncard < K) :
+    ((Compiler.graph C).cycleRank : ℝ) ≤
+      (r - 1) * C.multiarySize - n + Real.logb (Nat.card U) K + 1 :=
+  cycleRank_le_of_read_bound
+    (fun hr0 => Nat.le_zero.mp (C.multiarySize_le_innerSize.trans_eq
+      (C.innerSize_eq_zero_of_fanInAtMost_zero (hr0 ▸ hfan))))
+    R hrank hunread
+
 /-- **The cycle rank from a set of read inputs.** Let `C` have fan-in at most `r` and `s` inner
 gates, and let `R ⊆ Fin n` satisfy `cycleRank + |R| ≤ (r - 1) s + 1`. If the coordinates outside
 `R` carry fewer than `K` assignments, then the cycle rank is at most
@@ -186,22 +228,19 @@ theorem cycleRank_le_of_read {k : ℕ} {C : Circuit σ k 1} (hfan : C.FanInAtMos
     (hrank : (Compiler.graph C).cycleRank + R.ncard ≤ (r - 1) * C.innerSize + 1)
     (hunread : Nat.card U ^ Rᶜ.ncard < K) :
     ((Compiler.graph C).cycleRank : ℝ) ≤
-      (r - 1) * C.innerSize - n + Real.logb (Nat.card U) K + 1 := by
-  have hq : (1 : ℝ) < Nat.card U := by exact_mod_cast Finite.one_lt_card
-  have hrank : ((Compiler.graph C).cycleRank + R.ncard : ℝ) ≤
-      (((r - 1) * C.innerSize : ℕ) : ℝ) + 1 := by
-    exact_mod_cast hrank
-  have hcast : (((r - 1) * C.innerSize : ℕ) : ℝ) = (r - 1) * C.innerSize := by
-    rcases Nat.eq_zero_or_pos r with rfl | hr
-    · simp [Circuit.innerSize_eq_zero_of_fanInAtMost_zero hfan]
-    · rw [Nat.cast_mul, Nat.cast_sub hr, Nat.cast_one]
-  have hunread : (Rᶜ.ncard : ℝ) < Real.logb (Nat.card U) K := by
-    rw [Real.lt_logb_iff_rpow_lt hq (by exact_mod_cast Nat.zero_lt_of_lt hunread),
-      Real.rpow_natCast]
-    exact_mod_cast hunread
-  have hcompl : (Rᶜ.ncard : ℝ) + R.ncard = n := by
-    rw [← Nat.cast_add, add_comm, ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
-  linarith
+      (r - 1) * C.innerSize - n + Real.logb (Nat.card U) K + 1 :=
+  cycleRank_le_of_read_bound (fun hr0 => C.innerSize_eq_zero_of_fanInAtMost_zero (hr0 ▸ hfan))
+    R hrank hunread
+
+/-- **The cycle rank of the graph of a circuit, charging only multiary gates**, is at most
+`(r - 1) s - n + log_q K + 1` for fan-in at most `r`, where `s` counts the multiary gates, when
+the inputs the circuit does not read carry fewer than `K` assignments. -/
+theorem cycleRank_le_multiarySize (hfan : c.FanInAtMost r)
+    (hunread : Nat.card U ^ (Compiler.network c I fun _ => Acc).readᶜ.ncard < K) :
+    ((Compiler.graph c).cycleRank : ℝ) ≤
+      (r - 1) * c.multiarySize - n + Real.logb (Nat.card U) K + 1 :=
+  cycleRank_le_of_read_multiarySize hfan _
+    (Compiler.cycleRank_add_ncard_read_le_multiarySize I _ hfan (Compiler.connected c)) hunread
 
 /-- **The cycle rank of the graph of a circuit** is at most `(r - 1) s - n + log_q K + 1` for
 fan-in at most `r`, where `s` counts the inner gates, when the inputs the circuit does not read
@@ -230,6 +269,42 @@ theorem logb_ncard_le_width (hr : 2 ≤ r) (hfan : c.FanInAtMost r) (hS : c.Deci
   refine h.trans_eq ?_
   push_cast
   ring
+
+/-- **The reduction theorem for multiary gates.** Over a finite alphabet `U` with `q = |U| ≥ 2`, a
+circuit with `s` multiary gates (`arity ≥ 2`; constant and unary gates are free) of fan-in at most
+`r ≥ 2` deciding a `K`-rectangle-free set `S ⊆ U^n` with `|S| ≥ q K ^ 2` yields, after
+deduplicating redundant unary and constant gates, a connected, loopless multigraph of maximum
+degree `r + 1` with `O_{q, r}(s + n)` vertices and cycle rank at most
+`(r - 1) s - n + log_q K + 1`, every layout of which has width at least
+`log_q |S| - 3 log_q K - log_q (|V| + 1) - (r + 2)`. -/
+theorem exists_graph_of_decides_multiarySize (hr : 2 ≤ r) (hfan : c.FanInAtMost r)
+    (hS : c.Decides I Acc S) (hfree : RectangleFree S K) (hbig : Nat.card U * K ^ 2 ≤ S.ncard) :
+    ∃ (V E : Type) (_ : Finite V) (_ : Finite E) (G : Multigraph V E),
+      G.toSimpleGraph.Connected ∧ G.Loopless ∧ G.MaxDegreeLE (r + 1) ∧
+      Nat.card V ≤ 2 * r * (c.multiarySize + Nat.card U +
+        (c.multiarySize + n) * Nat.card U ^ Nat.card U) + 3 ∧
+      (G.cycleRank : ℝ) ≤ (r - 1) * c.multiarySize - n + Real.logb (Nat.card U) K + 1 ∧
+      ∀ π : Layout V, Real.logb (Nat.card U) S.ncard ≤
+        G.width π + (r + 2) + 3 * Real.logb (Nat.card U) K +
+          Real.logb (Nat.card U) (Nat.card V + 1) := by
+  obtain ⟨c', heval, hfan_c', hmult, hsize⟩ := c.exists_eval_eq_multiarySize_size_le I
+  have hfan' : c'.FanInAtMost r := hfan_c' r hfan
+  have hS' : c'.Decides I Acc S := fun x => by
+    rw [hS x, congrFun (congrFun heval x) 0]
+  refine ⟨_, _, inferInstance, inferInstance, Compiler.graph c', Compiler.connected c',
+    Compiler.loopless, Compiler.maxDegreeLE hr hfan', ?_, ?_,
+    logb_ncard_le_width hr hfan' hS' hfree hbig⟩
+  · calc Nat.card (Compiler.Vertex c')
+        ≤ 2 * r * c'.innerSize + 3 * 1 := Compiler.card_vertex_le hfan'
+      _ ≤ 2 * r * c'.size + 3 :=
+          Nat.add_le_add_right (Nat.mul_le_mul_left (2 * r) c'.innerSize_le_size) 3
+      _ ≤ 2 * r * (c.multiarySize + Nat.card U +
+            (c.multiarySize + n) * Nat.card U ^ Nat.card U) + 3 :=
+          Nat.add_le_add_right (Nat.mul_le_mul_left (2 * r) hsize) 3
+  · refine (cycleRank_le_multiarySize hfan' (pow_ncard_compl_read_lt hS' hfree hbig)).trans ?_
+    have hrm : (0 : ℝ) ≤ (r : ℝ) - 1 := by cast_linarith [hr]
+    have hm' : (c'.multiarySize : ℝ) ≤ c.multiarySize := by exact_mod_cast hmult
+    linarith [mul_le_mul_of_nonneg_left hm' hrm]
 
 /-- **The reduction theorem.** A circuit with `s` inner gates of fan-in at most `r ≥ 2`, over any
 basis on `U`, deciding a `K`-rectangle-free set `S ⊆ U^n` with `|S| ≥ q K ^ 2`, where

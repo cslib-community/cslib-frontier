@@ -52,6 +52,30 @@ leanOptions = {weak.linter.style.header = false}
 # `requiresModuleSystem`.
 allowNonModules = true
 
+# The verified CDCL solver on DIMACS files (`scripts/Cdcl.lean`); not a default target.
+[[lean_exe]]
+name = "cdcl"
+srcDir = "scripts"
+root = "Cdcl"
+allowNonModules = true
+
+# The VeriPB elaborator and kernel checker on files (`scripts/VeriPBElab.lean`); not a default
+# target.
+[[lean_exe]]
+name = "veripb_elab"
+srcDir = "scripts"
+root = "VeriPBElab"
+allowNonModules = true
+
+# The verified subgraph isomorphism and clique checkers on graph and proof files
+# (`scripts/PBGraph.lean`), the counterparts of CakePB's `cake_pb_iso` and `cake_pb_clique`; not a
+# default target.
+[[lean_exe]]
+name = "pb_graph"
+srcDir = "scripts"
+root = "PBGraph"
+allowNonModules = true
+
 [[lean_exe]]
 name = "mk_all"
 srcDir = "scripts"

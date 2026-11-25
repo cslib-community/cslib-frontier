@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Tally
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import Mathlib.Data.Set.Finite.List
+import CslibFrontier.Foundations.Data.List.Forall2
 
 /-!
 # Hausdorff decompositions of bounded truth-table reductions
@@ -93,14 +94,6 @@ def Hausdorff (f : List Bool → Bool) (b : List Bool) (j : ℕ) : Prop :=
 
 variable {f : List Bool → Bool} {b : List Bool}
 
-private theorem forall₂_le_trans {u v w : List Bool} (h₁ : List.Forall₂ (· ≤ ·) u v)
-    (h₂ : List.Forall₂ (· ≤ ·) v w) : List.Forall₂ (· ≤ ·) u w := by
-  induction h₁ generalizing w with
-  | nil => cases h₂; exact .nil
-  | cons hab _ ih =>
-    cases h₂ with
-    | cons hbc h₂ => exact .cons (le_trans hab hbc) (ih h₂)
-
 private theorem count_le_of_forall₂ {v w : List Bool} (h : List.Forall₂ (· ≤ ·) v w) :
     v.count true ≤ w.count true := by
   induction h with
@@ -109,8 +102,7 @@ private theorem count_le_of_forall₂ {v w : List Bool} (h : List.Forall₂ (· 
     rw [List.count_cons, List.count_cons]
     cases a <;> cases b
     · simpa using ih
-    · change List.count true _ + 0 ≤ List.count true _ + 1
-      omega
+    · simp; omega
     · exact absurd hab (by decide)
     · simpa using ih
 
@@ -122,13 +114,10 @@ private theorem count_lt_of_forall₂ {v w : List Bool} (h : List.Forall₂ (· 
     rw [List.count_cons, List.count_cons]
     have hle := count_le_of_forall₂ hrest
     cases a <;> cases b
-    · have : l₁ ≠ l₂ := fun h => hne (h ▸ rfl)
-      simpa using ih this
-    · change List.count true l₁ + 0 < List.count true l₂ + 1
-      omega
+    · simpa using ih fun h => hne (h ▸ rfl)
+    · simp; omega
     · exact absurd hab (by decide)
-    · have : l₁ ≠ l₂ := fun h => hne (h ▸ rfl)
-      simpa using ih this
+    · simpa using ih fun h => hne (h ▸ rfl)
 
 /-- The steps of a chain from `h` through `t`. -/
 private theorem zip_cons_cons (h v : List Bool) (t : List (List Bool)) :
@@ -142,8 +131,8 @@ private theorem length_le_count {h : List Bool} {t : List (List Bool)}
   | cons v t ih =>
     rw [zip_cons_cons] at hc
     have hstep : StepBelow f h v := hc (h, v) List.mem_cons_self
-    have := ih fun p hp => hc p (List.mem_cons_of_mem _ hp)
-    have := count_lt_of_forall₂ hstep.1 hstep.2.1
+    have hih := ih fun p hp => hc p (List.mem_cons_of_mem _ hp)
+    have hlt := count_lt_of_forall₂ hstep.1 hstep.2.1
     rw [List.length_cons]
     omega
 
@@ -155,11 +144,10 @@ private theorem length_eq_of_mem {h : List Bool} {t : List (List Bool)}
   | cons v t ih =>
     rw [zip_cons_cons] at hc
     have hv := (hc (h, v) List.mem_cons_self).1.length_eq
-    have := ih fun p hp => hc p (List.mem_cons_of_mem _ hp)
     intro w hw
     rcases List.mem_cons.1 hw with rfl | hw
     · exact hv
-    · exact (this w hw).trans hv
+    · exact (ih (fun p hp => hc p (List.mem_cons_of_mem _ hp)) w hw).trans hv
 
 private theorem decide_even_succ (j : ℕ) : decide (Even (j + 1)) = !decide (Even j) := by
   by_cases h : Even j <;> simp [h, Nat.even_add_one]
@@ -167,11 +155,11 @@ private theorem decide_even_succ (j : ℕ) : decide (Even (j + 1)) = !decide (Ev
 /-- **The Hausdorff sets decrease**: dropping the top of a chain. -/
 theorem Hausdorff.of_succ {j : ℕ} (hH : Hausdorff f b (j + 1)) : Hausdorff f b j := by
   obtain ⟨h, t, hc, ht, hf, hb⟩ := hH
-  obtain ⟨v, t, rfl⟩ : ∃ v t', t = v :: t' := List.exists_cons_of_length_eq_add_one ht
+  obtain ⟨v, t, rfl⟩ := List.exists_cons_of_length_eq_add_one ht
   rw [zip_cons_cons] at hc
   have hstep := hc (h, v) List.mem_cons_self
   refine ⟨v, t, fun p hp => hc p (List.mem_cons_of_mem _ hp), by simpa using ht, ?_,
-    forall₂_le_trans hstep.1 hb⟩
+    hstep.1.trans hb⟩
   have hne := hstep.2.2
   rw [hf, decide_even_succ] at hne
   revert hne
@@ -194,12 +182,10 @@ chain. -/
 theorem eq_decide_even_of_hausdorff {j : ℕ} (hj : Hausdorff f b j)
     (hj' : ¬Hausdorff f b (j + 1)) : f b = decide (Even j) := by
   obtain ⟨h, t, hc, ht, hf, hb⟩ := hj
-  by_cases heq : h = b
-  · exact heq ▸ hf
+  if heq : h = b then exact heq ▸ hf else
   by_contra hne
   refine hj' ⟨b, h :: t, fun p hp => ?_, by simp [ht], ?_, List.forall₂_refl b⟩
-  · rw [zip_cons_cons] at hp
-    rcases List.mem_cons.1 hp with rfl | hp
+  · rcases List.mem_cons.1 hp with rfl | hp
     · exact ⟨hb, heq, hf ▸ Ne.symm hne⟩
     · exact hc p hp
   · rw [decide_even_succ]
@@ -211,24 +197,21 @@ theorem eq_decide_even_of_hausdorff {j : ℕ} (hj : Hausdorff f b j)
 `2 D` answers. -/
 theorem eq_true_iff_exists_hausdorff {D : ℕ} (hb : b.length < 2 * D) :
     f b = true ↔ ∃ d < D, Hausdorff f b (2 * d) ∧ ¬Hausdorff f b (2 * d + 1) := by
-  constructor
-  · intro hf
-    have h0 : Hausdorff f b 0 := ⟨b, [], by simp, rfl, by simpa using hf, List.forall₂_refl b⟩
-    obtain ⟨j, hj, hj'⟩ : ∃ j, Hausdorff f b j ∧ ¬Hausdorff f b (j + 1) := by
-      by_contra hall
-      push Not at hall
-      have hall' : ∀ j, Hausdorff f b j := fun j => by
-        induction j with
-        | zero => exact h0
-        | succ j ih => exact hall j ih
-      exact absurd (le_length_of_hausdorff (hall' (b.length + 1))) (by omega)
-    have heven : Even j := by simpa [hf] using (eq_decide_even_of_hausdorff hj hj').symm
-    obtain ⟨d, rfl⟩ := heven
-    refine ⟨d, ?_, by rwa [two_mul], by rwa [two_mul]⟩
-    have := le_length_of_hausdorff hj
-    omega
-  · rintro ⟨d, -, hd, hd'⟩
-    simpa using eq_decide_even_of_hausdorff hd hd'
+  refine ⟨fun hf => ?_, fun ⟨d, _, hd, hd'⟩ => by simpa using eq_decide_even_of_hausdorff hd hd'⟩
+  have h0 : Hausdorff f b 0 :=
+    ⟨b, [], by simp [List.zip_nil_right], rfl, by simpa using hf, List.forall₂_refl b⟩
+  obtain ⟨j, hj, hj'⟩ : ∃ j, Hausdorff f b j ∧ ¬Hausdorff f b (j + 1) := by
+    by_contra hall
+    push Not at hall
+    have hall' : ∀ j, Hausdorff f b j := fun j => by
+      induction j with
+      | zero => exact h0
+      | succ j ih => exact hall j ih
+    exact absurd (le_length_of_hausdorff (hall' (b.length + 1))) (by omega)
+  have heven : Even j := by simpa [hf] using (eq_decide_even_of_hausdorff hj hj').symm
+  obtain ⟨d, rfl⟩ := heven
+  have := le_length_of_hausdorff hj
+  exact ⟨d, by omega, by rwa [two_mul], by rwa [two_mul]⟩
 
 end Chain
 
@@ -242,18 +225,15 @@ theorem forall₂_le_truthTableAnswers_iff {α : Type} {A : Set (α × ℕ)} {r 
       v.length = r a ∧ ∀ i, v[i]? = some true → (a, i) ∈ A := by
   classical
   rw [List.forall₂_iff_get]
-  constructor
-  · rintro ⟨hlen, h⟩
-    refine ⟨by simpa using hlen, fun i hi => ?_⟩
-    obtain ⟨hi', hvi⟩ := List.getElem?_eq_some_iff.1 hi
-    have := h i hi' (hlen ▸ hi')
-    simp only [List.get_eq_getElem, hvi, truthTableAnswers, List.getElem_ofFn] at this
-    simpa [Bool.le_iff_imp] using this
-  · rintro ⟨hlen, h⟩
-    refine ⟨by simpa using hlen, fun i h₁ h₂ => ?_⟩
-    simp only [List.get_eq_getElem, truthTableAnswers, List.getElem_ofFn, Bool.le_iff_imp,
-      decide_eq_true_eq]
-    exact fun hv => h i (List.getElem?_eq_some_iff.2 ⟨h₁, hv⟩)
+  refine ⟨fun ⟨hlen, h⟩ => ⟨by simpa only [truthTableAnswers, List.length_ofFn] using hlen,
+      fun i hi => ?_⟩,
+    fun ⟨hlen, h⟩ => ⟨by simpa only [truthTableAnswers, List.length_ofFn] using hlen,
+      fun i h₁ _ => ?_⟩⟩
+  · obtain ⟨hi', hvi⟩ := List.getElem?_eq_some_iff.1 hi
+    simpa only [List.get_eq_getElem, hvi, truthTableAnswers, List.getElem_ofFn, Bool.le_iff_imp,
+      decide_eq_true_eq, forall_const] using h i hi' (hlen ▸ hi')
+  · simpa only [List.get_eq_getElem, truthTableAnswers, List.getElem_ofFn, Bool.le_iff_imp,
+      decide_eq_true_eq] using fun hv => h i (List.getElem?_eq_some_iff.2 ⟨h₁, hv⟩)
 
 /-! ### Conjunctive reductions of the Hausdorff sets -/
 
@@ -283,12 +263,8 @@ private def ones (v : List Bool) : List ℕ := (v.zipIdx.filter (·.1)).map Prod
 
 private theorem mem_ones {v : List Bool} {i : ℕ} : i ∈ ones v ↔ v[i]? = some true := by
   simp only [ones, List.mem_map, List.mem_filter, List.mem_zipIdx_iff_getElem?]
-  constructor
-  · rintro ⟨⟨x, i⟩, ⟨hx, hx1⟩, rfl⟩
-    simp only at hx1
-    simpa [hx1] using hx
-  · intro h
-    exact ⟨(true, i), ⟨h, rfl⟩, rfl⟩
+  exact ⟨fun ⟨⟨x, _⟩, ⟨hx, hx1⟩, rfl⟩ => by simpa [show x = true from hx1] using hx,
+    fun h => ⟨(true, i), ⟨h, rfl⟩, rfl⟩⟩
 
 /-- **The Hausdorff sets of a bounded truth-table reduction reduce conjunctively to tally
 problems**, when the target of the reduction does. Here `r`, `q` and `d` are the query count, the
@@ -325,14 +301,13 @@ theorem exists_polyTimeCTTReducible_hausdorff {α β : Type} {encA : α ↪ List
     simp only [Set.mem_ofPred_eq, Set.mem_iUnion, Set.mem_inter_iff, exists_prop, cands,
       Finset.mem_toList, Set.Finite.mem_toFinset, Set.mem_prod, hvalid, qs, List.mem_map,
       forall_exists_index, and_imp, forall_apply_eq_imp_iff₂, mem_ones]
-    constructor
-    · rintro ⟨h, t, hc, ht, hf, hb⟩
-      obtain ⟨hlen, hbelow⟩ := forall₂_le_truthTableAnswers_iff.1 hb
-      have hhk : h.length ≤ k := hlen ▸ hk a
-      refine ⟨(h, t), ⟨hhk, ht, fun v hv => (length_eq_of_mem hc v hv).trans_le hhk⟩,
-        ⟨hc, ht ▸ hf, hlen⟩, fun i hi => hbelow i hi⟩
-    · rintro ⟨⟨h, t⟩, ⟨-, ht, -⟩, ⟨hc, hf, hlen⟩, hbelow⟩
-      exact ⟨h, t, hc, ht, ht ▸ hf, forall₂_le_truthTableAnswers_iff.2 ⟨hlen, hbelow⟩⟩
+    exact ⟨fun ⟨h, t, hc, ht, hf, hb⟩ => by
+        obtain ⟨hlen, hbelow⟩ := forall₂_le_truthTableAnswers_iff.1 hb
+        have hhk : h.length ≤ k := hlen ▸ hk a
+        exact ⟨(h, t), ⟨hhk, ht, fun v hv => (length_eq_of_mem hc v hv).trans_le hhk⟩,
+          ⟨hc, ht ▸ hf, hlen⟩, hbelow⟩,
+      fun ⟨⟨h, t⟩, ⟨_, ht, _⟩, ⟨hc, hf, hlen⟩, hbelow⟩ =>
+        ⟨h, t, hc, ht, ht ▸ hf, forall₂_le_truthTableAnswers_iff.2 ⟨hlen, hbelow⟩⟩⟩
   rw [hset]
   refine PolyTimeCTTReducible.exists_encUnary_biUnion cands fun p _ => ?_
   have hpoly : ComputableInPolyTime (valid p) encA encBool := by

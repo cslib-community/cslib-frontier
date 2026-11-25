@@ -465,13 +465,6 @@ theorem computableInPolyTime_prunePositions {Q : γ → ℕ → α → List κ} 
   induction n generalizing d with
   | zero => exact const _
   | succ n ih =>
-    have hQ' (j : ℕ) : ComputableInPolyTime (fun p : (γ × List ℕ) × α => Q p.1.1 j p.2)
-        (encPair (encPair encIn (encList encUnary)) encA) (encList encK) :=
-      (hQ j).comp (((fst encIn (encList encUnary)).comp (fst _ encA)).prod (snd _ encA))
-    have hs' : ComputableInPolyTime (fun p : γ × List ℕ => s p.1)
-        (encPair encIn (encList encUnary)) encUnary := hs.comp (fst _ _)
-    have hN' : ComputableInPolyTime (fun p : γ × List ℕ => N p.1)
-        (encPair encIn (encList encUnary)) (encList encA) := hN.comp (fst _ _)
     have hright : ComputableInPolyTime
         (fun p : γ × List ℕ => p.2.flatMap (searchRightFrom (Q p.1 (2 * d)) (s p.1) (N p.1)))
         (encPair encIn (encList encUnary)) (encList encUnary) :=
@@ -480,7 +473,7 @@ theorem computableInPolyTime_prunePositions {Q : γ → ℕ → α → List κ} 
         (Q := fun q => Q q.1.1 (2 * d)) (s := fun q => s q.1.1) (N := fun q => N q.1.1)
         (l := fun q => q.2)
         ((hQ (2 * d)).comp ((((fst _ _).comp (fst _ _)).comp (fst _ encA)).prod (snd _ encA)))
-        (hs.comp ((fst _ _).comp (fst _ _))) (hN.comp ((fst _ _).comp (fst _ _))) (snd _ _))
+        (by fun_prop) (by fun_prop) (snd _ _))
     have hleft : ComputableInPolyTime
         (fun p : γ × List ℕ => (p.2.flatMap (searchRightFrom (Q p.1 (2 * d)) (s p.1)
           (N p.1))).flatMap (searchLeftFrom (Q p.1 (2 * d + 1)) (s p.1) (N p.1)))
@@ -490,8 +483,7 @@ theorem computableInPolyTime_prunePositions {Q : γ → ℕ → α → List κ} 
         (Q := fun q => Q q.1.1 (2 * d + 1)) (s := fun q => s q.1.1) (N := fun q => N q.1.1)
         (r := fun q => q.2)
         ((hQ (2 * d + 1)).comp ((((fst _ _).comp (fst _ _)).comp (fst _ encA)).prod
-          (snd _ encA)))
-        (hs.comp ((fst _ _).comp (fst _ _))) (hN.comp ((fst _ _).comp (fst _ _))) (snd _ _))
+          (snd _ encA))) (by fun_prop) (by fun_prop) (snd _ _))
     have hrec := (ih (d + 1)).comp ((fst encIn (encList encUnary)).prod hleft)
     simp only [prunePositions]
     fun_prop

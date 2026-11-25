@@ -202,33 +202,26 @@ private theorem computableInPolyTime_sumBlocksCode {α : Type} {enc : α ↪ Lis
     (m : ℕ) {coins : α → ℕ}
     (hcoins : ComputableInPolyTime coins enc encUnary) :
     ComputableInPolyTime (fun a => sumBlocksCode m (coins a)) enc encCode := by
+  have hcoinsBin := unary_to_binary.comp hcoins
   induction m with
   | zero =>
-    have hcoinsBin := unary_to_binary.comp hcoins
-    have hw := binary_mul' (const 0) hcoinsBin
-    exact computableInPolyTime_zeroBitStringCode hw hcoins
+    exact computableInPolyTime_zeroBitStringCode (binary_mul' (const 0) hcoinsBin) hcoins
   | succ m ih =>
-    have hcoinsBin := unary_to_binary.comp hcoins
-    have hmCoinsUnary := unary_mul.comp ((const m).prod hcoins)
     have hsuccCoinsBin := binary_mul' (const (m + 1)) hcoinsBin
     have hrange₁ : ComputableInPolyTime
-        (fun a => ([], List.range (m * coins a))) enc encCode := by
-      have hr : ComputableInPolyTime
-          (fun a => List.range (m * coins a)) enc (encList encNat) := by
+        (fun a => ([], List.range (m * coins a))) enc encCode :=
+      (const []).prod <| by
         simpa only [Function.comp_def, List.map_id'] using
-          unary_to_binary.map.comp (range.comp hmCoinsUnary)
-      exact (const []).prod hr
+          unary_to_binary.map.comp (range.comp (unary_mul.comp ((const m).prod hcoins)))
     have hrange₂ : ComputableInPolyTime
-        (fun a => ([], (List.range (coins a)).map (fun c => c + coins a * m))) enc encCode := by
-      have hp1 := hcoinsBin.comp (fst enc encUnary)
-      have hp2 := unary_to_binary.comp (snd enc encUnary)
-      have hf := binary_add' hp2 (binary_mul' hp1 (const m))
-      exact (const []).prod (mapWithInput (range.comp hcoins) hf)
-    exact (computableInPolyTime_compCode hsuccCoinsBin
+        (fun a => ([], (List.range (coins a)).map (fun c => c + coins a * m))) enc encCode :=
+      (const []).prod <| mapWithInput (range.comp hcoins) <|
+        binary_add' (unary_to_binary.comp (snd enc encUnary))
+          (binary_mul' (hcoinsBin.comp (fst enc encUnary)) (const m))
+    exact computableInPolyTime_compCode hsuccCoinsBin
       (computableInPolyTime_xorBitStringsCode hcoins)
       (computableInPolyTime_appendCode hsuccCoinsBin
-        (computableInPolyTime_compCode hsuccCoinsBin ih hrange₁)
-        hrange₂))
+        (computableInPolyTime_compCode hsuccCoinsBin ih hrange₁) hrange₂)
 
 private theorem computableInPolyTime_extractSliceCode {α : Type} {enc : α ↪ List Bool}
     (m : ℕ) {stride offset width : α → ℕ}
@@ -288,17 +281,13 @@ private theorem computableInPolyTime_code_comp_xorPreludeCircuit {α : Type} {en
     ComputableInPolyTime
       (fun a => ((C a).comp (xorPreludeCircuit m (n a) (coins a))).code)
       enc Boolean.encCode := by
-  have hnBin : Turing.MultiTapeTM.ComputableInPolyTime n enc Turing.MultiTapeTM.encNat :=
-    Turing.MultiTapeTM.ComputableInPolyTime.unary_to_binary.comp hn
-  have hcoinsBin :
-      Turing.MultiTapeTM.ComputableInPolyTime coins enc Turing.MultiTapeTM.encNat :=
-    Turing.MultiTapeTM.ComputableInPolyTime.unary_to_binary.comp hcoins
-  have hwidth : Turing.MultiTapeTM.ComputableInPolyTime
-      (fun a => m * (n a + coins a)) enc Turing.MultiTapeTM.encNat := by
-    fun_prop
-  have hcomp := (Boolean.computableInPolyTime_compCode hwidth hC
-    (computableInPolyTime_code_xorPreludeCircuit m hn hcoins))
-  exact (hcomp.of_enc_eq fun a => by rw [Boolean.compCode_code])
+  have hnBin : ComputableInPolyTime n enc encNat := ComputableInPolyTime.unary_to_binary.comp hn
+  have hcoinsBin : ComputableInPolyTime coins enc encNat :=
+    ComputableInPolyTime.unary_to_binary.comp hcoins
+  have hwidth : ComputableInPolyTime (fun a => m * (n a + coins a)) enc encNat := by fun_prop
+  exact (Boolean.computableInPolyTime_compCode hwidth hC
+    (computableInPolyTime_code_xorPreludeCircuit m hn hcoins)).of_enc_eq fun a => by
+    rw [Boolean.compCode_code]
 
 /-! ### Part 4: Word-Level Efficiency -/
 
@@ -343,22 +332,18 @@ private theorem isPPTOn_uniform_fintype_bool {α ι : Type} [Fintype ι] [Decida
     IsPPTOn input output (fun _ => ProbComp.uniform (ι → Bool)) := by
   let card := Fintype.card ι
   let e : ι ≃ Fin card := Fintype.equivFin ι
-  let toMap : (Fin card → Bool) → (ι → Bool) := fun f i => f (e i)
-  let decode : List Bool → (ι → Bool) := fun w => toMap (Cslib.BitString.ofList card w)
+  let decode : List Bool → (ι → Bool) := fun w i => Cslib.BitString.ofList card w (e i)
   have hdecode : ComputableInPolyTime decode encBits output :=
-    (of_finite (encIn := encPi encBool) (encOut := output) toMap).comp
+    (of_finite (encIn := encPi encBool) (encOut := output) (fun f i => f (e i))).comp
       (computableInPolyTime_ofList_fin card)
   have hseeded : IsPPTOn input output (fun _ : α => decode <$> Cslib.BitString.sampleList card) :=
-    IsPPTOn.of_seeded (const card)
-      ((hdecode.comp (snd input encBits)))
+    IsPPTOn.of_seeded (const card) (hdecode.comp (snd input encBits))
   refine hseeded.congr fun _ => ?_
   rw [ProbComp.eval_map, Cslib.BitString.eval_sampleList, Cslib.BitString.uniformList,
-    PMF.map_comp, ProbComp.eval_uniform]
-  have heq : decode ∘ List.ofFn = Equiv.piCongrLeft' (fun _ => Bool) e.symm := by
-    funext f
-    ext i
-    simp [decode, toMap, Cslib.BitString.ofList_ofFn, Equiv.piCongrLeft']
-  rw [heq, PMF.uniformOfFintype_map_equiv]
+    PMF.map_comp, ProbComp.eval_uniform,
+    show decode ∘ List.ofFn = Equiv.piCongrLeft' (fun _ => Bool) e.symm from by
+      funext f; ext i; simp [decode, Cslib.BitString.ofList_ofFn, Equiv.piCongrLeft'],
+    PMF.uniformOfFintype_map_equiv]
 
 /-- Sampling `m` independent bit lists of polynomial-time unary lengths `len a i` is strict PPT. -/
 private theorem isPPTOn_pi_sampleList {α : Type} {input : α ↪ List Bool}
@@ -371,31 +356,17 @@ private theorem isPPTOn_pi_sampleList {α : Type} {input : α ↪ List Bool}
     have hpure : IsPPTOn input (encPi encBits) (fun _ : α => pure Fin.elim0) :=
       (pi fun i : Fin 0 => i.elim0).isPPTOn
     refine hpure.congr fun a => ?_
-    ext f
-    simp [Subsingleton.elim f Fin.elim0]
+    ext f; simp [Subsingleton.elim f Fin.elim0]
   | succ m ih =>
-    have h0 : IsPPTOn input encBits (fun a => Cslib.BitString.sampleList (len a 0)) :=
-      (hlen 0).sampleList
-    have hrest : IsPPTOn input (encPi encBits)
-        (fun a => OracleComp.pi (fun i : Fin m => Cslib.BitString.sampleList (len a i.succ))) :=
-      ih (fun i => hlen i.succ)
     have hcomb : ComputableInPolyTime
         (fun p : List Bool × (Fin m → List Bool) => Fin.cons p.1 p.2)
-        (encPair encBits (encPi encBits)) (encPi encBits) := by
-      refine pi fun i => ?_
-      refine Fin.cases ?_ (fun j => ?_) i
-      · exact fst _ _
-      · exact (pi_apply encBits j).comp (snd _ _)
-    have hsecond : IsPPTOn (encPair input encBits) (encPair encBits (encPi encBits))
-        (fun pair : α × List Bool =>
-          (fun xs => (pair.2, xs)) <$>
-            OracleComp.pi (fun i : Fin m => Cslib.BitString.sampleList (len pair.1 i.succ))) :=
-      (hrest.preprocess (fst input encBits)).map_with (by fun_prop)
-    have hbind :=
-      (h0.bind_with (second := fun a x0 =>
-        (fun xs => (x0, xs)) <$>
-          OracleComp.pi (fun i : Fin m => Cslib.BitString.sampleList (len a i.succ)))
-        hsecond).map hcomb
+        (encPair encBits (encPi encBits)) (encPi encBits) :=
+      pi fun i => Fin.cases (fst _ _) (fun j => (pi_apply encBits j).comp (snd _ _)) i
+    have hbind := ((hlen 0).sampleList.bind_with
+      (second := fun a x0 => (fun xs => (x0, xs)) <$>
+        OracleComp.pi (fun i : Fin m => Cslib.BitString.sampleList (len a i.succ)))
+      (((ih fun i => hlen i.succ).preprocess (fst input encBits)).map_with (by fun_prop))).map
+      hcomb
     refine hbind.congr fun a => ?_
     rw [OracleComp.pi_succ]
     simp [ProbComp.eval_bind, ProbComp.eval_map]
@@ -479,20 +450,16 @@ private theorem isOraclePPTOn_realPairCall (m : ℕ) (p : OrderedPair m) :
   intro x
   unfold realPairCall
   have hc₀ : IsOraclePPTOn (Operation := Unit) (encFinite (Fin m → Bool × Bool)) encBool
-      (fun _ => ProbOracleComp.sample (ProbComp.uniform Bool)) := by
-    have hbool : IsPPTOn (encFinite (Fin m → Bool × Bool)) encBool
-        (fun _ => ProbComp.uniform Bool) := by
-      refine (isPPTOn_of_finite_uniform (encFinite (Fin m → Bool × Bool)) encBool
-        (fun _ (f : Fin 1 → Bool) => f 0)).congr fun _ => ?_
+      (fun _ => ProbOracleComp.sample (ProbComp.uniform Bool)) :=
+    ((isPPTOn_of_finite_uniform (encFinite (Fin m → Bool × Bool)) encBool
+      (fun _ (f : Fin 1 → Bool) => f 0)).congr fun _ => by
       rw [ProbComp.eval_map, ProbComp.eval_uniform, ProbComp.eval_uniform]
-      exact PMF.uniformOfFintype_map_equiv (Equiv.funUnique (Fin 1) Bool)
-    exact hbool.isOraclePPTOn
+      exact PMF.uniformOfFintype_map_equiv (Equiv.funUnique (Fin 1) Bool)).isOraclePPTOn
   have hq : IsOraclePPTOn encBool encBits
-      (fun c₀ : Bool =>
-        List.take ((fun _ : Bool => 1) c₀) <$>
-          ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
-            ((), encodeOT14Query
-              (fun s => twoPartyMulQuery s (x (pairEmbedding p s), twoPartyMulCoins c₀ s)))) :=
+      (fun c₀ : Bool => List.take ((fun _ : Bool => 1) c₀) <$>
+        ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+          ((), encodeOT14Query
+            (fun s => twoPartyMulQuery s (x (pairEmbedding p s), twoPartyMulCoins c₀ s)))) :=
     IsOraclePPTOn.query_take () (of_finite _) (const 1)
   have hpost : ComputableInPolyTime
       (fun q : Bool × List Bool => (q.1, q.2.headD false))
@@ -684,16 +651,10 @@ private theorem isOraclePPTOn_realGateCore (m : ℕ) [NeZero m] :
     fun _ _ _ _ => rfl
   rintro ⟨op, x⟩
   cases op with
-  | const b =>
-    exact ((of_finite _).isPPTOn).isOraclePPTOn
-  | not =>
-    exact ((of_finite _).isPPTOn).isOraclePPTOn
-  | and =>
+  | const b | not => exact ((of_finite _).isPPTOn).isOraclePPTOn
+  | and | or =>
     exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess (const x)).map
-      (of_finite (fun tr => finishMulGate m false x (realSharedMulPure m x tr))))
-  | or =>
-    exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess (const x)).map
-      (of_finite (fun tr => finishMulGate m true x (realSharedMulPure m x tr))))
+      (of_finite _))
 
 /-- Shared simulated multiplication core: sample additive shares `ans` of `target` and pair coins
 `r`, then package `(ans, simSharedMulPure m I x ans r)` with `finish`. -/
@@ -922,9 +883,8 @@ private theorem computableInPolyTime_buildOutItems {α : Type} {input : α ↪ L
   have ha_shares : ComputableInPolyTime
       (fun p : α × ℕ => fun s : Fin m =>
         ((wires p.1) s).getD ((outputs p.1).getD (r.val * k p.1 + p.2) 0) false)
-      (encPair input encUnary) (encPi encBool) := by
-    refine pi fun s => ?_
-    exact listGetD_binary (encA := encBool) false
+      (encPair input encUnary) (encPi encBool) :=
+    pi fun s => listGetD_binary (encA := encBool) false
       (((pi_apply encBits s).comp hwires).comp (fst input encUnary)) hwIdx
   have hy_bit : ComputableInPolyTime
       (fun p : α × ℕ => if r ∈ I then (y_bits p.1 r).getD p.2 false else false)
@@ -934,12 +894,9 @@ private theorem computableInPolyTime_buildOutItems {α : Type} {input : α ↪ L
         bitsGetDWithInput (((pi_apply encBits r).comp hy).comp (fst input encUnary))
           (snd input encUnary) false
     · simpa only [hr, ↓reduceIte] using const false
-  have hpack : ComputableInPolyTime
-      (fun q : (Fin m → Bool) × Bool => (r, q.1, q.2))
-      (encPair (encPi encBool) encBool) (encFinite (OutItem m)) :=
-    of_finite _
-  have hbody := hpack.comp (ha_shares.prod hy_bit)
-  exact mapWithInput (range.comp hk) hbody
+  exact mapWithInput (range.comp hk)
+    ((of_finite (encIn := encPair (encPi encBool) encBool) (encOut := encFinite (OutItem m))
+      (fun q => (r, q.1, q.2))).comp (ha_shares.prod hy_bit))
 
 /-- Format the per-party Step 3 deltas `(ot_c_delta, ot_a_delta, msg_delta, y_delta)` for recipient
 `r_party : Fin m`. -/
@@ -965,8 +922,7 @@ private theorem isOraclePPTOn_realOutCore (m : ℕ) [NeZero m] :
     (tagEncoding := encFinite (OutItem m))
     (tag := id) (branch := fun item _ => realOutCore m item) id' ?_).congr
     fun _ _ _ _ => rfl
-  intro item
-  exact (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess
+  exact fun item => (((isOraclePPTOn_realPairsCalls m (orderedPairs m)).preprocess
     (const (fun s => (item.2.1 s, GMWCircuit.constShare true s)))).map
     (of_finite (fun tr =>
       finishOutStep m item.1
@@ -985,8 +941,7 @@ private theorem isPPTOn_simOutCore (m : ℕ) [NeZero m] (I : Finset (Fin m)) :
     (tag := id) (branch := fun item _ => simOutCore m I item)
     ComputableInPolyTime.id' ?_).congr
     fun _ => rfl
-  intro item
-  exact isPPTOn_simMulCore m (encStep3Acc m) I item.2.2 _ (finishOutStep m item.1)
+  exact fun item => isPPTOn_simMulCore m (encStep3Acc m) I item.2.2 _ (finishOutStep m item.1)
 
 /-- Single Step 3 output-coordinate transition in `realRunWord`. -/
 private noncomputable def realOutStep (m : ℕ) [NeZero m] (item : OutItem m) (acc : Step3Acc m) :
@@ -1271,6 +1226,82 @@ private noncomputable def simRunWord {α : Type} (m : ℕ) [NeZero m] (coins n k
   let acc3 ← List.foldlM (flip (simOutStep m I)) init3 outItems
   return packSimOutput m I x_bits rc.1 rc.2 in_shares acc3
 
+private theorem computableInPolyTime_emptyPiBits {β : Type} (eβ : β ↪ List Bool) (m : ℕ) :
+    ComputableInPolyTime (fun _ : β => (fun _ : Fin m => ([] : List Bool))) eβ (encPi encBits) :=
+  pi fun _ => const []
+
+private theorem computableInPolyTime_swap {α β : Type} (eα : α ↪ List Bool) (eβ : β ↪ List Bool) :
+    ComputableInPolyTime (fun p : α × β => (p.2, p.1)) (encPair eα eβ) (encPair eβ eα) :=
+  (snd eα eβ).prod (fst eα eβ)
+
+private theorem computableInPolyTime_runWordInit2 {α Inp : Type} {eA : α ↪ List Bool}
+    {e0 : Inp ↪ List Bool} (m : ℕ) {idx : Inp → α} {coins n : α → ℕ}
+    {xb : Inp → Fin m → List Bool} (hidx : ComputableInPolyTime idx e0 eA)
+    (hc : ComputableInPolyTime coins eA encUnary) (hn : ComputableInPolyTime n eA encUnary)
+    (hx : ComputableInPolyTime xb e0 (encPi encBits)) :
+    ComputableInPolyTime (fun s1 : Inp × ((Fin m → List Bool) × (Fin m → List Bool)) =>
+      (step1Wires m (n (idx s1.1) + coins (idx s1.1)) (xb s1.1) s1.2.1 s1.2.2,
+        fun _ => ([] : List Bool), fun _ => ([] : List Bool)))
+      (encPair e0 (encPair (encPi encBits) (encPi encBits))) (encStep2Acc m) := by
+  let ePi := encPi (Index := Fin m) encBits
+  let eRC := encPair ePi ePi
+  have hnc := comp' unary_add
+    ((comp' hn (comp' hidx (fst e0 eRC))).prod (comp' hc (comp' hidx (fst e0 eRC))))
+  have hin := computableInPolyTime_step1Wires m hnc (comp' hx (fst e0 eRC))
+    (comp' (fst ePi ePi) (snd e0 eRC)) (comp' (snd ePi ePi) (snd e0 eRC))
+  have hempty := computableInPolyTime_emptyPiBits (encPair e0 eRC) m
+  exact hin.prod (hempty.prod hempty)
+
+private theorem computableInPolyTime_runWordOutItems {α Inp : Type} {eA : α ↪ List Bool}
+    {e0 : Inp ↪ List Bool} (m : ℕ) (I : Finset (Fin m)) {idx : Inp → α} {k : α → ℕ}
+    {D : α → List (Boolean.Op × List ℕ) × List ℕ} {yb : Inp → Fin m → List Bool}
+    (hidx : ComputableInPolyTime idx e0 eA) (hk : ComputableInPolyTime k eA encUnary)
+    (hD : ComputableInPolyTime D eA Boolean.encCode)
+    (hy : ComputableInPolyTime yb e0 (encPi encBits)) :
+    ComputableInPolyTime (fun s2 : (Inp × ((Fin m → List Bool) × (Fin m → List Bool))) ×
+        Step2Acc m => buildOutItems m (k (idx s2.1.1)) I (D (idx s2.1.1)).2 s2.2.1
+          (yb s2.1.1))
+      (encPair (encPair e0 (encPair (encPi encBits) (encPi encBits))) (encStep2Acc m))
+      (encList (encFinite (OutItem m))) := by
+  let ePi := encPi (Index := Fin m) encBits
+  let e1 := encPair e0 (encPair ePi ePi)
+  have hs2_inp := comp' (fst e0 (encPair ePi ePi)) (fst e1 (encStep2Acc m))
+  have ha2 := comp' hidx hs2_inp
+  exact computableInPolyTime_buildOutItems m I (comp' hk ha2)
+    (comp' (snd (encList Boolean.encGate) (encList encNat)) (comp' hD ha2))
+    (comp' (fst ePi (encPair ePi ePi)) (snd e1 (encStep2Acc m))) (comp' hy hs2_inp)
+
+private theorem computableInPolyTime_runWordPost {α Inp : Type} {eA : α ↪ List Bool}
+    {e0 : Inp ↪ List Bool} (m : ℕ) {idx : Inp → α} {coins n : α → ℕ}
+    {xb : Inp → Fin m → List Bool} (hidx : ComputableInPolyTime idx e0 eA)
+    (hc : ComputableInPolyTime coins eA encUnary) (hn : ComputableInPolyTime n eA encUnary)
+    (hx : ComputableInPolyTime xb e0 (encPi encBits))
+    (f : (Fin m → List Bool) → (Fin m → List Bool) → (Fin m → List Bool) →
+      (Fin m → List Bool) → Step3Acc m → List Bool)
+    (hf : ∀ {β : Type} {eβ : β ↪ List Bool} {a b c d : β → Fin m → List Bool}
+      {s : β → Step3Acc m},
+      ComputableInPolyTime a eβ (encPi encBits) → ComputableInPolyTime b eβ (encPi encBits) →
+      ComputableInPolyTime c eβ (encPi encBits) → ComputableInPolyTime d eβ (encPi encBits) →
+      ComputableInPolyTime s eβ (encStep3Acc m) →
+      ComputableInPolyTime (fun x => f (a x) (b x) (c x) (d x) (s x)) eβ encBits) :
+    ComputableInPolyTime (fun s3 : ((Inp × ((Fin m → List Bool) × (Fin m → List Bool))) ×
+        Step2Acc m) × Step3Acc m =>
+      f (xb s3.1.1.1) s3.1.1.2.1 s3.1.1.2.2
+        (step1Wires m (n (idx s3.1.1.1) + coins (idx s3.1.1.1))
+          (xb s3.1.1.1) s3.1.1.2.1 s3.1.1.2.2) s3.2)
+      (encPair (encPair (encPair e0 (encPair (encPi encBits) (encPi encBits)))
+        (encStep2Acc m)) (encStep3Acc m)) encBits := by
+  let ePi := encPi (Index := Fin m) encBits
+  let eRC := encPair ePi ePi
+  let e1 := encPair e0 eRC
+  let e2 := encPair e1 (encStep2Acc m)
+  have hs3_s1 := comp' (fst e1 (encStep2Acc m)) (fst e2 (encStep3Acc m))
+  exact hf (comp' hx (comp' (fst e0 eRC) hs3_s1))
+    (comp' (fst ePi ePi) (comp' (snd e0 eRC) hs3_s1))
+    (comp' (snd ePi ePi) (comp' (snd e0 eRC) hs3_s1))
+    (comp' (fst ePi eRC) (comp' (computableInPolyTime_runWordInit2 m hidx hc hn hx) hs3_s1))
+    (snd e2 (encStep3Acc m))
+
 private theorem isOraclePPTOn_realRunWord {α : Type} {encA : α ↪ List Bool}
     (m : ℕ) [NeZero m] {coins n k : α → ℕ}
     {D : α → List (Boolean.Op × List ℕ) × List ℕ}
@@ -1283,72 +1314,42 @@ private theorem isOraclePPTOn_realRunWord {α : Type} {encA : α ↪ List Bool}
   let e0 := encFamilyRunInput encA m n
   let ePi := encPi (Index := Fin m) encBits
   let eRC := encPair ePi ePi
-  let e1 := encPair e0 eRC
-  let e2 := encPair e1 (encStep2Acc m)
-  let e3 := encPair e2 (encStep3Acc m)
-  have ha0 := (encFamilyRunInput_index_polyTime encA m n ComputableInPolyTime.id')
+  let e2 := encPair (encPair e0 eRC) (encStep2Acc m)
+  have ha0 := encFamilyRunInput_index_polyTime encA m n ComputableInPolyTime.id'
   have hx0 := computableInPolyTime_familyRunInput_bits (encA := encA) (m := m) hn
   have hcoins0 := comp' hcoins ha0
-  have hn0 := comp' hn ha0
-  have hnc0 := comp' unary_add (hn0.prod hcoins0)
-  have hw2_0 := comp' unary_mul (hnc0.prod (const (m - 1)))
+  have hw2_0 := comp' unary_mul
+    ((comp' unary_add ((comp' hn ha0).prod hcoins0)).prod (const (m - 1)))
   have hstage1 := ((isPPTOn_sampleTwoPiBits
-    (fun _ : Fin m => hcoins0)
-    (fun _ : Fin m => hw2_0)).isOraclePPTOn (Operation := Unit)).keep_input
-  have hs1_inp := fst e0 eRC
-  have hs1_rc := snd e0 eRC
-  have ha1 := comp' ha0 hs1_inp
-  have hx1 := comp' hx0 hs1_inp
-  have hr1 := comp' (fst ePi ePi) hs1_rc
-  have hc1 := comp' (snd ePi ePi) hs1_rc
-  have hnc1 := comp' hnc0 hs1_inp
-  have hin1 := computableInPolyTime_step1Wires m hnc1 hx1 hr1 hc1
-  have hempty1 : ComputableInPolyTime
-      (fun _ : FamilyRunInput α m n × ((Fin m → List Bool) × (Fin m → List Bool)) =>
-        (fun _ : Fin m => ([] : List Bool))) e1 ePi :=
-    pi fun _ => const []
-  have hinit2 := hin1.prod (hempty1.prod hempty1)
-  have hD1_gates := comp' (fst (encList Boolean.encGate) (encList encNat)) (comp' hD ha1)
+    (fun _ : Fin m => hcoins0) (fun _ : Fin m => hw2_0)).isOraclePPTOn
+      (Operation := Unit)).keep_input
   have hstage2 := (IsOraclePPTOn.foldlM_of_bounded_growth (.const false, [])
     (step := fun acc item => realGateStep m item acc)
-    hD1_gates hinit2
+    (comp' (fst (encList Boolean.encGate) (encList encNat)) (comp' hD (comp' ha0 (fst e0 eRC))))
+    (computableInPolyTime_runWordInit2 m ha0 hcoins hn hx0)
     ((isOraclePPTOn_realGateStep m).preprocess
-      (prepare := fun p : Step2Acc m × (Boolean.Op × List ℕ) => (p.2, p.1)) (by fun_prop))
+      (prepare := fun p : Step2Acc m × (Boolean.Op × List ℕ) => (p.2, p.1))
+      (computableInPolyTime_swap _ _))
     (fun acc item => realGateStep_growth m item acc)).keep_input
-  have hs2_s1 := fst e1 (encStep2Acc m)
-  have hs2_acc2 := snd e1 (encStep2Acc m)
-  have ha2 := comp' ha1 hs2_s1
-  have hk2 := comp' hk ha2
-  have hD2_outs := comp' (snd (encList Boolean.encGate) (encList encNat)) (comp' hD ha2)
-  have hwires2 := comp' (fst ePi (encPair ePi ePi)) hs2_acc2
-  have hot_c2 := comp' (fst ePi ePi) (comp' (snd ePi (encPair ePi ePi)) hs2_acc2)
-  have hot_a2 := comp' (snd ePi ePi) (comp' (snd ePi (encPair ePi ePi)) hs2_acc2)
-  have hempty2 : ComputableInPolyTime
-      (fun _ : (FamilyRunInput α m n × ((Fin m → List Bool) × (Fin m → List Bool))) × Step2Acc m =>
-        (fun _ : Fin m => ([] : List Bool))) e2 ePi :=
-    pi fun _ => const []
-  have houtItems2 :=
-    computableInPolyTime_buildOutItems m Finset.univ hk2 hD2_outs hwires2 hempty2
-  have hinit3 := hot_c2.prod (hot_a2.prod (hempty2.prod hempty2))
+  have hs2_acc := comp' (snd ePi eRC) (snd (encPair e0 eRC) (encStep2Acc m))
+  have hempty2 := computableInPolyTime_emptyPiBits e2 m
   have hstage3 := (IsOraclePPTOn.foldlM_of_bounded_growth
     ((0, fun _ => false, false) : OutItem m)
     (step := fun acc item => realOutStep m item acc)
-    houtItems2 hinit3
+    (computableInPolyTime_runWordOutItems m Finset.univ ha0 hk hD
+      (computableInPolyTime_emptyPiBits e0 m))
+    ((comp' (fst ePi ePi) hs2_acc).prod ((comp' (snd ePi ePi) hs2_acc).prod
+      (hempty2.prod hempty2)))
     ((isOraclePPTOn_realOutStep m).preprocess
-      (prepare := fun p : Step3Acc m × OutItem m => (p.2, p.1)) (by fun_prop))
+      (prepare := fun p : Step3Acc m × OutItem m => (p.2, p.1))
+      (computableInPolyTime_swap _ _))
     (fun acc item => realOutStep_growth m item acc)).keep_input
-  have hs3_s1 := comp' hs2_s1 (fst e2 (encStep3Acc m))
-  have hs3_acc3 := snd e2 (encStep3Acc m)
-  have hx3 := comp' hx1 hs3_s1
-  have hr3 := comp' hr1 hs3_s1
-  have hc3 := comp' hc1 hs3_s1
-  have hin3 := comp' hin1 hs3_s1
-  have hpost := computableInPolyTime_packRealOutput hx3 hr3 hc3 hin3 hs3_acc3
-  dsimp only [e0, ePi, eRC, e1, e2, e3] at hstage1 hstage2 hstage3 hpost
-  have hres := ((hstage1.bind hstage2).bind hstage3).map hpost
+  have hpost := computableInPolyTime_runWordPost m ha0 hcoins hn hx0 (packRealOutput m)
+    (fun hx hr hc1 hin hacc3 => computableInPolyTime_packRealOutput hx hr hc1 hin hacc3)
+  dsimp only [e0, ePi, eRC, e2] at hstage1 hstage2 hstage3 hpost
   unfold realRunWord
   simpa only [bind_assoc, bind_map_left, map_bind, Functor.map_map, bind_pure_comp,
-    Function.comp_def, Function.flip_def] using hres
+    Function.comp_def, Function.flip_def] using ((hstage1.bind hstage2).bind hstage3).map hpost
 
 private theorem isPPTOn_simRunWord {α : Type} {encA : α ↪ List Bool}
     (m : ℕ) [NeZero m] (I : Finset (Fin m)) {coins n k : α → ℕ}
@@ -1362,80 +1363,44 @@ private theorem isPPTOn_simRunWord {α : Type} {encA : α ↪ List Bool}
   let e0 := encFamilySimInput encA m n k I
   let ePi := encPi (Index := Fin m) encBits
   let eRC := encPair ePi ePi
-  let e1 := encPair e0 eRC
-  let e2 := encPair e1 (encStep2Acc m)
-  let e3 := encPair e2 (encStep3Acc m)
-  have ha0 := (encFamilySimInput_index_polyTime encA m n k I ComputableInPolyTime.id')
+  let e2 := encPair (encPair e0 eRC) (encStep2Acc m)
+  have ha0 := encFamilySimInput_index_polyTime encA m n k I ComputableInPolyTime.id'
   have hx0 := computableInPolyTime_familySimInput_x_bits
     (encA := encA) (m := m) (k := k) (I := I) hn
-  have hy0 := computableInPolyTime_familySimInput_y_bits
-    (encA := encA) (m := m) (n := n) (I := I) hk
   have hcoins0 := comp' hcoins ha0
-  have hn0 := comp' hn ha0
   have hw1_0 : ∀ i : Fin m, ComputableInPolyTime
       (fun inp : FamilySimInput α m n k I => if i ∈ I then coins inp.index else 0) e0 encUnary := by
-    intro i
-    by_cases hi : i ∈ I
-    · simpa only [hi, ↓reduceIte] using hcoins0
-    · simpa only [hi, ↓reduceIte] using const (encIn := e0) (encOut := encUnary) 0
-  have hnc0 := comp' unary_add (hn0.prod hcoins0)
-  have hw2_0 := comp' unary_mul (hnc0.prod (const (m - 1)))
-  have hstage1 := (isPPTOn_sampleTwoPiBits hw1_0 (fun _ : Fin m => hw2_0)).keep_input
-  have hs1_inp := fst e0 eRC
-  have hs1_rc := snd e0 eRC
-  have ha1 := comp' ha0 hs1_inp
-  have hx1 := comp' hx0 hs1_inp
-  have hy1 := comp' hy0 hs1_inp
-  have hr1 := comp' (fst ePi ePi) hs1_rc
-  have hc1 := comp' (snd ePi ePi) hs1_rc
-  have hnc1 := comp' hnc0 hs1_inp
-  have hin1 := computableInPolyTime_step1Wires m hnc1 hx1 hr1 hc1
-  have hempty1 : ComputableInPolyTime
-      (fun _ : FamilySimInput α m n k I × ((Fin m → List Bool) × (Fin m → List Bool)) =>
-        (fun _ : Fin m => ([] : List Bool))) e1 ePi :=
-    pi fun _ => const []
-  have hinit2 := hin1.prod (hempty1.prod hempty1)
-  have hD1_gates := comp' (fst (encList Boolean.encGate) (encList encNat)) (comp' hD ha1)
+    intro i; by_cases hi : i ∈ I <;> simp only [hi, ↓reduceIte]
+    exacts [hcoins0, const (encIn := e0) (encOut := encUnary) 0]
+  have hstage1 := (isPPTOn_sampleTwoPiBits hw1_0 (fun _ : Fin m =>
+    comp' unary_mul ((comp' unary_add ((comp' hn ha0).prod hcoins0)).prod
+      (const (m - 1))))).keep_input
   have hstage2 := (IsPPTOn.foldlM_of_bounded_growth (.const false, [])
     (step := fun acc item => simGateStep m I item acc)
-    hD1_gates hinit2
+    (comp' (fst (encList Boolean.encGate) (encList encNat)) (comp' hD (comp' ha0 (fst e0 eRC))))
+    (computableInPolyTime_runWordInit2 m ha0 hcoins hn hx0)
     ((isPPTOn_simGateStep m I).preprocess
-      (prepare := fun p : Step2Acc m × (Boolean.Op × List ℕ) => (p.2, p.1)) (by fun_prop))
+      (prepare := fun p : Step2Acc m × (Boolean.Op × List ℕ) => (p.2, p.1))
+      (computableInPolyTime_swap _ _))
     (fun acc item => simGateStep_growth m I item acc)).keep_input
-  have hs2_s1 := fst e1 (encStep2Acc m)
-  have hs2_acc2 := snd e1 (encStep2Acc m)
-  have ha2 := comp' ha1 hs2_s1
-  have hk2 := comp' hk ha2
-  have hy2 := comp' hy1 hs2_s1
-  have hD2_outs := comp' (snd (encList Boolean.encGate) (encList encNat)) (comp' hD ha2)
-  have hwires2 := comp' (fst ePi (encPair ePi ePi)) hs2_acc2
-  have hot_c2 := comp' (fst ePi ePi) (comp' (snd ePi (encPair ePi ePi)) hs2_acc2)
-  have hot_a2 := comp' (snd ePi ePi) (comp' (snd ePi (encPair ePi ePi)) hs2_acc2)
-  have hempty2 : ComputableInPolyTime
-      (fun _ :
-        (FamilySimInput α m n k I × ((Fin m → List Bool) × (Fin m → List Bool))) × Step2Acc m =>
-        (fun _ : Fin m => ([] : List Bool))) e2 ePi :=
-    pi fun _ => const []
-  have houtItems2 := computableInPolyTime_buildOutItems m I hk2 hD2_outs hwires2 hy2
-  have hinit3 := hot_c2.prod (hot_a2.prod (hempty2.prod hempty2))
+  have hs2_acc := comp' (snd ePi eRC) (snd (encPair e0 eRC) (encStep2Acc m))
+  have hempty2 := computableInPolyTime_emptyPiBits e2 m
   have hstage3 := (IsPPTOn.foldlM_of_bounded_growth ((0, fun _ => false, false) : OutItem m)
     (step := fun acc item => simOutStep m I item acc)
-    houtItems2 hinit3
+    (computableInPolyTime_runWordOutItems m I ha0 hk hD
+      (computableInPolyTime_familySimInput_y_bits (encA := encA) (m := m) (n := n) (I := I) hk))
+    ((comp' (fst ePi ePi) hs2_acc).prod ((comp' (snd ePi ePi) hs2_acc).prod
+      (hempty2.prod hempty2)))
     ((isPPTOn_simOutStep m I).preprocess
-      (prepare := fun p : Step3Acc m × OutItem m => (p.2, p.1)) (by fun_prop))
+      (prepare := fun p : Step3Acc m × OutItem m => (p.2, p.1))
+      (computableInPolyTime_swap _ _))
     (fun acc item => simOutStep_growth m I item acc)).keep_input
-  have hs3_s1 := comp' hs2_s1 (fst e2 (encStep3Acc m))
-  have hs3_acc3 := snd e2 (encStep3Acc m)
-  have hx3 := comp' hx1 hs3_s1
-  have hr3 := comp' hr1 hs3_s1
-  have hc3 := comp' hc1 hs3_s1
-  have hin3 := comp' hin1 hs3_s1
-  have hpost := computableInPolyTime_packSimOutput I hx3 hr3 hc3 hin3 hs3_acc3
-  dsimp only [e0, ePi, eRC, e1, e2, e3] at hstage1 hstage2 hstage3 hpost
-  have hres := ((hstage1.bind hstage2).bind hstage3).map hpost
+  have hpost := computableInPolyTime_runWordPost m ha0 hcoins hn hx0 (packSimOutput m I)
+    (fun hx hr hc1 hin hacc3 => computableInPolyTime_packSimOutput I hx hr hc1 hin hacc3)
+  dsimp only [e0, ePi, eRC, e2] at hstage1 hstage2 hstage3 hpost
   unfold simRunWord
   simpa only [bind_assoc, bind_map_left, map_bind, Functor.map_map, bind_pure_comp,
-    Function.comp_def, Function.flip_def] using hres
+    Function.comp_def, Function.flip_def] using ((hstage1.bind hstage2).bind hstage3).map hpost
 
 end PolyTimeRunner
 

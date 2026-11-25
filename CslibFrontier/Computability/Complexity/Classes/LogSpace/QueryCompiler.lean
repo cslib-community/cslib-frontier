@@ -50,9 +50,8 @@ theorem mem_UL_of_firstHalting {α σ : Type} {enc : α ↪ List Bool} {encS : �
     {A : Set α} (hcorrect : ∀ a, a ∈ A ↔ (M.withInit (start a)).Accepts (enc a)) :
     A ∈ UL enc := by
   classical
-  let S (a : α) := Nat.log2 (enc a).length + 1
-  obtain ⟨R⟩ := M.exists_routines hquery hnext hhalted haccept start S (fun _ => le_rfl)
-    hstart hsize
+  obtain ⟨R⟩ := M.exists_routines hquery hnext hhalted haccept start
+    (fun a => Nat.log2 (enc a).length + 1) (fun _ => le_rfl) hstart hsize
   let : Finite R.SI := R.finiteI
   let : ∀ b, Finite (R.SP b) := R.finiteP
   let : Finite R.SF := R.finiteF
@@ -60,31 +59,18 @@ theorem mem_UL_of_firstHalting {α σ : Type} {enc : α ↪ List Bool} {encS : �
   choose fuel hfuel using fun a => R.exists_runsInTime a (htime a)
   let N := Native.countingMachine R.I R.P R.F R.C
   let f (a : α) := N.acceptCount (fuel a) (R.machine.initCfg (enc a))
-  have hcount (a : α) : (f a : ℕ∞) =
-      {bits : List Bool | M.FirstHalting (enc a) bits (start a) ∧
-        M.accept (M.replay (enc a) bits (start a)) = true}.encard := by
-    simpa only [f, N, MultiTapeCTM.acceptCount, beq_iff_eq, List.cons.injEq, and_true] using
-      R.branchCount_eq_encard_firstHalting a (hfuel a) (· == [true])
-  refine ⟨f, ⟨R.k, Native.State R.SI R.SP R.SF, inferInstance, N, R.k * (2 * R.c + 1), ?_⟩,
-    ?_, ?_⟩
-  · intro a
-    have hmachine : N.toNTM = R.machine := Native.toNTM_countingMachine R.I R.P R.F R.C
+  have hcount (a : α) := R.acceptCount_eq_encard_firstHalting a (hfuel a)
+  refine ⟨f, ⟨R.k, Native.State R.SI R.SP R.SF, inferInstance, N, R.k * (2 * R.c + 1), fun a => ?_⟩,
+    fun a => by
+      exact_mod_cast (hcount a).trans_le (Set.encard_le_one_iff_subsingleton.mpr (hunique a)),
+    fun a => ?_⟩
+  · have hmachine : N.toNTM = R.machine := Native.toNTM_countingMachine R.I R.P R.F R.C
     have hcfg : Cfg.init N.initial (enc a) = R.machine.initCfg (enc a) :=
-      congrArg (fun m => m.initCfg (enc a)) hmachine
-    have hspace := (R.recognizesInSpace hcorrect
-      (fun x => Nat.succ_pos (Nat.log2 (enc x).length)) a).1
-    refine ⟨hmachine.symm ▸ hspace, fuel a, ?_, ?_⟩
-    · rw [hcfg]
-      exact Native.countingMachine_haltsWithin R.I R.P R.F R.C (hfuel a)
-    · rw [hcfg]
-  · intro a
-    have hle : (f a : ℕ∞) ≤ 1 :=
-      (hcount a).trans_le (Set.encard_le_one_iff_subsingleton.mpr (hunique a))
-    exact_mod_cast hle
-  · intro a
-    rw [hcorrect a, accepts_iff_exists_firstHalting]
-    have hp : (0 < f a) ↔ (0 : ℕ∞) < (f a : ℕ∞) := by exact_mod_cast Iff.rfl
-    rw [hp, hcount a, Set.encard_pos]
+      congrArg (·.initCfg (enc a)) hmachine
+    exact ⟨hmachine.symm ▸ (R.recognizesInSpace hcorrect (fun _ => Nat.succ_pos _) a).1,
+      fuel a, hcfg ▸ Native.countingMachine_haltsWithin R.I R.P R.F R.C (hfuel a), by rw [hcfg]⟩
+  · rw [hcorrect a, accepts_iff_exists_firstHalting,
+      (by exact_mod_cast Iff.rfl : 0 < f a ↔ (0 : ℕ∞) < (f a : ℕ∞)), hcount a, Set.encard_pos]
     rfl
 
 end Turing.NondeterministicQueryMachine

@@ -33,6 +33,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.EventBind
+import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -131,85 +132,52 @@ theorem le_fairFlipStep_toReal {w k : ℕ} {c : Clause V} (hclen : c.length ≤ 
     (σ τ : V → Bool) :
     (1 - (k : ℝ) / (2 : ℝ) ^ w) * (flipStep c σ τ).toReal ≤ (fairFlipStep w c σ τ).toReal := by
   classical
-  have h2w : (0 : ℝ) < (2 : ℝ) ^ w := by positivity
-  have hα_le : 1 - (k : ℝ) / (2 : ℝ) ^ w ≤ 1 := by
-    have : (0 : ℝ) ≤ (k : ℝ) / (2 : ℝ) ^ w := by positivity
-    linarith
+  have hα_le : 1 - (k : ℝ) / (2 : ℝ) ^ w ≤ 1 := sub_le_self _ (by positivity)
   by_cases hc0 : c.length = 0
   · simp only [flipStep, fairFlipStep, hc0, ↓reduceDIte]
     exact mul_le_of_le_one_left ENNReal.toReal_nonneg hα_le
   · have hm : 0 < c.length := Nat.pos_of_ne_zero hc0
     have : NeZero c.length := ⟨hc0⟩
-    have hm_le_k : (c.length : ℝ) ≤ k := by exact_mod_cast hclen
     have hα_m : 1 - (k : ℝ) / (2 : ℝ) ^ w ≤ 1 - (c.length : ℝ) / (2 : ℝ) ^ w := by
-      have : (c.length : ℝ) / (2 : ℝ) ^ w ≤ (k : ℝ) / (2 : ℝ) ^ w := by gcongr
-      linarith
-    simp only [flipStep, fairFlipStep, hc0, ↓reduceDIte]
-    have hunif : ((PMF.uniformOfFintype (Fin c.length)).map
-        (fun i => flipOn {(c.get i).1} σ) τ).toReal =
-        ∑ i : Fin c.length,
-          if τ = flipOn {(c.get i).1} σ then (c.length : ℝ)⁻¹ else 0 := by
-      rw [PMF.map_apply, tsum_fintype]
-      simp only [PMF.uniformOfFintype_apply, Fintype.card_fin]
-      rw [ENNReal.toReal_sum (fun i _ => by
-        split_ifs
-        · exact ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr hc0)
-        · exact ENNReal.zero_ne_top)]
-      refine Finset.sum_congr rfl fun i _ => ?_
-      split_ifs <;> simp only [ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.toReal_zero]
-    rw [hunif, Finset.mul_sum]
-    have hfair :
-        ∑ i : Fin c.length,
-          (if τ = flipOn {(c.get i).1} σ then
-            (ProbComp.eval (ProbComp.sampleModNat w c.length) i.val).toReal else 0) ≤
-        ((ProbComp.eval (ProbComp.sampleModNat w c.length)).map
-          (fun r => flipOn {(c.get ⟨r % c.length, Nat.mod_lt r hm⟩).1} σ) τ).toReal := by
-      let f (r : ℕ) : ℝ≥0∞ :=
-        if τ = flipOn {(c.get ⟨r % c.length, Nat.mod_lt r hm⟩).1} σ then
-          ProbComp.eval (ProbComp.sampleModNat w c.length) r else 0
-      have hmap_eq : ((ProbComp.eval (ProbComp.sampleModNat w c.length)).map
-          (fun r => flipOn {(c.get ⟨r % c.length, Nat.mod_lt r hm⟩).1} σ) τ) = ∑' r : ℕ, f r := by
-        rw [PMF.map_apply]
-      have hsum_le : (∑ i : Fin c.length,
-          if τ = flipOn {(c.get i).1} σ then
-            ProbComp.eval (ProbComp.sampleModNat w c.length) i.val else 0) ≤
-          ∑' r : ℕ, f r := by
-        calc ∑ i : Fin c.length,
-              (if τ = flipOn {(c.get i).1} σ then
-                ProbComp.eval (ProbComp.sampleModNat w c.length) i.val else 0)
-            = ∑ r ∈ Finset.range c.length, f r := by
-              rw [← Fin.sum_univ_eq_sum_range]
+      have : (c.length : ℝ) ≤ k := by exact_mod_cast hclen
+      gcongr
+    let g (i : Fin c.length) : V → Bool := flipOn {(c.get i).1} σ
+    have hunif : (flipStep c σ τ).toReal =
+        ∑ i : Fin c.length, if τ = g i then (c.length : ℝ)⁻¹ else 0 := by
+      simp only [flipStep, hc0, ↓reduceDIte, Cslib.Probability.PMF.map_apply_toReal,
+        PMF.uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv, ENNReal.toReal_natCast, g]
+    have hfair_le :
+        (∑ i : Fin c.length, if τ = g i then
+          (ProbComp.eval (ProbComp.sampleModNat w c.length) i.1).toReal else 0) ≤
+        (fairFlipStep w c σ τ).toReal := by
+      calc (∑ i : Fin c.length, if τ = g i then
+              (ProbComp.eval (ProbComp.sampleModNat w c.length) i.1).toReal else 0)
+          = (∑ i : Fin c.length, (if τ = g i then
+              ProbComp.eval (ProbComp.sampleModNat w c.length) i.1 else 0).toReal) := by
               refine Finset.sum_congr rfl fun i _ => ?_
-              dsimp only [f]
-              have hmod : (⟨i.val % c.length, Nat.mod_lt i.val hm⟩ : Fin c.length) = i := by
-                ext; exact Nat.mod_eq_of_lt i.isLt
-              rw [hmod]
-          _ ≤ ∑' r : ℕ, f r := sum_le_tsum (Finset.range c.length)
-      have htsum_ne_top : (∑' r : ℕ, f r) ≠ ⊤ := by
-        rw [← hmap_eq]
-        exact PMF.apply_ne_top _ _
-      rw [hmap_eq]
-      have htoReal := (ENNReal.toReal_le_toReal
-        (ENNReal.sum_ne_top.mpr fun i _ => by
-          split_ifs
-          · exact PMF.apply_ne_top _ _
-          · exact ENNReal.zero_ne_top)
-        htsum_ne_top).mpr hsum_le
-      refine le_trans ?_ htoReal
-      rw [ENNReal.toReal_sum (fun i _ => by
-        split_ifs
-        · exact PMF.apply_ne_top _ _
-        · exact ENNReal.zero_ne_top)]
-      refine le_of_eq (Finset.sum_congr rfl fun i _ => ?_)
-      split_ifs <;> simp only [ENNReal.toReal_zero]
-    refine le_trans ?_ hfair
-    refine Finset.sum_le_sum fun i _ => ?_
-    by_cases hτ : τ = flipOn {(c.get i).1} σ
-    · simp only [hτ, ↓reduceIte]
-      have hstep := ProbComp.le_eval_sampleModNat_toReal (w := w) i.isLt
-      have hcpos : (0 : ℝ) ≤ (c.length : ℝ)⁻¹ := by positivity
-      exact (mul_le_mul_of_nonneg_right hα_m hcpos).trans hstep
-    · simp only [hτ, ↓reduceIte, mul_zero, le_refl]
+              split_ifs <;> simp
+        _ = (∑ i : Fin c.length, if τ = g i then
+              ProbComp.eval (ProbComp.sampleModNat w c.length) i.1 else 0).toReal :=
+              (ENNReal.toReal_sum fun _ _ => by split_ifs <;> simp [PMF.apply_ne_top]).symm
+        _ ≤ (fairFlipStep w c σ τ).toReal := by
+              refine ENNReal.toReal_mono (PMF.apply_ne_top _ _) ?_
+              simp only [fairFlipStep, hc0, ↓reduceDIte, PMF.map_apply]
+              calc (∑ i : Fin c.length, if τ = g i then
+                      ProbComp.eval (ProbComp.sampleModNat w c.length) i.1 else 0)
+                  = ∑ r ∈ Finset.range c.length, if τ = g ⟨r % c.length, Nat.mod_lt r hm⟩ then
+                      ProbComp.eval (ProbComp.sampleModNat w c.length) r else 0 := by
+                      rw [← Fin.sum_univ_eq_sum_range]
+                      refine Finset.sum_congr rfl fun i _ => ?_
+                      have hmod : (⟨i.1 % c.length, Nat.mod_lt i.1 hm⟩ : Fin c.length) = i :=
+                        Fin.ext (Nat.mod_eq_of_lt i.isLt)
+                      rw [hmod]
+                _ ≤ _ := sum_le_tsum (Finset.range c.length)
+    rw [hunif, Finset.mul_sum]
+    refine (Finset.sum_le_sum fun i _ => ?_).trans hfair_le
+    split_ifs
+    · exact (mul_le_mul_of_nonneg_right hα_m (by positivity)).trans
+        (ProbComp.le_eval_sampleModNat_toReal i.isLt)
+    · simp
 
 /-- Pointwise domination across `t` steps of the walk. -/
 theorem le_fairWalk_toReal [Finite V] {w k : ℕ} {φ : CNF V} (hlen : ∀ c ∈ φ, c.length ≤ k)
@@ -217,88 +185,51 @@ theorem le_fairWalk_toReal [Finite V] {w k : ℕ} {φ : CNF V} (hlen : ∀ c ∈
     (1 - (k : ℝ) / (2 : ℝ) ^ w) ^ t * (walk φ t σ τ).toReal ≤ (fairWalk w φ t σ τ).toReal := by
   cases nonempty_fintype V
   have h2w : (0 : ℝ) < (2 : ℝ) ^ w := by positivity
-  have hα0 : 0 ≤ 1 - (k : ℝ) / (2 : ℝ) ^ w := by
-    rw [sub_nonneg, div_le_one h2w]
-    exact hkw
-  have hα1 : 1 - (k : ℝ) / (2 : ℝ) ^ w ≤ 1 := by
-    have : (0 : ℝ) ≤ (k : ℝ) / (2 : ℝ) ^ w := by positivity
-    linarith
+  have hα0 : 0 ≤ 1 - (k : ℝ) / (2 : ℝ) ^ w := sub_nonneg.mpr ((div_le_one h2w).mpr hkw)
+  have hα1 : 1 - (k : ℝ) / (2 : ℝ) ^ w ≤ 1 := sub_le_self _ (by positivity)
   induction t generalizing σ with
-  | zero =>
-    simp only [pow_zero, one_mul, walk, fairWalk, le_refl]
+  | zero => simp only [pow_zero, one_mul, walk, fairWalk, le_refl]
   | succ t ih =>
     simp only [walk, fairWalk]
     cases hfind : firstUnsat φ σ with
-    | none =>
-      exact mul_le_of_le_one_left ENNReal.toReal_nonneg (pow_le_one₀ hα0 hα1)
+    | none => exact mul_le_of_le_one_left ENNReal.toReal_nonneg (pow_le_one₀ hα0 hα1)
     | some c =>
-      have hc_mem : c ∈ φ := List.mem_of_find?_eq_some hfind
-      have hbind_walk : ((flipStep c σ).bind (walk φ t) τ).toReal =
-          ∑ σ', (flipStep c σ σ').toReal * (walk φ t σ' τ).toReal := by
-        have h := PMF.toOuterMeasure_bind_toReal (flipStep c σ) (walk φ t) {τ}
-        simpa only [PMF.toOuterMeasure_apply_singleton] using h
-      have hbind_fair : ((fairFlipStep w c σ).bind (fairWalk w φ t) τ).toReal =
-          ∑ σ', (fairFlipStep w c σ σ').toReal * (fairWalk w φ t σ' τ).toReal := by
-        have h := PMF.toOuterMeasure_bind_toReal (fairFlipStep w c σ) (fairWalk w φ t) {τ}
-        simpa only [PMF.toOuterMeasure_apply_singleton] using h
-      rw [hbind_walk, hbind_fair, pow_succ, Finset.mul_sum]
+      rw [Cslib.Probability.PMF.bind_apply_toReal, Cslib.Probability.PMF.bind_apply_toReal,
+        pow_succ, Finset.mul_sum]
       refine Finset.sum_le_sum fun σ' _ => ?_
-      have h1 := le_fairFlipStep_toReal (w := w) (hlen c hc_mem) σ σ'
+      have h1 := le_fairFlipStep_toReal (w := w) (hlen c (List.mem_of_find?_eq_some hfind)) σ σ'
       have h2 := ih σ'
       calc ((1 - (k : ℝ) / (2 : ℝ) ^ w) ^ t * (1 - (k : ℝ) / (2 : ℝ) ^ w)) *
             ((flipStep c σ σ').toReal * (walk φ t σ' τ).toReal)
           = ((1 - (k : ℝ) / (2 : ℝ) ^ w) * (flipStep c σ σ').toReal) *
               ((1 - (k : ℝ) / (2 : ℝ) ^ w) ^ t * (walk φ t σ' τ).toReal) := by ring
-        _ ≤ (fairFlipStep w c σ σ').toReal * (fairWalk w φ t σ' τ).toReal :=
-            mul_le_mul h1 h2 (mul_nonneg (pow_nonneg hα0 t) ENNReal.toReal_nonneg)
-              ENNReal.toReal_nonneg
+        _ ≤ _ := mul_le_mul h1 h2 (mul_nonneg (pow_nonneg hα0 t) ENNReal.toReal_nonneg)
+            ENNReal.toReal_nonneg
 
 private theorem half_le_bernoulli_factor (n k : ℕ) :
     (1 / 2 : ℝ) ≤ (1 - (k : ℝ) / (2 : ℝ) ^ (2 * n + k + 3)) ^ (3 * n) := by
-  let w := 2 * n + k + 3
-  let δ : ℝ := (k : ℝ) / (2 : ℝ) ^ w
-  have h2w : (0 : ℝ) < (2 : ℝ) ^ w := by positivity
-  have hk_lt : k < 2 ^ w :=
-    calc k < 2 ^ k := Nat.lt_two_pow_self
-      _ ≤ 2 ^ w := Nat.pow_le_pow_right (by decide) (by dsimp only [w]; omega)
-  have hδ0 : 0 ≤ δ := by positivity
-  have hδ1 : δ ≤ 1 := by
-    dsimp only [δ]
-    rw [div_le_one h2w]
-    exact_mod_cast hk_lt.le
-  have hprod_lt : (3 * n) * k < 2 ^ (2 * n + k + 2) := by
-    have h3n : 3 * n < 2 ^ (2 * n + 2) := by
-      have hn2 : n < 2 ^ n := Nat.lt_two_pow_self
-      have hpow : 4 * 2 ^ n ≤ 2 ^ (2 * n + 2) := by
-        calc 4 * 2 ^ n = 2 ^ (n + 2) := by ring
-          _ ≤ 2 ^ (2 * n + 2) := Nat.pow_le_pow_right (by decide) (by omega)
-      omega
-    have hk2 : k < 2 ^ k := Nat.lt_two_pow_self
-    calc (3 * n) * k ≤ 2 ^ (2 * n + 2) * k := Nat.mul_le_mul_right k h3n.le
-      _ < 2 ^ (2 * n + 2) * 2 ^ k := by
-        rcases Nat.eq_zero_or_pos (2 ^ (2 * n + 2)) with h0 | hpos
-        · exact absurd h0 (pow_ne_zero _ (by decide))
-        · exact Nat.mul_lt_mul_of_pos_left hk2 hpos
+  set δ : ℝ := (k : ℝ) / (2 : ℝ) ^ (2 * n + k + 3)
+  have h3n : 3 * n < 2 ^ (2 * n + 2) := by
+    have hpow : 4 * 2 ^ n ≤ 2 ^ (2 * n + 2) := by
+      calc 4 * 2 ^ n = 2 ^ (n + 2) := by ring
+        _ ≤ 2 ^ (2 * n + 2) := Nat.pow_le_pow_right (by decide) (by omega)
+    have := Nat.lt_two_pow_self (n := n)
+    omega
+  have hprod_le : (3 * n) * k ≤ 2 ^ (2 * n + k + 2) := by
+    calc 3 * n * k ≤ 2 ^ (2 * n + 2) * 2 ^ k := by gcongr; exact Nat.lt_two_pow_self.le
       _ = 2 ^ (2 * n + k + 2) := by rw [← Nat.pow_add]; ring_nf
+  have hk_le : (k : ℝ) ≤ (2 : ℝ) ^ (2 * n + k + 3) := by
+    exact_mod_cast (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right (by decide) (by omega)))
+  have hδ1 : δ ≤ 1 := (div_le_one (by positivity)).mpr hk_le
   have hprod_half : (3 * n : ℝ) * δ ≤ 1 / 2 := by
-    dsimp only [δ, w]
-    have hR : ((3 * n : ℝ) * k) ≤ (2 : ℝ) ^ (2 * n + k + 2) := by exact_mod_cast hprod_lt.le
-    have hsplit : (2 : ℝ) ^ (2 * n + k + 3) = 2 * (2 : ℝ) ^ (2 * n + k + 2) := by
-      rw [pow_succ']
-    rw [hsplit]
-    have hp : (0 : ℝ) < (2 : ℝ) ^ (2 * n + k + 2) := by positivity
-    calc (3 * n : ℝ) * ((k : ℝ) / (2 * (2 : ℝ) ^ (2 * n + k + 2)))
-        = ((3 * n : ℝ) * k) / (2 * (2 : ℝ) ^ (2 * n + k + 2)) := by ring
-      _ ≤ (2 : ℝ) ^ (2 * n + k + 2) / (2 * (2 : ℝ) ^ (2 * n + k + 2)) := by gcongr
-      _ = 1 / 2 := by field_simp
+    have hR : (3 * n : ℝ) * k ≤ (2 : ℝ) ^ (2 * n + k + 2) := by exact_mod_cast hprod_le
+    dsimp only [δ]
+    rw [show (2 : ℝ) ^ (2 * n + k + 3) = 2 * (2 : ℝ) ^ (2 * n + k + 2) by ring, mul_div_assoc',
+      div_le_iff₀ (by positivity)]
+    linarith
   have hbern := one_add_mul_le_pow (a := -δ) (by linarith) (3 * n)
   push_cast at hbern
-  change _ ≤ (1 - δ) ^ (3 * n)
-  calc (1 / 2 : ℝ) = 1 - 1 / 2 := by ring
-    _ ≤ 1 - (3 * n : ℝ) * δ := by linarith
-    _ = 1 + (3 * n : ℝ) * -δ := by ring
-    _ ≤ (1 + -δ) ^ (3 * n) := hbern
-    _ = (1 - δ) ^ (3 * n) := by ring
+  linarith [show (1 - δ) ^ (3 * n) = (1 + -δ) ^ (3 * n) by ring]
 
 /-- **Fair-coin Schöning trial domination.** Using `w = 2 |V| + k + 3` fair bits per step preserves
 at least half of the ideal single-trial success probability. -/
@@ -309,42 +240,29 @@ theorem half_mul_succeedProb_trial_le_fairTrial [Fintype V] {k : ℕ} {φ : CNF 
   set n := Fintype.card V
   set w := 2 * n + k + 3
   have hkw : (k : ℝ) ≤ (2 : ℝ) ^ w := by
-    have hk : k < 2 ^ k := Nat.lt_two_pow_self
-    have hle : 2 ^ k ≤ 2 ^ w := Nat.pow_le_pow_right (by decide) (by dsimp only [w]; omega)
-    exact_mod_cast (hk.trans_le hle).le
+    exact_mod_cast (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right (by decide) (by omega)))
   have hwalk_succ (σ : V → Bool) :
       (1 - (k : ℝ) / (2 : ℝ) ^ w) ^ (3 * n) * succeedProb φ (walk φ (3 * n) σ) ≤
         succeedProb φ (fairWalk w φ (3 * n) σ) := by
-    rw [succeedProb, succeedProb,
-      Cslib.Probability.PMF.toOuterMeasure_apply_toReal,
-      Cslib.Probability.PMF.toOuterMeasure_apply_toReal,
-      Finset.mul_sum]
+    simp only [succeedProb, Cslib.Probability.PMF.toOuterMeasure_apply_toReal, Finset.mul_sum]
     refine Finset.sum_le_sum fun τ _ => ?_
-    by_cases hτ : τ ∈ {τ : V → Bool | φ.eval τ = true}
-    · simp only [hτ, ↓reduceIte]
-      exact le_fairWalk_toReal hlen hkw (3 * n) σ τ
-    · simp only [hτ, ↓reduceIte, mul_zero, le_refl]
+    split_ifs
+    · exact le_fairWalk_toReal hlen hkw (3 * n) σ τ
+    · simp
   have htrial_dom :
       (1 - (k : ℝ) / (2 : ℝ) ^ w) ^ (3 * n) * succeedProb φ (trial φ) ≤
         succeedProb φ (fairTrial w φ) := by
-    rw [trial, fairTrial, succeedProb, succeedProb,
-      Cslib.Probability.PMF.toOuterMeasure_bind_toReal,
-      Cslib.Probability.PMF.toOuterMeasure_bind_toReal, Finset.mul_sum]
+    simp only [trial, fairTrial, succeedProb, Cslib.Probability.PMF.toOuterMeasure_bind_toReal,
+      Finset.mul_sum]
     refine Finset.sum_le_sum fun σ _ => ?_
-    have h := hwalk_succ σ
-    have hu : 0 ≤ (PMF.uniformOfFintype (V → Bool) σ).toReal := ENNReal.toReal_nonneg
     calc (1 - (k : ℝ) / (2 : ℝ) ^ w) ^ (3 * n) *
-          ((PMF.uniformOfFintype (V → Bool) σ).toReal *
-            ((walk φ (3 * n) σ).toOuterMeasure {σ | φ.eval σ = true}).toReal)
+          ((PMF.uniformOfFintype (V → Bool) σ).toReal * _)
         = (PMF.uniformOfFintype (V → Bool) σ).toReal *
             ((1 - (k : ℝ) / (2 : ℝ) ^ w) ^ (3 * n) * succeedProb φ (walk φ (3 * n) σ)) := by
-          rw [succeedProb]; ring
-      _ ≤ (PMF.uniformOfFintype (V → Bool) σ).toReal *
-            ((fairWalk w φ (3 * n) σ).toOuterMeasure {σ | φ.eval σ = true}).toReal := by
-          rw [← succeedProb]; exact mul_le_mul_of_nonneg_left h hu
-  have hprob0 : 0 ≤ succeedProb φ (trial φ) := by
-    rw [succeedProb]; exact ENNReal.toReal_nonneg
-  exact (mul_le_mul_of_nonneg_right (half_le_bernoulli_factor n k) hprob0).trans htrial_dom
+          simp only [succeedProb]; ring
+      _ ≤ _ := mul_le_mul_of_nonneg_left (hwalk_succ σ) ENNReal.toReal_nonneg
+  exact (mul_le_mul_of_nonneg_right (half_le_bernoulli_factor n k)
+    (by rw [succeedProb]; exact ENNReal.toReal_nonneg)).trans htrial_dom
 
 end FairWalk
 
@@ -414,13 +332,8 @@ private theorem computableInPolyTime_firstUnsatClauseBits :
 private theorem computableInPolyTime_flipBitAt :
     ComputableInPolyTime (fun p : List Bool × ℕ => flipBitAt p.1 p.2)
       (encPair encBits encUnary) encBits := by
-  have hlist : ComputableInPolyTime
-      (fun p : List Bool × ℕ =>
-        (List.range p.1.length).map fun i =>
-          if i == p.2 then !(p.1.getD i false) else p.1.getD i false)
-      (encPair encBits encUnary) (encList encBool) := by
-    fun_prop
-  exact ComputableInPolyTime.listToBits.comp hlist
+  unfold flipBitAt
+  exact ComputableInPolyTime.listToBits.comp (by fun_prop)
 
 private theorem isPPTOn_walkStepBits :
     IsPPTOn (encPair (encPair (encCNFOver encUnary) encUnary) encBits) encBits
@@ -434,47 +347,26 @@ private theorem isPPTOn_walkStepBits :
         (ComputableInPolyTime.snd _ _))
   have hempty : ComputableInPolyTime
       (fun p : (CNF ℕ × ℕ) × List Bool => (firstUnsatClauseBits p.1.1 p.2).isEmpty)
-      InEnc encBool := by
+      InEnc encBool := (ComputableInPolyTime.listIsEmpty' (encPair encUnary encBool)).comp hc
+  have hw : ComputableInPolyTime (fun p : (CNF ℕ × ℕ) × List Bool => p.1.2) InEnc encUnary := by
     fun_prop
-  have hw : ComputableInPolyTime (fun p : (CNF ℕ × ℕ) × List Bool => p.1.2) InEnc encUnary :=
-    (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
   have hclen_unary : ComputableInPolyTime
       (fun p : (CNF ℕ × ℕ) × List Bool => (firstUnsatClauseBits p.1.1 p.2).length)
-      InEnc encUnary :=
-    Clause.computableInPolyTime_length hc
-  have hclen_bin : ComputableInPolyTime
-      (fun p : (CNF ℕ × ℕ) × List Bool => (firstUnsatClauseBits p.1.1 p.2).length)
-      InEnc encNat :=
-    ComputableInPolyTime.unary_to_binary.comp hclen_unary
+      InEnc encUnary := Clause.computableInPolyTime_length hc
   have hmod : IsPPTOn InEnc encNat
       (fun p : (CNF ℕ × ℕ) × List Bool =>
         ProbComp.sampleModNat p.1.2 (firstUnsatClauseBits p.1.1 p.2).length) :=
-    isPPTOn_sampleModNat hw hclen_bin
+    isPPTOn_sampleModNat hw (ComputableInPolyTime.unary_to_binary.comp hclen_unary)
   have hpost : ComputableInPolyTime
       (fun q : ((CNF ℕ × ℕ) × List Bool) × ℕ =>
         let c := firstUnsatClauseBits q.1.1.1 q.1.2
-        let idx := min c.length q.2
-        let v := (c.getD idx (0, false)).1
-        flipBitAt q.1.2 v)
+        flipBitAt q.1.2 (c.getD (min c.length q.2) (0, false)).1)
       (encPair InEnc encNat) encBits := by
-    have hc_q : ComputableInPolyTime
-        (fun q : ((CNF ℕ × ℕ) × List Bool) × ℕ => firstUnsatClauseBits q.1.1.1 q.1.2)
-        (encPair InEnc encNat) (encClause encUnary) :=
-      hc.comp (ComputableInPolyTime.fst _ _)
-    have hidx : ComputableInPolyTime
-        (fun q : ((CNF ℕ × ℕ) × List Bool) × ℕ =>
-          min (firstUnsatClauseBits q.1.1.1 q.1.2).length q.2)
-        (encPair InEnc encNat) encUnary :=
-      ComputableInPolyTime.binary_min_unary'
-        (hclen_unary.comp (ComputableInPolyTime.fst _ _))
-        (ComputableInPolyTime.snd _ _)
-    have hv : ComputableInPolyTime
-        (fun q : ((CNF ℕ × ℕ) × List Bool) × ℕ =>
-          ((firstUnsatClauseBits q.1.1.1 q.1.2).getD
-            (min (firstUnsatClauseBits q.1.1.1 q.1.2).length q.2) (0, false)).1)
-        (encPair InEnc encNat) encUnary :=
-      (ComputableInPolyTime.fst encUnary encBool).comp
-        (ComputableInPolyTime.listGetDWithInput hc_q hidx (0, false))
+    have hv := (ComputableInPolyTime.fst encUnary encBool).comp
+      (ComputableInPolyTime.listGetDWithInput (hc.comp (ComputableInPolyTime.fst _ _))
+        (ComputableInPolyTime.binary_min_unary'
+          (hclen_unary.comp (ComputableInPolyTime.fst _ _)) (ComputableInPolyTime.snd _ _))
+        (0, false))
     exact computableInPolyTime_flipBitAt.comp
       (((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)).prod hv)
   refine IsPPTOn.cond hempty (ComputableInPolyTime.snd _ _).isPPTOn ?_
@@ -484,13 +376,11 @@ private theorem length_eq_of_mem_support_walkStepBits {ψ : CNF ℕ} {w : ℕ} {
     (hnext : next ∈ (ProbComp.eval (walkStepBits ψ w bits)).support) :
     next.length = bits.length := by
   dsimp only [walkStepBits] at hnext
-  cases h : (firstUnsatClauseBits ψ bits).isEmpty with
-  | true =>
-    simp only [h, ↓reduceIte, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hnext
+  split_ifs at hnext with h
+  · simp only [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hnext
     rw [hnext]
-  | false =>
-    simp only [h, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind, PMF.mem_support_bind_iff,
-      ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hnext
+  · simp only [ProbComp.eval_bind, PMF.mem_support_bind_iff, ProbComp.eval_pure,
+      PMF.support_pure, Set.mem_singleton_iff] at hnext
     obtain ⟨_, _, rfl⟩ := hnext
     exact length_flipBitAt bits _
 
@@ -500,47 +390,22 @@ private theorem isPPTOn_iterateBitsOfStep {P : Type} (encP : P ↪ List Bool)
     (hlen_eq : ∀ p bits next, next ∈ (ProbComp.eval (stepFn p bits)).support →
       next.length = bits.length) :
     IsPPTOn (encPair (encPair encP encUnary) encBits) encBits
-      (fun x : (P × ℕ) × List Bool =>
-        let hdr := x.1
-        OracleComp.iterate hdr.2 (stepFn hdr.1) x.2) := by
-  let In := (P × ℕ) × List Bool
-  let encHdr : P × ℕ ↪ List Bool := encPair encP encUnary
-  let encIn : In ↪ List Bool := encPair encHdr encBits
-  let getCount (x : In) : ℕ :=
-    let hdr := x.1
-    hdr.2
-  let getParam (x : In) : P :=
-    let hdr := x.1
-    hdr.1
-  have hcount : ComputableInPolyTime getCount encIn encUnary :=
-    (ComputableInPolyTime.snd encP encUnary).comp (ComputableInPolyTime.fst encHdr encBits)
-  have hinit : ComputableInPolyTime (fun x : In => x.2) encIn encBits :=
-    ComputableInPolyTime.snd encHdr encBits
-  have hparam : ComputableInPolyTime (fun q : In × List Bool => (getParam q.1, q.2))
-      (encPair encIn encBits) (encPair encP encBits) :=
-    (((ComputableInPolyTime.fst encP encUnary).comp
-      (ComputableInPolyTime.fst encHdr encBits)).comp
-      (ComputableInPolyTime.fst encIn encBits)).prod
-      (ComputableInPolyTime.snd encIn encBits)
-  have hstep : IsPPTOn (encPair encIn encBits) encBits
-      (fun q : In × List Bool => stepFn (getParam q.1) q.2) :=
-    hstepFn.preprocess hparam
-  refine (IsPPTOn.iterateWith_spec
-    (α := In) (State := List Bool)
+      (fun x : (P × ℕ) × List Bool => OracleComp.iterate x.1.2 (stepFn x.1.1) x.2) := by
+  let encIn := encPair (encPair encP encUnary) encBits
+  have hparam : ComputableInPolyTime (fun q : ((P × ℕ) × List Bool) × List Bool => (q.1.1.1, q.2))
+      (encPair encIn encBits) (encPair encP encBits) := by
+    fun_prop
+  exact (IsPPTOn.iterateWith_spec
     (input := encIn) (stateEncoding := encBits)
-    (initial := fun x : In => x.2)
-    (count := getCount)
-    (step := fun (x : In) (bits : List Bool) => stepFn (getParam x) bits)
-    hcount hinit hstep
-    (fun x _ bits => bits.length = x.2.length)
-    (fun _ => rfl)
-    (fun x _ _ _ hlen _ hnext => (hlen_eq (getParam x) _ _ hnext).trans hlen)
-    (size := fun x => (encIn x).length)
-    PolyBounded.self
+    (initial := Prod.snd) (count := fun x => x.1.2)
+    (step := fun x bits => stepFn x.1.1 bits)
+    (by fun_prop) (ComputableInPolyTime.snd _ _) (hstepFn.preprocess hparam)
+    (fun x _ bits => bits.length = x.2.length) (fun _ => rfl)
+    (fun x _ _ _ hlen _ hnext => (hlen_eq x.1.1 _ _ hnext).trans hlen)
+    (size := fun x => (encIn x).length) PolyBounded.self
     (fun x _ bits _ hlen => by
       change bits.length ≤ (encIn x).length
-      rw [hlen, length_encPair]
-      exact Nat.le_add_left _ _)).1
+      rw [hlen, length_encPair]; exact Nat.le_add_left _ _)).1
 
 private theorem isPPTOn_walkLoopPair (k : ℕ) :
     IsPPTOn (encPair encCNF encBits) encBits
@@ -549,66 +414,45 @@ private theorem isPPTOn_walkLoopPair (k : ℕ) :
           (walkStepBits p.1.denseRelabel (2 * p.1.numVars + k + 3)) p.2) := by
   have hgen := isPPTOn_iterateBitsOfStep (encPair (encCNFOver encUnary) encUnary)
     (stepFn := fun pw : CNF ℕ × ℕ => walkStepBits pw.1 pw.2)
-    isPPTOn_walkStepBits
-    (fun _ _ _ hnext => length_eq_of_mem_support_walkStepBits hnext)
-  have hdense : ComputableInPolyTime (CNF.denseRelabel (V := ℕ)) encCNF (encCNFOver encUnary) :=
-    CNF.computableInPolyTime_denseRelabel_unary encNat
+    isPPTOn_walkStepBits (fun _ _ _ hnext => length_eq_of_mem_support_walkStepBits hnext)
   have hn : ComputableInPolyTime (CNF.numVars (V := ℕ)) encCNF encUnary :=
     SAT.computableInPolyTime_numVars
   have hw : ComputableInPolyTime (fun φ : CNF ℕ => 2 * φ.numVars + k + 3) encCNF encUnary :=
     ComputableInPolyTime.unary_add'
-      (ComputableInPolyTime.unary_add'
-        (ComputableInPolyTime.unary_mul' (.const 2) hn) (.const k))
+      (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (.const 2) hn) (.const k))
       (.const 3)
-  have h3n : ComputableInPolyTime (fun φ : CNF ℕ => 3 * φ.numVars) encCNF encUnary :=
-    ComputableInPolyTime.unary_mul' (.const 3) hn
-  have hφ : ComputableInPolyTime (fun p : CNF ℕ × List Bool => p.1)
-      (encPair encCNF encBits) encCNF := ComputableInPolyTime.fst encCNF encBits
-  have hprep : ComputableInPolyTime
-      (fun p : CNF ℕ × List Bool =>
-        (((p.1.denseRelabel, 2 * p.1.numVars + k + 3), 3 * p.1.numVars), p.2))
-      (encPair encCNF encBits)
-      (encPair (encPair (encPair (encCNFOver encUnary) encUnary) encUnary) encBits) :=
-    (((hdense.comp hφ).prod (hw.comp hφ)).prod (h3n.comp hφ)).prod
-      (ComputableInPolyTime.snd encCNF encBits)
-  exact hgen.preprocess hprep
+  have hφ := ComputableInPolyTime.fst encCNF encBits
+  exact hgen.preprocess
+    ((((((CNF.computableInPolyTime_denseRelabel_unary encNat).comp hφ).prod (hw.comp hφ)).prod
+      ((ComputableInPolyTime.unary_mul' (.const 3) hn).comp hφ))).prod
+      (ComputableInPolyTime.snd encCNF encBits))
 
 private theorem computableInPolyTime_evalDensePair :
     ComputableInPolyTime
       (fun q : CNF ℕ × List Bool => CNF.eval (bitsAssign q.2) q.1.denseRelabel)
-      (encPair encCNF encBits) encBool := by
-  have hψ : ComputableInPolyTime (fun q : CNF ℕ × List Bool => q.1.denseRelabel)
-      (encPair encCNF encBits) (encCNFOver encUnary) :=
-    (CNF.computableInPolyTime_denseRelabel_unary encNat).comp
-      (ComputableInPolyTime.fst encCNF encBits)
-  have hσ : ComputableInPolyTime
-      (fun p : (CNF ℕ × List Bool) × ℕ => bitsAssign p.1.2 p.2)
-      (encPair (encPair encCNF encBits) encUnary) encBool :=
-    ComputableInPolyTime.bitsGetDWithInput
-      ((ComputableInPolyTime.snd encCNF encBits).comp
-        (ComputableInPolyTime.fst (encPair encCNF encBits) encUnary))
-      (ComputableInPolyTime.snd (encPair encCNF encBits) encUnary) false
-  exact CNF.computableInPolyTime_eval hψ hσ
+      (encPair encCNF encBits) encBool :=
+  CNF.computableInPolyTime_eval
+    ((CNF.computableInPolyTime_denseRelabel_unary encNat).comp (ComputableInPolyTime.fst _ _))
+    (ComputableInPolyTime.bitsGetDWithInput
+      ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _))
+      (ComputableInPolyTime.snd _ _) false)
 
 private theorem isPPTOn_schoeningBodyProg (k : ℕ) :
     IsPPTOn encCNF encBool (schoeningBodyProg k) := by
-  have hsample0 : IsPPTOn encCNF encBits (fun φ : CNF ℕ => BitString.sampleList φ.numVars) :=
-    isPPTOn_sampleList.preprocess SAT.computableInPolyTime_numVars
   have hwalk : IsPPTOn encCNF encBits
       (fun φ : CNF ℕ => do
         let bits₀ ← BitString.sampleList φ.numVars
         OracleComp.iterate (3 * φ.numVars)
           (walkStepBits φ.denseRelabel (2 * φ.numVars + k + 3)) bits₀) :=
-    hsample0.bind_with (isPPTOn_walkLoopPair k)
+    (isPPTOn_sampleList.preprocess SAT.computableInPolyTime_numVars).bind_with
+      (isPPTOn_walkLoopPair k)
   refine (hwalk.map_with (f := fun φ bits => CNF.eval (bitsAssign bits) φ.denseRelabel)
     computableInPolyTime_evalDensePair).congr fun φ => ?_
   dsimp only [schoeningBodyProg]
   rw [ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_bind, PMF.map_bind]
-  apply Cslib.Probability.PMF.bind_congr_on_support
-  intro bits₀ _
+  refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun bits₀ _ => ?_
   rw [PMF.map, ProbComp.eval_bind]
-  apply Cslib.Probability.PMF.bind_congr_on_support
-  intro bitsF _
+  refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun bitsF _ => ?_
   rw [Function.comp_apply, ProbComp.eval_pure]
 
 /-- **Strict PPT certificate for one Schöning trial on `CNF ℕ` (`encCNF`).** -/
@@ -689,33 +533,21 @@ private theorem flipBitAt_ofFn {n : ℕ} (σ : Fin n → Bool) {v : ℕ} (hv : v
 private theorem headD_filter_eq_nil_of_find?_eq_none {α : Type*} {l : List (List α)}
     {p : List α → Bool} (h : l.find? p = none) :
     (l.filter p).headD [] = [] := by
-  induction l with
-  | nil => rfl
-  | cons a as ih =>
-    cases hpa : p a with
-    | false =>
-      simp only [List.find?_cons, hpa] at h
-      rw [List.filter_cons_of_neg (by simp only [hpa, Bool.false_eq_true, not_false_eq_true])]
-      exact ih h
-    | true =>
-      simp only [List.find?_cons, hpa, reduceCtorEq] at h
+  rw [List.filter_eq_nil_iff.mpr fun x hx => by
+    simpa only [Bool.not_eq_true] using List.find?_eq_none.mp h x hx]
+  rfl
 
 private theorem headD_filter_eq_of_find?_eq_some {α : Type*} {l : List (List α)}
     (hne : ∀ c ∈ l, c ≠ []) {p : List α → Bool} {c : List α} (h : l.find? p = some c) :
     (l.filter p).headD [] = c ∧ c ≠ [] := by
   induction l with
-  | nil => simp only [List.find?_nil, reduceCtorEq] at h
+  | nil => simp at h
   | cons a as ih =>
-    cases hpa : p a with
-    | true =>
-      simp only [List.find?_cons, hpa, Option.some.injEq] at h
-      subst h
-      rw [List.filter_cons_of_pos hpa, List.headD_cons]
-      exact ⟨rfl, hne a List.mem_cons_self⟩
-    | false =>
-      simp only [List.find?_cons, hpa] at h
-      rw [List.filter_cons_of_neg (by simp only [hpa, Bool.false_eq_true, not_false_eq_true])]
+    cases hpa : p a <;> simp only [List.find?_cons, hpa, Option.some.injEq] at h
+    · rw [List.filter_cons_of_neg (by simp [hpa])]
       exact ih (fun x hx => hne x (List.mem_cons_of_mem a hx)) h
+    · subst h; rw [List.filter_cons_of_pos hpa, List.headD_cons]
+      exact ⟨rfl, hne a List.mem_cons_self⟩
 
 private theorem find?_attach {α : Type*} (l : List α) (p : α → Bool) :
     (l.attach.find? fun x => p x.1).map Subtype.val = l.find? p := by
@@ -749,35 +581,32 @@ private theorem eval_walkStepBits_ofFn {n : ℕ} (ψ : CNF ℕ) (hvars : ∀ v �
     rcases x with ⟨c, hc_mem⟩
     have hf : ψ.find? p = some c := by rw [← find?_attach, hfa]; rfl
     obtain ⟨hfc, hc_ne⟩ := headD_filter_eq_of_find?_eq_some hne hf
-    have hfc' : firstUnsatClauseBits ψ (List.ofFn σ) = c := hfc
-    have hc_len_pos : 0 < c.length := List.length_pos_iff.mpr hc_ne
-    have hc_len_ne : c.length ≠ 0 := hc_len_pos.ne'
-    have hisEmpty : c.isEmpty = false := List.isEmpty_eq_false_iff.mpr hc_ne
+    have hc_pos : 0 < c.length := List.length_pos_iff.mpr hc_ne
     let hc_vars : ∀ l ∈ c, l.1 < n :=
       fun l hl => hvars l.1 (CNF.mem_vars.mpr ⟨c, hc_mem, l.2, hl⟩)
     have hfin_len : (toFinClause c hc_vars).length = c.length := length_toFinClause c hc_vars
-    have hfin_ne : (toFinClause c hc_vars).length ≠ 0 := by rw [hfin_len]; exact hc_len_ne
-    simp only [walkStepBits, hfc', hisEmpty, Bool.false_eq_true, ↓reduceIte, Option.map_some,
-      fairFlipStep, hfin_ne, ↓reduceDIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_comp]
+    simp only [walkStepBits, show firstUnsatClauseBits ψ (List.ofFn σ) = c from hfc,
+      List.isEmpty_eq_false_iff.mpr hc_ne, Bool.false_eq_true, ↓reduceIte, Option.map_some,
+      fairFlipStep, show (toFinClause c hc_vars).length ≠ 0 from hfin_len ▸ hc_pos.ne',
+      ↓reduceDIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_comp]
     calc (ProbComp.eval (ProbComp.sampleModNat w c.length)).bind
           (fun r => PMF.pure (flipBitAt (List.ofFn σ) (c.getD (min c.length r) (0, false)).1))
         = (ProbComp.eval (ProbComp.sampleModNat w (toFinClause c hc_vars).length)).bind
           (fun r => PMF.pure (List.ofFn (flipOn
             {((toFinClause c hc_vars).get ⟨r % (toFinClause c hc_vars).length,
-              Nat.mod_lt r (Nat.pos_of_ne_zero hfin_ne)⟩).1} σ))) := by
+              Nat.mod_lt r (Nat.pos_of_ne_zero (hfin_len ▸ hc_pos.ne'))⟩).1} σ))) := by
           simp only [hfin_len]
-          apply Cslib.Probability.PMF.bind_congr_on_support
-          intro r hr
-          have hr_lt : r < c.length := ProbComp.lt_of_mem_support_sampleModNat hc_len_pos hr
-          have hmin : min c.length r = r := Nat.min_eq_right hr_lt.le
-          have hmod : r % c.length = r := Nat.mod_eq_of_lt hr_lt
-          have hgetD : c.getD r (0, false) = c[r] := by
-            rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hr_lt, Option.getD_some]
+          refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun r hr => ?_
+          have hr_lt : r < c.length := ProbComp.lt_of_mem_support_sampleModNat hc_pos hr
+          have hgetD : c.getD (min c.length r) (0, false) = c[r] := by
+            rw [Nat.min_eq_right hr_lt.le, List.getD_eq_getElem?_getD,
+              List.getElem?_eq_getElem hr_lt, Option.getD_some]
           have hv_lt : c[r].1 < n :=
             hvars c[r].1 (CNF.mem_vars.mpr ⟨c, hc_mem, c[r].2, List.getElem_mem hr_lt⟩)
-          rw [hmin, hgetD, flipBitAt_ofFn σ hv_lt]
+          rw [hgetD, flipBitAt_ofFn σ hv_lt]
           congr 3
-          simp only [toFinClause, List.get_eq_getElem, List.getElem_map, List.getElem_attach, hmod]
+          simp only [toFinClause, List.get_eq_getElem, List.getElem_map, List.getElem_attach,
+            Nat.mod_eq_of_lt hr_lt]
       _ = (ProbComp.eval (ProbComp.sampleModNat w (toFinClause c hc_vars).length)).map _ := rfl
 
 private theorem fairWalk_eq_pure_of_firstUnsat_none {V : Type*} [DecidableEq V]
@@ -867,55 +696,38 @@ theorem succeedProb_le_schoeningTrialProg {k : ℕ} (hk : 3 ≤ k) {φ : CNF ℕ
         ((k : ℝ) / (2 * ((k : ℝ) - 1))) ^ φ.numVars / (3 * φ.numVars + 1)) ≤
       (ProbComp.eval (schoeningTrialProg k φ) true).toReal := by
   obtain ⟨hlen, hsat⟩ := hφ
-  have hne_orig : ∀ c ∈ φ, c ≠ [] := by
-    obtain ⟨σ, hσ⟩ := hsat
-    intro c hc hnil
-    rw [CNF.eval_eq_true_iff] at hσ
-    have hce := hσ c hc
-    rw [hnil, Clause.eval_nil] at hce
-    exact Bool.false_ne_true hce
+  have ne_nil_of_sat : ∀ (ψ : CNF ℕ), ψ.Satisfiable → ∀ c ∈ ψ, c ≠ [] :=
+    fun _ ⟨σ, hσ⟩ c hc hnil => by
+      rw [CNF.eval_eq_true_iff] at hσ
+      have hce := hσ c hc
+      simp [hnil] at hce
   have hg : guardKSAT k φ = true := by
     simp only [guardKSAT, List.all_eq_true, Bool.and_eq_true, Bool.not_eq_true',
       List.isEmpty_eq_false_iff, decide_eq_true_eq]
-    exact fun c hc => ⟨hne_orig c hc, hlen c hc⟩
-  have hne_dense : ∀ c ∈ φ.denseRelabel, c ≠ [] := by
-    obtain ⟨σ, hσ⟩ := (CNF.satisfiable_denseRelabel φ).mpr hsat
-    intro c hc hnil
-    rw [CNF.eval_eq_true_iff] at hσ
-    have hce := hσ c hc
-    rw [hnil, Clause.eval_nil] at hce
-    exact Bool.false_ne_true hce
-  let n := φ.numVars
-  let w := 2 * n + k + 3
+    exact fun c hc => ⟨ne_nil_of_sat φ hsat c hc, hlen c hc⟩
   let ψFin := toFinCNF φ.denseRelabel (fun _ hv => CNF.mem_vars_denseRelabel_lt φ hv)
-  have hsat_fin : ψFin.Satisfiable :=
-    (satisfiable_toFinCNF φ.denseRelabel _).mpr ((CNF.satisfiable_denseRelabel φ).mpr hsat)
+  have hsat_dense := (CNF.satisfiable_denseRelabel φ).mpr hsat
+  have hsat_fin : ψFin.Satisfiable := (satisfiable_toFinCNF φ.denseRelabel _).mpr hsat_dense
   have hlen_fin : ∀ c ∈ ψFin, c.length ≤ k := by
-    intro c hc
+    rintro c hc
     simp only [ψFin, toFinCNF, List.mem_map, List.mem_attach, true_and, Subtype.exists] at hc
     obtain ⟨c₀, hc₀, rfl⟩ := hc
     rw [length_toFinClause]
     exact ((CNF.all_length_le_denseRelabel φ).mpr hlen) c₀ hc₀
-  have hbody_eq := eval_schoeningBodyProg_eq_map_fairTrial k φ hne_dense
   have htrue_eq : (ProbComp.eval (schoeningTrialProg k φ) true).toReal =
-      succeedProb ψFin (fairTrial w ψFin) := by
-    dsimp only [schoeningTrialProg]
-    rw [hg]
-    simp only [↓reduceIte]
-    have hbody_eq' : ProbComp.eval (schoeningBodyProg k φ) =
-        (fairTrial w ψFin).map (fun σ => CNF.eval σ ψFin) := hbody_eq
-    rw [hbody_eq', succeedProb, PMF.map_apply, PMF.toOuterMeasure_apply]
+      succeedProb ψFin (fairTrial (2 * φ.numVars + k + 3) ψFin) := by
+    rw [schoeningTrialProg, ite_eq_left hg,
+      eval_schoeningBodyProg_eq_map_fairTrial k φ (ne_nil_of_sat φ.denseRelabel hsat_dense),
+      succeedProb, PMF.map_apply, PMF.toOuterMeasure_apply]
     congr 2 with σ
     by_cases hσ : CNF.eval σ ψFin = true
-    · simp only [hσ, ↓reduceIte, Set.mem_ofPred_eq, Set.indicator_of_mem]
+    · simp [hσ, ψFin]
     · have hσf : CNF.eval σ ψFin = false := Bool.eq_false_iff.mpr hσ
-      simp only [hσf, Bool.true_eq_false, ↓reduceIte, Set.mem_ofPred_eq, Bool.false_eq_true,
-        not_false_eq_true, Set.indicator_of_notMem]
+      simp [hσf, ψFin]
   rw [htrue_eq]
   have h1 := trial_success_of_length_le hk hsat_fin hlen_fin
-  simp only [Fintype.card_fin] at h1
   have h2 := half_mul_succeedProb_trial_le_fairTrial hlen_fin
-  simp only [Fintype.card_fin] at h2
+  simp only [Fintype.card_fin] at h1 h2
   exact (mul_le_mul_of_nonneg_left h1 (by positivity)).trans h2
 
 end TrialProgram
@@ -929,52 +741,85 @@ section MachineDecider
 time. -/
 theorem computableInPolyTime_two_mul_schoeningTrials {k : ℕ} (hk : 3 ≤ k) (c : ℕ) :
     ComputableInPolyTime (fun φ : CNF ℕ => 2 * schoeningTrials k φ.numVars c) encCNF encNat := by
-  have heq : (fun φ : CNF ℕ => 2 * schoeningTrials k φ.numVars c) =
-      fun φ : CNF ℕ =>
-        2 * ((((3 * φ.numVars + 1) * (2 * (k - 1)) ^ φ.numVars * k ^ (k - 3) +
-            k ^ φ.numVars * (k - 1) ^ (k - 3) - 1) /
-          (k ^ φ.numVars * (k - 1) ^ (k - 3))) * c) := by
-    funext φ
-    rw [schoeningTrials_eq hk]
-  rw [heq]
+  simp_rw [schoeningTrials_eq hk]
+  open ComputableInPolyTime in
   have hn_u : ComputableInPolyTime (CNF.numVars (V := ℕ)) encCNF encUnary :=
     SAT.computableInPolyTime_numVars
-  have hn_b : ComputableInPolyTime (CNF.numVars (V := ℕ)) encCNF encNat :=
-    ComputableInPolyTime.unary_to_binary.comp hn_u
-  have h3n1 : ComputableInPolyTime (fun φ : CNF ℕ => 3 * φ.numVars + 1) encCNF encNat :=
-    ComputableInPolyTime.binary_add'
-      (ComputableInPolyTime.binary_mul' (.const 3) hn_b) (.const 1)
-  have hpow1 : ComputableInPolyTime (fun φ : CNF ℕ => (2 * (k - 1)) ^ φ.numVars) encCNF encNat :=
-    ComputableInPolyTime.binary_pow' (.const (2 * (k - 1))) hn_u
-  have hpowk : ComputableInPolyTime (fun φ : CNF ℕ => k ^ φ.numVars) encCNF encNat :=
-    ComputableInPolyTime.binary_pow' (.const k) hn_u
-  have hterm1 : ComputableInPolyTime
-      (fun φ : CNF ℕ => (3 * φ.numVars + 1) * (2 * (k - 1)) ^ φ.numVars * k ^ (k - 3))
-      encCNF encNat :=
-    ComputableInPolyTime.binary_mul'
-      (ComputableInPolyTime.binary_mul' h3n1 hpow1) (.const (k ^ (k - 3)))
-  have hden : ComputableInPolyTime
-      (fun φ : CNF ℕ => k ^ φ.numVars * (k - 1) ^ (k - 3)) encCNF encNat :=
-    ComputableInPolyTime.binary_mul' hpowk (.const ((k - 1) ^ (k - 3)))
-  have hnum : ComputableInPolyTime
-      (fun φ : CNF ℕ =>
-        (3 * φ.numVars + 1) * (2 * (k - 1)) ^ φ.numVars * k ^ (k - 3) +
-          k ^ φ.numVars * (k - 1) ^ (k - 3) - 1) encCNF encNat :=
-    ComputableInPolyTime.binary_sub' (ComputableInPolyTime.binary_add' hterm1 hden) (.const 1)
-  have hquot : ComputableInPolyTime
-      (fun φ : CNF ℕ =>
-        ((3 * φ.numVars + 1) * (2 * (k - 1)) ^ φ.numVars * k ^ (k - 3) +
-          k ^ φ.numVars * (k - 1) ^ (k - 3) - 1) /
-        (k ^ φ.numVars * (k - 1) ^ (k - 3))) encCNF encNat :=
-    ComputableInPolyTime.binary_div' hnum hden
-  exact ComputableInPolyTime.binary_mul' (.const 2)
-    (ComputableInPolyTime.binary_mul' hquot (.const c))
+  have h3n1 := binary_add' (binary_mul' (.const 3) (unary_to_binary.comp hn_u)) (.const 1)
+  have hden := binary_mul' (binary_pow' (.const k) hn_u) (.const ((k - 1) ^ (k - 3)))
+  have hnum := binary_sub' (binary_add'
+    (binary_mul' (binary_mul' h3n1 (binary_pow' (.const (2 * (k - 1))) hn_u))
+      (.const (k ^ (k - 3))))
+    hden) (.const 1)
+  exact binary_mul' (.const 2) (binary_mul' (binary_div' hnum hden) (.const c))
 
 private theorem numVars_le_length_encCNF (φ : CNF ℕ) :
     φ.numVars ≤ (encCNF φ).length := by
   calc φ.numVars = φ.vars.toFinset.card := rfl
     _ ≤ φ.vars.length := List.toFinset_card_le φ.vars
     _ ≤ (encCNF φ).length := SAT.length_vars_le φ
+
+private theorem schoening_clock_le {k : ℕ} (hk : 3 ≤ k) (c C₀ E₀ : ℕ) (φ : CNF ℕ) :
+    (C₀ * ((2 * schoeningTrials k φ.numVars c + 1) * ((encCNF φ).length + 1) ^ E₀) : ℝ) ≤
+      ((C₀ * (18 * c + 1) : ℕ) : ℝ) *
+        (((2 * ((k : ℝ) - 1)) / k) ^ φ.numVars *
+          ((encCNF φ).length + 1 : ℝ) ^ (E₀ + 1)) := by
+  set n := φ.numVars
+  set L := (encCNF φ).length
+  set base := (2 * ((k : ℝ) - 1)) / k
+  have hk3 : (3 : ℝ) ≤ k := by exact_mod_cast hk
+  have hr1 : 1 ≤ base := (le_div_iff₀ (by linarith)).mpr (by linarith)
+  have h1_le : (1 : ℝ) ≤ base ^ n * (L + 1) := by
+    have : 1 ≤ base ^ n := one_le_pow₀ hr1
+    have : (1 : ℝ) ≤ (L : ℝ) + 1 := by linarith [Nat.cast_nonneg (α := ℝ) L]
+    nlinarith
+  have h9 : (9 * (n : ℝ) + 4) * base ^ n * c ≤ 9 * ((L : ℝ) + 1) * base ^ n * c := by
+    have : (n : ℝ) ≤ L := by exact_mod_cast numVars_le_length_encCNF φ
+    have : (0 : ℝ) ≤ base ^ n := by positivity
+    have : (0 : ℝ) ≤ c := Nat.cast_nonneg c
+    gcongr; linarith
+  have htrials_R :
+      (2 * (schoeningTrials k n c : ℝ) + 1) ≤ (18 * (c : ℝ) + 1) * base ^ n * (L + 1) := by
+    linarith [schoeningTrials_le hk n c]
+  push_cast
+  rw [pow_succ']
+  have : (0 : ℝ) ≤ (C₀ : ℝ) * ((L : ℝ) + 1) ^ E₀ := by positivity
+  calc (C₀ : ℝ) * ((2 * (schoeningTrials k n c : ℝ) + 1) * ((L : ℝ) + 1) ^ E₀)
+      = (2 * (schoeningTrials k n c : ℝ) + 1) * ((C₀ : ℝ) * ((L : ℝ) + 1) ^ E₀) := by ring
+    _ ≤ ((18 * (c : ℝ) + 1) * base ^ n * (L + 1)) * ((C₀ : ℝ) * ((L : ℝ) + 1) ^ E₀) := by gcongr
+    _ = _ := by ring
+
+private theorem schoening_soundness_le {k c : ℕ} (hk : 3 ≤ k) {φ : CNF ℕ} (hφ : φ ∈ KSAT k) :
+    1 - Real.exp (-(c : ℝ)) ≤
+      ((ProbComp.eval (OracleComp.iterate (2 * schoeningTrials k φ.numVars c)
+        (repeatAnyStep (schoeningTrialProg k φ)) false)).map encBool [true]).toReal := by
+  let μ := ProbComp.eval (OracleComp.iterate (2 * schoeningTrials k φ.numVars c)
+    (repeatAnyStep (schoeningTrialProg k φ)) false)
+  have hmap_true : (μ.map encBool) [true] = μ true := by
+    rw [PMF.map_apply, tsum_bool]; simp [encBool_apply]
+  rw [hmap_true, Cslib.Probability.PMF.toReal_true_eq_one_sub,
+    eval_iterate_repeatAnyStep_false_toReal]
+  set p := (ProbComp.eval (schoeningTrialProg k φ) true).toReal
+  set n := φ.numVars
+  set P₀ := (((k : ℝ) - 1) / k) ^ (k - 3) * ((k : ℝ) / (2 * ((k : ℝ) - 1))) ^ n / (3 * n + 1)
+  have hk0 : (0 : ℝ) < k := by exact_mod_cast (by omega : 0 < k)
+  have hk1 : (0 : ℝ) < (k : ℝ) - 1 := by
+    have : (3 : ℝ) ≤ k := by exact_mod_cast hk
+    linarith
+  have hP₀pos : 0 < P₀ := by positivity
+  have hinv : (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n *
+      ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) = P₀⁻¹ := by
+    simp only [P₀, inv_div, div_pow]
+    field_simp
+  have hprod_ge : (c : ℝ) ≤ ((2 * schoeningTrials k n c : ℕ) : ℝ) * p := by
+    rw [schoeningTrials, hinv]
+    push_cast
+    calc (c : ℝ) = (P₀⁻¹ * c) * P₀ := by field_simp
+      _ ≤ (⌈P₀⁻¹⌉₊ * c) * P₀ := by gcongr; exact Nat.le_ceil _
+      _ = (2 * (⌈P₀⁻¹⌉₊ * c)) * ((1 / 2 : ℝ) * P₀) := by ring
+      _ ≤ (2 * (⌈P₀⁻¹⌉₊ * c)) * p := by gcongr; exact succeedProb_le_schoeningTrialProg hk hφ
+  have hp_le_one : p ≤ 1 := Cslib.Probability.PMF.toReal_apply_le_one _ _
+  linarith [Real.one_sub_pow_le_exp hp_le_one hprod_ge]
 
 /-- **Schöning's `k`-SAT algorithm on a fair-coin multitape Turing machine.** For every `k ≥ 3`
 and confidence parameter `c : ℕ`, there exist a finite-control fair-coin `MultiTapePTM`, a clock
@@ -1006,123 +851,20 @@ theorem exists_multiTapePTM_KSAT {k : ℕ} (hk : 3 ≤ k) (c : ℕ) :
           (φ ∈ KSAT k →
             1 - Real.exp (-(c : ℝ)) ≤
               (ProbComp.eval (machine.runClosed (T φ) (encCNF φ)) [true]).toReal) := by
-  let trials (φ : CNF ℕ) : ℕ := 2 * schoeningTrials k φ.numVars c
   obtain ⟨K, Control, hfin, machine, C₀, E₀, hM⟩ :=
     IsPPTOn.exists_multiTapePTM_repeatAnyBool_binary
       (isPPTOn_schoeningTrialProg k)
       (computableInPolyTime_two_mul_schoeningTrials hk c)
-  let T (φ : CNF ℕ) : ℕ := C₀ * ((trials φ + 1) * ((encCNF φ).length + 1) ^ E₀)
-  let C : ℕ := C₀ * (18 * c + 1)
-  let E : ℕ := E₀ + 1
-  refine ⟨K, Control, hfin, machine, T, C, E, fun φ => ?_⟩
+  refine ⟨K, Control, hfin, machine,
+    fun φ => C₀ * ((2 * schoeningTrials k φ.numVars c + 1) * ((encCNF φ).length + 1) ^ E₀),
+    C₀ * (18 * c + 1), E₀ + 1, fun φ => ?_⟩
   obtain ⟨hhalt, heval, hspace₀⟩ := hM φ
-  have hrunsInTime : machine.toNTM.RunsInTime (encCNF φ) (T φ) :=
-    machine.runsInTime_toNTM hhalt
-  have hk3 : (3 : ℝ) ≤ k := by exact_mod_cast hk
-  have hr1 : 1 ≤ 2 * ((k : ℝ) - 1) / k := by
-    rw [le_div_iff₀ (by linarith)]
-    linarith
-  have hrn1 : 1 ≤ (2 * ((k : ℝ) - 1) / k) ^ φ.numVars := one_le_pow₀ hr1
-  have hT_bound : (T φ : ℝ) ≤
-      (C : ℝ) * (((2 * ((k : ℝ) - 1)) / k) ^ φ.numVars *
-        ((encCNF φ).length + 1 : ℝ) ^ E) := by
-    set n := φ.numVars
-    set L := (encCNF φ).length
-    set base := (2 * ((k : ℝ) - 1)) / k
-    have hnL : (n : ℝ) ≤ L := by exact_mod_cast numVars_le_length_encCNF φ
-    have htr_le := schoeningTrials_le hk n c
-    have h9 : 9 * (n : ℝ) + 4 ≤ 9 * ((L : ℝ) + 1) := by linarith
-    have hbase0 : 0 ≤ base ^ n := by positivity
-    have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-    have htrials_R : (trials φ + 1 : ℝ) ≤ (18 * (c : ℝ) + 1) * base ^ n * (L + 1) := by
-      have hmul1 : (9 * (n : ℝ) + 4) * base ^ n * c ≤ 9 * ((L : ℝ) + 1) * base ^ n * c :=
-        mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right h9 hbase0) hc0
-      have h1_le : (1 : ℝ) ≤ base ^ n * (L + 1) := by
-        have hL1 : (1 : ℝ) ≤ (L : ℝ) + 1 := by linarith [Nat.cast_nonneg (α := ℝ) L]
-        nlinarith
-      dsimp only [trials]
-      push_cast
-      have h2tr : 2 * (schoeningTrials k n c : ℝ) + 1 ≤
-          2 * (9 * ((L : ℝ) + 1) * base ^ n * c) + base ^ n * ((L : ℝ) + 1) := by
-        linarith [htr_le, hmul1, h1_le]
-      calc 2 * (schoeningTrials k n c : ℝ) + 1
-          ≤ 2 * (9 * ((L : ℝ) + 1) * base ^ n * c) + base ^ n * ((L : ℝ) + 1) := h2tr
-        _ = (18 * (c : ℝ) + 1) * base ^ n * (L + 1) := by ring
-    dsimp only [T, C, E]
-    push_cast
-    have hpowE : ((L : ℝ) + 1) ^ (E₀ + 1) = ((L : ℝ) + 1) * ((L : ℝ) + 1) ^ E₀ := by
-      rw [pow_succ']
-    rw [hpowE]
-    have hfac : (0 : ℝ) ≤ (C₀ : ℝ) * ((L : ℝ) + 1) ^ E₀ := by positivity
-    calc (C₀ : ℝ) * (((trials φ : ℝ) + 1) * ((L : ℝ) + 1) ^ E₀)
-        = ((trials φ : ℝ) + 1) * ((C₀ : ℝ) * ((L : ℝ) + 1) ^ E₀) := by ring
-      _ ≤ ((18 * (c : ℝ) + 1) * base ^ n * (L + 1)) * ((C₀ : ℝ) * ((L : ℝ) + 1) ^ E₀) :=
-          mul_le_mul_of_nonneg_right htrials_R hfac
-      _ = ((C₀ : ℝ) * (18 * (c : ℝ) + 1)) * (base ^ n * (((L : ℝ) + 1) * ((L : ℝ) + 1) ^ E₀)) :=
-          by ring
-  have hspace : machine.toNTM.RunsInSpace (encCNF φ) (C * ((encCNF φ).length + 1) ^ E) := by
-    have hle : C₀ * ((encCNF φ).length + 1) ^ E₀ ≤ C * ((encCNF φ).length + 1) ^ E := by
-      dsimp only [C, E]
-      exact Nat.mul_le_mul (Nat.le_mul_of_pos_right _ (by omega))
-        (Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_succ _))
-    exact fun p => (hspace₀ p).trans hle
-  refine ⟨hhalt, hrunsInTime, hT_bound, hspace, ?_, ?_⟩
-  · intro hnot
-    rw [heval, eval_iterate_repeatAnyStep_eq_pure_false _ _
-      (eval_schoeningTrialProg_true_eq_zero_of_not_mem_KSAT hnot),
-      PMF.pure_map, encBool_apply]
-  · intro hmem
-    let μ := ProbComp.eval (OracleComp.iterate (trials φ)
-      (repeatAnyStep (schoeningTrialProg k φ)) false)
-    have hmap_true : (μ.map encBool) [true] = μ true := by
-      rw [PMF.map_apply, tsum_fintype]
-      simp only [Fintype.univ_bool, Finset.mem_singleton, Bool.true_eq_false, not_false_eq_true,
-        Finset.sum_insert, Finset.sum_singleton, encBool_apply, List.cons.injEq, and_true,
-        ↓reduceIte, add_zero]
-    rw [heval, hmap_true]
-    have hμ_true : (μ true).toReal = 1 - (μ false).toReal := by
-      have hfalse := Cslib.Probability.PMF.toReal_false_eq_one_sub μ
-      linarith
-    rw [hμ_true]
-    have hμ_false : (μ false).toReal =
-        (1 - (ProbComp.eval (schoeningTrialProg k φ) true).toReal) ^ (trials φ) :=
-      eval_iterate_repeatAnyStep_false_toReal (schoeningTrialProg k φ) (trials φ)
-    rw [hμ_false]
-    set p := (ProbComp.eval (schoeningTrialProg k φ) true).toReal
-    have hp_le_one : p ≤ 1 := by
-      simpa only [ENNReal.toReal_one] using
-        ENNReal.toReal_mono ENNReal.one_ne_top (PMF.coe_le_one _ _)
-    set n := φ.numVars
-    set P₀ := (((k : ℝ) - 1) / k) ^ (k - 3) * ((k : ℝ) / (2 * ((k : ℝ) - 1))) ^ n / (3 * n + 1)
-      with hP₀
-    have hP₀pos : 0 < P₀ := by
-      rw [hP₀]
-      have hk1 : (0 : ℝ) < (k : ℝ) - 1 := by linarith
-      have hk0 : (0 : ℝ) < k := by linarith
-      positivity
-    have hp_ge : (1 / 2 : ℝ) * P₀ ≤ p := succeedProb_le_schoeningTrialProg hk hmem
-    have hinv : (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n *
-        ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) = P₀⁻¹ := by
-      rw [hP₀]
-      have hk0 : (k : ℝ) ≠ 0 := by linarith
-      have hk10 : (k : ℝ) - 1 ≠ 0 := by linarith
-      have h1 : (2 * ((k : ℝ) - 1) / k) * ((k : ℝ) / (2 * ((k : ℝ) - 1))) = 1 := by field_simp
-      have h2 : ((k : ℝ) / ((k : ℝ) - 1)) * (((k : ℝ) - 1) / k) = 1 := by field_simp
-      field_simp
-      calc _ = ((2 * ((k : ℝ) - 1) / k) * ((k : ℝ) / (2 * ((k : ℝ) - 1)))) ^ n *
-            (((k : ℝ) / ((k : ℝ) - 1)) * (((k : ℝ) - 1) / k)) ^ (k - 3) := by
-            rw [mul_pow, mul_pow]; ring
-        _ = 1 := by rw [h1, h2, one_pow, one_pow, one_mul]
-    have hprod_ge : (c : ℝ) ≤ (trials φ : ℝ) * p := by
-      dsimp only [trials]
-      rw [schoeningTrials, hinv]
-      push_cast
-      calc (c : ℝ) = (P₀⁻¹ * c) * P₀ := by field_simp
-        _ ≤ (⌈P₀⁻¹⌉₊ * c) * P₀ := by gcongr; exact Nat.le_ceil _
-        _ = (2 * (⌈P₀⁻¹⌉₊ * c)) * ((1 / 2 : ℝ) * P₀) := by ring
-        _ ≤ (2 * (⌈P₀⁻¹⌉₊ * c)) * p := by gcongr
-    have hexp := Real.one_sub_pow_le_exp hp_le_one hprod_ge
-    linarith
+  refine ⟨hhalt, machine.runsInTime_toNTM hhalt, by simpa using schoening_clock_le hk c C₀ E₀ φ,
+    fun p => (hspace₀ p).trans (Nat.mul_le_mul (Nat.le_mul_of_pos_right _ (by omega))
+      (Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_succ _))),
+    fun hnot => by rw [heval, eval_iterate_repeatAnyStep_eq_pure_false _ _
+      (eval_schoeningTrialProg_true_eq_zero_of_not_mem_KSAT hnot), PMF.pure_map, encBool_apply],
+    fun hmem => heval ▸ schoening_soundness_le hk hmem⟩
 
 /-- **Bounded-error multitape `k`-SAT decider (`DecidesWithBoundedErrorInTime`).** Specializing
 `exists_multiTapePTM_KSAT` to confidence `c = 2` (`exp (-2) ≤ 1 / 3`) yields a fair-coin
@@ -1140,31 +882,19 @@ theorem exists_decidesWithBoundedErrorInTime_KSAT {k : ℕ} (hk : 3 ≤ k) :
         (φ ∉ KSAT k →
           ProbComp.eval (machine.runClosed (T φ) (encCNF φ)) = PMF.pure [false])) := by
   obtain ⟨K, Control, hfin, machine, T, C, E, hspec⟩ := exists_multiTapePTM_KSAT hk 2
-  refine ⟨K, Control, hfin, machine, T, C, E, ?_, fun φ => ?_⟩
-  · intro φ
-    obtain ⟨hhalt, -, -, -, hno, hyes⟩ := hspec φ
-    refine ⟨hhalt, ?_⟩
-    by_cases hmem : φ ∈ KSAT k
-    · have hind : indicator (KSAT k) φ = true := by simp only [indicator, hmem, ↓reduceIte]
-      rw [hind]
-      have hexp2 := Real.exp_neg_two_le_one_third
-      have hreal :
-          (2 / 3 : ℝ) ≤ (ProbComp.eval (machine.runClosed (T φ) (encCNF φ)) [true]).toReal := by
-        have hy := hyes hmem
-        norm_num at hy
-        linarith
-      have h23_ne_top : (2 / 3 : ℝ≥0∞) ≠ ⊤ :=
-        ENNReal.div_ne_top ENNReal.ofNat_ne_top (by norm_num)
-      exact (ENNReal.toReal_le_toReal h23_ne_top (PMF.apply_ne_top _ _)).mp
-        (by simpa only [ENNReal.toReal_div, ENNReal.toReal_ofNat] using hreal)
-    · have hind : indicator (KSAT k) φ = false := by simp only [indicator, hmem, ↓reduceIte]
-      rw [hind, hno hmem, PMF.pure_apply_self]
-      have h23_ne_top : (2 / 3 : ℝ≥0∞) ≠ ⊤ :=
-        ENNReal.div_ne_top ENNReal.ofNat_ne_top (by norm_num)
-      exact (ENNReal.toReal_le_toReal h23_ne_top ENNReal.one_ne_top).mp
-        (by simp only [ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_one]; norm_num)
-  · obtain ⟨-, -, hT, hspace, hno, -⟩ := hspec φ
-    exact ⟨hT, hspace, hno⟩
+  refine ⟨K, Control, hfin, machine, T, C, E, fun φ => ?_,
+    fun φ => ⟨(hspec φ).2.2.1, (hspec φ).2.2.2.1, (hspec φ).2.2.2.2.1⟩⟩
+  obtain ⟨hhalt, -, -, -, hno, hyes⟩ := hspec φ
+  refine ⟨hhalt, ?_⟩
+  by_cases hmem : φ ∈ KSAT k
+  · rw [show indicator (KSAT k) φ = true by simp [indicator, hmem]]
+    have hreal :
+        (2 / 3 : ℝ) ≤ (ProbComp.eval (machine.runClosed (T φ) (encCNF φ)) [true]).toReal := by
+      have hy := hyes hmem; norm_num at hy; linarith [Real.exp_neg_two_le_one_third]
+    simpa only [ENNReal.ofReal_div_of_pos (by norm_num : (0 : ℝ) < 3), ENNReal.ofReal_ofNat] using
+      (ENNReal.ofReal_le_iff_le_toReal (_root_.PMF.apply_ne_top _ _)).mpr hreal
+  · rw [show indicator (KSAT k) φ = false by simp [indicator, hmem], hno hmem, PMF.pure_apply_self]
+    rw [ENNReal.div_le_iff_le_mul (Or.inl (by norm_num)) (Or.inl ENNReal.ofNat_ne_top)]; norm_num
 
 /-- **Schöning's `(4 / 3) ^ n` bounded-error multitape `3`-SAT decider.** -/
 theorem exists_decidesWithBoundedErrorInTime_ThreeSAT :
@@ -1179,13 +909,9 @@ theorem exists_decidesWithBoundedErrorInTime_ThreeSAT :
           ProbComp.eval (machine.runClosed (T φ) (encCNF φ)) = PMF.pure [false])) := by
   obtain ⟨K, Control, hfin, machine, T, C, E, hdec, hbounds⟩ :=
     exists_decidesWithBoundedErrorInTime_KSAT (le_refl 3)
-  have hset : KSAT 3 = ThreeSAT := rfl
-  rw [hset] at hdec
   refine ⟨K, Control, hfin, machine, T, C, E, hdec, fun φ => ?_⟩
   obtain ⟨hT, hspace, hno⟩ := hbounds φ
-  have hbase : (2 * ((3 : ℝ) - 1)) / 3 = 4 / 3 := by norm_num
-  rw [Nat.cast_ofNat, hbase] at hT
-  exact ⟨hT, hspace, hno⟩
+  exact ⟨by convert hT using 4; norm_num, hspace, hno⟩
 
 end MachineDecider
 

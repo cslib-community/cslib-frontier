@@ -30,7 +30,7 @@ open Turing Turing.MultiTapeTM VirtualWord
 @[expose] def suffix (x : List Bool) : List Bool := (x.take 1).map not
 
 /-- Both the cut and address vary with the first input bit; both have binary encodings. -/
-@[expose] def data (x : List Bool) : Data := (cut x, suffix x, cut x)
+@[expose] def data (x : List Bool) : Data := ⟨cut x, suffix x, cut x⟩
 
 /-- The cut is always a valid prefix, including empty input. -/
 theorem cut_le (x : List Bool) : cut x ≤ x.length := by
@@ -47,7 +47,7 @@ theorem data_logSpace : ComputableInLogSpace data encBits encData := by
     (ComputableInLogSpace.bitsMap not).comp
       (ComputableInLogSpace.of_take_one (encIn := encBits) (encOut := encBits)
         (f := fun x => x.take 1) fun _ => rfl)
-  exact hc.pair (hs.pair hc)
+  exact (hc.pair (hs.pair hc)).congr fun _ => rfl
 
 /-- This certificate runs the generator; its output is precisely the bytes loaded by the
 runtime consumer. The original input is emitted as the tail, never saved as workspace. -/
@@ -59,7 +59,7 @@ theorem generated_frame : ComputableInLogSpace (Generate.prepare _root_.id data 
 program and generate a runtime frame. The query stream is recomputed, not stored. -/
 theorem query_frame : ComputableInLogSpace
     (Generate.prepare _root_.id
-      (fun x => (cut x, (x.map not).drop (cut x), cut x)) cut_le)
+      (fun x => ⟨cut x, (x.map not).drop (cut x), cut x⟩) cut_le)
     encBits Simulation.encInput := by
   have hh := ComputableInLogSpace.bitsHeadD false
   have hc := (ComputableInLogSpace.of_finite (encIn := encBool)
@@ -82,7 +82,7 @@ theorem generated_consumer : ComputableInLogSpace
       cases x with
       | nil => decide
       | cons b xs => cases b <;> norm_num [cut, encNat_apply]
-    simp only [data, encData, length_encPair, encBits_apply]
+    simp only [data, encData_apply, encDataFields, length_encPair, encBits_apply]
     nlinarith
   · intro x
     change (word x (cut x) (suffix x)).length ≤ _

@@ -52,25 +52,21 @@ private noncomputable def evaluatedDiagonal (M : Q → Measurement Ans A)
   (M (.diagonal L)).map (lineValue u)
 
 private theorem diagonal_eval_copy_le (S : CommutingStrategy Q Q Ans Ans A)
-    (d : ℕ) (L : Finset (Point F (n + 1))) (u : Point F (n + 1)) :
+    (d D : ℕ) (L : Finset (Point F (n + 1))) (u : Point F (n + 1)) :
     Measurement.copyDefect S.state (decodedPoint S.alice u) (evaluatedDiagonal S.bob L u) ≤
-      2 * (1 - acceptScore S d (.point u) (.diagonal L)) := by
+      2 * (1 - acceptScoreAtDegrees S d D (.point u) (.diagonal L)) := by
   classical
-  have hscore : acceptScore S d (.point u) (.diagonal L) ≤
+  have hscore : acceptScoreAtDegrees S d D (.point u) (.diagonal L) ≤
       Measurement.agreement S.state (decodedPoint S.alice u) (evaluatedDiagonal S.bob L u) := by
-    simp only [acceptScore, decodedPoint, evaluatedDiagonal, Measurement.agreement_map_map]
-    refine sum_le_sum fun a _ => sum_le_sum fun b _ => ?_
-    by_cases h : accepts d (.point u) (.diagonal L) a b
-    · obtain ⟨g, z, rfl, rfl, hu, he⟩ := exists_agree_of_accepts_point_diagonal d L u a b h
-      simp only [ite_eq_left h, decodePoint_inl, lineValue, dite_eq_left hu, he, ite_true,
-        CommutingStrategy.prob, le_refl]
-    · rw [ite_eq_right h]
-      exact ite_nonneg (S.prob_nonneg _ _ _ _) le_rfl
-  have hn := Measurement.sum_norm_sub_sq_le S.state (decodedPoint S.alice u)
+    apply acceptScoreAtDegrees_le_decodedAgreement
+    intro a b h
+    obtain ⟨g, z, rfl, rfl, hu, he⟩ := exists_agree_of_acceptsAtDegrees_point_diagonal
+      d D L u a b h
+    simp only [decodePoint_inl, lineValue, dite_eq_left hu, he]
+  exact Measurement.sum_norm_sub_sq_le_of_agreement S.state (decodedPoint S.alice u)
     (evaluatedDiagonal S.bob L u) (fun a =>
       Measurement.commute_map_map _ _ (S.commute (.point u) (.diagonal L)) _ _ a a)
-  unfold Measurement.copyDefect
-  linarith
+    (by linarith only [hscore])
 
 omit [DecidableEq F] in
 private theorem expect_translate_base {ι : Type*} [Fintype ι]
@@ -84,26 +80,29 @@ private theorem expect_translate_base {ι : Type*} [Fintype ι]
 /-- The average squared commutator defect of the decoded point measurements is controlled
 by the diagonal branch's rejection probability. The two points differ by a uniform
 direction in the chosen prefix. -/
-theorem decodedPoint_prefixCommutatorDefect_le (S : CommutingStrategy Q Q Ans Ans A)
+theorem decodedPoint_prefixCommutatorDefect_le_atDegrees (S : CommutingStrategy Q Q Ans Ans A)
     (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
-    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (d : ℕ) (i : Fin (n + 1)) :
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (d D : ℕ) (i : Fin (n + 1)) :
     (𝔼 u : Point F (n + 1), 𝔼 v : Fin (i.val + 1) → F, Measurement.pairCommutatorDefect S.state
       (decodedPoint S.alice u) (decodedPoint S.alice (u + prefixDirection i v))) ≤
-      64 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .diagonal).commutingWinProb S) := by
+      64 * (n + 1 : ℝ) *
+        (1 - (branchGameWithDiagonalCap (F := F) n d D .diagonal).commutingWinProb S) := by
   classical
   let direction := prefixDirection (F := F) i
   let err (u : Point F (n + 1)) (v : Fin (i.val + 1) → F) :=
     Measurement.copyDefect S.state (decodedPoint S.alice u)
       (evaluatedDiagonal S.bob (linePoints u (direction v)) u)
   have herr : (𝔼 u : Point F (n + 1), 𝔼 v, err u v) ≤
-      4 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .diagonal).commutingWinProb S) := by
+      4 * (n + 1 : ℝ) *
+        (1 - (branchGameWithDiagonalCap (F := F) n d D .diagonal).commutingWinProb S) := by
     calc
       _ ≤ 𝔼 u : Point F (n + 1), 𝔼 v,
-          (2 * (1 - acceptScore S d (.point u) (.diagonal (linePoints u (direction v))))) :=
-        expect_le_expect fun u _ => expect_le_expect fun v _ => diagonal_eval_copy_le S d _ u
+          (2 * (1 - acceptScoreAtDegrees S d D (.point u)
+            (.diagonal (linePoints u (direction v))))) :=
+        expect_le_expect fun u _ => expect_le_expect fun v _ => diagonal_eval_copy_le S d D _ u
       _ ≤ _ := by
         simp only [← mul_expect, direction]
-        have hloss := diagonalPointLossAt_le n d S i
+        have hloss := diagonalPointLossAtDegrees_le n d D S i
         linarith
   have htranslate (u v : Point F (n + 1)) : linePoints (u + v) v = linePoints u v := by
     simpa only [one_smul] using linePoints_translate_direction u v (1 : F)
@@ -131,6 +130,32 @@ theorem decodedPoint_prefixCommutatorDefect_le (S : CommutingStrategy Q Q Ans An
       simp only [← mul_expect, expect_add_distrib, expect_translate_base]
       linarith
 
+/-- The average squared commutator defect of the decoded point measurements is controlled
+by the diagonal branch's rejection probability. The two points differ by a uniform
+direction in the chosen prefix. -/
+theorem decodedPoint_prefixCommutatorDefect_le (S : CommutingStrategy Q Q Ans Ans A)
+    (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (d : ℕ) (i : Fin (n + 1)) :
+    (𝔼 u : Point F (n + 1), 𝔼 v : Fin (i.val + 1) → F, Measurement.pairCommutatorDefect S.state
+      (decodedPoint S.alice u) (decodedPoint S.alice (u + prefixDirection i v))) ≤
+      64 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .diagonal).commutingWinProb S) := by
+  rw [branchGame_eq_withDiagonalCap]
+  exact decodedPoint_prefixCommutatorDefect_le_atDegrees S hPoint hLine d ((n + 1) * d) i
+
+/-- For two independent uniform points the squared commutator defect is at most
+`64 (n + 1)` times the diagonal-branch loss. -/
+theorem decodedPoint_pairCommutatorDefect_le_atDegrees (S : CommutingStrategy Q Q Ans Ans A)
+    (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (d D : ℕ) :
+    (𝔼 u : Point F (n + 1), 𝔼 w : Point F (n + 1), Measurement.pairCommutatorDefect S.state
+      (decodedPoint S.alice u) (decodedPoint S.alice w)) ≤
+      64 * (n + 1 : ℝ) *
+        (1 - (branchGameWithDiagonalCap (F := F) n d D .diagonal).commutingWinProb S) := by
+  have h := decodedPoint_prefixCommutatorDefect_le_atDegrees S hPoint hLine d D (Fin.last n)
+  simp only [prefixDirection_last] at h
+  refine le_of_eq_of_le (expect_congr rfl fun u _ => ?_) h
+  exact (Fintype.expect_equiv (Equiv.addLeft u) _ _ (fun _ => rfl)).symm
+
 /-- For two independent uniform points the squared commutator defect is at most
 `64 (n + 1)` times the diagonal-branch loss. -/
 theorem decodedPoint_pairCommutatorDefect_le (S : CommutingStrategy Q Q Ans Ans A)
@@ -139,9 +164,7 @@ theorem decodedPoint_pairCommutatorDefect_le (S : CommutingStrategy Q Q Ans Ans 
     (𝔼 u : Point F (n + 1), 𝔼 w : Point F (n + 1), Measurement.pairCommutatorDefect S.state
       (decodedPoint S.alice u) (decodedPoint S.alice w)) ≤
       64 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .diagonal).commutingWinProb S) := by
-  have h := decodedPoint_prefixCommutatorDefect_le S hPoint hLine d (Fin.last n)
-  simp only [prefixDirection_last] at h
-  refine le_of_eq_of_le (expect_congr rfl fun u _ => ?_) h
-  exact (Fintype.expect_equiv (Equiv.addLeft u) _ _ (fun _ => rfl)).symm
+  rw [branchGame_eq_withDiagonalCap]
+  exact decodedPoint_pairCommutatorDefect_le_atDegrees S hPoint hLine d ((n + 1) * d)
 
 end Cslib.PCP.LowIndividualDegree

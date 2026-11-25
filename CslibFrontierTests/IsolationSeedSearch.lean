@@ -88,6 +88,20 @@ private def originalRoots (seed : Fin 1 → Bool) (s : Fin 3) : List (Option Con
   (fun (_ : Fin 1 → Bool) s =>
     if s = (0 : Fin 2) then [some (.decided true)] else [none]) id 0 = []
 
+private def resumeChecks (_ : Fin (2 ^ 1)) (_ : Option (Fin 2 × Bool)) (u : Fin 2) :
+    List (Option ControllerVerdict) :=
+  if u = 0 then [none] else [some (.decided true)]
+
+-- Resuming skips the designated source and keeps its negative answer across a positive reply.
+example : runSeedSchedulerFrom resumeChecks id (0 : Fin 2) 0 (some (0, false)) =
+    [some ⟨0, false⟩] := by
+  rw [runSeedSchedulerFrom_indexed resumeChecks id 0 (seed := 0) (cursor := 0)
+    (by decide) (by decide) false none (by simp) (by simp)]
+  rw [runSeedSchedulerFrom_indexed resumeChecks id 0 (seed := 0) (cursor := 1)
+    (by decide) (by decide) false (some (.decided true)) (by decide)
+    (by intro value h; cases h; rfl)]
+  exact runSeedSchedulerFrom_indexed_done resumeChecks id 0 (by decide) (by decide) false
+
 private def tickVerdict (answer : Option (Option ControllerVerdict)) :
     OptionT (StateM ℕ) (Option ControllerVerdict) :=
   OptionT.mk fun clock => (answer, clock + 1)

@@ -35,16 +35,13 @@ private abbrev Successful (edge : Fin n → Fin n → Bool) (s v : Fin n) (k : �
 private theorem finite_successful (edge : Fin n → Fin n → Bool) (s v : Fin n) (k : ℕ) :
     Finite (Successful edge s v k) := by
   have : Finite {p : List (Fin n) // p.length ≤ k} := (List.finite_length_le _ _).to_subtype
-  have hlen (b : Successful edge s v k) : Scan.Bounded k b.val := by
-    obtain ⟨hit, hh⟩ := Option.isSome_iff_exists.mp b.property
-    exact Scan.bounded_of_passes s k b.val ((Scan.run_eq_some_iff edge s v k b hit).mp hh).1
   let embed (b : Successful edge s v k) (u : Fin n) :
       Option {p : List (Fin n) // p.length ≤ k} :=
-    (b.val u).pmap Subtype.mk (fun p hp => hlen b u p (Option.mem_def.mp hp))
-  apply Finite.of_injective embed
-  intro b₁ b₂ h
-  apply Subtype.ext
-  funext u
+    (b.val u).pmap Subtype.mk fun p hp => by
+      obtain ⟨hit, hh⟩ := Option.isSome_iff_exists.mp b.property
+      exact Scan.bounded_of_passes s k b.val
+        ((Scan.run_eq_some_iff edge s v k b hit).mp hh).1 u p (Option.mem_def.mp hp)
+  refine Finite.of_injective embed fun b₁ b₂ h => Subtype.ext (funext fun u => ?_)
   have he := congrArg (Option.map Subtype.val) (congrFun h u)
   cases h₁ : b₁.val u <;> cases h₂ : b₂.val u <;> simp_all [embed]
 
@@ -65,27 +62,22 @@ theorem replayMembership_eq_singleton (edge : Fin n → Fin n → Bool) (s v : F
     replayMembership edge s k (expected (fun u w => edge u w = true) s k) v =
       [by classical exact decide (v ∈ round (fun u w => edge u w = true) s k)] := by
   classical
-  obtain ⟨w, hw, huniq⟩ := h
-  let e := Scan.successfulBranches edge s v k
-  let b : Successful edge s v k := e.symm ⟨w, hw⟩
-  have hsub : Subsingleton (Successful edge s v k) := ⟨fun x y => by
-    apply e.injective
-    apply Subtype.ext
-    exact (huniq (e x).val (e x).property).trans (huniq (e y).val (e y).property).symm⟩
+  obtain ⟨branch, hbranch, hunique⟩ := Scan.existsUnique_successful_branch edge s v k h
+  let b : Successful edge s v k := ⟨branch, hbranch⟩
   let _ := finite_successful edge s v k
   let _ := Fintype.ofFinite (Successful edge s v k)
   unfold replayMembership
-  rw [ite_eq_left rfl]
-  have hU : (Finset.univ : Finset (Successful edge s v k)) = {b} := by
+  have huniv : (Finset.univ : Finset (Successful edge s v k)) = {b} := by
     ext x
-    simp [hsub.elim x b]
-  rw [hU]
+    have hx : x = b := Subtype.ext (hunique x.val x.property)
+    simp [hx]
+  rw [ite_eq_left rfl, huniv]
   simp only [Finset.toList_singleton, List.map_singleton, List.cons.injEq, and_true]
   obtain ⟨hit, hhit⟩ := Option.isSome_iff_exists.mp b.property
-  have hpass := (Scan.run_eq_some_iff edge s v k b hit).mp hhit |>.1
-  have hb := isSome_iff (v := v) hpass
+  have hpass := ((Scan.run_eq_some_iff edge s v k b hit).mp hhit).1
   apply Bool.eq_iff_iff.mpr
-  simpa only [Scan.transcript, Option.isSome_map, decide_eq_true_eq, mem_round] using hb
+  simpa only [Scan.transcript, Option.isSome_map, decide_eq_true_eq, mem_round] using
+    isSome_iff (v := v) hpass
 
 /-- The bounded scan instantiates the controller's singleton callback contract in the list
 semantics, retaining one successful outcome with multiplicity. -/
@@ -93,15 +85,9 @@ theorem runController_replay_correct (edge : Fin n → Fin n → Bool) (s v : Fi
     ∃ verdict,
       runController (m := List) (fun u w => pure (edge u w)) (replayMembership edge s) v =
         [some verdict] ∧
-      match verdict with
-      | .bad j => (∀ i < j, ∃! w, Passes (fun u w => edge u w = true) s i w) ∧
-          ¬(∃! w, Passes (fun u w => edge u w = true) s j w)
-      | .decided b => (∀ j, ∃! w, Passes (fun u w => edge u w = true) s j w) ∧
-          (b = true ↔ ReflTransGen (fun u w => edge u w = true) s v) := by
-  apply runController_correct (r := fun u w => edge u w = true)
-  · intro u w
-    cases edge u w <;> simp
-  · intro k hk target
-    exact replayMembership_eq_singleton edge s target k hk
+      verdict.Correct (fun u w => edge u w = true) s v := by
+  exact runController_correct (r := fun u w => edge u w = true)
+    (fun u w => by cases edge u w <;> simp)
+    fun k hk target => replayMembership_eq_singleton edge s target k hk
 
 end Cslib.DoubleCounting

@@ -38,6 +38,8 @@ corrected endpoints are `2ε`-bias for Exercise 8.38 and `ε < 1/2` for Exercise
 
 ## Main results
 
+* `Cslib.Crypto.PRG.isReadOnceTest_countMod`: counting ones modulo `m` is a read-once test of
+  width `m`.
 * `Cslib.Crypto.PRG.isReadOnceTest_parityOn`: parities are read-once tests of width `2`.
 * `Cslib.Crypto.PRG.Generator.Secure.isSmallBias`: Exercise 8.38, corrected to `2ε`.
 * `Cslib.Crypto.PRG.Generator.Secure.lt_two_pow`: Exercise 8.25(2), corrected to `ε < 1/2`.
@@ -57,42 +59,51 @@ open Cslib.BitString Cslib.BranchingPrograms Cslib.Probability Finset
 open Cslib.Probability.PMF
 open scoped NNReal BigOperators
 
-/-- Adding bits modulo `2` along a fold, in a state space `Fin w` with `w ≥ 2`, computes the sum of
-the bits modulo `2`. -/
-private theorem val_foldl_mod_two {w : ℕ} (hw : 2 ≤ w) :
+/-- Adding numbers modulo `m` along a fold, in a state space `Fin w` with `0 < m ≤ w`, computes the
+sum of the numbers modulo `m`. -/
+private theorem val_foldl_mod {m w : ℕ} (hm : 0 < m) (hw : m ≤ w) :
     ∀ (L : ℕ) (f : Fin L → ℕ),
-      ((Fin.foldl L (fun q t => (⟨((q : ℕ) + f t) % 2,
-          (Nat.mod_lt _ two_pos).trans_le hw⟩ : Fin w)) (⟨0, by omega⟩ : Fin w) : Fin w) : ℕ) =
-        (∑ t, f t) % 2
+      ((Fin.foldl L (fun q t => (⟨((q : ℕ) + f t) % m,
+          (Nat.mod_lt _ hm).trans_le hw⟩ : Fin w)) (⟨0, hm.trans_le hw⟩ : Fin w) : Fin w) : ℕ) =
+        (∑ t, f t) % m
   | 0, _ => by simp
   | L + 1, f => by
     rw [Fin.foldl_succ_last, Fin.sum_univ_castSucc]
     simp only
-    rw [val_foldl_mod_two hw L, Nat.mod_add_mod]
+    rw [val_foldl_mod hm hw L, Nat.mod_add_mod]
 
-/-- The read-once program of width `w ≥ 2` that computes the parity on `S`: its state is the
-parity of the bits read so far in `S`. -/
-private def parityProgram {L w : ℕ} (hw : 2 ≤ w) (S : Finset (Fin L)) :
+/-- The read-once program of width `w ≥ m > 0` that counts the ones read at the positions of `S`
+modulo `m` and accepts when the count is `r`: its state is the count of the bits read so far. -/
+private def countModProgram {L m w : ℕ} (hm : 0 < m) (hw : m ≤ w) (S : Finset (Fin L)) (r : ℕ) :
     ReadOnceProgram L (Fin w) Bool where
-  start := ⟨0, by omega⟩
-  step t q b := ⟨((q : ℕ) + if t ∈ S ∧ b = true then 1 else 0) % 2,
-    (Nat.mod_lt _ two_pos).trans_le hw⟩
-  accept q := decide ((q : ℕ) = 1)
+  start := ⟨0, hm.trans_le hw⟩
+  step t q b := ⟨((q : ℕ) + if t ∈ S ∧ b = true then 1 else 0) % m,
+    (Nat.mod_lt _ hm).trans_le hw⟩
+  accept q := decide ((q : ℕ) = r)
 
-private theorem eval_parityProgram {L w : ℕ} (hw : 2 ≤ w) (S : Finset (Fin L))
-    (x : Fin L → Bool) : (parityProgram hw S).eval x = parityOn S x := by
-  have h := val_foldl_mod_two hw L fun t => if t ∈ S ∧ x t = true then 1 else 0
+private theorem eval_countModProgram {L m w : ℕ} (hm : 0 < m) (hw : m ≤ w) (S : Finset (Fin L))
+    (r : ℕ) (x : Fin L → Bool) :
+    (countModProgram hm hw S r).eval x = decide (#{i ∈ S | x i = true} % m = r) := by
+  have h := val_foldl_mod hm hw L fun t => if t ∈ S ∧ x t = true then 1 else 0
   rw [sum_boole, Nat.cast_id] at h
-  simp only [ReadOnceProgram.eval, ReadOnceProgram.finalState, parityProgram, parityOn]
+  simp only [ReadOnceProgram.eval, ReadOnceProgram.finalState, countModProgram]
   have hS : ({t | t ∈ S ∧ x t = true} : Finset (Fin L)) = {i ∈ S | x i = true} := by
     ext; simp
   rw [h, hS]
+
+/-- Counting the ones at the positions of `S` modulo `m` and comparing the count with `r` is a
+read-once test of every width `w ≥ m > 0`: `m` states hold the count of the bits read so far. -/
+theorem isReadOnceTest_countMod {L m w : ℕ} (hm : 0 < m) (hw : m ≤ w) (S : Finset (Fin L))
+    (r : ℕ) :
+    IsReadOnceTest w
+      (fun x : Fin L → Bool => PMF.pure (decide (#{i ∈ S | x i = true} % m = r))) :=
+  ⟨countModProgram hm hw S r, funext fun x => by rw [eval_countModProgram]⟩
 
 /-- The parity of the bits in a set `S` of positions is a read-once test of every width `w ≥ 2`:
 two states hold the parity of the bits read so far. -/
 theorem isReadOnceTest_parityOn {L w : ℕ} (hw : 2 ≤ w) (S : Finset (Fin L)) :
     IsReadOnceTest w (fun x : Fin L → Bool => PMF.pure (parityOn S x)) :=
-  ⟨parityProgram hw S, funext fun x => by rw [eval_parityProgram]⟩
+  isReadOnceTest_countMod two_pos hw S 1
 
 /-- The average sign of a Boolean function is one minus twice its density. -/
 private theorem expect_signVal {α : Type*} [Fintype α] [Nonempty α] (f : α → Bool) :
@@ -143,8 +154,7 @@ hypothesis `ε < 1` does not suffice (`exists_secure_not_isSmallBias`). -/
 theorem Generator.Secure.lt_two_pow {k ℓ s : ℕ} {G : Generator (Fin k → Bool) (Fin ℓ → Bool)}
     {ε : ℝ≥0} (hs : 1 ≤ s) (hε : (ε : ℝ) < 1 / 2) (hG : G.Secure (IsReadOnceTest (2 ^ s)) ε) :
     ℓ < 2 ^ k := by
-  have h := card_lt_card_of_isSmallBias (by linarith) (hG.isSmallBias hs)
-  simpa using h
+  simpa using card_lt_card_of_isSmallBias (by linarith) (hG.isSmallBias hs)
 
 /-- **Counterexample to the printed Exercises 8.38 and 8.25(2)** [Goldreich][Goldreich2007DraftR4]:
 the generator `σ ↦ σσ` on one seed bit fools every test, however large its space, with error
@@ -164,9 +174,7 @@ theorem exists_secure_not_isSmallBias :
     have hx (x : Fin (2 ^ 1) → Bool) : |(G.outputDist x).toReal -
         (PMF.uniformOfFintype (Fin (2 ^ 1) → Bool) x).toReal| = 1 / 4 := by
       rw [Generator.outputDist, toReal_uniformOfFintype_map_apply, PMF.uniformOfFintype_apply,
-        nnratCast_dens]
-      have hG : ⇑G = fun σ _ => σ 0 := rfl
-      rw [hG]
+        nnratCast_dens, show ⇑G = fun σ _ => σ 0 from rfl]
       simp only [Fintype.card_pi, Fintype.card_bool, prod_const, card_univ, Fintype.card_fin,
         ENNReal.toReal_inv]
       rcases hcases x with h | h <;> rw [h] <;> norm_num
@@ -174,14 +182,10 @@ theorem exists_secure_not_isSmallBias :
       Fintype.card_fin, nsmul_eq_mul]
     norm_num
   refine ⟨G, fun A _ => ?_, fun hG => ?_⟩
-  · have h := PMF.abs_bind_apply_toReal_sub_le_dist G.outputDist
-      (PMF.uniformOfFintype (Fin (2 ^ 1) → Bool)) A true
-    rw [hdist] at h
-    rw [Generator.advantage]
-    exact_mod_cast h
+  · rw [Generator.advantage]
+    exact_mod_cast hdist ▸ PMF.abs_bind_apply_toReal_sub_le_dist G.outputDist _ A true
   · have h := hG univ univ_nonempty
-    have hpar (σ : Fin 1 → Bool) : parityOn univ (G σ) = false := by
-      revert σ; decide
+    have hpar : ∀ σ : Fin 1 → Bool, parityOn univ (G σ) = false := by decide
     rw [Generator.outputDist, bias_uniformOfFintype_map] at h
     simp_rw [chi_eq_signVal_parityOn, hpar] at h
     rw [Finset.expect_const univ_nonempty] at h

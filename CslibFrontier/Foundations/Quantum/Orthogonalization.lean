@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Orthogonalization
+public import CslibFrontier.Foundations.Quantum.Algebra.FamApprox
+public import CslibFrontier.Foundations.Quantum.Algebra.CharacterFamily
 import CslibFrontier.Foundations.Algebra.BigOperators.Selection
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
 
@@ -47,6 +49,10 @@ The proof follows §3 of the paper, with its two lemmas made explicit in finite 
 
 * `Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le`,
   `Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le_of_le`: orthogonalization.
+* `Cslib.Quantum.Measurement.exists_isProjective_famApprox`: orthogonalization of families, in
+  the family relation `≈ᶠ`.
+* `Cslib.Quantum.Measurement.exists_isProjective_charObs`: unitary, exactly linear character
+  observables close to those of a measurement.
 
 ## References
 
@@ -56,7 +62,7 @@ The proof follows §3 of the paper, with its two lemmas made explicit in finite 
 @[expose] public section
 
 open Matrix Finset
-open scoped MatrixOrder ComplexOrder
+open scoped MatrixOrder ComplexOrder BigOperators
 
 namespace Cslib.Quantum
 
@@ -100,10 +106,7 @@ private theorem conjDiag_eq_sum (f : ι → ℝ) :
     ext i j
     by_cases hij : i = j
     · subst hij
-      simp only [diagonal_apply_eq, Matrix.sum_apply, Matrix.smul_apply, Pi.single_apply,
-        smul_eq_mul]
-      rw [sum_eq_single i (fun b _ hb => by simp [Ne.symm hb]) (by simp)]
-      simp
+      simp [Matrix.sum_apply, Pi.single_apply, apply_ite]
     · simp [Matrix.sum_apply, hij]
   simp only [conjDiag, this, Matrix.mul_sum, Matrix.sum_mul, Matrix.mul_smul, Matrix.smul_mul]
 
@@ -224,16 +227,12 @@ theorem exists_isProjective_sum_norm_sub_sq_le (φ : AlgState (Matrix ι ι ℂ)
     simp only [F, sel, Pi.mul_apply]
     split_ifs <;> push_cast <;> ring
   have hyy : yᴴ * y = ∑ a, q a * M.effect a := by
-    have := hyT 1
-    simp only [Pi.one_apply, Complex.ofReal_one, one_smul] at this
-    rw [← this, show diagonal (fun _ : S => (1 : ℂ)) = 1 from rfl, Matrix.mul_one]
+    simpa [show diagonal (fun _ : S => (1 : ℂ)) = 1 from rfl] using hyT 1
   -- Indicator of the outcome `a` on the selection.
   let T : α → Matrix S S ℂ := fun a =>
     diagonal fun s : S => (((fun a' : α => if a' = a then (1 : ℝ) else 0) s.1.1 : ℝ) : ℂ)
   have hyTa : ∀ a, yᴴ * T a * y = q a * M.effect a := fun a => by
-    refine (hyT (fun a' => if a' = a then (1 : ℝ) else 0)).trans ?_
-    rw [sum_eq_single a (fun b _ hb => by simp [hb]) (by simp)]
-    simp
+    simpa using hyT (fun a' => if a' = a then (1 : ℝ) else 0)
   have hTT : ∀ a, T a * T a = T a := fun a => by
     simp only [T, diagonal_mul_diagonal]
     congr 1
@@ -241,13 +240,10 @@ theorem exists_isProjective_sum_norm_sub_sq_le (φ : AlgState (Matrix ι ι ℂ)
     split_ifs <;> simp
   have hTsum : ∑ a, T a = 1 := by
     ext s s'
-    rw [Matrix.sum_apply]
     by_cases hss : s = s'
     · subst hss
-      simp only [T, diagonal_apply_eq, one_apply_eq]
-      rw [sum_eq_single s.1.1 (fun b _ hb => by simp [Ne.symm hb]) (by simp)]
-      simp
-    · simp only [T, diagonal_apply_ne _ hss, one_apply_ne hss, sum_const_zero]
+      simp [T, Matrix.sum_apply, apply_ite]
+    · simp [T, Matrix.sum_apply, hss]
   -- Polar decomposition `y = R h`.
   have hcard : Fintype.card S = Fintype.card ι := by rw [Fintype.card_coe, hS]
   obtain ⟨R, h, hR1, hR2, hh0, hhh, hyR, hle⟩ := Matrix.exists_polar y hcard
@@ -298,5 +294,56 @@ theorem exists_isProjective_sum_norm_sub_sq_le_of_le (φ : AlgState (Matrix ι �
       ∑ a, φ.norm (M.effect a - P.effect a) ^ 2 ≤ 9 * ε := by
   obtain ⟨P, hP, h⟩ := exists_isProjective_sum_norm_sub_sq_le φ M
   exact ⟨P, hP, h.trans (by linarith)⟩
+
+/-- Orthogonalize on the original space, measuring the distance in a state
+after a unital star-algebra embedding into a larger matrix algebra. -/
+theorem exists_isProjective_sum_norm_map_sub_sq_le_of_le {κ : Type*} [Fintype κ] [DecidableEq κ]
+    (φ : AlgState (Matrix κ κ ℂ)) (e : Matrix ι ι ℂ →⋆ₐ[ℂ] Matrix κ κ ℂ)
+    (M : Measurement α (Matrix ι ι ℂ)) {ε : ℝ}
+    (hε : 1 - ε ≤ ∑ a, (φ (e (M.effect a * M.effect a))).re) :
+    ∃ P : Measurement α (Matrix ι ι ℂ), P.IsProjective ∧
+      ∑ a, φ.norm (e (M.effect a) - e (P.effect a)) ^ 2 ≤ 9 * ε := by
+  let ψ : AlgState (Matrix ι ι ℂ) :=
+    { toFun := φ ∘ e
+      map_add' := fun X Y => by simp only [Function.comp_apply, map_add]
+      map_smul' := fun z X => by simp only [Function.comp_apply, map_smul, RingHom.id_apply]
+      monotone' := fun _ _ h => φ.apply_mono (OrderHomClass.mono e h)
+      map_one' := by simp only [Function.comp_apply, map_one, φ.map_one] }
+  obtain ⟨P, hP, h⟩ := exists_isProjective_sum_norm_sub_sq_le_of_le ψ M hε
+  have he (a : α) :
+      ψ.norm (M.effect a - P.effect a) ^ 2 =
+        φ.norm (e (M.effect a) - e (P.effect a)) ^ 2 := by
+    rw [AlgState.norm_sq, AlgState.norm_sq]
+    change (φ (e (star (M.effect a - P.effect a) * (M.effect a - P.effect a)))).re = _
+    rw [map_mul, map_star, map_sub]
+  exact ⟨P, hP, by simpa only [he] using h⟩
+
+/-- **Orthogonalization of families of measurements**: if every measurement of a family has
+`φ(∑_a M^q_a²) ≥ 1 - ε`, a family of projective measurements is `√(9ε)`-close to it, in the family
+relation `≈ᶠ`, for every question distribution. -/
+theorem exists_isProjective_famApprox {Q : Type*} [Fintype Q] (μ : PMF Q)
+    (φ : AlgState (Matrix ι ι ℂ)) (M : Q → Measurement α (Matrix ι ι ℂ)) {ε : ℝ}
+    (hε : ∀ q, 1 - ε ≤ ∑ a, (φ ((M q).effect a * (M q).effect a)).re) :
+    ∃ P : Q → Measurement α (Matrix ι ι ℂ), (∀ q, (P q).IsProjective) ∧
+      effects M ≈ᶠ[μ, φ; √(9 * ε)] effects P := by
+  choose P hP hMP using fun q => exists_isProjective_sum_norm_sub_sq_le_of_le φ (M q) (hε q)
+  exact ⟨P, hP, famApprox_of_forall hMP⟩
+
+open scoped Matrix.Norms.L2Operator in
+/-- **Unitary, exactly linear observables from a measurement.** A measurement `M` with bit-string
+outcomes and `φ(∑_x M_x²) ≥ 1 - ε` has a projective measurement `P` whose character observables
+`χ_P(a)` are unitary and exactly linear, and close on average to those of `M`:
+`E_a ‖χ_M(a) - χ_P(a)‖²_φ ≤ 9ε`. -/
+theorem exists_isProjective_charObs {n : Type*} [Fintype n] [DecidableEq n]
+    (φ : AlgState (Matrix ι ι ℂ)) (M : Measurement (n → Bool) (Matrix ι ι ℂ)) {ε : ℝ}
+    (hε : 1 - ε ≤ ∑ x, (φ (M.effect x * M.effect x)).re) :
+    ∃ P : Measurement (n → Bool) (Matrix ι ι ℂ), P.IsProjective ∧
+      (∀ a, P.charObs a ∈ unitary (Matrix ι ι ℂ)) ∧
+      (∀ a a', P.charObs a * P.charObs a' = P.charObs (a + a')) ∧
+      𝔼 a, φ.norm (M.charObs a - P.charObs a) ^ 2 ≤ 9 * ε := by
+  obtain ⟨P, hP, h⟩ := exists_isProjective_sum_norm_sub_sq_le_of_le φ M hε
+  refine ⟨P, hP, hP.charObs_mem_unitary, hP.charObs_mul, ?_⟩
+  simp only [charObs, walshSum_sub, expect_norm_walshSum_sq]
+  exact h
 
 end Cslib.Quantum.Measurement

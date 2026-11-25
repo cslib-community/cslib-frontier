@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.DensityMatrix
+import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
 
 /-!
 # Scalar invariance of pure-state density matrices
@@ -27,6 +28,15 @@ public section
 namespace Cslib.Quantum
 
 variable {ι : Type*}
+
+/-- The outer product of a unit vector is idempotent. -/
+theorem pureState_mul_self_of_norm_eq_one [Fintype ι] (ψ : EuclideanSpace ℂ ι) (hψ : ‖ψ‖ = 1) :
+    pureState ψ * pureState ψ = pureState ψ := by
+  have h : pureState ψ = Matrix.vecMulVec ψ.ofLp (star ψ.ofLp) := by
+    ext i j
+    simp only [pureState_apply, Matrix.vecMulVec_apply, Pi.star_apply]
+  rw [h, Matrix.vecMulVec_mul_vecMulVec, EuclideanSpace.star_dotProduct_self_eq_norm_sq,
+    hψ, Complex.ofReal_one, one_pow, one_smul]
 
 /-- Multiplying a vector by a scalar scales its projector by the squared scalar modulus. -/
 theorem pureState_smul (c : ℂ) (ψ : EuclideanSpace ℂ ι) :

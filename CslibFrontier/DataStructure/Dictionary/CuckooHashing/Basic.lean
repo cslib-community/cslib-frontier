@@ -12,6 +12,8 @@ public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Nat.Log
 public import Mathlib.Order.Lattice.Nat
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Pure cuckoo tables, displacement, and replay
@@ -76,7 +78,7 @@ def tableSize (n_max : ℕ) : ℕ :=
 
 /-- Maximum number of two-table cuckoo displacement rounds `6 * (⌈log₂ max(n_max, 2)⌉ + 2)` before
 triggering a full-table rehash. -/
-@[expose]
+@[expose, wram_arith]
 def maxEvictions (n_max : ℕ) : ℕ :=
   6 * (Nat.clog 2 (max n_max 2) + 2)
 
@@ -152,8 +154,7 @@ theorem maxEvictions_le_thirtyTwo_mul_max (n_max : ℕ) :
     maxEvictions n_max ≤ 32 * max n_max 4 := by
   have hclog : Nat.clog 2 (max n_max 2) ≤ max n_max 2 :=
     (Nat.clog_le_iff_le_pow (by decide)).mpr (Nat.le_of_lt (max n_max 2).lt_two_pow_self)
-  unfold maxEvictions
-  omega
+  wram_omega
 
 theorem maxEvictions_le_tableSize (n_max : ℕ) :
     maxEvictions n_max ≤ tableSize n_max :=
@@ -161,14 +162,13 @@ theorem maxEvictions_le_tableSize (n_max : ℕ) :
 
 /-- Independence parameter `k = 2 * maxEvictions n_max + 2` required by the two-table cuckoo hashing
 analysis on eviction walks of length up to `maxEvictions n_max`. -/
-@[expose]
+@[expose, wram_arith]
 def cuckooK (n_max : ℕ) : ℕ :=
   2 * maxEvictions n_max + 2
 
 theorem thirtyEight_le_cuckooK (n_max : ℕ) : 38 ≤ cuckooK n_max := by
   have := eighteen_le_maxEvictions n_max
-  unfold cuckooK
-  omega
+  wram_omega
 
 /-! ### Section 2: Pure two-table cuckoo displacement and replay model -/
 
@@ -279,34 +279,15 @@ theorem WellPlaced.lookupEntry_eq_some_iff {U m : ℕ} {h₁ h₂ : Fin U → Fi
     lookupEntry h₁ h₂ tbl u = some e ↔ EntryIn tbl e ∧ e.key = u := by
   rw [hwp.entryIn_iff_home]
   unfold lookupEntry
-  have hsecond :
-      (match tbl.t2 (h₂ u) with
-        | some e₂ => if e₂.key = u then some e₂ else none
-        | none => none) = some e →
-        (tbl.t1 (h₁ e.key) = some e ∨ tbl.t2 (h₂ e.key) = some e) ∧ e.key = u := by
-    cases ht2 : tbl.t2 (h₂ u) with
-    | none => intro h; cases h
-    | some e₂ =>
-      dsimp only
-      split_ifs with hk₂
-      · intro h; injection h with h; subst h; exact ⟨Or.inr (by rw [hk₂]; exact ht2), hk₂⟩
-      · intro h; cases h
   constructor
-  · cases ht1 : tbl.t1 (h₁ u) with
-    | none => exact hsecond
-    | some e₁ =>
-      dsimp only
-      split_ifs with hk₁
-      · intro h; injection h with h; subst h; exact ⟨Or.inl (by rw [hk₁]; exact ht1), hk₁⟩
-      · exact hsecond
+  · intro h
+    split at h <;> (try split_ifs at h) <;> (try split at h) <;> (try split_ifs at h) <;>
+      cases h <;> subst_vars <;> first | exact ⟨.inl ‹_›, rfl⟩ | exact ⟨.inr ‹_›, rfl⟩
   · rintro ⟨ht | ht, rfl⟩
-    · rw [ht]; simp
-    · rw [ht]
-      cases ht1 : tbl.t1 (h₁ e.key) with
-      | none => simp
-      | some e₁ =>
-        have hne : e₁.key ≠ e.key := hwp.disjoint_keys _ _ _ _ ht1 ht
-        simp [hne]
+    · simp [ht]
+    · cases ht1 : tbl.t1 (h₁ e.key) with
+      | none => simp [ht]
+      | some e₁ => simp [ht, hwp.disjoint_keys _ _ _ _ ht1 ht]
 
 theorem WellPlaced.lookupEntry_eq_none_iff {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
     (hwp : WellPlaced h₁ h₂ tbl) (u : Fin U) :
@@ -344,28 +325,17 @@ def pureEvictRound {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (tbl : PureTable U 
 theorem putT1_wellPlaced {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m} {e : SlotEntry U}
     (hwp : WellPlaced h₁ h₂ tbl) (hno : ¬ HasKey tbl e.key) :
     WellPlaced h₁ h₂ (putT1 h₁ tbl e).1 where
-  t1_home := by
-    intro i d hd
-    dsimp only [putT1] at hd
-    by_cases hi : i = h₁ e.key
-    · subst hi
-      rw [Function.update_self] at hd
-      injection hd with hd
-      subst hd; rfl
-    · rw [Function.update_of_ne hi] at hd
-      exact hwp.t1_home i d hd
+  t1_home i d hd := by
+    simp only [putT1, Function.update_apply] at hd
+    split_ifs at hd with hi
+    · cases hd; exact hi.symm
+    · exact hwp.t1_home i d hd
   t2_home := hwp.t2_home
-  disjoint_keys := by
-    intro i₁ i₂ e₁ e₂ ht1 ht2
-    dsimp only [putT1] at ht1 ht2
-    by_cases hi₁ : i₁ = h₁ e.key
-    · subst hi₁
-      rw [Function.update_self] at ht1
-      injection ht1 with ht1; subst ht1
-      intro heq
-      exact hno ⟨e₂, Or.inr ⟨i₂, ht2⟩, heq.symm⟩
-    · rw [Function.update_of_ne hi₁] at ht1
-      exact hwp.disjoint_keys i₁ i₂ e₁ e₂ ht1 ht2
+  disjoint_keys i₁ i₂ e₁ e₂ ht1 ht2 := by
+    simp only [putT1, Function.update_apply] at ht1
+    split_ifs at ht1 with hi
+    · cases ht1; exact fun heq => hno ⟨e₂, Or.inr ⟨i₂, ht2⟩, heq.symm⟩
+    · exact hwp.disjoint_keys i₁ i₂ e₁ e₂ ht1 ht2
 
 theorem putT1_entryIn_none {U m : ℕ} {h₁ : Fin U → Fin m} {tbl : PureTable U m}
     {e : SlotEntry U} (hold : (putT1 h₁ tbl e).2 = none) (d : SlotEntry U) :
@@ -392,21 +362,12 @@ theorem putT1_some_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTab
     ¬ HasKey (putT1 h₁ tbl e).1 e₁.key ∧
       (∀ d, EntryIn (putT1 h₁ tbl e).1 d ∨ d = e₁ ↔ EntryIn tbl d ∨ d = e) := by
   have ht1_some : tbl.t1 (h₁ e.key) = some e₁ := hold
-  have hhome₁ : h₁ e₁.key = h₁ e.key := hwp.t1_home (h₁ e.key) e₁ ht1_some
-  have hne_key : e₁.key ≠ e.key := by
-    intro heq
-    exact hno ⟨e₁, Or.inl ⟨h₁ e.key, ht1_some⟩, heq⟩
   refine ⟨?_, fun d => ?_⟩
   · rintro ⟨d, (⟨i, hi⟩ | ⟨i, hi⟩), hdk⟩
-    · dsimp only [putT1] at hi
-      by_cases hie : i = h₁ e.key
-      · subst hie; rw [Function.update_self] at hi
-        injection hi with hi; subst hi
-        exact hne_key hdk.symm
-      · rw [Function.update_of_ne hie] at hi
-        have hi_eq := hwp.t1_home i d hi
-        rw [hdk, hhome₁] at hi_eq
-        exact hie hi_eq.symm
+    · simp only [putT1, Function.update_apply] at hi
+      split_ifs at hi with hie
+      · cases hi; exact hno ⟨e₁, Or.inl ⟨_, ht1_some⟩, hdk.symm⟩
+      · exact hie (by rw [← hwp.t1_home i d hi, hdk, hwp.t1_home _ e₁ ht1_some])
     · exact hwp.disjoint_keys (h₁ e.key) i e₁ d ht1_some hi hdk.symm
   · dsimp only [EntryIn, putT1]
     rw [Function.exists_update_iff tbl.t1 (a := h₁ e.key) (b := some e)
@@ -425,86 +386,41 @@ theorem putT1_some_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTab
       · exact Or.inl (Or.inr hi)
       · exact Or.inl (Or.inl (Or.inl hd.symm))
 
+/-- Exchange of the two sub-tables. It turns `putT2 h₂` into `putT1 h₂`, so the `putT2` lemmas
+below follow from their `putT1` counterparts. -/
+private def PureTable.swap {U m : ℕ} (tbl : PureTable U m) : PureTable U m := ⟨tbl.t2, tbl.t1⟩
+
+private theorem entryIn_swap {U m : ℕ} {tbl : PureTable U m} {d : SlotEntry U} :
+    EntryIn tbl.swap d ↔ EntryIn tbl d := or_comm
+
+private theorem hasKey_swap {U m : ℕ} {tbl : PureTable U m} {k : Fin U} :
+    HasKey tbl.swap k ↔ HasKey tbl k := by
+  simp only [HasKey, entryIn_swap]
+
+private theorem WellPlaced.swap {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
+    (hwp : WellPlaced h₁ h₂ tbl) : WellPlaced h₂ h₁ tbl.swap :=
+  ⟨hwp.t2_home, hwp.t1_home, fun _ _ _ _ h h' hk => hwp.disjoint_keys _ _ _ _ h' h hk.symm⟩
+
 theorem putT2_wellPlaced {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m} {e : SlotEntry U}
     (hwp : WellPlaced h₁ h₂ tbl) (hno : ¬ HasKey tbl e.key) :
-    WellPlaced h₁ h₂ (putT2 h₂ tbl e).1 where
-  t1_home := hwp.t1_home
-  t2_home := by
-    intro i d hd
-    dsimp only [putT2] at hd
-    by_cases hi : i = h₂ e.key
-    · subst hi; rw [Function.update_self] at hd
-      injection hd with hd; subst hd; rfl
-    · rw [Function.update_of_ne hi] at hd
-      exact hwp.t2_home i d hd
-  disjoint_keys := by
-    intro i₁ i₂ e₁ e₂ ht1 ht2
-    dsimp only [putT2] at ht1 ht2
-    by_cases hi₂ : i₂ = h₂ e.key
-    · subst hi₂; rw [Function.update_self] at ht2
-      injection ht2 with ht2; subst ht2
-      intro heq
-      exact hno ⟨e₁, Or.inl ⟨i₁, ht1⟩, heq⟩
-    · rw [Function.update_of_ne hi₂] at ht2
-      exact hwp.disjoint_keys i₁ i₂ e₁ e₂ ht1 ht2
+    WellPlaced h₁ h₂ (putT2 h₂ tbl e).1 :=
+  (putT1_wellPlaced (e := e) hwp.swap (mt hasKey_swap.mp hno)).swap
 
 theorem putT2_entryIn_none {U m : ℕ} {h₂ : Fin U → Fin m} {tbl : PureTable U m}
     {e : SlotEntry U} (hold : (putT2 h₂ tbl e).2 = none) (d : SlotEntry U) :
-    EntryIn (putT2 h₂ tbl e).1 d ↔ EntryIn tbl d ∨ d = e := by
-  have ht2_none : tbl.t2 (h₂ e.key) = none := hold
-  dsimp only [EntryIn, putT2]
-  rw [Function.exists_update_iff tbl.t2 (a := h₂ e.key) (b := some e)
-    (p := fun _ slot => slot = some d), Option.some.injEq]
-  constructor
-  · rintro (hi | (hd | ⟨i, _, hi⟩))
-    · exact Or.inl (Or.inl hi)
-    · exact Or.inr hd.symm
-    · exact Or.inl (Or.inr ⟨i, hi⟩)
-  · rintro ((hi | ⟨i, hi⟩) | hd)
-    · exact Or.inl hi
-    · have hie : i ≠ h₂ e.key := by
-        intro h; subst h; rw [ht2_none] at hi; cases hi
-      exact Or.inr (Or.inr ⟨i, hie, hi⟩)
-    · exact Or.inr (Or.inl hd.symm)
+    EntryIn (putT2 h₂ tbl e).1 d ↔ EntryIn tbl d ∨ d = e :=
+  (entryIn_swap (tbl := (putT1 h₂ tbl.swap e).1)).trans <|
+    (putT1_entryIn_none (tbl := tbl.swap) hold d).trans (or_congr_left entryIn_swap)
 
 theorem putT2_some_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
     {e e₂ : SlotEntry U} (hwp : WellPlaced h₁ h₂ tbl) (hno : ¬ HasKey tbl e.key)
     (hold : (putT2 h₂ tbl e).2 = some e₂) :
     ¬ HasKey (putT2 h₂ tbl e).1 e₂.key ∧
       (∀ d, EntryIn (putT2 h₂ tbl e).1 d ∨ d = e₂ ↔ EntryIn tbl d ∨ d = e) := by
-  have ht2_some : tbl.t2 (h₂ e.key) = some e₂ := hold
-  have hhome₂ : h₂ e₂.key = h₂ e.key := hwp.t2_home (h₂ e.key) e₂ ht2_some
-  have hne_key : e₂.key ≠ e.key := by
-    intro heq
-    exact hno ⟨e₂, Or.inr ⟨h₂ e.key, ht2_some⟩, heq⟩
-  refine ⟨?_, fun d => ?_⟩
-  · rintro ⟨d, (⟨i, hi⟩ | ⟨i, hi⟩), hdk⟩
-    · exact hwp.disjoint_keys i (h₂ e.key) d e₂ hi ht2_some hdk
-    · dsimp only [putT2] at hi
-      by_cases hie : i = h₂ e.key
-      · subst hie; rw [Function.update_self] at hi
-        injection hi with hi; subst hi
-        exact hne_key hdk.symm
-      · rw [Function.update_of_ne hie] at hi
-        have hi_eq := hwp.t2_home i d hi
-        rw [hdk, hhome₂] at hi_eq
-        exact hie hi_eq.symm
-  · dsimp only [EntryIn, putT2]
-    rw [Function.exists_update_iff tbl.t2 (a := h₂ e.key) (b := some e)
-      (p := fun _ slot => slot = some d), Option.some.injEq]
-    constructor
-    · rintro ((hi | (hd | ⟨i, _, hi⟩)) | hd)
-      · exact Or.inl (Or.inl hi)
-      · exact Or.inr hd.symm
-      · exact Or.inl (Or.inr ⟨i, hi⟩)
-      · subst hd
-        exact Or.inl (Or.inr ⟨h₂ e.key, ht2_some⟩)
-    · rintro ((hi | ⟨i, hi⟩) | hd)
-      · exact Or.inl (Or.inl hi)
-      · by_cases hie : i = h₂ e.key
-        · subst hie; rw [ht2_some] at hi; exact Or.inr (Option.some.inj hi).symm
-        · exact Or.inl (Or.inr (Or.inr ⟨i, hie, hi⟩))
-      · exact Or.inl (Or.inr (Or.inl hd.symm))
+  obtain ⟨hno₂, hent⟩ := putT1_some_spec (e := e) hwp.swap (mt hasKey_swap.mp hno) hold
+  exact ⟨mt (hasKey_swap (tbl := (putT1 h₂ tbl.swap e).1)).mp hno₂, fun d =>
+    (or_congr_left (entryIn_swap (tbl := (putT1 h₂ tbl.swap e).1))).trans <|
+      (hent d).trans (or_congr_left entryIn_swap)⟩
 
 /-- Run up to `fuel` two-table cuckoo displacement rounds starting with displaced entry `e`. -/
 @[expose]
@@ -533,14 +449,9 @@ theorem evictRounds_le {U m : ℕ} (h₁ h₂ : Fin U → Fin m) :
   | 0, _, _ => le_rfl
   | fuel + 1, tbl, e => by
     unfold evictRounds
-    cases h : pureEvictRound h₁ h₂ tbl e with
-    | mk tbl' oe =>
-      cases oe with
-      | none => dsimp only; omega
-      | some e' =>
-        dsimp only
-        have ih := evictRounds_le h₁ h₂ fuel tbl' e'
-        omega
+    rcases pureEvictRound h₁ h₂ tbl e with ⟨tbl', _ | e'⟩
+    · dsimp only; omega
+    · dsimp only; have := evictRounds_le h₁ h₂ fuel tbl' e'; omega
 
 theorem pureEvict_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} :
     ∀ (fuel : ℕ) {tbl tbl' : PureTable U m} {e : SlotEntry U},
@@ -550,34 +461,20 @@ theorem pureEvict_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} :
   | 0, _, _, _, _, _, h => by cases h
   | fuel + 1, tbl, tbl', e, hwp, hno, hev => by
     unfold pureEvict pureEvictRound at hev
-    have hwp₁ : WellPlaced h₁ h₂ (putT1 h₁ tbl e).1 := putT1_wellPlaced hwp hno
-    cases hold₁ : (putT1 h₁ tbl e).2 with
-    | none =>
-      rw [hold₁] at hev
-      injection hev with hev; subst hev
+    have hwp₁ := putT1_wellPlaced hwp hno
+    rcases hold₁ : (putT1 h₁ tbl e).2 with _ | e₁ <;> rw [hold₁] at hev
+    · cases hev
       exact ⟨hwp₁, putT1_entryIn_none hold₁⟩
-    | some e₁ =>
-      rw [hold₁] at hev
-      dsimp only at hev
-      obtain ⟨hno₁, hent₁⟩ := putT1_some_spec hwp hno hold₁
-      have hwp₂ : WellPlaced h₁ h₂ (putT2 h₂ (putT1 h₁ tbl e).1 e₁).1 :=
-        putT2_wellPlaced hwp₁ hno₁
-      cases hold₂ : (putT2 h₂ (putT1 h₁ tbl e).1 e₁).2 with
-      | none =>
-        have hpair : putT2 h₂ (putT1 h₁ tbl e).1 e₁ =
-            ((putT2 h₂ (putT1 h₁ tbl e).1 e₁).1, none) := Prod.ext rfl hold₂
-        rw [hpair] at hev
-        injection hev with hev; subst hev
-        refine ⟨hwp₂, fun d => ?_⟩
-        rw [putT2_entryIn_none hold₂ d, hent₁ d]
-      | some e₂ =>
-        have hpair : putT2 h₂ (putT1 h₁ tbl e).1 e₁ =
-            ((putT2 h₂ (putT1 h₁ tbl e).1 e₁).1, some e₂) := Prod.ext rfl hold₂
-        rw [hpair] at hev
-        obtain ⟨hno₂, hent₂⟩ := putT2_some_spec hwp₁ hno₁ hold₂
-        obtain ⟨hwp', hent'⟩ := pureEvict_spec fuel hwp₂ hno₂ hev
-        refine ⟨hwp', fun d => ?_⟩
-        rw [hent' d, hent₂ d, hent₁ d]
+    obtain ⟨hno₁, hent₁⟩ := putT1_some_spec hwp hno hold₁
+    have hwp₂ := putT2_wellPlaced hwp₁ hno₁
+    dsimp only at hev
+    rcases hold₂ : (putT2 h₂ (putT1 h₁ tbl e).1 e₁).2 with _ | e₂ <;>
+      rw [← Prod.mk.eta (p := putT2 h₂ (putT1 h₁ tbl e).1 e₁), hold₂] at hev
+    · cases hev
+      exact ⟨hwp₂, fun d => by rw [putT2_entryIn_none hold₂ d, hent₁ d]⟩
+    obtain ⟨hno₂, hent₂⟩ := putT2_some_spec hwp₁ hno₁ hold₂
+    obtain ⟨hwp', hent'⟩ := pureEvict_spec fuel hwp₂ hno₂ hev
+    exact ⟨hwp', fun d => by rw [hent' d, hent₂ d, hent₁ d]⟩
 
 /-- Replay a list of distinct inserted keys `ks` in exact insertion order starting from
 `PureTable.empty`. -/
@@ -616,19 +513,13 @@ private theorem foldlM_zipIdx_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {ma
     have hno_u : ¬ HasKey tbl₀ u := hdisj u (List.mem_cons_self ..)
     obtain ⟨hwp₁, hent₁⟩ := pureEvict_spec maxLoop hwp₀ hno_u hev₁
     have hdisj₁ : ∀ w ∈ ks, ¬ HasKey tbl₁ w := by
-      intro w hw ⟨d, hdin, hdk⟩
-      rw [hent₁ d] at hdin
-      rcases hdin with hdin₀ | rfl
-      · exact hdisj w (List.mem_cons_of_mem u hw) ⟨d, hdin₀, hdk⟩
-      · dsimp only at hdk
-        subst hdk
-        exact hnodup.1 hw
+      rintro w hw ⟨d, hdin, rfl⟩
+      rcases (hent₁ d).mp hdin with hdin₀ | rfl
+      · exact hdisj _ (List.mem_cons_of_mem u hw) ⟨d, hdin₀, rfl⟩
+      · exact hnodup.1 hw
     obtain ⟨hwp, hent⟩ := foldlM_zipIdx_spec ks (start + 1) hwp₁ hnodup.2 hdisj₁ hfold
-    refine ⟨hwp, fun d => ?_⟩
-    rw [hent d, hent₁ d, List.zipIdx_cons, List.mem_cons]
-    have heq : (d = ⟨u, start⟩) ↔ (d.key, d.idx) = (u, start) := by
-      cases d; simp
-    rw [heq, or_assoc]
+    refine ⟨hwp, fun ⟨k, i⟩ => ?_⟩
+    rw [hent, hent₁, List.zipIdx_cons, List.mem_cons, SlotEntry.mk.injEq, Prod.mk.injEq, or_assoc]
 
 theorem pureReplay_spec {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {maxLoop : ℕ}
     {ks : List (Fin U)} {tbl : PureTable U m} (hnodup : ks.Nodup)
@@ -790,14 +681,8 @@ theorem cuckooWalkRounds_le_one_of_card_le_one {U m : ℕ} (h₁ h₂ : Fin U �
   | zero => exact Nat.zero_le _
   | succ k =>
     unfold evictRounds
-    cases h : pureEvictRound h₁ h₂ tbl ⟨u, idx⟩ with
-    | mk tbl' oe =>
-      have hoe : oe = none := by
-        have := pureEvictRound_snd_eq_none_of_card_le_one hvp hcard ⟨u, idx⟩
-        rw [h] at this
-        exact this
-      subst hoe
-      exact le_rfl
+    rw [← Prod.mk.eta (p := pureEvictRound h₁ h₂ tbl ⟨u, idx⟩),
+      pureEvictRound_snd_eq_none_of_card_le_one hvp hcard ⟨u, idx⟩]
 
 /-- Inserting into a valid placement of the empty set takes at most one displacement round. -/
 theorem cuckooWalkRounds_empty {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ) (u : Fin U) :
@@ -869,37 +754,20 @@ empty. -/
 theorem pureReplay_isSome_of_length_le_two {U m : ℕ} (h₁ h₂ : Fin U → Fin m)
     {maxLoop : ℕ} (hloop : 0 < maxLoop) {ks : List (Fin U)} (hlen : ks.length ≤ 2) :
     (pureReplay h₁ h₂ maxLoop ks).isSome := by
-  cases ks with
-  | nil => simp
-  | cons u rest =>
-    cases rest with
-    | nil => exact pureReplay_isSome_of_length_le_one h₁ h₂ hloop (by simp)
-    | cons v rest₂ =>
-      cases rest₂ with
-      | nil =>
-        have hrep₁ : (pureReplay h₁ h₂ maxLoop [u]).isSome :=
-          pureReplay_isSome_of_length_le_one h₁ h₂ hloop (by simp)
-        obtain ⟨tbl₁, htbl₁⟩ := Option.isSome_iff_exists.mp hrep₁
-        have hvp₁ : ValidPlacement h₁ h₂ {u} tbl₁ :=
-          pureReplay_validPlacement (List.nodup_singleton u)
-            (fun x hx => by simp only [List.mem_singleton] at hx; simp [hx]) htbl₁
-        have hcard₁ : ({u} : Finset (Fin U)).card ≤ 1 := by simp
-        have hround := pureEvictRound_snd_eq_none_of_card_le_one hvp₁ hcard₁ ⟨v, 1⟩
-        change (pureReplay h₁ h₂ maxLoop ([u] ++ [v])).isSome
-        rw [pureReplay_append_singleton, htbl₁]
-        dsimp only [Option.bind_eq_bind, Option.bind_some, List.length_singleton]
-        cases maxLoop with
-        | zero => omega
-        | succ k =>
-          unfold pureEvict
-          cases hr : pureEvictRound h₁ h₂ tbl₁ ⟨v, 1⟩ with
-          | mk tbl₂ oe =>
-            rw [hr] at hround
-            dsimp only at hround
-            subst hround
-            rfl
-      | cons w _ =>
-        simp only [List.length_cons] at hlen
-        omega
+  rcases ks with _ | ⟨u, _ | ⟨v, _ | ⟨w, ks⟩⟩⟩
+  · simp
+  · exact pureReplay_isSome_of_length_le_one h₁ h₂ hloop (by simp)
+  · obtain ⟨tbl₁, htbl₁⟩ := Option.isSome_iff_exists.mp
+      (pureReplay_isSome_of_length_le_one h₁ h₂ (ks := [u]) hloop (by simp))
+    have hround := pureEvictRound_snd_eq_none_of_card_le_one
+      (pureReplay_validPlacement (S := {u}) (List.nodup_singleton u) (by simp) htbl₁) (by simp)
+      ⟨v, 1⟩
+    obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hloop.ne'
+    change (pureReplay h₁ h₂ (k + 1) ([u] ++ [v])).isSome
+    rw [pureReplay_append_singleton, htbl₁, Option.bind_some, List.length_singleton, pureEvict,
+      ← Prod.mk.eta (p := pureEvictRound h₁ h₂ tbl₁ ⟨v, 1⟩), hround]
+    rfl
+  · simp only [List.length_cons] at hlen
+    omega
 
 end Cslib.DataStructure.Dictionary.CuckooHashing

@@ -259,6 +259,23 @@ heights. -/
   else
     mkNode a l r
 
+/-- Rebalancing never returns the empty tree. -/
+theorem balance_ne_nil (a : α) (l r : AVLTree α) : balance a l r ≠ .nil := by
+  have right (a : α) (l r : AVLTree α) : rotateRight a l r ≠ .nil := by
+    cases l <;> simp [rotateRight, mkNode]
+  have left (a : α) (l r : AVLTree α) : rotateLeft a l r ≠ .nil := by
+    cases r <;> simp [rotateLeft, mkNode]
+  unfold balance
+  split
+  · split
+    · simp [mkNode]
+    · split <;> apply right
+  · split
+    · split
+      · simp [mkNode]
+      · split <;> apply left
+    · simp [mkNode]
+
 /-- Single right rotation preserves `HeightConsistent`. -/
 theorem heightConsistent_rotateRight {a : α} {l r : AVLTree α}
     (hl : HeightConsistent l) (hr : HeightConsistent r) :
@@ -318,66 +335,49 @@ theorem balanced_and_height_balance (a : α) {l r : AVLTree α}
   split
   · next hleft =>
     cases l with
-    | nil =>
-      simp only [cachedHeight_nil] at hleft
-      omega
+    | nil => simp only [cachedHeight_nil] at hleft; omega
     | node la lh ll lr =>
-      dsimp only
-      obtain ⟨hlh, hcll, hclr⟩ := hcl
+      obtain ⟨hlh, -, hclr⟩ := hcl
       obtain ⟨hll_lr, hlr_ll, hbll, hblr⟩ := hbl
       simp only [cachedHeight_node] at hleft hlr hrl
+      dsimp only
       split
-      · next hsingle =>
-        dsimp only [rotateRight, mkNode, Balanced, cachedHeight_node]
-        refine ⟨⟨by omega, by omega, hbll, ⟨by omega, by omega, hblr, hbr⟩⟩,
-          by omega, by omega, fun h₁ _ => by omega⟩
+      · dsimp only [rotateRight, mkNode, Balanced, cachedHeight_node]
+        exact ⟨⟨by omega, by omega, hbll, by omega, by omega, hblr, hbr⟩, by omega, by omega,
+          fun _ _ => by omega⟩
       · next hdouble =>
         cases lr with
-        | nil =>
-          simp only [cachedHeight_nil] at hdouble
-          omega
+        | nil => simp only [cachedHeight_nil] at hdouble; omega
         | node lra lrh lrl lrr =>
-          obtain ⟨hlrh, _, _⟩ := hclr
           obtain ⟨hlrl_lrr, hlrr_lrl, hblrl, hblrr⟩ := hblr
-          simp only [cachedHeight_node] at hlh hll_lr hlr_ll hdouble
+          simp only [cachedHeight_node, hclr.1] at hlh hll_lr hlr_ll hdouble
           dsimp only [rotateLeft, rotateRight, mkNode, Balanced, cachedHeight_node]
-          refine ⟨⟨by omega, by omega,
-            ⟨by omega, by omega, hbll, hblrl⟩,
-            ⟨by omega, by omega, hblrr, hbr⟩⟩,
-            by omega, by omega, fun h₁ _ => by omega⟩
+          exact ⟨⟨by omega, by omega, ⟨by omega, by omega, hbll, hblrl⟩, by omega, by omega,
+            hblrr, hbr⟩, by omega, by omega, fun _ _ => by omega⟩
   · next hnotleft =>
     split
     · next hright =>
       cases r with
-      | nil =>
-        simp only [cachedHeight_nil] at hright
-        omega
+      | nil => simp only [cachedHeight_nil] at hright; omega
       | node ra rh rl rr =>
-        dsimp only
-        obtain ⟨hrh, hcrl, hcrr⟩ := hcr
+        obtain ⟨hrh, hcrl, -⟩ := hcr
         obtain ⟨hrl_rr, hrr_rl, hbrl, hbrr⟩ := hbr
         simp only [cachedHeight_node] at hnotleft hright hlr hrl
+        dsimp only
         split
-        · next hsingle =>
-          dsimp only [rotateLeft, mkNode, Balanced, cachedHeight_node]
-          refine ⟨⟨by omega, by omega, ⟨by omega, by omega, hbl, hbrl⟩, hbrr⟩,
-            by omega, by omega, fun _ h₂ => by omega⟩
+        · dsimp only [rotateLeft, mkNode, Balanced, cachedHeight_node]
+          exact ⟨⟨by omega, by omega, ⟨by omega, by omega, hbl, hbrl⟩, hbrr⟩, by omega, by omega,
+            fun _ _ => by omega⟩
         · next hdouble =>
           cases rl with
-          | nil =>
-            simp only [cachedHeight_nil] at hdouble
-            omega
+          | nil => simp only [cachedHeight_nil] at hdouble; omega
           | node rla rlh rll rlr =>
-            obtain ⟨hrlh, _, _⟩ := hcrl
             obtain ⟨hrll_rlr, hrlr_rll, hbrll, hbrlr⟩ := hbrl
-            simp only [cachedHeight_node] at hrh hrl_rr hrr_rl hdouble
+            simp only [cachedHeight_node, hcrl.1] at hrh hrl_rr hrr_rl hdouble
             dsimp only [rotateRight, rotateLeft, mkNode, Balanced, cachedHeight_node]
-            refine ⟨⟨by omega, by omega,
-              ⟨by omega, by omega, hbl, hbrll⟩,
-              ⟨by omega, by omega, hbrlr, hbrr⟩⟩,
-              by omega, by omega, fun _ h₂ => by omega⟩
-    · next hnotright =>
-      dsimp only [mkNode, Balanced, cachedHeight_node]
+            exact ⟨⟨by omega, by omega, ⟨by omega, by omega, hbl, hbrll⟩, by omega, by omega,
+              hbrlr, hbrr⟩, by omega, by omega, fun _ _ => by omega⟩
+    · dsimp only [mkNode, Balanced, cachedHeight_node]
       exact ⟨⟨by omega, by omega, hbl, hbr⟩, by omega, by omega, fun _ _ => rfl⟩
 
 end Structure
@@ -556,15 +556,10 @@ theorem ordered_rotateRight {a : α} {h : ℕ} {l r : AVLTree α}
   | node la lh ll lr =>
     obtain ⟨⟨holl, holr, hll_la, hla_lr⟩, hor, hl_a, ha_r⟩ := ho
     have hla_a : la < a := hl_a la (by simp)
-    refine ⟨holl, ⟨holr, hor, ?_, ha_r⟩, hll_la, ?_⟩
-    · intro x hx
-      exact hl_a x (by simp [hx])
-    · intro x hx
-      simp only [mkNode, toBinaryTree_node, SearchTree.mem_elements_node] at hx
-      rcases hx with rfl | hx | hx
-      · exact hla_a
-      · exact hla_lr x hx
-      · exact lt_trans hla_a (ha_r x hx)
+    refine ⟨holl, ⟨holr, hor, fun x hx => hl_a x (by simp [hx]), ha_r⟩, hll_la, fun x hx => ?_⟩
+    simp only [mkNode, toBinaryTree_node, SearchTree.mem_elements_node] at hx
+    rcases hx with rfl | hx | hx
+    exacts [hla_a, hla_lr x hx, lt_trans hla_a (ha_r x hx)]
 
 /-- Single left rotation preserves strict BST ordering. -/
 theorem ordered_rotateLeft {a : α} {h : ℕ} {l r : AVLTree α}
@@ -574,15 +569,10 @@ theorem ordered_rotateLeft {a : α} {h : ℕ} {l r : AVLTree α}
   | node ra rh rl rr =>
     obtain ⟨hol, ⟨horl, horr, hrl_ra, hra_rr⟩, hl_a, ha_r⟩ := ho
     have ha_ra : a < ra := ha_r ra (by simp)
-    refine ⟨⟨hol, horl, hl_a, ?_⟩, horr, ?_, hra_rr⟩
-    · intro x hx
-      exact ha_r x (by simp [hx])
-    · intro x hx
-      simp only [mkNode, toBinaryTree_node, SearchTree.mem_elements_node] at hx
-      rcases hx with rfl | hx | hx
-      · exact ha_ra
-      · exact lt_trans (hl_a x hx) ha_ra
-      · exact hrl_ra x hx
+    refine ⟨⟨hol, horl, hl_a, fun x hx => ha_r x (by simp [hx])⟩, horr, fun x hx => ?_, hra_rr⟩
+    simp only [mkNode, toBinaryTree_node, SearchTree.mem_elements_node] at hx
+    rcases hx with rfl | hx | hx
+    exacts [ha_ra, lt_trans (hl_a x hx) ha_ra, hrl_ra x hx]
 
 /-- `balance` preserves strict key ordering. -/
 theorem ordered_balance {a : α} {h : ℕ} {l r : AVLTree α}
@@ -596,11 +586,8 @@ theorem ordered_balance {a : α} {h : ℕ} {l r : AVLTree α}
       split
       · exact ordered_rotateRight ho
       · obtain ⟨hl, hr, hl_a, ha_r⟩ := ho
-        refine ordered_rotateRight (h := 0) ⟨ordered_rotateLeft hl, hr, ?_, ha_r⟩
-        intro x hx
-        have hx' : x ∈ elements (rotateLeft la ll lr) := hx
-        rw [elements_rotateLeft] at hx'
-        exact hl_a x hx'
+        exact ordered_rotateRight (h := 0) ⟨ordered_rotateLeft hl, hr,
+          fun x hx => hl_a x ((elements_rotateLeft la ll lr).subset hx), ha_r⟩
   · split
     · cases r with
       | nil => exact ho
@@ -609,11 +596,8 @@ theorem ordered_balance {a : α} {h : ℕ} {l r : AVLTree α}
         split
         · exact ordered_rotateLeft ho
         · obtain ⟨hl, hr, hl_a, ha_r⟩ := ho
-          refine ordered_rotateLeft (h := 0) ⟨hl, ordered_rotateRight hr, hl_a, ?_⟩
-          intro x hx
-          have hx' : x ∈ elements (rotateRight ra rl rr) := hx
-          rw [elements_rotateRight] at hx'
-          exact ha_r x hx'
+          exact ordered_rotateLeft (h := 0) ⟨hl, ordered_rotateRight hr, hl_a,
+            fun x hx => ha_r x ((elements_rotateRight ra rl rr).subset hx)⟩
     · exact ho
 
 /-- Full contract of `balance` on valid children: if `l` and `r` are valid AVL trees separated by
@@ -647,18 +631,12 @@ theorem valid_and_height_balance (a : α) {l r : AVLTree α} (hl : Valid l) (hr 
 @[simp]
 theorem elements_insert (x : α) (t : AVLTree α) :
     elements (insert x t) = Insert.insert x (elements t) := by
-  induction t with
-  | nil => simp [insert, mkNode]
-  | node a h l r ihl ihr =>
-    simp only [insert]
-    split <;> rename_i hxa
-    · ext y
-      simp [elements_balance, ihl, or_left_comm]
-    · split <;> rename_i hax
-      · ext y
-        simp [elements_balance, ihr, or_left_comm]
-      · have heq : x = a := le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa)
-        simp [heq]
+  fun_induction insert x t with
+  | case1 => simp [mkNode] -- nil
+  | case2 _ _ _ _ _ ih | case3 _ _ _ _ _ _ ih => -- x < a: insert into l; a < x: into r
+    ext y
+    simp [elements_balance, ih, or_left_comm]
+  | case4 a h l r hxa hax => simp [le_antisymm (le_of_not_gt hax) (le_of_not_gt hxa)] -- x = a
 
 private theorem valid_and_height_insert {t : AVLTree α} (ht : Valid t) (x : α) :
     Valid (insert x t) ∧
@@ -721,20 +699,12 @@ theorem insert_eq_self {t : AVLTree α} (ht : Valid t) {x : α} (hx : x ∈ elem
     obtain ⟨⟨hol, hor, hl_a, ha_r⟩, ⟨hh, hcl, hcr⟩, ⟨hlr, hrl, hbl, hbr⟩⟩ := ht
     simp only [insert]
     split <;> rename_i hxa
-    · have hxl : x ∈ elements l := by
-        rcases mem_elements_node.mp hx with rfl | hxl | hxr
-        · exact absurd rfl (ne_of_lt hxa)
-        · exact hxl
-        · exact absurd (ha_r x hxr) (not_lt_of_gt hxa)
-      rw [ihl ⟨hol, hcl, hbl⟩ hxl]
+    · rw [ihl ⟨hol, hcl, hbl⟩ (((mem_elements_node.mp hx).resolve_left hxa.ne).resolve_right
+        fun h => (ha_r x h).not_gt hxa)]
       exact balance_eq_node hh hlr hrl
     · split <;> rename_i hax
-      · have hxr : x ∈ elements r := by
-          rcases mem_elements_node.mp hx with rfl | hxl | hxr
-          · exact absurd rfl (ne_of_gt hax)
-          · exact absurd (hl_a x hxl) (not_lt_of_gt hax)
-          · exact hxr
-        rw [ihr ⟨hor, hcr, hbr⟩ hxr]
+      · rw [ihr ⟨hor, hcr, hbr⟩ (((mem_elements_node.mp hx).resolve_left hax.ne').resolve_left
+          fun h => (hl_a x h).not_gt hax)]
         exact balance_eq_node hh hlr hrl
       · rfl
 

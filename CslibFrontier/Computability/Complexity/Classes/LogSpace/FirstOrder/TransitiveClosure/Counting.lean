@@ -208,29 +208,12 @@ theorem countTestCode_parts {b base k : ℕ} {src : Fin k → Expr} {wb et ef : 
     length_assignChain, List.length_cons, List.length_nil, length_tcCode] at hP
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨h1, h2, h3, h4, h5, h6, -⟩, h7⟩, h8⟩, h9⟩, h10, h11, h12, h13, h14, h15, h16, h17,
     -⟩, h18⟩, h19, -⟩, h20⟩, h21, h22, -⟩ := hP
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact instr_of_eq h1 (by omega)
-  · exact instr_of_eq h2 (by omega)
-  · exact instr_of_eq h3 (by omega)
-  · exact instr_of_eq h4 (by omega)
-  · exact instr_of_eq h5 (by omega)
-  · exact instr_of_eq h6 (by omega)
-  · exact codeAt_of_eq h7 (by omega)
-  · exact codeAt_of_eq h8 (by omega)
-  · exact codeAt_of_eq h9 (by omega)
-  · exact instr_of_eq h10 (by omega)
-  · exact instr_of_eq h11 (by omega)
-  · exact instr_of_eq h12 (by omega)
-  · exact instr_of_eq h13 (by omega)
-  · exact instr_of_eq h14 (by omega)
-  · exact instr_of_eq h15 (by omega)
-  · exact instr_of_eq h16 (by omega)
-  · exact instr_of_eq h17 (by omega)
-  · exact codeAt_of_eq h18 (by omega)
-  · exact instr_of_eq h19 (by omega)
-  · exact codeAt_of_eq h20 (by omega)
-  · exact instr_of_eq h21 (by omega)
-  · exact instr_of_eq h22 (by omega)
+  refine ⟨instr_of_eq h1 ?_, instr_of_eq h2 ?_, instr_of_eq h3 ?_, instr_of_eq h4 ?_,
+    instr_of_eq h5 ?_, instr_of_eq h6 ?_, codeAt_of_eq h7 ?_, codeAt_of_eq h8 ?_,
+    codeAt_of_eq h9 ?_, instr_of_eq h10 ?_, instr_of_eq h11 ?_, instr_of_eq h12 ?_,
+    instr_of_eq h13 ?_, instr_of_eq h14 ?_, instr_of_eq h15 ?_, instr_of_eq h16 ?_,
+    instr_of_eq h17 ?_, codeAt_of_eq h18 ?_, instr_of_eq h19 ?_, codeAt_of_eq h20 ?_,
+    instr_of_eq h21 ?_, instr_of_eq h22 ?_⟩ <;> omega
 
 theorem countCode_parts {b base k : ℕ} {dst : Fin k → Expr} {t₁ t₂ : List Instr} {T R : ℕ}
     (hP : P.CodeAt b (countCode b base k dst t₁ t₂ T R)) :
@@ -257,21 +240,10 @@ theorem countCode_parts {b base k : ℕ} {dst : Fin k → Expr} {t₁ t₂ : Lis
   simp only [countCode, codeAt_append, codeAt_cons, codeAt_nil, List.length_append,
     List.length_cons, List.length_nil] at hP
   obtain ⟨⟨⟨⟨⟨h1, h2, h3, h4, h5, h6, -⟩, h7⟩, h8, h9, h10, h11, h12, -⟩, h13⟩, h14, -⟩ := hP
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact instr_of_eq h1 (by omega)
-  · exact instr_of_eq h2 (by omega)
-  · exact instr_of_eq h3 (by omega)
-  · exact instr_of_eq h4 (by omega)
-  · exact instr_of_eq h5 (by omega)
-  · exact instr_of_eq h6 (by omega)
-  · exact codeAt_of_eq h7 (by omega)
-  · exact instr_of_eq h8 (by omega)
-  · exact instr_of_eq h9 (by omega)
-  · exact instr_of_eq h10 (by omega)
-  · exact instr_of_eq h11 (by omega)
-  · exact instr_of_eq h12 (by omega)
-  · exact codeAt_of_eq h13 (by omega)
-  · exact instr_of_eq h14 (by omega)
+  refine ⟨instr_of_eq h1 ?_, instr_of_eq h2 ?_, instr_of_eq h3 ?_, instr_of_eq h4 ?_,
+    instr_of_eq h5 ?_, instr_of_eq h6 ?_, codeAt_of_eq h7 ?_, instr_of_eq h8 ?_, instr_of_eq h9 ?_,
+    instr_of_eq h10 ?_, instr_of_eq h11 ?_, instr_of_eq h12 ?_, codeAt_of_eq h13 ?_,
+    instr_of_eq h14 ?_⟩ <;> omega
 
 end Parts
 

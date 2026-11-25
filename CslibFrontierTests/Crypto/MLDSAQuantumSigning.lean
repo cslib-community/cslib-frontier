@@ -10,9 +10,13 @@ module
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
 import CslibFrontier.Crypto.Computational.MLDSA.RandomXofCoverage
+import CslibFrontier.Crypto.Computational.MLDSA.SharedKeyGame
 import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Circuit
 meta import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+meta import CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
+meta import CslibFrontier.Crypto.Computational.MLDSA.SecretRowServices
 
 /-!
 # Quantum access to the ML-DSA signing experiment
@@ -25,6 +29,43 @@ set_option linter.privateModule false
 set_option linter.hashCommand false
 
 open Cslib Cslib.Crypto Cslib.Crypto.MLDSA.FIPS204 Cslib.Quantum Cslib.Probability
+
+-- Empty pure-mode formatting appends two zero bytes. This is precisely the first private
+-- nonce when the two 64-byte prefixes agree. Changing any one input breaks the equality.
+private def keyRowMatches (tr r : FixedBytes 64) (ctx : List Byte) (m : List Bool)
+    (j : ℕ) : Bool :=
+  representativeInput tr.toList (formatMessage m ctx) ==
+    Keccak.bytesToBitsLE (nonceInput r.toList j)
+
+#guard keyRowMatches (fun _ => 7) (fun _ => 7) [] [] 0
+#guard !keyRowMatches (fun _ => 8) (fun _ => 7) [] [] 0
+#guard !keyRowMatches (fun _ => 7) (fun _ => 7) [] [] 1
+#guard !keyRowMatches (fun _ => 7) (fun _ => 7) [0] [] 0
+#guard !keyRowMatches (fun _ => 7) (fun _ => 7) [] [false] 0
+
+-- ML-DSA-44 reads four secret and four error polynomials. The final row is included,
+-- the next nonce is excluded, and the key seed has a different address length.
+private def expansionHit := hitsExpansionInput .mlDSA44 (fun _ => 1) (fun _ => 2)
+
+#guard expansionHit (some (keySeedInput .mlDSA44 (fun _ => 1)))
+#guard !expansionHit (some (keySeedInput .mlDSA65 (fun _ => 1)))
+#guard expansionHit (some (Keccak.bytesToBitsLE (nonceInput (List.replicate 64 2) 7)))
+#guard !expansionHit (some (Keccak.bytesToBitsLE (nonceInput (List.replicate 64 2) 8)))
+#guard !expansionHit (some (Keccak.bytesToBitsLE (nonceInput (List.replicate 64 1) 7)))
+#guard !expansionHit none
+
+-- Repeat a terminal write at the same address. Even when the last reply is an exhaustion error,
+-- later raw queries see its digest, followed by the original byte beyond the digest.
+private def testWrite (d : Byte) (reply : Option (List Byte)) : TerminalSigningWrite .mlDSA44 :=
+  ⟨⟨[], []⟩, fun _ _ => 0, [true], fun _ => d, reply⟩
+
+private def replayed := TerminalSigningWrite.replay Xofs.shake [testWrite 13 (some [1]),
+  testWrite 7 none]
+
+#guard replayed.h256.read [true] 33 ==
+  List.replicate 32 7 ++ (Xofs.shake.h256.read [true] 33).drop 32
+#guard replayed.h256.read [false] 33 == Xofs.shake.h256.read [false] 33
+#guard replayed.h128.read [true] 33 == Xofs.shake.h128.read [true] 33
 
 -- First bytes of SHAKE128 and SHAKE256 applied to the empty string, in wire order.
 #guard List.ofFn (Xofs.shake.queryTable 2 1 (Xofs.queryAddress 2 false [] (by decide))) ==
@@ -55,8 +96,8 @@ example (C : QuantumSigningForger) (H : Xofs) (s : Level) (sk : List Byte) (q : 
       (C.commands H s sk (.inr q) p.2).bind fun r =>
         (C.commands H s sk (.inl .query) r.2).map (fun u => (r.1, u.2))) =
       (H.signingOracle s sk q st.2).map (fun r => (r.1, st.1, r.2)) := by
-  simp [commands, deviceCommand, OracleComp.sumHandler, deviceHandler_query,
-    Function.comp_def, unquery, PMF.map]
+  simp [commands, statefulSigningCommands, deviceCommand, OracleComp.sumHandler,
+    deviceHandler_query, Function.comp_def, unquery, PMF.map]
 
 -- Even when the empty string is the only permitted input, the two SHAKE variants return
 -- independent bytes. Equating the variants would give a distribution supported on the diagonal.
@@ -144,3 +185,17 @@ example (lo hi : Xofs) :
       switchMessage.randomPrefixGame .mlDSA44 hi 20992 1788 :=
   switchMessage.randomPrefixGame_stable .mlDSA44 fits_three (by decide) (by decide)
     (by decide) (by decide) lo hi
+
+-- At 2 ^ 64 coherent queries the two device changes add 2^-62 to the square root.
+-- The separate setup exception is charged once, after squaring, at every FIPS level.
+example (C : QuantumSigningForger) (s : Level) (H : Xofs) {a b : ℕ} (ha : 528 ≤ a)
+    (hb : 894 ≤ b) (cost : C.XofCallsLe (2 ^ 64)) :
+    let test := C.fullPairMLWETest s H a b
+    let real := (MLDSA.keyLaw s.params (MatrixOracle.shortCoefficientLaw s)).bind test
+    let uniform := (MLDSA.uniformKeyLaw s.params).bind test
+    (((H.uniformPrefixes a b).bind fun G => G.fullPairExperiment s
+      (fun rho pk => (C.publicPairSigning s G rho pk).map (·.trial.newDigestWin))) true).toReal ≤
+      (√((uniform true).toReal + (Game.advantage real uniform : ℝ)) + ((2 : ℝ) ^ 62)⁻¹) ^ 2 +
+        ((2 : ℝ) ^ 512)⁻¹ := by
+  have scale : 4 * ((2 ^ 64 : ℕ) : ℝ) / 2 ^ 128 = ((2 : ℝ) ^ 62)⁻¹ := by norm_num
+  simpa only [scale] using C.nativeFullPair_le_uniformPair s H ha hb cost

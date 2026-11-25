@@ -7,23 +7,24 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import Cslib.Algorithms.Lean.TimeM
 public import CslibFrontier.Logics.Propositional.CSP.FactorTable
+import CslibFrontier.Foundations.Data.List.FoldMax
 import Mathlib.Algebra.BigOperators.Group.List.Basic
 import Mathlib.Algebra.BigOperators.Pi
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Data.List.Dedup
 import Mathlib.Tactic.Ring
-import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Variable elimination in a supplied order over explicit factor tables
 
-This module implements bucket (variable) elimination in an arbitrary supplied order
-`order : List V` over explicit `FactorTable R V` tables, together with an executable `TimeM ℕ`
-implementation and cost bounds expressed directly in terms of the actual intermediate scopes and
-live tables produced along `order`.
+This module implements pure bucket (variable) elimination in an arbitrary supplied order
+`order : List V` over explicit `FactorTable R V` tables, together with intermediate-scope width,
+bucket-count, and peak live-table size bounds expressed in terms of the actual intermediate scopes
+and live tables produced along `order`. Machine-level Word-RAM running-time bounds over
+materialized radix-indexed factor tables live in
+`CslibFrontier.Algorithms.WordRAM.VariableElimination`.
 
 An elimination state `ElimState R V` records an accumulated scalar factor `scalar : R` (for
 eliminated isolated variables), the current list of live factor tables `live`, and the list of
@@ -42,8 +43,6 @@ materialized by summing over `0, ..., d - 1` the product of `bucket`, replacing 
   one elimination step.
 * `Cslib.Algorithms.Lean.CSP.elimVar`, `Cslib.Algorithms.Lean.CSP.eliminateOrder`: pure variable
   elimination along `order : List V`.
-* `Cslib.Algorithms.Lean.CSP.eliminateOrderM`: executable `TimeM ℕ` variable elimination charging
-  elementary indexing, lookup, multiplication, and addition ticks inside the table loops.
 * `Cslib.Algorithms.Lean.CSP.traceOrder`, `Cslib.Algorithms.Lean.CSP.maxJointScopeLen`,
   `Cslib.Algorithms.Lean.CSP.maxOutScopeLen`, `Cslib.Algorithms.Lean.CSP.peakLiveEntries`:
   exact intermediate-scope width and peak live-table memory metrics along `order`.
@@ -55,12 +54,9 @@ materialized by summing over `0, ..., d - 1` the product of `bucket`, replacing 
   `Cslib.Algorithms.Lean.CSP.result_eliminateOrder_ofCSP`: invariance of the contracted value
   for arbitrary elimination orders `order`, matching `CSP.partitionFunctionOn` /
   `CSP.partitionFunction`.
-* `Cslib.Algorithms.Lean.CSP.ret_eliminateOrderM`: exact functional agreement between
-  `eliminateOrderM` and `eliminateOrder`.
 * `Cslib.Algorithms.Lean.CSP.sum_bucketFactors_le`,
-  `Cslib.Algorithms.Lean.CSP.totalArithOps_le_of_intermediate`,
-  `Cslib.Algorithms.Lean.CSP.time_eliminateOrderM_le`: amortized bucket-count invariant and
-  operation/tick bounds in terms of the actual intermediate scopes.
+  `Cslib.Algorithms.Lean.CSP.totalArithOps_le_of_intermediate`: amortized bucket-count invariant
+  and scalar operation bounds in terms of the actual intermediate scopes.
 * `Cslib.Algorithms.Lean.CSP.liveLength_eliminateOrder_le`,
   `Cslib.Algorithms.Lean.CSP.peakLiveEntries_le`: live table count never increases and peak
   live-table entry count is bounded by
@@ -71,7 +67,7 @@ public section
 
 namespace Cslib.Algorithms.Lean.CSP
 
-open Cslib.Logic.PL Cslib.Logic.PL.CSP Cslib.Algorithms.Lean.TimeM
+open Cslib.Logic.PL Cslib.Logic.PL.CSP
 
 /-! ### Elimination state and intermediate-scope statistics -/
 
@@ -237,82 +233,6 @@ size `d`. -/
 
 end Definitions
 
-/-! ### Executable `TimeM ℕ` implementation -/
-
-section ExecutableTimeM
-
-variable {R V : Type}
-
-/-- Compute base-`d` LSB index of `scope` under assignment `σ`, charging 1 tick per variable. -/
-@[expose] def evalScopeIdxM (d : ℕ) (σ : V → ℕ) : List V → TimeM ℕ ℕ
-  | [] => pure 0
-  | v :: vs => do
-      let rest ← evalScopeIdxM d σ vs
-      TimeM.tick 1
-      pure (σ v + d * rest)
-
-/-- Evaluate the product of a bucket of factor tables at `σ`, charging 1 tick per table
-multiplication plus index-computation ticks. -/
-@[expose] def evalFactorProdM [Semiring R] (d : ℕ) (σ : V → ℕ) :
-    List (FactorTable R V) → TimeM ℕ R
-  | [] => pure 1
-  | f :: fs => do
-      let idx ← evalScopeIdxM d σ f.scope
-      let tail ← evalFactorProdM d σ fs
-      TimeM.tick 1
-      pure (f.entries.getD idx 0 * tail)
-
-/-- Sum `evalFactorProdM` over `x ↦ 0, ..., c - 1`, charging 1 tick per addition. -/
-@[expose] def sumVarValuesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
-    (bucket : List (FactorTable R V)) : ℕ → TimeM ℕ R
-  | 0 => pure 0
-  | c + 1 => do
-      let acc ← sumVarValuesM d x σ bucket c
-      let prod ← evalFactorProdM d (fun v => if v = x then c else σ v) bucket
-      TimeM.tick 1
-      pure (acc + prod)
-
-/-- Fill all `m` table entries of `outScope`, charging `outScope.length` ticks to decode each
-output index into an assignment plus the inner `d`-value sum. -/
-@[expose] def buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (outScope : List V)
-    (bucket : List (FactorTable R V)) : ℕ → TimeM ℕ (Array R)
-  | 0 => pure #[]
-  | m + 1 => do
-      let arr ← buildOutEntriesM d x outScope bucket m
-      let digits := lsbDecode d outScope.length m
-      let val ← sumVarValuesM d x (assignScope outScope digits) bucket d
-      TimeM.tick outScope.length
-      pure (arr.push val)
-
-/-- Executable `TimeM ℕ` elimination step for one variable `x`. -/
-@[expose] def elimVarM [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
-    (s : ElimState R V) : TimeM ℕ (ElimState R V) := do
-  if x ∈ s.remaining then
-    TimeM.tick s.live.length
-    let bucket := s.live.filter fun f => decide (x ∈ f.scope)
-    let rest := s.live.filter fun f => decide (x ∉ f.scope)
-    let rem' := s.remaining.filter fun v => decide (v ≠ x)
-    if bucket.isEmpty then
-      TimeM.tick 1
-      pure { scalar := s.scalar * (d : R), live := s.live, remaining := rem' }
-    else
-      let outScope := bucketOutScope x bucket
-      let entries ← buildOutEntriesM d x outScope bucket (d ^ outScope.length)
-      let outF : FactorTable R V := { scope := outScope, entries := entries }
-      pure { scalar := s.scalar, live := outF :: rest, remaining := rem' }
-  else
-    pure s
-
-/-- Executable `TimeM ℕ` variable elimination along `order`. -/
-@[expose] def eliminateOrderM [Semiring R] [DecidableEq V] (d : ℕ) :
-    List V → ElimState R V → TimeM ℕ (ElimState R V)
-  | [], s => pure s
-  | x :: xs, s => do
-      let s' ← elimVarM d x s
-      eliminateOrderM d xs s'
-
-end ExecutableTimeM
-
 /-! ### Correctness and algebraic invariance -/
 
 section Correctness
@@ -346,57 +266,33 @@ private theorem evalAt_elimBucketTable [CommSemiring R] [DecidableEq V] {d : ℕ
         (bucket.map fun f => f.evalAt d fun v => if v = x then a.1 else σ v).prod := by
   let outScope := bucketOutScope x bucket
   have hlt_map : ∀ k ∈ outScope.map σ, k < d := by
-    intro k hk
-    rcases List.mem_map.mp hk with ⟨v, hv, rfl⟩
-    exact hlt v hv
+    intro k hk; rcases List.mem_map.mp hk with ⟨v, hv, rfl⟩; exact hlt v hv
   have hidx : Nat.ofDigits d (outScope.map σ) < d ^ outScope.length := by
     simpa [List.length_map] using ofDigits_lt_pow_length _ hlt_map
   have hdec : lsbDecode d outScope.length (Nat.ofDigits d (outScope.map σ)) = outScope.map σ := by
-    have := lsbDecode_ofDigits (outScope.map σ) hlt_map
-    simpa [List.length_map] using this
+    simpa [List.length_map] using lsbDecode_ofDigits (outScope.map σ) hlt_map
   rw [FactorTable.evalAt, elimBucketTable, Array.getD]
   dsimp only
   split_ifs with hsz
-  · change (Array.ofFn fun idx : Fin (d ^ outScope.length) =>
-        let digits := lsbDecode d outScope.length idx.1
-        let assign := assignScope outScope digits
-        ∑ a : Fin d,
-          (bucket.map fun f => f.evalAt d fun v => if v = x then a.1 else assign v).prod)[
-        Nat.ofDigits d (outScope.map σ)]'(by simpa [outScope] using hidx) =
-      ∑ a : Fin d, (bucket.map fun f => f.evalAt d fun v => if v = x then a.1 else σ v).prod
+  · change (Array.ofFn _)[Nat.ofDigits d (outScope.map σ)]'(by simpa [outScope] using hidx) = _
     rw [Array.getElem_ofFn]
-    dsimp only
-    rw [hdec]
-    refine Finset.sum_congr rfl fun a _ => ?_
-    congr 1
+    dsimp only; rw [hdec]
+    refine Finset.sum_congr rfl fun a _ => congrArg List.prod ?_
     refine List.map_congr_left fun f hf => FactorTable.evalAt_congr fun v hv => ?_
     by_cases hvx : v = x
     · simp [hvx]
-    · have hvout : v ∈ outScope := (mem_bucketOutScope x bucket v).mpr ⟨hvx, f, hf, hv⟩
-      simp only [hvx, ↓reduceIte]
-      exact assignScope_map σ outScope hvout
+    · simp only [hvx, ↓reduceIte]
+      exact assignScope_map σ outScope ((mem_bucketOutScope x bucket v).mpr ⟨hvx, f, hf, hv⟩)
   · exact absurd (by simpa [outScope] using hidx) hsz
 
 private theorem evalAt_elimBucketTable_zero [Semiring R] [DecidableEq V] (x : V)
     (bucket : List (FactorTable R V)) (σ : V → ℕ) :
     (elimBucketTable 0 x bucket).evalAt 0 σ = 0 := by
-  let outScope := bucketOutScope x bucket
   rw [FactorTable.evalAt, elimBucketTable, Array.getD]
   dsimp only
   split_ifs with hsz
-  · have hlen0 : outScope.length = 0 := by
-      have hsz' : Nat.ofDigits 0 (outScope.map σ) < 0 ^ outScope.length := by
-        simpa [outScope] using hsz
-      by_contra hne
-      rw [zero_pow hne] at hsz'
-      exact Nat.not_lt_zero _ hsz'
-    change (Array.ofFn fun idx : Fin (0 ^ outScope.length) =>
-        ∑ a : Fin 0, (bucket.map fun f =>
-          f.evalAt 0 fun v => if v = x then a.1 else assignScope outScope
-            (lsbDecode 0 outScope.length idx.1) v).prod)[
-        Nat.ofDigits 0 (outScope.map σ)]'(by simpa [outScope] using hsz) = 0
-    rw [Array.getElem_ofFn]
-    simp
+  · change (Array.ofFn _)[Nat.ofDigits 0 (List.map σ (bucketOutScope x bucket))]'hsz = 0
+    rw [Array.getElem_ofFn]; simp
   · rfl
 
 /-- Eliminating one variable preserves `ElimState.eval`. -/
@@ -406,82 +302,59 @@ theorem eval_elimVar [CommSemiring R] [DecidableEq V] (d : ℕ) (x : V) (s : Eli
   · let U := s.remaining.toFinset
     let U' := U.erase x
     have hxU : x ∈ U := List.mem_toFinset.mpr hx
-    have hxU' : x ∉ U' := Finset.notMem_erase x U
     have hrem' : (s.remaining.filter fun v => decide (v ≠ x)).toFinset = U' := by
-      ext v
-      simp [U, U', Finset.mem_erase, and_comm]
-    by_cases hd0 : d = 0
-    · subst hd0
-      have : IsEmpty (U → Fin 0) := ⟨fun σ => Fin.elim0 (σ ⟨x, hxU⟩)⟩
-      have hs0 : s.eval 0 = 0 := by
-        simp [ElimState.eval, FactorTable.contractionOn, U]
-      rw [elimVar]
-      simp only [hx, ↓reduceIte]
-      split_ifs with hb
-      · simp only [ElimState.eval, Nat.cast_zero, mul_zero, zero_mul]
-        exact hs0.symm
-      · rw [ElimState.eval, FactorTable.contractionOn, hs0]
-        convert mul_zero s.scalar
-        refine Finset.sum_eq_zero fun σ _ => ?_
-        rw [List.map_cons, List.prod_cons, evalAt_elimBucketTable_zero, zero_mul]
-    · have hd : 0 < d := Nat.pos_of_ne_zero hd0
-      let eSplit : (U → Fin d) ≃ Fin d × (U' → Fin d) :=
-        { toFun := fun σ =>
-            (σ ⟨x, hxU⟩, fun v => σ ⟨v.1, Finset.mem_of_mem_erase v.2⟩)
+      ext v; simp [U, U', Finset.mem_erase, and_comm]
+    rcases Nat.eq_zero_or_pos d with rfl | hd
+    · have : IsEmpty (U → Fin 0) := ⟨fun σ => Fin.elim0 (σ ⟨x, hxU⟩)⟩
+      have hs0 : s.eval 0 = 0 := by simp [ElimState.eval, FactorTable.contractionOn, U]
+      rw [elimVar, hs0]; simp only [hx, ↓reduceIte]
+      split_ifs
+      · simp [ElimState.eval]
+      · rw [ElimState.eval, FactorTable.contractionOn]
+        exact (congrArg (s.scalar * ·) (Finset.sum_eq_zero fun σ _ => by
+          rw [List.map_cons, List.prod_cons, evalAt_elimBucketTable_zero, zero_mul])).trans
+          (mul_zero s.scalar)
+    · let eSplit : (U → Fin d) ≃ Fin d × (U' → Fin d) :=
+        { toFun := fun σ => (σ ⟨x, hxU⟩, fun v => σ ⟨v.1, Finset.mem_of_mem_erase v.2⟩)
           invFun := fun p v =>
-            if h : v.1 = x then p.1
-            else p.2 ⟨v.1, Finset.mem_erase.mpr ⟨h, v.2⟩⟩
+            if h : v.1 = x then p.1 else p.2 ⟨v.1, Finset.mem_erase.mpr ⟨h, v.2⟩⟩
           left_inv := fun σ => funext fun v => by
             by_cases hvx : v.1 = x
-            · simp only [hvx, ↓reduceDIte]
-              exact congrArg σ (Subtype.ext hvx.symm)
+            · simp only [hvx, ↓reduceDIte]; exact congrArg σ (Subtype.ext hvx.symm)
             · simp [hvx]
           right_inv := fun p => by
             ext v
             · simp
-            · have hvx : v.1 ≠ x := Finset.ne_of_mem_erase v.2
-              simp [hvx] }
+            · simp [Finset.ne_of_mem_erase v.2] }
       let bucket := s.live.filter fun f => decide (x ∈ f.scope)
       let rest := s.live.filter fun f => decide (x ∉ f.scope)
       have hrest_eq : (s.live.filter fun f => !decide (x ∈ f.scope)) = rest := by
         simp only [decide_not, rest]
       let ext0 : (U' → Fin d) → V → ℕ := fun τ v => if h : v ∈ U' then (τ ⟨v, h⟩).1 else 0
-      let ext : (U' → Fin d) → Fin d → V → ℕ :=
-        fun τ a v => if v = x then a.1 else ext0 τ v
+      let ext : (U' → Fin d) → Fin d → V → ℕ := fun τ a v => if v = x then a.1 else ext0 τ v
       have hs_eq : s.eval d = s.scalar * ∑ τ : U' → Fin d,
           ∑ a : Fin d, (s.live.map fun f => f.evalAt d (ext τ a)).prod := by
         rw [ElimState.eval, FactorTable.contractionOn]
         congr 1
-        calc ∑ σ : U → Fin d,
-                (s.live.map fun f =>
-                  f.evalAt d fun v => if h : v ∈ U then (σ ⟨v, h⟩).1 else 0).prod
-            = ∑ p : Fin d × (U' → Fin d),
-                (s.live.map fun f => f.evalAt d fun v =>
-                  if h : v ∈ U then (eSplit.symm p ⟨v, h⟩).1 else 0).prod :=
-              Fintype.sum_equiv eSplit _ (fun p => _) (fun σ => by
-                congr 1
-                refine List.map_congr_left fun f _ => FactorTable.evalAt_congr fun v _ => ?_
-                by_cases hv : v ∈ U <;> simp [hv, Equiv.symm_apply_apply])
-          _ = ∑ τ : U' → Fin d, ∑ a : Fin d,
-                (s.live.map fun f => f.evalAt d (ext τ a)).prod := by
-              rw [Fintype.sum_prod_type_right]
-              refine Finset.sum_congr rfl fun τ _ => Finset.sum_congr rfl fun a _ => ?_
-              congr 1
-              refine List.map_congr_left fun f _ => FactorTable.evalAt_congr fun v _ => ?_
-              by_cases hvx : v = x
-              · subst hvx
-                simp [eSplit, hxU, ext]
-              · by_cases hvU : v ∈ U
-                · have hvU' : v ∈ U' := Finset.mem_erase.mpr ⟨hvx, hvU⟩
-                  simp [eSplit, hvx, hvU, hvU', ext, ext0]
-                · have hvU' : v ∉ U' := fun h => hvU (Finset.mem_of_mem_erase h)
-                  have hvx' : v ≠ x := hvx
-                  simp [hvx', hvU, hvU', ext, ext0]
+        rw [Fintype.sum_equiv eSplit _ (fun p =>
+          (s.live.map fun f => f.evalAt d (ext p.2 p.1)).prod)]
+        · exact Fintype.sum_prod_type_right _
+        · intro σ
+          refine congrArg List.prod (List.map_congr_left fun f _ =>
+            FactorTable.evalAt_congr fun v _ => ?_)
+          by_cases hvx : v = x
+          · subst hvx; simp [eSplit, ext, hx]
+          · by_cases hvU : v ∈ U
+            · have hvU' : v ∈ U' := Finset.mem_erase.mpr ⟨hvx, hvU⟩
+              have hvrem : v ∈ s.remaining := List.mem_toFinset.mp hvU
+              simp [eSplit, hvx, hvU', hvrem, ext, ext0]
+            · have hvrem : v ∉ s.remaining := fun h => hvU (List.mem_toFinset.mpr h)
+              have hvU' : v ∉ U' := fun h => hvU (Finset.mem_of_mem_erase h)
+              simp [hvx, hvrem, hvU', ext, ext0]
       have hfactor : ∀ τ : U' → Fin d,
           ∑ a : Fin d, (s.live.map fun f => f.evalAt d (ext τ a)).prod =
             (∑ a : Fin d, (bucket.map fun f => f.evalAt d (ext τ a)).prod) *
-              (rest.map fun f => f.evalAt d (ext0 τ)).prod := by
-        intro τ
+              (rest.map fun f => f.evalAt d (ext0 τ)).prod := fun τ => by
         rw [Finset.sum_mul]
         refine Finset.sum_congr rfl fun a _ => ?_
         have hsplit := ((List.filter_append_perm
@@ -489,40 +362,27 @@ theorem eval_elimVar [CommSemiring R] [DecidableEq V] (d : ℕ) (x : V) (s : Eli
           fun f => f.evalAt d (ext τ a)).prod_eq
         simp only [List.map_append, List.prod_append, hrest_eq] at hsplit
         rw [← hsplit]
-        congr 1
-        congr 1
-        refine List.map_congr_left fun f hf => FactorTable.evalAt_congr fun v hv => ?_
-        have hnx : x ∉ f.scope := by
-          have := (List.mem_filter.mp hf).2
-          simpa using this
-        have hvx : v ≠ x := fun h => hnx (h ▸ hv)
-        simp [ext, hvx]
-      rw [elimVar]
-      simp only [hx, ↓reduceIte]
+        dsimp only [bucket]
+        refine congrArg (_ * ·) (congrArg List.prod (List.map_congr_left fun f hf =>
+          FactorTable.evalAt_congr fun v hv => ?_))
+        have hnx : x ∉ f.scope := by simpa using (List.mem_filter.mp hf).2
+        simp [ext, show v ≠ x from fun h => hnx (h ▸ hv)]
+      rw [elimVar]; simp only [hx, ↓reduceIte]
       split_ifs with hb
       · have hbnil : bucket = [] := List.isEmpty_iff.mp hb
-        have hrest_all : rest = s.live := by
-          refine List.filter_eq_self.mpr fun f hf => ?_
-          by_contra hmem
-          have hbf : f ∈ bucket := List.mem_filter.mpr ⟨hf, by simpa using hmem⟩
-          rw [hbnil] at hbf
-          simp at hbf
-        rw [hs_eq]
-        rw [ElimState.eval, FactorTable.contractionOn, hrem']
+        have hrest_all : rest = s.live := List.filter_eq_self.mpr fun f hf => by
+          simpa using List.filter_eq_nil_iff.1 hbnil f hf
+        rw [hs_eq, ElimState.eval, FactorTable.contractionOn, hrem']
         simp only [hbnil, List.map_nil, List.prod_nil, Finset.sum_const, Finset.card_univ,
           Fintype.card_fin, nsmul_eq_mul, mul_one, hfactor, hrest_all]
         rw [← Finset.mul_sum, ← mul_assoc]
       · rw [hs_eq, ElimState.eval, FactorTable.contractionOn, hrem']
-        congr 1
-        refine Finset.sum_congr rfl fun τ _ => ?_
+        refine congrArg (s.scalar * ·) (Finset.sum_congr rfl fun τ _ => ?_)
         rw [hfactor τ, List.map_cons, List.prod_cons]
-        congr 1
-        have hlt : ∀ v ∈ bucketOutScope x bucket, ext0 τ v < d := by
-          intro v _
-          by_cases hv : v ∈ U'
-          · simp [ext0, hv]
-          · simp [ext0, hv, hd]
-        simpa [bucket, ext0, ext] using evalAt_elimBucketTable x bucket (ext0 τ) hlt
+        have hlt : ∀ v ∈ bucketOutScope x bucket, ext0 τ v < d := fun v _ => by
+          by_cases hv : v ∈ U' <;> simp [ext0, hv, hd]
+        simpa [bucket, ext0, ext, hrest_eq] using
+          congrArg (· * _) (evalAt_elimBucketTable x bucket (ext0 τ) hlt)
   · simp [elimVar, hx]
 
 /-- Sequential variable elimination preserves `ElimState.eval` for every supplied order. -/
@@ -538,19 +398,15 @@ theorem remaining_toFinset_eliminateOrder [Semiring R] [DecidableEq V] (d : ℕ)
       (eliminateOrder d order s).remaining.toFinset = s.remaining.toFinset \ order.toFinset
   | [], s => by simp [eliminateOrder]
   | x :: xs, s => by
-      rw [eliminateOrder, remaining_toFinset_eliminateOrder d xs (elimVar d x s)]
+      rw [eliminateOrder, remaining_toFinset_eliminateOrder d xs (elimVar d x s),
+        List.toFinset_cons]
       by_cases hx : x ∈ s.remaining
       · have hrem : (elimVar d x s).remaining.toFinset = s.remaining.toFinset.erase x := by
-          rw [elimVar]
-          simp only [hx, ↓reduceIte]
+          rw [elimVar]; simp only [hx, ↓reduceIte]
           split_ifs <;> · ext v; simp [Finset.mem_erase, and_comm]
-        rw [hrem, List.toFinset_cons]
-        ext v
-        simp only [Finset.mem_sdiff, Finset.mem_erase, Finset.mem_insert]
-        tauto
+        rw [hrem]; ext v; simp only [Finset.mem_sdiff, Finset.mem_erase, Finset.mem_insert]; tauto
       · have hrem : (elimVar d x s).remaining = s.remaining := by simp [elimVar, hx]
-        rw [hrem, List.toFinset_cons]
-        ext v
+        rw [hrem]; ext v
         simp only [Finset.mem_sdiff, Finset.mem_insert, List.mem_toFinset]
         exact ⟨fun ⟨hv, hne⟩ => ⟨hv, fun h => h.elim (fun hEq => hx (hEq ▸ hv)) hne⟩,
           fun ⟨hv, hne⟩ => ⟨hv, fun h => hne (Or.inr h)⟩⟩
@@ -559,17 +415,12 @@ theorem remaining_toFinset_eliminateOrder [Semiring R] [DecidableEq V] (d : ℕ)
 theorem eval_eq_result_of_remaining_nil [Semiring R] [DecidableEq V] (d : ℕ)
     {s : ElimState R V} (hrem : s.remaining = []) :
     s.eval d = s.result := by
-  rw [ElimState.eval, FactorTable.contractionOn, hrem, List.toFinset_nil, ElimState.result]
-  rw [Fintype.sum_unique]
-  congr 1
-  congr 1
-  refine List.map_congr_left fun f _ => ?_
-  rw [FactorTable.evalAt]
-  have hzero : (fun v : V => if h : v ∈ (∅ : Finset V) then
-      ((default : (∅ : Finset V) → Fin d) ⟨v, h⟩).1 else 0) = fun _ => 0 := by
-    funext v
-    simp
-  rw [hzero, ofDigits_map_zero]
+  rw [ElimState.eval, FactorTable.contractionOn, hrem, List.toFinset_nil, ElimState.result,
+    Fintype.sum_unique]
+  refine congrArg (s.scalar * List.prod ·) (List.map_congr_left fun f _ => ?_)
+  rw [FactorTable.evalAt, show (fun v : V => if h : v ∈ (∅ : Finset V) then
+    ((default : (∅ : Finset V) → Fin d) ⟨v, h⟩).1 else 0) = fun _ => 0 from funext fun _ => by simp,
+    ofDigits_map_zero]
 
 /-- If `order` covers all initial declared variables `init.remaining`, eliminating along `order`
 leaves `remaining = []` and its scalar `result` recovers `init.eval d`. -/
@@ -583,9 +434,8 @@ theorem result_eliminateOrder_of_subset [CommSemiring R] [DecidableEq V] (d : �
     cases hr : (eliminateOrder d order s).remaining with
     | nil => rfl
     | cons v _ =>
-        have hv : v ∈ (eliminateOrder d order s).remaining.toFinset := by simp [hr]
-        rw [hrem_set] at hv
-        simp at hv
+      have : v ∈ (∅ : Finset V) := (Finset.ext_iff.mp hrem_set v).mp (by simp [hr])
+      simp at this
   rw [← eval_eq_result_of_remaining_nil d hrem_nil, eval_eliminateOrder]
 
 /-- Contracting a weighted CSP by variable elimination in ANY supplied order `order` covering
@@ -613,161 +463,29 @@ theorem result_eliminateOrder_ofCSP_vars {Rel D : Type*} [CommSemiring R] [Decid
 
 end Correctness
 
-/-! ### Executable `TimeM ℕ` correctness and cost bounds -/
-
-section TimeMCost
-
-variable {R V : Type}
-
-@[time_simps]
-private theorem ret_evalScopeIdxM (d : ℕ) (σ : V → ℕ) :
-    ∀ vs : List V, (evalScopeIdxM d σ vs).ret = Nat.ofDigits d (vs.map σ) := by
-  time_spec evalScopeIdxM
-
-@[time_simps]
-private theorem time_evalScopeIdxM (d : ℕ) (σ : V → ℕ) :
-    ∀ vs : List V, (evalScopeIdxM d σ vs).time = vs.length := by
-  time_spec evalScopeIdxM
-
-@[time_simps]
-private theorem ret_evalFactorProdM [Semiring R] (d : ℕ) (σ : V → ℕ) :
-    ∀ fs : List (FactorTable R V),
-      (evalFactorProdM d σ fs).ret = (fs.map fun f => f.evalAt d σ).prod := by
-  time_spec evalFactorProdM
-
-@[time_simps]
-private theorem time_evalFactorProdM [Semiring R] (d : ℕ) (σ : V → ℕ) :
-    ∀ fs : List (FactorTable R V),
-      (evalFactorProdM d σ fs).time = fs.length + (fs.map fun f => f.scope.length).sum := by
-  time_spec evalFactorProdM
-
-private theorem ret_sumVarValuesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
-    (bucket : List (FactorTable R V)) :
-    ∀ c : ℕ,
-      (sumVarValuesM d x σ bucket c).ret =
-        ∑ a ∈ Finset.range c,
-          (bucket.map fun f => f.evalAt d fun v => if v = x then a else σ v).prod := by
-  time_spec sumVarValuesM [Finset.sum_range_succ]
-
-@[time_simps]
-private theorem time_sumVarValuesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
-    (bucket : List (FactorTable R V)) :
-    ∀ c : ℕ,
-      (sumVarValuesM d x σ bucket c).time =
-        c * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum) := by
-  time_spec sumVarValuesM [Nat.succ_mul]
-
-private theorem ret_sumVarValuesM_eq_fin [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
-    (bucket : List (FactorTable R V)) :
-    (sumVarValuesM d x σ bucket d).ret =
-      ∑ a : Fin d, (bucket.map fun f => f.evalAt d fun v => if v = x then a.1 else σ v).prod := by
-  rw [ret_sumVarValuesM, ← Fin.sum_univ_eq_sum_range]
-
-@[time_simps]
-private theorem ret_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
-    (outScope : List V) (bucket : List (FactorTable R V)) :
-    ∀ m : ℕ,
-      (buildOutEntriesM d x outScope bucket m).ret =
-        Array.ofFn fun idx : Fin m =>
-          let digits := lsbDecode d outScope.length idx.1
-          ∑ a : Fin d, (bucket.map fun f =>
-            f.evalAt d fun v => if v = x then a.1 else assignScope outScope digits v).prod
-  | 0 => by ext <;> simp [buildOutEntriesM]
-  | m + 1 => by
-      have ih := ret_buildOutEntriesM d x outScope bucket m
-      simp only [buildOutEntriesM, time_simps, ih, ret_sumVarValuesM_eq_fin]
-      ext i hi₁ hi₂
-      · simp
-      · simp only [Array.getElem_push, Array.size_ofFn] at hi₁ ⊢
-        split_ifs with him
-        · simp [Array.getElem_ofFn]
-        · have him_eq : i = m := by simp at hi₁ hi₂; omega
-          subst him_eq
-          simp [Array.getElem_ofFn]
-
-private theorem time_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
-    (outScope : List V) (bucket : List (FactorTable R V)) :
-    ∀ m : ℕ,
-      (buildOutEntriesM d x outScope bucket m).time =
-        m * (outScope.length +
-          d * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum)) := by
-  time_spec buildOutEntriesM [Nat.succ_mul]
-
-/-- The executable `elimVarM` step computes `elimVar`. -/
-@[time_simps]
-theorem ret_elimVarM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (s : ElimState R V) :
-    (elimVarM d x s).ret = elimVar d x s := by
-  time_spec elimVarM [elimVar]
-
-/-- The executable `eliminateOrderM` algorithm returns the exact state of `eliminateOrder`. -/
-theorem ret_eliminateOrderM [Semiring R] [DecidableEq V] (d : ℕ) :
-    ∀ (order : List V) (s : ElimState R V),
-      (eliminateOrderM d order s).ret = eliminateOrder d order s := by
-  time_spec eliminateOrderM
-
-/-- The executable `eliminateOrderM` returns `F.partitionFunctionOn wt declared.toFinset` when
-`order` covers `declared`. -/
-theorem result_eliminateOrderM_ofCSP {Rel D : Type*} [CommSemiring R] [DecidableEq V] [Fintype D]
-    [Inhabited D] (d : ℕ) (e : D ≃ Fin d) (wt : Rel → List D → R) {F : CSP Rel V}
-    {declared order : List V}
-    (hvars : F.vars.toFinset ⊆ declared.toFinset)
-    (hcover : declared.toFinset ⊆ order.toFinset) :
-    (eliminateOrderM d order
-        (ElimState.ofFactors (FactorTable.ofCSP d e wt F) declared)).ret.result =
-      F.partitionFunctionOn wt declared.toFinset := by
-  rw [ret_eliminateOrderM]
-  exact result_eliminateOrder_ofCSP d e wt hvars hcover
-
-end TimeMCost
-
 /-! ### Live-table size and intermediate-scope operation bounds -/
 
 section IntermediateScopeBounds
 
 variable {R V : Type*}
 
-private theorem foldl_max_mono_init {l : List ℕ} {a b : ℕ} (hab : a ≤ b) :
-    l.foldl max a ≤ l.foldl max b := by
-  induction l generalizing a b with
-  | nil => exact hab
-  | cons x xs ih => exact ih (max_le_max hab le_rfl)
+private theorem list_sum_map_le {α : Type*} (l : List α) (m : α → ℕ) {B : ℕ}
+    (hm : ∀ a ∈ l, m a ≤ B) : (l.map m).sum ≤ l.length * B := by
+  simpa [smul_eq_mul] using List.sum_le_length_nsmul (l.map m) B fun _ hn => by
+    rcases List.mem_map.mp hn with ⟨a, ha, rfl⟩; exact hm a ha
 
-private theorem le_foldl_max_self : ∀ (l : List ℕ) (a : ℕ), a ≤ l.foldl max a
-  | [], _ => le_rfl
-  | x :: xs, a => le_trans (le_max_left a x) (le_foldl_max_self xs (max a x))
-
-private theorem mem_le_foldl_max {l : List ℕ} {a x : ℕ} (hx : x ∈ l) : x ≤ l.foldl max a := by
-  induction l generalizing a with
-  | nil => simp at hx
-  | cons y ys ih =>
-      rcases List.mem_cons.mp hx with rfl | hx
-      · exact le_trans (le_max_right a x) (le_foldl_max_self ys _)
-      · exact ih hx
-
-private theorem length_elimVar_live_le [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
+/-- Eliminating one variable never increases the number of live factor tables. -/
+theorem length_elimVar_live_le [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
     (s : ElimState R V) : (elimVar d x s).live.length ≤ s.live.length := by
   by_cases hx : x ∈ s.remaining
-  · rw [elimVar]
-    simp only [hx, ↓reduceIte]
+  · simp only [elimVar, hx, ↓reduceIte]
     split_ifs with hb
     · exact le_rfl
     · simp only [List.length_cons]
-      let bucket := s.live.filter fun f => decide (x ∈ f.scope)
-      let rest := s.live.filter fun f => decide (x ∉ f.scope)
-      have hlen : (s.live.filter fun f => decide (x ∈ f.scope)).length +
-          (s.live.filter fun f => !decide (x ∈ f.scope)).length = s.live.length := by
-        simpa [List.length_append] using
-          (List.filter_append_perm (fun f : FactorTable R V => decide (x ∈ f.scope))
-            s.live).length_eq
-      have hrest : (s.live.filter fun f => !decide (x ∈ f.scope)) = rest := by
-        simp only [decide_not, rest]
-      rw [hrest] at hlen
-      have hbpos : 1 ≤ bucket.length := by
-        cases h : bucket with
-        | nil => simp [bucket, h] at hb
-        | cons _ _ => simp
-      dsimp only [bucket, rest] at hlen hbpos
-      omega
+      have hlen := List.length_eq_length_filter_add (l := s.live) fun f => decide (x ∈ f.scope)
+      have hbpos : 1 ≤ (s.live.filter fun f => decide (x ∈ f.scope)).length := by
+        cases h : s.live.filter fun f => decide (x ∈ f.scope) <;> simp_all
+      simp only [decide_not]; omega
   · simp [elimVar, hx]
 
 /-- The number of live factor tables never increases along any elimination order. -/
@@ -780,23 +498,13 @@ theorem liveLength_eliminateOrder_le [Semiring R] [DecidableEq V] (d : ℕ) :
 private theorem bucketFactors_add_live_le [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
     (s : ElimState R V) :
     (stepStats d x s).bucketFactors + (elimVar d x s).live.length ≤ s.live.length + 1 := by
-  rw [stepStats, elimVar]
   by_cases hx : x ∈ s.remaining
-  · simp only [hx, ↓reduceIte]
+  · simp only [stepStats, elimVar, hx, ↓reduceIte]
     split_ifs with hb
     · simp
-    · dsimp only [List.length_cons]
-      have hlen : (s.live.filter fun f => decide (x ∈ f.scope)).length +
-          (s.live.filter fun f => !decide (x ∈ f.scope)).length = s.live.length := by
-        simpa [List.length_append] using
-          (List.filter_append_perm (fun f : FactorTable R V => decide (x ∈ f.scope))
-            s.live).length_eq
-      have hrest : (s.live.filter fun f => !decide (x ∈ f.scope)) =
-          s.live.filter fun f => decide (x ∉ f.scope) := by
-        simp only [decide_not]
-      rw [hrest] at hlen
-      omega
-  · simp [hx]
+    · have hlen := List.length_eq_length_filter_add (l := s.live) fun f => decide (x ∈ f.scope)
+      simp only [decide_not, List.length_cons]; omega
+  · simp [stepStats, elimVar, hx]
 
 /-- Amortized bucket-count bound: the sum of bucket sizes across `order` is at most
 `init.live.length + order.length`. -/
@@ -812,17 +520,18 @@ theorem sum_bucketFactors_le [Semiring R] [DecidableEq V] (d : ℕ) :
       simp only [traceOrder, eliminateOrder, List.map_cons, List.sum_cons, List.length_cons]
       omega
 
-private theorem mem_traceOrder_joint_le [Semiring R] [DecidableEq V] (d : ℕ)
+/-- Every step along `order` has joint scope size at most `maxJointScopeLen d order init`. -/
+theorem mem_traceOrder_joint_le [Semiring R] [DecidableEq V] (d : ℕ)
     (order : List V) (init : ElimState R V) {st : ElimStepStats}
     (hst : st ∈ traceOrder d order init) :
     st.jointScopeVars ≤ maxJointScopeLen d order init :=
-  mem_le_foldl_max (List.mem_map.mpr ⟨st, hst, rfl⟩)
+  List.mem_le_foldl_max (List.mem_map.mpr ⟨st, hst, rfl⟩)
 
 private theorem mem_traceOrder_out_le [Semiring R] [DecidableEq V] (d : ℕ)
     (order : List V) (init : ElimState R V) {st : ElimStepStats}
     (hst : st ∈ traceOrder d order init) :
     st.outScopeVars ≤ maxOutScopeLen d order init :=
-  mem_le_foldl_max (List.mem_map.mpr ⟨st, hst, rfl⟩)
+  List.mem_le_foldl_max (List.mem_map.mpr ⟨st, hst, rfl⟩)
 
 /-- Total scalar arithmetic operations along `order` are bounded by the maximum actual
 intermediate bucket scope width `maxJointScopeLen d order init` and the amortized bucket factor
@@ -838,90 +547,57 @@ theorem totalArithOps_le_of_intermediate [Semiring R] [DecidableEq V] {d : ℕ} 
       ((traceOrder d ord s).map ElimStepStats.arithOps).sum ≤
         ord.length + (((traceOrder d ord s).map ElimStepStats.bucketFactors).sum + ord.length) *
           d ^ W := by
-    intro ord
-    induction ord with
+    intro ord; induction ord with
     | nil => intro s _; simp [traceOrder]
     | cons x xs ih =>
         intro s hW
-        have hhead : (stepStats d x s).jointScopeVars ≤ W :=
-          hW (stepStats d x s) (by simp [traceOrder])
+        have hhead := hW (stepStats d x s) (by simp [traceOrder])
         have htail := ih (elimVar d x s) fun st hst => hW st (by simp [traceOrder, hst])
-        have hst_bound : (stepStats d x s).arithOps ≤
+        have hst : (stepStats d x s).arithOps ≤
             1 + ((stepStats d x s).bucketFactors + 1) * d ^ W := by
-          simp only [stepStats]
-          split_ifs with hx hb
-          · simp
-          · have hjoint : (bucketJointScope (s.live.filter fun f => decide (x ∈ f.scope))).length ≤
-                W := by
-              simpa [stepStats, hx, hb] using hhead
-            have hpow :
-                d ^ (bucketJointScope (s.live.filter fun f => decide (x ∈ f.scope))).length ≤
-                  d ^ W := Nat.pow_le_pow_right hd hjoint
-            calc d ^ (bucketJointScope (s.live.filter fun f => decide (x ∈ f.scope))).length *
-                    ((s.live.filter fun f => decide (x ∈ f.scope)).length + 1)
-                ≤ d ^ W * ((s.live.filter fun f => decide (x ∈ f.scope)).length + 1) :=
-                  Nat.mul_le_mul_right _ hpow
-              _ = ((s.live.filter fun f => decide (x ∈ f.scope)).length + 1) * d ^ W :=
-                  Nat.mul_comm _ _
-              _ ≤ 1 + ((s.live.filter fun f => decide (x ∈ f.scope)).length + 1) * d ^ W :=
-                  Nat.le_add_left _ _
-          · simp
+          by_cases hx : x ∈ s.remaining
+          · simp only [stepStats, hx, ↓reduceIte] at hhead ⊢
+            split_ifs with hb
+            · simp
+            · simp only [hb] at hhead
+              refine le_trans (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right hd hhead)) ?_
+              rw [Nat.mul_comm]
+              exact Nat.le_add_left _ _
+          · simp [stepStats, hx]
         simp only [traceOrder, List.map_cons, List.sum_cons, List.length_cons] at htail ⊢
-        calc (stepStats d x s).arithOps + ((traceOrder d xs (elimVar d x s)).map
-                ElimStepStats.arithOps).sum
+        calc (stepStats d x s).arithOps + _
             ≤ (1 + ((stepStats d x s).bucketFactors + 1) * d ^ W) +
                 (xs.length + (((traceOrder d xs (elimVar d x s)).map
                   ElimStepStats.bucketFactors).sum + xs.length) * d ^ W) :=
-              Nat.add_le_add hst_bound htail
+              Nat.add_le_add hst htail
           _ = (xs.length + 1) +
                 (((stepStats d x s).bucketFactors + ((traceOrder d xs (elimVar d x s)).map
-                  ElimStepStats.bucketFactors).sum) + (xs.length + 1)) * d ^ W := by
-              ring
+                  ElimStepStats.bucketFactors).sum) + (xs.length + 1)) * d ^ W := by ring
   have h0 := hsum order init fun st hst => mem_traceOrder_joint_le d order init hst
   have hbk := sum_bucketFactors_le d order init
-  have hbk' : ((traceOrder d order init).map ElimStepStats.bucketFactors).sum + order.length ≤
-      init.live.length + 2 * order.length := by omega
-  calc totalArithOps d order init
-      ≤ order.length + (((traceOrder d order init).map ElimStepStats.bucketFactors).sum +
-          order.length) * d ^ W := h0
-    _ ≤ order.length + (init.live.length + 2 * order.length) * d ^ W :=
-        Nat.add_le_add_left (Nat.mul_le_mul_right _ hbk') _
+  exact h0.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ (by omega)) _)
 
 private theorem maxOutScope_le_sub {R V : Type*} [Semiring R] [DecidableEq V] (d : ℕ)
     (order : List V) (init : ElimState R V) :
     ∀ st ∈ traceOrder d order init, st.outScopeVars ≤ st.jointScopeVars := by
-  intro st hst
-  induction order generalizing init with
+  intro st hst; induction order generalizing init with
   | nil => simp [traceOrder] at hst
   | cons x xs ih =>
-      simp only [traceOrder, List.mem_cons] at hst
-      rcases hst with rfl | hst
-      · simp only [stepStats]
-        split_ifs
-        · exact le_rfl
+      rcases List.mem_cons.mp hst with rfl | hst
+      · simp only [stepStats]; split_ifs
+        · simp
         · exact List.length_filter_le _ _
-        · exact le_rfl
+        · simp
       · exact ih _ hst
 
 /-- Output table dimension never exceeds the joint bucket dimension along any order. -/
 theorem maxOutScopeLen_le_maxJointScopeLen [Semiring R] [DecidableEq V] (d : ℕ) (order : List V)
     (init : ElimState R V) :
-    maxOutScopeLen d order init ≤ maxJointScopeLen d order init := by
-  rw [maxOutScopeLen]
-  suffices h : ∀ (l : List ElimStepStats) (a : ℕ),
-      (∀ st ∈ l, st.outScopeVars ≤ maxJointScopeLen d order init) →
-      a ≤ maxJointScopeLen d order init →
-      (l.map ElimStepStats.outScopeVars).foldl max a ≤ maxJointScopeLen d order init by
-    exact h (traceOrder d order init) 0
-      (fun st hst => le_trans (maxOutScope_le_sub d order init st hst)
-        (mem_traceOrder_joint_le d order init hst))
-      (Nat.zero_le _)
-  intro l a hl ha
-  induction l generalizing a with
-  | nil => exact ha
-  | cons st sts ih =>
-      exact ih (max a st.outScopeVars) (fun y hy => hl y (by simp [hy]))
-        (max_le ha (hl st (by simp)))
+    maxOutScopeLen d order init ≤ maxJointScopeLen d order init :=
+  List.foldl_max_le (Nat.zero_le _) fun _ hn => by
+    rcases List.mem_map.mp hn with ⟨st, hst, rfl⟩
+    exact (maxOutScope_le_sub d order init st hst).trans
+      (mem_traceOrder_joint_le d order init hst)
 
 private theorem length_filter_ne_add_one {V : Type*} [DecidableEq V] :
     ∀ {l : List V} {x : V}, l.Nodup → x ∈ l →
@@ -932,17 +608,11 @@ private theorem length_filter_ne_add_one {V : Type*} [DecidableEq V] :
       rw [List.filter_cons]
       by_cases hax : a = x
       · subst hax
-        have hnone : l.filter (fun v => decide (v ≠ a)) = l := by
-          refine List.filter_eq_self.mpr fun v hv => ?_
-          simp only [decide_eq_true_eq]
-          exact fun h => han (h ▸ hv)
-        rw [hnone]
-        simp
-      · have hax' : decide (a ≠ x) = true := decide_eq_true hax
-        rw [hax']
-        simp only [↓reduceIte, List.length_cons]
-        have hxl : x ∈ l := (List.mem_cons.mp hx).resolve_left (Ne.symm hax)
-        have ih := length_filter_ne_add_one hlnodup hxl
+        have hnone : l.filter (fun v => decide (v ≠ a)) = l :=
+          List.filter_eq_self.mpr fun v hv => decide_eq_true fun h => han (h ▸ hv)
+        rw [ite_eq_right (by simp), hnone]; simp
+      · rw [decide_eq_true hax]; simp only [↓reduceIte, List.length_cons]
+        have := length_filter_ne_add_one hlnodup ((List.mem_cons.mp hx).resolve_left (Ne.symm hax))
         omega
 
 /-- For a nonempty bucket of factors containing `x`, the output scope has one fewer variable than
@@ -955,61 +625,53 @@ theorem length_bucketOutScope_add_one [DecidableEq V] {x : V} {bucket : List (Fa
     exact (mem_bucketJointScope bucket x).mpr ⟨f, hf, hx f hf⟩
   exact length_filter_ne_add_one (List.nodup_dedup _) hxjoint
 
-private theorem elimVar_entries_size_le [Semiring R] [DecidableEq V] {d : ℕ} (hd : 0 < d)
-    (x : V) (s : ElimState R V) {E W : ℕ}
-    (hs : ∀ f ∈ s.live, f.entries.size ≤ max E (d ^ W))
-    (hout : ∀ (_ : x ∈ s.remaining),
-      ∀ (_ : ¬(s.live.filter fun f => decide (x ∈ f.scope)).isEmpty = true),
-      (bucketOutScope x (s.live.filter fun f => decide (x ∈ f.scope))).length ≤ W) :
-    ∀ f ∈ (elimVar d x s).live, f.entries.size ≤ max E (d ^ W) := by
+private theorem elimVar_forall_le [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
+    (s : ElimState R V) (P : FactorTable R V → Prop) (hs : ∀ f ∈ s.live, P f)
+    (hnew : x ∈ s.remaining → ¬(s.live.filter fun f => decide (x ∈ f.scope)).isEmpty = true →
+      P (elimBucketTable d x (s.live.filter fun f => decide (x ∈ f.scope)))) :
+    ∀ f ∈ (elimVar d x s).live, P f := by
   intro f hf
   by_cases hx : x ∈ s.remaining
-  · rw [elimVar] at hf
-    simp only [hx, ↓reduceIte] at hf
-    split_ifs at hf with hb
-    · exact hs f hf
-    · simp only [List.mem_cons] at hf
-      rcases hf with rfl | hf
-      · simp only [elimBucketTable, Array.size_ofFn]
-        exact le_trans (Nat.pow_le_pow_right hd (hout hx hb)) (le_max_right E _)
-      · exact hs f (List.mem_filter.mp hf).1
   · simp only [elimVar, hx, ↓reduceIte] at hf
-    exact hs f hf
-
-private theorem elimVar_scope_length_le [Semiring R] [DecidableEq V] (d : ℕ)
-    (x : V) (s : ElimState R V) {S W : ℕ}
-    (hs : ∀ f ∈ s.live, f.scope.length ≤ max S W)
-    (hout : ∀ (_ : x ∈ s.remaining),
-      ∀ (_ : ¬(s.live.filter fun f => decide (x ∈ f.scope)).isEmpty = true),
-      (bucketOutScope x (s.live.filter fun f => decide (x ∈ f.scope))).length ≤ W) :
-    ∀ f ∈ (elimVar d x s).live, f.scope.length ≤ max S W := by
-  intro f hf
-  by_cases hx : x ∈ s.remaining
-  · rw [elimVar] at hf
-    simp only [hx, ↓reduceIte] at hf
     split_ifs at hf with hb
     · exact hs f hf
-    · simp only [List.mem_cons] at hf
-      rcases hf with rfl | hf
-      · simp only [elimBucketTable]
-        exact le_trans (hout hx hb) (le_max_right S W)
+    · rcases List.mem_cons.mp hf with rfl | hf
+      · exact hnew hx hb
       · exact hs f (List.mem_filter.mp hf).1
   · simp only [elimVar, hx, ↓reduceIte] at hf
     exact hs f hf
 
 private theorem each_mem_le_maxTableEntries {live : List (FactorTable R V)} :
     ∀ f ∈ live, f.entries.size ≤ maxTableEntries live := fun f hf =>
-  mem_le_foldl_max (List.mem_map.mpr ⟨f, hf, rfl⟩)
+  List.mem_le_foldl_max (List.mem_map.mpr ⟨f, hf, rfl⟩)
 
-private theorem each_mem_le_maxScopeLen {live : List (FactorTable R V)} :
+/-- Every factor in `live` has scope length at most `maxScopeLen live`. -/
+theorem each_mem_le_maxScopeLen {live : List (FactorTable R V)} :
     ∀ f ∈ live, f.scope.length ≤ maxScopeLen live := fun f hf =>
-  mem_le_foldl_max (List.mem_map.mpr ⟨f, hf, rfl⟩)
+  List.mem_le_foldl_max (List.mem_map.mpr ⟨f, hf, rfl⟩)
+
+/-- Eliminating one variable never increases `remaining.length`. -/
+theorem length_elimVar_remaining_le [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
+    (s : ElimState R V) : (elimVar d x s).remaining.length ≤ s.remaining.length := by
+  by_cases hx : x ∈ s.remaining
+  · simp only [elimVar, hx, ↓reduceIte]
+    split_ifs <;> exact List.length_filter_le _ _
+  · simp [elimVar, hx]
+
+/-- One elimination step preserves the scope-length envelope `max S W` whenever its joint scope has
+at most `W` variables. -/
+theorem scope_length_elimVar_le [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (s : ElimState R V)
+    {S W : ℕ} (hs : ∀ f ∈ s.live, f.scope.length ≤ max S W)
+    (hstep : (stepStats d x s).jointScopeVars ≤ W) :
+    ∀ f ∈ (elimVar d x s).live, f.scope.length ≤ max S W :=
+  elimVar_forall_le d x s (·.scope.length ≤ max S W) hs fun hx hb =>
+    le_trans (List.length_filter_le _ _)
+      (le_trans (by simpa [stepStats, hx, hb] using hstep) (le_max_right S W))
 
 private theorem stepStats_liveEntriesAfter [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
     (s : ElimState R V) :
     (stepStats d x s).liveEntriesAfter = liveEntries (elimVar d x s).live := by
-  simp only [stepStats]
-  split_ifs <;> rfl
+  simp only [stepStats]; split_ifs <;> rfl
 
 /-- Peak live-table entry count across `order` is bounded strictly by `init.live.length` times the
 maximum of initial single-table sizes and the maximum output table size `d ^ maxOutScopeLen`. -/
@@ -1022,215 +684,53 @@ theorem peakLiveEntries_le [Semiring R] [DecidableEq V] {d : ℕ} (hd : 0 < d)
   let B := max E (d ^ W)
   let M := init.live.length
   have hgen : ∀ (ord : List V) (s : ElimState R V) (acc : ℕ),
-      acc ≤ M * B →
-      s.live.length ≤ M →
-      (∀ f ∈ s.live, f.entries.size ≤ B) →
+      acc ≤ M * B → s.live.length ≤ M → (∀ f ∈ s.live, f.entries.size ≤ B) →
       (∀ st ∈ traceOrder d ord s, st.outScopeVars ≤ W) →
       ((traceOrder d ord s).map ElimStepStats.liveEntriesAfter).foldl max acc ≤ M * B := by
-    intro ord
-    induction ord with
-    | nil =>
-        intro s acc hacc _ _ _
-        simpa [traceOrder] using hacc
+    intro ord; induction ord with
+    | nil => intro s acc hacc _ _ _; simpa [traceOrder] using hacc
     | cons x xs ih =>
         intro s acc hacc hlen hs hW
-        have hstepW : (stepStats d x s).outScopeVars ≤ W :=
-          hW (stepStats d x s) (by simp [traceOrder])
-        have hout : ∀ (hx : x ∈ s.remaining),
-            ∀ (hb : ¬(s.live.filter fun f => decide (x ∈ f.scope)).isEmpty = true),
-            (bucketOutScope x (s.live.filter fun f => decide (x ∈ f.scope))).length ≤ W := by
-          intro hx hb
-          simpa [stepStats, hx, hb] using hstepW
-        have hs' := elimVar_entries_size_le hd x s hs hout
-        have hlen' : (elimVar d x s).live.length ≤ M :=
-          le_trans (length_elimVar_live_le d x s) hlen
+        have hs' : ∀ f ∈ (elimVar d x s).live, f.entries.size ≤ B :=
+          elimVar_forall_le d x s (·.entries.size ≤ B) hs fun hx hb => by
+            have hout : (bucketOutScope x (s.live.filter fun f => decide (x ∈ f.scope))).length ≤
+                W := by
+              simpa [stepStats, hx, hb] using hW (stepStats d x s) (by simp [traceOrder])
+            simp only [elimBucketTable, Array.size_ofFn]
+            exact (Nat.pow_le_pow_right hd hout).trans (le_max_right _ _)
+        have hlen' : (elimVar d x s).live.length ≤ M := le_trans (length_elimVar_live_le d x s) hlen
         have hlive_after : (stepStats d x s).liveEntriesAfter ≤ M * B := by
           rw [stepStats_liveEntriesAfter]
-          have hsum : liveEntries (elimVar d x s).live ≤ (elimVar d x s).live.length * B := by
-            simpa [liveEntries, smul_eq_mul] using List.sum_le_length_nsmul
-              ((elimVar d x s).live.map fun f => f.entries.size) B fun _ hn => by
-                rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
-                exact hs' f hf
-          exact le_trans hsum (Nat.mul_le_mul_right B hlen')
+          exact le_trans (list_sum_map_le _ _ hs') (Nat.mul_le_mul_right B hlen')
         simp only [traceOrder, List.map_cons, List.foldl_cons]
         exact ih (elimVar d x s) (max acc (stepStats d x s).liveEntriesAfter)
           (max_le hacc hlive_after) hlen' hs' fun st hst => hW st (by simp [traceOrder, hst])
-  rw [peakLiveEntries]
-  have hinit_sum : liveEntries init.live ≤ init.live.length * B := by
-    simpa [liveEntries, smul_eq_mul] using List.sum_le_length_nsmul
-      (init.live.map fun f => f.entries.size) B fun _ hn => by
-        rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
-        exact le_trans (each_mem_le_maxTableEntries f hf) (le_max_left E (d ^ W))
-  exact hgen order init (liveEntries init.live) hinit_sum le_rfl
-    (fun f hf => le_trans (each_mem_le_maxTableEntries f hf) (le_max_left E (d ^ W)))
-    (fun st hst => mem_traceOrder_out_le d order init hst)
+  have hinit : ∀ f ∈ init.live, f.entries.size ≤ B := fun f hf =>
+    le_trans (each_mem_le_maxTableEntries f hf) (le_max_left E (d ^ W))
+  exact hgen order init (liveEntries init.live) (list_sum_map_le _ _ hinit) le_rfl hinit
+    fun st hst => mem_traceOrder_out_le d order init hst
 
 /-- At every prefix `order.take k`, live-table entry count is bounded by `peakLiveEntries`. -/
 theorem liveEntries_eliminateOrder_take_le [Semiring R] [DecidableEq V] (d : ℕ)
     (order : List V) (init : ElimState R V) (k : ℕ) :
     liveEntries (eliminateOrder d (order.take k) init).live ≤ peakLiveEntries d order init := by
   rw [peakLiveEntries]
-  suffices h : ∀ (ord : List V) (s : ElimState R V) (acc k : ℕ),
-      liveEntries s.live ≤ acc →
+  suffices h : ∀ (ord : List V) (s : ElimState R V) (acc k : ℕ), liveEntries s.live ≤ acc →
       liveEntries (eliminateOrder d (ord.take k) s).live ≤
-        ((traceOrder d ord s).map ElimStepStats.liveEntriesAfter).foldl max acc by
-    exact h order init (liveEntries init.live) k le_rfl
-  intro ord
-  induction ord with
-  | nil =>
-      intro s acc k hacc
-      simpa [eliminateOrder, traceOrder] using hacc
+        ((traceOrder d ord s).map ElimStepStats.liveEntriesAfter).foldl max acc from
+    h order init (liveEntries init.live) k le_rfl
+  intro ord; induction ord with
+  | nil => intro s acc k hacc; simpa [eliminateOrder, traceOrder] using hacc
   | cons x xs ih =>
-      intro s acc k hacc
-      cases k with
+      intro s acc k hacc; cases k with
       | zero =>
           simp only [List.take_zero, eliminateOrder, traceOrder, List.map_cons, List.foldl_cons]
-          exact le_trans hacc (le_trans (le_max_left _ _) (le_foldl_max_self _ _))
+          exact le_trans hacc (le_trans (le_max_left _ _) (List.le_foldl_max_self _ _))
       | succ k' =>
           simp only [List.take_succ_cons, eliminateOrder, traceOrder, List.map_cons,
             List.foldl_cons]
-          exact ih (elimVar d x s) (max acc (stepStats d x s).liveEntriesAfter) k' (by
-            rw [stepStats_liveEntriesAfter]
-            exact le_max_right _ _)
-
-private theorem time_elimVarM_le {R V : Type} [Semiring R] [DecidableEq V] {d : ℕ}
-    (hd : 0 < d) (x : V) (s : ElimState R V) {M S W : ℕ}
-    (hlen : s.live.length ≤ M)
-    (hs : ∀ f ∈ s.live, f.scope.length ≤ max S W)
-    (hstep : (stepStats d x s).jointScopeVars ≤ W) :
-    (elimVarM d x s).time ≤
-      M + 1 + d ^ W * (W + ((stepStats d x s).bucketFactors * (max S W + 1) + 1)) := by
-  by_cases hx : x ∈ s.remaining
-  · let bucket := s.live.filter fun f => decide (x ∈ f.scope)
-    have htime : (elimVarM d x s).time =
-        if bucket.isEmpty then s.live.length + 1
-        else s.live.length + d ^ (bucketOutScope x bucket).length *
-          ((bucketOutScope x bucket).length +
-            d * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum)) := by
-      rw [elimVarM]
-      simp only [hx, ↓reduceIte]
-      split_ifs with hb
-      · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure]
-        omega
-      · simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, time_buildOutEntriesM]
-        rfl
-    rw [htime]
-    split_ifs with hb
-    · exact le_trans (by omega : s.live.length + 1 ≤ M + 1) (Nat.le_add_right _ _)
-    · have hne : bucket ≠ [] := by
-        intro heq
-        simp [heq] at hb
-      have hxall : ∀ f ∈ bucket, x ∈ f.scope := fun f hf => by
-        simpa using (List.mem_filter.mp hf).2
-      have hjoint_eq := length_bucketOutScope_add_one hne hxall
-      have hjoint_le : (bucketJointScope bucket).length ≤ W := by
-        simpa [stepStats, hx, hb, bucket] using hstep
-      have hout_le : (bucketOutScope x bucket).length ≤ W := by omega
-      have hpow_out : d ^ (bucketOutScope x bucket).length ≤ d ^ W :=
-        Nat.pow_le_pow_right hd hout_le
-      have hpow_joint : d ^ (bucketOutScope x bucket).length * d ≤ d ^ W := by
-        rw [← pow_succ, hjoint_eq]
-        exact Nat.pow_le_pow_right hd hjoint_le
-      have hscope_sum : (bucket.map fun f => f.scope.length).sum ≤
-          bucket.length * max S W := by
-        simpa [smul_eq_mul] using List.sum_le_length_nsmul
-          (bucket.map fun f => f.scope.length) (max S W) fun _ hn => by
-            rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
-            exact hs f (List.mem_filter.mp hf).1
-      have hbk_eq : (stepStats d x s).bucketFactors = bucket.length := by
-        simp [stepStats, hx, hb, bucket]
-      rw [hbk_eq]
-      calc s.live.length + d ^ (bucketOutScope x bucket).length *
-              ((bucketOutScope x bucket).length +
-                d * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum))
-          = s.live.length +
-              (d ^ (bucketOutScope x bucket).length * (bucketOutScope x bucket).length +
-                (d ^ (bucketOutScope x bucket).length * d) *
-                  (1 + bucket.length + (bucket.map fun f => f.scope.length).sum)) := by ring
-        _ ≤ M + (d ^ W * W + d ^ W * (1 + bucket.length + bucket.length * max S W)) := by
-            refine Nat.add_le_add hlen (Nat.add_le_add (Nat.mul_le_mul hpow_out hout_le)
-              (Nat.mul_le_mul hpow_joint ?_))
-            omega
-        _ = M + d ^ W * (W + (bucket.length * (max S W + 1) + 1)) := by ring
-        _ ≤ M + 1 + d ^ W * (W + (bucket.length * (max S W + 1) + 1)) := by omega
-  · simp only [elimVarM, hx, ↓reduceIte, TimeM.time_pure]
-    exact Nat.zero_le _
-
-/-- Total `TimeM ℕ` execution time of `eliminateOrderM` is bounded explicitly in terms of
-`init.live.length`, `order.length`, factor scope lengths, and the maximum intermediate bucket
-scope width `W = maxJointScopeLen d order init`. -/
-theorem time_eliminateOrderM_le {R V : Type} [Semiring R] [DecidableEq V] {d : ℕ}
-    (hd : 0 < d) (order : List V) (init : ElimState R V) :
-    let S := max (maxScopeLen init.live) (maxJointScopeLen d order init)
-    let W := maxJointScopeLen d order init
-    (eliminateOrderM d order init).time ≤
-      order.length * (init.live.length + 1) +
-        d ^ W * ((W + 1) * order.length + (init.live.length + order.length) * (S + 1)) := by
-  dsimp only
-  let S₀ := maxScopeLen init.live
-  let W := maxJointScopeLen d order init
-  have hgen : ∀ (ord : List V) (s : ElimState R V),
-      s.live.length ≤ init.live.length →
-      (∀ f ∈ s.live, f.scope.length ≤ max S₀ W) →
-      (∀ st ∈ traceOrder d ord s, st.jointScopeVars ≤ W) →
-      (eliminateOrderM d ord s).time ≤
-        ord.length * (init.live.length + 1) +
-          d ^ W * ((W + 1) * ord.length +
-            ((traceOrder d ord s).map ElimStepStats.bucketFactors).sum * (max S₀ W + 1)) := by
-    intro ord
-    induction ord with
-    | nil =>
-        intro s _ _ _
-        simp [eliminateOrderM]
-    | cons x xs ih =>
-        intro s hlen hs hW
-        have hstepW : (stepStats d x s).jointScopeVars ≤ W :=
-          hW (stepStats d x s) (by simp [traceOrder])
-        have hhead := time_elimVarM_le hd x s hlen hs hstepW
-        have hout : ∀ (_ : x ∈ s.remaining),
-            ∀ (_ : ¬(s.live.filter fun f => decide (x ∈ f.scope)).isEmpty = true),
-            (bucketOutScope x (s.live.filter fun f => decide (x ∈ f.scope))).length ≤ W := by
-          intro hx hb
-          have hsub : (bucketOutScope x (s.live.filter fun f => decide (x ∈ f.scope))).length ≤
-              (bucketJointScope (s.live.filter fun f => decide (x ∈ f.scope))).length :=
-            List.length_filter_le _ _
-          have hj :
-              (bucketJointScope (s.live.filter fun f => decide (x ∈ f.scope))).length ≤ W := by
-            simpa [stepStats, hx, hb] using hstepW
-          exact le_trans hsub hj
-        have hs' := elimVar_scope_length_le d x s hs hout
-        have hlen' : (elimVar d x s).live.length ≤ init.live.length :=
-          le_trans (length_elimVar_live_le d x s) hlen
-        have htail := ih (elimVar d x s) hlen' hs' fun st hst => hW st (by simp [traceOrder, hst])
-        simp only [eliminateOrderM, time_simps, traceOrder]
-        calc (elimVarM d x s).time + (eliminateOrderM d xs (elimVar d x s)).time
-            ≤ (init.live.length + 1 +
-                  d ^ W * (W + ((stepStats d x s).bucketFactors * (max S₀ W + 1) + 1))) +
-                (xs.length * (init.live.length + 1) +
-                  d ^ W * ((W + 1) * xs.length +
-                    ((traceOrder d xs (elimVar d x s)).map
-                      ElimStepStats.bucketFactors).sum * (max S₀ W + 1))) :=
-              Nat.add_le_add hhead htail
-          _ = (1 + xs.length) * (init.live.length + 1) +
-                d ^ W * ((W + 1) * (1 + xs.length) +
-                  ((stepStats d x s).bucketFactors +
-                    ((traceOrder d xs (elimVar d x s)).map
-                      ElimStepStats.bucketFactors).sum) * (max S₀ W + 1)) := by
-              ring
-          _ = (xs.length + 1) * (init.live.length + 1) +
-                d ^ W * ((W + 1) * (xs.length + 1) +
-                  ((stepStats d x s).bucketFactors +
-                    ((traceOrder d xs (elimVar d x s)).map
-                      ElimStepStats.bucketFactors).sum) * (max S₀ W + 1)) := by
-              ring
-  have h0 := hgen order init le_rfl
-    (fun f hf => le_trans (each_mem_le_maxScopeLen f hf) (le_max_left S₀ W))
-    (fun st hst => mem_traceOrder_joint_le d order init hst)
-  have hbk := sum_bucketFactors_le d order init
-  have hbk' : ((traceOrder d order init).map ElimStepStats.bucketFactors).sum ≤
-      init.live.length + order.length := by omega
-  exact le_trans h0 (Nat.add_le_add_left (Nat.mul_le_mul_left _
-    (Nat.add_le_add_left (Nat.mul_le_mul_right _ hbk') _)) _)
+          exact ih (elimVar d x s) (max acc (stepStats d x s).liveEntriesAfter) k'
+            (by rw [stepStats_liveEntriesAfter]; exact le_max_right _ _)
 
 end IntermediateScopeBounds
 

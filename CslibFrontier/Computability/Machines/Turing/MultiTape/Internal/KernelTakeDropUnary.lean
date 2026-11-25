@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OneWorkTap
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Basic.Finite.Sum
 
 /-!
@@ -446,9 +447,7 @@ private lemma seg_run (u : List Bool) (n : ℕ) :
   have hn := length_word u n
   have hinit : (toTM keep).initCfg (word u n) =
       cfgAt (word u n) (some .skip) (2 * 0 + 1) (tapeOfList []) 0 [] := by
-    refine Cfg.ext rfl (Fin.ext ?_) (funext fun _ => ?_) rfl rfl
-    · simp [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
-    · simp [MultiTapeNTM.initCfg, Cfg.init, cfgAt, tapeOfList_nil]
+    tm_step [tapeOfList_nil]
   obtain ⟨h', hh₀, hh₁, hstream⟩ := seg_stream (keep := keep) (u := u) (n := n)
     (List.replicate n true) false (r := 0) (Nat.zero_le _) le_rfl []
   rw [List.drop_zero, List.nil_append] at hstream

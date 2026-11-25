@@ -68,8 +68,7 @@ theorem exists_runFrom_counterGate_bounded {p q r m : ℕ} (M : MultiTapeTM k Bo
         (start e (QueryGate.sumState params table j)) t)).length ≤ calleeSpace k s Q context) := by
     intro j hj
     obtain ⟨T, hpre, hhalt, hans⟩ := table_supplier M e w b σ i x hb hm chunk j hj
-    refine ⟨T, hpre, hhalt, hans, ?_⟩
-    intro t _ht
+    refine ⟨T, hpre, hhalt, hans, fun t _ => ?_⟩
     rw [start_sumState]
     exact SupplierChunk.length_runFrom_prepare_le M e w b σ i
       ((2 ^ m) ^ ((k * 3 + 1) * r)) j (r * m) m chunk t
@@ -79,23 +78,18 @@ theorem exists_runFrom_counterGate_bounded {p q r m : ℕ} (M : MultiTapeTM k Bo
     params.2.2.2 le_rfl
   have hfinal : QueryGate.sumState params table params.2.2.2 =
       (params, params.2.2.2,
-        interpolateGrid p (2 ^ m) ((k * 3 + 1) * r) table params.2.2.1) := by
-    apply Prod.ext
-    · rfl
-    · apply Prod.ext
-      · exact QueryGate.sumState_counter params table params.2.2.2
-      · rfl
+        interpolateGrid p (2 ^ m) ((k * 3 + 1) * r) table params.2.2.1) :=
+    Prod.ext rfl (Prod.ext (QueryGate.sumState_counter params table params.2.2.2) rfl)
   have hactual : (machine M e).runFrom w (initial params) T =
       .inl (params, params.2.2.2,
         interpolateGrid p (2 ^ m) ((k * 3 + 1) * r) table params.2.2.1) := by
     rw [machine_runFrom_eq_params M e params w (initial params) T]
     simpa only [initial, hfinal] using hrun
-  refine ⟨T, _, hactual, rfl, ?_, ?_⟩
+  refine ⟨T, _, hactual, rfl, ?_, fun t ht => ?_⟩
   · rw [hactual]
     change decide (params.2.2.2 ≤ params.2.2.2) = true
     simp
-  · intro t ht
-    rw [machine_runFrom_eq_params M e params w (initial params) t]
+  · rw [machine_runFrom_eq_params M e params w (initial params) t]
     exact hsize t ht
 
 /-- The selected-field gate extension and its whole physical execution have the same bound. -/
@@ -120,7 +114,7 @@ theorem exists_runFrom_gateExtension_bounded {p q r m : ℕ} [Fact p.Prime]
           calleeSpace k s Q context + 2 := by
   obtain ⟨T, z, hrun, hz, hhalt, hsize⟩ := exists_runFrom_counterGate_bounded M e w b σ i x
     (Fact.out : p.Prime).pos hb hm chunk
-  refine ⟨T, z, hrun, ?_, hhalt, hsize⟩
-  exact hz.trans (Packed.counterGateExtension_eq (by positivity) h hh _ _ _ _ _)
+  exact ⟨T, z, hrun, hz.trans (Packed.counterGateExtension_eq (by positivity) h hh _ _ _ _ _),
+    hhalt, hsize⟩
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay.Interpolation

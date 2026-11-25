@@ -81,15 +81,11 @@ theorem point_eq (j : Fin R) (x : BitVec n)
 theorem length_le_period (hf : Function.Injective f) (j : Fin R) :
     chart.stop j - chart.start j ≤ cycleLength f (BitVec.ofNat n (chart.start j)) := by
   let x := BitVec.ofNat n (chart.start j)
-  have hdepth : transientDepth f x = 0 :=
-    transientDepth_eq_zero_of_mem_periodicPts f (hf.mem_periodicPts x)
+  have hdepth := transientDepth_eq_zero_of_mem_periodicPts f (hf.mem_periodicPts x)
   have hp : f^[cycleLength f x] x = x := by
     simpa only [hdepth, Function.iterate_zero_apply] using (isPeriodicPt_cycleLength f x).eq
   by_contra hlen
-  have hlt : cycleLength f x < chart.stop j - chart.start j := by lia
-  have hpath := chart.path j _ hlt
-  rw [hp] at hpath
-  have he := congrArg BitVec.toNat hpath
+  have he := congrArg BitVec.toNat (hp ▸ chart.path j _ (by lia))
   have hfit : chart.start j + cycleLength f x < 2 ^ n := by
     have := chart.stop_le j
     lia
@@ -108,9 +104,8 @@ private noncomputable def counterIntervalStarts (f : BitVec n → BitVec n) : Fi
 private theorem counterIntervalStarts_bound (f : BitVec n → BitVec n) :
     (counterIntervalStarts f).card ≤ (disagreement f (fun x => x + 1)).card + 1 := by
   classical
-  unfold counterIntervalStarts
   exact (Finset.card_insert_le _ _).trans
-    (Nat.add_le_add_right ((Finset.card_filter_le _ _).trans (Finset.card_image_le)) 1)
+    (Nat.add_le_add_right ((Finset.card_filter_le _ _).trans Finset.card_image_le) 1)
 
 private theorem counterIntervalStarts_lt (f : BitVec n → BitVec n) {a : ℕ}
     (ha : a ∈ counterIntervalStarts f) : a < 2 ^ n := by
@@ -125,8 +120,8 @@ def nextBoundary (S : Finset ℕ) (N a : ℕ) : ℕ :=
 
 private theorem nextBoundary_gt (S : Finset ℕ) {N a : ℕ} (ha : a < N) :
     a < nextBoundary S N a := by
-  have h := Finset.min'_mem (insert N (S.filter fun b => a < b)) (by simp)
-  rcases Finset.mem_insert.mp h with he | he
+  rcases Finset.mem_insert.mp (Finset.min'_mem (insert N (S.filter fun b => a < b)) (by simp)) with
+    he | he
   · change nextBoundary S N a = N at he
     exact he.symm ▸ ha
   · exact (Finset.mem_filter.mp he).2
@@ -144,21 +139,18 @@ private theorem exists_covering_interval (S : Finset ℕ) {N x : ℕ}
     (hzero : 0 ∈ S) (hx : x < N) :
     ∃ a ∈ S, a ≤ x ∧ x < nextBoundary S N a := by
   let before := S.filter fun a => a ≤ x
-  have hne : before.Nonempty := ⟨0, by simp [before, hzero]⟩
-  let a := before.max' hne
-  have ha : a ∈ before := Finset.max'_mem _ _
-  have hax : a ≤ x := (Finset.mem_filter.mp ha).2
-  refine ⟨a, (Finset.mem_filter.mp ha).1, hax, ?_⟩
+  let a := before.max' ⟨0, by simp [before, hzero]⟩
+  obtain ⟨haS, hax⟩ := Finset.mem_filter.mp (Finset.max'_mem before _)
+  refine ⟨a, haS, hax, ?_⟩
   by_contra h
   have hend : nextBoundary S N a ≤ x := by lia
-  have hm := Finset.min'_mem (insert N (S.filter fun b => a < b)) (by simp)
-  rcases Finset.mem_insert.mp hm with he | he
+  rcases Finset.mem_insert.mp (Finset.min'_mem (insert N (S.filter fun b => a < b)) (by simp)) with
+    he | he
   · change nextBoundary S N a = N at he
     lia
-  · have hmem : nextBoundary S N a ∈ before :=
-      Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp he).1, hend⟩
-    have hle : nextBoundary S N a ≤ a := Finset.le_max' _ _ hmem
-    have hgt := nextBoundary_gt S (hax.trans_lt hx)
+  · have hle : nextBoundary S N a ≤ a := Finset.le_max' before _
+      (Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp he).1, hend⟩)
+    have := nextBoundary_gt S (hax.trans_lt hx)
     lia
 
 /-- Before the next cut, the actual update agrees with numerical increment. -/
@@ -167,19 +159,13 @@ private theorem counterInterval_step (f : BitVec n → BitVec n) {a i : ℕ}
     f (BitVec.ofNat n i) = BitVec.ofNat n (i + 1) := by
   classical
   have hiN : i + 1 < 2 ^ n := hi.trans_le (nextBoundary_le _ _ _)
-  have hnot : BitVec.ofNat n i ∉ disagreement f (fun x => x + 1) := by
-    intro hbad
-    have hstart : i + 1 ∈ counterIntervalStarts f := by
-      apply Finset.mem_insert_of_mem
-      apply Finset.mem_filter.mpr
-      refine ⟨Finset.mem_image.mpr ⟨BitVec.ofNat n i, hbad, ?_⟩, hiN⟩
-      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by lia : i < 2 ^ n)]
-    have := nextBoundary_le_of_mem (counterIntervalStarts f) (2 ^ n) a (i + 1)
-      hstart (by lia)
+  have hnot : BitVec.ofNat n i ∉ disagreement f (fun x => x + 1) := fun hbad => by
+    have hstart : i + 1 ∈ counterIntervalStarts f := Finset.mem_insert_of_mem
+      (Finset.mem_filter.mpr ⟨Finset.mem_image.mpr ⟨BitVec.ofNat n i, hbad,
+        by rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by lia : i < 2 ^ n)]⟩, hiN⟩)
+    have := nextBoundary_le_of_mem _ (2 ^ n) a (i + 1) hstart (by lia)
     lia
-  have he : f (BitVec.ofNat n i) = BitVec.ofNat n i + 1 := by
-    simpa only [mem_disagreement, not_not] using hnot
-  simpa only [BitVec.ofNat_add, BitVec.ofNat_eq_ofNat] using he
+  simpa only [mem_disagreement, not_not, BitVec.ofNat_add, BitVec.ofNat_eq_ofNat] using hnot
 
 /-- Every sparse counter modification has a chart of at most `r+1` intervals.
 This existence theorem does not charge a preprocessing algorithm. -/

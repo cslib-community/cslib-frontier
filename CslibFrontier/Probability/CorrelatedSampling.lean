@@ -21,7 +21,10 @@ Two parties hold distributions `P` and `Q` on a finite set and share randomness,
 communicate. Correlated sampling lets each party output a sample with exactly its own distribution
 so that the two samples agree with probability at least `(1 - δ) / (1 + δ) ≥ 1 - 2δ`, where `δ` is
 the statistical distance between `P` and `Q`. This is the sampling step of Holenstein's proof of
-the parallel repetition theorem [Holenstein, Lemma 5.2][Holenstein2009].
+the parallel repetition theorem [Holenstein, §5, Figure 1 and the proof of Lemma 5.2,
+pp. 152–153][Holenstein2009]. Lemma 5.2 itself is the embedding lemma
+(`Cslib.Probability.CorrelatedSampling.isEmbeddable_diag`); the protocol and the agreement ratio
+`(1 - δ) / (1 + δ)` appear in its proof.
 
 Holenstein's parties scan a shared infinite sequence of uniform points of `S × [0, 1]` and output
 the first point under the graph of their own distribution. We use a finite version of the same
@@ -116,12 +119,10 @@ theorem firstIn_of_firstIn_union {A B : Finset Ω} {l : List Ω} {c : Ω}
   | nil => simp [firstIn] at h
   | cons a l ih =>
     rw [firstIn_cons] at h ⊢
-    by_cases ha : a ∈ A ∪ B
-    · rw [ite_eq_left ha] at h
-      cases h
+    split_ifs at h with ha
+    · cases h
       rw [ite_eq_left hc]
-    · rw [ite_eq_right ha] at h
-      rw [ite_eq_right fun haA => ha (mem_union_left _ haA)]
+    · rw [ite_eq_right fun haA => ha (mem_union_left _ haA)]
       exact ih h
 
 /-- **Luce's choice axiom for weighted orders.** In the draws without replacement from `U`, the
@@ -146,86 +147,57 @@ theorem map_firstIn_weightedOrderAux (w : Ω → ℝ≥0) :
         exact (PMF.mem_support_iff _ _).mp ha (by rw [weightedDraw_apply, ite_eq_right haU])
       rw [PMF.map_comp]
       by_cases haR : a ∈ R
-      · rw [ite_eq_left haR]
-        have : firstIn R ∘ (a :: ·) = Function.const _ (some a) := by
-          funext l
-          simp [firstIn_cons, haR]
-        rw [this, PMF.map_const]
-      · rw [ite_eq_right haR]
-        have : firstIn R ∘ (a :: ·) = firstIn R := by
-          funext l
-          simp [firstIn_cons, haR]
-        have hRU : R ∩ U.erase a = R ∩ U := by
-          ext x
-          simp only [mem_inter, mem_erase]
-          exact ⟨fun h => ⟨h.1, h.2.2⟩, fun h => ⟨h.1, fun hx => haR (hx ▸ h.1), h.2⟩⟩
-        rw [this, map_firstIn_weightedOrderAux w m (U.erase a) R
-          (by rw [card_erase_of_mem haU]; omega) (hRU ▸ hR)]
+      · rw [ite_eq_left haR, show firstIn R ∘ (a :: ·) = Function.const _ (some a) from
+          funext fun l => by simp [firstIn_cons, haR], PMF.map_const]
+      · have hRU : R ∩ U.erase a = R ∩ U := by
+          rw [inter_erase, erase_eq_of_notMem fun h => haR (mem_inter.mp h).1]
+        rw [ite_eq_right haR, show firstIn R ∘ (a :: ·) = firstIn R from
+          funext fun l => by simp [firstIn_cons, haR],
+          map_firstIn_weightedOrderAux w m (U.erase a) R (by rw [card_erase_of_mem haU]; lia)
+            (hRU ▸ hR)]
         simp only [hRU]
     rw [Cslib.Probability.PMF.bind_congr_on_support _ _ _ hcont]
-    have hrhs : ∀ c, (PMF.map some (weightedDraw w (R ∩ U) hR)) (some c) =
-        weightedDraw w (R ∩ U) hR c := by
-      intro c
-      rw [PMF.map_apply, tsum_fintype]
-      simp
+    set draw := weightedDraw w U hU0
+    set restricted := weightedDraw w (R ∩ U) hR
+    set weightU := ∑ a ∈ U, (w a : ℝ≥0∞)
+    set weightR := ∑ a ∈ R ∩ U, (w a : ℝ≥0∞)
+    have hweightR : weightR ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
+    have hcancel := ENNReal.inv_mul_cancel hR hweightR
+    -- Inside the region, the original and restricted draws differ by one normalization factor.
+    have hhit (a : Ω) : (if a ∈ R then draw a else 0) =
+        restricted a * (weightR * weightU⁻¹) := by
+      by_cases haR : a ∈ R <;> by_cases haU : a ∈ U
+      · simp only [draw, restricted, weightedDraw_apply, haR, haU, mem_inter, and_self,
+          ↓reduceIte]
+        rw [mul_assoc, ← mul_assoc weightR⁻¹, hcancel, one_mul]
+      all_goals simp [draw, restricted, weightedDraw_apply, haR, haU]
+    have sum_draw (p : PMF Ω) : ∑ a, p a = 1 := (tsum_fintype p).symm.trans p.tsum_coe
+    have hmass : weightR * weightU⁻¹ + ∑ a, (if a ∈ R then 0 else draw a) = 1 := by
+      have hsum : ∑ a, (if a ∈ R then draw a else 0) = weightR * weightU⁻¹ := by
+        simp only [hhit, ← sum_mul, sum_draw, one_mul]
+      rw [← hsum, ← sum_add_distrib, ← sum_draw draw]
+      exact sum_congr rfl fun a _ => by split_ifs <;> simp
     ext o
     rcases o with _ | c
     · rw [PMF.bind_apply, PMF.map_apply]
       simp only [reduceCtorEq, ite_false, tsum_zero]
       refine tsum_eq_zero_iff.mpr fun a => ?_
       split_ifs <;> simp [PMF.map_apply]
-    rw [PMF.bind_apply, tsum_fintype, hrhs]
-    set du := weightedDraw w U hU0
-    set D := weightedDraw w (R ∩ U) hR
-    by_cases hc : c ∈ R ∩ U
-    · set WU := ∑ b ∈ U, (w b : ℝ≥0∞)
-      set WRU := ∑ b ∈ R ∩ U, (w b : ℝ≥0∞)
-      have hterm : ∀ a, du a *
-          (if a ∈ R then PMF.pure (some a) else PMF.map some D) (some c) =
-          (if a = c then (w c : ℝ≥0∞) * WU⁻¹ else 0) +
-            (if a ∈ U.filter (· ∉ R) then (w a : ℝ≥0∞) * WU⁻¹ * ((w c : ℝ≥0∞) * WRU⁻¹)
-              else 0) := by
-        intro a
-        by_cases haR : a ∈ R
-        · rw [ite_eq_left haR, PMF.pure_apply]
-          by_cases hac : a = c
-          · subst hac
-            simp only [weightedDraw_apply, (mem_inter.mp hc).2, ↓reduceIte, mul_one, mem_filter,
-              haR, not_true_eq_false, and_false, add_zero, du]
-            rfl
-          · simp [hac, Ne.symm hac, haR]
-        · rw [ite_eq_right haR, hrhs]
-          have hac : a ≠ c := fun h => haR (h ▸ (mem_inter.mp hc).1)
-          by_cases haU : a ∈ U
-          · simp [du, D, weightedDraw_apply, hac, haR, haU, hc, WU, WRU]
-          · simp [du, weightedDraw_apply, hac, haU]
-      rw [sum_congr rfl fun a _ => hterm a, sum_add_distrib, sum_ite_eq', ite_eq_left (mem_univ _),
-        sum_ite_mem, univ_inter, ← sum_mul, ← sum_mul]
-      have hsplit : WU = WRU + ∑ b ∈ U.filter (· ∉ R), (w b : ℝ≥0∞) := by
-        simp only [WU, WRU]
-        rw [← sum_filter_add_sum_filter_not U (· ∈ R), filter_mem_eq_inter, inter_comm]
-      have hWU : WU ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
-      have hWRU : WRU ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
-      have h1 : WRU * WRU⁻¹ = 1 := ENNReal.mul_inv_cancel hR hWRU
-      have h2 : WU⁻¹ * WU = 1 := ENNReal.inv_mul_cancel hU0 hWU
-      rw [show D c = (w c : ℝ≥0∞) * WRU⁻¹ by simp [D, weightedDraw_apply, hc, WRU]]
-      calc (w c : ℝ≥0∞) * WU⁻¹ + (∑ b ∈ U.filter (· ∉ R), (w b : ℝ≥0∞)) * WU⁻¹ *
-            ((w c : ℝ≥0∞) * WRU⁻¹)
-          = (w c : ℝ≥0∞) * WRU⁻¹ * (WU⁻¹ * (WRU + ∑ b ∈ U.filter (· ∉ R), (w b : ℝ≥0∞))) := by
-            rw [← mul_one ((w c : ℝ≥0∞) * WU⁻¹), ← h1]
-            ring
-        _ = (w c : ℝ≥0∞) * WRU⁻¹ := by rw [← hsplit, h2, mul_one]
-    · have hDc : D c = 0 := by simp [D, weightedDraw_apply, hc]
-      rw [hDc]
-      refine sum_eq_zero fun a _ => ?_
-      by_cases haR : a ∈ R
-      · rw [ite_eq_left haR, PMF.pure_apply]
-        by_cases hac : c = a
-        · subst hac
-          have hcU : c ∉ U := fun hcU => hc (mem_inter.mpr ⟨haR, hcU⟩)
-          simp [du, weightedDraw_apply, hcU]
-        · simp [hac]
-      · rw [ite_eq_right haR, hrhs, hDc, mul_zero]
+    have hsome : (restricted.map some) (some c) = restricted c := by
+      simp [PMF.map_apply]
+    rw [PMF.bind_apply, tsum_fintype, hsome]
+    -- A hit contributes only at the target, while a miss restarts the restricted draw.
+    have hterm (a : Ω) : draw a *
+        (if a ∈ R then PMF.pure (some a) else restricted.map some) (some c) =
+        (if c = a then (if c ∈ R then draw a else 0) else 0) +
+          (if a ∈ R then 0 else draw a) * restricted c := by
+      by_cases h : c = a
+      · subst a
+        by_cases hc : c ∈ R <;> simp [hc, hsome, PMF.pure_apply]
+      · by_cases ha : a ∈ R <;> simp [h, ha, hsome, PMF.pure_apply]
+    rw [sum_congr rfl fun a _ => hterm a, sum_add_distrib, sum_ite_eq,
+      ite_eq_left (mem_univ _), hhit, ← sum_mul, mul_comm (restricted c),
+      ← add_mul, hmass, one_mul]
 
 /-- In a weighted order of all elements, the first element of `R` is distributed as a single
 weighted draw from `R`. -/
@@ -253,8 +225,7 @@ theorem sum_sub_predIn (T : Finset ℝ≥0) : ∑ v ∈ T, (v - predIn T v) = T.
     have haT : a ∉ T := fun ha => lt_irrefl a (hlt a ha)
     have hpa : predIn (insert a T) a = T.sup id := by
       rw [predIn, filter_insert, ite_eq_right (lt_irrefl a), filter_true_of_mem hlt]
-    have hpv : ∀ v ∈ T, predIn (insert a T) v = predIn T v := by
-      intro v hv
+    have hpv : ∀ v ∈ T, predIn (insert a T) v = predIn T v := fun v hv => by
       rw [predIn, predIn, filter_insert, ite_eq_right (lt_asymm (hlt v hv))]
     have hsup : T.sup id ≤ a := Finset.sup_le fun v hv => (hlt v hv).le
     rw [sum_insert haT, hpa, sum_congr rfl fun v hv => by rw [hpv v hv], ih, sup_insert,
@@ -316,12 +287,8 @@ theorem sum_weight_fiber [DecidableEq S] {t : S → ℝ≥0} (s : S) (hts : t s 
     ∑ c ∈ (under P t).filter (·.1 = s), weight P c = t s := by
   rw [← sum_filter_le_sub_predIn hts, under, filter_filter, sum_filter, Fintype.sum_sigma,
     sum_filter, ← sum_coe_sort (values P s)]
-  rw [sum_eq_single s]
-  · refine sum_congr rfl fun v _ => ?_
-    simp [weight]
-  · intro s' _ hs'
-    exact sum_eq_zero fun v _ => by simp [hs']
-  · simp
+  rw [sum_eq_single s (fun s' _ hs' => sum_eq_zero fun v _ => by simp [hs']) (by simp)]
+  exact sum_congr rfl fun v _ => by simp [weight]
 
 /-- The cells under the graph of `t` have total length `∑ s, t s`. -/
 theorem sum_weight_under {t : S → ℝ≥0} (ht : ∀ s, t s ∈ values P s) :
@@ -350,8 +317,7 @@ theorem sum_weight_region (i : I) : ∑ c ∈ region P i, (weight P c : ℝ≥0�
   simpa [tsum_fintype] using (P i).tsum_coe
 
 theorem sum_weight_region_ne_zero (i : I) : ∑ c ∈ region P i, (weight P c : ℝ≥0∞) ≠ 0 := by
-  rw [sum_weight_region]
-  exact one_ne_zero
+  rw [sum_weight_region]; exact one_ne_zero
 
 /-- **Correlated sampling, marginals.** Party `i` outputs a sample of `P i`. -/
 theorem map_sample (i : I) : (shared P).map (sample P i) = P i := by
@@ -407,7 +373,7 @@ theorem sum_weight_region_union (i j : I) :
     · exact (congrArg (· ∈ values P s) h).mpr (mem_values j s)
 
 open scoped Cslib.Probability.PMF in
-/-- **Correlated sampling** [Holenstein, proof of Lemma 5.2][Holenstein2009]. The outputs of
+/-- **Correlated sampling** [Holenstein, proof of Lemma 5.2, p. 153][Holenstein2009]. The outputs of
 parties `i` and `j` agree with probability at least `(1 - δ) / (1 + δ)`, where `δ` is the
 statistical distance between `P i` and `P j`. -/
 theorem agree_ge (i j : I) :

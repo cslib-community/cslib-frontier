@@ -88,23 +88,20 @@ theorem firstFlags_of_eq_zero {b : Fin n → F} (hb : b = 0) : firstFlags b = 0 
 /-- For `b ≠ 0`, `firstFlags b` is the indicator of the first index `j` with `b j ≠ 0`. -/
 theorem exists_firstFlags_eq_single {b : Fin n → F} (hb : b ≠ 0) :
     ∃ j, b j ≠ 0 ∧ (∀ i < j, b i = 0) ∧ firstFlags b = Pi.single j 1 := by
-  have hne : (univ.filter fun i => b i ≠ 0).Nonempty := by
-    obtain ⟨i, hi⟩ := Function.ne_iff.1 hb
-    exact ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
+  have hne : (univ.filter fun i => b i ≠ 0).Nonempty :=
+    let ⟨i, hi⟩ := Function.ne_iff.1 hb
+    ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
   set j := (univ.filter fun i => b i ≠ 0).min' hne
   have hj : b j ≠ 0 := (mem_filter.1 (min'_mem _ hne)).2
-  have hmin : ∀ i, b i ≠ 0 → j ≤ i := fun i hi => min'_le _ i (mem_filter.2 ⟨mem_univ i, hi⟩)
-  refine ⟨j, hj, fun i hi => by_contra fun h => absurd (hmin i h) (not_le.2 hi),
-    funext fun i => ?_⟩
-  by_cases hij : i = j
-  · subst hij
-    simp only [firstFlags, Pi.single_eq_same]
-    rw [ite_eq_left ⟨hj, fun i' hi' => by_contra fun h => absurd (hmin i' h) (not_le.2 hi')⟩]
+  have hlt : ∀ i < j, b i = 0 := fun i hi =>
+    by_contra fun h => (min'_le _ i (mem_filter.2 ⟨mem_univ i, h⟩)).not_gt hi
+  refine ⟨j, hj, hlt, funext fun i => ?_⟩
+  rcases eq_or_ne i j with rfl | hij
+  · simp only [firstFlags, Pi.single_eq_same]
+    rw [ite_eq_left ⟨hj, hlt⟩]
   · rw [Pi.single_eq_of_ne hij, firstFlags, ite_eq_right]
-    rintro ⟨hi, hlt⟩
-    rcases lt_or_gt_of_ne hij with h | h
-    · exact absurd (hmin i hi) (not_le.2 h)
-    · exact hj (hlt j h)
+    exact fun ⟨hi, h⟩ => hij (le_antisymm (not_lt.1 fun h' => hj (h j h'))
+      (not_lt.1 fun h' => hi (hlt i h')))
 
 /-- Weighting a family by `firstFlags b` selects its member at the first nonzero entry of `b`,
 or gives zero when `b = 0`. -/
@@ -115,9 +112,7 @@ theorem sum_firstFlags_smul_eq {M : Type*} [AddCommMonoid M] [Module F M] (b : F
   by_cases hb : b = 0
   · exact Or.inl ⟨hb, by simp [firstFlags_of_eq_zero hb]⟩
   · obtain ⟨j, hj, hlt, hflags⟩ := exists_firstFlags_eq_single hb
-    refine Or.inr ⟨j, hj, hlt, ?_⟩
-    rw [hflags, Finset.sum_eq_single j (fun i _ hij => by rw [Pi.single_eq_of_ne hij, zero_smul])
-      (fun h => absurd (mem_univ j) h), Pi.single_eq_same, one_smul]
+    exact Or.inr ⟨j, hj, hlt, by simp [hflags, Pi.single_apply]⟩
 
 /-! ### The first nonzero entry as a value -/
 
@@ -127,11 +122,8 @@ def firstNonzero (u : Fin n → F) : F := ∑ i, firstFlags u i * u i
 /-- The first nonzero entry vanishes only for the zero vector. -/
 theorem firstNonzero_eq_zero_iff {u : Fin n → F} : firstNonzero u = 0 ↔ u = 0 := by
   rcases sum_firstFlags_smul_eq u u with ⟨hu, hsum⟩ | ⟨j, hj, -, hsum⟩
-  · simp only [smul_eq_mul] at hsum
-    exact ⟨fun _ => hu, fun _ => hsum⟩
-  · simp only [smul_eq_mul] at hsum
-    rw [firstNonzero, hsum]
-    exact ⟨fun h => absurd h hj, fun h => absurd (congrFun h j) hj⟩
+  · exact ⟨fun _ => hu, fun _ => hsum⟩
+  · exact ⟨fun h => absurd (hsum.symm.trans h) hj, fun h => absurd (congrFun h j) hj⟩
 
 /-- Scaling by a nonzero constant does not move the first nonzero entry. -/
 private theorem firstFlags_smul {c : F} (hc : c ≠ 0) (u : Fin n → F) :
@@ -148,10 +140,9 @@ theorem firstNonzero_smul (c : F) (u : Fin n → F) : firstNonzero (c • u) = c
 
 /-- A vector `u` is `firstNonzero u` times its normalization `(firstNonzero u)⁻¹ • u`. -/
 theorem firstNonzero_smul_inv_smul {u : Fin n → F} :
-    firstNonzero u • (firstNonzero u)⁻¹ • u = u := by
-  by_cases hu : u = 0
-  · subst hu; simp
-  · exact smul_inv_smul₀ (firstNonzero_eq_zero_iff.not.2 hu) u
+    firstNonzero u • (firstNonzero u)⁻¹ • u = u :=
+  if hu : u = 0 then by simp [hu]
+  else smul_inv_smul₀ (firstNonzero_eq_zero_iff.not.2 hu) u
 
 /-! ### Elimination -/
 
@@ -196,16 +187,13 @@ omit [DecidableEq F] in
 /-- The unit vectors span the kernel of the empty set of rows. -/
 private theorem spansKernel_single : SpansKernel (∅ : Set (Fin n → F)) fun i => Pi.single i 1 where
   dotProduct_eq_zero := by simp
-  exists_eq_sum v _ := ⟨v, by
-    funext l
-    simp [Finset.sum_apply, Pi.single_apply]⟩
+  exists_eq_sum v _ := ⟨v, funext fun l => by simp [Finset.sum_apply, Pi.single_apply]⟩
 
 /-- The pivot value `a ⬝ P` is zero only when all row values are zero. -/
 private theorem rowValues_eq_zero_of_pivot (a : Fin n → F) (N : Fin n → Fin n → F)
-    (h : a ⬝ᵥ pivotVec a N = 0) (i : Fin n) : rowValues a N i = 0 := by
-  rcases sum_firstFlags_smul_eq (rowValues a N) N with ⟨hb, -⟩ | ⟨j, hj, -, hP⟩
-  · exact congrFun hb i
-  · exact absurd (by rwa [pivotVec, hP] at h) hj
+    (h : a ⬝ᵥ pivotVec a N = 0) (i : Fin n) : rowValues a N i = 0 :=
+  (sum_firstFlags_smul_eq (rowValues a N) N).elim (fun ⟨hb, _⟩ => congrFun hb i)
+    fun ⟨_, hj, _, hP⟩ => absurd (by rwa [pivotVec, hP] at h) hj
 
 /-- **One elimination step is correct.** If `N` spans the kernel of the rows `R`, then
 `kernelStep a N` spans the kernel of the rows `R` and `a`. -/
@@ -213,69 +201,52 @@ private theorem SpansKernel.kernelStep {R : Set (Fin n → F)} {N : Fin n → Fi
     (hN : SpansKernel R N) (a : Fin n → F) :
     SpansKernel (insert a R) (Cslib.LinearAlgebra.kernelStep a N) where
   dotProduct_eq_zero a' ha' i := by
-    have hP : pivotVec a N = ∑ j, firstFlags (rowValues a N) j • N j := rfl
     rcases Set.mem_insert_iff.1 ha' with rfl | ha'
     · simp only [Cslib.LinearAlgebra.kernelStep, dotProduct_sub, dotProduct_smul, smul_eq_mul]
       by_cases hβ : a' ⬝ᵥ pivotVec a' N = 0
       · rw [rowValues_eq_zero_of_pivot a' N hβ i, zero_div, zero_mul, sub_zero]
         exact rowValues_eq_zero_of_pivot a' N hβ i
       · rw [div_mul_cancel₀ _ hβ, rowValues, sub_self]
-    · simp only [Cslib.LinearAlgebra.kernelStep, dotProduct_sub, dotProduct_smul, smul_eq_mul,
-        hN.dotProduct_eq_zero a' ha' i, hP, dotProduct_sum, dotProduct_smul,
-        hN.dotProduct_eq_zero a' ha', sum_const_zero, mul_zero, sub_zero]
+    · simp only [Cslib.LinearAlgebra.kernelStep, pivotVec, dotProduct_sub, dotProduct_smul,
+        dotProduct_sum, smul_eq_mul, hN.dotProduct_eq_zero a' ha', sum_const_zero, mul_zero,
+        sub_zero]
   exists_eq_sum v hv := by
     obtain ⟨c, rfl⟩ := hN.exists_eq_sum v fun a' ha' => hv a' (Set.mem_insert_of_mem a ha')
-    refine ⟨c, ?_⟩
     have hav : ∑ i, c i * rowValues a N i = 0 := by
-      have := hv a (Set.mem_insert a R)
-      simpa [rowValues, dotProduct_sum, dotProduct_smul] using this
-    simp only [Cslib.LinearAlgebra.kernelStep, smul_sub, sum_sub_distrib, smul_smul]
-    rw [← Finset.sum_smul]
-    have : ∑ i, c i * (rowValues a N i / (a ⬝ᵥ pivotVec a N)) = 0 := by
-      simp_rw [mul_div_assoc', ← sum_div, hav, zero_div]
-    rw [this, zero_smul, sub_zero]
+      simpa [rowValues, dotProduct_sum, dotProduct_smul] using hv a (Set.mem_insert a R)
+    refine ⟨c, ?_⟩
+    simp only [Cslib.LinearAlgebra.kernelStep, smul_sub, sum_sub_distrib, smul_smul,
+      ← Finset.sum_smul, mul_div_assoc', ← sum_div, hav, zero_div, zero_smul, sub_zero]
 
 /-- After processing the first `k` rows, the family spans their common kernel. -/
 private theorem spansKernel_kernelBasisUpTo (A : Matrix (Fin r) (Fin n) F) (k : ℕ) :
     SpansKernel {a | ∃ l : Fin r, (l : ℕ) < k ∧ a = A l} (kernelBasisUpTo A k) := by
   induction k with
   | zero =>
-    have hset : {a | ∃ l : Fin r, (l : ℕ) < 0 ∧ a = A l} = (∅ : Set (Fin n → F)) :=
-      Set.eq_empty_of_forall_notMem fun a ⟨l, hl, _⟩ => Nat.not_lt_zero _ hl
-    rw [hset]
-    exact spansKernel_single
+    have hset : {a | ∃ l : Fin r, (l : ℕ) < 0 ∧ a = A l} = ∅ :=
+      Set.eq_empty_of_forall_notMem fun _ ⟨_, hl, _⟩ => Nat.not_lt_zero _ hl
+    exact hset.symm ▸ spansKernel_single
   | succ k ih =>
     by_cases hk : k < r
     · rw [kernelBasisUpTo, dite_eq_left hk]
       convert ih.kernelStep (A ⟨k, hk⟩) using 1
       ext a
-      simp only [Set.mem_ofPred_eq, Set.mem_insert_iff]
-      constructor
-      · rintro ⟨l, hl, rfl⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.1 hl with hl | hl
-        · exact Or.inr ⟨l, hl, rfl⟩
-        · exact Or.inl (by rw [show l = ⟨k, hk⟩ from Fin.ext hl])
-      · rintro (rfl | ⟨l, hl, rfl⟩)
-        · exact ⟨⟨k, hk⟩, Nat.lt_succ_self k, rfl⟩
-        · exact ⟨l, Nat.lt_succ_of_lt hl, rfl⟩
+      simp only [Set.mem_insert_iff, Set.mem_ofPred_eq]
+      exact ⟨fun ⟨l, hl, h⟩ => (Nat.lt_succ_iff_lt_or_eq.1 hl).elim
+          (fun h' => Or.inr ⟨l, h', h⟩) (fun h' => Or.inl (h.trans (congrArg A (Fin.ext h')))),
+        fun h => h.elim (fun h' => ⟨⟨k, hk⟩, Nat.lt_succ_self k, h'⟩)
+          fun ⟨l, hl, h'⟩ => ⟨l, Nat.lt_succ_of_lt hl, h'⟩⟩
     · rw [kernelBasisUpTo, dite_eq_right hk]
       convert ih using 1
       ext a
       simp only [Set.mem_ofPred_eq]
-      constructor
-      · rintro ⟨l, -, rfl⟩
-        exact ⟨l, by omega, rfl⟩
-      · rintro ⟨l, hl, rfl⟩
-        exact ⟨l, by omega, rfl⟩
+      exact ⟨fun ⟨l, _, h⟩ => ⟨l, by omega, h⟩, fun ⟨l, _, h⟩ => ⟨l, by omega, h⟩⟩
 
 /-- The final family spans the kernel of `A`. -/
 private theorem spansKernel_kernelBasis (A : Matrix (Fin r) (Fin n) F) :
-    SpansKernel (Set.range A) (kernelBasis A) := by
-  have hset : {a | ∃ l : Fin r, (l : ℕ) < r ∧ a = A l} = Set.range A :=
-    Set.ext fun a => ⟨fun ⟨l, _, hl⟩ => ⟨l, hl.symm⟩, fun ⟨l, hl⟩ => ⟨l, l.2, hl.symm⟩⟩
-  have h := spansKernel_kernelBasisUpTo A r
-  rw [hset] at h
-  exact h
+    SpansKernel (Set.range A) (kernelBasis A) :=
+  (Set.ext fun _ => ⟨fun ⟨l, _, hl⟩ => ⟨l, hl.symm⟩, fun ⟨l, hl⟩ => ⟨l, l.2, hl.symm⟩⟩ :
+    {a | ∃ l : Fin r, (l : ℕ) < r ∧ a = A l} = Set.range A) ▸ spansKernel_kernelBasisUpTo A r
 
 /-- Every member of `kernelBasis A` lies in the kernel of `A`. -/
 theorem mulVec_kernelBasis (A : Matrix (Fin r) (Fin n) F) (i : Fin n) :
@@ -285,9 +256,7 @@ theorem mulVec_kernelBasis (A : Matrix (Fin r) (Fin n) F) (i : Fin n) :
 /-- Every vector in the kernel of `A` is a combination of the members of `kernelBasis A`. -/
 theorem exists_eq_sum_kernelBasis (A : Matrix (Fin r) (Fin n) F) {v : Fin n → F}
     (hv : A *ᵥ v = 0) : ∃ c : Fin n → F, v = ∑ i, c i • kernelBasis A i :=
-  (spansKernel_kernelBasis A).exists_eq_sum v (by
-    rintro a ⟨k, rfl⟩
-    exact congrFun hv k)
+  (spansKernel_kernelBasis A).exists_eq_sum v fun _ ⟨k, hk⟩ => hk ▸ congrFun hv k
 
 /-- **The kernel vector lies in the kernel.** -/
 theorem mulVec_kernelVec (A : Matrix (Fin r) (Fin n) F) : A *ᵥ kernelVec A = 0 := by
@@ -302,13 +271,11 @@ theorem kernelVec_ne_zero (A : Matrix (Fin r) (Fin n) F) (h : ∃ v ≠ 0, A *�
   obtain ⟨c, rfl⟩ := exists_eq_sum_kernelBasis A hAv
   rcases sum_firstFlags_smul_eq (fun i => if kernelBasis A i = 0 then (0 : F) else 1)
       (kernelBasis A) with ⟨hb, -⟩ | ⟨j, hj, -, hsum⟩
-  · refine absurd ?_ hv
-    refine sum_eq_zero fun i _ => ?_
-    have := congrFun hb i
-    simp only [Pi.zero_apply, ite_eq_left_iff, one_ne_zero, imp_false, not_not] at this
-    rw [this, smul_zero]
-  · unfold kernelVec
-    rw [hsum]
+  · exact absurd (sum_eq_zero fun i _ => by
+      have hi := congrFun hb i
+      simp only [Pi.zero_apply, ite_eq_left_iff, one_ne_zero, imp_false, not_not] at hi
+      rw [hi, smul_zero]) hv
+  · rw [kernelVec, hsum]
     simpa using hj
 
 end Cslib.LinearAlgebra

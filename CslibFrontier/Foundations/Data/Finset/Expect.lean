@@ -120,6 +120,19 @@ theorem expect_mul_le_sqrt_mul_sqrt {ι : Type*} (s : Finset ι) (f g : ι → �
   rw [← Real.sqrt_mul (expect_nonneg fun i _ ↦ sq_nonneg (f i))]
   exact Real.le_sqrt_of_sq_le (expect_mul_sq_le_sq_mul_sq _ _ _)
 
+/-- An average is at most the square root of any bound on the average of the squares. -/
+theorem expect_le_sqrt_of_expect_sq_le {ι : Type*} (s : Finset ι) {f : ι → ℝ} {η : ℝ}
+    (h : 𝔼 i ∈ s, f i ^ 2 ≤ η) : 𝔼 i ∈ s, f i ≤ √η :=
+  Real.le_sqrt_of_sq_le ((sq_expect_le_expect_sq s f).trans h)
+
+/-- A double average is at most the square root of any bound on the double average of the
+squares. -/
+theorem expect_expect_le_sqrt_of_expect_expect_sq_le {ι κ : Type*} (s : Finset ι) (t : Finset κ)
+    {f : ι → κ → ℝ} {η : ℝ} (h : 𝔼 i ∈ s, 𝔼 j ∈ t, f i j ^ 2 ≤ η) :
+    𝔼 i ∈ s, 𝔼 j ∈ t, f i j ≤ √η :=
+  expect_le_sqrt_of_expect_sq_le s
+    ((expect_le_expect fun i _ => sq_expect_le_expect_sq t (f i)).trans h)
+
 end Real
 
 namespace Fintype

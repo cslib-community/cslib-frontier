@@ -291,9 +291,8 @@ def selectChild (q : ℕ) : List Tree → Option Tree
   | [] => none
   | t :: ts => (selectChild q ts).or (if t.minimum ≤ q then some t else none)
 
-/-- Any child selected by `selectChild` belongs to the input child list. -/
-theorem selectChild_mem {q : ℕ} {cs : List Tree} {t : Tree}
-    (h : selectChild q cs = some t) : t ∈ cs := by
+private theorem selectChild_spec {q : ℕ} {cs : List Tree} {t : Tree}
+    (h : selectChild q cs = some t) : t ∈ cs ∧ t.minimum ≤ q := by
   induction cs with
   | nil => simp [selectChild] at h
   | cons u us ih =>
@@ -302,12 +301,18 @@ theorem selectChild_mem {q : ℕ} {cs : List Tree} {t : Tree}
     | none =>
       simp only [hs, Option.or] at h
       split at h
-      · cases h; simp
+      · cases h; exact ⟨List.mem_cons_self, ‹_›⟩
       · contradiction
     | some v =>
       simp only [hs, Option.or, Option.some.injEq] at h
       subst v
-      exact List.mem_cons_of_mem u (ih hs)
+      have ⟨hm, hle⟩ := ih hs
+      exact ⟨List.mem_cons_of_mem u hm, hle⟩
+
+/-- Any child selected by `selectChild` belongs to the input child list. -/
+theorem selectChild_mem {q : ℕ} {cs : List Tree} {t : Tree}
+    (h : selectChild q cs = some t) : t ∈ cs :=
+  (selectChild_spec h).1
 
 /-- Rightmost qualifying key in an input list. For sorted input this is inclusive predecessor. -/
 def listPredecessor (q : ℕ) : List ℕ → Option ℕ
@@ -323,11 +328,7 @@ def predecessor (q : ℕ) : Tree → Option ℕ
     | none => none
     | some t => predecessor q t
 termination_by t => sizeOf t
-decreasing_by
-  have hm := selectChild_mem _hs
-  have ht := List.sizeOf_lt_of_mem hm
-  simp_wf
-  omega
+decreasing_by have := selectChild_mem _hs; decreasing_tactic
 
 /-- In a valid tree, `minimum` equals the first stored key (or `0` when empty). -/
 theorem minimum_eq_headD {B : ℕ} {t : Tree} (ht : Valid B t) :
@@ -352,7 +353,7 @@ theorem listPredecessor_eq_none_iff (q : ℕ) (xs : List ℕ) :
       · have hlt : q < x := by omega
         simpa [listPredecessor, hs, Option.or, hx, hlt] using ht
     | some y =>
-      have ht : ¬ ∀ x ∈ xs, q < x := by grind
+      have ht : ¬ ∀ x ∈ xs, q < x := mt ih.mpr (by simp [hs])
       simp [listPredecessor, hs, Option.or, ht]
 
 theorem listPredecessor_append (q : ℕ) (xs ys : List ℕ) :
@@ -404,22 +405,8 @@ private theorem selectChild_listPredecessor (q : ℕ) (cs : List Tree)
         simp only [not_not] at hp
         simp [Option.or, hm, hp]
     | some u =>
-      have hu := (hc u (List.mem_cons_of_mem t (selectChild_mem hs)))
-      have hum : u.minimum ≤ q := by
-        clear hts hgate ht ih hc hu
-        induction ts with
-        | nil => simp [selectChild] at hs
-        | cons v vs ih =>
-          cases hv : selectChild q vs with
-          | none =>
-            simp only [selectChild, hv, Option.or] at hs
-            split at hs
-            · cases hs; assumption
-            · contradiction
-          | some z =>
-            have hz : z = u := by simpa [selectChild, hv, Option.or] using hs
-            subst z
-            exact ih hv
+      obtain ⟨hu_mem, hum⟩ := selectChild_spec hs
+      have hu := hc u (List.mem_cons_of_mem t hu_mem)
       have hup : listPredecessor q u.keys ≠ none :=
         (listPredecessor_ne_none_iff hu.1 hu.2.1).mpr (by simpa only [← hu.2.2] using hum)
       cases hp : listPredecessor q u.keys with
@@ -446,11 +433,6 @@ theorem predecessor_eq_listPredecessor {B : ℕ} {t : Tree} (ht : Valid B t)
       have hu := selectChild_mem hchild
       exact predecessor_eq_listPredecessor (ht.2.2.2 u hu).1 (hsort u hu) q
 termination_by sizeOf t
-decreasing_by
-  have hlt := List.sizeOf_lt_of_mem hu
-  subst t
-  simp_wf
-  omega
 
 theorem listPredecessor_some_spec {q p : ℕ} {xs : List ℕ}
     (hs : xs.Pairwise (· ≤ ·)) (hp : listPredecessor q xs = some p) :

@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceSpokeEmbedding
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.RecoveryInvariants
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionContraction
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRecut
@@ -112,9 +114,37 @@ private def doubleLoop : FixedRotationInput :=
 private def firstLoop : Fin doubleLoop.graph.edges.length := ⟨0, by decide⟩
 private def secondLoop : Fin doubleLoop.graph.edges.length := ⟨1, by decide⟩
 
--- The order crosses the cut in the prescribed word and preserves both ends of the first loop.
+-- The word [2, 3, 0, 1] alternates the two pairs of cut ports.
+example {ρ : ℝ} (hρ : 0 < ρ) :
+    ∃ D : PolygonalDrawing doubleLoop.graph,
+      let port := D.cutPort ρ
+      (openSegment ℝ (port (firstLoop, false)) (port (secondLoop, false)) ∩
+        openSegment ℝ (port (firstLoop, true)) (port (secondLoop, true))).Nonempty := by
+  have hI : Valid doubleLoop := (validate_eq_true_iff _).mp (by decide +kernel)
+  let c : RotationCertificate := ⟨[1, 2, 3, 0]⟩
+  have hrot : RotationCertificate.verifyRotation doubleLoop.graph c = true := by decide +kernel
+  let r := RotationCertificate.decode doubleLoop.graph c hrot
+  have hfix : Realizes doubleLoop r := verifyFixed_realizes hrot (by decide +kernel)
+  have hloop : ∀ e : Fin doubleLoop.graph.edges.length,
+      Dart.vertex (e, false) = Dart.vertex (e, true) := by decide +kernel
+  have hw : doubleLoop.orders.getD 0 none = some [2, 3, 0, 1] := by decide +kernel
+  refine ⟨PolygonalDrawing.bouquet r hloop, ?_⟩
+  apply ((PolygonalDrawing.bouquet_realizes r hloop).cutPort_chords_inter_iff_alternates hρ
+    (firstLoop, false) (secondLoop, false) (firstLoop, true) (secondLoop, true)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) rfl rfl rfl).mpr
+  refine ⟨by decide, by decide, by decide, by decide, by decide, by decide, rfl, rfl, rfl, ?_⟩
+  rw [hfix.mem_rotationInterval_iff_fixedWord hI hw
+    (a := (firstLoop, true)) (b := (firstLoop, false)) (c := (secondLoop, true))
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
+    hfix.mem_rotationInterval_iff_fixedWord hI hw
+      (a := (firstLoop, true)) (b := (secondLoop, false)) (c := (secondLoop, true))
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+  decide +kernel
+
+-- The fixed-order bouquet makes the query accept and preserves both ends of the first loop.
 example :
     ∃ D : PolygonalDrawing doubleLoop.graph, D.IsEmbedding ∧
+      query doubleLoop = true ∧
       sbtw (((D.cutPort 1 (secondLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle)
         (((D.cutPort 1 (firstLoop, true) - D.vertex 0).arg : ℝ) : Real.Angle)
         (((D.cutPort 1 (firstLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle) ∧
@@ -135,6 +165,12 @@ example :
           (∀ i, (A.route i).support = ⋃ k : Fin 3,
             (F.route (⟨i, k⟩ : SubdivisionEdgeIndex doubleLoop).edge).support) ∧
           ∀ d : Dart doubleLoop.graph, A.germ d = F.germ (subdivisionDart doubleLoop d)) ∧
+      (∃ H : PolygonalDrawing (subdivisionGraph doubleLoop), H.IsEmbedding ∧
+        H.vertex 0 = referencePoint doubleLoop 0 ∧
+        H.route (subdivisionDart doubleLoop (firstLoop, false)).1 =
+          (referenceDrawing doubleLoop).route (subdivisionDart doubleLoop (firstLoop, false)).1 ∧
+        H.route (subdivisionDart doubleLoop (firstLoop, true)).1 =
+          (referenceDrawing doubleLoop).route (subdivisionDart doubleLoop (firstLoop, true)).1) ∧
       ∃ s ∈ Set.Ioo (0 : ℝ) 1, ∃ G : PolygonalDrawing (subdivisionGraph doubleLoop), G.IsEmbedding ∧
         G.vertex 0 = referencePoint doubleLoop 0 ∧
         let left := subdivisionDart doubleLoop (firstLoop, false)
@@ -159,8 +195,9 @@ example :
     simpa [doubleLoop, incidenceVertices] using hv
   have hD : D.IsEmbedding := PolygonalDrawing.bouquet_isEmbedding r hends hg hloop
   have hw : doubleLoop.orders.getD 0 none = some [2, 3, 0, 1] := by decide +kernel
-  refine ⟨D, hD, ?_, ?_, ?_, ?_⟩
-  · have a := cutPort_clockwise_iff_reference hI hD (PolygonalDrawing.bouquet_realizes r hloop)
+  refine ⟨D, hD, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact query_eq_true_of_rotation_embedding hI hD (PolygonalDrawing.bouquet_realizes r hloop) hfix
+  · have a := cutPort_clockwise_iff_reference hI (PolygonalDrawing.bouquet_realizes r hloop)
       hfix zero_lt_one hw (a := (firstLoop, false)) (b := (firstLoop, true))
       (c := (secondLoop, false)) (by decide +kernel) (by decide +kernel) (by decide +kernel)
       (by decide +kernel) (by decide +kernel) (by decide +kernel)
@@ -191,6 +228,11 @@ example :
       refine ⟨hports d, ?_⟩
       simp only [PolygonalDrawing.direction, hger, Complex.real_smul, Complex.arg_real_mul _ ha]
     · exact exists_contracted_subdivision_embedding hI hF
+  · obtain ⟨H, hH, hcenters, hspokes⟩ :=
+      exists_subdivision_embedding_with_frozen_reference_routes hI hD
+        (PolygonalDrawing.bouquet_realizes r hloop) hfix
+    exact ⟨H, hH, hcenters 0 (by decide +kernel),
+      hspokes _ (by decide +kernel), hspokes _ (by decide +kernel)⟩
   · obtain ⟨ε, hε, hscale⟩ :=
       exists_subdivision_embedding_with_scaled_reference_spokes hI hD
         (PolygonalDrawing.bouquet_realizes r hloop) hfix

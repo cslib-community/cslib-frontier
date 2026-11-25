@@ -7,7 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.BinarySearch
+public import CslibFrontier.Algorithms.Lean.Query.BinarySearch
+public import CslibFrontier.Algorithms.Lean.Query.SumQuery
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.BoundedQuery
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.PolyTime
 public import CslibFrontier.Computability.Complexity.FineGrained.MaxSAT.Histogram
@@ -30,6 +31,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
@@ -42,15 +44,17 @@ Optimization over a bounded integer objective `[0, bound x]` reduces to logarith
 decision queries followed by witness search at the optimal threshold
 [Papadimitriou, Section 17.1][Papadimitriou94], [Arora and Barak, Section 2.5][AroraBarak09].
 
-1. **Abstract `TimeM` threshold optimization (`MaxThresholdSpec`, `MinThresholdSpec`)**:
-   bisection via `Cslib.Algorithms.Lean.lowerBoundM` finds the exact maximum or minimum feasible
-   objective value (or `none` when no valid witness exists) in at most
-   `Nat.log 2 (bound x + 1) + 1` threshold probes, and composes with a witness-at-threshold
-   finder to return an optimal witness.
+1. **Threshold-probe query optimization (`MaxThresholdSpec`, `MinThresholdSpec`)**:
+   pure bisection via `Cslib.Algorithms.Lean.lowerBound` and query-monad programs (`maxOptQ`,
+   `minOptQ`, `maxOptWitnessQ`, `minOptWitnessQ` over `Cslib.Query.ProbeQuery` and
+   `ThresholdWitnessQuery`) find the exact maximum or minimum feasible objective value (or `none`
+   when no valid witness exists) using at most `Nat.log 2 (bound x + 1) + 1` threshold decision
+   queries (`SumQuery.countInl`) and at most `1` witness query (`SumQuery.countInr`, `0` when
+   infeasible).
 2. **Native oracle binary search (`bisectProgram`,
    `computableInPolyTimeWithOracleQueries_bisect`)**: a fixed-iteration adaptive `WordQueryComp`
    loop over `[lo x, hi x)` runs `(hi x - lo x).size` rounds, agrees identically with
-   `lowerBoundM`, makes at most `(hi x - lo x).size ≤ Nat.log 2 (hi x - lo x) + 1` oracle
+   `lowerBound`, makes at most `(hi x - lo x).size ≤ Nat.log 2 (hi x - lo x) + 1` oracle
    requests (all at midpoints in `[lo x, hi x)`), and is strict oracle PPT (`IsOraclePPTOn`) even
    for exponentially large binary bounds `hi x`. Sequencing with an oracle witness-recovery
    program (`ComputableInPolyTimeWithOracleQueries.bind_with`) recovers both the optimal value
@@ -67,8 +71,7 @@ The Max-SAT client here works in `P^NP`: instances are bare `φ : CNF ℕ`, ever
 `NP` language `MaxSATThreshold` itself. `FineGrained.MaxSAT.Reduction` instead fixes a declared
 variable count (`MaxSAT.StructInstance`, assignments in `BitString n`), takes a unary cutoff
 (`MaxSAT.ThresholdQuery`), and compiles each threshold query through `MaxSAT.thresholdCircuit` to a
-3-CNF for a supplied fixed-width `k`-SAT solver (`optimumByBinarySearchM`,
-`optimizeByBinarySearchM`). The two optima agree on well-formed instances:
+3-CNF for a supplied fixed-width `k`-SAT solver. The two optima agree on well-formed instances:
 `MaxSAT.maxClauseScore_eq_optimum` gives `maxClauseScore φ = MaxSAT.optimum (n, φ)` when every
 variable of `φ` is below `n`.
 
@@ -78,8 +81,12 @@ variable of `φ` is below `n`.
   bisection step.
 * `Cslib.Complexity.OracleThresholdQuery`, `Cslib.Complexity.OptSolution`: typed query and
   value-witness structures with encodings `encOracleThresholdQuery` and `encOptSolution`.
+* `Cslib.Complexity.WitnessQuery`, `Cslib.Complexity.ThresholdWitnessQuery`: witness-at-threshold
+  query signature and combined decision/witness query signature.
 * `Cslib.Complexity.MaxThresholdSpec`, `Cslib.Complexity.MinThresholdSpec`: bounded maximization
-  and minimization threshold specifications with `TimeM` solvers.
+  and minimization threshold specifications with pure and `FreeM` query solvers (`maxOpt`,
+  `minOpt`, `maxOptWitness`, `minOptWitness`, `maxOptQ`, `minOptQ`, `maxOptWitnessQ`,
+  `minOptWitnessQ`).
 * `Cslib.Complexity.bisectProgram`: native adaptive oracle bisection program.
 * `Cslib.Complexity.MaxSATQuery`, `Cslib.Complexity.MaxSATSolution`,
   `Cslib.Complexity.MaxSATThreshold`, `Cslib.Complexity.MaxSAT.solveMaxSAT`: Max-SAT threshold
@@ -87,11 +94,14 @@ variable of `φ` is below `n`.
 
 ## Main results
 
-* `Cslib.Complexity.iterate_bisectStep_eq_lowerBoundM`: `(hi - lo).size` bisection steps equal
-  `lowerBoundM`.
-* `Cslib.Complexity.MaxThresholdSpec.maxOptWitnessM_spec`,
-  `Cslib.Complexity.MinThresholdSpec.minOptWitnessM_spec`: correctness and `O(log M)` probe bounds
-  for `TimeM` maximization and minimization with witness recovery.
+* `Cslib.Complexity.iterate_bisectStep_eq_lowerBound`: `(hi - lo).size` bisection steps equal
+  `lowerBound`.
+* `Cslib.Complexity.MaxThresholdSpec.maxOptWitness_spec`,
+  `Cslib.Complexity.MaxThresholdSpec.maxOptWitnessQ_query_bounds`,
+  `Cslib.Complexity.MinThresholdSpec.minOptWitness_spec`,
+  `Cslib.Complexity.MinThresholdSpec.minOptWitnessQ_query_bounds`: correctness and
+  `⌊log₂ (bound x + 1)⌋ + 1` decision-query plus `1` witness-query bounds for maximization and
+  minimization with witness recovery.
 * `Cslib.Complexity.ComputableInPolyTimeWithOracleQueries.bind_with`: query-bounded sequential
   oracle composition.
 * `Cslib.Complexity.computableInPolyTimeWithOracleQueries_bisect`: polynomial-time oracle
@@ -133,7 +143,7 @@ theorem OracleComp.mem_queriesWith_iterate {ι State : Type} {spec : OracleSpec.
 
 namespace Complexity
 
-open Cslib.Algorithms.Lean Cslib.Logic.PL Probability Turing.MultiTapeTM
+open Cslib.Algorithms.Lean Cslib.Query Cslib.Logic.PL Probability Turing.MultiTapeTM
 
 /-! ### Structures and encodings -/
 
@@ -252,7 +262,7 @@ theorem encOptSolution_mk_polyTime {β γ : Type} {encB : β ↪ List Bool}
     ComputableInPolyTime (fun a => OptSolution.mk (v a) (w a)) encIn (encOptSolution encB) :=
   (hv.prod hw).of_enc_eq fun _ => rfl
 
-/-! ### Pure bisection iteration and `lowerBoundM` bridge -/
+/-! ### Pure bisection iteration and `lowerBound` bridge -/
 
 /-- One pure step of bisection on `[iv.lo, iv.hi)` for a Boolean test `test`. -/
 def bisectStep (test : ℕ → Bool) (iv : BisectInterval) : BisectInterval :=
@@ -263,14 +273,8 @@ def bisectStep (test : ℕ → Bool) (iv : BisectInterval) : BisectInterval :=
 
 private theorem bisectStep_width_le (test : ℕ → Bool) (iv : BisectInterval) :
     (bisectStep test iv).hi - (bisectStep test iv).lo ≤ (iv.hi - iv.lo) / 2 := by
-  unfold bisectStep
-  dsimp only
-  split_ifs with hlt hb
-  · change iv.hi - ((iv.lo + iv.hi) / 2 + 1) ≤ (iv.hi - iv.lo) / 2
-    omega
-  · change (iv.lo + iv.hi) / 2 - iv.lo ≤ (iv.hi - iv.lo) / 2
-    omega
-  · omega
+  unfold bisectStep; dsimp only
+  split_ifs <;> first | omega | (dsimp only; omega)
 
 private theorem iterate_bisectStep_width_le (test : ℕ → Bool) (k : ℕ) (iv : BisectInterval) :
     ((bisectStep test)^[k] iv).hi - ((bisectStep test)^[k] iv).lo ≤ (iv.hi - iv.lo) / 2 ^ k := by
@@ -278,11 +282,8 @@ private theorem iterate_bisectStep_width_le (test : ℕ → Bool) (k : ℕ) (iv 
   | zero => simp
   | succ k ih =>
     rw [Function.iterate_succ_apply]
-    calc ((bisectStep test)^[k] (bisectStep test iv)).hi -
-          ((bisectStep test)^[k] (bisectStep test iv)).lo
-        ≤ ((bisectStep test iv).hi - (bisectStep test iv).lo) / 2 ^ k := ih _
-      _ ≤ ((iv.hi - iv.lo) / 2) / 2 ^ k := Nat.div_le_div_right (bisectStep_width_le test iv)
-      _ = (iv.hi - iv.lo) / 2 ^ (k + 1) := by rw [Nat.div_div_eq_div_mul, ← pow_succ']
+    exact (ih _).trans ((Nat.div_le_div_right (bisectStep_width_le test iv)).trans
+      (by rw [Nat.div_div_eq_div_mul, ← pow_succ']))
 
 /-- **Correctness of fixed-count bisection.** If `test` is antitone on `[lo, hi)`, iterating
 `bisectStep test` `(hi - lo).size` times from `⟨lo, hi⟩` yields an index `k` in `[lo, max lo hi]`
@@ -297,72 +298,84 @@ theorem iterate_bisectStep_spec {test : ℕ → Bool} {lo hi : ℕ}
       let iv := (bisectStep test)^[s] ⟨lo, hi⟩
       lo ≤ iv.lo ∧ iv.lo ≤ max lo hi ∧ (iv.lo < iv.hi → iv.hi ≤ hi) ∧
         (∀ m, lo ≤ m → m < iv.lo → test m = true) ∧
-        (∀ m, max iv.lo iv.hi ≤ m → m < hi → test m = false) := by
-    intro s
+        (∀ m, max iv.lo iv.hi ≤ m → m < hi → test m = false) := fun s => by
     induction s with
-    | zero =>
-      dsimp only [Function.iterate_zero, id_eq]
-      refine ⟨le_refl _, le_max_left _ _, fun _ => le_refl _, fun _ h1 h2 => by omega,
-        fun _ h1 h2 => by omega⟩
+    | zero => exact ⟨le_rfl, le_max_left _ _, fun _ => le_rfl, fun _ h1 h2 => by simp at *; omega,
+        fun _ h1 h2 => by simp at *; omega⟩
     | succ s ih =>
       obtain ⟨h1, h2, h3, h4, h5⟩ := ih
       rw [Function.iterate_succ_apply']
       set iv := (bisectStep test)^[s] ⟨lo, hi⟩
-      unfold bisectStep
-      dsimp only
-      split_ifs with hlt hb
-      · have hhi := h3 hlt
-        simp only
-        refine ⟨by omega, by omega, fun _ => hhi, fun m hm hmk => ?_, fun m hm hmk => ?_⟩
-        · rcases Nat.lt_or_ge m iv.lo with hmlo | hmge
-          · exact h4 m hm hmlo
-          · exact hmono m ((iv.lo + iv.hi) / 2) hm (by omega) (by omega) hb
-        · exact h5 m (by omega) hmk
-      · have hhi := h3 hlt
-        simp only
+      unfold bisectStep; dsimp only; split_ifs with hlt hb
+      · have hhi := h3 hlt; simp only
+        refine ⟨by omega, by omega, fun _ => hhi, fun m hm hmk => ?_, fun m hm => h5 m (by omega)⟩
+        rcases Nat.lt_or_ge m iv.lo with hmlo | hmge
+        · exact h4 m hm hmlo
+        · exact hmono m ((iv.lo + iv.hi) / 2) hm (by omega) (by omega) hb
+      · have hhi := h3 hlt; simp only
         refine ⟨h1, h2, fun _ => by omega, h4, fun m hm hmk => ?_⟩
-        rcases Nat.lt_or_ge m iv.hi with hmhi | hmge
-        · cases htm : test m
-          · rfl
-          · have ht := hmono ((iv.lo + iv.hi) / 2) m (by omega) (by omega) hmk htm
-            exact absurd ht hb
+        rcases Nat.lt_or_ge m iv.hi with hmhi | _
+        · exact Bool.eq_false_iff.mpr fun htm =>
+            hb (hmono ((iv.lo + iv.hi) / 2) m (by omega) (by omega) hmk htm)
         · exact h5 m (by omega) hmk
       · exact ⟨h1, h2, h3, h4, h5⟩
   obtain ⟨h1, h2, -, h4, h5⟩ := hinv (hi - lo).size
-  have hw := iterate_bisectStep_width_le test (hi - lo).size ⟨lo, hi⟩
-  dsimp only at hw
-  set final := (bisectStep test)^[(hi - lo).size] ⟨lo, hi⟩
-  have hdiv : (hi - lo) / 2 ^ (hi - lo).size = 0 :=
-    Nat.div_eq_of_lt (Nat.lt_size_self (hi - lo))
-  have hmax : max final.lo final.hi = final.lo := max_eq_left (by omega)
+  have hw := (iterate_bisectStep_width_le test (hi - lo).size ⟨lo, hi⟩).trans_eq
+    (Nat.div_eq_of_lt (Nat.lt_size_self (hi - lo)))
   exact ⟨h1, h2, h4, fun m hm hmk => h5 m (by omega) hmk⟩
 
-/-- **Fixed-count bisection equals `lowerBoundM`** on every antitone test. -/
-theorem iterate_bisectStep_eq_lowerBoundM (t : ℕ → TimeM ℕ Bool) {lo hi : ℕ}
-    (hmono : ∀ m m', lo ≤ m → m ≤ m' → m' < hi → (t m').ret = true → (t m).ret = true) :
-    ((bisectStep (fun m => (t m).ret))^[(hi - lo).size] ⟨lo, hi⟩).lo =
-      (lowerBoundM t lo hi).ret := by
-  obtain ⟨h1, h2, h3, h4⟩ := iterate_bisectStep_spec (test := fun m => (t m).ret) hmono
-  obtain ⟨g1, g2, g3, g4⟩ := lowerBoundM_spec t hmono
-  set k₁ := ((bisectStep (fun m => (t m).ret))^[(hi - lo).size] ⟨lo, hi⟩).lo
-  set k₂ := (lowerBoundM t lo hi).ret
+/-- **Fixed-count bisection equals `lowerBound`** on every antitone test. -/
+theorem iterate_bisectStep_eq_lowerBound (t : ℕ → Bool) {lo hi : ℕ}
+    (hmono : ∀ m m', lo ≤ m → m ≤ m' → m' < hi → t m' = true → t m = true) :
+    ((bisectStep t)^[(hi - lo).size] ⟨lo, hi⟩).lo = lowerBound t lo hi := by
+  obtain ⟨h1, h2, h3, h4⟩ := iterate_bisectStep_spec (test := t) hmono
+  obtain ⟨g1, g2, g3, g4⟩ := lowerBound_spec t hmono
   rcases Nat.lt_or_ge lo hi with hlt | hge
-  · have hm1 : k₁ ≤ hi := by omega
-    have hm2 : k₂ ≤ hi := by omega
-    by_contra hne
+  · by_contra hne
     rcases Nat.lt_or_gt_of_ne hne with hk | hk
-    · have ht := g3 k₁ h1 hk
-      have hf := h4 k₁ (le_refl _) (by omega)
-      rw [ht] at hf
-      exact Bool.noConfusion hf
-    · have ht := h3 k₂ g1 hk
-      have hf := g4 k₂ (le_refl _) (by omega)
-      rw [ht] at hf
-      exact Bool.noConfusion hf
-  · have : max lo hi = lo := max_eq_left hge
-    omega
+    · exact Bool.noConfusion ((g3 _ h1 hk).symm.trans (h4 _ le_rfl (by omega)))
+    · exact Bool.noConfusion ((h3 _ g1 hk).symm.trans (g4 _ le_rfl (by omega)))
+  · omega
 
-/-! ### Bounded maximization and minimization in `TimeM` -/
+/-! ### Bounded maximization and minimization in the threshold-probe query model -/
+
+/-- Witness-search query signature for threshold optimization: `WitnessQuery.find q` requests a
+witness achieving threshold `q : ℕ`, returning a value in `β`. -/
+inductive WitnessQuery (β : Type) : Type → Type where
+  /-- Request a candidate witness at threshold `q`. -/
+  | find (q : ℕ) : WitnessQuery β β
+
+/-- Lift `WitnessQuery.find q` into `FreeM (WitnessQuery β) β`. -/
+abbrev WitnessQuery.ask {β : Type} (q : ℕ) : FreeM (WitnessQuery β) β :=
+  FreeM.lift (.find q)
+
+/-- Build a `WitnessQuery β` oracle from `ℕ → β`. -/
+@[expose] def WitnessQuery.oracleOf {β : Type} (f : ℕ → β) :
+    {ι : Type} → WitnessQuery β ι → ι
+  | _, .find q => f q
+
+@[simp] theorem WitnessQuery.oracleOf_find {β : Type} (f : ℕ → β) (q : ℕ) :
+    WitnessQuery.oracleOf f (.find q) = f q := rfl
+
+/-- Combined query signature for threshold optimization with witness recovery: `.inl (.probe q)`
+queries threshold feasibility (`Bool`) and `.inr (.find q)` requests a witness (`β`) at threshold
+`q`. -/
+abbrev ThresholdWitnessQuery (β : Type) : Type → Type :=
+  SumQuery ProbeQuery (WitnessQuery β)
+
+/-- Combine a pure threshold predicate `probe : ℕ → Bool` and witness finder `find : ℕ → β` into
+an oracle for `ThresholdWitnessQuery β`. -/
+@[expose] def ThresholdWitnessQuery.oracleOf {β : Type} (probe : ℕ → Bool) (find : ℕ → β) :
+    {ι : Type} → ThresholdWitnessQuery β ι → ι :=
+  SumQuery.combine (ProbeQuery.oracleOf probe) (WitnessQuery.oracleOf find)
+
+@[simp] theorem ThresholdWitnessQuery.oracleOf_probe {β : Type}
+    (probe : ℕ → Bool) (find : ℕ → β) (q : ℕ) :
+    ThresholdWitnessQuery.oracleOf probe find (.inl (.probe q)) = probe q := rfl
+
+@[simp] theorem ThresholdWitnessQuery.oracleOf_find {β : Type}
+    (probe : ℕ → Bool) (find : ℕ → β) (q : ℕ) :
+    ThresholdWitnessQuery.oracleOf probe find (.inr (.find q)) = find q := rfl
 
 /-- Specification of a bounded integer maximization problem on instances `α` and witnesses `β`:
 valid witnesses of `x` have integer score bounded by `bound x`. -/
@@ -395,121 +408,177 @@ theorem not_atLeast_succ_bound (x : α) : ¬ S.atLeast x (S.bound x + 1) := by
   have := S.score_le_bound x w hw
   omega
 
-/-- Find the exact maximum score of `x` (or `none` if `x` has no valid witness) by bisection on
-`[0, S.bound x + 1)` in `TimeM`. -/
-def maxOptM (probe : α → ℕ → TimeM ℕ Bool) (x : α) : TimeM ℕ (Option ℕ) := do
-  let k ← lowerBoundM (probe x) 0 (S.bound x + 1)
-  return if k = 0 then none else some (k - 1)
+/-- Pure bisection for the exact maximum score of `x` (or `none` if `x` has no valid witness) on
+`[0, S.bound x + 1)`. -/
+@[expose] def maxOpt (probe : α → ℕ → Bool) (x : α) : Option ℕ :=
+  let k := lowerBound (probe x) 0 (S.bound x + 1)
+  if k = 0 then none else some (k - 1)
 
-/-- Correctness of `maxOptM`: returns `none` iff no valid witness exists, and `some v` when `v`
-is the exact maximum score over valid witnesses. -/
-theorem maxOptM_spec {probe : α → ℕ → TimeM ℕ Bool} {x : α}
-    (hprobe : ∀ q, q ≤ S.bound x → ((probe x q).ret = true ↔ S.atLeast x q)) :
-    ((S.maxOptM probe x).ret = none ↔ ¬ ∃ w, S.valid x w) ∧
-      ∀ v, (S.maxOptM probe x).ret = some v →
+/-- Correctness of `maxOpt`: returns `none` iff no valid witness exists, and `some v` when `v` is
+the exact maximum score over valid witnesses. -/
+theorem maxOpt_spec {probe : α → ℕ → Bool} {x : α}
+    (hprobe : ∀ q, q ≤ S.bound x → (probe x q = true ↔ S.atLeast x q)) :
+    (S.maxOpt probe x = none ↔ ¬ ∃ w, S.valid x w) ∧
+      ∀ v, S.maxOpt probe x = some v →
         v ≤ S.bound x ∧ S.atLeast x v ∧ ∀ w, S.valid x w → S.score x w ≤ v := by
-  have hmono : ∀ m m', 0 ≤ m → m ≤ m' → m' < S.bound x + 1 →
-      (probe x m').ret = true → (probe x m).ret = true := by
-    intro m m' _ hmm' hm' ht
-    exact (hprobe m (by omega)).mpr
+  obtain ⟨hlo, hhi, htrue, hfalse⟩ := lowerBound_spec (probe x) (lo := 0) (hi := S.bound x + 1)
+    fun m m' _ hmm' hm' ht => (hprobe m (by omega)).mpr
       (S.atLeast_antitone hmm' ((hprobe m' (by omega)).mp ht))
-  obtain ⟨hlo, hhi, htrue, hfalse⟩ := lowerBoundM_spec (probe x) (lo := 0) (hi := S.bound x + 1)
-    hmono
-  simp only [maxOptM, TimeM.ret_bind, TimeM.ret_pure]
-  set k := (lowerBoundM (probe x) 0 (S.bound x + 1)).ret
-  have hk_le : k ≤ S.bound x + 1 := by omega
-  constructor
-  · constructor
-    · intro hnone ⟨w, hw⟩
-      split_ifs at hnone with hk0
-      have hf := hfalse 0 (by omega) (by omega)
-      have ht : (probe x 0).ret = true := (hprobe 0 (Nat.zero_le _)).mpr ⟨w, hw, Nat.zero_le _⟩
-      rw [ht] at hf
-      exact Bool.noConfusion hf
-    · intro hno
-      split_ifs with hk0
-      · rfl
-      · exfalso
-        have ht := htrue 0 (Nat.zero_le _) (by omega)
-        obtain ⟨w, hw, -⟩ := (hprobe 0 (Nat.zero_le _)).mp ht
-        exact hno ⟨w, hw⟩
-  · intro v hv
-    split_ifs at hv with hk0
-    injection hv with hv'
-    subst hv'
-    have hv_le : k - 1 ≤ S.bound x := by omega
-    have hat : S.atLeast x (k - 1) :=
-      (hprobe (k - 1) hv_le).mp (htrue (k - 1) (Nat.zero_le _) (by omega))
-    refine ⟨hv_le, hat, fun w hw => ?_⟩
+  unfold maxOpt
+  dsimp only
+  set k := lowerBound (probe x) 0 (S.bound x + 1)
+  refine ⟨?_, fun v hv => ?_⟩
+  · split_ifs with hk0
+    · exact iff_of_true rfl fun ⟨w, hw⟩ => Bool.noConfusion
+        (((hprobe 0 (Nat.zero_le _)).mpr ⟨w, hw, Nat.zero_le _⟩).symm.trans
+          (hfalse 0 (by omega) (by omega)))
+    · refine ⟨by simp, fun hno => ?_⟩
+      obtain ⟨w, hw, -⟩ := (hprobe 0 (Nat.zero_le _)).mp (htrue 0 (Nat.zero_le _) (by omega))
+      exact hno ⟨w, hw⟩
+  · split_ifs at hv with hk0
+    rcases Option.some.inj hv with rfl
+    refine ⟨by omega, (hprobe (k - 1) (by omega)).mp (htrue (k - 1) (Nat.zero_le _) (by omega)),
+      fun w hw => ?_⟩
     by_contra! hgt
-    have hle' : k ≤ S.bound x := by
-      have := S.score_le_bound x w hw
-      omega
-    have ht : (probe x k).ret = true := (hprobe k hle').mpr ⟨w, hw, by omega⟩
-    have hf := hfalse k (le_refl k) (by omega)
-    rw [ht] at hf
-    exact Bool.noConfusion hf
+    have := S.score_le_bound x w hw
+    exact Bool.noConfusion
+      (((hprobe k (by omega)).mpr ⟨w, hw, by omega⟩).symm.trans (hfalse k le_rfl (by omega)))
 
-/-- Time bound for `maxOptM`: at most `c * (⌊log₂ (bound x + 1)⌋ + 1)` ticks when each probe
-costs at most `c`. -/
-theorem maxOptM_time_le (probe : α → ℕ → TimeM ℕ Bool) {x : α} {c : ℕ}
-    (hc : ∀ q, (probe x q).time ≤ c) :
-    (S.maxOptM probe x).time ≤ c * (Nat.log 2 (S.bound x + 1) + 1) := by
-  simpa [maxOptM] using lowerBoundM_time_le (probe x) hc 0 (S.bound x + 1)
+/-- Pure recovery of both the maximum score and an optimal witness by running `maxOpt` and invoking
+`findWitness` once at the optimal threshold. -/
+@[expose] def maxOptWitness (probe : α → ℕ → Bool) (findWitness : α → ℕ → β) (x : α) :
+    Option (OptSolution β) :=
+  match S.maxOpt probe x with
+  | none => none
+  | some v => some ⟨v, findWitness x v⟩
 
-/-- Recover both the maximum score and an optimal witness in `TimeM` by running `maxOptM` and
-invoking `findWitness` once at the optimal threshold. -/
-def maxOptWitnessM (probe : α → ℕ → TimeM ℕ Bool) (findWitness : α → ℕ → TimeM ℕ β) (x : α) :
-    TimeM ℕ (Option (OptSolution β)) := do
-  match ← S.maxOptM probe x with
-  | none => return none
-  | some v =>
-    let w ← findWitness x v
-    return some ⟨v, w⟩
-
-/-- Correctness of `maxOptWitnessM`. -/
-theorem maxOptWitnessM_spec {probe : α → ℕ → TimeM ℕ Bool} {findWitness : α → ℕ → TimeM ℕ β}
-    {x : α} (hprobe : ∀ q, q ≤ S.bound x → ((probe x q).ret = true ↔ S.atLeast x q))
+/-- Correctness of `maxOptWitness`. -/
+theorem maxOptWitness_spec {probe : α → ℕ → Bool} {findWitness : α → ℕ → β}
+    {x : α} (hprobe : ∀ q, q ≤ S.bound x → (probe x q = true ↔ S.atLeast x q))
     (hwit : ∀ q, q ≤ S.bound x → S.atLeast x q →
-      S.valid x (findWitness x q).ret ∧ q ≤ S.score x (findWitness x q).ret) :
-    ((S.maxOptWitnessM probe findWitness x).ret = none ↔ ¬ ∃ w, S.valid x w) ∧
-      ∀ sol, (S.maxOptWitnessM probe findWitness x).ret = some sol →
+      S.valid x (findWitness x q) ∧ q ≤ S.score x (findWitness x q)) :
+    (S.maxOptWitness probe findWitness x = none ↔ ¬ ∃ w, S.valid x w) ∧
+      ∀ sol, S.maxOptWitness probe findWitness x = some sol →
         sol.optValue ≤ S.bound x ∧ S.valid x sol.witness ∧
           S.score x sol.witness = sol.optValue ∧
           ∀ w, S.valid x w → S.score x w ≤ sol.optValue := by
-  obtain ⟨hnone, hsome⟩ := S.maxOptM_spec hprobe
-  unfold maxOptWitnessM
-  rw [TimeM.ret_bind]
-  cases hm : (S.maxOptM probe x).ret with
+  obtain ⟨hnone, hsome⟩ := S.maxOpt_spec hprobe
+  unfold maxOptWitness
+  cases hm : S.maxOpt probe x with
   | none =>
-    simp only [TimeM.ret_pure, true_iff, reduceCtorEq, IsEmpty.forall_iff, implies_true, and_true]
+    simp only [true_iff, reduceCtorEq, IsEmpty.forall_iff, implies_true, and_true]
     exact hnone.mp hm
   | some v =>
     obtain ⟨hv_le, hat, hmax⟩ := hsome v hm
     obtain ⟨hvw, hvsc⟩ := hwit v hv_le hat
-    simp only [TimeM.ret_bind, TimeM.ret_pure, reduceCtorEq, false_iff, Option.some.injEq,
-      forall_eq']
+    simp only [reduceCtorEq, false_iff, Option.some.injEq, forall_eq']
     exact ⟨fun hno => hno ⟨_, hvw⟩, hv_le, hvw, le_antisymm (hmax _ hvw) hvsc, hmax⟩
 
-theorem maxOptWitnessM_time_le (probe : α → ℕ → TimeM ℕ Bool)
-    (findWitness : α → ℕ → TimeM ℕ β) {x : α} {cp cw : ℕ}
-    (hcp : ∀ q, (probe x q).time ≤ cp)
-    (hcw : ∀ q, q ≤ S.bound x → (findWitness x q).time ≤ cw)
-    (hprobe : ∀ q, q ≤ S.bound x → ((probe x q).ret = true ↔ S.atLeast x q)) :
-    (S.maxOptWitnessM probe findWitness x).time ≤
+/-- Query-monad maximization program on `[0, S.bound x + 1)` over `ProbeQuery`. -/
+@[expose] def maxOptQ (x : α) : FreeM ProbeQuery (Option ℕ) :=
+  (fun k => if k = 0 then none else some (k - 1)) <$> lowerBoundQ 0 (S.bound x + 1)
+
+@[simp] theorem eval_maxOptQ (oracle : {ι : Type} → ProbeQuery ι → ι) (x : α) :
+    (S.maxOptQ x).eval oracle = S.maxOpt (fun _ q => oracle (.probe q)) x := by
+  simp only [maxOptQ, maxOpt, FreeM.eval_map, eval_lowerBoundQ]
+
+/-- `maxOptQ x` makes at most `Nat.log 2 (S.bound x + 1) + 1` threshold probes. -/
+theorem countQueries_maxOptQ_le (oracle : {ι : Type} → ProbeQuery ι → ι) (x : α) :
+    (S.maxOptQ x).countQueries oracle ≤ Nat.log 2 (S.bound x + 1) + 1 := by
+  simpa only [maxOptQ, FreeM.countQueries_map, Nat.sub_zero] using
+    countQueries_lowerBoundQ_le oracle 0 (S.bound x + 1)
+
+/-- Query-monad maximization with witness recovery over `ThresholdWitnessQuery β`: makes at most
+`Nat.log 2 (S.bound x + 1) + 1` threshold decision queries (`countInl`) and at most `1` witness
+query (`countInr`, `0` when infeasible). -/
+@[expose] def maxOptWitnessQ (x : α) :
+    FreeM (ThresholdWitnessQuery β) (Option (OptSolution β)) := do
+  let k ← lowerBoundBy (fun q => SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)
+  if k = 0 then
+    pure none
+  else
+    (fun w => some (OptSolution.mk (k - 1) w)) <$> SumQuery.liftInr (.find (k - 1))
+
+@[simp] theorem eval_maxOptWitnessQ (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι) (x : α) :
+    (S.maxOptWitnessQ x).eval oracle =
+      S.maxOptWitness (fun _ q => oracle (.inl (.probe q)))
+        (fun _ q => oracle (.inr (.find q))) x := by
+  simp only [maxOptWitnessQ, maxOptWitness, maxOpt, FreeM.eval_bind, eval_lowerBoundBy,
+    FreeM.eval_lift]
+  split_ifs <;> simp only [FreeM.eval_pure, FreeM.eval_map, FreeM.eval_lift]
+
+/-- Exact witness-query count of `maxOptWitnessQ`: `1` when a valid witness is returned
+(`eval = some _`), and `0` when infeasible (`eval = none`). -/
+@[simp] theorem countInr_maxOptWitnessQ (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (x : α) :
+    SumQuery.countInr oracle (S.maxOptWitnessQ x) =
+      if ((S.maxOptWitnessQ x).eval oracle).isSome then 1 else 0 := by
+  have hinr_bisect : SumQuery.countInr oracle
+      (lowerBoundBy (fun q => SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)) = 0 :=
+    Nat.eq_zero_of_le_zero <| by
+      simpa only [SumQuery.countInr, zero_mul] using
+        cost_lowerBoundBy_le oracle SumQuery.weightInr
+          (fun q => SumQuery.liftInl (.probe q)) (c := 0) (lo := 0) (hi := S.bound x + 1)
+          fun _ _ _ => by simp only [FreeM.cost_lift, SumQuery.weightInr, le_rfl]
+  simp only [maxOptWitnessQ, SumQuery.countInr_bind, FreeM.eval_bind, eval_lowerBoundBy,
+    FreeM.eval_lift, hinr_bisect, zero_add]
+  by_cases hk : lowerBound (fun m => oracle (.inl (.probe m))) 0 (S.bound x + 1) = 0
+  · simp only [hk, ↓reduceIte, SumQuery.countInr_pure, FreeM.eval_pure, Option.isSome_none,
+      Bool.false_eq_true]
+  · simp only [hk, ↓reduceIte, SumQuery.countInr_map, SumQuery.countInr_liftInr, FreeM.eval_map,
+      FreeM.eval_lift, Option.isSome_some]
+
+/-- **Query-complexity bounds for `maxOptWitnessQ`**: at most `Nat.log 2 (S.bound x + 1) + 1`
+threshold decision queries (`countInl`), at most `1` witness query (`countInr`), and at most
+`Nat.log 2 (S.bound x + 1) + 2` total queries. -/
+theorem maxOptWitnessQ_query_bounds (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (x : α) :
+    SumQuery.countInl oracle (S.maxOptWitnessQ x) ≤ Nat.log 2 (S.bound x + 1) + 1 ∧
+      SumQuery.countInr oracle (S.maxOptWitnessQ x) ≤ 1 ∧
+      (S.maxOptWitnessQ x).countQueries oracle ≤ Nat.log 2 (S.bound x + 1) + 2 := by
+  have hinl_bisect : SumQuery.countInl oracle
+      (lowerBoundBy (fun q => SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)) ≤
+      Nat.log 2 (S.bound x + 1) + 1 := by
+    simpa only [SumQuery.countInl, one_mul, Nat.sub_zero] using
+      cost_lowerBoundBy_le oracle SumQuery.weightInl
+        (fun q => SumQuery.liftInl (.probe q)) (c := 1) (lo := 0) (hi := S.bound x + 1)
+        fun _ _ _ => by simp only [FreeM.cost_lift, SumQuery.weightInl, le_rfl]
+  have hinl : SumQuery.countInl oracle (S.maxOptWitnessQ x) ≤ Nat.log 2 (S.bound x + 1) + 1 := by
+    simp only [maxOptWitnessQ, SumQuery.countInl_bind, eval_lowerBoundBy, FreeM.eval_lift]
+    split_ifs <;>
+      simp only [SumQuery.countInl_pure, SumQuery.countInl_map, SumQuery.countInl_liftInr,
+        add_zero, hinl_bisect]
+  have hinr : SumQuery.countInr oracle (S.maxOptWitnessQ x) ≤ 1 := by
+    rw [S.countInr_maxOptWitnessQ oracle x]
+    split_ifs <;> omega
+  have htot := SumQuery.countInl_add_countInr oracle (S.maxOptWitnessQ x)
+  exact ⟨hinl, hinr, by omega⟩
+
+/-- **Weighted query-cost bound for `maxOptWitnessQ`**: if decision probes at `q ≤ S.bound x` have
+weight at most `cp` and witness queries at `q ≤ S.bound x` have weight at most `cw`, then
+`maxOptWitnessQ x` has cost at most `cp * (Nat.log 2 (S.bound x + 1) + 1) + cw`. -/
+theorem cost_maxOptWitnessQ_le (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (weight : {ι : Type} → ThresholdWitnessQuery β ι → ℕ) {x : α} {cp cw : ℕ}
+    (hcp : ∀ q, q ≤ S.bound x → weight (.inl (.probe q)) ≤ cp)
+    (hcw : ∀ q, q ≤ S.bound x → weight (.inr (.find q)) ≤ cw) :
+    (S.maxOptWitnessQ x).cost oracle weight ≤
       cp * (Nat.log 2 (S.bound x + 1) + 1) + cw := by
-  have hbase := S.maxOptM_time_le probe hcp
-  obtain ⟨-, hsome⟩ := S.maxOptM_spec hprobe
-  unfold maxOptWitnessM
-  rw [TimeM.time_bind]
-  cases hm : (S.maxOptM probe x).ret with
-  | none =>
-    simp only [TimeM.time_pure]
+  have hbase : (lowerBoundBy (fun q => SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)).cost
+      oracle weight ≤ cp * (Nat.log 2 (S.bound x + 1) + 1) := by
+    simpa only [Nat.sub_zero] using
+      cost_lowerBoundBy_le oracle weight (fun q => SumQuery.liftInl (.probe q))
+        (c := cp) (lo := 0) (hi := S.bound x + 1) fun m _ hm => by
+        simpa only [FreeM.cost_lift] using hcp m (by omega)
+  simp only [maxOptWitnessQ, FreeM.cost_bind, eval_lowerBoundBy, FreeM.eval_lift]
+  set k := lowerBound (fun m => oracle (.inl (.probe m))) 0 (S.bound x + 1)
+  have hk_hi : k ≤ S.bound x + 1 := by
+    have := (lowerBound_bounds (fun m => oracle (.inl (.probe m))) 0 (S.bound x + 1)).2
     omega
-  | some v =>
-    have hv_le := (hsome v hm).1
-    have hw := hcw v hv_le
-    simp only [TimeM.time_bind, TimeM.time_pure]
+  split_ifs with hk0
+  · simp only [FreeM.cost_pure, add_zero]
+    omega
+  · simp only [FreeM.cost_map, FreeM.cost_lift]
+    have hw := hcw (k - 1) (by omega)
     omega
 
 end MaxThresholdSpec
@@ -540,99 +609,180 @@ theorem atMost_monotone {x : α} {q q' : ℕ} (hle : q ≤ q') (hq : S.atMost x 
   obtain ⟨w, hw, hc⟩ := hq
   exact ⟨w, hw, hc.trans hle⟩
 
-/-- Find the exact minimum cost of `x` (or `none` if `x` has no valid witness) by bisecting the
-negated threshold predicate on `[0, S.bound x + 1)` in `TimeM`. -/
-def minOptM (probe : α → ℕ → TimeM ℕ Bool) (x : α) : TimeM ℕ (Option ℕ) := do
-  let k ← lowerBoundM (fun q => Bool.not <$> probe x q) 0 (S.bound x + 1)
-  return if k ≤ S.bound x then some k else none
+/-- Pure bisection for the exact minimum cost of `x` (or `none` if `x` has no valid witness) by
+bisecting the negated threshold predicate on `[0, S.bound x + 1)`. -/
+@[expose] def minOpt (probe : α → ℕ → Bool) (x : α) : Option ℕ :=
+  let k := lowerBound (fun q => !(probe x q)) 0 (S.bound x + 1)
+  if k ≤ S.bound x then some k else none
 
-/-- Recover both the minimum cost and an optimal witness in `TimeM`. -/
-def minOptWitnessM (probe : α → ℕ → TimeM ℕ Bool) (findWitness : α → ℕ → TimeM ℕ β) (x : α) :
-    TimeM ℕ (Option (OptSolution β)) := do
-  match ← S.minOptM probe x with
-  | none => return none
-  | some v =>
-    let w ← findWitness x v
-    return some ⟨v, w⟩
+/-- Correctness of `minOpt`: returns `none` iff no valid witness exists, and `some v` when `v` is
+the exact minimum cost over valid witnesses. -/
+theorem minOpt_spec {probe : α → ℕ → Bool} {x : α}
+    (hprobe : ∀ q, q ≤ S.bound x → (probe x q = true ↔ S.atMost x q)) :
+    (S.minOpt probe x = none ↔ ¬ ∃ w, S.valid x w) ∧
+      ∀ v, S.minOpt probe x = some v →
+        v ≤ S.bound x ∧ S.atMost x v ∧ ∀ w, S.valid x w → v ≤ S.cost x w := by
+  obtain ⟨-, hhi, htrue, hfalse⟩ := lowerBound_spec (fun q => !(probe x q))
+    (lo := 0) (hi := S.bound x + 1) fun m m' _ hmm' hm' ht => by
+      simp only [Bool.not_eq_true'] at ht ⊢
+      exact Bool.eq_false_iff.mpr fun hm => Bool.noConfusion
+        (ht.symm.trans ((hprobe m' (by omega)).mpr (S.atMost_monotone hmm'
+          ((hprobe m (by omega)).mp hm))))
+  set k := lowerBound (fun q => !(probe x q)) 0 (S.bound x + 1) with hk_def
+  have hge_k : ∀ w, S.valid x w → k ≤ S.cost x w := fun w hw => Nat.le_of_not_lt fun hlt => by
+    have ht := htrue (S.cost x w) (Nat.zero_le _) hlt
+    simp only [Bool.not_eq_true'] at ht
+    exact Bool.noConfusion
+      (ht.symm.trans ((hprobe _ (S.cost_le_bound x w hw)).mpr ⟨w, hw, le_rfl⟩))
+  unfold minOpt
+  dsimp only
+  rw [← hk_def]
+  split_ifs with hle
+  · have hf := hfalse k le_rfl (by omega)
+    simp only [Bool.not_eq_false'] at hf
+    obtain ⟨w₀, hw₀, hcw₀⟩ := (hprobe k hle).mp hf
+    simp only [false_iff, Option.some.injEq, forall_eq']
+    exact ⟨fun hne => hne ⟨w₀, hw₀⟩, hle, ⟨w₀, hw₀, hcw₀⟩, hge_k⟩
+  · simp only [true_iff, IsEmpty.forall_iff, implies_true, and_true]
+    exact fun ⟨w, hw⟩ => absurd (le_trans (hge_k w hw) (S.cost_le_bound x w hw)) hle
 
-/-- Correctness of `minOptWitnessM`. -/
-theorem minOptWitnessM_spec {probe : α → ℕ → TimeM ℕ Bool} {findWitness : α → ℕ → TimeM ℕ β}
-    {x : α} (hprobe : ∀ q, q ≤ S.bound x → ((probe x q).ret = true ↔ S.atMost x q))
+/-- Pure recovery of both the minimum cost and an optimal witness. -/
+@[expose] def minOptWitness (probe : α → ℕ → Bool) (findWitness : α → ℕ → β) (x : α) :
+    Option (OptSolution β) :=
+  match S.minOpt probe x with
+  | none => none
+  | some v => some ⟨v, findWitness x v⟩
+
+/-- Correctness of `minOptWitness`. -/
+theorem minOptWitness_spec {probe : α → ℕ → Bool} {findWitness : α → ℕ → β}
+    {x : α} (hprobe : ∀ q, q ≤ S.bound x → (probe x q = true ↔ S.atMost x q))
     (hwit : ∀ q, q ≤ S.bound x → S.atMost x q →
-      S.valid x (findWitness x q).ret ∧ S.cost x (findWitness x q).ret ≤ q) :
-    ((S.minOptWitnessM probe findWitness x).ret = none ↔ ¬ ∃ w, S.valid x w) ∧
-      ∀ sol, (S.minOptWitnessM probe findWitness x).ret = some sol →
+      S.valid x (findWitness x q) ∧ S.cost x (findWitness x q) ≤ q) :
+    (S.minOptWitness probe findWitness x = none ↔ ¬ ∃ w, S.valid x w) ∧
+      ∀ sol, S.minOptWitness probe findWitness x = some sol →
         sol.optValue ≤ S.bound x ∧ S.valid x sol.witness ∧
           S.cost x sol.witness = sol.optValue ∧
           ∀ w, S.valid x w → sol.optValue ≤ S.cost x w := by
-  have hmono : ∀ m m', 0 ≤ m → m ≤ m' → m' < S.bound x + 1 →
-      (Bool.not <$> probe x m').ret = true → (Bool.not <$> probe x m).ret = true := by
-    intro m m' _ hmm' hm' ht
-    simp only [TimeM.ret_map, Bool.not_eq_true'] at ht ⊢
-    cases hm_val : (probe x m).ret
-    · rfl
-    · have hat := S.atMost_monotone hmm' ((hprobe m (by omega)).mp hm_val)
-      have ht' := (hprobe m' (by omega)).mpr hat
-      rw [ht] at ht'
-      exact Bool.noConfusion ht'
-  obtain ⟨-, hhi, htrue, hfalse⟩ :=
-    lowerBoundM_spec (fun q => Bool.not <$> probe x q) (lo := 0) (hi := S.bound x + 1) hmono
-  set k := (lowerBoundM (fun q => Bool.not <$> probe x q) 0 (S.bound x + 1)).ret with hk_def
-  unfold minOptWitnessM minOptM
-  simp only [TimeM.ret_bind, TimeM.ret_pure, ← hk_def]
-  by_cases hle : k ≤ S.bound x
-  · simp only [hle, ↓reduceIte, TimeM.ret_bind, TimeM.ret_pure]
-    have hf := hfalse k (le_refl k) (by omega)
-    simp only [TimeM.ret_map, Bool.not_eq_false'] at hf
-    have hat : S.atMost x k := (hprobe k hle).mp hf
-    obtain ⟨hvw, hvc⟩ := hwit k hle hat
-    have hmin : ∀ w, S.valid x w → k ≤ S.cost x w := by
-      intro w hw
-      by_contra! hlt
-      have ht := htrue (S.cost x w) (Nat.zero_le _) hlt
-      simp only [TimeM.ret_map, Bool.not_eq_true'] at ht
-      have ht' := (hprobe (S.cost x w) (S.cost_le_bound x w hw)).mpr ⟨w, hw, le_refl _⟩
-      rw [ht] at ht'
-      exact Bool.noConfusion ht'
-    refine ⟨⟨fun hno => (by cases hno), fun hno => absurd ⟨_, hvw⟩ hno⟩, ?_⟩
-    rintro sol hsol
-    injection hsol with hsol
-    subst hsol
-    exact ⟨hle, hvw, le_antisymm hvc (hmin _ hvw), hmin⟩
-  · simp only [hle, ↓reduceIte, TimeM.ret_pure, true_iff, reduceCtorEq, IsEmpty.forall_iff,
-      implies_true, and_true]
-    rintro ⟨w, hw⟩
-    have hwb := S.cost_le_bound x w hw
-    have ht := htrue (S.cost x w) (Nat.zero_le _) (by omega)
-    simp only [TimeM.ret_map, Bool.not_eq_true'] at ht
-    have ht' := (hprobe (S.cost x w) hwb).mpr ⟨w, hw, le_refl _⟩
-    rw [ht] at ht'
-    exact Bool.noConfusion ht'
-
-theorem minOptWitnessM_time_le (probe : α → ℕ → TimeM ℕ Bool)
-    (findWitness : α → ℕ → TimeM ℕ β) {x : α} {cp cw : ℕ}
-    (hcp : ∀ q, (probe x q).time ≤ cp)
-    (hcw : ∀ q, q ≤ S.bound x → (findWitness x q).time ≤ cw) :
-    (S.minOptWitnessM probe findWitness x).time ≤
-      cp * (Nat.log 2 (S.bound x + 1) + 1) + cw := by
-  have hbase : (S.minOptM probe x).time ≤ cp * (Nat.log 2 (S.bound x + 1) + 1) := by
-    simpa [minOptM] using lowerBoundM_time_le (fun q => Bool.not <$> probe x q)
-      (fun q => by simpa using hcp q) 0 (S.bound x + 1)
-  have hbound : ∀ v, (S.minOptM probe x).ret = some v → v ≤ S.bound x := by
-    intro v hv
-    simp only [minOptM, TimeM.ret_bind, TimeM.ret_pure] at hv
-    split_ifs at hv with hle
-    injection hv with hv'
-    omega
-  unfold minOptWitnessM
-  rw [TimeM.time_bind]
-  cases hm : (S.minOptM probe x).ret with
+  obtain ⟨hnone, hsome⟩ := S.minOpt_spec hprobe
+  unfold minOptWitness
+  cases hm : S.minOpt probe x with
   | none =>
-    simp only [TimeM.time_pure]
-    omega
+    simp only [true_iff, reduceCtorEq, IsEmpty.forall_iff, implies_true, and_true]
+    exact hnone.mp hm
   | some v =>
-    have hw := hcw v (hbound v hm)
-    simp only [TimeM.time_bind, TimeM.time_pure]
+    obtain ⟨hv_le, hat, hmin⟩ := hsome v hm
+    obtain ⟨hvw, hvsc⟩ := hwit v hv_le hat
+    simp only [reduceCtorEq, false_iff, Option.some.injEq, forall_eq']
+    exact ⟨fun hno => hno ⟨_, hvw⟩, hv_le, hvw, le_antisymm hvsc (hmin _ hvw), hmin⟩
+
+/-- Query-monad minimization program on `[0, S.bound x + 1)` over `ProbeQuery`. -/
+@[expose] def minOptQ (x : α) : FreeM ProbeQuery (Option ℕ) :=
+  (fun k => if k ≤ S.bound x then some k else none) <$>
+    lowerBoundBy (fun q => Bool.not <$> ProbeQuery.ask q) 0 (S.bound x + 1)
+
+@[simp] theorem eval_minOptQ (oracle : {ι : Type} → ProbeQuery ι → ι) (x : α) :
+    (S.minOptQ x).eval oracle = S.minOpt (fun _ q => oracle (.probe q)) x := by
+  simp only [minOptQ, minOpt, FreeM.eval_map, eval_lowerBoundBy, ProbeQuery.eval_ask]
+
+/-- `minOptQ x` makes at most `Nat.log 2 (S.bound x + 1) + 1` threshold probes. -/
+theorem countQueries_minOptQ_le (oracle : {ι : Type} → ProbeQuery ι → ι) (x : α) :
+    (S.minOptQ x).countQueries oracle ≤ Nat.log 2 (S.bound x + 1) + 1 := by
+  simpa only [minOptQ, FreeM.countQueries_map, one_mul, Nat.sub_zero] using
+    countQueries_lowerBoundBy_le oracle (fun q => Bool.not <$> ProbeQuery.ask q)
+      (c := 1) (lo := 0) (hi := S.bound x + 1) fun _ _ _ => by
+      simp only [FreeM.countQueries_map, FreeM.countQueries_lift, le_rfl]
+
+/-- Query-monad minimization with witness recovery over `ThresholdWitnessQuery β`: makes at most
+`Nat.log 2 (S.bound x + 1) + 1` threshold decision queries (`countInl`) and at most `1` witness
+query (`countInr`, `0` when infeasible). -/
+@[expose] def minOptWitnessQ (x : α) :
+    FreeM (ThresholdWitnessQuery β) (Option (OptSolution β)) := do
+  let k ← lowerBoundBy (fun q => Bool.not <$> SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)
+  if k ≤ S.bound x then
+    (fun w => some (OptSolution.mk k w)) <$> SumQuery.liftInr (.find k)
+  else
+    pure none
+
+@[simp] theorem eval_minOptWitnessQ (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι) (x : α) :
+    (S.minOptWitnessQ x).eval oracle =
+      S.minOptWitness (fun _ q => oracle (.inl (.probe q)))
+        (fun _ q => oracle (.inr (.find q))) x := by
+  simp only [minOptWitnessQ, minOptWitness, minOpt, FreeM.eval_bind, eval_lowerBoundBy,
+    FreeM.eval_map, FreeM.eval_lift]
+  split_ifs <;> simp only [FreeM.eval_map, FreeM.eval_lift, FreeM.eval_pure]
+
+/-- Exact witness-query count of `minOptWitnessQ`: `1` when a valid witness is returned
+(`eval = some _`), and `0` when infeasible (`eval = none`). -/
+@[simp] theorem countInr_minOptWitnessQ (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (x : α) :
+    SumQuery.countInr oracle (S.minOptWitnessQ x) =
+      if ((S.minOptWitnessQ x).eval oracle).isSome then 1 else 0 := by
+  have hinr_bisect : SumQuery.countInr oracle
+      (lowerBoundBy (fun q => Bool.not <$> SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)) = 0 :=
+    Nat.eq_zero_of_le_zero <| by
+      simpa only [SumQuery.countInr, zero_mul] using
+        cost_lowerBoundBy_le oracle SumQuery.weightInr
+          (fun q => Bool.not <$> SumQuery.liftInl (.probe q))
+          (c := 0) (lo := 0) (hi := S.bound x + 1) fun _ _ _ => by
+          simp only [FreeM.cost_map, FreeM.cost_lift, SumQuery.weightInr, le_rfl]
+  simp only [minOptWitnessQ, SumQuery.countInr_bind, FreeM.eval_bind, eval_lowerBoundBy,
+    FreeM.eval_map, FreeM.eval_lift, hinr_bisect, zero_add]
+  by_cases hk : lowerBound (fun m => !oracle (.inl (.probe m))) 0 (S.bound x + 1) ≤ S.bound x
+  · simp only [hk, ↓reduceIte, SumQuery.countInr_map, SumQuery.countInr_liftInr, FreeM.eval_map,
+      FreeM.eval_lift, Option.isSome_some]
+  · simp only [hk, ↓reduceIte, SumQuery.countInr_pure, FreeM.eval_pure, Option.isSome_none,
+      Bool.false_eq_true]
+
+/-- **Query-complexity bounds for `minOptWitnessQ`**: at most `Nat.log 2 (S.bound x + 1) + 1`
+threshold decision queries (`countInl`), at most `1` witness query (`countInr`), and at most
+`Nat.log 2 (S.bound x + 1) + 2` total queries. -/
+theorem minOptWitnessQ_query_bounds (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (x : α) :
+    SumQuery.countInl oracle (S.minOptWitnessQ x) ≤ Nat.log 2 (S.bound x + 1) + 1 ∧
+      SumQuery.countInr oracle (S.minOptWitnessQ x) ≤ 1 ∧
+      (S.minOptWitnessQ x).countQueries oracle ≤ Nat.log 2 (S.bound x + 1) + 2 := by
+  have hinl_bisect : SumQuery.countInl oracle
+      (lowerBoundBy (fun q => Bool.not <$> SumQuery.liftInl (.probe q)) 0 (S.bound x + 1)) ≤
+      Nat.log 2 (S.bound x + 1) + 1 := by
+    simpa only [SumQuery.countInl, one_mul, Nat.sub_zero] using
+      cost_lowerBoundBy_le oracle SumQuery.weightInl
+        (fun q => Bool.not <$> SumQuery.liftInl (.probe q))
+        (c := 1) (lo := 0) (hi := S.bound x + 1) fun _ _ _ => by
+        simp only [FreeM.cost_map, FreeM.cost_lift, SumQuery.weightInl, le_rfl]
+  have hinl : SumQuery.countInl oracle (S.minOptWitnessQ x) ≤ Nat.log 2 (S.bound x + 1) + 1 := by
+    simp only [minOptWitnessQ, SumQuery.countInl_bind, eval_lowerBoundBy, FreeM.eval_map,
+      FreeM.eval_lift]
+    split_ifs <;>
+      simp only [SumQuery.countInl_pure, SumQuery.countInl_map, SumQuery.countInl_liftInr,
+        add_zero, hinl_bisect]
+  have hinr : SumQuery.countInr oracle (S.minOptWitnessQ x) ≤ 1 := by
+    rw [S.countInr_minOptWitnessQ oracle x]
+    split_ifs <;> omega
+  have htot := SumQuery.countInl_add_countInr oracle (S.minOptWitnessQ x)
+  exact ⟨hinl, hinr, by omega⟩
+
+/-- **Weighted query-cost bound for `minOptWitnessQ`**: if decision probes at `q ≤ S.bound x` have
+weight at most `cp` and witness queries at `q ≤ S.bound x` have weight at most `cw`, then
+`minOptWitnessQ x` has cost at most `cp * (Nat.log 2 (S.bound x + 1) + 1) + cw`. -/
+theorem cost_minOptWitnessQ_le (oracle : {ι : Type} → ThresholdWitnessQuery β ι → ι)
+    (weight : {ι : Type} → ThresholdWitnessQuery β ι → ℕ) {x : α} {cp cw : ℕ}
+    (hcp : ∀ q, q ≤ S.bound x → weight (.inl (.probe q)) ≤ cp)
+    (hcw : ∀ q, q ≤ S.bound x → weight (.inr (.find q)) ≤ cw) :
+    (S.minOptWitnessQ x).cost oracle weight ≤
+      cp * (Nat.log 2 (S.bound x + 1) + 1) + cw := by
+  have hbase : (lowerBoundBy (fun q => Bool.not <$> SumQuery.liftInl (.probe q))
+      0 (S.bound x + 1)).cost oracle weight ≤ cp * (Nat.log 2 (S.bound x + 1) + 1) := by
+    simpa only [Nat.sub_zero] using
+      cost_lowerBoundBy_le oracle weight
+        (fun q => Bool.not <$> SumQuery.liftInl (.probe q))
+        (c := cp) (lo := 0) (hi := S.bound x + 1) fun m _ hm => by
+        simpa only [FreeM.cost_map, FreeM.cost_lift] using hcp m (by omega)
+  simp only [minOptWitnessQ, FreeM.cost_bind, eval_lowerBoundBy, FreeM.eval_map, FreeM.eval_lift]
+  split_ifs with hle
+  · simp only [FreeM.cost_map, FreeM.cost_lift]
+    have hw := hcw _ hle
+    omega
+  · simp only [FreeM.cost_pure, add_zero]
     omega
 
 end MinThresholdSpec
@@ -749,44 +899,27 @@ theorem mem_queriesWith_bisectProgram {α : Type}
   rw [bisectProgram, OracleComp.queriesWith_map] at hq
   obtain ⟨iv, ⟨hlo, hhi⟩, hq_step⟩ := Cslib.OracleComp.mem_queriesWith_iterate answer
     (inv := fun iv : BisectInterval => lo a ≤ iv.lo ∧ (iv.lo < iv.hi → iv.hi ≤ hi a))
-    ⟨le_refl _, fun _ => le_refl _⟩
+    ⟨le_rfl, fun _ => le_rfl⟩
     (fun iv ⟨hlo, hhi⟩ => by
       unfold bisectStepProgram
       split_ifs with hlt
-      · rw [OracleComp.interpret_map]
-        have hhi' := hhi hlt
-        set b : Bool := OracleComp.interpret (m := Id) answer
-          (queryBit (req a ((iv.lo + iv.hi) / 2)))
-        change lo a ≤ (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else BisectInterval.mk iv.lo ((iv.lo + iv.hi) / 2)).lo ∧
-          ((if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else BisectInterval.mk iv.lo ((iv.lo + iv.hi) / 2)).lo <
-           (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else BisectInterval.mk iv.lo ((iv.lo + iv.hi) / 2)).hi →
-           (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-            else BisectInterval.mk iv.lo ((iv.lo + iv.hi) / 2)).hi ≤ hi a)
-        cases b <;> simp only [↓reduceIte, Bool.false_eq_true] <;>
-          refine ⟨by omega, fun _ => by omega⟩
-      · exact ⟨hlo, hhi⟩)
-    hq
+      · have hhi' := hhi hlt
+        rw [OracleComp.interpret_map]
+        cases (OracleComp.interpret (m := Id) answer
+          (queryBit (req a ((iv.lo + iv.hi) / 2))) : Bool)
+        · refine ⟨hlo, fun _ => ?_⟩
+          dsimp only [Functor.map]
+          simp only [Bool.false_eq_true, ↓reduceIte]; omega
+        · refine ⟨?_, fun _ => hhi'⟩
+          dsimp only [Functor.map]
+          simp only [↓reduceIte]; omega
+      · exact ⟨hlo, hhi⟩) hq
   unfold bisectStepProgram at hq_step
   split_ifs at hq_step with hlt
-  · rw [OracleComp.queriesWith_map] at hq_step
-    simp only [queryBit, OracleComp.queriesWith_map, OracleComp.queriesWith_query,
+  · simp only [queryBit, OracleComp.queriesWith_map, OracleComp.queriesWith_query,
       List.mem_singleton] at hq_step
-    have hhi' := hhi hlt
-    exact ⟨(iv.lo + iv.hi) / 2, by omega, by omega, hq_step⟩
+    exact ⟨(iv.lo + iv.hi) / 2, by omega, by have := hhi hlt; omega, hq_step⟩
   · simp at hq_step
-
-open ComputableInPolyTime in
-private theorem computableInPolyTime_midpoint :
-    ComputableInPolyTime (fun iv : BisectInterval => (iv.lo + iv.hi) / 2)
-      encBisectInterval encNat := by
-  have hsum : ComputableInPolyTime (fun iv : BisectInterval => iv.lo + iv.hi)
-      encBisectInterval encNat :=
-    binary_add' (by fun_prop) (by fun_prop)
-  exact (binary_shiftRight' hsum (const 1)).of_enc_eq fun iv => by
-    rw [Nat.shiftRight_eq_div_pow, pow_one]
 
 open ComputableInPolyTime in
 private theorem isOraclePPTOn_bisectStepProgram {α : Type} {encA : α ↪ List Bool}
@@ -796,58 +929,37 @@ private theorem isOraclePPTOn_bisectStepProgram {α : Type} {encA : α ↪ List 
     IsOraclePPTOn (encPair encA encBisectInterval) encBisectInterval
       (fun pair => OracleComp.interpret ProbOracleComp.query
         (bisectStepProgram req pair.1 pair.2)) := by
-  have hmid : ComputableInPolyTime
-      (fun pair : α × BisectInterval => (pair.2.lo + pair.2.hi) / 2)
+  have hmid : ComputableInPolyTime (fun p : α × BisectInterval => (p.2.lo + p.2.hi) / 2)
       (encPair encA encBisectInterval) encNat :=
-    computableInPolyTime_midpoint.comp (snd encA encBisectInterval)
-  have hq : ComputableInPolyTime
-      (fun pair : α × BisectInterval =>
-        OracleThresholdQuery.mk pair.1 ((pair.2.lo + pair.2.hi) / 2))
-      (encPair encA encBisectInterval) (encOracleThresholdQuery encA) :=
-    encOracleThresholdQuery_mk_polyTime (fst encA encBisectInterval) hmid
+    (binary_shiftRight' (binary_add' (encBisectInterval_lo_polyTime (snd _ _))
+      (encBisectInterval_hi_polyTime (snd _ _))) (const 1)).of_enc_eq fun _ => by
+      rw [Nat.shiftRight_eq_div_pow, pow_one]
   have hword : ComputableInPolyTime
-      (fun pair : α × BisectInterval => req pair.1 ((pair.2.lo + pair.2.hi) / 2))
+      (fun p : α × BisectInterval => req p.1 ((p.2.lo + p.2.hi) / 2))
       (encPair encA encBisectInterval) encBits :=
-    hreq.comp hq
-  have hcond : ComputableInPolyTime
-      (fun pair : α × BisectInterval => decide (pair.2.lo < pair.2.hi))
+    hreq.comp (encOracleThresholdQuery_mk_polyTime (fst _ _) hmid)
+  have hcond : ComputableInPolyTime (fun p : α × BisectInterval => decide (p.2.lo < p.2.hi))
       (encPair encA encBisectInterval) encBool :=
-    binary_lt' (by fun_prop) (by fun_prop)
+    binary_lt' (encBisectInterval_lo_polyTime (snd _ _)) (encBisectInterval_hi_polyTime (snd _ _))
+  have hmid' := hmid.comp (fst (encPair encA encBisectInterval) encBool)
   have hbranch : ComputableInPolyTime
       (fun p : (α × BisectInterval) × Bool =>
         let mid := (p.1.2.lo + p.1.2.hi) / 2
-        if p.2 then BisectInterval.mk (mid + 1) p.1.2.hi else BisectInterval.mk p.1.2.lo mid)
-      (encPair (encPair encA encBisectInterval) encBool) encBisectInterval := by
-    have hmid' : ComputableInPolyTime
-        (fun p : (α × BisectInterval) × Bool => (p.1.2.lo + p.1.2.hi) / 2)
-        (encPair (encPair encA encBisectInterval) encBool) encNat :=
-      hmid.comp (fst _ _)
-    have hmid1 : ComputableInPolyTime
-        (fun p : (α × BisectInterval) × Bool => (p.1.2.lo + p.1.2.hi) / 2 + 1)
-        (encPair (encPair encA encBisectInterval) encBool) encNat :=
-      binary_add' hmid' (const 1)
-    have hleft : ComputableInPolyTime
-        (fun p : (α × BisectInterval) × Bool =>
-          BisectInterval.mk ((p.1.2.lo + p.1.2.hi) / 2 + 1) p.1.2.hi)
-        (encPair (encPair encA encBisectInterval) encBool) encBisectInterval :=
-      encBisectInterval_mk_polyTime hmid1 (by fun_prop)
-    have hright : ComputableInPolyTime
-        (fun p : (α × BisectInterval) × Bool =>
-          BisectInterval.mk p.1.2.lo ((p.1.2.lo + p.1.2.hi) / 2))
-        (encPair (encPair encA encBisectInterval) encBool) encBisectInterval :=
-      encBisectInterval_mk_polyTime (by fun_prop) hmid'
-    exact (ComputableInPolyTime.ite' (snd _ _) hleft hright).of_enc_eq fun p => by
+        if p.2 then BisectInterval.mk (mid + 1) p.1.2.hi else ⟨p.1.2.lo, mid⟩)
+      (encPair (encPair encA encBisectInterval) encBool) encBisectInterval :=
+    (ite' (snd _ _)
+      (encBisectInterval_mk_polyTime (binary_add' hmid' (const 1))
+        (encBisectInterval_hi_polyTime ((snd _ _).comp (fst _ _))))
+      (encBisectInterval_mk_polyTime
+        (encBisectInterval_lo_polyTime ((snd _ _).comp (fst _ _))) hmid')).of_enc_eq fun p => by
       cases p.2 <;> rfl
   have hyes := (isOraclePPTOn_queryBit hword).map_with
-    (f := fun (pair : α × BisectInterval) (b : Bool) =>
-      let mid := (pair.2.lo + pair.2.hi) / 2
-      if b then BisectInterval.mk (mid + 1) pair.2.hi else BisectInterval.mk pair.2.lo mid)
+    (f := fun (p : α × BisectInterval) (b : Bool) =>
+      let mid := (p.2.lo + p.2.hi) / 2
+      if b then BisectInterval.mk (mid + 1) p.2.hi else BisectInterval.mk p.2.lo mid)
     hbranch
-  have hno : IsOraclePPTOn (Operation := Unit) (encPair encA encBisectInterval) encBisectInterval
-      (fun pair : α × BisectInterval => pure pair.2) :=
-    (snd encA encBisectInterval).isOraclePPTOn
-  refine (IsOraclePPTOn.ite (condition := fun pair : α × BisectInterval => pair.2.lo < pair.2.hi)
-    hcond hyes hno).congr fun pair State oracle s => ?_
+  refine (IsOraclePPTOn.ite (condition := fun p : α × BisectInterval => p.2.lo < p.2.hi)
+    hcond hyes (snd encA encBisectInterval).isOraclePPTOn).congr fun p State oracle s => ?_
   unfold bisectStepProgram
   split_ifs <;> simp only [OracleComp.interpret_map, OracleComp.interpret_pure]
 
@@ -862,15 +974,8 @@ theorem isOraclePPTOn_bisectProgram {α : Type} {encA : α ↪ List Bool}
     IsOraclePPTOn encA encNat
       (fun a => OracleComp.interpret ProbOracleComp.query (bisectProgram req lo hi a)) := by
   open ComputableInPolyTime in
-  have hcount : ComputableInPolyTime (fun a => (hi a - lo a).size) encA encUnary :=
-    binary_size.comp (binary_sub' hhi hlo)
-  have hinit : ComputableInPolyTime (fun a => BisectInterval.mk (lo a) (hi a))
-      encA encBisectInterval :=
-    encBisectInterval_mk_polyTime hlo hhi
-  obtain ⟨tL, _, htL, _, hmL⟩ := hlo
-  obtain ⟨cL, dL, hlenL⟩ := polynomiallyBounded_iff_le.mp htL
-  obtain ⟨tH, _, htH, _, hmH⟩ := hhi
-  obtain ⟨cH, dH, hlenH⟩ := polynomiallyBounded_iff_le.mp htH
+  obtain ⟨cL, dL, hlenL⟩ := hlo.polyBounded_length.exists_le
+  obtain ⟨cH, dH, hlenH⟩ := hhi.polyBounded_length.exists_le
   have hsize : PolyBounded (fun a => (encA a).length)
       (fun a => 4 * (cL * ((encA a).length + 1) ^ dL + cH * ((encA a).length + 1) ^ dH) + 4) := by
     growth_poly
@@ -879,33 +984,29 @@ theorem isOraclePPTOn_bisectProgram {α : Type} {encA : α ↪ List Bool}
     (count := fun a => (hi a - lo a).size)
     (initial := fun a => BisectInterval.mk (lo a) (hi a))
     (step := fun a iv => OracleComp.interpret ProbOracleComp.query (bisectStepProgram req a iv))
-    hcount hinit (isOraclePPTOn_bisectStepProgram hreq)
+    (binary_size.comp (binary_sub' hhi hlo)) (encBisectInterval_mk_polyTime hlo hhi)
+    (isOraclePPTOn_bisectStepProgram hreq)
     (fun a _ iv => iv.lo ≤ max (lo a) (hi a) ∧ iv.hi ≤ max (lo a) (hi a))
     (fun a => ⟨le_max_left _ _, le_max_right _ _⟩)
     (fun a _ iv _ ⟨h1, h2⟩ next hnext => by
-      unfold bisectStepProgram at hnext
-      split_ifs at hnext with hlt
+      unfold bisectStepProgram at hnext; split_ifs at hnext with hlt
       · rw [OracleComp.interpret_map] at hnext
         obtain ⟨b, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
         cases b <;> simp only [↓reduceIte, Bool.false_eq_true] <;> exact ⟨by omega, by omega⟩
       · simp only [OracleComp.interpret_pure] at hnext
-        have heq_next : next = iv := by simpa [OracleComp.support] using hnext
-        subst heq_next
-        exact ⟨h1, h2⟩)
+        exact (by simpa [OracleComp.support] using hnext : next = iv) ▸ ⟨h1, h2⟩)
     hsize
     (fun a _ iv _ ⟨h1, h2⟩ => by
       have hcap : (encNat (max (lo a) (hi a))).length ≤
           cL * ((encA a).length + 1) ^ dL + cH * ((encA a).length + 1) ^ dH := by
         rcases max_choice (lo a) (hi a) with heq | heq <;> rw [heq]
-        · exact ((hmL.length_le a).trans (hlenL _)).trans (Nat.le_add_right _ _)
-        · exact ((hmH.length_le a).trans (hlenH _)).trans (Nat.le_add_left _ _)
+        · exact (hlenL a).trans (Nat.le_add_right _ _)
+        · exact (hlenH a).trans (Nat.le_add_left _ _)
       have h1' := (length_encNat_mono h1).trans hcap
       have h2' := (length_encNat_mono h2).trans hcap
-      simp only [encBisectInterval_apply, encBisectIntervalFields]
-      enc_len)
-  have hproj : ComputableInPolyTime BisectInterval.lo encBisectInterval encNat := by fun_prop
+      simp only [encBisectInterval_apply, encBisectIntervalFields]; enc_len)
   simpa only [bisectProgram, OracleComp.interpret_map, OracleComp.interpret_iterate] using
-    hit.1.map hproj
+    hit.1.map (by fun_prop : ComputableInPolyTime BisectInterval.lo encBisectInterval encNat)
 
 open Classical in
 /-- **Polynomial-time oracle bisection with logarithmic query count.** Given polynomial-time
@@ -989,21 +1090,10 @@ theorem isVerifier_threshold :
 theorem computableInPolyTime_thresholdVerifier :
     ComputableInPolyTime thresholdVerifier (encPair encMaxSATQuery encBits) encBool := by
   open ComputableInPolyTime in
-  have hφ : ComputableInPolyTime (fun p : MaxSATQuery × List Bool => p.1.formula)
-      (encPair encMaxSATQuery encBits) (encList (encList (encPair encNat encBool))) :=
-    encMaxSATQuery_formula_polyTime (fst _ _)
-  have hcnt : ComputableInPolyTime
-      (fun p : MaxSATQuery × List Bool =>
-        p.1.formula.countP (Clause.eval (SAT.assignment p.1.formula p.2)))
-      (encPair encMaxSATQuery encBits) encNat := by
-    have hcl : ComputableInPolyTime
-        (fun x : (MaxSATQuery × List Bool) × Clause ℕ =>
-          Clause.eval (SAT.assignment x.1.1.formula x.1.2) x.2)
-        (encPair (encPair encMaxSATQuery encBits) (encList (encPair encNat encBool))) encBool :=
-      SAT.computableInPolyTime_clause.comp
-        (((hφ.comp (fst _ _)).prod ((snd _ _).comp (fst _ _))).prod (snd _ _))
-    exact unary_to_binary.comp (countPWithInput hφ hcl)
-  exact binary_le' (encMaxSATQuery_target_polyTime (fst _ _)) hcnt
+  have hφ := encMaxSATQuery_formula_polyTime (fst encMaxSATQuery encBits)
+  exact binary_le' (encMaxSATQuery_target_polyTime (fst _ _)) (unary_to_binary.comp
+    (countPWithInput hφ (SAT.computableInPolyTime_clause.comp
+      (((hφ.comp (fst _ _)).prod ((snd _ _).comp (fst _ _))).prod (snd _ _)))))
 
 /-- `MaxSATThreshold` belongs to `NP`. -/
 theorem mem_NP_threshold : MaxSATThreshold ∈ NP encMaxSATQuery :=
@@ -1019,8 +1109,15 @@ def thresholdSpec : MaxThresholdSpec (CNF ℕ) (ℕ → Bool) where
 open Classical in
 /-- The exact maximum number of simultaneously satisfiable clauses of `φ`. -/
 noncomputable def maxClauseScore (φ : CNF ℕ) : ℕ :=
-  (lowerBoundM (fun q => pure (decide (MaxSATQuery.mk φ q ∈ MaxSATThreshold)))
-    1 (φ.length + 1)).ret - 1
+  lowerBound (fun q => decide (MaxSATQuery.mk φ q ∈ MaxSATThreshold)) 1 (φ.length + 1) - 1
+
+private theorem maxSATThreshold_mono (φ : CNF ℕ) {m m' : ℕ} (hmm' : m ≤ m')
+    [Decidable (MaxSATQuery.mk φ m' ∈ MaxSATThreshold)]
+    [Decidable (MaxSATQuery.mk φ m ∈ MaxSATThreshold)]
+    (ht : decide (MaxSATQuery.mk φ m' ∈ MaxSATThreshold) = true) :
+    decide (MaxSATQuery.mk φ m ∈ MaxSATThreshold) = true := by
+  simp only [decide_eq_true_eq, mem_MaxSATThreshold_iff] at ht ⊢
+  obtain ⟨σ, hσ⟩ := ht; exact ⟨σ, hmm'.trans hσ⟩
 
 /-- `maxClauseScore φ` is attained by some assignment and upper-bounds every assignment's score. -/
 theorem maxClauseScore_spec (φ : CNF ℕ) :
@@ -1028,30 +1125,22 @@ theorem maxClauseScore_spec (φ : CNF ℕ) :
       (∃ σ : ℕ → Bool, φ.countP (Clause.eval σ) = maxClauseScore φ) ∧
       ∀ σ : ℕ → Bool, φ.countP (Clause.eval σ) ≤ maxClauseScore φ := by
   classical
-  set t : ℕ → TimeM ℕ Bool := fun q => pure (decide (MaxSATQuery.mk φ q ∈ MaxSATThreshold))
-  have hmono : ∀ m m', 1 ≤ m → m ≤ m' → m' < φ.length + 1 → (t m').ret = true → (t m).ret = true :=
-    fun m m' _ hmm' _ ht => by
-      simp only [t, TimeM.ret_pure, decide_eq_true_eq, mem_MaxSATThreshold_iff] at ht ⊢
-      obtain ⟨σ, hσ⟩ := ht
-      exact ⟨σ, hmm'.trans hσ⟩
-  obtain ⟨hlo, hhi, htrue, hfalse⟩ := lowerBoundM_spec t (lo := 1) (hi := φ.length + 1) hmono
-  set k := (lowerBoundM t 1 (φ.length + 1)).ret
-  have hk_le : k ≤ φ.length + 1 := by omega
-  have hupper : ∀ σ : ℕ → Bool, φ.countP (Clause.eval σ) ≤ k - 1 := by
-    intro σ
+  set t : ℕ → Bool := fun q => decide (MaxSATQuery.mk φ q ∈ MaxSATThreshold)
+  obtain ⟨hlo, hhi, htrue, hfalse⟩ := lowerBound_spec t (lo := 1) (hi := φ.length + 1)
+    fun _ _ _ hmm' _ ht => maxSATThreshold_mono φ hmm' ht
+  set k := lowerBound t 1 (φ.length + 1)
+  have hupper (σ : ℕ → Bool) : φ.countP (Clause.eval σ) ≤ k - 1 := by
     by_contra! hgt
-    have hsc_le : φ.countP (Clause.eval σ) ≤ φ.length := List.countP_le_length
-    have hf := hfalse k (le_refl k) (by omega)
-    simp only [t, TimeM.ret_pure, decide_eq_false_iff_not, mem_MaxSATThreshold_iff] at hf
+    have := List.countP_le_length (l := φ) (p := Clause.eval σ)
+    have hf := hfalse k le_rfl (by omega)
+    simp only [t, decide_eq_false_iff_not, mem_MaxSATThreshold_iff] at hf
     exact hf ⟨σ, by omega⟩
-  have hex : ∃ σ : ℕ → Bool, k - 1 ≤ φ.countP (Clause.eval σ) := by
+  obtain ⟨σ, hσ⟩ : ∃ σ : ℕ → Bool, k - 1 ≤ φ.countP (Clause.eval σ) := by
     rcases Nat.eq_or_lt_of_le hlo with hk1 | hgt1
     · exact ⟨fun _ => false, by omega⟩
-    · have ht := htrue (k - 1) (by omega) (by omega)
-      simpa only [t, TimeM.ret_pure, decide_eq_true_eq, mem_MaxSATThreshold_iff] using ht
-  obtain ⟨σ, hσ⟩ := hex
-  refine ⟨by change k - 1 ≤ φ.length; omega,
-    ⟨σ, le_antisymm (hupper σ) hσ⟩, hupper⟩
+    · simpa only [t, decide_eq_true_eq, mem_MaxSATThreshold_iff] using
+        htrue (k - 1) (by omega) (by omega)
+  exact ⟨by change k - 1 ≤ φ.length; omega, ⟨σ, le_antisymm (hupper σ) hσ⟩, hupper⟩
 
 /-- Every declared-range assignment score is below `maxClauseScore φ`, for any declared variable
 count `n`. -/
@@ -1099,11 +1188,7 @@ private theorem lookupVar_eq_of_mem {answers : List (Literal ℕ)}
     unfold lookupVar at ih ⊢
     rcases List.mem_cons.mp hmem with rfl | htl
     · simp
-    · have hv_tl : v ∈ tl.map Prod.fst := List.mem_map_of_mem (f := Prod.fst) htl
-      have hne : (hd.1 == v) = false := by
-        rw [beq_eq_false_iff_ne]
-        intro heq
-        exact hnodup.1 (heq ▸ hv_tl)
+    · have hne : hd.1 ≠ v := fun h => hnodup.1 (h ▸ List.mem_map_of_mem (f := Prod.fst) htl)
       rw [List.find?_cons_of_neg (by simp [hne])]
       exact ih hnodup.2 htl
 
@@ -1118,65 +1203,41 @@ private theorem countP_eval_eq_satisfiedBy_add_applyPartial {answers : List (Lit
     by_cases hsat : (c.any fun l => answers.any (· == l)) = true
     · obtain ⟨l, hlc, hla⟩ := List.any_eq_true.mp hsat
       obtain ⟨l', hl'a, heq⟩ := List.any_eq_true.mp hla
-      have hll' : l' = l := by simpa [beq_iff_eq] using heq
-      subst hll'
-      have heval_c' : Clause.eval σ c = true :=
-        (Clause.eval_eq_true_iff σ c).mpr
-          ⟨l', hlc, by
-            have hag := hagree l' hl'a
-            rcases l' with ⟨v', false | true⟩ <;> simp_all⟩
-      have hfilt : (List.filter (fun c : Clause ℕ => !c.any fun l => answers.any (· == l))
-          (c :: cs)) =
-          List.filter (fun c : Clause ℕ => !c.any fun l => answers.any (· == l)) cs :=
-        List.filter_cons_of_neg (p := fun c : Clause ℕ => !c.any fun l => answers.any (· == l))
-          (by simp [hsat])
-      rw [hfilt]
-      simp only [List.countP_cons, heval_c', hsat, ↓reduceIte]
+      obtain rfl : l' = l := beq_iff_eq.mp heq
+      have heval_c : Clause.eval σ c = true := (Clause.eval_eq_true_iff σ c).mpr
+        ⟨l', hlc, by have := hagree l' hl'a; rcases l' with ⟨_, false | true⟩ <;> simp_all⟩
+      rw [List.filter_cons_of_neg
+        (p := fun c : Clause ℕ => !c.any fun l => answers.any (· == l)) (by simp [hsat])]
+      simp only [List.countP_cons, heval_c, hsat, ↓reduceIte]
       omega
     · have hsatF : (c.any fun l => answers.any (· == l)) = false := Bool.eq_false_iff.mpr hsat
       have heval_eq :
           Clause.eval σ (c.filter fun l => !answers.any (· == (l.1, !l.2))) = Clause.eval σ c := by
-        apply Bool.eq_iff_iff.mpr
+        refine Bool.eq_iff_iff.mpr ?_
         simp only [Clause.eval_eq_true_iff, List.mem_filter, Bool.not_eq_true', List.any_eq_false]
-        constructor
-        · rintro ⟨l, ⟨hlc, -⟩, hl⟩
-          exact ⟨l, hlc, hl⟩
-        · rintro ⟨l, hlc, hl⟩
-          refine ⟨l, ⟨hlc, fun l' hl'a hcontra => ?_⟩, hl⟩
-          have heq' : l' = (l.1, !l.2) := beq_iff_eq.mp hcontra
-          subst heq'
-          have hσ := hagree (l.1, !l.2) hl'a
-          cases l.2 <;> simp [hσ] at hl
-      have hfilt : (List.filter (fun c : Clause ℕ => !c.any fun l => answers.any (· == l))
-          (c :: cs)) =
-          c :: List.filter (fun c : Clause ℕ => !c.any fun l => answers.any (· == l)) cs :=
-        List.filter_cons_of_pos (p := fun c : Clause ℕ => !c.any fun l => answers.any (· == l))
-          (by simp [hsatF])
-      rw [hfilt, List.map_cons]
+        refine ⟨fun ⟨l, ⟨hlc, _⟩, hl⟩ => ⟨l, hlc, hl⟩, fun ⟨l, hlc, hl⟩ => ?_⟩
+        refine ⟨l, ⟨hlc, fun l' hl'a hcontra => ?_⟩, hl⟩
+        obtain rfl : l' = (l.1, !l.2) := beq_iff_eq.mp hcontra
+        have := hagree (l.1, !l.2) hl'a; cases l.2 <;> simp [this] at hl
+      rw [List.filter_cons_of_pos
+        (p := fun c : Clause ℕ => !c.any fun l => answers.any (· == l)) (by simp [hsatF]),
+        List.map_cons]
       simp only [List.countP_cons, hsatF, Bool.false_eq_true, ↓reduceIte, heval_eq]
       omega
 
 private theorem not_mem_vars_applyPartial {answers : List (Literal ℕ)} {φ : CNF ℕ} {v : ℕ}
     (hv : v ∈ answers.map Prod.fst) : v ∉ (applyPartial answers φ).vars := by
   obtain ⟨⟨v', b⟩, hmem, rfl⟩ := List.mem_map.mp hv
-  dsimp only at hmem ⊢
   intro hcontra
-  obtain ⟨c', hc', b', hb'⟩ := CNF.mem_vars.mp hcontra
-  simp only [applyPartial, List.mem_map, List.mem_filter] at hc'
+  obtain ⟨_, hc', b', hb'⟩ := CNF.mem_vars.mp hcontra
+  simp only [applyPartial, List.mem_map, List.mem_filter, Bool.not_eq_true',
+    List.any_eq_false] at hc'
   obtain ⟨c, ⟨_, hnot_sat⟩, rfl⟩ := hc'
-  simp only [List.mem_filter] at hb'
-  obtain ⟨hlc, hnot_neg⟩ := hb'
-  cases hbb : (b == b')
-  · have hb_eq : b = !b' := by cases b <;> cases b' <;> simp_all
-    subst hb_eq
-    have : (answers.any (· == (v', !b'))) = true :=
-      List.any_eq_true.mpr ⟨(v', !b'), hmem, by simp⟩
-    simp [this] at hnot_neg
-  · have hb_eq : b = b' := by simpa using hbb
-    subst hb_eq
-    have : (c.any fun l => answers.any (· == l)) = true :=
-      List.any_eq_true.mpr ⟨(v', b), hlc, List.any_eq_true.mpr ⟨(v', b), hmem, by simp⟩⟩
-    simp [this] at hnot_sat
+  simp only [List.mem_filter, Bool.not_eq_true', List.any_eq_false] at hb'
+  rcases eq_or_ne b b' with rfl | hne
+  · exact hnot_sat (v', b) hb'.1 (List.any_eq_true.mpr ⟨(v', b), hmem, beq_iff_eq.mpr rfl⟩)
+  · refine hb'.2 (v', !b') ?_ (beq_iff_eq.mpr rfl)
+    cases b <;> cases b' <;> simp_all
 
 /-- Querying `MaxSATThreshold` on `(applyPartial answers φ, target - satisfiedBy answers φ)`
 characterizes whether `answers` extends to a full assignment satisfying at least `target`
@@ -1185,63 +1246,24 @@ theorem mem_MaxSATThreshold_applyPartial_iff {answers : List (Literal ℕ)}
     (hnodup : (answers.map Prod.fst).Nodup) (φ : CNF ℕ) (target : ℕ) :
     MaxSATQuery.mk (applyPartial answers φ) (target - satisfiedBy answers φ) ∈ MaxSATThreshold ↔
       ∃ σ : ℕ → Bool, (∀ l ∈ answers, σ l.1 = l.2) ∧ target ≤ φ.countP (Clause.eval σ) := by
-  rw [mem_MaxSATThreshold_iff]
-  dsimp only
-  constructor
-  · rintro ⟨τ, hτ⟩
-    let σ : ℕ → Bool := fun u => if u ∈ answers.map Prod.fst then lookupVar answers u else τ u
-    have hagree : ∀ l ∈ answers, σ l.1 = l.2 := by
-      intro ⟨u, b⟩ hmem
-      have hu : u ∈ answers.map Prod.fst := List.mem_map_of_mem (f := Prod.fst) hmem
-      simp only [σ, hu, ↓reduceIte, lookupVar_eq_of_mem hnodup hmem]
+  refine ⟨fun ⟨τ, hτ⟩ => ?_, fun ⟨σ, hagree, hσ⟩ => ⟨σ, ?_⟩⟩
+  · let σ : ℕ → Bool := fun u => if u ∈ answers.map Prod.fst then lookupVar answers u else τ u
+    have hagree : ∀ l ∈ answers, σ l.1 = l.2 := fun ⟨u, b⟩ hm => by
+      simp only [σ, List.mem_map_of_mem (f := Prod.fst) hm, ↓reduceIte,
+        lookupVar_eq_of_mem hnodup hm]
     have hcongr : (applyPartial answers φ).countP (Clause.eval σ) =
         (applyPartial answers φ).countP (Clause.eval τ) :=
-      CNF.countP_eval_congr fun u hu => by
-        have hnot : u ∉ answers.map Prod.fst := fun hm => not_mem_vars_applyPartial hm hu
-        exact ite_eq_right_iff.mpr fun hm => absurd hm hnot
-    refine ⟨σ, hagree, ?_⟩
-    rw [countP_eval_eq_satisfiedBy_add_applyPartial hagree φ, hcongr]
-    omega
-  · rintro ⟨σ, hagree, hσ⟩
-    refine ⟨σ, ?_⟩
-    rw [countP_eval_eq_satisfiedBy_add_applyPartial hagree φ] at hσ
-    omega
+      CNF.countP_eval_congr fun u hu =>
+        ite_eq_right_iff.mpr fun hm => absurd hm (fun h => not_mem_vars_applyPartial h hu)
+    exact ⟨σ, hagree, by
+      dsimp only at hτ; rw [countP_eval_eq_satisfiedBy_add_applyPartial hagree φ, hcongr]; omega⟩
+  · dsimp only; rw [countP_eval_eq_satisfiedBy_add_applyPartial hagree φ] at hσ; omega
 
 /-- Encoded length of `applyPartial answers φ` never exceeds that of `φ`. -/
 theorem length_encCNF_applyPartial_le (answers : List (Literal ℕ)) (φ : CNF ℕ) :
-    (encCNF (applyPartial answers φ)).length ≤ (encCNF φ).length := by
-  have hcl : ∀ (p : Literal ℕ → Bool) (c : Clause ℕ),
-      (encList (encPair encNat encBool) (c.filter p)).length ≤
-        (encList (encPair encNat encBool) c).length := by
-    intro p c
-    induction c with
-    | nil => simp
-    | cons l ls ih =>
-      by_cases hp : p l
-      · simp only [List.filter_cons_of_pos hp, encList_cons, List.length_append]
-        exact Nat.add_le_add_left ih _
-      · simp only [List.filter_cons_of_neg hp]
-        exact ih.trans (by simp [encList_cons])
-  induction φ with
-  | nil => simp [applyPartial, encCNF]
-  | cons c cs ih =>
-    simp only [applyPartial] at ih ⊢
-    by_cases hsat : (!c.any fun l => answers.any (· == l)) = true
-    · rw [List.filter_cons_of_pos
-        (p := fun c : Clause ℕ => !c.any fun l => answers.any (· == l)) hsat, List.map_cons]
-      simp only [encCNF, encList_cons, List.length_append] at ih ⊢
-      set pLit : Literal ℕ → Bool := fun l => !answers.any (· == (l.1, !l.2))
-      have hsub : (encList (encPair encNat encBool) (c.filter pLit)).length ≤
-          (encList (encPair encNat encBool) c).length := hcl pLit c
-      have hfr : (frame (encList (encPair encNat encBool) (c.filter pLit))).length ≤
-          (frame (encList (encPair encNat encBool) c)).length := by
-        enc_len
-      exact Nat.add_le_add hfr ih
-    · rw [List.filter_cons_of_neg
-        (p := fun c : Clause ℕ => !c.any fun l => answers.any (· == l)) hsat]
-      refine ih.trans ?_
-      simp only [encCNF, encList_cons, List.length_append]
-      exact Nat.le_add_left _ _
+    (encCNF (applyPartial answers φ)).length ≤ (encCNF φ).length :=
+  (length_encList_map_le _ _ fun _ _ => length_encList_sublist _ List.filter_sublist).trans
+    (length_encList_sublist _ List.filter_sublist)
 
 /-- Query tested at one step of `MaxSAT` witness recovery. -/
 def recoverQuery (q : MaxSATQuery) (answers : List (Literal ℕ)) : MaxSATQuery :=
@@ -1327,6 +1349,18 @@ theorem mem_queriesWith_recoverProgram_length_le
     exact length_encMaxSATQuery_recoverQuery_le q ans
   · simp at hstep
 
+private theorem recover_append_map_fst {ans : List (Literal ℕ)} {φ : CNF ℕ} {i : ℕ}
+    (hlt : i < φ.distinctVars.length) (hinv : ans.map Prod.fst = φ.distinctVars.take i)
+    (b : Bool) :
+    (ans ++ [(φ.distinctVars.getD ans.length 0, b)]).map Prod.fst =
+      φ.distinctVars.take (i + 1) := by
+  have hlen : ans.length = i := by
+    have := congrArg List.length hinv
+    rw [List.length_map, List.length_take] at this; omega
+  rw [List.map_append, hinv, List.map_singleton, List.take_add_one, hlen,
+    List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some,
+    Option.toList_some]
+
 /-- If `q ∈ MaxSATThreshold` and `D` decides `MaxSATThreshold` on queries no longer than `q`,
 `recoverBits D q` yields an assignment satisfying at least `q.target` clauses of `q.formula`. -/
 theorem target_le_countP_recoverBits {D : MaxSATQuery → Bool} {q : MaxSATQuery}
@@ -1339,82 +1373,47 @@ theorem target_le_countP_recoverBits {D : MaxSATQuery → Bool} {q : MaxSATQuery
       let ans := (recoverStep D q)^[i] []
       ans.map Prod.fst = q.formula.distinctVars.take i ∧
         ∃ σ : ℕ → Bool, (∀ l ∈ ans, σ l.1 = l.2) ∧
-          q.target ≤ q.formula.countP (Clause.eval σ) := by
-    intro i hi
+          q.target ≤ q.formula.countP (Clause.eval σ) := fun i hi => by
     induction i with
-    | zero =>
-      obtain ⟨σ, hσ⟩ := hq
-      exact ⟨rfl, σ, fun _ h => by simp at h, hσ⟩
+    | zero => obtain ⟨σ, hσ⟩ := hq; exact ⟨rfl, σ, fun _ h => by simp at h, hσ⟩
     | succ i ih =>
       obtain ⟨hfst, σ, hagree, hσ⟩ := ih (by omega)
       set ans := (recoverStep D q)^[i] []
       have hlen : ans.length = i := by
-        have := congrArg List.length hfst
-        rw [List.length_map, List.length_take] at this
-        omega
-      have hlt_i : i < q.formula.distinctVars.length := by omega
-      have hlt : ans.length < q.formula.distinctVars.length := by omega
-      rw [Function.iterate_succ_apply', recoverStep, ite_eq_left hlt]
-      set v := q.formula.distinctVars.getD ans.length 0
-      have hv_eq : v = q.formula.distinctVars[i] := by
-        dsimp only [v]
-        rw [hlen, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt_i, Option.getD_some]
-      have hfst_step : ∀ b : Bool,
-          (ans ++ [(v, b)]).map Prod.fst = q.formula.distinctVars.take (i + 1) := by
-        intro b
-        rw [List.map_append, hfst, List.map_singleton, hv_eq, List.take_add_one,
-          List.getElem?_eq_getElem hlt_i, Option.toList_some]
-      have hnodup_cand : ((ans ++ [(v, true)]).map Prod.fst).Nodup := by
-        rw [hfst_step true]
-        exact hnodup_dv.take
+        have := congrArg List.length hfst; rw [List.length_map, List.length_take] at this; omega
+      have hlt : i < q.formula.distinctVars.length := by omega
+      have hlt_a : ans.length < q.formula.distinctVars.length := by omega
+      rw [Function.iterate_succ_apply', recoverStep, ite_eq_left hlt_a]
+      have hstep := fun b => recover_append_map_fst hlt hfst b
+      have hnodup_cand : ((ans ++ [(q.formula.distinctVars.getD ans.length 0, true)]).map
+          Prod.fst).Nodup := hstep true ▸ hnodup_dv.take
       have hqlen := length_encMaxSATQuery_recoverQuery_le q ans
-      refine ⟨hfst_step _, ?_⟩
+      refine ⟨hstep _, ?_⟩
       cases hb : D (recoverQuery q ans)
       · have hnot : recoverQuery q ans ∉ MaxSATThreshold :=
           fun hm => Bool.noConfusion (hb.symm.trans ((hD _ hqlen).mpr hm))
         rw [recoverQuery, mem_MaxSATThreshold_applyPartial_iff hnodup_cand] at hnot
-        have hσv : σ v = false := by
-          cases hsv : σ v
-          · rfl
-          · exfalso
-            refine hnot ⟨σ, fun l hl => ?_, hσ⟩
-            rcases List.mem_append.mp hl with hl1 | hl2
-            · exact hagree l hl1
-            · rw [List.mem_singleton] at hl2
-              subst hl2
-              exact hsv
-        refine ⟨σ, fun l hl => ?_, hσ⟩
-        rcases List.mem_append.mp hl with hl1 | hl2
-        · exact hagree l hl1
-        · rw [List.mem_singleton] at hl2
-          subst hl2
-          exact hσv
-      · have hm : recoverQuery q ans ∈ MaxSATThreshold := (hD _ hqlen).mp hb
-        rw [recoverQuery, mem_MaxSATThreshold_applyPartial_iff hnodup_cand] at hm
-        exact hm
+        have hagree_ext : ∀ b, σ (q.formula.distinctVars.getD ans.length 0) = b →
+            ∀ l ∈ ans ++ [(q.formula.distinctVars.getD ans.length 0, b)], σ l.1 = l.2 :=
+          fun b hbv l hl => (List.mem_append.mp hl).elim (hagree l) fun hm => by
+            obtain rfl := List.mem_singleton.mp hm; exact hbv
+        have hσv : σ (q.formula.distinctVars.getD ans.length 0) = false :=
+          Bool.eq_false_iff.mpr fun ht => hnot ⟨σ, hagree_ext true ht, hσ⟩
+        exact ⟨σ, hagree_ext false hσv, hσ⟩
+      · exact (mem_MaxSATThreshold_applyPartial_iff hnodup_cand _ _).mp ((hD _ hqlen).mp hb)
   have hnv : q.formula.numVars = q.formula.distinctVars.length :=
     (CNF.length_distinctVars q.formula).symm
   obtain ⟨hfst, σ, hagree, hσ⟩ := hloop q.formula.numVars (by omega)
-  rw [hnv, List.take_length] at hfst
-  rw [← hnv] at hfst
+  rw [hnv, List.take_length, ← hnv] at hfst
   set ans := (recoverStep D q)^[q.formula.numVars] []
-  have hnodup_ans : (ans.map Prod.fst).Nodup := by
-    rw [hfst]
-    exact hnodup_dv
   have hcongr : q.formula.countP (Clause.eval (SAT.assignment q.formula (recoverBits D q))) =
-      q.formula.countP (Clause.eval σ) := by
-    refine CNF.countP_eval_congr fun v hv => ?_
+      q.formula.countP (Clause.eval σ) := CNF.countP_eval_congr fun v hv => by
     have hbits : SAT.assignment q.formula (recoverBits D q) v = lookupVar ans v :=
       SAT.assignment_vars_map _ _ hv
     rw [hbits]
-    have hdv : v ∈ ans.map Prod.fst := by
-      rw [hfst, CNF.mem_distinctVars]
-      exact hv
-    obtain ⟨⟨v', b⟩, hmem, rfl⟩ := List.mem_map.mp hdv
-    dsimp only at hmem ⊢
-    rw [lookupVar_eq_of_mem hnodup_ans hmem, hagree (v', b) hmem]
-  rw [hcongr]
-  exact hσ
+    obtain ⟨⟨v', b⟩, hmem, rfl⟩ := List.mem_map.mp (hfst ▸ CNF.mem_distinctVars.mpr hv)
+    exact (lookupVar_eq_of_mem (hfst ▸ hnodup_dv) hmem).trans (hagree (v', b) hmem).symm
+  exact hcongr ▸ hσ
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_nextRecoverVar :
@@ -1429,87 +1428,43 @@ open ComputableInPolyTime in
 private theorem computableInPolyTime_recoverQuery :
     ComputableInPolyTime (fun p : MaxSATQuery × List (Literal ℕ) => recoverQuery p.1 p.2)
       (encPair encMaxSATQuery (encList (encPair encNat encBool))) encMaxSATQuery := by
+  let ELit := encPair encNat encBool
+  let E := encPair encMaxSATQuery (encList ELit)
   have hφ : ComputableInPolyTime (fun p : MaxSATQuery × List (Literal ℕ) => p.1.formula)
-      (encPair encMaxSATQuery (encList (encPair encNat encBool)))
-      (encList (encList (encPair encNat encBool))) :=
+      E (encList (encList ELit)) :=
     encMaxSATQuery_formula_polyTime (fst _ _)
-  have hcand : ComputableInPolyTime
-      (fun p : MaxSATQuery × List (Literal ℕ) =>
-        p.2 ++ [(p.1.formula.distinctVars.getD p.2.length 0, true)])
-      (encPair encMaxSATQuery (encList (encPair encNat encBool)))
-      (encList (encPair encNat encBool)) :=
+  have hcand : ComputableInPolyTime (fun p : MaxSATQuery × List (Literal ℕ) =>
+      p.2 ++ [(p.1.formula.distinctVars.getD p.2.length 0, true)]) E (encList ELit) :=
     listAppend' (snd _ _) (cons' (computableInPolyTime_nextRecoverVar.prod (const true)) (const []))
-  have hlitEq : ComputableInPolyTime
-      (fun x : Literal ℕ × Literal ℕ => x.1 == x.2)
-      (encPair (encPair encNat encBool) (encPair encNat encBool)) encBool := by
-    have h1 := decide_eq' (encB := encNat)
-      ((fst (encPair encNat encBool) (encPair encNat encBool)).fst')
-      ((snd (encPair encNat encBool) (encPair encNat encBool)).fst')
-    have h2 := decide_eq' (encB := encBool)
-      ((fst (encPair encNat encBool) (encPair encNat encBool)).snd')
-      ((snd (encPair encNat encBool) (encPair encNat encBool)).snd')
-    exact (bool_and' h1 h2).of_enc_eq fun ⟨⟨n1, b1⟩, ⟨n2, b2⟩⟩ =>
-      congrArg encBool (Bool.eq_iff_iff.mpr (by simp))
+  have hlitEq : ComputableInPolyTime (fun x : Literal ℕ × Literal ℕ => x.1 == x.2)
+      (encPair ELit ELit) encBool :=
+    (bool_and' (decide_eq' (encB := encNat) (fst ELit ELit).fst' (snd ELit ELit).fst')
+      (decide_eq' (encB := encBool) (fst ELit ELit).snd' (snd ELit ELit).snd')).of_enc_eq
+      fun ⟨⟨_, _⟩, ⟨_, _⟩⟩ => congrArg encBool (Bool.eq_iff_iff.mpr (by simp))
   have hclauseSat : ComputableInPolyTime
       (fun x : List (Literal ℕ) × Clause ℕ => x.2.any fun l => x.1.any (· == l))
-      (encPair (encList (encPair encNat encBool)) (encList (encPair encNat encBool))) encBool :=
+      (encPair (encList ELit) (encList ELit)) encBool :=
     anyWithInput (snd _ _) (anyWithInput ((fst _ _).comp (fst _ _))
       (hlitEq.comp ((snd _ _).prod ((snd _ _).comp (fst _ _)))))
-  have hsatBy : ComputableInPolyTime
-      (fun p : MaxSATQuery × List (Literal ℕ) =>
-        satisfiedBy (p.2 ++ [(p.1.formula.distinctVars.getD p.2.length 0, true)]) p.1.formula)
-      (encPair encMaxSATQuery (encList (encPair encNat encBool))) encNat :=
-    unary_to_binary.comp (countPWith hclauseSat hcand hφ)
-  have hap : ComputableInPolyTime
-      (fun p : MaxSATQuery × List (Literal ℕ) =>
-        applyPartial (p.2 ++ [(p.1.formula.distinctVars.getD p.2.length 0, true)]) p.1.formula)
-      (encPair encMaxSATQuery (encList (encPair encNat encBool))) encCNF := by
-    have hkeepClause : ComputableInPolyTime
-        (fun x : (MaxSATQuery × List (Literal ℕ)) × Clause ℕ =>
-          !x.2.any fun l =>
-            (x.1.2 ++ [(x.1.1.formula.distinctVars.getD x.1.2.length 0, true)]).any (· == l))
-        (encPair (encPair encMaxSATQuery (encList (encPair encNat encBool)))
-          (encList (encPair encNat encBool))) encBool :=
-      bool_not.comp (hclauseSat.comp ((hcand.comp (fst _ _)).prod (snd _ _)))
-    have hf1 := filterWithInput
-      (test := fun (p : MaxSATQuery × List (Literal ℕ)) (c : Clause ℕ) =>
-        !c.any fun l =>
-          (p.2 ++ [(p.1.formula.distinctVars.getD p.2.length 0, true)]).any (· == l))
-      hφ hkeepClause
-    have hkeepLit : ComputableInPolyTime
-        (fun y : ((MaxSATQuery × List (Literal ℕ)) × Clause ℕ) × Literal ℕ =>
-          !(y.1.1.2 ++ [(y.1.1.1.formula.distinctVars.getD y.1.1.2.length 0, true)]).any
-            (· == (y.2.1, !y.2.2)))
-        (encPair (encPair (encPair encMaxSATQuery (encList (encPair encNat encBool)))
-          (encList (encPair encNat encBool))) (encPair encNat encBool)) encBool := by
-      have hnegLit : ComputableInPolyTime
-          (fun y : ((MaxSATQuery × List (Literal ℕ)) × Clause ℕ) × Literal ℕ => (y.2.1, !y.2.2))
-          (encPair (encPair (encPair encMaxSATQuery (encList (encPair encNat encBool)))
-            (encList (encPair encNat encBool))) (encPair encNat encBool))
-          (encPair encNat encBool) :=
-        ((snd _ _).fst').prod (bool_not.comp ((snd _ _).snd'))
-      have hany := anyWithInput
-        (test := fun (y : ((MaxSATQuery × List (Literal ℕ)) × Clause ℕ) × Literal ℕ)
-          (m : Literal ℕ) => m == (y.2.1, !y.2.2))
-        ((hcand.comp (fst _ _)).comp (fst _ _))
-        (hlitEq.comp ((snd _ _).prod (hnegLit.comp (fst _ _))))
-      exact bool_not.comp hany
-    have hfLit : ComputableInPolyTime
-        (fun x : (MaxSATQuery × List (Literal ℕ)) × Clause ℕ =>
-          x.2.filter fun l =>
-            !(x.1.2 ++ [(x.1.1.formula.distinctVars.getD x.1.2.length 0, true)]).any
-              (· == (l.1, !l.2)))
-        (encPair (encPair encMaxSATQuery (encList (encPair encNat encBool)))
-          (encList (encPair encNat encBool)))
-        (encList (encPair encNat encBool)) :=
-      filterWithInput
-        (test := fun (x : (MaxSATQuery × List (Literal ℕ)) × Clause ℕ) (l : Literal ℕ) =>
-          !(x.1.2 ++ [(x.1.1.formula.distinctVars.getD x.1.2.length 0, true)]).any
-            (· == (l.1, !l.2)))
-        (snd _ _) hkeepLit
-    exact (ComputableInPolyTime.mapWithInput hf1 hfLit)
+  have hf1 := filterWithInput
+    (test := fun (p : MaxSATQuery × List (Literal ℕ)) (c : Clause ℕ) =>
+      !c.any fun l =>
+        (p.2 ++ [(p.1.formula.distinctVars.getD p.2.length 0, true)]).any (· == l))
+    hφ (bool_not.comp (hclauseSat.comp ((hcand.comp (fst _ _)).prod (snd _ _))))
+  have hnegLit : ComputableInPolyTime (fun y : ((MaxSATQuery × List (Literal ℕ)) × Clause ℕ) ×
+      Literal ℕ => (y.2.1, !y.2.2)) (encPair (encPair E (encList ELit)) ELit) ELit :=
+    (snd _ _).fst'.prod (bool_not.comp (snd _ _).snd')
+  have hkeepLit := bool_not.comp (anyWithInput
+    (test := fun (y : ((MaxSATQuery × List (Literal ℕ)) × Clause ℕ) × Literal ℕ)
+      (m : Literal ℕ) => m == (y.2.1, !y.2.2))
+    ((hcand.comp (fst _ _)).comp (fst _ _)) (hlitEq.comp ((snd _ _).prod (hnegLit.comp (fst _ _)))))
+  have hap : ComputableInPolyTime (fun p : MaxSATQuery × List (Literal ℕ) =>
+      applyPartial (p.2 ++ [(p.1.formula.distinctVars.getD p.2.length 0, true)]) p.1.formula)
+      E (encList (encList ELit)) :=
+    mapWithInput hf1 (filterWithInput (snd _ _) hkeepLit)
   exact encMaxSATQuery_mk_polyTime hap
-    (binary_sub' (encMaxSATQuery_target_polyTime (fst _ _)) hsatBy)
+    (binary_sub' (encMaxSATQuery_target_polyTime (fst _ _))
+      (unary_to_binary.comp (countPWith hclauseSat hcand hφ)))
 
 open ComputableInPolyTime in
 private theorem isOraclePPTOn_recoverStepProgram :
@@ -1517,140 +1472,87 @@ private theorem isOraclePPTOn_recoverStepProgram :
       (encList (encPair encNat encBool))
       (fun pair => OracleComp.interpret ProbOracleComp.query
         (recoverStepProgram pair.1 pair.2)) := by
+  let EL := encList (encPair encNat encBool)
   have hcond : ComputableInPolyTime
-      (fun pair : MaxSATQuery × List (Literal ℕ) =>
-        decide (pair.2.length < pair.1.formula.distinctVars.length))
-      (encPair encMaxSATQuery (encList (encPair encNat encBool))) encBool :=
-    unary_lt.comp (((length_list _).comp (snd _ _)).prod
-      ((length_list _).comp
-        (SAT.computableInPolyTime_distinctVars.comp (encMaxSATQuery_formula_polyTime (fst _ _)))))
-  have hreq : ComputableInPolyTime
-      (fun pair : MaxSATQuery × List (Literal ℕ) =>
-        encMaxSATQuery (recoverQuery pair.1 pair.2))
-      (encPair encMaxSATQuery (encList (encPair encNat encBool))) encBits :=
-    computableInPolyTime_recoverQuery.encoding_comp
+      (fun p : MaxSATQuery × List (Literal ℕ) =>
+        decide (p.2.length < p.1.formula.distinctVars.length))
+      (encPair encMaxSATQuery EL) encBool :=
+    unary_lt.comp (((length_list _).comp (snd _ _)).prod ((length_list _).comp
+      (SAT.computableInPolyTime_distinctVars.comp (encMaxSATQuery_formula_polyTime (fst _ _)))))
   have hpost : ComputableInPolyTime
       (fun p : (MaxSATQuery × List (Literal ℕ)) × Bool =>
         p.1.2 ++ [(p.1.1.formula.distinctVars.getD p.1.2.length 0, p.2)])
-      (encPair (encPair encMaxSATQuery (encList (encPair encNat encBool))) encBool)
-      (encList (encPair encNat encBool)) :=
+      (encPair (encPair encMaxSATQuery EL) encBool) EL :=
     listAppend' ((snd _ _).comp (fst _ _))
       (cons' ((computableInPolyTime_nextRecoverVar.comp (fst _ _)).prod (snd _ _)) (const []))
-  have hyes := (isOraclePPTOn_queryBit hreq).map_with
-    (f := fun (pair : MaxSATQuery × List (Literal ℕ)) (b : Bool) =>
-      pair.2 ++ [(pair.1.formula.distinctVars.getD pair.2.length 0, b)]) hpost
-  have hno : IsOraclePPTOn (Operation := Unit)
-      (encPair encMaxSATQuery (encList (encPair encNat encBool)))
-      (encList (encPair encNat encBool))
-      (fun pair : MaxSATQuery × List (Literal ℕ) => pure pair.2) :=
-    (snd _ _).isOraclePPTOn
-  refine (IsOraclePPTOn.ite
-    (condition := fun pair : MaxSATQuery × List (Literal ℕ) =>
-      pair.2.length < pair.1.formula.distinctVars.length)
-    hcond hyes hno).congr fun pair State oracle s => ?_
-  unfold recoverStepProgram
-  split_ifs <;> simp only [OracleComp.interpret_map, OracleComp.interpret_pure]
+  refine (IsOraclePPTOn.ite (condition := fun p : MaxSATQuery × List (Literal ℕ) =>
+      p.2.length < p.1.formula.distinctVars.length) hcond
+    ((isOraclePPTOn_queryBit computableInPolyTime_recoverQuery.encoding_comp).map_with
+      (f := fun p b => p.2 ++ [(p.1.formula.distinctVars.getD p.2.length 0, b)]) hpost)
+    (snd encMaxSATQuery EL).isOraclePPTOn).congr fun p State oracle s => ?_
+  unfold recoverStepProgram; split_ifs <;>
+    simp only [OracleComp.interpret_map, OracleComp.interpret_pure]
 
 open ComputableInPolyTime in
 /-- `recoverProgram` is strict oracle PPT on `encMaxSATQuery`. -/
 theorem isOraclePPTOn_recoverProgram :
     IsOraclePPTOn encMaxSATQuery encBits
       (fun q => OracleComp.interpret ProbOracleComp.query (recoverProgram q)) := by
-  have hcount : ComputableInPolyTime (fun q : MaxSATQuery => CNF.numVars q.formula)
-      encMaxSATQuery encUnary :=
-    SAT.computableInPolyTime_numVars.comp (encMaxSATQuery_formula_polyTime id')
+  let EL := encList (encPair encNat encBool)
   have hsize : PolyBounded (fun q : MaxSATQuery => (encMaxSATQuery q).length)
-      (fun q => (encMaxSATQuery q).length * (4 * (encMaxSATQuery q).length + 5)) := by
-    growth_poly
-  have hit := IsOraclePPTOn.iterateWith_spec (input := encMaxSATQuery)
-    (stateEncoding := encList (encPair encNat encBool))
-    (count := fun q => CNF.numVars q.formula)
-    (initial := fun _ => [])
+      (fun q => (encMaxSATQuery q).length * (4 * (encMaxSATQuery q).length + 5)) := by growth_poly
+  have hit := IsOraclePPTOn.iterateWith_spec (input := encMaxSATQuery) (stateEncoding := EL)
+    (count := fun q => CNF.numVars q.formula) (initial := fun _ => [])
     (step := fun q ans => OracleComp.interpret ProbOracleComp.query (recoverStepProgram q ans))
-    hcount (const []) isOraclePPTOn_recoverStepProgram
-    (fun q i ans => ans.map Prod.fst = q.formula.distinctVars.take i)
-    (fun _ => rfl)
+    (SAT.computableInPolyTime_numVars.comp (encMaxSATQuery_formula_polyTime id'))
+    (const []) isOraclePPTOn_recoverStepProgram
+    (fun q i ans => ans.map Prod.fst = q.formula.distinctVars.take i) (fun _ => rfl)
     (fun q i ans hi hinv next hnext => by
       have hnv := (CNF.length_distinctVars q.formula).symm
       have hlen : ans.length = i := by
-        have := congrArg List.length hinv
-        rw [List.length_map, List.length_take] at this
-        omega
-      have hlt_i : i < q.formula.distinctVars.length := by omega
+        have := congrArg List.length hinv; rw [List.length_map, List.length_take] at this; omega
       unfold recoverStepProgram at hnext
       rw [ite_eq_left (by omega), OracleComp.interpret_map] at hnext
       obtain ⟨b, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-      rw [List.map_append, hinv, List.map_singleton, List.take_add_one,
-        List.getElem?_eq_getElem hlt_i, Option.toList_some, hlen,
-        List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt_i, Option.getD_some])
+      exact recover_append_map_fst (by omega) hinv b)
     hsize
     (fun q i ans hi hinv => by
       have hnv := (CNF.length_distinctVars q.formula).symm
-      have hmem : ∀ l ∈ ans, l.1 ∈ q.formula.vars := fun l hl => by
-        have hdv : l.1 ∈ q.formula.distinctVars :=
-          List.mem_of_mem_take (hinv ▸ List.mem_map_of_mem hl)
-        exact CNF.mem_distinctVars.mp hdv
       have hlen : ans.length ≤ CNF.numVars q.formula := by
-        have := congrArg List.length hinv
-        rw [List.length_map, List.length_take] at this
-        omega
-      have hnv_le : CNF.numVars q.formula ≤ (encMaxSATQuery q).length := by
-        have h1 : CNF.numVars q.formula ≤ q.formula.vars.length :=
-          CNF.numVars_le_length_vars q.formula
-        have h2 := SAT.length_vars_le q.formula
-        simp only [encMaxSATQuery_apply, encMaxSATQueryFields]
-        exact (h1.trans h2).trans (length_le_encPair_left encCNF encNat (q.formula, q.target))
-      have hcnf_le : (encCNF q.formula).length ≤ (encMaxSATQuery q).length := by
-        simp only [encMaxSATQuery_apply, encMaxSATQueryFields]
-        exact length_le_encPair_left encCNF encNat (q.formula, q.target)
-      calc (encList (encPair encNat encBool) ans).length
-          ≤ ans.length * (4 * (encCNF q.formula).length + 5) :=
-            SAT.length_encList_le_of_mem_vars hmem
-        _ ≤ (encMaxSATQuery q).length * (4 * (encMaxSATQuery q).length + 5) :=
-            Nat.mul_le_mul (hlen.trans hnv_le) (by omega))
-  have hlookup : ComputableInPolyTime
-      (fun x : (MaxSATQuery × List (Literal ℕ)) × ℕ => lookupVar x.1.2 x.2)
-      (encPair (encPair encMaxSATQuery (encList (encPair encNat encBool))) encNat) encBool := by
-    have heq_var : ComputableInPolyTime
-        (fun p : ((MaxSATQuery × List (Literal ℕ)) × ℕ) × Literal ℕ => p.2.1 == p.1.2)
-        (encPair (encPair (encPair encMaxSATQuery (encList (encPair encNat encBool))) encNat)
-          (encPair encNat encBool)) encBool := by
-      have h1 := decide_eq' (encB := encNat)
-        ((fst encNat encBool).comp (snd _ _))
-        ((snd (encPair encMaxSATQuery (encList (encPair encNat encBool))) encNat).comp (fst _ _))
-      exact h1.of_enc_eq fun ⟨⟨_, v⟩, ⟨u, _⟩⟩ => by
-        dsimp only [Function.comp]
-        exact congrArg encBool (Bool.eq_iff_iff.mpr (by simp))
-    have hfnd := findWithInput
-      (test := fun (x : (MaxSATQuery × List (Literal ℕ)) × ℕ) (l : Literal ℕ) => l.1 == x.2)
-      (list := fun x : (MaxSATQuery × List (Literal ℕ)) × ℕ => x.1.2)
-      ((snd _ _).comp (fst _ _)) heq_var
-    have hget : ComputableInPolyTime
-        (fun o : Option (Literal ℕ) => match o with | some l => l.2 | none => false)
-        (encOption (encPair encNat encBool)) encBool := by
-      have hcond : ComputableInPolyTime Option.isSome (encOption (encPair encNat encBool))
-          encBool := by fun_prop
-      have hval : ComputableInPolyTime
-          (fun o : Option (Literal ℕ) => (o.getD (0, false)).2)
-          (encOption (encPair encNat encBool)) encBool := by fun_prop
-      exact (ComputableInPolyTime.ite' hcond hval (const false)).of_enc_eq fun o => by
-        cases o <;> rfl
-    exact hget.comp hfnd
+        have := congrArg List.length hinv; rw [List.length_map, List.length_take] at this; omega
+      have hcnf_le : (encCNF q.formula).length ≤ (encMaxSATQuery q).length :=
+        length_le_encPair_left encCNF encNat (q.formula, q.target)
+      have hnv_le : CNF.numVars q.formula ≤ (encMaxSATQuery q).length :=
+        ((CNF.numVars_le_length_vars q.formula).trans (SAT.length_vars_le q.formula)).trans hcnf_le
+      have hmem : ∀ l ∈ ans, l.1 ∈ q.formula.vars := fun l hl =>
+        CNF.mem_distinctVars.mp (List.mem_of_mem_take (hinv ▸ List.mem_map_of_mem hl))
+      exact (SAT.length_encList_le_of_mem_vars hmem).trans
+        (Nat.mul_le_mul (hlen.trans hnv_le) (by omega)))
+  have heq_var : ComputableInPolyTime
+      (fun p : ((MaxSATQuery × List (Literal ℕ)) × ℕ) × Literal ℕ => p.2.1 == p.1.2)
+      (encPair (encPair (encPair encMaxSATQuery EL) encNat) (encPair encNat encBool)) encBool :=
+    (decide_eq' (encB := encNat) ((fst encNat encBool).comp (snd _ _))
+      ((snd (encPair encMaxSATQuery EL) encNat).comp (fst _ _))).of_enc_eq fun ⟨⟨_, _⟩, ⟨_, _⟩⟩ =>
+      congrArg encBool (Bool.eq_iff_iff.mpr (by simp))
+  have hget : ComputableInPolyTime
+      (fun o : Option (Literal ℕ) => match o with | some l => l.2 | none => false)
+      (encOption (encPair encNat encBool)) encBool :=
+    (ite' (by fun_prop : ComputableInPolyTime Option.isSome
+        (encOption (encPair encNat encBool)) encBool)
+      (by fun_prop : ComputableInPolyTime (fun o : Option (Literal ℕ) => (o.getD (0, false)).2)
+        (encOption (encPair encNat encBool)) encBool)
+      (const false)).of_enc_eq fun o => by cases o <;> rfl
+  have hlookup := hget.comp (findWithInput
+    (test := fun (x : (MaxSATQuery × List (Literal ℕ)) × ℕ) (l : Literal ℕ) => l.1 == x.2)
+    (list := fun x : (MaxSATQuery × List (Literal ℕ)) × ℕ => x.1.2)
+    ((snd encMaxSATQuery (encList (encPair encNat encBool))).comp (fst _ _)) heq_var)
   have hpost : ComputableInPolyTime
-      (fun pair : MaxSATQuery × List (Literal ℕ) =>
-        pair.1.formula.vars.map (lookupVar pair.2))
-      (encPair encMaxSATQuery (encList (encPair encNat encBool))) encBits := by
-    have hvars := SAT.computableInPolyTime_vars.comp
-      (encMaxSATQuery_formula_polyTime (fst encMaxSATQuery (encList (encPair encNat encBool))))
-    have hmap : ComputableInPolyTime
-        (fun pair : MaxSATQuery × List (Literal ℕ) =>
-          pair.1.formula.vars.map (lookupVar pair.2))
-        (encPair encMaxSATQuery (encList (encPair encNat encBool))) (encList encBool) :=
-      (ComputableInPolyTime.mapWithInput hvars hlookup)
-    exact listToBits.comp hmap
+      (fun p : MaxSATQuery × List (Literal ℕ) => p.1.formula.vars.map (lookupVar p.2))
+      (encPair encMaxSATQuery EL) encBits :=
+    listToBits.comp (mapWithInput
+      (SAT.computableInPolyTime_vars.comp (encMaxSATQuery_formula_polyTime (fst _ _))) hlookup)
   simpa only [recoverProgram, OracleComp.interpret_map, OracleComp.interpret_iterate] using
-    hit.1.map_with (f := fun (q : MaxSATQuery) (ans : List (Literal ℕ)) =>
-      q.formula.vars.map (lookupVar ans)) hpost
+    hit.1.map_with (f := fun q ans => q.formula.vars.map (lookupVar ans)) hpost
 
 /-- Combined adaptive oracle program solving Max-SAT optimization and optimal witness recovery:
 bisect on `[1, φ.length + 1)`, subtract `1` for `optValue`, and run
@@ -1678,70 +1580,46 @@ theorem solveMaxSATProgram_query_bounds (answer : Unit × List Bool → List Boo
   rw [OracleComp.queriesWith_bind]
   set k : ℕ := OracleComp.interpret (m := Id) answer
     (bisectProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1) (fun ψ => ψ.length + 1) φ)
-  have hk_le : k - 1 ≤ φ.length := by
-    have hiter : ∀ s (iv : BisectInterval),
-        iv.lo ≤ φ.length + 1 → iv.hi ≤ φ.length + 1 →
-        (OracleComp.interpret (m := Id) answer
-          (OracleComp.iterate s
-            (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ) iv) : BisectInterval).lo ≤
-          φ.length + 1 := by
-      intro s
-      induction s with
-      | zero => intro iv h1 _; exact h1
-      | succ s' ih =>
-        intro iv h1 h2
-        rw [OracleComp.iterate_succ_bind, OracleComp.interpret_bind]
-        have hstep :
-            let iv' : BisectInterval := OracleComp.interpret (m := Id) answer
-              (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ iv)
-            iv'.lo ≤ φ.length + 1 ∧ iv'.hi ≤ φ.length + 1 := by
-          unfold bisectStepProgram
-          split_ifs
-          · rw [OracleComp.interpret_map]
-            set b : Bool := OracleComp.interpret (m := Id) answer _
-            change (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-                else BisectInterval.mk iv.lo ((iv.lo + iv.hi) / 2)).lo ≤ φ.length + 1 ∧
-              (if b then BisectInterval.mk ((iv.lo + iv.hi) / 2 + 1) iv.hi
-                else BisectInterval.mk iv.lo ((iv.lo + iv.hi) / 2)).hi ≤ φ.length + 1
-            cases b <;> simp only [↓reduceIte, Bool.false_eq_true] <;> exact ⟨by omega, by omega⟩
-          · exact ⟨h1, h2⟩
-        exact ih _ hstep.1 hstep.2
-    have hk_eq : k = (OracleComp.interpret (m := Id) answer
-        (OracleComp.iterate ((φ.length + 1 - 1).size)
-          (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ) ⟨1, φ.length + 1⟩) :
-        BisectInterval).lo := by
-      simp only [k, bisectProgram, OracleComp.interpret_map]
-      rfl
-    have hk_bound : k ≤ φ.length + 1 := by
-      rw [hk_eq]
-      exact hiter ((φ.length + 1 - 1).size) ⟨1, φ.length + 1⟩
-        (Nat.le_add_left 1 φ.length) (le_refl _)
-    omega
-  constructor
-  · rw [List.length_append]
-    have h1 := length_queriesWith_bisectProgram_le answer
+  have hk_bound : k ≤ φ.length + 1 := by
+    suffices ∀ s (iv : BisectInterval), iv.lo ≤ φ.length + 1 → iv.hi ≤ φ.length + 1 →
+        ((fun st => OracleComp.interpret (m := Id) answer
+          (bisectStepProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) φ st))^[s] iv).lo ≤
+          φ.length + 1 by
+      simp only [k, bisectProgram, OracleComp.interpret_map, OracleComp.interpret_id_iterate]
+      exact this _ _ (Nat.le_add_left 1 φ.length) le_rfl
+    intro s
+    induction s with
+    | zero => exact fun _ h1 _ => h1
+    | succ s ih =>
+      intro iv h1 h2
+      rw [Function.iterate_succ_apply]
+      unfold bisectStepProgram
+      split_ifs with hlt
+      · rw [OracleComp.interpret_map]
+        cases (OracleComp.interpret (m := Id) answer _ : Bool)
+        · refine ih _ h1 ?_
+          dsimp only [Functor.map]
+          simp only [Bool.false_eq_true, ↓reduceIte]; omega
+        · refine ih _ ?_ h2
+          dsimp only [Functor.map]
+          simp only [↓reduceIte]; omega
+      · exact ih iv h1 h2
+  refine ⟨?_, fun req hreq => ?_⟩
+  · have h1 := length_queriesWith_bisectProgram_le answer
       (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1) (fun ψ => ψ.length + 1) φ
-    have h2 : (OracleComp.queriesWith answer
-        (recoverProgram ⟨φ, k - 1⟩ >>= fun bits => pure (MaxSATSolution.mk (k - 1) bits))).length ≤
-        CNF.numVars φ := by
-      rw [OracleComp.queriesWith_bind, OracleComp.queriesWith_pure, List.append_nil]
-      exact length_queriesWith_recoverProgram_le answer ⟨φ, k - 1⟩
     simp only [Nat.add_sub_cancel] at h1
-    exact Nat.add_le_add h1 h2
-  · intro req hreq
-    rw [List.mem_append] at hreq
-    rcases hreq with h1 | h2
+    rw [List.length_append, OracleComp.queriesWith_bind, OracleComp.queriesWith_pure,
+      List.append_nil]
+    exact Nat.add_le_add h1 (length_queriesWith_recoverProgram_le answer ⟨φ, k - 1⟩)
+  · rcases List.mem_append.mp hreq with h1 | h2
     · obtain ⟨m, _, hm_lt, rfl⟩ := mem_queriesWith_bisectProgram answer
         (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1) (fun ψ => ψ.length + 1) φ h1
-      simp only [encMaxSATQuery_apply, encMaxSATQueryFields]
-      have hm_le : (encNat m).length ≤ (encNat φ.length).length := length_encNat_mono (by omega)
-      enc_len
+      have hm_le := length_encNat_mono (show m ≤ φ.length by omega)
+      simp only [encMaxSATQuery_apply, encMaxSATQueryFields]; enc_len
     · rw [OracleComp.queriesWith_bind, OracleComp.queriesWith_pure, List.append_nil] at h2
-      have hlen_rec := mem_queriesWith_recoverProgram_length_le answer ⟨φ, k - 1⟩ h2
-      refine hlen_rec.trans ?_
-      simp only [encMaxSATQuery_apply, encMaxSATQueryFields]
-      have hk_enc := length_encNat_mono hk_le
-      enc_len
+      refine (mem_queriesWith_recoverProgram_length_le answer ⟨φ, k - 1⟩ h2).trans ?_
+      have hk_enc := length_encNat_mono (show k - 1 ≤ φ.length by omega)
+      simp only [encMaxSATQuery_apply, encMaxSATQueryFields]; enc_len
 
 /-- **Correctness of `solveMaxSAT` against `encMaxSATQuery '' MaxSATThreshold`.** Recovers both
 `optValue = maxClauseScore φ` and an assignment achieving `maxClauseScore φ`. -/
@@ -1752,51 +1630,27 @@ theorem solveMaxSAT_spec (φ : CNF ℕ) :
       ∀ σ : ℕ → Bool, φ.countP (Clause.eval σ) ≤ sol.optValue := by
   classical
   set A := encMaxSATQuery '' MaxSATThreshold
-  have hmem_iff : ∀ r : MaxSATQuery,
-      decide (encMaxSATQuery r ∈ A) = true ↔ r ∈ MaxSATThreshold := by
-    intro r
+  have hmem_iff (r : MaxSATQuery) : decide (encMaxSATQuery r ∈ A) = true ↔ r ∈ MaxSATThreshold := by
     rw [decide_eq_true_iff, encMaxSATQuery.injective.mem_set_image]
-  have hmono : ∀ m m', 1 ≤ m → m ≤ m' → m' < φ.length + 1 →
-      (pure (decide (MaxSATQuery.mk φ m' ∈ MaxSATThreshold)) : TimeM ℕ Bool).ret = true →
-      (pure (decide (MaxSATQuery.mk φ m ∈ MaxSATThreshold)) : TimeM ℕ Bool).ret = true := by
-    intro m m' _ hmm' _ ht
-    simp only [TimeM.ret_pure, decide_eq_true_eq, mem_MaxSATThreshold_iff] at ht ⊢
-    obtain ⟨σ, hσ⟩ := ht
-    exact ⟨σ, hmm'.trans hσ⟩
   set k_val : ℕ := OracleComp.interpret (m := Id) (languageOracle A)
     (bisectProgram (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1) (fun ψ => ψ.length + 1) φ)
   have hbisect : k_val - 1 = maxClauseScore φ := by
-    have hk_eq : k_val =
-        ((bisectStep (fun m => decide (encMaxSATQuery ⟨φ, m⟩ ∈ A)))^[(φ.length + 1 - 1).size]
-          ⟨1, φ.length + 1⟩).lo :=
-      interpret_bisectProgram A (fun ψ m => encMaxSATQuery ⟨ψ, m⟩) (fun _ => 1)
-        (fun ψ => ψ.length + 1) φ
-    rw [hk_eq, maxClauseScore]
     have hfn : (fun m => decide (encMaxSATQuery ⟨φ, m⟩ ∈ A)) =
-        (fun m => (pure (decide (MaxSATQuery.mk φ m ∈ MaxSATThreshold)) : TimeM ℕ Bool).ret) := by
-      funext m
-      apply Bool.eq_iff_iff.mpr
-      simp only [TimeM.ret_pure, decide_eq_true_eq]
-      exact (decide_eq_true_iff.symm.trans (hmem_iff (MaxSATQuery.mk φ m)))
-    rw [hfn, iterate_bisectStep_eq_lowerBoundM _ hmono]
+        fun m => decide (MaxSATQuery.mk φ m ∈ MaxSATThreshold) :=
+      funext fun m => Bool.eq_iff_iff.mpr
+        ((hmem_iff ⟨φ, m⟩).trans decide_eq_true_iff.symm)
+    rw [show k_val = _ from interpret_bisectProgram A _ _ _ φ, maxClauseScore, hfn,
+      iterate_bisectStep_eq_lowerBound _ fun _ _ _ hmm' _ ht => maxSATThreshold_mono φ hmm' ht]
   have hsol : solveMaxSAT A φ =
-      MaxSATSolution.mk (maxClauseScore φ)
-        (recoverBits (fun r => decide (encMaxSATQuery r ∈ A)) ⟨φ, maxClauseScore φ⟩) := by
-    have hraw : solveMaxSAT A φ =
-        MaxSATSolution.mk (k_val - 1)
-          (recoverBits (fun r => decide (encMaxSATQuery r ∈ A)) ⟨φ, k_val - 1⟩) := by
-      simp only [solveMaxSAT, solveMaxSATProgram, OracleComp.interpret_bind,
-        interpret_recoverProgram, OracleComp.interpret_pure]
-      rfl
-    rw [hraw, hbisect]
-  dsimp only
-  rw [hsol]
+      ⟨maxClauseScore φ, recoverBits (fun r => decide (encMaxSATQuery r ∈ A))
+        ⟨φ, maxClauseScore φ⟩⟩ := by
+    rw [← hbisect]; simp only [solveMaxSAT, solveMaxSATProgram, OracleComp.interpret_bind,
+      interpret_recoverProgram, OracleComp.interpret_pure]; rfl
+  dsimp only; rw [hsol]
   obtain ⟨_, ⟨σ₀, hσ₀⟩, hupper⟩ := maxClauseScore_spec φ
-  have hq_mem : MaxSATQuery.mk φ (maxClauseScore φ) ∈ MaxSATThreshold :=
-    ⟨σ₀, hσ₀.symm.le⟩
-  have hge := target_le_countP_recoverBits (fun r _ => hmem_iff r) hq_mem
-  dsimp only at hge
-  exact ⟨rfl, le_antisymm (hupper _) hge, hupper⟩
+  exact ⟨rfl, le_antisymm (hupper _)
+    (target_le_countP_recoverBits (q := ⟨φ, maxClauseScore φ⟩)
+      (fun r _ => hmem_iff r) ⟨σ₀, hσ₀.symm.le⟩), hupper⟩
 
 /-- **Polynomial-time oracle certificate for `solveMaxSAT`** relative to any oracle `A`, making
 at most `2 * |encCNF φ| + 1` requests (and per-instance `φ.length.size + φ.numVars`). -/
@@ -1804,46 +1658,30 @@ theorem computableInPolyTimeWithOracleQueries_solveMaxSAT (A : Set (List Bool)) 
     ComputableInPolyTimeWithOracleQueries A (fun n => 2 * n + 1) (solveMaxSAT A)
       encCNF encMaxSATSolution := by
   open ComputableInPolyTime in
-  have hreq : ComputableInPolyTime
-      (fun q : OracleThresholdQuery (CNF ℕ) => encMaxSATQuery ⟨q.inst, q.target⟩)
-      (encOracleThresholdQuery encCNF) encBits :=
+  have hb_cert := isOraclePPTOn_bisectProgram (req := fun ψ m => encMaxSATQuery ⟨ψ, m⟩)
     (encMaxSATQuery_mk_polyTime (encOracleThresholdQuery_inst_polyTime id')
-      (encOracleThresholdQuery_target_polyTime id')).encoding_comp
-  have hhi : ComputableInPolyTime (fun φ : CNF ℕ => φ.length + 1) encCNF encNat :=
-    binary_add' (unary_to_binary.comp (SAT.computableInPolyTime_length id')) (const 1)
-  have hb_cert := isOraclePPTOn_bisectProgram
-    (req := fun ψ m => encMaxSATQuery ⟨ψ, m⟩) hreq (const 1) hhi
+      (encOracleThresholdQuery_target_polyTime id')).encoding_comp (const 1)
+    (binary_add' (unary_to_binary.comp (SAT.computableInPolyTime_length id')) (const 1))
   have hrec_pair : IsOraclePPTOn (encPair encCNF encNat) encMaxSATSolution
       (fun p : CNF ℕ × ℕ => do
         let bits ← OracleComp.interpret ProbOracleComp.query (recoverProgram ⟨p.1, p.2 - 1⟩)
         pure (MaxSATSolution.mk (p.2 - 1) bits)) := by
-    have hprep : ComputableInPolyTime (fun p : CNF ℕ × ℕ => MaxSATQuery.mk p.1 (p.2 - 1))
-        (encPair encCNF encNat) encMaxSATQuery :=
-      encMaxSATQuery_mk_polyTime (fst _ _) (binary_sub' (snd _ _) (const 1))
-    have hpost : ComputableInPolyTime
-        (fun x : (CNF ℕ × ℕ) × List Bool => MaxSATSolution.mk (x.1.2 - 1) x.2)
-        (encPair (encPair encCNF encNat) encBits) encMaxSATSolution :=
-      encMaxSATSolution_mk_polyTime (binary_sub' ((snd _ _).comp (fst _ _)) (const 1)) (snd _ _)
     simpa only [← bind_pure_comp] using
-      (isOraclePPTOn_recoverProgram.preprocess hprep).map_with
-        (f := fun (p : CNF ℕ × ℕ) (bits : List Bool) => MaxSATSolution.mk (p.2 - 1) bits) hpost
-  refine ⟨solveMaxSATProgram, ?_, fun φ => ⟨rfl, ?_⟩⟩
-  · refine (hb_cert.bind_with
-      (second := fun (ψ : CNF ℕ) (k : ℕ) => do
-        let bits ← OracleComp.interpret ProbOracleComp.query (recoverProgram ⟨ψ, k - 1⟩)
-        pure (MaxSATSolution.mk (k - 1) bits)) hrec_pair).congr fun φ State oracle s => ?_
-    simp only [solveMaxSATProgram, OracleComp.interpret_bind, OracleComp.interpret_pure]
-  · have hlen_le : ∀ ψ : CNF ℕ, ψ.length ≤ (encCNF ψ).length := by
-      intro ψ
-      induction ψ with
-      | nil => simp
-      | cons c cs ih =>
-        simp only [List.length_cons, encCNF, encList_cons, List.length_append] at ih ⊢
-        have hfr : 1 ≤ (frame (encList (encPair encNat encBool) c)).length := by enc_len
-        exact (Nat.add_comm cs.length 1).trans_le (Nat.add_le_add hfr ih)
-    have hqb := (solveMaxSATProgram_query_bounds (languageOracle A) φ).1
+      (isOraclePPTOn_recoverProgram.preprocess
+        (encMaxSATQuery_mk_polyTime (fst _ _) (binary_sub' (snd _ _) (const 1)))).map_with
+        (f := fun p bits => MaxSATSolution.mk (p.2 - 1) bits)
+        (encMaxSATSolution_mk_polyTime (binary_sub' ((snd _ _).comp (fst _ _)) (const 1)) (snd _ _))
+  refine ⟨solveMaxSATProgram, (hb_cert.bind_with (second := fun (ψ : CNF ℕ) (k : ℕ) => do
+      let bits ← OracleComp.interpret ProbOracleComp.query (recoverProgram ⟨ψ, k - 1⟩)
+      pure (MaxSATSolution.mk (k - 1) bits)) hrec_pair).congr fun _ _ _ _ => ?_,
+    fun φ => ⟨rfl, ?_⟩⟩
+  · simp only [solveMaxSATProgram, OracleComp.interpret_bind, OracleComp.interpret_pure]
+    rfl
+  · have hqb := (solveMaxSATProgram_query_bounds (languageOracle A) φ).1
+    have hlen_le : φ.length ≤ (encCNF φ).length := SizedListEncoding.length_le (encA :=
+      encList (encPair encNat encBool)) (encL := encList (encList (encPair encNat encBool))) φ
     have hsize_le : φ.length.size ≤ (encCNF φ).length :=
-      (Nat.size_le_size (hlen_le φ)).trans (Nat.size_le.mpr Nat.lt_two_pow_self)
+      (Nat.size_le_size hlen_le).trans (Nat.size_le.mpr Nat.lt_two_pow_self)
     have hnv_le : CNF.numVars φ ≤ (encCNF φ).length :=
       (CNF.numVars_le_length_vars φ).trans (SAT.length_vars_le φ)
     dsimp only

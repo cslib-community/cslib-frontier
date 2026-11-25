@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Allocation
 public import CslibFrontier.Computability.WordRAM.MapOp
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Element distinctness in linear time on the word RAM
@@ -200,33 +201,24 @@ theorem inputFits (a : Input) (hw : logWidth 2 a.1.length ≤ w) : InputFits w a
 private theorem setup_spec (hw : Fits w (2 * l.length + 1)) :
     ∃ y, ExecWithin w setup (.init l) y (4 * l.length + 13) ∧ Invariant l y := by
   have h1 : Fits w 1 := hw.of_le (by omega)
-  have e := (Exec.load (w := w) (d := len) (a := zero) (x := .init l)).seq <|
-    (Exec.const (d := one) h1).seq <|
-    (Exec.bin (f := .add) (d := front) (i := len) (j := one)
-      (by simpa +decide using hw.of_le (show l.length + 1 ≤ 2 * l.length + 1 by omega))).seq <|
-    Exec.copy (d := cnt) (s := len) |>.seq <|
-    (alloc_exec (frontier := front) (count := cnt) (result := base) (cur := cur) (zero := zero)
-      (one := one) (by decide) h1
-      (by simpa +decide using hw.of_le (show l.length + 1 + l.length ≤ 2 * l.length + 1 by
-        omega))).seq <|
-    (Exec.const (d := ans) h1).seq <| Exec.copy (d := idx) (s := one)
-  refine ⟨_, e.within.mono (by
-    simp +decide only [Data.init_regs, Data.init_mem_zero, BinOp.eval, Data.set_regs, ne_eq,
-      Function.update_of_ne, Function.update_self, Nat.reduceAdd]
-    omega), ⟨by simp +decide, by simp +decide,
-    by simp +decide, by simp +decide, fun j hj => ?_, Or.inl ⟨by simp +decide, by simp +decide,
-      fun v hv => by simp +decide [clear, hv]⟩⟩⟩
-  simp +decide [clear, Nat.not_le.mpr hj, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj]
+  refine WP.exists_execWithin ?_
+  unfold setup
+  wram_exec [Data.init_regs, Data.init_mem_zero]
+  refine WP.of_execWithin (alloc_exec (w := w) (frontier := front) (count := cnt) (result := base)
+    (cur := cur) (zero := zero) (one := one) (by decide) h1
+    (hw.of_le (by wram_simp; omega))).within ?_
+  wram_exec
+  refine ⟨by simp +decide, by simp +decide, by simp +decide, by simp +decide,
+    fun j hj => by simp +decide [clear, Nat.not_le.mpr hj, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hj],
+    Or.inl ⟨by simp +decide, by simp +decide, fun v hv => by simp +decide [clear, hv]⟩⟩
 
 /-- An entry that occurs among the entries before it is a duplicate. -/
 private theorem not_nodup_of_mem_take {t : ℕ} (ht : t < l.length) (h : l[t] ∈ l.take t) :
-    ¬l.Nodup := by
-  intro hn
+    ¬l.Nodup := fun hn => by
   obtain ⟨j, hj, hjt⟩ := List.mem_iff_getElem.1 h
-  rw [List.getElem_take] at hjt
-  rw [List.length_take] at hj
-  have := hn.getElem_inj_iff.1 hjt
-  omega
+  rw [List.length_take] at hj; rw [List.getElem_take] at hjt
+  have := hn.getElem_inj_iff.1 hjt; omega
 
 /-- One iteration of the loop takes at most `8` instructions, preserves the invariant, and
 either processes the next entry or stops. -/
@@ -234,85 +226,49 @@ private theorem body_spec (hl : ∀ v ∈ l, v < l.length) (hw : Fits w (2 * l.l
     {y : Data 12} (hy : Invariant l y) (hc : (Cond.lt idx base).Holds y) :
     ∃ y', ExecWithin w body y y' 8 ∧ Invariant l y' ∧
       l.length + 1 - y'.regs idx < l.length + 1 - y.regs idx := by
-  have hbase := hy.base_eq
-  have hone := hy.one_eq
+  have hbase := hy.base_eq; have hone := hy.one_eq
   obtain ⟨t, ht⟩ : ∃ t, y.regs idx = t + 1 := ⟨y.regs idx - 1, by have := hy.idx_pos; omega⟩
   have htn : t < l.length := by simp only [Cond.holds_lt] at hc; omega
   obtain ⟨hans, hnd, hseen⟩ : y.regs ans = 1 ∧ (l.take t).Nodup ∧
       ∀ v < l.length, y.mem (l.length + 1 + v) = if v ∈ l.take t then 1 else 0 := by
-    rcases hy.state with h | h
-    · simpa [ht] using h
-    · omega
+    rcases hy.state with h | h; exacts [by simpa [ht] using h, by omega]
   have hv : l[t] < l.length := hl _ (List.getElem_mem htn)
-  have hyv : y.mem (y.regs idx) = l[t] := by rw [ht]; exact hy.input t htn
-  have hfit : Fits w (l.length + 1 + l[t]) := hw.of_le (by omega)
-  set y₁ := y.set val (y.mem (y.regs idx))
-  set y₂ := (y₁.set tmp (y₁.regs base + y₁.regs val)).set seen (y₁.mem (y₁.regs base + y₁.regs val))
-  have e₁ : Exec (B := .standard) w (.op (.load val idx)) y y₁ 1 := Exec.load
-  have e₂ : Exec w (readAt tmp seen base val) y₁ y₂ 2 :=
-    readAt_exec (by simpa +decide [y₁, hbase, hyv] using hfit)
-  by_cases hfound : l[t] ∈ l.take t
-  · -- A duplicate: answer `0` and move the index past the end.
-    have e₃ := (Exec.const (B := .standard) (w := w) (d := ans) (x := y₂) (fits_zero w)).seq
-      (Exec.copy (d := idx) (s := base))
-    have e := e₁.seq <| e₂.seq <| Exec.branch_pos (c := .eq seen one)
-      (neg := ram[⟪writeAt tmp base val one⟫; idx ← idx + one])
-      (by simp +decide [y₂, y₁, hbase, hyv, hseen _ hv, hfound, hone]) e₃
-    refine ⟨_, e.within.mono (by omega), ⟨by simp +decide [y₂, y₁, hone],
-      by simp +decide [y₂, y₁, hbase], by simp +decide [y₂, y₁, hbase],
-      by simp +decide [y₂, y₁, hbase], by simpa [y₂, y₁] using hy.input,
-      Or.inr ⟨by simp +decide [y₂, y₁], not_nodup_of_mem_take htn hfound,
-        by simp +decide [y₂, y₁, hbase]⟩⟩, ?_⟩
-    · simp +decide only [Data.set_regs, ne_eq, Function.update_of_ne, hbase, Function.update_self,
-        Data.set_mem, tsub_self, tsub_pos_iff_lt, Order.lt_add_one_iff, y₂, y₁]
-      omega
-  · -- A new entry: set its flag and advance.
-    have hseen0 : y.mem (l.length + 1 + l[t]) = 0 := by simp [hseen _ hv, hfound]
-    have e₃ := (writeAt_exec (w := w) (tmp := tmp) (ptr := base) (idx := val) (src := one)
-      (x := y₂) (by decide) (by simpa +decide [y₂, y₁, hbase, hyv] using hfit)).seq
-      (Exec.bin (f := .add) (d := idx) (i := idx) (j := one) ?hinc)
-    case hinc =>
-      simpa +decide [y₂, y₁, ht, hone] using
-        hw.of_le (show t + 1 + 1 ≤ 2 * l.length + 1 by omega)
-    have e := e₁.seq <| e₂.seq <| Exec.branch_neg (c := .eq seen one)
-      (pos := ram[ans ← #0; idx ← base]) (by simp +decide [y₂, y₁, hbase, hyv, hseen0, hone]) e₃
-    have hyt : y.mem (t + 1) = l[t] := hy.input t htn
-    refine ⟨_, e.within.mono (by omega),
-      ⟨?one, ?base, ?pos, ?le, ?input, Or.inl ⟨?ans, ?nodup, ?seen⟩⟩, ?measure⟩
-    all_goals simp +decide only [y₂, y₁, Data.set_regs, Data.set_mem, Data.write_regs,
-      Data.write_mem, Function.update_self, Function.update_apply, BinOp.eval, hbase, hone, ht,
-      hyt, hans, Nat.add_sub_cancel, ↓reduceIte]
-    all_goals try omega
-    case input =>
-      intro j hj
-      simp only [show j + 1 ≠ l.length + 1 + l[t] by omega, ↓reduceIte]
+  have hyt : y.mem (t + 1) = l[t] := hy.input t htn
+  have hfit (v : ℕ) (h : v ≤ 2 * l.length + 1) : Fits w v := hw.of_le h
+  refine WP.exists_execWithin ?_
+  unfold body readAt writeAt
+  wram_exec [hbase, hone, ht, hyt, hseen _ hv, hfit]
+  · have hfound : l[t] ∈ l.take t := by
+      by_contra hnf; simp only [hnf, ↓reduceIte] at *; omega
+    refine ⟨⟨?_, ?_, ?_, ?_, fun j hj => by simpa using hy.input j hj,
+      Or.inr ⟨?_, not_nodup_of_mem_take htn hfound, ?_⟩⟩, ?_⟩
+    all_goals wram_simp [hone, hbase]
+    all_goals omega
+  · have hnf : l[t] ∉ l.take t := fun hf => by simp [hf] at *
+    refine ⟨⟨?_, ?_, ?_, ?_, ?_, Or.inl ⟨?_, ?_, ?_⟩⟩, ?_⟩
+    all_goals wram_simp [hone, hbase, ht, hans, Data.write_mem]
+    any_goals omega
+    · intro j hj
+      rw [Function.update_of_ne (by omega)]
       exact hy.input j hj
-    case nodup =>
-      rw [List.take_succ_eq_append_getElem htn, List.nodup_append]
-      refine ⟨hnd, List.nodup_singleton _, fun a ha b hb => ?_⟩
-      rw [List.mem_singleton] at hb
-      subst hb
-      exact fun hab => hfound (hab ▸ ha)
-    case seen =>
-      intro u hu
-      rw [List.take_succ_eq_append_getElem htn]
+    · rw [List.take_succ_eq_append_getElem htn, List.nodup_append]
+      exact ⟨hnd, List.nodup_singleton _, fun _ ha _ hb =>
+        by rw [List.mem_singleton.mp hb]; exact fun heq => hnf (heq ▸ ha)⟩
+    · intro u hu
+      have htake : l.take (t + 1) = l.take t ++ [l[t]] := List.take_succ_eq_append_getElem htn
       by_cases hu' : u = l[t]
-      · subst hu'
-        simp only [List.mem_append, List.mem_singleton, or_true, ↓reduceIte]
-      · simp only [show l.length + 1 + u ≠ l.length + 1 + l[t] by omega, ↓reduceIte, hseen u hu,
-          List.mem_append, List.mem_singleton, hu', or_false]
+      · subst hu'; simp only [Function.update_self, htake, List.mem_append, List.mem_singleton,
+          or_true, ↓reduceIte]
+      · simp only [Function.update_of_ne (show l.length + 1 + u ≠ l.length + 1 + l[t] by omega),
+          hseen u hu, htake, List.mem_append, List.mem_singleton, hu', or_false]
 
 /-- When the loop stops, the answer is `1` exactly if the input has no duplicates. -/
 private theorem exit_spec {y : Data 12} (hy : Invariant l y) (hc : ¬(Cond.lt idx base).Holds y) :
     y.regs ans ≤ 1 ∧ (y.regs ans = 1 ↔ l.Nodup) := by
   have hidx : y.regs idx = l.length + 1 := by
-    have := hy.idx_le
-    have := hy.base_eq
-    simp only [Cond.holds_lt] at hc
-    omega
+    have := hy.idx_le; have := hy.base_eq; simp only [Cond.holds_lt] at hc; omega
   rcases hy.state with ⟨hans, hnd, -⟩ | ⟨hans, hnd, -⟩
-  · rw [hidx, Nat.add_sub_cancel, List.take_length] at hnd
-    simp [hans, hnd]
+  · rw [hidx, Nat.add_sub_cancel, List.take_length] at hnd; simp [hans, hnd]
   · simp [hans, hnd]
 
 /-- **Correctness and running time.** On a list whose entries are below its length, at a word

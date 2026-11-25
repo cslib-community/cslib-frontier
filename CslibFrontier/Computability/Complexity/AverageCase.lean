@@ -28,18 +28,28 @@ import CslibFrontier.Probability.PMF.Map
 
 This module formalizes generic mild average-case hardness definitions for functions
 `f : List Bool → ℕ` (and `f : List Bool → ℕ∞`) over the uniform distribution on `{0, 1}^n`
-following [Y. Liu and R. Pass, *On One-Way Functions and Kolmogorov Complexity*][LiuPass2020],
-together with monotonicity, one-sided-to-symmetric shifting bridges, rounded-logarithm comparison
-lemmas, and negative nonvacuity witnesses on the constant zero function. All section, definition,
-theorem, lemma, and page locators follow the full version `arXiv:2009.11514v1` (and ECCC TR20-052).
+following [Y. Liu and R. Pass, *On One-Way Functions and Kolmogorov Complexity*][LiuPass2020].
+The parametric kernel `MildlyHardOnAverageFor` expresses hardness over any monotone asymptotic
+length quantifier (`MonoQuant`, satisfied by both `∀ᶠ n in atTop` and `∃ᶠ n in atTop`) and
+heuristic admissibility predicate (`IsPPTOn`, `IsDetPolyTime`), providing monotonicity,
+admissibility and quantifier transport, zero-gap equivalence, one-sided-to-symmetric `2g → g`
+gap shifting, and negative nonvacuity witnesses across all named specializations. All section,
+definition, theorem, lemma, and page locators follow the full version `arXiv:2009.11514v1` (and
+ECCC TR20-052).
 
 ## Main definitions
 
+* `Cslib.Complexity.MonoQuant`: asymptotic length quantifiers `Quant : (ℕ → Prop) → Prop` closed
+  under eventual implication (`∀ᶠ n in atTop`), instantiated for both `Filter.Eventually · atTop`
+  and `Filter.Frequently · atTop`.
+* `Cslib.Complexity.IsDetPolyTime`: admissibility predicate embedding deterministic polynomial-time
+  heuristics `List Bool → β` into `List Bool → ProbComp β` via `pure`.
+* `Cslib.Complexity.MildlyHardOnAverageFor`: the parametric mild average-case hardness kernel over
+  `Quant`, `Admissible`, and a Boolean correctness test `correct n x v`.
 * `Cslib.Complexity.MildlyHardOnAverageWith`, `Cslib.Complexity.MildlyHardOnAverageDetWith`,
-  `Cslib.Complexity.MildlyHardOnAverageIOWith`: the hardness cores for a correctness test
-  `correct n x v`, against uniform strict PPT heuristics, deterministic polynomial-time heuristics
-  on all sufficiently large lengths, and deterministic heuristics on infinitely many lengths.
-  Every named variant below is one of these cores at a particular test.
+  `Cslib.Complexity.MildlyHardOnAverageIOWith`: specializations of `MildlyHardOnAverageFor` to
+  uniform strict PPT heuristics (`∀ᶠ`), deterministic polynomial-time heuristics (`∀ᶠ`), and
+  infinitely-often deterministic heuristics (`∃ᶠ`).
 * `Cslib.Complexity.MildlyHardOnAverage`: mild average-case hardness of exact computation for
   `List Bool → ℕ` against uniform strict PPT heuristics
   ([Liu and Pass, Definition 2.4, §2.3, p. 8 of arXiv:2009.11514v1][LiuPass2020]).
@@ -60,28 +70,29 @@ theorem, lemma, and page locators follow the full version `arXiv:2009.11514v1` (
 
 ## Main results
 
-* `Cslib.Complexity.MildlyHardOnAverageWith.mono`,
-  `Cslib.Complexity.MildlyHardOnAverageDetWith.mono`,
-  `Cslib.Complexity.MildlyHardOnAverageIOWith.mono`: hardness for a weaker correctness test implies
-  hardness for a stronger one; the error-window monotonicity and exact-from-approximate bridges
-  are instances.
-* `Cslib.Complexity.MildlyHardOnAverageWith.mildlyHardOnAverageDetWith`,
-  `Cslib.Complexity.MildlyHardOnAverageDetWith.mildlyHardOnAverageIOWith`: PPT hardness implies
-  deterministic hardness, which implies infinitely-often hardness, for every correctness test.
-* `Cslib.Complexity.MildlyHardOnAverageToApprox.mono`,
-  `Cslib.Complexity.MildlyHardOnAverageToOneSidedApprox.mono`:
-  monotonicity in the approximation error bound `g`.
-* `Cslib.Complexity.MildlyHardOnAverageToOneSidedApprox.mildlyHardOnAverageToApprox`:
+* `Cslib.Complexity.MildlyHardOnAverageFor.mono`: hardness for a weaker correctness test implies
+  hardness for a stronger one under any `MonoQuant`.
+* `Cslib.Complexity.MildlyHardOnAverageFor.of_admissible`,
+  `Cslib.Complexity.MildlyHardOnAverageFor.of_quant`: contravariance in the heuristic admissibility
+  class and covariance in the length quantifier.
+* `Cslib.Complexity.mildlyHardOnAverageFor_isDetPolyTime_iff`: equivalence between `ProbComp`-lifted
+  `IsDetPolyTime` hardness and direct quantification over polynomial-time `List Bool → β`.
+* `Cslib.Complexity.MildlyHardOnAverageFor.approx_zero_iff`,
+  `Cslib.Complexity.MildlyHardOnAverageFor.oneSidedApprox_zero_iff`: zero-gap approximation
+  hardness coincides with exact hardness.
+* `Cslib.Complexity.MildlyHardOnAverageFor.approx_of_oneSided_two_mul`,
+  `Cslib.Complexity.MildlyHardOnAverageToOneSidedApprox.mildlyHardOnAverageToApprox`,
+  `Cslib.Complexity.MildlyHardOnAverageToOneSidedApproxDet.mildlyHardOnAverageToApproxDet`:
   shift + gap-scaling bridge converting one-sided $(2 g)$-approximation hardness into symmetric
   $g$-approximation hardness whenever `fun x => g x.length` is computable in polynomial time.
-* `Cslib.Complexity.MildlyHardOnAverageToOneSidedApproxDet.mildlyHardOnAverageToApproxDet`: the
-  same bridge for deterministic approximation.
 * `Cslib.Complexity.MildlyHardOnAverageToApprox.eventually_real_abs_sub_le`:
   upper-rounded integer log window `d * (Nat.log 2 n + 1)` implies the real-valued symmetric window
   $|(v : \mathbb{R}) - f(x)| \le d \log_2 |x|$ of Definition 2.5.
-* `Cslib.Complexity.not_mildlyHardOnAverageIO_zero`,
+* `Cslib.Complexity.MildlyHardOnAverageFor.not_of_forall_poly`,
+  `Cslib.Complexity.MildlyHardOnAverageFor.not_of_admissible_pure`,
+  `Cslib.Complexity.not_mildlyHardOnAverageIO_zero`,
   `Cslib.Complexity.not_mildlyHardOnAverage_zero`:
-  negative nonvacuity lemmas showing the constant zero function is not mildly hard on average.
+  kernel negative-witness criteria and constant-zero nonvacuity lemmas.
 
 ## References
 
@@ -95,47 +106,85 @@ namespace Cslib.Complexity
 
 open Filter Cslib.Probability Cslib.Probability.PMF Turing.MultiTapeTM
 
-/-! ### The hardness cores
+/-! ### Monotone asymptotic quantifiers and the parametric hardness kernel -/
 
-Every variant below fixes a correctness test `correct n x v` on an output `v` for an input `x` of
-length `n` and asks that efficient heuristics pass it with probability at most `1 - 1 / p(n)`.
-The three cores differ only in the heuristics (strict PPT or deterministic polynomial time) and the
-lengths (eventually all or infinitely many); the bridges between them are proved once here. -/
+/-- An asymptotic length quantifier `Quant : (ℕ → Prop) → Prop` closed under eventual implication
+along `atTop`. Both `Filter.Eventually · atTop` (`∀ᶠ n in atTop`) and
+`Filter.Frequently · atTop` (`∃ᶠ n in atTop`) satisfy `MonoQuant`, even though `Frequently` is not
+a filter. -/
+class MonoQuant (Quant : (ℕ → Prop) → Prop) : Prop where
+  /-- Transport `Quant P` to `Quant Q` along an eventual implication `∀ᶠ n in atTop, P n → Q n`. -/
+  imp_of_eventually {P Q : ℕ → Prop} : (∀ᶠ n in atTop, P n → Q n) → Quant P → Quant Q
 
-/-- **Mild average-case hardness for a correctness test, against strict PPT heuristics**: there is
-a positive polynomial `p` such that every uniform strict PPT heuristic `H`, for all sufficiently
-large `n`, outputs a value `v` passing `correct n x v` with probability at most `1 - 1 / p(n)` over
-`x ← {0, 1}^n` and its coins. -/
-def MildlyHardOnAverageWith (correct : ℕ → List Bool → ℕ → Bool) : Prop :=
+instance : MonoQuant (Filter.Eventually · atTop) where
+  imp_of_eventually hPQ hP := hP.mp hPQ
+
+instance : MonoQuant (Filter.Frequently · atTop) where
+  imp_of_eventually hPQ hP := (hP.and_eventually hPQ).mono fun _ ⟨hp, hpq⟩ => hpq hp
+
+private theorem MonoQuant.not_of_eventually_not {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant]
+    (hfalse : ¬ Quant fun _ => False) {P : ℕ → Prop} (hnot : ∀ᶠ n in atTop, ¬ P n) :
+    ¬ Quant P :=
+  fun hP => hfalse (MonoQuant.imp_of_eventually hnot hP)
+
+/-- Admissibility predicate for deterministic polynomial-time heuristics lifted into `ProbComp`:
+`H` is point-wise `pure ∘ hDet` for some `hDet : List Bool → β` computable in polynomial time. -/
+def IsDetPolyTime {β : Type} (encOut : β ↪ List Bool) (H : List Bool → ProbComp β) : Prop :=
+  ∃ hDet : List Bool → β, ComputableInPolyTime hDet encBits encOut ∧ ∀ x, H x = pure (hDet x)
+
+/-- Every deterministic polynomial-time heuristic is a strict PPT heuristic. -/
+theorem IsDetPolyTime.isPPTOn {β : Type} {encOut : β ↪ List Bool}
+    {H : List Bool → ProbComp β} (h : IsDetPolyTime encOut H) :
+    IsPPTOn encBits encOut H := by
+  obtain ⟨hDet, hpoly, hH⟩ := h
+  simpa only [funext hH] using hpoly.isPPTOn
+
+/-- Lifting a polynomial-time function `List Bool → β` with `pure` yields an `IsDetPolyTime`
+heuristic. -/
+theorem IsDetPolyTime.of_computableInPolyTime {β : Type} {encOut : β ↪ List Bool}
+    {hDet : List Bool → β} (hpoly : ComputableInPolyTime hDet encBits encOut) :
+    IsDetPolyTime encOut (fun x => pure (hDet x)) :=
+  ⟨hDet, hpoly, fun _ => rfl⟩
+
+/-- Subtracting a polynomial-time length function `g x.length` preserves
+`IsPPTOn encBits encNat`. -/
+private theorem isPPTOn_map_sub_length {g : ℕ → ℕ}
+    (hg : ComputableInPolyTime (fun x : List Bool => g x.length) encBits encNat)
+    {H : List Bool → ProbComp ℕ} (hppt : IsPPTOn encBits encNat H) :
+    IsPPTOn encBits encNat (fun x => (fun v => v - g x.length) <$> H x) :=
+  hppt.map_with <| ComputableInPolyTime.binary_sub'
+    (ComputableInPolyTime.snd encBits encNat)
+    (hg.comp (ComputableInPolyTime.fst encBits encNat))
+
+/-- Subtracting a polynomial-time length function `g x.length` preserves `IsDetPolyTime encNat`. -/
+private theorem IsDetPolyTime.map_sub_length {g : ℕ → ℕ}
+    (hg : ComputableInPolyTime (fun x : List Bool => g x.length) encBits encNat)
+    {H : List Bool → ProbComp ℕ} (hdet : IsDetPolyTime encNat H) :
+    IsDetPolyTime encNat (fun x => (fun v => v - g x.length) <$> H x) := by
+  obtain ⟨hDet, hpoly, hH⟩ := hdet
+  exact ⟨fun x => hDet x - g x.length, ComputableInPolyTime.binary_sub' hpoly hg,
+    fun x => by simp [hH x]⟩
+
+/-- **Parametric mild average-case hardness kernel (`MildlyHardOnAverageFor`).**
+For an asymptotic length quantifier `Quant : (ℕ → Prop) → Prop`, a heuristic admissibility
+predicate `Admissible : (List Bool → ProbComp β) → Prop`, and a Boolean correctness test
+`correct : ℕ → List Bool → β → Bool`, there exists a positive polynomial `p` such that every
+admissible heuristic `H` satisfies `Quant` on the lengths `n` where `H` passes `correct n x` with
+probability at most `1 - 1 / p(n)` over `x ← {0, 1}^n` and `H`'s coins. -/
+def MildlyHardOnAverageFor {β : Type}
+    (Quant : (ℕ → Prop) → Prop)
+    (Admissible : (List Bool → ProbComp β) → Prop)
+    (correct : ℕ → List Bool → β → Bool) : Prop :=
   ∃ p : Polynomial ℕ, (∀ n, 0 < p.eval n) ∧
-    ∀ H : List Bool → ProbComp ℕ, IsPPTOn encBits encNat H →
-      ∀ᶠ n in atTop,
+    ∀ H : List Bool → ProbComp β, Admissible H →
+      Quant fun n =>
         ((do
           let x ← BitString.uniformList n
           (ProbComp.eval (H x)).map (correct n x) : PMF Bool) true).toReal ≤
           1 - 1 / ((p.eval n : ℕ) : ℝ)
 
-/-- **Mild average-case hardness for a correctness test, against deterministic heuristics**:
-`MildlyHardOnAverageWith` for heuristics `H : List Bool → ℕ` computable in polynomial time, where
-the only randomness is the input. -/
-def MildlyHardOnAverageDetWith (correct : ℕ → List Bool → ℕ → Bool) : Prop :=
-  ∃ p : Polynomial ℕ, (∀ n, 0 < p.eval n) ∧
-    ∀ H : List Bool → ℕ, ComputableInPolyTime H encBits encNat →
-      ∀ᶠ n in atTop,
-        (((BitString.uniformList n).map fun x => correct n x (H x)) true).toReal ≤
-          1 - 1 / ((p.eval n : ℕ) : ℝ)
-
-/-- **Infinitely-often mild average-case hardness for a correctness test, against deterministic
-heuristics**: `MildlyHardOnAverageDetWith` with the bound required only for infinitely many lengths
-(`∃ᶠ n in atTop`), which may depend on the heuristic. -/
-def MildlyHardOnAverageIOWith (correct : ℕ → List Bool → ℕ → Bool) : Prop :=
-  ∃ p : Polynomial ℕ, (∀ n, 0 < p.eval n) ∧
-    ∀ H : List Bool → ℕ, ComputableInPolyTime H encBits encNat →
-      ∃ᶠ n in atTop,
-        (((BitString.uniformList n).map fun x => correct n x (H x)) true).toReal ≤
-          1 - 1 / ((p.eval n : ℕ) : ℝ)
-
-private theorem bind_map_le_of_imp {n : ℕ} (q : List Bool → PMF ℕ) {c₁ c₂ : List Bool → ℕ → Bool}
+private theorem bind_map_le_of_imp {β : Type} {n : ℕ} (q : List Bool → PMF β)
+    {c₁ c₂ : List Bool → β → Bool}
     (himp : ∀ x : List Bool, x.length = n → ∀ v, c₁ x v = true → c₂ x v = true) :
     (((BitString.uniformList n).bind fun x => (q x).map (c₁ x)) true).toReal ≤
       (((BitString.uniformList n).bind fun x => (q x).map (c₂ x)) true).toReal :=
@@ -143,60 +192,257 @@ private theorem bind_map_le_of_imp {n : ℕ} (q : List Bool → PMF ℕ) {c₁ c
     PMF.bind_apply_mono_on_support _ true fun x hx =>
       map_true_mono _ fun v _ => himp x (BitString.length_of_mem_support_uniformList hx) v
 
-private theorem map_le_of_imp {n : ℕ} {c₁ c₂ : List Bool → Bool}
-    (himp : ∀ x : List Bool, x.length = n → c₁ x = true → c₂ x = true) :
-    (((BitString.uniformList n).map c₁) true).toReal ≤
-      (((BitString.uniformList n).map c₂) true).toReal :=
-  ENNReal.toReal_mono (PMF.apply_ne_top _ _) <|
-    map_true_mono _ fun x hx => himp x (BitString.length_of_mem_support_uniformList hx)
-
-/-- **Monotonicity in the correctness test**: if, for all sufficiently large `n`, every output
+/-- **Monotonicity in the correctness test:** if, for all sufficiently large `n`, every output
 passing `correct₁` on an input of length `n` also passes `correct₂`, then hardness for `correct₂`
 implies hardness for `correct₁`. -/
+theorem MildlyHardOnAverageFor.mono {β : Type}
+    {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant]
+    {Admissible : (List Bool → ProbComp β) → Prop}
+    {correct₁ correct₂ : ℕ → List Bool → β → Bool}
+    (himp : ∀ᶠ n in atTop, ∀ x : List Bool, x.length = n → ∀ v,
+      correct₁ n x v = true → correct₂ n x v = true)
+    (h : MildlyHardOnAverageFor Quant Admissible correct₂) :
+    MildlyHardOnAverageFor Quant Admissible correct₁ := by
+  obtain ⟨p, hp, hH⟩ := h
+  refine ⟨p, hp, fun H hadm => MonoQuant.imp_of_eventually ?_ (hH H hadm)⟩
+  filter_upwards [himp] with n hn hp_n
+  exact (bind_map_le_of_imp (fun x => ProbComp.eval (H x)) hn).trans hp_n
+
+/-- **Contravariance in admissibility:** hardness against a broader heuristic class `Admissible₂`
+implies hardness against any narrower class `Admissible₁`. -/
+theorem MildlyHardOnAverageFor.of_admissible {β : Type}
+    {Quant : (ℕ → Prop) → Prop}
+    {Admissible₁ Admissible₂ : (List Bool → ProbComp β) → Prop}
+    {correct : ℕ → List Bool → β → Bool}
+    (hadm : ∀ {H}, Admissible₁ H → Admissible₂ H)
+    (h : MildlyHardOnAverageFor Quant Admissible₂ correct) :
+    MildlyHardOnAverageFor Quant Admissible₁ correct :=
+  let ⟨p, hp, hH⟩ := h
+  ⟨p, hp, fun H h1 => hH H (hadm h1)⟩
+
+/-- **Covariance in the length quantifier:** transporting `Quant₂` to a weaker quantifier `Quant₁`
+preserves `MildlyHardOnAverageFor`. -/
+theorem MildlyHardOnAverageFor.of_quant {β : Type}
+    {Quant₁ Quant₂ : (ℕ → Prop) → Prop}
+    {Admissible : (List Bool → ProbComp β) → Prop}
+    {correct : ℕ → List Bool → β → Bool}
+    (hq : ∀ {P}, Quant₂ P → Quant₁ P)
+    (h : MildlyHardOnAverageFor Quant₂ Admissible correct) :
+    MildlyHardOnAverageFor Quant₁ Admissible correct :=
+  let ⟨p, hp, hH⟩ := h
+  ⟨p, hp, fun H hadm => hq (hH H hadm)⟩
+
+/-- Quantifying over `IsDetPolyTime` heuristics in `ProbComp` is equivalent to quantifying directly
+over deterministic polynomial-time functions `H : List Bool → β`. -/
+theorem mildlyHardOnAverageFor_isDetPolyTime_iff {β : Type}
+    {Quant : (ℕ → Prop) → Prop} {encOut : β ↪ List Bool}
+    {correct : ℕ → List Bool → β → Bool} :
+    MildlyHardOnAverageFor Quant (IsDetPolyTime encOut) correct ↔
+      ∃ p : Polynomial ℕ, (∀ n, 0 < p.eval n) ∧
+        ∀ H : List Bool → β, ComputableInPolyTime H encBits encOut →
+          Quant fun n =>
+            (((BitString.uniformList n).map fun x => correct n x (H x)) true).toReal ≤
+              1 - 1 / ((p.eval n : ℕ) : ℝ) := by
+  have heval (hDet : List Bool → β) (n : ℕ) :
+      (do
+        let x ← BitString.uniformList n
+        (ProbComp.eval (pure (hDet x))).map (correct n x) : PMF Bool) =
+        (BitString.uniformList n).map fun x => correct n x (hDet x) := by
+    simp only [ProbComp.eval_pure, PMF.pure_map]; rfl
+  exact ⟨fun ⟨p, hp, hH⟩ => ⟨p, hp, fun hDet hpoly => by
+      simpa only [heval] using hH (fun x => pure (hDet x)) (.of_computableInPolyTime hpoly)⟩,
+    fun ⟨p, hp, hH⟩ => ⟨p, hp, fun H ⟨hDet, hpoly, hEq⟩ => by
+      simpa only [funext hEq, heval] using hH hDet hpoly⟩⟩
+
+/-- Monotonicity of symmetric `g`-approximation hardness on the kernel. -/
+theorem MildlyHardOnAverageFor.approx_mono
+    {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant]
+    {Admissible : (List Bool → ProbComp ℕ) → Prop}
+    {g₁ g₂ : ℕ → ℕ} {f : List Bool → ℕ} (hle : ∀ n, g₁ n ≤ g₂ n)
+    (h : MildlyHardOnAverageFor Quant Admissible fun n x v => decide (Nat.dist v (f x) ≤ g₂ n)) :
+    MildlyHardOnAverageFor Quant Admissible fun n x v => decide (Nat.dist v (f x) ≤ g₁ n) :=
+  h.mono (.of_forall fun n _ _ _ hv => by
+    simp only [decide_eq_true_eq] at hv ⊢; exact hv.trans (hle n))
+
+/-- Monotonicity of one-sided `g`-approximation hardness on the kernel. -/
+theorem MildlyHardOnAverageFor.oneSidedApprox_mono
+    {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant]
+    {Admissible : (List Bool → ProbComp ℕ) → Prop}
+    {g₁ g₂ : ℕ → ℕ} {f : List Bool → ℕ} (hle : ∀ n, g₁ n ≤ g₂ n)
+    (h : MildlyHardOnAverageFor Quant Admissible
+      fun n x v => decide (f x - g₂ n ≤ v ∧ v ≤ f x)) :
+    MildlyHardOnAverageFor Quant Admissible
+      fun n x v => decide (f x - g₁ n ≤ v ∧ v ≤ f x) :=
+  h.mono (.of_forall fun n _ _ _ hv => by
+    simp only [decide_eq_true_eq] at hv ⊢; have := hle n; omega)
+
+/-- Symmetric `g`-approximation hardness implies one-sided `g`-approximation hardness on the
+kernel. -/
+theorem MildlyHardOnAverageFor.oneSidedApprox_of_approx
+    {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant]
+    {Admissible : (List Bool → ProbComp ℕ) → Prop}
+    {g : ℕ → ℕ} {f : List Bool → ℕ}
+    (h : MildlyHardOnAverageFor Quant Admissible fun n x v => decide (Nat.dist v (f x) ≤ g n)) :
+    MildlyHardOnAverageFor Quant Admissible fun n x v => decide (f x - g n ≤ v ∧ v ≤ f x) :=
+  h.mono (.of_forall fun _ _ _ _ hv => by
+    simp only [decide_eq_true_eq] at hv ⊢; unfold Nat.dist; omega)
+
+/-- Symmetric `g`-approximation hardness implies exact hardness on the kernel. -/
+theorem MildlyHardOnAverageFor.exact_of_approx
+    {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant]
+    {Admissible : (List Bool → ProbComp ℕ) → Prop}
+    {g : ℕ → ℕ} {f : List Bool → ℕ}
+    (h : MildlyHardOnAverageFor Quant Admissible fun n x v => decide (Nat.dist v (f x) ≤ g n)) :
+    MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) :=
+  h.mono (.of_forall fun _ _ _ _ hv => by rw [decide_eq_true_eq] at hv; simp [hv])
+
+/-- One-sided `g`-approximation hardness implies exact hardness on the kernel. -/
+theorem MildlyHardOnAverageFor.exact_of_oneSidedApprox
+    {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant]
+    {Admissible : (List Bool → ProbComp ℕ) → Prop}
+    {g : ℕ → ℕ} {f : List Bool → ℕ}
+    (h : MildlyHardOnAverageFor Quant Admissible
+      fun n x v => decide (f x - g n ≤ v ∧ v ≤ f x)) :
+    MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) :=
+  h.mono (.of_forall fun _ _ _ _ hv => by simp only [decide_eq_true_eq] at hv ⊢; omega)
+
+/-- **Zero-gap specialization (symmetric):** symmetric `0`-approximation hardness coincides with
+exact hardness for every quantifier and admissibility predicate. -/
+theorem MildlyHardOnAverageFor.approx_zero_iff
+    {Quant : (ℕ → Prop) → Prop}
+    {Admissible : (List Bool → ProbComp ℕ) → Prop}
+    {f : List Bool → ℕ} :
+    (MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (Nat.dist v (f x) ≤ 0)) ↔
+      MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) :=
+  Iff.of_eq (congrArg (MildlyHardOnAverageFor Quant Admissible)
+    (funext fun _ => funext fun _ => funext fun _ =>
+      decide_eq_decide.mpr (by
+        unfold Nat.dist
+        omega)))
+
+/-- **Zero-gap specialization (one-sided):** one-sided `0`-approximation hardness coincides with
+exact hardness for every quantifier and admissibility predicate. -/
+theorem MildlyHardOnAverageFor.oneSidedApprox_zero_iff
+    {Quant : (ℕ → Prop) → Prop}
+    {Admissible : (List Bool → ProbComp ℕ) → Prop}
+    {f : List Bool → ℕ} :
+    (MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (f x - 0 ≤ v ∧ v ≤ f x)) ↔
+      MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) :=
+  Iff.of_eq (congrArg (MildlyHardOnAverageFor Quant Admissible)
+    (funext fun _ => funext fun _ => funext fun _ => decide_eq_decide.mpr (by omega)))
+
+/-- **Parametric `2g → g` gap-shifting bridge:** whenever `Admissible` is closed under shifting
+outputs down by `g x.length`, one-sided `(2 g)`-approximation hardness implies symmetric
+`g`-approximation hardness. -/
+theorem MildlyHardOnAverageFor.approx_of_oneSided_two_mul
+    {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant]
+    {Admissible : (List Bool → ProbComp ℕ) → Prop}
+    {g : ℕ → ℕ} {f : List Bool → ℕ}
+    (hshift : ∀ {H : List Bool → ProbComp ℕ}, Admissible H →
+      Admissible (fun x => (fun v => v - g x.length) <$> H x))
+    (h : MildlyHardOnAverageFor Quant Admissible
+      fun n x v => decide (f x - 2 * g n ≤ v ∧ v ≤ f x)) :
+    MildlyHardOnAverageFor Quant Admissible
+      fun n x v => decide (Nat.dist v (f x) ≤ g n) := by
+  obtain ⟨p, hp, hH⟩ := h
+  refine ⟨p, hp, fun H hadm => MonoQuant.imp_of_eventually ?_ (hH _ (hshift hadm))⟩
+  refine .of_forall fun n hn => (ENNReal.toReal_mono (PMF.apply_ne_top _ _) ?_).trans hn
+  refine PMF.bind_apply_mono_on_support _ true fun x hx => ?_
+  have hlen : x.length = n := BitString.length_of_mem_support_uniformList hx
+  rw [ProbComp.eval_map, PMF.map_comp]
+  refine map_true_mono _ fun v _ hdist => ?_
+  simp only [Function.comp_apply, decide_eq_true_eq, hlen] at hdist ⊢
+  unfold Nat.dist at hdist
+  omega
+
+/-- **Negative-witness criterion on the kernel:** if `Quant` rejects `False` and every positive
+polynomial `p` admits an admissible heuristic whose success probability eventually exceeds
+`1 - 1 / p(n)`, then `MildlyHardOnAverageFor` fails. -/
+theorem MildlyHardOnAverageFor.not_of_forall_poly {β : Type}
+    {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant] (hfalse : ¬ Quant fun _ => False)
+    {Admissible : (List Bool → ProbComp β) → Prop}
+    {correct : ℕ → List Bool → β → Bool}
+    (hwin : ∀ p : Polynomial ℕ, (∀ n, 0 < p.eval n) →
+      ∃ H : List Bool → ProbComp β, Admissible H ∧
+        ∀ᶠ n in atTop,
+          1 - 1 / ((p.eval n : ℕ) : ℝ) <
+            ((do
+              let x ← BitString.uniformList n
+              (ProbComp.eval (H x)).map (correct n x) : PMF Bool) true).toReal) :
+    ¬ MildlyHardOnAverageFor Quant Admissible correct := by
+  rintro ⟨p, hp, hhard⟩
+  obtain ⟨H, hadm, hlt⟩ := hwin p hp
+  exact MonoQuant.not_of_eventually_not hfalse (hlt.mono fun _ => not_le_of_gt) (hhard H hadm)
+
+/-- **Constant-heuristic nonvacuity on the kernel:** if an admissible constant heuristic `pure v₀`
+eventually passes `correct` on every input of length `n`, then `MildlyHardOnAverageFor` fails. -/
+theorem MildlyHardOnAverageFor.not_of_admissible_pure {β : Type}
+    {Quant : (ℕ → Prop) → Prop} [MonoQuant Quant] (hfalse : ¬ Quant fun _ => False)
+    {Admissible : (List Bool → ProbComp β) → Prop}
+    {correct : ℕ → List Bool → β → Bool} {v₀ : β}
+    (hadm : Admissible (fun _ => pure v₀))
+    (hcorr : ∀ᶠ n in atTop, ∀ x : List Bool, x.length = n → correct n x v₀ = true) :
+    ¬ MildlyHardOnAverageFor Quant Admissible correct := by
+  refine MildlyHardOnAverageFor.not_of_forall_poly hfalse fun p hp => ⟨fun _ => pure v₀, hadm, ?_⟩
+  filter_upwards [hcorr] with n hn
+  have hmap : ((do
+      let x ← BitString.uniformList n
+      (ProbComp.eval (pure v₀)).map (correct n x) : PMF Bool)) = PMF.pure true :=
+    (PMF.bind_congr_on_support (BitString.uniformList n) _ (fun _ => PMF.pure true) fun x hx => by
+      simp [hn x (BitString.length_of_mem_support_uniformList hx)]).trans (PMF.bind_const _ _)
+  rw [hmap]
+  simp only [PMF.pure_apply_self, ENNReal.toReal_one]
+  linarith [one_div_pos.mpr (show (0 : ℝ) < (p.eval n : ℕ) by exact_mod_cast hp n)]
+
+/-! ### Specializations of the kernel to PPT, deterministic, and infinitely-often cores -/
+
+/-- **Mild average-case hardness for a correctness test, against strict PPT heuristics**:
+`MildlyHardOnAverageFor` instantiated at `∀ᶠ n in atTop` and `IsPPTOn encBits encNat`. -/
+abbrev MildlyHardOnAverageWith (correct : ℕ → List Bool → ℕ → Bool) : Prop :=
+  MildlyHardOnAverageFor (Filter.Eventually · atTop) (IsPPTOn encBits encNat) correct
+
+/-- **Mild average-case hardness for a correctness test, against deterministic heuristics**:
+`MildlyHardOnAverageFor` instantiated at `∀ᶠ n in atTop` and `IsDetPolyTime encNat`. -/
+abbrev MildlyHardOnAverageDetWith (correct : ℕ → List Bool → ℕ → Bool) : Prop :=
+  MildlyHardOnAverageFor (Filter.Eventually · atTop) (IsDetPolyTime encNat) correct
+
+/-- **Infinitely-often mild average-case hardness for a correctness test, against deterministic
+heuristics**: `MildlyHardOnAverageFor` instantiated at `∃ᶠ n in atTop` and
+`IsDetPolyTime encNat`. -/
+abbrev MildlyHardOnAverageIOWith (correct : ℕ → List Bool → ℕ → Bool) : Prop :=
+  MildlyHardOnAverageFor (Filter.Frequently · atTop) (IsDetPolyTime encNat) correct
+
+/-- Monotonicity of `MildlyHardOnAverageWith` in the correctness test. -/
 theorem MildlyHardOnAverageWith.mono {correct₁ correct₂ : ℕ → List Bool → ℕ → Bool}
     (himp : ∀ᶠ n in atTop, ∀ x : List Bool, x.length = n → ∀ v,
       correct₁ n x v = true → correct₂ n x v = true)
-    (h : MildlyHardOnAverageWith correct₂) : MildlyHardOnAverageWith correct₁ := by
-  obtain ⟨p, hp, hH⟩ := h
-  refine ⟨p, hp, fun H hppt => ?_⟩
-  filter_upwards [hH H hppt, himp] with n hn himp
-  exact (bind_map_le_of_imp (fun x => ProbComp.eval (H x)) himp).trans hn
+    (h : MildlyHardOnAverageWith correct₂) : MildlyHardOnAverageWith correct₁ :=
+  MildlyHardOnAverageFor.mono himp h
 
 /-- `MildlyHardOnAverageWith.mono` for deterministic heuristics. -/
 theorem MildlyHardOnAverageDetWith.mono {correct₁ correct₂ : ℕ → List Bool → ℕ → Bool}
     (himp : ∀ᶠ n in atTop, ∀ x : List Bool, x.length = n → ∀ v,
       correct₁ n x v = true → correct₂ n x v = true)
-    (h : MildlyHardOnAverageDetWith correct₂) : MildlyHardOnAverageDetWith correct₁ := by
-  obtain ⟨p, hp, hH⟩ := h
-  refine ⟨p, hp, fun H hpoly => ?_⟩
-  filter_upwards [hH H hpoly, himp] with n hn himp
-  exact (map_le_of_imp fun x hx => himp x hx (H x)).trans hn
+    (h : MildlyHardOnAverageDetWith correct₂) : MildlyHardOnAverageDetWith correct₁ :=
+  MildlyHardOnAverageFor.mono himp h
 
 /-- `MildlyHardOnAverageWith.mono` for infinitely-often hardness. -/
 theorem MildlyHardOnAverageIOWith.mono {correct₁ correct₂ : ℕ → List Bool → ℕ → Bool}
     (himp : ∀ᶠ n in atTop, ∀ x : List Bool, x.length = n → ∀ v,
       correct₁ n x v = true → correct₂ n x v = true)
-    (h : MildlyHardOnAverageIOWith correct₂) : MildlyHardOnAverageIOWith correct₁ := by
-  obtain ⟨p, hp, hH⟩ := h
-  refine ⟨p, hp, fun H hpoly => ?_⟩
-  exact ((hH H hpoly).and_eventually himp).mono fun n hn =>
-    (map_le_of_imp fun x hx => hn.2 x hx (H x)).trans hn.1
+    (h : MildlyHardOnAverageIOWith correct₂) : MildlyHardOnAverageIOWith correct₁ :=
+  MildlyHardOnAverageFor.mono himp h
 
 /-- Hardness against strict PPT heuristics implies hardness against deterministic polynomial-time
 heuristics, since every deterministic polynomial-time heuristic is a strict PPT heuristic. -/
 theorem MildlyHardOnAverageWith.mildlyHardOnAverageDetWith {correct : ℕ → List Bool → ℕ → Bool}
-    (h : MildlyHardOnAverageWith correct) : MildlyHardOnAverageDetWith correct := by
-  obtain ⟨p, hp, hH⟩ := h
-  refine ⟨p, hp, fun H hpoly => ?_⟩
-  filter_upwards [hH (fun x => pure (H x)) hpoly.isPPTOn] with n hn
-  simp only [ProbComp.eval_pure, PMF.pure_map] at hn
-  exact hn
+    (h : MildlyHardOnAverageWith correct) : MildlyHardOnAverageDetWith correct :=
+  h.of_admissible IsDetPolyTime.isPPTOn
 
 /-- Eventual hardness implies infinitely-often hardness. -/
 theorem MildlyHardOnAverageDetWith.mildlyHardOnAverageIOWith {correct : ℕ → List Bool → ℕ → Bool}
-    (h : MildlyHardOnAverageDetWith correct) : MildlyHardOnAverageIOWith correct := by
-  obtain ⟨p, hp, hH⟩ := h
-  exact ⟨p, hp, fun H hpoly => (hH H hpoly).frequently⟩
+    (h : MildlyHardOnAverageDetWith correct) : MildlyHardOnAverageIOWith correct :=
+  h.of_quant Filter.Eventually.frequently
 
 /-! ### Average-case hardness definitions
 ([Liu and Pass, Definitions 2.4 and 2.5, §2.3, p. 8 of arXiv:2009.11514v1][LiuPass2020]) -/
@@ -279,56 +525,44 @@ predicate holds for every `f` that is `⊤` on all inputs of infinitely many len
 def MildlyHardOnAverageIOENat (f : List Bool → ℕ∞) : Prop :=
   MildlyHardOnAverageIOWith fun _ x v => decide ((v : ℕ∞) = f x)
 
-/-! ### Monotonicity, shifting, and specialization bridges -/
-
-/-- An exact answer is a symmetric approximation. -/
-private theorem exact_imp_dist (f : List Bool → ℕ) (g : ℕ → ℕ) :
-    ∀ᶠ n in atTop, ∀ x : List Bool, x.length = n → ∀ v,
-      decide (v = f x) = true → decide (Nat.dist v (f x) ≤ g n) = true :=
-  .of_forall fun _ _ _ _ hv => by rw [decide_eq_true_eq] at hv; simp [hv]
-
-/-- An exact answer is a one-sided approximation. -/
-private theorem exact_imp_oneSided (f : List Bool → ℕ) (g : ℕ → ℕ) :
-    ∀ᶠ n in atTop, ∀ x : List Bool, x.length = n → ∀ v,
-      decide (v = f x) = true → decide (f x - g n ≤ v ∧ v ≤ f x) = true :=
-  .of_forall fun _ _ _ _ hv => by simp only [decide_eq_true_eq] at hv ⊢; omega
+/-! ### Monotonicity, shifting, and specialization corollaries -/
 
 /-- Monotonicity of `MildlyHardOnAverageToApprox` in the error window: if $g_1(n) \le g_2(n)$ for
 all $n$, then hardness of $g_2$-approximation implies hardness of $g_1$-approximation. -/
 theorem MildlyHardOnAverageToApprox.mono {g₁ g₂ : ℕ → ℕ} {f : List Bool → ℕ}
     (hle : ∀ n, g₁ n ≤ g₂ n) (h : MildlyHardOnAverageToApprox g₂ f) :
     MildlyHardOnAverageToApprox g₁ f :=
-  MildlyHardOnAverageWith.mono (.of_forall fun n _ _ _ hv => by
-    simp only [decide_eq_true_eq] at hv ⊢; exact hv.trans (hle n)) h
+  MildlyHardOnAverageFor.approx_mono (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsPPTOn encBits encNat) hle h
 
 /-- Monotonicity of `MildlyHardOnAverageToApproxDet` in the error window. -/
 theorem MildlyHardOnAverageToApproxDet.mono {g₁ g₂ : ℕ → ℕ} {f : List Bool → ℕ}
     (hle : ∀ n, g₁ n ≤ g₂ n) (h : MildlyHardOnAverageToApproxDet g₂ f) :
     MildlyHardOnAverageToApproxDet g₁ f :=
-  MildlyHardOnAverageDetWith.mono (.of_forall fun n _ _ _ hv => by
-    simp only [decide_eq_true_eq] at hv ⊢; exact hv.trans (hle n)) h
+  MildlyHardOnAverageFor.approx_mono (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsDetPolyTime encNat) hle h
 
 /-- Monotonicity of `MildlyHardOnAverageToOneSidedApprox` in the error window. -/
 theorem MildlyHardOnAverageToOneSidedApprox.mono {g₁ g₂ : ℕ → ℕ} {f : List Bool → ℕ}
     (hle : ∀ n, g₁ n ≤ g₂ n) (h : MildlyHardOnAverageToOneSidedApprox g₂ f) :
     MildlyHardOnAverageToOneSidedApprox g₁ f :=
-  MildlyHardOnAverageWith.mono (.of_forall fun n _ _ _ hv => by
-    simp only [decide_eq_true_eq] at hv ⊢; have := hle n; omega) h
+  MildlyHardOnAverageFor.oneSidedApprox_mono (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsPPTOn encBits encNat) hle h
 
 /-- Monotonicity of `MildlyHardOnAverageToOneSidedApproxDet` in the error window. -/
 theorem MildlyHardOnAverageToOneSidedApproxDet.mono {g₁ g₂ : ℕ → ℕ} {f : List Bool → ℕ}
     (hle : ∀ n, g₁ n ≤ g₂ n) (h : MildlyHardOnAverageToOneSidedApproxDet g₂ f) :
     MildlyHardOnAverageToOneSidedApproxDet g₁ f :=
-  MildlyHardOnAverageDetWith.mono (.of_forall fun n _ _ _ hv => by
-    simp only [decide_eq_true_eq] at hv ⊢; have := hle n; omega) h
+  MildlyHardOnAverageFor.oneSidedApprox_mono (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsDetPolyTime encNat) hle h
 
 /-- Symmetric $g$-approximation hardness (`MildlyHardOnAverageToApprox g f`) implies one-sided
 $g$-approximation hardness (`MildlyHardOnAverageToOneSidedApprox g f`). -/
 theorem MildlyHardOnAverageToApprox.mildlyHardOnAverageToOneSidedApprox {g : ℕ → ℕ}
     {f : List Bool → ℕ} (h : MildlyHardOnAverageToApprox g f) :
     MildlyHardOnAverageToOneSidedApprox g f :=
-  MildlyHardOnAverageWith.mono (.of_forall fun _ _ _ _ hv => by
-    simp only [decide_eq_true_eq] at hv ⊢; unfold Nat.dist; omega) h
+  MildlyHardOnAverageFor.oneSidedApprox_of_approx (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsPPTOn encBits encNat) (g := g) (f := f) h
 
 /--
 **Shift + gap-scaling bridge (`MildlyHardOnAverageToOneSidedApprox.mildlyHardOnAverageToApprox`):**
@@ -341,25 +575,9 @@ theorem MildlyHardOnAverageToOneSidedApprox.mildlyHardOnAverageToApprox {g : ℕ
     {f : List Bool → ℕ}
     (hg : ComputableInPolyTime (fun x : List Bool => g x.length) encBits encNat)
     (h : MildlyHardOnAverageToOneSidedApprox (fun n => 2 * g n) f) :
-    MildlyHardOnAverageToApprox g f := by
-  obtain ⟨p, hp, hH⟩ := h
-  refine ⟨p, hp, fun H hppt => ?_⟩
-  have hsub : ComputableInPolyTime (fun pair : List Bool × ℕ => pair.2 - g pair.1.length)
-      (encPair encBits encNat) encNat :=
-    ComputableInPolyTime.binary_sub'
-      (ComputableInPolyTime.snd encBits encNat)
-      (hg.comp (ComputableInPolyTime.fst encBits encNat))
-  have hppt' : IsPPTOn encBits encNat (fun x => (fun v => v - g x.length) <$> H x) :=
-    hppt.map_with hsub
-  filter_upwards [hH (fun x => (fun v => v - g x.length) <$> H x) hppt'] with n hn
-  refine (ENNReal.toReal_mono (PMF.apply_ne_top _ _) ?_).trans hn
-  refine PMF.bind_apply_mono_on_support _ true fun x hx => ?_
-  have hlen : x.length = n := BitString.length_of_mem_support_uniformList hx
-  rw [ProbComp.eval_map, PMF.map_comp]
-  refine map_true_mono _ fun v _ hdist => ?_
-  simp only [Function.comp_apply, decide_eq_true_eq, hlen] at hdist ⊢
-  unfold Nat.dist at hdist
-  omega
+    MildlyHardOnAverageToApprox g f :=
+  MildlyHardOnAverageFor.approx_of_oneSided_two_mul (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsPPTOn encBits encNat) (isPPTOn_map_sub_length hg) h
 
 /-- Deterministic counterpart of
 `MildlyHardOnAverageToOneSidedApprox.mildlyHardOnAverageToApprox`. -/
@@ -367,16 +585,9 @@ theorem MildlyHardOnAverageToOneSidedApproxDet.mildlyHardOnAverageToApproxDet {g
     {f : List Bool → ℕ}
     (hg : ComputableInPolyTime (fun x : List Bool => g x.length) encBits encNat)
     (h : MildlyHardOnAverageToOneSidedApproxDet (fun n => 2 * g n) f) :
-    MildlyHardOnAverageToApproxDet g f := by
-  obtain ⟨p, hp, hH⟩ := h
-  refine ⟨p, hp, fun H hpoly => ?_⟩
-  have hpoly' : ComputableInPolyTime (fun x : List Bool => H x - g x.length) encBits encNat :=
-    ComputableInPolyTime.binary_sub' hpoly hg
-  filter_upwards [hH (fun x => H x - g x.length) hpoly'] with n hn
-  refine (map_le_of_imp fun x hx hdist => ?_).trans hn
-  simp only [decide_eq_true_eq, hx] at hdist ⊢
-  unfold Nat.dist at hdist
-  omega
+    MildlyHardOnAverageToApproxDet g f :=
+  MildlyHardOnAverageFor.approx_of_oneSided_two_mul (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsDetPolyTime encNat) (IsDetPolyTime.map_sub_length hg) h
 
 /-- `MildlyHardOnAverageDet` implies `MildlyHardOnAverageIO`. -/
 theorem MildlyHardOnAverageDet.mildlyHardOnAverageIO {f : List Bool → ℕ}
@@ -398,24 +609,28 @@ theorem MildlyHardOnAverageToOneSidedApproxDet.mildlyHardOnAverageToOneSidedAppr
 /-- `MildlyHardOnAverageToApproxDet g f` implies `MildlyHardOnAverageDet f`. -/
 theorem MildlyHardOnAverageToApproxDet.mildlyHardOnAverageDet {g : ℕ → ℕ} {f : List Bool → ℕ}
     (h : MildlyHardOnAverageToApproxDet g f) : MildlyHardOnAverageDet f :=
-  MildlyHardOnAverageDetWith.mono (exact_imp_dist f g) h
+  MildlyHardOnAverageFor.exact_of_approx (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsDetPolyTime encNat) (g := g) (f := f) h
 
 /-- `MildlyHardOnAverageToOneSidedApproxDet g f` implies `MildlyHardOnAverageDet f`. -/
 theorem MildlyHardOnAverageToOneSidedApproxDet.mildlyHardOnAverageDet {g : ℕ → ℕ}
     {f : List Bool → ℕ} (h : MildlyHardOnAverageToOneSidedApproxDet g f) :
     MildlyHardOnAverageDet f :=
-  MildlyHardOnAverageDetWith.mono (exact_imp_oneSided f g) h
+  MildlyHardOnAverageFor.exact_of_oneSidedApprox (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsDetPolyTime encNat) (g := g) (f := f) h
 
 /-- `MildlyHardOnAverageToApproxIO g f` implies `MildlyHardOnAverageIO f`. -/
 theorem MildlyHardOnAverageToApproxIO.mildlyHardOnAverageIO {g : ℕ → ℕ} {f : List Bool → ℕ}
     (h : MildlyHardOnAverageToApproxIO g f) : MildlyHardOnAverageIO f :=
-  MildlyHardOnAverageIOWith.mono (exact_imp_dist f g) h
+  MildlyHardOnAverageFor.exact_of_approx (Quant := (Filter.Frequently · atTop))
+    (Admissible := IsDetPolyTime encNat) (g := g) (f := f) h
 
 /-- `MildlyHardOnAverageToOneSidedApproxIO g f` implies `MildlyHardOnAverageIO f`. -/
 theorem MildlyHardOnAverageToOneSidedApproxIO.mildlyHardOnAverageIO {g : ℕ → ℕ}
     {f : List Bool → ℕ} (h : MildlyHardOnAverageToOneSidedApproxIO g f) :
     MildlyHardOnAverageIO f :=
-  MildlyHardOnAverageIOWith.mono (exact_imp_oneSided f g) h
+  MildlyHardOnAverageFor.exact_of_oneSidedApprox (Quant := (Filter.Frequently · atTop))
+    (Admissible := IsDetPolyTime encNat) (g := g) (f := f) h
 
 /-- `MildlyHardOnAverageToApprox` implies `MildlyHardOnAverageToApproxDet` (since every
 deterministic polynomial-time heuristic is a strict PPT heuristic). -/
@@ -444,13 +659,14 @@ theorem MildlyHardOnAverage.mildlyHardOnAverageIO {f : List Bool → ℕ}
 /-- `MildlyHardOnAverageToApprox g f` implies `MildlyHardOnAverage f`. -/
 theorem MildlyHardOnAverageToApprox.mildlyHardOnAverage {g : ℕ → ℕ} {f : List Bool → ℕ}
     (h : MildlyHardOnAverageToApprox g f) : MildlyHardOnAverage f :=
-  MildlyHardOnAverageWith.mono (exact_imp_dist f g) h
+  MildlyHardOnAverageFor.exact_of_approx (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsPPTOn encBits encNat) (g := g) (f := f) h
 
 /-- `MildlyHardOnAverageToOneSidedApprox g f` implies `MildlyHardOnAverage f`. -/
 theorem MildlyHardOnAverageToOneSidedApprox.mildlyHardOnAverage {g : ℕ → ℕ} {f : List Bool → ℕ}
     (h : MildlyHardOnAverageToOneSidedApprox g f) : MildlyHardOnAverage f :=
-  MildlyHardOnAverageWith.mono (exact_imp_oneSided f g) h
-
+  MildlyHardOnAverageFor.exact_of_oneSidedApprox (Quant := (Filter.Eventually · atTop))
+    (Admissible := IsPPTOn encBits encNat) (g := g) (f := f) h
 
 /-! ### Rounded logarithm bounds and real-valued log window bridge -/
 
@@ -462,10 +678,8 @@ theorem nat_clog_two_le_log_two_succ (n : ℕ) : Nat.clog 2 n ≤ Nat.log 2 n + 
 $\log_2 n \le \lfloor \log_2 n \rfloor + 1$. -/
 theorem real_logb_two_le_nat_log_two_succ {n : ℕ} (hn : 1 ≤ n) :
     Real.logb 2 (n : ℝ) ≤ (Nat.log 2 n + 1 : ℕ) := by
-  have hn_pos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
-  rw [Real.logb_le_iff_le_rpow (by norm_num : (1 : ℝ) < 2) hn_pos, Real.rpow_natCast]
-  have hlt := Nat.lt_pow_succ_log_self Nat.one_lt_two n
-  exact_mod_cast hlt.le
+  rw [Real.logb_le_iff_le_rpow (by norm_num) (by exact_mod_cast hn), Real.rpow_natCast]
+  exact_mod_cast (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
 
 /-- Any real-valued symmetric approximation error $|(v : \mathbb{R}) - (w : \mathbb{R})| \le
 d \log_2 n$ (for $n \ge 1$) implies the upper-rounded integer distance bound
@@ -473,24 +687,14 @@ d \log_2 n$ (for $n \ge 1$) implies the upper-rounded integer distance bound
 theorem nat_dist_le_mul_log_two_succ_of_abs_sub_le_mul_logb {v w d n : ℕ} (hn : 1 ≤ n)
     (h : |(v : ℝ) - (w : ℝ)| ≤ (d : ℝ) * Real.logb 2 (n : ℝ)) :
     Nat.dist v w ≤ d * (Nat.log 2 n + 1) := by
-  have hdist_real : ((Nat.dist v w : ℕ) : ℝ) = |(v : ℝ) - (w : ℝ)| := by
+  have hdist : ((Nat.dist v w : ℕ) : ℝ) = |(v : ℝ) - (w : ℝ)| := by
     rcases le_total v w with hvw | hwv
-    · have h1 : Nat.dist v w = w - v := by
-        unfold Nat.dist
-        omega
-      have hvw_real : (v : ℝ) ≤ (w : ℝ) := by exact_mod_cast hvw
-      rw [h1, Nat.cast_sub hvw, abs_of_nonpos (by linarith)]
-      ring
-    · have h1 : Nat.dist v w = v - w := by
-        unfold Nat.dist
-        omega
-      have hwv_real : (w : ℝ) ≤ (v : ℝ) := by exact_mod_cast hwv
-      rw [h1, Nat.cast_sub hwv, abs_of_nonneg (by linarith)]
-  have hlog := real_logb_two_le_nat_log_two_succ hn
-  have hle : ((Nat.dist v w : ℕ) : ℝ) ≤ ((d * (Nat.log 2 n + 1) : ℕ) : ℝ) := by
-    rw [hdist_real, Nat.cast_mul]
-    exact h.trans (mul_le_mul_of_nonneg_left hlog (Nat.cast_nonneg d))
-  exact_mod_cast hle
+    · rw [show Nat.dist v w = w - v by unfold Nat.dist; omega, Nat.cast_sub hvw,
+        abs_of_nonpos (sub_nonpos.2 (by exact_mod_cast hvw)), neg_sub]
+    · rw [show Nat.dist v w = v - w by unfold Nat.dist; omega, Nat.cast_sub hwv,
+        abs_of_nonneg (sub_nonneg.2 (by exact_mod_cast hwv))]
+  exact_mod_cast (hdist.trans_le (h.trans (mul_le_mul_of_nonneg_left
+    (real_logb_two_le_nat_log_two_succ hn) (Nat.cast_nonneg d)))).trans_eq (Nat.cast_mul ..).symm
 
 /-- **Real-valued $d \log_2 n$ approximation window bridge:** if `f` is mildly hard on average to
 approximate within the upper-rounded integer window `fun n => d * (Nat.log 2 n + 1)`, then `f` is
@@ -508,19 +712,12 @@ theorem MildlyHardOnAverageToApprox.eventually_real_abs_sub_le {d : ℕ} {f : Li
 
 /-- The constant zero function `fun _ => 0` is **not** `MildlyHardOnAverageIO`, because the
 constant zero polynomial-time heuristic succeeds with probability $1$ on every input length. -/
-theorem not_mildlyHardOnAverageIO_zero : ¬ MildlyHardOnAverageIO (fun _ => 0) := by
-  rintro ⟨p, hp, hH⟩
-  have h0 : ComputableInPolyTime (fun _ : List Bool => (0 : ℕ)) encBits encNat := by fun_prop
-  have hfreq := hH (fun _ => 0) h0
-  refine hfreq (Filter.Eventually.of_forall fun n => ?_)
-  rw [not_le]
-  have hp_pos : (0 : ℝ) < (p.eval n : ℕ) := by exact_mod_cast hp n
-  have hdiv_pos : 0 < 1 / ((p.eval n : ℕ) : ℝ) := one_div_pos.mpr hp_pos
-  have hval :
-      (((BitString.uniformList n).map fun _ => decide ((0 : ℕ) = 0)) true).toReal = 1 := by
-    simp
-  rw [hval]
-  linarith
+theorem not_mildlyHardOnAverageIO_zero : ¬ MildlyHardOnAverageIO (fun _ => 0) :=
+  MildlyHardOnAverageFor.not_of_admissible_pure (Quant := (Filter.Frequently · atTop))
+    (Admissible := IsDetPolyTime encNat) (correct := fun _ _ v => decide (v = 0))
+    (fun h => nomatch h.exists)
+    (IsDetPolyTime.of_computableInPolyTime (ComputableInPolyTime.const 0))
+    (.of_forall fun _ _ _ => rfl)
 
 /-- The constant zero function `fun _ => 0` is not `MildlyHardOnAverageDet`. -/
 theorem not_mildlyHardOnAverageDet_zero : ¬ MildlyHardOnAverageDet (fun _ => 0) :=

@@ -17,6 +17,8 @@ import CslibFrontier.Foundations.Data.Nat.Power
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Multi-Level Tree Parameter Schedule and Subconstant-Redundancy Bit Budget
@@ -158,6 +160,7 @@ def treeDepthAux (U r cur : ℕ) : ℕ → ℕ
 
 /-- Tree depth `k ≥ 2`: the least `ℓ ≥ 2` (within `Nat.floorLogStar U + 2`) such that
 `Nat.iterLog ℓ U ≤ 4 * r`. -/
+@[wram_arith]
 def treeDepth (U r : ℕ) : ℕ :=
   treeDepthAux U r 2 (Nat.floorLogStar U)
 
@@ -212,7 +215,7 @@ def nHigh (n U r k ℓ : ℕ) : ℕ :=
   if ℓ = 0 then n else nFloor n U r k ℓ + delta n U r k ℓ
 
 /-- Key-ID bit width `I_ℓ = 4 * ⌈log₂(2 * nFloor ℓ)⌉` at level `1 ≤ ℓ ≤ k` (`≥ 4 log₂ n_ℓ + 4`). -/
-@[expose]
+@[expose, wram_arith]
 def idBits (n U r k ℓ : ℕ) : ℕ :=
   4 * Nat.clog 2 (2 * max (nFloor n U r k ℓ) 1)
 
@@ -231,102 +234,57 @@ theorem effRedundancy_le (n R : ℕ) : effRedundancy n R ≤ R :=
 theorem effRedundancy_pos {R : ℕ} (hR : 1 ≤ R) (n : ℕ) : 1 ≤ effRedundancy n R :=
   le_min hR (le_max_left 1 _)
 
-theorem minRedundancyRatio_le_redundancyRatio {n R : ℕ} (hn : minRedundancyRatio ≤ n) :
-    minRedundancyRatio ≤ redundancyRatio n R := by
+/-- A positive `a ≤ n` below the clamp `max minRedundancyRatio (2 ^ log* n)` lower-bounds the
+redundancy ratio. -/
+private theorem le_redundancyRatio {n R a : ℕ} (ha : 0 < a)
+    (haM : a ≤ max minRedundancyRatio (2 ^ Nat.logStar n)) (hn : a ≤ n) :
+    a ≤ redundancyRatio n R := by
+  have h1 := Nat.div_le_div_left (a := n) haM ha
+  have h2 : 1 ≤ n / a := (Nat.le_div_iff_mul_le ha).mpr (by omega)
   dsimp only [redundancyRatio, effRedundancy]
-  set M := max minRedundancyRatio (2 ^ Nat.logStar n)
-  have hM : minRedundancyRatio ≤ M := le_max_left _ _
-  by_cases hnM : M ≤ n
-  · have hdiv_pos : 1 ≤ n / M :=
-      (Nat.le_div_iff_mul_le (by positivity)).mpr (by linarith [one_mul M])
-    have heff_le : max (min R (max 1 (n / M))) 1 ≤ n / minRedundancyRatio := by
-      have h1 : n / M ≤ n / minRedundancyRatio := Nat.div_le_div_left hM (by decide)
-      have h2 : min R (max 1 (n / M)) ≤ max 1 (n / M) := min_le_right _ _
-      omega
-    refine (Nat.le_div_iff_mul_le (by positivity)).mpr ?_
-    calc minRedundancyRatio * max (min R (max 1 (n / M))) 1
-        ≤ minRedundancyRatio * (n / minRedundancyRatio) := Nat.mul_le_mul_left _ heff_le
-      _ ≤ n := Nat.mul_div_le n minRedundancyRatio
-  · have hdiv0 : n / M = 0 := Nat.div_eq_of_lt (not_le.mp hnM)
-    have heff1 : max (min R (max 1 (n / M))) 1 = 1 := by rw [hdiv0]; omega
-    rw [heff1, Nat.div_one]
-    exact hn
+  rw [Nat.le_div_iff_mul_le (by positivity), mul_comm, ← Nat.le_div_iff_mul_le ha]
+  omega
+
+theorem minRedundancyRatio_le_redundancyRatio {n R : ℕ} (hn : minRedundancyRatio ≤ n) :
+    minRedundancyRatio ≤ redundancyRatio n R :=
+  le_redundancyRatio (by decide) (le_max_left _ _) hn
 
 theorem two_pow_logStar_le_redundancyRatio {n R : ℕ} (hn : 2 ^ Nat.logStar n ≤ n) :
-    2 ^ Nat.logStar n ≤ redundancyRatio n R := by
-  dsimp only [redundancyRatio, effRedundancy]
-  set M := max minRedundancyRatio (2 ^ Nat.logStar n)
-  have hM : 2 ^ Nat.logStar n ≤ M := le_max_right _ _
-  by_cases hnM : M ≤ n
-  · have hdiv_pos : 1 ≤ n / M :=
-      (Nat.le_div_iff_mul_le (by positivity)).mpr (by linarith [one_mul M])
-    have heff_le : max (min R (max 1 (n / M))) 1 ≤ n / 2 ^ Nat.logStar n := by
-      have h1 : n / M ≤ n / 2 ^ Nat.logStar n :=
-        Nat.div_le_div_left hM (Nat.two_pow_pos _)
-      have h2 : min R (max 1 (n / M)) ≤ max 1 (n / M) := min_le_right _ _
-      omega
-    refine (Nat.le_div_iff_mul_le (by positivity)).mpr ?_
-    calc 2 ^ Nat.logStar n * max (min R (max 1 (n / M))) 1
-        ≤ 2 ^ Nat.logStar n * (n / 2 ^ Nat.logStar n) := Nat.mul_le_mul_left _ heff_le
-      _ ≤ n := Nat.mul_div_le n _
-  · have hdiv0 : n / M = 0 := Nat.div_eq_of_lt (not_le.mp hnM)
-    have heff1 : max (min R (max 1 (n / M))) 1 = 1 := by rw [hdiv0]; omega
-    rw [heff1, Nat.div_one]
-    exact hn
+    2 ^ Nat.logStar n ≤ redundancyRatio n R :=
+  le_redundancyRatio (Nat.two_pow_pos _) (le_max_right _ _) hn
 
 private theorem le_treeDepthAux (U r cur fuel : ℕ) : cur ≤ treeDepthAux U r cur fuel := by
-  induction fuel generalizing cur with
-  | zero => exact le_rfl
-  | succ fuel ih =>
-    dsimp only [treeDepthAux]
-    split_ifs
-    · exact le_rfl
-    · exact (Nat.le_succ cur).trans (ih (cur + 1))
+  fun_induction treeDepthAux U r cur fuel <;> omega
 
 private theorem treeDepthAux_le (U r cur fuel : ℕ) :
     treeDepthAux U r cur fuel ≤ cur + fuel := by
-  induction fuel generalizing cur with
-  | zero => simp [treeDepthAux]
-  | succ fuel ih =>
-    dsimp only [treeDepthAux]
-    split_ifs
-    · omega
-    · have := ih (cur + 1)
-      omega
+  fun_induction treeDepthAux U r cur fuel <;> omega
 
 private theorem iterLog_treeDepthAux_le {U r cur fuel : ℕ}
     (hend : Nat.iterLog (cur + fuel) U ≤ max (4 * r) 1) :
     Nat.iterLog (treeDepthAux U r cur fuel) U ≤ max (4 * r) 1 := by
-  induction fuel generalizing cur with
-  | zero => simpa [treeDepthAux] using hend
-  | succ fuel ih =>
-    dsimp only [treeDepthAux]
-    split_ifs with h
-    · exact h.trans (le_max_left _ _)
-    · exact ih (by rwa [Nat.add_right_comm, Nat.add_assoc])
+  fun_induction treeDepthAux U r cur fuel with
+  | case1 => simpa only [Nat.add_zero] using hend -- fuel exhausted
+  | case2 _ _ hle => exact hle.trans (le_max_left _ _) -- iterLog cur U ≤ 4 * r: stop at cur
+  -- iterLog cur U > 4 * r: try cur + 1
+  | case3 _ _ _ ih => exact ih (by rwa [Nat.add_right_comm, Nat.add_assoc])
 
 private theorem lt_iterLog_of_lt_treeDepthAux {U r cur fuel ℓ : ℕ}
     (hlo : cur ≤ ℓ) (hlt : ℓ < treeDepthAux U r cur fuel) :
     4 * r < Nat.iterLog ℓ U := by
-  induction fuel generalizing cur with
-  | zero =>
-    dsimp only [treeDepthAux] at hlt
-    omega
-  | succ fuel ih =>
-    dsimp only [treeDepthAux] at hlt
-    split_ifs at hlt with h
-    · omega
-    · rcases eq_or_lt_of_le hlo with rfl | hgt
-      · exact not_le.mp h
-      · exact ih (Nat.succ_le_of_lt hgt) hlt
+  fun_induction treeDepthAux U r cur fuel with
+  | case3 cur _ hgt' ih => -- iterLog cur U > 4 * r: try cur + 1
+    rcases eq_or_lt_of_le hlo with rfl | hgt
+    · exact not_le.mp hgt'
+    · exact ih (Nat.succ_le_of_lt hgt) hlt
+  | _ => omega -- fuel exhausted, or iterLog cur U ≤ 4 * r: stop at cur
 
 theorem two_le_treeDepth (U r : ℕ) : 2 ≤ treeDepth U r :=
   le_treeDepthAux U r 2 _
 
 theorem treeDepth_le (U r : ℕ) : treeDepth U r ≤ Nat.floorLogStar U + 2 := by
   have h := treeDepthAux_le U r 2 (Nat.floorLogStar U)
-  dsimp only [treeDepth]
-  omega
+  wram_omega
 
 theorem iterLog_treeDepth_le {U r : ℕ} (hr : 1 ≤ r) :
     Nat.iterLog (treeDepth U r) U ≤ 4 * r := by
@@ -457,7 +415,7 @@ theorem nHigh_sub_nLow {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) :
   omega
 
 /-- Quotient remainder bit-shift `I_ℓ - s_ℓ - I_{ℓ + 1}` on edge `ℓ → ℓ + 1`. -/
-@[expose]
+@[expose, wram_arith]
 def remBits (ℓ : ℕ) : ℕ :=
   P.idBits ℓ - P.branchBits ℓ - P.idBits (ℓ + 1)
 
@@ -474,14 +432,9 @@ def paddedUniv : ℕ :=
   P.branchFactor 0 * 2 ^ P.idBits 1 * P.quotOne
 
 theorem quotUniv_pos (ℓ : ℕ) : 1 ≤ P.quotUniv ℓ := by
-  induction ℓ with
-  | zero => exact P.quotOne_pos
-  | succ m ih =>
-    cases m with
-    | zero => exact P.quotOne_pos
-    | succ m' =>
-      dsimp only [quotUniv]
-      exact Nat.mul_pos ih (Nat.two_pow_pos _)
+  fun_induction quotUniv P ℓ with
+  | case3 _ ih => exact Nat.mul_pos ih (Nat.two_pow_pos _) -- ℓ + 2
+  | _ => exact P.quotOne_pos -- ℓ = 0 or ℓ = 1
 
 theorem quotUniv_succ_of_pos {ℓ : ℕ} (h1 : 1 ≤ ℓ) :
     P.quotUniv (ℓ + 1) = P.quotUniv ℓ * 2 ^ P.remBits ℓ := by
@@ -502,8 +455,7 @@ theorem numNodes_mul_idUniv_mul_quotUniv {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : �
     have hd_lt : 1 + d < P.depth := by omega
     have hstep := P.idBits_step_le (1 + d) (by omega) hd_lt
     have hexp : P.idBits (1 + d + 1) + P.branchBits (1 + d) + P.remBits (1 + d) =
-        P.idBits (1 + d) := by
-      dsimp only [remBits]; omega
+        P.idBits (1 + d) := by wram_omega
     calc P.numNodes (1 + (d + 1)) * 2 ^ P.idBits (1 + (d + 1)) * P.quotUniv (1 + (d + 1))
         = (P.numNodes (1 + d) * 2 ^ P.branchBits (1 + d)) *
             2 ^ P.idBits (1 + d + 1) *
@@ -539,7 +491,7 @@ def tableCap (ℓ : ℕ) : ℕ :=
   else P.nLow P.depth
 
 /-- Capacity `cap - N_2 * nLow 2` of the shared root value pool. -/
-@[expose]
+@[expose, wram_arith]
 def rootValPoolCap : ℕ :=
   P.cap - P.numNodes 2 * P.nLow 2
 
@@ -674,27 +626,16 @@ theorem two_pow_eighteen_mul_targetSize_succ_le {n U r ℓ : ℕ}
       set s := Nat.iterLog (ℓ + 1) U
       have hs_gt : 4 * r < s := lt_iterLog_of_lt_treeDepth (by omega) hlt1
       have hs_ge : 4 ≤ s := by omega
-      have hsq : s ^ 2 ≤ 2 ^ s := Nat.sq_le_two_pow hs_ge
-      have h4s : 4 * s ≤ 2 ^ s := by nlinarith
-      have hX_pos : 0 < Nat.iterLog ℓ U := by
-        by_contra h0
-        have : s = 0 := by
-          dsimp only [s]
-          rw [Nat.iterLog_succ, Nat.eq_zero_of_le_zero (not_lt.mp h0)]
-          decide
+      have h4s : 4 * s ≤ 2 ^ s := by nlinarith [Nat.sq_le_two_pow hs_ge]
+      have hX0 : Nat.iterLog ℓ U ≠ 0 := fun h0 => by
+        simp only [s, Nat.iterLog_succ, h0, Nat.log_zero_right] at hs_gt
         omega
-      have hpow_le : 2 ^ s ≤ Nat.iterLog ℓ U := by
-        dsimp only [s]
-        rw [Nat.iterLog_succ]
-        exact Nat.pow_log_le_self 2 hX_pos.ne'
-      exact h4s.trans hpow_le
+      exact h4s.trans (Nat.pow_log_le_self 2 hX0)
     · rw [ite_eq_right hlt1]
-      have hℓ_eq : ℓ = k - 1 := by omega
-      rcases eq_or_lt_of_le hk2 with hk_eq | hk_gt
-      · have hℓ1 : ℓ = 1 := by omega
-        subst hℓ1
+      rcases Nat.lt_or_ge ℓ 2 with hℓ | hℓ
+      · obtain rfl : ℓ = 1 := by omega
         simpa only [Nat.iterLog_succ, Nat.iterLog_zero] using hU
-      · have hgt := lt_iterLog_of_lt_treeDepth (by omega : 2 ≤ ℓ) hlt
+      · have := lt_iterLog_of_lt_treeDepth hℓ hlt
         omega
 
 theorem targetSize_le_of_step {n U r k : ℕ}
@@ -743,13 +684,9 @@ theorem numNodes_mul_targetSize_bounds {n U r k ℓ : ℕ}
       rw [hS, mul_comm 2, ← pow_succ]
       exact Nat.lt_pow_succ_log_self Nat.one_lt_two q
     refine ⟨(Nat.mul_le_mul_right T hlo).trans (Nat.div_mul_le_self n T), ?_⟩
-    have hdiv := Nat.div_add_mod n T
-    have hmod := Nat.mod_lt n hpos
-    have hq1_le : q + 1 ≤ 2 * numNodes n U r k ℓ := by omega
-    calc n = T * q + n % T := hdiv.symm
-      _ < T * q + T := Nat.add_lt_add_left hmod _
-      _ = (q + 1) * T := by ring
-      _ ≤ (2 * numNodes n U r k ℓ) * T := Nat.mul_le_mul_right T hq1_le
+    calc n < T * (q + 1) := Nat.lt_mul_div_succ n hpos
+      _ ≤ T * (2 * numNodes n U r k ℓ) := Nat.mul_le_mul_left T hhi
+      _ = 2 * numNodes n U r k ℓ * T := by ring
 
 theorem targetSize_le_nFloor_and_lt {n U r k ℓ : ℕ}
     (hpos : 1 ≤ targetSize n U r k ℓ) (hle : targetSize n U r k ℓ ≤ n) :
@@ -799,9 +736,8 @@ theorem two_mul_delta_le_nFloor_of_eight_le {n U r k ℓ : ℕ}
   have hd3 : d ^ 3 ≤ y ^ 2 := Nat.pow_nthRoot_le (.inl (by decide))
   have hcube : (2 * d) ^ 3 ≤ y ^ 3 := by
     calc (2 * d) ^ 3 = 8 * d ^ 3 := by ring
-      _ ≤ 8 * y ^ 2 := Nat.mul_le_mul_left 8 hd3
-      _ ≤ y * y ^ 2 := Nat.mul_le_mul_right _ h8
-      _ = y ^ 3 := (pow_succ' y 2).symm
+      _ ≤ y * y ^ 2 := Nat.mul_le_mul h8 hd3
+      _ = y ^ 3 := by ring
   exact (Nat.pow_le_pow_iff_left (by decide : 3 ≠ 0)).mp hcube
 
 theorem ten_mul_delta_le_branchFactor_mul_delta_succ {n U r k ℓ : ℕ}
@@ -817,12 +753,7 @@ theorem ten_mul_delta_le_branchFactor_mul_delta_succ {n U r k ℓ : ℕ}
     dsimp only [B, branchFactor, branchBits]
     exact Nat.pow_le_pow_right Nat.two_pos (by omega)
   have hx_eq : x = y / B := nFloor_succ_eq_div (by omega)
-  have hy_lt : y < B * (x + 1) := by
-    have hB_pos : 0 < B := by positivity
-    have hdiv := Nat.div_add_mod y B
-    have hmod := Nat.mod_lt y hB_pos
-    rw [← hx_eq] at hdiv
-    linarith
+  have hy_lt : y < B * (x + 1) := hx_eq ▸ Nat.lt_mul_div_succ y (by positivity)
   have hy_le : y ≤ 2 * B * x := by nlinarith
   have hd_next_pos : 1 ≤ d_next := by
     dsimp only [d_next, delta]
@@ -836,9 +767,7 @@ theorem ten_mul_delta_le_branchFactor_mul_delta_succ {n U r k ℓ : ℕ}
       _ = 8 * d_next ^ 3 := by ring
   have hd_cur3 : d_cur ^ 3 ≤ y ^ 2 := Nat.pow_nthRoot_le (.inl (by decide))
   have hcube : (10 * d_cur) ^ 3 ≤ (B * d_next) ^ 3 := by
-    have hB_num : 32000 ≤ B := by
-      have : (2 : ℕ) ^ 17 = 131072 := by decide
-      omega
+    have hB_num : 32000 ≤ B := le_trans (by norm_num) hB
     calc (10 * d_cur) ^ 3 = 1000 * d_cur ^ 3 := by ring
       _ ≤ 1000 * y ^ 2 := Nat.mul_le_mul_left 1000 hd_cur3
       _ ≤ 1000 * (2 * B * x) ^ 2 := Nat.mul_le_mul_left 1000 (Nat.pow_le_pow_left hy_le 2)
@@ -860,10 +789,7 @@ theorem four_mul_branchBits_add_idBits_succ_le {n U r k ℓ : ℕ}
     dsimp only [s, x, y, branchFactor]
     rw [nFloor_succ_eq_div hle]
     exact Nat.mul_div_le _ _
-  have hy1 : 1 ≤ y := by
-    calc 1 ≤ 1 * 1 := by decide
-      _ ≤ 2 ^ s * x := Nat.mul_le_mul (Nat.two_pow_pos s) hx1
-      _ ≤ y := hstep
+  have hy1 : 1 ≤ y := hx1.trans ((Nat.le_mul_of_pos_left x (Nat.two_pow_pos s)).trans hstep)
   set a := Nat.clog 2 (2 * max x 1)
   set b := Nat.clog 2 (2 * max y 1)
   have hmx : max x 1 = x := max_eq_left hx1
@@ -940,57 +866,36 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
   intro k
   have hr256 : 256 ≤ r := hr
   obtain ⟨hlo, hhi⟩ := targetSize_le_nFloor_and_lt hpos_pred hle_pred
-  have hpred1 : 1 ≤ ℓ - 1 := by omega
   have hpred_lt : ℓ - 1 < k := by omega
   have hT_eq : targetSize n U r k (ℓ - 1) = (Nat.iterLog (ℓ - 1) U) ^ 9 := by
-    rw [targetSize_eq_levelScale_pow hpred1]
+    rw [targetSize_eq_levelScale_pow (by omega)]
     dsimp only [levelScale]
     rw [ite_eq_left hpred_lt]
+  have heq : Nat.iterLog ℓ U = Nat.log 2 (Nat.iterLog (ℓ - 1) U) := by
+    rw [← Nat.iterLog_succ, Nat.sub_add_cancel (by omega : 1 ≤ ℓ)]
   set X := Nat.iterLog (ℓ - 1) U
   set s := levelScale U r k ℓ
-  have hs_ge : 256 ≤ s := by
+  have hs : 256 ≤ s ∧ Nat.log 2 X ≤ 4 * s := by
     dsimp only [s, levelScale]
     split_ifs with hlt
     · have := lt_iterLog_of_lt_treeDepth h2 hlt
       omega
-    · exact hr256
-  have hlogX_le : Nat.log 2 X ≤ 4 * s := by
-    dsimp only [s, levelScale]
-    split_ifs with hlt
-    · obtain ⟨m, hm⟩ := Nat.exists_eq_add_of_le h2
-      have heq : Nat.iterLog ℓ U = Nat.log 2 X := by
-        dsimp only [X]
-        rw [hm, show 2 + m - 1 = 1 + m by omega, show 2 + m = (1 + m) + 1 by omega,
-          Nat.iterLog_succ]
-      omega
-    · have hℓ_eq : ℓ = k := by omega
-      obtain ⟨m, hm⟩ := Nat.exists_eq_add_of_le h2
-      have heq : Nat.iterLog k U = Nat.log 2 X := by
-        dsimp only [X]
-        rw [← hℓ_eq, hm, show 2 + m - 1 = 1 + m by omega, show 2 + m = (1 + m) + 1 by omega,
-          Nat.iterLog_succ]
-      rw [← heq]
-      exact iterLog_treeDepth_le (by omega)
+    · rw [← heq, show ℓ = k by omega]
+      exact ⟨hr256, iterLog_treeDepth_le (by omega)⟩
   have hX_lt : X < 2 ^ (4 * s + 1) :=
     (Nat.lt_pow_succ_log_self Nat.one_lt_two X).trans_le
       (Nat.pow_le_pow_right Nat.two_pos (by omega))
   have hy_pos : 1 ≤ nFloor n U r k (ℓ - 1) := hpos_pred.trans hlo
   have h2y_le : 2 * max (nFloor n U r k (ℓ - 1)) 1 ≤ 2 ^ (36 * s + 11) := by
     rw [max_eq_left hy_pos]
-    have h1 : 2 * nFloor n U r k (ℓ - 1) ≤ 4 * X ^ 9 := by
-      dsimp only [k] at hT_eq ⊢
-      rw [hT_eq] at hhi
-      omega
+    dsimp only [k] at hT_eq
+    rw [hT_eq] at hhi
     calc 2 * nFloor n U r k (ℓ - 1)
-        ≤ 4 * X ^ 9 := h1
+        ≤ 4 * X ^ 9 := by dsimp only [k]; omega
       _ ≤ 4 * (2 ^ (4 * s + 1)) ^ 9 := Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left hX_lt.le 9)
-      _ = 2 ^ (36 * s + 11) := by
-          have h4 : (4 : ℕ) = 2 ^ 2 := by decide
-          rw [h4, ← Nat.pow_mul, ← Nat.pow_add]
-          congr 1; ring
+      _ = 2 ^ (36 * s + 11) := by ring
   have hcl : Nat.clog 2 (2 * max (nFloor n U r k (ℓ - 1)) 1) ≤ 36 * s + 11 :=
     Nat.clog_le_of_le_pow h2y_le
-  dsimp only [idBits]
-  omega
+  wram_omega
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

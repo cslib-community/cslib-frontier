@@ -57,6 +57,20 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε}
     simp only [length_encPair, encOption_none, encOption_some, List.length_nil,
       List.length_cons, Option.elim_none, Option.elim_some] <;> omega
 
+/-- Linear-space case analysis on an option without an auxiliary parameter. -/
+theorem optionElim (fallback : ε) {g : α → ε}
+    (hg : ComputableInSpace g encA encE fun a => (encA a).length) :
+    ComputableInSpace (fun s : Option α => s.elim fallback g) (encOption encA) encE
+      (fun s => (encOption encA s).length) := by
+  have hcase := optionElimSnd (budget_const (encIn := encUnit) (encB := encE) fallback)
+    (budget_comp_linear hg (snd encUnit encA))
+  have hid : ComputableInSpace (fun s : Option α => s) (encOption encA) (encOption encA)
+      (fun s => (encOption encA s).length) :=
+    of_inO ComputableInDegree.id'.inO_one
+  exact (budget_comp_linear hcase
+    (budget_prod (budget_const ()) hid)).of_enc_eq fun s => by
+      cases s <;> rfl
+
 /-- Case analysis on the first component preserves a shared second parameter. -/
 theorem sumElimFst {f : α × π → ε} {g : β × π → ε}
     (hf : ComputableInSpace f (encPair encA encP) encE
@@ -85,7 +99,7 @@ theorem sumElim {f : α → ε} {g : β → ε}
       (encSum encA encB) (fun s => (encSum encA encB s).length) :=
     of_inO ComputableInDegree.id'.inO_one
   exact (budget_comp_linear hcase
-    (budget_prod (budget_const () (.refl _)) hid)).of_enc_eq fun s => by
+    (budget_prod (budget_const ()) hid)).of_enc_eq fun s => by
       cases s <;> rfl
 
 end Turing.MultiTapeTM.ComputableInSpace

@@ -227,16 +227,9 @@ private noncomputable def SymRatMatrix.intMatrix (M : SymRatMatrix) :
 private theorem SymRatMatrix.intMatrix_eq (M : SymRatMatrix) (i j : Fin M.rows.length) :
     M.intMatrix i j =
       (M.toMatrix i j).num * ((M.commonDenomNat / (M.toMatrix i j).den : ℕ) : ℤ) := by
-  have hi : i.1 < M.rows.length := i.2
-  have hi_int : i.1 < M.intRows.length := by
-    simp only [SymRatMatrix.intRows, List.length_map]
-    exact hi
-  have hj : j.1 < M.rows[i.1].length := by
-    rw [M.square _ (List.getElem_mem hi)]
-    exact j.2
+  have hi_int : i.1 < M.intRows.length := by simp [SymRatMatrix.intRows]
   have hj_int : j.1 < M.intRows[i.1].length := by
-    simp only [SymRatMatrix.intRows, List.getElem_map, List.length_map]
-    exact hj
+    simp [SymRatMatrix.intRows, M.square _ (List.getElem_mem i.2)]
   dsimp only [SymRatMatrix.intMatrix, Matrix.of_apply]
   rw [List.getD_eq_getElem _ _ hi_int, List.getD_eq_getElem _ _ hj_int]
   simp only [SymRatMatrix.intRows, List.getElem_map]
@@ -258,43 +251,31 @@ private theorem SymRatMatrix.dotProduct_check_eq (M : SymRatMatrix) {p : List �
   intro pFin
   have hp_ofFn :
       (p.map Nat.cast : List ℤ) = List.ofFn fun i : Fin M.rows.length => (pFin i : ℤ) := by
-    refine List.ext_getElem (by simp only [List.length_map, List.length_ofFn, hlen]) ?_
-    intro k hk1 hk2
-    have hk_lt : k < p.length := by simpa only [List.length_map] using hk1
-    simp only [List.getElem_map, List.getElem_ofFn, pFin, List.getD_eq_getElem _ _ hk_lt]
+    refine List.ext_getElem (by simp [hlen]) fun k hk1 _ => ?_
+    have hk_lt : k < p.length := by simpa using hk1
+    simp only [List.getElem_map, List.getElem_ofFn, pFin]
+    rw [List.getD_eq_getElem _ _ hk_lt]
   have hrows_ofFn :
       (M.intRows.map fun row =>
           Mathlib.Tactic.Matrix.ListMatrix.dotProduct M.rows.length row (p.map Nat.cast)) =
         List.ofFn fun i : Fin M.rows.length => (M.intMatrix *ᵥ fun j => (pFin j : ℤ)) i := by
-    refine List.ext_getElem ?_ ?_
-    · simp only [List.length_map, SymRatMatrix.intRows, List.length_ofFn]
-    intro k hk1 hk2
-    have hk_lt : k < M.rows.length := by
-      simpa only [List.length_map, SymRatMatrix.intRows] using hk1
+    refine List.ext_getElem (by simp [SymRatMatrix.intRows]) fun k hk1 _ => ?_
+    have hk_lt : k < M.rows.length := by simpa [SymRatMatrix.intRows] using hk1
     have hrow_len : M.rows[k].length = M.rows.length := M.square _ (List.getElem_mem hk_lt)
     have hrow_ofFn :
-        (M.intRows[k]'(by
-          simp only [SymRatMatrix.intRows, List.length_map]; exact hk_lt) : List ℤ) =
+        M.intRows[k]'(by simpa [SymRatMatrix.intRows] using hk_lt) =
           List.ofFn fun j : Fin M.rows.length => M.intMatrix ⟨k, hk_lt⟩ j := by
-      refine List.ext_getElem ?_ ?_
-      · simp only [SymRatMatrix.intRows, List.getElem_map, List.length_map, List.length_ofFn,
-          hrow_len]
-      intro j hj1 hj2
-      have hj_lt : j < M.rows.length := by simpa only [List.length_ofFn] using hj2
-      have hk_int : k < M.intRows.length := by
-        simp only [SymRatMatrix.intRows, List.length_map]; exact hk_lt
+      refine List.ext_getElem (by simp [SymRatMatrix.intRows, hrow_len]) fun j _ hj2 => ?_
+      have hk_int : k < M.intRows.length := by simpa [SymRatMatrix.intRows] using hk_lt
       have hj_int : j < M.intRows[k].length := by
-        simp only [SymRatMatrix.intRows, List.getElem_map, List.length_map]
-        rw [hrow_len]; exact hj_lt
-      simp only [List.getElem_ofFn, SymRatMatrix.intMatrix, Matrix.of_apply,
-        List.getD_eq_getElem _ _ hk_int, List.getD_eq_getElem _ _ hj_int]
+        simpa [SymRatMatrix.intRows, hrow_len] using hj2
+      simp only [List.getElem_ofFn, SymRatMatrix.intMatrix, Matrix.of_apply]
+      rw [List.getD_eq_getElem _ _ hk_int, List.getD_eq_getElem _ _ hj_int]
     simp only [List.getElem_map, List.getElem_ofFn, Matrix.mulVec]
     rw [hrow_ofFn, hp_ofFn]
-    exact Mathlib.Tactic.Matrix.ListMatrix.dotProduct_ofFn
-      (fun j => M.intMatrix ⟨k, hk_lt⟩ j) (fun j => (pFin j : ℤ))
+    exact Mathlib.Tactic.Matrix.ListMatrix.dotProduct_ofFn _ _
   rw [hrows_ofFn, hp_ofFn]
-  exact Mathlib.Tactic.Matrix.ListMatrix.dotProduct_ofFn
-    (fun i => (pFin i : ℤ)) (M.intMatrix *ᵥ fun j => (pFin j : ℤ))
+  exact Mathlib.Tactic.Matrix.ListMatrix.dotProduct_ofFn _ _
 
 private theorem SymRatMatrix.dotProduct_scale (M : SymRatMatrix) (pFin : Fin M.rows.length → ℕ) :
     (M.commonDenomNat : ℚ) *
@@ -345,27 +326,12 @@ private theorem list_prod_le_two_pow_sum {α : Type*} (l : List α) (f w : α �
 
 private theorem sum_encRat_flatten_le_rows (rows : List (List ℚ)) :
     (rows.flatten.map fun q => (encRat q).length).sum ≤ (encList (encList encRat) rows).length := by
-  have hflat : (rows.flatten.map fun q => (encRat q).length).sum =
-      (rows.map fun r => (r.map fun q => (encRat q).length).sum).sum := by
-    induction rows with
-    | nil => rfl
-    | cons r rs ih =>
-        simp only [List.flatten_cons, List.map_append, List.sum_append, List.map_cons,
-          List.sum_cons, ih]
-  rw [hflat]
-  have hrows : ∀ r ∈ rows, (r.map fun q => (encRat q).length).sum ≤ (encList encRat r).length :=
-    fun r _ => sum_length_le_length_encList encRat r
-  have hsum :
-      (rows.map fun r => (r.map fun q => (encRat q).length).sum).sum ≤
-        (rows.map fun r => (encList encRat r).length).sum := by
-    clear hflat
-    induction rows with
-    | nil => rfl
-    | cons r rs ih =>
-        simp only [List.map_cons, List.sum_cons]
-        exact Nat.add_le_add (hrows r List.mem_cons_self)
-          (ih fun s hs => hrows s (List.mem_cons_of_mem r hs))
-  exact hsum.trans (sum_length_le_length_encList (encList encRat) rows)
+  refine le_trans ?_ (sum_length_le_length_encList (encList encRat) rows)
+  induction rows with
+  | nil => rfl
+  | cons r rs ih =>
+    simp only [List.flatten_cons, List.map_append, List.sum_append, List.map_cons, List.sum_cons]
+    exact Nat.add_le_add (sum_length_le_length_encList encRat r) ih
 
 private theorem NonCopositive.complete_of_mem {M : SymRatMatrix} (hM : M ∈ NonCopositive) :
     ∃ p : List ℕ,
@@ -382,255 +348,98 @@ private theorem NonCopositive.complete_of_mem {M : SymRatMatrix} (hM : M ∈ Non
       fun q _ => (nat_le_two_pow_encNat q.den).trans
         (Nat.pow_le_pow_right (by omega) (length_encRat_den_le q))).trans ?_
     exact Nat.pow_le_pow_right (by omega) (sum_encRat_flatten_le_rows M.rows)
-  have hB : ∀ i j : Fin n, |M.intMatrix i j| ≤ ((2 ^ (2 * L) : ℕ) : ℤ) := by
-    intro i j
+  have hB : ∀ i j : Fin n, |M.intMatrix i j| ≤ ((2 ^ (2 * L) : ℕ) : ℤ) := fun i j => by
     have hi : M.rows[i.1] ∈ M.rows := List.getElem_mem i.2
-    have hj_lt : j.1 < M.rows[i.1].length := by
-      rw [M.square _ hi]
-      exact j.2
-    have hq_enc_le : (encRat (M.toMatrix i j)).length ≤ L := by
-      have hr : (encList encRat (M.rows[i.1])).length ≤ L := by
-        change (encList encRat (M.rows[i.1])).length ≤ (encList (encList encRat) M.rows).length
-        exact SizedListEncoding.length_elem_le (encA := encList encRat) M.rows _ hi
-      have hq' : (encRat (M.rows[i.1][j.1])).length ≤ (encList encRat (M.rows[i.1])).length :=
-        SizedListEncoding.length_elem_le (encA := encRat) (M.rows[i.1]) _ (List.getElem_mem hj_lt)
+    have hj_lt : j.1 < M.rows[i.1].length := by rw [M.square _ hi]; exact j.2
+    have hq_enc : (encRat (M.toMatrix i j)).length ≤ L := by
       rw [M.toMatrix_eq_getElem i j]
-      exact hq'.trans hr
+      exact (SizedListEncoding.length_elem_le (encA := encRat) _ _ (List.getElem_mem hj_lt)).trans
+        (show (encList encRat M.rows[i.1]).length ≤ (encList (encList encRat) M.rows).length from
+          SizedListEncoding.length_elem_le (encA := encList encRat) M.rows _ hi)
     have hnum_le : (M.toMatrix i j).num.natAbs ≤ 2 ^ L :=
       (natAbs_le_two_pow_encIntBin _).trans
-        (Nat.pow_le_pow_right (by omega) ((length_encRat_num_le _).trans hq_enc_le))
-    have hquot_le : M.commonDenomNat / (M.toMatrix i j).den ≤ 2 ^ L :=
-      (Nat.div_le_self _ _).trans hden_le
+        (Nat.pow_le_pow_right (by omega) ((length_encRat_num_le _).trans hq_enc))
     rw [M.intMatrix_eq i j, abs_mul, abs_of_nonneg (Int.natCast_nonneg _), ← Int.natCast_natAbs,
       ← Int.natCast_mul]
-    exact Int.ofNat_le.2 (by
-      calc
-        (M.toMatrix i j).num.natAbs * (M.commonDenomNat / (M.toMatrix i j).den) ≤
-            2 ^ L * 2 ^ L := Nat.mul_le_mul hnum_le hquot_le
-        _ = 2 ^ (2 * L) := by rw [← pow_add, two_mul])
+    exact Int.ofNat_le.2 ((Nat.mul_le_mul hnum_le ((Nat.div_le_self _ _).trans hden_le)).trans_eq
+      (by rw [← pow_add, two_mul]))
   obtain ⟨pFin, hpFin_le, hpFin_neg⟩ :=
     Matrix.exists_nat_dotProduct_lt_zero_of_rat M.commonDenomNat_pos M.isSymm_toMatrix
       M.intMatrix_mul_eq hB hM
   simp only [Fintype.card_fin] at hpFin_le
   let p : List ℕ := List.ofFn pFin
   have hp_len : p.length = n := List.length_ofFn
-  have hquad_neg :
-      (fun i => (pFin i : ℤ)) ⬝ᵥ (M.intMatrix *ᵥ fun i => (pFin i : ℤ)) < 0 := by
-    refine Int.cast_lt_zero (R := ℚ).1 ?_
-    rw [← M.dotProduct_scale pFin]
-    exact mul_neg_of_pos_of_neg (Nat.cast_pos.2 M.commonDenomNat_pos) hpFin_neg
   have hcheck : NonCopositive.check M p = true := by
     simp only [NonCopositive.check, Bool.and_eq_true, decide_eq_true_eq]
     refine ⟨hp_len, ?_⟩
     rw [SymRatMatrix.dotProduct_check_eq M hp_len]
-    have hp_getD : (fun i : Fin M.rows.length => p.getD i.1 0) = pFin := by
-      ext i
-      simp only [p, List.getD_eq_getElem?_getD, List.getElem?_ofFn, i.2, ↓reduceDIte,
-        Option.getD_some, Fin.eta]
-    rw [hp_getD]
-    exact hquad_neg
+    have hp_getD : (fun i : Fin M.rows.length => p.getD i.1 0) = pFin :=
+      funext fun i => by simp [p, List.getD_eq_getElem?_getD, i.2]
+    rw [hp_getD, ← Int.cast_lt (R := ℚ), Int.cast_zero, ← M.dotProduct_scale pFin]
+    exact mul_neg_of_pos_of_neg (Nat.cast_pos.2 M.commonDenomNat_pos) hpFin_neg
   refine ⟨p, hcheck, ?_⟩
-  have hpow_elem : ∀ a ∈ p, (encNat a).length ≤ 8 * (L + 1) ^ 2 + 1 := by
-    intro a ha
+  have hpow_elem : ∀ a ∈ p, (encNat a).length ≤ 8 * (L + 1) ^ 2 + 1 := fun a ha => by
     obtain ⟨i, rfl⟩ := List.mem_ofFn.1 ha
-    have hmax : max (2 ^ (2 * L)) 1 = 2 ^ (2 * L) := max_eq_left Nat.one_le_two_pow
-    have hle1 : Nat.factorial n ≤ 2 ^ (L ^ 2) := by
-      have hn2 : n ≤ 2 ^ L := hn_le_L.trans Nat.lt_two_pow_self.le
-      calc
-        Nat.factorial n ≤ n ^ n := Nat.factorial_le_pow n
-        _ ≤ (2 ^ L) ^ n := Nat.pow_le_pow_left hn2 n
-        _ = 2 ^ (L * n) := (pow_mul 2 L n).symm
-        _ ≤ 2 ^ (L * L) := Nat.pow_le_pow_right (by omega) (Nat.mul_le_mul_left L hn_le_L)
-        _ = 2 ^ (L ^ 2) := by rw [sq]
+    have hn2 : n ≤ 2 ^ L := hn_le_L.trans Nat.lt_two_pow_self.le
+    have hle1 : Nat.factorial n ≤ 2 ^ (L ^ 2) :=
+      (Nat.factorial_le_pow n).trans <| (Nat.pow_le_pow_left hn2 n).trans <|
+        (pow_mul 2 L n).symm.trans_le <| Nat.pow_le_pow_right (by omega) <|
+          (Nat.mul_le_mul_left L hn_le_L).trans_eq (sq L).symm
+    have hbase : n * (2 ^ (2 * L)) ^ 2 + 1 ≤ 2 ^ (5 * L + 1) := by
+      calc n * (2 ^ (2 * L)) ^ 2 + 1
+          ≤ 2 ^ L * 2 ^ (4 * L) + 2 ^ (5 * L) :=
+            Nat.add_le_add (by
+              rw [← pow_mul, show 2 * L * 2 = 4 * L by ring]
+              exact Nat.mul_le_mul_right _ hn2) Nat.one_le_two_pow
+        _ = 2 ^ (5 * L + 1) := by rw [← pow_add, show L + 4 * L = 5 * L by ring, pow_succ]; ring
     have hle2 : (n * (max (2 ^ (2 * L)) 1) ^ 2 + 1) ^ n ≤ 2 ^ (6 * L ^ 2 + L) := by
-      rw [hmax]
-      have hbase : n * (2 ^ (2 * L)) ^ 2 + 1 ≤ 2 ^ (5 * L + 1) := by
-        have hn2 : n ≤ 2 ^ L := hn_le_L.trans Nat.lt_two_pow_self.le
-        have hmul : n * (2 ^ (2 * L)) ^ 2 ≤ 2 ^ L * 2 ^ (4 * L) := by
-          rw [← pow_mul, show 2 * L * 2 = 4 * L by ring]
-          exact Nat.mul_le_mul_right _ hn2
-        calc
-          n * (2 ^ (2 * L)) ^ 2 + 1 ≤ 2 ^ L * 2 ^ (4 * L) + 2 ^ (5 * L) :=
-            Nat.add_le_add hmul Nat.one_le_two_pow
-          _ = 2 ^ (5 * L) + 2 ^ (5 * L) := by rw [← pow_add, show L + 4 * L = 5 * L by ring]
-          _ = 2 ^ (5 * L + 1) := by rw [pow_succ]; ring
-      calc
-        (n * (2 ^ (2 * L)) ^ 2 + 1) ^ n ≤ (2 ^ (5 * L + 1)) ^ n :=
-          Nat.pow_le_pow_left hbase n
-        _ = 2 ^ ((5 * L + 1) * n) := (pow_mul 2 _ n).symm
-        _ ≤ 2 ^ ((5 * L + 1) * L) :=
-          Nat.pow_le_pow_right (by omega) (Nat.mul_le_mul_left _ hn_le_L)
-        _ ≤ 2 ^ (6 * L ^ 2 + L) :=
-          Nat.pow_le_pow_right (by omega) (by nlinarith)
-    have hlt_pow : pFin i < 2 ^ (8 * (L + 1) ^ 2 + 1) := by
-      have h1 : pFin i ≤ 2 ^ (L ^ 2) * 2 ^ (6 * L ^ 2 + L) :=
-        (hpFin_le i).trans (Nat.mul_le_mul hle1 hle2)
-      have h2 : 2 ^ (L ^ 2) * 2 ^ (6 * L ^ 2 + L) < 2 ^ (8 * (L + 1) ^ 2 + 1) := by
-        rw [← pow_add]
-        exact Nat.pow_lt_pow_right (by omega) (by nlinarith)
-      exact lt_of_le_of_lt h1 h2
+      rw [max_eq_left Nat.one_le_two_pow]
+      exact (Nat.pow_le_pow_left hbase n).trans <| (pow_mul 2 _ n).symm.trans_le <|
+        Nat.pow_le_pow_right (by omega) <| (Nat.mul_le_mul_left _ hn_le_L).trans (by nlinarith)
+    have hlt_pow : pFin i < 2 ^ (8 * (L + 1) ^ 2 + 1) :=
+      ((hpFin_le i).trans (Nat.mul_le_mul hle1 hle2)).trans_lt <| by
+        rw [← pow_add]; exact Nat.pow_lt_pow_right (by omega) (by nlinarith)
     simp only [encNat_apply, Nat.size_eq_bits_len]
     exact Nat.size_le.2 hlt_pow
-  have hlist_le := length_encList_le encNat p hpow_elem
-  have hbound : p.length * (2 * (8 * (L + 1) ^ 2 + 1) + 1) ≤
-      (Polynomial.X * (16 * (Polynomial.X + 1) ^ 2 + 3)).eval L := by
-    simp only [Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_add,
-      Polynomial.eval_ofNat, Polynomial.eval_pow, Polynomial.eval_one, hp_len]
-    calc
-      n * (2 * (8 * (L + 1) ^ 2 + 1) + 1) = n * (16 * (L + 1) ^ 2 + 3) := by ring
-      _ ≤ L * (16 * (L + 1) ^ 2 + 3) := Nat.mul_le_mul_right _ hn_le_L
-  exact hlist_le.trans hbound
+  refine (length_encList_le encNat p hpow_elem).trans ?_
+  simp only [Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_add,
+    Polynomial.eval_ofNat, Polynomial.eval_pow, Polynomial.eval_one, hp_len]
+  exact (Nat.mul_le_mul_right _ hn_le_L).trans_eq' (by ring)
 
 theorem NonCopositive.exists_check_eq_true_iff (M : SymRatMatrix) :
-    (∃ p : List ℕ, NonCopositive.check M p = true) ↔ M ∈ NonCopositive := by
-  constructor
-  · rintro ⟨p, hp⟩
-    exact NonCopositive.sound_of_check hp
-  · intro hM
-    obtain ⟨p, hp, _⟩ := NonCopositive.complete_of_mem hM
-    exact ⟨p, hp⟩
+    (∃ p : List ℕ, NonCopositive.check M p = true) ↔ M ∈ NonCopositive :=
+  ⟨fun ⟨_, hp⟩ => NonCopositive.sound_of_check hp, fun hM =>
+    let ⟨p, hp, _⟩ := NonCopositive.complete_of_mem hM; ⟨p, hp⟩⟩
 
+@[local fun_prop]
 private theorem computableInPolyTime_rows :
     ComputableInPolyTime SymRatMatrix.rows encSymRatMatrix encRatMatrixRows :=
   ComputableInPolyTime.of_eq (f := SymRatMatrix.rows)
     (encIn := encSymRatMatrix) (encOut := encRatMatrixRows) fun _ => rfl
 
+@[local fun_prop]
 private theorem computableInPolyTime_commonDenom :
     ComputableInPolyTime SymRatMatrix.commonDenom encSymRatMatrix encIntBin := by
-  have hrows : ComputableInPolyTime SymRatMatrix.rows encSymRatMatrix encRatMatrixRows :=
-    computableInPolyTime_rows
-  have hflat : ComputableInPolyTime (fun M : SymRatMatrix => M.rows.flatten)
-      encSymRatMatrix (encList encRat) := by
-    simpa only [List.flatten_eq_flatMap] using
-      ComputableInPolyTime.flatMapWithInput hrows (ComputableInPolyTime.snd _ _)
-  have hdens :
-      ComputableInPolyTime (fun M : SymRatMatrix => M.rows.flatten.map fun q : ℚ => (q.den : ℤ))
-        encSymRatMatrix (encList encIntBin) := by
-    have hq : ComputableInPolyTime (fun q : ℚ => (q.den : ℤ)) encRat encIntBin :=
-      ComputableInPolyTime.intBin_natCast.comp ComputableInPolyTime.rat_den
-    exact (ComputableInPolyTime.map hq).comp hflat
-  exact ComputableInPolyTime.intBin_prod.comp hdens
+  unfold SymRatMatrix.commonDenom
+  simp only [List.flatten_eq_flatMap]
+  fun_prop
 
+@[local fun_prop]
 private theorem computableInPolyTime_intRows :
     ComputableInPolyTime SymRatMatrix.intRows encSymRatMatrix (encList (encList encIntBin)) := by
-  have hrows : ComputableInPolyTime SymRatMatrix.rows encSymRatMatrix encRatMatrixRows :=
-    computableInPolyTime_rows
-  have hnum : ComputableInPolyTime (fun p : SymRatMatrix × ℚ => p.2.num)
-      (encPair encSymRatMatrix encRat) encIntBin :=
-    ComputableInPolyTime.rat_num.comp (ComputableInPolyTime.snd encSymRatMatrix encRat)
-  have hdenZ : ComputableInPolyTime (fun p : SymRatMatrix × ℚ => (p.2.den : ℤ))
-      (encPair encSymRatMatrix encRat) encIntBin :=
-    ComputableInPolyTime.intBin_natCast.comp
-      (ComputableInPolyTime.rat_den.comp (ComputableInPolyTime.snd encSymRatMatrix encRat))
-  have hD : ComputableInPolyTime (fun p : SymRatMatrix × ℚ => p.1.commonDenom)
-      (encPair encSymRatMatrix encRat) encIntBin :=
-    computableInPolyTime_commonDenom.comp (ComputableInPolyTime.fst encSymRatMatrix encRat)
-  have hentry :
-      ComputableInPolyTime
-        (fun p : SymRatMatrix × ℚ => p.2.num * (p.1.commonDenom / (p.2.den : ℤ)))
-        (encPair encSymRatMatrix encRat) encIntBin :=
-    ComputableInPolyTime.intBin_mul' hnum (ComputableInPolyTime.intBin_div' hD hdenZ)
-  have hentry' :
-      ComputableInPolyTime
-        (fun x : (SymRatMatrix × List ℚ) × ℚ =>
-          x.2.num * (x.1.1.commonDenom / (x.2.den : ℤ)))
-        (encPair (encPair encSymRatMatrix (encList encRat)) encRat) encIntBin :=
-    (hentry.comp (ComputableInPolyTime.prod
-      ((ComputableInPolyTime.fst encSymRatMatrix (encList encRat)).comp
-        (ComputableInPolyTime.fst _ _))
-      (ComputableInPolyTime.snd _ _)))
-  have hrow_map :
-      ComputableInPolyTime
-        (fun p : SymRatMatrix × List ℚ =>
-          p.2.map fun q => q.num * (p.1.commonDenom / (q.den : ℤ)))
-        (encPair encSymRatMatrix (encList encRat)) (encList encIntBin) :=
-    ComputableInPolyTime.mapWithInput
-      (ComputableInPolyTime.snd encSymRatMatrix (encList encRat)) hentry'
-  exact ComputableInPolyTime.mapWithInput hrows hrow_map
+  fun_prop [SymRatMatrix.intRows]
 
 theorem NonCopositive.computableInPolyTime_check :
     ComputableInPolyTime (fun x : SymRatMatrix × List ℕ => NonCopositive.check x.1 x.2)
       encSymRatMatrixWitness encBool := by
-  have hrows :
-      ComputableInPolyTime (fun x : SymRatMatrix × List ℕ => x.1.rows)
-        encSymRatMatrixWitness encRatMatrixRows :=
-    computableInPolyTime_rows.comp (ComputableInPolyTime.fst encSymRatMatrix (encList encNat))
-  have hn_unary :
-      ComputableInPolyTime (fun x : SymRatMatrix × List ℕ => x.1.rows.length)
-        encSymRatMatrixWitness encUnary :=
-    (ComputableInPolyTime.length_list (encList encRat)).comp hrows
-  have hp_len_unary :
-      ComputableInPolyTime (fun x : SymRatMatrix × List ℕ => x.2.length)
-        encSymRatMatrixWitness encUnary :=
-    (ComputableInPolyTime.length_list encNat).comp
-      (ComputableInPolyTime.snd encSymRatMatrix (encList encNat))
-  have hlen_eq :
-      ComputableInPolyTime (fun x : SymRatMatrix × List ℕ => decide (x.2.length = x.1.rows.length))
-        encSymRatMatrixWitness encBool :=
-    (ComputableInDegree.eq encUnary).computableInPolyTime.comp
-      (ComputableInPolyTime.prod hp_len_unary hn_unary)
-  have hp_int :
-      ComputableInPolyTime (fun x : SymRatMatrix × List ℕ => x.2.map (Nat.cast : ℕ → ℤ))
-        encSymRatMatrixWitness (encList encIntBin) :=
-    (ComputableInPolyTime.map ComputableInPolyTime.intBin_natCast).comp
-      (ComputableInPolyTime.snd encSymRatMatrix (encList encNat))
-  have hM_int :
-      ComputableInPolyTime (fun x : SymRatMatrix × List ℕ => x.1.intRows)
-        encSymRatMatrixWitness (encList (encList encIntBin)) :=
-    (computableInPolyTime_intRows.comp
-      (ComputableInPolyTime.fst encSymRatMatrix (encList encNat)))
-  have hrow_dot :
-      ComputableInPolyTime
-        (fun y : (SymRatMatrix × List ℕ) × List ℤ =>
-          Mathlib.Tactic.Matrix.ListMatrix.dotProduct y.1.1.rows.length y.2
-            (y.1.2.map (Nat.cast : ℕ → ℤ)))
-        (encPair encSymRatMatrixWitness (encList encIntBin)) encIntBin :=
-    (ComputableInPolyTime.listDotProduct.comp
-      (ComputableInPolyTime.prod (hn_unary.comp (ComputableInPolyTime.fst _ _))
-        (ComputableInPolyTime.prod (ComputableInPolyTime.snd _ _)
-          (hp_int.comp (ComputableInPolyTime.fst _ _)))))
-  have hmatVec :
-      ComputableInPolyTime
-        (fun x : SymRatMatrix × List ℕ =>
-          x.1.intRows.map fun row =>
-            Mathlib.Tactic.Matrix.ListMatrix.dotProduct x.1.rows.length row
-              (x.2.map (Nat.cast : ℕ → ℤ)))
-        encSymRatMatrixWitness (encList encIntBin) :=
-    ComputableInPolyTime.mapWithInput hM_int hrow_dot
-  have hquad :
-      ComputableInPolyTime
-        (fun x : SymRatMatrix × List ℕ =>
-          Mathlib.Tactic.Matrix.ListMatrix.dotProduct x.1.rows.length
-            (x.2.map (Nat.cast : ℕ → ℤ))
-            (x.1.intRows.map fun row =>
-              Mathlib.Tactic.Matrix.ListMatrix.dotProduct x.1.rows.length row
-                (x.2.map (Nat.cast : ℕ → ℤ))))
-        encSymRatMatrixWitness encIntBin :=
-    ComputableInPolyTime.listDotProduct.comp
-      (ComputableInPolyTime.prod hn_unary (ComputableInPolyTime.prod hp_int hmatVec))
-  have hneg :
-      ComputableInPolyTime
-        (fun x : SymRatMatrix × List ℕ =>
-          decide
-            (Mathlib.Tactic.Matrix.ListMatrix.dotProduct x.1.rows.length
-                (x.2.map (Nat.cast : ℕ → ℤ))
-                (x.1.intRows.map fun row =>
-                  Mathlib.Tactic.Matrix.ListMatrix.dotProduct x.1.rows.length row
-                    (x.2.map (Nat.cast : ℕ → ℤ))) < 0))
-        encSymRatMatrixWitness encBool :=
-    ComputableInPolyTime.intBin_lt' hquad (ComputableInPolyTime.const 0)
-  exact (ComputableInPolyTime.bool_and.comp (ComputableInPolyTime.prod hlen_eq hneg)).of_enc_eq
-    fun _ => rfl
+  fun_prop [NonCopositive.check]
 
 theorem NonCopositive.mem_NP : NonCopositive ∈ NP encSymRatMatrix := by
   have hmem : {M : SymRatMatrix | ∃ p : List ℕ, NonCopositive.check M p = true} ∈
       NP encSymRatMatrix :=
     mem_NP_of_witness (Decoder.list Decoder.nat) NonCopositive.computableInPolyTime_check
       (fun _ _ => Iff.rfl)
-      (fun M _ h => by
-        obtain ⟨p', hp', hlen⟩ :=
-          NonCopositive.complete_of_mem (NonCopositive.sound_of_check h)
-        exact ⟨p', hp', hlen⟩)
+      (fun _ _ h => NonCopositive.complete_of_mem (NonCopositive.sound_of_check h))
   have hset : {M : SymRatMatrix | ∃ p : List ℕ, NonCopositive.check M p = true} = NonCopositive :=
     Set.ext NonCopositive.exists_check_eq_true_iff
   rwa [← hset]
@@ -669,22 +478,11 @@ private theorem cliqueToRows_square (gk : CliqueInstance) :
     ∀ r ∈ cliqueToRows gk, r.length = (cliqueToRows gk).length := by
   rcases gk with ⟨G, k⟩
   dsimp only [cliqueToRows]
-  split_ifs
-  · intro r hr
-    simp only [List.mem_singleton] at hr
-    subst hr
-    rfl
-  · intro r hr
-    simp only [List.mem_singleton] at hr
-    subst hr
-    rfl
-  · intro r hr
-    simp only [List.mem_singleton] at hr
-    subst hr
-    rfl
-  · intro r hr
-    obtain ⟨u, _, rfl⟩ := List.mem_map.1 hr
-    simp only [List.length_map]
+  split_ifs <;> intro r hr
+  all_goals
+    first
+    | (rw [List.mem_singleton] at hr; subst hr; rfl)
+    | (obtain ⟨_, _, rfl⟩ := List.mem_map.1 hr; simp only [List.length_map])
 
 private theorem cliqueToRows_symm (gk : CliqueInstance) :
     ∀ i j, ((cliqueToRows gk).getD i []).getD j 0 =
@@ -693,37 +491,22 @@ private theorem cliqueToRows_symm (gk : CliqueInstance) :
   intro i j
   dsimp only [cliqueToRows]
   split_ifs
-  · rcases i with _ | i <;> rcases j with _ | j <;>
-      simp only [List.getD_cons_zero, List.getD_cons_succ, List.getD_nil]
-  · rcases i with _ | i <;> rcases j with _ | j <;>
-      simp only [List.getD_cons_zero, List.getD_cons_succ, List.getD_nil]
-  · rcases i with _ | i <;> rcases j with _ | j <;>
-      simp only [List.getD_cons_zero, List.getD_cons_succ, List.getD_nil]
-  · by_cases hi : i < G.distinctVertices.length
-    · by_cases hj : j < G.distinctVertices.length
-      · simp only [List.getD_eq_getElem?_getD, List.getElem?_map,
-          List.getElem?_eq_getElem hi, List.getElem?_eq_getElem hj, Option.map_some,
-          Option.getD_some, cliqueEntry]
-        by_cases huv : G.distinctVertices[i] = G.distinctVertices[j]
-        · simp only [huv, ↓reduceIte]
-        · have hvu : G.distinctVertices[j] ≠ G.distinctVertices[i] := fun h => huv h.symm
-          simp only [huv, hvu, ↓reduceIte]
-          rw [graph_adjBool_comm G]
-      · have hj' : ¬ j < G.distinctVertices.length := hj
-        simp only [List.getD_eq_getElem?_getD, List.getElem?_map,
-          List.getElem?_eq_getElem hi, List.getElem?_eq_none (Nat.le_of_not_lt hj'),
-          Option.map_some, Option.map_none, Option.getD_some, Option.getD_none,
-          List.getElem?_nil]
-    · have hi' : ¬ i < G.distinctVertices.length := hi
+  any_goals (rcases i with _ | i <;> rcases j with _ | j <;> simp; done)
+  by_cases hi : i < G.distinctVertices.length <;>
       by_cases hj : j < G.distinctVertices.length
-      · simp only [List.getD_eq_getElem?_getD, List.getElem?_map,
-          List.getElem?_eq_getElem hj, List.getElem?_eq_none (Nat.le_of_not_lt hi'),
-          Option.map_some, Option.map_none, Option.getD_some, Option.getD_none,
-          List.getElem?_nil]
-      · simp only [List.getD_eq_getElem?_getD, List.getElem?_map,
-          List.getElem?_eq_none (Nat.le_of_not_lt hi'),
-          List.getElem?_eq_none (Nat.le_of_not_lt hj), Option.map_none, Option.getD_none,
-          List.getElem?_nil]
+  · simp only [List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_eq_getElem hi, List.getElem?_eq_getElem hj, Option.map_some,
+      Option.getD_some, cliqueEntry]
+    by_cases huv : G.distinctVertices[i] = G.distinctVertices[j]
+    · simp only [huv, ↓reduceIte]
+    · have hvu : G.distinctVertices[j] ≠ G.distinctVertices[i] := fun h => huv h.symm
+      simp only [huv, hvu, ↓reduceIte, graph_adjBool_comm G]
+  · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi,
+      List.getElem?_eq_none (Nat.le_of_not_lt hj)]
+  · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj,
+      List.getElem?_eq_none (Nat.le_of_not_lt hi)]
+  · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (Nat.le_of_not_lt hi),
+      List.getElem?_eq_none (Nat.le_of_not_lt hj)]
 
 /-- Polynomial-time many-one reduction mapping a `Clique` instance `(G, k)` to a symmetric
 rational matrix `M` such that `(G, k) ∈ Clique ↔ M ∈ NonCopositive`. -/
@@ -739,225 +522,141 @@ theorem cliqueToSymRatMatrix_rows (gk : CliqueInstance) :
 
 private def singletonSymRatMatrix (c : ℚ) : SymRatMatrix where
   rows := [[c]]
-  square r hr := by
-    simp only [List.mem_singleton] at hr
-    subst hr
-    rfl
-  symm i j := by
-    rcases i with _ | i <;> rcases j with _ | j <;>
-      simp only [List.getD_cons_zero, List.getD_cons_succ, List.getD_nil]
+  square r hr := by rw [List.mem_singleton] at hr; subst hr; rfl
+  symm i j := by rcases i with _ | i <;> rcases j with _ | j <;> simp
 
 private theorem singleton_neg_nonCopositive :
     singletonSymRatMatrix (-1) ∈ NonCopositive := by
   intro hcop
-  have hlen : (singletonSymRatMatrix (-1)).rows.length = 1 := rfl
-  let i0 : Fin (singletonSymRatMatrix (-1)).rows.length := ⟨0, by omega⟩
-  have h := hcop (fun _ => (1 : ℚ)) fun _ => by norm_num
-  dsimp only [SymRatMatrix.toMatrix, dotProduct, Matrix.mulVec, Matrix.of_apply] at h
-  rw [Finset.sum_eq_single i0
-    (fun b _ hb => absurd (Fin.ext (by omega : b.1 = i0.1)) hb)
-    (fun hm => absurd (Finset.mem_univ _) hm)] at h
-  rw [Finset.sum_eq_single i0
-    (fun b _ hb => absurd (Fin.ext (by omega : b.1 = i0.1)) hb)
-    (fun hm => absurd (Finset.mem_univ _) hm)] at h
-  dsimp only [singletonSymRatMatrix, i0] at h
-  simp only [List.getD_cons_zero] at h
-  norm_num at h
+  have h := hcop (fun _ => (1 : ℚ)) fun _ => zero_le_one
+  change 0 ≤ ∑ i : Fin 1, (1 : ℚ) * ∑ j : Fin 1, (([[(-1 : ℚ)]].getD i.1 []).getD j.1 0) * 1 at h
+  norm_num [Fin.sum_univ_one] at h
 
 private theorem singleton_pos_copositive :
     singletonSymRatMatrix 1 ∈ Copositive := by
   intro x hx
-  have hlen : (singletonSymRatMatrix 1).rows.length = 1 := rfl
-  let i0 : Fin (singletonSymRatMatrix 1).rows.length := ⟨0, by omega⟩
-  dsimp only [SymRatMatrix.toMatrix, dotProduct, Matrix.mulVec, Matrix.of_apply]
-  rw [Finset.sum_eq_single i0
-    (fun b _ hb => absurd (Fin.ext (by omega : b.1 = i0.1)) hb)
-    (fun hm => absurd (Finset.mem_univ _) hm)]
-  rw [Finset.sum_eq_single i0
-    (fun b _ hb => absurd (Fin.ext (by omega : b.1 = i0.1)) hb)
-    (fun hm => absurd (Finset.mem_univ _) hm)]
-  dsimp only [singletonSymRatMatrix, i0]
-  simp only [List.getD_cons_zero, one_mul]
-  exact mul_nonneg (hx i0) (hx i0)
+  change 0 ≤ ∑ i : Fin 1,
+    x ⟨i.1, i.2⟩ * ∑ j : Fin 1, (([[(1 : ℚ)]].getD i.1 []).getD j.1 0) * x ⟨j.1, j.2⟩
+  simpa [Fin.sum_univ_one] using mul_nonneg (hx ⟨0, Nat.zero_lt_one⟩) (hx ⟨0, Nat.zero_lt_one⟩)
+
+private theorem clique_iff_comap_cliqueNum (G : Graph) (k : ℕ)
+    (ι : Fin G.distinctVertices.length ↪ ℕ) (hι : ∀ i, ι i = G.distinctVertices[i.1]) :
+    (⟨G, k⟩ : CliqueInstance) ∈ Clique ↔ k ≤ (G.toSimpleGraph.comap ι).cliqueNum := by
+  set H := G.toSimpleGraph.comap ι
+  rw [mem_Clique_iff]
+  constructor
+  · rintro ⟨S, hSG, hS⟩
+    let S' : Finset (Fin G.distinctVertices.length) := Finset.univ.filter fun i => ι i ∈ S
+    have hS'_img : S'.image ι = S := by
+      ext v
+      simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and, S']
+      refine ⟨by rintro ⟨i, hi, rfl⟩; exact hi, fun hvS => ?_⟩
+      obtain ⟨idx, hidx, hval⟩ := List.mem_iff_getElem.1 (Graph.mem_distinctVertices.2 (hSG v hvS))
+      exact ⟨⟨idx, hidx⟩, by rwa [hι, hval], (hι ⟨idx, hidx⟩).trans hval⟩
+    have hS'clique : H.IsClique (S' : Set (Fin G.distinctVertices.length)) := by
+      intro i hi j hj hij
+      simp only [Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and, S'] at hi hj
+      exact hS.isClique hi hj (ι.injective.ne hij)
+    have hcard : S'.card = k := by
+      rw [← Finset.card_image_of_injective S' ι.injective, hS'_img, hS.card_eq]
+    exact hcard ▸ hS'clique.card_le_cliqueNum
+  · intro hle
+    obtain ⟨S_max, hS_max⟩ := H.exists_isNClique_cliqueNum
+    obtain ⟨S', hS'_sub, hS'_card⟩ :=
+      Finset.exists_subset_card_eq (n := k) (hS_max.card_eq ▸ hle)
+    refine ⟨S'.map ι, fun v hv => ?_, ?_⟩
+    · obtain ⟨i, _, rfl⟩ := Finset.mem_map.1 hv
+      exact Graph.mem_distinctVertices.1 (hι i ▸ List.getElem_mem i.2)
+    · rw [SimpleGraph.isNClique_iff]
+      refine ⟨fun u hu v hv hij => ?_, by rw [Finset.card_map, hS'_card]⟩
+      rw [Finset.coe_map, Set.mem_image] at hu hv
+      rcases hu with ⟨i, hi, rfl⟩; rcases hv with ⟨j, hj, rfl⟩
+      exact hS_max.isClique (hS'_sub hi) (hS'_sub hj) fun h => hij (congrArg ι h)
+
+private theorem cliqueToSymRatMatrix_mem_iff_two_le {G : Graph} {k : ℕ}
+    (hk2 : 2 ≤ k) (hemp : G.distinctVertices.isEmpty = false) :
+    (⟨G, k⟩ : CliqueInstance) ∈ Clique ↔ cliqueToSymRatMatrix ⟨G, k⟩ ∈ NonCopositive := by
+  have hk0 : k ≠ 0 := by omega
+  have hk1 : k ≠ 1 := by omega
+  have hemp' : G.distinctVertices ≠ [] := by intro hnil; simp [hnil] at hemp
+  have hn_pos : 0 < G.distinctVertices.length := List.length_pos_of_ne_nil hemp'
+  let _ : Nonempty (Fin G.distinctVertices.length) := ⟨⟨0, hn_pos⟩⟩
+  let ι : Fin G.distinctVertices.length ↪ ℕ :=
+    ⟨fun i => G.distinctVertices[i.1],
+      fun _ _ hij => Fin.ext (G.nodup_distinctVertices.getElem_inj_iff.1 hij)⟩
+  let H : SimpleGraph (Fin G.distinctVertices.length) := G.toSimpleGraph.comap ι
+  let _ : DecidableRel H.Adj := fun i j =>
+    decidable_of_iff (G.adjBool (ι i) (ι j) = true)
+      (by simp only [H, SimpleGraph.comap_adj]; exact G.adjBool_eq_true_iff (ι i) (ι j))
+  have hrows_eq :
+      (cliqueToSymRatMatrix ⟨G, k⟩).rows =
+        G.distinctVertices.map fun u => G.distinctVertices.map fun v => cliqueEntry G k u v := by
+    simp [cliqueToSymRatMatrix_rows, cliqueToRows, hk0, hemp, hk1]
+  have hlen_rows : (cliqueToSymRatMatrix ⟨G, k⟩).rows.length = G.distinctVertices.length := by
+    rw [hrows_eq, List.length_map]
+  let eFin : Fin (cliqueToSymRatMatrix ⟨G, k⟩).rows.length ≃ Fin G.distinctVertices.length :=
+    ⟨Fin.cast hlen_rows, Fin.cast hlen_rows.symm, fun _ => rfl, fun _ => rfl⟩
+  have hsub : (cliqueToSymRatMatrix ⟨G, k⟩).toMatrix =
+      ((H.copositiveCliqueMatrix k).map (Int.cast : ℤ → ℚ)).submatrix eFin eFin := by
+    ext i j
+    have hi : i.1 < G.distinctVertices.length := hlen_rows ▸ i.2
+    have hj : j.1 < G.distinctVertices.length := hlen_rows ▸ j.2
+    have hget1 : (cliqueToSymRatMatrix ⟨G, k⟩).rows.getD i.1 [] =
+        G.distinctVertices.map fun v => cliqueEntry G k G.distinctVertices[i.1] v := by
+      simpa [List.getD_eq_getElem?_getD, hi] using congrArg (fun l => List.getD l i.1 []) hrows_eq
+    dsimp only [SymRatMatrix.toMatrix, Matrix.of_apply, Matrix.submatrix_apply]
+    rw [hget1, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hj,
+      Option.map_some, Option.getD_some, Matrix.map_apply, SimpleGraph.copositiveCliqueMatrix_apply]
+    by_cases hij : i.1 = j.1
+    · have heij : eFin i = eFin j := Fin.ext hij
+      simp [cliqueEntry, hij, heij]
+    · have hij_v : G.distinctVertices[i.1] ≠ G.distinctVertices[j.1] :=
+        fun h => hij (G.nodup_distinctVertices.getElem_inj_iff.1 h)
+      have hH : H.Adj (eFin i) (eFin j) ↔
+          G.adjBool G.distinctVertices[i.1] G.distinctVertices[j.1] = true :=
+        (G.adjBool_eq_true_iff _ _).symm
+      by_cases hadj : G.adjBool G.distinctVertices[i.1] G.distinctVertices[j.1] = true <;>
+        simp [cliqueEntry, hij_v, hadj, hH]
+  have hnc_iff :
+      cliqueToSymRatMatrix ⟨G, k⟩ ∈ NonCopositive ↔
+        ∃ x : Fin G.distinctVertices.length → ℚ, (∀ v, 0 ≤ x v) ∧
+          x ⬝ᵥ ((H.copositiveCliqueMatrix k).map (Int.cast : ℤ → ℚ) *ᵥ x) < 0 := by
+    rw [mem_NonCopositive_iff, hsub, Matrix.IsCopositive.submatrix_equiv_iff, Matrix.IsCopositive]
+    push Not
+    rfl
+  rw [clique_iff_comap_cliqueNum G k ι (fun _ => rfl), hnc_iff]
+  exact (SimpleGraph.exists_nonneg_dotProduct_copositiveCliqueMatrix_lt_zero_iff H hk2).symm
 
 theorem cliqueToSymRatMatrix_mem_iff (gk : CliqueInstance) :
     gk ∈ Clique ↔ cliqueToSymRatMatrix gk ∈ NonCopositive := by
   rcases gk with ⟨G, k⟩
   by_cases hk0 : k = 0
   · subst hk0
-    have hin : (⟨G, 0⟩ : CliqueInstance) ∈ Clique := by
-      rw [mem_Clique_iff]
-      exact ⟨∅, fun _ h => absurd h (Finset.notMem_empty _),
-        by simp only [SimpleGraph.isNClique_iff, Finset.coe_empty, SimpleGraph.isClique_empty,
-          Finset.card_empty, and_self]⟩
-    have hM : cliqueToSymRatMatrix ⟨G, 0⟩ ∈ NonCopositive := by
-      have hrows : (cliqueToSymRatMatrix ⟨G, 0⟩).rows = (singletonSymRatMatrix (-1)).rows := by
-        simp only [cliqueToSymRatMatrix_rows, cliqueToRows, ↓reduceIte, singletonSymRatMatrix]
-      rw [SymRatMatrix.ext hrows]
-      exact singleton_neg_nonCopositive
-    exact iff_of_true hin hM
+    have hin : (⟨G, 0⟩ : CliqueInstance) ∈ Clique := mem_Clique_iff.2
+      ⟨∅, fun _ h => absurd h (Finset.notMem_empty _), by simp⟩
+    have hrows : (cliqueToSymRatMatrix ⟨G, 0⟩).rows = (singletonSymRatMatrix (-1)).rows := by
+      simp [cliqueToSymRatMatrix_rows, cliqueToRows, singletonSymRatMatrix]
+    exact iff_of_true hin (SymRatMatrix.ext hrows ▸ singleton_neg_nonCopositive)
   · by_cases hemp : G.distinctVertices.isEmpty = true
-    · have hnot : (⟨G, k⟩ : CliqueInstance) ∉ Clique := by
-        intro hmem
-        rw [mem_Clique_iff] at hmem
-        obtain ⟨S, hSG, hS⟩ := hmem
-        have hpos : 0 < S.card := by rw [hS.card_eq]; dsimp only; omega
-        obtain ⟨v, hvS⟩ := Finset.card_pos.1 hpos
-        have hv : v ∈ G.distinctVertices := Graph.mem_distinctVertices.2 (hSG v hvS)
-        have hnil : G.distinctVertices = [] := List.isEmpty_iff.1 hemp
-        rw [hnil] at hv
-        cases hv
-      have hM : cliqueToSymRatMatrix ⟨G, k⟩ ∉ NonCopositive := by
-        have hrows : (cliqueToSymRatMatrix ⟨G, k⟩).rows = (singletonSymRatMatrix 1).rows := by
-          simp only [cliqueToSymRatMatrix_rows, cliqueToRows, hk0, ↓reduceIte, hemp,
-            singletonSymRatMatrix]
-        rw [SymRatMatrix.ext hrows]
-        exact fun h => h singleton_pos_copositive
-      exact iff_of_false hnot hM
-    · by_cases hk1 : k = 1
+    · have hnot : (⟨G, k⟩ : CliqueInstance) ∉ Clique := fun hmem => by
+        obtain ⟨S, hSG, hS⟩ := mem_Clique_iff.1 hmem
+        obtain ⟨v, hvS⟩ := Finset.card_pos.1 (by rw [hS.card_eq]; dsimp only; omega)
+        simpa [List.isEmpty_iff.1 hemp] using Graph.mem_distinctVertices.2 (hSG v hvS)
+      have hrows : (cliqueToSymRatMatrix ⟨G, k⟩).rows = (singletonSymRatMatrix 1).rows := by
+        simp [cliqueToSymRatMatrix_rows, cliqueToRows, hk0, hemp, singletonSymRatMatrix]
+      exact iff_of_false hnot (SymRatMatrix.ext hrows ▸ fun h => h singleton_pos_copositive)
+    · have hemp' : G.distinctVertices.isEmpty = false := Bool.eq_false_iff.2 hemp
+      by_cases hk1 : k = 1
       · subst hk1
-        have hne : G.distinctVertices ≠ [] := by
-          intro hnil
-          apply hemp
-          simp only [hnil, List.isEmpty_nil]
-        obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil G.distinctVertices hne
-        have hvG : v ∈ G.vertices := Graph.mem_distinctVertices.1 hv
-        have hin : (⟨G, 1⟩ : CliqueInstance) ∈ Clique := by
-          rw [mem_Clique_iff]
-          refine ⟨{v}, fun _ hw => by simp only [Finset.mem_singleton] at hw; rwa [hw], ?_⟩
-          simp only [SimpleGraph.isNClique_iff, Finset.coe_singleton,
-            SimpleGraph.isClique_singleton, Finset.card_singleton, and_self]
-        have hM : cliqueToSymRatMatrix ⟨G, 1⟩ ∈ NonCopositive := by
-          have hrows : (cliqueToSymRatMatrix ⟨G, 1⟩).rows = (singletonSymRatMatrix (-1)).rows := by
-            simp only [cliqueToSymRatMatrix_rows, cliqueToRows, hk0, hemp, Bool.false_eq_true,
-              ↓reduceIte, singletonSymRatMatrix]
-          rw [SymRatMatrix.ext hrows]
-          exact singleton_neg_nonCopositive
-        exact iff_of_true hin hM
-      · have hk2 : 2 ≤ k := by omega
-        have hne : G.distinctVertices ≠ [] := by
-          intro hnil
-          apply hemp
-          simp only [hnil, List.isEmpty_nil]
-        have hn_pos : 0 < G.distinctVertices.length := List.length_pos_of_ne_nil hne
-        let _ : Nonempty (Fin G.distinctVertices.length) := ⟨⟨0, hn_pos⟩⟩
-        let ι : Fin G.distinctVertices.length ↪ ℕ :=
-          ⟨fun i => G.distinctVertices[i.1],
-            fun i j hij => Fin.ext (G.nodup_distinctVertices.getElem_inj_iff.1 hij)⟩
-        let H : SimpleGraph (Fin G.distinctVertices.length) := G.toSimpleGraph.comap ι
-        let _ : DecidableRel H.Adj := fun i j =>
-          decidable_of_iff (G.adjBool (ι i) (ι j) = true)
-            (by
-              simp only [H, SimpleGraph.comap_adj]
-              exact G.adjBool_eq_true_iff (ι i) (ι j))
-        have hrows_eq :
-            (cliqueToSymRatMatrix ⟨G, k⟩).rows =
-              G.distinctVertices.map fun u =>
-                G.distinctVertices.map fun v => cliqueEntry G k u v := by
-          simp only [cliqueToSymRatMatrix_rows, cliqueToRows, hk0, hemp, Bool.false_eq_true, hk1,
-            ↓reduceIte]
-        have hlen_rows : (cliqueToSymRatMatrix ⟨G, k⟩).rows.length = G.distinctVertices.length := by
-          rw [hrows_eq, List.length_map]
-        let eFin : Fin (cliqueToSymRatMatrix ⟨G, k⟩).rows.length ≃ Fin G.distinctVertices.length :=
-          ⟨Fin.cast hlen_rows, Fin.cast hlen_rows.symm, fun _ => rfl, fun _ => rfl⟩
-        have hmat_eq :
-            ∀ i j : Fin (cliqueToSymRatMatrix ⟨G, k⟩).rows.length,
-              (cliqueToSymRatMatrix ⟨G, k⟩).toMatrix i j =
-                ((H.copositiveCliqueMatrix k).map (Int.cast : ℤ → ℚ)) (eFin i) (eFin j) := by
-          intro i j
-          have hi : i.1 < G.distinctVertices.length := hlen_rows ▸ i.2
-          have hj : j.1 < G.distinctVertices.length := hlen_rows ▸ j.2
-          have hget1 : (cliqueToSymRatMatrix ⟨G, k⟩).rows.getD i.1 [] =
-              G.distinctVertices.map fun v => cliqueEntry G k G.distinctVertices[i.1] v := by
-            have hrows_get := congrArg (fun l => List.getD l i.1 []) hrows_eq
-            rw [hrows_get, List.getD_eq_getElem?_getD, List.getElem?_map,
-              List.getElem?_eq_getElem hi, Option.map_some, Option.getD_some]
-          have hget2 :
-              (G.distinctVertices.map fun v =>
-                  cliqueEntry G k G.distinctVertices[i.1] v).getD j.1 0 =
-                cliqueEntry G k G.distinctVertices[i.1] G.distinctVertices[j.1] := by
-            rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hj,
-              Option.map_some, Option.getD_some]
-          dsimp only [SymRatMatrix.toMatrix, Matrix.of_apply]
-          rw [hget1, hget2, Matrix.map_apply, SimpleGraph.copositiveCliqueMatrix_apply]
-          have hnodup := G.nodup_distinctVertices
-          by_cases hij : eFin i = eFin j
-          · have hval : i.1 = j.1 := congrArg Fin.val (eFin.injective hij)
-            have hnotadj : ¬ H.Adj (eFin i) (eFin j) := by
-              rw [hij]
-              exact H.loopless.irrefl _
-            simp only [cliqueEntry, hval, ↓reduceIte, hnotadj, Int.cast_sub, Int.cast_natCast,
-              Int.cast_ofNat]
-          · have hij_val : G.distinctVertices[i.1] ≠ G.distinctVertices[j.1] := by
-              intro hval
-              have hinj := hnodup.getElem_inj_iff.1 hval
-              exact hij (Fin.ext hinj)
-            have hadj_iff :
-                H.Adj (eFin i) (eFin j) ↔
-                  G.adjBool G.distinctVertices[i.1] G.distinctVertices[j.1] = true := by
-              dsimp only [H, SimpleGraph.comap_adj, ι, eFin]
-              exact (G.adjBool_eq_true_iff G.distinctVertices[i.1] G.distinctVertices[j.1]).symm
-            by_cases hadj : G.adjBool G.distinctVertices[i.1] G.distinctVertices[j.1] = true
-            · have hH : H.Adj (eFin i) (eFin j) := hadj_iff.2 hadj
-              simp only [cliqueEntry, hij_val, ↓reduceIte, hadj, hH, Int.cast_neg, Int.cast_one]
-            · have hH : ¬ H.Adj (eFin i) (eFin j) := fun h => hadj (hadj_iff.1 h)
-              simp only [cliqueEntry, hij_val, ↓reduceIte, hadj, Bool.false_eq_true, hH,
-                Int.cast_sub, Int.cast_natCast, Int.cast_ofNat]
-        have hnc_iff :
-            cliqueToSymRatMatrix ⟨G, k⟩ ∈ NonCopositive ↔
-              ∃ x : Fin G.distinctVertices.length → ℚ, (∀ v, 0 ≤ x v) ∧
-                x ⬝ᵥ ((H.copositiveCliqueMatrix k).map (Int.cast : ℤ → ℚ) *ᵥ x) < 0 := by
-          have hsub : (cliqueToSymRatMatrix ⟨G, k⟩).toMatrix =
-              ((H.copositiveCliqueMatrix k).map (Int.cast : ℤ → ℚ)).submatrix eFin eFin :=
-            Matrix.ext fun i j => hmat_eq i j
-          rw [mem_NonCopositive_iff, hsub, Matrix.IsCopositive.submatrix_equiv_iff,
-            Matrix.IsCopositive]
-          push Not
-          rfl
-        have hclique_iff : (⟨G, k⟩ : CliqueInstance) ∈ Clique ↔ k ≤ H.cliqueNum := by
-          rw [mem_Clique_iff]
-          constructor
-          · rintro ⟨S, hSG, hS⟩
-            let S' : Finset (Fin G.distinctVertices.length) :=
-              Finset.univ.filter fun i => ι i ∈ S
-            have hS'_img : S'.image ι = S := by
-              ext v
-              simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and, S']
-              constructor
-              · rintro ⟨i, hi, rfl⟩
-                exact hi
-              · intro hvS
-                obtain ⟨idx, hidx, rfl⟩ :=
-                  List.mem_iff_getElem.1 (Graph.mem_distinctVertices.2 (hSG v hvS))
-                exact ⟨⟨idx, hidx⟩, hvS, rfl⟩
-            have hS'clique : H.IsClique (S' : Set (Fin G.distinctVertices.length)) := by
-              intro i hi j hj hij
-              simp only [Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and, S'] at hi hj
-              exact hS.isClique hi hj (ι.injective.ne hij)
-            have hcard : S'.card = k := by
-              have hcard_eq : S'.card = (S'.image ι).card :=
-                (Finset.card_image_of_injective S' ι.injective).symm
-              rw [hcard_eq, hS'_img, hS.card_eq]
-            rw [← hcard]
-            exact hS'clique.card_le_cliqueNum
-          · intro hle
-            obtain ⟨S_max, hS_max⟩ := H.exists_isNClique_cliqueNum
-            obtain ⟨S', hS'_sub, hS'_card⟩ :=
-              Finset.exists_subset_card_eq (n := k) (by rw [hS_max.card_eq]; exact hle)
-            refine ⟨S'.map ι, ?_, ?_⟩
-            · intro v hv
-              obtain ⟨i, _, rfl⟩ := Finset.mem_map.1 hv
-              exact Graph.mem_distinctVertices.1 (List.getElem_mem i.2)
-            · rw [SimpleGraph.isNClique_iff]
-              refine ⟨?_, ?_⟩
-              · intro u hu v hv hij
-                rw [Finset.coe_map, Set.mem_image] at hu hv
-                rcases hu with ⟨i, hi, rfl⟩
-                rcases hv with ⟨j, hj, rfl⟩
-                exact hS_max.isClique (hS'_sub hi) (hS'_sub hj) fun h => hij (congrArg ι h)
-              · rw [Finset.card_map, hS'_card]
-        rw [hclique_iff, hnc_iff]
-        exact (SimpleGraph.exists_nonneg_dotProduct_copositiveCliqueMatrix_lt_zero_iff H hk2).symm
+        obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil G.distinctVertices
+          (by intro hnil; simp [hnil] at hemp')
+        have hin : (⟨G, 1⟩ : CliqueInstance) ∈ Clique := mem_Clique_iff.2
+          ⟨{v}, fun _ hw => by simp only [Finset.mem_singleton] at hw; exact hw ▸
+            Graph.mem_distinctVertices.1 hv, by simp⟩
+        have hrows : (cliqueToSymRatMatrix ⟨G, 1⟩).rows = (singletonSymRatMatrix (-1)).rows := by
+          simp [cliqueToSymRatMatrix_rows, cliqueToRows, hk0, hemp', singletonSymRatMatrix]
+        exact iff_of_true hin (SymRatMatrix.ext hrows ▸ singleton_neg_nonCopositive)
+      · exact cliqueToSymRatMatrix_mem_iff_two_le (by omega) hemp'
 
 private theorem computableInPolyTime_toRows :
     ComputableInPolyTime cliqueToRows encCliqueInstance encRatMatrixRows := by

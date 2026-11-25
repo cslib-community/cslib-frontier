@@ -48,23 +48,16 @@ theorem coordinate_channels {A B R : Type} [Fintype A] [Nonempty A]
     (hYX : RetentionChannels Y X f π 1 16 32 8) :
     RetentionChannels (fun (σ : R → A) v => X (σ j) v) Y f π 1 16 32 8 ∧
       RetentionChannels Y (fun (σ : R → A) v => X (σ j) v) f π 1 16 32 8 := by
-  constructor
-  · refine ⟨?_, hXY.dens_Y, hXY.lower, hXY.upper, hXY.pair, ?_⟩
-    · intro v
-      rw [dens_filter_pi_eval j (fun a => X a v)]
-      exact hXY.dens_X v
-    · intro S hS
-      rw [dens_filter_pi_eval j (fun a =>
-        2 * (#{v ∈ S | X a v} : ℝ) < #S * π)]
-      exact hXY.tail S hS
-  · refine ⟨hYX.dens_X, ?_, hYX.lower, hYX.upper, ?_, hYX.tail⟩
-    · intro v
-      rw [dens_filter_pi_eval j (fun a => X a v)]
-      exact hYX.dens_Y v
-    · intro w y hwy
-      rw [dens_filter_pi_eval j (fun a => X a w ∧ X a y),
-        dens_filter_pi_eval j (fun a => X a y)]
-      exact hYX.pair w y hwy
+  refine ⟨⟨fun v => by rw [dens_filter_pi_eval j (fun a => X a v)]; exact hXY.dens_X v,
+      hXY.dens_Y, hXY.lower, hXY.upper, hXY.pair,
+      fun S hS => by
+        rw [dens_filter_pi_eval j (fun a => 2 * (#{v ∈ S | X a v} : ℝ) < #S * π)]
+        exact hXY.tail S hS⟩,
+    ⟨hYX.dens_X, fun v => by rw [dens_filter_pi_eval j (fun a => X a v)]; exact hYX.dens_Y v,
+      hYX.lower, hYX.upper, fun w y hwy => ?_, hYX.tail⟩⟩
+  rw [dens_filter_pi_eval j (fun a => X a w ∧ X a y),
+    dens_filter_pi_eval j (fun a => X a y)]
+  exact hYX.pair w y hwy
 
 variable (HP : FourthRootHierarchyParams 16 1 16 32 8)
   (D : ZMod P) (ident : V → ZMod P)
@@ -105,31 +98,19 @@ theorem split_channels (hD : D ≠ 0) (hid : Function.Injective ident)
       (rate k) (((side P k : ℝ)/P)^4) 1 16 32 8 ∧
     RetentionChannels (splitTerminal D ident r) (splitSource D ident r hr)
       (rate k) (((side P k : ℝ)/P)^4) 1 16 32 8 := by
-  let is := fun v => CopyPadding.identifier D r.source.suffix (ident v)
-  let it := fun v => CopyPadding.identifier D r.terminal.suffix (ident v)
-  have ha : ((2 : ℝ) ^ k)⁻¹ ≤ 1 := inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num))
-  have hS := retentionChannels_frameRetains_of_lt
-    ((CopyPadding.identifier_injective hD r.source.suffix).comp hid)
-    (H := 4) (r := 1) (by decide) (by decide) (horizon_admissible H hk) ha
-  have hT := retentionChannels_frameRetains_of_lt
-    ((CopyPadding.identifier_injective hD r.terminal.suffix).comp hid)
-    (H := 4) (r := 1) (by decide) (by decide) (horizon_admissible H hk) ha
-  have hST : RetentionChannels
-      (fun (A : FrameChannel P 4 1) v => frameRetains P 4 (side P k) A (is v))
-      (fun (A : FrameChannel P 4 1) v => frameRetains P 4 (side P k) A (it v))
-      (rate k) (((side P k : ℝ)/P)^4) 1 16 32 8 := by
-    norm_num only [← side_eq_ceil] at hS hT
-    exact ⟨hS.dens_X, hT.dens_Y, hS.lower, hS.upper, hT.pair, hS.tail⟩
-  have hTS : RetentionChannels
-      (fun (A : FrameChannel P 4 1) v => frameRetains P 4 (side P k) A (it v))
-      (fun (A : FrameChannel P 4 1) v => frameRetains P 4 (side P k) A (is v))
-      (rate k) (((side P k : ℝ)/P)^4) 1 16 32 8 := by
-    norm_num only [← side_eq_ceil] at hS hT
-    exact ⟨hT.dens_X, hS.dens_Y, hT.lower, hT.upper, hS.pair, hT.tail⟩
+  have hret (suf : List (ZMod P)) :=
+    retentionChannels_frameRetains_of_lt
+      ((CopyPadding.identifier_injective hD suf).comp hid)
+      (H := 4) (r := 1) (by decide) (by decide) (horizon_admissible H hk)
+      (inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num)))
+  have hS := hret r.source.suffix
+  have hT := hret r.terminal.suffix
+  norm_num only [← side_eq_ceil] at hS hT
   unfold splitSource splitTerminal coordinate
   simp only [hs, ht, semanticSide_grid]
-  exact coordinate_channels (⟨r.source.role, hr.1⟩ : {j : Fin J // j ≠ r.terminal.role})
-      _ _ hST hTS
+  exact coordinate_channels (⟨r.source.role, hr.1⟩ : {j : Fin J // j ≠ r.terminal.role}) _ _
+    ⟨hS.dens_X, hT.dens_Y, hS.lower, hS.upper, hT.pair, hS.tail⟩
+    ⟨hT.dens_X, hS.dens_Y, hT.lower, hT.upper, hS.pair, hT.tail⟩
 
 /-- Genuine earlier raw child C+E_i C in matrix units, using the actual split channels. -/
 def genuineRaw (C : Matrix V V ℝ) (i : ℕ) : Matrix V V ℝ :=
@@ -185,8 +166,8 @@ theorem genuine_request_eq
       (CorrectionRowRecipe.preparation (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff
         (polynomialPrepCutoff4 HP.θ) HP.ρ HP.K ⌈4 * (1 + 32 * HP.R)⌉₊ r.terminal.rate
         (splitSource D ident r hr) (splitTerminal D ident r) (genuineRaw HP D ident r hr C i))
-      (genuineMaximum HP D ident r hr C) (terminalSplit r.terminal.role σ) x y := by
-  exact correctionRequest_eq_split HP D ident r hr _ _ _ σ x y
+      (genuineMaximum HP D ident r hr C) (terminalSplit r.terminal.role σ) x y :=
+  correctionRequest_eq_split HP D ident r hr _ _ _ σ x y
 
 /-- Same-rate genuine actual correction requests have the true correction-iterate mean
 on ONE environment. The incoming count and normalizer laws come from the frame channel
@@ -210,9 +191,7 @@ theorem genuine_request_mean (hD : D ≠ 0) (hid : Function.Injective ident)
   have hh := split_channels D ident r hr hD hid H hk hs ht
   rw [← ht] at hh
   have hf : 0 < r.terminal.rate := ht ▸ rate_pos k
-  have hπ : 0 < (((side P k : ℝ)/P)^4) := by
-    have h := hh.1.lower
-    linarith
+  have hπ : 0 < (((side P k : ℝ) / P) ^ 4) := by linarith [hh.1.lower]
   rw [source_expect_split D ident r hr]
   simp_rw [genuine_request_eq HP D ident r hr C i, Equiv.apply_symm_apply]
   have husage : splitUsage D ident r = splitTerminal D ident r := by
@@ -232,12 +211,9 @@ theorem split_source_nonempty (hD : D ≠ 0) (hid : Function.Injective ident)
     (hs : r.source.rate = rate k) (ht : r.terminal.rate = rate k) (x : V) :
     ({rest | splitSource D ident r hr rest x} : Finset _).Nonempty := by
   have hh := split_channels D ident r hr hD hid H hk hs ht
-  have hp : 0 < (((side P k : ℝ)/P)^4) := by
-    have h := hh.1.lower
-    have hf := rate_pos k
-    linarith
-  have hd := hh.1.dens_X x
-  have hd' : 0 < (dens {rest | splitSource D ident r hr rest x} : ℝ) := by rwa [hd]
+  have hd' : 0 < (dens {rest | splitSource D ident r hr rest x} : ℝ) := by
+    rw [hh.1.dens_X x]
+    linarith [hh.1.lower, rate_pos k]
   exact Finset.dens_pos.mp (by exact_mod_cast hd')
 
 /-- The scale uses the measured usage density on the actual single Ω, and source
@@ -315,11 +291,7 @@ theorem genuine_request_mean_usage (hD : D ≠ 0) (hid : Function.Injective iden
   rw [← ht] at hh
   have hf : 0 < r.terminal.rate := ht ▸ rate_pos k
   have hπ : 0 < (((side P k : ℝ)/P)^4) := by linarith [hh.1.lower]
-  have huπ : 0 < (((side P u : ℝ)/P)^4) := by
-    have : (0 : ℝ) < P := by exact_mod_cast (Fact.out : P.Prime).pos
-    have : (0 : ℝ) < side P u := by
-      exact_mod_cast side_pos P u (Fact.out : P.Prime).pos
-    positivity
+  have huπ : 0 < (((side P u : ℝ)/P)^4) := by have := (Fact.out : P.Prime).pos; positivity
   let A := HP.correctionSampling (splitSource D ident r hr) (splitTerminal D ident r)
     hh.1 hh.2 hf hπ hC hC1 hi
   have hp : ∀ z w, w ≠ z →

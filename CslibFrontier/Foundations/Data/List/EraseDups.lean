@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Data.Finset.Card
 import CslibFrontier.Foundations.Data.List.EraseDupsBy
+import Mathlib.Data.List.Find
 
 /-!
 # Erasing duplicates, keeping first occurrences
@@ -22,6 +23,7 @@ distinct entries.
 ## Main results
 
 * `List.eraseDups_sublist`, `List.nodup_eraseDups`, `List.eraseDups_eq_self`.
+* `List.find?_eraseDups`: the first entry satisfying a predicate is that of the list.
 * `List.toFinset_eraseDups`, `List.length_eraseDups`.
 -/
 
@@ -51,6 +53,25 @@ theorem eraseDups_eq_self [BEq α] [LawfulBEq α] {l : List α} : l.eraseDups = 
         have hba : b ≠ a := fun hba => ha (hba ▸ hb)
         simpa using hba
     rw [eraseDups_cons, hfilter, ih hl]
+
+/-- `eraseDups` keeps first occurrences, so its first entry satisfying `p` is that of the list. -/
+theorem find?_eraseDups [BEq α] [LawfulBEq α] (p : α → Bool) (l : List α) :
+    l.eraseDups.find? p = l.find? p := by
+  induction hn : l.length using Nat.strong_induction_on generalizing l with
+  | _ n ih =>
+    cases l with
+    | nil => rfl
+    | cons a l =>
+      rw [eraseDups_cons, find?_cons, find?_cons]
+      cases hp : p a with
+      | true => rfl
+      | false =>
+        subst hn
+        rw [ih _ (Nat.lt_succ_of_le (length_filter_le _ _)) _ rfl, find?_filter]
+        refine find?_congr fun x _ => ?_
+        by_cases hx : x = a
+        · subst hx; simp [hp]
+        · simp [hx]
 
 variable [DecidableEq α]
 

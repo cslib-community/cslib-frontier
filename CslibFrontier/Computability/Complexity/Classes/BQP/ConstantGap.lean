@@ -79,26 +79,19 @@ theorem acceptProb_threshold_le_exp (F : UniformCircuitFamily) {k t : ℕ → �
     (F.threshold k t hk ht).acceptProb x ≤ Real.exp (-2 * k x.length * δ ^ 2) := by
   set K := k x.length
   set p := F.acceptProb x
-  have hmono : (∑ j ∈ range (K + 1) with t x.length < j,
-      (K.choose j : ℝ) * p ^ j * (1 - p) ^ (K - j)) ≤
-      ∑ j ∈ range (K + 1) with K * δ ≤ ((j : ℕ) : ℝ) - K * p,
-        (K.choose j : ℝ) * p ^ j * (1 - p) ^ (K - j) := by
-    refine sum_le_sum_of_subset_of_nonneg (fun j hj => ?_) fun j _ _ => ?_
-    · rw [mem_filter] at hj ⊢
-      refine ⟨hj.1, ?_⟩
-      have : ((t x.length : ℕ) : ℝ) + 1 ≤ (j : ℝ) := by exact_mod_cast hj.2
-      nlinarith
-    · have h1p : 0 ≤ 1 - p := sub_nonneg.mpr (F.acceptProb_le_one x)
-      have hp : 0 ≤ p := F.acceptProb_nonneg x
-      positivity
-  have hhoeff := sum_filter_le_sub_choose_mul_pow_le K (F.acceptProb_nonneg x)
-    (F.acceptProb_le_one x) (mul_nonneg (Nat.cast_nonneg K) hδ)
+  have hp := F.acceptProb_nonneg x
+  have h1p := sub_nonneg.mpr (F.acceptProb_le_one x)
   rw [acceptProb_threshold_eq_sum_choose]
-  refine hmono.trans (hhoeff.trans_eq ?_)
-  rcases Nat.eq_zero_or_pos K with hK | hK
-  · simp [hK]
-  · congr 1
-    field_simp
+  refine (sum_le_sum_of_subset_of_nonneg (fun j hj => ?_) fun _ _ _ => by positivity).trans
+    ((sum_filter_le_sub_choose_mul_pow_le K hp (F.acceptProb_le_one x)
+      (mul_nonneg (Nat.cast_nonneg K) hδ)).trans_eq ?_)
+  · rw [mem_filter] at hj ⊢
+    refine ⟨hj.1, ?_⟩
+    have : ((t x.length : ℕ) : ℝ) + 1 ≤ j := by exact_mod_cast hj.2
+    nlinarith
+  · by_cases hK : (K : ℝ) = 0
+    · simp [hK]
+    · exact congrArg Real.exp (by field_simp)
 
 /-- **Hoeffding bound for acceptance**: if the threshold `t` is at most `k (p - δ)`, with `0 ≤ δ`,
 then the threshold vote accepts with probability at least `1 - exp (-2 k δ²)`. -/
@@ -109,27 +102,23 @@ theorem one_sub_exp_le_acceptProb_threshold (F : UniformCircuitFamily) {k t : �
     1 - Real.exp (-2 * k x.length * δ ^ 2) ≤ (F.threshold k t hk ht).acceptProb x := by
   set K := k x.length
   set p := F.acceptProb x
-  have hp : 0 ≤ p := F.acceptProb_nonneg x
-  have h1p : 0 ≤ 1 - p := sub_nonneg.mpr (F.acceptProb_le_one x)
+  have hp := F.acceptProb_nonneg x
+  have h1p := sub_nonneg.mpr (F.acceptProb_le_one x)
   have hmono : (∑ j ∈ range (K + 1) with ¬ t x.length < j,
-      (K.choose j : ℝ) * p ^ j * (1 - p) ^ (K - j)) ≤
-      ∑ j ∈ range (K + 1) with K * δ ≤ K * p - ((j : ℕ) : ℝ),
-        (K.choose j : ℝ) * p ^ j * (1 - p) ^ (K - j) := by
-    refine sum_le_sum_of_subset_of_nonneg (fun j hj => ?_) fun j _ _ => by positivity
-    rw [mem_filter] at hj ⊢
-    refine ⟨hj.1, ?_⟩
-    have : (j : ℝ) ≤ ((t x.length : ℕ) : ℝ) := by exact_mod_cast not_lt.mp hj.2
-    nlinarith
-  have hhoeff := sum_filter_le_mul_sub_choose_mul_pow_le K hp (F.acceptProb_le_one x)
-    (mul_nonneg (Nat.cast_nonneg K) hδ)
+      (K.choose j : ℝ) * p ^ j * (1 - p) ^ (K - j)) ≤ Real.exp (-2 * K * δ ^ 2) := by
+    refine (sum_le_sum_of_subset_of_nonneg (fun j hj => ?_) fun _ _ _ => by positivity).trans
+      ((sum_filter_le_mul_sub_choose_mul_pow_le K hp (F.acceptProb_le_one x)
+        (mul_nonneg (Nat.cast_nonneg K) hδ)).trans_eq ?_)
+    · rw [mem_filter] at hj ⊢
+      refine ⟨hj.1, ?_⟩
+      have : (j : ℝ) ≤ t x.length := by exact_mod_cast not_lt.mp hj.2
+      nlinarith
+    · by_cases hK : (K : ℝ) = 0
+      · simp [hK]
+      · exact congrArg Real.exp (by field_simp)
   have htotal := sum_filter_add_sum_filter_not (range (K + 1)) (fun j => t x.length < j)
     fun j => (K.choose j : ℝ) * p ^ j * (1 - p) ^ (K - j)
   rw [sum_choose_mul_pow_eq_one] at htotal
-  have hexp : Real.exp (-2 * (K * δ) ^ 2 / K) = Real.exp (-2 * K * δ ^ 2) := by
-    rcases Nat.eq_zero_or_pos K with hK | hK
-    · simp [hK]
-    · congr 1
-      field_simp
   rw [acceptProb_threshold_eq_sum_choose]
   linarith
 
@@ -155,9 +144,8 @@ theorem mem_BQP_of_gap {A : Set α} {s c : ℝ} (hsc : s < c) (F : UniformCircui
     have hA (a : α) : a ∈ A := by
       by_contra ha
       linarith [(hF a).2 ha, F.acceptProb_nonneg (enc a)]
-    let G := (F.threshold (fun _ => 0) (fun _ => 0) (ComputableInPolyTime.const _)
-      (ComputableInPolyTime.const _)).appendNot
-    refine ⟨G, fun a => ⟨fun _ => ?_, fun ha => absurd (hA a) ha⟩⟩
+    refine ⟨(F.threshold (fun _ => 0) (fun _ => 0) (.const _) (.const _)).appendNot,
+      fun a => ⟨fun _ => ?_, fun ha => absurd (hA a) ha⟩⟩
     rw [UniformCircuitFamily.acceptProb_appendNot,
       UniformCircuitFamily.acceptProb_threshold_eq_sum_choose]
     norm_num [Finset.filter_singleton]
@@ -165,36 +153,27 @@ theorem mem_BQP_of_gap {A : Set α} {s c : ℝ} (hsc : s < c) (F : UniformCircui
   have hδ0 : 0 < δ := by rw [hδ]; linarith
   set K : ℕ := ⌈1 / δ ^ 2⌉₊
   set T : ℕ := ⌊K * ((s + c) / 2)⌋₊
-  have hKδ : 1 ≤ K * δ ^ 2 := by
-    have := Nat.le_ceil (1 / δ ^ 2)
-    rwa [div_le_iff₀ (by positivity)] at this
+  have hKδ : 1 ≤ K * δ ^ 2 := (div_le_iff₀ (by positivity)).mp (Nat.le_ceil (1 / δ ^ 2))
   have hexp : Real.exp (-2 * K * δ ^ 2) ≤ 1 / 3 :=
     (Real.exp_le_exp.mpr (by nlinarith)).trans Real.exp_neg_two_le_one_third
-  have hK : ComputableInPolyTime (fun _ : ℕ => K) encUnary encUnary := ComputableInPolyTime.const _
-  have hT : ComputableInPolyTime (fun _ : ℕ => T) encUnary encUnary := ComputableInPolyTime.const _
+  have hK : ComputableInPolyTime (fun _ : ℕ => K) encUnary encUnary := .const _
+  have hT : ComputableInPolyTime (fun _ : ℕ => T) encUnary encUnary := .const _
   refine ⟨F.threshold (fun _ => K) (fun _ => T) hK hT, fun a => ⟨fun ha => ?_, fun ha => ?_⟩⟩
-  · have hTle : (T : ℝ) ≤ K * (F.acceptProb (enc a) - δ) := by
+  · have := F.one_sub_exp_le_acceptProb_threshold hK hT (enc a) hδ0.le <| by
       have := Nat.floor_le (mul_nonneg (Nat.cast_nonneg K) (by linarith : 0 ≤ (s + c) / 2))
-      have := (hF a).1 ha
-      nlinarith [(Nat.cast_nonneg K : (0 : ℝ) ≤ K)]
-    have := F.one_sub_exp_le_acceptProb_threshold hK hT (enc a) hδ0.le hTle
+      nlinarith [(hF a).1 ha, (Nat.cast_nonneg K : (0 : ℝ) ≤ K)]
     linarith
-  · have hTge : (K : ℝ) * (F.acceptProb (enc a) + δ) ≤ T + 1 := by
+  · exact (F.acceptProb_threshold_le_exp hK hT (enc a) hδ0.le <| by
       have := Nat.lt_floor_add_one ((K : ℝ) * ((s + c) / 2))
-      have := (hF a).2 ha
-      nlinarith [(Nat.cast_nonneg K : (0 : ℝ) ≤ K)]
-    exact (F.acceptProb_threshold_le_exp hK hT (enc a) hδ0.le hTge).trans hexp
+      nlinarith [(hF a).2 ha, (Nat.cast_nonneg K : (0 : ℝ) ≤ K)]).trans hexp
 
 /-- **`BQP` is the class of problems decided with some constant gap**: `A ∈ BQP enc` exactly when
 for some constants `s < c`, a uniform family accepts members with probability at least `c` and
 other instances with probability at most `s`. -/
 theorem mem_BQP_iff_exists_gap {A : Set α} :
     A ∈ BQP enc ↔ ∃ s c : ℝ, s < c ∧ ∃ F : UniformCircuitFamily, ∀ a,
-      (a ∈ A → c ≤ F.acceptProb (enc a)) ∧ (a ∉ A → F.acceptProb (enc a) ≤ s) := by
-  constructor
-  · rintro ⟨F, hF⟩
-    exact ⟨1 / 3, 2 / 3, by norm_num, F, hF⟩
-  · rintro ⟨s, c, hsc, F, hF⟩
-    exact mem_BQP_of_gap hsc F hF
+      (a ∈ A → c ≤ F.acceptProb (enc a)) ∧ (a ∉ A → F.acceptProb (enc a) ≤ s) :=
+  ⟨fun ⟨F, hF⟩ => ⟨1 / 3, 2 / 3, by norm_num, F, hF⟩,
+    fun ⟨_, _, hsc, F, hF⟩ => mem_BQP_of_gap hsc F hF⟩
 
 end Cslib.Complexity

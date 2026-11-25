@@ -141,14 +141,6 @@ theorem advantage_twoBlockAdversary [DecidableEq D] (E : Key → Equiv.Perm D)
 
 /-! ### Theorem 4.1 -/
 
-/-- Against a fixed function, querying every block of a list returns the image of the list. -/
-private theorem run_mapM_query (f : D → D) (l : List D) :
-    (l.mapM (ProbOracleComp.query (spec := fun _ : D => D))).run (fun x => pure (f x)) =
-      pure (l.map f) := by
-  induction l with
-  | nil => rfl
-  | cons a l ih => simp [List.mapM_cons, ih]
-
 variable [DecidableEq D]
 
 /-- The block-cipher adversary of the proof of Theorem 4.1 ([BonehShoup2023], p. 106). It draws
@@ -172,25 +164,19 @@ noncomputable def reduction (ℓ : ℕ) {σ : Type}
 theorem isQueryBounded_reduction (ℓ : ℕ) {σ : Type}
     (A : TwoStage Unit (MessagePair (List D)) (List D) Bool σ) :
     (reduction ℓ A).IsQueryBounded ℓ := by
-  have hbody : ∀ (b : Bool) (p : MessagePair (List D) × σ),
-      (if distinctAdmissible ℓ p.1.msg₀ p.1.msg₁ then do
-          let c ← (p.1.select b).mapM ProbOracleComp.query
-          (· == b) <$> ProbOracleComp.sample (A.guess p.2 c)
-        else return false == b : ProbOracleComp (fun _ : D => D) Bool).IsQueryBounded ℓ := by
-    intro b p
-    split_ifs with h
-    · have hlen : (p.1.select b).length ≤ ℓ := by
-        simp only [distinctAdmissible, decide_eq_true_eq] at h
-        cases b <;> simp only [MessagePair.select_false, MessagePair.select_true] <;> omega
-      have hq : ((p.1.select b).mapM ProbOracleComp.query).IsQueryBounded ℓ :=
-        (OracleComp.IsCostBounded.mapM fun x _ =>
-          ProbOracleComp.IsQueryBounded.query (spec := fun _ : D => D) x).mono (by simpa using hlen)
-      exact (hq.bind fun c =>
-        (OracleComp.isCostBounded_map_iff (· == b) _ _).mpr
-          (ProbOracleComp.IsQueryBounded.sample (A.guess p.2 c))).mono (by omega)
-    · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-  exact ((ProbOracleComp.IsQueryBounded.sample _).bind fun b =>
-    (ProbOracleComp.IsQueryBounded.sample _).bind fun p => hbody b p).mono (by omega)
+  refine ((ProbOracleComp.IsQueryBounded.sample _).bind fun b =>
+    (ProbOracleComp.IsQueryBounded.sample _).bind fun p => ?_ :
+      (reduction ℓ A).IsQueryBounded (0 + (0 + ℓ))).mono (by omega)
+  split_ifs with h
+  · have hlen : (p.1.select b).length ≤ ℓ := by
+      simp only [distinctAdmissible, decide_eq_true_eq] at h
+      cases b <;> simp only [MessagePair.select_false, MessagePair.select_true] <;> omega
+    exact (((OracleComp.IsCostBounded.mapM fun x _ =>
+      ProbOracleComp.IsQueryBounded.query (spec := fun _ : D => D) x).mono
+        (by simpa using hlen)).bind fun c =>
+      (OracleComp.isCostBounded_map_iff (· == b) _ _).mpr
+        (ProbOracleComp.IsQueryBounded.sample (A.guess p.2 c))).mono (by omega)
+  · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
 
 /-- Against a fixed function `f`, the reduction draws the hidden bit, runs `A` on the challenge
 `m_b.map f`, and returns whether `A` guessed the bit. -/
@@ -206,7 +192,7 @@ private theorem run_reduction (f : D → D) (ℓ : ℕ) {σ : Type}
   simp only [reduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
   refine bind_congr fun b => bind_congr fun p => ?_
   split_ifs
-  · simp [run_mapM_query]
+  · simp [ProbOracleComp.run_mapM_query]
   · rfl
 
 /-- The real block-cipher experiment of `ECB.reduction ℓ A` against a keyed permutation `E` is the

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CNF
+public import CslibFrontier.Logics.Propositional.LineProof
 public import Mathlib.LinearAlgebra.Finsupp.LinearCombination
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
@@ -53,7 +54,8 @@ unsatisfiable.
 * `Cslib.Logic.PL.Ineq.relabel`: renaming the variables.
 * `Cslib.Logic.PL.Literal.toIneq`, `Cslib.Logic.PL.Clause.toIneq`, `Cslib.Logic.PL.CNF.toIneqs`:
   literals, clauses and CNFs as inequalities.
-* `Cslib.Logic.PL.CuttingPlanes.IsProof`: cutting planes proofs.
+* `Cslib.Logic.PL.CuttingPlanes.IsProof`, `Cslib.Logic.PL.CuttingPlanes.rules`: cutting planes
+  proofs and inference rules.
 * `Cslib.Logic.PL.CuttingPlanes.DerivableInSize`, `Cslib.Logic.PL.CuttingPlanes.RefutableInSize`:
   derivability and refutability with a bounded number of lines.
 
@@ -61,6 +63,8 @@ unsatisfiable.
 
 * `Cslib.Logic.PL.Ineq.Holds.div`: soundness of rounded division.
 * `Cslib.Logic.PL.Clause.holds_toIneq_iff`: the translation of clauses is faithful.
+* `Cslib.Logic.PL.CuttingPlanes.isProof_iff_lineProof`: cutting planes proofs as
+  `Cslib.Logic.PL.LineProof` derivations.
 * `Cslib.Logic.PL.CuttingPlanes.IsProof.holds`,
   `Cslib.Logic.PL.CuttingPlanes.RefutableInSize.not_exists_holds`,
   `Cslib.Logic.PL.CuttingPlanes.RefutableInSize.not_satisfiable`: soundness.
@@ -181,6 +185,12 @@ theorem lhs_of_coeff_eq_smul (σ : V → Bool) {I J : Ineq V} {c : ℤ} (h : I.c
 theorem lhs_eq_sum [Fintype V] (σ : V → Bool) (I : Ineq V) :
     I.lhs σ = ∑ v, I.coeff v * (σ v).toInt := by
   rw [lhs, Finsupp.linearCombination_apply, Finsupp.sum_fintype _ _ fun _ => by simp]
+  rfl
+
+/-- The left-hand side as a sum over the nonzero coefficients. -/
+theorem lhs_eq_finsuppSum (σ : V → Bool) (I : Ineq V) :
+    I.lhs σ = I.coeff.sum fun v a => a * (σ v).toInt := by
+  rw [lhs, Finsupp.linearCombination_apply]
   rfl
 
 theorem Holds.add {σ : V → Bool} {I J : Ineq V} (hI : I.Holds σ) (hJ : J.Holds σ) :
@@ -425,96 +435,87 @@ inductive IsProof (Γ : Set (Ineq V)) : List (Ineq V) → Prop
 
 variable {Γ Δ : Set (Ineq V)} {ls ls' : List (Ineq V)} {I J : Ineq V} {s t : ℕ}
 
+/-- The axioms and inference rules of cutting planes as `Cslib.Logic.PL.LineRule`s: the box axioms
+`xᵥ ≥ 0` and `-xᵥ ≥ -1`, addition, multiplication by a positive integer, and rounded division by a
+positive integer dividing every coefficient. -/
+@[expose] def rules (V : Type*) : Set (LineRule (Ineq V)) :=
+  {r | (∃ v, r = ⟨[], Ineq.nonneg v⟩) ∨ (∃ v, r = ⟨[], Ineq.leOne v⟩) ∨
+    (∃ I J, r = ⟨[I, J], I + J⟩) ∨ (∃ (I : Ineq V) (c : ℕ), 0 < c ∧ r = ⟨[I], c • I⟩) ∨
+    ∃ (I : Ineq V) (c : ℕ), 0 < c ∧ (∀ v, (c : ℤ) ∣ I.coeff v) ∧ r = ⟨[I], I.div c⟩}
+
+/-- Every cutting planes rule has at most two premises. -/
+theorem rules_premises_length_le {r : LineRule (Ineq V)} (hr : r ∈ rules V) :
+    r.premises.length ≤ 2 := by
+  rcases hr with ⟨_, rfl⟩ | ⟨_, rfl⟩ | ⟨_, _, rfl⟩ | ⟨_, _, -, rfl⟩ | ⟨_, _, -, -, rfl⟩ <;> simp
+
+/-- Every cutting planes rule preserves satisfaction by a 0/1 assignment. -/
+theorem rules_sound {r : LineRule (Ineq V)} (hr : r ∈ rules V) {σ : V → Bool}
+    (hp : ∀ I ∈ r.premises, I.Holds σ) : r.concl.Holds σ := by
+  rcases hr with ⟨v, rfl⟩ | ⟨v, rfl⟩ | ⟨I, J, rfl⟩ | ⟨I, c, -, rfl⟩ | ⟨I, c, -, hdvd, rfl⟩
+  · exact holds_nonneg σ v
+  · exact holds_leOne σ v
+  · exact (hp I (by simp)).add (hp J (by simp))
+  · exact (hp I (by simp)).nsmul c
+  · exact (hp I (by simp)).div hdvd
+
+/-- **Cutting planes proofs as `LineProof` derivations.** -/
+theorem isProof_iff_lineProof : IsProof Γ ls ↔ LineProof (rules V) Γ ls := by
+  constructor
+  · intro h
+    induction h with
+    | nil => exact .nil
+    | hyp _ hI ih => exact ih.hyp hI
+    | nonneg _ v ih => exact ih.step (r := ⟨[], Ineq.nonneg v⟩) (Or.inl ⟨v, rfl⟩) (by simp)
+    | leOne _ v ih =>
+      exact ih.step (r := ⟨[], Ineq.leOne v⟩) (Or.inr (Or.inl ⟨v, rfl⟩)) (by simp)
+    | @add _ I J _ hI hJ ih =>
+      exact ih.step (r := ⟨[I, J], I + J⟩) (Or.inr (Or.inr (Or.inl ⟨I, J, rfl⟩)))
+        (by simp [hI, hJ])
+    | @smul _ I _ c hc hI ih =>
+      exact ih.step (r := ⟨[I], c • I⟩) (Or.inr (Or.inr (Or.inr (Or.inl ⟨I, c, hc, rfl⟩))))
+        (by simp [hI])
+    | @div _ I _ c hc hdvd hI ih =>
+      exact ih.step (r := ⟨[I], I.div c⟩)
+        (Or.inr (Or.inr (Or.inr (Or.inr ⟨I, c, hc, hdvd, rfl⟩)))) (by simp [hI])
+  · intro h
+    induction h with
+    | nil => exact .nil
+    | hyp _ hI ih => exact ih.hyp hI
+    | step _ hr hp ih =>
+      rcases hr with ⟨v, rfl⟩ | ⟨v, rfl⟩ | ⟨I, J, rfl⟩ | ⟨I, c, hc, rfl⟩ | ⟨I, c, hc, hdvd, rfl⟩
+      · exact ih.nonneg v
+      · exact ih.leOne v
+      · exact ih.add (hp I (by simp)) (hp J (by simp))
+      · exact ih.smul c hc (hp I (by simp))
+      · exact ih.div c hc hdvd (hp I (by simp))
+
 namespace IsProof
 
 /-- Two proofs from `Γ` concatenate to a proof from `Γ`. -/
-theorem append (h : IsProof Γ ls) (h' : IsProof Γ ls') : IsProof Γ (ls ++ ls') := by
-  induction h with
-  | nil => exact h'
-  | hyp _ hI ih => exact ih.hyp hI
-  | nonneg _ v ih => exact ih.nonneg v
-  | leOne _ v ih => exact ih.leOne v
-  | add _ hI hJ ih => exact ih.add (List.mem_append_left _ hI) (List.mem_append_left _ hJ)
-  | smul _ c hc hI ih => exact ih.smul c hc (List.mem_append_left _ hI)
-  | div _ c hc hdvd hI ih => exact ih.div c hc hdvd (List.mem_append_left _ hI)
+theorem append (h : IsProof Γ ls) (h' : IsProof Γ ls') : IsProof Γ (ls ++ ls') :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 h).append (isProof_iff_lineProof.1 h'))
 
 /-- **Soundness**: every line of a proof from `Γ` holds under every 0/1 assignment satisfying
 `Γ`. -/
 theorem holds (h : IsProof Γ ls) {σ : V → Bool} (hσ : ∀ I ∈ Γ, I.Holds σ) (hI : I ∈ ls) :
-    I.Holds σ := by
-  -- the new line holds by the rule that adds it, and the earlier ones by induction
-  induction h generalizing I with
-  | nil => simp at hI
-  | hyp _ hJ ih => exact List.forall_mem_cons.2 ⟨hσ _ hJ, fun _ => ih⟩ _ hI
-  | nonneg _ v ih => exact List.forall_mem_cons.2 ⟨holds_nonneg σ v, fun _ => ih⟩ _ hI
-  | leOne _ v ih => exact List.forall_mem_cons.2 ⟨holds_leOne σ v, fun _ => ih⟩ _ hI
-  | add _ h₁ h₂ ih => exact List.forall_mem_cons.2 ⟨(ih h₁).add (ih h₂), fun _ => ih⟩ _ hI
-  | smul _ c _ h₁ ih => exact List.forall_mem_cons.2 ⟨(ih h₁).nsmul c, fun _ => ih⟩ _ hI
-  | div _ c _ hdvd h₁ ih => exact List.forall_mem_cons.2 ⟨(ih h₁).div hdvd, fun _ => ih⟩ _ hI
-
-/-- One step of `Cslib.Logic.PL.CuttingPlanes.IsProof.comp`: replaying a line `J` on top of
-`ls'' ++ ls` covers the lines of `J :: ls'` with one more line. -/
-private theorem comp_cons {ls'' : List (Ineq V)} (h : IsProof Γ (J :: (ls'' ++ ls)))
-    (hup : ∀ K ∈ ls', K ∈ ls'' ++ ls) (hlen : ls''.length ≤ ls'.length) :
-    ∃ ls₀, IsProof Γ (ls₀ ++ ls) ∧ (∀ K ∈ J :: ls', K ∈ ls₀ ++ ls) ∧
-      ls₀.length ≤ (J :: ls').length := by
-  refine ⟨J :: ls'', h, fun K hK => ?_, by simpa using hlen⟩
-  rcases List.mem_cons.1 hK with rfl | hK
-  exacts [List.mem_cons_self, List.mem_cons_of_mem _ (hup K hK)]
+    I.Holds σ :=
+  (isProof_iff_lineProof.1 h).holds hσ (fun _ hr => rules_sound hr) I hI
 
 /-- **Composing proofs**: a proof `ls'` from `Δ` replays on top of a proof `ls` from `Γ` when every
 inequality of `Δ` is in `Γ` or a line of `ls`, adding at most as many lines as `ls'` has. -/
 theorem comp (hΔ : IsProof Δ ls') (h : IsProof Γ ls) (hΔΓ : ∀ I ∈ Δ, I ∈ Γ ∨ I ∈ ls) :
     ∃ ls'', IsProof Γ (ls'' ++ ls) ∧ (∀ I ∈ ls', I ∈ ls'' ++ ls) ∧ ls''.length ≤ ls'.length := by
-  induction hΔ with
-  | nil => exact ⟨[], h, by simp, le_rfl⟩
-  | @hyp ls' I _ hI ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    rcases hΔΓ I hI with hI | hI
-    · exact comp_cons (h''.hyp hI) hup hlen
-    · refine ⟨ls'', h'', fun J hJ => ?_, hlen.trans (Nat.le_succ _)⟩
-      rcases List.mem_cons.1 hJ with rfl | hJ
-      exacts [List.mem_append_right _ hI, hup J hJ]
-  | nonneg _ v ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.nonneg v) hup hlen
-  | leOne _ v ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.leOne v) hup hlen
-  | add _ h₁ h₂ ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.add (hup _ h₁) (hup _ h₂)) hup hlen
-  | smul _ c hc h₁ ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.smul c hc (hup _ h₁)) hup hlen
-  | div _ c hc hdvd h₁ ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.div c hc hdvd (hup _ h₁)) hup hlen
+  obtain ⟨ls'', h'', hup, hsub, -, -⟩ :=
+    (isProof_iff_lineProof.1 hΔ).comp (isProof_iff_lineProof.1 h) hΔΓ
+  exact ⟨ls'', isProof_iff_lineProof.2 h'', hup, hsub.length_le⟩
 
 /-- Enlarging the hypotheses keeps a proof a proof. -/
-theorem mono (h : IsProof Γ ls) (hΓΔ : Γ ⊆ Δ) : IsProof Δ ls := by
-  induction h with
-  | nil => exact .nil
-  | hyp _ hI ih => exact ih.hyp (hΓΔ hI)
-  | nonneg _ v ih => exact ih.nonneg v
-  | leOne _ v ih => exact ih.leOne v
-  | add _ hI hJ ih => exact ih.add hI hJ
-  | smul _ c hc hI ih => exact ih.smul c hc hI
-  | div _ c hc hdvd hI ih => exact ih.div c hc hdvd hI
+theorem mono (h : IsProof Γ ls) (hΓΔ : Γ ⊆ Δ) : IsProof Δ ls :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 h).mono_hyp hΓΔ)
 
 /-- A proof uses only the hypotheses among its lines. -/
-theorem restrict (h : IsProof Γ ls) : IsProof (Γ ∩ {I | I ∈ ls}) ls := by
-  suffices ∀ ls', ls ⊆ ls' → IsProof (Γ ∩ {I | I ∈ ls'}) ls from this ls (List.Subset.refl _)
-  intro ls' hsub
-  induction h with
-  | nil => exact .nil
-  | hyp _ hI ih =>
-    exact (ih (List.cons_subset.1 hsub).2).hyp ⟨hI, (List.cons_subset.1 hsub).1⟩
-  | nonneg _ v ih => exact (ih (List.cons_subset.1 hsub).2).nonneg v
-  | leOne _ v ih => exact (ih (List.cons_subset.1 hsub).2).leOne v
-  | add _ hI hJ ih => exact (ih (List.cons_subset.1 hsub).2).add hI hJ
-  | smul _ c hc hI ih => exact (ih (List.cons_subset.1 hsub).2).smul c hc hI
-  | div _ c hc hdvd hI ih => exact (ih (List.cons_subset.1 hsub).2).div c hc hdvd hI
+theorem restrict (h : IsProof Γ ls) : IsProof (Γ ∩ {I | I ∈ ls}) ls :=
+  isProof_iff_lineProof.2 (isProof_iff_lineProof.1 h).restrict
 
 end IsProof
 

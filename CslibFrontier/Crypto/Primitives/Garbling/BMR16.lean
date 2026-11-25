@@ -582,8 +582,7 @@ theorem interpret_reduceM (f : (q : T × CCRInput μ ℓ) → Label μ ℓ q.2.t
       pure (reduceWith f H tw k C A V) := by
   induction C generalizing k with
   | output outs => exact OracleComp.interpret_pure _ _
-  | add args next ih => exact ih _ _ _
-  | mul c a next ih => exact ih _ _ _
+  | add args next ih | mul c a next ih => exact ih _ _ _
   | proj a φ next ih =>
     simp only [reduceM, reduceWith, OracleComp.interpret_bind, interpret_queryRows,
       Finset.mem_toList, Finset.mem_univ, ite_true, pure_bind, ih, OracleComp.interpret_pure]
@@ -599,11 +598,7 @@ theorem reduceWith_congr {f g : (q : T × CCRInput μ ℓ) → Label μ ℓ q.2.
     reduceWith f H tw k C A V = reduceWith g H tw k C A V := by
   induction C generalizing k with
   | output outs => rfl
-  | add args next ih =>
-    refine ih (k + 1) _ _ fun n h₁ h₂ r => hfg n (by omega) ?_ r
-    simp only [MixedModulusCircuit.size]
-    omega
-  | mul c a next ih =>
+  | add args next ih | mul c a next ih =>
     refine ih (k + 1) _ _ fun n h₁ h₂ r => hfg n (by omega) ?_ r
     simp only [MixedModulusCircuit.size]
     omega
@@ -663,11 +658,7 @@ theorem bind_reduceWith_uniformOfFintype [Fintype T] [DecidableEq T] {β : Type}
   | output outs =>
     simp only [reduceWith, evaluate, PMF.bind_const]
     exact (PMF.bind_const _ _).symm
-  | add args next ih =>
-    refine ih (k + 1) _ _ (htw.mono fun n hn => ?_) κ
-    simp only [Set.mem_Ico, MixedModulusCircuit.size] at hn ⊢
-    omega
-  | mul c a next ih =>
+  | add args next ih | mul c a next ih =>
     refine ih (k + 1) _ _ (htw.mono fun n hn => ?_) κ
     simp only [Set.mem_Ico, MixedModulusCircuit.size] at hn ⊢
     omega
@@ -894,13 +885,7 @@ private theorem goodQueries_reduceM [∀ i, NeZero (μ i)] (H : MixedModulusHash
   | output outs =>
     obtain ⟨rfl, -⟩ := h
     simp [GoodQueries]
-  | add args next ih =>
-    obtain ⟨h₁, h₂⟩ := ih (k + 1) _ _ (htw.mono fun n hn => by
-      simp only [Set.mem_Ico, MixedModulusCircuit.size] at hn ⊢; omega) h
-    refine ⟨fun q hq => ?_, h₂⟩
-    obtain ⟨ha, m, hm₁, hm₂, hm⟩ := h₁ q hq
-    exact ⟨ha, m, by omega, by simp only [MixedModulusCircuit.size]; omega, hm⟩
-  | mul c a next ih =>
+  | add args next ih | mul c a next ih =>
     obtain ⟨h₁, h₂⟩ := ih (k + 1) _ _ (htw.mono fun n hn => by
       simp only [Set.mem_Ico, MixedModulusCircuit.size] at hn ⊢; omega) h
     refine ⟨fun q hq => ?_, h₂⟩

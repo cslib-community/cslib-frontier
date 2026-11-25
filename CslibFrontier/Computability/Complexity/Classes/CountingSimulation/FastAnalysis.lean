@@ -69,7 +69,7 @@ public section
 namespace Cslib.Complexity.CountingSimulation
 
 open Cslib.Circuits.Frontier Cslib.Circuits.Frontier.ContractionSchedule
-  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.Algorithms.StackRecursion
   Turing.MultiTapeTM
 
 /-! ### The clock -/
@@ -253,9 +253,8 @@ theorem fastAnalysis_nativeMk_of (hS : FastSizes) (hL : FastLeaves) : FastAnalys
     · have hm2 : D + 2 ≤ m := by omega
       obtain ⟨hB, hroot⟩ := activeBounds_onSchedule_root hg hm2 hp₀ rfl (hsA m (by omega))
       obtain ⟨N, H, he, hN, hH⟩ := exists_eval_onSchedule tableEntry hB hroot rfl (by omega)
-      refine ⟨N, H, he, fun _ => ?_, hH.trans ((Nat.log_lt_self 2 (by omega)).le.trans
-        (Nat.le_succ _))⟩
-      exact two_mul_sub_one_le_fuel hm2 hp₀ hN
+      exact ⟨N, H, he, fun _ => two_mul_sub_one_le_fuel hm2 hp₀ hN,
+        hH.trans ((Nat.log_lt_self 2 (by omega)).le.trans (Nat.le_succ _))⟩
     · obtain ⟨N, H, he, hH⟩ := exists_eval_reachInv (mk := nativeMk) (x₀ := x₀) rfl
       exact ⟨N, H, he, fun h => absurd h hs₀, hH⟩
   -- The bounds.
@@ -267,8 +266,7 @@ theorem fastAnalysis_nativeMk_of (hS : FastSizes) (hL : FastLeaves) : FastAnalys
     KL * (n + 1) ^ KL * 2 ^ (KL * s / Nat.sqrt (Nat.log 2 s)), KL * (n + 1) ^ KL, he, hN,
     fun x hx => ⟨(hKS' x hx).1, fun hl => ?_⟩,
     fun x a ha => (hKS' x ha.1).2.1 a ha, fun v ⟨x, hx, hv⟩ => hv ▸ (hKS' x hx).2.2, ?_, ?_⟩
-  · have hl' : active x = false := by simpa [scheme] using hl
-    exact hKL' x hx hl'
+  · exact hKL' x hx (by simpa [scheme] using hl)
   · have h1 : H ≤ 1 * (n + 1) ^ K := by
       have : n + 1 ≤ (n + 1) ^ K := Nat.le_self_pow (by omega) _
       omega
@@ -366,16 +364,12 @@ theorem fastSizes : FastSizes := by
     intro w hw
     change w ∈ List.map _ G.2.vertices at hw
     obtain ⟨v, hv, rfl⟩ := List.mem_map.mp hw
-    rw [length_encSum]
-    simp only [Sum.elim_inl]
-    have := hdesc v hv
-    omega
+    simp only [length_encSum, Sum.elim_inl]
+    have := hdesc v hv; omega
   obtain ⟨hc, hv, hf⟩ := (Reach.shape (x₀ := x₀) rfl rfl (wf_root P hg) hx).length_le_pow
     tableEntry rfl rfl rfl (show m + 1 ≤ n + 1 by omega) (by omega) (by omega) hfl
     (fun z hz => le_one_of_mem_modulus hz) hR₀
-  refine ⟨hc, fun a ⟨_, ha, c, _, hac⟩ => ?_, hv⟩
-  rw [hac]
-  exact hf ha _ c
+  exact ⟨hc, fun a ⟨_, ha, c, _, hac⟩ => by rw [hac]; exact hf ha _ c, hv⟩
 
 /-- **The resource analysis of the native recursion**, given the leaf bounds. -/
 theorem fastAnalysis_nativeMk (hL : FastLeaves) : FastAnalysis nativeMk :=
@@ -406,10 +400,8 @@ theorem reach_facts (C D : ℕ) : ∃ s₀, ∀ (s P : ℕ) (G : ℕ × Explicit
   refine ⟨hsc ▸ hsm, hsc ▸ hmC, hsc ▸ hsh.edges_le, fun hs₀ => ⟨?_, fun hl => ?_⟩⟩
   · have hp₂ : q.1 ≤ D * m ^ 2 :=
       hp₀.trans (Nat.mul_le_mul_left _ (Nat.le_self_pow (by norm_num) _))
-    rw [hsc]
-    exact hsh.prec_le_pow_four rfl rfl (show D + 81 ≤ m by omega) hp₂
+    exact hsc ▸ hsh.prec_le_pow_four rfl rfl (show D + 81 ≤ m by omega) hp₂
   · obtain ⟨hB, hroot⟩ := activeBounds_onSchedule_root hg (by omega) hp₀ rfl (hsA m (by omega))
-    rw [hsc]
-    exact (hx.onSchedule hB hroot).edges_le_leafSize hB hl
+    exact hsc ▸ (hx.onSchedule hB hroot).edges_le_leafSize hB hl
 
 end Cslib.Complexity.CountingSimulation

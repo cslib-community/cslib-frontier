@@ -219,11 +219,11 @@ variable [Field F] [DecidableEq F]
 
 /-- Agreement with the point measurement, the diagonal loss, the failure charge and
 the polynomial copy defect bound the commutators of the successful evaluated effects. -/
-theorem evaluatedSlice_successfulPairDefect_le
+theorem evaluatedSlice_successfulPairDefect_le_atDegrees
     (S : CommutingStrategy (Question F (m + 1)) (Question F (m + 1))
       (Answer F (m + 1)) (Answer F (m + 1)) A)
     (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
-    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree : ℕ)
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree D : ℕ)
     (M : F → Measurement (Option (BoundedPolynomial F m d)) A) (hM : ∀ x, (M x).IsProjective)
     (Z : F → A) (hZ : ∀ x, 0 ≤ Z x)
     (hbound : ∀ x (g : BoundedPolynomial F m d),
@@ -240,7 +240,8 @@ theorem evaluatedSlice_successfulPairDefect_le
     (𝔼 w, Measurement.successfulMismatch S.state (P w) (decodedPoint S.alice w)) ≤ η →
     (𝔼 u, 𝔼 v, Measurement.successfulPairDefect S.state (P u) (P v)) ≤
       2 * (4 * √(2 * η) + 2 * √(64 * (m + 1 : ℝ) *
-        (1 - (branchGame (F := F) m degree .diagonal).commutingWinProb S)) + 2 * √ζ + 2 * √ξ) := by
+        (1 - (branchGameWithDiagonalCap (F := F) m degree D .diagonal).commutingWinProb S)) +
+          2 * √ζ + 2 * √ξ) := by
   intro P hη
   let R (w : Point F (m + 1)) :=
     evaluatePolynomialMeasurement (N (w (Fin.last m))) (Fin.init w)
@@ -262,7 +263,7 @@ theorem evaluatedSlice_successfulPairDefect_le
   let b (u : Point F (m + 1)) (a : F) := (Q u).effect a
   let G (u : Point F (m + 1)) := (P u).successfulEffect
   let δ := 64 * (m + 1 : ℝ) *
-    (1 - (branchGame (F := F) m degree .diagonal).commutingWinProb S)
+    (1 - (branchGameWithDiagonalCap (F := F) m degree D .diagonal).commutingWinProb S)
   let defect (u : Point F (m + 1)) := ∑ a : F, S.state.norm (p u a - G u * b u a) ^ 2
   let score (f : Point F (m + 1) → Point F (m + 1) → F → F → A) :=
     𝔼 u, 𝔼 v, ∑ a : F, ∑ c : F, (S.state (f u v a c)).re
@@ -301,16 +302,19 @@ theorem evaluatedSlice_successfulPairDefect_le
       score f - score g = 𝔼 z : Point F (m + 1) × Point F (m + 1),
         ∑ a : F, ∑ c : F, ((S.state (f z.1 z.2 a c)).re - (S.state (g z.1 z.2 a c)).re) := by
     simp only [score, Fintype.expect_prod_type, sum_sub_distrib, expect_sub_distrib]
-  -- Replace each slice effect by its gated point effect, charging the omitted failure terms.
-  have h01 : |s0 - s1| ≤ √(2 * η) := by
-    change |score _ - score _| ≤ _
+  -- Replacing one slice effect by its gated point effect costs `√(2 η)`.
+  have hrep (f g : Point F (m + 1) → Point F (m + 1) → F → F → A)
+      (w : Point F (m + 1) × Point F (m + 1) → Point F (m + 1))
+      (hw : (𝔼 z, defect (w z)) = 𝔼 u, defect u)
+      (h : ∀ z, |∑ a : F, ∑ c : F, (S.state (f z.1 z.2 a c)).re -
+        ∑ a : F, ∑ c : F, (S.state (g z.1 z.2 a c)).re| ≤ √(defect (w z))) :
+      |score f - score g| ≤ √(2 * η) := by
     rw [hscore]
-    refine abs_mean_le_sqrt (X := Point F (m + 1) × Point F (m + 1))
-      _ (fun z => defect z.2) (fun z => hdefect₀ z.2) ?_ (by
-        simpa only [Fintype.expect_comp_snd] using hdefect)
-    intro z
-    simpa only [sum_sub_distrib] using abs_sum_sandwich_replace_le
-      S.state (P z.1) (P z.2) (hP z.1) (fun c => G z.2 * b z.2 c)
+    exact abs_mean_le_sqrt _ _ (fun z => hdefect₀ (w z))
+      (fun z => by simpa only [sum_sub_distrib] using h z) (hw ▸ hdefect)
+  -- Replace each slice effect by its gated point effect, charging the omitted failure terms.
+  have h01 : |s0 - s1| ≤ √(2 * η) := hrep _ _ Prod.snd (Fintype.expect_comp_snd defect)
+    fun z => abs_sum_sandwich_replace_le S.state (P z.1) (P z.2) (hP z.1) (fun c => G z.2 * b z.2 c)
   have h12 : |s1 - s2| ≤ √ζ := by
     let loss (u v : Point F (m + 1)) :=
       ∑ a : F, ∑ c : F, (S.state (p u a * p v c * p u a * (P v).effect none * b v c)).re
@@ -334,29 +338,23 @@ theorem evaluatedSlice_successfulPairDefect_le
     refine (abs_expect_le _ _).trans ?_
     simpa only [Fintype.expect_const] using
       expect_le_expect (s := univ) (g := fun _ : Point F (m + 1) => √ζ) fun u _ => hfixed u
-  have h23 : |s2 - s3| ≤ √(2 * η) := by
-    change |score _ - score _| ≤ _
-    rw [hscore]
-    refine abs_mean_le_sqrt (X := Point F (m + 1) × Point F (m + 1))
-      _ (fun z => defect z.1) (fun z => hdefect₀ z.1) ?_ (by
-        simpa only [Fintype.expect_comp_fst] using hdefect)
-    intro z
-    simpa only [sum_sub_distrib] using abs_sum_matching_replace_le
+  have h23 : |s2 - s3| ≤ √(2 * η) := hrep _ _ Prod.fst (Fintype.expect_comp_fst defect)
+    fun z => abs_sum_matching_replace_le
       S.state (P z.1) (P z.2) (hP z.1) (Q z.1) (Q z.2) (hPQ z.1 z.2) (hPQ z.2 z.2)
   have h34 : |s3 - s4| ≤ √δ := by
     change |score _ - score _| ≤ _
     rw [hscore]
-    let D (z : Point F (m + 1) × Point F (m + 1)) :=
+    let pointDefect (z : Point F (m + 1) × Point F (m + 1)) :=
       Measurement.pairCommutatorDefect S.state (Q z.1) (Q z.2)
-    refine abs_mean_le_sqrt _ D
+    refine abs_mean_le_sqrt _ pointDefect
       (fun z => sum_nonneg fun _ _ => sum_nonneg fun _ _ => sq_nonneg _) ?_ ?_
     · intro z
       simp only [sum_sub_distrib]
       rw [abs_sub_comm]
       exact Measurement.abs_sum_mul_pointOrder_sub_le S.state (P z.1) (P z.2)
         (hP z.1) (hP z.2) (Q z.1) (Q z.2) (G z.1) (P z.1).successfulEffect_mem_Icc
-    · simpa only [D, Fintype.expect_prod_type] using
-        decodedPoint_pairCommutatorDefect_le S hPoint hLine degree
+    · simpa only [pointDefect, Fintype.expect_prod_type] using
+        decodedPoint_pairCommutatorDefect_le_atDegrees S hPoint hLine degree D
   have h45 : |s4 - s5| ≤ √δ + √ζ := by
     rw [abs_sub_comm]
     change |score _ - score _| ≤ _
@@ -367,26 +365,13 @@ theorem evaluatedSlice_successfulPairDefect_le
       rw [Measurement.effect_none_eq_one_sub_successfulEffect, ← show G u = _ from rfl]
       noncomm_ring
     simp only [← Complex.sub_re, ← map_sub, he]
-    exact abs_average_evaluated_failure_pointProduct_le
-      S hPoint hLine degree M hM Z hZ hbound hMP hMZ hfail
-  have h56 : |s5 - s6| ≤ √(2 * η) := by
-    change |score _ - score _| ≤ _
-    rw [hscore]
-    refine abs_mean_le_sqrt (X := Point F (m + 1) × Point F (m + 1))
-      _ (fun z => defect z.1) (fun z => hdefect₀ z.1) ?_ (by
-        simpa only [Fintype.expect_comp_fst] using hdefect)
-    intro z
-    simpa only [sum_sub_distrib] using abs_sum_matching_drop_le S.state (P z.1) (P z.2)
+    exact abs_average_evaluated_failure_pointProduct_le_atDegrees
+      S hPoint hLine degree D M hM Z hZ hbound hMP hMZ hfail
+  have h56 : |s5 - s6| ≤ √(2 * η) := hrep _ _ Prod.fst (Fintype.expect_comp_fst defect)
+    fun z => abs_sum_matching_drop_le S.state (P z.1) (P z.2)
       (hP z.1) (Q z.1) (Q z.2) (hPQ z.1 z.1) (hPQ z.2 z.1) (hPQ z.2 z.2)
-  have h67 : |s6 - s7| ≤ √(2 * η) := by
-    change |score _ - score _| ≤ _
-    rw [hscore]
-    refine abs_mean_le_sqrt (X := Point F (m + 1) × Point F (m + 1))
-      _ (fun z => defect z.2) (fun z => hdefect₀ z.2) ?_ (by
-        simpa only [Fintype.expect_comp_snd] using hdefect)
-    intro z
-    simpa only [sum_sub_distrib] using
-      abs_sum_right_drop_le S.state (P z.1) (P z.2) (hP z.2) (Q z.2)
+  have h67 : |s6 - s7| ≤ √(2 * η) := hrep _ _ Prod.snd (Fintype.expect_comp_snd defect)
+    fun z => abs_sum_right_drop_le S.state (P z.1) (P z.2) (hP z.2) (Q z.2)
   -- Insert the commuting copy to move the final evaluated effect to the front.
   have h78 : |s7 - s8| ≤ 2 * √ξ := by
     change |score _ - score _| ≤ _
@@ -406,5 +391,34 @@ theorem evaluatedSlice_successfulPairDefect_le
   linarith [neg_abs_le (s0 - s1), neg_abs_le (s1 - s2), neg_abs_le (s2 - s3),
     neg_abs_le (s3 - s4), neg_abs_le (s4 - s5), neg_abs_le (s5 - s6),
     neg_abs_le (s6 - s7), neg_abs_le (s7 - s8)]
+
+/-- Agreement with the point measurement, the diagonal loss, the failure charge and
+the polynomial copy defect bound the commutators of the successful evaluated effects. -/
+theorem evaluatedSlice_successfulPairDefect_le
+    (S : CommutingStrategy (Question F (m + 1)) (Question F (m + 1))
+      (Answer F (m + 1)) (Answer F (m + 1)) A)
+    (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree : ℕ)
+    (M : F → Measurement (Option (BoundedPolynomial F m d)) A) (hM : ∀ x, (M x).IsProjective)
+    (Z : F → A) (hZ : ∀ x, 0 ≤ Z x)
+    (hbound : ∀ x (g : BoundedPolynomial F m d),
+      averagePolynomialPointEffect (fun u => decodedPoint S.alice (Fin.snoc u x)) g ≤ Z x)
+    (hMP : ∀ x w g a, Commute ((M x).effect g) ((decodedPoint S.alice w).effect a))
+    (hMZ : ∀ x y g, Commute ((M x).effect g) (Z y))
+    (N : F → Measurement (Option (BoundedPolynomial F m d)) A) (hN : ∀ x, (N x).IsProjective)
+    (hMN : ∀ x y a b, Commute ((M x).effect a) ((N y).effect b))
+    {η ζ ξ : ℝ}
+    (hcopy : (𝔼 x, Measurement.successfulCopyDefect S.state (M x) (N x)) ≤ ξ)
+    (hfail : (𝔼 x : F, (S.state ((M x).effect none * Z x)).re) ≤ ζ) :
+    let P (w : Point F (m + 1)) :=
+      evaluatePolynomialMeasurement (M (w (Fin.last m))) (Fin.init w)
+    (𝔼 w, Measurement.successfulMismatch S.state (P w) (decodedPoint S.alice w)) ≤ η →
+    (𝔼 u, 𝔼 v, Measurement.successfulPairDefect S.state (P u) (P v)) ≤
+      2 * (4 * √(2 * η) + 2 * √(64 * (m + 1 : ℝ) *
+        (1 - (branchGame (F := F) m degree .diagonal).commutingWinProb S)) +
+          2 * √ζ + 2 * √ξ) := by
+  rw [branchGame_eq_withDiagonalCap]
+  exact evaluatedSlice_successfulPairDefect_le_atDegrees S hPoint hLine degree ((m + 1) * degree)
+    M hM Z hZ hbound hMP hMZ N hN hMN hcopy hfail
 
 end Cslib.PCP.LowIndividualDegree

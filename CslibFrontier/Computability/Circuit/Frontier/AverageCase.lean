@@ -38,8 +38,9 @@ with both sides of size at least `K_n` and `log K_n = o(n)`.
 * `Cslib.Circuits.Frontier.agreement`: the fraction of inputs on which membership in two sets of
   inputs agrees.
 * `Cslib.Circuits.Frontier.correlation`: agreement minus disagreement between two sets of inputs.
-* `Cslib.Circuits.Frontier.AverageCaseBound`: the average-case lower-bound claim for a linear
-  gate-count coefficient.
+* `Cslib.Circuits.Frontier.MultiaryAverageCaseBound`,
+  `Cslib.Circuits.Frontier.AverageCaseBound`: the average-case lower-bound claim for a linear
+  multiary (or inner) gate-count coefficient.
 
 ## Main results
 
@@ -49,7 +50,8 @@ with both sides of size at least `K_n` and `log K_n = o(n)`.
 * `Cslib.Circuits.Frontier.agreement_le`: agreement from the bias on a set and its complement.
 * `Cslib.Circuits.Frontier.agreement_le_of_layout`,
   `Cslib.Circuits.Frontier.agreement_le_of_unread`: the agreement of one circuit.
-* `Cslib.Circuits.Frontier.averageCaseBound_of_layoutBound`: the average-case claim with
+* `Cslib.Circuits.Frontier.multiaryAverageCaseBound_of_layoutBound`,
+  `Cslib.Circuits.Frontier.averageCaseBound_of_layoutBound`: the average-case claim with
   coefficient `1 + 1/A` under the layout hypothesis `LayoutBound 3 A`.
 -/
 
@@ -77,6 +79,19 @@ variable {ι U : Type*}
 membership in `T` agree, minus the fraction on which it differs. -/
 noncomputable def correlation (S T : Set (ι → U)) : ℝ :=
   agreement S T - agreement S Tᶜ
+
+/-- Complementing the first set negates the correlation. -/
+@[simp]
+theorem correlation_compl_left (S T : Set (ι → U)) : correlation Sᶜ T = -correlation S T := by
+  have hs₁ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ T} = {x | x ∈ S ↔ x ∈ Tᶜ} := by
+    ext x
+    simp only [mem_compl_iff, mem_ofPred_eq]
+    tauto
+  have hs₂ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T} := by
+    ext x
+    simp only [mem_compl_iff, mem_ofPred_eq]
+    tauto
+  rw [correlation, correlation, agreement, agreement, hs₁, hs₂, ← agreement, ← agreement, neg_sub]
 
 /-- Complementing the second set negates the correlation. -/
 @[simp]
@@ -180,7 +195,7 @@ theorem agreement_le {ι U : Type*} [Finite ι] [Finite U] [Nonempty U] {S T : S
 
 /-- A count whose base-`q` logarithm is at most `(1 - μ) n` is at most an
 `exp (-μ log 2 · n)` fraction of `q ^ n`, for `q ≥ 2`. -/
-private theorem div_pow_le_exp {q R μ : ℝ} {n : ℕ} (hq : 2 ≤ q) (hR : 0 < R) (hμ : 0 ≤ μ)
+theorem div_pow_le_exp {q R μ : ℝ} {n : ℕ} (hq : 2 ≤ q) (hR : 0 < R) (hμ : 0 ≤ μ)
     (h : Real.logb q R ≤ (1 - μ) * n) : R / q ^ n ≤ Real.exp (-(μ * Real.log 2 * n)) := by
   have hq0 : 0 < q := by linarith
   have hlq : Real.log 2 ≤ Real.log q := Real.log_le_log two_pos hq
@@ -203,7 +218,7 @@ private theorem logb_residual {q K v : ℝ} (hq : 1 < q) (hK : 0 < K) (hv : 0 �
   ring
 
 /-- Raising a threshold to at least two keeps its logarithm sublinear. -/
-private theorem isLittleO_logb_max_two {K : ℕ → ℕ}
+theorem isLittleO_logb_max_two {K : ℕ → ℕ}
     (hK : (fun n => Real.log (K n)) =o[atTop] fun n => (n : ℝ)) (q : ℝ) :
     (fun n => Real.logb q (max (K n) 2 : ℕ)) =o[atTop] fun n => (n : ℝ) := by
   have hK' : (fun n => Real.log (max (K n) 2 : ℕ)) =o[atTop] fun n => (n : ℝ) := by
@@ -226,7 +241,7 @@ private theorem isLittleO_logb_max_two {K : ℕ → ℕ}
 
 /-- If `1 + 2 log_q K ≤ n / 2`, then half of `n` coordinates carry at least `K` assignments:
 `K ≤ q ^ ⌊n / 2⌋`. -/
-private theorem le_pow_half_of_logb {q K n : ℕ} (hq : 1 < q) (hK : 0 < K)
+theorem le_pow_half_of_logb {q K n : ℕ} (hq : 1 < q) (hK : 0 < K)
     (h : 1 + 2 * Real.logb q K ≤ (1 - 1 / 2) * n) : K ≤ q ^ (n / 2) := by
   have hn2 : (n : ℝ) ≤ 2 * (n / 2 : ℕ) + 1 := by
     exact_mod_cast (show n ≤ 2 * (n / 2) + 1 by omega)
@@ -322,11 +337,12 @@ theorem agreement_le_of_layout {S : Set (Fin n → U)} {K : ℕ} {b : ℝ}
   rw [hhalf]
   linarith [div_le_div_of_nonneg_right hresR hN.le]
 
-/-- **A narrow layout of a circuit.** Suppose that connected, loopless multigraphs of maximum
-degree three have layouts of width at most `(A + η) β₁ + η |V| + C`. If the inputs a circuit of
-fan-in at most two does not read carry fewer than `K` assignments, its graph has a layout of
-width at most `(A + η) (s - n + log_q K + 1) + η |V| + C` for `s` inner gates. -/
-private theorem exists_layout_le {A η C : ℝ} (hAη : 0 ≤ A + η)
+/-- **A narrow layout of a circuit, charging only multiary gates.** Suppose that connected,
+loopless multigraphs of maximum degree three have layouts of width at most `(A + η) β₁ + η |V| + C`.
+If the inputs a circuit of fan-in at most two does not read carry fewer than `K` assignments, its
+graph has a layout of width at most `(A + η) (s - n + log_q K + 1) + η |V| + C` for `s` multiary
+gates. -/
+private theorem exists_layout_le_multiarySize {A η C : ℝ} (hAη : 0 ≤ A + η)
     (hC : ∀ (V E : Type) [Finite V] [Finite E] (G : Multigraph V E),
       G.toSimpleGraph.Connected → G.Loopless → G.MaxDegreeLE 3 →
         ∃ π : Layout V, (G.width π : ℝ) ≤ (A + η) * G.cycleRank + η * Nat.card V + C)
@@ -334,19 +350,47 @@ private theorem exists_layout_le {A η C : ℝ} (hAη : 0 ≤ A + η)
     (hu : Nat.card U ^ (Compiler.network c I fun _ => Acc).readᶜ.ncard < K) :
     ∃ π : Layout (Compiler.Vertex c),
       ((Compiler.graph c).width π : ℝ) ≤
-        (A + η) * (c.innerSize - n + Real.logb (Nat.card U) K + 1) +
+        (A + η) * (c.multiarySize - n + Real.logb (Nat.card U) K + 1) +
           η * Nat.card (Compiler.Vertex c) + C := by
   have hrank : ((Compiler.graph c).cycleRank : ℝ) ≤
-      c.innerSize - n + Real.logb (Nat.card U) K + 1 := by
+      c.multiarySize - n + Real.logb (Nat.card U) K + 1 := by
     calc ((Compiler.graph c).cycleRank : ℝ)
-        ≤ ((2 : ℕ) - 1) * c.innerSize - n + Real.logb (Nat.card U) K + 1 :=
-          cycleRank_le (r := 2) hfan hu
-      _ = c.innerSize - n + Real.logb (Nat.card U) K + 1 := by push_cast; ring
+        ≤ ((2 : ℕ) - 1) * c.multiarySize - n + Real.logb (Nat.card U) K + 1 :=
+          cycleRank_le_multiarySize (r := 2) hfan hu
+      _ = c.multiarySize - n + Real.logb (Nat.card U) K + 1 := by push_cast; ring
   obtain ⟨π, hπ⟩ := hC _ _ (Compiler.graph c) (Compiler.connected c) Compiler.loopless
     (Compiler.maxDegreeLE le_rfl hfan)
   exact ⟨π, hπ.trans (by gcongr)⟩
 
 end Circuit
+
+/-- **The multiary average-case claim with coefficient `L`.** For every `ε > 0` there is a `γ > 0`
+such that the following holds for every finite alphabet `U` with at least two symbols. Let
+`S_n ⊆ U^n` have density within `b_n` of `1/2` on every rectangle with both sides of size at
+least `K_n` (`RectangleBias`), where `log K_n = o(n)`. Then for all large `n`, every circuit of
+fan-in at most two with at most `(L - ε) n` multiary gates (`arity = 2`; constant and unary gates
+are free), over any basis on `U` and accepting any set of values, agrees with `S_n` on at most a
+`1/2 + b_n + exp (-γ n)` fraction of the inputs.
+
+The alphabet lives in the universe `u` and the basis in the universe `v`. -/
+def MultiaryAverageCaseBound (L : ℝ) : Prop :=
+  ∀ ε > 0, ∃ γ > 0, ∀ (U : Type u) [Finite U] [Nontrivial U] (S : ∀ n, Set (Fin n → U))
+    (K : ℕ → ℕ) (b : ℕ → ℝ), (∀ᶠ n in atTop, RectangleBias (S n) (K n) (b n)) →
+    (fun n => Real.log (K n)) =o[atTop] (fun n => (n : ℝ)) →
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1), c.FanInAtMost 2 → (c.multiarySize : ℝ) ≤ (L - ε) * n →
+        agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b n + Real.exp (-(γ * n))
+
+/-- A multiary average-case bound holds for every smaller coefficient. -/
+theorem MultiaryAverageCaseBound.mono {L L' : ℝ} (h : MultiaryAverageCaseBound.{u, v} L)
+    (hL : L' ≤ L) : MultiaryAverageCaseBound.{u, v} L' := by
+  intro ε hε
+  obtain ⟨γ, hγ, H⟩ := h ε hε
+  refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
+  filter_upwards [H U S K b hbias hK] with n hn
+  intro σ I Acc c hfan hs
+  exact hn σ I Acc c hfan
+    (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
 
 /-- **The average-case claim with coefficient `L`.** For every `ε > 0` there is a `γ > 0` such
 that the following holds for every finite alphabet `U` with at least two symbols. Let
@@ -365,6 +409,15 @@ def AverageCaseBound (L : ℝ) : Prop :=
       (c : Circuit σ n 1), c.FanInAtMost 2 → (c.innerSize : ℝ) ≤ (L - ε) * n →
         agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b n + Real.exp (-(γ * n))
 
+/-- Every multiary average-case bound implies the corresponding `innerSize` average-case bound. -/
+theorem MultiaryAverageCaseBound.averageCaseBound {L : ℝ} (h : MultiaryAverageCaseBound.{u, v} L) :
+    AverageCaseBound.{u, v} L := by
+  intro ε hε
+  obtain ⟨γ, hγ, H⟩ := h ε hε
+  refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
+  filter_upwards [H U S K b hbias hK] with n hn σ I Acc c hfan hs
+  exact hn σ I Acc c hfan ((Nat.cast_le.mpr c.multiarySize_le_innerSize).trans hs)
+
 /-- An average-case bound holds for every smaller coefficient. -/
 theorem AverageCaseBound.mono {L L' : ℝ} (h : AverageCaseBound.{u, v} L) (hL : L' ≤ L) :
     AverageCaseBound.{u, v} L' := by
@@ -376,13 +429,13 @@ theorem AverageCaseBound.mono {L L' : ℝ} (h : AverageCaseBound.{u, v} L) (hL :
   exact hn σ I Acc c hfan
     (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
 
-/-- **The average-case frontier lower bound.** If subcubic graphs have layouts of width
-`(A + o(1)) β₁ + o(|V|)` (`LayoutBound 3 A`), then the average-case claim holds with coefficient
-`1 + 1/A`: below `(1 + 1/A - ε) n` inner gates, a circuit of fan-in at most two agrees with a set
-of bias at most `b_n` on large rectangles on at most a `1/2 + b_n + exp (-γ n)` fraction of the
-inputs. -/
-theorem averageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout : LayoutBound 3 A) :
-    AverageCaseBound.{u, v} (1 + 1 / A) := by
+/-- **The multiary average-case frontier lower bound.** If subcubic graphs have layouts of width
+`(A + o(1)) β₁ + o(|V|)` (`LayoutBound 3 A`), then the multiary average-case claim holds with
+coefficient `1 + 1/A`: below `(1 + 1/A - ε) n` multiary gates (constant and unary gates free), a
+circuit of fan-in at most two agrees with a set of bias at most `b_n` on large rectangles on at
+most a `1/2 + b_n + exp (-γ n)` fraction of the inputs. -/
+theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout : LayoutBound 3 A) :
+    MultiaryAverageCaseBound.{u, v} (1 + 1 / A) := by
   intro ε hε
   set μ := min (A * ε / 2) (1 / 2)
   have hμ : 0 < μ := lt_min (by positivity) (by norm_num)
@@ -391,17 +444,14 @@ theorem averageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout : Layout
   set q := Nat.card U
   have hq1 : 1 < q := Finite.one_lt_card
   have hq2 : (2 : ℝ) ≤ q := by exact_mod_cast hq1
-  -- Raise the thresholds to at least two.
   set K' : ℕ → ℕ := fun n => max (K n) 2
   have hlogb : (fun n => Real.logb q (K' n)) =o[atTop] fun n => (n : ℝ) :=
     isLittleO_logb_max_two hK q
-  -- The error of the problem, `e(n) = 4 + 3 log_q K'(n)`, and the constant `κ`.
   set e : ℕ → ℝ := fun n => 4 + 3 * Real.logb q (K' n)
   have he : e =o[atTop] fun n => (n : ℝ) :=
     (isLittleO_const_id_atTop _).natCast_atTop.add (hlogb.const_mul_left 3)
-  set κ : ℝ := 4 + 1 / Real.log 2
-  have hκ4 : 4 ≤ κ := by simp only [κ]; linarith [show 0 ≤ 1 / Real.log 2 by positivity]
-  obtain ⟨η, hη, H⟩ := eventually_add_lt_of_le hA (by linarith : 0 ≤ κ) hε
+  set κ : ℝ := 4 * (1 + q + (q : ℝ) ^ q) + 4 + 1 / Real.log 2
+  obtain ⟨η, hη, H⟩ := eventually_add_lt_of_le hA (by positivity : 0 ≤ κ) hε
   obtain ⟨C, hC⟩ := hlayout η hη
   have hsmall : ∀ᶠ n : ℕ in atTop, 1 + 2 * Real.logb q (K' n) ≤ (1 - 1 / 2) * n := by
     filter_upwards [((isLittleO_const_id_atTop (1 : ℝ)).natCast_atTop.add
@@ -410,6 +460,9 @@ theorem averageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout : Layout
     linarith [le_abs_self (1 + 2 * Real.logb q (K' n))]
   filter_upwards [H C e he, hbias, hsmall] with n hn hbiasn hsmalln
   intro σ I Acc c hfan hsize
+  obtain ⟨c', heval, hfan_c', hmult, hsize_c'⟩ := c.exists_eval_eq_multiarySize_size_le I
+  have hfan' : c'.FanInAtMost 2 := hfan_c' 2 hfan
+  rw [← heval]
   have hK2 : 2 ≤ K' n := le_max_right _ _
   have hS : RectangleBias (S n) (K' n) (b n) := hbiasn.mono (le_max_left _ _)
   have hb : 0 ≤ b n := hS.nonneg (by
@@ -420,39 +473,59 @@ theorem averageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout : Layout
     Real.exp_le_exp.mpr (by
       nlinarith [mul_nonneg (Real.log_nonneg one_le_two) (Nat.cast_nonneg (α := ℝ) n)])
   have hq0 : 0 < q := Nat.card_pos
-  by_cases hu : K' n ≤ q ^ (Compiler.network c I fun _ => Acc).readᶜ.ncard
-  · -- Many unread inputs: the residual is `q K' ^ 2`.
-    have hlog : Real.logb q ((q * K' n ^ 2 : ℕ) : ℝ) ≤ (1 - 1 / 2) * n := by
+  by_cases hu : K' n ≤ q ^ (Compiler.network c' I fun _ => Acc).readᶜ.ncard
+  · have hlog : Real.logb q ((q * K' n ^ 2 : ℕ) : ℝ) ≤ (1 - 1 / 2) * n := by
       push_cast
-      rw [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,
+      rwa [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,
         Real.logb_self_eq_one (by linarith)]
-      exact hsmalln
-    linarith [agreement_le_of_unread I Acc c hS hb (by omega) hu,
+    linarith [agreement_le_of_unread I Acc c' hS hb (by omega) hu,
       div_pow_le_exp hq2 (by positivity) (by norm_num) hlog, hexp_mono _ (min_le_right _ _)]
-  · -- Few unread inputs: a narrow layout, whose residual is exponentially small.
-    push Not at hu
-    obtain ⟨π, hπ⟩ := exists_layout_le I Acc c (by linarith) hC hfan hu
-    set V := Nat.card (Compiler.Vertex c)
-    set w := (Compiler.graph c).width π
+  · push Not at hu
+    obtain ⟨π, hπ⟩ := exists_layout_le_multiarySize I Acc c' (by linarith) hC hfan' hu
+    set V := Nat.card (Compiler.Vertex c')
+    set w := (Compiler.graph c').width π
     have hlogK : 0 ≤ Real.logb q (K' n) :=
       Real.logb_nonneg (by linarith) (by exact_mod_cast (show 1 ≤ K' n by omega))
-    have hsupply : (w : ℝ) ≤ (A + η) * (c.innerSize - n + e n) + η * V + C := by
-      have := mul_le_mul_of_nonneg_left (show c.innerSize - n + Real.logb q (K' n) + 1 ≤
-        c.innerSize - n + e n by simp only [e]; linarith) (by linarith : 0 ≤ A + η)
+    have hmultR : (c'.multiarySize : ℝ) ≤ c.multiarySize := by exact_mod_cast hmult
+    have hsupply : (w : ℝ) ≤ (A + η) * (c.multiarySize - n + e n) + η * V + C := by
+      have := mul_le_mul_of_nonneg_left (show (c'.multiarySize : ℝ) - n + Real.logb q (K' n) + 1 ≤
+        c.multiarySize - n + e n by simp only [e]; linarith) (by linarith : 0 ≤ A + η)
       linarith
-    have hVκ : (V : ℝ) ≤ κ * (n + c.innerSize + 1) := by
-      have hV : V ≤ 2 * 2 * c.innerSize + 3 * 1 := Compiler.card_vertex_le hfan
-      have : (V : ℝ) ≤ 4 * c.innerSize + 3 := by exact_mod_cast hV
-      nlinarith [Nat.cast_nonneg (α := ℝ) n, Nat.cast_nonneg (α := ℝ) c.innerSize]
-    have hmargin := hn c.innerSize V w (Nat.cast_nonneg _) (Nat.cast_nonneg _) hVκ hsize hsupply
+    have hVκ : (V : ℝ) ≤ κ * (n + c.multiarySize + 1) := by
+      have hV : V ≤ 2 * 2 * (c.multiarySize + q + (c.multiarySize + n) * q ^ q) + 3 :=
+        (Compiler.card_vertex_le hfan').trans
+          (Nat.add_le_add_right (Nat.mul_le_mul_left 4
+            (c'.innerSize_le_size.trans hsize_c')) 3)
+      have hVR : (V : ℝ) ≤ 4 * (c.multiarySize + q + (c.multiarySize + n) * (q : ℝ) ^ q) + 3 := by
+        exact_mod_cast hV
+      have h1div : (0 : ℝ) ≤ 1 / Real.log 2 := by positivity
+      have hqq : (0 : ℝ) ≤ (q : ℝ) ^ q := by positivity
+      simp only [κ]
+      nlinarith [Nat.cast_nonneg (α := ℝ) n, Nat.cast_nonneg (α := ℝ) c.multiarySize,
+        Nat.cast_nonneg (α := ℝ) q]
+    have hmargin := hn c.multiarySize V w (Nat.cast_nonneg _) (Nat.cast_nonneg _) hVκ hsize hsupply
     have hlog : Real.logb q ((K' n ^ 3 * (V + 1) * q ^ (w + 4) : ℕ) : ℝ) ≤
         (1 - A * ε / 2) * n := by
       push_cast
       rw [logb_residual (by linarith) (by positivity) (Nat.cast_nonneg _)]
-      have := logb_le_mul_log hq2 (show (1 : ℝ) ≤ V + 1 by linarith [Nat.cast_nonneg (α := ℝ) V])
+      have hlogV1 : 0 ≤ Real.log ((V : ℝ) + 1) :=
+        Real.log_nonneg (by linarith [Nat.cast_nonneg (α := ℝ) V])
+      have hlogbV : Real.logb q ((V : ℝ) + 1) ≤ κ * Real.log ((V : ℝ) + 1) := by
+        refine (logb_le_mul_log hq2 (by linarith [Nat.cast_nonneg (α := ℝ) V])).trans
+          (mul_le_mul_of_nonneg_right ?_ hlogV1)
+        linarith [Nat.cast_nonneg (α := ℝ) q, pow_nonneg (Nat.cast_nonneg (α := ℝ) q) q]
       simp only [e] at hmargin
       linarith
-    linarith [agreement_le_of_layout I Acc c hS hb hfan hu π le_rfl,
+    linarith [agreement_le_of_layout I Acc c' hS hb hfan' hu π le_rfl,
       div_pow_le_exp hq2 (by positivity) (by positivity) hlog, hexp_mono _ (min_le_left _ _)]
+
+/-- **The average-case frontier lower bound.** If subcubic graphs have layouts of width
+`(A + o(1)) β₁ + o(|V|)` (`LayoutBound 3 A`), then the average-case claim holds with coefficient
+`1 + 1/A`: below `(1 + 1/A - ε) n` inner gates, a circuit of fan-in at most two agrees with a set
+of bias at most `b_n` on large rectangles on at most a `1/2 + b_n + exp (-γ n)` fraction of the
+inputs. -/
+theorem averageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout : LayoutBound 3 A) :
+    AverageCaseBound.{u, v} (1 + 1 / A) :=
+  (multiaryAverageCaseBound_of_layoutBound hA hlayout).averageCaseBound
 
 end Cslib.Circuits.Frontier

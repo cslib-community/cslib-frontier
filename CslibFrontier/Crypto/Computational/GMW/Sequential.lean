@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Co
 public import CslibFrontier.Computability.Probabilistic.Realization.OpenOracleSimulation
 public import CslibFrontier.Crypto.Computational.GMW.Simulator
 public import CslibFrontier.Crypto.Computational.GMW.Soundness
+public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
@@ -19,13 +20,16 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryBounds
 import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Sum.Lift
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.PPT
 
 /-!
 # Sequential soundness amplification for the 3-copy GMW zero-knowledge protocol
@@ -237,19 +241,7 @@ private theorem computableInPolyTime_seqStep {α : Type} {input : α ↪ List Bo
     funext a
     rcases h : (st a).2 with _ | ⟨coins, rest⟩ <;> simp [seqStep, h]
   rw [heq]
-  have hlist := hst.snd'
-  have hcoins := (ComputableInPolyTime.headD (encA := encProverCoins) ⟨[], []⟩).comp' hlist
-  have hempty :=
-    (ComputableInPolyTime.listIsEmpty' encProverCoins).comp' hlist
-  have htail :=
-    (ComputableInPolyTime.listTail encProverCoins).comp' hlist
-  exact hempty.ite' (.const ([], (false, [])))
-    (hst.fst'.ite'
-      ((computableInPolyTime_honestReply2 hs hφ hcoins
-        (ComputableInPolyTime.bitsRowWithInput (.const 3) (.const 0) hq)).prod
-        ((ComputableInPolyTime.const false).prod htail))
-      ((computableInPolyTime_honestReply1 hg hm hφ hcoins hq).prod
-        ((ComputableInPolyTime.const true).prod hlist)))
+  fun_prop
 
 theorem isPPTOn_runSeq_honest {α Caller : Type} {enc : α ↪ List Bool}
     {input : Caller ↪ List Bool}
@@ -274,45 +266,26 @@ theorem isPPTOn_runSeq_honest {α Caller : Type} {enc : α ↪ List Bool}
   have hrest := ComputableInPolyTime.snd input encStepMid
   have hstep := computableInPolyTime_seqStep hg (hs.comp' hc) (hm.comp' hc) (hφ.comp' hc)
     hrest.fst'.snd' hrest.snd'
-  have hc1 := ComputableInPolyTime.fst input encBits
-  have hlen :=
-    (ComputableInPolyTime.encoding_length (encList encProverCoins)).comp' (hcoins.comp' hc1)
-  have hbound := (hlen.unary_mul' (hm.comp' hc1)).unary_add'
-    (hlen.unary_mul' ((hs.comp' hc1).unary_add' (.const 1)))
-  refine hV.run_interpret_preprocess (operationEncoding := encFinEnum Unit)
+  refine hV.run_interpret_preprocess_of_bounded_growth (operationEncoding := encFinEnum Unit)
     (stateEncoding := encSeqState)
     (handler := fun c q state =>
       pure (seqStep (honestReply1 generator (m c) (φ c)) (honestReply2 (s c) (φ c)) q.2 state))
     (prepare := fun c => (n c, a c, z c)) (initial := fun c => (false, coinsList c))
-    (resources := fun c _ => (encList encProverCoins (coinsList c)).length * m c +
-      (encList encProverCoins (coinsList c)).length * (s c + 1))
+    (growth := fun _ _ => 0)
     (hn.prod (ha.prod hz)) hstep.isPPTOn ((ComputableInPolyTime.const false).prod hcoins)
-    (fun c st => List.Sublist st.2 (coinsList c)) (fun _ => List.Sublist.refl _) hbound
-    (fun c request state hstate result hresult => ?_)
+    (fun _ _ => True) (fun _ => trivial) (.const 0)
+    (fun _ _ state _ result hresult => ?_)
   simp only [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hresult
   subst hresult
   have hbool_len (b : Bool) : (encBool b).length = 1 := by cases b <;> rfl
   rcases hlist : state.2 with _ | ⟨coins, rest⟩
   · simp [seqStep, hlist, encSeqState]
-  · have hmem : coins ∈ coinsList c := hstate.subset (by simp [hlist])
-    have hcoins_le : coins.bits.length ≤ (encList encProverCoins (coinsList c)).length :=
-      (by simp [encProverCoins_apply]; omega :
-          coins.bits.length ≤ (encProverCoins coins).length).trans
-        (SizedListEncoding.length_elem_le (coinsList c) coins hmem)
-    have hsub_rest : List.Sublist rest (coinsList c) :=
-      (List.sublist_cons_self coins rest).trans (hlist ▸ hstate)
-    cases hround : state.1
-    · simp only [seqStep, hlist, hround, Bool.false_eq_true, ↓reduceIte]
-      refine ⟨hlist ▸ hstate, ?_, by simp [encSeqState, hlist, hround]⟩
-      dsimp only [honestReply1]
-      exact (List.length_take_le _ _).trans
-        ((Nat.mul_le_mul_right (m c) hcoins_le).trans (by omega))
-    · simp only [seqStep, hlist, hround, ↓reduceIte]
-      have hsub_len := length_encList_sublist encProverCoins (List.sublist_cons_self coins rest)
-      refine ⟨hsub_rest, ?_, ?_⟩
-      · dsimp only [honestReply2]; rw [length_proverReply2_any]
-        exact (Nat.mul_le_mul_right (s c + 1) hcoins_le).trans (by omega)
-      · simp only [encSeqState, length_encPair, hlist, hround, hbool_len]; omega
+  · cases hround : state.1
+    · simp [seqStep, hlist, hround, encSeqState]
+    · have hsub := length_encList_sublist encProverCoins (List.sublist_cons_self coins rest)
+      simp only [seqStep, hlist, hround, ↓reduceIte, encSeqState, length_encPair, hbool_len,
+        Nat.add_zero]
+      exact ⟨trivial, by omega⟩
 
 /-- `gmwSeqInteract` is uniform strict PPT whenever `k` is computable in polynomial time. -/
 theorem isPPTOn_gmwSeqInteract {α : Type} {enc : α ↪ List Bool}
@@ -334,17 +307,12 @@ theorem isPPTOn_gmwSeqInteract {α : Type} {enc : α ↪ List Bool}
   have hrest := ComputableInPolyTime.snd encUnary (encPair enc (encPair encBits encBits))
   have hp1 := ComputableInPolyTime.fst input (encList encProverCoins)
   have hs1 := hp1.fst'.unary_add' (.const 7)
-  change IsPPTOn input encBits
-    (fun p : ℕ × α × List Bool × List Bool =>
-      gmwSeqInteract generator (p.1 + 7) (length (p.1 + 7)) (f p.2.1) p.2.2.1 (k p.1)
-        (Vstar p.1 p.2.1 p.2.2.2))
-  dsimp only [gmwSeqInteract]
-  simp only [bind_pure_comp]
-  exact ((isPPTOn_sampleHonestCoins hs (hf.comp' hrest.fst') hrest.snd'.fst').replicate
-    (hk.comp' hn)).bind_with
-    ((isPPTOn_runSeq_honest hV hg hp1.fst' hs1 (hlength.comp' hs1)
-      hp1.snd'.fst' hp1.snd'.snd'.snd' (hf.comp' hp1.snd'.fst')
-      (.snd input (encList encProverCoins))).map (.fst encBits encSeqState))
+  simpa only [gmwSeqInteract, bind_pure_comp] using
+    ((isPPTOn_sampleHonestCoins hs (hf.comp' hrest.fst') hrest.snd'.fst').replicate
+      (hk.comp' hn)).bind_with
+      ((isPPTOn_runSeq_honest hV hg hp1.fst' hs1 (hlength.comp' hs1)
+        hp1.snd'.fst' hp1.snd'.snd'.snd' (hf.comp' hp1.snd'.fst')
+        (.snd input (encList encProverCoins))).map (.fst encBits encSeqState))
 
 private theorem replicate_eq_iterate {Query : Type} {spec : OracleSpec.{0, 0} Query} {α : Type}
     (count : ℕ) (program : OracleComp spec α) :
@@ -360,17 +328,10 @@ theorem isOraclePPTOn_replicate_bool {Operation α : Type} [DecidableEq Operatio
     (hcount : ComputableInPolyTime count input encUnary) :
     IsOraclePPTOn input encBits (fun a => OracleComp.replicate (count a) (program a)) := by
   simp only [replicate_eq_iterate]
-  refine IsOraclePPTOn.iterateWith_of_bounded_growth hcount (.const []) ?_
-    (.const 1) (fun a state next hnext => ?_)
-  · exact (hprog.preprocess (prepare := Prod.fst)
-      (ComputableInPolyTime.fst input encBits)).map_with
-      (f := fun p x => p.2 ++ [x])
-      (ComputableInPolyTime.bitsAppend
-        ((ComputableInPolyTime.fst (encPair input encBits) encBool).snd')
-        ((ComputableInPolyTime.of_finite (fun b : Bool => [b])).comp'
-          (ComputableInPolyTime.snd (encPair input encBits) encBool)))
-  · obtain ⟨b, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-    simp
+  refine IsOraclePPTOn.iterateWith_of_bounded_growth hcount (.const []) (by ppt)
+    (.const 1) fun _ _ _ hnext => ?_
+  obtain ⟨_, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+  simp
 
 /-- The sequentially amplified GMW verifier: execute `gmwVerifier` `k n` times and accept iff all
 `k n` executions accept. -/
@@ -442,21 +403,20 @@ theorem acceptProb_gmwSeqVerifier_gmwSeqProver {α : Type} {generator : List Boo
     (hw : ThreeSAT.verifier (f a, w) = true) :
     acceptProb (gmwSeqVerifier generator length f k n a)
       (gmwSeqProver generator (n + 7) (length (n + 7)) (f a) w (k n)) = 1 := by
-  have h1 := acceptProb_gmwVerifier_gmwProver hlen f n a hw
-  rw [acceptProb, run_gmwProver_fst] at h1
   let single : ProbComp Bool := do
     let coins ← sampleHonestCoins (n + 7) (f a) w
     Prod.fst <$> runTwoRound (honestReply1 generator (length (n + 7)) (f a) coins)
-      (honestReply2 (n + 7) (f a) coins)
-      (gmwVerifier generator length f n a) .init
-  change ProbComp.eval single true = 1 at h1
-  have hsingle_pure : ProbComp.eval single = PMF.pure true := by
-    have hfalse : ProbComp.eval single false = 0 := by
-      have hsum := PMF.tsum_coe (ProbComp.eval single)
-      rw [tsum_bool, h1] at hsum
-      exact (ENNReal.add_left_inj ENNReal.one_ne_top).mp (hsum.trans (zero_add 1).symm)
-    ext b; cases b <;> simp [hfalse, h1]
-  rw [acceptProb, run_gmwSeqProver_fst]
+      (honestReply2 (n + 7) (f a) coins) (gmwVerifier generator length f n a) .init
+  have h1 : ProbComp.eval single true = 1 := by
+    simpa only [acceptProb, run_gmwProver_fst] using acceptProb_gmwVerifier_gmwProver hlen f n a hw
+  have h1' : ProbComp.eval single = PMF.pure true := PMF.ext fun b => by
+    have hs := (PMF.apply_eq_one_iff _ _).mp h1
+    cases b
+    · simpa using mt (PMF.mem_support_iff _ false).mpr (by simp [hs])
+    · simpa using h1
+  have hrep (K : ℕ) : (OracleComp.replicate K (pure true : ProbComp Bool)) =
+      pure (List.replicate K true) := by
+    induction K <;> simp [OracleComp.replicate_succ, List.replicate_succ, *]
   have hmap : (do
       let coinsList ← OracleComp.replicate (k n) (sampleHonestCoins (n + 7) (f a) w)
       Prod.fst <$> runSeq generator (n + 7) (length (n + 7)) (f a)
@@ -467,15 +427,10 @@ theorem acceptProb_gmwSeqVerifier_gmwSeqProver {α : Type} {generator : List Boo
           (OracleComp.replicate (k n) (gmwVerifier generator length f n a))
           (false, coinsList)) := by
     simp only [gmwSeqVerifier, runSeq_map, map_bind, Functor.map_map, Prod.map_fst]
-  rw [hmap, ProbComp.eval_map, eval_bind_replicate_runSeq_gmwVerifier,
-    ProbComp.eval_replicate_congr (hsingle_pure.trans (ProbComp.eval_pure true).symm)]
-  have hrep : ∀ K, (OracleComp.replicate K (pure true : ProbComp Bool)) =
-      pure (List.replicate K true) := by
-    intro K; induction K with
-    | zero => rfl
-    | succ K ih =>
-      simp only [OracleComp.replicate_succ, ih, List.replicate_succ, map_pure, pure_bind]
-  rw [hrep (k n)]; simp
+  rw [acceptProb, run_gmwSeqProver_fst, hmap, ProbComp.eval_map,
+    eval_bind_replicate_runSeq_gmwVerifier,
+    ProbComp.eval_replicate_congr (h1'.trans (ProbComp.eval_pure true).symm), hrep (k n)]
+  simp
 
 /-- **Sequential soundness amplification for interactive proofs.** If no stateful prover makes
 `verifier` accept with probability greater than `c`, then running `verifier` `k` times sequentially
@@ -728,40 +683,14 @@ theorem isOraclePPTOn_oneSessionStep {k : ℕ} {Control : Type} [Finite Control]
       (encPair encUnary encBudgetedConfig)
       encBudgetedConfig
       (fun p => oneSessionStep machine p.1 p.2) := by
-  let encHMid := encPair (encPair (encFinEnum Unit) encBits) encUnary
-  let encHIn := encPair encUnary encHMid
-  have hhandler : IsOraclePPTOn encHIn (encPair encBits encUnary)
+  have hhandler : IsOraclePPTOn (encHandlerCall encUnary (encFinEnum Unit) encUnary)
+      (encPair encBits encUnary)
       (fun ⟨limit, req, q⟩ => sessionQueryHandler limit req q) := by
-    have hq := (IsOraclePPTOn.query_take () (input := encHIn)
-      (request := fun p => p.2.1.2) (limit := fun p => p.1)
-      ((ComputableInPolyTime.snd encUnary encHMid).fst'.snd')
-      (.fst encUnary encHMid)).map_with (output := encPair encBits encUnary)
-      (f := fun p ans => (ans, p.2.2 - 1))
-      ((ComputableInPolyTime.snd encHIn encBits).prod
-        (((ComputableInPolyTime.fst encHIn encBits).snd'.snd').unary_sub' (.const 1)))
-    exact (congrArg (IsOraclePPTOn _ _) (by
-      funext ⟨limit, ⟨⟨⟩, word⟩, q⟩
-      simp only [sessionQueryHandler, Functor.map_map])).mp hq
+    change IsOraclePPTOn _ _ (fun p : ℕ × (Unit × List Bool) × ℕ =>
+      (fun ans => (ans, p.2.2 - 1)) <$> (List.take p.1 <$> ProbOracleComp.query ((), p.2.1.2)))
+    dsimp only [encHandlerCall]; ppt
   have hstep := OpenOracleSimulation.isOraclePPTOn_step machine hhandler
-  let encCfg := encFiniteConfig (k := k) (State := Control) (Oracle := Unit)
-  let encSt := encPair encUnary (encPair encUnary encCfg)
-  let encIn := encPair encUnary encSt
-  have h1 := ComputableInPolyTime.fst encUnary encSt
-  have h2 := ComputableInPolyTime.snd encUnary encSt
-  have hcond := (ComputableInPolyTime.bool_or.comp'
-    ((h2.fst'.beq (.const 0)).prod (h2.snd'.fst'.beq (.const 0)))).of_enc_eq (encD := encBool)
-    (g := fun p : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit =>
-      decide ((decide (p.2.1 = 0) || decide (p.2.2.1 = 0)) = true)) (fun _ => rfl)
-  unfold oneSessionStep
-  apply IsOraclePPTOn.ite hcond h2.isOraclePPTOn
-  have hp1 := ComputableInPolyTime.fst encIn (encPair encCfg encUnary)
-  have hp2 := ComputableInPolyTime.snd encIn (encPair encCfg encUnary)
-  have hno := (hstep.preprocess
-    (h1.prod (h2.snd'.snd'.prod h2.snd'.fst'))).map_with
-    (f := fun (p : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit)
-      (r : FiniteConfig k Bool Control Unit × ℕ) => (p.2.1 - 1, r.2, r.1))
-    ((hp1.snd'.fst'.unary_sub' (.const 1)).prod (hp2.snd'.prod hp2.fst'))
-  exact (congrArg (IsOraclePPTOn _ _) (by funext p; rfl)).mp hno
+  ppt [oneSessionStep]
 
 /-- `sessionStep` is uniform strict oracle PPT. -/
 theorem isOraclePPTOn_sessionStep {k : ℕ} {Control : Type} [Finite Control]
@@ -829,7 +758,7 @@ theorem mem_support_sessionStep {k : ℕ} {Control : Type}
     st'.1 ≤ T ∧ FiniteConfig.SpaceBound W (T - st'.1) limit st'.2 := by
   simp only [sessionStep] at hst'
   obtain ⟨full, hfull, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hst'
-  have hinv := OracleComp.iterate_invariant
+  exact OracleComp.iterate_invariant
     (fun (_ : ℕ) (s : ℕ × ℕ × FiniteConfig k Bool Control Unit) =>
       s.1 ≤ T ∧ FiniteConfig.SpaceBound W (T - s.1) limit s.2.2)
     ⟨hrem, hcfg⟩
@@ -837,87 +766,61 @@ theorem mem_support_sessionStep {k : ℕ} {Control : Type}
       obtain ⟨h1, -, h3⟩ := mem_support_oneSessionStep machine limit hs1 hs2 hnext
       exact ⟨h1.trans hs1, h3⟩)
     full hfull
-  exact hinv
-
-/-- Run a `WordOracleComp Unit` program answering every oracle query with `[]`. -/
-def runEmptyOracle {α : Type} (prog : WordOracleComp Unit α) : ProbComp α :=
-  Prod.fst <$>
-    (OracleComp.interpret (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifFin n))
-      (fun _ (_ : Unit) => pure ([], ()))) prog).run ()
 
 /-- Running `runSeq` from the exhausted prover state `(false, [])` answers every query with `[]`,
 independently of `generator`, `s`, `m`, and `φ`. -/
 theorem runSeq_nil_fst {α : Type} (generator : List Bool → List Bool) (s m : ℕ) (φ : CNF ℕ)
     (prog : WordOracleComp Unit α) :
-    Prod.fst <$> runSeq generator s m φ prog (false, []) = runEmptyOracle prog := by
-  unfold runSeq runEmptyOracle
+    Prod.fst <$> runSeq generator s m φ prog (false, []) = prog.run (fun _ => pure []) := by
+  rw [runSeq, ProbOracleComp.run]
   induction prog with
   | pure a => rfl
   | liftBind q cont ih =>
     cases q with
     | inl d =>
       change Prod.fst <$> ((StateT.lift (ProbComp.unifFin d)).run (false, []) >>= _) =
-        Prod.fst <$> ((StateT.lift (ProbComp.unifFin d)).run () >>= _)
+        ProbComp.unifFin d >>= _
       simp only [StateT.run_lift, bind_assoc, pure_bind, map_bind]
       exact congrArg (Bind.bind _) (funext ih)
     | inr q => exact ih []
-
-/-- Any `IsOraclePPTOn` program remains `IsPPTOn` when interpreted under `runEmptyOracle`. -/
-theorem isPPTOn_runEmptyOracle {α β : Type} {input : α ↪ List Bool} {output : β ↪ List Bool}
-    {prog : α → WordOracleComp Unit β} (h : IsOraclePPTOn input output prog) :
-    IsPPTOn input output (fun a => runEmptyOracle (prog a)) := by
-  have hsub := h.run_interpret_preprocess (Caller := α) (State := Unit)
-    (operationEncoding := encFinEnum Unit) (stateEncoding := encFinEnum Unit)
-    (handler := fun _ _ _ => pure ([], ())) (prepare := id) (initial := fun _ => ())
-    (resources := fun _ _ => 0) ComputableInPolyTime.id'
-    (ComputableInPolyTime.const ([], ())).isPPTOn (ComputableInPolyTime.const ())
-    (fun _ _ => True) (fun _ => trivial) (ComputableInPolyTime.const 0)
-    (fun _ _ _ _ result hres => by
-      simp only [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hres
-      subst hres; exact ⟨trivial, by simp, by simp⟩)
-  exact IsPPTOn.map hsub (ComputableInPolyTime.fst output (encFinEnum Unit))
 
 /-- Complete any remaining steps of a sliced machine run against the exhausted prover state
 `(false, [])` and return the final output tape. -/
 noncomputable def finishSessionRun {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control Unit) (limit : ℕ)
     (st : ℕ × FiniteConfig k Bool Control Unit) : ProbComp (List Bool) :=
-  runEmptyOracle ((fun p => p.2.tapes.output) <$> sessionStep machine limit st.1 limit st.2)
+  ((fun p => p.2.tapes.output) <$> sessionStep machine limit st.1 limit st.2).run
+    (fun _ => pure [])
 
 /-- `finishSessionRun` is uniform strict PPT. -/
 theorem isPPTOn_finishSessionRun {k : ℕ} {Control : Type} [Finite Control]
     (machine : _root_.Turing.MultiTapePTM k Bool Control Unit) :
     IsPPTOn (encPair encUnary (encPair encUnary encFiniteConfig)) encBits
       (fun p => finishSessionRun machine p.1 p.2) := by
-  let encCfg := encFiniteConfig (k := k) (State := Control) (Oracle := Unit)
-  have h1 := ComputableInPolyTime.fst encUnary (encPair encUnary encCfg)
-  have h2 := ComputableInPolyTime.snd encUnary (encPair encUnary encCfg)
-  have hout := ComputableInPolyTime.finiteCfg_output.comp'
-    (ComputableInPolyTime.finiteConfig_tapes.comp'
-      (.snd encUnary encCfg))
-  have hrun := isPPTOn_runEmptyOracle
-    (((isOraclePPTOn_sessionStep machine).preprocess
-      (h1.prod (h2.fst'.prod (h1.prod h2.snd')))).map (output := encBits) hout)
-  exact (congrArg (IsPPTOn _ _) (by funext p; rfl)).mp hrun
+  have := isOraclePPTOn_sessionStep machine
+  exact IsOraclePPTOn.isPPTOn_runEmptyOracle (by ppt)
 
-private theorem runSeq_sessionStep_one_add {k : ℕ} {Control : Type}
+private theorem runSeq_sessionStep_split {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control Unit)
     (generator : List Bool → List Bool) (s m limit : ℕ) (φ : CNF ℕ)
-    (rem Q : ℕ) (cfg : FiniteConfig k Bool Control Unit)
-    (coins : ProverCoins) (rest : List ProverCoins)
-    (msg1 : List Bool) :
+    (inRound2 : Bool) (rem Q : ℕ) (cfg : FiniteConfig k Bool Control Unit)
+    (coins : ProverCoins) (rest : List ProverCoins) (msg1 : List Bool) :
     Prod.fst <$> runSeq generator s m φ
-        (sessionStep machine limit rem (Q + 1) cfg) (true, coins :: rest) =
+        (sessionStep machine limit rem (Q + cond inRound2 1 2) cfg) (inRound2, coins :: rest) =
       (runTwoRound (honestReply1 generator m φ coins) (honestReply2 s φ coins)
-        (sessionStep machine limit rem 1 cfg) ⟨1, msg1⟩ >>= fun p =>
-        Prod.fst <$> runSeq generator s m φ
+        (sessionStep machine limit rem (cond inRound2 1 2) cfg) ⟨cond inRound2 1 0, msg1⟩ >>=
+        fun p => Prod.fst <$> runSeq generator s m φ
           (sessionStep machine limit p.1.1 Q p.1.2) (false, rest)) := by
-  induction rem generalizing cfg with
+  induction rem generalizing inRound2 cfg with
   | zero => simp [runSeq, runTwoRound]
   | succ rem ih =>
-    rw [sessionStep_succ, sessionStep_succ (q := 0)]
+    have hQ : Q + cond inRound2 1 2 = (Q + cond inRound2 0 1) + 1 := by cases inRound2 <;> rfl
+    have hq : cond inRound2 1 2 = cond inRound2 0 1 + 1 := by cases inRound2 <;> rfl
+    rw [hQ, sessionStep_succ, hq, sessionStep_succ]
     cases hs : cfg.tapes.state with
-    | none => simp only [OpenOracleSimulation.step, hs, pure_bind]; exact ih cfg
+    | none =>
+      simp only [OpenOracleSimulation.step, hs, pure_bind]
+      rw [← hQ, ← hq]; exact ih inRound2 cfg
     | some control =>
       simp only [OpenOracleSimulation.step, hs, bind_pure_comp, bind_map_left,
         runSeq_bind, runTwoRound_bind, runSeq_sample, runTwoRound_sample, map_bind, bind_assoc]
@@ -926,52 +829,20 @@ private theorem runSeq_sessionStep_one_add {k : ℕ} {Control : Type}
           cfg.answerSymbols coin with
       | step action symbol move =>
         simp only [pure_bind, runSeq_pure, runTwoRound_pure]
-        exact ih (cfg.step action symbol move)
+        rw [← hQ, ← hq]; exact ih inRound2 (cfg.step action symbol move)
       | query channel next =>
-        simp only [sessionQueryHandler, Functor.map_map,
-          runSeq_map, runTwoRound_map, runSeq_query, runTwoRound_query,
-          seqStep, ↓reduceIte, twoRoundStep, Nat.add_sub_cancel,
-          Prod.map, id_eq, Nat.reduceBEq, Bool.false_eq_true,
-          sessionStep_zero_q, runTwoRound_pure, map_pure, pure_bind]
-
-/-- Splitting a `(Q + 2)`-query `sessionStep` run under `runSeq` into a single two-query session
-under `runTwoRound` followed by the remaining `Q`-query `sessionStep` run under `runSeq`. -/
-theorem runSeq_sessionStep_two_add {k : ℕ} {Control : Type}
-    (machine : _root_.Turing.MultiTapePTM k Bool Control Unit)
-    (generator : List Bool → List Bool) (s m limit : ℕ) (φ : CNF ℕ)
-    (rem Q : ℕ) (cfg : FiniteConfig k Bool Control Unit)
-    (coins : ProverCoins) (rest : List ProverCoins) :
-    Prod.fst <$> runSeq generator s m φ
-        (sessionStep machine limit rem (Q + 2) cfg) (false, coins :: rest) =
-      (runTwoRound (honestReply1 generator m φ coins) (honestReply2 s φ coins)
-        (sessionStep machine limit rem 2 cfg) .init >>= fun ((rem', cfg'), _) =>
-        Prod.fst <$> runSeq generator s m φ
-          (sessionStep machine limit rem' Q cfg') (false, rest)) := by
-  induction rem generalizing cfg with
-  | zero => simp [runSeq, runTwoRound]
-  | succ rem ih =>
-    have hQ : Q + 2 = (Q + 1) + 1 := rfl
-    rw [hQ, sessionStep_succ, sessionStep_succ (q := 1)]
-    cases hs : cfg.tapes.state with
-    | none => simp only [OpenOracleSimulation.step, hs, pure_bind]; exact ih cfg
-    | some control =>
-      simp only [OpenOracleSimulation.step, hs, bind_pure_comp, bind_map_left,
-        runSeq_bind, runTwoRound_bind, runSeq_sample, runTwoRound_sample, map_bind, bind_assoc]
-      refine congrArg (Bind.bind _) (funext fun coin => ?_)
-      cases machine.tr control cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-          cfg.answerSymbols coin with
-      | step action symbol move =>
-        simp only [pure_bind, runSeq_pure, runTwoRound_pure]
-        exact ih (cfg.step action symbol move)
-      | query channel next =>
-        simp only [sessionQueryHandler, Functor.map_map,
-          runSeq_map, runTwoRound_map, runSeq_query, runTwoRound_query,
-          seqStep, Bool.false_eq_true, ↓reduceIte, twoRoundStep, Nat.add_sub_cancel,
-          Prod.map, id_eq, beq_self_eq_true, map_pure, pure_bind]
-        exact runSeq_sessionStep_one_add machine generator s m limit φ rem Q
-          (cfg.receive channel next (List.take limit
+        cases inRound2
+        · simp only [Bool.cond_false, sessionQueryHandler, Functor.map_map,
+            runSeq_map, runTwoRound_map, runSeq_query, runTwoRound_query,
+            seqStep, Bool.false_eq_true, ↓reduceIte, twoRoundStep, Nat.add_sub_cancel,
+            Prod.map, id_eq, beq_self_eq_true, map_pure, pure_bind]
+          exact ih true (cfg.receive channel next (List.take limit
             (honestReply1 generator m φ coins (cfg.channels channel).1)))
-          coins rest [false, false, false]
+        · simp only [Bool.cond_true, Nat.add_zero, sessionQueryHandler, Functor.map_map,
+            runSeq_map, runTwoRound_map, runSeq_query, runTwoRound_query,
+            seqStep, ↓reduceIte, twoRoundStep, Nat.add_sub_cancel,
+            Prod.map, id_eq, Nat.reduceBEq, Bool.false_eq_true,
+            sessionStep_zero_q, runTwoRound_pure, map_pure, pure_bind]
 
 /-- Any result in the support of `runTwoRound` lies in `OracleComp.support prog`. -/
 theorem mem_support_runTwoRound {β : Type} (f1 f2 : List Bool → List Bool)
@@ -1017,22 +888,6 @@ theorem mem_support_gmwRealWithPads {β : Type} (generator : List Bool → List 
   obtain ⟨ch_guess, -, m₀, -, m₁, -, m₂, -, seeds, -, h⟩ := h
   exact mem_support_acceptGuess_runTwoRound _ _ prog ch_guess _ h
 
-theorem mem_support_of_mem_replicate {α : Type} {n : ℕ} {g : ProbComp α} {xs : List α}
-    (hxs : xs ∈ (ProbComp.eval (OracleComp.replicate n g)).support) {x : α} (hx : x ∈ xs) :
-    x ∈ (ProbComp.eval g).support := by
-  induction n generalizing xs with
-  | zero =>
-    simp only [OracleComp.replicate_zero, ProbComp.eval_pure, PMF.support_pure,
-      Set.mem_singleton_iff] at hxs
-    subst hxs; cases hx
-  | succ n ih =>
-    simp only [OracleComp.replicate_succ, ProbComp.eval_bind, ProbComp.eval_map,
-      PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hxs
-    obtain ⟨y, hy, ⟨ys, hys, rfl⟩⟩ := hxs
-    rcases List.mem_cons.mp hx with rfl | hmem
-    · exact hy
-    · exact ih hys hmem
-
 /-- One session of the honest sequential execution on `(rem, cfg)` with fresh prover coins. -/
 noncomputable def realSessionStep {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control Unit)
@@ -1055,7 +910,7 @@ noncomputable def simSessionStep {k : ℕ} {Control : Type}
       (gmwSimAttempt generator s m φ (sessionStep machine limit st.1 2 st.2))
 
 /-- Peeling `K` sessions of `runSeq` on `sessionStep` into `OracleComp.iterate K realSessionStep`
-followed by `runEmptyOracle`. -/
+followed by running against `fun _ => pure []`. -/
 theorem eval_replicate_runSeq_sessionStep {k : ℕ} {Control : Type}
     (machine : _root_.Turing.MultiTapePTM k Bool Control Unit)
     (generator : List Bool → List Bool) (s m limit : ℕ) (φ : CNF ℕ) (w : List Bool)
@@ -1066,14 +921,17 @@ theorem eval_replicate_runSeq_sessionStep {k : ℕ} {Control : Type}
         (sessionStep machine limit st.1 (limit + 2 * K) st.2) (false, coinsList)) =
     ProbComp.eval (do
       let st' ← OracleComp.iterate K (realSessionStep machine generator s m limit φ w) st
-      runEmptyOracle (sessionStep machine limit st'.1 limit st'.2)) := by
+      (sessionStep machine limit st'.1 limit st'.2).run (fun _ => pure [])) := by
   induction K generalizing st with
   | zero => simp [runSeq_nil_fst]
   | succ K ih =>
     have hadd : limit + 2 * (K + 1) = (limit + 2 * K) + 2 := by omega
+    have htwo := fun c r => runSeq_sessionStep_split machine generator s m limit φ false st.1
+      (limit + 2 * K) st.2 c r [false, false, false]
+    dsimp only [Bool.cond_false] at htwo
     rw [hadd, OracleComp.replicate_succ, OracleComp.iterate_succ_bind]
-    simp only [realSessionStep, bind_assoc, bind_map_left, runSeq_sessionStep_two_add,
-      ProbComp.eval_bind, ProbComp.eval_map]
+    simp only [realSessionStep, bind_assoc, bind_map_left, htwo, ProbComp.eval_bind,
+      ProbComp.eval_map]
     refine congrArg (PMF.bind _) (funext fun coins => ?_)
     rw [PMF.bind_comm]
     refine congrArg (PMF.bind _) (funext fun p => ?_)
@@ -1090,30 +948,11 @@ theorem eval_gmwSeqInteract_runOracle_eq_iterate_realSessionStep {k : ℕ} {Cont
           (realSessionStep machine generator s m T φ w)
           (T, FiniteConfig.init machine.initial word)
         finishSessionRun machine T st') := by
-  have hrun := sessionStep_init_eq_runOracle machine T (T + 2 * K) word (by omega)
-  have hmap := congrArg (PMF.map (fun p : ℕ × FiniteConfig k Bool Control Unit => p.2.tapes.output))
+  rw [← sessionStep_init_eq_runOracle machine T (T + 2 * K) word (by omega)]
+  have h := congrArg (PMF.map fun p : ℕ × FiniteConfig k Bool Control Unit => p.2.tapes.output)
     (eval_replicate_runSeq_sessionStep machine generator s m T φ w K
       (T, FiniteConfig.init machine.initial word))
-  have hlhs : PMF.map (fun p : ℕ × FiniteConfig k Bool Control Unit => p.2.tapes.output)
-      (ProbComp.eval (do
-        let coinsList ← OracleComp.replicate K (sampleHonestCoins s φ w)
-        Prod.fst <$> runSeq generator s m φ
-          (sessionStep machine T T (T + 2 * K) (FiniteConfig.init machine.initial word))
-          (false, coinsList))) =
-      ProbComp.eval (gmwSeqInteract generator s m φ w K (machine.runOracle T word)) := by
-    rw [← hrun]
-    simp only [pmf_norm, gmwSeqInteract, runSeq_map, Functor.map_map, Prod.map_fst, bind_pure_comp]
-  have hrhs : PMF.map (fun p : ℕ × FiniteConfig k Bool Control Unit => p.2.tapes.output)
-      (ProbComp.eval (do
-        let st' ← OracleComp.iterate K (realSessionStep machine generator s m T φ w)
-          (T, FiniteConfig.init machine.initial word)
-        runEmptyOracle (sessionStep machine T st'.1 T st'.2))) =
-      ProbComp.eval (do
-        let st' ← OracleComp.iterate K (realSessionStep machine generator s m T φ w)
-          (T, FiniteConfig.init machine.initial word)
-        finishSessionRun machine T st') := by
-    simp only [pmf_norm, finishSessionRun, runEmptyOracle, OracleComp.interpret_map, StateT.run_map,
-      Functor.map_map]
-  rw [← hlhs, ← hrhs, hmap]
+  simpa only [pmf_norm, gmwSeqInteract, finishSessionRun, ProbOracleComp.run_map, runSeq_map,
+    Functor.map_map, Prod.map_fst, bind_pure_comp] using h
 
 end Cslib.Crypto.GMW

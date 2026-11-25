@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+-- Reads private `Trace`, `parse`, `signedTail`, and `inBall_signedTail`, plus `sampleInBallBytes`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Primitives.ByteString
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.Fintype.Sort
 
@@ -45,18 +45,13 @@ private theorem Trace.parse_raw {i n : ℕ} (t : Trace i n) : parse i n t.raw = 
 
 private theorem raw_of_parse {i n : ℕ} {xs : List Byte} {t : Trace i n}
     (h : parse i n xs = some t) : t.raw = xs := by
-  induction xs generalizing i n with
-  | nil =>
-    cases n with
-    | zero => simp only [parse, Option.some.injEq] at h; subst t; rfl
-    | succ => simp [parse] at h
-  | cons b xs ih =>
-    cases n with
-    | zero => simp only [parse, Option.some.injEq] at h; subst t; rfl
-    | succ k =>
-      rw [parse] at h
-      split at h <;> obtain ⟨u, hu, rfl⟩ := Option.map_eq_some_iff.mp h <;>
-        exact congrArg (b :: ·) (ih hu)
+  fun_induction parse i n xs with
+  | case1 => cases Option.some.inj h; rfl -- 0, tail: done
+  | case2 => cases h -- k + 1, []: out of bytes
+  -- k + 1, b :: rest: reject (`i < b`) or accept (`b ≤ i`)
+  | case3 _ _ b _ _ ih | case4 _ _ b _ _ ih =>
+    obtain ⟨u, hu, rfl⟩ := Option.map_eq_some_iff.mp h
+    exact congrArg (b :: ·) (ih hu)
 
 @[ext] private structure FixedAbove (i : ℕ) where
   e : Equiv.Perm Byte
@@ -68,9 +63,7 @@ private def FixedAbove.symm {i : ℕ} (p : FixedAbove i) : FixedAbove i :=
 private theorem FixedAbove.below {i : ℕ} (p : FixedAbove (i + 1)) (b : Byte) (hb : b.val ≤ i) :
     (p.e b).val ≤ i := by
   by_contra h
-  have fix := p.fixes (p.e b) (by lia)
-  have eq := p.e.injective fix
-  rw [eq] at h
+  rw [← p.e.injective (p.fixes (p.e b) (by lia))] at hb
   exact h hb
 
 -- Before the insertion, conjugating by its old and new swaps leaves the current index fixed.
@@ -122,24 +115,18 @@ private theorem Trace.move_symm {i n : ℕ} (t : Trace i n) (h : i + n ≤ 256)
     (t.move h p).1.move h p.symm = (t, (t.move h p).2.symm) := by
   induction t with
   | done => rfl
-  | reject b hb t ih =>
-    simp only [Trace.move]
-    rw [ih]
+  | reject b hb t ih => simp only [Trace.move, ih]
   | @accept i n b hb t ih =>
     let q : FixedAbove ((i + 1) + n) := ⟨p.e, fun k hk => p.fixes k (by lia)⟩
     let out := t.move (by lia) q
-    have back := ih (by lia) q
-    change out.1.move _ q.symm = (t, out.2.symm) at back
     let rebuild (z : Trace (i + 1) n × FixedAbove (i + 1)) :=
       (Trace.accept (z.2.e (out.2.e b)) (z.2.below _ (out.2.below b hb)) z.1,
         z.2.step (out.2.e b) (out.2.below b hb) (by lia))
     change rebuild (out.1.move _ q.symm) = _
-    refine (congrArg rebuild back).trans ?_
-    apply Prod.ext
-    · simp [rebuild, FixedAbove.symm]
-    · apply FixedAbove.ext
-      ext j
-      simp [rebuild, Trace.move, FixedAbove.step, FixedAbove.symm, out, q]
+    refine (congrArg rebuild (ih (by lia) q : out.1.move _ q.symm = (t, out.2.symm))).trans ?_
+    refine Prod.ext (by simp [rebuild, FixedAbove.symm, out])
+      (FixedAbove.ext <| Equiv.ext fun j => ?_)
+    simp [rebuild, Trace.move, FixedAbove.step, FixedAbove.symm, out, q]
 
 private def Trace.pattern {i n : ℕ} : Trace i n → List (Option Byte)
   | .done tail => tail.map some
@@ -216,9 +203,9 @@ private theorem Target.coeff_of_ne {s : Level} (c : Target s) (j : Byte) (h : c.
   have b := abs_le.mp (c.property.1 j)
   have hz : (c.val j).valMinAbs ≠ 0 := fun e => h (by
     simpa using congrArg (fun a : ℤ => (a : ZMod 8380417)) e)
-  have cases : (c.val j).valMinAbs = -1 ∨ (c.val j).valMinAbs = 1 := by lia
-  rcases cases with e | e <;>
-    have v := congrArg (fun a : ℤ => (a : ZMod 8380417)) e <;> simp only [ZMod.coe_valMinAbs] at v
+  rcases (by lia : (c.val j).valMinAbs = -1 ∨ (c.val j).valMinAbs = 1) with e | e <;>
+    have v := congrArg (fun a : ℤ => (a : ZMod 8380417)) e <;>
+    simp only [ZMod.coe_valMinAbs] at v
   · rw [v]; decide
   · rw [v]; decide
 
@@ -317,11 +304,7 @@ private theorem length_signBytes (signs : Fin 64 → Bool) : (signBytes signs).l
 private theorem ofFn_read! {α : Type} [Inhabited α] {xs : List α} {n : ℕ} (h : xs.length = n) :
     List.ofFn (fun j : Fin n => xs[j.val]!) = xs := by
   subst n
-  trans List.ofFn xs.get
-  · congr 1
-    funext j
-    exact getElem!_pos xs j.val j.isLt
-  · exact List.ofFn_get _
+  exact (congrArg List.ofFn (funext fun j => getElem!_pos xs j.val j.isLt)).trans (List.ofFn_get _)
 
 private theorem bits_readSigns {head : List Byte} (h : head.length = 8) :
     List.ofFn (readSigns head) = Keccak.bytesToBitsLE head :=
@@ -468,14 +451,12 @@ theorem exchangeSampleInBall_retains (s : Level) (row : FixedBytes 221) (d : Tar
     simp only [exchangeSampleInBall, Function.Involutive.toPerm, Equiv.coe_fn_mk, exchange, hx,
       toList_bytesOfList len, retainedCandidates, Success.decode_raw, Option.map_some,
       Option.some.injEq]
-    constructor
-    · rw [← hr]
-      simp only [Success.raw, List.take_left' (length_signBytes _), bits_signBytes]
-      apply List.ext_getElem (by simp only [List.length_drop, List.length_ofFn])
-      intro j hj hj'
-      simp only [List.getElem_drop, List.getElem_ofFn]
-      exact dite_eq_right (by lia)
-    · exact x.trace.pattern_move ..
+    refine ⟨?_, x.trace.pattern_move ..⟩
+    rw [← hr]
+    simp only [Success.raw, List.take_left' (length_signBytes _), bits_signBytes]
+    refine List.ext_getElem (by simp only [List.length_drop, List.length_ofFn]) fun j _ _ => ?_
+    simp only [List.getElem_drop, List.getElem_ofFn]
+    exact dite_eq_right (by lia)
 
 /-- Joint law of the complete 221-byte raw row and its Algorithm 29 result. Start with uniform
 bytes and an independent uniform signed weight-τ challenge. Program the row and report the

@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.TreeEval.Ary.Packed.QueryGateSpace
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 
 /-!
 # Charged initialization of the same-input interpolation loop
@@ -16,9 +16,28 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 The alphabet size and coordinate count determine the assignment limit. This initialization
 computes that power in native space, charging its possible binary output length in addition to
 the supplied context, interpolation point and parameters. The limit is not a free input oracle.
+
+## Main definitions
+
+* `Cslib.TreeEval.Ary.Packed.QueryGate.Input`,
+  `Cslib.TreeEval.Ary.Packed.QueryGate.encInput`: uninitialized interpolation inputs and their
+  binary encoding.
+* `Cslib.TreeEval.Ary.Packed.QueryGate.Input.gridParams`,
+  `Cslib.TreeEval.Ary.Packed.QueryGate.Input.alphabet`,
+  `Cslib.TreeEval.Ary.Packed.QueryGate.Input.coords`,
+  `Cslib.TreeEval.Ary.Packed.QueryGate.Input.point`: named components of `Input`.
+* `Cslib.TreeEval.Ary.Packed.QueryGate.prepare`,
+  `Cslib.TreeEval.Ary.Packed.QueryGate.initializationSpace`: grid-limit preparation and its native
+  space budget.
+
+## Main results
+
+* `Cslib.TreeEval.Ary.Packed.QueryGate.prepare_inSpace`,
+  `Cslib.TreeEval.Ary.Packed.QueryGate.initial_prepare_inSpace`: native space certificates for
+  computing the grid limit and initializing fresh loop counters.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.TreeEval.Ary.Packed.QueryGate
 
@@ -31,14 +50,26 @@ abbrev Input (γ : Type) := γ × (ℕ × ℕ × ℕ) × List ℕ
 abbrev encInput {γ : Type} (encG : γ ↪ List Bool) : Input γ ↪ List Bool :=
   encPair encG (encPair encNat3 (encList encNat))
 
+/-- The `(p, s, n)` modulus, alphabet-size, and coordinate-count triple of `Input`. -/
+abbrev Input.gridParams {γ : Type} (q : Input γ) : ℕ × ℕ × ℕ := q.2.1
+
+/-- The alphabet size `s` of `Input`. -/
+abbrev Input.alphabet {γ : Type} (q : Input γ) : ℕ := q.2.1.2.1
+
+/-- The coordinate count `n` of `Input`. -/
+abbrev Input.coords {γ : Type} (q : Input γ) : ℕ := q.2.1.2.2
+
+/-- The interpolation point of `Input`. -/
+abbrev Input.point {γ : Type} (q : Input γ) : List ℕ := q.2.2
+
 /-- Compute the full grid limit, retaining the supplied parameters. -/
-def prepare {γ : Type} (q : Input γ) : Params γ :=
-  (q.1, q.2.1, q.2.2, q.2.1.2.1 ^ q.2.1.2.2)
+@[expose] def prepare {γ : Type} (q : Input γ) : Params γ :=
+  (q.1, Input.gridParams q, Input.point q, Input.alphabet q ^ Input.coords q)
 
 /-- Input storage and the possible binary size of the assignment limit. -/
-def initializationSpace {γ : Type} (encG : γ ↪ List Bool) (q : Input γ) : ℕ :=
-  (encInput encG q).length + (q.2.1.2.2 + 1) * (encNat q.2.1.2.1).length +
-    (encNat q.2.1.2.2).length + 1
+@[expose] def initializationSpace {γ : Type} (encG : γ ↪ List Bool) (q : Input γ) : ℕ :=
+  (encInput encG q).length + (Input.coords q + 1) * (encNat (Input.alphabet q)).length +
+    (encNat (Input.coords q)).length + 1
 
 /-- The actual grid limit can be computed without a unary space charge for the alphabet size. -/
 theorem prepare_inSpace {γ : Type} (encG : γ ↪ List Bool) :
@@ -53,8 +84,8 @@ theorem prepare_inSpace {γ : Type} (encG : γ ↪ List Bool) :
   have hs := fst' (snd' hpsn)
   have hn := snd' (snd' hpsn)
   have hlimit := budget_natPow_variable hs hn
-    (show (fun q : Input γ => (q.2.1.2.2 + 1) * (encNat q.2.1.2.1).length +
-      (encNat q.2.1.2.2).length + 1) ≼ initializationSpace encG from
+    (show (fun q : Input γ => (Input.coords q + 1) * (encNat (Input.alphabet q)).length +
+      (encNat (Input.coords q)).length + 1) ≼ initializationSpace encG from
       .of_le fun q => by simp only [initializationSpace]; omega)
   exact (budget_prod hctx (budget_prod hpsn (budget_prod hpoint hlimit))).of_enc_eq
     fun _ => rfl
@@ -66,9 +97,10 @@ theorem initial_prepare_inSpace {γ : Type} (encG : γ ↪ List Bool) :
   have hin : (fun q : Input γ => (encInput encG q).length) ≼ initializationSpace encG :=
     .of_le fun q => by simp only [initializationSpace]; omega
   exact budget_prod (prepare_inSpace encG)
-    (budget_prod (budget_const 0 hin) (budget_const 0 hin))
+    (budget_prod (budget_const 0) (budget_const 0))
 
+/-- Preparing parameters sets the assignment limit to `s ^ n`. -/
 @[simp] theorem prepare_limit {γ : Type} (q : Input γ) :
-    (prepare q).2.2.2 = (prepare q).2.1.2.1 ^ (prepare q).2.1.2.2 := rfl
+    Params.limit (prepare q) = Params.alphabet (prepare q) ^ Params.coords (prepare q) := rfl
 
 end Cslib.TreeEval.Ary.Packed.QueryGate

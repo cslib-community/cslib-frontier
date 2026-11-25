@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabDemote
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.UpdateSimp
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Amortized `O(1)` Slot Allocation and Deallocation in `Memory.Prog`
@@ -75,6 +77,72 @@ def totalSlots (n_max : ℕ) (gm : ℕ → ℕ) : ℕ :=
   if bucketBits n_max = 0 then gm 0
   else gm 0 * slabSize n_max + gm 1
 
+private theorem bucket_eq_zero_of_bits_eq_zero {n_max b : ℕ}
+    (hb0 : bucketBits n_max = 0) (hb : b < numBuckets n_max) : b = 0 := by
+  simpa [numBuckets, hb0] using hb
+
+private theorem slotStoreInv_single {n_max : ℕ} {gm : ℕ → ℕ}
+    (hb0 : bucketBits n_max = 0) (hle : gm 0 ≤ n_max) : SlotStoreInv n_max gm :=
+  ⟨fun _ => hle, fun h => by omega, fun h => by omega, fun h => by omega, fun h => by omega⟩
+
+private theorem slotStoreInv_multi_of_bucket {n_max b : ℕ} {gm₀ gm₁ : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits n_max) (hinv : SlotStoreInv n_max gm₀)
+    (htail : TailBijection n_max gm₁ (fun b' => gm₁ (gmRIdx b')) (gm₁ 1))
+    (hslab : SlabBijection n_max gm₁ (fun b' => gm₁ (gmQIdx b')) (gm₁ 0))
+    (hb_bounds : gm₁ (gmRIdx b) < tailCapPerBucket n_max ∧
+      (0 < gm₁ (gmQIdx b) → 1 ≤ gm₁ (gmRIdx b)))
+    (hother : ∀ b' < numBuckets n_max, b' ≠ b →
+      gm₁ (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm₁ (gmRIdx b') = gm₀ (gmRIdx b'))
+    (htot : gm₁ 0 * slabSize n_max + gm₁ 1 ≤ n_max) :
+    SlotStoreInv n_max gm₁ := by
+  refine ⟨fun _ => by omega, fun _ => htail, fun _ => hslab, fun _ b' hb' => ?_, fun _ => htot⟩
+  by_cases hbeq : b' = b
+  · exact hbeq ▸ hb_bounds
+  · rw [(hother b' hb' hbeq).1, (hother b' hb' hbeq).2]
+    exact hinv.multi_r_bounds hb_pos b' hb'
+
+private theorem r_lt_two_slabSize {n_max b : ℕ} {gm : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits n_max) (hinv : SlotStoreInv n_max gm)
+    (hb : b < numBuckets n_max) : gm (gmRIdx b) < 2 * slabSize n_max := by
+  have h := (hinv.multi_r_bounds hb_pos b hb).1
+  unfold tailCapPerBucket at h
+  rwa [ite_eq_right (by omega)] at h
+
+private theorem readGM_r_result {U V w n_max h_space base b : ℕ}
+    (hb_pos : 0 < bucketBits n_max) (hb : b < numBuckets n_max) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (readGMProg U V w n_max h_space (base, 4 + 3 * b + 1)) =
+      gmAt base U V w n_max h_space s.mem (gmRIdx b) :=
+  clientResult_readGMProg s (gmRIdx_lt hb_pos hb : 4 + 3 * b + 1 < globalMetaLen n_max)
+
+private theorem readGM_q_result {U V w n_max h_space base b : ℕ}
+    (hb_pos : 0 < bucketBits n_max) (hb : b < numBuckets n_max) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (readGMProg U V w n_max h_space (base, 4 + 3 * b)) =
+      gmAt base U V w n_max h_space s.mem (gmQIdx b) :=
+  clientResult_readGMProg s (gmQIdx_lt hb_pos hb : 4 + 3 * b < globalMetaLen n_max)
+
+private theorem gmRIdx_fits {U V w₀ n_max h_space w base b : ℕ}
+    (henv : DictEnvGen w (mkDictParams U V w₀ n_max h_space) base)
+    (hb_pos : 0 < bucketBits n_max) (hw : 0 < w₀) (hnU : n_max ≤ U) (hU : U < 2 ^ w₀)
+    (hb : b < numBuckets n_max) : Fits w (4 + 3 * b + 1) :=
+  fits_of_le_globalMetaLen henv hb_pos hw hnU hU (le_of_lt (gmRIdx_lt hb_pos hb))
+
+private theorem lastTailPtrIdx_lt {n_max b : ℕ} {gm : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits n_max) (hinv : SlotStoreInv n_max gm)
+    (hb : b < numBuckets n_max) :
+    gmTailPtrBase n_max + (b * tailCapPerBucket n_max + (gm (gmRIdx b) - 1)) <
+      globalMetaLen n_max :=
+  gmTailPtrIdx_lt hb_pos hb (Nat.sub_lt_of_lt (hinv.multi_r_bounds hb_pos b hb).1)
+
+private theorem bCount_multi_eq {n_max b : ℕ} {gm : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits n_max) (hb : b < numBuckets n_max) :
+    bCount n_max gm b = gm (gmQIdx b) * slabSize n_max + gm (gmRIdx b) := by
+  unfold bCount; simp [Nat.ne_of_gt hb_pos, hb]
+
+private theorem totalSlots_multi_eq {n_max : ℕ} {gm : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits n_max) :
+    totalSlots n_max gm = gm 0 * slabSize n_max + gm 1 := by
+  unfold totalSlots; exact ite_eq_right (Nat.ne_of_gt hb_pos)
+
 theorem totalSlots_of_zero (n_max : ℕ) {gm : ℕ → ℕ} (hzero : ∀ i, gm i = 0) :
     totalSlots n_max gm = 0 := by
   unfold totalSlots
@@ -82,41 +150,48 @@ theorem totalSlots_of_zero (n_max : ℕ) {gm : ℕ → ℕ} (hzero : ∀ i, gm i
 
 theorem totalSlots_le {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotStoreInv n_max gm) :
     totalSlots n_max gm ≤ n_max := by
-  unfold totalSlots
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
-  · rw [ite_eq_left hb0]
-    exact hinv.single_valid hb0
-  · rw [ite_eq_right (by omega)]
-    exact hinv.multi_total_le hb_pos
+  · simpa [totalSlots, hb0] using hinv.single_valid hb0
+  · simpa [totalSlots_multi_eq hb_pos] using hinv.multi_total_le hb_pos
 
 theorem bCount_le_totalSlots {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotStoreInv n_max gm)
     (b : ℕ) (hb : b < numBuckets n_max) :
     bCount n_max gm b ≤ totalSlots n_max gm := by
-  unfold bCount totalSlots
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
-  · simp only [hb0, ↓reduceIte]
-    split_ifs <;> omega
-  · have hb_ne : bucketBits n_max ≠ 0 := by omega
-    simp only [hb_ne, ↓reduceIte, hb]
-    have hq_le := q_le_nslabs_of_slabBijection (hinv.multi_slab hb_pos) hb
-    have hr_le := r_le_ntails_of_tailBijection (hinv.multi_tail hb_pos) hb
-    have hmul : gm (gmQIdx b) * slabSize n_max ≤ gm 0 * slabSize n_max :=
-      Nat.mul_le_mul_right _ hq_le
-    omega
+  · unfold bCount totalSlots; simp only [hb0, ↓reduceIte]; split_ifs <;> omega
+  · rw [bCount_multi_eq hb_pos hb, totalSlots_multi_eq hb_pos]
+    stride_omega [q_le_nslabs_of_slabBijection (hinv.multi_slab hb_pos) hb,
+      r_le_ntails_of_tailBijection (hinv.multi_tail hb_pos) hb]
 
 theorem pos_gmRIdx_of_pos_bCount {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     (hb_pos : 0 < bucketBits n_max) (hinv : SlotStoreInv n_max gm)
     (hb : b < numBuckets n_max) (hbc : 1 ≤ bCount n_max gm b) :
     1 ≤ gm (gmRIdx b) := by
-  have hb0 : bucketBits n_max ≠ 0 := by omega
-  unfold bCount at hbc
-  simp only [hb0, ↓reduceIte, hb] at hbc
-  have hrb := (hinv.multi_r_bounds hb_pos b hb).2
+  rw [bCount_multi_eq hb_pos hb] at hbc
   by_cases hq : 0 < gm (gmQIdx b)
-  · exact hrb hq
-  · have hq0 : gm (gmQIdx b) = 0 := by omega
-    rw [hq0, Nat.zero_mul, Nat.zero_add] at hbc
-    exact hbc
+  · exact (hinv.multi_r_bounds hb_pos b hb).2 hq
+  · simpa [show gm (gmQIdx b) = 0 by omega] using hbc
+
+private theorem slotPotential_single_bucket_le {n_max b work : ℕ} {gm gm' : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits n_max) (hb : b < numBuckets n_max)
+    (hother : ∀ b' < numBuckets n_max, b' ≠ b →
+      gm' (gmQIdx b') = gm (gmQIdx b') ∧ gm' (gmRIdx b') = gm (gmRIdx b'))
+    (hpt : bucketPotential (slabSize n_max) (gm' (gmQIdx b)) (gm' (gmRIdx b)) + work ≤
+      bucketPotential (slabSize n_max) (gm (gmQIdx b)) (gm (gmRIdx b)) + 1) :
+    slotPotential n_max gm' + work ≤ slotPotential n_max gm + 1 := by
+  unfold slotPotential
+  rw [ite_eq_right (Nat.ne_of_gt hb_pos), ite_eq_right (Nat.ne_of_gt hb_pos)]
+  have hmem : b ∈ Finset.range (numBuckets n_max) := Finset.mem_range.mpr hb
+  rw [← Finset.add_sum_erase _ _ hmem,
+    ← Finset.add_sum_erase (Finset.range (numBuckets n_max))
+      (fun b' => bucketPotential (slabSize n_max) (gm (gmQIdx b')) (gm (gmRIdx b'))) hmem]
+  have hsum_eq := Finset.sum_congr (s₁ := (Finset.range (numBuckets n_max)).erase b) rfl
+    (f := fun x => bucketPotential (slabSize n_max) (gm' (gmQIdx x)) (gm' (gmRIdx x)))
+    (g := fun x => bucketPotential (slabSize n_max) (gm (gmQIdx x)) (gm (gmRIdx x)))
+    fun x hx => by
+      obtain ⟨hne, hlt⟩ := Finset.mem_erase.mp hx
+      rw [(hother x (Finset.mem_range.mp hlt) hne).1, (hother x (Finset.mem_range.mp hlt) hne).2]
+  omega
 
 /-- Global potential bound when bucket `b` transitions according to `pushBackCounts`. -/
 theorem slotPotential_pushBack_le {n_max b : ℕ} {gm gm' : ℕ → ℕ}
@@ -126,26 +201,10 @@ theorem slotPotential_pushBack_le {n_max b : ℕ} {gm gm' : ℕ → ℕ}
     (hother : ∀ b' < numBuckets n_max, b' ≠ b →
       gm' (gmQIdx b') = gm (gmQIdx b') ∧ gm' (gmRIdx b') = gm (gmRIdx b')) :
     slotPotential n_max gm' + pushBackWork (slabSize n_max) (gm (gmRIdx b)) ≤
-      slotPotential n_max gm + 1 := by
-  have hb0 : bucketBits n_max ≠ 0 := by omega
-  unfold slotPotential
-  rw [ite_eq_right hb0, ite_eq_right hb0]
-  have hmem : b ∈ Finset.range (numBuckets n_max) := Finset.mem_range.mpr hb
-  rw [← Finset.add_sum_erase _ _ hmem,
-    ← Finset.add_sum_erase (Finset.range (numBuckets n_max))
-      (fun b' => bucketPotential (slabSize n_max) (gm (gmQIdx b')) (gm (gmRIdx b'))) hmem]
-  have hsum_eq :
-      ∑ x ∈ (Finset.range (numBuckets n_max)).erase b,
-        bucketPotential (slabSize n_max) (gm' (gmQIdx x)) (gm' (gmRIdx x)) =
-      ∑ x ∈ (Finset.range (numBuckets n_max)).erase b,
-        bucketPotential (slabSize n_max) (gm (gmQIdx x)) (gm (gmRIdx x)) := by
-    refine Finset.sum_congr rfl fun x hx => ?_
-    obtain ⟨hne, hlt⟩ := Finset.mem_erase.mp hx
-    rw [Finset.mem_range] at hlt
-    rw [(hother x hlt hne).1, (hother x hlt hne).2]
-  rw [hsum_eq, hb_upd.1, hb_upd.2]
-  have hpt := bucketPotential_pushBack_le (slabSize n_max) (gm (gmQIdx b)) (gm (gmRIdx b))
-  omega
+      slotPotential n_max gm + 1 :=
+  slotPotential_single_bucket_le hb_pos hb hother <| by
+    rw [hb_upd.1, hb_upd.2]
+    exact bucketPotential_pushBack_le (slabSize n_max) (gm (gmQIdx b)) (gm (gmRIdx b))
 
 /-- Global potential bound when bucket `b` transitions according to `popBackCounts`. -/
 theorem slotPotential_popBack_le {n_max b : ℕ} {gm gm' : ℕ → ℕ}
@@ -156,102 +215,61 @@ theorem slotPotential_popBack_le {n_max b : ℕ} {gm gm' : ℕ → ℕ}
     (hother : ∀ b' < numBuckets n_max, b' ≠ b →
       gm' (gmQIdx b') = gm (gmQIdx b') ∧ gm' (gmRIdx b') = gm (gmRIdx b')) :
     slotPotential n_max gm' + popBackWork (slabSize n_max) (gm (gmQIdx b)) (gm (gmRIdx b)) ≤
-      slotPotential n_max gm + 1 := by
-  have hb0 : bucketBits n_max ≠ 0 := by omega
-  unfold slotPotential
-  rw [ite_eq_right hb0, ite_eq_right hb0]
-  have hmem : b ∈ Finset.range (numBuckets n_max) := Finset.mem_range.mpr hb
-  rw [← Finset.add_sum_erase _ _ hmem,
-    ← Finset.add_sum_erase (Finset.range (numBuckets n_max))
-      (fun b' => bucketPotential (slabSize n_max) (gm (gmQIdx b')) (gm (gmRIdx b'))) hmem]
-  have hsum_eq :
-      ∑ x ∈ (Finset.range (numBuckets n_max)).erase b,
-        bucketPotential (slabSize n_max) (gm' (gmQIdx x)) (gm' (gmRIdx x)) =
-      ∑ x ∈ (Finset.range (numBuckets n_max)).erase b,
-        bucketPotential (slabSize n_max) (gm (gmQIdx x)) (gm (gmRIdx x)) := by
-    refine Finset.sum_congr rfl fun x hx => ?_
-    obtain ⟨hne, hlt⟩ := Finset.mem_erase.mp hx
-    rw [Finset.mem_range] at hlt
-    rw [(hother x hlt hne).1, (hother x hlt hne).2]
-  rw [hsum_eq, hb_upd.1, hb_upd.2]
-  have hpt := bucketPotential_popBack_le (slabSize n_max) (gm (gmQIdx b)) (gm (gmRIdx b)) hr1 hr2
-  omega
+      slotPotential n_max gm + 1 :=
+  slotPotential_single_bucket_le hb_pos hb hother <| by
+    rw [hb_upd.1, hb_upd.2]
+    exact bucketPotential_popBack_le (slabSize n_max) (gm (gmQIdx b)) (gm (gmRIdx b)) hr1 hr2
+
+private theorem card_range_eq_sum_of_bij {B n : ℕ} {f : ℕ → ℕ}
+    (ptr : ℕ → ℕ → ℕ) (invB invR : ℕ → ℕ)
+    (hptr_lt : ∀ b < B, ∀ r < f b, ptr b r < n)
+    (hleft : ∀ b < B, ∀ r < f b, invB (ptr b r) = b ∧ invR (ptr b r) = r)
+    (hright : ∀ p < n, invB p < B ∧ invR p < f (invB p) ∧ ptr (invB p) (invR p) = p) :
+    n = ∑ b ∈ Finset.range B, f b := by
+  have hcard := Finset.card_bij (s := (Finset.range B).sigma fun b => Finset.range (f b))
+    (t := Finset.range n) (fun x _ => ptr x.1 x.2)
+    (fun x hx => by
+      simp only [Finset.mem_sigma, Finset.mem_range] at hx ⊢
+      exact hptr_lt x.1 hx.1 x.2 hx.2)
+    (fun x₁ hx₁ x₂ hx₂ heq => by
+      simp only [Finset.mem_sigma, Finset.mem_range] at hx₁ hx₂
+      have h1 := hleft x₁.1 hx₁.1 x₁.2 hx₁.2
+      have h2 := hleft x₂.1 hx₂.1 x₂.2 hx₂.2
+      ext
+      · exact h1.1.symm.trans (heq ▸ h2.1)
+      · exact heq_of_eq (h1.2.symm.trans (heq ▸ h2.2)))
+    (fun p hp =>
+      let ⟨hb, hr, heq⟩ := hright p (Finset.mem_range.mp hp)
+      ⟨⟨invB p, invR p⟩,
+        Finset.mem_sigma.mpr ⟨Finset.mem_range.mpr hb, Finset.mem_range.mpr hr⟩, heq⟩)
+  simpa [Finset.card_sigma] using hcard.symm
 
 /-- Under `SlabBijection`, `n_slabs` equals the sum of per-bucket slab counts `q_fn b`. -/
 theorem nslabs_eq_sum {n_max : ℕ} {gm : ℕ → ℕ} {q_fn : ℕ → ℕ} {n_slabs : ℕ}
     (hslab : SlabBijection n_max gm q_fn n_slabs) :
-    n_slabs = ∑ b ∈ Finset.range (numBuckets n_max), q_fn b := by
-  have hcard :
-      ((Finset.range (numBuckets n_max)).sigma (fun b => Finset.range (q_fn b))).card =
-        (Finset.range n_slabs).card := by
-    refine Finset.card_bij (fun x _ => slabPtrOf n_max gm x.1 x.2) ?_ ?_ ?_
-    · intro x hx
-      rw [Finset.mem_sigma, Finset.mem_range, Finset.mem_range] at hx
-      exact Finset.mem_range.mpr (hslab.ptr_lt x.1 hx.1 x.2 hx.2)
-    · intro x₁ hx₁ x₂ hx₂ heq
-      rw [Finset.mem_sigma, Finset.mem_range, Finset.mem_range] at hx₁ hx₂
-      have hB1 := hslab.ownerB_ptr x₁.1 hx₁.1 x₁.2 hx₁.2
-      have hB2 := hslab.ownerB_ptr x₂.1 hx₂.1 x₂.2 hx₂.2
-      have hS1 := hslab.ownerS_ptr x₁.1 hx₁.1 x₁.2 hx₁.2
-      have hS2 := hslab.ownerS_ptr x₂.1 hx₂.1 x₂.2 hx₂.2
-      rw [heq] at hB1 hS1
-      ext
-      · exact hB1.symm.trans hB2
-      · exact heq_of_eq (hS1.symm.trans hS2)
-    · intro p hp
-      rw [Finset.mem_range] at hp
-      obtain ⟨hb, hs, hptr⟩ := hslab.owner_valid p hp
-      refine ⟨⟨gm (gmSlabOwnerBIdx n_max p), gm (gmSlabOwnerSIdx n_max p)⟩, ?_, hptr⟩
-      rw [Finset.mem_sigma, Finset.mem_range, Finset.mem_range]
-      exact ⟨hb, hs⟩
-  rw [Finset.card_sigma, Finset.card_range] at hcard
-  rw [← hcard]
-  exact Finset.sum_congr rfl fun b _ => Finset.card_range (q_fn b)
+    n_slabs = ∑ b ∈ Finset.range (numBuckets n_max), q_fn b :=
+  card_range_eq_sum_of_bij (slabPtrOf n_max gm)
+    (fun p => gm (gmSlabOwnerBIdx n_max p)) (fun p => gm (gmSlabOwnerSIdx n_max p))
+    hslab.ptr_lt
+    (fun b hb s hs => ⟨hslab.ownerB_ptr b hb s hs, hslab.ownerS_ptr b hb s hs⟩)
+    hslab.owner_valid
 
 /-- Under `TailBijection`, `n_tails` equals the sum of per-bucket tail counts `r_fn b`. -/
 theorem ntails_eq_sum {n_max : ℕ} {gm : ℕ → ℕ} {r_fn : ℕ → ℕ} {n_tails : ℕ}
     (htail : TailBijection n_max gm r_fn n_tails) :
-    n_tails = ∑ b ∈ Finset.range (numBuckets n_max), r_fn b := by
-  have hcard :
-      ((Finset.range (numBuckets n_max)).sigma (fun b => Finset.range (r_fn b))).card =
-        (Finset.range n_tails).card := by
-    refine Finset.card_bij (fun x _ => gm (gmTailPtrIdx n_max x.1 x.2)) ?_ ?_ ?_
-    · intro x hx
-      rw [Finset.mem_sigma, Finset.mem_range, Finset.mem_range] at hx
-      exact Finset.mem_range.mpr (htail.ptr_lt x.1 hx.1 x.2 hx.2)
-    · intro x₁ hx₁ x₂ hx₂ heq
-      rw [Finset.mem_sigma, Finset.mem_range, Finset.mem_range] at hx₁ hx₂
-      have hO1 := htail.owner_ptr x₁.1 hx₁.1 x₁.2 hx₁.2
-      have hO2 := htail.owner_ptr x₂.1 hx₂.1 x₂.2 hx₂.2
-      have hr1 := lt_of_lt_of_le hx₁.2 (htail.r_le x₁.1 hx₁.1)
-      have hr2 := lt_of_lt_of_le hx₂.2 (htail.r_le x₂.1 hx₂.1)
-      have hC : 0 < tailCapPerBucket n_max := by omega
-      rw [heq] at hO1
-      have hd_eq : x₁.1 * tailCapPerBucket n_max + x₁.2 =
-          x₂.1 * tailCapPerBucket n_max + x₂.2 := hO1.symm.trans hO2
-      have hdiv : (x₁.1 * tailCapPerBucket n_max + x₁.2) / tailCapPerBucket n_max =
-          (x₂.1 * tailCapPerBucket n_max + x₂.2) / tailCapPerBucket n_max :=
-        congrArg (· / tailCapPerBucket n_max) hd_eq
-      rw [Nat.mul_comm x₁.1, Nat.mul_add_div hC, Nat.div_eq_of_lt hr1, Nat.add_zero,
-        Nat.mul_comm x₂.1, Nat.mul_add_div hC, Nat.div_eq_of_lt hr2, Nat.add_zero] at hdiv
-      ext
-      · exact hdiv
-      · apply heq_of_eq
-        rw [hdiv] at hd_eq
-        omega
-    · intro t ht
-      rw [Finset.mem_range] at ht
+    n_tails = ∑ b ∈ Finset.range (numBuckets n_max), r_fn b :=
+  card_range_eq_sum_of_bij (fun b r => gm (gmTailPtrIdx n_max b r))
+    (fun t => gm (gmTailOwnerIdx n_max t) / tailCapPerBucket n_max)
+    (fun t => gm (gmTailOwnerIdx n_max t) % tailCapPerBucket n_max)
+    htail.ptr_lt
+    (fun b hb r hr => by
+      rw [htail.owner_ptr b hb r hr]
+      exact mul_add_div_mod_of_lt (lt_of_lt_of_le hr (htail.r_le b hb)))
+    (fun t ht => by
       obtain ⟨hb, hr, hptr⟩ := htail.owner_valid t ht
-      let d := gm (gmTailOwnerIdx n_max t)
-      refine ⟨⟨d / tailCapPerBucket n_max, d % tailCapPerBucket n_max⟩, ?_, ?_⟩
-      · rw [Finset.mem_sigma, Finset.mem_range, Finset.mem_range]
-        exact ⟨hb, hr⟩
-      · dsimp only [gmTailPtrIdx]
-        rw [Nat.div_add_mod' d (tailCapPerBucket n_max)]
-        exact hptr
-  rw [Finset.card_sigma, Finset.card_range] at hcard
-  rw [← hcard]
-  exact Finset.sum_congr rfl fun b _ => Finset.card_range (r_fn b)
+      refine ⟨hb, hr, ?_⟩
+      dsimp only [gmTailPtrIdx]
+      rwa [Nat.div_add_mod' (gm (gmTailOwnerIdx n_max t)) (tailCapPerBucket n_max)])
 
 /-- In the multi-bucket regime (`0 < bucketBits n_max`), the total active slot count
 `gm 0 * slabSize n_max + gm 1` equals the sum of per-bucket item counts `bCount n_max gm b`. -/
@@ -261,12 +279,9 @@ theorem total_eq_sum_bCount {n_max : ℕ} {gm : ℕ → ℕ}
     (hslab : SlabBijection n_max gm (fun b => gm (gmQIdx b)) (gm 0)) :
     gm 0 * slabSize n_max + gm 1 =
       ∑ b ∈ Finset.range (numBuckets n_max), bCount n_max gm b := by
-  have hb0 : bucketBits n_max ≠ 0 := by omega
   rw [nslabs_eq_sum hslab, ntails_eq_sum htail, Finset.sum_mul, ← Finset.sum_add_distrib]
-  refine Finset.sum_congr rfl fun b hb => ?_
-  rw [Finset.mem_range] at hb
-  unfold bCount
-  simp [hb0, hb]
+  exact Finset.sum_congr rfl fun b hb =>
+    (bCount_multi_eq hb_pos (Finset.mem_range.mp hb)).symm
 
 /-- Under `SlotStoreInv n_max gm`, `totalSlots n_max gm` equals the sum of `bCount n_max gm b`
 over all buckets `b < numBuckets n_max`. -/
@@ -274,12 +289,10 @@ theorem totalSlots_eq_sum_bCount {n_max : ℕ} {gm : ℕ → ℕ}
     (hinv : SlotStoreInv n_max gm) :
     totalSlots n_max gm =
       ∑ b ∈ Finset.range (numBuckets n_max), bCount n_max gm b := by
-  unfold totalSlots
-  by_cases hb0 : bucketBits n_max = 0
+  rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
   · have hB1 : numBuckets n_max = 1 := by simp [numBuckets, hb0]
-    simp [hb0, hB1, bCount]
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
-    rw [ite_eq_right hb0]
+    simp [totalSlots, hb0, hB1, bCount]
+  · rw [totalSlots_multi_eq hb_pos]
     exact total_eq_sum_bCount hb_pos (hinv.multi_tail hb_pos) (hinv.multi_slab hb_pos)
 
 /-- `promoteSlabProg` preserves `gm 0 * slabSize n_max + gm 1`. -/
@@ -370,9 +383,7 @@ theorem memoryCost_lastSlotOfProg_le (U V w n_max h_space : ℕ) (d : ℕ × ℕ
     memoryCost (lastSlotOfProg U V w n_max h_space d) s ≤ 4 := by
   simp only [lastSlotOfProg, lastSlotOfGenProg, ite_bucketBits_mk, readGMGenProg_mk,
     p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk]
-  split_ifs
-  · change 2 ≤ 4; omega
-  · change 4 ≤ 4; omega
+  split_ifs <;> exact Nat.le_of_ble_eq_true rfl
 
 theorem clientResult_lastSlotOfProg {U V w n_max h_space : ℕ} (d : ℕ × ℕ) (s : Memory.State)
     (hinv : SlotStoreInv n_max (gmAt d.1 U V w n_max h_space s.mem))
@@ -384,38 +395,32 @@ theorem clientResult_lastSlotOfProg {U V w n_max h_space : ℕ} (d : ℕ × ℕ)
   let gm := gmAt d.1 U V w n_max h_space s.mem
   simp only [lastSlotOfProg, lastSlotOfGenProg, ite_bucketBits_mk, readGMGenProg_mk,
     p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk]
-  by_cases hb0 : bucketBits n_max = 0
-  · have hd2 : d.2 = 0 := by
-      have : numBuckets n_max = 1 := by simp [numBuckets, hb0]
-      omega
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
-    simp only [hb0, ↓reduceIte, StateTransitionSpec.clientResult_bind,
-      clientResult_readGMProg s h0_lt]
+  rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
+  · simp only [hb0, ↓reduceIte, StateTransitionSpec.clientResult_bind,
+      clientResult_readGMProg s (by wram_omega : 0 < globalMetaLen n_max)]
     unfold slotOf bCount
-    simp only [hb0, ↓reduceIte, hd2]
+    simp only [hb0, ↓reduceIte, bucket_eq_zero_of_bits_eq_zero hb0 hb]
     rfl
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
-    have hr_pos : 1 ≤ gm (gmRIdx d.2) := pos_gmRIdx_of_pos_bCount hb_pos hinv hb hbc
-    have hr_idx_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
-    have hr_cap : gm (4 + 3 * d.2 + 1) - 1 < tailCapPerBucket n_max :=
-      Nat.sub_lt_of_lt (hinv.multi_r_bounds hb_pos d.2 hb).1
-    have hptr_lt :
-        gmTailPtrBase n_max + (d.2 * tailCapPerBucket n_max + (gm (4 + 3 * d.2 + 1) - 1)) <
-          globalMetaLen n_max := gmTailPtrIdx_lt hb_pos hb hr_cap
-    simp only [hb0, ↓reduceIte]
+  · have hr_pos := pos_gmRIdx_of_pos_bCount hb_pos hinv hb hbc
+    have hnot_zero : bucketBits n_max ≠ 0 := Nat.ne_of_gt hb_pos
+    simp only [hnot_zero, ↓reduceIte]
     rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-      clientResult_readGMProg s hr_idx_lt,
+      readGM_r_result hb_pos hb s,
       StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-      clientResult_readGMProg s hptr_lt]
-    unfold slotOf bCount
-    simp only [hb0, ↓reduceIte, hb]
-    have hnot : ¬(gm (gmQIdx d.2) * slabSize n_max + gm (gmRIdx d.2) - 1 <
-        gm (gmQIdx d.2) * slabSize n_max) := by omega
-    rw [ite_eq_right hnot]
+      clientResult_readGMProg s (lastTailPtrIdx_lt hb_pos hinv hb), bCount_multi_eq hb_pos hb]
+    unfold slotOf
     have hsub : gm (gmQIdx d.2) * slabSize n_max + gm (gmRIdx d.2) - 1 -
         gm (gmQIdx d.2) * slabSize n_max = gm (gmRIdx d.2) - 1 := by omega
-    rw [hsub]
+    rw [ite_eq_right hnot_zero, ite_eq_right (by omega), hsub]
     rfl
+
+private theorem single_gm0_pos_of_bCount {U V w₀ n_max h_space : ℕ} {d : ℕ × ℕ} {s : Memory.State}
+    (hb0 : bucketBits n_max = 0) (hb : d.2 < numBuckets n_max)
+    (hbc : 1 ≤ bCount n_max (gmAt d.1 U V w₀ n_max h_space s.mem) d.2) :
+    1 ≤ (Memory.spec 0).clientResult s (readGMProg U V w₀ n_max h_space (d.1, 0)) := by
+  rw [clientResult_readGMProg _ (by wram_omega : 0 < globalMetaLen n_max)]
+  have hd2 := bucket_eq_zero_of_bits_eq_zero hb0 hb
+  unfold bCount at hbc; simpa only [hb0, ↓reduceIte, hd2] using hbc
 
 theorem realizes_lastSlotOfGen :
     Realizes .exact lastSlotOfGenProg
@@ -424,62 +429,27 @@ theorem realizes_lastSlotOfGen :
       (fun _ _ => 0) := by
   realizeDictWith [lastSlotOfGenPre_mk] using [realizes_readGMGen]
   · exact h.1
-  · unfold globalMetaLen; omega
-  · have hd2 : d.2 = 0 := by
-      have := h.2.2.1
-      have : numBuckets n_max = 1 := by simp [numBuckets, hc]
-      omega
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
-    rw [clientResult_readGMProg _ h0_lt]
-    have hbc := h.2.2.2
-    unfold bCount at hbc
-    simp only [hc, ↓reduceIte, hd2] at hbc
-    exact hbc
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU (le_of_lt (gmRIdx_lt hb_pos h.2.2.1))
-  · refine fits_const_of_dictEnv h.1 ?_; omega
+  · wram_omega
+  · exact single_gm0_pos_of_bCount hc h.2.2.1 h.2.2.2
+  · exact gmRIdx_fits h.1 (Nat.pos_of_ne_zero hc) hw hnU hU h.2.2.1
+  · exact fits_const_of_dictEnv h.1 (by omega)
   · exact h.1
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact gmRIdx_lt hb_pos h.2.2.1
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    have hr_idx_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos h.2.2.1
-    rw [clientResult_readGMProg _ hr_idx_lt]
-    exact pos_gmRIdx_of_pos_bCount hb_pos h.2.1 h.2.2.1 h.2.2.2
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    have hr_idx_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos h.2.2.1
-    rw [clientResult_readGMProg _ hr_idx_lt]
-    have hr_cap :
-        gmAt d.1 U V w₀ n_max h_space s.mem (4 + 3 * d.2 + 1) - 1 < tailCapPerBucket n_max :=
-      Nat.sub_lt_of_lt (h.2.1.multi_r_bounds hb_pos d.2 h.2.2.1).1
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU
-      (le_of_lt (gmTailPtrIdx_lt hb_pos h.2.2.1 hr_cap))
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    have hr_idx_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos h.2.2.1
-    rw [clientResult_readGMProg _ hr_idx_lt]
-    have hr_cap :
-        gmAt d.1 U V w₀ n_max h_space s.mem (4 + 3 * d.2 + 1) - 1 < tailCapPerBucket n_max :=
-      Nat.sub_lt_of_lt (h.2.1.multi_r_bounds hb_pos d.2 h.2.2.1).1
-    exact gmTailPtrIdx_lt hb_pos h.2.2.1 hr_cap
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    have hr_idx_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos h.2.2.1
+  · exact gmRIdx_lt (Nat.pos_of_ne_zero hc) h.2.2.1
+  · rw [readGM_r_result (Nat.pos_of_ne_zero hc) h.2.2.1 s]
+    exact pos_gmRIdx_of_pos_bCount (Nat.pos_of_ne_zero hc) h.2.1 h.2.2.1 h.2.2.2
+  · rw [readGM_r_result (Nat.pos_of_ne_zero hc) h.2.2.1 s]
+    exact fits_of_le_globalMetaLen h.1 (Nat.pos_of_ne_zero hc) hw hnU hU
+      (le_of_lt (lastTailPtrIdx_lt (Nat.pos_of_ne_zero hc) h.2.1 h.2.2.1))
+  · rw [readGM_r_result (Nat.pos_of_ne_zero hc) h.2.2.1 s]
+    exact lastTailPtrIdx_lt (Nat.pos_of_ne_zero hc) h.2.1 h.2.2.1
+  · have hb_pos := Nat.pos_of_ne_zero hc
     have hr_pos := pos_gmRIdx_of_pos_bCount hb_pos h.2.1 h.2.2.1 h.2.2.2
-    have hr_cap :
-        gmAt d.1 U V w₀ n_max h_space s.mem (4 + 3 * d.2 + 1) - 1 < tailCapPerBucket n_max :=
-      Nat.sub_lt_of_lt (h.2.1.multi_r_bounds hb_pos d.2 h.2.2.1).1
-    have hptr_lt : gmTailPtrBase n_max +
-        (d.2 * tailCapPerBucket n_max +
-          (gmAt d.1 U V w₀ n_max h_space s.mem (4 + 3 * d.2 + 1) - 1)) <
-        globalMetaLen n_max := gmTailPtrIdx_lt hb_pos h.2.2.1 hr_cap
-    rw [clientState_readGMProg, clientResult_readGMProg _ hr_idx_lt,
-      clientResult_readGMProg _ hptr_lt]
-    have htail := h.2.1.multi_tail hb_pos
-    unfold gmRIdx at hr_pos
-    have ht_lt := htail.ptr_lt d.2 h.2.2.1
-      (gmAt d.1 U V w₀ n_max h_space s.mem (4 + 3 * d.2 + 1) - 1)
-      (by unfold gmRIdx; omega)
+    rw [clientState_readGMProg, readGM_r_result hb_pos h.2.2.1 s,
+      clientResult_readGMProg s (lastTailPtrIdx_lt hb_pos h.2.1 h.2.2.1)]
+    have ht_lt := (h.2.1.multi_tail hb_pos).ptr_lt d.2 h.2.2.1
+      (gmAt d.1 U V w₀ n_max h_space s.mem (gmRIdx d.2) - 1) (by omega)
     have htot := h.2.1.multi_total_le hb_pos
-    unfold gmTailPtrIdx gmTailPtrFlatIdx at ht_lt
-    omega
+    wram_omega [ht_lt]
 
 /-! ## Section 2: `pushBackSlotProg` via `realize` -/
 
@@ -518,6 +488,21 @@ theorem memoryCost_pushBackTailWriteProg (U V w n_max h_space : ℕ)
     pushBackTailWriteGenProg, p_nMaxSubOne_mk, appendTailItemGenProg_mk, writeQuotGenProg_mk,
     writeValGenProg_mk, readGMGenProg_mk]
 
+private theorem slotOf_ne_freshTail {n_max : ℕ} {gm : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits n_max)
+    (htail : TailBijection n_max gm (fun b' => gm (gmRIdx b')) (gm 1))
+    (hslab : SlabBijection n_max gm (fun b' => gm (gmQIdx b')) (gm 0))
+    (htot : gm 0 * slabSize n_max + gm 1 < n_max)
+    {b' j : ℕ} (hb' : b' < numBuckets n_max) (hj : j < bCount n_max gm b') :
+    slotOf n_max gm b' j ≠ n_max - 1 - gm 1 := by
+  rw [bCount_multi_eq hb_pos hb'] at hj
+  unfold slotOf; rw [ite_eq_right (Nat.ne_of_gt hb_pos)]
+  split_ifs with hj_slab
+  · have hp_lt := hslab.ptr_lt b' hb' (j / slabSize n_max) (by stride_omega [slabSize_pos n_max])
+    stride_omega [slabSize_pos n_max]
+  · have ht'_lt := htail.ptr_lt b' hb' (j - gm (gmQIdx b') * slabSize n_max) (by omega)
+    omega
+
 /-- Pure state effect and return value of `pushBackTailWriteProg`. -/
 theorem pushBackTailWriteProg_effect {U V w n_max h_space base b q_val v_val : ℕ}
     (hw : 0 < w) (hb_pos : 0 < bucketBits n_max)
@@ -555,112 +540,69 @@ theorem pushBackTailWriteProg_effect {U V w n_max h_space base b q_val v_val : �
       valAt base U V w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) =
         valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j)) := by
   intro gm₀ d s₁ gm₁
-  change SlotStoreInv n_max gm₀ at hinv
-  change totalSlots n_max gm₀ < n_max at htot
-  have hb0 : bucketBits n_max ≠ 0 := by omega
-  unfold totalSlots at htot
-  rw [ite_eq_right hb0] at htot
+  rw [totalSlots_multi_eq hb_pos] at htot
   have htail₀ := hinv.multi_tail hb_pos
   have hslab₀ := hinv.multi_slab hb_pos
-  have hr_lt : gm₀ (gmRIdx b) < tailCapPerBucket n_max := (hinv.multi_r_bounds hb_pos b hb).1
-  have ht_lt : gm₀ 1 < maxTailItems n_max := ntails_lt_maxTailItems_of_r_lt hb hr_lt htail₀
+  have hr_lt := (hinv.multi_r_bounds hb_pos b hb).1
+  have ht_lt := ntails_lt_maxTailItems_of_r_lt hb hr_lt htail₀
   obtain ⟨hres_app, hf_app, hout_app, hq_app, hv_app, hl_app, hgm_app⟩ :=
     appendTailItemProg_effect (U := U) (V := V) (h_space := h_space)
       hw hb_pos hb s htail₀ hr_lt
   let s_app := (Memory.spec 0).clientState s (appendTailItemProg U V w n_max h_space (base, b))
   let g_new := (n_max - 1) - gm₀ 1
-  have hg_new_lt : g_new < n_max := by dsimp only [g_new]; omega
   obtain ⟨hf_wq, hout_wq, hq_wq, hv_wq, hl_wq, hgm_wq⟩ :=
-    writeQuotProg_effect (base := base) (V := V) (h_space := h_space) hw hg_new_lt hq_lt s_app
+    writeQuotProg_effect (base := base) (V := V) (h_space := h_space) hw (by omega : g_new < n_max)
+      hq_lt s_app
   let s_wq := (Memory.spec 0).clientState s_app
     (writeQuotProg U w n_max h_space ((base, g_new), q_val))
   obtain ⟨hf_wv, hout_wv, hq_wv, hv_wv, hl_wv, hgm_wv⟩ :=
-    writeValProg_effect (base := base) (h_space := h_space) hw hg_new_lt hv_lt s_wq
+    writeValProg_effect (base := base) (h_space := h_space) hw (by omega : g_new < n_max)
+      hv_lt s_wq
   let s_wv := (Memory.spec 0).clientState s_wq
     (writeValProg U V w n_max h_space ((base, g_new), v_val))
-  have hr_idx_lt : 4 + 3 * b + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
   have hst : s₁ = s_wv := by
-    change (Memory.spec 0).clientState s (pushBackTailWriteProg U V w n_max h_space d) = s_wv
-    simp only [pushBackTailWriteProg, pushBackTailWriteGenProg, p_nMaxSubOne_mk,
-      appendTailItemGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, readGMGenProg_mk]
-    dsimp only [d]
+    simp only [s₁, pushBackTailWriteProg, pushBackTailWriteGenProg, p_nMaxSubOne_mk,
+      appendTailItemGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, readGMGenProg_mk, d]
     rw [StateTransitionSpec.clientState_bind, hres_app,
       StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
       clientState_readGMProg]
   have hgm1_eq : gm₁ = gmAppendTail n_max gm₀ b := by
     dsimp only [gm₁]; rw [hst, hgm_wv, hgm_wq, hgm_app]
-  have hpres := gmAppendTail_preserves_nonTail gm₀ hb hr_lt ht_lt
+  rcases gmAppendTail_preserves_nonTail gm₀ hb hr_lt ht_lt with
+    ⟨hp0, hp1, hpR, hpOther, hpQ, -⟩
   have hres : (Memory.spec 0).clientResult s (pushBackTailWriteProg U V w n_max h_space d) =
       gm₀ (gmRIdx b) + 1 := by
     simp only [pushBackTailWriteProg, pushBackTailWriteGenProg, p_nMaxSubOne_mk,
-      appendTailItemGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, readGMGenProg_mk]
-    dsimp only [d]
+      appendTailItemGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, readGMGenProg_mk, d]
     rw [StateTransitionSpec.clientResult_bind, hres_app,
       StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-      clientResult_readGMProg s_wv hr_idx_lt, ← hst]
-    change gm₁ (gmRIdx b) = gm₀ (gmRIdx b) + 1
-    rw [hgm1_eq, hpres.2.2.1]
-  have htail₁ := tailBijection_gmAppendTail hb hr_lt ht_lt htail₀
-  have ⟨_, hslab₁⟩ := slabBijection_gmAppendTail hb hr_lt ht_lt hslab₀
+      readGM_r_result hb_pos hb s_wv, ← hst]
+    exact congrFun hgm1_eq (gmRIdx b) |>.trans hpR
   have hslot_app := slotOf_gmAppendTail hb_pos hb hr_lt ht_lt htail₀ hslab₀
-  have hbc_b0 : bCount n_max gm₀ b = gm₀ (gmQIdx b) * slabSize n_max + gm₀ (gmRIdx b) := by
-    unfold bCount; simp [hb0, hb]
-  have hbc_b1 : bCount n_max gm₁ b = bCount n_max gm₀ b + 1 := by
-    unfold bCount
-    simp only [hb0, ↓reduceIte, hb, hgm1_eq, hpres.2.2.2.2.1 b hb, hpres.2.2.1]
-    omega
-  have hbc_other : ∀ b' < numBuckets n_max, b' ≠ b → bCount n_max gm₁ b' = bCount n_max gm₀ b' := by
-    intro b' hb' hne
-    unfold bCount
-    simp only [hb0, ↓reduceIte, hb', hgm1_eq, hpres.2.2.2.2.1 b' hb', hpres.2.2.2.1 b' hb' hne]
   have hslot_new : slotOf n_max gm₁ b (bCount n_max gm₀ b) = g_new := by
-    rw [hgm1_eq, hbc_b0, hslot_app.1]
-  have hslot_old_ne : ∀ b' < numBuckets n_max, ∀ j < bCount n_max gm₀ b',
-      slotOf n_max gm₀ b' j ≠ g_new := by
-    intro b' hb' j hj
-    unfold bCount at hj
-    simp only [hb0, ↓reduceIte, hb'] at hj
-    unfold slotOf
-    rw [ite_eq_right hb0]
-    split_ifs with hj_slab
-    · have hs_lt : j / slabSize n_max < gm₀ (gmQIdx b') :=
-        Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-      have hp_lt : slabPtrOf n_max gm₀ b' (j / slabSize n_max) < gm₀ 0 :=
-        hslab₀.ptr_lt b' hb' _ hs_lt
-      have hmod_lt : j % slabSize n_max < slabSize n_max := Nat.mod_lt j (slabSize_pos n_max)
-      have h1 : (slabPtrOf n_max gm₀ b' (j / slabSize n_max) + 1) * slabSize n_max ≤
-          gm₀ 0 * slabSize n_max := Nat.mul_le_mul_right _ hp_lt
-      rw [Nat.add_one_mul] at h1
-      dsimp only [g_new]
-      omega
-    · have hr'_lt : j - gm₀ (gmQIdx b') * slabSize n_max < gm₀ (gmRIdx b') := by omega
-      have ht'_lt : gm₀ (gmTailPtrIdx n_max b' (j - gm₀ (gmQIdx b') * slabSize n_max)) < gm₀ 1 :=
-        htail₀.ptr_lt b' hb' _ hr'_lt
-      dsimp only [g_new]
-      omega
+    rw [hgm1_eq, bCount_multi_eq hb_pos hb, hslot_app.1]
   refine ⟨hres, by rw [hst, hf_wv, hf_wq, hf_app],
     fun a ha => by
-      rw [hst,
-        hout_wv a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-        hout_wq a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-        hout_app a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)],
+      rw [hst, hout_wv a (by wram_omega [ha]), hout_wq a (by wram_omega [ha]),
+        hout_app a (by wram_omega [ha])],
     by rw [hst, hl_wv, hl_wq, hl_app],
     hgm1_eq,
-    by rw [hgm1_eq]; exact htail₁,
-    by rw [hgm1_eq]; exact hslab₁,
-    by rw [hgm1_eq, hpres.1, hpres.2.1]; omega,
-    by rw [hgm1_eq, hpres.2.2.2.2.1 b hb],
-    by rw [hgm1_eq, hpres.2.2.1],
-    fun b' hb' hne => ⟨by rw [hgm1_eq, hpres.2.2.2.2.1 b' hb'],
-      by rw [hgm1_eq, hpres.2.2.2.1 b' hb' hne]⟩,
-    hbc_b1, hbc_other,
-    by rw [hst, hq_wv, hq_wq, hslot_new, Function.update_self],
-    by rw [hst, hv_wv, hslot_new, Function.update_self],
+    hgm1_eq ▸ tailBijection_gmAppendTail hb hr_lt ht_lt htail₀,
+    hgm1_eq ▸ (slabBijection_gmAppendTail hb hr_lt ht_lt hslab₀).2,
+    by rw [hgm1_eq, hp0, hp1]; omega,
+    by rw [hgm1_eq, hpQ b hb],
+    by rw [hgm1_eq, hpR],
+    fun b' hb' hne => ⟨by rw [hgm1_eq, hpQ b' hb'], by rw [hgm1_eq, hpOther b' hb' hne]⟩,
+    by rw [bCount_multi_eq hb_pos hb, bCount_multi_eq hb_pos hb, hgm1_eq, hpQ b hb, hpR]; omega,
+    fun b' hb' hne => by
+      rw [bCount_multi_eq hb_pos hb', bCount_multi_eq hb_pos hb', hgm1_eq, hpQ b' hb',
+        hpOther b' hb' hne],
+    by rw [hst, hq_wv, hq_wq, hslot_new]; update_simp,
+    by rw [hst, hv_wv, hslot_new]; update_simp,
     fun b' hb' j hj => ?_⟩
-  rw [hst, hq_wv, hq_wq, hq_app, hv_wv, hv_wq, hv_app, hgm1_eq, hslot_app.2 b' hb' j hj,
-    Function.update_of_ne (hslot_old_ne b' hb' j hj),
-    Function.update_of_ne (hslot_old_ne b' hb' j hj)]
-  exact ⟨rfl, rfl⟩
+  have hne := slotOf_ne_freshTail hb_pos htail₀ hslab₀ htot hb' hj
+  exact ⟨by rw [hst, hq_wv, hq_wq, hq_app, hgm1_eq, hslot_app.2 b' hb' j hj]; update_simp,
+    by rw [hst, hv_wv, hv_wq, hv_app, hgm1_eq, hslot_app.2 b' hb' j hj]; update_simp⟩
 
 /-- Precondition for `pushBackSlotProg` in `Realizes`. -/
 @[expose]
@@ -719,28 +661,9 @@ private theorem appendTailItem_lt_n_max {U V w₀ n_max h_space w : ℕ}
   have hres := (appendTailItemProg_effect hw hb_pos h.2.2.1 s (h.2.1.multi_tail hb_pos)
     (h.2.1.multi_r_bounds hb_pos d.1.1.2 h.2.2.1).1).1
   have htot := h.2.2.2.1
-  unfold totalSlots at htot
-  rw [ite_eq_right (by omega)] at htot
+  rw [totalSlots_multi_eq hb_pos] at htot
   rcases d with ⟨⟨⟨base, b⟩, q_val⟩, v_val⟩
-  dsimp only at hres htot ⊢
-  omega
-
-private theorem appendTailItem_le_n_max_sub_one {U V w₀ n_max h_space w : ℕ}
-    (hw : 0 < w₀) (hb_pos : 0 < bucketBits n_max)
-    (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State)
-    (h : PushBackSlotPre U V w₀ n_max h_space w d s) :
-    (Memory.spec 0).clientResult s (appendTailItemProg U V w₀ n_max h_space d.1.1) ≤ n_max - 1 := by
-  have := appendTailItem_lt_n_max hw hb_pos d s h
-  omega
-
-private theorem appendTailItem_sub_lt_n_max {U V w₀ n_max h_space w : ℕ}
-    (hw : 0 < w₀) (hb_pos : 0 < bucketBits n_max)
-    (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State)
-    (h : PushBackSlotPre U V w₀ n_max h_space w d s) :
-    n_max - 1 - (Memory.spec 0).clientResult s (appendTailItemProg U V w₀ n_max h_space d.1.1) <
-      n_max := by
-  have := appendTailItem_lt_n_max hw hb_pos d s h
-  omega
+  dsimp only at hres htot ⊢; omega
 
 theorem realizes_pushBackTailWriteGen :
     Realizes .exact pushBackTailWriteGenProg
@@ -761,13 +684,12 @@ theorem realizes_pushBackTailWriteGen :
   )
   · exact ⟨h.1.1, h.1.2.1.multi_tail h.2, h.1.2.2.1,
       (h.1.2.1.multi_r_bounds h.2 d.1.1.2 h.1.2.2.1).1, h.2⟩
-  · exact appendTailItem_le_n_max_sub_one hw h.2 d s h.1
+  · have hlt := appendTailItem_lt_n_max hw h.2 d s h.1; dsimp only [d] at hlt; omega
   · exact h.1.1
-  · exact appendTailItem_sub_lt_n_max hw h.2 d s h.1
+  · have hlt := appendTailItem_lt_n_max hw h.2 d s h.1; dsimp only [d] at hlt; omega
+  · exact gmRIdx_fits h.1.1 h.2 hw hnU hU h.1.2.2.1
   · refine fits_of_le_globalMetaLen h.1.1 h.2 hw hnU hU ?_
-    have := gmRIdx_lt h.2 h.1.2.2.1; unfold gmRIdx at this; omega
-  · refine fits_of_le_globalMetaLen h.1.1 h.2 hw hnU hU ?_
-    have := gmRIdx_lt h.2 h.1.2.2.1; unfold gmRIdx at this; omega
+    have := gmRIdx_lt h.2 h.1.2.2.1; wram_omega [this]
   · exact gmRIdx_lt h.2 h.1.2.2.1
 
 /-- Parameter-free `Memory.Prog` operation appending `(q_val, v_val) = (d.1.2, d.2)` at logical
@@ -823,275 +745,187 @@ private theorem pushBackSlotProg_execution {U V w n_max h_space base b q_val v_v
     readGMGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, writeGMGenProg_mk,
     pushBackTailWriteGenProg_mk, promoteSlabGenProg_mk, hb0, ↓reduceIte]
   constructor
-  · rw [StateTransitionSpec.clientState_bind, hs1, hres]
-    split_ifs <;> rfl
-  · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
-      memoryCost_pushBackTailWriteProg, hs1, hres]
-    split_ifs <;> rfl
+  · rw [StateTransitionSpec.clientState_bind, hs1, hres]; split_ifs <;> rfl
+  · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pushBackTailWriteProg,
+      hs1, hres]; split_ifs <;> rfl
 
--- Keep the final state abstract while proving its invariant and resource bound.
-private theorem pushBackSlotProg_effect_of_clientState {U V w n_max h_space base b q_val v_val : ℕ}
-    (hw : 0 < w) (s : Memory.State)
+private theorem promoteSlabInv_of_other_and_tail {U V w n_max h_space base b : ℕ}
+    {s₀ s₁ : Memory.State} (hb_pos : 0 < bucketBits n_max)
+    (hinv : SlotStoreInv n_max (gmAt base U V w n_max h_space s₀.mem))
+    (hb : b < numBuckets n_max)
+    (htail1 : TailBijection n_max (gmAt base U V w n_max h_space s₁.mem)
+      (fun b' => gmAt base U V w n_max h_space s₁.mem (gmRIdx b'))
+      (gmAt base U V w n_max h_space s₁.mem 1))
+    (hslab1 : SlabBijection n_max (gmAt base U V w n_max h_space s₁.mem)
+      (fun b' => gmAt base U V w n_max h_space s₁.mem (gmQIdx b'))
+      (gmAt base U V w n_max h_space s₁.mem 0))
+    (hrb1 : gmAt base U V w n_max h_space s₁.mem (gmRIdx b) = 2 * slabSize n_max)
+    (hother : ∀ b' < numBuckets n_max, b' ≠ b →
+      gmAt base U V w n_max h_space s₁.mem (gmQIdx b') =
+        gmAt base U V w n_max h_space s₀.mem (gmQIdx b') ∧
+      gmAt base U V w n_max h_space s₁.mem (gmRIdx b') =
+        gmAt base U V w n_max h_space s₀.mem (gmRIdx b'))
+    (htot1 : gmAt base U V w n_max h_space s₁.mem 0 * slabSize n_max +
+      gmAt base U V w n_max h_space s₁.mem 1 ≤ n_max) :
+    PromoteSlabInv U V w n_max h_space base b s₁ :=
+  ⟨hb, htail1, hslab1, hrb1, fun b' hb' hne => by
+    rw [(hother b' hb' hne).1, (hother b' hb' hne).2]
+    exact hinv.multi_r_bounds hb_pos b' hb', htot1⟩
+
+private abbrev PushBackSlotPost (U V w n_max h_space base b q_val v_val : ℕ)
+    (s s' : Memory.State) : Prop :=
+  let gm₀ := gmAt base U V w n_max h_space s.mem
+  let gm' := gmAt base U V w n_max h_space s'.mem
+  s'.frontier = s.frontier ∧
+  (∀ a, ¬(base + offQuot h_space ≤ a ∧
+      a < base + totalSpace U V w n_max h_space) → s'.mem a = s.mem a) ∧
+  lmAt base U V w n_max h_space s'.mem = lmAt base U V w n_max h_space s.mem ∧
+  SlotStoreInv n_max gm' ∧
+  totalSlots n_max gm' = totalSlots n_max gm₀ + 1 ∧
+  bCount n_max gm' b = bCount n_max gm₀ b + 1 ∧
+  (∀ b' < numBuckets n_max, b' ≠ b → bCount n_max gm' b' = bCount n_max gm₀ b') ∧
+  quotAt base U w n_max h_space s'.mem (slotOf n_max gm' b (bCount n_max gm₀ b)) = q_val ∧
+  valAt base U V w n_max h_space s'.mem (slotOf n_max gm' b (bCount n_max gm₀ b)) = v_val ∧
+  (∀ b' < numBuckets n_max, ∀ j < bCount n_max gm₀ b',
+    quotAt base U w n_max h_space s'.mem (slotOf n_max gm' b' j) =
+      quotAt base U w n_max h_space s.mem (slotOf n_max gm₀ b' j) ∧
+    valAt base U V w n_max h_space s'.mem (slotOf n_max gm' b' j) =
+      valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j)) ∧
+  memoryCost (pushBackSlotProg U V w n_max h_space (((base, b), q_val), v_val)) s +
+      66 * slotPotential n_max gm' ≤
+    66 * slotPotential n_max gm₀ + 134
+
+private theorem pushBackSlotProg_effect_single {U V w n_max h_space base b q_val v_val : ℕ}
+    (hw : 0 < w) (hb0 : bucketBits n_max = 0) (s : Memory.State)
+    (hb : b < numBuckets n_max)
+    (htot : totalSlots n_max (gmAt base U V w n_max h_space s.mem) < n_max)
+    (hq_lt : q_val < 2 ^ quotientBits U n_max) (hv_lt : v_val < 2 ^ valBits V) :
+    PushBackSlotPost U V w n_max h_space base b q_val v_val s
+      ((Memory.spec 0).clientState s
+        (pushBackSlotProg U V w n_max h_space (((base, b), q_val), v_val))) := by
+  have hb_eq := bucket_eq_zero_of_bits_eq_zero hb0 hb
+  subst hb_eq
+  unfold totalSlots at htot; rw [ite_eq_left hb0] at htot
+  have h0_lt : 0 < globalMetaLen n_max := by wram_omega
+  have hc1_lt := lt_two_pow_globalPtrBits_of_le_n_max (n_max := n_max)
+    (x := gmAt base U V w n_max h_space s.mem 0 + 1) (by omega)
+  obtain ⟨hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
+    writeQuotProg_effect (base := base) (V := V) (h_space := h_space) hw htot hq_lt s
+  let s₁ := (Memory.spec 0).clientState s
+    (writeQuotProg U w n_max h_space ((base, gmAt base U V w n_max h_space s.mem 0), q_val))
+  obtain ⟨hf2, hout2, hq2, hv2, hl2, hg2⟩ :=
+    writeValProg_effect (base := base) (h_space := h_space) hw htot hv_lt s₁
+  let s₂ := (Memory.spec 0).clientState s₁
+    (writeValProg U V w n_max h_space ((base, gmAt base U V w n_max h_space s.mem 0), v_val))
+  obtain ⟨hf3, hout3, hq3, hv3, hl3, hg3⟩ :=
+    writeGMProg_effect (base := base) (V := V) (h_space := h_space) hw h0_lt hc1_lt s₂
+  have hst : (Memory.spec 0).clientState s
+      (pushBackSlotProg U V w n_max h_space (((base, 0), q_val), v_val)) =
+      (Memory.spec 0).clientState s₂ (writeGMProg U V w n_max h_space
+        ((base, 0), gmAt base U V w n_max h_space s.mem 0 + 1)) := by
+    simp only [pushBackSlotProg, pushBackSlotGenProg, ite_bucketBits_mk, readGMGenProg_mk,
+      writeQuotGenProg_mk, writeValGenProg_mk, writeGMGenProg_mk, hb0, ↓reduceIte]
+    rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
+      clientResult_readGMProg s h0_lt, StateTransitionSpec.clientState_bind,
+      StateTransitionSpec.clientState_bind]
+  have hgm' : gmAt base U V w n_max h_space ((Memory.spec 0).clientState s
+      (pushBackSlotProg U V w n_max h_space (((base, 0), q_val), v_val))).mem =
+      Function.update (gmAt base U V w n_max h_space s.mem) 0
+        (gmAt base U V w n_max h_space s.mem 0 + 1) := by rw [hst, hg3, hg2, hg1]
+  have hcost : memoryCost (pushBackSlotProg U V w n_max h_space (((base, 0), q_val), v_val)) s =
+      14 := by
+    simp [pushBackSlotProg, pushBackSlotGenProg,
+      writeQuotGenProg_mk, writeValGenProg_mk, writeGMGenProg_mk, hb0,
+      ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+  refine ⟨by rw [hst, hf3, hf2, hf1],
+    fun a ha => by
+      rw [hst, hout3 a (by wram_omega [ha]), hout2 a (by wram_omega [ha]),
+        hout1 a (by wram_omega [ha])],
+    by rw [hst, hl3, hl2, hl1],
+    slotStoreInv_single hb0 (by rw [hgm']; update_simp; omega),
+    by unfold totalSlots; simp only [hb0, ↓reduceIte, hgm']; update_simp,
+    by unfold bCount; simp only [hb0, ↓reduceIte, hgm']; update_simp,
+    fun b' hb' hne => absurd (bucket_eq_zero_of_bits_eq_zero hb0 hb') hne,
+    by rw [hst, hq3, hq2, hq1]; simp only [slotOf, bCount, hb0, ↓reduceIte]; update_simp,
+    by rw [hst, hv3, hv2]; simp only [slotOf, bCount, hb0, ↓reduceIte]; update_simp,
+    fun b' hb' j hj => ?_, by unfold slotPotential; simp [hb0, hcost]⟩
+  obtain rfl := bucket_eq_zero_of_bits_eq_zero hb0 hb'
+  simp only [bCount, hb0, ↓reduceIte] at hj
+  simp only [slotOf, hb0, ↓reduceIte]
+  exact ⟨by rw [hst, hq3, hq2, hq1]; update_simp, by rw [hst, hv3, hv2, hv1]; update_simp⟩
+
+private theorem pushBackSlotProg_effect_multi {U V w n_max h_space base b q_val v_val : ℕ}
+    (hw : 0 < w) (hb_pos : 0 < bucketBits n_max) (s : Memory.State)
     (hinv : SlotStoreInv n_max (gmAt base U V w n_max h_space s.mem))
     (hb : b < numBuckets n_max)
     (htot : totalSlots n_max (gmAt base U V w n_max h_space s.mem) < n_max)
-    (hq_lt : q_val < 2 ^ quotientBits U n_max)
-    (hv_lt : v_val < 2 ^ valBits V) :
-    let gm₀ := gmAt base U V w n_max h_space s.mem
-    let d := (((base, b), q_val), v_val)
-    ∀ s' : Memory.State,
-      (Memory.spec 0).clientState s (pushBackSlotProg U V w n_max h_space d) = s' →
-    let gm' := gmAt base U V w n_max h_space s'.mem
-    s'.frontier = s.frontier ∧
-    (∀ a, ¬(base + offQuot h_space ≤ a ∧
-        a < base + totalSpace U V w n_max h_space) → s'.mem a = s.mem a) ∧
-    lmAt base U V w n_max h_space s'.mem = lmAt base U V w n_max h_space s.mem ∧
-    SlotStoreInv n_max gm' ∧
-    totalSlots n_max gm' = totalSlots n_max gm₀ + 1 ∧
-    bCount n_max gm' b = bCount n_max gm₀ b + 1 ∧
-    (∀ b' < numBuckets n_max, b' ≠ b → bCount n_max gm' b' = bCount n_max gm₀ b') ∧
-    quotAt base U w n_max h_space s'.mem (slotOf n_max gm' b (bCount n_max gm₀ b)) = q_val ∧
-    valAt base U V w n_max h_space s'.mem (slotOf n_max gm' b (bCount n_max gm₀ b)) = v_val ∧
-    (∀ b' < numBuckets n_max, ∀ j < bCount n_max gm₀ b',
-      quotAt base U w n_max h_space s'.mem (slotOf n_max gm' b' j) =
-        quotAt base U w n_max h_space s.mem (slotOf n_max gm₀ b' j) ∧
-      valAt base U V w n_max h_space s'.mem (slotOf n_max gm' b' j) =
-        valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j)) ∧
-    memoryCost (pushBackSlotProg U V w n_max h_space d) s + 66 * slotPotential n_max gm' ≤
-      66 * slotPotential n_max gm₀ + 134 := by
-  intro gm₀ d s' hrun gm'
-  change SlotStoreInv n_max gm₀ at hinv
-  change totalSlots n_max gm₀ < n_max at htot
-  by_cases hb0 : bucketBits n_max = 0
-  · have hb_eq : b = 0 := by
-      have : numBuckets n_max = 1 := by simp [numBuckets, hb0]
-      omega
-    subst hb_eq
-    unfold totalSlots at htot
-    rw [ite_eq_left hb0] at htot
-    change gm₀ 0 < n_max at htot
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
-    have hc1_lt : gm₀ 0 + 1 < 2 ^ globalPtrBits n_max :=
-      lt_two_pow_globalPtrBits_of_le_n_max (by omega)
-    obtain ⟨hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
-      writeQuotProg_effect (base := base) (V := V) (h_space := h_space) hw htot hq_lt s
-    let s₁ := (Memory.spec 0).clientState s
-      (writeQuotProg U w n_max h_space ((base, gm₀ 0), q_val))
-    obtain ⟨hf2, hout2, hq2, hv2, hl2, hg2⟩ :=
-      writeValProg_effect (base := base) (h_space := h_space) hw htot hv_lt s₁
-    let s₂ := (Memory.spec 0).clientState s₁
-      (writeValProg U V w n_max h_space ((base, gm₀ 0), v_val))
-    obtain ⟨hf3, hout3, hq3, hv3, hl3, hg3⟩ :=
-      writeGMProg_effect (base := base) (V := V) (h_space := h_space) hw h0_lt hc1_lt s₂
-    let s₃ := (Memory.spec 0).clientState s₂
-      (writeGMProg U V w n_max h_space ((base, 0), gm₀ 0 + 1))
-    have hst : s' = s₃ := by
-      rw [← hrun]
-      change (Memory.spec 0).clientState s (pushBackSlotProg U V w n_max h_space d) = s₃
-      simp only [pushBackSlotProg, pushBackSlotGenProg, ite_bucketBits_mk, p_twoSlabSize_mk,
-        readGMGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, writeGMGenProg_mk,
-        pushBackTailWriteGenProg_mk, promoteSlabGenProg_mk]
-      simp only [hb0, ↓reduceIte, d]
-      rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
-        clientResult_readGMProg s h0_lt]
-      repeat rw [StateTransitionSpec.clientState_bind]
-    have hgm'_eq : gm' = Function.update gm₀ 0 (gm₀ 0 + 1) := by
-      dsimp only [gm']; rw [hst, hg3, hg2, hg1]
-    have hinv' : SlotStoreInv n_max gm' := by
-      refine ⟨fun _ => by rw [hgm'_eq, Function.update_self]; omega,
-        fun h => by omega, fun h => by omega, fun h => by omega, fun h => by omega⟩
-    have hbc0 : bCount n_max gm₀ 0 = gm₀ 0 := by unfold bCount; simp [hb0]
-    have hbc' : bCount n_max gm' 0 = gm₀ 0 + 1 := by
-      unfold bCount; simp [hb0, hgm'_eq]
-    have hslot_eq : ∀ b' j, slotOf n_max gm' b' j = j ∧ slotOf n_max gm₀ b' j = j := by
-      intro b' j; unfold slotOf; simp [hb0]
-    refine ⟨by rw [hst, hf3, hf2, hf1],
-      fun a ha => by
-        rw [hst,
-          hout3 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-          hout2 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-          hout1 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)],
-      by rw [hst, hl3, hl2, hl1],
-      hinv',
-      by unfold totalSlots; simp [hb0, hgm'_eq],
-      by rw [hbc', hbc0],
-      fun b' hb' hne => by
-        have : numBuckets n_max = 1 := by simp [numBuckets, hb0]
-        omega,
-      by rw [hst, hq3, hq2, hq1, (hslot_eq 0 _).1, hbc0, Function.update_self],
-      by rw [hst, hv3, hv2, (hslot_eq 0 _).1, hbc0, Function.update_self],
+    (hq_lt : q_val < 2 ^ quotientBits U n_max) (hv_lt : v_val < 2 ^ valBits V)
+    (s' : Memory.State)
+    (hrun : (Memory.spec 0).clientState s
+      (pushBackSlotProg U V w n_max h_space (((base, b), q_val), v_val)) = s') :
+    PushBackSlotPost U V w n_max h_space base b q_val v_val s s' := by
+  unfold PushBackSlotPost
+  intro gm₀ gm'
+  let d := (((base, b), q_val), v_val)
+  have hr0_lt : gm₀ (gmRIdx b) < 2 * slabSize n_max := r_lt_two_slabSize hb_pos hinv hb
+  have htot0 : gm₀ 0 * slabSize n_max + gm₀ 1 < n_max := by
+    have h := htot; rw [totalSlots_multi_eq hb_pos] at h; exact h
+  obtain ⟨hres1, hf1, hout1, hl1, -, htail1, hslab1, htot1, hqb1, hrb1, hother1,
+      hbc_b1, hbc_other1, hq_new1, hv_new1, hold1⟩ :=
+    pushBackTailWriteProg_effect (U := U) (V := V) (h_space := h_space)
+      hw hb_pos s hinv hb htot hq_lt hv_lt
+  obtain ⟨hexec, hcharge⟩ := pushBackSlotProg_execution s _ (Nat.ne_of_gt hb_pos) rfl _ hres1
+  generalize hs₁ : (Memory.spec 0).clientState s
+    (pushBackTailWriteProg U V w n_max h_space d) = s₁ at *
+  have hexec' := hrun.symm.trans hexec
+  by_cases hprom : gmAt base U V w n_max h_space s.mem (gmRIdx b) + 1 = 2 * slabSize n_max
+  · have hst : s' = (Memory.spec 0).clientState s₁
+        (promoteSlabProg U V w n_max h_space (base, b)) := hexec'.trans (ite_eq_left hprom)
+    have htot1_le : gmAt base U V w n_max h_space s₁.mem 0 * slabSize n_max +
+        gmAt base U V w n_max h_space s₁.mem 1 ≤ n_max := by
+      dsimp only [gm₀] at htot0; omega
+    have hpre : PromoteSlabInv U V w n_max h_space base b s₁ :=
+      promoteSlabInv_of_other_and_tail hb_pos hinv hb htail1 hslab1 (by rw [hrb1, hprom])
+        hother1 htot1_le
+    obtain ⟨hf2, hout2, hl2, hinv2, hqb2, hrb2, hother2, hbc2, hslot2, hcost2⟩ :=
+      promoteSlabProg_effect hw hb_pos s₁ hpre
+    have htot2 := promoteSlabProg_tot_eq hw hb_pos s₁ hpre
+    rw [← hst] at hf2 hout2 hl2 hinv2 hqb2 hrb2 hother2 hbc2 hslot2 htot2
+    have hpot := slotPotential_pushBack_le hb_pos hb
+      ⟨by unfold pushBackCounts; rw [ite_eq_left hprom, hqb2, hqb1],
+       by unfold pushBackCounts; rw [ite_eq_left hprom, hrb2]⟩
+      fun b' hb' hne => ⟨(hother2 b' hb' hne).1.trans (hother1 b' hb' hne).1,
+        (hother2 b' hb' hne).2.trans (hother1 b' hb' hne).2⟩
+    unfold pushBackWork at hpot; rw [ite_eq_left hprom] at hpot hcharge
+    have hbc_lt : bCount n_max gm' b = bCount n_max gm₀ b + 1 := (hbc2 b hb).trans hbc_b1
+    have hbc_old_lt : bCount n_max gm₀ b < bCount n_max gm' b := by rw [hbc_lt]; omega
+    refine ⟨hf2.trans hf1, fun a ha => (hout2 a ha).trans (hout1 a ha), hl2.trans hl1, hinv2,
+      by rw [totalSlots_multi_eq hb_pos, totalSlots_multi_eq hb_pos, htot2, htot1],
+      hbc_lt, fun b' hb' hne => (hbc2 b' hb').trans (hbc_other1 b' hb' hne),
+      by rw [(hslot2 b hb _ hbc_old_lt).1, hq_new1],
+      by rw [(hslot2 b hb _ hbc_old_lt).2, hv_new1],
       fun b' hb' j hj => ?_, ?_⟩
-    · have hb'_eq : b' = 0 := by
-        have : numBuckets n_max = 1 := by simp [numBuckets, hb0]
-        omega
-      subst hb'_eq
-      rw [hbc0] at hj
-      rw [hst, hq3, hq2, hq1, hv3, hv2, hv1, (hslot_eq 0 j).1, (hslot_eq 0 j).2,
-        Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-      exact ⟨rfl, rfl⟩
-    · have hcost : memoryCost (pushBackSlotProg U V w n_max h_space d) s = 14 := by
-        simp only [pushBackSlotProg, pushBackSlotGenProg, ite_bucketBits_mk, p_twoSlabSize_mk,
-          readGMGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, writeGMGenProg_mk,
-          pushBackTailWriteGenProg_mk, promoteSlabGenProg_mk]
-        simp [hb0, d, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      have hpot' : slotPotential n_max gm' = 0 := by unfold slotPotential; simp [hb0]
-      have hpot0 : slotPotential n_max gm₀ = 0 := by unfold slotPotential; simp [hb0]
-      rw [hcost, hpot', hpot0]
-      omega
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
-    have hK_pos : 0 < slabSize n_max := slabSize_pos n_max
-    have hr0_lt : gm₀ (gmRIdx b) < 2 * slabSize n_max := by
-      have := (hinv.multi_r_bounds hb_pos b hb).1
-      unfold tailCapPerBucket at this
-      rw [ite_eq_right hb0] at this
-      exact this
-    obtain ⟨hres1, hf1, hout1, hl1, hgm1_eq, htail1, hslab1, htot1, hqb1, hrb1, hother1,
-        hbc_b1, hbc_other1, hq_new1, hv_new1, hold1⟩ :=
-      pushBackTailWriteProg_effect (U := U) (V := V) (h_space := h_space)
-        hw hb_pos s hinv hb htot hq_lt hv_lt
-    -- Compose execution while the intermediate state is still syntactically identical.
-    -- Generalize the resulting equations together with the primitive semantic facts.
-    obtain ⟨hexec, hcharge⟩ := pushBackSlotProg_execution
-      (U := U) (V := V) (w := w) (n_max := n_max) (h_space := h_space)
-      (base := base) (b := b) (q_val := q_val) (v_val := v_val) s _ hb0 rfl
-      (gm₀ (gmRIdx b) + 1) hres1
-    generalize hs₁ : (Memory.spec 0).clientState s
-      (pushBackTailWriteProg U V w n_max h_space d) = s₁ at *
-    let gm₁ := gmAt base U V w n_max h_space s₁.mem
-    change (Memory.spec 0).clientResult s (pushBackTailWriteProg U V w n_max h_space d) =
-      gm₀ (gmRIdx b) + 1 at hres1
-    change gm₁ = gmAppendTail n_max gm₀ b at hgm1_eq
-    change TailBijection n_max gm₁ (fun b' => gm₁ (gmRIdx b')) (gm₁ 1) at htail1
-    change SlabBijection n_max gm₁ (fun b' => gm₁ (gmQIdx b')) (gm₁ 0) at hslab1
-    change gm₁ 0 * slabSize n_max + gm₁ 1 = gm₀ 0 * slabSize n_max + gm₀ 1 + 1 at htot1
-    change gm₁ (gmQIdx b) = gm₀ (gmQIdx b) at hqb1
-    change gm₁ (gmRIdx b) = gm₀ (gmRIdx b) + 1 at hrb1
-    change ∀ b' < numBuckets n_max, b' ≠ b →
-      gm₁ (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm₁ (gmRIdx b') = gm₀ (gmRIdx b') at hother1
-    change bCount n_max gm₁ b = bCount n_max gm₀ b + 1 at hbc_b1
-    change ∀ b' < numBuckets n_max, b' ≠ b → bCount n_max gm₁ b' = bCount n_max gm₀ b' at hbc_other1
-    change quotAt base U w n_max h_space s₁.mem (slotOf n_max gm₁ b (bCount n_max gm₀ b)) =
-      q_val at hq_new1
-    change valAt base U V w n_max h_space s₁.mem (slotOf n_max gm₁ b (bCount n_max gm₀ b)) =
-      v_val at hv_new1
-    change ∀ b' < numBuckets n_max, ∀ j < bCount n_max gm₀ b',
-      quotAt base U w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) =
-        quotAt base U w n_max h_space s.mem (slotOf n_max gm₀ b' j) ∧
-      valAt base U V w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) =
-        valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j) at hold1
-    have htot0_lt : gm₀ 0 * slabSize n_max + gm₀ 1 < n_max := by
-      unfold totalSlots at htot; rw [ite_eq_right hb0] at htot; exact htot
-    have hexec' := hrun.symm.trans hexec
-    by_cases hprom : gm₀ (gmRIdx b) + 1 = 2 * slabSize n_max
-    · have hst : s' = (Memory.spec 0).clientState s₁
-          (promoteSlabProg U V w n_max h_space (base, b)) := by
-        exact hexec'.trans (by rw [ite_eq_left hprom])
-      have hcost := hcharge
-      rw [ite_eq_left hprom] at hcost
-      have hpre_prom : PromoteSlabInv U V w n_max h_space base b s₁ := by
-        refine ⟨hb, htail1, hslab1, ?_, fun b' hb' hne => ?_, ?_⟩
-        · change gm₁ (gmRIdx b) = 2 * slabSize n_max
-          rw [hrb1, hprom]
-        · change gm₁ (gmRIdx b') < tailCapPerBucket n_max ∧
-            (0 < gm₁ (gmQIdx b') → 1 ≤ gm₁ (gmRIdx b'))
-          rw [(hother1 b' hb' hne).1, (hother1 b' hb' hne).2]
-          exact hinv.multi_r_bounds hb_pos b' hb'
-        · change gm₁ 0 * slabSize n_max + gm₁ 1 ≤ n_max
-          omega
-      obtain ⟨hf2, hout2, hl2, hinv2, hqb2, hrb2, hother2, hbc2, hslot2, hcost2⟩ :=
-        promoteSlabProg_effect hw hb_pos s₁ hpre_prom
-      have htot2 := promoteSlabProg_tot_eq hw hb_pos s₁ hpre_prom
-      rw [← hst] at hf2 hout2 hl2 hinv2 hqb2 hrb2 hother2 hbc2 hslot2 htot2
-      change SlotStoreInv n_max gm' at hinv2
-      change gm' (gmQIdx b) = gm₁ (gmQIdx b) + 1 at hqb2
-      change gm' (gmRIdx b) = slabSize n_max at hrb2
-      change ∀ b' < numBuckets n_max, b' ≠ b →
-        gm' (gmQIdx b') = gm₁ (gmQIdx b') ∧ gm' (gmRIdx b') = gm₁ (gmRIdx b') at hother2
-      change ∀ b' < numBuckets n_max, bCount n_max gm' b' = bCount n_max gm₁ b' at hbc2
-      change ∀ b' < numBuckets n_max, ∀ j < bCount n_max gm' b',
-        quotAt base U w n_max h_space s'.mem (slotOf n_max gm' b' j) =
-          quotAt base U w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) ∧
-        valAt base U V w n_max h_space s'.mem (slotOf n_max gm' b' j) =
-          valAt base U V w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) at hslot2
-      change gm' 0 * slabSize n_max + gm' 1 = gm₁ 0 * slabSize n_max + gm₁ 1 at htot2
-      have hupd : gm' (gmQIdx b) =
-            (pushBackCounts (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-          gm' (gmRIdx b) =
-            (pushBackCounts (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold pushBackCounts
-        rw [ite_eq_left hprom]
-        exact ⟨by rw [hqb2, hqb1], hrb2⟩
-      have hother_all : ∀ b' < numBuckets n_max, b' ≠ b →
-          gm' (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm' (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne
-        exact ⟨(hother2 b' hb' hne).1.trans (hother1 b' hb' hne).1,
-          (hother2 b' hb' hne).2.trans (hother1 b' hb' hne).2⟩
-      have hpot := slotPotential_pushBack_le hb_pos hb hupd hother_all
-      have hwork : pushBackWork (slabSize n_max) (gm₀ (gmRIdx b)) = slabSize n_max := by
-        unfold pushBackWork; rw [ite_eq_left hprom]
-      rw [hwork] at hpot
-      have hbc_new_lt : bCount n_max gm₀ b < bCount n_max gm' b := by
-        rw [hbc2 b hb, hbc_b1]; omega
-      refine ⟨hf2.trans hf1, fun a ha => (hout2 a ha).trans (hout1 a ha), hl2.trans hl1,
-        hinv2,
-        by unfold totalSlots; rw [ite_eq_right hb0, ite_eq_right hb0, htot2, htot1],
-        (hbc2 b hb).trans hbc_b1,
-        fun b' hb' hne => (hbc2 b' hb').trans (hbc_other1 b' hb' hne),
-        by rw [(hslot2 b hb (bCount n_max gm₀ b) hbc_new_lt).1, hq_new1],
-        by rw [(hslot2 b hb (bCount n_max gm₀ b) hbc_new_lt).2, hv_new1],
-        fun b' hb' j hj => ?_, ?_⟩
-      · have hj' : j < bCount n_max gm' b' := by
-          rw [hbc2 b' hb']
-          by_cases hbeq : b' = b
-          · subst b'; rw [hbc_b1]; omega
-          · rw [hbc_other1 b' hb' hbeq]; exact hj
-        exact ⟨((hslot2 b' hb' j hj').1).trans (hold1 b' hb' j hj).1,
-          ((hslot2 b' hb' j hj').2).trans (hold1 b' hb' j hj).2⟩
-      · rw [hcost]
-        omega
-    · have hst : s' = s₁ := by
-        exact hexec'.trans (by rw [ite_eq_right hprom])
-      have hgm'_eq : gm' = gm₁ := by dsimp only [gm', gm₁]; rw [hst]
-      have hcost : memoryCost (pushBackSlotProg U V w n_max h_space d) s = 30 := by
-        simpa only [ite_eq_right hprom, Nat.add_zero] using hcharge
-      have hinv1 : SlotStoreInv n_max gm₁ := by
-        refine ⟨fun h0 => by omega, fun _ => htail1, fun _ => hslab1, fun _ b' hb' => ?_,
-          fun _ => by omega⟩
+    · have hj' : j < bCount n_max gm' b' := by
         by_cases hbeq : b' = b
-        · subst b'
-          rw [hqb1, hrb1]
-          unfold tailCapPerBucket
-          rw [ite_eq_right hb0]
-          omega
-        · rw [(hother1 b' hb' hbeq).1, (hother1 b' hb' hbeq).2]
-          exact hinv.multi_r_bounds hb_pos b' hb'
-      have hupd : gm' (gmQIdx b) =
-            (pushBackCounts (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-          gm' (gmRIdx b) =
-            (pushBackCounts (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold pushBackCounts
-        rw [ite_eq_right hprom, hgm'_eq]
-        exact ⟨hqb1, hrb1⟩
-      have hother_all : ∀ b' < numBuckets n_max, b' ≠ b →
-          gm' (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm' (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne; rw [hgm'_eq]; exact hother1 b' hb' hne
-      have hpot := slotPotential_pushBack_le hb_pos hb hupd hother_all
-      have hwork : pushBackWork (slabSize n_max) (gm₀ (gmRIdx b)) = 0 := by
-        unfold pushBackWork; rw [ite_eq_right hprom]
-      rw [hwork, Nat.add_zero] at hpot
-      refine ⟨by rw [hst, hf1],
-        fun a ha => by rw [hst, hout1 a ha],
-        by rw [hst, hl1],
-        by rw [hgm'_eq]; exact hinv1,
-        by unfold totalSlots; rw [ite_eq_right hb0, ite_eq_right hb0, hgm'_eq, htot1],
-        by rw [hgm'_eq, hbc_b1],
-        fun b' hb' hne => by rw [hgm'_eq, hbc_other1 b' hb' hne],
-        by rw [hst, hgm'_eq, hq_new1],
-        by rw [hst, hgm'_eq, hv_new1],
-        fun b' hb' j hj => by rw [hst, hgm'_eq]; exact hold1 b' hb' j hj,
-        ?_⟩
-      rw [hcost]
-      omega
+        · subst b'; rw [hbc_lt]; omega
+        · rw [hbc2 b' hb', hbc_other1 b' hb' hbeq]; exact hj
+      exact ⟨(hslot2 b' hb' j hj').1.trans (hold1 b' hb' j hj).1,
+        (hslot2 b' hb' j hj').2.trans (hold1 b' hb' j hj).2⟩
+    · dsimp only [d, gm₀, gm'] at hcharge hcost2 hpot ⊢; omega
+  · have hst : s' = s₁ := hexec'.trans (ite_eq_right hprom)
+    subst hst
+    have hinv1 := slotStoreInv_multi_of_bucket hb_pos hinv htail1 hslab1
+      (by rw [hqb1, hrb1]; unfold tailCapPerBucket; rw [ite_eq_right (Nat.ne_of_gt hb_pos)]
+          dsimp only [gm₀] at hr0_lt; omega)
+      hother1 (by dsimp only [gm₀] at htot0; omega)
+    have hpot := slotPotential_pushBack_le hb_pos hb
+      ⟨by unfold pushBackCounts; rw [ite_eq_right hprom, hqb1],
+       by unfold pushBackCounts; rw [ite_eq_right hprom, hrb1]⟩ hother1
+    unfold pushBackWork at hpot; rw [ite_eq_right hprom] at hpot hcharge
+    exact ⟨hf1, hout1, hl1, hinv1,
+      by rw [totalSlots_multi_eq hb_pos, totalSlots_multi_eq hb_pos, htot1],
+      hbc_b1, hbc_other1, hq_new1, hv_new1, hold1,
+      by dsimp only [d, gm₀, gm'] at hcharge hpot ⊢; omega⟩
 
 /-- Pure state effect and amortized `memoryCost` bound of `pushBackSlotProg`. -/
 theorem pushBackSlotProg_effect {U V w n_max h_space base b q_val v_val : ℕ}
@@ -1122,7 +956,9 @@ theorem pushBackSlotProg_effect {U V w n_max h_space base b q_val v_val : ℕ}
         valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j)) ∧
     memoryCost (pushBackSlotProg U V w n_max h_space d) s + 66 * slotPotential n_max gm' ≤
       66 * slotPotential n_max gm₀ + 134 := by
-  exact pushBackSlotProg_effect_of_clientState hw s hinv hb htot hq_lt hv_lt _ rfl
+  rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
+  · exact pushBackSlotProg_effect_single hw hb0 s hb htot hq_lt hv_lt
+  · exact pushBackSlotProg_effect_multi hw hb_pos s hinv hb htot hq_lt hv_lt _ rfl
 
 theorem realizes_pushBackSlotGen :
     Realizes .exact pushBackSlotGenProg
@@ -1142,35 +978,23 @@ theorem realizes_pushBackSlotGen :
     dsimp only [d, PushBackSlotPre] at *
   )
   · exact h.1
-  · unfold globalMetaLen; omega
-  · have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
-    rw [clientResult_readGMProg _ h0_lt]
-    have htot := h.2.2.2.1
-    unfold totalSlots at htot
-    rw [ite_eq_left hc] at htot
-    exact htot
-  · have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
-    rw [clientResult_readGMProg _ h0_lt]
-    have htot := h.2.2.2.1
-    unfold totalSlots at htot
-    rw [ite_eq_left hc] at htot
-    refine fits_of_le_max_n_one h.1 hw hnU hU ?_
-    omega
+  · wram_omega
+  · rw [clientResult_readGMProg _ (by wram_omega : 0 < globalMetaLen n_max)]
+    have htot := h.2.2.2.1; unfold totalSlots at htot; rwa [ite_eq_left hc] at htot
+  · rw [clientResult_readGMProg _ (by wram_omega : 0 < globalMetaLen n_max)]
+    have htot := h.2.2.2.1; unfold totalSlots at htot; rw [ite_eq_left hc] at htot
+    exact fits_of_le_max_n_one h.1 hw hnU hU (by omega)
   · exact ⟨h, Nat.pos_of_ne_zero hc⟩
   · rename_i hc0
-    have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc0
+    have hb_pos := Nat.pos_of_ne_zero hc0
     rcases h with ⟨hdict, hinv, hb, htot, hq_lt, hv_lt⟩
     obtain ⟨hres1, _, _, _, _, htail1, hslab1, htot1, _, hrb1, hother1, _⟩ :=
       pushBackTailWriteProg_effect (U := U) (V := V) (h_space := h_space)
         hw hb_pos s hinv hb htot hq_lt hv_lt
+    rw [totalSlots_multi_eq hb_pos] at htot
     rw [hres1] at hc
-    have htot0_lt : gmAt base U V w₀ n_max h_space s.mem 0 * slabSize n_max +
-        gmAt base U V w₀ n_max h_space s.mem 1 < n_max := by
-      unfold totalSlots at htot; rw [ite_eq_right hc0] at htot; exact htot
-    refine ⟨hdict, ⟨hb, htail1, hslab1, by rw [hrb1, hc], fun b' hb' hne => ?_, by omega⟩,
-      hb_pos⟩
-    rw [(hother1 b' hb' hne).1, (hother1 b' hb' hne).2]
-    exact hinv.multi_r_bounds hb_pos b' hb'
+    exact ⟨hdict, promoteSlabInv_of_other_and_tail hb_pos hinv hb htail1 hslab1
+      (by rw [hrb1, hc]) hother1 (by omega), hb_pos⟩
 
 /-! ## Section 3: `popBackSlotProg` via `realize` -/
 
@@ -1252,8 +1076,7 @@ private theorem popBackSlotProg_execution {U V w n_max h_space base b : ℕ}
   · rw [StateTransitionSpec.clientState_bind, hs1,
       StateTransitionSpec.clientState_bind, clientState_readGMProg, hr,
       StateTransitionSpec.clientState_bind, clientState_readGMProg, hq]
-    by_cases hr0 : r = 0 <;> by_cases hq0 : 0 < q <;>
-      simp [hr0, hq0] <;> rfl
+    by_cases hr0 : r = 0 <;> by_cases hq0 : 0 < q <;> simp [hr0, hq0] <;> rfl
   · simp only [← PFunctor.FreeM.bind_eq_bind]
     rw [memoryCost_bind, memoryCost_removeLastTailItemProg, hs1,
       memoryCost_bind, memoryCost_readGMProg, clientState_readGMProg, hr,
@@ -1262,273 +1085,196 @@ private theorem popBackSlotProg_execution {U V w n_max h_space base b : ℕ}
     all_goals simp [hr0, hq0, memoryCost_pure]
     omega
 
--- Keep the final state abstract while proving its invariant and resource bound.
-private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base b : ℕ}
-    (hw : 0 < w) (s : Memory.State)
+private theorem popBackTailRemove_effect {U V w n_max h_space base b : ℕ}
+    (hw : 0 < w) (hb_pos : 0 < bucketBits n_max) (s : Memory.State)
     (hinv : SlotStoreInv n_max (gmAt base U V w n_max h_space s.mem))
     (hb : b < numBuckets n_max)
     (hbc : 1 ≤ bCount n_max (gmAt base U V w n_max h_space s.mem) b) :
     let gm₀ := gmAt base U V w n_max h_space s.mem
-    let d := (base, b)
-    ∀ s' : Memory.State,
-      (Memory.spec 0).clientState s (popBackSlotProg U V w n_max h_space d) = s' →
-    let gm' := gmAt base U V w n_max h_space s'.mem
-    s'.frontier = s.frontier ∧
-    (∀ a, ¬(base + offQuot h_space ≤ a ∧
-        a < base + totalSpace U V w n_max h_space) → s'.mem a = s.mem a) ∧
-    lmAt base U V w n_max h_space s'.mem = lmAt base U V w n_max h_space s.mem ∧
-    SlotStoreInv n_max gm' ∧
-    totalSlots n_max gm' + 1 = totalSlots n_max gm₀ ∧
-    bCount n_max gm' b = bCount n_max gm₀ b - 1 ∧
-    (∀ b' < numBuckets n_max, b' ≠ b → bCount n_max gm' b' = bCount n_max gm₀ b') ∧
-    (∀ b' < numBuckets n_max, ∀ j < bCount n_max gm' b',
-      quotAt base U w n_max h_space s'.mem (slotOf n_max gm' b' j) =
-        quotAt base U w n_max h_space s.mem (slotOf n_max gm₀ b' j) ∧
-      valAt base U V w n_max h_space s'.mem (slotOf n_max gm' b' j) =
-        valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j)) ∧
-    memoryCost (popBackSlotProg U V w n_max h_space d) s + 66 * slotPotential n_max gm' ≤
-      66 * slotPotential n_max gm₀ + 174 := by
-  intro gm₀ d s' hrun gm'
-  change SlotStoreInv n_max gm₀ at hinv
-  change 1 ≤ bCount n_max gm₀ b at hbc
-  by_cases hb0 : bucketBits n_max = 0
-  · have hb_eq : b = 0 := by
-      have : numBuckets n_max = 1 := by simp [numBuckets, hb0]
-      omega
-    subst hb_eq
-    unfold bCount at hbc
-    simp only [hb0, ↓reduceIte] at hbc
-    change 1 ≤ gm₀ 0 at hbc
-    have hc_le : gm₀ 0 ≤ n_max := hinv.single_valid hb0
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
-    have hc1_lt : gm₀ 0 - 1 < 2 ^ globalPtrBits n_max :=
-      lt_two_pow_globalPtrBits_of_le_n_max (by omega)
-    obtain ⟨hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
-      writeGMProg_effect (base := base) (V := V) (h_space := h_space) hw h0_lt hc1_lt s
-    let s₁ := (Memory.spec 0).clientState s
-      (writeGMProg U V w n_max h_space ((base, 0), gm₀ 0 - 1))
-    have hst : s' = s₁ := by
-      rw [← hrun]
-      change (Memory.spec 0).clientState s (popBackSlotProg U V w n_max h_space d) = s₁
-      simp only [popBackSlotProg, popBackSlotGenProg, ite_bucketBits_mk, readGMGenProg_mk,
-        writeGMGenProg_mk, removeLastTailItemGenProg_mk, demoteSlabGenProg_mk]
-      simp only [hb0, ↓reduceIte, d]
-      rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
-        clientResult_readGMProg s h0_lt]
-    have hgm'_eq : gm' = Function.update gm₀ 0 (gm₀ 0 - 1) := by
-      dsimp only [gm']; rw [hst, hg1]
-    have hinv' : SlotStoreInv n_max gm' := by
-      refine ⟨fun _ => by rw [hgm'_eq, Function.update_self]; omega,
-        fun h => by omega, fun h => by omega, fun h => by omega, fun h => by omega⟩
-    have hbc0 : bCount n_max gm₀ 0 = gm₀ 0 := by unfold bCount; simp [hb0]
-    have hbc' : bCount n_max gm' 0 = gm₀ 0 - 1 := by
-      unfold bCount; simp [hb0, hgm'_eq]
-    have hslot_eq : ∀ b' j, slotOf n_max gm' b' j = j ∧ slotOf n_max gm₀ b' j = j := by
-      intro b' j; unfold slotOf; simp [hb0]
-    refine ⟨by rw [hst, hf1],
-      fun a ha => by
-        rw [hst, hout1 a
-          (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)],
-      by rw [hst, hl1],
-      hinv',
-      by unfold totalSlots; simp only [hb0, ↓reduceIte, hgm'_eq, Function.update_self]; omega,
-      by rw [hbc', hbc0],
-      fun b' hb' hne => by
-        have : numBuckets n_max = 1 := by simp [numBuckets, hb0]
-        omega,
-      fun b' _ j _ => by
-        rw [hst, hq1, hv1, (hslot_eq b' j).1, (hslot_eq b' j).2]
-        exact ⟨rfl, rfl⟩,
-      ?_⟩
-    have hcost : memoryCost (popBackSlotProg U V w n_max h_space d) s = 6 := by
-      simp only [popBackSlotProg, popBackSlotGenProg, ite_bucketBits_mk, readGMGenProg_mk,
-        writeGMGenProg_mk, removeLastTailItemGenProg_mk, demoteSlabGenProg_mk]
-      simp [hb0, d, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    have hpot' : slotPotential n_max gm' = 0 := by unfold slotPotential; simp [hb0]
-    have hpot0 : slotPotential n_max gm₀ = 0 := by unfold slotPotential; simp [hb0]
-    rw [hcost, hpot', hpot0]
-    omega
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
-    have hK_pos : 0 < slabSize n_max := slabSize_pos n_max
-    have hr0_pos : 1 ≤ gm₀ (gmRIdx b) := pos_gmRIdx_of_pos_bCount hb_pos hinv hb hbc
-    have hr0_lt : gm₀ (gmRIdx b) < 2 * slabSize n_max := by
-      have := (hinv.multi_r_bounds hb_pos b hb).1
-      unfold tailCapPerBucket at this
-      rw [ite_eq_right hb0] at this
-      exact this
-    have htail₀ := hinv.multi_tail hb_pos
-    have hslab₀ := hinv.multi_slab hb_pos
-    have htot₀ := hinv.multi_total_le hb_pos
-    obtain ⟨hf1, hout1, hq1, hv1, hl1, hgm1_eq⟩ :=
-      removeLastTailItemProg_effect (U := U) (V := V) (h_space := h_space)
-        hw hb_pos hb s htail₀ hr0_pos
-    obtain ⟨hexec, hcharge⟩ := popBackSlotProg_execution
-      (U := U) (V := V) (w := w) (n_max := n_max) (h_space := h_space)
-      (base := base) (b := b) s _ hb0 rfl _ _ rfl rfl
-    generalize hs₁ : (Memory.spec 0).clientState s
-      (removeLastTailItemProg U V w n_max h_space d) = s₁ at *
+    let s₁ := (Memory.spec 0).clientState s (removeLastTailItemProg U V w n_max h_space (base, b))
     let gm₁ := gmAt base U V w n_max h_space s₁.mem
-    change gm₁ = gmRemoveTail n_max gm₀ b at hgm1_eq
-    have hpres1 := gmRemoveTail_preserves_nonTail hb hr0_pos htail₀
-    have htail1 : TailBijection n_max gm₁ (fun b' => gm₁ (gmRIdx b')) (gm₁ 1) := by
-      rw [hgm1_eq]; exact tailBijection_gmRemoveTail hb hr0_pos htail₀
-    have hslab1 : SlabBijection n_max gm₁ (fun b' => gm₁ (gmQIdx b')) (gm₁ 0) := by
-      rw [hgm1_eq]; exact (slabBijection_gmRemoveTail hb hr0_pos htail₀ hslab₀).2
-    have hgm1_pos : 1 ≤ gm₀ 1 := by
-      have := r_le_ntails_of_tailBijection htail₀ hb
-      omega
-    have htot1 : gm₁ 0 * slabSize n_max + gm₁ 1 + 1 = gm₀ 0 * slabSize n_max + gm₀ 1 := by
-      rw [hgm1_eq, hpres1.1, hpres1.2.1]; omega
-    have hqb1 : gm₁ (gmQIdx b) = gm₀ (gmQIdx b) := by
-      rw [hgm1_eq, hpres1.2.2.2.2.1 b hb]
-    have hrb1 : gm₁ (gmRIdx b) = gm₀ (gmRIdx b) - 1 := by
-      rw [hgm1_eq, hpres1.2.2.1]
-    have hother1 : ∀ b' < numBuckets n_max, b' ≠ b →
-        gm₁ (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm₁ (gmRIdx b') = gm₀ (gmRIdx b') := by
-      intro b' hb' hne
-      exact ⟨by rw [hgm1_eq, hpres1.2.2.2.2.1 b' hb'],
-        by rw [hgm1_eq, hpres1.2.2.2.1 b' hb' hne]⟩
-    have hbc_b1 : bCount n_max gm₁ b = bCount n_max gm₀ b - 1 := by
-      unfold bCount
-      simp only [hb0, ↓reduceIte, hb, hqb1, hrb1]
-      omega
-    have hbc_other1 : ∀ b' < numBuckets n_max, b' ≠ b →
-        bCount n_max gm₁ b' = bCount n_max gm₀ b' := by
-      intro b' hb' hne
-      unfold bCount
-      simp only [hb0, ↓reduceIte, hb', (hother1 b' hb' hne).1, (hother1 b' hb' hne).2]
-    have hq_slot1 := (update_slotOf_gmRemoveTail (quotAt base U w n_max h_space s.mem)
-      hb_pos hb hr0_pos htail₀ hslab₀ htot₀).1
-    have hv_slot1 := (update_slotOf_gmRemoveTail (valAt base U V w n_max h_space s.mem)
-      hb_pos hb hr0_pos htail₀ hslab₀ htot₀).1
-    have hold1 : ∀ b' < numBuckets n_max, ∀ j < bCount n_max gm₁ b',
-        quotAt base U w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) =
-          quotAt base U w n_max h_space s.mem (slotOf n_max gm₀ b' j) ∧
-        valAt base U V w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) =
-          valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j) := by
-      intro b' hb' j hj
-      rw [hq1, hv1, hgm1_eq]
-      rw [hgm1_eq] at hj
-      exact ⟨hq_slot1 b' hb' j hj, hv_slot1 b' hb' j hj⟩
-    have hr_idx_lt : 4 + 3 * b + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
-    have hq_idx_lt : 4 + 3 * b < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-    have hres_r : (Memory.spec 0).clientResult s₁
-        (readGMProg U V w n_max h_space (base, 4 + 3 * b + 1)) = gm₁ (gmRIdx b) :=
-      clientResult_readGMProg s₁ hr_idx_lt
-    have hres_q : (Memory.spec 0).clientResult s₁
-        (readGMProg U V w n_max h_space (base, 4 + 3 * b)) = gm₁ (gmQIdx b) :=
-      clientResult_readGMProg s₁ hq_idx_lt
-    rw [hres_r, hres_q] at hexec hcharge
-    have hexec' := hrun.symm.trans hexec
-    have hguard : (gm₁ (gmRIdx b) = 0 ∧ 0 < gm₁ (gmQIdx b)) ↔
-        (gm₀ (gmRIdx b) = 1 ∧ 0 < gm₀ (gmQIdx b)) := by
-      rw [hrb1, hqb1]
-      omega
-    simp only [hguard] at hexec' hcharge
-    by_cases hdem : gm₀ (gmRIdx b) = 1 ∧ 0 < gm₀ (gmQIdx b)
-    · have hr1_eq0 : gm₁ (gmRIdx b) = 0 := by rw [hrb1, hdem.1]
-      have hq1_pos : 0 < gm₁ (gmQIdx b) := by rw [hqb1]; exact hdem.2
-      have hst : s' = (Memory.spec 0).clientState s₁
-          (demoteSlabProg U V w n_max h_space (base, b)) := by
-        simpa only [hdem, and_self, ↓reduceIte] using hexec'
-      have hcost : memoryCost (popBackSlotProg U V w n_max h_space d) s =
-          40 + memoryCost (demoteSlabProg U V w n_max h_space (base, b)) s₁ := by
-        simpa only [hdem, and_self, ↓reduceIte, Nat.add_zero] using hcharge
-      have hpre_dem : DemoteSlabInv U V w n_max h_space base b s₁ := by
-        refine ⟨hb, htail1, hslab1, hr1_eq0, hq1_pos, fun b' hb' hne => ?_, ?_⟩
-        · change gm₁ (gmRIdx b') < tailCapPerBucket n_max ∧
-            (0 < gm₁ (gmQIdx b') → 1 ≤ gm₁ (gmRIdx b'))
+    s₁.frontier = s.frontier ∧
+    (∀ a, ¬(base + offQuot h_space ≤ a ∧
+        a < base + totalSpace U V w n_max h_space) → s₁.mem a = s.mem a) ∧
+    lmAt base U V w n_max h_space s₁.mem = lmAt base U V w n_max h_space s.mem ∧
+    TailBijection n_max gm₁ (fun b' => gm₁ (gmRIdx b')) (gm₁ 1) ∧
+    SlabBijection n_max gm₁ (fun b' => gm₁ (gmQIdx b')) (gm₁ 0) ∧
+    gm₁ 0 * slabSize n_max + gm₁ 1 + 1 = gm₀ 0 * slabSize n_max + gm₀ 1 ∧
+    gm₁ (gmQIdx b) = gm₀ (gmQIdx b) ∧
+    gm₁ (gmRIdx b) = gm₀ (gmRIdx b) - 1 ∧
+    (∀ b' < numBuckets n_max, b' ≠ b →
+      gm₁ (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm₁ (gmRIdx b') = gm₀ (gmRIdx b')) ∧
+    bCount n_max gm₁ b = bCount n_max gm₀ b - 1 ∧
+    (∀ b' < numBuckets n_max, b' ≠ b → bCount n_max gm₁ b' = bCount n_max gm₀ b') ∧
+    (∀ b' < numBuckets n_max, ∀ j < bCount n_max gm₁ b',
+      quotAt base U w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) =
+        quotAt base U w n_max h_space s.mem (slotOf n_max gm₀ b' j) ∧
+      valAt base U V w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) =
+        valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j)) := by
+  intro gm₀ s₁ gm₁
+  have hr0_pos := pos_gmRIdx_of_pos_bCount hb_pos hinv hb hbc
+  have htail₀ := hinv.multi_tail hb_pos
+  have hslab₀ := hinv.multi_slab hb_pos
+  have htot₀ := hinv.multi_total_le hb_pos
+  obtain ⟨hf1, hout1, hq1, hv1, hl1, hgm1_eq⟩ :=
+    removeLastTailItemProg_effect (U := U) (V := V) (h_space := h_space)
+      hw hb_pos hb s htail₀ hr0_pos
+  change gm₁ = gmRemoveTail n_max gm₀ b at hgm1_eq
+  rcases gmRemoveTail_preserves_nonTail hb hr0_pos htail₀ with ⟨hp0, hp1, hpR, hpOther, hpQ, -⟩
+  have hgm1_pos : 1 ≤ gm₀ 1 := le_trans hr0_pos (r_le_ntails_of_tailBijection htail₀ hb)
+  have hq_slot := (update_slotOf_gmRemoveTail (quotAt base U w n_max h_space s.mem)
+    hb_pos hb hr0_pos htail₀ hslab₀ htot₀).1
+  have hv_slot := (update_slotOf_gmRemoveTail (valAt base U V w n_max h_space s.mem)
+    hb_pos hb hr0_pos htail₀ hslab₀ htot₀).1
+  refine ⟨hf1, hout1, hl1,
+    by rw [hgm1_eq]
+       exact tailBijection_gmRemoveTail hb hr0_pos htail₀,
+    by rw [hgm1_eq]
+       exact (slabBijection_gmRemoveTail hb hr0_pos htail₀ hslab₀).2,
+    by rw [hgm1_eq, hp0, hp1, Nat.add_assoc, Nat.sub_add_cancel hgm1_pos],
+    by rw [hgm1_eq, hpQ b hb],
+    by rw [hgm1_eq, hpR],
+    fun b' hb' hne => ⟨by rw [hgm1_eq, hpQ b' hb'],
+      by rw [hgm1_eq, hpOther b' hb' hne]⟩,
+    by rw [bCount_multi_eq hb_pos hb, bCount_multi_eq hb_pos hb, hgm1_eq, hpQ b hb, hpR]
+       change 1 ≤ gm₀ (gmRIdx b) at hr0_pos
+       dsimp only [gm₀] at *
+       omega,
+    fun b' hb' hne => by
+      rw [bCount_multi_eq hb_pos hb', bCount_multi_eq hb_pos hb', hgm1_eq, hpQ b' hb',
+        hpOther b' hb' hne],
+    fun b' hb' j hj => ?_⟩
+  rw [hq1, hv1, hgm1_eq]
+  rw [hgm1_eq] at hj
+  exact ⟨hq_slot b' hb' j hj, hv_slot b' hb' j hj⟩
+
+private abbrev PopBackSlotPost (U V w n_max h_space base b : ℕ)
+    (s s' : Memory.State) : Prop :=
+  let gm₀ := gmAt base U V w n_max h_space s.mem
+  let gm' := gmAt base U V w n_max h_space s'.mem
+  s'.frontier = s.frontier ∧
+  (∀ a, ¬(base + offQuot h_space ≤ a ∧
+      a < base + totalSpace U V w n_max h_space) → s'.mem a = s.mem a) ∧
+  lmAt base U V w n_max h_space s'.mem = lmAt base U V w n_max h_space s.mem ∧
+  SlotStoreInv n_max gm' ∧
+  totalSlots n_max gm' + 1 = totalSlots n_max gm₀ ∧
+  bCount n_max gm' b = bCount n_max gm₀ b - 1 ∧
+  (∀ b' < numBuckets n_max, b' ≠ b → bCount n_max gm' b' = bCount n_max gm₀ b') ∧
+  (∀ b' < numBuckets n_max, ∀ j < bCount n_max gm' b',
+    quotAt base U w n_max h_space s'.mem (slotOf n_max gm' b' j) =
+      quotAt base U w n_max h_space s.mem (slotOf n_max gm₀ b' j) ∧
+    valAt base U V w n_max h_space s'.mem (slotOf n_max gm' b' j) =
+      valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j)) ∧
+  memoryCost (popBackSlotProg U V w n_max h_space (base, b)) s + 66 * slotPotential n_max gm' ≤
+    66 * slotPotential n_max gm₀ + 174
+
+private theorem popBackSlotProg_effect_single {U V w n_max h_space base b : ℕ}
+    (hw : 0 < w) (hb0 : bucketBits n_max = 0) (s : Memory.State)
+    (hinv : SlotStoreInv n_max (gmAt base U V w n_max h_space s.mem))
+    (hb : b < numBuckets n_max)
+    (hbc : 1 ≤ bCount n_max (gmAt base U V w n_max h_space s.mem) b) :
+    PopBackSlotPost U V w n_max h_space base b s
+      ((Memory.spec 0).clientState s (popBackSlotProg U V w n_max h_space (base, b))) := by
+  have hb_eq := bucket_eq_zero_of_bits_eq_zero hb0 hb
+  subst hb_eq
+  unfold bCount at hbc; simp only [hb0, ↓reduceIte] at hbc
+  let gm₀ := gmAt base U V w n_max h_space s.mem
+  have hc_le : gm₀ 0 ≤ n_max := hinv.single_valid hb0
+  have h0_lt : 0 < globalMetaLen n_max := by wram_omega
+  have hc1_lt := lt_two_pow_globalPtrBits_of_le_n_max (n_max := n_max) (x := gm₀ 0 - 1) (by omega)
+  obtain ⟨hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
+    writeGMProg_effect (base := base) (V := V) (h_space := h_space) hw h0_lt hc1_lt s
+  have hst : (Memory.spec 0).clientState s (popBackSlotProg U V w n_max h_space (base, 0)) =
+      (Memory.spec 0).clientState s (writeGMProg U V w n_max h_space ((base, 0), gm₀ 0 - 1)) := by
+    simp only [popBackSlotProg, popBackSlotGenProg, ite_bucketBits_mk, readGMGenProg_mk,
+      writeGMGenProg_mk, hb0, ↓reduceIte]
+    rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
+      clientResult_readGMProg s h0_lt]
+  have hgm' : gmAt base U V w n_max h_space ((Memory.spec 0).clientState s
+      (popBackSlotProg U V w n_max h_space (base, 0))).mem =
+      Function.update gm₀ 0 (gm₀ 0 - 1) := by rw [hst, hg1]
+  have hcost : memoryCost (popBackSlotProg U V w n_max h_space (base, 0)) s = 6 := by
+    simp [popBackSlotProg, popBackSlotGenProg, writeGMGenProg_mk, hb0,
+      ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+  refine ⟨by rw [hst, hf1],
+    fun a ha => by rw [hst, hout1 a (by wram_omega [ha])],
+    by rw [hst, hl1],
+    slotStoreInv_single hb0 (by rw [hgm']; update_simp; omega),
+    by unfold totalSlots
+       simp only [hb0, ↓reduceIte, hgm']; update_simp
+       change 1 ≤ gmAt base U V w n_max h_space s.mem 0 at hbc
+       dsimp only [gm₀]; omega,
+    by unfold bCount; simp only [hb0, ↓reduceIte, hgm']; update_simp,
+    fun b' hb' hne => absurd (bucket_eq_zero_of_bits_eq_zero hb0 hb') hne,
+    fun b' _ j _ => by simp only [slotOf, hb0, ↓reduceIte]; rw [hst, hq1, hv1]; exact ⟨rfl, rfl⟩,
+    by unfold slotPotential; simp [hb0, hcost]⟩
+
+private theorem popBackSlotProg_effect_multi {U V w n_max h_space base b : ℕ}
+    (hw : 0 < w) (hb_pos : 0 < bucketBits n_max) (s : Memory.State)
+    (hinv : SlotStoreInv n_max (gmAt base U V w n_max h_space s.mem))
+    (hb : b < numBuckets n_max)
+    (hbc : 1 ≤ bCount n_max (gmAt base U V w n_max h_space s.mem) b)
+    (s' : Memory.State)
+    (hrun : (Memory.spec 0).clientState s
+      (popBackSlotProg U V w n_max h_space (base, b)) = s') :
+    PopBackSlotPost U V w n_max h_space base b s s' := by
+  unfold PopBackSlotPost
+  intro gm₀ gm'
+  have hr0_pos := pos_gmRIdx_of_pos_bCount hb_pos hinv hb hbc
+  have hr0_lt := r_lt_two_slabSize hb_pos hinv hb
+  have htot₀ := hinv.multi_total_le hb_pos
+  obtain ⟨hf1, hout1, hl1, htail1, hslab1, htot1, hqb1, hrb1, hother1,
+      hbc_b1, hbc_other1, hold1⟩ := popBackTailRemove_effect hw hb_pos s hinv hb hbc
+  obtain ⟨hexec, hcharge⟩ := popBackSlotProg_execution s _ (Nat.ne_of_gt hb_pos) rfl _ _ rfl rfl
+  generalize hs₁ : (Memory.spec 0).clientState s
+    (removeLastTailItemProg U V w n_max h_space (base, b)) = s₁ at *
+  rw [readGM_r_result hb_pos hb s₁, readGM_q_result hb_pos hb s₁] at hexec hcharge
+  have hexec' := hrun.symm.trans hexec
+  have hguard : (gmAt base U V w n_max h_space s₁.mem (gmRIdx b) = 0 ∧
+      0 < gmAt base U V w n_max h_space s₁.mem (gmQIdx b)) ↔
+      (gmAt base U V w n_max h_space s.mem (gmRIdx b) = 1 ∧
+        0 < gmAt base U V w n_max h_space s.mem (gmQIdx b)) := by
+    rw [hrb1, hqb1]; omega
+  simp only [hguard] at hexec' hcharge
+  by_cases hdem : gmAt base U V w n_max h_space s.mem (gmRIdx b) = 1 ∧
+      0 < gmAt base U V w n_max h_space s.mem (gmQIdx b)
+  · have hst : s' = (Memory.spec 0).clientState s₁
+        (demoteSlabProg U V w n_max h_space (base, b)) := hexec'.trans (ite_eq_left hdem)
+    have hpre : DemoteSlabInv U V w n_max h_space base b s₁ :=
+      ⟨hb, htail1, hslab1, by rw [hrb1, hdem.1], by rw [hqb1]; exact hdem.2,
+        fun b' hb' hne => by
           rw [(hother1 b' hb' hne).1, (hother1 b' hb' hne).2]
-          exact hinv.multi_r_bounds hb_pos b' hb'
-        · change gm₁ 0 * slabSize n_max + gm₁ 1 ≤ n_max
-          omega
-      obtain ⟨hf2, hout2, hl2, hinv2, hqb2, hrb2, hother2, hbc2, hslot2, hcost2⟩ :=
-        demoteSlabProg_effect hw hb_pos s₁ hpre_dem
-      have htot2 := demoteSlabProg_tot_eq hw hb_pos s₁ hpre_dem
-      rw [← hst] at hf2 hout2 hl2 hinv2 hqb2 hrb2 hother2 hbc2 hslot2 htot2
-      change SlotStoreInv n_max gm' at hinv2
-      change gm' (gmQIdx b) = gm₁ (gmQIdx b) - 1 at hqb2
-      change gm' (gmRIdx b) = slabSize n_max at hrb2
-      change ∀ b' < numBuckets n_max, b' ≠ b →
-        gm' (gmQIdx b') = gm₁ (gmQIdx b') ∧ gm' (gmRIdx b') = gm₁ (gmRIdx b') at hother2
-      change ∀ b' < numBuckets n_max, bCount n_max gm' b' = bCount n_max gm₁ b' at hbc2
-      change ∀ b' < numBuckets n_max, ∀ j < bCount n_max gm' b',
-        quotAt base U w n_max h_space s'.mem (slotOf n_max gm' b' j) =
-          quotAt base U w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) ∧
-        valAt base U V w n_max h_space s'.mem (slotOf n_max gm' b' j) =
-          valAt base U V w n_max h_space s₁.mem (slotOf n_max gm₁ b' j) at hslot2
-      change gm' 0 * slabSize n_max + gm' 1 = gm₁ 0 * slabSize n_max + gm₁ 1 at htot2
-      have hupd : gm' (gmQIdx b) =
-            (popBackCounts (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-          gm' (gmRIdx b) =
-            (popBackCounts (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold popBackCounts
-        rw [ite_eq_left hdem]
-        exact ⟨by rw [hqb2, hqb1], hrb2⟩
-      have hother_all : ∀ b' < numBuckets n_max, b' ≠ b →
-          gm' (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm' (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne
-        exact ⟨(hother2 b' hb' hne).1.trans (hother1 b' hb' hne).1,
-          (hother2 b' hb' hne).2.trans (hother1 b' hb' hne).2⟩
-      have hpot := slotPotential_popBack_le hb_pos hb hr0_pos hr0_lt hupd hother_all
-      have hwork : popBackWork (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) =
-          slabSize n_max := by
-        unfold popBackWork; rw [ite_eq_left hdem]
-      rw [hwork] at hpot
-      refine ⟨hf2.trans hf1, fun a ha => (hout2 a ha).trans (hout1 a ha), hl2.trans hl1,
-        hinv2,
-        by unfold totalSlots; rw [ite_eq_right hb0, ite_eq_right hb0, htot2, htot1],
-        (hbc2 b hb).trans hbc_b1,
-        fun b' hb' hne => (hbc2 b' hb').trans (hbc_other1 b' hb' hne),
-        fun b' hb' j hj => ?_, ?_⟩
-      · have hj1 : j < bCount n_max gm₁ b' := by rw [← hbc2 b' hb']; exact hj
-        exact ⟨((hslot2 b' hb' j hj).1).trans (hold1 b' hb' j hj1).1,
-          ((hslot2 b' hb' j hj).2).trans (hold1 b' hb' j hj1).2⟩
-      · rw [hcost]
-        omega
-    · have hst : s' = s₁ := by
-        simpa only [hdem, and_self, ↓reduceIte] using hexec'
-      have hcost : memoryCost (popBackSlotProg U V w n_max h_space d) s = 40 := by
-        simpa only [hdem, and_self, ↓reduceIte, Nat.add_zero] using hcharge
-      have hgm'_eq : gm' = gm₁ := by dsimp only [gm', gm₁]; rw [hst]
-      have hinv1 : SlotStoreInv n_max gm₁ := by
-        refine ⟨fun h0 => by omega, fun _ => htail1, fun _ => hslab1, fun _ b' hb' => ?_,
-          fun _ => by omega⟩
-        by_cases hbeq : b' = b
-        · subst b'
-          rw [hqb1, hrb1]
-          unfold tailCapPerBucket
-          rw [ite_eq_right hb0]
-          refine ⟨by omega, fun hq => ?_⟩
-          by_contra hlt
-          exact hdem ⟨by omega, hq⟩
-        · rw [(hother1 b' hb' hbeq).1, (hother1 b' hb' hbeq).2]
-          exact hinv.multi_r_bounds hb_pos b' hb'
-      have hupd : gm' (gmQIdx b) =
-            (popBackCounts (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-          gm' (gmRIdx b) =
-            (popBackCounts (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold popBackCounts
-        rw [ite_eq_right hdem, hgm'_eq]
-        exact ⟨hqb1, hrb1⟩
-      have hother_all : ∀ b' < numBuckets n_max, b' ≠ b →
-          gm' (gmQIdx b') = gm₀ (gmQIdx b') ∧ gm' (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne; rw [hgm'_eq]; exact hother1 b' hb' hne
-      have hpot := slotPotential_popBack_le hb_pos hb hr0_pos hr0_lt hupd hother_all
-      have hwork : popBackWork (slabSize n_max) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = 0 := by
-        unfold popBackWork; rw [ite_eq_right hdem]
-      rw [hwork, Nat.add_zero] at hpot
-      refine ⟨by rw [hst, hf1],
-        fun a ha => by rw [hst, hout1 a ha],
-        by rw [hst, hl1],
-        by rw [hgm'_eq]; exact hinv1,
-        by unfold totalSlots; rw [ite_eq_right hb0, ite_eq_right hb0, hgm'_eq, htot1],
-        by rw [hgm'_eq, hbc_b1],
-        fun b' hb' hne => by rw [hgm'_eq, hbc_other1 b' hb' hne],
-        fun b' hb' j hj => by rw [hst, hgm'_eq]; rw [hgm'_eq] at hj; exact hold1 b' hb' j hj,
-        ?_⟩
-      rw [hcost]
-      omega
+          exact hinv.multi_r_bounds hb_pos b' hb',
+        by omega⟩
+    obtain ⟨hf2, hout2, hl2, hinv2, hqb2, hrb2, hother2, hbc2, hslot2, hcost2⟩ :=
+      demoteSlabProg_effect hw hb_pos s₁ hpre
+    have htot2 := demoteSlabProg_tot_eq hw hb_pos s₁ hpre
+    rw [← hst] at hf2 hout2 hl2 hinv2 hqb2 hrb2 hother2 hbc2 hslot2 htot2
+    have hpot := slotPotential_popBack_le hb_pos hb hr0_pos hr0_lt
+      ⟨by unfold popBackCounts; rw [ite_eq_left hdem, hqb2, hqb1],
+       by unfold popBackCounts; rw [ite_eq_left hdem, hrb2]⟩
+      fun b' hb' hne => ⟨(hother2 b' hb' hne).1.trans (hother1 b' hb' hne).1,
+        (hother2 b' hb' hne).2.trans (hother1 b' hb' hne).2⟩
+    unfold popBackWork at hpot; rw [ite_eq_left hdem] at hpot hcharge
+    refine ⟨hf2.trans hf1, fun a ha => (hout2 a ha).trans (hout1 a ha), hl2.trans hl1, hinv2,
+      by rw [totalSlots_multi_eq hb_pos, totalSlots_multi_eq hb_pos, htot2, htot1],
+      (hbc2 b hb).trans hbc_b1, fun b' hb' hne => (hbc2 b' hb').trans (hbc_other1 b' hb' hne),
+      fun b' hb' j hj => ⟨(hslot2 b' hb' j hj).1.trans (hold1 b' hb' j (hbc2 b' hb' ▸ hj)).1,
+        (hslot2 b' hb' j hj).2.trans (hold1 b' hb' j (hbc2 b' hb' ▸ hj)).2⟩,
+      by dsimp only [gm₀, gm'] at hcharge hcost2 hpot ⊢; omega⟩
+  · have hst : s' = s₁ := hexec'.trans (ite_eq_right hdem)
+    subst hst
+    have hinv1 := slotStoreInv_multi_of_bucket hb_pos hinv htail1 hslab1
+      (by rw [hqb1, hrb1]; unfold tailCapPerBucket; rw [ite_eq_right (Nat.ne_of_gt hb_pos)]
+          refine ⟨by omega, fun hq => ?_⟩; by_contra hlt; exact hdem ⟨by omega, hq⟩)
+      hother1 (by omega)
+    have hpot := slotPotential_popBack_le hb_pos hb hr0_pos hr0_lt
+      ⟨by unfold popBackCounts; rw [ite_eq_right hdem, hqb1],
+       by unfold popBackCounts; rw [ite_eq_right hdem, hrb1]⟩ hother1
+    unfold popBackWork at hpot; rw [ite_eq_right hdem] at hpot hcharge
+    exact ⟨hf1, hout1, hl1, hinv1,
+      by rw [totalSlots_multi_eq hb_pos, totalSlots_multi_eq hb_pos, htot1],
+      hbc_b1, hbc_other1, hold1, by dsimp only [gm₀, gm'] at hcharge hpot ⊢; omega⟩
 
 /-- Pure state effect and amortized `memoryCost` bound of `popBackSlotProg`. -/
 theorem popBackSlotProg_effect {U V w n_max h_space base b : ℕ}
@@ -1555,7 +1301,9 @@ theorem popBackSlotProg_effect {U V w n_max h_space base b : ℕ}
         valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j)) ∧
     memoryCost (popBackSlotProg U V w n_max h_space d) s + 66 * slotPotential n_max gm' ≤
       66 * slotPotential n_max gm₀ + 174 := by
-  exact popBackSlotProg_effect_of_clientState hw s hinv hb hbc _ rfl
+  rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
+  · exact popBackSlotProg_effect_single hw hb0 s hinv hb hbc
+  · exact popBackSlotProg_effect_multi hw hb_pos s hinv hb hbc _ rfl
 
 theorem realizes_popBackSlotGen :
     Realizes .exact popBackSlotGenProg
@@ -1567,60 +1315,32 @@ theorem realizes_popBackSlotGen :
     [realizes_readGMGen, realizes_writeGMGen, realizes_removeLastTailItemGen,
       realizes_demoteSlabGen]
   · exact h.1
-  · unfold globalMetaLen; omega
-  · have hd2 : d.2 = 0 := by
-      have := h.2.2.1
-      have : numBuckets n_max = 1 := by simp [numBuckets, hc]
-      omega
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
-    rw [clientResult_readGMProg _ h0_lt]
-    have hbc := h.2.2.2
-    unfold bCount at hbc
-    simp only [hc, ↓reduceIte, hd2] at hbc
-    exact hbc
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
+  · wram_omega
+  · exact single_gm0_pos_of_bCount hc h.2.2.1 h.2.2.2
+  · have hb_pos := Nat.pos_of_ne_zero hc
     exact ⟨h.1, h.2.1.multi_tail hb_pos, h.2.2.1,
       pos_gmRIdx_of_pos_bCount hb_pos h.2.1 h.2.2.1 h.2.2.2, hb_pos⟩
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU (le_of_lt (gmRIdx_lt hb_pos h.2.2.1))
-  · refine fits_const_of_dictEnv h.1 ?_; omega
+  · exact gmRIdx_fits h.1 (Nat.pos_of_ne_zero hc) hw hnU hU h.2.2.1
+  · exact fits_const_of_dictEnv h.1 (by omega)
   · exact h.1
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact gmRIdx_lt hb_pos h.2.2.1
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact fits_of_le_globalMetaLen h.1 hb_pos hw hnU hU (le_of_lt (gmQIdx_lt hb_pos h.2.2.1))
-  · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc
-    exact gmQIdx_lt hb_pos h.2.2.1
+  · exact gmRIdx_lt (Nat.pos_of_ne_zero hc) h.2.2.1
+  · exact fits_of_le_globalMetaLen h.1 (Nat.pos_of_ne_zero hc) hw hnU hU
+      (le_of_lt (gmQIdx_lt (Nat.pos_of_ne_zero hc) h.2.2.1))
+  · exact gmQIdx_lt (Nat.pos_of_ne_zero hc) h.2.2.1
   · rename_i hc0 hc1
-    have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hc0
+    have hb_pos := Nat.pos_of_ne_zero hc0
     rcases d with ⟨base, b⟩
     rcases h with ⟨hdict, hinv, hb, hbc⟩
     dsimp only at hdict hinv hb hbc hc1 hc ⊢
-    have hr0_pos : 1 ≤ gmAt base U V w₀ n_max h_space s.mem (gmRIdx b) :=
-      pos_gmRIdx_of_pos_bCount hb_pos hinv hb hbc
-    have htail₀ := hinv.multi_tail hb_pos
-    have hslab₀ := hinv.multi_slab hb_pos
     have htot₀ := hinv.multi_total_le hb_pos
-    obtain ⟨_, _, _, _, _, hgm1_eq⟩ :=
-      removeLastTailItemProg_effect (U := U) (V := V) (h_space := h_space)
-        hw hb_pos hb s htail₀ hr0_pos
-    let s₁ := (Memory.spec 0).clientState s
-      (removeLastTailItemProg U V w₀ n_max h_space (base, b))
-    have hr_idx_lt : 4 + 3 * b + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
-    have hq_idx_lt : 4 + 3 * b < globalMetaLen n_max := gmQIdx_lt hb_pos hb
+    obtain ⟨_, _, _, htail1, hslab1, htot1, _, _, hother1, _⟩ :=
+      popBackTailRemove_effect (U := U) (V := V) (h_space := h_space) hw hb_pos s hinv hb hbc
     rw [clientState_readGMProg] at hc
     rw [clientState_readGMProg, clientState_readGMProg]
-    rw [clientResult_readGMProg s₁ hr_idx_lt] at hc1
-    rw [clientResult_readGMProg s₁ hq_idx_lt] at hc
-    have hpres1 := gmRemoveTail_preserves_nonTail hb hr0_pos htail₀
-    have htail1 := tailBijection_gmRemoveTail hb hr0_pos htail₀
-    have ⟨_, hslab1⟩ := slabBijection_gmRemoveTail hb hr0_pos htail₀ hslab₀
-    refine ⟨hdict, ⟨hb, ?_, ?_, hc1, hc, fun b' hb' hne => ?_, ?_⟩, hb_pos⟩
-    · rw [hgm1_eq]; exact htail1
-    · rw [hgm1_eq]; exact hslab1
-    · rw [hgm1_eq, hpres1.2.2.2.2.1 b' hb', hpres1.2.2.2.1 b' hb' hne]
-      exact hinv.multi_r_bounds hb_pos b' hb'
-    · rw [hgm1_eq, hpres1.1, hpres1.2.1]
-      omega
+    rw [readGM_r_result hb_pos hb] at hc1
+    rw [readGM_q_result hb_pos hb] at hc
+    exact ⟨hdict, ⟨hb, htail1, hslab1, hc1, hc, fun b' hb' hne => by
+      rw [(hother1 b' hb' hne).1, (hother1 b' hb' hne).2]
+      exact hinv.multi_r_bounds hb_pos b' hb', by omega⟩, hb_pos⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

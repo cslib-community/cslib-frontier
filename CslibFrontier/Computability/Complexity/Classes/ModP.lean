@@ -78,19 +78,16 @@ theorem ModP_zero : ModP 0 enc = NP enc := by
 
 /-- Modulus one recognizes only the empty language. -/
 theorem mem_ModP_one : A ∈ ModP 1 enc ↔ A = ∅ := by
-  constructor
-  · rintro ⟨f, -, hA⟩
-    ext a
-    simpa [Nat.mod_one] using hA a
-  · rintro rfl
-    exact ⟨0, SharpP.zero_mem, fun _ => by simp⟩
+  refine ⟨fun ⟨_, _, hA⟩ => Set.ext fun a => by simpa [Nat.mod_one] using hA a, ?_⟩
+  rintro rfl
+  exact ⟨0, SharpP.zero_mem, fun _ => by simp⟩
 
 /-- Unambiguous counts are zero or one, so any modulus at least two recognizes them. -/
 theorem UP_subset_ModP (hk : 2 ≤ k) : UP enc ⊆ ModP k enc := by
   rintro A ⟨f, hf, hle, hA⟩
   refine ⟨f, hf, fun a => ?_⟩
-  rw [hA a, Nat.mod_eq_of_lt (by have := hle a; omega)]
   have := hle a
+  rw [hA a, Nat.mod_eq_of_lt (by omega)]
   omega
 
 /-- `P ⊆ ModP k` for every fixed `k ≥ 2`. -/
@@ -119,18 +116,14 @@ theorem compl_mem_ModP (hk : k.Prime) (hA : A ∈ ModP k enc) : Aᶜ ∈ ModP k 
   refine ⟨1 + (fun _ => k - 1) * f ^ (k - 1),
     SharpP.add_mem SharpP.one_mem
       (SharpP.mul_mem (SharpP.natCast_mem (k - 1)) (SharpP.pow_mem hf (k - 1))), fun a => ?_⟩
-  have hc : ((1 + (k - 1) * f a ^ (k - 1) : ℕ) : ZMod k) =
-      1 - (f a : ZMod k) ^ (k - 1) := by
+  simp only [Set.mem_compl_iff, hA a, not_not, Pi.add_apply, Pi.one_apply, Pi.mul_apply,
+    Pi.pow_apply, ne_eq, ← Nat.dvd_iff_mod_eq_zero, ← ZMod.natCast_eq_zero_iff]
+  have hcast : ((1 + (k - 1) * f a ^ (k - 1) : ℕ) : ZMod k) = 1 - (f a : ZMod k) ^ (k - 1) := by
     push_cast
     rw [ZMod.natCast_self_sub_one]
     ring
-  simp only [Set.mem_compl_iff, hA a, not_not, Pi.add_apply, Pi.one_apply, Pi.mul_apply,
-    Pi.pow_apply]
-  simp only [ne_eq, ← Nat.dvd_iff_mod_eq_zero, ← ZMod.natCast_eq_zero_iff]
-  rw [hc, ZMod.pow_card_sub_one]
-  split_ifs with h
-  · simp [h]
-  · simp [of_not_not h]
+  rw [hcast, ZMod.pow_card_sub_one]
+  by_cases h : (f a : ZMod k) = 0 <;> simp [h]
 
 open scoped symmDiff
 
@@ -181,11 +174,7 @@ theorem PolyTimeReducible.mem_coModP {β : Type} {encB : β ↪ List Bool} {B : 
   h.mem_compl PolyTimeReducible.mem_ModP hB
 
 /-- For prime moduli, complement closure identifies the two modular classes. -/
-theorem coModP_eq_ModP (hk : k.Prime) : coModP k enc = ModP k enc := by
-  ext A
-  constructor
-  · intro h
-    simpa using compl_mem_ModP hk h
-  · exact compl_mem_ModP hk
+theorem coModP_eq_ModP (hk : k.Prime) : coModP k enc = ModP k enc :=
+  Set.ext fun _ => ⟨fun h => by simpa using compl_mem_ModP hk h, compl_mem_ModP hk⟩
 
 end Cslib.Complexity

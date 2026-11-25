@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Callable.Input
+import CslibFrontier.Computability.WordRAM.FlatEndpoint
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Initialized flat callable products
@@ -39,19 +41,14 @@ theorem entry_runs {W b out T : ℕ} {body : Code .standard 163} {inp : List ℕ
       Executes W (c.program Reg.result) (State.init inp) out (n + 1) ∧
       y.Bounded W := by
   intro c
-  let x := (State.init inp : State 163).data
-  let s := (x.set Reg.address 1).set Reg.base b
-  have hread' : x.mem 1 = b := hread
-  have hs : ExecWithin (B := .standard) W
-      (ram[ Reg.address ← #1; Reg.base ← *Reg.address ]) x s 2 := by
-    ram_eval [s, h1, hread', Reg.address, Reg.base, Fin.mk.injEq]
-  have he : ExecWithin W c x y (2 + T) := hs.seq hy
-  have ybound : y.Bounded W := he.bounded (by simpa only [x, State.init] using Data.Bounded.init hi)
-  obtain ⟨n, hn, he⟩ := he
-  refine ⟨n, by omega, ?_, ?_, ybound⟩
-  · simpa only [Nat.zero_add, x, State.init] using he.runs (pc := 0)
-      (p := c.program Reg.result) (Program.Contains.self _).append_left
-  · simpa only [hyr, x, State.init] using he.executes Reg.result
+  let x : Data 163 := .init inp
+  have hload : ExecWithin (B := .standard) W (.op (.load Reg.base Reg.address))
+      (x.set Reg.address 1) ((x.set Reg.address 1).set Reg.base b) 1 := by
+    rw [← (congrArg x.mem (Function.update_self Reg.address 1 x.regs)).trans hread]
+    exact ExecWithin.load
+  obtain ⟨n, hn, hruns, hexec, ybound⟩ :=
+    (((ExecWithin.const (x := x) h1).seq hload).seq hy).to_program_init hi Reg.result
+  exact ⟨n, by omega, hruns, hyr ▸ hexec, ybound⟩
 
 /-- Actual initialized execution with no computed-layout, bounded-scratch or execution premise.
 Every original duplicate request has its own exact physical answer cell. The `n+1` charge
@@ -86,34 +83,31 @@ theorem runs {W m N : ℕ} (caller : List ℕ)
     (by simp [input, State.init, Data.init]) hy yr
   exact ⟨hi, y, n, hn, hruns, hexec, ybound, yv, yi, yf⟩
 
--- This finite syntactic check visits the fixed 160-register normalization sequence.
-set_option maxRecDepth 4096 in
 /-- The setup normalization sequence fits within `1024` flat instructions. -/
-theorem setup_size : setup.size ≤ 1024 := by decide +kernel
+theorem setup_size : setup.size ≤ 1024 := by
+  change (.seq readSize (MemoryWindow.dynamicSetup (r := 160) powerBank 128) :
+    Code .standard 163).size ≤ 1024
+  rw [Code.size, show readSize.size = 9 from rfl, MemoryWindow.size_dynamicSetup]; omega
 
--- This finite syntactic check visits the fixed normalization and reused arithmetic routines.
-set_option maxRecDepth 4096 in
 /-- The setup normalization sequence never inspects the physical word width. -/
-theorem setup_not_readsWidth : ¬setup.ReadsWidth := by decide +kernel
+theorem setup_not_readsWidth : ¬setup.ReadsWidth :=
+  Code.not_readsWidth_of_readsWidthBool rfl
 
 /-- The complete standalone caller has a fixed finite flat program, including halt. -/
 theorem program_length_le : (entryProgram.program Reg.result).length ≤ 131072 := by
   have hp := QueriedProduct.program_length_le true
-  simp only [Code.program, List.length_append, Code.length_assemble,
-    List.length_singleton] at hp ⊢
   have hc := MemoryWindow.size_compile (QueriedProduct.program true)
   have hs := setup_size
-  have hi : restoreInput.size = 13 := by decide +kernel
-  have ho : returnOutput.size = 13 := by decide +kernel
-  simp only [entryProgram, program, Code.size] at *
+  simp only [Code.length_program, entryProgram, program, Code.size,
+    show restoreInput.size = 13 by decide +kernel,
+    show returnOutput.size = 13 by decide +kernel] at hp ⊢
   omega
 
 /-- The width-independent code computes its own virtual modulus without reading physical width. -/
 theorem not_readsWidth : ¬entryProgram.ReadsWidth := by
-  have hr : ¬restoreInput.ReadsWidth := by decide +kernel
-  have ho : ¬returnOutput.ReadsWidth := by decide +kernel
   simp only [entryProgram, program, Code.ReadsWidth, Op.ReadsWidth,
     MemoryWindow.readsWidth_compile, QueriedProduct.not_readsWidth, setup_not_readsWidth,
-    hr, ho, not_false_eq_true, or_self]
+    Code.not_readsWidth_of_readsWidthBool (c := restoreInput) rfl,
+    Code.not_readsWidth_of_readsWidthBool (c := returnOutput) rfl, not_false_eq_true, or_self]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableProduct

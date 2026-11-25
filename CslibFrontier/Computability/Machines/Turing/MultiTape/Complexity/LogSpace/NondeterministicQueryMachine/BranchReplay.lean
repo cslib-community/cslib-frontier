@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Compiler
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.CountingView
 public import Mathlib.Data.Set.Card
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.CallReplay
 
 /-! # Occurrence replay for compiled query machines
 
@@ -23,7 +24,9 @@ and emits the abstract state's verdict.
 choice traces (`FirstHalting`) correspond exactly to unique halted native occurrence traces,
 with the same verdict. An initially halted source reaches the finalizer without any choice.
 `branchCount_eq_encard_firstHalting` counts the first-halting traces by verdict at a sufficient
-native clock. The full native class-equality theorem remains in #6747.
+native clock. `acceptCount_eq_one_iff` specializes this count to uniqueness of accepting traces.
+The full native class-equality theorem remains in #6747.
+`existsUnique_accepting_replay_iff` specializes the replay correspondence to acceptance.
 -/
 
 public section
@@ -129,9 +132,7 @@ theorem init_replay (a : α) :
       (by simpa only [List.nil_append] using hr) hlen
   · rintro ⟨rest, rfl, hrest⟩
     rw [Native.replayChoices_append, hprefix']
-    change (Native.replayChoices R.I R.P R.F R.C _ rest).map _ = _
-    rw [hrest]
-    rfl
+    simp [hrest, Option.bind]
 
 /-- The finalizer has a halted occurrence replay with no choices. Every halted replay
 from this boundary consumes no genuine choices and emits the abstract verdict. -/
@@ -164,8 +165,7 @@ theorem finish_replay (a : α) (s : σ)
     cases (q i.castSucc).state <;> simp)
   rw [hhead] at hdet
   refine ⟨⟨List.replicate q'.length 0, q'.last, hdet, ?_⟩, ?_⟩
-  · rw [hlast]
-    rfl
+  · rw [hlast]; rfl
   intro indices bits final hr hhalt
   obtain ⟨p, hphead, hplast, hplen⟩ := R.exists_native_path_of_replay hr
   have hlong : q.length ≤ indices.length := by
@@ -255,8 +255,8 @@ theorem pass_replay (a : α) (s : σ)
       rw [Native.replayChoices_choose _ _ _ _ _ rfl, withState_wordsCfg, ← hphead,
         Native.replayChoices_nil, Option.map_some]
     have hnonempty : indices ≠ [] := by
-      intro hempty
-      simp [hempty, Native.replayChoices_nil] at hr
+      rintro rfl
+      simp [Native.replayChoices_nil] at hr
     obtain ⟨tail, hindices, htail⟩ := Native.exists_suffix_of_replayChoices R.I R.P R.F R.C
       hchoose (show _ = some ([b] ++ bits, final) from hr)
       (List.length_pos_iff.mpr hnonempty)
@@ -308,8 +308,8 @@ private theorem choose_replay_correct (a : α) (bits : List Bool) (s : σ)
       have hf := (R.finish_replay a _ hs' false out).2 rest bits final
         (by simpa [hn] using hrest) hhalt
       obtain rfl := hf.1
-      exact ⟨(M.firstHalting_cons_iff (enc a) b [] s).mpr
-        ⟨hlive, hn, fun n h => by simp at h⟩, hf.2⟩
+      have hnil := (M.firstHalting_iff_nil_of_halted (enc a) [] (M.step (enc a) s b) hn).mpr rfl
+      exact ⟨(M.firstHalting_cons_iff (enc a) b [] s).mpr ⟨hlive, hnil⟩, hf.2⟩
 
 private theorem exists_choose_replay (a : α) (bits : List Bool) (s : σ)
     (hs : (M.withInit (start a)).Reachable (enc a) s) (hlive : M.halted s = false)
@@ -341,11 +341,7 @@ private theorem exists_choose_replay (a : α) (bits : List Bool) (s : σ)
     | false =>
       simpa [hn] using ih (M.step (enc a) s b) hs' hn hnext true out
     | true =>
-      have hnil : bits = [] := by
-        by_contra hne
-        have h := hnext.2 0 (List.length_pos_iff.mpr hne)
-        simp [hn] at h
-      subst bits
+      obtain rfl := (M.firstHalting_iff_nil_of_halted (enc a) bits _ hn).mp hnext
       simpa [hn] using (R.finish_replay a _ hs' false out).1
 
 /-- Every halted native replay records exactly a first-halting abstract trace and outputs
@@ -367,7 +363,7 @@ theorem replay_correct (a : α)
     have hf := (R.finish_replay a (start a) hs false []).2 rest bits final
       (by simpa [hn] using hrest) hhalt
     obtain rfl := hf.1
-    exact ⟨⟨hn, fun n h => by simp at h⟩, hf.2⟩
+    exact ⟨(M.firstHalting_iff_nil_of_halted (enc a) [] (start a) hn).mpr rfl, hf.2⟩
 
 /-- An abstract trace halts for the first time at its end iff
 there is exactly one halted native occurrence trace recording those bits. The quantification
@@ -392,11 +388,7 @@ theorem existsUnique_replay_iff (a : α) (bits : List Bool) :
       | false =>
         simpa [hn] using R.exists_choose_replay a bits (start a) hs hn hfirst true []
       | true =>
-        have hnil : bits = [] := by
-          by_contra hne
-          have h := hfirst.2 0 (List.length_pos_iff.mpr hne)
-          simp [hn] at h
-        subst bits
+        obtain rfl := (M.firstHalting_iff_nil_of_halted (enc a) bits (start a) hn).mp hfirst
         simpa [hn] using (R.finish_replay a (start a) hs false []).1
     have hr : Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg (enc a))
         (List.replicate n 0 ++ rest) = some (bits, final) := by
@@ -405,6 +397,24 @@ theorem existsUnique_replay_iff (a : α) (bits : List Bool) :
     refine ⟨List.replicate n 0 ++ rest, ⟨final, hr, hhalt⟩, ?_⟩
     rintro indices ⟨final', hr', hhalt'⟩
     exact Native.eq_occurrences_of_replayChoices R.I R.P R.F R.C hr' hr hhalt' hhalt
+
+/-- A fixed selector list has exactly one accepting native occurrence list iff its
+abstract replay first halts at the end of that list and accepts. -/
+theorem existsUnique_accepting_replay_iff (a : α) (bits : List Bool) :
+    (∃! indices, ∃ final, Native.replayChoices R.I R.P R.F R.C
+      (R.machine.initCfg (enc a)) indices = some (bits, final) ∧
+      final.Halted ∧ final.output = [true]) ↔
+    M.FirstHalting (enc a) bits (start a) ∧ M.accept (M.replay (enc a) bits (start a)) = true := by
+  constructor
+  · rintro ⟨_, ⟨final, hreplay, hhalt, hout⟩, _⟩
+    obtain ⟨hfirst, houtput⟩ := R.replay_correct a hreplay hhalt
+    exact ⟨hfirst, (List.cons.inj (houtput.symm.trans hout)).1⟩
+  · rintro ⟨hfirst, haccept⟩
+    obtain ⟨indices, ⟨final, hreplay, hhalt⟩, hunique⟩ :=
+      (R.existsUnique_replay_iff a bits).mpr hfirst
+    have hout := (R.replay_correct a hreplay hhalt).2
+    exact ⟨indices, ⟨final, hreplay, hhalt, by rwa [haccept] at hout⟩,
+      fun other ⟨finish, hr, hh, _⟩ => hunique other ⟨finish, hr, hh⟩⟩
 
 /-- At a sufficient native clock, the counted occurrences for a
 verdict are in bijection with the first-halting abstract choice traces for that verdict. The
@@ -462,5 +472,27 @@ theorem branchCount_eq_encard_firstHalting (a : α) {fuel : ℕ}
     let i : (terminal : Set (List ℕ)) := ⟨indices, hmem⟩
     refine ⟨i, Subtype.ext ?_⟩
     exact congrArg Prod.fst (Option.some.inj ((hreplay i).symm.trans hr))
+
+/-- At a sufficient native clock, the accepting occurrence count is the cardinality of
+the accepting first-halting selector traces. -/
+theorem acceptCount_eq_encard_firstHalting (a : α) {fuel : ℕ}
+    (hclock : R.machine.RunsInTime (enc a) fuel) :
+    ((Native.countingMachine R.I R.P R.F R.C).acceptCount fuel
+      (R.machine.initCfg (enc a)) : ℕ∞) =
+      {bits : List Bool | M.FirstHalting (enc a) bits (start a) ∧
+        M.accept (M.replay (enc a) bits (start a)) = true}.encard := by
+  simpa only [MultiTapeCTM.acceptCount, beq_iff_eq, List.cons.injEq, and_true] using
+    R.branchCount_eq_encard_firstHalting a hclock (· == [true])
+
+/-- At a sufficient native clock, exactly one abstract accepting first halt gives exactly
+one accepting native branch, and conversely. -/
+theorem acceptCount_eq_one_iff (a : α) {fuel : ℕ}
+    (hclock : R.machine.RunsInTime (enc a) fuel) :
+    (Native.countingMachine R.I R.P R.F R.C).acceptCount fuel (R.machine.initCfg (enc a)) = 1 ↔
+      ∃! bits, M.FirstHalting (enc a) bits (start a) ∧
+        M.accept (M.replay (enc a) bits (start a)) = true := by
+  rw [← Nat.cast_inj (R := ℕ∞), Nat.cast_one, R.acceptCount_eq_encard_firstHalting a hclock,
+    Set.encard_eq_one]
+  simp only [Set.eq_singleton_iff_unique_mem, Set.mem_ofPred_eq, ExistsUnique]
 
 end Turing.NondeterministicQueryMachine.Routines

@@ -15,15 +15,18 @@ import Mathlib.GroupTheory.FiniteAbelian.Duality
 import Mathlib.RingTheory.RootsOfUnity.AlgebraicallyClosed
 
 /-!
-# Miller's deterministic primality test, given a character-witness bound
+# Primality from a character-witness bound
 
-Miller [Miller][Miller1976] showed that, under a generalized Riemann hypothesis, an odd `n > 2`
-is prime exactly when every base up to a polylogarithmic bound is a strong liar
-(`ZMod.IsStrongLiar`); Bach [Bach][Bach1990] made the bound `2 (log n)²`. The argument has two
-halves. The analytic half shows, under the hypothesis, that every nonprincipal Dirichlet
-character modulo `n` takes a value other than `1` at some positive integer below the bound. The
-algebraic half, proved here, shows that this witness property makes testing the bases up to the
-bound a correct primality test.
+This file proves a conditional algebraic criterion. Given a bound `B` for finding witnesses to
+nonprincipal Dirichlet characters modulo an odd `n > 1`, primality is equivalent to every
+integer base `2 ≤ a ≤ B` with `a < n` being a strong liar (`ZMod.IsStrongLiar`).
+
+[Miller][Miller1976], Theorem 2 and the modification on pp. 308–309, gives an algorithm under
+the extended Riemann hypothesis that first checks for perfect powers and then tests prime
+bases. [Bach][Bach1990], p. 355 (abstract), gives the bound `2 (log n)²` for a compositeness
+witness under the same hypothesis. Here `B` is a parameter and all integer bases in the stated
+range are tested. Deriving the witness bound and proving an executable running-time bound
+remain open in [cslib-frontier#6780](https://github.com/cslib-community/cslib-frontier/issues/6780).
 
 Modulo an odd composite the strong liars lie in a proper subgroup `H` of the units
 (`ZMod.exists_subgroup_ne_top_isStrongLiar`). A nontrivial character of the quotient by `H`
@@ -31,17 +34,10 @@ gives a nonprincipal Dirichlet character that is `1` on every strong liar, so it
 base that fails the test. When the witness is not below `n`, the bound reaches `n` and the least
 prime factor of `n` is a failing base instead.
 
-This file does not prove the witness property; it is a hypothesis of both results. Discharging
-it from the generalized Riemann hypothesis for Dirichlet `L`-functions is the remaining part of
-[cslib-frontier#6780](https://github.com/cslib-community/cslib-frontier/issues/6780).
-
 ## Main results
 
-* `ZMod.prime_of_forall_isStrongLiar_of_witness`: if every nonprincipal Dirichlet character
-  modulo an odd `n > 1` has a witness `0 < a ≤ B`, and every base `2 ≤ a ≤ B` with `a < n` is a
-  strong liar, then `n` is prime.
-* `ZMod.prime_iff_forall_isStrongLiar_of_witness`: under the same witness hypothesis, `n` is
-  prime if and only if every such base is a strong liar.
+* `ZMod.prime_iff_forall_isStrongLiar_of_witness`: if each nonprincipal character has a witness
+  up to `B`, an odd `n > 1` is prime if and only if all bases in the stated range are strong liars.
 
 ## References
 
@@ -73,13 +69,8 @@ private theorem exists_dirichletCharacter_ne_one_forall_mem {n : ℕ} [NeZero n]
   · rw [MulChar.ofUnitHom_coe, MonoidHom.comp_apply, QuotientGroup.mk'_apply,
       (QuotientGroup.eq_one_iff u).2 hu, map_one, Units.val_one]
 
-/-- **Miller's test, given a character-witness bound.** Let `n > 1` be odd, and suppose every
-nonprincipal complex Dirichlet character modulo `n` takes a value other than `1` at some
-`0 < a ≤ B`. If every base `2 ≤ a ≤ B` with `a < n` is a strong liar for `n`, then `n` is prime.
-
-The witness hypothesis is the analytic input of [Miller1976] and [Bach1990]; it is assumed
-here, not proved. -/
-theorem prime_of_forall_isStrongLiar_of_witness {n B : ℕ} (hodd : Odd n) (h1 : 1 < n)
+/-- A character separating the strong liars of a composite gives a failing base. -/
+private theorem prime_of_forall_isStrongLiar_of_witness {n B : ℕ} (hodd : Odd n) (h1 : 1 < n)
     (hχ : ∀ χ : DirichletCharacter ℂ n, χ ≠ 1 → ∃ a : ℕ, 0 < a ∧ a ≤ B ∧ χ a ≠ 1)
     (hliar : ∀ a : ℕ, 2 ≤ a → a ≤ B → a < n → IsStrongLiar n a) : n.Prime := by
   have : NeZero n := ⟨by omega⟩
@@ -104,9 +95,9 @@ theorem prime_of_forall_isStrongLiar_of_witness {n B : ℕ} (hodd : Odd n) (h1 :
     rw [ZMod.isUnit_iff_coprime] at hu
     exact hp.one_lt.ne' (Nat.Coprime.eq_one_of_dvd hu (Nat.minFac_dvd n))
 
-/-- **Miller's test is correct, given a character-witness bound.** Under the witness hypothesis
-of `prime_of_forall_isStrongLiar_of_witness`, an odd `n > 1` is prime if and only if every base
-`2 ≤ a ≤ B` with `a < n` is a strong liar for `n`. -/
+/-- **Primality given a character-witness bound.** Suppose every nonprincipal complex Dirichlet
+character modulo an odd `n > 1` differs from `1` at some `0 < a ≤ B`. Then `n` is prime if and
+only if every base `2 ≤ a ≤ B` with `a < n` is a strong liar for `n`. -/
 theorem prime_iff_forall_isStrongLiar_of_witness {n B : ℕ} (hodd : Odd n) (h1 : 1 < n)
     (hχ : ∀ χ : DirichletCharacter ℂ n, χ ≠ 1 → ∃ a : ℕ, 0 < a ∧ a ≤ B ∧ χ a ≠ 1) :
     n.Prime ↔ ∀ a : ℕ, 2 ≤ a → a ≤ B → a < n → IsStrongLiar n a := by

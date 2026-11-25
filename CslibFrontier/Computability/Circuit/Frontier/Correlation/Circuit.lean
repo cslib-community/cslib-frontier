@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Rectangle
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -149,8 +150,7 @@ theorem sq_correlation_quadForm_mul_le_of_layout (Q : Matrix (Fin n) (Fin n) (ZM
       · refine Or.inl ⟨_, ⟨x, ?_, rfl⟩, by simp [msg, hx]⟩
         rwa [accepted_network_eq_eval]
       · refine Or.inr ⟨_, ⟨x, ?_, rfl⟩, by simp [msg, hx]⟩
-        rw [accepted_network_eq_eval]
-        exact hx
+        rwa [accepted_network_eq_eval]
     have h₁ : ((fun x => P₁.path x t) '' N₁.accepted).ncard ≤
         2 ^ ((Compiler.graph c).frontier π t).ncard := by
       have := N₁.ncard_image_path_le π ht
@@ -186,11 +186,10 @@ theorem ncard_le_cutRank_add_of_bisection {M : Matrix (Fin n) (Fin n) (ZMod 2)} 
     (by rw [ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin]; omega)
   have h₁ := M.ncard_add_cutRank_le_of_subset hDU
   rw [hU] at h₁
-  have h₂ : (D.ncard : ℝ) + M.cutRank U ≤ M.cutRank D + (n / 2 : ℕ) := by exact_mod_cast h₁
-  linarith [hM U hU]
+  cast_linarith [h₁, hM U hU]
 
 /-- A bound `y · 2^ρ ≤ 2 · 2^m` with `ρ ≥ r` gives `y ≤ 2^{1 + m - r}` in real exponents. -/
-private theorem le_rpow_of_mul_two_pow_le {y : ℝ} {ρ m : ℕ} {r : ℝ} (hy : y * 2 ^ ρ ≤ 2 * 2 ^ m)
+theorem le_rpow_of_mul_two_pow_le {y : ℝ} {ρ m : ℕ} {r : ℝ} (hy : y * 2 ^ ρ ≤ 2 * 2 ^ m)
     (hr : r ≤ ρ) : y ≤ (2 : ℝ) ^ (1 + m - r) := by
   have hpos : (0 : ℝ) < 2 ^ ρ := by positivity
   have h₁ : y ≤ 2 * 2 ^ m / 2 ^ ρ := (le_div_iff₀ hpos).mpr hy

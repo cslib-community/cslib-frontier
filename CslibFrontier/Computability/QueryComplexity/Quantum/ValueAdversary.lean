@@ -52,6 +52,7 @@ Bounding each step's drop in `valueWeightedProgress` gives `(1 - δ) √(m m') �
 
 * `Cslib.Quantum.norm_inner_valueOracle_valueOracle_ge`: one-step overlap loss bound for
   `valueOracle`.
+* `Cslib.Quantum.valueWeightedProgress_zero_sub_le`: telescoping bound on `valueWeightedProgress`.
 * `Cslib.Quantum.one_sub_mul_sum_le_of_sq_le_value`: weighted adversary inequality for `runValue`.
 * `Cslib.Quantum.one_sub_mul_sqrt_le_two_mul_mul_sqrt_value`: [Ambainis2002], Theorem 6 (overlap
   form) for non-Boolean value queries.
@@ -167,8 +168,6 @@ theorem norm_inner_valueOracle_valueOracle_ge [DecidableEq α]
       2 * ∑ i with x i ≠ y i, ‖querySlice i ψ‖ * ‖querySlice i φ‖ := by
     rw [hdiff, mul_sum]
     refine (norm_sum_le _ _).trans (sum_le_sum fun i _ => ?_)
-    have h₁ : ‖inner ℂ (querySlice i ψ) (querySlice i φ)‖ ≤
-        ‖querySlice i ψ‖ * ‖querySlice i φ‖ := norm_inner_le_norm _ _
     have h₂ : ‖inner ℂ (querySlice i (valueOracle step x ψ))
         (querySlice i (valueOracle step y φ))‖ ≤
         ‖querySlice i ψ‖ * ‖querySlice i φ‖ := by
@@ -177,10 +176,9 @@ theorem norm_inner_valueOracle_valueOracle_ge [DecidableEq α]
           (querySlice i (valueOracle step y φ))
     have htri := norm_sub_le (inner ℂ (querySlice i ψ) (querySlice i φ))
       (inner ℂ (querySlice i (valueOracle step x ψ)) (querySlice i (valueOracle step y φ)))
-    linarith
-  have hsub := norm_sub_norm_le (inner ℂ ψ φ)
-    (inner ℂ (valueOracle step x ψ) (valueOracle step y φ))
-  linarith
+    linarith [norm_inner_le_norm (𝕜 := ℂ) (querySlice i ψ) (querySlice i φ)]
+  linarith [norm_sub_norm_le (inner ℂ ψ φ)
+    (inner ℂ (valueOracle step x ψ) (valueOracle step y φ))]
 
 end QuerySlice
 
@@ -245,6 +243,55 @@ private theorem sum_endpoint_querySlice_sq_le [DecidableEq α]
     _ = α_b x := by
           rw [sum_sq_norm_querySlice, norm_runValue, hψ₀, one_pow, mul_one]
 
+/-- **Telescoping**: `T` value queries lower `valueWeightedProgress` by at most `T` times the
+endpoint weight budgets. -/
+theorem valueWeightedProgress_zero_sub_le [DecidableEq α]
+    (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V))
+    (U : ℕ → ValueState ι V W →ₗᵢ[ℂ] ValueState ι V W)
+    {ψ₀ : ValueState ι V W} (hψ₀ : ‖ψ₀‖ = 1)
+    (R : Finset ((ι → α) × (ι → α))) (γ : (ι → α) × (ι → α) → ℝ)
+    (a b : (ι → α) × (ι → α) → ι → ℝ) (α_b β_b : (ι → α) → ℝ)
+    (hγ : ∀ p ∈ R, 0 ≤ γ p)
+    (ha : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ a p i)
+    (hb : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ b p i)
+    (hγsq : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → γ p ^ 2 ≤ a p i * b p i)
+    (hα : ∀ x ∈ R.image Prod.fst, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.1 = x, a p i ≤ α_b x)
+    (hβ : ∀ y ∈ R.image Prod.snd, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.2 = y, b p i ≤ β_b y)
+    (T : ℕ) :
+    valueWeightedProgress step U ψ₀ R γ 0 - valueWeightedProgress step U ψ₀ R γ T ≤
+      T * (∑ x ∈ R.image Prod.fst, α_b x + ∑ y ∈ R.image Prod.snd, β_b y) := by
+  have hstep : ∀ t : ℕ,
+      valueWeightedProgress step U ψ₀ R γ t - valueWeightedProgress step U ψ₀ R γ (t + 1) ≤
+        ∑ x ∈ R.image Prod.fst, α_b x + ∑ y ∈ R.image Prod.snd, β_b y := fun t => by
+    have hp : valueWeightedProgress step U ψ₀ R γ t -
+          valueWeightedProgress step U ψ₀ R γ (t + 1) ≤
+        (∑ p ∈ R, ∑ i with p.1 i ≠ p.2 i,
+            a p i * ‖querySlice i (runValue step U ψ₀ p.1 t)‖ ^ 2) +
+          ∑ p ∈ R, ∑ i with p.1 i ≠ p.2 i,
+            b p i * ‖querySlice i (runValue step U ψ₀ p.2 t)‖ ^ 2 := by
+      simp only [valueWeightedProgress, ← sum_sub_distrib, ← sum_add_distrib]
+      refine sum_le_sum fun p hp => ?_
+      have horacle := norm_inner_valueOracle_valueOracle_ge step p.1 p.2
+        (runValue step U ψ₀ p.1 t) (runValue step U ψ₀ p.2 t)
+      change γ p * ‖inner ℂ (runValue step U ψ₀ p.1 t) (runValue step U ψ₀ p.2 t)‖ -
+          γ p * ‖inner ℂ (U (t + 1) (valueOracle step p.1 (runValue step U ψ₀ p.1 t)))
+            (U (t + 1) (valueOracle step p.2 (runValue step U ψ₀ p.2 t)))‖ ≤ _
+      rw [LinearIsometry.inner_map_map]
+      have hmul := mul_le_mul_of_nonneg_left horacle (hγ p hp)
+      rw [mul_sub, ← mul_assoc, mul_comm (γ p) 2, mul_sum] at hmul
+      refine (sub_le_comm.1 hmul).trans (sum_le_sum fun i hi => ?_)
+      have hi' := (mem_filter.1 hi).2
+      exact two_mul_mul_le_of_sq_le_mul (norm_nonneg _) (norm_nonneg _)
+        (ha p hp i hi') (hb p hp i hi') (hγsq p hp i hi')
+    have hX := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.fst a α_b hα t
+    have hY := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.snd b β_b hβ t
+    linarith
+  induction T with
+  | zero => simp
+  | succ t ih =>
+    push_cast
+    linarith [hstep t]
+
 /-- **Weighted quantum adversary inequality for value-query algorithms**: if after `T` value queries
 the states on every pair in `R` have overlap at most `δ`, and nonnegative step weights `a, b`
 satisfy `γ(p)² ≤ a(p, i) b(p, i)` whenever `p.1 i ≠ p.2 i` with coordinatewise fiber budgets
@@ -266,49 +313,7 @@ theorem one_sub_mul_sum_le_of_sq_le_value [DecidableEq α]
     (hβ : ∀ y ∈ R.image Prod.snd, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.2 = y, b p i ≤ β_b y) :
     (1 - δ) * ∑ p ∈ R, γ p ≤
       T * (∑ x ∈ R.image Prod.fst, α_b x + ∑ y ∈ R.image Prod.snd, β_b y) := by
-  have hstep : ∀ t : ℕ,
-      valueWeightedProgress step U ψ₀ R γ t - valueWeightedProgress step U ψ₀ R γ (t + 1) ≤
-        ∑ x ∈ R.image Prod.fst, α_b x + ∑ y ∈ R.image Prod.snd, β_b y := fun t => by
-    have hp : valueWeightedProgress step U ψ₀ R γ t -
-          valueWeightedProgress step U ψ₀ R γ (t + 1) ≤
-        (∑ p ∈ R, ∑ i with p.1 i ≠ p.2 i,
-            a p i * ‖querySlice i (runValue step U ψ₀ p.1 t)‖ ^ 2) +
-          ∑ p ∈ R, ∑ i with p.1 i ≠ p.2 i,
-            b p i * ‖querySlice i (runValue step U ψ₀ p.2 t)‖ ^ 2 := by
-      simp only [valueWeightedProgress, ← sum_sub_distrib, ← sum_add_distrib]
-      refine sum_le_sum fun p hp => ?_
-      have horacle := norm_inner_valueOracle_valueOracle_ge step p.1 p.2
-        (runValue step U ψ₀ p.1 t) (runValue step U ψ₀ p.2 t)
-      change γ p * ‖inner ℂ (runValue step U ψ₀ p.1 t) (runValue step U ψ₀ p.2 t)‖ -
-          γ p * ‖inner ℂ (U (t + 1) (valueOracle step p.1 (runValue step U ψ₀ p.1 t)))
-            (U (t + 1) (valueOracle step p.2 (runValue step U ψ₀ p.2 t)))‖ ≤ _
-      rw [LinearIsometry.inner_map_map]
-      have hmul := mul_le_mul_of_nonneg_left horacle (hγ p hp)
-      rw [mul_sub, ← mul_assoc, mul_comm (γ p) 2, mul_sum] at hmul
-      have h1 : γ p * ‖inner ℂ (runValue step U ψ₀ p.1 t) (runValue step U ψ₀ p.2 t)‖ -
-            γ p * ‖inner ℂ (valueOracle step p.1 (runValue step U ψ₀ p.1 t))
-              (valueOracle step p.2 (runValue step U ψ₀ p.2 t))‖ ≤
-          ∑ i with p.1 i ≠ p.2 i,
-            2 * γ p * (‖querySlice i (runValue step U ψ₀ p.1 t)‖ *
-              ‖querySlice i (runValue step U ψ₀ p.2 t)‖) := by
-        linarith
-      refine h1.trans (sum_le_sum fun i hi => ?_)
-      have hi' := (mem_filter.1 hi).2
-      exact two_mul_mul_le_of_sq_le_mul (norm_nonneg _) (norm_nonneg _)
-        (ha p hp i hi') (hb p hp i hi') (hγsq p hp i hi')
-    have hX := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.fst a α_b hα t
-    have hY := sum_endpoint_querySlice_sq_le step U hψ₀ R Prod.snd b β_b hβ t
-    linarith
-  have htel (t : ℕ) : valueWeightedProgress step U ψ₀ R γ 0 -
-      valueWeightedProgress step U ψ₀ R γ t ≤
-        t * (∑ x ∈ R.image Prod.fst, α_b x + ∑ y ∈ R.image Prod.snd, β_b y) := by
-    induction t with
-    | zero => simp
-    | succ t ih =>
-      have hs := hstep t
-      push_cast
-      linarith
-  have htelT := htel T
+  have htelT := valueWeightedProgress_zero_sub_le step U hψ₀ R γ a b α_b β_b hγ ha hb hγsq hα hβ T
   have hend : valueWeightedProgress step U ψ₀ R γ T ≤ δ * ∑ p ∈ R, γ p := by
     rw [valueWeightedProgress, mul_sum]
     refine sum_le_sum fun p hp => ?_
@@ -349,13 +354,9 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sqrt_value [DecidableEq α]
   have hX : (0 : ℝ) < #X := Nat.cast_pos.2 (card_pos.2 (hR.image _))
   have hY : (0 : ℝ) < #Y := Nat.cast_pos.2 (card_pos.2 (hR.image _))
   have hRX : (m : ℝ) * #X ≤ #R := by
-    exact_mod_cast mul_card_image_le_card (f := Prod.fst) R m fun _ hx => by
-      obtain ⟨p, hp, rfl⟩ := mem_image.1 hx
-      exact hm p hp
+    exact_mod_cast mul_card_image_le_card (f := Prod.fst) R m (forall_mem_image.2 hm)
   have hRY : (m' : ℝ) * #Y ≤ #R := by
-    exact_mod_cast mul_card_image_le_card (f := Prod.snd) R m' fun _ hy => by
-      obtain ⟨p, hp, rfl⟩ := mem_image.1 hy
-      exact hm' p hp
+    exact_mod_cast mul_card_image_le_card (f := Prod.snd) R m' (forall_mem_image.2 hm')
   set wXY : ℝ := (#X : ℝ) * (#Y : ℝ)
   have hwXY : 0 < wXY := mul_pos hX hY
   have htel := one_sub_mul_sum_le_of_sq_le_value step U hψ₀ T R (fun _ => √wXY) hδ

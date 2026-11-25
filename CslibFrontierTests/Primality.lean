@@ -140,7 +140,7 @@ example (r : Fin 6 → Bool) : MillerRabin.verifier (7, List.ofFn r) = false := 
 
 /-! ### Miller's test given a character-witness bound -/
 
-/-- The witness hypothesis of `ZMod.prime_of_forall_isStrongLiar_of_witness` holds with the bound
+/-- The witness hypothesis of `ZMod.prime_iff_forall_isStrongLiar_of_witness` holds with the bound
 `n - 1`: a nonprincipal character is not `1` at some unit, whose least residue is in `(0, n)`. -/
 private theorem witness_lt {n : ℕ} (h1 : 1 < n) (χ : DirichletCharacter ℂ n) (hχ : χ ≠ 1) :
     ∃ a : ℕ, 0 < a ∧ a ≤ n - 1 ∧ χ a ≠ 1 := by
@@ -155,10 +155,10 @@ private theorem witness_lt {n : ℕ} (h1 : 1 < n) (χ : DirichletCharacter ℂ n
 
 -- With that bound, the test over the bases `2, …, 6` certifies that `7` is prime.
 example : Nat.Prime 7 :=
-  ZMod.prime_of_forall_isStrongLiar_of_witness (B := 6) (by decide) (by norm_num)
-    (witness_lt (by norm_num)) fun a ha2 haB _ => by
-      rw [← MillerRabin.passes_eq_true_iff (m := 6) (by norm_num)]
-      interval_cases a <;> decide
+  (ZMod.prime_iff_forall_isStrongLiar_of_witness (n := 7) (B := 6) (by decide) (by norm_num)
+    (witness_lt (by norm_num))).mpr fun a ha2 haB _ => by
+    rw [← MillerRabin.passes_eq_true_iff (m := 6) (by norm_num)]
+    interval_cases a <;> decide
 
 -- The same test rejects `9`: the base `2` is not a strong liar.
 example : ¬ ∀ a : ℕ, 2 ≤ a → a ≤ 8 → a < 9 → ZMod.IsStrongLiar 9 a := fun h => by

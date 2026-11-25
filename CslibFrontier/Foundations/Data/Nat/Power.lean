@@ -34,11 +34,17 @@ Elementary inequalities on powers and products of natural numbers: powers of pol
 * `Nat.sq_le_two_pow`: `4 ≤ s → s ^ 2 ≤ 2 ^ s`.
 * `Nat.pow_le_two_pow`: `1 ≤ D → 4 * D ^ 2 ≤ b → b ^ D ≤ 2 ^ b`.
 * `Nat.succ_pow_sub_pow_le`: `(c + 1) ^ (j + 1) - c ^ (j + 1) ≤ (j + 1) * (c + 1) ^ j`.
+* `Nat.add_le_two_pow_max_succ`: `l₀ ≤ 2 ^ d₀ → l₁ ≤ 2 ^ d₁ → l₀ + l₁ ≤ 2 ^ (max d₀ d₁ + 1)`.
+* `Nat.pow_mul_add_one_le_of_pow_le`: `b ≠ 0 → x ≤ y → y ^ (2 b E a) ≤ v ^ b → x ^ (2 E) ≤ v →
+  x ^ (E (a + 1)) ≤ v`.
 
 ## References
 
 * [N. Alon, Y. Matias, M. Szegedy, *The space complexity of approximating the frequency
   moments*, proof of Theorem 2.1][AlonMatiasSzegedy1999]
+* [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
+  proof of Theorem K.7, p. 59 (`Nat.pow_mul_add_one_le_of_pow_le`, with `x = lg v` and
+  `y = lg m`); module `Nc.End.PermThm` (`lg_pow_transport`)
 -/
 
 public section
@@ -185,5 +191,25 @@ theorem succ_pow_sub_pow_le (c j : ℕ) :
   zify [hle]
   push_cast at h ⊢
   linarith
+
+/-- Inductive step for binary-tree leaf-count bounds: if two subtrees of depths `d₀` and `d₁` have
+at most `2 ^ d₀` and `2 ^ d₁` leaves, then their parent has at most `2 ^ (max d₀ d₁ + 1)`
+leaves. -/
+theorem add_le_two_pow_max_succ {l₀ l₁ d₀ d₁ : ℕ}
+    (h₀ : l₀ ≤ 2 ^ d₀) (h₁ : l₁ ≤ 2 ^ d₁) :
+    l₀ + l₁ ≤ 2 ^ (max d₀ d₁ + 1) := by
+  rw [Nat.pow_succ, Nat.mul_two]
+  exact Nat.add_le_add (h₀.trans (Nat.pow_le_pow_right Nat.two_pos (le_max_left _ _)))
+    (h₁.trans (Nat.pow_le_pow_right Nat.two_pos (le_max_right _ _)))
+
+/-- Transporting a power bound to a smaller base: if `x ≤ y`, `y ^ (2 b E a) ≤ v ^ b` with
+`b ≠ 0`, and `x ^ (2 E) ≤ v`, then `x ^ (E (a + 1)) ≤ v`. -/
+theorem pow_mul_add_one_le_of_pow_le {x y v a b E : ℕ} (hb : b ≠ 0) (hxy : x ≤ y)
+    (hy : y ^ (2 * b * E * a) ≤ v ^ b) (hx : x ^ (2 * E) ≤ v) : x ^ (E * (a + 1)) ≤ v := by
+  refine (Nat.pow_le_pow_iff_left (n := 2 * b) (by omega)).1 ?_
+  calc (x ^ (E * (a + 1))) ^ (2 * b) = x ^ (2 * b * E * a) * (x ^ (2 * E)) ^ b := by ring
+    _ ≤ v ^ b * v ^ b :=
+      Nat.mul_le_mul ((Nat.pow_le_pow_left hxy _).trans hy) (Nat.pow_le_pow_left hx _)
+    _ = v ^ (2 * b) := by ring
 
 end Nat

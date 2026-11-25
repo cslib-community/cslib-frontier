@@ -65,16 +65,16 @@ variable {Block : Type}
 [BonehShoup2023], Section 8.5.2, p. 301 and Exercise 8.11, p. 349; [KatzLindell2020],
 Exercise 7.23(c)) using two inverse queries with distinct keys `k1`, `k2` and target digest `y`. -/
 def keyMaskedAdversary [Sub Block] (k1 k2 y : Block) :
-    OracleComp (Spec Block Block) ((Block × Block) × (Block × Block)) := do
-  let x1 ← query (k1, PermQuery.inverse (y - k1))
-  let x2 ← query (k2, PermQuery.inverse (y - k2))
+    ProbOracleComp (Spec Block Block) ((Block × Block) × (Block × Block)) := do
+  let x1 ← ProbOracleComp.query (spec := Spec Block Block) (k1, PermQuery.inverse (y - k1))
+  let x2 ← ProbOracleComp.query (spec := Spec Block Block) (k2, PermQuery.inverse (y - k2))
   return ((k1, x1), (k2, x2))
 
 /-- `keyMaskedAdversary` makes at most `2` ideal-cipher queries on every execution path. -/
 theorem isQueryBounded_keyMaskedAdversary [Sub Block] (k1 k2 y : Block) :
-    IsQueryBounded (keyMaskedAdversary k1 k2 y) 2 :=
-  IsCostBounded.bind (cost := fun _ => 1) (IsCostBounded.query _) fun _ =>
-    IsCostBounded.bind (IsCostBounded.query _) fun _ =>
+    (keyMaskedAdversary k1 k2 y).IsQueryBounded 2 :=
+  IsCostBounded.bind (ProbOracleComp.IsQueryBounded.query _) fun _ =>
+    IsCostBounded.bind (ProbOracleComp.IsQueryBounded.query _) fun _ =>
       IsCostBounded.pure _ 0
 
 /-- For any distinct keys `k1 ≠ k2` and any target `y`, `keyMaskedAdversary k1 k2 y` wins
@@ -82,9 +82,9 @@ theorem isQueryBounded_keyMaskedAdversary [Sub Block] (k1 k2 y : Block) :
 theorem keyMaskedAdversary_wins [DecidableEq Block] [Fintype Block] [AddGroup Block]
     {k1 k2 : Block} (hk : k1 ≠ k2) (y : Block) :
     collisionGame (keyMasked (B := Block)) (keyMaskedAdversary k1 k2 y) = PMF.pure true := by
-  unfold collisionGame keyMaskedAdversary lazyEvalPerm
-  simp only [IdealCipher.complete_nil, interp_norm]
-  simp [bind, StateT.bind, pure, StateT.pure, evalPerm, collides, keyMasked_symm, hk]
+  unfold collisionGame keyMaskedAdversary
+  simp only [IdealCipher.complete_nil, interp_norm, pmf_norm]
+  simp [evalPerm, collides, keyMasked_symm, hk]
 
 /-- Existential summary for `keyMasked` (`h₄` with its two arguments swapped) over any nontrivial
 finite additive group: there is a `2`-query ideal-cipher collision finder winning with probability
@@ -92,7 +92,7 @@ finite additive group: there is a `2`-query ideal-cipher collision finder winnin
 theorem exists_collisionFinder_keyMasked [DecidableEq Block] [Fintype Block] [AddGroup Block]
     [Nontrivial Block] :
     ∃ A : CollisionFinder Block Block,
-      IsQueryBounded A 2 ∧ Pr[collisionGame (keyMasked (B := Block)) A] = 1 := by
+      A.IsQueryBounded 2 ∧ Pr[collisionGame (keyMasked (B := Block)) A] = 1 := by
   obtain ⟨k1, k2, hk⟩ := exists_pair_ne Block
   refine ⟨keyMaskedAdversary k1 k2 0, isQueryBounded_keyMaskedAdversary k1 k2 0, ?_⟩
   rw [keyMaskedAdversary_wins hk 0]
@@ -102,16 +102,16 @@ theorem exists_collisionFinder_keyMasked [DecidableEq Block] [Fintype Block] [Ad
 Section 8.5.2, p. 301 and Exercise 8.11, p. 349) using two inverse queries with distinct keys
 `k1` and `k2` and target digest `y`. -/
 def keyMaskedInputAdversary [AddGroup Block] (k1 k2 y : Block) :
-    OracleComp (Spec Block Block) ((Block × Block) × (Block × Block)) := do
-  let x1 ← query (k1, PermQuery.inverse (y - k1))
-  let x2 ← query (k2, PermQuery.inverse (y - k2))
+    ProbOracleComp (Spec Block Block) ((Block × Block) × (Block × Block)) := do
+  let x1 ← ProbOracleComp.query (spec := Spec Block Block) (k1, PermQuery.inverse (y - k1))
+  let x2 ← ProbOracleComp.query (spec := Spec Block Block) (k2, PermQuery.inverse (y - k2))
   return ((k1, -k1 + x1), (k2, -k2 + x2))
 
 /-- `keyMaskedInputAdversary` makes at most `2` ideal-cipher queries on every execution path. -/
 theorem isQueryBounded_keyMaskedInputAdversary [AddGroup Block] (k1 k2 y : Block) :
-    IsQueryBounded (keyMaskedInputAdversary k1 k2 y) 2 :=
-  IsCostBounded.bind (cost := fun _ => 1) (IsCostBounded.query _) fun _ =>
-    IsCostBounded.bind (IsCostBounded.query _) fun _ =>
+    (keyMaskedInputAdversary k1 k2 y).IsQueryBounded 2 :=
+  IsCostBounded.bind (ProbOracleComp.IsQueryBounded.query _) fun _ =>
+    IsCostBounded.bind (ProbOracleComp.IsQueryBounded.query _) fun _ =>
       IsCostBounded.pure _ 0
 
 /-- For any distinct keys `k1 ≠ k2` and any target `y`, `keyMaskedInputAdversary k1 k2 y` wins
@@ -120,16 +120,16 @@ theorem keyMaskedInputAdversary_wins [DecidableEq Block] [Fintype Block] [AddGro
     {k1 k2 : Block} (hk : k1 ≠ k2) (y : Block) :
     collisionGame (keyMaskedInput (B := Block)) (keyMaskedInputAdversary k1 k2 y) =
       PMF.pure true := by
-  unfold collisionGame keyMaskedInputAdversary lazyEvalPerm
-  simp only [IdealCipher.complete_nil, interp_norm]
-  simp [bind, StateT.bind, pure, StateT.pure, evalPerm, collides, keyMaskedInput_symm, hk]
+  unfold collisionGame keyMaskedInputAdversary
+  simp only [IdealCipher.complete_nil, interp_norm, pmf_norm]
+  simp [evalPerm, collides, keyMaskedInput_symm, hk]
 
 /-- Existential summary for `keyMaskedInput` (`h₅`) over any nontrivial finite additive group:
 there is a `2`-query ideal-cipher collision finder winning with probability `1`. -/
 theorem exists_collisionFinder_keyMaskedInput [DecidableEq Block] [Fintype Block] [AddGroup Block]
     [Nontrivial Block] :
     ∃ A : CollisionFinder Block Block,
-      IsQueryBounded A 2 ∧ Pr[collisionGame (keyMaskedInput (B := Block)) A] = 1 := by
+      A.IsQueryBounded 2 ∧ Pr[collisionGame (keyMaskedInput (B := Block)) A] = 1 := by
   obtain ⟨k1, k2, hk⟩ := exists_pair_ne Block
   refine ⟨keyMaskedInputAdversary k1 k2 0, isQueryBounded_keyMaskedInputAdversary k1 k2 0, ?_⟩
   rw [keyMaskedInputAdversary_wins hk 0]

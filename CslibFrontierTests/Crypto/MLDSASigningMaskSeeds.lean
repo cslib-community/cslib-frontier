@@ -189,9 +189,9 @@ example (C : QuantumSigningForger) (x : List Bool) (hx : x.length ≤ C.addressB
   cases strength with
   | false => rfl
   | true =>
-    simp only [queryKeyPrefix, Xofs.queryAddress, Option.bind_eq_bind, Option.bind_some,
-      Fin.cons_zero, guard, ↓reduceIte, Option.pure_def, Fin.cons_succ, BitString.ofFn_ofList len,
-      Xofs.unpad_word]
+    simp only [queryKeyPrefix, Xofs.shake256QueryInput, Xofs.queryAddress, Option.bind_some,
+      Fin.cons_zero, ↓reduceIte, Fin.cons_succ, BitString.ofFn_ofList len, Xofs.unpad_word,
+      Option.map_some]
 
 -- If the forger stops early, only the public-key hash can predict the private signing seed K.
 open QuantumSigningForger in
@@ -199,7 +199,7 @@ example (C : QuantumSigningForger) (H : Xofs) (s : Level) (seed : FixedBytes 32)
     (hg : H.keyGen s seed = some keys) :
     signingSeedCandidates (C := C) (publicHash H ((H.keyGen s seed).map KeyPair.publicKey)) none =
       [Keccak.bytesToBitsLE ((H.h256.readBytes keys.publicKey 64).take 32)] := by
-  simp [signingSeedCandidates, publicHash, hg, queryKeyPrefix]
+  simp [signingSeedCandidates, publicHash, hg, queryKeyPrefix, Xofs.shake256QueryInput]
 
 -- At the first query, even after signing, the original response-change bound gains 255 bits.
 example (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
@@ -241,9 +241,9 @@ open QuantumSigningForger in
 example (C : QuantumSigningForger) (s : Level) (seed : FixedBytes 32) (tag : Bool)
     (h : 272 ≤ C.addressBits) :
     let x := keySeedInput s seed
-    queriesKeySeed (C := C) s seed
+    Xofs.shake256QueryInput
       (some (Xofs.queryAddress C.addressBits tag x ((length_keySeedInput ..).le.trans h))) =
-      tag := by
+      (if tag then some x else none) := by
   intro x
   have len : (List.replicate (C.addressBits - x.length) false ++ true :: x).length =
       C.addressBits + 1 := by
@@ -251,8 +251,8 @@ example (C : QuantumSigningForger) (s : Level) (seed : FixedBytes 32) (tag : Boo
     have := (length_keySeedInput s seed).le.trans h
     dsimp only [x] at *
     lia
-  simp only [queriesKeySeed, Xofs.queryAddress, Fin.cons_zero, Fin.cons_succ,
-    BitString.ofFn_ofList len, Xofs.unpad_word, x, beq_self_eq_true, Bool.and_true]
+  simp only [Xofs.shake256QueryInput, Xofs.queryAddress, Option.bind_some, Fin.cons_zero,
+    Fin.cons_succ, BitString.ofFn_ofList len, Xofs.unpad_word]
 
 -- A single execution can exercise both budgets and return the signing reply after a coherent call.
 example (q : SigningQuery) :

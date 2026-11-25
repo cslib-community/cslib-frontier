@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Routines
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.PolyClock
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.HaltingTime
 
 /-!
 # Native finite-state compilation of nondeterministic query machines
@@ -20,6 +22,8 @@ computable in the target space; the passes and the finalizer do not depend on th
 
 ## Main results
 
+* `Turing.NondeterministicQueryMachine.Routines.exists_logSpace_polyClock`: a compiled
+  logarithmic-space machine with all branches halting has a uniform polynomial clock.
 * `Turing.NondeterministicQueryMachine.exists_recognizesInSpace`: the native compiler preserves
   existential acceptance and bounds every computation prefix, with no halting hypothesis.
 * `Turing.NondeterministicQueryMachine.exists_decidesInSpace`: given a common abstract clock, the
@@ -153,68 +157,55 @@ theorem choose_output (a : α) (p : R.machine.RunPath (enc a)) (s : σ)
     (hhalt : p.last.Halted) :
     ∃ s', (M.withInit (start a)).Reachable (enc a) s' ∧ M.halted s' = true ∧
       p.last.output = out ++ [M.accept s'] := by
-  have aux : ∀ n, ∀ p : R.machine.RunPath (enc a), p.length = n → ∀ s,
-      (M.withInit (start a)).Reachable (enc a) s → ∀ flag out,
-      p.head = wordsCfg (enc a) (some .choose) (R.boundary s flag) out → p.last.Halted →
-      ∃ s', (M.withInit (start a)).Reachable (enc a) s' ∧ M.halted s' = true ∧
-        p.last.output = out ++ [M.accept s'] := by
-    intro n
-    induction n using Nat.strong_induction_on with
-    | ind n ih =>
-      intro p hn s hs flag out hhead hhalt
-      have hpos : 0 < p.length := by
-        by_contra hz
-        have heq : p.last = p.head := by
-          have hz' : p.length = 0 := by omega
-          exact congrArg p (Fin.ext (by simpa using hz'))
-        have hh : (wordsCfg (enc a) (some (.choose : Native.State R.SI R.SP R.SF))
-            (R.boundary s flag) out).Halted := (heq.trans hhead) ▸ hhalt
-        change some _ = none at hh
-        cases hh
-      have hone : 1 < p.length + 1 := by omega
-      have hfirst := p.step ⟨0, by omega⟩
-      change R.machine.Step p.head (p ⟨1, hone⟩) at hfirst
-      rw [hhead] at hfirst
-      obtain ⟨b, hb⟩ := (Native.step_iff R.I R.P R.F R.C).mp hfirst
-      rw [Native.step_choose R.I R.P R.F R.C b _ rfl, withState_wordsCfg] at hb
-      let p₁ := p.drop ⟨1, hone⟩
-      obtain ⟨t, ht⟩ := R.pass_spec a s hs b flag
-      obtain ⟨ws', e, ⟨hws, he⟩, q₀, hqhead, hqlast, _, _⟩ := ht _ _ out ⟨rfl, rfl⟩
-      obtain ⟨q, hhead', hlast', _, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
-      have hmap : p₁.head = q.head.mapState (Native.passState b) := by
-        rw [hhead', hqhead, mapState_wordsCfg]
-        exact hb.symm
-      have hlong : q.length + 1 < p.length := by
-        by_contra hshort
-        have hq : p₁.length < q.length + 1 := by simp only [p₁, RelSeries.drop_length]; omega
-        have h := Native.follows_pass R.I R.P R.F R.C b p₁ q hmap p₁.length
-          (Nat.lt_succ_self _) hq
-        change p₁.last = (q ⟨p₁.length, hq⟩).mapState (Native.passState b) at h
-        have hh : p₁.last.Halted := by simpa [p₁] using hhalt
-        rw [h] at hh
-        change some _ = none at hh
-        cases hh
-      have hcfg : p ⟨q.length + 1, by omega⟩ =
-          wordsCfg (enc a) (some .check) ws' (out ++ e) := by
-        have h := Native.follows_pass R.I R.P R.F R.C b p₁ q hmap q.length
-          (by simp only [p₁, RelSeries.drop_length]; omega) (Nat.lt_succ_self _)
-        change p ⟨q.length + 1, by omega⟩ = q.last.mapState (Native.passState b) at h
-        simpa [hlast', hqlast, Native.passState] using h
-      have hnext := Native.head_drop_check R.I R.P R.F R.C p ⟨q.length + 1, hlong⟩ hcfg
-      rw [hws, he, List.append_nil] at hnext
-      let cut : Fin (p.length + 1) := ⟨q.length + 2, by omega⟩
-      have hreach := Reachable.step _ (enc a) hs b
-      by_cases hblank : R.boundary (M.step (enc a) s b) (!M.halted (M.step (enc a) s b)) R.C = []
-      · have hhalt' : M.halted (M.step (enc a) s b) = true := by
-          rw [R.boundary_flag] at hblank
-          cases hh : M.halted (M.step (enc a) s b) <;> simp_all [flagWord]
-        refine ⟨_, hreach, hhalt', ?_⟩
-        simpa only [RelSeries.last_drop] using R.finish_output a _ hreach _ out (p.drop cut)
-          (by simpa [cut, hblank] using hnext) (by simpa using hhalt)
-      · simpa only [RelSeries.last_drop] using ih (p.drop cut).length
-          (by simp only [RelSeries.drop_length, cut]; omega) (p.drop cut) rfl _ hreach _ out
-          (by simpa [cut, hblank] using hnext) (by simpa using hhalt)
-  exact aux p.length p rfl s hs flag out hhead hhalt
+  induction hn : p.length using Nat.strong_induction_on generalizing p s flag out with
+  | ind n ih =>
+    have hpos : 0 < p.length := by
+      refine RelSeries.length_pos_of_nontrivial ⟨_, p.head_mem, _, p.last_mem, fun h => ?_⟩
+      rw [← h, hhead] at hhalt
+      cases hhalt
+    have hone : 1 < p.length + 1 := by omega
+    have hfirst := p.step ⟨0, by omega⟩
+    change R.machine.Step p.head (p ⟨1, hone⟩) at hfirst
+    rw [hhead] at hfirst
+    obtain ⟨b, hb⟩ := (Native.step_iff R.I R.P R.F R.C).mp hfirst
+    rw [Native.step_choose R.I R.P R.F R.C b _ rfl, withState_wordsCfg] at hb
+    let p₁ := p.drop ⟨1, hone⟩
+    obtain ⟨t, ht⟩ := R.pass_spec a s hs b flag
+    obtain ⟨ws', e, ⟨hws, he⟩, q₀, hqhead, hqlast, _, _⟩ := ht _ _ out ⟨rfl, rfl⟩
+    obtain ⟨q, hhead', hlast', _, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
+    have hmap : p₁.head = q.head.mapState (Native.passState b) := by
+      rw [hhead', hqhead, mapState_wordsCfg]
+      exact hb.symm
+    have hlong : q.length + 1 < p.length := by
+      by_contra hshort
+      have hq : p₁.length < q.length + 1 := by simp only [p₁, RelSeries.drop_length]; omega
+      have h := Native.follows_pass R.I R.P R.F R.C b p₁ q hmap p₁.length
+        (Nat.lt_succ_self _) hq
+      change p₁.last = (q ⟨p₁.length, hq⟩).mapState (Native.passState b) at h
+      have hh : p₁.last.Halted := by simpa [p₁] using hhalt
+      rw [h] at hh
+      change some _ = none at hh
+      cases hh
+    have hcfg : p ⟨q.length + 1, by omega⟩ =
+        wordsCfg (enc a) (some .check) ws' (out ++ e) := by
+      have h := Native.follows_pass R.I R.P R.F R.C b p₁ q hmap q.length
+        (by simp only [p₁, RelSeries.drop_length]; omega) (Nat.lt_succ_self _)
+      change p ⟨q.length + 1, by omega⟩ = q.last.mapState (Native.passState b) at h
+      simpa [hlast', hqlast, Native.passState] using h
+    have hnext := Native.head_drop_check R.I R.P R.F R.C p ⟨q.length + 1, hlong⟩ hcfg
+    rw [hws, he, List.append_nil] at hnext
+    let cut : Fin (p.length + 1) := ⟨q.length + 2, by omega⟩
+    have hreach := Reachable.step _ (enc a) hs b
+    by_cases hblank : R.boundary (M.step (enc a) s b) (!M.halted (M.step (enc a) s b)) R.C = []
+    · have hhalt' : M.halted (M.step (enc a) s b) = true := by
+        rw [R.boundary_flag] at hblank
+        cases hh : M.halted (M.step (enc a) s b) <;> simp_all [flagWord]
+      refine ⟨_, hreach, hhalt', ?_⟩
+      simpa only [RelSeries.last_drop] using R.finish_output a _ hreach _ out (p.drop cut)
+        (by simpa [cut, hblank] using hnext) (by simpa using hhalt)
+    · simpa only [RelSeries.last_drop] using ih (p.drop cut).length
+        (by simp only [RelSeries.drop_length, cut]; omega) (p.drop cut) _ hreach _ out
+        (by simpa [cut, hblank] using hnext) (by simpa using hhalt) rfl
 
 private theorem exists_finish_path (a : α) (s : σ)
     (hs : (M.withInit (start a)).Reachable (enc a) s)
@@ -294,13 +285,8 @@ private theorem check_output (a : α) (p : R.machine.RunPath (enc a)) (s : σ)
     ∃ s', (M.withInit (start a)).Reachable (enc a) s' ∧ M.halted s' = true ∧
       p.last.output = out ++ [M.accept s'] := by
   have hpos : 0 < p.length := by
-    by_contra! hzero
-    have hsame : p.last = p.head := by
-      change p ⟨p.length, _⟩ = p ⟨0, _⟩
-      congr 1
-      apply Fin.ext
-      omega
-    rw [hsame, hhead] at hhalt
+    refine RelSeries.length_pos_of_nontrivial ⟨_, p.head_mem, _, p.last_mem, fun h => ?_⟩
+    rw [← h, hhead] at hhalt
     cases hhalt
   have hroute := Native.head_drop_check R.I R.P R.F R.C p ⟨0, hpos⟩ hhead
   rw [R.boundary_flag] at hroute
@@ -391,16 +377,36 @@ theorem accepts_iff (a : α) :
     exact ⟨⟨p'', by simpa [p''] using hphead⟩,
       by simpa [p''] using hp'halt, by simpa [p'', haccept] using hp'out⟩
 
+private theorem runsInSpace_mul (a : α) (hS : 1 ≤ S a) :
+    R.machine.RunsInSpace (enc a) (R.k * (2 * R.c + 1) * S a) :=
+  (R.runsInSpace a).mono (calc
+    R.k * (2 * (R.c * S a) + 1) ≤ R.k * ((2 * R.c + 1) * S a) :=
+      Nat.mul_le_mul_left _ (by nlinarith only [hS])
+    _ = R.k * (2 * R.c + 1) * S a := by ring)
+
+/-- A common selector clock for each input yields a single polynomial native halting
+bound when the compiled routines use logarithmic space. -/
+theorem exists_logSpace_polyClock
+    (R : Routines M start enc (fun a => Nat.log2 (enc a).length + 1))
+    {time : α → ℕ} (hhalt : ∀ a, (M.withInit (start a)).HaltsWithin (enc a) (time a)) :
+    ∃ L d, ∀ a, R.machine.RunsInSpace (enc a) (L * (Nat.log2 (enc a).length + 1)) ∧
+      R.machine.RunsInTime (enc a) (polyClock d (enc a).length) := by
+  let L := R.k * (2 * R.c + 1)
+  let : Finite R.SI := R.finiteI
+  let : ∀ b, Finite (R.SP b) := R.finiteP
+  let : Finite R.SF := R.finiteF
+  obtain ⟨d, hd⟩ := R.machine.exists_runsInTime_polynomial_of_runsInSpace_log L
+  refine ⟨L, d, fun a => ?_⟩
+  have hspace := R.runsInSpace_mul a (Nat.succ_le_succ (Nat.zero_le _))
+  obtain ⟨_, htime⟩ := R.exists_runsInTime a (hhalt a)
+  exact ⟨hspace, hd hspace htime⟩
+
 /-- The compiled machine recognizes `A` in `O(S)` visited-cell space whenever the abstract run on
 `enc a`, started in `start a`, accepts exactly the members of `A`. No halting is required. -/
 theorem recognizesInSpace {A : Set α}
     (hcorrect : ∀ a, a ∈ A ↔ (M.withInit (start a)).Accepts (enc a)) (hS : ∀ a, 1 ≤ S a) :
     R.machine.RecognizesInSpace enc A (fun a => R.k * (2 * R.c + 1) * S a) := fun a =>
-  ⟨(R.runsInSpace a).mono (calc
-      R.k * (2 * (R.c * S a) + 1) ≤ R.k * ((2 * R.c + 1) * S a) :=
-        Nat.mul_le_mul_left _ (by nlinarith only [hS a])
-      _ = R.k * (2 * R.c + 1) * S a := by ring),
-    (hcorrect a).trans (R.accepts_iff a).symm⟩
+  ⟨R.runsInSpace_mul a (hS a), (hcorrect a).trans (R.accepts_iff a).symm⟩
 
 end Routines
 
@@ -412,8 +418,8 @@ theorem exists_recognizesInSpace {α σ : Type} {enc : α ↪ List Bool} {encS :
     (M : NondeterministicQueryMachine σ)
     (hquery : ComputableInSpace M.query encS encNat fun s => (encS s).length)
     (hnext : ComputableInSpace M.next
-      (encPair encS (encPair (encOption encBool) encBool)) encS
-      fun p => (encPair encS (encPair (encOption encBool) encBool) p).length)
+      (encPair encS encReadChoice) encS
+      fun p => (encPair encS encReadChoice p).length)
     (hhalted : ComputableInSpace M.halted encS encBool fun s => (encS s).length)
     (haccept : ComputableInSpace M.accept encS encBool fun s => (encS s).length)
     (start : α → σ) {A : Set α} (hcorrect : ∀ a, a ∈ A ↔ (M.withInit (start a)).Accepts (enc a))
@@ -438,8 +444,8 @@ theorem exists_decidesInSpace {α σ : Type} {enc : α ↪ List Bool} {encS : σ
     (M : NondeterministicQueryMachine σ)
     (hquery : ComputableInSpace M.query encS encNat fun s => (encS s).length)
     (hnext : ComputableInSpace M.next
-      (encPair encS (encPair (encOption encBool) encBool)) encS
-      fun p => (encPair encS (encPair (encOption encBool) encBool) p).length)
+      (encPair encS encReadChoice) encS
+      fun p => (encPair encS encReadChoice p).length)
     (hhalted : ComputableInSpace M.halted encS encBool fun s => (encS s).length)
     (haccept : ComputableInSpace M.accept encS encBool fun s => (encS s).length)
     (start : α → σ) (time : α → ℕ)

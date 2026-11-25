@@ -34,22 +34,49 @@ theorem abs_lt_coeffNorm1_add_one_of_eval₂_eq_zero {p : Polynomial ℤ} (hp : 
   have hnorm (a : ℤ) : ‖f a‖ = (a.natAbs : ℝ) := by
     change ‖(a : ℝ)‖ = _
     rw [Real.norm_eq_abs, ← Int.cast_abs, ← Int.natCast_natAbs, Int.cast_natCast]
-  have hl : (1 : ℝ) ≤ ‖q.leadingCoeff‖ := by
-    rw [show q.leadingCoeff = f p.leadingCoeff from leadingCoeff_map_of_injective hf p, hnorm]
-    have hn := Int.natAbs_ne_zero.mpr (leadingCoeff_ne_zero.mpr hp)
-    exact_mod_cast Nat.one_le_iff_ne_zero.mpr hn
+  have hl : 1 ≤ ‖q.leadingCoeff‖₊ := by
+    rw [← NNReal.coe_le_coe, coe_nnNorm, NNReal.coe_one, leadingCoeff_map_of_injective hf p, hnorm]
+    exact_mod_cast Nat.one_le_iff_ne_zero.mpr (Int.natAbs_ne_zero.mpr (leadingCoeff_ne_zero.mpr hp))
   let s := (Finset.range q.natDegree).sup (fun i => ‖q.coeff i‖₊)
-  have hs : (s : ℝ) ≤ p.coeffNorm1 := by
-    have hsup : s ≤ (p.coeffNorm1 : NNReal) := by
-      refine Finset.sup_le fun i _ => ?_
-      rw [← NNReal.coe_le_coe, coe_nnNorm, NNReal.coe_natCast,
-        show q.coeff i = f (p.coeff i) from coeff_map f i, hnorm]
-      exact_mod_cast natAbs_coeff_le_coeffNorm1 p i
-    exact_mod_cast hsup
-  have hx' : ‖x‖ < (q.cauchyBound : ℝ) := hroot.norm_lt_cauchyBound hq
-  rw [Real.norm_eq_abs] at hx'
-  refine hx'.trans_le ?_
-  rw [cauchyBound, NNReal.coe_add, NNReal.coe_div, NNReal.coe_one, coe_nnNorm]
-  exact add_le_add ((div_le_self (by positivity) hl).trans hs) le_rfl
+  have hs : s ≤ (p.coeffNorm1 : NNReal) := Finset.sup_le fun i _ => by
+    rw [← NNReal.coe_le_coe, coe_nnNorm, NNReal.coe_natCast, coeff_map, hnorm]
+    exact_mod_cast natAbs_coeff_le_coeffNorm1 p i
+  have hlt : ‖x‖₊ < (p.coeffNorm1 : NNReal) + 1 := by
+    refine (hroot.norm_lt_cauchyBound hq).trans_le ?_
+    rw [cauchyBound]
+    exact add_le_add ((div_le_self zero_le hl).trans hs) le_rfl
+  rw [← Real.norm_eq_abs, ← coe_nnNorm]
+  exact_mod_cast hlt
+
+/-- A nonzero real root has absolute value greater than the reciprocal of the coefficient
+norm plus one, by applying the upper bound to the reversed polynomial. -/
+theorem inv_coeffNorm1_add_one_lt_abs_of_eval₂_eq_zero {p : Polynomial ℤ} (hp : p ≠ 0)
+    {x : ℝ} (hx : p.eval₂ (Int.castRingHom ℝ) x = 0) (hx₀ : x ≠ 0) :
+    ((p.coeffNorm1 : ℝ) + 1)⁻¹ < |x| := by
+  let := invertibleOfNonzero hx₀
+  have hroot : p.reverse.eval₂ (Int.castRingHom ℝ) x⁻¹ = 0 := by
+    simpa only [invOf_eq_inv] using (eval₂_reverse_eq_zero_iff (Int.castRingHom ℝ) x p).mpr hx
+  have h := abs_lt_coeffNorm1_add_one_of_eval₂_eq_zero (reverse_eq_zero.not.mpr hp) hroot
+  rw [coeffNorm1_reverse, abs_inv] at h
+  exact (inv_lt_comm₀ (abs_pos.mpr hx₀) (by positivity)).mp h
+
+/-- On a real interval of radius at least one, the coefficient norm times the radius
+raised to the degree bounds the absolute value of the evaluation. -/
+theorem abs_eval₂_le_coeffNorm1_mul_pow (p : Polynomial ℤ) {x R : ℝ}
+    (hR : 1 ≤ R) (hx : |x| ≤ R) :
+    |p.eval₂ (Int.castRingHom ℝ) x| ≤ (p.coeffNorm1 : ℝ) * R ^ p.natDegree := by
+  rw [eval₂_eq_sum, Polynomial.sum]
+  simp only [Int.coe_castRingHom]
+  calc
+    _ ≤ ∑ i ∈ p.support, |(p.coeff i : ℝ) * x ^ i| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ i ∈ p.support, |(p.coeff i : ℝ)| * R ^ p.natDegree := by
+      refine Finset.sum_le_sum fun i hi => ?_
+      rw [abs_mul, abs_pow]
+      exact mul_le_mul_of_nonneg_left
+        ((pow_le_pow_left₀ (abs_nonneg _) hx i).trans
+          (pow_le_pow_right₀ hR (le_natDegree_of_mem_supp i hi))) (abs_nonneg _)
+    _ = _ := by
+      rw [← Finset.sum_mul, coeffNorm1, Nat.cast_sum]
+      simp only [Nat.cast_natAbs, Int.cast_abs]
 
 end Polynomial

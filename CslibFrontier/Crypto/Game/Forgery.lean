@@ -178,12 +178,9 @@ theorem succProbability_forgeExperiment_mono {fresh fresh' : M → Sig → List 
       Experiment.succProbability (forgeExperiment keyGen signer verify fresh' A) := by
   apply Game.succProbability_mono
   simp only [forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
-  refine PMF.bind_apply_mono_on_support _ _ fun ⟨pk, sk⟩ _ => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun ⟨⟨m, σ⟩, log⟩ _ => ?_
-  dsimp only
-  cases hfresh : fresh m σ log
-  · simp
-  · simp only [h _ _ _ hfresh, le_refl]
+  refine PMF.bind_apply_mono_on_support _ _ fun ⟨pk, sk⟩ _ =>
+    PMF.bind_apply_mono_on_support _ _ fun ⟨⟨m, σ⟩, log⟩ _ => ?_
+  cases hfresh : fresh m σ log <;> simp [hfresh, @h m σ log]
 
 /-- **Strong unforgeability implies existential unforgeability**: a forger succeeds at least as
 often in the strong experiment as in the existential one. -/
@@ -206,21 +203,18 @@ theorem forgeExperiment_freshPair_eq_freshMessage_of_unique [DecidableEq M] [Dec
     ProbComp.eval (forgeExperiment keyGen signer verify freshPair A) =
       ProbComp.eval (forgeExperiment keyGen signer verify freshMessage A) := by
   simp only [forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
-  refine PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys => ?_
-  refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨m, σ⟩, log⟩ hout => ?_
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys =>
+    PMF.bind_congr_on_support _ _ _ fun ⟨⟨m, σ⟩, log⟩ hout => ?_
   have hlog := ProbOracleComp.forall_mem_runLogWith
     (P := fun p => ∀ τ, verify pk sk p.1 τ = true → p.2 = τ)
     (fun log q program h r hr τ hv => hunique _ hkeys q τ hv log program h r hr) (A pk) hout
-  dsimp only
   cases hv : verify pk sk m σ
   · rfl
-  · simp only [Bool.true_and, freshPair, freshMessage]
-    congr 1
-    refine decide_eq_decide.mpr ⟨?_, fun hmsg hpair => hmsg (List.mem_map_of_mem hpair)⟩
-    intro hpair hmsg
+  · congr 1
+    simp only [Bool.true_and, freshPair, freshMessage, decide_eq_decide]
+    refine ⟨fun hpair hmsg => ?_, fun hmsg hpair => hmsg (List.mem_map_of_mem hpair)⟩
     obtain ⟨⟨m', σ'⟩, hmem, rfl⟩ := List.mem_map.mp hmsg
-    rw [← hlog _ hmem σ hv] at hpair
-    exact hpair hmem
+    exact hpair (hlog _ hmem σ hv ▸ hmem)
 
 /-- **Unique signatures**: when every signature that the policy produces verifies and each
 message has at most one valid signature, a strong forgery is an existential one, so the two

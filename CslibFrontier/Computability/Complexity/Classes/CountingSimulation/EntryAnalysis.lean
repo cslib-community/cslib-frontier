@@ -66,7 +66,7 @@ public section
 namespace Cslib.Complexity.CountingSimulation
 
 open Cslib.Circuits.Frontier Cslib.Circuits.Frontier.ContractionSchedule
-  Cslib.Circuits.Frontier.EntryContraction Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+  Cslib.Circuits.Frontier.EntryContraction Cslib.GenericRAM Cslib.Algorithms.StackRecursion
   Turing.MultiTapeTM
 open Cslib.Circuits.Frontier.FastContraction (Call Reach reachInv scheme nativeMk value encCall
   encFrame encValue leafCertificate modulus active OnSchedule fuelConst)
@@ -111,8 +111,7 @@ theorem normalizedPrecision_le {m s P D : ℕ} (hsm : s ≤ m)
   have hlog : Nat.log 2 s + 1 ≤ Nat.log 2 m + 1 := by gcongr
   have hp := hP.trans (Nat.mul_le_mul_left (D * s) hlog)
   have h := Nat.div_le_div_right (c := Nat.log 2 m + 1) hp
-  rw [Nat.mul_div_cancel _ (Nat.succ_pos _)] at h
-  exact h
+  rwa [Nat.mul_div_cancel _ (Nat.succ_pos _)] at h
 
 /-- The integer constant read from normalized precision bounds the original precision. -/
 theorem le_normalizedPrecision_root {m P : ℕ} (hm : 0 < m) :
@@ -159,10 +158,8 @@ theorem clock_le {C D s P r : ℕ} {fl : List ℕ} {G : DescribedNetwork T} (hs 
   have hq : 1 ≤ Nat.sqrt (Nat.log 2 s) := Nat.one_le_sqrt_log_two hs
   have hq' : Nat.sqrt (Nat.log 2 s) ≤ Nat.sqrt (Nat.log 2 y) := Nat.sqrt_log_two_mono hsy
   calc fuelConst * y / Nat.sqrt (Nat.log 2 y) ≤ fuelConst * y / Nat.sqrt (Nat.log 2 s) := by gcongr
-    _ ≤ fuelConst * (C + D) * s / Nat.sqrt (Nat.log 2 s) := by
-        refine Nat.div_le_div_right ?_
-        rw [Nat.mul_assoc]
-        exact Nat.mul_le_mul_left _ hy
+    _ ≤ fuelConst * (C + D) * s / Nat.sqrt (Nat.log 2 s) :=
+        Nat.div_le_div_right (by rw [Nat.mul_assoc]; exact Nat.mul_le_mul_left _ hy)
 
 /-! ### The sizes -/
 
@@ -202,13 +199,8 @@ theorem entry_length_le_of_reach {x : ℕ × List ℕ × ℕ × DescribedNetwork
   obtain ⟨hc, hv, hf⟩ := (FastContraction.Reach.shape (x₀ := x₀) rfl rfl (wf_rootCall hg)
     hy).length_le_pow entry rfl rfl rfl (show m + 1 ≤ n + 1 by omega)
     (show P + 1 ≤ n + 1 by omega) hV (show fl.length ≤ 32 * (n + 1) ^ 2 by omega)
-    (fun z hz => by
-      change z ∈ fl at hz
-      rw [hfl] at hz
-      exact le_one_of_mem_modulus hz) hR₀
-  refine ⟨hc, fun a ⟨_, ha, c, _, hac⟩ => ?_, hv⟩
-  rw [hac]
-  exact hf ha _ c
+    (fun z hz => le_one_of_mem_modulus (by rw [← hfl]; exact hz)) hR₀
+  exact ⟨hc, fun a ⟨_, ha, c, _, hac⟩ => hac ▸ hf ha _ c, hv⟩
 
 /-! ### The leaves -/
 
@@ -237,8 +229,7 @@ theorem entry_reach_facts (C D : ℕ) : ∃ s₀, ∀ (s P r : ℕ) (G : Describ
   refine ⟨hsc, hsc ▸ hsh.edges_le, fun hs₀ => ⟨?_, fun hl => ?_⟩⟩
   · have hlog : Nat.log 2 m + 1 ≤ m := Nat.log_lt_self 2 (by omega)
     have hp₂ : P ≤ D * m ^ 2 := hp₀.trans (by
-      calc D * m * (Nat.log 2 m + 1) ≤ D * m * m := Nat.mul_le_mul_left _ hlog
-        _ = D * m ^ 2 := by ring)
+      rw [sq, ← Nat.mul_assoc]; exact Nat.mul_le_mul_left _ hlog)
     rw [hsc]
     exact hsh.prec_le_pow_four rfl rfl (show D + 81 ≤ m by omega) hp₂
   · obtain ⟨hB, hroot⟩ := activeBounds_onSchedule_rootCall hg (by omega) hq₀ rfl (hsA m (by omega))
@@ -308,8 +299,7 @@ theorem exists_entryLeaves_le
     obtain ⟨w, hw, hwt, hwlen⟩ := hy.exists_root_of_inl hv ht
     change w ∈ List.map _ G.vertices at hw
     obtain ⟨u, hu, rfl⟩ := List.mem_map.mp hw
-    simp only [Sum.inl.injEq] at hwt
-    subst hwt
+    obtain rfl := Sum.inl_injective hwt
     exact hent u hu bs (hbs.trans hwlen.symm)
   obtain ⟨hT, hSp⟩ := hKB nativeMk s y _ _ hs (hsc ▸ hsm) (hsc ▸ hmC) hshape hE2
     (fun h => ⟨(hbig h).2 hl, (hbig h).1⟩) hroot

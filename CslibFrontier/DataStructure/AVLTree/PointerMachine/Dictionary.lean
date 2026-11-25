@@ -76,22 +76,17 @@ theorem read_correct [LinearOrder M.Value] (zero : M.Op) (lt : M.Test)
     | none =>
       have missing : SearchTree.contains (s.data 0) (keys tree) = false := by
         simpa [start, State.setPtr, hp] using result.found.symm
-      have ordered : SearchTree.Ordered (keys tree) := matched.keys.symm ▸ valid.ordered
-      simp [value, State.deref, hp, stored.absent ordered missing]
+      simp [value, State.deref, hp, stored.absent (matched.keys.symm ▸ valid.ordered) missing]
     | some address =>
       obtain ⟨path, label, node, get, _, lookup, fields, key⟩ := result.key address hp
-      have payload := stored.value path label get
-      have labelKey : label.data 0 = s.data 0 := by
-        rw [← fields]
-        exact key
-      simp [value, State.deref, hp, lookup, fields, payload, labelKey]
+      simp [value, start, State.setPtr, State.deref, hp, lookup, fields,
+        stored.value path label get, (congrFun fields 0).symm.trans key]
   have finish := load_correct zero (encode 0) zero_spec { a with pc := 0 } rfl
   have executed := (reset_correct s pc).sequence (run.sequence finish)
   let t := { a.setData 3 value with pc := 2 + (sequence (search (regs := regs + 2) lt)
     ([.op zero 3 0 0, .loadData 3 2 0, .halt] : List (Instr M (layout 2 (regs + 2))))).length }
-  have visits : SearchTree.searchVisits (s.data 0) (keys tree) ≤ avl.cachedHeight := by
-    rw [matched.keys]
-    exact AVLTree.searchVisits_le_cachedHeight valid.heightConsistent _
+  have visits : SearchTree.searchVisits (s.data 0) (keys tree) ≤ avl.cachedHeight :=
+    matched.keys ▸ AVLTree.searchVisits_le_cachedHeight valid.heightConsistent _
   refine ⟨t, 2 + (time + 3 + 1) + 1, executed, ?_, result.heap, ?_, ?_, ?_⟩
   · change time ≤ 6 * SearchTree.searchVisits (s.data 0) (keys tree) + 3 at bound
     omega
@@ -99,8 +94,8 @@ theorem read_correct [LinearOrder M.Value] (zero : M.Op) (lt : M.Test)
       (by simp [start, State.setPtr])
   · simpa [t, State.setData] using correctValue
   · intro i h1 h3
-    simp only [t, State.setData, Function.update_of_ne h3]
-    exact result.data i h1
+    simpa only [t, start, State.setPtr, State.setData, Function.update_of_ne h3] using
+      result.data i h1
 
 /-- The output dictionary implements a total-memory update and preserves client registers. -/
 structure WriteResult [LinearOrder M.Value] (encode : ℕ → M.Value)
@@ -147,10 +142,9 @@ theorem write_correct [LinearOrder M.Value] (zero maxSucc : M.Op) (lt heavy le :
   let start : State M (layout 2 (regs + 2)) := { s.setPtr 0 (s.ptr 1) with pc := 0 }
   obtain ⟨a, newTree, ta, ea, ba, _, ra⟩ := PointerMachine.insert_correct
     zero maxSucc lt heavy le encode zero_spec max_spec compare heavy_spec le_spec 1 (by decide)
-    (fun _ => 3) (by intro f _ _; exact ⟨h31, h32⟩) start tree avl rep distinct matched valid
+    (fun _ => 3) (fun _ _ _ => ⟨h31, h32⟩) start tree avl rep distinct matched valid
     (by simp [start, State.setPtr, rootReg]) (by simp [start, State.setPtr, rootReg]) rfl
   have query : a.data 0 = s.data 0 := ra.data 0 h01 h02
-  have payload : a.data 3 = s.data 3 := ra.data 3 h31 h32
   let seekStart : State M (layout 2 (regs + 2)) := { a.setPtr 0 (a.ptr 1) with pc := 0 }
   obtain ⟨b, tb, eb, bb, rb⟩ := search_correct lt compare seekStart newTree none ra.rep
     (by simp [seekStart, State.setPtr, ra.root]) rfl
@@ -158,55 +152,42 @@ theorem write_correct [LinearOrder M.Value] (zero maxSucc : M.Op) (lt heavy le :
     rw [ra.matched.keys, query]
     exact (SearchTree.contains_eq_true (valid_insert valid (s.data 0)).ordered _).mpr
       (by change s.data 0 ∈ (AVLTree.insert (s.data 0) avl).elements; simp [elements_insert])
-  have someCursor : (b.ptr 0).isSome = true := by simpa [seekStart] using rb.found.trans present
-  obtain ⟨address, cursor⟩ := Option.isSome_iff_exists.mp someCursor
-  obtain ⟨path, label, node, get, labelAddress, lookup, fields, key⟩ := rb.key address cursor
-  have labelKey : label.data 0 = s.data 0 := by rw [← fields]; exact key.trans query
-  have bPayload : b.data 3 = s.data 3 := (rb.data 3 h31).trans payload
+  obtain ⟨address, cursor⟩ :=
+    Option.isSome_iff_exists.mp (by simpa [seekStart] using rb.found.trans present)
+  obtain ⟨path, label, _, get, labelAddress, _, fields, key⟩ := rb.key address cursor
   have bRep : Represents b.heap none newTree := by
     simpa only [rb.heap, seekStart, State.setPtr, Nat.add_assoc] using ra.rep
   obtain ⟨c, ec, rc, ptrC, dataC, sizeC, _⟩ := storeData_correct { b with pc := 0 }
     newTree none bRep 0 address cursor 2 3 rfl
   let result := updateData newTree address 2 (s.data 3)
-  have resultRep : Represents c.heap none result := by simpa only [result, bPayload] using rc
-  have resultMatches : Matches encode 1 result (AVLTree.insert (s.data 0) avl) :=
-    matches_updatePayload ra.matched _ _
-  have other := payload_except_insert (s := start) (regs := regs) rep stored ra
-  have support : ∀ k, memory k ≠ encode 0 → k ∈ SearchTree.elements (keys newTree) := by
-    intro k hk
-    have old := stored.support k hk
-    rw [matched.keys] at old
-    rw [ra.matched.keys]
-    change k ∈ (AVLTree.insert (s.data 0) avl).elements
-    rw [elements_insert]
-    exact Finset.mem_insert_of_mem old
   have newStored : Stores (encode 0) result (Function.update memory (s.data 0) (s.data 3)) := by
     dsimp only [result]
     rw [← labelAddress]
-    exact stores_updatePayload (encode 0) newTree memory (s.data 0) (s.data 3) path label
-      (ra.matched.keys.symm ▸ (valid_insert valid (s.data 0)).ordered) ra.distinct
-      get labelKey other support
+    exact stores_insert_updatePayload (s := start) rep matched valid stored ra path label get
+      ((congrFun fields 0).symm.trans (key.trans query)) (s.data 3)
   have run := (reset_correct s pc).sequence (ea.sequence
     ((reset_correct { a with pc := 0 } rfl).sequence (eb.sequence ec)))
   let t := { c with pc := 2 + (sequence
     (PointerMachine.insert zero maxSucc lt heavy le 1 (fun _ => (3 : Fin (regs + 4))))
     (sequence ([.movePtr 0 1, .halt] : List (Instr M (layout 2 (regs + 2))))
       (sequence (search lt) [.storeData 2 0 3, .halt]))).length }
-  have visits : SearchTree.searchVisits (a.data 0) (keys newTree) ≤ avl.cachedHeight + 1 := by
-    rw [ra.matched.keys]
-    exact (searchVisits_le_cachedHeight (valid_insert valid (s.data 0)).heightConsistent _).trans
-      (cachedHeight_insert_le valid _).2
+  have visits : SearchTree.searchVisits (a.data 0) (keys newTree) ≤ avl.cachedHeight + 1 :=
+    ra.matched.keys ▸
+      (searchVisits_le_cachedHeight (valid_insert valid (s.data 0)).heightConsistent _).trans
+        (cachedHeight_insert_le valid _).2
   refine ⟨t, result, 2 + (ta + (2 + (tb + 2 + 1) + 1) + 1) + 1, run, ?_,
-    ⟨resultRep, resultMatches, ra.distinct.updateData _ _ _, newStored, ?_, ?_, ?_⟩⟩
+    ⟨by simpa only [t, result, start, State.setPtr,
+          (rb.data 3 h31).trans (ra.data 3 h31 h32)] using rc,
+      matches_updatePayload ra.matched _ _, ra.distinct.updateData _ _ _, newStored,
+      ?_, ?_, ?_⟩⟩
   · change ta ≤ 141 * avl.cachedHeight + 2 + 31 at ba
     change tb ≤ 6 * SearchTree.searchVisits (a.data 0) (keys newTree) + 3 at bb
     omega
   · change c.ptr 1 = root result
     rw [ptrC, rb.ptr 1 (by simp [layout]) (by simp [layout])]
     simpa [result, seekStart, State.setPtr, root_updateData] using ra.root
-  · have length : t.heap.length = a.heap.length :=
-      sizeC.trans (congrArg List.length rb.heap)
-    simpa only [length, start, State.setPtr] using ra.space
+  · simpa only [t, seekStart, sizeC.trans (congrArg List.length rb.heap),
+      start, State.setPtr] using ra.space
   · intro i h1 h2
     change c.data i = s.data i
     rw [dataC]

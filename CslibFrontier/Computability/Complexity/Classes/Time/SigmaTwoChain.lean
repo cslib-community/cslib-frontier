@@ -14,7 +14,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.B
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Deterministic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ReplayInput
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
@@ -222,14 +221,12 @@ private theorem add_two_mul_length_le_of_drop_frames {E : List Bool} {i : ℕ} {
 
 /-- At most as many words are framed in `E` as `E` has bits. -/
 private theorem length_frames_le (E : List Bool) : (frames E).length ≤ E.length := by
-  by_cases hE : E = []
-  · simp [hE]
-  · rw [frames_of_ne_nil hE, List.length_cons]
-    have := length_frames_le (dropFrame E)
+  fun_induction frames E with
+  | case1 => simp -- []
+  | case2 E hE ih => -- unframe E :: frames (dropFrame E)
     have := length_dropFrame_lt hE
+    rw [frames_of_ne_nil hE, List.length_cons]
     omega
-termination_by E.length
-decreasing_by exact length_dropFrame_lt hE
 
 /-! ### The cost of the verifier -/
 
@@ -283,7 +280,6 @@ private theorem chainCheck_inO {rF rG : List Bool × List Bool → List Bool} {P
     (hPb : ComputableInO Pb enc encBits (fun a => (enc a).length) (fun a => (enc a).length)) :
     Lin enc (fun x => chainCheck rF rG (Pb x.1) w₀ x.2.1 x.2.2) encBool := by
   -- the parts of the input
-  have hid : Lin enc (fun x => x) (eV enc) := ComputableInO.of_eq fun _ => rfl
   have hu : Lin enc (fun x => x.2.1) encBits :=
     (ComputableInO.fst encBits encBits).comp_linear (ComputableInO.snd enc _)
   have hv : Lin enc (fun x => x.2.2) encBits :=
@@ -294,16 +290,10 @@ private theorem chainCheck_inO {rF rG : List Bool × List Bool → List Bool} {P
         have := length_le_encPair_left enc (encPair encBits encBits) x; dsimp only [eV]; omega)
       (fun x => by
         have := length_le_encPair_left enc (encPair encBits encBits) x; dsimp only [eV]; omega)
-  -- linear primitives on words
-  have hunframe : ComputableInO unframe encBits encBits (fun w => (encBits w).length)
-      (fun w => (encBits w).length) := ComputableInO.of_linear (.of_unframe fun _ => rfl)
-  have hdrop : ComputableInO dropFrame encBits encBits (fun w => (encBits w).length)
-      (fun w => (encBits w).length) := ComputableInO.of_linear (.of_dropFrame fun _ => rfl)
-  have hframes := computableInDegree_frames.inO_one
   -- the guessed words from the chosen index on
   have hws : Lin enc (fun x => w₀ :: frames (unframe (dropFrame x.2.1))) (encList encBits) :=
     lin_pair (ComputableInO.cons' (enc := encBits)) (ComputableInO.const w₀)
-      (lin_comp hframes (lin_comp hunframe (lin_comp hdrop hu)))
+      (lin_comp computableInDegree_frames.inO_one hu.dropFrame'.unframe')
   have hi : Lin enc (fun x => leadingTrues x.2.2) encUnary := lin_comp leadingTrues_inO hv
   have hR : Lin enc (fun x => cvRest w₀ x.2.1 x.2.2) (encList encBits) :=
     lin_pair (ComputableInDegree.dropUnary encBits).inO_one hws hi
@@ -318,7 +308,6 @@ private theorem chainCheck_inO {rF rG : List Bool × List Bool → List Bool} {P
     lin_comp (ComputableInO.tail' (enc := encBits)) hR
   have hw' : Lin enc (fun x => (cvRest w₀ x.2.1 x.2.2).tail.headD []) encBits :=
     lin_comp (ComputableInO.headD' (enc := encBits) []) htail
-  have hbw : Lin enc (fun x => unframe x.2.1) encBits := lin_comp hunframe hu
   have he0 : Lin enc (fun x => (cvRest w₀ x.2.1 x.2.2).isEmpty) encBool :=
     lin_comp (ComputableInDegree.listIsEmpty encBits).inO_one hR
   have he1 : Lin enc (fun x => (cvRest w₀ x.2.1 x.2.2).tail.isEmpty) encBool :=
@@ -326,10 +315,8 @@ private theorem chainCheck_inO {rF rG : List Bool × List Bool → List Bool} {P
   -- the replay of the step and the comparison at the chosen position
   have hinF : Lin enc (fun x => frame (Pb x.1) ++ (frame ((cvRest w₀ x.2.1 x.2.2).headD []) ++
       unframe x.2.1)) encBits :=
-    ((lin_pair (ComputableInO.of_eq (f := fun p : List Bool × (List Bool × List Bool) => p)
-      (encIn := encPair encBits (encPair encBits encBits)) fun _ => rfl) hpb
-      (lin_pair (ComputableInO.of_eq (f := fun p : List Bool × List Bool => p)
-        (encIn := encPair encBits encBits) fun _ => rfl) hw hbw))).of_enc_eq fun _ => rfl
+    (hpb.frame'.bitsAppend' (hw.frame'.bitsAppend' hu.unframe')).mono 3
+      (fun _ => by omega) fun _ => by omega
   have hrFx : Lin enc (fun x => rF (x.2.1, frame (Pb x.1) ++
       (frame ((cvRest w₀ x.2.1 x.2.2).headD []) ++ unframe x.2.1))) encBits :=
     lin_pair hrF hu hinF
@@ -339,9 +326,8 @@ private theorem chainCheck_inO {rF rG : List Bool × List Bool → List Bool} {P
     lin_pair ComputableInDegree.bitsTake.inO_one
       (lin_pair ComputableInDegree.bitsDrop.inO_one hrFx hj) (ComputableInO.const 1)
   have hQ : Lin enc (fun x => frame ((cvRest w₀ x.2.1 x.2.2).tail.headD []) ++ [true]) encBits :=
-    (lin_pair (ComputableInO.of_eq (f := fun p : List Bool × Bool => p)
-      (encIn := encPair encBits encBool) fun _ => rfl) hw' (ComputableInO.const true)).of_enc_eq
-      fun _ => rfl
+    (hw'.frame'.bitsAppend' (ComputableInO.const [true])).mono 2
+      (fun _ => by omega) fun _ => by omega
   have hrhs : Lin enc (fun x => ((frame ((cvRest w₀ x.2.1 x.2.2).tail.headD []) ++ [true]).drop
       (cvPos x.2.2)).take 1) encBits :=
     lin_pair ComputableInDegree.bitsTake.inO_one
@@ -349,8 +335,7 @@ private theorem chainCheck_inO {rF rG : List Bool × List Bool → List Bool} {P
   have htc := lin_eq_short hlhs hrhs (fun _ => by simp) (fun _ => by simp)
   -- the replay of the goal test
   have hinG : Lin enc (fun x => frame (Pb x.1) ++ (cvRest w₀ x.2.1 x.2.2).headD []) encBits :=
-    (lin_pair (ComputableInO.of_eq (f := fun p : List Bool × List Bool => p)
-      (encIn := encPair encBits encBits) fun _ => rfl) hpb hw).of_enc_eq fun _ => rfl
+    (hpb.frame'.bitsAppend' hw).mono 2 (fun _ => by omega) fun _ => by omega
   have hg2 : Lin enc (fun x => (rG (x.2.1, frame (Pb x.1) ++
       (cvRest w₀ x.2.1 x.2.2).headD [])).take 2) encBits :=
     lin_pair ComputableInDegree.bitsTake.inO_one (lin_pair hrG hu hinG) (ComputableInO.const 2)
@@ -471,12 +456,13 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
       rfl
     refine ⟨u, hlen, fun v hv => ?_⟩
     change chainCheck rF rG (eP (P a)) (eS s₀) u v = true
-    rcases hR : cvRest (eS s₀) u v with _ | ⟨w, _ | ⟨w', r⟩⟩
+    rcases hR : cvRest (eS s₀) u v with _ | ⟨w, rest⟩
     · exact chainCheck_nil hR
-    · have hR' := hR
-      rw [cvRest, hws] at hR'
-      obtain ⟨hi, hw, hr⟩ := drop_map_range_eq_cons hR'
-      have him : leadingTrues v = m := by
+    have hR' := hR
+    rw [cvRest, hws] at hR'
+    obtain ⟨hi, hw, hr⟩ := drop_map_range_eq_cons hR'
+    rcases rest with _ | ⟨w', r⟩
+    · have him : leadingTrues v = m := by
         by_contra hne
         rw [List.drop_eq_getElem_cons (by simp; omega)] at hr
         exact List.cons_ne_nil _ _ hr.symm
@@ -484,17 +470,12 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
       simp only [encPair_apply, encBool_apply, hgoalm] at hg
       rw [chainCheck_single hR, hw, him, hg]
       rfl
-    · have hR' := hR
-      rw [cvRest, hws] at hR'
-      obtain ⟨hi, hw, hr⟩ := drop_map_range_eq_cons hR'
-      obtain ⟨hi', hw', -⟩ := drop_map_range_eq_cons hr.symm
+    · obtain ⟨hi', hw', -⟩ := drop_map_range_eq_cons hr.symm
       rw [chainCheck_cons_cons hR, hu₁, hw, hw']
       have hx := heqF u (P a, (step^[leadingTrues v] s₀, bw))
         (hlen ▸ hLF (hTn _ (by omega)))
-      have hnext' : next (P a, (step^[leadingTrues v] s₀, bw)) =
-          step^[leadingTrues v + 1] s₀ := by
-        rw [Function.iterate_succ_apply']
-      rw [hnext'] at hx
+      rw [show next (P a, (step^[leadingTrues v] s₀, bw)) = step^[leadingTrues v + 1] s₀ from
+        (Function.iterate_succ_apply' step _ _).symm] at hx
       simp only [encPair_apply, encBits_apply, encBool_apply] at hx
       rw [hx]
       simp

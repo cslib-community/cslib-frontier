@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Simulation
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Reading an effectful machine's input from work tapes
@@ -106,11 +107,8 @@ theorem step_config (a : Turing.Action k Symbol State) (symbol : Oracle → Opti
     (config mark cfg outerInput outerPosition).step
         (action a cfg.tapes.inputSymbol (if cfg.tapes.inputPos.val = 0 then some mark else none))
         symbol move = config mark (cfg.step a symbol move) outerInput outerPosition := by
-  refine Config.ext ?_ rfl
-  refine Cfg.ext rfl (by simp [config, Config.step, action, Turing.Action.apply])
-    ?_ ?_ rfl <;> funext i <;> induction i using Fin.addCases <;>
-    simp [config, Config.step, action, Turing.Action.apply, MultiTapeTM.inCfg,
-      MultiTapeTM.val_moveInputPos_sub_one_eq_clampMove mark]
+  tm_step [config, Config.step, action, MultiTapeTM.inCfg,
+    MultiTapeTM.val_moveInputPos_sub_one_eq_clampMove mark]
 
 theorem receive_config [DecidableEq Oracle] (oracle : Oracle) (next : State)
     (answer : List Symbol) :

@@ -8,9 +8,12 @@ module
 -- upstream: local-only (ordinary clients of actual frozen-reference geometry)
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReferencePaths
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.CutTransport
 import CslibFrontier.Foundations.Geometry.Polygonal.CutTransport
+import CslibFrontier.Foundations.Geometry.PuncturedPaths
+import Mathlib.LinearAlgebra.Complex.FiniteDimensional
 import Mathlib.Tactic.NormNum
 
 /-! Ordinary clients keep both loop ends, parallel occurrences, unused fresh leaves, a fixed
@@ -235,5 +238,49 @@ example :
   dsimp only
   exact ⟨frozenReferenceDrawing_isEmbedding (validate_eq_true_iff _ |>.mp (by decide +kernel)),
     by decide +kernel, by decide +kernel⟩
+
+-- The same protected set contains the fixed isolate and the whole reverse-oriented loop spoke.
+example :
+    IsCompact (frozenReferenceObstacle bothFixed) ∧
+      IsPathConnected (frozenReferenceObstacle bothFixed)ᶜ ∧
+      referencePoint bothFixed 2 ∈ frozenReferenceObstacle bothFixed := by
+  exact ⟨frozenReferenceObstacle_isCompact bothFixed,
+    frozenReferenceObstacle_compl_isPathConnected valid_bothFixed,
+    (mem_frozenReferenceObstacle_iff valid_bothFixed).mpr (Or.inl ⟨2, by decide +kernel, rfl⟩)⟩
+
+example :
+    ((referenceDrawing bothFixed).route (subdivisionDart bothFixed loopLast).1).support ⊆
+      frozenReferenceObstacle bothFixed := by
+  intro z hz
+  exact (mem_frozenReferenceObstacle_iff valid_bothFixed).mpr
+    (Or.inr ⟨loopLast, by decide +kernel, hz⟩)
+
+-- Additional occupied points can be excluded without disconnecting the frozen complement.
+example :
+    IsPathConnected ((frozenReferenceObstacle bothFixed)ᶜ \ ({-1, -2} : Set ℂ)) := by
+  apply Cslib.isPathConnected_sdiff_finite_of_isOpen
+  · rw [Complex.rank_real_complex]
+    exact Nat.one_lt_ofNat
+  · exact (frozenReferenceObstacle_isCompact bothFixed).isClosed.isOpen_compl
+  · exact frozenReferenceObstacle_compl_isPathConnected valid_bothFixed
+  · exact (Set.finite_singleton _).insert _
+
+-- A reverse frozen spoke's leaf is protected. A leaf at a free rotation is off the obstacle.
+example :
+    referencePoint input (input.graph.vertices.length + loopLast.index) ∈
+      frozenReferenceObstacle input := by
+  apply (referencePoint_mem_frozenReferenceObstacle_iff valid_input
+    (v := input.graph.vertices.length + loopLast.index) (by decide +kernel)).mpr
+  exact Or.inr ⟨loopLast, by decide +kernel, rfl⟩
+
+example : referencePoint input 6 ∉ frozenReferenceObstacle input := by
+  intro h
+  have hv := (referencePoint_mem_frozenReferenceObstacle_iff valid_input
+    (by decide +kernel : 6 ∈ (subdivisionGraph input).vertices)).mp h
+  rcases hv with hv | ⟨d, hd, heq⟩
+  · exact (by decide +kernel : 6 ∉ input.graph.vertices) hv
+  · have hfree : ∀ d : Dart input.graph, 6 = input.graph.vertices.length + d.index →
+        (input.orders.getD d.vertex none).isSome = false := by decide +kernel
+    simp only [hfree d heq, Bool.false_eq_true] at hd
 
 end Cslib.Tests.RotationFrozenReference

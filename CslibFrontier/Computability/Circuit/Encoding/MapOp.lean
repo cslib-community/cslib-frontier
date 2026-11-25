@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Boolean.Encoding
+public import CslibFrontier.Computability.Circuit.Encoding.Basic
 public import CslibFrontier.Computability.Circuit.MapOp
 import Mathlib.Data.List.OfFn
 

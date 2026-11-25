@@ -74,26 +74,19 @@ theorem scanMin_spec (values : Fin R → α) (fallback : α) (t : ℕ) :
       ∃ j : Fin R, j.val < t ∧ scanMin values fallback t = values j) ∧
     scanMin values fallback t ≤ fallback ∧
       ∀ j : Fin R, j.val < t → scanMin values fallback t ≤ values j := by
-  induction t with
-  | zero => exact ⟨Or.inl rfl, le_rfl, fun j hj => by omega⟩
-  | succ t ih =>
-    by_cases ht : t < R
-    · rw [scanMin, dite_eq_left ht]
-      refine ⟨?_, (min_le_right _ _).trans ih.2.1, fun j hj => ?_⟩
-      · rcases min_cases (values ⟨t, ht⟩) (scanMin values fallback t) with h | h
-        · exact Or.inr ⟨⟨t, ht⟩, by simp, h.1⟩
-        · rcases ih.1 with hh | ⟨j, hj, he⟩
-          · exact Or.inl (h.1.trans hh)
-          · exact Or.inr ⟨j, by omega, h.1.trans he⟩
-      · by_cases he : j.val = t
-        · rw [show j = ⟨t, ht⟩ from Fin.ext he]
-          exact min_le_left _ _
-        · exact (min_le_right _ _).trans (ih.2.2 j (by omega))
-    · rw [scanMin, dite_eq_right ht]
-      refine ⟨?_, ih.2.1, fun j _ => ih.2.2 j (by have := j.isLt; omega)⟩
-      rcases ih.1 with h | ⟨j, hj, he⟩
-      · exact Or.inl h
-      · exact Or.inr ⟨j, by omega, he⟩
+  fun_induction scanMin values fallback t with
+  | case1 => exact ⟨Or.inl rfl, le_rfl, fun j hj => by omega⟩ -- t = 0
+  | case2 t ht ih => -- t < R: take the min
+    refine ⟨?_, (min_le_right _ _).trans ih.2.1, fun j hj => ?_⟩
+    · rcases min_cases (values ⟨t, ht⟩) (scanMin values fallback t) with h | h
+      · exact Or.inr ⟨⟨t, ht⟩, by simp, h.1⟩
+      · exact ih.1.imp (h.1.trans ·) fun ⟨j, hj, he⟩ => ⟨j, by omega, h.1.trans he⟩
+    · rcases eq_or_ne j.val t with he | he
+      · exact (Fin.ext he : j = ⟨t, ht⟩) ▸ min_le_left _ _
+      · exact (min_le_right _ _).trans (ih.2.2 j (by omega))
+  | case3 t ht ih => -- t ≥ R: skip
+    exact ⟨ih.1.imp id fun ⟨j, hj, he⟩ => ⟨j, by omega, he⟩, ih.2.1,
+      fun j _ => ih.2.2 j (by have := j.isLt; omega)⟩
 
 end MinScan
 
@@ -104,20 +97,20 @@ open Classical in
 private theorem synthesis_lexLt (s : Set (BooleanFunction a)) (x y : BitString a → BitString n)
     (hx : wires x ⊆ s) (hy : wires y ⊆ s) :
     Synthesis interpretation s {fun z => decide (toLex (x z) < toLex (y z))} (6 * n + 1) := by
-  have h := Synthesis.circuit (I := interpretation) (s := s)
+  refine (Synthesis.circuit (I := interpretation) (s := s)
     (Formula.lexLt (Fin.castAdd n) (Fin.natAdd n)).toCircuit
-    (Fin.append (fun i z => x z i) fun i z => y z i) fun i => by
-      induction i using Fin.addCases with
-      | left i => simpa only [Fin.append_left] using hx ⟨i, rfl⟩
-      | right i => simpa only [Fin.append_right] using hy ⟨i, rfl⟩
-  refine h.mono Set.Subset.rfl ?_ (by simp)
-  rintro _ rfl
-  refine ⟨0, funext fun z => Bool.eq_iff_iff.mpr ?_⟩
-  have hl : (fun i => Fin.append (fun i z => x z i) (fun i z => y z i) i z) ∘ Fin.castAdd n =
-      x z := funext fun i => by simp only [Function.comp_apply, Fin.append_left]
-  have hr : (fun i => Fin.append (fun i z => x z i) (fun i z => y z i) i z) ∘ Fin.natAdd n =
-      y z := funext fun i => by simp only [Function.comp_apply, Fin.append_right]
-  simp only [Formula.eval_toCircuit, Formula.eval_lexLt_iff, decide_eq_true_eq, hl, hr]
+    (Fin.append (fun i z => x z i) fun i z => y z i) fun i => ?_).mono
+      Set.Subset.rfl ?_ (by simp)
+  · induction i using Fin.addCases with
+    | left i => simpa only [Fin.append_left] using hx ⟨i, rfl⟩
+    | right i => simpa only [Fin.append_right] using hy ⟨i, rfl⟩
+  · rintro _ rfl
+    refine ⟨0, funext fun z => Bool.eq_iff_iff.mpr ?_⟩
+    simp only [Formula.eval_toCircuit, Formula.eval_lexLt_iff, decide_eq_true_eq,
+      show (fun i => Fin.append (fun i z => x z i) (fun i z => y z i) i z) ∘ Fin.castAdd n =
+        x z from funext fun _ => by simp only [Function.comp_apply, Fin.append_left],
+      show (fun i => Fin.append (fun i z => x z i) (fun i z => y z i) i z) ∘ Fin.natAdd n =
+        y z from funext fun _ => by simp only [Function.comp_apply, Fin.append_right]]
 
 /-- **Minimum scan.** The lexicographically least of `R` available states and a fallback costs
 one comparison and one selection per state. -/
@@ -168,7 +161,8 @@ private theorem chooseRecord_eq_of_last {α : Type*} (flags : Fin R → Bool) (r
     · rw [chooseRecord, dite_eq_left ht]
       by_cases he : j.val = t
       · rw [show (⟨t, ht⟩ : Fin R) = j from Fin.ext he.symm, hj, ite_eq_left rfl]
-      · rw [hlast ⟨t, ht⟩ (by simp only; omega) (by simp only; omega),
+      · rw [hlast ⟨t, ht⟩ (by simp only; omega)
+            (by simp only; omega),
           ite_eq_right Bool.false_ne_true]
         exact ih (by omega) fun i hi hit => hlast i hi (by omega)
     · rw [chooseRecord, dite_eq_right ht]
@@ -193,13 +187,14 @@ theorem chooseFirst_spec {α : Type*} (flags : Fin R → Bool) (records : Fin R 
 
 /-- The first flagged position in `w` bits, or zero if none is flagged. -/
 def firstIndex (flags : Fin R → Bool) : BitVec w :=
-  word (chooseFirst flags (fun j bit => (BitVec.ofNat w j.val).getLsbD bit.val) fun _ => false)
+  BitString.equivBitVec
+    (chooseFirst flags (fun j bit => (BitVec.ofNat w j.val).getLsbD bit.val) fun _ => false)
 
 /-- If `j` is the first flagged position, `firstIndex` returns `j.val` as a `w`-bit word. -/
 theorem firstIndex_spec (flags : Fin R → Bool) (j : Fin R) (hj : flags j = true)
     (hfirst : ∀ i : Fin R, i.val < j.val → flags i = false) :
     firstIndex (w := w) flags = BitVec.ofNat w j.val := by
-  rw [firstIndex, chooseFirst_spec flags _ _ j hj hfirst, word_getLsbD]
+  rw [firstIndex, chooseFirst_spec flags _ _ j hj hfirst, BitString.equivBitVec_getLsbD]
 
 /-- The first flagged position among `R` available flags costs four gates per position and
 bit. -/
@@ -210,6 +205,6 @@ theorem synthesis_firstIndex (s : Set (BooleanFunction a)) (flags : BitString a 
   have h := synthesis_chooseRecord (w := w) s (fun x j => flags x j.rev)
     (fun _ j bit => (BitVec.ofNat w j.rev.val).getLsbD bit.val) (fun _ _ => false)
     (fun j => hf j.rev) (fun _ _ => hc _) fun _ => hc false
-  simpa only [wordWires, firstIndex, chooseFirst, getLsbD_word] using h
+  simpa only [wordWires, firstIndex, chooseFirst, BitString.getLsbD_equivBitVec] using h
 
 end Cslib.Circuits.Boolean.Iteration

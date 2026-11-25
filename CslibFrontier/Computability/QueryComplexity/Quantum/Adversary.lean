@@ -133,39 +133,36 @@ theorem one_sub_mul_sum_sensitiveCoords_le {f : BooleanFunction N} {ε : ℝ}
   classical
   set R := (univ : Finset (BitString N × BitString N)).filter fun p =>
     (sensitivityGraph f).Adj p.1 p.2
-  have hadj : ∀ {x y : BitString N} {i : Fin N}, (sensitivityGraph f).Adj x y → x i ≠ y i →
-      y = update x i (!x i) := by
-    intro x y i hxy hne
+  have hadj {x y : BitString N} {i : Fin N} (hxy : (sensitivityGraph f).Adj x y)
+      (hne : x i ≠ y i) : y = update x i (!x i) := by
     obtain ⟨j, -, rfl⟩ := sensitivityGraph_adj.1 hxy
-    by_cases hji : j = i
-    · subst hji; rfl
-    · exact (hne (by simp [update_of_ne (Ne.symm hji)])).elim
+    rcases eq_or_ne j i with rfl | hji
+    · rfl
+    · exact (hne (by simp [update_of_ne hji.symm])).elim
   have hbound := one_sub_mul_sum_le_of_sq_le U hψ₀ T R (fun p => u p.1 * w p.2)
     (fun p hp => by
       obtain ⟨i, hi, hp2⟩ := sensitivityGraph_adj.1 (mem_filter.1 hp).2
       exact norm_inner_run_le U hψ₀ T S h hε (hp2 ▸ hi.symm))
     (fun p _ => u p.1 ^ 2) (fun p _ => w p.2 ^ 2) (fun x => u x ^ 2) (fun y => w y ^ 2)
     (fun p _ => mul_nonneg (hu _) (hw _)) (fun _ _ _ _ => sq_nonneg _) (fun _ _ _ _ => sq_nonneg _)
-    (fun _ _ _ _ => by ring_nf; rfl) (fun _ _ => sq_nonneg _) (fun _ _ => sq_nonneg _)
-    (fun x _ i => by
-      refine (sum_le_sum_of_subset_of_nonneg (t := {(x, update x i (!x i))}) ?_
-        fun _ _ _ => sq_nonneg _).trans_eq (by simp)
-      intro p hp
-      obtain ⟨hpR, hne, rfl⟩ := mem_filter.1 hp
-      exact mem_singleton.2 (Prod.ext rfl (hadj (mem_filter.1 hpR).2 hne)))
-    (fun y _ i => by
-      refine (sum_le_sum_of_subset_of_nonneg (t := {(update y i (!y i), y)}) ?_
-        fun _ _ _ => sq_nonneg _).trans_eq (by simp)
-      intro p hp
-      obtain ⟨hpR, hne, rfl⟩ := mem_filter.1 hp
-      exact mem_singleton.2 (Prod.ext (hadj (mem_filter.1 hpR).2.symm hne.symm) rfl))
+    (fun _ _ _ _ => by ring_nf; rfl)
+    (fun x _ i => (sum_le_sum_of_subset_of_nonneg (t := {(x, update x i (!x i))})
+      (fun p hp => by
+        obtain ⟨hpR, hne, rfl⟩ := mem_filter.1 hp
+        exact mem_singleton.2 (Prod.ext rfl (hadj (mem_filter.1 hpR).2 hne)))
+      fun _ _ _ => sq_nonneg _).trans_eq (by simp))
+    (fun y _ i => (sum_le_sum_of_subset_of_nonneg (t := {(update y i (!y i), y)})
+      (fun p hp => by
+        obtain ⟨hpR, hne, rfl⟩ := mem_filter.1 hp
+        exact mem_singleton.2 (Prod.ext (hadj (mem_filter.1 hpR).2.symm hne.symm) rfl))
+      fun _ _ _ => sq_nonneg _).trans_eq (by simp))
   have hsumR : ∑ p ∈ R, u p.1 * w p.2 =
       ∑ x, ∑ i ∈ sensitiveCoords f x, u x * w (update x i (!x i)) := by
     rw [sum_filter, Fintype.sum_prod_type]
     refine sum_congr rfl fun x _ => ?_
     rw [← sum_filter, show (univ.filter fun y => (sensitivityGraph f).Adj x y) =
         (sensitivityGraph f).neighborFinset x by ext; simp, neighborFinset_sensitivityGraph]
-    exact sum_image fun i _ j _ hij => BitString.update_not_injective x hij
+    exact sum_image fun _ _ _ _ hij => BitString.update_not_injective x hij
   rw [hsumR] at hbound
   exact hbound.trans (mul_le_mul_of_nonneg_left
     (add_le_add (sum_le_univ_sum_of_nonneg fun _ => sq_nonneg _)
@@ -181,19 +178,15 @@ theorem one_sub_mul_spectralSensitivity_le {f : BooleanFunction N} {ε : ℝ}
     (hε : 2 * ε ≤ 1) :
     (1 - 2 * √(ε * (1 - ε))) * spectralSensitivity f ≤ 2 * T := by
   set c := 1 - 2 * √(ε * (1 - ε))
-  have hε0 : 0 ≤ ε := (abs_nonneg _).trans (h fun _ => false)
-  have hc : 0 ≤ c := one_sub_two_mul_sqrt_nonneg ε
-  rcases hc.eq_or_lt with hc0 | hc0
+  rcases (show 0 ≤ c from one_sub_two_mul_sqrt_nonneg ε).eq_or_lt with hc0 | hc0
   · rw [← hc0, zero_mul]
     positivity
-  have hlam : spectralSensitivity f ≤ 2 * T / c := by
-    refine spectralSensitivity_le_of_forall_sum_le (by positivity)
-      fun u w hu hw hu1 hw1 => ?_
-    have := one_sub_mul_sum_sensitiveCoords_le U hψ₀ T S h hε hu hw
-    rw [hu1, hw1] at this
-    rw [le_div_iff₀ hc0]
-    linarith
-  rwa [le_div_iff₀ hc0, mul_comm] at hlam
+  rw [mul_comm, ← le_div_iff₀ hc0]
+  refine spectralSensitivity_le_of_forall_sum_le (by positivity) fun u w hu hw hu1 hw1 => ?_
+  have := one_sub_mul_sum_sensitiveCoords_le U hψ₀ T S h hε hu hw
+  rw [hu1, hw1] at this
+  rw [le_div_iff₀ hc0]
+  linarith
 
 /-- **Spectral sensitivity bounds bounded-error quantum queries**: if a `T`-query algorithm with a
 unit initial state accepts every input `x`, by an outcome in `S`, with probability within `1/3` of
@@ -205,10 +198,9 @@ theorem spectralSensitivity_le_thirty_six_mul {f : BooleanFunction N}
     spectralSensitivity f ≤ 36 * T := by
   have := one_sub_mul_spectralSensitivity_le U hψ₀ T S h (by norm_num)
   -- `2√(2/9) ≤ 17/18`, since `8/9 = 288/324 ≤ 289/324`
-  have hsqrt : √((1 / 3 : ℝ) * (1 - 1 / 3)) ≤ 17 / 36 :=
+  have : √((1 / 3 : ℝ) * (1 - 1 / 3)) ≤ 17 / 36 :=
     (Real.sqrt_le_left (by norm_num)).2 (by norm_num)
-  have hlam := spectralSensitivity_nonneg f
-  nlinarith
+  nlinarith [spectralSensitivity_nonneg f]
 
 /-- **Degree is at most quadratic in bounded-error quantum queries**: if a `T`-query algorithm with
 a unit initial state accepts every input `x`, by an outcome in `S`, with probability within `1/3`
@@ -219,11 +211,9 @@ theorem degree_le_mul_sq {f : BooleanFunction N}
     (S : Finset (Fin N × Bool × W))
     (h : ∀ x, |measureProb (run U ψ₀ x T) S - bitVal ℝ (f x)| ≤ 1 / 3) :
     degree f ≤ 1296 * T ^ 2 := by
-  have h₁ := degree_le_spectralSensitivity_sq f
-  have h₂ := pow_le_pow_left₀ (spectralSensitivity_nonneg f)
-    (spectralSensitivity_le_thirty_six_mul U hψ₀ T S h) 2
-  have : (degree f : ℝ) ≤ 1296 * T ^ 2 := by nlinarith
-  exact_mod_cast this
+  exact_mod_cast (show (degree f : ℝ) ≤ 1296 * T ^ 2 by
+    nlinarith [degree_le_spectralSensitivity_sq f, pow_le_pow_left₀ (spectralSensitivity_nonneg f)
+      (spectralSensitivity_le_thirty_six_mul U hψ₀ T S h) 2])
 
 /-- **Deterministic simulation of bounded-error quantum queries with a quartic overhead**: if a
 `T`-query algorithm with a unit initial state accepts every input `x`, by an outcome in `S`, with

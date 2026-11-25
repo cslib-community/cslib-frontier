@@ -104,10 +104,41 @@ theorem entry_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ
     (hfuel : ComputableInSpace (fun a => (registers a).fuel) encIn encNat budget) :
     ComputableInSpace (fun a => entry edge start verdict clock (context a) (registers a))
       encIn (encState encContext encCallee) budget := by
-  have hregisters := BoundedWalk.registersWord_budget (r := registers) hcurrent htarget hfuel
-  have hchoice := BoundedWalk.choiceWord_budget hregisters (NondeterministicChoice.init_budget hdim)
-  refine state_budget encContext encCallee hcontext hdim (hchoice.of_enc_eq fun a => ?_)
+  refine state_budget encContext encCallee hcontext hdim
+    ((BoundedWalk.choiceWord_budget
+      (BoundedWalk.registersWord_budget (r := registers) hcurrent htarget hfuel)
+      (NondeterministicChoice.init_budget hdim)).of_enc_eq fun _ => ?_)
   simp only [typedMachine, encBits_apply, BoundedWalk.encState_init]
+
+/-- Enter the walk from binary endpoint ranks, interpreting each modulo the positive dimension. -/
+def entryRanks (ctx : κ) {N : ℕ} (positive : 0 < N) (current target fuel : ℕ) : State κ τ :=
+  entry edge start verdict clock ctx (Registers.ofRanks positive current target fuel)
+
+/-- For valid endpoint ranks, the binary and typed entries produce the same runtime state. -/
+theorem entryRanks_eq_entry (ctx : κ) {N : ℕ} (positive : 0 < N) (r : Registers N) :
+    entryRanks edge start verdict clock ctx positive r.current.val r.target.val r.fuel =
+      entry edge start verdict clock ctx r := by
+  unfold entryRanks
+  rw [Registers.ofRanks_val]
+
+/-- Enter the walk from a retained context, positive dimension, binary endpoint ranks and fuel
+within their common space budget. The rank producers may return arbitrary binary naturals. -/
+theorem entryRanks_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
+    (encContext : κ ↪ List Bool) (encCallee : τ ↪ List Bool)
+    {context : α → κ} {dimension current target fuel : α → ℕ}
+    (positive : ∀ a, 0 < dimension a)
+    (hcontext : ComputableInSpace context encIn encContext budget)
+    (hdim : ComputableInSpace dimension encIn encNat budget)
+    (hcurrent : ComputableInSpace current encIn encNat budget)
+    (htarget : ComputableInSpace target encIn encNat budget)
+    (hfuel : ComputableInSpace fuel encIn encNat budget) :
+    ComputableInSpace
+      (fun a => entryRanks edge start verdict clock (context a) (positive a)
+        (current a) (target a) (fuel a))
+      encIn (encState encContext encCallee) budget :=
+  entry_budget edge start verdict clock encContext encCallee
+    (registers := fun a => Registers.ofRanks (positive a) (current a) (target a) (fuel a))
+    hcontext hdim (budget_natMod hcurrent hdim) (budget_natMod htarget hdim) hfuel
 
 /-- One same-input transition machine selects the walk's context and dimension from its
 current state, including during a suspended adjacency call. -/
@@ -163,16 +194,15 @@ private theorem step_eq {N : ℕ} (initial : State κ τ) (ctx : κ) (hp : 0 < N
       ⟨ctx, N, hp, (typedMachine edge start verdict clock ctx r).step input s bit⟩ := by
   rw [← innerMachine_withInit edge start verdict clock ctx hp s r,
     NondeterministicQueryMachine.step_withInit]
-  simp only [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read, machine,
-    innerMachine, typedMachine, BoundedWalk.machine_query, BoundedWalk.machine_halted]
-  by_cases h : BoundedWalk.halted s = true <;> simp [h]
+  by_cases h : BoundedWalk.halted s = true <;>
+    simp [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read, machine,
+      innerMachine, typedMachine, BoundedWalk.machine_query, BoundedWalk.machine_halted, h]
 
 private theorem replay_eq {N : ℕ} (initial : State κ τ) (ctx : κ) (hp : 0 < N) (r : Registers N)
     (input selectors : List Bool) (s : BoundedWalk.State N τ) :
     (machine edge start verdict clock initial).replay input selectors ⟨ctx, N, hp, s⟩ =
-      ⟨ctx, N, hp, (typedMachine edge start verdict clock ctx r).replay input selectors s⟩ := by
-  exact List.foldl_hom (fun inner => State.mk ctx N hp inner)
-    (step_eq edge start verdict clock initial ctx hp r input)
+      ⟨ctx, N, hp, (typedMachine edge start verdict clock ctx r).replay input selectors s⟩ :=
+  List.foldl_hom (State.mk ctx N hp) (step_eq edge start verdict clock initial ctx hp r input)
 
 /-- Every replay retains the entry dimension and context and uses exactly the existing
 bounded walk's state on the original input and selectors. -/
@@ -220,17 +250,13 @@ theorem next_inSpace (initial : State κ τ) (encContext : κ ↪ List Bool)
     ComputableInSpace (machine edge start verdict clock initial).next
       (encStep encContext encCallee) (encState encContext encCallee)
       (fun p => (encStep encContext encCallee p).length) := by
-  let encReply := encPair (encOption encBool) encBool
-  have hs := stateFields_budget (fst (encState encContext encCallee) encReply)
-  have hcontext := fst' hs
-  have hdim := fst' (snd' hs)
-  have hinput := snd (encState encContext encCallee) encReply
-  have hstep := BoundedWalk.advance_budget (state := fun p => p.1.walk) clock hstart hnext
-    hhalted hverdict hcontext hdim (fun p => p.1.positive) (snd' (snd' hs))
-    (fst' hinput) (snd' hinput)
-  refine (state_budget (positive := fun p => p.1.positive)
-    encContext encCallee hcontext hdim hstep).of_enc_eq ?_
-  rintro ⟨state, reply, selector⟩
+  let hs := stateFields_budget (fst (encState encContext encCallee)
+    (encPair (encOption encBool) encBool))
+  let hinput := snd (encState encContext encCallee) (encPair (encOption encBool) encBool)
+  refine (state_budget (positive := fun p => p.1.positive) encContext encCallee (fst' hs)
+    (fst' (snd' hs)) (BoundedWalk.advance_budget (state := fun p => p.1.walk) clock hstart hnext
+      hhalted hverdict (fst' hs) (fst' (snd' hs)) (fun p => p.1.positive) (snd' (snd' hs))
+      (fst' hinput) (snd' hinput))).of_enc_eq fun ⟨_, _, _⟩ => ?_
   simp only [machine, innerMachine, typedMachine, BoundedWalk.machine_next]
 
 /-- Read the active adjacency query position from a runtime state in linear space. -/
@@ -274,12 +300,11 @@ theorem firstHalting_iff {N : ℕ} (ctx : κ) (r : Registers N) (input selectors
       B.FirstHalting input selectors B.init := by
   let M := machine edge start verdict clock (entry edge start verdict clock ctx r)
   let B := typedMachine edge start verdict clock ctx r
-  change (M.halted (M.run input selectors) = true ∧
-      ∀ n < selectors.length, M.halted (M.run input (selectors.take n)) = false) ↔
-    B.halted (B.run input selectors) = true ∧
-      ∀ n < selectors.length, B.halted (B.run input (selectors.take n)) = false
-  have h (bits : List Bool) : M.halted (M.run input bits) = B.halted (B.run input bits) :=
-    halted_run_eq edge start verdict clock ctx r input bits
+  change (M.halted (M.run input selectors) = true ∧ ∀ n < _, M.halted (M.run input _) = false) ↔
+    B.halted (B.run input selectors) = true ∧ ∀ n < _, B.halted (B.run input _) = false
+  have h (bits) := halted_run_eq edge start verdict clock ctx r input bits
+  dsimp only at h
+  dsimp only [M, B]
   simp only [h]
 
 /-- The optional fuel agrees with the result of the existing walk on the same selector list. -/
@@ -292,6 +317,33 @@ theorem remainingFuel_run {N : ℕ} (ctx : κ) (r : Registers N) (input selector
   rw [run_eq]
   rfl
 
+open Cslib.DoubleCounting.Scan in
+/-- After re-entry, a successful first halt corresponds to the typed walk's canonical selectors
+and returns its unused fuel. The machine's original entry may have a different dimension. -/
+theorem firstHalting_remainingFuel_iff (initial : State κ τ)
+    {N : ℕ} (ctx : κ) (r : Registers N) (input : List Bool)
+    (adjacent : Fin N → Fin N → Bool)
+    (hclock : ∀ u v : Fin N,
+      edge.halted (edge.runFrom input (start ctx u.val v.val) clock) = true)
+    (hedge : ∀ u v : Fin N,
+      verdict (edge.runFrom input (start ctx u.val v.val) clock) = adjacent u v)
+    (bits : List Bool) (left : ℕ) :
+    let M := machine edge start verdict clock initial
+    let s := entry edge start verdict clock ctx r
+    M.FirstHalting input bits s ∧ remainingFuel (M.replay input bits s) = some left ↔
+      ∃ tail, bits = selectors clock tail ∧
+        (walkM readNext (fun u v => pure (adjacent u v)) r.target r.fuel r.current tail).1 =
+          some left := by
+  dsimp only
+  have h1 := firstHalting_iff edge start verdict clock ctx r input bits
+  have h2 := remainingFuel_run edge start verdict clock ctx r input bits
+  dsimp only at h1 h2
+  rw [← NondeterministicQueryMachine.firstHalting_withInit
+      (machine edge start verdict clock initial) (entry edge start verdict clock ctx r),
+    ← NondeterministicQueryMachine.run_withInit, machine_withInit, h1, h2]
+  exact BoundedWalk.firstHalting_remainingFuel_iff edge
+    (fun u v => start ctx u.val v.val) verdict clock r input adjacent hclock hedge bits left
+
 /-- The runtime walk preserves the common clock on every branch. -/
 theorem haltsWithin {N : ℕ} (ctx : κ) (r : Registers N) (input : List Bool) :
     (machine edge start verdict clock (entry edge start verdict clock ctx r)).HaltsWithin
@@ -300,6 +352,13 @@ theorem haltsWithin {N : ℕ} (ctx : κ) (r : Registers N) (input : List Bool) :
   rw [halted_run_eq]
   exact BoundedWalk.haltsWithin edge (fun u v => start ctx u.val v.val) verdict clock r
     input selectors hlen
+
+/-- Encoded-state bound for the runtime walk, including the framed context, binary dimension,
+and an adjacency state of at most `calleeBound` bits. -/
+@[expose] def stateBound (dimension fuel clock contextLength calleeBound : ℕ) : ℕ :=
+  2 * contextLength + 14 * (encNat dimension).length +
+    4 * (Nat.log2 dimension.size + 1) + 4 * (encNat fuel).length +
+    2 * (encNat clock).length + calleeBound + 23
 
 /-- Every runtime branch adds only the framed context and binary dimension to the bounded walk's
 retained state, including on rejection and during an adjacency call. -/
@@ -310,10 +369,8 @@ theorem length_run_le {N : ℕ} (ctx : κ) (r : Registers N) (input selectors : 
     let initial := entry edge start verdict clock ctx r
     (encState encContext encCallee ((machine edge start verdict clock initial).run
       input selectors)).length ≤
-        2 * (encContext ctx).length + 14 * (encNat N).length +
-          4 * (Nat.log2 N.size + 1) + 4 * (encNat r.fuel).length +
-          2 * (encNat clock).length + calleeBound + 23 := by
-  dsimp only
+      stateBound N r.fuel clock (encContext ctx).length calleeBound := by
+  dsimp only [stateBound]
   rw [run_eq, length_encState]
   have h := BoundedWalk.length_run_le edge (fun u v => start ctx u.val v.val) verdict clock r
     input encCallee calleeBound hcallee selectors

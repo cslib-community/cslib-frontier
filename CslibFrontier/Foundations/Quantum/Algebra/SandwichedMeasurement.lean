@@ -71,13 +71,48 @@ def sandwichBy (T : Measurement β A) (M : Measurement α A) (f : β → α) :
 
 @[simp]
 theorem sandwichBy_effect_some (T : Measurement β A) (M : Measurement α A) (f : β → α) (b : β) :
-    (T.sandwichBy M f).effect (some b) = M.effect (f b) * T.effect b * M.effect (f b) := by
-  unfold sandwichBy
-  rfl
+    (T.sandwichBy M f).effect (some b) = M.effect (f b) * T.effect b * M.effect (f b) := by rfl
 
 end Measurement
 
 namespace AlgState
+
+/-- A weighted sum grouped by a common outcome map is bounded by the unweighted
+squared state norm. The total weight of each fiber is a measurement effect. -/
+theorem sum_weighted_conj_le_sum_norm_sq (φ : AlgState A) (T : Measurement β A)
+    (f : β → α) (D : α → A) :
+    (∑ b, (φ (star (D (f b)) * T.effect b * D (f b))).re) ≤ ∑ a, φ.norm (D a) ^ 2 := by
+  classical
+  rw [← sum_fiberwise univ f (fun b => (φ (star (D (f b)) * T.effect b * D (f b))).re)]
+  refine sum_le_sum fun a _ => ?_
+  have he : (∑ b with f b = a, (φ (star (D (f b)) * T.effect b * D (f b))).re) =
+      (φ (star (D a) * (T.map f).effect a * D a)).re := by
+    rw [Measurement.map_effect, mul_sum, sum_mul, map_sum, Complex.re_sum]
+    exact sum_congr rfl fun b hb => by rw [(mem_filter.mp hb).2]
+  rw [he, AlgState.norm_sq]
+  simpa only [mul_one] using φ.re_apply_mono
+    (star_left_conjugate_le_conjugate ((T.map f).effect_le_one a) (D a))
+
+/-- Positive weights dominated by measurement effects bound a weighted linear
+score by the weighted squared state norm of its argument. -/
+theorem abs_sum_weighted_mul_le (φ : AlgState A) (T : Measurement β A) (W D : β → A)
+    (hW : ∀ b, 0 ≤ W b) (hle : ∀ b, W b ≤ T.effect b) :
+    |∑ b, (φ (W b * D b)).re| ≤
+      √(∑ b, (φ (star (D b) * T.effect b * D b)).re) := by
+  choose K hK using fun b => CStarAlgebra.nonneg_iff_eq_star_mul_self.mp (hW b)
+  have hnorm (b : β) : φ.norm (K b * D b) ^ 2 = (φ (star (D b) * W b * D b)).re := by
+    rw [AlgState.norm_sq, hK b, star_mul]
+    simp only [mul_assoc]
+  have hn : (∑ b, φ.norm (K b) ^ 2) ≤ 1 := by
+    simp only [AlgState.norm_sq, ← hK, ← Complex.re_sum, ← map_sum]
+    exact φ.re_apply_le_one ((sum_le_sum fun b _ => hle b).trans_eq T.sum_effect)
+  have hd : (∑ b, φ.norm (K b * D b) ^ 2) ≤
+      ∑ b, (φ (star (D b) * T.effect b * D b)).re := by
+    simp only [hnorm]
+    exact sum_le_sum fun b _ => φ.re_apply_mono (star_left_conjugate_le_conjugate (hle b) (D b))
+  simpa only [← mul_assoc, ← hK, Real.sqrt_one, one_mul] using
+    (φ.abs_sum_re_star_mul_le K fun b => K b * D b).trans
+      (mul_le_mul (Real.sqrt_le_sqrt hn) (Real.sqrt_le_sqrt hd) (by positivity) (by positivity))
 
 private theorem abs_sum_norm_sq_sub_le (φ : AlgState A) (X Y : β → A)
     (hX : ∑ b, φ.norm (X b) ^ 2 ≤ 1) (hY : ∑ b, φ.norm (Y b) ^ 2 ≤ 1) :
@@ -94,11 +129,9 @@ private theorem abs_sum_norm_sq_sub_le (φ : AlgState A) (X Y : β → A)
     abel
   simp only [AlgState.norm_sq, ← sum_sub_distrib, ← Complex.sub_re, ← map_sub, hsplit,
     map_add, Complex.add_re, sum_add_distrib]
-  exact (abs_add_le ..).trans (by
-    rw [Real.sqrt_one, mul_one] at h₁
-    rw [Real.sqrt_one, one_mul] at h₂
-    simp only [AlgState.norm_sq, D] at h₁ h₂ ⊢
-    linarith only [h₁, h₂])
+  refine (abs_add_le ..).trans ?_
+  simp only [Real.sqrt_one, mul_one, one_mul, AlgState.norm_sq, D] at h₁ h₂ ⊢
+  linarith only [h₁, h₂]
 
 /-- The difference between two sums of sandwiches is controlled by the weighted
 squared state distance, provided the two sums each have state value at most one. -/
@@ -136,23 +169,20 @@ theorem abs_sum_weighted_sandwich_sub_le (φ : AlgState A)
   let W b := C b * T.effect b
   have hW b : 0 ≤ W b := (hCT b).mul_nonneg (hC b).1 (T.nonneg b)
   have hWT b : W b ≤ T.effect b := by
-    have h := (Commute.one_left (T.effect b) |>.sub_left (hCT b)).mul_nonneg
-      (sub_nonneg.mpr (hC b).2) (T.nonneg b)
-    simpa only [sub_mul, one_mul, sub_nonneg] using h
+    simpa only [sub_mul, one_mul, sub_nonneg] using
+      (Commute.one_left (T.effect b) |>.sub_left (hCT b)).mul_nonneg
+        (sub_nonneg.mpr (hC b).2) (T.nonneg b)
   have hle (D : β → A) : (∑ b, (φ (star (D b) * W b * D b)).re) ≤
       ∑ b, (φ (star (D b) * T.effect b * D b)).re :=
     sum_le_sum fun b _ => φ.re_apply_mono (star_left_conjugate_le_conjugate (hWT b) (D b))
-  have hXstar b : star (X b) = X b := (M.nonneg _).isSelfAdjoint.star_eq
-  have hYstar b : star (Y b) = Y b := (N.nonneg _).isSelfAdjoint.star_eq
-  have hX : (∑ b, (φ (star (X b) * W b * X b)).re) ≤ 1 := (hle X).trans (by
-    simpa only [hXstar, ← Complex.re_sum, ← map_sum] using
-      φ.re_apply_le_one (sum_sandwich_le_one M T f))
-  have hY : (∑ b, (φ (star (Y b) * W b * Y b)).re) ≤ 1 := (hle Y).trans (by
-    simpa only [hYstar, ← Complex.re_sum, ← map_sum] using
-      φ.re_apply_le_one (sum_sandwich_le_one N T g))
-  have h := (φ.abs_sum_sandwich_sub_le W X Y hW hX hY).trans
-    (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt (hle fun b => X b - Y b)) (by norm_num))
-  simpa only [hXstar, hYstar, W] using h
+  have hbound (P : Measurement α A) (h : β → α) :
+      (∑ b, (φ (star (P.effect (h b)) * W b * P.effect (h b))).re) ≤ 1 :=
+    (hle _).trans (by
+      simpa only [(P.nonneg _).isSelfAdjoint.star_eq, ← Complex.re_sum, ← map_sum] using
+        φ.re_apply_le_one (sum_sandwich_le_one P T h))
+  simpa only [X, Y, (M.nonneg _).isSelfAdjoint.star_eq, (N.nonneg _).isSelfAdjoint.star_eq, W]
+    using (φ.abs_sum_sandwich_sub_le W X Y hW (hbound M f) (hbound N g)).trans
+      (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt (hle fun b => X b - Y b)) (by norm_num))
 
 end Measurement
 

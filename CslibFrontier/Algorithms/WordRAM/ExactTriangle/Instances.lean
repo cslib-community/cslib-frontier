@@ -9,9 +9,9 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.Catalogue
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.InstancePair
+import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Computability.WordRAM.Sequence
-import Mathlib.Tactic.FinCases
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 
 /-!
 # Native ExactTriangle instance preparation
@@ -207,44 +207,36 @@ private theorem parameter_bounds {n D g : ℕ} (hD : 1 ≤ D) (hDn : D ≤ n)
     0 < pieceSize D g ∧ pieceSize D g ≤ n ∧
       0 < numPieces n D g ∧ numPieces n D g ≤ n ∧
       ∀ j < numPieces n D g, j * pieceSize D g ≤ n := by
-  have hs : 0 < sOf D := by
-    change 0 < Nat.sqrt D
-    exact Nat.sqrt_pos.mpr hD
-  have hc := Nat.le_ceilDiv_mul (a := sOf D) (by omega : 0 < g)
-  have hB : 0 < pieceSize D g := by
-    change sOf D ≤ pieceSize D g * g at hc
-    by_contra h
-    have : pieceSize D g = 0 := by omega
-    rw [this, Nat.zero_mul] at hc
+  have hs : 0 < sOf D := Nat.sqrt_pos.mpr hD
+  have hc : sOf D ≤ pieceSize D g * g := Nat.le_ceilDiv_mul (by omega : 0 < g)
+  have hB : 0 < pieceSize D g := Nat.pos_of_ne_zero fun h => by
+    rw [h, Nat.zero_mul] at hc
     omega
   have hBn : pieceSize D g ≤ n :=
     (pieceSize_le_sOf hg).trans ((Nat.sqrt_le_self D).trans hDn)
   have hcover : n ≤ numPieces n D g * pieceSize D g := Nat.le_ceilDiv_mul hB
-  have hH : 0 < numPieces n D g := by
-    by_contra h
-    have : numPieces n D g = 0 := by omega
-    rw [this, Nat.zero_mul] at hcover
+  have hH : 0 < numPieces n D g := Nat.pos_of_ne_zero fun h => by
+    rw [h, Nat.zero_mul] at hcover
     omega
   have hHn : numPieces n D g ≤ n :=
     (Nat.ceilDiv_le_iff hB).mpr (Nat.le_mul_of_pos_right n hB)
   refine ⟨hB, hBn, hH, hHn, fun j hj => ?_⟩
-  have hover : numPieces n D g * pieceSize D g < n + pieceSize D g :=
-    Nat.ceilDiv_mul_lt hB
+  have hover : numPieces n D g * pieceSize D g < n + pieceSize D g := Nat.ceilDiv_mul_lt hB
   have hstep := Nat.mul_le_mul_right (pieceSize D g) (Nat.succ_le_of_lt hj)
   rw [Nat.succ_mul] at hstep
   omega
 
 /-- One bounded instruction graph with no word-size reads. -/
-theorem program_fixed : program.size ≤ 640 ∧ ¬program.ReadsWidth := by decide
+theorem program_fixed : program.size ≤ 640 ∧ ¬program.ReadsWidth :=
+  ⟨by decide +kernel, Code.not_readsWidth_of_readsWidthBool rfl⟩
 
-private theorem select_preserves : ∀ i : Fin 64, i.val < 50 → select.Preserves i := by decide
+private theorem select_preserves : ∀ i : Fin 64, i.val < 50 → select.Preserves i :=
+  Code.preserves_of_preservesAllPred (by decide +kernel)
 
 /-- One instance visit preserves metadata except its heap and logical progress counters. -/
 theorem visit_preserves : ∀ i : Fin 64,
-    (32 ≤ i.val ∧ i.val < 50 ∧ i ≠ heap ∧ i ≠ produced) → visit.Preserves i := by decide
-
-private theorem prefix_preserves : ∀ i : Fin 64, 32 ≤ i.val → i.val < 50 →
-    (Code.seq select (.seq deliver pair)).Preserves i := by decide
+    (32 ≤ i.val ∧ i.val < 50 ∧ i ≠ heap ∧ i ≠ produced) → visit.Preserves i :=
+  Code.preserves_of_preservesAllPred (by decide +kernel)
 
 private abbrev pairBank : Fin 32 → Fin 64 := Fin.castLE (by decide)
 
@@ -280,47 +272,10 @@ private theorem exec_setup {w : ℕ} (x : Data 64) (n D p B H K desc out : ℕ)
       y.regs total = K * H ∧ y.regs heap = out ∧ y.regs stride = 6 + 2 * (n * D) ∧
       y.regs one = 1 ∧ y.regs three = 3 ∧
       y.regs srcLeft = 5 + 5 * (n * n) ∧ y.regs srcRight = 5 + 4 * (n * n) := by
-  let N := n * n
-  let M := n * D
-  let y := x.set one 1 |>.set three 3 |>.set six 6
-    |>.set size n |>.set modulus p |>.set pieceLength B |>.set pieces H
-    |>.set chunks K |>.set descriptors desc |>.set output out
-    |>.set produced 0 |>.set heap out |>.set total (K * H)
-    |>.set addr 1 |>.set dimension D |>.set area M
-    |>.set stride (M + M) |>.set stride (M + M + 6)
-    |>.set temp N |>.set srcLeft (N + N) |>.set srcLeft (N + N + N)
-    |>.set srcRight (N + N + N + N) |>.set srcLeft (N + N + N + N + N)
-    |>.set addr 5 |>.set srcLeft (N + N + N + N + N + 5)
-    |>.set srcRight (N + N + N + N + 5)
-  have h0 : Fits w 0 := hfit.of_le (by omega)
-  have h1 : Fits w 1 := hfit.of_le (by omega)
-  have h3 : Fits w 3 := hfit.of_le (by omega)
-  have h5 : Fits w 5 := hfit.of_le (by omega)
-  have h6 : Fits w 6 := hfit.of_le (by omega)
-  have hT : Fits w (K * H) := hfit.of_le (by omega)
-  have hN : Fits w N := hfit.of_le (by dsimp [N]; omega)
-  have h2N : Fits w (N + N) := hfit.of_le (by dsimp [N]; omega)
-  have h3N : Fits w (N + N + N) := hfit.of_le (by dsimp [N]; omega)
-  have h4N : Fits w (N + N + N + N) := hfit.of_le (by dsimp [N]; omega)
-  have h5N : Fits w (N + N + N + N + N) := hfit.of_le (by dsimp [N]; omega)
-  have h4N5 : Fits w (N + N + N + N + 5) := hfit.of_le (by dsimp [N]; omega)
-  have h5N5 : Fits w (N + N + N + N + N + 5) := hfit.of_le (by dsimp [N]; omega)
-  have hM : Fits w M := hfit.of_le (by dsimp [M]; omega)
-  have h2M : Fits w (M + M) := hfit.of_le (by dsimp [M]; omega)
-  have hstride : Fits w (M + M + 6) := hfit.of_le (by dsimp [M]; omega)
-  refine ⟨y, ?_, rfl, ?_⟩
-  · ram_eval [setup, y, hn, hp, hB, hH, hK, hd, hout, hD, h0, h1, h3, h5, h6,
-      hT, hN, h2N, h3N, h4N, h5N, h4N5, h5N5, hM, h2M, hstride, N, M,
-      size, dimension, modulus, pieceLength, pieces, chunks, descriptors, output,
-      produced, heap, total, one, three, six, area, stride, temp, srcLeft, srcRight, addr,
-      Fin.mk.injEq]
-  · refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_, rfl, rfl, ?_, ?_⟩
-    · change M + M + 6 = 6 + 2 * M
-      omega
-    · change N + N + N + N + N + 5 = 5 + 5 * N
-      omega
-    · change N + N + N + N + 5 = 5 + 4 * N
-      omega
+  unfold setup
+  wram_exec [hn, hp, hB, hH, hK, hd, hout, hD]
+  wram_simp
+  refine ⟨by omega, by omega, by omega⟩
 
 private theorem pairBank_injective : Function.Injective pairBank := by
   intro i j h
@@ -393,50 +348,17 @@ private theorem exec_select {w : ℕ} (x : Data 64)
       y.regs first = j * x.regs pieceLength ∧
       y.regs length = min (x.regs pieceLength) (x.regs size - j * x.regs pieceLength) ∧
       y.mem = x.mem := by
-  let k := x.regs produced / x.regs pieces
-  let j := x.regs produced % x.regs pieces
-  let f := j * x.regs pieceLength
-  let a := k * 3 + x.regs descriptors
-  let l := min (x.regs pieceLength) (x.regs size - f)
-  have hk : k < x.regs chunks := (Nat.div_lt_iff_lt_mul hH).mpr hi
-  have hj : j < x.regs pieces := Nat.mod_lt _ hH
-  have hfirst : f ≤ x.regs pieces * x.regs pieceLength :=
-    Nat.mul_le_mul_right _ hj.le
-  have hkfit : Fits w k := hfit.of_le (by omega)
-  have hjfit : Fits w j := hfit.of_le (by omega)
-  have hk3 : Fits w (k * 3) := hfit.of_le (by omega)
-  have ha : Fits w (k * 3 + x.regs descriptors) := hfit.of_le (by omega)
-  have ha1 : Fits w (a + 1) := hfit.of_le (by dsimp [a]; omega)
-  have ha2 : Fits w (a + 1 + 1) := hfit.of_le (by dsimp [a]; omega)
-  have hf : Fits w f := hfit.of_le (by omega)
-  have hsub : Fits w (x.regs size - f) := hfit.of_le (by omega)
-  have hl : Fits w l := hsub.of_le (min_le_right ..)
-  let y := x.set chunkIndex k |>.set pieceIndex j |>.set addr (k * 3)
-    |>.set addr a |>.set rho (x.mem a) |>.set addr (a + 1)
-    |>.set queries (x.mem (a + 1)) |>.set addr (a + 1 + 1)
-    |>.set queryCount (x.mem (a + 1 + 1)) |>.set first f
-    |>.set length (x.regs size - f) |>.set length l
-  refine ⟨y, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, rfl⟩
-  · by_cases h : x.regs pieceLength < x.regs size - f
-    · have he : l = x.regs pieceLength := min_eq_left h.le
-      rw [he] at hl
-      ram_eval [select, y, k, j, f, a, l, he, h, ho, ht, hkfit, hjfit, hk3, ha,
-        ha1, ha2, hf, hsub, hl, chunkIndex, produced, pieces, pieceIndex, addr, three,
-        descriptors, rho, one, queries, queryCount, first, pieceLength, size, length,
-        Fin.mk.injEq]
-    · have he : l = x.regs size - f := min_eq_right (by omega)
-      rw [he] at hl
-      ram_eval [select, y, k, j, f, a, l, he, h, ho, ht, hkfit, hjfit, hk3, ha,
-        ha1, ha2, hf, hsub, hl, chunkIndex, produced, pieces, pieceIndex, addr, three,
-        descriptors, rho, one, queries, queryCount, first, pieceLength, size, length,
-        Fin.mk.injEq]
-  · simp +decide [y, k, chunkIndex, pieceIndex, addr, rho, queries, queryCount, first, length]
-  · simp +decide [y, j, pieceIndex, addr, rho, queries, queryCount, first, length]
-  · simp +decide [y, a, k, rho, addr, queries, queryCount, first, length]
-  · simp +decide [y, a, k, queries, addr, queryCount, first, length]
-  · simp +decide [y, a, k, queryCount, first, length, Nat.add_assoc]
-  · simp +decide [y, f, j, first, length]
-  · simp +decide [y, l, f, j, length]
+  have hk : x.regs produced / x.regs pieces < x.regs chunks :=
+    (Nat.div_lt_iff_lt_mul hH).mpr hi
+  have hj : x.regs produced % x.regs pieces < x.regs pieces := Nat.mod_lt _ hH
+  have hfirst : x.regs produced % x.regs pieces * x.regs pieceLength ≤
+      x.regs pieces * x.regs pieceLength := Nat.mul_le_mul_right _ hj.le
+  unfold select
+  wram_exec [ho, ht]
+  · wram_simp
+    omega
+  · wram_simp
+    omega
 
 /-- Execute one logical chunk/piece at the current heap pointer. Previous records and dirty
 scratch outside its destination span are unrestricted. All native argument delivery and both
@@ -469,142 +391,48 @@ theorem exec_visit {w : ℕ} (x : Data 64) (L R : ℕ → ℕ)
       (∀ a, ¬(x.regs heap ≤ a ∧ a < x.regs heap + x.regs stride) → y.mem a = x.mem a) := by
   let B := pairInput x
   let M := x.regs size * x.regs dimension
-  have Bbase : B.regs InstancePair.base = x.regs heap := rfl
-  have Bn : B.regs InstancePair.size = x.regs size := rfl
-  have BD : B.regs InstancePair.dimension = x.regs dimension := rfl
-  have BsrcL : B.regs InstancePair.srcLeft = x.regs srcLeft := rfl
-  have BsrcR : B.regs InstancePair.srcRight = x.regs srcRight := rfl
-  have Bp : B.regs InstancePair.modulus = x.regs modulus := rfl
-  obtain ⟨a, ha, hak, haj, harho, haq, hacount, hafirst, halen, hamem⟩ :=
+  obtain ⟨a, ha, -, haj, harho, haq, hacount, hafirst, halen, hamem⟩ :=
     exec_select x ho ht hH hi (hfit.of_le (by omega))
   have hameta (i : Fin 64) (hi : i.val < 50) : a.regs i = x.regs i :=
     ha.regs_eq (select_preserves i hi)
-  let b := a.set 17 (B.regs 17) |>.set 18 (B.regs 18) |>.set 19 (B.regs 19)
-    |>.set 20 (B.regs 20) |>.set 21 (B.regs 21) |>.set 22 (B.regs 22)
-    |>.set 23 (B.regs 23) |>.set 24 (B.regs 24) |>.set 25 (B.regs 25)
-    |>.set 26 (B.regs 26) |>.set 27 (B.regs 27) |>.set 28 (B.regs 28)
-  have hb : ExecWithin w deliver a b 12 := by
-    have hsrcL := hameta srcLeft (by decide)
-    have hsrcR := hameta srcRight (by decide)
-    have hheap := hameta heap (by decide)
-    have hn := hameta size (by decide)
-    have hD := hameta dimension (by decide)
-    have hp := hameta modulus (by decide)
-    ram_eval [deliver, b, B, pairInput, hsrcL, hsrcR, hheap, hn, hD, hp, harho, haq,
-      hacount, hafirst, halen, haj, srcLeft, srcRight, heap, size, dimension, modulus,
-      first, length, rho, queries, queryCount, pieceIndex, Fin.mk.injEq]
-  have bregs (i : Fin 32) (hi : 17 ≤ i.val) (hi' : i.val < 29) :
-      (b.comap pairBank).regs i = B.regs i := by
-    fin_cases i <;> simp +decide at hi hi' <;> simp +decide [b, pairBank]
-  have hbLeft : InstancePair.leftArgs (b.comap pairBank) = InstancePair.leftArgs B := by
-    unfold InstancePair.leftArgs
-    rw [bregs InstancePair.srcLeft (by decide) (by decide),
-      bregs InstancePair.base (by decide) (by decide),
-      bregs InstancePair.size (by decide) (by decide),
-      bregs InstancePair.dimension (by decide) (by decide),
-      bregs InstancePair.modulus (by decide) (by decide),
-      bregs InstancePair.first (by decide) (by decide),
-      bregs InstancePair.length (by decide) (by decide),
-      bregs InstancePair.rho (by decide) (by decide)]
-  have hbRight : InstancePair.rightArgs (b.comap pairBank) = InstancePair.rightArgs B := by
-    unfold InstancePair.rightArgs
-    rw [hbLeft, bregs InstancePair.srcRight (by decide) (by decide),
-      bregs InstancePair.base (by decide) (by decide),
-      bregs InstancePair.size (by decide) (by decide),
-      bregs InstancePair.dimension (by decide) (by decide)]
-  have hbRecord : InstancePair.recordWords (b.comap pairBank) = InstancePair.recordWords B := by
-    unfold InstancePair.recordWords
-    rw [hbLeft, hbRight, bregs InstancePair.rho (by decide) (by decide),
-      bregs InstancePair.piece (by decide) (by decide),
-      bregs InstancePair.queries (by decide) (by decide),
-      bregs InstancePair.count (by decide) (by decide)]
-  have hRho : (b.comap pairBank).regs InstancePair.rho <
-      (b.comap pairBank).regs InstancePair.modulus := by
-    rw [bregs _ (by decide) (by decide), bregs _ (by decide) (by decide)]
-    exact hrho
-  have hPiece : (b.comap pairBank).regs InstancePair.first +
-      (b.comap pairBank).regs InstancePair.length ≤ (b.comap pairBank).regs InstancePair.size := by
-    rw [bregs _ (by decide) (by decide), bregs _ (by decide) (by decide),
-      bregs _ (by decide) (by decide)]
-    change (x.regs produced % x.regs pieces) * x.regs pieceLength +
-      min (x.regs pieceLength)
-        (x.regs size - (x.regs produced % x.regs pieces) * x.regs pieceLength) ≤ x.regs size
-    have := min_le_right (x.regs pieceLength)
-      (x.regs size - (x.regs produced % x.regs pieces) * x.regs pieceLength)
-    omega
-  obtain ⟨v, hv, hrecord, hmatL, hmatR, hframe⟩ := InstancePair.exec (b.comap pairBank) L R
-    hRho hPiece
-    (by
-      rw [bregs _ (by decide) (by decide), bregs _ (by decide) (by decide)]
-      exact hL)
-    (by
-      rw [bregs _ (by decide) (by decide), bregs _ (by decide) (by decide)]
-      exact hR)
-    (by
-      intro i hi
-      rw [bregs _ (by decide) (by decide)]
-      change a.mem (x.regs srcLeft + i) = L i
-      rw [hamem]
-      exact hleft i hi)
-    (by
-      intro i hi
-      rw [bregs _ (by decide) (by decide)]
-      change a.mem (x.regs srcRight + i) = R i
-      rw [hamem]
-      exact hright i hi)
-    (by
-      rw [bregs _ (by decide) (by decide), bregs _ (by decide) (by decide),
-        bregs _ (by decide) (by decide)]
-      exact hsL)
-    (by
-      rw [bregs _ (by decide) (by decide), bregs _ (by decide) (by decide),
-        bregs _ (by decide) (by decide)]
-      exact hsR)
-    (hfit.of_le (by
-      rw [bregs _ (by decide) (by decide), bregs _ (by decide) (by decide),
-        bregs _ (by decide) (by decide), bregs _ (by decide) (by decide),
-        bregs _ (by decide) (by decide), bregs _ (by decide) (by decide)]
-      rw [Bbase, Bn, BD, BsrcL, BsrcR, Bp, hstride]
-      omega))
-  rw [bregs InstancePair.size (by decide) (by decide), Bn,
-    bregs InstancePair.dimension (by decide) (by decide), BD] at hv
-  rw [hbRecord, bregs InstancePair.base (by decide) (by decide), Bbase] at hrecord
-  rw [hbLeft, bregs InstancePair.size (by decide) (by decide), Bn,
-    bregs InstancePair.dimension (by decide) (by decide), BD] at hmatL
-  rw [hbRight, bregs InstancePair.size (by decide) (by decide), Bn,
-    bregs InstancePair.dimension (by decide) (by decide), BD] at hmatR
-  let c := v.extend pairBank b
-  have hc : ExecWithin w pair b c (40 * M + 38) := by
-    simpa only [pair, c, M] using hv.rename pairBank_injective
-  have hprefix (i : Fin 64) (hi : 32 ≤ i.val) (hi' : i.val < 50) :
-      c.regs i = x.regs i := (ha.seq (hb.seq hc)).regs_eq (prefix_preserves i hi hi')
-  let y := c.set heap (x.regs heap + x.regs stride) |>.set produced (x.regs produced + 1)
-  have hheapFit : Fits w (x.regs heap + x.regs stride) := hfit.of_le (by omega)
-  have hcountFit : Fits w (x.regs produced + 1) := hfit.of_le (by omega)
-  have hadvance : ExecWithin w advance c y 2 := by
-    have hh := hprefix heap (by decide) (by decide)
-    have hs := hprefix stride (by decide) (by decide)
-    have hp := hprefix produced (by decide) (by decide)
-    have h1 := hprefix one (by decide) (by decide)
-    ram_eval [advance, y, hh, hs, hp, h1, ho, hheapFit, hcountFit, heap, stride, produced,
-      one, Fin.mk.injEq]
-  refine ⟨y, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · convert ha.seq (hb.seq (hc.seq hadvance)) using 1 <;>
-      first | rfl | (dsimp [M]; ring)
-  · simp [y]
-  · simp +decide [y, heap, produced]
-  · exact hrecord
-  · exact hmatL
-  · exact hmatR
-  · intro j hj
-    change v.mem j = x.mem j
-    rw [hframe j ?_]
-    · exact congrFun hamem j
-    · rw [bregs _ (by decide) (by decide), bregs _ (by decide) (by decide),
-        bregs _ (by decide) (by decide)]
-      change ¬(x.regs heap ≤ j ∧ j < x.regs heap + 6 + 2 * (x.regs size * x.regs dimension))
-      rw [hstride] at hj
-      omega
+  refine (?_ : ∃ y, ExecWithin w (.seq deliver (.seq pair advance)) a y (40 * M + 52) ∧ _).imp
+    fun y ⟨hy, hres⟩ => ⟨(ha.seq hy).mono (by omega), hres⟩
+  unfold deliver pair
+  wram_exec (disch := first | fits | decide | omega)
+    [hameta, harho, haq, hacount, hafirst, halen, haj]
+  wram_call (InstancePair.exec _ L R
+    (by wram_simp [InstancePair.rho, InstancePair.modulus]; exact hrho)
+    (by wram_simp [InstancePair.first, InstancePair.length, InstancePair.size]
+        have := min_le_right (x.regs pieceLength)
+          (x.regs size - x.regs produced % x.regs pieces * x.regs pieceLength)
+        omega)
+    (by wram_simp [InstancePair.size, InstancePair.modulus]; exact hL)
+    (by wram_simp [InstancePair.size, InstancePair.modulus]; exact hR)
+    (by intro i hi
+        wram_simp [InstancePair.srcLeft, InstancePair.size] at hi ⊢
+        exact hamem ▸ hleft i hi)
+    (by intro i hi
+        wram_simp [InstancePair.srcRight, InstancePair.size] at hi ⊢
+        exact hamem ▸ hright i hi)
+    (by wram_simp [InstancePair.srcLeft, InstancePair.size, InstancePair.base]; exact hsL)
+    (by wram_simp [InstancePair.srcRight, InstancePair.size, InstancePair.base]; exact hsR)
+    (by wram_simp [InstancePair.base, InstancePair.size, InstancePair.dimension,
+          InstancePair.srcLeft, InstancePair.srcRight, InstancePair.modulus]
+        exact hfit.of_le (by rw [hstride]; omega)))
+    canonical pairBank_injective with v ⟨hrecord, hmatL, hmatR, hframe⟩
+  unfold advance
+  wram_exec (disch := first | fits | decide | omega) [hameta, ho]
+  wram_simp [InstancePair.size, InstancePair.dimension]
+  wram_simp [pairBank, InstancePair.recordWords, InstancePair.rightArgs, InstancePair.leftArgs,
+    InstancePair.base, InstancePair.srcLeft, InstancePair.srcRight, InstancePair.size,
+    InstancePair.dimension, InstancePair.modulus, InstancePair.first, InstancePair.length,
+    InstancePair.rho, InstancePair.queries, InstancePair.count, InstancePair.piece, B,
+    pairInput] at hrecord hmatL hmatR
+  refine ⟨hrecord, hmatL, hmatR, fun j hj => ?_⟩
+  rw [hframe j (by
+    wram_simp [pairBank, InstancePair.base, InstancePair.size, InstancePair.dimension]
+    rw [hstride] at hj; omega)]
+  exact congrFun hamem j
 
 private theorem exec_loop {w : ℕ} (x : Data 64) (L R : ℕ → ℕ)
     (hzero : x.regs produced = 0) (hheap : x.regs heap = x.regs output)
@@ -644,156 +472,85 @@ private theorem exec_loop {w : ℕ} (x : Data 64) (L R : ℕ → ℕ)
         T - z.regs produced < T - y.regs produced := by
     obtain ⟨hyr, hyi, hyheap, hywritten, hyframe⟩ := hy
     have hreg (i : Fin 64)
-        (hi : 32 ≤ i.val ∧ i.val < 50 ∧ i ≠ produced ∧ i ≠ heap) :
+        (hi : 32 ≤ i.val ∧ i.val < 50 ∧ i ≠ produced ∧ i ≠ heap := by decide) :
         y.regs i = x.regs i := hyr i hi.1 hi.2.1 hi.2.2.1 hi.2.2.2
-    have hyT := hreg total (by decide)
-    have hyN := hreg size (by decide)
-    have hyD := hreg dimension (by decide)
-    have hyp := hreg modulus (by decide)
-    have hyH := hreg pieces (by decide)
-    have hyB := hreg pieceLength (by decide)
-    have hyK := hreg chunks (by decide)
-    have hyd := hreg descriptors (by decide)
-    have hys := hreg stride (by decide)
-    have hyL := hreg srcLeft (by decide)
-    have hyR := hreg srcRight (by decide)
-    have hyo := hreg one (by decide)
-    have hyt := hreg three (by decide)
-    have hlt : y.regs produced < T := by simpa only [Cond.holds_lt, hyT] using hc
-    have hi : y.regs produced < x.regs chunks * x.regs pieces := by
-      simpa only [T, htotal] using hlt
-    have hk : y.regs produced / x.regs pieces < x.regs chunks :=
-      (Nat.div_lt_iff_lt_mul hH).mpr hi
+    have hlt : y.regs produced < T := by simpa only [Cond.holds_lt, hreg total] using hc
+    have hi : y.regs produced < x.regs chunks * x.regs pieces := by simpa only [T, htotal] using hlt
+    have hk : y.regs produced / x.regs pieces < x.regs chunks := (Nat.div_lt_iff_lt_mul hH).mpr hi
     have hstep : y.regs produced * x.regs stride + x.regs stride ≤ T * x.regs stride := by
-      have h := Nat.mul_le_mul_right (x.regs stride) (Nat.succ_le_of_lt hlt)
-      simpa only [Nat.succ_mul] using h
-    have hreadonly (a : ℕ) (ha : a < x.regs output) : y.mem a = x.mem a :=
-      hyframe a (by omega)
+      simpa only [Nat.succ_mul] using Nat.mul_le_mul_right (x.regs stride) (Nat.succ_le_of_lt hlt)
+    have hreadonly (a : ℕ) (ha : a < x.regs output) : y.mem a = x.mem a := hyframe a (by omega)
     obtain ⟨z, hz, hzi, hzh, hzrecord, hzL, hzR, hzframe⟩ := exec_visit y L R
-      (hyo.trans ho) (hyt.trans ht) (by simpa only [hyH] using hH)
-      (by simpa only [hyK, hyH] using hi)
-      (by simpa only [hys, hyN, hyD] using hstride)
-      (by rw [hyH, hyB, hyN]; exact hstart _ (Nat.mod_lt _ hH))
-      (by rw [hyH, hyd, hyp, hreadonly _ (by omega)]; exact hrho _ hk)
-      (by simpa only [hyN, hyp] using hL)
-      (by simpa only [hyN, hyp] using hR)
-      (by
-        intro i hi
-        rw [hyN] at hi
-        rw [hyL, hreadonly _ (by omega)]
-        exact hleft i hi)
-      (by
-        intro i hi
-        rw [hyN] at hi
-        rw [hyR, hreadonly _ (by omega)]
-        exact hright i hi)
-      (by rw [hyL, hyN, hyheap]; omega)
-      (by rw [hyR, hyN, hyheap]; omega)
+      ((hreg one).trans ho) ((hreg three).trans ht) (by simpa only [hreg pieces] using hH)
+      (by simpa only [hreg chunks, hreg pieces] using hi)
+      (by simpa only [hreg stride, hreg size, hreg dimension] using hstride)
+      (by rw [hreg pieces, hreg pieceLength, hreg size]; exact hstart _ (Nat.mod_lt _ hH))
+      (by rw [hreg pieces, hreg descriptors, hreg modulus, hreadonly _ (by omega)]; exact hrho _ hk)
+      (by simpa only [hreg size, hreg modulus] using hL)
+      (by simpa only [hreg size, hreg modulus] using hR)
+      (by intro i hi
+          rw [hreg size] at hi; rw [hreg srcLeft, hreadonly _ (by omega)]; exact hleft i hi)
+      (by intro i hi
+          rw [hreg size] at hi; rw [hreg srcRight, hreadonly _ (by omega)]; exact hright i hi)
+      (by rw [hreg srcLeft, hreg size, hyheap]; omega)
+      (by rw [hreg srcRight, hreg size, hyheap]; omega)
       (hfit.of_le (by
-        rw [hyheap, hys, hyL, hyR, hyN, hyp, hyd, hyK, hyH, hyB]
-        dsimp only [T] at hstep hyi
-        omega))
-    rw [hyN, hyD] at hz
-    rw [hys] at hzh hzframe
+        rw [hyheap, hreg stride, hreg srcLeft, hreg srcRight, hreg size, hreg modulus,
+          hreg descriptors, hreg chunks, hreg pieces, hreg pieceLength]
+        dsimp only [T] at hstep hyi; omega))
+    rw [hreg size, hreg dimension] at hz
+    rw [hreg stride] at hzh hzframe
     let old := atInstance x (y.regs produced)
-    have hmeta : ∀ i : Fin 64, 32 ≤ i.val → i.val < 50 → y.regs i = old.regs i := by
-      intro i hi hi'
-      by_cases hp : i = produced
-      · subst i
-        simp +decide [old, atInstance, produced, heap]
-      · by_cases hh : i = heap
-        · subst i
-          simpa +decide [old, atInstance, produced, heap] using hyheap
+    have hmeta (i : Fin 64) (hi : 32 ≤ i.val) (hi' : i.val < 50) : y.regs i = old.regs i := by
+      rcases eq_or_ne i produced with rfl | hp
+      · simp only [old, atInstance, Data.set_regs_of_ne (by decide : produced ≠ heap),
+          Data.set_regs_self]
+      · rcases eq_or_ne i heap with rfl | hh
+        · simpa only [old, atInstance, Data.set_regs_self] using hyheap
         · simpa only [old, atInstance, Data.set_regs, Function.update_of_ne hh,
             Function.update_of_ne hp] using hyr i hi hi' hp hh
     have hinputRegs : (pairInput y).regs = (pairInput old).regs :=
-      pairInput_regs_congr old y hmeta
-        (by simpa +decide [old, atInstance, pieces, heap, produced] using hH)
-        (by simpa +decide [old, atInstance, chunks, pieces, heap, produced] using hi)
-        (by simpa +decide [old, atInstance, descriptors, chunks, output, heap, produced] using hdir)
-        (by simpa +decide [old, atInstance, output, heap, produced] using hreadonly)
-    have hargsL : InstancePair.leftArgs (pairInput y) = InstancePair.leftArgs (pairInput old) := by
-      unfold InstancePair.leftArgs
-      rw [hinputRegs]
-    have hargsR : InstancePair.rightArgs (pairInput y) =
-        InstancePair.rightArgs (pairInput old) := by
-      unfold InstancePair.rightArgs InstancePair.leftArgs
-      rw [hinputRegs]
-    have hrecord : InstancePair.recordWords (pairInput y) =
-        InstancePair.recordWords (pairInput old) := by
-      unfold InstancePair.recordWords InstancePair.leftArgs InstancePair.rightArgs
-      rw [hinputRegs]
-    rw [hrecord, hyheap] at hzrecord
-    rw [hargsL, hyN, hyD] at hzL
-    rw [hargsR, hyN, hyD] at hzR
-    have hpres (i : Fin 64)
-        (hi : 32 ≤ i.val ∧ i.val < 50 ∧ i ≠ heap ∧ i ≠ produced) :
-        z.regs i = y.regs i := hz.regs_eq (visit_preserves i hi)
-    have hnew : Written x L R z (y.regs produced) := ⟨hzrecord, hzL, hzR⟩
-    have hzreadonly (a : ℕ) (ha : a < y.regs heap) : z.mem a = y.mem a :=
-      hzframe a (by omega)
-    refine ⟨z, hz, ⟨?_, by omega, ?_, ?_, ?_⟩, by omega⟩
-    · intro i hi hi' hp hh
-      exact (hpres i ⟨hi, hi', hh, hp⟩).trans (hyr i hi hi' hp hh)
-    · rw [hzh, hyheap, hzi, Nat.add_mul, Nat.one_mul]
-      omega
-    · intro j hj
-      rw [hzi] at hj
-      by_cases hji : j = y.regs produced
-      · simpa only [hji] using hnew
-      · have hjlt : j < y.regs produced := by omega
-        obtain ⟨hjrecord, hjL, hjR⟩ := hywritten j hjlt
-        have hprev : j * x.regs stride + x.regs stride ≤ y.regs produced * x.regs stride := by
-          have h := Nat.mul_le_mul_right (x.regs stride) (Nat.succ_le_of_lt hjlt)
-          simpa only [Nat.succ_mul] using h
-        refine ⟨?_, ?_, ?_⟩
-        · intro a
-          change z.mem (x.regs output + j * x.regs stride + a.val) = _
-          rw [hzreadonly _ (by
-            have ha : a.val < 6 := a.isLt
-            rw [hyheap]
-            omega)]
-          exact hjrecord a
-        · intro a
-          change z.mem ((InstancePair.leftArgs (pairInput (atInstance x j))).dst + a.val) = _
-          rw [hzreadonly _ (by
-            have ha : a.val < M := a.isLt
-            change x.regs output + j * x.regs stride + 6 + a.val < y.regs heap
-            rw [hyheap]
-            dsimp [M] at ha
-            omega)]
-          exact hjL a
-        · intro a
-          change z.mem ((InstancePair.rightArgs (pairInput (atInstance x j))).dst + a.val) = _
-          rw [hzreadonly _ (by
-            have ha : a.val < M := a.isLt
-            change x.regs output + j * x.regs stride + 6 + M + a.val < y.regs heap
-            rw [hyheap]
-            dsimp [M] at ha ⊢
-            omega)]
-          exact hjR a
-    · intro a ha
-      rw [hzh] at ha
-      rw [hzframe a (by omega), hyframe a (by omega)]
-  have hx : I x := by
-    refine ⟨fun _ _ _ _ _ => rfl, ?_, ?_, ?_, fun _ _ => rfl⟩
-    · rw [hzero]
-      exact Nat.zero_le _
-    · rw [hzero, Nat.zero_mul, Nat.add_zero]
-      exact hheap
-    · intro j hj
-      rw [hzero] at hj
-      omega
-  obtain ⟨y, hy, hI, hend⟩ := ExecWithin.loop_invariant I (fun y => T - y.regs produced) hbody hx
-  obtain ⟨hmeta, hcount, hheap', hwritten, hframe⟩ := hI
+      pairInput_regs_congr old y hmeta (by wram_simp [old, atInstance]; exact hH)
+        (by wram_simp [old, atInstance]; exact hi) (by wram_simp [old, atInstance]; exact hdir)
+        (by wram_simp [old, atInstance]; exact hreadonly)
+    rw [show InstancePair.recordWords (pairInput y) = InstancePair.recordWords (pairInput old) by
+      unfold InstancePair.recordWords InstancePair.leftArgs InstancePair.rightArgs; rw [hinputRegs],
+      hyheap] at hzrecord
+    rw [show InstancePair.leftArgs (pairInput y) = InstancePair.leftArgs (pairInput old) by
+      unfold InstancePair.leftArgs; rw [hinputRegs], hreg size, hreg dimension] at hzL
+    rw [show InstancePair.rightArgs (pairInput y) = InstancePair.rightArgs (pairInput old) by
+      unfold InstancePair.rightArgs InstancePair.leftArgs; rw [hinputRegs], hreg size,
+      hreg dimension] at hzR
+    refine ⟨z, hz, ⟨fun i hi hi' hp hh =>
+        (hz.regs_eq (visit_preserves i ⟨hi, hi', hh, hp⟩)).trans (hyr i hi hi' hp hh),
+      by omega, by rw [hzh, hyheap, hzi, Nat.add_mul, Nat.one_mul]; omega, ?_,
+      fun a ha => by rw [hzh] at ha; rw [hzframe a (by omega), hyframe a (by omega)]⟩, by omega⟩
+    intro j hj; rw [hzi] at hj
+    rcases eq_or_ne j (y.regs produced) with rfl | hji
+    · exact ⟨hzrecord, hzL, hzR⟩
+    · have hjlt : j < y.regs produced := by omega
+      obtain ⟨hjrecord, hjL, hjR⟩ := hywritten j hjlt
+      have hprev : j * x.regs stride + x.regs stride ≤ y.regs produced * x.regs stride := by
+        simpa only [Nat.succ_mul] using
+          Nat.mul_le_mul_right (x.regs stride) (Nat.succ_le_of_lt hjlt)
+      have hrealize {base len : ℕ} {f : Fin len → ℕ} (h : (Block.mk base len).Realizes y.mem f)
+          (hle : base + len ≤ y.regs heap) : (Block.mk base len).Realizes z.mem f :=
+        fun a => (hzframe _ (by have : a.val < len := a.isLt; dsimp only; omega)).trans (h a)
+      exact ⟨hrealize hjrecord (by rw [hyheap]; omega),
+        hrealize hjL (by
+          change x.regs output + j * x.regs stride + 6 + M ≤ y.regs heap
+          rw [hyheap]; dsimp [M]; omega),
+        hrealize hjR (by
+          change x.regs output + j * x.regs stride + 6 + M + M ≤ y.regs heap
+          rw [hyheap]; dsimp [M]; omega)⟩
+  have hx : I x := ⟨fun _ _ _ _ _ => rfl, by omega,
+    by rw [hzero, Nat.zero_mul, Nat.add_zero]; exact hheap, fun _ hj => by omega, fun _ _ => rfl⟩
+  obtain ⟨y, hy, ⟨hmeta, hcount, hheap', hwritten, hframe⟩, hend⟩ :=
+    ExecWithin.loop_invariant I (fun y => T - y.regs produced) hbody hx
   have hyT : y.regs total = T := hmeta total (by decide) (by decide) (by decide) (by decide)
-  have hfinal : y.regs produced = T := by
-    simp only [Cond.holds_lt, hyT] at hend
-    omega
-  refine ⟨y, ?_, hfinal, ?_, ?_, hframe⟩
-  · simpa only [hzero, Nat.sub_zero] using hy
-  · simpa only [hfinal] using hheap'
-  · simpa only [hfinal] using hwritten
+  have hfinal : y.regs produced = T := by simp only [Cond.holds_lt, hyT] at hend; omega
+  exact ⟨y, by simpa only [hzero, Nat.sub_zero] using hy, hfinal,
+    by simpa only [hfinal] using hheap', by simpa only [hfinal] using hwritten, hframe⟩
 
 private theorem written_readback {n D p B H K desc out i : ℕ}
     (b y : Data 64) (L R : ℕ → ℕ) (hH : 0 < H) (hi : i < K * H)
@@ -824,41 +581,38 @@ private theorem written_readback {n D p B H K desc out i : ℕ}
   have hk : i / H < K := (Nat.div_lt_iff_lt_mul hH).mpr hi
   have hdir (t : ℕ) (ht : t < 3) :
       b.mem (i / H * 3 + desc + t) = y.mem (desc + 3 * (i / H) + t) := by
-    have heq : i / H * 3 + desc + t = desc + 3 * (i / H) + t := by omega
-    rw [heq]
+    rw [show i / H * 3 + desc + t = desc + 3 * (i / H) + t by omega]
     exact (hframe _ (by omega)).symm
   have hd0 : b.mem (i / H * 3 + desc) = y.mem (desc + 3 * (i / H)) := by
     simpa only [Nat.add_zero] using hdir 0 (by decide)
   have hd1 := hdir 1 (by decide)
   have hd2 := hdir 2 (by decide)
   have hargsL : InstancePair.leftArgs (pairInput (atInstance b i)) = A := by
-    simp +decide [InstancePair.leftArgs, pairInput, atInstance, A, base, N, S,
+    wram_simp [InstancePair.leftArgs, pairInput, atInstance, A, base, N, S,
       hbn, hbD, hbp, hbH, hbB, hbL, hbo, hbs, hbd, hd0,
       InstancePair.srcLeft, InstancePair.base, InstancePair.size, InstancePair.dimension,
-      InstancePair.modulus, InstancePair.first, InstancePair.length, InstancePair.rho,
-      produced, heap]
+      InstancePair.modulus, InstancePair.first, InstancePair.length, InstancePair.rho]
+    rfl
   have hargsR : InstancePair.rightArgs (pairInput (atInstance b i)) = A' := by
     unfold InstancePair.rightArgs
     rw [hargsL]
-    simp +decide [pairInput, atInstance, A', A, base, N, S,
+    wram_simp [pairInput, atInstance, A', A, base, N, S,
       hbn, hbD, hbR, hbo, hbs, InstancePair.srcRight, InstancePair.base,
-      InstancePair.size, InstancePair.dimension, produced, heap]
+      InstancePair.size, InstancePair.dimension]
+    rfl
   have hwords : InstancePair.recordWords (pairInput (atInstance b i)) =
       ![A.rho, i % H, y.mem (desc + 3 * (i / H) + 1),
         y.mem (desc + 3 * (i / H) + 2), base + 6, base + 6 + n * D] := by
     rw [InstancePair.recordWords, hargsL, hargsR]
-    simp +decide [pairInput, atInstance, A, A', base, hbH, hbd, hd0, hd1, hd2,
-      InstancePair.rho, InstancePair.piece, InstancePair.queries, InstancePair.count,
-      produced, heap]
+    wram_simp [pairInput, atInstance, A, A', base, hbH, hbd, hd0, hd1, hd2,
+      InstancePair.rho, InstancePair.piece, InstancePair.queries, InstancePair.count]
+    rfl
   obtain ⟨hr, hL, hR⟩ := hwritten
   dsimp only at hr hL hR
   rw [hbo, hbs, hwords] at hr
   rw [hargsL, hbn, hbD] at hL
   rw [hargsR, hbn, hbD] at hR
-  refine ⟨?_, ?_, ?_⟩
-  · exact hr
-  · exact hL
-  · exact hR
+  exact ⟨hr, hL, hR⟩
 
 /-- Exact computed catalogue, record and raw zero/one matrix readback, with the complete
 input/output frame. The matrix predicates reuse the existing writer arguments and entry
@@ -934,7 +688,7 @@ private theorem output_of_loop {n D g p : ℕ} (values : ℕ → ℤ)
     (hyframe : ∀ q, ¬(b.regs output ≤ q ∧ q < y.regs heap) → y.mem q = b.mem q) :
     Output n D g p values initial y := by
   let N := n * n
-  let R (q : ℕ) := (values q % (p : ℤ)).toNat
+  let R := fun q => (values q % (p : ℤ)).toNat
   let C := fun rho => Nat.count (fun q => R q = rho) N
   let K := ChunkCatalogue.before C (queryCap n D) p
   let H := numPieces n D g
@@ -944,91 +698,45 @@ private theorem output_of_loop {n D g p : ℕ} (values : ℕ → ℤ)
   let S := 6 + 2 * (n * D)
   obtain ⟨hbn, hbD, hbp, hbB, hbH, hbd, hbo, hbs, hbL, hbR⟩ := hmeta
   obtain ⟨hyn, hyD, hyp, hyo⟩ := hY
-  change b.regs pieceLength = B at hbB
-  change b.regs pieces = H at hbH
-  change b.regs descriptors = desc at hbd
   change b.regs output = out at hbo
-  change b.regs srcLeft = 5 + 5 * N at hbL
-  change b.regs srcRight = 5 + 4 * N at hbR
   obtain ⟨-, -, -, -, -, -, -, -, hvK, -, hvres, hvcounts, hvpairs, hvdesc, hvframe⟩ := hcat
   change v.regs ChunkCatalogue.written = K at hvK
-  change ∀ q, q < 5 + 3 * N ∨ desc + 3 * v.regs ChunkCatalogue.written ≤ q →
-    v.mem q = initial.mem q at hvframe
-  change ∀ q < 3 * N, v.mem (5 + 3 * N + q) = R q at hvres
-  change ∀ rho < p, v.mem (5 + 6 * N + rho) = C rho at hvcounts
-  change ∀ rho < p, ∀ q < N, R q = rho →
-    v.mem (5 + 6 * N + p + 2 * N * rho + 2 * Nat.count (fun k => R k = rho) q) = q / n ∧
-    v.mem (5 + 6 * N + p + 2 * N * rho + 2 * Nat.count (fun k => R k = rho) q + 1) = q % n
-    at hvpairs
-  change ∀ rho < p, ∀ k < C rho ⌈/⌉ queryCap n D,
-    v.mem (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k)) = rho ∧
-    v.mem (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) + 1) =
-      5 + 6 * N + p + 2 * rho * N + 2 * (k * queryCap n D) ∧
-    v.mem (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) + 2) =
-      min (queryCap n D) (C rho - k * queryCap n D) at hvdesc
   change y.regs produced = K * H at hycount
   rw [hbo, hycount, hbs] at hyheap
   rw [hycount] at hywritten
   have hbefore (q : ℕ) (hq : q < out) : y.mem q = v.mem q :=
     (hyframe q (by rw [hbo]; omega)).trans (congrFun hbmem q)
-  refine ⟨hyn, hyD, hyp, hyo.trans hbo, hycount, hyheap, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro q hq
-    rw [hbefore _ (by dsimp [out, desc]; omega)]
-    exact hvres q hq
-  · intro rho hrho
-    rw [hbefore _ (by dsimp [out, desc]; omega)]
-    exact hvcounts rho hrho
+  refine ⟨hyn, hyD, hyp, hyo.trans hbo, hycount, hyheap,
+    fun q hq => (hbefore _ (by dsimp only [out, desc, N] at hq ⊢; omega)).trans (hvres q hq),
+    fun rho hrho => (hbefore _ (by dsimp only [out, desc]; omega)).trans (hvcounts rho hrho),
+    ?_, ?_,
+    fun i hi => written_readback (K := K) (desc := desc) (out := out) b y
+      (fun q => R (2 * N + q)) (fun q => R (N + q)) hH hi
+      ⟨hbn, hbD, hbp, hbB, hbH, hbd, hbo, hbs, hbL, hbR⟩ (by dsimp only [out]; omega)
+      (fun q hq => hyframe q (by rw [hbo]; omega)) (hywritten i hi),
+    ?_⟩
   · intro rho hrho q hq hRq
-    change q < N at hq
-    change R q = rho at hRq
     have hcount : Nat.count (fun k => R k = rho) q ≤ q := Nat.count_le _
     have hbound := Nat.mul_le_mul_left (2 * N) (Nat.succ_le_of_lt hrho)
     rw [Nat.mul_succ] at hbound
-    have h0 : 5 + 6 * N + p + 2 * N * rho + 2 * Nat.count (fun k => R k = rho) q < out := by
-      dsimp only [out, desc]
-      omega
-    have h1 : 5 + 6 * N + p + 2 * N * rho +
-        2 * Nat.count (fun k => R k = rho) q + 1 < out := by
-      dsimp only [out, desc]
-      omega
     have hread := hvpairs rho hrho q hq hRq
-    exact ⟨(hbefore _ h0).trans hread.1, (hbefore _ h1).trans hread.2⟩
+    have hm (t : ℕ) (ht : t ≤ 1) :=
+      hbefore (5 + 6 * N + p + 2 * N * rho + 2 * Nat.count (fun k => R k = rho) q + t)
+        (by dsimp only [out, desc, N] at hq hbound ⊢; omega)
+    exact ⟨(hm 0 (by omega)).trans hread.1, (hm 1 (by omega)).trans hread.2⟩
   · intro rho hrho k hk
-    change k < C rho ⌈/⌉ queryCap n D at hk
-    have hindex : ChunkCatalogue.before C (queryCap n D) rho + k < K :=
-      ChunkCatalogue.before_add_lt C (queryCap n D) hrho hk
-    have h0 : desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) < out := by
-      dsimp only [out]
-      omega
-    have h1 : desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) + 1 < out := by
-      dsimp only [out]
-      omega
-    have h2 : desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) + 2 < out := by
-      dsimp only [out]
-      omega
+    have hindex := ChunkCatalogue.before_add_lt C (queryCap n D) hrho hk
     have hread := hvdesc rho hrho k hk
-    exact ⟨(hbefore _ h0).trans hread.1, (hbefore _ h1).trans hread.2.1,
-      (hbefore _ h2).trans hread.2.2⟩
-  · intro i hi
-    exact written_readback (n := n) (D := D) (p := p) (B := B) (H := H) (K := K)
-      (desc := desc) (out := out) (i := i)
-      b y (fun q => R (2 * N + q)) (fun q => R (N + q)) hH hi
-      ⟨hbn, hbD, hbp, hbB, hbH, hbd, hbo, hbs, hbL, hbR⟩
-      (by dsimp only [out]; omega)
-      (fun q hq => hyframe q (by rw [hbo]; omega)) (hywritten i hi)
+    have hm (t : ℕ) (ht : t < 3) :=
+      hbefore (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) + t)
+        (by dsimp only [out, K] at hindex ⊢; omega)
+    exact ⟨(hm 0 (by decide)).trans hread.1, (hm 1 (by decide)).trans hread.2.1,
+      (hm 2 (by decide)).trans hread.2.2⟩
   · intro q hq
-    change q < 5 + 3 * N ∨ out + K * H * S ≤ q at hq
     rw [hyframe q (by
-      rw [hbo, hyheap]
-      change ¬(out ≤ q ∧ q < out + K * H * S)
-      rcases hq with h | h
-      · have : 5 + 3 * N ≤ out := by dsimp only [out, desc]; omega
-        omega
-      · omega), hbmem]
-    apply hvframe q
-    rcases hq with h | h
-    · exact Or.inl h
-    · exact Or.inr (by rw [hvK]; omega)
+      rw [hbo, hyheap]; dsimp only [out, desc, K, H, C, R, S, N] at hq ⊢; omega), hbmem]
+    refine hvframe q (hq.imp id fun h => ?_)
+    rw [hvK]; dsimp only [out, desc, K, H, C, R, S, N] at h ⊢; omega
 
 /-- Execute just the real catalogue and setup. The returned state is ready for logical
 chunk/piece visits but contains no instance records. Its bound excludes any final halt. -/
@@ -1063,57 +771,28 @@ private theorem exec_prefix {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (in
   let B := pieceSize D g
   let desc := 5 + 6 * N + p + 2 * N * p
   let out := desc + 3 * K
-  let S := 6 + 2 * (n * D)
-  obtain ⟨-, hBn, hH, hHn, hstart⟩ := parameter_bounds hD hDn hg
-  change B ≤ n at hBn
-  change 0 < H at hH
-  change H ≤ n at hHn
-  change ∀ j < H, j * B ≤ n at hstart
+  obtain ⟨-, -, -, hHn, _⟩ := parameter_bounds hD hDn hg
   have hK : K ≤ p * N := ChunkCatalogue.before_le (one_le_queryCap hD hDn)
     (fun _ _ => Nat.count_le _) le_rfl
-  have hCatalogue : Catalogue.budget n D g p ≤ budget n D g p := by
-    dsimp only [budget]
-    omega
   obtain ⟨v, hv, hcatOriginal⟩ := Catalogue.exec_at n D g p values
     (initial.comap pairBank) hDHeader hgHeader hnHeader hpHeader hinput hD hDn hg hp
-    hmod hvalues (hbudget.of_le hCatalogue)
+    hmod hvalues (hbudget.of_le (by dsimp only [budget]; omega))
   have hcatSave := hcatOriginal
-  obtain ⟨hvn, hvp, -, -, hvd, -, hvB, hvH, hvK, hvheap,
-    hvres, hvcounts, hvpairs, hvdesc, hvframe⟩ := hcatOriginal
-  change v.regs ChunkCatalogue.written = K at hvK
-  change v.regs ChunkCatalogue.heap = desc + 3 * v.regs ChunkCatalogue.written at hvheap
-  change ∀ q < 3 * N, v.mem (5 + 3 * N + q) = R q at hvres
-  change ∀ rho < p, v.mem (5 + 6 * N + rho) = C rho at hvcounts
-  change ∀ rho < p, ∀ q < N, R q = rho →
-    v.mem (5 + 6 * N + p + 2 * N * rho + 2 * Nat.count (fun k => R k = rho) q) = q / n ∧
-    v.mem (5 + 6 * N + p + 2 * N * rho + 2 * Nat.count (fun k => R k = rho) q + 1) = q % n
-    at hvpairs
-  change ∀ rho < p, ∀ k < C rho ⌈/⌉ queryCap n D,
-    v.mem (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k)) = rho ∧
-    v.mem (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) + 1) =
-      5 + 6 * N + p + 2 * rho * N + 2 * (k * queryCap n D) ∧
-    v.mem (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) + 2) =
-      min (queryCap n D) (C rho - k * queryCap n D) at hvdesc
+  obtain ⟨hvn, hvp, -, -, hvd, -, hvB, hvH, hvK, hvheap, -, -, -, -, hvframe⟩ := hcatOriginal
+  dsimp only at hvK hvheap
   let a := v.extend pairBank initial
   have ha : ExecWithin (w + 2) catalogue initial a (Catalogue.cost n D p) :=
     hv.rename pairBank_injective
   have haLow (i : Fin 32) : a.regs (pairBank i) = v.regs i :=
     pairBank_injective.extend_apply _ _ i
-  have ha16 : a.regs 16 = n := (haLow ChunkCatalogue.size).trans hvn
-  have ha17 : a.regs 17 = p := (haLow ChunkCatalogue.modulus).trans hvp
-  have ha28 : a.regs 28 = B := (haLow Catalogue.pieceLength).trans hvB
-  have ha29 : a.regs 29 = H := (haLow Catalogue.pieces).trans hvH
-  have ha21 : a.regs 21 = K := (haLow ChunkCatalogue.written).trans hvK
-  have ha18 : a.regs 18 = desc := (haLow ChunkCatalogue.dst).trans hvd
-  have ha22 : a.regs 22 = out := by
-    change a.regs (pairBank ChunkCatalogue.heap) = out
-    rw [haLow ChunkCatalogue.heap, hvheap, hvK]
-  have haD : a.mem 1 = D := (hvframe 1 (Or.inl (by omega))).trans hDHeader
   obtain ⟨b, hb, hbmem, hbn, hbD, hbp, hbB, hbH, hbK, hbd, hbo, hbzero, hbt,
       hbh, hbs, hb1, hb3, hbL, hbR⟩ := exec_setup a n D p B H K desc out
-    ha16 ha17 ha28 ha29 ha21 ha18 ha22 haD (hbudget.of_le (budget_covers_setup hK hHn))
-  change b.regs srcLeft = 5 + 5 * N at hbL
-  change b.regs srcRight = 5 + 4 * N at hbR
+    ((haLow ChunkCatalogue.size).trans hvn) ((haLow ChunkCatalogue.modulus).trans hvp)
+    ((haLow Catalogue.pieceLength).trans hvB) ((haLow Catalogue.pieces).trans hvH)
+    ((haLow ChunkCatalogue.written).trans hvK) ((haLow ChunkCatalogue.dst).trans hvd)
+    (by change a.regs (pairBank ChunkCatalogue.heap) = out; rw [haLow, hvheap, hvK])
+    ((hvframe 1 (Or.inl (by omega))).trans hDHeader)
+    (hbudget.of_le (budget_covers_setup hK hHn))
   refine ⟨v, hcatSave, b, ha.seq hb, hbmem, hbn, hbD, hbp, hbB, hbH, hbK, hbd,
     ?_, hbzero, ?_, hbh.trans hbo.symm, hbs, hb1, hb3, hbL, hbR⟩
   · rw [hbo, hbK]
@@ -1160,10 +839,6 @@ theorem exec_at_with_prefix {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (in
   let out := desc + 3 * K
   let S := 6 + 2 * (n * D)
   obtain ⟨-, hBn, hH, hHn, hstart⟩ := parameter_bounds hD hDn hg
-  change B ≤ n at hBn
-  change 0 < H at hH
-  change H ≤ n at hHn
-  change ∀ j < H, j * B ≤ n at hstart
   have hK : K ≤ p * N := ChunkCatalogue.before_le (one_le_queryCap hD hDn)
     (fun _ _ => Nat.count_le _) le_rfl
   have hHB : H * B ≤ N := Nat.mul_le_mul hHn hBn
@@ -1175,27 +850,22 @@ theorem exec_at_with_prefix {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (in
   have hbt : b.regs total = K * H := by rw [hbt', hbK, hbH]
   have hbh : b.regs heap = out := hbh'.trans hbo
   have hcatSave := hcatOriginal
-  obtain ⟨hvn, hvp, -, -, hvd, -, hvB, hvH, hvK, hvheap,
-    hvres, hvcounts, hvpairs, hvdesc, hvframe⟩ := hcatOriginal
-  change v.regs ChunkCatalogue.written = K at hvK
-  change ∀ q < 3 * N, v.mem (5 + 3 * N + q) = R q at hvres
+  obtain ⟨-, -, -, -, -, -, -, -, hvK, -, hvres, -, -, hvdesc, hvframe⟩ := hcatOriginal
   change ∀ rho < p, ∀ k < C rho ⌈/⌉ queryCap n D,
     v.mem (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k)) = rho ∧
       v.mem (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) + 1) =
         5 + 6 * N + p + 2 * rho * N + 2 * (k * queryCap n D) ∧
       v.mem (desc + 3 * (ChunkCatalogue.before C (queryCap n D) rho + k) + 2) =
         min (queryCap n D) (C rho - k * queryCap n D) at hvdesc
+  dsimp only at hvK hvres
   have hres (q : ℕ) : R q < p := Int.natMod_lt (by omega)
-  have hleft (i : ℕ) (hi : i < N) : b.mem (5 + 5 * N + i) = R (2 * N + i) := by
-    rw [hbmem]
-    convert hvres (2 * N + i) (by omega) using 1
-    congr 1
-    omega
-  have hright (i : ℕ) (hi : i < N) : b.mem (5 + 4 * N + i) = R (N + i) := by
-    rw [hbmem]
-    convert hvres (N + i) (by omega) using 1
-    congr 1
-    omega
+  have hmat (m : ℕ) (hm : m ≤ 2) (i : ℕ) (hi : i < N) :
+      b.mem (5 + (3 + m) * N + i) = R (m * N + i) := by
+    rw [hbmem, show 5 + (3 + m) * N + i = 5 + 3 * N + (m * N + i) by
+      rw [Nat.add_mul]; omega]
+    exact hvres _ (by
+      have := Nat.mul_le_mul_right N hm
+      omega)
   obtain ⟨y, hy, hycount, hyheap, hywritten, hyframe⟩ := exec_loop b
     (fun q => R (2 * N + q)) (fun q => R (N + q)) hbzero (hbh.trans hbo.symm)
     (by rw [hbt, hbK, hbH]) hb1 hb3 (by rw [hbH]; exact hH)
@@ -1206,15 +876,13 @@ theorem exec_at_with_prefix {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (in
       rw [hbK, hbd, hbp]
       intro k hk
       obtain ⟨idx, hidx, -⟩ := ChunkCatalogue.before_index C (queryCap n D) p k hk
-      rw [hbmem]
-      have hr := (hvdesc idx.1.val idx.1.isLt idx.2.val idx.2.isLt).1
-      have heq : v.mem (k * 3 + desc) = idx.1.val := by
-        simpa only [hidx, Nat.mul_comm, Nat.add_comm] using hr
-      exact heq ▸ idx.1.isLt)
+      rw [hbmem, show k * 3 + desc = desc + 3 * k by omega, hidx,
+        (hvdesc idx.1.val idx.1.isLt idx.2.val idx.2.isLt).1]
+      exact idx.1.isLt)
     (by rw [hbn, hbp]; exact fun q _ => hres (2 * N + q))
     (by rw [hbn, hbp]; exact fun q _ => hres (N + q))
-    (by rw [hbL, hbn]; exact hleft)
-    (by rw [hbR, hbn]; exact hright)
+    (by rw [hbL, hbn]; exact hmat 2 (by omega))
+    (by rw [hbR, hbn]; simpa only [Nat.one_mul] using hmat 1 (by omega))
     (by rw [hbL, hbn, hbo]; dsimp [out, desc, N]; omega)
     (by rw [hbR, hbn, hbo]; dsimp [out, desc, N]; omega)
     (hbudget.of_le (by
@@ -1229,30 +897,26 @@ theorem exec_at_with_prefix {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (in
   rw [hbn, hbD, hbt] at hy
   rw [hbt] at hycount hywritten
   rw [hbo, hbt, hbs] at hyheap
-  have hyreg (i : Fin 64) (hi : 32 ≤ i.val ∧ i.val < 50 ∧ i ≠ heap ∧ i ≠ produced) :
+  have hyreg (i : Fin 64)
+      (hi : 32 ≤ i.val ∧ i.val < 50 ∧ i ≠ heap ∧ i ≠ produced := by decide) :
       y.regs i = b.regs i := hy.regs_eq (visit_preserves i hi)
   refine ⟨y, ?_, ?_, b, hprefixExec, hbn, hbD, hbp, hbB, hbH, hbK, hbd,
-    ?_, hbzero, ?_, hbh'.trans rfl, hbs, hb1, hb3, hbL, hbR, ?_, ?_⟩
+    (hyreg output).symm, hbzero, by rw [hbt, hycount], hbh'.trans rfl, hbs, hb1, hb3, hbL, hbR,
+    fun q hq => (hyframe q (by change q < b.regs output at hq; omega)).symm, ?_⟩
   · apply ExecWithin.seq_assoc.mp ((hprefixExec.seq hy).mono ?_)
     change Catalogue.cost n D p + 26 + (K * H * (40 * (n * D) + 68) + 2) ≤
       Catalogue.cost n D p + K * H * (40 * (n * D) + 68) + 29 - 1
     omega
-  · apply output_of_loop values initial v b y hcatSave hbmem
+  · exact output_of_loop values initial v b y hcatSave hbmem
       ⟨hbn, hbD, hbp, hbB, hbH, hbd, hbo, hbs, hbL, hbR⟩
-      ⟨by regs_frame, by regs_frame, by regs_frame, hyreg output (by decide)⟩ hycount
-      (by rw [hbo, hycount, hbs]; exact hyheap) hH
+      ⟨(hyreg size).trans hbn, (hyreg dimension).trans hbD, (hyreg modulus).trans hbp,
+        hyreg output⟩
+      hycount (by rw [hbo, hycount, hbs]; exact hyheap) hH
       (by rw [hycount]; exact hywritten) hyframe
-  · exact (hyreg output (by decide)).symm
-  · rw [hbt, hycount]
-  · intro q hq
-    exact (hyframe q (by change q < b.regs output at hq; omega)).symm
   · intro u hu
     rw [hbmem]
-    apply hvframe u
-    rw [hvK]
-    rcases hu with hu | hu
-    · exact Or.inl hu
-    · exact Or.inr (by rw [hbo] at hu; exact hu)
+    refine hvframe u ?_
+    rw [hvK]; exact hu.imp id fun h => by rw [hbo] at h; exact h
 
 /-- Complete native preparation from the real original input, preserving the standalone
 all-record producer contract and halt-exclusive allowance. -/

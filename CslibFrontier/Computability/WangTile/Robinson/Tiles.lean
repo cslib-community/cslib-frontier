@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WangTile.Basic
+meta import Lean.Data.RArray
 
 /-!
 # Corrected Robinson tiles and their substitution
@@ -80,114 +81,61 @@ structure Components where
 /-- Index in the corrected 104-tile alphabet, in Figure 13 order. -/
 abbrev Index := Fin 104
 
+private meta def quoteLookupTable : Lean.RArray Lean.Term → Lean.MacroM Lean.Term
+  | .leaf entry => `(Lean.RArray.leaf $entry)
+  | .branch index left right => do
+    let pivot := Lean.Syntax.mkNumLit (toString index)
+    `(Lean.RArray.branch $pivot $(← quoteLookupTable left) $(← quoteLookupTable right))
+
+/-- Build a balanced table literal for kernel reduction in finite Robinson certificates.
+Indices in the range of the literal select the corresponding source entry. -/
+scoped macro "lookupTable![" xs:term,+ "]" : term => do
+  let entries := xs.getElems
+  if h : 0 < entries.size then
+    quoteLookupTable (Lean.RArray.ofArray entries h)
+  else
+    Lean.Macro.throwError "expected a nonempty lookup table"
+
 /-- The component triple of a tile in the corrected Figure 13 alphabet. -/
 @[expose] def components (index : Index) : Components :=
-  match index.val with
-  | 0 => ⟨.a, .b, .a⟩
-  | 1 => ⟨.a, .c, .a⟩
-  | 2 => ⟨.a, .a, .a⟩
-  | 3 => ⟨.a, .d, .a⟩
-  | 4 => ⟨.b, .b, .a⟩
-  | 5 => ⟨.b, .c, .a⟩
-  | 6 => ⟨.b, .a, .a⟩
-  | 7 => ⟨.b, .d, .a⟩
-  | 8 => ⟨.c, .m, .b⟩
-  | 9 => ⟨.c, .m, .c⟩
-  | 10 => ⟨.c, .i, .b⟩
-  | 11 => ⟨.c, .i, .c⟩
-  | 12 => ⟨.c, .t, .c⟩
-  | 13 => ⟨.c, .e, .c⟩
-  | 14 => ⟨.c, .j, .c⟩
-  | 15 => ⟨.c, .h, .c⟩
-  | 16 => ⟨.c, .l, .b⟩
-  | 17 => ⟨.c, .f, .b⟩
-  | 18 => ⟨.c, .r, .b⟩
-  | 19 => ⟨.c, .g, .b⟩
-  | 20 => ⟨.c, .o, .b⟩
-  | 21 => ⟨.c, .o, .c⟩
-  | 22 => ⟨.c, .k, .b⟩
-  | 23 => ⟨.c, .k, .c⟩
-  | 24 => ⟨.c, .n, .b⟩
-  | 25 => ⟨.c, .n, .c⟩
-  | 26 => ⟨.c, .q, .b⟩
-  | 27 => ⟨.c, .q, .c⟩
-  | 28 => ⟨.c, .p, .b⟩
-  | 29 => ⟨.c, .p, .c⟩
-  | 30 => ⟨.c, .s, .b⟩
-  | 31 => ⟨.c, .s, .c⟩
-  | 32 => ⟨.a, .m, .b⟩
-  | 33 => ⟨.a, .m, .c⟩
-  | 34 => ⟨.a, .i, .b⟩
-  | 35 => ⟨.a, .i, .c⟩
-  | 36 => ⟨.a, .t, .c⟩
-  | 37 => ⟨.a, .e, .c⟩
-  | 38 => ⟨.a, .j, .c⟩
-  | 39 => ⟨.a, .h, .c⟩
-  | 40 => ⟨.a, .l, .b⟩
-  | 41 => ⟨.a, .f, .b⟩
-  | 42 => ⟨.a, .r, .b⟩
-  | 43 => ⟨.a, .g, .b⟩
-  | 44 => ⟨.a, .o, .b⟩
-  | 45 => ⟨.a, .o, .c⟩
-  | 46 => ⟨.a, .k, .b⟩
-  | 47 => ⟨.a, .k, .c⟩
-  | 48 => ⟨.a, .n, .b⟩
-  | 49 => ⟨.a, .n, .c⟩
-  | 50 => ⟨.a, .q, .b⟩
-  | 51 => ⟨.a, .q, .c⟩
-  | 52 => ⟨.a, .p, .b⟩
-  | 53 => ⟨.a, .p, .c⟩
-  | 54 => ⟨.a, .s, .b⟩
-  | 55 => ⟨.a, .s, .c⟩
-  | 56 => ⟨.d, .t, .d⟩
-  | 57 => ⟨.d, .t, .e⟩
-  | 58 => ⟨.d, .e, .d⟩
-  | 59 => ⟨.d, .j, .d⟩
-  | 60 => ⟨.d, .j, .e⟩
-  | 61 => ⟨.d, .h, .e⟩
-  | 62 => ⟨.d, .l, .d⟩
-  | 63 => ⟨.d, .l, .e⟩
-  | 64 => ⟨.d, .f, .d⟩
-  | 65 => ⟨.d, .r, .d⟩
-  | 66 => ⟨.d, .r, .e⟩
-  | 67 => ⟨.d, .g, .e⟩
-  | 68 => ⟨.d, .o, .d⟩
-  | 69 => ⟨.d, .o, .e⟩
-  | 70 => ⟨.d, .k, .d⟩
-  | 71 => ⟨.d, .n, .d⟩
-  | 72 => ⟨.d, .n, .e⟩
-  | 73 => ⟨.d, .q, .e⟩
-  | 74 => ⟨.d, .p, .d⟩
-  | 75 => ⟨.d, .p, .e⟩
-  | 76 => ⟨.d, .s, .d⟩
-  | 77 => ⟨.d, .m, .d⟩
-  | 78 => ⟨.d, .m, .e⟩
-  | 79 => ⟨.d, .i, .e⟩
-  | 80 => ⟨.a, .t, .d⟩
-  | 81 => ⟨.a, .t, .e⟩
-  | 82 => ⟨.a, .e, .d⟩
-  | 83 => ⟨.a, .j, .d⟩
-  | 84 => ⟨.a, .j, .e⟩
-  | 85 => ⟨.a, .h, .e⟩
-  | 86 => ⟨.a, .l, .d⟩
-  | 87 => ⟨.a, .l, .e⟩
-  | 88 => ⟨.a, .f, .d⟩
-  | 89 => ⟨.a, .r, .d⟩
-  | 90 => ⟨.a, .r, .e⟩
-  | 91 => ⟨.a, .g, .e⟩
-  | 92 => ⟨.a, .o, .d⟩
-  | 93 => ⟨.a, .o, .e⟩
-  | 94 => ⟨.a, .k, .d⟩
-  | 95 => ⟨.a, .n, .d⟩
-  | 96 => ⟨.a, .n, .e⟩
-  | 97 => ⟨.a, .q, .e⟩
-  | 98 => ⟨.a, .p, .d⟩
-  | 99 => ⟨.a, .p, .e⟩
-  | 100 => ⟨.a, .s, .d⟩
-  | 101 => ⟨.a, .m, .d⟩
-  | 102 => ⟨.a, .m, .e⟩
-  | 103 => ⟨.a, .i, .e⟩
-  | _ => ⟨.a, .b, .a⟩
+  let table : Lean.RArray Components := lookupTable![
+    ⟨.a, .b, .a⟩, ⟨.a, .c, .a⟩, ⟨.a, .a, .a⟩,
+    ⟨.a, .d, .a⟩, ⟨.b, .b, .a⟩, ⟨.b, .c, .a⟩,
+    ⟨.b, .a, .a⟩, ⟨.b, .d, .a⟩, ⟨.c, .m, .b⟩,
+    ⟨.c, .m, .c⟩, ⟨.c, .i, .b⟩, ⟨.c, .i, .c⟩,
+    ⟨.c, .t, .c⟩, ⟨.c, .e, .c⟩, ⟨.c, .j, .c⟩,
+    ⟨.c, .h, .c⟩, ⟨.c, .l, .b⟩, ⟨.c, .f, .b⟩,
+    ⟨.c, .r, .b⟩, ⟨.c, .g, .b⟩, ⟨.c, .o, .b⟩,
+    ⟨.c, .o, .c⟩, ⟨.c, .k, .b⟩, ⟨.c, .k, .c⟩,
+    ⟨.c, .n, .b⟩, ⟨.c, .n, .c⟩, ⟨.c, .q, .b⟩,
+    ⟨.c, .q, .c⟩, ⟨.c, .p, .b⟩, ⟨.c, .p, .c⟩,
+    ⟨.c, .s, .b⟩, ⟨.c, .s, .c⟩, ⟨.a, .m, .b⟩,
+    ⟨.a, .m, .c⟩, ⟨.a, .i, .b⟩, ⟨.a, .i, .c⟩,
+    ⟨.a, .t, .c⟩, ⟨.a, .e, .c⟩, ⟨.a, .j, .c⟩,
+    ⟨.a, .h, .c⟩, ⟨.a, .l, .b⟩, ⟨.a, .f, .b⟩,
+    ⟨.a, .r, .b⟩, ⟨.a, .g, .b⟩, ⟨.a, .o, .b⟩,
+    ⟨.a, .o, .c⟩, ⟨.a, .k, .b⟩, ⟨.a, .k, .c⟩,
+    ⟨.a, .n, .b⟩, ⟨.a, .n, .c⟩, ⟨.a, .q, .b⟩,
+    ⟨.a, .q, .c⟩, ⟨.a, .p, .b⟩, ⟨.a, .p, .c⟩,
+    ⟨.a, .s, .b⟩, ⟨.a, .s, .c⟩, ⟨.d, .t, .d⟩,
+    ⟨.d, .t, .e⟩, ⟨.d, .e, .d⟩, ⟨.d, .j, .d⟩,
+    ⟨.d, .j, .e⟩, ⟨.d, .h, .e⟩, ⟨.d, .l, .d⟩,
+    ⟨.d, .l, .e⟩, ⟨.d, .f, .d⟩, ⟨.d, .r, .d⟩,
+    ⟨.d, .r, .e⟩, ⟨.d, .g, .e⟩, ⟨.d, .o, .d⟩,
+    ⟨.d, .o, .e⟩, ⟨.d, .k, .d⟩, ⟨.d, .n, .d⟩,
+    ⟨.d, .n, .e⟩, ⟨.d, .q, .e⟩, ⟨.d, .p, .d⟩,
+    ⟨.d, .p, .e⟩, ⟨.d, .s, .d⟩, ⟨.d, .m, .d⟩,
+    ⟨.d, .m, .e⟩, ⟨.d, .i, .e⟩, ⟨.a, .t, .d⟩,
+    ⟨.a, .t, .e⟩, ⟨.a, .e, .d⟩, ⟨.a, .j, .d⟩,
+    ⟨.a, .j, .e⟩, ⟨.a, .h, .e⟩, ⟨.a, .l, .d⟩,
+    ⟨.a, .l, .e⟩, ⟨.a, .f, .d⟩, ⟨.a, .r, .d⟩,
+    ⟨.a, .r, .e⟩, ⟨.a, .g, .e⟩, ⟨.a, .o, .d⟩,
+    ⟨.a, .o, .e⟩, ⟨.a, .k, .d⟩, ⟨.a, .n, .d⟩,
+    ⟨.a, .n, .e⟩, ⟨.a, .q, .e⟩, ⟨.a, .p, .d⟩,
+    ⟨.a, .p, .e⟩, ⟨.a, .s, .d⟩, ⟨.a, .m, .d⟩,
+    ⟨.a, .m, .e⟩, ⟨.a, .i, .e⟩
+  ]
+  table.get index.val
 
 /-- Superimpose thin, thick and black edge digits with weights 1, 4 and 16. -/
 @[expose] def tile (layers : Components) : WangTile :=
@@ -258,112 +206,44 @@ The 416 entries flatten lean-wang's layer rules `phiL1Star`, `phiL2Component1`,
 @[expose] def childBlock (parent : Index) (x y : Fin 2) : Index :=
   let square (sw se nw ne : Index) : Index :=
     if y = 0 then (if x = 0 then sw else se) else (if x = 0 then nw else ne)
-  match parent.val with
-  | 0 => square 0 22 57 4
-  | 1 => square 1 20 63 4
-  | 2 => square 2 26 69 4
-  | 3 => square 3 24 75 4
-  | 4 => square 0 17 61 7
-  | 5 => square 1 16 67 7
-  | 6 => square 2 19 73 7
-  | 7 => square 3 18 79 7
-  | 8 => square 32 8 76 5
-  | 9 => square 33 9 76 5
-  | 10 => square 34 10 76 5
-  | 11 => square 35 11 76 5
-  | 12 => square 36 29 58 5
-  | 13 => square 37 31 58 5
-  | 14 => square 38 9 58 5
-  | 15 => square 39 11 58 5
-  | 16 => square 40 28 64 5
-  | 17 => square 41 30 64 5
-  | 18 => square 42 8 64 5
-  | 19 => square 43 10 64 5
-  | 20 => square 44 28 70 5
-  | 21 => square 45 29 70 5
-  | 22 => square 46 30 70 5
-  | 23 => square 47 31 70 5
-  | 24 => square 48 8 70 5
-  | 25 => square 49 9 70 5
-  | 26 => square 50 10 70 5
-  | 27 => square 51 11 70 5
-  | 28 => square 52 28 76 5
-  | 29 => square 53 29 76 5
-  | 30 => square 54 30 76 5
-  | 31 => square 55 31 76 5
-  | 32 => square 32 24 74 4
-  | 33 => square 33 25 74 4
-  | 34 => square 34 26 74 4
-  | 35 => square 35 27 74 4
-  | 36 => square 36 21 56 4
-  | 37 => square 37 23 56 4
-  | 38 => square 38 25 56 4
-  | 39 => square 39 27 56 4
-  | 40 => square 40 20 62 4
-  | 41 => square 41 22 62 4
-  | 42 => square 42 24 62 4
-  | 43 => square 43 26 62 4
-  | 44 => square 44 20 68 4
-  | 45 => square 45 21 68 4
-  | 46 => square 46 22 68 4
-  | 47 => square 47 23 68 4
-  | 48 => square 48 24 68 4
-  | 49 => square 49 25 68 4
-  | 50 => square 50 26 68 4
-  | 51 => square 51 27 68 4
-  | 52 => square 52 20 74 4
-  | 53 => square 53 21 74 4
-  | 54 => square 54 22 74 4
-  | 55 => square 55 23 74 4
-  | 56 => square 80 12 59 6
-  | 57 => square 81 12 60 6
-  | 58 => square 82 13 59 6
-  | 59 => square 83 14 59 6
-  | 60 => square 84 14 60 6
-  | 61 => square 85 15 60 6
-  | 62 => square 86 12 65 6
-  | 63 => square 87 12 66 6
-  | 64 => square 88 13 65 6
-  | 65 => square 89 14 65 6
-  | 66 => square 90 14 66 6
-  | 67 => square 91 15 66 6
-  | 68 => square 92 12 71 6
-  | 69 => square 93 12 72 6
-  | 70 => square 94 13 71 6
-  | 71 => square 95 14 71 6
-  | 72 => square 96 14 72 6
-  | 73 => square 97 15 72 6
-  | 74 => square 98 12 77 6
-  | 75 => square 99 12 78 6
-  | 76 => square 100 13 77 6
-  | 77 => square 101 14 77 6
-  | 78 => square 102 14 78 6
-  | 79 => square 103 15 78 6
-  | 80 => square 80 21 56 4
-  | 81 => square 81 21 57 4
-  | 82 => square 82 23 56 4
-  | 83 => square 83 25 56 4
-  | 84 => square 84 25 57 4
-  | 85 => square 85 27 57 4
-  | 86 => square 86 21 62 4
-  | 87 => square 87 21 63 4
-  | 88 => square 88 23 62 4
-  | 89 => square 89 25 62 4
-  | 90 => square 90 25 63 4
-  | 91 => square 91 27 63 4
-  | 92 => square 92 21 68 4
-  | 93 => square 93 21 69 4
-  | 94 => square 94 23 68 4
-  | 95 => square 95 25 68 4
-  | 96 => square 96 25 69 4
-  | 97 => square 97 27 69 4
-  | 98 => square 98 21 74 4
-  | 99 => square 99 21 75 4
-  | 100 => square 100 23 74 4
-  | 101 => square 101 25 74 4
-  | 102 => square 102 25 75 4
-  | 103 => square 103 27 75 4
-  | _ => square 0 22 57 4
+  let table : Lean.RArray Index := lookupTable![
+    square 0 22 57 4, square 1 20 63 4, square 2 26 69 4,
+    square 3 24 75 4, square 0 17 61 7, square 1 16 67 7,
+    square 2 19 73 7, square 3 18 79 7, square 32 8 76 5,
+    square 33 9 76 5, square 34 10 76 5, square 35 11 76 5,
+    square 36 29 58 5, square 37 31 58 5, square 38 9 58 5,
+    square 39 11 58 5, square 40 28 64 5, square 41 30 64 5,
+    square 42 8 64 5, square 43 10 64 5, square 44 28 70 5,
+    square 45 29 70 5, square 46 30 70 5, square 47 31 70 5,
+    square 48 8 70 5, square 49 9 70 5, square 50 10 70 5,
+    square 51 11 70 5, square 52 28 76 5, square 53 29 76 5,
+    square 54 30 76 5, square 55 31 76 5, square 32 24 74 4,
+    square 33 25 74 4, square 34 26 74 4, square 35 27 74 4,
+    square 36 21 56 4, square 37 23 56 4, square 38 25 56 4,
+    square 39 27 56 4, square 40 20 62 4, square 41 22 62 4,
+    square 42 24 62 4, square 43 26 62 4, square 44 20 68 4,
+    square 45 21 68 4, square 46 22 68 4, square 47 23 68 4,
+    square 48 24 68 4, square 49 25 68 4, square 50 26 68 4,
+    square 51 27 68 4, square 52 20 74 4, square 53 21 74 4,
+    square 54 22 74 4, square 55 23 74 4, square 80 12 59 6,
+    square 81 12 60 6, square 82 13 59 6, square 83 14 59 6,
+    square 84 14 60 6, square 85 15 60 6, square 86 12 65 6,
+    square 87 12 66 6, square 88 13 65 6, square 89 14 65 6,
+    square 90 14 66 6, square 91 15 66 6, square 92 12 71 6,
+    square 93 12 72 6, square 94 13 71 6, square 95 14 71 6,
+    square 96 14 72 6, square 97 15 72 6, square 98 12 77 6,
+    square 99 12 78 6, square 100 13 77 6, square 101 14 77 6,
+    square 102 14 78 6, square 103 15 78 6, square 80 21 56 4,
+    square 81 21 57 4, square 82 23 56 4, square 83 25 56 4,
+    square 84 25 57 4, square 85 27 57 4, square 86 21 62 4,
+    square 87 21 63 4, square 88 23 62 4, square 89 25 62 4,
+    square 90 25 63 4, square 91 27 63 4, square 92 21 68 4,
+    square 93 21 69 4, square 94 23 68 4, square 95 25 68 4,
+    square 96 25 69 4, square 97 27 69 4, square 98 21 74 4,
+    square 99 21 75 4, square 100 23 74 4, square 101 25 74 4,
+    square 102 25 75 4, square 103 27 75 4
+  ]
+  table.get parent.val
 
 /-- Simultaneous substitution of an index grid at the quotient and parity coordinates. -/
 @[expose] def refineIndexGrid (grid : Nat → Nat → Index) (x y : Nat) : Index :=

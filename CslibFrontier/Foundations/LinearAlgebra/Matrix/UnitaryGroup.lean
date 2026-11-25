@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.CStarAlgebra.Matrix
 public import Mathlib.LinearAlgebra.Matrix.Hermitian
 public import Mathlib.LinearAlgebra.UnitaryGroup
+public import CslibFrontier.Foundations.Algebra.Star.Unitary
 
 /-!
 # Unitary group characterizations and Hermitian involutions
@@ -55,8 +56,8 @@ namespace Matrix
 /-- A Hermitian matrix `A` with `A * A = 1` (a `±1` observable) is unitary. -/
 theorem IsHermitian.mem_unitaryGroup_of_mul_self {n α : Type*} [Fintype n] [DecidableEq n]
     [CommRing α] [StarRing α] {A : Matrix n n α} (hA : A.IsHermitian) (hA2 : A * A = 1) :
-    A ∈ unitaryGroup n α := by
-  rw [mem_unitaryGroup_iff, star_eq_conjTranspose, hA.eq, hA2]
+    A ∈ unitaryGroup n α :=
+  hA.isSelfAdjoint.mem_unitary_of_mul_self hA2
 
 section RCLike
 

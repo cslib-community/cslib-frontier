@@ -9,16 +9,18 @@ module
 
 import CslibFrontier.Crypto.Computational.MLDSA.SignedExtraction
 import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
-import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
+import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
+import CslibFrontier.Crypto.Computational.MLDSA.RepresentativeOverlap
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 meta import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+meta import CslibFrontier.Crypto.Computational.MLDSA.RepresentativeOverlap
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
@@ -34,6 +36,10 @@ set_option linter.privateModule false
 set_option linter.hashCommand false
 
 open Cslib.Crypto Cslib.Crypto.MLDSA.FIPS204
+
+-- At every FIPS level, a nonzero vector of multiples of q exceeds the fork's doubled radius.
+example (s : Level) : 2 * MLDSA.compressedSelfTargetRadius s.params 13 < 8380417 := by
+  cases s <;> decide
 
 -- Check low-before-high nibble order, the last accepted coefficient, and exhaustion with
 -- 255 accepted coefficients after the final high nibble is rejected.
@@ -247,6 +253,33 @@ private def checkVerifierWrite (s : Level) : Bool := Id.run do
 #guard checkVerifierWrite .mlDSA65
 #guard checkVerifierWrite .mlDSA87
 
+-- The same raw word is a legal representative and a commitment input. Short inputs in
+-- Algorithm 6 return zeros, so the public key starts with zeros. Its own 64-byte hash and
+-- the one-bit message's representative consist of 0x01 bytes; the empty message misses.
+private def representativeOverlapCheck (s : Level) (messageBits : ℕ) : Bool := Id.run do
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, constantStream (fun x => if x.length > 528 then 1 else 0)⟩
+  let some keys := H.keyGen s (fun _ => 0) | return false
+  let pk := keys.publicKey
+  let tr := H.h256.readBytes pk 64
+  let empty : Forgery := ⟨[], [], []⟩
+  let one : Forgery := ⟨[], [false], []⟩
+  let y := representativeInput tr (formattedMessage one)
+  let final := representativeInput tr (formatMessage (List.replicate messageBits false) [])
+  let signed := commitmentInput s (fun _ _ => 0) (H.messageRepresentative pk (formattedMessage one))
+  -- A second stream tests the equal-input outcome on the generated all-zero public key.
+  let Z : Xofs := ⟨zero, zero⟩
+  let self : Forgery := ⟨[], List.replicate (8 * pk.length - 528) false, []⟩
+  return final == signed && H.matchingRepresentativeInput pk [empty] == none &&
+    H.matchingRepresentativeInput pk [empty, one] == some y && Keccak.bytesToBitsLE pk != y &&
+    H.h256.read y 64 == tr && tr != pk.take 64 &&
+    Z.matchingRepresentativeInput pk [self] == some (Keccak.bytesToBitsLE pk) &&
+    Z.h256.readBytes pk 64 == pk.take 64
+
+#guard representativeOverlapCheck .mlDSA44 6128
+#guard representativeOverlapCheck .mlDSA65 6128
+#guard representativeOverlapCheck .mlDSA87 8176
+
 -- Algorithm 32 appends the column before the row. Adjacent addresses, bit-length variants
 -- and longer reads exercise the same XOF that the verifier and an outside caller receive.
 private def matrixAddressChecks : Bool := Id.run do
@@ -416,10 +449,11 @@ example (other : ExtendableOutput) (rho : FixedBytes 32)
       (result.trial.forgery.message, result.writes.map (fun w => (w.request, w.reply)),
         result.trial.log)) = PMF.pure ([true], [(q, none)], []) := by
   intro q
-  simp only [publicPairSigning, runProgrammed, programmedCommands, signingProbe,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
-    OracleComp.sumHandler, signingCall,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_nil, Nat.not_lt_zero, ite_false]
+  simp only [publicPairSigning, runProgrammed, runSigningProgram, programmedCommands,
+    statefulSigningCommands, signingProbe, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q,
+    List.length_nil, Nat.not_lt_zero, ite_false]
   rw [show List.range 814 = 0 :: List.range' 1 813 by rw [List.range_eq_range', List.range'_succ],
     List.findSomeM?_cons]
   simp only [fatalDraw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
@@ -433,11 +467,12 @@ example (s : Level) (H : Xofs) (rho : FixedBytes 32) (pair : MLDSA.PublicKey s.p
       (result.trial.forgery.message, result.writes, result.trial.log, result.trial.xofs)) =
       PMF.pure ([true], [], [], H) := by
   intro q
-  simp only [publicPairSigning, runProgrammed, programmedCommands, signingProbe,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
-    OracleComp.sumHandler, signingCall,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_replicate,
-    show 255 < 256 by decide, ite_true, PMF.pure_map, PMF.pure_bind, Option.isNone_none]
+  simp only [publicPairSigning, runProgrammed, runSigningProgram, programmedCommands,
+    statefulSigningCommands, signingProbe, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q,
+    List.length_replicate, show 255 < 256 by decide, ite_true, PMF.pure_map, PMF.pure_bind,
+    Option.isNone_none]
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger
 

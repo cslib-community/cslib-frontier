@@ -34,12 +34,8 @@ structure Stores (zero : M.Value) (tree : BinaryTree (Label M 2))
 
 /-- The empty tree represents the everywhere-default memory. -/
 theorem Stores.empty (zero : M.Value) : Stores zero (.nil : BinaryTree (Label M 2))
-    (fun _ => zero) := by
-  constructor
-  · intro p label h
-    cases p <;> cases h
-  · intro key h
-    exact (h rfl).elim
+    (fun _ => zero) :=
+  ⟨fun p _ h => (by cases p <;> cases h), fun _ h => (h rfl).elim⟩
 
 /-- An unsuccessful ordered search reads the default memory value. -/
 theorem Stores.absent {zero : M.Value} {tree : BinaryTree (Label M 2)}
@@ -47,8 +43,7 @@ theorem Stores.absent {zero : M.Value} {tree : BinaryTree (Label M 2)}
     (ordered : SearchTree.Ordered (keys tree)) {key : M.Value}
     (missing : SearchTree.contains key (keys tree) = false) : memory key = zero := by
   by_contra ne
-  have present := (SearchTree.contains_eq_true ordered key).mpr (h.support key ne)
-  simp [missing] at present
+  simpa [missing] using (SearchTree.contains_eq_true ordered key).mpr (h.support key ne)
 
 omit [LinearOrder M.Value] in
 /-- A payload store retains the key and height match with the same mathematical AVL tree. -/
@@ -75,7 +70,7 @@ private theorem get_updatePayload (tree : BinaryTree (Label M 2)) (a : ℕ)
         else label.data }) := by
   induction tree generalizing p with
   | nil => cases p <;> rfl
-  | node label l r il ir =>
+  | node _ _ _ il ir =>
     cases p with
     | one => rfl
     | bit0 p => exact il p
@@ -91,14 +86,13 @@ theorem payload_except_insert {regs : ℕ} {encode : ℕ → M.Value}
     ∀ q u, after.get q = some u → u.data 0 ≠ s.data 0 → u.data 2 = memory (u.data 0) := by
   intro q u get notQuery
   obtain ⟨node, lookup, fields⟩ := result.rep.get get
-  have mem : u.address ∈ addresses after := (mem_addresses_iff ..).mpr ⟨q, u, get, rfl⟩
-  rcases Finset.mem_insert.mp (result.footprint.2 mem) with fresh | old
+  rcases Finset.mem_insert.mp (result.footprint.2 ((mem_addresses_iff ..).mpr ⟨q, u, get, rfl⟩))
+    with fresh | old
   · have grows : s.heap.length < t.heap.length := by
       simpa only [fresh] using (List.getElem?_eq_some_iff.mp lookup).1
     have payload := result.freshPayload grows 0 (by decide)
     rw [← fresh, lookup] at payload
-    have key : u.data 0 = s.data 0 := by simpa [fields] using payload
-    exact (notQuery key).elim
+    exact (notQuery (by simpa [fields] using payload)).elim
   · obtain ⟨p, label, found, address⟩ := (mem_addresses_iff ..).mp old
     obtain ⟨oldNode, oldLookup, oldFields⟩ := rep.get found
     have bound := rep.address_lt old
@@ -119,29 +113,42 @@ theorem stores_updatePayload (zero : M.Value) (tree : BinaryTree (Label M 2))
     (other : ∀ q u, tree.get q = some u → u.data 0 ≠ query → u.data 2 = memory (u.data 0))
     (support : ∀ k, memory k ≠ zero → k ∈ SearchTree.elements (keys tree)) :
     Stores zero (updateData tree label.address 2 value) (Function.update memory query value) := by
-  constructor
-  · intro q u get
-    rw [get_updatePayload] at get
+  refine ⟨fun q u get => ?_, fun k hk => ?_⟩
+  · rw [get_updatePayload] at get
     obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp get
     by_cases eq : v.data 0 = query
-    · have positions := get_key_injective ordered hv found (eq.trans key.symm)
-      subst q
-      have labels : v = label := Option.some.inj (hv.symm.trans found)
-      subst v
+    · obtain rfl := get_key_injective ordered hv found (eq.trans key.symm)
+      obtain rfl := Option.some.inj (hv.symm.trans found)
       simp [eq]
-    · have ne : v.address ≠ label.address := by
-        intro address
-        have positions := distinct q p v label hv found address
-        subst q
-        have labels : v = label := Option.some.inj (hv.symm.trans found)
-        exact eq (labels ▸ key)
+    · have ne : v.address ≠ label.address := fun address => by
+        obtain rfl := distinct q p v label hv found address
+        exact eq (Option.some.inj (hv.symm.trans found) ▸ key)
       simp [ne, eq, other q v hv eq]
-  · intro k hk
-    rw [keys_updateData _ _ _ _ (by decide)]
+  · rw [keys_updateData _ _ _ _ (by decide)]
     by_cases eq : k = query
-    · subst k
-      exact key ▸ key_mem_of_get found
-    · apply support
-      simpa [Function.update_of_ne eq] using hk
+    · exact eq ▸ key ▸ key_mem_of_get found
+    · exact support k (by simpa [Function.update_of_ne eq] using hk)
+
+/-- After inserting the query key, writing a value at its node updates the represented memory
+at that key and leaves every other cell unchanged. -/
+theorem stores_insert_updatePayload {regs : ℕ} {encode : ℕ → M.Value}
+    {s t : State M (layout 2 (regs + 2))} {before after : BinaryTree (Label M 2)}
+    {original : AVLTree M.Value} {memory : M.Value → M.Value}
+    (rep : Represents s.heap none before) (matched : Matches encode 1 before original)
+    (valid : original.Valid) (stored : Stores (encode 0) before memory)
+    (result : InsertResult encode 1 (fun _ => 3) s t before after original)
+    (p : PosNum) (label : Label M 2) (found : after.get p = some label)
+    (key : label.data 0 = s.data 0) (value : M.Value) :
+    Stores (encode 0) (updateData after label.address 2 value)
+      (Function.update memory (s.data 0) value) :=
+  stores_updatePayload (encode 0) after memory (s.data 0) value p label
+    (result.matched.keys.symm ▸ (valid_insert valid (s.data 0)).ordered) result.distinct
+    found key (payload_except_insert rep stored result) fun k hk => by
+      have old := stored.support k hk
+      rw [matched.keys] at old
+      rw [result.matched.keys]
+      change k ∈ (AVLTree.insert (s.data 0) original).elements
+      rw [elements_insert]
+      exact Finset.mem_insert_of_mem old
 
 end Cslib.DataStructure.AVLTree.PointerMachine.Dictionary

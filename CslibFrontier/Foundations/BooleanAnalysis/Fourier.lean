@@ -33,9 +33,11 @@ The *character* of a set `S` of coordinates is `χ_S x = ∏_{i ∈ S} (-1) ^ (x
 analysis takes `R = ℝ`, where the sign of a bit is `BitString.signVal`. Bit strings add
 coordinatewise modulo two, `(x + y) i = (x i ^^ y i)`, through Mathlib's Boolean ring structure on
 `Bool`, and the characters turn sums into products (`BitString.chi_add`): they are additive
-characters of the cube (`BitString.chiChar`), whose sums are Mathlib's `AddChar.sum_eq_ite`. The
-characters are orthonormal for the uniform expectation (`BitString.expect_chi_mul_chi`), and every
-real function on the cube is the sum of its *Fourier expansion* `f = ∑_S f̂(S) χ_S`, with the
+characters of the cube (`BitString.chiChar`), whose sums are Mathlib's `AddChar.sum_eq_ite`.
+Summed over the subsets of `K`, `χ_S x χ_S y` is `2 ^ |K|` when `x` and `y` agree on `K` and
+`0` otherwise (`BitString.sum_powerset_chi_mul_chi`). The characters are orthonormal for
+the uniform expectation (`BitString.expect_chi_mul_chi`), and every real function on the cube is
+the sum of its *Fourier expansion* `f = ∑_S f̂(S) χ_S`, with the
 *Fourier coefficients* `f̂(S) = 𝔼_x f x χ_S x` (`BitString.fourierCoeff`,
 `BitString.sum_fourierCoeff_mul_chi`), which are unique
 (`BitString.fourierCoeff_sum_mul_chi`), so the Fourier transform is a linear equivalence
@@ -61,11 +63,18 @@ coefficient on the circle, so the name is meant to be used qualified.
 
 * `Cslib.BitString.expect_chi_mul_chi`, `Cslib.BitString.fourierCoeff_chi`: the characters are
   orthonormal.
+* `Cslib.BitString.fourierCoeff_ite_eq`, `Cslib.BitString.fourierCoeff_signVal_decide_eq`: the
+  Fourier coefficients of the indicator of a point.
 * `Cslib.BitString.chi_add`, `Cslib.BitString.chi_mul_chi`: the characters are multiplicative,
   in the input and in the set.
 * `Cslib.BitString.sum_fourierCoeff_mul_chi`: the Fourier expansion.
+* `Cslib.BitString.sum_powerset_chi_mul_chi`: summed over the subsets of `K`, the characters
+  at two points detect their agreement on `K`.
 * `Cslib.BitString.fourierCoeff_sum_mul_chi`, `Cslib.BitString.fourierCoeff_injective`:
   uniqueness of the Fourier coefficients.
+* `Cslib.BitString.abs_fourierCoeff_le_expect_abs`, `Cslib.BitString.abs_le_sum_abs_fourierCoeff`:
+  `‖f̂‖∞ ≤ ‖f‖₁` and `‖f‖∞ ≤ ‖f̂‖₁`; the second follows from `Cslib.BitString.abs_sum_mul_chi_le`,
+  which bounds a combination of characters by the sum of its absolute weights.
 * `Cslib.BitString.expect_mul_eq_sum_fourierCoeff_mul`: Plancherel's identity.
 * `Cslib.BitString.fourierCoeff_comp_arrowCongr`: relabelling the coordinates relabels the
   Fourier coefficients.
@@ -142,6 +151,21 @@ theorem chi_mul_self (S : Finset ι) (x : ι → Bool) : chi R S x * chi R S x =
   rw [chi, ← prod_mul_distrib]
   exact prod_eq_one fun i _ => by cases x i <;> simp
 
+/-- The characters of the subsets of `K` at two points, summed, are `2 ^ |K|` when the points agree
+on `K` and `0` otherwise: the sum is the product over `K` of `1 + (-1) ^ xᵢ (-1) ^ yᵢ`. The
+statement takes the decidability of the agreement as an instance argument, as `Finset.sum_boole`
+does. -/
+theorem sum_powerset_chi_mul_chi (K : Finset ι) (x y : ι → Bool)
+    [Decidable (∀ i ∈ K, x i = y i)] :
+    ∑ S ∈ K.powerset, chi R S x * chi R S y = if ∀ i ∈ K, x i = y i then 2 ^ #K else 0 := by
+  have h (i : ι) :
+      1 + (-1 : R) ^ (x i).toNat * (-1) ^ (y i).toNat = if x i = y i then 2 else 0 := by
+    cases x i <;> cases y i <;> norm_num [one_add_one_eq_two]
+  simp only [chi, ← prod_mul_distrib]
+  rw [← prod_one_add, prod_congr rfl fun i _ => h i, prod_ite_zero, prod_const]
+  -- `prod_ite_zero` decides the agreement with its own instance; any two instances agree.
+  convert rfl
+
 section DecidableEq
 
 variable [DecidableEq ι]
@@ -197,6 +221,13 @@ theorem chi_eq_signVal_parityOn (S : Finset ι) (x : ι → Bool) :
 @[simp] theorem abs_chi (T : Finset ι) (x : ι → Bool) : |chi ℝ T x| = 1 := by
   rw [chi_eq_signVal_parityOn, abs_signVal]
 
+/-- A combination of real characters has absolute value at most the sum of the absolute values of
+its weights. With the Fourier expansion this is `‖f‖∞ ≤ ‖f̂‖₁`
+(`BitString.abs_le_sum_abs_fourierCoeff`). -/
+theorem abs_sum_mul_chi_le (s : Finset (Finset ι)) (c : Finset ι → ℝ) (x : ι → Bool) :
+    |∑ S ∈ s, c S * chi ℝ S x| ≤ ∑ S ∈ s, |c S| :=
+  (abs_sum_le_sum_abs _ _).trans_eq (by simp only [abs_mul, abs_chi, mul_one])
+
 /-- The character of `S` is the trivial additive character exactly when `S` is empty. -/
 @[simp] theorem chiChar_eq_zero_iff {S : Finset ι} : chiChar ℝ S = 0 ↔ S = ∅ := by
   classical
@@ -213,20 +244,13 @@ section Fintype
 
 variable [Fintype ι]
 
-/-- The characters at two points, summed over all sets, detect equality of the points. -/
+/-- The characters at two points, summed over all sets, detect equality of the points: the case
+`K = univ` of `sum_powerset_chi_mul_chi`. -/
 theorem sum_chi_mul_chi (x y : ι → Bool) :
     ∑ S, chi ℝ S x * chi ℝ S y = if x = y then 2 ^ Fintype.card ι else 0 := by
   classical
-  have h := prod_add (fun i => signVal (x i) * signVal (y i)) (fun _ => (1 : ℝ)) univ
-  simp only [prod_const_one, mul_one, powerset_univ] at h
-  simp only [chi_eq_prod_signVal, ← prod_mul_distrib]
-  rw [← h]
-  simp only [signVal_mul_signVal]
-  split_ifs with hxy
-  · subst hxy
-    simp [one_add_one_eq_two]
-  · obtain ⟨i, hi⟩ := Function.ne_iff.1 hxy
-    exact prod_eq_zero (mem_univ i) (by simp [hi])
+  rw [← powerset_univ, sum_powerset_chi_mul_chi, card_univ]
+  simp only [mem_univ, forall_const, ← funext_iff]
 
 variable [DecidableEq ι]
 
@@ -275,6 +299,14 @@ theorem fourierCoeff_const_mul (c : ℝ) (f : (ι → Bool) → ℝ) (S : Finset
     fourierCoeff (fun x => c * f x) S = c * fourierCoeff f S := by
   simp only [fourierCoeff, mul_assoc, mul_expect]
 
+/-- The Fourier coefficients commute with finite linear combinations. -/
+theorem fourierCoeff_sum_mul {α : Type*} [Fintype α]
+    (c : α → ℝ) (f : α → (ι → Bool) → ℝ) (S : Finset ι) :
+    fourierCoeff (fun x => ∑ i, c i * f i x) S = ∑ i, c i * fourierCoeff (f i) S := by
+  simp only [fourierCoeff, sum_mul, mul_assoc]
+  rw [expect_sum_comm]
+  simp only [← mul_expect]
+
 /-- Multiplying by a character shifts the coefficients by the symmetric difference. -/
 theorem fourierCoeff_chi_mul (T : Finset ι) (f : (ι → Bool) → ℝ) (S : Finset ι) :
     fourierCoeff (fun x => chi ℝ T x * f x) S = fourierCoeff f (symmDiff T S) := by
@@ -285,11 +317,36 @@ theorem fourierCoeff_const (c : ℝ) (S : Finset ι) :
     fourierCoeff (fun _ => c) S = if S = ∅ then c else 0 := by
   simp only [fourierCoeff, ← mul_expect, expect_chi, mul_ite, mul_one, mul_zero]
 
+/-- The indicator of a point `a` has Fourier coefficients `χ_S(a) / 2ⁿ`. -/
+theorem fourierCoeff_ite_eq (a : ι → Bool) (S : Finset ι) :
+    fourierCoeff (fun x => if x = a then (1 : ℝ) else 0) S = chi ℝ S a / 2 ^ Fintype.card ι := by
+  rw [fourierCoeff_eq_sum]
+  simp only [ite_mul, one_mul, zero_mul, sum_ite_eq', mem_univ, ite_true]
+
+/-- The Boolean indicator of a point `a`, read as signs, has Fourier coefficients
+`[S = ∅] - 2 χ_S(a) / 2ⁿ`. -/
+theorem fourierCoeff_signVal_decide_eq (a : ι → Bool) (S : Finset ι) :
+    fourierCoeff (fun x => signVal (decide (x = a))) S =
+      (if S = ∅ then 1 else 0) - 2 * (chi ℝ S a / 2 ^ Fintype.card ι) := by
+  have h : (fun x => signVal (decide (x = a))) =
+      fun x => (1 : ℝ) - 2 * (if x = a then 1 else 0) := by
+    funext x
+    by_cases hx : x = a <;> norm_num [hx]
+  rw [h, fourierCoeff_sub, fourierCoeff_const_mul, fourierCoeff_const, fourierCoeff_ite_eq]
+
 /-- The Fourier coefficients of a character are `1` at its own set and `0` elsewhere. -/
 @[simp]
 theorem fourierCoeff_chi (S T : Finset ι) :
     fourierCoeff (chi ℝ S) T = if S = T then 1 else 0 :=
   expect_chi_mul_chi S T
+
+/-- A literal `x ↦ b ⊕ x_i`, read as `±1`, is `signVal b` times the character of `{i}`, so its
+only nonzero Fourier coefficient is `signVal b`, on `{i}`. -/
+theorem fourierCoeff_signVal_xor (b : Bool) (i : ι) (S : Finset ι) :
+    fourierCoeff (fun x => signVal (b ^^ x i)) S = if {i} = S then signVal b else 0 := by
+  have h : (fun x : ι → Bool => signVal (b ^^ x i)) = fun x => signVal b * chi ℝ {i} x :=
+    funext fun x => by rw [signVal_xor, chi_singleton]
+  rw [h, fourierCoeff_const_mul, fourierCoeff_chi, mul_ite, mul_one, mul_zero]
 
 /-- A parity, read as `±1`, is the character of its set, so all its weight is on that set. -/
 theorem fourierCoeff_signVal_parityOn (S U : Finset ι) :
@@ -315,6 +372,12 @@ theorem fourierCoeff_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq κ] 
 @[simp] theorem fourierCoeff_empty (f : (ι → Bool) → ℝ) : fourierCoeff f ∅ = 𝔼 x, f x := by
   simp [fourierCoeff]
 
+/-- A Fourier coefficient is at most the mean absolute value: `|f̂(S)| ≤ 𝔼 |f|`, that is
+`‖f̂‖∞ ≤ ‖f‖₁`, the first half of [O'Donnell, Exercise 3.9][ODonnell2014]. -/
+theorem abs_fourierCoeff_le_expect_abs (f : (ι → Bool) → ℝ) (S : Finset ι) :
+    |fourierCoeff f S| ≤ 𝔼 x, |f x| :=
+  (abs_expect_le _ _).trans_eq (by simp only [abs_mul, abs_chi, mul_one])
+
 /-- **The Fourier expansion**: every function is the sum of its characters weighted by its
 Fourier coefficients. -/
 theorem sum_fourierCoeff_mul_chi (f : (ι → Bool) → ℝ) (x : ι → Bool) :
@@ -324,6 +387,12 @@ theorem sum_fourierCoeff_mul_chi (f : (ι → Bool) → ℝ) (x : ι → Bool) :
   simp only [mul_assoc, ← mul_sum, sum_chi_mul_chi, mul_ite, mul_zero, sum_ite_eq', mem_univ,
     ite_true]
   field_simp
+
+/-- A function is at most the sum of the absolute values of its Fourier coefficients:
+`‖f‖∞ ≤ ‖f̂‖₁`, the second half of [O'Donnell, Exercise 3.9][ODonnell2014]. -/
+theorem abs_le_sum_abs_fourierCoeff (f : (ι → Bool) → ℝ) (x : ι → Bool) :
+    |f x| ≤ ∑ S, |fourierCoeff f S| :=
+  sum_fourierCoeff_mul_chi f x ▸ abs_sum_mul_chi_le univ (fourierCoeff f) x
 
 /-- **The Fourier coefficients are unique**: a combination of characters has its weights as
 coefficients. -/
@@ -406,9 +475,9 @@ theorem fourierCoeff_sq_signVal_le_one (f : (ι → Bool) → Bool) (S : Finset 
 
 /-- A Fourier coefficient of a Boolean function, read as signs, has absolute value at most one. -/
 theorem abs_fourierCoeff_signVal_le_one (f : (ι → Bool) → Bool) (S : Finset ι) :
-    |fourierCoeff (fun x => signVal (f x)) S| ≤ 1 := by
-  rw [← sq_le_one_iff_abs_le_one]
-  exact fourierCoeff_sq_signVal_le_one f S
+    |fourierCoeff (fun x => signVal (f x)) S| ≤ 1 :=
+  (abs_fourierCoeff_le_expect_abs _ S).trans_eq <| by
+    simp only [abs_signVal, expect_const univ_nonempty]
 
 /-- A Boolean function, read as signs, has spectral norm `∑_S |f̂(S)|` at least one. -/
 theorem one_le_sum_abs_fourierCoeff_signVal (f : (ι → Bool) → Bool) :

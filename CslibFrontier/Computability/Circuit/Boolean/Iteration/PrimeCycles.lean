@@ -103,10 +103,12 @@ open ModulusCounter (advance advance_add advance_lt advance_zero)
 variable {m K : ℕ}
 
 /-- The `m`-bit class word in the first `m` coordinates. -/
-def classWord (x : BitString (m + K)) : BitVec m := word fun i => x (Fin.castAdd K i)
+def classWord (x : BitString (m + K)) : BitVec m :=
+  BitString.equivBitVec fun i => x (Fin.castAdd K i)
 
 /-- The `K`-bit position word in the last `K` coordinates. -/
-def posWord (x : BitString (m + K)) : BitVec K := word fun i => x (Fin.natAdd m i)
+def posWord (x : BitString (m + K)) : BitVec K :=
+  BitString.equivBitVec fun i => x (Fin.natAdd m i)
 
 /-- Pack an `m`-bit class word and a `K`-bit position word into `BitString (m + K)`. -/
 def pack (r : BitVec m) (b : BitVec K) : BitString (m + K) :=
@@ -114,18 +116,18 @@ def pack (r : BitVec m) (b : BitVec K) : BitString (m + K) :=
 
 /-- Extracting the class word from `pack r b` recovers `r`. -/
 @[simp] theorem classWord_pack (r : BitVec m) (b : BitVec K) : classWord (pack r b) = r := by
-  simp only [classWord, pack, Fin.append_left, word_getLsbD]
+  simp only [classWord, pack, Fin.append_left, BitString.equivBitVec_getLsbD]
 
 /-- Extracting the position word from `pack r b` recovers `b`. -/
 @[simp] theorem posWord_pack (r : BitVec m) (b : BitVec K) : posWord (pack r b) = b := by
-  simp only [posWord, pack, Fin.append_right, word_getLsbD]
+  simp only [posWord, pack, Fin.append_right, BitString.equivBitVec_getLsbD]
 
 /-- Repacking the class and position words of `x` recovers `x`. -/
 @[simp] theorem pack_words (x : BitString (m + K)) : pack (classWord x) (posWord x) = x := by
   funext bit
   induction bit using Fin.addCases with
-  | left i => simp only [pack, classWord, Fin.append_left, getLsbD_word]
-  | right i => simp only [pack, posWord, Fin.append_right, getLsbD_word]
+  | left i => simp only [pack, classWord, Fin.append_left, BitString.getLsbD_equivBitVec]
+  | right i => simp only [pack, posWord, Fin.append_right, BitString.getLsbD_equivBitVec]
 
 /-- The `T`-th power: advance the position by `T` modulo `ℓ r` on the cycle `b < ℓ r`, and fix
 every other state (in particular every state with `ℓ r ≤ 1`). -/
@@ -491,25 +493,37 @@ theorem step_diff_card_le :
 
 /-- The `K`-bit cycle-length map on `BitString m` associated with `D`. -/
 def lengthBits (r : BitString m) : BitString K :=
-  fun i : Fin K => (BitVec.ofNat K (D.length (word r))).getLsbD i.val
+  fun i : Fin K => (BitVec.ofNat K (D.length (BitString.equivBitVec r))).getLsbD i.val
 
-/-- Packing `D.lengthBits r` into a `BitVec K` gives `BitVec.ofNat K (D.length (word r))`. -/
+/-- Packing `D.lengthBits r` into a `BitVec K` gives
+`BitVec.ofNat K (D.length (BitString.equivBitVec r))`. -/
 @[simp] theorem word_lengthBits (r : BitString m) :
-    word (D.lengthBits r) = BitVec.ofNat K (D.length (word r)) :=
-  word_getLsbD _
+    BitString.equivBitVec (D.lengthBits r) =
+      BitVec.ofNat K (D.length (BitString.equivBitVec r)) :=
+  BitString.equivBitVec_getLsbD _
 
 /-- The `K`-bit remainder map `r ↦ T % D.length r` (or `0` when `D.length r = 0`) on
 `BitString m`. -/
 def remainderBits (T : ℕ) (r : BitString m) : BitString K :=
   fun i : Fin K =>
-    (BitVec.ofNat K (if 0 < D.length (word r) then T % D.length (word r) else 0)).getLsbD i.val
+    (BitVec.ofNat K (if 0 < D.length (BitString.equivBitVec r) then
+      T % D.length (BitString.equivBitVec r) else 0)).getLsbD i.val
 
-/-- Packing `D.remainderBits T r` into a `BitVec K` gives `T % D.length (word r)` (or `0` when
-`D.length (word r) = 0`). -/
+/-- Packing `D.remainderBits T r` into a `BitVec K` gives `T % D.length (BitString.equivBitVec r)`
+(or `0` when `D.length (BitString.equivBitVec r) = 0`). -/
 @[simp] theorem word_remainderBits (T : ℕ) (r : BitString m) :
-    word (D.remainderBits T r) =
-      BitVec.ofNat K (if 0 < D.length (word r) then T % D.length (word r) else 0) :=
-  word_getLsbD _
+    BitString.equivBitVec (D.remainderBits T r) =
+      BitVec.ofNat K (if 0 < D.length (BitString.equivBitVec r) then
+        T % D.length (BitString.equivBitVec r) else 0) :=
+  BitString.equivBitVec_getLsbD _
+
+/-- The word read from a circuit for `D.lengthBits` on the class bits of `x` is the class length. -/
+private theorem toNat_lengthWord {cLen : Circuit signature m K}
+    (hLen : cLen.Computes interpretation D.lengthBits) (x : BitString (m + K)) :
+    (BitString.equivBitVec (cLen.eval interpretation fun i => x (Fin.castAdd K i))).toNat =
+      D.length (PrimeCycles.classWord x) := by
+  rw [hLen, word_lengthBits, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (D.length_lt _)]
+  rfl
 
 /-- Given a circuit `cLen` computing the `K`-bit class length `D.lengthBits`, the single-step
 permutation `D.step` has a circuit of size at most `cLen.size + 50 * K + 20`. -/
@@ -518,7 +532,7 @@ theorem step_circuit (cLen : Circuit signature m K)
     ∃ out : Circuit signature (m + K) (m + K),
       out.Computes interpretation D.step ∧ out.size ≤ cLen.size + 50 * K + 20 := by
   let init : BitString (m + K) → BitString m := fun x i => x (Fin.castAdd K i)
-  let a := fun x : BitString (m + K) => word (cLen.eval interpretation (init x))
+  let a := fun x : BitString (m + K) => BitString.equivBitVec (cLen.eval interpretation (init x))
   let b := PrimeCycles.posWord (m := m) (K := K)
   let constants : Set (BooleanFunction (m + K)) := {fun _ => false, fun _ => true}
   let s0 := inputs (m + K) ∪ wires (fun x => cLen.eval interpretation (init x))
@@ -527,7 +541,7 @@ theorem step_circuit (cLen : Circuit signature m K)
     cases v <;> simp [src, constants]
   have ha (i : Fin K) : (fun x => (a x).getLsbD i.val) ∈ src := by
     left; right
-    simpa only [a, getLsbD_word] using
+    simpa only [a, BitString.getLsbD_equivBitVec] using
       (show (fun x => cLen.eval interpretation (init x) i) ∈
         wires (fun x => cLen.eval interpretation (init x)) from ⟨i, rfl⟩)
   have hb (i : Fin K) : (fun x => (b x).getLsbD i.val) ∈ src := by
@@ -558,21 +572,15 @@ theorem step_circuit (cLen : Circuit signature m K)
       exact ⟨Fin.castAdd K i, by
         funext x
         simp only [step, PrimeCycles.step, PrimeCycles.power, PrimeCycles.pack, Fin.append_left,
-          PrimeCycles.classWord, getLsbD_word]⟩
+          PrimeCycles.classWord, BitString.getLsbD_equivBitVec]⟩
     | right i =>
       right; right
       refine ⟨i, ?_⟩
       funext x
       simp only [step, PrimeCycles.step, PrimeCycles.power, PrimeCycles.pack, Fin.append_right]
-      have ha_eq : a x = BitVec.ofNat K (D.length (PrimeCycles.classWord x)) := by
-        dsimp only [a]
-        rw [hLen (init x), word_lengthBits]
-        rfl
-      have ha_toNat : (a x).toNat = D.length (PrimeCycles.classWord x) := by
-        rw [ha_eq, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (D.length_lt _)]
+      have ha_toNat : (a x).toNat = D.length (PrimeCycles.classWord x) := D.toNat_lengthWord hLen x
       rw [← ha_toNat, ← ModulusCounter.stepValue_spec]
-  obtain ⟨out, hcomp, hsize⟩ := (htotal.mono Set.Subset.rfl hwires le_rfl).exists_circuit_outputs
-  exact ⟨out, hcomp, hsize⟩
+  exact (htotal.mono Set.Subset.rfl hwires le_rfl).exists_circuit_outputs
 
 /-- Given circuits `cLen` for `D.lengthBits` and `cRem` for `D.remainderBits T`, the `T`-th power
 `D.step^[T]` has a circuit of size at most `cLen.size + cRem.size + 100 * (K + 1)`. -/
@@ -583,16 +591,16 @@ theorem power_circuit (T : ℕ) (cLen cRem : Circuit signature m K)
       out.Computes interpretation (D.step^[T]) ∧
       out.size ≤ cLen.size + cRem.size + 100 * (K + 1) := by
   let init : BitString (m + K) → BitString m := fun x i => x (Fin.castAdd K i)
-  let a := fun x : BitString (m + K) => word (cLen.eval interpretation (init x))
+  let a := fun x : BitString (m + K) => BitString.equivBitVec (cLen.eval interpretation (init x))
   let b := PrimeCycles.posWord (m := m) (K := K)
-  let r := fun x : BitString (m + K) => word (cRem.eval interpretation (init x))
+  let r := fun x : BitString (m + K) => BitString.equivBitVec (cRem.eval interpretation (init x))
   let s := inputs (m + K) ∪
     (wires (fun x => cLen.eval interpretation (init x)) ∪
       wires (fun x => cRem.eval interpretation (init x)))
   have ha : wordWires a ⊆ s := by
     rintro _ ⟨i, rfl⟩
     right; left
-    simpa only [a, getLsbD_word] using
+    simpa only [a, BitString.getLsbD_equivBitVec] using
       (show (fun x => cLen.eval interpretation (init x) i) ∈
         wires (fun x => cLen.eval interpretation (init x)) from ⟨i, rfl⟩)
   have hb : wordWires b ⊆ s := by
@@ -602,7 +610,7 @@ theorem power_circuit (T : ℕ) (cLen cRem : Circuit signature m K)
   have hr : wordWires r ⊆ s := by
     rintro _ ⟨i, rfl⟩
     right; right
-    simpa only [r, getLsbD_word] using
+    simpa only [r, BitString.getLsbD_equivBitVec] using
       (show (fun x => cRem.eval interpretation (init x) i) ∈
         wires (fun x => cRem.eval interpretation (init x)) from ⟨i, rfl⟩)
   have hs := synthesis_addResidue s a b r ha hb hr
@@ -621,12 +629,7 @@ theorem power_circuit (T : ℕ) (cLen cRem : Circuit signature m K)
       addResidue (a x) (b x) (r x) =
         BitVec.ofNat K
           (ModulusCounter.advance (D.length (PrimeCycles.classWord x)) (b x).toNat T) := by
-    have ha_eq : a x = BitVec.ofNat K (D.length (PrimeCycles.classWord x)) := by
-      dsimp only [a]
-      rw [hLen (init x), word_lengthBits]
-      rfl
-    have ha_toNat : (a x).toNat = D.length (PrimeCycles.classWord x) := by
-      rw [ha_eq, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (D.length_lt _)]
+    have ha_toNat : (a x).toNat = D.length (PrimeCycles.classWord x) := D.toNat_lengthWord hLen x
     have hr_eq : r x =
         BitVec.ofNat K
           (if 0 < D.length (PrimeCycles.classWord x) then
@@ -651,14 +654,13 @@ theorem power_circuit (T : ℕ) (cLen cRem : Circuit signature m K)
       exact ⟨Fin.castAdd K i, by
         funext x
         simp only [PrimeCycles.power, PrimeCycles.pack, Fin.append_left, PrimeCycles.classWord,
-          getLsbD_word]⟩
+          BitString.getLsbD_equivBitVec]⟩
     | right i =>
       right
       refine ⟨i, ?_⟩
       funext x
       simp only [hspec, PrimeCycles.power, PrimeCycles.pack, Fin.append_right, b]
-  obtain ⟨out, ho, hsize⟩ := (htotal.mono Set.Subset.rfl hwires le_rfl).exists_circuit_outputs
-  exact ⟨out, ho, hsize⟩
+  exact (htotal.mono Set.Subset.rfl hwires le_rfl).exists_circuit_outputs
 
 /-- Construct `PrimeCycleData` from the hash-class prime construction `PrimeCycles.classPrime`. -/
 def ofHash (m g : ℕ) (f : ℕ → ℕ) (hf : ∀ z, f z < 2 ^ m) :

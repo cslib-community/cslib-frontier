@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.QueryComplexity.Quantum.ValueAdversary
 public import CslibFrontier.Foundations.Quantum.Measurement.Overlap
 public import CslibFrontier.Foundations.Quantum.Measurement.Restrict
 public import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.Expect
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Algebra.Order.Chebyshev
 
@@ -39,7 +40,8 @@ variable {ι V W α : Type*} [Fintype ι] [Fintype V] [Fintype W] [DecidableEq �
 variable (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V))
 variable (H : ι → α)
 
-private theorem norm_valueOracle_update_sub_le (ψ : ValueState ι V W) (i : ι) (v : α) :
+/-- Replacing a single table entry changes only its query slice. -/
+theorem norm_valueOracle_update_sub_le (ψ : ValueState ι V W) (i : ι) (v : α) :
     ‖valueOracle step (Function.update H i v) ψ - valueOracle step H ψ‖ ≤
       2 * ‖querySlice i ψ‖ := by
   let u := valueOracle step (Function.update H i v) ψ
@@ -100,7 +102,8 @@ private theorem sum_sq_runValue_update_sub_le (hψ : ‖ψ‖ = 1) (T : ℕ) (v 
         nsmul_eq_mul, mul_one]
       ring
 
-private theorem sum_sq_readout {B M : Type*} [Fintype B] [Fintype M] [DecidableEq M]
+/-- Squared norms sum to the input norm squared across the fibers of a basis readout. -/
+theorem sum_sq_norm_projOutcomes_fibers {B M : Type*} [Fintype B] [Fintype M] [DecidableEq M]
     (readout : B → M) (ϕ : EuclideanSpace ℂ B) :
     ∑ m, ‖projOutcomes (fun x => readout x = m) ϕ‖ ^ 2 = ‖ϕ‖ ^ 2 := by
   simp_rw [norm_projOutcomes_sq]
@@ -108,31 +111,6 @@ private theorem sum_sq_readout {B M : Type*} [Fintype B] [Fintype M] [DecidableE
   simp only [measureProb, sum_filter]
   rw [sum_comm]
   simp
-
-/-- Suppose a computational-basis readout of the retained state chooses a classical message.
-The challenger uses its message-dependent distribution to select a hash address with point
-masses at most δ. The summed squared change of these *unnormalized* measurement branches
-under one oracle-entry replacement is at most `4 T² δ`. -/
-private theorem sum_weighted_sq_readout_update_sub_le {M : Type*} [Fintype M] [DecidableEq M]
-    (hψ : ‖ψ‖ = 1) (T : ℕ) (v : α) (readout : ι × V × W → M) (p : M → PMF ι)
-    {δ : ℝ≥0} (hp : ∀ m i, (p m i).toReal ≤ δ) :
-    ∑ m, ∑ i, (p m i).toReal *
-      ‖projOutcomes (fun x => readout x = m) (runValue step U ψ (Function.update H i v) T) -
-        projOutcomes (fun x => readout x = m) (runValue step U ψ H T)‖ ^ 2 ≤
-      4 * (T : ℝ) ^ 2 * δ := by
-  classical
-  simp_rw [← map_sub]
-  rw [sum_comm]
-  calc
-    _ ≤ ∑ i, δ * ∑ m, ‖projOutcomes (fun x => readout x = m)
-        (runValue step U ψ (Function.update H i v) T - runValue step U ψ H T)‖ ^ 2 := by
-      simp only [mul_sum]
-      gcongr with i _ m
-      exact hp m i
-    _ ≤ _ := by
-      simp only [sum_sq_readout, ← mul_sum]
-      rw [mul_comm (4 * _)]
-      exact mul_le_mul_of_nonneg_left (sum_sq_runValue_update_sub_le step H U ψ hψ T v) δ.coe_nonneg
 
 private theorem abs_weighted_measureProb_sub_le {J κ : Type*} [Fintype J] [Fintype κ]
     (w : J → ℝ≥0) (a b : J → EuclideanSpace ℂ κ) (accept : J → Finset κ)
@@ -163,6 +141,87 @@ private theorem abs_weighted_measureProb_sub_le {J κ : Type*} [Fintype J] [Fint
   rw [mass, mass, sub] at h
   simpa only [← normsq, Real.sqrt_sq (norm_nonneg _)] using h
 
+/-- A fresh table update at a sampled address after a normalized family of retained
+measurement branches. The full private coin giving the address remains available to the
+continuation. The weighted change of the final Born probability is controlled by the proven
+squared sensitivity of the prefix under a single table update. -/
+theorem abs_branch_refresh_le {M Y B κ : Type*} [Fintype M] [Fintype Y] [Fintype B]
+    [Fintype κ] [Fintype α] [Nonempty α]
+    (branch : (ι → α) → M → EuclideanSpace ℂ B) (norm : ∀ H, ∑ m, ‖branch H m‖ ^ 2 = 1)
+    {cost : ℝ} (hcost : 0 ≤ cost)
+    (sensitivity : ∀ H v, ∑ i, ∑ m, ‖branch (Function.update H i v) m - branch H m‖ ^ 2 ≤ cost ^ 2)
+    (p : M → PMF Y) (address : M → Y → ι) {δ : ℝ≥0}
+    (hp : ∀ m i, (((p m).map (address m)) i).toReal ≤ δ)
+    (post : (ι → α) → M → Y → EuclideanSpace ℂ B →ₗᵢ[ℂ] EuclideanSpace ℂ κ)
+    (accept : (ι → α) → M → Y → Finset κ) :
+    |(𝔼 hv : (ι → α) × α, ∑ m, ∑ y, (p m y).toReal *
+        measureProb (post (Function.update hv.1 (address m y) hv.2) m y (branch hv.1 m))
+          (accept (Function.update hv.1 (address m y) hv.2) m y)) -
+      (𝔼 hv : (ι → α) × α, ∑ m, ∑ y, (p m y).toReal *
+        measureProb (post hv.1 m y (branch hv.1 m)) (accept hv.1 m y))| ≤ cost * Real.sqrt δ := by
+  classical
+  let D := (ι → α) × α
+  let change (x : D) (i : ι) := Function.update x.1 i x.2
+  let avg (f : (ι → α) → (ι → α) → M → Y → ℝ) :=
+    𝔼 hv : D, ∑ m, ∑ i, (p m i).toReal * f hv.1 (change hv (address m i)) m i
+  have swap (f : (ι → α) → (ι → α) → M → Y → ℝ) : avg f = avg (fun H G => f G H) := by
+    have hswap (m : M) (i : Y) : (𝔼 hv : D, (p m i).toReal * f hv.1 (change hv (address m i)) m i) =
+        𝔼 hv : D, (p m i).toReal * f (change hv (address m i)) hv.1 m i := by
+      let g (hv : D) : D := (change hv (address m i), hv.1 (address m i))
+      have hg : Function.Involutive g := by rintro ⟨a, v⟩; simp [g, change]
+      apply Fintype.expect_equiv hg.toPerm
+      intro hv
+      simp [g, change, Function.Involutive.toPerm]
+    unfold avg
+    simp_rw [expect_sum_comm, hswap]
+  let J := D × M × Y
+  let w (j : J) : ℝ≥0 := (Fintype.card D : ℝ≥0)⁻¹ * (p j.2.1 j.2.2).toNNReal
+  have weights (f : J → ℝ) :
+      (∑ j : J, (w j : ℝ) * f j) =
+        𝔼 hv : D, ∑ m, ∑ i, (p m i).toReal * f (hv, m, i) := by
+    simp only [J, w, Fintype.sum_prod_type, NNReal.coe_mul, NNReal.coe_inv, NNReal.coe_natCast,
+      Fintype.expect_eq_sum_div_card, div_eq_inv_mul, mul_sum, mul_assoc]
+    rfl
+  let a (j : J) := post j.1.1 j.2.1 j.2.2 (branch (change j.1 (address j.2.1 j.2.2)) j.2.1)
+  let b (j : J) := post j.1.1 j.2.1 j.2.2 (branch j.1.1 j.2.1)
+  let S (j : J) := accept j.1.1 j.2.1 j.2.2
+  have base (H : ι → α) : (∑ m, ∑ i, (p m i).toReal * ‖branch H m‖ ^ 2) = 1 := by
+    simpa only [← sum_mul, Probability.PMF.sum_toReal, one_mul] using norm H
+  have hb : ∑ j, (w j : ℝ) * ‖b j‖ ^ 2 = 1 := by
+    simp only [b, LinearIsometry.norm_map, weights, base, Fintype.expect_const]
+  have ha : ∑ j, (w j : ℝ) * ‖a j‖ ^ 2 = 1 := by
+    simp only [a, LinearIsometry.norm_map, weights]
+    change avg (fun _ G m _ => ‖branch G m‖ ^ 2) = 1
+    calc
+      _ = _ := swap (fun _ G m _ => ‖branch G m‖ ^ 2)
+      _ = 1 := by simp [avg, base]
+  let score (H G : ι → α) (m : M) (i : Y) :=
+    measureProb (post G m i (branch H m)) (accept G m i)
+  change |avg score - _| ≤ _
+  rw [swap score]
+  have probabil := abs_weighted_measureProb_sub_le w a b S ha hb
+  change |(∑ j : J, (w j : ℝ) * score (change j.1 (address j.2.1 j.2.2)) j.1.1 j.2.1 j.2.2) -
+    ∑ j : J, (w j : ℝ) * score j.1.1 j.1.1 j.2.1 j.2.2| ≤ _ at probabil
+  rw [weights, weights] at probabil
+  refine probabil.trans ?_
+  simp only [a, b, ← map_sub, LinearIsometry.norm_map, weights]
+  apply Real.sqrt_le_iff.mpr
+  refine ⟨by positivity, ?_⟩
+  rw [mul_pow, Real.sq_sqrt δ.coe_nonneg]
+  refine expect_le univ_nonempty fun x _ => ?_
+  change (∑ m, ∑ y, (p m y).toReal * ‖branch (change x (address m y)) m - branch x.1 m‖ ^ 2) ≤ _
+  have transport (m : M) := Probability.PMF.sum_map_mul (p m) (address m)
+    (fun i => ‖branch (change x i) m - branch x.1 m‖ ^ 2)
+  simp_rw [← transport]
+  rw [sum_comm]
+  calc
+    _ ≤ ∑ i, ∑ m, (δ : ℝ) * ‖branch (change x i) m - branch x.1 m‖ ^ 2 := by
+      gcongr with i _ m
+      exact hp m i
+    _ ≤ _ := by
+      simp only [← mul_sum, mul_comm (cost ^ 2)]
+      exact mul_le_mul_of_nonneg_left (sensitivity x.1 x.2) δ.coe_nonneg
+
 omit H in
 /-- One reprogramming after a classical message is measured from the quantum adversary's state.
 Conditioned on the message, the challenger draws an address from its specified distribution,
@@ -181,61 +240,16 @@ theorem abs_readout_reprogrammed_measureProb_sub_le {M κ : Type*} [Fintype M] [
         measureProb (post hv.1 m i
           (projOutcomes (fun x => readout x = m) (runValue step U ψ hv.1 T)))
           (accept hv.1 m i))| ≤ 2 * T * Real.sqrt δ := by
-  classical
-  let D := (ι → α) × α
-  let branch (H : ι → α) (m : M) := projOutcomes (fun x => readout x = m) (runValue step U ψ H T)
-  let change (x : D) (i : ι) := Function.update x.1 i x.2
-  let avg (f : (ι → α) → (ι → α) → M → ι → ℝ) :=
-    𝔼 hv : D, ∑ m, ∑ i, (p m i).toReal * f hv.1 (change hv i) m i
-  have swap (f : (ι → α) → (ι → α) → M → ι → ℝ) : avg f = avg (fun H G => f G H) := by
-    have hswap (m : M) (i : ι) : (𝔼 hv : D, (p m i).toReal * f hv.1 (change hv i) m i) =
-        𝔼 hv : D, (p m i).toReal * f (change hv i) hv.1 m i := by
-      let g (hv : D) : D := (change hv i, hv.1 i)
-      have hg : Function.Involutive g := by rintro ⟨a, v⟩; simp [g, change]
-      apply Fintype.expect_equiv hg.toPerm
-      intro hv
-      simp [g, change, Function.Involutive.toPerm]
-    unfold avg
-    simp_rw [expect_sum_comm, hswap]
-  let J := D × M × ι
-  let w (j : J) : ℝ≥0 := (Fintype.card D : ℝ≥0)⁻¹ * (p j.2.1 j.2.2).toNNReal
-  have weights (f : J → ℝ) :
-      (∑ j : J, (w j : ℝ) * f j) =
-        𝔼 hv : D, ∑ m, ∑ i, (p m i).toReal * f (hv, m, i) := by
-    simp only [J, w, Fintype.sum_prod_type, NNReal.coe_mul, NNReal.coe_inv, NNReal.coe_natCast,
-      Fintype.expect_eq_sum_div_card, div_eq_inv_mul, mul_sum, mul_assoc]
-    rfl
-  let a (j : J) := post j.1.1 j.2.1 j.2.2 (branch (change j.1 j.2.2) j.2.1)
-  let b (j : J) := post j.1.1 j.2.1 j.2.2 (branch j.1.1 j.2.1)
-  let S (j : J) := accept j.1.1 j.2.1 j.2.2
-  have base (H : ι → α) : (∑ m, ∑ i, (p m i).toReal * ‖branch H m‖ ^ 2) = 1 := by
-    simp only [← sum_mul, Probability.PMF.sum_toReal, one_mul, branch, sum_sq_readout,
-      norm_runValue, hψ, one_pow]
-  have hb : ∑ j, (w j : ℝ) * ‖b j‖ ^ 2 = 1 := by
-    simp only [b, LinearIsometry.norm_map, weights, base, Fintype.expect_const]
-  have ha : ∑ j, (w j : ℝ) * ‖a j‖ ^ 2 = 1 := by
-    simp only [a, LinearIsometry.norm_map, weights]
-    change avg (fun _ G m _ => ‖branch G m‖ ^ 2) = 1
-    calc
-      _ = _ := swap (fun _ G m _ => ‖branch G m‖ ^ 2)
-      _ = 1 := by simp [avg, base]
-  let score (H G : ι → α) (m : M) (i : ι) :=
-    measureProb (post G m i (branch H m)) (accept G m i)
-  change |avg score - _| ≤ _
-  rw [swap score]
-  have probabil := abs_weighted_measureProb_sub_le w a b S ha hb
-  change |(∑ j : J, (w j : ℝ) * score (change j.1 j.2.2) j.1.1 j.2.1 j.2.2) -
-    ∑ j : J, (w j : ℝ) * score j.1.1 j.1.1 j.2.1 j.2.2| ≤ _ at probabil
-  rw [weights, weights] at probabil
-  refine probabil.trans ?_
-  simp only [a, b, ← map_sub, LinearIsometry.norm_map, weights]
-  apply Real.sqrt_le_iff.mpr
-  refine ⟨by positivity, ?_⟩
-  have hav := expect_le (s := (univ : Finset D)) univ_nonempty fun x _ =>
-    sum_weighted_sq_readout_update_sub_le step x.1 U ψ hψ T x.2 readout p hp
-  convert hav using 1
-  ring_nf
-  rw [Real.sq_sqrt δ.coe_nonneg]
+  let branch (H : ι → α) (m : M) :=
+    projOutcomes (fun x => readout x = m) (runValue step U ψ H T)
+  have total (H : ι → α) : ∑ m, ‖branch H m‖ ^ 2 = 1 := by
+    simp only [branch, sum_sq_norm_projOutcomes_fibers, norm_runValue, hψ, one_pow]
+  have sensitive (H : ι → α) (v : α) :
+      ∑ i, ∑ m, ‖branch (Function.update H i v) m - branch H m‖ ^ 2 ≤ (2 * T : ℝ) ^ 2 := by
+    simp only [branch, ← map_sub, sum_sq_norm_projOutcomes_fibers]
+    convert sum_sq_runValue_update_sub_le step H U ψ hψ T v using 1; ring
+  exact abs_branch_refresh_le branch total (by positivity) sensitive p (fun _ => id)
+    (by simpa only [PMF.map_id] using hp) post accept
 
 omit H in
 /-- One reprogramming in a finite quantum random oracle. After `T` coherent queries to a
@@ -260,7 +274,6 @@ theorem abs_reprogrammed_measureProb_sub_le {κ : Type*} [Fintype κ] [Fintype �
     abs_readout_reprogrammed_measureProb_sub_le step U ψ hψ T (fun _ => ())
       (fun _ => p) (δ := ⟨δ, hδ⟩) (fun _ => hp) (fun H _ => post H) (fun H _ => accept H)
   simp only [Fintype.sum_unique, proj] at bound
-  convert bound using 1
-  rfl
+  exact bound
 
 end Cslib.Quantum

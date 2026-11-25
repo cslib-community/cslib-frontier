@@ -37,25 +37,22 @@ is unsatisfiable, and `[1, σ 0, …, σ (N - 1)]` (as bits) for the model `σ` 
 ## Memory
 
 With the input of length `L` at addresses `1, …, L`, the clauses occupy `[2, T)` for `T = L + 1`.
-After them come four arrays, all initially zero since word-RAM memory starts at zero
+After them come three arrays, all initially zero since word-RAM memory starts at zero
 (`Cslib.WordRAM.Data.init`):
 
 * the literal array at `T`: the cell `T + 2 v + b` holds `1` when the literal `(v, b)` is on the
   trail, and `0` otherwise;
-* the last-occurrence array at `T + 2 N`: the cell of a variable holds the address of its last
-  occurrence in the clauses, which the program records in one pass before the search;
-* the trail at `T + 3 N`: two words per entry, the code of its literal and `1` for a second
+* the trail at `T + 2 N`: two words per entry, the code of its literal and `1` for a second
   branch, `0` for a first;
-* the output at `T + 5 N`.
+* the output at `T + 4 N`.
 
 ## One step of the search
 
 One pass over the clauses (`Cslib.Algorithms.WordRAM.DPLL.scan`) finds whether a clause is
 falsified, whether every clause has a true literal, the first unit clause whose literal is not
-on the trail, and the first open variable in the order of `φ.vars.dedup`: the first literal
-occurrence of an open variable that is its last occurrence. Then the step backtracks on a
-falsified clause, writes the model when every clause is satisfied, and otherwise pushes the
-literal of the unit clause or the open variable, true first.
+on the trail, and the variable of the first literal occurrence that the trail leaves open. Then
+the step backtracks on a falsified clause, writes the model when every clause is satisfied, and
+otherwise pushes the literal of the unit clause or the open variable, true first.
 
 ## Main definitions
 
@@ -96,8 +93,9 @@ abbrev one : Fin 32 := 1
 abbrev two : Fin 32 := 2
 /-- Base of the literal array, which is also the end of the clauses. -/
 abbrev tb : Fin 32 := 3
-/-- Base of the last-occurrence array. -/
-abbrev lb : Fin 32 := 4
+/-- End of the refutation log, in the variant that writes the search tree
+(`Cslib.Algorithms.WordRAM.DPLL.programLog`). -/
+abbrev lg : Fin 32 := 4
 /-- Base of the trail. -/
 abbrev sb : Fin 32 := 5
 /-- Top of the trail: the address after its last entry. -/
@@ -159,23 +157,17 @@ open Reg
 
 /-! ### The scan of the clauses -/
 
-/-- One literal: count it when it is not falsified, recording its code and whether it is true;
-and record its variable as the first open one when it is open, none was found before, and this is
-its last occurrence. -/
+/-- One literal: count it when it is not falsified, recording its code. Such a literal is true,
+which is recorded, or its variable is open, which is recorded as the first open one when none was
+found before. -/
 def litBody : Code .standard 32 := ram[
   code ← *lptr; addr ← tb + code; vl ← *addr; ncode ← code ^^^ one; addr ← tb + ncode;
   vn ← *addr;
   if vn = zero then [
     cnt ← cnt + one; uc ← code;
-    if vl = one then [ sat ← one ] else [ sat ← sat ] ] else [ cnt ← cnt ];
-  if opf = zero then [
-    if vl = zero then [
-      if vn = zero then [
-        var ← code >>> one; addr ← lb + var; addr ← *addr;
-        if addr = lptr then [ opf ← one; ov ← var ] else [ opf ← opf ] ]
-      else [ opf ← opf ] ]
-    else [ opf ← opf ] ]
-  else [ opf ← opf ];
+    if vl = one then [ sat ← one ] else [
+      if opf = zero then [ opf ← one; ov ← code >>> one ] else [ opf ← opf ] ] ]
+  else [ cnt ← cnt ];
   lptr ← lptr + one ]
 
 /-- The literals in `[lptr, lend)`. -/
@@ -184,14 +176,14 @@ def litLoop : Code .standard 32 := .loop (.lt lptr lend) litBody
 /-- After a clause: record a falsified clause, a clause without a true literal, and the first
 unit clause whose literal is not on the trail; move to the next clause. -/
 def clauseEnd : Code .standard 32 := ram[
-  if cnt = zero then [ conf ← one ] else [ conf ← conf ];
-  if sat = zero then [ alls ← zero ] else [ alls ← alls ];
-  if uf = zero then [
+  if cnt = zero then [ conf ← one ] else [
     if cnt = one then [
-      addr ← tb + uc; addr ← *addr;
-      if addr = zero then [ uf ← one; unit ← uc ] else [ uf ← uf ] ]
-    else [ uf ← uf ] ]
-  else [ uf ← uf ];
+      if uf = zero then [
+        addr ← tb + uc; addr ← *addr;
+        if addr = zero then [ uf ← one; unit ← uc ] else [ uf ← uf ] ]
+      else [ uf ← uf ] ]
+    else [ uf ← uf ] ];
+  if sat = zero then [ alls ← zero ] else [ alls ← alls ];
   ptr ← lend ]
 
 /-- One clause. -/
@@ -206,19 +198,6 @@ def clauseLoop : Code .standard 32 := .loop (.lt ptr cend) clauseBody
 def scan : Code .standard 32 := ram[
   ptr ← two; conf ← zero; alls ← one; uf ← zero; unit ← zero; opf ← zero; ov ← zero;
   ⟪clauseLoop⟫ ]
-
-/-! ### Last occurrences -/
-
-/-- One literal: record its address as the last occurrence of its variable so far. -/
-def lastLit : Code .standard 32 := ram[
-  code ← *lptr; var ← code >>> one; addr ← lb + var; *addr ← lptr; lptr ← lptr + one ]
-
-/-- One clause of the last-occurrence pass. -/
-def lastClause : Code .standard 32 := ram[
-  len ← *ptr; lptr ← ptr + one; lend ← lptr + len; ⟪.loop (.lt lptr lend) lastLit⟫; ptr ← lend ]
-
-/-- **The last-occurrence pass.** -/
-def lastPass : Code .standard 32 := ram[ ptr ← two; ⟪.loop (.lt ptr cend) lastClause⟫ ]
 
 /-! ### Steps -/
 
@@ -274,13 +253,13 @@ def mainLoop : Code .standard 32 := .loop (.eq go one) stepBody
 
 /-! ### The solver -/
 
-/-- Set up the registers: constants, the end of the clauses, and the four arrays. -/
+/-- Set up the registers: constants, the end of the clauses, and the three arrays. -/
 def setup : Code .standard 32 := ram[
   one ← #1; two ← #2; cend ← *zero; cend ← cend + one; tb ← cend; nv ← *one; addr ← nv + nv;
-  lb ← tb + addr; sb ← lb + nv; tp ← sb; ob ← sb + addr; go ← one ]
+  sb ← tb + addr; tp ← sb; ob ← sb + addr; go ← one ]
 
 /-- **The DPLL solver** on the input `encode N φ`, leaving the address of its output in `out`. -/
-def solver : Code .standard 32 := ram[ ⟪setup⟫; ⟪lastPass⟫; ⟪mainLoop⟫ ]
+def solver : Code .standard 32 := ram[ ⟪setup⟫; ⟪mainLoop⟫ ]
 
 /-- **The DPLL solver** as a flat program returning its output list. -/
 def program : Program .standard 32 := solver.program out

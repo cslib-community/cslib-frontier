@@ -49,56 +49,37 @@ private theorem successor_eq_of_realizes {G : Graph} {d : OrthogonalDrawing}
     have hs := hrank s
     dsimp only [step]
     omega
+  have hdecode (b : ℕ) (hb : b < 2 * G.edges.length) (hv : endpoint G b = endpoint G a.index) :
+      ∃ b' : Dart G, b'.index = b ∧ b'.vertex = a.vertex :=
+    let b' := (Dart.indexEquiv G).symm ⟨b, hb⟩
+    have hbi : b'.index = b := congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨b, hb⟩)
+    ⟨b', hbi, by simpa only [endpoint, ← hbi, Dart.vertex_index] using hv⟩
   have hsindex : s.index < 2 * G.edges.length := (Dart.indexEquiv G s).isLt
   apply clockwiseSuccessor_eq_of_firstRay G d hsindex hstep
     (by simpa only [endpoint, Dart.vertex_index] using hsv) hsray
   · intro k hk b hb hv he
-    let b' := (Dart.indexEquiv G).symm ⟨b, hb⟩
-    have hbi : b'.index = b :=
-      congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨b, hb⟩)
-    have hbv : b'.vertex = a.vertex := by
-      simpa only [endpoint, ← hbi, Dart.vertex_index] using hv
+    obtain ⟨b', hbi, hbv⟩ := hdecode b hb hv
     have hb_rank : dartRank G d b'.index = (dartRank G d a.index + k + 1) % 4 := by
       simpa only [hbi] using he
     have ha := hrank a
     have hs := hrank s
     have hb' := hrank b'
-    by_cases hsa : s = a
-    · have hab : a = b' := ((r.sameCycle_iff a b').mpr hbv.symm).eq_of_left hsa
-      have hrb := congrArg (fun x : Dart G => dartRank G d x.index) hab
-      have hrs := congrArg (fun x : Dart G => dartRank G d x.index) hsa
-      dsimp only [step] at hk
-      omega
-    by_cases hba : b' = a
-    · have hrb := congrArg (fun x : Dart G => dartRank G d x.index) hba
-      dsimp only [step] at hk
-      omega
-    by_cases hbs : b' = s
-    · have hrb := congrArg (fun x : Dart G => dartRank G d x.index) hbs
-      dsimp only [step] at hk
-      omega
-    have hab : dartRank G d a.index ≠ dartRank G d b'.index :=
-      fun heq => hba (hinj a b' hbv.symm heq).symm
-    have hbs' : dartRank G d b'.index ≠ dartRank G d s.index :=
-      fun heq => hbs (hinj b' s (hbv.trans hsv.symm) heq)
-    have has : dartRank G d a.index ≠ dartRank G d s.index :=
-      fun heq => hsa (hinj a s hsv.symm heq).symm
+    have hab : dartRank G d a.index ≠ dartRank G d b'.index := by omega
+    have hbs' : dartRank G d b'.index ≠ dartRank G d s.index := by omega
+    have hba : b' ≠ a := fun h => hab (by rw [h])
+    have hbs : b' ≠ s := fun h => hbs' (by rw [h])
+    have has : dartRank G d a.index ≠ dartRank G d s.index := fun heq =>
+      hba (((r.sameCycle_iff a b').mpr hbv.symm).eq_of_left (hinj a s hsv.symm heq).symm).symm
     have hprev : r.rotate.symm s = a := r.rotate.symm_apply_apply a
-    have hno := hR.not_sbtw_inverse_rotate s b' (hbv.trans hsv.symm) hbs
-      (by rw [hprev]; exact hba)
+    have hno := hR.not_sbtw_inverse_rotate s b' (hbv.trans hsv.symm) hbs (hprev.symm ▸ hba)
     rw [hprev, hdir s, hdir b', hdir a] at hno
-    apply hno
-    apply (sbtw_clockwiseRanks_iff ha hb' hs hab hbs' has).mpr
-    dsimp only [step] at hk
-    omega
+    exact hno <| (sbtw_clockwiseRanks_iff ha hb' hs hab hbs' has).mpr <| by
+      dsimp only [step] at hk
+      omega
   · intro b hb hv he
-    let b' := (Dart.indexEquiv G).symm ⟨b, hb⟩
-    have hbi : b'.index = b :=
-      congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨b, hb⟩)
-    have hbv : b'.vertex = a.vertex := by
-      simpa only [endpoint, ← hbi, Dart.vertex_index] using hv
-    have hbs : b' = s := hinj b' s (hbv.trans hsv.symm) (by simpa only [hbi] using he)
-    exact hbi.symm.trans (congrArg Dart.index hbs)
+    obtain ⟨b', hbi, hbv⟩ := hdecode b hb hv
+    exact hbi.symm.trans <| congrArg Dart.index <|
+      hinj b' s (hbv.trans hsv.symm) (by simpa only [hbi] using he)
 
 /-- Every executed successor is exactly the successor read from the actual drawing's
 clockwise germs. This includes both tags of every indexed edge occurrence. -/
@@ -116,28 +97,26 @@ theorem rotationCertificate_eq_ofRotation {G : Graph} {d : OrthogonalDrawing}
     rotationCertificate G d = RotationCertificate.ofRotation
       hd.isEmbedding_polygonalDrawing.rotation := by
   symm
-  apply (RotationCertificate.ofRotation_eq_iff _ _).mpr
-  refine ⟨length_rotationCertificate G d, fun a => ?_⟩
+  refine (RotationCertificate.ofRotation_eq_iff _ _).mpr
+    ⟨length_rotationCertificate G d, fun a => ?_⟩
   have hi : a.index < (rotationCertificate G d).successor.length := by
     rw [length_rotationCertificate]
     exact (Dart.indexEquiv G a).isLt
   rw [List.getD_eq_getElem _ _ hi]
-  simp only [rotationCertificate, List.getElem_map, List.getElem_range]
-  exact clockwiseSuccessor_eq_rotate hd a
+  simpa only [rotationCertificate, List.getElem_map, List.getElem_range] using
+    clockwiseSuccessor_eq_rotate hd a
 
 /-- A genuine supplied orthogonal embedding makes the actually computed table pass the
 full rotation and componentwise Euler checker. No genus or order provider is a premise. -/
 theorem verifyGenusZero_rotationCertificate {G : Graph} {d : OrthogonalDrawing}
     (hd : IsPlanarOrthogonalDrawing G d) :
     RotationCertificate.verifyGenusZero G (rotationCertificate G d) = true := by
-  have hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices := by
-    intro v hv
+  have hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices := fun v hv => by
     obtain ⟨e, he, hv⟩ := List.mem_flatMap.mp hv
     obtain rfl | rfl := by simpa using hv
     · exact (hd.endpointsDeclared e he).1
     · exact (hd.endpointsDeclared e he).2
-  rw [rotationCertificate_eq_ofRotation hd]
-  apply (RotationCertificate.verifyGenusZero_eq_true_iff _ _).mpr
+  rw [rotationCertificate_eq_ofRotation hd, RotationCertificate.verifyGenusZero_eq_true_iff]
   refine ⟨RotationCertificate.verifyRotation_ofRotation _ hG, ?_⟩
   rw [RotationCertificate.decode_ofRotation _ hG]
   exact hd.isEmbedding_polygonalDrawing.numericalGenusZero hG

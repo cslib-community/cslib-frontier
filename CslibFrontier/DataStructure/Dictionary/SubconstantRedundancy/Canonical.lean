@@ -123,18 +123,15 @@ namespace ValidRegime
 variable {U V n R p_min q_min p_max q_max : ℕ}
 
 theorem thresholdLogN_le_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
-    thresholdLogN q_min p_max ≤ Nat.log 2 n := by
-  have hn_pos : n ≠ 0 := by
-    have hpos : 0 < thresholdN q_min p_max := Nat.two_pow_pos _
-    have := h.n_ge_threshold
-    omega
-  exact (Nat.le_log_iff_pow_le Nat.one_lt_two hn_pos).mpr h.n_ge_threshold
+    thresholdLogN q_min p_max ≤ Nat.log 2 n :=
+  (Nat.le_log_iff_pow_le Nat.one_lt_two
+    (Nat.pos_of_ne_zero (Nat.ne_of_gt ((Nat.two_pow_pos _).trans_le h.n_ge_threshold))).ne').mpr
+    h.n_ge_threshold
 
 theorem four_le_thresholdLogN (q_min p_max : ℕ) :
-    4 ≤ thresholdLogN q_min p_max := by
-  have hp := poly_le_thresholdLogN q_min p_max
+    4 ≤ thresholdLogN q_min p_max :=
   have h1 : 1 ≤ (max q_min 1 + p_max + 4) ^ 4 := Nat.one_le_pow 4 _ (by omega)
-  omega
+  (by omega : 4 ≤ 2560000 * (max q_min 1 + p_max + 4) ^ 4).trans (poly_le_thresholdLogN q_min p_max)
 
 theorem four_le_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
     4 ≤ Nat.log 2 n :=
@@ -146,34 +143,27 @@ theorem poly_le_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
 
 theorem mul_param_le_log (h : ValidRegime U V n R p_min q_min p_max q_max) {c : ℕ}
     (hc : c ≤ 2560000) :
-    c * (q_min + p_max + 4) ≤ Nat.log 2 n := by
-  have hbase : q_min + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
-    (Nat.add_le_add_right (Nat.add_le_add_right (le_max_left q_min 1) p_max) 4).trans
-      (Nat.le_self_pow (by decide) _)
-  exact (Nat.mul_le_mul hc hbase).trans h.poly_le_log
+    c * (q_min + p_max + 4) ≤ Nat.log 2 n :=
+  (Nat.mul_le_mul hc ((by omega : q_min + p_max + 4 ≤ max q_min 1 + p_max + 4).trans
+    (Nat.le_self_pow (by decide) _))).trans h.poly_le_log
 
 theorem three_hundred_le_log_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
     300 ≤ Nat.log 2 (Nat.log 2 n) := by
-  have hL4 := h.four_le_log
-  refine (Nat.le_log_iff_pow_le Nat.one_lt_two (by omega)).mpr ?_
+  refine (Nat.le_log_iff_pow_le Nat.one_lt_two (by have := h.four_le_log; omega)).mpr ?_
   rw [show (300 : ℕ) = 250 + 50 by decide, Nat.pow_add 2 250 50]
   exact (two_pow_300_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
 
-theorem two_le_n (h : ValidRegime U V n R p_min q_min p_max q_max) : 2 ≤ n := by
-  have hle1 : 1 ≤ thresholdLogN q_min p_max := by
-    have := four_le_thresholdLogN q_min p_max
-    omega
-  exact (Nat.pow_le_pow_right Nat.two_pos hle1).trans h.n_ge_threshold
+theorem two_le_n (h : ValidRegime U V n R p_min q_min p_max q_max) : 2 ≤ n :=
+  (Nat.pow_le_pow_right Nat.two_pos
+    (by have := four_le_thresholdLogN q_min p_max; omega : 1 ≤ _)).trans h.n_ge_threshold
 
 theorem univ_le_pow (h : ValidRegime U V n R p_min q_min p_max q_max) :
     U ≤ n ^ (p_max + 1) := by
-  have hexp : q_max + p_max ≤ q_max * (p_max + 1) := by
-    have := h.q_max_pos
-    nlinarith
-  have hpow : U ^ q_max ≤ (n ^ (p_max + 1)) ^ q_max := by
-    calc U ^ q_max ≤ n ^ (q_max + p_max) := h.univ_upper
-      _ ≤ n ^ (q_max * (p_max + 1)) := Nat.pow_le_pow_right (by have := h.two_le_n; omega) hexp
-      _ = (n ^ (p_max + 1)) ^ q_max := by rw [← Nat.pow_mul, Nat.mul_comm]
+  have hexp : q_max + p_max ≤ q_max * (p_max + 1) := by have := h.q_max_pos; nlinarith
+  have hpow : U ^ q_max ≤ (n ^ (p_max + 1)) ^ q_max := calc
+    U ^ q_max ≤ n ^ (q_max + p_max) := h.univ_upper
+    _ ≤ n ^ (q_max * (p_max + 1)) := Nat.pow_le_pow_right (by have := h.two_le_n; omega) hexp
+    _ = (n ^ (p_max + 1)) ^ q_max := by rw [← Nat.pow_mul, Nat.mul_comm]
   exact (Nat.pow_le_pow_iff_left (by have := h.q_max_pos; omega)).mp hpow
 
 theorem n_pow_succ_le_univ_pow (h : ValidRegime U V n R p_min q_min p_max q_max) :
@@ -183,73 +173,62 @@ theorem n_pow_succ_le_univ_pow (h : ValidRegime U V n R p_min q_min p_max q_max)
 
 theorem two_mul_n_le_univ (h : ValidRegime U V n R p_min q_min p_max q_max) :
     2 * n ≤ U := by
-  have hn2 := h.two_le_n
-  have h2n : 2 ^ q_min ≤ n := by
-    have hq : q_min ≤ Nat.log 2 n := by
-      have := h.mul_param_le_log (by decide : 1 ≤ 2560000)
-      omega
-    exact (Nat.pow_le_pow_right Nat.two_pos hq).trans (Nat.pow_log_le_self 2 (by omega))
-  have hpow : (2 * n) ^ q_min ≤ U ^ q_min := by
-    calc (2 * n) ^ q_min = 2 ^ q_min * n ^ q_min := Nat.mul_pow 2 n q_min
-      _ ≤ n * n ^ q_min := Nat.mul_le_mul_right _ h2n
-      _ = n ^ (q_min + 1) := (pow_succ' n q_min).symm
-      _ ≤ U ^ q_min := h.n_pow_succ_le_univ_pow
+  have h2n : 2 ^ q_min ≤ n :=
+    (Nat.pow_le_pow_right Nat.two_pos (by
+      have := h.mul_param_le_log (by decide : 1 ≤ 2560000); omega)).trans
+      (Nat.pow_log_le_self 2 (by have := h.two_le_n; omega))
+  have hpow : (2 * n) ^ q_min ≤ U ^ q_min := calc
+    (2 * n) ^ q_min = 2 ^ q_min * n ^ q_min := Nat.mul_pow 2 n q_min
+    _ ≤ n * n ^ q_min := Nat.mul_le_mul_right _ h2n
+    _ = n ^ (q_min + 1) := (pow_succ' n q_min).symm
+    _ ≤ U ^ q_min := h.n_pow_succ_le_univ_pow
   exact (Nat.pow_le_pow_iff_left (by have := h.q_min_pos; omega)).mp hpow
 
 theorem log_univ_bounds (h : ValidRegime U V n R p_min q_min p_max q_max) :
     Nat.log 2 n ≤ Nat.log 2 U ∧ Nat.log 2 U ≤ 2 * (p_max + 1) * Nat.log 2 n := by
-  have hn2 := h.two_le_n
   have hUn : n ≤ U := by have := h.two_mul_n_le_univ; omega
-  refine ⟨Nat.log_mono_right hUn, ?_⟩
-  set L := Nat.log 2 n
-  have hL4 : 4 ≤ L := h.four_le_log
-  have hn_lt : n < 2 ^ (L + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two n
-  have hU_lt : U < 2 ^ (2 * (p_max + 1) * L + 1) := by
-    calc U ≤ n ^ (p_max + 1) := h.univ_le_pow
-      _ ≤ (2 ^ (L + 1)) ^ (p_max + 1) := Nat.pow_le_pow_left hn_lt.le _
-      _ = 2 ^ ((L + 1) * (p_max + 1)) := (Nat.pow_mul 2 (L + 1) (p_max + 1)).symm
-      _ < 2 ^ (2 * (p_max + 1) * L + 1) :=
-          Nat.pow_lt_pow_right Nat.one_lt_two (by nlinarith)
-  exact Nat.lt_succ_iff.mp ((Nat.log_lt_iff_lt_pow Nat.one_lt_two (by omega)).mpr hU_lt)
+  have hL4 : 4 ≤ Nat.log 2 n := h.four_le_log
+  refine ⟨Nat.log_mono_right hUn, Nat.lt_succ_iff.mp
+    ((Nat.log_lt_iff_lt_pow Nat.one_lt_two (by have := h.two_le_n; omega)).mpr ?_)⟩
+  calc U ≤ n ^ (p_max + 1) := h.univ_le_pow
+    _ ≤ (2 ^ (Nat.log 2 n + 1)) ^ (p_max + 1) :=
+        Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le _
+    _ = 2 ^ ((Nat.log 2 n + 1) * (p_max + 1)) := (Nat.pow_mul 2 _ _).symm
+    _ < 2 ^ (2 * (p_max + 1) * Nat.log 2 n + 1) :=
+        Nat.pow_lt_pow_right Nat.one_lt_two (by nlinarith)
 
 theorem four_mul_log_univ_le_sq_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
     4 * Nat.log 2 U ≤ (Nat.log 2 n) ^ 2 := by
   have hp := h.mul_param_le_log (by decide : 8 ≤ 2560000)
   calc 4 * Nat.log 2 U ≤ 4 * (2 * (p_max + 1) * Nat.log 2 n) :=
         Nat.mul_le_mul_left 4 h.log_univ_bounds.2
-    _ = (8 * (p_max + 1)) * Nat.log 2 n := by ring
+    _ = 8 * (p_max + 1) * Nat.log 2 n := by ring
     _ ≤ Nat.log 2 n * Nat.log 2 n := Nat.mul_le_mul_right _ (by omega)
     _ = (Nat.log 2 n) ^ 2 := (sq _).symm
 
 theorem log_univ_le_sq_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
     Nat.log 2 U ≤ (Nat.log 2 n) ^ 2 := by
-  have := h.four_mul_log_univ_le_sq_log
-  omega
+  have := h.four_mul_log_univ_le_sq_log; omega
 
 theorem two_pow_logStar_le_log_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
     2 ^ Nat.logStar n ≤ 32 * (Nat.log 2 (Nat.log 2 n) + 1) := by
+  have _ := h.four_le_log
   set L := Nat.log 2 n
   set t := Nat.log 2 L
-  have hL_ge4 : 4 ≤ L := h.four_le_log
-  have hn_le : n ≤ 2 ^ (L + 1) := (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
-  have hcl1 : Nat.clog 2 n ≤ L + 1 := Nat.clog_le_of_le_pow hn_le
-  have hL_lt : L < 2 ^ (t + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two L
-  have hcl2 : Nat.clog 2 (Nat.clog 2 n) ≤ t + 2 := by
-    refine (Nat.clog_mono_right 2 hcl1).trans (Nat.clog_le_of_le_pow ?_)
-    have : L + 1 ≤ 2 ^ (t + 1) := by omega
-    exact this.trans (Nat.pow_le_pow_right Nat.two_pos (by omega))
-  have hls := Nat.logStar_le_triple_clog_add_three n
-  set m := Nat.clog 2 (Nat.clog 2 (Nat.clog 2 n))
-  have h2m : 2 ^ m ≤ 2 * (t + 2) := by
-    calc 2 ^ m ≤ 2 * max (Nat.clog 2 (Nat.clog 2 n)) 1 := by
-          rcases Nat.eq_zero_or_pos (Nat.clog 2 (Nat.clog 2 n)) with h0 | hpos
-          · simp [m, h0]
-          · exact (Nat.pow_clog_le_mul Nat.one_lt_two hpos.ne').trans
-              (Nat.mul_le_mul_left 2 (le_max_left _ 1))
-      _ ≤ 2 * (t + 2) := Nat.mul_le_mul_left 2 (max_le hcl2 (by omega))
-  calc 2 ^ Nat.logStar n ≤ 2 ^ (m + 3) := Nat.pow_le_pow_right Nat.two_pos hls
-    _ = 8 * 2 ^ m := by rw [Nat.pow_add]; ring
-    _ ≤ 8 * (2 * (t + 2)) := Nat.mul_le_mul_left 8 h2m
+  have hcl1 : Nat.clog 2 n ≤ L + 1 :=
+    Nat.clog_le_of_le_pow (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
+  have hcl2 : Nat.clog 2 (Nat.clog 2 n) ≤ t + 2 :=
+    (Nat.clog_mono_right 2 hcl1).trans (Nat.clog_le_of_le_pow
+      ((Nat.lt_pow_succ_log_self Nat.one_lt_two L : L < 2 ^ (t + 1)).trans_le
+        (Nat.pow_le_pow_right Nat.two_pos (by omega))))
+  have h2m : 2 ^ Nat.clog 2 (Nat.clog 2 (Nat.clog 2 n)) ≤ 2 * (t + 2) := by
+    rcases Nat.eq_zero_or_pos (Nat.clog 2 (Nat.clog 2 n)) with h0 | hpos
+    · simp [h0]; omega
+    · exact (Nat.pow_clog_le_mul Nat.one_lt_two hpos.ne').trans (Nat.mul_le_mul_left 2 hcl2)
+  calc 2 ^ Nat.logStar n
+      ≤ 2 ^ (Nat.clog 2 (Nat.clog 2 (Nat.clog 2 n)) + 3) :=
+        Nat.pow_le_pow_right Nat.two_pos (Nat.logStar_le_triple_clog_add_three n)
+    _ = 8 * 2 ^ Nat.clog 2 (Nat.clog 2 (Nat.clog 2 n)) := by rw [Nat.pow_add]; ring
     _ ≤ 32 * (t + 1) := by omega
 
 theorem redundancyRatio_bounds (h : ValidRegime U V n R p_min q_min p_max q_max) :
@@ -258,66 +237,53 @@ theorem redundancyRatio_bounds (h : ValidRegime U V n R p_min q_min p_max q_max)
       (redundancyRatio n R) ^ 10 ≤ Nat.log 2 n := by
   set L := Nat.log 2 n
   set t := Nat.log 2 L
-  have hL_ge4 : 4 ≤ L := h.four_le_log
-  have ht_ge : 300 ≤ t := h.three_hundred_le_log_log
-  have hls_le : 2 ^ Nat.logStar n ≤ 32 * (t + 1) := h.two_pow_logStar_le_log_log
-  have ht_pow : 2 ^ t ≤ L := Nat.pow_log_le_self 2 (by omega)
   set s := t / 10
-  have hs_ge : 30 ≤ s := by omega
+  have hL4 : 4 ≤ L := h.four_le_log
+  have ht_ge : 300 ≤ t := h.three_hundred_le_log_log
+  have ht_pow : 2 ^ t ≤ L := Nat.pow_log_le_self 2 (by omega)
   have h704s : 704 * s ≤ 2 ^ s := by
-    obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le hs_ge
-    have hsq : (15 + d) ^ 2 ≤ 2 ^ (15 + d) := Nat.sq_le_two_pow (by omega)
-    have hmul : 2 ^ 15 * (15 + d) ^ 2 ≤ 2 ^ s := by
-      calc 2 ^ 15 * (15 + d) ^ 2 ≤ 2 ^ 15 * 2 ^ (15 + d) := Nat.mul_le_mul_left _ hsq
-        _ = 2 ^ s := by rw [← Nat.pow_add]; congr 1; omega
-    have h15 : (2 : ℕ) ^ 15 = 32768 := by decide
-    rw [h15] at hmul
-    have hlin : 15 + d ≤ (15 + d) ^ 2 := Nat.le_self_pow (by decide) (15 + d)
-    have h32 := Nat.mul_le_mul_left 32768 hlin
-    omega
+    obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le (show 30 ≤ s by omega)
+    have hmul : 2 ^ 15 * (15 + d) ^ 2 ≤ 2 ^ s :=
+      (Nat.mul_le_mul_left _ (Nat.sq_le_two_pow (by omega))).trans
+        (by rw [← Nat.pow_add]; exact Nat.pow_le_pow_right Nat.two_pos (by omega))
+    have hlin : 15 + d ≤ (15 + d) ^ 2 := Nat.le_self_pow (by decide) _
+    have : 2 ^ 15 = 32768 := by decide
+    nlinarith
   have hn_large : 2 * 704 * s ≤ n := by
-    have h1 : 2 * 704 * s ≤ 2 * L := by
-      calc 2 * 704 * s ≤ 2 * 2 ^ s := by omega
-        _ ≤ 2 * 2 ^ t := Nat.mul_le_mul_left 2 (Nat.pow_le_pow_right Nat.two_pos (by omega))
-        _ ≤ 2 * L := Nat.mul_le_mul_left 2 ht_pow
-    have h2L : 2 * L ≤ 2 ^ L := by
-      calc 2 * L ≤ L * L := Nat.mul_le_mul_right L (by omega)
-        _ = L ^ 2 := (sq L).symm
-        _ ≤ 2 ^ L := Nat.sq_le_two_pow hL_ge4
-    exact (h1.trans h2L).trans (Nat.pow_log_le_self 2 (by have := h.two_le_n; omega))
+    have h1 : 2 * (704 * s) ≤ 2 * L :=
+      (Nat.mul_le_mul_left 2 (h704s.trans (Nat.pow_le_pow_right Nat.two_pos (by omega)))).trans
+        (Nat.mul_le_mul_left 2 ht_pow)
+    have h2L : 2 * L ≤ 2 ^ L :=
+      ((Nat.mul_le_mul_right L (by omega : 2 ≤ L)).trans_eq (sq L).symm).trans
+        (Nat.sq_le_two_pow hL4)
+    exact ((Nat.mul_assoc 2 704 s).symm ▸ h1.trans h2L).trans
+      (Nat.pow_log_le_self 2 (by have := h.two_le_n; omega))
   set M := max minRedundancyRatio (2 ^ Nat.logStar n)
-  have hM_le : M ≤ 352 * s := by
-    dsimp only [M, minRedundancyRatio]
-    exact max_le (by omega) (by omega)
+  have hls : 2 ^ Nat.logStar n ≤ 32 * (t + 1) := h.two_pow_logStar_le_log_log
+  have hM_le : M ≤ 352 * s := max_le (by dsimp [minRedundancyRatio]; omega) (by omega)
   have hM_le_n : M ≤ n := by omega
-  refine ⟨minRedundancyRatio_le_redundancyRatio (le_trans (le_max_left _ _) hM_le_n),
-    two_pow_logStar_le_redundancyRatio (le_trans (le_max_right _ _) hM_le_n), ?_⟩
-  have heff_pos : 1 ≤ effRedundancy n R := effRedundancy_pos h.redundancy_pos n
+  refine ⟨minRedundancyRatio_le_redundancyRatio ((le_max_left _ _).trans hM_le_n),
+    two_pow_logStar_le_redundancyRatio ((le_max_right _ _).trans hM_le_n), ?_⟩
   have hr_eq : redundancyRatio n R = n / effRedundancy n R := by
-    dsimp only [redundancyRatio]
-    rw [max_eq_left heff_pos]
+    dsimp only [redundancyRatio]; rw [max_eq_left (effRedundancy_pos h.redundancy_pos n)]
   dsimp only [effRedundancy] at hr_eq
   by_cases hR_le : R ≤ max 1 (n / M)
   · rw [min_eq_left hR_le] at hr_eq
-    have hprod : (redundancyRatio n R * R) ^ 10 ≤ L * R ^ 10 := by
-      rw [hr_eq, Nat.mul_comm L]
+    have hprod : (redundancyRatio n R) ^ 10 * R ^ 10 ≤ L * R ^ 10 := by
+      rw [← Nat.mul_pow, hr_eq, Nat.mul_comm L]
       exact (Nat.pow_le_pow_left (Nat.div_mul_le_self n R) 10).trans h.redundancy_lower
-    rw [Nat.mul_pow] at hprod
     exact Nat.le_of_mul_le_mul_right hprod (Nat.pow_pos h.redundancy_pos)
-  · rw [min_eq_right (not_le.mp hR_le).le] at hr_eq
-    have hM_pos : 0 < M := by dsimp only [M, minRedundancyRatio]; omega
+  · have hM_pos : 0 < M := lt_of_lt_of_le (by decide : 0 < minRedundancyRatio) (le_max_left _ _)
     have hdiv_ge1 : 1 ≤ n / M := (Nat.le_div_iff_mul_le hM_pos).mpr (by omega)
-    rw [max_eq_right hdiv_ge1] at hr_eq
+    rw [min_eq_right (not_le.mp hR_le).le, max_eq_right hdiv_ge1] at hr_eq
     have hr_le_2M : redundancyRatio n R ≤ 2 * M := by
       rw [hr_eq]
       refine Nat.le_of_lt_succ ((Nat.div_lt_iff_lt_mul hdiv_ge1).mpr ?_)
-      have hdiv := Nat.div_add_mod n M
-      have hmod := Nat.mod_lt n hM_pos
-      have hM_le : M ≤ M * (n / M) := Nat.le_mul_of_pos_right M hdiv_ge1
-      rw [Nat.succ_mul, Nat.mul_assoc 2]
-      omega
-    have hr_le_2s : redundancyRatio n R ≤ 2 ^ s := by omega
-    calc (redundancyRatio n R) ^ 10 ≤ (2 ^ s) ^ 10 := Nat.pow_le_pow_left hr_le_2s 10
+      have := Nat.div_add_mod n M
+      have := Nat.mod_lt n hM_pos
+      have : M ≤ M * (n / M) := Nat.le_mul_of_pos_right M hdiv_ge1
+      rw [Nat.succ_mul, Nat.mul_assoc 2]; omega
+    calc (redundancyRatio n R) ^ 10 ≤ (2 ^ s) ^ 10 := Nat.pow_le_pow_left (by omega) 10
       _ = 2 ^ (s * 10) := (Nat.pow_mul 2 s 10).symm
       _ ≤ 2 ^ t := Nat.pow_le_pow_right Nat.two_pos (by omega)
       _ ≤ L := ht_pow
@@ -333,97 +299,74 @@ theorem redundancyRatio_le_log (h : ValidRegime U V n R p_min q_min p_max q_max)
 theorem treeDepth_le_logStar_add_four (h : ValidRegime U V n R p_min q_min p_max q_max) :
     treeDepth U (redundancyRatio n R) ≤ Nat.logStar n + 4 := by
   set L := Nat.log 2 n
-  have hL_ge4 : 4 ≤ L := h.four_le_log
-  have hp : 2 * (q_min + p_max + 4) ≤ L := h.mul_param_le_log (by decide : 2 ≤ 2560000)
-  have hU_tower : U ≤ 2 ^ (2 ^ L) := by
-    have hn_lt : n < 2 ^ (L + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two n
-    have hexp_le : (L + 1) * (p_max + 1) ≤ 2 ^ L := by
-      have hpL : 2 * (p_max + 1) ≤ L := by omega
-      calc (L + 1) * (p_max + 1) ≤ (2 * L) * (p_max + 1) := Nat.mul_le_mul_right _ (by omega)
-        _ = L * (2 * (p_max + 1)) := by ring
-        _ ≤ L * L := Nat.mul_le_mul_left L hpL
-        _ = L ^ 2 := (sq L).symm
-        _ ≤ 2 ^ L := Nat.sq_le_two_pow hL_ge4
-    calc U ≤ n ^ (p_max + 1) := h.univ_le_pow
-      _ ≤ (2 ^ (L + 1)) ^ (p_max + 1) := Nat.pow_le_pow_left hn_lt.le _
-      _ = 2 ^ ((L + 1) * (p_max + 1)) := (Nat.pow_mul 2 _ _).symm
-      _ ≤ 2 ^ (2 ^ L) := Nat.pow_le_pow_right Nat.two_pos hexp_le
-  have hlsU : Nat.floorLogStar U ≤ Nat.logStar n + 2 := by
-    have hU_ls : Nat.logStar U ≤ Nat.logStar n + 2 := by
-      rw [Nat.logStar_le_iff]
-      have hn_tw : n ≤ Nat.twoTower (Nat.logStar n) := Nat.le_twoTower_logStar n
-      have hL_tw : L ≤ Nat.twoTower (Nat.logStar n) := (Nat.log_le_self 2 n).trans hn_tw
-      calc U ≤ 2 ^ (2 ^ L) := hU_tower
-        _ ≤ 2 ^ (2 ^ Nat.twoTower (Nat.logStar n)) :=
-            Nat.pow_le_pow_right Nat.two_pos (Nat.pow_le_pow_right Nat.two_pos hL_tw)
-        _ = Nat.twoTower (Nat.logStar n + 2) := rfl
-    exact (Nat.floorLogStar_le_logStar U).trans hU_ls
-  have hk_le : treeDepth U (redundancyRatio n R) ≤ Nat.floorLogStar U + 2 :=
-    treeDepth_le U _
+  have hpL : 2 * (p_max + 1) ≤ L := by
+    have := h.mul_param_le_log (by decide : 2 ≤ 2560000); omega
+  have hexp_le : (L + 1) * (p_max + 1) ≤ 2 ^ L := by
+    have hL4 : 4 ≤ L := h.four_le_log
+    calc (L + 1) * (p_max + 1) ≤ (2 * L) * (p_max + 1) := Nat.mul_le_mul_right _ (by omega)
+      _ = L * (2 * (p_max + 1)) := by ring
+      _ ≤ L * L := Nat.mul_le_mul_left L hpL
+      _ = L ^ 2 := (sq L).symm
+      _ ≤ 2 ^ L := Nat.sq_le_two_pow hL4
+  have hU_tower : U ≤ 2 ^ (2 ^ L) :=
+    h.univ_le_pow.trans <|
+      (Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le _).trans
+        ((Nat.pow_mul 2 _ _).symm ▸ Nat.pow_le_pow_right Nat.two_pos hexp_le)
+  have hU_ls : Nat.logStar U ≤ Nat.logStar n + 2 := (Nat.logStar_le_iff).mpr <|
+    hU_tower.trans (Nat.pow_le_pow_right Nat.two_pos (Nat.pow_le_pow_right Nat.two_pos
+      ((Nat.log_le_self 2 n).trans (Nat.le_twoTower_logStar n))))
+  have hk_le := (treeDepth_le U (redundancyRatio n R)).trans
+    (Nat.add_le_add_right ((Nat.floorLogStar_le_logStar U).trans hU_ls) 2)
   omega
 
 theorem three_le_logStar (h : ValidRegime U V n R p_min q_min p_max q_max) :
     3 ≤ Nat.logStar n := by
   by_contra hlt
-  have hn4 : n ≤ 4 := by
-    have htw := (Nat.le_twoTower_logStar n).trans
-      (Nat.twoTower_monotone (by omega : Nat.logStar n ≤ 2))
-    have h4 : Nat.twoTower 2 = 4 := by decide
-    omega
-  have h16 : 16 ≤ n :=
-    ((show 16 = 2 ^ 4 by decide) ▸ Nat.pow_le_pow_right Nat.two_pos h.four_le_log).trans
+  have htw := (Nat.le_twoTower_logStar n).trans
+    (Nat.twoTower_monotone (by omega : Nat.logStar n ≤ 2))
+  have h16 : 2 ^ 4 ≤ n :=
+    (Nat.pow_le_pow_right Nat.two_pos h.four_le_log).trans
       (Nat.pow_log_le_self 2 (by have := h.two_le_n; omega))
+  have : Nat.twoTower 2 = 4 := by decide
   omega
 
 theorem treeDepth_add_one_le_three_mul_logStar
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     treeDepth U (redundancyRatio n R) + 1 ≤ 3 * Nat.logStar n := by
-  have hk := h.treeDepth_le_logStar_add_four
-  have h3 := h.three_le_logStar
-  omega
+  have := h.treeDepth_le_logStar_add_four; have := h.three_le_logStar; omega
 
 theorem treeDepth_le_redundancyRatio (h : ValidRegime U V n R p_min q_min p_max q_max) :
     treeDepth U (redundancyRatio n R) ≤ redundancyRatio n R := by
   obtain ⟨_, hr_ls, _⟩ := h.redundancyRatio_bounds
   have hk_le := h.treeDepth_le_logStar_add_four
-  have h3 := h.three_le_logStar
-  have hls_lt : Nat.logStar n + 4 ≤ 2 ^ Nat.logStar n := by
-    rcases eq_or_lt_of_le h3 with h_eq3 | h_gt3
-    · rw [← h_eq3]; decide
-    · have hs4 : 4 ≤ Nat.logStar n := Nat.succ_le_of_lt h_gt3
-      have hsq4 := Nat.sq_le_two_pow hs4
-      calc Nat.logStar n + 4 ≤ 4 * Nat.logStar n := by omega
-        _ ≤ Nat.logStar n * Nat.logStar n := Nat.mul_le_mul_right _ hs4
-        _ = (Nat.logStar n) ^ 2 := (sq _).symm
-        _ ≤ 2 ^ Nat.logStar n := hsq4
-  omega
+  rcases eq_or_lt_of_le h.three_le_logStar with h3 | hgt
+  · rw [← h3] at hk_le hr_ls; norm_num at hr_ls; omega
+  · have hsq := Nat.sq_le_two_pow (Nat.succ_le_of_lt hgt)
+    have : Nat.logStar n + 4 ≤ (Nat.logStar n) ^ 2 := by
+      rw [sq]; nlinarith
+    omega
 
 theorem two_pow_eighteen_mul_log_univ_pow_le
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := by
   set L := Nat.log 2 n
-  have hp : 324 * (q_min + p_max + 4) ≤ L := h.mul_param_le_log (by decide : 324 ≤ 2560000)
-  have hpow18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ L ^ 18 := by
-    calc 2 ^ 18 * (Nat.log 2 U) ^ 9
-        = (4 * Nat.log 2 U) ^ 9 := by
-          rw [show (2 : ℕ) ^ 18 = 4 ^ 9 by decide, ← Nat.mul_pow]
-      _ ≤ (L ^ 2) ^ 9 := Nat.pow_le_pow_left h.four_mul_log_univ_le_sq_log 9
-      _ = L ^ 18 := (Nat.pow_mul L 2 9).symm
-  have hL18 : L ^ 18 ≤ 2 ^ L := Nat.pow_le_two_pow (by decide) (by omega)
-  exact (hpow18.trans hL18).trans (Nat.pow_log_le_self 2 (by have := h.two_le_n; omega))
+  have hp := h.mul_param_le_log (by decide : 324 ≤ 2560000)
+  calc 2 ^ 18 * (Nat.log 2 U) ^ 9
+      = (4 * Nat.log 2 U) ^ 9 := by rw [show (2 : ℕ) ^ 18 = 4 ^ 9 by decide, ← Nat.mul_pow]
+    _ ≤ (L ^ 2) ^ 9 := Nat.pow_le_pow_left h.four_mul_log_univ_le_sq_log 9
+    _ = L ^ 18 := (Nat.pow_mul L 2 9).symm
+    _ ≤ 2 ^ L := Nat.pow_le_two_pow (by decide) (by omega)
+    _ ≤ n := Nat.pow_log_le_self 2 (by have := h.two_le_n; omega)
 
 theorem four_mul_redundancyRatio_le_log_univ
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     4 * redundancyRatio n R ≤ Nat.log 2 U := by
   obtain ⟨hr256, _, hr10⟩ := h.redundancyRatio_bounds
-  obtain ⟨hlogn, _⟩ := h.log_univ_bounds
-  have h4r : 4 * redundancyRatio n R ≤ (redundancyRatio n R) ^ 10 := by
-    have : 256 ≤ redundancyRatio n R := hr256
-    calc 4 * redundancyRatio n R
-        ≤ redundancyRatio n R * redundancyRatio n R := Nat.mul_le_mul_right _ (by omega)
-      _ = (redundancyRatio n R) ^ 2 := (sq _).symm
-      _ ≤ (redundancyRatio n R) ^ 10 := Nat.pow_le_pow_right (by omega) (by decide)
-  exact (h4r.trans hr10).trans hlogn
+  have h4r : 4 * redundancyRatio n R ≤ (redundancyRatio n R) ^ 10 :=
+    ((Nat.mul_le_mul_right _ (by dsimp [minRedundancyRatio] at hr256; omega)).trans_eq
+      (sq _).symm).trans (Nat.pow_le_pow_right (by dsimp [minRedundancyRatio] at hr256; omega)
+      (by decide))
+  exact (h4r.trans hr10).trans h.log_univ_bounds.1
 
 end ValidRegime
 
@@ -608,8 +551,7 @@ theorem canonicalSchedule_cumBranchBits_eq {U V n R p_min q_min p_max q_max : �
     have hj : j < treeDepth U (redundancyRatio n R) := Nat.lt_of_succ_le hℓ
     have hS17 := canonical_cumBranchBits_add_seventeen_le h hj
     rw [TreeSchedule.cumBranchBits, ih hj.le, canonicalSchedule_branchBits]
-    dsimp only [branchBits]
-    omega
+    dsimp only [branchBits]; omega
 
 theorem canonicalSchedule_numNodes_eq {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
@@ -658,326 +600,239 @@ theorem canonicalSchedule_childRouterHalfInd_nHigh_zero_le
   rw [FeistelPerm.childRouterHalfInd_eq, hnh0]
   omega
 
+private theorem canonical_gap_bound {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
+    (hlt : ℓ < (canonicalSchedule h).depth) :
+    2 ^ (canonicalSchedule h).branchBits ℓ * (canonicalSchedule h).routerRightUniv ℓ ≤
+      ((canonicalSchedule h).routerRightUniv ℓ) ^ max (canonicalSchedule h).alphaInv 1 := by
+  set r := redundancyRatio n R
+  set k := treeDepth U r
+  obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
+  have hα : max (canonicalSchedule h).alphaInv 1 = q_min + 1 := by
+    have := h.q_min_pos; change max (max q_min 1 + 1) 1 = q_min + 1; omega
+  rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
+  · set T0 := 2 ^ idBits n U r k 1 * quotUnivOne n U r k
+    change 2 ^ branchBits n U r k 0 * T0 ≤ T0 ^ max (canonicalSchedule h).alphaInv 1
+    rw [hα]
+    have h1_lt : 1 ≤ k := by have := two_le_treeDepth U r; omega
+    have hB0_le : 2 ^ branchBits n U r k 0 ≤ n := by
+      have hNT1 := (numNodes_mul_targetSize_bounds (hT_pos 1 h1_lt) (hT_le 1 h1_lt)).1
+      simpa [branchBits, numNodes, cumBranchBits] using
+        (Nat.le_mul_of_pos_right _ (hT_pos 1 h1_lt)).trans hNT1
+    have hU_le : U ≤ n * T0 := by
+      have hpad : U + n ≤ 2 ^ branchBits n U r k 0 * T0 := by
+        simpa only [canonicalSchedule, branchFactor, T0, Nat.mul_assoc] using
+          (canonicalSchedule h).univ_le_padded
+      exact (Nat.le_add_right U n).trans (hpad.trans (Nat.mul_le_mul_right T0 hB0_le))
+    have hn_T0 : n ≤ T0 ^ q_min := Nat.le_of_mul_le_mul_left (by
+      calc n ^ q_min * n = n ^ (q_min + 1) := (pow_succ n q_min).symm
+        _ ≤ U ^ q_min := h.n_pow_succ_le_univ_pow
+        _ ≤ (n * T0) ^ q_min := Nat.pow_le_pow_left hU_le q_min
+        _ = n ^ q_min * T0 ^ q_min := Nat.mul_pow n T0 q_min)
+      (Nat.pow_pos (by have := h.two_le_n; omega))
+    exact (Nat.mul_le_mul_right T0 (hB0_le.trans hn_T0)).trans_eq (pow_succ T0 q_min).symm
+  · set d := idBits n U r k ℓ - branchBits n U r k ℓ
+    change 2 ^ branchBits n U r k ℓ * (if ℓ = 0 then _ else 2 ^ d) ≤
+      (if ℓ = 0 then _ else 2 ^ d) ^ max (canonicalSchedule h).alphaInv 1
+    rw [ite_eq_right hpos.ne', hα]
+    have hS : cumBranchBits n U r k ℓ + 17 ≤ cumBranchBits n U r k (ℓ + 1) :=
+      canonical_cumBranchBits_add_seventeen_le h hlt
+    have h4 : 4 * branchBits n U r k ℓ + idBits n U r k (ℓ + 1) ≤ idBits n U r k ℓ :=
+      four_mul_branchBits_add_idBits_succ_le (Nat.le_of_add_right_le hS)
+        ((by decide : 1 ≤ 256 ^ 9).trans (canonical_nFloor_ge_pow_256 h hlt))
+    have hexp : idBits n U r k ℓ ≤ d * (q_min + 1) :=
+      (by dsimp only [d]; omega : idBits n U r k ℓ ≤ d * 2).trans
+        (Nat.mul_le_mul_left d (by have := h.q_min_pos; omega))
+    calc 2 ^ branchBits n U r k ℓ * 2 ^ d
+        = 2 ^ idBits n U r k ℓ := by rw [← Nat.pow_add]; congr 1; dsimp only [d]; omega
+      _ ≤ 2 ^ (d * (q_min + 1)) := Nat.pow_le_pow_right Nat.two_pos hexp
+      _ = (2 ^ d) ^ (q_min + 1) := Nat.pow_mul 2 _ _
+
+private theorem canonical_conc_bound {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
+    (hlt : ℓ < (canonicalSchedule h).depth) :
+    let m := FeistelPerm.childRouterHalfInd ((canonicalSchedule h).nHigh ℓ)
+    2 ^ (canonicalSchedule h).branchBits ℓ * (150 * m) ^ 3 ≤ (canonicalSchedule h).nLow ℓ := by
+  intro m
+  set P := canonicalSchedule h
+  set r := redundancyRatio n R
+  set k := treeDepth U r
+  obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
+  rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
+  · set L := Nat.log 2 n
+    have hp := h.mul_param_le_log (by decide : 750 ≤ 2560000)
+    have hm_le := canonicalSchedule_childRouterHalfInd_nHigh_zero_le h
+    have h150_le : (150 * m) ^ 3 ≤ L ^ 8 := by
+      have hprod : 150 * m ≤ L ^ 2 :=
+        (by omega : 150 * m ≤ 750 * L).trans
+          ((Nat.mul_le_mul_right L (by omega)).trans_eq (sq L).symm)
+      exact ((Nat.pow_le_pow_left hprod 3).trans_eq (Nat.pow_mul L 2 3).symm).trans
+        (Nat.pow_le_pow_right (by omega) (by decide))
+    have h1_le : 1 ≤ k := by have := two_le_treeDepth U r; omega
+    have hNT1 := (numNodes_mul_targetSize_bounds (hT_pos 1 h1_le) (hT_le 1 h1_le)).1
+    have hT1_ge : 2 * L ^ 8 ≤ targetSize n U r k 1 := by
+      have hT1 : targetSize n U r k 1 = (Nat.log 2 U) ^ 9 := by
+        rw [targetSize_eq_levelScale_pow le_rfl]
+        dsimp only [levelScale]; rw [ite_eq_left (by have := two_le_treeDepth U r; omega)]; simp
+      rw [hT1]
+      exact ((Nat.mul_le_mul_right _ (by omega : 2 ≤ L)).trans_eq (pow_succ' L 8).symm).trans
+        (Nat.pow_le_pow_left h.log_univ_bounds.1 9)
+    have hN1 : 2 ^ P.branchBits 0 = numNodes n U r k 1 := by
+      change 2 ^ branchBits n U r k 0 = 2 ^ cumBranchBits n U r k 1
+      simp [branchBits, cumBranchBits]
+    have hmul2 : 2 * (2 ^ P.branchBits 0 * (150 * m) ^ 3) ≤ n := by
+      rw [hN1]
+      calc 2 * (numNodes n U r k 1 * (150 * m) ^ 3)
+          ≤ numNodes n U r k 1 * (2 * L ^ 8) := by
+            rw [Nat.mul_left_comm]; exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left 2 h150_le)
+        _ ≤ numNodes n U r k 1 * targetSize n U r k 1 := Nat.mul_le_mul_left _ hT1_ge
+        _ ≤ n := hNT1
+    have hnl0 : P.nLow 0 = n - 1 := rfl
+    have := h.two_le_n
+    rw [hnl0]; omega
+  · set s := levelScale U r k (ℓ + 1)
+    have hr256 := h.redundancyRatio_bounds.1
+    have hs_ge : 256 ≤ s :=
+      hr256.trans (r_le_levelScale (by omega) h.four_mul_redundancyRatio_le_log_univ)
+    have hid_le : idBits n U r k ℓ ≤ 148 * s := by
+      have hlt_k : ℓ < k := hlt
+      simpa only [Nat.add_sub_cancel] using idBits_pred_le_mul_levelScale hr256
+        (by omega : 2 ≤ ℓ + 1) hlt_k (hT_pos ℓ hlt_k.le) (hT_le ℓ hlt_k.le)
+    have hy8 : 8 ≤ nFloor n U r k ℓ :=
+      (by decide : 8 ≤ 256 ^ 9).trans (canonical_nFloor_ge_pow_256 h hlt.le)
+    have hd_cur := two_mul_delta_le_nFloor_of_eight_le hy8
+    have hnh_le : max (P.nHigh ℓ) 2 ≤ 2 * max (nFloor n U r k ℓ) 1 := by
+      have : P.nHigh ℓ = nFloor n U r k ℓ + delta n U r k ℓ := by
+        change (if ℓ = 0 then n else nFloor n U r k ℓ + delta n U r k ℓ) = _
+        rw [ite_eq_right hpos.ne']
+      rw [this, max_eq_left (by omega : 1 ≤ nFloor n U r k ℓ)]; omega
+    have hcl_le : 4 * Nat.clog 2 (max (P.nHigh ℓ) 2) ≤ idBits n U r k ℓ := by
+      have := Nat.clog_mono_right 2 hnh_le; dsimp only [idBits]; omega
+    have hm_le : m ≤ 112 * s := by
+      have hcl_eq : m = 3 * Nat.clog 2 (max (P.nHigh ℓ) 2) + 4 := by
+        simpa only [m] using FeistelPerm.childRouterHalfInd_eq (P.nHigh ℓ)
+      omega
+    have hcube_s : 2 * (150 * m) ^ 3 ≤ s ^ 9 := by
+      have hcoeff : 2 * 16800 ^ 3 ≤ 256 ^ 6 := by decide
+      calc 2 * (150 * m) ^ 3 ≤ 2 * (16800 * s) ^ 3 :=
+            Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left (by omega) 3)
+        _ = (2 * 16800 ^ 3) * s ^ 3 := by ring
+        _ ≤ s ^ 6 * s ^ 3 := Nat.mul_le_mul_right _ (hcoeff.trans (Nat.pow_le_pow_left hs_ge 6))
+        _ = s ^ 9 := (Nat.pow_add s 6 3).symm
+    have hlo_next : s ^ 9 ≤ nFloor n U r k (ℓ + 1) := by
+      have hlo := (targetSize_le_nFloor_and_lt (hT_pos (ℓ + 1) hlt) (hT_le (ℓ + 1) hlt)).1
+      rwa [targetSize_eq_levelScale_pow (by omega)] at hlo
+    have h2mul : 2 * (2 ^ P.branchBits ℓ * (150 * m) ^ 3) ≤ nFloor n U r k ℓ := by
+      rw [Nat.mul_left_comm]
+      exact (Nat.mul_le_mul_left _ (hcube_s.trans hlo_next)).trans (P.nFloor_step_le ℓ hlt)
+    have hnl_eq : P.nLow ℓ = nFloor n U r k ℓ - delta n U r k ℓ := by
+      change (if ℓ = 0 then n - 1 else nFloor n U r k ℓ - delta n U r k ℓ) = _
+      rw [ite_eq_right hpos.ne']
+    rw [hnl_eq]; omega
+
+private theorem rpow_two_thirds_le_two_mul_succ {μ x : ℝ} {d : ℕ}
+    (hμ_pos : 0 < μ) (hμ_le : μ ≤ 2 * x) (hx2 : x ^ 2 ≤ ((d : ℝ) + 1) ^ 3) :
+    μ ^ ((2 : ℝ) / 3) ≤ 2 * ((d : ℝ) + 1) := by
+  refine (pow_le_pow_iff_left₀ (by positivity) (by positivity) (by decide : 3 ≠ 0)).mp ?_
+  calc (μ ^ ((2 : ℝ) / 3)) ^ 3
+      = μ ^ 2 := by rw [← Real.rpow_natCast, ← Real.rpow_mul hμ_pos.le]; norm_num
+    _ ≤ (2 * x) ^ 2 := pow_le_pow_left₀ hμ_pos.le hμ_le 2
+    _ = 4 * x ^ 2 := by ring
+    _ ≤ 8 * ((d : ℝ) + 1) ^ 3 := by linarith only [hx2, sq_nonneg x]
+    _ = (2 * ((d : ℝ) + 1)) ^ 3 := by ring
+
+private theorem canonical_window_contained {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
+    (hlt : ℓ < (canonicalSchedule h).depth) (m b_load : ℕ)
+    (hm_lo : (canonicalSchedule h).nLow ℓ ≤ m) (hm_hi : m ≤ (canonicalSchedule h).nHigh ℓ)
+    (hb_lo : (m : ℝ) / (2 : ℝ) ^ (canonicalSchedule h).branchBits ℓ -
+        ((1 : ℝ) / 5) *
+          ((m : ℝ) / (2 : ℝ) ^ (canonicalSchedule h).branchBits ℓ) ^ ((2 : ℝ) / 3) ≤
+        (b_load : ℝ))
+    (hb_hi : (b_load : ℝ) ≤
+      (m : ℝ) / (2 : ℝ) ^ (canonicalSchedule h).branchBits ℓ +
+        ((1 : ℝ) / 5) *
+          ((m : ℝ) / (2 : ℝ) ^ (canonicalSchedule h).branchBits ℓ) ^ ((2 : ℝ) / 3)) :
+    (canonicalSchedule h).nLow (ℓ + 1) ≤ b_load ∧
+      b_load ≤ (canonicalSchedule h).nHigh (ℓ + 1) := by
+  set P := canonicalSchedule h
+  set r := redundancyRatio n R
+  set k := treeDepth U r
+  set B := branchFactor n U r k ℓ
+  set x := nFloor n U r k (ℓ + 1)
+  set y := nFloor n U r k ℓ
+  set d_next := delta n U r k (ℓ + 1)
+  have hS17 : cumBranchBits n U r k ℓ + 17 ≤ cumBranchBits n U r k (ℓ + 1) :=
+    canonical_cumBranchBits_add_seventeen_le h hlt
+  have hx_ge : 256 ^ 9 ≤ x := canonical_nFloor_ge_pow_256 h hlt
+  have h8x : 8 ≤ x := (by decide : 8 ≤ 256 ^ 9).trans hx_ge
+  have hd_le_x : 2 * d_next ≤ x := two_mul_delta_le_nFloor_of_eight_le h8x
+  have hd_next_ge : 256 ^ 6 ≤ d_next := by
+    rw [show d_next = Nat.nthRoot 3 (x ^ 2) from rfl, Nat.le_nthRoot_iff (by decide)]
+    exact ((show (256 ^ 6) ^ 3 = (256 ^ 9) ^ 2 by decide) ▸ Nat.pow_le_pow_left hx_ge 2)
+  have hB1 : (1 : ℝ) ≤ B := by exact_mod_cast (Nat.two_pow_pos _ : 1 ≤ B)
+  have hx_eq : x = y / B := nFloor_succ_eq_div (by omega)
+  have hy_lo : (B : ℝ) * x ≤ y := by exact_mod_cast (hx_eq ▸ Nat.mul_div_le y B)
+  have hy_hi : (y : ℝ) ≤ (B : ℝ) * (x + 1) := by
+    exact_mod_cast (hx_eq ▸ Nat.lt_mul_div_succ y (Nat.two_pow_pos _) : y < B * (x + 1)).le
+  set μ : ℝ := (m : ℝ) / (B : ℝ)
+  have hB_cast : (2 : ℝ) ^ P.branchBits ℓ = (B : ℝ) := (Nat.cast_pow 2 _).symm
+  rw [hB_cast] at hb_lo hb_hi
+  have hm_band : (B : ℝ) * x - (B : ℝ) * d_next / 10 - B ≤ m ∧
+      (m : ℝ) ≤ (B : ℝ) * (x + 1) + (B : ℝ) * d_next / 10 := by
+    have hdn : (0 : ℝ) ≤ (B : ℝ) * d_next / 10 := by positivity
+    rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
+    · change n - 1 ≤ m at hm_lo
+      change m ≤ n at hm_hi
+      have hy0 : y = n := by simp [y, nFloor, numNodes, cumBranchBits]
+      have hml : (y : ℝ) ≤ m + 1 := by exact_mod_cast (by omega : y ≤ m + 1)
+      have hmh : (m : ℝ) ≤ y := by exact_mod_cast (by omega : m ≤ y)
+      exact ⟨by linarith, by linarith⟩
+    · set δ := delta n U r k ℓ
+      have hd_le_y : 2 * δ ≤ y := two_mul_delta_le_nFloor_of_eight_le
+        ((by decide : 8 ≤ 256 ^ 9).trans (canonical_nFloor_ge_pow_256 h hlt.le))
+      change (if ℓ = 0 then n - 1 else y - δ) ≤ m at hm_lo
+      change m ≤ (if ℓ = 0 then n else y + δ) at hm_hi
+      rw [ite_eq_right hpos.ne'] at hm_lo hm_hi
+      have h10r : (10 : ℝ) * δ ≤ B * d_next := by
+        exact_mod_cast ten_mul_delta_le_branchFactor_mul_delta_succ hS17 h8x
+      have hml : (y : ℝ) ≤ m + δ := by exact_mod_cast (by omega : y ≤ m + δ)
+      have hmh : (m : ℝ) ≤ y + δ := by exact_mod_cast hm_hi
+      exact ⟨by linarith, by linarith⟩
+  have hμ_lo : (x : ℝ) - d_next / 10 - 1 ≤ μ := (le_div_iff₀ (by positivity)).mpr (by linarith)
+  have hμ_hi : μ ≤ (x : ℝ) + d_next / 10 + 1 := (div_le_iff₀ (by positivity)).mpr (by linarith)
+  have hμ_pos : 0 < μ := by
+    have : (1 : ℝ) ≤ m := by exact_mod_cast (P.nLow_pos hlt.le).trans hm_lo
+    positivity
+  have hdev_le : ((1 : ℝ) / 5) * μ ^ ((2 : ℝ) / 3) ≤ ((2 : ℝ) / 5) * (d_next + 1) := by
+    have hx_r : (10 : ℝ) ≤ x := by exact_mod_cast (by decide : 10 ≤ 256 ^ 9).trans hx_ge
+    have hd_r : (2 : ℝ) * d_next ≤ x := by exact_mod_cast hd_le_x
+    have hx2 : (x : ℝ) ^ 2 ≤ ((d_next : ℝ) + 1) ^ 3 := by
+      exact_mod_cast (Nat.lt_pow_nthRoot_add_one (by decide) (x ^ 2)).le
+    have hdev := rpow_two_thirds_le_two_mul_succ hμ_pos (by linarith) hx2
+    linarith only [hdev]
+  have hd_big : (10 : ℝ) ≤ d_next := by exact_mod_cast (by decide : 10 ≤ 256 ^ 6).trans hd_next_ge
+  change (if ℓ + 1 = 0 then n - 1 else x - d_next) ≤ b_load ∧
+    b_load ≤ (if ℓ + 1 = 0 then n else x + d_next)
+  rw [ite_eq_right (by omega), ite_eq_right (by omega)]
+  have hlo : (x : ℝ) < b_load + 1 + d_next := by linarith only [hb_lo, hμ_lo, hdev_le, hd_big]
+  have hhi : (b_load : ℝ) < x + d_next + 1 := by linarith only [hb_hi, hμ_hi, hdev_le, hd_big]
+  have hlo : x < b_load + 1 + d_next := by exact_mod_cast hlo
+  have hhi : b_load < x + d_next + 1 := by exact_mod_cast hhi
+  omega
+
 /-- **`canonicalSchedule` concentration readiness**: across the entire `ValidRegime`,
 `canonicalSchedule h` satisfies all six probabilistic concentration conditions in
 `TreeSchedule.ConcentrationReady` (`Section 5.4`, `Claim 5.4`, and `Lemma 5.3`). -/
 theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
-    (canonicalSchedule h).ConcentrationReady := by
-  obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
-  set P := canonicalSchedule h
-  set r := redundancyRatio n R
-  set k := treeDepth U r
-  have hr256 : minRedundancyRatio ≤ r := h.redundancyRatio_bounds.1
-  have h4r : 4 * r ≤ Nat.log 2 U := h.four_mul_redundancyRatio_le_log_univ
-  have hS17 : ∀ ℓ < k, cumBranchBits n U r k ℓ + 17 ≤ cumBranchBits n U r k (ℓ + 1) :=
-    fun ℓ hlt => canonical_cumBranchBits_add_seventeen_le h hlt
-  have hnF256 : ∀ ℓ ≤ k, 256 ^ 9 ≤ nFloor n U r k ℓ :=
-    fun ℓ hℓ => canonical_nFloor_ge_pow_256 h hℓ
-  have h8_le : 8 ≤ 256 ^ 9 := by decide
-  refine
-    { six_le_nFloor := fun ℓ hℓ => (by decide : 6 ≤ 8).trans (h8_le.trans (hnF256 ℓ hℓ))
-      two_mul_delta_le_nFloor := fun ℓ _ hℓ => canonicalSchedule_two_mul_delta_le_nFloor h hℓ
-      gap_bound := ?_
-      conc_bound := ?_
-      window_contained := ?_
-      id_collision_bound := fun ℓ h1 hℓ =>
-        nHigh_sq_mul_nFloor_sq_le_four_mul_two_pow_idBits h1 (h8_le.trans (hnF256 ℓ hℓ)) }
-  · intro ℓ hlt
-    have hα : max P.alphaInv 1 = q_min + 1 := by
-      change max (max q_min 1 + 1) 1 = q_min + 1
-      have := h.q_min_pos
-      omega
-    rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-    · change 2 ^ branchBits n U r k 0 * (2 ^ idBits n U r k 1 * quotUnivOne n U r k) ≤
-        (2 ^ idBits n U r k 1 * quotUnivOne n U r k) ^ max P.alphaInv 1
-      rw [hα]
-      set T0 := 2 ^ idBits n U r k 1 * quotUnivOne n U r k
-      have hB0_le : 2 ^ branchBits n U r k 0 ≤ n := by
-        have h1_lt : 1 ≤ k := by have := two_le_treeDepth U r; omega
-        obtain ⟨hNT1, _⟩ := numNodes_mul_targetSize_bounds (hT_pos 1 h1_lt) (hT_le 1 h1_lt)
-        have hN1 : 2 ^ branchBits n U r k 0 = numNodes n U r k 1 := by
-          simp [branchBits, numNodes, cumBranchBits]
-        rw [hN1]
-        exact (Nat.le_mul_of_pos_right _ (hT_pos 1 h1_lt)).trans hNT1
-      have hU_le : U ≤ n * T0 := by
-        have hpad : U + n ≤ 2 ^ branchBits n U r k 0 * T0 := by
-          have := P.univ_le_padded
-          dsimp only [P, canonicalSchedule, T0] at this ⊢
-          rwa [Nat.mul_assoc] at this
-        exact (Nat.le_add_right U n).trans (hpad.trans (Nat.mul_le_mul_right T0 hB0_le))
-      have hn_T0 : n ≤ T0 ^ q_min := by
-        have hpow : n ^ q_min * n ≤ n ^ q_min * T0 ^ q_min := by
-          calc n ^ q_min * n = n ^ (q_min + 1) := (pow_succ n q_min).symm
-            _ ≤ U ^ q_min := h.n_pow_succ_le_univ_pow
-            _ ≤ (n * T0) ^ q_min := Nat.pow_le_pow_left hU_le q_min
-            _ = n ^ q_min * T0 ^ q_min := Nat.mul_pow n T0 q_min
-        exact Nat.le_of_mul_le_mul_left hpow (Nat.pow_pos (by have := h.two_le_n; omega))
-      calc 2 ^ branchBits n U r k 0 * T0 ≤ n * T0 := Nat.mul_le_mul_right T0 hB0_le
-        _ ≤ T0 ^ q_min * T0 := Nat.mul_le_mul_right T0 hn_T0
-        _ = T0 ^ (q_min + 1) := (pow_succ T0 q_min).symm
-    · change 2 ^ branchBits n U r k ℓ *
-          (if ℓ = 0 then _ else 2 ^ (idBits n U r k ℓ - branchBits n U r k ℓ)) ≤
-        (if ℓ = 0 then _ else 2 ^ (idBits n U r k ℓ - branchBits n U r k ℓ)) ^ max P.alphaInv 1
-      rw [ite_eq_right hpos.ne', hα]
-      have h4 := four_mul_branchBits_add_idBits_succ_le (by have := hS17 ℓ hlt; omega)
-        ((Nat.one_le_pow 9 256 (by decide)).trans (hnF256 (ℓ + 1) hlt))
-      have hexp : idBits n U r k ℓ ≤
-          (idBits n U r k ℓ - branchBits n U r k ℓ) * (q_min + 1) := by
-        have hsub_ge : 3 * branchBits n U r k ℓ ≤ idBits n U r k ℓ - branchBits n U r k ℓ := by
-          omega
-        calc idBits n U r k ℓ
-            = branchBits n U r k ℓ + (idBits n U r k ℓ - branchBits n U r k ℓ) := by omega
-          _ ≤ 2 * (idBits n U r k ℓ - branchBits n U r k ℓ) := by omega
-          _ = (idBits n U r k ℓ - branchBits n U r k ℓ) * 2 := Nat.mul_comm _ _
-          _ ≤ (idBits n U r k ℓ - branchBits n U r k ℓ) * (q_min + 1) :=
-              Nat.mul_le_mul_left _ (by have := h.q_min_pos; omega)
-      calc 2 ^ branchBits n U r k ℓ * 2 ^ (idBits n U r k ℓ - branchBits n U r k ℓ)
-          = 2 ^ idBits n U r k ℓ := by rw [← Nat.pow_add]; congr 1; omega
-        _ ≤ 2 ^ ((idBits n U r k ℓ - branchBits n U r k ℓ) * (q_min + 1)) :=
-            Nat.pow_le_pow_right Nat.two_pos hexp
-        _ = (2 ^ (idBits n U r k ℓ - branchBits n U r k ℓ)) ^ (q_min + 1) :=
-            Nat.pow_mul 2 _ _
-  · intro ℓ hlt
-    set m := FeistelPerm.childRouterHalfInd (P.nHigh ℓ)
-    rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-    · set L := Nat.log 2 n
-      have hp : 750 * (q_min + p_max + 4) ≤ L := h.mul_param_le_log (by decide : 750 ≤ 2560000)
-      have hm_le : m ≤ 3 * L + 7 := canonicalSchedule_childRouterHalfInd_nHigh_zero_le h
-      have h150_le : (150 * m) ^ 3 ≤ L ^ 8 := by
-        have hprod : 150 * m ≤ L ^ 2 := by
-          calc 150 * m ≤ 750 * L := by omega
-            _ ≤ L * L := Nat.mul_le_mul_right L (by omega)
-            _ = L ^ 2 := (sq L).symm
-        calc (150 * m) ^ 3 ≤ (L ^ 2) ^ 3 := Nat.pow_le_pow_left hprod 3
-          _ = L ^ 6 := (Nat.pow_mul L 2 3).symm
-          _ ≤ L ^ 8 := Nat.pow_le_pow_right (by omega) (by decide)
-      obtain ⟨hNT1, _⟩ := numNodes_mul_targetSize_bounds
-        (hT_pos 1 (by have := two_le_treeDepth U r; omega))
-        (hT_le 1 (by have := two_le_treeDepth U r; omega))
-      have hT1_ge : 2 * L ^ 8 ≤ targetSize n U r k 1 := by
-        obtain ⟨hlogn, _⟩ := h.log_univ_bounds
-        have hT1_eq : targetSize n U r k 1 = (Nat.log 2 U) ^ 9 := by
-          rw [targetSize_eq_levelScale_pow le_rfl]
-          dsimp only [levelScale]
-          rw [ite_eq_left (by have := two_le_treeDepth U r; omega)]
-          simp
-        rw [hT1_eq]
-        calc 2 * L ^ 8 ≤ L * L ^ 8 := Nat.mul_le_mul_right _ (by omega)
-          _ = L ^ 9 := (pow_succ' L 8).symm
-          _ ≤ (Nat.log 2 U) ^ 9 := Nat.pow_le_pow_left hlogn 9
-      have hN1_eq : 2 ^ P.branchBits 0 = numNodes n U r k 1 := by
-        change 2 ^ branchBits n U r k 0 = 2 ^ cumBranchBits n U r k 1
-        simp [branchBits, cumBranchBits]
-      have hmul2 : 2 * (2 ^ P.branchBits 0 * (150 * m) ^ 3) ≤ n := by
-        rw [hN1_eq]
-        calc 2 * (numNodes n U r k 1 * (150 * m) ^ 3)
-            ≤ 2 * (numNodes n U r k 1 * L ^ 8) :=
-              Nat.mul_le_mul_left 2 (Nat.mul_le_mul_left _ h150_le)
-          _ = numNodes n U r k 1 * (2 * L ^ 8) := by ring
-          _ ≤ numNodes n U r k 1 * targetSize n U r k 1 := Nat.mul_le_mul_left _ hT1_ge
-          _ ≤ n := hNT1
-      have hnl0 : P.nLow 0 = n - 1 := rfl
-      rw [hnl0]
-      have := h.two_le_n
-      omega
-    · have hlt_k : ℓ < k := hlt
-      have h2 : 2 ≤ ℓ + 1 := by omega
-      have hle1 : ℓ + 1 ≤ k := hlt_k
-      have hid_le : idBits n U r k ℓ ≤ 148 * levelScale U r k (ℓ + 1) := by
-        have := idBits_pred_le_mul_levelScale hr256 h2 hle1 (hT_pos ℓ hlt_k.le) (hT_le ℓ hlt_k.le)
-        simpa only [Nat.add_sub_cancel] using this
-      set s_next := levelScale U r k (ℓ + 1)
-      have hs_ge : 256 ≤ s_next := hr256.trans (r_le_levelScale (by omega) h4r)
-      have hy1 : 1 ≤ nFloor n U r k ℓ :=
-        (Nat.one_le_pow 9 256 (by decide)).trans (hnF256 ℓ hlt_k.le)
-      have hd_cur := two_mul_delta_le_nFloor_of_eight_le (h8_le.trans (hnF256 ℓ hlt_k.le))
-      have hnh_le_2y : max (P.nHigh ℓ) 2 ≤ 2 * max (nFloor n U r k ℓ) 1 := by
-        have hnh_eq : P.nHigh ℓ = nFloor n U r k ℓ + delta n U r k ℓ := by
-          change (if ℓ = 0 then n else nFloor n U r k ℓ + delta n U r k ℓ) = _
-          rw [ite_eq_right hpos.ne']
-        rw [hnh_eq, max_eq_left hy1]
-        omega
-      have hcl_le : 4 * Nat.clog 2 (max (P.nHigh ℓ) 2) ≤ idBits n U r k ℓ := by
-        have := Nat.clog_mono_right 2 hnh_le_2y
-        dsimp only [idBits]
-        omega
-      have hm_le : m ≤ 112 * s_next := by
-        dsimp only [m]
-        rw [FeistelPerm.childRouterHalfInd_eq]
-        omega
-      have hcube_s : 2 * (150 * m) ^ 3 ≤ s_next ^ 9 := by
-        have h150 : 150 * m ≤ 16800 * s_next := by omega
-        have hcoeff : 2 * 16800 ^ 3 ≤ 256 ^ 6 := by decide
-        have hs6 : 256 ^ 6 ≤ s_next ^ 6 := Nat.pow_le_pow_left hs_ge 6
-        calc 2 * (150 * m) ^ 3 ≤ 2 * (16800 * s_next) ^ 3 :=
-              Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left h150 3)
-          _ = (2 * 16800 ^ 3) * s_next ^ 3 := by ring
-          _ ≤ s_next ^ 6 * s_next ^ 3 := Nat.mul_le_mul_right _ (hcoeff.trans hs6)
-          _ = s_next ^ 9 := (Nat.pow_add s_next 6 3).symm
-      obtain ⟨hlo_next, _⟩ := targetSize_le_nFloor_and_lt
-        (hT_pos (ℓ + 1) hlt_k) (hT_le (ℓ + 1) hlt_k)
-      rw [targetSize_eq_levelScale_pow (by omega)] at hlo_next
-      have hstep_nf : 2 ^ P.branchBits ℓ * nFloor n U r k (ℓ + 1) ≤ nFloor n U r k ℓ :=
-        P.nFloor_step_le ℓ hlt
-      have hnl_eq : P.nLow ℓ = nFloor n U r k ℓ - delta n U r k ℓ := by
-        change (if ℓ = 0 then n - 1 else nFloor n U r k ℓ - delta n U r k ℓ) = _
-        rw [ite_eq_right hpos.ne']
-      rw [hnl_eq]
-      have h2mul : 2 * (2 ^ P.branchBits ℓ * (150 * m) ^ 3) ≤ nFloor n U r k ℓ := by
-        calc 2 * (2 ^ P.branchBits ℓ * (150 * m) ^ 3)
-            = 2 ^ P.branchBits ℓ * (2 * (150 * m) ^ 3) := by ring
-          _ ≤ 2 ^ P.branchBits ℓ * s_next ^ 9 := Nat.mul_le_mul_left _ hcube_s
-          _ ≤ 2 ^ P.branchBits ℓ * nFloor n U r k (ℓ + 1) := Nat.mul_le_mul_left _ hlo_next
-          _ ≤ nFloor n U r k ℓ := hstep_nf
-      omega
-  · intro ℓ hlt m b_load hm_lo hm_hi hb_lo hb_hi
-    have hlt_k : ℓ < k := hlt
-    set B := branchFactor n U r k ℓ
-    have hB_eq : 2 ^ P.branchBits ℓ = B := rfl
-    set x := nFloor n U r k (ℓ + 1)
-    set y := nFloor n U r k ℓ
-    set d_next := delta n U r k (ℓ + 1)
-    have hB_pos : (0 : ℝ) < (B : ℝ) := by dsimp only [B, branchFactor]; positivity
-    have hx_ge : 256 ^ 9 ≤ x := hnF256 (ℓ + 1) hlt_k
-    have hd_next_ge : 256 ^ 6 ≤ d_next := by
-      dsimp only [d_next, delta]
-      rw [Nat.le_nthRoot_iff (by decide)]
-      calc (256 ^ 6) ^ 3 = (256 ^ 9) ^ 2 := by rw [← Nat.pow_mul, ← Nat.pow_mul]
-        _ ≤ x ^ 2 := Nat.pow_le_pow_left hx_ge 2
-    have hx_eq : x = y / B := nFloor_succ_eq_div (by have := hS17 ℓ hlt_k; omega)
-    have hy_bounds : B * x ≤ y ∧ y < B * (x + 1) := by
-      refine ⟨hx_eq ▸ Nat.mul_div_le y B, ?_⟩
-      have hdiv := Nat.div_add_mod y B
-      have hmod : y % B < B := Nat.mod_lt y (Nat.two_pow_pos _)
-      rw [← hx_eq] at hdiv
-      rw [Nat.mul_add, Nat.mul_one]
-      omega
-    have hm_lo' : (if ℓ = 0 then n - 1 else y - delta n U r k ℓ) ≤ m := hm_lo
-    have hm_hi' : m ≤ (if ℓ = 0 then n else y + delta n U r k ℓ) := hm_hi
-    have hm_bounds : B * x - (if ℓ = 0 then 1 else delta n U r k ℓ) ≤ m ∧
-        m ≤ B * (x + 1) + (if ℓ = 0 then 0 else delta n U r k ℓ) := by
-      split_ifs at hm_lo' hm_hi' ⊢ with h0
-      · subst h0
-        have hy0 : y = n := by simp [y, nFloor, numNodes, cumBranchBits]
-        omega
-      · omega
-    have hd_div_nat : (if ℓ = 0 then 1 else delta n U r k ℓ) ≤ B * d_next / 10 + 1 := by
-      split_ifs with h0
-      · omega
-      · have h10 : 10 * delta n U r k ℓ ≤ B * d_next :=
-          ten_mul_delta_le_branchFactor_mul_delta_succ (hS17 ℓ hlt_k) (h8_le.trans hx_ge)
-        omega
-    set μ : ℝ := (m : ℝ) / (B : ℝ)
-    have hB_cast : ((2 : ℝ) ^ P.branchBits ℓ) = (B : ℝ) := by
-      rw [← hB_eq]
-      exact (Nat.cast_pow 2 _).symm
-    rw [hB_cast] at hb_lo hb_hi
-    have hμ_def : (m : ℝ) / (B : ℝ) = μ := rfl
-    rw [hμ_def] at hb_lo hb_hi
-    have hm_pos : 1 ≤ m := (P.nLow_pos hlt.le).trans hm_lo
-    have hμ_pos : 0 < μ := by dsimp only [μ]; positivity
-    have hdiv_r : ((B * d_next / 10 : ℕ) : ℝ) ≤ (B : ℝ) * (d_next : ℝ) / 10 := by
-      rw [le_div_iff₀ (by norm_num)]
-      exact_mod_cast Nat.div_mul_le_self (B * d_next) 10
-    have hB1 : (1 : ℝ) ≤ (B : ℝ) := by exact_mod_cast (Nat.two_pow_pos _ : 1 ≤ B)
-    have hμ_hi : μ ≤ (x : ℝ) + (d_next : ℝ) / 10 + 2 := by
-      dsimp only [μ]
-      rw [div_le_iff₀ hB_pos]
-      have h1 : m ≤ B * (x + 1) + (B * d_next / 10 + 1) := by
-        have h01 : (if ℓ = 0 then 0 else delta n U r k ℓ) ≤
-            (if ℓ = 0 then 1 else delta n U r k ℓ) := by split_ifs <;> omega
-        have := hm_bounds.2
-        omega
-      have hm_hi_r : (m : ℝ) ≤ (B : ℝ) * ((x : ℝ) + 1) +
-          ((B * d_next / 10 : ℕ) : ℝ) + 1 := by
-        have h1r : (m : ℝ) ≤ ((B * (x + 1) + (B * d_next / 10 + 1) : ℕ) : ℝ) := by
-          exact_mod_cast h1
-        push_cast at h1r
-        linarith only [h1r]
-      have hmul_eq : ((x : ℝ) + (d_next : ℝ) / 10 + 2) * (B : ℝ) =
-          (B : ℝ) * ((x : ℝ) + 1) + (B : ℝ) * (d_next : ℝ) / 10 + (B : ℝ) := by ring
-      linarith only [hm_hi_r, hdiv_r, hB1, hmul_eq]
-    have hμ_lo : (x : ℝ) - (d_next : ℝ) / 10 - 2 ≤ μ := by
-      dsimp only [μ]
-      rw [le_div_iff₀ hB_pos]
-      have hBx_ge : B * d_next / 10 + 1 ≤ B * x := by
-        have hd_le_x : 2 * d_next ≤ x := two_mul_delta_le_nFloor_of_eight_le (h8_le.trans hx_ge)
-        have hB1_nat : 1 ≤ B := Nat.two_pow_pos _
-        have hBd1 : 1 ≤ B * d_next := Nat.mul_pos hB1_nat (by omega)
-        have hdiv_le : B * d_next / 10 ≤ B * d_next := Nat.div_le_self _ 10
-        have h2Bd : 2 * (B * d_next) ≤ B * x := by
-          calc 2 * (B * d_next) = B * (2 * d_next) := by ring
-            _ ≤ B * x := Nat.mul_le_mul_left B hd_le_x
-        omega
-      have h1 : B * x - (B * d_next / 10 + 1) ≤ m := by
-        have := hm_bounds.1
-        omega
-      have hm_lo_r : (B : ℝ) * (x : ℝ) - ((B * d_next / 10 : ℕ) : ℝ) - 1 ≤ (m : ℝ) := by
-        have h1r : ((B * x - (B * d_next / 10 + 1) : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast h1
-        rw [Nat.cast_sub hBx_ge] at h1r
-        push_cast at h1r
-        linarith only [h1r]
-      have hmul_eq : ((x : ℝ) - (d_next : ℝ) / 10 - 2) * (B : ℝ) =
-          (B : ℝ) * (x : ℝ) - (B : ℝ) * (d_next : ℝ) / 10 - 2 * (B : ℝ) := by ring
-      linarith only [hm_lo_r, hdiv_r, hB1, hmul_eq]
-    have hμ_le_2x : μ ≤ 2 * (x : ℝ) := by
-      have hd_r : (2 : ℝ) * (d_next : ℝ) ≤ (x : ℝ) := by
-        exact_mod_cast two_mul_delta_le_nFloor_of_eight_le (h8_le.trans hx_ge)
-      have hx_r : (100 : ℝ) ≤ (x : ℝ) := by
-        have : 100 ≤ 256 ^ 9 := by decide
-        exact_mod_cast this.trans hx_ge
-      linarith only [hμ_hi, hd_r, hx_r]
-    have hdev_le : ((1 : ℝ) / 5) * μ ^ ((2 : ℝ) / 3) ≤ ((2 : ℝ) / 5) * ((d_next : ℝ) + 1) := by
-      set u : ℝ := μ ^ ((1 : ℝ) / 3)
-      have hu_pos : 0 < u := Real.rpow_pos_of_pos hμ_pos _
-      have hu3 : u ^ 3 = μ := by
-        dsimp only [u]
-        rw [← Real.rpow_natCast, ← Real.rpow_mul hμ_pos.le]
-        norm_num
-      have hu2 : μ ^ ((2 : ℝ) / 3) = u ^ 2 := by
-        dsimp only [u]
-        rw [← Real.rpow_natCast, ← Real.rpow_mul hμ_pos.le]
-        norm_num
-      have hx2_lt : (x : ℝ) ^ 2 ≤ ((d_next : ℝ) + 1) ^ 3 := by
-        have hlt_nat : x ^ 2 < (d_next + 1) ^ 3 := Nat.lt_pow_nthRoot_add_one (by decide) (x ^ 2)
-        exact_mod_cast hlt_nat.le
-      have hcube : (u ^ 2) ^ 3 ≤ (2 * ((d_next : ℝ) + 1)) ^ 3 := by
-        calc (u ^ 2) ^ 3 = (u ^ 3) ^ 2 := by ring
-          _ = μ ^ 2 := by rw [hu3]
-          _ ≤ (2 * (x : ℝ)) ^ 2 := pow_le_pow_left₀ hμ_pos.le hμ_le_2x 2
-          _ = 4 * (x : ℝ) ^ 2 := by ring
-          _ ≤ 8 * ((d_next : ℝ) + 1) ^ 3 := by linarith only [hx2_lt, sq_nonneg (x : ℝ)]
-          _ = (2 * ((d_next : ℝ) + 1)) ^ 3 := by ring
-      have hu2_le : u ^ 2 ≤ 2 * ((d_next : ℝ) + 1) :=
-        (pow_le_pow_iff_left₀ (sq_nonneg u)
-          (mul_nonneg zero_le_two (add_nonneg (Nat.cast_nonneg _) zero_le_one))
-          (by decide : 3 ≠ 0)).mp hcube
-      rw [hu2]
-      linarith only [hu2_le]
-    have hd_big : (10 : ℝ) ≤ (d_next : ℝ) := by
-      have : 10 ≤ 256 ^ 6 := by decide
-      exact_mod_cast this.trans hd_next_ge
-    have hnl_next : P.nLow (ℓ + 1) = x - d_next := by
-      change (if ℓ + 1 = 0 then n - 1 else x - d_next) = x - d_next
-      rw [ite_eq_right (by omega)]
-    have hnh_next : P.nHigh (ℓ + 1) = x + d_next := by
-      change (if ℓ + 1 = 0 then n else x + d_next) = x + d_next
-      rw [ite_eq_right (by omega)]
-    have hd_le_x : d_next ≤ x := by
-      have := two_mul_delta_le_nFloor_of_eight_le (h8_le.trans hx_ge)
-      omega
-    rw [hnl_next, hnh_next]
-    refine ⟨?_, ?_⟩
-    · have hgt : ((x - d_next : ℕ) : ℝ) < ((b_load + 1 : ℕ) : ℝ) := by
-        rw [Nat.cast_sub hd_le_x, Nat.cast_add, Nat.cast_one]
-        linarith only [hb_lo, hμ_lo, hdev_le, hd_big]
-      have hlt_nat : x - d_next < b_load + 1 := Nat.cast_lt.mp hgt
-      omega
-    · have hlt : (b_load : ℝ) < ((x + d_next + 1 : ℕ) : ℝ) := by
-        push_cast
-        linarith only [hb_hi, hμ_hi, hdev_le, hd_big]
-      have hlt_nat : b_load < x + d_next + 1 := Nat.cast_lt.mp hlt
-      omega
+    (canonicalSchedule h).ConcentrationReady where
+  six_le_nFloor ℓ hℓ := (by decide : 6 ≤ 256 ^ 9).trans (canonical_nFloor_ge_pow_256 h hℓ)
+  two_mul_delta_le_nFloor ℓ _ hℓ := canonicalSchedule_two_mul_delta_le_nFloor h hℓ
+  gap_bound _ hlt := canonical_gap_bound h hlt
+  conc_bound _ hlt := canonical_conc_bound h hlt
+  window_contained _ hlt := canonical_window_contained h hlt
+  id_collision_bound ℓ h1 hℓ := nHigh_sq_mul_nFloor_sq_le_four_mul_two_pow_idBits h1
+    ((by decide : 8 ≤ 256 ^ 9).trans (canonical_nFloor_ge_pow_256 h hℓ))
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

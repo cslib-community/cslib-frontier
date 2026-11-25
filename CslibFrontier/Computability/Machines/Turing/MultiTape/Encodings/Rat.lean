@@ -61,16 +61,14 @@ theorem encRat_apply (q : ℚ) : encRat q = encRatData (q.num, q.den) := rfl
 /-- Exact encoded bit length of `encRat q`. -/
 theorem length_encRat (q : ℚ) :
     (encRat q).length = 2 * q.num.natAbs.size + q.den.size + 3 := by
-  rw [encRat_apply, encRatData, length_encPair, length_encIntBin, encNat_apply,
+  simp only [encRat_apply, encRatData, length_encPair, length_encIntBin, encNat_apply,
     Nat.size_eq_bits_len]
-  dsimp only
   omega
 
 /-- Every encoded rational uses at least `4` bits. -/
 theorem four_le_length_encRat (q : ℚ) : 4 ≤ (encRat q).length := by
-  rw [length_encRat]
-  have hden : 1 ≤ q.den.size := Nat.size_pos.mpr q.pos
-  omega
+  have := Nat.size_pos.mpr q.pos
+  rw [length_encRat]; omega
 
 theorem length_encRat_num_le (q : ℚ) : (encIntBin q.num).length ≤ (encRat q).length :=
   length_le_encPair_left encIntBin encNat (q.num, q.den)
@@ -81,39 +79,31 @@ theorem length_encRat_den_le (q : ℚ) : (encNat q.den).length ≤ (encRat q).le
 /-- Upper bound on `(encRat q).length` in terms of `|q.num|` and `q.den` binary sizes. -/
 theorem length_encRat_le (q : ℚ) {A B : ℕ} (hnum : q.num.natAbs ≤ A) (hden : q.den ≤ B) :
     (encRat q).length ≤ 2 * A.size + B.size + 3 := by
-  rw [length_encRat]
-  have hn : q.num.natAbs.size ≤ A.size := Nat.size_le_size hnum
-  have hd : q.den.size ≤ B.size := Nat.size_le_size hden
-  omega
+  have := Nat.size_le_size hnum
+  have := Nat.size_le_size hden
+  rw [length_encRat]; omega
 
 /-- The numerator magnitude of `q` is strictly below `2 ^ (encRat q).length`. -/
 theorem natAbs_num_lt_two_pow_length_encRat (q : ℚ) :
     q.num.natAbs < 2 ^ (encRat q).length := by
-  refine (Nat.lt_size_self q.num.natAbs).trans_le ?_
-  refine Nat.pow_le_pow_right (by omega) ?_
+  refine (Nat.lt_size_self q.num.natAbs).trans_le (Nat.pow_le_pow_right (by omega) ?_)
   have hnum := length_encRat_num_le q
-  rw [length_encIntBin] at hnum
-  omega
+  rw [length_encIntBin] at hnum; omega
 
 /-- The denominator of `q` is strictly below `2 ^ (encRat q).length`. -/
 theorem den_lt_two_pow_length_encRat (q : ℚ) : q.den < 2 ^ (encRat q).length := by
-  refine (Nat.lt_size_self q.den).trans_le ?_
-  refine Nat.pow_le_pow_right (by omega) ?_
+  refine (Nat.lt_size_self q.den).trans_le (Nat.pow_le_pow_right (by omega) ?_)
   have hden := length_encRat_den_le q
-  rw [encNat_apply, Nat.size_eq_bits_len] at hden
-  exact hden
+  rwa [encNat_apply, Nat.size_eq_bits_len] at hden
 
 /-- Encoded length of `Rat.divInt a b` in terms of the binary lengths of `a` and `b`. -/
 theorem length_encRat_divInt_le (a b : ℤ) :
     (encRat (Rat.divInt a b)).length ≤ 2 * (encIntBin a).length + (encIntBin b).length + 1 := by
   rw [length_encRat, length_encIntBin, length_encIntBin]
   by_cases hb : b = 0
-  · subst hb
-    simp [Nat.size_zero]
-  · have hnum : (Rat.divInt a b).num.natAbs.size ≤ a.natAbs.size :=
-      Nat.size_le_size (Rat.natAbs_num_divInt_le a b hb)
-    have hden : (Rat.divInt a b).den.size ≤ b.natAbs.size :=
-      Nat.size_le_size (Rat.den_divInt_le a b hb)
+  · simp [hb, Nat.size_zero]
+  · have := Nat.size_le_size (Rat.natAbs_num_divInt_le a b hb)
+    have := Nat.size_le_size (Rat.den_divInt_le a b hb)
     omega
 
 /-- Negation preserves the encoded length of a rational number. -/
@@ -123,36 +113,30 @@ theorem length_encRat_neg (q : ℚ) : (encRat (-q)).length = (encRat q).length :
 /-- Encoded length of `q⁻¹` is at most twice that of `q`. -/
 theorem length_encRat_inv_le (q : ℚ) : (encRat q⁻¹).length ≤ 2 * (encRat q).length := by
   rw [length_encRat, length_encRat]
-  have hnum : q⁻¹.num.natAbs.size ≤ q.den.size := Nat.size_le_size (Rat.natAbs_num_inv_le q)
-  have hden : q⁻¹.den.size ≤ max q.num.natAbs.size 1 := by
-    refine (Nat.size_le_size (Rat.den_inv_le q)).trans ?_
-    by_cases h0 : q.num.natAbs = 0
-    · simp [h0]
-    · simp [Nat.max_eq_left (Nat.pos_of_ne_zero h0)]
+  have := Nat.size_le_size (Rat.natAbs_num_inv_le q)
+  have hden : q⁻¹.den.size ≤ max q.num.natAbs.size 1 :=
+    (Nat.size_le_size (Rat.den_inv_le q)).trans <| by
+      by_cases h0 : q.num.natAbs = 0
+      · simp [h0]
+      · simp [Nat.max_eq_left (Nat.pos_of_ne_zero h0)]
   omega
 
 /-- Encoded length of `a * b` is at most `(encRat a).length + (encRat b).length`. -/
 theorem length_encRat_mul_le (a b : ℚ) :
     (encRat (a * b)).length ≤ (encRat a).length + (encRat b).length := by
   rw [length_encRat, length_encRat, length_encRat]
-  have hnum : (a * b).num.natAbs.size ≤ a.num.natAbs.size + b.num.natAbs.size :=
-    (Nat.size_le_size (Rat.natAbs_num_mul_le a b)).trans (Nat.size_mul_le _ _)
-  have hden : (a * b).den.size ≤ a.den.size + b.den.size :=
-    (Nat.size_le_size (Rat.den_mul_le a b)).trans (Nat.size_mul_le _ _)
+  have := (Nat.size_le_size (Rat.natAbs_num_mul_le a b)).trans (Nat.size_mul_le _ _)
+  have := (Nat.size_le_size (Rat.den_mul_le a b)).trans (Nat.size_mul_le _ _)
   omega
 
 /-- Encoded length of `a + b` is at most `3 * ((encRat a).length + (encRat b).length)`. -/
 theorem length_encRat_add_le (a b : ℚ) :
     (encRat (a + b)).length ≤ 3 * ((encRat a).length + (encRat b).length) := by
   rw [length_encRat, length_encRat, length_encRat]
-  have hnum :
-      (a + b).num.natAbs.size ≤
-        a.num.natAbs.size + b.den.size + (b.num.natAbs.size + a.den.size) + 1 := by
-    refine (Nat.size_le_size (Rat.natAbs_num_add_le a b)).trans ?_
-    refine (Nat.size_add_le _ _).trans ?_
-    exact Nat.add_le_add_right (Nat.add_le_add (Nat.size_mul_le _ _) (Nat.size_mul_le _ _)) 1
-  have hden : (a + b).den.size ≤ a.den.size + b.den.size :=
-    (Nat.size_le_size (Rat.den_add_le a b)).trans (Nat.size_mul_le _ _)
+  have := (Nat.size_le_size (Rat.natAbs_num_add_le a b)).trans <|
+    (Nat.size_add_le _ _).trans <|
+      Nat.add_le_add_right (Nat.add_le_add (Nat.size_mul_le _ _) (Nat.size_mul_le _ _)) 1
+  have := (Nat.size_le_size (Rat.den_add_le a b)).trans (Nat.size_mul_le _ _)
   omega
 
 /-- Encoded length of `a - b` is at most `3 * ((encRat a).length + (encRat b).length)`. -/

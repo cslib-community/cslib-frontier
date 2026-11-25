@@ -430,18 +430,10 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
             else PMF.pure false) := by
       simp only [gameOn, lorToSingleAt, decide_eq_true hlt, ↓reduceIte, pmf_norm,
         apply_ite ProbComp.eval, lorToSingleStateDecoder.decode_enc]
-    have hsplit_eq : (Game.succProbability
-          (ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary split n)) : ℝ) -
-        Game.succProbability
-          (ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary (split + 1) n)) =
-        (Game.succProbability (ProbComp.eval
-          (lorHybridGameOn valid keyGen encrypt Q adversary
-            (if false then split + 1 else split) n)) : ℝ) -
-        Game.succProbability (ProbComp.eval
-          (lorHybridGameOn valid keyGen encrypt Q adversary
-            (if true then split + 1 else split) n)) := by
-      simp only [Bool.false_eq_true, ↓reduceIte]
-    rw [hsplit_eq, lhs_eq false, lhs_eq true, rhs_eq false, rhs_eq true]
+    have h0 := lhs_eq false
+    have h1 := lhs_eq true
+    simp only [Bool.false_eq_true, ↓reduceIte] at h0 h1
+    rw [h0, h1, rhs_eq false, rhs_eq true]
     simp only [PMF.monad_bind_eq_bind]
     rw [sub_eq_sub_iff_add_eq_add, Game.coe_succProbability, Game.coe_succProbability,
       Game.coe_succProbability, Game.coe_succProbability,
@@ -621,11 +613,7 @@ theorem INDCPAOn.lorINDCPAOn {Msg : Type}
   intro adversary hadversary
   have hsingleNeg := h (lorToSingle valid encrypt Q adversary)
     (isPPT_lorToSingle hvalid hencrypt hctBound hctLen hQ hadversary)
-  have hpolyDyadic : Cslib.PolynomiallyBounded (fun n => dyadicSize (Q n)) := by
-    have hQpoly : Cslib.PolynomiallyBounded Q := hQ.polynomiallyBounded
-    fun_prop
-  refine negligible_of_le (hsingleNeg.polynomiallyBounded_mul hpolyDyadic) fun n => ?_
-  rw [advantage_lorGameOn_eq valid keyGen encrypt Q adversary n]
+  negligible using fun n => (advantage_lorGameOn_eq valid keyGen encrypt Q adversary n).le
 
 /-- **Theorem 11.1 (unrestricted messages):** unrestricted `INDCPAOf` implies `LoRINDCPAOf`.
 - `hencrypt`: `encrypt` must be uniformly strict PPT so `lorToSingle` can simulate prefix/suffix

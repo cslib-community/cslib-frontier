@@ -15,7 +15,7 @@ public import Cslib.Foundations.Data.BitString
 public import Mathlib.Algebra.Ring.BooleanRing
 public import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace.Defs
 public import Mathlib.LinearAlgebra.Basis.Defs
-import Mathlib.Algebra.Module.ZMod
+import CslibFrontier.Foundations.Data.BitString.ZModSpace
 import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace.Basic
 import Mathlib.LinearAlgebra.Dimension.Constructions
 import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
@@ -74,10 +74,6 @@ noncomputable def traceSymBits (μ : F) (r t : ℕ) (b : Basis ι (ZMod 2) F)
     (pos : Fin r × ι → Fin N) (x : BitString N) : Bool :=
   bitEquiv (traceSym μ r t (readField b pos x))
 
-/-- The additive isomorphism `BitString N ≃+ (Fin N → ZMod 2)`, bit by bit. -/
-private def toZMod (N : ℕ) : BitString N ≃+ (Fin N → ZMod 2) :=
-  AddEquiv.piCongrRight fun _ => bitEquiv.symm.toAddEquiv
-
 /-- Reading field elements as an `𝔽₂`-linear map. -/
 private noncomputable def readLinear (b : Basis ι (ZMod 2) F) (pos : Fin r × ι → Fin N) :
     (Fin N → ZMod 2) →ₗ[ZMod 2] Fin r → F :=
@@ -85,9 +81,11 @@ private noncomputable def readLinear (b : Basis ι (ZMod 2) F) (pos : Fin r × �
     LinearMap.funLeft (ZMod 2) (ZMod 2) fun j => pos (i, j)
 
 private theorem readField_eq (b : Basis ι (ZMod 2) F) (pos : Fin r × ι → Fin N)
-    (x : BitString N) : readField b pos x = readLinear b pos (toZMod N x) := by
+    (x : BitString N) : readField b pos x = readLinear b pos (toZModSpace (Fin N) x) := by
   funext i
-  simp [readField, ofBits, readLinear, toZMod, Basis.equivFun_symm_apply]
+  simp only [readField, ofBits, readLinear, LinearMap.pi_apply, LinearMap.coe_comp,
+    LinearEquiv.coe_coe, Function.comp_apply, Basis.equivFun_symm_apply]
+  rfl
 
 /-- Reading forgets at most `N - r n` dimensions. -/
 private theorem finrank_ker_readLinear_le (b : Basis ι (ZMod 2) F) {pos : Fin r × ι → Fin N}
@@ -130,18 +128,9 @@ theorem exists_traceSymBits_ne [Finite F] {n s t : ℕ} (hn : finrank (ZMod 2) F
     exact Nat.not_lt_zero _ hA
   obtain ⟨p, hp⟩ := hAne
   set W := A.direction
-  set E := toZMod N
-  -- the direction of `A`, as an `𝔽₂`-subspace of `Fin N → ZMod 2`
-  set WZ : Submodule (ZMod 2) (Fin N → ZMod 2) :=
-    AddSubgroup.toZModSubmodule 2 (W.toAddSubgroup.map E.toAddMonoidHom)
-  have hWZ : finrank (ZMod 2) WZ = finrank Bool W := by
-    have h := rank_eq_of_equiv_equiv (R := Bool) (R' := ZMod 2) (M := W) (M₁ := WZ)
-      bitEquiv.symm (E.addSubgroupMap W.toAddSubgroup) bitEquiv.symm.bijective fun c w => by
-        apply Subtype.ext
-        funext k
-        change bitEquiv.symm ((c • (w : BitString N)) k) = bitEquiv.symm c * bitEquiv.symm (w.1 k)
-        rw [Pi.smul_apply, smul_eq_mul, map_mul]
-    exact (congrArg Cardinal.toNat h).symm
+  set E := toZModSpace (Fin N)
+  set WZ := submoduleZModIso (Fin N) W
+  have hWZ : finrank (ZMod 2) WZ = finrank Bool W := finrank_submoduleZModIso W
   set ψ := readLinear b pos
   set A' : AffineSubspace (ZMod 2) (Fin r → F) := AffineSubspace.mk' (ψ (E p)) (WZ.map ψ)
   have hdim : finrank Bool W - (N - r * n) ≤ finrank (ZMod 2) A'.direction := by
@@ -162,11 +151,11 @@ theorem exists_traceSymBits_ne [Finite F] {n s t : ℕ} (hn : finrank (ZMod 2) F
   have hlift : ∀ z ∈ A', ∃ x ∈ A, readField b pos x = z := by
     intro z hz
     rw [AffineSubspace.mem_mk'] at hz
-    obtain ⟨w', ⟨w, hw, rfl⟩, hwz⟩ := hz
-    refine ⟨w +ᵥ p, AffineSubspace.vadd_mem_of_mem_direction hw hp, ?_⟩
-    rw [readField_eq, vadd_eq_add, map_add, map_add]
-    change ψ (E.toAddMonoidHom w) + ψ (E p) = z
-    rw [hwz, vsub_eq_sub, sub_add_cancel]
+    obtain ⟨wZ, hwZ, hwz⟩ := Submodule.mem_map.mp hz
+    refine ⟨E.symm wZ +ᵥ p,
+      AffineSubspace.vadd_mem_of_mem_direction (mem_submoduleZModIso.mp hwZ) hp, ?_⟩
+    rw [readField_eq, vadd_eq_add, map_add, E.apply_symm_apply, map_add, hwz, vsub_eq_sub,
+      sub_add_cancel]
   obtain ⟨x, hx, rfl⟩ := hlift x' hx'
   obtain ⟨y, hy, rfl⟩ := hlift y' hy'
   exact ⟨x, hx, y, hy, fun h => hne (bitEquiv.injective h)⟩

@@ -26,6 +26,7 @@ with a different within-byte convention, such as FIPS 202's Keccak, keep that co
 
 * `Cslib.Crypto.Byte`: one unsigned byte.
 * `Cslib.Crypto.FixedBytes`: a byte string whose length is part of its type.
+* `Cslib.Crypto.FixedBytes.ofListExact`: turn a list with a proved length into typed bytes.
 * `Cslib.Crypto.bytesToBitsBE`: big-endian serialization of a list of bytes.
 * `Cslib.Crypto.bitsToFixedBytesBE`: split a bit list into typed big-endian bytes.
 
@@ -56,18 +57,27 @@ abbrev FixedBytes (n : ℕ) := Fin n → Byte
 
 namespace FixedBytes
 
+/-- Turn a list whose length is known exactly into a fixed-length byte string. -/
+def ofListExact {n : ℕ} (X : List Byte) (h : X.length = n) : FixedBytes n := fun i =>
+  X.get ⟨i.val, by simp [h]⟩
+
 /-- The list view of a fixed-length byte string. -/
-def toList {n : ℕ} (X : FixedBytes n) : List Byte := List.ofFn X
+@[expose] def toList {n : ℕ} (X : FixedBytes n) : List Byte := List.ofFn X
 
 /-- The list view has the byte length recorded in the type. -/
 @[simp] theorem length_toList {n : ℕ} (X : FixedBytes n) : X.toList.length = n := by
   simp [toList]
 
+/-- The list view of `ofListExact X h` is the list `X` it was built from. -/
+@[simp] theorem toList_ofListExact {n : ℕ} (X : List Byte) (h : X.length = n) :
+    (ofListExact X h).toList = X := by
+  subst h
+  exact List.ofFn_get X
+
 /-- A byte string of length `n` is the list view of a fixed-length byte string. -/
 theorem exists_toList {n : ℕ} {bytes : List Byte} (h : bytes.length = n) :
-    ∃ v : FixedBytes n, v.toList = bytes := by
-  subst n
-  exact ⟨fun i => bytes[i.val], List.ofFn_getElem⟩
+    ∃ v : FixedBytes n, v.toList = bytes :=
+  ⟨ofListExact bytes h, toList_ofListExact bytes h⟩
 
 end FixedBytes
 
@@ -87,17 +97,15 @@ def bytesToBitsBE : List Byte → List Bool
   induction X with
   | nil => simp [bytesToBitsBE]
   | cons x X ih =>
-    simp only [bytesToBitsBE, byteBitsBE, List.length_append, ih, List.length_cons]
-    rw [length_binaryWord x.isLt]
+    simp only [bytesToBitsBE, byteBitsBE, List.length_append, ih, List.length_cons,
+      length_binaryWord x.isLt]
     omega
 
 /-- One byte and its eight-bit big-endian serialization have the same strict order. -/
 private theorem byteBitsBE_lt_iff_lt (x y : Byte) :
     byteBitsBE x < byteBitsBE y ↔ x < y := by
-  have hlength : (byteBitsBE x).length = (byteBitsBE y).length := by
-    change (binaryWord 8 x).length = (binaryWord 8 y).length
-    rw [length_binaryWord x.isLt, length_binaryWord y.isLt]
-  rw [← BitString.binaryValue_lt_iff_lt hlength]
+  rw [← BitString.binaryValue_lt_iff_lt (by simp [byteBitsBE, length_binaryWord x.isLt,
+    length_binaryWord y.isLt])]
   simp [byteBitsBE]
 
 /-- Equal-length byte strings and their big-endian bit serializations have the same strict
@@ -106,42 +114,25 @@ theorem bytesToBitsBE_lt_iff_lt {X Y : List Byte} (hlength : X.length = Y.length
     bytesToBitsBE X < bytesToBitsBE Y ↔ X < Y := by
   induction X generalizing Y with
   | nil =>
-      obtain rfl : Y = [] := List.length_eq_zero_iff.mp hlength.symm
-      simp [bytesToBitsBE]
+    obtain rfl : Y = [] := List.length_eq_zero_iff.mp hlength.symm
+    simp [bytesToBitsBE]
   | cons x X ih =>
-      obtain ⟨y, Y, rfl⟩ := List.exists_cons_of_length_eq_add_one hlength.symm
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at hlength
-      have byteBitsLength (z : Byte) : (byteBitsBE z).length = 8 := by
-        change (binaryWord 8 z).length = 8
-        exact length_binaryWord z.isLt
-      rcases lt_trichotomy x y with hlt | heq | hgt
-      · have hbits := (byteBitsBE_lt_iff_lt x y).2 hlt
-        have happend := List.append_lt_append_of_lt_of_length_eq hbits
-          ((byteBitsLength x).trans (byteBitsLength y).symm)
-          (bytesToBitsBE X) (bytesToBitsBE Y)
-        exact iff_of_true (by simpa [bytesToBitsBE] using happend)
-          (by exact List.Lex.rel hlt)
-      · subst y
-        have prefixCancel : ∀ s : List Bool,
-            s ++ bytesToBitsBE X < s ++ bytesToBitsBE Y ↔
-              bytesToBitsBE X < bytesToBitsBE Y := by
-          intro s
-          induction s with
-          | nil => rfl
-          | cons bit tail ihprefix =>
-              exact List.lex_cons_iff.trans ihprefix
-        simp only [bytesToBitsBE]
-        rw [prefixCancel (byteBitsBE x), ih hlength]
-        exact List.lex_cons_iff.symm
-      · have hbits := (byteBitsBE_lt_iff_lt y x).2 hgt
-        have happend := List.append_lt_append_of_lt_of_length_eq hbits
-          ((byteBitsLength y).trans (byteBitsLength x).symm)
-          (bytesToBitsBE Y) (bytesToBitsBE X)
-        have hnotBits : ¬ (bytesToBitsBE (x :: X) < bytesToBitsBE (y :: Y)) :=
-          not_lt_of_gt (by simpa [bytesToBitsBE] using happend)
-        have hnotBytes : ¬ (x :: X < y :: Y) :=
-          not_lt_of_gt (show y :: Y < x :: X from List.Lex.rel hgt)
-        exact iff_of_false hnotBits hnotBytes
+    obtain ⟨y, Y, rfl⟩ := List.exists_cons_of_length_eq_add_one hlength.symm
+    simp only [List.length_cons, Nat.add_right_cancel_iff] at hlength
+    have hlen (z : Byte) : (byteBitsBE z).length = 8 := length_binaryWord z.isLt
+    have happ {a b : Byte} (h : a < b) (A B : List Bool) :
+        byteBitsBE a ++ A < byteBitsBE b ++ B :=
+      List.append_lt_append_of_lt_of_length_eq ((byteBitsBE_lt_iff_lt a b).2 h)
+        ((hlen a).trans (hlen b).symm) A B
+    rcases lt_trichotomy x y with hlt | rfl | hgt
+    · exact iff_of_true (happ hlt _ _) (List.Lex.rel hlt)
+    · have hpre (s : List Bool) :
+          s ++ bytesToBitsBE X < s ++ bytesToBitsBE Y ↔ bytesToBitsBE X < bytesToBitsBE Y := by
+        induction s with
+        | nil => rfl
+        | cons _ _ ihs => exact List.lex_cons_iff.trans ihs
+      exact (hpre (byteBitsBE x)).trans ((ih hlength).trans List.lex_cons_iff.symm)
+    · exact iff_of_false (not_lt_of_gt (happ hgt _ _)) (not_lt_of_gt (List.Lex.rel hgt))
 
 /-- Read at most eight big-endian bits as one byte. Missing low-order bits are not added; callers
 that require a full byte should supply an eight-bit chunk. -/
@@ -151,20 +142,15 @@ def byteOfBitsBE (bits : List Bool) : Byte :=
       (Nat.pow_le_pow_right (by decide) (List.length_take_le 8 bits))⟩
 
 /-- Serializing one byte to eight big-endian bits and reading it back recovers the byte. -/
-@[simp] theorem byteOfBitsBE_byteBitsBE (x : Byte) : byteOfBitsBE (byteBitsBE x) = x := by
-  apply Fin.ext
-  change binaryValue ((binaryWord 8 x).take 8) = x
-  have hlength : (binaryWord 8 x).length = 8 := length_binaryWord x.isLt
-  rw [List.take_of_length_le (Nat.le_of_eq hlength)]
-  exact binaryValue_binaryWord 8 x
+@[simp] theorem byteOfBitsBE_byteBitsBE (x : Byte) : byteOfBitsBE (byteBitsBE x) = x :=
+  Fin.ext (by simp [byteOfBitsBE, byteBitsBE, List.take_of_length_le (length_binaryWord x.isLt).le])
 
 /-- Reading an eight-bit word as a byte and serializing it recovers the word. -/
 @[simp] theorem byteBitsBE_byteOfBitsBE (bits : List Bool) (h : bits.length = 8) :
-    byteBitsBE (byteOfBitsBE bits) = bits := by
-  apply binaryValue_injective_of_length_eq
-  · simpa [byteBitsBE, h] using (length_binaryWord (byteOfBitsBE bits).isLt)
-  · simp only [byteBitsBE, binaryValue_binaryWord, byteOfBitsBE]
-    rw [List.take_of_length_le (by omega)]
+    byteBitsBE (byteOfBitsBE bits) = bits :=
+  binaryValue_injective_of_length_eq
+    (by simpa [byteBitsBE, h] using length_binaryWord (byteOfBitsBE bits).isLt)
+    (by simp [byteBitsBE, binaryValue_binaryWord, byteOfBitsBE, List.take_of_length_le h.le])
 
 /-- Split a bit list into `n` consecutive big-endian bytes. An incomplete or absent final chunk is
 read using `byteOfBitsBE`; exact-length clients avoid that fallback by construction. -/
@@ -177,23 +163,19 @@ def bitsToFixedBytesBE (n : ℕ) (bits : List Bool) : FixedBytes n := fun i =>
     bytesToBitsBE ((bitsToFixedBytesBE n bits).toList) = bits := by
   induction n generalizing bits with
   | zero =>
-      simp only [Nat.mul_zero] at h
-      rw [List.length_eq_zero_iff.mp h]
-      simp [FixedBytes.toList, bytesToBitsBE]
+    simp [List.length_eq_zero_iff.mp (by simpa using h : bits.length = 0),
+      FixedBytes.toList, bytesToBitsBE]
   | succ n ih =>
-      have hlength : 8 ≤ bits.length := by omega
-      have htake : (bits.take 8).length = 8 := by simp [Nat.min_eq_left hlength]
-      have hdrop : (bits.drop 8).length = 8 * n := by simp; omega
-      rw [show (bitsToFixedBytesBE (n + 1) bits).toList =
-          byteOfBitsBE (bits.take 8) :: (bitsToFixedBytesBE n (bits.drop 8)).toList by
-        simp only [bitsToFixedBytesBE, FixedBytes.toList, List.ofFn_succ]
-        congr 1
-        apply List.ofFn_inj.mpr
-        funext i
-        simp [bitsToFixedBytesBE, List.drop_drop, Nat.mul_add, Nat.add_comm]]
-      simp only [bytesToBitsBE]
-      rw [byteBitsBE_byteOfBitsBE (bits.take 8) htake, ih (bits.drop 8) hdrop,
-        List.take_append_drop]
+    have h8 : 8 ≤ bits.length := by omega
+    have hdrop : (bits.drop 8).length = 8 * n := by simp; omega
+    have hlist : (bitsToFixedBytesBE (n + 1) bits).toList =
+        byteOfBitsBE (bits.take 8) :: (bitsToFixedBytesBE n (bits.drop 8)).toList := by
+      simp only [bitsToFixedBytesBE, FixedBytes.toList, List.ofFn_succ, List.cons.injEq,
+        List.ofFn_inj]
+      refine ⟨by simp, funext fun i => ?_⟩
+      simp [bitsToFixedBytesBE, List.drop_drop, Nat.mul_add, Nat.add_comm]
+    simp only [hlist, bytesToBitsBE]
+    rw [byteBitsBE_byteOfBitsBE _ (by simp [h8]), ih _ hdrop, List.take_append_drop]
 
 /-- Encode a natural number as exactly `n` big-endian bytes, retaining its low `8n` bits. -/
 def natToFixedBytesBE (n value : ℕ) : FixedBytes n := fun i =>
@@ -203,13 +185,9 @@ private theorem natToFixedBytesBE_toList_succ (n value : ℕ) :
     (natToFixedBytesBE (n + 1) value).toList =
       ⟨value / 2 ^ (8 * n) % 256, Nat.mod_lt _ (by decide)⟩ ::
         (natToFixedBytesBE n value).toList := by
-  simp only [natToFixedBytesBE, FixedBytes.toList, List.ofFn_succ]
-  congr 1
-  apply List.ofFn_inj.mpr
-  funext i
-  apply Fin.ext
-  dsimp only
-  rw [Fin.val_succ]
+  simp only [natToFixedBytesBE, FixedBytes.toList, List.ofFn_succ, List.cons.injEq, List.ofFn_inj]
+  refine ⟨rfl, funext fun i => Fin.ext ?_⟩
+  simp only [Fin.val_succ]
   congr 3
   omega
 
@@ -218,31 +196,23 @@ theorem bytesToBitsBE_natToFixedBytesBE (n value : ℕ) :
     bytesToBitsBE (natToFixedBytesBE n value).toList =
       binaryWord (8 * n) (value % 2 ^ (8 * n)) := by
   induction n with
-  | zero =>
-      change [] = binaryWord 0 (value % 1)
-      rw [Nat.mod_one]
-      rfl
+  | zero => simp [Nat.mod_one]; rfl
   | succ n ih =>
-      rw [natToFixedBytesBE_toList_succ]
-      simp only [bytesToBitsBE, byteBitsBE, ih]
-      apply binaryValue_injective_of_length_eq
-      · rw [List.length_append,
-          length_binaryWord (Nat.mod_lt _ (by decide)),
-          length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _)),
-          length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _))]
-        omega
-      · rw [binaryValue_append, binaryValue_binaryWord, binaryValue_binaryWord,
-          binaryValue_binaryWord, length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _))]
-        rw [show 2 ^ (8 * (n + 1)) = 2 ^ (8 * n) * 256 by
-          rw [show 8 * (n + 1) = 8 * n + 8 by omega]
-          simp only [Nat.pow_succ]
-          omega]
-        calc
-          _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) +
-              value % 2 ^ (8 * n) := by rw [Nat.mod_mul_right_div_self]
-          _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) +
-              value % (2 ^ (8 * n) * 256) % 2 ^ (8 * n) := by
-                rw [Nat.mod_mul_right_mod]
-          _ = _ := Nat.div_add_mod' _ _
+    rw [natToFixedBytesBE_toList_succ]
+    simp only [bytesToBitsBE, byteBitsBE, ih]
+    refine binaryValue_injective_of_length_eq ?_ ?_
+    · rw [List.length_append, length_binaryWord (Nat.mod_lt _ (by decide)),
+        length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _)),
+        length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _))]
+      omega
+    · rw [binaryValue_append, binaryValue_binaryWord, binaryValue_binaryWord,
+        binaryValue_binaryWord, length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _)),
+        show 2 ^ (8 * (n + 1)) = 2 ^ (8 * n) * 256 by rw [Nat.mul_add, Nat.pow_add]]
+      calc
+        _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) + value % 2 ^ (8 * n) := by
+          rw [Nat.mod_mul_right_div_self]
+        _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) +
+            value % (2 ^ (8 * n) * 256) % 2 ^ (8 * n) := by rw [Nat.mod_mul_right_mod]
+        _ = _ := Nat.div_add_mod' _ _
 
 end Cslib.Crypto

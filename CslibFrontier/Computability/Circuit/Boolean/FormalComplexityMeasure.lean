@@ -83,37 +83,21 @@ theorem eval_le_leafSize (F : Formula signature n) (hF : F.IsConstantFree) :
       obtain ⟨hp, hn⟩ := ih 0 hF
       simpa [Formula.eval, interpretation, Formula.leafSize, Fin.sum_univ_one] using
         And.intro hn hp
-    | and =>
-      obtain ⟨hp₀, hn₀⟩ := ih 0 hF.1
-      obtain ⟨hp₁, hn₁⟩ := ih 1 hF.2
-      have hp := μ.and_le ((args 0).eval interpretation) ((args 1).eval interpretation)
-      have hn := μ.or_le (fun x => !((args 0).eval interpretation x))
-        (fun x => !((args 1).eval interpretation x))
-      constructor
-      · simpa [Formula.eval, interpretation, Formula.leafSize, Fin.sum_univ_two] using
-          hp.trans (Nat.add_le_add hp₀ hp₁)
-      · simpa [Formula.eval, interpretation, Formula.leafSize, Fin.sum_univ_two,
-          Bool.not_and] using hn.trans (Nat.add_le_add hn₀ hn₁)
-    | or =>
-      obtain ⟨hp₀, hn₀⟩ := ih 0 hF.1
-      obtain ⟨hp₁, hn₁⟩ := ih 1 hF.2
-      have hp := μ.or_le ((args 0).eval interpretation) ((args 1).eval interpretation)
-      have hn := μ.and_le (fun x => !((args 0).eval interpretation x))
-        (fun x => !((args 1).eval interpretation x))
-      constructor
-      · simpa [Formula.eval, interpretation, Formula.leafSize, Fin.sum_univ_two] using
-          hp.trans (Nat.add_le_add hp₀ hp₁)
-      · simpa [Formula.eval, interpretation, Formula.leafSize, Fin.sum_univ_two,
-          Bool.not_or] using hn.trans (Nat.add_le_add hn₀ hn₁)
+    | and | or =>
+      have hp := Nat.add_le_add (ih 0 hF.1).1 (ih 1 hF.2).1
+      have hn := Nat.add_le_add (ih 0 hF.1).2 (ih 1 hF.2).2
+      simp only [Formula.eval, interpretation, Formula.leafSize, Fin.sum_univ_two, Bool.not_and,
+        Bool.not_or]
+      first
+      | exact ⟨(μ.and_le _ _).trans hp, (μ.or_le _ _).trans hn⟩
+      | exact ⟨(μ.or_le _ _).trans hp, (μ.and_le _ _).trans hn⟩
 
 /-- **Arora–Barak, draft Theorem 22.1:** a formal complexity measure lower-bounds the leaf size
 of a constant-free formula computing the function. -/
 theorem le_leafSize {f : BooleanFunction n} {F : Formula signature n}
     (hF : F.IsConstantFree) (hf : F.Computes interpretation f) :
-    μ.measure f ≤ F.leafSize := by
-  have he : F.eval interpretation = f := funext hf
-  rw [← he]
-  exact (μ.eval_le_leafSize F hF).1
+    μ.measure f ≤ F.leafSize :=
+  (funext hf : F.eval interpretation = f) ▸ (μ.eval_le_leafSize F hF).1
 
 /-- Decomposing a function as an exclusive or gives a four-term measure bound. -/
 theorem le_four_terms (f g : BooleanFunction n) :
@@ -133,9 +117,7 @@ private theorem card_filter_involution {α : Type*} [Fintype α]
     (p : α → Prop) [DecidablePred p] (e : α → α) (he : Function.Involutive e) :
     (Finset.univ.filter fun x => p (e x)).card = (Finset.univ.filter p).card := by
   classical
-  apply Finset.card_bijective e he.bijective
-  intro x
-  simp
+  exact Finset.card_bijective e he.bijective fun x => by simp
 
 /-- **Arora–Barak, draft Lemma 22.2:** if one function has measure at least `c`, at least a
 quarter of all truth tables have measure at least `c / 4`. The inequalities clear denominators,

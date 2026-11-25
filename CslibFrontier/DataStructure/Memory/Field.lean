@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.WordRAM.ListArray
 public import CslibFrontier.DataStructure.Memory.Spec
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Named field arrays over the memory oracle
@@ -60,13 +62,12 @@ abbrev get (b : Block) (i : ℕ) : Memory.Prog ℕ := Memory.read (b.base + i)
 abbrev set (b : Block) (i v : ℕ) : Memory.Prog Unit := Memory.write (b.base + i) v
 
 /-- The block lies below the frontier, so all of its entries are allocated. -/
+@[wram_arith]
 def Allocated (b : Block) (s : Memory.State) : Prop := b.base + b.length ≤ s.frontier
 
 /-- An entry of an allocated block is an allocated address. -/
 theorem Allocated.lt_frontier {b : Block} {s : Memory.State} (h : b.Allocated s) {i : ℕ}
-    (hi : i < b.length) : b.base + i < s.frontier := by
-  unfold Allocated at h
-  omega
+    (hi : i < b.length) : b.base + i < s.frontier := by wram_omega [h]
 
 /-- A block stays allocated as the frontier grows. -/
 theorem Allocated.mono {b : Block} {s s' : Memory.State} (h : b.Allocated s)

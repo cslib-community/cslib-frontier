@@ -17,12 +17,15 @@ open Cslib Cslib.Circuits Cslib.Circuits.Boolean Cslib.Crypto.Homomorphic
 open Cslib.Crypto.Homomorphic.GSW
 open Turing.MultiTapeTM
 
--- A shifted partial product can be prepared for the carry-save reducer through plain APIs.
-example : ComputableInPolyTime (fun p : ℕ × ℕ =>
-    pairWithZeroCode (p.1 + p.1) p.1 (Modular.partialProductCode p.1 p.2))
-    (encPair encUnary encUnary) encCode :=
-  computableInPolyTime_pairWithZeroCode (by fun_prop) (by fun_prop)
-    Modular.computableInPolyTime_partialProductCode
+-- A shifted partial product can be prepared for the carry-save reducer through typed `(·.code)`.
+example : ComputableInPolyTime
+    (fun q : Σ w : ℕ, Fin w => (pairWithZero (Modular.partialProduct q.1 q.2)).code)
+    (Circuit.encWithFinUnary encUnary id) encCode := by
+  have hq : ComputableInPolyTime (fun q : Σ w : ℕ, Fin w => q.1)
+      (Circuit.encWithFinUnary encUnary id) encNat :=
+    ComputableInPolyTime.unary_to_binary.comp
+      (Circuit.computableInPolyTime_withFinUnary_fst ComputableInPolyTime.id')
+  fun_prop
 
 -- The reducer charges a runtime-supplied complete leaf list and a binary input arity.
 example : ComputableInPolyTime

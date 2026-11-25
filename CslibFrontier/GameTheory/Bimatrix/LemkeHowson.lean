@@ -147,21 +147,12 @@ omit [Fintype κ] in
 `k`-almost completely labelled iff `l = k` or `l` is a label of the other side. -/
 private theorem acl_pivot_iff {T T' S : Finset κ} {l : κ} (hT : ∀ j, j ≠ k → j ∈ T ∨ j ∈ S)
     (hT' : T.erase l ⊆ T') (hl : l ∉ T') :
-    (∀ j, j ≠ k → j ∈ T' ∨ j ∈ S) ↔ l = k ∨ l ∈ S := by
-  constructor
-  · intro h
-    by_contra hne
-    push Not at hne
-    rcases h l hne.1 with h | h
-    · exact hl h
-    · exact hne.2 h
-  · intro h j hj
-    by_cases hjl : j = l
-    · subst hjl
-      exact .inr (h.resolve_left hj)
-    · rcases hT j hj with h' | h'
-      · exact .inl (hT' (mem_erase.2 ⟨hjl, h'⟩))
-      · exact .inr h'
+    (∀ j, j ≠ k → j ∈ T' ∨ j ∈ S) ↔ l = k ∨ l ∈ S :=
+  ⟨fun h => by_contra fun hne => by
+      push Not at hne
+      exact (h l hne.1).elim hl hne.2,
+    fun h j hj => if hjl : j = l then .inr (hjl ▸ h.resolve_left (hjl ▸ hj))
+      else (hT j hj).imp (fun h' => hT' (mem_erase.2 ⟨hjl, h'⟩)) id⟩
 
 /-- If the label sets of a completely labelled pair have sizes adding up to `card κ`, then
 exactly one label can be dropped: `k` itself, from the side that has it. -/
@@ -169,15 +160,13 @@ private theorem card_filter_add_card_filter_of_forall {T₁ T₂ : Finset κ}
     (hcard : #T₁ + #T₂ = Fintype.card κ) (hcl : ∀ j, j ∈ T₁ ∨ j ∈ T₂) :
     #{l ∈ T₁ | l = k ∨ l ∈ T₂} + #{l ∈ T₂ | l = k ∨ l ∈ T₁} = 1 := by
   have hui := card_union_add_card_inter T₁ T₂
-  have hu : T₁ ∪ T₂ = univ := eq_univ_of_forall fun j => mem_union.2 (hcl j)
-  rw [hu, card_univ] at hui
+  rw [eq_univ_of_forall fun j => mem_union.2 (hcl j), card_univ] at hui
   have hdisj : Disjoint T₁ T₂ := disjoint_iff_inter_eq_empty.2 (card_eq_zero.1 (by omega))
-  rw [filter_congr (q := (· = k)) fun l hl => or_iff_left (disjoint_left.1 hdisj hl),
-    filter_congr (q := (· = k)) fun l hl => or_iff_left (disjoint_right.1 hdisj hl),
+  rw [filter_congr (q := (· = k)) fun _ hl => or_iff_left (disjoint_left.1 hdisj hl),
+    filter_congr (q := (· = k)) fun _ hl => or_iff_left (disjoint_right.1 hdisj hl),
     filter_eq', filter_eq']
-  rcases hcl k with h | h
-  · simp [h, disjoint_left.1 hdisj h]
-  · simp [h, disjoint_right.1 hdisj h]
+  exact (hcl k).elim (fun h => by simp [h, disjoint_left.1 hdisj h])
+    fun h => by simp [h, disjoint_right.1 hdisj h]
 
 /-- If the label sets of a `k`-almost but not completely labelled pair have sizes adding up to
 `card κ`, then exactly one label is duplicate, and it can be dropped from either side. -/
@@ -187,22 +176,19 @@ private theorem card_filter_add_card_filter_of_not_forall {T₁ T₂ : Finset κ
     #{l ∈ T₁ | l = k ∨ l ∈ T₂} + #{l ∈ T₂ | l = k ∨ l ∈ T₁} = 2 := by
   push Not at hcl
   obtain ⟨j, hj1, hj2⟩ := hcl
-  have hjk : j = k := by
-    by_contra h
-    rcases hacl j h with h | h <;> contradiction
-  subst hjk
+  obtain rfl : j = k := by_contra fun h => (hacl j h).elim hj1 hj2
   have hui := card_union_add_card_inter T₁ T₂
   have hu : T₁ ∪ T₂ = univ.erase j := by
     ext l
     simp only [mem_union, mem_erase, mem_univ, and_true]
-    constructor
-    · rintro (h | h) rfl <;> contradiction
-    · exact hacl l
+    exact ⟨by rintro (h | h) rfl <;> contradiction, hacl l⟩
   have hpos : 0 < Fintype.card κ := Fintype.card_pos_iff.2 ⟨j⟩
   rw [hu, card_erase_of_mem (mem_univ _), card_univ] at hui
-  rw [filter_congr (q := (· ∈ T₂)) fun l hl => or_iff_right (fun (h : l = j) => hj1 (h ▸ hl)),
-    filter_congr (q := (· ∈ T₁)) fun l hl => or_iff_right (fun (h : l = j) => hj2 (h ▸ hl)),
-    filter_mem_eq_inter, filter_mem_eq_inter, inter_comm T₂]
+  have hf {S R : Finset κ} (hjS : j ∉ S) : {l ∈ S | l = j ∨ l ∈ R} = S ∩ R := by
+    ext l
+    simp only [mem_filter, mem_inter]
+    exact and_congr_right fun hl => or_iff_right fun h => hjS (h ▸ hl)
+  rw [hf hj1, hf hj2, inter_comm T₂]
   omega
 
 variable [IsStrictOrderedRing K]
@@ -249,21 +235,20 @@ theorem graph_adj_iff {p q : Node A₁ b₁ A₂ b₂ k} :
       (∃ l ∈ tightRows A₂ b₂ p.y, (l = k ∨ l ∈ tightRows A₁ b₁ p.x) ∧
         q.y = pivotVertex A₂ b₂ p.y l ∧ q.x = p.x) := by
   rw [graph_adj]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro (⟨hxe, hadj⟩ | ⟨hye, hadj⟩)
     · obtain ⟨l, hl, hq⟩ := (vertexAdj_iff_exists_pivotVertex hnd₂ hrec₂ p.isVertex_y).1 hadj
-      obtain ⟨-, -, hT⟩ := p.isVertex_y.pivotVertex_spec hnd₂ hrec₂ hl
-      have hlq := p.isVertex_y.notMem_tightRows_pivotVertex hnd₂ hrec₂ hl
-      have key := (acl_pivot_iff (S := tightRows A₁ b₁ p.x)
-        (fun j hj => (p.almostCompletelyLabeled j hj).symm) hT hlq).1
-        (fun j hj => by rw [← hq, hxe]; exact (q.almostCompletelyLabeled j hj).symm)
-      exact .inr ⟨l, hl, key, hq, hxe.symm⟩
+      refine .inr ⟨l, hl, (acl_pivot_iff (fun j hj => (p.almostCompletelyLabeled j hj).symm)
+        (p.isVertex_y.pivotVertex_spec hnd₂ hrec₂ hl).2.2
+        (p.isVertex_y.notMem_tightRows_pivotVertex hnd₂ hrec₂ hl)).1 (fun j hj => ?_), hq, hxe.symm⟩
+      rw [← hq, hxe]
+      exact (q.almostCompletelyLabeled j hj).symm
     · obtain ⟨l, hl, hq⟩ := (vertexAdj_iff_exists_pivotVertex hnd₁ hrec₁ p.isVertex_x).1 hadj
-      obtain ⟨-, -, hT⟩ := p.isVertex_x.pivotVertex_spec hnd₁ hrec₁ hl
-      have hlq := p.isVertex_x.notMem_tightRows_pivotVertex hnd₁ hrec₁ hl
-      have key := (acl_pivot_iff (S := tightRows A₂ b₂ p.y) p.almostCompletelyLabeled hT hlq).1
-        (fun j hj => by rw [← hq, hye]; exact q.almostCompletelyLabeled j hj)
-      exact .inl ⟨l, hl, key, hq, hye.symm⟩
+      refine .inl ⟨l, hl, (acl_pivot_iff p.almostCompletelyLabeled
+        (p.isVertex_x.pivotVertex_spec hnd₁ hrec₁ hl).2.2
+        (p.isVertex_x.notMem_tightRows_pivotVertex hnd₁ hrec₁ hl)).1 (fun j hj => ?_), hq, hye.symm⟩
+      rw [← hq, hye]
+      exact q.almostCompletelyLabeled j hj
   · rintro (⟨l, hl, -, hqx, hqy⟩ | ⟨l, hl, -, hqy, hqx⟩)
     · exact .inr ⟨hqy.symm, hqx ▸ (vertexAdj_iff_exists_pivotVertex hnd₁ hrec₁ p.isVertex_x).2
         ⟨l, hl, rfl⟩⟩
@@ -284,41 +269,34 @@ theorem ncard_neighborSet (p : Node A₁ b₁ A₂ b₂ k) :
     ext ⟨u, w⟩
     simp only [Set.mem_image, SimpleGraph.mem_neighborSet, coe_union, coe_image, Set.mem_union,
       mem_coe, mem_filter]
-    constructor
+    refine ⟨?_, ?_⟩
     · rintro ⟨q, hq, hqe⟩
       rw [graph_adj_iff hnd₁ hrec₁ hnd₂ hrec₂] at hq
-      simp only [Node.toProd, Prod.mk.injEq] at hqe
-      obtain ⟨rfl, rfl⟩ := hqe
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hqe
       rcases hq with ⟨l, hl, hlk, hqx, hqy⟩ | ⟨l, hl, hlk, hqy, hqx⟩
       · exact .inl ⟨l, ⟨hl, hlk⟩, by rw [hqx, hqy]⟩
       · exact .inr ⟨l, ⟨hl, hlk⟩, by rw [hqx, hqy]⟩
     · rintro (⟨l, ⟨hl, hlk⟩, he⟩ | ⟨l, ⟨hl, hlk⟩, he⟩)
       · obtain ⟨hv, -, hT⟩ := p.isVertex_x.pivotVertex_spec hnd₁ hrec₁ hl
         have hlq := p.isVertex_x.notMem_tightRows_pivotVertex hnd₁ hrec₁ hl
-        refine ⟨⟨pivotVertex A₁ b₁ p.x l, p.y, hv, p.isVertex_y,
-          (acl_pivot_iff p.almostCompletelyLabeled hT hlq).2 hlk⟩, ?_, he⟩
-        rw [graph_adj_iff hnd₁ hrec₁ hnd₂ hrec₂]
-        exact .inl ⟨l, hl, hlk, rfl, rfl⟩
+        exact ⟨⟨pivotVertex A₁ b₁ p.x l, p.y, hv, p.isVertex_y,
+          (acl_pivot_iff p.almostCompletelyLabeled hT hlq).2 hlk⟩,
+          (graph_adj_iff hnd₁ hrec₁ hnd₂ hrec₂).2 (.inl ⟨l, hl, hlk, rfl, rfl⟩), he⟩
       · obtain ⟨hv, -, hT⟩ := p.isVertex_y.pivotVertex_spec hnd₂ hrec₂ hl
         have hlq := p.isVertex_y.notMem_tightRows_pivotVertex hnd₂ hrec₂ hl
-        refine ⟨⟨p.x, pivotVertex A₂ b₂ p.y l, p.isVertex_x, hv, fun j hj =>
+        exact ⟨⟨p.x, pivotVertex A₂ b₂ p.y l, p.isVertex_x, hv, fun j hj =>
           ((acl_pivot_iff (fun j hj => (p.almostCompletelyLabeled j hj).symm) hT hlq).2 hlk j
-            hj).symm⟩, ?_, he⟩
-        rw [graph_adj_iff hnd₁ hrec₁ hnd₂ hrec₂]
-        exact .inr ⟨l, hl, hlk, rfl, rfl⟩
+            hj).symm⟩,
+          (graph_adj_iff hnd₁ hrec₁ hnd₂ hrec₂).2 (.inr ⟨l, hl, hlk, rfl, rfl⟩), he⟩
   rw [← Set.ncard_image_of_injective _ Node.toProd_injective, himage, Set.ncard_coe_finset,
     card_union_of_disjoint, card_image_of_injOn, card_image_of_injOn]
-  · intro l₁ hl₁ l₂ hl₂ h
-    exact p.isVertex_y.pivotVertex_injOn hnd₂ hrec₂ (mem_filter.1 hl₁).1 (mem_filter.1 hl₂).1
-      (congrArg Prod.snd h)
-  · intro l₁ hl₁ l₂ hl₂ h
-    exact p.isVertex_x.pivotVertex_injOn hnd₁ hrec₁ (mem_filter.1 hl₁).1 (mem_filter.1 hl₂).1
-      (congrArg Prod.fst h)
-  · rw [disjoint_left]
-    intro u hu₁ hu₂
-    simp only [mem_image] at hu₁ hu₂
-    obtain ⟨l₁, hl₁, rfl⟩ := hu₁
-    obtain ⟨l₂, -, he⟩ := hu₂
+  · exact fun _ hl₁ _ hl₂ h => p.isVertex_y.pivotVertex_injOn hnd₂ hrec₂
+      (mem_filter.1 hl₁).1 (mem_filter.1 hl₂).1 (congrArg Prod.snd h)
+  · exact fun _ hl₁ _ hl₂ h => p.isVertex_x.pivotVertex_injOn hnd₁ hrec₁
+      (mem_filter.1 hl₁).1 (mem_filter.1 hl₂).1 (congrArg Prod.fst h)
+  · refine disjoint_left.2 fun _ hu₁ hu₂ => ?_
+    obtain ⟨l₁, hl₁, rfl⟩ := mem_image.1 hu₁
+    obtain ⟨_, -, he⟩ := mem_image.1 hu₂
     exact (p.isVertex_x.pivotVertex_spec hnd₁ hrec₁ (mem_filter.1 hl₁).1).2.1
       (congrArg Prod.fst he).symm
 
@@ -359,24 +337,18 @@ theorem even_ncard_completelyLabeled [Nonempty κ]
   have hodd : (univ.filter fun p => Odd ((graph A₁ b₁ A₂ b₂ k).degree p)) =
       univ.filter fun p : Node A₁ b₁ A₂ b₂ k => CompletelyLabeled A₁ b₁ A₂ b₂ p.x p.y := by
     ext p
-    simp only [mem_filter, mem_univ, true_and]
-    rw [← SimpleGraph.card_neighborFinset_eq_degree, ← Set.ncard_coe_finset,
-      SimpleGraph.coe_neighborFinset]
+    simp only [mem_filter, mem_univ, true_and, ← SimpleGraph.card_neighborFinset_eq_degree,
+      ← Set.ncard_coe_finset, SimpleGraph.coe_neighborFinset]
     by_cases h : CompletelyLabeled A₁ b₁ A₂ b₂ p.x p.y
     · simp [h, ncard_neighborSet_of_completelyLabeled hnd₁ hrec₁ hnd₂ hrec₂ hcard p h]
     · simp [h, ncard_neighborSet_of_not_completelyLabeled hnd₁ hrec₁ hnd₂ hrec₂ hcard p h]
   rw [hodd] at heven
   convert heven using 1
   rw [← Set.ncard_coe_finset, ← Set.ncard_image_of_injective _ Node.toProd_injective]
-  congr 1
-  ext ⟨x, y⟩
-  simp only [Set.mem_ofPred_eq, coe_filter, mem_univ, true_and, Set.mem_image]
-  constructor
-  · rintro ⟨hx, hy, hcl⟩
-    exact ⟨⟨x, y, hx, hy, fun j _ => hcl j⟩, hcl, Node.toProd_mk _ _ _⟩
-  · rintro ⟨p, hcl, he⟩
-    simp only [Node.toProd, Prod.mk.injEq] at he
-    obtain ⟨rfl, rfl⟩ := he
-    exact ⟨p.isVertex_x, p.isVertex_y, hcl⟩
+  refine congrArg Set.ncard (Set.ext fun ⟨x, y⟩ => ?_)
+  simp only [Set.mem_ofPred_eq, coe_filter, mem_univ, true_and, Set.mem_image, Node.toProd,
+    Prod.mk.injEq]
+  exact ⟨fun ⟨hx, hy, hcl⟩ => ⟨⟨x, y, hx, hy, fun j _ => hcl j⟩, hcl, rfl, rfl⟩,
+    fun ⟨p, hcl, hx, hy⟩ => hx ▸ hy ▸ ⟨p.isVertex_x, p.isVertex_y, hcl⟩⟩
 
 end Cslib.GameTheory.LemkeHowson

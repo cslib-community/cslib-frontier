@@ -10,6 +10,8 @@ module
 public import CslibFrontier.DataStructure.PriorityQueue.Spec
 public import CslibFrontier.Computability.WordRAM.Heap
 import Mathlib.Order.Interval.Finset.Nat
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Indexed Binary Min-Heap: Memory Model and Invariant
@@ -56,11 +58,11 @@ namespace Cslib.DataStructure.PriorityQueue.BinaryHeap
 open Cslib.WordRAM Cslib.DataStructure Cslib.DataStructure.PriorityQueue
 
 /-- Memory footprint size (`3 * N + 1` words) of an indexed binary heap over `N` handles. -/
+@[wram_arith]
 def space (N : ℕ) : ℕ := 3 * N + 1
 
 /-- The binary-heap footprint on `N` handles is at least `N + 1` words. -/
-theorem space_lower (N : ℕ) : N + 1 ≤ space N := by
-  unfold space; omega
+theorem space_lower (N : ℕ) : N + 1 ≤ space N := by wram_omega
 
 /-- Decreasing a handle's key improves its priority under `IndexedMinPQ.RawPrioLE`. -/
 theorem entryLE_of_key_le {u k₁ k₂ : ℕ} (h : k₁ ≤ k₂) :
@@ -82,9 +84,9 @@ theorem stateOfMem_congr {N base : ℕ} {m₁ m₂ : ℕ → ℕ}
   funext ⟨v, hv⟩
   simp only [stateOfMem]
   have hp : base + 2 * N + 1 + v ∈ (Block.mk base (space N)).footprint := by
-    rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega
+    rw [Block.mem_footprint]; wram_omega
   have hk : base + v ∈ (Block.mk base (space N)).footprint := by
-    rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega
+    rw [Block.mem_footprint]; wram_omega
   rw [h _ hp, h _ hk]
 
 /-- **Structural binary-heap invariant**: positions `1, …, sz` store handles `< N`, and the `pos`
@@ -135,11 +137,11 @@ theorem HeapInv.congr_mem {m₂ : ℕ → ℕ} (h : HeapInv N base S mem)
     HeapInv N base S m₂ := by
   have hSN := h.size_le
   have hk (v : ℕ) (hv : v < N) : m₂ (base + v) = mem (base + v) :=
-    hm _ (by rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega) (by omega)
+    hm _ (by rw [Block.mem_footprint]; wram_omega) (by omega)
   have hh (i : ℕ) (h1 : 1 ≤ i) (h2 : i ≤ S) : m₂ (base + N + i) = mem (base + N + i) :=
-    hm _ (by rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega) (by omega)
+    hm _ (by rw [Block.mem_footprint]; wram_omega) (by omega)
   have hp (v : ℕ) (hv : v < N) : m₂ (base + 2 * N + 1 + v) = mem (base + 2 * N + 1 + v) :=
-    hm _ (by rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega) (by omega)
+    hm _ (by rw [Block.mem_footprint]; wram_omega) (by omega)
   have hent (i : ℕ) (h1 : 1 ≤ i) (h2 : i ≤ S) :
       heapEntry N base m₂ i = heapEntry N base mem i := by
     have hv := h.vertex_lt i h1 h2
@@ -253,16 +255,12 @@ theorem HeapInv.push (h : HeapInv N base S mem) {v c : ℕ} (hv : v < N)
     ext <;> (dsimp only; split_ifs <;> omega)
   refine ⟨⟨by omega, fun i h1 h2 => ?_, fun i h1 h2 => ?_, fun w hw => ?_,
     fun w hw hw0 => ?_⟩, fun i h1 h2 => ⟨fun hi => ?_, fun hi _ => by omega⟩⟩
-  · rcases Nat.lt_or_ge i (S + 1) with hi | hi
-    · have := h.vertex_lt i h1 (by omega)
-      simp only [m', Function.update_apply]; split_ifs <;> omega
-    · simp only [m', Function.update_apply]; split_ifs <;> omega
-  · rcases Nat.lt_or_ge i (S + 1) with hi | hi
-    · have := h.vertex_lt i h1 (by omega)
-      have := hne i h1 (by omega)
-      have := h.pos_vertex i h1 (by omega)
-      simp only [m', Function.update_apply]; split_ifs <;> omega
-    · simp only [m', Function.update_apply]; split_ifs <;> omega
+  · have := h.vertex_lt i h1
+    simp only [m', Function.update_apply]; split_ifs <;> omega
+  · have := h.vertex_lt i h1
+    have := hne i h1
+    have := h.pos_vertex i h1
+    simp only [m', Function.update_apply]; split_ifs <;> omega
   · have := h.pos_le w hw
     simp only [m', Function.update_apply]; split_ifs <;> omega
   · by_cases hwv : w = v
@@ -381,9 +379,7 @@ theorem HeapInv.extract (h : HeapInv N base S mem) (hS : 2 ≤ S) :
       simp only [m', Function.update_apply]; split_ifs <;> omega
   · rw [hpos w hw]
     split_ifs with h1 h2
-    · omega
-    · omega
-    · exact (hother w hw h2 h1).1
+    exacts [by omega, by omega, (hother w hw h2 h1).1]
   · rw [hpos w hw] at hw0 ⊢
     split_ifs at hw0 ⊢ with h1 h2
     · simp only [m', Function.update_apply]; split_ifs <;> omega
@@ -400,8 +396,7 @@ theorem HeapInv.extract (h : HeapInv N base S mem) (hS : 2 ≤ S) :
       rintro (h0 | h0)
       · omega
       · exact hUL h0.symm
-    · omega
-    · omega
+    all_goals omega
 
 /-- **Singleton root removal**: clearing the root's position on a 1-element heap leaves the empty
 heap invariant. -/

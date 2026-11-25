@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Program
 public import CslibFrontier.Foundations.Data.Nat.Morton
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Computed native Morton spread table
@@ -62,100 +64,43 @@ theorem exec_spreadTable {w k : ℕ} (x : Data 128)
     have hy1 := (hr Reg.one (by decide)).trans h1
     have hy2 := (hr Reg.two (by decide)).trans h2
     have hy4 := (hr Reg.four (by decide)).trans h4
-    have hread : y.mem (y.regs Reg.spread + y.regs Reg.index / 2) =
-        Nat.Morton.spread (y.regs Reg.index / 2) := by
-      rw [hbase]
-      apply hv
-      omega
+    have hread : y.mem (x.regs Reg.spread + y.regs Reg.index / 2) =
+        Nat.Morton.spread (y.regs Reg.index / 2) := hv _ (by omega)
     have hvalue := Nat.Morton.spread_lt hi
+    have hquot : y.regs Reg.index / 2 ≤ y.regs Reg.index := Nat.div_le_self ..
+    have hrem : y.regs Reg.index % 2 < 2 := Nat.mod_lt _ (by decide)
     have hrec : Nat.Morton.spread (y.regs Reg.index / 2) * 4 + y.regs Reg.index % 2 =
         Nat.Morton.spread (y.regs Reg.index) := by
-      rw [Nat.Morton.spread_eq (y.regs Reg.index)]
-      omega
-    have hquot : Fits w (y.regs Reg.index / 2) := hw.of_le (by omega)
-    have hreadaddr : Fits w (y.regs Reg.spread + y.regs Reg.index / 2) := hw.of_le (by
-      rw [hbase]; omega)
-    have hprod : Fits w (Nat.Morton.spread (y.regs Reg.index / 2) * 4) :=
-      hw.of_le (by omega)
-    have hrem : Fits w (y.regs Reg.index % 2) := hw.of_le (by omega)
-    have hsum : Fits w (Nat.Morton.spread (y.regs Reg.index)) := hw.of_le (by omega)
-    have hwrite : Fits w (y.regs Reg.spread + y.regs Reg.index) := hw.of_le (by
-      rw [hbase]; omega)
-    have hinc : Fits w (y.regs Reg.index + 1) := hw.of_le (by omega)
-    refine ⟨?z, ?run, ?inv, ?decrease⟩
-    case run =>
-      ram_eval [spreadStep, hy1, hy2, hy4, hread, hquot, hreadaddr, hprod, hrem,
-        hrec, hsum, hwrite, hinc, Reg.index, Reg.address, Reg.temporary, Reg.position,
-        Reg.spread, Reg.one, Reg.two, Reg.four, Fin.mk.injEq]
-    case inv =>
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · intro i hni
-        have hne : i ≠ Reg.index ∧ i ≠ Reg.address ∧ i ≠ Reg.temporary ∧
-            i ≠ Reg.position := by simpa only [SpreadLocal, not_or] using hni
-        simpa only [Data.set, Data.write, Function.update_of_ne hne.1,
-          Function.update_of_ne hne.2.1, Function.update_of_ne hne.2.2.1,
-          Function.update_of_ne hne.2.2.2] using hr i hni
-      · change 1 ≤ y.regs Reg.index + 1
-        omega
-      · change y.regs Reg.index + 1 ≤ 2 ^ k
-        omega
-      · intro j hj
-        change j < y.regs Reg.index + 1 at hj
-        change Function.update y.mem (y.regs Reg.spread + y.regs Reg.index)
-          (Nat.Morton.spread (y.regs Reg.index)) (x.regs Reg.spread + j) = _
-        by_cases he : j = y.regs Reg.index
-        · subst j
-          rw [hbase, Function.update_self]
-        · rw [Function.update_of_ne (by rw [hbase]; omega)]
-          exact hv j (by omega)
-      · intro a ha
-        change ¬(x.regs Reg.spread ≤ a ∧ a < x.regs Reg.spread + (y.regs Reg.index + 1)) at ha
-        change Function.update y.mem (y.regs Reg.spread + y.regs Reg.index)
-          (Nat.Morton.spread (y.regs Reg.index)) a = x.mem a
-        rw [Function.update_of_ne (by rw [hbase]; omega)]
-        apply hf
-        omega
-    case decrease =>
-      change 2 ^ k - (y.regs Reg.index + 1) < 2 ^ k - y.regs Reg.index
-      omega
-  have hfit1 : Fits w 1 := hw.of_le (by omega)
-  let y :=
-    (((x.set Reg.address (x.regs Reg.spread)).write (x.regs Reg.spread) 0).set Reg.index 1)
-  have hinit : ExecWithin w spreadSetup x y
-      3 := by ram_eval [spreadSetup, y, h0, hfit1, Reg.address, Reg.spread, Reg.zero, Reg.index]
-  have hI : I y := by
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · intro i hi
-        have hi' : i ≠ Reg.address ∧ i ≠ Reg.index := by
-          simp only [SpreadLocal, not_or] at hi
-          tauto
-        simp only [y, Data.set, Data.write, Function.update_of_ne hi'.1,
-          Function.update_of_ne hi'.2]
-      · change 1 ≤ 1
-        exact le_rfl
-      · change 1 ≤ 2 ^ k
-        omega
-      · intro j hj
-        change j < 1 at hj
-        obtain rfl : j = 0 := by omega
-        simp only [y, Nat.add_zero, Data.set, Data.write, Function.update_self,
-          Nat.Morton.spread_zero]
-      · intro a ha
-        change ¬(x.regs Reg.spread ≤ a ∧ a < x.regs Reg.spread + 1) at ha
-        change Function.update x.mem (x.regs Reg.spread) 0 a = x.mem a
-        rw [Function.update_of_ne (show a ≠ x.regs Reg.spread by omega)]
-  obtain ⟨z, hz, hIz, hstop⟩ := ExecWithin.loop_invariant I
-    (fun y => 2 ^ k - y.regs Reg.index) hbody hI
-  have hrun := hinit.seq hz
-  have hbound : 3 + ((2 ^ k - 1) * (9 + 2) + 2) ≤ 11 * (2 ^ k - 1) + 5 := by omega
-  obtain ⟨hr, hlo, hhi, hv, hf⟩ := hIz
+      rw [Nat.Morton.spread_eq (y.regs Reg.index)]; omega
+    unfold spreadStep
+    wram_exec [hy1, hy2, hy4, hbase, hread, hrec]
+    refine ⟨⟨?_, by wram_simp, by wram_simp; omega, ?_, ?_⟩, by wram_simp; omega⟩
+    · intro i hni
+      have hne : i ≠ Reg.index ∧ i ≠ Reg.address ∧ i ≠ Reg.temporary ∧ i ≠ Reg.position := by
+        simpa only [SpreadLocal, not_or] using hni
+      wram_simp [hne.1, hne.2.1, hne.2.2.1, hne.2.2.2, hr i hni]
+    · intro j hj; wram_simp at hj ⊢
+      by_cases he : j = y.regs Reg.index
+      · subst j; update_simp
+      · update_simp; exact hv j (by omega)
+    · intro a ha; wram_simp at ha ⊢; update_simp; exact hf a (by omega)
+  refine WP.exists_execWithin ?_
+  unfold spreadTable spreadSetup
+  wram_exec [h0]
+  wram_call (ExecWithin.loop_invariant I (fun y => 2 ^ k - y.regs Reg.index) hbody
+    ⟨fun i hi => by
+      have hi' : i ≠ Reg.address ∧ i ≠ Reg.index := by simp only [SpreadLocal, not_or] at hi; tauto
+      wram_simp [hi'.1, hi'.2],
+     by wram_simp, by wram_simp; omega,
+     fun j hj => by
+       wram_simp at hj; obtain rfl : j = 0 := by omega
+       wram_simp [Nat.Morton.spread_zero],
+     fun a ha => by wram_simp at ha; update_simp⟩)
+    with z ⟨⟨hr, hlo, hhi, hv, hf⟩, hstop⟩
   have hi : z.regs Reg.index = 2 ^ k := by
     have hs := (hr Reg.paddedSide (by decide)).trans hside
-    simp only [Cond.holds_lt, hs] at hstop
-    omega
-  refine ⟨z, hrun.mono hbound, ?_, ?_, hr⟩
-  · simpa only [hi] using hv
-  · intro a ha
-    exact hf a (by omega)
+    simp only [Cond.holds_lt, hs] at hstop; omega
+  exact ⟨by wram_simp; omega, by simpa only [hi] using hv,
+    fun a ha => hf a (by omega), hr⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

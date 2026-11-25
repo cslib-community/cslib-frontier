@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Model
 public import CslibFrontier.Computability.WordRAM.ListArray
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native counting of one adjacent run
@@ -92,47 +93,22 @@ theorem exec {w s n start stop k : ℕ} (x : Data 16)
         stop - z.regs idx + z.regs active < stop - y.regs idx + y.regs active := by
     obtain ⟨hyn, hys, hyk, hyo, hlo, hhi, hyc, hya, hyend, hym⟩ := hy
     have hyflag : y.regs active = 1 := by simpa only [Cond.holds_eq, hyo] using hcond
-    simp only [len, src, key, one, idx, count, active] at *
-    have hlenLink : y.regs len = y.regs 0 := rfl
-    have hidxLink : y.regs idx = y.regs 4 := rfl
-    have hcountLink : y.regs count = y.regs 7 := rfl
-    have hactiveLink : y.regs active = y.regs 11 := rfl
+    apply WP.exists_execWithin
+    unfold body
     by_cases hlt : y.regs idx < stop
-    · have hidx : y.regs idx < y.regs len := by omega
-      have hread : y.mem (y.regs src + y.regs idx) = k := by
-        rw [hym, hys]; exact hmem _ hlo hlt
-      have had : Fits w (y.regs src + y.regs idx) := by
-        rw [hys]; exact hfit.of_le (by omega)
-      have hic : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-      have hcc : Fits w (y.regs count + 1) := hfit.of_le (by omega)
-      refine ⟨?_, ?run, ?_, ?_⟩
-      case run => ram_eval [body, hidx, hread, hyk, hyo, had, hic, hcc]
-      · simp +decide only [I, Data.set_regs, Data.set_mem, Function.update_apply,
-          idx, count, value, addr, len, src, key, one, active, ↓reduceIte]
-        exact ⟨hyn, hys, hyk, hyo, by omega, by omega, by omega, by omega, by omega, hym⟩
-      · simp +decide only [Data.set_regs, Function.update_apply, idx, count, value, addr,
-          ↓reduceIte]
-        omega
+    · have hread : y.mem (s + y.regs idx) = k := hym ▸ hmem _ hlo hlt
+      wram_exec * [hread]
+      wram_simp * [I, hym]
+      exact ⟨⟨by omega, by omega, by omega, by simp⟩, by omega⟩
     · have hend : y.regs idx = stop := by omega
       by_cases hsn : stop < n
-      · have hidx : y.regs idx < y.regs len := by omega
-        have hread : y.mem (y.regs src + y.regs idx) ≠ y.regs key := by
-          simpa only [hym, hys, hend, hyk] using hnext hsn
-        have had : Fits w (y.regs src + y.regs idx) := by
-          rw [hys]; exact hfit.of_le (by omega)
-        refine ⟨?_, ?run, ?_, ?_⟩
-        case run => ram_eval [body, hidx, hread, had]
-        · simp +decide only [I, Data.set_regs, Data.set_mem, Function.update_apply,
-            idx, count, value, addr, len, src, key, one, active, ↓reduceIte]
-          exact ⟨hyn, hys, hyk, hyo, hlo, hhi, hyc, by omega, fun _ => hend, hym⟩
-        · simp +decide [Data.set_regs, hyflag, hend]
-      · have hidx : ¬y.regs idx < y.regs len := by omega
-        refine ⟨?_, ?run, ?_, ?_⟩
-        case run => ram_eval [body, hidx]
-        · simp +decide only [I, Data.set_regs, Data.set_mem, Function.update_apply,
-            idx, count, len, src, key, one, active, ↓reduceIte]
-          exact ⟨hyn, hys, hyk, hyo, hlo, hhi, hyc, by omega, fun _ => hend, hym⟩
-        · simp +decide [Data.set_regs, hyflag, hend]
+      · have hread : y.mem (s + stop) ≠ k := hym ▸ hnext hsn
+        wram_exec * [hend]
+        wram_simp * [I, hend, hyflag, hym, hle, le_rfl]
+        exact fun _ => trivial
+      · wram_exec * [hend]
+        wram_simp * [I, hend, hyflag, hym, hle, le_rfl]
+        exact fun _ => trivial
   have hx : I x := ⟨hn, hs, hk, ho, by omega, by omega, by omega, by omega, by omega, rfl⟩
   obtain ⟨y, he, hy, hnot⟩ := ExecWithin.loop_invariant I
     (fun y => stop - y.regs idx + y.regs active) hbody hx

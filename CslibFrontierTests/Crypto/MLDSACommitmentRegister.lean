@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MLDSA.RejectedCommitmentWrites
+import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveSigningSimulation
 
 /-!
 # ML-DSA digest-register clients
@@ -155,3 +156,141 @@ example (s : Level) (H : Xofs) (keys : KeyPair) (q : SigningQuery) (fresh replay
         .liftBind _ _ 0 fun _ => .liftBind _ _ 0 fun _ => .pure _ 0)
   let score (G : Xofs) := (C.freshMaskSigning s G keys).map (·.any (·.trial.newDigestWin))
   exact h.trans (congrArg score (H.withDigestRegister_readDigestRegister s))
+
+-- The first signature and one measured SHAKE256 query choose the message of a second request.
+-- Select its last attempt. Both a returned signature and a signing error have a continuation.
+private def twoRequestForger (s : Level) (first : SigningQuery) (fresh replay : Forgery) :
+    QuantumSigningForger :=
+  ⟨s.commitmentInputBits, 1, 0, fun _ => .liftBind (.inr (.inr first)) fun sig =>
+    .liftBind (.inr (.inl (.gate (false, false, 0, [])))) fun _ =>
+      .liftBind (.inr (.inl (.gate (false, false, 1, [])))) fun _ =>
+        .liftBind (.inr (.inl (.gate (false, true, 2, [])))) fun _ =>
+          .liftBind (.inr (.inl .query)) fun _ =>
+            .liftBind (.inr (.inl (.measure ⟨s.commitmentInputBits + 2, by lia⟩))) fun bits =>
+              .liftBind (.inr (.inr ⟨[], sig.isSome :: bits⟩)) fun r =>
+                .pure (if r.isSome then fresh else replay)⟩
+
+private theorem twoRequestForger_hash (s : Level) (first : SigningQuery) (fresh replay : Forgery) :
+    (twoRequestForger s first fresh replay).XofCallsLe 1 := fun _ =>
+    .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
+      .liftBind _ _ 1 fun _ => .liftBind _ _ 0 fun _ => .liftBind _ _ 0 fun _ =>
+        .liftBind _ _ 0 fun _ => .pure _ 0
+
+private theorem twoRequestForger_calls (s : Level) (first : SigningQuery) (fresh replay : Forgery) :
+    (twoRequestForger s first fresh replay).SigningCallsLe 2 := fun _ =>
+    .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
+      .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ => .liftBind _ _ 1 fun _ =>
+        .liftBind _ _ 0 fun _ => .pure _ 0
+
+example (s : Level) (H : Xofs) (seed : FixedBytes 32) (keys : KeyPair)
+    (hg : H.keyGen s seed = some keys) (A : PublicMatrix s)
+    (hm : H.expandA s (keys.publicKey.take 32) = some A) (first : SigningQuery)
+    (fresh replay : Forgery) (row₁ row₂ : FixedBytes 2 → FixedBytes (maskPolyBytes s)) :
+    let C := twoRequestForger s first fresh replay
+    let p w := Game.succProbability (C.commitmentTrialGame s H keys 1 813 [row₁, row₂] w)
+    let δ := (commitmentGuessProbability s.params (by cases s <;> decide) A).toReal
+    |(p true : ℝ) - (p false : ℝ)| ≤ 2 * (4 * √δ + 1629 * δ) := by
+  intro C p δ
+  obtain ⟨rho, pair, ha, pk, sk, _⟩ := privateKey_of_keyGen hg
+  rw [pk, take_encodePublic, ha] at hm
+  cases hm
+  have hash := twoRequestForger_hash s first fresh replay
+  have h := C.abs_commitmentTrialGame_write_sub_read_le s H keys 1 813 [row₁, row₂] hash
+  simpa [p, δ, sk, ha, show (815 : ℝ) + (1 + 813) = 1629 by norm_num] using h
+
+-- The digest write is in the second of two adaptive requests, at the cap. Compare directly
+-- with the original experiment's seeded keys, retained state, verifier and random nonce rows.
+example (s : Level) (base : Xofs) (first : SigningQuery) (fresh replay : Forgery) :
+    let C := twoRequestForger s first fresh replay
+    let a := s.commitmentInputBits
+    let b := 894
+    let matrices := (base.uniformPrefixes a b).bind fun H =>
+      (PMF.uniformOfFintype (FixedBytes 32)).map fun seed => do
+        let keys ← H.keyGen s seed
+        H.expandA s (keys.publicKey.take 32)
+    let win := Game.succProbability (C.expansionTrialGame s base a b (1 : Fin 2) 813 true)
+    let orig := Game.succProbability (C.freshExpansionGame s base a b)
+    |(win : ℝ) - (orig : ℝ)| ≤ ∑ A : Option (PublicMatrix s), (matrices A).toReal *
+      (A.elim 0 fun M =>
+        let δ := (commitmentGuessProbability s.params (by cases s <;> decide) M).toReal
+        2 * (4 * √δ + 1629 * δ)) := by
+  intro C a b matrices win orig
+  have sig := twoRequestForger_calls s first fresh replay
+  have hash := twoRequestForger_hash s first fresh replay
+  simpa [matrices, win, orig, show (815 : ℝ) + (1 + 813) = 1629 by norm_num] using
+    C.abs_expansionTrialGame_write_sub_freshExpansionGame_le s base (a := a) (b := b)
+      le_rfl (by cases s <;> decide) sig hash (1 : Fin 2) 813
+
+-- Simulate the entire second request, whose message depends on the first reply and a measurement.
+example (s : Level) (base : Xofs) (first : SigningQuery) (fresh replay : Forgery) :
+    let C := twoRequestForger s first fresh replay
+    let a := s.commitmentInputBits
+    let b := 894
+    let matrices := (base.uniformPrefixes a b).bind fun H =>
+      (PMF.uniformOfFintype (FixedBytes 32)).map fun seed => do
+        let keys ← H.keyGen s seed
+        H.expandA s (keys.publicKey.take 32)
+    let win := Game.succProbability (C.refreshedCallGame s base a b (1 : Fin 2))
+    let orig := Game.succProbability (C.freshExpansionGame s base a b)
+    |(win : ℝ) - (orig : ℝ)| ≤ ∑ A : Option (PublicMatrix s), (matrices A).toReal *
+      (A.elim 0 fun M =>
+        let δ := (commitmentGuessProbability s.params (by cases s <;> decide) M).toReal
+        814 * (4 * √δ + 1632 * δ) + 814 * (2 * (4 * √δ + 1629 * δ))) := by
+  intro C a b matrices win orig
+  simpa [matrices, win, orig, show (815 : ℝ) * 2 + 2 = 1632 by norm_num,
+    show (815 : ℝ) + 814 = 1629 by norm_num] using
+    C.abs_refreshedCallGame_sub_freshExpansionGame_le s base (a := a) (b := b) le_rfl
+      (by cases s <;> decide) (twoRequestForger_calls s first fresh replay)
+      (twoRequestForger_hash s first fresh replay) (1 : Fin 2)
+
+-- Both requests now use the public-pair simulator. An initial digest change can affect the
+-- second message through the measured response, and the verifier sees both terminal writes.
+example (s : Level) (H : Xofs) (seed : FixedBytes 32) (keys : KeyPair)
+    (kg : H.keyGen s seed = some keys) (m : BitString 512)
+    (D : BitString s.commitmentInputBits → BitString (8 * digestBytes s))
+    (first : SigningQuery) (fresh replay : Forgery) :
+    ∃ (rho : FixedBytes 32) (pair : MLDSA.SecretKey s.params),
+      H.expandA s rho.toList = some pair.A ∧
+      keys.publicKey = encodePublic s rho.toList pair.publicKey.t ∧
+      let C := twoRequestForger s first fresh replay
+      let win T := Game.succProbability ((C.publicPairSigning s (H.withDigestRegister s T)
+        rho pair.publicKey).map (·.trial.newDigestWin))
+      let μ := signingMaskLaw s.params (by cases s <;> decide)
+      let δ := (commitmentGuessProbability s.params (by cases s <;> decide) pair.A).toReal
+      ∑ y, (μ y).toReal * |(win (Function.update D (maskCommitmentAddress s pair.A m y) 0) : ℝ) -
+        win D| ≤ 4 * √δ + 4 * δ := by
+  obtain ⟨rho, pair, mat, pk, _, h₁, h₂, _⟩ := privateKey_of_keyGen kg
+  refine ⟨rho, pair, mat, pk, ?_⟩
+  intro C win μ δ
+  simpa only [win, μ, δ, Nat.cast_one, mul_one, Nat.cast_ofNat, show (2 : ℝ) + 2 = 4 by norm_num]
+    using C.mean_publicPairSigning_gap_le s H rho pair h₁ h₂ m D (fun _ => 0)
+      (twoRequestForger_hash s first fresh replay) (twoRequestForger_calls s first fresh replay)
+
+-- Simulate both adaptive signing requests and evaluate the contributions from indices zero and one.
+example (s : Level) (base : Xofs) (first : SigningQuery) (fresh replay : Forgery) :
+    let C := twoRequestForger s first fresh replay
+    let R := base.uniformPrefixes s.commitmentInputBits 894
+    let matrices := R.bind fun H => (PMF.uniformOfFintype (FixedBytes 32)).map fun seed => do
+      let keys ← H.keyGen s seed
+      H.expandA s (keys.publicKey.take 32)
+    let sim := R.bind fun H => H.fullPairExperiment s fun rho pair =>
+      (C.publicPairSigning s H rho pair).map (·.trial.newDigestWin)
+    let orig := Game.succProbability (C.freshExpansionGame s base s.commitmentInputBits 894)
+    |(orig : ℝ) - Game.succProbability sim| ≤ ∑ A : Option (PublicMatrix s), (matrices A).toReal *
+      (A.elim 0 fun M =>
+        let δ := (commitmentGuessProbability s.params (by cases s <;> decide) M).toReal
+        19536 * √δ + 3983716 * δ) := by
+  intro C R matrices sim orig
+  apply (C.abs_freshExpansionGame_sub_publicPairSigning_le s base le_rfl (by cases s <;> decide)
+    (twoRequestForger_calls s first fresh replay)
+    (twoRequestForger_hash s first fresh replay)).trans_eq
+  unfold QuantumSigningForger.adaptiveSigningLoss
+  apply Finset.sum_congr rfl
+  intro A _
+  congr 1
+  cases A with
+  | none => rfl
+  | some M =>
+    simp only [Option.elim_some, Finset.sum_range_succ, Finset.sum_range_zero, Nat.cast_zero,
+      Nat.cast_one, Nat.cast_ofNat]
+    ring

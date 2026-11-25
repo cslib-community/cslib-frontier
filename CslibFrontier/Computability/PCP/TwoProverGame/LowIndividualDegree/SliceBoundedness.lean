@@ -109,10 +109,9 @@ theorem abs_average_evaluated_sandwich_failure_le {β : Type*} [Fintype β]
       (𝔼 u : (Fin m → F), (φ (star (K (a, g)) * K (a, g) * P.effect none *
         (B u).effect (eval u g.val))).re) =
         (φ (star (K (a, g)) * K (a, g) * P.effect none * H (a, g))).re := by
-    rw [show H (a, g) = _ from averagePolynomialPointEffect_eq B g]
-    rw [← φ.re_apply_uniformAverage, ← mul_sum, ← mul_smul_comm]
-  simp_rw [hsum, expect_sum_comm, hmean]
-  exact h
+    rw [show H (a, g) = _ from averagePolynomialPointEffect_eq B g,
+      ← φ.re_apply_uniformAverage, ← mul_sum, ← mul_smul_comm]
+  simpa only [hsum, expect_sum_comm, hmean] using h
 
 /-- After moving the varying point effect to the right, the same majorant controls
 the failure term with a second fixed point measurement. -/
@@ -174,8 +173,8 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
         (φ (star (K p * P.effect none) * averagePolynomialPointEffect B p.2 *
           (K p * P.effect none))).re := by
     simp only [hY]
-    rw [averagePolynomialPointEffect_eq]
-    rw [← φ.re_apply_uniformAverage, ← sum_mul, ← mul_sum, ← smul_mul_assoc, ← mul_smul_comm]
+    rw [averagePolynomialPointEffect_eq, ← φ.re_apply_uniformAverage, ← sum_mul, ← mul_sum,
+      ← smul_mul_assoc, ← mul_smul_comm]
   have hv : (𝔼 u : Fin m → F, ∑ p, φ.norm (Y u p) ^ 2) ≤ (φ (P.effect none * Z)).re := by
     simp only [expect_sum_comm, hmean, ← Complex.re_sum, ← map_sum]
     exact φ.re_apply_mono (sum_failure_conjugate_le K
@@ -193,11 +192,11 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
 /-- Swapping two decoded point effects inside the evaluated-slice failure term is
 controlled by the diagonal verifier's loss. The preceding projective effects may
 depend on either of the independently sampled points. -/
-theorem abs_average_failure_pointOrder_sub_le {n : ℕ}
+theorem abs_average_failure_pointOrder_sub_le_atDegrees {n : ℕ}
     (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
       (Answer F (n + 1)) (Answer F (n + 1)) A)
     (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
-    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree : ℕ)
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree D : ℕ)
     (P : Point F (n + 1) → Measurement (Option F) A) (hP : ∀ u, (P u).IsProjective) :
     |𝔼 u : Point F (n + 1), 𝔼 v : Point F (n + 1),
         ((∑ a : F, ∑ b : F, (S.state ((P u).effect (some a) * (P v).effect (some b) *
@@ -206,7 +205,8 @@ theorem abs_average_failure_pointOrder_sub_le {n : ℕ}
           (∑ a : F, ∑ b : F, (S.state ((P u).effect (some a) * (P v).effect (some b) *
             (P u).effect none *
               ((decodedPoint S.alice v).effect b * (decodedPoint S.alice u).effect a))).re))| ≤
-      √(64 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n degree .diagonal).commutingWinProb S)) :=
+      √(64 * (n + 1 : ℝ) *
+        (1 - (branchGameWithDiagonalCap (F := F) n degree D .diagonal).commutingWinProb S)) :=
   let f (u v : Point F (n + 1)) :=
     Measurement.pairCommutatorDefect S.state (decodedPoint S.alice u) (decodedPoint S.alice v)
   calc
@@ -221,15 +221,38 @@ theorem abs_average_failure_pointOrder_sub_le {n : ℕ}
           (fun z : Point F (n + 1) × Point F (n + 1) => f z.1 z.2) (fun z => by
             unfold f Measurement.pairCommutatorDefect
             exact sum_nonneg fun _ _ => sum_nonneg fun _ _ => sq_nonneg _)
-    _ ≤ _ := Real.sqrt_le_sqrt (decodedPoint_pairCommutatorDefect_le S hPoint hLine degree)
+    _ ≤ _ := Real.sqrt_le_sqrt
+      (decodedPoint_pairCommutatorDefect_le_atDegrees S hPoint hLine degree D)
+
+/-- Swapping two decoded point effects inside the evaluated-slice failure term is
+controlled by the diagonal verifier's loss. The preceding projective effects may
+depend on either of the independently sampled points. -/
+theorem abs_average_failure_pointOrder_sub_le {n : ℕ}
+    (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
+      (Answer F (n + 1)) (Answer F (n + 1)) A)
+    (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree : ℕ)
+    (P : Point F (n + 1) → Measurement (Option F) A) (hP : ∀ u, (P u).IsProjective) :
+    |𝔼 u : Point F (n + 1), 𝔼 v : Point F (n + 1),
+        ((∑ a : F, ∑ b : F, (S.state ((P u).effect (some a) * (P v).effect (some b) *
+            (P u).effect none *
+              ((decodedPoint S.alice u).effect a * (decodedPoint S.alice v).effect b))).re) -
+          (∑ a : F, ∑ b : F, (S.state ((P u).effect (some a) * (P v).effect (some b) *
+            (P u).effect none *
+              ((decodedPoint S.alice v).effect b * (decodedPoint S.alice u).effect a))).re))| ≤
+      √(64 * (n + 1 : ℝ) *
+        (1 - (branchGame (F := F) n degree .diagonal).commutingWinProb S)) := by
+  rw [branchGame_eq_withDiagonalCap]
+  exact abs_average_failure_pointOrder_sub_le_atDegrees S hPoint hLine degree ((n + 1) * degree)
+    P hP
 
 /-- The evaluated-slice term with a failure projection is bounded by the slice
 majorants and the diagonal test, as in Claim 11.3. -/
-theorem abs_average_evaluated_failure_pointProduct_le
+theorem abs_average_evaluated_failure_pointProduct_le_atDegrees
     (S : CommutingStrategy (Question F (m + 1)) (Question F (m + 1))
       (Answer F (m + 1)) (Answer F (m + 1)) A)
     (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
-    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree : ℕ)
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree D : ℕ)
     (M : F → Measurement (Option (BoundedPolynomial F m d)) A) (hM : ∀ x, (M x).IsProjective)
     (Z : F → A) (hZ : ∀ x, 0 ≤ Z x)
     (hbound : ∀ x (g : BoundedPolynomial F m d),
@@ -242,7 +265,8 @@ theorem abs_average_evaluated_failure_pointProduct_le
     |𝔼 u : Point F (m + 1), 𝔼 v : Point F (m + 1), ∑ a : F, ∑ b : F,
       (S.state ((P u).effect (some a) * (P v).effect (some b) * (P u).effect none *
         ((decodedPoint S.alice u).effect a * (decodedPoint S.alice v).effect b))).re| ≤
-      √(64 * (m + 1 : ℝ) * (1 - (branchGame (F := F) m degree .diagonal).commutingWinProb S)) +
+      √(64 * (m + 1 : ℝ) *
+        (1 - (branchGameWithDiagonalCap (F := F) m degree D .diagonal).commutingWinProb S)) +
         √ζ := by
   intro P
   let Q (u : Point F (m + 1)) := decodedPoint S.alice u
@@ -255,7 +279,8 @@ theorem abs_average_evaluated_failure_pointProduct_le
   have hP (u : Point F (m + 1)) : (P u).IsProjective :=
     (hM _).map (Option.map fun g => eval (Fin.init u) g.val)
   have hQ (u : Point F (m + 1)) : (Q u).IsProjective := (hPoint u).map decodePoint
-  have hswap := abs_average_failure_pointOrder_sub_le S hPoint hLine degree P hP
+  have hswap := abs_average_failure_pointOrder_sub_le_atDegrees
+    S hPoint hLine degree D P hP
   change |𝔼 u, 𝔼 v, (ordered u v - reordered u v)| ≤ _ at hswap
   simp only [expect_sub_distrib] at hswap
   have hfixed (x : F) (v : Point F (m + 1)) :
@@ -281,11 +306,37 @@ theorem abs_average_evaluated_failure_pointProduct_le
     refine (expect_le_expect fun v _ => abs_expect_le _ _).trans ?_
     refine (expect_le_expect fun v _ => expect_le_expect fun x _ => hfixed x v).trans ?_
     rw [Fintype.expect_const]
-    apply (Fintype.expect_sqrt_le_sqrt_expect _ ?_).trans (Real.sqrt_le_sqrt hfail)
-    intro x
-    exact S.state.re_apply_nonneg (Commute.mul_nonneg ((M x).nonneg none) (hZ x) (hMZ x x none))
+    exact (Fintype.expect_sqrt_le_sqrt_expect _ fun x => S.state.re_apply_nonneg
+      (Commute.mul_nonneg ((M x).nonneg none) (hZ x) (hMZ x x none))).trans
+      (Real.sqrt_le_sqrt hfail)
   change |𝔼 u, 𝔼 v, ordered u v| ≤ _
-  simpa only [sub_zero] using (abs_sub_le _ (𝔼 u, 𝔼 v, reordered u v) 0).trans
-    (by simpa only [sub_zero] using add_le_add hswap hremaining)
+  linarith [abs_sub_abs_le_abs_sub (𝔼 u, 𝔼 v, ordered u v) (𝔼 u, 𝔼 v, reordered u v)]
+
+/-- The evaluated-slice term with a failure projection is bounded by the slice
+majorants and the diagonal test, as in Claim 11.3. -/
+theorem abs_average_evaluated_failure_pointProduct_le
+    (S : CommutingStrategy (Question F (m + 1)) (Question F (m + 1))
+      (Answer F (m + 1)) (Answer F (m + 1)) A)
+    (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree : ℕ)
+    (M : F → Measurement (Option (BoundedPolynomial F m d)) A) (hM : ∀ x, (M x).IsProjective)
+    (Z : F → A) (hZ : ∀ x, 0 ≤ Z x)
+    (hbound : ∀ x (g : BoundedPolynomial F m d),
+      averagePolynomialPointEffect (fun u => decodedPoint S.alice (Fin.snoc u x)) g ≤ Z x)
+    (hMP : ∀ x w g a, Commute ((M x).effect g) ((decodedPoint S.alice w).effect a))
+    (hMZ : ∀ x y g, Commute ((M x).effect g) (Z y)) {ζ : ℝ}
+    (hfail : (𝔼 x : F, (S.state ((M x).effect none * Z x)).re) ≤ ζ) :
+    let P (w : Point F (m + 1)) :=
+      evaluatePolynomialMeasurement (M (w (Fin.last m))) (Fin.init w)
+    |𝔼 u : Point F (m + 1), 𝔼 v : Point F (m + 1), ∑ a : F, ∑ b : F,
+      (S.state ((P u).effect (some a) * (P v).effect (some b) * (P u).effect none *
+        ((decodedPoint S.alice u).effect a * (decodedPoint S.alice v).effect b))).re| ≤
+      √(64 * (m + 1 : ℝ) *
+        (1 - (branchGame (F := F) m degree .diagonal).commutingWinProb S)) +
+        √ζ := by
+  rw [branchGame_eq_withDiagonalCap]
+  exact abs_average_evaluated_failure_pointProduct_le_atDegrees S hPoint hLine degree ((m + 1)
+    * degree)
+    M hM Z hZ hbound hMP hMZ hfail
 
 end Cslib.PCP.LowIndividualDegree

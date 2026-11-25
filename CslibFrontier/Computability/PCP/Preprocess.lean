@@ -158,18 +158,14 @@ theorem spectralExpansion_preprocessWith_le :
   have h₃ := R.spectralExpansion_union_le X.whole
   have h₄ := (R.union X.whole).spectralExpansion_addLoops_le (E := Unit)
   change ((R.union X.whole).addLoops Unit).spectralExpansion ≤ _
-  generalize ((R.union X.whole).addLoops Unit).spectralExpansion = x₄ at h₄ ⊢
-  generalize (R.union X.whole).spectralExpansion = x₃ at h₃ h₄
-  generalize R.spectralExpansion = x₁ at h₁ h₃
-  generalize X.whole.spectralExpansion = x₂ at h₂ h₃
   simp only [Fintype.card_sum, Fintype.card_unit] at h₃ h₄
   push_cast at h₃ h₄
   have hd : (0 : ℝ) ≤ Fintype.card D := Nat.cast_nonneg _
-  generalize (Fintype.card D : ℝ) = d at hd h₃ h₄ ⊢
   rw [le_div_iff₀ (by positivity)] at h₃ h₄
-  rw [show 1 - (1 - μ) * d / (2 * d + 2) = (2 + d + d * μ) / (2 * d + 2) by field_simp; ring,
+  rw [show 1 - (1 - μ) * (Fintype.card D : ℝ) / (2 * Fintype.card D + 2) =
+      (2 + Fintype.card D + Fintype.card D * μ) / (2 * Fintype.card D + 2) by field_simp; ring,
     le_div_iff₀ (by positivity)]
-  nlinarith [mul_le_mul_of_nonneg_left h₁ (by positivity : (0 : ℝ) ≤ 1 + d),
+  nlinarith [mul_le_mul_of_nonneg_left h₁ (by positivity : (0 : ℝ) ≤ 1 + Fintype.card D),
     mul_le_mul_of_nonneg_left h₂ hd]
 
 /-- Expanderization and self-loops divide the degree-reduced value by exactly two. -/
@@ -180,7 +176,6 @@ theorem unsatVal_preprocessWith :
     RegularConstraintGraph.unsatVal_addTrivial]
   simp only [Fintype.card_sum, Fintype.card_unit]
   have h₁ : (1 + Fintype.card D + Fintype.card D : ℝ) ≠ 0 := by positivity
-  have h₂ : (1 + Fintype.card D + Fintype.card D + 1 : ℝ) ≠ 0 := by positivity
   push_cast
   field_simp
   ring
@@ -210,11 +205,10 @@ theorem le_unsatVal_preprocessWith :
 /-- Preprocessing does not increase the value. -/
 theorem unsatVal_preprocessWith_le :
     (G.preprocessWith X).toConstraintGraph.unsatVal ≤ G.unsatVal := by
-  have h := G.one_add_card_mul_unsatVal_degreeReduce_le X.cloud
-  have h₀ := (G.degreeReduce X.cloud).toConstraintGraph.unsatVal_nonneg
-  have hD : (0 : ℝ) ≤ Fintype.card D := Nat.cast_nonneg _
   rw [unsatVal_preprocessWith]
-  nlinarith
+  nlinarith [G.one_add_card_mul_unsatVal_degreeReduce_le X.cloud,
+    (G.degreeReduce X.cloud).toConstraintGraph.unsatVal_nonneg,
+    (Nat.cast_nonneg (Fintype.card D) : (0 : ℝ) ≤ Fintype.card D)]
 
 end SpecifiedRotations
 

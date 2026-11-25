@@ -132,8 +132,10 @@ Lake's global artifact store, so the normal example, build and render commands s
 
 Only successful API documentation runs on `main` save this entry, after the Guide and generated
 links have passed, and only when the exact entry was absent. PRs and other branches only read.
-The key includes the OS, architecture and exact runner-image version, Lean toolchain, root and
-Guide lockfiles/configuration, and the cache action/helper itself. It has no commit or run ID
+The key includes the OS, architecture, and base runner image family (`RUNNER_OS`, `RUNNER_ARCH`,
+`ImageOS` — excluding patch `ImageVersion` rollouts so routine Ubuntu image patches do not bust
+the cache), Lean toolchain, root and Guide lockfiles/configuration, and the cache action/helper
+itself. It has no commit or run ID
 and no less-specific fallback: a new compatible configuration gets one immutable entry, rather
 than a new copy for every PR. `CACHE_RECOVERY_GENERATION` invalidates these entries too, and
 `DISABLE_CACHE_RESTORE=true` or `1` disables both their restore and save. An unavailable cache
@@ -153,13 +155,39 @@ producer run ID and attempt, so a successful rerun whose optional backup failed 
 an earlier attempt's artifact. The runner reports that identity. Set `DISABLE_GUIDE_ARTIFACT=1`
 to turn off this backup independently.
 
+## Documentation database cache
+
+Nightly API documentation runs (`.github/workflows/docs.yml`) cache `docbuild/.lake/build/api-docs.db`
+and `docbuild/.lake/build/doc-data` across runs so `doc-gen4` skips unchanged `docInfo` passes.
+Generated HTML under `docbuild/.lake/build/doc` is not cached and is rebuilt on every run. Only
+`main` writes to the Actions cache, and only when the restore was not already an exact key hit;
+non-`main` `workflow_dispatch` runs read without creating branch-scoped entries that would consume
+the 10 GB repository Actions cache limit.
+
+The cache key includes `CACHE_RECOVERY_GENERATION`, `lean-toolchain`, `lakefile.toml`,
+`lake-manifest.json`, `docbuild/lakefile.toml`, and `docbuild/lake-manifest.json`, plus the commit
+and run ID for exact hits. Increment `CACHE_RECOVERY_GENERATION` to invalidate cached entries without
+a commit, or set `DISABLE_CACHE_RESTORE=true` (or `1`) to bypass both restore and save. Failed or
+missed restores discard any partial `api-docs.db*` and `doc-data` outputs before generation.
+
+Before running `lake -d docbuild build CslibFrontier:docs`, `scripts/check_docs.py --prepare-cache --discard-corrupt`
+removes non-marker files from `doc-data` (bibliography outputs, `.docs_built`, per-module search
+JSON), deletes obsolete local `CslibFrontier*` markers, cascades deleted/renamed `CslibFrontier*`
+module rows out of `api-docs.db` with `PRAGMA foreign_keys = ON` (so stale `tactics` and
+`name_info` rows cannot leak into HTML or trigger `check_docs.py`'s obsolete-module check), and
+runs `PRAGMA wal_checkpoint(TRUNCATE)`. After generation, `scripts/check_docs.py --checkpoint-cache`
+checkpoints WAL before `actions/cache/save` archives `api-docs.db` without sidecars. Monitor
+compressed cache usage on `main`: if retaining multiple nightly generations threatens `.lake`/`elan`
+eviction within the 10 GB repository budget, move persistence to an `actions/upload-artifact` backup
+following the Guide dependency pattern above.
+
 ## Hosted-runner disk space
 
 Before restoring `.lake`, Lean CI runs `scripts/ci/prepare-runner.sh` to report available disk
 space. On GitHub-hosted Linux runners it removes the unused Android and .NET SDKs only when less
-than the configured threshold (100 GiB by default) is available, or the free-space measurement is
-unavailable. This conservative headroom policy retains cleanup on constrained runners while avoiding several minutes of SDK
-deletion on larger runners that already have ample space; it is not an exact build-size estimate.
+than the configured threshold (60 GiB by default) is available, or the free-space measurement is
+unavailable. This conservative headroom policy skips SDK deletion on standard `ubuntu-24.04` and
+larger runners that already have ample space while retaining cleanup on smaller runner images; it is not an exact build-size estimate.
 Local and self-hosted invocations skip cleanup. The Lean toolchain, compiler, Python, Node
 actions, repository and caches are retained. Cleanup is optional; all validation still runs if
 it fails.
@@ -169,23 +197,31 @@ five seconds and the largest decrease. Compare warm PRs, cold pin builds, merge 
 publication before setting the repository variable `SDK_CLEANUP_MIN_GIB`. Keep margin for short
 peaks between samples. Unset the variable to restore the default.
 
-## Runner for `main` builds
+## Runner for `main`, merge-group and docs builds
 
 The `lean-checks` job of a push to `main` runs on the runner named by the repository variable
-`MAIN_BUILD_RUNNER` (`gh variable set MAIN_BUILD_RUNNER --body cslib-ubuntu-24.04-8core`). Pull
-requests, merge groups and manual runs always use the standard `ubuntu-24.04` runner, as does
-`main` while the variable is unset. The `main` run saves the `.lake` snapshot and stages the
-remote-cache publication, so a faster one publishes caches for more landed commits; the cache
-keys depend on the operating system and architecture, not the runner size, so standard runners
-restore what it saves.
+`MAIN_BUILD_RUNNER` (`gh variable set MAIN_BUILD_RUNNER --body cslib-ubuntu-24.04-8core`), and a
+`merge_group` run optionally runs on the runner named by `MERGE_GROUP_RUNNER` when set. The `docs`
+job in `.github/workflows/docs.yml` (nightly `schedule` and manual `workflow_dispatch` on `main`)
+optionally runs on the runner named by `DOCS_BUILD_RUNNER` (`gh variable set DOCS_BUILD_RUNNER
+--body cslib-ubuntu-24.04-8core`). Pull requests, manual runs of `lean_action_ci.yml`, non-`main`
+runs of `docs.yml`, and events whose variable is unset always use the standard `ubuntu-24.04`
+runner. The `main` run saves the `.lake` snapshot and stages the remote-cache publication, so a
+faster one publishes caches for more landed commits; setting `MERGE_GROUP_RUNNER` likewise drains
+queued merge batches sooner when queue wait rises; setting `DOCS_BUILD_RUNNER` speeds up uncached
+`doc-gen4` generation across the library and its dependencies. The cache keys depend on the
+operating system, architecture and base image family (`ImageOS`), not the runner size or image
+patch version, so standard and larger runners share `.lake` snapshots, Guide dependency caches and
+merge-group handoffs.
 
 Larger runners are billed per minute even in public repositories. If the organization's Actions
 budget is exhausted or the runner is unavailable, the job fails before a runner is allocated:
-`main` shows a failed run and publishes no cache, while merging continues. Delete the variable
-(`gh variable delete MAIN_BUILD_RUNNER`) to return `main` to the standard runner without a
-commit. A pull request from a branch of this repository runs its own copy of the workflow, so
-this expression does not stop a branch from naming a billed runner; restrict the runner group in
-the organization's settings for that.
+`main` shows a failed run and publishes no cache, a `docs` run fails without deploying, and merge
+groups stall until `MERGE_GROUP_RUNNER` is deleted. Delete a variable (`gh variable delete
+MAIN_BUILD_RUNNER`, `MERGE_GROUP_RUNNER` or `DOCS_BUILD_RUNNER`) to return that event to the
+standard runner without a commit. A pull request from a branch of this repository runs its own copy
+of the workflow, so these expressions do not stop a branch from naming a billed runner; restrict
+the runner group in the organization's settings for that.
 
 ## Merge-queue handoff
 
@@ -198,7 +234,9 @@ The handoff accepts only the latest run's current successful attempt of `lean_ac
 this repository, triggered by `merge_group` for the exact landed commit. It checks the source,
 run and attempt, toolchain, Lake configuration, dependency manifest and runner platform before
 installing outputs. Native validation tools are included, so unlike the public per-module cache,
-this handoff requires a matching runner OS, architecture and image version. The artifact name
+this handoff requires a matching runner OS, architecture and base image family (`ImageOS`,
+excluding `ImageVersion` patch builds so standard and larger `ubuntu-24.04` runners share
+handoffs across concurrent minor image rollouts). The artifact name
 includes a hash of the expected source, configuration, platform and recovery generation. Readers
 select a compatible artifact before downloading it and independently check the downloaded
 metadata and archive. Artifacts produced before this naming change miss until they expire.
@@ -206,8 +244,9 @@ A missing artifact, a rerun
 still in progress, a changed commit or incompatible metadata leaves the normal build in place.
 It never waits for another run to finish and does not reuse artifacts from pull-request runs.
 
-`scripts/cache_handoff.py` writes a gzip-compressed tar archive with four pigz workers when
-available and Python gzip otherwise. It records the archive digest and provenance, validates
+`scripts/cache_handoff.py` writes and unpacks a gzip-compressed tar archive through `pigz` (up to
+8 workers matching `os.cpu_count()`) when available, falling back to Python gzip/tarfile
+otherwise. It records the archive digest and provenance, validates
 the complete archive before restoration, and swaps the root build directory without modifying
 existing hard-linked cache objects. Merge groups do not publish to GCS: the normal successful
 `main` run remains the only public-cache writer. This makes its outputs available sooner to
@@ -275,13 +314,21 @@ group was formed, or a queue entry ahead of it whose run has already succeeded.
   landed commit every handoff has expired and the step is a miss.
 
 - **Payload.** The archive keeps compiled outputs (including private/server OLeans, IR and native
-  code), hashes and traces. It omits only `ir/**/*.setup.json` and `ir/**/*.irsetup.json`: Lake's
-  transient compiler setup inputs. Lake writes these inside a compilation action and does not
-  require them to reuse completed modules. Other JSON files are retained. File-type/link checks
-  still cover omitted entries. The payload limits are 300,000 files, 12 GiB unpacked and 4 GiB
-  compressed; a full build measured 101,848 files, 4.64 GB and 1.67 GB on November 8, 2026. The
-  earlier 100,000-file, 4 GiB and 1 GiB limits had been outgrown, which silently disabled the
-  handoff. Packing reports retained and omitted counts/sizes, and in Actions a limit miss or any
+  code), hashes and traces. It omits `ir/**/*.setup.json` and `ir/**/*.irsetup.json` (Lake's
+  transient compiler setup inputs, written inside compile actions and unused when reusing completed
+  modules) together with `ir/**/*.ltar` and `ir/**/*.ltar.hash` (per-module remote-publication
+  archives, consumed only by `publish.py stage` on `main`). Other JSON files are retained,
+  file-type/link checks still cover omitted entries, and `unpack` still accepts older in-flight
+  handoff archives that include `.ltar` files. When `install_build` swaps an existing `.lake/build`
+  aside (such as `main`'s restored Actions `.lake` snapshot), it carries forward regular
+  `ir/<Rel>.ltar` files from the displaced build whenever no `ir/<Rel>.ltar` exists in the staged
+  build and `<Rel>`'s compiled trace, `.olean.hash` and companion output hashes/artifacts match
+  byte-for-byte, without mutating shared hard-linked cache objects or aborting the handoff on an
+  optional carry-over error. The payload limits are 500,000 files, 20 GiB unpacked and 8 GiB
+  compressed (`480`s download timeout); a full build measured 172,812 files, 7.53 GB unpacked and
+  2.64 GB compressed on November 21, 2026 before `.ltar` omission (up from 101,848 files, 4.64 GB
+  and 1.67 GB on November 8, 2026). Packing reports retained and omitted counts/sizes, and in
+  Actions a limit miss or any
   other unavailable handoff is a workflow warning on the run summary.
 - **Kill switch.** Setting the repository variable `DISABLE_BUILD_HANDOFF` to `1` or `true`
   (`gh variable set DISABLE_BUILD_HANDOFF --body 1`) disables merge-group staging and all handoff
@@ -547,6 +594,10 @@ This stages local files. The report is kept outside the publication inventory. W
 the Python process's CPU time are recorded on every platform; completed-child user/system CPU
 times are included where Python's `resource` module is available. Child CPU includes the waited
 command and its waited descendants, not a separate measurement of each subprocess or peak memory.
+When profiling locally with carried-over `.ltar` files after a non-`-o` build has already cached
+`ltar`-less module entries in `~/.elan`, pass a fresh `LAKE_CACHE_DIR` so Lake caches the
+carried-over archives before `lake cache stage` copies them (ephemeral CI runners start with an
+empty `LAKE_CACHE_DIR`).
 
 `lake build ... -o` can create missing per-module archives even when the Lean outputs are warm.
 The pinned Lake implementation calls `packLtar` when output tracking finds no archive
@@ -557,9 +608,13 @@ retained archives with fixed tiny sources and verifies that OLean hashes and mti
 It establishes that mechanism, not a speedup estimate for a full CI build.
 
 CI saves its Actions `.lake` snapshot after publication staging and before uploading the staged
-package. This keeps newly packed archives for later builds. Ordinary merge-group builds and
-handoffs preserve archives that Lake has not invalidated; no additional archive-preparation step
-runs on the merge queue, and no old archive is attached to a new output by filename.
+package. This keeps newly packed archives for later builds. Merge-group handoff payloads omit
+`ir/**/*.ltar` and `ir/**/*.ltar.hash` so queue runs do not ship publication archives; when `main`
+(or a later handoff consumer) swaps its restored `.lake/build` for a handoff build, `install_build`
+carries forward regular `ir/<Rel>.ltar` archives from the displaced `.lake/build` only when
+`<Rel>`'s compiled `.trace`, `.olean.hash` and companion output hashes match byte-for-byte. No
+additional archive-preparation step runs on the merge queue, chained ancestor handoffs cannot
+erode `main`'s saved archive set, and no old archive is attached to a changed output by filename.
 
 The save remains best-effort: it runs for a successful library build even when later checks or
 staging fail, but neither a saved cache nor a failed stage authorizes publication. Cancellation

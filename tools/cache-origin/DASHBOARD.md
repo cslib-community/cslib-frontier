@@ -56,7 +56,11 @@ Storage statistics are an approximate observation rather than an atomic snapshot
 visits mappings before artifact metadata, so a build committed during the scan may appear on
 the next refresh. A file disappearing during a read, or a captured mapping changing, discards
 the sample and triggers one retry; both attempts share a 30-second scan budget. Object and
-metadata size bounds still apply.
+metadata bounds still apply: at most 100,000 filesystem entries, 8 MiB per mapping,
+100,000 rows per mapping and 4096 bytes per line. There is no aggregate mapping-byte ceiling:
+mapping contents are streamed one file at a time, with only that mapping's input/reference sets
+retained during parsing. The 30-second budget, one retry, 128 MiB service memory ceiling,
+90-second service timeout and 1 MiB JSON output bound remain in force.
 If the inventory remains unavailable, traffic can refresh while previous build/storage details
 are retained. The page warns that those details are stale and shows their age. A wholly failed
 collector leaves the last good JSON in place. The dashboard adds no email notifications.

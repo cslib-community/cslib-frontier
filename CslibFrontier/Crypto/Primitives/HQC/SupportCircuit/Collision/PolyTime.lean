@@ -43,7 +43,7 @@ open Circuits Circuits.Boolean Turing.MultiTapeTM ComputableInPolyTime
 
 /-- Emit both comparisons, their conjunction, the offset word and the selecting multiplexer. -/
 @[expose] def collisionStepCode (bits offset : ℕ) : List (Op × List ℕ) × List ℕ :=
-  compCode (bits + bits) (muxCode bits)
+  compCode (bits + bits) (muxCircuit bits).code
     (appendCode (bits + bits)
       (compCode (bits + bits) ([(.and, [0, 1])], [2])
         (appendCode (bits + bits) (leCircuit bits).code
@@ -71,7 +71,7 @@ theorem collisionStepCode_eq_code (bits offset : ℕ) :
       ([], List.range bits) := by
     simpa using Circuit.code_wiring_eq_map (σ := signature)
       (f := (Fin.castAdd bits : Fin bits → Fin (bits + bits))) (g := id) (fun _ => rfl)
-  rw [collisionStepCode, ← hs, ← hp, muxCode_code, wordConstCode_eq_bits]
+  rw [collisionStepCode, ← hs, ← hp, wordConstCode_eq_bits]
   change compCode (bits + bits) (muxCircuit bits).code
     (appendCode (bits + bits)
       (compCode (bits + bits) (Circuit.oneGate (σ := signature) Op.and (id : Fin 2 → Fin 2)).code
@@ -106,7 +106,7 @@ theorem collisionStepCode_eq_code (bits offset : ℕ) :
         enc (encList encUnary) := by fun_prop
     exact (const (encOut := encList encGate) []).prod (mapWithInput hr hi)
   have hle := computableInPolyTime_leCircuit.comp hb
-  have h := computableInPolyTime_compCode hn (computableInPolyTime_muxCode.comp hb)
+  have h := computableInPolyTime_compCode hn (computableInPolyTime_muxCircuit.comp hb)
     (computableInPolyTime_appendCode hn
       (computableInPolyTime_compCode hn (const ([(Op.and, [0, 1])], [2]))
         (computableInPolyTime_appendCode hn hle (computableInPolyTime_compCode hn hle hs)))

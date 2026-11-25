@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Data.List.Lookup
 import Cslib.Foundations.Data.Polynomial.Monotone
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -94,18 +95,6 @@ ratio of at least `2 ^ (2 * K)`. -/
 private def newmanAmp (M K : ℕ) (z : ℤ) : ℤ :=
   newmanPoly M z ^ (2 * K)
 
-private theorem exists_two_pow_interval {M : ℕ} {z : ℤ} (hz₁ : 1 ≤ z) (hz₂ : z ≤ (2 : ℤ) ^ M) :
-    ∃ k ∈ range (M + 1), (2 : ℤ) ^ k ≤ z ∧ z ≤ 2 * (2 : ℤ) ^ k := by
-  induction M with
-  | zero =>
-    exact ⟨0, mem_range.mpr (by omega), by simpa using hz₁, by simpa using hz₂.trans (by omega)⟩
-  | succ M ih =>
-    by_cases hle : z ≤ (2 : ℤ) ^ M
-    · obtain ⟨k, hk, hk₁, hk₂⟩ := ih hle
-      exact ⟨k, mem_range.mpr (Nat.lt_succ_of_lt (mem_range.mp hk)), hk₁, hk₂⟩
-    · refine ⟨M, mem_range.mpr (by omega), by omega, ?_⟩
-      simpa [pow_succ'] using hz₂
-
 /-- Newman's polynomial is at least `1` at every positive integer. -/
 private theorem one_le_newmanPoly {M : ℕ} {z : ℤ} (hz : 1 ≤ z) : 1 ≤ newmanPoly M z :=
   one_le_prod₀ fun j _ => by
@@ -116,20 +105,10 @@ private theorem one_le_newmanPoly {M : ℕ} {z : ℤ} (hz : 1 ≤ z) : 1 ≤ new
 `newmanPoly M z`. -/
 theorem two_mul_abs_newmanPoly_neg_le {M : ℕ} {z : ℤ} (hz₁ : 1 ≤ z) (hz₂ : z ≤ (2 : ℤ) ^ M) :
     2 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
-  obtain ⟨k, hk, hk₁, hk₂⟩ := exists_two_pow_interval hz₁ hz₂
-  unfold newmanPoly
-  rw [← mul_prod_erase (range (M + 1)) (fun j => (2 : ℤ) ^ j + -z) hk,
-    ← mul_prod_erase (range (M + 1)) (fun j => (2 : ℤ) ^ j + z) hk,
-    abs_mul, ← mul_assoc]
-  have hhead : 2 * |(2 : ℤ) ^ k + -z| ≤ (2 : ℤ) ^ k + z := by
-    rcases abs_cases ((2 : ℤ) ^ k + -z) with ⟨h, _⟩ | ⟨h, _⟩ <;> omega
-  have htail : |∏ x ∈ (range (M + 1)).erase k, ((2 : ℤ) ^ x + -z)| ≤
-      ∏ x ∈ (range (M + 1)).erase k, ((2 : ℤ) ^ x + z) := by
-    rw [abs_prod]
-    refine prod_le_prod₀ (fun j _ => abs_nonneg _) fun j _ => ?_
-    have : (0 : ℤ) ≤ (2 : ℤ) ^ j := by positivity
-    rcases abs_cases ((2 : ℤ) ^ j + -z) with ⟨h, _⟩ | ⟨h, _⟩ <;> omega
-  exact mul_le_mul hhead htail (abs_nonneg _) (by omega)
+  have h : 3 * |newmanPoly M (-z)| ≤ newmanPoly M z := by
+    simpa only [newmanPoly, sub_eq_add_neg] using
+      Polynomial.three_mul_abs_prod_two_pow_sub_le hz₁ hz₂
+  exact (mul_le_mul_of_nonneg_right (by decide : (2 : ℤ) ≤ 3) (abs_nonneg _)).trans h
 
 /-- The amplified weight is nonnegative, being an even power. -/
 private theorem newmanAmp_nonneg (M K : ℕ) (z : ℤ) : 0 ≤ newmanAmp M K z :=
@@ -235,37 +214,30 @@ private theorem sum_erase_ppWordWeight_lt {A : Set (α × ℕ)} {M r : α → �
     dsimp [factor]
     split_ifs <;> exact newmanAmp_nonneg _ _ _
   have hfactor_v_pos (i : Fin (r a)) : 1 ≤ factor v i := by
-    dsimp [factor, v]
     by_cases hi : (a, i.1) ∈ A
-    · simp only [decide_eq_true hi, ↓reduceIte]
-      exact one_le_newmanAmp (hpos i.1 i.2 hi)
-    · simp only [decide_eq_false hi, Bool.false_eq_true, ↓reduceIte]
-      exact one_le_newmanAmp (hneg i.1 i.2 hi)
+    · simpa [factor, v, hi] using one_le_newmanAmp (hpos i.1 i.2 hi)
+    · simpa [factor, v, hi] using one_le_newmanAmp (hneg i.1 i.2 hi)
   have hfactor_mismatch (w : Fin (r a) → Bool) (i : Fin (r a)) (hne : w i ≠ v i) :
       (2 : ℤ) ^ (2 * (r a + 1)) * factor w i ≤ factor v i := by
     have habs := abs_le.mp (hbnd i.1 i.2)
-    dsimp [factor, v] at hne ⊢
     by_cases hi : (a, i.1) ∈ A
-    · have hw : w i = false := by simpa [hi] using hne
-      simp only [hw, Bool.false_eq_true, ↓reduceIte, decide_eq_true hi]
-      exact two_pow_mul_newmanAmp_neg_le (hpos i.1 i.2 hi) habs.2
-    · have hw : w i = true := by simpa [hi] using hne
-      simp only [hw, ↓reduceIte, decide_eq_false hi, Bool.false_eq_true]
-      simpa only [neg_neg] using two_pow_mul_newmanAmp_neg_le (hneg i.1 i.2 hi) (by omega)
+    · simpa [factor, v, hi, show w i = false by simpa [v, hi] using hne] using
+        two_pow_mul_newmanAmp_neg_le (hpos i.1 i.2 hi) habs.2
+    · simpa [factor, v, hi, show w i = true by simpa [v, hi] using hne] using
+        two_pow_mul_newmanAmp_neg_le (hneg i.1 i.2 hi) (by omega)
   have hfactor_le (w : Fin (r a) → Bool) (i : Fin (r a)) : factor w i ≤ factor v i := by
     by_cases h : w i = v i
-    · dsimp [factor]; rw [h]
-    · have hpow : (1 : ℤ) ≤ (2 : ℤ) ^ (2 * (r a + 1)) := one_le_pow₀ (by omega)
-      exact (le_mul_of_one_le_left (hfactor_nonneg w i) hpow).trans (hfactor_mismatch w i h)
+    · simp only [factor, h, le_refl]
+    · exact (le_mul_of_one_le_left (hfactor_nonneg w i) (one_le_pow₀ (by omega))).trans
+        (hfactor_mismatch w i h)
   have hPv_pos : 1 ≤ ppWordWeight M r g a v := by
     rw [ppWordWeight_eq_prod_univ]
     exact one_le_prod₀ fun i _ => hfactor_v_pos i
   have hdom (w : Fin (r a) → Bool) (hw : w ∈ univ.erase v) :
       2 * (2 : ℤ) ^ r a * ppWordWeight M r g a w ≤ ppWordWeight M r g a v := by
     obtain ⟨i₀, hi₀⟩ : ∃ i₀, w i₀ ≠ v i₀ := Function.ne_iff.mp (mem_erase.mp hw).1
-    have hpow_le : 2 * (2 : ℤ) ^ r a ≤ (2 : ℤ) ^ (2 * (r a + 1)) := by
-      rw [show (2 : ℤ) * (2 : ℤ) ^ r a = (2 : ℤ) ^ (r a + 1) by ring]
-      exact pow_le_pow_right₀ (by omega) (by omega)
+    have hpow_le : 2 * (2 : ℤ) ^ r a ≤ (2 : ℤ) ^ (2 * (r a + 1)) :=
+      (pow_succ' (2 : ℤ) (r a)).symm.trans_le (pow_le_pow_right₀ (by omega) (by omega))
     have hprod_dom : (2 : ℤ) ^ (2 * (r a + 1)) * ppWordWeight M r g a w ≤
         ppWordWeight M r g a v := by
       rw [ppWordWeight_eq_prod_univ, ppWordWeight_eq_prod_univ]
@@ -283,10 +255,8 @@ private theorem sum_erase_ppWordWeight_lt {A : Set (α × ℕ)} {M r : α → �
     rw [mul_sum]
     refine (sum_le_sum hdom).trans ?_
     rw [sum_const, nsmul_eq_mul]
-    have hcard : ((univ.erase v).card : ℤ) ≤ (2 : ℤ) ^ r a := by
-      have hc : (univ.erase v).card ≤ 2 ^ r a := by simp
-      exact_mod_cast hc
-    exact mul_le_mul_of_nonneg_right hcard (by omega)
+    exact mul_le_mul_of_nonneg_right
+      (by exact_mod_cast (show (univ.erase v).card ≤ 2 ^ r a by simp)) (by omega)
   have h2pow_pos : (0 : ℤ) < (2 : ℤ) ^ r a := by positivity
   nlinarith
 
@@ -324,18 +294,12 @@ theorem truthTable_mem_PP (hA : A ∈ PP (encPair enc encUnary))
       enc_len
   unfold ppTruthTableGap
   rw [← add_sum_erase univ _ (mem_univ v), hv_ofFn]
-  have hrest_lower : -(∑ w ∈ univ.erase v, ppWordWeight M r g a w) ≤
-      ∑ w ∈ univ.erase v, (if d (a, List.ofFn w) then 1 else -1) * ppWordWeight M r g a w := by
-    rw [← sum_neg_distrib]
-    refine sum_le_sum fun w _ => ?_
-    have := ppWordWeight_nonneg M r g a w
-    split_ifs <;> omega
-  have hrest_upper :
-      ∑ w ∈ univ.erase v, (if d (a, List.ofFn w) then 1 else -1) * ppWordWeight M r g a w ≤
-      ∑ w ∈ univ.erase v, ppWordWeight M r g a w := by
-    refine sum_le_sum fun w _ => ?_
-    have := ppWordWeight_nonneg M r g a w
-    split_ifs <;> omega
+  have hrest : |∑ w ∈ univ.erase v, (if d (a, List.ofFn w) then 1 else -1) *
+      ppWordWeight M r g a w| ≤ ∑ w ∈ univ.erase v, ppWordWeight M r g a w :=
+    (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun w _ => by
+      have := ppWordWeight_nonneg M r g a w
+      split_ifs <;> simp [abs_of_nonneg this])
+  rw [abs_le] at hrest
   change d (a, truthTableAnswers A r a) = true ↔ _
   cases hd_val : d (a, truthTableAnswers A r a) <;> simp only [Bool.false_eq_true,
     ↓reduceIte, one_mul, neg_one_mul, true_iff, false_iff, not_lt] <;> omega

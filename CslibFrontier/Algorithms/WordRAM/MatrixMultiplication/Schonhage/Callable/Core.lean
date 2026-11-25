@@ -34,8 +34,8 @@ open Cslib.Algorithms.MatrixMultiplication.Schonhage
 theorem source_admission {m N Q : ℕ} (hN : D m ^ 18 ≤ N) :
     0 < sourceWidth N Q - 2 ∧
       QueriedProduct.magnitudeBound (19 * m) 1 < 2 ^ ((sourceWidth N Q - 2) - 1) ∧
-      Fits (sourceWidth N Q) (QueriedProduct.wordBudget (19 * m) m N Q) := by
-  exact QueriedProduct.admission_bounds (QueriedProduct.thin_admissionWidth_le m N Q 1 hN)
+      Fits (sourceWidth N Q) (QueriedProduct.wordBudget (19 * m) m N Q) :=
+  QueriedProduct.admission_bounds (QueriedProduct.thin_admissionWidth_le m N Q 1 hN)
 
 /-- Original words initialize an actual callable native product prefix, even with arbitrary
 dirty target memory in the reserved window. Answers here are clipped physical words; the
@@ -67,11 +67,9 @@ theorem exec_core {W b m N : ℕ}
   have htwo : sourceWidth N qs.length - 2 + 2 = sourceWidth N qs.length := by omega
   have hbudget' : Fits (sourceWidth N qs.length - 2 + 2)
       (QueriedProduct.wordBudget (19 * m) m N qs.length) := by simpa only [htwo] using hbudget
-  have hi := QueriedProduct.input_fits hw (show m ≤ 19 * m by omega)
-    true X Y qs hXabs hYabs hmag hbudget'
-  have hi' : (State.init (QueriedProduct.input true (19 * m) X Y qs) : State 160).data.Bounded
-      (sourceWidth N qs.length) := by
-    simpa only [htwo, State.init] using (Data.Bounded.init (r := 160) hi)
+  have hi : InputFits (sourceWidth N qs.length) (QueriedProduct.input true (19 * m) X Y qs) := by
+    simpa only [htwo] using
+      QueriedProduct.input_fits hw (show m ≤ 19 * m by omega) true X Y qs hXabs hYabs hmag hbudget'
   have hrow : x.mem (b + 3) = N := by
     rw [hinput 3 (by unfold QueriedProduct.inputEnd; omega)]
     simp [State.init, Data.init, QueriedProduct.input]
@@ -79,33 +77,24 @@ theorem exec_core {W b m N : ℕ}
     rw [hinput 4 (by unfold QueriedProduct.inputEnd; omega)]
     simp [State.init, Data.init, QueriedProduct.input]
   obtain ⟨s, hs, smem, smatch, sbound⟩ := exec_setup x hb hrow hcount hfit
-  let v := MemoryWindow.view (sourceWidth N qs.length) b s
-  have vinput (a : ℕ) (ha : a < QueriedProduct.inputEnd m N qs.length) :
-      v.mem a =
-        (State.init (QueriedProduct.input true (19 * m) X Y qs) : State 160).data.mem a := by
-    change s.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-    rw [smem, hinput a ha, Nat.mod_eq_of_lt (hi'.2 a)]
+  have vinput := MemoryWindow.view_mem_init_of_inputFits (r₀ := 160) hi s
+    fun a ha => (congrFun smem (b + a)).trans (hinput a ha)
   obtain ⟨p, hp, pp, pv, pf⟩ := QueriedProduct.exec hw (show m ≤ 19 * m by omega)
-    true X Y qs v (fun a _ ha => vinput a ha) hXabs hYabs hbits hmag hbudget'
-  have hp' : ExecWithin (sourceWidth N qs.length) (QueriedProduct.program true) v p
+    true X Y qs _ (fun a _ ha => vinput a ha) hXabs hYabs hbits hmag hbudget'
+  have hp' : ExecWithin (sourceWidth N qs.length) (QueriedProduct.program true)
+      (MemoryWindow.view (sourceWidth N qs.length) b s) p
       (QueriedProduct.timeBound (show m ≤ 19 * m by omega) qs) := by
     simpa only [htwo] using hp
-  have hwindow : Fits W (b + 2 ^ sourceWidth N qs.length) := hfit.of_le (by
-    change b + windowSize N qs.length ≤ _
-    omega)
+  obtain ⟨-, hw_le, hwindow, -, -, -⟩ :=
+    MemoryWindow.dynamicWidth_fits (b := b) (widthCoeff := 128) (S := N + qs.length + 3)
+      (by decide) (by omega) (hfit.of_le (Nat.le_add_right _ 1024))
   obtain ⟨y, hy, ymatch, yframe⟩ := MemoryWindow.execWithin hp'
-    (QueriedProduct.not_readsWidth true) sbound smatch (setup_fits hfit).1 hwindow
+    (QueriedProduct.not_readsWidth true) sbound smatch hw_le hwindow
   refine ⟨y, hs.seq hy, ymatch.base_eq, ymatch.modulus_eq,
     (ymatch.regs _).trans pp.inputSize, (ymatch.regs _).trans pp.queryCount,
-    (ymatch.regs _).trans pp.output, ?_, ?_, ?_⟩
-  · intro i
-    exact (ymatch.mem _).trans (pv i)
-  · intro a ha
-    change y.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-    rw [ymatch.mem, pf a (by omega)]
-    change s.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-    rw [smem, hinput a ha, Nat.mod_eq_of_lt (hi'.2 a)]
-  · intro a ha
-    exact (yframe a ha).trans (congrFun smem a)
+    (ymatch.regs _).trans pp.output, fun i => (ymatch.mem _).trans (pv i),
+    fun a ha => (ymatch.mem a).trans ((pf a (by omega)).trans
+      ((vinput a ha).trans (hinput a ha).symm)),
+    fun a ha => (yframe a ha).trans (congrFun smem a)⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableProduct

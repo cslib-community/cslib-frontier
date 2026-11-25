@@ -83,20 +83,17 @@ private theorem bitBlast_gateBit (enc : F → BitString w)
   let ψ : BooleanFunction ((fullSignature 2 F).Arity op * w) := fun y =>
     enc (fullInterpretation op fun a => decode fun j' => y (finProdFinEquiv (a, j'))) j
   obtain ⟨c, hc, hsize⟩ := (selected (n := (fullSignature 2 F).Arity op * w) id ψ).exists_circuit
-  have h := Synthesis.circuit (I := interpretation) c
+  refine (Synthesis.circuit (I := interpretation) c
     (fun idx => bitsOf enc (args (finProdFinEquiv.symm idx).1) (finProdFinEquiv.symm idx).2)
-    (fun idx => hargs _ _)
-  refine h.mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, ?_⟩) (hsize.trans ?_)
-  · funext x
-    refine (congrFun (hc _) 0).trans ?_
+    (fun _ => hargs _ _)).mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, funext fun x => ?_⟩)
+    (hsize.trans ?_)
+  · refine (congrFun (hc _) 0).trans ?_
     simp only [single_apply, Function.comp_id, ψ, bitsOf, Equiv.symm_apply_apply]
     exact congrArg (fun v => enc (fullInterpretation op v) j)
       (funext fun a => hdecode (args a x))
   · have hkw : (fullSignature 2 F).Arity op * w ≤ 2 * w := Nat.mul_le_mul_right w hk
-    have hpow : 2 ^ ((fullSignature 2 F).Arity op * w) ≤ 2 ^ (2 * w) :=
-      Nat.pow_le_pow_right (by decide) hkw
-    have : 2 * ((fullSignature 2 F).Arity op * w) + 2 ≤ 4 * w + 2 := by omega
-    exact Nat.add_le_add_right (Nat.mul_le_mul hpow this) 1
+    exact Nat.add_le_add_right
+      (Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) hkw) (by omega)) 1
 
 /-- **Bit-blasting a program.** If the bits of the functions `φ i` feeding the inputs of a
 program over the full binary basis of `F` are available, then the bits of the values of all its
@@ -136,13 +133,11 @@ theorem bitBlast_program (enc : F → BitString w)
     rintro _ ⟨⟨wire, j⟩, rfl⟩
     induction wire using Wire.lastCases with
     | last =>
-      refine Set.mem_union_right _ ⟨j, ?_⟩
-      funext x
-      simp only [bitsOf, Program.trace_gateWire, Program.gateFunction_gate_last]
+      exact Set.mem_union_right _ ⟨j, funext fun x => by
+        simp only [bitsOf, Program.trace_gateWire, Program.gateFunction_gate_last]⟩
     | castSucc wire =>
-      refine Set.mem_union_left _ ⟨(wire, j), ?_⟩
-      funext x
-      simp only [bitsOf, Program.trace_gate_castSucc]
+      exact Set.mem_union_left _ ⟨(wire, j), funext fun x => by
+        simp only [bitsOf, Program.trace_gate_castSucc]⟩
 
 /-- **Bit-blasting a circuit.** If the bits of the functions `φ i` feeding the inputs of a circuit
 over the full binary basis of `F` are available, then the bits of all its outputs can be made
@@ -177,17 +172,13 @@ theorem bitBlast_synthesis (enc : F → BitString w)
   classical
   have := Fintype.ofFinite ι
   let e := Fintype.equivFin ι
-  have h' : Synthesis (fullInterpretation (k := 2)) (inputs N)
-      (Set.range fun j => Ψ (e.symm j)) cost :=
-    h.mono Set.Subset.rfl (by rintro _ ⟨j, rfl⟩; exact ⟨_, rfl⟩) le_rfl
-  obtain ⟨c, hc, hsize⟩ := h'.exists_circuit_outputs
+  obtain ⟨c, hc, hsize⟩ := (h.mono Set.Subset.rfl (t' := Set.range fun j => Ψ (e.symm j))
+    (by
+      rintro _ ⟨_, rfl⟩
+      exact ⟨_, rfl⟩) le_rfl).exists_circuit_outputs
   refine (bitBlast enc decode hdecode c φ hφ).mono Set.Subset.rfl ?_ (Nat.mul_le_mul_right _ hsize)
   rintro _ ⟨⟨o, j⟩, rfl⟩
-  refine ⟨(e o, j), ?_⟩
-  funext x
-  simp only [bitsOf]
-  rw [hc (fun i => φ i x)]
-  simp only [e.symm_apply_apply]
+  exact ⟨(e o, j), funext fun x => by simp only [bitsOf, hc (fun i => φ i x), e.symm_apply_apply]⟩
 
 end Synthesis
 

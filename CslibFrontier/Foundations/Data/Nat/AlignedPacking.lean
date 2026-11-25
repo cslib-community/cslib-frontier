@@ -59,23 +59,19 @@ theorem exists_aligned_packing {ι : Type*} (b : ℕ) (ℓ : ι → ℕ) (s : Fi
         rw [Function.update_of_ne hne]
         exact ⟨(hfit i hi).1, by have := (hfit i hi).2; omega⟩
     · intro i hi j hj t hi₁ hi₂ hj₁ hj₂
-      have hside (u : ι) (hu : u ∈ s) : o u + b ^ ℓ u ≤ ∑ j ∈ s, b ^ ℓ j := (hfit u hu).2
+      have hcross {u : ι} (hu : u ∈ s) (ha₁ : ∑ k ∈ s, b ^ ℓ k ≤ t)
+          (hu₂ : t < Function.update o a (∑ k ∈ s, b ^ ℓ k) u + b ^ ℓ u) : False := by
+        rw [Function.update_of_ne (fun h : u = a => ha (h ▸ hu))] at hu₂
+        have := (hfit u hu).2
+        omega
       rcases mem_insert.1 hi with rfl | hi' <;> rcases mem_insert.1 hj with rfl | hj'
       · rfl
-      · have hne : j ≠ i := fun h => ha (h ▸ hj')
-        rw [Function.update_self] at hi₁
-        rw [Function.update_of_ne hne] at hj₁ hj₂
-        have := hside j hj'
-        omega
-      · have hne : i ≠ j := fun h => ha (h ▸ hi')
-        rw [Function.update_self] at hj₁
-        rw [Function.update_of_ne hne] at hi₁ hi₂
-        have := hside i hi'
-        omega
-      · have hni : i ≠ a := fun h => ha (h ▸ hi')
-        have hnj : j ≠ a := fun h => ha (h ▸ hj')
-        rw [Function.update_of_ne hni] at hi₁ hi₂
-        rw [Function.update_of_ne hnj] at hj₁ hj₂
+      · rw [Function.update_self] at hi₁
+        exact (hcross hj' hi₁ hj₂).elim
+      · rw [Function.update_self] at hj₁
+        exact (hcross hi' hj₁ hi₂).elim
+      · rw [Function.update_of_ne (fun h : i = a => ha (h ▸ hi'))] at hi₁ hi₂
+        rw [Function.update_of_ne (fun h : j = a => ha (h ▸ hj'))] at hj₁ hj₂
         exact hdisj i hi' j hj' t hi₁ hi₂ hj₁ hj₂
 
 end Nat

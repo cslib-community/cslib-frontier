@@ -138,6 +138,7 @@ class GuideCacheTests(unittest.TestCase):
             (self.root / name).write_text("changed source\n")
         self.assertEqual(cache.cache_key(self.root, self.env | {
             "GITHUB_SHA": "new commit", "GITHUB_RUN_ID": "123", "GITHUB_REF": "refs/pull/12/merge",
+            "ImageVersion": "20261116.999.1",
         }), original)
 
     def test_missing_native_identity_does_not_guess(self):
@@ -227,8 +228,16 @@ class GuideCacheTests(unittest.TestCase):
             self.assertIn("run: scripts/guide.sh", build)
         guide = (ROOT / ".github/workflows/guide.yml").read_text()
         self.assertIn('".github/actions/cache-guide-deps/**"', guide)
-        self.assertIn(".github/actions/cache-guide-deps", step(guide, "Select rendered guide build"))
-        self.assertNotIn("if:", step(guide, "Compile guide examples"))
+        self.assertIn("scripts/ci/select_guide.py", step(guide, "Select rendered guide build"))
+        selector_spec = importlib.util.spec_from_file_location(
+            "select_guide_mod", ROOT / "scripts/ci/select_guide.py",
+        )
+        selector_mod = importlib.util.module_from_spec(selector_spec)
+        selector_spec.loader.exec_module(selector_mod)
+        self.assertIn(".github/actions/cache-guide-deps/", selector_mod.RENDER_DIRS)
+        compile_step = step(guide, "Compile guide examples")
+        self.assertNotIn("cache-hit", compile_step)
+        self.assertIn("steps.changes.outputs.check == 'true'", compile_step)
 
 
 if __name__ == "__main__":

@@ -240,8 +240,10 @@ The two reserve-output theorems choose their output constant after the fixed hie
 and raw/preparation/maximum families. Select this constant before allocating recursive
 child accuracies, then supply a `ReserveOutputContext HP P J` and independently supplied
 `ReserveOutputChildren HP P J`. The shared
+[StageContext](../../CslibFrontier/Computability/LogSpaceDerandomization/StageContext.lean) and
 [OutputContext](../../CslibFrontier/Computability/LogSpaceDerandomization/NormalizedAtomRows/OutputContext.lean)
-module records the finite geometric, routing and cutoff hypotheses and names the existing
+modules bundle the stage cutoff (`CutoffProfile`), bin-schedule (`BinSchedule`), and residual-stage
+(`ResidualStage`) hypotheses extended by `ReserveOutputContext`, and name the existing
 allocation, walks, conditional cost and two-signal increment. Both public theorems retain
 an explicit error premise and row-moment conclusion. Uniformity of the coefficient does
 not remove any displayed finite allocation or walk-length losses and supplies no recursive

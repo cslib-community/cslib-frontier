@@ -127,4 +127,16 @@ example :
   norm_num at h
   exact h
 
+/-- The empty digest is zero, and the last block is added after reducing the prefix hash.
+The two-block family has collision bound `8/9`. -/
+example :
+    polyHashMod (p := 11) (N := 9) 2 [] = 0 ∧
+    polyHashMod (p := 11) (N := 9) 2 [8, 8] = 8 ∧
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 11))
+      (fun k (m : {m : List (ZMod 9) // m.length ≤ 2}) => polyHashMod k m.val) (8 / 9) := by
+  refine ⟨by decide, by decide, ?_⟩
+  have h := isUniversalHash_polyHashMod (p := 11) (N := 9) (by decide) 2
+  norm_num at h
+  exact h
+
 end CslibFrontierTests.HashFamilyPolynomial

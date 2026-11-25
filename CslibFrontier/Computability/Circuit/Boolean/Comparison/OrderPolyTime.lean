@@ -129,4 +129,11 @@ theorem computableInPolyTime_leCircuit :
       nlinarith [Nat.pow_le_pow_left hi 2])
   simpa only [Function.comp_def, heq] using h.snd'
 
+/-- `@[fun_prop]` rule for `leCircuit` in typed circuit compositions. -/
+@[fun_prop] theorem computableCircuitCode_leCircuit {α : Type} {enc : α ↪ List Bool}
+    {w : α → ℕ} (hw : ComputableInPolyTime w enc encUnary) :
+    Circuit.ComputableCircuitCode (fun a => leCircuit (w a)) enc encOp :=
+  Circuit.computableCircuitCode_of_computableInPolyTime
+    (computableInPolyTime_leCircuit.comp hw)
+
 end Cslib.Circuits.Boolean

@@ -29,8 +29,12 @@ rule of `fun_prop` for `ComputableInLogSpace`.
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInLogSpace.comp`: logspace functions compose.
+* `Turing.MultiTapeTM.ComputableInSpace.comp_logSpace`: a function within a workspace budget
+  composes after a logspace function, within its budget plus the logarithm of the input length.
 * `Turing.MultiTapeTM.comp_logSpace_of_length_log`: a logspace producer of short values
   composes with a linear-space consumer.
+* `Turing.MultiTapeTM.ComputableInLogSpace.inSpace_of_length_log`: charge the encoded output
+  to the logarithmic workspace budget.
 * `Turing.MultiTapeTM.length_log_of_inSpace`: the composed output is short.
 * `Turing.MultiTapeTM.ComputableInLogSpace.comp'`,
   `Turing.MultiTapeTM.ComputableInLogSpace.bool_not`: composition and negation in the form used by
@@ -88,6 +92,41 @@ theorem ComputableInLogSpace.comp {g : β → γ} {f : α → β}
   generalize (encNat ((encMid (f a)).length + 1)).length = B at *
   nlinarith
 
+/-- **A function within a workspace budget, after a logspace function.** If `g` is computable
+within the budget `Sg`, its value charged, and `f` in logarithmic space, then `g ∘ f` is computable
+within `Sg (f a) + log₂ n` on inputs `a` of length `n`. The intermediate value `f a` may be long:
+it is recomputed symbol by symbol and never stored
+(`Turing.MultiTapeTM.ComputableInTimeAndSpace.comp_space`), and the counters for positions in it
+have logarithmic length because it is polynomially long. With `f` a rearrangement of a pair of
+stored registers and a read-only context, this substitutes the registers or the context of a
+function in that form. -/
+theorem ComputableInSpace.comp_logSpace {g : β → γ} {f : α → β} {Sg : β → ℕ}
+    (hg : ComputableInSpace g encMid encOut Sg) (hf : ComputableInLogSpace f encIn encMid) :
+    ComputableInSpace (fun a => g (f a)) encIn encOut
+      fun a => Sg (f a) + Nat.log2 (encIn a).length := by
+  obtain ⟨C, d, hlen⟩ := hf.polyBounded_length.exists_le
+  obtain ⟨tf, cf, hf⟩ := hf
+  obtain ⟨tg, cg, hg, hout⟩ := hg
+  obtain ⟨c, h⟩ := hf.comp_space hg
+  obtain ⟨K, hK⟩ : ∃ K, Nat.size (C + 1) + d = K := ⟨_, rfl⟩
+  refine ⟨_, max (c * (cf + cg + Nat.size 2 + 1 + K + 1)) cg,
+    h.mono (fun _ => le_rfl) fun a => ?_, fun a => (hout (f a)).trans ?_⟩
+  · have hm := hK ▸ length_encNat_succ_le (hlen a)
+    have hn := length_encNat_succ_le (m := (encIn a).length) (n := (encIn a).length) (C := 1)
+      (d := 1) (by simp)
+    refine (Nat.mul_le_mul_left c ?_).trans
+      ((Nat.mul_assoc ..).ge.trans (Nat.mul_le_mul_right _ (le_max_left _ _)))
+    have hL : 1 ≤ Nat.log2 (encIn a).length + 1 := Nat.le_add_left _ _
+    rw [show Sg (f a) + Nat.log2 (encIn a).length + 1 =
+      Sg (f a) + (Nat.log2 (encIn a).length + 1) by ring]
+    generalize Nat.log2 (encIn a).length + 1 = L at *
+    generalize (encNat ((encIn a).length + 1)).length = A at *
+    generalize (encNat ((encMid (f a)).length + 1)).length = B at *
+    generalize Sg (f a) = G
+    nlinarith
+  · exact (Nat.mul_le_mul_right _ (le_max_right _ _)).trans
+      (Nat.mul_le_mul_left _ (by dsimp only; omega))
+
 /-- Composition, in the form used by `fun_prop`. -/
 @[fun_prop]
 theorem ComputableInLogSpace.comp' {g : β → γ} {f : α → β}
@@ -100,6 +139,18 @@ theorem ComputableInLogSpace.comp' {g : β → γ} {f : α → β}
 theorem ComputableInLogSpace.bool_not {c : α → Bool} (hc : ComputableInLogSpace c encIn encBool) :
     ComputableInLogSpace (fun a => !c a) encIn encBool :=
   (ComputableInLogSpace.of_finite (encIn := encBool) not).comp' hc
+
+/-- A logarithmic output-length bound lets a logspace computation charge its encoded output
+to the same logarithmic budget. -/
+theorem ComputableInLogSpace.inSpace_of_length_log {f : α → β}
+    (h : ComputableInLogSpace f encIn encMid)
+    (hlen : ∃ L, ∀ a, (encMid (f a)).length ≤ L * (Nat.log2 (encIn a).length + 1)) :
+    ComputableInSpace f encIn encMid (fun a => Nat.log2 (encIn a).length) := by
+  obtain ⟨time, C, hwork⟩ := h
+  obtain ⟨L, hlen⟩ := hlen
+  refine ⟨time, max C L, hwork.mono (fun _ => le_rfl) (fun _ => ?_), fun a => ?_⟩
+  · exact Nat.mul_le_mul_right _ (le_max_left C L)
+  · exact (hlen a).trans (Nat.mul_le_mul_right _ (le_max_right C L))
 
 /-- Compose a `ComputableInLogSpace` producer whose encoded output has logarithmic length with a
 `ComputableInSpace` consumer running in space linear in its input length. -/
@@ -140,12 +191,7 @@ theorem comp_logSpace_of_length_log {α β γ : Type}
   calc cf * L + cg * ((encMid (f a)).length + 1) +
           (encNat ((encIn a).length + 1)).length +
           (encNat ((encMid (f a)).length + 1)).length + 1
-      ≤ cf * L + cg * (C + 1) * L + 2 * L + (C + 1) * L + L :=
-        Nat.add_le_add
-          (Nat.add_le_add
-            (Nat.add_le_add (Nat.add_le_add le_rfl hsg) hn_bits)
-            hm_bits)
-          hL
+      ≤ cf * L + cg * (C + 1) * L + 2 * L + (C + 1) * L + L := by omega
     _ = (cf + cg * (C + 1) + 2 + (C + 1) + 1) * L := by ring
 
 /-- A linear-space `ComputableInSpace` function preserves logarithmic encoded-output length. -/

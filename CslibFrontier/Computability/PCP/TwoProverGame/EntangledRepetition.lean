@@ -133,7 +133,7 @@ theorem quantumWinProb_pow_succ_le
         ENNReal.ofReal (G.pow n).quantumValue := by
     rw [hrounds, ← ENNReal.ofReal_toReal (Probability.PMF.toOuterMeasure_ne_top _ _)]
     exact ENNReal.ofReal_le_ofReal ((G.pow n).quantumWinProb_le_quantumValue (T q₀))
-  unfold quantumWinProb answersWinProb
+  rw [quantumWinProb, answersWinProb_eq]
   refine ENNReal.toReal_le_of_le_ofReal (G.pow n).quantumValue_nonneg ?_
   rw [questions_pow_succ, PMF.bind_bind]
   simp only [PMF.bind_map, Function.comp_def]
@@ -187,14 +187,13 @@ private theorem quantumValue_le_of_relabel
       rcases q with ⟨x, y⟩
       simp only [Function.comp_def, Equiv.prodCongr_apply, Prod.map_apply, hab, PMF.map_comp]
       rfl
-    rw [quantumWinProb, quantumWinProb, answersWinProb, answersWinProb, hrounds,
+    rw [quantumWinProb, quantumWinProb, answersWinProb_eq, answersWinProb_eq, hrounds,
       PMF.toOuterMeasure_map_apply]
     have hpreimage : f ⁻¹' {z | H.AcceptsRound z} = {z | G.AcceptsRound z} := by
       ext ⟨⟨x, y⟩, a, b⟩
       exact ha x y a b
     rw [hpreimage]
-  rw [← hscore]
-  exact H.quantumWinProb_le_quantumValue T
+  exact hscore.symm.le.trans (H.quantumWinProb_le_quantumValue T)
 
 private abbrev singleTupleEquiv (U : Type*) : U ≃ (Fin 1 → U) :=
   (Equiv.funUnique (Fin 1) U).symm
@@ -260,7 +259,7 @@ theorem quantumWinProb_pow_cons {ι' κ' : Type*}
       G.accepts x y a b ∧ ∀ i, G.accepts (x' i) (y' i) (a' i) (b' i)
     rw [Fin.forall_fin_succ]
     rfl
-  simp only [quantumWinProb, answersWinProb]
+  simp only [quantumWinProb, answersWinProb_eq]
   rw [hrounds, PMF.toOuterMeasure_map_apply, haccept,
     Probability.PMF.toOuterMeasure_bind_pair_prod, ENNReal.toReal_mul]
 

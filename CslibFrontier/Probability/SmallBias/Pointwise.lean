@@ -76,9 +76,7 @@ theorem abs_mul_mass_sub_one_le_sum_abs_bias (p : PMF (ι → Bool)) (z : ι →
   have heq : 2 ^ Fintype.card ι * (p z).toReal - 1 =
       ∑ S with S.Nonempty, bias p S * chi ℝ S z := by linarith
   rw [heq]
-  calc
-    _ ≤ ∑ S with S.Nonempty, |bias p S * chi ℝ S z| := abs_sum_le_sum_abs _ _
-    _ = _ := by simp only [abs_mul, abs_chi, mul_one]
+  exact abs_sum_mul_chi_le _ _ z
 
 /-- **Small bias gives pointwise closeness to uniform** ([Goldreich2007DraftR4], Exercise 8.34):
 every atom of an `ε`-biased distribution on `n` bits has normalized mass within `(2 ^ n - 1) ε` of
@@ -93,11 +91,7 @@ theorem IsSmallBias.abs_mul_mass_sub_one_le {ε : ℝ} {p : PMF (ι → Bool)} (
 theorem mul_mass_le_sum_abs_bias (p : PMF (ι → Bool)) (z : ι → Bool) :
     2 ^ Fintype.card ι * (p z).toReal ≤ ∑ S, |bias p S| := by
   rw [← sum_bias_mul_chi]
-  apply sum_le_sum
-  intro S _
-  calc
-    bias p S * chi ℝ S z ≤ |bias p S * chi ℝ S z| := le_abs_self _
-    _ = |bias p S| := by rw [abs_mul, abs_chi, mul_one]
+  exact (le_abs_self _).trans (abs_sum_mul_chi_le _ _ z)
 
 /-- Controlling only the higher-order parity biases bounds the atom mass by the number of
 uncontrolled low-order parities plus the total controlled bias. -/
@@ -141,6 +135,23 @@ theorem mem_support_of_sum_abs_bias_lt_one (p : PMF (ι → Bool))
   norm_num at hz
   linarith
 
+omit [DecidableEq ι] in
+private theorem sum_nonempty_pow_card_le_one {q : ℝ} (hq : 0 ≤ q) (hq1 : q ≤ 1)
+    (hnq : Fintype.card ι * q ≤ 1 / 2) :
+    (∑ S : Finset ι with S.Nonempty, q ^ S.card) ≤ 1 := by
+  classical
+  simpa only [powerset_univ] using
+    sum_nonempty_powerset_pow_card_le_one (univ : Finset ι) hq hq1
+      (by simpa only [card_univ] using hnq)
+
+omit [Fintype ι] [DecidableEq ι] in
+private theorem inv_two_mul_nat_props (n : ℕ) :
+    (1 / (2 * (n : ℝ)) ≤ 1) ∧ (n : ℝ) * (1 / (2 * (n : ℝ))) ≤ 1 / 2 := by
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · norm_num
+  · have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
+    refine ⟨(div_le_one (by positivity)).mpr (by linarith), le_of_eq (by field_simp)⟩
+
 /-- Geometrically decaying parity biases imply multiplicative, pointwise closeness to uniform.
 The decay parameter `q` is explicit so the result also applies to restricted coordinate sets. -/
 theorem abs_mul_mass_sub_one_le_of_bias_le_geometric (p : PMF (ι → Bool))
@@ -148,10 +159,7 @@ theorem abs_mul_mass_sub_one_le_of_bias_le_geometric (p : PMF (ι → Bool))
     (hnq : Fintype.card ι * q ≤ 1 / 2)
     (hbias : ∀ S : Finset ι, S.Nonempty → |bias p S| ≤ ε * q ^ S.card)
     (z : ι → Bool) : |2 ^ Fintype.card ι * (p z).toReal - 1| ≤ ε := by
-  have hs : (∑ S : Finset ι with S.Nonempty, q ^ S.card) ≤ 1 := by
-    simpa only [powerset_univ] using
-      sum_nonempty_powerset_pow_card_le_one (univ : Finset ι) hq hq1
-        (by simpa only [card_univ] using hnq)
+  have hs := sum_nonempty_pow_card_le_one (ι := ι) hq hq1 hnq
   have hb : (∑ S : Finset ι with S.Nonempty, |bias p S|) ≤
       ε * ∑ S : Finset ι with S.Nonempty, q ^ S.card := by
     rw [mul_sum]
@@ -166,18 +174,9 @@ The zero-coordinate cube is included. -/
 theorem abs_mul_mass_sub_one_le_of_bias_le (p : PMF (ι → Bool)) {ε : ℝ} (hε : 0 ≤ ε)
     (hbias : ∀ S : Finset ι, S.Nonempty →
       |bias p S| ≤ ε * (1 / (2 * Fintype.card ι) : ℝ) ^ S.card)
-    (z : ι → Bool) : |2 ^ Fintype.card ι * (p z).toReal - 1| ≤ ε := by
-  apply abs_mul_mass_sub_one_le_of_bias_le_geometric p hε (by positivity) _ _ hbias z
-  · by_cases hn : Fintype.card ι = 0
-    · simp [hn]
-    · have hn1 : (1 : ℝ) ≤ Fintype.card ι := by exact_mod_cast Nat.one_le_iff_ne_zero.mpr hn
-      apply (div_le_one (by positivity)).mpr
-      linarith
-  · by_cases hn : Fintype.card ι = 0
-    · simp [hn]
-    · have hn0 : (0 : ℝ) < Fintype.card ι := by exact_mod_cast Nat.pos_of_ne_zero hn
-      apply le_of_eq
-      field_simp
+    (z : ι → Bool) : |2 ^ Fintype.card ι * (p z).toReal - 1| ≤ ε :=
+  have ⟨hq1, hnq⟩ := inv_two_mul_nat_props (Fintype.card ι)
+  abs_mul_mass_sub_one_le_of_bias_le_geometric p hε (by positivity) hq1 hnq hbias z
 
 /-- High-order geometric bias bounds charge the low-order parities by their exact number.
 This estimate also includes cubes with zero or one coordinate. -/
@@ -187,24 +186,16 @@ theorem mul_mass_le_card_add_one_of_high_order_bias_le (p : PMF (ι → Bool))
     (hbias : ∀ S : Finset ι, t ≤ S.card → |bias p S| ≤ q ^ S.card)
     (z : ι → Bool) :
     2 ^ Fintype.card ι * (p z).toReal ≤ (#{S : Finset ι | S.card < t} + 1 : ℝ) := by
-  have hgeom : (∑ S : Finset ι with S.Nonempty, q ^ S.card) ≤ 1 := by
-    simpa only [powerset_univ] using
-      sum_nonempty_powerset_pow_card_le_one (univ : Finset ι) hq hq1
-        (by simpa only [card_univ] using hnq)
-  have hhigh : (∑ S : Finset ι with t ≤ S.card, |bias p S|) ≤ 1 := by
-    calc
-      _ ≤ ∑ S : Finset ι with t ≤ S.card, q ^ S.card :=
-        sum_le_sum fun S hS => hbias S (mem_filter.mp hS).2
-      _ ≤ ∑ S : Finset ι with S.Nonempty, q ^ S.card := by
-        apply sum_le_sum_of_subset_of_nonneg
-        · intro S hS
-          have hcard := (mem_filter.mp hS).2
-          exact mem_filter.mpr ⟨mem_univ _, card_pos.mp (by omega)⟩
-        · intro S _ _
-          positivity
-      _ ≤ 1 := hgeom
-  have hmass := mul_mass_le_card_add_sum_abs_bias p t z
-  linarith
+  have hhigh : (∑ S : Finset ι with t ≤ S.card, |bias p S|) ≤ 1 :=
+    calc _ ≤ ∑ S : Finset ι with t ≤ S.card, q ^ S.card :=
+          sum_le_sum fun S hS => hbias S (mem_filter.mp hS).2
+      _ ≤ ∑ S : Finset ι with S.Nonempty, q ^ S.card :=
+          sum_le_sum_of_subset_of_nonneg
+            (fun S hS => mem_filter.mpr
+              ⟨mem_univ _, card_pos.mp (by have := (mem_filter.mp hS).2; omega)⟩)
+            fun _ _ _ => by positivity
+      _ ≤ 1 := sum_nonempty_pow_card_le_one (ι := ι) hq hq1 hnq
+  linarith [mul_mass_le_card_add_sum_abs_bias p t z]
 
 /-- High-order geometric bias bounds control the largest atom. Low-order parities are charged
 only their number, without assuming any bound better than one on their biases. -/
@@ -231,16 +222,9 @@ theorem le_minEntropy_of_high_order_bias_le (p : PMF (ι → Bool)) {t : ℕ}
       using Cslib.Probability.PMF.minEntropy_nonneg p
   · have hn2 : 2 ≤ Fintype.card ι := by omega
     have hn0 : (0 : ℝ) < Fintype.card ι := by exact_mod_cast (by omega : 0 < Fintype.card ι)
-    have hq1 : (1 / (2 * Fintype.card ι) : ℝ) ≤ 1 := by
-      apply (div_le_one (by positivity)).mpr
-      have : (2 : ℝ) ≤ Fintype.card ι := by exact_mod_cast hn2
-      linarith
-    have hnq : (Fintype.card ι : ℝ) * (1 / (2 * Fintype.card ι)) ≤ 1 / 2 := by
-      apply le_of_eq
-      field_simp
-    have hmass := mul_mass_le_pow_of_high_order_bias_le p hn2 ht
-      (by positivity) hq1 hnq hbias
-    have h := le_minEntropy_of_mul_mass_le p (pow_pos hn0 t) hmass
+    obtain ⟨hq1, hnq⟩ := inv_two_mul_nat_props (Fintype.card ι)
+    have h := le_minEntropy_of_mul_mass_le p (pow_pos hn0 t)
+      (mul_mass_le_pow_of_high_order_bias_le p hn2 ht (by positivity) hq1 hnq hbias)
     rw [Real.logb_pow] at h
     linarith
 

@@ -76,16 +76,22 @@ open Finset Real BitString
 
 variable {N : ℕ}
 
+/-- Control-bit component `p.2.1` of a Grover basis state `p : Fin N × Bool × Unit`. -/
+abbrev groverControl (p : Fin N × Bool × Unit) : Bool := p.2.1
+
+@[simp] theorem groverControl_mk (i : Fin N) (b : Bool) (u : Unit) :
+    groverControl (i, b, u) = b := rfl
+
 /-- The uniform superposition `|s⟩ = N^{-1/2} ∑_i |i, 1⟩` with control bit `1`. -/
 noncomputable def uniform (N : ℕ) : State N Unit :=
-  WithLp.toLp 2 fun p => if p.2.1 then ((Real.sqrt N)⁻¹ : ℝ) else 0
+  WithLp.toLp 2 fun p => if groverControl p then ((Real.sqrt N)⁻¹ : ℝ) else 0
 
 theorem norm_uniform (hN : 0 < N) : ‖uniform N‖ = 1 := by
   have h : ‖uniform N‖ ^ 2 = 1 := by
     rw [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
     simp only [Fintype.sum_prod_type, Fintype.sum_bool, Fintype.univ_unit, sum_singleton, uniform,
-      PiLp.toLp_apply, ite_true, Bool.false_eq_true, ite_false, norm_zero, Complex.norm_real,
-      Real.norm_eq_abs, sq_abs]
+      groverControl_mk, PiLp.toLp_apply, ite_true, Bool.false_eq_true, ite_false, norm_zero,
+      Complex.norm_real, Real.norm_eq_abs, sq_abs]
     rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, inv_pow,
       Real.sq_sqrt (Nat.cast_nonneg N)]
     field_simp
@@ -100,7 +106,8 @@ noncomputable def diffusion (N : ℕ) : State N Unit ≃ₗᵢ[ℂ] State N Unit
 `(Dψ)(i, b) = 2 b · mean_j ψ(j, 1) - ψ(i, b)`. -/
 theorem diffusion_apply (hN : 0 < N) (ψ : State N Unit) (p : Fin N × Bool × Unit) :
     (diffusion N ψ).ofLp p =
-      2 * (if p.2.1 then (N : ℂ)⁻¹ * ∑ q, (if q.2.1 then ψ.ofLp q else 0) else 0) - ψ.ofLp p := by
+      2 * (if groverControl p then (N : ℂ)⁻¹ * ∑ q, (if groverControl q then ψ.ofLp q else 0)
+        else 0) - ψ.ofLp p := by
   rw [diffusion, Submodule.reflection_apply, Submodule.starProjection_singleton,
     norm_uniform hN]
   simp only [one_pow, PiLp.sub_apply, PiLp.smul_apply,
@@ -116,8 +123,7 @@ theorem diffusion_apply (hN : 0 < N) (ψ : State N Unit) (p : Fin N × Bool × U
       if q.2.1 then ψ.ofLp q * ((Real.sqrt N : ℂ))⁻¹ else ψ.ofLp q * 0) =
       ((Real.sqrt N : ℂ))⁻¹ * ∑ q, (if q.2.1 then ψ.ofLp q else 0) := by
     rw [mul_sum]
-    refine sum_congr rfl fun q _ => ?_
-    split_ifs <;> ring
+    exact sum_congr rfl fun q _ => by split_ifs <;> ring
   rw [hdot]
   split_ifs
   · linear_combination (2 * ∑ q : Fin N × Bool × Unit, (if q.2.1 then ψ.ofLp q else 0)) * hsq
@@ -144,10 +150,9 @@ private theorem sin_groverAngle (hN : 2 ≤ N) : Real.sin (groverAngle N) = (Rea
 noncomputable def searchAngle (N t : ℕ) : ℝ := Real.arcsin (Real.sqrt (t / N))
 
 theorem sin_searchAngle {t : ℕ} (ht : t ≤ N) :
-    Real.sin (searchAngle N t) = Real.sqrt (t / N) := by
-  refine Real.sin_arcsin (by linarith [Real.sqrt_nonneg ((t : ℝ) / N)]) ?_
-  rw [Real.sqrt_le_one]
-  exact div_le_one_of_le₀ (by exact_mod_cast ht) (Nat.cast_nonneg _)
+    Real.sin (searchAngle N t) = Real.sqrt (t / N) :=
+  Real.sin_arcsin (by linarith [Real.sqrt_nonneg ((t : ℝ) / N)])
+    (Real.sqrt_le_one.mpr (div_le_one_of_le₀ (by exact_mod_cast ht) (Nat.cast_nonneg _)))
 
 theorem cos_searchAngle (t : ℕ) :
     Real.cos (searchAngle N t) = Real.sqrt (1 - t / N) := by
@@ -169,7 +174,7 @@ control bit `1`, every marked item has amplitude `sin((2k + 1) θ) / √t` and e
 `0`. -/
 theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fin N × Bool × Unit) :
     (run (grover N) (uniform N) x k).ofLp p =
-      if p.2.1 then ((if x p.1 then
+      if groverControl p then ((if x p.1 then
           Real.sin ((2 * k + 1) * searchAngle N (weight x)) / Real.sqrt (weight x)
         else Real.cos ((2 * k + 1) * searchAngle N (weight x)) / Real.sqrt (N - weight x) : ℝ) :
           ℂ) else 0 := by
@@ -191,25 +196,19 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
     rw [cos_searchAngle, show (1 : ℝ) - t / N = (N - t) / N by field_simp,
       Real.sqrt_div' _ hN0.le]
   -- A marked item exists only if `t ≠ 0`, and an unmarked one only if `t ≠ N`.
-  have hmarked : ∀ i, x i = true → st ≠ 0 := by
-    intro i hi
-    refine (Real.sqrt_pos.mpr ?_).ne'
-    have : 0 < t := card_pos.mpr ⟨i, by simp [hi]⟩
-    exact_mod_cast this
+  have hmarked : ∀ i, x i = true → st ≠ 0 := fun i hi =>
+    (Real.sqrt_pos.mpr (Nat.cast_pos.mpr (card_pos.mpr ⟨i, by simp [hi]⟩ : 0 < t))).ne'
   have hunmarked : ∀ i, x i = false → su ≠ 0 := by
     intro i hi
-    refine (Real.sqrt_pos.mpr ?_).ne'
     have h1 : 0 < #{j | x j = false} := card_pos.mpr ⟨i, by simp [hi]⟩
     have h2 := card_filter_eq_false_eq_card_sub_weight x
     rw [Fintype.card_fin] at h2
-    have : t < N := by omega
-    have : (t : ℝ) < N := by exact_mod_cast this
-    linarith
+    exact (Real.sqrt_pos.mpr (sub_pos.mpr (by exact_mod_cast (by omega : t < N)))).ne'
   induction k generalizing p with
   | zero =>
     obtain ⟨i, c, u⟩ := p
-    simp only [run, grover, LinearIsometry.id_apply, uniform, PiLp.toLp_apply, Nat.cast_zero,
-      mul_zero, zero_add, one_mul]
+    simp only [run, grover, LinearIsometry.id_apply, uniform, groverControl_mk, PiLp.toLp_apply,
+      Nat.cast_zero, mul_zero, zero_add, one_mul]
     cases c
     · rfl
     simp only [ite_true]
@@ -226,45 +225,36 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
     set C := Real.cos ((2 * k + 1) * θ) with hC
     -- The total control-`1` amplitude after the oracle.
     have hta : (t : ℝ) * (S / st) = st * S := by
-      by_cases h : st = 0
-      · have : (t : ℝ) = 0 := by rw [← hst2, h]; ring
-        simp [h, this]
-      · field_simp
-        rw [← hst2]
-        ring
+      rcases eq_or_ne st 0 with h | h
+      · simp [← hst2, h]
+      · field_simp; rw [← hst2]; ring
     have hub : ((N : ℝ) - t) * (C / su) = su * C := by
-      by_cases h : su = 0
-      · have : (N : ℝ) - t = 0 := by rw [← hsu2, h]; ring
-        simp [h, this]
-      · field_simp
-        rw [← hsu2]
-        ring
-    have hsum : ∑ q : Fin N × Bool × Unit, (if q.2.1 then (phaseOracle x
+      rcases eq_or_ne su 0 with h | h
+      · simp [← hsu2, h]
+      · field_simp; rw [← hsu2]; ring
+    have hsum : ∑ q : Fin N × Bool × Unit, (if groverControl q then (phaseOracle x
         (run (grover N) (uniform N) x k)).ofLp q else 0) = ((-(st * S) + su * C : ℝ) : ℂ) := by
       simp only [phaseOracle_apply, ih, Fintype.sum_prod_type, Fintype.univ_unit, sum_singleton,
-        Fintype.sum_bool, ite_true, Bool.true_and, Bool.false_eq_true, ite_false, add_zero]
+        Fintype.sum_bool, groverControl_mk, ite_true, Bool.true_and, Bool.false_eq_true,
+        ite_false, add_zero]
       have hterm : ∀ i : Fin N, (if x i = true then (-1 : ℂ) else 1) *
           ((if x i = true then S / st else C / su : ℝ) : ℂ) =
-            if x i = true then ((-(S / st) : ℝ) : ℂ) else ((C / su : ℝ) : ℂ) := by
-        intro i
+            if x i = true then ((-(S / st) : ℝ) : ℂ) else ((C / su : ℝ) : ℂ) := fun i => by
         by_cases h : x i = true <;> simp [h]
       rw [sum_congr rfl fun i _ => hterm i, sum_ite, sum_const, sum_const]
       have hcardT : #(univ.filter fun i : Fin N => x i = true) = t := rfl
       have hcardF : #(univ.filter fun i : Fin N => ¬x i = true) = N - t := by
         simpa [Fintype.card_fin] using card_filter_eq_false_eq_card_sub_weight x
-      rw [hcardT, hcardF, nsmul_eq_mul, nsmul_eq_mul, Nat.cast_sub htN]
-      rw [← hta, ← hub]
+      rw [hcardT, hcardF, nsmul_eq_mul, nsmul_eq_mul, Nat.cast_sub htN, ← hta, ← hub]
       push_cast
       ring
-    have harg : (2 * ((k + 1 : ℕ) : ℝ) + 1) * θ = (2 * k + 1) * θ + 2 * θ := by
-      push_cast
-      ring
+    have harg : (2 * ((k + 1 : ℕ) : ℝ) + 1) * θ = (2 * k + 1) * θ + 2 * θ := by push_cast; ring
     simp only [run, grover, LinearIsometryEquiv.coe_toLinearIsometry]
     rw [diffusion_apply hN, hsum, phaseOracle_apply, ih]
     obtain ⟨i, c, u⟩ := p
     cases c
-    · simp
-    simp only [Bool.true_and, ite_true]
+    · simp [groverControl]
+    simp only [groverControl_mk, Bool.true_and, ite_true]
     cases hi : x i
     · have hsu0 := hunmarked i hi
       have hreal : 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) - C / su =
@@ -297,10 +287,9 @@ bit `1`, amplitude `sin((2k + 1) θ)` on `z` and `cos((2k + 1) θ) / √(N - 1)`
 control bit `0`, amplitude `0`. -/
 theorem run_grover (hN : 2 ≤ N) (z : Fin N) (k : ℕ) (p : Fin N × Bool × Unit) :
     (run (grover N) (uniform N) (marked z) k).ofLp p =
-      if p.2.1 then ((if p.1 = z then Real.sin ((2 * k + 1) * groverAngle N)
+      if groverControl p then ((if p.1 = z then Real.sin ((2 * k + 1) * groverAngle N)
         else Real.cos ((2 * k + 1) * groverAngle N) / Real.sqrt (N - 1) : ℝ) : ℂ) else 0 := by
-  have hweight : weight (marked z) = 1 := by
-    simp [weight, marked, Finset.filter_eq']
+  have hweight : weight (marked z) = 1 := by simp [weight, marked, Finset.filter_eq']
   have hangle : searchAngle N 1 = groverAngle N := by
     simp only [searchAngle, groverAngle, Nat.cast_one, one_div, Real.sqrt_inv]
   simpa only [hweight, hangle, Nat.cast_one, Real.sqrt_one, div_one, marked,
@@ -313,8 +302,8 @@ theorem regProb_run_grover (hN : 2 ≤ N) (z : Fin N) (k : ℕ) :
     regProb (run (grover N) (uniform N) (marked z) k) z =
       Real.sin ((2 * k + 1) * groverAngle N) ^ 2 := by
   simp only [regProb_eq_sum, run_grover hN, Fintype.sum_prod_type, Fintype.sum_bool,
-    Fintype.univ_unit, sum_singleton, ite_true, Bool.false_eq_true, ite_false, norm_zero,
-    Complex.norm_real, Real.norm_eq_abs, sq_abs]
+    Fintype.univ_unit, sum_singleton, groverControl_mk, ite_true, Bool.false_eq_true, ite_false,
+    norm_zero, Complex.norm_real, Real.norm_eq_abs, sq_abs]
   ring
 
 /-- **Grover's algorithm** [Grover][Grover1996], with the analysis of [Boyer, Brassard, Høyer,
@@ -364,12 +353,7 @@ theorem grover_success (hN : 2 ≤ N) (z : Fin N) :
     nlinarith [Real.sin_sq_add_cos_sq y]
   · calc
       (T : ℝ) ≤ Real.pi / (4 * θ) := hT1
-      _ ≤ Real.pi / (4 * Real.sin θ) := by
-        gcongr
-        rw [hs]
-        positivity
-      _ = Real.pi * Real.sqrt N / 4 := by
-        rw [hs]
-        field_simp
+      _ ≤ Real.pi / (4 * Real.sin θ) := by gcongr; rw [hs]; positivity
+      _ = Real.pi * Real.sqrt N / 4 := by rw [hs]; field_simp
 
 end Cslib.Quantum

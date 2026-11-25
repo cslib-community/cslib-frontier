@@ -13,10 +13,7 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Data.List.MinMax
 public import Mathlib.NumberTheory.Harmonic.Defs
 import CslibFrontier.Foundations.NumberTheory.Harmonic
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.NumberTheory.Harmonic.Bounds
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # The greedy algorithm for weighted set cover
@@ -166,16 +163,12 @@ theorem greedyLoop_covers {k : ℕ} {R : Finset α} (hR : R.card ≤ k)
     rw [bestSet_eq_none_iff] at h
     intro a ha
     obtain ⟨j, hj, haj⟩ := hcov a ha
-    have : a ∈ S j ∩ R := Finset.mem_inter.2 ⟨haj, ha⟩
-    rw [h j hj] at this
-    exact absurd this (Finset.notMem_empty a)
+    exact absurd (h j hj ▸ Finset.mem_inter.2 ⟨haj, ha⟩) (Finset.notMem_empty a)
   | case3 k R i h ih =>
     obtain ⟨-, hne, -⟩ := bestSet_spec h
     have hlt : (R \ S i).card ≤ k := by
-      have h1 := Finset.card_sdiff_add_card_inter R (S i)
-      have h2 : 0 < (R ∩ S i).card := by
-        rw [Finset.inter_comm]
-        exact hne.card_pos
+      have := Finset.card_sdiff_add_card_inter R (S i)
+      have := (Finset.inter_comm R (S i) ▸ hne).card_pos
       omega
     have ih' := ih hlt fun a ha => hcov a (Finset.mem_sdiff.1 ha).1
     intro a ha
@@ -277,21 +270,14 @@ theorem sum_greedyLoop_le_sum_harmonic {k : ℕ} {R : Finset α} {C : Finset ι}
           mul_one, Finset.sum_filter]
         rw [Finset.sum_comm]
         refine Finset.sum_congr rfl fun j _ => ?_
-        rw [← Finset.sum_filter]
-        congr 1
-        ext a
-        simp only [Finset.mem_inter, Finset.mem_filter]
-        tauto
+        rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.inter_comm]
       have hA1 : (A.card : 𝕜) ≤ ∑ a ∈ A, ∑ j ∈ C with a ∈ S j, x j := by
         rw [Finset.card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
         exact Finset.sum_le_sum fun a ha => hcov a (Finset.mem_inter.1 ha).2
       calc w i = ρ * A.card := by rw [hρ, div_mul_cancel₀ _ hApos.ne']
-        _ ≤ ρ * ∑ j ∈ C, x j * (S j ∩ A).card := by
-          rw [hcount]
-          exact mul_le_mul_of_nonneg_left hA1 hρ0
+        _ ≤ ρ * ∑ j ∈ C, x j * (S j ∩ A).card := by rw [hcount]; gcongr
         _ = ∑ j ∈ C, x j * ρ * (S j ∩ A).card := by
-          rw [Finset.mul_sum]
-          exact Finset.sum_congr rfl fun j _ => by ring
+          rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun j _ => by ring
     -- Each set of the cover pays its share at most from its harmonic budget.
     have hstep : ∀ j ∈ C, x j * ρ * (S j ∩ A).card ≤
         x j * w j * (harmonic (S j ∩ R).card : 𝕜) -
@@ -299,37 +285,27 @@ theorem sum_greedyLoop_le_sum_harmonic {k : ℕ} {R : Finset α} {C : Finset ι}
       intro j hj
       have hsplit : (S j ∩ R).card = (S j ∩ (R \ S i)).card + (S j ∩ A).card := by
         have := Finset.card_sdiff_add_card_inter (S j ∩ R) (S i)
-        rw [Finset.inter_sdiff_assoc] at this
-        rw [← this]
-        congr 2
-        ext a
-        simp only [Finset.mem_inter, hA]
-        tauto
+        rw [Finset.inter_sdiff_assoc, Finset.inter_assoc, Finset.inter_comm R (S i)] at this
+        exact this.symm
       rcases (S j ∩ A).eq_empty_or_nonempty with hjA | hjA
-      · have : (S j ∩ R).card = (S j ∩ (R \ S i)).card := by
+      · have hcard : (S j ∩ R).card = (S j ∩ (R \ S i)).card := by
           rw [hsplit, hjA, Finset.card_empty, add_zero]
-        rw [hjA, this, Finset.card_empty, Nat.cast_zero, mul_zero, sub_self]
+        rw [hjA, hcard, Finset.card_empty, Nat.cast_zero, mul_zero, sub_self]
       set a := (S j ∩ R).card with ha
       set b := (S j ∩ (R \ S i)).card with hb
-      have hjR : (S j ∩ R).Nonempty := by
-        obtain ⟨y, hy⟩ := hjA
-        exact ⟨y, by simp only [Finset.mem_inter, hA] at hy ⊢; tauto⟩
+      have hjR : (S j ∩ R).Nonempty :=
+        hjA.mono (Finset.inter_subset_inter_left Finset.inter_subset_right)
       have hρj : ρ ≤ w j / a := hmin j (hCJ j hj) hjR
       have hH : ((a : 𝕜) - b) / a ≤ (harmonic a : 𝕜) - harmonic b := by
         have := (Rat.cast_le (K := 𝕜)).2 (sub_div_le_harmonic_sub (a := a) (b := b) (by omega))
         push_cast at this
         exact this
-      have hc : ((S j ∩ A).card : 𝕜) = a - b := by
-        rw [hsplit]
-        push_cast
-        ring
+      have hc : ((S j ∩ A).card : 𝕜) = a - b := by rw [hsplit]; push_cast; ring
+      have hab : (0 : 𝕜) ≤ a - b := hc ▸ Nat.cast_nonneg _
+      have hx0 : 0 ≤ x j := hx j hj
+      have hxw : 0 ≤ x j * w j := mul_nonneg hx0 (hw j (hCJ j hj))
       rw [hc, ← mul_sub]
-      have hxw : 0 ≤ x j * w j := mul_nonneg (hx j hj) (hw j (hCJ j hj))
-      calc x j * ρ * (a - b) ≤ x j * (w j / a) * (a - b) := by
-            have hab : (0 : 𝕜) ≤ a - b := by
-              rw [← hc]
-              positivity
-            exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hρj (hx j hj)) hab
+      calc x j * ρ * (a - b) ≤ x j * (w j / a) * (a - b) := by gcongr
         _ = x j * w j * (((a : 𝕜) - b) / a) := by ring
         _ ≤ x j * w j * ((harmonic a : 𝕜) - harmonic b) := by gcongr
     calc w i + ((greedyLoop S w J k (R \ S i)).map w).sum

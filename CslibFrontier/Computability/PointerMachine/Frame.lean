@@ -29,7 +29,9 @@ Allocation counts as a write because it initializes a new record. -/
   | .storeData g _ _ => g = f
   | _ => False
 
-private theorem effect_data_frame (i : Instr M L) (f : Fin L.dataFields)
+/-- An instruction that neither allocates nor stores `f` preserves that field at every
+address. -/
+theorem Instr.effect_data_frame (i : Instr M L) (f : Fin L.dataFields)
     (safe : ¬ i.WritesData f) (s : State M L) (a : ℕ) :
     ((i.effect s).heap[a]?).map (fun r => r.data f) =
       (s.heap[a]?).map (fun r => r.data f) := by
@@ -65,6 +67,6 @@ theorem Runs.data_frame {code : List (Instr M L)} {x y : State M L} {n : ℕ}
   | refl => rfl
   | tail s t n _ next ih =>
     obtain ⟨i, fetch, _, rfl⟩ := step_eq_some_iff.mp next
-    exact (effect_data_frame i field (safe i (List.mem_of_getElem? fetch)) s a).trans ih
+    exact (Instr.effect_data_frame i field (safe i (List.mem_of_getElem? fetch)) s a).trans ih
 
 end Cslib.PointerMachine

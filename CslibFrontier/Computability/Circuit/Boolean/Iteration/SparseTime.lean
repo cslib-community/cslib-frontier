@@ -60,10 +60,10 @@ theorem CounterIntervalChart.variable_time {f : BitVec n → BitVec n}
     (chart : CounterIntervalChart f R) (hf : Function.Injective f) (m : ℕ) :
     ∃ out : Circuit Boolean.signature (n + m) n,
       out.Computes Boolean.interpretation (fun z i =>
-        (f^[(word (fun j => z (Fin.natAdd n j))).toNat]
-          (word fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
+        (f^[(BitString.equivBitVec (fun j => z (Fin.natAdd n j))).toNat]
+          (BitString.equivBitVec fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
       out.size ≤ 1000 * (n + 3) * (R + m) := by
-  let x := fun z : BitString (n + m) => word fun i => z (Fin.castAdd m i)
+  let x := fun z : BitString (n + m) => BitString.equivBitVec fun i => z (Fin.castAdd m i)
   let bits := fun z : BitString (n + m) => fun j : Fin m => z (Fin.natAdd n j)
   let constants : Set (BitString (n + m) → Bool) := {fun _ => false, fun _ => true}
   let src := inputs (n + m) ∪ constants
@@ -73,7 +73,7 @@ theorem CounterIntervalChart.variable_time {f : BitVec n → BitVec n}
     (Synthesis.const false).union (Synthesis.const true)
   have hx : wordWires x ⊆ src := by
     rintro _ ⟨i, rfl⟩
-    simpa only [x, getLsbD_word] using
+    simpa only [x, BitString.getLsbD_equivBitVec] using
       (show (fun z : BitString (n + m) => z (Fin.castAdd m i)) ∈ src
       from Or.inl ⟨_, rfl⟩)
   let encoded := fun z => chart.encode (x z)
@@ -83,16 +83,16 @@ theorem CounterIntervalChart.variable_time {f : BitVec n → BitVec n}
     (fun j => Or.inl (Or.inl ⟨_, rfl⟩)) (Or.inl (hc false))
   let advanced := fun z => advanceCycleLabel (encoded z) (bits z)
   let s2 := s1 ∪ wires advanced
-  let rep := fun z => word (labelRepresentative (advanced z))
+  let rep := fun z => BitString.equivBitVec (labelRepresentative (advanced z))
   let p := fun z => labelPhase (advanced z)
   have hrep : wordWires rep ⊆ s2 := by
     rintro _ ⟨i, rfl⟩
-    simpa only [rep, getLsbD_word, labelRepresentative] using
+    simpa only [rep, BitString.getLsbD_equivBitVec, labelRepresentative] using
       (show (fun z => advanced z (Fin.castAdd (chartWidth n + chartWidth n) i)) ∈ s2
         from Or.inr ⟨_, rfl⟩)
   have hp : wordWires p ⊆ s2 := by
     rintro _ ⟨i, rfl⟩
-    simpa only [p, labelPhase, getLsbD_word] using
+    simpa only [p, labelPhase, BitString.getLsbD_equivBitVec] using
       (show (fun z => advanced z (Fin.natAdd n (Fin.natAdd (chartWidth n) i))) ∈ s2
         from Or.inr ⟨_, rfl⟩)
   have hdec := chart.synthesis_decode s2 rep p hrep hp (fun b => Or.inl (Or.inl (hc b)))
@@ -102,13 +102,12 @@ theorem CounterIntervalChart.variable_time {f : BitVec n → BitVec n}
     rw [hout z]
     dsimp only [rep, p, advanced, encoded]
     rw [chart.encode_spec hf, advanceCycleLabel_spec]
-    simp only [wordCycleLabel, labelRepresentative_labelBits, word_getLsbD, labelPhase_labelBits,
-      chart.decode_spec hf]
+    simp only [wordCycleLabel, labelRepresentative_labelBits, BitString.equivBitVec_getLsbD,
+      labelPhase_labelBits, chart.decode_spec hf]
     rfl
   · obtain ⟨j, _, _⟩ := chart.covers 0
     have hR : 1 ≤ R := by have := j.isLt; lia
-    have hRk : n + 3 ≤ R * (n + 3) := by
-      simpa only [Nat.one_mul] using Nat.mul_le_mul_right (n + 3) hR
+    have hRk : n + 3 ≤ R * (n + 3) := Nat.le_mul_of_pos_left _ hR
     nlinarith only [hs, hRk, show 2 ≤ n + 3 by lia,
       Nat.zero_le (R * (n + 3)), Nat.zero_le (m * (n + 3))]
 
@@ -118,8 +117,8 @@ an input or hypothesis of the resulting Boolean circuit. -/
 theorem sparse_counter_variable_time (f : Equiv.Perm (BitVec n)) (m : ℕ) :
     ∃ out : Circuit Boolean.signature (n + m) n,
       out.Computes Boolean.interpretation (fun z i =>
-        ((f : BitVec n → BitVec n)^[(word (fun j => z (Fin.natAdd n j))).toNat]
-          (word fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
+        ((f : BitVec n → BitVec n)^[(BitString.equivBitVec (fun j => z (Fin.natAdd n j))).toNat]
+          (BitString.equivBitVec fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
       out.size ≤ 1000 * (n + 3) * ((disagreement f (fun x => x + 1)).card + m + 1) := by
   obtain ⟨R, hR, ⟨chart⟩⟩ := exists_counterIntervalChart (f : BitVec n → BitVec n)
   obtain ⟨out, hout, hs⟩ := chart.variable_time f.injective m
@@ -128,19 +127,20 @@ theorem sparse_counter_variable_time (f : Equiv.Perm (BitVec n)) (m : ℕ) :
 /-- The same chart computes canonical cycle labels and phase in linear table cost. -/
 theorem sparse_counter_labels (f : Equiv.Perm (BitVec n)) :
     ∃ out : Circuit Boolean.signature n (n + (chartWidth n + chartWidth n)),
-      out.Computes Boolean.interpretation (fun x => wordCycleLabel f (word x)) ∧
+      out.Computes Boolean.interpretation (fun x => wordCycleLabel f (BitString.equivBitVec x)) ∧
       out.size ≤ 500 * (n + 3) * ((disagreement f (fun x => x + 1)).card + 1) := by
   obtain ⟨R, hR, ⟨chart⟩⟩ := exists_counterIntervalChart (f : BitVec n → BitVec n)
   let constants : Set (BitString n → Bool) := {fun _ => false, fun _ => true}
   let src := inputs n ∪ constants
   have hc (b : Bool) : (fun _ : BitString n => b) ∈ src := by cases b <;> simp [src, constants]
-  have hw : wordWires (fun x : BitString n => word x) ⊆ src := by
+  have hw : wordWires (fun x : BitString n => BitString.equivBitVec x) ⊆ src := by
     rintro _ ⟨i, rfl⟩
-    simpa only [getLsbD_word] using (show (fun x : BitString n => x i) ∈ src from Or.inl ⟨i, rfl⟩)
+    simpa only [BitString.getLsbD_equivBitVec] using
+      (show (fun x : BitString n => x i) ∈ src from Or.inl ⟨i, rfl⟩)
   have hconst : Synthesis Boolean.interpretation (inputs n) constants 2 :=
     (Synthesis.const false).union (Synthesis.const true)
-  obtain ⟨out, hout, hs⟩ :=
-    (hconst.trans (chart.synthesis_encode src word hw hc)).exists_circuit_outputs
+  have henc := chart.synthesis_encode src (⇑BitString.equivBitVec) hw hc
+  obtain ⟨out, hout, hs⟩ := (hconst.trans henc).exists_circuit_outputs
   refine ⟨out, fun x => (hout x).trans (chart.encode_spec f.injective _), ?_⟩
   have hb := Nat.mul_le_mul_right (220 * (n + 3)) hR
   nlinarith only [hs, hb, Nat.zero_le (n * (disagreement f (fun x => x + 1)).card),
@@ -150,13 +150,15 @@ theorem sparse_counter_labels (f : Equiv.Perm (BitVec n)) :
 theorem sparse_coordinate_variable_time (f g e : Equiv.Perm (BitVec n))
     (hcycle : ∀ x, e (g x) = e x + 1)
     (encode decode : Circuit Boolean.signature n n)
-    (he : encode.Computes Boolean.interpretation (fun x i => (e (word x)).getLsbD i.val))
-    (hd : decode.Computes Boolean.interpretation (fun x i => (e.symm (word x)).getLsbD i.val))
+    (he : encode.Computes Boolean.interpretation
+      (fun x i => (e (BitString.equivBitVec x)).getLsbD i.val))
+    (hd : decode.Computes Boolean.interpretation
+      (fun x i => (e.symm (BitString.equivBitVec x)).getLsbD i.val))
     (m : ℕ) :
     ∃ out : Circuit Boolean.signature (n + m) n,
       out.Computes Boolean.interpretation (fun z i =>
-        ((f : BitVec n → BitVec n)^[(word (fun j => z (Fin.natAdd n j))).toNat]
-          (word fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
+        ((f : BitVec n → BitVec n)^[(BitString.equivBitVec (fun j => z (Fin.natAdd n j))).toNat]
+          (BitString.equivBitVec fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
       out.size ≤ encode.size + decode.size +
         1000 * (n + 3) * ((disagreement f g).card + m + 1) := by
   have hr := disagreement_semiconj_card (f : BitVec n → BitVec n) g e (· + 1) hcycle
@@ -174,12 +176,8 @@ theorem sparse_coordinate_variable_time (f g e : Equiv.Perm (BitVec n))
   let args := fun z => Fin.append (encoded z) (bits z)
   have hargs (i : Fin (n + m)) : (fun z => args z i) ∈ s1 := by
     induction i using Fin.addCases with
-    | left i =>
-      apply Or.inr
-      exact ⟨i, by simp only [args, Fin.append_left]⟩
-    | right i =>
-      apply Or.inl
-      exact ⟨_, by simp only [args, Fin.append_right]; rfl⟩
+    | left i => exact Or.inr ⟨i, by simp only [args, Fin.append_left]⟩
+    | right i => exact Or.inl ⟨_, by simp only [args, Fin.append_right]; rfl⟩
   let mid := fun z => middle.eval Boolean.interpretation (args z)
   have hmid := Synthesis.circuit (I := Boolean.interpretation) (s := s1)
     middle (fun i z => args z i) hargs
@@ -196,10 +194,11 @@ theorem sparse_coordinate_variable_time (f g e : Equiv.Perm (BitVec n))
   rw [hd (mid z)]
   dsimp only [mid]
   rw [hm (args z)]
-  simp only [args, Fin.append_left, Fin.append_right, word_getLsbD]
-  change (fun i : Fin n => (e.symm (conjugate^[(word (bits z)).toNat]
-    (word (encode.eval Boolean.interpretation (x z))))).getLsbD i.val) = _
-  rw [he (x z), word_getLsbD, ← hconj.iterate_right ((word (bits z)).toNat) (word (x z)),
+  simp only [args, Fin.append_left, Fin.append_right, BitString.equivBitVec_getLsbD]
+  change (fun i : Fin n => (e.symm (conjugate^[(BitString.equivBitVec (bits z)).toNat]
+    (BitString.equivBitVec (encode.eval Boolean.interpretation (x z))))).getLsbD i.val) = _
+  rw [he (x z), BitString.equivBitVec_getLsbD,
+    ← hconj.iterate_right ((BitString.equivBitVec (bits z)).toNat) (BitString.equivBitVec (x z)),
     Equiv.symm_apply_apply]
 
 end Cslib.Circuits.Boolean.Iteration

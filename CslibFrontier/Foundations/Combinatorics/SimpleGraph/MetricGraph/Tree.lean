@@ -228,6 +228,14 @@ theorem edgeProj_vertex_eq_weight_iff (hT : W.graph.IsTree) (d : W.graph.Dart) (
   · simp [h, (W.dart_weight_pos d).ne]
   · simp [h]
 
+private lemma edgeProj_vertex_fst (hT : W.graph.IsTree) (d : W.graph.Dart) :
+    edgeProj hT d (vertex d.fst) = 0 :=
+  (edgeProj_vertex_eq_zero_iff hT d d.fst).mpr (.refl _)
+
+private lemma edgeProj_vertex_snd (hT : W.graph.IsTree) (d : W.graph.Dart) :
+    edgeProj hT d (vertex d.snd) = W.weight d.edge :=
+  (edgeProj_vertex_eq_weight_iff hT d d.snd).mpr fun hr => bridge_deleteEdges hT d hr.symm
+
 theorem edgeProj_edgePoint_self (hT : W.graph.IsTree) (d : W.graph.Dart) (t : unitInterval) :
     edgeProj hT d (edgePoint d t) = (t : ℝ) * W.weight d.edge := by
   rw [edgeProj, lift_edgePoint]
@@ -412,8 +420,8 @@ private lemma eq_edgePoint_of_edgeProj_eq (hT : W.graph.IsTree) {d : W.graph.Dar
     (h : edgeProj hT d x = (t : ℝ) * W.weight d.edge) : x = edgePoint d t := by
   have hwpos := W.dart_weight_pos d
   rcases edgeProj_cases hT d x with h0 | hw | ⟨s, _, _, rfl⟩
-  · nlinarith
-  · nlinarith
+  · nlinarith only [h, h0, ht0, hwpos]
+  · nlinarith only [h, hw, ht1, hwpos]
   · rw [edgeProj_edgePoint_self] at h
     rw [Subtype.ext (mul_right_cancel₀ hwpos.ne' h)]
 
@@ -439,102 +447,75 @@ private lemma edgePoint_edgeProj_zero_decomp (hT : W.graph.IsTree) (d d' : W.gra
 theorem dist_edgePoint_of_edgeProj_zero [Finite V] (hT : W.graph.IsTree) (d : W.graph.Dart)
     {x : MetricGraph W} (hx : edgeProj hT d x = 0) (t : unitInterval) :
     Dist.dist x (edgePoint d t) = Dist.dist x (vertex d.fst) + (t : ℝ) * W.weight d.edge := by
+  have hns : ¬ (W.graph.deleteEdges {d.edge}).Reachable d.snd d.fst :=
+    fun h => bridge_deleteEdges hT d h.symm
+  have hcut : ∀ {u : V}, (W.graph.deleteEdges {d.edge}).Reachable u d.fst →
+      vertexDist W.graph W.weight u d.snd = vertexDist W.graph W.weight u d.fst + W.weight d.edge :=
+    fun hu => by simpa only [vertexDist_self W.weight_nonneg, add_zero] using
+      vertexDist_eq_of_deleteEdges_cut hT d hu hns
+  have ht1 : (t : ℝ) * W.weight d.edge ≤ W.weight d.edge + (1 - t) * W.weight d.edge := by
+    nlinarith only [W.dart_weight_nonneg d, t.2.2]
   induction x using ind with
   | vertex u =>
-    have hu : (W.graph.deleteEdges {d.edge}).Reachable u d.fst :=
-      (edgeProj_vertex_eq_zero_iff hT d u).mp hx
-    have hcut := vertexDist_eq_of_deleteEdges_cut hT d hu
-      (fun h => bridge_deleteEdges hT d h.symm)
-    simp only [vertexDist_self W.weight_nonneg, add_zero] at hcut
-    rw [dist_vertex_edgePoint, dist_vertex, hcut]
-    have ht1 : (t : ℝ) * W.weight d.edge ≤ W.weight d.edge + (1 - t) * W.weight d.edge := by
-      have hw := W.dart_weight_nonneg d
-      have := t.2.2
-      nlinarith
+    rw [dist_vertex_edgePoint, dist_vertex, hcut ((edgeProj_vertex_eq_zero_iff hT d u).mp hx)]
     exact min_eq_left (by linarith)
   | edgePoint d' s hs0 hs1 =>
     obtain ⟨hne, hf, hs⟩ := edgePoint_edgeProj_zero_decomp hT d d' hs0 hs1 hx
-    have hns : ¬ (W.graph.deleteEdges {d.edge}).Reachable d.snd d.fst :=
-      fun h => bridge_deleteEdges hT d h.symm
-    have h1 := vertexDist_eq_of_deleteEdges_cut hT d hf hns
-    have h2 := vertexDist_eq_of_deleteEdges_cut hT d hs hns
-    simp only [vertexDist_self W.weight_nonneg, add_zero] at h1 h2
-    rw [dist_edgePoint_edgePoint_of_edge_ne hne, dist_edgePoint_vertex, h1, h2]
-    have ht1 : (t : ℝ) * W.weight d.edge ≤ W.weight d.edge + (1 - t) * W.weight d.edge := by
-      have hw := W.dart_weight_nonneg d
-      have := t.2.2
-      nlinarith
-    simp only [add_assoc]
-    simp only [← add_min, min_eq_left ht1]
-    simp only [← add_assoc]
-    rw [← min_add, vertexDist_comm d'.fst d.fst, vertexDist_comm d'.snd d.fst]
+    rw [dist_edgePoint_edgePoint_of_edge_ne hne, dist_edgePoint_vertex, hcut hf, hcut hs]
+    simp only [add_assoc, ← add_min, min_eq_left ht1]
+    simp only [← add_assoc, ← min_add, vertexDist_comm d'.fst d.fst, vertexDist_comm d'.snd d.fst]
 
-private lemma vertex_snd_dist_of_edgeProj_zero [Finite V] (hT : W.graph.IsTree)
-    (d : W.graph.Dart) {x : MetricGraph W} (hx : edgeProj hT d x = 0) :
-    Dist.dist x (vertex d.snd) = Dist.dist x (vertex d.fst) + W.weight d.edge := by
-  have h := dist_edgePoint_of_edgeProj_zero hT d hx 1
-  simpa only [edgePoint_one, Set.Icc.coe_one, one_mul] using h
+private lemma edgePoint_edgeProj_weight_decomp (hT : W.graph.IsTree) (d d' : W.graph.Dart)
+    {s : unitInterval} (hs0 : 0 < (s : ℝ)) (hs1 : (s : ℝ) < 1)
+    (hx : edgeProj hT d (edgePoint d' s) = W.weight d.edge) :
+    d'.edge ≠ d.edge ∧
+      ¬ (W.graph.deleteEdges {d.edge}).Reachable d'.fst d.fst ∧
+      ¬ (W.graph.deleteEdges {d.edge}).Reachable d'.snd d.fst := by
+  have hx' : edgeProj hT d.symm (edgePoint d' s) = 0 := by rw [edgeProj_symm, hx, sub_self]
+  obtain ⟨hne, hf, hs⟩ := edgePoint_edgeProj_zero_decomp hT d.symm d' hs0 hs1 hx'
+  rw [Dart.edge_symm] at hne hf hs
+  exact ⟨hne, fun h => bridge_deleteEdges hT d (h.symm.trans hf),
+    fun h => bridge_deleteEdges hT d (h.symm.trans hs)⟩
 
 theorem dist_of_edgeProj_zero_eq_weight [Finite V] (hT : W.graph.IsTree) (d : W.graph.Dart)
     {x y : MetricGraph W} (hx : edgeProj hT d x = 0) (hy : edgeProj hT d y = W.weight d.edge) :
     Dist.dist x y =
       Dist.dist x (vertex d.fst) + W.weight d.edge + Dist.dist (vertex d.snd) y := by
-  have hy_symm : edgeProj hT d.symm y = 0 := by
-    rw [edgeProj_symm, hy, sub_self]
   induction x using ind with
   | vertex u =>
-    have hu : (W.graph.deleteEdges {d.edge}).Reachable u d.fst :=
-      (edgeProj_vertex_eq_zero_iff hT d u).mp hx
+    have hu := (edgeProj_vertex_eq_zero_iff hT d u).mp hx
     induction y using ind with
     | vertex v =>
-      have hv : ¬ (W.graph.deleteEdges {d.edge}).Reachable v d.fst :=
-        (edgeProj_vertex_eq_weight_iff hT d v).mp hy
+      have hv := (edgeProj_vertex_eq_weight_iff hT d v).mp hy
       simpa only [dist_vertex] using vertexDist_eq_of_deleteEdges_cut hT d hu hv
     | edgePoint d₂ t ht0 ht1 =>
-      obtain ⟨hne', hf_sym, _⟩ := edgePoint_edgeProj_zero_decomp hT d.symm d₂ ht0 ht1 hy_symm
-      rw [Dart.edge_symm] at hne' hf_sym
-      have hf : ¬ (W.graph.deleteEdges {d.edge}).Reachable d₂.fst d.fst := fun hr =>
-        bridge_deleteEdges hT d (hr.symm.trans hf_sym)
-      have hs : ¬ (W.graph.deleteEdges {d.edge}).Reachable d₂.snd d.fst := fun hr =>
-        hf ((reachable_deleteEdges_adj_iff d d₂ hne').mpr hr)
-      have h1 := vertexDist_eq_of_deleteEdges_cut hT d hu hf
-      have h2 := vertexDist_eq_of_deleteEdges_cut hT d hu hs
-      rw [dist_vertex_edgePoint, dist_vertex, dist_vertex_edgePoint, h1, h2]
+      obtain ⟨_, hf, hs⟩ := edgePoint_edgeProj_weight_decomp hT d d₂ ht0 ht1 hy
+      rw [dist_vertex_edgePoint, dist_vertex, dist_vertex_edgePoint,
+        vertexDist_eq_of_deleteEdges_cut hT d hu hf, vertexDist_eq_of_deleteEdges_cut hT d hu hs]
       simp only [add_assoc, ← add_min]
   | edgePoint d₁ s hs0 hs1 =>
-    obtain ⟨hne₁, hf₁, hs₁⟩ := edgePoint_edgeProj_zero_decomp hT d d₁ hs0 hs1 hx
+    obtain ⟨_, hf₁, hs₁⟩ := edgePoint_edgeProj_zero_decomp hT d d₁ hs0 hs1 hx
     induction y using ind with
     | vertex v =>
-      have hv : ¬ (W.graph.deleteEdges {d.edge}).Reachable v d.fst :=
-        (edgeProj_vertex_eq_weight_iff hT d v).mp hy
-      have h1 := vertexDist_eq_of_deleteEdges_cut hT d hf₁ hv
-      have h2 := vertexDist_eq_of_deleteEdges_cut hT d hs₁ hv
-      rw [dist_edgePoint_vertex, dist_edgePoint_vertex, dist_vertex, h1, h2,
+      have hv := (edgeProj_vertex_eq_weight_iff hT d v).mp hy
+      rw [dist_edgePoint_vertex, dist_edgePoint_vertex, dist_vertex,
+        vertexDist_eq_of_deleteEdges_cut hT d hf₁ hv, vertexDist_eq_of_deleteEdges_cut hT d hs₁ hv,
         vertexDist_comm d₁.fst d.fst, vertexDist_comm d₁.snd d.fst]
       simp only [← add_assoc, ← min_add]
     | edgePoint d₂ t ht0 ht1 =>
-      obtain ⟨hne₂, hf₂_sym, _⟩ := edgePoint_edgeProj_zero_decomp hT d.symm d₂ ht0 ht1 hy_symm
-      rw [Dart.edge_symm] at hne₂ hf₂_sym
-      have hf₂ : ¬ (W.graph.deleteEdges {d.edge}).Reachable d₂.fst d.fst := fun hr =>
-        bridge_deleteEdges hT d (hr.symm.trans hf₂_sym)
-      have hs₂ : ¬ (W.graph.deleteEdges {d.edge}).Reachable d₂.snd d.fst := fun hr =>
-        hf₂ ((reachable_deleteEdges_adj_iff d d₂ hne₂).mpr hr)
-      have hne₁₂ : d₁.edge ≠ d₂.edge := by
-        intro he
-        rcases (dart_edge_eq_iff d₁ d₂).mp he with h | h
-        · exact hf₂ (h ▸ hf₁)
-        · have hf_snd : d₁.fst = d₂.snd := by rw [h]; rfl
-          exact hs₂ (hf_snd ▸ hf₁)
-      have hff := vertexDist_eq_of_deleteEdges_cut hT d hf₁ hf₂
-      have hfs := vertexDist_eq_of_deleteEdges_cut hT d hf₁ hs₂
-      have hsf := vertexDist_eq_of_deleteEdges_cut hT d hs₁ hf₂
-      have hss := vertexDist_eq_of_deleteEdges_cut hT d hs₁ hs₂
+      obtain ⟨_, hf₂, hs₂⟩ := edgePoint_edgeProj_weight_decomp hT d d₂ ht0 ht1 hy
+      have hne₁₂ : d₁.edge ≠ d₂.edge := fun he => by
+        rcases (dart_edge_eq_iff d₁ d₂).mp he with rfl | rfl
+        · exact hf₂ hf₁
+        · exact hs₂ hf₁
       rw [dist_edgePoint_edgePoint_of_edge_ne hne₁₂, dist_edgePoint_vertex, dist_vertex_edgePoint,
-        hff, hfs, hsf, hss, vertexDist_comm d₁.fst d.fst, vertexDist_comm d₁.snd d.fst]
-      simp only [add_assoc]
-      simp only [← add_min]
-      simp only [← add_assoc]
-      rw [← min_add, ← min_add]
+        vertexDist_eq_of_deleteEdges_cut hT d hf₁ hf₂,
+        vertexDist_eq_of_deleteEdges_cut hT d hf₁ hs₂,
+        vertexDist_eq_of_deleteEdges_cut hT d hs₁ hf₂,
+        vertexDist_eq_of_deleteEdges_cut hT d hs₁ hs₂,
+        vertexDist_comm d₁.fst d.fst, vertexDist_comm d₁.snd d.fst]
+      simp only [add_assoc, ← add_min]
+      simp only [← add_assoc, ← min_add]
 
 theorem dist_edgePoint_of_edgeProj_weight [Finite V] (hT : W.graph.IsTree) (d : W.graph.Dart)
     {x : MetricGraph W} (hx : edgeProj hT d x = W.weight d.edge) (t : unitInterval) :
@@ -570,8 +551,7 @@ theorem edgePoint_mem_interval_of_edgeProj_le [Finite V] (hT : W.graph.IsTree) (
   have hwpos := W.dart_weight_pos d
   rcases edgeProj_cases hT d y with hy0 | hyw | ⟨sy, _, _, rfl⟩
   · rcases edgeProj_cases hT d z with hz0 | hzw | ⟨sz, _, _, rfl⟩
-    · have : (t : ℝ) * W.weight d.edge ≤ 0 := hz0 ▸ hz
-      nlinarith
+    · nlinarith only [hz, hz0, ht0, hwpos]
     · rw [mem_interval_iff]
       have hxy := dist_of_edgeProj_zero_eq_weight hT d hy0 hzw
       have hy1 := dist_edgePoint_of_edgeProj_zero hT d hy0 t
@@ -581,13 +561,11 @@ theorem edgePoint_mem_interval_of_edgeProj_le [Finite V] (hT : W.graph.IsTree) (
     · rw [edgeProj_edgePoint_self] at hz
       exact edgePoint_mem_interval_of_fst ((mul_le_mul_iff_left₀ hwpos).mp hz)
         (dist_edgePoint_of_edgeProj_zero hT d hy0 sz)
-  · have : W.weight d.edge ≤ (t : ℝ) * W.weight d.edge := hyw ▸ hy
-    nlinarith
+  · nlinarith only [hy, hyw, ht1, hwpos]
   · rw [edgeProj_edgePoint_self] at hy
     have hsy_le : (sy : ℝ) ≤ t := (mul_le_mul_iff_left₀ hwpos).mp hy
     rcases edgeProj_cases hT d z with hz0 | hzw | ⟨sz, _, _, rfl⟩
-    · have : (t : ℝ) * W.weight d.edge ≤ 0 := hz0 ▸ hz
-      nlinarith
+    · nlinarith only [hz, hz0, ht0, hwpos]
     · exact interval_comm z (edgePoint d sy) ▸
         edgePoint_mem_interval_of_snd hsy_le (dist_edgePoint_of_edgeProj_weight hT d hzw sy)
     · rw [edgeProj_edgePoint_self] at hz
@@ -605,12 +583,8 @@ theorem edgeProj_eq_zero_of_mem_interval [Finite V] (hT : W.graph.IsTree) {d : W
   have hm₁ := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT d hp hpos)
   have hm₂ := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT d hq hpos)
   have hz_mem := mem_interval_iff.mp hz
-  have hd_pos : 0 < Dist.dist (vertex d.fst : MetricGraph W) z := by
-    refine _root_.dist_pos.mpr fun heq => ?_
-    have h0 : edgeProj hT d (vertex d.fst) = 0 :=
-      (edgeProj_vertex_eq_zero_iff hT d d.fst).mpr (.refl _)
-    rw [heq] at h0
-    exact hne h0
+  have hd_pos : 0 < Dist.dist (vertex d.fst : MetricGraph W) z :=
+    _root_.dist_pos.mpr fun heq => hne (heq ▸ edgeProj_vertex_fst hT d)
   linarith [_root_.dist_triangle p (vertex d.fst) q,
     _root_.dist_comm (vertex d.fst : MetricGraph W) z, _root_.dist_comm q z,
     _root_.dist_comm q (vertex d.fst)]
@@ -668,66 +642,45 @@ private lemma mem_interval_edgeProj_bounds [Finite V] (hT : W.graph.IsTree) (d :
     exact (dist_add_dist_gt_of_edgeProj_lt hT d hlt (hlt.trans_le hxy)).ne hxzy.symm
   · by_contra hlt
     push Not at hlt
-    have hzx : edgeProj hT d.symm z < edgeProj hT d.symm x := by
-      rw [edgeProj_symm, edgeProj_symm]
-      linarith
-    have hzy : edgeProj hT d.symm z < edgeProj hT d.symm y := by
-      rw [edgeProj_symm, edgeProj_symm]
-      linarith
-    exact (dist_add_dist_gt_of_edgeProj_lt hT d.symm hzx hzy).ne hxzy.symm
+    refine (dist_add_dist_gt_of_edgeProj_lt hT d.symm ?_ ?_).ne hxzy.symm <;>
+      rw [edgeProj_symm, edgeProj_symm] <;> linarith
 
 private lemma dist_lt_of_edgeProj_lt [Finite V] (hT : W.graph.IsTree) (d : W.graph.Dart)
     {x y z₁ z₂ : MetricGraph W} (hz₁ : z₁ ∈ interval x y) (hz₂ : z₂ ∈ interval x y)
     (hxy : edgeProj hT d x ≤ edgeProj hT d y) (hlt : edgeProj hT d z₁ < edgeProj hT d z₂) :
     Dist.dist x z₁ < Dist.dist x z₂ := by
   have hb₁ := mem_interval_edgeProj_bounds hT d hz₁ hxy
-  have hb₂ := mem_interval_edgeProj_bounds hT d hz₂ hxy
-  have hwpos := W.dart_weight_pos d
-  rcases edgeProj_cases hT d z₁ with h10 | h1w | ⟨s₁, _, hs11, rfl⟩
+  have h2_diff : edgeProj hT d z₂ - edgeProj hT d (vertex d.fst) ≤
+      Dist.dist (vertex d.fst) z₂ := by
+    rw [_root_.dist_comm]
+    exact (le_abs_self _).trans (abs_sub_edgeProj_le_dist hT d z₂ (vertex d.fst))
+  rw [edgeProj_vertex_fst, sub_zero] at h2_diff
+  rcases edgeProj_cases hT d z₁ with h10 | h1w | ⟨s₁, hs10, hs11, rfl⟩
   · have hx0 : edgeProj hT d x = 0 :=
       le_antisymm (h10 ▸ hb₁.1) (edgeProj_nonneg hT d x)
-    have hypos : 0 < edgeProj hT d y := by linarith
-    have hz₂pos : 0 < edgeProj hT d z₂ := by linarith
+    have hypos : 0 < edgeProj hT d y := by linarith [(mem_interval_edgeProj_bounds hT d hz₂ hxy).2]
     have hxy_f := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT d hx0 hypos)
     have hzy_f := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT d h10 hypos)
     have hxz₁_eq := mem_interval_iff.mp hz₁
-    have hxz₁_le : Dist.dist x z₁ ≤ Dist.dist x (vertex d.fst) := by
-      linarith [_root_.dist_nonneg (x := z₁) (y := vertex d.fst)]
-    have hxz₂_f := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT d hx0 hz₂pos)
-    have h2 : edgeProj hT d z₂ ≤ Dist.dist (vertex d.fst) z₂ := by
-      have := abs_sub_edgeProj_le_dist hT d z₂ (vertex d.fst)
-      have hv0 : edgeProj hT d (vertex d.fst) = 0 :=
-        (edgeProj_vertex_eq_zero_iff hT d d.fst).mpr (.refl _)
-      rw [hv0, sub_zero, abs_of_nonneg (edgeProj_nonneg hT d z₂), _root_.dist_comm] at this
-      exact this
-    linarith
+    have hxz₂_f := mem_interval_iff.mp
+      (vertex_fst_mem_interval_of_edgeProj hT d hx0 (z := z₂) (by linarith))
+    linarith [_root_.dist_nonneg (x := z₁) (y := vertex d.fst)]
   · linarith [edgeProj_le_weight hT d z₂]
-  · have hs₁_eq : edgeProj hT d (edgePoint d s₁) = (s₁ : ℝ) * W.weight d.edge :=
-      edgeProj_edgePoint_self hT d s₁
-    have h2 : edgeProj hT d z₂ - edgeProj hT d x ≤ Dist.dist x z₂ := by
-      have := abs_sub_edgeProj_le_dist hT d z₂ x
-      rw [_root_.dist_comm] at this
-      exact (le_abs_self _).trans this
+  · have hwpos := W.dart_weight_pos d
+    have hs₁_eq := edgeProj_edgePoint_self hT d s₁
     rcases edgeProj_cases hT d x with hx0 | hxw | ⟨sx, _, _, rfl⟩
     · have hxz₁ := dist_edgePoint_of_edgeProj_zero hT d hx0 s₁
-      have hx_le : Dist.dist x (vertex d.fst) + edgeProj hT d z₂ ≤ Dist.dist x z₂ := by
-        rcases edgeProj_cases hT d z₂ with hz20 | hz2w | ⟨s₂, _, _, rfl⟩
-        · linarith [mul_nonneg s₁.2.1 hwpos.le]
-        · rw [dist_of_edgeProj_zero_eq_weight hT d hx0 hz2w, hz2w]
-          linarith [_root_.dist_nonneg (x := vertex d.snd) (y := z₂)]
-        · rw [dist_edgePoint_of_edgeProj_zero hT d hx0 s₂, edgeProj_edgePoint_self]
-      linarith [hs₁_eq ▸ hlt]
-    · have hle : edgeProj hT d x ≤ (s₁ : ℝ) * W.weight d.edge := hs₁_eq ▸ hb₁.1
-      rw [hxw] at hle
-      nlinarith
-    · have hsx_le : (sx : ℝ) ≤ s₁ := by
-        rw [edgeProj_edgePoint_self, hs₁_eq] at hb₁
-        exact (mul_le_mul_iff_left₀ hwpos).mp hb₁.1
+      have hxz₂_f := mem_interval_iff.mp
+        (vertex_fst_mem_interval_of_edgeProj hT d hx0 (z := z₂) (by linarith [mul_pos hs10 hwpos]))
+      linarith
+    · nlinarith only [hb₁.1, hs₁_eq, hxw, hs11, hwpos]
+    · have hsx_le : (sx : ℝ) ≤ s₁ := (mul_le_mul_iff_left₀ hwpos).mp
+        (by simpa only [edgeProj_edgePoint_self] using hb₁.1)
       have hxz₁ := dist_edgePoint_edgePoint_same_eq hT d sx s₁
       rw [abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr hsx_le)] at hxz₁
-      rw [edgeProj_edgePoint_self] at h2
-      rw [hxz₁]
-      linarith [hs₁_eq ▸ hlt]
+      have h2 := (le_abs_self _).trans (abs_sub_edgeProj_le_dist hT d z₂ (edgePoint d sx))
+      rw [edgeProj_edgePoint_self, _root_.dist_comm] at h2
+      linarith
 
 private lemma eq_of_forall_edgeProj_eq (hT : W.graph.IsTree) {z₁ z₂ : MetricGraph W}
     (h : ∀ d : W.graph.Dart, edgeProj hT d z₁ = edgeProj hT d z₂) : z₁ = z₂ := by
@@ -736,62 +689,26 @@ private lemma eq_of_forall_edgeProj_eq (hT : W.graph.IsTree) {z₁ z₂ : Metric
     induction z₂ using ind with
     | vertex v =>
       by_contra hne
-      have huv : u ≠ v := fun huv => hne (huv ▸ rfl)
       obtain ⟨p, hp⟩ := (W.connected u v).exists_isPath
-      have hnn : ¬ p.Nil := Walk.not_nil_of_ne huv
+      have hnn : ¬ p.Nil := Walk.not_nil_of_ne fun huv => hne (huv ▸ rfl)
       let d : W.graph.Dart := p.firstDart hnn
-      have h0 : edgeProj hT d (vertex u) = 0 :=
-        (edgeProj_vertex_eq_zero_iff hT d u).mpr (.refl _)
-      have hw : edgeProj hT d (vertex v) = W.weight d.edge := by
-        rw [edgeProj_vertex_eq_weight_iff]
-        intro hreach
-        have htail_avoid : d.fst ∉ p.tail.support := by
-          have hnodup := hp.support_nodup
-          rw [← p.cons_tail_eq hnn, Walk.support_cons, List.nodup_cons] at hnodup
-          exact hnodup.1
-        have htail_edges : d.edge ∉ p.tail.edges := by
-          intro hmem
-          have hmem' : s(d.fst, d.snd) ∈ p.tail.edges := hmem
-          exact htail_avoid (p.tail.fst_mem_support_of_mem_edges hmem')
-        have hdsnd : (W.graph.deleteEdges {d.edge}).Reachable d.snd v :=
-          ⟨p.tail.toDeleteEdges {d.edge} (fun e he hmem => by
-            rw [Set.mem_singleton_iff] at hmem
-            exact htail_edges (hmem ▸ he))⟩
-        exact bridge_deleteEdges hT d (hdsnd.trans hreach).symm
-      have := h d
-      linarith [W.dart_weight_pos d]
+      have htail_avoid : d.fst ∉ p.tail.support := by
+        have hnodup := hp.support_nodup
+        rw [← p.cons_tail_eq hnn, Walk.support_cons, List.nodup_cons] at hnodup
+        exact hnodup.1
+      have hdsnd : (W.graph.deleteEdges {d.edge}).Reachable d.snd v :=
+        ⟨p.tail.toDeleteEdges {d.edge} fun e he hmem =>
+          htail_avoid (p.tail.fst_mem_support_of_mem_edges (hmem ▸ he))⟩
+      have h0 : edgeProj hT d (vertex u) = 0 := edgeProj_vertex_fst hT d
+      have hw : edgeProj hT d (vertex v) = W.weight d.edge :=
+        (edgeProj_vertex_eq_weight_iff hT d v).mpr fun hr =>
+          bridge_deleteEdges hT d (hdsnd.trans hr).symm
+      linarith [h d, W.dart_weight_pos d]
     | edgePoint d₂ t₂ ht0 ht1 =>
-      have h1 := h d₂
-      rw [edgeProj_edgePoint_self] at h1
-      rcases edgeProj_cases hT d₂ (vertex u) with h0 | hw | ⟨s, hs0, hs1, heq⟩
-      · have : (t₂ : ℝ) * W.weight d₂.edge = 0 := h1 ▸ h0
-        have := (mul_eq_zero.mp this).resolve_right (W.dart_weight_pos d₂).ne'
-        linarith
-      · have : (t₂ : ℝ) * W.weight d₂.edge = W.weight d₂.edge := h1 ▸ hw
-        have : (t₂ : ℝ) = 1 :=
-          mul_right_cancel₀ (W.dart_weight_pos d₂).ne' (by simpa only [one_mul] using this)
-        linarith
-      · exact absurd heq.symm (fun he => by
-          rcases (edgePoint_eq_vertex_iff (d := d₂) (t := s) (v := u)).mp he with
-            ⟨hs, _⟩ | ⟨hs, _⟩
-          · rw [hs, Set.Icc.coe_zero] at hs0
-            exact lt_irrefl 0 hs0
-          · rw [hs, Set.Icc.coe_one] at hs1
-            exact lt_irrefl 1 hs1)
+      exact eq_edgePoint_of_edgeProj_eq hT ht0 ht1 ((h d₂).trans (edgeProj_edgePoint_self hT d₂ t₂))
   | edgePoint d₁ t₁ ht10 ht11 =>
-    have h1 := h d₁
-    rw [edgeProj_edgePoint_self] at h1
-    rcases edgeProj_cases hT d₁ z₂ with h0 | hw | ⟨t₂, _, _, rfl⟩
-    · have : (t₁ : ℝ) * W.weight d₁.edge = 0 := h1.trans h0
-      have := (mul_eq_zero.mp this).resolve_right (W.dart_weight_pos d₁).ne'
-      linarith
-    · have : (t₁ : ℝ) * W.weight d₁.edge = W.weight d₁.edge := h1.trans hw
-      have : (t₁ : ℝ) = 1 :=
-        mul_right_cancel₀ (W.dart_weight_pos d₁).ne' (by simpa only [one_mul] using this)
-      linarith
-    · rw [edgeProj_edgePoint_self] at h1
-      have : t₁ = t₂ := Subtype.ext (mul_right_cancel₀ (W.dart_weight_pos d₁).ne' h1)
-      rw [this]
+    exact (eq_edgePoint_of_edgeProj_eq hT ht10 ht11
+      ((h d₁).symm.trans (edgeProj_edgePoint_self hT d₁ t₁))).symm
 
 /-- In a tree metric graph, two points on `interval x y` at equal distance from `x` are equal. -/
 theorem eq_of_mem_interval_dist_eq [Finite V] (hT : W.graph.IsTree) {x y z₁ z₂ : MetricGraph W}
@@ -799,20 +716,13 @@ theorem eq_of_mem_interval_dist_eq [Finite V] (hT : W.graph.IsTree) {x y z₁ z�
     z₁ = z₂ := by
   refine eq_of_forall_edgeProj_eq hT fun d => ?_
   by_contra hne
-  rcases le_total (edgeProj hT d x) (edgeProj hT d y) with hxy | hyx
-  · rcases lt_or_gt_of_ne hne with hlt | hgt
-    · exact (dist_lt_of_edgeProj_lt hT d hz₁ hz₂ hxy hlt).ne hd
-    · exact (dist_lt_of_edgeProj_lt hT d hz₂ hz₁ hxy hgt).ne hd.symm
-  · have hz₁' : z₁ ∈ interval y x := interval_comm x y ▸ hz₁
-    have hz₂' : z₂ ∈ interval y x := interval_comm x y ▸ hz₂
-    have hdy : Dist.dist y z₁ = Dist.dist y z₂ := by
-      have e1 := mem_interval_iff.mp hz₁
-      have e2 := mem_interval_iff.mp hz₂
-      rw [_root_.dist_comm y z₁, _root_.dist_comm y z₂]
-      linarith
-    rcases lt_or_gt_of_ne hne with hlt | hgt
-    · exact (dist_lt_of_edgeProj_lt hT d hz₁' hz₂' hyx hlt).ne hdy
-    · exact (dist_lt_of_edgeProj_lt hT d hz₂' hz₁' hyx hgt).ne hdy.symm
+  wlog hxy : edgeProj hT d x ≤ edgeProj hT d y generalizing x y
+  · refine this (interval_comm x y ▸ hz₁) (interval_comm x y ▸ hz₂) ?_ (le_of_not_ge hxy)
+    rw [_root_.dist_comm y z₁, _root_.dist_comm y z₂]
+    linarith [mem_interval_iff.mp hz₁, mem_interval_iff.mp hz₂]
+  rcases lt_or_gt_of_ne hne with hlt | hgt
+  · exact (dist_lt_of_edgeProj_lt hT d hz₁ hz₂ hxy hlt).ne hd
+  · exact (dist_lt_of_edgeProj_lt hT d hz₂ hz₁ hxy hgt).ne hd.symm
 
 /-- Geodesics between two points in a tree metric graph are unique on `[0, dist x y]`. -/
 theorem IsGeodesic.eq_on [Finite V] (hT : W.graph.IsTree) {x y : MetricGraph W}
@@ -928,203 +838,150 @@ theorem dist_vertex_mem_step_dart [Finite V] {v : V} {p : MetricGraph W} {r : �
     linarith
   · exact ⟨d, t, hfst, ht0, ht1, rfl, hd.symm.trans hr⟩
 
+private lemma vertex_step_dart_pos [Finite V] (hT : W.graph.IsTree) {v : V} {y : MetricGraph W}
+    {r : ℝ} (hr_pos : 0 < r) (hr_le : r ≤ Dist.dist (vertex v : MetricGraph W) y)
+    (hmin : ∀ d : W.graph.Dart, r < W.weight d.edge) :
+    ∃ (d : W.graph.Dart) (t : unitInterval),
+      d.fst = v ∧ 0 < (t : ℝ) ∧ edgePoint d t ∈ interval (vertex v) y ∧
+      Dist.dist (vertex v : MetricGraph W) (edgePoint d t) = r ∧
+      (t : ℝ) * W.weight d.edge = r ∧ 0 < edgeProj hT d y := by
+  obtain ⟨p, hp_mem, hp_d, _⟩ := exists_mem_interval_dist_eq (vertex v) y ⟨hr_pos.le, hr_le⟩
+  obtain ⟨d, t, hd_fst, ht0, _, rfl, htr⟩ := dist_vertex_mem_step_dart hr_pos hp_d hmin
+  have hdv : edgeProj hT d (vertex v) = 0 := hd_fst ▸ edgeProj_vertex_fst hT d
+  have hpos : 0 < edgeProj hT d y := by
+    have h1 : 0 < edgeProj hT d (edgePoint d t) := by
+      rw [edgeProj_edgePoint_self]
+      exact mul_pos ht0 (W.dart_weight_pos d)
+    exact h1.trans_le (mem_interval_edgeProj_bounds hT d hp_mem
+      (by rw [hdv]; exact edgeProj_nonneg hT d y)).2
+  exact ⟨d, t, hd_fst, ht0, hp_mem, hp_d, htr, hpos⟩
+
+private lemma interval_of_no_common_step_vertex [Finite V] (hT : W.graph.IsTree)
+    {v : V} {y z : MetricGraph W} (hvy : vertex v ≠ y) (hvz : vertex v ≠ z)
+    (hno : ∀ p, 0 < Dist.dist (vertex v : MetricGraph W) p →
+      p ∈ interval (vertex v) y → p ∈ interval (vertex v) z → False) :
+    (vertex v : MetricGraph W) ∈ interval y z := by
+  obtain ⟨d₀⟩ := exists_edge_dart_of_ne hvy
+  obtain ⟨wmin, hwmin_pos, hwmin_le⟩ := exists_min_dart_weight (W := W) d₀
+  let r : ℝ := min wmin (min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z)) / 3
+  have hdy_pos : 0 < Dist.dist (vertex v : MetricGraph W) y := _root_.dist_pos.mpr hvy
+  have hdz_pos : 0 < Dist.dist (vertex v : MetricGraph W) z := _root_.dist_pos.mpr hvz
+  have hr_pos : 0 < r := by dsimp only [r]; positivity
+  have h3r : 3 * r = min wmin (min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z)) := by
+    dsimp only [r]; ring
+  have hr_w : 3 * r ≤ wmin := h3r ▸ min_le_left _ _
+  have hmin_yz : 3 * r ≤ min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z) :=
+    h3r ▸ min_le_right _ _
+  have hr_lt_w : ∀ d : W.graph.Dart, r < W.weight d.edge := fun d => by linarith [hwmin_le d]
+  obtain ⟨dy, ty, hdy_fst, _, hpy_mem, hpy_d, hty_r, hdy_y⟩ :=
+    vertex_step_dart_pos hT (v := v) (y := y) hr_pos
+      (by linarith [hmin_yz.trans (min_le_left _ _)]) hr_lt_w
+  obtain ⟨dz, tz, hdz_fst, _, hpz_mem, hpz_d, htz_r, _⟩ :=
+    vertex_step_dart_pos hT (v := v) (y := z) hr_pos
+      (by linarith [hmin_yz.trans (min_le_right _ _)]) hr_lt_w
+  by_cases he : dy.edge = dz.edge
+  · obtain rfl : dy = dz := (dart_edge_eq_iff dy dz).mp he |>.resolve_right fun h =>
+      dz.snd_ne_fst (by simpa only [h, Dart.fst_symm] using hdy_fst.trans hdz_fst.symm)
+    obtain rfl : ty = tz :=
+      Subtype.ext (mul_right_cancel₀ (W.dart_weight_pos dy).ne' (hty_r.trans htz_r.symm))
+    exact (hno (edgePoint dy ty) (hpy_d ▸ hr_pos) hpy_mem hpz_mem).elim
+  · have hpz0 : edgeProj hT dy (edgePoint dz tz) = 0 := by
+      rw [edgeProj_edgePoint_of_edge_ne hT (Ne.symm he), hdz_fst, ← hdy_fst, edgeProj_vertex_fst]
+    have hdy_z : edgeProj hT dy z = 0 := by
+      by_contra hnz
+      have hzpos := lt_of_le_of_ne (edgeProj_nonneg hT dy z) (Ne.symm hnz)
+      have hv_mem := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT dy hpz0 hzpos)
+      have hpz_eq := mem_interval_iff.mp hpz_mem
+      rw [hdy_fst, _root_.dist_comm (edgePoint dz tz) (vertex v)] at hv_mem
+      linarith
+    exact hdy_fst ▸ interval_comm z y ▸ vertex_fst_mem_interval_of_edgeProj hT dy hdy_z hdy_y
+
+private lemma interval_of_no_common_step_edgePoint [Finite V] (hT : W.graph.IsTree)
+    {d : W.graph.Dart} {t : unitInterval} (ht0 : 0 < (t : ℝ)) (ht1 : (t : ℝ) < 1)
+    {y z : MetricGraph W} (hmy : edgePoint d t ≠ y) (hmz : edgePoint d t ≠ z)
+    (hno : ∀ p, 0 < Dist.dist (edgePoint d t) p →
+      p ∈ interval (edgePoint d t) y → p ∈ interval (edgePoint d t) z → False) :
+    edgePoint d t ∈ interval y z := by
+  have hwpos := W.dart_weight_pos d
+  have htw_pos : 0 < (t : ℝ) * W.weight d.edge := mul_pos ht0 hwpos
+  have h1tw_pos : 0 < (1 - (t : ℝ)) * W.weight d.edge := mul_pos (sub_pos.mpr ht1) hwpos
+  have hdy_pos : 0 < Dist.dist (edgePoint d t) y := _root_.dist_pos.mpr hmy
+  have hdz_pos : 0 < Dist.dist (edgePoint d t) z := _root_.dist_pos.mpr hmz
+  let r : ℝ := min (min ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge))
+    (min (Dist.dist (edgePoint d t) y) (Dist.dist (edgePoint d t) z)) / 3
+  have hr_pos : 0 < r := by dsimp only [r]; positivity
+  have h3r : 3 * r = min (min ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge))
+      (min (Dist.dist (edgePoint d t) y) (Dist.dist (edgePoint d t) z)) := by dsimp only [r]; ring
+  have hlt_t : 3 * r ≤ min ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge) :=
+    h3r ▸ min_le_left _ _
+  have hr_yz : 3 * r ≤ min (Dist.dist (edgePoint d t) y) (Dist.dist (edgePoint d t) z) :=
+    h3r ▸ min_le_right _ _
+  have hstep : ∀ w, 3 * r ≤ Dist.dist (edgePoint d t) w →
+      ∃ s : unitInterval, edgePoint d s ∈ interval (edgePoint d t) w ∧
+        |(s : ℝ) - t| * W.weight d.edge = r ∧
+        ((s : ℝ) < t ∧ edgeProj hT d w ≤ (t : ℝ) * W.weight d.edge ∨
+          (t : ℝ) < s ∧ (t : ℝ) * W.weight d.edge ≤ edgeProj hT d w) := by
+    intro w hw_le
+    obtain ⟨p, hp_mem, hp_d, _⟩ :=
+      exists_mem_interval_dist_eq (edgePoint d t) w ⟨hr_pos.le, by linarith⟩
+    have hsub := abs_sub_edgeProj_le_dist hT d (edgePoint d t) p
+    rw [edgeProj_edgePoint_self, hp_d] at hsub
+    have hbd := abs_le.mp hsub
+    have hlo : 0 < edgeProj hT d p := by linarith [hlt_t.trans (min_le_left _ _)]
+    have hhi : edgeProj hT d p < W.weight d.edge := by linarith [hlt_t.trans (min_le_right _ _)]
+    obtain ⟨s, _, _, rfl⟩ := ((edgeProj_cases hT d p).resolve_left hlo.ne').resolve_left hhi.ne
+    have hs_eq : |(s : ℝ) - t| * W.weight d.edge = r := by
+      simpa only [abs_sub_comm] using (dist_edgePoint_edgePoint_same_eq hT d t s).symm.trans hp_d
+    refine ⟨s, hp_mem, hs_eq, ?_⟩
+    rcases lt_trichotomy (s : ℝ) t with hlt | heq | hgt
+    · refine Or.inl ⟨hlt, le_of_not_gt fun hgt_w => ?_⟩
+      have hb := mem_interval_edgeProj_bounds hT d hp_mem
+        (by rw [edgeProj_edgePoint_self]; exact hgt_w.le)
+      rw [edgeProj_edgePoint_self, edgeProj_edgePoint_self] at hb
+      nlinarith only [hb.1, hlt, hwpos]
+    · simp only [heq, sub_self, abs_zero, zero_mul] at hs_eq; linarith only [hr_pos, hs_eq]
+    · refine Or.inr ⟨hgt, le_of_not_gt fun hlt_w => ?_⟩
+      have hb := mem_interval_edgeProj_bounds hT d (interval_comm (edgePoint d t) w ▸ hp_mem)
+        (by rw [edgeProj_edgePoint_self]; exact hlt_w.le)
+      rw [edgeProj_edgePoint_self, edgeProj_edgePoint_self] at hb
+      nlinarith only [hb.2, hgt, hwpos]
+  obtain ⟨sy, hpy_mem, hsy_r, hside_y⟩ := hstep y (hr_yz.trans (min_le_left _ _))
+  obtain ⟨sz, hpz_mem, hsz_r, hside_z⟩ := hstep z (hr_yz.trans (min_le_right _ _))
+  have hne_s : sy ≠ sz := fun heq => hno (edgePoint d sy)
+    (by rw [dist_edgePoint_edgePoint_same_eq hT, abs_sub_comm, hsy_r]; exact hr_pos)
+    hpy_mem (heq ▸ hpz_mem)
+  have hopp : (sy : ℝ) - t = -((sz : ℝ) - t) :=
+    (abs_eq_abs.mp (mul_right_cancel₀ hwpos.ne' (hsy_r.trans hsz_r.symm))).resolve_left fun h =>
+      hne_s (Subtype.ext (by linarith))
+  rcases hside_y with ⟨hsy, hy⟩ | ⟨hsy, hy⟩ <;> rcases hside_z with ⟨hsz, hz⟩ | ⟨hsz, hz⟩
+  · linarith
+  · exact edgePoint_mem_interval_of_edgeProj_le hT d ht0 ht1 hy hz
+  · exact interval_comm z y ▸ edgePoint_mem_interval_of_edgeProj_le hT d ht0 ht1 hz hy
+  · linarith
+
 /-- Every triple of points in a tree metric graph has a point lying on shortest paths between
 all three pairs. -/
 theorem exists_treeMedian [Finite V] (hT : W.graph.IsTree) (x y z : MetricGraph W) :
     ∃ m : MetricGraph W, m ∈ interval x y ∧ m ∈ interval y z ∧ m ∈ interval z x := by
   let S : Set (MetricGraph W) := interval x y ∩ interval x z
-  have hS_closed : IsClosed S := (isClosed_interval x y).inter (isClosed_interval x z)
-  have hS_compact : IsCompact S := hS_closed.isCompact
-  have hS_ne : S.Nonempty := ⟨x, left_mem_interval x y, left_mem_interval x z⟩
-  have hcont : ContinuousOn (fun p => Dist.dist x p) S :=
-    (continuous_const.dist continuous_id).continuousOn
-  obtain ⟨m, hmS, hm_max⟩ := hS_compact.exists_isMaxOn hS_ne hcont
-  obtain ⟨hm_xy, hm_xz⟩ := hmS
+  obtain ⟨m, ⟨hm_xy, hm_xz⟩, hm_max⟩ :=
+    ((isClosed_interval x y).inter (isClosed_interval x z)).isCompact.exists_isMaxOn
+      ⟨x, left_mem_interval x y, left_mem_interval x z⟩
+      (continuous_const.dist continuous_id).continuousOn
   refine ⟨m, hm_xy, ?_, interval_comm x z ▸ hm_xz⟩
-  by_cases hmy : m = y
-  · rw [hmy]
-    exact left_mem_interval y z
-  by_cases hmz : m = z
-  · rw [hmz]
-    exact right_mem_interval y z
-  have hdy_pos : 0 < Dist.dist m y := _root_.dist_pos.mpr hmy
-  have hdz_pos : 0 < Dist.dist m z := _root_.dist_pos.mpr hmz
-  have hstep_advance : ∀ p : MetricGraph W, 0 < Dist.dist m p →
-      p ∈ interval m y → p ∈ interval m z → False := by
+  by_cases hmy : m = y; · exact hmy ▸ left_mem_interval y z
+  by_cases hmz : m = z; · exact hmz ▸ right_mem_interval y z
+  have hno : ∀ p, 0 < Dist.dist m p → p ∈ interval m y → p ∈ interval m z → False := by
     intro p hmp hpy hpz
-    have hpxy : p ∈ interval x y := by
-      have hm' : m ∈ interval y x := interval_comm x y ▸ hm_xy
-      have hp' : p ∈ interval y m := interval_comm m y ▸ hpy
-      exact interval_comm y x ▸ mem_interval_trans_left hm' hp'
-    have hpxz : p ∈ interval x z := by
-      have hm' : m ∈ interval z x := interval_comm x z ▸ hm_xz
-      have hp' : p ∈ interval z m := interval_comm m z ▸ hpz
-      exact interval_comm z x ▸ mem_interval_trans_left hm' hp'
-    have hle : Dist.dist x p ≤ Dist.dist x m := hm_max ⟨hpxy, hpxz⟩
-    have hdxp : Dist.dist x p = Dist.dist x m + Dist.dist m p := by
-      have h1 := mem_interval_iff.mp hpxy
-      have h2 := mem_interval_iff.mp hm_xy
-      have h3 := mem_interval_iff.mp hpy
-      linarith
-    linarith
+    have extend : ∀ {a}, m ∈ interval x a → p ∈ interval m a → p ∈ interval x a :=
+      fun {a} hm hp => interval_comm a x ▸
+        mem_interval_trans_left (interval_comm x a ▸ hm) (interval_comm m a ▸ hp)
+    have hpxy := extend hm_xy hpy
+    have hle : Dist.dist x p ≤ Dist.dist x m := hm_max ⟨hpxy, extend hm_xz hpz⟩
+    linarith [mem_interval_iff.mp hpxy, mem_interval_iff.mp hm_xy, mem_interval_iff.mp hpy]
   induction m using ind with
-  | vertex v =>
-    obtain ⟨d₀⟩ := exists_edge_dart_of_ne hmy
-    obtain ⟨wmin, hwmin_pos, hwmin_le⟩ := exists_min_dart_weight (W := W) d₀
-    let r : ℝ := min wmin (min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z)) / 3
-    have hr_pos : 0 < r := by
-      dsimp only [r]
-      positivity
-    have hr_lt_w : ∀ d : W.graph.Dart, r < W.weight d.edge := by
-      intro d
-      have hd : wmin ≤ W.weight d.edge := hwmin_le d
-      have : r ≤ wmin / 3 := div_le_div_of_nonneg_right (min_le_left _ _) (by norm_num)
-      linarith
-    have hr_le_dy : r ≤ Dist.dist (vertex v) y := by
-      have : r ≤ min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z) / 3 :=
-        div_le_div_of_nonneg_right (min_le_right _ _) (by norm_num)
-      linarith [min_le_left (Dist.dist (vertex v) y) (Dist.dist (vertex v) z)]
-    have hr_le_dz : r ≤ Dist.dist (vertex v) z := by
-      have : r ≤ min (Dist.dist (vertex v) y) (Dist.dist (vertex v) z) / 3 :=
-        div_le_div_of_nonneg_right (min_le_right _ _) (by norm_num)
-      linarith [min_le_right (Dist.dist (vertex v) y) (Dist.dist (vertex v) z)]
-    obtain ⟨py, hpy_mem, hpy_d, _⟩ :=
-      exists_mem_interval_dist_eq (vertex v) y ⟨hr_pos.le, hr_le_dy⟩
-    obtain ⟨pz, hpz_mem, hpz_d, _⟩ :=
-      exists_mem_interval_dist_eq (vertex v) z ⟨hr_pos.le, hr_le_dz⟩
-    obtain ⟨dy, ty, hdy_fst, hty0, hty1, rfl, hty_r⟩ :=
-      dist_vertex_mem_step_dart hr_pos hpy_d hr_lt_w
-    obtain ⟨dz, tz, hdz_fst, htz0, htz1, rfl, htz_r⟩ :=
-      dist_vertex_mem_step_dart hr_pos hpz_d hr_lt_w
-    by_cases he : dy.edge = dz.edge
-    · have hdeq : dy = dz := by
-        rcases (dart_edge_eq_iff dy dz).mp he with h | h
-        · exact h
-        · exfalso
-          have hf := hdy_fst.trans hdz_fst.symm
-          rw [h, Dart.fst_symm] at hf
-          exact dz.snd_ne_fst hf
-      subst hdeq
-      have hteq : ty = tz :=
-        Subtype.ext (mul_right_cancel₀ (W.dart_weight_pos dy).ne' (hty_r.trans htz_r.symm))
-      subst hteq
-      exact False.elim (hstep_advance (edgePoint dy ty) (by rw [hpy_d]; exact hr_pos)
-        hpy_mem hpz_mem)
-    · have hdy0 : edgeProj hT dy (vertex v) = 0 := by
-        rw [edgeProj_vertex_eq_zero_iff, hdy_fst]
-      have hpy_pos : 0 < edgeProj hT dy (edgePoint dy ty) := by
-        rw [edgeProj_edgePoint_self]
-        exact mul_pos hty0 (W.dart_weight_pos dy)
-      have hdy_y : 0 < edgeProj hT dy y := by
-        have hle :=
-          (mem_interval_edgeProj_bounds hT dy hpy_mem
-            (by rw [hdy0]; exact edgeProj_nonneg hT dy y)).2
-        exact hpy_pos.trans_le hle
-      have hpz0 : edgeProj hT dy (edgePoint dz tz) = 0 := by
-        rw [edgeProj_edgePoint_of_edge_ne hT (Ne.symm he), hdz_fst, ← hdy_fst,
-          edgeProj_vertex_eq_zero_iff]
-      have hdy_z : edgeProj hT dy z = 0 := by
-        by_contra hnz
-        have hzpos : 0 < edgeProj hT dy z := lt_of_le_of_ne (edgeProj_nonneg hT dy z) (Ne.symm hnz)
-        have hv_mem := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT dy hpz0 hzpos)
-        have hpz_eq := mem_interval_iff.mp hpz_mem
-        rw [hdy_fst, _root_.dist_comm (edgePoint dz tz) (vertex v)] at hv_mem
-        linarith
-      rw [← hdy_fst]
-      exact interval_comm z y ▸ vertex_fst_mem_interval_of_edgeProj hT dy hdy_z hdy_y
-  | edgePoint d t ht0 ht1 =>
-    have hwpos := W.dart_weight_pos d
-    let r : ℝ := min (min ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge))
-      (min (Dist.dist (edgePoint d t) y) (Dist.dist (edgePoint d t) z)) / 3
-    have hr_pos : 0 < r := by
-      dsimp only [r]
-      have : 0 < (1 - (t : ℝ)) * W.weight d.edge := mul_pos (by linarith) hwpos
-      have : 0 < (t : ℝ) * W.weight d.edge := mul_pos ht0 hwpos
-      positivity
-    have hr_lt1 : r < (t : ℝ) * W.weight d.edge := by
-      have : r ≤ min ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge) / 3 :=
-        div_le_div_of_nonneg_right (min_le_left _ _) (by norm_num)
-      linarith [min_le_left ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge),
-        mul_pos ht0 hwpos]
-    have hr_lt2 : r < (1 - (t : ℝ)) * W.weight d.edge := by
-      have : r ≤ min ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge) / 3 :=
-        div_le_div_of_nonneg_right (min_le_left _ _) (by norm_num)
-      linarith [min_le_right ((t : ℝ) * W.weight d.edge) ((1 - (t : ℝ)) * W.weight d.edge),
-        mul_pos (sub_pos.mpr ht1) hwpos]
-    have hr_le_dy : r ≤ Dist.dist (edgePoint d t) y := by
-      have : r ≤ min (Dist.dist (edgePoint d t) y) (Dist.dist (edgePoint d t) z) / 3 :=
-        div_le_div_of_nonneg_right (min_le_right _ _) (by norm_num)
-      linarith [min_le_left (Dist.dist (edgePoint d t) y) (Dist.dist (edgePoint d t) z)]
-    have hr_le_dz : r ≤ Dist.dist (edgePoint d t) z := by
-      have : r ≤ min (Dist.dist (edgePoint d t) y) (Dist.dist (edgePoint d t) z) / 3 :=
-        div_le_div_of_nonneg_right (min_le_right _ _) (by norm_num)
-      linarith [min_le_right (Dist.dist (edgePoint d t) y) (Dist.dist (edgePoint d t) z)]
-    obtain ⟨py, hpy_mem, hpy_d, _⟩ :=
-      exists_mem_interval_dist_eq (edgePoint d t) y ⟨hr_pos.le, hr_le_dy⟩
-    obtain ⟨pz, hpz_mem, hpz_d, _⟩ :=
-      exists_mem_interval_dist_eq (edgePoint d t) z ⟨hr_pos.le, hr_le_dz⟩
-    have step_on_edge : ∀ p : MetricGraph W, Dist.dist (edgePoint d t) p = r →
-        ∃ s : unitInterval, 0 < (s : ℝ) ∧ (s : ℝ) < 1 ∧ p = edgePoint d s ∧
-          |((s : ℝ) - t) * W.weight d.edge| = r := by
-      intro p hp_d
-      have hsub := abs_sub_edgeProj_le_dist hT d (edgePoint d t) p
-      rw [edgeProj_edgePoint_self, hp_d] at hsub
-      have hlo : 0 < edgeProj hT d p := by linarith [abs_le.mp hsub]
-      have hhi : edgeProj hT d p < W.weight d.edge := by linarith [abs_le.mp hsub]
-      rcases edgeProj_cases hT d p with h0 | hw | ⟨s, hs0, hs1, rfl⟩
-      · linarith
-      · linarith
-      · have hdist := dist_edgePoint_edgePoint_same_eq hT d t s
-        rw [hp_d] at hdist
-        refine ⟨s, hs0, hs1, rfl, ?_⟩
-        rw [abs_mul, abs_of_nonneg hwpos.le]
-        simpa only [abs_sub_comm] using hdist.symm
-    obtain ⟨sy, hsy0, hsy1, rfl, hsy_r⟩ := step_on_edge py hpy_d
-    obtain ⟨sz, hsz0, hsz1, rfl, hsz_r⟩ := step_on_edge pz hpz_d
-    have side : ∀ (w : MetricGraph W) (s : unitInterval),
-        edgePoint d s ∈ interval (edgePoint d t) w →
-        |((s : ℝ) - t) * W.weight d.edge| = r →
-        ((s : ℝ) < t ∧ edgeProj hT d w ≤ (t : ℝ) * W.weight d.edge) ∨
-          ((t : ℝ) < s ∧ (t : ℝ) * W.weight d.edge ≤ edgeProj hT d w) := by
-      intro w s hmem hs_r
-      rcases lt_trichotomy (s : ℝ) t with hlt | heq | hgt
-      · refine Or.inl ⟨hlt, ?_⟩
-        by_contra hlt'
-        push Not at hlt'
-        rw [← edgeProj_edgePoint_self hT d t] at hlt'
-        have hs_t : edgeProj hT d (edgePoint d s) < edgeProj hT d (edgePoint d t) := by
-          rw [edgeProj_edgePoint_self, edgeProj_edgePoint_self]
-          exact mul_lt_mul_of_pos_right hlt hwpos
-        exact (dist_add_dist_gt_of_edgeProj_lt hT d hs_t (hs_t.trans hlt')).ne
-          (mem_interval_iff.mp hmem).symm
-      · rw [heq, sub_self, zero_mul, abs_zero] at hs_r
-        linarith
-      · refine Or.inr ⟨hgt, ?_⟩
-        by_contra hlt'
-        push Not at hlt'
-        have ht_sym : edgeProj hT d.symm (edgePoint d s) <
-            edgeProj hT d.symm (edgePoint d t) := by
-          rw [edgeProj_symm, edgeProj_symm, edgeProj_edgePoint_self, edgeProj_edgePoint_self]
-          nlinarith
-        have hw_sym : edgeProj hT d.symm (edgePoint d s) < edgeProj hT d.symm w := by
-          rw [edgeProj_symm, edgeProj_symm, edgeProj_edgePoint_self]
-          nlinarith
-        exact (dist_add_dist_gt_of_edgeProj_lt hT d.symm ht_sym hw_sym).ne
-          (mem_interval_iff.mp hmem).symm
-    -- Two steps of length `r` on the same side of `edgePoint d t` would coincide.
-    have hopp : (sy : ℝ) - t = -((sz : ℝ) - t) := by
-      have habs := hsy_r.trans hsz_r.symm
-      rw [abs_mul, abs_mul, mul_left_inj' (abs_pos.mpr hwpos.ne').ne'] at habs
-      refine (abs_eq_abs.mp habs).resolve_left fun h => ?_
-      have hsy_sz : sy = sz := Subtype.ext (by linarith)
-      subst hsy_sz
-      exact hstep_advance (edgePoint d sy) (by rw [hpy_d]; exact hr_pos) hpy_mem hpz_mem
-    rcases side y sy hpy_mem hsy_r with ⟨hsy, hy⟩ | ⟨hsy, hy⟩ <;>
-      rcases side z sz hpz_mem hsz_r with ⟨hsz, hz⟩ | ⟨hsz, hz⟩
-    · linarith
-    · exact edgePoint_mem_interval_of_edgeProj_le hT d ht0 ht1 hy hz
-    · exact interval_comm z y ▸ edgePoint_mem_interval_of_edgeProj_le hT d ht0 ht1 hz hy
-    · linarith
+  | vertex v => exact interval_of_no_common_step_vertex hT hmy hmz hno
+  | edgePoint d t ht0 ht1 => exact interval_of_no_common_step_edgePoint hT ht0 ht1 hmy hmz hno
 
 /-- The unique metric median `treeMedian hT x y z` in a tree metric graph. -/
 noncomputable def treeMedian [Finite V] (hT : W.graph.IsTree) (x y z : MetricGraph W) :
@@ -1225,40 +1082,24 @@ theorem branch_symm [Finite V] {q₁ q₂ w : MetricGraph W} (hq : q₁ ≠ q₂
 theorem branch_eq_of_mem [Finite V] (hT : W.graph.IsTree) {p q₁ q₂ : MetricGraph W}
     (hq : q₂ ∈ branch p q₁) : branch p q₂ = branch p q₁ := by
   have sub_of : ∀ {a b : MetricGraph W}, b ∈ branch p a → branch p b ⊆ branch p a := by
-    intro a b hb w hw
-    dsimp only [branch] at hb hw ⊢
-    intro hwa
+    intro a b hb w hw hwa
     let m₁ := treeMedian hT p a b
     let m₂ := treeMedian hT p b w
-    have hm1_ab : m₁ ∈ interval a b := treeMedian_mem_yz hT p a b
-    have hm2_bw : m₂ ∈ interval b w := treeMedian_mem_yz hT p b w
-    have hm1_ne : m₁ ≠ p := fun heq => hb (heq ▸ hm1_ab)
-    have hm2_ne : m₂ ≠ p := fun heq => hw (heq ▸ hm2_bw)
-    have h1pos : 0 < Dist.dist p m₁ := _root_.dist_pos.mpr hm1_ne.symm
-    have h2pos : 0 < Dist.dist p m₂ := _root_.dist_pos.mpr hm2_ne.symm
-    have hm1_pa : m₁ ∈ interval p a := treeMedian_mem_xy hT p a b
-    have hm1_pb : m₁ ∈ interval p b := interval_comm b p ▸ treeMedian_mem_zx hT p a b
-    have hm2_pb : m₂ ∈ interval p b := treeMedian_mem_xy hT p b w
-    have hm2_pw : m₂ ∈ interval p w := interval_comm w p ▸ treeMedian_mem_zx hT p b w
+    have hcontra : ∀ m, m ≠ p → m ∈ interval p a → m ∈ interval p w → False := fun m hne ha' hw' =>
+      by linarith [mem_interval_iff.mp ha', mem_interval_iff.mp hw', mem_interval_iff.mp hwa,
+        _root_.dist_pos.mpr hne.symm, _root_.dist_triangle a m w,
+        _root_.dist_comm a m, _root_.dist_comm p a, _root_.dist_comm p m]
+    have hm1_pa := treeMedian_mem_xy hT p a b
+    have hm1_pb := interval_comm b p ▸ treeMedian_mem_zx hT p a b
+    have hm2_pb := treeMedian_mem_xy hT p b w
+    have hm2_pw := interval_comm w p ▸ treeMedian_mem_zx hT p b w
     rcases le_total (Dist.dist p m₁) (Dist.dist p m₂) with hle | hle
-    · have hm1_pw : m₁ ∈ interval p w :=
-        mem_interval_trans_left hm2_pw (mem_interval_of_mem_interval_dist_le hT hm1_pb hm2_pb hle)
-      have e1 := mem_interval_iff.mp hm1_pa
-      have e2 := mem_interval_iff.mp hm1_pw
-      have e3 := mem_interval_iff.mp hwa
-      linarith [_root_.dist_triangle a m₁ w, _root_.dist_comm a m₁, _root_.dist_comm p a,
-        _root_.dist_comm p m₁]
-    · have hm2_pa : m₂ ∈ interval p a :=
-        mem_interval_trans_left hm1_pa (mem_interval_of_mem_interval_dist_le hT hm2_pb hm1_pb hle)
-      have e1 := mem_interval_iff.mp hm2_pa
-      have e2 := mem_interval_iff.mp hm2_pw
-      have e3 := mem_interval_iff.mp hwa
-      linarith [_root_.dist_triangle a m₂ w, _root_.dist_comm a m₂, _root_.dist_comm p a,
-        _root_.dist_comm p m₂]
-  have hq' : q₁ ∈ branch p q₂ := by
-    simp only [branch, Set.mem_ofPred_eq, interval_comm] at hq ⊢
-    exact hq
-  exact Set.Subset.antisymm (sub_of hq) (sub_of hq')
+    · exact hcontra m₁ (fun h => hb (h ▸ treeMedian_mem_yz hT p a b)) hm1_pa
+        (mem_interval_trans_left hm2_pw (mem_interval_of_mem_interval_dist_le hT hm1_pb hm2_pb hle))
+    · exact hcontra m₂ (fun h => hw (h ▸ treeMedian_mem_yz hT p b w))
+        (mem_interval_trans_left hm1_pa (mem_interval_of_mem_interval_dist_le hT hm2_pb hm1_pb hle))
+        hm2_pw
+  exact Set.Subset.antisymm (sub_of hq) (sub_of (by rwa [branch, Set.mem_ofPred_eq, interval_comm]))
 
 theorem branch_disjoint_of_mem_interval [Finite V] (hT : W.graph.IsTree)
     {p q₁ q₂ : MetricGraph W} (hp : p ∈ interval q₁ q₂) :
@@ -1328,11 +1169,8 @@ theorem mem_branch_vertex_iff_edgeProj_pos [Finite V] (hT : W.graph.IsTree) {c w
   let d : W.graph.Dart := ⟨(c, w), hadj⟩
   change z ∈ branch (vertex d.fst) (vertex d.snd) ↔ 0 < edgeProj hT d z
   have hw_pos := W.dart_weight_pos d
-  have hc0 : edgeProj hT d (vertex d.fst) = 0 :=
-    (edgeProj_vertex_eq_zero_iff hT d d.fst).mpr (.refl _)
-  have hw_proj : edgeProj hT d (vertex d.snd) = W.weight d.edge := by
-    rw [edgeProj_vertex_eq_weight_iff]
-    exact fun hr => bridge_deleteEdges hT d hr.symm
+  have hc0 : edgeProj hT d (vertex d.fst) = 0 := edgeProj_vertex_fst hT d
+  have hw_proj : edgeProj hT d (vertex d.snd) = W.weight d.edge := edgeProj_vertex_snd hT d
   constructor
   · intro hz
     by_contra hle
@@ -1359,6 +1197,110 @@ theorem disjoint_branch_vertex_of_adj [Finite V] (hT : W.graph.IsTree) {c w₁ w
   · exact hadj₁.ne h1.symm
   · exact hne h1
 
+private lemma edgeProj_gt_of_mem_branch_snd [Finite V] (hT : W.graph.IsTree) {d : W.graph.Dart}
+    {t₀ : unitInterval} (ht₀1 : (t₀ : ℝ) < 1) {w : MetricGraph W}
+    (hw : w ∈ branch (edgePoint d t₀) (vertex d.snd)) :
+    (t₀ : ℝ) * W.weight d.edge < edgeProj hT d w := by
+  by_contra hle
+  push Not at hle
+  have hv₀_proj := edgeProj_vertex_snd hT d
+  rcases lt_or_eq_of_le t₀.2.1 with ht0 | ht0
+  · exact hw (interval_comm w (vertex d.snd) ▸
+      edgePoint_mem_interval_of_edgeProj_le hT d ht0 ht₀1 hle
+        (hv₀_proj.symm ▸ mul_le_of_le_one_left (W.dart_weight_nonneg d) t₀.2.2))
+  · obtain rfl : t₀ = 0 := Subtype.ext ht0.symm
+    have hw0 : edgeProj hT d w = 0 := le_antisymm
+      (by simpa only [Set.Icc.coe_zero, zero_mul] using hle) (edgeProj_nonneg hT d w)
+    exact hw (by simpa only [edgePoint_zero] using interval_comm w (vertex d.snd) ▸
+      vertex_fst_mem_interval_of_edgeProj hT d hw0 (hv₀_proj ▸ W.dart_weight_pos d))
+
+private lemma exists_stem_segment_of_dart [Finite V] (hT : W.graph.IsTree)
+    {d : W.graph.Dart} {t₀ : unitInterval} (ht₀1 : (t₀ : ℝ) < 1)
+    {q : MetricGraph W} (hq_gt : (t₀ : ℝ) * W.weight d.edge < edgeProj hT d q) :
+    ∃ v₀ ∈ branch (edgePoint d t₀) q, 0 < Dist.dist (edgePoint d t₀) v₀ ∧
+      (∀ p ∈ interval (edgePoint d t₀) v₀, p ≠ edgePoint d t₀ →
+        p ∈ branch (edgePoint d t₀) q) ∧
+      (∀ w ∈ branch (edgePoint d t₀) q, ∀ p ∈ interval (edgePoint d t₀) v₀,
+        Dist.dist (edgePoint d t₀) p ≤ Dist.dist (edgePoint d t₀) w →
+          p ∈ interval (edgePoint d t₀) w) ∧
+      (∃ r₀ > 0, r₀ ≤ Dist.dist (edgePoint d t₀) v₀ ∧
+        ∀ p ∈ interval (edgePoint d t₀) v₀, 0 < Dist.dist (edgePoint d t₀) p →
+          Dist.dist (edgePoint d t₀) p ≤ r₀ →
+          ∀ z : MetricGraph W, Dist.dist p z ≤ Dist.dist (edgePoint d t₀) p →
+            z ∈ interval (edgePoint d t₀) v₀ ∧
+              Dist.dist (edgePoint d t₀) z ≤ 2 * Dist.dist (edgePoint d t₀) p) := by
+  have hwpos := W.dart_weight_pos d
+  have hy_proj := edgeProj_edgePoint_self hT d t₀
+  have hv₀_proj := edgeProj_vertex_snd hT d
+  have hdv_eq : Dist.dist (edgePoint d t₀) (vertex d.snd) = (1 - (t₀ : ℝ)) * W.weight d.edge := by
+    have h := dist_edgePoint_edgePoint_same_eq hT d t₀ 1
+    rw [edgePoint_one, Set.Icc.coe_one, abs_of_neg (sub_neg.mpr ht₀1)] at h
+    linarith
+  have hv₀_mem : (vertex d.snd : MetricGraph W) ∈ branch (edgePoint d t₀) q := by
+    simp only [branch, Set.mem_ofPred_eq, mem_interval_iff]
+    exact fun hmem => (dist_add_dist_gt_of_edgeProj_lt hT d (hy_proj ▸ hq_gt)
+      (by rw [hy_proj, hv₀_proj]; nlinarith only [ht₀1, hwpos])).ne hmem.symm
+  have hdv_pos : 0 < Dist.dist (edgePoint d t₀) (vertex d.snd) := by
+    rw [hdv_eq]; exact mul_pos (sub_pos.mpr ht₀1) hwpos
+  refine ⟨vertex d.snd, hv₀_mem, hdv_pos,
+    fun p hp hpne => mem_branch_of_mem_interval hT hv₀_mem hp hpne, ?_, ?_⟩
+  · intro w hw p hp hp_le
+    have hw_gt := edgeProj_gt_of_mem_branch_snd hT ht₀1 (branch_eq_of_mem hT hv₀_mem ▸ hw)
+    rcases eq_or_lt_of_le (edgeProj_le_weight hT d w) with hww | hww
+    · have hsym_w : edgeProj hT d.symm w = 0 := by rw [edgeProj_symm, hww, sub_self]
+      have hsym_y : 0 < edgeProj hT d.symm (edgePoint d t₀) := by
+        rw [edgeProj_symm, hy_proj]; nlinarith only [ht₀1, hwpos]
+      exact mem_interval_trans_left
+        (interval_comm w _ ▸ Dart.fst_symm d ▸ vertex_fst_mem_interval_of_edgeProj hT d.symm
+          hsym_w hsym_y) hp
+    · obtain ⟨sw, _, _, rfl⟩ := ((edgeProj_cases hT d w).resolve_left
+        ((mul_nonneg t₀.2.1 hwpos.le).trans_lt hw_gt).ne').resolve_left hww.ne
+      have htw : (t₀ : ℝ) ≤ sw :=
+        ((mul_lt_mul_iff_left₀ hwpos).mp (by rwa [edgeProj_edgePoint_self] at hw_gt)).le
+      refine mem_interval_of_mem_interval_dist_le hT hp ?_ hp_le
+      rw [← edgePoint_one d]
+      exact edgePoint_mem_interval_edgePoint_of_direct
+        (dist_edgePoint_edgePoint_same_eq hT d t₀ 1) (Or.inl ⟨htw, sw.2.2⟩)
+  · refine ⟨(1 - (t₀ : ℝ)) * W.weight d.edge / 3, by linarith, by linarith,
+      fun p hp hdp_pos hdp_le z hz => ?_⟩
+    have hdz_le : Dist.dist (edgePoint d t₀) z ≤ 2 * Dist.dist (edgePoint d t₀) p :=
+      (_root_.dist_triangle _ p z).trans (by linarith)
+    have hp_gt := edgeProj_gt_of_mem_branch_snd hT ht₀1
+      (mem_branch_of_mem_interval hT (mem_branch_self (_root_.dist_pos.mp hdv_pos).symm) hp
+        (_root_.dist_pos.mp hdp_pos).symm)
+    have hpy_sub := (le_abs_self _).trans (abs_sub_edgeProj_le_dist hT d p (edgePoint d t₀))
+    rw [hy_proj, _root_.dist_comm] at hpy_sub
+    rcases edgeProj_cases hT d p with h0 | hpw | ⟨sp, hs0, _, rfl⟩
+    · linarith [mul_nonneg t₀.2.1 hwpos.le]
+    · linarith
+    have hp_sp := edgeProj_edgePoint_self hT d sp
+    have hsp_ge : (t₀ : ℝ) ≤ sp := ((mul_lt_mul_iff_left₀ hwpos).mp (hp_sp ▸ hp_gt)).le
+    have hdp_eq : Dist.dist (edgePoint d t₀) (edgePoint d sp) =
+        ((sp : ℝ) - t₀) * W.weight d.edge := by
+      rw [dist_edgePoint_edgePoint_same_eq hT d t₀ sp, abs_sub_comm,
+        abs_of_nonneg (sub_nonneg.mpr hsp_ge)]
+    have hzp := abs_le.mp ((abs_sub_edgeProj_le_dist hT d (edgePoint d sp) z).trans hz)
+    rw [hp_sp, hdp_eq] at hzp
+    refine ⟨?_, hdz_le⟩
+    rcases edgeProj_cases hT d z with hz0 | hzw | ⟨sz, _, hsz1, rfl⟩
+    · obtain rfl : t₀ = 0 := Subtype.ext (le_antisymm
+        ((mul_le_mul_iff_left₀ hwpos).mp (by
+          rw [hz0] at hzp; change _ ≤ (0 : ℝ) * _; linarith))
+        t₀.2.1)
+      have hm := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT d hz0
+        (by rw [hp_sp]; exact mul_pos hs0 hwpos))
+      have hz_fst : z = vertex d.fst := _root_.dist_eq_zero.mp (le_antisymm (by
+        rw [edgePoint_zero] at hz hdp_pos
+        linarith [_root_.dist_comm (edgePoint d sp) z]) _root_.dist_nonneg)
+      rw [edgePoint_zero, hz_fst]
+      exact left_mem_interval _ _
+    · linarith
+    · have hge : (t₀ : ℝ) ≤ sz := (mul_le_mul_iff_left₀ hwpos).mp
+        (by rw [edgeProj_edgePoint_self] at hzp; linarith)
+      rw [← edgePoint_one d]
+      exact edgePoint_mem_interval_edgePoint_of_direct
+        (dist_edgePoint_edgePoint_same_eq hT d t₀ 1) (Or.inl ⟨hge, hsz1.le⟩)
+
 /-- Every nonzero direction `q ≠ y` in a finite tree metric graph begins along a positive-length
 unbranched segment `interval y v₀ ⊆ branch y q ∪ {y}` inside which small balls stay in the
 segment. -/
@@ -1370,222 +1312,35 @@ theorem exists_stem_segment [Finite V] (hT : W.graph.IsTree) {y q : MetricGraph 
         ∀ p ∈ interval y v₀, 0 < Dist.dist y p → Dist.dist y p ≤ r₀ →
           ∀ z : MetricGraph W, Dist.dist p z ≤ Dist.dist y p →
             z ∈ interval y v₀ ∧ Dist.dist y z ≤ 2 * Dist.dist y p) := by
-  have hstem_dart : ∀ (d : W.graph.Dart) (t₀ : unitInterval) (ht₀1 : (t₀ : ℝ) < 1)
-      (hyeq : y = edgePoint d t₀) (hq_gt : (t₀ : ℝ) * W.weight d.edge < edgeProj hT d q)
-      (r₀ : ℝ) (hr₀_pos : 0 < r₀) (hr₀_le : r₀ ≤ (1 - (t₀ : ℝ)) * W.weight d.edge / 3)
-      (hr₀_zero : t₀ = 0 ∨ r₀ ≤ (t₀ : ℝ) * W.weight d.edge / 3),
-      ∃ v₀ ∈ branch y q, 0 < Dist.dist y v₀ ∧
-        (∀ p ∈ interval y v₀, p ≠ y → p ∈ branch y q) ∧
-        (∀ w ∈ branch y q, ∀ p ∈ interval y v₀, Dist.dist y p ≤ Dist.dist y w → p ∈ interval y w) ∧
-        (∃ r₀ > 0, r₀ ≤ Dist.dist y v₀ ∧
-          ∀ p ∈ interval y v₀, 0 < Dist.dist y p → Dist.dist y p ≤ r₀ →
-            ∀ z : MetricGraph W, Dist.dist p z ≤ Dist.dist y p →
-              z ∈ interval y v₀ ∧ Dist.dist y z ≤ 2 * Dist.dist y p) := by
-    intro d t₀ ht₀1 hyeq hq_gt r₀ hr₀_pos hr₀_le hr₀_zero
-    subst hyeq
-    have hwpos := W.dart_weight_pos d
-    have hy_proj : edgeProj hT d (edgePoint d t₀) = (t₀ : ℝ) * W.weight d.edge :=
-      edgeProj_edgePoint_self hT d t₀
-    have hv₀_proj : edgeProj hT d (vertex d.snd) = W.weight d.edge := by
-      rw [edgeProj_vertex_eq_weight_iff]
-      exact fun hr => bridge_deleteEdges hT d hr.symm
-    have hdv_pos : 0 < Dist.dist (edgePoint d t₀) (vertex d.snd) := by
-      have := dist_edgePoint_edgePoint_same_eq hT d t₀ 1
-      rw [edgePoint_one, Set.Icc.coe_one, abs_of_neg (sub_neg.mpr ht₀1)] at this
-      rw [this]
-      nlinarith
-    have hdv_eq : Dist.dist (edgePoint d t₀) (vertex d.snd) =
-        (1 - (t₀ : ℝ)) * W.weight d.edge := by
-      have := dist_edgePoint_edgePoint_same_eq hT d t₀ 1
-      rw [edgePoint_one, Set.Icc.coe_one, abs_of_neg (sub_neg.mpr ht₀1)] at this
-      linarith
-    have hv₀_mem : (vertex d.snd : MetricGraph W) ∈ branch (edgePoint d t₀) q := by
-      simp only [branch, Set.mem_ofPred_eq, mem_interval_iff]
-      intro hmem
-      have hlt1 : edgeProj hT d (edgePoint d t₀) < edgeProj hT d q := by linarith
-      have hlt2 : edgeProj hT d (edgePoint d t₀) < edgeProj hT d (vertex d.snd) := by
-        rw [hy_proj, hv₀_proj]
-        nlinarith
-      exact (dist_add_dist_gt_of_edgeProj_lt hT d hlt1 hlt2).ne hmem.symm
-    -- Points of the segment other than its start lie strictly beyond it along `d`.
-    have hp_gt : ∀ p ∈ interval (edgePoint d t₀) (vertex d.snd), p ≠ edgePoint d t₀ →
-        (t₀ : ℝ) * W.weight d.edge < edgeProj hT d p := by
-      intro p hp hpne
-      have hp_ge : (t₀ : ℝ) * W.weight d.edge ≤ edgeProj hT d p :=
-        hy_proj ▸ (mem_interval_edgeProj_bounds hT d hp (by linarith)).1
-      refine lt_of_le_of_ne hp_ge (fun heq => ?_)
-      rcases eq_or_lt_of_le t₀.2.1 with ht0 | ht0
-      · have h0 : edgeProj hT d p = 0 := by rw [← heq, ← ht0, zero_mul]
-        obtain rfl : t₀ = 0 := Subtype.ext ht0.symm
-        rw [edgePoint_zero] at hp hpne
-        have hm := vertex_fst_mem_interval_of_edgeProj hT d h0
-          (by rw [hv₀_proj]; exact hwpos)
-        have hmem1 := mem_interval_iff.mp hp
-        have hmem2 := mem_interval_iff.mp hm
-        have hd0 : Dist.dist (vertex d.fst : MetricGraph W) p = 0 := by
-          linarith [_root_.dist_comm p (vertex d.fst)]
-        exact hpne (_root_.dist_eq_zero.mp hd0).symm
-      · exact hpne (eq_edgePoint_of_edgeProj_eq hT ht0 ht₀1 heq.symm)
-    refine ⟨vertex d.snd, hv₀_mem, hdv_pos, ?_, ?_, ?_⟩
-    · intro p hp hpne
-      simp only [branch, Set.mem_ofPred_eq, mem_interval_iff]
-      exact fun h => (dist_add_dist_gt_of_edgeProj_lt hT d (hy_proj ▸ hq_gt)
-        (hy_proj ▸ hp_gt p hp hpne)).ne h.symm
-    · intro w hw p hp hp_le
-      have hw_v0 : w ∈ branch (edgePoint d t₀) (vertex d.snd) := by
-        rwa [branch_eq_of_mem hT hv₀_mem]
-      have hw_gt : (t₀ : ℝ) * W.weight d.edge < edgeProj hT d w := by
-        by_contra hle
-        push Not at hle
-        rcases lt_or_eq_of_le t₀.2.1 with ht0 | ht0
-        · have := edgePoint_mem_interval_of_edgeProj_le hT d ht0 ht₀1 hle
-            (by rw [hv₀_proj]; exact mul_le_of_le_one_left hwpos.le t₀.2.2)
-          exact hw_v0 (interval_comm w (vertex d.snd) ▸ this)
-        · have ht0' : t₀ = 0 := Subtype.ext ht0.symm
-          subst ht0'
-          rw [edgePoint_zero] at hw_v0
-          have hw0 : edgeProj hT d w = 0 :=
-            le_antisymm (by simpa only [Set.Icc.coe_zero, zero_mul] using hle)
-              (edgeProj_nonneg hT d w)
-          have := vertex_fst_mem_interval_of_edgeProj hT d hw0 (by rw [hv₀_proj]; exact hwpos)
-          exact hw_v0 (interval_comm w (vertex d.snd) ▸ this)
-      have hv0_w : (vertex d.snd : MetricGraph W) ∈ interval (edgePoint d t₀) w ∨
-          w ∈ interval (edgePoint d t₀) (vertex d.snd) := by
-        rcases eq_or_lt_of_le (edgeProj_le_weight hT d w) with hww | hww
-        · left
-          have hsym_w : edgeProj hT d.symm w = 0 := by rw [edgeProj_symm, hww, sub_self]
-          have hsym_y : 0 < edgeProj hT d.symm (edgePoint d t₀) := by
-            rw [edgeProj_symm, hy_proj]
-            nlinarith
-          have hm := vertex_fst_mem_interval_of_edgeProj hT d.symm hsym_w hsym_y
-          rw [Dart.fst_symm] at hm
-          exact interval_comm w (edgePoint d t₀) ▸ hm
-        · right
-          rcases edgeProj_cases hT d w with hw0 | hw_eq | ⟨sw, _, _, rfl⟩
-          · linarith [mul_nonneg t₀.2.1 hwpos.le]
-          · linarith
-          · rw [edgeProj_edgePoint_self] at hw_gt
-            have htw : (t₀ : ℝ) ≤ sw := ((mul_lt_mul_iff_left₀ hwpos).mp hw_gt).le
-            rw [← edgePoint_one d]
-            exact edgePoint_mem_interval_edgePoint_of_direct
-              (dist_edgePoint_edgePoint_same_eq hT d t₀ 1) (Or.inl ⟨htw, sw.2.2⟩)
-      rcases hv0_w with hv0_w | hw_v0_mem
-      · exact mem_interval_trans_left hv0_w hp
-      · exact mem_interval_of_mem_interval_dist_le hT hp hw_v0_mem hp_le
-    · refine ⟨r₀, hr₀_pos, by linarith, fun p hp hdp_pos hdp_le z hz => ?_⟩
-      have hdz_le : Dist.dist (edgePoint d t₀) z ≤ 2 * Dist.dist (edgePoint d t₀) p :=
-        (_root_.dist_triangle _ p z).trans (by linarith)
-      have hp_le : edgeProj hT d p ≤ (t₀ : ℝ) * W.weight d.edge + Dist.dist (edgePoint d t₀) p := by
-        have := abs_sub_edgeProj_le_dist hT d p (edgePoint d t₀)
-        rw [hy_proj, _root_.dist_comm] at this
-        linarith [(le_abs_self _).trans this]
-      have hp_lt_w : edgeProj hT d p < W.weight d.edge := by linarith
-      have hp_gt0 := hp_gt p hp (_root_.dist_pos.mp hdp_pos).symm
-      obtain ⟨sp, hs0, _, rfl, hp_sp⟩ : ∃ sp : unitInterval, 0 < (sp : ℝ) ∧ (sp : ℝ) < 1 ∧
-          p = edgePoint d sp ∧ edgeProj hT d p = (sp : ℝ) * W.weight d.edge := by
-        rcases edgeProj_cases hT d p with h0 | hw | ⟨sp, hs0, hs1, rfl⟩
-        · linarith [mul_nonneg t₀.2.1 hwpos.le]
-        · linarith
-        · exact ⟨sp, hs0, hs1, rfl, edgeProj_edgePoint_self hT d sp⟩
-      have hsp_ge : (t₀ : ℝ) ≤ sp := by
-        rw [hp_sp] at hp_gt0
-        exact ((mul_lt_mul_iff_left₀ hwpos).mp hp_gt0).le
-      have hp_dist_eq : Dist.dist (edgePoint d t₀) (edgePoint d sp) =
-          ((sp : ℝ) - t₀) * W.weight d.edge := by
-        rw [dist_edgePoint_edgePoint_same_eq hT d t₀ sp, abs_sub_comm,
-          abs_of_nonneg (sub_nonneg.mpr hsp_ge)]
-      have hzp_proj := abs_sub_edgeProj_le_dist hT d (edgePoint d sp) z
-      rw [hp_sp] at hzp_proj
-      have hz_proj_le : edgeProj hT d z ≤
-          (t₀ : ℝ) * W.weight d.edge + 2 * Dist.dist (edgePoint d t₀) (edgePoint d sp) := by
-        linarith [(neg_le_abs _).trans hzp_proj]
-      have hz_lt_w : edgeProj hT d z < W.weight d.edge := by linarith
-      rcases edgeProj_cases hT d z with hz0 | hzw | ⟨sz, _, hsz1, rfl⟩
-      · rcases hr₀_zero with rfl | hr0_t
-        · have hz_fst : z = vertex d.fst := by
-            have hm := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT d hz0
-              (by rw [hp_sp]; exact mul_pos hs0 hwpos))
-            rw [edgePoint_zero] at hz hdp_pos
-            have : Dist.dist z (vertex d.fst) = 0 := by
-              linarith [_root_.dist_comm (edgePoint d sp) z,
-                _root_.dist_nonneg (x := z) (y := vertex d.fst)]
-            exact _root_.dist_eq_zero.mp this
-          rw [edgePoint_zero] at hdz_le
-          rw [edgePoint_zero, hz_fst]
-          exact ⟨left_mem_interval _ _, by simpa only [hz_fst] using hdz_le⟩
-        · exfalso
-          have hdiff : ((sp : ℝ) - t₀) * W.weight d.edge =
-              Dist.dist (edgePoint d t₀) (edgePoint d sp) := hp_dist_eq.symm
-          linarith [(le_abs_self _).trans hzp_proj]
-      · linarith
-      · have hz_ge_t₀ : (t₀ : ℝ) ≤ sz := by
-          rcases hr₀_zero with rfl | hr0_t
-          · exact sz.2.1
-          · rw [edgeProj_edgePoint_self] at hzp_proj
-            have h1 := (le_abs_self _).trans hzp_proj
-            have : (t₀ : ℝ) * W.weight d.edge ≤ (sz : ℝ) * W.weight d.edge := by linarith
-            exact (mul_le_mul_iff_left₀ hwpos).mp this
-        refine ⟨?_, hdz_le⟩
-        rw [← edgePoint_one d]
-        exact edgePoint_mem_interval_edgePoint_of_direct
-          (dist_edgePoint_edgePoint_same_eq hT d t₀ 1) (Or.inl ⟨hz_ge_t₀, hsz1.le⟩)
   induction y using ind with
   | vertex v =>
     obtain ⟨d₀⟩ := exists_edge_dart_of_ne hq.symm
     obtain ⟨wmin, hwmin_pos, hwmin_le⟩ := exists_min_dart_weight (W := W) d₀
+    have hq_pos : 0 < Dist.dist (vertex v : MetricGraph W) q := _root_.dist_pos.mpr hq.symm
     let r : ℝ := min wmin (Dist.dist (vertex v) q) / 3
-    have hr_pos : 0 < r := by
-      dsimp only [r]
-      have : 0 < Dist.dist (vertex v) q := _root_.dist_pos.mpr hq.symm
-      positivity
-    have hr_lt_w : ∀ d : W.graph.Dart, r < W.weight d.edge := fun d => by
-      have hd : wmin ≤ W.weight d.edge := hwmin_le d
-      have : r ≤ wmin / 3 := div_le_div_of_nonneg_right (min_le_left _ _) (by norm_num)
-      linarith
-    have hr_le_dq : r ≤ Dist.dist (vertex v) q := by
-      have : r ≤ Dist.dist (vertex v) q / 3 :=
-        div_le_div_of_nonneg_right (min_le_right _ _) (by norm_num)
-      linarith [_root_.dist_nonneg (x := (vertex v : MetricGraph W)) (y := q)]
-    obtain ⟨pq, hpq_mem, hpq_d, _⟩ := exists_mem_interval_dist_eq (vertex v) q ⟨hr_pos.le, hr_le_dq⟩
-    obtain ⟨d, t, hd_fst, ht0, _, rfl, _⟩ := dist_vertex_mem_step_dart hr_pos hpq_d hr_lt_w
-    have hq_gt : (0 : ℝ) * W.weight d.edge < edgeProj hT d q := by
-      rw [zero_mul]
-      have hv0 : edgeProj hT d (vertex v) = 0 := by
-        rw [edgeProj_vertex_eq_zero_iff, hd_fst]
-      have hp0 : 0 < edgeProj hT d (edgePoint d t) := by
-        rw [edgeProj_edgePoint_self]
-        exact mul_pos ht0 (W.dart_weight_pos d)
-      have hb :=
-        (mem_interval_edgeProj_bounds hT d hpq_mem (by rw [hv0]; exact edgeProj_nonneg hT d q)).2
-      exact hp0.trans_le hb
-    exact hstem_dart d 0 zero_lt_one (by rw [edgePoint_zero, hd_fst]) hq_gt
-      (W.weight d.edge / 3) (div_pos (W.dart_weight_pos d) (by norm_num))
-      (by simp) (Or.inl rfl)
+    have hr_pos : 0 < r := by dsimp only [r]; positivity
+    have h3r : 3 * r = min wmin (Dist.dist (vertex v : MetricGraph W) q) := by dsimp only [r]; ring
+    have hr_w : 3 * r ≤ wmin := h3r ▸ min_le_left _ _
+    have hr_q : 3 * r ≤ Dist.dist (vertex v : MetricGraph W) q := h3r ▸ min_le_right _ _
+    obtain ⟨d, _, hd_fst, _, _, _, _, hq_gt⟩ := vertex_step_dart_pos hT (v := v) (y := q) hr_pos
+      (by linarith) (fun d => by linarith [hwmin_le d])
+    subst hd_fst
+    simpa only [edgePoint_zero] using
+      exists_stem_segment_of_dart hT (t₀ := 0) zero_lt_one (by simpa only [Set.Icc.coe_zero,
+        zero_mul] using hq_gt)
   | edgePoint d t ht0 ht1 =>
-    have hwpos := W.dart_weight_pos d
     have hq_ne : edgeProj hT d q ≠ (t : ℝ) * W.weight d.edge :=
       fun heq => hq (eq_edgePoint_of_edgeProj_eq hT ht0 ht1 heq)
-    rcases lt_or_gt_of_ne hq_ne with hlt | hgt
-    · have hq_gt : ((unitInterval.symm t : unitInterval) : ℝ) * W.weight d.symm.edge <
-          edgeProj hT d.symm q := by
-        rw [unitInterval.coe_symm_eq, Dart.edge_symm, edgeProj_symm]
-        nlinarith
-      exact hstem_dart d.symm (unitInterval.symm t)
-        (by simp only [unitInterval.coe_symm_eq]; linarith)
-        (edgePoint_symm d t).symm hq_gt
-        (min ((t : ℝ) * W.weight d.edge / 3) ((1 - (t : ℝ)) * W.weight d.edge / 3))
-        (by have : 0 < 1 - (t : ℝ) := sub_pos.mpr ht1; positivity)
-        (by simp only [unitInterval.coe_symm_eq, Dart.edge_symm]
-            have := min_le_left ((t : ℝ) * W.weight d.edge / 3)
-              ((1 - (t : ℝ)) * W.weight d.edge / 3)
-            linarith)
-        (Or.inr (by simp only [unitInterval.coe_symm_eq, Dart.edge_symm]
-                    exact min_le_right _ _))
-    · exact hstem_dart d t ht1 rfl hgt
-        (min ((t : ℝ) * W.weight d.edge / 3) ((1 - (t : ℝ)) * W.weight d.edge / 3))
-        (by have : 0 < 1 - (t : ℝ) := sub_pos.mpr ht1; positivity)
-        (min_le_right _ _)
-        (Or.inr (min_le_left _ _))
+    wlog hgt : (t : ℝ) * W.weight d.edge < edgeProj hT d q generalizing d t
+    · rw [← edgePoint_symm d t]
+      refine this d.symm (unitInterval.symm t)
+        (by rw [unitInterval.coe_symm_eq]; linarith)
+        (by rw [unitInterval.coe_symm_eq]; linarith)
+        (by simpa only [edgePoint_symm] using hq) ?_ ?_
+      all_goals rw [edgeProj_symm, unitInterval.coe_symm_eq, Dart.edge_symm]
+      · exact fun heq => hq_ne (by linarith)
+      · linarith [(lt_or_gt_of_ne hq_ne).resolve_right hgt]
+    exact exists_stem_segment_of_dart hT ht1 hgt
 
 end TreeMedian
 

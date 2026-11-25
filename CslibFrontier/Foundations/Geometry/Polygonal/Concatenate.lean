@@ -10,7 +10,9 @@ module
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
 import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
+import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.List.OfFn
+import Mathlib.Logic.Equiv.Fin.Basic
 import Mathlib.Tactic.Ring
 
 /-!
@@ -39,9 +41,7 @@ def concat (p q : Route) : Route := (followingNodes q).foldl Route.append p
     (p.concat q).segments = p.segments + q.segments := by
   simp only [concat, segments_foldl_append, followingNodes, List.length_ofFn]
 
-/-- Every joined segment has its original evaluation for all real times, with its original
-index on the left and an index shifted by the first segment count on the right. -/
-theorem concat_eval_cases (p q : Route) (h : p.finish = q.start)
+private theorem concat_eval_cases_at (p q : Route) (h : p.finish = q.start)
     (i : Fin (p.concat q).segments) (t : ℝ) :
     (∃ j : Fin p.segments, i.val = j.val ∧ (p.concat q).eval i t = p.eval j t) ∨
       (∃ j : Fin q.segments, i.val = p.segments + j.val ∧ (p.concat q).eval i t = q.eval j t) := by
@@ -74,16 +74,69 @@ theorem concat_eval_cases (p q : Route) (h : p.finish = q.start)
 private theorem eval_left (p q : Route) (h : p.finish = q.start)
     (i : Fin (p.concat q).segments) (j : Fin p.segments) (hij : i.val = j.val) (t : ℝ) :
     (p.concat q).eval i t = p.eval j t := by
-  rcases concat_eval_cases p q h i t with ⟨k, hk, he⟩ | ⟨k, hk, _⟩
+  rcases concat_eval_cases_at p q h i t with ⟨k, hk, he⟩ | ⟨k, hk, _⟩
   · exact he.trans (congrArg (fun a => p.eval a t) (Fin.ext (hk.symm.trans hij)))
   · exact (by have := j.isLt; omega : False).elim
 
 private theorem eval_right (p q : Route) (h : p.finish = q.start)
     (i : Fin (p.concat q).segments) (j : Fin q.segments)
     (hij : i.val = p.segments + j.val) (t : ℝ) : (p.concat q).eval i t = q.eval j t := by
-  rcases concat_eval_cases p q h i t with ⟨k, hk, _⟩ | ⟨k, hk, he⟩
+  rcases concat_eval_cases_at p q h i t with ⟨k, hk, _⟩ | ⟨k, hk, he⟩
   · exact (by have := k.isLt; omega : False).elim
   · exact he.trans (congrArg (fun a => q.eval a t) (Fin.ext (by omega)))
+
+/-- Label the joined segments by the segment positions of the first and second routes. -/
+def concatSegmentEquiv (p q : Route) :
+    Fin p.segments ⊕ Fin q.segments ≃ Fin (p.concat q).segments :=
+  finSumFinEquiv.trans (finCongr (segments_concat p q).symm)
+
+/-- The segment labels of a concatenation preserve affine evaluation at every real time. -/
+theorem eval_concatSegmentEquiv (p q : Route) (h : p.finish = q.start)
+    (i : Fin p.segments ⊕ Fin q.segments) (t : ℝ) :
+    (p.concat q).eval (concatSegmentEquiv p q i) t =
+      i.elim (fun j => p.eval j t) (fun j => q.eval j t) := by
+  rcases i with i | i
+  · exact eval_left p q h _ i rfl t
+  · exact eval_right p q h _ i rfl t
+
+/-- Every joined segment has one source segment whose evaluation it preserves for all real
+parameters. The source index is unchanged on the left and shifted on the right. -/
+theorem concat_eval_cases (p q : Route) (h : p.finish = q.start)
+    (i : Fin (p.concat q).segments) :
+    (∃ j : Fin p.segments, i.val = j.val ∧ ∀ t, (p.concat q).eval i t = p.eval j t) ∨
+    (∃ j : Fin q.segments, i.val = p.segments + j.val ∧
+      ∀ t, (p.concat q).eval i t = q.eval j t) := by
+  obtain ⟨j, rfl⟩ := (concatSegmentEquiv p q).surjective i
+  rcases j with j | j
+  · exact Or.inl ⟨j, rfl, eval_concatSegmentEquiv p q h (Sum.inl j)⟩
+  · exact Or.inr ⟨j, rfl, eval_concatSegmentEquiv p q h (Sum.inr j)⟩
+
+/-- A sum that assigns a value to each ordered pair of consecutive route points splits
+into the two original sums when the joined ends match. -/
+theorem sum_segments_concat {M : Type*} [AddCommMonoid M] (p q : Route)
+    (h : p.finish = q.start) (f : ℂ → ℂ → M) :
+    (∑ i : Fin (p.concat q).segments, f ((p.concat q).point i.castSucc)
+      ((p.concat q).point i.succ)) =
+      (∑ i : Fin p.segments, f (p.point i.castSucc) (p.point i.succ)) +
+        ∑ i : Fin q.segments, f (q.point i.castSucc) (q.point i.succ) := by
+  let e := concatSegmentEquiv p q
+  let value (r : Route) (i : Fin r.segments) := f (r.point i.castSucc) (r.point i.succ)
+  have hvalue (r s : Route) (i : Fin r.segments) (j : Fin s.segments)
+      (he : ∀ t, r.eval i t = s.eval j t) : value r i = value s j := by
+    have h₀ := he 0
+    have h₁ := he 1
+    simp only [eval, AffineMap.lineMap_apply_zero] at h₀
+    simp only [eval, AffineMap.lineMap_apply_one] at h₁
+    exact congrArg₂ f h₀ h₁
+  change (∑ i, value (p.concat q) i) = (∑ i, value p i) + ∑ j, value q j
+  rw [← Equiv.sum_comp e (value (p.concat q)), Fintype.sum_sum_type]
+  congr 1
+  · apply Finset.sum_congr rfl
+    intro i _
+    exact hvalue _ _ _ _ (eval_concatSegmentEquiv p q h (Sum.inl i))
+  · apply Finset.sum_congr rfl
+    intro i _
+    exact hvalue _ _ _ _ (eval_concatSegmentEquiv p q h (Sum.inr i))
 
 private theorem eval_end_concat (p q : Route) (h : p.finish = q.start) (b : Bool) (t : ℝ) :
     (p.concat q).eval ((p.concat q).endSegment b) t =
@@ -115,7 +168,7 @@ theorem support_concat (p q : Route) (h : p.finish = q.start) :
   constructor
   · intro hx
     obtain ⟨i, t, ht, he⟩ := ((p.concat q).mem_support_iff x).mp hx
-    rcases concat_eval_cases p q h i t with ⟨j, _, hj⟩ | ⟨j, _, hj⟩
+    rcases concat_eval_cases p q h i with ⟨j, _, hj⟩ | ⟨j, _, hj⟩ <;> specialize hj t
     · exact Or.inl ((p.mem_support_iff x).mpr ⟨j, t, ht, hj.symm.trans he⟩)
     · exact Or.inr ((q.mem_support_iff x).mpr ⟨j, t, ht, hj.symm.trans he⟩)
   · rintro (hp | hq)
@@ -170,8 +223,9 @@ theorem IsSimple.concat {p q : Route} (hp : p.IsSimple) (hq : q.IsSimple)
         rw [hright, show q.position l t = q.segments from hqt]
       simpa only [segments_concat, Nat.cast_add] using hpos
   intro i j s t hs ht he
-  rcases concat_eval_cases p q h i s with ⟨a, ha, hea⟩ | ⟨a, ha, hea⟩ <;>
-    rcases concat_eval_cases p q h j t with ⟨b, hb, heb⟩ | ⟨b, hb, heb⟩
+  rcases concat_eval_cases p q h i with ⟨a, ha, hea⟩ | ⟨a, ha, hea⟩ <;>
+    rcases concat_eval_cases p q h j with ⟨b, hb, heb⟩ | ⟨b, hb, heb⟩ <;>
+    specialize hea s <;> specialize heb t
   · left
     rw [position_left p q i a ha, position_left p q j b hb]
     exact hp.position_eq_of_eval_eq hpopen a b hs ht (hea.symm.trans (he.trans heb))

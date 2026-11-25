@@ -24,6 +24,9 @@ import CslibFrontier.Probability.StatisticalDistance.Coupling
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.UniformRelabel
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Universal key-quotienting bijection across arbitrary universes `U ≥ n`
@@ -136,11 +139,11 @@ open scoped BigOperators ENNReal Cslib.Probability.PMF
 /-! ## Section 1: Full-quotient bit-width and information-theoretic space bound -/
 
 /-- Bucket-index bit-width `⌊log₂ n⌋` for full key quotienting at capacity `n`. -/
-@[expose] def bucketIndexBits (n : ℕ) : ℕ :=
+@[expose, wram_arith] def bucketIndexBits (n : ℕ) : ℕ :=
   Nat.log 2 n
 
 /-- Stored quotient bit-width `⌈log₂ U⌉ - ⌊log₂ n⌋` per key at universe `U` and capacity `n`. -/
-@[expose] def fullQuotBits (U n : ℕ) : ℕ :=
+@[expose, wram_arith] def fullQuotBits (U n : ℕ) : ℕ :=
   FeistelQuotient.keyBits U - bucketIndexBits n
 
 /-- Whenever `n ≤ U`, `bucketIndexBits n ≤ FeistelQuotient.keyBits U`. -/
@@ -177,7 +180,7 @@ theorem mul_fullQuotBits_le_clog_choose (U n : ℕ) :
   rcases lt_or_ge U n with hUn | hnU
   · have hkey : FeistelQuotient.keyBits U ≤ bucketIndexBits n + 1 :=
       Nat.clog_le_of_le_pow (hUn.le.trans (Nat.lt_pow_succ_log_self (by decide) n).le)
-    have hq : fullQuotBits U n ≤ 1 := by unfold fullQuotBits; omega
+    have hq : fullQuotBits U n ≤ 1 := by wram_omega
     rw [Nat.choose_eq_zero_of_lt hUn, Nat.clog_zero_right, Nat.zero_add]
     nlinarith [Nat.mul_le_mul_left n hq]
   · have hpow_n : n ≤ 2 ^ (bucketIndexBits n + 1) :=
@@ -381,18 +384,7 @@ theorem dist_concreteCaseA_restrict_le {a m b_aux c n : ℕ}
         F, eA]
     rw [hfun, ← PMF.map_comp, ← PMF.map_comp, uniformOfFintype_map_equiv eA,
       uniformOfFintype_prod_map_fst]
-    rw [← uniformOfFintype_prod Top, PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype Top).bind ·) (funext fun τ => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod (Fin (2 ^ (m - 1))), PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype _).bind ·) (funext fun α₀ => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod BotA₀, PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype _).bind ·) (funext fun botA₀ => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod (Fin (2 ^ (a - m - 1))), PMF.map_bind]
-    simp only [PMF.map_comp, Function.comp_def, F]
-    rfl
+    relabel_uniform (Equiv.refl (Top × Fin (2 ^ (m - 1)) × BotA₀ × Fin (2 ^ (a - m - 1)) × BotA₁₂))
   rw [hmarg]
   exact dist_caseA_reducedDoubleTab_le hma hgap hn hS hTS hT
 
@@ -435,10 +427,7 @@ theorem dist_concreteCaseB_shardTuple_le {a m b_aux c n : ℕ}
   obtain ⟨hb_log, h2κ, _, _⟩ := quotientPermInd_le_self_of_threshold hn
   have ha_ub : a ≤ quotientPermChars c * quotientPermCharBits n :=
     le_chars_mul_charBits_of_lt_caseAGap hcaseB hn hm_hi
-  have ha'_lo : 2 * quotientPermCharBits n ≤ suffixBits a m := by
-    unfold bucketIndexBits at hm_lo
-    dsimp only [suffixBits, shardBits]
-    omega
+  have ha'_lo : 2 * quotientPermCharBits n ≤ suffixBits a m := by wram_omega [hm_lo]
   have ha'_ub : suffixBits a m ≤ quotientPermChars c * quotientPermCharBits n :=
     (Nat.sub_le _ _).trans ha_ub
   have hlo_ub : nrHalfLow (suffixBits a m) ≤ quotientPermChars c * quotientPermCharBits n :=
@@ -521,15 +510,8 @@ theorem dist_concreteCaseB_shardTuple_le {a m b_aux c n : ℕ}
       simp [G, eB, concreteRounds, concreteAux, hnotA, h_sh, h_nr₀, h_nr₁, h_nr₂, h_aux]
     rw [hfun, ← PMF.map_comp, ← PMF.map_comp, uniformOfFintype_map_equiv eB,
       uniformOfFintype_prod_map_fst]
-    rw [← uniformOfFintype_prod Top, PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype Top).bind ·) (funext fun τ => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod BotSh, PMF.map_bind]
-    refine congrArg ((PMF.uniformOfFintype BotSh).bind ·) (funext fun s_sh => ?_)
-    simp only [PMF.map_comp, Function.comp_def]
-    rw [← uniformOfFintype_prod (NRComposedSeed (nrRounds c) NR₀ NR₁ NR₂) BotAux, PMF.map_bind,
-      nrComposedSeedDist_eq, PMF.bind_map]
-    simp only [PMF.map_comp, Function.comp_def, G]
+    simp only [nrComposedSeedDist_eq]
+    relabel_uniform (Equiv.refl (Top × BotSh × NRComposedSeed (nrRounds c) NR₀ NR₁ NR₂ × BotAux))
   rw [hmarg]
   let GoodTop : Set Top := {τ | IsKUnique (quotientPermInd c n) (simpleTabTuple τ)}
   have habs := dist_caseB_shardTuple_le hma (one_le_nrRounds c) h_sh h_nr₀ h_nr₁ h_nr₂ h_aux hT
@@ -715,11 +697,9 @@ private theorem prob_concreteQuotientPerm_master_le {a m b_aux c n : ℕ}
       have hd := dist_concreteCaseB_shardTuple_le (b_aux := b_aux) hma hcaseB hn hm_lo hm_hi hT yEmb
       have hprod := prob_shardTuple_event_eq (T := T) σ Q (fun u => A u.1)
       have hmain := hcaseB_emb hgap hinj
-      have hd_le : 1 / (4 * (n : ℝ) ^ (c + 2)) ≤ 1 / (n : ℝ) ^ (c + 1) := by
-        refine one_div_le_one_div_of_le (by positivity) ?_
-        calc (n : ℝ) ^ (c + 1) ≤ (n : ℝ) ^ (c + 1) * (4 * (n : ℝ)) :=
-              le_mul_of_one_le_right (by positivity) (by linarith)
-          _ = 4 * (n : ℝ) ^ (c + 2) := by ring
+      have hd_le : 1 / (4 * (n : ℝ) ^ (c + 2)) ≤ 1 / (n : ℝ) ^ (c + 1) :=
+        one_div_le_one_div_of_le (by positivity) (by
+          rw [pow_succ _ (c + 1)]; nlinarith [pow_pos (by positivity : (0 : ℝ) < n) (c + 1)])
       linarith [(le_abs_self _).trans habs]
     · have hemp : {θ : QuotientPermSeed a m b_aux c n |
           ∀ u ∈ T, concreteBucket hma θ u ∈ B u ∧ concreteAux hma θ u ∈ A u} = ∅ := by
@@ -729,12 +709,8 @@ private theorem prob_concreteQuotientPerm_master_le {a m b_aux c n : ℕ}
         have h1 := (hmem u hu).1
         simp only [concreteBucket, quotientPermEquiv, hgap, ↓reduceIte] at h1
         exact hB u hu _ h1
-      have hzero : univ.filter (· ∈ (∅ : Set (QuotientPermSeed a m b_aux c n))) = ∅ :=
-        filter_eq_empty_iff.mpr fun _ _ h => h
-      rw [hemp, toOuterMeasure_uniformOfFintype_toReal, hzero, Finset.card_empty, Nat.cast_zero,
-        zero_div]
-      have hc_nn : 0 ≤ c_mult := by linarith
-      exact add_nonneg (mul_nonneg hc_nn hprod_nonneg) (by positivity)
+      rw [hemp, MeasureTheory.measure_empty, ENNReal.toReal_zero]
+      exact add_nonneg (mul_nonneg (by linarith) hprod_nonneg) (by positivity)
 
 /-- **Unified `Fin (2 ^ a)` multiplicative tail bound across Case A and Case B** (shared intra-shard
 target bucket set `B` and auxiliary set `A`). -/
@@ -793,8 +769,7 @@ theorem prob_concreteQuotientPerm_forall_mem_perKey_le {a m b_aux c n : ℕ}
       have : Nonempty (T ↪ Fin (2 ^ suffixBits a m)) := ⟨yEmb⟩
       let Q (u : T) := intraShardSuffixSet hma (B u.1)
       obtain ⟨_, _, _, h2κ2⟩ := quotientPermInd_le_self_of_threshold hn
-      have ha'_b : quotientPermCharBits n ≤ suffixBits a m := by
-        unfold bucketIndexBits at hm_lo; dsimp only [suffixBits, shardBits]; omega
+      have ha'_b : quotientPermCharBits n ≤ suffixBits a m := by wram_omega [hm_lo]
       have hcard2 : 2 * (Fintype.card T) ^ 2 ≤ Fintype.card (Fin (2 ^ suffixBits a m)) := by
         rw [Fintype.card_coe, Fintype.card_fin]
         exact (Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left hT 2)).trans
@@ -804,27 +779,20 @@ theorem prob_concreteQuotientPerm_forall_mem_perKey_le {a m b_aux c n : ℕ}
       calc _ ≤ ((1 : ℝ) / (2 ^ shardBits m : ℝ)) ^ Fintype.card T *
               (2 * ∏ u : T, ((#(Q u) : ℝ) / (2 ^ suffixBits a m : ℝ))) *
               (∏ u : T, ((#(A u.1) : ℝ) / (2 ^ b_aux : ℝ))) :=
-            mul_le_mul_of_nonneg_right
-              (mul_le_mul_of_nonneg_left hemb (by positivity))
-              (Finset.prod_nonneg fun _ _ => by positivity)
-        _ = 2 * (((∏ _u : T, ((1 : ℝ) / (2 ^ shardBits m : ℝ))) *
-              (∏ u : T, ((#(Q u) : ℝ) / (2 ^ suffixBits a m : ℝ)))) *
-              (∏ u : T, ((#(A u.1) : ℝ) / (2 ^ b_aux : ℝ)))) := by
-            rw [Finset.prod_const, Finset.card_univ]; ring
+            by gcongr
         _ = 2 * ∏ u : T, ((((1 : ℝ) / (2 ^ shardBits m : ℝ)) *
               ((#(Q u) : ℝ) / (2 ^ suffixBits a m : ℝ))) *
               ((#(A u.1) : ℝ) / (2 ^ b_aux : ℝ))) := by
-            rw [← Finset.prod_mul_distrib, ← Finset.prod_mul_distrib]
+            rw [Finset.prod_mul_distrib, Finset.prod_mul_distrib, Finset.prod_const,
+              Finset.card_univ]; ring
         _ = 2 * ∏ u : T, (((#(B u.1) : ℝ) / (2 ^ m : ℝ)) *
               ((#(A u.1) : ℝ) / (2 ^ b_aux : ℝ))) := by
             congr 1; refine Finset.prod_congr rfl fun u _ => ?_
             have hQc : (#(Q u) : ℝ) = ((#(B u.1) * 2 ^ (a - m) : ℕ) : ℝ) :=
               congrArg Nat.cast (card_intraShardSuffixSet hma σ (hB u.1 u.2))
             rw [hQc, shard_suffix_ratio_eq hma #(B u.1)]
-        _ = 2 * (∏ u ∈ T, (((#(B u) : ℝ) / (2 ^ m : ℝ)) *
-              ((#(A u) : ℝ) / (2 ^ b_aux : ℝ)))) := by
-            rw [Finset.prod_coe_sort T
-              (fun u => (((#(B u) : ℝ) / (2 ^ m : ℝ)) * ((#(A u) : ℝ) / (2 ^ b_aux : ℝ))))]
+        _ = _ := congrArg (2 * ·) (Finset.prod_coe_sort T
+              fun u => ((#(B u) : ℝ) / (2 ^ m : ℝ)) * ((#(A u) : ℝ) / (2 ^ b_aux : ℝ)))
 
 /-- Full-quotient bucket index `Fin (2 ^ bucketIndexBits n)` of `u : Fin U` (`n ≤ U`). -/
 @[expose] def fullBucket {U b_aux c n : ℕ} (hnU : n ≤ U)
@@ -859,7 +827,7 @@ theorem prob_concreteQuotientPerm_forall_mem_perKey_le {a m b_aux c n : ℕ}
 
 private theorem bucketIndexBits_le_eight_mul_charBits (n : ℕ) :
     bucketIndexBits n ≤ 8 * quotientPermCharBits n := by
-  rw [quotientPermCharBits_eq]; unfold bucketIndexBits; omega
+  rw [quotientPermCharBits_eq]; wram_omega
 
 /-- **Universal `Fin U` multiplicative tail bound across every `U ≥ n` above
 `quotientPermThreshold c`** (shared intra-shard target bucket set `B` with

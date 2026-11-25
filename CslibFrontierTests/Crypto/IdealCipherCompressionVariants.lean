@@ -65,15 +65,15 @@ example :
 instance : Fact (1 < 16) := ⟨by norm_num⟩
 
 example : ∃ A : CollisionFinder (ZMod 16) (ZMod 16),
-    IsQueryBounded A 2 ∧ Pr[collisionGame (keyMasked (B := ZMod 16)) A] = 1 :=
+    A.IsQueryBounded 2 ∧ Pr[collisionGame (keyMasked (B := ZMod 16)) A] = 1 :=
   exists_collisionFinder_keyMasked
 
 example : ∃ A : CollisionFinder (ZMod 16) (ZMod 16),
-    IsQueryBounded A 2 ∧ Pr[collisionGame (keyMaskedInput (B := ZMod 16)) A] = 1 :=
+    A.IsQueryBounded 2 ∧ Pr[collisionGame (keyMaskedInput (B := ZMod 16)) A] = 1 :=
   exists_collisionFinder_keyMaskedInput
 
 example : ¬ ∃ A : CollisionFinder (ZMod 16) (ZMod 16),
-    IsQueryBounded A 2 ∧
+    A.IsQueryBounded 2 ∧
       Pr[collisionGame (daviesMeyer (K := ZMod 16) (B := ZMod 16)) A] = 1 := by
   rintro ⟨A, hA, h1⟩
   have h := daviesMeyer_collisionGame_mul_le hA
@@ -116,8 +116,10 @@ private theorem collisionGame_eq_pure_false_of_subsingleton {Key Block : Type} [
     intro E x₁ x₂
     simp [collides, Subsingleton.elim x₁ x₂]
   have hmap : ∀ E : Key → Equiv.Perm Block,
-      ((OracleComp.interpret lazyEvalPerm A E).map fun ((x₁, x₂), _) =>
-        collides x₁ x₂ (H E x₁) (H E x₂)) = PMF.pure false := by
+      ((OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle fun (q : Query Key Block) =>
+          PMF.pure (Cslib.RandomPermutation.evalPerm (E q.1) q.2)) A).map
+        fun (x₁, x₂) => collides x₁ x₂ (H E x₁) (H E x₂)) = PMF.pure false := by
     intro E
     simp_rw [hcol]
     exact PMF.map_const _ false

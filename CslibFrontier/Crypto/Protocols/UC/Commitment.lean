@@ -271,11 +271,8 @@ it is by the honest committer of `PlainCommitmentScheme.toProtocol`. -/
 /-- `fcom` is purely deterministic and makes zero oracle calls per activation. -/
 theorem fcom_isBounded (κ : ℕ) (C : Finset (Fin 2)) : (fcom.toProtocol κ C).IsBounded 0 := by
   refine ⟨OracleComp.IsCostBounded.pure _ 0, fun q s => ?_⟩
-  rcases q with ⟨i, x⟩ | q
-  · fin_cases i <;> cases x <;> rcases s with _ | ⟨b, ⟨_ | _, _ | _, _ | _⟩⟩ <;>
-      exact OracleComp.IsCostBounded.pure _ 0
-  · cases q <;> rcases s with _ | ⟨b, ⟨_ | _, _ | _, _ | _⟩⟩ <;>
-      exact OracleComp.IsCostBounded.pure _ 0
+  rcases q with ⟨i, x⟩ | q <;> [fin_cases i <;> cases x; cases q] <;>
+    rcases s with _ | ⟨b, ⟨_ | _, _ | _, _ | _⟩⟩ <;> exact OracleComp.IsCostBounded.pure _ 0
 
 /-- `fcom` has polynomial call budget `0`. -/
 theorem fcom_polyBounded : fcom.toProtocol.PolyBounded 0 := fun κ C => by
@@ -363,56 +360,34 @@ theorem runFrom_fcom_committed (κ : ℕ) (b : Bool) {α : Type}
     (corruptRouter ({1} : Finset (Fin 2)) (fcom.toProtocol κ {1})).runFrom
       (liftNet program) (.committed b recDel) =
       Prod.map _root_.id (.committed b) <$> fcomCommittedView.runFrom program recDel := by
-  change (corruptRouter ({1} : Finset (Fin 2)) (fcom.toProtocol κ {1})).runFrom
-    (liftNet program) (fcomRouterState κ {1} (.committed b recDel)) =
-    Prod.map _root_.id (fun r => fcomRouterState κ {1} (.committed b r)) <$>
-      fcomCommittedView.runFrom program (fcomCommittedState recDel)
+  let R := netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
+    (RoutedNetR CommitmentOutput (Option CommitmentOutput))
   induction program using OracleComp.induction generalizing recDel with
   | pure a => rfl
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind]
+    dsimp only [liftNet]
+    rw [Machine.liftRightProgram_bind]
     rcases q with k | q
     · have h₁ : Machine.liftRightProgram (partySpec 2 CommitmentInput CommitmentOutput)
-          (OracleComp.query
-            (spec := probOracleSpec (netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
-              (RoutedNetR CommitmentOutput (Option CommitmentOutput))))
-            (Sum.inl k)) =
+          (OracleComp.query (spec := probOracleSpec R) (Sum.inl k)) =
           ProbOracleComp.sample (ProbComp.unifFin k) := by
         rw [← Machine.liftRightProgram_sample (partySpec 2 CommitmentInput CommitmentOutput)
-          (R := netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
-            (RoutedNetR CommitmentOutput (Option CommitmentOutput)))]
+          (R := R)]
         rfl
-      have h₂ : fcomCommittedView.runFrom
-          (OracleComp.query
-            (spec := probOracleSpec (netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
-              (RoutedNetR CommitmentOutput (Option CommitmentOutput))))
-            (Sum.inl k)) (fcomCommittedState recDel) =
-          (fun a => (a, fcomCommittedState recDel)) <$>
-            ProbOracleComp.sample (ProbComp.unifFin k) :=
-        fcomCommittedView.runFrom_sample (ProbComp.unifFin k) (fcomCommittedState recDel)
-      dsimp only [liftNet]
-      erw [Machine.liftRightProgram_bind, h₁, Machine.runFrom_bind, Machine.runFrom_sample,
-        bind_map_left, Machine.runFrom_bind, h₂, bind_map_left, map_bind]
+      have h₂ := fcomCommittedView.runFrom_sample (ProbComp.unifFin k) recDel
+      erw [h₁, Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left,
+        Machine.runFrom_bind, h₂, bind_map_left, map_bind]
       exact bind_congr fun a => ih a recDel
-    · dsimp only [liftNet]
-      rw [Machine.liftRightProgram_bind]
-      have h₁ : (corruptRouter ({1} : Finset (Fin 2)) (fcom.toProtocol κ {1})).runFrom
-          (liftNet (OracleComp.query
-            (spec := probOracleSpec (netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
-              (RoutedNetR CommitmentOutput (Option CommitmentOutput))))
-            (Sum.inr q))) (fcomRouterState κ {1} (.committed b recDel)) =
-          pure ((fcomCommittedStep q recDel).1,
-            fcomRouterState κ {1} (.committed b (fcomCommittedStep q recDel).2)) := by
-        dsimp only [liftNet]
+    · have h₁ : (corruptRouter ({1} : Finset (Fin 2)) (fcom.toProtocol κ {1})).runFrom
+          (Machine.liftRightProgram (partySpec 2 CommitmentInput CommitmentOutput)
+            (OracleComp.query (spec := probOracleSpec R) (Sum.inr q))) (.committed b recDel) =
+          pure ((fcomCommittedStep q recDel).1, .committed b (fcomCommittedStep q recDel).2) := by
         erw [Machine.liftRightProgram_query, Machine.runFrom_query]
         exact handle_corruptRouter_fcom_committed κ b q recDel
       have h₂ : fcomCommittedView.runFrom
-          (OracleComp.query
-            (spec := probOracleSpec (netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
-              (RoutedNetR CommitmentOutput (Option CommitmentOutput))))
-            (Sum.inr q)) (fcomCommittedState recDel) =
-          pure ((fcomCommittedStep q recDel).1,
-            fcomCommittedState (fcomCommittedStep q recDel).2) := rfl
+          (OracleComp.query (spec := probOracleSpec R) (Sum.inr q)) recDel =
+          pure (fcomCommittedStep q recDel) := rfl
       erw [Machine.runFrom_bind, h₁, pure_bind, Machine.runFrom_bind, h₂, pure_bind]
       exact ih (fcomCommittedStep q recDel).1 (fcomCommittedStep q recDel).2
 
@@ -652,76 +627,42 @@ theorem toProtocol_polyBounded {scheme : PlainCommitmentScheme CommitMsg OpenMsg
     {pC pV : Polynomial ℕ} (h : scheme.IsPolyBounded pC pV) :
     scheme.toProtocol.PolyBounded (pC + pV) := fun κ C => by
   rw [Polynomial.eval_add]
-  refine ⟨OracleComp.IsCostBounded.pure _ _, fun q s => ?_⟩
-  rcases s with ⟨s₁, s₂⟩
-  have hcommit (b : Bool) :
-      (ProbOracleComp.sample (spec := OracleSpec.empty) (scheme.commit κ b) >>= fun co =>
-        pure ((none : Option CommitmentOutput),
-          (CommitterState.committed co.1 co.2, s₂))).IsQueryBounded
-        (pC.eval κ + pV.eval κ) := by
-    have hstep (co : CommitMsg × OpenMsg) :
-        (pure ((none : Option CommitmentOutput),
-          (CommitterState.committed co.1 co.2, s₂)) :
-          ProbOracleComp OracleSpec.empty _).IsQueryBounded 0 :=
-      OracleComp.IsCostBounded.pure _ 0
-    exact ((Machine.isQueryBounded_sample (I := OracleSpec.empty) (h.commit κ b)).bind hstep).mono
-      (by omega)
+  refine ⟨OracleComp.IsCostBounded.pure _ _, fun q ⟨s₁, s₂⟩ => ?_⟩
+  have h10 : (⟨1, by decide⟩ : Fin 2) ≠ 0 := by decide
   have hverify (c : CommitMsg) (o : OpenMsg) :
       (ProbOracleComp.sample (spec := OracleSpec.empty) (scheme.verify κ c o) >>= fun res =>
         pure (PlainNetR.ack (CommitMsg := CommitMsg) (OpenMsg := OpenMsg),
           (s₁, ReceiverState.finished (CommitMsg := CommitMsg) res))).IsQueryBounded
-        (pC.eval κ + pV.eval κ) := by
-    have hstep (res : Option Bool) :
-        (pure (PlainNetR.ack (CommitMsg := CommitMsg) (OpenMsg := OpenMsg),
-          (s₁, ReceiverState.finished (CommitMsg := CommitMsg) res)) :
-          ProbOracleComp OracleSpec.empty _).IsQueryBounded 0 :=
-      OracleComp.IsCostBounded.pure _ 0
-    exact ((Machine.isQueryBounded_sample (I := OracleSpec.empty) (h.verify κ c o)).bind hstep).mono
-      (by omega)
+        (pC.eval κ + pV.eval κ) :=
+    ((Machine.isQueryBounded_sample (I := OracleSpec.empty) (h.verify κ c o)).bind
+      fun _ => OracleComp.IsCostBounded.pure _ 0).mono (by omega)
   rcases q with ⟨i, x⟩ | netQ
   · fin_cases i
-    · by_cases h0 : (0 : Fin 2) ∈ C
-      · simp only [toProtocol, StateT.run, ↓reduceIte, h0]
+    · by_cases h0 : (0 : Fin 2) ∈ C <;> [skip; cases x <;> cases s₁] <;>
+        simp only [toProtocol, StateT.run, h0, ↓reduceIte] <;>
+        first
+        | exact ((Machine.isQueryBounded_sample (I := OracleSpec.empty) (h.commit κ _)).bind
+            fun _ => OracleComp.IsCostBounded.pure _ 0).mono (by omega)
+        | exact OracleComp.IsCostBounded.pure _ _
+    · by_cases h1 : (1 : Fin 2) ∈ C <;> [skip; rcases s₂ with _ | c | (_ | b) <;> cases x] <;>
+        simp only [toProtocol, StateT.run, h10, h1, ↓reduceIte] <;>
         exact OracleComp.IsCostBounded.pure _ _
-      · cases x <;> cases s₁ <;>
-          simp only [toProtocol, StateT.run, ↓reduceIte, h0]
-        · exact hcommit _
-        all_goals exact OracleComp.IsCostBounded.pure _ _
-    · have h10 : (⟨1, by decide⟩ : Fin 2) ≠ 0 := by decide
-      by_cases h1 : (1 : Fin 2) ∈ C
-      · simp only [toProtocol, StateT.run, h10, ↓reduceIte, h1]
-        exact OracleComp.IsCostBounded.pure _ _
-      · rcases s₂ with _ | c | (_ | b) <;> cases x <;>
-          simp only [toProtocol, StateT.run, h10, ↓reduceIte, h1] <;>
-          exact OracleComp.IsCostBounded.pure _ _
   · cases netQ with
-    | readCommit =>
-      cases s₁ <;> exact OracleComp.IsCostBounded.pure _ _
-    | readOpen =>
-      cases s₁ <;> exact OracleComp.IsCostBounded.pure _ _
+    | readCommit | readOpen => cases s₁ <;> exact OracleComp.IsCostBounded.pure _ _
     | deliverCommit c =>
       cases s₂ with
       | waiting =>
-        by_cases h0 : (0 : Fin 2) ∈ C
-        · simp only [toProtocol, StateT.run, h0, ↓reduceIte]
-          exact OracleComp.IsCostBounded.pure _ _
-        · cases s₁ <;> simp only [toProtocol, StateT.run, h0, ↓reduceIte]
-          · exact OracleComp.IsCostBounded.pure _ _
-          · split_ifs <;> exact OracleComp.IsCostBounded.pure _ _
-          · split_ifs <;> exact OracleComp.IsCostBounded.pure _ _
+        by_cases h0 : (0 : Fin 2) ∈ C <;> [skip; cases s₁] <;>
+          simp only [toProtocol, StateT.run, h0, ↓reduceIte] <;>
+          (try split_ifs) <;> exact OracleComp.IsCostBounded.pure _ _
       | _ => exact OracleComp.IsCostBounded.pure _ _
     | deliverOpen o =>
       cases s₂ with
       | committed c =>
-        by_cases h0 : (0 : Fin 2) ∈ C
-        · simp only [toProtocol, StateT.run, h0, ↓reduceIte]
-          exact hverify c o
-        · cases s₁ <;> simp only [toProtocol, StateT.run, h0, ↓reduceIte]
-          · exact OracleComp.IsCostBounded.pure _ _
-          · exact OracleComp.IsCostBounded.pure _ _
-          · split_ifs
-            · exact hverify c o
-            · exact OracleComp.IsCostBounded.pure _ _
+        by_cases h0 : (0 : Fin 2) ∈ C <;> [skip; cases s₁] <;>
+          simp only [toProtocol, StateT.run, h0, ↓reduceIte] <;>
+          (try split_ifs) <;>
+          (first | exact hverify c o | exact OracleComp.IsCostBounded.pure _ _)
       | _ => exact OracleComp.IsCostBounded.pure _ _
 
 end PlainCommitmentScheme
@@ -772,40 +713,24 @@ private theorem init_corruptRouter_toProtocol [DecidableEq CommitMsg] [Decidable
     (corruptRouter C (scheme.toProtocol κ C)).init =
       pure (plainRouterState scheme κ C .idle .waiting) := rfl
 
-private theorem handle_plainRouter_commit_empty [DecidableEq CommitMsg] [DecidableEq OpenMsg]
-    (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (b : Bool)
-    (s₂ : ReceiverState CommitMsg) :
-    ((corruptRouter ∅ (scheme.toProtocol κ ∅)).handle (Sum.inl (0, .commit b))).run
-      (plainRouterState scheme κ ∅ .idle s₂) =
-      (fun co => (none, plainRouterState scheme κ ∅ (.committed co.1 co.2) s₂)) <$>
+private theorem handle_plainRouter_commit [DecidableEq CommitMsg] [DecidableEq OpenMsg]
+    (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (C : Finset (Fin 2))
+    (h0 : (0 : Fin 2) ∉ C) (b : Bool) (s₂ : ReceiverState CommitMsg) :
+    ((corruptRouter C (scheme.toProtocol κ C)).handle (Sum.inl (0, .commit b))).run
+      (plainRouterState scheme κ C .idle s₂) =
+      (fun co => (none, plainRouterState scheme κ C (.committed co.1 co.2) s₂)) <$>
         ProbOracleComp.sample (scheme.commit κ b) := by
-  simp [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
-    bind_pure_comp]
+  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run]
+  simp only [h0, ↓reduceIte, bind_pure_comp]
 
-private theorem handle_plainRouter_commit_one [DecidableEq CommitMsg] [DecidableEq OpenMsg]
-    (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (b : Bool)
-    (s₂ : ReceiverState CommitMsg) :
-    ((corruptRouter {1} (scheme.toProtocol κ {1})).handle (Sum.inl (0, .commit b))).run
-      (plainRouterState scheme κ {1} .idle s₂) =
-      (fun co => (none, plainRouterState scheme κ {1} (.committed co.1 co.2) s₂)) <$>
-        ProbOracleComp.sample (scheme.commit κ b) := by
-  have h01 : (0 : Fin 2) ∉ ({1} : Finset (Fin 2)) := by decide
-  simp [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, h01, StateT.run,
-    bind_pure_comp]
-
-private theorem handle_plainRouter_openCom_empty [DecidableEq CommitMsg] [DecidableEq OpenMsg]
-    (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (c : CommitMsg) (o : OpenMsg)
-    (s₂ : ReceiverState CommitMsg) :
-    ((corruptRouter ∅ (scheme.toProtocol κ ∅)).handle (Sum.inl (0, .openCom))).run
-      (plainRouterState scheme κ ∅ (.committed c o) s₂) =
-      pure (none, plainRouterState scheme κ ∅ (.opened c o) s₂) := rfl
-
-private theorem handle_plainRouter_openCom_one [DecidableEq CommitMsg] [DecidableEq OpenMsg]
-    (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (c : CommitMsg) (o : OpenMsg)
-    (s₂ : ReceiverState CommitMsg) :
-    ((corruptRouter {1} (scheme.toProtocol κ {1})).handle (Sum.inl (0, .openCom))).run
-      (plainRouterState scheme κ {1} (.committed c o) s₂) =
-      pure (none, plainRouterState scheme κ {1} (.opened c o) s₂) := rfl
+private theorem handle_plainRouter_openCom [DecidableEq CommitMsg] [DecidableEq OpenMsg]
+    (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (C : Finset (Fin 2))
+    (h0 : (0 : Fin 2) ∉ C) (c : CommitMsg) (o : OpenMsg) (s₂ : ReceiverState CommitMsg) :
+    ((corruptRouter C (scheme.toProtocol κ C)).handle (Sum.inl (0, .openCom))).run
+      (plainRouterState scheme κ C (.committed c o) s₂) =
+      pure (none, plainRouterState scheme κ C (.opened c o) s₂) := by
+  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run]
+  simp only [h0, ↓reduceIte]
 
 private theorem handle_plainRouter_readCommit [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (C : Finset (Fin 2))
@@ -826,8 +751,10 @@ private theorem handle_plainRouter_deliverCommit_empty [DecidableEq CommitMsg] [
     ((corruptRouter ∅ (scheme.toProtocol κ ∅)).handle (Sum.inr (.inr (.deliverCommit c)))).run
       (plainRouterState scheme κ ∅ (.committed c o) .waiting) =
       pure (.inr .ack, plainRouterState scheme κ ∅ (.committed c o) (.committed c)) := by
-  simp [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
+  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
     Functor.map, StateT.map]
+  simp only [Finset.notMem_empty, ↓reduceIte, bind_pure_comp]
+  rfl
 
 private theorem handle_plainRouter_deliverOpen_empty [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (c : CommitMsg) (o : OpenMsg) :
@@ -837,16 +764,19 @@ private theorem handle_plainRouter_deliverOpen_empty [DecidableEq CommitMsg] [De
         ProbOracleComp.sample (scheme.verify κ c o) := by
   dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
     Functor.map, StateT.map]
-  simp [bind_pure_comp]
+  simp only [Finset.notMem_empty, ↓reduceIte, bind_pure_comp, Functor.map_map]
+  rfl
 
-private theorem handle_plainRouter_query_finished_empty
+private theorem handle_plainRouter_query_finished
     [DecidableEq CommitMsg] [DecidableEq OpenMsg]
-    (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ)
-    (s₁ : CommitterState CommitMsg OpenMsg) (res : Option Bool) :
-    ((corruptRouter ∅ (scheme.toProtocol κ ∅)).handle (Sum.inl (1, .query))).run
-      (plainRouterState scheme κ ∅ s₁ (.finished res)) =
-      pure (res.map CommitmentOutput.opened, plainRouterState scheme κ ∅ s₁ (.finished res)) := by
-  cases res <;> rfl
+    (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (C : Finset (Fin 2))
+    (h1 : (1 : Fin 2) ∉ C) (s₁ : CommitterState CommitMsg OpenMsg) (res : Option Bool) :
+    ((corruptRouter C (scheme.toProtocol κ C)).handle (Sum.inl (1, .query))).run
+      (plainRouterState scheme κ C s₁ (.finished res)) =
+      pure (res.map CommitmentOutput.opened, plainRouterState scheme κ C s₁ (.finished res)) := by
+  have h10 : (1 : Fin 2) ≠ 0 := by decide
+  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run]
+  cases res <;> simp only [h10, h1, ↓reduceIte] <;> rfl
 
 private theorem handle_plainRouter_deliverCommit_zero [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ)
@@ -872,16 +802,8 @@ private theorem handle_plainRouter_deliverOpen_zero [DecidableEq CommitMsg] [Dec
         ProbOracleComp.sample (scheme.verify κ c o) := by
   dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
     Functor.map, StateT.map]
-  simp [bind_pure_comp]
-
-private theorem handle_plainRouter_query_finished_zero
-    [DecidableEq CommitMsg] [DecidableEq OpenMsg]
-    (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ)
-    (s₁ : CommitterState CommitMsg OpenMsg) (res : Option Bool) :
-    ((corruptRouter {0} (scheme.toProtocol κ {0})).handle (Sum.inl (1, .query))).run
-      (plainRouterState scheme κ {0} s₁ (.finished res)) =
-      pure (res.map CommitmentOutput.opened, plainRouterState scheme κ {0} s₁ (.finished res)) := by
-  cases res <;> rfl
+  simp only [Finset.mem_singleton, ↓reduceIte, bind_pure_comp, Functor.map_map]
+  rfl
 
 /-- With no corruptions (`C = ∅`) and `dummyAdversary`, running `honestCommitEnv b` on
 `scheme.toProtocol` has the exact distribution `scheme.acceptGame κ b`. -/
@@ -895,7 +817,7 @@ theorem eval_exec_honestCommitEnv [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     init_corruptRouter_toProtocol, Machine.runFrom_bind, Machine.runFrom_query,
     Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
     pure_bind, map_bind]
-  rw [handle_plainRouter_commit_empty]
+  rw [handle_plainRouter_commit scheme κ ∅ (Finset.notMem_empty 0)]
   simp only [Machine.closeProgram_map, Machine.closeProgram_sample, bind_map_left]
   congr 1
   refine bind_congr fun co => ?_
@@ -904,7 +826,7 @@ theorem eval_exec_honestCommitEnv [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     Machine.closeProgram_bind, map_bind]
   rw [handle_plainRouter_deliverCommit_empty]
   simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_plainRouter_openCom_empty]
+  rw [handle_plainRouter_openCom scheme κ ∅ (Finset.notMem_empty 0)]
   simp only [Machine.closeProgram_pure, pure_bind]
   rw [handle_plainRouter_readOpen]
   simp only [Machine.closeProgram_pure, pure_bind, Machine.runFrom_bind,
@@ -912,7 +834,7 @@ theorem eval_exec_honestCommitEnv [DecidableEq CommitMsg] [DecidableEq OpenMsg]
   rw [handle_plainRouter_deliverOpen_empty]
   simp only [Machine.closeProgram_map, Machine.closeProgram_sample, bind_map_left]
   refine bind_congr fun res => ?_
-  rw [handle_plainRouter_query_finished_empty]
+  rw [handle_plainRouter_query_finished scheme κ ∅ (Finset.notMem_empty 1)]
   simp only [Machine.closeProgram_pure, pure_bind, Machine.runFrom_pure, map_pure]
   rcases res with _ | (_ | _) <;> cases b <;> rfl
 
@@ -947,52 +869,15 @@ theorem corruptReceiverEnv_polyBounded {scheme : PlainCommitmentScheme CommitMsg
     {pV : Polynomial ℕ} (hV : ∀ κ c o, (scheme.verify κ c o).IsQueryBounded (pV.eval κ))
     (b : Bool) : (corruptReceiverEnv scheme b).PolyBounded (pV + 4) := fun κ _ => by
   simp only [Polynomial.eval_add, Polynomial.eval_ofNat, corruptReceiverEnv]
-  have h₂ (c : CommitMsg) (r₂ : RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg)) :
-      (match r₂ with
-      | .inr (.openMsg (some o)) => do
-        let res ← ProbOracleComp.sample (scheme.verify κ c o)
-        return decide (res = some b)
-      | _ => return false :
-        ProbOracleComp (execSpec 2 CommitmentInput CommitmentOutput
-          (RoutedNetQ 2 CommitmentInput (PlainNetQ CommitMsg OpenMsg))
-          (RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg))) Bool).IsQueryBounded
-        (pV.eval κ) := by
-    rcases r₂ with _ | ⟨_ | o | _⟩
-    · exact OracleComp.IsCostBounded.pure _ (pV.eval κ)
-    · exact OracleComp.IsCostBounded.pure _ (pV.eval κ)
-    · rcases o with _ | o
-      · exact OracleComp.IsCostBounded.pure _ (pV.eval κ)
-      · simp only [bind_pure_comp]
-        exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-          (Machine.isQueryBounded_sample (hV κ c o))
-    · exact OracleComp.IsCostBounded.pure _ (pV.eval κ)
-  have h₁ (r₁ : RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg)) :
-      (match r₁ with
-      | .inr (.commitMsg (some c)) => do
-        let _ ← ProbOracleComp.query
-          (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (0, .openCom))
-        let r₂ ← ProbOracleComp.query
-          (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inr (.inr .readOpen))
-        match r₂ with
-        | .inr (.openMsg (some o)) =>
-          let res ← ProbOracleComp.sample (scheme.verify κ c o)
-          return decide (res = some b)
-        | _ => return false
-      | _ => return false :
-        ProbOracleComp (execSpec 2 CommitmentInput CommitmentOutput
-          (RoutedNetQ 2 CommitmentInput (PlainNetQ CommitMsg OpenMsg))
-          (RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg))) Bool).IsQueryBounded
-        (1 + (1 + pV.eval κ)) := by
-    rcases r₁ with _ | ⟨c | _ | _⟩
-    · exact OracleComp.IsCostBounded.pure _ (1 + (1 + pV.eval κ))
-    · rcases c with _ | c
-      · exact OracleComp.IsCostBounded.pure _ (1 + (1 + pV.eval κ))
-      · exact (OracleComp.IsCostBounded.query _).bind fun _ =>
-          (OracleComp.IsCostBounded.query _).bind (h₂ c)
-    · exact OracleComp.IsCostBounded.pure _ (1 + (1 + pV.eval κ))
-    · exact OracleComp.IsCostBounded.pure _ (1 + (1 + pV.eval κ))
-  exact ((OracleComp.IsCostBounded.query _).bind fun _ =>
-    (OracleComp.IsCostBounded.query _).bind h₁).mono (by omega)
+  rw [show pV.eval κ + 4 = 1 + (1 + (1 + (1 + pV.eval κ))) by omega]
+  refine (OracleComp.IsCostBounded.query _).bind fun _ =>
+    (OracleComp.IsCostBounded.query _).bind fun r₁ => ?_
+  rcases r₁ with _ | ⟨(_ | c) | _ | _⟩ <;> try exact OracleComp.IsCostBounded.pure _ _
+  refine (OracleComp.IsCostBounded.query _).bind fun _ =>
+    (OracleComp.IsCostBounded.query _).bind fun r₂ => ?_
+  rcases r₂ with _ | ⟨_ | (_ | o) | _⟩ <;> try exact OracleComp.IsCostBounded.pure _ _
+  simp only [bind_pure_comp]
+  exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (Machine.isQueryBounded_sample (hV κ c o))
 
 /-- In the real execution with `C = {1}` and `dummyAdversary`, `corruptReceiverEnv scheme b`
 evaluates to `scheme.acceptGame κ b`. -/
@@ -1006,14 +891,14 @@ theorem eval_exec_real_corruptReceiverEnv [DecidableEq CommitMsg] [DecidableEq O
     init_corruptRouter_toProtocol, Machine.runFrom_bind, Machine.runFrom_query,
     Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
     pure_bind, map_bind]
-  rw [handle_plainRouter_commit_one]
+  rw [handle_plainRouter_commit scheme κ {1} (by decide)]
   simp only [Machine.closeProgram_map, Machine.closeProgram_sample, bind_map_left]
   congr 1
   refine bind_congr fun co => ?_
   rw [handle_plainRouter_readCommit]
   simp only [Machine.closeProgram_pure, pure_bind, bind_pure_comp, Machine.runFrom_bind,
     Machine.runFrom_query, Machine.closeProgram_bind, map_bind]
-  rw [handle_plainRouter_openCom_one]
+  rw [handle_plainRouter_openCom scheme κ {1} (by decide)]
   simp only [Machine.closeProgram_pure, pure_bind]
   rw [handle_plainRouter_readOpen]
   simp only [Machine.closeProgram_pure, pure_bind, Machine.runFrom_map, Machine.runFrom_sample,
@@ -1044,16 +929,11 @@ def simOpen (S₁ : PlainCommitmentSim CommitMsg OpenMsg)
 /-- If `S₁ κ {1}` has per-activation budget `t`, then `simCommit S₁ κ` makes at most `2 * t`
 queries. -/
 theorem isQueryBounded_simCommit {S₁ : PlainCommitmentSim CommitMsg OpenMsg} {κ t : ℕ}
-    (hS : (S₁ κ {1}).IsBounded t) : (simCommit S₁ κ).IsQueryBounded (2 * t) := by
-  have hstep (st₀ : (S₁ κ {1}).State) :
-      (Machine.closeProgram
-        (fcomCommittedView.runFrom (((S₁ κ {1}).handle (.inr .readCommit)).run st₀)
-          (fcomCommittedState false))).IsQueryBounded t := by
-    have hrun := Machine.isQueryBounded_runFrom fcomCommittedView_isBounded
-      (hS.2 (.inr .readCommit) st₀) (fcomCommittedState false)
-    rw [Nat.mul_one] at hrun
-    exact Machine.isQueryBounded_closeProgram hrun
-  exact (hS.1.bind hstep).mono (by omega)
+    (hS : (S₁ κ {1}).IsBounded t) : (simCommit S₁ κ).IsQueryBounded (2 * t) :=
+  (hS.1.bind fun st₀ =>
+    (Machine.isQueryBounded_closeProgram
+      (Machine.isQueryBounded_runFrom fcomCommittedView_isBounded (hS.2 (.inr .readCommit) st₀)
+        (fcomCommittedState false))).mono (by rw [Nat.mul_one])).mono (by omega)
 
 /-- If `S₁ κ {1}` has per-activation budget `t`, then `simOpen S₁ b κ st₁ recDel₁` makes at most `t`
 queries. -/
@@ -1125,70 +1005,25 @@ polynomial call budget `3 * pS + 4`. -/
 theorem corruptCommitterEnv_polyBounded {S₁ : PlainCommitmentSim CommitMsg OpenMsg}
     {pS : Polynomial ℕ} (hS : ∀ κ, (S₁ κ {1}).IsBounded (pS.eval κ)) (b : Bool) :
     (corruptCommitterEnv S₁ b).PolyBounded (3 * pS + 4) := fun κ _ => by
-  simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_ofNat, corruptCommitterEnv]
-  have hpre : (corruptCommitterPrefix S₁ κ).IsQueryBounded (2 * pS.eval κ + 1) := by
-    refine (Machine.isQueryBounded_sample (isQueryBounded_simCommit (hS κ))).bind fun x => ?_
-    rcases x with ⟨⟨r₁, st₁⟩, recDel₁⟩
-    rcases r₁ with _ | ⟨c | _ | _⟩
-    · exact OracleComp.IsCostBounded.pure _ 1
-    · rcases c with _ | c
-      · exact OracleComp.IsCostBounded.pure _ 1
-      · simp only [bind_pure_comp]
-        exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact OracleComp.IsCostBounded.pure _ 1
-    · exact OracleComp.IsCostBounded.pure _ 1
-  have hsuf (pre : Option ((S₁ κ {1}).State × Bool)) :
-      (corruptCommitterSuffix S₁ b κ pre).IsQueryBounded (pS.eval κ + 3) := by
-    rcases pre with _ | ⟨st₁, recDel₁⟩
-    · exact OracleComp.IsCostBounded.pure false (pS.eval κ + 3)
-    · have hopen (r₂ : RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg)) :
-          (match r₂ with
-          | .inr (.openMsg (some o)) => do
-            let _ ← ProbOracleComp.query
-              (spec := execSpec 2 CommitmentInput CommitmentOutput _ _)
-              (Sum.inr (.inr (.deliverOpen o)))
-            let openOut ← ProbOracleComp.query
-              (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (1, .query))
-            return decide (openOut = some (.opened b))
-          | _ => return false :
-            ProbOracleComp (execSpec 2 CommitmentInput CommitmentOutput
-              (RoutedNetQ 2 CommitmentInput (PlainNetQ CommitMsg OpenMsg))
-              (RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg))) Bool).IsQueryBounded
-            (1 + 1) := by
-        rcases r₂ with _ | ⟨_ | o | _⟩
-        · exact OracleComp.IsCostBounded.pure _ (1 + 1)
-        · exact OracleComp.IsCostBounded.pure _ (1 + 1)
-        · rcases o with _ | o
-          · exact OracleComp.IsCostBounded.pure _ (1 + 1)
-          · dsimp only
-            refine (OracleComp.IsCostBounded.query _).bind fun _ => ?_
-            simp only [bind_pure_comp]
-            exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-        · exact OracleComp.IsCostBounded.pure _ (1 + 1)
-      have hrec (recOut : Option CommitmentOutput) :
-          (if recOut = some .receipt then do
-            let r₂ ← ProbOracleComp.sample (simOpen S₁ b κ st₁ recDel₁)
-            match r₂ with
-            | .inr (.openMsg (some o)) =>
-              let _ ← ProbOracleComp.query
-                (spec := execSpec 2 CommitmentInput CommitmentOutput _ _)
-                (Sum.inr (.inr (.deliverOpen o)))
-              let openOut ← ProbOracleComp.query
-                (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (1, .query))
-              return decide (openOut = some (.opened b))
-            | _ => return false
-          else
-            return false :
-            ProbOracleComp (execSpec 2 CommitmentInput CommitmentOutput
-              (RoutedNetQ 2 CommitmentInput (PlainNetQ CommitMsg OpenMsg))
-              (RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg))) Bool).IsQueryBounded
-            (pS.eval κ + 2) := by
-        split_ifs
-        · exact (Machine.isQueryBounded_sample (isQueryBounded_simOpen (hS κ) b st₁ recDel₁)).bind
-            hopen
-        · exact OracleComp.IsCostBounded.pure _ (pS.eval κ + 2)
-      exact ((OracleComp.IsCostBounded.query _).bind hrec).mono (by omega)
-  exact (hpre.bind hsuf).mono (by omega)
+  simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_ofNat, corruptCommitterEnv,
+    corruptCommitterPrefix]
+  rw [show 3 * pS.eval κ + 4 = (2 * pS.eval κ + 1) + (1 + (pS.eval κ + (1 + 1))) by omega]
+  refine ((Machine.isQueryBounded_sample (isQueryBounded_simCommit (hS κ))).bind fun x => ?_).bind
+    fun pre => ?_
+  · rcases x with ⟨⟨r₁, _⟩, _⟩
+    rcases r₁ with _ | ⟨(_ | c) | _ | _⟩ <;> try exact OracleComp.IsCostBounded.pure _ _
+    simp only [bind_pure_comp]
+    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+  · rcases pre with _ | ⟨st₁, recDel₁⟩
+    · exact OracleComp.IsCostBounded.pure _ _
+    · refine (OracleComp.IsCostBounded.query _).bind fun recOut => ?_
+      split_ifs <;> try exact OracleComp.IsCostBounded.pure _ _
+      refine (Machine.isQueryBounded_sample (isQueryBounded_simOpen (hS κ) b st₁ recDel₁)).bind
+        fun r₂ => ?_
+      rcases r₂ with _ | ⟨_ | (_ | o) | _⟩ <;> try exact OracleComp.IsCostBounded.pure _ _
+      refine (OracleComp.IsCostBounded.query _).bind fun _ => ?_
+      simp only [bind_pure_comp]
+      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
 
 /-- The common closed probabilistic program underlying both the ideal corrupted-receiver execution
 (`exec fcom.toProtocol S₁ {1} (corruptReceiverEnv scheme b)`) and the real corrupted-committer
@@ -1289,29 +1124,19 @@ theorem exec_fcom_corruptReceiverEnv_eq (scheme : PlainCommitmentScheme CommitMs
   simp only [Machine.closeProgram_map, bind_map_left]
   refine bind_congr fun x => ?_
   rcases x with ⟨⟨r₁, st₁⟩, recDel₁⟩
-  rcases r₁ with _ | ⟨c | _ | _⟩
-  · rfl
-  · rcases c with _ | c
-    · rfl
-    · simp only [execReplyInr, Machine.runFrom_bind, Machine.runFrom_query,
-        Machine.closeProgram_bind, map_bind]
-      rw [handle_execMachine_fcom_openCom]
-      simp only [Machine.closeProgram_pure, pure_bind]
-      rw [handle_execMachine_fcom_opened_inr]
-      simp only [Machine.closeProgram_map, bind_map_left]
-      refine bind_congr fun y => ?_
-      rcases y with ⟨⟨r₂, st₂⟩, sP⟩
-      rcases r₂ with _ | ⟨_ | o | _⟩
-      · rfl
-      · rfl
-      · rcases o with _ | o
-        · rfl
-        · simp only [execReplyInr, bind_pure_comp, Machine.runFrom_map, Machine.runFrom_sample,
-            Machine.closeProgram_map, Machine.closeProgram_sample, Functor.map_map]
-          rfl
-      · rfl
-  · rfl
-  · rfl
+  rcases r₁ with _ | ⟨(_ | c) | _ | _⟩ <;> try rfl
+  simp only [execReplyInr, Machine.runFrom_bind, Machine.runFrom_query,
+    Machine.closeProgram_bind, map_bind]
+  rw [handle_execMachine_fcom_openCom]
+  simp only [Machine.closeProgram_pure, pure_bind]
+  rw [handle_execMachine_fcom_opened_inr]
+  simp only [Machine.closeProgram_map, bind_map_left]
+  refine bind_congr fun y => ?_
+  rcases y with ⟨⟨r₂, st₂⟩, sP⟩
+  rcases r₂ with _ | ⟨_ | (_ | o) | _⟩ <;> try rfl
+  simp only [execReplyInr, bind_pure_comp, Machine.runFrom_map, Machine.runFrom_sample,
+    Machine.closeProgram_map, Machine.closeProgram_sample, Functor.map_map]
+  rfl
 
 /-- In the real world with `C = {0}` and `dummyAdversary`, running `corruptCommitterEnv S₁ b`
 against `scheme.toProtocol` also produces `simulatedTranscriptGame scheme S₁ b κ`. -/
@@ -1329,40 +1154,29 @@ theorem exec_real_corruptCommitterEnv_eq [DecidableEq CommitMsg] [DecidableEq Op
     pure_bind, bind_map_left, map_bind]
   refine bind_congr fun x => ?_
   rcases x with ⟨⟨r₁, st₁⟩, recDel₁⟩
-  rcases r₁ with _ | ⟨c | _ | _⟩
-  · rfl
-  · rcases c with _ | c
-    · rfl
-    · simp only [bind_pure_comp, Machine.runFrom_map, Machine.runFrom_query,
-        Machine.closeProgram_map]
-      rw [handle_plainRouter_deliverCommit_zero]
-      simp only [corruptCommitterSuffix, map_pure, Prod.map_apply, _root_.id_eq,
-        Machine.closeProgram_pure, pure_bind, Machine.runFrom_bind, Machine.runFrom_query,
-        Machine.closeProgram_bind, map_bind]
-      rw [handle_plainRouter_query_committed_zero]
-      simp only [Machine.closeProgram_pure, pure_bind, ↓reduceIte,
-        Machine.runFrom_bind, Machine.runFrom_sample,
-        Machine.closeProgram_bind, Machine.closeProgram_sample,
-        bind_map_left, map_bind]
-      refine bind_congr fun r₂ => ?_
-      rcases r₂ with _ | ⟨_ | o | _⟩
-      · rfl
-      · rfl
-      · rcases o with _ | o
-        · rfl
-        · simp only [Machine.runFrom_bind, Machine.runFrom_query,
-            Machine.closeProgram_bind, map_bind]
-          rw [handle_plainRouter_deliverOpen_zero]
-          simp only [Machine.closeProgram_map, Machine.closeProgram_sample,
-            bind_map_left]
-          rw [← bind_pure_comp]
-          refine bind_congr fun res => ?_
-          rw [handle_plainRouter_query_finished_zero]
-          simp only [Machine.closeProgram_pure, pure_bind, Machine.runFrom_pure, map_pure]
-          rcases res with _ | (_ | _) <;> cases b <;> rfl
-      · rfl
-  · rfl
-  · rfl
+  rcases r₁ with _ | ⟨(_ | c) | _ | _⟩ <;> try rfl
+  simp only [bind_pure_comp, Machine.runFrom_map, Machine.runFrom_query,
+    Machine.closeProgram_map]
+  rw [handle_plainRouter_deliverCommit_zero]
+  simp only [corruptCommitterSuffix, map_pure, Prod.map_apply, _root_.id_eq,
+    Machine.closeProgram_pure, pure_bind, Machine.runFrom_bind, Machine.runFrom_query,
+    Machine.closeProgram_bind, map_bind]
+  rw [handle_plainRouter_query_committed_zero]
+  simp only [Machine.closeProgram_pure, pure_bind, ↓reduceIte,
+    Machine.runFrom_bind, Machine.runFrom_sample,
+    Machine.closeProgram_bind, Machine.closeProgram_sample,
+    bind_map_left, map_bind]
+  refine bind_congr fun r₂ => ?_
+  rcases r₂ with _ | ⟨_ | (_ | o) | _⟩ <;> try rfl
+  simp only [Machine.runFrom_bind, Machine.runFrom_query,
+    Machine.closeProgram_bind, map_bind]
+  rw [handle_plainRouter_deliverOpen_zero]
+  simp only [Machine.closeProgram_map, Machine.closeProgram_sample, bind_map_left]
+  rw [← bind_pure_comp]
+  refine bind_congr fun res => ?_
+  rw [handle_plainRouter_query_finished _ κ {0} (by decide)]
+  simp only [Machine.closeProgram_pure, pure_bind, Machine.runFrom_pure, map_pure]
+  rcases res with _ | (_ | _) <;> cases b <;> rfl
 
 /-- **Plain-Model Man-in-the-Middle Equivocation Identity:** the real execution of
 `corruptCommitterEnv S₁ b` (`C = {0}`) with `dummyAdversary` equals the ideal execution of
@@ -1463,28 +1277,20 @@ private theorem eval_corruptCommitterSuffix_locked_not
     Machine.closeProgram_bind, map_bind]
   rw [handle_fcomLocked_query_one]
   simp only [Machine.closeProgram_pure, pure_bind]
-  split_ifs with hrec
-  · simp only [Machine.runFrom_bind, Machine.runFrom_sample,
-      Machine.closeProgram_bind, Machine.closeProgram_sample,
-      bind_map_left, map_bind, ProbComp.eval_bind]
-    refine (bind_congr (g := fun _ => PMF.pure false) fun r₂ => ?_).trans
-      (PMF.bind_const _ _)
-    rcases r₂ with _ | ⟨_ | o | _⟩
-    · rfl
-    · rfl
-    · rcases o with _ | o
-      · rfl
-      · simp only [bind_pure_comp, Machine.runFrom_bind, Machine.runFrom_query,
-          Machine.runFrom_map, Machine.closeProgram_bind, Machine.closeProgram_map,
-          map_bind, Functor.map_map]
-        rw [handle_fcomLocked_inr]
-        simp only [Machine.closeProgram_map, bind_map_left, ProbComp.eval_bind]
-        refine (bind_congr (g := fun _ => PMF.pure false) fun x => ?_).trans
-          (PMF.bind_const _ _)
-        rw [handle_fcomLocked_query_one]
-        rcases fcomLockedRouterPhase bStar x.2 with ⟨_ | _, _ | _, _ | _⟩ <;> cases bStar <;> rfl
-    · rfl
-  · rfl
+  split_ifs with hrec <;> try rfl
+  simp only [Machine.runFrom_bind, Machine.runFrom_sample,
+    Machine.closeProgram_bind, Machine.closeProgram_sample,
+    bind_map_left, map_bind, ProbComp.eval_bind]
+  refine (bind_congr (g := fun _ => PMF.pure false) fun r₂ => ?_).trans (PMF.bind_const _ _)
+  rcases r₂ with _ | ⟨_ | (_ | o) | _⟩ <;> try rfl
+  simp only [bind_pure_comp, Machine.runFrom_bind, Machine.runFrom_query,
+    Machine.runFrom_map, Machine.closeProgram_bind, Machine.closeProgram_map,
+    map_bind, Functor.map_map]
+  rw [handle_fcomLocked_inr]
+  simp only [Machine.closeProgram_map, bind_map_left, ProbComp.eval_bind]
+  refine (bind_congr (g := fun _ => PMF.pure false) fun x => ?_).trans (PMF.bind_const _ _)
+  rw [handle_fcomLocked_query_one]
+  rcases fcomLockedRouterPhase bStar x.2 with ⟨_ | _, _ | _, _ | _⟩ <;> cases bStar <;> rfl
 
 private theorem succProbability_pure_false : Game.succProbability (PMF.pure false) = 0 := by
   simp [Game.succProbability, PMF.pure_apply]
@@ -1521,13 +1327,13 @@ theorem succProbability_corruptCommitterSuffix_add_le_one
       rw [handle_execMachine_fcom_query_one_idle]
       simp [Game.succProbability]
     · cases bStar
-      · have htrue := eval_corruptCommitterSuffix_locked_not S₁ S₀ false κ st₁ recDel₁ stS₀ phase
-        simp only [Bool.not_false] at htrue
-        rw [htrue, succProbability_pure_false, add_zero]
+      · have h := eval_corruptCommitterSuffix_locked_not S₁ S₀ false κ st₁ recDel₁ stS₀ phase
+        simp only [Bool.not_false] at h
+        rw [h, succProbability_pure_false, add_zero]
         exact Game.succProbability_le_one _
-      · have hfalse := eval_corruptCommitterSuffix_locked_not S₁ S₀ true κ st₁ recDel₁ stS₀ phase
-        simp only [Bool.not_true] at hfalse
-        rw [hfalse, succProbability_pure_false, zero_add]
+      · have h := eval_corruptCommitterSuffix_locked_not S₁ S₀ true κ st₁ recDel₁ stS₀ phase
+        simp only [Bool.not_true] at h
+        rw [h, succProbability_pure_false, zero_add]
         exact Game.succProbability_le_one _
 
 /-- **Ideal-World Binding Inequality for `corruptCommitterEnv`:** for every simulator `S₀`
@@ -1551,46 +1357,31 @@ theorem succProbability_exec_fcom_corruptCommitterEnv_add_le_one
     simp only [exec, Machine.run, Machine.link, corruptCommitterEnv, preDist, sufDist, M₀,
       Machine.runFrom_bind, Machine.closeProgram_bind, Machine.closeProgram_map,
       Machine.closeProgram_sample, map_bind, ProbComp.eval_bind, PMF.bind_bind]
+  have hsum (b : Bool) : Summable (fun x => (preDist x).toReal * (sufDist b x true).toReal) :=
+    Summable.of_nonneg_of_le (fun _ => by positivity)
+      (fun x => mul_le_of_le_one_right ENNReal.toReal_nonneg
+        (by simpa [Game.coe_succProbability] using
+          NNReal.coe_le_coe.mpr (Game.succProbability_le_one (sufDist b x))))
+      (Probability.PMF.summable_toReal preDist)
+  have hle (x) : (sufDist false x true).toReal + (sufDist true x true).toReal ≤ 1 := by
+    simpa only [NNReal.coe_add, NNReal.coe_one, Game.coe_succProbability, sufDist, M₀] using
+      NNReal.coe_le_coe.mpr (succProbability_corruptCommitterSuffix_add_le_one S₁ S₀ κ x)
   rw [hexec false z₁, hexec true z₂, ← NNReal.coe_le_coe]
   simp only [NNReal.coe_add, NNReal.coe_one, Game.coe_succProbability,
     Probability.PMF.bind_apply_toReal_tsum]
-  have hsum_add :
-      (∑' x, (preDist x).toReal * (sufDist false x true).toReal) +
-        (∑' x, (preDist x).toReal * (sufDist true x true).toReal) =
-      ∑' x, (preDist x).toReal *
-        ((sufDist false x true).toReal + (sufDist true x true).toReal) := by
-    rw [← Summable.tsum_add]
-    · refine tsum_congr fun x => ?_
-      ring
-    · exact Summable.of_nonneg_of_le (fun _ => by positivity)
-        (fun x => mul_le_of_le_one_right ENNReal.toReal_nonneg
-          (by simpa [Game.coe_succProbability] using
-            NNReal.coe_le_coe.mpr (Game.succProbability_le_one (sufDist false x))))
-        (Probability.PMF.summable_toReal preDist)
-    · exact Summable.of_nonneg_of_le (fun _ => by positivity)
-        (fun x => mul_le_of_le_one_right ENNReal.toReal_nonneg
-          (by simpa [Game.coe_succProbability] using
-            NNReal.coe_le_coe.mpr (Game.succProbability_le_one (sufDist true x))))
-        (Probability.PMF.summable_toReal preDist)
-  rw [hsum_add]
+  rw [← (hsum false).tsum_add (hsum true)]
   calc
-    (∑' x, (preDist x).toReal *
-        ((sufDist false x true).toReal + (sufDist true x true).toReal)) ≤
-      ∑' x, (preDist x).toReal * 1 := by
-      refine Summable.tsum_le_tsum (fun x => ?_) ?_ ?_
-      · refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-        have hle := NNReal.coe_le_coe.mpr
-          (succProbability_corruptCommitterSuffix_add_le_one S₁ S₀ κ x)
-        simpa only [NNReal.coe_add, NNReal.coe_one, Game.coe_succProbability, sufDist, M₀] using hle
-      · refine Summable.of_nonneg_of_le (fun _ => by positivity) (fun x => ?_)
-          (Probability.PMF.summable_toReal preDist)
-        have hle := NNReal.coe_le_coe.mpr
-          (succProbability_corruptCommitterSuffix_add_le_one S₁ S₀ κ x)
-        have hle' : (sufDist false x true).toReal + (sufDist true x true).toReal ≤ 1 := by
-          simpa only [NNReal.coe_add, NNReal.coe_one, Game.coe_succProbability, sufDist, M₀]
-            using hle
-        exact mul_le_of_le_one_right ENNReal.toReal_nonneg hle'
-      · simpa only [mul_one] using Probability.PMF.summable_toReal preDist
+    ∑' x, ((preDist x).toReal * (sufDist false x true).toReal +
+        (preDist x).toReal * (sufDist true x true).toReal) =
+      ∑' x, (preDist x).toReal *
+        ((sufDist false x true).toReal + (sufDist true x true).toReal) :=
+      tsum_congr fun x => by ring
+    _ ≤ ∑' x, (preDist x).toReal * 1 :=
+      Summable.tsum_le_tsum (fun x => mul_le_mul_of_nonneg_left (hle x) ENNReal.toReal_nonneg)
+        (Summable.of_nonneg_of_le (fun _ => by positivity)
+          (fun x => mul_le_of_le_one_right ENNReal.toReal_nonneg (hle x))
+          (Probability.PMF.summable_toReal preDist))
+        (by simpa only [mul_one] using Probability.PMF.summable_toReal preDist)
     _ = 1 := by simp [Probability.PMF.tsum_toReal]
 
 /-! ### Canetti–Fischlin quantitative trade-off and impossibility theorems -/
@@ -1611,23 +1402,16 @@ theorem acceptProb_le_ideal_add_advantage [DecidableEq CommitMsg] [DecidableEq O
   rw [← NNReal.coe_le_coe]
   simp only [PlainCommitmentScheme.acceptProb, ← eval_exec_real_corruptReceiverEnv scheme b κ z₁,
     advantage, NNReal.coe_add, Game.coe_advantage]
-  have heq :
-      Game.succProbability
-        (exec scheme.toProtocol (dummyAdversary 2 _ _) {0} (corruptCommitterEnv S₁ b) κ z₀).eval =
-      Game.succProbability
-        (exec fcom.toProtocol S₁ {1} (corruptReceiverEnv scheme b) κ z₁).eval := by
-    rw [exec_real_corruptCommitterEnv_eq_exec_fcom_corruptReceiverEnv scheme S₁ b κ z₀ z₁]
-  rw [heq]
-  have h1 := le_abs_self
-    ((Game.succProbability
-      (exec scheme.toProtocol (dummyAdversary 2 _ _) {1}
-        (corruptReceiverEnv scheme b) κ z₁).eval : ℝ) -
-     Game.succProbability (exec fcom.toProtocol S₁ {1} (corruptReceiverEnv scheme b) κ z₁).eval)
-  have h2 := le_abs_self
-    ((Game.succProbability
-      (exec fcom.toProtocol S₁ {1} (corruptReceiverEnv scheme b) κ z₁).eval : ℝ) -
-     Game.succProbability (exec fcom.toProtocol S₀ {0} (corruptCommitterEnv S₁ b) κ z₀).eval)
-  linarith
+  rw [show Game.succProbability
+      (exec scheme.toProtocol (dummyAdversary 2 _ _) {0} (corruptCommitterEnv S₁ b) κ z₀).eval =
+    Game.succProbability (exec fcom.toProtocol S₁ {1} (corruptReceiverEnv scheme b) κ z₁).eval
+    from by rw [exec_real_corruptCommitterEnv_eq_exec_fcom_corruptReceiverEnv scheme S₁ b κ z₀ z₁]]
+  linarith [le_abs_self ((Game.succProbability (exec scheme.toProtocol (dummyAdversary 2 _ _) {1}
+      (corruptReceiverEnv scheme b) κ z₁).eval : ℝ) -
+    Game.succProbability (exec fcom.toProtocol S₁ {1} (corruptReceiverEnv scheme b) κ z₁).eval),
+    le_abs_self ((Game.succProbability (exec fcom.toProtocol S₁ {1}
+      (corruptReceiverEnv scheme b) κ z₁).eval : ℝ) -
+    Game.succProbability (exec fcom.toProtocol S₀ {0} (corruptCommitterEnv S₁ b) κ z₀).eval)]
 
 /-- **Canetti–Fischlin Quantitative Trade-Off (adapted from [CanettiFischlin2001], Theorem 6):**
 for every plain-model commitment scheme `scheme`, every corrupted-receiver simulator `S₁`
@@ -1654,33 +1438,9 @@ theorem acceptProb_add_le_one_add_advantage [DecidableEq CommitMsg] [DecidableEq
   have hfalse := acceptProb_le_ideal_add_advantage scheme S₁ S₀ false κ z z
   have htrue := acceptProb_le_ideal_add_advantage scheme S₁ S₀ true κ z z
   have hideal := succProbability_exec_fcom_corruptCommitterEnv_add_le_one S₁ S₀ κ z z
-  calc
-    scheme.acceptProb κ false + scheme.acceptProb κ true ≤
-      (Game.succProbability
-          (exec fcom.toProtocol S₀ {0} (corruptCommitterEnv S₁ false) κ z).eval +
-        Game.succProbability
-          (exec fcom.toProtocol S₀ {0} (corruptCommitterEnv S₁ true) κ z).eval) +
-      advantage scheme.toProtocol fcom.toProtocol (dummyAdversary 2 _ _) S₁ {1}
-        (corruptReceiverEnv scheme false) κ z +
-      advantage scheme.toProtocol fcom.toProtocol (dummyAdversary 2 _ _) S₁ {1}
-        (corruptReceiverEnv scheme true) κ z +
-      advantage scheme.toProtocol fcom.toProtocol (dummyAdversary 2 _ _) S₀ {0}
-        (corruptCommitterEnv S₁ false) κ z +
-      advantage scheme.toProtocol fcom.toProtocol (dummyAdversary 2 _ _) S₀ {0}
-        (corruptCommitterEnv S₁ true) κ z := by
-      rw [← NNReal.coe_le_coe] at hfalse htrue ⊢
-      push_cast at hfalse htrue ⊢
-      linarith
-    _ ≤ 1 +
-      advantage scheme.toProtocol fcom.toProtocol (dummyAdversary 2 _ _) S₁ {1}
-        (corruptReceiverEnv scheme false) κ z +
-      advantage scheme.toProtocol fcom.toProtocol (dummyAdversary 2 _ _) S₁ {1}
-        (corruptReceiverEnv scheme true) κ z +
-      advantage scheme.toProtocol fcom.toProtocol (dummyAdversary 2 _ _) S₀ {0}
-        (corruptCommitterEnv S₁ false) κ z +
-      advantage scheme.toProtocol fcom.toProtocol (dummyAdversary 2 _ _) S₀ {0}
-        (corruptCommitterEnv S₁ true) κ z := by
-      gcongr
+  rw [← NNReal.coe_le_coe] at hfalse htrue hideal ⊢
+  push_cast at hfalse htrue hideal ⊢
+  linarith
 
 /-- **Concrete Impossibility against the Dummy Adversary:** if `scheme.verify` has polynomial call
 budget `pV` and at security parameter `κ` the error bound `ε` satisfies

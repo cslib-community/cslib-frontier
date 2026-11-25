@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalTensor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Foundations.Data.BiTape.OfCells
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Interval steps by finite simulation
@@ -125,16 +126,7 @@ theorem withCoin_step_eq (bit : Bool) {input : List Bool} (c : Cfg k Bool State 
       (machine.coinAction c.state c.inputSymbol c.workTapeSymbols bit).apply c := by
   cases hs : c.state with
   | none =>
-    rw [MultiTapeTM.step_of_halt hs]
-    simp only [coinAction]
-    refine Cfg.ext ?_ ?_ ?_ ?_ ?_
-    · simp [Action.apply, hs]
-    · simp [Action.apply]
-    · funext h
-      simp [Action.apply]
-    · funext h
-      simp [Action.apply]
-    · simp [Action.apply]
+    tm_step [coinAction, hs]
   | some q =>
     rw [MultiTapeTM.step_of_state hs]
     simp only [coinAction, MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]

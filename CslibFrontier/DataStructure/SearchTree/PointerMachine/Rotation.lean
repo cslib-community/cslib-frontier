@@ -7,7 +7,7 @@ Authors: Stefan Langerman
 module
 -- upstream: candidate
 
-public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Representation
+public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Child
 public import Mathlib.Data.Tree.Get
 import Mathlib.Tactic.FinCases
 
@@ -74,7 +74,7 @@ private theorem runs (near far : Fin 3) (s : State M (layout extra regs)) (pc : 
 
 /-- The exact heap writes of a rotation, in execution order. A null middle
 subtree requires no parent write. Pivot addresses are proof data, not machine inputs. -/
-private def rewire (near far : Fin 3) (h : List (Record M (layout extra regs))) (x y : ℕ)
+@[expose] def rewire (near far : Fin 3) (h : List (Record M (layout extra regs))) (x y : ℕ)
     (middle parent : Pointer) : List (Record M (layout extra regs)) :=
   let h := h.modify y fun r => { r with ptr := Function.update r.ptr near middle }
   let h := middle.elim h fun b =>
@@ -106,18 +106,16 @@ private theorem rotate_executes (near far : Fin 3) (s : State M (layout extra re
       cursor, hy, hx, left, mid, rewire]
 
 /-- Records outside the pivots and the middle root are unchanged. -/
-private theorem rewire_frame (near far : Fin 3)
+theorem rewire_frame (near far : Fin 3)
     (h : List (Record M (layout extra regs))) (x y a : ℕ)
     (middle parent : Pointer) (ax : a ≠ x) (ay : a ≠ y) (am : middle ≠ some a) :
     (rewire near far h x y middle parent)[a]? = h[a]? := by
   cases middle with
   | none => simp [rewire, Ne.symm ax, Ne.symm ay]
-  | some b =>
-    have ab : b ≠ a := fun eq => am (congrArg some eq)
-    simp [rewire, Ne.symm ax, Ne.symm ay, ab]
+  | some b => simp [rewire, Ne.symm ax, Ne.symm ay, ne_of_apply_ne some am]
 
 /-- Rotation creates no records. -/
-private theorem length_rewire (near far : Fin 3) (h : List (Record M (layout extra regs))) (x y : ℕ)
+theorem length_rewire (near far : Fin 3) (h : List (Record M (layout extra regs))) (x y : ℕ)
     (middle parent : Pointer) : (rewire near far h x y middle parent).length = h.length := by
   cases middle <;> simp [rewire]
 
@@ -138,9 +136,8 @@ private theorem rewire_pivots (near far : Fin 3) (h : List (Record M (layout ext
   cases mid : rx.ptr far with
   | none => simp [rewire, different, Ne.symm different, hx, hy]
   | some b =>
-    have bx : b ≠ x := fun eq => mx (mid.trans (congrArg some eq))
-    have by' : b ≠ y := fun eq => my (mid.trans (congrArg some eq))
-    simp [rewire, different, Ne.symm different, bx, by', hx, hy]
+    simp [rewire, different, Ne.symm different, ne_of_apply_ne some (mid ▸ mx),
+      ne_of_apply_ne some (mid ▸ my), hx, hy]
 
 /-- The middle subtree changes only its root's parent link. -/
 private theorem rewire_middle (near far : Fin 3)
@@ -153,67 +150,123 @@ private theorem rewire_middle (near far : Fin 3)
 
 
 
-private def unrotatePath : PosNum → PosNum
-  | .one => .bit0 .one
-  | .bit0 p => .bit0 (.bit0 p)
-  | .bit1 .one => .one
-  | .bit1 (.bit0 p) => .bit0 (.bit1 p)
-  | .bit1 (.bit1 p) => .bit1 p
+/-- The pointer field of the child on a side: zero on the left, one on the right. -/
+@[expose] def childField (right : Bool) : Fin 3 := if right then 1 else 0
 
-private def rotatePath : PosNum → PosNum
-  | .one => .bit1 .one
-  | .bit0 .one => .one
-  | .bit0 (.bit0 p) => .bit0 p
-  | .bit0 (.bit1 p) => .bit1 (.bit0 p)
-  | .bit1 p => .bit1 (.bit1 p)
+/-- Changing only the parent link of the root gives the representation under a new parent. -/
+private theorem Represents.reparent {h k : List (Record M (layout extra regs))}
+    {t : BinaryTree (Label M extra)} {parent parent' : Pointer} (rep : Represents h parent t)
+    (distinct : AddressesDistinct t)
+    (top : ∀ z, root t = some z → ∀ node, h[z]? = some node →
+      k[z]? = some { node with ptr := Function.update node.ptr 2 parent' })
+    (rest : ∀ z ∈ addresses t, root t ≠ some z → k[z]? = h[z]?) :
+    Represents k parent' t := by
+  cases t with
+  | nil => trivial
+  | node label l r =>
+    obtain ⟨_, _, nl, nr, _⟩ := (AddressesDistinct.node_iff ..).mp distinct
+    have inside (z : ℕ) (hz : z ∈ addresses l ∨ z ∈ addresses r) : k[z]? = h[z]? :=
+      rest z (Finset.mem_insert_of_mem (Finset.mem_union.mpr hz)) fun eq =>
+        hz.elim (Option.some.inj eq ▸ nl) (Option.some.inj eq ▸ nr)
+    refine ⟨?_, rep.2.1.congr_addresses fun z hz => inside z (.inl hz),
+      rep.2.2.congr_addresses fun z hz => inside z (.inr hz)⟩
+    rw [top _ rfl _ rep.1]
+    simp only [record, Option.some.injEq, Record.mk.injEq]
+    exact ⟨by funext i; fin_cases i <;> rfl, trivial⟩
 
-private theorem unrotatePath_injective : Function.Injective unrotatePath := by
-  apply Function.LeftInverse.injective (g := rotatePath)
-  intro p
-  cases p with
-  | one => rfl
-  | bit0 p => rfl
-  | bit1 p => cases p <;> rfl
+/-- Address separation survives a rotation on either side. -/
+theorem AddressesDistinct.rotate (right : Bool) {x y : Label M extra}
+    {a b c : BinaryTree (Label M extra)}
+    (h : AddressesDistinct (nodeAt right y (nodeAt right x a b) c)) :
+    AddressesDistinct (nodeAt right x a (nodeAt right y b c)) := by
+  simp only [nodeAt_distinct_iff, nodeAt_addresses, Finset.mem_insert, Finset.mem_union,
+    Finset.disjoint_insert_left, Finset.disjoint_insert_right, Finset.disjoint_union_left,
+    Finset.disjoint_union_right, not_or] at h ⊢
+  obtain ⟨⟨da, db, xa, xb, ab⟩, dc, ⟨yx, ya, yb⟩, yc, xc, ac, bc⟩ := h
+  exact ⟨da, ⟨db, dc, yb, yc, bc⟩, xa, ⟨Ne.symm yx, xb, xc⟩, ⟨ya, ab, ac⟩⟩
+
+/-- The heap rewiring of a rotation on either side preserves the full recursive subtree
+representation, including parent links: `y` with child `x` on the selected side, whose own
+children are `a` on that side and `b` on the other, becomes `x` with `a` on that side and `y`
+on the other, and `b` becomes the child of `y` on the selected side. This is a statement about
+heaps: any program whose writes are `rewire` inherits it. -/
+theorem represents_rewire_rotate (right : Bool) (h : List (Record M (layout extra regs)))
+    (x y : Label M extra) (a b c : BinaryTree (Label M extra)) (parent : Pointer)
+    (rep : Represents h parent (nodeAt right y (nodeAt right x a b) c))
+    (distinct : AddressesDistinct (nodeAt right y (nodeAt right x a b) c)) :
+    Represents (rewire (childField right) (childField !right) h x.address y.address (root b)
+      parent) parent (nodeAt right x a (nodeAt right y b c)) := by
+  obtain ⟨hy, hx, hc⟩ := (represents_nodeAt_iff ..).mp rep
+  obtain ⟨hx, ha, hb⟩ := (represents_nodeAt_iff ..).mp hx
+  simp only [nodeAt_distinct_iff, nodeAt_addresses, Finset.mem_insert, Finset.mem_union,
+    Finset.disjoint_insert_left, Finset.disjoint_union_left, not_or] at distinct
+  obtain ⟨⟨da, db, xa, xb, ab⟩, dc, ⟨yx, ya, yb⟩, yc, xc, ac, bc⟩ := distinct
+  have xy : x.address ≠ y.address := Ne.symm yx
+  have bx : root b ≠ some x.address := fun e => xb (root_mem_addresses e)
+  have by' : root b ≠ some y.address := fun e => yb (root_mem_addresses e)
+  rw [root_nodeAt] at hy
+  have pivots := rewire_pivots (childField right) (childField !right) h x.address y.address
+    _ _ hx hy xy (by cases right <;> exact bx) (by cases right <;> exact by')
+  have middle : (record (regs := regs) (if right then root b else root a)
+      (if right then root a else root b) (some y.address) x).ptr (childField !right) = root b := by
+    cases right <;> rfl
+  have up : (record (regs := regs) (if right then root c else some x.address)
+      (if right then some x.address else root c) parent y).ptr 2 = parent := rfl
+  dsimp only at pivots
+  rw [middle, up] at pivots
+  have frame (z : ℕ) (zx : z ≠ x.address) (zy : z ≠ y.address) (zb : root b ≠ some z) :=
+    rewire_frame (childField right) (childField !right) h x.address y.address z (root b) parent
+      zx zy zb
+  refine (represents_nodeAt_iff ..).mpr ⟨?_, ?_, (represents_nodeAt_iff ..).mpr ⟨?_, ?_, ?_⟩⟩
+  · rw [pivots.1, root_nodeAt]
+    simp only [record, Option.some.injEq, Record.mk.injEq]
+    exact ⟨by cases right <;> funext i <;> fin_cases i <;> rfl, trivial⟩
+  · exact ha.congr_addresses fun z hz => frame z (fun e => xa (e ▸ hz)) (fun e => ya (e ▸ hz))
+      (fun e => Finset.disjoint_left.mp ab hz (root_mem_addresses e))
+  · rw [pivots.2]
+    simp only [record, Option.some.injEq, Record.mk.injEq]
+    exact ⟨by cases right <;> funext i <;> fin_cases i <;> rfl, trivial⟩
+  · refine hb.reparent db (fun z hz node hn => ?_) fun z hz ne =>
+      frame z (fun e => xb (e ▸ hz)) (fun e => yb (e ▸ hz)) ne
+    rw [hz]
+    exact rewire_middle _ _ h x.address y.address z node hn (fun e => bx (hz.trans (e ▸ rfl)))
+      (fun e => by' (hz.trans (e ▸ rfl))) parent
+  · exact hc.congr_addresses fun z hz => frame z (fun e => xc (e ▸ hz)) (fun e => yc (e ▸ hz))
+      (fun e => Finset.disjoint_left.mp bc (root_mem_addresses e) hz)
 
 /-- Address separation survives rotation, so the result can be rotated again. -/
 theorem AddressesDistinct.rotateRight {x y : Label M extra}
     {a b c : BinaryTree (Label M extra)}
     (h : AddressesDistinct (.node y (.node x a b) c)) :
-    AddressesDistinct (.node x a (.node y b c)) := by
-  have get (p : PosNum) :
-      (.node y (.node x a b) c : BinaryTree (Label M extra)).get (unrotatePath p) =
-      (.node x a (.node y b c) : BinaryTree (Label M extra)).get p := by
-    cases p with
-    | one => rfl
-    | bit0 p => rfl
-    | bit1 p => cases p <;> rfl
-  intro p q u v hp hq eq
-  apply unrotatePath_injective
-  exact h _ _ u v ((get p).trans hp) ((get q).trans hq) eq
-
-private theorem rotatePath_injective : Function.Injective rotatePath := by
-  apply Function.LeftInverse.injective (g := unrotatePath)
-  intro p
-  cases p with
-  | one => rfl
-  | bit0 p => cases p <;> rfl
-  | bit1 p => rfl
+    AddressesDistinct (.node x a (.node y b c)) :=
+  AddressesDistinct.rotate false h
 
 /-- Address separation also survives the inverse, left rotation. -/
 theorem AddressesDistinct.rotateLeft {x y : Label M extra}
     {a b c : BinaryTree (Label M extra)}
     (h : AddressesDistinct (.node x a (.node y b c))) :
-    AddressesDistinct (.node y (.node x a b) c) := by
-  have get (p : PosNum) :
-      (.node x a (.node y b c) : BinaryTree (Label M extra)).get (rotatePath p) =
-      (.node y (.node x a b) c : BinaryTree (Label M extra)).get p := by
-    cases p with
-    | one => rfl
-    | bit0 p => cases p <;> rfl
-    | bit1 p => rfl
-  intro p q u v hp hq eq
-  apply rotatePath_injective
-  exact h _ _ u v ((get p).trans hp) ((get q).trans hq) eq
+    AddressesDistinct (.node y (.node x a b) c) :=
+  AddressesDistinct.rotate (x := y) (y := x) true h
+
+/-- The heap rewiring of a right rotation preserves the full recursive subtree
+representation, including parent links. -/
+theorem represents_rewire_rotateRight (h : List (Record M (layout extra regs)))
+    (x y : Label M extra) (a b c : BinaryTree (Label M extra)) (parent : Pointer)
+    (rep : Represents h parent (.node y (.node x a b) c))
+    (distinct : AddressesDistinct (.node y (.node x a b) c)) :
+    Represents (rewire 0 1 h x.address y.address (root b) parent) parent
+      (.node x a (.node y b c)) :=
+  represents_rewire_rotate false h x y a b c parent rep distinct
+
+/-- The heap rewiring of a left rotation preserves the full recursive subtree
+representation, including parent links. -/
+theorem represents_rewire_rotateLeft (h : List (Record M (layout extra regs)))
+    (x y : Label M extra) (a b c : BinaryTree (Label M extra)) (parent : Pointer)
+    (rep : Represents h parent (.node y a (.node x b c)))
+    (distinct : AddressesDistinct (.node y a (.node x b c))) :
+    Represents (rewire 1 0 h x.address y.address (root b) parent) parent
+      (.node x (.node y a b) c) :=
+  represents_rewire_rotate true h x y c b a parent rep distinct
 
 /-- A right rotation preserves the full recursive subtree representation, including
 parent links, in ten actual instructions. The external parent's child link and cached
@@ -230,95 +283,13 @@ theorem rotateRight_represents (s : State M (layout extra regs))
       (∀ i, i ≠ 0 → i ≠ 2 → i ≠ 3 → i ≠ 4 → t.ptr i = s.ptr i) ∧
       (∀ z, z ≠ x.address → z ≠ y.address → root b ≠ some z →
         t.heap[z]? = s.heap[z]?) := by
-  rcases rep with ⟨hy, ⟨hx, ha, hb⟩, hc⟩
-  have sep {p q : PosNum} {u v : Label M extra}
-      (hp : (BinaryTree.node y (.node x a b) c).get p = some u)
-      (hq : (BinaryTree.node y (.node x a b) c).get q = some v) (pq : p ≠ q) :
-      u.address ≠ v.address := fun eq => pq (distinct p q u v hp hq eq)
-  have xy : x.address ≠ y.address := sep (p := .bit0 .one) rfl (q := .one) rfl (by decide)
-  have bx : root b ≠ some x.address := by
-    cases b with
-    | nil => simp [root]
-    | node z l r =>
-      exact fun h => sep (p := .bit0 (.bit1 .one)) rfl (q := .bit0 .one) rfl
-        (by decide) (Option.some.inj h)
-  have by' : root b ≠ some y.address := by
-    cases b with
-    | nil => simp [root]
-    | node z l r =>
-      exact fun h => sep (p := .bit0 (.bit1 .one)) rfl (q := .one) rfl
-        (by decide) (Option.some.inj h)
   obtain ⟨t, exec, heap, cur, data, keep⟩ := rotate_executes 0 1 s x.address y.address
     (record (root a) (root b) (some y.address) x)
-    (record (some x.address) (root c) parent y) pc cursor hy hx rfl
-  have pivots := rewire_pivots 0 1 s.heap x.address y.address
-    (record (root a) (root b) (some y.address) x)
-    (record (some x.address) (root c) parent y) hx hy xy bx by'
-  change
-    (rewire 0 1 s.heap x.address y.address (root b) parent)[x.address]? = _ ∧
-    (rewire 0 1 s.heap x.address y.address (root b) parent)[y.address]? = _ at pivots
-  refine ⟨t, exec, ?_, cur, data, ?_, keep, ?_⟩
-  · rw [heap]
-    change Represents (rewire 0 1 s.heap x.address y.address (root b) parent)
-      parent (.node x a (.node y b c))
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · rw [pivots.1]
-      simp only [record, Option.some.injEq, Record.mk.injEq]
-      exact ⟨by funext i; fin_cases i <;> rfl, trivial⟩
-    · apply Represents.congr ha
-      intro p u hp
-      apply rewire_frame
-      · exact sep (p := .bit0 (.bit0 p)) hp (q := .bit0 .one) rfl (by simp)
-      · exact sep (p := .bit0 (.bit0 p)) hp (q := .one) rfl (by simp)
-      · cases b with
-        | nil => simp [root]
-        | node z l r =>
-          exact fun h => sep (p := .bit0 (.bit1 .one)) rfl
-            (q := .bit0 (.bit0 p)) hp (by simp) (Option.some.inj h)
-    · rw [pivots.2]
-      simp only [record, Option.some.injEq, Record.mk.injEq]
-      exact ⟨by funext i; fin_cases i <;> rfl, trivial⟩
-    · cases b with
-      | nil => trivial
-      | node z l r =>
-        refine ⟨?_, ?_, ?_⟩
-        · have hb := rewire_middle 0 1 s.heap x.address y.address z.address
-            (record (root l) (root r) (some x.address) z) hb.1
-            (sep (p := .bit0 (.bit1 .one)) rfl (q := .bit0 .one) rfl (by decide))
-            (sep (p := .bit0 (.bit1 .one)) rfl (q := .one) rfl (by decide)) parent
-          simp only [root]
-          rw [hb]
-          simp only [record, Option.some.injEq, Record.mk.injEq]
-          exact ⟨by funext i; fin_cases i <;> rfl, trivial⟩
-        · apply Represents.congr hb.2.1
-          intro p u hp
-          apply rewire_frame
-          · exact sep (p := .bit0 (.bit1 (.bit0 p))) hp (q := .bit0 .one) rfl (by simp)
-          · exact sep (p := .bit0 (.bit1 (.bit0 p))) hp (q := .one) rfl (by simp)
-          · exact fun h => sep (p := .bit0 (.bit1 .one)) rfl
-              (q := .bit0 (.bit1 (.bit0 p))) hp (by simp) (Option.some.inj h)
-        · apply Represents.congr hb.2.2
-          intro p u hp
-          apply rewire_frame
-          · exact sep (p := .bit0 (.bit1 (.bit1 p))) hp (q := .bit0 .one) rfl (by simp)
-          · exact sep (p := .bit0 (.bit1 (.bit1 p))) hp (q := .one) rfl (by simp)
-          · exact fun h => sep (p := .bit0 (.bit1 .one)) rfl
-              (q := .bit0 (.bit1 (.bit1 p))) hp (by simp) (Option.some.inj h)
-    · apply Represents.congr hc
-      intro p u hp
-      apply rewire_frame
-      · exact sep (p := .bit1 p) hp (q := .bit0 .one) rfl (by simp)
-      · exact sep (p := .bit1 p) hp (q := .one) rfl (by simp)
-      · cases b with
-        | nil => simp [root]
-        | node z l r =>
-          exact fun h => sep (p := .bit0 (.bit1 .one)) rfl
-            (q := .bit1 p) hp (by simp) (Option.some.inj h)
-  · rw [heap]
-    exact length_rewire _ _ _ _ _ _ _
-  · intro z zx zy zb
-    rw [heap]
-    exact rewire_frame _ _ _ _ _ _ _ _ zx zy zb
+    (record (some x.address) (root c) parent y) pc cursor rep.1 rep.2.1.1 rfl
+  refine ⟨t, exec, ?_⟩
+  rw [heap]
+  exact ⟨represents_rewire_rotateRight s.heap x y a b c parent rep distinct, cur, data,
+    length_rewire .., keep, fun z zx zy zb => rewire_frame _ _ _ _ _ _ _ _ zx zy zb⟩
 
 /-- A left rotation preserves the full recursive subtree representation, including
 parent links, in ten actual instructions. The external parent's child link and cached
@@ -335,94 +306,12 @@ theorem rotateLeft_represents (s : State M (layout extra regs))
       (∀ i, i ≠ 0 → i ≠ 2 → i ≠ 3 → i ≠ 4 → t.ptr i = s.ptr i) ∧
       (∀ z, z ≠ x.address → z ≠ y.address → root b ≠ some z →
         t.heap[z]? = s.heap[z]?) := by
-  rcases rep with ⟨hy, hc, hx, hb, ha⟩
-  have sep {p q : PosNum} {u v : Label M extra}
-      (hp : (BinaryTree.node y a (.node x b c)).get p = some u)
-      (hq : (BinaryTree.node y a (.node x b c)).get q = some v) (pq : p ≠ q) :
-      u.address ≠ v.address := fun eq => pq (distinct p q u v hp hq eq)
-  have xy : x.address ≠ y.address := sep (p := .bit1 .one) rfl (q := .one) rfl (by decide)
-  have bx : root b ≠ some x.address := by
-    cases b with
-    | nil => simp [root]
-    | node z l r =>
-      exact fun h => sep (p := .bit1 (.bit0 .one)) rfl (q := .bit1 .one) rfl
-        (by decide) (Option.some.inj h)
-  have by' : root b ≠ some y.address := by
-    cases b with
-    | nil => simp [root]
-    | node z l r =>
-      exact fun h => sep (p := .bit1 (.bit0 .one)) rfl (q := .one) rfl
-        (by decide) (Option.some.inj h)
   obtain ⟨t, exec, heap, cur, data, keep⟩ := rotate_executes 1 0 s x.address y.address
     (record (root b) (root c) (some y.address) x)
-    (record (root a) (some x.address) parent y) pc cursor hy hx rfl
-  have pivots := rewire_pivots 1 0 s.heap x.address y.address
-    (record (root b) (root c) (some y.address) x)
-    (record (root a) (some x.address) parent y) hx hy xy bx by'
-  change
-    (rewire 1 0 s.heap x.address y.address (root b) parent)[x.address]? = _ ∧
-    (rewire 1 0 s.heap x.address y.address (root b) parent)[y.address]? = _ at pivots
-  refine ⟨t, exec, ?_, cur, data, ?_, keep, ?_⟩
-  · rw [heap]
-    change Represents (rewire 1 0 s.heap x.address y.address (root b) parent)
-      parent (.node x (.node y a b) c)
-    refine ⟨?_, ⟨?_, ?_, ?_⟩, ?_⟩
-    · rw [pivots.1]
-      simp only [record, Option.some.injEq, Record.mk.injEq]
-      exact ⟨by funext i; fin_cases i <;> rfl, trivial⟩
-    · rw [pivots.2]
-      simp only [record, Option.some.injEq, Record.mk.injEq]
-      exact ⟨by funext i; fin_cases i <;> rfl, trivial⟩
-    · apply Represents.congr hc
-      intro p u hp
-      apply rewire_frame
-      · exact sep (p := .bit0 p) hp (q := .bit1 .one) rfl (by simp)
-      · exact sep (p := .bit0 p) hp (q := .one) rfl (by simp)
-      · cases b with
-        | nil => simp [root]
-        | node z l r =>
-          exact fun h => sep (p := .bit1 (.bit0 .one)) rfl
-            (q := .bit0 p) hp (by simp) (Option.some.inj h)
-    · cases b with
-      | nil => trivial
-      | node z l r =>
-        refine ⟨?_, ?_, ?_⟩
-        · have hb := rewire_middle 1 0 s.heap x.address y.address z.address
-            (record (root l) (root r) (some x.address) z) hb.1
-            (sep (p := .bit1 (.bit0 .one)) rfl (q := .bit1 .one) rfl (by decide))
-            (sep (p := .bit1 (.bit0 .one)) rfl (q := .one) rfl (by decide)) parent
-          simp only [root]
-          rw [hb]
-          simp only [record, Option.some.injEq, Record.mk.injEq]
-          exact ⟨by funext i; fin_cases i <;> rfl, trivial⟩
-        · apply Represents.congr hb.2.1
-          intro p u hp
-          apply rewire_frame
-          · exact sep (p := .bit1 (.bit0 (.bit0 p))) hp (q := .bit1 .one) rfl (by simp)
-          · exact sep (p := .bit1 (.bit0 (.bit0 p))) hp (q := .one) rfl (by simp)
-          · exact fun h => sep (p := .bit1 (.bit0 .one)) rfl
-              (q := .bit1 (.bit0 (.bit0 p))) hp (by simp) (Option.some.inj h)
-        · apply Represents.congr hb.2.2
-          intro p u hp
-          apply rewire_frame
-          · exact sep (p := .bit1 (.bit0 (.bit1 p))) hp (q := .bit1 .one) rfl (by simp)
-          · exact sep (p := .bit1 (.bit0 (.bit1 p))) hp (q := .one) rfl (by simp)
-          · exact fun h => sep (p := .bit1 (.bit0 .one)) rfl
-              (q := .bit1 (.bit0 (.bit1 p))) hp (by simp) (Option.some.inj h)
-    · apply Represents.congr ha
-      intro p u hp
-      apply rewire_frame
-      · exact sep (p := .bit1 (.bit1 p)) hp (q := .bit1 .one) rfl (by simp)
-      · exact sep (p := .bit1 (.bit1 p)) hp (q := .one) rfl (by simp)
-      · cases b with
-        | nil => simp [root]
-        | node z l r =>
-          exact fun h => sep (p := .bit1 (.bit0 .one)) rfl
-            (q := .bit1 (.bit1 p)) hp (by simp) (Option.some.inj h)
-  · rw [heap]
-    exact length_rewire _ _ _ _ _ _ _
-  · intro z zx zy zb
-    rw [heap]
-    exact rewire_frame _ _ _ _ _ _ _ _ zx zy zb
+    (record (root a) (some x.address) parent y) pc cursor rep.1 rep.2.2.1 rfl
+  refine ⟨t, exec, ?_⟩
+  rw [heap]
+  exact ⟨represents_rewire_rotateLeft s.heap x y a b c parent rep distinct, cur, data,
+    length_rewire .., keep, fun z zx zy zb => rewire_frame _ _ _ _ _ _ _ _ zx zy zb⟩
 
 end Cslib.DataStructure.SearchTree.PointerMachine

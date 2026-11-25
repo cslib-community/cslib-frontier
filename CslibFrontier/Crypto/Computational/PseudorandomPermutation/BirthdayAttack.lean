@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.PolyTime
 
 /-!
@@ -121,18 +122,11 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
     encPair encUnary (encPair (encList encBits) encBool)
   have hn : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.1) inp encUnary :=
     .fst _ _
-  have hst : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.2) inp
-      (encPair (encList encBits) encBool) := .snd _ _
-  have hseen : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.2.1) inp
-      (encList encBits) := .fst' hst
-  have hlen : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.2.1.length) inp
-      encUnary := (ComputableInPolyTime.length_list encBits).comp hseen
-  have hidx : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × Bool) => p.2.1.length) inp
-      encNat := ComputableInPolyTime.unary_to_binary.comp hlen
   have hq : ComputableInPolyTime
       (fun p : ℕ × (List (List Bool) × Bool) => BitString.lowBits (blockLen p.1) p.2.1.length)
       inp encBits :=
-    ComputableInPolyTime.bitsLow (hblockLen.comp hn) hidx
+    ComputableInPolyTime.bitsLow (hblockLen.comp hn) (ComputableInPolyTime.unary_to_binary.comp
+      ((ComputableInPolyTime.length_list encBits).comp (.fst' (.snd _ _))))
   have hquery : IsOraclePPTOn inp (encPair inp encBits)
       (fun p => (fun r => (p, r)) <$>
         (List.take (blockLen p.1) <$>
@@ -146,30 +140,22 @@ private theorem isOraclePPTOn_wordBirthdayStep {blockLen : ℕ → ℕ}
     have hp : ComputableInPolyTime
         (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool => q.1)
         (encPair inp encBits) inp := .fst _ _
-    have hr : ComputableInPolyTime
-        (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool => q.2)
-        (encPair inp encBits) encBits := .snd _ _
     have hqseen : ComputableInPolyTime
         (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool => q.1.2.1)
         (encPair inp encBits) (encList encBits) := .fst' (.snd' hp)
-    have hqflag : ComputableInPolyTime
-        (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool => q.1.2.2)
-        (encPair inp encBits) encBool := .snd' (.snd' hp)
     have hany : ComputableInPolyTime
         (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool =>
           q.1.2.1.any fun prev => decide (prev = q.2))
-        (encPair inp encBits) encBool := by
-      refine ComputableInPolyTime.anyWithInput hqseen ?_
-      exact (ComputableInPolyTime.decide_eq'
-        (ComputableInPolyTime.snd _ _)
-        (ComputableInPolyTime.snd _ _ |>.comp (ComputableInPolyTime.fst _ _)))
+        (encPair inp encBits) encBool :=
+      hqseen.anyWithInput (ComputableInPolyTime.decide_eq' (.snd _ _)
+        ((ComputableInPolyTime.snd _ _).comp (.fst _ _)))
     have hor : ComputableInPolyTime
         (fun q : (ℕ × (List (List Bool) × Bool)) × List Bool =>
           q.1.2.2 || q.1.2.1.any fun prev => decide (prev = q.2))
         (encPair inp encBits) encBool :=
       (ComputableInPolyTime.of_finite (encIn := encPair encBool encBool) (encOut := encBool)
-        fun p : Bool × Bool => p.1 || p.2).comp (hqflag.prod hany)
-    exact (hr.cons' hqseen).prod hor
+        fun p : Bool × Bool => p.1 || p.2).comp (hp.snd'.snd'.prod hany)
+    exact ((ComputableInPolyTime.snd _ _).cons' hqseen).prod hor
   convert hquery.map hmap using 1
   funext pair
   simp [wordBirthdayStep, bind_pure_comp]
@@ -184,9 +170,8 @@ theorem isOraclePPT_wordBirthdayDistinguisher {blockLen Q : ℕ → ℕ}
     ComputableInPolyTime.binary_min_unary' hQ (ComputableInPolyTime.binary_two_pow.comp hblockLen)
   have hinit : ComputableInPolyTime (fun _ : ℕ => (([] : List (List Bool)), false))
       encUnary (encPair (encList encBits) encBool) := ComputableInPolyTime.const _
-  have hg : ComputableInPolyTime (fun n => 4 * blockLen n + 10) encUnary encUnary := by polytime
   have hpoly : PolyBounded (fun n => (encUnary n).length) (fun n => 4 * blockLen n + 10) := by
-    simpa only [encUnary_apply, List.length_replicate] using hg.polyBounded_length
+    growth_poly
   have hgrowth : ∀ n (state next : List (List Bool) × Bool),
       next ∈ OracleComp.support (wordBirthdayStep blockLen n state) →
       (encPair (encList encBits) encBool next).length ≤

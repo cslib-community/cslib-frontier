@@ -122,6 +122,10 @@ theorem polyOfBits_eq_zero_iff {l : List Bool} : polyOfBits l = 0 ↔ ∀ b ∈ 
       rw [h, bitEquiv_symm_false]
       simp
 
+/-- If `true` appears in `l`, then `polyOfBits l` is nonzero. -/
+theorem polyOfBits_ne_zero_of_mem {l : List Bool} (h : true ∈ l) : polyOfBits l ≠ 0 :=
+  fun h0 => Bool.true_eq_false.mp (polyOfBits_eq_zero_iff.mp h0 true h)
+
 /-- The degree of `polyOfBits l` is strictly less than `l.length`. -/
 theorem degree_polyOfBits_lt (l : List Bool) : (polyOfBits l).degree < l.length := by
   induction l with
@@ -276,15 +280,11 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
       ring
     · rw [List.foldl_cons, modStep, h4, map_add, map_mul, mk_polyOfBits_mulXMod l p hp,
         polyOfBits_cons]
-      split_ifs with hb
-      · subst hb
-        rw [polyOfBits_zipWith_xor (by rw [ha, hp]), bitEquiv_symm_true]
-        simp only [map_add, map_mul, map_one]
+      cases b
+      · simp only [Bool.false_eq_true, ↓reduceIte, bitEquiv_symm_false, map_add, map_mul, map_zero]
         ring
-      · rw [Bool.not_eq_true] at hb
-        subst hb
-        rw [bitEquiv_symm_false]
-        simp only [map_add, map_mul, map_zero]
+      · rw [ite_eq_left rfl, polyOfBits_zipWith_xor (by rw [ha, hp]), bitEquiv_symm_true]
+        simp only [map_add, map_mul, map_one]
         ring
 
 private theorem length_modBits (l f : List Bool) : (modBits (l ++ [true]) f).length = l.length := by
@@ -345,12 +345,6 @@ theorem mk_polyOfBits_modBits (l f : List Bool) :
   rw [(modStep_foldl l f _ _ (by simp; omega) (by simp)).2.2.2, map_add, map_mul, mk_polyOfBits_one]
   simp
 
-
-private theorem polyOfBits_append_true_ne_zero (l : List Bool) : polyOfBits (l ++ [true]) ≠ 0 := by
-  rw [Ne, polyOfBits_eq_zero_iff]
-  intro h
-  exact Bool.true_eq_false.mp (h true (by simp))
-
 /-- **The divisibility test**: the polynomial with coefficient list `l ++ [true]` divides the one
 with coefficient list `f` exactly when the remainder `modBits` vanishes. -/
 theorem modBits_all_false_iff (l f : List Bool) :
@@ -358,8 +352,8 @@ theorem modBits_all_false_iff (l f : List Bool) :
   rw [← polyOfBits_eq_zero_iff, ← AdjoinRoot.mk_eq_zero, ← mk_polyOfBits_modBits,
     AdjoinRoot.mk_eq_zero]
   refine ⟨fun h => h ▸ dvd_zero _, fun h => eq_zero_of_dvd_of_degree_lt h ?_⟩
-  rw [degree_eq_natDegree (polyOfBits_append_true_ne_zero l), natDegree_polyOfBits_append_true,
-    ← length_modBits l f]
+  rw [degree_eq_natDegree (polyOfBits_ne_zero_of_mem (by simp : true ∈ l ++ [true])),
+    natDegree_polyOfBits_append_true, ← length_modBits l f]
   exact degree_polyOfBits_lt _
 
 private theorem natDegree_polyOfCode_eq_log (m : ℕ) : (polyOfCode m).natDegree = Nat.log 2 m := by
@@ -421,10 +415,7 @@ theorem isIrreducibleCode_iff (m : ℕ) :
       rintro rfl
       exact hq.ne_zero polyOfCode_zero
     rw [natDegree_polyOfCode hd0, Finset.mem_Ioc] at hdq
-    have hd2 : 2 ≤ d := by
-      have := Nat.pow_log_le_self 2 hd0
-      have : 2 ^ 1 ≤ 2 ^ Nat.log 2 d := Nat.pow_le_pow_right two_pos hdq.1
-      omega
+    have hd2 : 2 ≤ d := (Nat.pow_le_pow_right two_pos hdq.1).trans (Nat.pow_log_le_self 2 hd0)
     have hdm : d < m :=
       calc d < 2 ^ (Nat.log 2 d + 1) := Nat.lt_pow_succ_log_self one_lt_two d
         _ ≤ 2 ^ Nat.log 2 m := Nat.pow_le_pow_right two_pos (by omega)
@@ -443,9 +434,7 @@ theorem isIrreducibleCode_iff (m : ℕ) :
     · rw [natDegree_polyOfCode hd0, Finset.mem_Ioc]
       exact ⟨Nat.log_pos one_lt_two hd2, hdlog⟩
     · by_contra hndvd
-      rw [← any_modBits_bits_iff hd0] at hndvd
-      rw [hndvd] at hany
-      exact Bool.true_eq_false.mp hany
+      exact Bool.true_eq_false.mp (((any_modBits_bits_iff hd0 _).2 hndvd).symm.trans hany)
 
 /-- **The exhaustive search**: the least code `m < B` of an irreducible binary polynomial of degree
 `p`, by trial division (`0` if there is none). -/
