@@ -227,8 +227,7 @@ theorem indep_exchange_chain {M : Matroid α} {I : Finset α} {y₀ : α} {k : �
   let I' : Finset α := (B \ Xset) ∪ Finset.univ.image y
   have hI_indep : M.Indep (I : Set α) :=
     hB_indep.subset (Finset.coe_subset.mpr (Finset.subset_insert y₀ I))
-  have hy_ground : ∀ i, y i ∈ M.E := fun i =>
-    (hdiag i).subset_ground (by simp)
+  have hy_ground : ∀ i, y i ∈ M.E := fun i => (hdiag i).subset_ground (by simp)
   have hI'_ground : (I' : Set α) ⊆ M.E := by
     simp only [I', Finset.coe_union, Finset.coe_sdiff, Finset.coe_image, Finset.coe_univ,
       Set.image_univ]
@@ -246,8 +245,7 @@ theorem indep_exchange_chain {M : Matroid α} {I : Finset α} {y₀ : α} {k : �
       have hyi_not_I : y i ∉ (I : Set α) := fun h => hy_not i (Finset.mem_insert_of_mem h)
       have hyi_cl : y i ∈ M.closure (I : Set α) := by
         rw [hI_indep.mem_closure_iff']
-        refine ⟨hy_ground i, fun hind => absurd ?_ (hy_dep i)⟩
-        rwa [Finset.coe_insert]
+        exact ⟨hy_ground i, fun hind => (hy_dep i (by rwa [Finset.coe_insert])).elim⟩
       have hmem_C : ∀ r, x r ∈ M.fundCircuit (y i) (I : Set α) ↔
           M.Indep ((insert (y i) (I.erase (x r)) : Finset α) : Set α) := fun r => by
         rw [hI_indep.mem_fundCircuit_iff hyi_cl hyi_not_I,
@@ -261,17 +259,15 @@ theorem indep_exchange_chain {M : Matroid α} {I : Finset α} {y₀ : α} {k : �
             (Finset.mem_union_right _ (Finset.mem_image_of_mem y (Finset.mem_univ i)))
         · by_cases hzX : z ∈ Xset
           · obtain ⟨r, _, rfl⟩ := Finset.mem_image.mp hzX
-            have hri : r ≠ i := fun h => hzne (congrArg x h)
-            have hnot_lt : ¬ r < i := fun hlt => hno_chord r i hlt ((hmem_C r).mp hzC)
-            exact ih r (lt_of_le_of_ne (not_lt.mp hnot_lt) hri.symm)
+            exact ih r (lt_of_le_of_ne (not_lt.mp fun hlt => hno_chord r i hlt ((hmem_C r).mp hzC))
+              fun h => hzne (congrArg x h.symm))
           · exact hmem_cl_I' z (Finset.mem_union_left _
               (Finset.mem_sdiff.mpr ⟨Finset.mem_insert_of_mem hzI, hzX⟩))
       have hxi_in_cl_C : x i ∈ M.closure (M.fundCircuit (y i) (I : Set α) \ {x i}) :=
         ((hI_indep.fundCircuit_isCircuit hyi_cl hyi_not_I).sdiff_singleton_isBasis
           hxi_C).subset_closure hxi_C
       exact M.closure_subset_closure_of_subset_closure hsub_cl hxi_in_cl_C
-  have hB_sub_cl : (B : Set α) ⊆ M.closure (I' : Set α) := by
-    intro a ha
+  have hB_sub_cl : (B : Set α) ⊆ M.closure (I' : Set α) := fun a ha => by
     by_cases haX : a ∈ Xset
     · obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp haX
       exact hx_closure i
@@ -616,44 +612,32 @@ private theorem IsShortestExchAugWalk.indep_left_symmDiff {M₁ M₂ : Matroid �
     rw [show y₀ = p.head hne from (List.head_eq_getElem hne).symm]
     exact hX1
   have hx_mem : ∀ i, x i ∈ I := fun i => (hpar _ _).mpr (by omega)
-  have hy_not_I : ∀ i, y i ∉ I := fun i h => by
-    have := (hpar _ _).mp h
-    omega
-  have hx_inj : Function.Injective x := fun i j hij => by
-    have := (hnodup.getElem_inj_iff).mp hij
-    exact Fin.ext (by omega)
-  have hy_inj : Function.Injective y := fun i j hij => by
-    have := (hnodup.getElem_inj_iff).mp hij
-    exact Fin.ext (by omega)
-  have hy_not : ∀ i, y i ∉ insert y₀ I := by
-    intro i hmem
-    rcases Finset.mem_insert.mp hmem with heq | hyI
-    · have := (hnodup.getElem_inj_iff).mp heq
-      omega
-    · exact hy_not_I i hyI
+  have hy_not_I : ∀ i, y i ∉ I := fun i h => by have := (hpar _ _).mp h; omega
+  have hx_inj : Function.Injective x := fun i j hij =>
+    Fin.ext (by have := hnodup.getElem_inj_iff.mp hij; omega)
+  have hy_inj : Function.Injective y := fun i j hij =>
+    Fin.ext (by have := hnodup.getElem_inj_iff.mp hij; omega)
+  have hy_not : ∀ i, y i ∉ insert y₀ I := fun i hmem => (Finset.mem_insert.mp hmem).elim
+    (fun heq => by have := hnodup.getElem_inj_iff.mp heq; omega) (hy_not_I i)
   have hy_E : ∀ i, y i ∈ E \ I := fun i =>
     Finset.mem_sdiff.mpr ⟨hmemE _ (List.getElem_mem _), hy_not_I i⟩
   -- Minimality: no later `y i` is a source, and there are no forward chords.
   have hy_dep : ∀ i, ¬ M₁.Indep ((insert (y i) I : Finset α) : Set α) := fun i hind => by
     have := hshort.eq_zero_of_isExchSource _ ⟨hy_E i, hind⟩
     omega
-  have hdiag : ∀ i, M₁.Indep ((insert (y i) (I.erase (x i)) : Finset α) : Set α) := by
-    intro i
+  have hdiag : ∀ i, M₁.Indep ((insert (y i) (I.erase (x i)) : Finset α) : Set α) := fun i => by
     rcases (List.IsChain.getElem hchain (2 * i.1 + 1) (by omega) :
         IsExchArc M₁ M₂ E I (x i) (y i)) with ⟨_, _, hind⟩ | ⟨hx_not_I, _, _⟩
-    · exact hind
-    · exact absurd (hx_mem i) (Finset.mem_sdiff.mp hx_not_I).2
+    exacts [hind, absurd (hx_mem i) (Finset.mem_sdiff.mp hx_not_I).2]
   have hno_chord : ∀ i j : Fin k, i < j →
-      ¬ M₁.Indep ((insert (y j) (I.erase (x i)) : Finset α) : Set α) := by
-    intro i j hij hind
+      ¬ M₁.Indep ((insert (y j) (I.erase (x i)) : Finset α) : Set α) := fun i j hij hind => by
     have := hshort.le_succ_of_isExchArc (i := 2 * i.1 + 1) (j := 2 * j.1 + 2) (by omega)
       (by omega) (.inl ⟨hx_mem i, hy_E j, hind⟩)
     have hij' : i.1 < j.1 := hij
     omega
   -- The vertices of `p` are `y₀`, the `x i` and the `y i`, so `I ∆ p` is
   -- `(insert y₀ I \ {x i}) ∪ {y i}`.
-  have hmem_p : ∀ a, a ∈ p ↔ a = y₀ ∨ (∃ i, x i = a) ∨ ∃ i, y i = a := by
-    intro a
+  have hmem_p : ∀ a, a ∈ p ↔ a = y₀ ∨ (∃ i, x i = a) ∨ ∃ i, y i = a := fun a => by
     refine ⟨fun hap => ?_, ?_⟩
     · obtain ⟨t, ht, rfl⟩ := List.mem_iff_getElem.mp hap
       rcases Nat.even_or_odd' t with ⟨s, rfl | rfl⟩
@@ -726,19 +710,15 @@ theorem exists_separator_of_not_exists_exchAugWalk {M₁ M₂ : Matroid α} {E I
     obtain ⟨hyR, hy_not_I⟩ := Finset.mem_sdiff.mp hyRI
     obtain ⟨hyE, q, hne, hq1, hqlast, hqwalk⟩ := (hmemR y).mp hyR
     exact hno ⟨q, hne, hq1, hqlast.symm ▸ ⟨Finset.mem_sdiff.mpr ⟨hyE, hy_not_I⟩, hind₂⟩, hqwalk⟩
-  have extend_walk : ∀ u ∈ R, ∀ v ∈ E, IsExchArc M₁ M₂ E I u v → v ∈ R := by
-    intro u huR v hvE harc
+  have extend_walk : ∀ u ∈ R, ∀ v ∈ E, IsExchArc M₁ M₂ E I u v → v ∈ R := fun u huR v hvE harc => by
     obtain ⟨_, q, hne, hq1, hqlast, hqmem, hqchain⟩ := (hmemR u).mp huR
     rw [hmemR]
     have hq'_ne : q ++ [v] ≠ [] := List.append_ne_nil_of_right_ne_nil q (List.cons_ne_nil v [])
     refine ⟨hvE, q ++ [v], hq'_ne, ?_, ?_, ?_, ?_⟩
     · rwa [List.head_append_of_ne_nil hne]
     · simp
-    · intro z hz
-      rcases List.mem_append.mp hz with hzq | hzv
-      · exact hqmem z hzq
-      · simp only [List.mem_singleton] at hzv
-        exact hzv ▸ hvE
+    · exact fun z hz => (List.mem_append.mp hz).elim (hqmem z)
+        fun hzv => List.mem_singleton.mp hzv ▸ hvE
     · refine List.IsChain.append hqchain (List.isChain_singleton v) ?_
       intro x hx y hy
       rw [Option.mem_def, List.getLast?_eq_some_getLast hne, Option.some.injEq] at hx
