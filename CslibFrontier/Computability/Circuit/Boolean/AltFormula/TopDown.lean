@@ -135,8 +135,7 @@ private theorem eval_child_eq_not_witness {d : ℕ} (op : AltOp) (fs : List (Alt
     ∀ g ∈ fs, eval op.dual g z = !witness op := by
   cases op <;> simpa [eval, witness, AltOp.dual] using hz
 
-/-- Pairing the speaker's and listener's inputs converts between `(s, !s)` and
-`(witness, !witness)`. -/
+/-- The speaker's input has the witness value, the other input its negation. -/
 private theorem eval_speaker_iff {α : Type*} {op : AltOp} {s : Bool} {x y : α} (e : α → Bool) :
     (e (if speaker op s then y else x) = witness op ∧
       e (if speaker op s then x else y) = !witness op) ↔ e x = s ∧ e y = !s := by
