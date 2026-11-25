@@ -965,6 +965,12 @@ private theorem computableInO_allMasks :
           length_encList_le encBits _ (b := k) fun bs hbs => by
             simpa [encBits_apply] using (hlen_allMasks_k k bs hbs).le
       _ = 2 ^ k * (2 * k + 1) := by rw [length_allMasks]
+  have hkb : ∀ n k : ℕ, k ≤ n →
+      (encList encBits (allMasks k)).length ≤ 2 ^ n * (2 * n + 1) ∧ 2 ^ k ≤ 2 ^ n ∧
+        (listMax List.length (allMasks k) + 1) ^ d ≤ (n + 1) ^ d := fun n k hk =>
+    have h2k : 2 ^ k ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) hk
+    ⟨(henc_allMasks_k k).trans (Nat.mul_le_mul h2k (by omega)), h2k, Nat.pow_le_pow_left
+      (Nat.succ_le_succ (listMax_le fun bs hbs => (hlen_allMasks_k k bs hbs).le.trans hk)) d⟩
   have hit := ComputableInO.iterate computableInO_n_nat
     (ComputableInO.const ([[]] : List (List Bool))) hstep
     (R := fun x => 2 ^ x.n * (2 * x.n + 1) + (2 ^ x.n + 1) * (x.n + 1) ^ d)
@@ -973,32 +979,17 @@ private theorem computableInO_allMasks :
     (fun x k hk => by
       change (encList encBits (allMasks k)).length +
         ((allMasks k).length + 1) * (listMax List.length (allMasks k) + 1) ^ d ≤ _
-      have hlen := henc_allMasks_k k
-      have hm : listMax List.length (allMasks k) ≤ x.n :=
-        listMax_le fun bs hbs => (hlen_allMasks_k k bs hbs).le.trans hk
-      have h2k : 2 ^ k ≤ 2 ^ x.n := Nat.pow_le_pow_right (by decide) hk
-      have hpow : (listMax List.length (allMasks k) + 1) ^ d ≤ (x.n + 1) ^ d :=
-        Nat.pow_le_pow_left (by omega) d
-      have h1 : 2 ^ k * (2 * k + 1) ≤ 2 ^ x.n * (2 * x.n + 1) := Nat.mul_le_mul h2k (by omega)
+      obtain ⟨h1, h2k, hpow⟩ := hkb x.n k hk
       have h2 := Nat.mul_le_mul (by omega : 2 ^ k + 1 ≤ 2 ^ x.n + 1) hpow
       rw [length_allMasks]
       omega)
     (fun x k hk => by
       change (encList encBits (allMasks k)).length + (allMasks k).length +
         (listMax List.length (allMasks k) + 1) ^ d ≤ _
-      have hlen := henc_allMasks_k k
-      have hm : listMax List.length (allMasks k) ≤ x.n :=
-        listMax_le fun bs hbs => (hlen_allMasks_k k bs hbs).le.trans hk
-      have h2k : 2 ^ k ≤ 2 ^ x.n := Nat.pow_le_pow_right (by decide) hk
-      have hpow : (listMax List.length (allMasks k) + 1) ^ d ≤ (x.n + 1) ^ d :=
-        Nat.pow_le_pow_left (by omega) d
-      have h1 : 2 ^ k * (2 * k + 1) ≤ 2 ^ x.n * (2 * x.n + 1) := Nat.mul_le_mul h2k (by omega)
+      obtain ⟨h1, h2k, hpow⟩ := hkb x.n k hk
       rw [length_allMasks]
       omega)
-    (fun x k hk => by
-      change (encList encBits (allMasks k)).length ≤ 2 ^ x.n * (2 * x.n + 1)
-      have h2k : 2 ^ k ≤ 2 ^ x.n := Nat.pow_le_pow_right (by decide) hk
-      exact (henc_allMasks_k k).trans (Nat.mul_le_mul h2k (by omega)))
+    (fun x k hk => (hkb x.n k hk).1)
   refine ⟨d + 4, hit.weaken ⟨12, fun x => ?_⟩ ⟨8, fun x => ?_⟩⟩
   · dsimp only
     have hpow_len := encNat_length_le_succ x.n
@@ -1922,15 +1913,12 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
       · change k₁.testBit (r + 1) = true ↔ k.testBit r = true
         rw [show k₁ = 2 * (k % 2 ^ (n - 1)) + 1 from rfl,
           testBit_two_mul_add_bit _ 1 r (by decide), testBit_mod_two_pow_lt hr_lt]
+    have hidx : (i + (n - i)) % n = 0 := by rw [Nat.add_sub_of_le hi_le, Nat.mod_self]
     have hrot_i0 : (⟨i, hi_lt⟩ : Fin n) ∉ rotMaskSet n i k₀ := by
-      simp only [rotMaskSet, Finset.mem_filter, Finset.mem_univ, true_and]
-      have hidx : (i + (n - i)) % n = 0 := by rw [Nat.add_sub_of_le hi_le, Nat.mod_self]
-      rw [hidx]
+      simp only [rotMaskSet, Finset.mem_filter, Finset.mem_univ, true_and, hidx]
       simp [k₀]
     have hrot_i1 : (⟨i, hi_lt⟩ : Fin n) ∈ rotMaskSet n i k₁ := by
-      simp only [rotMaskSet, Finset.mem_filter, Finset.mem_univ, true_and]
-      have hidx : (i + (n - i)) % n = 0 := by rw [Nat.add_sub_of_le hi_le, Nat.mod_self]
-      rw [hidx]
+      simp only [rotMaskSet, Finset.mem_filter, Finset.mem_univ, true_and, hidx]
       simp [k₁, k₀]
     have hrot_i_next : (⟨i, hi_lt⟩ : Fin n) ∈ rotMaskSet n (i + 1) k ↔
         k.testBit (n - 1) = true := by
@@ -1943,6 +1931,7 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
         rw [length_yatesStep_two_mul hLen_i, ← hpow_split]; exact hk) =
         ∑ T : Finset (Fin n), if yatesPred n (i + 1) k T then F T else 0 by
       simpa only [Function.iterate_succ_apply', L] using this
+    have hev_len : (evens L).length = 2 ^ (n - 1) := length_evens_two_mul hLen_i
     by_cases hbit : k.testBit (n - 1) = true
     · have hk_ge : 2 ^ (n - 1) ≤ k := by
         by_contra hlt
@@ -1954,7 +1943,6 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
         rw [Nat.mod_eq_of_lt (by omega)]
       have hpass_len : (passOddsAdd L).length = 2 ^ (n - 1) :=
         length_passOddsAdd_two_mul hLen_i
-      have hev_len : (evens L).length = 2 ^ (n - 1) := length_evens_two_mul hLen_i
       have hstep_val : (yatesStep L)[k]'(by
           rw [length_yatesStep_two_mul hLen_i, ← hpow_split]; exact hk) =
           L[k₀]'(by rw [hLen_i]; dsimp [k₀]; omega) +
@@ -2012,7 +2000,6 @@ private theorem yatesStep_iter_correct {n : ℕ} (hn : 0 < n) (F : Finset (Fin n
         exact absurd (by simp [Nat.testBit_eq_decide_div_mod_eq, hdiv] :
           k.testBit (n - 1) = true) hbit
       have hk_mod_eq : k % 2 ^ (n - 1) = k := Nat.mod_eq_of_lt hk_lt_half
-      have hev_len : (evens L).length = 2 ^ (n - 1) := length_evens_two_mul hLen_i
       have hstep_val : (yatesStep L)[k]'(by
           rw [length_yatesStep_two_mul hLen_i, ← hpow_split]; exact hk) =
           L[k₀]'(by rw [hLen_i]; dsimp [k₀]; omega) := by
@@ -2467,6 +2454,12 @@ private theorem extractMatched_streamEmit (c : Bool) (L : List JoinItem) :
     rw [extractMatched, streamEmit]
     cases h : a.2.1 <;> simp only [Bool.false_eq_true, ↓reduceIte, encList_cons, encList_nil,
       List.nil_append, List.append_nil, ih]
+
+private theorem length_queryEntriesFrom (k : ℕ) (l : List ℕ) :
+    (queryEntriesFrom k l).length = l.length := by
+  induction l generalizing k with
+  | nil => rfl
+  | cons _ _ ih => simp [queryEntriesFrom, ih]
 
 private theorem queryEntriesFrom_mem {k : ℕ} {g : List ℕ} {p : JoinItem}
     (hp : p ∈ queryEntriesFrom k g) :
@@ -3014,13 +3007,7 @@ private theorem computableInO_queryEntries :
         have he := length_encJoinItem_le (Nat.bits q.2[j]) true (q.1 + j) false
         have hba : (Nat.bits q.2[j]).length = (encNat q.2[j]).length := rfl
         omega
-      have hlen_q : (queryEntriesFrom q.1 q.2).length = q.2.length := by
-        have hrec : ∀ k (l : List ℕ), (queryEntriesFrom k l).length = l.length := fun k l => by
-          induction l generalizing k with
-          | nil => rfl
-          | cons _ _ ih => simp [queryEntriesFrom, ih]
-        exact hrec q.1 q.2
-      have h1 := (length_encList_le encJoinItem _ hm).trans (by rw [hlen_q])
+      have h1 := (length_encList_le encJoinItem _ hm).trans (by rw [length_queryEntriesFrom])
       have hmul : q.2.length * (2 * (4 * (Nat.log2 (q.1 + q.2.length + 1) + 1) +
             2 * listMax (fun v => (encNat v).length) q.2 + 24) + 1) ≤
           8 * ((q.2.length + 1) * (Nat.log2 (q.1 + q.2.length + 1) +
@@ -3213,11 +3200,8 @@ private theorem length_joinInput_le (out : ℕ → Bool) (x : SymAndInstance) :
   have htab_l : (tabulateOut out x.gates.length).length = x.gates.length + 1 := by
     rw [tabulateOut_eq, List.length_map, List.length_reverse, List.length_range]
   have hq_l : (queryEntries (yatesZeta x.n (countMasks x))).length = 2 ^ x.n := by
-    have hrec : ∀ k (l : List ℕ), (queryEntriesFrom k l).length = l.length := fun k l => by
-      induction l generalizing k with
-      | nil => rfl
-      | cons _ _ ih => simp [queryEntriesFrom, ih]
-    rw [queryEntries, hrec, yatesZeta_countMasks_eq, List.length_map, List.length_range]
+    rw [queryEntries, length_queryEntriesFrom, yatesZeta_countMasks_eq, List.length_map,
+      List.length_range]
   simp only [List.length_append, htab_l, hq_l]
   omega
 
