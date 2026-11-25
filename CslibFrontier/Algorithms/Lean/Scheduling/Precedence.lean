@@ -384,19 +384,15 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       omega
     · rw [hs'A j hj]
       omega
-  · intro j hj
-    rw [mem_union, not_or] at hj
-    exact hs'out j hj.1 hj.2
+  · exact fun j hj => hs'out j (hj ∘ mem_union_left _) (hj ∘ mem_union_right _)
   · intro i j hij hj
     rcases mem_union.mp hj with hjD | hjA
     · obtain ⟨hiD, hle⟩ := h.prec_le i j hij hjD
       refine ⟨mem_union_left _ hiD, ?_⟩
-      rw [hs'D i hiD, hs'D j hjD]
-      exact hle
+      rwa [hs'D i hiD, hs'D j hjD]
     · obtain ⟨hiD, hle⟩ := (mem_filter.mp (hAR hjA)).2.2 i hij
       refine ⟨mem_union_left _ hiD, ?_⟩
-      rw [hs'D i hiD, hs'A j hjA]
-      exact hle
+      rwa [hs'D i hiD, hs'A j hjA]
   · intro t
     by_cases ht : t < N
     · have hsub : running p s' t ∩ (D ∪ A) ⊆ running p s t ∩ D := by
@@ -440,8 +436,7 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       obtain ⟨i, hij, hi⟩ := hjR hjD
       refine ⟨i, hij, ?_⟩
       by_cases hiD : i ∈ D
-      · rw [hs'D i hiD]
-        exact not_le.mp (hi hiD)
+      · exact hs'D i hiD ▸ not_le.mp (hi hiD)
       · have := hp i
         have := hs'N i hiD
         omega
