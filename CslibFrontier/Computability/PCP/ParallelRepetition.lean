@@ -175,9 +175,8 @@ theorem exists_winProbOn_insert_le (hCu : C ≠ univ) :
   have hk : (0 : ℝ) < #Cᶜ := by exact_mod_cast Finset.card_pos.mpr hne
   have hcard : Fintype.card {i // i ∉ C} = #Cᶜ := by
     simp only [← Finset.mem_compl, Fintype.card_coe]
-  have hfree : (univ : Finset {i // i ∉ C}).Nonempty := by
-    rw [Finset.univ_nonempty_iff, ← Fintype.card_pos_iff, hcard]
-    exact_mod_cast hk
+  have hfree : (univ : Finset {i // i ∉ C}).Nonempty :=
+    Finset.univ_nonempty_iff.2 (Fintype.card_pos_iff.1 (hcard ▸ Finset.card_pos.mpr hne))
   -- Averaging: some free coordinate has at most the average error.
   have hsqrt : #Cᶜ * Real.sqrt (Z / #Cᶜ) = Real.sqrt (#Cᶜ * Z) := by
     rw [← Real.sqrt_sq hk.le, ← Real.sqrt_mul (sq_nonneg _), Real.sqrt_sq hk.le]
@@ -223,8 +222,7 @@ theorem winProb_pow_le (hAB : 2 ≤ Fintype.card A * Fintype.card B) {n : ℕ}
   have hx : (2 : ℝ) ≤ Fintype.card A * Fintype.card B := by exact_mod_cast hAB
   -- `L = log₂ (|A| |B|) ≥ 1` is the hypothesis `ℓ ≥ 1` of Lemma 7.1; Lemma 6.5 has `ln (|A| |B|)`.
   have hL : 1 ≤ Real.logb 2 (Fintype.card A * Fintype.card B) := by
-    rw [Real.le_logb_iff_rpow_le one_lt_two (by linarith), Real.rpow_one]
-    exact hx
+    rwa [Real.le_logb_iff_rpow_le one_lt_two (by linarith), Real.rpow_one]
   have hlog : Real.log (Fintype.card A * Fintype.card B) ≤
       Real.logb 2 (Fintype.card A * Fintype.card B) := by
     rw [Real.logb, le_div_iff₀ (Real.log_pos one_lt_two)]
@@ -266,9 +264,7 @@ theorem winProb_pow_le (hAB : 2 ≤ Fintype.card A * Fintype.card B) {n : ℕ}
     obtain ⟨j, -, he, hle⟩ := hnext (Cs m) ((Finset.card_lt_iff_ne_univ _).mp
       (by rwa [hcard m hm.le, Fintype.card_fin]))
     have hpm : 0 ≤ p m := G.winProbOn_nonneg ha hb _
-    have hnm : (0 : ℝ) ≤ n - m := by
-      rw [sub_nonneg]
-      exact_mod_cast hm.le
+    have hnm : (0 : ℝ) ≤ n - m := sub_nonneg.2 (by exact_mod_cast hm.le)
     calc p (m + 1) = G.winProbOn ha hb (insert j (Cs m)) := by
           change G.winProbOn ha hb (Cs (m + 1)) = _
           rw [hCs, he]
@@ -312,8 +308,7 @@ theorem value_pow_le_of_value_le (hAB : 2 ≤ Fintype.card A * Fintype.card B) {
     div_nonneg n.cast_nonneg (Real.logb_nonneg one_lt_two (by exact_mod_cast (by omega : 1 ≤ _)))
   rcases le_or_gt ε 0 with hε | hε
   · refine (G.pow n).value_le_one.trans (Real.one_le_rpow ?_ ht)
-    have : ε ^ 3 ≤ 0 := Odd.pow_nonpos (by decide) hε
-    linarith
+    linarith [Odd.pow_nonpos (by decide : Odd 3) hε]
   refine (G.value_pow_le hAB n).trans (Real.rpow_le_rpow ?_ ?_ ht)
   · have h1 : (1 - G.value) ^ 3 ≤ 1 := pow_le_one₀ (by linarith [G.value_le_one])
       (by linarith [G.value_nonneg])
