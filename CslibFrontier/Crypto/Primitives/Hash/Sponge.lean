@@ -202,7 +202,7 @@ theorem capacityCollision_or_zeroCapacity (P : R × C → R × C) :
     obtain rfl | ⟨a', m', rfl⟩ := List.eq_nil_or_concat ms'
     · exact absurd rfl hne
     rw [List.concat_eq_append] at *
-    · exact Or.inr ⟨_, Or.inr (isInput_concat P a' m'), by simpa using h.symm⟩
+    exact Or.inr ⟨_, Or.inr (isInput_concat P a' m'), by simpa using h.symm⟩
   | append_singleton a m ih =>
     intro ms' hne h
     obtain rfl | ⟨a', m', rfl⟩ := List.eq_nil_or_concat ms'
@@ -212,10 +212,9 @@ theorem capacityCollision_or_zeroCapacity (P : R × C → R × C) :
     · have ha : a ≠ a' := by
         rintro rfl
         exact hne (by rw [add_left_cancel (Prod.ext_iff.1 hx).1])
-      have hQ : ∀ x, (IsInput P a x ∨ IsInput P a' x) →
-          IsInput P (a ++ [m]) x ∨ IsInput P (a' ++ [m']) x :=
-        fun x hx => hx.imp (·.append_right _) (·.append_right _)
-      exact (ih a' ha (Prod.ext_iff.1 hx).2).imp (·.mono hQ) (·.mono hQ)
+      exact (ih a' ha (Prod.ext_iff.1 hx).2).imp
+        (·.mono fun _ h => h.imp (·.append_right _) (·.append_right _))
+        (·.mono fun _ h => h.imp (·.append_right _) (·.append_right _))
     · exact Or.inl ⟨_, _, Or.inl (isInput_concat P a m), Or.inr (isInput_concat P a' m'), hx,
         by simpa using h⟩
 

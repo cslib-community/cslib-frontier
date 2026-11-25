@@ -42,34 +42,28 @@ private theorem card_fiber_castAdd {A B : Type*} [Finite A] [Finite B] {n m : �
     Nat.card {v : A ⊕ B //
       Sum.elim (fun a => (f a).castAdd m) (fun b => Fin.natAdd n (g b)) v = i.castAdd m} =
       Nat.card {a // f a = i} := by
-  rw [Nat.card_subtype_sum]
-  simp only [Sum.elim_inl, Sum.elim_inr]
+  simp only [Nat.card_subtype_sum, Sum.elim_inl, Sum.elim_inr]
   let : IsEmpty {b // Fin.natAdd n (g b) = i.castAdd m} := ⟨fun b => by
     have he := congrArg Fin.val b.property
     have hi := i.isLt
     change n + (g b.val).val = i.val at he
     omega⟩
   simp only [Nat.card_of_isEmpty, Nat.add_zero]
-  exact Nat.card_congr (Equiv.subtypeEquivRight fun a => ⟨
-    fun he => Fin.ext (congrArg (fun z : Fin (n + m) => z.val) he),
-    fun he => congrArg (Fin.castAdd m) he⟩)
+  exact Nat.card_congr (Equiv.subtypeEquivRight fun _ => Fin.castAdd_inj)
 
 private theorem card_fiber_natAdd {A B : Type*} [Finite A] [Finite B] {n m : ℕ}
     (f : A → Fin n) (g : B → Fin m) (i : Fin m) :
     Nat.card {v : A ⊕ B //
       Sum.elim (fun a => (f a).castAdd m) (fun b => Fin.natAdd n (g b)) v = Fin.natAdd n i} =
       Nat.card {b // g b = i} := by
-  rw [Nat.card_subtype_sum]
-  simp only [Sum.elim_inl, Sum.elim_inr]
+  simp only [Nat.card_subtype_sum, Sum.elim_inl, Sum.elim_inr]
   let : IsEmpty {a // (f a).castAdd m = Fin.natAdd n i} := ⟨fun a => by
     have he := congrArg Fin.val a.property
     have ha := (f a.val).isLt
     change (f a.val).val = n + i.val at he
     omega⟩
   simp only [Nat.card_of_isEmpty, Nat.zero_add]
-  exact Nat.card_congr (Equiv.subtypeEquivRight fun b => ⟨
-    fun he => Fin.ext (Nat.add_left_cancel (congrArg (fun z : Fin (n + m) => z.val) he)),
-    fun he => congrArg (Fin.natAdd n) he⟩)
+  exact Nat.card_congr (Equiv.subtypeEquivRight fun _ => Fin.natAdd_inj n)
 
 private theorem card_vtx {Γ : List Color → List Color → Type} (I : Interp Γ)
     {a b : List Color} (D : Diagram Γ a b) :
@@ -99,19 +93,15 @@ theorem crossingOrigin_fiber_le {Γ : List Color → List Color → Type}
       Nat.card {v : (planarizeAlong H D).Vtx Prim.interp // crossingOrigin H D h v = i} ≤ 286 := by
   intro a b D
   induction D with
-  | gen g => intro h; cases h
-  | id a => intro h i; exact i.elim0
+  | gen _ => exact fun h => nomatch h
+  | id _ => exact fun _ i => i.elim0
   | swap c d =>
-    intro h i
-    have hc : Nat.card ((planarizeAlong H (Diagram.swap c d)).Vtx Prim.interp) ≤ 286 := by
-      change Nat.card ((Crossover.diagram c d).Vtx Prim.interp) ≤ 286
-      rw [card_vtx]
-      exact Crossover.length_vertexList_le c d
-    exact (Nat.card_le_card_of_injective Subtype.val Subtype.val_injective).trans hc
+    intro _ _
+    exact (Nat.card_le_card_of_injective Subtype.val Subtype.val_injective).trans
+      ((card_vtx Prim.interp (Crossover.diagram c d)).trans_le (Crossover.length_vertexList_le c d))
   | comp D₁ D₂ ih₁ ih₂ | tensor D₁ D₂ ih₁ ih₂ =>
     intro h i
-    have h₁ := (Bool.and_eq_true_iff.mp h).1
-    have h₂ := (Bool.and_eq_true_iff.mp h).2
+    obtain ⟨h₁, h₂⟩ := Bool.and_eq_true_iff.mp h
     change Nat.card {v : (planarizeAlong H D₁).Vtx Prim.interp ⊕
         (planarizeAlong H D₂).Vtx Prim.interp //
       Sum.elim (fun v => (crossingOrigin H D₁ h₁ v).castAdd (swapCount D₂))
@@ -128,47 +118,32 @@ private theorem sourceVertexOrigin_injective {E : Type*} (c : Port E → Color) 
     ∀ vs : List (Vertex E), Function.Injective (sourceVertexOrigin c vs) := by
   intro vs
   induction vs with
-  | nil => intro v; exact v.elim
-  | cons v vs ih =>
+  | nil => exact fun v => v.elim
+  | cons _ vs ih =>
     change Function.Injective (Sum.elim (fun _ : Fin 1 => (0 : Fin (vs.length + 1)))
       (fun w => (sourceVertexOrigin c vs w).succ))
-    intro x y he
-    rcases x with x | x <;> rcases y with y | y
+    rintro (x | x) (y | y) he
     · exact congrArg Sum.inl (Subsingleton.elim x y)
-    · have hv := congrArg Fin.val he
-      change 0 = (sourceVertexOrigin c vs y).val + 1 at hv
-      omega
-    · have hv := congrArg Fin.val he
-      change (sourceVertexOrigin c vs x).val + 1 = 0 at hv
-      omega
-    · apply congrArg Sum.inr
-      apply ih
-      apply Fin.ext
-      have hv := congrArg Fin.val he
-      change (sourceVertexOrigin c vs x).val + 1 = (sourceVertexOrigin c vs y).val + 1 at hv
-      omega
+    · exact (Fin.succ_ne_zero _ he.symm).elim
+    · exact (Fin.succ_ne_zero _ he).elim
+    · exact congrArg Sum.inr (ih (Fin.succ_inj.mp he))
 
 /-- An original source-list position contributes at most one planarized vertex. -/
 theorem sourceVertexOrigin_fiber_le {E : Type*} (c : Port E → Color)
     (vs : List (Vertex E)) (i : Fin vs.length) :
     Nat.card {v : (planarizeAlong Cell.expand (Sources.vertices c vs).diagram).Vtx Prim.interp //
       sourceVertexOrigin c vs v = i} ≤ 1 := by
-  let f : {v : (planarizeAlong Cell.expand (Sources.vertices c vs).diagram).Vtx Prim.interp //
-      sourceVertexOrigin c vs v = i} → Fin 1 := fun _ => 0
-  have hf : Function.Injective f := by
-    intro x y _
-    exact Subtype.ext (sourceVertexOrigin_injective c vs (x.property.trans y.property.symm))
-  simpa only [Nat.card_fin] using Nat.card_le_card_of_injective f hf
+  simpa only [Nat.card_fin] using Nat.card_le_card_of_injective (fun _ => (0 : Fin 1))
+    fun x y _ => Subtype.ext (sourceVertexOrigin_injective c vs (x.property.trans y.property.symm))
 
 private theorem capVertexOrigin_mem {E : Type*} (c : E → Color) :
     ∀ (es : List E) (v : (planarizeAlong Cell.expand (Sinks.caps c es).diagram).Vtx Prim.interp),
       capVertexOrigin c es v ∈ es := by
   intro es
   induction es with
-  | nil => intro v; exact v.elim
+  | nil => exact fun v => v.elim
   | cons e es ih =>
-    intro v
-    rcases v with v | v
+    rintro (_ | v)
     · exact List.mem_cons_self
     · exact List.mem_cons_of_mem e (ih v)
 
@@ -185,24 +160,19 @@ theorem capVertexOrigin_fiber_le {E : Type*} (c : E → Color) :
     simp only [Nat.card_of_isEmpty, Nat.zero_le]
   | cons e₀ es ih =>
     intro hn e
-    have hn₀ := (List.nodup_cons.mp hn).1
-    have hnt := (List.nodup_cons.mp hn).2
+    obtain ⟨hn₀, hnt⟩ := List.nodup_cons.mp hn
     change Nat.card {v : (Gadgets.Wire.cap (c e₀)).Vtx Prim.interp ⊕
         (planarizeAlong Cell.expand (Sinks.caps c es).diagram).Vtx Prim.interp //
       Sum.elim (fun _ => e₀) (capVertexOrigin c es) v = e} ≤ 16
-    rw [Nat.card_subtype_sum]
-    simp only [Sum.elim_inl, Sum.elim_inr]
+    simp only [Nat.card_subtype_sum, Sum.elim_inl, Sum.elim_inr]
     by_cases he : e₀ = e
     · subst e
       let : IsEmpty {v : (planarizeAlong Cell.expand (Sinks.caps c es).diagram).Vtx Prim.interp //
           capVertexOrigin c es v = e₀} :=
         ⟨fun v => hn₀ (v.property ▸ capVertexOrigin_mem c es v.val)⟩
-      have hc : Nat.card ((Gadgets.Wire.cap (c e₀)).Vtx Prim.interp) ≤ 16 := by
-        rw [card_vtx]
-        exact Gadgets.Wire.cap_length_vertexList_le (c e₀)
-      have hb : Nat.card {v : (Gadgets.Wire.cap (c e₀)).Vtx Prim.interp // e₀ = e₀} ≤ 16 :=
-        (Nat.card_le_card_of_injective Subtype.val Subtype.val_injective).trans hc
-      simpa only [Nat.card_of_isEmpty, Nat.add_zero] using hb
+      simpa only [Nat.card_of_isEmpty, Nat.add_zero] using
+        (Nat.card_le_card_of_injective Subtype.val Subtype.val_injective).trans
+          ((card_vtx Prim.interp _).trans_le (Gadgets.Wire.cap_length_vertexList_le (c e₀)))
     · let : IsEmpty {v : (Gadgets.Wire.cap (c e₀)).Vtx Prim.interp // e₀ = e} :=
         ⟨fun v => he v.property⟩
       simpa only [Nat.card_of_isEmpty, Nat.zero_add] using ih hnt e

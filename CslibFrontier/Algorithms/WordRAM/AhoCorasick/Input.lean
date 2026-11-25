@@ -138,20 +138,18 @@ private theorem decodeOccurrences_aux (t : List ℕ) :
   | [], _ => rfl
   | (pos, y) :: rest, h => by
     obtain ⟨hpos, hsuf⟩ := h (pos, y) List.mem_cons_self
-    have htake_len : (t.take pos).length = pos := List.length_take_of_le hpos
-    have hy_eq : (t.take pos).drop (pos - y.length) = y := by
-      have hs := (List.suffix_iff_eq_drop.mp hsuf).symm
-      rwa [htake_len] at hs
+    have hy : (t.take pos).drop (pos - y.length) = y := by
+      simpa [List.length_take_of_le hpos] using (List.suffix_iff_eq_drop.mp hsuf).symm
     change (pos, (t.take pos).drop (pos - y.length)) ::
         decodeOccurrences t (encodeOccurrences rest) = (pos, y) :: rest
-    rw [hy_eq, decodeOccurrences_aux t rest fun x hx => h x (List.mem_cons_of_mem _ hx)]
+    rw [hy, decodeOccurrences_aux t rest fun x hx => h x (List.mem_cons_of_mem _ hx)]
 
 /-- `decodeOccurrences t` losslessly recovers `occurrences P t` from its flat word encoding. -/
 theorem decodeOccurrences_encodeOccurrences (P : List (List ℕ)) (t : List ℕ) :
-    decodeOccurrences t (encodeOccurrences (occurrences P t)) = occurrences P t := by
-  refine decodeOccurrences_aux t _ fun ⟨pos, y⟩ hmem => ?_
-  obtain ⟨hpos, -, -, hsuf⟩ := mem_occurrences_iff.mp hmem
-  exact ⟨hpos, hsuf⟩
+    decodeOccurrences t (encodeOccurrences (occurrences P t)) = occurrences P t :=
+  decodeOccurrences_aux t _ fun _ hmem =>
+    let ⟨hpos, _, _, hsuf⟩ := mem_occurrences_iff.mp hmem
+    ⟨hpos, hsuf⟩
 
 /-- Word-width threshold for `searchCode` and `searchProgram`. -/
 @[expose] def Input.wordBound (inp : Input) : ℕ :=
@@ -188,29 +186,21 @@ private theorem mem_encodePatterns_fits {P : List (List ℕ)} {σ w B : ℕ}
     intro x hx
     simp only [encodePatterns, List.mem_cons, List.mem_append] at hx
     rcases hx with rfl | hxp | hxps
-    · have : p.length ≤ totalPatternLen (p :: ps) := by
-        simp only [totalPatternLen_cons]; omega
+    · exact hw.of_le (by simp only [totalPatternLen_cons] at hM; omega)
+    · have := hP p List.mem_cons_self x hxp
       exact hw.of_le (by omega)
-    · have ha : x < σ := hP p List.mem_cons_self x hxp
-      exact hw.of_le (by omega)
-    · refine ih (fun q hq => hP q (List.mem_cons_of_mem p hq)) ?_ x hxps
-      have : totalPatternLen ps ≤ totalPatternLen (p :: ps) := by
-        simp only [totalPatternLen_cons]; omega
-      omega
+    · exact ih (fun q hq => hP q (List.mem_cons_of_mem p hq))
+        (by simp only [totalPatternLen_cons] at hM; omega) x hxps
 
 /-- Under `inp.Valid` and `Fits w inp.wordBound`, every word of `inp.encode` and its length fit in
 width `w`. -/
 theorem Input.Valid.inputFits {inp : Input} {w : ℕ} (hv : inp.Valid)
     (hw : Fits w inp.wordBound) : InputFits w inp.encode := by
-  have hwb : inp.wordBound = 5 + inp.patterns.length + totalPatternLen inp.patterns +
-      inp.text.length + 2 * (totalPatternLen inp.patterns + 1) * inp.alphabetSize +
-      6 * (totalPatternLen inp.patterns + 1) +
-      2 * (occurrences inp.patterns inp.text).length + 4 := rfl
+  dsimp only [Input.wordBound] at hw
   have hsig_le : inp.alphabetSize ≤ 2 * (totalPatternLen inp.patterns + 1) * inp.alphabetSize := by
-    have h1 : 1 ≤ 2 * (totalPatternLen inp.patterns + 1) := by omega
-    simpa [Nat.one_mul] using Nat.mul_le_mul_right inp.alphabetSize h1
-  refine ⟨hw.of_le (by rw [length_encode]; omega), ?_⟩
-  intro x hx
+    simpa [Nat.one_mul] using Nat.mul_le_mul_right inp.alphabetSize
+      (show 1 ≤ 2 * (totalPatternLen inp.patterns + 1) by omega)
+  refine ⟨hw.of_le (by rw [length_encode]; omega), fun x hx => ?_⟩
   simp only [Input.encode, List.mem_cons, List.mem_append] at hx
   rcases hx with rfl | rfl | rfl | rfl | hx_pat | hx_txt
   · exact hw.of_le (by omega)
@@ -218,7 +208,7 @@ theorem Input.Valid.inputFits {inp : Input} {w : ℕ} (hv : inp.Valid)
   · exact hw.of_le (by omega)
   · exact hw.of_le (by omega)
   · exact mem_encodePatterns_fits hv.1 hw (by omega) (by omega) x hx_pat
-  · have hlt : x < inp.alphabetSize := hv.2 x hx_txt
+  · have := hv.2 x hx_txt
     exact hw.of_le (by omega)
 
 namespace Reg

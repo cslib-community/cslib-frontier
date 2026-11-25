@@ -139,17 +139,12 @@ private theorem projection_orderTest_orderBits (π : Equiv.Perm (Fin n)) :
     projection (booleanAssignment (orderBits n π)) (orderTest (K := K) n) = 1 := by
   simp only [orderTest, map_mul, map_prod, map_sub, map_one, map_sum, projection_pos_orderBits]
   rw [Finset.prod_eq_one, Finset.prod_eq_one, one_mul]
-  · intro i _
-    simp
+  · simp
   · intro p hp
     obtain ⟨hne, h⟩ := (mem_filter.1 hp).2
-    have : ¬ (π p.1.1 = p.1.2 ∧ π p.2.1 = p.2.2) := by
-      rintro ⟨h1, h2⟩
-      refine hne (Prod.ext ?_ ?_) <;> rcases h with e | e
-      · exact e
-      · exact π.injective (h1.trans (e.trans h2.symm))
-      · exact h1.symm.trans ((congrArg π e).trans h2)
-      · exact e
+    have : ¬ (π p.1.1 = p.1.2 ∧ π p.2.1 = p.2.2) := fun ⟨h1, h2⟩ =>
+      hne <| h.elim (fun e => Prod.ext e (h1.symm.trans ((congrArg π e).trans h2))) fun e =>
+        Prod.ext (π.injective (h1.trans (e.trans h2.symm))) e
     split_ifs with h1 h2 <;> simp_all
 
 /-- Bits pass the test only if they are the table of a bijection between positions and
@@ -158,29 +153,23 @@ private theorem exists_orderBits_of_ne_zero (e : Fin (n * n) → Bool)
     (h : projection (booleanAssignment e) (orderTest (K := K) n) ≠ 0) :
     ∃ π, orderBits n π = e := by
   simp only [orderTest, map_mul, map_prod, map_sub, map_one, map_sum, projection_pos] at h
-  have h1 : ∀ p ∈ clash n, ¬ (e (finProdFinEquiv p.1) = true ∧ e (finProdFinEquiv p.2) = true) := by
-    rintro p hp ⟨a, b⟩
-    refine h (mul_eq_zero_of_left (Finset.prod_eq_zero hp ?_) _)
-    simp [a, b]
+  have h1 (p) (hp : p ∈ clash n) : ¬ (e (finProdFinEquiv p.1) ∧ e (finProdFinEquiv p.2)) :=
+    fun ⟨a, b⟩ => h (mul_eq_zero_of_left (Finset.prod_eq_zero hp (by simp [a, b])) _)
   have h2 (i : Fin n) : ∃ u, e (finProdFinEquiv (i, u)) = true := by
-    by_contra hc
-    push Not at hc
-    refine h (mul_eq_zero_of_right _ (Finset.prod_eq_zero (mem_univ i)
-      (Finset.sum_eq_zero fun u _ => ?_)))
-    simp [hc u]
+    by_contra! hc
+    exact h (mul_eq_zero_of_right _ (Finset.prod_eq_zero (mem_univ i)
+      (Finset.sum_eq_zero fun u _ => by simp [hc u])))
   choose f hf using h2
-  have hinj : Function.Injective f := fun i j hij => by
-    by_contra hne
-    exact h1 ((i, f i), (j, f j))
-      (mem_filter.2 ⟨mem_univ _, fun q => hne (Prod.mk.inj q).1, Or.inr hij⟩) ⟨hf i, hf j⟩
+  have hinj : Function.Injective f := fun i j hij => by_contra fun hne =>
+    h1 ((i, f i), (j, f j))
+      (mem_filter.2 ⟨mem_univ _, fun q => hne (Prod.mk.inj q).1, .inr hij⟩) ⟨hf i, hf j⟩
   refine ⟨Equiv.ofBijective f (Finite.injective_iff_bijective.1 hinj), funext fun q => ?_⟩
   obtain ⟨⟨i, u⟩, rfl⟩ := finProdFinEquiv.surjective q
   rw [Bool.eq_iff_iff]
   simp only [orderBits, Equiv.symm_apply_apply, decide_eq_true_iff, Equiv.ofBijective_apply]
-  refine ⟨fun hu => hu ▸ hf i, fun hu => ?_⟩
-  by_contra hne
-  exact h1 ((i, f i), (i, u))
-    (mem_filter.2 ⟨mem_univ _, fun q => hne (Prod.mk.inj q).2, Or.inl rfl⟩) ⟨hf i, hu⟩
+  exact ⟨fun hu => hu ▸ hf i, fun hu => by_contra fun hne =>
+    h1 ((i, f i), (i, u))
+      (mem_filter.2 ⟨mem_univ _, fun q => hne (Prod.mk.inj q).2, .inl rfl⟩) ⟨hf i, hu⟩⟩
 
 private theorem projection_orderEdges_orderBits (π : Equiv.Perm (Fin n)) :
     projection (booleanAssignment (orderBits n π)) (orderEdges (K := K) n) =
@@ -190,10 +179,7 @@ private theorem projection_orderEdges_orderBits (π : Equiv.Perm (Fin n)) :
   rw [Finset.sum_eq_single (π i, π (finRotate n i))]
   · simp
   · intro p _ hp
-    by_cases h1 : π i = p.1
-    · have h2 : π (finRotate n i) ≠ p.2 := fun h2 => hp (Prod.ext h1.symm h2.symm)
-      simp only [h1, h2, ↓reduceIte, one_mul, zero_mul]
-    · simp only [h1, ↓reduceIte, zero_mul]
+    split_ifs <;> simp_all [Prod.ext_iff]
   · simp
 
 /-- **Summing the witness over all bit tables gives the Hamiltonian cycle polynomial.** -/
@@ -201,11 +187,11 @@ private theorem booleanSum_hcWitness :
     booleanSum (n * n) (hcWitness (K := K) n) = (genericMatrix K n).hamiltonianCycleSum := by
   classical
   rcases n with _ | k
-  · have : IsEmpty (Fin (0 * 0)) := ⟨fun i => absurd i.isLt (by simp)⟩
+  · have : IsEmpty (Fin (0 * 0)) := ⟨fun i => i.elim0⟩
     rw [booleanSum, hcWitness, dite_eq_right_of_eq_false (by simp), Fintype.sum_unique, map_one,
       Matrix.hamiltonianCycleSum, Finset.sum_eq_single_of_mem 1
         (mem_filter.2 ⟨mem_univ _, Set.bijOn_univ.2 (Equiv.bijective _), fun i => i.elim0⟩)
-        fun σ _ hne => absurd (Equiv.ext fun i => i.elim0) hne]
+        fun σ _ hne => absurd (Subsingleton.elim _ _) hne]
     simp
   have hsum (g : W K (k + 1)) :
       ∑ e, projection (booleanAssignment e) (orderTest (K := K) (k + 1) * g) =
@@ -215,16 +201,14 @@ private theorem booleanSum_hcWitness :
     · exact Finset.sum_congr rfl fun π _ => by rw [map_mul, projection_orderTest_orderBits, one_mul]
     · intro e _ he
       rw [map_mul]
-      refine mul_eq_zero_of_left ?_ _
       by_contra h
-      obtain ⟨π, hπ⟩ := exists_orderBits_of_ne_zero (k + 1) e h
-      exact he (mem_image.2 ⟨π, mem_univ _, hπ⟩)
+      obtain ⟨π, rfl⟩ := exists_orderBits_of_ne_zero (k + 1) e (left_ne_zero_of_mul h)
+      exact he (mem_image_of_mem _ (mem_univ _))
   rw [booleanSum, hcWitness, dite_eq_left_of_eq_true (eq_true k.succ_pos)]
   simp only [mul_assoc]
   rw [hsum]
   simp only [map_mul, projection_pos_orderBits, projection_orderEdges_orderBits, ite_mul, one_mul,
-    zero_mul]
-  rw [← Finset.sum_filter, Matrix.hamiltonianCycleSum_eq_sum_orders]
+    zero_mul, ← Finset.sum_filter, Matrix.hamiltonianCycleSum_eq_sum_orders]
   rfl
 
 /-! ### Size and degree of the witness -/
@@ -259,9 +243,8 @@ private theorem totalDegree_hcWitness_le :
   · have h1 : (orderTest (K := K) n).totalDegree ≤ (clash n).card * 2 + n * 1 := by
       refine (totalDegree_mul _ _).trans (add_le_add ?_ ?_)
       · refine (totalDegree_finsetProd _ _).trans ((Finset.sum_le_sum (g := fun _ => 2)
-          fun p _ => (totalDegree_sub _ _).trans (max_le ?_ ?_)).trans (by simp))
-        · simp
-        · exact (totalDegree_mul _ _).trans (add_le_add (totalDegree_X_le _) (totalDegree_X_le _))
+          fun p _ => (totalDegree_sub _ _).trans (max_le (by simp) ?_)).trans (by simp))
+        exact (totalDegree_mul _ _).trans (add_le_add (totalDegree_X_le _) (totalDegree_X_le _))
       · exact (totalDegree_finsetProd _ _).trans ((Finset.sum_le_sum (g := fun _ => 1)
           fun i _ => totalDegree_finsetSum_le fun u _ => totalDegree_X_le _).trans (by simp))
     have h3 : (orderEdges (K := K) n).totalDegree ≤ n * 3 := by
@@ -269,9 +252,8 @@ private theorem totalDegree_hcWitness_le :
         fun i _ => totalDegree_finsetSum_le fun p _ => ?_).trans (by simp))
       exact (totalDegree_mul _ _).trans (add_le_add ((totalDegree_mul _ _).trans
         (add_le_add (totalDegree_X_le _) (totalDegree_X_le _))) (totalDegree_X_le _))
-    refine (totalDegree_mul _ _).trans ?_
-    refine (add_le_add ((totalDegree_mul _ _).trans (add_le_add h1 (totalDegree_X_le _))) h3).trans
-      ?_
+    refine (totalDegree_mul _ _).trans ((add_le_add
+      ((totalDegree_mul _ _).trans (add_le_add h1 (totalDegree_X_le _))) h3).trans ?_)
     have := card_clash_le n
     nlinarith [Nat.zero_le (n ^ 3), Nat.zero_le (n ^ 2)]
   · simp

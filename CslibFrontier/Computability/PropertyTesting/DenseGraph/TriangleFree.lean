@@ -155,9 +155,8 @@ theorem isQueryBounded_triangleTrial (m : ℕ) :
 /-- The tester with `k` trials asks at most `3 k` queries. -/
 theorem isQueryBounded_triangleTester (n k : ℕ) :
     ProbOracleComp.IsQueryBounded (triangleTester n k) (3 * k) := by
-  cases n with
-  | zero => exact .pure _ _
-  | succ m => exact isQueryBounded_repeatAll (isQueryBounded_triangleTrial m) k
+  cases n
+  exacts [.pure _ _, isQueryBounded_repeatAll (isQueryBounded_triangleTrial _) k]
 
 private theorem evalWith_triangleTrial (m : ℕ) (G : SimpleGraph (Fin (m + 1)))
     [DecidableRel G.Adj] :
@@ -199,10 +198,7 @@ theorem acceptProb_triangleTester (n k : ℕ) (G : SimpleGraph (Fin n)) [Decidab
     acceptProb (triangleTester n k) G = (1 - 6 * #(G.cliqueFinset 3) / (n : ℝ) ^ 3) ^ k := by
   cases n with
   | zero => simp [triangleTester]
-  | succ m =>
-    rw [triangleTester, acceptProb_repeatAll, acceptProb_triangleTrial]
-    push_cast
-    rfl
+  | succ m => simp [triangleTester, acceptProb_repeatAll, acceptProb_triangleTrial]
 
 /-! ### Soundness via the removal lemma -/
 
@@ -214,22 +210,18 @@ theorem isOneSidedTester_triangleTester {n : ℕ} {ε : ℝ} (hε : 0 < ε) {k :
     IsOneSidedTester (triangleTester n k) (fun G => G.CliqueFree 3) ε (3 * k) := by
   cases n with
   | zero =>
-    refine ⟨isQueryBounded_triangleTester 0 k, fun G _ => by simp [triangleTester],
-      fun G hG => ?_⟩
-    exact absurd hG (not_isFar_of_property (SimpleGraph.cliqueFree_of_card_lt (by simp)) hε.le)
+    exact ⟨isQueryBounded_triangleTester 0 k, fun _ _ => by simp [triangleTester], fun _ hG =>
+      (not_isFar_of_property (SimpleGraph.cliqueFree_of_card_lt (by simp)) hε.le hG).elim⟩
   | succ m =>
     classical
     refine isOneSidedTester_repeatAll (δ := 6 * triangleRemovalBound ε)
-      (isQueryBounded_triangleTrial m) (fun G hG => ?_) (fun G hG => ?_) (by linarith)
-    · rw [acceptProb_triangleTrial, SimpleGraph.cliqueFinset_eq_empty_iff.mpr hG,
-        Finset.card_empty, Nat.cast_zero, mul_zero, zero_div, sub_zero]
-    · rw [acceptProb_triangleTrial]
-      have hrem := hG.farFromTriangleFree.le_card_cliqueFinset
-      rw [Fintype.card_fin] at hrem
-      have hpos : (0 : ℝ) < (m + 1 : ℝ) ^ 3 := by positivity
-      rw [sub_le_sub_iff_left, le_div_iff₀ hpos]
-      push_cast at hrem ⊢
-      linarith
+      (isQueryBounded_triangleTrial m)
+      (fun G hG => by simp [acceptProb_triangleTrial, SimpleGraph.cliqueFinset_eq_empty_iff.mpr hG])
+      (fun G hG => ?_) (by linarith)
+    have hrem := hG.farFromTriangleFree.le_card_cliqueFinset
+    rw [Fintype.card_fin] at hrem
+    rw [acceptProb_triangleTrial, sub_le_sub_iff_left, le_div_iff₀ (by positivity)]
+    push_cast at hrem ⊢; linarith
 
 /-- **Triangle-freeness is one-sided testable with a constant number of queries**: with
 `3 ⌈(3 · triangleRemovalBound ε)⁻¹⌉` queries, a bound that depends on the proximity `ε` but not on

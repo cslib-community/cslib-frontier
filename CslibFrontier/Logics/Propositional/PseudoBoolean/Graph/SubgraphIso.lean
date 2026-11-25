@@ -197,22 +197,17 @@ private theorem forall_holds_isoConstraints_iff_aux (P : SimpleGraph (Fin p)) [D
     List.forall_mem_flatMap, List.mem_filter, decide_eq_true_eq, true_and, Holds,
     lhs_finRange, forall_const, and_assoc]
   refine and_congr Iff.rfl (and_congr Iff.rfl (and_congr Iff.rfl ?_))
-  refine forall_congr' fun u => forall_congr' fun a => ?_
-  constructor
-  · intro h b hab hσ
-    have := h b hab
+  refine forall_congr' fun u => forall_congr' fun a => ⟨fun h b hab hσ => ?_, fun h b hab => ?_⟩
+  · have := h b hab
     simp only [lhs, List.map_cons, List.sum_cons, termVal, Literal.eval, hσ, one_mul] at this
     obtain ⟨v, hv, hσv⟩ := (one_le_lhs_iff _ _ σ).1 (by simpa [lhs] using this)
-    simp only [List.mem_filter, List.mem_finRange, decide_eq_true_eq, true_and] at hv
-    exact ⟨v, hv, hσv⟩
-  · intro h b hab
-    simp only [lhs, List.map_cons, List.sum_cons, termVal, Literal.eval, one_mul]
+    exact ⟨v, by simpa using hv, hσv⟩
+  · simp only [lhs, List.map_cons, List.sum_cons, termVal, Literal.eval, one_mul]
     cases hσ : σ (isoVar t a u)
     · simp
     · obtain ⟨v, hv, hσv⟩ := h b hab hσ
-      have := (one_le_lhs_iff (((List.finRange t).filter (T.Adj u ·))) (isoVar t b) σ).2
-        ⟨v, by simpa using hv, hσv⟩
-      simpa [lhs] using this
+      simpa [lhs] using (one_le_lhs_iff (((List.finRange t).filter (T.Adj u ·)))
+        (isoVar t b) σ).2 ⟨v, by simpa using hv, hσv⟩
 
 /-- **The solutions of the encoding are the copies of the pattern** (CakePB's `encode_correct`):
 an assignment satisfies the constraints of the encoding exactly when it is the graph of a copy
@@ -270,15 +265,11 @@ theorem exists_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
     (T : SimpleGraph (Fin t)) [DecidableRel T.Adj] :
     (∃ σ : ℕ → Bool, ∀ c ∈ isoConstraints P T, c.Holds σ) ↔ P.IsContained T := by
   simp only [forall_holds_isoConstraints_iff]
-  constructor
-  · rintro ⟨_, f, _⟩
-    exact ⟨f⟩
-  · rintro ⟨f⟩
-    refine ⟨fun i => decide (∃ a u, isoVar t a u = i ∧ f a = u), f, fun a u => ?_⟩
-    refine decide_eq_decide.2 ⟨?_, fun h => ⟨a, u, rfl, h⟩⟩
-    rintro ⟨a', u', h, rfl⟩
-    obtain ⟨rfl, rfl⟩ := isoVar_inj h
-    rfl
+  refine ⟨fun ⟨_, f, _⟩ => ⟨f⟩, fun ⟨f⟩ =>
+    ⟨fun i => decide (∃ a u, isoVar t a u = i ∧ f a = u), f, fun a u =>
+      decide_eq_decide.2 ⟨fun ⟨_, _, h, hfu⟩ => ?_, fun h => ⟨a, u, rfl, h⟩⟩⟩⟩
+  obtain ⟨rfl, rfl⟩ := isoVar_inj h
+  exact hfu
 
 /-! ### CakePB's variable names -/
 
@@ -307,13 +298,12 @@ private theorem isoName_inj {a u a' u' : ℕ} (h : isoName a u = isoName a' u') 
 
 private theorem isOPBName_isoName (a u : ℕ) : isOPBName (isoName a u) = true := by
   obtain ⟨d, ds, hd, -⟩ := Nat.exists_toDecimal_eq_cons a
-  have hc : ∀ c ∈ Nat.toDecimal a ++ '_' :: Nat.toDecimal u, isNameChar c = true := by
-    intro c hc
-    simp only [List.mem_append, List.mem_cons] at hc
-    rcases hc with hc | rfl | hc
+  have hc (c) (hc : c ∈ Nat.toDecimal a ++ '_' :: Nat.toDecimal u) : isNameChar c = true := by
+    rcases List.mem_append.1 hc with hc | hc
     · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
-    · decide
-    · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
+    · rcases List.mem_cons.1 hc with rfl | hc
+      · decide
+      · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
   rw [isOPBName, isoName, String.toList_ofList, hd, List.cons_append, List.cons_append]
   simp only [Bool.and_eq_true, List.all_eq_true]
   refine ⟨by decide, fun c hc' => hc c ?_⟩
@@ -331,22 +321,18 @@ private theorem lt_of_mem_varList_isoConstraints (P : SimpleGraph (Fin p)) [Deci
   obtain ⟨c, hc, ⟨k, x, b⟩, hx, rfl⟩ := hv
   simp only [isoConstraints, List.mem_append, List.mem_map, List.mem_flatMap, List.mem_filter,
     List.mem_finRange, true_and] at hc
-  rcases hc with ((⟨a, rfl⟩ | ⟨a, rfl⟩) | ⟨u, rfl⟩) | ⟨u, a, b', -, rfl⟩
-  · obtain ⟨u, -, h⟩ := List.mem_map.1 hx
-    cases h
+  rcases hc with ((⟨a, rfl⟩ | ⟨a, rfl⟩) | ⟨u, rfl⟩) | ⟨u, a, b', -, rfl⟩ <;>
+    simp only [List.mem_cons, List.mem_map, List.mem_finRange, List.mem_filter, true_and,
+      Prod.mk.injEq] at hx
+  · obtain ⟨u, rfl, rfl, rfl⟩ := hx
     exact isoVar_lt a u
-  · obtain ⟨u, -, h⟩ := List.mem_map.1 hx
-    cases h
+  · obtain ⟨u, rfl, rfl, rfl⟩ := hx
     exact isoVar_lt a u
-  · obtain ⟨a, -, h⟩ := List.mem_map.1 hx
-    cases h
+  · obtain ⟨a, rfl, rfl, rfl⟩ := hx
     exact isoVar_lt a u
-  · rcases List.mem_cons.1 hx with h | hx
-    · cases h
-      exact isoVar_lt a u
-    · obtain ⟨w, -, h⟩ := List.mem_map.1 hx
-      cases h
-      exact isoVar_lt b' w
+  · rcases hx with ⟨rfl, rfl, rfl⟩ | ⟨w, _, rfl, rfl, rfl⟩
+    · exact isoVar_lt a u
+    · exact isoVar_lt b' w
 
 /-- **CakePB's name of a variable**: the variable `xₐᵤ = t·a + u` is named `xa_u`. -/
 @[simp] theorem name_isoNames_isoVar (a : Fin p) (u : Fin t) :
@@ -405,14 +391,12 @@ theorem isContained_iff_of_checkSubgraphIsoGraph {P : SimpleGraph (Fin p)} [Deci
   obtain ⟨⟨concl, o⟩, hc, hb⟩ := Option.bind_eq_some_iff.1 h
   rw [← exists_holds_isoConstraints_iff]
   have hc' : (checkOPBOutput (printOPB ⟨isoConstraints P T, none, none⟩ (isoNames p t)) pbp).map
-      (·.1) = some concl := by
-    rw [hc]
-    rfl
+      (·.1) = some concl := by rw [hc]; rfl
   cases concl with
-  | sat asg =>
+  | sat _ =>
     cases hb
     exact iff_of_true (exists_satisfies_of_checkOPB_printOPB (isoNames_covers P T) hc') rfl
-  | unsat q =>
+  | unsat _ =>
     cases hb
     exact iff_of_false
       (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB (isoNames_covers P T) hc' σ hσ)

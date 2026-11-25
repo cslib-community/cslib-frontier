@@ -277,21 +277,13 @@ theorem computableInPolyTime_clauseVector :
 
 private theorem stream_bound {cF a S P b k C : ℕ} (hs : S ≤ b) (hP : b + 1 ≤ P)
     (ha : a + cF + 1 ≤ C) : cF * (S + 1) + k * (a * P) + b + 1 ≤ C * ((k + 1) * P + 1) := by
-  have h₁ : cF * (S + 1) ≤ cF * P := Nat.mul_le_mul_left _ (by omega)
-  have h₂ : k * (a * P) = a * (k * P) := by ring
-  have h₃ : C * ((k + 1) * P + 1) = C * (k * P) + C * P + C := by ring
-  have h₄ : a * (k * P) ≤ C * (k * P) := Nat.mul_le_mul_right _ (by omega)
-  have h₅ : (cF + 1) * P ≤ C * P := Nat.mul_le_mul_right _ (by omega)
-  have h₆ : (cF + 1) * P = cF * P + P := by ring
-  omega
+  have := Nat.mul_le_mul_right (k * P) (show a ≤ C by omega)
+  nlinarith
 
 private theorem stream_space_bound {cF a S P b k C : ℕ} (hs : S ≤ b) (hP : b + 1 ≤ P)
     (ha : a + cF + 1 ≤ C) : cF * (S + 1) + a * P + b + 1 ≤ C * ((k + 1) * P + 1) := by
-  have h₁ : cF * (S + 1) ≤ cF * P := Nat.mul_le_mul_left _ (by omega)
-  have h₃ : C * ((k + 1) * P + 1) = C * (k * P) + C * P + C := by ring
-  have h₅ : (a + cF + 1) * P ≤ C * P := Nat.mul_le_mul_right _ ha
-  have h₆ : (a + cF + 1) * P = a * P + cF * P + P := by ring
-  omega
+  calc cF * (S + 1) + a * P + b + 1 ≤ C * (1 * P + 1) := by nlinarith
+    _ ≤ C * ((k + 1) * P + 1) := Nat.mul_le_mul_left C (by nlinarith)
 
 private theorem iterate_next (s : StreamState) (i : ℕ) :
     (fun s : StreamState => (s.1, s.2 + 1))^[i] s = (s.1, s.2 + i) := by
@@ -331,37 +323,32 @@ theorem exists_computableInO_stream {half : CNF ℕ → List ℕ}
       simpa only [encNat_apply, Nat.size_eq_bits_len] using
         Nat.size_le_size (show x.1.2 + i ≤ x.1.2 + x.2 by omega)
     enc_len [encStreamState, B] at this ⊢
-  have hpowN (x : StreamState × ℕ) (s : StreamState) (hs : (encStreamState s).length ≤ B x) :
-      (encStreamState s).length + 1 ≤ (B x + 1) := by omega
-  have hD (x : StreamState × ℕ) (d : ℕ) (hd : d ≤ D) : (B x + 1) ^ d ≤ (B x + 1) ^ D := by gcongr
+  have hstep (x : StreamState × ℕ) {c' d i : ℕ} (hd : d ≤ D) (hi : i ≤ x.2)
+      {f : StreamState → ℕ} (hf : ∀ s, f s ≤ c' * ((encStreamState s).length + 1) ^ d) :
+      f ((fun s : StreamState => (s.1, s.2 + 1))^[i] x.1) ≤ c' * (B x + 1) ^ D :=
+    (hf _).trans <| Nat.mul_le_mul_left c' <|
+      (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate x i hi) 1) d).trans
+        (Nat.pow_le_pow_right (Nat.succ_pos _) hd)
+  have hB1 (x : StreamState × ℕ) : B x + 1 ≤ (B x + 1) ^ D := Nat.le_self_pow (by omega) _
   obtain ⟨c, h⟩ := ComputableInTimeAndSpace.iterate_unary_stream_sum hN hE hF
     (R := fun x _ => (cN + cE + 3) * (B x + 1) ^ D) (Q := fun x => (cN' + cE') * (B x + 1) ^ D)
     (B := B)
     (fun x i hi => by
-      have h₁ := hstate x i hi.le
-      have h₂ := hstate x (i + 1) hi
-      have h₃ := (htN ((fun s : StreamState => (s.1, s.2 + 1))^[i] x.1)).trans
-        (Nat.mul_le_mul_left cN ((Nat.pow_le_pow_left (hpowN x _ h₁) dN).trans
-          (hD x dN (by omega))))
-      have h₄ := (htE ((fun s : StreamState => (s.1, s.2 + 1))^[i] x.1)).trans
-        (Nat.mul_le_mul_left cE ((Nat.pow_le_pow_left (hpowN x _ h₁) dE).trans
-          (hD x dE (by omega))))
-      have h₅ : B x + 1 ≤ (B x + 1) ^ D := Nat.le_self_pow (by omega) _
+      have h₀ := hstate x i hi.le
+      have h₁ := hstate x (i + 1) hi
+      have h₂ := hstep x (by omega) hi.le htN
+      have h₃ := hstep x (by omega) hi.le htE
+      have h₄ := hB1 x
       nlinarith)
     (fun x i hi => by
-      have h₁ := hstate x i hi.le
-      have h₃ := (hsN ((fun s : StreamState => (s.1, s.2 + 1))^[i] x.1)).trans
-        (Nat.mul_le_mul_left cN' ((Nat.pow_le_pow_left (hpowN x _ h₁) dN).trans
-          (hD x dN (by omega))))
-      have h₄ := (hsE ((fun s : StreamState => (s.1, s.2 + 1))^[i] x.1)).trans
-        (Nat.mul_le_mul_left cE' ((Nat.pow_le_pow_left (hpowN x _ h₁) dE).trans
-          (hD x dE (by omega))))
+      have h₀ := hstate x i hi.le
+      have h₁ := hstep x (by omega) hi.le hsN
+      have h₂ := hstep x (by omega) hi.le hsE
       nlinarith)
     hstate
   -- the stream, within `O((k + 1) (B x + 1) ^ D)` for `k` rounds
   have hsum (x : StreamState × ℕ) : ∑ i ∈ Finset.range x.2, (cN + cE + 3) * (B x + 1) ^ D =
       x.2 * ((cN + cE + 3) * (B x + 1) ^ D) := by simp
-  have hB1 (x : StreamState × ℕ) : B x + 1 ≤ (B x + 1) ^ D := Nat.le_self_pow (by omega) _
   have hstream : ComputableInO (fun x : StreamState × ℕ =>
       ((List.range x.2).map fun i => wrap (clauseVector x.1.1.1 x.1.1.2 (x.1.2 + i))).flatten ++
         fin)
@@ -444,23 +431,18 @@ theorem computableInPolyTime_firstVars :
     ComputableInPolyTime firstVars encCNF (encList encNat) := by
   have hvars := SAT.computableInPolyTime_distinctVars
   have hdiv := unary_div_const 2
-  have h : ComputableInPolyTime (fun φ => (φ.distinctVars.reverse.drop
-      (φ.distinctVars.length - φ.distinctVars.length / 2)).reverse)
-      encCNF (encList encNat) :=
-    listReverseWithInput ((dropUnary (encA := encNat)).comp
-      ((listReverseWithInput hvars).prod (by fun_prop)))
-  convert h using 1
-  funext φ
+  refine (listReverseWithInput ((dropUnary (encA := encNat)).comp
+    ((listReverseWithInput hvars).prod (by fun_prop : ComputableInPolyTime
+      (fun φ => φ.distinctVars.length - φ.distinctVars.length / 2) encCNF encUnary)))).of_enc_eq
+    fun φ => congrArg _ ?_
   simp [firstVars, ← List.reverse_take]
 
 open ComputableInPolyTime in
 theorem computableInPolyTime_secondVars :
     ComputableInPolyTime secondVars encCNF (encList encNat) := by
-  have hvars := SAT.computableInPolyTime_distinctVars
   have hdiv := unary_div_const 2
-  exact (dropUnary (encA := encNat)).comp (hvars.prod
-    (show ComputableInPolyTime (fun φ => φ.distinctVars.length / 2) encCNF
-      encUnary by fun_prop))
+  exact (dropUnary (encA := encNat)).comp (SAT.computableInPolyTime_distinctVars.prod
+    (by fun_prop : ComputableInPolyTime (fun φ => φ.distinctVars.length / 2) encCNF encUnary))
 
 theorem length_firstVars_le (φ : CNF ℕ) : (firstVars φ).length ≤ (encCNF φ).length := by
   rw [length_firstVars]
@@ -486,9 +468,7 @@ theorem exists_computableInO_toOV : ∃ e, ComputableInO toOV encCNF encOV
     OV.length_secondVars_le (wrap := Turing.MultiTapeTM.frame) (bitsFrame encBits) []
   have hfm (l : List (List Bool)) (g : Bool → List Bool) :
       l.flatten.flatMap g = (l.map (·.flatMap g)).flatten := by
-    induction l with
-    | nil => rfl
-    | cons a l ih => simp [List.flatMap_append, ih]
+    induction l <;> simp [List.flatMap_append, *]
   have hencList (L : List (List Bool)) :
       encList encBits L = (L.map Turing.MultiTapeTM.frame).flatten := by
     induction L with
@@ -496,8 +476,8 @@ theorem exists_computableInO_toOV : ∃ e, ComputableInO toOV encCNF encOV
     | cons v L ih => rw [encList_cons, ih]; rfl
   have h := h₁.append h₂ (g := toOV) (encOut := encOV) fun φ => by
     rw [encOV, encPair_apply, hencList, hencList]
-    simp only [toOV, encBits_apply, List.append_nil]
-    rw [Turing.MultiTapeTM.frame, hfm, List.map_map]
+    simp only [toOV, encBits_apply, List.append_nil, Turing.MultiTapeTM.frame,
+      hfm, List.map_map]
     rfl
   refine ⟨e₁ + e₂, h.mono 2 (fun φ => ?_) fun φ => ?_⟩ <;>
   · simp only [OV.length_firstVars, OV.length_secondVars]

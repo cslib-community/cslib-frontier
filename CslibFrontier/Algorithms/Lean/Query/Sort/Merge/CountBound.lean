@@ -86,8 +86,7 @@ theorem mergeM_countQueries_le_sub_one {F : Type → Type*} (oracle : {ι : Type
     (hle : ∀ x y, (le x y).countQueries oracle ≤ 1) :
     (List.mergeM xs ys le).countQueries oracle ≤ xs.length + ys.length - 1 := by
   induction xs, ys using List.mergeM.induct (α := α) with
-  | case1 ys => simp
-  | case2 xs => simp
+  | case1 _ | case2 _ => simp
   | case3 x xs' y ys' ih_true ih_false =>
     simp only [List.mergeM, countQueries_bind, countQueries_ite, countQueries_pure, add_zero,
       List.length_cons]
@@ -136,22 +135,19 @@ theorem mergeSortCountBound_le_mul_clog (n : ℕ) :
     rcases n with _ | _ | k
     · simp
     · simp
-    · have hclog : Nat.clog 2 ((k + 3) / 2) + 1 = Nat.clog 2 (k + 2) :=
-        (Nat.clog_of_one_lt (by omega : 1 < 2) (by omega : 2 ≤ k + 2)).symm
-      have hceil : Nat.clog 2 ((k + 3) / 2) + 1 ≤ Nat.clog 2 (k + 2) := hclog.le
-      have hfloor : Nat.clog 2 ((k + 2) / 2) + 1 ≤ Nat.clog 2 (k + 2) :=
-        (Nat.add_le_add_right (Nat.clog_mono_right 2 (by omega)) 1).trans hceil
+    · have hceil : Nat.clog 2 ((k + 3) / 2) + 1 ≤ Nat.clog 2 (k + 2) :=
+        (Nat.clog_of_one_lt Nat.one_lt_two (by omega : 2 ≤ k + 2)).symm.le
       have hpart (m : ℕ) (hm : m < k + 2) (hl : Nat.clog 2 m + 1 ≤ Nat.clog 2 (k + 2)) :
           mergeSortCountBound m + m ≤ m * Nat.clog 2 (k + 2) :=
         (Nat.add_le_add_right (ih m hm) m).trans
           (by rw [← Nat.mul_succ]; exact Nat.mul_le_mul_left _ hl)
       have h1 := hpart ((k + 3) / 2) (by omega) hceil
-      have h2 := hpart ((k + 2) / 2) (by omega) hfloor
-      rw [mergeSortCountBound_add_two]
+      have h2 := hpart ((k + 2) / 2) (by omega)
+        ((Nat.add_le_add_right (Nat.clog_mono_right 2 (by omega)) 1).trans hceil)
       have hadd : (k + 3) / 2 * Nat.clog 2 (k + 2) + (k + 2) / 2 * Nat.clog 2 (k + 2) =
           (k + 2) * Nat.clog 2 (k + 2) := by
         rw [← Nat.add_mul, show (k + 3) / 2 + (k + 2) / 2 = k + 2 by omega]
-      rw [show k + 1 + 1 = k + 2 by omega]
+      rw [mergeSortCountBound_add_two, show k + 1 + 1 = k + 2 by omega]
       omega
 
 /-- Merge sort with a comparator that makes at most one query per call takes at most
@@ -161,22 +157,16 @@ theorem mergeSortM_countQueries_le_countBound {F : Type → Type*}
     (hle : ∀ x y, (le x y).countQueries oracle ≤ 1) :
     (List.mergeSortM xs le).countQueries oracle ≤ mergeSortCountBound xs.length := by
   induction xs using List.mergeSortM.induct (α := α) with
-  | case1 => simp
-  | case2 x => simp
+  | case1 | case2 _ => simp
   | case3 x y zs halves ih_l ih_r =>
     subst halves
-    simp only [List.splitInTwo_fst, List.splitInTwo_snd] at ih_l ih_r
     simp only [List.mergeSortM, List.splitInTwo_fst, List.splitInTwo_snd, countQueries_bind,
-      eval_mergeSortM]
+      eval_mergeSortM] at ih_l ih_r ⊢
     have hml := mergeM_countQueries_le_sub_one oracle
       ((x :: y :: zs).split.1.mergeSort fun a b => (le a b).eval oracle)
-      ((x :: y :: zs).split.2.mergeSort fun a b => (le a b).eval oracle)
-      le hle
-    rw [List.length_mergeSort, List.length_mergeSort,
-      List.split_fst_length_eq, List.split_snd_length_eq] at hml
-    rw [List.split_fst_length_eq] at ih_l
-    rw [List.split_snd_length_eq] at ih_r
-    simp only [List.length_cons] at ih_l ih_r hml ⊢
+      ((x :: y :: zs).split.2.mergeSort fun a b => (le a b).eval oracle) le hle
+    simp only [List.length_mergeSort, List.split_fst_length_eq, List.split_snd_length_eq,
+      List.length_cons] at ih_l ih_r hml ⊢
     rw [show zs.length + 1 + 1 + 1 = zs.length + 3 by omega] at ih_l hml
     rw [show zs.length + 1 + 1 = zs.length + 2 by omega] at ih_r hml ⊢
     rw [mergeSortCountBound]

@@ -68,30 +68,21 @@ theorem vertexParity_sourceEdgeLabels_variable
     (incidenceGraph F).vertexParity (sourceEdgeLabels gadgets witnesses B F x)
       (incidenceDart o false).vertex = false := by
   obtain ⟨q, hq, hvar⟩ := exists_occurrence_at_first_index o.var o.var_mem
-  have hv : (incidenceDart o false).vertex = (incidenceDart q false).vertex :=
-    (vertex_incidenceDart_eq_iff o q false false).mpr ⟨rfl, hvar.symm⟩
+  rw [(vertex_incidenceDart_eq_iff o q false false).mpr ⟨rfl, hvar.symm⟩,
+    RotationCertificate.vertexParity_eq_sum_cycleWord hc]
+  refine Eq.trans ?_
+    (sum_variableBlock_eq_false gadgets witnesses B F hF c hc x hx o.var o.var_mem)
+  unfold variableBlock
   have hstart : (incidenceDart q false).index = 2 * F.vars.idxOf o.var := by
     change 2 * incidenceEdgeIndex q + 0 = _
     rw [hq, Nat.add_zero]
-  rw [hv, RotationCertificate.vertexParity_eq_sum_cycleWord hc]
-  have hs : ((RotationCertificate.cycleWord c (incidenceDart q false).index).map
-      (Dart.colorAtIndex fun d => sourceEdgeLabels gadgets witnesses B F x d.1)).sum =
-      ((variableBlock (fun r => (gadgets r).template)
-        (fun r => freeBoundaryBlocks (gadgets r) (witnesses r)) F c o.var).map
-          fun j => (List.ofFn x).getD j false).sum := by
-    unfold variableBlock
-    rw [CSP.map_occurrences, ← hstart, List.map_flatMap, List.flatMap,
-      List.sum_flatten, List.map_map]
-    congr 1
-    apply List.map_congr_left
-    intro j hj
-    obtain ⟨p, hp, _⟩ := (mem_variable_cycleWord_iff hc q j).mp hj
-    rw [hp]
-    change Dart.colorAtIndex _ (incidenceDart p false).index = _
-    rw [Dart.colorAtIndex_index]
-    rfl
-  rw [hs]
-  exact sum_variableBlock_eq_false gadgets witnesses B F hF c hc x hx o.var o.var_mem
+  rw [CSP.map_occurrences, ← hstart, List.map_flatMap, List.flatMap, List.sum_flatten, List.map_map]
+  congr 1
+  refine List.map_congr_left fun j hj => ?_
+  obtain ⟨p, hp, _⟩ := (mem_variable_cycleWord_iff hc q j).mp hj
+  rw [hp]
+  change Dart.colorAtIndex _ (incidenceDart p false).index = _
+  rw [Dart.colorAtIndex_index]; rfl
 
 /-- Original source constraints have even induced parity by the complete marker-tuple
 calculation. The proof uses every indexed scope position, with no injectivity premise. -/
@@ -105,13 +96,11 @@ theorem vertexParity_sourceEdgeLabels_constraint
     (o : F.Occurrence) :
     (incidenceGraph F).vertexParity (sourceEdgeLabels gadgets witnesses B F x)
       (incidenceDart o true).vertex = false := by
-  rw [vertexParity_eq_sum_scope]
   have hn := hF F[o.1.val] (List.getElem_mem o.1.isLt)
-  rw [List.ofFn_congr hn]
-  have he := congrArg List.ofFn (funext fun a : Fin (srcArity F[o.1.val].rel) =>
-    sourceEdgeLabels_incidenceDart gadgets witnesses B F x
-      (⟨o.1, Fin.cast hn.symm a⟩ : F.Occurrence) true a rfl)
-  rw [he]
+  rw [vertexParity_eq_sum_scope, List.ofFn_congr hn,
+    congrArg List.ofFn (funext fun a : Fin (srcArity F[o.1.val].rel) =>
+      sourceEdgeLabels_incidenceDart gadgets witnesses B F x
+        (⟨o.1, Fin.cast hn.symm a⟩ : F.Occurrence) true a rfl)]
   exact sum_copiedFreeLabels_eq_false gadgets witnesses B hB F o.1 x hx
 
 /-- Every target vertex-even labeling internally induces a vertex-even labeling on the
@@ -128,11 +117,9 @@ theorem vertexEven_sourceEdgeLabels
   rw [Graph.vertexEven_iff_dart]
   intro d
   obtain ⟨o, ho⟩ := exists_incidenceDart d
-  have h (side : Bool) : (incidenceGraph F).vertexParity (sourceEdgeLabels gadgets witnesses B F x)
-      (incidenceDart o side).vertex = false := by
-    cases side
-    · exact vertexParity_sourceEdgeLabels_variable gadgets witnesses B F hF c hc x hx o
-    · exact vertexParity_sourceEdgeLabels_constraint gadgets witnesses B hB F hF x hx o
-  simpa only [ho] using h d.2
+  rw [← ho]
+  cases d.2
+  · exact vertexParity_sourceEdgeLabels_variable gadgets witnesses B F hF c hc x hx o
+  · exact vertexParity_sourceEdgeLabels_constraint gadgets witnesses B hB F hF x hx o
 
 end Cslib.Complexity.CSP.GadgetRotation

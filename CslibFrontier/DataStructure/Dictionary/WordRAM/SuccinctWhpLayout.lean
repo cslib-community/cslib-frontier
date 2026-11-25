@@ -1162,10 +1162,7 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
       · exact hV
       · exact (keyBits_le_w hU).trans_lt hw_lt
       · exact (valBits_le_w hV).trans_lt hw_lt
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact h0_fit
+      all_goals exact hfit.of_le (by omega)
     · dsimp only [mkWhpParams, wpHash1, wpHash2]
       rw [ite_eq_left hsm]
       exact ⟨h0_fit, h0_fit⟩
@@ -1263,27 +1260,7 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
           (Nat.pow_lt_pow_right (by decide) (by omega : valLaneBitsWhp n_max < w))
       · exact (by unfold nodeMetaBitsWhp; omega : nodeMetaBitsWhp n_max < w).trans hw_lt
       · exact hns_lt.trans hn_lt
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact h0_fit
+      all_goals exact hfit.of_le (by omega)
     · dsimp only [mkWhpParams]
       rw [ite_eq_right hsm]
       exact ⟨BitPackedDoubleTabulation.fits_mkHashParams henv1 j,

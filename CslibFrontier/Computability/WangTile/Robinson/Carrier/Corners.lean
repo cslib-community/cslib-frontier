@@ -182,32 +182,17 @@ private theorem liftCoordinate_centerResidue
     liftCoordinate coordinate % period (depth + 1) =
       2 * scale (depth + 1) + 1 := by
   have decomposition := Nat.mod_add_div coordinate (period depth)
-  have periodEq := period_succ depth
   have scaleEq : scale (depth + 1) = 4 * scale depth := by
     simp [scale, pow_succ, Nat.mul_comm]
-  have coordinateEq : coordinate =
-      2 * scale depth + 1 +
-        period depth * (coordinate / period depth) := by
-    omega
   have expression : liftCoordinate coordinate =
-      period (depth + 1) * (coordinate / period depth) +
-        (2 * scale (depth + 1) + 1) := by
-    calc
-      liftCoordinate coordinate = 4 * coordinate - 3 := rfl
-      _ = 4 * (2 * scale depth + 1 +
-          period depth * (coordinate / period depth)) - 3 := by
-        exact congrArg (fun value => 4 * value - 3) coordinateEq
-      _ = 4 * (period depth * (coordinate / period depth)) +
-          (2 * (4 * scale depth) + 1) := by omega
-      _ = period (depth + 1) * (coordinate / period depth) +
-          (2 * scale (depth + 1) + 1) := by
-        rw [periodEq, scaleEq, Nat.mul_assoc]
+      2 * scale (depth + 1) + 1 + period (depth + 1) * (coordinate / period depth) := by
+    rw [period_succ, scaleEq, Nat.mul_assoc, liftCoordinate]
+    omega
   have centerLt : 2 * scale (depth + 1) + 1 < period (depth + 1) := by
     rw [period_eq_four_mul_scale]
     have := scale_pos (depth + 1)
     omega
-  rw [expression, Nat.add_mod]
-  simp [Nat.mod_eq_of_lt centerLt]
+  rw [expression, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt centerLt]
 
 /-- For coordinates at residue one modulo four, inherited positive-depth
 frames shift up by one depth and no new depth-one owner is introduced. -/
@@ -365,21 +350,9 @@ private theorem indexZero_crossing_centered :
       simp [isHorizontalCarrier] at horizontal
   | succ level inductionHypothesis =>
       intro x y xBound yBound indexZero horizontal vertical
-      have parentXBound : x / 4 < 4 ^ level := by
-        rw [pow_succ] at xBound
-        omega
-      have parentYBound : y / 4 < 4 ^ level := by
-        rw [pow_succ] at yBound
-        omega
-      have xDecomposition : x = 4 * (x / 4) + x % 4 := by
-        have := Nat.mod_add_div x 4
-        omega
-      have yDecomposition : y = 4 * (y / 4) + y % 4 := by
-        have := Nat.mod_add_div y 4
-        omega
-      have levelPositive : 0 < level := by
-        by_contra notPositive
-        have levelZero : level = 0 := by omega
+      have parentXBound : x / 4 < 4 ^ level := Nat.div_lt_of_lt_mul (by rwa [pow_succ'] at xBound)
+      have parentYBound : y / 4 < 4 ^ level := Nat.div_lt_of_lt_mul (by rwa [pow_succ'] at yBound)
+      have levelPositive : 0 < level := Nat.pos_of_ne_zero fun levelZero => by
         subst level
         simp [isHorizontalCarrier] at horizontal
       rcases supertileIndexGrid_zero_cases level x y xBound yBound indexZero with

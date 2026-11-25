@@ -127,10 +127,8 @@ def rowsOf (X : Fin A → Fin A → List Γ) (p : Fin A) : RowData A :=
 private theorem ok_rowsOf (X : Fin A → Fin A → List Γ) (p : Fin A) : (rowsOf X p).Ok (X p) := by
   unfold rowsOf
   split_ifs with h
-  · have h1 := min'_mem _ h
-    have h2 := max'_mem _ h
-    simp only [mem_filter, mem_univ, true_and] at h1 h2
-    exact ⟨h1, h2, fun b hb => ⟨min'_le _ _ (by simpa using hb), le_max' _ _ (by simpa using hb)⟩⟩
+  · exact ⟨(mem_filter.1 (min'_mem _ h)).2, (mem_filter.1 (max'_mem _ h)).2,
+      fun b hb => ⟨min'_le _ _ (by simpa using hb), le_max' _ _ (by simpa using hb)⟩⟩
   · simpa [RowData.Ok, Finset.Nonempty] using h
 
 /-- The last party of the row before row `p` is the last column that a row before row `p` uses,
@@ -143,15 +141,13 @@ private theorem prevLast_eq {ρ : Fin A → RowData A} {X : Fin A → Fin A → 
   | zero => simp [prevLast, lastBefore]
   | succ q ih =>
     have hq : q < A := by omega
-    have ih : prevLast ρ ⟨q, hq⟩ = lastBefore X q :=
-      ih hq fun p' hp' => h p' (hp'.trans (Fin.mk_lt_mk.2 q.lt_succ_self))
-    change _ = lastBefore X (q + 1)
     have hv := h ⟨q, hq⟩ (Fin.mk_lt_mk.2 q.lt_succ_self)
     have hok := hX ⟨q, hq⟩
-    simp only [ValidRow, ih] at hv
+    simp only [ValidRow, ih hq fun p' hp' => h p' (hp'.trans (Fin.mk_lt_mk.2 q.lt_succ_self))]
+      at hv
     simp only [RowData.Ok] at hok
-    have e : prevLast ρ ⟨q + 1, hp⟩ = (ρ ⟨q, hq⟩).last := by simp [prevLast]
-    rw [e]
+    change prevLast ρ ⟨q + 1, hp⟩ = lastBefore X (q + 1)
+    rw [show prevLast ρ ⟨q + 1, hp⟩ = (ρ ⟨q, hq⟩).last by simp [prevLast]]
     refine le_antisymm ?_ (lastBefore_le_iff.2 fun p' b hp' hb => ?_)
     · split_ifs at hv hok
       · exact hv.2.trans_le (lastBefore_le_iff.2 fun p' b hp' hb => le_lastBefore (by omega) hb)
@@ -210,8 +206,8 @@ private theorem validRow_rowsOf {X : Fin A → Fin A → List Γ} (hX : Stair X)
   have hok := ok_rowsOf X p
   rw [ValidRow, prevLast_eq (ok_rowsOf X) p ih]
   by_cases hne : (univ.filter fun b => X p b ≠ []).Nonempty
-  · have e : (rowsOf X p).empty = false := by rw [rowsOf, dite_eq_left hne]
-    simp only [RowData.Ok, e, Bool.false_eq_true, ite_false] at hok ⊢
+  · simp only [RowData.Ok, show (rowsOf X p).empty = false by rw [rowsOf, dite_eq_left hne],
+      Bool.false_eq_true, ite_false] at hok ⊢
     exact ⟨lastBefore_le_iff.2 fun p' b hp' hb => hX p' p b _ hb hok.1 hp',
       (hok.2.2 _ hok.1).2⟩
   · simp [rowsOf, dite_eq_right hne]
@@ -220,10 +216,10 @@ private theorem validRow_rowsOf {X : Fin A → Fin A → List Γ} (hX : Stair X)
 only if the matrix has staircase support and they are the row data of the matrix. -/
 theorem validRow_and_ok_iff {ρ : Fin A → RowData A} {X : Fin A → Fin A → List Γ} :
     ((∀ p, ValidRow ρ p) ∧ ∀ p, (ρ p).Ok (X p)) ↔ Stair X ∧ ρ = rowsOf X := by
-  refine ⟨fun ⟨h, hX⟩ => ⟨stair_of_rows h hX, ?_⟩, ?_⟩
-  · exact rows_unique h (validRow_rowsOf (stair_of_rows h hX)) hX (ok_rowsOf X)
-  · rintro ⟨hX, rfl⟩
-    exact ⟨validRow_rowsOf hX, ok_rowsOf X⟩
+  refine ⟨fun ⟨h, hX⟩ => ⟨stair_of_rows h hX,
+    rows_unique h (validRow_rowsOf (stair_of_rows h hX)) hX (ok_rowsOf X)⟩, ?_⟩
+  rintro ⟨hX, rfl⟩
+  exact ⟨validRow_rowsOf hX, ok_rowsOf X⟩
 
 /-- A matrix of words with staircase support has valid row data that fit its rows. -/
 theorem exists_rows {X : Fin A → Fin A → List Γ} (hX : Stair X) :

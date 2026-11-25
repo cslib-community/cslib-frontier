@@ -159,9 +159,7 @@ theorem potential_succ [Nonempty ι] (hφ : ∀ s < t, ∀ i, 0 < φ (ℓ s i)) 
     potential φ ℓ (t + 1) = potential φ ℓ t * ∑ i, prob φ ℓ t i * φ (ℓ t i) := by
   have hΦ := (potential_pos hφ).ne'
   rw [mul_sum]
-  refine sum_congr rfl fun i _ => ?_
-  rw [weight_succ, prob]
-  field_simp
+  exact sum_congr rfl fun i _ => by rw [weight_succ, prob]; field_simp
 
 /-- The distribution is updated multiplicatively: the probability of expert `i` in round `t + 1`
 is its probability in round `t` times its update factor, normalized by the expected update
@@ -176,9 +174,7 @@ theorem prob_succ (hφ : ∀ s < t, ∀ i, 0 < φ (ℓ s i)) (i : ι) :
 theorem sum_prob_mul_pos [Nonempty ι] (hφ : ∀ s < t + 1, ∀ i, 0 < φ (ℓ s i)) :
     0 < ∑ i, prob φ ℓ t i * φ (ℓ t i) := by
   have hφ' : ∀ s < t, ∀ i, 0 < φ (ℓ s i) := fun s hs => hφ s (by omega)
-  have h := potential_pos hφ
-  rw [potential_succ hφ'] at h
-  exact pos_of_mul_pos_right h (potential_pos hφ').le
+  exact pos_of_mul_pos_right (potential_succ hφ' ▸ potential_pos hφ) (potential_pos hφ').le
 
 /-- The potential is `n` times the product of the expected update factors. -/
 theorem potential_eq_card_mul_prod (hφ : ∀ s < t, ∀ i, 0 < φ (ℓ s i)) :
@@ -240,25 +236,14 @@ with factor `φ`. -/
 theorem weight_adaptiveLoss (φ : ℝ → ℝ) (adv : ℕ → (ι → ℝ) → ι → ℝ) (t : ℕ) :
     weight φ (adaptiveLoss φ adv) t = adaptiveWeight φ adv t := by
   induction t with
-  | zero =>
-    funext i
-    rw [weight_zero]
-    rfl
-  | succ t ih =>
-    funext i
-    rw [weight_succ, ih]
-    rfl
+  | zero => exact funext fun i => weight_zero φ _ i
+  | succ t ih => exact funext fun i => by rw [weight_succ, ih]; rfl
 
 /-- Against `adaptiveLoss φ adv`, the loss vector of round `t` is the adversary's response to the
 learner's distribution in round `t`. So the regret bounds, which hold for every loss sequence,
 hold against adaptive adversaries. -/
 theorem adaptiveLoss_eq (φ : ℝ → ℝ) (adv : ℕ → (ι → ℝ) → ι → ℝ) (t : ℕ) :
-    adaptiveLoss φ adv t = adv t (prob φ (adaptiveLoss φ adv) t) := by
-  have h : prob φ (adaptiveLoss φ adv) t =
-      fun j => adaptiveWeight φ adv t j / ∑ k, adaptiveWeight φ adv t k := by
-    funext j
-    rw [prob, potential, weight_adaptiveLoss]
-  rw [h]
-  rfl
+    adaptiveLoss φ adv t = adv t (prob φ (adaptiveLoss φ adv) t) :=
+  congrArg (adv t) (funext fun j => by rw [prob, potential, weight_adaptiveLoss])
 
 end Cslib.MachineLearning.OnlineLearning.Experts

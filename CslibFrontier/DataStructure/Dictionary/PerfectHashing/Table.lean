@@ -253,22 +253,19 @@ theorem slot_lt_offset_add_width {D : Description F} {keys : List X} {x : X} (hx
 /-- The slots of the keys are distinct. -/
 theorem slot_injOn {D : Description F} {keys : List X} (hD : SecondaryInjective D keys) :
     Set.InjOn (slot D keys) {x | x ∈ keys} := by
+  have hlt_slot : ∀ {u v}, u ∈ keys → D.top.apply u < D.top.apply v →
+      slot D keys u < slot D keys v := fun hu hlt =>
+    (slot_lt_offset_add_width hu).trans_le
+      ((offset_add_width_le (keys := keys) hlt).trans (Nat.le_add_right _ _))
   intro x hx y hy hxy
   rcases lt_trichotomy (D.top.apply x) (D.top.apply y) with hlt | heq | hgt
-  · have h₁ := slot_lt_offset_add_width (D := D) hx
-    have h₂ := offset_add_width_le (D := D) (keys := keys) hlt
-    have h₃ : offset D keys (D.top.apply y) ≤ slot D keys y := Nat.le_add_right _ _
+  · exact absurd hxy (hlt_slot hx hlt).ne
+  · refine hD (D.top.apply x) (mem_bucket.mpr ⟨hx, rfl⟩) (mem_bucket.mpr ⟨hy, heq.symm⟩)
+      (Fin.ext ?_)
+    simp only [slot] at hxy
+    rw [← heq] at hxy
     omega
-  · have hy' : y ∈ bucket D keys (D.top.apply x) := mem_bucket.mpr ⟨hy, heq.symm⟩
-    refine hD (D.top.apply x) (mem_bucket.mpr ⟨hx, rfl⟩) hy' (Fin.ext ?_)
-    have hxy' := hxy
-    simp only [slot] at hxy'
-    rw [← heq] at hxy'
-    omega
-  · have h₁ := slot_lt_offset_add_width (D := D) hy
-    have h₂ := offset_add_width_le (D := D) (keys := keys) hgt
-    have h₃ : offset D keys (D.top.apply x) ≤ slot D keys x := Nat.le_add_right _ _
-    omega
+  · exact absurd hxy.symm (hlt_slot hy hgt).ne
 
 /-- The slot of a stored key holds that key. -/
 theorem memory_slot {D : Description F} {keys : List X} (hD : SecondaryInjective D keys) {x : X}
@@ -277,20 +274,16 @@ theorem memory_slot {D : Description F} {keys : List X} (hD : SecondaryInjective
   rw [memory_of_lt hgt]
   obtain ⟨y, hy⟩ : ∃ y, keys.find? (fun z => slot D keys z = slot D keys x) = some y :=
     Option.isSome_iff_exists.mp (List.find?_isSome.mpr ⟨x, hx, by simp⟩)
-  have hyx : y = x := slot_injOn hD (List.mem_of_find?_eq_some hy) hx
-    (by simpa using List.find?_some hy)
-  rw [hy, hyx]
+  rw [hy, slot_injOn hD (List.mem_of_find?_eq_some hy) hx (by simpa using List.find?_some hy)]
 
 /-- Every key cell holds a key of the list. -/
 theorem mem_of_memory_eq_key {D : Description F} {keys : List X} {a : ℕ} {y : X}
     (h : memory D keys a = .key y) : y ∈ keys := by
   by_cases ha : D.top.range + 1 < a
   · rw [memory_of_lt ha] at h
-    cases hf : keys.find? (fun x => slot D keys x = a) with
-    | none => rw [hf] at h; cases h
-    | some z =>
-      rw [hf] at h
-      cases h
+    rcases hf : keys.find? (fun x => slot D keys x = a) with _ | z <;> rw [hf] at h
+    · cases h
+    · cases h
       exact List.mem_of_find?_eq_some hf
   · rw [memory] at h
     by_cases h0 : a = 0
@@ -313,15 +306,11 @@ theorem runLookup_eq (mem : ℕ → Cell F) (x : X) :
         | _ => false
       | _ => false := by
   simp only [runLookup, lookup, interp_norm, pure_bind]
-  rcases mem 0 with h₀ | _ | _ | _
-  · simp only [interp_norm, pure_bind]
-    rcases mem (1 + (h₀.apply x : ℕ)) with _ | ⟨off, g⟩ | _ | _
-    · rfl
-    · simp only [interp_norm, pure_bind]
-      rcases mem (off + (g.apply x : ℕ)) with _ | _ | y | _ <;> rfl
-    · rfl
-    · rfl
-  all_goals rfl
+  rcases mem 0 with h₀ | _ | _ | _ <;> try rfl
+  simp only [interp_norm, pure_bind]
+  rcases mem (1 + (h₀.apply x : ℕ)) with _ | ⟨off, g⟩ | _ | _ <;> try rfl
+  simp only [interp_norm, pure_bind]
+  rcases mem (off + (g.apply x : ℕ)) with _ | _ | y | _ <;> rfl
 
 /-- **Correctness of the FKS lookup.** If the secondary hashes are injective on their buckets, the
 lookup of `x` in the table of `keys` answers whether `x` is a key. -/
@@ -331,9 +320,7 @@ theorem runLookup_memory {D : Description F} {keys : List X} (hD : SecondaryInje
   dsimp only
   rw [memory_header]
   by_cases hx : x ∈ keys
-  · have hne : (bucket D keys (D.top.apply x)).card ≠ 0 :=
-      card_ne_zero.mpr ⟨x, mem_bucket.mpr ⟨hx, rfl⟩⟩
-    rw [ite_eq_right hne]
+  · rw [ite_eq_right (card_ne_zero.mpr ⟨x, mem_bucket.mpr ⟨hx, rfl⟩⟩)]
     dsimp only
     rw [show offset D keys (D.top.apply x) + ((D.secondary (D.top.apply x)).apply x : ℕ) =
       slot D keys x from rfl, memory_slot hD hx]
@@ -343,35 +330,24 @@ theorem runLookup_memory {D : Description F} {keys : List X} (hD : SecondaryInje
       simp [hx]
     · rw [ite_eq_right hempty]
       dsimp only
-      generalize hc : memory D keys (offset D keys (D.top.apply x) +
-        ((D.secondary (D.top.apply x)).apply x : ℕ)) = c
-      cases c with
-      | key y =>
-        have hy := mem_of_memory_eq_key hc
-        have hyx : y ≠ x := fun h => hx (h ▸ hy)
+      rcases hc : memory D keys (offset D keys (D.top.apply x) +
+        ((D.secondary (D.top.apply x)).apply x : ℕ)) with _ | _ | y | _
+      case key =>
+        have hyx : y ≠ x := fun h => hx (h ▸ mem_of_memory_eq_key hc)
         simp [hx, hyx]
-      | top g => simp [hx]
-      | bucket off g => simp [hx]
-      | empty => simp [hx]
+      all_goals simp [hx]
 
 end Correctness
 
 /-- **Worst-case probes.** A lookup reads at most three cells, whatever the memory holds. -/
 theorem isQueryBounded_lookup (F : Family X) [DecidableEq X] (x : X) :
     OracleComp.IsQueryBounded (lookup F x) 3 := by
-  refine OracleComp.IsCostBounded.bind (n := 1) (m := 2) (OracleComp.IsCostBounded.query _)
-    fun c₀ => ?_
-  rcases c₀ with h₀ | _ | _ | _
-  · refine OracleComp.IsCostBounded.bind (n := 1) (m := 1) (OracleComp.IsCostBounded.query _)
-      fun c₁ => ?_
-    rcases c₁ with _ | ⟨off, g⟩ | _ | _
-    · exact .pure _ _
-    · refine (OracleComp.IsCostBounded.bind (n := 1) (m := 0) (OracleComp.IsCostBounded.query _)
-        fun c₂ => ?_)
-      rcases c₂ with _ | _ | y | _ <;> exact .pure _ _
-    · exact .pure _ _
-    · exact .pure _ _
-  all_goals exact .pure _ _
+  refine OracleComp.IsCostBounded.bind (n := 1) (m := 2) (.query _) fun c₀ => ?_
+  rcases c₀ with h₀ | _ | _ | _ <;> try exact .pure _ _
+  refine OracleComp.IsCostBounded.bind (n := 1) (m := 1) (.query _) fun c₁ => ?_
+  rcases c₁ with _ | ⟨off, g⟩ | _ | _ <;> try exact .pure _ _
+  refine OracleComp.IsCostBounded.bind (n := 1) (m := 0) (.query _) fun c₂ => ?_
+  rcases c₂ with _ | _ | y | _ <;> exact .pure _ _
 
 section Space
 

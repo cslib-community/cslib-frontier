@@ -59,23 +59,12 @@ private theorem sum_pow_positive (e : ℕ) (he : 0 < e) :
 
 private theorem exponent_dvd_iff {m i k : ℕ} (hi : i < m) (hk : k < m) :
     m ∣ i + (m - k) ↔ i = k := by
-  constructor
-  · rintro ⟨t, ht⟩
-    have htpos : 0 < t := by
-      by_contra h
-      have htzero : t = 0 := by omega
-      simp only [htzero, mul_zero] at ht
-      omega
-    have htlt : t < 2 := by
-      by_contra h
-      have htwo : 2 ≤ t := by omega
-      have hm := Nat.mul_le_mul_left m htwo
-      omega
-    have htone : t = 1 := by omega
-    simp only [htone, mul_one] at ht
+  refine ⟨?_, fun h => by rw [h, Nat.add_sub_of_le hk.le]⟩
+  rintro ⟨_ | _ | t, ht⟩
+  · omega
+  · omega
+  · have := Nat.mul_le_mul_left m (show 2 ≤ t + 1 + 1 by omega)
     omega
-  · rintro rfl
-    rw [Nat.add_sub_of_le hk.le]
 
 end FiniteField
 
@@ -89,7 +78,6 @@ theorem coeff_eq_neg_sum_eval (P : Polynomial K) (k : ℕ)
     (hk : k < Fintype.card K - 1) :
     P.coeff k = -∑ x : K, P.eval x * x ^ (Fintype.card K - 1 - k) := by
   classical
-  have he : 0 < Fintype.card K - 1 - k := by omega
   have hsum : (∑ x : K, P.eval x * x ^ (Fintype.card K - 1 - k)) = -P.coeff k := by
     simp_rw [Polynomial.eval_eq_sum, Polynomial.sum, Finset.sum_mul]
     rw [Finset.sum_comm]
@@ -155,12 +143,9 @@ theorem coeff_eq_signed_sum_eval {n : ℕ} (P : MvPolynomial (Fin n) K) (β : Fi
         rw [FiniteField.sum_pow_positive _ (by have := hβ i; omega)]
         simp only [FiniteField.exponent_dvd_iff (hei i) (hβ i)]
       simp_rw [hpowers]
-      by_cases heq : e = β
-      · simp only [heq, ite_true, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
-      · obtain ⟨i, hi⟩ : ∃ i, e i ≠ β i := by
-          by_contra h
-          push Not at h
-          exact heq (Finsupp.ext h)
+      rcases eq_or_ne e β with rfl | heq
+      · simp only [ite_true, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+      · obtain ⟨i, hi⟩ := not_forall.mp (mt Finsupp.ext heq)
         rw [ite_eq_right heq, Finset.prod_eq_zero (Finset.mem_univ i) (ite_eq_right hi), mul_zero]
     rw [Finset.sum_congr rfl hterm]
     by_cases hmem : β ∈ P.support

@@ -79,6 +79,30 @@ theorem exec_trieInit {w d free : ℕ} (x : Data numRegs)
   · intro a ⟨ha0, ha1⟩
     rw [hmem, Function.update_of_ne ha1, Function.update_of_ne ha0]
 
+/-- The empty trie at address `0` represents only the zero function. -/
+private theorem TrieRep.fn_eq_zero {mem : ℕ → ℕ} {k : ℕ} {S : Set ℕ} {fn : ℕ → ℕ}
+    (h : TrieRep mem k 0 S fn) (m : ℕ) : fn m = 0 := by
+  cases k <;> dsimp only [TrieRep] at h <;> rcases h with ⟨-, -, h⟩ | ⟨h, -⟩
+  all_goals first | exact h m | omega
+
+/-- `TrieRep` at an allocated node of depth `k + 1`, with its children named by a key bit `bit`:
+the child at `node + bit` holds the keys with low bit `bit`, the one at `node + (1 - bit)` the
+others. -/
+private theorem trieRep_succ_iff {mem : ℕ → ℕ} {k node bit : ℕ} {S : Set ℕ} {fn : ℕ → ℕ}
+    (hpos : 0 < node) (hbit : bit < 2) :
+    TrieRep mem (k + 1) node S fn ↔ ∃ Sc So fnc fno,
+      Disjoint ({node, node + 1} : Set ℕ) (Sc ∪ So) ∧ Disjoint Sc So ∧
+      S = {node, node + 1} ∪ Sc ∪ So ∧
+      TrieRep mem k (mem (node + bit)) Sc fnc ∧ TrieRep mem k (mem (node + (1 - bit))) So fno ∧
+      ∀ m, fn m = if m % 2 = bit then fnc (m / 2) else fno (m / 2) := by
+  simp only [TrieRep, Nat.pos_iff_ne_zero.1 hpos, hpos, false_and, false_or, true_and]
+  obtain rfl | rfl : bit = 0 ∨ bit = 1 := by omega
+  · rfl
+  · constructor <;> rintro ⟨S₀, S₁, fn₀, fn₁, hd, hd', rfl, h₀, h₁, hfn⟩ <;>
+      refine ⟨S₁, S₀, fn₁, fn₀, by rwa [Set.union_comm], hd'.symm, Set.union_right_comm _ _ _,
+        by simpa using h₁, by simpa using h₀, fun m => ?_⟩ <;>
+      rcases Nat.mod_two_eq_zero_or_one m with h | h <;> simp [h, hfn m]
+
 /-- One bit-step of `trieGet`. -/
 private def trieGetStep : Code .standard numRegs := ram[
   if rTrieCur = rZero then [
@@ -126,54 +150,24 @@ theorem exec_trieGet {w bound d root key : ℕ} {fn : ℕ → ℕ} (x : Data num
         rw [Nat.shiftRight_eq_div_pow]
         exact hfrem.of_le (Nat.div_le_self _ _)
       have hbit_next : Fits w (s.regs rTrieBit + 1) := hfit_d.of_le (by omega)
-      have hsplit : d - s.regs rTrieBit = (d - (s.regs rTrieBit + 1)) + 1 := by omega
-      rw [hsplit] at hrep
-      dsimp only [TrieRep] at hrep
+      rw [show d - s.regs rTrieBit = (d - (s.regs rTrieBit + 1)) + 1 by omega] at hrep
+      unfold trieGetStep
       by_cases hcur0 : s.regs rTrieCur = 0
-      · have hfn0 : ∀ m, subFn m = 0 := by
-          rcases hrep with ⟨_, _, hf0⟩ | ⟨hp, _⟩
-          · exact hf0
-          · omega
-        have hstep : ∃ z, ExecWithin w trieGetStep s z 7 ∧
-            z.regs rZero = 0 ∧ z.regs rOne = 1 ∧ z.regs Reg.dim = d ∧ z.mem = s.mem ∧
-            z.regs rTrieCur = 0 ∧ z.regs rTrieRem = s.regs rTrieRem ∧
-            z.regs rTrieBit = s.regs rTrieBit + 1 := by
-          unfold trieGetStep
-          wram_exec [hsz, hso, hcur0]
-          wram_simp [hsz, hso, hsd, hcur0]
-        obtain ⟨z, hz, hzz, hzo, hzd, hzm, hzc, hzr, hzb⟩ := hstep
-        refine ⟨z, hz, ⟨hzz, hzo, hzd, hzm.trans hsm, hzr ▸ hfrem,
-          ∅, Set.empty_subset _, fun _ => 0, ?_, ?_⟩, hzb⟩
-        · rw [hzc]; exact TrieRep.zero_root x.mem _
-        · rw [hval, hfn0]
-      · rcases hrep with ⟨hc0, _⟩ | ⟨_, S₀, S₁, fn₀, fn₁, _, _, rfl, ht₀, ht₁, hfn⟩
-        · exact absurd hc0 hcur0
-        have hcur_bound : s.regs rTrieCur + 1 < bound :=
-          (hS (by simp : s.regs rTrieCur + 1 ∈ _)).2
-        have hbit_le : (s.regs rTrieRem &&& 1) ≤ 1 := by
-          rw [Nat.and_one_is_mod]; omega
+      · rw [hcur0] at hrep
+        wram_exec [hsz, hso, hcur0]
+        refine ⟨⟨hsz, hso, hsd, hsm, hfrem, ∅, Set.empty_subset _, fun _ => 0,
+          by simpa [hcur0] using TrieRep.zero_root x.mem _, ?_⟩, rfl⟩
+        rw [hval, hrep.fn_eq_zero]
+      · obtain ⟨Sc, So, fnc, fno, -, -, rfl, htc, -, hfn⟩ :=
+          (trieRep_succ_iff (Nat.pos_of_ne_zero hcur0) (Nat.mod_lt _ two_pos)).1 hrep
+        have hcur1 := (hS (by simp : s.regs rTrieCur + 1 ∈ _)).2
         have haddr_fit : Fits w (s.regs rTrieCur + (s.regs rTrieRem &&& 1)) :=
-          hfit_bound.of_le (by omega)
-        have hstep : ∃ z, ExecWithin w trieGetStep s z 7 ∧
-            z.regs rZero = 0 ∧ z.regs rOne = 1 ∧ z.regs Reg.dim = d ∧ z.mem = s.mem ∧
-            z.regs rTrieCur = s.mem (s.regs rTrieCur + (s.regs rTrieRem &&& 1)) ∧
-            z.regs rTrieRem = s.regs rTrieRem >>> 1 ∧
-            z.regs rTrieBit = s.regs rTrieBit + 1 := by
-          unfold trieGetStep
-          wram_exec [hsz, hso, hcur0]
-          wram_simp [hsz, hso, hsd]
-        obtain ⟨z, hz, hzz, hzo, hzd, hzm, hzc, hzr, hzb⟩ := hstep
-        rw [hsm, Nat.and_one_is_mod] at hzc
-        rw [Nat.shiftRight_eq_div_pow, pow_one] at hzr
-        refine ⟨z, hz, ⟨hzz, hzo, hzd, hzm.trans hsm, hzr ▸ hrem_shr, ?_⟩, hzb⟩
-        by_cases hmod : s.regs rTrieRem % 2 = 0
-        · refine ⟨S₀, fun a ha => hS (by simp [ha]), fn₀, ?_, ?_⟩
-          · simpa [hzc, hmod] using ht₀
-          · rw [hval, hfn, ite_eq_left hmod, hzr]
-        · have hmod1 : s.regs rTrieRem % 2 = 1 := by omega
-          refine ⟨S₁, fun a ha => hS (by simp [ha]), fn₁, ?_, ?_⟩
-          · simpa [hzc, hmod1] using ht₁
-          · rw [hval, hfn, ite_eq_right hmod, hzr]
+          hfit_bound.of_le (by rw [Nat.and_one_is_mod]; omega)
+        wram_exec [hsz, hso, hcur0]
+        refine ⟨⟨by wram_simp [hsz], by wram_simp [hso], by wram_simp [hsd], hsm,
+          by wram_simp [hrem_shr], Sc, fun a ha => hS (by simp [ha]), fnc, ?_, ?_⟩, by wram_simp⟩
+        · wram_simp [hsm, Nat.and_one_is_mod]; exact htc
+        · wram_simp [hval, hfn, Nat.shiftRight_one]
     let x₀ := ((x.set rTrieCur root).set rTrieRem key).set rTrieBit 0
     have hinit : ExecWithin (B := .standard) w
         (ram[ rTrieCur ← rTrieRoot; rTrieRem ← rTrieKey; rTrieBit ← #0 ]) x x₀ 3 := by
@@ -232,29 +226,9 @@ theorem trieSet_preserves (i : Fin numRegs) :
 
 private theorem mod_two_pow_succ_eq_iff {a b k : ℕ} :
     a % 2 ^ (k + 1) = b % 2 ^ (k + 1) ↔ a % 2 = b % 2 ∧ (a / 2) % 2 ^ k = (b / 2) % 2 ^ k := by
-  rw [pow_succ']
+  rw [pow_succ', Nat.ext_div_mod_iff 2 (a % _) (b % _)]
   have hdvd : 2 ∣ 2 * 2 ^ k := dvd_mul_right 2 (2 ^ k)
-  constructor
-  · intro h
-    have h2 : a % 2 = b % 2 := by
-      have := congrArg (· % 2) h
-      rwa [Nat.mod_mod_of_dvd a hdvd, Nat.mod_mod_of_dvd b hdvd] at this
-    refine ⟨h2, ?_⟩
-    have ha := Nat.mod_mul_right_div_self a 2 (2 ^ k)
-    have hb := Nat.mod_mul_right_div_self b 2 (2 ^ k)
-    omega
-  · rintro ⟨h2, hdiv⟩
-    have ha : a % (2 * 2 ^ k) = a % 2 + 2 * ((a / 2) % 2 ^ k) := by
-      have := Nat.div_add_mod (a % (2 * 2 ^ k)) 2
-      have hd := Nat.mod_mul_right_div_self a 2 (2 ^ k)
-      have hm : (a % (2 * 2 ^ k)) % 2 = a % 2 := Nat.mod_mod_of_dvd a hdvd
-      omega
-    have hb : b % (2 * 2 ^ k) = b % 2 + 2 * ((b / 2) % 2 ^ k) := by
-      have := Nat.div_add_mod (b % (2 * 2 ^ k)) 2
-      have hd := Nat.mod_mul_right_div_self b 2 (2 ^ k)
-      have hm : (b % (2 * 2 ^ k)) % 2 = b % 2 := Nat.mod_mod_of_dvd b hdvd
-      omega
-    omega
+  simp only [Nat.mod_mul_right_div_self, Nat.mod_mod_of_dvd _ hdvd, and_comm]
 
 private theorem exec_trieSetLoop :
     ∀ (k : ℕ) {w lo d b cur rem val free : ℕ} {S : Set ℕ} {fn : ℕ → ℕ} (s : Data numRegs),
@@ -283,28 +257,30 @@ private theorem exec_trieSetLoop :
     · omega
     have hexit : Exec w (.loop (.lt rTrieBit Reg.dim) trieSetStep) s s 2 :=
       Exec.loop_exit (by simp [Cond.holds_lt, hb, hd])
-    have hst : ∃ y, ExecWithin (B := .standard) w (ram[ *rTrieCur ← rTrieVal ]) s y 1 ∧
+    obtain ⟨y, hy, hyfree, hymem⟩ : ∃ y, ExecWithin (B := .standard) w
+        (ram[ *rTrieCur ← rTrieVal ]) s y 1 ∧
         y.regs Reg.free = free ∧ y.mem = Function.update s.mem cur val := by
       wram_exec [hcur, hval]
       wram_simp [hfree]
-    obtain ⟨y, hy, hyfree, hymem⟩ := hst
     refine ⟨y, {cur, cur + 1}, free, (hexit.within.seq hy).mono (by omega), hyfree,
-      le_rfl, by omega, Set.subset_union_left, ?_, ?_⟩
-    · intro a ha
-      rw [hymem, Function.update_of_ne]
-      intro hEq; subst hEq; exact ha (by simp)
-    · refine Or.inr ⟨hcur_pos, rfl, fun m => ?_⟩
-      simp [pow_zero, Nat.mod_one, hymem]
+      le_rfl, by omega, Set.subset_union_left, fun a ha => ?_,
+      Or.inr ⟨hcur_pos, rfl, fun m => by simp [hymem, Nat.mod_one]⟩⟩
+    rw [hymem, Function.update_of_ne (by rintro rfl; simp at ha)]
   | succ k ih =>
     intro w lo d b cur rem val free S fn s hk hle hz ho hd hb hcur hrem hval hfree
       hlo hfree_lo hcur_pos hS hrep hfit_free hfit_d hfit_rem
-    have hlt_bd : b < d := by omega
-    dsimp only [TrieRep] at hrep
-    rcases hrep with ⟨hc0, _⟩ | ⟨_, S₀, S₁, fn₀, fn₁, hd_cur, hd_01, hS_eq, ht₀, ht₁, hfn⟩
-    · omega
-    have hcur_mem : cur ∈ S := by rw [hS_eq]; simp
-    have hcur1_mem : cur + 1 ∈ S := by rw [hS_eq]; simp
-    have hcur1_lt : cur + 1 < free := (hS hcur1_mem).2
+    obtain ⟨Sc, So, fnc, fno, hdisj, hdisj', rfl, htc, hto, hfn⟩ :=
+      (trieRep_succ_iff hcur_pos (Nat.mod_lt rem two_pos)).1 hrep
+    -- The node's cells `N = {cur, cur + 1}`, holding the child slot `cur + rem % 2` and the other
+    -- slot, and both subtrees lie below `free`; the subtrees avoid `N`.
+    have hlt : ∀ a ∈ ({cur, cur + 1} : Set ℕ) ∪ Sc ∪ So, a < free := fun a ha => (hS ha).2
+    have hN : ∀ a ∈ ({cur, cur + 1} : Set ℕ), a ∉ Sc ∪ So :=
+      fun _ ha => Set.disjoint_left.1 hdisj ha
+    have hslot : cur + rem % 2 ∈ ({cur, cur + 1} : Set ℕ) := by
+      rcases Nat.mod_two_eq_zero_or_one rem with h | h <;> simp [h]
+    have hother : cur + (1 - rem % 2) ∈ ({cur, cur + 1} : Set ℕ) := by
+      rcases Nat.mod_two_eq_zero_or_one rem with h | h <;> simp [h]
+    have hcur1 : cur + 1 < free := hlt _ (by simp)
     have hrem_and_fit : Fits w (rem &&& 1) := hfit_d.of_le (by rw [Nat.and_one_is_mod]; omega)
     have hrem_shr_fit : Fits w (rem >>> 1) := by
       rw [Nat.shiftRight_eq_div_pow]
@@ -313,311 +289,94 @@ private theorem exec_trieSetLoop :
       hfit_free.of_le (by rw [Nat.and_one_is_mod]; omega)
     have hb1_fit : Fits w (b + 1) := hfit_d.of_le (by omega)
     have hfree2_fit : Fits w (free + 2) := hfit_free.of_le (by omega)
-    let bit := rem % 2
-    have hbit01 : bit = 0 ∨ bit = 1 := by dsimp [bit]; omega
-    have hbit_eq : rem &&& 1 = bit := Nat.and_one_is_mod rem
-    let slot := cur + bit
-    have hstep : ∃ u, ExecWithin w trieSetStep s u 12 ∧
-        u.regs rZero = 0 ∧ u.regs rOne = 1 ∧ u.regs Reg.dim = d ∧
-        u.regs rTrieBit = b + 1 ∧ u.regs rTrieRem = rem / 2 ∧ u.regs rTrieVal = val ∧
-        ((s.mem slot = 0 ∧ u.regs rTrieCur = free ∧ u.regs Reg.free = free + 2 ∧
-          u.mem = Function.update
-            (Function.update (Function.update s.mem slot free) free 0) (free + 1) 0) ∨
-         (s.mem slot ≠ 0 ∧ u.regs rTrieCur = s.mem slot ∧
-           u.regs Reg.free = free ∧ u.mem = s.mem)) := by
-      by_cases hslot0 : s.mem slot = 0
-      · have hload : s.mem (cur + (rem &&& 1)) = 0 := by rwa [hbit_eq]
-        unfold trieSetStep
-        wram_exec [hz, ho, hcur, hrem, hfree, hload]
-        refine ⟨hz, ho, hd, ?_, ?_, hval, Or.inl ⟨hslot0, ?_, ?_, ?_⟩⟩
-        · wram_simp [hb]
-        · wram_simp; rw [Nat.shiftRight_eq_div_pow, pow_one]
-        · wram_simp
-        · wram_simp
-        · wram_simp [hbit_eq]; rfl
-      · have hload : s.mem (cur + (rem &&& 1)) ≠ 0 := by rwa [hbit_eq]
-        unfold trieSetStep
-        wram_exec [hz, ho, hcur, hrem, hfree, hload]
-        refine ⟨hz, ho, hd, ?_, ?_, hval, Or.inr ⟨hslot0, ?_, ?_, ?_⟩⟩
-        · wram_simp [hb]
-        · wram_simp; rw [Nat.shiftRight_eq_div_pow, pow_one]
-        · wram_simp [hbit_eq, slot]
-        · wram_simp [hfree]
-        · wram_simp
-    obtain ⟨u, hstep_exec, huz, huo, hud, hub, hurem, huval, hbranch⟩ := hstep
-    have hslot_mem_cur : slot ∈ ({cur, cur + 1} : Set ℕ) := by
-      rcases hbit01 with hb0 | hb1
-      · simp [slot, hb0]
-      · simp [slot, hb1]
-    have hother_mem_cur : cur + (1 - bit) ∈ ({cur, cur + 1} : Set ℕ) := by
-      rcases hbit01 with hb0 | hb1
-      · simp [hb0]
-      · simp [hb1]
-    have hprep : ∃ child free₁ S_c S_o fn_c fn_o,
-        u.regs rTrieCur = child ∧ u.regs Reg.free = free₁ ∧
-        free ≤ free₁ ∧ free₁ ≤ free + 2 ∧ 0 < child ∧
-        u.mem slot = child ∧ u.mem (cur + (1 - bit)) = s.mem (cur + (1 - bit)) ∧
-        S_c ⊆ S ∪ Set.Ico free free₁ ∧ S_o ⊆ S ∧
-        Disjoint ({cur, cur + 1} : Set ℕ) (S_c ∪ S_o) ∧ Disjoint S_c S_o ∧
-        S_c ⊆ Set.Ico lo free₁ ∧
-        (∀ a, a ∉ ({slot} : Set ℕ) ∪ Set.Ico free free₁ → u.mem a = s.mem a) ∧
-        TrieRep u.mem k child S_c fn_c ∧
-        TrieRep u.mem k (u.mem (cur + (1 - bit))) S_o fn_o ∧
-        (bit = 0 → fn_c = fn₀ ∧ fn_o = fn₁) ∧
-        (bit = 1 → fn_c = fn₁ ∧ fn_o = fn₀) := by
-      rcases hbranch with ⟨hslot0, hucur, hufree, humem⟩ | ⟨hslot_ne, hucur, hufree, humem⟩
-      · refine ⟨free, free + 2, {free, free + 1}, if bit = 0 then S₁ else S₀,
-          fun _ => 0, if bit = 0 then fn₁ else fn₀, hucur, hufree, by omega, le_rfl,
-          by omega, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-        · rw [humem, Function.update_of_ne (by dsimp [slot]; omega),
-            Function.update_of_ne (by dsimp [slot]; omega), Function.update_self]
-        · rw [humem, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-            Function.update_of_ne (by dsimp [slot]; omega)]
-        · intro a ha
-          rcases ha with rfl | ha1
-          · exact Or.inr ⟨le_rfl, by omega⟩
-          · have : a = free + 1 := by simpa using ha1
-            subst this; exact Or.inr ⟨by omega, by omega⟩
-        · intro a ha
-          rw [hS_eq]
-          rcases hbit01 with hb0 | hb1
-          · simp only [hb0, ↓reduceIte] at ha; simp [ha]
-          · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte] at ha; simp [ha]
-        · rw [Set.disjoint_left]
-          intro a ha hso
-          have ha_lt : a < free := by
-            rcases ha with rfl | ha1
-            · omega
-            · have : a = cur + 1 := by simpa using ha1
-              omega
-          rcases hso with hsc | hso
-          · rcases hsc with rfl | hsc1
-            · omega
-            · have : a = free + 1 := by simpa using hsc1
-              omega
-          · have h01 : a ∈ S₀ ∪ S₁ := by
-              rcases hbit01 with hb0 | hb1
-              · simp only [hb0, ↓reduceIte] at hso; exact Or.inr hso
-              · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte] at hso; exact Or.inl hso
-            exact Set.disjoint_left.mp hd_cur ha h01
-        · rw [Set.disjoint_left]
-          intro a ha hso
-          have ha_ge : free ≤ a := by
-            rcases ha with rfl | ha1
-            · exact le_rfl
-            · have : a = free + 1 := by simpa using ha1
-              omega
-          have haS : a ∈ S := by
-            rw [hS_eq]
-            rcases hbit01 with hb0 | hb1
-            · simp only [hb0, ↓reduceIte] at hso; simp [hso]
-            · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte] at hso; simp [hso]
-          have := (hS haS).2
-          omega
-        · intro a ha
-          rcases ha with rfl | ha1
-          · exact ⟨by omega, by omega⟩
-          · have : a = free + 1 := by simpa using ha1
-            subst this; exact ⟨by omega, by omega⟩
-        · intro a ha
-          rw [humem, Function.update_of_ne (by intro h; exact ha (Or.inr ⟨by omega, by omega⟩)),
-            Function.update_of_ne (by intro h; exact ha (Or.inr ⟨by omega, by omega⟩)),
-            Function.update_of_ne (by intro h; exact ha (Or.inl (by simp [h])))]
-        · apply TrieRep.fresh_node k (by omega)
-          · rw [humem, Function.update_of_ne (by omega), Function.update_self]
-          · rw [humem, Function.update_self]
-        · have hu_other : u.mem (cur + (1 - bit)) = s.mem (cur + (1 - bit)) := by
-            rw [humem, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-              Function.update_of_ne (by dsimp [slot]; omega)]
-          rw [hu_other]
-          rcases hbit01 with hb0 | hb1
-          · simp only [hb0, ↓reduceIte, Nat.sub_zero]
-            refine ht₁.congr_mem fun a ha => ?_
-            have ha_lt : a < free := (hS (by rw [hS_eq]; simp [ha])).2
-            have ha_ne : a ≠ slot := fun h =>
-              Set.disjoint_left.mp hd_cur (h ▸ hslot_mem_cur) (Or.inr ha)
-            rw [humem, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-              Function.update_of_ne ha_ne]
-          · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte, Nat.sub_self, Nat.add_zero]
-            refine ht₀.congr_mem fun a ha => ?_
-            have ha_lt : a < free := (hS (by rw [hS_eq]; simp [ha])).2
-            have ha_ne : a ≠ slot := fun h =>
-              Set.disjoint_left.mp hd_cur (h ▸ hslot_mem_cur) (Or.inl ha)
-            rw [humem, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-              Function.update_of_ne ha_ne]
-        · intro hb0
-          have hm0 : s.mem cur = 0 := by simpa [slot, hb0] using hslot0
-          rw [hm0] at ht₀
-          have hfn0_zero : fn₀ = fun _ => 0 := by
-            funext m
-            cases k <;> {
-              dsimp only [TrieRep] at ht₀
-              rcases ht₀ with ⟨_, _, hf⟩ | ⟨hp, _⟩
-              · exact hf m
-              · omega }
-          exact ⟨hfn0_zero.symm, by simp [hb0]⟩
-        · intro hb1
-          have hm1 : s.mem (cur + 1) = 0 := by simpa [slot, hb1] using hslot0
-          rw [hm1] at ht₁
-          have hfn1_zero : fn₁ = fun _ => 0 := by
-            funext m
-            cases k <;> {
-              dsimp only [TrieRep] at ht₁
-              rcases ht₁ with ⟨_, _, hf⟩ | ⟨hp, _⟩
-              · exact hf m
-              · omega }
-          exact ⟨hfn1_zero.symm, by simp [hb1]⟩
-      · refine ⟨s.mem slot, free, if bit = 0 then S₀ else S₁, if bit = 0 then S₁ else S₀,
-          if bit = 0 then fn₀ else fn₁, if bit = 0 then fn₁ else fn₀,
-          hucur, hufree, le_rfl, by omega, by omega, by rw [humem], by rw [humem],
-          ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-        · intro a ha
-          left; rw [hS_eq]
-          rcases hbit01 with hb0 | hb1
-          · simp only [hb0, ↓reduceIte] at ha; simp [ha]
-          · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte] at ha; simp [ha]
-        · intro a ha
-          rw [hS_eq]
-          rcases hbit01 with hb0 | hb1
-          · simp only [hb0, ↓reduceIte] at ha; simp [ha]
-          · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte] at ha; simp [ha]
-        · rcases hbit01 with hb0 | hb1
-          · simp only [hb0, ↓reduceIte]; exact hd_cur
-          · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte, Set.union_comm]; exact hd_cur
-        · rcases hbit01 with hb0 | hb1
-          · simp only [hb0, ↓reduceIte]; exact hd_01
-          · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte]; exact hd_01.symm
-        · intro a ha
-          refine hS ?_
-          rw [hS_eq]
-          rcases hbit01 with hb0 | hb1
-          · simp only [hb0, ↓reduceIte] at ha; simp [ha]
-          · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte] at ha; simp [ha]
-        · intro a _; rw [humem]
-        · rw [humem]
-          rcases hbit01 with hb0 | hb1
-          · simpa [slot, hb0] using ht₀
-          · simpa [slot, hb1] using ht₁
-        · rw [humem]
-          rcases hbit01 with hb0 | hb1
-          · simpa [hb0] using ht₁
-          · simpa [hb1] using ht₀
-        · intro hb0; simp [hb0]
-        · intro hb1; simp [hb1]
-    obtain ⟨child, free₁, S_c, S_o, fn_c, fn_o, hucur, hufree, hfree_le1, hfree1_le, hchild_pos,
-      humem_slot, _, hSc_sub, hSo_sub, hdisj_cur, hdisj_co, hSc_ico, hu_frame,
-      ht_c, ht_o, hbit0_fn, hbit1_fn⟩ := hprep
-    obtain ⟨y, S_c', free₂, hrec_exec, hyfree, hfree12, hfree2_le, hSc'_sub, hy_frame, ht_c'⟩ :=
-      ih u (by omega) (by omega) huz huo hud hub hucur hurem huval hufree hlo
-        (hfree_lo.trans hfree_le1) hchild_pos hSc_ico ht_c
-        (hfit_free.of_le (by omega)) hfit_d (hfit_rem.of_le (Nat.div_le_self _ _))
-    have hcond : (Cond.lt rTrieBit Reg.dim).Holds s := by simp [Cond.holds_lt, hb, hd, hlt_bd]
-    obtain ⟨n_step, hn_step, hex_step⟩ := hstep_exec
-    obtain ⟨n_rec, hn_rec, hex_rec⟩ := hrec_exec
-    cases hex_rec with
+    -- One step descends to the child at the slot, allocating a fresh zeroed node if it is absent.
+    obtain ⟨u, hstep, huz, huo, hud, hub, hurem, huval, hfree₁, hfree₁', hupos, huslot, huframe,
+        S_c, hSc_sub, htu⟩ : ∃ u, ExecWithin w trieSetStep s u 12 ∧
+        u.regs rZero = 0 ∧ u.regs rOne = 1 ∧ u.regs Reg.dim = d ∧ u.regs rTrieBit = b + 1 ∧
+        u.regs rTrieRem = rem / 2 ∧ u.regs rTrieVal = val ∧
+        free ≤ u.regs Reg.free ∧ u.regs Reg.free ≤ free + 2 ∧ 0 < u.regs rTrieCur ∧
+        u.mem (cur + rem % 2) = u.regs rTrieCur ∧
+        (∀ a, a ≠ cur + rem % 2 → a ∉ Set.Ico free (u.regs Reg.free) → u.mem a = s.mem a) ∧
+        ∃ S_c ⊆ Sc ∪ Set.Ico free (u.regs Reg.free), TrieRep u.mem k (u.regs rTrieCur) S_c fnc := by
+      unfold trieSetStep
+      wram_exec [hz, ho, hcur, hrem, hfree]
+      · rw [Nat.and_one_is_mod] at hc
+        rw [hc] at htc
+        obtain rfl : fnc = fun _ => 0 := funext htc.fn_eq_zero
+        wram_simp [hz, ho, hd, hb, hval, Nat.and_one_is_mod, Nat.shiftRight_one]
+        refine ⟨by omega, le_rfl, by omega, fun a h1 h2 => ?_, {free, free + 1}, fun a ha => ?_,
+          TrieRep.fresh_node k (by omega) (by simp) (by simp)⟩
+        · simp only [Set.mem_Ico, not_and_or, not_le, not_lt] at h2
+          wram_simp
+        · simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at ha
+          exact Or.inr ⟨by omega, by omega⟩
+      · wram_simp [hz, ho, hd, hb, hval, Nat.and_one_is_mod, Nat.shiftRight_one]
+        exact ⟨by omega, by omega, Nat.pos_of_ne_zero (by rwa [Nat.and_one_is_mod] at hc),
+          fun _ _ _ => trivial, Sc, Set.subset_union_left, htc⟩
+    have hSc_lo : S_c ⊆ Set.Ico lo (u.regs Reg.free) := fun a ha => by
+      rcases hSc_sub ha with ha | ha
+      · exact ⟨(hS (by simp [ha])).1, (hlt a (by simp [ha])).trans_le hfree₁⟩
+      · exact ⟨hfree_lo.trans ha.1, ha.2⟩
+    obtain ⟨y, S_c', free₂, hrec, hyfree, hfree₂, hfree₂', hSc'_sub, hyframe, htc'⟩ :=
+      ih u (by omega) (by omega) huz huo hud hub rfl hurem huval rfl hlo (by omega) hupos hSc_lo
+        htu (hfit_free.of_le (by omega)) hfit_d (hfit_rem.of_le (Nat.div_le_self _ _))
+    have hcond : (Cond.lt rTrieBit Reg.dim).Holds s := by
+      simp [Cond.holds_lt, hb, hd, show b < d by omega]
+    obtain ⟨n₁, hn₁, hex₁⟩ := hstep
+    obtain ⟨n₂, hn₂, hex₂⟩ := hrec
+    cases hex₂ with
     | seq hex_loop hex_store =>
-      have hex_full : ExecWithin w
-          (.seq (.loop (.lt rTrieBit Reg.dim) trieSetStep) (ram[ *rTrieCur ← rTrieVal ])) s y
-          (14 * (k + 1) + 3) :=
-        ⟨_, by omega, Exec.seq (Exec.loop_iter hcond hex_step hex_loop) hex_store⟩
-      have hdisj_cur' : Disjoint ({cur, cur + 1} : Set ℕ) (S_c' ∪ S_o) := by
-        rw [Set.disjoint_left]
-        intro a ha hso
-        rcases hso with hsc' | hso
-        · rcases hSc'_sub hsc' with hsc | hnew
-          · exact Set.disjoint_left.mp hdisj_cur ha (Or.inl hsc)
-          · have ha_lt : a < free := by
-              rcases ha with rfl | ha1
-              · omega
-              · have : a = cur + 1 := by simpa using ha1
-                omega
-            have := hnew.1; omega
-        · exact Set.disjoint_left.mp hdisj_cur ha (Or.inr hso)
-      have hdisj_co' : Disjoint S_c' S_o := by
-        rw [Set.disjoint_left]
-        intro a hsc' hso
-        rcases hSc'_sub hsc' with hsc | hnew
-        · exact Set.disjoint_left.mp hdisj_co hsc hso
-        · have ha_lt : a < free := (hS (hSo_sub hso)).2
-          have := hnew.1; omega
-      have hy_cur_slot : y.mem slot = child := by
-        rw [hy_frame slot (by
-          intro h; rcases h with hsc | hnew
-          · exact Set.disjoint_left.mp hdisj_cur hslot_mem_cur (Or.inl hsc)
-          · have : slot < free := by dsimp [slot, bit]; omega
-            have := hnew.1; omega), humem_slot]
-      have hy_cur_other : y.mem (cur + (1 - bit)) = u.mem (cur + (1 - bit)) := by
-        apply hy_frame
-        intro h; rcases h with hsc | hnew
-        · exact Set.disjoint_left.mp hdisj_cur hother_mem_cur (Or.inl hsc)
-        · have : cur + (1 - bit) < free := by dsimp [bit]; omega
-          have := hnew.1; omega
-      have ht_o' : TrieRep y.mem k (y.mem (cur + (1 - bit))) S_o fn_o := by
-        rw [hy_cur_other]
-        exact ht_o.congr_mem fun a ha => hy_frame a fun h => by
-          rcases h with hsc | hnew
-          · exact Set.disjoint_left.mp hdisj_co hsc ha
-          · have := (hS (hSo_sub ha)).2; have := hnew.1; omega
-      refine ⟨y, {cur, cur + 1} ∪ (if bit = 0 then S_c' else S_o) ∪ (if bit = 0 then S_o else S_c'),
-        free₂, hex_full, hyfree, hfree_le1.trans hfree12, by omega, ?_, ?_, ?_⟩
-      · intro a ha
-        have hsub_c' : S_c' ⊆ S ∪ Set.Ico free free₂ := fun x hx => by
-          rcases hSc'_sub hx with hxc | hnew
-          · rcases hSc_sub hxc with hxs | hnew0
-            · exact Or.inl hxs
-            · exact Or.inr ⟨hnew0.1, hnew0.2.trans_le hfree12⟩
-          · exact Or.inr ⟨hfree_le1.trans hnew.1, hnew.2⟩
-        rcases hbit01 with hb0 | hb1
-        · simp only [hb0, ↓reduceIte] at ha
-          rcases ha with (ha_cur | ha_c) | ha_o
-          · exact Or.inl (by rw [hS_eq]; simp [ha_cur])
-          · exact hsub_c' ha_c
-          · exact Or.inl (hSo_sub ha_o)
-        · simp only [hb1, Nat.reduceEqDiff, ↓reduceIte] at ha
-          rcases ha with (ha_cur | ha_o) | ha_c
-          · exact Or.inl (by rw [hS_eq]; simp [ha_cur])
-          · exact Or.inl (hSo_sub ha_o)
-          · exact hsub_c' ha_c
-      · intro a ha
-        have ha_not_rec : a ∉ S_c ∪ Set.Ico free₁ free₂ := by
-          intro h; apply ha
-          rcases h with hsc | hnew
-          · rcases hSc_sub hsc with hxs | hnew0
-            · exact Or.inl hxs
-            · exact Or.inr ⟨hnew0.1, hnew0.2.trans_le hfree12⟩
-          · exact Or.inr ⟨hfree_le1.trans hnew.1, hnew.2⟩
-        rw [hy_frame a ha_not_rec]
-        apply hu_frame
-        intro h; apply ha
-        rcases h with hslot | hnew0
-        · have : a = slot := by simpa using hslot
-          subst this; left; rw [hS_eq]
-          exact Or.inl (Or.inl hslot_mem_cur)
-        · exact Or.inr ⟨hnew0.1, hnew0.2.trans_le hfree12⟩
-      · dsimp only [TrieRep]
-        rcases hbit01 with hb0 | hb1
-        · obtain ⟨hc_eq, ho_eq⟩ := hbit0_fn hb0
-          subst hc_eq; subst ho_eq
-          simp only [hb0, ↓reduceIte]
-          have hm0 : y.mem cur = child := by simpa [slot, hb0] using hy_cur_slot
-          refine Or.inr ⟨hcur_pos, S_c', S_o, _, fn_o, hdisj_cur', hdisj_co', rfl,
-            hm0 ▸ ht_c', by simpa [hb0] using ht_o', fun m => ?_⟩
-          simp only [mod_two_pow_succ_eq_iff, hfn m]
-          have hrem2 : rem % 2 = 0 := hb0
-          by_cases hm2 : m % 2 = 0 <;> simp [hm2, hrem2]
-        · obtain ⟨hc_eq, ho_eq⟩ := hbit1_fn hb1
-          subst hc_eq; subst ho_eq
-          simp only [hb1, Nat.reduceEqDiff, ↓reduceIte]
-          have hm1 : y.mem (cur + 1) = child := by simpa [slot, hb1] using hy_cur_slot
-          refine Or.inr ⟨hcur_pos, S_o, S_c', fn_o, _,
-            by simpa [Set.union_comm] using hdisj_cur', hdisj_co'.symm, rfl,
-            by simpa [hb1] using ht_o', hm1 ▸ ht_c', fun m => ?_⟩
-          simp only [mod_two_pow_succ_eq_iff, hfn m]
-          have hrem2 : rem % 2 = 1 := hb1
-          by_cases hm2 : m % 2 = 0
-          · simp [hm2, hrem2]
-          · have hm2' : m % 2 = 1 := by omega
-            simp [hm2', hrem2]
+    -- The rebuilt child's cells are old child cells or fresh; below `free`, `y` agrees with `u`
+    -- off the old child cells, and with `s` off the slot too.
+    have hSc' : ∀ a ∈ S_c', a ∈ Sc ∨ a ∈ Set.Ico free free₂ := fun a ha => by
+      rcases hSc'_sub ha with ha | ha
+      · rcases hSc_sub ha with ha | ha
+        · exact Or.inl ha
+        · exact Or.inr ⟨ha.1, ha.2.trans_le hfree₂⟩
+      · exact Or.inr ⟨hfree₁.trans ha.1, ha.2⟩
+    have hyu : ∀ a, a < free → a ∉ Sc → y.mem a = u.mem a := fun a ha haS => hyframe a <| by
+      rintro (h | h)
+      · rcases hSc_sub h with h | h
+        exacts [haS h, absurd h.1 (by omega)]
+      · exact absurd h.1 (by omega)
+    have hys : ∀ a, a < free → a ∉ Sc → a ≠ cur + rem % 2 → y.mem a = s.mem a :=
+      fun a ha haS hne => (hyu a ha haS).trans (huframe a hne fun h => absurd h.1 (by omega))
+    refine ⟨y, {cur, cur + 1} ∪ S_c' ∪ So, free₂,
+      ⟨_, by omega, Exec.seq (Exec.loop_iter hcond hex₁ hex_loop) hex_store⟩, hyfree,
+      by omega, by omega, ?_, fun a ha => ?_, ?_⟩
+    · rintro a ((ha | ha) | ha)
+      · exact Or.inl (Or.inl (Or.inl ha))
+      · exact (hSc' a ha).imp (fun h => Or.inl (Or.inr h)) id
+      · exact Or.inl (Or.inr ha)
+    · have haS : a ∉ Sc := fun h => ha (Or.inl (Or.inl (Or.inr h)))
+      have haF : ¬ (free ≤ a ∧ a < free₂) := fun h => ha (Or.inr h)
+      refine (hyframe a ?_).trans (huframe a ?_ fun h => haF ⟨h.1, h.2.trans_le hfree₂⟩)
+      · rintro (h | h)
+        · rcases hSc_sub h with h | h
+          exacts [haS h, haF ⟨h.1, h.2.trans_le hfree₂⟩]
+        · exact haF ⟨hfree₁.trans h.1, h.2⟩
+      · rintro rfl; exact ha (Or.inl (Or.inl (Or.inl hslot)))
+    · refine (trieRep_succ_iff hcur_pos (Nat.mod_lt rem two_pos)).2 ⟨S_c', So,
+        fun m => if m % 2 ^ k = rem / 2 % 2 ^ k then val else fnc m, fno, ?_, ?_, rfl, ?_, ?_,
+        fun m => ?_⟩
+      · rw [Set.disjoint_left]
+        rintro a haN (ha | ha)
+        · rcases hSc' a ha with h | h
+          · exact hN a haN (Or.inl h)
+          · exact absurd h.1 (by have := hlt a (Or.inl (Or.inl haN)); omega)
+        · exact hN a haN (Or.inr ha)
+      · rw [Set.disjoint_left]
+        intro a ha ha'
+        rcases hSc' a ha with h | h
+        · exact Set.disjoint_left.1 hdisj' h ha'
+        · exact absurd h.1 (by have := hlt a (Or.inr ha'); omega)
+      · rw [hyu _ (hlt _ (Or.inl (Or.inl hslot))) fun h => hN _ hslot (Or.inl h), huslot]
+        exact htc'
+      · rw [hys _ (hlt _ (Or.inl (Or.inl hother))) (fun h => hN _ hother (Or.inl h)) (by omega)]
+        exact hto.congr_mem fun a ha => hys a (hlt a (Or.inr ha)) (Set.disjoint_right.1 hdisj' ha)
+          (by rintro rfl; exact hN _ hslot (Or.inr ha))
+      · simp only [mod_two_pow_succ_eq_iff, hfn m]
+        by_cases h : m % 2 = rem % 2 <;> simp [h]
 
 theorem exec_trieSet {w lo d root key val free : ℕ} {S : Set ℕ} {fn : ℕ → ℕ}
     (x : Data numRegs)
@@ -651,13 +410,9 @@ theorem exec_trieSet {w lo d root key val free : ℕ} {S : Set ℕ} {fn : ℕ �
     rcases hS' ha with haS | haNew
     · exact ⟨(hS haS).1, (hS haS).2.trans_le hle1⟩
     · exact ⟨hfree_lo.trans haNew.1, haNew.2⟩
-  · intro a ha
-    have hnot : a ∉ S ∪ Set.Ico free free' := by
-      intro h; rcases h with haS | haNew
-      · have h1 := (hS haS).1; have h2 := (hS haS).2
-        rcases ha with ha1 | ha2 <;> omega
-      · have h1 := haNew.1; have h2 := haNew.2
-        rcases ha with ha1 | ha2 <;> omega
-    exact hyframe a hnot
+  · refine fun a ha => hyframe a ?_
+    rintro (h | ⟨h1, h2⟩)
+    · obtain ⟨h1, h2⟩ := hS h; omega
+    · omega
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

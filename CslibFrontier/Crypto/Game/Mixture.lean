@@ -53,13 +53,10 @@ theorem coe_advantage_bind_le_tsum {α : Type*} (d : PMF α) (game1 game2 : α �
       ∑' a, d a * (advantage (game1 a) (game2 a) : ℝ≥0∞) := by
   have key (g1 g2 : α → Game) : (d.bind g1) true ≤
       (d.bind g2) true + ∑' a, d a * (advantage (g1 a) (g2 a) : ℝ≥0∞) := by
-    have hpt (a : α) : d a * g1 a true ≤
-        d a * g2 a true + d a * (advantage (g1 a) (g2 a) : ℝ≥0∞) :=
+    simp only [PMF.bind_apply, ← tsum_add]
+    exact tsum_le_tsum fun a =>
       (mul_le_mul' le_rfl (apply_true_le_add_advantage _ _)).trans_eq (mul_add _ _ _)
-    simp only [PMF.bind_apply]
-    rw [← tsum_add]
-    exact tsum_le_tsum hpt
-  have hle (a : α) : d a * (advantage (game1 a) (game2 a) : ℝ≥0∞) ≤ d a := by
+  have hle (a : α) : d a * (advantage (game1 a) (game2 a) : ℝ≥0∞) ≤ d a :=
     calc d a * (advantage (game1 a) (game2 a) : ℝ≥0∞) ≤ d a * 1 := by
           gcongr
           exact ENNReal.coe_le_one_iff.mpr (advantage_le_one _ _)
@@ -67,10 +64,8 @@ theorem coe_advantage_bind_le_tsum {α : Type*} (d : PMF α) (game1 game2 : α �
   have hB : ∑' a, d a * (advantage (game1 a) (game2 a) : ℝ≥0∞) ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top ((tsum_le_tsum hle).trans_eq d.tsum_coe)
   have h21 : (d.bind game2) true ≤
-      (d.bind game1) true + ∑' a, d a * (advantage (game1 a) (game2 a) : ℝ≥0∞) := by
-    refine (key game2 game1).trans_eq ?_
-    congr 1
-    exact tsum_congr fun a => by rw [advantage_comm]
+      (d.bind game1) true + ∑' a, d a * (advantage (game1 a) (game2 a) : ℝ≥0∞) :=
+    (key game2 game1).trans_eq (congrArg _ (tsum_congr fun a => by rw [advantage_comm]))
   have h := ENNReal.ofReal_le_ofReal (advantage_le_of_apply_le hB (key game1 game2) h21)
   rwa [ENNReal.ofReal_coe_nnreal, ENNReal.ofReal_toReal hB] at h
 

@@ -177,14 +177,7 @@ theorem dens_not_injOn_caseAQuot_le {ι₀ : Type*} [Fintype ι₀] [Nonempty ι
       have hp₁ : toPair ⟨u₁, hu₁⟩ ∈ S_pair := mem_map.mpr ⟨⟨u₁, hu₁⟩, mem_attach _ _, rfl⟩
       have hp₂ : toPair ⟨u₂, hu₂⟩ ∈ S_pair := mem_map.mpr ⟨⟨u₂, hu₂⟩, mem_attach _ _, rfl⟩
       exact congrArg Subtype.val (toPair.injective (h hp₁ hp₂ heq))
-  have hset : (univ.filter fun s₀ : ι₀ =>
-      ¬ Set.InjOn (caseAQuot hma (h₀ s₀)) (S : Set (Fin (2 ^ a)))) =
-      (univ.filter fun s₀ : ι₀ =>
-        ¬ Set.InjOn (feistelHead (fun x : S_L => h₀ s₀ x.1)) (S_pair : Set _)) := by
-    ext s₀
-    simp only [mem_filter, mem_univ, true_and, hiff]
-  rw [hset]
-  simpa only [hSp_card] using hd
+  simpa only [hiff, hSp_card] using hd
 
 theorem isKWiseIndependentHash_caseABucketAux_of_comp {ι₁ : Type*} [Fintype ι₁]
     {a m b_aux κ : ℕ} (hma : m ≤ a) {g₀ : Fin (2 ^ m) → Fin (2 ^ (a - m))}
@@ -206,20 +199,12 @@ theorem isKWiseIndependentHash_caseABucketAux_of_comp {ι₁ : Type*} [Fintype �
       caseAEquiv_apply]
     constructor
     · intro hs u
-      have hi := hs u
-      dsimp only [vals']
-      rw [← hi]
+      dsimp only [vals']; rw [← hs u]
       simp only [Prod.mk.eta, xor_cancel_left, Equiv.symm_apply_apply]
     · intro hs u
       have hi := congrArg (splitBucketAuxEquiv m b_aux) (hs u)
-      dsimp only [vals'] at hi
-      rw [Equiv.apply_symm_apply] at hi
-      have h1 := congrArg Prod.fst hi
-      have h2 := congrArg Prod.snd hi
-      dsimp only at h1 h2
-      refine Prod.ext ?_ h2
-      dsimp only
-      rw [h1, xor_cancel_left]
+      simp only [vals', Equiv.apply_symm_apply, Prod.ext_iff] at hi
+      exact Prod.ext (by rw [hi.1, xor_cancel_left]) hi.2
   rw [hfilt, hcomp.dens_filter_restrict_eq hI vals']
   simp only [Fintype.card_prod, Fintype.card_fin, pow_add]
 
@@ -513,20 +498,13 @@ theorem prob_not_isKUnique_quotientPerm_le {c n : ℕ} (hn : quotientPermThresho
     ¬ IsKUnique κ (simpleTabTuple T₁)
   have hmul_bad : 8 * n ^ (c + 2) * #Bad ≤
       Fintype.card (DoubleTabTopSeed c_tab (2 * q_tab * c_tab) b_char) := by
-    have hsq : (2 * B ^ 2) * (8 * n ^ (c + 2)) ≤ W ^ 2 := by
-      calc (2 * B ^ 2) * (8 * n ^ (c + 2))
-          = 16 * n ^ (c + 2) * B ^ 2 := by ring
-        _ ≤ 16 * (2 ^ (4 * (c + 2) * b_char)) ^ 2 * B ^ 2 :=
-            Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 16 hnpow_c)
-        _ = (4 * 2 ^ (4 * (c + 2) * b_char) * B) ^ 2 := by ring
-        _ ≤ W ^ 2 := Nat.pow_le_pow_left hWB 2
-    have hchain : (2 * B ^ 2) * (8 * n ^ (c + 2) * #Bad) ≤
-        (2 * B ^ 2) * Fintype.card (DoubleTabTopSeed c_tab (2 * q_tab * c_tab) b_char) := by
-      calc (2 * B ^ 2) * (8 * n ^ (c + 2) * #Bad)
-          = ((2 * B ^ 2) * (8 * n ^ (c + 2))) * #Bad := by ring
-        _ ≤ W ^ 2 * #Bad := Nat.mul_le_mul_right _ hsq
-        _ ≤ 2 * B ^ 2 * Fintype.card (DoubleTabTopSeed c_tab (2 * q_tab * c_tab) b_char) := hcard
-    exact Nat.le_of_mul_le_mul_left hchain (by positivity)
+    refine Nat.le_of_mul_le_mul_left ?_ (by positivity : 0 < 2 * B ^ 2)
+    calc (2 * B ^ 2) * (8 * n ^ (c + 2) * #Bad) = (16 * n ^ (c + 2) * B ^ 2) * #Bad := by ring
+      _ ≤ W ^ 2 * #Bad := Nat.mul_le_mul_right _ <| calc
+          16 * n ^ (c + 2) * B ^ 2 ≤ 16 * (2 ^ (4 * (c + 2) * b_char)) ^ 2 * B ^ 2 := by gcongr
+          _ = (4 * 2 ^ (4 * (c + 2) * b_char) * B) ^ 2 := by ring
+          _ ≤ W ^ 2 := Nat.pow_le_pow_left hWB 2
+      _ ≤ _ := hcard
   rw [toOuterMeasure_uniformOfFintype_toReal]
   have hfilt : univ.filter (· ∈ ({T₁ : DoubleTabTopSeed c_tab (2 * q_tab * c_tab) b_char |
       IsKUnique κ (simpleTabTuple T₁)}ᶜ : Set _)) = Bad :=
@@ -555,10 +533,8 @@ theorem prob_not_injOn_reduceBits_le {c n s_in : ℕ} (hn : quotientPermThreshol
       zero_div]
     positivity
   · have hbad := card_not_injOn_multiplyShiftReduced_le hs le_rfl (R := quotientPermRedBits c n) X
-    have hX2 : #X * (#X - 1) ≤ n ^ 2 := by
-      calc #X * (#X - 1) ≤ #X * #X := Nat.mul_le_mul_left _ (Nat.sub_le _ _)
-        _ ≤ n * n := Nat.mul_le_mul hX hX
-        _ = n ^ 2 := (sq n).symm
+    have hX2 : #X * (#X - 1) ≤ n ^ 2 :=
+      (Nat.mul_le_mul hX ((Nat.sub_le _ _).trans hX)).trans_eq (sq n).symm
     have hn_clog : n ≤ 2 ^ Nat.clog 2 (max n 4) :=
       (le_max_left n 4).trans (Nat.le_pow_clog (by decide) _)
     have hR_pow : 16 * n ^ (c + 1) * n ^ 2 ≤ 2 ^ quotientPermRedBits c n := by
@@ -571,13 +547,11 @@ theorem prob_not_injOn_reduceBits_le {c n s_in : ℕ} (hn : quotientPermThreshol
             unfold quotientPermRedBits; rw [← pow_mul, Nat.mul_comm]
     set Bad := univ \ reducedGoodTop (2 ^ s_in) s_in (quotientPermRedBits c n) X
     have hmul : 16 * n ^ (c + 1) * #Bad ≤ Fintype.card (Fin (2 ^ (s_in - 1))) := by
-      have hchain : n ^ 2 * (16 * n ^ (c + 1) * #Bad) ≤ n ^ 2 * 2 ^ (s_in - 1) := by
-        calc n ^ 2 * (16 * n ^ (c + 1) * #Bad)
-            = #Bad * (16 * n ^ (c + 1) * n ^ 2) := by ring
-          _ ≤ #Bad * 2 ^ quotientPermRedBits c n := Nat.mul_le_mul_left _ hR_pow
-          _ ≤ (#X * (#X - 1)) * 2 ^ (s_in - 1) := hbad
-          _ ≤ n ^ 2 * 2 ^ (s_in - 1) := Nat.mul_le_mul_right _ hX2
-      simpa only [Fintype.card_fin] using Nat.le_of_mul_le_mul_left hchain (by positivity)
+      refine Fintype.card_fin _ ▸ Nat.le_of_mul_le_mul_left ?_ (by positivity : 0 < n ^ 2)
+      calc n ^ 2 * (16 * n ^ (c + 1) * #Bad) = #Bad * (16 * n ^ (c + 1) * n ^ 2) := by ring
+        _ ≤ #Bad * 2 ^ quotientPermRedBits c n := Nat.mul_le_mul_left _ hR_pow
+        _ ≤ (#X * (#X - 1)) * 2 ^ (s_in - 1) := hbad
+        _ ≤ n ^ 2 * 2 ^ (s_in - 1) := Nat.mul_le_mul_right _ hX2
     rw [toOuterMeasure_uniformOfFintype_toReal]
     have hfilt : univ.filter (· ∈ ({α : Fin (2 ^ (s_in - 1)) |
         Set.InjOn (reduceBits s_in (quotientPermRedBits c n) α) (X : Set _)}ᶜ : Set _)) = Bad := by
@@ -618,11 +592,8 @@ theorem nr_contraction_quotientPerm_le {c n a' : ℕ} (hn : quotientPermThreshol
     exact_mod_cast (by simpa only [one_mul] using hstep_nat)
   have hexp : 8 * (c + 2) * b_char + 2 ≤ h_char * nrRounds c := by
     unfold nrRounds
-    have h18 : 8 * b_char + 2 ≤ 18 * h_char := by omega
-    calc 8 * (c + 2) * b_char + 2
-        ≤ 8 * (c + 2) * b_char + 2 * (c + 2) := Nat.add_le_add_left (by omega) _
-      _ = (8 * b_char + 2) * (c + 2) := by ring
-      _ ≤ (18 * h_char) * (c + 2) := Nat.mul_le_mul_right _ h18
+    calc 8 * (c + 2) * b_char + 2 ≤ (8 * b_char + 2) * (c + 2) := by ring_nf; omega
+      _ ≤ (18 * h_char) * (c + 2) := Nat.mul_le_mul_right _ (by omega)
       _ = h_char * (18 * (c + 2)) := by ring
   have hden_nat : 4 * n ^ (c + 2) ≤ 2 ^ (h_char * nrRounds c) := by
     calc 4 * n ^ (c + 2)
@@ -746,10 +717,8 @@ theorem dist_caseA_reducedDoubleTab_le {a m b_aux c n : ℕ}
   have hSL : #S_L ≤ n := card_image_le.trans hS
   have hquot_div :
       ((#S * (#S - 1) : ℕ) : ℝ) / (2 * (2 ^ (a - m) : ℝ)) ≤ 1 / (2 * (n : ℝ) ^ (c + 1)) := by
-    have hS2 : #S * (#S - 1) ≤ n ^ 2 := by
-      calc #S * (#S - 1) ≤ #S * #S := Nat.mul_le_mul_left _ (Nat.sub_le _ _)
-        _ ≤ n * n := Nat.mul_le_mul hS hS
-        _ = n ^ 2 := (sq n).symm
+    have hS2 : #S * (#S - 1) ≤ n ^ 2 :=
+      (Nat.mul_le_mul hS ((Nat.sub_le _ _).trans hS)).trans_eq (sq n).symm
     have hn_clog : n ≤ 2 ^ Nat.clog 2 (max n 2) :=
       (le_max_left n 2).trans (Nat.le_pow_clog (by decide) _)
     have hgap' : caseAGap c n ≤ a - m := by omega

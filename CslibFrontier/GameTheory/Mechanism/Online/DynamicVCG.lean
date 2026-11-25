@@ -195,20 +195,11 @@ theorem evalFrom_le_bellmanValue (env : DynamicEnv ι S K) (r : ℕ → S → K 
   induction h generalizing t hist s with
   | zero => exact le_rfl
   | succ h ih =>
-    simp only [evalFrom]
-    set k := σ (s :: hist)
-    have hsum :
-        ∑ s' : S, (env.trans s k s').toReal * env.evalFrom r σ (t + 1) h (s :: hist) s' ≤
-        ∑ s' : S, (env.trans s k s').toReal * env.bellmanValue r (t + 1) h s' :=
-      Finset.sum_le_sum fun s' _ =>
-        mul_le_mul_of_nonneg_left (ih (t + 1) (s :: hist) s') ENNReal.toReal_nonneg
-    have hstep :
-        r t s k + env.discount *
-            ∑ s' : S, (env.trans s k s').toReal * env.evalFrom r σ (t + 1) h (s :: hist) s' ≤
-          env.qValue r t h s k := by
-      unfold qValue
-      linarith [mul_le_mul_of_nonneg_left hsum env.discount_nonneg]
-    exact hstep.trans (env.qValue_le_bellmanValue r t h s k)
+    have := env.discount_nonneg
+    refine le_trans ?_ (env.qValue_le_bellmanValue r t h s (σ (s :: hist)))
+    simp only [evalFrom, qValue]
+    gcongr with s'
+    exact ih _ _ _
 
 /-- Evaluating `toHistoryPolicy (bellmanAction r)` attains `bellmanValue r` exactly. -/
 private theorem evalFrom_toHistoryPolicy_bellmanAction (env : DynamicEnv ι S K)
@@ -217,35 +208,19 @@ private theorem evalFrom_toHistoryPolicy_bellmanAction (env : DynamicEnv ι S K)
       hist.length = len₀ + e → e ≤ h₀ →
       env.evalFrom r (toHistoryPolicy (env.bellmanAction r) t₀ h₀ len₀)
         (t₀ + e) (h₀ - e) hist s = env.bellmanValue r (t₀ + e) (h₀ - e) s := by
-  intro e
-  have hgen : ∀ (rem : ℕ) (e : ℕ) (hist : List S) (s : S),
-      h₀ - e = rem → hist.length = len₀ + e → e ≤ h₀ →
-      env.evalFrom r (toHistoryPolicy (env.bellmanAction r) t₀ h₀ len₀)
-        (t₀ + e) rem hist s = env.bellmanValue r (t₀ + e) rem s := by
-    intro rem
-    induction rem with
-    | zero => intro _ _ _ _ _ _; rfl
-    | succ rem ih =>
-      intro e hist s hrem hlen hele
-      simp only [evalFrom, toHistoryPolicy]
-      have helapsed : hist.length - len₀ = e := by omega
-      have hrem_eq : h₀ - e - 1 = rem := by omega
-      rw [helapsed, hrem_eq]
-      have hsum :
-          ∑ s' : S, (env.trans s (env.bellmanAction r (t₀ + e) rem s) s').toReal *
-            env.evalFrom r (toHistoryPolicy (env.bellmanAction r) t₀ h₀ len₀)
-              (t₀ + e + 1) rem (s :: hist) s' =
-          ∑ s' : S, (env.trans s (env.bellmanAction r (t₀ + e) rem s) s').toReal *
-            env.bellmanValue r (t₀ + e + 1) rem s' := by
-        refine Finset.sum_congr rfl fun s' _ => ?_
-        have hstep := ih (e + 1) (s :: hist) s' (by omega) (by simp [hlen]; omega) (by omega)
-        have ht_eq : t₀ + (e + 1) = t₀ + e + 1 := by omega
-        rw [ht_eq] at hstep
-        rw [hstep]
-      rw [hsum]
-      exact env.qValue_bellmanAction r (t₀ + e) rem s
-  intro hist s hlen hele
-  exact hgen (h₀ - e) e hist s rfl hlen hele
+  intro e hist s hlen hele
+  generalize hrem : h₀ - e = rem
+  induction rem generalizing e hist s with
+  | zero => rfl
+  | succ rem ih =>
+    simp only [evalFrom, toHistoryPolicy]
+    rw [show hist.length - len₀ = e by omega, show h₀ - e - 1 = rem by omega,
+      ← env.qValue_bellmanAction r (t₀ + e) rem s, qValue]
+    congr 2
+    refine Finset.sum_congr rfl fun s' _ => ?_
+    have hstep := ih (e + 1) (s :: hist) s' (by simp [hlen]; omega) (by omega) (by omega)
+    rw [show t₀ + (e + 1) = t₀ + e + 1 by omega] at hstep
+    rw [hstep]
 
 end Bellman
 
@@ -346,11 +321,8 @@ theorem pivotPayment_optimalPolicyWithout (env : DynamicEnv ι S K) (i : ι)
     {t₀ h₀ len₀ e : ℕ} (hist : List S) (hlen : hist.length = len₀ + e) (s : S) :
     env.pivotPayment i (t₀ + e) (h₀ - e - 1) s
       (env.optimalPolicyWithout i t₀ h₀ len₀ (s :: hist)) = 0 := by
-  have hel : hist.length - len₀ = e := by omega
-  unfold optimalPolicyWithout toHistoryPolicy
-  dsimp only
-  rw [hel]
-  exact env.pivotPayment_optimalActionWithout i (t₀ + e) (h₀ - e - 1) s
+  simpa only [optimalPolicyWithout, toHistoryPolicy, show hist.length - len₀ = e by omega] using
+    env.pivotPayment_optimalActionWithout i (t₀ + e) (h₀ - e - 1) s
 
 /-- Expected discounted cumulative utility of agent `i` under dynamic VCG payments when the
 mechanism executes history-dependent policy `σ` over remaining horizon `h` starting at `(t, s)`. -/
@@ -374,19 +346,8 @@ theorem agentUtility_eq_totalVal_sub (env : DynamicEnv ι S K) (i : ι) (σ : Li
   | zero =>
     simp only [agentUtility, evalFrom, optimalValueWithout, bellmanValue, sub_self]
   | succ h ih =>
-    simp only [agentUtility, evalFrom]
-    set k := σ (s :: hist)
-    have hsum :
-        ∑ s' : S, (env.trans s k s').toReal * env.agentUtility i σ (t + 1) h (s :: hist) s' =
-        ∑ s' : S, (env.trans s k s').toReal * env.evalFrom env.totalVal σ (t + 1) h (s :: hist) s' -
-        ∑ s' : S, (env.trans s k s').toReal * env.optimalValueWithout i (t + 1) h s' := by
-      rw [← Finset.sum_sub_distrib]
-      refine Finset.sum_congr rfl fun s' _ => ?_
-      rw [ih (t + 1) (s :: hist) s', mul_sub]
-    rw [hsum]
-    unfold pivotPayment
-    have hval := env.val_add_othersVal i t s k
-    linarith
+    simp only [agentUtility, evalFrom, pivotPayment, ih, mul_sub, Finset.sum_sub_distrib]
+    linarith [env.val_add_othersVal i t s (σ (s :: hist))]
 
 /-- Within-period / Markov-perfect equilibrium truthfulness of Dynamic VCG against truthful other
 agents: holding the remaining agents' true valuations `othersVal i` fixed in `env.val`, truthful
@@ -411,28 +372,14 @@ theorem optimalValueWithout_le_optimalValue (env : DynamicEnv ι S K) (i : ι)
   induction h generalizing t s with
   | zero => exact le_rfl
   | succ h ih =>
+    have := env.discount_nonneg
     unfold optimalValueWithout optimalValue bellmanValue
-    refine Finset.sup'_le _ _ fun k _ => ?_
-    have hsum :
-        ∑ s' : S, (env.trans s k s').toReal * env.bellmanValue (env.othersVal i) (t + 1) h s' ≤
-        ∑ s' : S, (env.trans s k s').toReal * env.bellmanValue env.totalVal (t + 1) h s' :=
-      Finset.sum_le_sum fun s' _ =>
-        mul_le_mul_of_nonneg_left (ih (t + 1) s') ENNReal.toReal_nonneg
-    have hval : env.othersVal i t s k ≤ env.totalVal t s k := by
-      have := env.val_add_othersVal i t s k
-      linarith [hnonneg t s k]
-    have hle :
-        env.othersVal i t s k +
-          env.discount *
-            ∑ s' : S, (env.trans s k s').toReal * env.bellmanValue (env.othersVal i) (t + 1) h s' ≤
-        env.totalVal t s k +
-          env.discount *
-            ∑ s' : S, (env.trans s k s').toReal * env.bellmanValue env.totalVal (t + 1) h s' := by
-      linarith [mul_le_mul_of_nonneg_left hsum env.discount_nonneg]
-    exact hle.trans (Finset.le_sup' (f := fun k' : K =>
-      env.totalVal t s k' + env.discount *
-        ∑ s' : S, (env.trans s k' s').toReal * env.bellmanValue env.totalVal (t + 1) h s')
-      (Finset.mem_univ k))
+    refine Finset.sup'_le _ _ fun k _ => le_trans ?_ (env.qValue_le_bellmanValue _ t h s k)
+    have := env.val_add_othersVal i t s k
+    simp only [qValue]
+    gcongr with s'
+    · linarith [hnonneg t s k]
+    · exact ih _ _
 
 /-- Within-period Individual Rationality of Dynamic VCG: whenever agent `i`'s per-period valuations
 are nonnegative, truthful Dynamic VCG guarantees nonnegative expected continuation utility at every
@@ -486,59 +433,37 @@ theorem delayedUtility_le_truthful (env : DynamicEnv ι S K) (i : ι)
     intro d'
     induction d' with
     | zero =>
-      intro e hs s' hlen hed hele
-      have hagree :
-          ∀ (rem : ℕ) (t : ℕ) (hs' : List S) (s'' : S),
-            len₀ + d ≤ hs'.length →
-            env.agentUtility i σ t rem hs' s'' = env.agentUtility i stitched t rem hs' s'' := by
-        intro rem
+      intro e hs s' hlen hed _
+      have hagree (rem : ℕ) : ∀ (t : ℕ) (hs' : List S) (s'' : S),
+          len₀ + d ≤ hs'.length →
+          env.agentUtility i σ t rem hs' s'' = env.agentUtility i stitched t rem hs' s'' := by
         induction rem with
         | zero => intro _ _ _ _; rfl
         | succ rem ihr =>
           intro t hs' s'' hlen'
-          simp only [agentUtility]
-          have hst : stitched (s'' :: hs') = σ (s'' :: hs') := by
-            simp only [stitched]
-            have hnotlt : ¬ (hs'.length - len₀ < d) := by omega
-            simp only [hnotlt, ↓reduceIte]
-          rw [hst]
-          congr 1
-          congr 1
-          refine Finset.sum_congr rfl fun s''' _ => ?_
-          rw [ihr (t + 1) (s'' :: hs') s''' (by simp; omega)]
-      simp only [delayedUtility]
-      exact le_of_eq (hagree (h₀ - e) (t₀ + e) hs s' (by omega))
+          have hst : stitched (s'' :: hs') = σ (s'' :: hs') := ite_eq_right (by omega)
+          simp only [agentUtility, hst, ihr (t + 1) (s'' :: hs') _ (by simp; omega)]
+      exact (hagree (h₀ - e) (t₀ + e) hs s' (by omega)).le
     | succ d' ih =>
       intro e hs s' hlen hed hele
-      by_cases hrem0 : h₀ - e = 0
-      · rw [hrem0]
-        simp only [delayedUtility, agentUtility, le_rfl]
-      · obtain ⟨rem, hrem⟩ := Nat.exists_eq_succ_of_ne_zero hrem0
+      rcases Nat.eq_zero_or_pos (h₀ - e) with hrem0 | hpos
+      · simp [hrem0, delayedUtility, agentUtility]
+      · obtain ⟨rem, hrem⟩ := Nat.exists_eq_succ_of_ne_zero hpos.ne'
+        have hst : stitched (s' :: hs) = env.bellmanAction (env.othersVal i) (t₀ + e) rem s' := by
+          simp only [stitched, show hs.length - len₀ = e by omega, show e < d by omega,
+            ↓reduceIte, show h₀ - e - 1 = rem by omega]
         rw [hrem]
-        simp only [delayedUtility, agentUtility]
-        set k₀ := env.bellmanAction (env.othersVal i) (t₀ + e) rem s'
-        have hst : stitched (s' :: hs) = k₀ := by
-          simp only [stitched]
-          have hel : hs.length - len₀ = e := by omega
-          have hlt : e < d := by omega
-          have hrem_eq : h₀ - e - 1 = rem := by omega
-          simp only [hel, hlt, ↓reduceIte, hrem_eq, k₀]
-        rw [hst, env.pivotPayment_optimalActionWithout i (t₀ + e) rem s', sub_zero]
-        have hval_ge : 0 ≤ env.val i (t₀ + e) s' k₀ := hnonneg _ _ _
-        have hsum :
-            ∑ s'' : S, (env.trans s' k₀ s'').toReal *
-              env.delayedUtility i σ d' (t₀ + e + 1) rem (s' :: hs) s'' ≤
-            ∑ s'' : S, (env.trans s' k₀ s'').toReal *
-              env.agentUtility i stitched (t₀ + e + 1) rem (s' :: hs) s'' := by
-          refine Finset.sum_le_sum fun s'' _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-          have hstep := ih (e + 1) (s' :: hs) s'' (by simp [hlen]; omega) (by omega) (by omega)
-          have ht_eq : t₀ + (e + 1) = t₀ + e + 1 := by omega
-          have hrem_eq : h₀ - (e + 1) = rem := by omega
-          rwa [ht_eq, hrem_eq] at hstep
-        linarith [mul_le_mul_of_nonneg_left hsum env.discount_nonneg]
-  have h1 := hle_stitched d 0 hist s (by simp [len₀]) (by omega) (Nat.zero_le h₀)
-  simp only [Nat.add_zero, Nat.sub_zero] at h1
-  exact h1.trans (env.isTruthful i stitched t₀ h₀ hist s)
+        simp only [delayedUtility, agentUtility, hst, env.pivotPayment_optimalActionWithout,
+          sub_zero]
+        have := env.discount_nonneg
+        refine le_add_of_nonneg_of_le (hnonneg _ _ _) ?_
+        gcongr with s''
+        have hlen' : (s' :: hs).length = len₀ + (e + 1) := by simp [hlen]; omega
+        simpa only [Nat.add_assoc, show h₀ - (e + 1) = rem by omega] using
+          ih (e + 1) (s' :: hs) s'' hlen' (by omega) (by omega)
+  simpa only [Nat.add_zero, Nat.sub_zero] using
+    (hle_stitched d 0 hist s (by simp [len₀]) (by omega) (Nat.zero_le h₀)).trans
+      (env.isTruthful i stitched t₀ h₀ hist s)
 
 end PivotMechanism
 

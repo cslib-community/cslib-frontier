@@ -77,16 +77,13 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
   have hbelow : BallotsBelow s₀ b := by
     refine ⟨fun m hm => (Ballot.lt_iff _ _).mpr (Or.inl ?_),
       fun a mb hmb => (Ballot.lt_iff _ _).mpr (Or.inl ?_)⟩
-    · have hle1 := Finset.le_sup (f := fun m : Msg Proposer Acceptor V => m.ballot.round + 1) hm
-      have hle2 : msgBound ≤ r := (le_max_left msgBound accBound).trans (le_max_right _ _)
-      exact Nat.lt_of_succ_le (hle1.trans hle2)
-    · have hle1 : mb.round + 1 ≤ accBound := by
-        have hsup := Finset.le_sup (s := Finset.univ)
-          (f := fun a' : Acceptor => match (s₀.acceptors a').maxBal with
-            | none => 0 | some mb' => mb'.round + 1) (Finset.mem_univ a)
-        simpa only [hmb] using hsup
-      have hle2 : accBound ≤ r := (le_max_right msgBound accBound).trans (le_max_right _ _)
-      exact Nat.lt_of_succ_le (hle1.trans hle2)
+    · exact Nat.lt_of_succ_le ((Finset.le_sup (f := fun m : Msg Proposer Acceptor V =>
+        m.ballot.round + 1) hm).trans (le_max_of_le_right (le_max_left _ _)))
+    · have hsup := Finset.le_sup (s := Finset.univ) (f := fun a' : Acceptor =>
+        match (s₀.acceptors a').maxBal with | none => 0 | some mb' => mb'.round + 1)
+        (Finset.mem_univ a)
+      simp only [hmb] at hsup
+      exact Nat.lt_of_succ_le (hsup.trans (le_max_of_le_right (le_max_right _ _)))
   have hp_round_ok : match (s₀.proposers p).round with | none => True | some r₀ => r₀ < r := by
     cases hpr : (s₀.proposers p).round with
     | none => trivial

@@ -200,9 +200,7 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
   set D := f.totalDegree
   have hP : lastVariableEquiv K N F.polynomial ≠ 0 := fun h =>
     hF ((lastVariableEquiv K N).injective (h.trans (map_zero _).symm))
-  have hPf : (lastVariableEquiv K N F.polynomial).eval f = 0 := by
-    rw [eval_lastVariableEquiv]
-    exact hroot
+  have hPf : (lastVariableEquiv K N F.polynomial).eval f = 0 := by rwa [eval_lastVariableEquiv]
   obtain ⟨j, x₀, -, hshift⟩ := exists_shift_eq_truncate_sum_of_root hP hPf
   set α := eval x₀ f
   set Q := Polynomial.taylor (C α)
@@ -247,18 +245,15 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
       exact Finset.sup_le fun i _ => by fin_cases i <;> simp [hQFd]
     have hSd : S.productDepth ≤ Δ + 1 := productDepth_sumOn_le _ fun m _ =>
       (productDepth_coeffLast_le _ _ _).trans (productDepth_prodOn_le fun _ _ => hG₀d)
+    have hLd : L.productDepth ≤ Δ + 1 := (productDepth_lowPartFormula_le _ _ _).trans hSd
     have hTd : T.productDepth ≤ Δ + 1 := by
       rw [hT, productDepth_add]
-      refine Finset.sup_le fun i _ => ?_
-      fin_cases i
-      · exact (productDepth_lowPartFormula_le _ _ _).trans hSd
-      · simp
+      exact Finset.sup_le fun i _ => by fin_cases i <;> simp [hLd]
     exact ((productDepth_substFormula_le (B := 0)
       (fun k => (productDepth_affineInput _ _ _ k).le) _).trans_eq (add_zero _)).trans hTd
   · set s := F.nodeCount with hs
     have hpos : 0 < (D + 1) * (s + 1) ^ 2 := by positivity
-    have hDer := nodeCount_derivLast_le j F
-    rw [← hs] at hDer
+    have hDer : _ ≤ (3 * s + 1) * (3 * s) + 2 := nodeCount_derivLast_le j F
     have hQFn : QF.nodeCount ≤ (derivLast j F).nodeCount * 3 :=
       nodeCount_substFormula_le (fun k => (nodeCount_affineInput _ _ _ k).le) (by norm_num) _
     have hG₀n : G₀.nodeCount = QF.nodeCount + 2 := by

@@ -60,29 +60,22 @@ private theorem application_of_context (rule : Rule q) {s t : Fin n → Fin q}
   let second : Fin n := ⟨before.length + 1, by omega⟩
   have hget (j : Fin n) :
       some (s j) = (before ++ [rule.first, rule.second] ++ after)[j.val]? ∧
-      some (t j) = (before ++ [rule.first', rule.second'] ++ after)[j.val]? := by
-    constructor
-    · simpa [Rule.domino] using congrArg (fun word => word[j.val]?) hs
-    · simpa [Rule.domino] using congrArg (fun word => word[j.val]?) ht
-  have hs1 := (hget first).1
-  have hs2 := (hget second).1
-  have ht1 := (hget first).2
-  have ht2 := (hget second).2
-  rw [(pair_lookup before after rule.first rule.second).1] at hs1
-  rw [(pair_lookup before after rule.first rule.second).2] at hs2
-  rw [(pair_lookup before after rule.first' rule.second').1] at ht1
-  rw [(pair_lookup before after rule.first' rule.second').2] at ht2
-  refine ⟨⟨first, second, rfl, Option.some.inj hs1, Option.some.inj hs2,
-    Option.some.inj ht1, Option.some.inj ht2, ?_⟩⟩
-  intro j hj1 hj2
+      some (t j) = (before ++ [rule.first', rule.second'] ++ after)[j.val]? :=
+    ⟨by simpa [Rule.domino] using congrArg (·[j.val]?) hs,
+      by simpa [Rule.domino] using congrArg (·[j.val]?) ht⟩
+  refine ⟨⟨first, second, rfl,
+    Option.some.inj ((hget first).1.trans (pair_lookup before after rule.first rule.second).1),
+    Option.some.inj ((hget second).1.trans (pair_lookup before after rule.first rule.second).2),
+    Option.some.inj ((hget first).2.trans (pair_lookup before after rule.first' rule.second').1),
+    Option.some.inj ((hget second).2.trans (pair_lookup before after rule.first' rule.second').2),
+    fun j hj1 hj2 => ?_⟩⟩
   have hfirst : j.val ≠ before.length := fun he => hj1 (Fin.ext he)
   have hsecond : j.val ≠ before.length + 1 := fun he => hj2 (Fin.ext he)
   obtain ⟨hsj, htj⟩ := hget j
   by_cases hp : j.val < before.length
   · rw [List.append_assoc, List.getElem?_append_left hp] at hsj htj
     exact Option.some.inj (hsj.trans htj.symm)
-  · have hk : before.length + 2 ≤ j.val := by omega
-    rw [List.append_assoc, List.getElem?_append_right (by omega),
+  · rw [List.append_assoc, List.getElem?_append_right (by omega),
       List.getElem?_append_right (by simp only [List.length_cons, List.length_nil]; omega)]
       at hsj htj
     exact Option.some.inj (hsj.trans htj.symm)
@@ -91,11 +84,9 @@ private theorem application_of_context (rule : Rule q) {s t : Fin n → Fin q}
 theorem application_of_rewrites (rules : Fin r → Rule q) {s t : Fin n → Fin q}
     (h : Rewrites (RuleSet rules) (List.ofFn s) (List.ofFn t)) :
     ∃ i, Nonempty (Application (rules i) s t) ∨ Nonempty (Application (rules i) t s) := by
-  obtain ⟨before, domino, after, ⟨i, hd | hd⟩, hs, ht⟩ := h
-  · subst domino
-    exact ⟨i, Or.inl (application_of_context (rules i) before after hs ht)⟩
-  · subst domino
-    exact ⟨i, Or.inr (application_of_context (rules i) before after ht hs)⟩
+  obtain ⟨before, _, after, ⟨i, rfl | rfl⟩, hs, ht⟩ := h
+  · exact ⟨i, Or.inl (application_of_context (rules i) before after hs ht)⟩
+  · exact ⟨i, Or.inr (application_of_context (rules i) before after ht hs)⟩
 
 /-- A source semi-Thue rewrite in either direction reconfigures its complete encoded word. -/
 theorem word_reachable_of_rewrites (rules : Fin r → Rule q) {s t : Fin n → Fin q}
@@ -134,9 +125,8 @@ theorem rewrites_of_pair (rules : Fin r → Rule q) {s t : Fin n → Fin q}
     (he : ∀ k, k ≠ i → k ≠ j → s k = t k)
     (hpair : Rewrites (RuleSet rules) [s i, s j] [t i, t j]) :
     Rewrites (RuleSet rules) (List.ofFn s) (List.ofFn t) := by
-  have hlocal : Rewrites (RuleSet rules) (List.ofFn ![s i, s j]) (List.ofFn ![t i, t j]) := by
-    simpa [List.ofFn_succ] using hpair
-  obtain ⟨a, ha | ha⟩ := application_of_rewrites rules hlocal
+  obtain ⟨a, ha | ha⟩ := application_of_rewrites rules (s := ![s i, s j]) (t := ![t i, t j])
+    (by simpa [List.ofFn_succ] using hpair)
   · obtain ⟨app⟩ := ha
     exact (extend_application (rules a) i j hij he app).rewrites rules a
   · obtain ⟨app⟩ := ha

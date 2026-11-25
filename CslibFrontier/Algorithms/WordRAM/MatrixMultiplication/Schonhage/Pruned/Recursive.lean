@@ -59,11 +59,8 @@ theorem exec_ready {w L f a0 b0 A B : ℕ} (n : ℕ) {d p E : ℕ}
             (k * (51 * S.card + 75) + childWeightPrefix S k + U) := by
       intro k
       induction k with
-      | zero =>
-        intro _
-        refine ⟨y, hy, ?_⟩
-        intro z U hz
-        simpa only [Nat.zero_mul, childWeightPrefix_zero, Nat.zero_add] using hz
+      | zero => exact fun _ => ⟨y, hy, fun z U hz => by
+          simpa only [Nat.zero_mul, childWeightPrefix_zero, Nat.zero_add] using hz⟩
       | succ k ihk =>
         intro hk
         obtain ⟨u, hu, hprevious⟩ := ihk (by omega)
@@ -78,8 +75,7 @@ theorem exec_ready {w L f a0 b0 A B : ℕ} (n : ℕ) {d p E : ℕ}
             (fun v => hb (Fin.cons (Encoding.termDigits t) v)) hvfit
           obtain ⟨v', hreturn, hv'⟩ := exec_progress_return S a b x u v z hx t hu hne
             hpushFrame hz ha hb hw hmag hfit
-          refine ⟨v', hv', ?_⟩
-          intro endState U hend
+          refine ⟨v', hv', fun endState U hend => ?_⟩
           have hza : z.regs active = 1 := by
             simpa only [ite_eq_right (by omega : d + 1 ≠ 0)] using hz.active_eq
           have hreturnLoop := ExecWithin.loop_iter
@@ -87,8 +83,7 @@ theorem exec_ready {w L f a0 b0 A B : ℕ} (n : ℕ) {d p E : ℕ}
           have hchildLoop := hchild endState _ hreturnLoop
           have hpushLoop := ExecWithin.loop_iter
             (by simp only [Cond.holds_lt, hu.regs.nil_eq, hu.active_eq]; decide) hpush hchildLoop
-          have he := hprevious endState _ hpushLoop
-          apply he.mono
+          refine (hprevious endState _ hpushLoop).mono ?_
           have hweight := childWeightPrefix_succ S t
           simp only [hne, ↓reduceIte] at hweight
           change childWeightPrefix S (k + 1) = childWeightPrefix S k +
@@ -97,12 +92,10 @@ theorem exec_ready {w L f a0 b0 A B : ℕ} (n : ℕ) {d p E : ℕ}
           omega
         · have hempty := Finset.not_nonempty_iff_eq_empty.mp hne
           obtain ⟨v, hskip, hv⟩ := exec_progress_empty S a b x u hx t hu hempty hfit
-          refine ⟨v, hv, ?_⟩
-          intro endState U hend
+          refine ⟨v, hv, fun endState U hend => ?_⟩
           have hskipLoop := ExecWithin.loop_iter
             (by simp only [Cond.holds_lt, hu.regs.nil_eq, hu.active_eq]; decide) hskip hend
-          have he := hprevious endState _ hskipLoop
-          apply he.mono
+          refine (hprevious endState _ hskipLoop).mono ?_
           have hweight := childWeightPrefix_succ S t
           simp only [hne, ↓reduceIte, Nat.add_zero] at hweight
           change childWeightPrefix S (k + 1) = childWeightPrefix S k at hweight
@@ -110,14 +103,13 @@ theorem exec_ready {w L f a0 b0 A B : ℕ} (n : ℕ) {d p E : ℕ}
           omega
     obtain ⟨u, hu, hchildren⟩ := hterms 10 (by omega)
     obtain ⟨z, hfinish, hz⟩ := exec_progress_finish S a b x u hx hu hfit
-    refine ⟨z, hz, ?_⟩
-    intro endState U hend
+    refine ⟨z, hz, fun endState U hend => ?_⟩
     have hfinishLoop := ExecWithin.loop_iter
       (by simp only [Cond.holds_lt, hu.regs.nil_eq, hu.active_eq]; decide) hfinish hend
     have hchildrenLoop := hchildren endState _ hfinishLoop
-    have he := ExecWithin.loop_iter
-      (by simp only [Cond.holds_lt, hx.regs.nil_eq, hx.active_eq]; decide) henter hchildrenLoop
-    apply he.mono
+    refine (ExecWithin.loop_iter
+      (by simp only [Cond.holds_lt, hx.regs.nil_eq, hx.active_eq]; decide) henter
+      hchildrenLoop).mono ?_
     rw [traceWeight_succ_prefix]
     have hc := node_local_cost_le S.card
     omega

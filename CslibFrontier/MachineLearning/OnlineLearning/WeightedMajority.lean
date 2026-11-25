@@ -110,11 +110,7 @@ theorem wm_mistakes_le {η : ℝ} (hη : 0 < η) (hη' : η ≤ 1 / 2) (pred : �
       2 * (1 + η) * #{t ∈ range T | advice t i ≠ outcome t} + 2 * log (Fintype.card ι) / η := by
   have : Nonempty ι := ⟨i⟩
   set ℓ := expertLoss advice outcome with hℓdef
-  have hℓ01 : ∀ s j, ℓ s j = 0 ∨ ℓ s j = 1 := fun s j => by
-    simp only [hℓdef, expertLoss]
-    split_ifs
-    · exact Or.inr rfl
-    · exact Or.inl rfl
+  have hℓ01 : ∀ s j, ℓ s j = 0 ∨ ℓ s j = 1 := fun s j => (ite_eq_or_eq _ _ _).symm
   have hηℓ : ∀ s j, η * ℓ s j ≤ 1 / 2 := fun s j => by
     rcases hℓ01 s j with h | h <;> rw [h] <;> linarith
   have hφ : ∀ s < T, ∀ j, 0 < mwFactor η (ℓ s j) := fun s _ j => by
@@ -146,10 +142,8 @@ theorem wm_mistakes_le {η : ℝ} (hη : 0 < η) (hη' : η ≤ 1 / 2) (pred : �
       simp only [prob, hℓdef, expertLoss]
       have hb : (advice t j ≠ outcome t) ↔ advice t j = pred t := by
         revert hne; cases advice t j <;> cases pred t <;> cases outcome t <;> simp
-      by_cases h : advice t j = pred t
-      · simp only [h, ne_eq, hne, not_false_eq_true, ite_true, mul_one]
-      · have h' : ¬ advice t j ≠ outcome t := fun h' => h (hb.mp h')
-        simp only [h', h, ite_false, mul_zero, zero_div]
+      simp only [hb]
+      split_ifs <;> simp
     rw [hfilt, le_div_iff₀ hΦ]
     have := hpred t ht
     simp only [ne_eq] at this
@@ -162,8 +156,7 @@ theorem wm_mistakes_le {η : ℝ} (hη : 0 < η) (hη' : η ≤ 1 / 2) (pred : �
     refine sum_le_sum fun t ht => ?_
     have ht' := mem_range.mp ht
     have hφt : ∀ s < t, ∀ j, 0 < mwFactor η (ℓ s j) := fun s hs => hφ s (by omega)
-    have hpos := sum_prob_mul_pos (φ := mwFactor η) (ℓ := ℓ) (t := t)
-      fun s hs => hφ s (by omega)
+    have hpos := sum_prob_mul_pos (ℓ := ℓ) (t := t) fun s hs => hφ s (by omega)
     rw [sum_prob_mul_mwFactor hφt] at hpos ⊢
     have hlog := log_le_sub_one_of_pos hpos
     have hnn : 0 ≤ ∑ j, prob (mwFactor η) ℓ t j * ℓ t j :=
@@ -174,12 +167,8 @@ theorem wm_mistakes_le {η : ℝ} (hη : 0 < η) (hη' : η ≤ 1 / 2) (pred : �
       nlinarith
     · nlinarith
   rw [hcount_i] at hlow
-  have key : η * (#{t ∈ range T | pred t ≠ outcome t} : ℝ) ≤
-      η * (2 * (1 + η) * #{t ∈ range T | advice t i ≠ outcome t} +
-        2 * log (Fintype.card ι) / η) := by
-    rw [mul_add, mul_div_assoc', mul_comm η (2 * log _), mul_div_assoc, div_self hη.ne', mul_one]
-    nlinarith
-  exact le_of_mul_le_mul_left key hη
+  rw [add_div' _ _ _ hη.ne', le_div_iff₀ hη]
+  nlinarith
 
 /-- `weightedMajority` follows the advice of the larger total weight. -/
 theorem weightedMajority_spec (η : ℝ) (t : ℕ) :
@@ -193,8 +182,7 @@ theorem weightedMajority_spec (η : ℝ) (t : ℕ) :
   · rw [decide_eq_true h]
     simpa only [ne_eq, Bool.not_eq_true] using h
   · rw [decide_eq_false h]
-    simp only [ne_eq, Bool.not_eq_false]
-    exact (not_le.mp h).le
+    simpa only [ne_eq, Bool.not_eq_false] using (not_le.mp h).le
 
 /-- **The weighted majority algorithm** [AroraHazanKale2012, Theorem 1.1], for the rule
 `weightedMajority`: for `0 < η ≤ 1 / 2` and every expert `i`,

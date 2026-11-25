@@ -21,6 +21,8 @@ at two marked ends. The connecting paths are extracted inside the sets. A direct
 between the two ends can take the place of any such path.
 `HasRegularContacts.rotationDistance_lt_iff_of_separating_components` gives reversed rank
 comparisons for an arbitrary family of component and direct-edge representatives.
+Sorting a finite list of the other choices at either end therefore gives opposite lists
+when both ranks are measured from the same reference choice.
 -/
 
 public section
@@ -268,12 +270,68 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
       ((ha o).trans (ha j).symm) (aNe hoi) (aNe hij) (aNe hoj),
     r.mem_rotationInterval_iff_lt_distance _ _ _ ((hb o).trans (hb i).symm)
       ((hb o).trans (hb j).symm) (bNe hoi) (bNe hij) (bNe hoj)] at compare
-  have rankNe : r.rotationDistance (b o) (b i) ≠ r.rotationDistance (b o) (b j) := by
-    intro he
-    have hi := r.pow_rotationDistance (b o) (b i) ((hb o).trans (hb i).symm)
-    have hj := r.pow_rotationDistance (b o) (b j) ((hb o).trans (hb j).symm)
-    rw [he] at hi
-    exact bNe hij (hi.symm.trans hj)
+  have rankNe : r.rotationDistance (b o) (b i) ≠ r.rotationDistance (b o) (b j) :=
+    fun he => bNe hij ((r.rotationDistance_eq_iff_eq _ _ _ ((hb o).trans (hb i).symm)
+      ((hb o).trans (hb j).symm)).mp he)
   exact compare.trans (by omega)
+
+/-- Sorting separating pieces from a common reference piece at the two marked ends
+gives opposite lists. Each piece is represented at both ends by actual incident darts,
+and the reference piece is omitted from the list being sorted. Direct indexed edges
+participate in the same order as pieces with an interior component. -/
+theorem HasRegularContacts.mergeSort_eq_reverse_of_separating_components {G : Graph}
+    {D : PolygonalDrawing G} {r : RotationSystem G} {marked : ℕ → Prop}
+    (hD : D.HasRegularContacts) (hsimple : ∀ e, (D.route e).IsSimple) (hR : D.Realizes r)
+    (hG : ∀ w ∈ G.incidenceVertices, w ∈ G.vertices) (heven : D.EvenCrossings marked)
+    {u : ℕ} (v : {w : ℕ // w ≠ u}) (hu : marked u) (hv : marked v.val)
+    {ι : Type*} (a b : ι → Dart G) (ha : ∀ k, (a k).vertex = u)
+    (hb : ∀ k, (b k).vertex = v.val) (haInj : Function.Injective fun k => (a k).1)
+    (component : ι → Option
+      ((G.toSimpleGraph.induce {w | w ≠ u}).induce {w | w ≠ v}).ConnectedComponent)
+    (hcomponents : ∀ ⦃i j C⦄, component i = some C → component j = some C → i = j)
+    (hports : ∀ k, match component k with
+      | none => b k = (a k).reverse
+      | some C => (a k).reverse.vertex ∈ Subtype.val '' (Subtype.val '' C.supp) ∧
+          (b k).reverse.vertex ∈ Subtype.val '' (Subtype.val '' C.supp))
+    (o : ι) (pieces : List ι) (ho : o ∉ pieces) :
+    let fromA (k : ι) := r.rotationDistance (a o) (a k)
+    let fromB (k : ι) := r.rotationDistance (b o) (b k)
+    pieces.mergeSort (fun i j => decide (fromB i ≤ fromB j)) =
+      (pieces.mergeSort (fun i j => decide (fromA i ≤ fromA j))).reverse := by
+  dsimp only
+  let fromA (k : ι) := r.rotationDistance (a o) (a k)
+  let fromB (k : ι) := r.rotationDistance (b o) (b k)
+  let order (rank : ι → ℕ) := pieces.mergeSort (fun i j => decide (rank i ≤ rank j))
+  have hperm (rank : ι → ℕ) : (order rank).Perm pieces := List.mergeSort_perm _ _
+  have sorted (rank : ι → ℕ) : (order rank).Pairwise (fun i j => rank i ≤ rank j) := by
+    have hs := List.pairwise_mergeSort (le := fun i j => decide (rank i ≤ rank j))
+      (fun i j k hij hjk => by
+        simp only [decide_eq_true_eq] at hij hjk ⊢
+        exact hij.trans hjk)
+      (fun i j => by
+        simp only [Bool.or_eq_true, decide_eq_true_eq]
+        exact le_total _ _) pieces
+    exact hs.imp (fun he => of_decide_eq_true he)
+  have reverseLE {i j : ι} (hi : i ∈ pieces) (hj : j ∈ pieces) :
+      fromA i ≤ fromA j ↔ fromB j ≤ fromB i := by
+    have hne {k : ι} (hk : k ∈ pieces) : o ≠ k := fun he => ho (he.symm ▸ hk)
+    simpa only [fromA, fromB, not_lt] using
+      not_congr (hD.rotationDistance_lt_iff_of_separating_components hsimple hR hG heven
+        v hu hv a b ha hb haInj component hcomponents hports (hne hj) (hne hi))
+  have revPerm : (order fromA).reverse.Perm pieces :=
+    (List.reverse_perm _).trans (hperm fromA)
+  have revSorted : (order fromA).reverse.Pairwise (fun i j => fromB i ≤ fromB j) := by
+    rw [List.pairwise_reverse]
+    exact (sorted fromA).imp_of_mem fun hi hj he =>
+      (reverseLE ((hperm fromA).mem_iff.mp hi) ((hperm fromA).mem_iff.mp hj)).mp he
+  change order fromB = (order fromA).reverse
+  refine ((hperm fromB).trans revPerm.symm).eq_of_pairwise ?_ (sorted fromB) revSorted
+  intro i j hi hj hij hji
+  have hi' := (hperm fromB).mem_iff.mp hi
+  have hj' := revPerm.mem_iff.mp hj
+  have hEq := le_antisymm ((reverseLE hi' hj').mpr hji) ((reverseLE hj' hi').mpr hij)
+  exact haInj (congrArg Prod.fst
+    ((r.rotationDistance_eq_iff_eq _ _ _ ((ha o).trans (ha i).symm)
+      ((ha o).trans (ha j).symm)).mp hEq))
 
 end Cslib.Complexity.Graph.PolygonalDrawing

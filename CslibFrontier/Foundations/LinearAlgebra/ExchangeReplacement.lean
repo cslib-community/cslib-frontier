@@ -279,17 +279,8 @@ noncomputable def fI (A₀ R : ℕ) : ℚ[X] :=
 theorem natDegree_fallingTermPoly_le (A₀ j : ℕ) :
     (fallingTermPoly A₀ j).natDegree ≤ j := by
   unfold fallingTermPoly
-  refine Polynomial.natDegree_mul_le.trans ?_
-  simp only [natDegree_C, zero_add]
-  refine (Polynomial.natDegree_prod_le _ _).trans ?_
-  have h1 : ∀ a ∈ range j, (C (2 : ℚ) * X - C (2 * ((A₀ : ℚ) + a))).natDegree ≤ 1 := by
-    intro a _
-    refine (Polynomial.natDegree_sub_le _ _).trans (max_le ?_ ?_)
-    · refine Polynomial.natDegree_mul_le.trans ?_
-      simp
-    · rw [natDegree_C]
-      exact Nat.zero_le 1
-  exact (sum_le_sum h1).trans (by simp)
+  refine (natDegree_C_mul_le _ _).trans ((natDegree_prod_le _ _).trans ?_)
+  exact (sum_le_sum fun a _ => (by compute_degree : _ ≤ 1)).trans (by simp)
 
 /-- The parity interpolation polynomial `fI A₀ R` has degree at most `R - 1` (eq. 4.7, p. 28). -/
 theorem natDegree_fI_le (A₀ R : ℕ) : (fI A₀ R).natDegree ≤ R - 1 := by
@@ -339,15 +330,8 @@ theorem eval_fallingTermPoly_add (A₀ q j : ℕ) :
     rw [h1, prod_mul_distrib, prod_const, card_range, ← descPochhammer_eval_eq_prod_range,
       descPochhammer_eval_eq_descFactorial, Nat.descFactorial_eq_factorial_mul_choose,
       Nat.cast_mul]
-  rw [hprod, pow_add]
-  have hneg2 : (-1 : ℚ) ^ j * (2 : ℚ) ^ j = (-2 : ℚ) ^ j := by
-    rw [← mul_pow]
-    ring
-  calc
-    (-1 : ℚ) ^ A₀ * (-1 : ℚ) ^ j * ((2 : ℚ) ^ j * ((j.factorial : ℚ) * (q.choose j : ℚ))) =
-        (-1 : ℚ) ^ A₀ * ((-1 : ℚ) ^ j * (2 : ℚ) ^ j) *
-          (j.factorial : ℚ) * (q.choose j : ℚ) := by ring
-    _ = (-1 : ℚ) ^ A₀ * (-2 : ℚ) ^ j * (j.factorial : ℚ) * (q.choose j : ℚ) := by rw [hneg2]
+  rw [hprod, pow_add, show (-2 : ℚ) = -1 * 2 by norm_num, mul_pow]
+  ring
 
 /-- On the interval `I = Finset.Ico A₀ (A₀ + R)`, the polynomial `fI A₀ R` evaluates to `(-1)^k`. -/
 theorem eval_fI_of_mem_Ico {A₀ R k : ℕ} (hk : k ∈ Ico A₀ (A₀ + R)) :
@@ -362,14 +346,7 @@ theorem eval_fI_of_mem_Ico {A₀ R k : ℕ} (hk : k ∈ Ico A₀ (A₀ + R)) :
           (-1 : ℚ) ^ A₀ * ((-2 : ℚ) ^ j * (q.choose j : ℚ)) := by
     intro j _
     rw [eval_mul, eval_C, eval_fallingTermPoly_add]
-    have hfac : (j.factorial : ℚ) ≠ 0 := Nat.cast_ne_zero.2 (Nat.factorial_ne_zero j)
-    calc
-      (j.factorial : ℚ)⁻¹ *
-          ((-1 : ℚ) ^ A₀ * (-2 : ℚ) ^ j * (j.factorial : ℚ) * (q.choose j : ℚ)) =
-        ((j.factorial : ℚ)⁻¹ * (j.factorial : ℚ)) *
-          ((-1 : ℚ) ^ A₀ * ((-2 : ℚ) ^ j * (q.choose j : ℚ))) := by ring
-      _ = (-1 : ℚ) ^ A₀ * ((-2 : ℚ) ^ j * (q.choose j : ℚ)) := by
-        rw [inv_mul_cancel₀ hfac, one_mul]
+    field_simp
   rw [sum_congr rfl hterm, ← mul_sum]
   have hsub :
       ∑ j ∈ range R, (-2 : ℚ) ^ j * (q.choose j : ℚ) =
@@ -378,10 +355,7 @@ theorem eval_fI_of_mem_Ico {A₀ R k : ℕ} (hk : k ∈ Ico A₀ (A₀ + R)) :
     rw [mem_range, not_lt] at hj
     simp [Nat.choose_eq_zero_of_lt (by omega : q < j)]
   have hbin : ∑ j ∈ range (q + 1), (-2 : ℚ) ^ j * (q.choose j : ℚ) = (-1 : ℚ) ^ q := by
-    have h := add_pow (-2 : ℚ) 1 q
-    simp only [one_pow, mul_one] at h
-    rw [show (-2 : ℚ) + 1 = -1 by norm_num] at h
-    exact h.symm
+    simpa [show (-2 : ℚ) + 1 = -1 by norm_num] using (add_pow (-2 : ℚ) 1 q).symm
   rw [hsub, hbin, ← pow_add]
 
 /-! ### 3. Explicit `{0, 1, -1}`-eigenbasis and Lemma 4.1 -/
@@ -458,46 +432,9 @@ theorem sum_pairBasis_mul_pairBasis {r : ℕ} (α δ α' δ' : Fin r) :
     (∑ x : Fin r, ∑ y : Fin r, pairBasis α δ x y * pairBasis α' δ' x y) =
       if α = α' ∧ δ = δ' then pairNormSq α δ else 0 := by
   unfold pairBasis pairNormSq
-  rcases lt_trichotomy α δ with h1 | rfl | h2 <;>
-    rcases lt_trichotomy α' δ' with h1' | rfl | h2'
-  · have hne : α ≠ δ := ne_of_lt h1
-    have hne' : α' ≠ δ' := ne_of_lt h1'
-    simp only [hne, h1, hne', h1', ↓reduceIte, add_mul, mul_add, sum_add_distrib,
-      sum_pairInd_mul_pairInd]
-    split_ifs <;> omega
-  · have hne : α ≠ δ := ne_of_lt h1
-    simp only [hne, h1, ↓reduceIte, add_mul, sum_add_distrib, sum_pairInd_mul_pairInd]
-    split_ifs <;> omega
-  · have hne : α ≠ δ := ne_of_lt h1
-    have hne' : α' ≠ δ' := ne_of_gt h2'
-    have hnot' : ¬ α' < δ' := not_lt_of_gt h2'
-    simp only [hne, h1, hne', hnot', ↓reduceIte, add_mul, mul_sub, sum_add_distrib,
-      sum_sub_distrib, sum_pairInd_mul_pairInd]
-    split_ifs <;> omega
-  · have hne' : α' ≠ δ' := ne_of_lt h1'
-    simp only [hne', h1', ↓reduceIte, mul_add, sum_add_distrib, sum_pairInd_mul_pairInd]
-    split_ifs <;> omega
-  · simp only [↓reduceIte, sum_pairInd_mul_pairInd]
-  · have hne' : α' ≠ δ' := ne_of_gt h2'
-    have hnot' : ¬ α' < δ' := not_lt_of_gt h2'
-    simp only [hne', hnot', ↓reduceIte, mul_sub, sum_sub_distrib, sum_pairInd_mul_pairInd]
-    split_ifs <;> omega
-  · have hne : α ≠ δ := ne_of_gt h2
-    have hnot : ¬ α < δ := not_lt_of_gt h2
-    have hne' : α' ≠ δ' := ne_of_lt h1'
-    simp only [hne, hnot, hne', h1', ↓reduceIte, sub_mul, mul_add, sum_add_distrib,
-      sum_sub_distrib, sum_pairInd_mul_pairInd]
-    split_ifs <;> omega
-  · have hne : α ≠ δ := ne_of_gt h2
-    have hnot : ¬ α < δ := not_lt_of_gt h2
-    simp only [hne, hnot, ↓reduceIte, sub_mul, sum_sub_distrib, sum_pairInd_mul_pairInd]
-    split_ifs <;> omega
-  · have hne : α ≠ δ := ne_of_gt h2
-    have hnot : ¬ α < δ := not_lt_of_gt h2
-    have hne' : α' ≠ δ' := ne_of_gt h2'
-    have hnot' : ¬ α' < δ' := not_lt_of_gt h2'
-    simp only [hne, hnot, hne', hnot', ↓reduceIte, sub_mul, mul_sub, sum_sub_distrib,
-      sum_pairInd_mul_pairInd]
+  split_ifs <;>
+    simp only [add_mul, mul_add, sub_mul, mul_sub, sum_add_distrib, sum_sub_distrib,
+      sum_pairInd_mul_pairInd] <;>
     split_ifs <;> omega
 
 /-- The integer-valued simultaneous eigenvector `ψ_β` on `AuxLabel Q r` (Proof of Lemma 4.1). -/
@@ -706,15 +643,11 @@ theorem sum_eigenvecInt_mul_eigenvecInt {Q r : ℕ} (β β' : AuxLabel Q r) :
   by_cases h : β = β'
   · subst h
     simp
-  · simp only [h, ↓reduceIte]
-    have hnotall : ¬ ∀ s : Fin Q, β.1 s = β'.1 s ∧ β.2 s = β'.2 s := by
-      intro hall
+  · obtain ⟨s, hs⟩ : ∃ s, ¬(β.1 s = β'.1 s ∧ β.2 s = β'.2 s) := by
+      by_contra! hall
       exact h (Prod.ext (funext fun s => (hall s).1) (funext fun s => (hall s).2))
-    push Not at hnotall
-    obtain ⟨s, hs⟩ := hnotall
-    refine prod_eq_zero (mem_univ s) ?_
-    have hnot : ¬ (β.1 s = β'.1 s ∧ β.2 s = β'.2 s) := fun hboth => hs hboth.1 hboth.2
-    simp [hnot]
+    simp only [h, ↓reduceIte]
+    exact prod_eq_zero (mem_univ s) (by simp [hs])
 
 /-- The square matrix whose `β`-th row is `eigenvec ℚ β`. -/
 def eigenMatrix (Q r : ℕ) : Matrix (AuxLabel Q r) (AuxLabel Q r) ℚ :=
@@ -785,50 +718,19 @@ theorem card_measurementIndices_add_card_mem_Ico (Q r A₀ R : ℕ) :
 `-1` and `r * (r + 1) / 2` pairs with eigenvalue `+1`, Proof of Lemma 4.1, p. 28). -/
 theorem two_mul_card_antisymPair_add_eq_sq (r : ℕ) :
     2 * #{p : Fin r × Fin r | p.2 < p.1} + r = r ^ 2 := by
-  have hswap :
-      #{p : Fin r × Fin r | p.2 < p.1} = #{p : Fin r × Fin r | p.1 < p.2} := by
-    refine card_bij (fun p _ => (p.2, p.1)) ?_ ?_ ?_
-    · intro p hp
-      simp only [mem_filter, mem_univ, true_and] at hp ⊢
-      exact hp
-    · intro p₁ _ p₂ _ h
-      exact Prod.ext (Prod.mk.inj h).2 (Prod.mk.inj h).1
-    · intro p hp
-      refine ⟨(p.2, p.1), ?_, rfl⟩
-      simp only [mem_filter, mem_univ, true_and] at hp ⊢
-      exact hp
+  have hswap : #{p : Fin r × Fin r | p.2 < p.1} = #{p : Fin r × Fin r | p.1 < p.2} :=
+    card_nbij' Prod.swap Prod.swap (fun p hp => by simpa using hp) (fun p hp => by simpa using hp)
+      (fun _ _ => rfl) (fun _ _ => rfl)
   have hdiag : #{p : Fin r × Fin r | p.1 = p.2} = r := by
-    refine (card_bij (fun i : Fin r => fun _ => (i, i)) ?_ ?_ ?_).symm.trans
-      (by rw [card_univ, Fintype.card_fin])
-    · intro i _; simp
-    · intro i₁ _ i₂ _ h; exact (Prod.mk.inj h).1
-    · intro p hp
-      simp only [mem_filter, mem_univ, true_and] at hp
-      exact ⟨p.1, mem_univ _, Prod.ext rfl hp⟩
-  have hpart :
-      #{p : Fin r × Fin r | p.2 < p.1} +
-          #{p : Fin r × Fin r | p.1 < p.2} +
-          #{p : Fin r × Fin r | p.1 = p.2} =
-        r ^ 2 := by
-    have h1 := card_filter_add_card_filter_not (s := (univ : Finset (Fin r × Fin r)))
-      (p := fun p : Fin r × Fin r => p.1 = p.2)
-    have h2 :
-        (univ.filter fun p : Fin r × Fin r => ¬ p.1 = p.2) =
-          (univ.filter fun p : Fin r × Fin r => p.2 < p.1) ∪
-            (univ.filter fun p : Fin r × Fin r => p.1 < p.2) := by
-      ext p
-      simp only [mem_filter, mem_univ, true_and, mem_union]
-      omega
-    have hdisj :
-        Disjoint (univ.filter fun p : Fin r × Fin r => p.2 < p.1)
-          (univ.filter fun p : Fin r × Fin r => p.1 < p.2) := by
-      rw [Finset.disjoint_left]
-      intro p hp1 hp2
-      simp only [mem_filter, mem_univ, true_and] at hp1 hp2
-      omega
-    rw [h2, card_union_of_disjoint hdisj, card_univ, Fintype.card_prod, Fintype.card_fin,
-      ← sq] at h1
-    omega
+    rw [show (univ.filter fun p : Fin r × Fin r => p.1 = p.2) = (univ : Finset (Fin r)).diag by
+      ext; simp [mem_diag], diag_card, card_univ, Fintype.card_fin]
+  have h1 := card_filter_add_card_filter_not (s := (univ : Finset (Fin r × Fin r)))
+    (p := fun p : Fin r × Fin r => p.1 = p.2)
+  rw [show (univ.filter fun p : Fin r × Fin r => ¬ p.1 = p.2) =
+      univ.filter (fun p : Fin r × Fin r => p.2 < p.1) ∪ univ.filter (fun p => p.1 < p.2) by
+    ext p; simp only [mem_filter, mem_univ, true_and, mem_union]; omega,
+    card_union_of_disjoint (disjoint_filter.2 fun p _ h₁ h₂ => by omega), card_univ,
+    Fintype.card_prod, Fintype.card_fin, ← sq] at h1
   omega
 
 /-- The `{0, 1, -1}`-valued measurement matrix `C^B` of Lemma 4.1 (p. 28), whose rows are the
@@ -913,10 +815,7 @@ private theorem hasFirstDiffBound_mono {Q r : ℕ} {K : Type*} [CommRing K] {k k
 private theorem hasFirstDiffBound_one (Q r : ℕ) (K : Type*) [CommRing K] (k : ℕ) :
     HasFirstDiffBound Q r K k 1 := by
   intro z y hne
-  have hzy : z = y := by
-    by_contra h
-    exact hne (Matrix.one_apply_ne h)
-  subst hzy
+  obtain rfl : z = y := by_contra fun h => hne (Matrix.one_apply_ne h)
   simp [firstDiffSet_self]
 
 private theorem hasFirstDiffBound_slotSwapMatrix (Q r : ℕ) (K : Type*) [CommRing K] (s : Fin Q) :
@@ -938,32 +837,19 @@ private theorem hasFirstDiffBound_slotSwapMatrix (Q r : ℕ) (K : Type*) [CommRi
 private theorem hasFirstDiffBound_add {Q r : ℕ} {K : Type*} [CommRing K] {k : ℕ}
     {A B : Matrix (AuxLabel Q r) (AuxLabel Q r) K}
     (hA : HasFirstDiffBound Q r K k A) (hB : HasFirstDiffBound Q r K k B) :
-    HasFirstDiffBound Q r K k (A + B) := by
-  intro z y hne
-  by_cases hAz : A z y = 0
-  · refine hB z y ?_
-    intro hBz
-    exact hne (by simp [hAz, hBz])
-  · exact hA z y hAz
+    HasFirstDiffBound Q r K k (A + B) := fun z y hne =>
+  (em (A z y = 0)).elim (fun hAz => hB z y fun hBz => hne (by simp [hAz, hBz])) (hA z y)
 
 private theorem hasFirstDiffBound_sub {Q r : ℕ} {K : Type*} [CommRing K] {k : ℕ}
     {A B : Matrix (AuxLabel Q r) (AuxLabel Q r) K}
     (hA : HasFirstDiffBound Q r K k A) (hB : HasFirstDiffBound Q r K k B) :
-    HasFirstDiffBound Q r K k (A - B) := by
-  intro z y hne
-  by_cases hAz : A z y = 0
-  · refine hB z y ?_
-    intro hBz
-    exact hne (by simp [hAz, hBz])
-  · exact hA z y hAz
+    HasFirstDiffBound Q r K k (A - B) := fun z y hne =>
+  (em (A z y = 0)).elim (fun hAz => hB z y fun hBz => hne (by simp [hAz, hBz])) (hA z y)
 
 private theorem hasFirstDiffBound_smul {Q r : ℕ} {K : Type*} [CommRing K] {k : ℕ} (c : K)
     {A : Matrix (AuxLabel Q r) (AuxLabel Q r) K} (hA : HasFirstDiffBound Q r K k A) :
-    HasFirstDiffBound Q r K k (c • A) := by
-  intro z y hne
-  refine hA z y ?_
-  intro hAz
-  exact hne (by simp [hAz])
+    HasFirstDiffBound Q r K k (c • A) :=
+  fun z y hne => hA z y fun hAz => hne (by simp [hAz])
 
 private theorem hasFirstDiffBound_sum {Q r : ℕ} {K : Type*} [CommRing K] {ι : Type*}
     (s : Finset ι) (k : ℕ) (f : ι → Matrix (AuxLabel Q r) (AuxLabel Q r) K)
@@ -971,10 +857,7 @@ private theorem hasFirstDiffBound_sum {Q r : ℕ} {K : Type*} [CommRing K] {ι :
     HasFirstDiffBound Q r K k (∑ i ∈ s, f i) := by
   classical
   induction s using Finset.induction_on with
-  | empty =>
-    intro z y hne
-    exfalso
-    exact hne (by simp)
+  | empty => exact fun z y hne => absurd (by simp) hne
   | insert i s hi ih =>
     rw [sum_insert hi]
     exact hasFirstDiffBound_add (hf i (mem_insert_self i s))
@@ -1019,12 +902,8 @@ theorem card_mismatchSet_le_of_M0_ne_zero {Q r A₀ R : ℕ} {u y : AuxLabel Q r
         (∑ j ∈ range R,
           ((j.factorial : ℚ)⁻¹) • (fallingTermMatrixInt Q r A₀ j).map (Int.cast : ℤ → ℚ)) := by
     refine hasFirstDiffBound_sum (range R) (R - 1) _ fun j hj => ?_
-    refine hasFirstDiffBound_smul _ ?_
-    intro z w hzw
-    have hzwInt : fallingTermMatrixInt Q r A₀ j z w ≠ 0 := by
-      intro h0
-      exact hzw (by simp [h0])
-    exact (hasFirstDiffBound_fallingTermMatrixInt Q r A₀ j z w hzwInt).trans
+    refine hasFirstDiffBound_smul _ fun z w hzw => ?_
+    exact (hasFirstDiffBound_fallingTermMatrixInt Q r A₀ j z w fun h0 => hzw (by simp [h0])).trans
       (Nat.le_sub_one_of_lt (mem_range.1 hj))
   rw [← firstDiffSet_fullSwap]
   exact hbound (fullSwap u) y hne
@@ -1079,13 +958,7 @@ theorem natDegree_mismatchAnnihilator_le {Q r : ℕ} (u y : AuxLabel Q r) :
     (mismatchAnnihilator u y).natDegree ≤ #(mismatchSet u y) := by
   unfold mismatchAnnihilator
   refine (Polynomial.natDegree_prod_le _ _).trans ?_
-  have h1 : ∀ s ∈ mismatchSet u y, (1 - C (nodePoint s)⁻¹ * X).natDegree ≤ 1 := by
-    intro s _
-    refine (Polynomial.natDegree_sub_le _ _).trans ?_
-    refine max_le (by simp) ?_
-    refine Polynomial.natDegree_mul_le.trans ?_
-    simp
-  exact (sum_le_sum h1).trans (by simp)
+  exact (sum_le_sum fun s _ => (by compute_degree : _ ≤ 1)).trans (by simp)
 
 /-- The auxiliary replacement polynomial row `P⃗_u(T) ∈ (AuxLabel Q r → ℚ[X])` (eq. 4.10):
 `P⃗_u(T)_y = (I - M_0)[u, y] + M_0[u, y] φ_{u,y}(T)`. -/
@@ -1204,11 +1077,7 @@ theorem evalAuxReplacementRow_nodePoint_eq_zero_of_kernel
       (∑ y ∈ auxGroup s (u.2 s),
           M0 Q r A₀ R u y * (mismatchAnnihilator u y).eval (nodePoint s) * ξ y) = 0 := by
     refine sum_eq_zero fun y hy => ?_
-    have hy_not : y ∉ auxGroup s g := by
-      simp only [auxGroup, mem_filter, mem_univ, true_and] at hy ⊢
-      rw [hy]
-      exact hg.symm
-    rw [hsupp y hy_not, mul_zero]
+    rw [hsupp y fun h => hg ((mem_auxGroup.1 h).symm.trans (mem_auxGroup.1 hy)), mul_zero]
   rw [hM, hsum, add_zero]
 
 /-- **Lemma 4.3 (Determination by assigned group and measurements, p. 29)**: at `t = nodePoint s`,
@@ -1227,13 +1096,9 @@ theorem evalAuxReplacementRow_nodePoint_eq_of_eq_on_auxGroup
   have hdiff : ((1 - M0 Q r A₀ R).mulVec (ζ₁ - ζ₂)) u = 0 := by
     rw [Matrix.sub_mulVec, Matrix.one_mulVec,
       M0_mulVec_eq_self_of_measurementMatrix_mulVec_eq_zero hker, sub_self, Pi.zero_apply]
-  have hM : ((1 - M0 Q r A₀ R).mulVec ζ₁) u = ((1 - M0 Q r A₀ R).mulVec ζ₂) u := by
-    rw [Matrix.mulVec_sub, Pi.sub_apply, sub_eq_zero] at hdiff
-    exact hdiff
-  rw [hM]
-  congr 1
-  refine sum_congr rfl fun y hy => ?_
-  rw [hgroup y hy]
+  rw [Matrix.mulVec_sub, Pi.sub_apply, sub_eq_zero] at hdiff
+  rw [hdiff]
+  exact congrArg _ (sum_congr rfl fun y hy => by rw [hgroup y hy])
 
 /-! ### 6. Common-denominator clearing (Lemma 4.6, p. 33) -/
 
@@ -1268,9 +1133,9 @@ theorem map_mismatchAnnihilatorScaledInt {Q r : ℕ} (u y : AuxLabel Q r) :
     intro s _
     rw [Polynomial.map_sub, Polynomial.map_C, Polynomial.map_X, eq_intCast]
     push_cast
-    have hs : nodePoint s ≠ 0 := nodePoint_ne_zero s
-    have hns : ((s.1 : ℚ) + 1) * (nodePoint s)⁻¹ = 1 := mul_inv_cancel₀ hs
-    rw [mul_sub, mul_one, ← mul_assoc, ← C_mul, hns, C_1, one_mul]
+    rw [mul_sub, mul_one, ← mul_assoc, ← C_mul,
+      show ((s.1 : ℚ) + 1) * (nodePoint s)⁻¹ = 1 from mul_inv_cancel₀ (nodePoint_ne_zero s), C_1,
+      one_mul]
   rw [prod_congr rfl hfac, prod_mul_distrib, ← map_prod C, ← mul_assoc, ← C_mul]
   have hcompl :
       (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℚ) + 1)) *
@@ -1290,18 +1155,10 @@ theorem map_M0ScaledInt (Q r A₀ R : ℕ) :
   simp only [Matrix.sum_apply, Matrix.smul_apply, Matrix.map_apply, smul_eq_mul, Int.cast_sum,
     Int.cast_mul, mul_sum]
   refine sum_congr rfl fun j hj => ?_
-  have hjle : j ≤ R - 1 := Nat.le_sub_one_of_lt (mem_range.1 hj)
-  have hdvd : j.factorial ∣ (R - 1).factorial := Nat.factorial_dvd_factorial hjle
-  have hfac : (j.factorial : ℚ) ≠ 0 := Nat.cast_ne_zero.2 (Nat.factorial_ne_zero j)
-  have hdiv :
-      ((((R - 1).factorial / j.factorial : ℕ) : ℤ) : ℚ) =
-        ((R - 1).factorial : ℚ) * (j.factorial : ℚ)⁻¹ := by
-    have hmul :
-        ((((R - 1).factorial / j.factorial : ℕ) : ℤ) : ℚ) * (j.factorial : ℚ) =
-          ((R - 1).factorial : ℚ) := by
-      exact_mod_cast Nat.div_mul_cancel hdvd
-    rw [← hmul, mul_assoc, mul_inv_cancel₀ hfac, mul_one]
-  rw [hdiv, mul_assoc]
+  have hmul : (((R - 1).factorial / j.factorial : ℕ) : ℚ) * j.factorial = (R - 1).factorial := by
+    exact_mod_cast Nat.div_mul_cancel
+      (Nat.factorial_dvd_factorial (Nat.le_sub_one_of_lt (mem_range.1 hj)))
+  rw [Int.cast_natCast, ← hmul, mul_assoc, mul_inv_cancel_left₀ (by positivity)]
 
 /-- **Lemma 4.6 (Common-denominator clearing, p. 33)**: multiplying `auxReplacementRow Q r A₀ R u y`
 by `commonDenom Q R = (R - 1)! Q!` gives the integer polynomial

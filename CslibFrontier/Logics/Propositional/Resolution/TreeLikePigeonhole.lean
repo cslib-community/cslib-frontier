@@ -148,7 +148,7 @@ private theorem exists_potential_eq {h : ℕ} (ρ : Fin m × Fin n → Option Bo
     ∃ U ⊆ (matched ρ)ᶜ, #U = h - #(matched ρ) ∧ potential h ρ = ∏ i ∈ U, weight h ρ i := by
   have hne : (products h ρ).Nonempty := by
     obtain ⟨U, hU, hcard⟩ := exists_subset_card_eq (s := (matched ρ)ᶜ) (n := h - #(matched ρ))
-      (by rw [card_compl, Fintype.card_fin]; omega)
+      (by rw [card_compl, Fintype.card_fin]; exact Nat.sub_le_sub_right hh _)
     exact ⟨_, U, hU, hcard, rfl⟩
   exact Nat.sInf_mem hne
 
@@ -196,8 +196,7 @@ private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m ×
     μ h ρ ≤ 1 := by
   by_cases hρ : IsMatching ρ
   swap
-  · rw [μ_of_not_isMatching hρ]
-    exact Nat.zero_le _
+  · exact (μ_of_not_isMatching hρ).trans_le (Nat.zero_le _)
   rw [μ_of_isMatching hρ]
   rcases mem_pigeonhole.1 hc with ⟨i, rfl⟩ | ⟨i, i', j, hii', rfl⟩
   · -- every hole is excluded for pigeon `i` or occupied
@@ -244,13 +243,9 @@ private theorem update_eq_some_true_iff (hv : ρ (i, j) = none) (b : Bool) (a : 
 
 private theorem isMatching_update_false (hρ : IsMatching ρ) (hv : ρ (i, j) = none) :
     IsMatching (update ρ (i, j) (some false)) := by
-  constructor
-  · intro a c c' h₁ h₂
+  constructor <;> intro _ _ _ h₁ h₂ <;>
     simp only [update_eq_some_true_iff hv, Bool.false_eq_true, and_false, false_or] at h₁ h₂
-    exact hρ.1 a c c' h₁ h₂
-  · intro a a' c h₁ h₂
-    simp only [update_eq_some_true_iff hv, Bool.false_eq_true, and_false, false_or] at h₁ h₂
-    exact hρ.2 a a' c h₁ h₂
+  exacts [hρ.1 _ _ _ h₁ h₂, hρ.2 _ _ _ h₁ h₂]
 
 private theorem matched_update_false (hv : ρ (i, j) = none) :
     matched (update ρ (i, j) (some false)) = matched ρ := by
@@ -282,25 +277,17 @@ private theorem excluded_update_false_self (hv : ρ (i, j) = none) :
 
 private theorem isMatching_update_true (hρ : IsMatching ρ) (hv : ρ (i, j) = none)
     (hi : i ∉ matched ρ) (hj : j ∉ occupied ρ) : IsMatching (update ρ (i, j) (some true)) := by
-  constructor
-  · intro a c c' h₁ h₂
-    simp only [update_eq_some_true_iff hv, and_true] at h₁ h₂
+  constructor <;> intro _ _ _ h₁ h₂ <;>
+    simp only [update_eq_some_true_iff hv, and_true] at h₁ h₂ <;>
     rcases h₁ with h₁ | h₁ <;> rcases h₂ with h₂ | h₂
-    · exact (Prod.ext_iff.1 h₁).2.trans (Prod.ext_iff.1 h₂).2.symm
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h₁
-      exact absurd (mem_matched.2 ⟨c', h₂⟩) hi
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h₂
-      exact absurd (mem_matched.2 ⟨c, h₁⟩) hi
-    · exact hρ.1 a c c' h₁ h₂
-  · intro a a' c h₁ h₂
-    simp only [update_eq_some_true_iff hv, and_true] at h₁ h₂
-    rcases h₁ with h₁ | h₁ <;> rcases h₂ with h₂ | h₂
-    · exact (Prod.ext_iff.1 h₁).1.trans (Prod.ext_iff.1 h₂).1.symm
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h₁
-      exact absurd (mem_occupied.2 ⟨a', h₂⟩) hj
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h₂
-      exact absurd (mem_occupied.2 ⟨a, h₁⟩) hj
-    · exact hρ.2 a a' c h₁ h₂
+  · exact (Prod.ext_iff.1 h₁).2.trans (Prod.ext_iff.1 h₂).2.symm
+  · exact absurd (mem_matched.2 ⟨_, (Prod.mk.inj h₁).1 ▸ h₂⟩) hi
+  · exact absurd (mem_matched.2 ⟨_, (Prod.mk.inj h₂).1 ▸ h₁⟩) hi
+  · exact hρ.1 _ _ _ h₁ h₂
+  · exact (Prod.ext_iff.1 h₁).1.trans (Prod.ext_iff.1 h₂).1.symm
+  · exact absurd (mem_occupied.2 ⟨_, (Prod.mk.inj h₁).2 ▸ h₂⟩) hj
+  · exact absurd (mem_occupied.2 ⟨_, (Prod.mk.inj h₂).2 ▸ h₁⟩) hj
+  · exact hρ.2 _ _ _ h₁ h₂
 
 private theorem matched_update_true (hv : ρ (i, j) = none) :
     matched (update ρ (i, j) (some true)) = insert i (matched ρ) := by
@@ -308,11 +295,9 @@ private theorem matched_update_true (hv : ρ (i, j) = none) :
   simp only [mem_matched, update_eq_some_true_iff hv, and_true, mem_insert, Prod.ext_iff]
   constructor
   · rintro ⟨c, ⟨rfl, -⟩ | hc⟩
-    · exact Or.inl rfl
-    · exact Or.inr ⟨c, hc⟩
+    exacts [Or.inl rfl, Or.inr ⟨c, hc⟩]
   · rintro (rfl | ⟨c, hc⟩)
-    · exact ⟨j, Or.inl ⟨rfl, rfl⟩⟩
-    · exact ⟨c, Or.inr hc⟩
+    exacts [⟨j, Or.inl ⟨rfl, rfl⟩⟩, ⟨c, Or.inr hc⟩]
 
 private theorem occupied_subset_update_true (hv : ρ (i, j) = none) :
     occupied ρ ⊆ occupied (update ρ (i, j) (some true)) := fun c hc => by
@@ -376,8 +361,7 @@ private theorem potential_split {h : ℕ} (hhm : h ≤ m) {ρ : Fin m × Fin n �
     have hW' : insert i W ⊆ (matched ρ)ᶜ := by
       intro a ha
       rcases mem_insert.1 ha with rfl | ha
-      · exact mem_compl.2 hi
-      · exact mem_compl.2 fun hm => mem_compl.1 (hW ha) (mem_insert_of_mem hm)
+      exacts [mem_compl.2 hi, mem_compl.2 fun hm => mem_compl.1 (hW ha) (mem_insert_of_mem hm)]
     have hcardW' : #(insert i W) = h - #(matched ρ) := by
       rw [card_insert_of_notMem hiW, hcardW, card_insert_of_notMem hi]
       omega
@@ -385,21 +369,13 @@ private theorem potential_split {h : ℕ} (hhm : h ≤ m) {ρ : Fin m × Fin n �
     rw [prod_insert hiW, heqW]
     exact Nat.mul_le_mul_left _ (prod_le_prod fun a ha =>
       weight_le_update_true hv fun he => hiW (he ▸ ha))
+  have hmul (x : ℕ) : D * x ≤ (D - 1) * x + x := by
+    rw [← Nat.add_one_mul]
+    exact Nat.mul_le_mul_right x le_tsub_add
   rw [heq₀']
-  rcases Nat.eq_zero_or_pos D with hD0 | hD0
-  · rw [hD0, zero_mul] at hle₁
-    omega
-  obtain ⟨D', hD'⟩ : ∃ D', D = D' + 1 := ⟨D - 1, by omega⟩
-  rw [hD', Nat.add_sub_cancel]
-  rw [hD'] at hle₁ hle₂
-  rcases le_total (potential h (update ρ (i, j) (some true))) P with hR | hR
-  · calc potential h ρ ≤ (D' + 1) * potential h (update ρ (i, j) (some true)) := hle₂
-      _ = D' * potential h (update ρ (i, j) (some true)) +
-          potential h (update ρ (i, j) (some true)) := by ring
-      _ ≤ D' * P + potential h (update ρ (i, j) (some true)) := by gcongr
-  · calc potential h ρ ≤ (D' + 1) * P := hle₁
-      _ = D' * P + P := by ring
-      _ ≤ D' * P + potential h (update ρ (i, j) (some true)) := by gcongr
+  rcases le_total P (potential h (update ρ (i, j) (some true))) with hR | hR
+  · exact hle₁.trans ((hmul _).trans (Nat.add_le_add_left hR _))
+  · exact hle₂.trans ((hmul _).trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ hR) _))
 
 /-- **The potential splits at every unset variable.** -/
 private theorem μ_split {h : ℕ} (hhm : h ≤ m) (ρ : Fin m × Fin n → Option Bool)
@@ -407,8 +383,7 @@ private theorem μ_split {h : ℕ} (hhm : h ≤ m) (ρ : Fin m × Fin n → Opti
     μ h ρ ≤ μ h (update ρ v (some false)) + μ h (update ρ v (some true)) := by
   by_cases hρ : IsMatching ρ
   swap
-  · rw [μ_of_not_isMatching hρ]
-    exact Nat.zero_le _
+  · exact (μ_of_not_isMatching hρ).trans_le (Nat.zero_le _)
   obtain ⟨i, j⟩ := v
   rw [μ_of_isMatching hρ, μ_of_isMatching (isMatching_update_false hρ hv)]
   by_cases hfree : i ∈ matched ρ ∨ j ∈ occupied ρ

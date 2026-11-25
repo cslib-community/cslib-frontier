@@ -139,13 +139,9 @@ private theorem exists_color {A : cnfInterpretation.Model M → Prop} (hA : Sati
   rcases (clauseSatisfied_iff' A ⟨.vertex, fun _ => v, formula_realize_top⟩).1 (hA _) with
     ⟨τ, hτ, -, y, hy, hc, ha⟩ | ⟨τ, hτ, -⟩
   · simp only [coloringClauseTemplates, List.mem_cons, List.not_mem_nil, or_false] at hτ
-    rcases hτ with rfl | rfl | rfl
-    · obtain rfl : y = fun _ => v := funext fun j => hc j j rfl
-      exact ⟨0, ha⟩
-    · obtain rfl : y = fun _ => v := funext fun j => hc j j rfl
-      exact ⟨1, ha⟩
-    · obtain rfl : y = fun _ => v := funext fun j => hc j j rfl
-      exact ⟨2, ha⟩
+    rcases hτ with rfl | rfl | rfl <;>
+      obtain rfl : y = fun _ => v := funext fun j => hc j j rfl
+    exacts [⟨0, ha⟩, ⟨1, ha⟩, ⟨2, ha⟩]
   · simp [coloringClauseTemplates] at hτ
 
 /-- The assignment of a coloring: `x(v, c)` is true when `v` has the color `c`. -/
@@ -169,11 +165,9 @@ theorem satisfiable_cnfInterpretation_iff :
     · simp [coloringClauseTemplates] at hτ
     · simp only [coloringClauseTemplates, List.mem_cons, List.not_mem_nil, or_false] at hτ
       rcases hτ with rfl | rfl
-      · have hy' : y = fun _ => u := funext fun j => hc j 0 rfl
-        subst hy'
+      · obtain rfl : y = fun _ => u := funext fun j => hc j 0 rfl
         exact ha (hf u)
-      · have hy' : y = fun _ => v := funext fun j => hc j 1 rfl
-        subst hy'
+      · obtain rfl : y = fun _ => v := funext fun j => hc j 1 rfl
         exact ha (hfuv ▸ hf v)
   · rintro ⟨f, hf⟩
     refine ⟨coloringAssignment f, fun ⟨t, d, hd⟩ => ?_⟩
@@ -223,10 +217,9 @@ theorem isThreeCNF_cnfInterpretation : IsThreeCNF (cnfInterpretation.Model M) :=
       (c := (false, ⟨.var c, d, hd⟩)) fun ⟨b, e⟩ hl => ?_
     obtain ⟨τ, hτ, y, hy, hc⟩ := hlit _ hl
     obtain rfl := List.mem_singleton.1 hτ
-    have he : e = ⟨.var c, d, hd⟩ := Model.ext_toSigma (hy.trans (by
+    obtain rfl : e = ⟨.var c, d, hd⟩ := Model.ext_toSigma (hy.trans (by
       congr 1
       exact funext fun j => hc j j rfl))
-    subst he
     cases b <;> simp
   | vertex =>
     refine encard_le_three_of_subset (a := (true, varElt 0 (d 0))) (b := (true, varElt 1 (d 0)))
@@ -235,16 +228,11 @@ theorem isThreeCNF_cnfInterpretation : IsThreeCNF (cnfInterpretation.Model M) :=
     cases b
     · simp [coloringClauseTemplates] at hτ
     · simp only [coloringClauseTemplates, List.mem_cons, List.not_mem_nil, or_false] at hτ
-      rcases hτ with rfl | rfl | rfl
-      · obtain rfl : y = fun _ => d 0 :=
-          funext fun j => (hc j j rfl).trans (congrArg d (Subsingleton.elim _ _))
-        exact .inl (Prod.ext rfl (Model.ext_toSigma hy))
-      · obtain rfl : y = fun _ => d 0 :=
-          funext fun j => (hc j j rfl).trans (congrArg d (Subsingleton.elim _ _))
-        exact .inr (.inl (Prod.ext rfl (Model.ext_toSigma hy)))
-      · obtain rfl : y = fun _ => d 0 :=
-          funext fun j => (hc j j rfl).trans (congrArg d (Subsingleton.elim _ _))
-        exact .inr (.inr (Prod.ext rfl (Model.ext_toSigma hy)))
+      rcases hτ with rfl | rfl | rfl <;> obtain rfl : y = fun _ => d 0 :=
+        funext fun j => (hc j j rfl).trans (congrArg d (Subsingleton.elim _ _))
+      exacts [.inl (Prod.ext rfl (Model.ext_toSigma hy)),
+        .inr (.inl (Prod.ext rfl (Model.ext_toSigma hy))),
+        .inr (.inr (Prod.ext rfl (Model.ext_toSigma hy)))]
   | edge c =>
     refine encard_le_three_of_subset (a := (false, varElt c (d 0))) (b := (false, varElt c (d 1)))
       (c := (false, varElt c (d 1))) fun ⟨b, e⟩ hl => ?_
@@ -252,11 +240,9 @@ theorem isThreeCNF_cnfInterpretation : IsThreeCNF (cnfInterpretation.Model M) :=
     cases b
     · simp only [coloringClauseTemplates, List.mem_cons, List.not_mem_nil, or_false] at hτ
       rcases hτ with rfl | rfl
-      · have hy' : y = fun _ => d 0 := funext fun j => hc j 0 rfl
-        subst hy'
+      · obtain rfl : y = fun _ => d 0 := funext fun j => hc j 0 rfl
         exact .inl (Prod.ext rfl (Model.ext_toSigma hy))
-      · have hy' : y = fun _ => d 1 := funext fun j => hc j 1 rfl
-        subst hy'
+      · obtain rfl : y = fun _ => d 1 := funext fun j => hc j 1 rfl
         exact .inr (.inl (Prod.ext rfl (Model.ext_toSigma hy)))
     · simp [coloringClauseTemplates] at hτ
 

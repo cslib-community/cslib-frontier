@@ -158,7 +158,6 @@ theorem toReal_klDiv_eq_sSup {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
         r = ∫ x, f x ∂μ - log (∫ x, exp (f x) ∂ν) } := by
   set S : Set ℝ := { r : ℝ | ∃ f : α → ℝ, Measurable f ∧ (∃ C, ∀ x, |f x| ≤ C) ∧
     r = ∫ x, f x ∂μ - log (∫ x, exp (f x) ∂ν) }
-  have hzero : (0 : ℝ) ∈ S := ⟨fun _ => 0, measurable_const, ⟨0, fun _ => by simp⟩, by simp⟩
   have hle : ∀ r ∈ S, r ≤ (klDiv μ ν).toReal := by
     rintro _ ⟨f, hfm, ⟨C, hC⟩, rfl⟩
     have hfμ : Integrable f μ := Integrable.of_bound hfm.aestronglyMeasurable C
@@ -169,18 +168,17 @@ theorem toReal_klDiv_eq_sSup {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
         exact exp_le_exp.mpr (le_trans (le_abs_self _) (hC x)))
     have := Cslib.Probability.integral_le_toReal_klDiv_add_log_integral_exp hkl hfμ hfν
     linarith
-  have hne : S.Nonempty := ⟨0, hzero⟩
   have hbdd : BddAbove S := ⟨(klDiv μ ν).toReal, hle⟩
-  refine le_antisymm ?_ (csSup_le hne hle)
+  refine le_antisymm ?_
+    (csSup_le ⟨0, fun _ => 0, measurable_const, ⟨0, fun _ => by simp⟩, by simp⟩ hle)
   -- Lower bound: approximate `llr μ ν` by bounded truncations `f n` clamped to `[-n, n]`,
   -- mapping `{dμ/dν = 0}` to `-n` so that `exp (f n x) ≤ (dμ/dν)(x) + exp (-n)` `ν`-a.e.
   obtain ⟨hac, hllr⟩ := klDiv_ne_top_iff.1 hkl
   let f : ℕ → α → ℝ := fun n x =>
     if μ.rnDeriv ν x = 0 then -(n : ℝ) else max (-(n : ℝ)) (min (n : ℝ) (llr μ ν x))
-  have hf_meas (n : ℕ) : Measurable (f n) := by
-    refine Measurable.ite ?_ measurable_const
+  have hf_meas (n : ℕ) : Measurable (f n) :=
+    Measurable.ite ((μ.measurable_rnDeriv ν) (measurableSet_singleton 0)) measurable_const
       (measurable_const.max (measurable_const.min (measurable_llr μ ν)))
-    exact (μ.measurable_rnDeriv ν) (measurableSet_singleton 0)
   have hf_bound (n : ℕ) (x : α) : |f n x| ≤ (n : ℝ) := by
     dsimp only [f]
     split_ifs
@@ -189,21 +187,15 @@ theorem toReal_klDiv_eq_sSup {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
       exact ⟨le_max_left _ _, max_le (by linarith [Nat.cast_nonneg (α := ℝ) n]) (min_le_left _ _)⟩
   have hf_le_llr (n : ℕ) : ∀ᵐ x ∂μ, ‖f n x‖ ≤ ‖llr μ ν x‖ := by
     filter_upwards [Measure.rnDeriv_pos hac] with x hx
-    rw [Real.norm_eq_abs, Real.norm_eq_abs]
-    simp only [f, hx.ne', ↓reduceIte]
+    simp only [f, hx.ne', ↓reduceIte, Real.norm_eq_abs]
+    have := abs_nonneg (llr μ ν x)
     have hn : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-    rcases le_total (llr μ ν x) (-(n : ℝ)) with h1 | h1
-    · rw [min_eq_right (by linarith), max_eq_left h1, abs_neg, abs_of_nonneg hn]
-      exact le_trans (by linarith) (neg_le_abs _)
-    · rcases le_total (n : ℝ) (llr μ ν x) with h2 | h2
-      · rw [min_eq_left h2, max_eq_right (by linarith), abs_of_nonneg hn]
-        exact h2.trans (le_abs_self _)
-      · rw [min_eq_right h2, max_eq_right h1]
+    exact abs_le.2 ⟨(le_min (by linarith) (neg_abs_le _)).trans (le_max_right _ _),
+      max_le (by linarith) ((min_le_right _ _).trans (le_abs_self _))⟩
   have hf_tendsto : ∀ᵐ x ∂μ, Tendsto (fun n => f n x) atTop (𝓝 (llr μ ν x)) := by
     filter_upwards [Measure.rnDeriv_pos hac] with x hx
     refine tendsto_atTop_of_eventually_const (i₀ := Nat.ceil |llr μ ν x|) fun n hn => ?_
-    have hle_n : |llr μ ν x| ≤ (n : ℝ) := (Nat.le_ceil _).trans (Nat.cast_le.mpr hn)
-    have hmem := abs_le.mp hle_n
+    have hmem := abs_le.mp ((Nat.le_ceil _).trans (Nat.cast_le.mpr hn) : |llr μ ν x| ≤ n)
     simp only [f, hx.ne', ↓reduceIte, min_eq_right hmem.2, max_eq_right hmem.1]
   have hlim_int : Tendsto (fun n => ∫ x, f n x ∂μ) atTop (𝓝 (∫ x, llr μ ν x ∂μ)) :=
     tendsto_integral_of_dominated_convergence (fun x => ‖llr μ ν x‖)
@@ -227,44 +219,22 @@ theorem toReal_klDiv_eq_sSup {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
       dsimp only [f]
       split_ifs with hx0
       · simp [hx0]
-      · rcases le_total (min (n : ℝ) (llr μ ν x)) (-(n : ℝ)) with hm | hm
-        · rw [max_eq_left hm]
-          exact le_add_of_nonneg_left ENNReal.toReal_nonneg
-        · rw [max_eq_right hm]
-          have hpos : 0 < (μ.rnDeriv ν x).toReal := ENNReal.toReal_pos hx0 hxtop.ne
-          calc exp (min (n : ℝ) (llr μ ν x)) ≤ exp (llr μ ν x) := exp_le_exp.mpr (min_le_right _ _)
-            _ = (μ.rnDeriv ν x).toReal := exp_log hpos
-            _ ≤ (μ.rnDeriv ν x).toReal + exp (-(n : ℝ)) := le_add_of_nonneg_right (exp_pos _).le
+      · rw [exp_monotone.map_max]
+        exact max_le (le_add_of_nonneg_left ENNReal.toReal_nonneg) (le_add_of_le_of_nonneg
+          ((exp_le_exp.mpr (min_le_right _ _)).trans_eq (exp_log (ENNReal.toReal_pos hx0 hxtop.ne)))
+          (exp_pos _).le)
     have hsum : ∫ x, exp (f n x) ∂ν ≤ 1 + exp (-(n : ℝ)) := by
-      calc ∫ x, exp (f n x) ∂ν ≤ ∫ x, ((μ.rnDeriv ν x).toReal + exp (-(n : ℝ))) ∂ν :=
-            integral_mono_ae hexp_int (hrn_int.add (integrable_const _)) hpt
-        _ = (∫ x, (μ.rnDeriv ν x).toReal ∂ν) + exp (-(n : ℝ)) := by
-            rw [integral_add hrn_int (integrable_const _)]; simp
-        _ = 1 + exp (-(n : ℝ)) := by rw [hrn_val]
-    have hpos_int : 0 < ∫ x, exp (f n x) ∂ν := integral_exp_pos hexp_int
-    calc log (∫ x, exp (f n x) ∂ν) ≤ log (1 + exp (-(n : ℝ))) := log_le_log hpos_int hsum
-      _ ≤ (1 + exp (-(n : ℝ))) - 1 := log_le_sub_one_of_pos (by positivity)
-      _ = exp (-(n : ℝ)) := by ring
-  refine le_of_forall_pos_le_add fun ε hε => ?_
-  have h1 := (Metric.tendsto_atTop.mp hlim_int) (ε / 2) (half_pos hε)
-  have h2 : Tendsto (fun n : ℕ => exp (-(n : ℝ))) atTop (𝓝 0) :=
-    (tendsto_exp_atBot.comp (tendsto_neg_atTop_atBot.comp tendsto_natCast_atTop_atTop))
-  have h2' := (Metric.tendsto_atTop.mp h2) (ε / 2) (half_pos hε)
-  obtain ⟨N₁, hN₁⟩ := h1
-  obtain ⟨N₂, hN₂⟩ := h2'
-  set n := max N₁ N₂
-  have hd1 : |∫ x, f n x ∂μ - ∫ x, llr μ ν x ∂μ| < ε / 2 := by
-    simpa [Real.dist_eq] using hN₁ n (le_max_left _ _)
-  have hd2 : |exp (-(n : ℝ)) - 0| < ε / 2 := by
-    simpa [Real.dist_eq] using hN₂ n (le_max_right _ _)
-  have hmem : ∫ x, f n x ∂μ - log (∫ x, exp (f n x) ∂ν) ∈ S :=
-    ⟨f n, hf_meas n, ⟨n, hf_bound n⟩, rfl⟩
-  have hle_sSup := le_csSup hbdd hmem
-  have hl := (abs_lt.mp hd1).1
-  have he : exp (-(n : ℝ)) < ε / 2 := by
-    rw [sub_zero, abs_of_pos (exp_pos _)] at hd2
-    exact hd2
-  linarith [hkl_eq, hlog_le n]
+      refine (integral_mono_ae hexp_int (hrn_int.add (integrable_const _)) hpt).trans_eq ?_
+      rw [integral_add' hrn_int (integrable_const _), hrn_val]; simp
+    exact (log_le_log (integral_exp_pos hexp_int) hsum).trans
+      ((log_le_sub_one_of_pos (by positivity)).trans_eq (by ring))
+  have hlim : Tendsto (fun n : ℕ => ∫ x, f n x ∂μ - exp (-(n : ℝ))) atTop
+      (𝓝 (klDiv μ ν).toReal) := by
+    have h2 : Tendsto (fun n : ℕ => exp (-(n : ℝ))) atTop (𝓝 0) :=
+      tendsto_exp_atBot.comp (tendsto_neg_atTop_atBot.comp tendsto_natCast_atTop_atTop)
+    simpa only [sub_zero, hkl_eq] using hlim_int.sub h2
+  exact le_of_tendsto' hlim fun n => by
+    linarith [le_csSup hbdd (⟨f n, hf_meas n, ⟨n, hf_bound n⟩, rfl⟩ : _ ∈ S), hlog_le n]
 
 /-! ### Gibbs posterior free-energy minimization -/
 
@@ -276,12 +246,8 @@ theorem freeEnergy_sub_eq_toReal_klDiv_tilted {μ ν : Measure α} [IsProbabilit
     (hgμ : Integrable g μ) (hexp : Integrable (fun x => exp (-β * g x)) ν) :
     (∫ x, g x ∂μ + (klDiv μ ν).toReal / β) - (-log (∫ x, exp (-β * g x) ∂ν) / β) =
       (klDiv μ (ν.tilted fun x => -β * g x)).toReal / β := by
-  have hmul := toReal_klDiv_tilted_right hkl (hgμ.const_mul (-β)) hexp
-  have hint : ∫ x, -β * g x ∂μ = -β * ∫ x, g x ∂μ := integral_const_mul _ _
-  rw [hint] at hmul
-  rw [hmul]
-  field_simp
-  ring
+  rw [toReal_klDiv_tilted_right hkl (hgμ.const_mul (-β)) hexp, integral_const_mul]
+  field_simp; ring
 
 /-- The Gibbs posterior `ν.tilted (fun x => -β * g x)` minimizes the KL-regularized loss
 `μ ↦ ∫ g ∂μ + KL(μ ‖ ν) / β` over all probability measures with `KL(μ ‖ ν) < ∞` and
@@ -293,16 +259,11 @@ theorem freeEnergy_tilted_le {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
     ∫ x, g x ∂(ν.tilted fun x => -β * g x) +
         (klDiv (ν.tilted fun x => -β * g x) ν).toReal / β ≤
       ∫ x, g x ∂μ + (klDiv μ ν).toReal / β := by
-  have hopt := toReal_klDiv_tilted_self hexp (hgt.const_mul (-β))
-  have hint : ∫ x, -β * g x ∂(ν.tilted fun x => -β * g x) =
-      -β * ∫ x, g x ∂(ν.tilted fun x => -β * g x) := integral_const_mul _ _
-  rw [hint] at hopt
   have hval : ∫ x, g x ∂(ν.tilted fun x => -β * g x) +
       (klDiv (ν.tilted fun x => -β * g x) ν).toReal / β =
       -log (∫ x, exp (-β * g x) ∂ν) / β := by
-    rw [hopt]
-    field_simp
-    ring
+    rw [toReal_klDiv_tilted_self hexp (hgt.const_mul (-β)), integral_const_mul]
+    field_simp; ring
   rw [hval, ← sub_nonneg, freeEnergy_sub_eq_toReal_klDiv_tilted hkl hβ.ne' hgμ hexp]
   exact div_nonneg ENNReal.toReal_nonneg hβ.le
 
@@ -318,14 +279,7 @@ theorem freeEnergy_eq_tilted_iff {μ ν : Measure α} [IsProbabilityMeasure μ]
   have hne : klDiv μ (ν.tilted fun x => -β * g x) ≠ ⊤ :=
     klDiv_tilted_right_ne_top hkl (hgμ.const_mul (-β)) hexp
   rw [← sub_eq_zero, freeEnergy_sub_eq_toReal_klDiv_tilted hkl hβ.ne' hgμ hexp,
-    div_eq_zero_iff]
-  constructor
-  · rintro (h | h)
-    · rw [ENNReal.toReal_eq_zero_iff] at h
-      exact klDiv_eq_zero_iff.mp (h.resolve_right hne)
-    · exact absurd h hβ.ne'
-  · intro h
-    left
-    rw [h, klDiv_self, ENNReal.toReal_zero]
+    div_eq_zero_iff, or_iff_left hβ.ne', ENNReal.toReal_eq_zero_iff, or_iff_left hne,
+    klDiv_eq_zero_iff]
 
 end Cslib.Probability

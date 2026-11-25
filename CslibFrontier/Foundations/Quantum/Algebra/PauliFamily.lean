@@ -121,21 +121,19 @@ theorem pauliFamily_mul_sub (X Z : (ι → Bool) → A) (p q : PauliGroup ι) :
       (signVal (p.sign + q.sign) : ℂ) • (X p.x * Z p.z * X q.x * Z q.z -
         (signVal (q.x ⬝ᵥ p.z) : ℂ) • (X (p.x + q.x) * Z (p.z + q.z))) := by
   have hs₁ : (signVal (p.sign + q.sign) : ℂ) = signVal p.sign * signVal q.sign := by
-    rw [show p.sign + q.sign = (p.sign ^^ q.sign) from rfl, signVal_xor]; push_cast; rfl
+    push_cast [show p.sign + q.sign = (p.sign ^^ q.sign) from rfl, signVal_xor]; rfl
   have hs₂ : (signVal (p * q).sign : ℂ) =
       signVal p.sign * signVal q.sign * signVal (q.x ⬝ᵥ p.z) := by
-    rw [PauliGroup.mul_sign, dotProduct_comm p.z q.x,
-      show p.sign + q.sign + q.x ⬝ᵥ p.z = ((p.sign ^^ q.sign) ^^ q.x ⬝ᵥ p.z) from rfl,
-      signVal_xor, signVal_xor]
-    push_cast; rfl
+    rw [PauliGroup.mul_sign, dotProduct_comm p.z q.x]
+    push_cast [show p.sign + q.sign + q.x ⬝ᵥ p.z = ((p.sign ^^ q.sign) ^^ q.x ⬝ᵥ p.z) from rfl,
+      signVal_xor]
+    rfl
   simp only [pauliFamily, smul_mul_smul_comm, hs₁, hs₂, PauliGroup.mul_x, PauliGroup.mul_z,
     smul_sub, smul_smul, mul_assoc]
 
 theorem pauliFamily_negOne_mul (X Z : (ι → Bool) → A) (p : PauliGroup ι) :
     pauliFamily X Z (negOne * p) = -pauliFamily X Z p := by
-  rw [negOne_mul, pauliFamily, pauliFamily, signVal_not]
-  push_cast
-  rw [neg_smul]
+  simp [negOne_mul, pauliFamily, signVal_not, neg_smul]
 
 section State
 
@@ -156,9 +154,7 @@ theorem norm_mul_mul_mul_sub_le (φ : AlgState A) (X Z ZB : (ι → Bool) → A)
         φ.norm (Z b * X a' - (signVal (a' ⬝ᵥ b) : ℂ) • (X a' * Z b)) +
         φ.norm (X a * X a' - X (a + a')) + φ.norm (Z b * Z b' - Z (b + b')) := by
   set s : ℂ := (signVal (a' ⬝ᵥ b) : ℂ)
-  have hs : ‖s‖ = 1 := by simp [s]
   have c1 : ∀ c, Z c ≈[φ; φ.norm (Z c - ZB c)] ZB c := fun c => φ.approx_norm_sub _ _
-  have c2 : ∀ c, ZB c ≈[φ; φ.norm (Z c - ZB c)] Z c := fun c => (c1 c).symm
   have chain := calc
       X a * Z b * X a' * Z b' ≈[φ; φ.norm (Z b' - ZB b')] X a * Z b * X a' * ZB b' :=
         (c1 b').mul_left_unitary (by unitary_mem)
@@ -166,7 +162,8 @@ theorem norm_mul_mul_mul_sub_le (φ : AlgState A) (X Z ZB : (ι → Bool) → A)
     _ ≈[φ; φ.norm (Z b * X a' - s • (X a' * Z b))] ZB b' * X a * (s • (X a' * Z b)) :=
         (φ.approx_norm_sub _ _).mul_left_unitary (by unitary_mem)
     _ = s • (ZB b' * (X a * X a') * Z b) := by
-        rw [mul_smul_comm]; simp only [mul_assoc]
+        rw [mul_smul_comm]
+        simp only [mul_assoc]
     _ ≈[φ; ‖s‖ * φ.norm (Z b - ZB b)] s • (ZB b' * (X a * X a') * ZB b) :=
         ((c1 b).mul_left_unitary (by unitary_mem)).smul s
     _ = s • (ZB b' * ZB b * (X a * X a')) := by commute_left [hXB]
@@ -174,14 +171,13 @@ theorem norm_mul_mul_mul_sub_le (φ : AlgState A) (X Z ZB : (ι → Bool) → A)
         ((φ.approx_norm_sub _ _).mul_left_unitary (by unitary_mem)).smul s
     _ = s • (X (a + a') * ZB b' * ZB b) := by commute_left [hXB]
     _ ≈[φ; ‖s‖ * φ.norm (Z b - ZB b)] s • (X (a + a') * ZB b' * Z b) :=
-        ((c2 b).mul_left_unitary (by unitary_mem)).smul s
+        ((c1 b).symm.mul_left_unitary (by unitary_mem)).smul s
     _ = s • (X (a + a') * Z b * ZB b') := by commute_left [hXB, hZZB]
     _ ≈[φ; ‖s‖ * φ.norm (Z b' - ZB b')] s • (X (a + a') * Z b * Z b') :=
-        ((c2 b').mul_left_unitary (by unitary_mem)).smul s
+        ((c1 b').symm.mul_left_unitary (by unitary_mem)).smul s
     _ ≈[φ; ‖s‖ * φ.norm (Z b * Z b' - Z (b + b'))] s • (X (a + a') * Z (b + b')) := by
         rw [mul_assoc]; exact ((φ.approx_norm_sub _ _).mul_left_unitary (hX _)).smul s
-  rw [approx_iff] at chain
-  simp only [hs, one_mul] at chain
+  simp only [approx_iff, show ‖s‖ = 1 by simp [s], one_mul] at chain
   linarith
 
 /-- `(x₁ + ⋯ + x₅)² ≤ 5 (x₁² + ⋯ + x₅²)`, Cauchy–Schwarz against the constant `1`. -/
@@ -210,26 +206,19 @@ theorem expect_norm_pauliFamily_sub_sq_le [DecidableEq ι] (φ : AlgState A)
   set α := fun a b => φ.norm (Z b * X a - (signVal (a ⬝ᵥ b) : ℂ) • (X a * Z b))
   set ℓX := fun a a' => φ.norm (X a * X a' - X (a + a'))
   set ℓZ := fun b b' => φ.norm (Z b * Z b' - Z (b + b'))
-  have hpt : ∀ p q : PauliGroup ι,
-      φ.norm (pauliFamily X Z p * pauliFamily X Z q - pauliFamily X Z (p * q)) ^ 2 ≤
-      5 * (4 * c p.z ^ 2 + 4 * c q.z ^ 2 + α q.x p.z ^ 2 + ℓX p.x q.x ^ 2 +
-        ℓZ p.z q.z ^ 2) := fun p q => by
-    rw [pauliFamily_mul_sub, AlgState.norm_smul, Complex.norm_real, Real.norm_eq_abs,
+  refine (Finset.expect_le_expect fun p _ => Finset.expect_le_expect fun q _ =>
+    show _ ≤ 5 * (4 * c p.z ^ 2 + 4 * c q.z ^ 2 + α q.x p.z ^ 2 + ℓX p.x q.x ^ 2 + ℓZ p.z q.z ^ 2)
+      from ?_).trans_eq ?_
+  · rw [pauliFamily_mul_sub, AlgState.norm_smul, Complex.norm_real, Real.norm_eq_abs,
       abs_signVal, one_mul]
-    have h := norm_mul_mul_mul_sub_le φ X Z ZB hX hZ hZB hXB hZZB p.x p.z q.x q.z
-    have h0 := φ.norm_nonneg (X p.x * Z p.z * X q.x * Z q.z -
-      (signVal (q.x ⬝ᵥ p.z) : ℂ) • (X (p.x + q.x) * Z (p.z + q.z)))
-    refine (pow_le_pow_left₀ h0 h 2).trans ?_
-    refine (sq_add₅_le _ _ _ _ _).trans (le_of_eq ?_)
-    simp only [c, α, ℓX, ℓZ]
+    refine (pow_le_pow_left₀ (φ.norm_nonneg _)
+      (norm_mul_mul_mul_sub_le φ X Z ZB hX hZ hZB hXB hZZB p.x p.z q.x q.z) 2).trans ?_
+    exact (sq_add₅_le _ _ _ _ _).trans_eq (by simp only [c, α, ℓX, ℓZ]; ring)
+  · rw [expect_pauliGroup₂ (fun a b a' b' => 5 * (4 * c b ^ 2 + 4 * c b' ^ 2 + α a' b ^ 2 +
+      ℓX a a' ^ 2 + ℓZ b b' ^ 2))]
+    simp only [← Finset.mul_expect, Finset.expect_add_distrib, Fintype.expect_const]
+    rw [Finset.expect_comm Finset.univ Finset.univ (fun a b => α b a ^ 2)]
     ring
-  refine (Finset.expect_le_expect fun p _ => Finset.expect_le_expect fun q _ => hpt p q).trans
-    (le_of_eq ?_)
-  rw [expect_pauliGroup₂ (fun a b a' b' => 5 * (4 * c b ^ 2 + 4 * c b' ^ 2 + α a' b ^ 2 +
-    ℓX a a' ^ 2 + ℓZ b b' ^ 2))]
-  simp only [← Finset.mul_expect, Finset.expect_add_distrib, Fintype.expect_const]
-  rw [Finset.expect_comm Finset.univ Finset.univ (fun a b => α b a ^ 2)]
-  ring
 
 end State
 

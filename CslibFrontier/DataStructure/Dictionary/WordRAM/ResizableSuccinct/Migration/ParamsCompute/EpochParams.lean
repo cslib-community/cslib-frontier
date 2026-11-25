@@ -118,32 +118,25 @@ theorem writeEpochParamsGenProg_spec
     (writeCompParamsSubProg ((dstMetaBase, (w, N)),
       ((quotientBits U N, valBits V),
         (Nat.log 2 N, (Dynamic.logLogFactor N, epochHashSpace U w N)))))
-  have hs'_eq : s' = s3 := by
+  have hrun : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s prog) ∧ s' = s3 ∧
+      (Memory.spec 0).clientResult s prog = (offCompItems U w N, epochHashSpace U w N) ∧
+      memoryCost prog s ≤ 11 * N + 100 := by
     dsimp only [s', prog, d, writeEpochParamsGenProg]
-    rw [StateTransitionSpec.clientState_bind, hres_r]
+    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+      Realization.memoryCost_bind', hres_r]
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, hst_ls, hres_ls]
+    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+      Realization.memoryCost_bind', hst_ls, hres_ls]
     dsimp only
-    rw [StateTransitionSpec.clientState_bind, hres_hp, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientState_pure]
+    rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+      Realization.memoryCost_bind', hres_hp, validHistory_bind',
+      StateTransitionSpec.clientState_bind, prog_clientResult_bind, Realization.memoryCost_bind',
+      hres_cp, StateTransitionSpec.clientState_pure, prog_clientResult_pure, memoryCost_pure]
+    refine ⟨⟨hv_r, hv_ls, hv_hp, hv_cp, trivial⟩, rfl, rfl, ?_⟩
+    dsimp only [s1, s2] at hc_ls hc_hp hc_cp ⊢; omega
+  obtain ⟨hv, hs'_eq, hres, hc⟩ := hrun
   refine ⟨⟨U, V, N_old, n_old, n_init_old, hw, hN, hNU, hV, hfit_ncur, hfit_ninit, hhdr,
-      hsrc_fr, hdst_fr, hfit_dst⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · dsimp only [prog, d, writeEpochParamsGenProg]
-    rw [validHistory_bind']; refine ⟨hv_r, ?_⟩
-    rw [hres_r]; dsimp only
-    rw [validHistory_bind']; refine ⟨hv_ls, ?_⟩
-    rw [hst_ls, hres_ls]; dsimp only
-    rw [validHistory_bind']; refine ⟨hv_hp, ?_⟩
-    rw [hres_hp, validHistory_bind']; exact ⟨hv_cp, trivial⟩
-  · dsimp only [prog, d, writeEpochParamsGenProg]
-    rw [prog_clientResult_bind, hres_r]
-    change (Memory.spec 0).clientResult s1 _ = _
-    dsimp only
-    rw [prog_clientResult_bind, hst_ls, hres_ls]
-    dsimp only
-    rw [prog_clientResult_bind, hres_hp]
-    change (Memory.spec 0).clientResult s2 _ = _
-    rw [prog_clientResult_bind, hres_cp, prog_clientResult_pure]
+      hsrc_fr, hdst_fr, hfit_dst⟩, hv, hres, ?_, ?_, ?_, ?_, hc⟩
   · rw [hs'_eq, hfr_cp, hfr_hp, hfr_r]
   · rw [hs'_eq]
     have h0_7 : ∀ j < 8, s3.mem (dstMetaBase + j) = s1.mem (dstMetaBase + j) := fun j hj => by
@@ -166,15 +159,6 @@ theorem writeEpochParamsGenProg_spec
     rw [hs'_eq, hframe_cp a (by unfold offCompParams offScratch at *; omega),
       hframe_hp a (by unfold offHashParams offCompParams offScratch at *; omega),
       hframe_r a (by unfold offScratch at ha; omega)]
-  · dsimp only [prog, d, writeEpochParamsGenProg]
-    rw [Realization.memoryCost_bind', hres_r, Realization.memoryCost_bind', hst_ls, hres_ls]
-    dsimp only
-    rw [Realization.memoryCost_bind', hres_hp, Realization.memoryCost_bind', memoryCost_pure]
-    change memoryCost (writeRootHdrSubProg _) s +
-      (memoryCost (computeLogScalesProg _) s1 +
-        (memoryCost (writeHashParamsSubProg _) s1 +
-          (memoryCost (writeCompParamsSubProg _) s2 + 0))) ≤ _
-    omega
 
 /-- `writeEpochParamsGenProg` compiles via `RealizesBounded .exact`. -/
 theorem realizesBounded_writeEpochParamsGen :

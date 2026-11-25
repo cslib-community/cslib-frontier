@@ -172,8 +172,8 @@ equals `pred w` with probability one. -/
 
 theorem eval_failureRun (dev : Dev) (w : Secret) :
     ProbComp.eval (M.failureRun dev w) =
-      (ProbComp.eval (M.exec dev w)).map (fun out => decide (out ≠ M.target w)) := by
-  rw [failureRun, ProbComp.eval_map]
+      (ProbComp.eval (M.exec dev w)).map (fun out => decide (out ≠ M.target w)) :=
+  ProbComp.eval_map _ _
 
 @[simp] theorem advantage_self (dev : Dev) (w : Secret) :
     M.advantage dev w w = 0 :=
@@ -183,29 +183,21 @@ theorem eval_failureRun (dev : Dev) (w : Secret) :
 private theorem game_advantage_eq_zero_iff (g₁ g₂ : Game) :
     Game.advantage g₁ g₂ = 0 ↔ g₁ = g₂ := by
   rw [Game.advantage, nndist_eq_zero]
-  constructor
-  · intro h
-    have htrue : g₁ true = g₂ true :=
-      (ENNReal.toNNReal_eq_toNNReal_iff' (PMF.apply_ne_top g₁ true)
-        (PMF.apply_ne_top g₂ true)).mp h
-    have hfalse : g₁ false = g₂ false := by
-      have hfail : Game.failProbability g₁ = Game.failProbability g₂ := by
-        rw [Game.failProbability_eq, Game.failProbability_eq, h]
-      exact (ENNReal.toNNReal_eq_toNNReal_iff' (PMF.apply_ne_top g₁ false)
-        (PMF.apply_ne_top g₂ false)).mp hfail
-    ext b
-    cases b
-    · exact hfalse
-    · exact htrue
-  · intro h
-    rw [h]
+  refine ⟨fun h => ?_, fun h => by rw [h]⟩
+  have hfail : Game.failProbability g₁ = Game.failProbability g₂ := by
+    rw [Game.failProbability_eq, Game.failProbability_eq, h]
+  ext (_ | _)
+  · exact (ENNReal.toNNReal_eq_toNNReal_iff' (PMF.apply_ne_top g₁ false)
+      (PMF.apply_ne_top g₂ false)).mp hfail
+  · exact (ENNReal.toNNReal_eq_toNNReal_iff' (PMF.apply_ne_top g₁ true)
+      (PMF.apply_ne_top g₂ true)).mp h
 
 /-- `IsSelectiveFailureFree` holds iff for every deviation `dev`, the failure game distribution
 `M.failureGame dev w` is independent of the secret `w`. -/
 theorem isSelectiveFailureFree_iff :
-    M.IsSelectiveFailureFree ↔ ∀ dev w₀ w₁, M.failureGame dev w₀ = M.failureGame dev w₁ := by
-  refine forall_congr' fun dev => forall_congr' fun w₀ => forall_congr' fun w₁ => ?_
-  exact game_advantage_eq_zero_iff _ _
+    M.IsSelectiveFailureFree ↔ ∀ dev w₀ w₁, M.failureGame dev w₀ = M.failureGame dev w₁ :=
+  forall_congr' fun _ => forall_congr' fun _ => forall_congr' fun _ =>
+    game_advantage_eq_zero_iff _ _
 
 /-- Support characterization of `IsDeterministicAttack`: under deviation `dev`, every output in the
 support of `M.exec dev w` has failure indicator `decide (out ≠ M.target w) = pred w`. -/
@@ -244,21 +236,15 @@ theorem IsDeterministicAttack.advantage_eq_one {dev : Dev} {pred : Secret → Bo
     (h : M.IsDeterministicAttack dev pred) {w₀ w₁ : Secret} (hne : pred w₀ ≠ pred w₁) :
     M.advantage dev w₀ w₁ = 1 := by
   rw [advantage, h w₀, h w₁]
-  cases hp₀ : pred w₀ <;> cases hp₁ : pred w₁
-  · exact (hne (hp₀.trans hp₁.symm)).elim
-  · simp [Game.succProbability]
-  · simp [Game.succProbability]
-  · exact (hne (hp₀.trans hp₁.symm)).elim
+  cases hp₀ : pred w₀ <;> cases hp₁ : pred w₁ <;>
+    first | exact (hne (hp₀.trans hp₁.symm)).elim | simp [Game.succProbability]
 
 /-- Any deterministic selective failure attack for a non-constant predicate `pred` refutes
 `IsSelectiveFailureFree`. -/
 theorem IsDeterministicAttack.not_isSelectiveFailureFree {dev : Dev} {pred : Secret → Bool}
     (h : M.IsDeterministicAttack dev pred) {w₀ w₁ : Secret} (hne : pred w₀ ≠ pred w₁) :
-    ¬ M.IsSelectiveFailureFree := by
-  intro hfree
-  have h1 := h.advantage_eq_one hne
-  rw [hfree dev w₀ w₁] at h1
-  exact zero_ne_one h1
+    ¬ M.IsSelectiveFailureFree :=
+  fun hfree => zero_ne_one (hfree dev w₀ w₁ ▸ h.advantage_eq_one hne)
 
 /-! ### General structural attack and immunity combinators -/
 

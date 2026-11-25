@@ -87,25 +87,17 @@ theorem acceptsFrom_iff {s : σ} : M.AcceptsFrom input s ↔
     else if M.universal s then ∀ b, M.AcceptsFrom input (M.step input s b)
     else ∃ b, M.AcceptsFrom input (M.step input s b) := by
   constructor
-  · intro h
-    cases h with
-    | halt hh ha => simp only [hh, ha, ↓reduceIte]
-    | existsChoice b hh hu h =>
-      simp only [hh, hu, Bool.false_eq_true, ↓reduceIte]
+  · rintro (⟨hh, ha⟩ | ⟨b, hh, hu, h⟩ | ⟨hh, hu, h⟩)
+    · simp [hh, ha]
+    · simp only [hh, hu, Bool.false_eq_true, ↓reduceIte]
       exact ⟨b, h⟩
-    | forallChoice hh hu h =>
-      simp only [hh, hu, Bool.false_eq_true, ↓reduceIte]
-      exact h
-  · intro h
-    cases hh : M.halted s
-    · cases hu : M.universal s
-      · simp only [hh, hu, Bool.false_eq_true, ↓reduceIte] at h
-        obtain ⟨b, hb⟩ := h
-        exact .existsChoice b hh hu hb
-      · simp only [hh, hu, Bool.false_eq_true, ↓reduceIte] at h
-        exact .forallChoice hh hu h
-    · simp only [hh, ↓reduceIte] at h
-      exact .halt hh h
+    · simp [hh, hu, h]
+  · cases hh : M.halted s
+    · cases hu : M.universal s <;> simp only [Bool.false_eq_true, ↓reduceIte]
+      · exact fun ⟨b, hb⟩ => .existsChoice b hh hu hb
+      · exact .forallChoice hh hu
+    · simp only [↓reduceIte]
+      exact .halt hh
 
 /-- **With no universal state, alternating acceptance is nondeterministic acceptance**: if every
 state is existential, the machine accepts exactly when some finite sequence of choices reaches a

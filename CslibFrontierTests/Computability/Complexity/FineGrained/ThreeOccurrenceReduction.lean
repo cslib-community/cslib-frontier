@@ -87,4 +87,11 @@ example {B L_coeff : ℕ}
   (CountingSparsify.exists_computableInO_search_threeOccurrence_of_promise
     (by decide) (by decide) (by decide) (by decide) le_rfl hTB hf hf_eq hδ ht).1
 
+/-- SH excludes a square-root exponent for both size parameters of bounded-occurrence 3SAT. -/
+example (h : SH) :
+    (¬DecidableInPowerExpTime ThreeSATThree encCNF CNF.numVars (1 / 2)) ∧
+      (¬DecidableInPowerExpTime ThreeSATThree encCNF List.length (1 / 2)) :=
+  ⟨h.not_decidableInPowerExpTime_threeSATThree_numVars (by norm_num) (by norm_num),
+    h.not_decidableInPowerExpTime_threeSATThree_length (by norm_num) (by norm_num)⟩
+
 end Cslib.Complexity.Tests.ThreeOccurrenceReduction

@@ -59,14 +59,11 @@ theorem exists_card_le_two_mul_card_filter_rel (T : Finset α) (R : α → α �
   have hpair : ∀ y ∈ T,
       T.card ≤ (T.filter fun x => R x y).card + (T.filter fun x => R y x).card := fun y hy => by
     rw [← card_union_add_card_inter]
-    refine le_trans (card_le_card fun x hx => ?_) (Nat.le_add_right _ _)
-    rcases htot x hx y hy with h | h
-    · exact mem_union_left _ (mem_filter.2 ⟨hx, h⟩)
-    · exact mem_union_right _ (mem_filter.2 ⟨hx, h⟩)
+    refine (card_le_card fun x hx => ?_).trans (Nat.le_add_right _ _)
+    exact (htot x hx y hy).elim (fun h => mem_union_left _ (mem_filter.2 ⟨hx, h⟩))
+      fun h => mem_union_right _ (mem_filter.2 ⟨hx, h⟩)
   have hle := sum_le_sum hpair
-  rw [sum_add_distrib, ← hswap] at hle
-  rw [← mul_sum] at hsum
-  simp only [sum_const, smul_eq_mul] at hsum hle
+  simp only [sum_add_distrib, ← hswap, ← mul_sum, sum_const, smul_eq_mul] at hsum hle
   omega
 
 /-- **Dominating sets of tournaments.** If `R` is total on a finite set `T` of fewer than `2 ^ k`

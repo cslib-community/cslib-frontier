@@ -71,11 +71,9 @@ variable [Field F] [Fintype F] [DecidableEq F]
 
 omit [Fintype F] [DecidableEq F] in
 theorem appendPoint_affine (x t : F) (u v : Point F m) :
-    appendPoint x (u + t • v) = appendPoint x u + t • appendPoint 0 v := by
-  funext i
-  refine Fin.lastCases ?_ (fun j => ?_) i
-  · simp [Pi.add_apply, Pi.smul_apply]
-  · simp [Pi.add_apply, Pi.smul_apply]
+    appendPoint x (u + t • v) = appendPoint x u + t • appendPoint 0 v :=
+  funext fun i => Fin.lastCases (by simp [Pi.add_apply, Pi.smul_apply])
+    (fun _ => by simp [Pi.add_apply, Pi.smul_apply]) i
 
 theorem appendLine_linePoints (x : F) (u v : Point F m) :
     appendLine x (linePoints u v) = linePoints (appendPoint x u) (appendPoint 0 v) := by
@@ -87,22 +85,15 @@ omit [Fintype F] [DecidableEq F] in
 theorem appendPoint_single (i : Fin m) :
     appendPoint (0 : F) (Pi.single i (1 : F)) = Pi.single i.castSucc (1 : F) := by
   funext j
-  refine Fin.lastCases ?_ (fun k => ?_) j
-  · simp
-  · by_cases h : k = i
-    · subst k
-      simp
-    · simp [h]
+  refine Fin.lastCases (by simp) (fun k => ?_) j
+  by_cases h : k = i <;> simp [h]
 
 omit [Fintype F] [DecidableEq F] in
 theorem appendPoint_prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) :
-    appendPoint (0 : F) (prefixDirection i v) = prefixDirection i.castSucc v := by
-  funext j
-  refine Fin.lastCases ?_ (fun k => ?_) j
-  · rw [appendPoint_apply_last]
-    have h : ¬ m < i.val + 1 := by have hi := i.isLt; omega
-    simp [prefixDirection, h]
-  · simp only [appendPoint_apply_castSucc, prefixDirection, Fin.val_castSucc]
+    appendPoint (0 : F) (prefixDirection i v) = prefixDirection i.castSucc v :=
+  funext fun j => Fin.lastCases
+    (by simp [prefixDirection, show ¬ m < i.val + 1 by have := i.isLt; omega])
+    (fun _ => by simp only [appendPoint_apply_castSucc, prefixDirection, Fin.val_castSucc]) j
 
 omit [DecidableEq F] in
 /-- A uniform point is obtained by independently sampling its last coordinate and its prefix. -/
@@ -137,10 +128,8 @@ private theorem sum_uniform_fin_split {n : ℕ} (f : Fin (n + 2) → ℝ) :
         f i.castSucc) + f (Fin.last (n + 1)) := by
   simp only [uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv, ENNReal.toReal_natCast]
   push_cast
-  rw [← mul_sum, ← mul_sum]
-  have h₂ : (n + 2 : ℝ) ≠ 0 := by positivity
-  have h₁ : (n + 1 : ℝ) ≠ 0 := by positivity
-  simp only [← mul_assoc, mul_inv_cancel₀ h₂, mul_inv_cancel₀ h₁, one_mul]
+  rw [← mul_sum, ← mul_sum, ← mul_assoc, mul_inv_cancel₀ (by positivity),
+    ← mul_assoc, mul_inv_cancel₀ (by positivity), one_mul, one_mul]
   exact Fin.sum_univ_castSucc f
 
 omit [DecidableEq F] in
@@ -235,24 +224,17 @@ theorem lineHasDegree_append_iff (x : F) (u v : Point F m) (d : ℕ)
       LineHasDegree f d := by
   let e := appendLineEquiv x (linePoints u v)
   have hL := (appendLine_linePoints x u v).symm
-  let a (t : F) : linePoints u v := ⟨u + t • v, mem_linePoints u v t⟩
   let b (t : F) : appendLine x (linePoints u v) :=
     ⟨appendPoint x u + t • appendPoint 0 v,
       hL ▸ mem_linePoints (appendPoint x u) (appendPoint 0 v) t⟩
-  have he (t : F) : e (a t) = b t := by
-    apply Subtype.ext
-    exact appendPoint_affine x t u v
-  constructor
-  · intro h
-    obtain ⟨p, hp, hpEval⟩ := line_polynomial_of_eq h hL
+  have he (t : F) : e ⟨u + t • v, mem_linePoints u v t⟩ = b t :=
+    Subtype.ext (appendPoint_affine x t u v)
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · obtain ⟨p, hp, hpEval⟩ := line_polynomial_of_eq h hL
     refine ⟨u, v, rfl, p, hp, fun t => ?_⟩
-    change f (a t) = p.eval t
-    have ht := hpEval t
-    change f (e.symm (b t)) = p.eval t at ht
-    rw [← he, e.symm_apply_apply] at ht
-    exact ht
-  · intro h
-    obtain ⟨p, hp, hpEval⟩ := h.exists_polynomial
+    have ht : f (e.symm (b t)) = p.eval t := hpEval t
+    rwa [← he, e.symm_apply_apply] at ht
+  · obtain ⟨p, hp, hpEval⟩ := h.exists_polynomial
     refine ⟨appendPoint x u, appendPoint 0 v, hL, p, hp, fun t => ?_⟩
     change f (e.symm (b t)) = p.eval t
     rw [← he, e.symm_apply_apply]
@@ -266,26 +248,20 @@ noncomputable def appendLineAnswer (x : F) (answer : Σ L : Finset (Point F m), 
 private theorem lineHasDegree_append (x : F) (L : Finset (Point F m)) (d : ℕ)
     (f : L → F) :
     LineHasDegree (f ∘ (appendLineEquiv x L).symm) d ↔ LineHasDegree f d := by
-  constructor
-  · intro h
-    have hgeomWitness := h
-    obtain ⟨u, v, hL, _, _, _⟩ := hgeomWitness
-    have hinit : (fun p : Point F (m + 1) => Fin.init p) ∘ appendPoint x = id := by
-      funext z i
-      exact appendPoint_apply_castSucc x z i
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · have ⟨u, v, hL, _, _, _⟩ := h
+    have hinit : (fun p : Point F (m + 1) => Fin.init p) ∘ appendPoint x = id :=
+      funext fun z => funext (appendPoint_apply_castSucc x z)
     have hproj : (appendLine x L).image (fun p => Fin.init p) = L := by
-      unfold appendLine
-      rw [map_eq_image, image_image, hinit, image_id]
+      rw [appendLine, map_eq_image, image_image, hinit, image_id]
     have hgeom : linePoints (Fin.init u) (Fin.init v) = L := by
       rw [← hproj, ← hL]
       simp only [linePoints, image_image]
       congr 1
-    subst L
+    subst hgeom
     exact (lineHasDegree_append_iff x _ _ d f).mp h
-  · intro h
-    have hgeomWitness := h
-    obtain ⟨u, v, hL, _, _, _⟩ := hgeomWitness
-    subst L
+  · have ⟨u, v, hL, _, _, _⟩ := h
+    subst hL
     exact (lineHasDegree_append_iff x u v d f).mpr h
 
 /-- Transporting a line answer preserves its agreement with the point at the same degree cap. -/
@@ -298,38 +274,28 @@ theorem lineAgrees_appendLineAnswer_iff (x : F) (L : Finset (Point F m)) (w : Po
   change (appendLine x K = appendLine x L ∧ LineHasDegree (f ∘ e.symm) d ∧
     ∃ h : appendPoint x w ∈ appendLine x K, f (e.symm ⟨appendPoint x w, h⟩) = a) ↔
     (K = L ∧ LineHasDegree f d ∧ ∃ h : w ∈ K, f ⟨w, h⟩ = a)
-  rw [show appendLine x K = appendLine x L ↔ K = L from
-    (Finset.map_injective (appendPoint x)).eq_iff,
-    lineHasDegree_append]
-  refine and_congr_right fun _ => and_congr_right fun _ => ?_
-  constructor
+  have hLK : (appendLine x K = appendLine x L) ↔ K = L :=
+    (Finset.map_injective (appendPoint x)).eq_iff
+  rw [hLK, lineHasDegree_append]
+  refine and_congr_right fun _ => and_congr_right fun _ => ⟨?_, ?_⟩
   · rintro ⟨hw, heval⟩
     obtain ⟨z, hz, he⟩ := mem_map.mp hw
-    have hzw := (appendPoint x).injective he
-    subst z
-    refine ⟨hz, ?_⟩
-    have h : e ⟨w, hz⟩ = ⟨appendPoint x w, hw⟩ := Subtype.ext rfl
-    rw [← h, e.symm_apply_apply] at heval
-    exact heval
+    obtain rfl := (appendPoint x).injective he
+    have hsub : (⟨appendPoint x z, hw⟩ : appendLine x K) = e ⟨z, hz⟩ := Subtype.ext rfl
+    exact ⟨hz, by simpa only [hsub, e.symm_apply_apply] using heval⟩
   · rintro ⟨hw, heval⟩
-    have hm : appendPoint x w ∈ appendLine x K := (e ⟨w, hw⟩).property
-    refine ⟨hm, ?_⟩
-    have he : e ⟨w, hw⟩ = ⟨appendPoint x w, hm⟩ := Subtype.ext rfl
-    rwa [← he, e.symm_apply_apply]
+    have hsub : (⟨appendPoint x w, (e ⟨w, hw⟩).2⟩ : appendLine x K) = e ⟨w, hw⟩ := Subtype.ext rfl
+    exact ⟨(e ⟨w, hw⟩).2, by simpa only [hsub, e.symm_apply_apply] using heval⟩
 
 omit [Field F] [Fintype F] [DecidableEq F] in
 private theorem appendLineAnswer_injective (x : F) :
     Function.Injective (appendLineAnswer (m := m) x) := by
   rintro ⟨L, f⟩ ⟨K, g⟩ h
-  have hLK : L = K := (Finset.map_injective (appendPoint x)) (congrArg Sigma.fst h)
-  subst K
+  obtain rfl : L = K := Finset.map_injective (appendPoint x) (congrArg Sigma.fst h)
   have hfg : f ∘ (appendLineEquiv x L).symm = g ∘ (appendLineEquiv x L).symm :=
     eq_of_heq (Sigma.mk.inj h).2
-  have hf : f = g := by
-    funext u
-    obtain ⟨v, rfl⟩ := (appendLineEquiv x L).symm.surjective u
-    exact congrFun hfg v
-  rw [hf]
+  exact Sigma.ext rfl (heq_of_eq (funext fun u => by
+    simpa using congrFun hfg (appendLineEquiv x L u)))
 
 private local instance [Nonempty F] : Nonempty (Σ L : Finset (Point F m), L → F) :=
   ⟨⟨∅, fun _ => Classical.choice inferInstance⟩⟩
@@ -359,21 +325,15 @@ private theorem restrictAnswer_lineAgrees (x : F) (L : Finset (Point F m)) (u : 
     (d : ℕ) (g : Σ K : Finset (Point F (m + 1)), K → F) (a : F)
     (h : lineAgrees d (appendLine x L) (appendPoint x u) g a) :
     lineAgrees d L u (Function.invFun (appendLineAnswer x) g) a := by
-  have hdomain := h.1
   obtain ⟨K, f⟩ := g
-  change K = appendLine x L at hdomain
-  subst K
-  let e := appendLineEquiv x L
-  let g : Σ K : Finset (Point F m), K → F := ⟨L, f ∘ e⟩
-  have hg : appendLineAnswer x g = ⟨appendLine x L, f⟩ := by
-    unfold appendLineAnswer
-    congr 1
-    funext u
-    change f (e (e.symm u)) = f u
-    rw [e.apply_symm_apply]
+  obtain rfl : K = appendLine x L := h.1
+  let g' : Σ K : Finset (Point F m), K → F := ⟨L, f ∘ appendLineEquiv x L⟩
+  have hg : appendLineAnswer x g' = ⟨appendLine x L, f⟩ :=
+    Sigma.ext rfl (heq_of_eq (funext fun v =>
+      congrArg f ((appendLineEquiv x L).apply_symm_apply v)))
   rw [← hg] at h ⊢
-  rw [Function.leftInverse_invFun (appendLineAnswer_injective x) g]
-  exact (lineAgrees_appendLineAnswer_iff x L u d g a).mp h
+  rw [Function.leftInverse_invFun (appendLineAnswer_injective x)]
+  exact (lineAgrees_appendLineAnswer_iff x L u d g' a).mp h
 
 /-- Every accepted answer pair on two lifted questions remains accepted after restriction,
 at unchanged axis and diagonal degree bounds. -/
@@ -422,9 +382,7 @@ private theorem branchLoss_eq_sum {n : ℕ} (d D : ℕ) (b : Branch)
   change 1 - (p.toOuterMeasure e).toReal = _
   have hcompl : 1 - (p.toOuterMeasure e).toReal = (p.toOuterMeasure eᶜ).toReal := by
     linarith [toOuterMeasure_toReal_add_compl p e]
-  rw [hcompl]
-  unfold p
-  rw [toOuterMeasure_bind_toReal, branchGameWithDiagonalCap_questions]
+  rw [hcompl, toOuterMeasure_bind_toReal, branchGameWithDiagonalCap_questions]
   refine sum_congr rfl fun q _ => ?_
   rw [PMF.toOuterMeasure_map_apply]
   unfold e lossAt

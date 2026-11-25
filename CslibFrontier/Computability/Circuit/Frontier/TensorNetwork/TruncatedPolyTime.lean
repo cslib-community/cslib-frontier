@@ -95,14 +95,14 @@ variable {encT}
 /-- The first `ℓ` coefficients as constant coefficient lists, from `ℓ` in unary. -/
 theorem constCoeffs_polyTime :
     ComputableInPolyTime (fun q : ℕ × List ℕ => constCoeffs q.1 q.2)
-      (encPair encUnary (encList encNat)) encPoly := by
-  have hc : ComputableInPolyTime (fun q : (ℕ × List ℕ) × ℕ => q.1.2)
-      (encPair (encPair encUnary (encList encNat)) encUnary) (encList encNat) :=
-    (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
-  have hget := computableInPolyTime_getD hc (ComputableInPolyTime.snd _ _)
-  exact ComputableInPolyTime.mapWithInput
+      (encPair encUnary (encList encNat)) encPoly :=
+  ComputableInPolyTime.mapWithInput
     (ComputableInPolyTime.range.comp (ComputableInPolyTime.fst _ _))
-    (ComputableInPolyTime.cons' hget (ComputableInPolyTime.const []))
+    (ComputableInPolyTime.cons'
+      (computableInPolyTime_getD
+        (ComputableInPolyTime.fst (encPair encUnary (encList encNat)) encUnary).snd'
+        (ComputableInPolyTime.snd _ _))
+      (ComputableInPolyTime.const []))
 
 /-- **Horner's rule on the first `ℓ` coefficients**, from the data of a specialization and a
 coefficient list, with `P` and `ℓ` in unary. -/
@@ -112,14 +112,11 @@ theorem horner_polyTime :
         peval P fl (constCoeffs ℓ c) ζ)
       (encPair encSpecData (encList encNat)) (encList encNat) := by
   have hd := ComputableInPolyTime.fst encSpecData (encList encNat)
-  have hc := ComputableInPolyTime.snd encSpecData (encList encNat)
-  have hP := (ComputableInPolyTime.fst _ _).comp hd
-  have hrest := (ComputableInPolyTime.snd _ _).comp hd
-  have hℓ := (ComputableInPolyTime.fst _ _).comp hrest
-  have hfz := (ComputableInPolyTime.snd _ _).comp hrest
-  have hfl := (ComputableInPolyTime.fst _ _).comp hfz
-  have hz := (ComputableInPolyTime.snd _ _).comp hfz
-  exact computableInPolyTime_peval hP hfl (constCoeffs_polyTime.comp (hℓ.prod hc)) hz
+  have h := computableInPolyTime_peval hd.fst' hd.snd'.snd'.fst'
+    (constCoeffs_polyTime.comp
+      (hd.snd'.fst'.prod (ComputableInPolyTime.snd encSpecData (encList encNat))))
+    hd.snd'.snd'.snd'
+  exact h
 
 variable (entry : T → List Bool → List ℕ)
 
@@ -146,27 +143,19 @@ theorem specNet_polyTime :
       (fun (((P, ℓ, fl, ζ), G) : (ℕ × ℕ × List ℕ × List ℕ) × DescribedNetwork T) =>
         specNet P ℓ fl ζ G)
       (encPair encSpecData (encDescribed encT)) (encDescribed (encSpecDesc encT)) := by
+  let encIn := encPair encSpecData (encDescribed encT)
   have hG := ComputableInPolyTime.snd encSpecData (encDescribed encT)
-  have hd := ComputableInPolyTime.fst encSpecData (encDescribed encT)
-  have hv : ComputableInPolyTime
-      (fun q : ((ℕ × ℕ × List ℕ × List ℕ) × DescribedNetwork T) × (List ℕ × T) =>
-        (q.2.1, (q.2.2, q.1.1)))
-      (encPair (encPair encSpecData (encDescribed encT)) (encPair (encList encNat) encT))
-      (encPair (encList encNat) (encSpecDesc encT)) :=
-    ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)).prod
-      (((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)).prod
-        ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)))
-  have hpair : ComputableInPolyTime
-      (fun q : (ℕ × ℕ × List ℕ × List ℕ) × DescribedNetwork T =>
-        (q.2.numEdges, q.2.vertices.map fun v => (v.1, (v.2, q.1))))
-      (encPair encSpecData (encDescribed encT))
-      (encPair encUnary (encList (encPair (encList encNat) (encSpecDesc encT)))) :=
-    (numEdges_polyTime.comp hG).prod
-      (ComputableInPolyTime.mapWithInput (vertices_polyTime.comp hG) hv)
-  exact (ComputableInPolyTime.of_eq (encIn := encPair encUnary
+  have hs := ComputableInPolyTime.snd encIn (encPair (encList encNat) encT)
+  have h := (ComputableInPolyTime.of_eq (encIn := encPair encUnary
     (encList (encPair (encList encNat) (encSpecDesc encT))))
+    (encOut := encDescribed (encSpecDesc encT))
     (f := fun p : ℕ × List (List ℕ × SpecDesc T) => (⟨p.1, p.2⟩ : DescribedNetwork (SpecDesc T)))
-    fun _ => rfl).comp hpair
+    fun _ => rfl).comp ((numEdges_polyTime.comp hG).prod
+      (ComputableInPolyTime.mapWithInput (f := fun q v => (v.1, (v.2, q.1)))
+        (vertices_polyTime.comp hG)
+        (hs.fst'.prod (hs.snd'.prod
+          (ComputableInPolyTime.fst encIn (encPair (encList encNat) encT)).fst'))))
+  exact h
 
 /-- **The binary-digit points are polynomial-time**, from the number of coordinates and the
 number of points in unary. -/
@@ -177,7 +166,7 @@ theorem digitPoints_polyTime :
   ComputableInPolyTime.mapWithInput
     (ComputableInPolyTime.range.comp (ComputableInPolyTime.snd _ _))
     (FastContraction.digits_polyTime.comp
-      (((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)).prod
+      ((ComputableInPolyTime.fst (encPair encUnary encUnary) encUnary).fst'.prod
         (ComputableInPolyTime.snd _ _)))
 
 end DescribedNetwork
@@ -189,29 +178,21 @@ theorem interpRecover_polyTime :
         interpRecover P ℓ fl pts ys)
       (encPair encUnary (encPair encUnary (encPair (encList encNat) (encPair encElems encElems))))
       (encList encNat) := by
-  let encQ := encPair encUnary (encPair encUnary (encPair (encList encNat)
-    (encPair encElems encElems)))
-  have hP := ComputableInPolyTime.fst encUnary (encPair encUnary (encPair (encList encNat)
-    (encPair encElems encElems)))
-  have hr := ComputableInPolyTime.snd encUnary (encPair encUnary (encPair (encList encNat)
-    (encPair encElems encElems)))
-  have hℓ := (ComputableInPolyTime.fst _ _).comp hr
-  have hr' := (ComputableInPolyTime.snd _ _).comp hr
-  have hfl := (ComputableInPolyTime.fst _ _).comp hr'
-  have hr'' := (ComputableInPolyTime.snd _ _).comp hr'
-  have hpts := (ComputableInPolyTime.fst _ _).comp hr''
-  have hys := (ComputableInPolyTime.snd _ _).comp hr''
-  have hI := computableInPolyTime_interp hP hfl hpts hys
+  let encR := encPair encUnary (encPair (encList encNat) (encPair encElems encElems))
+  have hP := ComputableInPolyTime.fst encUnary encR
+  have hr := ComputableInPolyTime.snd encUnary encR
+  have hI := computableInPolyTime_interp hP hr.snd'.fst' hr.snd'.snd'.fst' hr.snd'.snd'.snd'
+  have h1 := ComputableInPolyTime.fst (encPair encUnary encR) encUnary
   have hq : ComputableInPolyTime
       (fun q : (ℕ × ℕ × List ℕ × List (List ℕ) × List (List ℕ)) × ℕ =>
         ((interp q.1.1 q.1.2.2.1 q.1.2.2.2.1 q.1.2.2.2.2).getD q.2 []).getD 0 0 % 2 ^ q.1.1)
-      (encPair encQ encUnary) encNat := by
-    have h1 := ComputableInPolyTime.fst encQ encUnary
-    have hrow := (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp
-      ((hI.comp h1).prod (ComputableInPolyTime.snd encQ encUnary))
-    exact computableInPolyTime_mod_two_pow
-      (computableInPolyTime_getD hrow (ComputableInPolyTime.const 0)) (hP.comp h1)
-  exact ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hℓ) hq
+      (encPair (encPair encUnary encR) encUnary) encNat :=
+    computableInPolyTime_mod_two_pow
+      (computableInPolyTime_getD
+        ((ComputableInPolyTime.listGetD (encA := encList encNat) []).comp
+          ((hI.comp h1).prod (ComputableInPolyTime.snd _ _)))
+        (ComputableInPolyTime.const 0)) (hP.comp h1)
+  exact ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hr.fst') hq
 
 /-! ### The reduction as a streaming loop -/
 
@@ -262,10 +243,7 @@ theorem run_engineStep (y : List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T)
       (j, (y, (List.range j).map fun k => core (coreInput y k))) := by
   induction j with
   | zero => rfl
-  | succ j ih =>
-    rw [IndexFold.run_succ, ih]
-    simp only [IndexFold.step, engineStep, List.range_succ, List.map_append, List.map_cons,
-      List.map_nil]
+  | succ j ih => simp [IndexFold.run_succ, ih, IndexFold.step, engineStep, List.range_succ]
 
 /-- **Recovery from a final state** `(k, ((fl, P, ℓ, r, G), ys))` of the loop: read the truncated
 contraction off the interpolant of the values `ys` at the digit points. -/
@@ -291,7 +269,7 @@ theorem digits_polyTime_binary :
     (ComputableInPolyTime.range.comp (ComputableInPolyTime.fst _ _))
     (ComputableInPolyTime.ite (encMid := encNat)
       (ComputableInPolyTime.binary_testBit
-        ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _))
+        (ComputableInPolyTime.fst (encPair encUnary encNat) encUnary).snd'
         (ComputableInPolyTime.snd _ _))
       (ComputableInPolyTime.const 1) (ComputableInPolyTime.const 0))
 
@@ -300,14 +278,13 @@ theorem pointCount_polyTime :
     ComputableInPolyTime (fun ((_, _, ℓ, _, G) : List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) =>
       DescribedNetwork.pointCount ℓ G) (encEngine encT) encUnary := by
   have hx := ComputableInPolyTime.snd (encList encNat) (encTrunc encT)
-  have hℓ := (ComputableInPolyTime.fst _ _).comp ((ComputableInPolyTime.snd _ _).comp hx)
-  have hG := (ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp
-    ((ComputableInPolyTime.snd _ _).comp hx))
-  have hk := (ComputableInPolyTime.length_list _).comp
-    (DescribedNetwork.vertices_polyTime.comp hG)
-  exact ComputableInPolyTime.unary_add'
-    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.unary_sub' hℓ
-      (ComputableInPolyTime.const 1)) hk) (ComputableInPolyTime.const 1)
+  have h := ComputableInPolyTime.unary_add'
+    (ComputableInPolyTime.unary_mul'
+      (ComputableInPolyTime.unary_sub' hx.snd'.fst' (ComputableInPolyTime.const 1))
+      ((ComputableInPolyTime.length_list _).comp
+        (DescribedNetwork.vertices_polyTime.comp hx.snd'.snd'.snd')))
+    (ComputableInPolyTime.const 1)
+  exact h
 
 /-- The input of the contraction at a binary index is polynomial-time. -/
 theorem coreInput_polyTime :
@@ -315,21 +292,15 @@ theorem coreInput_polyTime :
       (fun ((k, (y, _)) : ℕ × ((List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) × List (List ℕ))) =>
         coreInput y k)
       (encEngineState encT) (encCore encT) := by
-  have hy := (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd encNat
-    (encPair (encEngine encT) (encList (encList encNat))))
-  have hk := ComputableInPolyTime.fst encNat (encPair (encEngine encT) (encList (encList encNat)))
-  have hfl := (ComputableInPolyTime.fst _ _).comp hy
-  have hx := (ComputableInPolyTime.snd _ _).comp hy
-  have hP := (ComputableInPolyTime.fst _ _).comp hx
-  have hx' := (ComputableInPolyTime.snd _ _).comp hx
-  have hℓ := (ComputableInPolyTime.fst _ _).comp hx'
-  have hx'' := (ComputableInPolyTime.snd _ _).comp hx'
-  have hr := (ComputableInPolyTime.fst _ _).comp hx''
-  have hG := (ComputableInPolyTime.snd _ _).comp hx''
+  let encRest := encPair (encEngine encT) (encList (encList encNat))
+  have hy := (ComputableInPolyTime.snd encNat encRest).fst'
+  have hfl := hy.fst'
+  have hx := hy.snd'
   have hζ := digits_polyTime_binary.comp
-    (((ComputableInPolyTime.length_list _).comp hfl).prod hk)
-  exact hP.prod (hfl.prod (hr.prod (DescribedNetwork.specNet_polyTime.comp
-    ((hP.prod (hℓ.prod (hfl.prod hζ))).prod hG))))
+    (((ComputableInPolyTime.length_list _).comp hfl).prod (ComputableInPolyTime.fst encNat encRest))
+  have h := hx.fst'.prod (hfl.prod (hx.snd'.snd'.fst'.prod (DescribedNetwork.specNet_polyTime.comp
+    ((hx.fst'.prod (hx.snd'.fst'.prod (hfl.prod hζ))).prod hx.snd'.snd'.snd'))))
+  exact h
 
 /-- The certificate of one round, from a certificate of the contraction over `A_P`. -/
 @[expose] noncomputable def engineStepCertificate
@@ -347,32 +318,18 @@ theorem coreInput_polyTime :
 theorem engineRecover_polyTime :
     ComputableInPolyTime (engineRecover (T := T))
       (encEngineState encT) (encList encNat) := by
+  let S := ℕ × ((List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) × List (List ℕ))
   let encS := encEngineState encT
-  have hy : ComputableInPolyTime
-      (fun p : ℕ × ((List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) × List (List ℕ)) => p.2.1)
-      encS (encEngine encT) :=
+  have hy : ComputableInPolyTime (fun p : S => p.2.1) encS (encEngine encT) :=
     (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)
-  have hys : ComputableInPolyTime
-      (fun p : ℕ × ((List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) × List (List ℕ)) => p.2.2)
-      encS encElems :=
+  have hys : ComputableInPolyTime (fun p : S => p.2.2) encS encElems :=
     (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)
-  have hfl : ComputableInPolyTime
-      (fun p : ℕ × ((List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) × List (List ℕ)) => p.2.1.1)
-      encS (encList encNat) := (ComputableInPolyTime.fst _ _).comp hy
-  have hP : ComputableInPolyTime
-      (fun p : ℕ × ((List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) × List (List ℕ)) => p.2.1.2.1)
-      encS encUnary :=
-    (ComputableInPolyTime.fst _ _).comp ((ComputableInPolyTime.snd _ _).comp hy)
-  have hℓ : ComputableInPolyTime
-      (fun p : ℕ × ((List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) × List (List ℕ)) => p.2.1.2.2.1)
-      encS encUnary :=
-    (ComputableInPolyTime.fst _ _).comp ((ComputableInPolyTime.snd _ _).comp
-      ((ComputableInPolyTime.snd _ _).comp hy))
-  have hpts : ComputableInPolyTime
-      (fun p : ℕ × ((List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) × List (List ℕ)) =>
-        (List.range (DescribedNetwork.pointCount p.2.1.2.2.1 p.2.1.2.2.2.2)).map
-          (FastContraction.digits p.2.1.1.length))
-      encS encElems :=
+  have hfl : ComputableInPolyTime (fun p : S => p.2.1.1) encS (encList encNat) := hy.fst'
+  have hP : ComputableInPolyTime (fun p : S => p.2.1.2.1) encS encUnary := hy.snd'.fst'
+  have hℓ : ComputableInPolyTime (fun p : S => p.2.1.2.2.1) encS encUnary := hy.snd'.snd'.fst'
+  have hpts : ComputableInPolyTime (fun p : S =>
+      (List.range (DescribedNetwork.pointCount p.2.1.2.2.1 p.2.1.2.2.2.2)).map
+        (FastContraction.digits p.2.1.1.length)) encS encElems :=
     DescribedNetwork.digitPoints_polyTime.comp
       (((ComputableInPolyTime.length_list _).comp hfl).prod (pointCount_polyTime.comp hy))
   have h := interpRecover_polyTime.comp (hP.prod (hℓ.prod (hfl.prod (hpts.prod hys))))
@@ -424,10 +381,9 @@ index, the input and the values so far, then recovery. On input `(fl, (P, ℓ, r
 points. -/
 theorem le_two_pow_length_modulus (n : ℕ) : n ≤ 2 ^ (FastContraction.modulus n).length := by
   have h4 := FastContraction.four_mul_log_le_length_modulus n
-  have hlt := Nat.lt_pow_succ_log_self (b := 2) one_lt_two n
+  have hlt := Nat.lt_pow_succ_log_self one_lt_two n
   rcases Nat.eq_zero_or_pos (Nat.log 2 n) with h0 | hpos
-  · have h2 : n < 2 := by simpa [h0] using hlt
-    exact (show n ≤ 1 by omega).trans Nat.one_le_two_pow
+  · exact (show n ≤ 1 by simpa [h0] using hlt).trans Nat.one_le_two_pow
   · exact hlt.le.trans (Nat.pow_le_pow_right (by norm_num) (by omega))
 
 /-- Choosing the modulus `FastContraction.modulus n` for `n = (ℓ - 1) k + 1` points is
@@ -437,13 +393,9 @@ theorem modulusChoice_polyTime :
       (fun ((P, ℓ, r, G) : ℕ × ℕ × ℕ × DescribedNetwork T) =>
         (FastContraction.modulus (DescribedNetwork.pointCount ℓ G), (P, ℓ, r, G)))
       (encTrunc encT) (encEngine encT) := by
-  have hpc : ComputableInPolyTime
-      (fun x : ℕ × ℕ × ℕ × DescribedNetwork T => DescribedNetwork.pointCount x.2.1 x.2.2.2)
-      (encTrunc encT) encUnary := by
-    have h := pointCount_polyTime (encT := encT).comp
-      ((ComputableInPolyTime.const ([] : List ℕ)).prod ComputableInPolyTime.id')
-    exact h
-  have h := (FastContraction.modulus_polyTime.comp hpc).prod ComputableInPolyTime.id'
+  have h := (FastContraction.modulus_polyTime.comp ((pointCount_polyTime (encT := encT)).comp
+    ((ComputableInPolyTime.const ([] : List ℕ)).prod ComputableInPolyTime.id'))).prod
+    ComputableInPolyTime.id'
   exact h
 
 /-- **Direct summation through the reduction computes the truncated contraction**, at the modulus
@@ -453,12 +405,11 @@ theorem interpContract_direct_eq (P ℓ r : ℕ) (G : DescribedNetwork T) :
         (fun ((P, fl, _, G') : ℕ × List ℕ × ℕ × DescribedNetwork (SpecDesc T)) =>
           DescribedNetwork.sumValue SumOps.galois (specEntry entry) (P, fl) G')
         (FastContraction.modulus (DescribedNetwork.pointCount ℓ G)) P ℓ r G =
-      G.truncContraction entry P ℓ := by
-  refine DescribedNetwork.interpContract_eq (entry := entry)
+      G.truncContraction entry P ℓ :=
+  DescribedNetwork.interpContract_eq (entry := entry)
     (FastContraction.irreducible_modulus (DescribedNetwork.pointCount ℓ G)) G
-    (le_two_pow_length_modulus _) fun k _ => ?_
-  exact DescribedNetwork.val_sumValue_galois (specEntry entry)
-    (P, FastContraction.modulus (DescribedNetwork.pointCount ℓ G)) _
+    (le_two_pow_length_modulus _) fun _ _ => DescribedNetwork.val_sumValue_galois (specEntry entry)
+      (P, FastContraction.modulus (DescribedNetwork.pointCount ℓ G)) _
 
 /-- **The truncated contraction by direct summation**, as one native machine on every input
 `(P, ℓ, r, G)`: the reduction with direct summation over `A_P` at the modulus

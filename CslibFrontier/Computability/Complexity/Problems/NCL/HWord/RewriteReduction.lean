@@ -66,20 +66,18 @@ private theorem yesInstance_mem (rules : Fin r → Rule q) :
     yesInstance ∈ language (compatibility rules) := by
   have hw : List.ofFn (fun _ : Fin 1 => (code .start : Fin (Fintype.card (Symbol q r)))) =
       [code .start] := by simp [List.ofFn_succ]
-  change Instance.mk [code .start] [code .start] ∈ language (compatibility rules)
+  unfold yesInstance
   rw [← hw, language_ofFn]
-  refine ⟨?_, .refl⟩
-  intro i j hij
+  refine ⟨fun i j _ => ?_, .refl⟩
   have := i.isLt
   have := j.isLt
   omega
 
 private theorem noInstance_not_mem (rules : Fin r → Rule q) :
     noInstance ∉ language (compatibility rules) := by
-  rintro ⟨t, _ht, hlegal, _hr⟩
-  change Legal (compatibility rules) (List.get [code .start, code .start]) at hlegal
-  have h := hlegal 0 1 rfl
-  exact (compatibility_adj rules .start .start).mp h
+  rintro ⟨_, _, hlegal, _⟩
+  unfold noInstance at hlegal
+  exact (compatibility_adj rules .start .start).mp (hlegal 0 1 rfl)
 
 private theorem wordList_mem_iff (rules : Fin r → Rule q) (s t : List (Fin q))
     (hne : 0 < s.length) (hlen : s.length = t.length) :
@@ -100,20 +98,15 @@ theorem toHWord_mem_iff (rules : Fin r → Rule q) (x : Instance q) :
   by_cases hs : x.source.isEmpty
   · have hs' : x.source = [] := List.isEmpty_iff.mp hs
     by_cases ht : x.target.isEmpty
-    · have ht' : x.target = [] := List.isEmpty_iff.mp ht
-      simp only [toHWord, hs', ht', List.isEmpty_nil, ite_true, sourceLanguage,
-        Set.mem_ofPred_eq]
+    · simp only [toHWord, hs', List.isEmpty_iff.mp ht, List.isEmpty_nil, ite_true,
+        sourceLanguage, Set.mem_ofPred_eq]
       exact ⟨fun _ => .refl, fun _ => yesInstance_mem rules⟩
-    · have ht' : x.target ≠ [] := fun h => ht (List.isEmpty_iff.mpr h)
-      have hnot : x ∉ sourceLanguage rules := by
-        intro hr
-        have hlen := source_path_length rules hr
-        simp only [hs', List.length_nil] at hlen
-        exact ht' (List.length_eq_zero_iff.mp hlen)
+    · have hnot : x ∉ sourceLanguage rules := fun hr => ht <| List.isEmpty_iff.mpr <|
+        List.length_eq_zero_iff.mp (by simpa [hs'] using source_path_length rules hr)
       simp [toHWord, hs, ht, noInstance_not_mem rules, hnot]
   · by_cases hlen : x.source.length = x.target.length
-    · have hn : 0 < x.source.length := List.length_pos_iff.mpr
-        (fun h => hs (List.isEmpty_iff.mpr h))
+    · have hn : 0 < x.source.length :=
+        List.length_pos_iff.mpr fun h => hs (List.isEmpty_iff.mpr h)
       simpa only [toHWord, hs, Bool.false_eq_true, ite_false, hlen, beq_self_eq_true, ite_true,
         sourceLanguage, Set.mem_ofPred_eq] using wordList_mem_iff rules x.source x.target hn hlen
     · have hnot : x ∉ sourceLanguage rules := fun hr =>

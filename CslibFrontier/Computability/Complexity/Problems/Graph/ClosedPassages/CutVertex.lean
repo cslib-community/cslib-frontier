@@ -49,49 +49,40 @@ theorem exists_through_darts_of_induced_reachable {G : Graph} {S : Set ℕ} {v :
     Dart.exists_path_of_induced_reachable a b (ha.symm ▸ hv) (hb.symm ▸ hv) hab ha' hb' h
   let index (i : Fin (n + 1)) := (circuit i).1
   have hnext (i : Fin (n + 1)) :
-      (circuit i).reverse.vertex = (circuit (finRotate _ i)).vertex := by
-    refine Fin.lastCases ?_ (fun j => ?_) i
-    · rw [hfinal, finRotate_last, hfirst, ha, hb]
-    · have hrot : finRotate (n + 1) j.castSucc = j.succ := finRotate_of_lt j.isLt
-      rw [hrot, hfinish, Fin.lastCases_castSucc, hstart]
-      rfl
+      (circuit i).reverse.vertex = (circuit (finRotate _ i)).vertex :=
+    Fin.lastCases (by rw [hfinal, finRotate_last, hfirst, ha, hb])
+      (fun j => by
+        rw [show finRotate (n + 1) j.castSucc = j.succ from finRotate_of_lt j.isLt,
+          hfinish, Fin.lastCases_castSucc, hstart]
+        rfl) i
   let x (e : Fin G.edges.length) := decide (e ∈ Set.range index)
   let edges : Fin (n + 1) ≃ {e // x e = true} :=
     (Equiv.ofInjective index hindex).trans (Equiv.subtypeEquivRight fun _ =>
       decide_eq_true_iff.symm)
   let tag (i : Fin (n + 1)) := (circuit i).2
   have hclosed (i : Fin (n + 1)) :
-      (Dart.vertex (G := G) ((edges i).val, !tag i)) =
+      Dart.vertex (G := G) ((edges i).val, !tag i) =
         Dart.vertex ((edges (finRotate _ i)).val, tag (finRotate _ i)) := hnext i
   let P := ofCyclicEdges edges tag hclosed
   have hout (i : Fin (n + 1)) : P.dart i false = circuit i :=
     ofCyclicEdges_dart_false edges tag hclosed i
-  have hin (i : Fin (n + 1)) :
-      P.dart i true = (circuit ((finRotate _).symm i)).reverse :=
-    ofCyclicEdges_dart_true edges tag hclosed i
-  have hlast : (finRotate (n + 1)).symm 0 = Fin.last n := by
-    apply (finRotate _).injective
-    rw [Equiv.apply_symm_apply, finRotate_last]
-  refine ⟨x, P, (0 : Fin (n + 1)), ?_, ?_, ?_, ?_⟩
-  · exact (hout 0).trans hfirst
-  · rw [hin, hlast, hfinal]
-  · intro j hj
-    change Fin (n + 1) at j
-    have hvertex := (congrArg Dart.vertex (hout j)).symm.trans hj
-    clear hj
-    revert hvertex
-    refine Fin.cases (fun _ => rfl) (fun i hj => ?_) j
-    have he : site i = v := (hstart i.succ).symm.trans hj
-    exact (hv (he ▸ (hsiteReach i).choose)).elim
-  · have hreach {z : ℕ} (hz : z ≠ v) (j : Fin (n + 1)) :
-        (circuit j).vertex = z → ∃ hz' : z ∈ S, (G.toSimpleGraph.induce S).Reachable
-          ⟨a.reverse.vertex, ha'⟩ ⟨z, hz'⟩ := by
-      refine Fin.cases ?_ (fun i => ?_) j
-      · intro hj
-        exact (hz (hj.symm.trans ((congrArg Dart.vertex hfirst).trans ha))).elim
-      · intro hj
-        have he : site i = z := (hstart i.succ).symm.trans hj
-        exact he ▸ hsiteReach i
+  have hin : P.dart (0 : Fin (n + 1)) true = (circuit ((finRotate (n + 1)).symm 0)).reverse :=
+    ofCyclicEdges_dart_true edges tag hclosed 0
+  have hlast : (finRotate (n + 1)).symm 0 = Fin.last n :=
+    (finRotate _).injective (by rw [Equiv.apply_symm_apply, finRotate_last])
+  refine ⟨x, P, (0 : Fin (n + 1)), (hout 0).trans hfirst,
+    by rw [hin, hlast, hfinal], ?_, ?_⟩
+  · intro (j : Fin (n + 1)) hj
+    rcases Fin.eq_zero_or_eq_succ j with rfl | ⟨i, rfl⟩
+    · rfl
+    · rw [hout, hstart] at hj
+      exact (hv (hj ▸ (hsiteReach i).choose)).elim
+  · have hreach {z : ℕ} (hz : z ≠ v) (j : Fin (n + 1)) (hj : (circuit j).vertex = z) :
+        ∃ hz' : z ∈ S, (G.toSimpleGraph.induce S).Reachable ⟨a.reverse.vertex, ha'⟩ ⟨z, hz'⟩ := by
+      rcases Fin.eq_zero_or_eq_succ j with rfl | ⟨i, rfl⟩
+      · exact (hz (hj.symm.trans ((congrArg Dart.vertex hfirst).trans ha))).elim
+      · rw [hstart] at hj
+        exact hj ▸ hsiteReach i
     intro e he hz
     obtain ⟨j, hj⟩ : e.1 ∈ Set.range index := of_decide_eq_true he
     rcases Dart.eq_or_eq_reverse_of_edge_eq hj.symm with hforward | hreverse

@@ -126,12 +126,10 @@ theorem isUndetermined_iff_outside :
       f ((PartialAssignment.outside Q x).fill y) ≠ f ((PartialAssignment.outside Q x).fill z) := by
   simp only [PartialAssignment.fill_outside]
   have key (y : ι → Bool) (hy : ∀ i ∉ Q, y i = x i) : Q.piecewise y x = y := funext fun i => by
-    by_cases hi : i ∈ Q
-    · rw [piecewise_eq_of_mem _ _ _ hi]
-    · rw [piecewise_eq_of_notMem _ _ _ hi, hy i hi]
-  refine ⟨fun ⟨y, z, hy, hz, h⟩ => ⟨y, z, by rwa [key y hy, key z hz]⟩, fun ⟨y, z, h⟩ =>
-    ⟨Q.piecewise y x, Q.piecewise z x, fun i hi => piecewise_eq_of_notMem _ _ _ hi,
-      fun i hi => piecewise_eq_of_notMem _ _ _ hi, h⟩⟩
+    by_cases hi : i ∈ Q <;> simp [hi, hy]
+  exact ⟨fun ⟨y, z, hy, hz, h⟩ => ⟨y, z, by rwa [key y hy, key z hz]⟩, fun ⟨y, z, h⟩ =>
+    ⟨Q.piecewise y x, Q.piecewise z x, fun _ => piecewise_eq_of_notMem _ _ _,
+      fun _ => piecewise_eq_of_notMem _ _ _, h⟩⟩
 
 /-- **Undetermined monotone functions.** A monotone function is undetermined at `x` by the bits
 outside `Q` exactly when setting all of `Q` to `true` gives `true` and setting all of `Q` to
@@ -139,28 +137,16 @@ outside `Q` exactly when setting all of `Q` to `true` gives `true` and setting a
 theorem isUndetermined_iff_of_monotone (hf : Monotone f) :
     IsUndetermined Q f x ↔
       f (Q.piecewise (fun _ => true) x) = true ∧ f (Q.piecewise (fun _ => false) x) = false := by
-  constructor
-  · rintro ⟨y, z, hy, hz, hyz⟩
-    have lo (w : ι → Bool) (hw : ∀ i ∉ Q, w i = x i) : Q.piecewise (fun _ => false) x ≤ w :=
-      fun i => by
-        by_cases hi : i ∈ Q
-        · rw [piecewise_eq_of_mem _ _ _ hi]
-          exact Bool.false_le _
-        · rw [piecewise_eq_of_notMem _ _ _ hi, hw i hi]
-    have up (w : ι → Bool) (hw : ∀ i ∉ Q, w i = x i) : w ≤ Q.piecewise (fun _ => true) x :=
-      fun i => by
-        by_cases hi : i ∈ Q
-        · rw [piecewise_eq_of_mem _ _ _ hi]
-          exact Bool.le_true _
-        · rw [piecewise_eq_of_notMem _ _ _ hi, hw i hi]
-    have key : ∀ a b c e : Bool, a ≤ b → b ≤ e → a ≤ c → c ≤ e → b ≠ c → e = true ∧ a = false := by
-      decide
-    exact key _ _ _ _ (hf (lo y hy)) (hf (up y hy)) (hf (lo z hz)) (hf (up z hz)) hyz
-  · rintro ⟨h1, h0⟩
-    refine ⟨Q.piecewise (fun _ => true) x, Q.piecewise (fun _ => false) x,
-      fun i hi => piecewise_eq_of_notMem _ _ _ hi, fun i hi => piecewise_eq_of_notMem _ _ _ hi, ?_⟩
-    rw [h1, h0]
-    decide
+  refine ⟨fun ⟨y, z, hy, hz, hyz⟩ => ?_, fun ⟨h1, h0⟩ =>
+    ⟨Q.piecewise (fun _ => true) x, Q.piecewise (fun _ => false) x,
+      fun _ => piecewise_eq_of_notMem _ _ _, fun _ => piecewise_eq_of_notMem _ _ _,
+      by simp [h1, h0]⟩⟩
+  have lo (w : ι → Bool) (hw : ∀ i ∉ Q, w i = x i) : Q.piecewise (fun _ => false) x ≤ w :=
+    fun i => by by_cases hi : i ∈ Q <;> simp [hi, hw]
+  have up (w : ι → Bool) (hw : ∀ i ∉ Q, w i = x i) : w ≤ Q.piecewise (fun _ => true) x :=
+    fun i => by by_cases hi : i ∈ Q <;> simp [hi, hw]
+  exact (by decide : ∀ a b c e : Bool, a ≤ b → b ≤ e → a ≤ c → c ≤ e → b ≠ c →
+    e = true ∧ a = false) _ _ _ _ (hf (lo y hy)) (hf (up y hy)) (hf (lo z hz)) (hf (up z hz)) hyz
 
 /-- A function is undetermined at `x` by the bits other than `i` exactly when flipping bit `i`
 of `x` changes its value. -/

@@ -32,29 +32,23 @@ open Cslib.WordRAM Cslib.WordRAM.Signed Cslib.CyclicIntRing
 
 /-- The envelope bounds the first input magnitude. -/
 theorem le_magnitudeBound_left (p A B : ℕ) : A ≤ magnitudeBound p A B := by
-  unfold magnitudeBound
-  omega
+  unfold magnitudeBound; omega
 
 /-- The envelope bounds the second input magnitude. -/
 theorem le_magnitudeBound_right (p A B : ℕ) : B ≤ magnitudeBound p A B := by
-  unfold magnitudeBound
-  omega
+  unfold magnitudeBound; omega
 
 private theorem product_le_bound (p A B : ℕ) : A * B ≤ magnitudeBound p A B := by
-  have h := Nat.le_mul_of_pos_left (A * B) (Nat.succ_pos p)
-  simp only [Nat.succ_eq_add_one] at h
-  unfold magnitudeBound
-  omega
+  have := Nat.le_mul_of_pos_left (A * B) (by omega : 0 < p + 1)
+  unfold magnitudeBound; omega
 
 private theorem partial_le_bound {p r k A B : ℕ} {u v : ℕ → ℤ}
     (hr : r < p) (hk : k ≤ p)
     (hu : ∀ i < p, (u i).natAbs ≤ A) (hv : ∀ i < p, (v i).natAbs ≤ B) :
     (partialConvolution p u v r k).natAbs ≤ magnitudeBound p A B := by
   have h := partialConvolution_natAbs_le hr hk hu hv
-  have hmul := Nat.mul_le_mul_right (A * B) (hk.trans (Nat.le_succ p))
-  simp only [Nat.succ_eq_add_one] at hmul
-  unfold magnitudeBound
-  omega
+  have := Nat.mul_le_mul_right (A * B) (by omega : k ≤ p + 1)
+  unfold magnitudeBound; omega
 
 private theorem init_preserves (i : Fin 32) : ¬TermLocal i →
     (ram[ Reg.index ← #0; Reg.accumulator ← #0 ] : Code .standard 32).Preserves i := by
@@ -107,23 +101,17 @@ theorem exec_coefficient {w p r A B : ℕ} (x : Data 32) (u v : ℕ → ℤ)
     have hya := hregs Reg.inputA (by decide)
     have hyb := hregs Reg.inputB (by decide)
     have hwrap : Fits (w + 2) (y.regs Reg.coefficient + y.regs Reg.length) := by
-      rw [hr', hl]
-      exact h2p.of_le (by omega)
-    have haddrA : Fits (w + 2) (y.regs Reg.inputA + i) := by
-      rw [hya]
-      exact ha.of_le (by omega)
-    have haddrB : Fits (w + 2) (y.regs Reg.inputB + j) := by
-      rw [hyb]
-      exact hb.of_le (by omega)
+      rw [hr', hl]; exact h2p.of_le (by omega)
+    have haddrA : Fits (w + 2) (y.regs Reg.inputA + i) := by rw [hya]; exact ha.of_le (by omega)
+    have haddrB : Fits (w + 2) (y.regs Reg.inputB + j) := by rw [hyb]; exact hb.of_le (by omega)
     obtain ⟨z, hz, hzacc, hzi, hzmem, hzregs⟩ :=
       exec_term y (u i) (v j) (partialConvolution p u v r i) huf hvf hpf hsf hwrap haddrA
         (by simpa only [hl, hr'] using haddrB) (h2p.of_le (by omega))
         (by rw [hmem, hya]; exact hA i hlt)
         (by simpa only [hl, hr', hmem, hyb] using hB j hj) hacc
         ((hregs Reg.one (by decide)).trans hone)
-    refine ⟨z, hz, ⟨fun k hk => (hzregs k hk).trans (hregs k hk), ?_, hzmem.trans hmem⟩, hzi⟩
-    rw [partialConvolution_succ]
-    exact hzacc
+    exact ⟨z, hz, ⟨fun k hk => (hzregs k hk).trans (hregs k hk),
+      partialConvolution_succ .. ▸ hzacc, hzmem.trans hmem⟩, hzi⟩
   let x₀ := (x.set Reg.index 0).set Reg.accumulator 0
   have hinit : ExecWithin (B := .standard) (w + 2)
       (ram[ Reg.index ← #0; Reg.accumulator ← #0 ]) x x₀ 2 := by wram_exec

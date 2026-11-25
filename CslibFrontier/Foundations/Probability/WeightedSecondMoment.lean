@@ -119,15 +119,12 @@ theorem measureReal_pi_le_abs_sum_bounded_sub_le (F : Finset κ) {X : κ → (Π
   set P := Measure.pi μ
   have hm (k : κ) (hk : k ∈ F) : MemLp (X k) 2 P :=
     memLp_of_nonneg_le (hX k hk) (h0 k hk) (hle k hk)
-  have hY : MemLp (fun ω => ∑ k ∈ F, X k ω) 2 P := memLp_finsetSum F hm
-  have hmean : ∫ ω, ∑ k ∈ F, X k ω ∂P = ∑ k ∈ F, ∫ ω', X k ω' ∂P :=
-    integral_finsetSum F fun k hk => (hm k hk).integrable one_le_two
-  have cheb := meas_ge_le_variance_div_sq hY hc
-  rw [hmean] at cheb
+  have cheb := meas_ge_le_variance_div_sq (memLp_finsetSum F hm) hc
+  rw [integral_finsetSum F fun k hk => (hm k hk).integrable one_le_two] at cheb
   rw [measureReal_def]
-  refine ENNReal.toReal_le_of_le_ofReal (by positivity) (cheb.trans ?_)
-  exact ENNReal.ofReal_le_ofReal
-    (by gcongr; exact variance_pi_sum_bounded_le F hX h0 hle S hXS G hG hD)
+  refine ENNReal.toReal_le_of_le_ofReal (by positivity) (cheb.trans (ENNReal.ofReal_le_ofReal ?_))
+  gcongr
+  exact variance_pi_sum_bounded_le F hX h0 hle S hXS G hG hD
 
 /-- **Weighted indicator concentration** for locally dependent events in a product probability
 space: when `0 ≤ w k ≤ W` on `F`, `∑ k ∈ F, w k * 1_{A k}` deviates from `∑ k ∈ F, w k * P(A k)`

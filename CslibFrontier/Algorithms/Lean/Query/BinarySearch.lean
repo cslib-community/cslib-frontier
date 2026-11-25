@@ -172,14 +172,8 @@ Boolean predicate `fun m => (ask m).eval oracle`. -/
 
 private theorem log_two_mul_add_one_le {k k' : ℕ} (hpos : 0 < k') (h2 : 2 * k' ≤ k) :
     Nat.log 2 (2 * k') + 1 ≤ Nat.log 2 (2 * k) := by
-  have e1 : Nat.log 2 (2 * k') = Nat.log 2 k' + 1 := by
-    rw [show 2 * k' = k' * 2 by omega]
-    exact Nat.log_mul_base (b := 2) (n := k') (by omega) (by omega)
-  have e2 : Nat.log 2 (k' * 2 * 2) = Nat.log 2 k' + 1 + 1 := by
-    rw [Nat.log_mul_base (b := 2) (n := k' * 2) (by omega) (by omega),
-      Nat.log_mul_base (b := 2) (n := k') (by omega) (by omega)]
-  have := Nat.log_mono_right (b := 2) (show k' * 2 * 2 ≤ 2 * k by omega)
-  omega
+  rw [← Nat.log_mul_base (by decide) (by omega : 2 * k' ≠ 0)]
+  exact Nat.log_mono_right (by omega)
 
 /-- On an empty interval (`hi ≤ lo`), `lowerBoundBy` incurs zero query cost. -/
 theorem cost_lowerBoundBy_of_le {Q : Type → Type} {T : Type} [AddMonoid T]
@@ -204,20 +198,15 @@ theorem cost_lowerBoundBy_le {Q : Type → Type} (oracle : {ι : Type} → Q ι 
     (lowerBoundBy ask lo hi).cost oracle weight ≤ c * (Nat.log 2 (hi - lo) + 1) := by
   suffices h : (lowerBoundBy ask lo hi).cost oracle weight ≤ c * Nat.log 2 (2 * (hi - lo)) by
     rcases Nat.eq_zero_or_pos (hi - lo) with h0 | hpos
-    · rw [h0] at h ⊢
-      simp only [Nat.mul_zero, Nat.log_zero_right, Nat.zero_add, Nat.mul_one] at h ⊢
-      omega
-    · rw [show 2 * (hi - lo) = (hi - lo) * 2 by omega, Nat.log_mul_base (by omega) (by omega)]
-        at h
-      exact h
+    · simp only [h0, Nat.mul_zero, Nat.log_zero_right] at h; omega
+    · rwa [Nat.mul_comm 2, Nat.log_mul_base (by decide) hpos.ne'] at h
   fun_induction lowerBoundBy ask lo hi with
   | case1 lo hi hlt ihR ihL =>
     simp only [FreeM.cost_bind]
     set mid := (lo + hi) / 2
     have hmid_cost : (ask mid).cost oracle weight ≤ c := hc mid (by omega) (by omega)
     have hlog : 1 ≤ Nat.log 2 (2 * (hi - lo)) := by
-      rw [show 2 * (hi - lo) = (hi - lo) * 2 by omega, Nat.log_mul_base (by omega) (by omega)]
-      omega
+      rw [Nat.mul_comm 2, Nat.log_mul_base (by decide) (by omega)]; omega
     have hstep : ∀ k', 2 * k' ≤ hi - lo →
         c + c * Nat.log 2 (2 * k') ≤ c * Nat.log 2 (2 * (hi - lo)) := by
       intro k' h2

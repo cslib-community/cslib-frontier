@@ -95,9 +95,7 @@ inductive Step : State → Letter × Op 2 Sym → State → Prop where
   start := {.pa}
   accept := {.pa, .ge}
 
-theorem automaton_isVisibly : automaton.IsVisibly kind := by
-  intro s x op s' h
-  cases h <;> rfl
+theorem automaton_isVisibly : automaton.IsVisibly kind := fun _ _ _ _ h => by cases h <;> rfl
 
 /-! ## Runs -/
 
@@ -169,11 +167,8 @@ private theorem pre_append_group (n k : ℕ) (gs : List (List Letter)) (p q : �
   simp [pre, group, List.append_assoc]
 
 private theorem grouped_append_singleton {gs : List (List Letter)} {g : List Letter}
-    (hg : Grouped gs) (hg' : ∃ p q, g = group p q) : Grouped (gs ++ [g]) := by
-  intro x hx
-  rcases List.mem_append.mp hx with hx | hx
-  · exact hg x hx
-  · simpa using (List.mem_singleton.mp hx) ▸ hg'
+    (hg : Grouped gs) (hg' : ∃ p q, g = group p q) : Grouped (gs ++ [g]) :=
+  fun x hx => (List.mem_append.mp hx).elim (hg x) fun h => List.mem_singleton.mp h ▸ hg'
 
 /-- One transition preserves the invariant. -/
 private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
@@ -184,21 +179,19 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
   cases hstep with
   | pa_a =>
     obtain ⟨n, rfl, rfl, rfl⟩ := hinv
-    refine ⟨_, _, Op.apply_push_zero_pair.mp happ, n + 1, ?_, ?_, rfl⟩
-    · simp [List.replicate_succ']
-    · simp [List.replicate_succ]
+    exact ⟨_, _, Op.apply_push_zero_pair.mp happ, n + 1, by simp [List.replicate_succ'],
+      by simp [List.replicate_succ], rfl⟩
   | pa_b =>
     obtain ⟨n, rfl, rfl, rfl⟩ := hinv
     exact ⟨_, _, Op.apply_push_one_pair.mp happ, n, 0, by simp, rfl, rfl⟩
   | pb_b =>
     obtain ⟨n, k, rfl, rfl, rfl⟩ := hinv
-    refine ⟨_, _, Op.apply_push_one_pair.mp happ, n, k + 1, ?_, rfl, ?_⟩
-    · simp [List.replicate_succ', List.append_assoc]
-    · simp [List.replicate_succ]
+    exact ⟨_, _, Op.apply_push_one_pair.mp happ, n, k + 1,
+      by simp [List.replicate_succ', List.append_assoc], rfl, by simp [List.replicate_succ]⟩
   | pb_a =>
     obtain ⟨n, k, rfl, rfl, rfl⟩ := hinv
-    exact ⟨_, _, Op.apply_push_zero_pair.mp happ, n, k + 1, [], 1, fun _ h => by simp at h, by simp,
-      by simp, le_rfl, by simp [pre], by simp, by simp⟩
+    exact ⟨_, _, Op.apply_push_zero_pair.mp happ, n, k + 1, [], 1, fun _ h => by simp at h,
+      by simp, by simp, le_rfl, by simp [pre], by simp, by simp⟩
   | pb_c =>
     obtain ⟨n, k, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_zero_pair.mp happ
@@ -207,10 +200,8 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
       by simp [pre], by simp, by simp⟩
   | ga_a =>
     obtain ⟨n, k, gs, p, hg, hn, hk, hp, rfl, rfl, rfl⟩ := hinv
-    refine ⟨_, _, Op.apply_push_zero_pair.mp happ, n, k, gs, p + 1, hg, hn, hk, by omega, ?_, ?_,
-      rfl⟩
-    · simp [List.replicate_succ', List.append_assoc]
-    · simp [List.replicate_succ]
+    exact ⟨_, _, Op.apply_push_zero_pair.mp happ, n, k, gs, p + 1, hg, hn, hk, by omega,
+      by simp [List.replicate_succ', List.append_assoc], by simp [List.replicate_succ], rfl⟩
   | ga_c =>
     obtain ⟨n, k, gs, p, hg, hn, hk, hp, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_zero_pair.mp happ
@@ -222,9 +213,8 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     obtain ⟨n, k, gs, p, r, hg, hn, hk, hr, hrp, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_zero_pair.mp happ
     rcases replicate_append_eq_cons ht with ⟨hpr, -, rfl⟩ | ⟨-, -, h, -⟩
-    · refine ⟨_, _, rfl, n, k, gs, p, r + 1, hg, hn, hk, by omega, by omega, ?_, ?_, rfl⟩
-      · simp [List.replicate_succ', List.append_assoc]
-      · congr 2
+    · exact ⟨_, _, rfl, n, k, gs, p, r + 1, hg, hn, hk, by omega, by omega,
+        by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
     · cases h
   | gc_c' =>
     obtain ⟨n, k, gs, p, r, hg, hn, hk, hr, hrp, rfl, rfl, rfl⟩ := hinv
@@ -232,12 +222,12 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     rcases replicate_append_eq_cons ht with ⟨-, h, -⟩ | ⟨hpr, hn', -, rfl⟩
     · cases h
     · obtain rfl : r = p := by omega
-      exact ⟨_, _, rfl, n, k, gs, r, hg, by omega, hk, by simp [List.replicate_succ',
-        List.append_assoc], rfl, rfl⟩
+      exact ⟨_, _, rfl, n, k, gs, r, hg, by omega, hk,
+        by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
   | gb_b =>
     obtain ⟨n, k, gs, p, hg, hn, hk, rfl, rfl, rfl⟩ := hinv
-    exact ⟨_, _, Op.apply_push_one_pair.mp happ, n, k, gs, p, 1, hg, hn, hk, le_rfl, by simp, rfl,
-      by simp⟩
+    exact ⟨_, _, Op.apply_push_one_pair.mp happ, n, k, gs, p, 1, hg, hn, hk, le_rfl, by simp,
+      rfl, by simp⟩
   | gb_d =>
     obtain ⟨n, k, gs, p, hg, hn, hk, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_one_pair.mp happ
@@ -246,13 +236,13 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
       by simp; omega, by simp; omega, ?_, ?_, ?_⟩
     · rw [← pre_append_group]
       simp
-    all_goals simp only [List.length_append, List.length_singleton]; congr 1
+    all_goals
+      simp only [List.length_append, List.length_singleton]
+      congr 1
   | gB_b =>
     obtain ⟨n, k, gs, p, q, hg, hn, hk, hq, rfl, rfl, rfl⟩ := hinv
-    refine ⟨_, _, Op.apply_push_one_pair.mp happ, n, k, gs, p, q + 1, hg, hn, hk, by omega, ?_, rfl,
-      ?_⟩
-    · simp [List.replicate_succ', List.append_assoc]
-    · simp [List.replicate_succ]
+    exact ⟨_, _, Op.apply_push_one_pair.mp happ, n, k, gs, p, q + 1, hg, hn, hk, by omega,
+      by simp [List.replicate_succ', List.append_assoc], rfl, by simp [List.replicate_succ]⟩
   | gB_d =>
     obtain ⟨n, k, gs, p, q, hg, hn, hk, hq, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_one_pair.mp happ
@@ -264,9 +254,8 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     obtain ⟨n, k, gs, p, q, r, hg, hn, hk, hr, hrq, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_one_pair.mp happ
     rcases replicate_append_eq_cons ht with ⟨hqr, -, rfl⟩ | ⟨-, -, h, -⟩
-    · refine ⟨_, _, rfl, n, k, gs, p, q, r + 1, hg, hn, hk, by omega, by omega, ?_, rfl, ?_⟩
-      · simp [List.replicate_succ', List.append_assoc]
-      · congr 2
+    · exact ⟨_, _, rfl, n, k, gs, p, q, r + 1, hg, hn, hk, by omega, by omega,
+        by simp [List.replicate_succ', List.append_assoc], rfl, rfl⟩
     · cases h
   | gd_d' =>
     obtain ⟨n, k, gs, p, q, r, hg, hn, hk, hr, hrq, rfl, rfl, rfl⟩ := hinv
@@ -278,7 +267,9 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
         by simp; omega, by simp; omega, ?_, ?_, ?_⟩
       · rw [← pre_append_group]
         simp [List.replicate_succ', List.append_assoc]
-      all_goals simp only [List.length_append, List.length_singleton]; congr 1
+      all_goals
+        simp only [List.length_append, List.length_singleton]
+        congr 1
   | ge_a =>
     obtain ⟨n, k, gs, hg, hn, hk, rfl, rfl, rfl⟩ := hinv
     exact ⟨_, _, Op.apply_push_zero_pair.mp happ, n, k, gs, 1, hg, hn, hk, le_rfl, rfl, by simp,
@@ -291,10 +282,9 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
 
 private theorem mem_language_of_accepts {w : List Letter} (h : Acceptor.Accepts automaton w) :
     w ∈ language := by
-  obtain ⟨s, hs, s', hs', μs, rfl, hrun⟩ := h
-  obtain rfl : s = .pa := hs
+  obtain ⟨_, rfl, s', hs', μs, rfl, hrun⟩ := h
   rw [Stacks.empty_eq_pair] at hrun
-  obtain ⟨s₀, s₁, hc, hinv⟩ :=
+  obtain ⟨_, _, hc, hinv⟩ :=
     exists_inv_pair_of_configLTS_mTr Inv inv_step hrun ⟨0, rfl, rfl, rfl⟩
   obtain ⟨rfl, rfl⟩ := Stacks.eq_pair_iff.mp hc.symm
   rcases hs' with rfl | rfl
@@ -302,9 +292,11 @@ private theorem mem_language_of_accepts {w : List Letter} (h : Acceptor.Accepts 
     obtain rfl : n = 0 := by simpa using congrArg List.length h0.symm
     exact ⟨0, [], rfl, by simp, by simpa using hu⟩
   · obtain ⟨n, k, gs, hg, hn, hk, hu, h0, h1⟩ := hinv
-    have hn' : n = gs.length := by have := congrArg List.length h0; simp at this; omega
-    have hk' : k = gs.length := by have := congrArg List.length h1; simp at this; omega
-    subst hn' hk'
+    have l0 := congrArg List.length h0
+    have l1 := congrArg List.length h1
+    simp only [List.length_nil, List.length_replicate] at l0 l1
+    obtain rfl : n = gs.length := by omega
+    obtain rfl : k = gs.length := by omega
     exact ⟨gs.length, gs, rfl, hg, by simpa [pre] using hu⟩
 
 /-! ## Every word of `L_bh` is accepted -/
@@ -402,11 +394,9 @@ private theorem accepts_of_mem_language {w : List Letter} (h : w ∈ language) :
   obtain ⟨μs, hμs, hrun⟩ := run_groups gs hg (by rintro rfl; simp at hlen) (q₀ := .pb) (.inl rfl)
   rw [hlen] at hrun
   refine ⟨.pa, rfl, .ge, .inr rfl, (List.replicate (n + 1) (.a, .push 0 .outer) ++
-    (.b, .push 1 .outer) :: List.replicate n (.b, .push 1 .outer)) ++ μs, ?_, ?_⟩
-  · simp [hμs, List.replicate_succ, List.append_assoc]
-  · have := hpre.comp _ hrun
-    rw [Stacks.empty_eq_pair] at this ⊢
-    exact this
+    (.b, .push 1 .outer) :: List.replicate n (.b, .push 1 .outer)) ++ μs,
+    by simp [hμs, List.replicate_succ, List.append_assoc],
+    by simpa [Stacks.empty_eq_pair] using hpre.comp _ hrun⟩
 
 /-! ## The separation of languages -/
 
