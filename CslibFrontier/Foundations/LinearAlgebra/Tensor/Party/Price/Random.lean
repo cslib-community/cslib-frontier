@@ -79,11 +79,9 @@ private theorem prop_random_spectral (F : SpectralPoint K P) {m : ℕ} (θ : Fin
     rw [h3] at h1
     exact (Real.rpow_le_rpow_left_iff (by norm_num)).1 h1
   refine ⟨F', ?_, hb⟩
-  have hle' : ∀ p p', F'.wireExponent (Sum.inl p) (Sum.inl p') ≤ F.wireExponent p p' := by
-    intro p p'
-    refine (hb (Sum.inl p) (Sum.inl p')).trans (le_of_eq ?_)
-    simp only [Sum.elim_inl, id]
-    rw [← Finset.sum_mul, hθ1, one_mul]
+  have hle' : ∀ p p', F'.wireExponent (Sum.inl p) (Sum.inl p') ≤ F.wireExponent p p' :=
+    fun p p' => (hb _ _).trans_eq (by
+      simp only [Sum.elim_inl, id]; rw [← Finset.sum_mul, hθ1, one_mul])
   have hsum : ∑ e : P × P, F'.wireExponent (Sum.inl e.1) (Sum.inl e.2) = ∑ e : P × P,
       F.wireExponent e.1 e.2 := by
     rw [← F'.pull_apply, (F'.pull _).map_prod, F.map_prod] at hC
@@ -92,10 +90,8 @@ private theorem prop_random_spectral (F : SpectralPoint K P) {m : ℕ} (θ : Fin
     have h2 := congrArg (Real.logb 2) hC
     rwa [Real.logb_rpow (by norm_num) (by norm_num), Real.logb_rpow (by norm_num) (by norm_num)]
       at h2
-  intro p p'
-  have h1 := (Finset.sum_eq_sum_iff_of_le
-    (fun (e : P × P) _ => hle' e.1 e.2)).1 hsum (p, p') (Finset.mem_univ _)
-  exact h1
+  exact fun p p' => (Finset.sum_eq_sum_iff_of_le fun (e : P × P) _ => hle' e.1 e.2).1 hsum (p, p')
+    (Finset.mem_univ _)
 
 end Spectral
 
@@ -128,12 +124,9 @@ private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
       (U.map fun T (a b : S) => D T a b) (by
         rw [le_principal_iff, Ultrafilter.coe_map, Filter.mem_map]
         filter_upwards [hmem S] with T hT
-        have e : (fun a b : S => D T a b) = fun a b : S => d T ⟨a, hT a.2⟩ ⟨b, hT b.2⟩ := by
-          funext a b
-          exact hD hT a b
         refine ⟨?_, fun a b => (hD hT a b).le.trans (hAB T _ _).2⟩
         change IsPrice K fun a b : S => D T a b
-        rw [e]
+        rw [funext₂ fun a b => hD hT a b]
         exact IsPrice.comp (hd T) fun a : S => (⟨a, hT a.2⟩ : T))
     have h1 : Tendsto (fun T (a b : S) => D T a b) U (nhds v) := hlim
     exact ⟨v, hv, fun a b => tendsto_pi_nhds.1 (tendsto_pi_nhds.1 h1 a) b⟩
@@ -146,10 +139,8 @@ private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
     tendsto_nhds_unique (hlim S a b) (hlim {a.1, b.1} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩)
   refine ⟨fun a b => v {a, b} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩, isPrice_of_finset fun S => ?_,
       fun a b => ⟨?_, ?_⟩⟩
-  · have e : (fun a b : S => v {a.1, b.1} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩) = v S := by
-      funext a b
-      exact (hfit S a b).symm
-    rw [e]
+  · rw [show (fun a b : S => v {a.1, b.1} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩) = v S from
+      funext₂ fun a b => (hfit S a b).symm]
     exact (hv S).1
   · refine ge_of_tendsto (hlim {a, b} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩) ?_
     filter_upwards [hmem {a, b}] with T hT
@@ -169,9 +160,7 @@ private theorem prop_random_limit {P Q : Type} [Finite P] [Finite Q] {w : P → 
   have := Fintype.ofFinite Q
   classical
   have hpos : ∀ n : ℕ, (0 : ℝ) < 1 / (n + 1) := fun n => by positivity
-  have hle1 : ∀ n : ℕ, (1 : ℝ) / (n + 1) ≤ 1 := fun n => by
-    rw [div_le_one (by positivity)]
-    linarith [Nat.cast_nonneg (α := ℝ) n]
+  have hle1 : ∀ n : ℕ, (1 : ℝ) / (n + 1) ≤ 1 := fun n => div_le_one_of_le₀ (by simp) (by positivity)
   -- w is s·d_φ up to 1/(n+1)
   choose φ s hs hφ using fun n : ℕ => hw.exists_spectralPoint (id : P → P) (hpos n)
   choose φ' h1 h2 using fun n => prop_random_spectral (φ n) θ hθ hθ1 σ
@@ -208,12 +197,10 @@ private theorem prop_random_limit {P Q : Type} [Finite P] [Finite Q] {w : P → 
   refine ⟨w', hw', fun p p' => ?_, fun a b => ?_⟩
   · have h3 : Tendsto (fun n => d n (Sum.inl p) (Sum.inl p') - w p p') U (nhds 0) := by
       refine squeeze_zero_norm (fun n => ?_) hzero
-      have h4 := hφ n p p'
-      simp only [id] at h4
       rw [Real.norm_eq_abs, abs_sub_comm]
       change |w p p' - s n * (φ' n).wireExponent (Sum.inl p) (Sum.inl p')| ≤ _
       rw [h1]
-      exact h4.le
+      exact (hφ n p p').le
     have h4 := tendsto_nhds_unique h3 ((hlim' (Sum.inl p) (Sum.inl p')).sub_const (w p p'))
     linarith
   · exact le_of_tendsto_of_tendsto (hlim' a b) ((hzero.const_add (B a b)).trans (by rw [add_zero]))
@@ -235,12 +222,8 @@ private theorem prop_random_values {Y Q Ω : Type} [MeasurableSpace Ω] (μ : Me
     exact ⟨ω, rfl⟩
   let V : Finset (T → Y) := hfin'.toFinset
   have hV : ∀ ω, (fun κ : T => σ κ ω) ∈ V := fun ω => by simp [V]
-  have hmeas' : ∀ f : T → Y, MeasurableSet {ω | (fun κ : T => σ κ ω) = f} := by
-    intro f
-    have : {ω | (fun κ : T => σ κ ω) = f} = ⋂ κ : T, σ κ ⁻¹' {f κ} := by
-      ext ω
-      simp [funext_iff]
-    rw [this]
+  have hmeas' : ∀ f : T → Y, MeasurableSet {ω | (fun κ : T => σ κ ω) = f} := fun f => by
+    rw [show {ω | (fun κ : T => σ κ ω) = f} = ⋂ κ : T, σ κ ⁻¹' {f κ} by ext; simp [funext_iff]]
     exact MeasurableSet.iInter fun κ => hmeas _ _
   let e : Fin V.card ≃ V := V.equivFin.symm
   have hmean : ∀ f : (T → Y) → ℝ, ∫ ω, f (fun κ : T => σ κ ω) ∂μ =
@@ -249,13 +232,9 @@ private theorem prop_random_values {Y Q Ω : Type} [MeasurableSpace Ω] (μ : Me
     have h1 : ∀ ω, f (fun κ : T => σ κ ω) = ∑ g ∈ V,
         ({ω | (fun κ : T => σ κ ω) = g}).indicator (fun _ => f g) ω := by
       intro ω
-      rw [Finset.sum_eq_single (fun κ : T => σ κ ω)]
-      · rw [Set.indicator_of_mem]; rfl
-      · intro g _ hg
-        rw [Set.indicator_of_notMem]
-        exact fun h => hg h.symm
-      · intro h
-        exact absurd (hV ω) h
+      rw [Finset.sum_eq_single_of_mem _ (hV ω) fun g _ hg => Set.indicator_of_notMem
+        (fun h : (fun κ : T => σ κ ω) = g => hg h.symm) _, Set.indicator_of_mem]
+      rfl
     simp only [h1]
     rw [integral_finsetSum]
     · rw [← Finset.sum_coe_sort V]
@@ -265,9 +244,7 @@ private theorem prop_random_values {Y Q Ω : Type} [MeasurableSpace Ω] (μ : Me
       exact (integrable_const _).indicator (hmeas' g)
   refine ⟨V.card, fun l => μ.real {ω | (fun κ : T => σ κ ω) = (e l : T → Y)}, fun l => e l,
     fun l => measureReal_nonneg, ?_, hmean⟩
-  have := hmean fun _ => 1
-  simp only [mul_one, integral_const, probReal_univ, smul_eq_mul] at this
-  exact this.symm
+  simpa only [mul_one, integral_const, probReal_univ, smul_eq_mul] using (hmean fun _ => 1).symm
 
 end Random
 
