@@ -14,21 +14,25 @@ import Mathlib.Algebra.Field.ZMod
 # Clients and boundary regressions for VOLE-ACT-MQ credit conservation
 
 Exercises `Cslib.Crypto.AnonymousToken.ACTMQ` through ordinary module imports:
-* disjoint-coordinate `Fin 4 → ℤ` instantiation `(nf, ctx, t, 0) + (0, 0, 0, x)` proving
-  `actEmbed` injectivity via `actEmbed_injective_of_disjoint` and instantiating
-  `actMQConservation_succProbability_le` and `actMQClawReduction_queryBound`;
-* concrete `actCom`/`actTag` credit-conservation witnesses (`= 0` honest run and `= 1` forging
-  run) and an honest `1`-query `clawExperiment` witness (`= 0`);
+* disjoint-coordinate finite-field `Fin 4 → ZMod 257` instantiation `(nf, ctx, t, 0) + (0, 0, 0, x)`
+  under `NoteInRange 256`: proves `Set.InjOn` via `actEmbed_injOn_of_disjoint`, demonstrates
+  unbounded wraparound aliasing (`t = 0` vs `t = 257`), and instantiates
+  `actMQConservation_succProbability_le` and `actMQClawReduction_queryBound`, alongside the
+  unbounded `Fin 4 → ℤ` client (`actMQConservation_unbounded_succProbability_le`);
+* concrete `actCom`/`actTag` credit-conservation witnesses (`= 0` honest, `= 1` forging, and `= 0`
+  out-of-range `(V4)` spend rejection in `actMQConservationExperiment 256`);
+* concrete `clawExperiment` budget and dedup-boundary witnesses: an honest `1`-query client
+  (`= 0`), a `2`-query repeated-target adversary winning with `2` claims (confirming dedup budget
+  cost `= 1`, `= 1`), and a `0`-query duplicate-target-claim adversary rejected by `Nodup` (`= 0`);
 * concrete `G`-collision separation over `ZMod 5`: `gCollisionForger` wins `extractedExperiment`
   with probability `1` and triggers `gCollisionExperiment = 1` via `gCollisionReduction`, while
   `clawExperiment ... (clawReduction ... id (gCollisionForger ...)) = PMF.pure false`;
-* concrete zero-opening scaling over `ZMod 5` (`Sig = Option (ZMod 5)` matching
-  `UOV.idealRawScheme`, `pubMap = QuadraticMap.sq` on the first coordinate, `scalars = [1, 2]`):
-  wins `clawExperiment` with probability `1` when `G 0 = 0` (`verify_scale_option_of_quadratic`),
-  and fails identically (`PMF.pure false`) for both optional and raw preimages when `G 0 = 1 ≠ 0`
-  (`UOV.rescale_ne_zeroOpening_of_tail_ne_zero`);
-* `[VOLEACT2026]` `#mq-commitment` arithmetic regressions (`131 - 32 - 83 = 16`,
-  `256 ^ 16 = 2 ^ 128`).
+* concrete zero-opening scaling over `ZMod 5` (`Sig = Option (ZMod 5)` matching the verifier shape
+  of `UOV.idealRawScheme`, `pubMap = QuadraticMap.sq` on the first coordinate, `scalars = [1, 2]`):
+  wins `clawExperiment` with probability `1` when `G 0 = 0`
+  (`clawExperiment_zeroOpeningClawAttack_option_eq_pure_true_of_quadratic`,
+  `UOV.verify_scale_option_of_quadratic`), and fails identically (`PMF.pure false`) for both
+  optional and raw preimages when `G 0 = 1 ≠ 0` (`UOV.rescale_ne_zeroOpening_of_tail_ne_zero`).
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -42,7 +46,97 @@ open scoped NNReal
 
 private instance : Fact (Nat.Prime 5) := ⟨by decide⟩
 
-/-! ### 1. Disjoint-slot `Fin 4 → ℤ` embedding and credit-conservation client -/
+/-! ### 1. Disjoint-slot finite-field `Fin 4 → ZMod 257` and infinite `Fin 4 → ℤ` clients -/
+
+private def isRefundFin4 (i : Fin 4) : Bool := decide (i = 3)
+
+/-- Finite-field state embedding `(nf, ctx, t) ↦ ![nf, ctx, ↑t, 0]` over `ZMod 257`. -/
+private def encodeStateZMod (nf ctx : ZMod 257) (t : ℕ) : Fin 4 → ZMod 257 :=
+  ![nf, ctx, (t : ZMod 257), 0]
+
+/-- Finite-field refund embedding `x ↦ ![0, 0, 0, ↑x]` over `ZMod 257`. -/
+private def refundEmbedZMod (x : ℕ) : Fin 4 → ZMod 257 :=
+  ![0, 0, 0, (x : ZMod 257)]
+
+private theorem zmod257_natCast_inj {a b : ℕ} (ha : a < 256) (hb : b < 256)
+    (heq : (a : ZMod 257) = (b : ZMod 257)) : a = b := by
+  have hval := congrArg ZMod.val heq
+  rw [ZMod.val_natCast, ZMod.val_natCast, Nat.mod_eq_of_lt (by omega),
+    Nat.mod_eq_of_lt (by omega)] at hval
+  exact hval
+
+private theorem actEmbed_fin4_zmod257_injOn :
+    Set.InjOn (actEmbed encodeStateZMod refundEmbedZMod)
+      {note : Credit.Note (ZMod 257) (ZMod 257) | NoteInRange 256 note} := by
+  refine actEmbed_injOn_of_disjoint 256 isRefundFin4 encodeStateZMod refundEmbedZMod ?_ ?_ ?_ ?_
+  · intro nf ctx t i hi
+    simp only [isRefundFin4, decide_eq_true_eq] at hi
+    subst hi
+    rfl
+  · intro x i hi
+    simp only [isRefundFin4, decide_eq_false_iff_not] at hi
+    rcases i with ⟨i, hi_lt⟩
+    match i with
+    | 0 | 1 | 2 => rfl
+    | 3 => exact absurd rfl hi
+  · intro nf₁ nf₂ ctx₁ ctx₂ t₁ t₂ ht₁ ht₂ h
+    have h0 := congrFun h 0
+    have h1 := congrFun h 1
+    have h2 := congrFun h 2
+    simp only [encodeStateZMod, Matrix.cons_val_zero, Matrix.cons_val_one,
+      Matrix.cons_val] at h0 h1 h2
+    exact ⟨h0, h1, zmod257_natCast_inj ht₁ ht₂ h2⟩
+  · intro x₁ hx₁ x₂ hx₂ h
+    have h3 := congrFun h 3
+    simp only [refundEmbedZMod, Matrix.cons_val] at h3
+    exact zmod257_natCast_inj hx₁ hx₂ h3
+
+-- Without the range check, `ZMod 257` aliases `t = 0` and `t = 257`.
+example :
+    actEmbed encodeStateZMod refundEmbedZMod ⟨0, 0, 0, 0⟩ =
+      actEmbed encodeStateZMod refundEmbedZMod ⟨0, 0, 257, 0⟩ := by
+  decide
+
+-- Finite-field `(V4)` range-bounded VOLE-ACT-MQ credit conservation over `Fin 4 → ZMod 257`.
+example {R Tail PK SK Sig : Type}
+    [DecidableEq Tail] [DecidableEq R] [Inhabited R] [Inhabited Sig]
+    (F : R → Fin 4 → ZMod 257) (G : R → Tail)
+    (S : Signature.Scheme PK SK ((Fin 4 → ZMod 257) × Tail) Sig)
+    (A : Conservation.ExtractedAdversary (ZMod 257) (ZMod 257) R
+      ((Fin 4 → ZMod 257) × Tail) PK Sig) :
+    Experiment.succProbability
+        (actMQConservationExperiment 256 (actCom F G encodeStateZMod)
+          (actTag refundEmbedZMod) S A) ≤
+      Experiment.succProbability
+          (clawExperiment S (UOV.structuredTarget F G)
+            (clawReduction S (UOV.structuredTarget F G) (actEmbed encodeStateZMod refundEmbedZMod)
+              (Conservation.noteForger (actCom F G encodeStateZMod) (actTag refundEmbedZMod) S
+                (rangeBoundedAdversary 256 A)))) +
+        Experiment.succProbability
+          (gCollisionExperiment G
+            (gCollisionReduction S
+              (Credit.target (actCom F G encodeStateZMod) (actTag refundEmbedZMod))
+              (Conservation.noteForger (actCom F G encodeStateZMod) (actTag refundEmbedZMod) S
+                (rangeBoundedAdversary 256 A)))) +
+        Experiment.succProbability
+          (invalidReplyExperiment S
+            (Credit.target (actCom F G encodeStateZMod) (actTag refundEmbedZMod))
+            (Conservation.noteForger (actCom F G encodeStateZMod) (actTag refundEmbedZMod) S
+              (rangeBoundedAdversary 256 A))) :=
+  actMQConservation_succProbability_le 256 F G encodeStateZMod refundEmbedZMod
+    actEmbed_fin4_zmod257_injOn S A
+
+example {R Tail PK SK Sig : Type}
+    [DecidableEq Tail] [Inhabited R] [Inhabited Sig]
+    (F : R → Fin 4 → ZMod 257) (G : R → Tail)
+    (S : Signature.Scheme PK SK ((Fin 4 → ZMod 257) × Tail) Sig)
+    (A : Conservation.ExtractedAdversary (ZMod 257) (ZMod 257) R
+      ((Fin 4 → ZMod 257) × Tail) PK Sig)
+    (pk : PK) {q : ℕ} (hA : (A pk).IsQueryBounded q) :
+    (clawReduction S (UOV.structuredTarget F G) (actEmbed encodeStateZMod refundEmbedZMod)
+      (Conservation.noteForger (actCom F G encodeStateZMod) (actTag refundEmbedZMod) S
+        (rangeBoundedAdversary 256 A)) pk).IsQueryBounded q :=
+  actMQClawReduction_queryBound 256 F G encodeStateZMod refundEmbedZMod S A pk hA
 
 /-- State embedding `(nf, ctx, t) ↦ ![↑nf, ↑ctx, ↑t, 0]`, vanishing on the refund slot `3`. -/
 private def encodeStateFin4 (nf ctx t : ℕ) : Fin 4 → ℤ :=
@@ -51,8 +145,6 @@ private def encodeStateFin4 (nf ctx t : ℕ) : Fin 4 → ℤ :=
 /-- Refund embedding `x ↦ ![0, 0, 0, ↑x]`, vanishing off slot `3`. -/
 private def refundEmbedFin4 (x : ℕ) : Fin 4 → ℤ :=
   ![0, 0, 0, (x : ℤ)]
-
-private def isRefundFin4 (i : Fin 4) : Bool := decide (i = 3)
 
 private theorem actEmbed_fin4_injective :
     Function.Injective (actEmbed encodeStateFin4 refundEmbedFin4) := by
@@ -93,7 +185,7 @@ example {R Tail : Type} (F : R → Fin 4 → ℤ) (G : R → Tail)
       UOV.structuredTarget F G (actEmbed encodeStateFin4 refundEmbedFin4 note) r :=
   credit_target_actCom_actTag F G encodeStateFin4 refundEmbedFin4 note r
 
--- Generic extracted-conservation client on the disjoint `Fin 4 → ℤ` block split.
+-- Unbounded extracted-conservation client on the infinite `Fin 4 → ℤ` block split.
 example {R Tail PK SK Sig : Type}
     [DecidableEq Tail] [DecidableEq R] [Inhabited R] [Inhabited Sig]
     (F : R → Fin 4 → ℤ) (G : R → Tail)
@@ -118,19 +210,8 @@ example {R Tail PK SK Sig : Type}
             (Credit.target (actCom F G encodeStateFin4) (actTag refundEmbedFin4))
             (Conservation.noteForger
               (actCom F G encodeStateFin4) (actTag refundEmbedFin4) S A)) :=
-  actMQConservation_succProbability_le F G encodeStateFin4 refundEmbedFin4
+  actMQConservation_unbounded_succProbability_le F G encodeStateFin4 refundEmbedFin4
     actEmbed_fin4_injective S A
-
-example {R Tail PK SK Sig : Type}
-    [DecidableEq Tail] [Inhabited R] [Inhabited Sig]
-    (F : R → Fin 4 → ℤ) (G : R → Tail)
-    (S : Signature.Scheme PK SK ((Fin 4 → ℤ) × Tail) Sig)
-    (A : Conservation.ExtractedAdversary ℕ ℕ R ((Fin 4 → ℤ) × Tail) PK Sig)
-    (pk : PK) {q : ℕ} (hA : (A pk).IsQueryBounded q) :
-    (clawReduction S (UOV.structuredTarget F G) (actEmbed encodeStateFin4 refundEmbedFin4)
-      (Conservation.noteForger (actCom F G encodeStateFin4) (actTag refundEmbedFin4) S A)
-        pk).IsQueryBounded q :=
-  actMQClawReduction_queryBound F G encodeStateFin4 refundEmbedFin4 S A pk hA
 
 /-! ### 2. Concrete `actCom`/`actTag` conservation and `clawExperiment` non-vacuity witnesses -/
 
@@ -208,6 +289,19 @@ example :
     Conservation.issuedAmount, Conservation.issuesIn, Conservation.grantedRefund,
     Experiment.succProbability, Game.succProbability]
 
+-- Enforcing `bound = 5` rejects `actForgedSpend` (`oldCredit = 5 ≥ 5`), giving `= 0`.
+example :
+    Experiment.succProbability
+        (actMQConservationExperiment 5
+          (actCom zeroF zeroG encodeStateFin4) (actTag refundEmbedFin4) vecSig
+          forgingActAdversary) = 0 := by
+  simp [actMQConservationExperiment, rangeBoundedAdversary, requestInRange, actForgedSpend,
+    Conservation.extractedConservationExperiment, Conservation.runExtractedConservation,
+    ProbOracleComp.runLogWith, forgingActAdversary, Conservation.extractedConservationAccept,
+    Conservation.spentDebit, Conservation.spendsIn, Conservation.spends,
+    Conservation.issuedAmount, Conservation.issuesIn, Conservation.grantedRefund,
+    Experiment.succProbability, Game.succProbability]
+
 private def honestClawAdversary :
     ClawAdversary Unit (Fin 4 → ℤ) ℕ ((Fin 4 → ℤ) × ZMod 5) := fun _ => do
   let σ ← ProbOracleComp.query (encodeStateFin4 1 1 10, (0 : ℕ))
@@ -226,6 +320,49 @@ example :
     refine congrArg PMF.pure ?_
     simp [clawAccept]
   simp [Experiment.succProbability, Game.succProbability, hev]
+
+-- Repeated queries at the same `J`-target cost `1` under `dedup`: `2` queries on `1` target plus
+-- `2` distinct-target claims wins (`= 1`).
+private def repeatedQueryClawAdversary :
+    ClawAdversary Unit (Fin 4 → ℤ) ℕ ((Fin 4 → ℤ) × ZMod 5) := fun _ => do
+  let σ₁ ← ProbOracleComp.query (encodeStateFin4 1 1 10, (0 : ℕ))
+  let _ ← ProbOracleComp.query (encodeStateFin4 1 1 10, (0 : ℕ))
+  return [⟨encodeStateFin4 1 1 10, 0, σ₁⟩,
+    ⟨encodeStateFin4 2 1 10, 0, (encodeStateFin4 2 1 10, 0)⟩]
+
+example :
+    Experiment.succProbability
+        (clawExperiment vecSig (UOV.structuredTarget zeroF zeroG)
+          repeatedQueryClawAdversary) = 1 := by
+  have hev :
+      ProbComp.eval
+          (clawExperiment vecSig (UOV.structuredTarget zeroF zeroG)
+            repeatedQueryClawAdversary) =
+        PMF.pure true := by
+    simp only [clawExperiment, runClaw, repeatedQueryClawAdversary, ProbOracleComp.runLog,
+      ProbOracleComp.runState_bind, ProbOracleComp.runState_query, ProbOracleComp.runState_pure,
+      StateT.run_bind, StateT.run_pure]
+    simp only [StateT.run, vecSig, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
+      PMF.pure_bind, PMF.pure_map]
+    refine congrArg PMF.pure ?_
+    simp [clawAccept, UOV.structuredTarget, zeroF, zeroG, encodeStateFin4]
+  simp [Experiment.succProbability, Game.succProbability, hev]
+
+-- Duplicate `J`-target claims with `0` queries are rejected (`Nodup` enforced, `= 0`).
+private def dupTargetClawAdversary :
+    ClawAdversary Unit (Fin 4 → ℤ) ℕ ((Fin 4 → ℤ) × ZMod 5) := fun _ =>
+  return [⟨encodeStateFin4 1 1 10, 0, (encodeStateFin4 1 1 10, 0)⟩,
+    ⟨encodeStateFin4 1 1 10, 1, (encodeStateFin4 1 1 10, 0)⟩]
+
+example :
+    ProbComp.eval
+        (clawExperiment vecSig (UOV.structuredTarget zeroF zeroG) dupTargetClawAdversary) =
+      PMF.pure false := by
+  simp only [clawExperiment, runClaw, dupTargetClawAdversary, ProbOracleComp.runLog,
+    ProbOracleComp.runState_pure, StateT.run_pure, vecSig, ProbComp.eval_bind, ProbComp.eval_map,
+    ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map]
+  refine congrArg PMF.pure ?_
+  simp [clawAccept, UOV.structuredTarget, zeroF, zeroG, encodeStateFin4]
 
 /-! ### 3. Concrete `G`-collision separation over `ZMod 5` -/
 
@@ -316,18 +453,74 @@ example :
     Experiment.succProbability
         (clawExperiment zeroTailOptionScheme (UOV.structuredTarget zeroTailF zeroTailG)
           (zeroOpeningClawAttack (fun a => Option.map (a • ·)) [(1 : ZMod 5), 2] 1)) = 1 := by
-  refine zeroOpeningClawAttack_succProbability_eq_one zeroTailOptionScheme zeroTailF zeroTailG rfl
-    (fun a => Option.map (a • ·)) [(1 : ZMod 5), 2] (by decide) (by decide) (1 : ZMod 5)
-    (by decide) ?_
+  refine clawExperiment_zeroOpeningClawAttack_succProbability_eq_one zeroTailOptionScheme
+    zeroTailF zeroTailG rfl (fun a => Option.map (a • ·)) [(1 : ZMod 5), 2] (by decide)
+    (by decide) (1 : ZMod 5) (by decide) ?_
   intro keys hkeys opt hopt a _
   simp only [zeroTailOptionScheme, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hkeys hopt
   have htarget : UOV.structuredTarget zeroTailF zeroTailG (1 : ZMod 5) 0 = (1, 0) := by
     simp [UOV.structuredTarget, zeroTailF, zeroTailG]
   simp only [htarget, ↓reduceIte] at hopt
   subst hopt
-  refine verify_scale_option_of_quadratic (fun _ => leftSqMap) zeroTailOptionScheme
+  refine UOV.verify_scale_option_of_quadratic (fun _ => leftSqMap) zeroTailOptionScheme
     (fun _ _ opt => by cases opt <;> rfl) zeroTailF zeroTailG rfl rfl ?_ a
   simp [zeroTailOptionScheme, htarget, leftSqMap_apply]
+
+private noncomputable def quadForm5 : QuadraticMap (ZMod 5) (ZMod 5 × ZMod 5) (ZMod 5) :=
+  QuadraticMap.sq.comp (LinearMap.fst (ZMod 5) (ZMod 5) (ZMod 5)) +
+    (2 : ZMod 5) • QuadraticMap.sq.comp (LinearMap.snd (ZMod 5) (ZMod 5) (ZMod 5))
+
+private theorem quadForm5_apply (x : ZMod 5 × ZMod 5) :
+    quadForm5 x = x.1 * x.1 + 2 * (x.2 * x.2) := by
+  simp [quadForm5, QuadraticMap.sq_apply]
+
+private noncomputable def surjSqMap :
+    QuadraticMap (ZMod 5) ((ZMod 5 × ZMod 5) × (ZMod 5 × ZMod 5)) (ZMod 5 × ZMod 5) :=
+  (LinearMap.inl (ZMod 5) (ZMod 5) (ZMod 5)).compQuadraticMap
+      (quadForm5.comp (LinearMap.fst (ZMod 5) (ZMod 5 × ZMod 5) (ZMod 5 × ZMod 5))) +
+    (LinearMap.inr (ZMod 5) (ZMod 5) (ZMod 5)).compQuadraticMap
+      (quadForm5.comp (LinearMap.snd (ZMod 5) (ZMod 5 × ZMod 5) (ZMod 5 × ZMod 5)))
+
+private theorem surjSqMap_apply (x : (ZMod 5 × ZMod 5) × (ZMod 5 × ZMod 5)) :
+    surjSqMap x = (quadForm5 x.1, quadForm5 x.2) := by
+  simp [surjSqMap]
+
+private def inv5 (t : ZMod 5) : ZMod 5 × ZMod 5 :=
+  match (t : Fin 5) with
+  | 0 => (0, 0)
+  | 1 => (1, 0)
+  | 2 => (0, 1)
+  | 3 => (1, 1)
+  | 4 => (2, 0)
+
+private theorem quadForm5_inv5 (t : ZMod 5) : quadForm5 (inv5 t) = t := by
+  fin_cases t <;> (simp [quadForm5_apply, inv5]; rfl)
+
+private noncomputable def surjZeroTailScheme :
+    Signature.Scheme Unit Unit (ZMod 5 × ZMod 5) (Option ((ZMod 5 × ZMod 5) × (ZMod 5 × ZMod 5)))
+    where
+  keyGen := pure ((), ())
+  sign _ target := pure (some (inv5 target.1, inv5 target.2))
+  verify _ target opt := match opt with
+    | none => false
+    | some s => decide (surjSqMap s = target)
+
+private theorem surjZeroTailScheme_correct : surjZeroTailScheme.Correct := by
+  intro _ _ target opt hopt
+  simp only [surjZeroTailScheme, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hopt
+  subst hopt
+  simp [surjZeroTailScheme, surjSqMap_apply, quadForm5_inv5]
+
+-- Composed optional-preimage theorem: `F 0 = 0`, `G 0 = 0`, and `Correct` imply `PMF.pure true`.
+example :
+    ProbComp.eval
+        (clawExperiment surjZeroTailScheme (UOV.structuredTarget zeroTailF zeroTailG)
+          (zeroOpeningClawAttack (fun a => Option.map (a • ·)) [(1 : ZMod 5), 2] 1)) =
+      PMF.pure true :=
+  clawExperiment_zeroOpeningClawAttack_option_eq_pure_true_of_quadratic
+    (fun _ => surjSqMap) surjZeroTailScheme surjZeroTailScheme_correct
+    (fun _ _ opt => by cases opt <;> rfl) zeroTailF zeroTailG rfl rfl
+    [(1 : ZMod 5), 2] (by decide) (by decide) (1 : ZMod 5) (by decide)
 
 private noncomputable def diagSqMap : QuadraticMap (ZMod 5) (ZMod 5) (ZMod 5 × ZMod 5) :=
   (LinearMap.inl (ZMod 5) (ZMod 5) (ZMod 5) +
@@ -391,14 +584,5 @@ example :
   simp only [constTailRawScheme, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hs
   subst hs
   simp [diagSqMap_apply, UOV.structuredTarget, zeroTailF, constTailG]
-
-/-! ### 5. `[VOLEACT2026]` `#mq-commitment` parameter arithmetic regressions -/
-
--- `m_com - k - r_len = 131 - 32 - 83 = 16` coordinates in `GF(2^8)` (`256^16 = 2^128`).
-example : (131 : ℕ) - 32 - 83 = 16 := by decide
-example : (256 : ℕ) ^ 16 = 2 ^ 128 := by decide
-
--- Semantic message width `nf_len + ctx_len + 2 * L = 16 + 12 + 2 + 2 = 32` bytes (`L = 2`).
-example : (16 : ℕ) + 12 + 2 + 2 = 32 := by decide
 
 end CslibFrontierTests.Crypto.AnonymousTokenACTMQ

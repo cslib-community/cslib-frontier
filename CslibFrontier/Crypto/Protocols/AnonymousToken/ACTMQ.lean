@@ -11,7 +11,9 @@ public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 public import CslibFrontier.Crypto.Protocols.UOV.Attacks
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunLog
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Support
@@ -33,13 +35,33 @@ game nor a security reduction.
   combining an attacker-chosen semantic message `μ` and commitment opening `r`. Random-target
   one-more preimage resistance ([PoMFRIT2026], Definition 3.1, formalized in
   `Cslib.Crypto.Signature.oneMoreExperiment`) does not apply because targets are attacker-chosen
-  rather than independently sampled, while Bouillaguet et al. (ePrint 2025/2035) formulate
-  one-more claw-freeness for a uniformly random map `J` rather than the affine-homomorphic map
-  `(F r + μ, G r)`. Accordingly, `clawExperiment` defines an unstudied, protocol-specific
-  structured-target one-more claw-freeness experiment: the adversary queries a signing oracle on
-  chosen `(μ, r)` pairs (counting distinct queried `J μ r` targets, so repeated or colliding
-  target queries do not raise the budget) and must output strictly more verifying claws with
-  pairwise distinct `J`-targets than distinct queried targets.
+  rather than independently sampled. Meanwhile, [Bouillaguet et al.][BouillaguetEtAl2025]
+  (Section 7.2; Appendix A, Definition 12, p. 38) state one-more claw-freeness for a uniformly
+  random map `J ← MQ(q, n, m)` and an arbitrary-target inversion oracle `O_Invert(H⁻¹, ·)`, while
+  their blind-signature proof (Theorem 5, Appendix D.1, p. 50) informally invokes it for
+  `(x, y) ↦ (x + F(y), H(y))` without defining the structured game or deduplicated target budget.
+  Here `clawExperiment` formalizes a new, protocol-specific structured-target one-more
+  claw-freeness experiment (`[VOLEACT2026]`, `#proof-status`), differing from Definition 12 along
+  three axes:
+  1. the oracle answers only structured `(m, r)` queries on `J m r` rather than arbitrary `y`
+     (a weaker adversary);
+  2. the budget counts distinct queried `J`-targets (`queriedTargets.dedup.length`), so repeated
+     or colliding target queries add zero cost (a **stronger** hardness assumption than
+     Definition 12's query-counting budget, because under randomized signers an adversary can
+     obtain arbitrarily many independent signatures on one target at budget `1`; `clawReduction`
+     requires this dedup budget because `ExtractedForger` may repeat queries);
+  3. output distinctness requires pairwise distinct `J`-targets (`claimTargets.Nodup`), following
+     Definition 12's prose rather than its displayed `(x_i, z_i)` distinctness condition.
+* **Range checks `(V4)` and finite message blocks.** `Conservation.extractedConservationExperiment`
+  leaves `Credit.Note.credit` and `Credit.Note.refund` unbounded over `ℕ`, which forbids injecting
+  notes into any finite `Message` space (such as `𝔽_q^k` in `[VOLEACT2026]`, `#mq-commitment`).
+  `actMQConservationExperiment` wraps the issuer with `rangeBoundedAdversary` to enforce
+  `requestInRange bound` (matching `(V4)` `< 2^(8*L)` in `#spending`), letting
+  `actMQConservation_succProbability_le` assume `Set.InjOn (actEmbed …)` on
+  `{note | NoteInRange bound note}` so finite-field instantiations exist
+  (`actEmbed_injOn_of_disjoint`). The unbounded-`ℕ` corollary
+  `actMQConservation_unbounded_succProbability_le` assumes `Function.Injective actEmbed`, which
+  forces `Message` to be infinite.
 * **No named asymptotic hardness `Prop`.** All bounds are concrete inequalities relating explicit
   finite `ProbComp`/`ProbOracleComp` games and explicit query-bounded reductions; no PPT runtime
   certificate or asymptotic hardness `Prop` is asserted (tracked in #7068).
@@ -50,54 +72,68 @@ game nor a security reduction.
   `actMQConservation_succProbability_le` therefore include an explicit `gCollisionExperiment`
   binding term (alongside an explicit `invalidReplyExperiment` term when the certifier is not
   assumed `Signature.Scheme.Correct`). `gCollisionForger` formally witnesses that the
-  `gCollisionExperiment` term cannot be dropped.
+  `gCollisionExperiment` term cannot be dropped for `clawReduction`.
 
 ## Main definitions
 
 * `ClawClaim`, `ClawAdversary`, `ClawExecution`, `runClaw`, `clawAccept`, `clawExperiment`:
   structured-target one-more claw-freeness experiment.
-* `gCollisionAccept`, `gCollisionExperiment`: collision-resistance experiment on the binding block
-  `G : Opening → Tail`.
+* `gCollisionAccept`, `gCollisionExperiment`: keyless collision-resistance experiment on a fixed
+  binding block `G : Opening → Tail` (meaningful when fed an explicit reduction).
 * `anyInvalidReply`, `invalidReplyExperiment`: explicit event that an issuer oracle reply fails
   verification during an extracted run.
 * `clawReduction`, `gCollisionReduction`: explicit reductions from `AnonymousToken.ExtractedForger`
   to `clawExperiment` and `gCollisionExperiment`.
 * `actCom`, `actTag`, `actEmbed`: affine-homomorphic VOLE-ACT-MQ commitment and tag encoders
   matching `UOV.structuredTarget`.
+* `NoteInRange`, `requestInRange`, `rangeBoundedAdversary`, `actMQConservationExperiment`:
+  `(V4)`-range-bounded extracted VOLE-ACT credit-conservation experiment.
 * `gCollisionForger`, `zeroOpeningClawAttack`: concrete one-query structural adversaries for
   `G`-collisions and zero-opening homogeneous scaling.
 
 ## Main results
 
-* `clawReduction_queryBound`, `actMQClawReduction_queryBound`: exact query budgets preserved from
-  the extracted forger and credit-conservation adversary.
-* `structuredTarget_collision`: injectivity of semantic message embedding forces any target
-  collision of `UOV.structuredTarget F G (embed ·) ·` to yield `r₁ ≠ r₂` and `G r₁ = G r₂`.
-* `extractedExperiment_succProbability_le_structuredClaw`: concrete bound on
-  `AnonymousToken.extractedExperiment` by `clawExperiment`, `gCollisionExperiment`, and
+* `clawReduction_queryBound`, `rangeBoundedAdversary_queryBound`, `actMQClawReduction_queryBound`:
+  exact query budgets preserved from the extracted forger and credit-conservation adversary.
+* `actEmbed_injOn_of_disjoint`, `actEmbed_injective_of_disjoint`: disjoint-slot injectivity of
+  `actEmbed` on range-bounded notes (`Set.InjOn`, compatible with finite fields) and unbounded
+  notes (`Function.Injective`, requiring infinite `Message`).
+* `structuredTarget_collision_on`, `structuredTarget_collision`: injectivity (on a set or globally)
+  of semantic message embedding forces any target collision of
+  `UOV.structuredTarget F G (embed ·) ·` to yield `r₁ ≠ r₂` and `G r₁ = G r₂`.
+* `extractedExperiment_succProbability_le_claw_add_binding_add_invalid`,
+  `bindingExperiment_structuredTarget_le_gCollision_on`,
+  `bindingExperiment_structuredTarget_le_gCollision`,
+  `extractedExperiment_succProbability_le_structuredClaw_on`,
+  `extractedExperiment_succProbability_le_structuredClaw`: concrete bounds reducing
+  `AnonymousToken.extractedExperiment` to `clawExperiment`, `gCollisionExperiment`, and
   `invalidReplyExperiment`.
-* `actMQConservation_succProbability_le`: extracted-model VOLE-ACT-MQ credit conservation from
-  structured-target one-more claw-freeness and `G`-collision resistance (plus `invalidReply`
-  which vanishes under `Signature.Scheme.Correct`).
+* `actMQConservation_succProbability_le`: `(V4)` range-bounded extracted VOLE-ACT-MQ credit
+  conservation over any `Set.InjOn`-valid (including finite-field) embedding, plus the
+  infinite-block unbounded variant `actMQConservation_unbounded_succProbability_le`.
 * `gCollisionForger_extractedExperiment_eq`,
   `clawExperiment_clawReduction_gCollisionForger_eq_pure_false`: formal separation showing a
   `G`-collision wins `extractedExperiment` without winning `clawExperiment`, proving the binding
-  term cannot be dropped.
-* `zeroOpeningClawAttack_eval_eq_pure_true`,
+  term cannot be dropped for `clawReduction`.
+* `clawExperiment_zeroOpeningClawAttack_eq_pure_true`,
+  `clawExperiment_zeroOpeningClawAttack_succProbability_eq_one`,
+  `clawExperiment_zeroOpeningClawAttack_eq_pure_true_of_quadratic`,
+  `clawExperiment_zeroOpeningClawAttack_option_eq_pure_true_of_quadratic`,
   `clawExperiment_zeroOpeningClawAttack_option_eq_false_of_tail_ne_zero`,
   `clawExperiment_zeroOpeningClawAttack_eq_false_of_tail_ne_zero`: zero-opening scaling breaks
-  `clawExperiment` with probability `1` when `F 0 = 0` and `G 0 = 0`, and fails identically
-  (`PMF.pure false`) when `G 0 ≠ 0`.
+  `clawExperiment` with probability `1` for homogeneous quadratic verifiers when `F 0 = 0` and
+  `G 0 = 0` (`UOV.verify_scale_of_quadratic` / `UOV.verify_scale_option_of_quadratic`), and fails
+  identically (`PMF.pure false`) when `G 0 ≠ 0`.
 
 ## References
 
-* [*VOLE-ACT*][VOLEACT2026], Instantiations / VOLE-ACT-MQ (`#mq-commitment`, `#mq-com`,
-  `#mq-tag`), Security Considerations / MQ zero-opening scaling forgery
-  (`#mq-zero-opening-forgery`), and Proof status (`#proof-status`).
+* [*VOLE-ACT*][VOLEACT2026], Spending `(V4)` (`#spending`), Instantiations / VOLE-ACT-MQ
+  (`#mq-commitment`, `#mq-com`, `#mq-tag`), Security Considerations / MQ zero-opening scaling
+  forgery (`#mq-zero-opening-forgery`), and Proof status (`#proof-status`).
 * [Baum et al., *PoMFRIT*, USENIX prepublication, Definition 3.1][PoMFRIT2026].
-* C. Bouillaguet, T. Feneuil, J. Maire, M. Rivain, J. Sauvage, D. Vergnaud, *Multivariate
-  Commitments and Signatures with Efficient Protocols*, ePrint 2025/2035 (Section 6.1, Table 3;
-  also cited in [VOLEACT2026], `#mq-commitment`).
+* [Bouillaguet et al., *Multivariate Commitments and Signatures with Efficient Protocols*,
+  ePrint 2025/2035][BouillaguetEtAl2025] (Section 6.1, Table 3; Section 7.2; Appendix A,
+  Definition 12, p. 38; Appendix D.1, proof of Theorem 5, p. 50).
 -/
 
 public section
@@ -148,8 +184,9 @@ def runClaw (S : Signature.Scheme PK SK Target Sig) (J : M → R → Target)
   return ⟨keys.1, claims, log⟩
 
 /-- Acceptance predicate of the structured-target one-more claw-freeness game: the adversary
-outputs strictly more claims than distinct `J`-targets queried in `run.log`, the claims' `J`-targets
-are pairwise distinct, and every claim verifies under `S.verify run.publicKey`. -/
+outputs strictly more claims than distinct `J`-targets queried in `run.log` (so repeated or
+colliding target queries add zero cost to the budget), the claims' `J`-targets are pairwise
+distinct, and every claim verifies under `S.verify run.publicKey`. -/
 def clawAccept [DecidableEq Target] (S : Signature.Scheme PK SK Target Sig)
     (J : M → R → Target) (run : ClawExecution PK M R Sig) : Bool :=
   let queriedTargets := run.log.map fun (q, _) => J q.1 q.2
@@ -159,7 +196,9 @@ def clawAccept [DecidableEq Target] (S : Signature.Scheme PK SK Target Sig)
 
 /-- Structured-target one-more claw-freeness experiment, original to this library. Unlike
 `Signature.oneMoreExperiment`, targets are adversary-chosen via `(m, r) ↦ J m r` rather than
-sampled independently at random, and the oracle budget counts distinct `J`-targets queried. -/
+sampled independently at random, and the oracle budget counts distinct `J`-targets queried (which
+is stronger than query-counting when signers are randomized, since repeated queries on one target
+cost `1`, as required by `clawReduction`). -/
 def clawExperiment [DecidableEq Target] (S : Signature.Scheme PK SK Target Sig)
     (J : M → R → Target) (A : ClawAdversary PK M R Sig) : Experiment :=
   clawAccept S J <$> runClaw S J A
@@ -170,7 +209,8 @@ def gCollisionAccept [DecidableEq R] [DecidableEq Tail] (G : R → Tail) :
   | none => false
   | some (r₁, r₂) => decide (r₁ ≠ r₂ ∧ G r₁ = G r₂)
 
-/-- Keyless collision-resistance experiment for the binding block `G : R → Tail`. -/
+/-- Keyless collision-resistance experiment for a fixed public binding block `G : R → Tail`
+(meaningful only when instantiated with an explicit reduction such as `gCollisionReduction`). -/
 def gCollisionExperiment [DecidableEq R] [DecidableEq Tail] (G : R → Tail)
     (B : ProbComp (Option (R × R))) : Experiment :=
   gCollisionAccept G <$> B
@@ -263,6 +303,45 @@ def actEmbed {Nullifier Context : Type} [Add Message]
     (note : Credit.Note Nullifier Context) : Message :=
   encodeState note.nullifier note.context note.credit + refundEmbed note.refund
 
+/-- `(V4)` credit and refund range predicate for semantic notes: `credit < bound` and
+`refund < bound` (in `[VOLEACT2026]`, `#spending`, `bound = 2^(8*L)`). -/
+def NoteInRange {Nullifier Context : Type} (bound : ℕ)
+    (note : Credit.Note Nullifier Context) : Prop :=
+  note.credit < bound ∧ note.refund < bound
+
+/-- `(V4)` range predicate enforced on extracted VOLE-ACT requests before oracle signing:
+issuance checks `amount < bound ∧ 0 < bound`; spend checks `oldCredit < bound`,
+`oldRefund < bound`, `newCredit < bound`, `refund < bound`, and `debit < bound`. -/
+def requestInRange {Nullifier Context Opening Commitment : Type} (bound : ℕ) :
+    Conservation.Request Nullifier Context Opening Commitment Sig → Bool
+  | .issue req => decide (req.amount < bound ∧ 0 < bound)
+  | .spend req =>
+      decide (req.oldCredit < bound ∧ req.oldRefund < bound ∧
+        req.newCredit < bound ∧ req.refund < bound ∧ req.debit < bound)
+
+/-- Adversary wrapper modeling an extracted VOLE-ACT issuer that enforces `requestInRange bound`:
+out-of-range requests return `none` immediately without calling or logging at the underlying
+issuer oracle. -/
+def rangeBoundedAdversary {Nullifier Context Opening Commitment : Type} (bound : ℕ)
+    (A : Conservation.ExtractedAdversary Nullifier Context Opening Commitment PK Sig) :
+    Conservation.ExtractedAdversary Nullifier Context Opening Commitment PK Sig :=
+  fun pk =>
+    ProbOracleComp.simulate
+      (fun req => if requestInRange bound req then ProbOracleComp.query req else pure none)
+      (A pk)
+
+/-- `(V4)` range-bounded extracted VOLE-ACT credit-conservation experiment: executes
+`Conservation.extractedConservationExperiment` with `requestInRange bound` enforced on every
+issuer query via `rangeBoundedAdversary bound A`. -/
+def actMQConservationExperiment {Nullifier Context Opening Commitment : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    (bound : ℕ) (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (A : Conservation.ExtractedAdversary Nullifier Context Opening Commitment PK Sig) :
+    Experiment :=
+  Conservation.extractedConservationExperiment com tag S (rangeBoundedAdversary bound A)
+
 end
 
 /-! ### Helper lemmas and query bounds -/
@@ -287,21 +366,6 @@ theorem clawExperiment_eq_false_of_claims_nil [DecidableEq Target]
   intro run hrun
   simp [clawAccept, hnil run hrun]
 
-private theorem forall_mem_runLog {Q R α : Type} {O : Q → ProbComp R} {P : Q × R → Prop}
-    (hO : ∀ q, ∀ r ∈ (ProbComp.eval (O q)).support, P (q, r))
-    (A : ProbOracleComp (fun _ : Q => R) α) {z : α × List (Q × R)}
-    (hz : z ∈ (ProbComp.eval (A.runLog O)).support) : ∀ p ∈ z.2, P p := by
-  rw [ProbOracleComp.runLog, ProbOracleComp.eval_runState] at hz
-  refine ProbOracleComp.runWith_invariant _ (fun log => ∀ p ∈ log, P p) ?_ A []
-    (by simp) z.1 z.2 hz
-  intro q log hlog r log' hstep
-  simp only [ProbComp.eval_map, PMF.mem_support_map_iff, Prod.mk.injEq] at hstep
-  obtain ⟨r', hr', rfl, rfl⟩ := hstep
-  intro p hp
-  rcases List.mem_append.mp hp with hp | hp
-  · exact hlog p hp
-  · exact List.mem_singleton.mp hp ▸ hO q r' hr'
-
 /-- When `S.Correct` holds, `invalidReplyExperiment` has success probability zero. -/
 theorem invalidReplyExperiment_eq_zero_of_correct
     {S : Signature.Scheme PK SK Target Sig} (hS : S.Correct)
@@ -317,11 +381,22 @@ theorem invalidReplyExperiment_eq_zero_of_correct
     simp only [anyInvalidReply, List.any_eq_false, Bool.not_eq_true']
     intro entry hentry
     rw [Bool.not_eq_false]
-    exact forall_mem_runLog
+    exact ProbOracleComp.forall_mem_runLog
       (P := fun e : Payload Message R × Sig =>
         S.verify keys.1 (target e.1.message e.1.opening) e.2 = true)
       (fun p σ hσ => hS keys hkeys _ σ hσ) (B keys.1) hres entry hentry
   simp [Experiment.succProbability, Game.succProbability, hfalse]
+
+/-- `rangeBoundedAdversary` preserves any `q`-query bound from the underlying adversary `A`. -/
+theorem rangeBoundedAdversary_queryBound {Nullifier Context Opening Commitment : Type}
+    (bound : ℕ)
+    (A : Conservation.ExtractedAdversary Nullifier Context Opening Commitment PK Sig)
+    (pk : PK) {q : ℕ} (hA : (A pk).IsQueryBounded q) :
+    (rangeBoundedAdversary bound A pk).IsQueryBounded q := by
+  refine hA.simulate fun req => ?_
+  split_ifs
+  · exact ProbOracleComp.IsQueryBounded.query req
+  · exact OracleComp.IsCostBounded.pure none 1
 
 /-- `clawReduction` makes at most `q` signing queries whenever the input `ExtractedForger` makes
 at most `q` queries. No runtime bound or fair-coin efficiency follows from this query bound. -/
@@ -368,9 +443,56 @@ theorem credit_target_actCom_actTag {Nullifier Context Opening : Type} [AddCommG
       UOV.structuredTarget F G (actEmbed encodeState refundEmbed note) r := by
   simp [Credit.target, actCom, actTag, UOV.structuredTarget, actEmbed, add_assoc]
 
-/-- Disjoint-slot injectivity for `actEmbed`: if `encodeState` vanishes on refund coordinates and
-`refundEmbed` vanishes off refund coordinates, and both maps are injective, then `actEmbed` is
-injective on `Credit.Note Nullifier Context`. -/
+private theorem actEmbed_injOn_of_pred {Nullifier Context I F : Type} [AddCommGroup F]
+    (P : ℕ → Prop) (isRefund : I → Bool) (encodeState : Nullifier → Context → ℕ → (I → F))
+    (refundEmbed : ℕ → (I → F))
+    (hstate_slot : ∀ nf ctx t i, isRefund i = true → encodeState nf ctx t i = 0)
+    (hrefund_slot : ∀ x i, isRefund i = false → refundEmbed x i = 0)
+    (hstate_inj : ∀ {nf₁ nf₂ ctx₁ ctx₂ t₁ t₂}, P t₁ → P t₂ →
+      encodeState nf₁ ctx₁ t₁ = encodeState nf₂ ctx₂ t₂ →
+      nf₁ = nf₂ ∧ ctx₁ = ctx₂ ∧ t₁ = t₂)
+    (hrefund_inj : Set.InjOn refundEmbed {x : ℕ | P x}) :
+    Set.InjOn (actEmbed encodeState refundEmbed)
+      {note : Credit.Note Nullifier Context | P note.credit ∧ P note.refund} := by
+  rintro ⟨nf₁, ctx₁, t₁, x₁⟩ ⟨ht₁, hx₁⟩ ⟨nf₂, ctx₂, t₂, x₂⟩ ⟨ht₂, hx₂⟩ heq
+  have hrefund_eq : refundEmbed x₁ = refundEmbed x₂ := by
+    funext i
+    by_cases hi : isRefund i = true
+    · have hi' := congrFun heq i
+      simp only [actEmbed, Pi.add_apply, hstate_slot _ _ _ i hi, zero_add] at hi'
+      exact hi'
+    · have hfalse : isRefund i = false := Bool.eq_false_iff.mpr hi
+      simp [hrefund_slot _ i hfalse]
+  have hx : x₁ = x₂ := hrefund_inj hx₁ hx₂ hrefund_eq
+  have hstate_eq : encodeState nf₁ ctx₁ t₁ = encodeState nf₂ ctx₂ t₂ := by
+    funext i
+    have hi := congrFun heq i
+    have hr := congrFun hrefund_eq i
+    simp only [actEmbed, Pi.add_apply] at hi
+    exact add_right_cancel (hi.trans (congrArg (encodeState nf₂ ctx₂ t₂ i + ·) hr.symm))
+  obtain ⟨rfl, rfl, rfl⟩ := hstate_inj ht₁ ht₂ hstate_eq
+  subst hx
+  rfl
+
+/-- Disjoint-slot `Set.InjOn` injectivity for `actEmbed` on range-bounded notes
+`NoteInRange bound`: works over any finite field/ring whose prime/cardinality is at least `bound`
+(such as `𝔽_q` with `bound = 2^(8*L)`). -/
+theorem actEmbed_injOn_of_disjoint {Nullifier Context I F : Type} [AddCommGroup F]
+    (bound : ℕ) (isRefund : I → Bool) (encodeState : Nullifier → Context → ℕ → (I → F))
+    (refundEmbed : ℕ → (I → F))
+    (hstate_slot : ∀ nf ctx t i, isRefund i = true → encodeState nf ctx t i = 0)
+    (hrefund_slot : ∀ x i, isRefund i = false → refundEmbed x i = 0)
+    (hstate_inj : ∀ {nf₁ nf₂ ctx₁ ctx₂ t₁ t₂}, t₁ < bound → t₂ < bound →
+      encodeState nf₁ ctx₁ t₁ = encodeState nf₂ ctx₂ t₂ →
+      nf₁ = nf₂ ∧ ctx₁ = ctx₂ ∧ t₁ = t₂)
+    (hrefund_inj : Set.InjOn refundEmbed {x : ℕ | x < bound}) :
+    Set.InjOn (actEmbed encodeState refundEmbed)
+      {note : Credit.Note Nullifier Context | NoteInRange bound note} :=
+  actEmbed_injOn_of_pred (· < bound) isRefund encodeState refundEmbed hstate_slot hrefund_slot
+    hstate_inj hrefund_inj
+
+/-- Disjoint-slot global injectivity for `actEmbed` on unbounded `Credit.Note Nullifier Context`
+(forces `I → F` to be infinite because `credit, refund : ℕ`). -/
 theorem actEmbed_injective_of_disjoint {Nullifier Context I F : Type} [AddCommGroup F]
     (isRefund : I → Bool) (encodeState : Nullifier → Context → ℕ → (I → F))
     (refundEmbed : ℕ → (I → F))
@@ -381,39 +503,34 @@ theorem actEmbed_injective_of_disjoint {Nullifier Context I F : Type} [AddCommGr
       nf₁ = nf₂ ∧ ctx₁ = ctx₂ ∧ t₁ = t₂)
     (hrefund_inj : Function.Injective refundEmbed) :
     Function.Injective (actEmbed encodeState refundEmbed) := by
-  rintro ⟨nf₁, ctx₁, t₁, x₁⟩ ⟨nf₂, ctx₂, t₂, x₂⟩ heq
-  have hrefund_eq : refundEmbed x₁ = refundEmbed x₂ := by
-    funext i
-    by_cases hi : isRefund i = true
-    · have hi' := congrFun heq i
-      simp only [actEmbed, Pi.add_apply, hstate_slot _ _ _ i hi, zero_add] at hi'
-      exact hi'
-    · have hfalse : isRefund i = false := Bool.eq_false_iff.mpr hi
-      simp [hrefund_slot _ i hfalse]
-  have hx : x₁ = x₂ := hrefund_inj hrefund_eq
-  have hstate_eq : encodeState nf₁ ctx₁ t₁ = encodeState nf₂ ctx₂ t₂ := by
-    funext i
-    have hi := congrFun heq i
-    have hr := congrFun hrefund_eq i
-    simp only [actEmbed, Pi.add_apply] at hi
-    exact add_right_cancel (hi.trans (congrArg (encodeState nf₂ ctx₂ t₂ i + ·) hr.symm))
-  obtain ⟨rfl, rfl, rfl⟩ := hstate_inj hstate_eq
-  subst hx
-  rfl
+  intro _ _ heq
+  exact actEmbed_injOn_of_pred (fun _ => True) isRefund encodeState refundEmbed hstate_slot
+    hrefund_slot (fun _ _ h => hstate_inj h) hrefund_inj.injOn ⟨trivial, trivial⟩
+    ⟨trivial, trivial⟩ heq
 
-/-- Under an injective semantic-message embedding `embed`, any collision of
-`UOV.structuredTarget F G (embed ·) ·` across distinct semantic messages `m₁ ≠ m₂` forces
-`r₁ ≠ r₂` and `G r₁ = G r₂`. -/
+/-- Under semantic-message injectivity of `embed` on `Sset`, any collision of
+`UOV.structuredTarget F G (embed ·) ·` between distinct `m₁, m₂ ∈ Sset` forces `r₁ ≠ r₂` and
+`G r₁ = G r₂`. -/
+theorem structuredTarget_collision_on {Message' : Type} [AddCommGroup Message]
+    (F : R → Message) (G : R → Tail) (embed : Message' → Message) {Sset : Set Message'}
+    (hembed : Set.InjOn embed Sset) {m₁ m₂ : Message'} (hm₁ : m₁ ∈ Sset) (hm₂ : m₂ ∈ Sset)
+    {r₁ r₂ : R} (hm : m₁ ≠ m₂)
+    (htarg : UOV.structuredTarget F G (embed m₁) r₁ = UOV.structuredTarget F G (embed m₂) r₂) :
+    r₁ ≠ r₂ ∧ G r₁ = G r₂ := by
+  have hfst : F r₁ + embed m₁ = F r₂ + embed m₂ := congrArg Prod.fst htarg
+  have hsnd : G r₁ = G r₂ := congrArg Prod.snd htarg
+  refine ⟨fun hr => hm (hembed hm₁ hm₂ (add_left_cancel (a := F r₁) ?_)), hsnd⟩
+  simpa [hr] using hfst
+
+/-- Global-injectivity specialization of `structuredTarget_collision_on`. -/
 theorem structuredTarget_collision {Message' : Type} [AddCommGroup Message]
     (F : R → Message) (G : R → Tail) (embed : Message' → Message)
     (hembed : Function.Injective embed) {m₁ m₂ : Message'} {r₁ r₂ : R}
     (hm : m₁ ≠ m₂)
     (htarg : UOV.structuredTarget F G (embed m₁) r₁ = UOV.structuredTarget F G (embed m₂) r₂) :
-    r₁ ≠ r₂ ∧ G r₁ = G r₂ := by
-  have hfst : F r₁ + embed m₁ = F r₂ + embed m₂ := congrArg Prod.fst htarg
-  have hsnd : G r₁ = G r₂ := congrArg Prod.snd htarg
-  refine ⟨fun hr => hm (hembed (add_left_cancel (a := F r₁) ?_)), hsnd⟩
-  simpa [hr] using hfst
+    r₁ ≠ r₂ ∧ G r₁ = G r₂ :=
+  structuredTarget_collision_on F G embed hembed.injOn (Set.mem_univ m₁) (Set.mem_univ m₂)
+    hm htarg
 
 /-! ### Reduction proofs and extracted VOLE-ACT-MQ credit conservation -/
 
@@ -683,7 +800,7 @@ private theorem clawAccept_or_binding_or_invalid_of_extractedAccept
 /-- Concrete bound decomposing `AnonymousToken.extractedExperiment` into structured-target one-more
 claw-freeness (`clawExperiment`), target binding collisions (`bindingExperiment`), and invalid
 oracle replies (`invalidReplyExperiment`). -/
-theorem extractedExperiment_succProbability_le_claw_add_binding
+theorem extractedExperiment_succProbability_le_claw_add_binding_add_invalid
     [DecidableEq Message] [DecidableEq Target]
     (S : Signature.Scheme PK SK Target Sig) (J : M → R → Target) (embed : Message → M)
     (target : Message → R → Target) (htarget : ∀ m r, target m r = J (embed m) r)
@@ -725,8 +842,42 @@ theorem extractedExperiment_succProbability_le_claw_add_binding
     Cslib.Probability.PMF.map_true_le_add μ fun _ _ h => Bool.or_eq_true_iff.mp h
   exact (hsplit1.trans (add_le_add le_rfl hsplit2)).trans_eq (add_assoc _ _ _).symm
 
-/-- Under an injective semantic-message embedding `embed` into `UOV.structuredTarget F G`, target
-binding collisions reduce to `G`-collisions in `R`. -/
+/-- When every supported execution of `B` keeps its output message and all logged messages in
+`{m | P m}`, and `embed` is `Set.InjOn` on `{m | P m}`, target binding collisions against
+`UOV.structuredTarget F G (embed ·) ·` reduce to `G`-collisions in `R`. -/
+theorem bindingExperiment_structuredTarget_le_gCollision_on
+    {Message' : Type} [DecidableEq Message'] [DecidableEq Message] [DecidableEq R]
+    [DecidableEq Tail] [AddCommGroup Message]
+    (F : R → Message) (G : R → Tail) (embed : Message' → Message)
+    (P : Message' → Prop) (hembed : Set.InjOn embed {m | P m})
+    (target : Message' → R → Message × Tail)
+    (htarget : ∀ m r, target m r = UOV.structuredTarget F G (embed m) r)
+    (S : Signature.Scheme PK SK (Message × Tail) Sig)
+    (B : ExtractedForger PK Message' R Sig)
+    (hB : ∀ run ∈ (ProbComp.eval (runExtracted S target B)).support,
+      P run.output.payload.message ∧ ∀ entry ∈ run.log, P entry.1.message) :
+    Experiment.succProbability (bindingExperiment S target B) ≤
+      Experiment.succProbability (gCollisionExperiment G (gCollisionReduction S target B)) := by
+  simp only [Experiment.succProbability, bindingExperiment, gCollisionExperiment,
+    gCollisionReduction, bindingReduction, ProbComp.eval_map, PMF.map_comp, Function.comp_def,
+    Game.succProbability]
+  apply ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
+  refine Cslib.Probability.PMF.map_true_mono _ fun run hrun hacc => ?_
+  obtain ⟨hPout, hPlog⟩ := hB run hrun
+  cases hl : run.log.find? (fun entry => decide
+      (target entry.1.message entry.1.opening =
+        target run.output.payload.message run.output.payload.opening)) with
+  | none => simp [findBindingWitness, hl] at hacc
+  | some entry =>
+    have hentry := List.mem_of_find?_eq_some hl
+    simp only [findBindingWitness, hl, Option.map_some, Option.any_some, checkBindingWitness,
+      decide_eq_true_eq] at hacc
+    rw [htarget, htarget] at hacc
+    have hcol := structuredTarget_collision_on F G embed hembed hPout (hPlog entry hentry)
+      hacc.1 hacc.2
+    simp [findBindingWitness, hl, gCollisionAccept, hcol.1, hcol.2]
+
+/-- Global-injectivity specialization of `bindingExperiment_structuredTarget_le_gCollision_on`. -/
 theorem bindingExperiment_structuredTarget_le_gCollision
     {Message' : Type} [DecidableEq Message'] [DecidableEq Message] [DecidableEq R]
     [DecidableEq Tail] [AddCommGroup Message]
@@ -737,21 +888,37 @@ theorem bindingExperiment_structuredTarget_le_gCollision
     (S : Signature.Scheme PK SK (Message × Tail) Sig)
     (B : ExtractedForger PK Message' R Sig) :
     Experiment.succProbability (bindingExperiment S target B) ≤
-      Experiment.succProbability (gCollisionExperiment G (gCollisionReduction S target B)) := by
-  simp only [Experiment.succProbability, bindingExperiment, gCollisionExperiment,
-    gCollisionReduction, ProbComp.eval_map, PMF.map_comp, Function.comp_def, Game.succProbability]
-  apply ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
-  refine Cslib.Probability.PMF.map_true_mono _ fun opt _ hopt => ?_
-  cases opt with
-  | none => simp at hopt
-  | some w =>
-    simp only [Option.any_some, checkBindingWitness, decide_eq_true_eq, htarget] at hopt
-    have hcol := structuredTarget_collision F G embed hembed hopt.1 hopt.2
-    simp [gCollisionAccept, hcol.1, hcol.2]
+      Experiment.succProbability (gCollisionExperiment G (gCollisionReduction S target B)) :=
+  bindingExperiment_structuredTarget_le_gCollision_on F G embed (fun _ => True) hembed.injOn
+    target htarget S B fun _ _ => ⟨trivial, fun _ _ => trivial⟩
 
-/-- Concrete bound decomposing `AnonymousToken.extractedExperiment` against
-`UOV.structuredTarget F G (embed ·) ·` into structured-target one-more claw-freeness, a `G`-block
-collision, and issuer oracle reply invalidity. -/
+/-- Restricted-domain version of `extractedExperiment_succProbability_le_structuredClaw` under
+`Set.InjOn embed {m | P m}` and the support invariant `hB`. -/
+theorem extractedExperiment_succProbability_le_structuredClaw_on
+    {Message' : Type} [DecidableEq Message'] [DecidableEq Message] [DecidableEq R]
+    [DecidableEq Tail] [AddCommGroup Message]
+    (F : R → Message) (G : R → Tail) (embed : Message' → Message)
+    (P : Message' → Prop) (hembed : Set.InjOn embed {m | P m})
+    (target : Message' → R → Message × Tail)
+    (htarget : ∀ m r, target m r = UOV.structuredTarget F G (embed m) r)
+    (S : Signature.Scheme PK SK (Message × Tail) Sig)
+    (B : ExtractedForger PK Message' R Sig)
+    (hB : ∀ run ∈ (ProbComp.eval (runExtracted S target B)).support,
+      P run.output.payload.message ∧ ∀ entry ∈ run.log, P entry.1.message) :
+    Experiment.succProbability (extractedExperiment S target B) ≤
+      Experiment.succProbability
+          (clawExperiment S (UOV.structuredTarget F G)
+            (clawReduction S (UOV.structuredTarget F G) embed B)) +
+        Experiment.succProbability (gCollisionExperiment G (gCollisionReduction S target B)) +
+        Experiment.succProbability (invalidReplyExperiment S target B) := by
+  have h1 := extractedExperiment_succProbability_le_claw_add_binding_add_invalid
+    S (UOV.structuredTarget F G) embed target htarget B
+  have h2 := bindingExperiment_structuredTarget_le_gCollision_on F G embed P hembed target
+    htarget S B hB
+  exact h1.trans (add_le_add (add_le_add le_rfl h2) le_rfl)
+
+/-- Global-injectivity specialization of
+`extractedExperiment_succProbability_le_structuredClaw_on`. -/
 theorem extractedExperiment_succProbability_le_structuredClaw
     {Message' : Type} [DecidableEq Message'] [DecidableEq Message] [DecidableEq R]
     [DecidableEq Tail] [AddCommGroup Message]
@@ -766,19 +933,235 @@ theorem extractedExperiment_succProbability_le_structuredClaw
           (clawExperiment S (UOV.structuredTarget F G)
             (clawReduction S (UOV.structuredTarget F G) embed B)) +
         Experiment.succProbability (gCollisionExperiment G (gCollisionReduction S target B)) +
-        Experiment.succProbability (invalidReplyExperiment S target B) := by
-  have h1 := extractedExperiment_succProbability_le_claw_add_binding
-    S (UOV.structuredTarget F G) embed target htarget B
-  have h2 := bindingExperiment_structuredTarget_le_gCollision F G embed hembed target htarget S B
-  exact h1.trans (add_le_add (add_le_add le_rfl h2) le_rfl)
+        Experiment.succProbability (invalidReplyExperiment S target B) :=
+  extractedExperiment_succProbability_le_structuredClaw_on F G embed (fun _ => True)
+    hembed.injOn target htarget S B fun _ _ => ⟨trivial, fun _ _ => trivial⟩
 
-/-- **Extracted-model VOLE-ACT-MQ credit conservation.** Under an injective embedding
-`actEmbed encodeState refundEmbed`, any adversary winning the extracted VOLE-ACT credit-conservation
-game against `(actCom F G encodeState, actTag refundEmbed, S)` either yields a win in the
-structured-target one-more claw-freeness game via `clawReduction … (noteForger … A)`, yields a
-`G`-collision via `gCollisionReduction`, or encounters an invalid issuer reply (probability zero
-when `S.Correct` holds). -/
+private def boundedNoteForgerHandler
+    {Nullifier Context Opening Commitment : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    (bound : ℕ) (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig) (pk : PK)
+    (req : Conservation.Request Nullifier Context Opening Commitment Sig) :
+    StateT (List (Conservation.Request Nullifier Context Opening Commitment Sig))
+      (ProbOracleComp (fun _ : Payload (Credit.Note Nullifier Context) Opening => Sig))
+      (Option Sig) :=
+  fun accepted =>
+    if requestInRange bound req then
+      Conservation.noteForgerHandler com tag S pk req accepted
+    else
+      pure (none, accepted)
+
+private theorem actMQConservationExperiment_zero_eq_pure_false
+    {Nullifier Context Opening Commitment : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (A : Conservation.ExtractedAdversary Nullifier Context Opening Commitment PK Sig) :
+    ProbComp.eval (actMQConservationExperiment 0 com tag S A) = PMF.pure false := by
+  simp only [actMQConservationExperiment, Conservation.extractedConservationExperiment,
+    Conservation.runExtractedConservation, ProbComp.eval_map]
+  apply Probability.PMF.map_eq_pure_iff.mpr
+  intro run hrun
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_pure_iff] at hrun
+  obtain ⟨keys, -, res, hres, rfl⟩ := hrun
+  have hnil : res.2 = [] := by
+    dsimp only [rangeBoundedAdversary] at hres
+    rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState, ProbOracleComp.runWith_simulate]
+      at hres
+    refine ProbOracleComp.runWith_invariant _ (fun log => log = []) ?_ (A keys.1) [] rfl
+      res.1 res.2 hres
+    intro req log rfl a log' hstep
+    have hfalse : requestInRange (Opening := Opening) (Commitment := Commitment)
+        (Sig := Sig) 0 req = false := by
+      cases req <;> simp [requestInRange]
+    simp only [hfalse, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
+      PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
+    exact hstep.2
+  simp [Conservation.extractedConservationAccept, hnil, Conservation.spentDebit,
+    Conservation.spendsIn, Conservation.spends]
+
+private theorem noteForger_rangeBoundedAdversary_support
+    {Nullifier Context Opening Commitment : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
+    (bound : ℕ) (hbound : 0 < bound)
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (target : Credit.Note Nullifier Context → Opening → Target)
+    (A : Conservation.ExtractedAdversary Nullifier Context Opening Commitment PK Sig)
+    {run : Execution PK (Credit.Note Nullifier Context) Opening Sig}
+    (hrun : run ∈ (ProbComp.eval (runExtracted S target
+      (Conservation.noteForger com tag S (rangeBoundedAdversary bound A)))).support) :
+    NoteInRange bound run.output.payload.message ∧
+      ∀ entry ∈ run.log, NoteInRange bound entry.1.message := by
+  simp only [runExtracted, Conservation.noteForger, rangeBoundedAdversary, ProbComp.eval_bind,
+    ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hrun
+  obtain ⟨keys, -, result, hres, rfl⟩ := hrun
+  simp only [ProbOracleComp.runLog, ProbOracleComp.runState_bind, ProbOracleComp.runState_pure,
+    StateT.run_bind, StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hres
+  obtain ⟨⟨⟨_, accepted⟩, outerLog⟩, hcomp, rfl⟩ := hres
+  have hsimp :
+      ((OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
+          (Conservation.noteForgerHandler com tag S keys.1))
+        (ProbOracleComp.simulate
+          (fun req => if requestInRange bound req then ProbOracleComp.query req else pure none)
+          (A keys.1)))).run [] =
+        (OracleComp.interpret
+          (OracleComp.sumHandler
+            (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
+            (boundedNoteForgerHandler bound com tag S keys.1))
+          (A keys.1)).run [] := by
+    rw [ProbOracleComp.interpret_simulate]
+    have hhandler :
+        (fun req => OracleComp.interpret
+          (OracleComp.sumHandler
+            (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
+            (Conservation.noteForgerHandler com tag S keys.1))
+          (if requestInRange bound req then ProbOracleComp.query req else pure none)) =
+          boundedNoteForgerHandler bound com tag S keys.1 := by
+      funext req acc
+      by_cases h : requestInRange bound req = true
+      · simp [h, boundedNoteForgerHandler]
+      · simp only [h, Bool.false_eq_true, ↓reduceIte, boundedNoteForgerHandler,
+          OracleComp.interpret_pure]
+        rfl
+    rw [hhandler]
+  rw [hsimp, ProbOracleComp.eval_runState, ProbOracleComp.runWith_run_interpret,
+    PMF.mem_support_map_iff] at hcomp
+  obtain ⟨⟨_, accepted', outerLog'⟩, hcomp', heq⟩ := hcomp
+  dsimp only at heq
+  obtain ⟨hpair, rfl⟩ := Prod.mk.inj heq
+  obtain ⟨_, rfl⟩ := Prod.mk.inj hpair
+  have hinv :
+      (∀ r ∈ accepted', requestInRange bound r = true) ∧
+        ∀ e ∈ outerLog', NoteInRange bound e.1.message := by
+    refine ProbOracleComp.runWith_invariant _
+      (fun st : List (Conservation.Request Nullifier Context Opening Commitment Sig) ×
+          List (Payload (Credit.Note Nullifier Context) Opening × Sig) =>
+        (∀ r ∈ st.1, requestInRange bound r = true) ∧
+          ∀ e ∈ st.2, NoteInRange bound e.1.message)
+      (fun req st ⟨hacc, hlog⟩ a st' hstep => ?_)
+      (A keys.1) ([], []) ⟨by simp, by simp⟩ _ _ hcomp'
+    obtain ⟨⟨⟨a', acc'⟩, log'⟩, hinner, hwrap⟩ := (PMF.mem_support_map_iff _ _ _).mp hstep
+    dsimp only at hwrap
+    obtain ⟨_, rfl⟩ := Prod.mk.inj hwrap
+    simp only [boundedNoteForgerHandler, StateT.run] at hinner
+    by_cases hrange : requestInRange bound req = true
+    · simp only [hrange, ↓reduceIte, Conservation.noteForgerHandler] at hinner
+      split_ifs at hinner
+      · simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+          ProbOracleComp.runWith_pure, ProbComp.eval_map, PMF.mem_support_bind_iff,
+          PMF.mem_support_map_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hinner
+        obtain ⟨⟨_, midLog⟩, ⟨σ, -, rfl, rfl⟩, ⟨-, rfl⟩, rfl⟩ := hinner
+        refine ⟨fun r hr_mem => ?_, fun e he_mem => ?_⟩
+        · rcases List.mem_append.mp hr_mem with hr_mem | hr_mem
+          · exact hacc r hr_mem
+          · exact List.mem_singleton.mp hr_mem ▸ hrange
+        · rcases List.mem_append.mp he_mem with he_mem | he_mem
+          · exact hlog e he_mem
+          · obtain rfl := List.mem_singleton.mp he_mem
+            cases req with
+            | issue ir =>
+              simp only [requestInRange, decide_eq_true_eq] at hrange
+              exact ⟨hrange.1, hrange.2⟩
+            | spend sr =>
+              simp only [requestInRange, decide_eq_true_eq] at hrange
+              exact ⟨hrange.2.2.1, hrange.2.2.2.1⟩
+      · simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hinner
+        obtain ⟨⟨-, rfl⟩, rfl⟩ := hinner
+        exact ⟨hacc, hlog⟩
+    · simp only [hrange, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
+        PMF.mem_support_pure_iff, Prod.mk.injEq] at hinner
+      obtain ⟨⟨-, rfl⟩, rfl⟩ := hinner
+      exact ⟨hacc, hlog⟩
+  refine ⟨?_, hinv.2⟩
+  cases hfn : Conservation.findNoteForgery accepted' with
+  | none =>
+    exact ⟨hbound, hbound⟩
+  | some tok =>
+    simp only [Conservation.findNoteForgery, List.findSome?_eq_some_iff] at hfn
+    obtain ⟨_, s, _, hsp, hfound, _⟩ := hfn
+    by_cases hmem : s.inputNote ∈ accepted'.map (fun r => r.outputPayload.message)
+    · simp [hmem] at hfound
+    · simp only [hmem, ↓reduceIte, Option.some.injEq] at hfound
+      subst hfound
+      have hs_spends : s ∈ Conservation.spends accepted' := by rw [hsp]; simp
+      have hs_acc : Conservation.Request.spend s ∈ accepted' := by
+        simp only [Conservation.spends, List.mem_filterMap] at hs_spends
+        obtain ⟨r, hr, hsome⟩ := hs_spends
+        cases r with
+        | issue _ => simp at hsome
+        | spend sr => cases hsome; exact hr
+      have hsr := hinv.1 _ hs_acc
+      simp only [requestInRange, decide_eq_true_eq] at hsr
+      exact ⟨hsr.1, hsr.2.1⟩
+
+/-- **Range-bounded extracted VOLE-ACT-MQ credit conservation.** Under `Set.InjOn` of
+`actEmbed encodeState refundEmbed` on notes satisfying `NoteInRange bound` (which holds over finite
+fields `𝔽_q` when `bound ≤ q`, unlike unbounded `Function.Injective`), any adversary winning
+`actMQConservationExperiment bound` yields a win in `clawExperiment`, a `G`-collision via
+`gCollisionReduction`, or an invalid issuer reply (zero when `S.Correct`). -/
 theorem actMQConservation_succProbability_le
+    {Nullifier Context : Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Message] [DecidableEq Tail]
+    [DecidableEq R] [AddCommGroup Message]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited R] [Inhabited Sig]
+    (bound : ℕ) (F : R → Message) (G : R → Tail)
+    (encodeState : Nullifier → Context → ℕ → Message) (refundEmbed : ℕ → Message)
+    (hembed : Set.InjOn (actEmbed encodeState refundEmbed)
+      {note : Credit.Note Nullifier Context | NoteInRange bound note})
+    (S : Signature.Scheme PK SK (Message × Tail) Sig)
+    (A : Conservation.ExtractedAdversary Nullifier Context R (Message × Tail) PK Sig) :
+    Experiment.succProbability
+        (actMQConservationExperiment bound (actCom F G encodeState) (actTag refundEmbed) S A) ≤
+      Experiment.succProbability
+          (clawExperiment S (UOV.structuredTarget F G)
+            (clawReduction S (UOV.structuredTarget F G) (actEmbed encodeState refundEmbed)
+              (Conservation.noteForger (actCom F G encodeState) (actTag refundEmbed) S
+                (rangeBoundedAdversary bound A)))) +
+        Experiment.succProbability
+          (gCollisionExperiment G
+            (gCollisionReduction S (Credit.target (actCom F G encodeState) (actTag refundEmbed))
+              (Conservation.noteForger (actCom F G encodeState) (actTag refundEmbed) S
+                (rangeBoundedAdversary bound A)))) +
+        Experiment.succProbability
+          (invalidReplyExperiment S (Credit.target (actCom F G encodeState) (actTag refundEmbed))
+            (Conservation.noteForger (actCom F G encodeState) (actTag refundEmbed) S
+              (rangeBoundedAdversary bound A))) := by
+  by_cases hbound : bound = 0
+  · subst hbound
+    have hzero :
+        Experiment.succProbability
+            (actMQConservationExperiment 0 (actCom F G encodeState) (actTag refundEmbed) S A) =
+          0 := by
+      simp [Experiment.succProbability, Game.succProbability,
+        actMQConservationExperiment_zero_eq_pure_false]
+    rw [hzero]
+    exact bot_le
+  · have hpos : 0 < bound := Nat.pos_of_ne_zero hbound
+    refine (Conservation.extractedConservationExperiment_succProbability_le_extractedExperiment
+      (actCom F G encodeState) (actTag refundEmbed) S (rangeBoundedAdversary bound A)).trans ?_
+    exact extractedExperiment_succProbability_le_structuredClaw_on F G
+      (actEmbed encodeState refundEmbed) (NoteInRange bound) hembed
+      (Credit.target (actCom F G encodeState) (actTag refundEmbed))
+      (credit_target_actCom_actTag F G encodeState refundEmbed) S
+      (Conservation.noteForger (actCom F G encodeState) (actTag refundEmbed) S
+        (rangeBoundedAdversary bound A))
+      fun run hrun => noteForger_rangeBoundedAdversary_support bound hpos
+        (actCom F G encodeState) (actTag refundEmbed) S _ A hrun
+
+/-- Unbounded-note corollary of `extractedExperiment_succProbability_le_structuredClaw`: assumes
+global `Function.Injective (actEmbed encodeState refundEmbed)`, which forces `Message` to be
+infinite (since `Credit.Note.credit, refund : ℕ`). -/
+theorem actMQConservation_unbounded_succProbability_le
     {Nullifier Context : Type}
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Message] [DecidableEq Tail]
     [DecidableEq R] [AddCommGroup Message]
@@ -817,17 +1200,19 @@ theorem actMQClawReduction_queryBound
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Message] [DecidableEq Tail]
     [AddCommGroup Message]
     [Inhabited Nullifier] [Inhabited Context] [Inhabited R] [Inhabited Sig]
-    (F : R → Message) (G : R → Tail)
+    (bound : ℕ) (F : R → Message) (G : R → Tail)
     (encodeState : Nullifier → Context → ℕ → Message) (refundEmbed : ℕ → Message)
     (S : Signature.Scheme PK SK (Message × Tail) Sig)
     (A : Conservation.ExtractedAdversary Nullifier Context R (Message × Tail) PK Sig)
     (pk : PK) {q : ℕ} (hA : (A pk).IsQueryBounded q) :
     (clawReduction S (UOV.structuredTarget F G) (actEmbed encodeState refundEmbed)
-      (Conservation.noteForger (actCom F G encodeState) (actTag refundEmbed) S A)
-        pk).IsQueryBounded q :=
+      (Conservation.noteForger (actCom F G encodeState) (actTag refundEmbed) S
+        (rangeBoundedAdversary bound A)) pk).IsQueryBounded q :=
   clawReduction_queryBound S (UOV.structuredTarget F G) (actEmbed encodeState refundEmbed)
-    (Conservation.noteForger (actCom F G encodeState) (actTag refundEmbed) S A) pk
-    (Conservation.noteForger_queryBound (actCom F G encodeState) (actTag refundEmbed) S A pk hA)
+    (Conservation.noteForger (actCom F G encodeState) (actTag refundEmbed) S
+      (rangeBoundedAdversary bound A)) pk
+    (Conservation.noteForger_queryBound (actCom F G encodeState) (actTag refundEmbed) S
+      (rangeBoundedAdversary bound A) pk (rangeBoundedAdversary_queryBound bound A pk hA))
 
 /-! ### Structural adversaries and separations -/
 
@@ -915,9 +1300,9 @@ theorem gCollisionForger_extractedExperiment_eq_pure_true
 
 /-- Separation witness for the `gCollisionExperiment` term: for any `G`-collision `G r₁ = G r₂`,
 forwarding `gCollisionForger` through `clawReduction` returns `[]` on every execution and wins
-`clawExperiment` with probability `0`. Thus `gCollisionExperiment` cannot be dropped from
-`extractedExperiment_succProbability_le_structuredClaw` or `actMQConservation_succProbability_le`.
--/
+`clawExperiment` with probability `0`. Thus `gCollisionExperiment` cannot be dropped for
+`clawReduction` from `extractedExperiment_succProbability_le_structuredClaw` or
+`actMQConservation_succProbability_le`. -/
 theorem clawExperiment_clawReduction_gCollisionForger_eq_pure_false
     [DecidableEq Message] [DecidableEq Tail] [AddCommGroup Message]
     (S : Signature.Scheme PK SK (Message × Tail) Sig)
@@ -952,56 +1337,12 @@ theorem zeroOpeningClawAttack_queryBound {K : Type} [Mul K] [SMul K Message] [Ze
   ProbOracleComp.IsQueryBounded.query_bind_pure ((μ, (0 : R)) : Message × R) fun σ =>
     scalars.map fun a => (⟨(a * a) • μ, (0 : R), scaleSig a σ⟩ : ClawClaim Message R Sig)
 
-/-- Scaling a valid raw preimage under a homogeneous quadratic map when `F 0 = 0` and `G 0 = 0`
-yields a valid preimage for `(a * a) • μ` at opening `0`. -/
-theorem verify_scale_of_quadratic {K X : Type} [Field K] [AddCommGroup X] [Module K X]
-    [AddCommGroup Message] [Module K Message] [AddCommGroup Tail] [Module K Tail] [Zero R]
-    [DecidableEq Message] [DecidableEq Tail]
-    (pubMap : PK → QuadraticMap K X (Message × Tail))
-    (S : Signature.Scheme PK SK (Message × Tail) X)
-    (hver : ∀ pk target s, S.verify pk target s = decide (pubMap pk s = target))
-    (F : R → Message) (G : R → Tail) (hF : F 0 = 0) (hG : G 0 = 0)
-    {pk : PK} {μ : Message} {s : X} (hs : S.verify pk (UOV.structuredTarget F G μ 0) s = true)
-    (a : K) :
-    S.verify pk (UOV.structuredTarget F G ((a * a) • μ) 0) (a • s) = true := by
-  rw [hver] at hs ⊢
-  have hs' := of_decide_eq_true hs
-  apply decide_eq_true
-  rw [(pubMap pk).map_smul, hs']
-  simp [UOV.structuredTarget, hF, hG, mul_smul]
-
-/-- Optional-preimage (`Option X`) scaling helper matching `UOV.idealRawScheme`: scaling with
-`Option.map (a • ·)` preserves validity under a homogeneous quadratic verifier when `F 0 = 0` and
-`G 0 = 0`. -/
-theorem verify_scale_option_of_quadratic {K X : Type} [Field K] [AddCommGroup X] [Module K X]
-    [AddCommGroup Message] [Module K Message] [AddCommGroup Tail] [Module K Tail] [Zero R]
-    [DecidableEq Message] [DecidableEq Tail]
-    (pubMap : PK → QuadraticMap K X (Message × Tail))
-    (S : Signature.Scheme PK SK (Message × Tail) (Option X))
-    (hver : ∀ pk target opt, S.verify pk target opt =
-      match opt with | none => false | some s => decide (pubMap pk s = target))
-    (F : R → Message) (G : R → Tail) (hF : F 0 = 0) (hG : G 0 = 0)
-    {pk : PK} {μ : Message} {opt : Option X}
-    (hopt : S.verify pk (UOV.structuredTarget F G μ 0) opt = true) (a : K) :
-    S.verify pk (UOV.structuredTarget F G ((a * a) • μ) 0) (Option.map (a • ·) opt) = true := by
-  cases opt with
-  | none =>
-    rw [hver] at hopt
-    simp at hopt
-  | some s =>
-    rw [hver] at hopt ⊢
-    dsimp only [Option.map_some]
-    have hs' := of_decide_eq_true hopt
-    apply decide_eq_true
-    rw [(pubMap pk).map_smul, hs']
-    simp [UOV.structuredTarget, hF, hG, mul_smul]
-
 /-- When `F 0 = 0`, `μ ≠ 0`, and `scalars` contains at least two elements with pairwise distinct
-squares whose scaled oracle replies verify (as furnished by `verify_scale_of_quadratic` /
-`verify_scale_option_of_quadratic` whenever `F 0 = 0` and `G 0 = 0`), `zeroOpeningClawAttack` wins
-`clawExperiment` with probability `1` using a single query ([VOLEACT2026],
+squares whose scaled oracle replies verify (as furnished by `UOV.verify_scale_of_quadratic` /
+`UOV.verify_scale_option_of_quadratic` whenever `F 0 = 0` and `G 0 = 0`), `zeroOpeningClawAttack`
+wins `clawExperiment` with probability `1` using a single query ([VOLEACT2026],
 `#mq-zero-opening-forgery`). -/
-theorem zeroOpeningClawAttack_eval_eq_pure_true {K : Type} [Field K]
+theorem clawExperiment_zeroOpeningClawAttack_eq_pure_true {K : Type} [Field K]
     [AddCommGroup Message] [Module K Message] [DecidableEq Message] [DecidableEq Tail] [Zero R]
     (S : Signature.Scheme PK SK (Message × Tail) Sig)
     (F : R → Message) (G : R → Tail) (hF : F 0 = 0)
@@ -1055,7 +1396,7 @@ theorem zeroOpeningClawAttack_eval_eq_pure_true {K : Type} [Field K]
 
 /-- Corollary: `zeroOpeningClawAttack` achieves `Experiment.succProbability = 1` under the same
 hypotheses. -/
-theorem zeroOpeningClawAttack_succProbability_eq_one {K : Type} [Field K]
+theorem clawExperiment_zeroOpeningClawAttack_succProbability_eq_one {K : Type} [Field K]
     [AddCommGroup Message] [Module K Message] [DecidableEq Message] [DecidableEq Tail] [Zero R]
     (S : Signature.Scheme PK SK (Message × Tail) Sig)
     (F : R → Message) (G : R → Tail) (hF : F 0 = 0)
@@ -1069,9 +1410,52 @@ theorem zeroOpeningClawAttack_succProbability_eq_one {K : Type} [Field K]
     Experiment.succProbability
         (clawExperiment S (UOV.structuredTarget F G)
           (zeroOpeningClawAttack scaleSig scalars μ)) = 1 := by
-  have hev := zeroOpeningClawAttack_eval_eq_pure_true S F G hF scaleSig scalars hlen hnodup μ
-    hμ hverify
+  have hev := clawExperiment_zeroOpeningClawAttack_eq_pure_true S F G hF scaleSig scalars hlen
+    hnodup μ hμ hverify
   simp [Experiment.succProbability, Game.succProbability, hev]
+
+/-- Composed zero-opening scaling attack (`Sig = X`): when `S` is a correct homogeneous quadratic
+scheme and both `F 0 = 0` and `G 0 = 0`, `zeroOpeningClawAttack` breaks `clawExperiment` with
+probability `1` ([VOLEACT2026], `#mq-zero-opening-forgery`). -/
+theorem clawExperiment_zeroOpeningClawAttack_eq_pure_true_of_quadratic
+    {K X : Type} [Field K] [AddCommGroup X] [Module K X]
+    [AddCommGroup Message] [Module K Message] [AddCommGroup Tail] [Module K Tail] [Zero R]
+    [DecidableEq Message] [DecidableEq Tail]
+    (pubMap : PK → QuadraticMap K X (Message × Tail))
+    (S : Signature.Scheme PK SK (Message × Tail) X) (hS : S.Correct)
+    (hver : ∀ pk target s, S.verify pk target s = decide (pubMap pk s = target))
+    (F : R → Message) (G : R → Tail) (hF : F 0 = 0) (hG : G 0 = 0)
+    (scalars : List K) (hlen : 2 ≤ scalars.length)
+    (hnodup : (scalars.map fun a => a * a).Nodup) (μ : Message) (hμ : μ ≠ 0) :
+    ProbComp.eval
+        (clawExperiment S (UOV.structuredTarget F G)
+          (zeroOpeningClawAttack (fun a s => a • s) scalars μ)) =
+      PMF.pure true :=
+  clawExperiment_zeroOpeningClawAttack_eq_pure_true S F G hF _ scalars hlen hnodup μ hμ
+    fun keys hkeys σ hσ a _ =>
+      UOV.verify_scale_of_quadratic pubMap S hver F G hF hG (hS keys hkeys _ σ hσ) a
+
+/-- Optional-preimage (`Sig = Option X`, matching the verifier shape of `UOV.idealRawScheme`)
+counterpart of `clawExperiment_zeroOpeningClawAttack_eq_pure_true_of_quadratic`. -/
+theorem clawExperiment_zeroOpeningClawAttack_option_eq_pure_true_of_quadratic
+    {K X : Type} [Field K] [AddCommGroup X] [Module K X]
+    [AddCommGroup Message] [Module K Message] [AddCommGroup Tail] [Module K Tail] [Zero R]
+    [DecidableEq Message] [DecidableEq Tail]
+    (pubMap : PK → QuadraticMap K X (Message × Tail))
+    (S : Signature.Scheme PK SK (Message × Tail) (Option X)) (hS : S.Correct)
+    (hver : ∀ pk target opt,
+      S.verify pk target opt =
+        match opt with | none => false | some s => decide (pubMap pk s = target))
+    (F : R → Message) (G : R → Tail) (hF : F 0 = 0) (hG : G 0 = 0)
+    (scalars : List K) (hlen : 2 ≤ scalars.length)
+    (hnodup : (scalars.map fun a => a * a).Nodup) (μ : Message) (hμ : μ ≠ 0) :
+    ProbComp.eval
+        (clawExperiment S (UOV.structuredTarget F G)
+          (zeroOpeningClawAttack (fun a => Option.map (a • ·)) scalars μ)) =
+      PMF.pure true :=
+  clawExperiment_zeroOpeningClawAttack_eq_pure_true S F G hF _ scalars hlen hnodup μ hμ
+    fun keys hkeys opt hopt a _ =>
+      UOV.verify_scale_option_of_quadratic pubMap S hver F G hF hG (hS keys hkeys _ opt hopt) a
 
 private theorem exists_sq_ne_one_of_nodup {K : Type} [Mul K] [One K]
     {scalars : List K} (hlen : 2 ≤ scalars.length) (hnodup : (scalars.map fun a => a * a).Nodup) :
