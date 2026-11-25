@@ -62,8 +62,7 @@ theorem exec_node_return {w L f a0 b0 d N k : ℕ} (x : Data registers)
       Modifies (nodeWrites L f d) x.mem y.mem := by
   have hpow : 1 ≤ (10 : ℕ) ^ L := Nat.one_le_pow L _ (by decide)
   have hL : L + 1 ≤ (L + 1) * 10 ^ L := by nlinarith only [hpow]
-  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L :=
-    Nat.mul_le_mul_right _ (by omega)
+  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.mul_le_mul_right _ (by omega)
   let vb := f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L
   obtain ⟨u, hu, humem, huf', huc, _, _, hut, hul', (huv' : u.regs valueBase = vb), _, _,
       huch', hureg⟩ := hregs.exec_loadFrame hd hdL.le hw
@@ -112,10 +111,8 @@ theorem exec_node_return {w L f a0 b0 d N k : ℕ} (x : Data registers)
     · have hmem : vb + input i ∈ written := mem_image.mpr
         ⟨i, mem_filter.mpr ⟨mem_range.mpr hi, hsel⟩, rfl⟩
       simp only [piecewise, hmem, hsel, ↓reduceIte, Nat.add_sub_cancel_left]
-    · have hmem : vb + input i ∉ written := by
-        rintro h
-        obtain ⟨j, hj, hji⟩ := mem_image.mp h
-        exact hsel (Nat.add_left_cancel hji ▸ (mem_filter.mp hj).2)
+    · have hmem : vb + input i ∉ written := fun h =>
+        let ⟨_, hj, hji⟩ := mem_image.mp h; hsel (Nat.add_left_cancel hji ▸ (mem_filter.mp hj).2)
       simpa only [piecewise, hmem, hsel, ↓reduceIte, add_zero] using hparent i hi
   · intro j hj
     rw [hymem, hvf, Function.update_of_ne (by omega : f + 4 * d + j ≠ f + 4 * d + 3)]
@@ -127,8 +124,7 @@ theorem exec_node_return {w L f a0 b0 d N k : ℕ} (x : Data registers)
       (hvframe _ (by simp only [Block.mem_footprint, Block.Owns]; omega))
   · intro c hc
     refine (hvframe.trans hyframe) c fun hc' => hc ?_
-    have hrem : 1 ≤ L + 1 - d := by omega
-    have hlen := Nat.mul_le_mul_right (10 ^ L) hrem
+    have hlen := Nat.mul_le_mul_right (10 ^ L) (by omega : 1 ≤ L + 1 - d)
     simp only [nodeWrites, mem_union, Block.mem_footprint, Block.Owns] at hc' ⊢
     rcases hc' with hc' | hc'
     · exact Or.inl (Or.inr ⟨hc'.1, by dsimp [vb] at hc' ⊢; omega⟩)
