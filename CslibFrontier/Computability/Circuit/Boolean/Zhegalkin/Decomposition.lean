@@ -222,30 +222,22 @@ private theorem progDecomp_and {n g k : ℕ} {q : Program signature n g}
         split_ifs <;> exact Fin.snoc_last _ _)
       (fun j hle => by
         simp only [Fin.val_castSucc] at hle
-        have hr : r.1 < 2 * k := by
-          have hj : j.1 < k := j.isLt
-          omega
+        have hr : r.1 < 2 * k := by have := j.isLt; omega
         dsimp only [aG']
         simp only [hr, ↓reduceDIte, Fin.snoc_castSucc]
         exact ih.causal ⟨r.1, hr⟩ j hle)
     gFn_eq := fun i x => ?_
     trace_eq := fun w x => ?_ }⟩
   · refine Fin.lastCases ?_ (fun j => ?_) i
-    · have h0_not : ¬ (2 * k < 2 * k) := by omega
-      have h1_not : ¬ (2 * k + 1 < 2 * k) := by omega
+    · have h1_not : ¬ (2 * k + 1 < 2 * k) := by omega
       have h1_ne : 2 * k + 1 ≠ 2 * k := by omega
       dsimp only [gFn', cH', aX', aG']
-      simp only [Fin.snoc_last, Fin.val_last, h0_not, h1_not, h1_ne, ↓reduceDIte, ↓reduceIte,
+      simp only [Fin.snoc_last, Fin.val_last, lt_irrefl, h1_not, h1_ne, ↓reduceDIte, ↓reduceIte,
         linForm_snoc_false, ← ih.trace_eq u₀ x, ← ih.trace_eq u₁ x]
       rfl
-    · have hj0 : 2 * j.castSucc.1 < 2 * k := by
-        have := j.isLt
-        simp only [Fin.val_castSucc]
-        omega
-      have hj1 : 2 * j.castSucc.1 + 1 < 2 * k := by
-        have := j.isLt
-        simp only [Fin.val_castSucc]
-        omega
+    · have hj : j.castSucc.1 < k := j.isLt
+      have hj0 : 2 * j.castSucc.1 < 2 * k := by omega
+      have hj1 : 2 * j.castSucc.1 + 1 < 2 * k := by omega
       dsimp only [gFn', cH', aX', aG']
       simp only [Fin.snoc_castSucc, hj0, hj1, ↓reduceDIte, linForm_snoc_false]
       exact ih.gFn_eq j x
