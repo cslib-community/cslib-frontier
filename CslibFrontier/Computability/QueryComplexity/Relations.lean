@@ -143,6 +143,7 @@ private theorem isCertificate_biUnion_of_maximal {F : Finset (Block n)}
     IsCertificate f x (F.biUnion id) := by
   intro y hy
   by_contra hne
+  -- the coordinates on which `y` differs from `x` form a sensitive block outside the family
   have hB : IsSensitiveBlock f x ({i | y i ≠ x i} : Finset (Fin n)) := by
     rwa [IsSensitiveBlock, flipBlock_filter_ne]
   obtain ⟨C, hCsub, hC⟩ := hB.exists_isMinimalSensitiveBlock_subset
@@ -151,6 +152,7 @@ private theorem isCertificate_biUnion_of_maximal {F : Finset (Block n)}
   have hCF : C ∉ F := fun hCF => by
     obtain ⟨_, hi⟩ := hC.1.nonempty
     exact disjoint_left.1 (hdisj C hCF) hi hi
+  -- adding it gives a larger family
   have := hmax _ (hF.insert hC.1 hdisj) fun B hB => (mem_insert.1 hB).elim (· ▸ hC) (hmin B)
   rw [card_insert_of_notMem hCF] at this
   omega
@@ -160,6 +162,7 @@ theorem certificateComplexityAt_le_sensitivityFor_mul_blockSensitivityAt (f : Bo
     (x : BitString n) :
     certificateComplexityAt f x ≤ sensitivityFor f (!f x) * blockSensitivityAt f x := by
   classical
+  -- a largest family of pairwise disjoint minimal sensitive blocks
   obtain ⟨F, hF, hmax⟩ := exists_max_image
     ((sensitiveFamilies f x).filter fun F => ∀ B ∈ F, IsMinimalSensitiveBlock f x B) card
     ⟨∅, mem_filter.2 ⟨mem_sensitiveFamilies.2 ⟨by simp, by simp⟩, by simp⟩⟩
@@ -219,6 +222,7 @@ theorem blockSensitivityAt_comp_piecewise_add_one_le {S B₀ : Finset (Fin n)}
   obtain ⟨F, hF, hFcard⟩ := exists_mem_eq_sup (sensitiveFamilies (fun y => f (S.piecewise a y)) z)
     ⟨∅, mem_sensitiveFamilies.2 ⟨by simp, by simp⟩⟩ card
   rw [mem_sensitiveFamilies] at hF
+  -- the blocks of `F` keep their free coordinates
   have hsens (B : Block n) (hB : B ∈ F) : IsSensitiveBlock f (S.piecewise a z) (B \ S) := by
     simpa only [IsSensitiveBlock, piecewise_flipBlock] using hF.1 B hB
   have hinj : Set.InjOn (· \ S) (F : Set (Block n)) :=
@@ -289,6 +293,7 @@ theorem complexity_le_blockSensitivityFor_mul_certificateComplexityFor (f : Bool
   induction m with
   | zero =>
     intro f hf
+    -- with `bs₀(f) = 0`, no block is sensitive at an input of value `0`
     refine (complexity_eq_zero_iff.2 fun x y => by_contra fun hxy => ?_).trans_le (Nat.zero_le _)
     wlog hx : f x = false generalizing x y
     · exact this y x (Ne.symm hxy) (by simpa [hx] using hxy)
@@ -306,6 +311,7 @@ theorem complexity_le_blockSensitivityFor_mul_certificateComplexityFor (f : Bool
     by_cases h1 : ∃ x, f x = true
     · obtain ⟨w, hw⟩ := h1
       obtain ⟨S, hS, hScard⟩ := exists_isCertificate_card_eq f w
+      -- query the certificate of `w`, then continue with a tree for the restricted function
       refine (complexity_le_card_add S (d := m * certificateComplexityFor f true) fun a =>
         (ih _ (blockSensitivityFor_comp_piecewise_false_le hS hw a hf)).trans
           (Nat.mul_le_mul_left m (certificateComplexityFor_restrict_le S a true))).trans ?_

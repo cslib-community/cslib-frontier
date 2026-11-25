@@ -228,7 +228,8 @@ private theorem retract_adj (w : Fin G.n) (a b : Fin (chainInstance G).n)
   change entry G a b = true at hab
   unfold entry at hab
   split_ifs at hab with hin
-  · obtain ⟨ha2, hb2, hcopy⟩ := hin
+  · -- an edge within a copy
+    obtain ⟨ha2, hb2, hcopy⟩ := hin
     obtain ⟨-, hva, -⟩ := eq_copyVertex ha2 a.isLt
     obtain ⟨-, hvb, -⟩ := eq_copyVertex hb2 b.isLt
     by_cases hw : copy G.n a = w
@@ -241,7 +242,8 @@ private theorem retract_adj (w : Fin G.n) (a b : Fin (chainInstance G).n)
     · refine Or.inl (Fin.ext ?_)
       rw [val_retract, val_retract]
       split_ifs <;> omega
-  · refine Or.inl ?_
+  · -- an edge between steps
+    refine Or.inl ?_
     have key (r c : Fin (chainInstance G).n) (hl : Link G.n r c) :
         retract G w r = retract G w c := by
       have := w.isLt
@@ -262,7 +264,8 @@ private theorem retract_adj (w : Fin G.n) (a b : Fin (chainInstance G).n)
 theorem chainInstance_mem_iff : chainInstance G ∈ USTCON ↔ G ∈ UCONN := by
   rw [mem_UCONN]
   refine ⟨fun hst a b => ?_, fun hG => ?_⟩
-  · have h0 (w : Fin G.n) : G.graph.Reachable ⟨0, Nat.zero_lt_of_lt w.isLt⟩ w := by
+  · -- the retraction onto the copy `w` maps the path to a walk from `0` to `w`
+    have h0 (w : Fin G.n) : G.graph.Reachable ⟨0, Nat.zero_lt_of_lt w.isLt⟩ w := by
       have h := reachable_map (fun r : Fin (chainInstance G).n => retract G w r)
         (retract_adj G w) hst
       rwa [show retract G w (chainInstance G).s = ⟨0, Nat.zero_lt_of_lt w.isLt⟩ from
@@ -271,7 +274,9 @@ theorem chainInstance_mem_iff : chainInstance G ∈ USTCON ↔ G ∈ UCONN := by
           Fin.ext (by simp [val_retract, chainInstance])] at h
     exact (h0 a).symm.trans (h0 b)
   · rcases Nat.eq_zero_or_pos G.n with hn | hn
-    · exact SimpleGraph.Adj.reachable (show entry G 0 1 = true by simp [entry, Link, hn])
+    · -- no copies: the source and the target are joined
+      exact SimpleGraph.Adj.reachable (show entry G 0 1 = true by simp [entry, Link, hn])
+    -- the source reaches the vertex `v` of the copy `v`, along the copies before
     have hstep (v) (hv : v < G.n) :
         (chainInstance G).graph.Reachable (chainInstance G).s (cv G hv ⟨v, hv⟩) := by
       induction v with

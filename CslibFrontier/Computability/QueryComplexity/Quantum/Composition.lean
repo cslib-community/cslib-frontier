@@ -486,9 +486,11 @@ theorem run_twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ
     (run (twice T U) (twiceInit ψ₀) x (T + T)).ofLp (i, b, w, q) =
       (run U ψ₀ x T).ofLp (i, b, w) * (run U ψ₀ x T).ofLp (QueryBasis.equiv q) := by
   set F := run U ψ₀ x T
+  -- The first run, with the second copy waiting.
   have hfirst (g) : slice g (run (fun s => controlled fun _ : QueryBasis N W => U s)
       (twiceInit ψ₀) x T) = ψ₀.ofLp (QueryBasis.equiv g) • F := by
     rw [slice_run (fun _ s => U s), slice_twiceInit, run_smul]
+  -- The exchange.
   have hswap : run (twice T U) (twiceInit ψ₀) x T = (controlled fun _ => U 0)
       (permute swapCopy (run (fun s => controlled fun _ : QueryBasis N W => U s)
         (twiceInit ψ₀) x T)) := by
@@ -507,6 +509,7 @@ theorem run_twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ
       show swapCopy.symm (i', b', w', g) = (g.index, g.ctrl, g.work, ⟨i', b', w'⟩) from rfl,
       QueryBasis.equiv_apply, mul_comm] using
       congrArg (fun φ => φ.ofLp (g.index, g.ctrl, g.work)) (hfirst ⟨i', b', w'⟩)
+  -- The second run, with the outcome of the first waiting.
   have hsecond : run (twice T U) (twiceInit ψ₀) x (T + T) = run
       (fun r => controlled fun _ : QueryBasis N W =>
         if r = 0 then LinearIsometry.id else U r) (run (twice T U) (twiceInit ψ₀) x T) x T :=
