@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Interactive.GKR.Layered
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # The GKR summand
@@ -80,21 +81,17 @@ theorem sum_castAdd_add_sum_natAdd {k : ℕ} (v : Fin (k + k)) :
   · rw [Finset.sum_eq_single j₀, Finset.sum_eq_zero]
     · simp
     · intro j _
-      simp only [Fin.natAdd_eq_addNat, Fin.ext_iff, Fin.val_addNat, Fin.val_castAdd,
-        ite_eq_right_iff, one_ne_zero, imp_false]
-      omega
+      exact ite_eq_right (by fin_index)
     · intro j _ hj
-      simp [Fin.castAdd_inj, hj]
+      exact ite_eq_right (by fin_index)
     · simp
   · rw [Finset.sum_eq_zero, Finset.sum_eq_single j₀]
     · simp
     · intro j _ hj
-      simp [hj]
+      exact ite_eq_right (by fin_index)
     · simp
     · intro j _
-      simp only [Fin.natAdd_eq_addNat, Fin.ext_iff, Fin.val_addNat, Fin.val_castAdd,
-        ite_eq_right_iff, one_ne_zero, imp_false]
-      omega
+      exact ite_eq_right (by fin_index)
 
 /-- A bit string of length `k + k` is a pair of bit strings of length `k`. -/
 def splitEquiv (k : ℕ) : (Fin (k + k) → Bool) ≃ (Fin k → Bool) × (Fin k → Bool) where

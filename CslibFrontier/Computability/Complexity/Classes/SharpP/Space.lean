@@ -22,6 +22,7 @@ import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import Mathlib.Data.Nat.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -154,11 +155,8 @@ theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α
       (encPair enc (encPair encBits encNat)) (encPair enc (encPair encBits encNat)) := by
     unfold acceptCountStep
     fun_prop
-  have hlen := hr.polyBounded_length
-  simp only [encUnary_apply, List.length_replicate] at hlen
   have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit) hstep
-    (B := fun a => 2 * (enc a).length + 3 * r a + 5)
-    ((((PolyBounded.const 2).mul .self).add ((PolyBounded.const 3).mul hlen)).add (.const 5))
+    (B := fun a => 2 * (enc a).length + 3 * r a + 5) (by growth_poly)
     (fun a j hj => ?_)
   · exact ((ComputableInPolySpace.of_polyTime
       ((ComputableInPolyTime.snd _ _).snd')).comp hit).congr

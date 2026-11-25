@@ -188,13 +188,10 @@ theorem Matches.append_right {w : List (α × Op n Γ)} {p m : ℕ} (h : Matches
     (v : List (α × Op n Γ)) : Matches (w ++ v) p m := by
   have hm := h.lt_length
   obtain ⟨hpm, i, ⟨a, γ, hp⟩, ⟨b, γ', hm'⟩, hk, hnet⟩ := h
-  refine ⟨hpm, i, ⟨a, γ, ?_⟩, ⟨b, γ', ?_⟩, ?_, ?_⟩
-  · rw [List.getElem?_append_left (by omega), hp]
-  · rw [List.getElem?_append_left hm, hm']
-  · rw [List.extract_append_right _ _ (by omega)]
-    exact hk
-  · rw [List.extract_append_right _ _ (by omega)]
-    exact hnet
+  refine ⟨hpm, i, ⟨a, γ, by rwa [List.getElem?_append_left (by omega)]⟩,
+    ⟨b, γ', by rwa [List.getElem?_append_left hm]⟩,
+    by rwa [List.extract_append_right _ _ (by omega)],
+    by rwa [List.extract_append_right _ _ (by omega)]⟩
 
 /-! ## Hole pushes and open holes -/
 
@@ -258,9 +255,7 @@ theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : WellNeste
     | succ p =>
       rw [List.getElem?_cons_succ] at hp
       obtain ⟨m, hm, hf⟩ := ih hp
-      refine ⟨m + 1, (matches_cons_succ _ _ _ _).mpr hm, ?_⟩
-      rw [List.extract_cons_succ]
-      exact hf
+      exact ⟨m + 1, (matches_cons_succ _ _ _ _).mpr hm, by rwa [List.extract_cons_succ]⟩
   | @pushPop a' b j γ' u u' hu _ ih ih' =>
     have e : u ++ (b, Op.pop j γ') :: u' = (u ++ [(b, Op.pop j γ')]) ++ u' := by simp
     have el : (u ++ [(b, Op.pop j γ')]).length = u.length + 1 := by simp

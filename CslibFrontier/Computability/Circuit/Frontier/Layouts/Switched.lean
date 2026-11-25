@@ -133,25 +133,16 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
     rw [hMdef]; push_cast; linarith [Nat.le_ceil (40 / ξ)]
   have hMposR : (0 : ℝ) < M := by exact_mod_cast hMpos
   have hc_lo : (3 / 32 : ℝ) ≤ switchedCoefficient := by
-    unfold switchedCoefficient
-    have hcos_bnd := Real.cos_bound (x := (1 / 2 : ℝ)) (by norm_num)
     have hcos_gt : (5 / 6 : ℝ) ≤ cos (1 / 2) := by
-      have : -(1 / 2 : ℝ) ^ 4 * (5 / 96) ≤ cos (1 / 2) - (1 - (1 / 2) ^ 2 / 2) := by
-        have h := (abs_le.mp hcos_bnd).1
-        linarith
+      have := (abs_le.mp (Real.cos_bound (x := (1 / 2 : ℝ)) (by norm_num))).1
       norm_num at this ⊢
       linarith
     have harc : (1 / 2 : ℝ) ≤ arccos (5 / 6) := by
-      have h0 : (0 : ℝ) ≤ 1 / 2 := by norm_num
-      have hpi : (1 / 2 : ℝ) ≤ π := by linarith [Real.pi_gt_three]
-      rw [← Real.arccos_cos h0 hpi]
+      rw [← Real.arccos_cos (by norm_num : (0 : ℝ) ≤ 1 / 2) (by linarith [Real.pi_gt_three])]
       exact Real.arccos_le_arccos hcos_gt
-    have hpi4 : π < 4 := Real.pi_lt_four
-    have hpi0 : 0 < π := Real.pi_pos
-    have h1 : 3 / (4 * (4 : ℝ)) ≤ 3 / (4 * π) := by
-      gcongr
-    have h2 : 3 / (4 * (4 : ℝ)) * (1 / 2) ≤ 3 / (4 * π) * arccos (5 / 6) :=
-      mul_le_mul h1 harc (by norm_num) (by positivity)
+    have h1 : 3 / (4 * (4 : ℝ)) ≤ 3 / (4 * π) := by gcongr; exact Real.pi_lt_four.le
+    have h2 : 3 / (4 * (4 : ℝ)) * (1 / 2) ≤ 3 / (4 * π) * arccos (5 / 6) := by gcongr
+    unfold switchedCoefficient
     linarith
   refine ⟨q, R, ρ, T, ε, M, hq0, hq1, hρ_pos, hρ_lt.le, hdecay', hTpos, hεpos, hMpos, ?_⟩
   rw [switchedBound]
@@ -160,14 +151,9 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
   have hsqrtpi : 2 ≤ √(2 * π) :=
     (le_sqrt (by norm_num) (by positivity)).mpr (by nlinarith [two_le_pi])
   have hgrid : (T / M) / √(2 * π) ≤ ξ / 4 := by
-    rw [div_le_iff₀ (by positivity)]
-    calc T / (M : ℝ) = 10 / M := rfl
-      _ ≤ ξ / 4 := by
-        rw [div_le_iff₀ hMposR]
-        have := mul_le_mul_of_nonneg_left hMR hξ.le
-        rw [mul_div_cancel₀ _ hξ.ne'] at this
-        linarith
-      _ ≤ ξ / 4 * √(2 * π) := by nlinarith
+    refine (div_le_self (by positivity) (by linarith)).trans ?_
+    rw [show T = 10 from rfl, div_le_iff₀ hMposR]
+    linarith [(div_le_iff₀ hξ).mp hMR]
   have htail : 1 / T ^ 2 + ε + ε ≤ switchedCoefficient + ξ := by
     have : 1 / T ^ 2 = 1 / 100 := by norm_num [T]
     linarith
@@ -196,10 +182,7 @@ theorem exists_width_le_switchedCoefficient {ξ : ℝ} (hξ : 0 < ξ) :
   have hlarge3 : 3 / ε < n :=
     (Nat.le_ceil _).trans_lt (by
       exact_mod_cast lt_of_le_of_lt (le_max_right _ _) hN)
-  have hεn : (3 : ℝ) ≤ ε * n := by
-    have := mul_lt_mul_of_pos_left hlarge3 hε
-    rw [mul_div_cancel₀ _ hε.ne'] at this
-    exact this.le
+  have hεn : (3 : ℝ) ≤ ε * n := ((div_lt_iff₀' hε).mp hlarge3).le
   obtain ⟨e⟩ := (show Nonempty (V ≃ Fin n) from
     ⟨Fintype.equivFinOfCardEq (by simp [n, Nat.card_eq_fintype_card])⟩)
   let H : SimpleGraph (Fin n) := SimpleGraph.comap e.symm G.toSimpleGraph
@@ -207,14 +190,10 @@ theorem exists_width_le_switchedCoefficient {ξ : ℝ} (hξ : 0 < ξ) :
   have hHadj_iff : ∀ u v : Fin n, H.Adj u v ↔ G.toSimpleGraph.Adj (e.symm u) (e.symm v) :=
     fun _ _ => Iff.rfl
   have hHdeg : ∀ v : Fin n, H.degree v ≤ 3 := fun v => by
-    let hiso : G.toSimpleGraph ≃g H :=
-      { toEquiv := e
+    let hiso : H ≃g G.toSimpleGraph :=
+      { toEquiv := e.symm
         map_rel_iff' := fun {a b} => by simp [H] }
-    have hcard : H.degree v = G.toSimpleGraph.degree (e.symm v) := by
-      have h := hiso.degree_eq (e.symm v)
-      change H.degree (e (e.symm v)) = G.toSimpleGraph.degree (e.symm v) at h
-      rwa [e.apply_symm_apply v] at h
-    rw [hcard]
+    rw [← hiso.degree_eq v]
     exact hGdeg.degree_toSimpleGraph_le (e.symm v)
   have hHadj : ∀ u w : Fin n, H.Adj u w →
       ρ ≤ inner ℝ (unitKernelRow H q R u) (unitKernelRow H q R w) := fun u w huw =>
@@ -251,31 +230,16 @@ theorem exists_width_le_switchedCoefficient {ξ : ℝ} (hξ : 0 < ξ) :
     exact (hm.trans (min_le_left _ _)).trans (heT _)
   have hbagV : ∀ t ≤ Tend, (intervalBag (fun v => sH (e v)) (fun v => eH (e v)) t).card ≤
       w + 2 := fun t ht => by
-    have hcard_eq : (intervalBag (fun v => sH (e v)) (fun v => eH (e v)) t).card =
-        (intervalBag sH eH t).card := by
-      refine Finset.card_bij (fun v _ => e v) ?_ ?_ ?_
-      · intro v hv
-        simp only [intervalBag, Finset.mem_filter, Finset.mem_univ, true_and] at hv ⊢
-        exact hv
-      · intro u _ v _ huv; exact e.injective huv
-      · intro x hx
-        refine ⟨e.symm x, ?_, e.apply_symm_apply x⟩
-        simp only [intervalBag, Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
-        simpa using hx
-    rw [hcard_eq]
-    exact hbag t ht
+    refine (Finset.card_equiv e fun v => ?_).trans_le (hbag t ht)
+    simp only [intervalBag, Finset.mem_filter, Finset.mem_univ, true_and]
   obtain ⟨σ, hσ⟩ := exists_width_le_of_intervals G h3 Tend
     (fun v => sH (e v)) (fun v => eH (e v)) hsV heV hedgeV hbagV
   refine ⟨σ, ?_⟩
   have hσR : (G.width σ : ℝ) ≤ (w : ℝ) + 3 := by
     exact_mod_cast (show G.width σ ≤ w + 2 + 1 from hσ)
-  calc (G.width σ : ℝ) ≤ (w : ℝ) + 3 := hσR
-    _ ≤ B + 3 := by linarith
-    _ = switchedBound ρ T ε M * n + 3 := rfl
-    _ ≤ switchedBound ρ T ε M * n + ε * n := by linarith
-    _ = (switchedBound ρ T ε M + ε) * n := by ring
-    _ ≤ (switchedCoefficient + ξ) * n :=
-      mul_le_mul_of_nonneg_right hbound (Nat.cast_nonneg n)
+  calc (G.width σ : ℝ) ≤ B + ε * n := by linarith
+    _ = (switchedBound ρ T ε M + ε) * n := by rw [add_mul]
+    _ ≤ (switchedCoefficient + ξ) * n := by gcongr
 
 /-- **Median-switched Gaussian layouts of cubic graphs.** For every `ξ > 0`, every large enough
 simple cubic graph on `h` vertices has a layout of width at most `(c₃ + ξ) h`, where

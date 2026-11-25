@@ -36,6 +36,8 @@ These are original computational certificates for the existing positional encodi
 
 @[expose] public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+
 namespace Cslib.Logic.PL
 
 open Turing.MultiTapeTM
@@ -107,11 +109,20 @@ private theorem clause_eq_selected (i : ℕ) (c : Clause V) :
     simp [clause, selectedLiteral, List.getD]
 
 @[local fun_prop]
+private theorem computableInPolyTime_aux {α : Type} {encA : α ↪ List Bool}
+    (enc : V ↪ List Bool) {i : α → ℕ} (k : ℕ) (hi : ComputableInPolyTime i encA encUnary) :
+    ComputableInPolyTime (fun a => aux (V := V) (i a) k) encA (encVariable enc) := by
+  unfold aux encVariable
+  fun_prop
+
+@[local fun_prop]
 private theorem computableInPolyTime_selectedLiteral (enc : V ↪ List Bool) (k : ℕ) :
     ComputableInPolyTime (fun p : ℕ × Clause V => selectedLiteral p.1 k p.2)
       (encPair encUnary (encList (encPair enc encBool)))
       (encPair (encVariable enc) encBool) := by
   fun_prop [lift, padding, aux, selectedLiteral]
+
+attribute [local irreducible] encVariable
 
 @[local fun_prop]
 private theorem computableInPolyTime_core (enc : V ↪ List Bool) :
@@ -121,14 +132,14 @@ private theorem computableInPolyTime_core (enc : V ↪ List Bool) :
       (encPair encUnary (encPair (encPair (encVariable enc) encBool)
         (encPair (encPair (encVariable enc) encBool) (encPair (encVariable enc) encBool))))
       (encList (encList (encPair (encVariable enc) encBool))) := by
-  unfold core aux encVariable ExactOneGadget.disjunctionClauses Std.Sat.Literal.negate
+  unfold core ExactOneGadget.disjunctionClauses Std.Sat.Literal.negate
   fun_prop
 
 @[local fun_prop]
 private theorem computableInPolyTime_forcePadding (enc : V ↪ List Bool) (k : ℕ) :
     ComputableInPolyTime (fun i : ℕ => forcePadding (V := V) i k) encUnary
       (encList (encList (encPair (encVariable enc) encBool))) := by
-  unfold forcePadding aux encVariable ExactOneGadget.forceFalseClauses
+  unfold forcePadding ExactOneGadget.forceFalseClauses
   fun_prop
 
 /-- One ordinary-clause replacement is native polynomial-time. -/
@@ -168,13 +179,30 @@ variable {V : Type}
 def encVariable (enc : V ↪ List Bool) : Variable V ↪ List Bool :=
   encSum enc (encPair (encPair encUnary encUnary) encUnary)
 
+@[local fun_prop]
+private theorem computableInPolyTime_inl {α : Type} {encA : α ↪ List Bool}
+    (enc : V ↪ List Bool) {f : α → V} (hf : ComputableInPolyTime f encA enc) :
+    ComputableInPolyTime (fun a => (Sum.inl (f a) : Variable V)) encA (encVariable enc) := by
+  unfold encVariable
+  fun_prop
+
+@[local fun_prop]
+private theorem computableInPolyTime_auxiliary {α : Type} {encA : α ↪ List Bool}
+    (enc : V ↪ List Bool) {i j : α → ℕ} (k : ℕ)
+    (hi : ComputableInPolyTime i encA encUnary) (hj : ComputableInPolyTime j encA encUnary) :
+    ComputableInPolyTime (fun a => auxiliary (V := V) (i a) (j a) k) encA (encVariable enc) := by
+  unfold auxiliary encVariable
+  fun_prop
+
+attribute [local irreducible] encVariable
+
 private theorem computableInPolyTime_positiveLiteral (enc : V ↪ List Bool) :
     ComputableInPolyTime
       (fun p : (ℕ × Clause V) × (Literal V × ℕ) => positiveLiteral p.1.1 p.2.2 p.2.1)
       (encPair (encPair encUnary (encList (encPair enc encBool)))
         (encPair (encPair enc encBool) encUnary))
       (encPair (encVariable enc) encBool) := by
-  unfold positiveLiteral auxiliary encVariable
+  unfold positiveLiteral
   fun_prop
 
 private theorem computableInPolyTime_complementBlock (enc : V ↪ List Bool) :
@@ -183,8 +211,7 @@ private theorem computableInPolyTime_complementBlock (enc : V ↪ List Bool) :
       (encPair (encPair encUnary (encList (encPair enc encBool)))
         (encPair (encPair enc encBool) encUnary))
       (encList (encList (encPair (encVariable enc) encBool))) := by
-  unfold complementBlock auxiliary encVariable
-    ExactOneGadget.complementClauses ExactOneGadget.forceFalseClauses
+  unfold complementBlock ExactOneGadget.complementClauses ExactOneGadget.forceFalseClauses
   fun_prop
 
 private theorem computableInPolyTime_clauseClauses (enc : V ↪ List Bool) :

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Prepare
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.InputLevel
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Program
+import CslibFrontier.Computability.WordRAM.Record
 
 /-!
 # Actual threshold-aware patch of a prepared record's original input
@@ -47,6 +48,9 @@ end PatchReg
   Reg.address ← Reg.base + Reg.payloadLength;
   Reg.depth ← Reg.depth / PatchReg.divisor; *Reg.address ← Reg.depth ]
 
+private theorem patchInput_preserves : ∀ j : Fin 320, j.val < 65 → patchInput.Preserves j := by
+  decide +kernel
+
 /-- The patch executes sixteen instructions and writes exactly three original words. -/
 theorem exec_patchInput {W b m I : ℕ} (x : Data 320)
     (hb : x.regs Reg.base = b) (hm : x.mem (b + 2) = m)
@@ -57,39 +61,16 @@ theorem exec_patchInput {W b m I : ℕ} (x : Data 320)
         b I) (b + I) (m / 9) ∧
       y.regs Reg.base = b ∧
       ∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j := by
-  have hL : Fits W (m * 21) := hfit.of_le (by omega)
-  have hbI : Fits W (b + I) := hfit.of_le (by omega)
-  have hquot : Fits W (m / 9) := hfit.of_le (by omega)
   have hsucc : I - 1 + 1 = I := by omega
   have hne : b ≠ b + 1 := by omega
-  let y := x.set Reg.one 1 |>.set Reg.two 2 |>.set PatchReg.divisor 9
-    |>.set PatchReg.factor 21 |>.set Reg.address (b + 2) |>.set Reg.depth m
-    |>.set Reg.level (m * 21) |>.set Reg.address (b + 1) |>.write (b + 1) (m * 21)
-    |>.set Reg.address b |>.set Reg.payloadLength (I - 1) |>.set Reg.payloadLength I
-    |>.write b I |>.set Reg.address (b + I) |>.set Reg.depth (m / 9)
-    |>.write (b + I) (m / 9)
-  have he : ExecWithin W patchInput x y 16 := by
-    ram_eval [patchInput, y, hb, hm, hlen, hsucc, hL,
-      hbI, hquot, Reg.one, Reg.two, PatchReg.divisor, PatchReg.factor, Reg.address,
-      Reg.base, Reg.depth, Reg.level, Reg.payloadLength, hne, Fin.mk.injEq]
-  refine ⟨y, he, ?_, ?_, ?_⟩
-  · simp only [y, Data.set_mem, Data.write_mem, Nat.mul_comm m 21]
-  · simpa +decide [y, Reg.base, Reg.one, Reg.two, PatchReg.divisor, PatchReg.factor,
-      Reg.address, Reg.depth, Reg.level, Reg.payloadLength, Function.update_apply] using hb
-  · intro j hj
-    have hne (i : Fin 320) (hi : 65 ≤ i.val) : j ≠ i := by
-      intro h
-      subst i
-      omega
-    simp only [y, Data.write_regs, Data.set_regs,
-      Function.update_of_ne (hne Reg.one (by decide)),
-      Function.update_of_ne (hne Reg.two (by decide)),
-      Function.update_of_ne (hne PatchReg.divisor (by decide)),
-      Function.update_of_ne (hne PatchReg.factor (by decide)),
-      Function.update_of_ne (hne Reg.address (by decide)),
-      Function.update_of_ne (hne Reg.depth (by decide)),
-      Function.update_of_ne (hne Reg.level (by decide)),
-      Function.update_of_ne (hne Reg.payloadLength (by decide))]
+  refine WP.exists_execWithin_preserves (fun j hj => patchInput_preserves j hj) ?_
+  unfold patchInput
+  wram_exec [hb, hm, hlen, hsucc, hne]
+  intro hpres
+  refine ⟨?_, by wram_simp [hb], hpres⟩
+  change Function.update (Function.update (Function.update x.mem (b + 1) (m * 21))
+    b I) (b + I) (m / 9) = _
+  rw [Nat.mul_comm m 21]
 
 /-- Patched memory realizes the complete new input, including the appended threshold. -/
 theorem patch_input_readback {b m n : ℕ}

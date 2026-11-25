@@ -241,8 +241,7 @@ theorem idealDistribution_eq_helperDistribution_bind [Fintype Key] [Nonempty Key
       let p ← fe.helperDistribution W
       let u ← PMF.uniformOfFintype Key
       pure (u, p)) := by
-  simp only [idealDistribution, helperDistribution, realDistribution, PMF.monad_bind_eq_bind,
-    PMF.bind_map, PMF.bind_bind, Function.comp_def]
+  simp only [idealDistribution, helperDistribution, realDistribution, pmf_norm]
 
 /-- The real distinguishing experiment on a fixed reading `w`: sample `(r, p) ← Gen(w)` and run
 `D r p`. -/
@@ -284,11 +283,10 @@ theorem realGame_eq_bind (fe : FuzzyExtractor M Key Helper) (W : PMF M)
 theorem idealGame_eq_bind [Fintype Key] [Nonempty Key] (fe : FuzzyExtractor M Key Helper)
     (W : PMF M) (D : Key → Helper → Experiment) :
     fe.idealGame W D = (fe.idealDistribution W).bind fun up => ProbComp.eval (D up.1 up.2) := by
-  simp only [idealGame, Game.withSetup, idealExperiment, idealDistribution,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, ProbComp.eval_bind]
+  simp only [idealGame, Game.withSetup, idealExperiment, idealDistribution, pmf_norm]
   congr 1 with w : 1
   congr 1 with ⟨r, p⟩
-  simp only [ProbComp.eval_uniform, PMF.pure_bind]
+  simp only [ProbComp.eval_uniform]
 
 /-- The distinguishing advantage `δ^D((R, P), (U, P))` of `D` on source `W`
 ([FullerMengReyzin2020], Definition 2.2). -/
@@ -482,9 +480,8 @@ theorem failProbability_reproduceGame_sketchAndExtract_le
       Game.failProbability (ss.recoverGame w w') := by
   simp only [Game.failProbability]
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
-  simp only [FuzzyExtractor.reproduceGame, FuzzyExtractor.reproduceCheck, recoverGame,
-    recoverCheck, sketchAndExtract, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
+  simp only [FuzzyExtractor.reproduceGame, FuzzyExtractor.reproduceCheck, recoverGame, recoverCheck,
+    sketchAndExtract, ProbComp.eval_uniform, pmf_norm]
   refine PMF.bind_apply_mono_on_support _ false fun s _ => ?_
   refine PMF.bind_apply_le_on_support _ fun x _ => ?_
   refine PMF.bind_apply_mono_on_support _ false fun wHat _ => ?_
@@ -536,8 +533,7 @@ theorem realDistribution_sketchAndExtract [Fintype Seed] [Nonempty Seed]
     (ss.sketchAndExtract ext).realDistribution W =
       extractorRealLaw ext (ss.jointSketch W) := by
   simp only [FuzzyExtractor.realDistribution, sketchAndExtract, extractorRealLaw, jointSketch,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+    ProbComp.eval_uniform, pmf_norm]
 
 /-- The ideal distribution of `ss.sketchAndExtract ext` on `W` is the average-case extractor ideal
 law on `(W, SS(W))`. -/
@@ -547,8 +543,7 @@ theorem idealDistribution_sketchAndExtract
     (ss.sketchAndExtract ext).idealDistribution W =
       extractorIdealLaw (ss.jointSketch W) := by
   simp only [FuzzyExtractor.idealDistribution, sketchAndExtract, extractorIdealLaw, jointSketch,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+    ProbComp.eval_uniform, pmf_norm]
 
 /-- Security of `sketchAndExtract` ([FullerMengReyzin2020], Lemma 2.5): the fuzzy-extractor
 distinguishing advantage of `D` on source `W` equals the average-case extractor advantage of `D`

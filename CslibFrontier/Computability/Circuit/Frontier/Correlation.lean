@@ -89,6 +89,8 @@ uniformity.
   `⌊n/2⌋ - o(n)`, for every `γ < (c* - c)/(2L)`.
 * `Cslib.Circuits.Frontier.half_le_cutRank_hardMatrix`: the bisection cut rank of the chosen
   family.
+* `Cslib.Circuits.Frontier.isLittleO_hardDeficiency`: sublinearity (`o(n)`) of the bisection
+  cut-rank deficiency of `hardMatrix n`.
 * `Cslib.Circuits.Frontier.eventually_abs_correlation_hardForm_le`: the headline bound for the
   chosen family.
 * `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_of_lt`: below `c n`
@@ -248,7 +250,7 @@ theorem half_le_cutRank_hardMatrix (n : ℕ) {U : Set (Fin n)} (hU : U.ncard = n
     (by rw [Nat.card_eq_fintype_card, Fintype.card_fin]; omega) hU
 
 /-- The deficiency `2 (2 ⌊√⌊n/2⌋⌋ + 1) + 1` of the chosen family is sublinear. -/
-private theorem isLittleO_hardDeficiency :
+theorem isLittleO_hardDeficiency :
     (fun n : ℕ => ((2 * (2 * Nat.sqrt (n / 2) + 1) + 1 : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) := by
   rw [isLittleO_iff]
   intro ε hε
@@ -276,7 +278,7 @@ private theorem isLittleO_hardDeficiency :
   linarith
 
 /-- The bisection hypothesis for the chosen family, in the form used by the asymptotic bounds. -/
-private theorem half_le_cutRank_hardMatrix_add (n : ℕ) (U : Set (Fin n)) (hU : U.ncard = n / 2) :
+theorem half_le_cutRank_hardMatrix_add (n : ℕ) (U : Set (Fin n)) (hU : U.ncard = n / 2) :
     ((n / 2 : ℕ) : ℝ) ≤ (hardMatrix n + (hardMatrix n)ᵀ).cutRank U +
       ((2 * (2 * Nat.sqrt (n / 2) + 1) + 1 : ℕ) : ℝ) := by
   exact_mod_cast half_le_cutRank_hardMatrix n hU

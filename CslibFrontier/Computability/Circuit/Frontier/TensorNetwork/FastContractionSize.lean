@@ -500,8 +500,7 @@ theorem Shape.length_le (ev : T → List Bool → List ℕ) (h₀s : x₀.scale 
     have hfb : frameBound x ≤ Z := by
       unfold frameBound
       rw [hsc, h.fl_eq]
-      have : 256 * (m + 1) ^ 5 * (x.prec + 1) ≤ 256 * (m + 1) ^ 5 * (P + 1) :=
-        Nat.mul_le_mul_left _ (by omega)
+      have : 256 * (m + 1) ^ 5 * (x.prec + 1) ≤ 256 * (m + 1) ^ 5 * (P + 1) := by gcongr
       omega
     have hfZ : (frameBound x + 1) ^ 3 ≤ (Z + 1) ^ 3 := Nat.pow_le_pow_left (by omega) 3
     have hl := length_encPair (enc₁ := encCall encT) (enc₂ := encFrame) (x, frameAt x vals c)

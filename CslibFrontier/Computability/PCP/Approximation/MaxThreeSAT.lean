@@ -218,8 +218,7 @@ theorem div_le_unsatVal_toThreeSAT_toCNF (hpairs : ∀ p, p ∈ pairs) (g : Grap
       rw [hlen, ← Nat.cast_mul, Nat.cast_le, ← Nat.mul_assoc]
       exact Nat.mul_le_mul_right m hφle
     calc (g.toGraph id).unsatVal / (pairs.length * m : ℕ)
-        ≤ #((g.toGraph id).unsatEdges σ) / g.edges.length / (pairs.length * m : ℕ) :=
-          div_le_div_of_nonneg_right hval (Nat.cast_nonneg _)
+        ≤ #((g.toGraph id).unsatEdges σ) / g.edges.length / (pairs.length * m : ℕ) := by gcongr
       _ = #((g.toGraph id).unsatEdges σ) / (g.edges.length * (pairs.length * m : ℕ)) := by
           rw [div_div]
       _ ≤ (toThreeSAT φ).countUnsat τ / (g.edges.length * (pairs.length * m : ℕ)) :=

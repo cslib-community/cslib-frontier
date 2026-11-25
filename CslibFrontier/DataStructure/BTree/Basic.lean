@@ -45,7 +45,8 @@ that well-formedness of concrete trees is checked by `decide`. The operations an
 
 ## Main results
 
-* `BTree.induction`: induction over the nested type.
+* `BTree.induction`, `BTree.induction_isSortedAssoc`: induction over the nested type and over
+  trees with sorted entries split at a node's first separator.
 * `BTree.toList_map`, `BTree.isWF_map`: mapping values maps the entries and keeps
   well-formedness.
 * `BTree.IsWF.of_mem_children`: every subtree of a well-formed tree is well-formed.
@@ -330,10 +331,17 @@ theorem mapRest_cons (f : β → γ) :
 
 /-- The first separator splits a node's entries into those of its first child, the separator, and
 those of the node without its first child and separator. -/
+theorem toList_node_cons :
+    (node first ((k, v, c) :: rest)).toList =
+      first.toList ++ (k, v) :: (node c rest).toList := by
+  simp
+
+/-- Membership in a node with keys: in its first child, equal to its first separator, or in the
+node without its first child and separator. -/
 theorem mem_toList_node_cons {p : α × β} :
     p ∈ (node first ((k, v, c) :: rest)).toList ↔
       p ∈ first.toList ∨ p = (k, v) ∨ p ∈ (node c rest).toList := by
-  simp only [toList_node, toListRest_cons, List.cons_append, List.mem_append, List.mem_cons]
+  simp
 
 /-- Dropping a node's first child and first separator keeps the remaining children. -/
 theorem children_node_subset_children_node_cons :
@@ -404,12 +412,7 @@ theorem keys_def : tr.keys = tr.toList.map Prod.fst := rfl
 
 /-- A key belongs to a tree's keys when some entry of the tree carries it. -/
 @[simp] theorem mem_keys {k : α} : k ∈ tr.keys ↔ ∃ v, (k, v) ∈ tr := by
-  simp only [keys_def, List.mem_map, mem_def]
-  constructor
-  · rintro ⟨⟨k, v⟩, hp, rfl⟩
-    exact ⟨v, hp⟩
-  · rintro ⟨v, hv⟩
-    exact ⟨_, hv, rfl⟩
+  simp [keys_def]
 
 /-- Only the empty tree has height `0`. -/
 @[simp] theorem height_eq_zero_iff : tr.height = 0 ↔ tr = .leaf := by
@@ -650,21 +653,10 @@ theorem Occupied.of_mem_children {c : BTree α β} (h : Occupied t tr) (hc : c �
   | leaf => exact ⟨fun _ => .leaf, fun _ => .leaf⟩
   | node first rest ih₁ ih₂ =>
     rw [map_node, mapRest_eq_map]
-    constructor
-    · intro h
-      have h₁ := h.le_length
-      have h₂ := h.length_le
-      rw [List.length_map] at h₁ h₂
-      exact .node h₁ h₂ (ih₁.1 h.first) fun e he =>
-        (ih₂ e he).1 (h.of_mem_rest (List.mem_map_of_mem he))
-    · intro h
-      refine .node ?_ ?_ (ih₁.2 h.first) fun e he => ?_
-      · rw [List.length_map]
-        exact h.le_length
-      · rw [List.length_map]
-        exact h.length_le
-      · obtain ⟨e, he', rfl⟩ := List.mem_map.1 he
-        exact (ih₂ e he').2 (h.of_mem_rest he')
+    exact ⟨fun h => .node (by simpa using h.le_length) (by simpa using h.length_le)
+      (ih₁.1 h.first) fun e he => (ih₂ e he).1 (h.of_mem_rest (List.mem_map_of_mem he)),
+      fun h => .node (by simpa using h.le_length) (by simpa using h.length_le)
+        (ih₁.2 h.first) (List.forall_mem_map.2 fun e he => (ih₂ e he).2 (h.of_mem_rest he))⟩
 
 /-- Mapping over values preserves balance. -/
 @[simp] theorem balanced_map (f : β → γ) : Balanced (tr.map f) ↔ Balanced tr := by
@@ -672,17 +664,12 @@ theorem Occupied.of_mem_children {c : BTree α β} (h : Occupied t tr) (hc : c �
   | leaf => exact ⟨fun _ => .leaf, fun _ => .leaf⟩
   | node first rest ih₁ ih₂ =>
     rw [map_node, mapRest_eq_map]
-    constructor
-    · intro h
-      refine .node (ih₁.1 h.first) (fun e he => ?_) fun e he => ?_
-      · exact (ih₂ e he).1 (h.of_mem_rest (List.mem_map_of_mem he))
-      · simpa using h.height_of_mem_rest (List.mem_map_of_mem he)
-    · intro h
-      refine .node (ih₁.2 h.first) (fun e he => ?_) fun e he => ?_
-      · obtain ⟨e, he', rfl⟩ := List.mem_map.1 he
-        exact (ih₂ e he').2 (h.of_mem_rest he')
-      · obtain ⟨e, he', rfl⟩ := List.mem_map.1 he
-        simpa using h.height_of_mem_rest he'
+    exact ⟨fun h => .node (ih₁.1 h.first)
+      (fun e he => (ih₂ e he).1 (h.of_mem_rest (List.mem_map_of_mem he)))
+      (fun e he => by simpa using h.height_of_mem_rest (List.mem_map_of_mem he)),
+      fun h => .node (ih₁.2 h.first)
+        (List.forall_mem_map.2 fun e he => (ih₂ e he).2 (h.of_mem_rest he))
+        (List.forall_mem_map.2 fun e he => by simpa using h.height_of_mem_rest he)⟩
 
 /-- Splitting a node with occupied children at its first separator: the first child is occupied,
 and so are the children of the first child and of the node without its first child and
@@ -740,15 +727,12 @@ theorem IsWF.of_mem_children (h : IsWF t tr) (hc : c ∈ tr.children) : IsWF t c
   have hs : (tr.map f).toList.IsSortedAssoc ↔ tr.toList.IsSortedAssoc := by
     rw [List.isSortedAssoc_iff_pairwise, List.isSortedAssoc_iff_pairwise, ← keys_def, ← keys_def,
       keys_map]
-  constructor
-  · rintro ⟨h₁, h₂, h₃, h₄, h₅, h₆⟩
-    refine ⟨h₁, by simpa using h₂, fun hne => by simpa using h₃ (by simpa using hne), ?_,
-      by simpa using h₅, hs.1 h₆⟩
-    simpa using h₄
-  · rintro ⟨h₁, h₂, h₃, h₄, h₅, h₆⟩
-    refine ⟨h₁, by simpa using h₂, fun hne => by simpa using h₃ (by simpa using hne), ?_,
-      by simpa using h₅, hs.2 h₆⟩
-    simpa using h₄
+  refine ⟨fun ⟨h₁, h₂, h₃, h₄, h₅, h₆⟩ => ⟨h₁, by simpa using h₂,
+    fun hne => by simpa using h₃ (by simpa using hne), by simpa using h₄,
+    by simpa using h₅, hs.1 h₆⟩,
+    fun ⟨h₁, h₂, h₃, h₄, h₅, h₆⟩ => ⟨h₁, by simpa using h₂,
+      fun hne => by simpa using h₃ (by simpa using hne), by simpa using h₄,
+      by simpa using h₅, hs.2 h₆⟩⟩
 
 /-- A node's entries are sorted exactly when those of its first child and of the node without its
 first child and separator are, with the first separator strictly between them. -/
@@ -757,8 +741,30 @@ theorem isSortedAssoc_toList_node_cons_iff {first : BTree α β} {k : α} {v : �
     (node first ((k, v, c) :: rest)).toList.IsSortedAssoc ↔
       first.toList.IsSortedAssoc ∧ (node c rest).toList.IsSortedAssoc ∧
         (∀ p ∈ first.toList, p.1 < k) ∧ ∀ p ∈ (node c rest).toList, k < p.1 := by
-  rw [toList_node, toListRest_cons, List.cons_append, List.isSortedAssoc_append_cons_iff,
-    toList_node]
+  rw [toList_node_cons, List.isSortedAssoc_append_cons_iff]
+
+/-- Induction on a B-tree with sorted entries, splitting a node with keys at its first separator
+into `first` and `node c rest`. -/
+theorem induction_isSortedAssoc {motive : ∀ tr : BTree α β, tr.toList.IsSortedAssoc → Prop}
+    (leaf : motive .leaf List.isSortedAssoc_nil)
+    (node_nil : ∀ first (hf : first.toList.IsSortedAssoc), motive first hf →
+      ∀ {h}, motive (.node first []) h)
+    (node_cons : ∀ first k v c rest
+      (h₁ : first.toList.IsSortedAssoc) (h₂ : (node c rest).toList.IsSortedAssoc),
+      (∀ p ∈ first.toList, p.1 < k) → (∀ p ∈ (node c rest).toList, k < p.1) →
+      motive first h₁ → motive (.node c rest) h₂ →
+      ∀ {h}, motive (.node first ((k, v, c) :: rest)) h) :
+    ∀ {tr : BTree α β} (h : tr.toList.IsSortedAssoc), motive tr h
+  | .leaf, _ => leaf
+  | .node first [], h =>
+    have hf : first.toList.IsSortedAssoc := by simpa using h
+    node_nil first hf (induction_isSortedAssoc leaf node_nil node_cons hf)
+  | .node first ((k, v, c) :: rest), h =>
+    have ⟨h₁, h₂, hlt, hgt⟩ := isSortedAssoc_toList_node_cons_iff.1 h
+    node_cons first k v c rest h₁ h₂ hlt hgt
+      (induction_isSortedAssoc leaf node_nil node_cons h₁)
+      (induction_isSortedAssoc leaf node_nil node_cons h₂)
+termination_by tr => sizeOf tr
 
 end LinearOrder
 
@@ -793,12 +799,9 @@ variable {rest : List (Triple α β)} {t n : ℕ}
   | node first rest ih₁ ih₂ =>
     rw [occupied, occupiedRest_eq_all]
     simp only [Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true, ih₁]
-    constructor
-    · rintro ⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩
-      exact .node h₁ h₂ h₃ fun e he => (ih₂ e he).1 (h₄ e he)
-    · intro h
-      cases h with
-      | node h₁ h₂ h₃ h₄ => exact ⟨⟨⟨h₁, h₂⟩, h₃⟩, fun e he => (ih₂ e he).2 (h₄ e he)⟩
+    exact ⟨fun ⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩ => .node h₁ h₂ h₃ fun e he => (ih₂ e he).1 (h₄ e he),
+      fun h => ⟨⟨⟨h.le_length, h.length_le⟩, h.first⟩,
+        fun e he => (ih₂ e he).2 (h.of_mem_rest he)⟩⟩
 
 /-- `balanced` decides `Balanced`. -/
 @[simp] theorem balanced_iff : balanced tr = true ↔ Balanced tr := by
@@ -807,26 +810,18 @@ variable {rest : List (Triple α β)} {t n : ℕ}
   | node first rest ih₁ ih₂ =>
     rw [balanced, balancedRest_eq_all]
     simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true, ih₁]
-    constructor
-    · rintro ⟨h₁, h₂⟩
-      exact .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he).1) fun e he => (h₂ e he).2
-    · intro h
-      cases h with
-      | node h₁ h₂ h₃ => exact ⟨h₁, fun e he => ⟨(ih₂ e he).2 (h₂ e he), h₃ e he⟩⟩
+    exact ⟨fun ⟨h₁, h₂⟩ => .node h₁ (fun e he => (ih₂ e he).1 (h₂ e he).1) fun e he => (h₂ e he).2,
+      fun h => ⟨h.first, fun e he => ⟨(ih₂ e he).2 (h.of_mem_rest he), h.height_of_mem_rest he⟩⟩⟩
 
 /-- `isWF` decides `IsWF`. -/
 @[simp] theorem isWF_iff [LinearOrder α] : isWF t tr = true ↔ IsWF t tr := by
   simp only [isWF, Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq, List.all_eq_true,
     occupied_iff, balanced_iff]
-  constructor
-  · rintro ⟨⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩, h₆⟩
-    refine ⟨h₁, h₂, fun hne => ?_, h₄, h₅, h₆⟩
-    cases tr with
-    | leaf => exact absurd rfl hne
-    | node => simpa using h₃
-  · intro h
-    refine ⟨⟨⟨⟨⟨h.two_le, h.rootKeys_le⟩, ?_⟩, h.occupied_of_mem_children⟩, h.balanced⟩, h.sorted⟩
-    cases tr with
+  refine ⟨fun ⟨⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩, h₆⟩ => ⟨h₁, h₂, fun hne => ?_, h₄, h₅, h₆⟩,
+    fun h => ⟨⟨⟨⟨⟨h.two_le, h.rootKeys_le⟩, ?_⟩, h.occupied_of_mem_children⟩, h.balanced⟩,
+      h.sorted⟩⟩
+  · cases tr <;> simp_all
+  · cases tr with
     | leaf => simp
     | node => exact Or.inr (h.rootKeys_pos nofun)
 

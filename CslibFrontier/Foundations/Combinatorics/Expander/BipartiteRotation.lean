@@ -343,8 +343,7 @@ theorem nontrivialSingularValue_flip_le [Nonempty D] (B : BipartiteRotationMap L
     have hf_nn : 0 ≤ 𝔼 u : L, f u ^ 2 := expect_nonneg fun _ _ => sq_nonneg _
     calc (𝔼 v : R, h v ^ 2) ^ 2 = (𝔼 u : L, f u * B.walkLeft h u) ^ 2 := by rw [hadj]
       _ ≤ (𝔼 u : L, f u ^ 2) * 𝔼 u : L, B.walkLeft h u ^ 2 := hcs
-      _ ≤ (𝔼 u : L, f u ^ 2) * (B.nontrivialSingularValue ^ 2 * 𝔼 v : R, h v ^ 2) :=
-          mul_le_mul_of_nonneg_left hwl hf_nn
+      _ ≤ (𝔼 u : L, f u ^ 2) * (B.nontrivialSingularValue ^ 2 * 𝔼 v : R, h v ^ 2) := by gcongr
       _ = (B.nontrivialSingularValue ^ 2 * 𝔼 u : L, f u ^ 2) * 𝔼 v : R, h v ^ 2 := by ring
   rw [sq] at hsq
   exact le_of_mul_le_mul_right hsq hpos

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Recursive
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOptionPrimitives
+import CslibFrontier.Tactic.OptionMatch
 
 /-!
 # Extracting children from flat constructor streams
@@ -79,26 +80,21 @@ private theorem forestAt?_polyTime {encToken : τ ↪ List Bool} {arity : τ →
   have hsplit := splitTree_polyTime harity hmax
   induction index with
   | zero =>
-    have hfront : ComputableInPolyTime (fun p : List τ × (List τ × List τ) => some p.2.1)
-        (encPair encTokens (encPair encTokens encTokens)) (encOption encTokens) :=
-      (optionSome encTokens).comp ((fst encTokens encTokens).comp
-        (snd encTokens (encPair encTokens encTokens)))
-    apply (optionElimWithInput (encC := encOption encTokens)
-      (body := fun (_ : List τ) parts => some parts.1) hsplit
-      (const (none : Option (List τ))) hfront).of_enc_eq
-    intro tokens
-    cases h : splitTree arity tokens <;> simp [forestAt?, h, encTokens]
+    change ComputableInPolyTime (fun tokens => (splitTree arity tokens).map Prod.fst)
+      (encList encToken) (encOption (encList encToken))
+    exact hsplit.optionMapWithInput
+      ((fst encTokens encTokens).comp (snd encTokens (encPair encTokens encTokens)))
   | succ index ih =>
     have hrest : ComputableInPolyTime
         (fun p : List τ × (List τ × List τ) => forestAt? arity index p.2.2)
         (encPair encTokens (encPair encTokens encTokens)) (encOption encTokens) :=
       ih.comp ((snd encTokens encTokens).comp
         (snd encTokens (encPair encTokens encTokens)))
-    apply (optionElimWithInput (encC := encOption encTokens)
-      (body := fun (_ : List τ) parts => forestAt? arity index parts.2) hsplit
-      (const (none : Option (List τ))) hrest).of_enc_eq
-    intro tokens
-    cases h : splitTree arity tokens <;> simp [forestAt?, h, encTokens]
+    change ComputableInPolyTime
+      (fun tokens => (splitTree arity tokens).bind fun parts => forestAt? arity index parts.2)
+      (encList encToken) (encOption (encList encToken))
+    option_match_to_elim
+    exact optionElimWithInput (encC := encOption encTokens) hsplit (const none) hrest
 
 /-- For any fixed recursive-field index, subtree extraction has a native polynomial-time
 certificate. Token arities need a native certificate and a fixed bound; token decoding is not

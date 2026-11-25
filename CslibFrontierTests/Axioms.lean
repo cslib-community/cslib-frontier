@@ -27,10 +27,94 @@ epic's own test module rather than here.
 
 namespace CslibFrontierTests.Axioms
 
-open Lean Elab Command in
+section Audit
+
+open Lean Elab Command
+
+/-- Worklist and visited set for a single private-declaration reachability search. -/
+private structure ReachState where
+  queue : Array Name
+  inQueue : NameHashSet
+
+/-- Enqueue `c` unless it is already proven clean or queued in the active search. -/
+@[inline] private def pushConst (verifiedClean : @& NameHashSet) (c : Name) (st : ReachState) :
+    ReachState :=
+  if verifiedClean.contains c || st.inQueue.contains c then
+    st
+  else
+    { queue := st.queue.push c, inQueue := st.inQueue.insert c }
+
+/-- Enqueue every constant occurring in `e` that still needs checking. -/
+@[inline] private def pushExpr (verifiedClean : @& NameHashSet) (e : Expr) (st : ReachState) :
+    ReachState := Id.run do
+  let mut st := st
+  for c in e.getUsedConstants do
+    st := pushConst verifiedClean c st
+  return st
+
+/-- Check that every axiom transitively reachable from `root` belongs to `allowed`.
+
+Exported declarations have precomputed axiom sets in `Lean.exportedAxiomsExt`, queried by
+`Lean.collectAxioms`. Private declarations are absent from that extension, so calling
+`collectAxioms` on each one in isolation repeatedly walks shared private helper subgraphs from
+scratch. Walking private declarations directly in `kenv` (matching all 8 `ConstantInfo` cases of
+`Lean.CollectAxioms.collect`), delegating non-private boundary constants to `collectAxioms`, and
+memoizing every closed clean subgraph in `verifiedClean` visits each private declaration once. -/
+private def checkDeclarationAxioms (kenv : @& Kernel.Environment) (allowed : @& List Name)
+    (verifiedClean : NameHashSet) (root : Name) : CommandElabM (NameHashSet × Array Name) := do
+  if verifiedClean.contains root then
+    return (verifiedClean, #[])
+  if !isPrivateName root then
+    let axioms ← collectAxioms root
+    let disallowed := axioms.filter fun ax => !allowed.contains ax
+    if disallowed.isEmpty then
+      return (verifiedClean.insert root, #[])
+    else
+      return (verifiedClean, disallowed)
+  let mut st : ReachState := { queue := #[root], inQueue := ({} : NameHashSet).insert root }
+  let mut disallowed : NameSet := {}
+  let mut idx : Nat := 0
+  while h : idx < st.queue.size do
+    let c := st.queue[idx]
+    idx := idx + 1
+    if !isPrivateName c then
+      for ax in ← collectAxioms c do
+        if !allowed.contains ax then
+          disallowed := disallowed.insert ax
+    else
+      match kenv.find? c with
+      | some (.axiomInfo v) =>
+        if !allowed.contains c then
+          disallowed := disallowed.insert c
+        st := pushExpr verifiedClean v.type st
+      | some (.defnInfo v) =>
+        st := pushExpr verifiedClean v.value (pushExpr verifiedClean v.type st)
+      | some (.thmInfo v) =>
+        st := pushExpr verifiedClean v.value (pushExpr verifiedClean v.type st)
+      | some (.opaqueInfo v) =>
+        st := pushExpr verifiedClean v.value (pushExpr verifiedClean v.type st)
+      | some (.quotInfo _) => pure ()
+      | some (.ctorInfo v) =>
+        st := pushExpr verifiedClean v.type st
+      | some (.recInfo v) =>
+        st := pushExpr verifiedClean v.type st
+      | some (.inductInfo v) =>
+        st := v.ctors.foldl (fun st ctor => pushConst verifiedClean ctor st)
+          (pushExpr verifiedClean v.type st)
+      | none => pure ()
+  if disallowed.isEmpty then
+    let mut verifiedClean := verifiedClean
+    for u in st.queue do
+      verifiedClean := verifiedClean.insert u
+    return (verifiedClean, #[])
+  else
+    return (verifiedClean, disallowed.toArray.qsort Name.lt)
+
 run_cmd do
   let env := (← getEnv).setExporting false
+  let kenv := env.toKernelEnv
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+  let mut verifiedClean : NameHashSet := {}
   let mut moduleCount : Nat := 0
   let mut declarationCount : Nat := 0
   for moduleName in env.header.moduleNames, data in env.header.moduleData do
@@ -42,12 +126,14 @@ run_cmd do
         declarationCount := declarationCount + 1
         unless (env.find? name).isSome do
           throwError "axiom audit: declaration {name} from {moduleName} is unavailable"
-        let axioms ← collectAxioms name
-        let disallowed := axioms.filter fun ax => !allowed.contains ax
+        let (clean', disallowed) ← checkDeclarationAxioms kenv allowed verifiedClean name
+        verifiedClean := clean'
         unless disallowed.isEmpty do
           throwError "axiom audit: {name} from {moduleName} depends on {disallowed}"
   unless moduleCount > 0 && declarationCount > 0 do
     throwError "axiom audit: no CslibFrontier declarations found"
+
+end Audit
 
 /--
 info: 'Cslib.Circuits.Fusion.length_andPairs' depends on axioms:

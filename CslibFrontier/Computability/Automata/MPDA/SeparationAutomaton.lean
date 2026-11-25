@@ -168,6 +168,13 @@ private theorem pre_append_group (n k : ℕ) (gs : List (List Letter)) (p q : �
       List.replicate (q + 1) .d = pre n k (gs ++ [group p q]) := by
   simp [pre, group, List.append_assoc]
 
+private theorem grouped_append_singleton {gs : List (List Letter)} {g : List Letter}
+    (hg : Grouped gs) (hg' : ∃ p q, g = group p q) : Grouped (gs ++ [g]) := by
+  intro x hx
+  rcases List.mem_append.mp hx with hx | hx
+  · exact hg x hx
+  · simpa using (List.mem_singleton.mp hx) ▸ hg'
+
 /-- One transition preserves the invariant. -/
 private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     {μ : Letter × Op 2 Sym} {σ : Stacks 2 Sym} (hinv : Inv q s₀ s₁ u)
@@ -235,17 +242,11 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     obtain ⟨n, k, gs, p, hg, hn, hk, rfl, rfl, rfl⟩ := hinv
     obtain ⟨t, ht, rfl⟩ := Op.apply_pop_one_pair.mp happ
     obtain ⟨hk', -, rfl⟩ := replicate_eq_cons ht
-    refine ⟨_, _, rfl, n, k, gs ++ [group p 0], ?_, by simp; omega, by simp; omega, ?_, ?_, ?_⟩
-    · intro g hg'
-      rcases List.mem_append.mp hg' with hg' | hg'
-      · exact hg g hg'
-      · exact ⟨p, 0, by simpa using hg'⟩
+    refine ⟨_, _, rfl, n, k, gs ++ [group p 0], grouped_append_singleton hg ⟨p, 0, rfl⟩,
+      by simp; omega, by simp; omega, ?_, ?_, ?_⟩
     · rw [← pre_append_group]
       simp
-    · simp only [List.length_append, List.length_singleton]
-      congr 1
-    · simp only [List.length_append, List.length_singleton]
-      congr 1
+    all_goals simp only [List.length_append, List.length_singleton]; congr 1
   | gB_b =>
     obtain ⟨n, k, gs, p, q, hg, hn, hk, hq, rfl, rfl, rfl⟩ := hinv
     refine ⟨_, _, Op.apply_push_one_pair.mp happ, n, k, gs, p, q + 1, hg, hn, hk, by omega, ?_, rfl,
@@ -273,18 +274,11 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     rcases replicate_append_eq_cons ht with ⟨-, h, -⟩ | ⟨hqr, hk', -, rfl⟩
     · cases h
     · obtain rfl : r = q := by omega
-      refine ⟨_, _, rfl, n, k, gs ++ [group p r], ?_, by simp; omega, by simp; omega, ?_, ?_,
-        ?_⟩
-      · intro g hg'
-        rcases List.mem_append.mp hg' with hg' | hg'
-        · exact hg g hg'
-        · exact ⟨p, r, by simpa using hg'⟩
+      refine ⟨_, _, rfl, n, k, gs ++ [group p r], grouped_append_singleton hg ⟨p, r, rfl⟩,
+        by simp; omega, by simp; omega, ?_, ?_, ?_⟩
       · rw [← pre_append_group]
         simp [List.replicate_succ', List.append_assoc]
-      · simp only [List.length_append, List.length_singleton]
-        congr 1
-      · simp only [List.length_append, List.length_singleton]
-        congr 1
+      all_goals simp only [List.length_append, List.length_singleton]; congr 1
   | ge_a =>
     obtain ⟨n, k, gs, hg, hn, hk, rfl, rfl, rfl⟩ := hinv
     exact ⟨_, _, Op.apply_push_zero_pair.mp happ, n, k, gs, 1, hg, hn, hk, le_rfl, rfl, by simp,
@@ -302,10 +296,7 @@ private theorem mem_language_of_accepts {w : List Letter} (h : Acceptor.Accepts 
   rw [Stacks.empty_eq_pair] at hrun
   obtain ⟨s₀, s₁, hc, hinv⟩ :=
     exists_inv_pair_of_configLTS_mTr Inv inv_step hrun ⟨0, rfl, rfl, rfl⟩
-  obtain ⟨h₀, h₁⟩ := Stacks.eq_pair_iff.mp hc.symm
-  replace h₀ : s₀ = [] := h₀
-  replace h₁ : s₁ = [] := h₁
-  subst h₀ h₁
+  obtain ⟨rfl, rfl⟩ := Stacks.eq_pair_iff.mp hc.symm
   rcases hs' with rfl | rfl
   · obtain ⟨n, hu, h0, -⟩ := hinv
     obtain rfl : n = 0 := by simpa using congrArg List.length h0.symm
@@ -340,18 +331,14 @@ private theorem run_group {q₀ : State} (hq₀ : q₀ = .pb ∨ q₀ = .ge) (p 
     rcases p with _ | p
     · refine ⟨[(.c, .pop 0 .outer)], rfl, .single _ (step_iff.mpr ⟨?_, Op.apply_pop_zero_pair.mpr
         ⟨_, rfl, rfl⟩⟩)⟩
-      rcases hq₀ with rfl | rfl
-      · exact .pb_c
-      · exact .ge_c
+      rcases hq₀ with rfl | rfl <;> [exact .pb_c; exact .ge_c]
     · refine ⟨(.a, .push 0 .inner) :: List.replicate p (.a, .push 0 .inner) ++
         (.c, .pop 0 .inner) :: List.replicate p (.c, .pop 0 .inner) ++ [(.c, .pop 0 .outer)],
         by simp [List.replicate_succ, replicate_append_singleton], ?_⟩
       have hfirst : automaton.configLTS.Tr ⟨q₀, Stacks.pair (.outer :: t₀) (.outer :: t₁)⟩
           (.a, .push 0 .inner) ⟨.ga, Stacks.pair (.inner :: .outer :: t₀) (.outer :: t₁)⟩ := by
         refine step_iff.mpr ⟨?_, Op.apply_push_zero_pair.mpr rfl⟩
-        rcases hq₀ with rfl | rfl
-        · exact .pb_a
-        · exact .ge_a
+        rcases hq₀ with rfl | rfl <;> [exact .pb_a; exact .ge_a]
       refine .comp _ (.comp _ (.stepL hfirst
         (configLTS_mTr_replicate_push_zero (M := automaton) Step.ga_a _ p _))
         (.stepL (step_iff.mpr

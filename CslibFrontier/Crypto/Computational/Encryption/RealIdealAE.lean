@@ -277,8 +277,7 @@ private theorem map_runWith_cpaToAEHandler (E : SymmetricCipher) (ctBound : ℕ 
     simp only [Bool.and_eq_true, beq_iff_eq] at hlenEq
     have hmbLen : (if bit then dropFrame request.2 else unframe request.2).length = n := by
       cases bit <;> simp [hlenEq]
-    simp only [hmbLen, beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.map_bind, PMF.pure_map, Prod.map_apply, id_eq]
+    simp only [hmbLen, beq_self_eq_true, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
     apply PMF.bind_congr_on_support
     intro ct hct
     rw [List.take_of_length_le (hctBound _ hmbLen ct hct)]
@@ -294,18 +293,17 @@ theorem eval_aeRealGame_cpaToAEAdversary (E : SymmetricCipher) (ctBound : ℕ �
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.aeRealGame (cpaToAEAdversary ctBound bit adversary) n) =
       ProbComp.eval (E.cpaGame adversary bit n) := by
-  simp only [aeRealGame, cpaGame, symmetricCPAGameOn, ProbOracleComp.run, cpaToAEAdversary,
-    runWith_norm, pmf_norm]
+  simp only [aeRealGame, cpaGame, symmetricCPAGameOn, cpaToAEAdversary, runWith_norm, pmf_norm]
   peel_binds k
-  have hsim := ProbOracleComp.runWith_map_state _
-    (fun q (u : Unit) =>
-      (ProbComp.eval (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
-        E.encrypt n k bit q)).map (·, u))
-    (fun _ => ()) (map_runWith_cpaToAEHandler E ctBound bit n k (hctBound k k_mem))
-    (adversary n []) ((), [])
-  rw [ProbOracleComp.runWith_memoryless] at hsim
-  have hsim' := congrArg (PMF.map Prod.fst) hsim
-  simpa only [pmf_norm, PMF.map, Function.comp_def, PMF.bind_pure] using hsim'
+  have hsim := congrArg (PMF.map Prod.fst) <|
+    ProbOracleComp.runWith_map_state _
+      (fun q (u : Unit) =>
+        (ProbComp.eval (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
+          E.encrypt n k bit q)).map (·, u))
+      (fun _ => ()) (map_runWith_cpaToAEHandler E ctBound bit n k (hctBound k k_mem))
+      (adversary n []) ((), [])
+  exact (PMF.bind_pure_comp Prod.fst _).trans
+    (by simpa only [runWith_norm, pmf_norm] using hsim)
 
 /-- Against the ideal oracle, one step of `cpaToAEHandler` does not depend on the fixed bit: both
 selectable messages have length `n`, and the ideal oracle encrypts the all-zero message. -/
@@ -431,8 +429,7 @@ private theorem map_ciEncryptionOracle_eq_runWith_ciToAEHandler (E : SymmetricCi
     ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, aeRealOracle, Bool.false_eq_true,
     ↓reduceIte]
   by_cases hlen : (request.2.length == n) = true
-  · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-      PMF.pure_map, Prod.map_apply, id_eq]
+  · simp only [hlen, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
     apply PMF.bind_congr_on_support
     intro ct hct
     rw [List.take_of_length_le (hctBound _ (beq_iff_eq.mp hlen) ct hct)]
@@ -482,8 +479,7 @@ private theorem eval_run_aeIdealOracle_true (E : SymmetricCipher) (n : ℕ) (k c
 theorem eval_aeIdealGame_ciToAEAdversary (E : SymmetricCipher) (ctBound : ℕ → ℕ)
     (adversary : CIAdversary) (n : ℕ) :
     ProbComp.eval (E.aeIdealGame (ciToAEAdversary ctBound adversary) n) = PMF.pure false := by
-  simp [aeIdealGame, ciToAEAdversary, eval_run_aeIdealOracle_true,
-    ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp [aeIdealGame, ciToAEAdversary, eval_run_aeIdealOracle_true, runWith_norm, pmf_norm]
 
 /-- The CI winning probability of `adversary` equals the real/ideal advantage of
 `ciToAEAdversary ctBound adversary`, when `ctBound n` bounds the ciphertext lengths of `n`-bit
@@ -637,8 +633,7 @@ private theorem map_aeRealOracle_eq_runWith_aeToCCAHandler (E : SymmetricCipher)
       unframe_frame_append, dropFrame_frame_append, List.length_replicate, beq_self_eq_true,
       Bool.and_true]
     by_cases hlen : (request.2.length == n) = true
-    · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-        PMF.pure_map, Prod.map_apply, id_eq]
+    · simp only [hlen, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
       apply PMF.bind_congr_on_support
       intro ct hct
       rw [List.take_of_length_le (hctBound _ (beq_iff_eq.mp hlen) ct hct)]
@@ -695,8 +690,7 @@ private theorem map_runWith_aeToCCAHandler_eq_aeIdealOracle (E : SymmetricCipher
       unframe_frame_append, dropFrame_frame_append, List.length_replicate, beq_self_eq_true,
       Bool.and_true]
     by_cases hlen : (request.2.length == n) = true
-    · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-        PMF.pure_map, Prod.map_apply, id_eq]
+    · simp only [hlen, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
       apply PMF.bind_congr_on_support
       intro ct hct
       rw [List.take_of_length_le (hctBound _ (by simp) ct hct)]

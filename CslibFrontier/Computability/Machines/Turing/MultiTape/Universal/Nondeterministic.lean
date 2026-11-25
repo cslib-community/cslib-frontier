@@ -76,9 +76,10 @@ variable {Symbol State : Type} [Finite State] [Finite Symbol]
 into `ℕ` by `eS` and `eY`: an entry for every permitted transition. -/
 public noncomputable def descN : Desc :=
   ⟨k, eS ntm.q₀, (Set.toFinite {e : State × Option Symbol × (Fin k → Option Symbol) ×
-      Action k Symbol State | ntm.Tr e.1 e.2.1 e.2.2.1 e.2.2.2}).toFinset.toList.map
-    fun e => (key (eS e.1) (e.2.1.map eY) (Option.map eY ∘ e.2.2.1),
-      .ofAction (e.2.2.2.map eS eY))⟩
+      Action k Symbol State |
+      let ⟨q, i, w, a⟩ := e; ntm.Tr q i w a}).toFinset.toList.map
+    fun ⟨q, i, w, a⟩ => (key (eS q) (i.map eY) (Option.map eY ∘ w),
+      .ofAction (a.map eS eY))⟩
 
 @[simp]
 public lemma descN_tapes : (descN eS eY ntm).tapes = k := by
@@ -94,11 +95,7 @@ public theorem mem_descN {e : Key × Act} :
       e = (key (eS q) (i.map eY) (Option.map eY ∘ w), .ofAction (a.map eS eY)) := by
   simp only [descN, List.mem_map, Finset.mem_toList, Set.Finite.mem_toFinset, Set.mem_ofPred_eq,
     Prod.exists]
-  constructor
-  · rintro ⟨q, i, w, a, h, rfl⟩
-    exact ⟨q, i, w, a, h, rfl⟩
-  · rintro ⟨q, i, w, a, h, rfl⟩
-    exact ⟨q, i, w, a, h, rfl⟩
+  constructor <;> rintro ⟨q, i, w, a, h, rfl⟩ <;> exact ⟨q, i, w, a, h, rfl⟩
 
 /-- **A step of the machine is a step of its description**: from a well-shaped configuration of
 the simulation representing a running configuration, the description can take the renamed step. -/
@@ -136,11 +133,8 @@ public theorem exists_step_of_nStep {input : List Symbol} {c : Cfg k Symbol Stat
       s'.toCfg k (input.map eY) out' = c'.map eS eY := by
   obtain ⟨q', hq', e, he, hkey, heq⟩ := h
   obtain ⟨p, i, w, a, ha, rfl⟩ := (mem_descN eS eY ntm).mp he
-  simp only [Prod.mk.injEq] at heq
-  obtain ⟨rfl, rfl⟩ := heq
-  have hstate : (c.map eS eY).state = some q' := by
-    rw [← hsc]
-    exact hq'
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
+  have hstate : (c.map eS eY).state = some q' := hsc ▸ hq'
   obtain ⟨q, hq, rfl⟩ := Option.map_eq_some_iff.mp hstate
   rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map] at hkey
   cases key_injective eS eY (a₁ := (p, i, w)) (a₂ := (q, c.inputSymbol, c.workTapeSymbols)) hkey

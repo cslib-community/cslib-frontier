@@ -71,6 +71,12 @@ def attachWeight (W : V → V → ℕ) (A : Finset V) (x : V) : ℕ :=
   ∑ a ∈ A, W a x
 
 omit [DecidableEq V] in
+/-- Defining sum equation for `attachWeight`. -/
+theorem attachWeight_def (W : V → V → ℕ) (A : Finset V) (x : V) :
+    attachWeight W A x = ∑ a ∈ A, W a x := by
+  rfl
+
+omit [DecidableEq V] in
 theorem attachWeight_mono (W : V → V → ℕ) {A B : Finset V} (h : A ⊆ B) (x : V) :
     attachWeight W A x ≤ attachWeight W B x :=
   Finset.sum_le_sum_of_subset h

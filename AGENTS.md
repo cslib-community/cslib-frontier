@@ -27,25 +27,21 @@ binding: read the file for a task before doing that task.
 | build, validate, add a file or bump the pin | [policy/build-and-files.md](policy/build-and-files.md) |
 
 At the start of work and when resuming, read this file and the policy files for your task from
-current `main`, not from a feature worktree or an automatically supplied snapshot, which can be
-stale. Coordinators recheck the revisions of `AGENTS.md`, `policy/*.md`, `CONTRIBUTING.md` and the
-relevant manual sections on current `main` before assigning reviews, reviewing or integrating,
-pass material changes to retained workers and reviewers, and record the checked commit in their
-private handoff ([details](policy/workflow.md#staying-current-with-these-instructions)). Explicit
-user directions still control; surface material conflicts. Keep policy changes focused on
-recurring problems, update linked guidance and templates together, and prefer shortening a rule
-to adding an exception.
+current `main`; a feature worktree or automatically supplied snapshot can be stale. Coordinators
+recheck them before assigning reviews, reviewing or integrating, and pass material changes on
+([details](policy/workflow.md#staying-current-with-these-instructions)). Explicit user directions
+still control; surface material conflicts. Keep policy changes focused on recurring problems,
+update linked guidance and templates together, and prefer shortening a rule to adding an exception.
 
 ## What matters most
 
 1. **Faithful statements come before progress.** Lean checks proofs, not whether a statement says
-   what its name, docstring and PR title claim. Do not land a weaker result under the name of a
-   stronger one, and do not assume the hard part as a hypothesis
-   ([Faithful headlines](#faithful-headlines)).
+   what its name, docstring and PR title claim. Do not land a weaker result under a stronger one's
+   name or assume the hard part as a hypothesis ([Faithful headlines](#faithful-headlines)).
 2. **The library is better smaller.** Every public declaration, definition and file must earn its
-   place. Do not add restatements, unused scaffolding, parallel notions or lemmas that Mathlib,
-   CSLib or this library already has ([Placement and reuse](#placement-and-reuse);
-   [policy/taste.md](policy/taste.md) shows the patterns to avoid).
+   place: no restatements, unused scaffolding, parallel notions or lemmas that Mathlib, CSLib or
+   this library already has ([Placement and reuse](#placement-and-reuse);
+   [policy/taste.md](policy/taste.md)).
 3. **Review judges what Lean cannot:** the statement, the design and what should not exist. A
    review that only confirms the build, placement and process is incomplete
    ([Review cycle](#review-cycle)).
@@ -67,8 +63,9 @@ When a declaration claims to formalize a cited result, give the precise source v
 locator and map the source claim to Lean: quantifiers, hypotheses, models, encodings and resource
 conventions. Verify locators and quotations against the source itself; invented or misattributed
 ones block approval. New mathematics needs no source; label it original. Search for an existing
-notion before adding a public definition, and explain any parallel one. Reviewers may ask for a
-checked instance where a definition holds and one where it fails.
+notion before adding a public definition, and explain any parallel one. Include a checked test
+witness on subtle model boundaries (self-loops, asymmetric matrices, repeated or malformed
+queries); reviewers may also ask for instances where a definition holds and where it fails.
 
 ### Faithful headlines
 
@@ -81,13 +78,13 @@ documentation, manual page, PR title or [results inventory](results/README.md) e
    deviations the docstring names and review accepts as the same theorem in another formal setting.
 2. **Disclosure does not license a weaker headline.** A result is a *stand-in* when it assumes a
    step of the cited proof, something about an object its own proof builds (a reduction,
-   simulator, extractor, hybrid, decoder), or a caller-supplied object whose existence or
-   efficiency is what the result proves; when it idealizes the construction's algorithms; when it
-   proves a fixed finite instance instead of a family; when it weakens the notion, model or
-   adversary class; or when it rests on an assumption other than the source's that the source's
-   is not proved or cited to imply, such as a stronger or novel one. A useful stand-in may land only as a named step (`…_of_reduction_le`,
-   `…_of_realization`) whose docstring opens by saying it is not the cited result, with the cited
-   objective left open. Listing the gap under "Limitations" does not meet this rule.
+   simulator, extractor, hybrid, decoder) or a caller-supplied object whose existence or
+   efficiency is what it proves; idealizes the construction's algorithms; proves a fixed finite
+   instance instead of a family; weakens the notion, model or adversary class; or rests on an
+   assumption that the source's own is not proved or cited to imply. A useful stand-in may land
+   only as a named step (`…_of_reduction_le`, `…_of_realization`) whose docstring opens by saying
+   it is not the cited result, with the cited objective left open. Listing the gap under
+   "Limitations" does not meet this rule.
 3. **No vacuous headlines.** Hypotheses that cannot hold together, or a conclusion that follows
    trivially, are a misformalization even when documented. Check a satisfying instance.
 4. **The faithful statement supersedes its stand-ins.** The change that proves it deletes or
@@ -121,32 +118,33 @@ the reader parse the same nested one repeatedly. For new and changed statements:
 6. **Show meaning-bearing choices** (unary or binary, graph and matrix representation, framing
    that changes a length bound) in the name or the first docstring line.
 7. **No hidden defaults:** no elaborator or typeclass chooses an encoding (`enc%`, #1830, is parked).
+8. **Keep restricted-class results on the general encoding:** state a restricted language as
+   `{x | x ∈ Problem ∧ Restricted x}` and a promise or conditional algorithm with `Restricted x` as
+   a hypothesis on the general instance type, rather than encoding a caller-supplied witness or
+   decomposition unless the source takes that representation as input.
 
 ### Security theorems
 
 A security theorem may assume only (a) named hardness assumptions, stated relative to the setup
 sampler or component they concern; (b) that the adversary is in the admitted class; and (c)
-properties of components that the cited result itself takes as given.
-
-It must not assume anything about an object its proof constructs (a reduction, distinguisher,
-simulator, extractor or hybrid): not its advantage, its class membership or its efficiency. It
-must not take from the caller an object whose existence or efficiency is the cited result, assume
-the scheme's own algorithms are ideal, or stop at a bound for parameters an `∃` chooses after the
-adversary. Write each reduction as an explicit program with an efficiency witness proved from the
-adversary's certificate, and prove the asymptotic theorem by applying the assumption through that
-witness. Asymptotic statements come first; a concrete bound `Adv(A) ≤ f(Adv(B_A))` is a lemma.
-Names and docstrings state the model, the notion and any deviation from the source.
+properties of components that the cited result itself takes as given. It must not assume
+anything about an object its proof constructs (a reduction, distinguisher, simulator, extractor
+or hybrid), take from the caller an object whose existence or efficiency is the cited result,
+assume the scheme's own algorithms are ideal, or stop at a bound for parameters an `∃` chooses
+after the adversary. Write each reduction as an explicit program with an efficiency witness
+proved from the adversary's certificate, and prove the asymptotic theorem by applying the
+assumption through that witness. Asymptotic statements come first; a concrete bound
+`Adv(A) ≤ f(Adv(B_A))` is a lemma. Names and docstrings state the model, the notion and any
+deviation from the source.
 
 Every named assumption is listed in the
-[assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) as *standard* (a
-cited source states it; the docstring cites the definition with a checked locator and names every
-material difference), *novel* (no source states it, or it strengthens its source; the docstring
-says so, relates it to standard assumptions and says why it is plausible) or *vocabulary* (a
-generic notion that becomes an assumption only through the instance a theorem supplies). A row
-says "locator not verified" until a reviewer has confirmed the locator at the source. A theorem
-claiming a cited result rests on the source's assumption, on one review accepts as the same in
-another formal setting, or on one the source's implies; otherwise it is a stand-in. A novel
-assumption may support a result presented as original and named for it.
+[assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) as *standard* (its
+docstring cites the source definition with a checked locator and names material differences),
+*novel* (its docstring says so, relates it to standard assumptions and says why it is plausible)
+or *vocabulary*. A row says "locator not verified" until a reviewer has confirmed the locator at
+the source. A theorem claiming a cited result rests on the source's assumption, on one review
+accepts as the same in another formal setting, or on one the source's implies; otherwise it is a
+stand-in. A novel assumption may support a result presented as original and named for it.
 `scripts/check_hardness_assumptions.py` checks the inventory; the premise and reduction-witness
 scans are advisory. None replaces semantic review.
 
@@ -159,29 +157,29 @@ to reach a count. A review does the following, in this order.
 1. **Check every new or changed headline first.** Quote its statement (abridged) and compare the
    name, docstring, PR title and inventory entry with what it proves. For a cited result, classify
    each hypothesis: (i) an assumption the source names (in cryptography, listed in the
-   [assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) with a checked
-   locator, and for a parametric or vocabulary notion the instance supplied is the source's); (ii) membership of the adversary or input
-   in the admitted class; (iii) a property of a generic component the source takes as given; (iv)
-   anything else. Any vacuous hypothesis blocks approval. For a statement presented as the cited
-   endpoint, or one advertising a headline property that its premises assume rather than
-   establish, any (iv) hypothesis, undisclosed deviation, overclaiming name or weaker stand-in
-   blocks approval; it is not a nit, is not deferred to a follow-up, and is not resolved by
-   "document it as a milestone". Fix the statement or rename it as a step, and check that the
-   change removes or demotes any stand-in it supersedes.
+   assumptions inventory with a checked locator, with the source's instance of any parametric or
+   vocabulary notion); (ii) membership of the adversary or input in the admitted class; (iii) a
+   property of a generic component the source takes as given; (iv) anything else. Any vacuous
+   hypothesis blocks approval. So does any (iv) hypothesis, undisclosed deviation, overclaiming
+   name or weaker stand-in in a statement presented as the cited endpoint or advertising a
+   headline property its premises assume; this is never a nit or a follow-up. Fix the statement
+   or rename it as a step, and check that the change removes or demotes any stand-in it
+   supersedes.
 2. **Ask what should not exist.** For each new public declaration, definition, file and test, ask
-   whether the library is better with it ([policy/taste.md](policy/taste.md)). Is it used by a
-   caller in this PR, by a stated next step or by a reader applying the cited result? Is it a
-   one-line restatement of another declaration, or a specialization a caller gets for free? Does
-   it parallel a neighbouring API? Name what you asked the author to delete, merge or make
-   private, or say that you looked and found nothing to remove. A review without an answer to
-   this question is incomplete. A zero reference count alone does not justify removing expected
-   mathematical API.
+   whether the library is better with it ([policy/taste.md](policy/taste.md)): is it used by a
+   caller in this PR, a stated next step or a reader applying the cited result; is it a one-line
+   restatement or a specialization a caller gets for free; does it parallel a neighbouring API?
+   Name what you asked the author to delete, merge or make private, or say that you looked and
+   found nothing; a review without this answer is incomplete. A zero reference count alone does
+   not justify removing expected mathematical API. Automation justified by the code it removes
+   must shrink the diff overall, and each new branch must serve callers beyond one definition or
+   module ([details](policy/review.md#review-cycle)).
 3. **Name the first real property.** For each new definition, construction or transcribed
    algorithm, say what its first non-trivial property is (signatures verify, the padding is
    block-aligned, the simulator's output is close) and whether this PR proves it. Unfoldings,
-   `rfl` equalities and restated library lemmas are not results; do not let them be listed as
-   main results. If the property is missing, request it or have the PR and module documentation
-   say plainly that only definitions are provided.
+   `rfl` equalities and restated library lemmas are not results and are not listed as main
+   results. If the property is missing, request it or have the PR and module documentation say
+   plainly that only definitions are provided.
 4. **Read the mathematics.** Read the actual definitions, statements and proof arguments and a
    representative client. For substantive mathematics, say briefly what is proved, its limiting
    hypotheses, model and resource conventions, and a checked instance or edge case. Consider
@@ -203,24 +201,26 @@ unchanged code. An approval carries across a mechanical delta only when a coordi
 that meaning, exports, attributes, imports and automation are preserved; changed reasoning, API,
 source claims or security claims need fresh non-author review.
 
-A non-authoring agent may review work from the same coordinator or account, in a separate
-review context, reaching its own verdict. Anyone who took part in the implementation or its
-design cannot supply that review. If a shared GitHub account prevents formal approval, use one
-brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
-never presented as human review. A headline for a cited result is presented as a step or is
-registered in the [results inventory](results/README.md), once a reviewer, human or agent, from
-outside the authoring fleet checks its statement against the source, opens the definitions it
-names and records the check ([policy/review.md](policy/review.md#review-cycle)).
+Agent review is the gate: no PR waits for human review. Humans intend to read and spot-check
+merged code, including when it is upstreamed to CSLib; agent review is never presented as human
+review. A non-authoring agent may review work from the same coordinator or account, in a
+separate review context, reaching its own verdict. Anyone who took part in the implementation or
+its design cannot supply that review. If a shared GitHub account prevents formal approval, use
+one brief PR comment naming the reviewer agent or session, revision and verdict. A headline for
+a cited result is registered in the [results inventory](results/README.md) only after such a
+reviewer checks its statement against the source, opens the definitions it names and records
+who checked and what was read; until then it is presented as a step
+([policy/review.md](policy/review.md#review-cycle)).
 
 ### Approve and queue
 
 Approving a PR's exact current head and queueing it are one step. The non-authoring reviewer
 queues the approved head with `scripts/queue_pr.py`, run from a trusted checkout of current
 `main` ([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
-Authors do not queue their own PRs. Approve without queueing, and say why, when human review has
-been requested or the approval names a hold (an unlanded lower PR, a migration, or pending
-source or advisory-notice review). A passing check does not release a review hold; do not start
-`queue_pr.py --wait` while running CI will still produce notices that need review.
+Authors do not queue their own PRs. Approve without queueing, and say why, when the approval
+names a hold (an unlanded lower PR, a migration, or pending source or advisory-notice review); a
+request for human review is not a hold, but a maintainer's hold is. A passing check does not release a review hold; do not
+start `queue_pr.py --wait` while running CI will still produce notices that need review.
 
 **Every merge to `main` goes through the merge queue.** Never call a direct merge endpoint: the
 REST merge API, a GitHub connector's `merge_pull_request` tool, or `gh pr merge --admin`. With
@@ -231,11 +231,24 @@ recorded in the PR.
 A queued PR is not done. Coordinators watch queued batches until they land, requeue ejected PRs,
 and sequence tree-wide refactors so they do not stall smaller PRs behind cold rebuilds.
 
+### Verdicts, claims and holds
+
+Every review ends in a verdict whose first line begins `**APPROVE** at <sha> by <id>` or
+`**REQUEST_CHANGES** at <sha> by <id>` (` by <id>` is optional only on an account that reviewer
+alone uses); a request to split the PR is the latter. A reviewer first posts
+`CLAIM review head=<sha> by=<id> until=<time>`, an exclusive lease of at most 45 minutes,
+renewable once and ended by its verdict. A hold is a line `HOLD owner=<id> until=<time>
+reason=<text>`. Do not queue during a hold or another reviewer's claim, or over a later
+`**REQUEST_CHANGES**` at the approved head. Coordinators sweep expired holds and non-draft PRs
+whose head has gone 12 hours without a verdict
+([formats and sweeps](policy/review.md#verdicts-claims-and-holds)).
+
 ### Restacks
 
 Merge `main` into a PR only when it conflicts with `main`, needs a change on `main` to pass CI,
 or a lower stacked PR has landed; refreshing an approved PR only replaces the approved head.
-Dequeue a queued PR before pushing to it. A restack keeps its approval when
+Dequeue a queued PR before pushing to it. A restack, such as one that only merges entries of
+`references.bib` or `manual/sources.md`, keeps its approval without fresh review when
 `python3 scripts/check_restack.py <approved head> <new head>` passes, run from a checkout of
 current `origin/main`, and CI passes at the new head; the non-author who queues reruns the
 command. `scripts/restack_mechanical.py` performs aggregate-only and bibliography-only restacks.
@@ -244,26 +257,24 @@ Never trust a `merge=union` result for the import aggregates; regenerate them wi
 
 ## Proof hygiene
 
-These rules exist for readability and robustness. When following one would make a particular
-proof or statement worse (longer, harder to read, or working against the automation), deviate,
-say why in the PR, and propose amending the rule. Reviewers judge a deviation by the rule's
-purpose, not its letter.
+These rules serve readability and robustness. When following one would make a particular proof or
+statement worse, deviate, say why in the PR, and propose amending the rule. Reviewers judge a
+deviation by the rule's purpose.
 
 - No `sorry` on `main`, no custom `axiom`, no `native_decide`.
 - `set_option maxHeartbeats` / `maxRecDepth` overrides need a justifying comment. A
   `maxHeartbeats` above the 200000 default, or zero (unlimited), also needs a reviewed entry in
-  `scripts/heartbeat_allowlist.txt`, which `scripts/check_hygiene.py` enforces and keeps
-  shrinking; prefer reducing the proof's cost.
+  `scripts/heartbeat_allowlist.txt` (enforced by `scripts/check_hygiene.py`); prefer reducing the
+  proof's cost.
 - Never put `[simp]` on machine step functions or transition tables (goals explode).
-- Non-terminal `simp` only as `simp only`, so that later steps do not depend on the shape of a
-  `simp` normal form. A `simp` whose result is closed by a finishing tactic that does not depend
-  on that shape (`omega`, `linarith`, `nlinarith`, `norm_num`, `ring`, `grind`, `tauto`), as in
-  `simp [h]; omega`, counts as terminal, as in Mathlib's flexible-tactic linter.
+- Non-terminal `simp` only as `simp only`. A `simp` closed by a finishing tactic that does not
+  depend on its normal form (`omega`, `linarith`, `nlinarith`, `norm_num`, `ring`, `grind`,
+  `tauto`), as in `simp [h]; omega`, counts as terminal, as in Mathlib's flexible-tactic linter.
 - Definitions as terms, not `by` blocks, where possible.
 - Prefer `do` notation for sequential monadic computations, including probabilistic experiments
-  in theorem statements. Keep explicit `bind` in laws about bind and proof steps that use those
-  laws directly, and for operations such as `PMF.bind` between different universes. Retain
-  concise point-free composition where naming an intermediate value would not help.
+  in statements. Keep explicit `bind` in bind laws and the proof steps that use them and for
+  cross-universe operations such as `PMF.bind`, and concise point-free composition where naming
+  an intermediate value would not help.
 - Before the first supported release, do not add deprecated aliases or compatibility wrappers
   for renamed, moved, removed or privatized declarations. Update all in-repository clients
   (library, tests, results inventory and guide) and remove the superseded interface in the same
@@ -308,32 +319,34 @@ remains.
    or session and branch. A shared GitHub account does not identify the active agent.
 2. Update the task when scope changes, a blocker needs help, work is handed off, or you stop.
 3. Before taking over work, inspect the issue, PR, recent commits and activity, and notify the
-   owner in the task record. Explicitly released work is available immediately. A claim with no
-   open PR and no activity by its owner for 24 hours after that notice is released: record the
-   takeover and proceed. A PR that needs author action (changes requested, a conflict or failing
-   CI) may be reassigned by a coordinator after the same notice and 24 hours; a PR awaiting
-   review is never released by silence. Preserve the earlier work and its credit.
+   owner in the task record. Explicitly released work is available immediately; a claim with no
+   open PR and no owner activity for 24 hours after that notice (6 hours for an agent session on
+   your own account) is released (record the takeover). A coordinator may reassign a PR that
+   needs author action (changes requested, a conflict or failing CI) after the same notice and
+   wait; silence never releases a PR awaiting review. Preserve the earlier work and its credit.
 4. Implement, self-review and validate. Explain the change in its docstrings and the PR
    description; the manual's reference chapters are frozen.
 5. Open a PR with validation and limitations and request coordinator review.
-6. Address requested changes before starting more work. Do not approve or merge your own PR.
+6. Address requested changes before starting more work; a PR with no author response 48 hours
+   after a request for changes is converted to draft. Do not approve or merge your own PR.
 
 ### Coordinators
 
 Reviewing submitted PRs is the highest priority. Give simplification and usability real priority
-alongside new mathematics: replacing repeated proof plumbing with a small lemma, finishing a
-migration and removing what it superseded, deleting unused scaffolding, and making results easy
-to find, import and apply. Give a clear verdict and a useful next step; resolve ownership and
-dependency conflicts; help stale tasks reach a next step. Merge only with required validation and
-independent review of the current revision, through the queue
-([Approve and queue](#approve-and-queue)). For your own implementation, follow the worker rules
+alongside new mathematics: small lemmas for repeated proof plumbing, finished migrations with
+what they superseded removed, deleted scaffolding, and results that are easy to find, import and
+apply. Give a clear verdict and a useful next step; resolve ownership and dependency conflicts;
+help stale tasks reach a next step. Merge only with required validation and independent review
+of the current revision, through the queue. For your own implementation, follow the worker rules
 and obtain non-author review.
 
 ## Working on changes
 
 Full text: [policy/workflow.md](policy/workflow.md). Use ordinary branches or isolated worktrees,
-and split large developments into independently useful, reviewable milestones. Preserve other
-contributors' work and source credit.
+and split large developments into independently useful, reviewable milestones. A stacked chain
+has at most three open unlanded layers; reviewers skip layers above a root that cannot land, and
+approved contiguous layers may land as a rollup ([details](policy/review.md#stacked-chains)).
+Preserve other contributors' work and source credit.
 
 ### Repository isolation
 
@@ -386,7 +399,7 @@ who has not followed the task. Start with the point: the problem or mathematical
 central idea, and what the change enables, then validation and AI disclosure.
 Small PRs need a paragraph or two. Keep evidence in one place and link to it. Comments add a
 finding, answer, decision, blocker or handoff; keep CI polling and internal agent discussion out
-of public threads. Do not imply that an agent review is human review.
+of public threads.
 
 ## Lean development: use the Lean MCP server first
 
@@ -409,14 +422,13 @@ lake exe checkInitImports
 ```
 
 For Lean, dependency or build changes, all of these and the other CI checks must pass on the
-final revision before integration. A successful hosted run for that revision supplies full
-validation; run `scripts/check.sh` locally only when asked or when hosted coverage is
-unavailable. During development, check affected modules and representative clients;
-`scripts/check.sh --quick --no-full-fallback [--base REF]` is the local checkpoint, and exit
-status 3 means "run focused checks and leave the full run to CI". Documentation-only changes need
-consistency and link checks, not a rebuild. `lake exe mk_all` regenerates `CslibFrontier.lean`
-after adding a file; new tests go in `CslibFrontierTests/`. Details and what each mode covers:
-[policy/build-and-files.md](policy/build-and-files.md#validation-sequence).
+final revision before integration; a successful hosted run for that revision supplies this, so
+run `scripts/check.sh` locally only when asked or when hosted coverage is unavailable. During
+development, check affected modules and representative clients with `scripts/check.sh --focused`
+or `scripts/check.sh --quick --no-full-fallback`; exit status 3 means "run focused checks and
+leave the full run to CI". Documentation-only changes need consistency and link checks, not a
+rebuild. Run `lake exe mk_all` after adding a file; new tests go in `CslibFrontierTests/`
+([details](policy/build-and-files.md#validation-sequence)).
 
 ## File rules
 
@@ -443,9 +455,8 @@ When the pin adopts merged work, the same commit replaces the superseded local f
 deprecated shim ([details](policy/build-and-files.md#staying-current-with-upstream)).
 
 Every pin bump lists the upstream PRs labelled `cslib-frontier-adaptation` that merged in the
-range it crosses. These are design changes, such as new or more general definitions, that need
-more than repaired proofs: adapt to each in the bump, or defer it as the cleanup rule allows
-([query and procedure](policy/build-and-files.md#upstream-changes-labelled-for-adaptation)).
+range it crosses, and adapts to each beyond repairing proofs or defers it as the cleanup rule
+allows ([query and procedure](policy/build-and-files.md#upstream-changes-labelled-for-adaptation)).
 
 ## Design commitments (do not re-litigate casually)
 
@@ -459,6 +470,9 @@ more than repaired proofs: adapt to each in the bump, or defer it as the cleanup
   The tidy computability calculus is being deleted (#862); tidiness survives only as a machine-level
   kernel inside the Machines layer, used inside proofs of plain rules.
 - Programs are `PFunctor.FreeM` values; a machine's clocked run is itself a program.
+- Running times are Word-RAM or multi-tape Turing-machine theorems. `TimeM` is permanently
+  removed and forbidden (#7636, #6301; enforced by `scripts/check_timem.py`): its ticks are
+  unchecked annotations ([Running-time claims](policy/statements.md#running-time-claims)).
 - The universal machine is an interpreter program certified by the calculus, not a hand-built
   machine.
 - Do not cite the unpublished draft "A Small Calculus of Finite Computation" in source or PR text.

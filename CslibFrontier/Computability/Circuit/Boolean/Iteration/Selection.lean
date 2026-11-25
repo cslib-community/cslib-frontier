@@ -114,22 +114,21 @@ theorem chooseRecord_spec (flags : Fin R → Bool) (records : Fin R → α) (fal
     (t : ℕ) (hex : ∃ j : Fin R, j.val < t ∧ flags j = true) :
     ∃ j : Fin R, j.val < t ∧ flags j = true ∧
       chooseRecord flags records fallback t = records j := by
-  induction t with
-  | zero => obtain ⟨j, hj, _⟩ := hex; omega
-  | succ t ih =>
-    by_cases ht : t < R
-    · by_cases hf : flags ⟨t, ht⟩ = true
-      · exact ⟨⟨t, ht⟩, by simp, hf, by simp [chooseRecord, ht, hf]⟩
-      · obtain ⟨j, hj, hflag, hout⟩ := ih (by
-          obtain ⟨j, hj, hflag⟩ := hex
-          refine ⟨j, ?_, hflag⟩
-          have hne : j.val ≠ t := fun h => hf ((Fin.ext h : j = ⟨t, ht⟩) ▸ hflag)
-          omega)
-        exact ⟨j, by omega, hflag, by simp [chooseRecord, ht, hf, hout]⟩
-    · obtain ⟨j, hj, hflag, hout⟩ := ih (by
-        obtain ⟨j, _, hflag⟩ := hex
-        exact ⟨j, by have := j.isLt; omega, hflag⟩)
-      exact ⟨j, by omega, hflag, by simp [chooseRecord, ht, hout]⟩
+  fun_induction chooseRecord flags records fallback t with
+  | case1 => obtain ⟨j, hj, _⟩ := hex; omega -- t = 0
+  | case2 t ht hf => exact ⟨⟨t, ht⟩, by simp, hf, rfl⟩ -- t < R, record t flagged
+  | case3 t ht hf ih => -- t < R, record t not flagged
+    obtain ⟨j, hj, hflag, hout⟩ := ih (by
+      obtain ⟨j, hj, hflag⟩ := hex
+      refine ⟨j, ?_, hflag⟩
+      have hne : j.val ≠ t := fun h => hf ((Fin.ext h : j = ⟨t, ht⟩) ▸ hflag)
+      omega)
+    exact ⟨j, by omega, hflag, hout⟩
+  | case4 t ht ih => -- t ≥ R: skip
+    obtain ⟨j, hj, hflag, hout⟩ := ih (by
+      obtain ⟨j, _, hflag⟩ := hex
+      exact ⟨j, by have := j.isLt; omega, hflag⟩)
+    exact ⟨j, by omega, hflag, hout⟩
 
 /-- Selecting among available records costs four gates per record bit. -/
 theorem synthesis_chooseRecord {n w : ℕ} (s : Set (BooleanFunction n))

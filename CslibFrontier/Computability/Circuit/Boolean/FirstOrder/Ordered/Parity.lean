@@ -12,6 +12,7 @@ public import Mathlib.SetTheory.Cardinal.Finite
 import CslibFrontier.Computability.Circuit.Boolean.FirstOrder.Ordered
 import CslibFrontier.Computability.Circuit.Boolean.FirstOrder.Parity
 import CslibFrontier.Computability.Circuit.Boolean.AC0
+import CslibFrontier.Computability.Circuit.Simps
 import CslibFrontier.Computability.Languages.Slice
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Tactic.Linarith
@@ -73,12 +74,8 @@ private theorem exists_formula_computes_parity [Fact (2 ≤ n)] (P : L.Relations
   let sub : Fin (Fintype.card (Atom L n)) → Circuits.Formula Unbounded.signature n := fun j =>
     if (e.symm j).1 = ⟨1, P⟩ then .gate (.and _) fun i => .input ((e.symm j).2 i)
     else constUnbounded (decide (N.RelMap (e.symm j).1.2 (e.symm j).2))
-  have hsubd : ∀ j, (sub j).depth ≤ 1 := fun j => by
-    simp only [sub, constUnbounded]
-    split_ifs <;> simp
-  have hsubs : ∀ j, (sub j).size ≤ 1 := fun j => by
-    simp only [sub, constUnbounded]
-    split_ifs <;> simp
+  have hsubd : ∀ j, (sub j).depth ≤ 1 := fun j => by circuit_bound [sub, constUnbounded]
+  have hsubs : ∀ j, (sub j).size ≤ 1 := fun j => by circuit_bound [sub, constUnbounded]
   refine ⟨.gate .not ![G.bind sub], fun y => ?_, ?_, ?_⟩
   · set S : Finset (Fin n) := {i | y i = true}
     let : L.Structure (Fin n) := inferInstanceAs (L.Structure (Expansion P N S))
@@ -119,17 +116,12 @@ private theorem exists_formula_computes_parity [Fact (2 ≤ n)] (P : L.Relations
       simp [this]
     · have := hreal.1 hv
       simp [this]
-  · have h := Circuits.Formula.depth_bind_le hsubd G
-    have hG : G.depth ≤ foDepth φ := depth_toUnbounded_le e φ Fin.elim0
-    simp only [Circuits.Formula.depth_gate, Finset.univ_unique, Finset.sup_singleton,
-      Fin.default_eq_zero, Matrix.cons_val_zero]
-    omega
-  · have h := Circuits.Formula.size_bind_le hsubs G
-    have hs : G.size ≤ foSize φ * (n + 2) ^ foSize φ := size_toUnbounded_le e φ Fin.elim0
-    have hl : G.leafSize ≤ (n + 2) ^ foSize φ := leafSize_toUnbounded_le e φ Fin.elim0
-    have hpos : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
-    simp only [Circuits.Formula.size_gate, Fin.sum_univ_one, Matrix.cons_val_zero]
-    nlinarith
+  · have := depth_toUnbounded_le e φ Fin.elim0
+    circuit_bound
+  · have := size_toUnbounded_le e φ Fin.elim0
+    have := leafSize_toUnbounded_le e φ Fin.elim0
+    have : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
+    circuit_bound
 
 /-- **Parity is not definable in canonical ordered first-order logic.** In any finite relational
 input vocabulary with a unary relation `P`, no sentence using canonical `≤`, `BIT`, `0`, `1`, and

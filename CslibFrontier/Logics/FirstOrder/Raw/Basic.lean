@@ -112,8 +112,10 @@ def ofNat : ℕ → RawFormula
     else if m % 4 = 2 then imp (ofNat (m / 4).unpair.1) (ofNat (m / 4).unpair.2)
     else all (m / 4).unpair.1 (ofNat (m / 4).unpair.2)
 
+/-- Code `0` decodes to `falsum`. -/
 theorem ofNat_zero : ofNat 0 = falsum := by rw [ofNat]
 
+/-- Unfolding lemma for `ofNat` on a successor code `m + 1`. -/
 theorem ofNat_succ (m : ℕ) : ofNat (m + 1) =
     if m % 4 = 0 then equal (m / 4).unpair.1 (m / 4).unpair.2
     else if m % 4 = 1 then rel (m / 4).unpair.1 (Denumerable.ofNat (List ℕ) (m / 4).unpair.2)
@@ -132,6 +134,7 @@ private theorem ofNat_four_mul_add (p j : ℕ) (hj : j < 4) :
   have h2 : (4 * p + j) / 4 = p := by omega
   rw [h1, h2]
 
+/-- `ofNat` is a left inverse of `toNat`. -/
 theorem ofNat_toNat : ∀ φ : RawFormula, ofNat φ.toNat = φ
   | falsum => ofNat_zero
   | equal x y => by
@@ -151,6 +154,7 @@ theorem ofNat_toNat : ∀ φ : RawFormula, ofNat φ.toNat = φ
       ofNat_four_mul_add _ 3 (by omega)]
     simp [ofNat_toNat φ]
 
+/-- `ofNat` is a right inverse of `toNat`. -/
 theorem toNat_ofNat : ∀ n : ℕ, (ofNat n).toNat = n
   | 0 => by rw [ofNat_zero, toNat]
   | m + 1 => by
@@ -161,17 +165,15 @@ theorem toNat_ofNat : ∀ n : ℕ, (ofNat n).toNat = n
     have hm : 4 * (m / 4) + m % 4 = m := Nat.div_add_mod m 4
     have hp := Nat.pair_unpair (m / 4)
     rw [ofNat_succ]
-    split_ifs with c0 c1 c2
-    · rw [toNat, hp]; omega
-    · rw [toNat, Denumerable.encode_ofNat, hp]; omega
-    · rw [toNat, ih1, ih2, hp]; omega
-    · rw [toNat, ih2, hp]; omega
+    grind [toNat, Denumerable.encode_ofNat]
 
 instance : Denumerable RawFormula :=
   Denumerable.mk' ⟨toNat, ofNat, ofNat_toNat, toNat_ofNat⟩
 
+/-- The `Encodable.encode` code of `φ` is `φ.toNat`. -/
 theorem encode_eq_toNat (φ : RawFormula) : Encodable.encode φ = φ.toNat := rfl
 
+/-- The `Denumerable.ofNat` decoding coincides with `RawFormula.ofNat`. -/
 theorem ofNat_eq (n : ℕ) : Denumerable.ofNat RawFormula n = ofNat n := rfl
 
 /-! ### Derived connectives -/
@@ -199,6 +201,7 @@ def bigConj : List RawFormula → RawFormula
   | [] => verum
   | φ :: l => conj φ (bigConj l)
 
+/-- Express `bigConj` as a right fold with `conj` and `verum`. -/
 theorem bigConj_eq_foldr (l : List RawFormula) : bigConj l = l.foldr conj verum := by
   induction l with
   | nil => rfl
@@ -281,6 +284,7 @@ def quantifierDepth : RawFormula → ℕ
     simp only [rename, quantifierDepth_imp, quantifierDepth_rename σ φ, quantifierDepth_rename σ ψ]
   | all _ φ => by simp only [rename, quantifierDepth_all, quantifierDepth_rename σ φ]
 
+/-- Every variable in `args` is strictly below the `varBound` expression of `rel r args`. -/
 theorem lt_varBound_of_mem {x : ℕ} {args : List ℕ} (h : x ∈ args) :
     x < ((args.map (· + 1)).foldr max 0) := by
   induction args with
@@ -351,6 +355,8 @@ variable {I : ℕ → List M → Prop} {v : ℕ → M}
 
 end Realize
 
+/-- Satisfaction of a renamed formula coincides with satisfaction under the pulled-back relation
+interpretation `fun r => I (σ.getD r r)`. -/
 theorem realize_rename (σ : List ℕ) (I : ℕ → List M → Prop) :
     ∀ (φ : RawFormula) (v : ℕ → M),
       (rename σ φ).Realize I v ↔ φ.Realize (fun r => I (σ.getD r r)) v
@@ -362,6 +368,8 @@ theorem realize_rename (σ : List ℕ) (I : ℕ → List M → Prop) :
   | all x φ, v => by
     simp only [rename, realize_all, realize_rename σ I φ]
 
+/-- Satisfaction of `φ` depends only on the assignment values at variables strictly below
+`φ.varBound`. -/
 theorem realize_congr_var {I : ℕ → List M → Prop} :
     ∀ (φ : RawFormula) {v w : ℕ → M}, (∀ x < φ.varBound, v x = w x) →
       (φ.Realize I v ↔ φ.Realize I w)
@@ -383,6 +391,8 @@ theorem realize_congr_var {I : ℕ → List M → Prop} :
     · subst hyx; simp
     · simp [Function.update_of_ne hyx, h y (lt_max_of_lt_right hy)]
 
+/-- Satisfaction of `φ` depends only on the interpretations of relation symbol–arity pairs in
+`φ.atoms`. -/
 theorem realize_congr_rel {I J : ℕ → List M → Prop} :
     ∀ (φ : RawFormula) (v : ℕ → M),
       (∀ r (as : List M), (r, as.length) ∈ φ.atoms → (I r as ↔ J r as)) →
@@ -398,6 +408,8 @@ theorem realize_congr_rel {I J : ℕ → List M → Prop} :
     simp only [Realize, atoms] at h ⊢
     exact forall_congr' fun m => realize_congr_rel φ _ h
 
+/-- Satisfaction of a raw formula is invariant under transporting both the interpretation and
+assignment along a bijection `e : M ≃ N`. -/
 theorem realize_equiv {N : Type*} (e : M ≃ N) (I : ℕ → List M → Prop) :
     ∀ (φ : RawFormula) (v : ℕ → M),
       φ.Realize (fun r as => I r (as.map e.symm)) (e ∘ v) ↔ φ.Realize I v
@@ -430,9 +442,11 @@ assignment. -/
 def FinValid (φ : RawFormula) : Prop :=
   ∀ (M : Type) [Finite M] [Nonempty M] (I : ℕ → List M → Prop) (v : ℕ → M), φ.Realize I v
 
+/-- `neg φ` is finitely valid iff `φ` is not finitely satisfiable. -/
 theorem finValid_neg_iff (φ : RawFormula) : FinValid (neg φ) ↔ ¬FinSat φ := by
   simp only [FinValid, FinSat, realize_neg, not_exists]
 
+/-- `φ` is finitely valid iff `neg φ` is not finitely satisfiable. -/
 theorem finValid_iff_not_finSat_neg (φ : RawFormula) : FinValid φ ↔ ¬FinSat (neg φ) := by
   simp only [FinValid, FinSat, realize_neg, not_exists, not_not]
 

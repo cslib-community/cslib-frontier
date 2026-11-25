@@ -48,19 +48,15 @@ theorem computableInPolyTime_appendRawCertificate {α : Type} {input : α ↪ Li
   have hrlen : ComputableInPolyTime (fun x => 2 * (rightBody x + rightPorts x))
       input encUnary := by fun_prop
   have hrlenb := ComputableInPolyTime.unary_to_binary.comp hrlen
-  have hleft := RotationCertificate.computableInPolyTime_successor.comp hl
-  have hright := RotationCertificate.computableInPolyTime_successor.comp hr
-  have hshift : ComputableInPolyTime
-      (fun x => (right x).successor.map (offset x + ·)) input (encList encNat) := by
-    apply ComputableInPolyTime.mapWithInput hright
-    exact ComputableInPolyTime.binary_add'
-      (hoffb.comp (ComputableInPolyTime.fst input encNat))
-      (ComputableInPolyTime.snd input encNat)
   let disjoint (x : α) : RotationCertificate :=
     ⟨(left x).successor ++ (right x).successor.map (offset x + ·)⟩
   have hd : ComputableInPolyTime disjoint input encRotationCertificate := by
-    exact encRotationCertificate_mk_deg.computableInPolyTime.comp
-      (ComputableInPolyTime.listAppend' hleft hshift)
+    apply encRotationCertificate_mk_polyTime
+    apply ComputableInPolyTime.listAppend' (by fun_prop)
+    apply ComputableInPolyTime.mapWithInput (by fun_prop)
+    exact ComputableInPolyTime.binary_add'
+      (hoffb.comp (ComputableInPolyTime.fst input encNat))
+      (ComputableInPolyTime.snd input encNat)
   let joined (x : α) := if leftPorts x = 0 ∨ rightPorts x = 0 then disjoint x else
     (disjoint x).swapSuccessors (offset x - 1)
       (offset x + 2 * (rightBody x + rightPorts x) - 1)

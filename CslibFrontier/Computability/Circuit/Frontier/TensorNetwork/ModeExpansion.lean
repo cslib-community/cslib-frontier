@@ -283,10 +283,8 @@ source `g`. -/
 theorem blockCoeff_congr_exponents {k : P × G} {β β' : M → ℕ}
     (h : ∀ Z, S.targetBlock Z = k → β Z = β' Z) (Y X : E → Bool) :
     S.blockCoeff k β Y X = S.blockCoeff k β' Y X := by
-  refine sum_congr rfl fun φ _ => ?_
-  refine if_congr (and_congr Iff.rfl (forall_congr' fun Z => imp_congr_right fun hZ => ?_)) rfl
-    rfl
-  rw [h Z hZ]
+  refine sum_congr rfl fun _ _ => if_congr ?_ rfl rfl
+  exact and_congr Iff.rfl (forall_congr' fun Z => imp_congr_right fun hZ => h Z hZ ▸ Iff.rfl)
 
 /-- **A packet tensor is local:** it reads only the row and column ports of its packet and
 group. -/
@@ -295,7 +293,7 @@ theorem packetTensor_congr (β : M → ℕ) (q : P) (g : G) {Y Y' X X' : E → B
     (hX : ∀ e, S.packet e = q → S.group (N.tgt e) = g → X e = X' e) :
     S.packetTensor β q g Y X = S.packetTensor β q g Y' X' := by
   unfold packetTensor blockCoeff
-  congr 1
+  refine congrArg₂ (· * ·) ?_ ?_
   · refine sum_congr rfl fun φ _ => if_congr Iff.rfl (prod_congr rfl fun e _ => ?_) rfl
     obtain ⟨e, he⟩ := e
     simp only [rowBlock, Prod.mk.injEq] at he
@@ -458,7 +456,7 @@ private theorem prod_affineFactor_eq_sum [Fintype P] [Fintype G] (Y X : E → Bo
   simp only [S.prod_block, S.prod_sum_blockBox]
   refine sum_congr rfl fun β _ => ?_
   rw [prod_mul_distrib]
-  congr 1
+  refine congrArg₂ (· * ·) ?_ ?_
   · exact prod_congr rfl fun k _ => S.blockCoeff_congr_exponents (fun Z hZ => ite_eq_left hZ) Y X
   · rw [prod_comm]
     refine prod_congr rfl fun Z _ => ?_
@@ -479,9 +477,8 @@ private theorem prod_affineFactor_eq_sum_modeBudget [Fintype P] [Fintype G] (w :
     have hbox : β ∉ box := fun h => hn (mem_inter.mpr ⟨h, hβ⟩)
     simp only [box, Fintype.mem_piFinset, mem_range, not_forall, not_lt] at hbox
     obtain ⟨Z, hZ⟩ := hbox
-    have hZ' : Fintype.card E < β Z := by omega
-    rw [prod_eq_zero (i := S.targetBlock Z) (mem_univ _)
-      (S.blockCoeff_eq_zero_of_card_lt hZ' Y X), zero_mul]
+    exact mul_eq_zero_of_left (prod_eq_zero (f := fun k => S.blockCoeff k β Y X) (mem_univ _)
+      (S.blockCoeff_eq_zero_of_card_lt (Nat.lt_of_succ_le hZ) Y X)) _
   · intro β hβ hn
     have hb : β ∉ modeBudget w p := fun h => hn (mem_inter.mpr ⟨hβ, h⟩)
     rw [mem_modeBudget hw, not_lt] at hb

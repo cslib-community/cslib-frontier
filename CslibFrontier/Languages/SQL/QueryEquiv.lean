@@ -88,8 +88,7 @@ def rank : EquivLevel → ℕ
   | set => 2
 
 /-- Distinct levels have distinct ranks. -/
-theorem rank_injective : Function.Injective rank := by
-  intro a b h
+theorem rank_injective : Function.Injective rank := fun a b h => by
   cases a <;> cases b <;> first | rfl | exact absurd h (by decide)
 
 /-- The order `ordered < bag < set`, transported along `rank`: `ℓ ≤ ℓ'` when `ℓ` observes at least
@@ -116,45 +115,36 @@ variable {α β : Type*} {ℓ ℓ' : EquivLevel} {l₁ l₂ l₃ l₄ : List α}
 @[simp] theorem rel_set : set.Rel l₁ l₂ ↔ ∀ a, a ∈ l₁ ↔ a ∈ l₂ := Iff.rfl
 
 theorem Rel.refl (ℓ : EquivLevel) (l : List α) : ℓ.Rel l l := by
-  cases ℓ
-  exacts [rfl, List.Perm.refl l, fun _ => Iff.rfl]
+  cases ℓ; exacts [rfl, List.Perm.refl l, fun _ => Iff.rfl]
 
 theorem Rel.symm (h : ℓ.Rel l₁ l₂) : ℓ.Rel l₂ l₁ := by
-  cases ℓ
-  exacts [Eq.symm h, List.Perm.symm h, fun a => (h a).symm]
+  cases ℓ; exacts [Eq.symm h, List.Perm.symm h, fun a => (h a).symm]
 
 theorem Rel.trans (h₁₂ : ℓ.Rel l₁ l₂) (h₂₃ : ℓ.Rel l₂ l₃) : ℓ.Rel l₁ l₃ := by
-  cases ℓ
-  exacts [Eq.trans h₁₂ h₂₃, List.Perm.trans h₁₂ h₂₃, fun a => (h₁₂ a).trans (h₂₃ a)]
+  cases ℓ; exacts [Eq.trans h₁₂ h₂₃, List.Perm.trans h₁₂ h₂₃, fun a => (h₁₂ a).trans (h₂₃ a)]
 
 /-- Lists related at a level have the same members. -/
 theorem Rel.mem_iff (h : ℓ.Rel l₁ l₂) (a : α) : a ∈ l₁ ↔ a ∈ l₂ := by
-  cases ℓ
-  exacts [h ▸ Iff.rfl, List.Perm.mem_iff h, h a]
+  cases ℓ; exacts [h ▸ Iff.rfl, List.Perm.mem_iff h, h a]
 
 /-- A relation at a finer level holds at every coarser one. -/
 theorem Rel.mono (hℓ : ℓ ≤ ℓ') (h : ℓ.Rel l₁ l₂) : ℓ'.Rel l₁ l₂ := by
-  cases ℓ <;> cases ℓ'
-  all_goals first
-    | exact h
-    | exact absurd hℓ (by decide)
-    | exact h ▸ Rel.refl _ _
-    | exact fun a => Rel.mem_iff (ℓ := bag) h a
+  cases ℓ
+  · subst h; exact Rel.refl _ _
+  · cases ℓ'; exacts [absurd hℓ (by decide), h, fun _ => List.Perm.mem_iff h]
+  · cases ℓ'; exacts [absurd hℓ (by decide), absurd hℓ (by decide), h]
 
 theorem Rel.append (h₁ : ℓ.Rel l₁ l₂) (h₂ : ℓ.Rel l₃ l₄) : ℓ.Rel (l₁ ++ l₃) (l₂ ++ l₄) := by
   cases ℓ
-  · exact h₁ ▸ h₂ ▸ rfl
-  · exact List.Perm.append h₁ h₂
-  · intro a
-    simp only [List.mem_append, h₁ a, h₂ a]
+  exacts [h₁ ▸ h₂ ▸ rfl, List.Perm.append h₁ h₂,
+    fun a => by simp only [List.mem_append, h₁ a, h₂ a]]
 
 /-- A list operation that respects permutations, and whose members depend only on the members of
 its input, relates related lists at every level. -/
 theorem Rel.lift {F : List α → List β} (hperm : ∀ {l₁ l₂ : List α}, l₁.Perm l₂ → (F l₁).Perm (F l₂))
     (hmem : ∀ {l₁ l₂ : List α}, (∀ a, a ∈ l₁ ↔ a ∈ l₂) → ∀ b, b ∈ F l₁ ↔ b ∈ F l₂)
     (h : ℓ.Rel l₁ l₂) : ℓ.Rel (F l₁) (F l₂) := by
-  cases ℓ
-  exacts [h ▸ rfl, hperm h, hmem h]
+  cases ℓ; exacts [h ▸ rfl, hperm h, hmem h]
 
 theorem Rel.filter (p : α → Bool) (h : ℓ.Rel l₁ l₂) : ℓ.Rel (l₁.filter p) (l₂.filter p) :=
   h.lift (List.Perm.filter p) fun h a => by simp only [List.mem_filter, h a]
@@ -169,10 +159,8 @@ theorem Rel.map (f : α → β) (h : ℓ.Rel l₁ l₂) : ℓ.Rel (l₁.map f) (
 theorem Rel.product {t₁ t₂ : List β} (h : ℓ.Rel l₁ l₂) (h' : ℓ.Rel t₁ t₂) :
     ℓ.Rel (l₁ ×ˢ t₁) (l₂ ×ˢ t₂) := by
   cases ℓ
-  · exact h ▸ h' ▸ rfl
-  · exact List.Perm.product h h'
-  · rintro ⟨a, b⟩
-    simp only [List.mem_product, h a, h' b]
+  exacts [h ▸ h' ▸ rfl, List.Perm.product h h',
+    fun ⟨a, b⟩ => by simp only [List.mem_product, h a, h' b]]
 
 theorem Rel.dedup [DecidableEq α] (h : ℓ.Rel l₁ l₂) : ℓ.Rel l₁.dedup l₂.dedup :=
   h.lift List.Perm.dedup fun h a => by simp only [List.mem_dedup, h a]
@@ -188,25 +176,28 @@ theorem Rel.rowProduct {rs rs' : List (Row n)} {ss ss' : List (Row m)} (h : ℓ.
     (h' : ℓ.Rel ss ss') : ℓ.Rel (Row.product rs ss) (Row.product rs' ss') :=
   (h.product h').map _
 
+private lemma rel_ite_some_none {γ : Type*} {rs rs' : List α} (h : ℓ.Rel rs rs')
+    {f g : α → Option β} (hfg : ∀ r ∈ rs, f r = g r) {F G : List γ} (hFG : ℓ.Rel F G) :
+    Option.Rel ℓ.Rel (if ∀ r ∈ rs, (f r).isSome then some F else none)
+      (if ∀ r ∈ rs', (g r).isSome then some G else none) := by
+  have hc : (∀ r ∈ rs, (f r).isSome) ↔ ∀ r ∈ rs', (g r).isSome :=
+    ⟨fun hall r hr => hfg r ((h.mem_iff r).mpr hr) ▸ hall r ((h.mem_iff r).mpr hr),
+      fun hall r hr => (hfg r hr).symm ▸ hall r ((h.mem_iff r).mp hr)⟩
+  split_ifs with h1 h2 h2
+  · exact .some hFG
+  · exact absurd (hc.mp h1) h2
+  · exact absurd (hc.mpr h2) h1
+  · exact .none
+
 /-- `WHERE` with predicates that agree on the members of related inputs gives related results,
 or fails on both. -/
 theorem Rel.filterRows {rs rs' : List (Row n)} (h : ℓ.Rel rs rs') {p p' : Expr n}
     (hp : ∀ r ∈ rs, (p.evalTruth r).toOption = (p'.evalTruth r).toOption) :
     Option.Rel ℓ.Rel (p.filterRows rs).toOption (p'.filterRows rs').toOption := by
-  have hp' : ∀ r ∈ rs', (p.evalTruth r).toOption = (p'.evalTruth r).toOption :=
-    fun r hr => hp r ((h.mem_iff r).mpr hr)
   rw [Expr.toOption_filterRows, Expr.toOption_filterRows]
-  have hc : (∀ r ∈ rs, (p.evalTruth r).toOption.isSome) ↔
-      ∀ r ∈ rs', (p'.evalTruth r).toOption.isSome :=
-    ⟨fun hall r hr => hp' r hr ▸ hall r ((h.mem_iff r).mpr hr),
-      fun hall r hr => (hp r hr).symm ▸ hall r ((h.mem_iff r).mp hr)⟩
-  split_ifs with hall hall' hall'
-  · rw [Option.rel_some_some]
-    convert h.filter (fun r => decide ((p.evalTruth r).toOption = some .true)) using 1
-    exact List.filter_congr fun r hr => by rw [hp' r hr]
-  · exact absurd (hc.mp hall) hall'
-  · exact absurd (hc.mpr hall') hall
-  · exact .none
+  refine rel_ite_some_none h hp ?_
+  convert h.filter (fun r => decide ((p.evalTruth r).toOption = some .true)) using 1
+  exact List.filter_congr fun r hr => by rw [hp r ((h.mem_iff r).mpr hr)]
 
 /-- `SELECT` lists that agree on the members of related inputs give related results, or fail on
 both. -/
@@ -214,20 +205,10 @@ theorem Rel.mapM_evalRow {rs rs' : List (Row n)} (h : ℓ.Rel rs rs') {es es' : 
     (hes : ∀ r ∈ rs, (Expr.evalRow es r).toOption = (Expr.evalRow es' r).toOption) :
     Option.Rel ℓ.Rel (rs.mapM (Expr.evalRow es)).toOption
       (rs'.mapM (Expr.evalRow es')).toOption := by
-  have hes' : ∀ r ∈ rs', (Expr.evalRow es r).toOption = (Expr.evalRow es' r).toOption :=
-    fun r hr => hes r ((h.mem_iff r).mpr hr)
   rw [Except.toOption_mapM, Except.toOption_mapM]
-  have hc : (∀ r ∈ rs, (Expr.evalRow es r).toOption.isSome) ↔
-      ∀ r ∈ rs', (Expr.evalRow es' r).toOption.isSome :=
-    ⟨fun hall r hr => hes' r hr ▸ hall r ((h.mem_iff r).mpr hr),
-      fun hall r hr => (hes r hr).symm ▸ hall r ((h.mem_iff r).mp hr)⟩
-  split_ifs with hall hall' hall'
-  · rw [Option.rel_some_some]
-    convert h.filterMap (fun r => (Expr.evalRow es r).toOption) using 1
-    exact List.filterMap_congr fun r hr => (hes' r hr).symm
-  · exact absurd (hc.mp hall) hall'
-  · exact absurd (hc.mpr hall') hall
-  · exact .none
+  refine rel_ite_some_none h hes ?_
+  convert h.filterMap (fun r => (Expr.evalRow es r).toOption) using 1
+  exact List.filterMap_congr fun r hr => (hes r ((h.mem_iff r).mpr hr)).symm
 
 end EquivLevel
 
@@ -323,10 +304,10 @@ theorem select_expr {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = so
     {p p' : Expr n} (hp : p.Equiv Γ p') : Equiv ℓ (Query.select p q) (Query.select p' q) :=
   fun D hD => by
     simp only [eval_select]
-    rcases h : q.eval D with e | rs
+    rcases h : q.eval D with _ | rs
     · exact .none
-    · exact (EquivLevel.Rel.refl ℓ rs).filterRows fun r hr =>
-        hp.evalTruth (conforms_of_eval_eq_ok hD hq h r hr)
+    · exact (EquivLevel.Rel.refl ℓ rs).filterRows fun _ hr =>
+        hp.evalTruth (conforms_of_eval_eq_ok hD hq h _ hr)
 
 /-- Replacing the outer predicate of `WHERE` over `WHERE c` by an equivalent one in the typing
 context of the inner input gives an equivalent query, whatever the type of `c`: the rows that `c`
@@ -337,13 +318,11 @@ theorem select_select_expr {q : Query S n} {Γ : Fin n → SqlType} (hq : q.type
     Equiv ℓ (Query.select p (Query.select c q)) (Query.select p' (Query.select c q)) :=
   fun D hD => by
     simp only [eval_select]
-    rcases h : q.eval D with e | rs
-    · exact .none
+    rcases h : q.eval D with _ | rs; · exact .none
     rw [Except.ok_bind]
-    rcases hc : c.filterRows rs with e | rs'
-    · exact .none
-    exact (EquivLevel.Rel.refl ℓ rs').filterRows fun r hr =>
-      hp.evalTruth (conforms_of_eval_eq_ok hD hq h r (Expr.mem_of_filterRows_eq_ok hc hr))
+    rcases hc : c.filterRows rs with _ | rs'; · exact .none
+    exact (EquivLevel.Rel.refl ℓ rs').filterRows fun _ hr =>
+      hp.evalTruth (conforms_of_eval_eq_ok hD hq h _ (Expr.mem_of_filterRows_eq_ok hc hr))
 
 /-- Replacing the expressions of a `SELECT` list by equivalent ones in the typing context of the
 input gives an equivalent query. -/
@@ -351,10 +330,9 @@ theorem project_expr {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = s
     {es es' : Fin k → Expr n} (hes : ∀ i, (es i).Equiv Γ (es' i)) :
     Equiv ℓ (Query.project es q) (Query.project es' q) := fun D hD => by
   simp only [eval_project]
-  rcases h : q.eval D with e | rs
-  · exact .none
-  · exact (EquivLevel.Rel.refl ℓ rs).mapM_evalRow fun r hr =>
-      Expr.toOption_evalRow_congr fun i => hes i r (conforms_of_eval_eq_ok hD hq h r hr)
+  rcases h : q.eval D with _ | rs; · exact .none
+  exact (EquivLevel.Rel.refl ℓ rs).mapM_evalRow fun r hr =>
+    Expr.toOption_evalRow_congr fun i => hes i r (conforms_of_eval_eq_ok hD hq h r hr)
 
 /-- Replacing a join predicate by an equivalent one in the typing context of the joined rows gives
 an equivalent query. -/
@@ -363,11 +341,9 @@ theorem join_expr {q₁ : Query S n} {q₂ : Query S m} {Γ : Fin n → SqlType}
     (hθ : θ.Equiv (Fin.append Γ Δ) θ') : Equiv ℓ (Query.join θ q₁ q₂) (Query.join θ' q₁ q₂) :=
   fun D hD => by
     simp only [eval_join]
-    rcases hrs : q₁.eval D with e | rs
-    · exact .none
-    rcases hss : q₂.eval D with e | ss
-    · exact .none
-    exact (EquivLevel.Rel.refl ℓ _).filterRows fun t ht => hθ.evalTruth
+    rcases hrs : q₁.eval D with _ | rs; · exact .none
+    rcases hss : q₂.eval D with _ | ss; · exact .none
+    exact (EquivLevel.Rel.refl ℓ _).filterRows fun _ ht => hθ.evalTruth
       (Row.conforms_of_mem_product (conforms_of_eval_eq_ok hD h₁ hrs)
         (conforms_of_eval_eq_ok hD h₂ hss) ht)
 

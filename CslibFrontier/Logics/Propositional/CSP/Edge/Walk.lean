@@ -150,13 +150,12 @@ omit [DecidableEq V] in
 theorem flipSteps_eq_flipOn (f : OccurrenceLabeling F Bool)
     (s : List (Occurrence F × Occurrence F)) (hs : (edgesOf s).Nodup) :
     flipSteps f s = flipOn (edgesOf s).toFinset f := by
-  induction s generalizing f with
-  | nil => simp [flipSteps, edgesOf]
-  | cons a s ih =>
-    rcases a with ⟨o, p⟩
+  fun_induction flipSteps f s with
+  | case1 => simp [edgesOf] -- []
+  | case2 f o p s ih => -- (o, p) :: s
     change (o :: p :: edgesOf s).Nodup at hs
     simp only [List.nodup_cons, List.mem_cons, not_or] at hs
-    rw [flipSteps, ih _ hs.2.2]
+    rw [ih hs.2.2]
     simp only [edgesOf_cons, List.toFinset_cons]
     change flipOn (edgesOf s).toFinset (flipOn {o, p} f) =
       flipOn (insert o (insert p (edgesOf s).toFinset)) f
@@ -276,17 +275,16 @@ theorem IsWalk.defects_flip (h : EdgeInstance F) {w : Walk F} (hw : w.IsWalk)
   obtain ⟨v, s⟩ := w
   rw [flip, edges, ← flipSteps_eq_flipOn f s hw.2]
   change defects (flipSteps f s) = defects f ∆ {v} ∆ {finishFrom v s}
-  induction s generalizing v f with
-  | nil => simp [flipSteps, finishFrom]
-  | cons a s ih =>
-    rcases a with ⟨o, p⟩
+  fun_induction flipSteps f s generalizing v with
+  | case1 => simp [finishFrom] -- []
+  | case2 f o p s ih => -- (o, p) :: s
     obtain ⟨hl, hn⟩ := hw
     change (o :: p :: edgesOf s).Nodup at hn
     simp only [List.nodup_cons, List.mem_cons, not_or] at hn
     have hs : (edgesOf s).Nodup := hn.2.2
     have hop : o ≠ p := hn.1.1
     have hv := h.var_ne_of_constraint_eq hl.2.1 hop
-    rw [flipSteps, ih _ p.var ⟨hl.2.2, hs⟩, h.defects_flipOn_pair f hl.2.1 hop]
+    rw [ih p.var ⟨hl.2.2, hs⟩, h.defects_flipOn_pair f hl.2.1 hop]
     rw [← (show o.var = v from hl.1)]
     simp only [finishFrom]
     ext z

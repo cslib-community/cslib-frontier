@@ -171,6 +171,21 @@ public theorem entryWord_fits {w L A : ℕ} (hw : 0 < w) (bits : Bool) (z : ℤ)
   · have hn : z.toNat ≤ A := Int.toNat_le.mpr ((le_abs_self z).trans hz)
     exact ((show Fits (w - 1) A from hA).mono (show w - 1 ≤ w + 2 by omega)).of_le hn
 
+/-- A property of every entry word of both matrices holds on every matrix-block word. -/
+private theorem forall_mem_matrixInput {m N : ℕ} {bits : Bool}
+    {X : Matrix (Fin N) (Fin (D m)) ℤ} {Y : Matrix (Fin (D m)) (Fin N) ℤ} {P : ℕ → Prop}
+    (hX : ∀ i k, P (entryWord bits (X i k))) (hY : ∀ k j, P (entryWord bits (Y k j))) :
+    ∀ v ∈ matrixInput bits X Y, P v := by
+  intro v hv
+  simp only [matrixInput, List.mem_append] at hv
+  rcases hv with hv | hv
+  · obtain ⟨i, _, hv⟩ := List.mem_flatMap.mp hv
+    obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hv
+    exact hX i k
+  · obtain ⟨k, _, hv⟩ := List.mem_flatMap.mp hv
+    obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hv
+    exact hY k j
+
 /-- Every actual initialized word fits from original dimensions and entry magnitudes.
 No intermediate machine-state fit certificate is supplied. -/
 public theorem input_fits {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (bits : Bool)
@@ -188,18 +203,9 @@ public theorem input_fits {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (bits : 
   · intro v hv
     simp only [input, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hv
     rcases hv with ((rfl | rfl | rfl | rfl) | hv) | hv
-    · exact hs.of_le (by omega)
-    · exact hs.of_le (by omega)
-    · exact hs.of_le (by omega)
-    · exact hs.of_le (by omega)
-    · simp only [matrixInput, List.mem_append] at hv
-      rcases hv with hv | hv
-      · obtain ⟨i, _, hv⟩ := List.mem_flatMap.mp hv
-        obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hv
-        exact entryWord_fits hw bits _ (hX i k) hmag
-      · obtain ⟨k, _, hv⟩ := List.mem_flatMap.mp hv
-        obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hv
-        exact entryWord_fits hw bits _ (hY k j) hmag
+    iterate 4 exact hs.of_le (by omega)
+    · exact forall_mem_matrixInput (fun i k => entryWord_fits hw bits _ (hX i k) hmag)
+        (fun k j => entryWord_fits hw bits _ (hY k j) hmag) v hv
     · exact hq.2 v (List.mem_of_mem_drop hv)
 
 /-- Original raw matrix words are bounded by the original absolute-entry bound, at every
@@ -210,15 +216,9 @@ public theorem input_raw_matrix_le {L m N A : ℕ}
     (hY : ∀ k j, |Y k j| ≤ (A : ℤ)) (j : ℕ) (hj : j < 2 * (N * D m)) :
     (State.init (input true L X Y qs) : State 160).data.mem (5 + j) ≤ A := by
   have hj' : j < (matrixInput true X Y).length := by rw [matrixInput_length]; exact hj
-  have hbound (v : ℕ) (hv : v ∈ matrixInput true X Y) : v ≤ A := by
-    simp only [matrixInput, List.mem_append] at hv
-    rcases hv with hv | hv
-    · obtain ⟨i, _, hv⟩ := List.mem_flatMap.mp hv
-      obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hv
-      exact Int.toNat_le.mpr ((le_abs_self _).trans (hX i k))
-    · obtain ⟨k, _, hv⟩ := List.mem_flatMap.mp hv
-      obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
-      exact Int.toNat_le.mpr ((le_abs_self _).trans (hY k i))
+  have hbound : ∀ v ∈ matrixInput true X Y, v ≤ A := forall_mem_matrixInput
+    (fun i k => Int.toNat_le.mpr ((le_abs_self _).trans (hX i k)))
+    (fun k j => Int.toNat_le.mpr ((le_abs_self _).trans (hY k j)))
   change (Data.init (input true L X Y qs) : Data 160).mem _ ≤ A
   rw [show 5 + j = (4 + j) + 1 by omega, Data.init_mem_succ]
   unfold input

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.PRFExpansion
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Asymptotic
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Tactic.PMFSwap
@@ -470,10 +471,9 @@ theorem eval_prfRealGame_keyPRFReduction (κ : ℕ) :
       ProbComp.eval (gameOn (kpkePRF P F).IsMessagePair (kpkePRF P F).keyGen
         (kpkePRF P F).encrypt A b κ) := by
   rw [eval_gameOn_kpkePRF]
-  simp only [prfRealGame, keyPRFReduction, ProbOracleComp.run_bind,
-    ProbOracleComp.run_sample, run_queryNoise_prfOracle, pure_bind, kpkePRF, keyGenPRFWord,
-    keyNoise, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
-    BitString.eval_sampleList]
+  simp only [prfRealGame, keyPRFReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+    run_queryNoise_prfOracle, pure_bind, kpkePRF, keyGenPRFWord, keyNoise,
+    BitString.eval_sampleList, pmf_norm]
   exact PMF.bind_comm _ _ _
 
 /-- **The key-generation hop against a random function is G1**: the ideal PRF game of
@@ -495,8 +495,7 @@ theorem eval_prfIdealGame_keyPRFReduction (κ : ℕ) :
     ProbOracleComp.run_sample, run_queryNoise, pure_bind, ProbComp.eval_bind,
     ProbComp.eval_uniform]
   rw [PMF.bind_comm]
-  simp only [kpke, keyGenWord, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-    PMF.bind_bind, PMF.pure_bind]
+  simp only [kpke, keyGenWord, BitString.eval_sampleList, pmf_norm]
   congr 1
   funext matrix
   rw [← BitString.uniformList_bind_split L L, ← hread, PMF.bind_map]
@@ -562,8 +561,7 @@ theorem eval_prfIdealGame_encPRFReduction (κ : ℕ) :
   refine congrArg _ (funext fun choice => ?_)
   by_cases hv : (kpke P).IsMessagePair κ keys.1 (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice)
   · simp only [hv, ↓reduceIte, ProbOracleComp.run_bind, run_queryNoise, pure_bind,
-      ProbOracleComp.run_sample, ProbComp.eval_bind, WordPKE.encrypt, ProbComp.eval_pure,
-      BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind]
+      ProbOracleComp.run_sample, WordPKE.encrypt, BitString.eval_sampleList, pmf_norm]
     rw [show (kpke P).coinLen κ = coinLength (P κ) from rfl, ← hread, PMF.bind_map]
     rfl
   · simp only [hv, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_pure, ProbComp.eval_pure,

@@ -245,8 +245,7 @@ private theorem sum_sum_ciSup_le (D : PMF Z) {m : ℕ} {F : Set (Z → ℝ)} {B 
   calc _ = ∑ p, W p * G p := hLHS
     _ = ∑ p, W p * 𝔼 σ : Fin m → Bool, G (swapSamples σ p) := hexp
     _ ≤ ∑ p, W p * (empiricalRademacherComplexity F p.2 + empiricalRademacherComplexity F p.1) :=
-        Finset.sum_le_sum fun p _ =>
-          mul_le_mul_of_nonneg_left (expect_ciSup_swapSamples_le hF p) (by positivity)
+        by gcongr with p; exact expect_ciSup_swapSamples_le hF p
     _ = 2 * rademacherComplexity D F m := by
         rw [← Finset.univ_product_univ, Finset.sum_product]
         have h1 : ∀ S : Fin m → Z, ∑ S' : Fin m → Z, W (S, S') *

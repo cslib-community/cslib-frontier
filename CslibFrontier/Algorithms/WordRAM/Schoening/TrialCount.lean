@@ -308,8 +308,7 @@ theorem schoeningTrials_le {k : ℕ} (hk : 3 ≤ k) (n c : ℕ) :
   have hA0 : 0 ≤ A := by positivity
   have hA : A ≤ 3 * (3 * n + 1) * (2 * ((k : ℝ) - 1) / k) ^ n := by
     have : (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n * ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) ≤
-        (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n * 3 :=
-      mul_le_mul_of_nonneg_left hq (by positivity)
+        (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n * 3 := by gcongr
     linarith
   have hceil : (⌈A⌉₊ : ℝ) ≤ (9 * n + 4) * (2 * ((k : ℝ) - 1) / k) ^ n := by
     have := Nat.ceil_lt_add_one hA0

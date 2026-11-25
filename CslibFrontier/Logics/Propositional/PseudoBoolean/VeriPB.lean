@@ -73,11 +73,19 @@ proofs.
 * `Cslib.Logic.PL.VeriPB.namesContra`: a constraint number names a contradiction.
 * `Cslib.Logic.PL.VeriPB.Step`, `Cslib.Logic.PL.VeriPB.Proof`: kernel proofs.
 * `Cslib.Logic.PL.VeriPB.check`: the checker.
+* `Cslib.Logic.PL.VeriPB.IdOk`: the numbers of a database are distinct and below a bound
+  (CakePB's `id_ok`).
+* `Cslib.Logic.PL.VeriPB.StepEffect`: the shape of a successful step: the constraint it adds and
+  its number, or the constraints it deletes.
 
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.not_satisfiable_of_check`,
   `Cslib.Logic.PL.VeriPB.not_satisfiable_cnf_of_check`: soundness for `UNSAT`.
+* `Cslib.Logic.PL.VeriPB.runStep_effect`: a successful step adds one constraint at a fresh
+  number, after any `pbc` subproof, or deletes some.
+* `Cslib.Logic.PL.VeriPB.IdOk.runStep`: a step numbers its new constraint from the next number
+  on.
 
 ## References
 
@@ -126,12 +134,7 @@ theorem coeffSum_filter_add (ts : List (ℕ × Literal ℕ)) (p q : ℕ × Liter
 
 theorem le_coeffSum_of_mem {ts : List (ℕ × Literal ℕ)} {t : ℕ × Literal ℕ} (h : t ∈ ts) :
     t.1 ≤ coeffSum ts := by
-  induction ts with
-  | nil => simp at h
-  | cons u ts ih =>
-    rcases List.mem_cons.mp h with rfl | h
-    · simp
-    · simp only [coeffSum_cons]; have := ih h; omega
+  induction ts <;> grind [coeffSum_cons]
 
 theorem lhs_eq_coeffSum_filter (σ : ℕ → Bool) (ts : List (ℕ × Literal ℕ)) :
     lhs σ ts = coeffSum (ts.filter fun t => Literal.eval σ t.2) := by
@@ -161,9 +164,7 @@ theorem propagate_sound {σ : ℕ → Bool} {ρ : List (Literal ℕ)} {c : PBCon
       c.terms.filter fun t => Literal.eval σ t.2 := by
     apply List.filter_congr
     intro t ht
-    cases h : Literal.eval σ t.2
-    · simp
-    · simp [hnf t ht h]
+    grind
   rw [htrue, ← lhs_eq_coeffSum_filter] at hsplit
   unfold Holds at hc
   have hs : 0 ≤ slack ρ c := by unfold slack; omega
@@ -174,8 +175,7 @@ theorem propagate_sound {σ : ℕ → Bool} {ρ : List (Literal ℕ)} {c : PBCon
     · rfl, fun l hl => ?_⟩
   rcases List.mem_append.mp hl with hl | hl
   · obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hl
-    have htm := (List.mem_filter.mp ht).1
-    have hp := (List.mem_filter.mp ht).2
+    obtain ⟨htm, hp⟩ := List.mem_filter.mp ht
     simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq] at hp
     obtain ⟨⟨hf, -⟩, hlt⟩ := hp
     by_contra hev
@@ -314,22 +314,14 @@ theorem rupFix_sound {σ : ℕ → Bool} {cs : List PBConstr} (hcs : ∀ c ∈ c
 theorem rup_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {c : PBConstr}
     {hs : List Hint} (hdb : AllHold σ db) (h : rup db c hs = true) : c.Holds σ := by
   by_contra hc
-  have hneg : c.negate.Holds σ := (holds_negate σ c).mpr hc
-  have hρ : Consistent σ [] := fun _ h => by simp at h
-  simp [rup, rupHints_sound hdb hneg hs [] hρ] at h
+  simp [rup, rupHints_sound hdb ((holds_negate σ c).mpr hc) hs [] (List.forall_mem_nil _)] at h
 
 theorem rupSearch_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} {c : PBConstr}
     (hdb : AllHold σ db) (h : rupSearch db c = true) : c.Holds σ := by
   by_contra hc
-  have hneg : c.negate.Holds σ := (holds_negate σ c).mpr hc
-  have hρ : Consistent σ [] := fun _ h => by simp at h
-  have hcs : ∀ c' ∈ c.negate :: db.map (·.2), c'.Holds σ := by
-    intro c' hc'
-    rcases List.mem_cons.mp hc' with rfl | hc'
-    · exact hneg
-    · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hc'
-      exact hdb e he
-  simp [rupSearch, rupFix_sound hcs _ [] hρ] at h
+  have hcs : ∀ c' ∈ c.negate :: db.map (·.2), c'.Holds σ :=
+    List.forall_mem_cons.2 ⟨(holds_negate σ c).mpr hc, List.forall_mem_map.2 hdb⟩
+  simp [rupSearch, rupFix_sound hcs _ [] (List.forall_mem_nil _)] at h
 
 /-! ### Cutting planes in reverse Polish notation -/
 
@@ -367,38 +359,31 @@ def polEval (db : List (ℕ × PBConstr)) : List PolOp → List PBConstr → Opt
 
 theorem polEval_sound {σ : ℕ → Bool} {db : List (ℕ × PBConstr)} (hdb : AllHold σ db) :
     ∀ (ops : List PolOp) (st st' : List PBConstr), (∀ c ∈ st, c.Holds σ) →
-      polEval db ops st = some st' → ∀ c ∈ st', c.Holds σ
-  | [], st, st', hst, h => by cases h; exact hst
-  | .id n :: ops, st, st', hst, h => by
-    simp only [polEval, Option.bind_eq_some_iff] at h
-    obtain ⟨c, hc, h⟩ := h
-    exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hdb.lookup hc, hst⟩) h
-  | .lit l :: ops, st, st', hst, h =>
-    polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨holds_litAxiom σ l, hst⟩) h
-  | .add :: ops, c₂ :: c₁ :: st, st', hst, h => by
-    simp only [List.forall_mem_cons] at hst
-    exact polEval_sound hdb ops _ st'
-      (List.forall_mem_cons.2 ⟨hst.2.1.add hst.1, hst.2.2⟩) h
-  | .mul (k + 1) :: ops, c :: st, st', hst, h => by
-    simp only [List.forall_mem_cons] at hst
-    exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hst.1.mul (k + 1), hst.2⟩) h
-  | .div (k + 1) :: ops, c :: st, st', hst, h => by
-    simp only [List.forall_mem_cons] at hst
-    exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hst.1.div (k + 1), hst.2⟩) h
-  | .sat :: ops, c :: st, st', hst, h => by
-    simp only [List.forall_mem_cons] at hst
-    exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hst.1.saturate, hst.2⟩) h
-  | .weaken v :: ops, c :: st, st', hst, h => by
-    simp only [List.forall_mem_cons] at hst
-    exact polEval_sound hdb ops _ st' (List.forall_mem_cons.2 ⟨hst.1.weaken v, hst.2⟩) h
-  | .add :: _, [], _, _, h => by simp [polEval] at h
-  | .add :: _, [_], _, _, h => by simp [polEval] at h
-  | .mul _ :: _, [], _, _, h => by simp [polEval] at h
-  | .div _ :: _, [], _, _, h => by simp [polEval] at h
-  | .mul 0 :: _, _ :: _, _, _, h => by simp [polEval] at h
-  | .div 0 :: _, _ :: _, _, _, h => by simp [polEval] at h
-  | .sat :: _, [], _, _, h => by simp [polEval] at h
-  | .weaken _ :: _, [], _, _, h => by simp [polEval] at h
+      polEval db ops st = some st' → ∀ c ∈ st', c.Holds σ := by
+  intro ops st st'
+  fun_induction polEval db ops st with
+  | case1 => rintro hst ⟨⟩; exact hst
+  | case2 n ops st ih =>
+    intro hst h
+    obtain ⟨c, hc, h⟩ := Option.bind_eq_some_iff.1 h
+    exact ih c (List.forall_mem_cons.2 ⟨hdb.lookup hc, hst⟩) h
+  | case3 l _ _ ih => exact fun hst => ih (List.forall_mem_cons.2 ⟨holds_litAxiom σ l, hst⟩)
+  | case4 _ _ _ _ ih =>
+    simp only [List.forall_mem_cons] at ih ⊢
+    exact fun ⟨h₂, h₁, hst⟩ => ih ⟨h₁.add h₂, hst⟩
+  | case5 k _ _ _ ih =>
+    simp only [List.forall_mem_cons] at ih ⊢
+    exact fun ⟨h, hst⟩ => ih ⟨h.mul (k + 1), hst⟩
+  | case6 k _ _ _ ih =>
+    simp only [List.forall_mem_cons] at ih ⊢
+    exact fun ⟨h, hst⟩ => ih ⟨h.div (k + 1), hst⟩
+  | case7 _ _ _ ih =>
+    simp only [List.forall_mem_cons] at ih ⊢
+    exact fun ⟨h, hst⟩ => ih ⟨h.saturate, hst⟩
+  | case8 v _ _ _ ih =>
+    simp only [List.forall_mem_cons] at ih ⊢
+    exact fun ⟨h, hst⟩ => ih ⟨h.weaken v, hst⟩
+  | case9 => rintro _ ⟨⟩
 
 /-! ### Subproofs by contradiction -/
 
@@ -423,8 +408,7 @@ theorem holds_of_subproofRefutes {σ : ℕ → Bool}
   by_contra hG
   unfold subproofRefutes at h
   split at h
-  · rename_i db' n'' hr
-    have hall := hrun db' n'' (List.forall_mem_cons.2 ⟨(holds_negate σ G).2 hG, hdb⟩) hr
+  · have hall := hrun _ _ (List.forall_mem_cons.2 ⟨(holds_negate σ G).2 hG, hdb⟩) ‹_›
     simp [hall.not_namesContra] at h
   · cases h
 
@@ -506,26 +490,16 @@ theorem runStep_sound {σ : ℕ → Bool} :
       AllHold σ db → runStep db n s = some (db', n') → AllHold σ db'
   | db, n, .pol ops, db', n', hdb, h => by
     simp only [runStep] at h
-    split at h
-    · rename_i c hc
-      cases h
-      have := polEval_sound hdb ops [] [c] (by simp) hc
-      exact List.forall_mem_cons.2 ⟨this c (by simp), hdb⟩
-    · cases h
+    split at h <;> cases h
+    exact List.forall_mem_cons.2 ⟨polEval_sound hdb ops [] _ (by simp) ‹_› _ (by simp), hdb⟩
   | db, n, .rup c hs, db', n', hdb, h => by
     simp only [runStep] at h
-    split at h
-    · rename_i hr
-      cases h
-      exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rup_sound hdb hr), hdb⟩
-    · cases h
+    split at h <;> cases h
+    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rup_sound hdb ‹_›), hdb⟩
   | db, n, .rupSearch c, db', n', hdb, h => by
     simp only [runStep] at h
-    split at h
-    · rename_i hr
-      cases h
-      exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rupSearch_sound hdb hr), hdb⟩
-    · cases h
+    split at h <;> cases h
+    exact List.forall_mem_cons.2 ⟨(holds_normalize σ c).2 (rupSearch_sound hdb ‹_›), hdb⟩
   | db, n, .pbc c sub q, db', n', hdb, h => by
     simp only [runStep, Option.map_eq_some_iff] at h
     obtain ⟨n'', hq, h⟩ := h
@@ -534,11 +508,8 @@ theorem runStep_sound {σ : ℕ → Bool} :
       (fun _ _ hext hsub => runSteps_sound _ _ sub _ _ hext hsub) hdb hq), hdb⟩
   | db, n, .del ids, db', n', hdb, h => by
     simp only [runStep] at h
-    split at h
-    · simp only [Option.some.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, -⟩ := h
-      exact fun e he => hdb e (List.mem_of_mem_filter he)
-    · cases h
+    split at h <;> cases h
+    exact fun e he => hdb e (List.mem_of_mem_filter he)
 
 theorem runSteps_sound {σ : ℕ → Bool} :
     ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List Step) (db' : List (ℕ × PBConstr)) (n' : ℕ),
@@ -550,8 +521,7 @@ theorem runSteps_sound {σ : ℕ → Bool} :
   | db, n, s :: ss, db', n', hdb, h => by
     simp only [runSteps] at h
     split at h
-    · rename_i db₁ n₁ h₁
-      exact runSteps_sound db₁ n₁ ss db' n' (runStep_sound db n s db₁ n₁ hdb h₁) h
+    · exact runSteps_sound _ _ ss db' n' (runStep_sound db n s _ _ hdb ‹_›) h
     · cases h
 
 end
@@ -560,20 +530,181 @@ theorem allHold_initDb {σ : ℕ → Bool} {F : List PBConstr} (hF : ∀ c ∈ F
     AllHold σ (initDb F) := by
   intro e he
   obtain ⟨⟨c, i⟩, hci, rfl⟩ := List.mem_map.mp he
-  exact (holds_normalize σ c).2 (hF c (List.mem_iff_getElem.2 (by
-    obtain ⟨j, hj, hji⟩ := List.mem_iff_getElem.1 hci
-    rw [List.getElem_zipIdx] at hji
-    simp only [Prod.mk.injEq] at hji
-    exact ⟨j, by simpa using hj, hji.1⟩)))
+  exact (holds_normalize σ c).2 (hF c (List.fst_mem_of_mem_zipIdx hci))
+
+/-! ### Fresh numbers -/
+
+/-- **The numbers of the database `db` are fresh from `n` on**: every number is below `n`, and no
+two constraints share one. This is CakePB's `id_ok fml n`, with the distinctness that CakePB's
+finite maps have built in. -/
+structure IdOk (db : List (ℕ × PBConstr)) (n : ℕ) : Prop where
+  /-- Every number is below `n`. -/
+  lt : ∀ e ∈ db, e.1 < n
+  /-- No two constraints share a number. -/
+  nodup : (db.map (·.1)).Nodup
+
+namespace IdOk
+
+variable {db : List (ℕ × PBConstr)} {n : ℕ}
+
+/-- Two constraints with the same number are the same. -/
+theorem eq_of_mem (h : IdOk db n) {i : ℕ} {c c' : PBConstr} (hc : (i, c) ∈ db)
+    (hc' : (i, c') ∈ db) : c = c' :=
+  (Prod.ext_iff.1 (List.inj_on_of_nodup_map h.nodup hc hc' rfl)).2
+
+/-- The numbers stay fresh from a later number on. -/
+theorem mono (h : IdOk db n) {m : ℕ} (hm : n ≤ m) : IdOk db m :=
+  ⟨fun e he => (h.lt e he).trans_le hm, h.nodup⟩
+
+/-- A constraint numbered `m ≥ n` may join the database, and the numbers are fresh from `m + 1`
+on. -/
+theorem cons (h : IdOk db n) {m : ℕ} (hm : n ≤ m) (c : PBConstr) :
+    IdOk ((m, c) :: db) (m + 1) where
+  lt e he := by
+    rcases List.mem_cons.1 he with rfl | he
+    exacts [m.lt_succ_self, (h.lt e he).trans_le (hm.trans m.le_succ)]
+  nodup := List.nodup_cons.2 ⟨fun hm' => by
+    obtain ⟨e, he, rfl⟩ := List.mem_map.1 hm'
+    exact (h.lt e he).not_ge hm, h.nodup⟩
+
+/-- Deleting constraints keeps the numbers fresh. -/
+theorem filter (h : IdOk db n) (p : ℕ × PBConstr → Bool) : IdOk (db.filter p) n :=
+  ⟨fun e he => h.lt e (List.mem_of_mem_filter he), h.nodup.sublist (List.filter_sublist.map _)⟩
+
+end IdOk
+
+/-- The input database is numbered from `1` to the number of its constraints. -/
+theorem idOk_initDb (F : List PBConstr) : IdOk (initDb F) (F.length + 1) := by
+  have hmap : (initDb F).map (·.1) = List.range' 1 F.length := by
+    simp only [initDb, List.map_map]
+    rw [show ((·.1) ∘ fun e : PBConstr × ℕ => (e.2 + 1, e.1.normalize)) =
+      (1 + ·) ∘ Prod.snd from funext fun _ => Nat.add_comm _ _, ← List.map_map,
+      List.zipIdx_map_snd, List.map_add_range']
+  refine ⟨fun e he => ?_, hmap ▸ List.nodup_range'⟩
+  have := List.mem_map_of_mem (f := (·.1)) he
+  rw [hmap, List.mem_range'_1] at this
+  omega
+
+/-- **The shape of a successful step on the database `db`, whose next number is `n`**: which
+constraint it adds, at which number, and what it deletes. Each addition puts its constraint in
+front and continues from the number after it: `pol`, `rup` and `rupSearch` at `n`, and `pbc` at
+some number `m > n`. `rup`, `rupSearch` and `pbc` add their stated constraint, normalized; for
+`pol` the relation records only that one constraint is added, not which. A deletion `del ids`
+drops the constraints numbered in `ids` and keeps the next number. The relation does not record
+that a step's check passed, nor, for `pbc`, which number its subproof stops at: any `m > n` is
+allowed. `Cslib.Logic.PL.VeriPB.runStep_effect` shows that a successful `runStep` has this
+shape, taking `m` from the counter at which the subproof of a `pbc` step stops, above `n` since
+the negated constraint takes `n`. -/
+inductive StepEffect (db : List (ℕ × PBConstr)) (n : ℕ) :
+    Step → List (ℕ × PBConstr) → ℕ → Prop where
+  /-- `pol ops` adds the constraint `c` that its derivation leaves, at `n`. -/
+  | pol {ops : List PolOp} (c : PBConstr) : StepEffect db n (.pol ops) ((n, c) :: db) (n + 1)
+  /-- `rup c hs` adds `c` at `n`. -/
+  | rup {c : PBConstr} {hs : List Hint} :
+      StepEffect db n (.rup c hs) ((n, c.normalize) :: db) (n + 1)
+  /-- `rupSearch c` adds `c` at `n`. -/
+  | rupSearch {c : PBConstr} :
+      StepEffect db n (.rupSearch c) ((n, c.normalize) :: db) (n + 1)
+  /-- `pbc c sub q` adds `c`, normalized, at some number `m > n`; `m` does not depend on
+  `sub`. -/
+  | pbc {c : PBConstr} {sub : List Step} {q m : ℕ} (hm : n < m) :
+      StepEffect db n (.pbc c sub q) ((m, c.normalize) :: db) (m + 1)
+  /-- `del ids` drops the constraints numbered in `ids`. -/
+  | del (ids : List ℕ) : StepEffect db n (.del ids) (db.filter fun e => !ids.contains e.1) n
+
+namespace StepEffect
+
+variable {db db' : List (ℕ × PBConstr)} {n n' : ℕ} {s : Step}
+
+/-- A step only advances the numbering. -/
+theorem le (h : StepEffect db n s db' n') : n ≤ n' := by
+  cases h with
+  | pol | rup | rupSearch => exact Nat.le_succ n
+  | pbc hm => exact hm.le.trans (Nat.le_succ _)
+  | del ids => exact le_rfl
+
+/-- A step keeps the numbers fresh. -/
+theorem idOk (h : StepEffect db n s db' n') (hid : IdOk db n) : IdOk db' n' := by
+  cases h with
+  | pol c => exact hid.cons le_rfl c
+  | rup | rupSearch => exact hid.cons le_rfl _
+  | pbc hm => exact hid.cons hm.le _
+  | del ids => exact hid.filter _
+
+/-- A step keeps every constraint whose number it does not delete. -/
+theorem mem (h : StepEffect db n s db' n') {e : ℕ × PBConstr} (he : e ∈ db)
+    (hd : ∀ ids, s = .del ids → ids.contains e.1 = false) : e ∈ db' := by
+  cases h with
+  | pol | rup | rupSearch | pbc => exact List.mem_cons_of_mem _ he
+  | del ids => exact List.mem_filter.2 ⟨he, by simpa using hd ids rfl⟩
+
+end StepEffect
+
+mutual
+
+/-- **The effect of a successful step** (`Cslib.Logic.PL.VeriPB.StepEffect`). For `pbc`, the
+number of the added constraint is the counter at which the successful subproof stops. -/
+theorem runStep_effect :
+    ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (s : Step) (db' : List (ℕ × PBConstr)) (n' : ℕ),
+      runStep db n s = some (db', n') → StepEffect db n s db' n'
+  | db, n, .pol ops, db', n', h => by
+    simp only [runStep] at h
+    split at h <;> cases h
+    exact .pol _
+  | db, n, .rup c hs, db', n', h => by
+    simp only [runStep] at h
+    split at h <;> cases h
+    exact .rup
+  | db, n, .rupSearch c, db', n', h => by
+    simp only [runStep] at h
+    split at h <;> cases h
+    exact .rupSearch
+  | db, n, .pbc c sub q, db', n', h => by
+    simp only [runStep, Option.map_eq_some_iff] at h
+    obtain ⟨n'', hq, h⟩ := h
+    cases h
+    unfold subproofRefutes at hq
+    split at hq
+    · rename_i db₁ n₁ hsub
+      simp only [Option.ite_none_right_eq_some, Option.some.injEq] at hq
+      exact .pbc (hq.2 ▸ Nat.lt_of_lt_of_le (Nat.lt_succ_self n) (runSteps_le _ _ sub _ _ hsub))
+    · cases hq
+  | db, n, .del ids, db', n', h => by
+    simp only [runStep] at h
+    split at h <;> cases h
+    exact .del ids
+
+/-- Steps only advance the numbering. -/
+theorem runSteps_le :
+    ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List Step) (db' : List (ℕ × PBConstr)) (n' : ℕ),
+      runSteps db n ss = some (db', n') → n ≤ n'
+  | db, n, [], db', n', h => by
+    simp only [runSteps, Option.some.injEq, Prod.mk.injEq] at h
+    exact h.2 ▸ le_rfl
+  | db, n, s :: ss, db', n', h => by
+    simp only [runSteps] at h
+    split at h
+    · exact (runStep_effect db n s _ _ ‹_›).le.trans (runSteps_le _ _ ss db' n' h)
+    · cases h
+
+end
+
+/-- A step only advances the numbering. -/
+theorem runStep_le (db : List (ℕ × PBConstr)) (n : ℕ) (s : Step) (db' : List (ℕ × PBConstr))
+    (n' : ℕ) (h : runStep db n s = some (db', n')) : n ≤ n' :=
+  (runStep_effect db n s db' n' h).le
+
+/-- **A step keeps the numbers fresh**: a new constraint takes a number from `n` on. -/
+theorem IdOk.runStep {db db' : List (ℕ × PBConstr)} {n n' : ℕ} {s : Step} (h : IdOk db n)
+    (hs : runStep db n s = some (db', n')) : IdOk db' n' :=
+  (runStep_effect _ _ _ _ _ hs).idOk h
 
 /-- **Soundness of the checker**: a formula with a checked proof of `UNSAT` has no solution. -/
 theorem not_satisfiable_of_check {F : List PBConstr} {P : Proof} (h : check F P = true)
     (σ : ℕ → Bool) : ¬ ∀ c ∈ F, c.Holds σ := fun hF => by
   unfold check at h
   split at h
-  · rename_i db n hrun
-    have hall := runSteps_sound _ _ _ db n (allHold_initDb hF) hrun
-    simp [hall.not_namesContra] at h
+  · simp [(runSteps_sound _ _ _ _ _ (allHold_initDb hF) ‹_›).not_namesContra] at h
   · cases h
 
 /-- **Soundness for CNF**: a CNF whose clauses, as pseudo-Boolean constraints, have a checked

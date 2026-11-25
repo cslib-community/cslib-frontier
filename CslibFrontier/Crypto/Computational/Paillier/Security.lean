@@ -172,9 +172,7 @@ private theorem powMod_mul_val_pow_eq_ciphertext (N : ℕ) [NeZero N] (m : ℕ)
       ciphertext N m (unitOrOne N
         ((ZMod.unitsMap (dvd_pow_self N two_ne_zero) s : ZMod N)).val) := by
   have hN2 : N ^ 2 ≠ 0 := pow_ne_zero 2 (NeZero.ne N)
-  have hcop : Nat.gcd ((ZMod.unitsMap (dvd_pow_self N two_ne_zero) s : ZMod N)).val N = 1 :=
-    ZMod.val_coe_unit_coprime _
-  simp only [unitOrOne, hcop, ↓reduceIte]
+  rw [unitOrOne_val_coe_unit]
   refine Nat.ModEq.eq_of_lt_of_lt ((ZMod.natCast_eq_natCast_iff _ _ _).mp ?_)
     (Nat.mod_lt _ (Nat.pos_of_ne_zero hN2)) ?_
   · rw [natCast_ciphertext (NeZero.ne N), ZMod.unitsMap_val, ZMod.cast_eq_val, ZMod.val_natCast,

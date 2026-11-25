@@ -17,9 +17,10 @@ Given a graph `G` with a rooted tree decomposition `R : G.RootedTreeDecompositio
 weights `w : V → ℕ`, the dynamic program `mwisValue R w` is the maximum total weight of an
 independent set of `G`. This module is the specification: it defines the program with `Finset`
 tables and proves it correct. The executable program `mwisFPT` of
-`CslibFrontier.Algorithms.Lean.TreeDecomposition.IndependentSetFPT` materializes the tables, returns
-`mwisValue R w` (`ret_mwisFPT`) and charges its ticks inside the loops that do the work
-(`time_mwisFPT_le`).
+`CslibFrontier.Algorithms.Lean.TreeDecomposition.IndependentSetFPT` materializes the tables as
+bit-mask-indexed arrays and computes `mwisValue R w` (`mwisFPT_eq_mwisValue`);
+`CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet` realizes the algorithm on the
+Word-RAM with an explicit FPT instruction bound.
 
 The program processes the nodes in decreasing order, so every child is handled before its
 parent. Node `i` keeps a table indexed by the subsets `S` of its bag. Once all children of `i`
@@ -192,9 +193,7 @@ private theorem forget_opt {c : Fin (n + 1)} {S : Finset V}
       have hys := mem_subtreeVerts_of_adj hxs hxP hxy
       have hyB := mem_bag_of_mem_subtreeVerts_of_mem_bag_parent hys (hSP hy)
       have hyT : y ∈ T := by
-        have : y ∈ S ∩ R.bag c := Finset.mem_inter.2 ⟨hy, hyB⟩
-        rw [← hTP] at this
-        exact (Finset.mem_inter.1 this).1
+        have := Finset.mem_inter.2 ⟨hy, hyB⟩; rw [← hTP] at this; exact (Finset.mem_inter.1 this).1
       exact isIndepSet_iff_forall.1 hJi x hxJT y (Finset.mem_union_right _ hyT) hxy
     have hKS : G.IsIndepSet (↑((T \ R.bag (R.parent c)) ∪ J ∪ S) : Set V) := by
       refine isIndepSet_iff_forall.2 fun x hx y hy hxy => ?_
@@ -205,9 +204,8 @@ private theorem forget_opt {c : Fin (n + 1)} {S : Finset V}
       · exact isIndepSet_iff_forall.1 hS x hx y hy hxy
     have hKsub : (T \ R.bag (R.parent c)) ∪ J ⊆ R.subtreeVerts c \ R.bag (R.parent c) :=
       fun x hx => Finset.mem_sdiff.2 ⟨(hK x hx).1, (hK x hx).2.1⟩
-    have hdisj : Disjoint (T \ R.bag (R.parent c)) J := by
-      refine Finset.disjoint_left.2 fun x hx hxJ => ?_
-      exact (Finset.mem_sdiff.1 (hJ hxJ)).2 (hTB (Finset.mem_sdiff.1 hx).1)
+    have hdisj : Disjoint (T \ R.bag (R.parent c)) J := Finset.disjoint_left.2 fun x hx hxJ =>
+      (Finset.mem_sdiff.1 (hJ hxJ)).2 (hTB (Finset.mem_sdiff.1 hx).1)
     calc (∑ v ∈ T \ R.bag (R.parent c), w v) + opt R w c T
         = ∑ v ∈ (T \ R.bag (R.parent c)) ∪ J, w v := by rw [hJeq, Finset.sum_union hdisj]
       _ ≤ msg R w c S := sum_le_msg hKsub hKS
@@ -222,27 +220,15 @@ private theorem forget_opt {c : Fin (n + 1)} {S : Finset V}
     have hTP : (K ∩ R.bag c ∪ S ∩ R.bag c) ∩ R.bag (R.parent c) = S ∩ R.bag c := by
       ext x
       simp only [Finset.mem_inter, Finset.mem_union]
-      constructor
-      · rintro ⟨⟨hxK, -⟩ | h, hxP⟩
-        · exact absurd hxP (hKP x hxK)
-        · exact h
-      · intro h
-        exact ⟨.inr h, hSP h.1⟩
-    have hJsub : K \ R.bag c ⊆ below R c := by
-      intro x hx
-      obtain ⟨hxK, hxB⟩ := Finset.mem_sdiff.1 hx
-      exact Finset.mem_sdiff.2 ⟨hKs x hxK, hxB⟩
+      exact ⟨fun ⟨h, hxP⟩ => h.resolve_left fun h' => hKP x h'.1 hxP, fun h => ⟨.inr h, hSP h.1⟩⟩
+    have hJsub : K \ R.bag c ⊆ below R c := fun x hx =>
+      Finset.mem_sdiff.2 ⟨hKs x (Finset.mem_sdiff.1 hx).1, (Finset.mem_sdiff.1 hx).2⟩
     have hJT : K \ R.bag c ∪ (K ∩ R.bag c ∪ S ∩ R.bag c) ⊆ K ∪ S :=
       Finset.union_subset (Finset.sdiff_subset.trans Finset.subset_union_left) hTKS
     have hTsdiff : (K ∩ R.bag c ∪ S ∩ R.bag c) \ R.bag (R.parent c) = K ∩ R.bag c := by
       ext x
       simp only [Finset.mem_sdiff, Finset.mem_inter, Finset.mem_union]
-      constructor
-      · rintro ⟨h | h, hxP⟩
-        · exact h
-        · exact absurd (hSP h.1) hxP
-      · intro h
-        exact ⟨.inl h, hKP x h.1⟩
+      exact ⟨fun ⟨h, hxP⟩ => h.resolve_right fun h' => hxP (hSP h'.1), fun h => ⟨.inl h, hKP x h.1⟩⟩
     have hle := sum_le_opt (w := w) hJsub (isIndepSet_of_subset hKS hJT)
     have hmem : K ∩ R.bag c ∪ S ∩ R.bag c ∈ (R.bag c).powerset.filter fun T : Finset V =>
         G.IsIndepSet (↑T : Set V) ∧ T ∩ R.bag (R.parent c) = S ∩ R.bag c :=
@@ -251,8 +237,7 @@ private theorem forget_opt {c : Fin (n + 1)} {S : Finset V}
           (Finset.sum_inter_add_sum_sdiff K (R.bag c) w).symm
       _ ≤ (∑ v ∈ (K ∩ R.bag c ∪ S ∩ R.bag c) \ R.bag (R.parent c), w v) +
             opt R w c (K ∩ R.bag c ∪ S ∩ R.bag c) := by
-          rw [hTsdiff]
-          exact Nat.add_le_add_left hle _
+          rw [hTsdiff]; exact Nat.add_le_add_left hle _
       _ ≤ forget G w (R.bag c) (R.bag (R.parent c)) (opt R w c) S :=
           Finset.le_sup (f := fun T => (∑ v ∈ T \ R.bag (R.parent c), w v) + opt R w c T)
             hmem
@@ -267,13 +252,10 @@ private theorem opt_eq_sum {i : Fin (n + 1)} {S : Finset V} (hS : G.IsIndepSet (
     have hcover : J = (R.children i).biUnion fun c => J ∩ R.subtreeVerts c := by
       ext x
       simp only [Finset.mem_biUnion, Finset.mem_inter]
-      constructor
-      · intro hx
-        obtain ⟨hxs, hxi⟩ := Finset.mem_sdiff.1 (hJsub hx)
-        obtain ⟨c, hc, hxc⟩ := exists_mem_children_of_mem_subtreeVerts hxs hxi
-        exact ⟨c, hc, hx, hxc⟩
-      · rintro ⟨c, -, hx, -⟩
-        exact hx
+      refine ⟨fun hx => ?_, fun ⟨_, _, hx, _⟩ => hx⟩
+      obtain ⟨hxs, hxi⟩ := Finset.mem_sdiff.1 (hJsub hx)
+      obtain ⟨c, hc, hxc⟩ := exists_mem_children_of_mem_subtreeVerts hxs hxi
+      exact ⟨c, hc, hx, hxc⟩
     have hdisj : (↑(R.children i) : Set (Fin (n + 1))).PairwiseDisjoint
         fun c => J ∩ R.subtreeVerts c := by
       intro c hc c' hc' hne
@@ -289,8 +271,7 @@ private theorem opt_eq_sum {i : Fin (n + 1)} {S : Finset V} (hS : G.IsIndepSet (
       rw [hpar c hc]
       exact Finset.mem_sdiff.2 ⟨hxc, (Finset.mem_sdiff.1 (hJsub hxJ)).2⟩
     calc ∑ v ∈ J, w v = ∑ c ∈ R.children i, ∑ v ∈ J ∩ R.subtreeVerts c, w v := by
-          conv_lhs => rw [hcover]
-          exact Finset.sum_biUnion hdisj
+          rw [← Finset.sum_biUnion hdisj, ← hcover]
       _ ≤ ∑ c ∈ R.children i, msg R w c S := Finset.sum_le_sum hle
   · choose K hKsub hKS hKeq using fun c => exists_msg (R := R) (w := w) c hS
     have hdisj : (↑(R.children i) : Set (Fin (n + 1))).PairwiseDisjoint K := by
@@ -353,17 +334,12 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
   | succ t ih =>
     obtain ⟨j, hj⟩ : ∃ j : Fin (n + 1), j = Fin.ofNat (n + 1) (n - t) := ⟨_, rfl⟩
     have hjv : j.val = n - t := hj ▸ val_ofNat_sub (by omega)
-    have hj0 : j ≠ 0 := fun h => by
-      rw [h, Fin.val_zero] at hjv
-      omega
-    have hstep : tables R w (t + 1) = step R w (tables R w t) j := by
-      rw [hj]
-      rfl
+    have hj0 : j ≠ 0 := fun h => by rw [h, Fin.val_zero] at hjv; omega
+    have hstep : tables R w (t + 1) = step R w (tables R w t) j := by rw [hj]; rfl
     rw [hstep]
     unfold step
-    by_cases hi : i = R.parent j
-    · subst hi
-      rw [Function.update_self]
+    obtain rfl | hi := eq_or_ne i (R.parent j)
+    · rw [Function.update_self]
       -- The table of `j` is complete: all its children are processed.
       have hjopt : ∀ T ⊆ R.bag j, G.IsIndepSet (↑T : Set V) →
           tables R w t j T = opt R w j T := by
@@ -381,11 +357,7 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
         simp only [Finset.mem_filter, Finset.mem_insert]
         constructor
         · rintro ⟨hc, hlt⟩
-          by_cases hcj : c = j
-          · exact .inl hcj
-          · refine .inr ⟨hc, ?_⟩
-            have : c.val ≠ j.val := fun h => hcj (Fin.ext h)
-            omega
+          exact (eq_or_ne c j).imp_right fun hcj => ⟨hc, by have := Fin.val_ne_of_ne hcj; omega⟩
         · rintro (rfl | ⟨hc, hlt⟩)
           · exact ⟨hjmem, by omega⟩
           · exact ⟨hc, by omega⟩
@@ -398,10 +370,8 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
       ext c
       simp only [Finset.mem_filter]
       refine and_congr_right fun hc => ?_
-      have hcj : c ≠ j := by
-        rintro rfl
-        exact hi (mem_children.1 hc).2.symm
-      have : c.val ≠ j.val := fun h => hcj (Fin.ext h)
+      have hcj : c ≠ j := by rintro rfl; exact hi (mem_children.1 hc).2.symm
+      have := Fin.val_ne_of_ne hcj
       omega
 
 private theorem tables_eq_opt {i : Fin (n + 1)} {S : Finset V} (hSi : S ⊆ R.bag i)

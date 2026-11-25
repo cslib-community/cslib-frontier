@@ -279,12 +279,10 @@ noncomputable def countingLeaves (θ : ℕ → ℕ) (ψ : ClauseSet V) : List (C
     [ψ]
 termination_by potential ψ
 decreasing_by
-  · rename_i h
+  all_goals
+    rename_i h
     exact potential_countingChild_lt_of_two_le_card_flower
-      (choice_chooseBranch h.1).1.1 (choice_chooseBranch h.1).1.2.1 h.2 false
-  · rename_i h
-    exact potential_countingChild_lt_of_two_le_card_flower
-      (choice_chooseBranch h.1).1.1 (choice_chooseBranch h.1).1.2.1 h.2 true
+      (choice_chooseBranch h.1).1.1 (choice_chooseBranch h.1).1.2.1 h.2 _
 
 /-- At a sparse clause set, `countingLeaves` terminates immediately with `[ψ]`. -/
 theorem countingLeaves_of_sparse {θ : ℕ → ℕ} {ψ : ClauseSet V} (h : Sparse θ ψ) :

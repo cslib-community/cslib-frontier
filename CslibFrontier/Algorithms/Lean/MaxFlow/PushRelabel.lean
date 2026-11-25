@@ -67,9 +67,11 @@ executable scheduler.
 ## Limitations
 
 The bounds count operations; no cost is charged for selecting an operation, so this is not a
-`TimeM` running-time bound. Only the generic algorithm is treated: the FIFO and relabel-to-front
-(`O(|V|³)`) and highest-label (`O(|V|² √|E|)`) selection rules, gap and global relabelling
-heuristics, and dynamic trees ([GoldbergTarjan1988]) are not formalized.
+machine running-time bound. Only the generic algorithm is treated here: see
+`CslibFrontier.Algorithms.Lean.MaxFlow.RelabelToFront` for the pure relabel-to-front scheduler and
+its `O(|V|³)` push/relabel operation, discharge, and current-arc advance count bounds. Word-RAM
+running times (`O(|V|³)`), FIFO and highest-label (`O(|V|² √|E|)`) selection rules, gap and global
+relabelling heuristics, and dynamic trees ([GoldbergTarjan1988]) are not formalized here.
 
 ## References
 
@@ -231,6 +233,26 @@ theorem numSatPushesAt_cons (a b : V) (σ : State N) (o : Op V) (os : List (Op V
     σ.numSatPushesAt a b (o :: os) =
       (if o = .push a b ∧ σ.IsSatPush o then 1 else 0) + (σ.apply o).numSatPushesAt a b os := rfl
 
+theorem run_append (σ : State N) :
+    ∀ (os₁ os₂ : List (Op V)), σ.run (os₁ ++ os₂) = (σ.run os₁).run os₂
+  | [], _ => rfl
+  | o :: os₁, os₂ => run_append (σ.apply o) os₁ os₂
+
+theorem isRun_append {σ : State N} :
+    ∀ {os₁ os₂ : List (Op V)}, σ.IsRun os₁ → (σ.run os₁).IsRun os₂ → σ.IsRun (os₁ ++ os₂)
+  | [], _, _, h₂ => h₂
+  | _ :: _, _, h₁, h₂ => ⟨h₁.1, isRun_append h₁.2 h₂⟩
+
+theorem numNonsatPushes_append (σ : State N) :
+    ∀ (os₁ os₂ : List (Op V)),
+      σ.numNonsatPushes (os₁ ++ os₂) =
+        σ.numNonsatPushes os₁ + (σ.run os₁).numNonsatPushes os₂
+  | [], _ => by simp [numNonsatPushes, countOps]
+  | o :: os₁, os₂ => by
+    simp only [List.cons_append, numNonsatPushes_cons, run_cons,
+      numNonsatPushes_append (σ.apply o) os₁ os₂]
+    omega
+
 /-- Every operation of a run is a relabel, a saturating push or a nonsaturating push. -/
 theorem length_eq (σ : State N) (os : List (Op V)) :
     os.length = σ.numRelabels os + σ.numSatPushes os + σ.numNonsatPushes os := by
@@ -354,17 +376,10 @@ theorem PairInv.apply {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c)
     (σ.apply o).PairInv a b (c + if o = .push a b ∧ σ.IsSatPush o then 1 else 0) := by
   cases o with
   | relabel u =>
-    have hfalse : ¬ (Op.relabel u = .push a b ∧ σ.IsSatPush (.relabel u)) := fun h => by
-      cases h.1
-    rw [ite_eq_right hfalse, Nat.add_zero]
+    rw [ite_eq_right (fun h => by cases h.1), Nat.add_zero]
     have hle := le_height_apply ho
-    refine ⟨fun h0 => ?_, fun hpos => ?_⟩
-    · have := hc.1 h0
-      have := hle a
-      omega
-    · have := hc.2 hpos
-      have := hle b
-      omega
+    exact ⟨fun h0 => by have := hc.1 h0; have := hle a; omega,
+      fun hpos => (hc.2 hpos).trans (hle b)⟩
   | push u v =>
     have hp : σ.flow.CanPush σ.height u v := ho
     have huv := hp.ne
@@ -379,13 +394,10 @@ theorem PairInv.apply {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c)
       by_cases hsat : σ.IsSatPush (.push u v)
       · have hsat' : σ.flow.pushAmount u v = σ.flow.resCap u v := hsat
         rw [ite_eq_left ⟨rfl, hsat⟩]
-        refine ⟨fun _ => ?_, fun hpos => ?_⟩
-        · omega
-        · omega
+        exact ⟨fun _ => by omega, fun _ => by omega⟩
       · have hsat' : σ.flow.pushAmount u v ≠ σ.flow.resCap u v := hsat
         rw [ite_eq_right fun h => hsat h.2, Nat.add_zero]
-        refine ⟨fun h0 => ?_, fun _ => hc2⟩
-        omega
+        exact ⟨fun _ => by omega, fun _ => hc2⟩
     · have hne : ¬ (Op.push u v = .push a b ∧ σ.IsSatPush (.push u v)) := fun h => by
         cases h.1
         exact hab ⟨rfl, rfl⟩
@@ -395,24 +407,20 @@ theorem PairInv.apply {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c)
         have hr := σ.flow.resCap_push_swap huv
         have heq := hp.height_eq
         refine ⟨fun h0 => by omega, fun _ => ?_⟩
-        by_cases h0 : σ.flow.resCap v u = 0
-        · have := hc.1 h0
-          omega
-        · have := hc.2 (Nat.pos_of_ne_zero h0)
-          omega
+        rcases Nat.eq_zero_or_pos (σ.flow.resCap v u) with h0 | h0
+        · have := hc.1 h0; omega
+        · have := hc.2 h0; omega
       · have hr := σ.flow.resCap_push_of_ne (u := u) (v := v) (x := a) (y := b)
           (fun h => hab ⟨h.1.symm, h.2.symm⟩) (fun h => hba ⟨h.2.symm, h.1.symm⟩)
-        rw [hr]
-        exact hc
+        rwa [hr]
 
 theorem PairInv.run {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c) {os : List (Op V)}
     (hos : σ.IsRun os) : (σ.run os).PairInv a b (c + σ.numSatPushesAt a b os) := by
   induction os generalizing σ c with
   | nil => simpa [numSatPushesAt, countOps] using hc
   | cons o os ih =>
-    have := ih (hc.apply hos.1) hos.2
     rw [numSatPushesAt_cons, run_cons, ← Nat.add_assoc]
-    exact this
+    exact ih (hc.apply hos.1) hos.2
 
 /-- At most `|V|` saturating pushes from `a` to `b` ([CLRS2009], proof of Lemma 26.22). -/
 theorem numSatPushesAt_le {σ : State N} (hσ : σ.Inv) {os : List (Op V)} (hos : σ.IsRun os)
@@ -423,11 +431,9 @@ theorem numSatPushesAt_le {σ : State N} (hσ : σ.Inv) {os : List (Op V)} (hos 
   have hinv := hσ.run hos
   have ha := hinv.height_le a
   have hb := hinv.height_le b
-  by_cases h : (σ.run os).flow.resCap a b = 0
-  · have := hrun.1 h
-    omega
-  · have := hrun.2 (Nat.pos_of_ne_zero h)
-    omega
+  rcases Nat.eq_zero_or_pos ((σ.run os).flow.resCap a b) with h | h
+  · have := hrun.1 h; omega
+  · have := hrun.2 h; omega
 
 theorem numSatPushes_eq_sum (σ : State N) (os : List (Op V)) :
     σ.numSatPushes os = ∑ e : V × V, σ.numSatPushesAt e.1 e.2 os := by
@@ -449,8 +455,7 @@ theorem numSatPushes_eq_sum (σ : State N) (os : List (Op V)) :
         refine ite_eq_right fun ⟨h, _⟩ => ?_
         obtain ⟨h1, h2⟩ := Op.push.inj h
         exact he (Prod.ext h1.symm h2.symm)
-      · intro h
-        exact absurd (Finset.mem_univ _) h
+      · exact fun h => absurd (Finset.mem_univ _) h
 
 theorem numSatPushesAt_eq_zero {a b : V} (hab : (a, b) ∉ N.symArcs) (σ : State N)
     {os : List (Op V)} (hos : σ.IsRun os) : σ.numSatPushesAt a b os = 0 := by
@@ -509,8 +514,7 @@ theorem potential_apply_le {σ : State N} (hσ : σ.Inv) {o : Op V} (ho : σ.Adm
       rw [apply_relabel_flow]
       split_ifs <;> omega
     have := Finset.sum_le_sum fun x (_ : x ∈ Finset.univ) => hpt x
-    rw [Finset.sum_add_distrib, Finset.sum_add_distrib] at this
-    exact this
+    rwa [Finset.sum_add_distrib, Finset.sum_add_distrib] at this
   | push u v =>
     have hp : σ.flow.CanPush σ.height u v := ho
     have huv := hp.ne
@@ -549,9 +553,7 @@ theorem potential_apply_le {σ : State N} (hσ : σ.Inv) {o : Op V} (ho : σ.Adm
       have hsat' : σ.flow.pushAmount u v ≠ σ.flow.resCap u v := hsat
       -- a nonsaturating push moves the whole excess of `u`
       have hamt : (σ.flow.pushAmount u v : ℤ) = σ.flow.excess u := by grind [pushAmount]
-      have hTu0 : ¬ (σ.flow.push u v).IsActive u := fun h => by
-        have := h.2.2
-        omega
+      have hTu0 : ¬ (σ.flow.push u v).IsActive u := fun h => by have := h.2.2; omega
       rw [ite_eq_right hTu0]
       have heq := hp.height_eq
       have : 0 ≤ (if σ.flow.IsActive v then σ.height v else 0) := Nat.zero_le _

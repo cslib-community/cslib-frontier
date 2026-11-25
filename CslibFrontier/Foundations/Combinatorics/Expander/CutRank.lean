@@ -144,8 +144,7 @@ theorem IsSimple.mul_card_mul_card_compl_le_cutRank_mul [Field K] (hG : G.IsSimp
           #S * (#S + G.spectralExpansion ^ 2 * (Fintype.card V - #S)) := by ring
     _ ≤ (#S + ((G.toSimpleGraph.adjMatrix K).cutRank (↑S : Set V) : ℝ) * Fintype.card D) *
           (#S + G.spectralExpansion ^ 2 * (Fintype.card V - #S)) -
-            #S * (#S + G.spectralExpansion ^ 2 * (Fintype.card V - #S)) :=
-      sub_le_sub_right hcombined _
+            #S * (#S + G.spectralExpansion ^ 2 * (Fintype.card V - #S)) := by gcongr
     _ = _ := by ring
 
 private theorem balanced_cut_rank_bound {n s r : ℝ} (hn : 0 ≤ n) (hr : 0 ≤ r)
@@ -203,9 +202,7 @@ theorem IsSimple.card_le_fortyOne_mul_cutRank [Field K] (hG : G.IsSimple)
         (#T + G.spectralExpansion ^ 2 * (Fintype.card V - #T)) ≤
       7 * ((G.toSimpleGraph.adjMatrix K).cutRank (↑T : Set V) : ℝ) *
         (#T + (49 / 100 : ℝ) * (Fintype.card V - #T)) :=
-      mul_le_mul_of_nonneg_left
-        (add_le_add le_rfl (mul_le_mul_of_nonneg_right hσ hns))
-        (mul_nonneg (by norm_num) hr)
+      by gcongr
     have h := balanced_cut_rank_bound (Nat.cast_nonneg _) hr
       (by exact_mod_cast hTlo) (by exact_mod_cast hThi) (hleft.trans (hbase.trans hright))
     exact_mod_cast h

@@ -33,6 +33,7 @@ modulo `L` whenever `inv * D ≡ 1 (mod L)`. Such an inverse makes `D` and `L` c
 
 * `Cslib.crtCombine_modEq_left`, `Cslib.crtCombine_modEq_right`: the output is congruent to `a`
   modulo `D` and, given the inverse, to `xL` modulo `L`.
+* `Cslib.crtCombine_lt`: whenever `a < D` and `0 < L`, `crtCombine D L a xL inv < D * L`.
 * `Cslib.crtCombine_eq`: given an inverse of `D` modulo `L`, recombining `x mod D` and `x mod L`
   returns every `x < D * L`.
 
@@ -67,6 +68,13 @@ theorem crtCombine_modEq_right {D L inv : ℕ} (hL : 0 < L) (hinv : (inv : ZMod 
     Nat.cast_mul, Nat.cast_add, ZMod.natCast_sub_mod_eq_neg]
   linear_combination ((xL : ZMod L) - a) * hinv
 
+/-- Whenever `a < D` and `0 < L`, `crtCombine D L a xL inv < D * L`. -/
+theorem crtCombine_lt {D L a : ℕ} (ha : a < D) (hL : 0 < L) (xL inv : ℕ) :
+    crtCombine D L a xL inv < D * L := by
+  have hu : (xL + (L - a % L)) * inv % L < L := Nat.mod_lt _ hL
+  unfold crtCombine
+  nlinarith
+
 /-- **Chinese Remainder Theorem reconstruction** (the two-modulus case of the CRT used in
 [KatzLindell2020], Section 10.2.1, p. 374): for `x < D * L`, `a = x % D`, `xL = x % L`, and
 `inv * D ≡ 1 (mod L)`, `crtCombine D L a xL inv = x`. Positivity of `D` and `L` follows from
@@ -83,11 +91,7 @@ theorem crtCombine_eq {D L x a xL : ℕ} (hx : x < D * L) (ha : a = x % D) (hxL 
     (crtCombine_modEq_left D L a xL inv).trans (ha ▸ Nat.mod_modEq x D)
   have h2 : crtCombine D L a xL inv ≡ x [MOD L] :=
     (crtCombine_modEq_right hL hinv a xL).trans (hxL ▸ Nat.mod_modEq x L)
-  have hlt : crtCombine D L a xL inv < D * L := by
-    have hu : (xL + (L - a % L)) * inv % L < L := Nat.mod_lt _ hL
-    have halt : a < D := ha ▸ Nat.mod_lt _ hD
-    unfold crtCombine
-    nlinarith
+  have hlt : crtCombine D L a xL inv < D * L := crtCombine_lt (ha ▸ Nat.mod_lt _ hD) hL xL inv
   have := (Nat.modEq_and_modEq_iff_modEq_mul hcop).1 ⟨h1, h2⟩
   rwa [Nat.ModEq, Nat.mod_eq_of_lt hlt, Nat.mod_eq_of_lt hx] at this
 

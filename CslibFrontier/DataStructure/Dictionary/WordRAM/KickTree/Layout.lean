@@ -298,26 +298,14 @@ theorem totalSpace_le_kickTreeWords (p : KickTreeParams) (hq : p.quotiented) :
   have hterm1 : p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V ≤
       Dynamic.optBits p.U p.V p.nMax + 2 * p.nMax := by
     rw [← Nat.mul_add]; exact hopt
-  have h7M : 7 * p.nMax ≤ 7 * p.nMax * M := by
-    simpa using Nat.mul_le_mul_left (7 * p.nMax) hM
+  have h7M : 7 * p.nMax ≤ 7 * p.nMax * M := Nat.le_mul_of_pos_right _ hM
   have hnum_le : p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V +
       occLen p * 1 + p.nMax * 1 + metaLen p * M ≤
       Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M := by
-    calc p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V +
-          occLen p * 1 + p.nMax * 1 + metaLen p * M
-      _ = (p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V) +
-          5 * p.nMax + p.cMeta * p.nMax * M := by
-        unfold occLen metaLen; ring
-      _ ≤ Dynamic.optBits p.U p.V p.nMax + 2 * p.nMax + 5 * p.nMax +
-          p.cMeta * p.nMax * M := by linarith [hterm1]
-      _ = Dynamic.optBits p.U p.V p.nMax + 7 * p.nMax + p.cMeta * p.nMax * M := by ring
-      _ ≤ Dynamic.optBits p.U p.V p.nMax + 7 * p.nMax * M + p.cMeta * p.nMax * M := by
-        linarith [h7M]
-      _ = Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M := by ring
+    unfold occLen metaLen; linarith [hterm1, h7M]
   have hdiv : (p.nMax * fullQuotBits p.U p.nMax + p.nMax * valBits p.V +
       occLen p * 1 + p.nMax * 1 + metaLen p * M + p.w - 1) / p.w ≤
-      (Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M + p.w - 1) / p.w :=
-    Nat.div_le_div_right (by omega)
+      (Dynamic.optBits p.U p.V p.nMax + (p.cMeta + 7) * p.nMax * M + p.w - 1) / p.w := by gcongr
   unfold kickTreeWords valWords occWords elevWords metaWords
   have hM_def : max (Nat.iterLog (p.k + 1) p.nMax) 1 = M := rfl
   have hM_meta : metaBits p = M := rfl
@@ -482,37 +470,16 @@ theorem arrays_congr_of_eq_on {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {
       occAt base p mem₁ = occAt base p mem₂ ∧
       elevAt base p mem₁ = elevAt base p mem₂ ∧
       metaAt base p mem₁ = metaAt base p mem₂ := by
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · funext idx; unfold quotAt; split_ifs with hidx
-    · have hbound := quot_end_le_totalSpace p
-      exact readPacked_congr (N := p.nMax) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by wram_omega [ha1])
-          (by wram_omega [hbound])) hidx
-    · rfl
-  · funext idx; unfold valAt; split_ifs with hidx
-    · have hbound := val_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offVal p := by wram_omega
-      exact readPacked_congr (N := p.nMax) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by wram_omega [hbound])) hidx
-    · rfl
-  · funext idx; unfold occAt; split_ifs with hidx
-    · have hbound := occ_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offOcc p := by wram_omega
-      exact readPacked_congr (N := occLen p) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by wram_omega [hbound])) hidx
-    · rfl
-  · funext idx; unfold elevAt; split_ifs with hidx
-    · have hbound := elev_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offElev p := by wram_omega
-      exact readPacked_congr (N := p.nMax) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by wram_omega [hbound])) hidx
-    · rfl
-  · funext idx; unfold metaAt; split_ifs with hidx
-    · have hbound := meta_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offMeta p := by wram_omega
-      exact readPacked_congr (N := metaLen p) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by wram_omega [hbound])) hidx
-    · rfl
+  have hq := quot_end_le_totalSpace p
+  have hv := val_end_le_totalSpace p
+  have ho := occ_end_le_totalSpace p
+  have he := elev_end_le_totalSpace p
+  have hm := meta_end_le_totalSpace p
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> funext idx <;>
+    simp only [quotAt, valAt, occAt, elevAt, metaAt] <;> split_ifs with hidx <;> first
+    | rfl
+    | exact readPacked_congr hw (fun a ⟨ha1, ha2⟩ =>
+        heq a (by wram_omega [ha1]) (by wram_omega [ha2])) hidx
 
 /-- Congruence for bounded logical arrays agreeing on their allocated word range. -/
 private theorem readPacked_bounded_congr {base N k w : ℕ} (hw : 0 < w)

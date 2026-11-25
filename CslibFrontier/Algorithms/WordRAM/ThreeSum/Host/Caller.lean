@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Loop
 import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # Caller-owned Convolution-3SUM input and workspace
@@ -59,51 +60,28 @@ theorem exec_prepare_at {w N U src workspace : ℕ} (x : Data 64)
       ParametersAt N U src workspace y ∧ y.regs inst = 0 ∧ y.regs found = 0 ∧
       y.mem = x.mem := by
   have hd : Fits w (workspace - N) := hsize.of_le (by omega)
-  let a := x.set savedSource src |>.set base (workspace - N) |>.set one 1 |>.set sqrtArg N
-  have ha : ExecWithin w callerSetup x a 4 := by
-    ram_eval [callerSetup, a, hb, hab, hN, hd,
-      savedSource, base, matAB, len, one, sqrtArg, Fin.mk.injEq]
-  have han : a.regs sqrtArg = N := by simp [a]
-  have hsi : sqrtRegisters.Injective := by
-    intro i j h
+  have h1 : Fits w 1 := hfill.of_le (by omega)
+  have hw : N + (workspace - N) = workspace := by omega
+  have hsi : sqrtRegisters.Injective := fun i j h => by
     apply Fin.ext
     have := congrArg Fin.val h
     dsimp only [sqrtRegisters] at this
     omega
-  obtain ⟨small, he, hr, _, hm, _⟩ := NatSqrt.exec (a.comap sqrtRegisters)
-    (by change Fits w (4 * a.regs sqrtArg + 4); rw [han]; exact hsqrt)
-  let b := small.extend sqrtRegisters a
-  have hcall : ExecWithin w (NatSqrt.program.rename sqrtRegisters) a b
-      (5 * Nat.sqrt N + 7) := by
-    have hcall := he.rename hsi
-    change ExecWithin w _ a b (5 * Nat.sqrt (a.regs sqrtArg) + 7) at hcall
-    simpa only [han] using hcall
-  change small.regs NatSqrt.root = Nat.sqrt (a.regs sqrtArg) at hr
-  rw [han] at hr
-  have hr' : b.regs sqrtRoot = Nat.sqrt N := by
-    wram_simp [b, NatSqrt.root, hr]
-  have hw : N + (workspace - N) = workspace := by omega
-  obtain ⟨c, hc, hp, hi, hf, hmem⟩ :=
-    exec_layout_at (N := N) (U := U) (src := workspace - N) b
-      (by wram_simp [b, a, hN]) (by wram_simp [b, a, hU])
-      (by wram_simp [b, a]) (by wram_simp [b, a]) hr'
-      (by simpa only [hw] using hsize) hfill
+  refine WP.exists_execWithin ?_
+  unfold prepareAt callerSetup restoreSource
+  wram_exec [hb, hab, hN, h1]
+  wram_call (NatSqrt.exec _ (by wram_simp [sqrtRegisters, NatSqrt.arg]; exact hsqrt))
+    canonical hsi with s ⟨hsr, _, hsm, _⟩
+  refine WP.seq ?_
+  wram_call (exec_layout_at (N := N) (U := U) (src := workspace - N) _
+    (by wram_simp [hN]) (by wram_simp [hU]) (by wram_simp) (by wram_simp)
+    (by wram_simp [sqrtRegisters, NatSqrt.root, hsr, NatSqrt.arg])
+    (by simpa only [hw] using hsize) hfill) framed with v m ⟨hp, hi, hf, hcm⟩
+  wram_exec
   rw [hw] at hp
-  have hsaved : c.regs savedSource = src := by
-    rw [hc.regs_eq (by decide)]
-    wram_simp [b, a]
-  let y := c.set base src
-  have hy : ExecWithin w restoreSource c y 1 := by
-    simpa only [restoreSource, hsaved] using
-      (ExecWithin.copy (x := c) (d := base) (s := savedSource))
-  refine ⟨y, (ha.seq (hcall.seq (hc.seq hy))).mono ?_, ?_, ?_, ?_, ?_⟩
-  · omega
-  · constructor <;> simp +decide [y, Data.set_regs,
-      len, upper, base, matAB, matBC, matAC, free, side, stop, filler, encodedFiller, one,
-      hp.len, hp.upper, hp.ab, hp.bc, hp.ac, hp.free, hp.side, hp.stop,
-      hp.filler, hp.encodedFiller, hp.one]
-  · simpa +decide [y, inst, base] using hi
-  · simpa +decide [y, found, base] using hf
-  · exact hmem.trans hm
+  refine ⟨?_, by wram_simp [hi], by wram_simp [hf], by wram_simp [hcm, hsm]⟩
+  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _⟩ := hp
+  constructor
+  all_goals first | (wram_simp; done) | rwa [Data.set_regs_of_ne (by decide)]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Host

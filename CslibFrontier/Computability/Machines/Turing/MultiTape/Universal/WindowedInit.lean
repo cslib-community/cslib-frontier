@@ -8,10 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedBound
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Reverse
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TakeDropUnary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
+import CslibFrontier.Tactic.Degree
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -96,13 +96,7 @@ private lemma foldl_dbl_take_le (n i : ℕ) : ((encNat n).reverse.take i).foldl 
 /-- A doubling round, in linear time. -/
 private lemma dbl_deg : ComputableInDegree (fun p : ℕ × Bool => dbl p.1 p.2)
     (encPair encUnary encBool) encUnary 1 1 := by
-  have h₁ := ComputableInDegree.fst encUnary encBool
-  have h₂ := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encUnary)
-    fun b : Bool => cond b 1 0).comp (ComputableInDegree.snd encUnary encBool)
-  have hdouble := h₁.append h₁ (encOut := encUnary) (g := fun p : ℕ × Bool => p.1 + p.1)
-    fun p => by simp only [encUnary_apply, List.replicate_add]
-  exact (hdouble.append h₂ fun p => by
-    simp only [dbl, encUnary_apply, List.replicate_add, Function.comp_apply]).mono
+  degree [dbl]
 
 /-- **From binary to unary**, in time `O((t + 1) * (L + 1))` for `t` with `L` binary digits. -/
 private lemma toUnary_inO : ComputableInO (fun t : ℕ => t) encNat encUnary

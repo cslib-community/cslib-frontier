@@ -181,9 +181,9 @@ theorem init_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
     {dimension : α → ℕ} (hdim : ComputableInSpace dimension encIn encNat budget) :
     ComputableInSpace (fun a => (machine (dimension a)).init) encIn encState budget :=
   encState_mk_budget hdim (budget_comp_linear natSize hdim)
-    ((constZero 0).mono_le fun _ => Nat.zero_le _)
-    ((constZero 0).mono_le fun _ => Nat.zero_le _)
-    ((constZero false).mono_le fun _ => Nat.zero_le _)
+    (budget_const 0)
+    (budget_const 0)
+    (budget_const false)
 
 /-- The actual input query is a native binary-register projection. -/
 theorem query_inSpace (N : ℕ) :
@@ -241,12 +241,12 @@ theorem result_inSpace :
     (encState_limit_budget (of_inO (ComputableInO.of_eq fun _ => rfl)))
   have hok := budget_finite (encC := encBool)
     (fun ((failed, lt) : Bool × Bool) => !failed && lt) (budget_prod hf hlt)
-  exact budget_ite hok (budget_optionSome hv) (budget_const none (.refl _))
+  exact budget_ite hok (budget_optionSome hv) (budget_const none)
 
 /-- No intermediate output is materialized. -/
 theorem emit_inSpace (N : ℕ) :
     ComputableInSpace (machine N).emit (QueryMachine.encStateRead encState) encBits
-      (fun p => (QueryMachine.encStateRead encState p).length) := budget_const [] (.refl _)
+      (fun p => (QueryMachine.encStateRead encState p).length) := budget_const []
 
 /-- Native finalization encodes the range-checked optional rank. -/
 theorem finish_inSpace (N : ℕ) :

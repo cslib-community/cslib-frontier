@@ -270,8 +270,7 @@ private theorem two_mul_complexity_le {P q p h c : ℕ} (hq : 32 * (P + 1) ≤ q
       (indicatorBound_le hhp hk le_rfl (by omega) hK (by omega) (by omega) hat)
     have hmain := mul_div_le_mul (2 ^ p) hmainK
     calc 2 * P * complexity interpretation (single fun x => decide (x ∈ D))
-        ≤ 2 * P * ((q + 1) * (2 ^ p / (q - 2)) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) :=
-          Nat.mul_le_mul_left _ hle
+        ≤ 2 * P * ((q + 1) * (2 ^ p / (q - 2)) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
       _ = 2 * P * (q + 1) * (2 ^ p / (q - 2)) + 2 * P * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by
           ring
       _ ≤ (2 * P + 1) * 2 ^ p + 2 * P * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
@@ -280,8 +279,7 @@ private theorem two_mul_complexity_le {P q p h c : ℕ} (hq : 32 * (P + 1) ≤ q
       (partialBound_le hhp hk le_rfl (by omega) (by omega) hJ hD)
     have hmain := mul_div_le_mul (2 ^ p) hmainJ
     calc 2 * P * p * complexityOn interpretation D (single u)
-        ≤ 2 * P * p * (2 ^ p / (c * h) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) :=
-          Nat.mul_le_mul_left _ hle
+        ≤ 2 * P * p * (2 ^ p / (c * h) + 32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
       _ = 2 * P * p * (2 ^ p / (c * h)) + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by
           ring
       _ ≤ (2 * P + 1) * 2 ^ p + 2 * P * p * (32 * (p + 1) ^ 3 * 2 ^ (p - h)) := by gcongr
@@ -432,8 +430,7 @@ private theorem eventually_mul_dist_complexity_le (P : ℕ) :
   calc P * Nat.dist (complexity interpretation f) (complexity interpretation g)
       ≤ P * (complexity interpretation (single fun x => decide (x ∈ D)) +
           ∑ i, complexityOn interpretation D
-            (single fun x => f x (select i) ^^ g x (select i)) + 5 * #O) :=
-        Nat.mul_le_mul_left P hdist
+            (single fun x => f x (select i) ^^ g x (select i)) + 5 * #O) := by gcongr
     _ = P * complexity interpretation (single fun x => decide (x ∈ D)) +
           P * ∑ i, complexityOn interpretation D
             (single fun x => f x (select i) ^^ g x (select i)) + P * (5 * #O) := by ring

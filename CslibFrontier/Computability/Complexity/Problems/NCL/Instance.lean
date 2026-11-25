@@ -69,6 +69,22 @@ def graph (g : AndOrGraph) : ConstraintGraph (Fin g.vertices.length) (Fin g.edge
       else none
     minInflow := v.minInflow }
 
+/-- A finite port occurs exactly when its natural-numbered port occurs in the input vertex. -/
+theorem mem_graph_ports_iff (g : AndOrGraph) (i : Fin g.vertices.length)
+    (p : WeightedPort (Fin g.edgeCount)) :
+    p ∈ (g.graph i).ports ↔ p.map Fin.val ∈ (g.vertices.get i).ports := by
+  change p ∈ ((g.vertices.get i).ports.filterMap _) ↔ _
+  rw [List.mem_filterMap]
+  constructor
+  · rintro ⟨q, hq, he⟩
+    split at he
+    · cases Option.some.inj he
+      exact hq
+    · cases he
+  · intro hp
+    refine ⟨p.map Fin.val, hp, ?_⟩
+    simp only [WeightedPort.map, Port.map, p.port.edge.isLt, ↓reduceDIte]
+
 /-- Erasing finite bounds recovers the original port data when all names are bounded. -/
 theorem graph_map_val (g : AndOrGraph) (h : g.Bounded) :
     g.graph.map Fin.val = fun i => g.vertices.get i := by

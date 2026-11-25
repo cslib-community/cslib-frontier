@@ -564,8 +564,7 @@ theorem SolvesWithErrorInExpTime.of_promiseReduction {X : PromiseProblem α} {Y 
   have hX : 1 ≤ X := Real.one_le_rpow (by norm_num) (by positivity)
   have hn1 : ((encB (r a)).length : ℝ) + 1 ≤ (2 * l + 1) * P := by
     have hn0 : ((encB (r a)).length : ℝ) ≤ l * (P + 1) := by
-      have h1 : l * ((((enc a).length : ℝ) + 1) ^ d + 1) ≤ l * (P + 1) :=
-        mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg _)
+      have h1 : l * ((((enc a).length : ℝ) + 1) ^ d + 1) ≤ l * (P + 1) := by gcongr
       exact (by exact_mod_cast hl a : ((encB (r a)).length : ℝ) ≤ _).trans h1
     have h2 : (l : ℝ) * (P + 1) ≤ l * (2 * P) :=
       mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg _)

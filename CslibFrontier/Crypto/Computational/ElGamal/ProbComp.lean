@@ -25,11 +25,11 @@ import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Crypto.Game.FourHop
 import CslibFrontier.Crypto.Game.Statistical
-import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.StatisticalDistance
+import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
 
@@ -248,11 +248,9 @@ private theorem advantage_eval_kemRealGame_ddhRealGame_le
       (ProbComp.eval (F.sampleExp n (d n))).bind fun a =>
         (ProbComp.eval (F.sampleExp n (d n))).bind fun b =>
           k (a : ZMod (F.order (d n))) (b : ZMod (F.order (d n))) := by
-    simp only [kemRealGame, kemRealGameWith,
-      elGamalKeyGenProb, hashedElGamalEncapsProb, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, dropFrame_encPair_encBits,
-      encodeElGamalPublicKey_eq_encode, F.smul_encode, smul_smul,
-      mul_comm _ (_ : ZMod (F.order (d n))), k]
+    simp only [kemRealGame, kemRealGameWith, elGamalKeyGenProb, hashedElGamalEncapsProb,
+      dropFrame_encPair_encBits, encodeElGamalPublicKey_eq_encode, F.smul_encode, smul_smul,
+      mul_comm _ (_ : ZMod (F.order (d n))), k, pmf_norm]
   have hddh :
       F.ddhRealGame (fun m => PMF.pure (d m)) (F.kemToDDHDistinguisher H distinguisher) n =
       (PMF.uniformOfFintype (ZMod (F.order (d n)))).bind fun α =>
@@ -285,10 +283,9 @@ private theorem advantage_kdfIdealGame_eval_kemIdealGame_le (keyLen : ℕ → �
       (ProbComp.eval (F.sampleExp n (d n))).bind fun a =>
         (ProbComp.eval (F.sampleExp n (d n))).bind fun b =>
           k (a : ZMod (F.order (d n))) (b : ZMod (F.order (d n))) := by
-    simp only [kemIdealGame, kemIdealGameWith, kemRealGameWith,
-      elGamalKeyGenProb, hashedElGamalEncapsProb, ProbComp.eval_bind,
-      ProbComp.eval_pure, Cslib.BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind,
-      encodeElGamalPublicKey_eq_encode, F.smul_encode, k]
+    simp only [kemIdealGame, kemIdealGameWith, kemRealGameWith, elGamalKeyGenProb,
+      hashedElGamalEncapsProb, Cslib.BitString.eval_sampleList, encodeElGamalPublicKey_eq_encode,
+      F.smul_encode, k, pmf_norm]
   have hkdf :
       F.kdfIdealGame (fun m => PMF.pure (d m)) keyLen
         (F.kemToKDFDistinguisher distinguisher) n =
@@ -354,10 +351,7 @@ theorem DDH.kemINDCPA_hashedElGamalEncapsProb {F : PrimeOrderGroupFamily} {keyLe
   intro distinguisher hD
   have hddh := hDDH _ (F.isPPT_kdfToDDHDistinguisher hH (F.isPPT_kemToKDFDistinguisher hD))
   have hkdf := hKDF _ (F.isPPT_kemToKDFDistinguisher hD)
-  have h4 : Negligible fun n => (4 : ℝ≥0) / 2 ^ n := negligible_const_div_two_pow 4
-  refine negligible_of_le ((hddh.add hkdf).add h4) fun n => ?_
-  dsimp only [Pi.add_apply]
-  exact F.advantage_kemGame_hashedElGamalEncapsProb_le keyLen H d distinguisher n
+  negligible using F.advantage_kemGame_hashedElGamalEncapsProb_le keyLen H d distinguisher
 
 /-- **Theorem 11.5 for the $\mathcal{E}'_{\mathrm{EG}}$ variant of Remark 11.1, via
 `Encryption.INDCPAOf`** ([BonehShoup2023], Remark 11.1, p. 446, and Section 11.5.2, Theorem 11.5,
@@ -556,9 +550,8 @@ theorem advantage_gameOn_elGamalMsgCPAGameOn_le {Msg : Type}
       (ProbComp.eval (F.sampleExp n (d n))).bind fun a =>
         (ProbComp.eval (F.sampleExp n (d n))).bind fun b =>
           k (a : ZMod (F.order (d n))) (b : ZMod (F.order (d n))) := by
-    simp only [gameOn, elGamalKeyGenProb, elGamalEncryptProb, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, apply_ite ProbComp.eval,
-      encodeElGamalPublicKey_eq_encode, k]
+    simp only [gameOn, elGamalKeyGenProb, elGamalEncryptProb, apply_ite ProbComp.eval,
+      encodeElGamalPublicKey_eq_encode, k, pmf_norm]
     pmf_swap with a choice
     by_cases hv : valid n
         (encPair F.encDesc encBits
@@ -595,10 +588,7 @@ theorem DDH.indcpaOn_elGamalEncryptProb_on {F : PrimeOrderGroupFamily}
     INDCPAOn valid encMsg (F.elGamalKeyGenProb d) (F.elGamalEncryptProb encodeMsg d) := by
   intro adversary hA
   have hmid := hDDH.negligible_elGamalMsgCPAGameOn_ideal hvalid hsound hencMsg hA
-  have h2 : Negligible fun n => (2 : ℝ≥0) / 2 ^ n := negligible_const_div_two_pow 2
-  refine negligible_of_le ((h2.add hmid).add h2) fun n => ?_
-  dsimp only [Pi.add_apply]
-  exact Game.advantage_four_hop_le
+  negligible using fun n => Game.advantage_four_hop_le
     (F.advantage_gameOn_elGamalMsgCPAGameOn_le valid encodeMsg d adversary false n)
     (F.advantage_gameOn_elGamalMsgCPAGameOn_le valid encodeMsg d adversary true n)
 
@@ -651,8 +641,7 @@ theorem eval_fst_elGamalKeyGenProb (d : ℕ → F.Desc) (n : ℕ) :
         encPair F.encDesc encBits (d n, F.encode (d n) keys.1)) <$>
           (F.elGamalProbExplicitCoinPKE n (d n)).keyGen) := by
   simp only [elGamalKeyGenProb, elGamalExplicitCoinPKEWith, encodeElGamalPublicKey_eq_encode,
-    ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map,
-    PMF.bind_map, Function.comp_def]
+    pmf_norm]
 
 /-- On an encoded public key `(d n, encode u)` and encoded group element `encode x`,
 `elGamalEncryptProb (fun _ w => w)` has the same output distribution as encoding both components of
@@ -665,8 +654,6 @@ theorem eval_elGamalEncryptProb_encode (d : ℕ → F.Desc) (n : ℕ)
         encPair encBits encBits (F.encode (d n) ct.1, F.encode (d n) ct.2)) <$>
           (F.elGamalProbExplicitCoinPKE n (d n)).encrypt u x) := by
   simp only [elGamalEncryptProb, elGamalExplicitCoinPKEWith, Protocols.ExplicitCoinPKE.encrypt,
-    dropFrame_encPair_encBits, F.encodeElGamalEncrypt_encode, elGamalEncrypt, ProbComp.eval_map,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, PMF.bind_map,
-    Function.comp_def]
+    dropFrame_encPair_encBits, F.encodeElGamalEncrypt_encode, elGamalEncrypt, pmf_norm]
 
 end Cslib.Crypto.PrimeOrderGroupFamily

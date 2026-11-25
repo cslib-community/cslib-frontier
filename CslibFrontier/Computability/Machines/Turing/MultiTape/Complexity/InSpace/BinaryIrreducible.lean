@@ -90,7 +90,9 @@ theorem divisorPasses_inSpace :
       (fun p => (encDivisorInput p).length) := of_inO ComputableInO.id'
   have hm := encDivisorInput_candidate_budget hid
   have hd := encDivisorInput_divisor_budget hid
-  have htwo := budget_const (encIn := encDivisorInput) (encB := encNat) 2 (.refl _)
+  have htwo :=
+    budget_const (Bs := fun a => (encDivisorInput a).length) (encIn := encDivisorInput)
+      (encB := encNat) 2
   have hsmall := budget_natLt hd htwo
   have hdegree := budget_natLt
     (budget_natDiv (budget_comp_linear binaryLog_inSpace hm) htwo)
@@ -198,7 +200,7 @@ theorem trialRun_inSpace :
   have hm := encTrialInput_candidate_budget hid
   have hd := encTrialInput_first_budget hid
   have hk := encTrialInput_count_budget hid
-  have hi := encTrialState_mk_budget hm hd (budget_const (encB := encBool) true (.refl _))
+  have hi := encTrialState_mk_budget hm hd (budget_const (encB := encBool) true)
   apply budget_iterate hk hi trialStep_inSpace
     (B := fun p => 16 * ((encTrialInput p).length + 1))
   · intro p k hkp
@@ -227,11 +229,11 @@ theorem isIrreducibleCode_inSpace :
   have hid : ComputableInSpace (fun m : ℕ => m) encNat encNat
       (fun m => (encNat m).length) := of_inO ComputableInO.id'
   have hinit := encTrialInput_mk_budget hid
-    (budget_const (encB := encNat) 0 (.refl _)) hid
+    (budget_const (encB := encNat) 0) hid
   have hrun := budget_comp_linear trialRun_inSpace hinit
   have hgood := encTrialState_good_budget hrun
   have hlower := budget_finite (encC := encBool) not
-    (budget_natLt hid (budget_const (encB := encNat) 2 (.refl _)))
+    (budget_natLt hid (budget_const (encB := encNat) 2))
   refine (budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hlower hgood)).of_enc_eq fun m => ?_
   rw [← trialRun_isIrreducibleCode]

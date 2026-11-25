@@ -86,10 +86,7 @@ private theorem translate_support_cell_isolation {r : Route} {b c : Point} {p : 
   obtain ⟨h₀, h₁, h₂, h₃, hb⟩ := hiso (mem_support_translate_sub hp)
   refine ⟨by rw [← hx, mem_closedCell_add_origin_iff]; exact ⟨h₀, h₁, h₂, h₃⟩, fun hnot => ?_⟩
   have hedge : x.1 = 0 ∨ x.1 = 240 ∨ x.2 = 0 ∨ x.2 = 240 := by
-    by_contra h
-    apply hnot
-    rw [← hx, mem_openCell_add_origin_iff]
-    push Not at h
+    by_contra h; apply hnot; rw [← hx, mem_openCell_add_origin_iff]; push Not at h
     exact ⟨lt_of_le_of_ne h₀ h.1.symm, lt_of_le_of_ne h₁ h.2.1,
       lt_of_le_of_ne h₂ h.2.2.1.symm, lt_of_le_of_ne h₃ h.2.2.2⟩
   rw [← hx, show x = realPoint b from hb hedge, realPoint_add, add_comm]
@@ -135,22 +132,22 @@ private theorem TileSpec.route_regular {V : Type} {t : TileSpec V} {p : Point} {
 
 private theorem TileSpec.route_count {V : Type} {t : TileSpec V} {n : ℕ}
     (hlen : t.formula.length = n)
-    (hcnt : ∀ i : Fin n,
-      (t.inc.filter fun e => e.1 == i.val).length = (t.formula.getD i.val []).length)
+    (hvars : ∀ i : Fin n,
+      (t.inc.filter fun e => e.1 == i.val).map (·.2.1) = (t.formula.getD i.val []).map Prod.fst)
     {p : Point} {pc : PlacedClause} (hpc : pc ∈ t.clauses p) :
     pc.2.2.length = pc.1.length := by
   obtain ⟨⟨c, i⟩, hci, rfl⟩ := List.mem_map.mp hpc
   have hi : i < t.formula.length := by simpa only [Nat.zero_add] using (List.mem_zipIdx hci).2.1
   have hc : c = t.formula[i] := by simpa only [Nat.sub_zero] using (List.mem_zipIdx hci).2.2
-  have hcount := hcnt ⟨i, hlen ▸ hi⟩
-  rw [List.getD_eq_getElem t.formula [] hi, ← hc] at hcount
+  have hcount := congrArg List.length (hvars ⟨i, hlen ▸ hi⟩)
+  rw [List.getD_eq_getElem t.formula [] hi, ← hc, List.length_map, List.length_map] at hcount
   simpa only [List.length_map, Clause.length_relabel] using hcount
 
 private theorem TileSpec.clause_endpoints {V : Type} {t : TileSpec V} {n : ℕ}
     (hlen : t.formula.length = n)
     (htag : ∀ c v, variablePosition (c, t.tag v) = cellOrigin 120 c + t.varPos v)
-    (hcover : ∀ i : Fin n, ∀ lr ∈ (t.formula.getD i.val []).zip
-      ((t.inc.filter fun e => e.1 == i.val).map (·.2.2)), (i.val, lr.1.1, lr.2) ∈ t.inc)
+    (hvars : ∀ i : Fin n,
+      (t.inc.filter fun e => e.1 == i.val).map (·.2.1) = (t.formula.getD i.val []).map Prod.fst)
     (hend : ∀ e ∈ t.inc,
       e.2.2.head? = some (t.clausePos.getD e.1 (0, 0)) ∧ e.2.2.getLast? = some (t.varPos e.2.1))
     {c : Point} {pc : PlacedClause} (hpc : pc ∈ t.clauses c)
@@ -159,18 +156,30 @@ private theorem TileSpec.clause_endpoints {V : Type} {t : TileSpec V} {n : ℕ}
   obtain ⟨⟨src, i⟩, hci, rfl⟩ := List.mem_map.mp hpc
   dsimp only at hlr ⊢
   have hi : i < t.formula.length := by simpa only [Nat.zero_add] using (List.mem_zipIdx hci).2.1
-  have hsrc : src = t.formula.getD i [] := by
-    rw [List.getD_eq_getElem _ _ hi]
-    simpa only [Nat.sub_zero] using (List.mem_zipIdx hci).2.2
+  have hsrc : src = t.formula.getD i [] :=
+    (show src = t.formula[i] by simpa only [Nat.sub_zero] using (List.mem_zipIdx hci).2.2).trans
+      (List.getD_eq_getElem _ _ hi).symm
   change (l, r) ∈ (src.map (Prod.map (fun v => (c, t.tag v)) id)).zip
     ((t.inc.filter fun e => e.1 == i).map fun e => translate (cellOrigin 120 c) e.2.2) at hlr
-  have hmap : ((t.inc.filter fun e => e.1 == i).map fun e => translate (cellOrigin 120 c) e.2.2) =
-      ((t.inc.filter fun e => e.1 == i).map (·.2.2)).map (translate (cellOrigin 120 c)) := by
-    rw [List.map_map]; rfl
-  rw [hmap, List.zip_map] at hlr
+  rw [show ((t.inc.filter fun e => e.1 == i).map fun e => translate (cellOrigin 120 c) e.2.2) =
+      ((t.inc.filter fun e => e.1 == i).map (·.2.2)).map (translate (cellOrigin 120 c)) by
+    rw [List.map_map]; rfl, List.zip_map] at hlr
   obtain ⟨⟨ol, or_⟩, hold, heq⟩ := List.mem_map.mp hlr
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
-  obtain ⟨hhead, hlast⟩ := hend _ (hcover ⟨i, hlen ▸ hi⟩ _ (hsrc ▸ hold))
+  obtain ⟨k, hk, hget⟩ := List.mem_iff_getElem.mp hold
+  rw [List.length_zip, List.length_map] at hk
+  have hk1 : k < src.length := lt_of_lt_of_le hk (Nat.min_le_left _ _)
+  have hk2 : k < (t.inc.filter fun e => e.1 == i).length := lt_of_lt_of_le hk (Nat.min_le_right _ _)
+  rw [List.getElem_zip, List.getElem_map] at hget
+  obtain ⟨hol, hor⟩ := Prod.mk.inj hget
+  have he_mem := List.mem_filter.mp (List.getElem_mem hk2)
+  have he_var : (t.inc.filter fun e => e.1 == i)[k].2.1 = ol.1 := by
+    have hv := congrArg (·[k]?) (hvars ⟨i, hlen ▸ hi⟩)
+    rwa [← hsrc, List.getElem?_eq_getElem (by simpa using hk2),
+      List.getElem?_eq_getElem (by simpa using hk1), List.getElem_map, List.getElem_map,
+      Option.some.injEq, hol] at hv
+  obtain ⟨hhead, hlast⟩ := hend _ he_mem.1
+  rw [beq_iff_eq.mp he_mem.2, hor] at hhead; rw [he_var, hor] at hlast
   exact ⟨by simp only [translate, List.head?_map, hhead, Option.map_some, add_comm], by
     simp only [translate, List.getLast?_map, hlast, Option.map_some, Prod.map_fst,
       htag, add_comm]⟩
@@ -294,13 +303,17 @@ theorem boundary_step_midpoint_eq {p q a b : Point} {l k : Fin 2}
     (hpq : Orthogonal.length p q = 1) (hab : Orthogonal.length a b = 1)
     (h : boundary p (side p q) l = boundary a (side a b) k) :
     l = k ∧ cellPort 120 p (side p q) = cellPort 120 a (side a b) := by
-  rcases p with ⟨px, py⟩
-  rcases a with ⟨ax, ay⟩
-  rcases PlanarCompile.unit_neighbor_cases hpq with rfl | rfl | rfl | rfl <;>
-    rcases PlanarCompile.unit_neighbor_cases hab with rfl | rfl | rfl | rfl <;>
-    fin_cases l <;> fin_cases k <;>
-    norm_num [boundary, side, PlanarCompile.side, cellPort, cellOrigin,
-      PairedPorts.boundaryPort, PairedPorts.offset, Prod.ext_iff] at h ⊢ <;> omega
+  by_cases hpa : p = a
+  · subst hpa
+    obtain ⟨hs, hl⟩ := Prod.mk.inj
+      (boundary_injective p (a₁ := (side p q, l)) (a₂ := (side p b, k)) h)
+    exact ⟨hl, congrArg (cellPort 120 p) hs⟩
+  · obtain ⟨rfl, rfl, ht⟩ := PairedPorts.boundary_eq_cases hpa h
+    rcases p with ⟨px, py⟩
+    rw [ht]; generalize side (px, py) q = s; refine ⟨rfl, ?_⟩
+    fin_cases s <;> (ext <;>
+      dsimp [cellPort, cellOrigin, PairedPorts.neighbor, PairedPorts.oppositeSide, Prod.mk_add_mk]
+      <;> omega)
 
 /-- All actual unit steps are proper; this includes final steps into clause cells. -/
 theorem path_step_unit {φ : CNF ℕ} {e : Point × Point}
@@ -494,7 +507,8 @@ theorem variablePositions_nodup (φ : CNF ℕ) :
 /-- The actual drawing has exactly the compact incidence graph's number of vertices. -/
 theorem positions_length (φ : CNF ℕ) :
     (positions φ).length = (SAT.incidenceGraph (formula φ)).1.length := by
-  simp [positions, SAT.incidenceGraph, formula, CNF.distinctVars_compact, rawFormula]
+  rw [positions, SAT.incidenceGraph, List.length_range, formula, CNF.distinctVars_compact]
+  simp only [CNF.compact, CNF.relabel, rawFormula, List.length_append, List.length_map]
 
 /-- Compaction preserves the ordered incidence graph. -/
 theorem incidenceGraph_formula (φ : CNF ℕ) :
@@ -505,8 +519,7 @@ theorem incidenceGraph_formula (φ : CNF ℕ) :
 
 /-- Every actual output route is proper, orthogonal and continuously simple. -/
 theorem routes_regular (φ : CNF ℕ) :
-    ∀ r ∈ routes φ, IsOrthogonal r ∧ IsSimple r := by
-  intro r hr
+    ∀ r ∈ routes φ, IsOrthogonal r ∧ IsSimple r := fun r hr => by
   obtain ⟨pc, hpc, hr⟩ := List.mem_flatMap.mp hr
   rcases mem_placedClauses.mp hpc with hpc | ⟨_, _, hpc⟩ | ⟨_, _, hpc⟩ | ⟨_, _, _, _, hpc⟩
   · obtain ⟨_, _, _, ho, rfl⟩ := (exists_occurrence_of_mem_originalClauses hpc).2 _ hr
@@ -517,22 +530,29 @@ theorem routes_regular (φ : CNF ℕ) :
       PairedCrossover.incidence_isSimple hpc hr
   · rcases hpc with rfl | rfl <;> exact link_routes_regular _ _ _ _ hr
 
-private theorem ordinary_route_count : ∀ i : Fin 8,
-    (OrdinaryRing.incidenceRoutes.filter fun e => e.1 == i.val).length =
-      (OrdinaryRing.formula.getD i.val []).length := by decide +kernel
+private theorem ordinary_clause_vars : ∀ i : Fin 8,
+    (OrdinaryRing.incidenceRoutes.filter fun e => e.1 == i.val).map (·.2.1) =
+      (OrdinaryRing.formula.getD i.val []).map Prod.fst := by decide +kernel
 
-private theorem crossing_route_count : ∀ i : Fin 78,
-    (PairedCrossover.incidenceRoutes.filter fun e => e.1 == i.val).length =
-      (PairedCrossover.formula.getD i.val []).length := by decide +kernel
+private theorem crossing_clause_vars (i : Fin 78) :
+    (PairedCrossover.incidenceRoutes.filter fun e => e.1 == i.val).map (·.2.1) =
+      (PairedCrossover.formula.getD i.val []).map Prod.fst := by
+  have h : ((List.range 78).map fun j =>
+      (PairedCrossover.incidenceRoutes.filter fun e => e.1 == j).map (·.2.1)) =
+    PairedCrossover.formula.map (List.map Prod.fst) := by decide +kernel
+  have hi := congrArg (·.getD i.val []) h
+  have hlt : i.val < PairedCrossover.formula.length := PairedCrossover.length_formula.symm ▸ i.isLt
+  rw [List.getD_eq_getElem _ _ (by simp), List.getElem_map, List.getElem_range,
+    List.getD_eq_getElem _ _ (by simpa using hlt), List.getElem_map] at hi
+  rwa [List.getD_eq_getElem _ _ hlt]
 
 /-- Each actual placed clause supplies exactly one route per literal, in literal order. -/
 theorem placedClause_route_count (φ : CNF ℕ) :
-    ∀ pc ∈ placedClauses φ, pc.2.2.length = pc.1.length := by
-  intro pc hpc
+    ∀ pc ∈ placedClauses φ, pc.2.2.length = pc.1.length := fun pc hpc => by
   rcases mem_placedClauses.mp hpc with hpc | ⟨_, _, hpc⟩ | ⟨_, _, hpc⟩ | ⟨_, _, _, _, hpc⟩
   · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hpc; simp
-  · exact ordTile.route_count OrdinaryRing.formula_sizes.1 ordinary_route_count hpc
-  · exact crossTile.route_count PairedCrossover.length_formula crossing_route_count hpc
+  · exact ordTile.route_count OrdinaryRing.formula_sizes.1 ordinary_clause_vars hpc
+  · exact crossTile.route_count PairedCrossover.length_formula crossing_clause_vars hpc
   · rcases hpc with rfl | rfl <;> rfl
 
 /-- The actual route count is the edge count of the final compact incidence graph. -/
@@ -542,18 +562,6 @@ theorem routes_length (φ : CNF ℕ) :
   simp only [routes, List.length_flatMap, CNF.vars, List.length_map,
     List.length_flatten, rawFormula, List.map_map, Function.comp_def]
   exact congrArg List.sum (List.map_congr_left (placedClause_route_count φ))
-
-private theorem ordinary_literal_routes_cover : ∀ i : Fin 8,
-    ((OrdinaryRing.formula.getD i.val []).zip
-      ((OrdinaryRing.incidenceRoutes.filter fun e => e.1 == i.val).map fun e => e.2.2)).all
-        (fun lr => decide ((i.val, lr.1.1, lr.2) ∈ OrdinaryRing.incidenceRoutes)) = true := by
-  decide +kernel
-
-private theorem crossing_literal_routes_cover : ∀ i : Fin 78,
-    ((PairedCrossover.formula.getD i.val []).zip
-      ((PairedCrossover.incidenceRoutes.filter fun e => e.1 == i.val).map fun e => e.2.2)).all
-        (fun lr => decide ((i.val, lr.1.1, lr.2) ∈ PairedCrossover.incidenceRoutes)) = true := by
-  decide +kernel
 
 /-- Every actual literal/route pair has the clause and variable endpoints in its record. -/
 theorem placedClause_endpoints (φ : CNF ℕ) {pc : PlacedClause} (hpc : pc ∈ placedClauses φ)
@@ -572,11 +580,9 @@ theorem placedClause_endpoints (φ : CNF ℕ) {pc : PlacedClause} (hpc : pc ∈ 
     simpa only [lastLiteral, hlast] using
       lastLiteral_endpoints (crossingSites φ) (occurrencePath φ ⟨i, j, srcLit⟩) srcLit.2
   · exact ordTile.clause_endpoints OrdinaryRing.formula_sizes.1 (fun _ _ => rfl)
-      (fun i _ h => of_decide_eq_true (List.all_eq_true.mp (ordinary_literal_routes_cover i) _ h))
-      (fun e he => (OrdinaryRing.incidence_endpoints e he).2) hpc hlr
+      ordinary_clause_vars (fun e he => (OrdinaryRing.incidence_endpoints e he).2) hpc hlr
   · exact crossTile.clause_endpoints PairedCrossover.length_formula (fun _ _ => rfl)
-      (fun i _ h => of_decide_eq_true (List.all_eq_true.mp (crossing_literal_routes_cover i) _ h))
-      (fun e he => (PairedCrossover.incidence_endpoints e he).2) hpc hlr
+      crossing_clause_vars (fun e he => (PairedCrossover.incidence_endpoints e he).2) hpc hlr
   · rcases hpc with rfl | rfl <;>
       exact link_endpoints _ (PlanarCompile.occurrencePath_unit ho (prefixStep_mem he)) _ hlr
 
@@ -643,10 +649,8 @@ theorem drawingPosition_raw_variable (φ : CNF ℕ) {v : Variable}
       ((rawFormula φ).distinctVars.idxOf v) = variablePosition v := by
   have hi := List.idxOf_lt_length_of_mem (CNF.mem_distinctVars.mpr hv)
   have hlen : (rawFormula φ).distinctVars.idxOf v <
-      ((rawFormula φ).distinctVars.map variablePosition).length := by
-    simpa only [List.length_map] using hi
-  change (positions φ).getD ((List.range _).idxOf ((rawFormula φ).distinctVars.idxOf v))
-    (0, 0) = _
+      ((rawFormula φ).distinctVars.map variablePosition).length := by simpa using hi
+  change (positions φ).getD ((List.range _).idxOf ((rawFormula φ).distinctVars.idxOf v)) (0, 0) = _
   rw [List.idxOf_range_of_lt (by omega), positions, List.getD_append _ _ _ _ hlen,
     List.getD_eq_getElem _ _ hlen, List.getElem_map, List.getElem_idxOf hi]
 
@@ -656,8 +660,7 @@ theorem drawingPosition_raw_clause (φ : CNF ℕ) {i : ℕ} (hi : i < (placedCla
       ((rawFormula φ).distinctVars.length + i) = ((placedClauses φ)[i]).2.1 := by
   change (positions φ).getD ((List.range _).idxOf ((rawFormula φ).distinctVars.length + i))
     (0, 0) = _
-  have hlen : (rawFormula φ).length = (placedClauses φ).length := by
-    simp only [rawFormula, List.length_map]
+  have hlen : (rawFormula φ).length = (placedClauses φ).length := List.length_map ..
   rw [List.idxOf_range_of_lt (by omega), positions,
     List.getD_append_right _ _ _ _ (by simp only [List.length_map]; omega)]
   simp only [List.length_map, Nat.add_sub_cancel_left]
@@ -689,16 +692,13 @@ private theorem raw_routes_endpoints (φ : CNF ℕ) :
     have h := congrArg (List.flatMap fun pc : PlacedClause => pc.2.2)
       (List.zipIdx_map_fst (i := 0) (l := placedClauses φ))
     simpa only [routes, List.flatMap_map] using h.symm
-  rw [raw_edges_eq]
-  conv => arg 3; rw [hroutes]
+  rw [raw_edges_eq]; conv => arg 3; rw [hroutes]
   refine List.rel_flatMap (R := fun a b => a ∈ (placedClauses φ).zipIdx ∧ a = b)
     (List.forall₂_same.mpr fun _ h => ⟨h, rfl⟩) ?_
   rintro ⟨pc, i⟩ _ ⟨hpci, rfl⟩
   have hpc := List.fst_mem_of_mem_zipIdx hpci
-  have hi : i < (placedClauses φ).length := by
-    simpa only [Nat.zero_add] using (List.mem_zipIdx hpci).2.1
-  have hget : pc = (placedClauses φ)[i] := by
-    simpa only [Nat.sub_zero] using (List.mem_zipIdx hpci).2.2
+  have hi : i < (placedClauses φ).length := by simpa using (List.mem_zipIdx hpci).2.1
+  have hget : pc = (placedClauses φ)[i] := by simpa using (List.mem_zipIdx hpci).2.2
   rw [List.forall₂_map_left_iff, List.forall₂_iff_zip]
   refine ⟨(placedClause_route_count φ pc hpc).symm, ?_⟩
   intro l r hlr
@@ -755,11 +755,10 @@ private theorem spoke_boundary_isolation {s : Fin 4} {p : ℝ × ℝ}
   fin_cases s <;> rcases hp with hp | hp <;>
     norm_num [PairedPorts.spokeElbow, PairedPorts.spokeLane, PairedPorts.boundaryPort,
       PairedPorts.offset, Orthogonal.segment, realPoint, mem_horizontal, mem_vertical,
-      Set.mem_uIcc] at hp ⊢
-  all_goals
-    rcases hp with ⟨heq, hlo, hhi⟩
-    refine ⟨by linarith, by linarith, by linarith, by linarith, fun h => ?_⟩
-    rcases h with h | h | h | h <;> apply Prod.ext <;> norm_num <;> linarith
+      Set.mem_uIcc, Prod.ext_iff] at hp ⊢ <;>
+    (rcases hp with ⟨heq, hlo, hhi⟩;
+      refine ⟨by linarith, by linarith, by linarith, by linarith, ?_⟩;
+      rintro (h | h | h | h) <;> constructor <;> linarith)
 
 /-- Every translated original-clause spoke stays in its clause cell. -/
 theorem spoke_support_cell (c : Point) (s : Fin 4) {p : ℝ × ℝ}
@@ -924,10 +923,8 @@ theorem linkPositions_sublist_boundaries (φ : CNF ℕ) :
   rw [← PlanarCompile.occurrencePaths_eq_paths φ, List.flatMap_map]
   simp only [List.map_flatMap, links, List.map_cons, List.map_nil, link]
   apply List.Sublist.flatMap_right
-  intro _ _
-  apply List.Sublist.flatMap
-  rw [consecutivePairs_dropLast]
-  exact List.dropLast_sublist _
+  intro _ _; apply List.Sublist.flatMap
+  rw [consecutivePairs_dropLast]; exact List.dropLast_sublist _
 
 /-- All actual paired-link clauses have distinct positions. -/
 theorem linkPositions_nodup {φ : CNF ℕ}
@@ -1461,17 +1458,19 @@ private theorem ordinary_routes_nodup_check : ∀ i : Fin 8,
     ((OrdinaryRing.incidenceRoutes.filter fun e => e.1 == i.val).map fun e => e.2.2).Nodup := by
   decide +kernel
 
-private theorem crossing_routes_nodup_check : ∀ i : Fin 78,
-    ((PairedCrossover.incidenceRoutes.filter fun e => e.1 == i.val).map fun e => e.2.2).Nodup := by
-  decide +kernel
+private theorem crossing_routes_nodup_check (i : Fin 78) :
+    ((PairedCrossover.incidenceRoutes.filter fun e => e.1 == i.val).map fun e => e.2.2).Nodup :=
+  have h : ((List.range 78).all fun j =>
+    decide (((PairedCrossover.incidenceRoutes.filter fun e => e.1 == j).map
+      fun e => e.2.2).Nodup)) = true := by decide +kernel
+  of_decide_eq_true (List.all_eq_true.mp h i.val (List.mem_range.mpr i.isLt))
 
 private theorem placedClause_routes_nodup {φ : CNF ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ 3) (hv : ∀ v, φ.vars.count v ≤ 3)
     {pc : PlacedClause} (hpc : pc ∈ placedClauses φ) : pc.2.2.Nodup := by
   rcases mem_placedClauses.mp hpc with hpc | ⟨_, _, hpc⟩ | ⟨_, _, hpc⟩ | ⟨o, ho, e, he, hpc⟩
   · obtain ⟨⟨_, i⟩, hci, rfl⟩ := List.mem_map.mp hpc
-    dsimp only
-    rw [List.map_map]
+    dsimp only; rw [List.map_map]
     refine (List.Nodup.of_map Prod.snd (by
       rw [List.zipIdx_map_snd]; exact List.nodup_range' _)).map_on fun lj hlj mk hmk heq => ?_
     have ho := mk_mem_occurrences_of_mem_zipIdx hci hlj

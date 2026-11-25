@@ -148,21 +148,19 @@ theorem cappedModular_empty {E : Finset α} {w : α → ℝ} {cap : ℝ} (hcap :
     cappedModular E w cap ∅ = 0 := by
   simp [cappedModular, hcap]
 
+private theorem monotone_modularSum_ite {E : Finset α} {w : α → ℝ}
+    (hw : ∀ x ∈ E, 0 ≤ w x) : Monotone (modularSum fun x => if x ∈ E then w x else 0) :=
+  monotone_modularSum fun x => by split_ifs with hx; exacts [hw x hx, le_rfl]
+
 theorem monotone_cappedModular {E : Finset α} {w : α → ℝ}
     (hw : ∀ x ∈ E, 0 ≤ w x) (cap : ℝ) :
-    Monotone (cappedModular E w cap) := by
-  refine monotone_min_const (monotone_modularSum fun x => ?_) cap
-  by_cases hx : x ∈ E
-  · simp [hx, hw x hx]
-  · simp [hx]
+    Monotone (cappedModular E w cap) :=
+  monotone_min_const (monotone_modularSum_ite hw) cap
 
 theorem isSubmodular_cappedModular {E : Finset α} {w : α → ℝ}
     (hw : ∀ x ∈ E, 0 ≤ w x) (cap : ℝ) :
-    IsSubmodular (cappedModular E w cap) := by
-  refine (isSubmodular_modularSum _).min_const (monotone_modularSum fun x => ?_) cap
-  by_cases hx : x ∈ E
-  · simp [hx, hw x hx]
-  · simp [hx]
+    IsSubmodular (cappedModular E w cap) :=
+  (isSubmodular_modularSum _).min_const (monotone_modularSum_ite hw) cap
 
 /-- Baseline `(1, 2)` capped-modular instance for the `c > 1 / 2` bound. -/
 def halfBaseAdv (E : Finset α) : Finset α → ℝ :=
@@ -263,6 +261,23 @@ private theorem card_le_countQueries_of_isolated {γ : Type}
     _ ≤ (ValueQuery.queriedSets o p).card := Finset.card_image_le
     _ ≤ p.countQueries o := ValueQuery.card_queriedSets_le_countQueries o p
 
+private theorem IsSubmodularCardMaxAlg.isolated_of_not_mem_eval
+    {alg : List α → ℕ → FreeM (ValueQuery α ℝ) (Finset α)} {c : ℝ}
+    (halg : IsSubmodularCardMaxAlg alg c) {xs : List α} {e : α} {b cap : ℝ}
+    {f : Finset α → ℝ} (hf : f = cappedModular xs.toFinset (fun _ => b) cap)
+    (hb : 0 ≤ b) (hcap : 0 ≤ cap) (hbb : cap ≤ b + b) (hc : b < c * cap)
+    (heE : e ∈ xs.toFinset) (he_out : e ∉ (alg xs 1).eval (ValueQuery.oracleOf f)) :
+    ∃ S ∈ ValueQuery.queriedSets (ValueQuery.oracleOf f) (alg xs 1), S ∩ xs.toFinset = {e} := by
+  obtain ⟨hout_sub, hout_card⟩ :=
+    hf ▸ halg.eval_cappedModular xs (w := fun _ => b) (fun _ _ => hb) hcap
+  by_contra hno
+  push Not at hno
+  have happrox := halg.approx_reweight_of_not_isolated hf hcap hb hcap
+    (le_add_of_nonneg_right hb) hbb hno (Finset.singleton_subset_iff.mpr heE) (by simp)
+  rw [cappedModular_singleton heE, ite_eq_left rfl, min_self] at happrox
+  exact not_le_of_gt hc (happrox.trans
+    (cappedModular_ite_le (a := cap) (cap := cap) hb hout_sub he_out hout_card))
+
 /-! ## Lower-bound theorems -/
 
 /-- Any deterministic `c`-approximate algorithm with `1 / 2 < c` must issue at least
@@ -272,25 +287,13 @@ theorem IsSubmodularCardMaxAlg.card_toFinset_sub_one_le_countQueries
     (halg : IsSubmodularCardMaxAlg alg c) (hc : (1 : ℝ) / 2 < c) (xs : List α) :
     xs.toFinset.card - 1 ≤
       (alg xs 1).countQueries (ValueQuery.oracleOf (halfBaseAdv xs.toFinset)) := by
-  set E := xs.toFinset
-  set out := (alg xs 1).eval (ValueQuery.oracleOf (halfBaseAdv E))
-  obtain ⟨hout_sub, hout_card⟩ : out ⊆ E ∧ out.card ≤ 1 :=
-    halg.eval_cappedModular xs (w := fun _ => 1) (fun _ _ => by norm_num)
-      (by norm_num : (0 : ℝ) ≤ 2)
+  have hout_card := (halg.eval_cappedModular xs (w := fun _ => 1)
+    (fun _ _ => zero_le_one) (by norm_num : (0 : ℝ) ≤ 2)).2
   refine ((Nat.sub_le_sub_left hout_card _).trans (Finset.le_card_sdiff _ _)).trans
-    (card_le_countQueries_of_isolated (E := E) _ _ fun e he_diff => ?_)
-  obtain ⟨heE, he_out⟩ := Finset.mem_sdiff.mp he_diff
-  by_contra hno
-  push Not at hno
-  -- Otherwise the run cannot tell `halfBaseAdv E` from the adversary favouring `e`.
-  have happrox := halg.approx_reweight_of_not_isolated (f := halfBaseAdv E)
-    (a := 2) (b := 1) (cap := 2) rfl
-    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) hno
-    (Finset.singleton_subset_iff.mpr heE) (by simp)
-  rw [cappedModular_singleton heE] at happrox
-  have hout_le := cappedModular_ite_le (a := 2) (cap := 2) zero_le_one hout_sub he_out hout_card
-  norm_num at happrox
-  linarith
+    (card_le_countQueries_of_isolated (E := xs.toFinset) _ _ fun e he => ?_)
+  obtain ⟨heE, he_out⟩ := Finset.mem_sdiff.mp he
+  exact halg.isolated_of_not_mem_eval (f := halfBaseAdv xs.toFinset) (b := 1) (cap := 2) rfl
+    (by norm_num) (by norm_num) (by norm_num) (by linarith) heE he_out
 
 /-- **Exact `n`-Query Adversarial Lower Bound at `k = 1`**: for any `c > 100 / 159` and any ground
 list `xs` with `2 ≤ xs.toFinset.card`, every deterministic `c`-approximate algorithm at budget
@@ -306,14 +309,14 @@ theorem IsSubmodularCardMaxAlg.card_toFinset_le_countQueries
       (alg xs 1).countQueries (ValueQuery.oracleOf (baseAdv xs.toFinset)) := by
   set E := xs.toFinset
   set out := (alg xs 1).eval (ValueQuery.oracleOf (baseAdv E))
-  obtain ⟨hout_sub, hout_card⟩ : out ⊆ E ∧ out.card ≤ 1 :=
-    halg.eval_cappedModular xs (w := fun _ => 100) (fun _ _ => by norm_num)
-      (by norm_num : (0 : ℝ) ≤ 159)
+  have hout_card : out.card ≤ 1 :=
+    (halg.eval_cappedModular xs (w := fun _ => 100) (fun _ _ => by norm_num)
+      (by norm_num : (0 : ℝ) ≤ 159)).2
   refine card_le_countQueries_of_isolated (E := E) _ _ fun e heE => ?_
-  by_contra hno
-  push Not at hno
   by_cases he_out : e ∈ out
   · -- The run returns `{e}`, which the adversary penalizing `e` beats with another element.
+    by_contra hno
+    push Not at hno
     have hout_eq : out = {e} :=
       (Finset.eq_of_subset_of_card_le (Finset.singleton_subset_iff.mpr he_out)
         (by simpa using hout_card)).symm
@@ -332,15 +335,8 @@ theorem IsSubmodularCardMaxAlg.card_toFinset_le_countQueries
     norm_num at happrox
     linarith
   · -- The run misses `e`, which the adversary favouring `e` rewards.
-    have happrox := halg.approx_reweight_of_not_isolated (f := baseAdv E)
-      (a := 159) (b := 100) (cap := 159) rfl
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num) hno
-      (Finset.singleton_subset_iff.mpr heE) (by simp)
-    rw [cappedModular_singleton heE] at happrox
-    have hout_le := cappedModular_ite_le (a := 159) (cap := 159) (by norm_num : (0 : ℝ) ≤ 100)
-      hout_sub he_out hout_card
-    norm_num at happrox
-    linarith
+    exact halg.isolated_of_not_mem_eval (f := baseAdv E) (b := 100) (cap := 159) rfl
+      (by norm_num) (by norm_num) (by norm_num) (by linarith) heE he_out
 
 /-- Numerical check: `100 / 159 < 1 - Real.exp (-1)`. -/
 theorem hundred_div_159_lt_one_sub_exp_neg_one :

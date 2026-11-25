@@ -74,10 +74,13 @@ def pi : {m : ℕ} → {α : Fin m → Type v} →
   | m + 1, _, programs =>
     programs 0 >>= fun first => Fin.cons first <$> pi (fun i : Fin m => programs i.succ)
 
+/-- Running an empty dependent tuple of oracle computations returns `fun i => i.elim0`. -/
 @[simp] theorem pi_zero {α : Fin 0 → Type v}
     (programs : (i : Fin 0) → OracleComp spec (α i)) :
     pi programs = pure (fun i => i.elim0) := rfl
 
+/-- Running a nonempty dependent tuple of oracle computations runs coordinate `0` and prepends its
+result to the remaining coordinates. -/
 theorem pi_succ {m : ℕ} {α : Fin (m + 1) → Type v}
     (programs : (i : Fin (m + 1)) → OracleComp spec (α i)) :
     pi programs =
@@ -92,14 +95,14 @@ def piRestrict : {m : ℕ} → {α : Fin m → Type v} → (I : Finset (Fin m)) 
     let I' : Finset (Fin m) := Finset.univ.filter (fun j : Fin m => j.succ ∈ I)
     let restProg : (j : I') → OracleComp spec (α j.1.succ) :=
       fun j => programs ⟨j.1.succ, (Finset.mem_filter.mp j.2).2⟩
-    if h0 : (0 : Fin (m + 1)) ∈ I then
-      programs ⟨0, h0⟩ >>= fun first =>
-        (fun (rest : (j : I') → α j.1.succ) (i : I) =>
-          Fin.cases
-            (motive := fun k => k ∈ I → α k)
-            (fun _ => first)
-            (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
-            i.1 i.2) <$> piRestrict (α := fun k => α k.succ) I' restProg
+    if h0 : (0 : Fin (m + 1)) ∈ I then do
+      let first ← programs ⟨0, h0⟩
+      (fun (rest : (j : I') → α j.1.succ) (i : I) =>
+        Fin.cases
+          (motive := fun k => k ∈ I → α k)
+          (fun _ => first)
+          (fun j hj => rest ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩⟩)
+          i.1 i.2) <$> piRestrict (α := fun k => α k.succ) I' restProg
     else
       (fun (rest : (j : I') → α j.1.succ) (i : I) =>
         Fin.cases
@@ -116,9 +119,12 @@ def replicateFin (count : ℕ) (program : OracleComp spec α) : OracleComp spec 
 theorem replicateFin_eq_pi (count : ℕ) (program : OracleComp spec α) :
     replicateFin count program = pi (fun _ : Fin count => program) := rfl
 
+/-- Zero repetitions of `program` return `Fin.elim0`. -/
 @[simp] theorem replicateFin_zero (program : OracleComp spec α) :
     replicateFin 0 program = pure Fin.elim0 := rfl
 
+/-- Running `count + 1` repetitions executes `program` once and prepends its result to `count`
+remaining repetitions. -/
 theorem replicateFin_succ (count : ℕ) (program : OracleComp spec α) :
     replicateFin (count + 1) program =
       (program >>= fun first => Fin.cons first <$> replicateFin count program) := rfl

@@ -19,6 +19,7 @@ public import Mathlib.Basic.Finite.Sum
 public import Mathlib.Data.Fin.Tuple.Embedding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapesView
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Fintype.Option
@@ -156,7 +157,7 @@ theorem runFrom_clearShadowed_pairEmb (hm : m₀ ≠ m₁) {C : Cfg (k + k) Symb
     · exact h.pos_castAdd
     · exact h.pos_natAdd
   rw [runFrom_extendTapes, hview, runFrom_clearShadowed hm h.insert_eq h.blank]
-  have hne : i.addNat k ≠ Fin.castAdd k i := by grind
+  have hne : i.addNat k ≠ Fin.castAdd k i := by fin_index
   tm_step [embed, partialInv_pairEmb, clearedCfg, pairIdx_eq_iff]
 
 /-- The control states of `clearList` for a list of length `n`. -/
@@ -373,6 +374,32 @@ private theorem exists_runPath_tidy_with_rewind
     have h₃ : 2 * k * (3 * S + 2 * k + 3) = 2 * k * (3 * S + 2 * k + 1) + 4 * k := by ring
     omega
 
+/-- Common normal-form computation proof for a rewind machine with the standard completed-run
+law. -/
+private theorem computesTidily_tidy_with_rewind
+    (rewind : MultiTapeTM 0 Symbol RewindState)
+    (hrun : ∀ {word : List Symbol} (position : Fin (word.length + 2))
+      (tapes : Fin 0 → ℤ → Option Symbol) (heads : Fin 0 → ℤ) (out : List Symbol),
+      rewind.runFrom ⟨some rewind.q₀, position, tapes, heads, out⟩
+        (position.val - 1 + 2) = ⟨none, 1, tapes, heads, out⟩)
+    (hm : m₀ ≠ m₁) {output : List Symbol} {t s : ℕ}
+    (h : tm.ComputesInTimeAndSpace input output t s) :
+    (((shadow m₀ m₁ tm).seq (clearList m₀ m₁ (List.finRange k))).seq
+        (rewind.extendTapes (noTapes (k + k)))).ComputesTidilyInTimeAndSpace input output
+      (2 * t + 3 * s + 2 * k + 4) (2 * s + 2 * k * (3 * s + 2 * k + 3)) := by
+  obtain ⟨⟨u', hu', hout⟩, ht, hs⟩ := h
+  -- the first step at which `tm` has halted
+  obtain ⟨u, -, hu, hlt⟩ := exists_haltsAt hu'
+  have hut : u ≤ t := Nat.le_of_not_lt fun h => hlt t h (runsInTime_iff_halted.mp ht)
+  have hout' : (tm.runFrom (tm.initCfg input) u).output = output := by
+    rw [← hout, runFrom_eq_of_halt _ _ (Nat.le_of_not_lt fun h => hlt u' h hu') hu]
+  have hS := space_le_of_runsInSpace hs u
+  obtain ⟨p, hhead, hlast, htime, hspace⟩ := exists_runPath_tidy_with_rewind rewind hrun hm hlt hu
+  rw [computesTidily_iff]
+  refine ⟨p, hhead.trans (initCfg_eq_wordsCfg input), hlast.trans (by rw [hout']), by omega,
+    hspace.trans (Nat.add_le_add (Nat.mul_le_mul_left 2 hS) (Nat.mul_le_mul_left _ ?_))⟩
+  omega
+
 /-- **The run of the tidy normal form.** If `tm` first halts at step `u`, having used `S` cells,
 then `tidy m₀ m₁ tm` has a run path to the halted configuration with blank work tapes, every head on
 its start cell and the output of `tm`, taking at most `2 u + 3 S + 2 k + 4` steps and visiting at
@@ -397,19 +424,8 @@ cells, for any two distinct marks `m₀` and `m₁`. -/
 theorem ComputesInTimeAndSpace.computesTidily_tidy (hm : m₀ ≠ m₁) {output : List Symbol}
     {t s : ℕ} (h : tm.ComputesInTimeAndSpace input output t s) :
     (tidy m₀ m₁ tm).ComputesTidilyInTimeAndSpace input output (2 * t + 3 * s + 2 * k + 4)
-      (2 * s + 2 * k * (3 * s + 2 * k + 3)) := by
-  obtain ⟨⟨u', hu', hout⟩, ht, hs⟩ := h
-  -- the first step at which `tm` has halted
-  obtain ⟨u, -, hu, hlt⟩ := exists_haltsAt hu'
-  have hut : u ≤ t := Nat.le_of_not_lt fun h => hlt t h (runsInTime_iff_halted.mp ht)
-  have hout' : (tm.runFrom (tm.initCfg input) u).output = output := by
-    rw [← hout, runFrom_eq_of_halt _ _ (Nat.le_of_not_lt fun h => hlt u' h hu') hu]
-  have hS := space_le_of_runsInSpace hs u
-  obtain ⟨p, hhead, hlast, htime, hspace⟩ := exists_runPath_tidy hm hlt hu
-  rw [computesTidily_iff]
-  refine ⟨p, hhead.trans (initCfg_eq_wordsCfg input), hlast.trans (by rw [hout']), by omega,
-    hspace.trans (Nat.add_le_add (Nat.mul_le_mul_left 2 hS) (Nat.mul_le_mul_left _ ?_))⟩
-  omega
+      (2 * s + 2 * k * (3 * s + 2 * k + 3)) :=
+  computesTidily_tidy_with_rewind (rewindInput Symbol) Turing.MultiTapeTM.runFrom_rewindInput hm h
 
 end Turing.MultiTapeTM
 
@@ -464,34 +480,6 @@ private theorem toTM_clearList (m₀ m₁ : Symbol) (tapes : List (Fin k)) :
 
 variable {input : List Symbol} {m₀ m₁ : Symbol}
 
-/-- The explicit tidy table has the same exact running-time and workspace bounds as the legacy
-normal form. The proof runs the retained transition tables directly; it does not recover a table
-from a transition relation. -/
-private theorem exists_runPath_tidy {machine : MultiTapeMachine k Symbol State Empty Id}
-    (hm : m₀ ≠ m₁) {u : ℕ}
-    (hlt : ∀ m < u, ¬(machine.toTM.runFrom (machine.toTM.initCfg input) m).Halted)
-    (hu : (machine.toTM.runFrom (machine.toTM.initCfg input) u).Halted) :
-    ∃ p : (tidy m₀ m₁ machine).toTM.RunPath input,
-      p.head = (tidy m₀ m₁ machine).toTM.initCfg input ∧
-      p.last = wordsCfg input none (fun _ => [])
-        (machine.toTM.runFrom (machine.toTM.initCfg input) u).output ∧
-      p.time ≤ 2 * u +
-        3 * (MultiTapeNTM.RunPath.ofDeterministic machine.toTM
-          (machine.toTM.initCfg input) u).space + 2 * k + 4 ∧
-      p.space ≤ 2 * (MultiTapeNTM.RunPath.ofDeterministic machine.toTM
-          (machine.toTM.initCfg input) u).space +
-        2 * k * (3 * (MultiTapeNTM.RunPath.ofDeterministic machine.toTM
-          (machine.toTM.initCfg input) u).space + 2 * k + 3) := by
-  have htidy : (tidy m₀ m₁ machine).toTM =
-      ((MultiTapeTM.shadow m₀ m₁ machine.toTM).seq
-        (MultiTapeTM.clearList m₀ m₁ (List.finRange k))).seq
-        ((rewindInput Symbol).toTM.extendTapes (MultiTapeTM.noTapes (k + k))) := by
-    simp only [tidy, toTM_seq, toTM_shadow, toTM_clearList, toTM_extendTapes]
-  rw [htidy]
-  exact MultiTapeTM.exists_runPath_tidy_with_rewind
-    (rewind := (rewindInput Symbol).toTM)
-    _root_.Turing.MultiTapeMachine.runFrom_rewindInput hm hlt hu
-
 /-- What an explicit machine computes within `t` steps and `s` cells, its explicit tidy table
 computes tidily within `2 * t + 3 * s + 2 * k + 4` steps and
 `2 * s + 2 * k * (3 * s + 2 * k + 3)` cells. -/
@@ -500,18 +488,13 @@ theorem ComputesInTimeAndSpace.computesTidily_tidy
     {t s : ℕ} (h : machine.toTM.ComputesInTimeAndSpace input output t s) :
     (tidy m₀ m₁ machine).toTM.ComputesTidilyInTimeAndSpace input output
       (2 * t + 3 * s + 2 * k + 4) (2 * s + 2 * k * (3 * s + 2 * k + 3)) := by
-  obtain ⟨⟨u', hu', hout⟩, ht, hs⟩ := h
-  obtain ⟨u, -, hu, hlt⟩ := MultiTapeTM.exists_haltsAt hu'
-  have hut : u ≤ t := Nat.le_of_not_lt fun h => hlt t h (MultiTapeTM.runsInTime_iff_halted.mp ht)
-  have hout' : (machine.toTM.runFrom (machine.toTM.initCfg input) u).output = output := by
-    rw [← hout, MultiTapeTM.runFrom_eq_of_halt _ _
-      (Nat.le_of_not_lt fun h => hlt u' h hu') hu]
-  have hS := MultiTapeTM.space_le_of_runsInSpace hs u
-  obtain ⟨p, hhead, hlast, htime, hspace⟩ := exists_runPath_tidy hm hlt hu
-  rw [MultiTapeTM.computesTidily_iff]
-  refine ⟨p, hhead.trans (MultiTapeTM.initCfg_eq_wordsCfg input),
-    hlast.trans (by rw [hout']), by omega,
-    hspace.trans (Nat.add_le_add (Nat.mul_le_mul_left 2 hS) (Nat.mul_le_mul_left _ ?_))⟩
-  omega
+  have htidy : (tidy m₀ m₁ machine).toTM =
+      ((MultiTapeTM.shadow m₀ m₁ machine.toTM).seq
+        (MultiTapeTM.clearList m₀ m₁ (List.finRange k))).seq
+        ((rewindInput Symbol).toTM.extendTapes (MultiTapeTM.noTapes (k + k))) := by
+    simp only [tidy, toTM_seq, toTM_shadow, toTM_clearList, toTM_extendTapes]
+  rw [htidy]
+  exact MultiTapeTM.computesTidily_tidy_with_rewind (rewind := (rewindInput Symbol).toTM)
+    _root_.Turing.MultiTapeMachine.runFrom_rewindInput hm h
 
 end Turing.MultiTapeMachine

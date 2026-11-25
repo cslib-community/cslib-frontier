@@ -39,6 +39,12 @@ variable `10⁶` gets one literal, not one for each smaller name.
   formula.
 * `Cslib.Algorithms.Lean.CDCL.checkLRAT_of_answerFor_cert`: the certificate given is accepted by
   the LRAT checker (`Cslib.Logic.PL.CNF.checkLRAT`).
+* `Cslib.Algorithms.Lean.CDCL.answerDIMACS_toDIMACS`: on the text `φ.toDIMACS` that
+  `Cslib.Logic.PL.CNF.toDIMACS` prints, the answer is that for `φ`, so
+  `Cslib.Algorithms.Lean.CDCL.satisfiable_of_answerDIMACS_toDIMACS` and
+  `Cslib.Algorithms.Lean.CDCL.checkLRAT_of_answerDIMACS_toDIMACS` conclude about `φ` itself. For a
+  formula built in Lean and printed, the DIMACS parser is then outside the trusted base; for a file
+  from elsewhere, the parser is still trusted to read it as intended.
 
 The text itself (`modelLines` and the `s` lines) is output formatting, with no theorem about it.
 -/
@@ -178,5 +184,26 @@ theorem checkLRAT_of_answerFor_cert {o : Options} {φ : CNF ℕ}
 text is not a DIMACS formula. -/
 def answerDIMACS (o : Options) (text : String) : Except String DimacsAnswer :=
   return answerFor o (← CNF.ofDIMACS text)
+
+/-- **The answer for a printed formula is the answer for the formula**: reading
+`Cslib.Logic.PL.CNF.toDIMACS` gives the formula back (`Cslib.Logic.PL.CNF.ofDIMACS_toDIMACS`). -/
+theorem answerDIMACS_toDIMACS (o : Options) (φ : CNF ℕ) :
+    answerDIMACS o φ.toDIMACS = .ok (answerFor o φ) := by
+  simp [answerDIMACS, CNF.ofDIMACS_toDIMACS, bind, Except.bind, pure, Except.pure]
+
+/-- **Exit code `10` on the printed formula only for a satisfiable formula**, end to end: the
+hypothesis is about the text `φ.toDIMACS`, the conclusion about `φ`. -/
+theorem satisfiable_of_answerDIMACS_toDIMACS {o : Options} {φ : CNF ℕ} {a : DimacsAnswer}
+    (h : answerDIMACS o φ.toDIMACS = .ok a) (hc : a.code = 10) : φ.Satisfiable := by
+  rw [answerDIMACS_toDIMACS, Except.ok.injEq] at h
+  exact satisfiable_of_answerFor_code (h ▸ hc)
+
+/-- **A certificate given for the printed formula is accepted for the formula**, end to end, so
+the formula is unsatisfiable (`Cslib.Logic.PL.CNF.not_satisfiable_of_checkLRAT`). -/
+theorem checkLRAT_of_answerDIMACS_toDIMACS {o : Options} {φ : CNF ℕ} {a : DimacsAnswer}
+    {cert : Array Std.Tactic.BVDecide.LRAT.IntAction} (h : answerDIMACS o φ.toDIMACS = .ok a)
+    (hc : a.cert = some cert) : φ.checkLRAT cert = true := by
+  rw [answerDIMACS_toDIMACS, Except.ok.injEq] at h
+  exact checkLRAT_of_answerFor_cert (h ▸ hc)
 
 end Cslib.Algorithms.Lean.CDCL

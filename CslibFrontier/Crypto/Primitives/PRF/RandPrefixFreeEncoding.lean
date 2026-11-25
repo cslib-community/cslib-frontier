@@ -7,7 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Primitives.Hash.Sponge
+public import CslibFrontier.Foundations.Data.BitString.Basic
+public import CslibFrontier.Foundations.Data.BitString.Pad10Star
 import CslibFrontier.Foundations.Data.List.ModifyLast
 public import Cslib.Probability.PMF
 import CslibFrontier.Probability.PMF.Uniform
@@ -29,7 +30,7 @@ is not proved here.
   most `ε`. The encodings need not be injective for a fixed key, as the book remarks.
 * `cmacRpf n (k₁, k₂)` is CMAC's encoding of a bit string (§6.10): a message whose length is a
   positive multiple of `n` is cut into `n`-bit blocks and `k₁` is added to the last; any other
-  message is padded with `1 ‖ 0^*` (`Cslib.Crypto.Sponge.pad`) and `k₂` is added to the last
+  message is padded with `1 ‖ 0^*` (`Cslib.BitString.pad10star`) and `k₂` is added to the last
   block.
 
 ## Main results
@@ -199,8 +200,8 @@ theorem isRandPrefixFreeEncoding_modifyLast_add (X : Type*) [Fintype X] [Nonempt
 `(false, blocks of m ‖ 1 ‖ 0^*)`. The flag selects the key added to the last block. -/
 @[expose]
 def cmacCore (n : ℕ) (m : List Bool) : Bool × List (BitString n) :=
-  if 0 < m.length ∧ n ∣ m.length then (true, Sponge.toBlocks n m)
-  else (false, Sponge.toBlocks n (Sponge.pad n m))
+  if 0 < m.length ∧ n ∣ m.length then (true, BitString.toBlocks n m)
+  else (false, BitString.toBlocks n (BitString.pad10star n m))
 
 /-- CMAC's randomized prefix-free encoding ([BonehShoup2023], §6.10, p. 242). Cut `m` into `n`-bit
 blocks; if `|m|` is a positive multiple of `n`, add `k₁` to the last block, and otherwise pad `m`
@@ -213,18 +214,18 @@ private theorem cmacCore_snd_ne_nil {n : ℕ} (hn : 0 < n) (m : List Bool) :
     (cmacCore n m).2 ≠ [] := by
   unfold cmacCore
   split_ifs with h
-  · rw [← List.length_pos_iff, Sponge.length_toBlocks]
+  · rw [← List.length_pos_iff, BitString.length_toBlocks]
     exact Nat.div_pos (Nat.le_of_dvd h.1 h.2) hn
-  · exact Sponge.toBlocks_pad_ne_nil hn m
+  · exact BitString.toBlocks_pad10star_ne_nil hn m
 
 private theorem cmacCore_injective {n : ℕ} (hn : 0 < n) : Function.Injective (cmacCore n) := by
   intro m₀ m₁ h
   unfold cmacCore at h
   split_ifs at h with h₀ h₁ h₁
-  · exact Sponge.toBlocks_injOn hn h₀.2 h₁.2 (congrArg Prod.snd h)
+  · exact BitString.toBlocks_injOn h₀.2 h₁.2 (congrArg Prod.snd h)
   · simp at h
   · simp at h
-  · exact Sponge.toBlocks_pad_injective hn (congrArg Prod.snd h)
+  · exact BitString.toBlocks_pad10star_injective hn (congrArg Prod.snd h)
 
 /-- CMAC's encoding has the book's codomain: a message of at most `nℓ` bits has at most `ℓ`
 blocks, for `0 < n` and `1 ≤ ℓ`. -/
@@ -238,8 +239,8 @@ theorem length_cmacRpf_le {n ℓ : ℕ} (hn : 0 < n) (hℓ : 1 ≤ ℓ) (k : Bit
       · rw [h0]
         exact Nat.mul_pos hn hℓ
       · exact lt_of_le_of_ne hm fun heq => h ⟨hpos, ⟨ℓ, heq⟩⟩
-    have hpad : (Sponge.pad n m).length < n * (ℓ + 1) := by
-      have := Sponge.length_pad_le hn m
+    have hpad : (BitString.pad10star n m).length < n * (ℓ + 1) := by
+      have := BitString.length_pad10star_le hn m
       rw [Nat.mul_succ]
       omega
     simpa [Nat.lt_succ_iff] using Nat.div_lt_of_lt_mul hpad

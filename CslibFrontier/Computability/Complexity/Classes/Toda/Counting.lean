@@ -84,6 +84,8 @@ namespace Cslib.Complexity.Toda
 open Finset BitString Turing.MultiTapeTM
 open SharpP (subsetTest card_filter_subsetTest)
 
+attribute [local irreducible] ComputableInPolyTime
+
 /-! ### Modulus amplification -/
 
 /-- Natural coefficients equal to `(-2) ^ i` modulo `2 ^ K`, for `i ≤ K`: `2 ^ i` for even `i`

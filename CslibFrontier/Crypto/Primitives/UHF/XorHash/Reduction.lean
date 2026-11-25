@@ -131,11 +131,10 @@ private theorem polyTime_xorHashWordValid {α : Type} {input : α ↪ List Bool}
   have hcap : ComputableInPolyTime (fun p => decide ((m p).length ≤ ℓ p)) input encBool := by
     fun_prop
   have hblocks : ComputableInPolyTime
-      (fun p => (m p).all (fun b => decide (b.length = blockWidth p))) input encBool := by
-    refine ComputableInPolyTime.allWithInput hm ?_
-    exact ComputableInPolyTime.decide_eq'
+      (fun p => (m p).all (fun b => decide (b.length = blockWidth p))) input encBool :=
+    hm.allWithInput (ComputableInPolyTime.decide_eq'
       (ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.snd input encBits))
-      (hb.comp (ComputableInPolyTime.fst input encBits))
+      (hb.comp (ComputableInPolyTime.fst input encBits)))
   exact ComputableInPolyTime.bool_and.comp (hcap.prod hblocks)
 
 /-- The multi-query wrapper is strict oracle PPT whenever its adversary is strict PPT and
@@ -472,9 +471,8 @@ private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
     · by_cases hne : guess.first = guess.second
       · simp [hne]
       · let decode := decodeWordMessage (ℓ n) (blockWidth n)
-        have hdecoded : decode guess.first ≠ decode guess.second := by
-          intro heq
-          exact hne (eq_of_decodeWordMessage_eq h₁ h₂ heq)
+        have hdecoded : decode guess.first ≠ decode guess.second :=
+          fun heq => hne (eq_of_decodeWordMessage_eq h₁ h₂ heq)
         rw [Probability.PMF.bind_pure_decide_apply_true]
         have hdistinct : (guess.first ≠ guess.second) = True :=
           propext ⟨fun _ => trivial, fun _ => hne⟩
@@ -604,13 +602,7 @@ theorem isComputationalUHF_xorHashWordFamily {ℓ blockWidth width : ℕ → ℕ
   intro A hA
   have hinput : ComputableInPolyTime (fun n => ℓ n + blockWidth n) encUnary encUnary := by
     fun_prop
-  have hzeros := ComputableInPolyTime.bitsReplicate false
-  have heval := hPRF.polyTime.comp (hzeros.prod (hzeros.comp hinput))
-  have hw : ComputableInPolyTime width encUnary encUnary :=
-    (ComputableInPolyTime.length_bits.comp heval).of_enc_eq fun n => by
-      have h := hPRF.length_eq (List.replicate n false)
-        (List.replicate (ℓ n + blockWidth n) false) (by simp)
-      simpa only [List.length_replicate, Function.comp_def] using congrArg encUnary h.symm
+  have hw := hPRF.outLen_polyTime hinput
   have hred := isOraclePPT_xorHashWordCollisionReduction hℓ hb hw hA
   apply negligible_of_le ((hPRF.secure _ hred).add hout)
   exact succProbability_xorHashWordFamily_le family hPRF.length_eq A

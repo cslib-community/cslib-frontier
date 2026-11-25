@@ -11,7 +11,9 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Callee
 import Batteries.Data.Fin.Lemmas
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 
 /-!
 # A finite exhaustive native Exact Triangle callee
@@ -141,10 +143,6 @@ private theorem exists_triangleAt {t : ℕ} (A B C : Fin t → Fin t → ℤ) :
     refine ⟨Fin.mkDivMod i (Fin.mkDivMod j k), ?_⟩
     simpa only [triangleAt, Fin.divNat_mkDivMod, Fin.modNat_mkDivMod] using h
 
-private theorem accumulate_preserves (j : Fin 3) :
-    ∀ i : Fin 24, i.val < 19 → (accumulate j).Preserves i := by
-  fin_cases j <;> decide
-
 private theorem exec_accumulate {w v : ℕ} (j : Fin 3) (x : Data 24)
     (hv : x.regs (word j) = v) (h2 : x.regs two = 2) (h0 : x.regs zero = 0)
     (h2fit : Fits w 2) (hmag : Fits w (v / 2))
@@ -154,21 +152,12 @@ private theorem exec_accumulate {w v : ℕ} (j : Fin 3) (x : Data 24)
       y.regs positive = x.regs positive + positivePart v ∧
       y.regs negative = x.regs negative + negativePart v ∧ y.mem = x.mem := by
   have hsign : Fits w (v % 2) := h2fit.of_le (by omega)
-  let a := x.set magnitude (v / 2) |>.set sign (v % 2)
-  let y := if v % 2 = 0 then a.set positive (x.regs positive + v / 2)
-    else a.set negative (x.regs negative + v / 2)
-  refine ⟨y, ?_, ?_, ?_, ?_⟩
-  · refine ⟨if v % 2 = 0 then 4 else 5, by split_ifs <;> decide, ?_⟩
-    fin_cases j <;> norm_num [word] at hv
-    all_goals by_cases h : v % 2 = 0 <;>
-      ram_eval [accumulate, word, y, a, hv, h2, h0, hmag, hsign, hp, hn, h,
-        positive, negative, magnitude, sign, two, zero, Fin.mk.injEq]
-    all_goals simp +decide [hv, h2, h0, hmag, hsign, hp, hn, h]
-  · by_cases h : v % 2 = 0 <;>
-      simp +decide [y, a, h, positivePart, positive, negative, magnitude, sign]
-  · by_cases h : v % 2 = 0 <;>
-      simp +decide [y, a, h, negativePart, positive, negative, magnitude, sign]
-  · by_cases h : v % 2 = 0 <;> simp [y, a, h]
+  refine WP.exists_execWithin ?_
+  unfold accumulate
+  have hne : (word j : Fin 24) ≠ magnitude := by
+    intro h; have := congrArg Fin.val h; simp [word] at this; omega
+  wram_exec [hv, h2, h0, hmag, hsign, hp, hn, hne]
+  all_goals exact ⟨by wram_simp [positivePart, hc], by wram_simp [negativePart, hc], rfl⟩
 
 private structure Control (t abp bcp acp : ℕ) (x : Data 24) : Prop where
   side : x.regs side = t
@@ -181,14 +170,6 @@ private structure Control (t abp bcp acp : ℕ) (x : Data 24) : Prop where
   two : x.regs two = 2
   zero : x.regs zero = 0
 
-private theorem Control.congr {t abp bcp acp : ℕ} {x y : Data 24}
-    (h : Control t abp bcp acp x)
-    (heq : ∀ i : Fin 24, i.val < 12 → i ≠ current → i ≠ out → y.regs i = x.regs i) :
-    Control t abp bcp acp y := by
-  regs_frame
-
-private theorem load_preserves : ∀ i : Fin 24, i.val < 12 → loadTriple.Preserves i := by decide
-
 private theorem exec_loadTriple {w t F abp bcp acp free v₀ v₁ v₂ : ℕ}
     (x : Data 24) (h : Control t abp bcp acp x) (q : Fin (t * (t * t)))
     (hq : x.regs current = q.val)
@@ -200,69 +181,39 @@ private theorem exec_loadTriple {w t F abp bcp acp free v₀ v₁ v₂ : ℕ}
     ∃ y, ExecWithin w loadTriple x y 18 ∧ Control t abp bcp acp y ∧
       y.regs (word 0) = v₀ ∧ y.regs (word 1) = v₁ ∧ y.regs (word 2) = v₂ ∧
       y.regs positive = 0 ∧ y.regs negative = 0 ∧ y.mem = x.mem := by
-  let i := q.divNat
-  let j := q.modNat.divNat
-  let k := q.modNat.modNat
   have hcell (a b : Fin t) : a.val * t + b.val < t * t := by
     simpa only [Fin.coe_mkDivMod, Nat.mul_comm] using (Fin.mkDivMod a b).isLt
+  have := q.divNat.isLt
+  have := q.modNat.isLt
+  have := q.modNat.divNat.isLt
+  have := q.modNat.modNat.isLt
+  have := hcell q.divNat q.modNat.divNat
+  have := hcell q.modNat.divNat q.modNat.modNat
+  have := hcell q.divNat q.modNat.modNat
+  simp only [Fin.coe_divNat, Fin.coe_modNat, Nat.add_assoc] at hv₀ hv₁ hv₂ this
   have hfree : Fits w free := hfit.of_le (by omega)
-  have harea : t * t ≤ free := by omega
-  have htfree : t ≤ free := (Nat.le_mul_self t).trans harea
-  have hif : Fits w i.val := hfree.of_le (by have := i.isLt; omega)
-  have hjf : Fits w j.val := hfree.of_le (by have := j.isLt; omega)
-  have hkf : Fits w k.val := hfree.of_le (by have := k.isLt; omega)
-  have hrf : Fits w q.modNat.val := hfree.of_le (by have := q.modNat.isLt; omega)
-  have hip : Fits w (i.val * t) := hfree.of_le (by have := hcell i j; omega)
-  have hjp : Fits w (j.val * t) := hfree.of_le (by have := hcell j k; omega)
-  have hij : Fits w (i.val * t + j.val) := hfree.of_le (by have := hcell i j; omega)
-  have hjk : Fits w (j.val * t + k.val) := hfree.of_le (by have := hcell j k; omega)
-  have hik : Fits w (i.val * t + k.val) := hfree.of_le (by have := hcell i k; omega)
-  have habf : Fits w (abp + (i.val * t + j.val)) :=
-    hfree.of_le (by have := hcell i j; omega)
-  have hbcf : Fits w (bcp + (j.val * t + k.val)) :=
-    hfree.of_le (by have := hcell j k; omega)
-  have hacf : Fits w (acp + (i.val * t + k.val)) :=
-    hfree.of_le (by have := hcell i k; omega)
-  simp only [i, j, k, Fin.coe_divNat, Fin.coe_modNat,
-    Nat.add_assoc] at hif hjf hkf hrf hip hjp hij hjk hik habf hbcf hacf hv₀ hv₁ hv₂
-  let y := x.set iReg i.val |>.set remainder q.modNat.val |>.set jReg j.val |>.set kReg k.val
-    |>.set address (i.val * t) |>.set address (i.val * t + j.val)
-    |>.set address (abp + (i.val * t + j.val)) |>.set (word 0) v₀
-    |>.set address (j.val * t) |>.set address (j.val * t + k.val)
-    |>.set address (bcp + (j.val * t + k.val)) |>.set (word 1) v₁
-    |>.set address (i.val * t) |>.set address (i.val * t + k.val)
-    |>.set address (acp + (i.val * t + k.val)) |>.set (word 2) v₂
-    |>.set positive 0 |>.set negative 0
-  have he : ExecWithin w loadTriple x y 18 := by
-    ram_eval [loadTriple, word, y, h.side, h.area, h.ab, h.bc, h.ac, hq,
-      hif, hjf, hkf, hrf, hip, hjp, hij, hjk, hik, habf, hbcf, hacf,
-      hv₀, hv₁, hv₂, i, j, k, Fin.coe_divNat, Fin.coe_modNat, Nat.add_assoc,
-      side, ab, bc, ac, current, area, iReg, jReg, kReg, remainder, address,
-      positive, negative, Fin.mk.injEq, Fin.reduceFinMk, Fin.isValue]
-  refine ⟨y, he, h.congr (fun a ha _ _ => he.regs_eq (load_preserves a ha)),
-    ?_, ?_, ?_, ?_, ?_, rfl⟩
-  all_goals simp +decide [y, word, positive, negative, iReg, jReg, kReg, remainder, address]
+  have htfree : t ≤ free := (Nat.le_mul_self t).trans (by omega)
+  refine WP.exists_execWithin ?_
+  unfold loadTriple
+  wram_exec [h.side, h.area, h.ab, h.bc, h.ac, hq, hv₀, hv₁, hv₂]
+  · exact ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp, by wram_simp, rfl⟩
+  all_goals exact hfree.of_le (by simp only [Fin.coe_divNat, Fin.coe_modNat] at *; omega)
 
 private theorem magnitude_le {F : ℕ} {z : ℤ} (h : |z| ≤ (F : ℤ)) : encode z / 2 ≤ F := by
   rw [encode_div_two]
   have h' : (z.natAbs : ℤ) ≤ (F : ℤ) := by simpa only [Int.natCast_natAbs] using h
   exact_mod_cast h'
 
-private theorem finish_preserves : ∀ i : Fin 24,
-    i.val < 12 → i ≠ current → i ≠ out → finish.Preserves i := by decide
-
 private theorem exec_finish {w q : ℕ} (x : Data 24)
     (ho : x.regs one = 1) (hq : x.regs current = q) (hinc : Fits w (q + 1)) :
     ∃ y, ExecWithin w finish x y 4 ∧ y.regs current = q + 1 ∧
       y.regs out = (if x.regs positive = x.regs negative then 1 else x.regs out) ∧
       y.mem = x.mem := by
-  let b := if x.regs positive = x.regs negative then 1 else x.regs out
-  let y := x.set out b |>.set current (q + 1)
-  refine ⟨y, ?_, ?_, ?_, rfl⟩
-  · by_cases h : x.regs positive = x.regs negative <;>
-      ram_eval [finish, y, b, ho, hq, hinc, h, one, current, out, positive, negative, Fin.mk.injEq]
-  · simp [y]
-  · simp +decide [y, b, out, current]
+  refine WP.exists_execWithin ?_
+  unfold finish
+  wram_exec [ho, hq, hinc]
+  all_goals exact ⟨by wram_simp, by wram_simp [hc], rfl⟩
 
 private theorem exec_body {w t F abp bcp acp free : ℕ}
     (A B C : Fin t → Fin t → ℤ) (x : Data 24) (h : Control t abp bcp acp x)
@@ -291,8 +242,7 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
   obtain ⟨b, hb, hbp, hbn, hbm⟩ := exec_accumulate 0 a ha₀ hpa.two hpa.zero h2fit
     (hsum.of_le (by omega)) (hsum.of_le (by rw [hap]; omega))
     (hsum.of_le (by rw [han]; omega))
-  have hpb : Control t abp bcp acp b :=
-    hpa.congr (fun i hi _ _ => hb.regs_eq (accumulate_preserves 0 i (by omega)))
+  have hpb : Control t abp bcp acp b := by regs_frame
   have hbpF : b.regs positive ≤ F := by
     rw [hbp, hap, Nat.zero_add]
     exact (parts_le _).1.trans hva
@@ -302,26 +252,16 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
   have hb₁ : b.regs (word 1) = encode zb := by regs_frame
   obtain ⟨c, hc, hcp, hcn, hcm⟩ := exec_accumulate 1 b hb₁ hpb.two hpb.zero h2fit
     (hsum.of_le (by omega)) (hsum.of_le (by omega)) (hsum.of_le (by omega))
-  have hpc : Control t abp bcp acp c :=
-    hpb.congr (fun i hi _ _ => hc.regs_eq (accumulate_preserves 1 i (by omega)))
+  have hpc : Control t abp bcp acp c := by regs_frame
   have hcpF : c.regs positive ≤ 2 * F := by
-    rw [hcp]
-    have := (parts_le (encode zb)).1
-    omega
+    rw [hcp]; have := (parts_le (encode zb)).1; omega
   have hcnF : c.regs negative ≤ 2 * F := by
-    rw [hcn]
-    have := (parts_le (encode zb)).2
-    omega
+    rw [hcn]; have := (parts_le (encode zb)).2; omega
   have hc₂ : c.regs (word 2) = encode zc := by regs_frame
   obtain ⟨d, hd, hdp, hdn, hdm⟩ := exec_accumulate 2 c hc₂ hpc.two hpc.zero h2fit
     (hsum.of_le (by omega)) (hsum.of_le (by omega)) (hsum.of_le (by omega))
-  have hpd : Control t abp bcp acp d :=
-    hpc.congr (fun i hi _ _ => hd.regs_eq (accumulate_preserves 2 i (by omega)))
-  have hkeep (i : Fin 24) (hi : i.val < 12) : d.regs i = x.regs i :=
-    (hd.regs_eq (accumulate_preserves 2 i (by omega))).trans
-      ((hc.regs_eq (accumulate_preserves 1 i (by omega))).trans
-        ((hb.regs_eq (accumulate_preserves 0 i (by omega))).trans
-          (ha.regs_eq (load_preserves i hi))))
+  have hpd : Control t abp bcp acp d := by regs_frame
+  have hd_out : d.regs out = x.regs out := by regs_frame
   have hhit : d.regs positive = d.regs negative ↔ triangleAt A B C q := by
     rw [hdp, hcp, hbp, hap, hdn, hcn, hbn, han]
     simp only [Nat.zero_add]
@@ -330,14 +270,12 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
   obtain ⟨y, hy, hyq, hyo, hym⟩ := exec_finish d hpd.one
     (by regs_frame) (hfit.of_le (by have := q.isLt; omega))
   refine ⟨y, (ha.seq (hb.seq (hc.seq (hd.seq hy)))).mono (by decide),
-    hpd.congr (fun i hi hq ho => hy.regs_eq (finish_preserves i hi hq ho)), hyq, ?_, ?_, ?_⟩
-  · rw [hyo, hkeep out (by decide)]
-    split_ifs <;> omega
-  · rw [hyo, hkeep out (by decide)]
+    by regs_frame, hyq, ?_, ?_, by mem_frame⟩
+  · rw [hyo, hd_out]; split_ifs <;> omega
+  · rw [hyo, hd_out]
     by_cases hz : d.regs positive = d.regs negative
     · simp only [hz, ↓reduceIte, hhit.mp hz, or_true]
     · simp only [hz, ↓reduceIte, hhit.not.mp hz, or_false]
-  · exact hym.trans (hdm.trans (hcm.trans (hbm.trans ham)))
 
 private theorem exec_scan {w t F abp bcp acp free : ℕ}
     (A B C : Fin t → Fin t → ℤ) (x : Data 24)
@@ -354,17 +292,6 @@ private theorem exec_scan {w t F abp bcp acp free : ℕ}
     ∃ y, ExecWithin w program x y (39 * (t * (t * t)) + 9) ∧ y.regs out ≤ 1 ∧
       (y.regs out = 1 ↔ Cslib.Algorithms.ExactTriangle.HasZeroTriangle A B C) ∧
       y.mem = x.mem := by
-  have harea : Fits w (t * t) := hfit.of_le (by omega)
-  have hstop : Fits w ((t * t) * t) := hfit.of_le (by rw [Nat.mul_assoc]; omega)
-  rw [Nat.mul_assoc] at hstop
-  let a := x.set current 0 |>.set area (t * t) |>.set stop (t * (t * t))
-    |>.set one 1 |>.set two 2 |>.set zero 0 |>.set out 0
-  have ha : ExecWithin w setup x a 7 := by
-    ram_eval [setup, a, ht, harea, hstop, side, current, area, stop,
-      one, two, zero, out, Nat.mul_assoc, Fin.mk.injEq]
-  have hpa : Control t abp bcp acp a := by
-    constructor <;> simp +decide [a, side, ab, bc, ac, current, area, stop,
-      one, two, zero, out, ht, hab, hbc, hac]
   let P (j : ℕ) (y : Data 24) : Prop := Control t abp bcp acp y ∧ y.regs out ≤ 1 ∧
     (y.regs out = 1 ↔ ∃ q : Fin (t * (t * t)), q.val < j ∧ triangleAt A B C q) ∧
     y.mem = x.mem
@@ -377,33 +304,27 @@ private theorem exec_scan {w t F abp bcp acp free : ℕ}
       hABBC hBCAC hfree hfit (by simpa only [hym] using hmA)
       (by simpa only [hym] using hmB) (by simpa only [hym] using hmC) hA hB hC
     refine ⟨z, hz, ⟨hzp, hzb, ?_, hzm.trans hym⟩, hzq⟩
-    · rw [hzo, hyo]
-      constructor
-      · rintro (⟨p, hp, hh⟩ | hh)
-        · exact ⟨p, by omega, hh⟩
-        · exact ⟨q, by dsimp only [q]; omega, hh⟩
-      · rintro ⟨p, hp, hh⟩
-        by_cases h : p.val < y.regs current
-        · exact Or.inl ⟨p, h, hh⟩
-        · have heq : p = q := Fin.ext (by dsimp only [q] at *; omega)
-          exact Or.inr (heq ▸ hh)
-  have hx : P (a.regs current) a := by
-    refine ⟨hpa, ?_, ?_, rfl⟩
-    · simp +decide [a, current, area, stop, one, two, zero, out]
-    · simp +decide [a, current, area, stop, one, two, zero, out]
-  obtain ⟨y, he, ⟨_, hyb, hyo, hym⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ hy => hy.1.stop) hbody
-    (by simp +decide [a, current, area, stop, one, two, zero, out]) hx
-  refine ⟨y, (ha.seq he).mono ?_, hyb, ?_, hym⟩
-  · simp +decide only [a, Data.set_regs, Function.update_apply, current, area, stop,
-      one, two, zero, out, ↓reduceIte, Nat.sub_zero, Nat.reduceAdd]
-    omega
-  · refine (hyo.trans ?_).trans (exists_triangleAt A B C)
+    rw [hzo, hyo]
     constructor
-    · rintro ⟨q, _, hq⟩
-      exact ⟨q, hq⟩
-    · rintro ⟨q, hq⟩
-      exact ⟨q, q.isLt, hq⟩
+    · rintro (⟨p, hp, hh⟩ | hh)
+      · exact ⟨p, by omega, hh⟩
+      · exact ⟨q, by dsimp only [q]; omega, hh⟩
+    · rintro ⟨p, hp, hh⟩
+      by_cases h : p.val < y.regs current
+      · exact Or.inl ⟨p, h, hh⟩
+      · exact Or.inr ((Fin.ext (by dsimp only [q] at *; omega) : p = q) ▸ hh)
+  have hstop : Fits w (t * t * t) := hfit.of_le (by rw [Nat.mul_assoc]; omega)
+  refine WP.exists_execWithin ?_
+  unfold program setup
+  wram_exec [ht, hstop]
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.stop) hbody
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨⟨by wram_simp [ht], by wram_simp [hab], by wram_simp [hbc], by wram_simp [hac],
+      by wram_simp, by wram_simp [Nat.mul_assoc], by wram_simp, by wram_simp, by wram_simp⟩,
+      by wram_simp, by wram_simp; simp, rfl⟩)
+    with y ⟨⟨_, hyb, hyo, hym⟩, _⟩
+  refine ⟨by wram_simp; omega, hyb, (hyo.trans ?_).trans (exists_triangleAt A B C), hym⟩
+  exact ⟨fun ⟨q, _, hq⟩ => ⟨q, hq⟩, fun ⟨q, hq⟩ => ⟨q, q.isLt, hq⟩⟩
 
 /-- Execute the real exhaustive block from arbitrary old registers and memory. Source spans
 may alias: each only needs to end below the supplied address bound. Every memory cell survives,

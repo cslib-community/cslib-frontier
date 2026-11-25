@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.BooleanAnalysis.OddForm
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.LinearCombination
 
 /-!
@@ -256,9 +257,7 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
     refine sum_congr rfl fun S _ => ?_
     set u := 2 * andreevSharpW b m x S + ∑ i ∈ S, s i with hu'
     have hu : (2 * (andreevSharpW b m x S : ℤ) + ((∑ i ∈ S, s i : ℕ) : ℤ)) = (u : ℤ) := by
-      rw [hu']
-      push_cast
-      ring
+      rw [hu']; push_cast; ring
     have h4 : (4 : ℝ) * (andreevRidge (andreevSharpKappa b m S) (u : ℤ) : ℝ) =
         -8 * ((u + u % 2 : ℕ) : ℝ) ^ 2 +
           2 * (andreevSharpKappa b m S : ℝ) * ((u + u % 2 : ℕ) : ℝ) := by
@@ -282,10 +281,7 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
       mul_assoc, ← mul_sum, sum_onSingles_mul, Pi.one_apply, hz, hE, hα]
   have hsaa : ∑ c, a c * a c = z + (2 * α + α ^ 2) * E := by
     have h (c : BitString b) : a c * a c = (andreevSharpMult b m c : ℝ) ^ 2 * X c := by
-      rw [ha]
-      dsimp only
-      rw [show (andreevSharpMult b m c : ℝ) * X c * ((andreevSharpMult b m c : ℝ) * X c) =
-        (andreevSharpMult b m c : ℝ) ^ 2 * (X c * X c) by ring, hX2]
+      linear_combination (andreevSharpMult b m c : ℝ) ^ 2 * hX2 c
     simp only [h, cast_andreevSharpMult_sq, add_mul, sum_add_distrib, ite_mul, zero_mul, one_mul,
       mul_assoc, ← mul_sum, sum_onSingles_mul, Pi.one_apply, hz, hE, hα]
   have hsast : ∑ c, a c * st c = (1 + α) * ∑ i, X (Pi.single i true) * s i := by
@@ -350,13 +346,8 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
   rw [hridge] at hscore
   have h4 : andreevSharpScore b m x s = (4 * andreevSharpScore b m x s) / 4 := by ring
   rw [h4, hscore, hload, hap, ← hN]
-  by_cases hp0 : p = 0
-  · have h1 : I0 = 1 := by simp [hI0, hp0]
-    rw [h1]
-    ring
-  · have h1 : I0 = 0 := by simp [hI0, hp0]
-    rw [h1]
-    ring
+  rw [hI0]
+  split_ifs <;> ring
 
 /-- The load is at most the range: `w ≤ R`. -/
 theorem andreevSharpLoad_le (x : BitString b → Bool) (s : Fin b → ℕ) (hs : ∀ i, s i ≤ m) :
@@ -406,12 +397,11 @@ theorem andreevSharpScore_margin (x : BitString b → Bool) (s : Fin b → ℕ)
   have hN : (0 : ℝ) < 2 ^ b := by positivity
   by_cases hp0 : p = 0
   · have hw := andreevSharpLoad_le x s hs
-    have hw' : (andreevSharpLoad b m x s : ℝ) ≤ andreevSharpRange b m := by exact_mod_cast hw
     have hw0 : (0 : ℝ) ≤ andreevSharpLoad b m x s := Nat.cast_nonneg _
     simp only [hp0, ↓reduceIte, onSingles_zero, andreevSharpMult, mul_one, sub_self, mul_zero,
       Nat.cast_zero, sub_zero, add_zero]
     constructor <;> intro hx <;> simp only [tableVal, hx, Bool.toNat_false, Bool.toNat_true,
-      Nat.cast_zero, Nat.cast_one, mul_zero, mul_one, sub_zero] <;> nlinarith
+      Nat.cast_zero, Nat.cast_one, mul_zero, mul_one, sub_zero] <;> cast_nlinarith [hw]
   · simp only [hp0, ↓reduceIte, mul_zero, sub_zero, add_zero]
     by_cases hu : IsSingle p
     · obtain ⟨i, hi⟩ := hu

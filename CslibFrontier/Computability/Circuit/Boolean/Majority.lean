@@ -88,6 +88,7 @@ variable {φ} {M : Circuit σ (n + (n + 2)) 1}
   simp [padCircuit]
 
 /-- Padding has depth at most one. -/
+@[circuit_bound]
 theorem depth_padCircuit_le (a : ℕ) : (padCircuit φ n a).depth ≤ 1 := by
   circuit_bound [padCircuit]
 
@@ -99,8 +100,8 @@ theorem size_thresholdCircuitOfMajority (k : ℕ) :
 /-- A threshold is one deeper than the majority circuit. -/
 @[circuit_bound]
 theorem depth_thresholdCircuitOfMajority_le (k : ℕ) :
-    (thresholdCircuitOfMajority φ M k).depth ≤ M.depth + 1 :=
-  (Circuit.depth_comp_le _ _).trans (Nat.add_le_add_left (depth_padCircuit_le _) _)
+    (thresholdCircuitOfMajority φ M k).depth ≤ M.depth + 1 := by
+  circuit_bound [thresholdCircuitOfMajority]
 
 /-- "Exactly `k`" costs two thresholds and two gates. -/
 theorem size_exactlyCircuitOfMajority (k : ℕ) :
@@ -118,14 +119,8 @@ theorem depth_exactlyCircuitOfMajority_le (k : ℕ) :
 /-- `MOD_q` costs `n + 1` circuits for "exactly `k`" and one disjunction. -/
 theorem size_modCircuitOfMajority_le (q : ℕ) :
     (modCircuitOfMajority φ q M).size ≤ 1 + (n + 1) * (2 * (2 + M.size) + 2) := by
-  rw [modCircuitOfMajority, Circuit.size_comp, Circuit.size_pi, Circuit.size_mapOp,
-    Circuit.size_oneGate, add_comm]
-  refine Nat.add_le_add_left ((sum_le_card_nsmul univ _ (2 * (2 + M.size) + 2)
-    fun k _ => ?_).trans_eq (by rw [card_univ, Fintype.card_fin, smul_eq_mul])) _
-  split_ifs
-  · exact (size_exactlyCircuitOfMajority _).le
-  · rw [size_constCircuit]
-    omega
+  circuit_bound [modCircuitOfMajority, size_exactlyCircuitOfMajority, size_constCircuit,
+    Unbounded.Op.arity]
 
 /-- `MOD_q` is four deeper than the majority circuit. -/
 @[circuit_bound]

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Connector
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Pathwidth
 public import Mathlib.Combinatorics.SimpleGraph.Finite
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Zify
@@ -46,41 +47,43 @@ noncomputable section
 
 namespace Cslib.Circuits.Frontier.Switched
 
+/-! ## Frontier definitions -/
+
 section FrontierDefs
 
 variable {n : ℕ} (G : SimpleGraph (Fin n))
 
+open Classical in
 /-- Inner boundary of the level set `{y ≤ t}`: its vertices with a neighbor above `t`. -/
-def innerFrontier (y : Fin n → ℝ) (t : ℝ) : Finset (Fin n) := by
-  classical
-  exact Finset.univ.filter fun u => y u ≤ t ∧ ∃ w, G.Adj u w ∧ t < y w
+def innerFrontier (y : Fin n → ℝ) (t : ℝ) : Finset (Fin n) :=
+  Finset.univ.filter fun u => y u ≤ t ∧ ∃ w, G.Adj u w ∧ t < y w
 
+open Classical in
 /-- Outer boundary of the level set `{y ≤ t}`: vertices above `t` with a neighbor in `{y ≤ t}`. -/
-def outerFrontier (y : Fin n → ℝ) (t : ℝ) : Finset (Fin n) := by
-  classical
-  exact Finset.univ.filter fun w => t < y w ∧ ∃ u, G.Adj u w ∧ y u ≤ t
+def outerFrontier (y : Fin n → ℝ) (t : ℝ) : Finset (Fin n) :=
+  Finset.univ.filter fun w => t < y w ∧ ∃ u, G.Adj u w ∧ y u ≤ t
 
+open Classical in
 /-- Vertices of crossing degree three at level zero: degree three, with every neighbor on the
 other side of zero. -/
-def crossFull (y : Fin n → ℝ) : Finset (Fin n) := by
-  classical
-  exact Finset.univ.filter fun x =>
+def crossFull (y : Fin n → ℝ) : Finset (Fin n) :=
+  Finset.univ.filter fun x =>
     G.degree x = 3 ∧ ∀ z, G.Adj x z → (y x ≤ 0 ↔ 0 < y z)
 
+open Classical in
 /-- Level-zero lower connector load `|U| + |D ∩ W| = |U'| + |D|`. -/
-def lowerZero (y : Fin n → ℝ) : ℕ := by
-  classical
-  exact (innerFrontier G y 0).card + ((crossFull G y).filter fun x => 0 < y x).card
+def lowerZero (y : Fin n → ℝ) : ℕ :=
+  (innerFrontier G y 0).card + ((crossFull G y).filter fun x => 0 < y x).card
 
+open Classical in
 /-- Level-zero upper connector load `|W| + |D ∩ U| = |W'| + |D|`. -/
-def upperZero (y : Fin n → ℝ) : ℕ := by
-  classical
-  exact (outerFrontier G y 0).card + ((crossFull G y).filter fun x => y x ≤ 0).card
+def upperZero (y : Fin n → ℝ) : ℕ :=
+  (outerFrontier G y 0).card + ((crossFull G y).filter fun x => y x ≤ 0).card
 
+open Classical in
 /-- Labels in the half-open interval `(a, b]`. -/
-def cellSet (y : Fin n → ℝ) (a b : ℝ) : Finset (Fin n) := by
-  classical
-  exact Finset.univ.filter fun z => a < y z ∧ y z ≤ b
+def cellSet (y : Fin n → ℝ) (a b : ℝ) : Finset (Fin n) :=
+  Finset.univ.filter fun z => a < y z ∧ y z ≤ b
 
 end FrontierDefs
 
@@ -95,6 +98,8 @@ namespace Cslib.Circuits.Frontier.Switched.Layout
 noncomputable section
 
 variable {n : ℕ} (G : SimpleGraph (Fin n)) (y : Fin n → ℝ)
+
+/-! ## Layout sets and connector items -/
 
 open Classical in
 /-- Number of lower vertices, `L = #{y ≤ 0}`. -/
@@ -137,13 +142,10 @@ open Classical in
 private theorem ends_card_le (hG : (∀ v, G.degree v ≤ 3)) {u : Fin n} (hu : u ∈ Up G y) :
     (ends G y u).card ≤ 2 := by
   obtain ⟨huU, huD⟩ := Finset.mem_sdiff.mp hu
-  have hsub' : ends G y u ⊆ G.neighborFinset u := by
-    intro w hw
-    simp only [ends, Finset.mem_filter] at hw
-    exact (G.mem_neighborFinset u w).mpr hw.2
-  have hle : (ends G y u).card ≤ G.degree u := by
-    rw [← G.card_neighborFinset_eq_degree]
-    exact Finset.card_le_card hsub'
+  have hsub' : ends G y u ⊆ G.neighborFinset u := fun w hw =>
+    (G.mem_neighborFinset u w).mpr (Finset.mem_filter.mp hw).2
+  have hle : (ends G y u).card ≤ G.degree u :=
+    (Finset.card_le_card hsub').trans_eq (G.card_neighborFinset_eq_degree u)
   by_contra h
   push Not at h
   have h3 : G.degree u = 3 := le_antisymm (hG u) (by omega)
@@ -203,11 +205,9 @@ private theorem crossFull_nbr {x z : Fin n} (hx : x ∈ crossFull G y) (hz : G.A
 
 open Classical in
 private theorem crossFull_exists_nbr {x : Fin n} (hx : x ∈ crossFull G y) : ∃ z, G.Adj x z := by
-  have h3 := ((mem_crossFull G y).mp hx).1
-  have : (G.neighborFinset x).Nonempty := by
-    rw [← Finset.card_pos, G.card_neighborFinset_eq_degree, h3]
+  obtain ⟨z, hz⟩ : (G.neighborFinset x).Nonempty := by
+    rw [← Finset.card_pos, G.card_neighborFinset_eq_degree, ((mem_crossFull G y).mp hx).1]
     norm_num
-  obtain ⟨z, hz⟩ := this
   exact ⟨z, (G.mem_neighborFinset x z).mp hz⟩
 
 open Classical in
@@ -219,12 +219,25 @@ private theorem nbr_lower_of_not_inner {v z : Fin n} (hv : y v ≤ 0)
   exact hU ((mem_inner G y).mpr ⟨hv, z, hz, h⟩)
 
 open Classical in
+/-- A lower vertex outside `U` and all of its neighbors rank below `lowerCount y`. -/
+private theorem sup_rank_lt_of_not_inner {v : Fin n} (hv : y v ≤ 0)
+    (hU : v ∉ innerFrontier G y 0) :
+    (insert v (G.neighborFinset v)).sup (rank y) < lowerCount y := by
+  refine (Finset.sup_lt_iff (Nat.zero_lt_of_lt ((lower_iff y v).mpr hv))).mpr fun z hz => ?_
+  rcases Finset.mem_insert.mp hz with rfl | hz
+  · exact (lower_iff y z).mpr hv
+  · exact (lower_iff y z).mpr
+      (nbr_lower_of_not_inner G y hv hU ((G.mem_neighborFinset v z).mp hz))
+
+open Classical in
 /-- An upper vertex outside `W` has only upper neighbors. -/
 private theorem nbr_upper_of_not_outer {v z : Fin n} (hv : 0 < y v)
     (hW : v ∉ outerFrontier G y 0) (hz : G.Adj v z) : 0 < y z := by
   by_contra h
   push Not at h
   exact hW ((mem_outer G y).mpr ⟨hv, z, hz.symm, h⟩)
+
+/-! ## Connector order properties -/
 
 section Order
 
@@ -261,29 +274,18 @@ private theorem lowEnd_le (v : Fin n) (hv : y v ≤ 0) :
   unfold lowEnd
   split_ifs with hD hU hne
   · exact le_rfl
-  · have : (ends G y v).sup (pos l) < K G y := by
-      rcases Nat.eq_zero_or_pos (K G y) with h0 | hpos
-      · obtain ⟨w, hw⟩ := hne
-        have := pos_lt hl (ends_subset G y v hw)
-        omega
-      · rw [Finset.sup_lt_iff hpos]
-        intro w hw
-        exact pos_lt hl (ends_subset G y v hw)
+  · obtain ⟨w, hw⟩ := hne
+    have : (ends G y v).sup (pos l) < K G y :=
+      (Finset.sup_lt_iff (Nat.zero_lt_of_lt (pos_lt hl (ends_subset G y v hw)))).mpr
+        fun w hw => pos_lt hl (ends_subset G y v hw)
     omega
   · omega
-  · have : (insert v (G.neighborFinset v)).sup (rank y) < lowerCount y := by
-      rcases Nat.eq_zero_or_pos (lowerCount y) with h0 | hpos
-      · have := (lower_iff y v).mpr hv
-        omega
-      · rw [Finset.sup_lt_iff hpos]
-        intro z hz
-        rcases Finset.mem_insert.mp hz with rfl | hz
-        · exact (lower_iff y z).mpr hv
-        · exact (lower_iff y z).mpr
-            (nbr_lower_of_not_inner G y hv hU ((G.mem_neighborFinset v z).mp hz))
+  · have := sup_rank_lt_of_not_inner G y hv hU
     omega
 
 end Order
+
+/-! ## Bag membership by phase -/
 
 section Members
 
@@ -298,6 +300,18 @@ private theorem mem_bag {t : ℕ} {v : Fin n} :
 open Classical in
 private theorem upper_rank {v : Fin n} (hv : ¬ y v ≤ 0) : lowerCount y ≤ rank y v :=
   not_lt.mp fun h => hv ((lower_iff y v).mp h)
+
+open Classical in
+/-- An upper vertex outside `W` and all of its neighbors rank at least `lowerCount y`. -/
+private theorem lowerCount_le_inf'_of_not_outer {v : Fin n} (hv : ¬ y v ≤ 0)
+    (hW : v ∉ outerFrontier G y 0) :
+    lowerCount y ≤ (insert v (G.neighborFinset v)).inf' (Finset.insert_nonempty _ _) (rank y) := by
+  rw [Finset.le_inf'_iff]
+  intro z hz
+  rcases Finset.mem_insert.mp hz with rfl | hz
+  · exact upper_rank hv
+  · exact upper_rank (not_le.mpr (nbr_upper_of_not_outer G y (not_le.mp hv) hW
+      ((G.mem_neighborFinset v z).mp hz)))
 
 open Classical in
 /-- Inner phase. -/
@@ -334,14 +348,7 @@ private theorem mem_inner_phase {t : ℕ} (ht : t < lowerCount y) {v : Fin n}
     split_ifs at hs with hD hW
     · omega
     · omega
-    · have : lowerCount y ≤ (insert v (G.neighborFinset v)).inf' (Finset.insert_nonempty _ _)
-          (rank y) := by
-        rw [Finset.le_inf'_iff]
-        intro z hz
-        rcases Finset.mem_insert.mp hz with rfl | hz
-        · exact hL
-        · exact upper_rank (not_le.mpr (nbr_upper_of_not_outer G y (not_le.mp hlow) hW
-            ((G.mem_neighborFinset v z).mp hz)))
+    · have := lowerCount_le_inf'_of_not_outer hlow hW
       omega
 
 open Classical in
@@ -365,9 +372,7 @@ private theorem mem_outer_phase (hl : Connector.Good (Wp G y) (items G y) (ends 
       unfold upStart at hs
       split_ifs at hs with hD hW
       · obtain ⟨z, hz⟩ := crossFull_exists_nbr G y hD
-        have hz0 : y z ≤ 0 := by
-          by_contra h
-          exact hlow ((crossFull_nbr G y hD hz).mpr (not_le.mp h))
+        have hz0 : y z ≤ 0 := not_lt.mp fun h => hlow ((crossFull_nbr G y hD hz).mpr h)
         exact ⟨z, hz, le_trans (le_of_lt ((lower_iff y z).mpr hz0)) hi⟩
       · obtain ⟨-, z, hz, hz0⟩ := (mem_outer G y).mp hW
         exact ⟨z, hz.symm, le_trans (le_of_lt ((lower_iff y z).mpr hz0)) hi⟩
@@ -403,26 +408,15 @@ private theorem mem_conn_phase (hl : Connector.Good (Wp G y) (items G y) (ends G
       · right; right; left
         refine ⟨Finset.mem_filter.mpr ⟨hvUp, hne⟩, hpos, ?_⟩
         intro hsub
-        have hlt : (ends G y v).sup (pos l) < k - 1 := by
-          rcases Nat.eq_zero_or_pos (k - 1) with h0 | hpos'
-          · obtain ⟨w, hw⟩ := hne
-            have := (mem_prefix_iff hl (ends_subset G y v hw) (k - 1)).mp (hsub hw)
-            omega
-          · rw [Finset.sup_lt_iff (show (⊥ : ℕ) < k - 1 by rw [Nat.bot_eq_zero]; omega)]
-            intro w hw
-            exact (mem_prefix_iff hl (ends_subset G y v hw) (k - 1)).mp (hsub hw)
+        have hmem (w) (hw : w ∈ ends G y v) : pos l w < k - 1 :=
+          (mem_prefix_iff hl (ends_subset G y v hw) (k - 1)).mp (hsub hw)
+        obtain ⟨w, hw⟩ := hne
+        have := (Finset.sup_lt_iff (Nat.zero_lt_of_lt (hmem w hw))).mpr hmem
         omega
     · have hvUp : v ∈ Up G y := Finset.mem_sdiff.mpr ⟨hU, hD⟩
       exact Or.inr (Or.inl ⟨hvUp, by omega⟩)
     · exfalso
-      have : (insert v (G.neighborFinset v)).sup (rank y) < lowerCount y := by
-        have hpos : 0 < lowerCount y := lt_of_le_of_lt (Nat.zero_le _) ((lower_iff y v).mpr hlow)
-        rw [Finset.sup_lt_iff (show (⊥ : ℕ) < lowerCount y by rw [Nat.bot_eq_zero]; omega)]
-        intro z hz
-        rcases Finset.mem_insert.mp hz with rfl | hz
-        · exact (lower_iff y z).mpr hlow
-        · exact (lower_iff y z).mpr
-            (nbr_lower_of_not_inner G y hlow hU ((G.mem_neighborFinset v z).mp hz))
+      have := sup_rank_lt_of_not_inner G y hlow hU
       omega
   · simp only [start, hlow, ↓reduceIte] at hs
     unfold upStart at hs
@@ -430,15 +424,7 @@ private theorem mem_conn_phase (hl : Connector.Good (Wp G y) (items G y) (ends G
     · right; right; right
       exact ⟨Finset.mem_sdiff.mpr ⟨hW, hD⟩, by omega⟩
     · exfalso
-      have hL := upper_rank hlow
-      have : lowerCount y ≤ (insert v (G.neighborFinset v)).inf' (Finset.insert_nonempty _ _)
-          (rank y) := by
-        rw [Finset.le_inf'_iff]
-        intro z hz
-        rcases Finset.mem_insert.mp hz with rfl | hz
-        · exact hL
-        · exact upper_rank (not_le.mpr (nbr_upper_of_not_outer G y (not_le.mp hlow) hW
-            ((G.mem_neighborFinset v z).mp hz)))
+      have := lowerCount_le_inf'_of_not_outer hlow hW
       omega
 
 end Members
@@ -456,10 +442,9 @@ private theorem card_D_Up : (crossFull G y).card + (Up G y).card ≤ lowerZero G
       obtain ⟨z, hz⟩ := crossFull_exists_nbr G y hD
       have hx0 : y x ≤ 0 := not_lt.mp hneg
       exact (mem_inner G y).mpr ⟨hx0, z, hz, (crossFull_nbr G y hD hz).mp hx0⟩
-  have hdisj : Disjoint (Up G y) ((crossFull G y).filter (fun x => ¬ 0 < y x)) := by
-    rw [Finset.disjoint_left]
-    intro x hx hx'
-    exact (Finset.mem_sdiff.mp hx).2 (Finset.mem_filter.mp hx').1
+  have hdisj : Disjoint (Up G y) ((crossFull G y).filter (fun x => ¬ 0 < y x)) :=
+    Finset.disjoint_left.mpr fun _ hx hx' =>
+      (Finset.mem_sdiff.mp hx).2 (Finset.mem_filter.mp hx').1
   have h := Finset.card_le_card hsub
   rw [Finset.card_union_of_disjoint hdisj] at h
   unfold lowerZero
@@ -474,14 +459,11 @@ private theorem card_D_Wp : (crossFull G y).card + K G y ≤ upperZero G y := by
     · exact (Finset.mem_sdiff.mp hx).1
     · obtain ⟨hD, hneg⟩ := Finset.mem_filter.mp hx
       obtain ⟨z, hz⟩ := crossFull_exists_nbr G y hD
-      have hz0 : y z ≤ 0 := by
-        by_contra h
-        exact hneg ((crossFull_nbr G y hD hz).mpr (not_le.mp h))
+      have hz0 : y z ≤ 0 := not_lt.mp fun h => hneg ((crossFull_nbr G y hD hz).mpr h)
       exact (mem_outer G y).mpr ⟨not_le.mp hneg, z, hz.symm, hz0⟩
-  have hdisj : Disjoint (Wp G y) ((crossFull G y).filter (fun x => ¬ y x ≤ 0)) := by
-    rw [Finset.disjoint_left]
-    intro x hx hx'
-    exact (Finset.mem_sdiff.mp hx).2 (Finset.mem_filter.mp hx').1
+  have hdisj : Disjoint (Wp G y) ((crossFull G y).filter (fun x => ¬ y x ≤ 0)) :=
+    Finset.disjoint_left.mpr fun _ hx hx' =>
+      (Finset.mem_sdiff.mp hx).2 (Finset.mem_filter.mp hx').1
   have h := Finset.card_le_card hsub
   rw [Finset.card_union_of_disjoint hdisj] at h
   unfold upperZero
@@ -521,11 +503,7 @@ private theorem start_le_finish (hl : Connector.Good (Wp G y) (items G y) (ends 
   · simp only [start, finish, hlow, ↓reduceIte]
     have hvL := (lower_iff y v).mpr hlow
     unfold lowEnd
-    split_ifs
-    · omega
-    · omega
-    · omega
-    · exact Finset.le_sup (Finset.mem_insert_self v _)
+    split_ifs <;> first | omega | exact Finset.le_sup (Finset.mem_insert_self v _)
   · simp only [start, finish, hlow, ↓reduceIte]
     have hL := upper_rank hlow
     unfold upStart
@@ -611,12 +589,10 @@ private theorem edge_meet (hy : Function.Injective y)
       · simp only [start, hu, ↓reduceIte]; omega
       · simp only [finish, hu, ↓reduceIte]; exact lowEnd_ge_nbr hu huv hv
       · simp [start, hv]
-      · have := start_le_finish hl v
-        simpa [start, hv] using this
+      · simpa [start, hv] using start_le_finish hl v
     · refine ⟨rank y u, ?_, ?_, ?_, ?_⟩
       · simp [start, hu]
-      · have := start_le_finish hl u
-        simpa [start, hu] using this
+      · simpa [start, hu] using start_le_finish hl u
       · simp only [start, hv, ↓reduceIte]; omega
       · simp only [finish, hv, ↓reduceIte]; exact lowEnd_ge_nbr hv huv.symm hu
   · exact crossing_edge hl huv hu hv
@@ -625,16 +601,14 @@ private theorem edge_meet (hy : Function.Injective y)
   · -- both upper: meet at the smaller rank's last time
     rcases Nat.lt_or_gt_of_ne hne with h | h
     · refine ⟨rank y u + K G y + 2, ?_, ?_, ?_, ?_⟩
-      · have := start_le_finish hl u
-        simpa [finish, hu] using this
+      · simpa [finish, hu] using start_le_finish hl u
       · simp [finish, hu]
       · simp only [start, hv, ↓reduceIte]; exact upStart_le_nbr hl huv.symm hu
       · simp only [finish, hv, ↓reduceIte]; omega
     · refine ⟨rank y v + K G y + 2, ?_, ?_, ?_, ?_⟩
       · simp only [start, hu, ↓reduceIte]; exact upStart_le_nbr hl huv hv
       · simp only [finish, hu, ↓reduceIte]; omega
-      · have := start_le_finish hl v
-        simpa [finish, hv] using this
+      · simpa [finish, hv] using start_le_finish hl v
       · simp [finish, hv]
 
 end Facts
@@ -662,10 +636,7 @@ private theorem inner_bag_card (hy : Function.Injective y) {w : ℝ} (hw0 : 0 �
   have hA : (A.card : ℝ) ≤ 1 := by exact_mod_cast card_rank_eq_le hy t
   have hB : (B.card : ℝ) ≤ w := by
     rcases Nat.eq_zero_or_pos t with h0 | hpos
-    · have : B = ∅ := by
-        ext v
-        simp [B, h0]
-      rw [this]
+    · rw [show B = ∅ by ext v; simp [B, h0]]
       simpa using hw0
     · have hLn : lowerCount y ≤ n := by
         unfold lowerCount
@@ -684,9 +655,7 @@ private theorem inner_bag_card (hy : Function.Injective y) {w : ℝ} (hw0 : 0 �
       exact le_trans (by exact_mod_cast Finset.card_le_card hsubB) this
   have hc := Finset.card_le_card hsub
   have hu := Finset.card_union_le A B
-  have : ((intervalBag (start G y l) (finish G y l) t).card : ℝ) ≤ A.card + B.card := by
-    exact_mod_cast hc.trans hu
-  linarith
+  cast_linarith [hc.trans hu]
 
 open Classical in
 /-- Outer phase: at most one leaving vertex plus an outer frontier at a
@@ -703,7 +672,6 @@ private theorem outer_bag_card (hy : Function.Injective y)
     rcases mem_outer_phase hl hi hv with h | h
     · exact Finset.mem_union_left _ (by simp [A, h])
     · exact Finset.mem_union_right _ (by simp [B, h])
-  have hA : (A.card : ℝ) ≤ 1 := by exact_mod_cast card_rank_eq_le hy i
   obtain ⟨x, hx⟩ := exists_rank_eq hy hin
   have hx0 : 0 < y x := not_le.mp fun h => by
     have := (lower_iff y x).mpr h
@@ -718,10 +686,7 @@ private theorem outer_bag_card (hy : Function.Injective y)
     le_trans (by exact_mod_cast Finset.card_le_card hsubB) (hout (y x) hx0)
   have hc := Finset.card_le_card hsub
   have hu := Finset.card_union_le A B
-  have : ((intervalBag (start G y l) (finish G y l) (i + K G y + 2)).card : ℝ) ≤
-      A.card + B.card := by
-    exact_mod_cast hc.trans hu
-  linarith
+  cast_linarith [hc.trans hu, card_rank_eq_le hy i]
 
 open Classical in
 /-- Connector phase: `|D| + max(|U'|, |W'|) + 2`. -/
@@ -765,12 +730,9 @@ private theorem conn_bag_card (hl : Connector.Good (Wp G y) (items G y) (ends G 
       exact Finset.card_filter_add_card_filter_not _
     -- `|J| ≤ k` and `|J| ≤ |W'|`
     have hJk : J.card ≤ k := by
-      have : J ⊆ (l.take k).toFinset := by
-        intro w hw
-        obtain ⟨hwW, hwk⟩ := Finset.mem_filter.mp hw
-        exact (mem_prefix_iff hl hwW k).mpr hwk
-      refine (Finset.card_le_card this).trans ?_
-      exact (List.toFinset_card_le _).trans (by simp)
+      have : J ⊆ (l.take k).toFinset := fun w hw =>
+        (mem_prefix_iff hl (Finset.mem_filter.mp hw).1 k).mpr (Finset.mem_filter.mp hw).2
+      exact (Finset.card_le_card this).trans ((List.toFinset_card_le _).trans (by simp))
     have hJK : J.card ≤ K G y := Finset.card_le_card (Finset.filter_subset _ _)
     -- the connector order bound at `j = k - 1`
     have hgood := hl.2.2 (k - 1) (by unfold K at hk; omega)
@@ -793,15 +755,14 @@ private theorem conn_bag_card (hl : Connector.Good (Wp G y) (items G y) (ends G 
         ((upperZero G y : ℤ) - (crossFull G y).card) =
         max (lowerZero G y : ℤ) (upperZero G y) - (crossFull G y).card :=
       max_sub_sub_right _ _ _
-    have hk1 : ((k - 1 : ℕ) : ℤ) = k - 1 := by
-      have : 1 ≤ k := hpos
-      push_cast [this]
-      ring
+    have hk1 : ((k - 1 : ℕ) : ℤ) = k - 1 := by omega
     zify at hcard hI hJk ⊢
     rw [hk1] at hgood
     linarith
 
 end Bags
+
+/-! ## Main theorem -/
 
 open Classical in
 /-- **L1–L3.** The median-switched layout gives a family of vertex intervals `[s v, e v]`
@@ -832,20 +793,17 @@ public theorem exists_intervals_of_loads {n : ℕ} (G : SimpleGraph (Fin n))
     by_cases h1 : t < lowerCount y
     · have h := inner_bag_card (l := l) hy (w := (w : ℝ)) (Nat.cast_nonneg w)
         (fun s hs => by exact_mod_cast hin s hs) h1
-      have h' : ((intervalBag (start G y l) (finish G y l) t).card : ℝ) ≤
-          ((w + 1 : ℕ) : ℝ) := by
-        push_cast; exact h
-      exact (Nat.cast_le (α := ℝ).mp h').trans (by omega)
+      have h' : (intervalBag (start G y l) (finish G y l) t).card ≤ w + 1 := by exact_mod_cast h
+      omega
     · by_cases h2 : t ≤ lowerCount y + K G y + 1
       · obtain ⟨k, rfl⟩ : ∃ k, t = lowerCount y + k := ⟨t - lowerCount y, by omega⟩
         exact (conn_bag_card hl (k := k) (by omega)).trans (by omega)
       · obtain ⟨i, rfl⟩ : ∃ i, t = i + K G y + 2 := ⟨t - K G y - 2, by omega⟩
         have h := outer_bag_card hy hl (w := (w : ℝ)) (i := i)
           (fun s hs => by exact_mod_cast hout s hs) (by omega) (by omega)
-        have h' : ((intervalBag (start G y l) (finish G y l) (i + K G y + 2)).card : ℝ) ≤
-            ((w + 1 : ℕ) : ℝ) := by
-          push_cast; exact h
-        exact (Nat.cast_le (α := ℝ).mp h').trans (by omega)
+        have h' : (intervalBag (start G y l) (finish G y l) (i + K G y + 2)).card ≤ w + 1 := by
+          exact_mod_cast h
+        omega
 
 end
 

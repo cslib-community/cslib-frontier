@@ -69,7 +69,6 @@ open BitString Finset
 @[expose] def trinomialStepAux (B : ℕ) : ℕ :=
   if B ≤ 2 then 0
   else trinomialStepAux ((B + 2) / 3) + 1
-decreasing_by omega
 
 /-- `2 * 3 ^ trinomialStepAux B` is at least `B`. -/
 theorem le_two_mul_three_pow_trinomialStepAux (B : ℕ) :

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Word
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Shared reached-state reasoning for native Dijkstra clients
@@ -49,34 +50,22 @@ theorem relax_valid_queue {n K V : ℕ}
     match dist v with
     | none => IndexedMinPQ.valid K pq (.insert v (du + c))
     | some old => du + c < old → IndexedMinPQ.valid K pq (.decreaseKey v (du + c)) := by
-  cases hd : dist v with
-  | none =>
-    have hp := hv
-    unfold relaxEdge at hp
-    dsimp only [edge, getDist, setDist, queue, StateTransitionSpec.clientHistory,
-      StateTransitionSpec.runClient, PFunctor.FreeM.lift, PFunctor.FreeM.bind,
-      Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure,
-      StateTransitionSpec.stepFn, productStepFn] at hp
-    rw [hg] at hp
-    dsimp only [Dictionary.step, StateTransitionSpec.runClient, PFunctor.FreeM.bind,
-      Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure] at hp
-    rw [hd] at hp
-    exact hp.2.2.2.1
-  | some old =>
-    intro hc
-    have hp := hv
-    unfold relaxEdge at hp
-    dsimp only [edge, getDist, setDist, queue, StateTransitionSpec.clientHistory,
-      StateTransitionSpec.runClient, PFunctor.FreeM.lift, PFunctor.FreeM.bind,
-      Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure,
-      StateTransitionSpec.stepFn, productStepFn] at hp
-    rw [hg] at hp
-    dsimp only [Dictionary.step, StateTransitionSpec.runClient, PFunctor.FreeM.bind,
-      Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure] at hp
-    rw [hd] at hp
-    dsimp only at hp
-    rw [ite_eq_left hc] at hp
-    exact hp.2.2.2.1
+  unfold relaxEdge at hv
+  dsimp only [edge, getDist, setDist, queue, StateTransitionSpec.clientHistory,
+    StateTransitionSpec.runClient, PFunctor.FreeM.lift, PFunctor.FreeM.bind,
+    Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure,
+    StateTransitionSpec.stepFn, productStepFn] at hv
+  rw [hg] at hv
+  dsimp only [Dictionary.step, StateTransitionSpec.runClient, PFunctor.FreeM.bind,
+    Bind.bind, Pure.pure, PFunctor.FreeM.instBind, PFunctor.FreeM.instPure] at hv
+  rcases hd : dist v with _ | old
+  · rw [hd] at hv
+    exact hv.2.2.2.1
+  · intro hc
+    rw [hd] at hv
+    dsimp only at hv
+    rw [ite_eq_left hc] at hv
+    exact hv.2.2.2.1
 
 
 /-- The suffix of the original adjacency scan after the first `i` edges. -/
@@ -379,14 +368,10 @@ theorem abstractLoopStep_extract {n K V w a : ℕ}
   have hrmap : (Memory.spec 0).clientResult s extract =
       Option.map (fun p => (p.1.val, p.2))
         ((spec n K V).clientResult (M.abs s) (queue .extractMin)) := by
-    rw [hex, ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientResult,
-      StateTransitionSpec.runClient_bind]
-    simp only [Function.comp_apply, StateTransitionSpec.runClient_pure']
-    exact congrArg (Option.map fun p : Fin n × ℕ => (p.1.val, p.2)) hres
+    rw [hex, StateTransitionSpec.clientResult]
+    simp only [client_simps, hres]
   have hsmap : (Memory.spec 0).clientState s extract = (Memory.spec 0).clientState s q := by
-    rw [hex, ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientState,
-      StateTransitionSpec.runClient_bind]
-    rfl
+    simp only [hex, StateTransitionSpec.clientState, client_simps]
   cases hq : (spec n K V).clientResult (M.abs s) (queue .extractMin) with
   | none => exact Or.inl (by simp only [hrmap, hq, Option.map_none])
   | some uk =>

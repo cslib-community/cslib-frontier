@@ -13,14 +13,13 @@ public import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
 import CslibFrontier.Computability.Probabilistic.Repeat
-import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Fixed-first-coordinate DDH rerandomization and Multi-DDH
@@ -38,8 +37,6 @@ and the Multi-DDH game hops) and the executable `ProbComp` reductions and unifor
 witnesses (`ddhFixedUSelfReduceDistinguisher`, `singleSecretMultiDDHToDDHDistinguisher`,
 `DDH.singleSecretMultiDDH`, `multiDDHToDDHDistinguisher`, `DDH.multiDDH`) using approximate
 exponent sampling via `sampleExp`.
-The distributional core was extracted from the reviewed Naor–Reingold source in PR #1103,
-authored by worker-jetski-cf53d356 (Gemini).
 
 ## Main definitions
 
@@ -215,17 +212,8 @@ theorem ddhFixedURerandomizeLaw_real (d : F.Desc) (α β : ZMod (F.order d)) :
   simp only [ddhFixedURerandomizeLaw, ddhFixedURealLaw, ddhFixedURerandomize_smul_generator,
     sub_self, mul_zero, add_zero, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   rw [PMF.bind_comm]
-  have hσ (τ : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun σ =>
-        PMF.pure ((σ + τ * β) • F.generator d, (α * (σ + τ * β)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (β' • F.generator d, (α * β') • F.generator d)) :=
-    by
-      change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-        ((fun β' => PMF.pure (β' • F.generator d, (α * β') • F.generator d)) ∘
-          Equiv.addRight (τ * β)) = _
-      rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
-  simp_rw [hσ, PMF.bind_const]
+  drop_uniform with τ
+  relabel_uniform (Equiv.addRight (τ * β))
 
 /-- **Boneh–Shoup Exercise 10.8(b)**: if `(u, v, w) = (α • g, β • g, γ • g)` is a non-DDH triple
 (`γ ≠ α * β`), then `ddhFixedURerandomizeLaw` produces `ddhFixedURandomLaw d`. -/
@@ -234,26 +222,15 @@ theorem ddhFixedURerandomizeLaw_random (d : F.Desc) {α β γ : ZMod (F.order d)
       F.ddhFixedURandomLaw d := by
   simp only [ddhFixedURerandomizeLaw, ddhFixedURandomLaw, ddhFixedURerandomize_smul_generator,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  rw [PMF.bind_comm]
-  have hσ (τ : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun σ =>
-        PMF.pure ((σ + τ * β) • F.generator d,
-          (α * (σ + τ * β) + τ * (γ - α * β)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (β' • F.generator d,
-          (α * β' + τ * (γ - α * β)) • F.generator d)) :=
-    by
-      change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-        ((fun β' => PMF.pure (β' • F.generator d,
-          (α * β' + τ * (γ - α * β)) • F.generator d)) ∘ Equiv.addRight (τ * β)) = _
-      rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
-  simp_rw [hσ]
-  rw [PMF.bind_comm]
-  congr 1 with β' : 1
-  change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-    ((fun γ' => PMF.pure (β' • F.generator d, γ' • F.generator d)) ∘
-      (Equiv.mulRight₀ (γ - α * β) (sub_ne_zero.mpr hγ)).trans (Equiv.addLeft (α * β'))) = _
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
+  relabel_uniform (fun p : ZMod (F.order d) × ZMod (F.order d) =>
+    (p.1 + p.2 * β, α * (p.1 + p.2 * β) + p.2 * (γ - α * β)))
+  rintro ⟨σ₁, τ₁⟩ ⟨σ₂, τ₂⟩ h
+  simp only [Prod.mk.injEq] at h
+  have hτ : τ₁ = τ₂ := by
+    apply mul_right_cancel₀ (sub_ne_zero.mpr hγ)
+    linear_combination -α * h.1 + h.2
+  subst hτ
+  exact Prod.ext (add_right_cancel h.1) rfl
 
 /-- The Multi-DDH (I) real tuple family `i ↦ (B i • g, (α * B i) • g)` for a fixed `α` and an
 index type `ι` ([BonehShoup2023], Section 10.11, Exercise 10.11, p. 426). -/
@@ -277,51 +254,26 @@ and output `i ↦ ddhFixedURerandomize d u v w (σ i) (τ i)`. -/
   (PMF.uniformOfFintype (ι → ZMod (F.order d) × ZMod (F.order d))).map fun r i =>
     F.ddhFixedURerandomize d u v w (r i).1 (r i).2
 
-private def ddhRerandomizeRealTupleEquiv {q : ℕ} (ι : Type*) (β : ZMod q) :
-    (ι → ZMod q × ZMod q) ≃ ((ι → ZMod q) × (ι → ZMod q)) where
-  toFun r := (fun i => (r i).1 + (r i).2 * β, fun i => (r i).2)
-  invFun p i := (p.1 i - p.2 i * β, p.2 i)
-  left_inv r := by ext i <;> simp
-  right_inv p := by ext i <;> simp
-
-private def ddhRerandomizeRealCoordEquiv {q : ℕ} (β : ZMod q) :
-    (ZMod q × ZMod q) ≃ (ZMod q × ZMod q) where
-  toFun p := (p.1 + p.2 * β, p.2)
-  invFun p := (p.1 - p.2 * β, p.2)
-  left_inv p := by ext <;> simp
-  right_inv p := by ext <;> simp
-
-private def ddhRerandomizeSecondCoordEquiv {q : ℕ} [Fact (Nat.Prime q)]
-    {α β γ : ZMod q} (hγ : γ ≠ α * β) :
-    (ZMod q × ZMod q) ≃ (ZMod q × ZMod q) where
-  toFun p := (p.1, α * p.1 + p.2 * (γ - α * β))
-  invFun p := (p.1, (p.2 - α * p.1) * (γ - α * β)⁻¹)
-  left_inv p := by
-    have hne : γ - α * β ≠ 0 := sub_ne_zero.mpr hγ
-    ext
-    · rfl
-    · dsimp; rw [add_sub_cancel_left, mul_assoc, mul_inv_cancel₀ hne, mul_one]
-  right_inv p := by
-    have hne : γ - α * β ≠ 0 := sub_ne_zero.mpr hγ
-    ext
-    · rfl
-    · dsimp; rw [mul_assoc, inv_mul_cancel₀ hne, mul_one, add_sub_cancel]
-
 /-- On any real DDH triple `(α • g, β • g, (α * β) • g)`, `multiDDHRerandomizeLaw` produces
 `multiDDHRealTupleLaw d ι α` ([BonehShoup2023], Exercise 10.11). -/
 theorem multiDDHRerandomizeLaw_real (d : F.Desc) (ι : Type*) [Fintype ι] [DecidableEq ι]
     (α β : ZMod (F.order d)) :
     F.multiDDHRerandomizeLaw d ι (α • F.generator d) (β • F.generator d)
       ((α * β) • F.generator d) = F.multiDDHRealTupleLaw d ι α := by
-  let e : (ι → ZMod (F.order d) × ZMod (F.order d)) ≃
-      ((ι → ZMod (F.order d)) × (ι → ZMod (F.order d))) :=
-    ddhRerandomizeRealTupleEquiv ι β
   rw [multiDDHRealTupleLaw,
     ← PMF.uniformOfFintype_prod_map_fst (α := ι → ZMod (F.order d)) (β := ι → ZMod (F.order d)),
-    ← PMF.uniformOfFintype_map_equiv e, PMF.map_comp, PMF.map_comp,
-    multiDDHRerandomizeLaw]
-  congr 1 with r : 1; funext i
-  simp [e, ddhRerandomizeRealTupleEquiv, ddhFixedURerandomize_smul_generator]
+    PMF.map_comp, multiDDHRerandomizeLaw]
+  relabel_uniform
+    (fun r : ι → ZMod (F.order d) × ZMod (F.order d) =>
+      (fun i => (r i).1 + (r i).2 * β, fun i => (r i).2))
+  · intro r₁ r₂ h
+    funext i
+    have h₁ := congr_fun (Prod.mk.inj h).1 i
+    have h₂ := congr_fun (Prod.mk.inj h).2 i
+    rw [h₂] at h₁
+    exact Prod.ext (add_right_cancel h₁) h₂
+  · funext i
+    simp [ddhFixedURerandomize_smul_generator]
 
 /-- On any non-DDH triple `(α • g, β • g, γ • g)` with `γ ≠ α * β`, `multiDDHRerandomizeLaw`
 produces `multiDDHRandomTupleLaw d ι` ([BonehShoup2023], Exercise 10.11). -/
@@ -329,15 +281,19 @@ theorem multiDDHRerandomizeLaw_random (d : F.Desc) (ι : Type*) [Fintype ι] [De
     {α β γ : ZMod (F.order d)} (hγ : γ ≠ α * β) :
     F.multiDDHRerandomizeLaw d ι (α • F.generator d) (β • F.generator d) (γ • F.generator d) =
       F.multiDDHRandomTupleLaw d ι := by
-  let e : (ι → ZMod (F.order d) × ZMod (F.order d)) ≃
-      (ι → ZMod (F.order d) × ZMod (F.order d)) :=
-    Equiv.piCongrRight fun _ =>
-      (ddhRerandomizeRealCoordEquiv β).trans (ddhRerandomizeSecondCoordEquiv hγ)
-  rw [multiDDHRandomTupleLaw, ← PMF.uniformOfFintype_map_equiv e, PMF.map_comp,
-    multiDDHRerandomizeLaw]
-  congr 1 with r : 1; funext i
-  simp [e, ddhRerandomizeRealCoordEquiv, ddhRerandomizeSecondCoordEquiv,
-    ddhFixedURerandomize_smul_generator]
+  rw [multiDDHRandomTupleLaw, multiDDHRerandomizeLaw]
+  relabel_uniform
+    (fun r : ι → ZMod (F.order d) × ZMod (F.order d) => fun i =>
+      ((r i).1 + (r i).2 * β, α * ((r i).1 + (r i).2 * β) + (r i).2 * (γ - α * β)))
+  · intro r₁ r₂ h
+    funext i
+    have hi := Prod.mk.inj (congr_fun h i)
+    have h₂ : (r₁ i).2 = (r₂ i).2 := by
+      apply mul_right_cancel₀ (sub_ne_zero.mpr hγ)
+      linear_combination -α * hi.1 + hi.2
+    exact Prod.ext (add_right_cancel (by rw [h₂] at hi; exact hi.1)) h₂
+  · funext i
+    simp [ddhFixedURerandomize_smul_generator]
 
 /-- On a real DDH triple, `multiDDHRerandomizeLaw` produces `multiDDHRealTupleLaw`. -/
 theorem ddhRealTupleLaw_bind_multiDDHRerandomizeLaw (d : F.Desc) (ι : Type*) [Fintype ι]
@@ -489,12 +445,14 @@ replacing the two exact uniform exponents of `ddhFixedURerandomizeLaw` by the `s
 theorem advantage_ddhFixedURerandomizeLaw_ddhFixedUSelfReduceDistinguisher_le
     (distinguisher : F.DDHDistinguisher) (n : ℕ) (d : F.Desc) (u v w : F.Carrier d) :
     Game.advantage
-      ((F.ddhFixedURerandomizeLaw d u v w).bind fun (v', w') =>
+      (do
+        let (v', w') ← F.ddhFixedURerandomizeLaw d u v w
         ProbComp.eval (distinguisher n d u v' w'))
       (ProbComp.eval (F.ddhFixedUSelfReduceDistinguisher distinguisher n d u v w)) ≤
       2 / 2 ^ n := by
   rw [Game.advantage_comm]
-  simpa only [ddhFixedUSelfReduceDistinguisher, ProbComp.eval_bind] using
+  simpa only [ddhFixedUSelfReduceDistinguisher, ProbComp.eval_bind,
+    PMF.monad_bind_eq_bind] using
     F.advantage_bind_ddhFixedURerandomizeComp_le n d u v w
       (fun (v', w') => ProbComp.eval (distinguisher n d u v' w'))
 
@@ -733,13 +691,14 @@ theorem advantage_multiDDHRerandomizeLaw_singleSecretMultiDDHToDDHDistinguisher_
     (count : ℕ → ℕ) (distinguisher : F.SingleSecretMultiDDHDistinguisher) (n : ℕ) (d : F.Desc)
     (u v w : F.Carrier d) :
     Game.advantage
-      ((F.multiDDHRerandomizeLaw d (Fin (count n)) u v w).bind fun tuple =>
+      (do
+        let tuple ← F.multiDDHRerandomizeLaw d (Fin (count n)) u v w
         ProbComp.eval (distinguisher n d u (List.ofFn tuple)))
       (ProbComp.eval (F.singleSecretMultiDDHToDDHDistinguisher count distinguisher n d u v w)) ≤
       (2 * count n : ℝ≥0) / 2 ^ n := by
   rw [Game.advantage_comm]
   unfold singleSecretMultiDDHToDDHDistinguisher
-  simpa only [ProbComp.eval_bind] using
+  simpa only [ProbComp.eval_bind, PMF.monad_bind_eq_bind] using
     F.advantage_replicate_ddhFixedURerandomizeComp_le (count n) n d u v w
       (fun pairs => ProbComp.eval (distinguisher n d u pairs))
 
@@ -848,13 +807,7 @@ theorem DDH.singleSecretMultiDDH {F : PrimeOrderGroupFamily} {setup : ℕ → PM
   intro distinguisher hD
   have hddh := hDDH _ (F.isPPT_singleSecretMultiDDHToDDHDistinguisher hcount hD)
   have hord := hDDH.negligible_expected_inv_order
-  obtain ⟨t, _, ht, _, htm⟩ := hcount
-  have hpoly : PolynomiallyBounded count := ht.mono_of_le fun n => by
-    simpa using htm.length_le n
-  have hsamp : Negligible fun n => (4 * count n : ℝ≥0) / 2 ^ n := by
-    simpa [Nat.cast_mul] using ((PolynomiallyBounded.const 4).mul hpoly).negligible_div_two_pow
-  exact negligible_of_le ((hddh.add hord).add hsamp)
-    (F.advantage_singleSecretMultiDDHGame_le setup count distinguisher)
+  negligible using F.advantage_singleSecretMultiDDHGame_le setup count distinguisher
 
 /-! ### Full two-parameter $(n, m)$ Multi-DDH (I) reduction (Exercises 10.9 & 10.11) -/
 
@@ -965,10 +918,7 @@ theorem ddhShiftAndRerandomizeLaw_real (d : F.Desc) (m : ℕ) (α β : ZMod (F.o
   unfold ddhShiftAndRerandomizeLaw multiDDHRealBlockLaw
   simp only [ddhShift_smul_generator, sub_self, add_zero, multiDDHRerandomizeLaw_real,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-    (((fun α' => (F.multiDDHRealTupleLaw d (Fin m) α').bind fun tuple =>
-      PMF.pure (α' • F.generator d, List.ofFn tuple))) ∘ Equiv.addLeft α) = _
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
+  relabel_uniform (Equiv.addLeft α)
 
 /-- On any non-DDH triple `(α • g, β • g, γ • g)` with `γ ≠ α * β`,
 `ddhShiftAndRerandomizeLaw d m` produces `multiDDHRandomBlockLaw d m`
@@ -983,18 +933,19 @@ theorem ddhShiftAndRerandomizeLaw_random (d : F.Desc) (m : ℕ) {α β γ : ZMod
     exact hγ (by linear_combination h)
   simp only [ddhShift_smul_generator, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   simp_rw [fun ρ => F.multiDDHRerandomizeLaw_random d (Fin m) (hne ρ)]
-  change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-    (((fun α' => (F.multiDDHRandomTupleLaw d (Fin m)).bind fun tuple =>
-      PMF.pure (α' • F.generator d, List.ofFn tuple))) ∘ Equiv.addLeft α) = _
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
+  relabel_uniform (Equiv.addLeft α)
 
 /-- On a real DDH triple, `k` independent draws from `ddhShiftAndRerandomizeLaw d m` produce
 `PMF.iid (multiDDHRealBlockLaw d m) k`. -/
 theorem ddhRealTupleLaw_bind_iid_ddhShiftAndRerandomizeLaw (d : F.Desc) (k m : ℕ)
     (test : (Fin k → F.Carrier d × List (F.Carrier d × F.Carrier d)) → PMF Bool) :
-    ((F.ddhRealTupleLaw d).bind fun (u, v, w) =>
-      (PMF.iid (F.ddhShiftAndRerandomizeLaw d m u v w) k).bind test) =
-    (PMF.iid (F.multiDDHRealBlockLaw d m) k).bind test := by
+    (do
+      let (u, v, w) ← F.ddhRealTupleLaw d
+      let blocks ← PMF.iid (F.ddhShiftAndRerandomizeLaw d m u v w) k
+      test blocks) =
+    (do
+      let blocks ← PMF.iid (F.multiDDHRealBlockLaw d m) k
+      test blocks) := by
   simp only [pmf_norm, ddhRealTupleLaw, ddhShiftAndRerandomizeLaw_real, PMF.bind_const]
 
 /-- On a random DDH triple, `k` independent draws from `ddhShiftAndRerandomizeLaw d m` agree with
@@ -1003,9 +954,13 @@ valid DDH triples. -/
 theorem advantage_ddhRandomTupleLaw_iid_ddhShiftAndRerandomizeLaw_le (d : F.Desc) (k m : ℕ)
     (test : (Fin k → F.Carrier d × List (F.Carrier d × F.Carrier d)) → PMF Bool) :
     Game.advantage
-      ((F.ddhRandomTupleLaw d).bind fun (u, v, w) =>
-        (PMF.iid (F.ddhShiftAndRerandomizeLaw d m u v w) k).bind test)
-      ((PMF.iid (F.multiDDHRandomBlockLaw d m) k).bind test) ≤
+      (do
+        let (u, v, w) ← F.ddhRandomTupleLaw d
+        let blocks ← PMF.iid (F.ddhShiftAndRerandomizeLaw d m u v w) k
+        test blocks)
+      (do
+        let blocks ← PMF.iid (F.multiDDHRandomBlockLaw d m) k
+        test blocks) ≤
     (F.order d : ℝ≥0)⁻¹ := by
   simp only [pmf_norm, ddhRandomTupleLaw]
   rw [← PMF.bind_const (PMF.uniformOfFintype (ZMod (F.order d)))
@@ -1305,14 +1260,15 @@ theorem advantage_ddhShiftAndRerandomizeLaw_multiDDHToDDHDistinguisher_le
     (secretCount pairCount : ℕ → ℕ) (distinguisher : F.MultiDDHDistinguisher) (n : ℕ) (d : F.Desc)
     (u v w : F.Carrier d) :
     Game.advantage
-      ((PMF.iid (F.ddhShiftAndRerandomizeLaw d (pairCount n) u v w) (secretCount n)).bind
-        fun blocks => ProbComp.eval (distinguisher n d (List.ofFn blocks)))
+      (do
+        let blocks ← PMF.iid (F.ddhShiftAndRerandomizeLaw d (pairCount n) u v w) (secretCount n)
+        ProbComp.eval (distinguisher n d (List.ofFn blocks)))
       (ProbComp.eval
         (F.multiDDHToDDHDistinguisher secretCount pairCount distinguisher n d u v w)) ≤
       (secretCount n * (1 + 2 * pairCount n) : ℝ≥0) / 2 ^ n := by
   rw [Game.advantage_comm]
   unfold multiDDHToDDHDistinguisher
-  simpa only [ProbComp.eval_bind] using
+  simpa only [ProbComp.eval_bind, PMF.monad_bind_eq_bind] using
     F.advantage_replicate_ddhShiftAndRerandomizeComp_le (secretCount n) (pairCount n) n d u v w
       (fun blocks => ProbComp.eval (distinguisher n d blocks))
 
@@ -1397,18 +1353,6 @@ theorem DDH.multiDDH {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
   intro distinguisher hD
   have hddh := hDDH _ (F.isPPT_multiDDHToDDHDistinguisher hsecret hpair hD)
   have hord := hDDH.negligible_expected_inv_order
-  obtain ⟨ts, _, hts, _, htms⟩ := hsecret
-  have hpoly_s : PolynomiallyBounded secretCount := hts.mono_of_le fun n => by
-    simpa using htms.length_le n
-  obtain ⟨tp, _, htp, _, htmp⟩ := hpair
-  have hpoly_p : PolynomiallyBounded pairCount := htp.mono_of_le fun n => by
-    simpa using htmp.length_le n
-  have hpoly : PolynomiallyBounded (fun n => 2 * secretCount n * (1 + 2 * pairCount n)) :=
-    ((PolynomiallyBounded.const 2).mul hpoly_s).mul
-      ((PolynomiallyBounded.const 1).add ((PolynomiallyBounded.const 2).mul hpoly_p))
-  have hsamp : Negligible fun n => (2 * secretCount n * (1 + 2 * pairCount n) : ℝ≥0) / 2 ^ n := by
-    simpa [Nat.cast_mul, Nat.cast_add] using hpoly.negligible_div_two_pow
-  exact negligible_of_le ((hddh.add hord).add hsamp)
-    (F.advantage_multiDDHGame_le setup secretCount pairCount distinguisher)
+  negligible using F.advantage_multiDDHGame_le setup secretCount pairCount distinguisher
 
 end Cslib.Crypto.PrimeOrderGroupFamily

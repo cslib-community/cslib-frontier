@@ -263,12 +263,10 @@ private theorem two_pow_succ_mul_slack_mul_le {m r : ℕ} {b : ℝ} (hr : 48 * r
     ring
   have hE : (2 : ℝ) ^ (m + 1) * (8 * ((m : ℝ) + 1) * (27 / 32) ^ r +
       (12 * (r : ℝ) + 1) * 2 ^ (12 * r) * (3 / 4) ^ (m + 1)) ≤
-      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) :=
-    mul_le_mul_of_nonneg_left hsl (by positivity)
+      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) := by gcongr
   have h1 := mul_le_mul_of_nonneg_right hE hb0
   have h2 : (2 : ℝ) ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * b ≤
-      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m :=
-    mul_le_mul_of_nonneg_left hb (by positivity)
+      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m := by gcongr
   have h3 : (2 : ℝ) ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m =
       18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r := by
     rw [mul_comm _ ((2 : ℝ) ^ m), ← mul_assoc, mul_comm ((2 : ℝ) ^ m), hpow]
@@ -336,21 +334,17 @@ private theorem sum_low_mul_low_le (hU : Fintype.card U = 2 * m + 1) (A B : Fins
     intro T _
     have h0 : (0 : ℝ) ≤ (low A T.left : ℝ) * low B T.right := by positivity
     have h0' : (0 : ℝ) ≤ (high A T.point T.right : ℝ) * high B T.point T.left := by positivity
-    by_cases hx : 3 * high A T.point T.right < low A T.left
-    · by_cases hy : 3 * high B T.point T.left < low B T.right
-      · simp only [hx, hy, ↓reduceIte]
-        nlinarith
-      · simp only [hx, hy, ↓reduceIte]
-        linarith
-    · by_cases hy : 3 * high B T.point T.left < low B T.right
-      · simp only [hx, hy, ↓reduceIte]
-        nlinarith
-      · simp only [hx, hy, ↓reduceIte, add_zero]
-        push Not at hx hy
-        have hx' : (low A T.left : ℝ) ≤ 3 * high A T.point T.right := by exact_mod_cast hx
-        have hy' : (low B T.right : ℝ) ≤ 3 * high B T.point T.left := by exact_mod_cast hy
-        have := mul_le_mul hx' hy' (Nat.cast_nonneg _) (by positivity)
-        linarith
+    by_cases hx : 3 * high A T.point T.right < low A T.left <;>
+      by_cases hy : 3 * high B T.point T.left < low B T.right <;>
+      simp only [hx, hy, ↓reduceIte, add_zero]
+    · nlinarith
+    · linarith
+    · nlinarith
+    · push Not at hx hy
+      have hx' : (low A T.left : ℝ) ≤ 3 * high A T.point T.right := by exact_mod_cast hx
+      have hy' : (low B T.right : ℝ) ≤ 3 * high B T.point T.left := by exact_mod_cast hy
+      have := mul_le_mul hx' hy' (Nat.cast_nonneg _) (by positivity)
+      linarith
   have h := sum_le_sum hpt
   rw [sum_add_distrib, sum_add_distrib, ← mul_sum] at h
   have hcomm : ∑ T ∈ parts U m, (low B T.right : ℝ) * low A T.left =
@@ -643,8 +637,7 @@ theorem PublicCoin.div_le_mul_ecomplexityFun_disjoint_add (hU : Fintype.card U =
       rw [le_div_iff₀ (by positivity)] at this
       linarith
     have hnat : 13 * 32 ^ r ≤ 576 * 2 ^ c * 27 ^ r := by exact_mod_cast hreal
-    have := le_of_mul_pow_le hnat
-    exact_mod_cast this
+    exact_mod_cast le_of_mul_pow_le hnat
 
 /-- Disjointness of subsets of `Fin k` is disjointness of their indicators as bit strings of
 length `n`, along an embedding of `Fin k` into `Fin n`. -/
@@ -680,11 +673,10 @@ theorem PublicCoin.le_mul_ecomplexityFun_disjointness_add_of_le {ε : ℝ} (hε 
   have h2 : PublicCoin.ecomplexityFun (1 / 64)
       (fun x y : Finset (Fin (2 * m + 1)) => decide (Disjoint x y)) ≤
         PublicCoin.ecomplexityFun (1 / 64) (disjointness : BitString n → BitString n → Bool) := by
-    have := PublicCoin.ecomplexityFun_comap_le (ε := 1 / 64)
+    simpa only [disjointness_indicator] using PublicCoin.ecomplexityFun_comap_le (ε := 1 / 64)
       (disjointness : BitString n → BitString n → Bool)
       (fun x : Finset (Fin (2 * m + 1)) => fun i => decide (i ∈ x.map (Fin.castLEEmb hmn)))
       (fun y : Finset (Fin (2 * m + 1)) => fun i => decide (i ∈ y.map (Fin.castLEEmb hmn)))
-    simpa only [disjointness_indicator] using this
   cases h : PublicCoin.ecomplexityFun (1 / 64) (disjointness : BitString n → BitString n → Bool)
     using ENat.recTopCoe with
   | top => simp

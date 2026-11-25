@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Distributed.Byzantine.OralMessages
 public import CslibFrontier.Foundations.Data.BitString.MajorityVote
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Oral messages: Byzantine agreement for `n > 3t`
@@ -125,10 +126,7 @@ theorem omResolve_congr (i : P) {val val' : List P → Bool} :
 
 private theorem card_compl_toFinset_cons_le (j : P) (τ : List P) :
     τ.toFinsetᶜ.card ≤ (j :: τ).toFinsetᶜ.card + 1 := by
-  rw [Finset.card_compl, Finset.card_compl, List.toFinset_cons]
-  have h₁ := Finset.card_insert_le j τ.toFinset
-  have h₂ := Finset.card_le_univ (insert j τ.toFinset)
-  omega
+  finset_card [List.toFinset_cons]
 
 /-- **Lemma 1 of Lamport, Shostak and Pease**, for faithful trees: `OM(m)` satisfies IC2 when
 there are more than `2k + m` generals and at most `k` traitors
@@ -174,8 +172,7 @@ theorem omResolve_eq_omResolve {F : Finset P} {val : P → List P → Bool}
   | zero =>
     intro j τ hjτ hF _ p hp q hq
     by_cases hj : j ∈ F
-    · have : j ∈ F \ τ.toFinset := Finset.mem_sdiff.2 ⟨hj, by simpa using hjτ⟩
-      exact absurd hF (Nat.not_le.2 (Finset.card_pos.2 ⟨j, this⟩))
+    · exfalso; finset_card [mt List.mem_toFinset.1 hjτ]
     · rw [omResolve_eq_of_notMem hval 0 j τ hj hF (by omega) p hp,
         omResolve_eq_of_notMem hval 0 j τ hj hF (by omega) q hq]
   | succ m ih =>
@@ -184,16 +181,10 @@ theorem omResolve_eq_omResolve {F : Finset P} {val : P → List P → Bool}
     · simp only [omResolve]
       have hjτ' : j ∉ τ.toFinset := by simpa using hjτ
       have hcard : τ.toFinsetᶜ.card = (j :: τ).toFinsetᶜ.card + 1 := by
-        grind [Finset.card_compl, List.toFinset_cons]
+        finset_card [List.toFinset_cons]
       -- The faulty commander leaves at most `m` faulty processes in the subinstances.
       have hF' : (F \ (j :: τ).toFinset).card ≤ m := by
-        have hsub : F \ (j :: τ).toFinset ⊆ (F \ τ.toFinset).erase j := fun y hy => by
-          simp only [Finset.mem_sdiff, List.mem_toFinset, List.mem_cons, not_or,
-            Finset.mem_erase] at hy ⊢
-          exact ⟨hy.2.1, hy.1, hy.2.2⟩
-        have := Finset.card_le_card hsub
-        rw [Finset.card_erase_of_mem (Finset.mem_sdiff.2 ⟨hj, hjτ'⟩)] at this
-        omega
+        finset_card [List.toFinset_cons]
       -- A correct lieutenant `l` contributes the value it received, by Lemma 1 for `OM(m)`.
       have hvote : ∀ l ∈ (j :: τ).toFinsetᶜ, l ∉ F → ∀ i ∉ F,
           (if l = i then val i (j :: τ) else omResolve i (val i) m (l :: j :: τ)) =

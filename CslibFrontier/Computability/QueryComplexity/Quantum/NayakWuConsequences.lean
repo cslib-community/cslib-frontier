@@ -105,10 +105,8 @@ entries are strictly larger than `y`. -/
 /-- Monotonicity of `IsApproxMedian` in the tolerance `δ`. -/
 theorem IsApproxMedian.mono {X : ι → α} {δ₁ δ₂ : ℝ} {y : α} (h : δ₁ ≤ δ₂)
     (hm : IsApproxMedian X δ₁ y) : IsApproxMedian X δ₂ y := by
-  have hle : (1 + δ₁) * Fintype.card ι / 2 ≤ (1 + δ₂) * Fintype.card ι / 2 := by
-    have hn : (0 : ℝ) ≤ Fintype.card ι := Nat.cast_nonneg _
-    nlinarith
-  exact ⟨lt_of_lt_of_le hm.1 hle, lt_of_lt_of_le hm.2 hle⟩
+  have hle : (1 + δ₁) * Fintype.card ι / 2 ≤ (1 + δ₂) * Fintype.card ι / 2 := by gcongr
+  exact ⟨hm.1.trans_le hle, hm.2.trans_le hle⟩
 
 /-- `y` is a **`j`-th smallest element** (`1`-indexed) of `X : ι → α`: at most `j - 1` entries are
 strictly less than `y`, and at least `j` entries are at most `y`. -/
@@ -178,37 +176,19 @@ private theorem approx_scale_le {F n m Δ d B : ℝ}
     (hcore : F * (√(n * d) + √m) ≤ B * d) :
     F * (√(n / Δ) + √m / Δ) ≤ 4 * B := by
   have hdiv : d / Δ ≤ 4 := (div_le_iff₀ hΔ).2 (by linarith)
-  have hsq_le : d ^ 2 * (n / Δ) ≤ 4 * (n * d) := by
-    calc
-      d ^ 2 * (n / Δ) = n * d * (d / Δ) := by ring
-      _ ≤ n * d * 4 := mul_le_mul_of_nonneg_left hdiv (mul_nonneg hn hd.le)
-      _ = 4 * (n * d) := by ring
-  have h1 : d * √(n / Δ) ≤ 2 * √(n * d) := by
-    calc
-      d * √(n / Δ) = √(d ^ 2) * √(n / Δ) := by rw [Real.sqrt_sq hd.le]
-      _ = √(d ^ 2 * (n / Δ)) := (Real.sqrt_mul (sq_nonneg d) _).symm
-      _ ≤ √(4 * (n * d)) := Real.sqrt_le_sqrt hsq_le
-      _ = 2 * √(n * d) := by
-            rw [Real.sqrt_mul (by norm_num), show (4 : ℝ) = 2 ^ 2 by norm_num,
-              Real.sqrt_sq (by norm_num)]
-  have h2 : d * (√m / Δ) ≤ 4 * √m := by
-    calc
-      d * (√m / Δ) = √m * (d / Δ) := by ring
-      _ ≤ √m * 4 := mul_le_mul_of_nonneg_left hdiv (Real.sqrt_nonneg m)
-      _ = 4 * √m := by ring
-  have hsum : d * (√(n / Δ) + √m / Δ) ≤ 4 * (√(n * d) + √m) := by
-    calc
-      d * (√(n / Δ) + √m / Δ) = d * √(n / Δ) + d * (√m / Δ) := by ring
-      _ ≤ 4 * √(n * d) + 4 * √m := add_le_add (by linarith [Real.sqrt_nonneg (n * d)]) h2
-      _ = 4 * (√(n * d) + √m) := by ring
-  have hmul : d * (F * (√(n / Δ) + √m / Δ)) ≤ d * (4 * B) := by
-    calc
-      d * (F * (√(n / Δ) + √m / Δ)) = F * (d * (√(n / Δ) + √m / Δ)) := by ring
-      _ ≤ F * (4 * (√(n * d) + √m)) := mul_le_mul_of_nonneg_left hsum hF
-      _ = 4 * (F * (√(n * d) + √m)) := by ring
-      _ ≤ 4 * (B * d) := mul_le_mul_of_nonneg_left hcore (by norm_num)
-      _ = d * (4 * B) := by ring
-  exact le_of_mul_le_mul_left hmul hd
+  have h1 : d * √(n / Δ) ≤ 2 * √(n * d) :=
+    calc d * √(n / Δ) = √(d ^ 2 * (n / Δ)) := by
+          rw [Real.sqrt_mul (sq_nonneg d), Real.sqrt_sq hd.le]
+      _ ≤ √(2 ^ 2 * (n * d)) := Real.sqrt_le_sqrt (by
+          rw [show d ^ 2 * (n / Δ) = n * d * (d / Δ) by ring]
+          linarith [mul_le_mul_of_nonneg_left hdiv (mul_nonneg hn hd.le)])
+      _ = 2 * √(n * d) := by rw [Real.sqrt_mul (sq_nonneg 2), Real.sqrt_sq two_pos.le]
+  have h2 : d * (√m / Δ) ≤ √m * 4 := by
+    rw [mul_div_left_comm]; exact mul_le_mul_of_nonneg_left hdiv (Real.sqrt_nonneg m)
+  refine le_of_mul_le_mul_left ?_ hd
+  have := mul_le_mul_of_nonneg_left (show d * (√(n / Δ) + √m / Δ) ≤ 4 * (√(n * d) + √m) by
+    linarith [Real.sqrt_nonneg (n * d)]) hF
+  linarith
 
 end Helpers
 
@@ -321,8 +301,8 @@ theorem one_sub_mul_approxCount_le {n : ℕ} {W : Type*} [Fintype W]
   have hstep : t + d ≤ n ∨ d ≤ t := by omega
   have hcore := one_sub_mul_add_le_of_approxCount_aux U hψ₀ T out ht hΔ hstep h hε
   have hbound := approx_scale_le (one_sub_two_mul_sqrt_nonneg ε) (Nat.cast_nonneg n) hΔ hd_pos
-    (by linarith) hcore
-  linarith
+    (by linarith only [hd_lt, hΔ_lo]) hcore
+  exact hbound.trans_eq (by ring)
 
 /-- Bounded-error (`ε = 1 / 3`) form of Theorem 1.11 ([NayakWu1999]):
 `√(n / Δ) + √(t (n - t)) / Δ ≤ 288 T`. -/
@@ -334,8 +314,7 @@ theorem approxCount_lower_bound {n : ℕ} {W : Type*} [Fintype W]
       1 - (1 / 3 : ℝ) ≤ measureProb (run U ψ₀ x T) (univ.filter fun p => |out p - weight x| < Δ)) :
     √(n / Δ) + √(t * (n - t)) / Δ ≤ 288 * T := by
   have hcore := one_sub_mul_approxCount_le U hψ₀ T out ht hΔ_lo hΔ_hi h (by norm_num)
-  have hnn : 0 ≤ √((n : ℝ) / Δ) + √((t : ℝ) * (n - t)) / Δ := by positivity
-  linarith [le_eighteen_mul_of_one_sub_mul_le hnn hcore]
+  exact (le_eighteen_mul_of_one_sub_mul_le (by positivity) hcore).trans_eq (by ring)
 
 end ApproxCount
 
@@ -559,7 +538,7 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
   set c₁ := n - k
   have hc₁ : c₁ ≤ n := Nat.sub_le n k
   have hcsub : (c₁ : ℝ) = n - k := Nat.cast_sub hkn
-  have hΔ_pos : 0 < Δ := by linarith
+  have hΔ_pos : 0 < Δ := by linarith only [hΔ_lo]
   have hc₁_mul : ((c₁ : ℝ) * (n - c₁)) = (k : ℝ) * (n - k) := by rw [hcsub]; ring
   have hpair : ∀ (t₁ t₂ : ℕ), t₁ ≠ t₂ → t₁ ≤ n → t₂ ≤ n → min t₁ t₂ ≤ c₁ → c₁ ≤ max t₁ t₂ →
       (t₁ = 0 ∨ (t₁ : ℝ) + Δ ≤ n - k) → (t₂ = n ∨ (n : ℝ) - k + Δ ≤ t₂) →
@@ -581,54 +560,49 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
     have hd_pos : 0 < |(t₁ : ℝ) - t₂| := abs_pos.mpr (sub_ne_zero.mpr (by exact_mod_cast hne))
     have hsc := approx_scale_le (one_sub_two_mul_sqrt_nonneg ε) (Nat.cast_nonneg n) hΔ_pos
       hd_pos hgap hcore
-    rw [hc₁_mul] at hsc
-    linarith
+    rw [hc₁_mul] at hsc; exact hsc.trans_eq (by ring)
   set d₁ := Nat.ceil Δ
   have hd₁_pos : 1 ≤ d₁ := Nat.ceil_pos.mpr hΔ_pos
   have hd₁_ge : Δ ≤ d₁ := Nat.le_ceil Δ
   have hd₁_lt : (d₁ : ℝ) < Δ + 1 := Nat.ceil_lt_add_one hΔ_pos.le
   set d₂ := Nat.ceil (2 * Δ)
-  have hd₂_pos : 1 ≤ d₂ := Nat.ceil_pos.mpr (by linarith)
+  have hd₂_pos : 1 ≤ d₂ := Nat.ceil_pos.mpr (by linarith only [hΔ_pos])
   have hd₂_ge : 2 * Δ ≤ d₂ := Nat.le_ceil (2 * Δ)
-  have hd₂_lt : (d₂ : ℝ) < 2 * Δ + 1 := Nat.ceil_lt_add_one (by linarith)
-  have hd₂_le_4 : (d₂ : ℝ) ≤ 4 * Δ := by linarith
+  have hd₂_lt : (d₂ : ℝ) < 2 * Δ + 1 := Nat.ceil_lt_add_one (by linarith only [hΔ_pos])
+  have hd₂_le_4 : (d₂ : ℝ) ≤ 4 * Δ := by linarith only [hd₂_lt, hΔ_lo]
   have hd₂_le_n : d₂ ≤ n := by
-    have : (d₂ : ℝ) ≤ n := by linarith
-    exact_mod_cast this
+    exact_mod_cast (by linarith only [hd₂_le_4, hΔ_hi] : (d₂ : ℝ) ≤ n)
   by_cases hhi : c₁ + d₁ ≤ n
   · by_cases hlo : d₁ ≤ c₁
     · refine hpair (c₁ - d₁) (c₁ + d₁) (by omega) (by omega) (by omega)
         (by rw [min_eq_left (by omega)]; omega) (by rw [max_eq_right (by omega)]; omega)
         (Or.inr ?_) (Or.inr ?_) ?_
-      · rw [Nat.cast_sub hlo, hcsub]
-        linarith
+      · rw [Nat.cast_sub hlo, hcsub]; linarith only [hd₁_ge]
+      · push_cast; rw [hcsub]; linarith only [hd₁_ge]
       · push_cast
-        rw [hcsub]
-        linarith
-      · push_cast
-        rw [Nat.cast_sub hlo, abs_of_nonpos (by linarith)]
-        linarith
+        rw [Nat.cast_sub hlo, abs_of_nonpos (by linarith only [Nat.cast_nonneg (α := ℝ) d₁])]
+        linarith only [hd₁_lt, hΔ_lo]
     · have hc₁_lt : c₁ < d₁ := by omega
       have hc₁_lt_R : (c₁ : ℝ) < Δ := Nat.lt_ceil.mp hc₁_lt
       have hc₁_le_d₂ : c₁ ≤ d₂ := by
-        have : (c₁ : ℝ) ≤ d₂ := by linarith
-        exact_mod_cast this
+        exact_mod_cast (by linarith only [hc₁_lt_R, hd₂_ge, hΔ_pos] : (c₁ : ℝ) ≤ d₂)
       refine hpair 0 d₂ (by omega) (Nat.zero_le n) hd₂_le_n
         (by rw [min_eq_left (Nat.zero_le d₂)]; exact Nat.zero_le c₁)
         (by rw [max_eq_right (Nat.zero_le d₂)]; exact hc₁_le_d₂)
-        (Or.inl rfl) (Or.inr (by linarith)) ?_
+        (Or.inl rfl) (Or.inr (by linarith only [hcsub, hc₁_lt_R, hd₂_ge])) ?_
       push_cast
       rw [zero_sub, abs_neg, abs_of_nonneg (Nat.cast_nonneg d₂)]
       exact hd₂_le_4
   · have hkd₁ : k < d₁ := by dsimp only [c₁] at hhi; omega
     have hk_lt_R : (k : ℝ) < Δ := Nat.lt_ceil.mp hkd₁
-    have hk_le_d₂ : k ≤ d₂ := by exact_mod_cast (by linarith : (k : ℝ) ≤ d₂)
+    have hk_le_d₂ : k ≤ d₂ := by
+      exact_mod_cast (by linarith only [hk_lt_R, hd₂_ge, hΔ_pos] : (k : ℝ) ≤ d₂)
     refine hpair (n - d₂) n (by omega) (Nat.sub_le n d₂) le_rfl
       (by rw [min_eq_left (Nat.sub_le n d₂)]; omega)
       (by rw [max_eq_right (Nat.sub_le n d₂)]; exact hc₁)
-      (Or.inr (by rw [Nat.cast_sub hd₂_le_n]; linarith)) (Or.inl rfl) ?_
-    rw [Nat.cast_sub hd₂_le_n, abs_of_nonpos (by linarith)]
-    linarith
+      (Or.inr (by rw [Nat.cast_sub hd₂_le_n]; linarith only [hk_lt_R, hd₂_ge])) (Or.inl rfl) ?_
+    rw [Nat.cast_sub hd₂_le_n, abs_of_nonpos (by linarith only [Nat.cast_nonneg (α := ℝ) d₂])]
+    linarith only [hd₂_le_4]
 
 /-- **Theorem 1.5 (arbitrary unitary oracle, two-valued domain)** ([NayakWu1999]): any `T`-query
 value-query algorithm outputting an element satisfying `IsApproxKthSmallestRelaxed` on all
@@ -651,8 +625,7 @@ theorem one_sub_mul_kthSmallest_twoValues_le {ι V W α : Type*}
   obtain ⟨Vsim, φ₀, hφ₀, hsim⟩ := exists_sim_value e step a₀ a₁ U ψ₀ T
   have hbound := one_sub_mul_kthSmallest_le_of_sim e rfl step U hψ₀ T out ha hk1 hkn hΔ_lo
     hΔ_hi Vsim φ₀ (2 * T) (hφ₀.trans hψ₀) hsim hgood hε
-  push_cast at hbound
-  linarith
+  push_cast at hbound; exact hbound.trans_eq (by ring)
 
 /-- **Theorem 1.5 (arbitrary unitary oracle)** ([NayakWu1999]): over any nontrivial linear order
 `α`, a `T`-query value-query algorithm approximating the `k`-th smallest element within `< Δ`
@@ -738,7 +711,7 @@ theorem kthSmallest_lower_bound {ι V W α : Type*}
     √((Fintype.card ι : ℝ) / Δ) + √((k : ℝ) * (Fintype.card ι - k)) / Δ ≤ 576 * T := by
   have hcore := one_sub_mul_kthSmallest_le step U hψ₀ T out hk1 hkn hΔ_lo hΔ_hi
     (fun X => measureProb_isApproxKthSmallestRelaxed_ge step U ψ₀ T out X (hgood X)) (by norm_num)
-  linarith [kthSmallest_one_third_of_le hkn (by linarith) hcore]
+  exact (kthSmallest_one_third_of_le hkn (by linarith only [hΔ_lo]) hcore).trans_eq (by ring)
 
 /-- Bounded-error (`ε = 1 / 3`) form of Theorem 1.5 ([NayakWu1999]) for involutive-difference
 oracles: `√(|ι| / Δ) + √(k (|ι| - k)) / Δ ≤ 288 T`. -/
@@ -757,7 +730,7 @@ theorem kthSmallest_involution_lower_bound {ι V W α : Type*}
   have hcore := one_sub_mul_kthSmallest_le_of_involution step U hψ₀ T out a₀ a₁ ha hR hk1 hkn hΔ_lo
     hΔ_hi (fun X hX => measureProb_isApproxKthSmallestRelaxed_ge step U ψ₀ T out X (hgood X hX))
     (by norm_num)
-  linarith [kthSmallest_one_third_of_le hkn (by linarith) hcore]
+  exact (kthSmallest_one_third_of_le hkn (by linarith only [hΔ_lo]) hcore).trans_eq (by ring)
 
 /-- **Theorem 1.5 (index-returning value-query algorithm)** ([NayakWu1999]): a `T`-query
 algorithm returning an index `idx p : ι` whose value `X (idx p)` approximates the `k`-th smallest
@@ -810,7 +783,7 @@ theorem kthSmallest_index_lower_bound {ι V W α : Type*}
     (fun X hX => measureProb_isApproxKthSmallestRelaxed_ge step U ψ₀ T (fun p => X (idx p)) X
       (hgood X hX))
     (by norm_num)
-  linarith [kthSmallest_one_third_of_le hkn (by linarith) hcore]
+  exact (kthSmallest_one_third_of_le hkn (by linarith only [hΔ_lo]) hcore).trans_eq (by ring)
 
 /-- Specialization of `one_sub_mul_kthSmallest_index_le` to permutation oracles `permStep π`. -/
 theorem one_sub_mul_kthSmallest_perm_index_le {ι V W α : Type*}
@@ -856,77 +829,63 @@ private theorem one_sub_mul_median_le_of_sim {ι V W α : Type*}
     (hε : 2 * ε ≤ 1) :
     (1 - 2 * √(ε * (1 - ε))) * min (1 / δ) n ≤ 12 * T_bool := by
   have hn_pos : (0 : ℝ) < n := by exact_mod_cast hn1
+  have hδn₀ : 0 < δ * n := mul_pos hδ₀ hn_pos
+  have hδn₁ : δ * n < n := by simpa only [one_mul] using mul_lt_mul_of_pos_right hδ₁ hn_pos
   set t₁ := Nat.floor ((1 - δ) * n / 2)
   set t₂ := Nat.ceil ((1 + δ) * n / 2)
-  have ht₁_nonneg : 0 ≤ (1 - δ) * n / 2 := by nlinarith
+  have ht₁_nonneg : 0 ≤ (1 - δ) * n / 2 := by rw [sub_mul, one_mul]; linarith only [hδn₁]
   have ht₁_le : (t₁ : ℝ) ≤ (1 - δ) * n / 2 := Nat.floor_le ht₁_nonneg
   have ht₁_lt : (1 - δ) * n / 2 < t₁ + 1 := Nat.lt_floor_add_one _
   have ht₂_ge : (1 + δ) * n / 2 ≤ t₂ := Nat.le_ceil _
-  have ht₂_lt : (t₂ : ℝ) < (1 + δ) * n / 2 + 1 := Nat.ceil_lt_add_one (by nlinarith)
+  have ht₂_lt : (t₂ : ℝ) < (1 + δ) * n / 2 + 1 :=
+    Nat.ceil_lt_add_one (by rw [add_mul, one_mul]; linarith only [hn_pos, hδn₀])
   have h2t₁ : 2 * t₁ ≤ n := by
-    have : (2 * t₁ : ℝ) ≤ n := by nlinarith
-    exact_mod_cast this
+    exact_mod_cast (show (2 * t₁ : ℝ) ≤ n by
+      rw [sub_mul, one_mul] at ht₁_le; linarith only [ht₁_le, hδn₀])
   have hn_le_2t₂ : n ≤ 2 * t₂ := by
-    have : (n : ℝ) ≤ 2 * t₂ := by nlinarith
-    exact_mod_cast this
-  have ht₂_le_n : t₂ ≤ n := Nat.ceil_le.mpr (by nlinarith)
+    exact_mod_cast (show (n : ℝ) ≤ 2 * t₂ by
+      rw [add_mul, one_mul] at ht₂_ge; linarith only [ht₂_ge, hδn₀])
+  have ht₂_le_n : t₂ ≤ n := Nat.ceil_le.mpr (by rw [add_mul, one_mul]; linarith only [hδn₁])
   have ht₁_le_n : t₁ ≤ n := by omega
   have ht₁_lt_t₂ : t₁ < t₂ := by
-    have : (t₁ : ℝ) < t₂ := by nlinarith
-    exact_mod_cast this
+    exact_mod_cast (show (t₁ : ℝ) < t₂ by
+      rw [sub_mul, one_mul] at ht₁_le; rw [add_mul, one_mul] at ht₂_ge
+      linarith only [ht₁_le, ht₂_ge, hδn₀])
   have hsep := measureProb_sim_sep (t₁ := t₁) (t₂ := t₂) e step U hψ₀ T out
     (fun X y => IsApproxMedian X δ y) Vsim φ₀ T_bool hsim hgood
-    (fun b hb _ hm => le_of_card_embedSeq_lt e ha b
-      (by have h := hm.1; rw [hn] at h; rw [hb]; nlinarith))
-    (fun b hb _ hm => lt_of_card_lt_embedSeq e ha b
-      (by have h := hm.2; rw [hn] at h; rw [hb]; nlinarith))
+    (fun b hb _ hm => le_of_card_embedSeq_lt e ha b (by
+      have h := hm.1; rw [hn, add_mul, one_mul] at h
+      rw [sub_mul, one_mul] at ht₁_le; rw [hb]; linarith only [h, ht₁_le]))
+    (fun b hb _ hm => lt_of_card_lt_embedSeq e ha b (by
+      have h := hm.2; rw [hn, add_mul, one_mul] at h
+      rw [add_mul, one_mul] at ht₂_ge; rw [hb]; linarith only [h, ht₂_ge]))
   have hcard := one_sub_mul_card_le_four_mul_mul_abs_sub_of_weight Vsim hφ₀ T_bool
     ((univ.filter fun p => out p ≤ a₀).map (embedOutcome e)) ht₁_lt_t₂.ne
     (by rw [min_eq_left ht₁_lt_t₂.le]; exact h2t₁)
     (by rw [max_eq_right ht₁_lt_t₂.le]; exact hn_le_2t₂)
     ht₁_le_n ht₂_le_n hsep.1 hsep.2 hε
   have habs : |(t₁ : ℝ) - t₂| = t₂ - t₁ := by
-    rw [abs_of_nonpos (by linarith [show (t₁ : ℝ) ≤ t₂ by exact_mod_cast ht₁_lt_t₂.le])]
-    ring
+    rw [abs_of_nonpos (by linarith only [show (t₁ : ℝ) ≤ t₂ by exact_mod_cast ht₁_lt_t₂.le])]; ring
   rw [habs] at hcard
   have hfac := one_sub_two_mul_sqrt_nonneg ε
-  have hdiff : (t₂ : ℝ) - t₁ < δ * n + 2 := by linarith
+  have hdiff : (t₂ : ℝ) - t₁ < δ * n + 2 := by
+    rw [sub_mul, one_mul] at ht₁_lt; rw [add_mul, one_mul] at ht₂_lt; linarith only [ht₁_lt, ht₂_lt]
+  have hT : (0 : ℝ) ≤ T_bool := Nat.cast_nonneg _
   by_cases hbig : 2 ≤ δ * n
-  · have hstep : (1 - 2 * √(ε * (1 - ε))) * n ≤ 8 * T_bool * (δ * n) := by
-      have hle2 : (t₂ : ℝ) - t₁ ≤ 2 * δ * n := by linarith
-      calc
-        (1 - 2 * √(ε * (1 - ε))) * n ≤ 4 * T_bool * ((t₂ : ℝ) - t₁) := hcard
-        _ ≤ 4 * T_bool * (2 * δ * n) := mul_le_mul_of_nonneg_left hle2 (by positivity)
-        _ = 8 * T_bool * (δ * n) := by ring
-    have hδn_pos : 0 < δ * n := by positivity
-    have hinv : (1 - 2 * √(ε * (1 - ε))) * (1 / δ) ≤ 8 * T_bool := by
-      refine le_of_mul_le_mul_right ?_ hδn_pos
-      calc
-        (1 - 2 * √(ε * (1 - ε))) * (1 / δ) * (δ * n)
-            = (1 - 2 * √(ε * (1 - ε))) * n := by field_simp [hδ₀.ne']
-        _ ≤ 8 * T_bool * (δ * n) := hstep
-    calc
-      (1 - 2 * √(ε * (1 - ε))) * min (1 / δ) n
-          ≤ (1 - 2 * √(ε * (1 - ε))) * (1 / δ) := mul_le_mul_of_nonneg_left (min_le_left _ _) hfac
-      _ ≤ 8 * T_bool := hinv
+  · have hinv : (1 - 2 * √(ε * (1 - ε))) * (1 / δ) ≤ 8 * T_bool := by
+      rw [mul_one_div, div_le_iff₀ hδ₀]
+      refine le_of_mul_le_mul_right ?_ hn_pos
+      linarith [mul_le_mul_of_nonneg_left (show (t₂ : ℝ) - t₁ ≤ 2 * δ * n by linarith) hT]
+    calc _ ≤ (1 - 2 * √(ε * (1 - ε))) * (1 / δ) := mul_le_mul_of_nonneg_left (min_le_left _ _) hfac
       _ ≤ 12 * T_bool := by linarith
   · have hlt4 : (t₂ - t₁ : ℕ) < 4 := by
-      have : ((t₂ - t₁ : ℕ) : ℝ) < 4 := by
-        rw [Nat.cast_sub ht₁_lt_t₂.le]
-        linarith
-      exact_mod_cast this
+      exact_mod_cast (show ((t₂ - t₁ : ℕ) : ℝ) < 4 by
+        rw [Nat.cast_sub ht₁_lt_t₂.le]; linarith only [hdiff, hbig])
     have hle3 : (t₂ : ℝ) - t₁ ≤ 3 := by
       rw [← Nat.cast_sub ht₁_lt_t₂.le]
       exact_mod_cast (by omega : t₂ - t₁ ≤ 3)
-    have hstep : (1 - 2 * √(ε * (1 - ε))) * n ≤ 12 * T_bool := by
-      calc
-        (1 - 2 * √(ε * (1 - ε))) * n ≤ 4 * T_bool * ((t₂ : ℝ) - t₁) := hcard
-        _ ≤ 4 * T_bool * 3 := mul_le_mul_of_nonneg_left hle3 (by positivity)
-        _ = 12 * T_bool := by ring
-    calc
-      (1 - 2 * √(ε * (1 - ε))) * min (1 / δ) n
-          ≤ (1 - 2 * √(ε * (1 - ε))) * n := mul_le_mul_of_nonneg_left (min_le_right _ _) hfac
-      _ ≤ 12 * T_bool := hstep
+    calc _ ≤ (1 - 2 * √(ε * (1 - ε))) * n := mul_le_mul_of_nonneg_left (min_le_right _ _) hfac
+      _ ≤ 12 * T_bool := by linarith [mul_le_mul_of_nonneg_left hle3 hT]
 
 /-- **Corollary 1.6 (arbitrary unitary oracle, two-valued domain)** ([NayakWu1999]): any
 `T`-query value-query algorithm computing a `δ`-approximate median (`0 < δ < 1`, `1 ≤ |ι|`) on
@@ -946,8 +905,7 @@ theorem one_sub_mul_median_twoValues_le {ι V W α : Type*}
   obtain ⟨Vsim, φ₀, hφ₀, hsim⟩ := exists_sim_value e step a₀ a₁ U ψ₀ T
   have hbound := one_sub_mul_median_le_of_sim e rfl hn1 step U hψ₀ T out ha hδ₀ hδ₁ Vsim φ₀
     (2 * T) (hφ₀.trans hψ₀) hsim hgood hε
-  push_cast at hbound
-  linarith
+  push_cast at hbound; exact hbound.trans_eq (by ring)
 
 /-- **Corollary 1.6 (arbitrary unitary oracle)** ([NayakWu1999]): over any nontrivial linear order
 `α`, a `T`-query value-query algorithm computing a `δ`-approximate median (`0 < δ < 1`, `1 ≤ |ι|`)
@@ -997,8 +955,7 @@ theorem median_lower_bound {ι V W α : Type*}
       measureProb (runValue step U ψ₀ X T) (univ.filter fun p => IsApproxMedian X δ (out p)))) :
     min (1 / δ) (Fintype.card ι) ≤ 432 * T := by
   have hcore := one_sub_mul_median_le step U hψ₀ T out hn1 hδ₀ hδ₁ hgood (by norm_num)
-  have hnn : 0 ≤ min (1 / δ) (Fintype.card ι) := by positivity
-  linarith [le_eighteen_mul_of_one_sub_mul_le hnn hcore]
+  exact (le_eighteen_mul_of_one_sub_mul_le (by positivity) hcore).trans_eq (by ring)
 
 /-- When `1 ≤ δ * |ι|`, `min (1 / δ) |ι| = 1 / δ`, so Corollary 1.6 gives `1 / δ ≤ 432 T`. -/
 theorem median_inv_delta_lower_bound {ι V W α : Type*}
@@ -1034,8 +991,7 @@ theorem median_involution_lower_bound {ι V W α : Type*}
     min (1 / δ) (Fintype.card ι) ≤ 216 * T := by
   have hcore := one_sub_mul_median_le_of_involution step U hψ₀ T out a₀ a₁ ha hR hn1 hδ₀ hδ₁ hgood
     (by norm_num)
-  have hnn : 0 ≤ min (1 / δ) (Fintype.card ι) := by positivity
-  linarith [le_eighteen_mul_of_one_sub_mul_le hnn hcore]
+  exact (le_eighteen_mul_of_one_sub_mul_le (by positivity) hcore).trans_eq (by ring)
 
 /-- **Corollary 1.6 (index-returning value-query algorithm)** ([NayakWu1999]): a `T`-query
 algorithm returning an index `idx p : ι` whose value `X (idx p)` is a `δ`-approximate median
@@ -1081,8 +1037,7 @@ theorem median_index_lower_bound {ι V W α : Type*}
     min (1 / δ) (Fintype.card ι) ≤ 432 * ((T : ℝ) + 1) := by
   have hcore := one_sub_mul_median_index_le step v₀ read a₀ a₁ ha hread₀ hread₁ U hψ₀ T idx
     hn1 hδ₀ hδ₁ hgood (by norm_num)
-  have hnn : 0 ≤ min (1 / δ) (Fintype.card ι) := by positivity
-  linarith [le_eighteen_mul_of_one_sub_mul_le hnn hcore]
+  exact (le_eighteen_mul_of_one_sub_mul_le (by positivity) hcore).trans_eq (by ring)
 
 /-- Specialization of `one_sub_mul_median_index_le` to permutation oracles `permStep π`. -/
 theorem one_sub_mul_median_perm_index_le {ι V W α : Type*}

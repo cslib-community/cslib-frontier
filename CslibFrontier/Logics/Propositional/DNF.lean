@@ -107,6 +107,10 @@ def Term.negate (t : Term V) : Clause V :=
     simp only [Literal.eval]
     cases σ l.1 <;> cases l.2 <;> rfl
 
+/-- Negating a term preserves its length. -/
+@[simp] theorem Term.length_negate (t : Term V) : t.negate.length = t.length :=
+  List.length_map _
+
 /-- The formula in conjunctive normal form of the negation of a formula in disjunctive normal
 form. -/
 def DNF.negate (φ : DNF V) : CNF V :=

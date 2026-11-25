@@ -226,11 +226,9 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
   refine ⟨WP.execWithin (by
       unfold ampSetup ampSetupData ppszExp
       wram_exec [Data.init_regs, hm0, hm1, hm2, hm3, hm4, hm5]; rfl),
-    ⟨by wram_simp [ampSetupData, Data.init_regs], by wram_simp [ampSetupData],
-      by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData],
-      by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData], ?_,
+    ⟨by wram_simp [ampSetupData, Data.init_regs], ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun i => ?_,
       by simp [length_encode]; omega, fun _ _ => rfl⟩⟩
-  intro i
+  iterate 7 wram_simp [ampSetupData]
   have hi : i.val < (encodeClauses φ).length := i.isLt
   change (ampSetupData s a b c φ).mem (6 + i.val) = (encodeClauses φ)[i.val]
   rw [ampSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega),
@@ -275,7 +273,7 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
         (v = 0 ∨ (v = 1 ∧
           φ.eval (assignmentAt d.mem ((s :: a :: b :: c :: encode φ).length + 1) n) = true))) ∧
     (evalRand w ampProgram (ampTime s a b c n (s :: a :: b :: c :: encode φ).length)
-      (.init (s :: a :: b :: c :: encode φ))).map Schoening.cfgSuccess =
+      (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts =
         repeatRoundWith (implied φ s) φ (ppszRounds a b n c) := by
   set L := (s :: a :: b :: c :: encode φ).length with hL
   have hE : (encodeClauses φ).length + 5 = L := by
@@ -339,7 +337,7 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
           12 * (encodeClauses φ).length + 35 ≤ n * (impliedTime s L + 25) + 12 * L + 41 by omega)
       simp only [ampTime, countSetupTime, ppszCounterLen, ppszDigits, ← he] at hlen hcount ⊢
       omega)
-    Schoening.cfgSuccess fun _ _ => rfl
+    RandCfg.accepts fun _ _ => rfl
   refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
   obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
   exact ⟨_, d, rfl, hd⟩
@@ -366,7 +364,7 @@ theorem ampProgram_failure_le_exp_of_le {s a b c : ℕ} (hb : 0 < b) {φ : CNF (
     (hw : Fits w ((s :: a :: b :: c :: encode φ).length + 2 * n + 2 * s + a * n + b + 2 * c +
       ppszCounterLen a b n c + 3)) :
     ((evalRand w ampProgram (ampTime s a b c n (s :: a :: b :: c :: encode φ).length)
-      (.init (s :: a :: b :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤
+      (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts false).toReal ≤
       Real.exp (-c) := by
   rw [(ampProgram_spec s a b c φ hw).2.2.2]
   exact PPZ.repeatRoundWith_false_le_exp hq (le_ppszRounds_mul hb n c)
@@ -381,7 +379,7 @@ theorem ampProgram_failure_le_exp {k h s a b c : ℕ} (hk : 3 ≤ k) (hb : 0 < b
     (hw : Fits w ((s :: a :: b :: c :: encode φ).length + 2 * n + 2 * s + a * n + b + 2 * c +
       ppszCounterLen a b n c + 3)) :
     ((evalRand w ampProgram (ampTime s a b c n (s :: a :: b :: c :: encode φ).length)
-      (.init (s :: a :: b :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤
+      (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts false).toReal ≤
       Real.exp (-c) :=
   ampProgram_failure_le_exp_of_le hb
     ((two_rpow_neg_mul_le n hab).trans (roundSuccessProb_ge hk hφ hlen hs)) hw
@@ -399,7 +397,7 @@ theorem ampProgram_failure_le_exp_limit {k : ℕ} (hk : 3 ≤ k) {ε : ℝ} (hε
         Fits w ((s :: a :: b :: c :: encode φ).length + 2 * n + 2 * s + a * n + b + 2 * c +
           ppszCounterLen a b n c + 3) →
         ((evalRand w ampProgram (ampTime s a b c n (s :: a :: b :: c :: encode φ).length)
-          (.init (s :: a :: b :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤
+          (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts false).toReal ≤
           Real.exp (-c) := by
   obtain ⟨s, hs⟩ := round_success_limit hk ε hε
   refine ⟨s, fun hb hab n φ hφ hlen w hw => ampProgram_failure_le_exp_of_le hb ?_ hw⟩
@@ -414,7 +412,7 @@ theorem ampProgram_failure_le_exp_three {c : ℕ} {φ : CNF (Fin n)} (hφ : φ.S
     (hw : Fits w ((3 :: 39 :: 70 :: c :: encode φ).length + 2 * n + 2 * 3 + 39 * n + 70 + 2 * c +
       ppszCounterLen 39 70 n c + 3)) :
     ((evalRand w ampProgram (ampTime 3 39 70 c n (3 :: 39 :: 70 :: c :: encode φ).length)
-      (.init (3 :: 39 :: 70 :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤
+      (.init (3 :: 39 :: 70 :: c :: encode φ))).map RandCfg.accepts false).toReal ≤
       Real.exp (-c) :=
   ampProgram_failure_le_exp (k := 3) (h := 2) le_rfl (by norm_num) hφ hlen
     (by simp [Finset.sum_range_succ]) (by rw [qbar_three_two]; norm_num) hw
@@ -464,11 +462,6 @@ theorem ampTime_le {s a b : ℕ} (hb : 0 < b) (c n L : ℕ) :
       (2 : ℝ) ^ e * c * ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ) := by
     simp only [ampTime, ppszRounds, ← he]; push_cast; ring
-  have hPr : ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) ≤ 181 * (K : ℝ) := by
-    exact_mod_cast hP
-  have hSr : ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ) ≤
-      89 * (2 : ℝ) ^ e * (c + 1) := by
-    exact_mod_cast hS
   have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
   have hKc : ((s + 1) ^ 2 : ℕ) * ((N : ℕ) : ℝ) ^ (2 * s + 1) = (K : ℝ) := by
     rw [hK]; push_cast; ring
@@ -477,7 +470,8 @@ theorem ampTime_le {s a b : ℕ} (hb : 0 < b) (c n L : ℕ) :
   calc (2 : ℝ) ^ e * c * ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ)
       ≤ (2 * X) * c * (181 * K) + 89 * (2 * X) * (c + 1) :=
-        add_le_add (by gcongr) (hSr.trans (by gcongr))
+        add_le_add (by gcongr; exact_mod_cast hP)
+          ((show _ ≤ 89 * (2 : ℝ) ^ e * (c + 1) by exact_mod_cast hS).trans (by gcongr))
     _ ≤ 600 * K * X * (c + 1) := by
         nlinarith [mul_le_mul_of_nonneg_left hK1 (mul_nonneg (by linarith : (0 : ℝ) ≤ X)
           (by linarith : (0 : ℝ) ≤ c + 1)), mul_nonneg (mul_nonneg (by positivity : (0 : ℝ) ≤ K)

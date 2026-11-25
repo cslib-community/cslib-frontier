@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204NTT
 import CslibFrontier.Foundations.Data.Option
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+import Batteries.Data.Vector.Lemmas
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -76,6 +76,10 @@ def Xofs.withMatrixPrefixes (H : Xofs) (s : Level) (rho : List Byte) (t : Matrix
     Xofs :=
   { H with h128 := H.h128.withPrefixes fun x =>
       (cellAt s rho x).map fun (i, j) => List.ofFn (t i j) }
+
+/-- Programming SHAKE128 matrix prefixes leaves the SHAKE256 oracle unchanged. -/
+@[simp] theorem Xofs.withMatrixPrefixes_h256 (H : Xofs) (s : Level) (rho : List Byte)
+    (t : MatrixPrefixes s) : (H.withMatrixPrefixes s rho t).h256 = H.h256 := by rfl
 
 /-- Reading a programmed matrix address through the production SHAKE128 interface returns its
 full replacement followed by the original suffix, truncated at the requested byte count. -/

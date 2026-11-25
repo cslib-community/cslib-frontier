@@ -38,7 +38,8 @@ which gives an antichain `A` and a covering by `|A|` chains. Weak duality
 
 Chains and antichains are Mathlib's `IsChain (· ≤ ·)` and `IsAntichain (· ≤ ·)`. A covering by `k`
 chains is a colouring `α → Fin k` whose fibres are chains. The results are for finite posets only.
-The executable version, through Hopcroft–Karp, is `Cslib.Algorithms.Lean.MaxFlow.minChainCoverM`.
+The executable version, through Hopcroft–Karp, is `Cslib.Algorithms.Lean.MaxFlow.minChainCover`
+(with its `O(n^{5/2})` word-RAM realization in `CslibFrontier.Algorithms.WordRAM.HopcroftKarp`).
 
 ## Main definitions
 

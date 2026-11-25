@@ -101,8 +101,7 @@ private theorem oddName_injective (k : ℕ) :
 
 private theorem even_ne_odd (x : ℕ) {k : ℕ} (v : Fin 4 ⊕ Fin k) :
     2 * x ≠ oddName v := by
-  dsimp only [oddName]
-  omega
+  dsimp only [oddName]; omega
 
 private def freePorts : List ℕ := List.ofFn (fun i : Fin 4 => 2 * i.val + 1)
 
@@ -112,10 +111,9 @@ private theorem mapped_freePorts (k : ℕ) :
 
 private theorem disjoint_tags (xs : List ℕ) {k : ℕ} (ys : List (Fin 4 ⊕ Fin k)) :
     List.Disjoint (xs.map (2 * ·)) (ys.map oddName) := by
-  apply List.disjoint_left.mpr
-  rintro z hz hw
-  obtain ⟨x, _, rfl⟩ := List.mem_map.mp hz
-  obtain ⟨y, _, hy⟩ := List.mem_map.mp hw
+  refine List.disjoint_left.mpr fun _ hx hy => ?_
+  obtain ⟨x, _, rfl⟩ := List.mem_map.mp hx
+  obtain ⟨y, _, hy⟩ := List.mem_map.mp hy
   exact even_ne_odd x y hy.symm
 
 variable (g : PPGadget ar sem cross) (w : GadgetWitness g)
@@ -155,66 +153,44 @@ port lengths and static template occurrence count fund the raw append table comp
 /-- The actual gadget supplies every new arity obligation; old malformed rows stay malformed. -/
 theorem wellFormed_insert_iff (I : State Rel) :
     (insert g w I).body.WellFormed ar ↔ I.body.WellFormed ar := by
-  constructor
-  · intro h c hc
-    have hr := h (c.relabel (2 * ·))
-      (List.mem_append_left _ (List.mem_map.mpr ⟨c, hc, rfl⟩))
-    simpa only [Constraint.relabel, List.length_map] using hr
-  · intro h c hc
-    rcases List.mem_append.mp hc with hc | hc
-    · exact h.relabel (2 * ·) c hc
-    · exact g.wellFormed.relabel oddName c hc
+  refine ⟨fun h c hc => ?_, fun h c hc => ?_⟩
+  · simpa only [Constraint.relabel, List.length_map] using
+      h (c.relabel (2 * ·)) (List.mem_append_left _ (List.mem_map.mpr ⟨c, hc, rfl⟩))
+  · exact (List.mem_append.mp hc).elim (h.relabel (2 * ·) c) (g.wellFormed.relabel oddName c)
 
 /-- Insertion preserves distinctness exactly, without silently repairing repeated ports. -/
 theorem nodup_insert_ports_iff (I : State Rel) :
     (insert g w I).ports.Nodup ↔ I.ports.Nodup := by
-  constructor
-  · intro h
-    exact (h.of_append_left).of_map (2 * ·)
-  · intro h
-    apply List.nodup_append'.mpr
-    refine ⟨h.map (mul_right_injective₀ (by decide : (2 : ℕ) ≠ 0)), ?_, ?_⟩
-    · apply List.nodup_ofFn.mpr
-      intro i j hij
-      apply Fin.ext
-      change 2 * i.val + 1 = 2 * j.val + 1 at hij
-      exact Nat.eq_of_mul_eq_mul_left (by decide : 0 < 2) (Nat.add_right_cancel hij)
-    · have hd := disjoint_tags I.ports
-        (List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux))
-      simpa only [mapped_freePorts, freePorts] using hd
+  refine ⟨fun h => h.of_append_left.of_map (2 * ·), fun h => List.nodup_append'.mpr
+    ⟨h.map (mul_right_injective₀ (by decide)), List.nodup_ofFn.mpr fun i j hij => Fin.ext <| by
+      change 2 * i.val + 1 = 2 * j.val + 1 at hij; omega, ?_⟩⟩
+  simpa only [mapped_freePorts, freePorts] using
+    disjoint_tags I.ports (List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux))
 
 /-- Both complete checks for the emitted table follow from the actual relabeled static
 gadget and `Witness.appendComputed`. Empty old boundaries and closed components survive. -/
 theorem accepted_insert (I : State Rel) (hI : I.Accepted) : (insert g w I).Accepted := by
   let old : Witness I.body I.ports := ⟨I.rotation, hI.2⟩
-  let left := old.relabel (2 * ·)
-    (fun _ _ _ _ h => Nat.eq_of_mul_eq_mul_left (by decide : 0 < 2) h)
-  let right := w.relabel oddName (fun _ _ _ _ h => oddName_injective _ h)
-  have hd : List.Disjoint
-      ((I.body.relabel (2 * ·)).vars ++ I.ports.map (2 * ·))
-      ((g.body.relabel oddName).vars ++ (List.ofFn (Sum.inl : Fin 4 →
-        Fin 4 ⊕ Fin g.numAux)).map oddName) := by
+  let left := old.relabel (2 * ·) fun _ _ _ _ h => Nat.eq_of_mul_eq_mul_left (by decide : 0 < 2) h
+  let right := w.relabel oddName fun _ _ _ _ h => oddName_injective _ h
+  have hd : List.Disjoint ((I.body.relabel (2 * ·)).vars ++ I.ports.map (2 * ·))
+      ((g.body.relabel oddName).vars ++
+        (List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux)).map oddName) := by
     rw [CSP.vars_relabel, CSP.vars_relabel, ← List.map_append, ← List.map_append]
     exact disjoint_tags _ _
-  have hn : (I.ports.map (2 * ·) ++ (List.ofFn (Sum.inl : Fin 4 →
-      Fin 4 ⊕ Fin g.numAux)).map oddName).Nodup := by
-    rw [mapped_freePorts]
-    exact (nodup_insert_ports_iff g w I).mpr hI.1
+  have hn : (I.ports.map (2 * ·) ++
+      (List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux)).map oddName).Nodup := by
+    rw [mapped_freePorts]; exact (nodup_insert_ports_iff g w I).mpr hI.1
   have h := (left.appendComputed right hd hn).accepted
-  refine ⟨(nodup_insert_ports_iff g w I).mpr hI.1, ?_⟩
   change OrderedBoundary.verify (I.body.relabel (2 * ·) ++ g.body.relabel oddName)
-    (I.ports.map (2 * ·) ++ (List.ofFn (Sum.inl : Fin 4 →
-      Fin 4 ⊕ Fin g.numAux)).map oddName)
+    (I.ports.map (2 * ·) ++ (List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux)).map oddName)
     (appendRawCertificate (I.body.relabel (2 * ·)).occurrences.length
       (I.ports.map (2 * ·)).length (g.body.relabel oddName).occurrences.length
       ((List.ofFn (Sum.inl : Fin 4 → Fin 4 ⊕ Fin g.numAux)).map oddName).length
       I.rotation w.certificate) = true at h
   simp only [CSP.occurrences_relabel, List.length_map, List.length_ofFn,
     mapped_freePorts, freePorts] at h
-  have hbody : g.body.relabel oddName =
-      g.body.relabel (fun v => 2 * (finSumFinEquiv v).val + 1) := rfl
-  rw [hbody] at h
-  simpa only [insert] using h
+  exact ⟨(nodup_insert_ports_iff g w I).mpr hI.1, h⟩
 
 private theorem combinedName_injective (k : ℕ) :
     Function.Injective (Sum.elim (fun x : ℕ => 2 * x)
@@ -231,8 +207,7 @@ theorem eval_insert_iff (I : State Rel) (σ : ℕ → Bool) (a : Fin 4 → Bool)
         (∀ x, τ (2 * x) = σ x) ∧ (∀ i : Fin 4, τ (2 * i.val + 1) = a i) := by
   classical
   have heval (τ : ℕ → Bool) : (insert g w I).body.eval sem τ = true ↔
-      I.body.eval sem (τ ∘ (2 * ·)) = true ∧
-        g.body.eval sem (τ ∘ oddName) = true := by
+      I.body.eval sem (τ ∘ (2 * ·)) = true ∧ g.body.eval sem (τ ∘ oddName) = true := by
     simp only [insert, CSP.eval, CSP.relabel, List.all_append, List.all_map,
       Function.comp_def, Constraint.eval_relabel, Bool.and_eq_true, oddName]
   constructor
@@ -240,29 +215,20 @@ theorem eval_insert_iff (I : State Rel) (σ : ℕ → Bool) (a : Fin 4 → Bool)
     obtain ⟨b, hb⟩ := (g.correct a).mp ha
     let f := Sum.elim (fun x : ℕ => 2 * x) (oddName : Fin 4 ⊕ Fin g.numAux → ℕ)
     let values := Sum.elim σ (Sum.elim a b)
-    let τ := Function.extend f values (fun _ => false)
-    have ht (x : ℕ ⊕ (Fin 4 ⊕ Fin g.numAux)) : τ (f x) = values x :=
+    let τ := Function.extend f values fun _ => false
+    have ht (x) : τ (f x) = values x :=
       (combinedName_injective g.numAux).extend_apply values (fun _ => false) x
-    have hold (x : ℕ) : τ (2 * x) = σ x := ht (.inl x)
-    have hlocal (v : Fin 4 ⊕ Fin g.numAux) : τ (oddName v) = Sum.elim a b v := ht (.inr v)
-    refine ⟨τ, (heval τ).mpr ?_, hold, ?_⟩
-    · constructor
-      · simpa only [show τ ∘ (2 * ·) = σ from funext hold] using hσ
-      · simpa only [show τ ∘ oddName = Sum.elim a b from funext hlocal] using hb
-    · intro i
-      simpa only [oddName, finSumFinEquiv_apply_left, Fin.val_castAdd, Sum.elim_inl]
-        using hlocal (.inl i)
+    refine ⟨τ, (heval τ).mpr
+      ⟨by simpa only [show τ ∘ (2 * ·) = σ from funext fun x => ht (.inl x)] using hσ,
+        by simpa only [show τ ∘ oddName = Sum.elim a b from funext fun v => ht (.inr v)] using hb⟩,
+      fun x => ht (.inl x), fun i => ?_⟩
+    simpa only [f, values, oddName, finSumFinEquiv_apply_left, Fin.val_castAdd, Sum.elim_inl,
+      Sum.elim_inr] using ht (.inr (.inl i))
   · rintro ⟨τ, hτ, hold, hfree⟩
     obtain ⟨hσ, hb⟩ := (heval τ).mp hτ
-    constructor
-    · simpa only [show τ ∘ (2 * ·) = σ from funext hold] using hσ
-    · apply (g.correct a).mpr
-      refine ⟨fun j => τ (oddName (.inr j)), ?_⟩
-      convert hb using 2
-      funext v
-      cases v with
-      | inl i => exact (hfree i).symm
-      | inr j => rfl
+    refine ⟨by simpa only [show τ ∘ (2 * ·) = σ from funext hold] using hσ,
+      (g.correct a).mpr ⟨fun j => τ (oddName (.inr j)), ?_⟩⟩
+    convert hb using 2; ext (_ | _) <;> [exact (hfree _).symm; rfl]
 
 /-- Doubling a positive old name adds exactly one binary digit. Zero stays the empty word.
 This is a single-step identity; accumulated bounds for a later iteration are separate. -/
@@ -274,31 +240,23 @@ theorem length_evenName (x : ℕ) (hx : x ≠ 0) :
 ports and table entries. Only list lengths fund loops; no source invariant is used. -/
 theorem computableInPolyTime_insert (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (insert g w) (encState encRel) (encState encRel) := by
-  have hbody : ComputableInPolyTime (State.body (Rel := Rel)) (encState encRel)
-      (encCSP encRel encNat) := encState_body_polyTime encRel .id'
-  have hports : ComputableInPolyTime (State.ports (Rel := Rel)) (encState encRel)
-      (encList encNat) := encState_ports_polyTime encRel .id'
-  have hrot : ComputableInPolyTime (State.rotation (Rel := Rel)) (encState encRel)
-      Graph.encRotationCertificate := encState_rotation_polyTime encRel .id'
-  have htag : ComputableInPolyTime (fun x : ℕ => 2 * x) encNat encNat := by fun_prop
+  open scoped State in
   have hbodytag : ComputableInPolyTime (fun I : State Rel => I.body.relabel (2 * ·))
       (encState encRel) (encCSP encRel encNat) := by
     unfold CSP.relabel Constraint.relabel
     fun_prop
   have hM : ComputableInPolyTime (fun I : State Rel => I.body.occurrences.length)
       (encState encRel) encUnary := by
-    have h := (computableInPolyTime_length_vars encRel encNat).comp hbody
-    simpa only [Function.comp_def, CSP.vars_length_eq_occurrences] using h
-  have hP := (ComputableInPolyTime.length_list encNat).comp hports
-  have htable := computableInPolyTime_appendRawCertificate hM hP
-    (ComputableInPolyTime.const g.body.occurrences.length) (ComputableInPolyTime.const 4)
-    hrot (ComputableInPolyTime.const w.certificate)
-  apply encState_mk_polyTime encRel _ _ htable
-  · exact ComputableInPolyTime.listAppend' hbodytag
-      (ComputableInPolyTime.const (g.body.relabel oddName))
-  · have hmap : ComputableInPolyTime (fun I : State Rel => I.ports.map (2 * ·))
-        (encState encRel) (encList encNat) := by fun_prop
-    exact ComputableInPolyTime.listAppend' hmap (ComputableInPolyTime.const freePorts)
+    simpa only [Function.comp_def, CSP.vars_length_eq_occurrences] using
+      (computableInPolyTime_length_vars encRel encNat).comp (by fun_prop)
+  have htable := computableInPolyTime_appendRawCertificate
+    (leftBody := fun I : State Rel => I.body.occurrences.length)
+    (leftPorts := fun I : State Rel => I.ports.length)
+    (left := State.rotation (Rel := Rel))
+    hM (by fun_prop) (.const g.body.occurrences.length) (.const 4) (by fun_prop)
+    (.const w.certificate)
+  unfold insert
+  exact encState_mk_polyTime encRel (by fun_prop) (by fun_prop) htable
 
 /-- The common-complement/bad-original-relation premises internally yield a static actual
 CROSS insertion with its all-raw native runtime, full checker preservation and exact assignment

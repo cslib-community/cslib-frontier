@@ -39,60 +39,34 @@ theorem exists_reverse_ordered_angle_lift (n : ℕ) (dir : Fin (n + 1) → Real.
   have hmem (φ : Real.Angle) : L φ ∈ Set.Ico base (base + 2 * Real.pi) :=
     (AddCircle.equivIco (2 * Real.pi) base φ).property
   have ho : L (dir (Fin.last n)) = base := by
-    have h := AddCircle.equivIco_coe_of_mem (p := 2 * Real.pi)
+    conv_lhs => rw [← Real.Angle.coe_toReal (dir (Fin.last n))]
+    exact AddCircle.equivIco_coe_of_mem (p := 2 * Real.pi)
       (a := base) ⟨le_rfl, by linarith [Real.pi_pos]⟩
-    change L (dir (Fin.last n)) = base
-    rw [← Real.Angle.coe_toReal (dir (Fin.last n))]
-    exact h
-  have hstrict (i : Fin (n + 1)) (hi : i ≠ Fin.last n) :
-      base < L (dir i) := by
-    have hne : L (dir i) ≠ base := by
-      intro heq
-      have hangle := congrArg (fun t : ℝ => (t : Real.Angle)) (heq.trans ho.symm)
-      rw [hcoe, hcoe] at hangle
-      exact hi (hinj hangle)
-    exact lt_of_le_of_ne (hmem _).1 hne.symm
-  let T := Finset.univ.image (fun i => L (dir i))
-  have hT : T.Nonempty := ⟨L (dir (Fin.last n)), Finset.mem_image.mpr
-    ⟨Fin.last n, Finset.mem_univ _, rfl⟩⟩
-  let M := T.sup' hT id
-  have hM : M < base + 2 * Real.pi := by
-    apply (Finset.sup'_lt_iff hT).mpr
-    intro x hx
-    obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hx
-    exact (hmem _).2
+  have hstrict (i : Fin (n + 1)) (hi : i ≠ Fin.last n) : base < L (dir i) :=
+    lt_of_le_of_ne (hmem _).1 fun heq => hi (hinj (by
+      rw [← hcoe (dir i), ← hcoe (dir (Fin.last n)), ho, heq]))
+  let M := Finset.univ.sup' Finset.univ_nonempty fun i => L (dir i)
+  have hM : M < base + 2 * Real.pi :=
+    (Finset.sup'_lt_iff _).mpr fun i _ => (hmem (dir i)).2
   let ε := (base + 2 * Real.pi - M) / 2
-  have hε : 0 < ε := by dsimp [ε]; linarith
-  refine ⟨base - ε, L, ?_, hcoe, ?_⟩
-  · intro i
-    have hMi : L (dir i) ≤ M := by
-      change L (dir i) ≤ T.sup' hT id
-      exact Finset.le_sup' id (show L (dir i) ∈ T from
-        Finset.mem_image.mpr ⟨i, Finset.mem_univ _, rfl⟩)
+  refine ⟨base - ε, L, fun i => ?_, hcoe, fun i j => ?_⟩
+  · have hMi : L (dir i) ≤ M := Finset.le_sup' (fun i => L (dir i)) (Finset.mem_univ i)
     have hlo := (hmem (dir i)).1
-    constructor <;> dsimp [ε] <;> linarith
-  · intro i j
+    constructor <;> dsimp only [ε] <;> linarith
+  · by_cases hij : i = j
+    · subst hij
+      simp
     by_cases hi : i = Fin.last n
-    · subst i
-      by_cases hj : j = Fin.last n
-      · subst j
-        simp
-      · rw [ho]
-        have hjv : j.val < n := by
-          have h := j.isLt
-          have hn : j.val ≠ n := fun heq => hj (Fin.ext heq)
-          omega
-        exact iff_of_true (hstrict j hj) hjv
-    · by_cases hj : j = Fin.last n
-      · subst j
-        rw [ho]
-        exact iff_of_false (not_lt.mpr (hmem _).1) (by change ¬n < i.val; omega)
-      · by_cases hij : i = j
-        · subst j
-          simp
-        · have h := sbtw_angle_cut_iff_lt
-            ⟨hstrict i hi, (hmem _).2⟩ ⟨hstrict j hj, (hmem _).2⟩
-          rw [hcoe, hcoe, ← ho, hcoe] at h
-          exact h.symm.trans (horder i j hi hj hij)
+    · subst hi
+      rw [ho]
+      exact iff_of_true (hstrict j (Ne.symm hij)) (Fin.lt_last_iff_ne_last.mpr (Ne.symm hij))
+    by_cases hj : j = Fin.last n
+    · subst hj
+      rw [ho]
+      exact iff_of_false (not_lt.mpr (hmem _).1) (not_lt.mpr (Fin.le_last i))
+    have h := sbtw_angle_cut_iff_lt
+      ⟨hstrict i hi, (hmem _).2⟩ ⟨hstrict j hj, (hmem _).2⟩
+    rw [hcoe, hcoe, ← ho, hcoe] at h
+    exact h.symm.trans (horder i j hi hj hij)
 
 end Cslib.Polygonal

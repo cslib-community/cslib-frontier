@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Emit
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.ScanSet
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged native suffix selection
@@ -34,9 +34,6 @@ def SuffixLocal (i : Fin registers) : Prop := EmitLocal i ∨ i = suffix
 instance (i : Fin registers) : Decidable (SuffixLocal i) :=
   inferInstanceAs (Decidable (EmitLocal i ∨ i = suffix))
 
-private theorem suffix_preserves (child : Bool) (i : Fin registers) :
-    ¬SuffixLocal i → (putSuffix child).Preserves i := by decide +kernel +revert
-
 /-- The selected suffix is divided from the actual loaded query, then deduplicated by its
 actual memory timestamp. No query-set computation is supplied as a hypothesis. -/
 theorem exec_suffix {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ)
@@ -54,34 +51,22 @@ theorem exec_suffix {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ)
             (x.regs childList + x.regs childCount) (shortened child q))
             (x.regs stamps + shortened child q) (x.regs epoch)) ∧
       (∀ i, ¬SuffixLocal i → y.regs i = x.regs i) := by
-  let z := x.set suffix (shortened child q)
   have hqfit : Fits w (shortened child q) := hs.of_le (by omega)
-  have hpre : ExecWithin w
-      (if child then ram[ suffix ← query / ten ] else ram[ suffix ← query ]) x z 1 := by
-    cases child with
-    | false =>
-      change ExecWithin w (ram[ suffix ← query ]) x z 1
-      ram_eval [z, shortened, hq]
-    | true =>
-      have hv : Fits w (q / 10) := hqfit
-      change ExecWithin w (ram[ suffix ← query / ten ]) x (x.set suffix (q / 10)) 1
-      ram_eval [hq, h10, hv]
-  have hz1 : z.regs one = 1 := by simpa [z, one, suffix] using h1
-  have hzs : Fits w (z.regs stamps + z.regs suffix) := by
-    simpa [z, stamps, suffix] using hs
-  have hzl : Fits w (z.regs childList + z.regs childCount) := by
-    simpa [z, childList, childCount, suffix] using hl
-  have hzn : Fits w (z.regs childCount + 1) := by
-    simpa [z, childCount, suffix] using hn
-  obtain ⟨y, hy, hc, hm, hf⟩ := exec_emit z hz1 hzs hzl hzn
-  have he : ExecWithin w (putSuffix child) x y 10 := hpre.seq hy
-  refine ⟨y, he, ?_, ?_, ?_, fun i hi => he.regs_eq (suffix_preserves child i hi)⟩
-  · regs_frame
-  · simpa [z, stamps, suffix, childCount, epoch] using hc
-  · simpa [z, stamps, suffix, childList, childCount, epoch] using hm
-
-private theorem dispatch_preserves (child : Bool) (i : Fin registers) :
-    ¬SuffixLocal i → (scanDispatch child).Preserves i := by decide +kernel +revert
+  cases child <;> (
+    refine WP.exists_execWithin ?_
+    unfold putSuffix
+    simp only [Bool.false_eq_true, ↓reduceIte]
+    wram_exec [hq, h10, (by simpa [shortened] using hqfit : Fits w _)]
+    wram_call (exec_emit _ (by wram_simp [h1]) (by wram_simp; simpa [shortened] using hs)
+      (by wram_simp; exact hl) (by wram_simp; exact hn)) with y ⟨hc, hm, hf⟩
+    wram_simp at hc hm
+    refine ⟨by omega, ?_, by simpa [shortened] using hc, by simpa [shortened] using hm,
+      fun i hi => ?_⟩
+    · simp only [shortened, Bool.false_eq_true, ↓reduceIte]
+      regs_frame
+    · simp only [SuffixLocal, not_or] at hi
+      rw [hf i hi.1]
+      wram_simp)
 
 /-- The native child-digit filter, shared by the scan and the accumulation: a selected query
 passes the comparison with digit nine, or else the comparison with the current term, and
@@ -91,13 +76,16 @@ theorem exec_selectDigit {w T q : ℕ} {C : Code .standard registers} {x y : Dat
     (hy : ExecWithin w C x y T) :
     ExecWithin w (ram[ if digit = nine then [ ⟪C⟫ ] else [
       if digit = term then [ ⟪C⟫ ] else [ temporary ← temporary ] ] ]) x y (T + 3) := by
-  have hchoice : q % 10 = 9 ∨ q % 10 = x.regs term := hsel
   by_cases hfirst : q % 10 = 9
-  · exact (ExecWithin.branch_pos (by simpa only [Cond.holds_eq, hd, h9] using hfirst) hy).mono
-      (by omega)
-  · have hsecond := hchoice.resolve_left hfirst
-    exact ExecWithin.branch_neg (by simpa only [Cond.holds_eq, hd, h9] using hfirst)
-      (ExecWithin.branch_pos (by simpa only [Cond.holds_eq, hd] using hsecond) hy)
+  · refine WP.execWithin ?_
+    wram_exec [hd, h9, hfirst]
+    wram_call hy
+    exact ⟨by omega, trivial⟩
+  · have hsecond : q % 10 = x.regs term := hsel.resolve_left hfirst
+    refine WP.execWithin ?_
+    wram_exec [hd, h9, hfirst, hsecond]
+    wram_call hy
+    exact ⟨by omega, trivial⟩
 
 /-- An unselected query fails both comparisons of the child-digit filter and runs its no-op. -/
 theorem exec_selectDigit_skip {w q : ℕ} {C : Code .standard registers} {x : Data registers}
@@ -108,8 +96,7 @@ theorem exec_selectDigit_skip {w q : ℕ} {C : Code .standard registers} {x : Da
       x (x.set temporary (x.regs temporary)) 5 := by
   have hfirst : q % 10 ≠ 9 := fun h => hsel (Or.inl h)
   have hsecond : q % 10 ≠ x.regs term := fun h => hsel (Or.inr h)
-  exact ExecWithin.branch_neg (by simpa only [Cond.holds_eq, hd, h9] using hfirst)
-    (ExecWithin.branch_neg (by simpa only [Cond.holds_eq, hd] using hsecond) ExecWithin.copy)
+  wram_exec [hd, h9, hfirst, hsecond]
 
 /-- Execute the actual query filter and unique insertion. The numerical selection is proved
 from the two real digit comparisons; it is not a supplied child-set certificate. -/
@@ -132,12 +119,12 @@ theorem exec_scanDispatch {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ
             (x.regs stamps + shortened child q) (x.regs epoch) else x.mem) ∧
       (∀ i, ¬SuffixLocal i → y.regs i = x.regs i) := by
   by_cases hsel : selected child (x.regs term) q
-  · obtain ⟨y, hy, _, hc, hm, _⟩ := exec_suffix child x q hq h1 h10 hs hl hn
+  · obtain ⟨y, hy, _, hc, hm, hyr⟩ := exec_suffix child x q hq h1 h10 hs hl hn
     have he : ExecWithin w (scanDispatch child) x y 14 := by
       cases child with
       | false => exact hy.mono (by decide)
       | true => exact (exec_selectDigit hdigit h9 hsel hy).mono (by decide)
-    refine ⟨y, he, ?_, ?_, fun i hi => he.regs_eq (dispatch_preserves child i hi)⟩
+    refine ⟨y, he, ?_, ?_, hyr⟩
     · by_cases hseen : x.mem (x.regs stamps + shortened child q) = x.regs epoch <;>
         simpa [hsel, hseen] using hc
     · by_cases hseen : x.mem (x.regs stamps + shortened child q) = x.regs epoch <;>
@@ -145,12 +132,13 @@ theorem exec_scanDispatch {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ
   · have hchild : child = true := by
       cases child <;> simp_all [selected]
     subst hchild
-    let y := x.set temporary (x.regs temporary)
-    have he : ExecWithin w (scanDispatch true) x y 5 := exec_selectDigit_skip hdigit h9 hsel
-    refine ⟨y, he.mono (by decide), ?_, ?_,
-      fun i hi => he.regs_eq (dispatch_preserves true i hi)⟩
-    · simp [hsel, y, childCount, temporary]
-    · simp [hsel, y]
+    have he : ExecWithin w (scanDispatch true) x (x.set temporary (x.regs temporary)) 5 :=
+      exec_selectDigit_skip hdigit h9 hsel
+    refine ⟨x.set temporary (x.regs temporary), he.mono (by decide), ?_, ?_, fun i _ => ?_⟩
+    · wram_simp
+      simp [hsel]
+    · simp [hsel]
+    · simp only [Data.set_regs, Function.update_eq_self]
 
 /-- All scan-step scratch registers; caller pointers, counts and the current epoch are kept. -/
 def ScanStepLocal (i : Fin registers) : Prop :=
@@ -158,9 +146,6 @@ def ScanStepLocal (i : Fin registers) : Prop :=
 
 instance (i : Fin registers) : Decidable (ScanStepLocal i) :=
   inferInstanceAs (Decidable (SuffixLocal i ∨ i = query ∨ i = digit ∨ i = index))
-
-private theorem scanStep_preserves (child : Bool) (i : Fin registers) :
-    ¬ScanStepLocal i → (scanStep child).Preserves i := by decide +kernel +revert
 
 /-- One complete native scan step includes source indexing, the actual load and digit
 computation, conditional deduplicated insertion, and the loop-counter increment. -/
@@ -183,26 +168,23 @@ theorem exec_scanStep {w : ℕ} (child : Bool) (x : Data registers) (q : ℕ)
             (x.regs childList + x.regs childCount) (shortened child q))
             (x.regs stamps + shortened child q) (x.regs epoch) else x.mem) ∧
       (∀ i, ¬ScanStepLocal i → y.regs i = x.regs i) := by
-  let z := ((x.set address (x.regs listBase + x.regs index)).set query q).set digit (q % 10)
   have hmod : Fits w (q % 10) := h10fit.of_le (Nat.le_of_lt (Nat.mod_lt _ (by decide)))
-  have hload : ExecWithin w scanLoad x z 3 := by
-    ram_eval [scanLoad, z, hq, h10, hread, hmod, address, listBase, index, query, digit, ten,
-      Fin.mk.injEq]
-  obtain ⟨u, hu, hc, hm, hf⟩ := exec_scanDispatch child z q
-    (by simp [z, query, digit]) (by simp [z])
-    (by regs_frame) (by regs_frame) (by regs_frame)
-    (by simpa [z, stamps, address, query, digit] using hs)
-    (by simpa [z, childList, childCount, address, query, digit] using hl)
-    (by simpa [z, childCount, address, query, digit] using hn)
-  have hui : u.regs index = x.regs index := by regs_frame
-  have huo : u.regs one = 1 := by regs_frame
-  let y := u.set index (x.regs index + 1)
-  have hinc : ExecWithin w (ram[ index ← index + one ]) u y 1 := by
-    ram_eval [y, hui, huo, hi]
-  have he : ExecWithin w (scanStep child) x y 18 := hload.seq (hu.seq hinc)
-  refine ⟨y, he, by simp [y], ?_, ?_,
-    fun i hi => he.regs_eq (scanStep_preserves child i hi)⟩
-  · simpa [y, z, index, childCount, term, address, query, digit, stamps, epoch] using hc
-  · simpa [y, z, childList, childCount, term, address, query, digit, stamps, epoch] using hm
+  refine WP.exists_execWithin ?_
+  unfold scanStep scanLoad
+  wram_exec [hq, h10, hread, hmod]
+  wram_call (exec_scanDispatch child _ q (by wram_simp) (by wram_simp)
+    (by wram_simp [h1]) (by wram_simp [h10]) (by wram_simp [h9])
+    (by wram_simp; exact hs) (by wram_simp; exact hl) (by wram_simp; exact hn))
+    with u ⟨hc, hm, hf⟩
+  wram_simp at hc hm
+  wram_exec * [hi]
+  refine ⟨by wram_simp, by wram_simp [hc], hm, fun i h => ?_⟩
+  simp only [ScanStepLocal, not_or] at h
+  rcases h with ⟨hsuf, hq', hd', hi'⟩
+  wram_simp
+  rw [hf i hsuf]
+  simp only [SuffixLocal, EmitLocal, not_or] at hsuf
+  rcases hsuf with ⟨⟨had, -⟩, -⟩
+  wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

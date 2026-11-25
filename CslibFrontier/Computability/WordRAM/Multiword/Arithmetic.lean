@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Mul
 public import CslibFrontier.Computability.WordRAM.Multiword.Sub
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Tactic.FinIndex
 
 /-!
@@ -186,32 +187,25 @@ private theorem exec_borrow_framed {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (
       Multiword.value (radix w) y ds + Multiword.value (radix w) x bs =
         Multiword.value (radix w) x ds + radix w ^ ds.length * y.regs borrow ∧
       Arithmetic.Frame x y ds := by
-  let z := ((x.set base (radix w)).set one 1).set borrow 0
+  have hβ := one_lt_radix hw
+  refine WP.Exact.exists_exec ?_
+  unfold program
+  wram_exec [radix_fits hw]
+  refine WP.Exact.name fun z hzx => ?_
   have hz (i : Fin (r + 4)) (hi : IsDigit i) : z.regs i = x.regs i := by
-    have hne : i ≠ borrow ∧ i ≠ base ∧ i ≠ one := by
-      fin_index [IsDigit]
-    simp only [z, Data.set_regs, Function.update_apply, hne.1, hne.2.1, hne.2.2,
-      ↓reduceIte]
-  have hzvalue (es : List (Fin (r + 4))) (hes : ∀ i ∈ es, IsDigit i) :
-      Multiword.value (radix w) z es = Multiword.value (radix w) x es :=
-    Multiword.value_congr fun i hi => hz i (hes i hi)
+    obtain ⟨_, hc, hb, ho⟩ := digit_ne hi
+    rw [hzx]; wram_simp
   obtain ⟨y, he, hyd, hyc, hyeq, hyf⟩ := exec_digits hw bs ds hlen hbs hds hnd hdis z
-    (by simp [z, base, one, borrow]) (by simp [z, one, borrow])
-    (fun i hi => by rw [hz i (hbs i hi)]; exact hb i hi)
-    (fun i hi => by rw [hz i (hds i hi)]; exact hd i hi) (by simp [z])
-  have hsetup : Exec (B := .standard) w
-      (ram[base ← #(radix w); one ← #1; borrow ← #0]) x z 3 := by
-    ram_eval [z, radix_fits hw, fits_one (by omega : w ≠ 0), base, one, borrow]
-  have he' : Exec w (program w bs ds) x y (6 * ds.length + 4) := by
-    convert hsetup.seq he using 1 <;> [rfl; omega]
-  refine ⟨y, he', hyd, hyc, ?_, ?_, hyf.1,
-    fun i hi hid => he'.regs_eq (preserves_program w bs ds i hi hid)⟩
-  · rw [hyf.2 one (fun hm => ?_) (by simp [one, total]) (by simp [one])]
-    · simp [z, one, borrow]
-    · have := hds one hm
-      simp [IsDigit] at this
-  · have hzb : z.regs borrow = 0 := by simp [z]
-    simpa only [hzvalue bs hbs, hzvalue ds hds, hzb, Nat.add_zero] using hyeq
+    (by rw [hzx]; wram_simp) (by rw [hzx]; wram_simp)
+    (fun i hi => hz i (hbs i hi) ▸ hb i hi)
+    (fun i hi => hz i (hds i hi) ▸ hd i hi) (by rw [hzx]; wram_simp)
+  have hzbor : z.regs borrow = 0 := by rw [hzx]; wram_simp
+  refine WP.Exact.of_exec he ⟨rfl, hyd, hyc,
+    (hyf.zero_regs hds).trans (by rw [hzx]; wram_simp), ?_,
+    by rw [hyf.1, hzx]; rfl, fun i hi hid => (hyf.digit_regs hi hid).trans (hz i hi)⟩
+  simpa only [Multiword.value_congr (β := radix w) fun i hi => hz i (hbs i hi),
+    Multiword.value_congr (β := radix w) fun i hi => hz i (hds i hi), hzbor, Nat.add_zero]
+    using hyeq
 
 /-- Subtraction followed by clearing its output exactly when the final borrow is one.
 The second alternative is a self-copy, so both branches are executable for empty lists. -/
@@ -251,51 +245,29 @@ theorem exec_truncating {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (r + 4)))
       Arithmetic.Frame x y ds := by
   obtain ⟨z, he, hzd, hzc, hzo, hzeq, hzf⟩ :=
     exec_borrow_framed hw bs ds hlen hbs hds hnd hdis x hb hd
-  by_cases hc : z.regs borrow = 1
-  · obtain ⟨y, hey, hy, hyf⟩ := Schoolbook.exec_clear (w := w) ds hds hnd z
-    have hbranch : Exec w
-        (.branch (.eq borrow one) (Schoolbook.clear ds) (.op (.copy borrow borrow)))
-        z y (ds.length + 2) := by
-      exact hey.branch_pos (show (Cond.eq borrow one).Holds z from hc.trans hzo.symm)
-    have he' := he.seq hbranch
+  refine WP.exists_execWithin ?_
+  unfold truncatingProgram
+  refine WP.seq (WP.of_execWithin he.within ?_)
+  wram_exec [hzo]
+  case pos =>
+    obtain ⟨y, hey, hy, hyf⟩ := Schoolbook.exec_clear (w := w) ds hds hnd z
     have hlt : Multiword.value (radix w) x ds < Multiword.value (radix w) x bs := by
-      have hyv : Multiword.value (radix w) z ds < radix w ^ ds.length := by
-        exact Nat.ofDigits_lt_base_pow_length (one_lt_radix hw)
-          (by
-            intro a ha
-            obtain ⟨i, hi, rfl⟩ := List.mem_map.mp ha
-            exact hzd i hi) |>.trans_eq (by simp)
-      rw [hc, Nat.mul_one] at hzeq
-      omega
-    refine ⟨y, ⟨_, ?_, he'⟩, ?_, ?_, hyf.1.trans hzf.1,
-      fun i hi hid => he'.regs_eq (preserves_truncatingProgram w bs ds i hi hid)⟩
-    · exact Nat.add_le_add_left (le_max_left _ _) _
-    · intro i hi
-      rw [hy i hi]
-      have := one_lt_radix hw
-      omega
-    · rw [Nat.sub_eq_zero_of_le (Nat.le_of_lt hlt)]
-      exact Multiword.value_eq_zero_of_forall hy
-  · have hc0 : z.regs borrow = 0 := by omega
-    let y := z.set borrow (z.regs borrow)
-    have hey : Exec w (.op (.copy (B := .standard) borrow borrow)) z y 1 := by
-      ram_eval [y]
-    have hbranch := hey.branch_neg (pos := Schoolbook.clear ds)
-      (show ¬(Cond.eq borrow one).Holds z from fun h => hc (h.trans hzo))
-    have he' := he.seq hbranch
-    have hyi (i : Fin (r + 4)) : y.regs i = z.regs i := by
-      simp [y, Data.set_regs]
-    have hyvalue : Multiword.value (radix w) y ds = Multiword.value (radix w) z ds :=
-      Multiword.value_congr fun i _ => hyi i
-    refine ⟨y, ⟨_, ?_, he'⟩, ?_, ?_, rfl.trans hzf.1,
-      fun i hi hid => he'.regs_eq (preserves_truncatingProgram w bs ds i hi hid)⟩
-    · exact Nat.add_le_add_left (le_max_right _ _) _
-    · intro i hi
-      rw [hyi]
-      exact hzd i hi
-    · rw [hyvalue]
-      simp only [hc0, Nat.mul_zero, Nat.add_zero] at hzeq
-      omega
+      have hyv : Multiword.value (radix w) z ds < radix w ^ ds.length :=
+        (Nat.ofDigits_lt_base_pow_length (one_lt_radix hw) fun a ha => by
+          obtain ⟨i, hi, rfl⟩ := List.mem_map.mp ha; exact hzd i hi).trans_eq (by simp)
+      rw [hc, Nat.mul_one] at hzeq; omega
+    exact WP.of_execWithin hey.within ⟨by omega,
+      fun i hi => hy i hi ▸ Nat.zero_lt_of_lt (one_lt_radix hw),
+      (Multiword.value_eq_zero_of_forall hy).trans (Nat.sub_eq_zero_of_le hlt.le).symm,
+      hyf.1.trans hzf.1, fun i hi hid => (hyf.digit_regs hi hid).trans (hzf.2 i hi hid)⟩
+  case neg =>
+    have hc0 : z.regs borrow = 0 := by omega
+    have hyi (i : Fin (r + 4)) : (z.set borrow (z.regs borrow)).regs i = z.regs i := by simp
+    refine ⟨fun i hi => hyi i ▸ hzd i hi, ?_, hzf.1,
+      fun i hi hid => (hyi i).trans (hzf.2 i hi hid)⟩
+    rw [Multiword.value_congr fun i _ => hyi i]
+    simp only [hc0, Nat.mul_zero, Nat.add_zero] at hzeq
+    omega
 
 /-- General eighteen-digit natural-number subtraction takes at most 132 instructions. -/
 theorem exec_eighteen_truncating {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (r + 4)))

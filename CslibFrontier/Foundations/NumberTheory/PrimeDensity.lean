@@ -11,7 +11,6 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Nat.Prime.Defs
 public import Mathlib.Order.Interval.Finset.Nat
 import CslibFrontier.Foundations.NumberTheory.CentralBinomPrimes
-import Mathlib.Data.Nat.Choose.Central
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.NormNum.Prime
 
@@ -162,8 +161,7 @@ private theorem two_pow_le_card_primes_large (n : ℕ) (hn : 13 ≤ n) :
     generalize n * s = A at hnum ⊢
     omega
   have : m * m.centralBinom ≤ 4 ^ m := by
-    calc m * m.centralBinom ≤ m * ((2 * m) ^ s * 4 ^ (2 * m / 3) * (2 * m) ^ K) :=
-          Nat.mul_le_mul_left _ H3
+    calc m * m.centralBinom ≤ m * ((2 * m) ^ s * 4 ^ (2 * m / 3) * (2 * m) ^ K) := by gcongr
       _ = 2 ^ ((n - 1) + n * s + 2 * (2 * m / 3) + n * K) := by
           rw [e1, e2, e3, ← hmdef, pow_add, pow_add, pow_add]; ring
       _ ≤ 2 ^ (2 * m) := Nat.pow_le_pow_right (by norm_num) hE

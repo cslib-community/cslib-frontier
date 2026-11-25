@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
+import CslibFrontier.Computability.Complexity.Problems.Graph.DartConnectivity
 import Mathlib.Data.List.Nodup
-import Mathlib.Data.List.GetD
 import Mathlib.Analysis.Convex.Segment
 
 /-!
@@ -69,8 +69,8 @@ private theorem referenceDrawing_pair_properties {I : FixedRotationInput} (hI : 
     intro h
     apply hef
     apply subdivisionGraph_edge_injective hI
-    simpa only [a, b, c, d, Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, Fin.getElem_fin,
-      ↓reduceIte, List.getD_eq_getElem _ _ e.isLt, List.getD_eq_getElem _ _ f.isLt] using h
+    exact (Dart.sym2_vertex_reverse (G := subdivisionGraph I) (e, false)).symm.trans
+      (h.trans (Dart.sym2_vertex_reverse (G := subdivisionGraph I) (f, false)))
   have hout : ¬(c ∈ (s(a, b) : Sym2 ℕ) ∧ d ∈ (s(a, b) : Sym2 ℕ)) := by
     intro h
     exact hpair ((Sym2.mem_and_mem_iff hf'.2).mp h)

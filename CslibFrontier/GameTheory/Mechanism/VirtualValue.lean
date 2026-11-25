@@ -25,8 +25,8 @@ This file sets up the Bayesian side of single-parameter mechanism design
 distribution `μ` on `[0, h]` with density `f` (`HasValueDensity μ f h`). Its *virtual valuation*
 is `φ(v) = v − (1 − F(v)) / f(v)` (Lecture 5, §2, Step 4). Here `1 − F(v)` is written
 `μ.real (Ioi v)`, so the definition needs no separate cumulative distribution function. The
-distribution is *regular* when `φ` is strictly increasing on `[0, h]` (Lecture 5,
-Definition 3.1).
+distribution is *regular* when `φ` is strictly increasing on `(0, h)` (Lecture 5,
+Definition 3.1; see `IsRegular` for the boundary endpoints).
 
 The main result is the one-dimensional revenue identity (Lecture 5, §2, Steps 1–4, eq. (4)). For
 an allocation curve `g` that is measurable and bounded on `[0, h]`,
@@ -39,26 +39,27 @@ the density in `φ`. No differentiability or monotonicity of `g` is needed.
 
 The density is assumed positive on the open interval `(0, h)`. Without this, the identity can fail
 on a set of positive measure where `f = 0` but `μ((v, ∞)) > 0`, because `φ` uses Lean's
-`x / 0 = 0`. Even with positivity, `φ` depends on the chosen version of `f`, which `μ` determines
-only almost everywhere. The identity is insensitive to this, but the pointwise predicate `IsRegular`
-is not: at `v = 0` it evaluates `φ(0) = −1/f(0)`. See the endpoint convention in `IsRegular`, which
-makes it stronger than Lecture 5, Definition 3.1 for densities with `(1 − F)/f → ∞` at `0`.
+`x / 0 = 0`. Even with interior positivity, `φ(0)` depends on the chosen value `f(0)` on the null
+singleton `{0}` (with `f(0) = 0` giving the division-by-zero artifact `φ(0) = 0`), while at `v = h`
+we already have `μ((h, ∞)) = 0` so `φ(h) = h`. Defining `IsRegular` on `(0, h)` depends only on
+points where `f > 0`, includes regular distributions whose density vanishes at `0` (such as
+`f(v) = 2v` on `[0, 1]`, where `φ(v) → −∞` as `v → 0⁺`), and still extends to all of `(0, ∞)`
+(`IsRegular.strictMonoOn_Ioi`).
 
 ## Main definitions
 
 * `SingleParameter.HasValueDensity μ f h`: `μ` is the distribution on `[0, h]` with density `f`,
   positive on `(0, h)`.
 * `SingleParameter.virtualValue μ f v`: the virtual valuation `v − μ((v, ∞)) / f(v)`.
-* `SingleParameter.IsRegular μ f h`: the virtual valuation is strictly increasing on `[0, h]`,
-  including the endpoint `0` (which requires `f(0) > 0` and `φ` bounded below near `0`).
+* `SingleParameter.IsRegular μ f h`: the virtual valuation is strictly increasing on `(0, h)`.
 
 ## Main results
 
 * `SingleParameter.HasValueDensity.integral_payment_eq_integral_virtualValue_mul`: the
   one-dimensional revenue identity.
 * `SingleParameter.HasValueDensity.integrable_virtualValue`: virtual valuations are integrable.
-* `SingleParameter.IsRegular.strictMonoOn_Ici`: a regular virtual valuation is strictly increasing
-  on all of `[0, ∞)`, because `φ(v) = v` above the support.
+* `SingleParameter.IsRegular.strictMonoOn_Ioi`: a regular virtual valuation is strictly increasing
+  on all of `(0, ∞)`, because `φ(v) = v` at and above `h`.
 * `SingleParameter.virtualValue_uniform`, `SingleParameter.isRegular_uniform`: the uniform
   distribution on `[0, 1]` has `φ(v) = 2v − 1` and is regular (Lecture 5, §2).
 
@@ -90,17 +91,16 @@ structure HasValueDensity (μ : Measure ℝ) (f : ℝ → NNReal) (h : ℝ) : Pr
   v - μ.real (Ioi v) / f v
 
 /-- A valuation distribution on `[0, h]` is **regular** if its virtual valuation is strictly
-increasing on `[0, h]` ([Roughgarden2013CS364A], Lecture 5, Definition 3.1).
+increasing on `(0, h)` ([Roughgarden2013CS364A], Lecture 5, Definition 3.1).
 
-**Endpoint convention.** The predicate includes `v = 0`, where `φ(0) = −1/f(0)` depends on the
-chosen value `f(0)`, which does not affect `μ`. It therefore requires `f(0) > 0` and
-`−1/f(0) < φ(v)` for all `v ∈ (0, h]`; in particular `φ` must be bounded below near `0`. The choice
-`f(0) = 0` never works, because then `φ(0) = 0`. This is strictly stronger than Definition 3.1 for
-densities with `(1 − F(v))/f(v) → ∞` as `v → 0⁺`. For example, `f(v) = 2v` on `[0, 1]` has
-`φ(v) = (3v² − 1)/(2v)` on `(0, 1]`, which is strictly increasing there but tends to `−∞`, so it is
-regular in the textbook sense but satisfies `IsRegular` for no choice of `f(0)`. -/
+Restricting to the open interior `(0, h)` avoids the lower endpoint `v = 0`, where `f` is
+unconstrained by `HasValueDensity` and `f(0) = 0` produces the division-by-zero artifact
+`φ(0) = 0` (while textbook regular densities such as `f(v) = 2v` on `[0, 1]` have `φ(v) → −∞` as
+`v → 0⁺`, so no real value at `0` makes `φ` monotone on `[0, h]`). At and above the upper endpoint
+`h`, `HasValueDensity.virtualValue_eq_self` gives `φ(v) = v`, so `IsRegular` extends automatically
+to `(0, ∞)` (`IsRegular.strictMonoOn_Ioi`), and in particular to `(0, h]`. -/
 @[expose] def IsRegular (μ : Measure ℝ) (f : ℝ → NNReal) (h : ℝ) : Prop :=
-  StrictMonoOn (virtualValue μ f) (Icc 0 h)
+  StrictMonoOn (virtualValue μ f) (Ioo 0 h)
 
 /-- The tail `v ↦ μ((v, ∞))` of a finite measure is measurable (it is antitone). -/
 theorem measurable_measureReal_Ioi (μ : Measure ℝ) [IsFiniteMeasure μ] :
@@ -238,15 +238,15 @@ theorem integral_payment_eq_integral_virtualValue_mul [IsFiniteMeasure μ]
 
 end HasValueDensity
 
-/-- A regular virtual valuation is strictly increasing on all of `[0, ∞)`: above the support it is
+/-- A regular virtual valuation is strictly increasing on all of `(0, ∞)`: at and above `h` it is
 the identity, and below it never exceeds the valuation. -/
-theorem IsRegular.strictMonoOn_Ici {μ : Measure ℝ} {f : ℝ → NNReal} {h : ℝ}
+theorem IsRegular.strictMonoOn_Ioi {μ : Measure ℝ} {f : ℝ → NNReal} {h : ℝ}
     (hreg : IsRegular μ f h) (hμ : HasValueDensity μ f h) :
-    StrictMonoOn (virtualValue μ f) (Ici 0) := by
+    StrictMonoOn (virtualValue μ f) (Ioi 0) := by
   intro a ha b hb hab
-  by_cases hbh : b ≤ h
-  · exact hreg ⟨ha, hab.le.trans hbh⟩ ⟨hb, hbh⟩ hab
-  · rw [hμ.virtualValue_eq_self (le_of_not_ge hbh)]
+  rcases lt_or_ge b h with hbh | hbh
+  · exact hreg ⟨ha, hab.trans hbh⟩ ⟨hb, hbh⟩ hab
+  · rw [hμ.virtualValue_eq_self hbh]
     exact (virtualValue_le μ f a).trans_lt hab
 
 /-! ### The uniform distribution -/
@@ -278,7 +278,7 @@ theorem virtualValue_uniform {v : ℝ} (hv : v ∈ Icc (0 : ℝ) 1) :
 /-- The uniform distribution on `[0, 1]` is regular. -/
 theorem isRegular_uniform : IsRegular (volume.restrict (Icc 0 1)) (fun _ => 1) 1 := by
   intro a ha b hb hab
-  rw [virtualValue_uniform ha, virtualValue_uniform hb]
+  rw [virtualValue_uniform (Ioo_subset_Icc_self ha), virtualValue_uniform (Ioo_subset_Icc_self hb)]
   linarith
 
 end Cslib.GameTheory.SingleParameter

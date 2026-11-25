@@ -134,8 +134,8 @@ theorem components_inSpace (d : Desc) :
       (encPair eCfg (encOption encBool)) eSym
       (fun p => (encPair eCfg (encOption encBool) p).length) := by
     simpa only [input, decide_eq_true_eq] using
-      budget_ite hzero (budget_const none (.refl _)) hsym
-  have hctx := budget_prod (budget_prod (budget_const (encB := eDesc) d (.refl _)) hp) hin
+      budget_ite hzero (budget_const none) hsym
+  have hctx := budget_prod (budget_prod (budget_const (encB := eDesc) d) hp) hin
   have hstep := budget_comp_linear (of_inO stepWith_inO) hctx
   have hunary : ComputableInSpace (fun n : ℕ => encUnary n) encUnary encBits
       (fun n => (encUnary n).length) :=
@@ -150,11 +150,11 @@ theorem components_inSpace (d : Desc) :
   have hemit := budget_ite (budget_optionIsSome hstep.snd')
     (budget_finite (encC := encBits) (fun b : Bool => [b])
       (budget_comp_linear hbit (budget_optionGetD 0 hstep.snd')))
-    (budget_const [] (.refl _))
+    (budget_const [])
   have hhalt := budget_finite (encC := encBool) Bool.not
     (budget_optionIsSome (eCfg_state_budget hid))
   refine ⟨budget_natPred hpos, hstep.fst', hemit.of_enc_eq ?_,
-    hhalt.of_enc_eq ?_, budget_const [] (.refl _)⟩
+    hhalt.of_enc_eq ?_, budget_const []⟩
   · intro p
     change encBits (((stepWith d p.1 (input p.1 p.2)).2.map outputBit).toList) =
       encBits (if _ then _ else _)
@@ -221,24 +221,22 @@ theorem halted_native {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
   rw [run_eq]
   exact h
 
-/-- An ordinary native workspace certificate bounds the saved encoding, with the input head
-charged separately. No bound on the size of the output is needed. -/
-theorem length_native_run_le_of_space {k : ℕ} {S : Type} [Fintype S]
-    (eS : S ↪ ℕ) (tm : MultiTapeTM k Bool S) (x : List Bool) (t s : ℕ)
-    (hs : tm.RunsInSpace x s) :
-    (eCfg ((machine (desc eS eBit tm)).run x t)).length ≤
-      2 * descLen (desc eS eBit tm) + 3 + 2 * (encNat (x.length + 1)).length + 1 +
-        3 * (2 * descLen (desc eS eBit tm) + 5) * 2 * s + k := by
-  have h := length_native_run_le eS tm x t
-  have hb := hs (MultiTapeNTM.ComputationPath.ofDeterministic tm x t)
-  change (MultiTapeNTM.RunPath.ofDeterministic tm (tm.initCfg x) t).space ≤ s at hb
-  exact h.trans (by gcongr)
-
 /-- The explicit saved-configuration budget extracted from native workspace. -/
 noncomputable def budget {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
     (tm : MultiTapeTM k Bool S) (n s : ℕ) : ℕ :=
   2 * descLen (desc eS eBit tm) + 3 + 2 * (encNat (n + 1)).length + 1 +
     3 * (2 * descLen (desc eS eBit tm) + 5) * 2 * s + k
+
+/-- An ordinary native workspace certificate bounds the saved encoding by its budget, with the
+input head charged separately. No bound on the size of the output is needed. -/
+theorem length_native_run_le_of_space {k : ℕ} {S : Type} [Fintype S]
+    (eS : S ↪ ℕ) (tm : MultiTapeTM k Bool S) (x : List Bool) (t s : ℕ)
+    (hs : tm.RunsInSpace x s) :
+    (eCfg ((machine (desc eS eBit tm)).run x t)).length ≤ budget eS tm x.length s := by
+  have h := length_native_run_le eS tm x t
+  have hb := hs (MultiTapeNTM.ComputationPath.ofDeterministic tm x t)
+  change (MultiTapeNTM.RunPath.ofDeterministic tm (tm.initCfg x) t).space ≤ s at hb
+  exact h.trans (by unfold budget; gcongr)
 
 /-- Native virtual-input substitution from an existing machine's own first-halt, output and
 workspace certificates. The five component certificates and saved-state encoding bound are

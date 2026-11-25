@@ -52,7 +52,7 @@ theorem finish_prepareWords_of_combined_none (M : MultiTapeTM k Bool Q) (e : Q �
     (hcombined : Providers.Labels.combine e (b, ScheduleRead.providerMap k (σ, i),
       words.previous, words.providers) = none) :
     (CheckedGate.machine M e).finish ((CheckedGate.machine M e).runFrom w
-      (prepareWords e (N, b, σ, i, words)) t) =
+      (prepareWords e ⟨N, b, σ, i, words⟩) t) =
       List.replicate (Encoding.width k s b) false := by
   rw [prepareWords_eq_of_combined_none e N b σ i words hcombined,
     CheckedGate.runFrom_inl, CheckedGate.finish_inl, hlength]
@@ -65,7 +65,7 @@ theorem finish_prepare_of_combined_none (M : MultiTapeTM k Bool Q) (e : Q ≃ Fi
       (Assignments.labels k ⟨limit, counter, stride, Encoding.width k s b⟩).previous,
       (Assignments.labels k ⟨limit, counter, stride, Encoding.width k s b⟩).providers) = none) :
     (CheckedGate.machine M e).finish ((CheckedGate.machine M e).runFrom w
-      (prepare e (N, b, σ, i, limit, counter, stride)) t) =
+      (prepare e ⟨N, b, σ, i, limit, counter, stride⟩) t) =
       List.replicate (Encoding.width k s b) false :=
   finish_prepareWords_of_combined_none M e w N b σ i t _
     (AssignmentLabels.length_label _ _ _ _ _ (by simpa using hcapacity)) hcombined
@@ -100,7 +100,7 @@ theorem finish_prepareWords_eq_gate {q : ℕ} (M : MultiTapeTM k Bool Q) (e : Q 
     (w : List Bool) (b : ℕ) [NeZero b] (σ : ℕ) (i : Fin q) (words : Assignments.Words k)
     (hlength : words.previous.length = Encoding.width k s b) :
     (CheckedGate.machine M e).finish ((CheckedGate.machine M e).runFrom w
-      (prepareWords e (w.length, b, σ, i, words)) b) =
+      (prepareWords e ⟨w.length, b, σ, i, words⟩) b) =
       List.ofFn (Encoding.encode e (gate (MultiTapePTM.ofDeterministic M) w b
         (scheduleOfNat k q σ) i
         ((Encoding.NativeChecked.parse (k := k) e (b, words.previous)).map fun raw => raw.toView b)
@@ -148,8 +148,8 @@ theorem finish_prepareWords_encode {q : ℕ} (M : MultiTapeTM k Bool Q) (e : Q �
     (w : List Bool) (b : ℕ) [NeZero b] (σ : ℕ) (i : Fin q) (previous : Option (View k Q b))
     (providers : Fin k → Fin 3 → Option (View k Q b)) :
     (CheckedGate.machine M e).finish ((CheckedGate.machine M e).runFrom w
-      (prepareWords e (w.length, b, σ, i, ⟨List.ofFn (Encoding.encode e previous),
-        fun h δ => List.ofFn (Encoding.encode e (providers h δ))⟩)) b) =
+      (prepareWords e ⟨w.length, b, σ, i, ⟨List.ofFn (Encoding.encode e previous),
+        fun h δ => List.ofFn (Encoding.encode e (providers h δ))⟩⟩) b) =
       List.ofFn (Encoding.encode e (gate (MultiTapePTM.ofDeterministic M) w b
         (scheduleOfNat k q σ) i previous providers)) := by
   rw [finish_prepareWords_eq_gate M e w b σ i _ (List.length_ofFn)]
@@ -164,7 +164,7 @@ theorem finish_prepare_eq_gate {q : ℕ} (M : MultiTapeTM k Bool Q) (e : Q ≃ F
     (limit counter stride : ℕ) (hcapacity : Encoding.width k s b ≤ limit.size) :
     let words := Assignments.labels k ⟨limit, counter, stride, Encoding.width k s b⟩
     (CheckedGate.machine M e).finish ((CheckedGate.machine M e).runFrom w
-      (prepare e (w.length, b, σ, i, limit, counter, stride)) b) =
+      (prepare e ⟨w.length, b, σ, i, limit, counter, stride⟩) b) =
       List.ofFn (Encoding.encode e (gate (MultiTapePTM.ofDeterministic M) w b
         (scheduleOfNat k q σ) i
         ((Encoding.NativeChecked.parse (k := k) e (b, words.previous)).map fun raw => raw.toView b)

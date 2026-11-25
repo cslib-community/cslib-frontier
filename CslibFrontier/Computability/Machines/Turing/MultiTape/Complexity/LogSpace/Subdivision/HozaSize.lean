@@ -70,7 +70,9 @@ theorem subdivisionSize_inSpace :
   have hin : (fun p => (encPair encNat encNat p).length) ≼
       (fun p => (encPair encNat encNat p).length) := .refl _
   have hcount := budget_natMul (fst encNat encNat) (budget_natSucc (snd encNat encNat))
-  have hbase := budget_const (encB := encNat) 6 hin
+  have hbase :=
+    budget_const (encIn := (encPair encNat encNat))
+      (Bs := (fun p => (encPair encNat encNat p).length)) (encB := encNat) 6
   have hExp := budget_natAdd codeLength_inSpace (budget_comp_linear natSize (snd encNat encNat))
   have hbound : ComputableInSpace (fun p : ℕ × ℕ => generatedWeightBound p.1 p.2)
       (encPair encNat encNat) encNat (fun p => (encPair encNat encNat p).length) := by

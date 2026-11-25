@@ -68,41 +68,14 @@ def ofCircuitFamily (F : UniformCircuitFamily) : UniformOracleCircuitFamily wher
       outputWidth := 1
       instructions := (F.gates (2 * n + 1 + ℓ)).map fun g => .gate (false, g) }
   computableInPolyTime_description := by
-    have hsecurity : ComputableInPolyTime OracleInputSize.securityParameter
-        encOracleInputSize encUnary :=
-      encOracleInputSize_securityParameter_polyTime ComputableInPolyTime.id'
-    have hclassical : ComputableInPolyTime OracleInputSize.classicalInputLength
-        encOracleInputSize encUnary :=
-      encOracleInputSize_classicalInputLength_polyTime ComputableInPolyTime.id'
-    have hinputLength : ComputableInPolyTime
-        (fun s : OracleInputSize => 2 * s.securityParameter + 1 + s.classicalInputLength)
-        encOracleInputSize encUnary :=
-      ComputableInPolyTime.unary_add'
-        (ComputableInPolyTime.unary_add'
-          (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hsecurity)
-          (ComputableInPolyTime.const 1)) hclassical
-    have hwidth : ComputableInPolyTime
-        (fun s : OracleInputSize => F.width (2 * s.securityParameter + 1 + s.classicalInputLength))
-        encOracleInputSize encUnary := F.computableInPolyTime_width.comp hinputLength
+    open scoped OracleInputSize OracleCircuitDescription in
+    have hw := F.computableInPolyTime_width
+    have hg := F.computableInPolyTime_gates
     have hphase : ComputableInPolyTime (fun g : GateCode => (false, g))
-        encGateCode encPhaseGateCode := (ComputableInPolyTime.const false).prod
-          ComputableInPolyTime.id'
-    have horacle : ComputableInPolyTime
-        (fun g : GateCode => OracleGateCode.gate (false, g)) encGateCode encOracleGateCode :=
-      OracleGateCode.computableInPolyTime_gate hphase
-    have hmap : ComputableInPolyTime
-        (List.map fun g : GateCode => OracleGateCode.gate (false, g))
-        (encList encGateCode) (encList encOracleGateCode) :=
-      (ComputableInPolyTime.map horacle)
-    have hgates : ComputableInPolyTime
-        (fun s : OracleInputSize =>
-          (F.gates (2 * s.securityParameter + 1 + s.classicalInputLength)).map
-            fun g => OracleGateCode.gate (false, g))
-        encOracleInputSize (encList encOracleGateCode) :=
-      hmap.comp (F.computableInPolyTime_gates.comp hinputLength)
-    exact encOracleCircuitDescription_mk_polyTime hwidth (ComputableInPolyTime.const 0)
-      (ComputableInPolyTime.const 0) (ComputableInPolyTime.const 0)
-      (ComputableInPolyTime.const 1) hgates
+        encGateCode encPhaseGateCode := by
+      unfold encPhaseGateCode
+      fun_prop
+    fun_prop
   wellFormed n ℓ := by
     refine ⟨?_, ?_, ?_, ?_⟩
     · change 2 * n + 1 + ℓ ≤ F.width (2 * n + 1 + ℓ)
@@ -167,18 +140,15 @@ private theorem decisionLaw_ofCircuitFamily_apply_true (F : UniformCircuitFamily
           fun g => OracleGateCode.gate (false, g)))
       (ket (inputState (F.width (2 * n + 1 + x.length))
         (word ++ List.ofFn fun _ : Fin 0 => false))) = _
-    have hz : List.ofFn (fun _ : Fin 0 => false) = [] :=
-      List.eq_nil_of_length_eq_zero (by simp)
-    rw [hz, List.append_nil]
+    rw [List.ofFn_zero, List.append_nil]
     rw [show ((F.gates (2 * n + 1 + x.length)).map
           fun g => OracleGateCode.gate (false, g)) =
         ((F.gates (2 * n + 1 + x.length)).map fun g => (false, g)).map
           OracleGateCode.gate by simp only [List.map_map]; rfl,
       OracleCircuit.toCircuit_map_gate, Circuit.ofPhaseCodes_map]
     rfl
-  have hwidth : 0 < ((ofCircuitFamily F).description n x.length).width := by
-    change 0 < F.width (2 * n + 1 + x.length)
-    exact F.width_pos _
+  have hwidth : 0 < ((ofCircuitFamily F).description n x.length).width :=
+    F.width_pos (2 * n + 1 + x.length)
   have hfiber :
       (Finset.univ.filter fun y :
           Fin ((ofCircuitFamily F).description n x.length).width → Bool =>
@@ -186,8 +156,7 @@ private theorem decisionLaw_ofCircuitFamily_apply_true (F : UniformCircuitFamily
           y (Fin.castLEEmb ((ofCircuitFamily F).wellFormed n x.length).output_le i)).headD
             false = true) =
         accepting ((ofCircuitFamily F).description n x.length).width := by
-    apply Finset.ext
-    intro y
+    ext y
     rw [Finset.mem_filter, mem_accepting hwidth]
     simp only [Finset.mem_univ, true_and, List.ofFn_succ,
       List.ofFn_zero, List.headD_cons]

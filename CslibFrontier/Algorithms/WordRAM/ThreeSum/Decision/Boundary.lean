@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Registers
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Exact ordinary 3SUM boundary verdicts
@@ -47,7 +48,8 @@ theorem exec_readLength {w : ℕ} (x : Data 16) (h3 : Fits w 3) :
     let y := x.set address 0 |>.set inputLength (x.mem 0) |>.set three 3 |>.set answer 0
     ExecWithin w readLength x y 4 := by
   dsimp only
-  ram_eval [readLength, address, inputLength, three, answer, h3, Fin.mk.injEq]
+  unfold readLength
+  wram_exec
 
 /-- Header initialization exposes its three controls and preserves the preprocessing input. -/
 theorem exec_readLength_init {w r : ℕ} (input : List ℤ) (h3 : Fits w 3) :

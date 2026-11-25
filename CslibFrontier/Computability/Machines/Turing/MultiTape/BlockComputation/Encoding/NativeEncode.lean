@@ -87,12 +87,12 @@ private theorem append_budget {α : Type} {enc : α ↪ List Bool} {S : α → �
   (hf.append hg (fun _ => encList_append _ _ _)).weaken (.add (.refl _) (.refl _))
 
 private theorem finiteAppend {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
-    (hlen : (fun a => (enc a).length) ≼ S) {n : ℕ} {f : Fin n → α → List Bool}
+    {n : ℕ} {f : Fin n → α → List Bool}
     (hf : ∀ i, ComputableInSpace (f i) enc (encList encBool) S) :
     ComputableInSpace (fun a => (List.ofFn fun i => f i a).flatten)
       enc (encList encBool) S := by
   induction n with
-  | zero => exact (budget_const [] hlen).of_enc_eq fun _ => rfl
+  | zero => exact (budget_const []).of_enc_eq fun _ => rfl
   | succ n ih =>
     have ht := ih (f := fun i => f i.succ) (fun i => hf i.succ)
     refine (append_budget (hf 0) ht).of_enc_eq ?_
@@ -116,13 +116,13 @@ private theorem cellWord_inSpace : ComputableInSpace cellWord encNat (encList en
     (fun n => (encNat n).length) := by
   have hn : ComputableInSpace (fun n : ℕ => n) encNat encNat
       (fun n => (encNat n).length) := of_inO ComputableInDegree.id'.inO_one
-  have ho := budget_const (encIn := encNat) (encB := encNat) 1 (.refl _)
-  have ht := budget_const (encIn := encNat) (encB := encNat) 2 (.refl _)
+  have ho := budget_const (Bs := fun a => (encNat a).length) (encIn := encNat) (encB := encNat) 1
+  have ht := budget_const (Bs := fun a => (encNat a).length) (encIn := encNat) (encB := encNat) 2
   refine (budget_ite (budget_natEq hn ho)
-    (budget_const (encB := encList encBool) [true, false] (.refl _))
+    (budget_const (encB := encList encBool) [true, false])
     (budget_ite (budget_natEq hn ht)
-      (budget_const (encB := encList encBool) [true, true] (.refl _))
-      (budget_const (encB := encList encBool) [false, false] (.refl _)))).of_enc_eq ?_
+      (budget_const (encB := encList encBool) [true, true])
+      (budget_const (encB := encList encBool) [false, false]))).of_enc_eq ?_
   intro n
   by_cases h1 : n = 1 <;> by_cases h2 : n = 2 <;> simp [cellWord, cellOfCode, h1, h2, encodeCell]
 
@@ -161,7 +161,8 @@ theorem windowWord_inSpace : ComputableInSpace windowWord (encList encNat) (encL
     have h := hstate cells i hi.le
     have hv := length_le_encList_of_mem encNat (List.getElem_mem hi)
     enc_len
-  have h := ComputableInSpace.foldl hid (budget_const [] (.refl _)) hs hspace hstate
+  have h := ComputableInSpace.foldl hid
+    (budget_const (Bs := fun cells => (encList encNat cells).length) []) hs hspace hstate
   refine h.weaken (.of_le_linear 64 64 fun _ => by omega) |>.of_enc_eq ?_
   intro cells
   simp only [foldl_cells, List.nil_append]
@@ -174,7 +175,7 @@ private theorem valid_inSpace : ComputableInSpace (valid (k := k) (Q := Q))
   have hcells := snd' (snd' (snd' hraw))
   have hbits (i : Fin k) := budget_natEq
     (budget_length (budget_comp_linear (of_inO (ComputableInO.pi_apply (encList encNat) i)) hcells))
-    (budget_natMul (budget_const (encB := encNat) 3 (.refl _)) hb)
+    (budget_natMul (budget_const (encB := encNat) 3) hb)
   have htuple := pi_linear hbits
   refine (budget_finite (encC := encBool)
     (fun checks : Fin k → Bool => (List.ofFn checks).all id) htuple).of_enc_eq fun _ => rfl
@@ -200,8 +201,8 @@ theorem payload_inSpace (e : Q ≃ Fin s) :
     (fun t : OutputTrack => List.ofFn (encodeTrack t)) htrack
   have hw (i : Fin k) := budget_comp_linear windowWord_inSpace
     (budget_comp_linear (of_inO (ComputableInO.pi_apply (encList encNat) i)) hcells)
-  exact (append_budget (append_budget (append_budget hs (finiteAppend (.refl _) hh)) ht)
-    (finiteAppend (.refl _) hw)).of_enc_eq fun _ => rfl
+  exact (append_budget (append_budget (append_budget hs (finiteAppend hh)) ht)
+    (finiteAppend hw)).of_enc_eq fun _ => rfl
 
 /-- Both tag branches have a native linear-space certificate. The FAIL branch streams the
 retained payload; it cannot create a width-sized word from binary width metadata alone. -/
@@ -239,7 +240,7 @@ theorem serialize_inSpace (e : Q ≃ Fin s) :
     dsimp only [encArgs] at ⊢
     nlinarith
   exact (budget_ite valid_inSpace (budget_cons htag hmap')
-    (budget_const [] (.refl _))).of_enc_eq fun _ => rfl
+    (budget_const [])).of_enc_eq fun _ => rfl
 
 /-- Raw-word output composes directly with the native parser's `encBits` input. -/
 theorem serialize_bits_inSpace (e : Q ≃ Fin s) :

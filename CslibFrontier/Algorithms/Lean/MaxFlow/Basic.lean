@@ -478,6 +478,46 @@ theorem sum_pathArcs_sign [Fintype V] [DecidableEq V] {p : List V} {s t : V}
 
 end PathLemmas
 
+section FoldMin
+
+/-- Folding `min ∘ w` over a list never exceeds the initial accumulator `init`. -/
+theorem foldl_min_le_init {α : Type*} (w : α → ℕ) (es : List α) (init : ℕ) :
+    es.foldl (fun acc a => min acc (w a)) init ≤ init := by
+  induction es generalizing init with
+  | nil => exact le_rfl
+  | cons a es' ih => exact le_trans (ih (min init (w a))) (Nat.min_le_left init (w a))
+
+/-- Folding `min ∘ w` over a list is at most `w x` for every element `x ∈ es`. -/
+theorem foldl_min_le_mem {α : Type*} (w : α → ℕ) {es : List α} (init : ℕ) {x : α}
+    (hx : x ∈ es) :
+    es.foldl (fun acc a => min acc (w a)) init ≤ w x := by
+  induction es generalizing init with
+  | nil => simp at hx
+  | cons a es' ih =>
+    rcases List.mem_cons.mp hx with rfl | hx'
+    · exact le_trans (foldl_min_le_init w es' (min init (w x))) (Nat.min_le_right init (w x))
+    · exact ih (min init (w a)) hx'
+
+/-- Folding `min ∘ w` over `es` from `init` equals either `init` or `w x` for some `x ∈ es`. -/
+theorem foldl_min_eq_init_or_mem {α : Type*} (w : α → ℕ) (es : List α) (init : ℕ) :
+    es.foldl (fun acc a => min acc (w a)) init = init ∨
+      ∃ x ∈ es, es.foldl (fun acc a => min acc (w a)) init = w x := by
+  induction es generalizing init with
+  | nil => exact .inl rfl
+  | cons a es' ih =>
+    simp only [List.foldl_cons]
+    by_cases hle : init ≤ w a
+    · rw [Nat.min_eq_left hle]
+      rcases ih init with hinit | ⟨x, hx, heq⟩
+      · exact .inl hinit
+      · exact .inr ⟨x, List.mem_cons_of_mem a hx, heq⟩
+    · rw [Nat.min_eq_right (Nat.le_of_not_le hle)]
+      rcases ih (w a) with hinit | ⟨x, hx, heq⟩
+      · exact .inr ⟨a, List.mem_cons_self, hinit⟩
+      · exact .inr ⟨x, List.mem_cons_of_mem a hx, heq⟩
+
+end FoldMin
+
 namespace Network
 
 variable {V : Type*}
@@ -670,39 +710,6 @@ instance instDecidableIsAugmentingPath [DecidableEq V] (f : N.Flow) (p : List V)
     Decidable (f.IsAugmentingPath p) := by
   unfold IsAugmentingPath
   infer_instance
-
-private theorem foldl_min_le_init {α : Type*} (w : α → ℕ) (es : List α) (init : ℕ) :
-    es.foldl (fun acc a => min acc (w a)) init ≤ init := by
-  induction es generalizing init with
-  | nil => exact le_rfl
-  | cons a es' ih => exact le_trans (ih (min init (w a))) (Nat.min_le_left init (w a))
-
-private theorem foldl_min_le_mem {α : Type*} (w : α → ℕ) {es : List α} (init : ℕ) {x : α}
-    (hx : x ∈ es) :
-    es.foldl (fun acc a => min acc (w a)) init ≤ w x := by
-  induction es generalizing init with
-  | nil => simp at hx
-  | cons a es' ih =>
-    rcases List.mem_cons.mp hx with rfl | hx'
-    · exact le_trans (foldl_min_le_init w es' (min init (w x))) (Nat.min_le_right init (w x))
-    · exact ih (min init (w a)) hx'
-
-private theorem foldl_min_eq_init_or_mem {α : Type*} (w : α → ℕ) (es : List α) (init : ℕ) :
-    es.foldl (fun acc a => min acc (w a)) init = init ∨
-      ∃ x ∈ es, es.foldl (fun acc a => min acc (w a)) init = w x := by
-  induction es generalizing init with
-  | nil => exact .inl rfl
-  | cons a es' ih =>
-    simp only [List.foldl_cons]
-    by_cases hle : init ≤ w a
-    · rw [Nat.min_eq_left hle]
-      rcases ih init with hinit | ⟨x, hx, heq⟩
-      · exact .inl hinit
-      · exact .inr ⟨x, List.mem_cons_of_mem a hx, heq⟩
-    · rw [Nat.min_eq_right (Nat.le_of_not_le hle)]
-      rcases ih (w a) with hinit | ⟨x, hx, heq⟩
-      · exact .inr ⟨a, List.mem_cons_self, hinit⟩
-      · exact .inr ⟨x, List.mem_cons_of_mem a hx, heq⟩
 
 /-- Bottleneck residual capacity along vertex list `p` (`0` when `pathArcs p` is empty). -/
 @[expose] def bottleneck (f : N.Flow) (p : List V) : ℕ :=
@@ -1095,6 +1102,20 @@ theorem cutCapacity_cutOfReindex [Fintype V] [Fintype W] [DecidableEq V] [Decida
   refine Finset.sum_congr rfl fun u _ => ?_
   rw [← e.sum_comp]
   simp
+
+theorem isMinCut_cutOfReindex [Fintype V] [Fintype W] [DecidableEq V] [DecidableEq W]
+    (e : V ≃ W) {N : Network V} {S : Finset W} (hS : (N.reindex e).IsMinCut S) :
+    N.IsMinCut (cutOfReindex e S) := by
+  refine ⟨isCut_cutOfReindex e hS.1, fun T hT => ?_⟩
+  have hT' : (N.reindex e).IsCut (T.map e.toEmbedding) := by
+    simp only [IsCut, reindex, Finset.mem_map_equiv, Equiv.symm_apply_apply]
+    exact hT
+  have h := hS.2 _ hT'
+  rw [← cutCapacity_cutOfReindex, ← cutCapacity_cutOfReindex] at h
+  have hround : cutOfReindex e (T.map e.toEmbedding) = T := by
+    ext x
+    simp [cutOfReindex]
+  rwa [hround] at h
 
 end Reindex
 

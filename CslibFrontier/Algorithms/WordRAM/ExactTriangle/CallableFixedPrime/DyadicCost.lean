@@ -34,11 +34,9 @@ open Filter Cslib.WordRAM Cslib.Matrix Cslib.Algorithms.ExactTriangle
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 open ParameterChoice
 
-private noncomputable def weightExponent (n F : ℕ) : ℝ :=
-  1 + Real.logb n (F + 1)
+private noncomputable def weightExponent (n F : ℕ) : ℝ := 1 + Real.logb n (F + 1)
 
-private def setupLog (n F : ℕ) : ℕ :=
-  Nat.clog 2 (4 * n + 3 * (n * n) * (2 * F + 1) + 4)
+private def setupLog (n F : ℕ) : ℕ := Nat.clog 2 (4 * n + 3 * (n * n) * (2 * F + 1) + 4)
 
 private noncomputable def upperTime (n F : ℕ) : ℝ :=
   3 * DyadicCost.costCoefficient (weightExponent n F) n * ((n : ℝ) ^ 3 / groups n) +
@@ -52,8 +50,7 @@ noncomputable def dyadicTime (n F : ℕ) : ℕ := ⌈upperTime n F⌉₊ + 16
 private theorem one_le_weightExponent {n : ℕ} (hn : 2 ≤ n) (F : ℕ) :
     1 ≤ weightExponent n F := by
   have hlog : 0 < Real.log (n : ℝ) := Real.log_pos (by exact_mod_cast hn)
-  have hF : 0 ≤ Real.log (F + 1 : ℝ) :=
-    Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ F + 1))
+  have hF : 0 ≤ Real.log (F + 1 : ℝ) := Real.log_nonneg (by exact_mod_cast (by omega : 1 ≤ F + 1))
   have hdiv := div_nonneg hF hlog.le
   unfold weightExponent Real.logb
   linarith only [hdiv]
@@ -148,25 +145,15 @@ private theorem setupLog_le_log {n F κ : ℕ} (hF : F ≤ (n + 2) ^ κ) :
   have hnB : n ≤ B := by dsimp only [B]; omega
   have hn2 : n * n ≤ B ^ 2 := (Nat.mul_le_mul hnB hnB).trans_eq (by ring)
   have hunit : 1 ≤ B ^ κ := Nat.one_le_pow _ _ hb1
-  have hcoef : 2 * F + 1 ≤ 3 * B ^ κ := by
-    have : F ≤ B ^ κ := hF
-    omega
-  have hterm : 3 * (n * n) * (2 * F + 1) ≤ 9 * B ^ (κ + 2) := by
-    calc
-      _ ≤ (3 * B ^ 2) * (3 * B ^ κ) :=
-        Nat.mul_le_mul (Nat.mul_le_mul_left 3 hn2) hcoef
-      _ = _ := by rw [pow_add]; ring
+  have hcoef : 2 * F + 1 ≤ 3 * B ^ κ := by change F ≤ B ^ κ at hF; omega
+  have hterm : 3 * (n * n) * (2 * F + 1) ≤ 9 * B ^ (κ + 2) :=
+    (Nat.mul_le_mul (Nat.mul_le_mul_left 3 hn2) hcoef).trans_eq (by rw [pow_add]; ring)
   have hB : B ≤ B ^ (κ + 2) := Nat.le_self_pow (by omega) _
   have hlinear : 4 * n + 4 ≤ 8 * B ^ (κ + 2) := by nlinarith only [hnB, hb1, hB]
-  have hsum : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ 17 * B ^ (κ + 2) := by
-    omega
-  have h17 : 17 ≤ B ^ 5 := (by decide : 17 ≤ (2 : ℕ) ^ 5).trans
-    (Nat.pow_le_pow_left hb 5)
-  have hpoly : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ B ^ (κ + 7) := by
-    calc
-      _ ≤ 17 * B ^ (κ + 2) := hsum
-      _ ≤ B ^ 5 * B ^ (κ + 2) := Nat.mul_le_mul_right _ h17
-      _ = _ := by rw [← pow_add]; congr 1; omega
+  have hsum : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ 17 * B ^ (κ + 2) := by omega
+  have h17 : 17 ≤ B ^ 5 := (by decide : 17 ≤ (2 : ℕ) ^ 5).trans (Nat.pow_le_pow_left hb 5)
+  have hpoly : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ B ^ (κ + 7) :=
+    hsum.trans ((Nat.mul_le_mul_right _ h17).trans_eq (by rw [← pow_add]; congr 1; omega))
   have h := hpoly.trans (Nat.pow_le_pow_left
     (Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) B) (κ + 7))
   rw [← pow_mul, Nat.mul_comm (Nat.clog 2 B) (κ + 7)] at h
@@ -182,8 +169,7 @@ private theorem weightExponent_le {n F κ : ℕ} (hn : 2 ≤ n) (hF : F ≤ (n +
     rw [pow_succ]
     nlinarith only [hpow, hunit, hn]
   have hF1R : (F + 1 : ℝ) ≤ (n : ℝ) ^ ((2 * κ + 1 : ℕ) : ℝ) := by
-    rw [Real.rpow_natCast]
-    exact_mod_cast hF1
+    rw [Real.rpow_natCast]; exact_mod_cast hF1
   have hnR : (1 : ℝ) < n := by exact_mod_cast hn
   have hlog := (Real.logb_le_iff_le_rpow hnR (by positivity : (0 : ℝ) < F + 1)).mpr hF1R
   unfold weightExponent
@@ -250,8 +236,7 @@ theorem exists_dyadicTime_subcubic_bound {κ : ℕ} (hκ : 1 ≤ κ) :
     unfold upperTime at hceil ⊢
     nlinarith only [hmain, hsmallR, hscaled, hceil]
   obtain ⟨N, hN⟩ := eventually_atTop.mp hfinal
-  refine ⟨C, by dsimp only [C]; positivity, max N (2 ^ 2394), le_max_right _ _, ?_⟩
-  intro n hn
-  exact hN n ((le_max_left _ _).trans hn)
+  exact ⟨C, by dsimp only [C]; positivity, max N (2 ^ 2394), le_max_right _ _,
+    fun n hn => hN n ((le_max_left _ _).trans hn)⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime

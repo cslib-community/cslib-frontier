@@ -223,12 +223,12 @@ theorem next_inSpace : ComputableInSpace machine.next
     (hsingleton.append hh (fun _ => rfl)).weaken (.add (.refl _) (.refl _))
   have hn := budget_natSucc hc
   have hstep := encScan_mk_budget hh hn
-  have hf := budget_const (encB := encBool) false (.refl (fun p =>
-    (encPair encState (encOption encBool) p).length))
-  have ht := budget_const (encB := encBool) true (.refl (fun p =>
-    (encPair encState (encOption encBool) p).length))
-  have hnone := budget_const (encB := encOption encBool) none (.refl (fun p =>
-    (encPair encState (encOption encBool) p).length))
+  have hf := budget_const (encIn := encPair encState (encOption encBool)) (Bs := fun p =>
+    (encPair encState (encOption encBool) p).length) (encB := encBool) false
+  have ht := budget_const (encIn := encPair encState (encOption encBool)) (Bs := fun p =>
+    (encPair encState (encOption encBool) p).length) (encB := encBool) true
+  have hnone := budget_const (encIn := encPair encState (encOption encBool)) (Bs := fun p =>
+    (encPair encState (encOption encBool) p).length) (encB := encOption encBool) none
   exact budget_ite hr (encState_mk_budget hscan hp ht hsome)
     (budget_ite hp (encState_mk_budget (encScan_mk_budget hcons hn) hf hf hnone)
       (budget_ite hb (encState_mk_budget hstep ht hf hnone)
@@ -237,7 +237,7 @@ theorem next_inSpace : ComputableInSpace machine.next
 /-- No output is accumulated while scanning. -/
 theorem emit_inSpace : ComputableInSpace machine.emit
     (encPair encState (encOption encBool)) encBits
-    (fun p => (encPair encState (encOption encBool) p).length) := budget_const [] (.refl _)
+    (fun p => (encPair encState (encOption encBool) p).length) := budget_const []
 
 /-- The final answer uses the existing native selector certificate. -/
 theorem finish_inSpace : ComputableInSpace machine.finish encState encBits
@@ -246,7 +246,7 @@ theorem finish_inSpace : ComputableInSpace machine.finish encState encBits
     (encState_bit_budget (budget_id (.refl _)))
   have ha := budget_comp_linear answer_inSpace (budget_prod header_inSpace hb)
   exact budget_ite halted_inSpace (budget_finite (encC := encBits) (fun b => [b]) ha)
-    (budget_const [] (.refl _))
+    (budget_const [])
 
 private theorem before_initialized (h x : List Bool) {t : ℕ} (ht : t < 2 * h.length + 1) :
     (machine.run (frame h ++ x) t).bit = none ∧

@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Logics.FirstOrder.Ordered.Packing
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.SumTree
 import CslibFrontier.Tactic.FirstOrder
-import Mathlib.Tactic.Linarith
 
 /-!
 # Native access to packed bit-sum trees
@@ -98,7 +97,7 @@ theorem encodesNode_sumTree (f : ℕ → Bool) {m h j q : ℕ}
       have hp := Nat.ge_two_pow_of_testBit hz
       have ht := BitString.sumTree_lt f j q
       have := (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp (lt_of_le_of_lt hp ht)
-      lia
+      omega
     have ha := lt_of_lt_of_le (BitString.sumTreeAddress_lt hj hb hq) hspace
     obtain ⟨r, t, he⟩ := BitString.exists_sumTreeWords_address ha
     refine ⟨hb, r, t.val, he, t.isLt, ?_⟩
@@ -119,15 +118,13 @@ theorem realize_treeAddress (m j b q a : (language L).Term α) (v : α → Fin n
     (treeAddress L m j b q a).Realize v ↔ (j.realize v).val ≤ (m.realize v).val ∧
       BitString.sumTreeAddress (m.realize v).val (j.realize v).val (b.realize v).val
         (q.realize v).val = (a.realize v).val := by
-  fo_simp [treeAddress, Function.comp_def, and_assoc]
+  fo_simp [treeAddress, and_assoc]
   constructor
   · rintro ⟨u, h0, h1, h2, h3, h4, h5⟩
-    have he : (u 0).val = (m.realize v).val - (j.realize v).val := by lia
-    refine ⟨by lia, ?_⟩
+    have he : (u 0).val = (m.realize v).val - (j.realize v).val := by omega
+    refine ⟨by omega, ?_⟩
     dsimp [BitString.sumTreeAddress]
-    rw [← he]
-    have hc : (j.realize v).val + (b.realize v).val + 3 = (u 3).val := by lia
-    rw [hc, h4]
+    rw [← he, show (j.realize v).val + (b.realize v).val + 3 = (u 3).val by omega, h4]
     exact h5
   · rintro ⟨hj, ha⟩
     let e := (m.realize v).val - (j.realize v).val
@@ -136,13 +133,13 @@ theorem realize_treeAddress (m j b q a : (language L).Term α) (v : α → Fin n
     have hs : s < n := by
       have := (a.realize v).isLt
       change s + (q.realize v).val = (a.realize v).val at ha
-      lia
+      omega
     have hc : c < n := lt_of_le_of_lt (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos e)) hs
     have he : e < n := lt_of_le_of_lt (Nat.sub_le _ _) (m.realize v).isLt
-    have hjb : (j.realize v).val + (b.realize v).val < n := by dsimp [c] at hc; lia
-    have hthree : 3 < n := by dsimp [c] at hc; lia
+    have hjb : (j.realize v).val + (b.realize v).val < n := by dsimp [c] at hc; omega
+    have hthree : 3 < n := by dsimp [c] at hc; omega
     refine ⟨![⟨e, he⟩, ⟨_, hjb⟩, ⟨3, hthree⟩, ⟨c, hc⟩, ⟨s, hs⟩], ?_⟩
-    exact ⟨by dsimp [e]; lia, rfl, rfl, rfl, rfl, ha⟩
+    exact ⟨by dsimp [e]; omega, rfl, rfl, rfl, rfl, ha⟩
 
 /-- `packedBit L h w a` holds exactly when position `a` falls in one of the eight words `w`, of
 width `h`, at a set bit. -/
@@ -154,6 +151,13 @@ theorem realize_packedBit (h : (language L).Term α) (w : Fin 8 → (language L)
         b.val < (h.realize v).val ∧ ((w r).realize v).val.testBit b.val = true :=
   Ordered.realize_packedBit h w a v
 
+private theorem mul_add_lt_of_eight_mul_lt {r : Fin 8} {h t n : ℕ}
+    (ht : t < h) (hn : 8 * h < n) : r.val * h + t < n :=
+  calc r.val * h + t < r.val * h + h := Nat.add_lt_add_left ht _
+    _ = (r.val + 1) * h := (Nat.succ_mul r.val h).symm
+    _ ≤ 8 * h := Nat.mul_le_mul_right h r.isLt
+    _ < n := hn
+
 /-- When `j ≤ m` and eight words of width `h` fit in the universe, `nodeValue L m h w j q z`
 holds exactly when the words encode the value `z` at node `j` (`EncodesNode`). -/
 @[fo_realize]
@@ -163,7 +167,7 @@ theorem realize_nodeValue (m h : (language L).Term α) (w : Fin 8 → (language 
     (nodeValue L m h w j q z).Realize v ↔
       EncodesNode (m.realize v).val (h.realize v).val (fun r => ((w r).realize v).val)
         (j.realize v).val (q.realize v).val (z.realize v).val := by
-  fo_simp [nodeValue, Function.comp_def, hj]
+  fo_simp [nodeValue, hj]
   constructor
   · intro hn b
     constructor
@@ -176,20 +180,15 @@ theorem realize_nodeValue (m h : (language L).Term α) (w : Fin 8 → (language 
       have hb : b < n := lt_of_le_of_lt hbj (j.realize v).isLt
       have htn : t < n := lt_trans hth (h.realize v).isLt
       have ha : BitString.sumTreeAddress (m.realize v).val (j.realize v).val b
-          (q.realize v).val < n := by
-        have hr := r.isLt
-        nlinarith
-      apply (hn (fun _ => ⟨b, hb⟩)).mpr
-      exact ⟨hbj, (fun _ => ⟨_, ha⟩), rfl, r, ⟨t, htn⟩, ht, hth, hw⟩
+          (q.realize v).val < n := ht ▸ mul_add_lt_of_eight_mul_lt hth hspace
+      exact (hn (fun _ => ⟨b, hb⟩)).mpr ⟨hbj, (fun _ => ⟨_, ha⟩), rfl, r, ⟨t, htn⟩, ht, hth, hw⟩
   · intro hn b
     constructor
     · intro hz
       obtain ⟨hbj, r, t, ht, hth, hw⟩ := (hn (b ()).val).mp hz
       have htn : t < n := lt_trans hth (h.realize v).isLt
       have ha : BitString.sumTreeAddress (m.realize v).val (j.realize v).val (b ()).val
-          (q.realize v).val < n := by
-        have hr := r.isLt
-        nlinarith
+          (q.realize v).val < n := ht ▸ mul_add_lt_of_eight_mul_lt hth hspace
       exact ⟨hbj, (fun _ => ⟨_, ha⟩), rfl, r, ⟨t, htn⟩, ht, hth, hw⟩
     · rintro ⟨hbj, a, ha, r, t, ht, hth, hw⟩
       exact (hn (b ()).val).mpr ⟨hbj, r, t.val, ht.trans ha.symm, hth, hw⟩

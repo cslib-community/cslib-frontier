@@ -74,7 +74,6 @@ private noncomputable def splitHash (q s : ℕ) : Finset (ℕ → ℕ) :=
       splitHash (hashPrime s) (s / 2) ×ˢ splitHash (hashPrime s) (s - s / 2)).image
       fun ((u, θ), h₁, h₂) x => if u x < θ then h₁ (u x) else s / 2 + h₂ (u x)
 termination_by s
-decreasing_by all_goals omega
 
 /-- Every `k` below the size of a set of numbers is the number of its elements below one of
 its elements. -/

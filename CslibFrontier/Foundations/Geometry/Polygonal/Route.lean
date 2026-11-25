@@ -77,6 +77,14 @@ theorem at_mem_support (i : Fin p.segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     p.eval i t ∈ p.support :=
   Set.mem_iUnion.mpr ⟨i, lineMap_mem_segment ℝ _ _ ht⟩
 
+/-- Every listed point belongs to the route's continuous support. -/
+theorem point_mem_support (k : Fin (p.segments + 1)) : p.point k ∈ p.support := by
+  refine Fin.lastCases ?_ (fun i => ?_) k
+  · simpa only [eval, AffineMap.lineMap_apply_one, Fin.succ_last] using
+      p.at_mem_support (Fin.last p.bends) (Set.right_mem_Icc.mpr zero_le_one)
+  · simpa only [eval, AffineMap.lineMap_apply_zero] using
+      p.at_mem_support i (Set.left_mem_Icc.mpr zero_le_one)
+
 /-- Membership in the support means membership at an actual real segment parameter. -/
 theorem mem_support_iff (z : ℂ) : z ∈ p.support ↔
     ∃ (i : Fin p.segments) (t : ℝ), t ∈ Set.Icc 0 1 ∧ p.eval i t = z := by

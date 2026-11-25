@@ -153,11 +153,9 @@ private theorem iterate_step_map (g : CNF ℕ → Bool) (n : ℕ)
     obtain ⟨stk', acc'⟩ := (rule hK hα).tree.searchStep (fun acc t => acc || g t.1) (stk, acc)
     exact ih stk' acc'
 
-private theorem step_nil (g : CNF ℕ → Bool) (acc : Bool) : step K α g ([], acc) = ([], acc) := rfl
-
 private theorem iterate_step_nil (g : CNF ℕ → Bool) (n : ℕ) (acc : Bool) :
     (step K α g)^[n] ([], acc) = ([], acc) :=
-  Function.iterate_fixed (step_nil g acc) n
+  Function.iterate_fixed rfl n
 
 /-! ### The root -/
 

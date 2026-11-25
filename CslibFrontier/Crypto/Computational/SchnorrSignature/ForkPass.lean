@@ -515,21 +515,11 @@ private theorem computableInPolyTime_schnorrForkFinish_proj :
     unfold forkFinishLookup
     exact ComputableInPolyTime.optionElimWithInput hfind hmiss
       (body := fun x entry => (entry.challenge, entry.tag, x.2.2.count)) hhit
-  have hverify := F.computableInPolyTime_schnorrSigVerifyBits
   let encP := encPair (encFinishInput F) (encPair encBits (encPair encUnary encUnary))
   have htzP : ComputableInPolyTime
       (fun p : FinishInput F × (List Bool × ℕ × ℕ) =>
         (Decoder.bits.pair Decoder.bits).decode p.1.2.1.2) encP (encPair encBits encBits) :=
     hdecode.comp (by fun_prop)
-  have hverifyP : ComputableInPolyTime
-      (fun p : FinishInput F × (List Bool × ℕ × ℕ) =>
-        F.schnorrSigVerifyBits (p.1.1.1, p.1.1.2.1, [],
-          (Decoder.bits.pair Decoder.bits).decode p.1.2.1.2, p.2.1)) encP encBool :=
-    hverify.comp ((show ComputableInPolyTime (fun p : FinishInput F × (List Bool × ℕ × ℕ) =>
-      p.1.1.1) encP F.encDesc by fun_prop).prod
-      ((show ComputableInPolyTime (fun p : FinishInput F × (List Bool × ℕ × ℕ) =>
-        p.1.1.2.1) encP encBits by fun_prop).prod
-        ((ComputableInPolyTime.const ([] : List Bool)).prod (htzP.prod (by fun_prop)))))
   have hfrom : ComputableInPolyTime (forkFinishFrom F) encP
       (encPair encUnary (encPair encBits encBits)) := by
     unfold forkFinishFrom

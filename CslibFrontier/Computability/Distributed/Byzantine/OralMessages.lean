@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 public import CslibFrontier.Foundations.Data.BitString.MajorityVote
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Byzantine agreement against one fault
@@ -116,10 +117,8 @@ theorem solvesByzantineAgreement_om1 (hn : 4 ≤ Fintype.card P) {R : ℕ} (hR :
       strictMajorityOn (univ.erase k) (fun j => ((om1 P).state F adv x 2 i).report j k) =
         x k := by
     intro F hF adv x i hi k hk
-    refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun j _ hj => ?_) ?_
-    · rw [om1_report F adv x i j k hj, om1_heard F adv x j k hk]
-    · rw [Finset.card_erase_of_mem (Finset.mem_univ k), Finset.card_univ]
-      omega
+    refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun j _ hj => ?_) (by finset_card)
+    rw [om1_report F adv x i j k hj, om1_heard F adv x j k hk]
   have hdec : ∀ (F : Finset P) adv x i, (om1 P).decision F adv x (R + 2) i =
       strictMajorityOn univ fun k =>
         strictMajorityOn (univ.erase k) fun j => ((om1 P).state F adv x 2 i).report j k := by
@@ -139,10 +138,8 @@ theorem solvesByzantineAgreement_om1 (hn : 4 ≤ Fintype.card P) {R : ℕ} (hR :
     · rw [hw F hF adv x i hi k hk, hw F hF adv x i' hi' k hk]
   · intro F hF adv x v hv i hi
     rw [hdec]
-    refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun k _ hk => ?_) ?_
-    · rw [hw F hF adv x i hi k hk, hv k hk]
-    · rw [Finset.card_univ]
-      omega
+    refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun k _ hk => ?_) (by finset_card)
+    rw [hw F hF adv x i hi k hk, hv k hk]
 
 /-- **The single-fault case.** For `R ≥ 2`, some protocol on `n` processes solves Byzantine
 agreement against one fault in `R` rounds exactly when `n ≤ 1` or `n ≥ 4`: `ownInput` and `om1`

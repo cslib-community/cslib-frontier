@@ -55,7 +55,7 @@ theorem port_inSpace (k c : ℕ) :
   have hnj := budget_comp_linear (read_inSpace k c 0) (budget_prod hs hj)
   have hvalue := budget_natSub (budget_natAdd (budget_natAdd hpi hnj) hd)
     (budget_natAdd hni hpj)
-  have hfin := budget_finMod (by decide : 0 < 3) hvalue (.refl _)
+  have hfin := budget_finMod (by decide : 0 < 3) hvalue
   exact (budget_finite (encC := encFinite (Fin 3)) id hfin).of_enc_eq
     fun ⟨σ, i, δ, j⟩ => rfl
 
@@ -78,8 +78,9 @@ theorem providerPort_inSpace (k c : ℕ) :
   have hp := budget_comp_linear (port_inSpace k c)
     (budget_prod hs (budget_prod hi (budget_prod hd hj)))
   have hsome := budget_finite (encC := encOption (encFinite (Fin 3))) some hp
-  have hnone := budget_const (encB := encOption (encFinite (Fin 3))) none
-    (show (fun a => (encSearchArgs a).length) ≼ fun a => (encSearchArgs a).length from .refl _)
+  have hnone :=
+    budget_const (encIn := encSearchArgs) (Bs := fun a => (encSearchArgs a).length)
+      (encB := encOption (encFinite (Fin 3))) none
   refine (budget_ite (budget_optionIsSome hsearch) hsome hnone).of_enc_eq ?_
   rintro ⟨σ, i, δ⟩
   cases ht : search k c (σ, i, δ) <;> simp [providerPort, ht]
@@ -114,7 +115,7 @@ theorem providerMap_inSpace (k : ℕ) :
   have hi := snd encNat encNat
   have hentry (h : Fin k) (δ : Fin 3) :=
     budget_comp_linear (providerPort_inSpace k (h + 1))
-      (budget_prod hs (budget_prod hi (budget_const (encB := encNat) δ.val (.refl _))))
+      (budget_prod hs (budget_prod hi (budget_const (encB := encNat) δ.val)))
   exact pi_linear fun h => pi_linear fun δ => hentry h δ
 
 /-- The complete native provider map is the existing functional assembler's map. -/

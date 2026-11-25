@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.WordKEM
 public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Substitution
 import CslibFrontier.Crypto.Game.Order
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.PMF.Bind
@@ -241,39 +242,7 @@ private theorem eval_run_eq_fst_runWith {Query α : Type} {spec : Query → Type
     ProbComp.eval (program.run fun q => pure (ans q)) =
       (ProbOracleComp.runWith (fun q (st : Unit) => PMF.pure (ans q, st)) program ()).map
         Prod.fst := by
-  have hro := ProbOracleComp.runWith_readOnly (fun q (_ : Unit) => PMF.pure (ans q)) program ()
-  simp only [PMF.pure_map] at hro
-  rw [hro, PMF.map_comp, ProbOracleComp.eval_run, OracleComp.evalWith_eq_interpret]
-  have hid : (Prod.fst ∘ fun x : α => (x, ())) = id := rfl
-  simp only [hid, PMF.map_id, ProbComp.eval_pure]
-
-private theorem eval_run_run_interpret {Query Query' σ α : Type}
-    {spec : Query → Type} {spec' : Query' → Type}
-    (inner : (q : Query) → StateT σ (ProbOracleComp spec') (spec q))
-    (O : (q : Query') → ProbComp (spec' q)) (program : ProbOracleComp spec α) (s : σ) :
-    ProbComp.eval (((OracleComp.interpret
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-        inner) program).run s).run O) =
-      ProbOracleComp.runWith (fun q st => ProbComp.eval (((inner q).run st).run O)) program s := by
-  rw [ProbOracleComp.runWith_eq_run_interpret]
-  induction program using OracleComp.induction generalizing s with
-  | pure a => rfl
-  | query_bind q cont ih =>
-    rw [PFunctor.FreeM.bind_eq_bind, OracleComp.run_interpret_bind,
-      OracleComp.run_interpret_bind, ProbOracleComp.run_bind, ProbComp.eval_bind,
-      OracleComp.run_interpret_query, OracleComp.run_interpret_query]
-    cases q with
-    | inl k =>
-      change ProbComp.eval (((ProbOracleComp.sample (ProbComp.unifFin k) >>= fun x =>
-          pure (x, s)).run O)) >>= _ =
-        ((ProbComp.unifOracle k).map (·, s)) >>= _
-      simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_pure,
-        ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_unifFin, ProbComp.unifOracle,
-        Probability.PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.pure_bind, PMF.bind_map,
-        Function.comp_def]
-      exact congrArg (PMF.bind _) (funext fun x => ih x s)
-    | inr q =>
-      exact congrArg (PMF.bind _) (funext fun r => ih r.1 r.2)
+  simp only [runWith_norm, pmf_norm]
 
 private theorem find?_tableRep_hash (d : F.Desc) {m : ℕ} (y : ZMod (F.order d))
     (z : F.Carrier d) (table : F.toPrimeOrderGroupFamily.SimTable d (BitString m)) :
@@ -574,26 +543,25 @@ theorem eval_run_dhKEMToGapCDHWord_eq (keyLen : ℕ → ℕ)
   · rw [hb0]
     simp [dhKEMToGapCDHWord, PrimeOrderGroupFamily.dhKEMToGapCDH]
   · simp only [dhKEMToGapCDHWord, PrimeOrderGroupFamily.dhKEMToGapCDH, hz, hb0, decide_false,
-      Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
-      ProbComp.eval_bind, BitString.eval_sampleList, F.toPrimeOrderGroupFamily.runDDH_bind,
-      F.toPrimeOrderGroupFamily.runDDH_sample, F.toPrimeOrderGroupFamily.runDDH_run_interpret,
-      PMF.map_bind]
+      Bool.false_eq_true, ↓reduceIte, BitString.eval_sampleList,
+      F.toPrimeOrderGroupFamily.runDDH_bind, F.toPrimeOrderGroupFamily.runDDH_sample,
+      F.toPrimeOrderGroupFamily.runDDH_run_interpret, runWith_norm, pmf_norm]
     conv_lhs => rw [BitString.uniformList, PMF.bind_map]
     conv_rhs => rw [PMF.bind_comm]
-    simp only [ProbComp.eval_uniform, BitString]
+    simp only [ProbComp.eval_uniform, BitString, StateT.run, Function.comp_def]
     refine congrArg (PMF.bind _) (funext fun key => ?_)
-    dsimp only [Function.comp_def]
-    rw [eval_run_run_interpret]
-    dsimp only [StateT.run]
     have hrep := F.replay_runWith_eq keyLen machine c deg hrun n d (b • F.generator d)
       (a • F.generator d) key (F.tableRep d)
       (F.toPrimeOrderGroupFamily.lowerHandler d b
         (F.toPrimeOrderGroupFamily.simHandler d (ProbComp.uniform (BitString (keyLen n)))
           (a • F.generator d)))
-      (fun req st => ProbComp.eval
-        (((F.simWordHandler keyLen n d (F.encode d (a • F.generator d)) req st)).run
-          fun r => pure (F.ddhWordOracle d b r.2)))
-      (F.simWordHandler_step keyLen n d b (a • F.generator d))
+      (fun req st =>
+        OracleComp.evalWith
+          (OracleComp.sumHandler ProbComp.unifOracle fun r => PMF.pure (F.ddhWordOracle d b r.2))
+          (F.simWordHandler keyLen n d (F.encode d (a • F.generator d)) req st))
+      (fun op w table => by
+        simpa only [StateT.run, runWith_norm, pmf_norm] using
+          F.simWordHandler_step keyLen n d b (a • F.generator d) op w table)
       ([] : F.toPrimeOrderGroupFamily.SimTable d (BitString (keyLen n)))
     change (ProbOracleComp.runWith _ _
       (F.tableRep d ([] : F.toPrimeOrderGroupFamily.SimTable d (BitString (keyLen n))))).bind _ = _
@@ -601,7 +569,7 @@ theorem eval_run_dhKEMToGapCDHWord_eq (keyLen : ℕ → ℕ)
     refine congrArg (PMF.bind _) (funext fun coins => ?_)
     rw [PMF.bind_map]
     refine congrArg (PMF.bind _) (funext fun res => ?_)
-    exact F.eval_run_extractDHWord d b (a • F.generator d) res.2
+    simpa only [runWith_norm, pmf_norm] using F.eval_run_extractDHWord d b (a • F.generator d) res.2
 
 /-- **Game-level reduction equality**: at every security parameter `n`, the word-level Gap-CDH
 experiment of `dhKEMToGapCDHWord` equals the `setup n`- and coin-averaged typed `gapCDHGame` of

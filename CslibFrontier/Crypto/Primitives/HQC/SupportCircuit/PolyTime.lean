@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
@@ -363,23 +364,7 @@ private theorem polyBounded_supportCandidateStateBound {α : Type} {enc : α ↪
     (hcount : ComputableInPolyTime count enc encUnary) :
     PolyBounded (fun a => (enc a).length)
       (fun a => supportCandidateStateBound (width a) (bits a) (count a)) := by
-  have hw := hwidth.polyBounded
-  have hb := hbits.polyBounded
-  have hc := hcount.polyBounded
-  have hsum := (hw.add hb).add (PolyBounded.const 1)
-  have hgate := (((PolyBounded.const 63).mul (hsum.mul hsum)).add
-    ((PolyBounded.const 21).mul ((hb.add (.const 1)).mul (hb.add (.const 1))))).add
-      (.const 6)
-  have hG := hc.mul hgate
-  have hN := hc.mul hw
-  have hM := hc.mul hb
-  have hNG := hN.add hG
-  have hcode := ((((PolyBounded.const 2).mul hG).mul
-    ((PolyBounded.const 23).add ((PolyBounded.const 8).mul hNG))).add (.const 1)).add
-      (hM.mul (((PolyBounded.const 2).mul hNG).add (.const 1)))
-  have hstate := (((PolyBounded.const 2).mul hc).add (.const 1)).add hcode
-  simpa [supportCandidateStateBound, supportCandidateCodeBound,
-    supportCandidateGateBound, pow_two] using hstate
+  growth_poly
 
 private theorem length_supportCandidateFold_le (width bits n count i : ℕ)
     (hi : i ≤ ((List.range count).map fun j => candidateCode width bits n j).length) :

@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Algorithms.Lean.TimeM.Loops
 public import CslibFrontier.Foundations.BooleanAnalysis.CoveringProduct
 public import Mathlib.Data.List.Sublists
 import Mathlib.Algebra.BigOperators.Intervals
@@ -25,55 +24,37 @@ Fix a duplicate-free list `l` of coordinates and a threshold `s`. Stage `k` of Y
 `F` is `yatesTransform c (l.take k) F`; its value at `X` reads stage `k - 1` only at `X` and at `X`
 minus one coordinate.
 
-* **Preprocessing** (`preprocessM`) runs every stage of the zeta transforms of `f` and `g`, of
+* **Preprocessing** (`preprocess`) runs every stage of the zeta transforms of `f` and `g`, of
   their pointwise product and of its Möbius transform on the *low* sets: the subsets of `l` with at
   most `s` elements (`layers l 0 s`), keeping every stage (`Tables`).
-* **A query** `C` (`queryM`) runs the same stages on the *high* sets of `C`: its subsets with at
+* **A query** `C` (`query`) runs the same stages on the *high* sets of `C`: its subsets with at
   least `s` elements (`layers (l.filter (· ∈ C)) s #C`). A value at a set with fewer than `s`
-  elements is read from the preprocessed stage of the same index (`stagesM`).
+  elements is read from the preprocessed stage of the same index (`stages`).
 
-The query returns the covering product `coveringProduct f g C`
-(`ret_queryM_preprocessM`), which for ranked inputs and `#C = t₁ + t₂` is the subset convolution
-(`ret_queryM_preprocessM_eq_subsetConvolution`). `solveM` answers a list of queries after one
-preprocessing (`ret_solveM`).
+The query returns the covering product `coveringProduct f g C` (`query_preprocess`), which for
+ranked inputs and `#C = t₁ + t₂` is the subset convolution
+(`query_preprocess_eq_subsetConvolution`). `solve` answers a list of queries after one
+preprocessing (`solve_eq_subsetConvolution`).
 
-## Cost model
-
-* **Charged (`1` `TimeM` tick):** computing one table cell (`tabulateM`): either reading the
-  input `f` or `g` at one set, multiplying two transform values, or one Yates pass at one set
-  (`yatesPass`: one membership test, one or two table reads, one scalar multiplication and one
-  addition). Each table read is one dictionary look-up keyed by a set, and includes the
-  comparison `s ≤ #Y` deciding whether to read the current stage or the preprocessed one.
-* **Uncharged:** enumerating the cells of a domain (`layers`), building the dictionary of a
-  table, loop control, and selecting stages from the lists of tables.
-
-This is a unit-cost model in which a set of coordinates of `l` is a key and a ring element is a
-word, as in [ChanItakuraMaYu2026], footnote 7, which assumes a word RAM with words of at least
-`d = l.length` bits and ignores dictionary look-ups costing `d ^ O(1)`. The inputs `f` and `g` are
-given as look-up functions, so the term `n` of Theorem 2.2 (storing the `n` input sets) does not
-appear. The counts are exact: preprocessing takes `3 * (l.length + 1)` ticks per low set
-(`time_preprocessM`) and a query `3 * (l.length + 1)` ticks per high set (`time_queryM`), i.e.
-`3 (d + 1) ∑_{j ≤ s} (d choose j)` and `3 (d + 1) ∑_{s ≤ j ≤ #C} (#C choose j)` ticks
-(`time_preprocessM_eq_sum_choose`, `time_queryM_eq_sum_choose`). This gives Theorem 2.2's bound
-`(binom(d, ≤ s) + |𝒞| binom(2t, ≥ s)) d ^ O(1)` with explicit constants (`time_solveM`).
+This module defines the pure mathematical algorithm and proves its correctness over any commutative
+ring. The Word-RAM implementation and running-time bound of [ChanItakuraMaYu2026], Theorem 2.2 are
+in `CslibFrontier.Algorithms.WordRAM.TrimmedYates`.
 
 ## Main definitions
 
-* `Cslib.Algorithms.Lean.TrimmedYates.tabulateM`: one tick per cell of a table.
+* `Cslib.Algorithms.Lean.TrimmedYates.tabulate`: finite association-list lookup table on a domain.
 * `Cslib.Algorithms.Lean.TrimmedYates.layers`: the subsets of a list with a given range of sizes.
-* `Cslib.Algorithms.Lean.TrimmedYates.stagesM`: Yates's passes on a domain of sets, with a
+* `Cslib.Algorithms.Lean.TrimmedYates.stages`: Yates's passes on a domain of sets, with a
   fallback table for small sets.
-* `Cslib.Algorithms.Lean.TrimmedYates.Tables`, `preprocessM`, `queryM`, `solveM`: selected
-  entries of the covering product.
+* `Cslib.Algorithms.Lean.TrimmedYates.Tables`, `preprocess`, `query`, `solve`: selected
+  entries of the covering product and ranked subset convolution.
 
 ## Main results
 
-* `Cslib.Algorithms.Lean.TrimmedYates.getD_ret_stagesM`: correctness of the trimmed passes.
-* `Cslib.Algorithms.Lean.TrimmedYates.ret_queryM_preprocessM`,
-  `ret_queryM_preprocessM_eq_subsetConvolution`, `ret_solveM`: the queries return selected
+* `Cslib.Algorithms.Lean.TrimmedYates.getD_stages`: correctness of the trimmed passes.
+* `Cslib.Algorithms.Lean.TrimmedYates.query_preprocess`,
+  `query_preprocess_eq_subsetConvolution`, `solve_eq_subsetConvolution`: the queries return selected
   entries of the covering product, and of the subset convolution for ranked inputs.
-* `Cslib.Algorithms.Lean.TrimmedYates.time_preprocessM_eq_sum_choose`,
-  `time_queryM_eq_sum_choose`, `time_solveM`: exact tick counts.
 
 ## References
 
@@ -89,26 +70,24 @@ public section
 
 namespace Cslib.Algorithms.Lean.TrimmedYates
 
-open Finset Cslib.Algorithms.Lean.TimeM Cslib.BitString
-
-/- A table `κ → M` and the list of its values are bound in one `TimeM` computation, so keys and
-values share a universe. -/
-universe u
+open Finset Cslib.BitString
 
 /-! ### Tables -/
 
 section Tabulate
 
-variable {κ M : Type u} [DecidableEq κ] [Zero M]
+variable {κ M : Type*} [DecidableEq κ] [Zero M]
 
-/-- The table of `cell` on the keys `dom`, at one tick per key: a dictionary from each key of
+/-- The lookup table of `cell` on the keys `dom`: a finite association-list map from each key of
 `dom` to its value, read as `0` off `dom`. -/
-@[expose] def tabulateM (dom : List κ) (cell : κ → M) : TimeM ℕ (κ → M) := do
-  let vals : List M ← dom.mapM fun X => do ✓ pure (cell X)
-  pure fun X : κ => ((dom.zip vals).lookup X).getD 0
+@[expose] def tabulate (dom : List κ) (cell : κ → M) : κ → M :=
+  let tbl := dom.zip (dom.map cell)
+  fun X : κ => (tbl.lookup X).getD 0
 
-private theorem lookup_zip_map {dom : List κ} (cell : κ → M) {X : κ} (hX : X ∈ dom) :
-    ((dom.zip (dom.map cell)).lookup X).getD 0 = cell X := by
+/-- The table of `cell` reads `cell X` at every key `X` of `dom`. -/
+theorem tabulate_apply {dom : List κ} (cell : κ → M) {X : κ} (hX : X ∈ dom) :
+    tabulate dom cell X = cell X := by
+  dsimp only [tabulate]
   induction dom with
   | nil => simp at hX
   | cons Y dom ih =>
@@ -118,18 +97,6 @@ private theorem lookup_zip_map {dom : List κ} (cell : κ → M) {X : κ} (hX : 
       simp
     · rw [beq_false_of_ne h]
       exact ih ((List.mem_cons.mp hX).resolve_left h)
-
-/-- The table of `cell` reads `cell X` at every key `X` of `dom`. -/
-theorem ret_tabulateM {dom : List κ} (cell : κ → M) {X : κ} (hX : X ∈ dom) :
-    (tabulateM dom cell).ret X = cell X := by
-  simp only [tabulateM, ret_bind, ret_pure, ret_listMapM]
-  exact lookup_zip_map cell hX
-
-/-- A table costs one tick per key. -/
-@[simp] theorem time_tabulateM (dom : List κ) (cell : κ → M) :
-    (tabulateM dom cell).time = dom.length := by
-  simp only [tabulateM, time_bind, time_pure, time_listMapM, time_tick, add_zero,
-    List.map_const', List.sum_replicate, smul_eq_mul, mul_one]
 
 end Tabulate
 
@@ -181,37 +148,25 @@ end Layers
 
 section Stages
 
-variable {ι M : Type u} {R : Type*} [DecidableEq ι] [AddCommMonoid M] [Monoid R]
-  [DistribMulAction R M]
+variable {ι M R : Type*} [DecidableEq ι] [AddCommMonoid M] [Monoid R] [DistribMulAction R M]
 
 /-- Yates's passes with coefficient `c` in the coordinates `l`, on the cells `dom`, returning
 every stage: stage `0` is `t`, and stage `k + 1` is the pass in coordinate `k` of `l` applied to
 stage `k`. A cell reads stage `k` at sets with at least `s` elements and the `k`-th table of `fb`
 at smaller sets. -/
-@[expose] def stagesM (c : R) (s : ℕ) (dom : List (Finset ι)) :
-    List ι → List (Finset ι → M) → (Finset ι → M) → TimeM ℕ (List (Finset ι → M))
-  | [], _, t => pure [t]
-  | i :: l, fb, t => do
-    let t' ← tabulateM dom (yatesPass c i fun Y => if s ≤ #Y then t Y else fb.headD 0 Y)
-    let ts ← stagesM c s dom l fb.tail t'
-    pure (t :: ts)
-
-/-- The trimmed passes cost one tick per coordinate and cell. -/
-@[simp] theorem time_stagesM (c : R) (s : ℕ) (dom : List (Finset ι)) :
-    ∀ (l : List ι) (fb : List (Finset ι → M)) (t : Finset ι → M),
-      (stagesM c s dom l fb t).time = l.length * dom.length
-  | [], _, _ => by simp [stagesM]
-  | i :: l, fb, t => by
-    simp only [stagesM, time_bind, time_tabulateM, time_pure, add_zero, time_stagesM c s dom l,
-      List.length_cons]
-    ring
+@[expose] def stages (c : R) (s : ℕ) (dom : List (Finset ι)) :
+    List ι → List (Finset ι → M) → (Finset ι → M) → List (Finset ι → M)
+  | [], _, t => [t]
+  | i :: l, fb, t =>
+    let t' := tabulate dom (yatesPass c i fun Y => if s ≤ #Y then t Y else fb.headD 0 Y)
+    t :: stages c s dom l fb.tail t'
 
 /-- **Correctness of the trimmed passes.** Suppose that every cell of `dom` has at least `s`
 elements, that `t` agrees with `G` on `dom`, and that removing a coordinate of `l` from a cell gives
 a cell or a set satisfying `P` with fewer than `s` elements. If the `k`-th table of `fb` agrees
 with stage `k` of `G` on the sets satisfying `P` with fewer than `s` elements, then every returned
 stage `k ≤ l.length` agrees with stage `k` of `G` on `dom`. -/
-theorem getD_ret_stagesM (c : R) {s : ℕ} {dom : List (Finset ι)} (P : Finset ι → Prop)
+theorem getD_stages (c : R) {s : ℕ} {dom : List (Finset ι)} (P : Finset ι → Prop)
     (hs : ∀ X ∈ dom, s ≤ #X)
     (hdom : ∀ X ∈ dom, ∀ i, i ∈ X → (s ≤ #(X.erase i) → X.erase i ∈ dom) ∧
       (#(X.erase i) < s → P (X.erase i))) :
@@ -219,10 +174,10 @@ theorem getD_ret_stagesM (c : R) {s : ℕ} {dom : List (Finset ι)} (P : Finset 
       (∀ X ∈ dom, t X = G X) →
       (∀ k < l.length, ∀ Y, #Y < s → P Y → fb.getD k 0 Y = yatesTransform c (l.take k) G Y) →
       ∀ k ≤ l.length, ∀ X ∈ dom,
-        (stagesM c s dom l fb t).ret.getD k 0 X = yatesTransform c (l.take k) G X
+        (stages c s dom l fb t).getD k 0 X = yatesTransform c (l.take k) G X
   | [], _, t, G, ht, _, k, hk, X, hX => by
     obtain rfl : k = 0 := by simpa using hk
-    simpa [stagesM] using ht X hX
+    simpa [stages] using ht X hX
   | i :: l, fb, t, G, ht, hfb, k, hk, X, hX => by
     set rd : Finset ι → M := fun Y => if s ≤ #Y then t Y else fb.headD 0 Y
     have hrd : ∀ Y, (s ≤ #Y → Y ∈ dom) → (#Y < s → P Y) → rd Y = G Y := by
@@ -233,9 +188,9 @@ theorem getD_ret_stagesM (c : R) {s : ℕ} {dom : List (Finset ι)} (P : Finset 
       · simp only [rd, h, ↓reduceIte]
         have := hfb 0 (by simp) Y (by omega) (hP (by omega))
         simpa [List.getD_eq_getElem?_getD, List.head?_eq_getElem?] using this
-    have ht' : ∀ X ∈ dom, (tabulateM dom (yatesPass c i rd)).ret X = yatesPass c i G X := by
+    have ht' : ∀ X ∈ dom, tabulate dom (yatesPass c i rd) X = yatesPass c i G X := by
       intro X hX
-      rw [ret_tabulateM _ hX, yatesPass, yatesPass,
+      rw [tabulate_apply _ hX, yatesPass, yatesPass,
         hrd X (fun _ => hX) fun h => absurd (hs X hX) (by omega)]
       split_ifs with hiX
       · rw [hrd (X.erase i) (hdom X hX i hiX).1 (hdom X hX i hiX).2]
@@ -246,11 +201,11 @@ theorem getD_ret_stagesM (c : R) {s : ℕ} {dom : List (Finset ι)} (P : Finset 
       have := hfb (k + 1) (by simp; omega) Y hY hP
       rw [List.take_succ_cons, yatesTransform_cons] at this
       rw [← this, List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_tail]
-    simp only [stagesM, ret_bind, ret_pure]
+    dsimp only [stages]
     rcases k with _ | k
     · simpa using ht X hX
     · rw [List.getD_cons_succ, List.take_succ_cons, yatesTransform_cons]
-      exact getD_ret_stagesM c P hs hdom l fb.tail _ _ ht' hfb' k (by simpa using hk) X hX
+      exact getD_stages c P hs hdom l fb.tail _ _ ht' hfb' k (by simpa using hk) X hX
 
 end Stages
 
@@ -266,38 +221,38 @@ structure Tables (ι M : Type*) where
   /-- Stage `k` of the Möbius transform of the pointwise product of the two zeta transforms. -/
   cover : List (Finset ι → M)
 
-variable {ι R : Type u} [DecidableEq ι] [CommRing R]
+variable {ι R : Type*} [DecidableEq ι] [CommRing R]
 
 /-- The **preprocessing phase**: every stage of the zeta transforms of `f` and `g`, and of the
 Möbius transform of their pointwise product, on the subsets of `l` with at most `s` elements. -/
-@[expose] def preprocessM (l : List ι) (s : ℕ) (f g : Finset ι → R) : TimeM ℕ (Tables ι R) := do
+@[expose] def preprocess (l : List ι) (s : ℕ) (f g : Finset ι → R) : Tables ι R :=
   let low := layers l 0 s
-  let f₀ ← tabulateM low f
-  let fs ← stagesM (1 : ℕ) 0 low l [] f₀
-  let g₀ ← tabulateM low g
-  let gs ← stagesM (1 : ℕ) 0 low l [] g₀
-  let h₀ ← tabulateM low fun X => fs.getD l.length 0 X * gs.getD l.length 0 X
-  let hs ← stagesM (-1 : ℤ) 0 low l [] h₀
-  pure ⟨fs, gs, hs⟩
+  let f₀ := tabulate low f
+  let fs := stages (1 : ℕ) 0 low l [] f₀
+  let g₀ := tabulate low g
+  let gs := stages (1 : ℕ) 0 low l [] g₀
+  let h₀ := tabulate low fun X => fs.getD l.length 0 X * gs.getD l.length 0 X
+  let hs := stages (-1 : ℤ) 0 low l [] h₀
+  ⟨fs, gs, hs⟩
 
 /-- The **query phase** for `C`: the same stages on the subsets of `C` with at least `s` elements,
 reading the preprocessed stages `T` at smaller sets. Returns the last stage at `C`. -/
-@[expose] def queryM (l : List ι) (s : ℕ) (T : Tables ι R) (f g : Finset ι → R)
-    (C : Finset ι) : TimeM ℕ R := do
+@[expose] def query (l : List ι) (s : ℕ) (T : Tables ι R) (f g : Finset ι → R)
+    (C : Finset ι) : R :=
   let high := layers (l.filter (· ∈ C)) s #C
-  let f₀ ← tabulateM high f
-  let fs ← stagesM (1 : ℕ) s high l T.zetaLeft f₀
-  let g₀ ← tabulateM high g
-  let gs ← stagesM (1 : ℕ) s high l T.zetaRight g₀
-  let h₀ ← tabulateM high fun X => fs.getD l.length 0 X * gs.getD l.length 0 X
-  let hs ← stagesM (-1 : ℤ) s high l T.cover h₀
-  pure (hs.getD l.length 0 C)
+  let f₀ := tabulate high f
+  let fs := stages (1 : ℕ) s high l T.zetaLeft f₀
+  let g₀ := tabulate high g
+  let gs := stages (1 : ℕ) s high l T.zetaRight g₀
+  let h₀ := tabulate high fun X => fs.getD l.length 0 X * gs.getD l.length 0 X
+  let hs := stages (-1 : ℤ) s high l T.cover h₀
+  hs.getD l.length 0 C
 
 /-- **Selected entries of the covering product**: preprocess once, then answer each query. -/
-@[expose] def solveM (l : List ι) (s : ℕ) (f g : Finset ι → R) (Cs : List (Finset ι)) :
-    TimeM ℕ (List R) := do
-  let T ← preprocessM l s f g
-  Cs.mapM (queryM l s T f g)
+@[expose] def solve (l : List ι) (s : ℕ) (f g : Finset ι → R) (Cs : List (Finset ι)) :
+    List R :=
+  let T := preprocess l s f g
+  Cs.map (query l s T f g)
 
 /-! #### Correctness -/
 
@@ -309,8 +264,8 @@ private theorem yatesTransform_one_take_length {l : List ι} (hl : l.Nodup) (F :
 
 /-- What the preprocessed tables hold: stage `k` of each transform on the subsets of `l` with at
 most `s` elements. -/
-private theorem preprocessM_spec {l : List ι} (hl : l.Nodup) (s : ℕ) (f g : Finset ι → R) :
-    let T := (preprocessM l s f g).ret
+private theorem preprocess_spec {l : List ι} (hl : l.Nodup) (s : ℕ) (f g : Finset ι → R) :
+    let T := preprocess l s f g
     let H : Finset ι → R := fun S => subsetZeta f S * subsetZeta g S
     ∀ k ≤ l.length, ∀ X, X ⊆ l.toFinset → #X ≤ s →
       T.zetaLeft.getD k 0 X = yatesTransform (1 : ℕ) (l.take k) f X ∧
@@ -325,28 +280,25 @@ private theorem preprocessM_spec {l : List ι} (hl : l.Nodup) (s : ℕ) (f g : F
     intro X hX i _
     refine ⟨fun _ => hlow.mpr ⟨(erase_subset i X).trans (hlow.mp hX).1, ?_⟩, by omega⟩
     exact (card_erase_le).trans (hlow.mp hX).2
-  have hnofb : ∀ (c' : R) (G : Finset ι → R), ∀ k < l.length, ∀ Y, #Y < 0 → False →
-      ([] : List (Finset ι → R)).getD k 0 Y = yatesTransform c' (l.take k) G Y := by
-    intro _ _ _ _ _ h; exact absurd h (Nat.not_lt_zero _)
   have hX : X ∈ layers l 0 s := hlow.mpr ⟨hXl, hXs⟩
   have stage := fun {R' : Type _} [Monoid R'] [DistribMulAction R' R] (c' : R') (t G : Finset ι → R)
       (ht : ∀ X ∈ layers l 0 s, t X = G X) =>
-    getD_ret_stagesM (M := R) c' (fun _ => False) hs hdom l [] t G ht
-      (fun k hk Y hY _ => absurd hY (Nat.not_lt_zero _))
-  have hf := stage (1 : ℕ) _ f fun Y hY => ret_tabulateM f hY
-  have hg := stage (1 : ℕ) _ g fun Y hY => ret_tabulateM g hY
+    getD_stages (M := R) c' (fun _ => False) hs hdom l [] t G ht
+      (fun _ _ _ hY _ => absurd hY (Nat.not_lt_zero _))
+  have hf := stage (1 : ℕ) _ f fun Y hY => tabulate_apply f hY
+  have hg := stage (1 : ℕ) _ g fun Y hY => tabulate_apply g hY
   refine ⟨hf k hk X hX, hg k hk X hX, stage (-1 : ℤ) _ H (fun Y hY => ?_) k hk X hX⟩
-  rw [ret_tabulateM _ hY, hf _ le_rfl Y hY, hg _ le_rfl Y hY,
+  rw [tabulate_apply _ hY, hf _ le_rfl Y hY, hg _ le_rfl Y hY,
     yatesTransform_one_take_length hl f (hlow.mp hY).1,
     yatesTransform_one_take_length hl g (hlow.mp hY).1]
 
 /-- **Correctness of a query**: if `C` is a set of coordinates of `l` with at least `s` elements,
 the query after preprocessing returns the covering product `coveringProduct f g C`. -/
-theorem ret_queryM_preprocessM {l : List ι} (hl : l.Nodup) {s : ℕ} (f g : Finset ι → R)
+theorem query_preprocess {l : List ι} (hl : l.Nodup) {s : ℕ} (f g : Finset ι → R)
     {C : Finset ι} (hC : C ⊆ l.toFinset) (hsC : s ≤ #C) :
-    (queryM l s (preprocessM l s f g).ret f g C).ret = coveringProduct f g C := by
-  have pre := preprocessM_spec hl s f g
-  set T := (preprocessM l s f g).ret
+    query l s (preprocess l s f g) f g C = coveringProduct f g C := by
+  have pre := preprocess_spec hl s f g
+  set T := preprocess l s f g
   set H : Finset ι → R := fun S => subsetZeta f S * subsetZeta g S
   have hCl : (l.filter (· ∈ C)).toFinset = C := by
     ext x
@@ -367,92 +319,40 @@ theorem ret_queryM_preprocessM {l : List ι} (hl : l.Nodup) {s : ℕ} (f g : Fin
       fun h => ⟨(erase_subset i X).trans (hXC.trans hC), by omega⟩⟩
   have hYl : ∀ {Y}, Y ∈ layers (l.filter (· ∈ C)) s #C → Y ⊆ l.toFinset :=
     fun hY => (hhigh.mp hY).1.trans hC
-  have hf := getD_ret_stagesM (1 : ℕ) P hs hdom l T.zetaLeft
-    (tabulateM (layers (l.filter (· ∈ C)) s #C) f).ret f
-    (fun Y hY => ret_tabulateM f hY) fun k hk Y _ hP => (pre k hk.le Y hP.1 hP.2).1
-  have hg := getD_ret_stagesM (1 : ℕ) P hs hdom l T.zetaRight
-    (tabulateM (layers (l.filter (· ∈ C)) s #C) g).ret g
-    (fun Y hY => ret_tabulateM g hY) fun k hk Y _ hP => (pre k hk.le Y hP.1 hP.2).2.1
+  have hf := getD_stages (1 : ℕ) P hs hdom l T.zetaLeft
+    (tabulate (layers (l.filter (· ∈ C)) s #C) f) f
+    (fun Y hY => tabulate_apply f hY) fun k hk Y _ hP => (pre k hk.le Y hP.1 hP.2).1
+  have hg := getD_stages (1 : ℕ) P hs hdom l T.zetaRight
+    (tabulate (layers (l.filter (· ∈ C)) s #C) g) g
+    (fun Y hY => tabulate_apply g hY) fun k hk Y _ hP => (pre k hk.le Y hP.1 hP.2).2.1
   have hCmem : C ∈ layers (l.filter (· ∈ C)) s #C := hhigh.mpr ⟨subset_rfl, hsC⟩
-  simp only [queryM, ret_bind, ret_pure]
-  rw [getD_ret_stagesM (-1 : ℤ) P hs hdom l T.cover _ H ?_
+  dsimp only [query]
+  rw [getD_stages (-1 : ℤ) P hs hdom l T.cover _ H ?_
       (fun k hk Y _ hP => (pre k hk.le Y hP.1 hP.2).2.2) _ le_rfl C hCmem,
     List.take_length, yatesTransform_neg_one_apply hl H hC, coveringProduct_eq_subsetMobius]
   intro Y hY
-  rw [ret_tabulateM _ hY, hf _ le_rfl Y hY, hg _ le_rfl Y hY,
+  rw [tabulate_apply _ hY, hf _ le_rfl Y hY, hg _ le_rfl Y hY,
     yatesTransform_one_take_length hl f (hYl hY), yatesTransform_one_take_length hl g (hYl hY)]
 
 /-- **Ranked queries** ([ChanItakuraMaYu2026], Problem 2.1): if `f` is supported on sets with `t₁`
 elements and `g` on sets with `t₂` elements, a query at a set `C` of `t₁ + t₂` coordinates of `l`
 returns the subset convolution `∑_{A ⊆ C} f A * g (C \ A)`, for every threshold
 `s ≤ t₁ + t₂`. -/
-theorem ret_queryM_preprocessM_eq_subsetConvolution {l : List ι} (hl : l.Nodup) {s t₁ t₂ : ℕ}
+theorem query_preprocess_eq_subsetConvolution {l : List ι} (hl : l.Nodup) {s t₁ t₂ : ℕ}
     {f g : Finset ι → R} (hf : ∀ A, f A ≠ 0 → #A = t₁) (hg : ∀ B, g B ≠ 0 → #B = t₂)
     {C : Finset ι} (hC : C ⊆ l.toFinset) (hCcard : #C = t₁ + t₂) (hs : s ≤ t₁ + t₂) :
-    (queryM l s (preprocessM l s f g).ret f g C).ret = subsetConvolution f g C := by
-  rw [ret_queryM_preprocessM hl f g hC (hCcard ▸ hs),
+    query l s (preprocess l s f g) f g C = subsetConvolution f g C := by
+  rw [query_preprocess hl f g hC (hCcard ▸ hs),
     coveringProduct_eq_subsetConvolution hf hg hCcard]
 
-/-- **Correctness of `solveM`**: for queries at sets of `t₁ + t₂` coordinates of `l`, the answers
+/-- **Correctness of `solve`**: for queries at sets of `t₁ + t₂` coordinates of `l`, the answers
 are the selected entries of the subset convolution of ranked inputs. -/
-theorem ret_solveM {l : List ι} (hl : l.Nodup) {s t₁ t₂ : ℕ} {f g : Finset ι → R}
+theorem solve_eq_subsetConvolution {l : List ι} (hl : l.Nodup) {s t₁ t₂ : ℕ} {f g : Finset ι → R}
     (hf : ∀ A, f A ≠ 0 → #A = t₁) (hg : ∀ B, g B ≠ 0 → #B = t₂) {Cs : List (Finset ι)}
     (hCs : ∀ C ∈ Cs, C ⊆ l.toFinset ∧ #C = t₁ + t₂) (hs : s ≤ t₁ + t₂) :
-    (solveM l s f g Cs).ret = Cs.map (subsetConvolution f g) := by
-  simp only [solveM, ret_bind, ret_listMapM]
+    solve l s f g Cs = Cs.map (subsetConvolution f g) := by
+  dsimp only [solve]
   refine List.map_congr_left fun C hC => ?_
-  exact ret_queryM_preprocessM_eq_subsetConvolution hl hf hg (hCs C hC).1 (hCs C hC).2 hs
-
-/-! #### Cost -/
-
-/-- Preprocessing costs `3 * (l.length + 1)` ticks per subset of `l` with at most `s` elements. -/
-theorem time_preprocessM (l : List ι) (s : ℕ) (f g : Finset ι → R) :
-    (preprocessM l s f g).time = 3 * (l.length + 1) * (layers l 0 s).length := by
-  simp only [preprocessM, time_bind, time_tabulateM, time_stagesM, time_pure]
-  ring
-
-/-- A query costs `3 * (l.length + 1)` ticks per subset of `C` with at least `s` elements, for any
-preprocessed tables. -/
-theorem time_queryM (l : List ι) (s : ℕ) (T : Tables ι R) (f g : Finset ι → R)
-    (C : Finset ι) :
-    (queryM l s T f g C).time = 3 * (l.length + 1) * (layers (l.filter (· ∈ C)) s #C).length := by
-  simp only [queryM, time_bind, time_tabulateM, time_stagesM, time_pure]
-  ring
-
-/-- **Preprocessing time**: `3 (d + 1) ∑_{j ≤ s} (d choose j)` ticks for `d = l.length`. -/
-theorem time_preprocessM_eq_sum_choose (l : List ι) (s : ℕ) (f g : Finset ι → R) :
-    (preprocessM l s f g).time = 3 * (l.length + 1) * ∑ j ∈ range (s + 1), l.length.choose j := by
-  rw [time_preprocessM, length_layers]
-  congr 2
-  ext j
-  simp only [mem_Icc, mem_range]
-  omega
-
-/-- **Query time**: `3 (d + 1) ∑_{s ≤ j ≤ #C} (#C choose j)` ticks for a set `C` of coordinates
-of the duplicate-free list `l` of length `d`. -/
-theorem time_queryM_eq_sum_choose {l : List ι} (hl : l.Nodup) (s : ℕ) (T : Tables ι R)
-    (f g : Finset ι → R) {C : Finset ι} (hC : C ⊆ l.toFinset) :
-    (queryM l s T f g C).time = 3 * (l.length + 1) * ∑ j ∈ Icc s #C, (#C).choose j := by
-  have hlen : (l.filter (· ∈ C)).length = #C := by
-    rw [← List.toFinset_card_of_nodup (hl.filter _)]
-    congr 1
-    ext x
-    simp only [List.toFinset_filter, mem_filter, List.mem_toFinset, decide_eq_true_eq]
-    exact ⟨fun h => h.2, fun h => ⟨List.mem_toFinset.mp (hC h), h⟩⟩
-  rw [time_queryM, length_layers, hlen]
-
-/-- **The cost of [ChanItakuraMaYu2026], Theorem 2.2**, exactly: for `d = l.length` coordinates
-and queries at sets of `2t` coordinates, `solveM` takes
-`3 (d + 1) (∑_{j ≤ s} (d choose j) + |𝒞| ∑_{s ≤ j ≤ 2t} (2t choose j))` ticks. -/
-theorem time_solveM {l : List ι} (hl : l.Nodup) (s t : ℕ) (f g : Finset ι → R)
-    {Cs : List (Finset ι)} (hCs : ∀ C ∈ Cs, C ⊆ l.toFinset ∧ #C = 2 * t) :
-    (solveM l s f g Cs).time = 3 * (l.length + 1) *
-      (∑ j ∈ range (s + 1), l.length.choose j +
-        Cs.length * ∑ j ∈ Icc s (2 * t), (2 * t).choose j) := by
-  simp only [solveM, time_bind, time_listMapM, time_preprocessM_eq_sum_choose]
-  rw [List.map_congr_left fun C hC => by
-    rw [time_queryM_eq_sum_choose hl s _ f g (hCs C hC).1, (hCs C hC).2]]
-  rw [List.map_const', List.sum_replicate, smul_eq_mul]
-  ring
+  exact query_preprocess_eq_subsetConvolution hl hf hg (hCs C hC).1 (hCs C hC).2 hs
 
 end Cslib.Algorithms.Lean.TrimmedYates

@@ -11,7 +11,6 @@ public import CslibFrontier.Foundations.Analysis.Lattice.QuotientMeasure
 public import CslibFrontier.Foundations.MeasureTheory.Group.QuotientDensity
 public import CslibFrontier.Foundations.Probability.Gaussian.Measure
 public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
-public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import Mathlib.MeasureTheory.Measure.TotalVariation.Basic
 
 import CslibFrontier.Foundations.MeasureTheory.Measure.TotalVariation.Map
@@ -111,13 +110,9 @@ theorem map_gaussianWeight_eq_withDensity (s : ℝ) (hs : 0 < s) {F : Set E}
   rw [QuotientAddGroup.map_withDensity_eq_withDensity_automorphize hF hf,
     withDensity_smul_measure, ← withDensity_smul' _ _
       (ENNReal.inv_ne_top.mpr (ENNReal.ofReal_pos.mpr hc).ne')]
-  apply congrArg (fun f : E ⧸ L.toAddSubgroup → ℝ≥0∞ ↦
-    (Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup)
-      (volume.restrict F)).withDensity f)
-  funext y
-  simp only [Pi.smul_apply, smul_eq_mul]
-  rw [automorphize_gaussianWeight_div L s hs y, ← ENNReal.ofReal_inv_of_pos hc,
-    ← ENNReal.ofReal_mul (inv_nonneg.mpr hc.le)]
+  refine congrArg _ (funext fun y => ?_)
+  rw [Pi.smul_apply, smul_eq_mul, automorphize_gaussianWeight_div L s hs y,
+    ← ENNReal.ofReal_inv_of_pos hc, ← ENNReal.ofReal_mul (inv_nonneg.mpr hc.le)]
   congr 1
   field_simp
 
@@ -172,15 +167,9 @@ theorem tvDist_gaussian_quotient_le (s : ℝ) (hs : 0 < s) {F : Set E}
       abs_gaussianMass_normalized_sub_one_le L s hs (-x)
   change tvDist (Measure.map q ν) U ≤ _
   rw [hmap, tvDist_withDensity_self_eq_integral hfi]
-  calc
-    _ ≤ ∫ _ : E ⧸ L.toAddSubgroup,
-        gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ∂U := by
-      apply integral_mono
-      · exact ((integrable_const (1 : ℝ)).sub
-          (integrable_toReal_of_lintegral_ne_top hf.aemeasurable (by rw [hlin]; simp))).abs
-      · exact integrable_const _
-      · exact hbound
-    _ = _ := by simp
+  refine (integral_mono ((integrable_const (1 : ℝ)).sub
+    (integrable_toReal_of_lintegral_ne_top hf.aemeasurable (by rw [hlin]; simp))).abs
+    (integrable_const _) hbound).trans_eq (by simp)
 
 /-- Shifting the center of the continuous Gaussian density is pushing forward by translation. -/
 private theorem map_add_gaussianWeight_withDensity (s : ℝ) (c : E) :
@@ -193,22 +182,11 @@ private theorem map_add_gaussianWeight_withDensity (s : ℝ) (c : E) :
   rw [Measure.map_apply (measurable_add_const c) hA,
     withDensity_apply _ ((measurable_add_const c) hA),
     withDensity_apply _ hA]
-  have hcomp :
-      ∫⁻ x in (fun x : E ↦ x + c) ⁻¹' A,
-        ENNReal.ofReal (gaussianWeight s x / s ^ finrank ℝ E) ∂volume =
-      ∫⁻ x, ((fun x : E ↦ x + c) ⁻¹' A).indicator
-        (fun x : E ↦ ENNReal.ofReal (gaussianWeight s x / s ^ finrank ℝ E)) x ∂volume :=
-    (lintegral_indicator ((measurable_add_const c) hA) _).symm
-  rw [hcomp, ← lintegral_sub_right_eq_self _ c, ← lintegral_indicator hA]
+  rw [← lintegral_indicator ((measurable_add_const c) hA), ← lintegral_sub_right_eq_self _ c,
+    ← lintegral_indicator hA]
   congr 1
   funext y
-  by_cases hy : y ∈ A
-  · have hmem : y - c ∈ (fun x : E ↦ x + c) ⁻¹' A := by
-      simpa only [Set.mem_preimage, sub_add_cancel] using hy
-    rw [Set.indicator_of_mem hmem, Set.indicator_of_mem hy]
-  · have hmem : y - c ∉ (fun x : E ↦ x + c) ⁻¹' A := by
-      simpa only [Set.mem_preimage, sub_add_cancel] using hy
-    rw [Set.indicator_of_notMem hmem, Set.indicator_of_notMem hy]
+  by_cases hy : y ∈ A <;> simp [hy]
 
 /-- Dual-mass form of [MicciancioRegev2007], Lemma 4.1 (p. 12 of the December 27, 2005 author
 version): for any width `s > 0` and arbitrary center `c : E`, the full-L1 distance

@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Padding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -152,9 +153,8 @@ private theorem EXP_encPair_subset_PPolyOn_of_EXP_subset_PPoly
     DTIME_mono_of_eventually_le (eventually_atTop.mpr ⟨1, fun m hm =>
       Nat.pow_le_pow_right (by norm_num) (Nat.pow_le_pow_right hm (Nat.le_succ k))⟩) hk
   have hdecO : ComputableInO decodePair encBits (encPair encBits encBits)
-      (fun w => w.length + w.length) (fun w => w.length + w.length) :=
-    (ComputableInO.of_linear (.of_unframe fun _ => rfl)).prod
-      (ComputableInO.of_linear (.of_dropFrame fun _ => rfl))
+      (fun w => w.length + w.length) (fun w => w.length + w.length) := by
+    unfold decodePair; fun_prop
   have hpre : decodePair ⁻¹' L ∈ DTIME encBits fun n => 2 ^ (n + 1) ^ (k + 1) := by
     refine preimage_mem_DTIME (C := 3) hk' hdecO fun w => ?_
     set n := w.length

@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # From Mathlib TM2 computations to CSLib polynomial time
@@ -118,9 +119,7 @@ theorem run_polyTime (tm : FinTM2) [∀ k, Finite (tm.Γ k)] (p : Polynomial ℕ
   obtain ⟨C, hC⟩ := stepTotal_stack_bound tm.m
   obtain ⟨A, hA⟩ := length_encCfg_le (Γ := tm.Γ) (Λ := tm.Λ) (σ := tm.σ)
   apply iterate hcount (initList_polyTime tm) (stepTotal_polyTime tm.m)
-    ((PolyBounded.const A).mul
-      ((hlength.polyBounded.add ((PolyBounded.const C).mul hcount.polyBounded)).add
-        (PolyBounded.const 1)))
+    (bound := fun input => A * (input.length + C * p.eval input.length + 1)) (by growth_poly)
   intro input i hi
   exact hA _ _ fun k => (iterate_stepTotal_stack_le tm hC input i k).trans
     (Nat.add_le_add_left (Nat.mul_le_mul_left C hi) _)

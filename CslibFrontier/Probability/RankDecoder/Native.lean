@@ -187,8 +187,7 @@ private theorem stepCertificate_expTimePolySpace {enc : α ↪ List Bool}
     (stepCertificate hd cm).ExpTimePolySpace (fun s => E s.input) := by
   have hp := (NativeCertificate.expTimePolySpace_ofPolyTime
     (ComputableInPolyTime.id' (encIn := stateEncoding enc)) (fun _ => 0)).prod hm
-  have hf := hp.comp_ofPolyTime (finish_polyTime hd)
-  simpa only [NativeCertificate.ExpTimePolySpace, stepCertificate, Nat.zero_add] using hf
+  exact (hp.comp_ofPolyTime (finish_polyTime hd)).mono fun _ => (Nat.zero_add _).le
 
 /-- A native realization of the decoder, using one supplied left-child mass computation in each
 of `depth a` rounds. The oracle receives the retained input, current prefix and residual rank. -/

@@ -161,17 +161,16 @@ theorem coefficients_eq_of_newton (D : ℕ) (t : ℕ → K) (P Q : K[X])
       -(∑ j ∈ Finset.range (k + 1), Q.coeff (k - j) * t (j + 1)))
     (k : ℕ) (hk : k ≤ D) : P.coeff k = Q.coeff k := by
   classical
-  induction k using Nat.strong_induction_on with
-  | ind k ih =>
-    cases k with
-    | zero => exact hzero
-    | succ k =>
-      apply mul_left_cancel₀ (hK (k + 1) (by omega) hk)
-      rw [hP k (by omega), hQ k (by omega)]
-      congr 1
-      apply Finset.sum_congr rfl
-      intro j _
-      rw [ih (k - j) (by omega) (by omega)]
+  cases k with
+  | zero => exact hzero
+  | succ k =>
+    apply mul_left_cancel₀ (hK (k + 1) (by omega) hk)
+    rw [hP k (by omega), hQ k (by omega)]
+    congr 1
+    apply Finset.sum_congr rfl
+    intro j _
+    rw [coefficients_eq_of_newton D t P Q hK hzero hP hQ (k - j) (by omega)]
+termination_by k
 
 end Polynomial
 

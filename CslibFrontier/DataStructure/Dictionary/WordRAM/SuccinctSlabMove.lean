@@ -398,60 +398,33 @@ theorem realizes_promoteStepGen :
       (WordEncoding.encode (α := (DictParams × (ℕ × ℕ)) × ℕ)) (WordEncoding.encode (α := ℕ))
       PromoteStepGenPre
       (fun _ _ => 0) := by
-  -- Stage the shared tail indices once; automatic preparation at each call exceeds the
-  -- default elaboration budget for this large encoded environment.
-  refine Realizes.congr (p := fun d : (DictParams × (ℕ × ℕ)) × ℕ => do
-      let u ← pure (dpSlabSizeSubOne d.1.1 - d.2)
-      let r_top ← pure (dpSlabSize d.1.1 + u)
-      let ptr_u_idx ← pure (dpGmTailPtrBase d.1.1 + (d.1.2.2 * dpTailCap d.1.1 + u))
-      let t_u ← readGMGenProg (d.1.1, (d.1.2.1, ptr_u_idx))
-      let ptr_top_idx ← pure (dpGmTailPtrBase d.1.1 + (d.1.2.2 * dpTailCap d.1.1 + r_top))
-      let t_top ← readGMGenProg (d.1.1, (d.1.2.1, ptr_top_idx))
-      let i0 ← pure 0
-      let p_new ← readGMGenProg (d.1.1, (d.1.2.1, i0))
-      let g_u ← pure (dpNMaxSubOne d.1.1 - t_u)
-      let g_top ← pure (dpNMaxSubOne d.1.1 - t_top)
-      let g_slab ← pure (p_new * dpSlabSize d.1.1 + d.2)
-      let q_u ← readQuotGenProg (d.1.1, (d.1.2.1, g_u))
-      let v_u ← readValGenProg (d.1.1, (d.1.2.1, g_u))
-      let q_top ← readQuotGenProg (d.1.1, (d.1.2.1, g_top))
-      let v_top ← readValGenProg (d.1.1, (d.1.2.1, g_top))
-      writeQuotGenProg (d.1.1, ((d.1.2.1, g_u), q_top))
-      writeValGenProg (d.1.1, ((d.1.2.1, g_u), v_top))
-      removeLastTailItemGenProg (d.1.1, d.1.2)
-      writeQuotGenProg (d.1.1, ((d.1.2.1, g_slab), q_u))
-      let _ ← writeValGenProg (d.1.1, ((d.1.2.1, g_slab), v_u))
-      pure (d.2 + 1)) ?_
-    (fun d => by simp only [promoteStepGenProg, pure_bind])
   realize
     [realizes_readGMGen, realizes_readQuotGen, realizes_writeQuotGen, realizes_readValGen,
       realizes_writeValGen, realizes_removeLastTailItemGen]
   all_goals (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
-    let d := (d1, d2)
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     simpDictParamsWith [promoteStepGenPre_mk, removeLastTailItemGenPre_mk,
       removeLastTailItemGenProg_mk]
-    obtain ⟨hk, hr_top, hpu, hpt, h0, htu, httop, hgu, hgtop, hgslab, htail', hr1, hk1⟩ :=
-      promoteStep_bounds hw h.2
-  )
-  · exact hk
-  · exact fits_of_le_globalMetaLen h.1 h.2.2 hw hnU hU
-      (hr_top.trans (tailCapPerBucket_le_globalMetaLen h.2.2))
-  · exact fits_of_le_globalMetaLen h.1 h.2.2 hw hnU hU hpu.le
-  · exact h.1
-  · exact hpu
-  · exact fits_of_le_globalMetaLen h.1 h.2.2 hw hnU hU hpt.le
-  · exact hpt
-  · exact h0
-  · exact htu
-  · exact httop
-  · exact fits_of_le_max_n_one h.1 hw hnU hU (hgslab.le.trans (le_max_left n_max 1))
-  · exact hgu
-  · exact hgtop
-  · exact ⟨h.1, htail', h.2.1.1, hr1, h.2.2⟩
-  · exact hgslab
-  · exact fits_of_le_max_n_one h.1 hw hnU hU hk1
+    obtain ⟨hdict, hinv, hbp⟩ := h
+    obtain ⟨hk, _, hpu, hpt, h0, htu, httop, hgu, hgtop, hgslab, htail', hr1, hk1⟩ :=
+      promoteStep_bounds hw ⟨hinv, hbp⟩
+    first
+    | exact hdict
+    | with_reducible exact hk
+    | with_reducible exact hpu
+    | with_reducible exact hpt
+    | with_reducible exact h0
+    | with_reducible exact htu
+    | with_reducible exact httop
+    | with_reducible exact hgu
+    | with_reducible exact hgtop
+    | with_reducible exact hgslab
+    | exact ⟨hdict, htail', hinv.1, hr1, hbp⟩
+    | exact fits_of_le_globalMetaLen hdict hbp hw hnU hU hpu.le
+    | exact fits_of_le_globalMetaLen hdict hbp hw hnU hU hpt.le
+    | exact fits_of_le_max_n_one hdict hw hnU hU (hgslab.le.trans (le_max_left n_max 1))
+    | exact fits_of_le_max_n_one hdict hw hnU hU hk1)
 
 /-! ## Section 2: `PromoteArrInv`, `PromoteLoopInv`, and `promoteSlabProg` -/
 
@@ -1066,15 +1039,9 @@ theorem realizes_promoteSlabGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
       PromoteSlabGenPre
       (fun _ _ => 0) := by
-  have hloop := realizes_promoteLoopGen
-  have hpush := realizes_gmPushSlabGen
-  refine Realizes.congr (p := fun d : DictParams × (ℕ × ℕ) => do
-      let k0 ← pure 0
-      let _ ← promoteLoopGenProg ((d, k0), dpSlabSize d.1)
-      gmPushSlabGenProg d) ?_
-    (fun d => by simp only [promoteSlabGenProg, pure_bind])
   realizeDictWith [promoteSlabGenPre_mk, iterationSafe_promoteStepGenProg_mk,
     promoteLoopGenProg_mk, gmPushSlabGenPre_mk, gmPushSlabGenProg_mk]
+    using [realizes_promoteLoopGen, realizes_gmPushSlabGen]
   · exact (iterate_promoteStepProg_spec hw h.2.2 (slabSize n_max) 0 s
       (by omega) (promoteLoopInv_zero h.2.1)).2.2 h.1
   · rcases d with ⟨base, b⟩

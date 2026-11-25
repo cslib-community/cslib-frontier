@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.PCP.ParallelRepetition
 import CslibFrontier.Computability.PCP.Encoded.Count
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Parallel repetition of Label Cover instances
@@ -313,13 +314,9 @@ private theorem one_sub_unsatFrac_toGraph {C α : Type} (g : Graph C) (hg : g.ed
       g.edges.countP (fun d => !eval d.constraint (σ d.src) (σ d.dst)) := by
     simp
   rw [hneg] at h
-  have h' : (g.edges.length : ℝ) =
-      (g.edges.countP fun d => eval d.constraint (σ d.src) (σ d.dst)) +
-        (g.edges.countP fun d => !eval d.constraint (σ d.src) (σ d.dst)) := by
-    exact_mod_cast h
   rw [Graph.unsatFrac_toGraph]
   field_simp
-  linarith
+  cast_linarith [h]
 
 /-- **The game is no easier than the instance**: its value is at most the largest proportion of
 the edges that a labelling satisfies. -/

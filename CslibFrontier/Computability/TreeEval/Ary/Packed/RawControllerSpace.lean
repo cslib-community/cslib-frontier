@@ -146,7 +146,7 @@ private theorem bankMap_inSpace :
   have hpar := fst encBankPar (encList encNat)
   have hlist := snd encBankPar (encList encNat)
   have hinit : ComputableInSpace (fun _ : BankPar × List ℕ => (0, ([] : List ℕ)))
-      encIn encBankAcc (fun q => (encIn q).length) := budget_const (0, []) (.refl _)
+      encIn encBankAcc (fun q => (encIn q).length) := budget_const (0, [])
   have hstate (q : BankPar × List ℕ) (i : ℕ) (hi : i ≤ q.2.length) :
       (encBankAcc ((q.2.take i).foldl (bankFoldStep q.1) (0, []))).length ≤
         16 * bankUpdateSpace q := by
@@ -215,7 +215,7 @@ private theorem padding_inSpace :
   have hpar := fst' (fst' (fst encBankPar (encList encNat)))
   have hlist := snd encBankPar (encList encNat)
   have hinit : ComputableInSpace (fun _ : BankPar × List ℕ => true) encIn encBool
-      (fun q => (encIn q).length) := budget_const true (.refl _)
+      (fun q => (encIn q).length) := budget_const true
   have hstep : ComputableInSpace
       (fun q : (ℕ × Bool) × ℕ => paddingStep q.1.1 q.1.2 q.2)
       (encPair (encPair encNat encBool) encNat) encBool
@@ -291,22 +291,25 @@ abbrev encVectorBankArgs : VectorBankArgs ↪ List Bool :=
     (encPair (encList encNat) (encList encNat))
 
 /-- Check the width charge before scaling. Invalid storage or a zero modulus is unchanged. -/
-@[expose] def checkedScaleBank (q : BankArgs) : List ℕ :=
-  if q.2.all (fun v => decide (q.1.1 ≤ v)) then
-    if q.1.1 = 0 then q.2 else scaleBank q.1.1 q.1.2.1 q.1.2.2.1 q.1.2.2.2 q.2
-  else q.2
+@[expose] def checkedScaleBank : BankArgs → List ℕ
+  | ((p, r, t, a), bank) =>
+    if bank.all (fun v => decide (p ≤ v)) then
+      if p = 0 then bank else scaleBank p r t a bank
+    else bank
 
 /-- Check the width charge before adding a returned vector. -/
-@[expose] def checkedAddBank (q : VectorBankArgs) : List ℕ :=
-  if q.2.2.all (fun v => decide (q.1.1 ≤ v)) then
-    if q.1.1 = 0 then q.2.2 else addBank q.1.1 q.1.2.1 q.1.2.2.1 q.1.2.2.2 q.2.1 q.2.2
-  else q.2.2
+@[expose] def checkedAddBank : VectorBankArgs → List ℕ
+  | ((p, r, t, c), values, bank) =>
+    if bank.all (fun v => decide (p ≤ v)) then
+      if p = 0 then bank else addBank p r t c values bank
+    else bank
 
 /-- Check the width charge before subtracting a returned vector. -/
-@[expose] def checkedSubBank (q : VectorBankArgs) : List ℕ :=
-  if q.2.2.all (fun v => decide (q.1.1 ≤ v)) then
-    if q.1.1 = 0 then q.2.2 else subBank q.1.1 q.1.2.1 q.1.2.2.1 q.1.2.2.2 q.2.1 q.2.2
-  else q.2.2
+@[expose] def checkedSubBank : VectorBankArgs → List ℕ
+  | ((p, r, t, c), values, bank) =>
+    if bank.all (fun v => decide (p ≤ v)) then
+      if p = 0 then bank else subBank p r t c values bank
+    else bank
 
 private theorem mapIdx_identity (bank : List ℕ) : bank.mapIdx (fun _ v => v) = bank := by
   apply List.ext_getElem (by simp)
@@ -331,12 +334,12 @@ theorem checkedScaleBank_inSpace :
   have hpar := fst (encPair encNat (encPair encNat (encPair encNat encNat))) (encList encNat)
   have hbank := snd (encPair encNat (encPair encNat (encPair encNat encNat))) (encList encNat)
   have hprep := budget_prod
-    (budget_prod hpar (budget_prod (budget_const (encB := encList encNat) [] (.refl _))
-      (budget_const (encB := encPair encBool encBool) (false, false) (.refl _)))) hbank
+    (budget_prod hpar (budget_prod (budget_const (encB := encList encNat) [])
+      (budget_const (encB := encPair encBool encBool) (false, false)))) hbank
   refine (budget_comp_linear checkedBankMap_inSpace hprep).of_enc_eq ?_
-  intro q
-  by_cases hpad : q.2.all (fun v => decide (q.1.1 ≤ v)) = true
-  · by_cases hp : q.1.1 = 0
+  rintro ⟨⟨p, r, t, a⟩, bank⟩
+  by_cases hpad : bank.all (fun v => decide (p ≤ v)) = true
+  · by_cases hp : p = 0
     · simp [checkedBankMap, mapIdx_bankCell, checkedScaleBank, hp, mapIdx_identity]
     · simp [checkedBankMap, mapIdx_bankCell, checkedScaleBank, hpad, hp, scaleBank]
   · simp [checkedBankMap, checkedScaleBank, hpad]
@@ -351,7 +354,7 @@ private theorem vectorBank_inSpace (subtract : Bool) :
     (encPair (encList encNat) (encList encNat))
   have hprep := budget_prod
     (budget_prod hpar (budget_prod (fst' hrest)
-      (budget_const (encB := encPair encBool encBool) (true, subtract) (.refl _))))
+      (budget_const (encB := encPair encBool encBool) (true, subtract))))
     (snd' hrest)
   exact budget_comp_linear checkedBankMap_inSpace hprep
 
@@ -360,9 +363,9 @@ theorem checkedAddBank_inSpace :
     ComputableInSpace checkedAddBank encVectorBankArgs (encList encNat)
       (fun q => (encVectorBankArgs q).length) := by
   refine (vectorBank_inSpace false).of_enc_eq ?_
-  intro q
-  by_cases hpad : q.2.2.all (fun v => decide (q.1.1 ≤ v)) = true
-  · by_cases hp : q.1.1 = 0
+  rintro ⟨⟨p, r, t, c⟩, values, bank⟩
+  by_cases hpad : bank.all (fun v => decide (p ≤ v)) = true
+  · by_cases hp : p = 0
     · simp [checkedBankMap, mapIdx_bankCell, checkedAddBank, hp, mapIdx_identity]
     · simp [checkedBankMap, mapIdx_bankCell, checkedAddBank, hpad, hp, addBank]
   · simp [checkedBankMap, checkedAddBank, hpad]
@@ -372,9 +375,9 @@ theorem checkedSubBank_inSpace :
     ComputableInSpace checkedSubBank encVectorBankArgs (encList encNat)
       (fun q => (encVectorBankArgs q).length) := by
   refine (vectorBank_inSpace true).of_enc_eq ?_
-  intro q
-  by_cases hpad : q.2.2.all (fun v => decide (q.1.1 ≤ v)) = true
-  · by_cases hp : q.1.1 = 0
+  rintro ⟨⟨p, r, t, c⟩, values, bank⟩
+  by_cases hpad : bank.all (fun v => decide (p ≤ v)) = true
+  · by_cases hp : p = 0
     · simp [checkedBankMap, mapIdx_bankCell, checkedSubBank, hp, mapIdx_identity]
     · simp [checkedBankMap, mapIdx_bankCell, checkedSubBank, hpad, hp, subBank]
   · simp [checkedBankMap, checkedSubBank, hpad]
@@ -413,12 +416,14 @@ theorem bankPadding_inSpace :
       (fun q => (encPair encNat (encList encNat) q).length) := by
   have hp := fst encNat (encList encNat)
   have hbank := snd encNat (encList encNat)
-  have hz := budget_const (encIn := encPair encNat (encList encNat))
-    (encB := encNat) 0 (.refl _)
+  have hz :=
+    budget_const (Bs := fun a => (encPair encNat (encList encNat) a).length)
+      (encIn := encPair encNat (encList encNat))
+    (encB := encNat) 0
   have hpar := budget_prod hp (budget_prod hz (budget_prod hz hz))
   have hcontext := budget_prod hpar
-    (budget_prod (budget_const (encB := encList encNat) [] (.refl _))
-      (budget_const (encB := encPair encBool encBool) (false, false) (.refl _)))
+    (budget_prod (budget_const (encB := encList encNat) [])
+      (budget_const (encB := encPair encBool encBool) (false, false)))
   exact (budget_comp_linear padding_inSpace (budget_prod hcontext hbank)).of_enc_eq fun _ => rfl
 
 end Cslib.TreeEval.Ary.Packed.RawController

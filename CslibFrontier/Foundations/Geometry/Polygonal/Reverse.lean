@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 public import Mathlib.Data.Fin.Rev
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Interval.Set.Instances
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -92,9 +93,7 @@ theorem position_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ) :
   change Fin (p.bends + 1) at i
   change (i.val : ℝ) + t = ((p.bends + 1 : ℕ) : ℝ) - ((i.rev.val : ℝ) + (1 - t))
   simp only [Nat.cast_add, Nat.cast_one]
-  have h : (i.val : ℝ) + (i.rev.val : ℝ) = (p.bends : ℝ) := by
-    exact_mod_cast Fin.add_rev_cast i
-  linarith
+  cast_linarith [Fin.add_rev_cast i]
 
 private theorem atEnd_reverse (p : Route) (i : Fin p.reverse.segments) (t : ℝ) (b : Bool) :
     p.reverse.AtEnd i t b ↔ p.AtEnd i.rev (1 - t) (!b) := by

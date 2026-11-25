@@ -12,6 +12,7 @@ public import Mathlib.Analysis.Calculus.IteratedDeriv.Defs
 public import Mathlib.Analysis.Calculus.ContDiff.Defs
 public import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 public import Mathlib.Topology.EMetricSpace.Lipschitz
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Analysis.Calculus.Deriv.Shift
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
@@ -228,8 +229,7 @@ theorem iterate_movingAverage_mem_Icc (hφ : Continuous φ) (hh : 0 < h) {a b : 
     rw [Function.iterate_succ_apply]
     refine ih (continuous_movingAverage hφ) fun t ht => movingAverage_mem_Icc hφ hh
       fun r hr => hab r ⟨ht.1.trans hr.1, hr.2.trans ?_⟩
-    push_cast
-    linarith [ht.2]
+    cast_linarith [ht.2]
 
 end Real
 

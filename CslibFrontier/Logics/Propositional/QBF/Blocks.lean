@@ -103,43 +103,34 @@ omit [DecidableEq V] in
 /-- Appending variables to a nonempty prefix preserves its number of blocks. -/
 theorem length_appendLast {bs : List (List V)} (h : bs ≠ []) (vs : List V) :
     (appendLast bs vs).length = bs.length := by
-  induction bs with
-  | nil => contradiction
-  | cons b bs ih =>
-    cases bs with
-    | nil => rfl
-    | cons c bs => simp only [appendLast, List.length_cons, ih (by simp)]
+  fun_induction appendLast bs vs with
+  | case1 => contradiction -- []
+  | case2 => rfl -- [b]
+  | case3 b c bs ih => simp only [List.length_cons, ih (List.cons_ne_nil _ _)] -- b :: c :: bs
 
 omit [DecidableEq V] in
 /-- Appending variables to the final block appends them to the flattened prefix. -/
 theorem flatten_appendLast (bs : List (List V)) (vs : List V) :
     (appendLast bs vs).flatten = bs.flatten ++ vs := by
-  induction bs with
-  | nil => simp [appendLast]
-  | cons b bs ih =>
-    cases bs with
-    | nil => simp [appendLast]
-    | cons c bs =>
-      simpa only [appendLast, List.flatten_cons, List.append_assoc] using
-        (congrArg (b ++ ·) ih)
+  fun_induction appendLast bs vs with
+  | case3 b c bs ih => -- b :: c :: bs
+    simpa only [List.flatten_cons, List.append_assoc] using congrArg (b ++ ·) ih
+  | _ => simp -- [] or [b]
 
 omit [DecidableEq V] in
 /-- Appending to the final block can be computed by reversing the prefix. -/
 theorem appendLast_eq_reverse (bs : List (List V)) (vs : List V) :
     appendLast bs vs = ((bs.reverse.headD [] ++ vs) :: bs.reverse.tail).reverse := by
-  induction bs with
-  | nil => simp [appendLast]
-  | cons b bs ih =>
-    cases bs with
-    | nil => simp [appendLast]
-    | cons c bs =>
-      obtain ⟨v, rest, hrev⟩ := List.exists_cons_of_ne_nil
-        (show (c :: bs).reverse ≠ [] by simp)
-      simp only [hrev, List.headD_cons, List.tail_cons] at ih
-      simp only [appendLast, List.reverse_cons, hrev, List.cons_append, List.headD_cons,
-        List.tail_cons, List.reverse_append, List.reverse_cons, List.reverse_nil,
-        List.nil_append]
-      simpa only [List.reverse_cons] using congrArg (b :: ·) ih
+  fun_induction appendLast bs vs with
+  | case3 b c bs ih => -- b :: c :: bs
+    obtain ⟨v, rest, hrev⟩ := List.exists_cons_of_ne_nil
+      (show (c :: bs).reverse ≠ [] by simp)
+    simp only [hrev, List.headD_cons, List.tail_cons] at ih
+    simp only [List.reverse_cons, hrev, List.cons_append, List.headD_cons,
+      List.tail_cons, List.reverse_append, List.reverse_cons, List.reverse_nil,
+      List.nil_append]
+    simpa only [List.reverse_cons] using congrArg (b :: ·) ih
+  | _ => simp -- [] or [b]
 
 omit [DecidableEq V] in
 /-- Appending variables to the last block merges a quantifier of the same polarity into it.
@@ -148,24 +139,22 @@ theorem blocks_appendLast (q r : Bool) {bs : List (List V)} (hbs : bs ≠ [])
     (hr : (Bool.not)^[bs.length] q = !r) (vs : List V) (φ : QBF V) :
     blocks q (appendLast bs vs) φ =
       blocks q bs (if r then exs vs φ else alls vs φ) := by
-  induction bs generalizing q with
-  | nil => contradiction
-  | cons b bs ih =>
-    cases bs with
-    | nil =>
-      have hqr : q = r := by simpa using congrArg Bool.not hr
-      subst r
-      cases q <;> simp [blocks, appendLast, exs_append, alls_append]
-    | cons c bs =>
-      have hr' : Bool.not^[(c :: bs).length] (!q) = !r := by
-        change Bool.not^[(c :: bs).length + 1] q = !r at hr
-        rwa [Function.iterate_succ_apply] at hr
-      cases q
-      · change alls b (blocks true (appendLast (c :: bs) vs) φ) =
-          alls b (blocks true (c :: bs) _)
-        exact congrArg (alls b) (ih true (by simp) hr')
-      · change exs b (blocks false (appendLast (c :: bs) vs) φ) =
-          exs b (blocks false (c :: bs) _)
-        exact congrArg (exs b) (ih false (by simp) hr')
+  fun_induction appendLast bs vs generalizing q with
+  | case1 => contradiction -- []
+  | case2 => -- [b]
+    have hqr : q = r := by simpa using congrArg Bool.not hr
+    subst r
+    cases q <;> simp [blocks, exs_append, alls_append]
+  | case3 b c bs ih => -- b :: c :: bs
+    have hr' : Bool.not^[(c :: bs).length] (!q) = !r := by
+      change Bool.not^[(c :: bs).length + 1] q = !r at hr
+      rwa [Function.iterate_succ_apply] at hr
+    cases q
+    · change alls b (blocks true (appendLast (c :: bs) vs) φ) =
+        alls b (blocks true (c :: bs) _)
+      exact congrArg (alls b) (ih true (by simp) hr')
+    · change exs b (blocks false (appendLast (c :: bs) vs) φ) =
+        exs b (blocks false (c :: bs) _)
+      exact congrArg (exs b) (ih false (by simp) hr')
 
 end Cslib.Logic.PL.QBF

@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.SignApproximation
 public import CslibFrontier.MachineLearning.UniformLearning.Basic
 public import CslibFrontier.Probability.Concentration
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.BooleanAnalysis.LowDegree
 import CslibFrontier.Probability.PMF
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
@@ -36,11 +37,12 @@ least `γ` with probability at most `2 exp (-m γ² / 2)`
 (`UniformLearning.uniform_abs_empiricalCoeff_sub_ge_le`). Let `N` be the number of sets of at most
 `t` coordinates, at most `(n + 1) ^ t` for `n` coordinates (`BitString.card_filter_card_le_le_pow`).
 By the union bound, all `N` estimates are within `γ = √(ε / (2 N))` of their coefficients except
-with probability at most `2 N exp (-m ε / (4 N))`, and then rounding the truncated expansion
-misclassifies at most a fraction `N γ² + W = ε / 2 + W` of the points, where `W` is the Fourier
-weight of `f` above degree `t` (`BitString.hammingDist_signRound_sum_mul_chi_div_le`, by rounding
-to the sign as in [O'Donnell, Proposition 3.31][ODonnell2014]). So if `W ≤ ε / 2`, the hypothesis
-has error above `ε` with probability at most `2 N exp (-m ε / (4 N))`
+with probability at most `2 N exp (-m ε / (4 N))`
+(`UniformLearning.uniform_exists_abs_empiricalCoeff_sub_ge_le`), and then rounding the truncated
+expansion misclassifies at most a fraction `N γ² + W = ε / 2 + W` of the points, where `W` is the
+Fourier weight of `f` above degree `t` (`BitString.hammingDist_signRound_sum_mul_chi_div_le`, by
+rounding to the sign as in [O'Donnell, Proposition 3.31][ODonnell2014]). So if `W ≤ ε / 2`, the
+hypothesis has error above `ε` with probability at most `2 N exp (-m ε / (4 N))`
 (`UniformLearning.uniform_lt_uniformError_lowDegreeHypothesis_le`), which is at most `δ` once
 `m ≥ (4 N / ε) log (2 N / δ)` (`UniformLearning.lowDegreeLearner_learns`). The whole argument is
 [O'Donnell, Theorem 3.29][ODonnell2014] for the family of sets of at most `t` coordinates.
@@ -62,6 +64,8 @@ only the number of examples.
 
 * `Cslib.MachineLearning.UniformLearning.uniform_abs_empiricalCoeff_sub_ge_le`: estimating one
   Fourier coefficient.
+* `Cslib.MachineLearning.UniformLearning.uniform_exists_abs_empiricalCoeff_sub_ge_le`: estimating
+  several Fourier coefficients at once.
 * `Cslib.MachineLearning.UniformLearning.uniform_lt_uniformError_lowDegreeHypothesis_le`: the
   failure probability of the low-degree algorithm.
 * `Cslib.MachineLearning.UniformLearning.lowDegreeLearner_learns`: the low-degree algorithm learns
@@ -119,6 +123,24 @@ theorem uniform_abs_empiricalCoeff_sub_ge_le (f : (ι → Bool) → Bool) (S : F
   PMF.uniform_abs_sum_div_sub_expect_ge_le (fun x => signVal (f x) * chi ℝ S x)
     (fun x => by rw [abs_mul, abs_signVal, abs_chi, one_mul]) hγ
 
+/-- **Estimating several Fourier coefficients**: from `m` uniform random examples of `f`, some
+empirical coefficient on a set of `T` is off by at least `γ` with probability at most
+`#T · 2 exp (-m γ² / 2)`, by the union bound. -/
+theorem uniform_exists_abs_empiricalCoeff_sub_ge_le (f : (ι → Bool) → Bool)
+    (T : Finset (Finset ι)) {γ : ℝ} (hγ : 0 ≤ γ) :
+    (PMF.uniformOfFintype (Fin m → ι → Bool)).toOuterMeasure
+      {x | ∃ S ∈ T, γ ≤ |empiricalCoeff (examples f x) S - fourierCoeff (fun x => signVal (f x)) S|}
+        ≤ ENNReal.ofReal (#T * (2 * Real.exp (-(m * γ ^ 2) / 2))) := by
+  have hU : {x : Fin m → ι → Bool | ∃ S ∈ T, γ ≤ |empiricalCoeff (examples f x) S -
+      fourierCoeff (fun x => signVal (f x)) S|} =
+        ⋃ S ∈ T, {x : Fin m → ι → Bool | γ ≤ |empiricalCoeff (examples f x) S -
+          fourierCoeff (fun x => signVal (f x)) S|} := by
+    ext x; simp
+  rw [hU]
+  refine (MeasureTheory.measure_biUnion_finset_le T _).trans ?_
+  refine (sum_le_sum fun S _ => uniform_abs_empiricalCoeff_sub_ge_le f S hγ).trans_eq ?_
+  rw [sum_const, nsmul_eq_mul, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (by positivity)]
+
 /-! ### The low-degree algorithm -/
 
 /-- **The failure probability of the low-degree algorithm.** If the Fourier weight of `f`, read as
@@ -141,16 +163,13 @@ theorem uniform_lt_uniformError_lowDegreeHypothesis_le (f : (ι → Bool) → Bo
   set γ := Real.sqrt (ε / (2 * N))
   have hγ : 0 ≤ γ := Real.sqrt_nonneg _
   have hγsq : γ ^ 2 = ε / (2 * N) := Real.sq_sqrt (by positivity)
-  -- the samples on which the estimate of the coefficient on `S` is off by at least `γ`
-  set bad : Finset ι → Set (Fin m → ι → Bool) := fun S =>
-    {x | γ ≤ |empiricalCoeff (examples f x) S - fourierCoeff F S|}
   -- if every estimate is within `γ`, the hypothesis has error at most `ε`
   have hsub :
       {x : Fin m → ι → Bool | ε < uniformError f (lowDegreeHypothesis t (examples f x))} ⊆
-        ⋃ S ∈ T, bad S := by
+        {x | ∃ S ∈ T, γ ≤ |empiricalCoeff (examples f x) S - fourierCoeff F S|} := by
     intro x hx
     by_contra hgood
-    simp only [bad, Set.mem_iUnion, Set.mem_ofPred_eq, not_exists, not_le] at hgood
+    simp only [Set.mem_ofPred_eq, not_exists, not_and, not_le] at hgood
     have herr := hammingDist_signRound_sum_mul_chi_div_le f T (empiricalCoeff (examples f x))
     have hcompl : Tᶜ = ({S : Finset ι | t < #S} : Finset (Finset ι)) := by
       rw [hT, compl_filter]
@@ -169,24 +188,12 @@ theorem uniform_lt_uniformError_lowDegreeHypothesis_le (f : (ι → Bool) → Bo
       refine herr.trans ?_
       linarith
     exact absurd hx (not_lt.2 this)
-  -- the union bound over the `N` estimates
-  have hone (S : Finset ι) :
-      μ (bad S) ≤ ENNReal.ofReal (2 * Real.exp (-(m * ε) / (4 * N))) := by
-    refine (uniform_abs_empiricalCoeff_sub_ge_le f S hγ).trans_eq ?_
-    rw [hγsq]
-    congr 3
-    field_simp
-    ring
-  calc μ {x : Fin m → ι → Bool | ε < uniformError f (lowDegreeHypothesis t (examples f x))}
-      ≤ μ (⋃ S ∈ T, bad S) := μ.mono hsub
-    _ ≤ ∑ S ∈ T, μ (bad S) := MeasureTheory.measure_biUnion_finset_le T _
-    _ ≤ ∑ _S ∈ T, ENNReal.ofReal (2 * Real.exp (-(m * ε) / (4 * N))) :=
-        sum_le_sum fun S _ => hone S
-    _ = ENNReal.ofReal (2 * N * Real.exp (-(m * ε) / (4 * N))) := by
-        rw [sum_const, nsmul_eq_mul, ← ENNReal.ofReal_natCast,
-          ← ENNReal.ofReal_mul (by positivity)]
-        congr 1
-        ring
+  refine (μ.mono hsub).trans ((uniform_exists_abs_empiricalCoeff_sub_ge_le f T hγ).trans_eq ?_)
+  rw [hγsq]
+  congr 1
+  change N * (2 * Real.exp (-(m * (ε / (2 * N))) / 2)) = 2 * N * Real.exp (-(m * ε) / (4 * N))
+  rw [show -(m * (ε / (2 * N))) / 2 = -(m * ε) / (4 * N) by field_simp; ring]
+  ring
 
 /-- **The low-degree algorithm** [LinialMansourNisan1993], [O'Donnell, Section 3.4][ODonnell2014]:
 let `N` be the number of sets of at most `t` coordinates (at most `(n + 1) ^ t`,
@@ -205,17 +212,8 @@ theorem lowDegreeLearner_learns {t m : ℕ} {ε δ : ℝ} (hε : 0 < ε) (hδ : 
     (ENNReal.ofReal_le_ofReal ?_)
   set N : ℝ := (#{S : Finset ι | #S ≤ t} : ℝ)
   have hN : 0 < N := Nat.cast_pos.2 (card_filter_card_le_pos t)
-  have hlog : Real.log (2 * N / δ) ≤ m * ε / (4 * N) := by
-    rw [le_div_iff₀ (by positivity)]
-    have := (div_mul_eq_mul_div (4 * N) ε (Real.log (2 * N / δ))).symm.trans_le hm
-    rw [div_le_iff₀ hε] at this
-    linarith
-  have hexp : Real.exp (-(m * ε) / (4 * N)) ≤ δ / (2 * N) := by
-    calc Real.exp (-(m * ε) / (4 * N)) = Real.exp (-(m * ε / (4 * N))) := by ring_nf
-      _ ≤ Real.exp (-Real.log (2 * N / δ)) := Real.exp_le_exp.2 (neg_le_neg hlog)
-      _ = δ / (2 * N) := by
-          rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
-  calc 2 * N * Real.exp (-(m * ε) / (4 * N)) ≤ 2 * N * (δ / (2 * N)) := by gcongr
-    _ = δ := by field_simp
+  rw [show -(m * ε) / (4 * N) = -(ε / (4 * N) * m) by ring]
+  exact Real.mul_exp_neg_le_of_log le_rfl (by positivity) (by positivity) hδ
+    (hm.trans_eq' (by rw [div_div_eq_mul_div]; ring))
 
 end Cslib.MachineLearning.UniformLearning

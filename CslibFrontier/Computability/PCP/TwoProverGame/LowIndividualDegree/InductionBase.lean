@@ -206,8 +206,7 @@ private theorem degreeZero_pointVariance
         (Fintype.card_mul_expect (fun i : Fin (n + 1) =>
           ∑ a, φ.norm (A u a - R i u a) ^ 2)).symm
     _ ≤ (2 * (n + 1 : ℝ)) *
-        (4 * (1 - (branchGame (F := F) n 0 .axis).commutingWinProb C)) :=
-      mul_le_mul_of_nonneg_left haxis (by positivity)
+        (4 * (1 - (branchGame (F := F) n 0 .axis).commutingWinProb C)) := by gcongr
     _ = _ := by ring
 
 /-- With degree zero, a constant-polynomial POVM agrees with the points. Its loss

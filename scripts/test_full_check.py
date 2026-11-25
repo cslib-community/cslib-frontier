@@ -39,6 +39,7 @@ SOURCE_CHECK_NAMES = frozenset({
     "Test Python tooling",
     "Operator manual links and excerpts",
     "Source hygiene",
+    "Forbid TimeM",
     "Encoding readability ratchet (changed modules)",
     "Encoding readability report",
     "Projection chain ratchet (changed modules)",
@@ -259,6 +260,60 @@ class WorkflowParityTests(unittest.TestCase):
                       lean["lake lint (affected modules)"]["run"])
         self.assertEqual(lean["lake lint"]["run"], "lake lint")
 
+    def test_fused_build_tooling_gates_and_push_only_advisory_reports(self):
+        select_header = "\n".join(job_lines(self.text, "select-checks"))
+        self.assertIn("tooling: ${{ steps.select.outputs.tooling }}", select_header)
+        source_header = "\n".join(
+            job_lines(self.text, "source-checks")[
+                :job_lines(self.text, "source-checks").index("    steps:")])
+        self.assertNotIn("needs:", source_header)
+        lean = {step["name"]: step for step in self.named_by_job["lean-checks"]}
+        self.assertIn("CslibFrontierTests", lean["lake build"]["run"])
+        self.assertNotIn("lake test", lean)
+        for name in (
+            "Test Lake build handoff reuse",
+            "Test real Lake interrupt cleanup",
+            "Test real Lake cache publication staging",
+            "Test post-build Python tooling",
+            "Test import generation with custom source directories",
+        ):
+            with self.subTest(step=name):
+                self.assertEqual(lean[name]["if"],
+                                 "needs.select-checks.outputs.tooling == 'true'")
+        for name in ("Security premise report", "Reduction witness report"):
+            with self.subTest(report=name):
+                self.assertEqual(lean[name]["if"], "github.event_name == 'push'")
+
+    def test_merge_groups_build_the_same_targets_with_fail_fast(self):
+        # The merge-group build must check exactly what the mirrored build checks; it may only
+        # stop scheduling after the first failure. Exactly one of the two runs for every event.
+        lean = {step["name"]: step for step in self.named_by_job["lean-checks"]}
+        full_build = lean["lake build"]
+        fail_fast = lean["lake build (merge group, fail fast)"]
+        self.assertEqual((full_build["id"], fail_fast["id"]), ("build", "build-fail-fast"))
+        self.assertEqual(full_build["if"], "github.event_name != 'merge_group'")
+        self.assertEqual(fail_fast["if"], "github.event_name == 'merge_group'")
+        self.assertEqual(set(fail_fast), {"name", "id", "if", "run"})
+        words = full_build["run"].split()
+        self.assertEqual(words[:2], ["lake", "build"])
+        self.assertEqual([word for word in fail_fast["run"].split() if word != "--fail-fast"],
+                         words)
+        self.assertEqual(fail_fast["run"].split().count("--fail-fast"), 1)
+        steps = job_steps(self.text, "lean-checks")
+        names = [step.get("name") for step in steps]
+        self.assertEqual(names.index("lake build (merge group, fail fast)"),
+                         names.index("lake build") + 1)
+        # A later step that needs a successful build must either run only on pushes or accept
+        # the fail-fast build too; otherwise it would silently stop running in merge groups.
+        gated = [step for step in steps
+                 if "steps.build.outcome == 'success'" in step.get("if", "")]
+        self.assertGreaterEqual(len(gated), 2)
+        for step in gated:
+            with self.subTest(step=step.get("name")):
+                condition = step["if"]
+                if "github.event_name == 'push'" not in condition:
+                    self.assertIn("steps.build-fail-fast.outcome == 'success'", condition)
+
     def test_local_steps_are_not_ci_steps(self):
         # A local step must neither pass for a mirror of a CI step nor hide one from the parity check.
         ci = {step["name"] for step in self.named}
@@ -344,10 +399,12 @@ class AncestorHandoffFailurePolicyTests(unittest.TestCase):
 
     def test_no_later_step_runs_after_the_guard_fails(self):
         # A failed step skips every later step whose condition has no status function. Those that
-        # have one must require a completed build or explicitly exclude the guard failure.
-        build = next(step for step in self.steps if step.get("id") == "build")
-        self.assertGreater(self.steps.index(build), self.index + 1)
-        self.assertNotRegex(build.get("if", ""), r"always\(\)|cancelled\(\)|failure\(\)")
+        # have one must require a completed build or explicitly exclude the guard failure. The
+        # guard only fires in merge groups, which run the fail-fast build step.
+        for build_id in ("build", "build-fail-fast"):
+            build = next(step for step in self.steps if step.get("id") == build_id)
+            self.assertGreater(self.steps.index(build), self.index + 1)
+            self.assertNotRegex(build.get("if", ""), r"always\(\)|cancelled\(\)|failure\(\)")
         for step in self.steps[self.index + 2:]:
             condition = step.get("if", "")
             if re.search(r"always\(\)|cancelled\(\)|failure\(\)", condition):
@@ -413,6 +470,30 @@ class AggregatorTests(unittest.TestCase):
                         "EXPECTED_LEAN": expected, "LEAN_RESULT": lean})
                     self.assertEqual(result.returncode == 0,
                                      selection == source == "success" and lean == expected)
+
+
+class HandoffOrderingTests(unittest.TestCase):
+    """Every unit-replacing build handoff precedes remote-cache top-up, and exact hits skip it."""
+
+    def test_all_handoffs_precede_remote_cache_and_exact_hits_skip_redundant_top_up(self):
+        steps = job_steps(WORKFLOW.read_text(), "lean-checks")
+        names = [step.get("name") for step in steps]
+        remote_idx = names.index("Restore build outputs from the remote cache")
+        for handoff_name in (
+            "Restore nearest ancestor merge-group build outputs",
+            "Restore PR base merge-group build outputs",
+            "Restore validated merge-group build outputs",
+        ):
+            with self.subTest(handoff=handoff_name):
+                self.assertLess(names.index(handoff_name), remote_idx)
+        pr_step = steps[names.index("Restore PR base merge-group build outputs")]
+        main_step = steps[names.index("Restore validated merge-group build outputs")]
+        remote_step = steps[remote_idx]
+        self.assertEqual(pr_step.get("id"), "pr-handoff")
+        self.assertEqual(main_step.get("id"), "main-handoff")
+        self.assertIn("steps.pr-handoff.outputs.restored != 'true'", remote_step["if"])
+        self.assertIn("steps.main-handoff.outputs.restored != 'true'", remote_step["if"])
+        self.assertNotIn("steps.ancestor-handoff", remote_step["if"])
 
 
 TIDY = "          python3 -B scripts/check_tidy_surface.py\n"

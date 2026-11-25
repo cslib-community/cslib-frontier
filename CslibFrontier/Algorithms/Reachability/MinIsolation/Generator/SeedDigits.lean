@@ -138,13 +138,13 @@ theorem parts_inSpace (encContext : κ ↪ List Bool) (code : κ → ℕ → Boo
   have hcode := budget_comp_linear hc (budget_prod hcontext hcursor)
   have hmasked := budget_boolAnd hcode (budget_optionGetD false hread)
   have hdigit := budget_finite (encC := encNat) Bool.toNat hmasked
-  have hnew := budget_natAdd (budget_natMul (budget_const 6 hin) hacc) hdigit
+  have hnew := budget_natAdd (budget_natMul (budget_const 6) hacc) hdigit
   have hsome := budget_finite (encC := encBool) Option.isSome hread
   have hnext := budget_ite hsome
     (encState_mk_budget κ encContext hcontext (budget_natSucc hcursor) hnew
-      (budget_const false hin))
-    (encState_mk_budget κ encContext hcontext hcursor hacc (budget_const true hin))
-  refine ⟨encState_cursor_budget κ encContext hid, hnext.of_enc_eq ?_, budget_const [] hin,
+      (budget_const false))
+    (encState_mk_budget κ encContext hcontext hcursor hacc (budget_const true))
+  refine ⟨encState_cursor_budget κ encContext hid, hnext.of_enc_eq ?_, budget_const [],
     encState_done_budget κ encContext hid,
     (encState_accumulator_budget κ encContext hid).of_enc_eq (fun _ => rfl)⟩
   rintro ⟨s, b⟩

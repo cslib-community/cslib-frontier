@@ -12,6 +12,7 @@ public import CslibFrontier.Probability.PMF.Expect
 public import Mathlib.Data.Finset.Piecewise
 public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
 public import Mathlib.Probability.ProbabilityMassFunction.Monad
+import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 import CslibFrontier.Probability.PMF.ToMeasure
 import Mathlib.MeasureTheory.Constructions.BorelSpace.Metric
 import Mathlib.MeasureTheory.Integral.Bochner.SumMeasure
@@ -101,9 +102,6 @@ location `x i` incurs distance cost `dist (x i) y` when the facility is placed a
   `Cslib.GameTheory.FacilityLocation.expectedCost_ofPMF_map_fintype`: `PMF` evaluation lemmas.
 * `Cslib.GameTheory.FacilityLocation.unanimous_of_surjective_isStrategyProof`: every deterministic,
   surjective, strategyproof mechanism on a metric space is unanimous.
-* `Cslib.GameTheory.FacilityLocation.profile_update_induction`: agent-by-agent replacement of one
-  profile by another, the induction behind unanimity and the Pareto arguments of the interval and
-  tree characterizations.
 
 ## References
 
@@ -145,30 +143,38 @@ variable {ι G : Type*} [PseudoMetricSpace G] [Fintype ι]
 @[expose] def IsOptimal (x : ι → G) (y : G) : Prop :=
   ∀ z : G, socialCost x y ≤ socialCost x z
 
+/-- The deterministic social cost `socialCost x y` is nonnegative. -/
 theorem socialCost_nonneg (x : ι → G) (y : G) : 0 ≤ socialCost x y :=
   Finset.sum_nonneg fun _ _ => dist_nonneg
 
+/-- The extended social cost equals `ENNReal.ofReal` of the real-valued social cost. -/
 theorem socialECost_eq_ofReal_socialCost (x : ι → G) (y : G) :
     socialECost x y = ENNReal.ofReal (socialCost x y) := by
   simp only [socialECost, socialCost, edist_dist]
   exact (ENNReal.ofReal_sum_of_nonneg fun _ _ => dist_nonneg).symm
 
+/-- The range of `socialCost x` is bounded below by `0`. -/
 theorem bddBelow_range_socialCost (x : ι → G) : BddBelow (Set.range (socialCost x)) :=
   ⟨0, by rintro _ ⟨y, rfl⟩; exact socialCost_nonneg x y⟩
 
+/-- The optimal social cost `optSocialCost x` is nonnegative. -/
 theorem optSocialCost_nonneg (x : ι → G) : 0 ≤ optSocialCost x := by
   rcases isEmpty_or_nonempty G with hG | hG
   · rw [optSocialCost, Real.iInf_of_isEmpty]
   · exact le_ciInf fun y => socialCost_nonneg x y
 
+/-- The optimal social cost is at most the social cost at any location `y`. -/
 theorem optSocialCost_le_socialCost (x : ι → G) (y : G) :
     optSocialCost x ≤ socialCost x y :=
   ciInf_le (bddBelow_range_socialCost x) y
 
+/-- A real number `c` bounds `optSocialCost x` below iff it bounds `socialCost x y` for all `y`. -/
 theorem le_optSocialCost_iff [Nonempty G] {x : ι → G} {c : ℝ} :
     c ≤ optSocialCost x ↔ ∀ y : G, c ≤ socialCost x y :=
   le_ciInf_iff (bddBelow_range_socialCost x)
 
+/-- Any uniform lower bound `c ≤ α * socialCost x y` with `0 ≤ α` transfers to
+`α * optSocialCost x`. -/
 theorem le_mul_optSocialCost [Nonempty G] {x : ι → G} {α c : ℝ} (hα : 0 ≤ α)
     (h : ∀ y : G, c ≤ α * socialCost x y) : c ≤ α * optSocialCost x := by
   rcases hα.eq_or_lt with rfl | hpos
@@ -179,16 +185,19 @@ theorem le_mul_optSocialCost [Nonempty G] {x : ι → G} {α c : ℝ} (hα : 0 �
     rw [div_le_iff₀ hpos, mul_comm]
     exact h y
 
+/-- The optimal extended social cost is at most the extended social cost at any location `y`. -/
 theorem optSocialECost_le_socialECost (x : ι → G) (y : G) :
     optSocialECost x ≤ socialECost x y :=
   iInf_le (socialECost x) y
 
+/-- On a nonempty pseudometric space, the optimal extended social cost is finite. -/
 theorem optSocialECost_lt_top [Nonempty G] (x : ι → G) :
     optSocialECost x < ⊤ := by
   obtain ⟨y⟩ := ‹Nonempty G›
   exact (optSocialECost_le_socialECost x y).trans_lt
     (by rw [socialECost_eq_ofReal_socialCost]; exact ENNReal.ofReal_lt_top)
 
+/-- On a nonempty space, `optSocialECost x` equals `ENNReal.ofReal (optSocialCost x)`. -/
 theorem optSocialECost_eq_ofReal_optSocialCost [Nonempty G] (x : ι → G) :
     optSocialECost x = ENNReal.ofReal (optSocialCost x) := by
   refine le_antisymm ?_ ?_
@@ -202,11 +211,13 @@ theorem optSocialECost_eq_ofReal_optSocialCost [Nonempty G] (x : ι → G) :
       rw [socialECost_eq_ofReal_socialCost]
       exact ENNReal.ofReal_le_ofReal (optSocialCost_le_socialCost x y)
 
+/-- A location `y` is optimal for `x` iff its social cost equals `optSocialCost x`. -/
 theorem isOptimal_iff_socialCost_eq_optSocialCost [Nonempty G] {x : ι → G} {y : G} :
     IsOptimal x y ↔ socialCost x y = optSocialCost x :=
   ⟨fun h => le_antisymm (le_ciInf h) (optSocialCost_le_socialCost x y),
    fun h z => h ▸ optSocialCost_le_socialCost x z⟩
 
+/-- An optimal location attains the optimal social cost `optSocialCost x`. -/
 theorem IsOptimal.socialCost_eq_optSocialCost [Nonempty G] {x : ι → G} {y : G}
     (h : IsOptimal x y) : socialCost x y = optSocialCost x :=
   isOptimal_iff_socialCost_eq_optSocialCost.1 h
@@ -261,13 +272,17 @@ integrability at a single reference point implies integrability everywhere. -/
     (x : ι → G) : ℝ :=
   ∑ i, expectedCost μ (x i)
 
+/-- The real-valued expected distance cost `expectedCost μ loc` is nonnegative. -/
 theorem expectedCost_nonneg (μ : ProbabilityMeasure G) (loc : G) : 0 ≤ expectedCost μ loc :=
   integral_nonneg fun _ => dist_nonneg
 
+/-- The real-valued expected social cost `expectedSocialCost μ x` is nonnegative. -/
 theorem expectedSocialCost_nonneg [Fintype ι] (μ : ProbabilityMeasure G) (x : ι → G) :
     0 ≤ expectedSocialCost μ x :=
   Finset.sum_nonneg fun _ _ => expectedCost_nonneg μ (x _)
 
+/-- When `y ↦ dist a y` is integrable under `μ`, `expectedECost μ a` agrees with
+`ENNReal.ofReal (expectedCost μ a)`. -/
 theorem expectedECost_eq_ofReal_expectedCost {μ : ProbabilityMeasure G} {a : G}
     (h : Integrable (fun y => dist a y) (μ : Measure G)) :
     expectedECost μ a = ENNReal.ofReal (expectedCost μ a) := by
@@ -275,6 +290,8 @@ theorem expectedECost_eq_ofReal_expectedCost {μ : ProbabilityMeasure G} {a : G}
     ofReal_integral_eq_lintegral_ofReal h (Filter.Eventually.of_forall fun _ => dist_nonneg)]
   exact lintegral_congr fun y => edist_dist a y
 
+/-- When `y ↦ dist a y` is integrable under both `μ` and `ν`, `expectedECost` and `expectedCost`
+have the same weak ordering. -/
 theorem expectedECost_le_iff_expectedCost_le {μ ν : ProbabilityMeasure G} {a : G}
     (hμ : Integrable (fun y => dist a y) (μ : Measure G))
     (hν : Integrable (fun y => dist a y) (ν : Measure G)) :
@@ -282,18 +299,24 @@ theorem expectedECost_le_iff_expectedCost_le {μ ν : ProbabilityMeasure G} {a :
   rw [expectedECost_eq_ofReal_expectedCost hμ, expectedECost_eq_ofReal_expectedCost hν,
     ENNReal.ofReal_le_ofReal_iff (expectedCost_nonneg ν a)]
 
+/-- When `y ↦ dist a y` is integrable under both `μ` and `ν`, `expectedECost` and `expectedCost`
+have the same strict ordering. -/
 theorem expectedECost_lt_iff_expectedCost_lt {μ ν : ProbabilityMeasure G} {a : G}
     (hμ : Integrable (fun y => dist a y) (μ : Measure G))
     (hν : Integrable (fun y => dist a y) (ν : Measure G)) :
     expectedECost μ a < expectedECost ν a ↔ expectedCost μ a < expectedCost ν a := by
   rw [← not_le, expectedECost_le_iff_expectedCost_le hν hμ, not_le]
 
+/-- Linearity of `expectedSocialCost`: when every agent's distance function is integrable under `μ`,
+the sum of expected costs equals the Bochner integral of `socialCost x`. -/
 theorem expectedSocialCost_eq_integral [Fintype ι] {μ : ProbabilityMeasure G} {x : ι → G}
     (h : ∀ i, Integrable (fun y => dist (x i) y) (μ : Measure G)) :
     expectedSocialCost μ x = ∫ y, socialCost x y ∂(μ : Measure G) := by
   simp only [expectedSocialCost, expectedCost, socialCost]
   exact (integral_finsetSum Finset.univ fun i _ => h i).symm
 
+/-- When every agent's distance function is integrable under `μ`, `expectedSocialECost μ x` equals
+`ENNReal.ofReal (expectedSocialCost μ x)`. -/
 theorem expectedSocialECost_eq_ofReal_expectedSocialCost [Fintype ι] {μ : ProbabilityMeasure G}
     {x : ι → G} (h : ∀ i, Integrable (fun y => dist (x i) y) (μ : Measure G)) :
     expectedSocialECost μ x = ENNReal.ofReal (expectedSocialCost μ x) := by
@@ -341,14 +364,18 @@ theorem expectedECost_lt_top_iff_integrable (μ : ProbabilityMeasure G) (a : G) 
   rw [heq]
   exact ⟨fun h => ⟨hmeas, h⟩, fun h => h.hasFiniteIntegral⟩
 
+/-- Under `HasFiniteCost μ`, the extended expected cost from any location `a` is finite. -/
 theorem HasFiniteCost.expectedECost_lt_top {μ : ProbabilityMeasure G} (h : HasFiniteCost μ)
     (a : G) : expectedECost μ a < ⊤ :=
   (expectedECost_lt_top_iff_integrable μ a).2 (h a)
 
+/-- Under `HasFiniteCost μ`, the extended expected social cost of any profile `x` is finite. -/
 theorem HasFiniteCost.expectedSocialECost_lt_top [Fintype ι] {μ : ProbabilityMeasure G}
     (h : HasFiniteCost μ) (x : ι → G) : expectedSocialECost μ x < ⊤ :=
   ENNReal.sum_lt_top.2 fun i _ => h.expectedECost_lt_top (x i)
 
+/-- The Bochner expected cost equals `(expectedECost μ a).toReal` (returning `0` when the extended
+integral is `⊤`). -/
 theorem expectedCost_eq_toReal_expectedECost (μ : ProbabilityMeasure G) (a : G) :
     expectedCost μ a = (expectedECost μ a).toReal := by
   have hmeas : AEStronglyMeasurable (fun y => dist a y) (μ : Measure G) :=
@@ -358,11 +385,14 @@ theorem expectedCost_eq_toReal_expectedECost (μ : ProbabilityMeasure G) (a : G)
   congr 1
   exact lintegral_congr fun y => (edist_dist a y).symm
 
+/-- Linearity of `expectedSocialECost`: the sum of extended expected costs equals
+`∫⁻ y, socialECost x y ∂μ`. -/
 theorem expectedSocialECost_eq_lintegral [Fintype ι] (μ : ProbabilityMeasure G) (x : ι → G) :
     expectedSocialECost μ x = ∫⁻ y, socialECost x y ∂(μ : Measure G) := by
   simp only [expectedSocialECost, expectedECost, socialECost]
   exact (lintegral_finsetSum Finset.univ fun i _ => measurable_edist_left (x i)).symm
 
+/-- Every distribution `μ` has extended expected social cost at least `optSocialECost x`. -/
 theorem optSocialECost_le_expectedSocialECost [Fintype ι] (μ : ProbabilityMeasure G)
     (x : ι → G) : optSocialECost x ≤ expectedSocialECost μ x := by
   rw [expectedSocialECost_eq_lintegral]
@@ -370,6 +400,8 @@ theorem optSocialECost_le_expectedSocialECost [Fintype ι] (μ : ProbabilityMeas
     _ ≤ ∫⁻ y, socialECost x y ∂(μ : Measure G) :=
       lintegral_mono fun y => optSocialECost_le_socialECost x y
 
+/-- On a nonempty space, `optSocialCost x ≤ expectedSocialCost μ x` when each agent's distance
+function is integrable under `μ`. -/
 theorem optSocialCost_le_expectedSocialCost [Fintype ι] [Nonempty G] {μ : ProbabilityMeasure G}
     {x : ι → G} (h : ∀ i, Integrable (fun y => dist (x i) y) (μ : Measure G)) :
     optSocialCost x ≤ expectedSocialCost μ x := by
@@ -422,6 +454,8 @@ arXiv:0907.2049v1 p. 4). -/
 @[expose] def HasApproxRatio [Fintype ι] (M : Mechanism ι G) (α : ℝ) : Prop :=
   ∀ x : ι → G, expectedSocialECost (M x) x ≤ ENNReal.ofReal α * optSocialECost x
 
+/-- Characterize strategyproofness using pairs of profiles `x, y` that agree outside a single
+agent `i`. -/
 theorem isStrategyProof_iff [DecidableEq ι] {M : Mechanism ι G} :
     M.IsStrategyProof ↔ ∀ (x y : ι → G) (i : ι), (∀ j, j ≠ i → x j = y j) →
       expectedECost (M x) (x i) ≤ expectedECost (M y) (x i) := by
@@ -437,6 +471,8 @@ theorem isStrategyProof_iff [DecidableEq ι] {M : Mechanism ι G} :
   · intro h x i z
     exact h x (Function.update x i z) i fun j hj => (Function.update_of_ne hj _ _).symm
 
+/-- Weak group strategyproofness stated in negated form: no nonempty coalition `A` can deviate so
+that every member strictly lowers its expected cost. -/
 theorem isWeakGroupStrategyProof_iff_not_forall_lt [DecidableEq ι] {M : Mechanism ι G} :
     M.IsWeakGroupStrategyProof ↔ ∀ (x z : ι → G) (A : Finset ι),
       ¬ (A.Nonempty ∧
@@ -450,6 +486,8 @@ theorem isWeakGroupStrategyProof_iff_not_forall_lt [DecidableEq ι] {M : Mechani
     push Not at hne
     exact h x z A ⟨hA, hne⟩
 
+/-- Strong group strategyproofness restated as an implication: any coalitional deviation leaving no
+member of `A` strictly worse off must keep every member's expected cost unchanged. -/
 theorem isGroupStrategyProof_iff_forall_eq [DecidableEq ι] {M : Mechanism ι G} :
     M.IsGroupStrategyProof ↔ ∀ (x z : ι → G) (A : Finset ι),
       (∀ i ∈ A, expectedECost (M (A.piecewise z x)) (x i) ≤ expectedECost (M x) (x i)) →
@@ -462,6 +500,7 @@ theorem isGroupStrategyProof_iff_forall_eq [DecidableEq ι] {M : Mechanism ι G}
   · rintro h x z A ⟨hle, i, hi, hlt⟩
     exact hlt.ne (h x z A hle i hi)
 
+/-- Strong group strategyproofness implies weak group strategyproofness. -/
 theorem IsGroupStrategyProof.isWeakGroupStrategyProof [DecidableEq ι] {M : Mechanism ι G}
     (h : M.IsGroupStrategyProof) : M.IsWeakGroupStrategyProof := by
   intro x z A ⟨i, hi⟩
@@ -469,6 +508,7 @@ theorem IsGroupStrategyProof.isWeakGroupStrategyProof [DecidableEq ι] {M : Mech
   push Not at hne
   exact h x z A ⟨fun j hj => (hne j hj).le, i, hi, hne i hi⟩
 
+/-- Weak group strategyproofness implies unilateral strategyproofness (via singleton coalitions). -/
 theorem IsWeakGroupStrategyProof.isStrategyProof [DecidableEq ι] {M : Mechanism ι G}
     (h : M.IsWeakGroupStrategyProof) : M.IsStrategyProof := by
   intro x i z
@@ -482,14 +522,18 @@ theorem IsWeakGroupStrategyProof.isStrategyProof [DecidableEq ι] {M : Mechanism
   rw [← hpw]
   exact hle
 
+/-- Strong group strategyproofness implies unilateral strategyproofness. -/
 theorem IsGroupStrategyProof.isStrategyProof [DecidableEq ι] {M : Mechanism ι G}
     (h : M.IsGroupStrategyProof) : M.IsStrategyProof :=
   h.isWeakGroupStrategyProof.isStrategyProof
 
+/-- Approximation ratio is upward-closed: `M.HasApproxRatio α` and `α ≤ β` imply
+`M.HasApproxRatio β`. -/
 theorem HasApproxRatio.mono [Fintype ι] {M : Mechanism ι G} {α β : ℝ} (hαβ : α ≤ β)
     (h : M.HasApproxRatio α) : M.HasApproxRatio β := fun x =>
   (h x).trans (by gcongr)
 
+/-- Real-valued characterization of strategyproofness under `HasFiniteCost`. -/
 theorem isStrategyProof_iff_expectedCost_le [DecidableEq ι] {M : Mechanism ι G}
     (hfin : ∀ x, HasFiniteCost (M x)) :
     M.IsStrategyProof ↔ ∀ (x : ι → G) (i : ι) (z : G),
@@ -497,6 +541,8 @@ theorem isStrategyProof_iff_expectedCost_le [DecidableEq ι] {M : Mechanism ι G
   forall₃_congr fun x i z =>
     expectedECost_le_iff_expectedCost_le (hfin x (x i)) (hfin (Function.update x i z) (x i))
 
+/-- Real-valued characterization of `HasApproxRatio α` (for `0 ≤ α`) on a nonempty space under
+`HasFiniteCost`. -/
 theorem hasApproxRatio_iff_expectedSocialCost_le [Fintype ι] [Nonempty G] {M : Mechanism ι G}
     {α : ℝ} (hα : 0 ≤ α) (hfin : ∀ x, HasFiniteCost (M x)) :
     M.HasApproxRatio α ↔ ∀ x : ι → G, expectedSocialCost (M x) x ≤ α * optSocialCost x := by
@@ -509,12 +555,16 @@ section FiniteMoment
 
 variable [OpensMeasurableSpace G]
 
+/-- A mechanism achieves approximation ratio `1` iff its extended expected social cost matches
+`optSocialECost x` on every profile `x`. -/
 theorem hasApproxRatio_one_iff_eq [Fintype ι] {M : Mechanism ι G} :
     M.HasApproxRatio 1 ↔ ∀ x : ι → G, expectedSocialECost (M x) x = optSocialECost x := by
   refine forall_congr' fun x => ?_
   simp only [ENNReal.ofReal_one, one_mul]
   exact ⟨fun h => le_antisymm h (optSocialECost_le_expectedSocialECost (M x) x), fun h => h.le⟩
 
+/-- Any approximation ratio witnessed on a profile `x` with positive optimal social cost is at
+least `1`. -/
 theorem HasApproxRatio.one_le_of_pos [Fintype ι] {M : Mechanism ι G} {α : ℝ}
     (h : M.HasApproxRatio α) {x : ι → G} (hx : 0 < optSocialECost x) : 1 ≤ α := by
   have h1 := (optSocialECost_le_expectedSocialECost (M x) x).trans (h x)
@@ -529,6 +579,8 @@ theorem HasApproxRatio.one_le_of_pos [Fintype ι] {M : Mechanism ι G} {α : ℝ
   rw [one_mul] at hmul
   exact (hmul.trans_le h1).false
 
+/-- On a nontrivial metric space with at least two agents, any approximation ratio is at least
+`1`. -/
 theorem HasApproxRatio.one_le {G : Type*} [MetricSpace G] [MeasurableSpace G]
     [OpensMeasurableSpace G] [Nontrivial G] [Fintype ι] (hcard : 2 ≤ Fintype.card ι)
     {M : Mechanism ι G} {α : ℝ} (h : M.HasApproxRatio α) : 1 ≤ α := by
@@ -569,6 +621,7 @@ variable {ι G : Type*} [MeasurableSpace G]
 @[expose] noncomputable def ofPMF (p : (ι → G) → PMF G) : Mechanism ι G :=
   fun x => (p x).toMeasure.toProbabilityMeasure
 
+/-- Embedding a deterministic rule via `Measure.dirac` agrees with lifting `PMF.pure`. -/
 theorem deterministic_eq_ofPMF_pure (f : (ι → G) → G) :
     deterministic f = ofPMF (fun x => PMF.pure (f x)) := by
   funext x
@@ -594,6 +647,7 @@ section Evaluation
 
 variable {ι G : Type*} [PseudoMetricSpace G] [MeasurableSpace G] [OpensMeasurableSpace G]
 
+/-- A Dirac point-mass distribution has finite expected distance cost everywhere. -/
 theorem hasFiniteCost_dirac (a : G) :
     HasFiniteCost ((Measure.dirac a).toProbabilityMeasure) :=
   fun b => integrable_dirac' (stronglyMeasurable_dist_left b) (a := a) eNorm_lt_top
@@ -622,6 +676,7 @@ theorem expectedSocialCost_dirac [Fintype ι] (a : G) (x : ι → G) :
 
 namespace Mechanism
 
+/-- Every deterministic mechanism produces distributions with finite expected distance cost. -/
 theorem hasFiniteCost_deterministic (f : (ι → G) → G) (x : ι → G) :
     HasFiniteCost (deterministic f x) :=
   hasFiniteCost_dirac (f x)
@@ -646,6 +701,7 @@ theorem expectedSocialCost_deterministic [Fintype ι] (f : (ι → G) → G) (x 
     expectedSocialCost (deterministic f x) x = socialCost x (f x) :=
   expectedSocialCost_dirac (f x) x
 
+/-- For a deterministic rule `f`, strategyproofness reduces to pointwise `dist` inequalities. -/
 theorem isStrategyProof_deterministic_iff [DecidableEq ι] (f : (ι → G) → G) :
     (deterministic f).IsStrategyProof ↔
       ∀ (x : ι → G) (i : ι) (z : G), dist (x i) (f x) ≤ dist (x i) (f (Function.update x i z)) := by
@@ -653,6 +709,7 @@ theorem isStrategyProof_deterministic_iff [DecidableEq ι] (f : (ι → G) → G
   simp only [deterministic, expectedECost_dirac, edist_dist]
   exact ENNReal.ofReal_le_ofReal_iff dist_nonneg
 
+/-- For a deterministic rule `f`, weak group strategyproofness reduces to `dist` inequalities. -/
 theorem isWeakGroupStrategyProof_deterministic_iff [DecidableEq ι] (f : (ι → G) → G) :
     (deterministic f).IsWeakGroupStrategyProof ↔
       ∀ (x z : ι → G) (A : Finset ι), A.Nonempty →
@@ -661,6 +718,7 @@ theorem isWeakGroupStrategyProof_deterministic_iff [DecidableEq ι] (f : (ι →
   simp only [deterministic, expectedECost_dirac, edist_dist]
   exact ENNReal.ofReal_le_ofReal_iff dist_nonneg
 
+/-- For a deterministic rule `f`, strong group strategyproofness reduces to `dist` inequalities. -/
 theorem isGroupStrategyProof_deterministic_iff [DecidableEq ι] (f : (ι → G) → G) :
     (deterministic f).IsGroupStrategyProof ↔
       ∀ (x z : ι → G) (A : Finset ι),
@@ -674,6 +732,8 @@ theorem isGroupStrategyProof_deterministic_iff [DecidableEq ι] (f : (ι → G) 
     simp only [deterministic, expectedECost_dirac, edist_dist]
     rw [← not_le, ENNReal.ofReal_le_ofReal_iff dist_nonneg, not_le]
 
+/-- On a nonempty space, a deterministic rule `f` has approximation ratio `α ≥ 0` iff
+`socialCost x (f x) ≤ α * optSocialCost x` for every profile `x`. -/
 theorem hasApproxRatio_deterministic_iff [Fintype ι] [Nonempty G] (f : (ι → G) → G)
     {α : ℝ} (hα : 0 ≤ α) :
     (deterministic f).HasApproxRatio α ↔ ∀ x : ι → G, socialCost x (f x) ≤ α * optSocialCost x := by
@@ -684,27 +744,33 @@ theorem hasApproxRatio_deterministic_iff [Fintype ι] [Nonempty G] (f : (ι → 
 
 end Mechanism
 
+/-- Evaluate the extended expected distance cost of a `PMF` as a `tsum`. -/
 theorem expectedECost_ofPMF (p : PMF G) (loc : G) :
     expectedECost (p.toMeasure.toProbabilityMeasure) loc = ∑' y, p y * edist loc y :=
   PMF.lintegral_toMeasure p (measurable_edist_left loc)
 
+/-- Evaluate the extended expected distance cost of a `PMF` supported on a finite set `s`. -/
 theorem expectedECost_ofPMF_finset (p : PMF G) {s : Finset G} (hs : ∀ y, y ∉ s → p y = 0)
     (loc : G) :
     expectedECost (p.toMeasure.toProbabilityMeasure) loc = ∑ y ∈ s, p y * edist loc y := by
   rw [expectedECost_ofPMF]
   exact tsum_eq_sum fun y hy => by rw [hs y hy, zero_mul]
 
+/-- Evaluate the extended expected distance cost of a mapped distribution `q.map g`. -/
 theorem expectedECost_ofPMF_map {α : Type*} (q : PMF α) (g : α → G) (loc : G) :
     expectedECost ((q.map g).toMeasure.toProbabilityMeasure) loc = ∑' a, q a * edist loc (g a) := by
   rw [expectedECost_ofPMF]
   exact Cslib.Probability.PMF.tsum_map_mul q g (fun y => edist loc y)
 
+/-- Evaluate the extended expected distance cost of a mapped distribution `q.map g` on a finite
+index type `α`. -/
 theorem expectedECost_ofPMF_map_fintype {α : Type*} [Fintype α] (q : PMF α) (g : α → G)
     (loc : G) :
     expectedECost ((q.map g).toMeasure.toProbabilityMeasure) loc =
       ∑ a : α, q a * edist loc (g a) := by
   rw [expectedECost_ofPMF_map, tsum_fintype]
 
+/-- Every finitely supported `PMF` induces a probability measure with finite expected cost. -/
 theorem hasFiniteCost_ofPMF_of_finite_support (p : PMF G) (hp : p.support.Finite) :
     HasFiniteCost (p.toMeasure.toProbabilityMeasure) := by
   intro a
@@ -716,12 +782,15 @@ theorem hasFiniteCost_ofPMF_of_finite_support (p : PMF G) (hp : p.support.Finite
   rw [htsum]
   exact ENNReal.sum_lt_top.2 fun y _ => ENNReal.mul_lt_top (p.apply_lt_top y) (edist_lt_top a y)
 
+/-- A mapped `PMF` over a `Finite` type has finite expected cost. -/
 theorem hasFiniteCost_ofPMF_map_finite {α : Type*} [Finite α] (q : PMF α) (g : α → G) :
     HasFiniteCost ((q.map g).toMeasure.toProbabilityMeasure) := by
   refine hasFiniteCost_ofPMF_of_finite_support _ ?_
   rw [PMF.support_map]
   exact (Set.toFinite q.support).image g
 
+/-- Evaluate the real-valued expected distance cost of a `PMF` as a `tsum` when the weighted
+distances are summable. -/
 theorem expectedCost_ofPMF_of_summable (p : PMF G) (loc : G)
     (hsum : Summable fun y => (p y).toReal * dist loc y) :
     expectedCost (p.toMeasure.toProbabilityMeasure) loc = ∑' y, (p y).toReal * dist loc y := by
@@ -735,6 +804,7 @@ theorem expectedCost_ofPMF_of_summable (p : PMF G) (loc : G)
   rw [expectedCost_eq_toReal_expectedECost, expectedECost_ofPMF, htsum,
     ENNReal.toReal_ofReal (tsum_nonneg hnn)]
 
+/-- Evaluate the real-valued expected distance cost of a `PMF` supported on a finite set `s`. -/
 theorem expectedCost_ofPMF_finset (p : PMF G) {s : Finset G} (hs : ∀ y, y ∉ s → p y = 0)
     (loc : G) :
     expectedCost (p.toMeasure.toProbabilityMeasure) loc =
@@ -743,10 +813,13 @@ theorem expectedCost_ofPMF_finset (p : PMF G) {s : Finset G} (hs : ∀ y, y ∉ 
     rw [hs y hy, ENNReal.toReal_zero, zero_mul]
   rw [expectedCost_ofPMF_of_summable p loc (summable_of_ne_finset_zero hzero), tsum_eq_sum hzero]
 
+/-- Evaluate the real-valued expected distance cost of a `PMF` on a finite space `G`. -/
 theorem expectedCost_ofPMF_fintype [Fintype G] (p : PMF G) (loc : G) :
     expectedCost (p.toMeasure.toProbabilityMeasure) loc = ∑ y : G, (p y).toReal * dist loc y :=
   expectedCost_ofPMF_finset p (fun y hy => absurd (Finset.mem_univ y) hy) loc
 
+/-- Evaluate the real-valued expected distance cost of a mapped distribution `q.map g` on a finite
+index type `α`. -/
 theorem expectedCost_ofPMF_map_fintype {α : Type*} [Fintype α] (q : PMF α) (g : α → G)
     (loc : G) :
     expectedCost ((q.map g).toMeasure.toProbabilityMeasure) loc =
@@ -757,6 +830,8 @@ theorem expectedCost_ofPMF_map_fintype {α : Type*} [Fintype α] (q : PMF α) (g
   refine Finset.sum_congr rfl fun a _ => ?_
   rw [ENNReal.toReal_mul, edist_dist, ENNReal.toReal_ofReal dist_nonneg]
 
+/-- Evaluate the real-valued expected social cost of a mapped distribution `q.map g` on a finite
+index type `α`. -/
 theorem expectedSocialCost_ofPMF_map_fintype {α : Type*} [Fintype α] [Fintype ι] (q : PMF α)
     (g : α → G) (x : ι → G) :
     expectedSocialCost ((q.map g).toMeasure.toProbabilityMeasure) x =
@@ -765,6 +840,7 @@ theorem expectedSocialCost_ofPMF_map_fintype {α : Type*} [Fintype α] [Fintype 
 
 namespace Mechanism
 
+/-- Evaluate the extended expected distance cost of `ofPMF p x` as a `tsum`. -/
 @[simp]
 theorem expectedECost_ofPMF (p : (ι → G) → PMF G) (x : ι → G) (loc : G) :
     expectedECost (ofPMF p x) loc = ∑' y, p x y * edist loc y :=
@@ -774,35 +850,9 @@ end Mechanism
 
 end Evaluation
 
-section Unanimity
+/-! ### Unanimity -/
 
-/-- Agent-by-agent replacement of a profile. A property that holds at the profile `x`, and that
-survives one agent `i` with `z i = x i ≠ y i` switching its report to `y i` from any profile `z`
-mixing `x` and `y`, holds at `y`. -/
-theorem profile_update_induction {ι α : Type*} [Finite ι] [DecidableEq ι]
-    {P : (ι → α) → Prop} {x y : ι → α} (hx : P x)
-    (step : ∀ z : ι → α, (∀ j, z j = x j ∨ z j = y j) → P z →
-      ∀ i, z i = x i → z i ≠ y i → P (Function.update z i (y i))) :
-    P y := by
-  classical
-  let _ := Fintype.ofFinite ι
-  let m : Finset ι → ι → α := fun S j => if j ∈ S then y j else x j
-  suffices h : ∀ S, P (m S) by simpa [m] using h Finset.univ
-  intro S
-  induction S using Finset.induction with
-  | empty => simpa [m] using hx
-  | insert i S hi ih =>
-    have hupd : m (insert i S) = Function.update (m S) i (y i) := by
-      funext j
-      by_cases hj : j = i
-      · subst hj; simp [m]
-      · simp [m, hj]
-    have hmi : m S i = x i := by simp [m, hi]
-    by_cases hxy : x i = y i
-    · rwa [hupd, ← hxy, ← hmi, Function.update_eq_self]
-    rw [hupd]
-    refine step _ (fun j => ?_) ih i hmi (hmi ▸ hxy)
-    by_cases hj : j ∈ S <;> simp [m, hj]
+section Unanimity
 
 /-- Every surjective, strategyproof deterministic facility-location mechanism on a metric space is
 unanimous: when all agents report the same location `y`, the mechanism places the facility at
@@ -813,7 +863,7 @@ theorem unanimous_of_surjective_isStrategyProof {ι G : Type*} [Finite ι] [Deci
     (hf_onto : Function.Surjective f) (y : G) :
     f (fun _ => y) = y := by
   obtain ⟨x, hx⟩ := hf_onto y
-  refine profile_update_induction (P := fun z => f z = y) (y := fun _ => y) hx ?_
+  refine Function.update_induction (P := fun z => f z = y) (y := fun _ => y) hx ?_
   intro z _ hz i _ _
   have h := (Mechanism.isStrategyProof_deterministic_iff f).mp hf_sp
     (Function.update z i y) i (z i)

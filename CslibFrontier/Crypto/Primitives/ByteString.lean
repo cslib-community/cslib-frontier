@@ -26,6 +26,7 @@ with a different within-byte convention, such as FIPS 202's Keccak, keep that co
 
 * `Cslib.Crypto.Byte`: one unsigned byte.
 * `Cslib.Crypto.FixedBytes`: a byte string whose length is part of its type.
+* `Cslib.Crypto.FixedBytes.ofListExact`: turn a list with a proved length into typed bytes.
 * `Cslib.Crypto.bytesToBitsBE`: big-endian serialization of a list of bytes.
 * `Cslib.Crypto.bitsToFixedBytesBE`: split a bit list into typed big-endian bytes.
 
@@ -56,6 +57,10 @@ abbrev FixedBytes (n : ℕ) := Fin n → Byte
 
 namespace FixedBytes
 
+/-- Turn a list whose length is known exactly into a fixed-length byte string. -/
+def ofListExact {n : ℕ} (X : List Byte) (h : X.length = n) : FixedBytes n := fun i =>
+  X.get ⟨i.val, by simp [h]⟩
+
 /-- The list view of a fixed-length byte string. -/
 @[expose] def toList {n : ℕ} (X : FixedBytes n) : List Byte := List.ofFn X
 
@@ -63,11 +68,16 @@ namespace FixedBytes
 @[simp] theorem length_toList {n : ℕ} (X : FixedBytes n) : X.toList.length = n := by
   simp [toList]
 
+/-- The list view of `ofListExact X h` is the list `X` it was built from. -/
+@[simp] theorem toList_ofListExact {n : ℕ} (X : List Byte) (h : X.length = n) :
+    (ofListExact X h).toList = X := by
+  subst h
+  exact List.ofFn_get X
+
 /-- A byte string of length `n` is the list view of a fixed-length byte string. -/
 theorem exists_toList {n : ℕ} {bytes : List Byte} (h : bytes.length = n) :
-    ∃ v : FixedBytes n, v.toList = bytes := by
-  subst n
-  exact ⟨fun i => bytes[i.val], List.ofFn_getElem⟩
+    ∃ v : FixedBytes n, v.toList = bytes :=
+  ⟨ofListExact bytes h, toList_ofListExact bytes h⟩
 
 end FixedBytes
 

@@ -183,10 +183,8 @@ theorem arcCost_parentDigraph [Fintype V] [DecidableEq V] [AddCommMonoid β] (r 
     simp only [Finset.mem_image, Finset.mem_erase, Finset.mem_univ, and_true,
       Finset.mem_filter, true_and, Digraph.parentDigraph_adj, Prod.mk.injEq]
     constructor
-    · rintro ⟨u, hu, rfl, rfl⟩
-      exact ⟨hu, rfl⟩
-    · rintro ⟨hv, rfl⟩
-      exact ⟨v, hv, rfl, rfl⟩
+    · rintro ⟨u, hu, rfl, rfl⟩; exact ⟨hu, rfl⟩
+    · rintro ⟨hv, rfl⟩; exact ⟨v, hv, rfl, rfl⟩
   rw [← himg, Finset.sum_image fun x _ y _ h => (Prod.mk.inj h).1]
 
 end Bridge
@@ -433,28 +431,20 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
   have hx0r : x0 ≠ r := fun h => hrC (h ▸ hx0)
   obtain ⟨hwC, hex⟩ := (contractAdj_rep_iff hx0).mp (hq.adj x0 hx0r)
   obtain ⟨xs, hbo, hxsC, hxsa, -⟩ := bestExit_spec (c := c) (f := f) hex
-  have hpC : ∀ v ∈ C, expandParent a c f C x0 q v = if v = xs then q x0 else f v := by
-    intro v hv
+  have hpC : ∀ v ∈ C, expandParent a c f C x0 q v = if v = xs then q x0 else f v := fun v hv => by
     simp [expandParent, hv, hbo]
   have hqO : ∀ v ∉ C, q v ≠ x0 → q v ∉ C := by
     intro v hv hqv hqC
-    have hvr : v ≠ r := by
-      rintro rfl
-      exact hrC (hq.root ▸ hqC)
+    have hvr : v ≠ r := by rintro rfl; exact hrC (hq.root ▸ hqC)
     exact hqv ((contractAdj_out_mem_iff hv hqC).mp (hq.adj v hvr)).1
   have hpO : ∀ v ∉ C, q v = x0 → ∃ y, y ∈ C ∧ a v y = true ∧ bestEntry a c C v = some y ∧
       expandParent a c f C x0 q v = y := by
     intro v hv hqv
-    have hvr : v ≠ r := by
-      rintro rfl
-      exact hx0r (hqv ▸ hq.root)
-    have h1 := hq.adj v hvr
-    rw [hqv] at h1
-    have h := (contractAdj_out_mem_iff hv hx0).mp h1
+    have hvr : v ≠ r := by rintro rfl; exact hx0r (hqv ▸ hq.root)
+    have h := (contractAdj_out_mem_iff hv hx0).mp (hqv ▸ hq.adj v hvr)
     obtain ⟨y, hbi, hyC, hya, -⟩ := bestEntry_spec (c := c) h.2
     exact ⟨y, hyC, hya, hbi, by simp [expandParent, hv, hqv, hbi]⟩
-  have hpO' : ∀ v ∉ C, q v ≠ x0 → expandParent a c f C x0 q v = q v := by
-    intro v hv hqv
+  have hpO' : ∀ v ∉ C, q v ≠ x0 → expandParent a c f C x0 q v = q v := fun v hv hqv => by
     simp [expandParent, hv, hqv]
   set p := expandParent a c f C x0 q with hp
   -- every vertex of `C` reaches `q x0`
@@ -476,17 +466,12 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
       intro u hu hn
       by_cases hur : u = r
       · exact ⟨0, hur⟩
-      obtain ⟨n', rfl⟩ : ∃ n', n = n' + 1 := by
-        rcases n with _ | n'
-        · exact absurd hn hur
-        · exact ⟨n', rfl⟩
+      obtain ⟨n', rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := n) (by rintro rfl; exact hur hn)
       rw [Function.iterate_succ_apply] at hn
       by_cases hqu : q u = x0
       · rw [hqu] at hn
-        obtain ⟨n'', rfl⟩ : ∃ n'', n' = n'' + 1 := by
-          rcases n' with _ | n''
-          · exact absurd hn hx0r
-          · exact ⟨n'', rfl⟩
+        obtain ⟨n'', rfl⟩ :=
+          Nat.exists_eq_add_one_of_ne_zero (n := n') (by rintro rfl; exact hx0r hn)
         rw [Function.iterate_succ_apply] at hn
         obtain ⟨m, hm⟩ := ih n'' (by omega) (q x0) hwC hn
         obtain ⟨y, hyC, -, -, hpy⟩ := hpO u hu hqu
@@ -506,7 +491,7 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
       · exact hfa v hvC
     · by_cases hqv : q v = x0
       · obtain ⟨y, -, hya, -, hpy⟩ := hpO v hvC hqv
-        rw [hpy]; exact hya
+        exact hpy ▸ hya
       · rw [hpO' v hvC hqv]
         exact (contractAdj_out_out_iff hvC (hqO v hvC hqv)).mp (hq.adj v hv)
   · intro v
@@ -553,9 +538,7 @@ theorem exists_contract_le [IsOrderedAddMonoid β]
       parentCost (contractCost a c f C x0) r q ≤ parentCost c r t := by
   classical
   have hCr : ∀ y ∈ C, y ≠ r := fun y hy h => hrC (h ▸ hy)
-  have hexk : ∃ k, ∃ y ∈ C, t^[k] y = r := by
-    obtain ⟨n, hn⟩ := ht.reach x0
-    exact ⟨n, x0, hx0, hn⟩
+  have hexk : ∃ k, ∃ y ∈ C, t^[k] y = r := (ht.reach x0).imp fun _ hn => ⟨x0, hx0, hn⟩
   obtain ⟨x, hxC, hxk⟩ := Nat.find_spec hexk
   have hmin : ∀ j < Nat.find hexk, ∀ y ∈ C, t^[j] y ≠ r := fun j hj y hy h =>
     Nat.find_min hexk hj ⟨y, hy, h⟩
@@ -564,14 +547,9 @@ theorem exists_contract_le [IsOrderedAddMonoid β]
     intro w j hj hw i hi hiC
     apply hmin (j - i) (by omega) _ hiC
     rw [← Function.iterate_add_apply, Nat.sub_add_cancel hi, hw]
-  obtain ⟨k', hk'⟩ : ∃ k', Nat.find hexk = k' + 1 := by
-    rcases h : Nat.find hexk with _ | k'
-    · rw [h] at hxk; exact absurd hxk (hCr x hxC)
-    · exact ⟨k', rfl⟩
-  have htx : t^[k'] (t x) = r := by
-    rw [← Function.iterate_succ_apply]
-    rw [hk'] at hxk
-    exact hxk
+  obtain ⟨k', hk'⟩ := Nat.exists_eq_add_one_of_ne_zero (n := Nat.find hexk) fun h =>
+    hCr x hxC (by rwa [h] at hxk)
+  have htx : t^[k'] (t x) = r := by rwa [hk'] at hxk
   have htxC : t x ∉ C := havoid (t x) k' (by omega) htx 0 (Nat.zero_le _)
   let q : V → V := fun v =>
     if v ∈ C then (if v = x0 then t x else r) else if t v ∈ C then x0 else t v

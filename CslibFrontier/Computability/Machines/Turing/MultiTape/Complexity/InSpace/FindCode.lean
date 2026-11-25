@@ -132,7 +132,7 @@ theorem findCode {encC : C ↪ List Bool} {test : C × ℕ → Bool}
   have hctx := fst encC (encPair encNat encNat)
   have hpair := snd encC (encPair encNat encNat)
   have hinit := encSearchState_mk_budget encC hctx hpair.fst' hpair.snd'
-    (budget_const (encB := encOption encNat) none (.refl _))
+    (budget_const (encB := encOption encNat) none)
   let step := searchStep test
   let initial (p : C × (ℕ × ℕ)) : SearchState C := ⟨p.1, p.2.1, p.2.2, none⟩
   have hfinish (p : C × (ℕ × ℕ)) :

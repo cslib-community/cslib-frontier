@@ -95,16 +95,15 @@ theorem spread_lt {k i : ℕ} (hi : i < 2 ^ k) : spread i < 4 ^ k := by
   omega
 
 private theorem row_column_index (a b : ℕ) : row (index a b) = a ∧ column (index a b) = b := by
-  induction hm : a + b using Nat.strong_induction_on generalizing a b with
-  | _ m ih =>
-    rcases Nat.eq_zero_or_pos (a + b) with h0 | hpos
-    · obtain ⟨rfl, rfl⟩ : a = 0 ∧ b = 0 := by omega
-      simp [index]
-    · obtain ⟨hr, hc⟩ := ih (a / 2 + b / 2) (by omega) (a / 2) (b / 2) rfl
-      rw [row_eq, column_eq, index_eq]
-      generalize index (a / 2) (b / 2) = z at hr hc
-      rw [show (2 * (a % 2) + b % 2 + 4 * z) / 4 = z by omega, hr, hc]
-      omega
+  rcases Nat.eq_zero_or_pos (a + b) with h0 | hpos
+  · obtain ⟨rfl, rfl⟩ : a = 0 ∧ b = 0 := by omega
+    simp [index]
+  · obtain ⟨hr, hc⟩ := row_column_index (a / 2) (b / 2)
+    rw [row_eq, column_eq, index_eq]
+    generalize index (a / 2) (b / 2) = z at hr hc
+    rw [show (2 * (a % 2) + b % 2 + 4 * z) / 4 = z by omega, hr, hc]
+    omega
+termination_by a + b
 
 /-- Row projection inverts the interleaved position. -/
 @[simp] theorem row_index (a b : ℕ) : row (index a b) = a := (row_column_index a b).1
@@ -114,17 +113,16 @@ private theorem row_column_index (a b : ℕ) : row (index a b) = a ∧ column (i
 
 /-- Re-interleaving the projections recovers every original position. -/
 @[simp] theorem index_row_column (z : ℕ) : index (row z) (column z) = z := by
-  induction z using Nat.strong_induction_on with
-  | _ z ih =>
-    rcases Nat.eq_zero_or_pos z with rfl | hz
-    · simp [index]
-    · have h := ih (z / 4) (by omega)
-      rw [index_eq, row_eq z, column_eq z]
-      generalize row (z / 4) = a at h
-      generalize column (z / 4) = b at h
-      rw [show (z % 4 / 2 + 2 * a) / 2 = a by omega,
-        show (z % 4 % 2 + 2 * b) / 2 = b by omega, h]
-      omega
+  rcases Nat.eq_zero_or_pos z with rfl | hz
+  · simp [index]
+  · have h := index_row_column (z / 4)
+    rw [index_eq, row_eq z, column_eq z]
+    generalize row (z / 4) = a at h
+    generalize column (z / 4) = b at h
+    rw [show (z % 4 / 2 + 2 * a) / 2 = a by omega,
+      show (z % 4 % 2 + 2 * b) / 2 = b by omega, h]
+    omega
+termination_by z
 
 /-- Reading a contiguous quadrant is the same as shifting its row and column by half a side. -/
 theorem row_column_quadrant {k t z : ℕ} (ht : t < 4) (hz : z < 4 ^ k) :

@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.PolyTime.Init
 
 /-!
@@ -132,10 +133,7 @@ theorem IsPPTOn.retry {program : α → ProbComp β} {good : β → Bool} {fuel 
           exact hbb ▸ hb
         · simp [hg] at hbb)
     (size := fun a => c * ((input a).length + 1) ^ d + 1)
-    (PolyBounded.of_forall_le (c + 1) d fun a => by
-      have : 1 ≤ ((input a).length + 1) ^ d := Nat.one_le_pow _ _ (Nat.succ_pos _)
-      rw [add_mul, one_mul]
-      omega)
+    (by growth_poly)
     (fun a i o _ ho => by
       cases o with
       | none => simp [encOption_none]

@@ -80,18 +80,19 @@ private theorem two_mul_rootKeys_add_le {m : ℕ} (c : BTree α β) (hr : 2 * c.
   cases c with
   | leaf => simp
   | node first rest =>
-    have := height_first_succ_le (first := first) (rest := rest)
-    cases hh : (node first rest).height with
-    | zero => omega
-    | succ h =>
-      rw [Nat.add_sub_cancel, Nat.mul_succ]
-      omega
+    obtain ⟨h, hh⟩ := Nat.exists_eq_succ_of_ne_zero (n := (node first rest).height)
+      (by have := height_first_succ_le (first := first) (rest := rest); omega)
+    rw [hh, Nat.succ_sub_one, Nat.mul_succ]
+    omega
 
-/-- A per-level charge on the first child fits below the root of its node. -/
-private theorem mul_height_le_mul_height_node_sub_one (m : ℕ) (first : BTree α β)
-    (rest : List (α × β × BTree α β)) :
-    m * first.height ≤ m * ((node first rest).height - 1) :=
-  Nat.mul_le_mul_left m (by have := height_first_succ_le (first := first) (rest := rest); omega)
+/-- For an occupied first child of a node and per-level charge `m ≥ 4 * t - 2`, the child's
+budget fits below the root of its parent. -/
+private theorem first_budget_le {m : ℕ} {first : BTree α β} (rest : List (Triple α β))
+    (hfirst : Occupied t first) (hm : 4 * t - 2 ≤ m) :
+    2 * first.rootKeys + m * (first.height - 1) ≤ m * ((node first rest).height - 1) := by
+  have := hfirst.rootKeys_le
+  exact (two_mul_rootKeys_add_le first (by omega)).trans (Nat.mul_le_mul_left m
+    (by have := height_first_succ_le (first := first) (rest := rest); omega))
 
 /-- A per-level charge below the root of the node without its first child and separator fits
 below the root of the original node. -/
@@ -139,23 +140,15 @@ variable {lo hi : α}
 private theorem countQueries_rangeQ_le_of_forall_mem {lo hi : α} {tr : BTree α β}
     (hs : tr.toList.IsSortedAssoc) (hin : ∀ p ∈ tr.toList, lo ≤ p.1 ∧ p.1 ≤ hi) :
     (rangeQ lo hi tr).countQueries orderOracle ≤ 2 * (range lo hi tr).length := by
-  match tr with
-  | .leaf => simp
-  | .node first [] =>
-    have := countQueries_rangeQ_le_of_forall_mem (by simpa using hs)
-      (fun p hp => hin p (by simpa using hp))
-    simpa using this
-  | .node first ((k, v, c) :: rest) =>
-    obtain ⟨hsf, hsn, -, -⟩ := isSortedAssoc_toList_node_cons_iff.1 hs
-    have hk := hin (k, v) (mem_toList_node_cons.2 (Or.inr (Or.inl rfl)))
-    have h₁ := countQueries_rangeQ_le_of_forall_mem hsf
-      (fun p hp => hin p (mem_toList_node_cons.2 (Or.inl hp)))
-    have h₂ := countQueries_rangeQ_le_of_forall_mem hsn
-      (fun p hp => hin p (mem_toList_node_cons.2 (Or.inr (Or.inr hp))))
-    rw [countQueries_rangeQ_node_cons, length_range_node_cons lo hi]
-    simp only [hk.1, hk.2, ↓reduceIte]
+  induction hs using induction_isSortedAssoc with
+  | leaf => simp
+  | node_nil _ _ ih => simpa using ih (by simpa using hin)
+  | node_cons first k v c rest _ _ _ _ ih₁ ih₂ =>
+    rw [toList_node_cons, List.forall_mem_append, List.forall_mem_cons] at hin
+    obtain ⟨hinf, hk, hinn⟩ := hin
+    have := ih₁ hinf; have := ih₂ hinn
+    simp only [countQueries_rangeQ_node_cons, length_range_node_cons, hk.1, hk.2, ↓reduceIte]
     omega
-termination_by sizeOf tr
 
 /-- A query on a tree whose keys are all at least `lo` costs at most two comparisons per level
 beyond two per entry returned: the separator above `hi` that stops the scan on the path towards
@@ -163,33 +156,26 @@ beyond two per entry returned: the separator above `hi` that stops the scan on t
 private theorem countQueries_rangeQ_le_of_forall_lo_le {lo hi : α} {tr : BTree α β}
     (hs : tr.toList.IsSortedAssoc) (hlo : ∀ p ∈ tr.toList, lo ≤ p.1) :
     (rangeQ lo hi tr).countQueries orderOracle ≤ 2 * tr.height + 2 * (range lo hi tr).length := by
-  match tr with
-  | .leaf => simp
-  | .node first [] =>
-    have ih := countQueries_rangeQ_le_of_forall_lo_le (hi := hi) (by simpa using hs)
-      (fun p hp => hlo p (by simpa using hp))
-    have e := height_first_succ_le (first := first) (rest := [])
-    rw [countQueries_rangeQ_node_nil, range_node_nil]
-    omega
-  | .node first ((k, v, c) :: rest) =>
-    obtain ⟨hsf, hsn, hlt, -⟩ := isSortedAssoc_toList_node_cons_iff.1 hs
-    have hk : lo ≤ k := hlo (k, v) (mem_toList_node_cons.2 (Or.inr (Or.inl rfl)))
-    have e₁ := height_first_succ_le (first := first) (rest := (k, v, c) :: rest)
-    have e₂ := height_node_le_height_node_cons (first := first) (k := k) (v := v) (c := c)
+  induction hs using induction_isSortedAssoc with
+  | leaf => simp
+  | node_nil first _ ih =>
+    have := ih (by simpa using hlo)
+    have := height_first_succ_le (first := first) (rest := [])
+    simp only [countQueries_rangeQ_node_nil, range_node_nil]; omega
+  | node_cons first k v c rest hsf _ hlt _ ih₁ ih₂ =>
+    rw [toList_node_cons, List.forall_mem_append, List.forall_mem_cons] at hlo
+    obtain ⟨hlof, hk, hlon⟩ := hlo
+    have := height_first_succ_le (first := first) (rest := (k, v, c) :: rest)
+    have := height_node_le_height_node_cons (first := first) (k := k) (v := v) (c := c)
       (rest := rest)
     rw [countQueries_rangeQ_node_cons, length_range_node_cons lo hi]
     by_cases hhi : k ≤ hi
-    · have h₁ := countQueries_rangeQ_le_of_forall_mem hsf
-        (fun p hp => ⟨hlo p (mem_toList_node_cons.2 (Or.inl hp)), ((hlt p hp).trans_le hhi).le⟩)
-      have h₂ := countQueries_rangeQ_le_of_forall_lo_le (hi := hi) hsn
-        (fun p hp => hlo p (mem_toList_node_cons.2 (Or.inr (Or.inr hp))))
-      simp only [hk, hhi, ↓reduceIte]
-      omega
-    · have h₁ := countQueries_rangeQ_le_of_forall_lo_le (hi := hi) hsf
-        (fun p hp => hlo p (mem_toList_node_cons.2 (Or.inl hp)))
-      simp only [hk, hhi, ↓reduceIte]
-      omega
-termination_by sizeOf tr
+    · have := countQueries_rangeQ_le_of_forall_mem hsf
+        fun p hp => ⟨hlof p hp, ((hlt p hp).trans_le hhi).le⟩
+      have := ih₂ hlon
+      simp only [hk, hhi, ↓reduceIte]; omega
+    · have := ih₁ hlof
+      simp only [hk, hhi, ↓reduceIte]; omega
 
 /-- A query on a tree whose keys are all at most `hi` costs, beyond two comparisons per entry
 returned, two per root key and at most `2 * (2 * t - 1)` per level below the root: the
@@ -199,46 +185,30 @@ private theorem countQueries_rangeQ_le_of_forall_le_hi {lo hi : α} {tr : BTree 
     (hhi : ∀ p ∈ tr.toList, p.1 ≤ hi) :
     (rangeQ lo hi tr).countQueries orderOracle ≤
       2 * tr.rootKeys + (4 * t - 2) * (tr.height - 1) + 2 * (range lo hi tr).length := by
-  match tr with
-  | .leaf => simp
-  | .node first [] =>
-    have hfirst : Occupied t first := hc first (by simp)
-    have ih := countQueries_rangeQ_le_of_forall_le_hi (lo := lo)
-      (fun c h => hfirst.of_mem_children h) (by simpa using hs)
-      (fun p hp => hhi p (by simpa using hp))
-    have e := height_first_succ_le (first := first) (rest := [])
-    have h₁ := two_mul_rootKeys_add_le first (m := 4 * t - 2)
-      (by have := hfirst.rootKeys_le; omega)
-    have h₂ := mul_height_le_mul_height_node_sub_one (4 * t - 2) first []
-    rw [countQueries_rangeQ_node_nil, range_node_nil]
+  induction hs using induction_isSortedAssoc with
+  | leaf => simp
+  | node_nil first _ ih =>
+    have hfirst : Occupied t first := hc first List.mem_cons_self
+    have := ih (fun _ h => hfirst.of_mem_children h) (by simpa using hhi)
+    have := first_budget_le (m := 4 * t - 2) [] hfirst le_rfl
+    simp only [countQueries_rangeQ_node_nil, range_node_nil, rootKeys_node, List.length_nil]
     omega
-  | .node first ((k, v, c) :: rest) =>
-    obtain ⟨hsf, hsn, -, hgt⟩ := isSortedAssoc_toList_node_cons_iff.1 hs
+  | node_cons first k v c rest _ hsn _ hgt ih₁ ih₂ =>
     obtain ⟨hfirst, hcf, hcn⟩ := occupied_children_node_cons hc
-    have hk : k ≤ hi := hhi (k, v) (mem_toList_node_cons.2 (Or.inr (Or.inl rfl)))
-    have e₁ := height_first_succ_le (first := first) (rest := (k, v, c) :: rest)
-    have e₂ := height_node_le_height_node_cons (first := first) (k := k) (v := v) (c := c)
-      (rest := rest)
+    rw [toList_node_cons, List.forall_mem_append, List.forall_mem_cons] at hhi
+    obtain ⟨hhif, hk, hhin⟩ := hhi
     rw [countQueries_rangeQ_node_cons, length_range_node_cons lo hi]
     simp only [rootKeys_node, List.length_cons]
     by_cases hlo : lo ≤ k
-    · have h₁ := countQueries_rangeQ_le_of_forall_le_hi (lo := lo) hcf hsf
-        (fun p hp => hhi p (mem_toList_node_cons.2 (Or.inl hp)))
-      have h₂ := countQueries_rangeQ_le_of_forall_mem hsn
-        (fun p hp => ⟨hlo.trans (hgt p hp).le,
-          hhi p (mem_toList_node_cons.2 (Or.inr (Or.inr hp)))⟩)
-      have h₃ := two_mul_rootKeys_add_le first (m := 4 * t - 2)
-        (by have := hfirst.rootKeys_le; omega)
-      have h₄ := mul_height_le_mul_height_node_sub_one (4 * t - 2) first ((k, v, c) :: rest)
-      simp only [hk, hlo, ↓reduceIte]
-      omega
-    · have h₂ := countQueries_rangeQ_le_of_forall_le_hi (lo := lo) hcn hsn
-        (fun p hp => hhi p (mem_toList_node_cons.2 (Or.inr (Or.inr hp))))
-      have h₄ := mul_height_node_sub_one_le (4 * t - 2) first k v c rest
+    · have := ih₁ hcf hhif
+      have := countQueries_rangeQ_le_of_forall_mem hsn
+        fun p hp => ⟨hlo.trans (hgt p hp).le, hhin p hp⟩
+      have := first_budget_le (m := 4 * t - 2) ((k, v, c) :: rest) hfirst le_rfl
+      simp only [hk, hlo, ↓reduceIte]; omega
+    · have h₂ := ih₂ hcn hhin
+      have := mul_height_node_sub_one_le (4 * t - 2) first k v c rest
       simp only [rootKeys_node] at h₂
-      simp only [hk, hlo, ↓reduceIte]
-      omega
-termination_by sizeOf tr
+      simp only [hk, hlo, ↓reduceIte]; omega
 
 /-- A query on a tree with sorted entries and occupied children costs, beyond two comparisons per
 entry returned, two per root key and at most `4 * t` per level below the root. -/
@@ -246,54 +216,37 @@ private theorem countQueries_rangeQ_le_rootKeys {lo hi : α} {tr : BTree α β} 
     (hc : ∀ c ∈ tr.children, Occupied t c) (hs : tr.toList.IsSortedAssoc) :
     (rangeQ lo hi tr).countQueries orderOracle ≤
       2 * tr.rootKeys + 4 * t * (tr.height - 1) + 2 * (range lo hi tr).length := by
-  match tr with
-  | .leaf => simp
-  | .node first [] =>
-    have hfirst : Occupied t first := hc first (by simp)
-    have ih := countQueries_rangeQ_le_rootKeys (lo := lo) (hi := hi) ht
-      (fun c h => hfirst.of_mem_children h) (by simpa using hs)
-    have e := height_first_succ_le (first := first) (rest := [])
-    have h₁ := two_mul_rootKeys_add_le first (m := 4 * t) (by have := hfirst.rootKeys_le; omega)
-    have h₂ := mul_height_le_mul_height_node_sub_one (4 * t) first []
-    rw [countQueries_rangeQ_node_nil, range_node_nil]
+  induction hs using induction_isSortedAssoc with
+  | leaf => simp
+  | node_nil first _ ih =>
+    have hfirst : Occupied t first := hc first List.mem_cons_self
+    have := ih (fun _ h => hfirst.of_mem_children h)
+    have := first_budget_le (m := 4 * t) [] hfirst (by omega)
+    simp only [countQueries_rangeQ_node_nil, range_node_nil, rootKeys_node, List.length_nil]
     omega
-  | .node first ((k, v, c) :: rest) =>
-    obtain ⟨hsf, hsn, hlt, hgt⟩ := isSortedAssoc_toList_node_cons_iff.1 hs
+  | node_cons first k v c rest hsf hsn hlt hgt ih₁ ih₂ =>
     obtain ⟨hfirst, hcf, hcn⟩ := occupied_children_node_cons hc
-    have e₁ := height_first_succ_le (first := first) (rest := (k, v, c) :: rest)
-    have e₂ := height_node_le_height_node_cons (first := first) (k := k) (v := v) (c := c)
-      (rest := rest)
     rw [countQueries_rangeQ_node_cons, length_range_node_cons lo hi]
     simp only [rootKeys_node, List.length_cons]
     by_cases hlo : lo ≤ k <;> by_cases hhi : k ≤ hi
-    · have h₁ := countQueries_rangeQ_le_of_forall_le_hi (lo := lo) hcf hsf
-        (fun p hp => ((hlt p hp).trans_le hhi).le)
-      have h₂ := countQueries_rangeQ_le_of_forall_lo_le (hi := hi) hsn
-        (fun p hp => (hlo.trans_lt (hgt p hp)).le)
-      have h₃ := two_mul_rootKeys_add_le first (m := 4 * t - 2)
-        (by have := hfirst.rootKeys_le; omega)
-      have h₄ := mul_height_le_mul_height_node_sub_one (4 * t - 2) first ((k, v, c) :: rest)
-      have h₅ : (4 * t - 2) * ((node first ((k, v, c) :: rest)).height - 1) +
-          2 * ((node first ((k, v, c) :: rest)).height - 1) ≤
-          4 * t * ((node first ((k, v, c) :: rest)).height - 1) := by
-        rw [← Nat.add_mul]
-        exact Nat.mul_le_mul_right _ (by omega)
-      simp only [hlo, hhi, ↓reduceIte]
-      omega
-    · have h₁ := countQueries_rangeQ_le_rootKeys (lo := lo) (hi := hi) ht hcf hsf
-      have h₃ := two_mul_rootKeys_add_le first (m := 4 * t)
-        (by have := hfirst.rootKeys_le; omega)
-      have h₄ := mul_height_le_mul_height_node_sub_one (4 * t) first ((k, v, c) :: rest)
-      simp only [hlo, hhi, ↓reduceIte]
-      omega
-    · have h₂ := countQueries_rangeQ_le_rootKeys (lo := lo) (hi := hi) ht hcn hsn
-      have h₄ := mul_height_node_sub_one_le (4 * t) first k v c rest
+    · have := countQueries_rangeQ_le_of_forall_le_hi (lo := lo) hcf hsf
+        fun p hp => ((hlt p hp).trans_le hhi).le
+      have := countQueries_rangeQ_le_of_forall_lo_le (hi := hi) hsn
+        fun p hp => (hlo.trans_lt (hgt p hp)).le
+      have := first_budget_le (m := 4 * t - 2) ((k, v, c) :: rest) hfirst le_rfl
+      have := height_node_le_height_node_cons (first := first) (k := k) (v := v) (c := c)
+        (rest := rest)
+      have hmul := Nat.add_mul (4 * t - 2) 2 ((node first ((k, v, c) :: rest)).height - 1)
+      rw [Nat.sub_add_cancel (by omega)] at hmul
+      simp only [hlo, hhi, ↓reduceIte]; omega
+    · have := ih₁ hcf
+      have := first_budget_le (m := 4 * t) ((k, v, c) :: rest) hfirst (by omega)
+      simp only [hlo, hhi, ↓reduceIte]; omega
+    · have h₂ := ih₂ hcn
+      have := mul_height_node_sub_one_le (4 * t) first k v c rest
       simp only [rootKeys_node] at h₂
-      simp only [hlo, hhi, ↓reduceIte]
-      omega
-    · simp only [hlo, hhi, ↓reduceIte]
-      omega
-termination_by sizeOf tr
+      simp only [hlo, hhi, ↓reduceIte]; omega
+    · simp only [hlo, hhi, ↓reduceIte]; omega
 
 /-! ### Comparison bounds -/
 
@@ -320,10 +273,8 @@ theorem countQueries_rangeQ_le (h : IsWF t tr) (lo hi : α) :
       2 * t * (2 * tr.height + (range lo hi tr).length) := by
   have := countQueries_rangeQ_of_occupied (lo := lo) (hi := hi) (by have := h.two_le; omega)
     h.rootKeys_le h.occupied_of_mem_children h.sorted
-  have ht : 2 ≤ 2 * t := by have := h.two_le; omega
-  have := Nat.mul_le_mul_right (range lo hi tr).length ht
-  calc _ ≤ 4 * t * tr.height + 2 * t * (range lo hi tr).length := by omega
-    _ = 2 * t * (2 * tr.height + (range lo hi tr).length) := by grind
+  have := Nat.mul_le_mul_right (range lo hi tr).length (show 2 ≤ 2 * t by have := h.two_le; omega)
+  grind
 
 /-- A closed-interval query on a well-formed tree makes logarithmically many comparisons beyond
 `2 * t` per entry it returns. -/

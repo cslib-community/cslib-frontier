@@ -115,15 +115,7 @@ theorem outgoingTo_nil {P M : Type*} [DecidableEq P] (dest : P) :
 @[simp]
 theorem mem_outgoingTo_iff {P M : Type*} [DecidableEq P] {sent : List (P × M)} {dest : P} {m : M} :
     m ∈ outgoingTo sent dest ↔ (dest, m) ∈ sent := by
-  simp only [outgoingTo, List.mem_filterMap, Prod.exists]
-  constructor
-  · rintro ⟨q, m', hmem, hite⟩
-    split_ifs at hite with hq
-    cases hite
-    subst hq
-    exact hmem
-  · intro hmem
-    exact ⟨dest, m, hmem, by simp⟩
+  simp [outgoingTo]
 
 /-- `outgoingTo sent dest` is empty when no entry of `sent` targets `dest`. -/
 theorem outgoingTo_eq_nil_of_forall_ne {P M : Type*} [DecidableEq P]
@@ -365,24 +357,18 @@ theorem tr_comm_of_ne [DecidableEq P] {s s₁ s₂ : GlobalState P S M} {e₁ e�
       simp only [Enabled] at hen₂ ⊢
       rwa [← hproc₂]
     | recv src₂ q msg₂ st₂' sent₂ =>
-      have hsrc_pop : (Event.recv src₂ q msg₂ st₂' sent₂).popsFrom e₁.actor q →
-          s.chan e₁.actor q ≠ [] := hchan
       simp only [Event.actor] at hproc₂ hne
       simp only [Enabled] at hen₂ ⊢
       refine ⟨hen₂.1, ?_, hproc₂ ▸ hen₂.2.2.1, hen₂.2.2.2⟩
       have hnp₁ : ¬ e₁.popsFrom src₂ q := fun hp => hne (e₁.popsFrom_dest hp).symm
-      have hch₁ := s.applyEvent_chan e₁ src₂ q
-      simp only [hnp₁, ↓reduceIte] at hch₁
+      have hhead := hen₂.2.1
+      simp only [GlobalState.applyEvent_chan, hnp₁, ↓reduceIte] at hhead
       by_cases hsrc₂ : src₂ = e₁.actor
       · subst hsrc₂
-        obtain ⟨h, t, hht⟩ := List.exists_cons_of_ne_nil (hsrc_pop ⟨rfl, rfl⟩)
-        simp only [↓reduceIte] at hch₁
-        have hhead := hen₂.2.1
-        rw [hch₁, hht, List.cons_append, List.head?_cons, Option.some.injEq] at hhead
-        rw [hht, List.head?_cons, hhead]
-      · simp only [hsrc₂, ↓reduceIte, List.append_nil] at hch₁
-        have hhead := hen₂.2.1
-        rwa [hch₁] at hhead
+        have hne₀ : s.chan e₁.actor q ≠ [] := hchan ⟨rfl, rfl⟩
+        obtain ⟨h, t, hht⟩ := List.exists_cons_of_ne_nil hne₀
+        simpa [hht] using hhead
+      · simpa [hsrc₂] using hhead
   · -- Enabledness of `e₁` at `s.applyEvent e₂`
     have hproc₁ : (s.applyEvent e₂).proc e₁.actor = s.proc e₁.actor := by
       simp [GlobalState.applyEvent_proc, hne]
@@ -407,22 +393,19 @@ theorem tr_comm_of_ne [DecidableEq P] {s s₁ s₂ : GlobalState P S M} {e₁ e�
       by_cases hr₁ : r = e₁.actor <;> by_cases hr₂ : r = e₂.actor <;> simp_all
     · funext u v
       simp only [GlobalState.applyEvent_chan]
-      have hnot_both_pop : ¬ (e₁.popsFrom u v ∧ e₂.popsFrom u v) := fun ⟨hp₁, hp₂⟩ =>
-        hne ((e₁.popsFrom_dest hp₁).symm.trans (e₂.popsFrom_dest hp₂))
       by_cases hp₁ : e₁.popsFrom u v
-      · have hp₂ : ¬ e₂.popsFrom u v := fun hp => hnot_both_pop ⟨hp₁, hp⟩
+      · have hp₂ : ¬ e₂.popsFrom u v := fun hp₂ =>
+          hne ((e₁.popsFrom_dest hp₁).symm.trans (e₂.popsFrom_dest hp₂))
         obtain ⟨h, t, hht⟩ := List.exists_cons_of_ne_nil (sys.enabled_pop_nonempty hen₁ hp₁)
         simp only [hp₁, hp₂, ↓reduceIte, hht, List.tail_cons]
         by_cases hu₁ : u = e₁.actor <;> by_cases hu₂ : u = e₂.actor <;> simp_all
       · by_cases hp₂ : e₂.popsFrom u v
-        · have hv : v = e₂.actor := e₂.popsFrom_dest hp₂
-          subst hv
+        · obtain rfl := e₂.popsFrom_dest hp₂
           simp only [hp₁, hp₂, ↓reduceIte]
           by_cases hu₁ : u = e₁.actor
           · subst hu₁
-            have hu₂ : e₁.actor ≠ e₂.actor := hne
             obtain ⟨h, t, hht⟩ := List.exists_cons_of_ne_nil (hchan hp₂)
-            simp [hu₂, hht]
+            simp [hne, hht]
           · by_cases hu₂ : u = e₂.actor <;> simp_all
         · simp only [hp₁, hp₂, ↓reduceIte]
           by_cases hu₁ : u = e₁.actor <;> by_cases hu₂ : u = e₂.actor <;> simp_all

@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.StronglyUnpredictabl
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Strong ciphertext unpredictability of ElGamal encryption
@@ -177,22 +178,9 @@ theorem ciphertextHitBound_hybrid_hashedElGamal (F : PrimeOrderGroupFamily)
         return encPair encBits encBits
           (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem)) c ≠ 0) :
       unframe c = F.encode (d n) ((b : ZMod (F.order (d n))) • F.generator (d n)) := by
-    rw [ProbComp.eval_bind, PMF.bind_apply] at hb
-    have hex : ∃ ctDem,
-        ProbComp.eval (encryptSym n (H (d n, F.smul (d n, b, dropFrame pk))) m) ctDem *
-          ProbComp.eval (pure (encPair encBits encBits
-            (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem))) c ≠ 0 := by
-      by_contra hnone
-      push Not at hnone
-      exact hb (tsum_eq_zero_iff.mpr hnone)
-    rcases hex with ⟨ctDem, hterm⟩
-    have hp : ProbComp.eval (pure (encPair encBits encBits
-        (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem))) c ≠ 0 :=
-      right_ne_zero_of_mul hterm
-    simp only [ProbComp.eval_pure, PMF.pure_apply, ne_eq, ite_eq_right_iff, one_ne_zero, imp_false,
-      not_not] at hp
-    have hu := (congrArg unframe hp).trans (unframe_encPair_encBits _ _ _)
-    simpa [F.smul_encode] using hu
+    have hc := (PMF.mem_support_iff _ _).mpr hb
+    supp_cases hc
+    simp [F.smul_encode]
   exact F.smul_generator_injective (d n)
     (F.encode_injective (d n) ((extract b₁ h₁).symm.trans (extract b₂ h₂)))
 

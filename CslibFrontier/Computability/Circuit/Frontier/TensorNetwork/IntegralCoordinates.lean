@@ -25,7 +25,8 @@ polynomial `z ↦ W_d(t + α z)` obtained from the Cauchy kernel `W_d = cauchyKe
 coefficients in `ℤ_(2)`, the rationals with odd denominator
 (`Cslib.Circuits.Frontier.cauchyKernel_comp_mem_lifts`); when `d ≠ t` it is moreover divisible by
 `2` (`Cslib.Circuits.Frontier.exists_cauchyKernel_comp_eq_two_mul`). Here `ℤ_(2)` is the valuation
-ring `(Rat.padicValuation 2).integer`, and "coefficients in `ℤ_(2)`" is membership in
+ring `(Rat.padicValuation 2).integer` (available as the scoped notation `ℤ₍₂₎` inside
+`Cslib.Circuits.Frontier.TensorNetwork`), and "coefficients in `ℤ_(2)`" is membership in
 `Polynomial.lifts` of its inclusion.
 
 The proof is the manuscript's. Since `S` is a complete residue system modulo `2 ^ (a + 1)`, the
@@ -104,30 +105,22 @@ theorem padicValuation_prod_sub_eq_prod_Ioo {a : ℕ} {t : ℤ} (ht : t ∈ cauc
   rw [hL2]
   refine Finset.prod_nbij' (fun q => if q < t then t - q else t - q + 2 * L)
     (fun r => if -L ≤ t - r then t - r else t - r + 2 * L) ?_ ?_ ?_ ?_ ?_
-  · intro q hq
-    simp only [Finset.mem_erase, Finset.mem_Ico, Finset.mem_Ioo] at hq ⊢
+  iterate 4
+    intro x hx
+    simp only [Finset.mem_erase, Finset.mem_Ico, Finset.mem_Ioo] at hx ⊢
     split_ifs <;> omega
-  · intro r hr
-    simp only [Finset.mem_erase, Finset.mem_Ico, Finset.mem_Ioo] at hr ⊢
-    split_ifs <;> omega
-  · intro q hq
-    simp only [Finset.mem_erase, Finset.mem_Ico] at hq
-    split_ifs <;> omega
-  · intro r hr
-    simp only [Finset.mem_Ioo] at hr
-    split_ifs <;> omega
-  · intro q hq
-    simp only [Finset.mem_erase, Finset.mem_Ico] at hq
-    have hne : t - q ≠ 0 := by omega
-    have habs : |t - q| < 2 ^ (a + 1) := by rw [hL2, abs_lt]; omega
-    have h2L : (2 : ℚ) * (L : ℚ) = 2 ^ (a + 1) := by exact_mod_cast hL2.symm
-    have hadd := padicValuation_add_two_pow hne habs
-    push_cast at hadd
-    split_ifs
-    · push_cast; rfl
-    · push_cast
-      rw [h2L]
-      exact hadd.symm
+  intro q hq
+  simp only [Finset.mem_erase, Finset.mem_Ico] at hq
+  have hne : t - q ≠ 0 := by omega
+  have habs : |t - q| < 2 ^ (a + 1) := by rw [hL2, abs_lt]; omega
+  have h2L : (2 : ℚ) * (L : ℚ) = 2 ^ (a + 1) := by exact_mod_cast hL2.symm
+  have hadd := padicValuation_add_two_pow hne habs
+  push_cast at hadd
+  split_ifs
+  · push_cast; rfl
+  · push_cast
+    rw [h2L]
+    exact hadd.symm
 
 /-- **`v₂(C'(t)) = v₂(C'(0))` on the grid** of `L = 2 ^ a` slots, where
 `C'(t) = ∏_{q ∈ S, q ≠ t} (t - q)`. -/
@@ -154,8 +147,15 @@ theorem padicValuation_two_pow_le_sub {a : ℕ} {t q : ℤ} (ht : t ∈ cauchyGr
 
 /-! ### The kernel in local coordinates -/
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+namespace TensorNetwork
+
+/-- The subring `ℤ_(2)` of rationals with odd denominator,
+`Valuation.integer (Rat.padicValuation 2)`. Scoped to `Cslib.Circuits.Frontier.TensorNetwork`. -/
+scoped notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+
+end TensorNetwork
+
+open scoped TensorNetwork
 
 private theorem C_mem_lifts_of_le_one {c : ℚ} (hc : Rat.padicValuation 2 c ≤ 1) :
     C c ∈ lifts (ℤ₍₂₎).subtype :=

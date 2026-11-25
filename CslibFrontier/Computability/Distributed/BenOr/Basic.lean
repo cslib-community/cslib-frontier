@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Fintype.Basic
 public import Mathlib.Data.Fintype.Card
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Quorum-phase model and deterministic safety for Ben-Or's binary consensus
@@ -183,18 +184,13 @@ theorem PhaseSchedule.Valid.mono {P : Type*} [Fintype P] {sched : PhaseSchedule 
 /-- Whenever at most `t` processes are faulty, `honestQuorum F` is a valid `n - t` schedule. -/
 theorem PhaseSchedule.valid_honestQuorum {P : Type*} [Fintype P] [DecidableEq P]
     {F : Finset P} {t : ℕ} (hF : F.card ≤ t) : (PhaseSchedule.honestQuorum F).Valid t := by
-  have hcard : Fintype.card P - t ≤ (Finset.univ \ F).card := by
-    rw [Finset.card_sdiff_of_subset (Finset.subset_univ F), Finset.card_univ]
-    omega
+  have hcard : Fintype.card P - t ≤ (Finset.univ \ F).card := by finset_card
   exact ⟨fun _ => hcard, fun _ => hcard⟩
 
 /-! ### Threshold arithmetic -/
 
 /-- Strict majority threshold `⌊n / 2⌋ + 1`. -/
 @[expose] def majorityThreshold (n : ℕ) : ℕ := n / 2 + 1
-
-private lemma lt_two_mul_majorityThreshold (n : ℕ) : n < 2 * majorityThreshold n := by
-  simp only [majorityThreshold]; omega
 
 private lemma majorityThreshold_le_sub {n t : ℕ} (h : 2 * t < n) :
     majorityThreshold n ≤ n - t := by
@@ -209,14 +205,6 @@ private lemma add_one_le_sub {n t : ℕ} (h : 2 * t < n) : t + 1 ≤ n - t := by
 @[expose] def reportCount {P : Type*} (st : P → ProcState) (S : Finset P) (b : Bool) : ℕ :=
   (S.filter fun j => (st j).est = b).card
 
-private lemma reportCount_true_add_false {P : Type*} (st : P → ProcState) (S : Finset P) :
-    reportCount st S true + reportCount st S false = S.card := by
-  simp only [reportCount]
-  have h := Finset.card_filter_add_card_filter_not (s := S) (fun j => (st j).est = true)
-  have hneg : (S.filter fun j => ¬(st j).est = true) = S.filter fun j => (st j).est = false := by
-    ext j; simp
-  rwa [hneg] at h
-
 /-- Stage-1 proposal computed from received reports in `S`: propose `some b` if at least
 `majorityThreshold |P|` senders in `S` reported `b`, and `none` otherwise. -/
 @[expose] def stage1Proposal {P : Type*} [Fintype P] (st : P → ProcState)
@@ -224,14 +212,6 @@ private lemma reportCount_true_add_false {P : Type*} (st : P → ProcState) (S :
   if majorityThreshold (Fintype.card P) ≤ reportCount st S true then some true
   else if majorityThreshold (Fintype.card P) ≤ reportCount st S false then some false
   else none
-
-private lemma not_both_majority {P : Type*} [Fintype P] (st : P → ProcState) (S : Finset P)
-    (ht : majorityThreshold (Fintype.card P) ≤ reportCount st S true)
-    (hf : majorityThreshold (Fintype.card P) ≤ reportCount st S false) : False := by
-  have hsum := reportCount_true_add_false st S
-  have hcard : S.card ≤ Fintype.card P := Finset.card_le_univ S
-  have hlt := lt_two_mul_majorityThreshold (Fintype.card P)
-  omega
 
 /-- Symmetric characterization of when `stage1Proposal` emits `some b`. -/
 @[simp]
@@ -242,7 +222,7 @@ theorem stage1Proposal_eq_some_iff {P : Type*} [Fintype P] (st : P → ProcState
   cases b
   · simp only [stage1Proposal]
     split_ifs with ht hf
-    · exact ⟨(fun h => nomatch h), fun hf' => (not_both_majority st S ht hf').elim⟩
+    · exact ⟨(fun h => nomatch h), fun _ => by finset_card [reportCount, majorityThreshold]⟩
     · exact ⟨fun _ => hf, fun _ => rfl⟩
     · exact ⟨(fun h => nomatch h), fun hf' => (hf hf').elim⟩
   · simp only [stage1Proposal]
@@ -266,25 +246,7 @@ theorem stage1Proposal_unique {P : Type*} [Fintype P] (st : P → ProcState)
     (S₁ S₂ : Finset P) {b₁ b₂ : Bool}
     (h₁ : stage1Proposal st S₁ = some b₁) (h₂ : stage1Proposal st S₂ = some b₂) :
     b₁ = b₂ := by
-  classical
-  by_contra hne
-  rw [stage1Proposal_eq_some_iff] at h₁ h₂
-  let A := Finset.univ.filter fun j => (st j).est = b₁
-  let B := Finset.univ.filter fun j => (st j).est = b₂
-  have hsub₁ : (S₁.filter fun j => (st j).est = b₁) ⊆ A :=
-    Finset.filter_subset_filter _ (Finset.subset_univ S₁)
-  have hsub₂ : (S₂.filter fun j => (st j).est = b₂) ⊆ B :=
-    Finset.filter_subset_filter _ (Finset.subset_univ S₂)
-  have hdisj : Disjoint A B := by
-    rw [Finset.disjoint_filter]
-    intro j _ hj₁ hj₂
-    exact hne (hj₁.symm.trans hj₂)
-  have hu : (A ∪ B).card ≤ Fintype.card P := Finset.card_le_univ _
-  have hcardU : (A ∪ B).card = A.card + B.card := Finset.card_union_of_disjoint hdisj
-  have hc₁ : reportCount st S₁ b₁ ≤ A.card := Finset.card_le_card hsub₁
-  have hc₂ : reportCount st S₂ b₂ ≤ B.card := Finset.card_le_card hsub₂
-  have hlt := lt_two_mul_majorityThreshold (Fintype.card P)
-  omega
+  finset_card [stage1Proposal_eq_some_iff, reportCount, majorityThreshold]
 
 private lemma stage1Proposal_of_forall_est {P : Type*} [Fintype P] {st : P → ProcState}
     {S : Finset P} {t : ℕ} {b : Bool} (ht : 2 * t < Fintype.card P)
@@ -490,13 +452,9 @@ theorem phaseStep_lock_in {P : Type*} [Fintype P] {t : ℕ} {sched : PhaseSchedu
     fun j₁ j₂ _ _ h₁ h₂ => stage1Proposal_unique st (sched.q1 j₁) (sched.q1 j₂) h₁ h₂
   have hcnt : t + 1 ≤ proposalCount prop (sched.q2 p) b :=
     (stage2Update_decided_eq_some_iff_of_none huniq hnone b).mp hdec
-  let D := (sched.q2 p).filter fun j => prop j = some b
-  have hD : t + 1 ≤ D.card := hcnt
   have hQ : Fintype.card P - t ≤ (sched.q2 q).card := hv.card_q2 q
-  have hiu := Finset.card_union_add_card_inter D (sched.q2 q)
-  have hu : (D ∪ sched.q2 q).card ≤ Fintype.card P := Finset.card_le_univ _
-  have hinter : 0 < (D ∩ sched.q2 q).card := by omega
-  obtain ⟨j, hj⟩ := Finset.card_pos.mp hinter
+  obtain ⟨j, hj⟩ : ∃ j, j ∈ ((sched.q2 p).filter fun j => prop j = some b) ∩ sched.q2 q := by
+    finset_card [proposalCount]
   rw [Finset.mem_inter, Finset.mem_filter] at hj
   exact stage2Update_est_of_unique huniq ⟨j, hj.2, hj.1.2⟩
 
@@ -697,8 +655,7 @@ theorem CrashSchedule.Valid.valid_toSchedule {P : Type*} [Fintype P] [DecidableE
     {cs : CrashSchedule P} {t : ℕ} (hv : cs.Valid t) (r : ℕ) :
     (cs.toSchedule r).Valid t := by
   have hsdiff : Fintype.card P - t ≤ (Finset.univ \ cs.crashed2 r).card := by
-    rw [Finset.card_sdiff_of_subset (Finset.subset_univ _), Finset.card_univ]
-    have := hv.card_crashed2 r; omega
+    finset_card [hv.card_crashed2 r]
   refine ⟨fun p => ?_, fun p => ?_⟩ <;> simp only [toSchedule]
   · split_ifs with hp
     · exact hsdiff

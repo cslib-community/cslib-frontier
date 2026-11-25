@@ -37,6 +37,9 @@ accepted certificate shows that the formula has no model
 ## Main definitions
 
 * `Cslib.Logic.PL.Clause.ofDIMACS`: a clause from DIMACS integers.
+* `Cslib.Logic.PL.Literal.toDIMACS`, `Cslib.Logic.PL.Clause.toDIMACS`: a literal and a clause as
+  DIMACS integers, inverted by `Cslib.Logic.PL.Literal.ofDIMACS_toDIMACS` and
+  `Cslib.Logic.PL.Clause.ofDIMACS_toDIMACS`.
 * `Cslib.Logic.PL.Clause.residual`: what is left of a clause once its false literals are removed:
   nothing, one literal possibly repeated, or more.
 * `Cslib.Logic.PL.CNF.propagateHints`: unit propagation along hints.
@@ -72,6 +75,36 @@ def Literal.ofDIMACS (i : Int) : Option (Literal ℕ) :=
 /-- The clause named by a list of DIMACS integers. -/
 def Clause.ofDIMACS (c : List Int) : Clause ℕ :=
   c.filterMap Literal.ofDIMACS
+
+/-- The DIMACS integer of a literal: `v + 1` for the variable `v`, `-(v + 1)` for its negation. -/
+def Literal.toDIMACS (l : Literal ℕ) : Int :=
+  if l.2 then (l.1 : Int) + 1 else -((l.1 : Int) + 1)
+
+/-- A clause as DIMACS integers. -/
+def Clause.toDIMACS (c : Clause ℕ) : Array Int :=
+  (c.map Literal.toDIMACS).toArray
+
+/-- The DIMACS integer of the variable `v` has absolute value `v + 1`. -/
+@[simp] theorem Literal.natAbs_toDIMACS (l : Literal ℕ) : l.toDIMACS.natAbs = l.1 + 1 := by
+  unfold Literal.toDIMACS
+  split <;> omega
+
+/-- **Reading the DIMACS integer of a literal gives it back.** -/
+@[simp] theorem Literal.ofDIMACS_toDIMACS (l : Literal ℕ) :
+    Literal.ofDIMACS l.toDIMACS = some l := by
+  obtain ⟨v, b⟩ := l
+  cases b
+  · rw [show Literal.toDIMACS (v, false) = Int.negSucc v by
+      simp only [Literal.toDIMACS, Int.negSucc_eq]; rfl]
+    simp [Literal.ofDIMACS, Int.negSucc_lt_zero, Int.natAbs_negSucc]
+  · rw [show Literal.toDIMACS (v, true) = ((v + 1 : ℕ) : Int) by simp [Literal.toDIMACS]]
+    simp only [Literal.ofDIMACS, Int.natAbs_natCast, Nat.add_sub_cancel]
+    simp
+
+/-- Reading the DIMACS integers of a clause gives it back. -/
+@[simp] theorem Clause.ofDIMACS_toDIMACS (c : Clause ℕ) :
+    Clause.ofDIMACS c.toDIMACS.toList = c := by
+  simp [Clause.ofDIMACS, Clause.toDIMACS, List.filterMap_map]
 
 /-- What is left of a clause under the literals assumed true, once its false literals are
 removed (`Cslib.Logic.PL.Clause.residual`). -/
@@ -288,31 +321,28 @@ theorem CNF.false_of_propagateWith {lookup : ℕ → Option (Clause ℕ)} {σ : 
     (hlookup : ∀ h c, lookup h = some c → c.eval σ = true) {trail : List (Literal ℕ)}
     (htrail : ∀ l ∈ trail, Literal.eval σ l = true) {hs : List ℕ}
     (h : propagateWith lookup trail hs = true) : False := by
-  induction hs generalizing trail with
-  | nil => simp [propagateWith] at h
-  | cons x hs ih =>
-    simp only [propagateWith] at h
-    split at h
-    · simp at h
-    · rename_i c hc
-      obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ c).1 (hlookup x c hc)
-      -- a literal of the clause that holds is not false under the trail
-      have hl'e : Literal.eval σ l' = true := by simp [Literal.eval, hl'σ]
-      have hl't : Std.Sat.Literal.negate l' ∉ trail := fun hm => by
-        simpa [hl'e] using htrail _ hm
-      split at h
-      · rename_i hr
-        exact hl't (Clause.residual_eq_empty_iff.1 hr l' hl')
-      · rename_i l hr
-        -- the literal that holds is the propagated one
-        obtain ⟨-, -, hoth⟩ := Clause.residual_eq_unit_iff.1 hr
-        obtain rfl : l' = l := by_contra fun hne => hl't (hoth l' hl' hne)
-        refine ih (trail := l' :: trail) ?_ h
-        intro l hl
-        rcases List.mem_cons.1 hl with rfl | hl
-        · exact hl'e
-        · exact htrail l hl
-      · simp at h
+  -- a literal of a looked-up clause holds, so it is not false under the trail
+  have key {trail : List (Literal ℕ)} (htrail : ∀ l ∈ trail, Literal.eval σ l = true) {x c}
+      (hc : lookup x = some c) :
+      ∃ l' ∈ c, Literal.eval σ l' = true ∧ Std.Sat.Literal.negate l' ∉ trail := by
+    obtain ⟨l', hl', hl'σ⟩ := (Clause.eval_eq_true_iff σ c).1 (hlookup x c hc)
+    have hl'e : Literal.eval σ l' = true := by simp [Literal.eval, hl'σ]
+    exact ⟨l', hl', hl'e, fun hm => by simpa [hl'e] using htrail _ hm⟩
+  fun_induction propagateWith lookup trail hs with
+  | case1 | case2 | case5 => simp at h -- no hints, unknown clause, non-unit residual
+  | case3 trail x hs c hc hr => -- residual empty: conflict
+    obtain ⟨l', hl', -, hl't⟩ := key htrail hc
+    exact hl't (Clause.residual_eq_empty_iff.1 hr l' hl')
+  | case4 trail x hs c hc l hr ih => -- residual unit l: propagate
+    obtain ⟨l', hl', hl'e, hl't⟩ := key htrail hc
+    -- the literal that holds is the propagated one
+    obtain ⟨-, -, hoth⟩ := Clause.residual_eq_unit_iff.1 hr
+    obtain rfl : l' = l := by_contra fun hne => hl't (hoth l' hl' hne)
+    refine ih ?_ h
+    intro l hl
+    rcases List.mem_cons.1 hl with rfl | hl
+    · exact hl'e
+    · exact htrail l hl
 
 /-- If unit propagation along hints succeeds, no assignment satisfies the database and makes the
 starting literals true. -/
@@ -342,23 +372,17 @@ theorem CNF.eval_of_propagateHints {db : List (ℕ × Clause ℕ)} {σ : ℕ →
 theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause ℕ)}
     (hdb : ∀ e ∈ db, e.2.eval σ = true) {cert : List LRAT.IntAction}
     (h : checkLRATAux db cert = true) : False := by
-  induction cert generalizing db with
-  | nil => simp [checkLRATAux] at h
-  | cons a cert ih =>
-    cases a with
-    | addEmpty id hints =>
-      exact false_of_propagateHints hdb (trail := []) (by simp) h
-    | addRup id c hints =>
-      simp only [checkLRATAux, Bool.and_eq_true] at h
-      refine ih (db := (id, Clause.ofDIMACS c.toList) :: db) ?_ h.2
-      intro e he
-      rcases List.mem_cons.1 he with rfl | he
-      · exact eval_of_propagateHints hdb h.1
-      · exact hdb e he
-    | addRat id c pivot rupHints ratHints => simp [checkLRATAux] at h
-    | del ids =>
-      simp only [checkLRATAux] at h
-      exact ih (fun e he => hdb e (List.mem_filter.1 he).1) h
+  fun_induction checkLRATAux db cert with
+  | case1 | case4 => simp at h -- no actions, addRat
+  | case2 => exact false_of_propagateHints hdb (trail := []) (by simp) h -- addEmpty
+  | case3 db id c hints rest ih => -- addRup
+    rw [Bool.and_eq_true] at h
+    refine ih ?_ h.2
+    intro e he
+    rcases List.mem_cons.1 he with rfl | he
+    · exact eval_of_propagateHints hdb h.1
+    · exact hdb e he
+  | case5 db ids rest ih => exact ih (fun e he => hdb e (List.mem_filter.1 he).1) h -- del
 
 /-- **A formula with an accepted LRAT certificate is unsatisfiable.** -/
 theorem CNF.not_satisfiable_of_checkLRAT {φ : CNF ℕ} {cert : Array LRAT.IntAction}

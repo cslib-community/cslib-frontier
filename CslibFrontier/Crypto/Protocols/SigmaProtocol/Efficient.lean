@@ -23,6 +23,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.Traverse
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.StatisticalDistance.Product
 
@@ -464,7 +465,7 @@ theorem isPPT_andSimulator
     exact ComputableInPolyTime.isPPTOn (by fun_prop)
   · intro i ⟨y₀, y₁⟩ c
     simp only [andSimulator, andSimulateWord, Encoding.andProof, unframe_encPair, dropFrame_encPair,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
+      pmf_norm]
     rw [← hword₀ i y₀ c, hC i, ← hword₁ i y₁ c]
     simp only [PMF.bind_map, Function.comp_def, Prod.map_apply, encPair_apply, encBits_apply]
     rfl
@@ -480,8 +481,7 @@ theorem simulatorRealizedBy_andSimulator
     SimulatorRealizedBy (fun i => andSimulate (simulate₀ i) (simulate₁ i))
       (andSimulator sim₀ sim₁) (fun i => δ₀ i + δ₁ i) := by
   intro i y c
-  simp only [andSimulate, andSimulator, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  simp only [andSimulate, andSimulator, pmf_norm]
   exact (h₀ i y.1 c).bind fun a _ => (h₁ i y.2 c).bind_left _
 
 /-- **Efficient special HVZK of `andProof`.** -/
@@ -707,8 +707,7 @@ theorem isPPT_orSimulator [∀ i, Sub (C i)]
     exact ComputableInPolyTime.isPPTOn (by fun_prop)
   · intro i ⟨y₀, y₁⟩ c
     simp only [orSimulator, orSimulateWord, Encoding.orProof, unframe_encPair, dropFrame_encPair,
-      ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.map_bind, PMF.bind_map,
-      PMF.pure_map, Function.comp_def]
+      pmf_norm]
     refine PMF.bind_congr_on_support _ _ _ fun c₀ _ => ?_
     rw [hsub_eq, ← hword₀ i y₀ c₀, hC i, ← hword₁ i y₁ (c - c₀)]
     simp only [PMF.bind_map, Function.comp_def, Prod.map_apply, encPair_apply, encBits_apply]
@@ -727,8 +726,7 @@ theorem simulatorRealizedBy_orSimulator [∀ i, AddCommGroup (C i)] [∀ i, Fint
     SimulatorRealizedBy (fun i => orSimulate (simulate₀ i) (simulate₁ i))
       (orSimulator sampleChallenge sim₀ sim₁) (fun i => δC i + (δ₀ i + δ₁ i)) := by
   intro i y c
-  simp only [orSimulate, orSimulator, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  simp only [orSimulate, orSimulator, pmf_norm]
   exact (hsample i).bind fun c₀ _ =>
     (h₀ i y.1 c₀).bind fun a _ => (h₁ i y.2 (c - c₀)).bind_left _
 

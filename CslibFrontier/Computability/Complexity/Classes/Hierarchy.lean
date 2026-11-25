@@ -231,8 +231,7 @@ private theorem bounds_aux {n A D N J L I E cD cO M K : ℕ} (hJ : 1 ≤ J)
     linarith
   · have hY : 10 * (cO + 1) * (M ^ 2 * J) ≤ 100 * (cO + 1) ^ 2 * (M ^ 5 * J) :=
       calc _ ≤ 10 * (10 * (cO + 1) ^ 2) * (M ^ 5 * J) :=
-            Nat.mul_le_mul (Nat.mul_le_mul_left _ (by nlinarith))
-              (Nat.mul_le_mul_right _ hM25)
+            by gcongr; nlinarith
         _ = 100 * (cO + 1) ^ 2 * (M ^ 5 * J) := by ring
     have hM2J : M ^ 2 * J ≤ M ^ 5 * J := Nat.mul_le_mul_right _ hM25
     rw [hK]

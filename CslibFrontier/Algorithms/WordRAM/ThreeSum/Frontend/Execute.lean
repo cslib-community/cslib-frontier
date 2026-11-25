@@ -84,43 +84,26 @@ theorem setup_exec {w U : ℕ} (l : Layout) (k : ℕ) (x : Data 48)
     (hd : x.regs descriptors = l.descriptors) (hfit : Fits w (budget l U)) :
     ∃ y, ExecWithin w setup x y 19 ∧ Registers l U k y ∧
       y.regs current = 0 ∧ y.regs heap = l.pointer 0 ∧ y.mem = x.mem := by
-  obtain ⟨fN, fSq, fS, fD, fA, f2A, fP, fAC, fE, _, f5⟩ := layout_bounds l U
-  have f0 : Fits w 0 := fits_zero w
-  have f5' : Fits w 5 := hfit.of_le f5
-  have fn := hfit.of_le fN
-  have fsq := hfit.of_le fSq
-  have fs : Fits w (l.digits * l.digits * 2) := by
-    simpa only [Layout.splits, pow_two, Nat.mul_comm] using hfit.of_le fS
-  have fd : Fits w (l.digits * l.digits * 2 + 2) := by
-    simpa only [Layout.count, Layout.splits, pow_two, Nat.mul_comm] using hfit.of_le fD
-  have fa : Fits w ((l.digits * l.digits * 2 + 2) * 3) := by
-    simpa only [Layout.arrays, Layout.count, Layout.splits, pow_two, Nat.mul_comm]
-      using hfit.of_le fA
-  have f2a : Fits w ((l.digits * l.digits * 2 + 2) * 3 * 2) := by
-    simpa only [Layout.arrays, Layout.count, Layout.splits, pow_two, Nat.mul_comm,
-      Nat.mul_left_comm, Nat.mul_assoc] using hfit.of_le f2A
-  have fp : Fits w (l.descriptors + (l.digits * l.digits * 2 + 2) * 3 * 2) := by
-    simpa only [Layout.payloads, Layout.arrays, Layout.count, Layout.splits, pow_two,
-      Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc] using hfit.of_le fP
-  have fac : Fits w ((l.digits * l.digits * 2 + 2) * 3 * (l.n + 1)) := by
-    simpa only [Layout.capacity, Layout.arrays, Layout.count, Layout.splits, pow_two,
-      Nat.mul_comm] using hfit.of_le fAC
-  have fe : Fits w (l.descriptors + (l.digits * l.digits * 2 + 2) * 3 * 2 +
-      (l.digits * l.digits * 2 + 2) * 3 * (l.n + 1)) := by
-    simpa only [Layout.endpoint, Layout.pointer, Layout.payloads, Layout.capacity,
-      Layout.arrays, Layout.count, Layout.splits, pow_two, Nat.mul_comm,
-      Nat.mul_left_comm, Nat.mul_assoc] using hfit.of_le fE
-  refine ⟨?y, ?run, ?_, ?_, ?_, ?_⟩
-  case run => ram_eval [setup, hn, hΛ, hd, f0, f5', fn, fsq,
-    fs, fd, fa, f2a, fp, fac, fe]
+  have hf (v : ℕ) (hv : v ≤ budget l U) : Fits w v := hfit.of_le hv
+  refine WP.exists_execWithin ?_
+  unfold setup
+  wram_exec (disch := (
+    try dsimp only [budget, Layout.endpoint, Layout.pointer, Layout.payloads,
+      Layout.descriptors, Layout.capacity, Layout.arrays, Layout.count, Layout.splits]
+    try ring_nf
+    omega)) [hn, hΛ, hd, hf]
+  wram_simp
+  refine ⟨?_, ?_⟩
   · constructor
-    all_goals simp +decide [Data.set_regs, hU, hn, hΛ, hk, hc, hlen, hd,
-      Layout.splits, Layout.count, Layout.arrays, Layout.capacity, Layout.endpoint,
-      Layout.pointer, Layout.payloads, pow_two, Nat.mul_comm, Nat.mul_assoc]
-  · simp
-  · simp +decide [Data.set_regs, Layout.pointer, Layout.payloads, Layout.arrays,
-      Layout.count, Layout.splits, pow_two, Nat.mul_comm, Nat.mul_assoc]
-  · rfl
+    all_goals wram_simp
+    all_goals
+      first
+      | assumption
+      | trivial
+      | (dsimp only [Layout.splits, Layout.count, Layout.arrays,
+          Layout.capacity, Layout.endpoint, Layout.pointer, Layout.payloads]; ring)
+  · dsimp only [Layout.pointer, Layout.payloads, Layout.arrays, Layout.count, Layout.splits]
+    ring
 
 /-- All compact arrays and six-word descriptors are produced by the complete native loop. -/
 theorem loop_exec {w U : ℕ} (l : Layout) (rs : List (ℕ × ℕ)) (x : Data 48)
@@ -210,9 +193,8 @@ theorem loop_exec {w U : ℕ} (l : Layout) (rs : List (ℕ × ℕ)) (x : Data 48
     have hf (b : ℕ) (houtside : b < l.pointer (y.regs current) ∨
         l.pointer (y.regs current + 1) ≤ b)
         (hb0 : b ≠ l.descriptors + 2 * y.regs current)
-        (hb1 : b ≠ l.descriptors + 2 * y.regs current + 1) : z.mem b = y.mem b := by
-      apply hzf b _ hb0 hb1
-      simpa only [Layout.pointer_succ] using houtside
+        (hb1 : b ≠ l.descriptors + 2 * y.regs current + 1) : z.mem b = y.mem b :=
+      hzf b (by simpa only [Layout.pointer_succ] using houtside) hb0 hb1
     have hview : Set.EqOn z.mem y.mem {b | (b < l.pointer (y.regs current) ∨
         l.pointer (y.regs current + 1) ≤ b) ∧ b ≠ l.descriptors + 2 * y.regs current ∧
         b ≠ l.descriptors + 2 * y.regs current + 1} :=
@@ -220,8 +202,7 @@ theorem loop_exec {w U : ℕ} (l : Layout) (rs : List (ℕ × ℕ)) (x : Data 48
     have hdescbase : l.descriptors = 1 + 4 * l.n := rfl
     refine ⟨z, hz, ?_, hzi⟩
     refine ⟨hyr.transfer (fun i hi => hz.regs_eq hi), ?_, ?_, ?_, ?_, ?_⟩
-    · rw [Layout.pointer_succ]
-      exact hzh
+    · rwa [Layout.pointer_succ]
     · intro i hi
       by_cases hij : i = y.regs current
       · subst i
@@ -246,21 +227,15 @@ theorem loop_exec {w U : ℕ} (l : Layout) (rs : List (ℕ × ℕ)) (x : Data 48
         have := hbase.trans (l.pointer_mono (show 0 ≤ l.arrays by omega))
         omega
       have htable := l.descriptor_before hj (y.regs current)
-      have hb0 : b ≠ l.descriptors + 2 * y.regs current := by omega
-      have hb1 : b ≠ l.descriptors + 2 * y.regs current + 1 := by omega
-      exact (hf b (by rcases hb with hb | hb <;> omega) hb0 hb1).trans (hyframe b hnot)
-  have hx : P (x.regs current) x := by
-    refine ⟨hr, by simpa only [hidx] using hheap, ?_, hk, hc,
+      exact (hf b (by rcases hb with hb | hb <;> omega) (by omega) (by omega)).trans
+        (hyframe b hnot)
+  have hx : P (x.regs current) x :=
+    ⟨hr, by simpa only [hidx] using hheap, fun i hi => absurd hi (by omega), hk, hc,
       Modifies.refl _ _⟩
-    intro i hi
-    rw [hidx] at hi
-    omega
   obtain ⟨y, hy, ⟨hyr, hyheap, hyout, hykeys, hycounts, hyframe⟩, hend⟩ :=
     ExecWithin.loop_count P (fun y hy => hy.1.arrays) hbody (by rw [hidx]; omega) hx
-  refine ⟨y, ?_, ?_, hend, ?_, hyr, hykeys, hycounts, hyframe⟩
+  refine ⟨y, ?_, fun j hj => hyout j (by omega), hend, ?_, hyr, hykeys, hycounts, hyframe⟩
   · simpa only [hidx, Nat.sub_zero, Nat.mul_comm] using hy
-  · intro j hj
-    exact hyout j (by omega)
   · simpa only [Layout.endpoint] using hyheap
 
 /-- Complete array/descriptor construction, including all native constant and layout setup. -/

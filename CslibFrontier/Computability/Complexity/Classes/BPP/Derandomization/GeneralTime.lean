@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Derandomizing `BPTIME(t)` with generators running in time exponential in the seed
@@ -186,24 +187,7 @@ theorem CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME {G : List Bool → 
       (Nat.add_le_add_right (hG.monotone h) 1)) D₀
   have hbound : PolyBounded (fun q : α × ℕ => (encP q).length)
       fun q => (2 ^ Nat.log 2 q.2 * (ℓ (Nat.log 2 q.2) + 1)) ^ D₀ := by
-    refine ((PolyBounded.const (4 ^ D₀)).mul
-      ((PolyBounded.self.add (.const 1)).pow (2 * D₀))).mono fun q => ?_
-    set j := Nat.log 2 q.2
-    have hN : q.2 ≤ (encP q).length := by
-      simp only [encP, length_encPair, encUnary_apply, List.length_replicate]; omega
-    have hj : 2 ^ j ≤ (encP q).length + 1 := by
-      rcases Nat.eq_zero_or_pos q.2 with h0 | h0
-      · simp [j, h0]
-      · exact (Nat.pow_log_le_self 2 h0.ne').trans (hN.trans (Nat.le_succ _))
-    have hℓ := hG.le_two_pow j
-    calc (2 ^ j * (ℓ j + 1)) ^ D₀ ≤ (2 ^ j * (4 * 2 ^ j)) ^ D₀ := by
-          refine Nat.pow_le_pow_left (Nat.mul_le_mul_left _ ?_) D₀
-          rw [pow_succ] at hℓ
-          have := Nat.one_le_two_pow (n := j)
-          omega
-      _ = 4 ^ D₀ * (2 ^ j) ^ (2 * D₀) := by ring
-      _ ≤ 4 ^ D₀ * ((encP q).length + 1) ^ (2 * D₀) :=
-          Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hj _)
+    growth_poly [hG.le_two_pow]
   have hGq : ComputableInPolyTime (fun q : (α × ℕ) × List Bool => G (q.2.take (Nat.log 2 q.1.2)))
       (encPair encP encBits) encBits :=
     ComputableInO.computableInPolyTime_take hT hGO hlog hbound
@@ -261,8 +245,7 @@ theorem BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth {G : List Bool �
     have h3 := hkt n
     have h4 := ht n
     rcases Nat.eq_zero_or_pos (t n) with h0 | h0
-    · have hn0 : n = 0 := by omega
-      subst hn0
+    · obtain rfl : n = 0 := by omega
       rw [h0]
       omega
     · nlinarith [Nat.mul_le_mul_left c h3, Nat.mul_le_mul_left c h4, Nat.mul_le_mul_left c h0]
@@ -276,9 +259,7 @@ theorem BPTIME_subset_DTIME_of_canonicalDerandomizer_of_growth {G : List Bool �
       = 2 ^ (D * d + D * e) * ((2 ^ k n) ^ (D * d) * (n + 1) ^ D) := by
         rw [← pow_mul, mul_left_comm, ← mul_assoc, ← pow_add]
         ring_nf
-    _ ≤ 2 ^ (D * d + D * e) * (P ^ (D * d) * P ^ D) :=
-        Nat.mul_le_mul_left _ (Nat.mul_le_mul (Nat.pow_le_pow_left hP1 _)
-          (Nat.pow_le_pow_left hP2 _))
+    _ ≤ 2 ^ (D * d + D * e) * (P ^ (D * d) * P ^ D) := by gcongr
     _ = 2 ^ (D * d + D * e) * P ^ (D * d + D) := by rw [pow_add P]
     _ ≤ _ := Nat.le_add_right _ _
 
@@ -332,9 +313,7 @@ private theorem exists_two_pow_le_of_rpow {S : ℕ → ℕ}
   obtain ⟨ε, hε, hev⟩ := h
   obtain ⟨M, hM⟩ := eventually_atTop.1 hev
   obtain ⟨e, he, heε⟩ := Real.exists_nat_pos_inv_lt hε
-  have heε : 1 ≤ (e : ℝ) * ε := by
-    rw [inv_lt_iff_one_lt_mul₀' (by exact_mod_cast he)] at heε
-    exact heε.le
+  have heε : 1 ≤ (e : ℝ) * ε := ((inv_lt_iff_one_lt_mul₀' (by exact_mod_cast he)).1 heε).le
   refine ⟨e, M, he, fun X => ?_⟩
   set m := X ^ e + M
   have hm := hM m (Nat.le_add_left _ _)
@@ -347,11 +326,9 @@ private theorem exists_two_pow_le_of_rpow {S : ℕ → ℕ}
       _ = ((X : ℝ) ^ e) ^ ε := Real.rpow_natCast_mul (by positivity) e ε
       _ ≤ (m : ℝ) ^ ε := Real.rpow_le_rpow (by positivity)
           (by simp only [m]; push_cast; linarith [(Nat.cast_nonneg M : (0 : ℝ) ≤ M)]) hε.le
-  have : (2 : ℝ) ^ X ≤ S m := by
-    calc (2 : ℝ) ^ X = (2 : ℝ) ^ (X : ℝ) := (Real.rpow_natCast _ _).symm
-      _ ≤ (2 : ℝ) ^ ((m : ℝ) ^ ε) := Real.rpow_le_rpow_of_exponent_le (by norm_num) hXm
-      _ ≤ S m := hm
-  exact_mod_cast this
+  exact_mod_cast calc (2 : ℝ) ^ X = (2 : ℝ) ^ (X : ℝ) := (Real.rpow_natCast _ _).symm
+    _ ≤ (2 : ℝ) ^ ((m : ℝ) ^ ε) := Real.rpow_le_rpow_of_exponent_le (by norm_num) hXm
+    _ ≤ S m := hm
 
 /-- Eventually `Q (log₂ n + 1) ^ e ≤ (log₂ n) ^ (e + 1)`. -/
 private theorem eventually_mul_log_succ_pow_le (Q e : ℕ) :

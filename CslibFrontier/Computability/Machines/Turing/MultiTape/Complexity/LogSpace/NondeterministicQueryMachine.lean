@@ -448,7 +448,7 @@ theorem next_withChoice_inSpace {σ : Type} {encS : σ ↪ List Bool}
   apply ComputableInSpace.budget_comp_linear hnext
   exact ComputableInSpace.budget_prod (.fst _ _)
     (ComputableInSpace.budget_prod (.snd _ _)
-      (ComputableInSpace.budget_const choice (.refl _)))
+      (ComputableInSpace.budget_const choice))
 
 /-- The input-scan callback is the deterministic one and does not depend on the choice. -/
 theorem passNext_inSpace {σ : Type} {encS : σ ↪ List Bool}

@@ -34,7 +34,8 @@ the ends of an edge sum to at most `d + 3`, and a vertex of degree `j + 3 ≤ d`
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.Multigraph.MaxDegreeLE.degree_toSimpleGraph_le`: the underlying simple
+* `Cslib.Circuits.Frontier.Multigraph.ncard_neighborSet_toSimpleGraph_le`,
+  `Cslib.Circuits.Frontier.Multigraph.MaxDegreeLE.degree_toSimpleGraph_le`: the underlying simple
   graph has no larger degrees.
 * `Cslib.Circuits.Frontier.Multigraph.ncard_touching_le`: at most `d |S|` edges touch `S`.
 * `Cslib.Circuits.Frontier.Multigraph.card_le_mul_card`: at most `d |V|` edges.
@@ -50,21 +51,27 @@ open Set
 
 variable {V E : Type*} {G : Multigraph V E}
 
-/-- **The underlying simple graph has no larger degrees.** Every neighbour of `v` in the
-underlying simple graph is the other end of an edge at `v`. -/
-theorem MaxDegreeLE.degree_toSimpleGraph_le [Fintype V] [DecidableRel G.toSimpleGraph.Adj]
-    [Finite E] {d : ℕ} (h : G.MaxDegreeLE d) (v : V) : G.toSimpleGraph.degree v ≤ d := by
+/-- Every neighbour of `v` in the underlying simple graph is the other end of an edge at `v`, so
+`G.toSimpleGraph` has at most `(G.incidenceSet v).ncard` neighbours at `v`. -/
+theorem ncard_neighborSet_toSimpleGraph_le [Finite E] (G : Multigraph V E) (v : V) :
+    (G.toSimpleGraph.neighborSet v).ncard ≤ (G.incidenceSet v).ncard := by
   classical
-  rw [← SimpleGraph.card_neighborFinset_eq_degree, SimpleGraph.neighborFinset,
-    ← ncard_eq_toFinset_card']
   refine (ncard_le_ncard (t := G.otherEnd v '' G.incidenceSet v) fun w hw => ?_).trans
-    ((ncard_image_le (toFinite _)).trans (h v))
+    (ncard_image_le (toFinite _))
   obtain ⟨hne, e, he⟩ := toSimpleGraph_adj.mp hw
   refine ⟨e, ?_, ?_⟩ <;> rcases Sym2.eq_iff.mp he with ⟨hs, ht⟩ | ⟨hs, ht⟩
   · exact Or.inl hs
   · exact Or.inr ht
   · simp [otherEnd, hs, ht]
   · simp [otherEnd, hs, Ne.symm hne]
+
+/-- **The underlying simple graph has no larger degrees.** Every neighbour of `v` in the
+underlying simple graph is the other end of an edge at `v`. -/
+theorem MaxDegreeLE.degree_toSimpleGraph_le [Fintype V] [DecidableRel G.toSimpleGraph.Adj]
+    [Finite E] {d : ℕ} (h : G.MaxDegreeLE d) (v : V) : G.toSimpleGraph.degree v ≤ d := by
+  rw [← SimpleGraph.card_neighborFinset_eq_degree, SimpleGraph.neighborFinset,
+    ← ncard_eq_toFinset_card']
+  exact (G.ncard_neighborSet_toSimpleGraph_le v).trans (h v)
 
 /-- In maximum degree `d`, at most `d |S|` edges touch a set of vertices `S`. -/
 theorem ncard_touching_le [Finite E] [Finite V] {d : ℕ} (hd : G.MaxDegreeLE d) (S : Set V) :
@@ -91,16 +98,18 @@ theorem card_le_mul_card [Finite E] [Finite V] {d : ℕ} (hd : G.MaxDegreeLE d) 
   rwa [show G.touching univ = univ by ext; simp [mem_touching], ncard_univ, ncard_univ] at h
 
 /-- **The weighted handshake lemma.** In a finite loopless multigraph, the numbers of edges at
-the vertices, weighted by `w`, add up to the sum over the edges of the weights of their ends. -/
-theorem sum_ncard_incidenceSet_mul [Fintype V] [Fintype E] (hl : G.Loopless) (w : V → ℕ) :
-    ∑ v, (G.incidenceSet v).ncard * w v = ∑ e, (w (G.src e) + w (G.tgt e)) := by
+the vertices, weighted by `w : V → R` in any semiring `R`, add up to the sum over the edges of the
+weights of their ends. -/
+theorem sum_ncard_incidenceSet_mul [Fintype V] [Fintype E] {R : Type*} [Semiring R]
+    (hl : G.Loopless) (w : V → R) :
+    ∑ v, ((G.incidenceSet v).ncard : R) * w v = ∑ e, (w (G.src e) + w (G.tgt e)) := by
   classical
-  have hf (v : V) : (G.incidenceSet v).ncard * w v =
+  have hf (v : V) : ((G.incidenceSet v).ncard : R) * w v =
       ∑ e, if G.src e = v ∨ G.tgt e = v then w v else 0 := by
-    rw [← Finset.sum_filter, Finset.sum_const, smul_eq_mul, ← ncard_coe_finset]
-    congr 2
-    ext e
-    simp [mem_incidenceSet]
+    have hset : G.incidenceSet v = ↑(Finset.univ.filter fun e => G.src e = v ∨ G.tgt e = v) := by
+      ext e
+      simp [mem_incidenceSet]
+    rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul, hset, ncard_coe_finset]
   simp_rw [hf]
   rw [Finset.sum_comm]
   refine Finset.sum_congr rfl fun e _ => ?_
@@ -141,7 +150,8 @@ theorem core_density [Fintype V] [Fintype E] (hl : G.Loopless) {d : ℕ}
     omega
   calc 3 * d * Fintype.card V = ∑ _v : V, 3 * d := by simp [mul_comm]
     _ ≤ ∑ v, (G.incidenceSet v).ncard * w v := Finset.sum_le_sum fun v _ => hv v
-    _ = ∑ e, (w (G.src e) + w (G.tgt e)) := sum_ncard_incidenceSet_mul hl w
+    _ = ∑ e, (w (G.src e) + w (G.tgt e)) := by
+        simpa only [Nat.cast_id] using sum_ncard_incidenceSet_mul hl w
     _ ≤ ∑ _e : E, (d + 3) := Finset.sum_le_sum fun e _ => he e
     _ = (d + 3) * Fintype.card E := by simp [mul_comm]
 

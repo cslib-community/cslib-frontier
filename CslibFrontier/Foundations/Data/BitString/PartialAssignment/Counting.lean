@@ -14,10 +14,8 @@ public import Mathlib.Data.Fintype.Powerset
 import CslibFrontier.Foundations.Data.BitString.Agree
 import CslibFrontier.Foundations.Data.Nat.Choose
 import Mathlib.Algebra.BigOperators.Ring.Finset
-import Mathlib.Algebra.Group.Action.Defs
 import Mathlib.Combinatorics.Enumerative.DoubleCounting
 import Mathlib.Tactic.GCongr
-import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
@@ -61,7 +59,7 @@ method and Håstad's switching lemma.
 * [J. Håstad, *Almost optimal lower bounds for small depth circuits*][Hastad1986]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.BitString.PartialAssignment
 
@@ -79,7 +77,7 @@ def extensions (ρ₀ : PartialAssignment ι) (ℓ : ℕ) : Finset (PartialAssig
 free. -/
 @[simp] theorem mem_extensions {ρ₀ : PartialAssignment ι} {ℓ : ℕ} :
     ρ ∈ ρ₀.extensions ℓ ↔ ρ.Extends ρ₀ ∧ #ρ.free = ℓ := by
-  simp [extensions]
+  simp only [extensions, mem_filter, mem_univ, true_and]
 
 /-- For a fixed subset `S ∈ powersetCard ℓ ρ₀.free`, there are `2 ^ (#ρ₀.free - ℓ)` extensions in
 `ρ₀.extensions ℓ` whose free set is `S`. -/
@@ -94,10 +92,11 @@ theorem card_filter_extensions_free_eq (ρ₀ : PartialAssignment ι) (ℓ : ℕ
     constructor
     · rintro ⟨⟨hext, -⟩, rfl⟩ i
       by_cases hi : i ∈ ρ.free
-      · simp [hi, mem_free.1 hi]
+      · simp only [hi, ↓reduceIte, mem_singleton, mem_free.1 hi]
       · obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 fun h => hi (mem_free.2 h)
         by_cases hi₀ : i ∈ ρ₀.free
-        · cases b <;> simp [hi, hi₀, hb]
+        · cases b <;>
+            simp only [hi, ↓reduceIte, hi₀, mem_insert, mem_singleton, hb, true_or, or_true]
         · obtain ⟨c, hc⟩ := Option.ne_none_iff_exists'.1 fun h => hi₀ (mem_free.2 h)
           simp only [hi, ↓reduceIte, hi₀, mem_singleton]
           rw [hext i c hc, hc]
@@ -106,24 +105,28 @@ theorem card_filter_extensions_free_eq (ρ₀ : PartialAssignment ι) (ℓ : ℕ
         ext i
         have := h i
         by_cases hi : i ∈ S
-        · simp_all
+        · simp only [hi, ↓reduceIte, mem_singleton] at this
+          simp only [mem_free, this, hi]
         · by_cases hi₀ : i ∈ ρ₀.free
-          · cases hρ : ρ i <;> simp_all
+          · simp only [hi, ↓reduceIte, hi₀, mem_insert, mem_singleton] at this
+            simp only [mem_free, hi, iff_false]
+            rcases this with hρ | hρ <;> simp only [hρ, reduceCtorEq, not_false_eq_true]
           · simp only [hi, ↓reduceIte, hi₀, mem_singleton] at this
             simp only [mem_free, this, hi, iff_false]
             exact fun h' => hi₀ (mem_free.2 h')
       refine ⟨⟨fun i b hb => ?_, hfree ▸ hScard⟩, hfree⟩
-      have hi₀ : i ∉ ρ₀.free := by simp [mem_free, hb]
+      have hi₀ : i ∉ ρ₀.free := by simp only [mem_free, hb, reduceCtorEq, not_false_eq_true]
       have hi : i ∉ S := fun hi => hi₀ (hSsub hi)
-      simpa [hi, hi₀, hb] using h i
+      simpa only [hi, ↓reduceIte, hi₀, mem_singleton, hb] using h i
   rw [this, Fintype.card_piFinset]
   simp only [apply_ite card, card_singleton,
-    card_pair (show some false ≠ some true by simp)]
+    card_pair (by decide : some false ≠ some true)]
   rw [prod_ite, prod_const_one, one_mul, prod_ite, prod_const,
     prod_const_one, mul_one, filter_filter,
     show ({a | a ∉ S ∧ a ∈ ρ₀.free} : Finset ι) = ρ₀.free \ S by
       ext a
-      simp [and_comm], card_sdiff_of_subset hSsub, hScard]
+      simp only [mem_filter, mem_univ, true_and, mem_sdiff, and_comm],
+    card_sdiff_of_subset hSsub, hScard]
 
 /-- There are `(m choose ℓ) 2 ^ (m - ℓ)` extensions of `ρ₀` leaving `ℓ` of the `m` free
 coordinates of `ρ₀` free. -/
@@ -147,13 +150,7 @@ theorem card_filter_extensions_free_subset (ρ₀ : PartialAssignment ι) (ℓ :
   rw [sum_congr rfl (g := fun _ => 2 ^ (#ρ₀.free - ℓ)), sum_const, card_powersetCard, smul_eq_mul]
   intro S hS
   obtain ⟨hSsub, hScard⟩ := mem_powersetCard.1 hS
-  have hfilter :
-      {ρ ∈ {ρ ∈ ρ₀.extensions ℓ | ρ.free ⊆ U} | ρ.free = S} =
-        {ρ ∈ ρ₀.extensions ℓ | ρ.free = S} := by
-    ext ρ
-    simp only [mem_filter]
-    exact ⟨fun ⟨⟨h1, _⟩, h2⟩ => ⟨h1, h2⟩, fun ⟨h1, h2⟩ => ⟨⟨h1, h2 ▸ hSsub⟩, h2⟩⟩
-  rw [hfilter]
+  rw [filter_filter, filter_congr fun ρ _ => and_iff_right_of_imp fun h => h ▸ hSsub]
   exact card_filter_extensions_free_eq ρ₀ ℓ (mem_powersetCard.2 ⟨hSsub.trans hU, hScard⟩)
 
 /-- The number of extensions in `ρ₀.extensions ℓ` that fix every coordinate of `B ⊆ ρ₀.free` is
@@ -166,19 +163,9 @@ theorem card_filter_extensions_not_nonempty_inter (ρ₀ : PartialAssignment ι)
       {ρ ∈ ρ₀.extensions ℓ | ¬(ρ.free ∩ B).Nonempty} =
         {ρ ∈ ρ₀.extensions ℓ | ρ.free ⊆ ρ₀.free \ B} := by
     ext ρ
-    simp only [mem_filter, not_nonempty_iff_eq_empty]
-    refine and_congr_right fun hρ => ?_
-    have hsub := (mem_extensions.1 hρ).1.free_subset
-    constructor
-    · intro hemp i hi
-      refine mem_sdiff.2 ⟨hsub hi, fun hiB => ?_⟩
-      have : i ∈ (∅ : Finset ι) := hemp ▸ mem_inter.2 ⟨hi, hiB⟩
-      exact notMem_empty i this
-    · intro hsub'
-      ext i
-      simp only [mem_inter, notMem_empty, iff_false, not_and]
-      intro hi
-      exact (mem_sdiff.1 (hsub' hi)).2
+    simp only [mem_filter, not_nonempty_iff_eq_empty, ← disjoint_iff_inter_eq_empty,
+      subset_sdiff]
+    exact and_congr_right fun hρ => (and_iff_right (mem_extensions.1 hρ).1.free_subset).symm
   rw [heq, card_filter_extensions_free_subset ρ₀ ℓ sdiff_subset, card_sdiff_of_subset hB]
 
 variable (ι) in
@@ -189,7 +176,7 @@ abbrev withFree (ℓ : ℕ) : Finset (PartialAssignment ι) :=
 
 /-- `ρ` is in `withFree ι ℓ` exactly when it leaves exactly `ℓ` coordinates free. -/
 theorem mem_withFree {ℓ : ℕ} : ρ ∈ withFree ι ℓ ↔ #ρ.free = ℓ := by
-  simp
+  simp only [withFree, mem_extensions, extends_empty, true_and]
 
 /-- There are `(|ι| choose ℓ) 2 ^ (|ι| - ℓ)` partial assignments leaving exactly `ℓ` coordinates
 free. -/
@@ -211,7 +198,7 @@ theorem card_filter_extends_withFree {ρ' : PartialAssignment ι} {ℓ : ℕ}
       free (fun i => if i ∈ F then none else ρ' i) = F := by
     ext i
     by_cases hi : i ∈ F
-    · simp [hi]
+    · simp only [mem_free, hi, ↓reduceIte]
     · simp only [mem_free, hi, ↓reduceIte, iff_false]
       exact fun h => hi (hsub (mem_free.2 h))
   refine card_nbij' free (fun F i => if i ∈ F then none else ρ' i) (fun ρ hρ => ?_)
@@ -223,15 +210,15 @@ theorem card_filter_extends_withFree {ρ' : PartialAssignment ι} {ℓ : ℕ}
     refine mem_filter.2 ⟨mem_withFree.2 ?_, fun i b hb => ?_⟩
     · rw [hfree hsub]
       exact (mem_powersetCard.1 hF).2
-    · by_cases hi : i ∈ F
-      · simp [hi] at hb
-      · simpa [hi] using hb
+    · dsimp only at hb
+      split_ifs at hb
+      exact hb
   · obtain ⟨-, hext⟩ := mem_filter.1 hρ
     funext i
     by_cases hi : i ∈ ρ.free
-    · simp [hi, mem_free.1 hi]
+    · simp only [hi, ↓reduceIte, mem_free.1 hi]
     · obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 fun h => hi (mem_free.2 h)
-      simp [hi, hb, hext i b hb]
+      simp only [hi, ↓reduceIte, hb, hext i b hb]
   · exact hfree (mem_filter.1 hF).2
 
 /-! ### Drawing random restrictions -/
@@ -246,9 +233,10 @@ theorem card_filter_outside_eq (ρ : PartialAssignment ι) :
   simp only [mem_filter, mem_univ, true_and, funext_iff, outside]
   refine forall_congr' fun i => ?_
   by_cases hi : i ∈ ρ.free
-  · simp [hi, mem_free.1 hi]
+  · simp only [hi, ↓reduceIte, mem_free.1 hi, not_true_eq_false, false_implies]
   · obtain ⟨c, hc⟩ := Option.ne_none_iff_exists'.1 fun h => hi (mem_free.2 h)
-    simp [hi, hc, fill]
+    simp only [hi, ↓reduceIte, hc, fill, Option.getD_some, not_false_eq_true, forall_const,
+      Option.some.injEq]
 
 /-- **Drawing a free set and a word**: fixing the coordinates outside a set `J` of `ℓ`
 coordinates to a word `z` draws every partial assignment with `ℓ` free coordinates `2 ^ ℓ`
@@ -329,18 +317,19 @@ theorem sum_extensions_update (ρ₀ : PartialAssignment ι) {t : ℕ} (ht1 : 1 
     obtain ⟨hext, hfree⟩ := mem_extensions.1 hρ
     exact mem_sigma.2 ⟨mem_extensions.2 ⟨hext.update_some (hext.free_subset hi) x.2,
       by rw [free_update, card_erase_of_mem hi, hfree]⟩,
-      mem_sdiff.2 ⟨hext.free_subset hi, by simp⟩⟩
+      mem_sdiff.2 ⟨hext.free_subset hi,
+        by simp only [mem_free, update_self, reduceCtorEq, not_false_eq_true]⟩⟩
   · obtain ⟨hρ', hi⟩ := mem_sigma.1 hy
     obtain ⟨hext, hfree⟩ := mem_extensions.1 hρ'
     obtain ⟨hi₀, hi'⟩ := mem_sdiff.1 hi
     exact mem_product.2 ⟨mem_sigma.2 ⟨mem_extensions.2 ⟨hext.update_none hi₀,
       by rw [free_update_none, card_insert_of_notMem hi', hfree]; omega⟩,
-      by simp⟩, mem_univ _⟩
+      by simp only [mem_free, update_self]⟩, mem_univ _⟩
   · obtain ⟨⟨-, hi⟩, -⟩ := (mem_product.1 hx).imp_left mem_sigma.1
     ext : 1
     · exact Sigma.ext
         (by dsimp only; rw [update_idem, update_eq_self_iff.2 (mem_free.1 hi).symm]) HEq.rfl
-    · simp
+    · simp only [update_self, Option.getD_some]
   · obtain ⟨-, hi⟩ := mem_sigma.1 hy
     obtain ⟨c, hc⟩ := Option.ne_none_iff_exists'.1 fun h => (mem_sdiff.1 hi).2 (mem_free.2 h)
     exact Sigma.ext
@@ -398,8 +387,7 @@ theorem card_extensions_le_two_mul_card_filter_forall_nonempty
       _ ≤ (b * m).choose k * 2 ^ (b * m - k) :=
           Nat.mul_le_mul_right _ (Nat.two_pow_mul_choose_sub_le hb r)
       _ = #E := hE_card.symm
-  have hAsub : A ⊆ E := filter_subset _ _
-  have hpart : #(E \ A) + #A = #E := card_sdiff_add_card_eq_card hAsub
+  have hpart : #(E \ A) + #A = #E := card_sdiff_add_card_eq_card (filter_subset _ _)
   omega
 
 /-- **Two stages of restrictions, counted.** Drawing a restriction with `ℓ'` free bits by first
@@ -423,13 +411,10 @@ theorem mul_card_filter_withFree_le {n c G H G' ℓ ℓ' : ℕ} (hℓ'ℓ : ℓ'
   -- each restriction with `ℓ` free bits has few bad extensions, unless it satisfies `B`
   have hper : ∀ ρ ∈ W, c * #{ρ' ∈ ρ.extensions ℓ' | B' ρ'} ≤
       (if B ρ then c else 0) * T + H * T := fun ρ hρ => by
-    by_cases hb : B ρ
-    · simp only [hb, ↓reduceIte]
-      rw [← hT ρ hρ]
-      exact (Nat.mul_le_mul_left _ (card_filter_le _ _)).trans (Nat.le_add_right _ _)
-    · simp only [hb, ↓reduceIte, zero_mul, zero_add]
-      rw [← hT ρ hρ]
-      exact h₂ ρ hρ hb
+    rw [← hT ρ hρ]
+    split_ifs with hb
+    · exact (Nat.mul_le_mul_left _ (card_filter_le _ _)).trans (Nat.le_add_right _ _)
+    · simpa only [zero_mul, zero_add] using h₂ ρ hρ hb
   -- double counting the extensions, with and without the condition
   have hdc := sum_card_filter_extensions B' hℓ'ℓ
   have hall := sum_card_filter_extensions (ι := Fin n) (fun _ => True) hℓ'ℓ

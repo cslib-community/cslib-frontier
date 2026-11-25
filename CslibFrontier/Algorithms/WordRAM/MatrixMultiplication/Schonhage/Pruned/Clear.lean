@@ -11,7 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pr
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Control
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Sparse initialization of requested accumulators
@@ -79,12 +79,6 @@ def ClearLocal (i : Fin registers) : Prop := i = address ∨ i = query ∨ i = i
 instance (i : Fin registers) : Decidable (ClearLocal i) :=
   inferInstanceAs (Decidable (i = address ∨ i = query ∨ i = index))
 
-private theorem clearStep_preserves (i : Fin registers) :
-    ¬ClearLocal i → clearValueStep.Preserves i := by decide +kernel +revert
-
-private theorem clear_preserves (i : Fin registers) :
-    ¬ClearLocal i → clearRequested.Preserves i := by decide +kernel +revert
-
 /-- Each requested word costs an indexed source load, indexed zero store and increment. -/
 theorem exec_clearValueStep {w : ℕ} (x : Data registers) (q : ℕ)
     (hq : x.mem (x.regs listBase + x.regs index) = q)
@@ -94,13 +88,13 @@ theorem exec_clearValueStep {w : ℕ} (x : Data registers) (q : ℕ)
     ∃ y, ExecWithin w clearValueStep x y 5 ∧ y.regs index = x.regs index + 1 ∧
       y.mem = Function.update x.mem (x.regs valueBase + q) 0 ∧
       (∀ i, ¬ClearLocal i → y.regs i = x.regs i) := by
-  let y := (((((x.set address (x.regs listBase + x.regs index)).set query q).set
-    address (x.regs valueBase + q)).write (x.regs valueBase + q) 0).set
-    index (x.regs index + 1))
-  have he : ExecWithin w clearValueStep x y 5 := by
-    ram_eval [clearValueStep, y, hq, h0, h1, hr, hv, hi, address, query, index, listBase,
-      valueBase, nil, one, Fin.mk.injEq]
-  exact ⟨y, he, by simp [y], rfl, fun i hi => he.regs_eq (clearStep_preserves i hi)⟩
+  refine WP.exists_execWithin ?_
+  unfold clearValueStep
+  wram_exec [hq, h0, h1, hr, hv, hi]
+  refine ⟨by wram_simp, by wram_simp, fun i h => ?_⟩
+  simp only [ClearLocal, not_or] at h
+  rcases h with ⟨h1', h2', h3'⟩
+  wram_simp
 
 /-- The fixed native clearing loop visits only explicit requests. Width follows from concrete
 source/destination endpoints and lengths, and source preservation follows from their separation. -/
@@ -116,15 +110,9 @@ theorem exec_clearRequested {w N capacity : ℕ} (x : Data registers) (input : �
       y.mem = zeroQueryPrefix x.mem (x.regs valueBase) input N ∧
       (∀ i < N, y.mem (x.regs listBase + i) = input i) ∧
       (∀ i, ¬ClearLocal i → y.regs i = x.regs i) := by
-  let x0 := x.set index 0
   let P (j : ℕ) (y : Data registers) : Prop :=
     y.mem = zeroQueryPrefix x.mem (x.regs valueBase) input j ∧
     (∀ i, ¬ClearLocal i → y.regs i = x.regs i)
-  have hinit : P (x0.regs index) x0 := by
-    refine ⟨by simp [x0], ?_⟩
-    intro i hi
-    have hne : i ≠ index := by intro h; subst h; exact hi (Or.inr (Or.inr rfl))
-    simp [x0, hne]
   have hread (j : ℕ) (y : Data registers) (hj : j ≤ N) (hy : P j y) (i : ℕ) (hi : i < N) :
       y.mem (x.regs listBase + i) = input i := by
     rw [hy.1, zeroQueryPrefix_outside (fun j hj => hcode j (by omega))]
@@ -138,33 +126,27 @@ theorem exec_clearRequested {w N capacity : ℕ} (x : Data registers) (input : �
     obtain ⟨hm, hf⟩ := hy
     have hb := hf listBase (by decide)
     have hv := hf valueBase (by decide)
-    have hnil : y.regs nil = 0 := by regs_frame
-    have hone : y.regs one = 1 := by regs_frame
     have hq := hcode (y.regs index) hk
     obtain ⟨z, hz, hi, hmem, hregs⟩ := exec_clearValueStep y (input (y.regs index))
-      (by rw [hb]; exact hread (y.regs index) y hk.le ⟨hm, hf⟩ _ hk) hnil hone
+      (by rw [hb]; exact hread (y.regs index) y hk.le ⟨hm, hf⟩ _ hk) (by regs_frame) (by regs_frame)
       (hw.of_le (by rw [hb]; omega)) (hw.of_le (by rw [hv]; omega)) (hw.of_le (by omega))
     refine ⟨z, hz, ⟨?_, fun i hi => (hregs i hi).trans (hf i hi)⟩, hi⟩
     rw [hmem, hm, hv, zeroQueryPrefix_succ]
-  obtain ⟨y, hy, hIy, hindex⟩ := ExecWithin.loop_count P
-    (fun _ hy => (hy.2 count (by decide)).trans hN) hstep (by simp [x0]) hinit
-  have hsetup : ExecWithin w (ram[ index ← #0 ] : Code .standard registers) x x0 1 := by
-    ram_eval [x0]
-  have hloop : ExecWithin w (Code.loop (.lt index count) clearValueStep) x0 y (7 * N + 2) := by
-    simpa only [x0, Data.set_regs, Function.update_self, Nat.sub_zero, Nat.mul_comm] using hy
-  have he : ExecWithin w clearRequested x y (7 * N + 3) :=
-    (hsetup.seq hloop).mono (by omega)
-  exact ⟨y, he, hindex, hIy.1, hread N y le_rfl hIy,
-    fun i hi => he.regs_eq (clear_preserves i hi)⟩
+  refine WP.exists_execWithin ?_
+  unfold clearRequested
+  wram_exec
+  wram_call (ExecWithin.loop_count P (fun _ hy => (hy.2 count (by decide)).trans hN) hstep
+    (by wram_simp; exact Nat.zero_le _)
+    ⟨by wram_simp; exact (zeroQueryPrefix_zero _ _ _).symm, fun i hi => by
+      simp only [ClearLocal, not_or] at hi; rcases hi with ⟨_, _, h3⟩; wram_simp⟩)
+    with y ⟨hIy, hindex⟩
+  exact ⟨by wram_simp; omega, hindex, hIy.1, hread N y le_rfl hIy, hIy.2⟩
 
 /-- Registers changed by a complete internal-node initialization. -/
 def ClearValuesLocal (i : Fin registers) : Prop := ClearLocal i ∨ AdvanceLocal i
 
 instance (i : Fin registers) : Decidable (ClearValuesLocal i) :=
   inferInstanceAs (Decidable (ClearLocal i ∨ AdvanceLocal i))
-
-private theorem clearValues_preserves (i : Fin registers) :
-    ¬ClearValuesLocal i → clearValues.Preserves i := by decide +kernel +revert
 
 /-- Sparse clearing and actual stored-frame initialization together cost `7 N + 8` instructions.
 The source list is preserved; the only additional memory write is its frame's fourth word. -/
@@ -185,21 +167,21 @@ theorem exec_clearValues {w N capacity : ℕ} (x : Data registers) (input : ℕ 
         (x.regs frame + 3) 0 ∧
       (∀ i < N, y.mem (x.regs listBase + i) = input i) ∧
       (∀ i, ¬ClearValuesLocal i → y.regs i = x.regs i) := by
-  obtain ⟨z, hz, hindex, hmem, hread, hregs⟩ :=
-    exec_clearRequested x input hN hinput hcode hsep h0 h1 hw
+  refine WP.exists_execWithin ?_
+  unfold clearValues
+  wram_call (exec_clearRequested x input hN hinput hcode hsep h0 h1 hw)
+    with z ⟨hindex, hmem, hread, hregs⟩
   have hframe := hregs frame (by decide)
-  obtain ⟨y, hy, hterm, hmode, hmem', hregs'⟩ := exec_clearValuesFinish z
-    (by regs_frame) (by regs_frame)
-    (by simpa only [hframe] using hf)
-  have he : ExecWithin w clearValues x y (7 * N + 8) := (hz.seq hy).mono (by omega)
-  have hm : y.mem = Function.update z.mem (x.regs frame + 3) 0 := by
-    simpa only [hframe] using hmem'
-  refine ⟨y, he, by regs_frame, hterm, hmode,
-    by rw [hm, hmem], ?_, fun i hi => he.regs_eq (clearValues_preserves i hi)⟩
-  intro i hi
-  have hne : x.regs listBase + i ≠ x.regs frame + 3 := by
-    rcases hframeSep with h | h <;> omega
-  rw [hm, Function.update_of_ne hne]
-  exact hread i hi
+  wram_call (exec_clearValuesFinish z (by regs_frame) (by regs_frame) (by rwa [hframe]))
+    with y ⟨hterm, hmode, hmem', hregs'⟩
+  have hm : y.mem = Function.update z.mem (x.regs frame + 3) 0 := by simpa only [hframe] using hmem'
+  refine ⟨by omega, by regs_frame, hterm, hmode, by rw [hm, hmem], ?_, fun i hi => ?_⟩
+  · intro i hi
+    have hne : x.regs listBase + i ≠ x.regs frame + 3 := by
+      rcases hframeSep with h | h <;> omega
+    rw [hm, Function.update_of_ne hne]
+    exact hread i hi
+  · simp only [ClearValuesLocal, not_or] at hi
+    exact (hregs' i hi.2).trans (hregs i hi.1)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

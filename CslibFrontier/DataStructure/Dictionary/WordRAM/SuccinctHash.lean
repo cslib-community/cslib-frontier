@@ -226,8 +226,7 @@ theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (h
       (totalMicroBits_le_of_le_pow hnU hU)
       hw2
     have hm := max_eight_two_pow_hashB_div_two_le n_max
-    have hdiv1 : 2 * max 8 (2 ^ (hashB n_max / 2)) / w ≤ (16 + 2 * n_max) / w :=
-      Nat.div_le_div_right (by omega)
+    have hdiv1 : 2 * max 8 (2 ^ (hashB n_max / 2)) / w ≤ (16 + 2 * n_max) / w := by gcongr; omega
     have hdiv2 : (16 + 2 * n_max) / w < 9 + (2 * n_max + w - 1) / w := by
       refine Nat.div_lt_of_lt_mul ?_
       have h2 := Nat.div_add_mod (2 * n_max + w - 1) w
@@ -305,8 +304,7 @@ theorem space_le_succinctWords {U V w n_max : ℕ}
   have hdiv :
       (Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max +
         (2 * n_max) * 1 + w - 1) / w ≤
-      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w :=
-    Nat.div_le_div_right hnum
+      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w := by gcongr
   wram_omega [htab]
 
 /-! ## Section 2: Expected `probeExcess` bound (`≤ 5`) under `ReducedPolySeed` -/
@@ -400,8 +398,7 @@ theorem tsum_uniform_probeExcess_reducedPolyHash_le_five {U n_max : ℕ} (hnU : 
           (2 * 2 ^ (qBits U n_max - 1)) * 2 ^ (3 * hashB n_max) := by
       calc (#(univ \ G) * (2 * #(S.erase u))) * 2 ^ (3 * hashB n_max)
           = (#(univ \ G) * 2 ^ (3 * hashB n_max)) * (2 * #(S.erase u)) := by ring
-        _ ≤ ((#S_Q * (#S_Q - 1)) * 2 ^ (qBits U n_max - 1)) * (2 * #(S.erase u)) :=
-            Nat.mul_le_mul_right _ hunion
+        _ ≤ ((#S_Q * (#S_Q - 1)) * 2 ^ (qBits U n_max - 1)) * (2 * #(S.erase u)) := by gcongr
         _ = ((#S_Q * (#S_Q - 1)) * (2 * #(S.erase u))) * 2 ^ (qBits U n_max - 1) := by ring
         _ ≤ (2 * 2 ^ (3 * hashB n_max)) * 2 ^ (qBits U n_max - 1) :=
             Nat.mul_le_mul_right _ hprod_le
@@ -799,8 +796,7 @@ theorem realizes_queryWithHashGen :
       (WordEncoding.encode (α := Option ℕ))
       QueryWithHashGenPre
       (fun _ _ => 0) := by
-  have hqb := realizes_queryBodyGen
-  realize
+  realize [realizes_queryBodyGen]
   all_goals (
     rcases d with ⟨dp, d⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.2.2.2.1
@@ -885,8 +881,7 @@ theorem realizes_insertWithHashGen :
       (WordEncoding.encode (α := Unit))
       InsertWithHashGenPre
       (fun _ _ => 0) := by
-  have hib := realizes_insertBodyGen
-  realize
+  realize [realizes_insertBodyGen]
   all_goals (
     rcases d with ⟨dp, d⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.2.2.2.1.1
@@ -947,8 +942,7 @@ theorem realizes_deletePrepWithHashGen :
       (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ))
       QueryWithHashGenPre
       (fun _ _ => 0) := by
-  have hdp := realizes_deletePrepGen
-  realize
+  realize [realizes_deletePrepGen]
   all_goals (
     rcases d with ⟨dp, d⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.2.2.2.1
@@ -1045,8 +1039,7 @@ theorem realizes_deleteFinishWithHashGen :
       (WordEncoding.encode (α := Unit))
       DeleteFinishWithHashGenPre
       (fun _ _ => 0) := by
-  have hdf := realizes_deleteFinishGen
-  realize
+  realize [realizes_deleteFinishGen]
   all_goals (
     rcases d with ⟨dp, d⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.2.2.2.1
@@ -1287,7 +1280,7 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
       (deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m)))
   dsimp only at hprep_spec hfin_spec
   rw [hprep_val] at hprep_spec hfin_spec
-  dsimp only at hprep_spec hfin_spec
+  dsimp only [deletePrepFound, deletePrepIdx, deletePrepPhys, deletePrepHdr] at hprep_spec hfin_spec
   refine ⟨found, j_del, phys_del, q_last, ?_⟩
   intro prep h_q_last d_fin prog_fin s' gm₀ gm'
   have hfin_eq : prog_fin =

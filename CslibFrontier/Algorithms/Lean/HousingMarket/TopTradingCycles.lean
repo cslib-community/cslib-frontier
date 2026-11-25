@@ -281,7 +281,7 @@ variable {I}
 
 /-- An allocation that maps a finite set `C` into itself maps it onto itself, so it sends no agent
 outside `C` into `C`. -/
-private theorem mem_of_apply_mem {C : Finset (Fin n)} (ν : Allocation n)
+theorem mem_of_apply_mem {C : Finset (Fin n)} (ν : Allocation n)
     (hC : ∀ b ∈ C, ν b ∈ C) {a : Fin n} (ha : ν a ∈ C) : a ∈ C := by
   obtain ⟨b, hb, hba⟩ := ((Set.Finite.injOn_iff_bijOn_of_mapsTo (Finset.finite_toSet C) hC).1
     ν.injective.injOn).surjOn (Finset.mem_coe.2 ha)

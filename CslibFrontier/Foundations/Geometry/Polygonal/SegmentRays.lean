@@ -10,10 +10,10 @@ module
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityColors
 
 /-!
-# Distinct endpoint rays of an interior-disjoint segment arrangement
+# Distinct endpoint rays of a segment arrangement
 
-Actual nondegenerate segments with disjoint interiors have distinct outgoing rays at
-each common endpoint. The proof retains the indexed occurrences and both segment ends.
+Nondegenerate segments that meet in at most one open point have distinct outgoing rays
+at each common endpoint. The proof retains the indexed occurrences and both segment ends.
 -/
 
 public section
@@ -38,12 +38,12 @@ theorem rayEndVector_ne_zero {ι : Type*} (a b : ι → ℂ)
   · exact (hab i).symm
   · exact hab i
 
-/-- Interior disjointness forces distinct indexed outgoing rays at a common endpoint.
-Equal rays would give an actual common point at positive parameters less than one third. -/
-theorem rayEndVector_injective_of_interior_disjoint {ι : Type*}
+/-- A segment arrangement with at most one open intersection per pair has distinct indexed
+outgoing rays at each common endpoint. Equal rays would give two interior points in common. -/
+theorem rayEndVector_injective_of_open_inter_subsingleton {ι : Type*}
     (a b : ι → ℂ) (hab : ∀ i, a i ≠ b i)
-    (hdisjoint : ∀ i j, j ≠ i → ∀ t ∈ Set.Ioo (0 : ℝ) 1,
-      AffineMap.lineMap (a i) (b i) t ∉ segment ℝ (a j) (b j))
+    (hinter : ∀ i j, i ≠ j →
+      (openSegment ℝ (a i) (b i) ∩ openSegment ℝ (a j) (b j)).Subsingleton)
     (k e : ι × Bool) (hp : rayEndpoint a b e = rayEndpoint a b k)
     (harg : turnArg (rayEndVector a b e) = turnArg (rayEndVector a b k)) : e = k := by
   have harg' : (rayEndVector a b e).arg = (rayEndVector a b k).arg :=
@@ -56,25 +56,36 @@ theorem rayEndVector_injective_of_interior_disjoint {ι : Type*}
       (if tag then 1 - u else u) ∈ Set.Ioo (0 : ℝ) 1 := by
     cases tag <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
       constructor <;> linarith [hu.1, hu.2]
-  have hpoint : AffineMap.lineMap (a e.1) (b e.1) (if e.2 then 1 - s else s) =
-      AffineMap.lineMap (a k.1) (b k.1) (if k.2 then 1 - t else t) := by
-    rw [← rayEndpoint_add_smul_endVector, ← rayEndpoint_add_smul_endVector, hp, hst]
+  let pe : ℝ → ℂ := fun r => AffineMap.lineMap (a e.1) (b e.1) (if e.2 then 1 - r else r)
+  let pk : ℝ → ℂ := fun r => AffineMap.lineMap (a k.1) (b k.1) (if k.2 then 1 - r else r)
+  have hpoint {p q : ℝ} (hsame : p • rayEndVector a b e = q • rayEndVector a b k) :
+      pe p = pk q := by
+    dsimp only [pe, pk]
+    rw [← rayEndpoint_add_smul_endVector, ← rayEndpoint_add_smul_endVector, hp, hsame]
   have hindex : e.1 = k.1 := by
     by_contra hne
-    apply hdisjoint e.1 k.1 (Ne.symm hne) _ (hparam e.2 hs)
-    rw [hpoint]
-    exact lineMap_mem_segment ℝ _ _ ⟨(hparam k.2 ht).1.le, (hparam k.2 ht).2.le⟩
+    have hit {p q : ℝ} (hp' : p ∈ Set.Ioo 0 (1 / 3)) (hq : q ∈ Set.Ioo 0 (1 / 3))
+        (hsame : p • rayEndVector a b e = q • rayEndVector a b k) :
+        pe p ∈ openSegment ℝ (a e.1) (b e.1) ∩ openSegment ℝ (a k.1) (b k.1) :=
+      ⟨lineMap_mem_openSegment ℝ _ _ (hparam e.2 hp'),
+        hpoint hsame ▸ lineMap_mem_openSegment ℝ _ _ (hparam k.2 hq)⟩
+    have hhalf : (s / 2) • rayEndVector a b e = (t / 2) • rayEndVector a b k := by
+      simpa only [smul_smul, div_eq_inv_mul] using congrArg ((2 : ℝ)⁻¹ • ·) hst
+    have hs' : s / 2 ∈ Set.Ioo 0 (1 / 3) := ⟨by linarith [hs.1], by linarith [hs.2]⟩
+    have ht' : t / 2 ∈ Set.Ioo 0 (1 / 3) := ⟨by linarith [ht.1], by linarith [ht.2]⟩
+    have heq : (if e.2 then 1 - s else s) = (if e.2 then 1 - s / 2 else s / 2) :=
+      AffineMap.lineMap_injective ℝ (hab e.1)
+        (hinter e.1 k.1 hne (hit hs ht hst) (hit hs' ht' hhalf))
+    by_cases htag : e.2 = true <;>
+      simp only [htag, Bool.false_eq_true, ↓reduceIte] at heq <;> linarith [hs.1]
   rcases e with ⟨i, tag⟩
   rcases k with ⟨j, other⟩
   change i = j at hindex
   subst j
-  have htime := AffineMap.lineMap_injective ℝ (hab i) hpoint
-  cases tag <;> cases other <;> simp only [Bool.false_eq_true, ↓reduceIte] at htime
+  cases tag <;> cases other
   · rfl
-  · exfalso
-    linarith [hs.2, ht.2]
-  · exfalso
-    linarith [hs.2, ht.2]
+  · exact (hab i hp).elim
+  · exact (hab i hp.symm).elim
   · rfl
 
 end Cslib.Polygonal

@@ -292,9 +292,7 @@ theorem rot_pow_walkDrop (p : V × (Fin t → D)) (n : ℕ) :
     dsimp only
     rw [Fin.take_apply, h₁, h₂, walkDart_walkDrop]
     congr 3
-    ext
-    simp only [Fin.val_rev, Fin.val_castLE]
-    omega
+    fin_index
 
 end Reverse
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.Expander.Cheeger
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Regular multigraphs of permutations
@@ -134,8 +135,7 @@ theorem le_edgeExpansion_ofPerms [Nontrivial V] {c : ℝ}
   refine (ofPerms σ).le_edgeExpansion_iff.2 fun S hS ↦ ?_
   rw [card_interedges_compl_ofPerms]
   have := h S hS
-  push_cast at this ⊢
-  linarith
+  cast_linarith
 
 omit [DecidableEq V] in
 /-- **The Dirichlet form of a permutation multigraph**: the correlation of `f` with its walk is

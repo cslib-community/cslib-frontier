@@ -74,11 +74,9 @@ theorem cost_equalBits {n k : ℕ} (left right : Fin k → Fin n) (cost : signat
     (equalBits left right).cost cost =
       cost (.const true) + k * (3 * cost .and + 2 * cost .not + cost .or) := by
   induction k with
-  | zero => simp [equalBits, Formula.const]
+  | zero => simp [equalBits]
   | succ k ih =>
-    simp only [equalBits, Formula.and, Formula.or, Formula.not, Formula.cost_gate,
-      Formula.cost_input, Fin.sum_univ_two, Fin.sum_univ_one, Matrix.cons_val_zero,
-      Matrix.cons_val_one, ih]
+    simp only [circuit_simps, equalBits, ih]
     ring
 
 /-- The formula has six gates per selected coordinate and one constant gate. -/
@@ -113,9 +111,9 @@ theorem cost_program_adjacentEqualityCircuit {input count keyWidth : ℕ}
       cost (.const false) + (count - 1) *
         (cost (.const true) + keyWidth * (3 * cost .and + 2 * cost .not + cost .or)) := by
   cases count with
-  | zero => simp [adjacentEqualityCircuit, Circuit.cost_program_pi]
+  | zero => simp [circuit_simps, adjacentEqualityCircuit]
   | succ count =>
-    simp [adjacentEqualityCircuit, Circuit.cost_program_pi, Fin.sum_univ_succ,
-      Formula.cost_toCircuit, Formula.cost_equalBits, Formula.const, Nat.add_comm]
+    simp [circuit_simps, adjacentEqualityCircuit, Fin.sum_univ_succ, Formula.cost_equalBits,
+      Nat.add_comm]
 
 end Cslib.Circuits.Boolean

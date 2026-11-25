@@ -561,15 +561,11 @@ noncomputable def boundedConditionalSample (R : SelfReducible enc W) (count : α
   R.finishConditionalWalk <$>
     OracleComp.iterate (R.len x) (R.conditionalWalkStep count fuel) ⟨x, c, [], decide (0 < c)⟩
 
-private theorem conditionalWalkStep_inactive (R : SelfReducible enc W) (count : α → ℕ) (fuel : ℕ)
-    (nd : α) (cv : ℕ) (rb : List Bool) :
-    R.conditionalWalkStep count fuel ⟨nd, cv, rb, false⟩ = pure ⟨nd, cv, rb, false⟩ := rfl
-
 private theorem iterate_conditionalWalkStep_inactive (R : SelfReducible enc W) (count : α → ℕ)
     (fuel n : ℕ) (nd : α) (cv : ℕ) (rb : List Bool) :
     OracleComp.iterate n (R.conditionalWalkStep count fuel) ⟨nd, cv, rb, false⟩ =
       pure ⟨nd, cv, rb, false⟩ :=
-  OracleComp.iterate_eq_pure n _ _ (R.conditionalWalkStep_inactive count fuel nd cv rb)
+  OracleComp.iterate_eq_pure n _ _ rfl
 
 /-- Iterative `conditionalWalkStep` agrees with recursive `boundedConditionalWalk`. -/
 theorem map_finish_iterate_conditionalWalkStep (R : SelfReducible enc W) (count : α → ℕ)

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
 public import CslibFrontier.Foundations.BooleanAnalysis.Influence
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Algebra.Order.Ring.Pow
 import Mathlib.Tactic.Linarith
 
@@ -36,7 +37,12 @@ probability `δ`. Reading `f` as the function `F = (-1) ^ f` with values `±1`, 
 hence `NS_δ[f] = ∑_S (1 - (1 - 2 δ) ^ |S|) / 2 F̂(S) ^ 2` (`BitString.noiseSensitivity_eq_sum`)
 [O'Donnell, Section 2.4][ODonnell2014], and `NS_δ[f] ≤ δ I[F]`, at most `δ` times the total
 influence (`BitString.noiseSensitivity_le_mul_totalInfluence`)
-[O'Donnell, Exercise 2.42][ODonnell2014].
+[O'Donnell, Exercise 2.42][ODonnell2014]. A function close to a constant `b` is also stable
+under noise: `f x ≠ f y` forces `x` or `y`, each uniform, to lie where `f ≠ b`, so `NS_δ[f]` is
+at most twice the relative Hamming distance from `f` to `b`
+(`BitString.noiseSensitivity_le_two_mul_hammingDist_div`), and at most twice the distance to
+the nearer constant (`BitString.noiseSensitivity_le_two_mul_min`)
+[O'Donnell, Exercise 2.39][ODonnell2014].
 
 The noised string is `x + P`, the coordinatewise exclusive or of `x` with a random mask `P` of
 `BitString.bernoulliAverage`, bit strings adding in Mathlib's Boolean ring structure on
@@ -83,6 +89,27 @@ signed-weight averages.
   [O'Donnell, Definition 2.43 and Theorem 2.49][ODonnell2014].
 * `Cslib.BitString.noiseSensitivity_le_mul_totalInfluence`: the noise sensitivity at `δ` is at
   most `δ` times the total influence.
+* `Cslib.BitString.noiseSensitivity_le_two_mul_hammingDist_div`,
+  `Cslib.BitString.noiseSensitivity_le_two_mul_min`: the noise sensitivity is at most twice the
+  relative Hamming distance to either constant, and to the nearer one
+  [O'Donnell, Exercise 2.39][ODonnell2014].
+
+## Usage
+
+For `hδ : δ ≤ 1` and `f : (ι → Bool) → Bool`, `noiseSensitivity_le_two_mul_hammingDist_div hδ f b`
+bounds `noiseSensitivity δ f` by twice the relative Hamming distance
+`hammingDist f (fun _ => b) / 2 ^ Fintype.card ι` from `f` to the constant `b`, and
+`noiseSensitivity_le_two_mul_min hδ f` by twice the distance to the nearer constant. That distance
+is the book's `α = min(Pr[F = 1], Pr[F = -1])` for `F = (-1) ^ f`; both constants enter the
+minimum, so the convention that `false` reads as `1` does not matter. The book also asks for
+`0 ≤ δ`, which is not needed: below `0`, where `noiseSensitivity δ f` is no longer a probability,
+the bound of Exercise 2.42 is nonpositive. The same distance is the `ε` of Proposition 1.15 in
+`CslibFrontier.Foundations.BooleanAnalysis.Variance`, so
+`(noiseSensitivity_le_two_mul_min hδ f).trans (two_mul_min_le_expect_sub_expect_sq_signVal f)`
+bounds the noise sensitivity by the variance of `F`. The checked clients in
+[CslibFrontierTests/BooleanAnalysisNearlyConstant.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisNearlyConstant.lean)
+apply both bounds to the conjunction of two bits, show that the bound is attained there at
+`δ = 1`, and chain the bound with Proposition 1.15.
 
 ## References
 
@@ -220,7 +247,7 @@ to a positive function: every point is reached with positive probability. -/
 theorem noiseOp_pos_of_nonneg {ρ : ℝ} (hρ : -1 < ρ) (hρ' : ρ < 1) {g : (ι → Bool) → ℝ}
     (hg : ∀ x, 0 ≤ g x) {y : ι → Bool} (hy : 0 < g y) (x : ι → Bool) : 0 < noiseOp ρ g x := by
   have hw (P : ι → Bool) : 0 < bernoulliWeight ((1 - ρ) / 2) P :=
-    prod_pos fun i _ => by split_ifs <;> linarith
+    bernoulliWeight_pos (by linarith) (by linarith) P
   refine sum_pos' (fun P _ => mul_nonneg (hw P).le (hg _)) ⟨x + y, mem_univ _, mul_pos (hw _) ?_⟩
   have hxy : x + (x + y) = y := funext fun i => by
     change x i + (x i + y i) = y i
@@ -429,5 +456,41 @@ theorem noiseSensitivity_le_mul_totalInfluence {δ : ℝ} (hδ : δ ≤ 1) (f : 
   refine sum_le_sum fun S _ => ?_
   have h := one_add_mul_sub_le_pow (show -1 ≤ 1 - 2 * δ by linarith) #S
   nlinarith [sq_nonneg (fourierCoeff (fun x => signVal (f x)) S)]
+
+/-- **The noise sensitivity is at most twice the distance to either constant**: for `δ ≤ 1`,
+`NS_δ[f] ≤ 2 Pr[f ≠ b]`, since `f x ≠ f y` forces `x` or `y`, each uniform, to lie where `f ≠ b`. -/
+theorem noiseSensitivity_le_two_mul_hammingDist_div {δ : ℝ} (hδ : δ ≤ 1)
+    (f : (ι → Bool) → Bool) (b : Bool) :
+    noiseSensitivity δ f ≤ 2 * ((hammingDist f (fun _ => b) : ℝ) / 2 ^ Fintype.card ι) := by
+  rcases lt_or_ge δ 0 with hδ₀ | hδ₀
+  · -- at negative rates the bound of Exercise 2.42 is nonpositive
+    exact (noiseSensitivity_le_mul_totalInfluence hδ f).trans <| (mul_nonpos_of_nonpos_of_nonneg
+      hδ₀.le (totalInfluence_nonneg _)).trans (by positivity)
+  set g : (ι → Bool) → ℝ := fun x => if f x ≠ b then 1 else 0
+  have hpt (x P : ι → Bool) : (if f x ≠ f (x + P) then (1 : ℝ) else 0) ≤ g x + g (x + P) := by
+    simp only [g]; cases f x <;> cases f (x + P) <;> cases b <;> simp
+  have htr (P : ι → Bool) : 𝔼 x, g (x + P) = 𝔼 x, g x := by
+    simpa only [add_comm P] using Fintype.expect_add_left g P
+  calc noiseSensitivity δ f
+      ≤ 𝔼 x, bernoulliAverage δ fun P => g x + g (x + P) :=
+        expect_le_expect fun x _ => bernoulliAverage_mono hδ₀ hδ (hpt x)
+    _ = 2 * 𝔼 x, g x := by
+        simp only [bernoulliAverage_add, bernoulliAverage_const, expect_add_distrib,
+          ← bernoulliAverage_expect_comm, htr]
+        ring
+    _ = 2 * ((hammingDist f (fun _ => b) : ℝ) / 2 ^ Fintype.card ι) := by
+        rw [show (2 : ℝ) ^ Fintype.card ι = Fintype.card (ι → Bool) by simp,
+          hammingDist_div_eq_expect]
+
+/-- **Nearly constant functions are stable under noise** [O'Donnell, Exercise 2.39][ODonnell2014]:
+for `δ ≤ 1`, `NS_δ[f] ≤ 2 α` for `α = min (Pr[F = 1], Pr[F = -1])` with `F = (-1) ^ f`, the
+relative Hamming distance from `f` to the nearer constant. -/
+theorem noiseSensitivity_le_two_mul_min {δ : ℝ} (hδ : δ ≤ 1) (f : (ι → Bool) → Bool) :
+    noiseSensitivity δ f ≤
+      2 * min ((hammingDist f (fun _ => false) : ℝ) / 2 ^ Fintype.card ι)
+        (hammingDist f (fun _ => true) / 2 ^ Fintype.card ι) := by
+  rw [mul_min_of_nonneg _ _ zero_le_two]
+  exact le_min (noiseSensitivity_le_two_mul_hammingDist_div hδ f false)
+    (noiseSensitivity_le_two_mul_hammingDist_div hδ f true)
 
 end Cslib.BitString

@@ -63,8 +63,7 @@ backwards by a forward implication. This reuses the ordinary implication-clause 
 /-- A link enforces exactly the direction needed for its literal's truth. -/
 theorem eval_link_iff (σ : V → Bool) (b : Bool) (previous next : V) :
     (link b previous next).eval σ = true ↔ (σ next = b → σ previous = b) := by
-  cases b <;> cases hp : σ previous <;> cases hn : σ next <;>
-    simp [link, Clause.eval_imp, hp, hn]
+  grind [link, Clause.eval_imp]
 
 /-- All links hold exactly when literal truth propagates across every gap. -/
 theorem eval_links_iff (σ : V → Bool) (b : Bool) (cells : List (V × V)) :

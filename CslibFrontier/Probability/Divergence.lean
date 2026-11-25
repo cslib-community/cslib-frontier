@@ -15,6 +15,7 @@ import CslibFrontier.Probability.Pinsker
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.InformationTheory.KullbackLeibler.DataProcessing
 import Mathlib.Probability.ProbabilityMassFunction.Integrals
 
@@ -184,8 +185,8 @@ private theorem mul_surprisal_sub_eq {p q : PMF α} (h : p.support ⊆ q.support
   by_cases hp : p a = 0
   · simp [hp]
   have hq : q a ≠ 0 := (PMF.mem_support_iff q a).mp (h ((PMF.mem_support_iff p a).mpr hp))
-  have hp' : (p a).toReal ≠ 0 := ENNReal.toReal_ne_zero.mpr ⟨hp, PMF.apply_ne_top p a⟩
-  have hq' : (q a).toReal ≠ 0 := ENNReal.toReal_ne_zero.mpr ⟨hq, PMF.apply_ne_top q a⟩
+  have hp' : (p a).toReal ≠ 0 := by ennreal_to_real using hp
+  have hq' : (q a).toReal ≠ 0 := by ennreal_to_real using hq
   rw [surprisal, surprisal, Real.logb, Real.logb, Real.log_div hp' hq']
   ring
 
@@ -251,9 +252,10 @@ theorem entropy_eq_logb_card_sub_klDiv [Nonempty α] [MeasurableSpace α]
         (p a).toReal * Real.logb 2 (Fintype.card α) - (p a).toReal * surprisal p a := by
     by_cases hp : p a = 0
     · simp [hp]
-    have hp' : (p a).toReal ≠ 0 := ENNReal.toReal_ne_zero.mpr ⟨hp, PMF.apply_ne_top p a⟩
-    simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-      div_inv_eq_mul, surprisal, Real.logb, Real.log_mul hp' hcard.ne']
+    have hp' : (p a).toReal ≠ 0 := by ennreal_to_real using hp
+    simp only [PMF.uniformOfFintype_apply]
+    ennreal_to_real
+    simp only [div_inv_eq_mul, surprisal, Real.logb, Real.log_mul hp' hcard.ne']
     ring
   simp only [Finset.sum_div, hterm, Finset.sum_sub_distrib, ← Finset.sum_mul, sum_toReal,
     one_mul]
@@ -266,7 +268,7 @@ end Gibbs
 section MutualInformation
 
 /-- A joint law is supported where the product of its marginals is. -/
-private theorem support_subset_bind_map_prodMk (joint : PMF (α × β)) :
+theorem support_subset_bind_map_prodMk (joint : PMF (α × β)) :
     joint.support ⊆
       ((joint.map Prod.fst).bind fun a => (joint.map Prod.snd).map (a, ·)).support := by
   intro pair hpair
@@ -294,15 +296,16 @@ theorem entropy_map_fst_add_entropy_map_snd_sub_entropy [Finite α] [Finite β]
             (joint pair).toReal * Real.log ((joint.map Prod.snd) pair.2).toReal := by
     by_cases hp : joint pair = 0
     · simp [hp]
-    have hp' : (joint pair).toReal ≠ 0 := ENNReal.toReal_ne_zero.mpr ⟨hp, PMF.apply_ne_top _ _⟩
-    have h1 : ((joint.map Prod.fst) pair.1).toReal ≠ 0 :=
-      ENNReal.toReal_ne_zero.mpr ⟨ne_of_gt (lt_of_lt_of_le (pos_iff_ne_zero.mpr hp)
-        (le_map_apply joint Prod.fst pair)), PMF.apply_ne_top _ _⟩
-    have h2 : ((joint.map Prod.snd) pair.2).toReal ≠ 0 :=
-      ENNReal.toReal_ne_zero.mpr ⟨ne_of_gt (lt_of_lt_of_le (pos_iff_ne_zero.mpr hp)
-        (le_map_apply joint Prod.snd pair)), PMF.apply_ne_top _ _⟩
-    rw [bind_map_prodMk_apply, ENNReal.toReal_mul, Real.log_div hp' (mul_ne_zero h1 h2),
-      Real.log_mul h1 h2, Real.negMulLog]
+    have hp' : (joint pair).toReal ≠ 0 := by ennreal_to_real using hp
+    have h1 : ((joint.map Prod.fst) pair.1).toReal ≠ 0 := by
+      ennreal_to_real using
+        ne_of_gt (lt_of_lt_of_le (pos_iff_ne_zero.mpr hp) (le_map_apply joint Prod.fst pair))
+    have h2 : ((joint.map Prod.snd) pair.2).toReal ≠ 0 := by
+      ennreal_to_real using
+        ne_of_gt (lt_of_lt_of_le (pos_iff_ne_zero.mpr hp) (le_map_apply joint Prod.snd pair))
+    rw [bind_map_prodMk_apply]
+    ennreal_to_real
+    rw [Real.log_div hp' (mul_ne_zero h1 h2), Real.log_mul h1 h2, Real.negMulLog]
     ring
   simp only [hterm, Finset.sum_sub_distrib]
   rw [← sum_map_mul joint Prod.fst (fun a => Real.log ((joint.map Prod.fst) a).toReal),
@@ -347,9 +350,8 @@ theorem entropy_eq_entropy_map_fst_add_entropy_map_snd_iff (joint : PMF (α × �
       rw [show entropy (joint.map Prod.fst) + entropy (joint.map Prod.snd) - entropy joint = 0
         by linarith, eq_comm, div_eq_zero_iff] at h
       exact h.resolve_right hlog.ne'
-    rcases ENNReal.toReal_eq_zero_iff _ |>.mp h0 with h0 | htop
-    · exact PMF.toMeasure_injective (klDiv_eq_zero_iff.mp h0)
-    · exact absurd htop (hne.mpr (support_subset_bind_map_prodMk joint))
+    have hfin := hne.mpr (support_subset_bind_map_prodMk joint)
+    exact PMF.toMeasure_injective (klDiv_eq_zero_iff.mp (by ennreal_to_real using h0))
   · intro heq
     rw [← heq, klDiv_self, ENNReal.toReal_zero, zero_div] at h
     linarith

@@ -69,31 +69,27 @@ def Clause.split3 (fresh : ℕ → W) (j : ℕ) : Clause W → CNF W
 
 private theorem Clause.length_le_three_of_mem_splitAux (fresh : ℕ → W) (j : ℕ) (carry : Literal W)
     (rest : Clause W) : ∀ d ∈ Clause.splitAux fresh j carry rest, d.length ≤ 3 := by
-  induction j, carry, rest using Clause.splitAux.induct fresh with
-  | case1 j carry b c d rest ih =>
+  fun_induction Clause.splitAux fresh j carry rest with
+  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a clause
     intro e he
-    rw [Clause.splitAux, List.mem_cons] at he
-    rcases he with rfl | he
+    rcases List.mem_cons.mp he with rfl | he
     · simp
     · exact ih e he
-  | case2 j carry rest hrest =>
+  | case2 j carry rest hrest => -- at most two literals after carry
     intro e he
-    rw [Clause.splitAux] at he
-    · simp only [List.mem_singleton] at he
-      subst he
-      match rest, hrest with
-      | [], _ | [_], _ | [_, _], _ => simp
-      | _ :: _ :: _ :: _, hrest => exact absurd rfl (hrest _ _ _ _)
-    · exact hrest
+    obtain rfl := List.mem_singleton.mp he
+    match rest, hrest with
+    | [], _ | [_], _ | [_, _], _ => simp
+    | _ :: _ :: _ :: _, hrest => exact absurd rfl (hrest _ _ _ _)
 
 /-- Resolving on the auxiliary variables: an assignment satisfying the chain satisfies the
 clause. -/
 private theorem Clause.eval_of_eval_splitAux (fresh : ℕ → W) (σ : W → Bool) (j : ℕ)
     (carry : Literal W) (rest : Clause W) (h : (Clause.splitAux fresh j carry rest).eval σ = true) :
     Clause.eval σ (carry :: rest) = true := by
-  induction j, carry, rest using Clause.splitAux.induct fresh with
-  | case1 j carry b c d rest ih =>
-    rw [Clause.splitAux, CNF.eval_cons, Bool.and_eq_true] at h
+  fun_induction Clause.splitAux fresh j carry rest with
+  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a clause
+    rw [CNF.eval_cons, Bool.and_eq_true] at h
     have h₂ := ih h.2
     have h₁ := h.1
     simp only [Clause.eval_cons, Literal.eval, Clause.eval_nil, Bool.or_false, Bool.or_eq_true,
@@ -103,10 +99,7 @@ private theorem Clause.eval_of_eval_splitAux (fresh : ℕ → W) (σ : W → Boo
       tauto
     · simp only [hf, Bool.true_eq_false, false_or] at h₂
       tauto
-  | case2 j carry rest hrest =>
-    rw [Clause.splitAux] at h
-    · simpa using h
-    · exact hrest
+  | case2 => simpa using h -- at most two literals after carry
 
 /-- An assignment satisfying the clause, and giving each auxiliary variable `fresh k` the value of
 the literals after its position, satisfies the chain. -/
@@ -114,11 +107,11 @@ private theorem Clause.eval_splitAux (fresh : ℕ → W) (σ : W → Bool) (j : 
     (rest : Clause W) (hfresh : ∀ k, j ≤ k → σ (fresh k) = Clause.eval σ (rest.drop (k - j + 1)))
     (h : Clause.eval σ (carry :: rest) = true) :
     (Clause.splitAux fresh j carry rest).eval σ = true := by
-  induction j, carry, rest using Clause.splitAux.induct fresh with
-  | case1 j carry b c d rest ih =>
+  fun_induction Clause.splitAux fresh j carry rest with
+  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a clause
     have hj : σ (fresh j) = Clause.eval σ (c :: d :: rest) := by
       simpa using hfresh j (Nat.le_refl j)
-    rw [Clause.splitAux, CNF.eval_cons, Bool.and_eq_true]
+    rw [CNF.eval_cons, Bool.and_eq_true]
     refine ⟨?_, ih (fun k hk => ?_) ?_⟩
     · simp only [Clause.eval_cons, Literal.eval, Clause.eval_nil, Bool.or_false, beq_true,
         hj] at h ⊢
@@ -129,10 +122,7 @@ private theorem Clause.eval_splitAux (fresh : ℕ → W) (σ : W → Bool) (j : 
       cases hc : Clause.eval σ (c :: d :: rest)
       · simp [Literal.eval, hj, hc]
       · simp
-  | case2 j carry rest hrest =>
-    rw [Clause.splitAux]
-    · simpa using h
-    · exact hrest
+  | case2 => simpa using h -- at most two literals after carry
 
 /-! ### Formulas -/
 
@@ -227,17 +217,14 @@ theorem CNF.satisfiable_to3CNF (φ : CNF V) : φ.to3CNF.Satisfiable ↔ φ.Satis
 private theorem Clause.length_splitAux (fresh : ℕ → W) (j : ℕ) (carry : Literal W)
     (rest : Clause W) :
     (Clause.splitAux fresh j carry rest).length = max 1 (rest.length - 1) := by
-  induction j, carry, rest using Clause.splitAux.induct fresh with
-  | case1 j carry b c d rest ih =>
-    rw [Clause.splitAux, List.length_cons, ih]
-    simp only [List.length_cons]
+  fun_induction Clause.splitAux fresh j carry rest with
+  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a clause
+    simp only [List.length_cons] at ih ⊢
     omega
-  | case2 j carry rest hrest =>
-    rw [Clause.splitAux]
-    · match rest, hrest with
-      | [], _ | [_], _ | [_, _], _ => simp
-      | _ :: _ :: _ :: _, hrest => exact absurd rfl (hrest _ _ _ _)
-    · exact hrest
+  | case2 j carry rest hrest => -- at most two literals after carry
+    match rest, hrest with
+    | [], _ | [_], _ | [_, _], _ => simp
+    | _ :: _ :: _ :: _, hrest => exact absurd rfl (hrest _ _ _ _)
 
 /-- Splitting a clause of width `w` gives `w - 2` clauses, and at least one. -/
 theorem Clause.length_split3 (fresh : ℕ → W) (j : ℕ) (c : Clause W) :

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Exec
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Foundations.Data.List.GetD
 import Mathlib.Data.List.GetD
 
@@ -52,21 +53,10 @@ theorem exec_header {W n p : ℕ} (x : Data 128) (hn : x.mem 1 = n) (hp : x.mem 
       y.regs Reg.side = n ∧ y.regs Reg.modulus = p ∧
       y.regs Reg.inputAB = 3 ∧ y.regs Reg.inputBC = 3 + n * n ∧
       y.regs Reg.inputAC = 3 + 2 * (n * n) ∧ y.regs Reg.scratch = 3 + 3 * (n * n) := by
-  let z := (((((((((x.set Reg.address 1).set Reg.side n).set Reg.address 2).set
-    Reg.modulus p).set Reg.cells (n * n)).set Reg.inputAB 3).set
-    Reg.inputBC (3 + n * n)).set Reg.inputAC (3 + n * n + n * n)).set
-    Reg.scratch (3 + n * n + n * n + n * n))
-  have run : ExecWithin W input x z 9 := by
-    ram_eval [input, z, hn, hp, hw.of_le (by omega : 1 ≤ _),
-      hw.of_le (by omega : 2 ≤ _), hw.of_le (by omega : 3 ≤ _),
-      hw.of_le (by omega : n * n ≤ _), hw.of_le (by omega : 3 + n * n ≤ _),
-      hw.of_le (by omega : 3 + n * n + n * n ≤ _),
-      hw.of_le (by omega : 3 + n * n + n * n + n * n ≤ _),
-      Reg.address, Reg.side, Reg.modulus, Reg.cells, Reg.inputAB, Reg.inputBC,
-      Reg.inputAC, Reg.scratch]
-  refine ⟨z, run, rfl, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals simp +decide [z, Reg.address, Reg.side, Reg.modulus, Reg.cells,
-    Reg.inputAB, Reg.inputBC, Reg.inputAC, Reg.scratch, Nat.succ_mul, Nat.add_assoc]
+  unfold input
+  wram_exec [hn, hp]
+  exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+    by wram_simp; omega, by wram_simp; omega⟩
 
 /-- Initialized actual structured execution with original-parameter numerical admission.
 Setup, all real computation and the input header are charged; the final halt is excluded. -/

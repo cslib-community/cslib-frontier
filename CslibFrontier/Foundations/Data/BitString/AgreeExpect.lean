@@ -18,20 +18,26 @@ import Mathlib.Algebra.BigOperators.Ring.Finset
 /-!
 # Uniformly random bits on a set of positions
 
-The bits of a uniformly random word `ι → Bool` on a set `S` of positions all take a given value
-with probability `2 ^ (-|S|)` (`BitString.expect_ite_forall_mem_eq`), by the count of functions
-agreeing on a set (`Fintype.card_filter_forall_mem_eq`); so some of them takes the other
-value with probability `1 - 2 ^ (-|S|)` (`BitString.expect_ite_exists_mem_eq`). Exactly `m` of
-them are true with probability `C(|S|, m) / 2 ^ |S|` (`BitString.expect_ite_card_filter_eq`).
+A uniformly random word `ι → Bool` agrees with a given word on a set `S` of positions, that is,
+lies in a subcube of codimension `|S|`, with probability `2 ^ (-|S|)`
+(`BitString.expect_ite_forall_mem_eq`), by the count of functions agreeing on a set
+(`Fintype.card_filter_forall_mem_eq`); this is the density half of
+[O'Donnell, Proposition 5.24][ODonnell2014]. So some bit on `S` takes a given value with
+probability `1 - 2 ^ (-|S|)` (`BitString.expect_ite_exists_mem_eq`). Exactly `m` of
+the bits on `S` are true with probability `C(|S|, m) / 2 ^ |S|`
+(`BitString.expect_ite_card_filter_eq`).
 
 ## Main results
 
-* `Cslib.BitString.expect_ite_forall_mem_eq`: a set of `k` uniformly random bits takes a given
-  value with probability `2 ^ (-k)`.
+* `Cslib.BitString.expect_ite_forall_mem_eq`: a subcube of codimension `k` has density `2 ^ (-k)`.
 * `Cslib.BitString.expect_ite_exists_mem_eq`: some of `k` uniformly random bits takes a given
   value with probability `1 - 2 ^ (-k)`.
 * `Cslib.BitString.expect_ite_card_filter_eq`: exactly `m` of `k` uniformly random bits are true
   with probability `C(k, m) / 2 ^ k`.
+
+## References
+
+* [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014]
 -/
 
 public section
@@ -41,13 +47,14 @@ namespace Cslib.BitString
 open Finset
 open scoped BigOperators
 
-/-- The bits of a set `S` of uniformly random bits are all equal to `b` with probability
-`2 ^ (-|S|)`, for any decision procedure of the event. -/
+/-- **The density of a subcube** [O'Donnell, Proposition 5.24][ODonnell2014]: a uniformly random
+word agrees with `b` on a set `S` of positions with probability `2 ^ (-|S|)`, for every `S`,
+including `S = ∅`, and for any decision procedure of the event. -/
 theorem expect_ite_forall_mem_eq {ι : Type*} [Fintype ι] [DecidableEq ι] (S : Finset ι)
-    (b : Bool) [DecidablePred fun x : ι → Bool => ∀ i ∈ S, x i = b] :
-    𝔼 x : ι → Bool, (if ∀ i ∈ S, x i = b then (1 : ℝ) else 0) = 2⁻¹ ^ #S := by
-  have hcard : #{x : ι → Bool | ∀ i ∈ S, x i = b} = 2 ^ #Sᶜ := by
-    rw [Fintype.card_filter_forall_mem_eq S fun _ => b, Fintype.card_bool]
+    (b : ι → Bool) [DecidablePred fun x : ι → Bool => ∀ i ∈ S, x i = b i] :
+    𝔼 x : ι → Bool, (if ∀ i ∈ S, x i = b i then (1 : ℝ) else 0) = 2⁻¹ ^ #S := by
+  have hcard : #{x : ι → Bool | ∀ i ∈ S, x i = b i} = 2 ^ #Sᶜ := by
+    rw [Fintype.card_filter_forall_mem_eq S b, Fintype.card_bool]
   have hS : #S ≤ Fintype.card ι := card_le_univ S
   rw [expect_eq_sum_div_card, sum_boole, hcard, card_compl, card_univ, Fintype.card_fun,
     Fintype.card_bool]

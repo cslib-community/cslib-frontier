@@ -248,13 +248,10 @@ theorem Valid.restrict_of {S : State cfg n} (hS : S.Valid f) {x : ℕ} {ℓ : Li
     exact ⟨Finset.mem_erase.2 ⟨fun he => hprx (Or.inl he), h1⟩,
       Finset.mem_erase.2 ⟨fun he => hprx (Or.inr he), h2⟩, h12⟩
   · by_cases hjx : j = x
-    · subst hjx
-      simp only [Function.update_self]
-      exact hℓeval _ _ hv
-    · simp only [Function.update_of_ne hjx]
-      exact hv j (Finset.mem_erase.2 ⟨hjx, hj⟩)
-  · have := hv j (Finset.mem_of_mem_erase hj)
-    simpa only [Function.update_of_ne (Finset.ne_of_mem_erase hj)] using this
+    · subst hjx; simpa only [Function.update_self] using hℓeval _ _ hv
+    · simpa only [Function.update_of_ne hjx] using hv j (Finset.mem_erase.2 ⟨hjx, hj⟩)
+  · simpa only [Function.update_of_ne (Finset.ne_of_mem_erase hj)] using
+      hv j (Finset.mem_of_mem_erase hj)
 
 /-! ### Pair creation (PC) -/
 
@@ -697,11 +694,8 @@ theorem Valid.swap_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : Bool} 
   have hσ : ∀ val i, i ≠ x → σ val i = val i := fun val i hi => Function.update_of_ne hi _ _
   have hσx : ∀ val, σ val x = val Q + c + ∑ j ∈ T.erase x, val j := fun val =>
     Function.update_self _ _ _
-  have hσid : ∀ val, S.EqnsHold val → σ val = val := fun val hval => by
-    funext i
-    by_cases hi : i = x
-    · subst hi; rw [hσx, h.affine.solve h.mem_T hval]
-    · exact hσ val i hi
+  have hσid : ∀ val, S.EqnsHold val → σ val = val := fun val hval =>
+    Function.update_eq_self_iff.2 (h.affine.solve h.mem_T hval).symm
   refine hS.of_transport (σ := σ) (hS.wf.swap h.mem h.aux h.affine h.mem_T)
     { pair_mem := fun pr hpr => ?_
       pairs_disjoint := hS.pairs_disjoint
@@ -777,11 +771,9 @@ theorem Valid.swap_W_le_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : B
             have hu0 : u ∈ S.unpaired := mem_unpaired.2 ⟨huS, hup⟩
             rw [wt_of_mem hu1, wt_of_mem hu0, SemiCircuit.deg, SemiCircuit.deg, swap_children]
   have hlossSum : ∑ u ∈ insert Q S.params, (if u = x then lossX else 0) = lossX := by
-    rw [Finset.sum_eq_single_of_mem x (Finset.mem_insert_of_mem h.mem)
-      (fun _ _ hf => ite_eq_right hf), ite_eq_left rfl]
+    rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_of_mem h.mem)]
   have hgainSum : ∑ u ∈ insert Q S.params, (if u = Q then gainQ else 0) = gainQ := by
-    rw [Finset.sum_eq_single_of_mem Q (Finset.mem_insert_self _ _)
-      (fun _ _ hf => ite_eq_right hf), ite_eq_left rfl]
+    rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_self _ _)]
   have hs1 : S₁.s = S.s := swap_size S x Q c T
   have hq1 : S₁.q = S.q := rfl
   dsimp only [S₁] at hW hs1 hq1

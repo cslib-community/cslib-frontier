@@ -81,18 +81,16 @@ theorem modPowTwo_nonneg (x : ℤ) (ℓ : ℕ) : 0 ≤ x.modPowTwo ℓ :=
 theorem modPowTwo_lt (x : ℤ) (ℓ : ℕ) : x.modPowTwo ℓ < (2 : ℤ) ^ ℓ :=
   Int.emod_lt_of_pos x (by positivity)
 
-theorem natAbs_modPowTwo_lt (x : ℤ) (ℓ : ℕ) : (x.modPowTwo ℓ).natAbs < 2 ^ ℓ := by
-  have h₀ := modPowTwo_nonneg x ℓ
-  have h₁ := modPowTwo_lt x ℓ
-  have hcast : ((x.modPowTwo ℓ).natAbs : ℤ) < ((2 ^ ℓ : ℕ) : ℤ) := by grind
-  exact Int.ofNat_lt.mp hcast
+theorem natAbs_modPowTwo_lt (x : ℤ) (ℓ : ℕ) : (x.modPowTwo ℓ).natAbs < 2 ^ ℓ :=
+  Int.ofNat_lt.mp <| by
+    rw [Int.natCast_natAbs, abs_of_nonneg (modPowTwo_nonneg x ℓ)]; exact modPowTwo_lt x ℓ
 
 /-- If `z ∈ [0, 2 ^ ℓ)` and `2 ^ ℓ` divides `x - z`, then `x.modPowTwo ℓ = z`. -/
 theorem modPowTwo_eq_of_dvd_sub {x z : ℤ} {ℓ : ℕ} (hz₀ : 0 ≤ z) (hz₁ : z < (2 : ℤ) ^ ℓ)
     (hdvd : (2 : ℤ) ^ ℓ ∣ x - z) : x.modPowTwo ℓ = z := by
   obtain ⟨k, hk⟩ := hdvd
-  have hx : x = z + (2 : ℤ) ^ ℓ * k := by lia
-  rw [modPowTwo, hx, Int.add_mul_emod_self_left, Int.emod_eq_of_lt hz₀ hz₁]
+  rw [modPowTwo, show x = z + (2 : ℤ) ^ ℓ * k by lia, Int.add_mul_emod_self_left,
+    Int.emod_eq_of_lt hz₀ hz₁]
 
 /-- Exact Euclidean division of a left multiple `(d * q).ediv d = q` for `d ≠ 0`, stated directly
 on `Int.ediv` for rewriting without folding to `/`. -/
@@ -110,33 +108,14 @@ private theorem tdiv_eq_signMagnitude (a b : ℤ) :
     a.tdiv b =
       if (decide (a < 0) ^^ decide (b < 0)) then -((a.natAbs / b.natAbs : ℕ) : ℤ)
       else ((a.natAbs / b.natAbs : ℕ) : ℤ) := by
-  cases a with
-  | ofNat m =>
-    cases b with
-    | ofNat n => dsimp only [Int.tdiv, Int.natAbs]; split_ifs <;> lia
-    | negSucc n => simp [Int.tdiv]
-  | negSucc m =>
-    cases b with
-    | ofNat n =>
-      cases n
-      · simp [Int.tdiv]
-      · dsimp only [Int.tdiv, Int.natAbs]; split_ifs <;> lia
-    | negSucc n => simp [Int.tdiv]
+  rcases a with m | m <;> rcases b with (_ | n) | n <;>
+    first | (simp [Int.tdiv]; done) | (dsimp only [Int.tdiv, Int.natAbs]; split_ifs <;> lia)
 
 private theorem tmod_eq_signMagnitude (a b : ℤ) :
     a.tmod b =
       if decide (a < 0) then -((a.natAbs % b.natAbs : ℕ) : ℤ)
       else ((a.natAbs % b.natAbs : ℕ) : ℤ) := by
-  cases a with
-  | ofNat m =>
-    cases b with
-    | ofNat n => simp [Int.tmod]
-    | negSucc n => simp [Int.tmod]
-  | negSucc m =>
-    cases b with
-    | ofNat n =>
-      cases n <;> simp [Int.tmod]
-    | negSucc n => simp [Int.tmod]
+  rcases a with m | m <;> rcases b with (_ | n) | n <;> simp [Int.tmod]
 
 private theorem ediv_eq_signMagnitude (a b : ℤ) :
     a.ediv b =
@@ -147,65 +126,41 @@ private theorem ediv_eq_signMagnitude (a b : ℤ) :
       else
         if b < 0 then -((a.natAbs / b.natAbs : ℕ) : ℤ)
         else ((a.natAbs / b.natAbs : ℕ) : ℤ) := by
-  cases a with
-  | ofNat m =>
-    cases b with
-    | ofNat n =>
-      cases n
-      · simp [Int.ediv]
-      · dsimp only [Int.ediv, Int.natAbs]; split_ifs <;> lia
-    | negSucc n => simp [Int.ediv]
-  | negSucc m =>
-    cases b with
-    | ofNat n =>
-      cases n
-      · simp [Int.ediv]
-      · dsimp only [Int.ediv, Int.natAbs]; rw [Int.negSucc_eq]; split_ifs <;> lia
-    | negSucc n => simp [Int.ediv]
-
-private theorem emod_natAbs_eq (a b : ℤ) : a % (b.natAbs : ℤ) = a % b := by
-  rcases le_or_gt 0 b with hb0 | hb0
-  · rw [Int.natAbs_of_nonneg hb0]
-  · have hbn : (b.natAbs : ℤ) = -b := by lia
-    rw [hbn, Int.emod_neg]
-
-private theorem emod_eq_emodNat (a b : ℤ) :
-    a.emod b = if b = 0 then a else ((a % (b.natAbs : ℤ)).toNat : ℤ) := by
-  change a % b = _
-  by_cases hb : b = 0
-  · simp [hb]
-  · simp only [hb, ↓reduceIte, emod_natAbs_eq]
-    exact (Int.toNat_of_nonneg (Int.emod_nonneg a hb)).symm
+  rcases a with m | m <;> rcases b with (_ | n) | n <;>
+    first | (simp [Int.ediv]; done) |
+      (simp only [Int.ediv, Int.natAbs, Int.ofNat_eq_natCast, Int.negSucc_eq]; split_ifs <;> lia)
 
 private theorem emod_eq_signMagnitude (a b : ℤ) :
     a.emod b =
       if b = 0 then a
       else if a < 0 then (((b.natAbs - a.natAbs % b.natAbs) % b.natAbs : ℕ) : ℤ)
       else ((a.natAbs % b.natAbs : ℕ) : ℤ) := by
-  rw [emod_eq_emodNat]
-  by_cases hb : b = 0
-  · simp [hb]
-  · have hq : b.natAbs ≠ 0 := Int.natAbs_ne_zero.mpr hb
-    simp only [hb, ↓reduceIte]
-    by_cases ha : a < 0
-    · simp only [ha, ↓reduceIte, Int.emod_natAbs_of_neg ha hq]
-      split_ifs with hdiv
-      · rw [Int.emod_eq_zero_of_dvd hdiv]; simp
-      · have hr_nonneg : 0 ≤ a % (b.natAbs : ℤ) := Int.emod_nonneg a (by positivity)
-        have hr_lt : a % (b.natAbs : ℤ) < (b.natAbs : ℤ) := Int.emod_lt_of_pos a (by positivity)
-        have hr_ne : a % (b.natAbs : ℤ) ≠ 0 := fun h0 => hdiv (Int.dvd_of_emod_eq_zero h0)
-        have hlt : b.natAbs - (b.natAbs - (a % (b.natAbs : ℤ)).toNat) < b.natAbs := by lia
-        rw [Nat.mod_eq_of_lt hlt]; lia
-    · have ha0 : 0 ≤ a := not_lt.mp ha
-      simp only [ha, ↓reduceIte, Int.emod_natAbs_of_nonneg ha0]
+  change a % b = _
+  rcases eq_or_ne b 0 with rfl | hb
+  · simp
+  have hbn : a % b = a % (b.natAbs : ℤ) := by
+    rcases le_or_gt 0 b with h | h
+    · rw [Int.natAbs_of_nonneg h]
+    · rw [show (b.natAbs : ℤ) = -b by lia, Int.emod_neg]
+  simp only [hb, ↓reduceIte, hbn]
+  by_cases ha : a < 0
+  · simp only [ha, ↓reduceIte, Int.emod_natAbs_of_neg ha (Int.natAbs_ne_zero.mpr hb)]
+    split_ifs with hdiv
+    · rw [Int.emod_eq_zero_of_dvd hdiv, Nat.sub_zero, Nat.mod_self, Nat.cast_zero]
+    · have := Int.emod_nonneg a (Int.natCast_ne_zero.mpr (Int.natAbs_ne_zero.mpr hb))
+      have := Int.emod_lt_of_pos a (Nat.cast_pos.mpr (Int.natAbs_pos.mpr hb))
+      have : a % (b.natAbs : ℤ) ≠ 0 := fun h0 => hdiv (Int.dvd_of_emod_eq_zero h0)
+      rw [Nat.mod_eq_of_lt (by lia)]; lia
+  · simp only [ha, ↓reduceIte, Int.emod_natAbs_of_nonneg (not_lt.mp ha)]
+    exact (Int.toNat_of_nonneg
+      (Int.emod_nonneg a (Int.natCast_ne_zero.mpr (Int.natAbs_ne_zero.mpr hb)))).symm
 
 theorem natAbs_emod_lt_of_ne_zero (a : ℤ) {b : ℤ} (hb : b ≠ 0) :
-    (a.emod b).natAbs < b.natAbs := by
-  have hcast : ((a.emod b).natAbs : ℤ) < (b.natAbs : ℤ) := by
+    (a.emod b).natAbs < b.natAbs :=
+  Int.ofNat_lt.mp <| by
     change ((a % b).natAbs : ℤ) < (b.natAbs : ℤ)
     rw [Int.natCast_natAbs, abs_of_nonneg (Int.emod_nonneg a hb)]
     exact Int.emod_lt a hb
-  exact Int.ofNat_lt.mp hcast
 
 theorem size_natAbs_tdiv_le (a b : ℤ) : (a.tdiv b).natAbs.size ≤ a.natAbs.size :=
   Nat.size_le_size (Int.natAbs_tdiv_le_natAbs a b)
@@ -249,11 +204,8 @@ theorem length_encIntBin_emod_le_of_ne_zero (a : ℤ) {b : ℤ} (hb : b ≠ 0) :
 `(encIntBin (a.emod b)).length ≤ max (encIntBin a).length (encIntBin b).length`. -/
 theorem length_encIntBin_emod_le_max (a b : ℤ) :
     (encIntBin (a.emod b)).length ≤ max (encIntBin a).length (encIntBin b).length := by
-  by_cases hb : b = 0
-  · subst hb
-    change (encIntBin (a % 0)).length ≤ _
-    rw [Int.emod_zero]
-    exact le_max_left _ _
+  rcases eq_or_ne b 0 with rfl | hb
+  · change (encIntBin (a % 0)).length ≤ _; simp
   · exact (length_encIntBin_emod_le_of_ne_zero a hb).trans (le_max_right _ _)
 
 /-- Reducing modulo `2 ^ ℓ` produces an `encIntBin` code of length at most `ℓ + 1`. -/
@@ -273,12 +225,8 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 theorem intBin_tdiv :
     ComputableInPolyTime (fun p : ℤ × ℤ => p.1.tdiv p.2)
       (encPair encIntBin encIntBin) encIntBin := by
-  have h : ComputableInPolyTime
-      (fun p : ℤ × ℤ =>
-        if (decide (p.1 < 0) ^^ decide (p.2 < 0)) then -((p.1.natAbs / p.2.natAbs : ℕ) : ℤ)
-        else ((p.1.natAbs / p.2.natAbs : ℕ) : ℤ))
-      (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  exact h.of_enc_eq fun ⟨a, b⟩ => congrArg encIntBin (Int.tdiv_eq_signMagnitude a b)
+  simp only [Int.tdiv_eq_signMagnitude]
+  fun_prop
 
 /-- Truncated-toward-zero division of computed binary integers. -/
 @[fun_prop]
@@ -293,15 +241,10 @@ theorem intBin_tdiv' {α : Type} {input : α ↪ List Bool} {left right : α →
 theorem intBin_tmod :
     ComputableInPolyTime (fun p : ℤ × ℤ => p.1.tmod p.2)
       (encPair encIntBin encIntBin) encIntBin := by
-  have hrem : ComputableInPolyTime (fun p : ℤ × ℤ => p.1.natAbs % p.2.natAbs)
-      (encPair encIntBin encIntBin) encNat :=
-    binary_mod' (by fun_prop) (by fun_prop)
-  have h : ComputableInPolyTime
-      (fun p : ℤ × ℤ =>
-        if decide (p.1 < 0) then -((p.1.natAbs % p.2.natAbs : ℕ) : ℤ)
-        else ((p.1.natAbs % p.2.natAbs : ℕ) : ℤ))
-      (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  exact h.of_enc_eq fun ⟨a, b⟩ => congrArg encIntBin (Int.tmod_eq_signMagnitude a b)
+  have : ComputableInPolyTime (fun p : ℤ × ℤ => p.1.natAbs % p.2.natAbs)
+      (encPair encIntBin encIntBin) encNat := binary_mod' (by fun_prop) (by fun_prop)
+  simp only [Int.tmod_eq_signMagnitude]
+  fun_prop
 
 /-- Truncated-toward-zero remainder of computed binary integers. -/
 @[fun_prop]
@@ -316,25 +259,8 @@ theorem intBin_tmod' {α : Type} {input : α ↪ List Bool} {left right : α →
 theorem intBin_ediv :
     ComputableInPolyTime (fun p : ℤ × ℤ => p.1.ediv p.2)
       (encPair encIntBin encIntBin) encIntBin := by
-  have hb0 : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.2 = 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
-  have ha_neg : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.1 < 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
-  have hb_neg : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.2 < 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
-  have hq_neg : ComputableInPolyTime
-      (fun p : ℤ × ℤ => (((p.1.natAbs - 1) / p.2.natAbs + 1 : ℕ) : ℤ))
-      (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  have hq_nonneg : ComputableInPolyTime
-      (fun p : ℤ × ℤ => ((p.1.natAbs / p.2.natAbs : ℕ) : ℤ))
-      (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  have hneg : ComputableInPolyTime (fun z : ℤ => -z) encIntBin encIntBin := by fun_prop
-  have h := hb0.ite (.const 0)
-    (ha_neg.ite
-      (hb_neg.ite hq_neg (hneg.comp hq_neg))
-      (hb_neg.ite (hneg.comp hq_nonneg) hq_nonneg))
-  refine h.of_enc_eq fun ⟨a, b⟩ => congrArg encIntBin ?_
-  simpa only [Function.comp_apply, decide_eq_true_eq] using Int.ediv_eq_signMagnitude a b
+  simp only [Int.ediv_eq_signMagnitude]
+  fun_prop
 
 /-- Euclidean division (`Int.ediv`) of computed binary integers. -/
 @[fun_prop]
@@ -364,26 +290,13 @@ theorem intBin_div' {α : Type} {input : α ↪ List Bool} {left right : α → 
 theorem intBin_emod :
     ComputableInPolyTime (fun p : ℤ × ℤ => p.1.emod p.2)
       (encPair encIntBin encIntBin) encIntBin := by
-  have hrem : ComputableInPolyTime (fun p : ℤ × ℤ => p.1.natAbs % p.2.natAbs)
-      (encPair encIntBin encIntBin) encNat :=
-    binary_mod' (by fun_prop) (by fun_prop)
-  have hb0 : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.2 = 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
-  have ha_neg : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.1 < 0))
-      (encPair encIntBin encIntBin) encBool := by fun_prop
-  have hnegRem : ComputableInPolyTime
+  have : ComputableInPolyTime (fun p : ℤ × ℤ => p.1.natAbs % p.2.natAbs)
+      (encPair encIntBin encIntBin) encNat := binary_mod' (by fun_prop) (by fun_prop)
+  have : ComputableInPolyTime
       (fun p : ℤ × ℤ => (p.2.natAbs - p.1.natAbs % p.2.natAbs) % p.2.natAbs)
-      (encPair encIntBin encIntBin) encNat :=
-    binary_mod' (by fun_prop) (by fun_prop)
-  have hneg : ComputableInPolyTime
-      (fun p : ℤ × ℤ => (((p.2.natAbs - p.1.natAbs % p.2.natAbs) % p.2.natAbs : ℕ) : ℤ))
-      (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  have hnonneg : ComputableInPolyTime
-      (fun p : ℤ × ℤ => ((p.1.natAbs % p.2.natAbs : ℕ) : ℤ))
-      (encPair encIntBin encIntBin) encIntBin := by fun_prop
-  have h := hb0.ite (fst encIntBin encIntBin) (ha_neg.ite hneg hnonneg)
-  refine h.of_enc_eq fun ⟨a, b⟩ => congrArg encIntBin ?_
-  simpa only [Function.comp_apply, decide_eq_true_eq] using Int.emod_eq_signMagnitude a b
+      (encPair encIntBin encIntBin) encNat := binary_mod' (by fun_prop) (by fun_prop)
+  simp only [Int.emod_eq_signMagnitude]
+  fun_prop
 
 /-- Euclidean remainder (`Int.emod`) of computed binary integers. -/
 @[fun_prop]
@@ -414,9 +327,8 @@ theorem intBin_mod' {α : Type} {input : α ↪ List Bool} {left right : α → 
 theorem intBin_modPowTwo :
     ComputableInPolyTime (fun p : ℤ × ℕ => p.1.modPowTwo p.2)
       (encPair encIntBin encUnary) encIntBin := by
-  have hpow : ComputableInPolyTime (fun p : ℤ × ℕ => ((2 : ℤ) ^ p.2))
-      (encPair encIntBin encUnary) encIntBin := by fun_prop
-  exact intBin_emod.comp ((fst encIntBin encUnary).prod hpow)
+  unfold Int.modPowTwo
+  fun_prop
 
 /-- Reduction `Int.modPowTwo (value a) (exponent a)` of a computed binary integer modulo a
 computed unary power of two. -/

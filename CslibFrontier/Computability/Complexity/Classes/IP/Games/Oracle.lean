@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Foundations.Data.List.Append
 import CslibFrontier.Languages.Probabilistic.Oracle.Transcript
+import CslibFrontier.Languages.Probabilistic.QueryCount.Iterate
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 
 /-!
@@ -1118,19 +1119,6 @@ private theorem isQueryBounded_oracleStep (enc : α ↪ List Bool) (g : ℕ → 
   rw [OracleComp.isCostBounded_map_iff, OracleComp.isCostBounded_map_iff]
   exact ProbOracleComp.IsQueryBounded.query _
 
-private theorem isQueryBounded_iterate_unit {σ : Type} {step : σ → WordOracleComp Unit σ}
-    (hstep : ∀ s, (step s).IsQueryBounded 1) (m : ℕ) (init : σ) :
-    ProbOracleComp.IsQueryBounded (OracleComp.iterate m step init) m := by
-  induction m generalizing init with
-  | zero => exact .pure init 0
-  | succ m ih =>
-    rw [OracleComp.iterate_succ_bind]
-    have h1 : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1) (step init) 1 :=
-      hstep init
-    have h2 : ∀ s, OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
-        (OracleComp.iterate m step s) m := fun s => ih s
-    exact (OracleComp.IsCostBounded.bind h1 h2).mono (by omega)
-
 private theorem isQueryBounded_oracleVerifier (enc : α ↪ List Bool) (g : ℕ → List (IPMove × ℕ))
     (ρ q : ℕ → ℕ) (msg : α × List Bool × ℕ × List Bool → List Bool)
     (dec : α × List Bool × List Bool → Bool) (a : α) :
@@ -1142,9 +1130,9 @@ private theorem isQueryBounded_oracleVerifier (enc : α ↪ List Bool) (g : ℕ 
         fun st => pure (dec (a, c, st.transcript))) (q (enc a).length + 0) := fun c => by
     have hunit : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
         (OracleComp.iterate (q (enc a).length) (oracleStep enc g msg (a, c)) (SimState.mk 0 []))
-        (q (enc a).length) :=
-      isQueryBounded_iterate_unit (isQueryBounded_oracleStep enc g msg (a, c))
-        (q (enc a).length) (SimState.mk 0 [])
+        (q (enc a).length) := by
+      simpa using OracleComp.IsCostBounded.iterate
+        (isQueryBounded_oracleStep enc g msg (a, c)) (q (enc a).length) (SimState.mk 0 [])
     exact OracleComp.IsCostBounded.bind hunit (fun st => .pure _ 0)
   have hwhole : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
       (ProbOracleComp.sample (BitString.sampleList (ρ (enc a).length)) >>= fun c =>

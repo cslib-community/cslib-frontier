@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.GenericGroup.Relabel
 public import CslibFrontier.Crypto.Game
 import CslibFrontier.Crypto.Computational.GenericGroup.LinearGame
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Data.Nat.Choose.Bounds
 
@@ -115,11 +116,7 @@ private theorem uniform_finTwo_bind [NeZero q] {β : Type} (k : ZMod q → ZMod 
     (PMF.uniformOfFintype (Fin 2 → ZMod q)).bind (fun x => k (x 0) (x 1)) =
       (PMF.uniformOfFintype (ZMod q)).bind fun a => (PMF.uniformOfFintype (ZMod q)).bind fun b =>
         k a b := by
-  rw [← PMF.uniformOfFintype_map_equiv (piFinTwoEquiv fun _ => ZMod q).symm, PMF.bind_map,
-    ← PMF.uniformOfFintype_prod, PMF.bind_bind]
-  refine congrArg _ (funext fun a => ?_)
-  rw [PMF.bind_map]
-  rfl
+  relabel_uniform (piFinTwoEquiv fun _ => ZMod q).symm
 
 /-- The CDH game is the game with linear inputs with two unknowns, one output label, and the test
 that the output label is that of the product of the unknowns. -/

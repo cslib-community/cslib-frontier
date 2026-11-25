@@ -34,6 +34,17 @@ by explicit multiples of `log n / n`, in
 from the independence of the tribes (`Cslib.BitString.expect_prod_tribe`); the asymptotic form
 `(ln n / n) (1 ± o(1))` of that proposition is not formalized.
 
+The same independence gives the Fourier coefficients of Tribes, read as signs. A character splits
+over the tribes, by the parts `Tⱼ` of `T` in the tribes (`Cslib.BitString.tribePart`), and each
+tribe is `1 - AND_w`, where `AND_w` is the indicator of the all-`true` point, with coefficients
+`Cslib.BitString.fourierCoeff_ite_eq`. So the coefficient on `T` is `2 ∏ⱼ cⱼ - [T = ∅]`, with
+`cⱼ = 1 - 2 ^ (-w)` if `T` misses the `j`-th tribe and `cⱼ = -2 ^ (-w) (-1) ^ |Tⱼ|` otherwise;
+this product form is ours. It is
+`2 (1 - 2 ^ (-w)) ^ s - 1` on `∅`, and `2 (-1) ^ (k + |T|) 2 ^ (-k w) (1 - 2 ^ (-w)) ^ (s - k)`
+on a nonempty `T` meeting `k` tribes (`Cslib.BitString.fourierCoeff_signVal_tribes_empty`,
+`Cslib.BitString.fourierCoeff_signVal_tribes_of_ne_empty`)
+[O'Donnell, Proposition 4.14][ODonnell2014].
+
 A coalition `Q` leaves Tribes undetermined only if some tribe meets `Q` and is all `true` outside
 `Q`. A union bound over these tribes bounds the influence of `Q` by `2 ^ (|Q| - w)`
 (`Cslib.BitString.coalitionInfluence_tribes_le`), so Tribes is `(q, 2 ^ (q - w))`-resilient
@@ -50,12 +61,14 @@ This computation and conclusion are ours and are not formalized.
 
 * `Cslib.BitString.tribes`: the Tribes function `Tribes_{w,s}`.
 * `Cslib.BitString.tribesSize`: the number of tribes of width `w` making Tribes nearly balanced.
+* `Cslib.BitString.tribePart`: the part of a set of coordinates in one tribe.
 
 ## Main results
 
 * `Cslib.BitString.monotone_tribes`: Tribes is monotone.
 * `Cslib.BitString.expect_bitVal_tribes`: the probability that Tribes is true.
 * `Cslib.BitString.expect_prod_tribe`: the tribes are independent.
+* `Cslib.BitString.card_eq_sum_card_tribePart`: `#T` equals the sum of `#(tribePart T j)`.
 * `Cslib.BitString.one_div_two_le_pow_tribesSize`,
   `Cslib.BitString.pow_tribesSize_add_one_lt_one_div_two`,
   `Cslib.BitString.two_pow_sub_one_le_tribesSize`, `Cslib.BitString.tribesSize_lt_two_pow`: the
@@ -63,6 +76,22 @@ This computation and conclusion are ours and are not formalized.
 * `Cslib.BitString.abs_expect_bitVal_tribes_sub_half_le`: Tribes is nearly balanced.
 * `Cslib.BitString.coalitionInfluence_tribes_le`, `Cslib.BitString.isResilient_tribes`: the
   influence of coalitions on Tribes.
+* `Cslib.BitString.fourierCoeff_signVal_tribes_empty`,
+  `Cslib.BitString.fourierCoeff_signVal_tribes_of_ne_empty`: the Fourier coefficients of Tribes.
+
+## Usage
+
+Open `Cslib.BitString`. Bit `i` of tribe `j` of `tribes w s` is coordinate
+`finProdFinEquiv (j, i)` of `Fin (s * w)`, and Tribes is read as signs through
+`fun x => signVal (tribes w s x)`, whose `true` is O'Donnell's True, `-1`. For a set `T` of
+coordinates, `tribePart T j` is its part in tribe `j`; compute it with
+`Cslib.BitString.mem_tribePart`, since its body is not exposed. On `∅`, rewrite with
+`Cslib.BitString.fourierCoeff_signVal_tribes_empty w s`. On a nonempty `T`, rewrite with
+`Cslib.BitString.fourierCoeff_signVal_tribes_of_ne_empty`, then supply the number of tribes
+`T` meets, `#{j | tribePart T j ≠ ∅}`, and `#T`. The checked clients in
+[CslibFrontierTests/TribesFourier.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/TribesFourier.lean)
+compute the coefficients of `Tribes_{2,2}` on the empty set (`1 / 8`), on one coordinate
+(`3 / 8`) and on a whole tribe (`-3 / 8`), each both from these theorems and by brute force.
 
 ## References
 
@@ -111,17 +140,15 @@ private theorem blocks_apply (y : Fin s → Fin w → Bool) (j : Fin s) (i : Fin
     blocks w s y (finProdFinEquiv (j, i)) = y j i := by
   simp [blocks]
 
+/-- `AND_w`, read as `0` or `1`, is the product of the bits. -/
+private theorem prod_bitVal_eq_ite (z : Fin w → Bool) :
+    ∏ i, bitVal ℝ (z i) = if ∀ i, z i = true then 1 else 0 := by
+  simp [bitVal, Fintype.prod_boole]
+
 /-- Tribes on blocks, as `1 - ∏ⱼ (1 - ∏ᵢ yⱼᵢ)`. -/
 private theorem bitVal_tribes_blocks (y : Fin s → Fin w → Bool) :
     bitVal ℝ (tribes w s (blocks w s y)) = 1 - ∏ j, (1 - ∏ i, bitVal ℝ (y j i)) := by
-  have hp (j : Fin s) : ∏ i, bitVal ℝ (y j i) = if ∀ i, y j i = true then 1 else 0 := by
-    by_cases h : ∀ i, y j i = true
-    · rw [ite_eq_left h]
-      exact prod_eq_one fun i _ => by rw [h i, bitVal_true]
-    · rw [ite_eq_right h]
-      obtain ⟨i, hi⟩ := not_forall.1 h
-      exact prod_eq_zero (mem_univ i) (by rw [Bool.not_eq_true] at hi; rw [hi, bitVal_false])
-  simp only [tribes, blocks_apply, hp]
+  simp only [tribes, blocks_apply, prod_bitVal_eq_ite]
   by_cases h : ∃ j, ∀ i, y j i = true
   · obtain ⟨j, hj⟩ := h
     rw [decide_eq_true ⟨j, hj⟩, bitVal_true,
@@ -341,7 +368,7 @@ theorem coalitionInfluence_tribes_le (Q : Finset (Fin (s * w))) :
     _ = ∑ j ∈ J, 𝔼 x : BitString (s * w),
           if ∀ k ∈ tribe w j \ Q, x k = true then (1 : ℝ) else 0 := expect_sum_comm _ _ _
     _ = ∑ j ∈ J, (2 : ℝ) ^ #(tribe w j ∩ Q) / 2 ^ w := sum_congr rfl fun j _ => by
-        exact (expect_ite_forall_mem_eq (tribe w j \ Q) true).trans
+        exact (expect_ite_forall_mem_eq (tribe w j \ Q) fun _ => true).trans
           (key _ _ ((card_sdiff_add_card_inter _ _).trans (card_tribe j)))
     _ ≤ 2 ^ #Q / 2 ^ w := by
         rw [← sum_div]
@@ -360,5 +387,110 @@ This asymptotic conclusion is not formalized here
 (compare [O'Donnell, Section 9.6][ODonnell2014]). -/
 theorem isResilient_tribes (w s q : ℕ) : IsResilient q (2 ^ q / 2 ^ w) (tribes w s) :=
   fun Q hQ => hQ ▸ coalitionInfluence_tribes_le Q
+
+/-! ### Fourier coefficients -/
+
+/-- The part of a set `T` of coordinates of `Tribes_{w,s}` lying in the `j`-th tribe, as the
+positions `i` with `finProdFinEquiv (j, i) ∈ T`. -/
+def tribePart (T : Finset (Fin (s * w))) (j : Fin s) : Finset (Fin w) :=
+  {i | finProdFinEquiv (j, i) ∈ T}
+
+/-- A position is in the part of `T` in a tribe when its coordinate is in `T`. -/
+@[simp] theorem mem_tribePart {T : Finset (Fin (s * w))} {j : Fin s} {i : Fin w} :
+    i ∈ tribePart T j ↔ finProdFinEquiv (j, i) ∈ T := by
+  simp [tribePart]
+
+private theorem card_tribePart (T : Finset (Fin (s * w))) (j : Fin s) :
+    #(tribePart T j) = #(tribe w j ∩ T) := by
+  rw [tribe, ← filter_mem_eq_inter, filter_map, card_map]
+  rfl
+
+/-- The size of a set of coordinates is the sum of the sizes of its parts in the tribes. -/
+theorem card_eq_sum_card_tribePart (T : Finset (Fin (s * w))) :
+    #T = ∑ j, #(tribePart T j) := by
+  simp only [card_tribePart, sum_card_tribe_inter]
+
+/-- A character splits over the tribes. -/
+private theorem chi_blocks (T : Finset (Fin (s * w))) (y : Fin s → Fin w → Bool) :
+    chi ℝ T (blocks w s y) = ∏ j, chi ℝ (tribePart T j) (y j) := by
+  rw [chi_eq_prod_univ, ← Fintype.prod_equiv finProdFinEquiv _ _ fun _ => rfl,
+    Fintype.prod_prod_type]
+  refine prod_congr rfl fun j _ => ?_
+  rw [chi_eq_prod_univ]
+  simp [blocks_apply]
+
+/-- The Fourier coefficients of one tribe, `1 - AND_w`, read as `0` or `1`. `AND_w` is the
+indicator of the all-`true` point. -/
+private theorem expect_one_sub_prod_mul_chi (U : Finset (Fin w)) :
+    𝔼 z : Fin w → Bool, (1 - ∏ i, bitVal ℝ (z i)) * chi ℝ U z =
+      (if U = ∅ then 1 else 0) - 2⁻¹ ^ w * (-1) ^ #U := by
+  have h := fourierCoeff_ite_eq (fun _ => true) U
+  simp only [fourierCoeff, funext_iff, Fintype.card_fin] at h
+  have hchi : chi ℝ U (fun _ => true) = (-1) ^ #U := by
+    rw [chi_eq_prod_signVal, prod_const, signVal_true]
+  simp only [prod_bitVal_eq_ite, sub_mul, one_mul, expect_sub_distrib, expect_chi, h, hchi,
+    div_eq_mul_inv, inv_pow]
+  ring
+
+/-- **The Fourier coefficients of Tribes**, in product form: `Tribes_{w,s}`, read as signs, has
+coefficient `2 ∏ⱼ cⱼ - [T = ∅]` on `T`, where `cⱼ = 1 - 2 ^ (-w)` if `T` misses the `j`-th tribe and
+`cⱼ = -2 ^ (-w) (-1) ^ |Tⱼ|` otherwise. This product form is ours; the two-case formula of
+[O'Donnell, Proposition 4.14][ODonnell2014], whose proof the book leaves as its Exercise 4.6,
+follows from it. -/
+private theorem fourierCoeff_signVal_tribes (T : Finset (Fin (s * w))) :
+    fourierCoeff (fun x => signVal (tribes w s x)) T =
+      2 * ∏ j, ((if tribePart T j = ∅ then 1 else 0) - 2⁻¹ ^ w * (-1) ^ #(tribePart T j)) -
+        if T = ∅ then 1 else 0 := by
+  have hpt (x : BitString (s * w)) : signVal (tribes w s x) * chi ℝ T x =
+      2 * ∏ j, (1 - ∏ i, bitVal ℝ (x (finProdFinEquiv (j, i)))) *
+          chi ℝ (tribePart T j) (fun i => x (finProdFinEquiv (j, i))) -
+        ∏ j, chi ℝ (tribePart T j) (fun i => x (finProdFinEquiv (j, i))) := by
+    obtain ⟨y, rfl⟩ := (blocks w s).surjective x
+    simp only [blocks_apply]
+    rw [signVal_eq_one_sub_two_mul_bitVal, bitVal_tribes_blocks, chi_blocks, prod_mul_distrib]
+    ring
+  rw [fourierCoeff, expect_congr rfl fun x _ => hpt x, expect_sub_distrib, ← mul_expect,
+    expect_prod_tribe fun j z => (1 - ∏ i, bitVal ℝ (z i)) * chi ℝ (tribePart T j) z,
+    expect_prod_tribe fun j z => chi ℝ (tribePart T j) z]
+  simp_rw [expect_one_sub_prod_mul_chi, expect_chi]
+  congr 1
+  rw [prod_boole]
+  simp_rw [← card_eq_zero, card_eq_sum_card_tribePart T, sum_eq_zero_iff]
+
+/-- **The Fourier coefficient of Tribes on `∅`** [O'Donnell, Proposition 4.14][ODonnell2014]:
+`2 (1 - 2 ^ (-w)) ^ s - 1`. -/
+theorem fourierCoeff_signVal_tribes_empty (w s : ℕ) :
+    fourierCoeff (fun x => signVal (tribes w s x)) ∅ = 2 * (1 - 2⁻¹ ^ w) ^ s - 1 := by
+  rw [fourierCoeff_signVal_tribes]
+  simp [tribePart]
+
+/-- **The Fourier coefficients of Tribes on nonempty sets**
+[O'Donnell, Proposition 4.14][ODonnell2014]: for `T ≠ ∅` meeting `k` tribes, `Tribes_{w,s}`,
+read as signs, has coefficient `2 (-1) ^ (k + |T|) 2 ^ (-k w) (1 - 2 ^ (-w)) ^ (s - k)` on `T`. -/
+theorem fourierCoeff_signVal_tribes_of_ne_empty {T : Finset (Fin (s * w))} (hT : T ≠ ∅) :
+    fourierCoeff (fun x => signVal (tribes w s x)) T =
+      2 * (-1) ^ (#{j | tribePart T j ≠ ∅} + #T) * 2⁻¹ ^ (#{j | tribePart T j ≠ ∅} * w) *
+        (1 - 2⁻¹ ^ w) ^ (s - #{j | tribePart T j ≠ ∅}) := by
+  set k := #{j | tribePart T j ≠ ∅}
+  rw [fourierCoeff_signVal_tribes, ite_eq_right hT, sub_zero]
+  set b : ℝ := 2⁻¹ ^ w with hb
+  have hfac (j : Fin s) : ((if tribePart T j = ∅ then 1 else 0) - b * (-1) ^ #(tribePart T j)) =
+      if tribePart T j = ∅ then 1 - b else -b * (-1) ^ #(tribePart T j) := by
+    split_ifs with h
+    · rw [h, card_empty, pow_zero, mul_one]
+    · ring
+  simp_rw [hfac]
+  rw [prod_ite, prod_const, prod_mul_distrib, prod_const, prod_pow_eq_pow_sum]
+  have hk' : #({j | ¬tribePart T j = ∅} : Finset (Fin s)) = k := rfl
+  have hk : #({j | tribePart T j = ∅} : Finset (Fin s)) = s - k := by
+    have := card_filter_add_card_filter_not (s := (univ : Finset (Fin s)))
+      (fun j => tribePart T j = ∅)
+    rw [card_univ, Fintype.card_fin, hk'] at this
+    omega
+  have hsum : ∑ j ∈ ({j | ¬tribePart T j = ∅} : Finset (Fin s)), #(tribePart T j) = #T := by
+    rw [sum_filter_of_ne fun j _ h => by rwa [Ne, card_eq_zero] at h,
+      ← card_eq_sum_card_tribePart]
+  rw [hk, hsum, hk', neg_pow, pow_add, mul_comm k w, pow_mul, hb]
+  ring
 
 end Cslib.BitString

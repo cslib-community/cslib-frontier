@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Probability.Product.Event
 import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Probability.PMF.Uniform

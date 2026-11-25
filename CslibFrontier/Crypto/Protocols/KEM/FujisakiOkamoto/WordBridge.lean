@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordGame
 public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
+import CslibFrontier.Languages.Probabilistic.Norm
 import Mathlib.Data.Set.Finite.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.QueryBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Substitution
@@ -1035,11 +1036,7 @@ private theorem eval_keyGenNotBot (n : ℕ) :
       (ProbComp.eval (P.finiteScheme keyLen n).keyGenNotBot).map
         fun x => (x.1, skRep P n x.2) := by
   simp only [keyGenNotBot, Scheme.keyGenNotBot, scheme, toExplicitCoin, finiteScheme, finitePKE,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, BitString.eval_sampleList,
-    uniformList_eq_map_ofFn, PMF.bind_map]
-  congr 1
-  funext ⟨pk, sk⟩
-  simp [PMF.pure_map, skRep, Function.comp_def]
+    BitString.eval_sampleList, uniformList_eq_map_ofFn, skRep, pmf_norm]
 
 private theorem eval_roHashG_nil {M R CT K : Type} [DecidableEq M] (d : ProbComp R) (m : M)
     (h : List ((Bool × M × CT) × K)) :
@@ -1149,10 +1146,9 @@ private theorem eval_romIndCcaExperimentWord_eq {n : ℕ} (hfit : P.CiphertextFi
   have hfit' := hfit n pk sk hkeys'
   simp only [Function.comp_def]
   rw [eval_run_withRO_encaps hfit']
-  simp only [PMF.bind_bind, PMF.pure_bind, BitString.eval_sampleList, uniformList_eq_map_ofFn,
-    PMF.bind_map, Function.comp_def, ProbOracleComp.eval_run_interpret_eq_runWith,
-    finiteScheme_pke, finiteScheme_sampleMsg, finiteScheme_sampleKey, finitePKE_sampleCoins,
-    ProbComp.eval_pure]
+  simp only [BitString.eval_sampleList, uniformList_eq_map_ofFn,
+    ProbOracleComp.eval_run_interpret_eq_runWith, finiteScheme_pke, finiteScheme_sampleMsg,
+    finiteScheme_sampleKey, finitePKE_sampleCoins, pmf_norm]
   have hite (x y : BitString (keyLen n)) :
       (if b = true then List.ofFn x else List.ofFn y) = List.ofFn (if b = true then x else y) := by
     split <;> rfl
@@ -1255,9 +1251,9 @@ private theorem eval_gameOn_romFilterCpaReductionWord_eq {n : ℕ} (hfit : P.Cip
     simp [IsMessagePair]
   simp only [Encryption.ChoiceOut.msg₀_mk, Encryption.ChoiceOut.msg₁_mk, hvalid, Decoder.decode_enc,
     ↓reduceIte, encrypt, ExplicitCoinPKE.encrypt, simFilterWordHit, Scheme.simFilterHit,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, uniformList_eq_map_ofFn,
-    PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, finiteScheme_sampleKey,
-    finiteScheme_sampleMsg, finitePKE_sampleCoins, ProbOracleComp.eval_run_interpret_eq_runWith]
+    BitString.eval_sampleList, uniformList_eq_map_ofFn, finiteScheme_sampleKey,
+    finiteScheme_sampleMsg, finitePKE_sampleCoins, ProbOracleComp.eval_run_interpret_eq_runWith,
+    pmf_norm]
   have hsel (m₀ m₁ : BitString (P.msgLen n)) :
       (if bit = true then List.ofFn m₁ else List.ofFn m₀) =
         List.ofFn (({ msg₀ := m₀, msg₁ := m₁ } : MessagePair _).select bit) := by

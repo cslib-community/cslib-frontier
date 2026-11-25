@@ -185,8 +185,7 @@ theorem ceil_le_smallBiasCeil (r : ℕ) {p q : ℕ} (hp : 0 < p) (hq : 0 < q) :
   rw [div_le_iff₀ (by positivity)]
   calc
     4 * ((r : ℝ) + 1) = ((4 * (r + 1) * q ^ 2 : ℕ) : ℝ) / (q : ℝ) ^ 2 := by push_cast; field_simp
-    _ ≤ ((p ^ 2 : ℕ) * ((smallBiasCeil r p q : ℕ) : ℝ)) / (q : ℝ) ^ 2 :=
-        div_le_div_of_nonneg_right hle (by positivity)
+    _ ≤ ((p ^ 2 : ℕ) * ((smallBiasCeil r p q : ℕ) : ℝ)) / (q : ℝ) ^ 2 := by gcongr
     _ = ((smallBiasCeil r p q : ℕ) : ℝ) * ((p : ℝ) / q) ^ 2 := by push_cast; field_simp
 
 /-- Unconditional correctness of `findSmallBiasShifts r d p q` whenever `d ≥ smallBiasCeil r p q`
@@ -450,8 +449,6 @@ theorem tannerParityTests_computableInO :
         (fun q => ((encTannerParityParams q).length + 1) ^ e) := by
   let hId : ComputableInPolyTime (fun x : TannerParityParams => x)
       encTannerParityParams encTannerParityParams := of_eq fun _ => rfl
-  have p1 := encTannerParityParams_maxVerts_polyTime hId
-  have p2 := encTannerParityParams_m_polyTime hId
   have p3 := encTannerParityParams_r_polyTime hId
   have p4 := encTannerParityParams_d_polyTime hId
   have p5 := encTannerParityParams_c_polyTime hId
@@ -479,30 +476,14 @@ theorem tannerParityTests_computableInO :
   have hMax_m : ComputableInPolyTime
       (fun x : TannerParityParams × List (List Bool) × List (List Bool) => max x.1.maxVerts 1)
       encMid encUnary := by
-    have hite := ite (unary_le' hM_m (.const 1)) (.const 1) hM_m
-    have heq : (fun x : TannerParityParams × List (List Bool) × List (List Bool) =>
-        if decide (x.1.maxVerts ≤ 1) = true then 1 else x.1.maxVerts) =
-        (fun x => max x.1.maxVerts 1) := by
-      funext x
-      simp only [decide_eq_true_eq, max_def]
-    rwa [heq] at hite
+    simpa only [decide_eq_true_eq, max_def] using ite (unary_le' hM_m (.const 1)) (.const 1) hM_m
   have heff_m : ComputableInPolyTime
       (fun x : TannerParityParams × List (List Bool) × List (List Bool) =>
         effectiveCubeDim x.1.maxVerts x.1.r)
       encMid encUnary := by
-    have hite := ite (binary_le.comp ((binary_two_pow.comp hr_m).prod
-      (unary_to_binary.comp hMax_m))) hr_m (.const 0)
-    have heq : (fun x : TannerParityParams × List (List Bool) × List (List Bool) =>
-        if ((fun p : ℕ × ℕ => decide (p.1 ≤ p.2)) ∘
-          fun a => (((fun k => 2 ^ k) ∘ fun y => y.1.r) a,
-            ((fun n => n) ∘ fun y => max y.1.maxVerts 1) a)) x = true then
-          x.1.r
-        else 0) =
-        (fun x => effectiveCubeDim x.1.maxVerts x.1.r) := by
-      funext x
-      simp only [Function.comp_apply, decide_eq_true_eq]
-      rfl
-    rwa [heq] at hite
+    simpa only [Function.comp_apply, decide_eq_true_eq, effectiveCubeDim] using
+      ite (binary_le.comp ((binary_two_pow.comp hr_m).prod (unary_to_binary.comp hMax_m)))
+        hr_m (.const 0)
   have hsh_m := (fst (encList encBits) (encList encBits)).comp' (snd encTannerParityParams _)
   have hlo_m := (snd (encList encBits) (encList encBits)).comp' (snd encTannerParityParams _)
   have hBuild : ComputableInPolyTime

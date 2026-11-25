@@ -40,13 +40,14 @@ open Cslib.WordRAM Cslib.WordRAM.Realization Cslib.DataStructure.Memory
 
 /-- Pop one rear element. An empty rear stops the loop; a successful move decreases the
 explicit remaining count. The loop guard excludes a zero count from this body. -/
-def transferBody (d : (Stack.Memory.Layout × Stack.Memory.Layout) × ℕ) : Prog ℕ := do
-  let a ← Stack.Memory.pop d.1.2
-  match a with
-  | none => pure 0
-  | some v => do
-      Stack.Memory.push d.1.1 v
-      pure (d.2 - 1)
+def transferBody : (Stack.Memory.Layout × Stack.Memory.Layout) × ℕ → Prog ℕ
+  | ((front, rear), r) => do
+      let a ← Stack.Memory.pop rear
+      match a with
+      | none => pure 0
+      | some v => do
+          Stack.Memory.push front v
+          pure (r - 1)
 
 /-- Forgetting the loop's remaining count leaves exactly one step of the original transfer. -/
 theorem transferBody_forget (L₁ L₂ : Stack.Memory.Layout) (w C r : ℕ) :

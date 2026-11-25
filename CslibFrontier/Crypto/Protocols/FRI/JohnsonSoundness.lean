@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.FRI.Soundness
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Johnson
 import CslibFrontier.Foundations.Data.Code.ProximityGap.Unique
+import CslibFrontier.Foundations.Data.Nat.BigOperators
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Positivity
 
@@ -144,14 +145,6 @@ private theorem sum_natCast_div_ennreal {ι : Type*} (s : Finset ι) (x : ι →
     (∑ i ∈ s, ((x i : ℕ) : ℝ≥0∞) / (D : ℝ≥0∞)) =
       ((∑ i ∈ s, x i : ℕ) : ℝ≥0∞) / (D : ℝ≥0∞) := by
   simp only [div_eq_mul_inv, ← Finset.sum_mul, Nat.cast_sum]
-
-omit [Field F] in
-private theorem sum_div_le_div_sum {ι : Type*} (s : Finset ι) (x : ι → ℕ) {k₀ : ℕ}
-    (hk₀ : 0 < k₀) :
-    (∑ i ∈ s, x i / k₀) ≤ (∑ i ∈ s, x i) / k₀ := by
-  refine (Nat.le_div_iff_mul_le hk₀).mpr ?_
-  rw [Finset.sum_mul]
-  exact Finset.sum_le_sum fun i _ => Nat.div_mul_le_self (x i) k₀
 
 omit [Field F] in
 private theorem natCast_div_eq_ofReal {N D : ℕ} (hD : 0 < D) :
@@ -404,7 +397,7 @@ theorem sum_friSmoothJohnsonRoundBound_le (params : FRISmoothParams F) (mJ : ℕ
     (∑ i : Fin params.m, friSmoothJohnsonRoundBound params mJ i) ≤
       (1800 * (mJ + 1) ^ 6 * (2 ^ params.d - 2 ^ (params.d - params.totalLog)) *
         (2 ^ params.d) ^ 2) / params.dim 0 := by
-  refine (sum_div_le_div_sum Finset.univ _ (params.one_le_dim 0)).trans_eq ?_
+  refine (Nat.sum_div_le_sum_div Finset.univ _ _).trans_eq ?_
   simp only [← Finset.sum_mul, ← Finset.mul_sum, params.sum_arity_sub_one_mul_domainSize]
 
 /-- Closed-form telescoping Siegel commit-phase error across all `m` single-word smooth FRI folding
@@ -605,8 +598,7 @@ private theorem johnsonCurveBound_rescaled_le {ni m d D r mJ k₀ n₀ : ℕ}
     have hn₀_ne : (n₀ : ℝ) ≠ 0 := by exact_mod_cast (lt_of_lt_of_le hni hni_le).ne'
     calc _ = (ProximityGap.johnsonCurveBound ni m d D r n₀ : ℝ) * (ni : ℝ) * (k₀ : ℝ) := by ring
       _ ≤ (1800 * (r : ℝ) * ((mJ + 1 : ℝ) ^ 6) * ((ni : ℝ) ^ 2) /
-            ((k₀ : ℝ) / (n₀ : ℝ))) * (n₀ : ℝ) * (k₀ : ℝ) :=
-          mul_le_mul_of_nonneg_right h1 (Nat.cast_nonneg _)
+            ((k₀ : ℝ) / (n₀ : ℝ))) * (n₀ : ℝ) * (k₀ : ℝ) := by gcongr
       _ = _ := by field_simp
   have hmul_nat : ProximityGap.johnsonCurveBound ni m d D r n₀ * k₀ ≤
       1800 * (mJ + 1) ^ 6 * (r * ni) * n₀ ^ 2 := by

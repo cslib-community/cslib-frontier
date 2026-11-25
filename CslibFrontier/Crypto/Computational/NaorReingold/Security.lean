@@ -38,6 +38,8 @@ import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.StatisticalDistance.Product
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.GameHop
+import CslibFrontier.Tactic.Negligible
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Computational security of the Naor–Reingold PRF from DDH
@@ -241,16 +243,11 @@ private theorem naorReingoldWordHybridAt_zero (F : PrimeOrderGroupFamily) (d : F
         let α₀ ← PMF.uniformOfFintype (ZMod (F.order d))
         let α ← PMF.uniformOfFintype (Fin m → ZMod (F.order d))
         naorReingoldWordRun F d prog (F.naorReingoldEval d α₀ α)) := by
-  let e : ZMod (F.order d) ≃ (BitString 0 → ZMod (F.order d)) :=
-    (Equiv.funUnique (BitString 0) (ZMod (F.order d))).symm
   unfold naorReingoldWordHybridAt
-  simp only [PMF.monad_bind_eq_bind]
-  rw [← PMF.uniformOfFintype_map_equiv e, PMF.bind_map]
-  congr 1; funext α₀
-  dsimp only [Function.comp_apply]
-  congr 1; funext α
+  relabel_uniform (Equiv.funUnique (BitString 0) (ZMod (F.order d))).symm with α₀
+  congr 1 with α : 1
   refine congrArg (naorReingoldWordRun F d prog) (funext fun x => ?_)
-  simp [naorReingoldHybridEval, naorReingoldEval, e]
+  simp [naorReingoldHybridEval, naorReingoldEval]
 
 private theorem naorReingoldWordHybridAt_self (F : PrimeOrderGroupFamily) (d : F.Desc) (m : ℕ)
     (prog : WordOracleComp Unit Bool) :
@@ -266,18 +263,6 @@ private theorem naorReingoldWordHybridAt_self (F : PrimeOrderGroupFamily) (d : F
     funext x
     simp [naorReingoldHybridEval]
   simp_rw [hfn, PMF.bind_const]
-
-private def wordPrefixTableEquiv (α : Type*) (k : ℕ) :
-    (BitString k → α × α) ≃ (BitString (k + 1) → α) :=
-  ((Equiv.piCongrRight fun _ : BitString k =>
-      { toFun := fun (p : α × α) (b : Bool) => if b then p.2 else p.1
-        invFun := fun f => (f false, f true)
-        left_inv := fun _ => by simp
-        right_inv := fun f => by funext b; cases b <;> rfl }).trans
-    (Equiv.curry (BitString k) Bool α).symm).trans
-    (Equiv.arrowCongr
-      ((Fin.snocEquiv fun _ : Fin (k + 1) => Bool).symm.trans (Equiv.prodComm _ _)).symm
-      (Equiv.refl α))
 
 private noncomputable def naorReingoldWordLevelTest (F : PrimeOrderGroupFamily) (d : F.Desc)
     {m : ℕ} (k : ℕ) (hk : k < m) (prog : WordOracleComp Unit Bool) (_u : F.Carrier d)
@@ -355,24 +340,26 @@ private theorem multiDDHRandomTupleLaw_naorReingoldWordLevelTest (F : PrimeOrder
   simp_rw [naorReingoldWordLevelTest_eq_uniform_full F d k hk prog]
   rw [PMF.bind_const]
   unfold naorReingoldWordHybridAt
-  simp only [multiDDHRandomTupleLaw, PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def]
-  rw [← PMF.uniformOfFintype_map_equiv (wordPrefixTableEquiv (ZMod (F.order d)) k), PMF.bind_map]
-  congr 1; funext B
-  dsimp only [Function.comp_apply]
-  congr 1; funext α
-  refine congrArg (naorReingoldWordRun F d prog) (funext fun x => ?_)
-  rw [naorReingoldTableEval, naorReingoldHybridEval]
-  have hpref :
-      wordPrefixTableEquiv (ZMod (F.order d)) k B (BitString.zeroExtend (d' := k + 1) x) =
-        if x ⟨k, hk⟩ then (B (BitString.zeroExtend (d' := k) x)).2
-        else (B (BitString.zeroExtend (d' := k) x)).1 := by
-    change (if BitString.zeroExtend (d' := k + 1) x (Fin.last k) then
-        (B (Fin.init (BitString.zeroExtend (d' := k + 1) x))).2
-      else (B (Fin.init (BitString.zeroExtend (d' := k + 1) x))).1) = _
-    rw [BitString.init_zeroExtend_succ, BitString.last_zeroExtend_succ hk]
-  rw [hpref]
-  rcases Bool.eq_false_or_eq_true (x ⟨k, hk⟩) with hxk | hxk <;>
-    simp [hxk, smul_smul, mul_comm]
+  simp only [multiDDHRandomTupleLaw]
+  relabel_uniform (fun (T : BitString k → ZMod (F.order d) × ZMod (F.order d))
+      (p : BitString (k + 1)) =>
+    if p (Fin.last k) then (T (Fin.init p)).2 else (T (Fin.init p)).1) with B
+  · intro T₁ T₂ h
+    funext s
+    have hf := congrFun h (Fin.snoc s false)
+    have ht := congrFun h (Fin.snoc s true)
+    simp only [Fin.snoc_last, Bool.false_eq_true, ↓reduceIte, Fin.init_snoc] at hf ht
+    exact Prod.ext hf ht
+  · simp only [Fintype.card_pi, Fintype.card_prod, Finset.prod_const, Finset.card_univ, ← sq,
+      ← pow_mul]
+    congr 1
+    simp [pow_succ']
+  · congr 1 with α : 1
+    refine congrArg (naorReingoldWordRun F d prog) (funext fun x => ?_)
+    rw [naorReingoldTableEval, naorReingoldHybridEval, BitString.init_zeroExtend_succ,
+      BitString.last_zeroExtend_succ hk]
+    rcases Bool.eq_false_or_eq_true (x ⟨k, hk⟩) with hxk | hxk <;>
+      simp [hxk, smul_smul, mul_comm]
 
 /-! ### Lazy-sampling frontier oracle and `IsOraclePPT` DDH distinguisher -/
 
@@ -1345,30 +1332,9 @@ private theorem DDH.negligible_naorReingoldDescGame {F : PrimeOrderGroupFamily}
       (by exact_mod_cast hnum_le : _ ≤ ((inLen n + 2 * cQ * C * (2 * n + 6) ^ eQ : ℕ) : ℝ≥0) *
         (2 : ℝ≥0) ^ L) (by positivity)).trans_eq ?_
     rw [mul_div_mul_right _ _ h2L, div_eq_mul_inv, ← inv_pow]
-  have hinLen_poly : PolynomiallyBounded inLen := hinLen.polynomiallyBounded
-  have hcap_poly : PolynomiallyBounded (fun n => dyadicSize (inLen n)) :=
-    dyadicSize_polynomiallyBounded.comp hinLen_poly
-  have hnum_poly : PolynomiallyBounded
-      (fun n => inLen n + 2 * cQ * C * (2 * n + 6) ^ eQ) := by
-    fun_prop
-  have hε_neg : Negligible ε :=
-    (negligible_geometric (ratio := (2 : ℝ≥0)⁻¹) (by norm_num)).polynomiallyBounded_mul hnum_poly
-  have hddh_neg : Negligible fun n =>
-      Game.advantage
-        (F.ddhRealGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n)
-        (F.ddhRandomGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n) :=
-    hDDH _ (isPPT_naorReingoldDescToDDHDistinguisher F hinLen hadv)
+  have hddh_neg := hDDH _ (isPPT_naorReingoldDescToDDHDistinguisher F hinLen hadv)
   have hinv_neg := hDDH.negligible_expected_inv_order
-  have hsum_neg : Negligible fun n =>
-      Game.advantage
-        (F.ddhRealGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n)
-        (F.ddhRandomGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n) +
-        2 * ε n +
-        (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal :=
-    (hddh_neg.add (hε_neg.const_mul 2)).add hinv_neg
-  have htot_neg := hsum_neg.polynomiallyBounded_mul hcap_poly
-  refine negligible_of_le htot_neg fun n => ?_
-  simpa only [mul_comm (dyadicSize (inLen n) : ℝ≥0)] using
+  negligible using fun n =>
     advantage_naorReingoldDescGame_le F setup inLen adv n (Q n) (hQ_supp n) (hε_supp n)
 
 /-- Ideal-sampling step toward [BonehShoup2023], Exercise 10.4 (p. 424), not the cited result: if
@@ -1390,12 +1356,7 @@ theorem DDH.negligible_naorReingoldWordGame_ideal {F : PrimeOrderGroupFamily}
 private theorem negligible_add_one_div_two_pow {inLen : ℕ → ℕ}
     (hinLen : ComputableInPolyTime inLen encUnary encUnary) :
     Negligible fun n => ((inLen n + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n := by
-  have hinLen_poly : PolynomiallyBounded inLen := hinLen.polynomiallyBounded
-  have hp : PolynomiallyBounded (fun n => inLen n + 1) := by fun_prop
-  refine negligible_of_le
-    ((negligible_geometric (ratio := (2 : ℝ≥0)⁻¹) (by norm_num)).polynomiallyBounded_mul hp)
-    fun n => ?_
-  rw [div_eq_mul_inv, ← inv_pow]
+  negligible
 
 /-- **Asymptotic DDH security of the executable Naor–Reingold group-PRF
 (`naorReingoldProbRealGame`)** ([BonehShoup2023], Exercise 10.4; [NaorReingold2004], Theorem 4.1):
@@ -1953,13 +1914,7 @@ theorem DDH.negligible_naorReingoldHashedGame_ideal {F : PrimeOrderGroupFamily}
     exists_queryBound_hashedAdvGroup houtLen hbound_poly hdesc_poly hdesc hadversary
   have hstep2_neg : Negligible fun n =>
       (Q n : ℝ≥0) * (NNReal.sqrt ((2 : ℝ≥0) ^ (outLen n) / (qMin n : ℝ≥0)) / 2) := by
-    have hsqrt : Negligible fun n =>
-        NNReal.sqrt ((2 : ℝ≥0) ^ (outLen n) / (qMin n : ℝ≥0)) / 2 := by
-      have h1 : Negligible fun n =>
-          (2⁻¹ : ℝ≥0) * NNReal.sqrt ((2 : ℝ≥0) ^ (outLen n) / (qMin n : ℝ≥0)) :=
-        (Negligible.sqrt hneg).const_mul (2⁻¹ : ℝ≥0)
-      simpa only [div_eq_inv_mul] using h1
-    exact hsqrt.polynomiallyBounded_mul hQ_poly
+    negligible
   exact negligible_naorReingoldHashedGame_of_ideal_le hDDH hinLen houtLen hbound_poly hbound
     hadversary hstep2_neg fun n =>
       F.advantage_naorReingoldHashedIdeal_le setup inLen outLen bound adversary n (Q n)
@@ -2097,8 +2052,7 @@ theorem DDH.negligible_naorReingoldHashedGame_ideal_const {F : PrimeOrderGroupFa
           ENNReal.toReal_mono (ENNReal.mul_ne_top (by finiteness) hE_top) hadv
       _ = ((Q n : ℝ) * (K : ℝ)) * (∑' d, setup n d * (g d : ℝ≥0∞)).toReal := by
           rw [ENNReal.toReal_mul, ENNReal.toReal_mul]; rfl
-      _ ≤ ((Q n : ℝ) * (K : ℝ)) * Real.sqrt (ε n : ℝ) :=
-          mul_le_mul_of_nonneg_left hjensen (by positivity)
+      _ ≤ ((Q n : ℝ) * (K : ℝ)) * Real.sqrt (ε n : ℝ) := by gcongr
       _ = (((Q n : ℝ≥0) * K * NNReal.sqrt (ε n) : ℝ≥0) : ℝ) := by push_cast; rfl
   have hK_le : K ≤ (2 : ℝ≥0) ^ c :=
     (div_le_self zero_le (by norm_num)).trans

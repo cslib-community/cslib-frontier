@@ -109,8 +109,7 @@ theorem differentiallyPrivate_exponentialMechanism {Adj : D → D → Prop} {u :
     rw [← Real.exp_add, add_halves]
   rw [div_le_iff₀ hZx, mul_div_assoc', div_mul_eq_mul_div, le_div_iff₀ hZy, hεsplit]
   calc Real.exp (ε * u x r / (2 * Δ)) * Zy
-      ≤ (Real.exp (ε / 2) * Real.exp (ε * u y r / (2 * Δ))) * (Real.exp (ε / 2) * Zx) :=
-        mul_le_mul hw hZ hZy.le (by positivity)
+      ≤ (Real.exp (ε / 2) * Real.exp (ε * u y r / (2 * Δ))) * (Real.exp (ε / 2) * Zx) := by gcongr
     _ = Real.exp (ε / 2) * Real.exp (ε / 2) * Real.exp (ε * u y r / (2 * Δ)) * Zx := by ring
 
 /-- The optimal utility `OPT_u(x) = max_r u(x, r)`. -/

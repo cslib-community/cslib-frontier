@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.Concentration
 public import CslibFrontier.Probability.Entropy
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Conditional information in independent samples
@@ -52,8 +53,9 @@ theorem uniform_map_mass_ge {Seed Output : Type*} [Fintype Seed] [Nonempty Seed]
   rw [Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2), Real.rpow_logb (by norm_num)
     (by norm_num) (by exact_mod_cast Fintype.card_pos (α := Seed))]
   obtain ⟨seed, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp houtput
-  simpa only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast] using
-    ENNReal.toReal_mono (PMF.apply_ne_top _ _) (le_map_apply (PMF.uniformOfFintype Seed) f seed)
+  have hle := le_map_apply (PMF.uniformOfFintype Seed) f seed
+  simp only [PMF.uniformOfFintype_apply] at hle
+  ennreal_to_real using hle
 
 variable {ι : Type*} [Fintype ι] {α β : ι → Type*}
   [∀ i, Finite (α i)] [∀ i, Finite (β i)]
@@ -63,11 +65,12 @@ theorem surprisal_pi (p : ∀ i, PMF (α i)) (outcome : ∀ i, α i)
     (houtcome : outcome ∈ (pi p).support) :
     surprisal (pi p) outcome = ∑ i, surprisal (p i) (outcome i) := by
   classical
-  have hpositive (i : ι) : (p i (outcome i)).toReal ≠ 0 :=
-    ENNReal.toReal_ne_zero.mpr ⟨(mem_support_pi_iff p outcome).mp houtcome i,
-      PMF.apply_ne_top _ _⟩
-  simp only [surprisal, pi_apply, ENNReal.toReal_prod,
-    Real.logb_prod _ _ (fun i _ => hpositive i), Finset.sum_neg_distrib]
+  have hpositive (i : ι) : (p i (outcome i)).toReal ≠ 0 := by
+    ennreal_to_real using
+      (PMF.mem_support_iff _ _).mp ((mem_support_pi_iff p outcome).mp houtcome i)
+  simp only [surprisal, pi_apply]
+  ennreal_to_real
+  rw [Real.logb_prod _ _ (fun i _ => hpositive i), Finset.sum_neg_distrib]
 
 /-- Independent conditional information concentrates around the sum of conditional entropies.
 Only outcomes in the support need a probability lower bound. -/
@@ -84,8 +87,8 @@ theorem pi_sum_conditionalSurprisal_le (joint : ∀ i, PMF (α i × β i))
   have hscore (i : ι) (pair : α i × β i) (hpair : pair ∈ (joint i).support) :
       surprisal (conditionalSnd (joint i) pair.1) pair.2 ∈ Set.Icc 0 bound := by
     refine ⟨surprisal_nonneg _ _, surprisal_le_of_mass_ge _ _ ?_⟩
-    exact (hmass i pair hpair).trans (ENNReal.toReal_mono (PMF.apply_ne_top _ _)
-      (apply_le_conditionalSnd (joint i) pair.1 pair.2))
+    exact (hmass i pair hpair).trans
+      (by ennreal_to_real using apply_le_conditionalSnd (joint i) pair.1 pair.2)
   simpa only [← conditionalEntropy_eq_sum_surprisal] using
     pi_sum_le_mean_sub joint
       (fun i pair => surprisal (conditionalSnd (joint i) pair.1) pair.2) hbound hscore hε
@@ -116,9 +119,8 @@ theorem pi_conditional_mass_gt (joint : ∀ i, PMF (α i × β i))
   simp only [Set.mem_preimage, Set.mem_ofPred_eq,
     conditionalSnd_pi_joint joint _ hobserved] at hlarge
   have hconditional : (fun i => (outcome i).2) ∈
-      (pi (fun i => conditionalSnd (joint i) (outcome i).1)).support := by
-    exact ne_of_gt (ENNReal.toReal_pos_iff.mp
-      ((Real.rpow_pos_of_pos (by norm_num) _).trans hlarge)).1
+      (pi (fun i => conditionalSnd (joint i) (outcome i).1)).support :=
+    ne_of_gt (by ennreal_to_real; exact (Real.rpow_pos_of_pos (by norm_num) _).trans hlarge)
   have h := (surprisal_le_iff_mass_ge _ _ hconditional).mpr hlarge.le
   simpa only [Set.mem_ofPred_eq, surprisal_pi _ _ hconditional] using h
 

@@ -186,11 +186,7 @@ private theorem toOuterMeasure_uniform_linearForm_eq_le [NeZero q] (hq : q.Prime
     ext x
     simp only [Set.mem_ofPred_eq]
     rw [hsum]
-    constructor
-    · intro hx
-      linear_combination hx
-    · intro hx
-      linear_combination hx
+    constructor <;> intro hx <;> linear_combination hx
 
 /-! ### Tabulating queries -/
 
@@ -292,10 +288,6 @@ private def ev (x : ι → ZMod q) (K : (ι → ZMod q) × ZMod q) : ZMod q := �
 
 omit [DecidableEq ι] in
 private theorem ev_zero_left (x : ι → ZMod q) (b : ZMod q) : ev x (0, b) = b := by
-  simp [ev]
-
-omit [DecidableEq ι] in
-private theorem ev_zero (x : ι → ZMod q) : ev x 0 = 0 := by
   simp [ev]
 
 /-- A table of (key, label) pairs. -/
@@ -1035,7 +1027,7 @@ private theorem real_eq_lazy (x : ι → ZMod q)
   refine map_bind_eq_of_step (fun (t : κ → (ι → ZMod q) × ZMod q) k => ev x (t k))
     (fun b : γ × (κ → (ι → ZMod q) × ZMod q) => (b.1, fun k => ev x (b.2 k)))
     (fun s : Tab ι q × Bool => rep x s.1) (fun s : Tab ι q × Bool => Consistent x s.1)
-    (map_run_tabulateM _ _ _ _ (ev x) (ev_zero x) (fun s : Tab ι q × Bool => rep x s.1)
+    (map_run_tabulateM _ _ _ _ (ev x) (by simp [ev]) (fun s : Tab ι q × Bool => rep x s.1)
       (fun s : Tab ι q × Bool => Consistent x s.1) hpres
       (fun k s hs => by
         simp only [OracleComp.interpret_query]

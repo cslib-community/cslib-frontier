@@ -222,7 +222,7 @@ private theorem controls_collect {input a b n m r : ℕ}
         (controls (right.eval interpretation x)) := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp [controls, collect, layout, Circuit.eval_wiringOn, BitString.block,
+    simp [circuit_simps, controls, collect, layout, BitString.block,
       Equiv.sumSumSumComm, -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem records_collect {input a b n m r : ℕ}
@@ -233,7 +233,7 @@ private theorem records_collect {input a b n m r : ℕ}
         (records (right.eval interpretation x)) := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp [records, collect, layout, Circuit.eval_wiringOn, BitString.block,
+    simp [circuit_simps, records, collect, layout, BitString.block,
       Equiv.sumSumSumComm, -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem cost_collect {input a b n m r : ℕ}
@@ -264,7 +264,7 @@ private theorem controls_chain {input a b n m r : ℕ}
           (first.eval interpretation x ∘ Fin.natAdd (a * 2)))) := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp [controls, chain, layout, Circuit.eval_wiringOn, BitString.block,
+    simp [circuit_simps, controls, chain, layout, BitString.block,
       -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem records_chain {input a b n m r : ℕ}
@@ -273,7 +273,7 @@ private theorem records_chain {input a b n m r : ℕ}
     records ((chain first second).eval interpretation x) =
       records (second.eval interpretation (first.eval interpretation x ∘ Fin.natAdd (a * 2))) := by
   funext j bit
-  simp [records, chain, layout, Circuit.eval_wiringOn, BitString.block,
+  simp [circuit_simps, records, chain, layout, BitString.block,
     -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem cost_chain {input a b n m r : ℕ}

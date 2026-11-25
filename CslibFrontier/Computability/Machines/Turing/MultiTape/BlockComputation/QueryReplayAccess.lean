@@ -106,7 +106,7 @@ private theorem workResidue_inSpace : ComputableInSpace
     (fun p => (encPair encNat encNat p).length) := by
   have hw := fst encNat encNat
   have hp := snd encNat encNat
-  refine (budget_ite (budget_natIsZero hw) (budget_const 0 (.refl _))
+  refine (budget_ite (budget_natIsZero hw) (budget_const 0)
     (budget_natMod hp hw)).of_enc_eq ?_
   intro p
   simp only [workResidue, Bool.decide_iff]
@@ -116,7 +116,7 @@ private theorem inputResidue_inSpace : ComputableInSpace
     (fun p => (encPair encNat encNat p).length) := by
   have hw := fst encNat encNat
   have hp := snd encNat encNat
-  refine (budget_ite (budget_natIsZero hw) (budget_const 0 (.refl _))
+  refine (budget_ite (budget_natIsZero hw) (budget_const 0)
     (budget_ite (budget_natIsZero hp) (budget_natPred hw)
       (budget_natMod (budget_natPred hp) hw))).of_enc_eq ?_
   intro p

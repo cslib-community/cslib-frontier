@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Rat
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -30,10 +31,12 @@ numerator and binary denominator, casting integers, constructing normalized quot
 
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_pair`: projecting `q : ℚ` to `(q.num, q.den)`.
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_num`, `.rat_den`: extracting numerator/denominator.
-* `Turing.MultiTapeTM.ComputableInPolyTime.rat_intCast`: casting `ℤ → ℚ`.
+* `Turing.MultiTapeTM.ComputableInPolyTime.rat_intCast`, `.rat_natCast`: casting `ℤ → ℚ` and
+  binary `ℕ → ℚ`.
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_divInt`, `.rat_divInt'`: normalized quotient.
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_neg`, `.rat_inv`, `.rat_add`, `.rat_sub`,
-  `.rat_mul`, `.rat_div` and primed composition rules: rational field operations.
+  `.rat_mul`, `.rat_div`, `.rat_pow` and primed composition rules: rational field operations and
+  unary powers.
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_isZero`, `.rat_eq`, `.rat_le`, `.rat_lt` and primed
   composition rules: rational zero, equality, and order tests.
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_floor`, `.rat_floor'`: rational floor `Rat.floor`.
@@ -76,7 +79,13 @@ private theorem int_eq_signMagnitude_self (z : ℤ) :
     z = if decide (z < 0) then -(z.natAbs : ℤ) else (z.natAbs : ℤ) := by
   split_ifs <;> lia
 
-attribute [local irreducible] encRat encIntBin encNat
+attribute [local irreducible] encRat encIntBin encNat encUnary
+
+/-- Casting a binary natural `n : ℕ` to `(n : ℚ)` is computable in polynomial time under
+`encNat` and `encRat`. -/
+@[fun_prop]
+theorem rat_natCast : ComputableInPolyTime (fun n : ℕ => (n : ℚ)) encNat encRat :=
+  (rat_intCast.comp intBin_natCast).of_enc_eq fun _ => rfl
 
 /-- Forming the normalized rational quotient `Rat.divInt p.1 p.2` from signed binary integers is
 computable in polynomial time under `encRat`. -/
@@ -84,58 +93,25 @@ computable in polynomial time under `encRat`. -/
 theorem rat_divInt :
     ComputableInPolyTime (fun p : ℤ × ℤ => Rat.divInt p.1 p.2)
       (encPair encIntBin encIntBin) encRat := by
-  have ha0 : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.1 = 0))
-      (encPair encIntBin encIntBin) encBool :=
-    intBin_isZero.comp (fst encIntBin encIntBin)
-  have hb0 : ComputableInPolyTime (fun p : ℤ × ℤ => decide (p.2 = 0))
-      (encPair encIntBin encIntBin) encBool :=
-    intBin_isZero.comp (snd encIntBin encIntBin)
-  have hs : ComputableInPolyTime
-      (fun p : ℤ × ℤ =>
-        if p.1 = 0 then false else if p.2 = 0 then false
-        else (decide (p.1 < 0) ^^ decide (p.2 < 0)))
-      (encPair encIntBin encIntBin) encBool :=
-    ha0.ite_decide (.const false)
-      (hb0.ite_decide (.const false)
-        (bool_xor.comp ((intBin_isNeg.comp (fst encIntBin encIntBin)).prod
-          (intBin_isNeg.comp (snd encIntBin encIntBin)))))
   have hg : ComputableInPolyTime
       (fun p : ℤ × ℤ => Nat.gcd p.1.natAbs p.2.natAbs)
       (encPair encIntBin encIntBin) encNat :=
-    binary_gcd' (intBin_natAbs.comp (fst encIntBin encIntBin))
-      (intBin_natAbs.comp (snd encIntBin encIntBin))
-  have hm : ComputableInPolyTime
-      (fun p : ℤ × ℤ => if p.2 = 0 then 0 else p.1.natAbs / Nat.gcd p.1.natAbs p.2.natAbs)
-      (encPair encIntBin encIntBin) encNat :=
-    hb0.ite_decide (.const 0)
-      (binary_div' (intBin_natAbs.comp (fst encIntBin encIntBin)) hg)
-  have hnum : ComputableInPolyTime
+    binary_gcd' (by fun_prop) (by fun_prop)
+  have h : ComputableInPolyTime
       (fun p : ℤ × ℤ =>
-        if (if p.1 = 0 then false else if p.2 = 0 then false
-            else (decide (p.1 < 0) ^^ decide (p.2 < 0)))
-        then -((if p.2 = 0 then 0 else p.1.natAbs / Nat.gcd p.1.natAbs p.2.natAbs : ℕ) : ℤ)
-        else ((if p.2 = 0 then 0 else p.1.natAbs / Nat.gcd p.1.natAbs p.2.natAbs : ℕ) : ℤ))
-      (encPair encIntBin encIntBin) encIntBin :=
-    intBin_signMagnitude.comp (hs.prod hm)
-  have hden : ComputableInPolyTime
-      (fun p : ℤ × ℤ => if p.2 = 0 then 1 else p.2.natAbs / Nat.gcd p.1.natAbs p.2.natAbs)
-      (encPair encIntBin encIntBin) encNat :=
-    hb0.ite_decide (.const 1)
-      (binary_div' (intBin_natAbs.comp (snd encIntBin encIntBin)) hg)
-  have henc : ∀ p : ℤ × ℤ,
-      encRat (Rat.divInt p.1 p.2) =
-        encRatData
-          (if (if p.1 = 0 then false else if p.2 = 0 then false
-              else (decide (p.1 < 0) ^^ decide (p.2 < 0)))
+        (if (if p.1 = 0 then false else if p.2 = 0 then false
+            else (decide (p.1 < 0) != decide (p.2 < 0)))
           then -((if p.2 = 0 then 0 else p.1.natAbs / Nat.gcd p.1.natAbs p.2.natAbs : ℕ) : ℤ)
           else ((if p.2 = 0 then 0 else p.1.natAbs / Nat.gcd p.1.natAbs p.2.natAbs : ℕ) : ℤ),
-          if p.2 = 0 then 1 else p.2.natAbs / Nat.gcd p.1.natAbs p.2.natAbs) := fun p => by
-    rw [encRat_apply]
-    refine congrArg encRatData (Prod.ext ?_ ?_)
-    · rw [int_eq_signMagnitude_self (Rat.divInt p.1 p.2).num, Rat.decide_num_divInt_lt_zero,
-        Rat.natAbs_num_divInt]
-    · rw [Rat.den_divInt, Int.gcd, Nat.gcd_comm]
-  exact (hnum.prod hden).of_enc_eq henc
+          if p.2 = 0 then 1 else p.2.natAbs / Nat.gcd p.1.natAbs p.2.natAbs))
+      (encPair encIntBin encIntBin) encRatData :=
+    (intBin_signMagnitude' (by fun_prop) (by fun_prop)).prod (by fun_prop)
+  refine h.of_enc_eq fun p => ?_
+  rw [encRat_apply]
+  refine congrArg encRatData (Prod.ext ?_ ?_)
+  · rw [int_eq_signMagnitude_self (Rat.divInt p.1 p.2).num, Rat.decide_num_divInt_lt_zero,
+      Bool.bne_eq_xor, Rat.natAbs_num_divInt]
+  · rw [Rat.den_divInt, Int.gcd, Nat.gcd_comm]
 
 /-- Normalized quotient `Rat.divInt` of computed binary integers. -/
 @[fun_prop]
@@ -148,8 +124,7 @@ theorem rat_divInt' {α : Type} {input : α ↪ List Bool} {num den : α → ℤ
 /-- Negation on `ℚ` is computable in polynomial time. -/
 @[fun_prop]
 theorem rat_neg : ComputableInPolyTime (fun q : ℚ => -q) encRat encRat := by
-  have h : ComputableInPolyTime (fun q : ℚ => (-q.num, q.den)) encRat encRatData :=
-    (intBin_neg.comp rat_num).prod rat_den
+  have h : ComputableInPolyTime (fun q : ℚ => (-q.num, q.den)) encRat encRatData := by fun_prop
   exact h.of_enc_eq fun q => by
     rw [encRat_apply]
     exact congrArg encRatData <| Prod.ext (Rat.num_neg_eq_neg_num q) (Rat.den_neg_eq_den q)
@@ -164,8 +139,8 @@ theorem rat_neg' {α : Type} {input : α ↪ List Bool} {f : α → ℚ}
 /-- Multiplicative inverse on `ℚ` is computable in polynomial time. -/
 @[fun_prop]
 theorem rat_inv : ComputableInPolyTime (fun q : ℚ => q⁻¹) encRat encRat := by
-  have h : ComputableInPolyTime (fun q : ℚ => Rat.divInt (q.den : ℤ) q.num) encRat encRat :=
-    rat_divInt' (intBin_natCast.comp rat_den) rat_num
+  have h : ComputableInPolyTime (fun q : ℚ => Rat.divInt (q.den : ℤ) q.num) encRat encRat := by
+    fun_prop
   exact h.of_enc_eq fun q => congrArg encRat (Rat.inv_def q)
 
 /-- Multiplicative inverse of a computed rational number. -/
@@ -175,28 +150,6 @@ theorem rat_inv' {α : Type} {input : α ↪ List Bool} {f : α → ℚ}
     ComputableInPolyTime (fun x => (f x)⁻¹) input encRat :=
   rat_inv.comp hf
 
-private theorem rat_fst_num :
-    ComputableInPolyTime (fun p : ℚ × ℚ => p.1.num) (encPair encRat encRat) encIntBin :=
-  rat_num.comp (fst encRat encRat)
-
-private theorem rat_snd_num :
-    ComputableInPolyTime (fun p : ℚ × ℚ => p.2.num) (encPair encRat encRat) encIntBin :=
-  rat_num.comp (snd encRat encRat)
-
-private theorem rat_fst_denInt :
-    ComputableInPolyTime (fun p : ℚ × ℚ => (p.1.den : ℤ)) (encPair encRat encRat) encIntBin :=
-  intBin_natCast.comp (rat_den.comp (fst encRat encRat))
-
-private theorem rat_snd_denInt :
-    ComputableInPolyTime (fun p : ℚ × ℚ => (p.2.den : ℤ)) (encPair encRat encRat) encIntBin :=
-  intBin_natCast.comp (rat_den.comp (snd encRat encRat))
-
-private theorem rat_mul_dens :
-    ComputableInPolyTime (fun p : ℚ × ℚ => ((p.1.den * p.2.den : ℕ) : ℤ))
-      (encPair encRat encRat) encIntBin :=
-  intBin_natCast.comp (binary_mul' (rat_den.comp (fst encRat encRat))
-    (rat_den.comp (snd encRat encRat)))
-
 /-- Addition on `ℚ` is computable in polynomial time. -/
 @[fun_prop]
 theorem rat_add :
@@ -205,11 +158,8 @@ theorem rat_add :
       (fun p : ℚ × ℚ =>
         Rat.divInt (p.1.num * (p.2.den : ℤ) + p.2.num * (p.1.den : ℤ))
           ((p.1.den * p.2.den : ℕ) : ℤ))
-      (encPair encRat encRat) encRat :=
-    rat_divInt'
-      (intBin_add' (intBin_mul' rat_fst_num rat_snd_denInt)
-        (intBin_mul' rat_snd_num rat_fst_denInt))
-      rat_mul_dens
+      (encPair encRat encRat) encRat := by
+    fun_prop
   exact h.of_enc_eq fun p => congrArg encRat (by rw [Rat.add_def', Rat.mkRat_eq_divInt])
 
 /-- Addition of computed rational numbers. -/
@@ -228,11 +178,8 @@ theorem rat_sub :
       (fun p : ℚ × ℚ =>
         Rat.divInt (p.1.num * (p.2.den : ℤ) - p.2.num * (p.1.den : ℤ))
           ((p.1.den * p.2.den : ℕ) : ℤ))
-      (encPair encRat encRat) encRat :=
-    rat_divInt'
-      (intBin_sub' (intBin_mul' rat_fst_num rat_snd_denInt)
-        (intBin_mul' rat_snd_num rat_fst_denInt))
-      rat_mul_dens
+      (encPair encRat encRat) encRat := by
+    fun_prop
   exact h.of_enc_eq fun p => congrArg encRat (by rw [Rat.sub_def', Rat.mkRat_eq_divInt])
 
 /-- Subtraction of computed rational numbers. -/
@@ -248,10 +195,9 @@ theorem rat_sub' {α : Type} {input : α ↪ List Bool} {left right : α → ℚ
 theorem rat_mul :
     ComputableInPolyTime (fun p : ℚ × ℚ => p.1 * p.2) (encPair encRat encRat) encRat := by
   have h : ComputableInPolyTime
-      (fun p : ℚ × ℚ =>
-        Rat.divInt (p.1.num * p.2.num) ((p.1.den * p.2.den : ℕ) : ℤ))
-      (encPair encRat encRat) encRat :=
-    rat_divInt' (intBin_mul' rat_fst_num rat_snd_num) rat_mul_dens
+      (fun p : ℚ × ℚ => Rat.divInt (p.1.num * p.2.num) ((p.1.den * p.2.den : ℕ) : ℤ))
+      (encPair encRat encRat) encRat := by
+    fun_prop
   exact h.of_enc_eq fun p => congrArg encRat (by rw [Rat.mul_def', Rat.mkRat_eq_divInt])
 
 /-- Multiplication of computed rational numbers. -/
@@ -267,11 +213,9 @@ theorem rat_mul' {α : Type} {input : α ↪ List Bool} {left right : α → ℚ
 theorem rat_div :
     ComputableInPolyTime (fun p : ℚ × ℚ => p.1 / p.2) (encPair encRat encRat) encRat := by
   have h : ComputableInPolyTime
-      (fun p : ℚ × ℚ =>
-        Rat.divInt (p.1.num * (p.2.den : ℤ)) ((p.1.den : ℤ) * p.2.num))
-      (encPair encRat encRat) encRat :=
-    rat_divInt' (intBin_mul' rat_fst_num rat_snd_denInt)
-      (intBin_mul' rat_fst_denInt rat_snd_num)
+      (fun p : ℚ × ℚ => Rat.divInt (p.1.num * (p.2.den : ℤ)) ((p.1.den : ℤ) * p.2.num))
+      (encPair encRat encRat) encRat := by
+    fun_prop
   exact h.of_enc_eq fun p => congrArg encRat (Rat.div_def' p.1 p.2)
 
 /-- Division of computed rational numbers. -/
@@ -281,6 +225,25 @@ theorem rat_div' {α : Type} {input : α ↪ List Bool} {left right : α → ℚ
     (hright : ComputableInPolyTime right input encRat) :
     ComputableInPolyTime (fun x => left x / right x) input encRat :=
   rat_div.comp (hleft.prod hright)
+
+/-- Raising a rational number to a unary natural exponent is computable in polynomial time. -/
+@[fun_prop]
+theorem rat_pow :
+    ComputableInPolyTime (fun p : ℚ × ℕ => p.1 ^ p.2) (encPair encRat encUnary) encRat := by
+  have h : ComputableInPolyTime (fun p : ℚ × ℕ => (p.1.num ^ p.2, p.1.den ^ p.2))
+      (encPair encRat encUnary) encRatData := by
+    fun_prop
+  refine h.of_enc_eq fun (q, k) => ?_
+  rw [encRat_apply]
+  exact congrArg encRatData <| Prod.ext (Rat.num_pow q k) (Rat.den_pow q k)
+
+/-- Raising a computed rational number to a computed unary exponent. -/
+@[fun_prop]
+theorem rat_pow' {α : Type} {input : α ↪ List Bool} {base : α → ℚ} {exponent : α → ℕ}
+    (hbase : ComputableInPolyTime base input encRat)
+    (hexponent : ComputableInPolyTime exponent input encUnary) :
+    ComputableInPolyTime (fun x => base x ^ exponent x) input encRat :=
+  rat_pow.comp (hbase.prod hexponent)
 
 /-- Zero test on `ℚ` is computable in polynomial time. -/
 @[fun_prop]
@@ -302,8 +265,8 @@ theorem rat_lt :
     ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 < p.2)) (encPair encRat encRat) encBool := by
   have h : ComputableInPolyTime
       (fun p : ℚ × ℚ => decide (p.1.num * (p.2.den : ℤ) < p.2.num * (p.1.den : ℤ)))
-      (encPair encRat encRat) encBool :=
-    intBin_lt' (intBin_mul' rat_fst_num rat_snd_denInt) (intBin_mul' rat_snd_num rat_fst_denInt)
+      (encPair encRat encRat) encBool := by
+    fun_prop
   exact h.of_enc_eq fun p => congrArg encBool <| Bool.eq_iff_iff.2 (by
     simp only [decide_eq_true_eq]
     exact Rat.lt_iff p.1 p.2)
@@ -321,8 +284,8 @@ theorem rat_lt' {α : Type} {input : α ↪ List Bool} {left right : α → ℚ}
 theorem rat_le :
     ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 ≤ p.2)) (encPair encRat encRat) encBool := by
   have h : ComputableInPolyTime
-      (fun p : ℚ × ℚ => !decide (p.2 < p.1)) (encPair encRat encRat) encBool :=
-    bool_not.comp (rat_lt.comp ((snd encRat encRat).prod (fst encRat encRat)))
+      (fun p : ℚ × ℚ => !decide (p.2 < p.1)) (encPair encRat encRat) encBool := by
+    fun_prop
   exact h.of_enc_eq fun p => congrArg encBool (by
     simp only [← decide_not, not_lt])
 
@@ -344,8 +307,8 @@ theorem rat_eq :
     ComputableInPolyTime (fun p : ℚ × ℚ => decide (p.1 = p.2)) (encPair encRat encRat) encBool := by
   have h : ComputableInPolyTime
       (fun p : ℚ × ℚ => decide (p.1 ≤ p.2) && decide (p.2 ≤ p.1))
-      (encPair encRat encRat) encBool :=
-    bool_and' rat_le (rat_le' (snd encRat encRat) (fst encRat encRat))
+      (encPair encRat encRat) encBool := by
+    fun_prop
   exact h.of_enc_eq fun p => congrArg encBool <| Bool.eq_iff_iff.2 (by
     simp only [Bool.and_eq_true, decide_eq_true_eq]
     exact le_antisymm_iff)
@@ -388,23 +351,13 @@ private theorem rat_floor_eq_ite (q : ℚ) :
 /-- Rational floor `Rat.floor` is computable in polynomial time under `encRat` and `encIntBin`. -/
 @[fun_prop]
 theorem rat_floor : ComputableInPolyTime Rat.floor encRat encIntBin := by
-  have hcond : ComputableInPolyTime (fun q : ℚ => decide (q.num < 0)) encRat encBool :=
-    intBin_lt' rat_num (const 0)
-  have hneg : ComputableInPolyTime
-      (fun q : ℚ => -(((q.num.natAbs + q.den - 1) / q.den : ℕ) : ℤ)) encRat encIntBin :=
-    intBin_neg.comp (intBin_natCast.comp
-      (binary_div' (binary_sub' (binary_add' (intBin_natAbs.comp rat_num) rat_den) (const 1))
-        rat_den))
-  have hnonneg : ComputableInPolyTime
-      (fun q : ℚ => ((q.num.toNat / q.den : ℕ) : ℤ)) encRat encIntBin :=
-    intBin_natCast.comp (binary_div' (intBin_toNat.comp rat_num) rat_den)
-  have h := ite_decide hcond hneg hnonneg
-  have heq :
+  have h : ComputableInPolyTime
       (fun q : ℚ =>
         if q.num < 0 then -(((q.num.natAbs + q.den - 1) / q.den : ℕ) : ℤ)
-        else ((q.num.toNat / q.den : ℕ) : ℤ)) = Rat.floor :=
-    funext fun q => (rat_floor_eq_ite q).symm
-  rwa [heq] at h
+        else ((q.num.toNat / q.den : ℕ) : ℤ))
+      encRat encIntBin := by
+    fun_prop
+  exact h.of_enc_eq fun q => congrArg encIntBin (rat_floor_eq_ite q)
 
 /-- Rational floor of a computed rational number. -/
 @[fun_prop]

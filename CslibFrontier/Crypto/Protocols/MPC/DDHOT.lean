@@ -572,14 +572,13 @@ theorem evalWith_ddhOTProtocolWith (g : G) (q : ℕ) [Module (ZMod q) G]
     {C₀ C₁ : Type} (sample₀ : ProbComp C₀) (sample₁ : ProbComp C₁)
     (proj₀ : C₀ → DDHOTSenderCoins q) (proj₁ : C₁ → ZMod q)
     (x : (i : Fin 2) → OTIn G i) :
-    (ddhOTProtocolWith g q sample₀ sample₁ proj₀ proj₁).evalWith noOracleWorld x =
-      (ProbComp.eval sample₀).bind fun raw₀ =>
-        (ProbComp.eval sample₁).map fun raw₁ =>
-          (ddhOTViewsWith g proj₀ proj₁ x raw₀ raw₁, otOutputs x) := by
+    (ddhOTProtocolWith g q sample₀ sample₁ proj₀ proj₁).evalWith noOracleWorld x = do
+      let raw₀ ← ProbComp.eval sample₀
+      let raw₁ ← ProbComp.eval sample₁
+      return (ddhOTViewsWith g proj₀ proj₁ x raw₀ raw₁, otOutputs x) := by
   rw [Protocol.evalWith_eq, eval_pi_ddhOTSampleCoins]
-  simp only [evalWith_ddhOTSteps, PMF.bind_bind, PMF.bind_map, PMF.pure_map]
+  simp only [evalWith_ddhOTSteps, pmf_norm]
   refine congrArg (ProbComp.eval sample₀).bind (funext fun raw₀ => ?_)
-  rw [← PMF.bind_pure_comp]
   refine congrArg (ProbComp.eval sample₁).bind
     (funext fun raw₁ => congrArg PMF.pure (Prod.ext ?_ ?_))
   · funext i
@@ -648,16 +647,18 @@ corrupted sender's real view paired with `otOutputs x`. -/
 theorem idealJoint_ddhOT_sender_with (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
     {C₀ C₁ : Type} (sample₀ : ProbComp C₀) (proj₀ : C₀ → DDHOTSenderCoins q)
     (x : (i : Fin 2) → OTIn G i) :
-    ((ProbComp.eval sample₀).bind fun raw₀ =>
-      (PMF.uniformOfFintype (ZMod q)).map fun b =>
-        (ddhOTSenderSimWithCoinsOf (C₁ := C₁) g proj₀ raw₀ b (Finset.restrict {0} x),
-          otOutputs x)) =
-    ((ProbComp.eval sample₀).bind fun raw₀ =>
-      (PMF.uniformOfFintype (ZMod q)).map fun b =>
-        (singletonView (ddhOTSenderViewWith (C₁ := C₁) (x 0) raw₀
-          (ddhOTReceiverMsg g (x 1) b ((proj₀ raw₀).exponent • g))), otOutputs x)) := by
+    (do
+      let raw₀ ← ProbComp.eval sample₀
+      let b ← PMF.uniformOfFintype (ZMod q)
+      return (ddhOTSenderSimWithCoinsOf (C₁ := C₁) g proj₀ raw₀ b (Finset.restrict {0} x),
+        otOutputs x)) =
+    (do
+      let raw₀ ← ProbComp.eval sample₀
+      let b ← PMF.uniformOfFintype (ZMod q)
+      return (singletonView (ddhOTSenderViewWith (C₁ := C₁) (x 0) raw₀
+        (ddhOTReceiverMsg g (x 1) b ((proj₀ raw₀).exponent • g))), otOutputs x)) := by
+  simp only [pmf_norm]
   refine congrArg (PMF.bind _) (funext fun raw₀ => ?_)
-  rw [← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
   let σ : Bool := x 1
   change (PMF.uniformOfFintype (ZMod q)).bind (fun b =>
       PMF.pure (singletonView (ddhOTSenderViewWith (C₁ := C₁) (x 0) raw₀
@@ -675,17 +676,17 @@ theorem idealJoint_ddhOT_sender_with (g : G) (q : ℕ) [NeZero q] [Module (ZMod 
 /-- Real joint distribution for a corrupted sender (`{0}`). -/
 theorem realJoint_ddhOT_sender (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
     (x : (i : Fin 2) → OTIn G i) :
-    (ddhOTProtocol g q).realJoint noOracleWorld {0} x =
-      (ProbComp.eval (sampleDDHOTSenderCoins q)).bind fun c₀ =>
-        (PMF.uniformOfFintype (ZMod q)).map fun b =>
-          (singletonView
-            (ddhOTSenderView (x 0) c₀ (ddhOTReceiverMsg g (x 1) b (c₀.exponent • g))),
-            otOutputs x) := by
-  rw [Protocol.realJoint, evalWith_ddhOTProtocolWith, ProbComp.eval_uniform, PMF.map_bind]
-  refine congrArg (PMF.bind _) (funext fun c₀ => ?_)
-  rw [PMF.map_comp]
-  refine congrArg (PMF.map · _) (funext fun b => ?_)
-  simp only [Function.comp_apply, Prod.map, id, restrict_singleton, ddhOTViewsWith]
+    (ddhOTProtocol g q).realJoint noOracleWorld {0} x = do
+      let c₀ ← ProbComp.eval (sampleDDHOTSenderCoins q)
+      let b ← PMF.uniformOfFintype (ZMod q)
+      return (singletonView
+        (ddhOTSenderView (x 0) c₀ (ddhOTReceiverMsg g (x 1) b (c₀.exponent • g))),
+        otOutputs x) := by
+  rw [Protocol.realJoint, evalWith_ddhOTProtocolWith]
+  simp only [pmf_norm, ProbComp.eval_uniform]
+  refine congrArg (PMF.bind _) (funext fun c₀ =>
+    congrArg (PMF.bind _) (funext fun b => congrArg PMF.pure ?_))
+  simp only [Prod.map, id, restrict_singleton, ddhOTViewsWith]
   rfl
 
 /-- **Perfect privacy against a corrupted sender**: the ideal joint distribution with
@@ -696,9 +697,8 @@ theorem idealJoint_ddhOT_sender (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
       (ddhOTProtocol g q).realJoint noOracleWorld {0} x := by
   rw [realJoint_ddhOT_sender]
   simp only [idealJoint, otFunctionality, Functionality.ofDeterministic, ddhOTSenderSim,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    PMF.pure_bind, PMF.bind_bind]
-  simpa only [← PMF.bind_pure_comp, Function.comp_def, id] using
+    pmf_norm, ProbComp.eval_uniform]
+  simpa only [pmf_norm, id] using
     idealJoint_ddhOT_sender_with (C₁ := ZMod q) g q (sampleDDHOTSenderCoins q) id x
 
 /-- A corrupted sender has advantage zero against every distinguisher. -/
@@ -780,16 +780,20 @@ exponent `k = r' + a * s'` and reordering `(raw₁, r, s, k)` to `(k, raw₁, r,
 coin law `p₁`. -/
 private theorem uniform_bind_branch {q : ℕ} [NeZero q] {C₁ α : Type} (p₁ : PMF C₁)
     (a : ZMod q) (σ : Bool) (f : C₁ → ZMod q → ZMod q → ZMod q → PMF α) :
-    ((PMF.uniformOfFintype (ZMod q)).bind fun r₀ =>
-      (PMF.uniformOfFintype (ZMod q)).bind fun s₀ =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun r₁ =>
-          (PMF.uniformOfFintype (ZMod q)).bind fun s₁ =>
-            p₁.bind fun raw₁ =>
-              if σ then f raw₁ r₁ s₁ (r₀ + a * s₀) else f raw₁ r₀ s₀ (r₁ + a * s₁)) =
-    (PMF.uniformOfFintype (ZMod q)).bind fun k =>
-      p₁.bind fun raw₁ =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun r =>
-          (PMF.uniformOfFintype (ZMod q)).bind fun s => f raw₁ r s k := by
+    (do
+      let r₀ ← PMF.uniformOfFintype (ZMod q)
+      let s₀ ← PMF.uniformOfFintype (ZMod q)
+      let r₁ ← PMF.uniformOfFintype (ZMod q)
+      let s₁ ← PMF.uniformOfFintype (ZMod q)
+      let raw₁ ← p₁
+      if σ then f raw₁ r₁ s₁ (r₀ + a * s₀) else f raw₁ r₀ s₀ (r₁ + a * s₁)) =
+    (do
+      let k ← PMF.uniformOfFintype (ZMod q)
+      let raw₁ ← p₁
+      let r ← PMF.uniformOfFintype (ZMod q)
+      let s ← PMF.uniformOfFintype (ZMod q)
+      f raw₁ r s k) := by
+  simp only [PMF.monad_bind_eq_bind]
   cases σ <;> simp only [Bool.false_eq_true, ↓reduceIte]
   · conv_lhs =>
       enter [2, r₀, 2, s₀]
@@ -812,11 +816,12 @@ theorem real_receiver_eq_ddhRealExperiment_of (g : G) (q : ℕ) [NeZero q] [Modu
     (D : ((i : ({1} : Finset (Fin 2))) →
         PartyView (OTIn G) (DDHOTCoinsWith C₀ C₁) (ddhOTSchedule G) i) ×
       ((i : Fin 2) → OTOut G i) → ProbComp Bool) :
-    ((ProbComp.eval (sampleDDHOTSenderCoins q)).bind fun c₀ =>
-      (ProbComp.eval sample₁).bind fun raw₁ =>
-        ProbComp.eval (D (singletonView (ddhOTReceiverViewWith (x 1) raw₁ (c₀.exponent • g)
-          (ddhOTSenderReplyUnchecked g (x 0) c₀
-            (ddhOTReceiverMsg g (x 1) (proj₁ raw₁) (c₀.exponent • g)))), otOutputs x))) =
+    (do
+      let c₀ ← ProbComp.eval (sampleDDHOTSenderCoins q)
+      let raw₁ ← ProbComp.eval sample₁
+      ProbComp.eval (D (singletonView (ddhOTReceiverViewWith (x 1) raw₁ (c₀.exponent • g)
+        (ddhOTSenderReplyUnchecked g (x 0) c₀
+          (ddhOTReceiverMsg g (x 1) (proj₁ raw₁) (c₀.exponent • g)))), otOutputs x))) =
       ProbComp.eval (ddhRealExperiment q g (ddhOTReductionOf g q sample₁ proj₁ x D)) := by
   simp only [pmf_norm, sampleDDHOTSenderCoins, ddhRealExperiment, ddhOTReductionOf,
     ddhOTReductionWithCoinsOf, ProbComp.eval_uniform]
@@ -851,8 +856,7 @@ theorem real_receiver_eq_ddhRealExperiment (g : G) (q : ℕ) [NeZero q] [Module 
     ((ddhOTProtocol g q).realJoint noOracleWorld {1} x).bind (fun r => ProbComp.eval (D r)) =
       ProbComp.eval (ddhRealExperiment q g (ddhOTReduction g q x D)) := by
   rw [Protocol.realJoint, evalWith_ddhOTProtocolWith]
-  simp only [PMF.bind_bind, PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def, Prod.map,
-    id, restrict_singleton]
+  simp only [pmf_norm, Prod.map, id, restrict_singleton]
   exact real_receiver_eq_ddhRealExperiment_of (C₀ := DDHOTSenderCoins q) g q
     (ProbComp.uniform (ZMod q)) id x D
 

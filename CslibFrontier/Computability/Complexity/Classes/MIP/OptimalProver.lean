@@ -540,17 +540,14 @@ private noncomputable def bestOfList (g : α → ℝ≥0∞) (default : α) : Li
 
 private theorem le_bestOfList (g : α → ℝ≥0∞) (default : α) (l : List α) {x : α} (hx : x ∈ l) :
     g x ≤ g (bestOfList g default l) := by
-  induction l with
-  | nil => cases hx
-  | cons a l ih =>
-    simp only [bestOfList]
+  fun_induction bestOfList g default l with
+  | case1 => cases hx -- []
+  | case2 a l _ hle ih => -- a :: l, g b ≤ g a: keep a
     rcases List.mem_cons.mp hx with rfl | hx
-    · split_ifs with h
-      · exact le_rfl
-      · exact le_of_not_ge h
-    · split_ifs with h
-      · exact (ih hx).trans h
-      · exact ih hx
+    exacts [le_rfl, (ih hx).trans hle]
+  | case3 a l _ hnle ih => -- a :: l, g a < g b: keep b
+    rcases List.mem_cons.mp hx with rfl | hx
+    exacts [le_of_not_ge hnle, ih hx]
 
 private theorem tsum_mul_le_bestOfList (μ : PMF α) (g : α → ℝ≥0∞) (default : α) (l : List α)
     (hsupp : ∀ x ∈ μ.support, x ∈ l) :
@@ -667,23 +664,12 @@ def consistentHist : List (List Bool × List Bool) → List (List Bool × List B
 theorem DetProver.ValidFrom.consistentHist {D : DetProver} {s : D.State}
     {h₁ h₂ : List (List Bool × List Bool)} (hv₁ : D.ValidFrom s h₁) (hv₂ : D.ValidFrom s h₂) :
     MIP.consistentHist h₁ h₂ = true := by
-  induction h₁ generalizing s h₂ with
-  | nil => rfl
-  | cons e₁ rest₁ ih =>
-    obtain ⟨q₁, r₁⟩ := e₁
-    cases h₂ with
-    | nil => rfl
-    | cons e₂ rest₂ =>
-      obtain ⟨q₂, r₂⟩ := e₂
-      obtain ⟨hr₁, hv₁'⟩ := hv₁
-      obtain ⟨hr₂, hv₂'⟩ := hv₂
-      simp only [MIP.consistentHist]
-      by_cases hq : q₁ = q₂
-      · subst hq
-        simp only [beq_self_eq_true, ↓reduceIte, hr₁, ← hr₂, Bool.true_and]
-        exact ih hv₁' hv₂'
-      · have hq' : (q₁ == q₂) = false := beq_false_of_ne hq
-        simp [hq']
+  fun_induction MIP.consistentHist h₁ h₂ generalizing s with
+  | case3 q₁ r₁ rest₁ q₂ r₂ rest₂ hq ih => -- same query: compare replies
+    obtain rfl := beq_iff_eq.mp hq
+    simp only [hv₁.1, ← hv₂.1, beq_self_eq_true, Bool.true_and]
+    exact ih hv₁.2 hv₂.2
+  | _ => rfl -- an empty history, or different queries
 
 /-- Filter a candidate list of histories on query `q`: keep the tails of histories starting with
 `(q, r')` and emit the first matching reply `r'` (or `[]` if none match). -/
@@ -719,9 +705,18 @@ theorem validFrom_candidateProver (H : List (List (List Bool × List Bool)))
       match h' with
       | (q', r') :: rest' => if q' == q then some (r', rest') else none
       | [] => none
-    have hmem_match : (r, rest) ∈ cand.filterMap filterFn := by
-      rw [List.mem_filterMap]
-      exact ⟨(q, r) :: rest, hh, by simp [filterFn]⟩
+    have hmemF {r' : List Bool} {t : List (List Bool × List Bool)} :
+        (r', t) ∈ cand.filterMap filterFn ↔ (q, r') :: t ∈ cand := by
+      refine List.mem_filterMap.trans ⟨?_, fun hmem => ⟨_, hmem, by simp [filterFn]⟩⟩
+      rintro ⟨_ | ⟨⟨q', r''⟩, t'⟩, hmem, hf⟩
+      · simp [filterFn] at hf
+      · simp only [filterFn, beq_iff_eq] at hf
+        split_ifs at hf with hq
+        subst q'
+        simp only [Option.some.injEq, Prod.mk.injEq] at hf
+        obtain ⟨rfl, rfl⟩ := hf
+        exact hmem
+    have hmem_match : (r, rest) ∈ cand.filterMap filterFn := hmemF.mpr hh
     cases hm : cand.filterMap filterFn with
     | nil =>
       rw [hm] at hmem_match
@@ -729,52 +724,20 @@ theorem validFrom_candidateProver (H : List (List (List Bool × List Bool)))
     | cons first more =>
       obtain ⟨r₀, rest₀⟩ := first
       have hfirst_mem : (r₀, rest₀) ∈ cand.filterMap filterFn := by grind
-      rw [List.mem_filterMap] at hfirst_mem
-      obtain ⟨h₀, hh₀, hfilter₀⟩ := hfirst_mem
-      cases h₀ with
-      | nil => simp [filterFn] at hfilter₀
-      | cons e₀ tail₀ =>
-        obtain ⟨q₀, r₀'⟩ := e₀
-        simp only [filterFn, beq_iff_eq] at hfilter₀
-        split_ifs at hfilter₀ with hq₀
-        subst q₀
-        simp only [Option.some.injEq, Prod.mk.injEq] at hfilter₀
-        obtain ⟨rfl, rfl⟩ := hfilter₀
-        have hc := hcons ((q, r₀') :: tail₀) hh₀ ((q, r) :: rest) hh
-        simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true,
-          beq_iff_eq] at hc
-        have hstep : (candidateProver H).respond q cand =
-            (r₀', (cand.filterMap filterFn).map Prod.snd) := by
-          simp only [candidateProver, stepCandidates, filterFn, hm]
-        refine ⟨?_, ?_⟩
-        · rw [hstep, hc.1]
-        · rw [hstep]
-          refine ih ((cand.filterMap filterFn).map Prod.snd) ?_
-            (List.mem_map_of_mem hmem_match)
-          intro t₁ ht₁ t₂ ht₂
-          rw [List.mem_map] at ht₁ ht₂
-          obtain ⟨⟨r₁, s₁⟩, hs₁, rfl⟩ := ht₁
-          obtain ⟨⟨r₂, s₂⟩, hs₂, rfl⟩ := ht₂
-          rw [List.mem_filterMap] at hs₁ hs₂
-          obtain ⟨h₁, hh₁, hf₁⟩ := hs₁
-          obtain ⟨h₂, hh₂, hf₂⟩ := hs₂
-          cases h₁ with
-          | nil => simp [filterFn] at hf₁
-          | cons e₁ tail₁ =>
-            obtain ⟨q₁, r₁'⟩ := e₁
-            cases h₂ with
-            | nil => simp [filterFn] at hf₂
-            | cons e₂ tail₂ =>
-              obtain ⟨q₂, r₂'⟩ := e₂
-              simp only [filterFn, beq_iff_eq] at hf₁ hf₂
-              split_ifs at hf₁ with hq₁
-              split_ifs at hf₂ with hq₂
-              subst q₁ q₂
-              simp only [Option.some.injEq, Prod.mk.injEq] at hf₁ hf₂
-              obtain ⟨rfl, rfl⟩ := hf₁
-              obtain ⟨rfl, rfl⟩ := hf₂
-              have hc12 := hcons ((q, r₁') :: tail₁) hh₁ ((q, r₂') :: tail₂) hh₂
-              simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true] at hc12
-              exact hc12.2
+      have hc := hcons _ (hmemF.mp hfirst_mem) _ hh
+      simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true,
+        beq_iff_eq] at hc
+      have hstep : (candidateProver H).respond q cand =
+          (r₀, (cand.filterMap filterFn).map Prod.snd) := by
+        simp only [candidateProver, stepCandidates, filterFn, hm]
+      refine ⟨?_, ?_⟩
+      · rw [hstep, hc.1]
+      · rw [hstep]
+        refine ih _ (fun t₁ ht₁ t₂ ht₂ => ?_) (List.mem_map_of_mem hmem_match)
+        obtain ⟨⟨r₁, s₁⟩, hs₁, rfl⟩ := List.mem_map.mp ht₁
+        obtain ⟨⟨r₂, s₂⟩, hs₂, rfl⟩ := List.mem_map.mp ht₂
+        have hc12 := hcons _ (hmemF.mp hs₁) _ (hmemF.mp hs₂)
+        simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true] at hc12
+        exact hc12.2
 
 end Cslib.Complexity.MIP

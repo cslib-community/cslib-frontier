@@ -20,7 +20,7 @@ residually reachable from `N.s`.
 ## Mathematical and algorithmic overview
 
 1. **Greedy blocking flows (`greedyBlockingFlow`):** inside a level network `L`, while a path of
-   unsaturated arcs joins the terminals (found by `bfsM` on the slack network `Flow.slackNet`), push
+   unsaturated arcs joins the terminals (found by `bfs` on the slack network `Flow.slackNet`), push
    its bottleneck. Since a level network has no antiparallel arcs, each push only increases arc
    flows and saturates a new arc (`Flow.card_unsatArcs_augmentByBottleneck_lt`), so the loop stops
    with a blocking flow after at most `|Flow.unsatArcs|` pushes (`greedyBlockingFlow_spec`), which
@@ -37,7 +37,7 @@ residually reachable from `N.s`.
 ## Cost model and limitations
 
 * Proved quantities: at most `n - 1` phases and at most `(n - 1) * |N.posArcs|` bottleneck pushes
-  in total (`dinitz_correct`). No running time is charged: the functions are pure, not `TimeM`.
+  in total (`dinitz_correct`). No machine running time is proved here: the functions are pure.
 * The blocking flow is found by a fresh breadth-first search per push, not by the depth-first
   search with dead-end deletion that gives Dinitz's `O(|V| |E|)` time per phase and
   `O(|V|^2 |E|)` overall; this module does not claim those time bounds.
@@ -212,18 +212,18 @@ structure BlockingFlowResult {n : ℕ} (L : Network (Fin n)) where
   /-- Number of bottleneck pushes performed. -/
   pushes : ℕ
 
-/-- Greedy blocking flow: while a path of unsaturated arcs joins the terminals (found by `bfsM`
+/-- Greedy blocking flow: while a path of unsaturated arcs joins the terminals (found by `bfs`
 on `slackNet`), push its bottleneck. -/
 @[expose] def greedyBlockingFlow {n : ℕ} (L : Network (Fin n)) (adj : Fin n → List (Fin n)) :
     ℕ → FlowMatrix L → ℕ → BlockingFlowResult L
   | 0, G, k => ⟨G, k⟩
   | fuel + 1, G, k =>
-    let res := (bfsM G.toFlow.slackNet adj (Flow.zero G.toFlow.slackNet)).ret
+    let res := bfs G.toFlow.slackNet adj (Flow.zero G.toFlow.slackNet)
     match hp : res.augPath with
     | none => ⟨G, k⟩
     | some p =>
       greedyBlockingFlow L adj fuel
-        (augmentFlowMatrixM G p (Flow.isAugmentingPath_of_slackNet (res.augPath_valid p hp))).ret
+        (augmentFlowMatrix G p (Flow.isAugmentingPath_of_slackNet (res.augPath_valid p hp)))
         (k + 1)
 
 /-- **Greedy blocking flows**: on a network `L` without antiparallel arcs and with `L.s ≠ L.t`,
@@ -238,17 +238,17 @@ theorem greedyBlockingFlow_spec {n : ℕ} {L : Network (Fin n)} {adj : Fin n →
   | fuel + 1, G, k, hfuel => by
     have hadj' : AdjValid G.toFlow.slackNet adj := fun u v huv hpos =>
       hadj u v huv (by simp only [Flow.slackNet] at hpos; omega)
-    have hbfs := bfsM_spec hadj' (Flow.zero G.toFlow.slackNet)
+    have hbfs := bfs_spec hadj' (Flow.zero G.toFlow.slackNet)
     simp only [greedyBlockingFlow]
     split
     · rename_i hnone
       exact ⟨Flow.isBlocking_of_not_exists_slackNet (hbfs.2 hnone).1, Nat.le_add_right _ _⟩
     · rename_i p hp
-      have hp' := (bfsM _ adj _).ret.augPath_valid p hp
+      have hp' := (bfs _ adj _).augPath_valid p hp
       have hlt := Flow.card_unsatArcs_augmentByBottleneck_lt hanti hst hp'
-      have hfun := augmentFlowMatrixM_toFlow G p (Flow.isAugmentingPath_of_slackNet hp')
+      have hfun := augmentFlowMatrix_toFlow G p (Flow.isAugmentingPath_of_slackNet hp')
       obtain ⟨hblk, hpush⟩ := greedyBlockingFlow_spec hadj hanti hst fuel
-        (augmentFlowMatrixM G p (Flow.isAugmentingPath_of_slackNet hp')).ret (k + 1)
+        (augmentFlowMatrix G p (Flow.isAugmentingPath_of_slackNet hp')) (k + 1)
         (by rw [hfun]; omega)
       rw [hfun] at hpush
       exact ⟨hblk, by omega⟩
@@ -324,15 +324,13 @@ private theorem dinitzLoop_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n →
     omega
   | fuel + 1, M, ph, k, flows, hfuel, hrun, hph, hk => by
     simp only [dinitzLoop]
-    split
-    · rename_i hge
-      refine ⟨fun hreach => ?_, filter_bfsDistVec_eq_reachableCut _, ⟨flows, hrun, rfl, hph⟩, hk⟩
+    split_ifs with hge
+    · refine ⟨fun hreach => ?_, filter_bfsDistVec_eq_reachableCut _, ⟨flows, hrun, rfl, hph⟩, hk⟩
       have hlt := (M.toFlow.resDist_lt_card_iff_resReachable N.t).mpr hreach
       rw [vget_bfsDistVec] at hge
       rw [Fintype.card_fin] at hlt
       omega
-    · rename_i hlt
-      rw [vget_bfsDistVec] at hlt
+    · rw [vget_bfsDistVec] at hge
       have hreach : M.toFlow.ResReachable N.s N.t := by
         rw [← M.toFlow.resDist_lt_card_iff_resReachable, Fintype.card_fin]
         omega
@@ -366,22 +364,15 @@ private theorem dinitzLoop_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n →
       have hrun' : N.IsDinitzRun (ph + 1) flows' := by
         intro i hi
         rcases Nat.lt_or_ge i ph with hlt' | hge'
-        · have h₁ : i ≤ ph := Nat.le_of_lt hlt'
-          have h₂ : i + 1 ≤ ph := hlt'
-          simp only [flows', h₁, h₂, ↓reduceIte]
+        · simp only [flows', hlt'.le, show i + 1 ≤ ph from hlt', ↓reduceIte]
           exact hrun i hlt'
-        · have heq : i = ph := by omega
-          subst heq
-          have h₂ : ¬ i + 1 ≤ i := by omega
-          simp only [flows', le_rfl, h₂, ↓reduceIte, hph]
-          exact hstep
+        · obtain rfl : i = ph := by omega
+          simpa [flows', hph, Nat.not_succ_le_self] using hstep
       obtain ⟨h₁, h₂, ⟨flows'', hrun'', h0, hlast⟩, h₄⟩ := dinitzLoop_spec hadj hst fuel
         (FlowMatrix.ofFlow (M.toFlow.augmentLevel B.flow.toFlow)) (ph + 1) (k + B.pushes) flows'
         (by omega) hrun' (by simp [flows'])
         (by rw [Nat.succ_mul]; omega)
-      refine ⟨h₁, h₂, ⟨flows'', hrun'', ?_, hlast⟩, h₄⟩
-      rw [h0]
-      simp [flows']
+      exact ⟨h₁, h₂, ⟨flows'', hrun'', by simp [h0, flows'], hlast⟩, h₄⟩
 
 /-- The phases of `dinitz` form a run of Dinitz phases from the zero flow to the output flow. -/
 theorem dinitz_isDinitzRun {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}

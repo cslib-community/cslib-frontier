@@ -92,14 +92,11 @@ theorem entry_endpoint {m n g p : ℕ} (values : List ℤ)
       inputFits_min := fun _ => hiMin
       two_pow_wMin_le := fun _ =>
         pow_admissionWidth_le n (D m) g p T b (inputWordBound n (D m) g p values)
-      exec_min := fun _ => ⟨y, he, yf, ys, yiff, ?_, ?_, ?_⟩ }⟩
-  · intro hf
-    obtain ⟨ha, hb, hc, hz⟩ := yw hf
-    exact ⟨⟨_, ha⟩, ⟨_, hb⟩, ⟨_, hc⟩, rfl, rfl, rfl, hz⟩
-  · intro q hq
-    exact (yframe q hq).trans (congrFun xmem q)
-  · intro j hj
-    exact he.regs_eq (entryProgram_preserves_selector j hj)
+      exec_min := fun _ => ⟨y, he, yf, ys, yiff, fun hf => ?_,
+        fun q hq => (yframe q hq).trans (congrFun xmem q),
+        fun j hj => he.regs_eq (entryProgram_preserves_selector j hj)⟩ }⟩
+  obtain ⟨ha, hb, hc, hz⟩ := yw hf
+  exact ⟨⟨_, ha⟩, ⟨_, hb⟩, ⟨_, hc⟩, rfl, rfl, rfl, hz⟩
 
 /-- Fully initialized same-state prefix and halt. The width guarantee also establishes original
 input fit; no producer state, prepared catalogue, layout, solver or run law is an input. -/

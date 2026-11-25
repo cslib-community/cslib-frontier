@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Family
 public import CslibFrontier.Foundations.Combinatorics.Expander.Lazy
 public import CslibFrontier.Foundations.Combinatorics.Expander.Perm
 import CslibFrontier.Foundations.Combinatorics.Expander.Random
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Constant-degree expanders exist
@@ -92,8 +93,7 @@ theorem exists_spectralExpansion_le :
       single_le_sum (f := fun j ↦ #{v ∈ S | σ j v ∉ S}) (fun _ _ ↦ Nat.zero_le _) (mem_univ i)
     have : (#S : ℝ) ≤ 10 * ∑ j, #{v ∈ S | σ j v ∉ S} := by exact_mod_cast hi.trans (by omega)
     rw [card_interedges_compl_ofPerms]
-    push_cast at this ⊢
-    linarith
+    cast_linarith
   · simp only [Fintype.card_prod, Fintype.card_fin, Fintype.card_bool]
     norm_num
 

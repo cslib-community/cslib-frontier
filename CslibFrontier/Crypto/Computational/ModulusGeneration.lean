@@ -455,6 +455,8 @@ theorem toOuterMeasure_genModulus_invalid_le_inv_two_pow {n : ℕ} (hn : 1 < n) 
 
 /-! ### Efficiency -/
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime Probability.IsPPTOn
+
 /-- Candidates are a strict PPT program in `n`, given in unary. -/
 theorem isPPTOn_primeCandidate : Probability.IsPPTOn encUnary encNat primeCandidate := by
   have hvalue : ComputableInPolyTime (fun x : ℕ × List Bool => ofBits (x.2 ++ [true]))

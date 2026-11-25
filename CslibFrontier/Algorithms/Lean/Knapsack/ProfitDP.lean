@@ -8,11 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Mathlib.Data.List.Basic
-public import Mathlib.Algebra.BigOperators.Group.List.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Data.List.GetD
-import Mathlib.Order.Basic
 
 /-!
 # The knapsack dynamic program by profit

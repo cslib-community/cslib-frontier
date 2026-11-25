@@ -297,23 +297,9 @@ private theorem isPolyTime_block (pairs : List (α × α)) (fallback : α × α)
   have hproj₂ : ComputableInPolyTime
       (fun R : α → α → Bool => fun p : α × α => (repair pairs fallback R p).2)
       (encPi (encPi encBool)) (encPi encA) := .of_finite _
-  have hleft : ComputableInPolyTime
-      (fun p : Edge (α → α → Bool) × ℕ => p.1)
-      (encPair (Edge.encoding (encPi (encPi encBool))) encUnary)
-      (Edge.encoding (encPi (encPi encBool))) := .fst _ _
-  have hidx : ComputableInPolyTime
-      (fun p : Edge (α → α → Bool) × ℕ => p.2)
-      (encPair (Edge.encoding (encPi (encPi encBool))) encUnary) encUnary := .snd _ _
-  have hb : ComputableInPolyTime
-      (fun p : Edge (α → α → Bool) × ℕ => block pairs fallback p.1 p.2)
-      (encPair (Edge.encoding (encPi (encPi encBool))) encUnary)
-      (encList (Edge.encoding (encPi encA))) := by
-    unfold block
-    exact (Edge.isPolyTime_mk hidx (Edge.isPolyTime_src hleft)
-      (hproj₁.comp (Edge.isPolyTime_constraint hleft))).cons'
-        ((Edge.isPolyTime_mk hidx (Edge.isPolyTime_dst hleft)
-          (hproj₂.comp (Edge.isPolyTime_constraint hleft))).cons' (.const []))
-  exact hb
+  unfold block encConstraintTable
+  exact (Edge.isPolyTime_mk (by fun_prop) (by fun_prop) (hproj₁.comp (by fun_prop))).cons'
+    ((Edge.isPolyTime_mk (by fun_prop) (by fun_prop) (hproj₂.comp (by fun_prop))).cons' (.const []))
 
 omit [DecidableEq α] [Fintype α] in
 private theorem zipIdx_edges_eq (g : Graph (α → α → Bool)) : g.edges.zipIdx =
@@ -330,41 +316,19 @@ private theorem isPolyTime_incidence (pairs : List (α × α)) (fallback : α ×
     (encA : α ↪ List Bool) :
     ComputableInPolyTime (incidence pairs fallback)
       (Graph.encoding encConstraintTable) (Graph.encoding (encPi encA)) := by
-  have hb := isPolyTime_block pairs fallback encA
-  have hget : ComputableInPolyTime
-      (fun p : Graph (α → α → Bool) × ℕ =>
-        p.1.edges.getD p.2 ⟨0, 0, fun _ _ => false⟩)
-      (encPair (Graph.encoding (encPi (encPi encBool))) encUnary)
-      (Edge.encoding (encPi (encPi encBool))) :=
-    Graph.isPolyTime_edgeAt (.fst _ _) (.snd _ _) (fun _ _ => false)
-  have hlen : ComputableInPolyTime
-      (fun g : Graph (α → α → Bool) => g.edges.length)
-      (Graph.encoding (encPi (encPi encBool))) encUnary :=
-    (ComputableInPolyTime.length_list (Edge.encoding (encPi (encPi encBool)))).comp
-      (Graph.isPolyTime_edges ComputableInPolyTime.id')
-  have hrange := ComputableInPolyTime.range.comp hlen
-  have hindex : ComputableInPolyTime
-      (fun p : Graph (α → α → Bool) × ℕ => p.2)
-      (encPair (Graph.encoding (encPi (encPi encBool))) encUnary) encUnary := .snd _ _
-  have hcomp := hb.comp (hget.prod hindex)
   have hcall : ComputableInPolyTime
       (fun p : Graph (α → α → Bool) × ℕ =>
         block pairs fallback (p.1.edges.getD p.2 ⟨0, 0, fun _ _ => false⟩) p.2)
       (encPair (Graph.encoding (encPi (encPi encBool))) encUnary)
       (encList (Edge.encoding (encPi encA))) := by
-    simpa only [Function.comp_def] using hcomp
-  have hedges := ComputableInPolyTime.flatMapWithInput
-    (f := fun (g : Graph (α → α → Bool)) i =>
-      block pairs fallback (g.edges.getD i ⟨0, 0, fun _ _ => false⟩) i) hrange hcall
-  have hvertices : ComputableInPolyTime
-      (fun g : Graph (α → α → Bool) => g.vertices + g.edges.length)
-      (Graph.encoding (encPi (encPi encBool))) encUnary :=
-    ComputableInPolyTime.unary_add'
-      (Graph.isPolyTime_vertices (ComputableInPolyTime.id'
-        (encIn := Graph.encoding (encPi (encPi encBool))))) hlen
-  unfold incidence
+    simpa only [Function.comp_def, Graph.edgeAt, encConstraintTable] using
+      (isPolyTime_block pairs fallback encA).comp
+        ((Graph.isPolyTime_edgeAt (.fst _ _) (.snd _ _) (fun _ _ => false)).prod (.snd _ _))
+  unfold incidence encConstraintTable
   simp_rw [zipIdx_edges_eq, List.flatMap_map]
-  exact Graph.isPolyTime_mk hvertices hedges
+  exact Graph.isPolyTime_mk (by fun_prop)
+    (ComputableInPolyTime.flatMapWithInput
+      (list := fun g : Graph (α → α → Bool) => List.range g.edges.length) (by fun_prop) hcall)
 
 omit [DecidableEq α] in
 /-- The incidence reduction is polynomial-time for every fixed finite alphabet and fixed pair

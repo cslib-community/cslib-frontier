@@ -11,6 +11,9 @@ public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Model
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Program
 public import CslibFrontier.DataStructure.VanEmdeBoas.Insert
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
+import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Native van Emde Boas insertion descent
@@ -54,18 +57,6 @@ structure InsertEntry (base key : ℕ) (s : Data 32) : Prop where
   x_eq : s.regs x = key
   runFlag_eq : s.regs runFlag = 1
 
-/-- Transfer `InsertEntry` across register updates once `p`, `x`, and `runFlag` are checked and
-the six constant registers `zero..five` are preserved. -/
-private theorem InsertEntry.of_regs {base key base' key' : ℕ} {s s' : Data 32}
-    (hs : InsertEntry base key s)
-    (h0 : s'.regs zero = s.regs zero) (h1 : s'.regs one = s.regs one)
-    (h2 : s'.regs two = s.regs two) (h3 : s'.regs three = s.regs three)
-    (h4 : s'.regs four = s.regs four) (h5 : s'.regs five = s.regs five)
-    (hp : s'.regs p = base') (hx : s'.regs x = key') (hrun : s'.regs runFlag = 1) :
-    InsertEntry base' key' s' :=
-  ⟨h0.trans hs.zero_eq, h1.trans hs.one_eq, h2.trans hs.two_eq,
-    h3.trans hs.three_eq, h4.trans hs.four_eq, h5.trans hs.five_eq, hp, hx, hrun⟩
-
 /-- Updating `base + 1` and `base + 2` in place on a valid occupied header agrees with
 `writeBounds` at every memory cell. -/
 private theorem writeBounds_update_min_max {mem : ℕ → ℕ} {base m M key : ℕ}
@@ -76,14 +67,14 @@ private theorem writeBounds_update_min_max {mem : ℕ → ℕ} {base m M key : �
      if M < displaced then Function.update m₁ (base + 2) displaced else m₁) =
       writeBounds mem base (some (min m key, max M key)) := by
   funext a
-  simp only [writeBounds, Function.update_apply, ite_apply]
+  dsimp only [writeBounds]
   rcases eq_or_ne a base with rfl | h0
-  · split_ifs <;> omega
+  · update_simp; exact hpres
   rcases eq_or_ne a (base + 1) with rfl | h1
-  · split_ifs <;> omega
+  · update_simp; split_ifs <;> omega
   rcases eq_or_ne a (base + 2) with rfl | h2
-  · split_ifs <;> omega
-  split_ifs <;> omega
+  · update_simp; split_ifs <;> omega
+  update_simp
 
 /-- An occupied node's displaced key `max m key` has valid cluster coordinates and lies in the
 parent record interval whenever `key < universeSize (d + 1)`. -/
@@ -97,9 +88,9 @@ private theorem insert_descent_safe {d base m M key : ℕ} {s : Tree d}
   have hm_lt : m < universeSize (d + 1) := ht.contains_lt (ht.contains_minimum rfl)
   have hdisp : max m key < universeSize d * universeSize d := by
     simpa only [universeSize_succ] using max_lt hm_lt hkey
-  have hi : max m key / universeSize d < universeSize d :=
-    (Nat.div_lt_iff_lt_mul (universeSize_pos d)).mpr hdisp
-  refine ⟨hi, Nat.mod_lt _ (universeSize_pos d), ?_⟩
+  have hpos := universeSize_pos d
+  have hi : max m key / universeSize d < universeSize d := by stride_omega
+  refine ⟨hi, Nat.mod_lt _ hpos, ?_⟩
   simpa only [Nat.add_assoc] using Nat.add_le_add_left (cluster_end_le_span d hi) base
 
 /-- Execute the header-check and extrema-update prefix of `insertBody` on an occupied record with
@@ -123,18 +114,13 @@ private theorem exists_execWithin_insertBody_occupied {w base key m M : ℕ} {s 
   let m₁ := if key < m then Function.update s.mem (base + 1) key else s.mem
   refine WP.cut (fun y₁ T₁ => T₁ ≤ 4 ∧ InsertEntry base (max m key) y₁ ∧ y₁.mem = m₁) ?_ ?_
   · wram_exec [hp, hx, ho]
-    · refine ⟨hs.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-        (by wram_simp) (by wram_simp) (by wram_simp [hp]) (by wram_simp [max_eq_left hc.le])
-        (by wram_simp [hrun]), ?_⟩
+    · refine ⟨by struct_frame hs; wram_simp [max_eq_left hc.le], ?_⟩
       dsimp only [m₁]; rw [ite_eq_left hc]; wram_simp
-    · refine ⟨hs.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-        (by wram_simp) (by wram_simp) (by wram_simp [hp])
-        (by wram_simp [hx, max_eq_right (not_lt.mp hc)]) (by wram_simp [hrun]), ?_⟩
+    · refine ⟨by struct_frame hs; wram_simp [hx, max_eq_right (not_lt.mp hc)], ?_⟩
       dsimp only [m₁]; rw [ite_eq_right hc]; wram_simp
   · rintro y₁ T₁ ⟨hT₁, hy₁, hm₁⟩
     have hy₁_M : y₁.mem (base + 2) = M := by
-      rw [hm₁]; dsimp only [m₁]
-      split_ifs <;> simp [hM]
+      rw [hm₁]; update_simp; exact hM
     have hy₁_p := hy₁.p_eq; have hy₁_x := hy₁.x_eq
     have hy₁_2 := hy₁.two_eq; have hy₁_run := hy₁.runFlag_eq
     wram_exec -split [hy₁_p, hy₁_x, hy₁_2, hy₁_M]
@@ -143,16 +129,12 @@ private theorem exists_execWithin_insertBody_occupied {w base key m M : ℕ} {s 
     refine WP.cut (fun y₂ T₂ => T₂ ≤ 3 ∧ InsertEntry base (max m key) y₂ ∧
       y₂.mem = writeBounds s.mem base (some (min m key, max M key))) ?_ ?_
     · wram_exec [hy₁_p, hy₁_2, hy₁_x]
-      · refine ⟨hy₁.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-          (by wram_simp) (by wram_simp) (by wram_simp [hy₁_p]) (by wram_simp [hy₁_x])
-          (by wram_simp [hy₁_run]), ?_⟩
+      · refine ⟨by struct_frame hy₁, ?_⟩
         rw [← writeBounds_update_min_max hpres hm hM hle]
         dsimp only []
         rw [hdisp, ite_eq_left hc]
         wram_simp [hm₁]; rfl
-      · refine ⟨hy₁.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-          (by wram_simp) (by wram_simp) (by wram_simp [hy₁_p]) (by wram_simp [hy₁_x])
-          (by wram_simp [hy₁_run]), ?_⟩
+      · refine ⟨by struct_frame hy₁, ?_⟩
         rw [← writeBounds_update_min_max hpres hm hM hle]
         dsimp only []
         rw [hdisp, ite_eq_right hc]
@@ -280,9 +262,7 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
         have hy_p := hy.p_eq; have hy_x := hy.x_eq; have hy_run := hy.runFlag_eq
         unfold insertTail readAt writeAt coordinates
         wram_exec [hy_0, hy_1, hy_2, hy_3, hy_4, hy_5, hy_p, hy_x, hy_q, hy_t, hqne, hy_ch0]
-        refine ⟨hy.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-          (by wram_simp) (by wram_simp) (by wram_simp [summaryOffset]) (by wram_simp [i])
-          (by wram_simp [hy_run]), ?_⟩
+        refine ⟨by struct_frame hy, ?_⟩
         simp only [Data.set_mem, Data.write_mem, hy_mem, m₁, writeBounds, ch, clusterOffset, i, lo,
           Nat.add_assoc]
       obtain ⟨next, he_step, hentry, hnext_mem⟩ := hstep
@@ -333,9 +313,8 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
         have hy_p := hy.p_eq; have hy_x := hy.x_eq; have hy_run := hy.runFlag_eq
         unfold insertTail readAt coordinates
         wram_exec [hy_0, hy_1, hy_2, hy_3, hy_4, hy_5, hy_p, hy_x, hy_q, hy_t, hqne, hy_ch_ne0]
-        exact ⟨hy.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-          (by wram_simp) (by wram_simp) (by wram_simp [ch, clusterOffset, i, Nat.add_assoc])
-          (by wram_simp [lo]) (by wram_simp [hy_run]), by wram_simp [hy_mem]; rfl⟩
+        exact ⟨by struct_frame hy; wram_simp [ch, clusterOffset, i, Nat.add_assoc],
+          by wram_simp [hy_mem]; rfl⟩
       obtain ⟨next, he_step, hentry, hnext_mem⟩ := hstep
       have hrc_next : Rep (cluster i) ch next.mem := hnext_mem ▸ hr₁.2.2 i
       have hfit_cl : Fits w (ch + span d) := ha.of_le hend

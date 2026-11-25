@@ -46,9 +46,15 @@ theorem classify_inSpace (k : ℕ) :
   have hq := hrest.fst'
   have hlength := budget_length hrest.snd'
   have heq := budget_natEq hlength hq
-  have hleaf := budget_const (encIn := ImplicitPath.encWalkArgs) (encB := encNat) 1 (.refl _)
-  have hgate := budget_const (encIn := ImplicitPath.encWalkArgs) (encB := encNat) 2 (.refl _)
-  have hinvalid := budget_const (encIn := ImplicitPath.encWalkArgs) (encB := encNat) 0 (.refl _)
+  have hleaf :=
+    budget_const (Bs := fun a => (ImplicitPath.encWalkArgs a).length)
+      (encIn := ImplicitPath.encWalkArgs) (encB := encNat) 1
+  have hgate :=
+    budget_const (Bs := fun a => (ImplicitPath.encWalkArgs a).length)
+      (encIn := ImplicitPath.encWalkArgs) (encB := encNat) 2
+  have hinvalid :=
+    budget_const (Bs := fun a => (ImplicitPath.encWalkArgs a).length)
+      (encIn := ImplicitPath.encWalkArgs) (encB := encNat) 0
   exact (budget_ite (ImplicitPath.valid_inSpace k) (budget_ite heq hleaf hgate)
     hinvalid).of_enc_eq fun ⟨σ, q, path⟩ => by simp only [classify, decide_eq_true_eq]
 

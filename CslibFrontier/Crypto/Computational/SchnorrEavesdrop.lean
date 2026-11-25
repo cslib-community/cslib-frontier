@@ -301,11 +301,8 @@ theorem eval_schnorrSimulatedTranscript_eq_map (n : ℕ) (d : F.Desc) (m : ℕ) 
       (SigmaProtocol.simulateConversation (schnorrSampledSimulate n d (m := m)) u).map
         transcriptWords := by
   rw [eval_schnorrSimulatedTranscript, BitString.uniformList, PMF.bind_map]
-  simp only [SigmaProtocol.simulateConversation, schnorrSampledSimulate, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map, Function.comp_def]
+  simp only [SigmaProtocol.simulateConversation, schnorrSampledSimulate, pmf_norm]
   congr 1 with c : 1
-  rw [← PMF.bind_pure_comp, PMF.bind_map]
-  rfl
 
 /-- `k` strict-PPT simulated transcripts are `k` typed simulated conversations, written as
 words. -/
@@ -608,9 +605,8 @@ theorem bind_eval_schnorrDirectProbExperiment (setup : ℕ → PMF F.Desc) (k : 
     ((setup n).bind fun d => ProbComp.eval (F.schnorrDirectProbExperiment k A n d)) =
       F.schnorrDirectProbGame setup k A n := by
   simp only [schnorrDirectProbExperiment, schnorrDirectProbGame, schnorrSigKeyGen,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, F.smul_encode,
-    F.encodeSchnorrVerify_encode, ofBits_bits, ZMod.natCast_mod]
+    BitString.eval_sampleList, F.smul_encode, F.encodeSchnorrVerify_encode, ofBits_bits,
+    ZMod.natCast_mod, pmf_norm]
 
 /-- `schnorrDirectProbExperiment` is uniformly strict PPT in `(n, d)` whenever `k` is computable in
 polynomial time and `A` is a uniform strict PPT `SchnorrImpersonator`. -/
@@ -749,9 +745,8 @@ theorem bind_eval_schnorrEavesdropProbExperiment (setup : ℕ → PMF F.Desc) (k
     ((setup n).bind fun d => ProbComp.eval (F.schnorrEavesdropProbExperiment k Q A n d)) =
       F.schnorrEavesdropProbGame setup k Q A n := by
   simp only [schnorrEavesdropProbExperiment, schnorrEavesdropProbGame, schnorrSigKeyGen,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, F.smul_encode,
-    F.encodeSchnorrVerify_encode, ofBits_bits, ZMod.natCast_mod]
+    BitString.eval_sampleList, F.smul_encode, F.encodeSchnorrVerify_encode, ofBits_bits,
+    ZMod.natCast_mod, pmf_norm]
 
 /-- `schnorrEavesdropProbExperiment` is uniformly strict PPT in `(n, d)` whenever `k` and `Q` are
 computable in polynomial time and `A` is a uniform strict PPT `SchnorrEavesdropAdversary`. -/

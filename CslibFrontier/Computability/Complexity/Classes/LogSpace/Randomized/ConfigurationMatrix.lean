@@ -191,6 +191,18 @@ theorem reflTransGen_viewStep_toNTM_iff {finite next : FiniteCfg k Bool State} :
       rw [List.foldl_append, List.foldl_cons, List.foldl_nil]
       exact ih.tail (viewStep_toNTM_iff.mpr ⟨bit, rfl⟩)
 
+/-- **A coin string is accepted exactly when its replay on views is**: the replay of `coins` from
+the initial configuration on `input` ends halted with output `[true]` exactly when the replay of
+`coins` on views from the initial view ends in an accepting halted view. -/
+theorem stepCoins_accepts_iff_foldl_viewCoinStep (input coins : List Bool) :
+    ((machine.stepCoins coins (machine.toNTM.initCfg input)).Halted ∧
+        (machine.stepCoins coins (machine.toNTM.initCfg input)).output = [true]) ↔
+      (coins.foldl machine.viewCoinStep (machine.toNTM.initView input)).state = none ∧
+        (coins.foldl machine.viewCoinStep (machine.toNTM.initView input)).output = [true] := by
+  have h := viewRep_foldl_viewCoinStep (machine := machine)
+    (MultiTapeNTM.viewRep_init (ntm := machine.toNTM) input) coins
+  rw [h.state, h.output, MultiTapeNTM.outputClass_eq_true_iff]
+
 /-- The accepting coin strings are those whose replay on views ends in an accepting halted
 view. -/
 private theorem acceptCoins_eq_card_views (input : List Bool) (t : ℕ) :
@@ -201,10 +213,7 @@ private theorem acceptCoins_eq_card_views (input : List Bool) (t : ℕ) :
   classical
   unfold acceptCoins
   congr 1
-  refine Finset.filter_congr fun w _ => ?_
-  have h := viewRep_foldl_viewCoinStep (machine := machine)
-    (MultiTapeNTM.viewRep_init (ntm := machine.toNTM) input) (List.ofFn w)
-  rw [h.state, h.output, MultiTapeNTM.outputClass_eq_true_iff]
+  exact Finset.filter_congr fun w _ => stepCoins_accepts_iff_foldl_viewCoinStep input (List.ofFn w)
 
 open scoped Classical in
 /-- **Accepting coin strings are an entry of a power of the configuration matrix**: on a set `V`

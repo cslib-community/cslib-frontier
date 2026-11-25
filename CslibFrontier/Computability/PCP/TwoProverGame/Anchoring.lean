@@ -175,8 +175,7 @@ theorem quantumValue_anchored [Nonempty A] [Nonempty B] :
   · nlinarith [mul_nonneg hc G.quantumValue_nonneg]
   · intro ι κ _ _ _ _ S
     rw [quantumWinProb_anchored]
-    exact sub_le_sub_left (mul_le_mul_of_nonneg_left
-      (sub_le_sub_left (G.quantumWinProb_le_quantumValue (restrictStrategy S)) 1) hc) 1
+    gcongr; exact G.quantumWinProb_le_quantumValue _
   · rcases hc.eq_or_lt with hzero | hpos
     · simpa only [← hzero, zero_mul, sub_zero] using hlower S₀
     · have hthreshold : 0 ≤ (H.quantumValue - (1 - c)) / c := by

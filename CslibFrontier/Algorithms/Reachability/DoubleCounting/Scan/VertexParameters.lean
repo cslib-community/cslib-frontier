@@ -87,10 +87,14 @@ theorem prepare_inSpace :
   have hw := budget_comp_linear natSize hn
   have hclaimed := encParameters_width_budget hid
   have hcheck := budget_natEq hclaimed hw
-  have hz := budget_const (encIn := encParameters) (encB := encNat) 0 (.refl _)
-  have hf := budget_const (encIn := encParameters) (encB := encBool) false (.refl _)
+  have hz :=
+    budget_const (Bs := fun a => (encParameters a).length) (encIn := encParameters) (encB := encNat)
+      0
+  have hf :=
+    budget_const (Bs := fun a => (encParameters a).length) (encIn := encParameters)
+      (encB := encBool) false
   have hs := encState_mk_budget hn hw hz hz hf
-  exact (budget_ite hcheck (budget_optionSome hs) (budget_const none (.refl _))).of_enc_eq
+  exact (budget_ite hcheck (budget_optionSome hs) (budget_const none)).of_enc_eq
     fun p => by simp [prepare, machine]
 
 /-- A valid preparation loads the existing reader; the machine's transition code is independent

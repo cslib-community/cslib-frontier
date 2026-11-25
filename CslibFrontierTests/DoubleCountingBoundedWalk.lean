@@ -129,13 +129,13 @@ private theorem routines : Nonempty (Routines (machine edge start verdict 1 movi
       (encPair (Fin.valEmbedding.trans encNat) (Fin.valEmbedding.trans encNat))
       (encOption encBool) (fun p =>
         (encPair (Fin.valEmbedding.trans encNat) (Fin.valEmbedding.trans encNat) p).length) :=
-    budget_const none (.refl _)
+    budget_const none
   have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
       (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
   refine Turing.DoubleCounting.BoundedWalk.exists_routines edge start verdict 1 moving
-    (encOption encBool) hstart (budget_const 0 (.refl _)) edgeNext_inSpace
+    (encOption encBool) hstart (budget_const 0) edgeNext_inSpace
     (budget_optionIsSome hresult) (budget_optionGetD false hresult) (fun _ => moving) ?_ ?_ ?_ ?_
-  · exact (ComputableInSpace.constZero moving).mono_le fun _ => Nat.zero_le _
+  · exact (ComputableInSpace.budget_const moving)
   · intro input
     rw [budget, encBits_apply]
     omega
@@ -242,7 +242,7 @@ example :
   refine Runtime.entry_budget edge runtimeStart verdict 1 encBool (encOption encBool)
     hcontext (budget_finite (fun b : Bool => if b then 4 else 2) hcontext)
     ?_ ?_ (snd encBool encNat)
-  · exact budget_const 0 (.refl _)
+  · exact budget_const 0
   · exact budget_finite (fun b : Bool => if b then 3 else 1) hcontext
 
 private theorem runtimeDimension_pos (p : Bool × ℕ) : 0 < runtimeDimension p := by
@@ -292,7 +292,7 @@ example :
   have hdim := budget_finite (encC := encNat) (fun b : Bool => if b then 4 else 2) hflag
   have hdest := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 1) hflag
   have hregisters := registersWord_budget (r := runtimeRegisters)
-    (budget_const 0 (.refl _)) hdest hclock
+    (budget_const 0) hdest hclock
   have hresult : ComputableInSpace id (encOption encBool) (encOption encBool)
       (fun s => (encOption encBool s).length) := of_inO ComputableInDegree.id'.inO_one
   have hcallee := budget_finite (encC := encOption encBool)
@@ -300,7 +300,7 @@ example :
   have hwalk := advanceCall_budget (r := runtimeRegisters) (v := dest)
     edgeNext_inSpace (budget_optionIsSome hresult) (budget_optionGetD false hresult)
     hdim hregisters hdest hclock hcallee (budget_optionSome hflag)
-    (budget_const false (.refl _))
+    (budget_const false)
   refine (Runtime.state_budget (positive := fun p => Nat.zero_lt_of_lt (dest p).isLt)
     encBool (encOption encBool) hflag hdim hwalk).of_enc_eq fun p => ?_
   dsimp only [M]
@@ -326,12 +326,12 @@ example :
   have hwidth := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 2) hctx
   have hdest := budget_finite (encC := encNat) (fun b : Bool => if b then 3 else 1) hctx
   have hregisters := registersWord_budget (r := runtimeRegisters)
-    (budget_const 0 (.refl _)) hdest (snd encBool encNat)
+    (budget_const 0) hdest (snd encBool encNat)
   have hreader : ComputableInSpace reader enc Turing.DoubleCounting.NondeterministicChoice.encState
       (fun p => (enc p).length) := Turing.DoubleCounting.NondeterministicChoice.encState_mk_budget
-    (budget_const true (.refl _)) (budget_const false (.refl _))
+    (budget_const true) (budget_const false)
     (Turing.DoubleCounting.VertexReader.encState_mk_budget hdim hwidth hwidth hwidth
-      (budget_const false (.refl _)))
+      (budget_const false))
   have hstart (v : (p : Bool × ℕ) → Fin (runtimeDimension p))
       (_ : ComputableInSpace (fun p => (v p).val) enc encNat (fun p => (enc p).length)) :
       ComputableInSpace (fun p => runtimeStart p.1 (runtimeRegisters p).current.val (v p).val)
@@ -339,7 +339,7 @@ example :
     budget_finite (fun b : Bool => if b then none else some false) hctx
   have hwalk := advanceChoice_budget (dimension := runtimeDimension) (r := runtimeRegisters)
     (reader := reader) (start := fun p u v => runtimeStart p.1 u.val v.val) 1
-    hdim hregisters hreader (budget_const false (.refl _)) hstart
+    hdim hregisters hreader (budget_const false) hstart
   refine (Runtime.state_budget
     (positive := fun p => Nat.zero_lt_of_lt (runtimeRegisters p).current.isLt)
     encBool (encOption encBool) hctx hdim hwalk).of_enc_eq fun p => ?_

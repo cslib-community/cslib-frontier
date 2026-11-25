@@ -13,6 +13,7 @@ public import Mathlib.Data.Finset.Density
 import CslibFrontier.Foundations.BooleanAnalysis.Decomposition
 import CslibFrontier.Foundations.BooleanAnalysis.MaximalSupport
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Fintype.BigOperators
@@ -257,10 +258,9 @@ theorem totalInfluence_eq_expect_sub_expect_sq_iff_fourierCoeff_eq_zero (g : (ι
     totalInfluence_eq_sum_card_mul_fourierCoeff_sq, sum_filter, sum_eq_sum_iff_of_le hle]
   refine ⟨fun h S hS => ?_, fun hdeg S _ => ?_⟩
   · have hne : S ≠ ∅ := nonempty_iff_ne_empty.1 (card_pos.1 (by omega))
-    have h1 : (1 : ℝ) < #S := Nat.one_lt_cast.2 hS
     have hS' := h S (mem_univ S)
     rw [ite_eq_left hne] at hS'
-    exact sq_eq_zero_iff.1 (by nlinarith)
+    exact sq_eq_zero_iff.1 (by cast_nlinarith [hS])
   · split_ifs with hS
     · rcases le_or_gt #S 1 with hle1 | hgt1
       · have hcard : #S = 1 := le_antisymm hle1 (card_pos.2 (nonempty_iff_ne_empty.2 hS))

@@ -100,6 +100,13 @@ structure Partial (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F B
   /-- Every inserted child passed the actual partner test. -/
   feasible : ∀ o ∈ e.outputs, o ∈ partners sem f e.input
 
+omit [DecidableEq V] in
+/-- An arc of a log is older than the log, so its copy differs from every copy at the log's
+current time. -/
+private theorem copy_ne_of_mem_arcs {es : Log F} {a : Arc F} (ha : a ∈ es.arcs) {c : Copy F}
+    (hc : c.2 = es.length) : a.copy ≠ c := fun he =>
+  (es.mem_arcs ha).2.ne ((congrArg Prod.snd he).trans hc)
+
 namespace Partial
 
 variable {sem : Rel → List Bool → Bool} {f : OccurrenceLabeling F Bool}
@@ -135,8 +142,7 @@ theorem used_nodup (h : Partial sem f rs es e) : (Log.used (e :: es)).Nodup := b
     rcases List.mem_append.mp ho with ho | ho
     · exact h.fresh _ ho h.visited
     · exact h.unused ho
-  · intro o ho p hp he
-    exact h.port_unused (Or.inr ho) (he.symm ▸ hp)
+  · exact fun o ho p hp he => h.port_unused (Or.inr ho) (he.symm ▸ hp)
 
 /-- Partial scans preserve unique discovery variables. -/
 theorem children_nodup (h : Partial sem f rs es e) :
@@ -194,14 +200,8 @@ theorem isFDAG (h : Partial sem f rs es e) (hF : EdgeInstance F)
       intro a ha b hb ht
       rcases h.arc_cases ha with ha | ha <;> rcases h.arc_cases hb with hb | hb
       · exact h.grown.copy_unique ha hb ht
-      · have hbt := congrArg Prod.snd (h.new_copy hb)
-        have := (es.mem_arcs ha).2
-        change b.time = es.length at hbt
-        omega
-      · have hat := congrArg Prod.snd (h.new_copy ha)
-        have := (es.mem_arcs hb).2
-        change a.time = es.length at hat
-        omega
+      · exact absurd (ht.trans (congrArg Prod.snd (h.new_copy hb))) (es.mem_arcs ha).2.ne
+      · exact absurd (ht.symm.trans (congrArg Prod.snd (h.new_copy ha))) (es.mem_arcs hb).2.ne
       · exact (h.new_copy ha).trans (h.new_copy hb).symm
     refine ⟨?_, ⟨Sum.elim (Log.birth (e :: es)) (fun c => 2 * c.2 + 1), ?_⟩⟩
     · intro c hc d hd ht
@@ -220,15 +220,9 @@ theorem isFDAG (h : Partial sem f rs es e) (hF : EdgeInstance F)
     rcases h.arc_cases ha' with ha | rfl | ⟨o, ho, rfl⟩
     · rcases h.arc_cases hb' with hb | hb
       · exact h.grown.feasible hf ha hb hai hc
-      · have ht := congrArg Prod.snd (hc.trans (h.new_copy hb))
-        have := (es.mem_arcs ha).2
-        change a.time = es.length at ht
-        omega
+      · exact absurd (hc.trans (h.new_copy hb)) (copy_ne_of_mem_arcs ha rfl)
     · rcases h.arc_cases hb' with hb | rfl | ⟨o, ho, rfl⟩
-      · have ht := congrArg Prod.snd hc
-        have := (es.mem_arcs hb).2
-        change es.length = b.time at ht
-        omega
+      · exact absurd hc.symm (copy_ne_of_mem_arcs hb rfl)
       · simpa using hf
       · exact ((mem_partners sem f _ _).mp (h.feasible o ho)).2.2
     · cases hai
@@ -240,10 +234,7 @@ theorem isFDAG (h : Partial sem f rs es e) (hF : EdgeInstance F)
       · exact h.grown.noShortcut hF ha hb hai hc ht
       · exact h.grown.not_partner_of_unused hF ha hai h.unused hc
       · exact h.grown.not_partner_of_unused hF ha hai (h.port_unused (Or.inr ho)) hc
-    · have hbt := (Log.mem_arcs (e :: es) hb').2
-      simp only [List.length_cons] at hbt
-      change es.length < b.time at ht
-      omega
+    · exact absurd ht (Nat.le_of_lt_succ (Log.mem_arcs (e :: es) hb').2).not_gt
     · cases hai
 
 end Partial
@@ -352,17 +343,11 @@ theorem Trace.pruned_arcs (h : Trace sem f m) :
     · have hc := h.expansion.new_copy (Or.inr ⟨o, ho, rfl⟩)
       exact False.elim (hp.elim (fun hn => hn hc) Bool.noConfusion)
   · rintro (rfl | ha)
-    · apply Finset.mem_filter.mpr
-      exact ⟨List.mem_toFinset.mpr List.mem_cons_self, Or.inr rfl⟩
+    · exact Finset.mem_filter.mpr ⟨List.mem_toFinset.mpr List.mem_cons_self, Or.inr rfl⟩
     · have ha' := List.mem_toFinset.mp ha
-      have hlt := (m.older.mem_arcs ha').2
-      have hc : a.copy ≠ m.copy := by
-        intro he
-        have ht := congrArg Prod.snd he
-        change a.time = m.older.length at ht
-        omega
       exact Finset.mem_filter.mpr ⟨List.mem_toFinset.mpr
-        (List.mem_cons_of_mem _ (List.mem_append_right _ ha')), Or.inl hc⟩
+        (List.mem_cons_of_mem _ (List.mem_append_right _ ha')),
+        Or.inl (copy_ne_of_mem_arcs ha' rfl)⟩
 
 /-- The terminal graph of Lemma 34's moreover clause is an f-DAG. This proves the
 claim for the executable pruning operation, including its retained isolated child support. -/
@@ -377,28 +362,20 @@ theorem Trace.pruned_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
     intro a ha
     rw [h.pruned_arcs] at ha
     simpa only [Finset.mem_insert, List.mem_toFinset, or_comm, or_left_comm, or_assoc] using ha
-  have hold : ∀ a ∈ m.older.arcs, a ∈ m.toDAG.arcs := by
-    intro a ha
-    exact List.mem_toFinset.mpr (List.mem_cons_of_mem _ (List.mem_append_right _ ha))
+  have hfresh : ∀ a ∈ m.older.arcs, a.occurrence ≠ m.current.input ∧ a.occurrence ≠ m.output :=
+    fun a ha => ⟨fun he => h.expansion.unused (he ▸ (m.older.mem_arcs ha).1),
+      fun he => h.output_unused (he ▸ (m.older.mem_arcs ha).1)⟩
   have hic : (⟨m.current.input, m.older.length, true⟩ : Arc F) ∈ m.toDAG.arcs :=
     List.mem_toFinset.mpr List.mem_cons_self
   have hnewtime : ∀ a ∈ m.prunedDAG.arcs, a.time ≤ m.older.length := by
     intro a ha
     rcases hcase a ha with ha | rfl | rfl
-    · exact Nat.le_of_lt (m.older.mem_arcs ha).2
-    · exact Nat.le_refl _
-    · exact Nat.le_refl _
-  have hcopy : ∀ a ∈ m.prunedDAG.arcs,
-      a ∈ m.older.arcs ∨ a.copy = m.copy := by
-    intro a ha
-    rcases hcase a ha with ha | rfl | rfl
-    · exact Or.inl ha
-    · exact Or.inr rfl
-    · exact Or.inr (Prod.ext hp.1.symm rfl)
+    exacts [(m.older.mem_arcs ha).2.le, le_rfl, le_rfl]
   refine ⟨hf, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro a ha
     rcases hcase a ha with ha | rfl | rfl
-    · exact ht.supported a (hold a ha)
+    · exact ht.supported a
+        (List.mem_toFinset.mpr (List.mem_cons_of_mem _ (List.mem_append_right _ ha)))
     · exact ht.supported _ hic
     · refine ⟨?_, ?_⟩
       · exact Log.Visited.mem_vars (h.old_visited.imp_right
@@ -408,19 +385,9 @@ theorem Trace.pruned_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
         exact (ht.supported _ hic).2
   · intro a ha b hb he
     rcases hcase a ha with ha | rfl | rfl <;> rcases hcase b hb with hb | rfl | rfl
-    · exact h.expansion.grown.unique ha hb he
-    · change a.occurrence = m.current.input at he
-      exact False.elim (h.expansion.unused (he ▸ (m.older.mem_arcs ha).1))
-    · change a.occurrence = m.output at he
-      exact False.elim (h.output_unused (he ▸ (m.older.mem_arcs ha).1))
-    · change m.current.input = b.occurrence at he
-      exact False.elim (h.expansion.unused (he.symm ▸ (m.older.mem_arcs hb).1))
-    · rfl
-    · exact False.elim (hin he)
-    · change m.output = b.occurrence at he
-      exact False.elim (h.output_unused (he.symm ▸ (m.older.mem_arcs hb).1))
-    · exact False.elim (hin he.symm)
-    · rfl
+    exacts [h.expansion.grown.unique ha hb he, absurd he (hfresh a ha).1,
+      absurd he (hfresh a ha).2, absurd he.symm (hfresh b hb).1, rfl, absurd he hin,
+      absurd he.symm (hfresh b hb).2, absurd he.symm hin, rfl]
   · intro a ha b hb hai hbi he
     rcases hcase a ha with ha | rfl | rfl <;> rcases hcase b hb with hb | rfl | rfl
     · exact h.expansion.grown.indegree ha hb hai hbi he
@@ -448,24 +415,12 @@ theorem Trace.pruned_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
   · intro a ha b hb hai hc
     rcases hcase a ha with ha | rfl | rfl <;> rcases hcase b hb with hb | rfl | rfl
     · exact h.expansion.grown.feasible hf ha hb hai hc
-    · have := (m.older.mem_arcs ha).2
-      have := congrArg Prod.snd hc
-      change a.time = m.older.length at this
-      omega
-    · have := (m.older.mem_arcs ha).2
-      have := congrArg Prod.snd hc
-      change a.time = m.older.length at this
-      omega
-    · have := (m.older.mem_arcs hb).2
-      have := congrArg Prod.snd hc
-      change m.older.length = b.time at this
-      omega
+    · exact absurd hc (copy_ne_of_mem_arcs ha rfl)
+    · exact absurd hc (copy_ne_of_mem_arcs ha rfl)
+    · exact absurd hc.symm (copy_ne_of_mem_arcs hb rfl)
     · simpa using hf
     · exact hp.2.2
-    · have := (m.older.mem_arcs hb).2
-      have := congrArg Prod.snd hc
-      change m.older.length = b.time at this
-      omega
+    · exact absurd hc.symm (copy_ne_of_mem_arcs hb rfl)
     · rw [pairFlip_comm]
       exact hp.2.2
     · simpa using hf
@@ -475,12 +430,7 @@ theorem Trace.pruned_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
       · exact h.expansion.grown.noShortcut hF ha hb hai hc hlt
       · exact h.expansion.grown.not_partner_of_unused hF ha hai h.expansion.unused hc
       · exact h.expansion.grown.not_partner_of_unused hF ha hai h.output_unused hc
-    · have := hnewtime b hb
-      change m.older.length < b.time at hlt
-      omega
-    · have := hnewtime b hb
-      change m.older.length < b.time at hlt
-      omega
+    all_goals exact absurd hlt (hnewtime b hb).not_gt
 
 end Meeting
 
@@ -513,18 +463,10 @@ theorem run_trace (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F B
       dsimp only
       split <;> exact ht
     next os hs =>
-      apply run_trace sem f hF _ _ (hg.of_scan hF hv hui hs)
-      intro o ho
-      exact of_decide_eq_true (List.mem_filter.mp ho).2
+      exact run_trace sem f hF _ _ (hg.of_scan hF hv hui hs)
+        fun o ho => of_decide_eq_true (List.mem_filter.mp ho).2
 termination_by remaining.length
-decreasing_by
-  rename_i input hi _ _ os _ _
-  have hm : input ∈ remaining := List.mem_of_find?_eq_some hi
-  have hpos := List.length_pos_of_mem hm
-  have he := List.length_erase_of_mem hm
-  have hf := List.length_filter_le (fun a => decide
-    (a ∉ Log.used ((⟨input, os⟩ : Expansion F) :: es))) (remaining.erase input)
-  omega
+decreasing_by exact length_filter_erase_lt (List.mem_of_find?_eq_some ‹_›)
 
 /-- Every terminal event in a fresh run has evidence obtained from its real scans. -/
 theorem search_trace (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F Bool)

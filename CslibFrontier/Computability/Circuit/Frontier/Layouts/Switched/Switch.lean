@@ -212,10 +212,17 @@ theorem switch_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E
   have hκ : 0 ≤ kappa r := by
     unfold kappa
     have := Real.arccos_nonneg (pairCorr r); have := Real.pi_pos; positivity
-  have hc : ∀ i, -1 ≤ ⟪a, b i⟫ ∧ ⟪a, b i⟫ ≤ 1 := fun i => by
-    have := abs_real_inner_le_norm a (b i)
-    rw [ha, hb i, mul_one] at this
-    exact abs_le.mp this
+  -- a bad index with a nonnegative label forces `Z = 0`
+  have hbad : ∀ (i : Fin d) (x : E), ¬ ⟪a, b i⟫ < 1 → ⟪a, x⟫ ≤ 0 →
+      0 ≤ ⟪b i, x⟫ → ⟪a, x⟫ = 0 := by
+    intro i x hgi hZ hi
+    have h1 : ⟪a, b i⟫ ≤ 1 := by simpa [ha, hb i] using real_inner_le_norm a (b i)
+    rw [eq_of_inner_eq_one ha (hb i) (le_antisymm h1 (not_lt.mp hgi))] at hi
+    exact le_antisymm hZ hi
+  have hnullU {S A : Set E} (h : S ⊆ {x | ⟪a, x⟫ = 0} ∪ A) : μ.real S ≤ μ.real A :=
+    calc _ ≤ μ.real ({x | ⟪a, x⟫ = 0} ∪ A) := measureReal_mono h (measure_ne_top _ _)
+      _ ≤ μ.real {x | ⟪a, x⟫ = 0} + μ.real A := measureReal_union_le _ _
+      _ = μ.real A := by rw [prob_inner_eq ha 0, zero_add]
   have hmE2 : MeasurableSet {x | ⟪a, x⟫ ≤ 0 ∧ ∀ i, 0 ≤ ⟪b i, x⟫} := by
     rw [Set.ofPred_and, Set.ofPred_forall]
     exact (measurableSet_le (by fun_prop) measurable_const).inter
@@ -239,17 +246,9 @@ theorem switch_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E
     have hgood : ∀ (i : Fin d) (x : E), ⟪a, b i⟫ < 1 → ⟪a, x⟫ ≤ 0 →
         0 ≤ ⟪b i, x⟫ → -(r * ⟪a, x⟫) / Ideal.s r ≤ ⟪W i, x⟫ := by
       intro i x hgi hZ hi
-      have hdec := hdecomp i x hgi
       have hle : -(⟪a, b i⟫ * ⟪a, x⟫) / Real.sqrt (1 - ⟪a, b i⟫ ^ 2) ≤ ⟪W i, x⟫ := by
-        rw [div_le_iff₀ (hSpos i hgi)]; linarith
+        rw [div_le_iff₀ (hSpos i hgi)]; linarith [hdecomp i x hgi]
       exact (coupling_neg hr (hab i) hgi hZ).trans hle
-    -- a bad index with a nonnegative label forces `Z = 0`
-    have hbad : ∀ (i : Fin d) (x : E), ¬ ⟪a, b i⟫ < 1 → ⟪a, x⟫ ≤ 0 →
-        0 ≤ ⟪b i, x⟫ → ⟪a, x⟫ = 0 := by
-      intro i x hgi hZ hi
-      have h1 : ⟪a, b i⟫ = 1 := le_antisymm (hc i).2 (not_lt.mp hgi)
-      rw [eq_of_inner_eq_one ha (hb i) h1] at hi
-      exact le_antisymm hZ hi
     set A1 := {x | ⟪a, x⟫ ≤ 0 ∧ ∃ j, -(r * ⟪a, x⟫) / Ideal.s r ≤ ⟪w j, x⟫}
     set A2 := {x | ⟪a, x⟫ ≤ 0 ∧ ∀ j, -(r * ⟪a, x⟫) / Ideal.s r ≤ ⟪w j, x⟫}
     have hcover1 : {x | ⟪a, x⟫ ≤ 0 ∧ ∃ i, 0 ≤ ⟪b i, x⟫} ⊆ {x | ⟪a, x⟫ = 0} ∪ A1 := by
@@ -269,38 +268,25 @@ theorem switch_bound {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E
         by_cases hgi : ⟪a, b (pick j)⟫ < 1
         · exact hgood _ x hgi hZ (hall _)
         · exact absurd (hbad _ x hgi hZ (hall _)) hZ0
-    have hb1 : μ.real {x | ⟪a, x⟫ ≤ 0 ∧ ∃ i, 0 ≤ ⟪b i, x⟫} ≤ μ.real A1 := by
-      calc _ ≤ μ.real ({x | ⟪a, x⟫ = 0} ∪ A1) := measureReal_mono hcover1 (measure_ne_top _ _)
-        _ ≤ μ.real {x | ⟪a, x⟫ = 0} + μ.real A1 := measureReal_union_le _ _
-        _ = μ.real A1 := by rw [prob_inner_eq ha 0, zero_add]
     have hb2 : (if d = 3 then μ.real {x | 0 ≤ ⟪a, x⟫ ∧ ∀ i, ⟪b i, x⟫ ≤ 0} else 0) ≤
         μ.real A2 := by
       split_ifs
-      · rw [hrefl]
-        calc _ ≤ μ.real ({x | ⟪a, x⟫ = 0} ∪ A2) := measureReal_mono hcover2 (measure_ne_top _ _)
-          _ ≤ μ.real {x | ⟪a, x⟫ = 0} + μ.real A2 := measureReal_union_le _ _
-          _ = μ.real A2 := by rw [prob_inner_eq ha 0, zero_add]
+      · rw [hrefl]; exact hnullU hcover2
       · exact measureReal_nonneg
-    calc _ ≤ μ.real A1 + μ.real A2 := add_le_add hb1 hb2
+    calc _ ≤ μ.real A1 + μ.real A2 := add_le_add (hnullU hcover1) hb2
       _ ≤ _ := compare_switch ha hw hworth hr hr1
       _ ≤ kappa r := ideal_switch hr hr1
   · push Not at hI
-    have hnull : ∀ i, ∀ x, ⟪a, x⟫ ≤ 0 → 0 ≤ ⟪b i, x⟫ → ⟪a, x⟫ = 0 := by
-      intro i x hZ hi
-      have h1 : ⟪a, b i⟫ = 1 := le_antisymm (hc i).2 (hI i)
-      rw [eq_of_inner_eq_one ha (hb i) h1] at hi
-      exact le_antisymm hZ hi
     have hb1 : μ.real {x | ⟪a, x⟫ ≤ 0 ∧ ∃ i, 0 ≤ ⟪b i, x⟫} ≤ 0 := by
-      calc _ ≤ μ.real {x | ⟪a, x⟫ = 0} :=
-            measureReal_mono (by rintro x ⟨hZ, i, hi⟩; exact hnull i x hZ hi) (measure_ne_top _ _)
-        _ = 0 := prob_inner_eq ha 0
+      refine (hnullU (A := ∅) ?_).trans_eq measureReal_empty
+      rintro x ⟨hZ, i, hi⟩
+      exact Or.inl (hbad i x (hI i).not_gt hZ hi)
     have hb2 : (if d = 3 then μ.real {x | 0 ≤ ⟪a, x⟫ ∧ ∀ i, ⟪b i, x⟫ ≤ 0} else 0) ≤ 0 := by
       split_ifs with hd3
       · rw [hrefl]
-        calc _ ≤ μ.real {x | ⟪a, x⟫ = 0} :=
-              measureReal_mono (by rintro x ⟨hZ, hall⟩; exact hnull ⟨0, by omega⟩ x hZ (hall _))
-                (measure_ne_top _ _)
-          _ = 0 := prob_inner_eq ha 0
+        refine (hnullU (A := ∅) ?_).trans_eq measureReal_empty
+        rintro x ⟨hZ, hall⟩
+        exact Or.inl (hbad ⟨0, by omega⟩ x (hI _).not_gt hZ (hall _))
       · exact le_rfl
     linarith
 

@@ -115,29 +115,25 @@ theorem sublist_leaves_of_mem_subtrees : ∀ {t s : Bracketing σ}, s ∈ t.subt
 /-- Every nonempty list of length `n` has a bracketing of height at most `⌈lg n⌉`. -/
 theorem exists_leaves_eq (l : List σ) (hl : l ≠ []) :
     ∃ t : Bracketing σ, t.leaves = l ∧ t.height ≤ Nat.clog 2 l.length := by
-  induction h : l.length using Nat.strong_induction_on generalizing l with
-  | _ n ih =>
-    subst h
-    rcases Nat.lt_or_ge l.length 2 with h2 | h2
-    · obtain ⟨i, rfl⟩ : ∃ i, l = [i] := List.length_eq_one_iff.1 (by
-        have := List.length_pos_iff.2 hl
-        omega)
-      exact ⟨leaf i, rfl, Nat.zero_le _⟩
-    · set k := (l.length + 1) / 2 with hk
-      have hk1 : k < l.length := by omega
-      have hk0 : 0 < k := by omega
-      have htake : (l.take k).length = k := List.length_take_of_le hk1.le
-      have hdrop : (l.drop k).length = l.length - k := List.length_drop
-      obtain ⟨t₁, ht₁, hh₁⟩ := ih k hk1 (l.take k)
-        (List.ne_nil_of_length_pos (by omega)) htake
-      obtain ⟨t₂, ht₂, hh₂⟩ := ih (l.length - k) (by omega) (l.drop k)
-        (List.ne_nil_of_length_pos (by omega)) hdrop
-      refine ⟨node t₁ t₂, by rw [leaves, ht₁, ht₂, List.take_append_drop], ?_⟩
-      have hclog : Nat.clog 2 l.length = Nat.clog 2 k + 1 := by
-        rw [Nat.clog_of_two_le (le_refl 2) h2, hk]
-        rfl
-      rw [height, hclog]
-      exact Nat.succ_le_succ (max_le hh₁ (hh₂.trans (Nat.clog_mono_right 2 (by omega))))
+  rcases Nat.lt_or_ge l.length 2 with h2 | h2
+  · obtain ⟨i, rfl⟩ : ∃ i, l = [i] := List.length_eq_one_iff.1 (by
+      have := List.length_pos_iff.2 hl
+      omega)
+    exact ⟨leaf i, rfl, Nat.zero_le _⟩
+  · set k := (l.length + 1) / 2 with hk
+    have hk1 : k < l.length := by omega
+    have hk0 : 0 < k := by omega
+    have htake : (l.take k).length = k := List.length_take_of_le hk1.le
+    have hdrop : (l.drop k).length = l.length - k := List.length_drop
+    obtain ⟨t₁, ht₁, hh₁⟩ := exists_leaves_eq (l.take k) (List.ne_nil_of_length_pos (by omega))
+    obtain ⟨t₂, ht₂, hh₂⟩ := exists_leaves_eq (l.drop k) (List.ne_nil_of_length_pos (by omega))
+    refine ⟨node t₁ t₂, by rw [leaves, ht₁, ht₂, List.take_append_drop], ?_⟩
+    have hclog : Nat.clog 2 l.length = Nat.clog 2 k + 1 := by
+      rw [Nat.clog_of_two_le (le_refl 2) h2, hk]
+      rfl
+    rw [height, hclog]
+    exact Nat.succ_le_succ (max_le (htake ▸ hh₁) (hh₂.trans (Nat.clog_mono_right 2 (by omega))))
+termination_by l.length
 
 end Bracketing
 

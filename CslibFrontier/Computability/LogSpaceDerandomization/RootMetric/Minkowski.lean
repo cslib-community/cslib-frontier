@@ -109,13 +109,13 @@ theorem vertexNormPow_sum_le_pow_sum (hp : p ≠ 0) (hNu : 0 ≤ N * u)
       vertexNormPow p N u X (fun σ x => w i * f i σ x) ^ (p⁻¹ : ℝ) ≤ w i * ε i := by
     intro i hi
     rw [vertexNormPow_const_mul, abs_of_nonneg (hw i hi),
-      Real.mul_rpow (pow_nonneg (hw i hi) _) (vertexNormPow_nonneg hNu _),
+      Real.mul_rpow (pow_nonneg (hw i hi) _) (by positivity),
       Real.pow_rpow_inv_natCast (hw i hi) hp]
     apply mul_le_mul_of_nonneg_left _ (hw i hi)
-    exact (Real.rpow_le_rpow (vertexNormPow_nonneg hNu _) (hf i hi) (by positivity)).trans_eq
+    exact (Real.rpow_le_rpow (by positivity) (hf i hi) (by positivity)).trans_eq
       (Real.pow_rpow_inv_natCast (hε i hi) hp)
-  have h := pow_le_pow_left₀ (Real.rpow_nonneg (vertexNormPow_nonneg hNu _) _)
+  have h := pow_le_pow_left₀ (by positivity)
     (hroot.trans (sum_le_sum hterm)) p
-  rwa [Real.rpow_inv_natCast_pow (vertexNormPow_nonneg hNu _) hp] at h
+  rwa [Real.rpow_inv_natCast_pow (by positivity) hp] at h
 
 end Cslib

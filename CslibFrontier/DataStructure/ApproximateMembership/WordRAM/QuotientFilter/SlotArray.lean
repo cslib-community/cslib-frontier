@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.O
 public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.Probability
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.ReducedKWise
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Bit-Packed Slot Arrays for the Word-RAM Quotient Filter
@@ -313,17 +314,17 @@ multiply-shift remainder seed `γ : RemSeed w₀`. -/
   remSeedAddr base w w₀ n + 1
 
 /-- Base address of the `isOcc` `1`-bit packed array (`packedWords (quotBits w₀ n) 1 w` words). -/
-@[expose] def occBase (base w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def occBase (base w w₀ n : ℕ) : ℕ :=
   fullBase base w w₀ n + packedWords (quotBits w₀ n) 1 w
 
 /-- Base address of the `isRunStart` `1`-bit packed array (`packedWords (quotBits w₀ n) 1 w` words).
 -/
-@[expose] def runBase (base w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def runBase (base w w₀ n : ℕ) : ℕ :=
   occBase base w w₀ n + packedWords (quotBits w₀ n) 1 w
 
 /-- Base address of the `remAt` `remBits w₀ k`-bit packed array
 (`packedWords (quotBits w₀ n) (remBits w₀ k) w` words). -/
-@[expose] def remBase (base w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def remBase (base w w₀ n : ℕ) : ℕ :=
   runBase base w w₀ n + packedWords (quotBits w₀ n) 1 w
 
 /-- Total contiguous memory footprint `space w w₀ n k` of the two-stage quotient filter in words. -/
@@ -335,8 +336,7 @@ multiply-shift remainder seed `γ : RemSeed w₀`. -/
 theorem remBase_add_packedWords_eq (base w w₀ n k : ℕ) :
     remBase base w w₀ n + packedWords (quotBits w₀ n) (remBits w₀ k) w =
       base + space w w₀ n k := by
-  dsimp only [remBase, runBase, occBase, fullBase, remSeedAddr, space]
-  ring
+  wram_omega
 
 /-- Because `effCap w₀ n = min n (2 ^ w₀) ≤ 2 ^ w₀`, the quotient bit-width `quotBits w₀ n` is
 always at most `w₀ + 3`. -/
@@ -386,21 +386,13 @@ theorem space_le {w w₀ n k : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w) (hb
   have hmax_b2 : max 8 (2 ^ (b / 2)) ≤ 16 * n := by
     have hle : 2 ^ (b / 2) ≤ 2 ^ b := Nat.pow_le_pow_right two_pos (Nat.div_le_self b 2)
     exact max_le (by omega) (hle.trans hpow_b)
+  have hnk : n ≤ n * k := Nat.le_mul_of_pos_right n hk
   have hsp_kwise : ReducedKWise.space w w₀ b b 5 ≤ 272 + (32 * (n * k)) / w := by
     have h1 := ReducedKWise.space_le (k := 5) hw₀_le hb3 hb_w hw2
-    have h2 : 2 * max 8 (2 ^ (b / 2)) ≤ 32 * (n * k) := by
-      calc 2 * max 8 (2 ^ (b / 2)) ≤ 2 * (16 * n) := Nat.mul_le_mul_left 2 hmax_b2
-        _ = 32 * (n * 1) := by ring
-        _ ≤ 32 * (n * k) := Nat.mul_le_mul_left 32 (Nat.mul_le_mul_left n hk)
-    have h3 : 2 * max 8 (2 ^ (b / 2)) / w ≤ (32 * (n * k)) / w := Nat.div_le_div_right h2
+    have h3 : 2 * max 8 (2 ^ (b / 2)) / w ≤ (32 * (n * k)) / w := Nat.div_le_div_right (by omega)
     omega
-  have hbit_words : packedWords b 1 w ≤ (64 * (n * k)) / w + 1 := by
-    have h1 := packedWords_le (b := b) (d := 1) (w := w) one_pos hw2
-    have h2 : 4 * (2 ^ b * 1) ≤ 64 * (n * k) := by
-      calc 4 * (2 ^ b * 1) ≤ 4 * (16 * n) := by omega
-        _ = 64 * (n * 1) := by ring
-        _ ≤ 64 * (n * k) := Nat.mul_le_mul_left 64 (Nat.mul_le_mul_left n hk)
-    exact h1.trans (Nat.add_le_add_right (Nat.div_le_div_right h2) 1)
+  have hbit_words : packedWords b 1 w ≤ (64 * (n * k)) / w + 1 :=
+    (packedWords_le one_pos hw2).trans (Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 1)
   have hrem_words : packedWords b f w ≤ (128 * (n * k)) / w + 1 := by
     have h1 := packedWords_le (b := b) (d := f) (w := w) hf_pos h2f_le
     have hf2k : f ≤ 2 * k := remBits_le_two_mul hk
@@ -410,16 +402,13 @@ theorem space_le {w w₀ n k : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w) (hb
         _ = 128 * (n * k) := by ring
     exact h1.trans (Nat.add_le_add_right (Nat.div_le_div_right h2) 1)
   have hdiv_bound (c x : ℕ) : (c * x) / w ≤ c * (x / w) + c := by
-    have h1 := Nat.div_add_mod x w
-    have h2 : x % w < w := Nat.mod_lt x (by omega)
-    have h3 : c * x < w * (c * (x / w) + c + 1) := by
-      have h4 : c * x ≤ c * (w * (x / w)) + c * w := by
-        calc c * x = c * (w * (x / w) + x % w) := by conv_lhs => rw [← h1]
-          _ = c * (w * (x / w)) + c * (x % w) := by ring
-          _ ≤ c * (w * (x / w)) + c * w := Nat.add_le_add_left (Nat.mul_le_mul_left c h2.le) _
-      have h5 : c * (w * (x / w)) + c * w + w = w * (c * (x / w) + c + 1) := by ring
-      omega
-    exact Nat.le_of_lt_succ (Nat.div_lt_of_lt_mul h3)
+    refine Nat.div_le_of_le_mul ?_
+    calc c * x = w * (c * (x / w)) + c * (x % w) := by
+          conv_lhs => rw [← Nat.div_add_mod x w]
+          ring
+      _ ≤ w * (c * (x / w)) + c * w :=
+          Nat.add_le_add_left (Nat.mul_le_mul_left c (Nat.mod_lt x (by omega)).le) _
+      _ = w * (c * (x / w) + c) := by ring
   have h32 := hdiv_bound 32 (n * k)
   have h64 := hdiv_bound 64 (n * k)
   have h128 := hdiv_bound 128 (n * k)
@@ -449,26 +438,15 @@ in `mem`. -/
   isRunStart := extractBit (runBase base w w₀ n) (quotBits w₀ n) w mem
   remAt := extractPacked (remBase base w w₀ n) (quotBits w₀ n) (remBits w₀ k) w mem
 
-/-- The four slot arrays sit back to back, from `fullBase` up to `base + space`. -/
-private theorem slotArrays_layout (base w w₀ n k : ℕ) :
-    occBase base w w₀ n = fullBase base w w₀ n + packedWords (quotBits w₀ n) 1 w ∧
-      runBase base w w₀ n = occBase base w w₀ n + packedWords (quotBits w₀ n) 1 w ∧
-      remBase base w w₀ n = runBase base w w₀ n + packedWords (quotBits w₀ n) 1 w ∧
-      remBase base w w₀ n + packedWords (quotBits w₀ n) (remBits w₀ k) w =
-        base + space w w₀ n k :=
-  ⟨rfl, rfl, rfl, remBase_add_packedWords_eq base w w₀ n k⟩
-
 theorem extractFilterState_congr {base w w₀ n k : ℕ} {mem₁ mem₂ : ℕ → ℕ}
     (h : ∀ a, fullBase base w w₀ n ≤ a → a < base + space w w₀ n k → mem₁ a = mem₂ a) :
     extractFilterState base w w₀ n k mem₁ = extractFilterState base w w₀ n k mem₂ := by
-  obtain ⟨hocc, hrun, hrem, hend⟩ := slotArrays_layout base w w₀ n k
   dsimp only [extractFilterState]
   rw [FilterState.mk.injEq]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · exact extractBit_congr fun a h₁ h₂ => h a h₁ (by omega)
-  · exact extractBit_congr fun a h₁ h₂ => h a (by omega) (by omega)
-  · exact extractBit_congr fun a h₁ h₂ => h a (by omega) (by omega)
-  · exact extractPacked_congr fun a h₁ h₂ => h a (by omega) (by omega)
+  exact ⟨extractBit_congr fun a h₁ _ => h a h₁ (by wram_omega),
+    extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
+    extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
+    extractPacked_congr fun a _ _ => h a (by wram_omega) (by wram_omega)⟩
 
 /-- Zeroed slot arrays `[fullBase, base + space)` represent `FilterState.empty`. -/
 theorem extractFilterState_of_zero {base w w₀ n k : ℕ} {mem : ℕ → ℕ}
@@ -487,14 +465,12 @@ theorem extractFilterState_writeFull (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     extractFilterState base w w₀ n k
       (writeBitMem (fullBase base w w₀ n) (quotBits w₀ n) w mem q bval) =
       (extractFilterState base w w₀ n k mem).setFull q bval := by
-  obtain ⟨hocc, hrun, hrem, -⟩ := slotArrays_layout base w w₀ n k
   dsimp only [extractFilterState, FilterState.setFull]
   rw [FilterState.mk.injEq]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · exact extractBit_writeBitMem _ _ _ _ _ _
-  · exact extractBit_writePackedMem_of_disjoint _ _ _ (by omega)
-  · exact extractBit_writePackedMem_of_disjoint _ _ _ (by omega)
-  · exact extractPacked_writePackedMem_of_disjoint _ _ _ (by omega)
+  exact ⟨extractBit_writeBitMem _ _ _ _ _ _,
+    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+    extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
 
 @[simp]
 theorem extractFilterState_writeOcc (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
@@ -502,14 +478,12 @@ theorem extractFilterState_writeOcc (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     extractFilterState base w w₀ n k
       (writeBitMem (occBase base w w₀ n) (quotBits w₀ n) w mem q bval) =
       (extractFilterState base w w₀ n k mem).setOcc q bval := by
-  obtain ⟨hocc, hrun, hrem, -⟩ := slotArrays_layout base w w₀ n k
   dsimp only [extractFilterState, FilterState.setOcc]
   rw [FilterState.mk.injEq]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · exact extractBit_writePackedMem_of_disjoint _ _ _ (by omega)
-  · exact extractBit_writeBitMem _ _ _ _ _ _
-  · exact extractBit_writePackedMem_of_disjoint _ _ _ (by omega)
-  · exact extractPacked_writePackedMem_of_disjoint _ _ _ (by omega)
+  exact ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+    extractBit_writeBitMem _ _ _ _ _ _,
+    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+    extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
 
 @[simp]
 theorem extractFilterState_writeRunStart (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
@@ -517,14 +491,12 @@ theorem extractFilterState_writeRunStart (base w w₀ n k : ℕ) (mem : ℕ → 
     extractFilterState base w w₀ n k
       (writeBitMem (runBase base w w₀ n) (quotBits w₀ n) w mem q bval) =
       (extractFilterState base w w₀ n k mem).setRunStart q bval := by
-  obtain ⟨hocc, hrun, hrem, -⟩ := slotArrays_layout base w w₀ n k
   dsimp only [extractFilterState, FilterState.setRunStart]
   rw [FilterState.mk.injEq]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · exact extractBit_writePackedMem_of_disjoint _ _ _ (by omega)
-  · exact extractBit_writePackedMem_of_disjoint _ _ _ (by omega)
-  · exact extractBit_writeBitMem _ _ _ _ _ _
-  · exact extractPacked_writePackedMem_of_disjoint _ _ _ (by omega)
+  exact ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+    extractBit_writeBitMem _ _ _ _ _ _,
+    extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
 
 @[simp]
 theorem extractFilterState_writeRem (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
@@ -532,14 +504,12 @@ theorem extractFilterState_writeRem (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     extractFilterState base w w₀ n k
       (writePackedMem (remBase base w w₀ n) (quotBits w₀ n) (remBits w₀ k) w mem q r.val) =
       (extractFilterState base w w₀ n k mem).setRem q r := by
-  obtain ⟨hocc, hrun, hrem, -⟩ := slotArrays_layout base w w₀ n k
   dsimp only [extractFilterState, FilterState.setRem]
   rw [FilterState.mk.injEq]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · exact extractBit_writePackedMem_of_disjoint _ _ _ (by omega)
-  · exact extractBit_writePackedMem_of_disjoint _ _ _ (by omega)
-  · exact extractBit_writePackedMem_of_disjoint _ _ _ (by omega)
-  · exact extractPacked_writePackedMem _ _ _ _ _ _ _
+  exact ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+    extractPacked_writePackedMem _ _ _ _ _ _ _⟩
 
 /-! ## Section 3: Slot modular arithmetic and memory layout offsets -/
 
@@ -568,44 +538,38 @@ theorem extractPacked_one_val_eq_toNat (arrBase b w : ℕ) (mem : ℕ → ℕ) (
   interval_cases v <;> rfl
 
 /-- Offset of `remSeedAddr` from `base`. -/
-@[expose] def remSeedOff (w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def remSeedOff (w w₀ n : ℕ) : ℕ :=
   ReducedKWise.space w w₀ (quotBits w₀ n) (quotBits w₀ n) 5
 
 /-- Offset of `fullBase` from `base`. -/
-@[expose] def fullOff (w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def fullOff (w w₀ n : ℕ) : ℕ :=
   remSeedOff w w₀ n + 1
 
 /-- Offset of `occBase` from `base`. -/
-@[expose] def occOff (w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def occOff (w w₀ n : ℕ) : ℕ :=
   fullOff w w₀ n + packedWords (quotBits w₀ n) 1 w
 
 /-- Offset of `runBase` from `base`. -/
-@[expose] def runOff (w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def runOff (w w₀ n : ℕ) : ℕ :=
   occOff w w₀ n + packedWords (quotBits w₀ n) 1 w
 
 /-- Offset of `remBase` from `base`. -/
-@[expose] def remOff (w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def remOff (w w₀ n : ℕ) : ℕ :=
   runOff w w₀ n + packedWords (quotBits w₀ n) 1 w
 
 theorem base_add_remSeedOff (base w w₀ n : ℕ) :
     base + remSeedOff w w₀ n = remSeedAddr base w w₀ n := rfl
 
 theorem base_add_fullOff (base w w₀ n : ℕ) :
-    base + fullOff w w₀ n = fullBase base w w₀ n := by
-  dsimp only [fullOff, remSeedOff, fullBase, remSeedAddr]; ring
+    base + fullOff w w₀ n = fullBase base w w₀ n := by wram_omega
 
 theorem base_add_occOff (base w w₀ n : ℕ) :
-    base + occOff w w₀ n = occBase base w w₀ n := by
-  dsimp only [occOff, fullOff, remSeedOff, occBase, fullBase, remSeedAddr]; ring
+    base + occOff w w₀ n = occBase base w w₀ n := by wram_omega
 
 theorem base_add_runOff (base w w₀ n : ℕ) :
-    base + runOff w w₀ n = runBase base w w₀ n := by
-  dsimp only [runOff, occOff, fullOff, remSeedOff, runBase, occBase, fullBase, remSeedAddr]; ring
+    base + runOff w w₀ n = runBase base w w₀ n := by wram_omega
 
 theorem base_add_remOff (base w w₀ n : ℕ) :
-    base + remOff w w₀ n = remBase base w w₀ n := by
-  dsimp only [remOff, runOff, occOff, fullOff, remSeedOff, remBase, runBase, occBase,
-    fullBase, remSeedAddr]
-  ring
+    base + remOff w w₀ n = remBase base w w₀ n := by wram_omega
 
 end Cslib.DataStructure.ApproximateMembership.QuotientFilter

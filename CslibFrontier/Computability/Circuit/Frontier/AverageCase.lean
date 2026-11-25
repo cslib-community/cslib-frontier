@@ -80,6 +80,19 @@ membership in `T` agree, minus the fraction on which it differs. -/
 noncomputable def correlation (S T : Set (ι → U)) : ℝ :=
   agreement S T - agreement S Tᶜ
 
+/-- Complementing the first set negates the correlation. -/
+@[simp]
+theorem correlation_compl_left (S T : Set (ι → U)) : correlation Sᶜ T = -correlation S T := by
+  have hs₁ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ T} = {x | x ∈ S ↔ x ∈ Tᶜ} := by
+    ext x
+    simp only [mem_compl_iff, mem_ofPred_eq]
+    tauto
+  have hs₂ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T} := by
+    ext x
+    simp only [mem_compl_iff, mem_ofPred_eq]
+    tauto
+  rw [correlation, correlation, agreement, agreement, hs₁, hs₂, ← agreement, ← agreement, neg_sub]
+
 /-- Complementing the second set negates the correlation. -/
 @[simp]
 theorem correlation_compl_right (S T : Set (ι → U)) : correlation S Tᶜ = -correlation S T := by
@@ -182,7 +195,7 @@ theorem agreement_le {ι U : Type*} [Finite ι] [Finite U] [Nonempty U] {S T : S
 
 /-- A count whose base-`q` logarithm is at most `(1 - μ) n` is at most an
 `exp (-μ log 2 · n)` fraction of `q ^ n`, for `q ≥ 2`. -/
-private theorem div_pow_le_exp {q R μ : ℝ} {n : ℕ} (hq : 2 ≤ q) (hR : 0 < R) (hμ : 0 ≤ μ)
+theorem div_pow_le_exp {q R μ : ℝ} {n : ℕ} (hq : 2 ≤ q) (hR : 0 < R) (hμ : 0 ≤ μ)
     (h : Real.logb q R ≤ (1 - μ) * n) : R / q ^ n ≤ Real.exp (-(μ * Real.log 2 * n)) := by
   have hq0 : 0 < q := by linarith
   have hlq : Real.log 2 ≤ Real.log q := Real.log_le_log two_pos hq
@@ -205,7 +218,7 @@ private theorem logb_residual {q K v : ℝ} (hq : 1 < q) (hK : 0 < K) (hv : 0 �
   ring
 
 /-- Raising a threshold to at least two keeps its logarithm sublinear. -/
-private theorem isLittleO_logb_max_two {K : ℕ → ℕ}
+theorem isLittleO_logb_max_two {K : ℕ → ℕ}
     (hK : (fun n => Real.log (K n)) =o[atTop] fun n => (n : ℝ)) (q : ℝ) :
     (fun n => Real.logb q (max (K n) 2 : ℕ)) =o[atTop] fun n => (n : ℝ) := by
   have hK' : (fun n => Real.log (max (K n) 2 : ℕ)) =o[atTop] fun n => (n : ℝ) := by
@@ -228,7 +241,7 @@ private theorem isLittleO_logb_max_two {K : ℕ → ℕ}
 
 /-- If `1 + 2 log_q K ≤ n / 2`, then half of `n` coordinates carry at least `K` assignments:
 `K ≤ q ^ ⌊n / 2⌋`. -/
-private theorem le_pow_half_of_logb {q K n : ℕ} (hq : 1 < q) (hK : 0 < K)
+theorem le_pow_half_of_logb {q K n : ℕ} (hq : 1 < q) (hK : 0 < K)
     (h : 1 + 2 * Real.logb q K ≤ (1 - 1 / 2) * n) : K ≤ q ^ (n / 2) := by
   have hn2 : (n : ℝ) ≤ 2 * (n / 2 : ℕ) + 1 := by
     exact_mod_cast (show n ≤ 2 * (n / 2) + 1 by omega)
@@ -449,10 +462,7 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
   intro σ I Acc c hfan hsize
   obtain ⟨c', heval, hfan_c', hmult, hsize_c'⟩ := c.exists_eval_eq_multiarySize_size_le I
   have hfan' : c'.FanInAtMost 2 := hfan_c' 2 hfan
-  have hacc_eq : {x : Fin n → U | c.eval I x 0 ∈ Acc} = {x | c'.eval I x 0 ∈ Acc} := by
-    ext x
-    simp [congrFun (congrFun heval x) 0]
-  rw [hacc_eq]
+  rw [← heval]
   have hK2 : 2 ≤ K' n := le_max_right _ _
   have hS : RectangleBias (S n) (K' n) (b n) := hbiasn.mono (le_max_left _ _)
   have hb : 0 ≤ b n := hS.nonneg (by
@@ -466,9 +476,8 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
   by_cases hu : K' n ≤ q ^ (Compiler.network c' I fun _ => Acc).readᶜ.ncard
   · have hlog : Real.logb q ((q * K' n ^ 2 : ℕ) : ℝ) ≤ (1 - 1 / 2) * n := by
       push_cast
-      rw [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,
+      rwa [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,
         Real.logb_self_eq_one (by linarith)]
-      exact hsmalln
     linarith [agreement_le_of_unread I Acc c' hS hb (by omega) hu,
       div_pow_le_exp hq2 (by positivity) (by norm_num) hlog, hexp_mono _ (min_le_right _ _)]
   · push Not at hu
@@ -502,11 +511,9 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
       have hlogV1 : 0 ≤ Real.log ((V : ℝ) + 1) :=
         Real.log_nonneg (by linarith [Nat.cast_nonneg (α := ℝ) V])
       have hlogbV : Real.logb q ((V : ℝ) + 1) ≤ κ * Real.log ((V : ℝ) + 1) := by
-        refine (logb_le_mul_log hq2 (by linarith [Nat.cast_nonneg (α := ℝ) V])).trans ?_
-        refine mul_le_mul_of_nonneg_right ?_ hlogV1
-        simp only [κ]
-        have hqq : (0 : ℝ) ≤ (q : ℝ) ^ q := by positivity
-        linarith [Nat.cast_nonneg (α := ℝ) q]
+        refine (logb_le_mul_log hq2 (by linarith [Nat.cast_nonneg (α := ℝ) V])).trans
+          (mul_le_mul_of_nonneg_right ?_ hlogV1)
+        linarith [Nat.cast_nonneg (α := ℝ) q, pow_nonneg (Nat.cast_nonneg (α := ℝ) q) q]
       simp only [e] at hmargin
       linarith
     linarith [agreement_le_of_layout I Acc c' hS hb hfan' hu π le_rfl,

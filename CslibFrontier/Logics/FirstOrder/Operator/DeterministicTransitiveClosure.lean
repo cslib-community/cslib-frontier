@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.FirstOrder.Operator.Quantifiers
 public import CslibFrontier.Logics.FirstOrder.Operator.TransitiveClosure
 import Cslib.Foundations.Data.Fin.Tuple
+import CslibFrontier.Tactic.FinIndex
 import CslibFrontier.Tactic.FirstOrder.Simp
 
 /-!
@@ -154,7 +155,7 @@ private theorem realize_candidateEq {k : ℕ} (v : α → M) (xs ys zs : Fin k �
   have hy : ∀ i : Fin k, TC.pair xs ys (Fin.cast (Nat.two_mul k).symm (i.addNat k)) = ys i := by
     intro i
     have hi : Fin.cast (Nat.two_mul k).symm (i.addNat k) =
-        Fin.cast (Nat.two_mul k).symm (Fin.natAdd k i) := Fin.ext (by simp [Nat.add_comm])
+        Fin.cast (Nat.two_mul k).symm (Fin.natAdd k i) := by fin_index
     rw [hi]
     exact congrFun (TC.right_pair xs ys) i
   simp [candidateEq, Language.Formula.Realize, Term.equal, hy, funext_iff]

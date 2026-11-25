@@ -542,14 +542,8 @@ theorem exists_polyBounded_resultEncoding_run_le (p : GenericRAM.Program B.gener
     ∃ bound : α → ℕ, PolyBounded (fun a => (encIn a).length) bound ∧
       ∀ a, ∀ j ≤ steps a, (FiniteState.resultEncoding B.encoding
         (FiniteState.run (width a) p j (initState B r (words a)))).length ≤ bound a := by
-  refine ⟨fun a => stateBound r (labelBound p) (width a) ((words a).length + 1 + steps a), ?_,
-    fun a j hj => length_resultEncoding_run_initState_le (hfits a) p hj⟩
-  have hw := hwidth.polyBounded
-  have hE : PolyBounded (fun a => (encIn a).length) (fun a => (words a).length + 1 + steps a) :=
-    ((hwords.polyBounded_length.mono fun a => length_le_length_encList encNat (words a)).add
-      (.const 1)).add hsteps
-  dsimp only [stateBound]
-  growth_poly
+  refine ⟨fun a => stateBound r (labelBound p) (width a) ((words a).length + 1 + steps a),
+    by growth_poly, fun a j hj => length_resultEncoding_run_initState_le (hfits a) p hj⟩
 
 /-- **Word-RAM time at a polynomial-time width schedule gives Turing-machine polynomial time.**
 
@@ -612,13 +606,10 @@ theorem Program.ComputesInTime.turingComputableInPolyTime
     (h : p.ComputesInTime (fun _ => encode) (fun a _ => T (size a))
       (fun a w => logWidth k (size a) ≤ w) f) :
     Turing.MultiTapeTM.ComputableInPolyTime f encIn encNat := by
-  have hlog : PolyBounded (fun a => (encIn a).length) (fun a => logWidth k (size a)) := by
-    growth_poly
   obtain ⟨width, hwidth, hge⟩ := exists_unary_majorant
-    (hlog.add (hencode.polyBounded_length (encMid := encList encNat)))
+    (u := fun a => logWidth k (size a) + (encList encNat (encode a)).length) (by growth_poly)
   exact h.turingComputableInPolyTime_of_width hop hwidth (fun a => by have := hge a; omega)
-    (fun a => inputFits_of_length_encList_le (by have := hge a; omega)) hencode
-    ((PolyBounded.of_polynomiallyBounded id hT).comp hsize)
+    (fun a => inputFits_of_length_encList_le (by have := hge a; omega)) hencode (by growth_poly)
 
 /-- **Uniform polynomial word-RAM time gives Turing-machine polynomial time**, for a
 width-independent word encoding computable in polynomial time and a size measure polynomially

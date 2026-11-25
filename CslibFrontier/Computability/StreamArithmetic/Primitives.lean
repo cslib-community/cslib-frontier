@@ -109,6 +109,8 @@ private theorem maxIntrinsicBits_bindOverhead_trans {Op : Type u} {Struct : Type
     (p.bindOverhead ov k).maxIntrinsicBits env sEnv ≤ B :=
   (QueryProg.maxIntrinsicBits_bindOverhead_le ov p k env sEnv).trans (max_le hp hk)
 
+/-! ## Variables, rational constants, negation, and structural guards -/
+
 section BasicPrimitives
 
 /-- Exact negation of a signed-digit stream negates its real value. -/
@@ -251,7 +253,11 @@ theorem QueryProg.maxIntrinsicBits_reindexOp {Op₁ : Type u} {Op₂ : Type u'} 
 
 end BasicPrimitives
 
+/-! ## Elementary binary recipes (`pairAvg`, `max`, `min`) -/
+
 section ElementaryRecipes
+
+/-! ### Pairwise average -/
 
 /-- Mod-16 residue program for `(streamVal x + streamVal y) / 2` using 9-place low windows
 [OpenAI2026LogSpace, Lemma 10.3]. -/
@@ -316,6 +322,8 @@ theorem maxIntrinsicBits_pairAvgResProg_le {Struct : Type v} (s : ℕ)
       exact_mod_cast hL.trans (Nat.le_mul_of_pos_right 38 hd))
     (fun s env sEnv => (maxIntrinsicBits_pairAvgResProg_le s env sEnv).trans
       (by have h46 := Nat.le_mul_of_pos_right 46 hd; rw [Nat.mul_add]; omega))
+
+/-! ### Windowed comparison, `max`, and `min` -/
 
 /-- Discarding the low four bits of an 8-place Euclidean window residue gives the mod-16 residue of
 the floor quotient by `16`; every `windowPrefixModProg _ 8 _` residue program reads its answer this
@@ -424,6 +432,8 @@ theorem eval_minResProg {Struct : Type v} (s : ℕ)
     (fun s env sEnv _ hev => by exact allowance_cmpWindowResProg hd _ s env sEnv hev)
     (fun s env sEnv => by exact maxIntrinsicBits_cmpWindowResProg_le hd _ s env sEnv)
 
+/-! ### Binary recipe composition combinators -/
+
 private theorem composeBinPrim_child_le {Op : Type u} {Struct : Type v}
     (R₁ R₂ : UniformStreamRecipe Op Struct) (f : UniformStreamRecipe Op Struct → ℕ)
     (i : Fin 2) :
@@ -490,7 +500,11 @@ private theorem composeBinPrim_child_le {Op : Type u} {Struct : Type v}
 
 end ElementaryRecipes
 
+/-! ## Shift-clip and balanced binary-tree averages -/
+
 section ShiftClipAndBalancedAverage
+
+/-! ### Shift-clip recipe -/
 
 /-- Public signed-digit stream whose `K`-place `intPrefix` equals `2 ^ m` whenever `m ≤ K + 3`
 and `4 ≤ m`. -/
@@ -714,6 +728,8 @@ top-down comparator slope `coeffB = 6` and `O((κ + 1) * d)` slack overhead. -/
     (fun _ => rfl) (fun _ => le_rfl) (fun _ => le_rfl) (fun _ => le_rfl) (fun _ => le_rfl)
   raw.weakenValid R.ValidEnv (fun h => ⟨fun _ => h, R.emits_signed h⟩)
 
+/-! ### Balanced binary-tree averages -/
+
 /-- Binary-tree child index embedding `Fin 2 × Fin (2 ^ r) → Fin (2 ^ (r + 1))`. -/
 @[expose] def splitFinPow {r : ℕ} (b : Fin 2) (idx : Fin (2 ^ r)) : Fin (2 ^ (r + 1)) :=
   ⟨b.val * 2 ^ r + idx.val, by
@@ -891,7 +907,11 @@ overshoot `4 * r ≤ (4 * κ) * d`, and `O((κ + 1) * d)` retained/intrinsic bit
 
 end ShiftClipAndBalancedAverage
 
+/-! ## Minimum-index dyadic band multiplication -/
+
 section MultiplicationRecipe
+
+/-! ### Band window geometry and scanning programs -/
 
 /-- Decidable membership predicate for `(i, j) ∈ bandWindowPairs s 4 k`. -/
 @[expose] def inBandWindow (s k i j : ℕ) : Prop :=
@@ -968,6 +988,8 @@ private theorem bandWindowSum_eq_double_sum (x y : ℕ → ℤ) (s k : ℕ) :
 @[expose] def mulResProg {Struct : Type v} (s : ℕ) : QueryProg (Fin 2) Struct ℤ :=
   bandOuterAux s 0 (maxBand s) 0
 
+/-! ### Evaluation correctness -/
+
 private def rowSumTerm (x y : ℕ → ℤ) (s k i j : ℕ) : ℤ :=
   if inBandWindow s k i j then x i * y j * (2 : ℤ) ^ (s + bandMargin k - (i + j)) else 0
 
@@ -1027,6 +1049,8 @@ theorem eval_mulResProg {Struct : Type v} (s : ℕ)
         simp only [bandFoldMod]
         rw [add_comm, Int.add_emod (bandWindowSum _ _ _ _ _), Int.emod_emod, ← Int.add_emod]]
     exact ih (step + 1) (by omega)
+
+/-! ### Active queries, allowance, and intrinsic bit bounds -/
 
 private theorem mem_activeQueries_bandScanJ {Struct : Type v} (s k i idxJ remJ : ℕ) (acc : ℤ)
     (env : Fin 2 → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent (Fin 2) Struct}
@@ -1144,6 +1168,8 @@ theorem maxIntrinsicBits_mulResProg_le {Struct : Type v} {d : ℕ} (hd : 1 ≤ d
       env sEnv
     omega
 
+/-! ### Certified multiplication recipe -/
+
 /-- **Lemma 10.4 (certified minimum-index band multiplication primitive)**
 [OpenAI2026LogSpace, Lemma 10.4]. -/
 @[expose] noncomputable def mulPrim {Struct : Type v} (d : ℕ) (hd : 1 ≤ d) :
@@ -1171,7 +1197,11 @@ theorem maxIntrinsicBits_mulResProg_le {Struct : Type v} {d : ℕ} (hd : 1 ≤ d
 
 end MultiplicationRecipe
 
+/-! ## Early-word reciprocal and unit prefix clamping -/
+
 section ReciprocalRecipe
+
+/-! ### Integer prefix queries and unit-interval clamping -/
 
 /-- Tail-recursive early-word integer prefix builder charging `cntBits + idx + 8` retained bits at
 query `idx` (`cntBits` bits for the bounded place counter `idx ≤ K` plus `idx + 8` bits for the
@@ -1280,6 +1310,8 @@ theorem abs_clipUnitPrefix_div_sub_streamVal_le {x : ℕ → ℤ} (hx : IsSigned
       rw [sub_div, mul_div_cancel_right₀ _ h2K.ne'],
     abs_div, abs_div, abs_of_pos h2K]
   exact div_le_div_of_nonneg_right hdiff h2K.le
+
+/-! ### Virtual reciprocal composition and evaluation -/
 
 /-- Fixed slack-1 inner recipe computing `(v₀ + v₁ * v₂) / 2` over virtual streams `Fin 3`. -/
 @[expose] noncomputable def recipHalfVirtualRecipe {Struct : Type v} :
@@ -1451,6 +1483,8 @@ theorem eval_recip64ResProg {Struct : Type v} (s : ℕ)
     exact eval_recipHalfVirtualRecipe hx hx_mem s sEnv u
   rw [hfun, recip64Approx_emod_sixteen hx hx_mem s]
 
+/-! ### Active queries, allowance, and intrinsic bit bounds -/
+
 theorem mem_activeQueries_recipOuterProg {Struct : Type v} (s : ℕ)
     (vEnv : Fin 3 → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent (Fin 3) Struct}
     (hev : ev ∈ (recipOuterProg s).activeQueries vEnv sEnv) :
@@ -1570,8 +1604,7 @@ private theorem allowance_recip64ResProg {Struct : Type v} {d : ℕ} (hd : 1 ≤
   · obtain ⟨hr, hwOut⟩ := mem_activeQueries_recipOuterProg_digit s _ sEnv hdOut
     unfold recipChild at hevC
     split_ifs at hevC
-    · exact allowance_recipEarly hd env sEnv (fun _ => rfl) hevC (recipOuter_w_le hwOut)
-    · exact allowance_recipEarly hd env sEnv (fun _ => rfl) hevC (recipOuter_w_le hwOut)
+    any_goals exact allowance_recipEarly hd env sEnv (fun _ => rfl) hevC (recipOuter_w_le hwOut)
     · nomatch hevC
     · rcases List.mem_cons.mp hevC with rfl | hevC
       · have hBase : AllowanceBound (Struct := Struct) d (A₀ + 4) B₀ C₀ s
@@ -1646,6 +1679,8 @@ private theorem maxIntrinsicBits_recip64ResProg_le {Struct : Type v} {d : ℕ} (
       dsimp only [A₀, B₀, H] at hwOut_nat hKd hKs
       rw [Nat.mul_add]; omega).trans (Nat.mul_le_mul_right _ (le_max_right _ _))
 
+/-! ### Certified reciprocal recipe -/
+
 /-- **Lemma 10.5 (certified early-word reciprocal primitive on `[1 / 4, 1]`)**
 [OpenAI2026LogSpace, Lemma 10.5]. Here `[1 / 4, 1]` is the input domain
 `streamVal (env ()) ∈ [1 / 4, 1]`, while the `1 / 64` factor normalizes the Taylor components and
@@ -1690,7 +1725,11 @@ obtain `1 / (64 * R)`. -/
 
 end ReciprocalRecipe
 
+/-! ## Zero-padded detector rank -/
+
 section RankRecipe
+
+/-! ### Counting and fold query programs -/
 
 /-- Count how many elements `w` in `ws` satisfy `0 ≤ cmpPrefixProg w i K` using `O(idxBits)`
 retained bits. -/
@@ -1734,6 +1773,8 @@ from `Nat.log 2 items.length + 2` (adapting [OpenAI2026LogSpace, Lemma 10.6] to 
     match best with
     | none => .scratchStep 8 (.ret 0)
     | some b => (windowPrefixModProg b 8 (s + 4)).map (· / 16)
+
+/-! ### Evaluation correctness -/
 
 private theorem eval_countAtLeastProg {Op : Type u} {Struct : Type v}
     (i : Op) (K idxBits : ℕ) (ws : List Op) (cnt : ℕ)
@@ -1877,6 +1918,8 @@ theorem eval_zeroPaddedRankListResProg {Op : Type u} [DecidableEq Op] {Struct : 
       simpa only [← hkth, hbest, optIntPrefix] using hFoldVal.symm
     simp only [QueryProg.eval_map, eval_windowPrefixModProg, hb, h, emod_two_pow_eight_div_sixteen]
 
+/-! ### Active queries, allowance, and intrinsic bit bounds -/
+
 private theorem mem_activeQueries_countAtLeastProg {Op : Type u} {Struct : Type v}
     (i : Op) (K idxBits : ℕ) (ws : List Op) (cnt : ℕ)
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent Op Struct}
@@ -1990,6 +2033,8 @@ private theorem maxIntrinsicBits_zeroPaddedRankListResProg_le {Op : Type u} {Str
   | some b =>
     have hw := maxIntrinsicBits_windowPrefixModProg_le b 8 (s + 4) env sEnv
     rw [QueryProg.maxIntrinsicBits_map]; omega
+
+/-! ### Certified rank recipes -/
 
 /-- **Certified zero-padded detector-rank recipe over a duplicate-free list** (adapting
 [OpenAI2026LogSpace, Lemma 10.6] to the zero-padded `Finset.kthLargest` of Sections 4.2 and 8.2):

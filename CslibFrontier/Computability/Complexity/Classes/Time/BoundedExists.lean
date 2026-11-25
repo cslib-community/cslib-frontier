@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Foundations.Data.BitString.Enumeration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BoundedSearch
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
@@ -48,8 +49,6 @@ namespace Cslib.Complexity
 
 open _root_.Turing _root_.Turing.MultiTapeTM
 
-attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTime.snd'
-    ComputableInPolyTime.bool_and' in
 /-- **Bounded existential quantification in exponential time.** If a test `f` is computable within
 time and space polynomial in its encoded input, and `ℓ` is computable in unary in polynomial time,
 then whether some word of length `ℓ x` passes `f` with `x` is computable within time and space
@@ -90,39 +89,33 @@ theorem exists_computableInO_any_enumList {β : Type} {encB : β ↪ List Bool}
   all_goals
     set n := (encB x).length
     set L := ℓ x
-    have hcost := hC (x, L)
-    simp only [length_encPair, encUnary_apply, List.length_replicate] at hcost
-    change overhead (x, L) + T (x, L) + S (x, L) ≤ C * 2 ^ (2 * n + 1 + L) at hcost
-    have hI : 2 ^ n ≤ 2 ^ (3 * (n + L)) :=
-      Nat.pow_le_pow_right (by norm_num) (by omega)
-    have hprod : 2 ^ L * 2 ^ (2 * n + 1 + L) ≤ 2 * 2 ^ (3 * (n + L)) := by
-      calc
-        _ = 2 ^ (2 * (n + L) + 1) := by rw [← pow_add]; congr 1; omega
-        _ ≤ 2 ^ (3 * (n + L) + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
-        _ = _ := by rw [pow_succ, Nat.mul_comm]
-    have hcount : 1 ≤ 2 ^ L := Nat.one_le_two_pow
-    have hsingle : 2 ^ (2 * n + 1 + L) ≤ 2 * 2 ^ (3 * (n + L)) := by
-      have := Nat.mul_le_mul_right (2 ^ (2 * n + 1 + L)) hcount
-      nlinarith
-    have hdouble : (2 ^ L + 1) * 2 ^ (2 * n + 1 + L) ≤
-        4 * 2 ^ (3 * (n + L)) := by nlinarith
-    have hnonzero : 1 ≤ 2 ^ (3 * (n + L)) := Nat.one_le_two_pow
-  · change Ti x + (2 ^ L + 1) * (overhead (x, L) + T (x, L)) ≤
-      8 * (CI + CJ + C + 1) * (2 ^ (3 * (n + L)) + 1)
-    have hiT := hCI x
-    change Ti x ≤ CI * 2 ^ n at hiT
-    have htest : overhead (x, L) + T (x, L) ≤ C * 2 ^ (2 * n + 1 + L) := by omega
-    have hscaled := Nat.mul_le_mul_left (2 ^ L + 1) htest
-    have hexp := Nat.mul_le_mul_left C hdouble
-    have hi' := Nat.mul_le_mul_left CI hI
-    nlinarith
-  · change Si x + (overhead (x, L) + S (x, L)) ≤
-      8 * (CI + CJ + C + 1) * (2 ^ (3 * (n + L)) + 1)
-    have hiS := hCJ x
-    change Si x ≤ CJ * 2 ^ n at hiS
-    have htest : overhead (x, L) + S (x, L) ≤ C * 2 ^ (2 * n + 1 + L) := by omega
-    have hexp := Nat.mul_le_mul_left C hsingle
-    have hi' := Nat.mul_le_mul_left CJ hI
-    nlinarith
+    set X := 2 ^ (3 * (n + L))
+    have hcost : overhead (x, L) + T (x, L) + S (x, L) ≤ C * 2 ^ (2 * n + 1 + L) := by
+      simpa only [length_encPair, encUnary_apply, List.length_replicate] using hC (x, L)
+    have hI : 2 ^ n ≤ X := Nat.pow_le_pow_right (by decide) (by omega)
+    have hsingle : 2 ^ (2 * n + 1 + L) ≤ 2 * X := by
+      calc 2 ^ (2 * n + 1 + L) ≤ 2 ^ (3 * (n + L) + 1) :=
+            Nat.pow_le_pow_right (by decide) (by omega)
+        _ = 2 * X := by rw [pow_succ, Nat.mul_comm]
+  · have hprod : 2 ^ L * 2 ^ (2 * n + 1 + L) ≤ 2 * X := by
+      calc 2 ^ L * 2 ^ (2 * n + 1 + L) = 2 ^ (2 * (n + L) + 1) := by rw [← pow_add]; congr 1; omega
+        _ ≤ 2 ^ (3 * (n + L) + 1) := Nat.pow_le_pow_right (by decide) (by omega)
+        _ = 2 * X := by rw [pow_succ, Nat.mul_comm]
+    have hdouble : (2 ^ L + 1) * 2 ^ (2 * n + 1 + L) ≤ 4 * X := by
+      rw [Nat.add_mul, Nat.one_mul]; omega
+    calc Ti x + (2 ^ L + 1) * (overhead (x, L) + T (x, L))
+        ≤ CI * 2 ^ n + (2 ^ L + 1) * (C * 2 ^ (2 * n + 1 + L)) :=
+          Nat.add_le_add (hCI x) (Nat.mul_le_mul_left _ (by omega))
+      _ = CI * 2 ^ n + C * ((2 ^ L + 1) * 2 ^ (2 * n + 1 + L)) := by ring
+      _ ≤ CI * X + C * (4 * X) :=
+          Nat.add_le_add (Nat.mul_le_mul_left _ hI) (Nat.mul_le_mul_left _ hdouble)
+      _ = (CI + 4 * C) * X := by ring
+      _ ≤ 8 * (CI + CJ + C + 1) * (X + 1) := Nat.mul_le_mul (by omega) (Nat.le_succ _)
+  · calc Si x + (overhead (x, L) + S (x, L))
+        ≤ CJ * 2 ^ n + C * 2 ^ (2 * n + 1 + L) := Nat.add_le_add (hCJ x) (by omega)
+      _ ≤ CJ * X + C * (2 * X) :=
+          Nat.add_le_add (Nat.mul_le_mul_left _ hI) (Nat.mul_le_mul_left _ hsingle)
+      _ = (CJ + 2 * C) * X := by ring
+      _ ≤ 8 * (CI + CJ + C + 1) * (X + 1) := Nat.mul_le_mul (by omega) (Nat.le_succ _)
 
 end Cslib.Complexity

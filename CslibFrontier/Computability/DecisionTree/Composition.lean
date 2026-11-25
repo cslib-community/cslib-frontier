@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.DecisionTree.Cost
+public import CslibFrontier.Computability.DecisionTree.FreeM
 public import Mathlib.Basic.Finite.Sigma
 
 /-!
@@ -61,18 +62,29 @@ variable {ι κ μ β γ δ : Type*}
     (k : β → DecisionTree ι γ) :
     (node i left right).bind k = node i (left.bind k) (right.bind k) := rfl
 
+/-- Translating a tree into a free program preserves leaf substitution. -/
+theorem toFreeM_bind (t : DecisionTree ι β) (k : β → DecisionTree ι γ) :
+    (t.bind k).toFreeM = PFunctor.FreeM.bind t.toFreeM (fun a => (k a).toFreeM) := by
+  induction t with
+  | leaf a => rfl
+  | node i l r il ir =>
+    rw [node_bind]
+    change PFunctor.FreeM.liftBind (P := PFunctor.monomial ι Bool) i _ =
+      PFunctor.FreeM.liftBind (P := PFunctor.monomial ι Bool) i _
+    congr 1
+    funext b
+    cases b <;> assumption
+
 /-- Replacing each leaf by itself preserves the tree. -/
 @[simp] theorem bind_leaf (t : DecisionTree ι β) : t.bind leaf = t := by
-  induction t with
-  | leaf => rfl
-  | node i left right ihl ihr => simp [ihl, ihr]
+  apply equivFreeM.injective
+  simpa only [equivFreeM_apply, toFreeM_bind, toFreeM_leaf] using PFunctor.FreeM.bind_pure t.toFreeM
 
 /-- Successive leaf substitutions associate. -/
 theorem bind_assoc (t : DecisionTree ι β) (k : β → DecisionTree ι γ)
     (l : γ → DecisionTree ι δ) : (t.bind k).bind l = t.bind (fun b => (k b).bind l) := by
-  induction t with
-  | leaf => rfl
-  | node i left right ihl ihr => simp [ihl, ihr]
+  apply equivFreeM.injective
+  simp only [equivFreeM_apply, toFreeM_bind, PFunctor.FreeM.bind_assoc]
 
 /-- Evaluate the first tree, then its selected continuation on the same input. -/
 @[simp] theorem eval_bind (t : DecisionTree ι β) (k : β → DecisionTree ι γ) (x : ι → Bool) :

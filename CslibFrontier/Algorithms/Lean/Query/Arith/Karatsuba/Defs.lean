@@ -113,7 +113,6 @@ The result has `2 n - 1` coefficients. -/
     let w ← subList w₁ z₂
     addAt m (z₀ ++ 0 :: z₂) w
 termination_by n _ _ => n
-decreasing_by all_goals omega
 
 /-- The number of multiplication queries of `mulFit n`:
 `M(0) = 0`, `M(1) = 1` and `M(n) = M(⌊n/2⌋) + 2 M(⌈n/2⌉)`. -/
@@ -122,7 +121,6 @@ decreasing_by all_goals omega
   | 1 => 1
   | n + 2 => mulCount ((n + 2) / 2) + 2 * mulCount (n + 2 - (n + 2) / 2)
 termination_by n => n
-decreasing_by all_goals omega
 
 /-- The number of addition and subtraction queries of `mulFit n`:
 `A(0) = A(1) = 0` and `A(n) = A(⌊n/2⌋) + 2 A(⌈n/2⌉) + 4 n - 3`. -/
@@ -131,7 +129,6 @@ decreasing_by all_goals omega
   | 1 => 0
   | n + 2 => addCount ((n + 2) / 2) + 2 * addCount (n + 2 - (n + 2) / 2) + (4 * n + 5)
 termination_by n => n
-decreasing_by all_goals omega
 
 end Karatsuba
 

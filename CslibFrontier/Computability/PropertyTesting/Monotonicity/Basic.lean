@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.InformationTheory.Hamming
+import CslibFrontier.Foundations.Data.BitString.Flip
 import Mathlib.Data.Pi.Interval
 import Mathlib.Order.Interval.Finset.Basic
 import Mathlib.Tactic.Linarith
@@ -174,22 +175,6 @@ private theorem viol_update (f : (ι → Bool) → Bool) (i : ι) (x : ι → Bo
     Viol f i (update x i b) ↔ Viol f i x := by
   simp only [Viol, update_idem]
 
-/-- Flip the coordinate `i`. -/
-private def flipAt (i : ι) (x : ι → Bool) : ι → Bool := update x i (!x i)
-
-private theorem flipAt_flipAt (i : ι) (x : ι → Bool) : flipAt i (flipAt i x) = x := by
-  simp only [flipAt, update_self, update_idem, Bool.not_not, update_eq_self]
-
-private theorem update_false_add_update_true {M : Type*} [AddCommMonoid M] (i : ι)
-    (h : (ι → Bool) → M) (y : ι → Bool) :
-    h (update y i false) + h (update y i true) = h y + h (flipAt i y) := by
-  unfold flipAt
-  cases hy : y i
-  · have e : update y i false = y := update_eq_self_iff.2 hy.symm
-    rw [e, Bool.not_false]
-  · have e : update y i true = y := update_eq_self_iff.2 hy.symm
-    rw [e, Bool.not_true, add_comm]
-
 /-! ### Sorting along a direction -/
 
 /-- **Sorting along direction `i`**: on every edge in direction `i`, the lower endpoint gets the
@@ -243,13 +228,6 @@ private theorem viol_sortAlong_square (f : (ι → Bool) → Bool) {i j : ι} (h
   decide
 
 variable [Fintype ι]
-
-private theorem sum_update_false_add_update_true {M : Type*} [AddCommMonoid M] (i : ι)
-    (h : (ι → Bool) → M) :
-    ∑ y, (h (update y i false) + h (update y i true)) = ∑ y, h y + ∑ y, h y := by
-  simp only [update_false_add_update_true, sum_add_distrib]
-  congr 1
-  exact Equiv.sum_comp (Function.Involutive.toPerm _ (flipAt_flipAt i)) h
 
 private theorem mem_violatedEdges_iff_viol {f : (ι → Bool) → Bool} {i : ι} {x : ι → Bool} :
     x ∈ violatedEdges f i ↔ x i = false ∧ Viol f i x := by

@@ -9,13 +9,6 @@ module
 
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Basic
 public import CslibFrontier.Foundations.Data.Finset.KthLargest
-import Mathlib.Algebra.Order.Floor.Ring
-import Mathlib.Algebra.Order.Group.MinMax
-import Mathlib.Data.Rat.Floor
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # Elementary stream operations, finite-state prefix comparisons, ranks, and buffered tests
@@ -114,13 +107,19 @@ private theorem abs_two_pow_mul_sub_le_of_prefix {t : ℕ} {P Z : ℝ}
     (h : |P - Z| ≤ 6 / (2 : ℝ) ^ (t + 4)) :
     |(2 : ℝ) ^ t * P - (2 : ℝ) ^ t * Z| ≤ 3 / 8 := by
   rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
-  calc (2 : ℝ) ^ t * |P - Z| ≤ (2 : ℝ) ^ t * (6 / (2 : ℝ) ^ (t + 4)) :=
-        mul_le_mul_of_nonneg_left h (by positivity)
+  calc (2 : ℝ) ^ t * |P - Z| ≤ (2 : ℝ) ^ t * (6 / (2 : ℝ) ^ (t + 4)) := by gcongr
     _ = 3 / 8 := by
         have hpow : (2 : ℝ) ^ (t + 4) = 16 * (2 : ℝ) ^ t := by ring
         rw [hpow]
         field_simp
         ring
+
+/-- Rescaling by `16 = 2 ^ 4`: `a / 16 = 2 ^ t * (a / 2 ^ (t + 4))`. -/
+private theorem div_sixteen_eq (a : ℝ) (t : ℕ) :
+    a / 16 = (2 : ℝ) ^ t * (a / (2 : ℝ) ^ (t + 4)) := by
+  rw [pow_add]
+  field_simp
+  norm_num
 
 section RationalStreams
 
@@ -134,34 +133,11 @@ section RationalStreams
 
 theorem ratApprox_eq_ediv (r : ℚ) (t : ℕ) :
     ratApprox r t = ((2 : ℤ) ^ t * r.num) / (r.den : ℤ) := by
-  unfold ratApprox
-  rw [Int.floor_eq_iff]
-  set d : ℤ := ((2 : ℤ) ^ t * r.num) / (r.den : ℤ)
-  have hden : (0 : ℤ) < (r.den : ℤ) := by exact_mod_cast r.pos
-  have hden_q : (0 : ℚ) < (r.den : ℚ) := by exact_mod_cast r.pos
-  have hdiv : (r.den : ℤ) * d + ((2 : ℤ) ^ t * r.num) % (r.den : ℤ) = (2 : ℤ) ^ t * r.num := by
-    dsimp [d]
-    linarith [Int.emod_def ((2 : ℤ) ^ t * r.num) (r.den : ℤ)]
-  have hr0 : 0 ≤ ((2 : ℤ) ^ t * r.num) % (r.den : ℤ) := Int.emod_nonneg _ hden.ne'
-  have hrlt : ((2 : ℤ) ^ t * r.num) % (r.den : ℤ) < (r.den : ℤ) := Int.emod_lt_of_pos _ hden
-  have hq : (2 : ℚ) ^ t * r = (((2 : ℤ) ^ t * r.num : ℤ) : ℚ) / (r.den : ℚ) := by
-    conv_lhs => rw [← Rat.num_div_den r]
-    push_cast
-    ring
-  rw [hq]
-  refine ⟨?_, ?_⟩
-  · rw [le_div_iff₀ hden_q]
-    have hle_int : d * (r.den : ℤ) ≤ (2 : ℤ) ^ t * r.num := by
-      have hcomm : d * (r.den : ℤ) = (r.den : ℤ) * d := mul_comm _ _
-      omega
-    exact_mod_cast hle_int
-  · rw [div_lt_iff₀ hden_q]
-    have hlt_int : (2 : ℤ) ^ t * r.num < (d + 1) * (r.den : ℤ) := by
-      have hcomm : (d + 1) * (r.den : ℤ) = (r.den : ℤ) * d + (r.den : ℤ) := by ring
-      omega
-    have hcast : (((2 : ℤ) ^ t * r.num : ℤ) : ℚ) < (((d + 1) * (r.den : ℤ) : ℤ) : ℚ) := by
-      exact_mod_cast hlt_int
-    simpa only [Int.cast_mul, Int.cast_add, Int.cast_one, Int.cast_natCast] using hcast
+  rw [ratApprox, ← Rat.floor_intCast_div_natCast]
+  congr 1
+  conv_lhs => rw [← Rat.num_div_den r]
+  push_cast
+  ring
 
 theorem ratApprox_isScaledApprox (r : ℚ) : IsScaledApprox (r : ℝ) (ratApprox r) := by
   intro t
@@ -255,9 +231,7 @@ theorem cmpPrefix_pos_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSi
     0 < cmpPrefix x y K ↔ streamPrefix y K < streamPrefix x K := by
   rw [cmpPrefix_eq_clamp_sub hx hy K, streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div,
     div_lt_div_iff_of_pos_right (by positivity : (0 : ℝ) < (2 : ℝ) ^ K)]
-  have hint : ((intPrefix y K : ℝ) < (intPrefix x K : ℝ)) ↔ intPrefix y K < intPrefix x K :=
-    Int.cast_lt
-  rw [hint]
+  rw [Int.cast_lt]
   omega
 
 theorem cmpPrefix_neg_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
@@ -265,9 +239,7 @@ theorem cmpPrefix_neg_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSi
     cmpPrefix x y K < 0 ↔ streamPrefix x K < streamPrefix y K := by
   rw [cmpPrefix_eq_clamp_sub hx hy K, streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div,
     div_lt_div_iff_of_pos_right (by positivity : (0 : ℝ) < (2 : ℝ) ^ K)]
-  have hint : ((intPrefix x K : ℝ) < (intPrefix y K : ℝ)) ↔ intPrefix x K < intPrefix y K :=
-    Int.cast_lt
-  rw [hint]
+  rw [Int.cast_lt]
   omega
 
 theorem cmpPrefix_nonneg_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
@@ -358,27 +330,19 @@ theorem maxApprox_eq_ediv {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSi
     (t : ℕ) :
     maxApprox x y t = max (intPrefix x (t + 4)) (intPrefix y (t + 4)) / 16 := by
   unfold maxApprox
-  congr 1
-  by_cases h : 0 ≤ cmpPrefix x y (t + 4)
-  · have hle := (cmpPrefix_nonneg_iff hx hy (t + 4)).mp h
-    simp [h, max_eq_left hle]
-  · have hle : intPrefix x (t + 4) ≤ intPrefix y (t + 4) := by
-      have hnot := (cmpPrefix_nonneg_iff hx hy (t + 4)).not.mp h
-      omega
-    simp [h, max_eq_right hle]
+  have := cmpPrefix_nonneg_iff hx hy (t + 4)
+  split_ifs with h
+  · rw [max_eq_left (this.mp h)]
+  · rw [max_eq_right (not_le.mp (mt this.mpr h)).le]
 
 theorem minApprox_eq_ediv {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
     (t : ℕ) :
     minApprox x y t = min (intPrefix x (t + 4)) (intPrefix y (t + 4)) / 16 := by
   unfold minApprox
-  congr 1
-  by_cases h : cmpPrefix x y (t + 4) ≤ 0
-  · have hle := (cmpPrefix_nonpos_iff hx hy (t + 4)).mp h
-    simp [h, min_eq_left hle]
-  · have hle : intPrefix y (t + 4) ≤ intPrefix x (t + 4) := by
-      have hnot := (cmpPrefix_nonpos_iff hx hy (t + 4)).not.mp h
-      omega
-    simp [h, min_eq_right hle]
+  have := cmpPrefix_nonpos_iff hx hy (t + 4)
+  split_ifs with h
+  · rw [min_eq_left (this.mp h)]
+  · rw [min_eq_right (not_le.mp (mt this.mpr h)).le]
 
 theorem maxApprox_isScaledApprox {x y : ℕ → ℤ}
     (hx : IsSignedStream x) (hy : IsSignedStream y) :
@@ -394,10 +358,8 @@ theorem maxApprox_isScaledApprox {x y : ℕ → ℤ}
       (max_le hx_err hy_err)))
   rw [Int.cast_max, streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div,
     max_div_div_right (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ (t + 4))]
-  have hpow : (2 : ℝ) ^ (t + 4) = 16 * (2 : ℝ) ^ t := by ring
-  rw [hpow]
   push_cast
-  field_simp
+  exact div_sixteen_eq _ t
 
 theorem minApprox_isScaledApprox {x y : ℕ → ℤ}
     (hx : IsSignedStream x) (hy : IsSignedStream y) :
@@ -413,10 +375,8 @@ theorem minApprox_isScaledApprox {x y : ℕ → ℤ}
       (max_le hx_err hy_err)))
   rw [Int.cast_min, streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div,
     min_div_div_right (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ (t + 4))]
-  have hpow : (2 : ℝ) ^ (t + 4) = 16 * (2 : ℝ) ^ t := by ring
-  rw [hpow]
   push_cast
-  field_simp
+  exact div_sixteen_eq _ t
 
 theorem abs_shiftClipVal_le_one (v : ℤ) (z : ℝ) : |shiftClipVal v z| ≤ 1 := by
   unfold shiftClipVal
@@ -444,17 +404,14 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
       unfold shiftClipVal
       have h0 : max (-1 : ℝ) (min 1 0) = 0 := by norm_num
       simpa only [h0, sub_zero] using abs_clamp_sub_clamp_le (-1) 1 ((2 : ℝ) ^ v * streamVal x) 0
-    have hpow_le : (2 : ℝ) ^ ((t : ℤ) + v) ≤ (2 : ℝ) ^ (-5 : ℤ) :=
-      zpow_le_zpow_right₀ (by norm_num : (1 : ℝ) ≤ 2) hle
     have hprod : |(2 : ℝ) ^ t * shiftClipVal v (streamVal x)| ≤ 3 / 8 := by
       rw [abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
       calc (2 : ℝ) ^ t * |shiftClipVal v (streamVal x)|
-          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamVal x| :=
-            mul_le_mul_of_nonneg_left hval_le (by positivity)
+          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamVal x| := by gcongr
         _ = (2 : ℝ) ^ ((t : ℤ) + v) * |streamVal x| := by
             rw [abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ v),
               zpow_add₀ (by norm_num), zpow_natCast, mul_assoc]
-        _ ≤ (2 : ℝ) ^ (-5 : ℤ) * 12 := by gcongr
+        _ ≤ (2 : ℝ) ^ (-5 : ℤ) * 12 := by gcongr; norm_num
         _ = 3 / 8 := by norm_num
     simp only [Int.cast_zero, zero_sub, abs_neg]
     linarith
@@ -471,11 +428,8 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
       norm_num
     have hscale : (intPrefix x K : ℝ) / (16 : ℝ) =
         (2 : ℝ) ^ t * ((2 : ℝ) ^ v * streamPrefix x K) := by
-      rw [streamPrefix_eq_intPrefix_div]
-      calc (intPrefix x K : ℝ) / (16 : ℝ)
-          = (intPrefix x K : ℝ) * (1 / 16) := by ring
-        _ = (intPrefix x K : ℝ) * ((2 : ℝ) ^ t * ((2 : ℝ) ^ v / (2 : ℝ) ^ K)) := by rw [hzpow]
-        _ = (2 : ℝ) ^ t * ((2 : ℝ) ^ v * ((intPrefix x K : ℝ) / (2 : ℝ) ^ K)) := by ring
+      rw [streamPrefix_eq_intPrefix_div, ← mul_one_div (intPrefix x K : ℝ) 16, ← hzpow]
+      ring
     have hA : (A : ℝ) / (16 : ℝ) = (2 : ℝ) ^ t * shiftClipVal v (streamPrefix x K) := by
       dsimp [A, B, shiftClipVal]
       have hB : (((2 : ℤ) ^ (t + 4) : ℤ) : ℝ) / 16 = (2 : ℝ) ^ t := by
@@ -494,23 +448,20 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
         (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ t)
       rw [hmul_max, hmul_min]
       ring_nf
-    have hlip : |shiftClipVal v (streamPrefix x K) - shiftClipVal v (streamVal x)| ≤
-        |(2 : ℝ) ^ v * streamPrefix x K - (2 : ℝ) ^ v * streamVal x| :=
-      abs_clamp_sub_clamp_le (-1) 1 _ _
     have hx_err := abs_streamVal_sub_streamPrefix_le hx K
     rw [abs_sub_comm] at hx_err
     have htrunc : |(2 : ℝ) ^ t * shiftClipVal v (streamPrefix x K) -
         (2 : ℝ) ^ t * shiftClipVal v (streamVal x)| ≤ 3 / 8 := by
       rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
       calc (2 : ℝ) ^ t * |shiftClipVal v (streamPrefix x K) - shiftClipVal v (streamVal x)|
-          ≤ (2 : ℝ) ^ t * |(2 : ℝ) ^ v * streamPrefix x K - (2 : ℝ) ^ v * streamVal x| :=
-            mul_le_mul_of_nonneg_left hlip (by positivity)
-        _ = (2 : ℝ) ^ t * ((2 : ℝ) ^ v * |streamPrefix x K - streamVal x|) := by
+          ≤ (2 : ℝ) ^ t * ((2 : ℝ) ^ v * (6 / (2 : ℝ) ^ K)) := by
+            refine mul_le_mul_of_nonneg_left ((abs_clamp_sub_clamp_le (-1) 1 _ _).trans ?_)
+              (by positivity)
             rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ v)]
-        _ ≤ (2 : ℝ) ^ t * ((2 : ℝ) ^ v * (6 / (2 : ℝ) ^ K)) := by gcongr
-        _ = 6 * ((2 : ℝ) ^ t * ((2 : ℝ) ^ v / (2 : ℝ) ^ K)) := by ring
+            gcongr
         _ = 3 / 8 := by
-            rw [hzpow]
+            rw [show (2 : ℝ) ^ t * ((2 : ℝ) ^ v * (6 / (2 : ℝ) ^ K)) =
+              6 * ((2 : ℝ) ^ t * ((2 : ℝ) ^ v / (2 : ℝ) ^ K)) by ring, hzpow]
             norm_num
     exact abs_ediv_sub_lt_two_of_scaled A (by decide : 0 < 16) hA htrunc
 
@@ -533,48 +484,12 @@ theorem kthLargest_streamPrefix_eq_div {ι : Type*} (k : ℕ) (s : Finset ι) (x
       ((kthLargest k s (fun i => intPrefix (x i) K) : ℤ) : ℝ) / (2 : ℝ) ^ K := by
   classical
   have hpos : (0 : ℝ) < (2 : ℝ) ^ K := by positivity
-  set φ : ℤ → ℝ := fun a => (a : ℝ) / (2 : ℝ) ^ K
-  have hmono : StrictMono φ := fun a b hab =>
-    div_lt_div_of_pos_right (Int.cast_lt.mpr hab) hpos
-  have hfilt : (s.filter fun i => k ≤ #{w ∈ s | streamPrefix (x i) K ≤ streamPrefix (x w) K}) =
-      (s.filter fun i => k ≤ #{w ∈ s | intPrefix (x i) K ≤ intPrefix (x w) K}) := by
-    ext i
-    simp only [mem_filter, streamPrefix_eq_intPrefix_div]
-    refine and_congr_right fun _ => ?_
-    have hw : ({w ∈ s | φ (intPrefix (x i) K) ≤ φ (intPrefix (x w) K)} : Finset ι) =
-        {w ∈ s | intPrefix (x i) K ≤ intPrefix (x w) K} := by
-      ext w
-      simp [hmono.le_iff_le]
-    rw [hw]
-  set S : Finset ℤ := insert 0
-    ((s.filter fun i => k ≤ #{w ∈ s | intPrefix (x i) K ≤ intPrefix (x w) K}).image
-      fun i => intPrefix (x i) K)
-  have hS_ne : S.Nonempty := insert_nonempty _ _
-  have himg : insert (0 : ℝ)
-      ((s.filter fun i => k ≤ #{w ∈ s | streamPrefix (x i) K ≤ streamPrefix (x w) K}).image
-        fun i => streamPrefix (x i) K) = S.image φ := by
-    rw [hfilt]
-    dsimp [S]
-    rw [image_insert, image_image]
-    have h0 : φ 0 = 0 := by simp [φ]
-    rw [h0]
-    congr 2
-    ext i
-    exact streamPrefix_eq_intPrefix_div (x i) K
-  change (insert (0 : ℝ)
-      ((s.filter fun i => k ≤ #{w ∈ s | streamPrefix (x i) K ≤ streamPrefix (x w) K}).image
-        fun i => streamPrefix (x i) K)).max' (insert_nonempty _ _) = φ (S.max' hS_ne)
-  apply le_antisymm
-  · refine max'_le _ _ _ fun r hr => ?_
-    rw [himg] at hr
-    obtain ⟨a, ha, rfl⟩ := mem_image.mp hr
-    exact hmono.monotone (le_max' S a ha)
-  · have hmem : φ (S.max' hS_ne) ∈ insert (0 : ℝ)
-        ((s.filter fun i => k ≤ #{w ∈ s | streamPrefix (x i) K ≤ streamPrefix (x w) K}).image
-          fun i => streamPrefix (x i) K) := by
-      rw [himg]
-      exact mem_image_of_mem φ (max'_mem S hS_ne)
-    exact le_max' _ _ hmem
+  have hmono : Monotone fun a : ℤ => (a : ℝ) / (2 : ℝ) ^ K := fun a b hab =>
+    div_le_div_of_nonneg_right (Int.cast_le.mpr hab) hpos.le
+  simp only [kthLargest, streamPrefix_eq_intPrefix_div, div_le_div_iff_of_pos_right hpos,
+    Int.cast_le]
+  rw [← max'_image hmono _ ((insert_nonempty _ _).image _)]
+  simp only [image_insert, image_image, Function.comp_def, Int.cast_zero, zero_div]
 
 private theorem abs_kthLargest_zero_sub_le {ι : Type*} (s : Finset ι) {f g : ι → ℝ} {ε : ℝ}
     (hε : 0 ≤ ε) (h : ∀ i ∈ s, |f i - g i| ≤ ε) :
@@ -619,10 +534,8 @@ theorem zeroPaddedRankApprox_isScaledApprox {ι : Type*} (k : ℕ) (s : Finset �
   refine abs_ediv_sub_lt_two_of_scaled _ (by decide : 0 < 16) ?_
     (abs_two_pow_mul_sub_le_of_prefix hstab)
   rw [kthLargest_streamPrefix_eq_div]
-  have hpow : (2 : ℝ) ^ (t + 4) = 16 * (2 : ℝ) ^ t := by ring
-  rw [hpow]
   push_cast
-  field_simp
+  exact div_sixteen_eq _ t
 
 /-- Transition step of the 63-state absorbing `2 s - 3 u` comparator on `[-31, 31]`. -/
 @[expose] def cmpBufferedStep (p δ : ℤ) : ℤ :=

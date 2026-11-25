@@ -78,7 +78,7 @@ contributing to column `j` of the product of `x` and `y`. -/
 theorem realize_columnWord (x y j w : (language L).Term α) (v : α → Fin n) :
     (columnWord L x y j w).Realize v ↔ (w.realize v).val =
       BitString.mulColumnWord (x.realize v).val (y.realize v).val (j.realize v).val := by
-  fo_simp [columnWord, Function.comp_def]
+  fo_simp [columnWord]
   constructor
   · intro hf
     apply Nat.eq_of_testBit_eq
@@ -107,20 +107,13 @@ theorem realize_columnWord (x y j w : (language L).Term α) (v : α → Fin n) :
       exact ⟨hx, by lia,
         by simpa only [show (j.realize v).val - (b ()).val = (u ()).val by lia] using hy⟩
 
-private theorem realize_subst_bitSum {β : Type*} (x y : (language L).Term β) (v : β → Fin n) :
-    Formula.Realize ((bitSum L).subst ![x, y]) v ↔
-      (y.realize v).val = (x.realize v).val.bitIndices.length := by
-  change ((bitSum L).subst ![x, y]).Realize v _ ↔ _
-  rw [BoundedFormula.realize_subst]
-  exact realize_bitSum _
-
 /-- `columnCount L x y j a` holds exactly when `a` is the number of rows contributing to column
 `j` of the product of `x` and `y` (`BitString.mulColumn`). -/
 @[simp, fo_realize]
 theorem realize_columnCount (x y j a : (language L).Term α) (v : α → Fin n) :
     (columnCount L x y j a).Realize v ↔ (a.realize v).val =
       BitString.mulColumn (x.realize v).val (y.realize v).val (j.realize v).val := by
-  fo_simp [columnCount, realize_subst_bitSum, Function.comp_def]
+  fo_simp [columnCount]
   constructor
   · rintro ⟨u, hu, ha⟩
     simpa only [hu, BitString.mulColumn] using ha
@@ -139,7 +132,7 @@ theorem realize_carryStep (x y z i c c' : (language L).Term α) (v : α → Fin 
         ((z.realize v).val.testBit (i.realize v).val).toNat + 2 * (c'.realize v).val ∧
       (c.realize v).val +
         BitString.mulColumn (x.realize v).val (y.realize v).val (i.realize v).val < n := by
-  fo_simp [carryStep, Function.comp_def, and_assoc, Fin.ext_iff]
+  fo_simp [carryStep, and_assoc, Fin.ext_iff]
   constructor
   · rintro ⟨u, ha, hc, hd, hs⟩
     have hn := (u 1).isLt

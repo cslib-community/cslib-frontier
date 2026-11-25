@@ -152,23 +152,14 @@ private theorem descending_value_eq {n : ℕ} (hn : n ≤ q) :
     Ary.Descending.value (encode (some (initialView machine b))) (child σ)
       (codeGate machine input b σ encode decode) (child_lt σ) n =
         encode (value machine input b σ n) := by
-  induction n using Nat.strong_induction_on with
-  | ind n ih =>
-    cases n with
-    | zero => rw [Ary.Descending.value, value]
-    | succ n =>
-      rw [Ary.Descending.value]
-      have hchildren :
-          (fun j => decodeChecked encode decode
-            (Ary.Descending.value (encode (some (initialView machine b))) (child σ)
-              (codeGate machine input b σ encode decode) (child_lt σ)
-              (child σ (n + 1) j))) =
-            fun j => value machine input b σ (child σ (n + 1) j) := by
-        funext j
-        have hj := child_lt σ (n + 1) (by omega) j
-        rw [ih _ hj (by omega), decodeChecked_encode encode decode hdecode]
-      change encode (intervalGate machine input b σ (n + 1) _) = _
-      rw [hchildren, intervalGate_value machine input b σ (by omega)]
+  fun_induction Ary.Descending.value (encode (some (initialView machine b))) (child σ)
+      (codeGate machine input b σ encode decode) (child_lt σ) n with
+  | case1 => rw [value] -- index 0: the source
+  | case2 n ih => -- index n + 1: its gate
+    rw [codeGate, ← intervalGate_value machine input b σ (by omega)]
+    congr 2 with j
+    have hj := child_lt σ (n + 1) (by omega) j
+    rw [ih j (by omega), decodeChecked_encode encode decode hdecode]
 
 /-- Unfolding an interval computation preserves its encoded value. -/
 theorem eval_tree {height root : ℕ} (hroot : root ≤ q) (hheight : root ≤ height) :

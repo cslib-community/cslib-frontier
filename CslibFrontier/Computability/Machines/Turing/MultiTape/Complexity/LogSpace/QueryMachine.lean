@@ -333,7 +333,7 @@ theorem passEmit_inSpace
     ComputableInSpace (passEmit M') (encPass encS') encBits
       fun q => (encPass encS' q).length :=
   budget_ite (budget_comp_linear hhalted (fst _ _))
-    (budget_const [] (.refl _))
+    (budget_const [])
     (budget_comp_linear hemit (budget_prod (fst _ _) (snd' (snd _ _))))
 
 theorem passEnd_inSpace
@@ -346,7 +346,7 @@ theorem passEnd_inSpace
     (budget_ite (budget_comp_linear hhalted (fst _ _))
       (fst _ _)
       (budget_comp_linear hnext (budget_prod (fst _ _) (snd' (snd _ _)))))
-    (budget_prod (budget_const 0 (.refl _)) (budget_const none (.refl _)))
+    (budget_prod (budget_const 0) (budget_const none))
 
 theorem passCont_inSpace
     (hhalted : ComputableInSpace M'.halted encS' encBool fun s => (encS' s).length) :
@@ -414,7 +414,7 @@ theorem computableInSpaceFrom {α β : Type} {enc : α ↪ List Bool} {encOut : 
   -- the parts of the simulation
   have hrest : ComputableInSpace (fun _ : α => ((0, none) : ℕ × Option Bool)) enc
       (encPair encNat (encOption encBool)) S :=
-    (ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const _
   have hinitial : ComputableInSpace initial enc (encPass encS) S :=
     ComputableInSpace.budget_prod hinit hrest
   obtain ⟨_, cI, hI, -⟩ := Internal.NormalForm.space hinitial
@@ -591,7 +591,7 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
     (hsize : ∃ c, ∀ a, ∀ t ≤ time a, (encS (M.run (enc a) t)).length ≤ c * S a) :
     ∃ t c, ComputableInTimeAndSpace f enc encOut t fun a => c * S a := by
   exact M.computableInSpaceFrom hquery hnext hemit hhalted hfinish time S
-    ((ComputableInSpace.constZero M.init).mono_le fun _ => Nat.zero_le _)
+    (ComputableInSpace.budget_const M.init)
     hhalt hpre hf hlog hsize
 
 /-- **Query machines run in logarithmic space.** Let a query machine halt on every encoded input

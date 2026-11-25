@@ -64,12 +64,8 @@ theorem Realizes.exists_contraction_angle_lift {G : Graph} {u v : ℕ}
     have horder : ∀ i j : Fin (n + 1), i ≠ Fin.last n → j ≠ Fin.last n → i ≠ j →
         (sbtw (dir (Fin.last n)) (dir i) (dir j) ↔ j.val < i.val) := by
       intro i j hi hj hij
-      have hni : i.val < n := by
-        have hval : i.val ≠ n := fun h => hi (Fin.ext h)
-        omega
-      have hnj : j.val < n := by
-        have hval : j.val ≠ n := fun h => hj (Fin.ext h)
-        omega
+      have hni := Fin.val_lt_last hi
+      have hnj := Fin.val_lt_last hj
       have hne (i j : Fin (n + 1)) (hij : i ≠ j) : (e.symm i).val ≠ (e.symm j).val :=
         fun h => hij (e.symm.injective (Subtype.ext h))
       have h := hR.clockwise (e.symm j).val (e.symm i).val (e.symm (Fin.last n)).val
@@ -127,7 +123,8 @@ theorem Realizes.exists_contraction_split {G : Graph} {u v : ℕ}
   obtain ⟨cut, L, hmem, hcoe, hlt⟩ := hR.exists_contraction_angle_lift r huv
   let θ : ℂ → ℝ := fun x => L ((x - D.vertex v).arg : Real.Angle)
   have hangle (d : I) : ((P d - D.vertex v).arg : Real.Angle) = D.direction d.val := by
-    have h := congrArg (fun t : ℝ => (t : Real.Angle)) (hD.arg_cutPort_sub hρ d.val)
+    have h := congrArg (fun t : ℝ => (t : Real.Angle))
+      (D.arg_cutPort_sub hρ d.val (hD.germ_ne_zero d.val))
     simpa only [d.property, direction] using h
   have hθ (d : I) : θ (P d) = L (D.direction d.val) := congrArg L (hangle d)
   have hsphere (d : I) : P d ∈ Metric.sphere (D.vertex v) ρ := by

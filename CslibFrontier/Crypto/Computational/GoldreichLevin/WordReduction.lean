@@ -54,6 +54,8 @@ at `5ff69ca93402e7c947208dc56396d6d86203ccd8`, using typed saved seeds and the t
 
 @[expose] public section
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime Cslib.Probability.IsPPTOn
+
 namespace Cslib.Crypto.GoldreichLevin
 
 open Probability BitString Turing.MultiTapeTM

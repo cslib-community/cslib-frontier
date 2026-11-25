@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Mul
 public import CslibFrontier.DataStructure.FusionTree.Multiplier
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -102,7 +103,8 @@ private theorem exec_split {w : ℕ} (x : Data 21)
   have hm := ha.of_le (Nat.mod_le _ (radix w))
   have hqm := hq.of_le (Nat.mod_le _ (radix w))
   have hqqm := hqq.of_le (Nat.mod_le _ (radix w))
-  ram_eval [split, splitResult, hbase, ha, hq, hqq, hm, hqm, hqqm]
+  unfold split splitResult
+  wram_exec [hbase]
 
 /-- A masked window inside the third half-word digit depends only on that digit. -/
 private theorem window_eq {w L p D : ℕ} (hL : L + (w - 2 * (w / 2)) ≤ w / 2)
@@ -201,73 +203,53 @@ theorem exec {w L M : ℕ} (hw : 2 ≤ w) (x : Data 21)
       y.mem = x.mem ∧
       ∀ i : Fin 21, (7 ≤ i.val ∧ i.val < 10) ∨ (16 ≤ i.val ∧ i.val < 20) →
         y.regs i = x.regs i := by
-  let z := Workspace.setupResult w x
-  let u := splitResult w z
-  have hzq : z.regs query = x.regs query := by
-    simp +decide [z, Workspace.setupResult, Workspace.base, Workspace.zero]
-  have hzp : z.regs positions = x.regs positions := by
-    simp +decide [z, Workspace.setupResult, Workspace.base, Workspace.zero]
-  have hzbase : z.regs 2 = radix w := by simp [z, Workspace.setupResult,
-    Workspace.base, Workspace.zero]
-  have hez : Exec w Workspace.setup x z 6 := Workspace.exec_setup hw x
-  have heu : Exec w split z u 6 := exec_split z (by rwa [hzq]) hzbase
-  obtain ⟨hua, huav⟩ := split_left hw z (by rwa [hzq])
-  have hur (i : Fin 16) (hi : i ∈ Schoolbook.rightRegs 3 3) :
-      (u.comap embed).regs i = (x.comap embed).regs i := by
-    obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hi
-    fin_cases j <;> simp +decide [u, z, Data.comap, embed, splitResult,
-      Workspace.setupResult, Workspace.base, Workspace.zero]
-  have hub : Multiword.Bounded (radix w) (u.comap embed) (Schoolbook.rightRegs 3 3) := by
-    intro i hi
-    rw [hur i hi]
-    exact hb i hi
-  have hum : Multiword.value (radix w) (u.comap embed) (Schoolbook.rightRegs 3 3) = M := by
-    rw [Multiword.value, List.map_congr_left hur]
-    exact hM
-  obtain ⟨v, hev, hvb, hv, hvm, _⟩ := Schoolbook.exec_fixedProgram hw 3 3 (u.comap embed)
-    hua hub
-  rw [huav, hzq, hzp, hum] at hv
-  let t := v.extend embed u
-  have het : Exec w ((Schoolbook.fixedProgram 3 3).rename embed) u t 80 :=
-    hev.rename embed_injective
-  have htd : t.regs productDigit =
-      ((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w := by
-    have ht : t.regs (embed (12 : Fin 16)) = v.regs 12 :=
-      embed_injective.extend_apply _ _ _
-    rw [show productDigit = embed (12 : Fin 16) from rfl, ht,
-      ← third_digit v hvb, hv]
-  have htcaller (i : Fin 21) (hi : 16 ≤ i.val ∧ i.val < 20) :
-      t.regs i = x.regs i := by
-    apply (hez.seq (heu.seq het)).regs_eq
-    have hp : ∀ i : Fin 21, 16 ≤ i.val ∧ i.val < 20 →
-        (Code.seq (B := .standard) Workspace.setup
-          (.seq split ((Schoolbook.fixedProgram 3 3).rename embed))).Preserves i := by
-      decide +kernel
-    exact hp i hi
-  let d := t.regs productDigit >>> t.regs offset
-  let y := (t.set out d).set out (d &&& t.regs retained)
-  have hdigit : Fits w (t.regs productDigit) := by
-    rw [htd]
-    exact (Nat.mod_lt _ (lt_trans Nat.zero_lt_one (one_lt_radix hw))).trans (radix_fits hw)
-  have hd : Fits w d := hdigit.of_le (by
-    dsimp [d]
-    rw [Nat.shiftRight_eq_div_pow]
-    exact Nat.div_le_self _ _)
-  have hmask : Fits w (d &&& t.regs retained) := hd.of_le Nat.and_le_left
-  have hey : Exec w (ram[out ← productDigit >>> offset; out ← out &&& retained]) t y 2 := by
-    ram_eval [y, d, hd, hmask]
-  refine ⟨y, ?_, ?_, ?_, ?_⟩
-  · exact hez.seq (heu.seq (het.seq hey))
-  · change d &&& t.regs retained = _
-    dsimp only [d]
-    rw [htd, htcaller offset (by decide), htcaller retained (by decide), ho]
-    exact window_eq hL hD
-  · exact hvm
-  · intro i hi
-    apply (hez.seq (heu.seq (het.seq hey))).regs_eq
+  suffices ∃ y, Exec w code x y 94 ∧
+      y.regs out = (((x.regs query &&& x.regs positions) * M) >>> w) &&& x.regs retained ∧
+      y.mem = x.mem by
+    obtain ⟨y, hey, hout, hym⟩ := this
+    refine ⟨y, hey, hout, hym, fun i hi => hey.regs_eq ?_⟩
     have hp : ∀ i : Fin 21, (7 ≤ i.val ∧ i.val < 10) ∨ (16 ≤ i.val ∧ i.val < 20) →
         code.Preserves i := by decide +kernel
     exact hp i hi
+  apply WP.Exact.exists_exec
+  unfold code
+  wram_call (Workspace.exec_setup hw x)
+  have hzq : (Workspace.setupResult w x).regs query = x.regs query := by
+    simp +decide [Workspace.setupResult, Workspace.base, Workspace.zero]
+  have hzp : (Workspace.setupResult w x).regs positions = x.regs positions := by
+    simp +decide [Workspace.setupResult, Workspace.base, Workspace.zero]
+  have hzbase : (Workspace.setupResult w x).regs 2 = radix w := by
+    simp [Workspace.setupResult, Workspace.base, Workspace.zero]
+  wram_call (exec_split (Workspace.setupResult w x) (hzq ▸ hx) hzbase)
+  let u := splitResult w (Workspace.setupResult w x)
+  obtain ⟨hua, huav⟩ := split_left hw (Workspace.setupResult w x) (hzq ▸ hx)
+  have hur (i : Fin 16) (hi : i ∈ Schoolbook.rightRegs 3 3) :
+      (u.comap embed).regs i = (x.comap embed).regs i := by
+    obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hi
+    fin_cases j <;> simp +decide [u, Data.comap, embed, splitResult,
+      Workspace.setupResult, Workspace.base, Workspace.zero]
+  have hub : Multiword.Bounded (radix w) (u.comap embed) (Schoolbook.rightRegs 3 3) :=
+    fun i hi => hur i hi ▸ hb i hi
+  have hum : Multiword.value (radix w) (u.comap embed) (Schoolbook.rightRegs 3 3) = M := by
+    rw [Multiword.value, List.map_congr_left hur]; exact hM
+  wram_call (Schoolbook.exec_fixedProgram hw 3 3 (u.comap embed) hua hub)
+    canonical embed_injective with v ⟨hvb, hv, hvm, _⟩
+  rw [huav, hzq, hzp, hum] at hv
+  have hv12 : v.regs 12 = ((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w := by
+    rw [← third_digit v hvb, hv]
+  have hdigit : Fits w (((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w) :=
+    (Nat.mod_lt _ (lt_trans Nat.zero_lt_one (one_lt_radix hw))).trans (radix_fits hw)
+  have hd : Fits w ((((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w) >>>
+      (w - 2 * (w / 2))) := hdigit.of_le (Nat.shiftRight_eq_div_pow _ _ ▸ Nat.div_le_self _ _)
+  have hmask : Fits w (((((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w) >>>
+      (w - 2 * (w / 2))) &&& x.regs retained) := hd.of_le Nat.and_le_left
+  have huo : (splitResult w (Workspace.setupResult w x)).regs offset = w - 2 * (w / 2) := by
+    simp +decide [splitResult, Workspace.setupResult, Workspace.base, Workspace.zero, ho]
+  have hur' : (splitResult w (Workspace.setupResult w x)).regs retained = x.regs retained := by
+    simp +decide [splitResult, Workspace.setupResult, Workspace.base, Workspace.zero]
+  wram_exec [hv12, huo, hur']
+  wram_simp
+  exact ⟨window_eq hL hD, hvm⟩
 
 /-- Specialize the actual execution to the arithmetic approximate sketch. The collision-free
 parameter construction and comparison theorem are independent of this execution theorem.

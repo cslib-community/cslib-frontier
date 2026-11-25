@@ -113,18 +113,18 @@ private theorem eventually_bound_lt_rpow (c : ℕ) {β ε : ℝ} (hβ : 0 < β)
   set r : ℝ := (2 : ℝ) ^ (ε - c * β) with hr_def
   have ha : 1 ≤ a := Real.one_le_rpow (by norm_num) hβ.le
   have hr : 1 < r := Real.one_lt_rpow (by norm_num) (by linarith)
-  have ha0 : 0 < a := by linarith
   filter_upwards [eventually_mul_add_one_pow_lt_pow ((c : ℝ) * 2 ^ c) c hr] with n hn
-  have hpow : ∀ x : ℝ, (2 : ℝ) ^ (x * n) = ((2 : ℝ) ^ x) ^ n := fun x => by
+  have hpow (x : ℝ) : (2 : ℝ) ^ (x * n) = ((2 : ℝ) ^ x) ^ n := by
     rw [Real.rpow_mul (by norm_num), Real.rpow_natCast]
   have hfloor : (⌊(2 : ℝ) ^ (β * n)⌋₊ : ℝ) ≤ a ^ n := by
     rw [hpow, ← ha_def]
     exact Nat.floor_le (by positivity)
   have han : 1 ≤ a ^ n := one_le_pow₀ ha
   have hsum : (n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1 ≤ 2 * ((n + 1) * a ^ n) := by
-    have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-    nlinarith
-  have hsum0 : (0 : ℝ) ≤ (n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1 := by positivity
+    have h1 : (n : ℝ) + 1 ≤ (n + 1) * a ^ n := le_mul_of_one_le_right (by positivity) han
+    have h2 : a ^ n ≤ (n + 1) * a ^ n :=
+      le_mul_of_one_le_left (by positivity) (by linarith [Nat.cast_nonneg (α := ℝ) n])
+    linarith
   have hac : (a ^ n) ^ c * r ^ n = ((2 : ℝ) ^ ε) ^ n := by
     rw [← pow_mul, mul_comm n c, pow_mul, ← mul_pow]
     congr 1
@@ -132,36 +132,17 @@ private theorem eventually_bound_lt_rpow (c : ℕ) {β ε : ℝ} (hβ : 0 < β)
       ← Real.rpow_add (by norm_num)]
     ring_nf
   have hRHS : ((2 ^ n : ℕ) : ℝ) ^ (1 + ε) = (2 : ℝ) ^ n * ((2 : ℝ) ^ ε) ^ n := by
-    have h2 : ((2 ^ n : ℕ) : ℝ) = (2 : ℝ) ^ (n : ℝ) := by
-      rw [Real.rpow_natCast]
-      push_cast
-      rfl
-    rw [h2, ← Real.rpow_mul (by norm_num), ← hpow, ← Real.rpow_natCast (2 : ℝ) n,
-      ← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
+    rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast, ← Real.rpow_mul (by norm_num),
+      mul_add, mul_one, Real.rpow_add (by norm_num), Real.rpow_natCast, mul_comm (n : ℝ) ε, hpow]
   have h2n : (0 : ℝ) < 2 ^ n := by positivity
-  have hcast : ((2 ^ n * c * (n + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c : ℕ) : ℝ) =
-      (2 : ℝ) ^ n * c * ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c := by
-    push_cast
-    ring
-  have hmain : (2 : ℝ) ^ n * c * ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c ≤
-      (2 : ℝ) ^ n * ((c * 2 ^ c * ((n : ℝ) + 1) ^ c) * (a ^ n) ^ c) := by
-    have hle : ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c ≤ (2 * ((n + 1) * a ^ n)) ^ c :=
-      pow_le_pow_left₀ hsum0 hsum c
-    have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-    calc (2 : ℝ) ^ n * c * ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c
-        ≤ (2 : ℝ) ^ n * c * (2 * ((n + 1) * a ^ n)) ^ c := by gcongr
-      _ = (2 : ℝ) ^ n * ((c * 2 ^ c * ((n : ℝ) + 1) ^ c) * (a ^ n) ^ c) := by
-        rw [mul_pow, mul_pow]
-        ring
   have hanc : 0 < (a ^ n) ^ c := by positivity
-  rw [hcast, hRHS, ← hac]
-  calc (2 : ℝ) ^ n * c * ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c
-      ≤ (2 : ℝ) ^ n * ((c * 2 ^ c * ((n : ℝ) + 1) ^ c) * (a ^ n) ^ c) := hmain
-    _ < (2 : ℝ) ^ n * ((a ^ n) ^ c * r ^ n) := by
-      rw [mul_comm (_ * _ * _) ((a ^ n) ^ c)]
-      gcongr
+  rw [hRHS, ← hac]
+  calc ((2 ^ n * c * (n + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c : ℕ) : ℝ)
+      = (2 : ℝ) ^ n * c * ((n : ℝ) + ⌊(2 : ℝ) ^ (β * n)⌋₊ + 1) ^ c := by push_cast; ring
+    _ ≤ (2 : ℝ) ^ n * c * (2 * ((n + 1) * a ^ n)) ^ c := by gcongr
+    _ = (2 : ℝ) ^ n * ((a ^ n) ^ c * (c * 2 ^ c * ((n : ℝ) + 1) ^ c)) := by
+        rw [mul_pow, mul_pow]; ring
+    _ < (2 : ℝ) ^ n * ((a ^ n) ^ c * r ^ n) := by gcongr
 
 /-- `⌊x / (10 n)⌋₊ ≤ ⌊x⌋₊`: the yes-threshold of OPS Theorem 1.4 is at most its no-threshold. -/
 private theorem floor_div_ten_mul_le (x : ℝ) (n : ℕ) : ⌊x / (10 * n)⌋₊ ≤ ⌊x⌋₊ := by
@@ -193,7 +174,7 @@ theorem not_NP_subset_PPoly_of_gapMCSP_hard {ε : ℝ} (hε : 0 < ε)
     filter_upwards [Ioo_mem_nhdsGT hb] with β ⟨hβ0, hβ⟩
     refine ⟨hβ0, ?_⟩
     rw [lt_div_iff₀ (by positivity)] at hβ
-    nlinarith
+    linarith
   obtain ⟨β, hhard, hβ, hcβ⟩ := (h.and hsmall).exists
   obtain ⟨N₀, hN₀⟩ := eventually_atTop.1 (eventually_bound_lt_rpow c hβ hcβ)
   obtain ⟨n, hn, hhardn⟩ := hhard N₀

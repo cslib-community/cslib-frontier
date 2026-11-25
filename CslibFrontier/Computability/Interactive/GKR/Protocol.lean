@@ -275,10 +275,6 @@ theorem lineStep_rbrSound (W : (Fin (C.width i) → Bool) → F) :
 /-- The number of sumcheck variables of layer `i`. -/
 abbrev sumcheckVars (i : ℕ) : ℕ := C.width i + C.width i
 
-private theorem samplers_round {n : ℕ} (d : ℕ) (P Q : MvPolynomial (Fin n) F) (k : ℕ) :
-    (Sumcheck.round d P k).verifier.samplers = (Sumcheck.round d Q k).verifier.samplers :=
-  rfl
-
 private theorem samplers_iterate_succ {n : ℕ} (d : ℕ) (P : MvPolynomial (Fin n) F) (k : ℕ) :
     (Reduction.iterate (s := fun _ => Sumcheck.roundSpec F) (S := Sumcheck.Claim F)
       (W := fun _ => Unit) (Sumcheck.round d P) (k + 1)).verifier.samplers =

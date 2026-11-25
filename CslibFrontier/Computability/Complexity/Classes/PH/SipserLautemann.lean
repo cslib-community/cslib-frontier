@@ -138,10 +138,6 @@ theorem eval_witnessPoly (p : Polynomial ℕ) (n : ℕ) :
     (witnessPoly p).eval n = witnessLen (p.eval n) := by
   simp [witnessPoly, witnessLen, shifts]
 
-private theorem halfRuns_eq (m : ℕ) : halfRuns m = 6 * (m + 7) + 6 := by
-  unfold halfRuns
-  omega
-
 private theorem shifts_pos (m : ℕ) : 0 < shifts m := by
   unfold shifts runs halfRuns
   omega
@@ -156,7 +152,7 @@ private theorem shifts_le_two_pow (m : ℕ) : shifts m ≤ 2 ^ (m + 7) := by
 
 private theorem two_pow_mul_eight_pow_halfRuns_lt (m : ℕ) :
     2 ^ (m + 7) * 8 ^ halfRuns m < 9 ^ halfRuns m := by
-  rw [halfRuns_eq]
+  rw [show halfRuns m = 6 * (m + 7) + 6 by unfold halfRuns; omega]
   exact Cslib.two_pow_mul_eight_pow_lt (m + 7)
 
 private theorem two_pow_m_mul_eight_pow_halfRuns_lt (m : ℕ) :

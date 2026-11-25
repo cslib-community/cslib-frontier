@@ -126,8 +126,7 @@ theorem eval_literalsRailCircuit (x : BitString n) :
 /-- `literalsRailCircuit n` uses `0` conjunction gates. -/
 @[simp] theorem cost_literalsRailCircuit :
     (literalsRailCircuit n).program.cost andCost = 0 := by
-  simp only [circuit_simps, literalsRailCircuit, Formula.cost_toCircuit]
-  simp [const]
+  simp only [circuit_simps, literalsRailCircuit, const, andCost, add_zero]
 
 end Cslib.Circuits.Monotone
 

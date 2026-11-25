@@ -715,9 +715,6 @@ private theorem Good.workTapePos_mem (hP : PrepSpec P N input w₀ tP sP)
   | dm hw => exact workTapePos_cfg_mem hS i
   | halted c hs hpos => exact mem_window_of_le (hpos i) hS
 
-private theorem initCfg_wordGame :
-    (wordGame P R N).toPTM.toNTM.initCfg input = liftCfg .prep (Cfg.init P.q₀ input) := rfl
-
 private theorem good_of_mem (hP : PrepSpec P N input w₀ tP sP)
     (hR : RoundSpec R N input U w₀ tR sR) (p : (wordGame P R N).toPTM.toNTM.ComputationPath input) :
     ∀ c ∈ p.toRunPath, Good P R N input U w₀ tP tR c := by
@@ -725,7 +722,7 @@ private theorem good_of_mem (hP : PrepSpec P N input w₀ tP sP)
   induction i using Fin.induction with
   | zero =>
     have h0 : p.toRunPath 0 = (wordGame P R N).toPTM.toNTM.initCfg input := p.head_eq
-    rw [h0, initCfg_wordGame]
+    rw [h0]
     exact .prep 0 (Nat.zero_le _)
   | succ i ih =>
     obtain ⟨b, hb⟩ := (MultiTapePTM.step_toNTM_iff (wordGame P R N).toPTM).mp (p.step i)

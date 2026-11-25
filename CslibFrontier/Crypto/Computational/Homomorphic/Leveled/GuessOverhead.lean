@@ -152,7 +152,7 @@ security-parameter-only size bound is imposed on arbitrary attacker-supplied str
 an execution-level coin theorem, not Gentry's multiplicative machine-runtime comparison. -/
 theorem exists_modLinkAdversary_guess_coin_evaluator {E : Scheme}
     (hkeyGen : IsPPTOn encUnary (encPair encBits encBits) E.keyGen)
-    (hencrypt : IsPPTOn (encPair encUnary (encPair encBits encBool)) encBits
+    (hencrypt : IsPPTOn (encKeyedInput encBool) encBits
       (fun (n, pk, bit) => E.encrypt n pk bit))
     {adversary : Encryption.Adversary} (hadversary : adversary.IsPPT)
     {width coins budget capacity : ℕ → ℕ}
@@ -166,7 +166,7 @@ theorem exists_modLinkAdversary_guess_coin_evaluator {E : Scheme}
       ComputableInPolyTime chooseCoins encUnary encUnary ∧
       ComputableInPolyTime guessCoins encUnary encUnary ∧
       ComputableInPolyTime (fun (input, tape) => evaluate input tape)
-        (encPair (encPair encUnary (encPair encBits encBits)) encBits) encBool ∧
+        (encPair Encryption.encGuessInput encBits) encBool ∧
       PolynomiallyBounded (fun n => Leveled.leveledGuessCoinBudget (2 * budget n) (capacity n)
         (encCoins n) (chooseCoins n) (guessCoins n)) ∧
       ∀ n target, target ∈ (ProbComp.eval (E.keyGen n)).support →

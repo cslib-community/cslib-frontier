@@ -247,6 +247,20 @@ private theorem bitIndex_flat (i : Fin 1600) : bitIndex (flatX i) (flatY i) (fla
   change (5 * y.val + x.val) / 5 = y.val
   omega
 
+private theorem bitString_ext_bitIndex {u v : BitString 1600}
+    (h : ∀ x y z, u (bitIndex x y z) = v (bitIndex x y z)) : u = v :=
+  funext fun i => bitIndex_flat i ▸ h (flatX i) (flatY i) (flatZ i)
+
+private theorem eval_pi_flat (c : Fin 5 → Fin 5 → Fin 64 → Circuit signature 1600 1)
+    (A B : State)
+    (h : ∀ x y z, (c x y z).eval interpretation (stateBits A) 0 =
+      stateBits B (bitIndex x y z)) :
+    (Circuit.pi fun i => c (flatX i) (flatY i) (flatZ i)).eval
+      interpretation (stateBits A) = stateBits B := by
+  funext i
+  rw [Circuit.eval_pi]
+  exact (h (flatX i) (flatY i) (flatZ i)).trans (congrArg (stateBits B) (bitIndex_flat i))
+
 private def rotateSource (r : ℕ) (z : Fin 64) : Fin 64 :=
   keccakRotateSource%(r, z)
 
@@ -349,12 +363,15 @@ private def piCircuit : Circuit signature 1600 1600 :=
   Circuit.wiring signature fun i =>
     bitIndex (coordinate ((flatX i).val + 3 * (flatY i).val)) (flatX i) (flatZ i)
 
-private def chiCircuit : Circuit signature 1600 1600 :=
-  Circuit.pi fun i => chiBitCircuit.comp (Circuit.wiring signature fun j : Fin 3 =>
+private def chiBitAtCircuit (x y : Fin 5) (z : Fin 64) : Circuit signature 1600 1 :=
+  chiBitCircuit.comp (Circuit.wiring signature fun j : Fin 3 =>
     match j.val with
-    | 0 => bitIndex (flatX i) (flatY i) (flatZ i)
-    | 1 => bitIndex (coordinate ((flatX i).val + 1)) (flatY i) (flatZ i)
-    | _ => bitIndex (coordinate ((flatX i).val + 2)) (flatY i) (flatZ i))
+    | 0 => bitIndex x y z
+    | 1 => bitIndex (coordinate (x.val + 1)) y z
+    | _ => bitIndex (coordinate (x.val + 2)) y z)
+
+private def chiCircuit : Circuit signature 1600 1600 :=
+  Circuit.pi fun i => chiBitAtCircuit (flatX i) (flatY i) (flatZ i)
 
 private def iotaBitCircuit (constant : Lane) (x y : Fin 5) (z : Fin 64) :
     Circuit signature 1600 1 :=
@@ -392,13 +409,8 @@ private theorem eval_thetaBitCircuit (A : State) (x y : Fin 5) (z : Fin 64) :
     BitVec.getLsbD_xor, getLsbD_rotateLeft_eq, Bool.xor_assoc]
 
 private theorem eval_thetaCircuit (A : State) :
-    thetaCircuit.eval interpretation (stateBits A) = stateBits (theta A) := by
-  funext i
-  rw [thetaCircuit, Circuit.eval_pi]
-  change (thetaBitCircuit (flatX i) (flatY i) (flatZ i)).eval
-      interpretation (stateBits A) 0 = _
-  rw [eval_thetaBitCircuit]
-  exact congrArg (stateBits (theta A)) (bitIndex_flat i)
+    thetaCircuit.eval interpretation (stateBits A) = stateBits (theta A) :=
+  eval_pi_flat thetaBitCircuit A (theta A) (eval_thetaBitCircuit A)
 
 private theorem eval_rhoCircuit_bit (A : State) (x y : Fin 5) (z : Fin 64) :
     rhoCircuit.eval interpretation (stateBits A) (bitIndex x y z) =
@@ -407,22 +419,12 @@ private theorem eval_rhoCircuit_bit (A : State) (x y : Fin 5) (z : Fin 64) :
     flatY_bitIndex, flatZ_bitIndex, stateBits_bitIndex]
   unfold rho getLane
   rw [Vector.get_ofFn, coordinate_laneIndex]
-  have hy : (⟨(laneIndex x y).val / 5, by omega⟩ : Fin 5) = y :=
-    Fin.ext (laneIndex_div_five x y)
-  simp only [hy]
+  simp only [laneIndex_div_five, Fin.eta]
   exact (getLsbD_rotateLeft_eq (A.get (laneIndex x y)) (rotationOffset x y) z).symm
 
 private theorem eval_rhoCircuit (A : State) :
-    rhoCircuit.eval interpretation (stateBits A) = stateBits (rho A) := by
-  funext i
-  calc
-    rhoCircuit.eval interpretation (stateBits A) i =
-        rhoCircuit.eval interpretation (stateBits A)
-          (bitIndex (flatX i) (flatY i) (flatZ i)) :=
-      congrArg (rhoCircuit.eval interpretation (stateBits A)) (bitIndex_flat i).symm
-    _ = stateBits (rho A) (bitIndex (flatX i) (flatY i) (flatZ i)) :=
-      eval_rhoCircuit_bit A _ _ _
-    _ = stateBits (rho A) i := congrArg (stateBits (rho A)) (bitIndex_flat i)
+    rhoCircuit.eval interpretation (stateBits A) = stateBits (rho A) :=
+  bitString_ext_bitIndex (eval_rhoCircuit_bit A)
 
 private theorem eval_piCircuit_bit (A : State) (x y : Fin 5) (z : Fin 64) :
     piCircuit.eval interpretation (stateBits A) (bitIndex x y z) =
@@ -434,48 +436,26 @@ private theorem eval_piCircuit_bit (A : State) (x y : Fin 5) (z : Fin 64) :
   simp only [laneIndex_div_five]
 
 private theorem eval_piCircuit (A : State) :
-    piCircuit.eval interpretation (stateBits A) = stateBits (pi A) := by
-  funext i
-  calc
-    piCircuit.eval interpretation (stateBits A) i =
-        piCircuit.eval interpretation (stateBits A)
-          (bitIndex (flatX i) (flatY i) (flatZ i)) :=
-      congrArg (piCircuit.eval interpretation (stateBits A)) (bitIndex_flat i).symm
-    _ = stateBits (pi A) (bitIndex (flatX i) (flatY i) (flatZ i)) :=
-      eval_piCircuit_bit A _ _ _
-    _ = stateBits (pi A) i := congrArg (stateBits (pi A)) (bitIndex_flat i)
+    piCircuit.eval interpretation (stateBits A) = stateBits (pi A) :=
+  bitString_ext_bitIndex (eval_piCircuit_bit A)
 
 private theorem eval_chiBitAtCircuit (A : State) (x y : Fin 5) (z : Fin 64) :
-    (chiBitCircuit.comp (Circuit.wiring signature fun j : Fin 3 =>
-      match j.val with
-      | 0 => bitIndex x y z
-      | 1 => bitIndex (coordinate (x.val + 1)) y z
-      | _ => bitIndex (coordinate (x.val + 2)) y z)).eval interpretation (stateBits A) 0 =
+    (chiBitAtCircuit x y z).eval interpretation (stateBits A) 0 =
       stateBits (chi A) (bitIndex x y z) := by
-  rw [Circuit.eval_comp, eval_chiBitCircuit]
+  rw [chiBitAtCircuit, Circuit.eval_comp, eval_chiBitCircuit]
   simp only [Circuit.eval_wiring, Function.comp_apply]
   norm_num
   rw [stateBits_bitIndex, stateBits_bitIndex, stateBits_bitIndex,
     stateBits_bitIndex]
   unfold chi getLane
   rw [Vector.get_ofFn, coordinate_laneIndex]
-  have hy : (⟨(laneIndex x y).val / 5, by omega⟩ : Fin 5) = y :=
-    Fin.ext (laneIndex_div_five x y)
-  simp only [hy, BitVec.getLsbD_xor, BitVec.getLsbD_not, BitVec.getLsbD_and]
+  simp only [laneIndex_div_five, Fin.eta, BitVec.getLsbD_xor, BitVec.getLsbD_not,
+    BitVec.getLsbD_and]
   simp only [z.isLt, decide_true, Bool.true_and]
 
 private theorem eval_chiCircuit (A : State) :
-    chiCircuit.eval interpretation (stateBits A) = stateBits (chi A) := by
-  funext i
-  rw [chiCircuit, Circuit.eval_pi]
-  change (chiBitCircuit.comp (Circuit.wiring signature fun j : Fin 3 =>
-      match j.val with
-      | 0 => bitIndex (flatX i) (flatY i) (flatZ i)
-      | 1 => bitIndex (coordinate ((flatX i).val + 1)) (flatY i) (flatZ i)
-      | _ => bitIndex (coordinate ((flatX i).val + 2)) (flatY i) (flatZ i))).eval
-    interpretation (stateBits A) 0 = _
-  exact (eval_chiBitAtCircuit A (flatX i) (flatY i) (flatZ i)).trans
-    (congrArg (stateBits (chi A)) (bitIndex_flat i))
+    chiCircuit.eval interpretation (stateBits A) = stateBits (chi A) :=
+  eval_pi_flat chiBitAtCircuit A (chi A) (eval_chiBitAtCircuit A)
 
 private theorem eval_iotaBitCircuit (constant : Lane) (A : State)
     (x y : Fin 5) (z : Fin 64) :
@@ -483,8 +463,7 @@ private theorem eval_iotaBitCircuit (constant : Lane) (A : State)
       stateBits (iota constant A) (bitIndex x y z) := by
   rw [stateBits_bitIndex]
   by_cases hlane : 5 * y.val + x.val = 0
-  · have hlaneIndex : laneIndex x y = 0 := Fin.ext hlane
-    cases hconstant : constant.getLsbD z.val <;>
+  · cases hconstant : constant.getLsbD z.val <;>
       simp only [iotaBitCircuit, hlane, hconstant, decide_true, Bool.true_and,
         Bool.false_eq_true, ite_false, ite_true, Circuit.eval_comp, eval_notCircuit,
         Circuit.eval_wiring, Function.comp_apply, stateBits_bitIndex]
@@ -495,24 +474,15 @@ private theorem eval_iotaBitCircuit (constant : Lane) (A : State)
       rw [Vector.get_ofFn]
       simp only [laneIndex, hlane, ite_true, BitVec.getLsbD_xor, hconstant]
       cases (A.get 0).getLsbD z.val <;> rfl
-  · have hlaneIndex : laneIndex x y ≠ 0 := fun h => hlane (Fin.ext_iff.mp h)
-    have hcoords : ¬(y = 0 ∧ x = 0) := by
-      rintro ⟨rfl, rfl⟩
-      exact hlane rfl
-    simp only [iotaBitCircuit, hlane, decide_false, Bool.false_and, Bool.false_eq_true,
+  · simp only [iotaBitCircuit, hlane, decide_false, Bool.false_and, Bool.false_eq_true,
       ite_false, Circuit.eval_wiring, Function.comp_apply, stateBits_bitIndex]
     unfold iota getLane
     rw [Vector.get_ofFn]
     simp only [laneIndex, hlane, ite_false]
 
 private theorem eval_iotaCircuit (constant : Lane) (A : State) :
-    (iotaCircuit constant).eval interpretation (stateBits A) = stateBits (iota constant A) := by
-  funext i
-  rw [iotaCircuit, Circuit.eval_pi]
-  change (iotaBitCircuit constant (flatX i) (flatY i) (flatZ i)).eval
-      interpretation (stateBits A) 0 = _
-  rw [eval_iotaBitCircuit]
-  exact congrArg (stateBits (iota constant A)) (bitIndex_flat i)
+    (iotaCircuit constant).eval interpretation (stateBits A) = stateBits (iota constant A) :=
+  eval_pi_flat (iotaBitCircuit constant) A (iota constant A) (eval_iotaBitCircuit constant A)
 
 private theorem eval_roundCircuit (constant : Lane) (A : State) :
     (roundCircuit constant).eval interpretation (stateBits A) = stateBits (round constant A) := by
@@ -548,8 +518,6 @@ theorem eval_keccakP1600Circuit (bits : BitString 1600) :
       eval_roundsCircuit roundConstants (stateOfBits bits)
     _ = stateBits (keccakP1600Rounds24 (stateOfBits bits)) := rfl
 
--- Elaborating the retained 24-round circuit traverses a deeply nested, fixed composition tree.
-set_option maxRecDepth 2048 in
 /-- Retained native multitape compiler for executable Keccak-p[1600, 24]. Its `computes`, `time`,
 `workspace`, `inputBits`, `outputBits`, and `staticBits` fields are the concrete certificate. -/
 @[expose] noncomputable def keccakP1600Compiler : NativeCompiler

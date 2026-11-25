@@ -348,7 +348,7 @@ theorem sum_knuthYaoCost_lt_entropy_add_two (p : PMF α) :
   refine Finset.sum_lt_sum
     (fun a _ => knuthYaoCost_le_negMulLogb_add ENNReal.toReal_nonneg (PMF.toReal_apply_le_one p a))
     ⟨a₀, Finset.mem_univ _, knuthYaoCost_lt_negMulLogb_add
-      (ENNReal.toReal_pos ((p.mem_support_iff a₀).mp ha₀) (p.apply_ne_top a₀))
+      (by ennreal_to_real using pos_iff_ne_zero.mpr ((p.mem_support_iff a₀).mp ha₀))
       (PMF.toReal_apply_le_one p a₀)⟩
 
 /-- Stochastic dominance: for every tree generating `p` and every `n`, the Knuth–Yao tree is at
@@ -408,11 +408,6 @@ theorem exists_generates_expectedFlips_lt {α : Type*} [Finite α] (p : PMF α) 
   have := Fintype.ofFinite α
   ⟨knuthYao p, knuthYao_generates p, expectedFlips_knuthYao_lt p⟩
 
-private theorem toReal_eq_inv_two_pow_iff {x : ℝ≥0∞} (hx : x ≠ ⊤) (m : ℕ) :
-    x.toReal = 2⁻¹ ^ m ↔ x = 2⁻¹ ^ m := by
-  rw [← ENNReal.toReal_eq_toReal_iff' hx (by simp), ENNReal.toReal_pow, ENNReal.toReal_inv,
-    ENNReal.toReal_ofNat]
-
 /-- The Knuth–Yao tree attains the entropy exactly for dyadic distributions. -/
 theorem expectedFlips_knuthYao_eq_entropy_iff (p : PMF α) :
     (knuthYao p).expectedFlips = ENNReal.ofReal (PMF.entropy p) ↔
@@ -429,13 +424,13 @@ theorem expectedFlips_knuthYao_eq_entropy_iff (p : PMF α) :
     PMF.mem_support_iff]
   constructor
   · rintro (h | ⟨m, hm⟩) hpa
-    · exact absurd ((ENNReal.toReal_eq_zero_iff _).mp h |>.resolve_right (p.apply_ne_top a)) hpa
-    · exact ⟨m, (toReal_eq_inv_two_pow_iff (p.apply_ne_top a) m).mp hm⟩
+    · exact absurd (by ennreal_to_real using h) hpa
+    · exact ⟨m, by ennreal_to_real using hm⟩
   · intro h
     by_cases hpa : p a = 0
     · left; simp [hpa]
     · obtain ⟨m, hm⟩ := h hpa
-      exact Or.inr ⟨m, (toReal_eq_inv_two_pow_iff (p.apply_ne_top a) m).mpr hm⟩
+      exact Or.inr ⟨m, by ennreal_to_real using hm⟩
 
 /-- **Dyadic case** ([CoverThomas2006], Theorem 5.11.2 and its converse): some tree generating `p`
 reads exactly `H(p)` fair bits in expectation if and only if every positive probability `p a` is a

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PPADS
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -529,8 +530,6 @@ theorem endOfPotentialLineViolationRel_potentialLineBack
 
 /-! ### Polynomial-time computability -/
 
-attribute [local fun_prop] ComputableInPolyTime.bool_and' ComputableInPolyTime.binary_le'
-
 @[fun_prop]
 theorem computableInPolyTime_hasPotentialOut {enc : α ↪ List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
@@ -930,6 +929,7 @@ private theorem sinkOfPotentialLineRel_of_localOptRel {B : α → ℕ}
     simp only [soplCost, soplNeighbor, hon, Bool.false_eq_true, ↓reduceIte, hz] at hle
     omega
 
+@[local fun_prop]
 private theorem computableInPolyTime_onPotentialLine
     (hn : ComputableInPolyTime n enc encUnary)
     (hP : ComputableInPolyTime P (encPair enc encBits) encBits)
@@ -944,18 +944,12 @@ potential lines to `0 ^ n` at the higher cost `B + 1`. Local optima are exactly 
 theorem SOPL_subset_PLS : SOPL enc ⊆ PLS enc := by
   rintro R ⟨hR, n, P, S, V, hn, hP, hS, hV, -, hS_len, hred⟩
   obtain ⟨m, hm, hB⟩ := exists_potentialBound hn hV
-  have hon := computableInPolyTime_onPotentialLine hn hP hS hV
+  have hS' := computableInPolyTime_potentialSucc hn hP hS hV
   have hN : ComputableInPolyTime (soplNeighbor n P S V) (encPair enc encBits) encBits := by
-    unfold soplNeighbor
-    exact hon.ite (computableInPolyTime_potentialSucc hn hP hS hV)
-      (computableInPolyTime_zeroVertex_comp (hn.comp (fst enc encBits)))
-  have hBp : ComputableInPolyTime (fun p : α × List Bool => 2 ^ m p.1) (encPair enc encBits)
-      encNat := ComputableInPolyTime.binary_two_pow.comp (hm.comp (fst enc encBits))
+    fun_prop [soplNeighbor]
   have hC : ComputableInPolyTime (soplCost (fun a => 2 ^ m a) n P S V) (encPair enc encBits)
       encNat := by
-    unfold soplCost
-    exact hon.ite (binary_sub' hBp hV)
-      (ComputableInPolyTime.binary_add.comp (hBp.prod (ComputableInPolyTime.const 1)))
+    fun_prop [soplCost]
   have hlen : PreservesWidth n (soplNeighbor n P S V) :=
     fun a _ hu => length_soplNeighbor (hS_len a) hu
   exact ⟨hR, n, soplNeighbor n P S V, soplCost (fun a => 2 ^ m a) n P S V, hn, hN, hC, hlen,

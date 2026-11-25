@@ -88,10 +88,8 @@ private theorem eventually_lt_of_support_bounds {a : ℝ} (ha : 0 < a) (d : ℕ)
       _ = (d / T * (1 / a)) * n := by ring
       _ ≤ δ * n := mul_le_mul_of_nonneg_right hcoeff hN
   have hmain : a * q ≤ n - a * ε * n := by
-    have h := mul_le_mul_of_nonneg_left hsmall ha.le
-    have heq : a * ((1 / a - ε) * n) = n - a * ε * n := by
-      field_simp
-    rwa [heq] at h
+    linarith [mul_le_mul_of_nonneg_left hsmall ha.le,
+      show a * ((1 / a - ε) * n) = n - a * ε * n by field_simp]
   have hδeq : 4 * δ = a * ε := by dsimp [δ]; ring
   have hδn := congrArg (fun z : ℝ => z * n) hδeq
   have hpos := mul_pos (mul_pos ha hε) hNpos
@@ -138,12 +136,10 @@ private theorem eventually_lt_of_three_support_bounds {k : ℕ → ℕ}
       exact_mod_cast Nat.mul_log_le_add_sq Nat.one_lt_two m (n + q)
     have hDlog : D * (Nat.log 2 (n + q) : ℝ) ≤ (ε / 4) * (2 * (n : ℝ) + (m * m : ℕ)) :=
       calc D * (Nat.log 2 (n + q) : ℝ)
-          ≤ ((ε / 4) * m) * (Nat.log 2 (n + q) : ℝ) :=
-            mul_le_mul_of_nonneg_right hDm (Nat.cast_nonneg _)
+          ≤ ((ε / 4) * m) * (Nat.log 2 (n + q) : ℝ) := by gcongr
         _ = (ε / 4) * ((m : ℝ) * Nat.log 2 (n + q)) := mul_assoc _ _ _
         _ ≤ (ε / 4) * ((n : ℝ) + q + (m * m : ℕ)) := by gcongr
-        _ ≤ (ε / 4) * (2 * (n : ℝ) + (m * m : ℕ)) :=
-            mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+        _ ≤ (ε / 4) * (2 * (n : ℝ) + (m * m : ℕ)) := by gcongr; linarith
     dsimp only [B] at hconstant
     linarith
   dsimp only [D] at hlog

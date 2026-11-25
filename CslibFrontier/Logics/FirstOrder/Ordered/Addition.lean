@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.FirstOrder.Ordered.Basic
 import CslibFrontier.Foundations.Data.BitString.Propagation
+import CslibFrontier.Tactic.FirstOrder.Simp
 import Mathlib.Data.Nat.Basic
 
 /-!
@@ -83,10 +84,7 @@ private theorem realize_carryFormula (x y i : (language L).Term α) (v : α → 
       ∃ j : Fin n, j < i.realize v ∧ (x.realize v).val.testBit j.val = true ∧
         (y.realize v).val.testBit j.val = true ∧ ∀ k : Fin n, j < k → k < i.realize v →
           (x.realize v).val.testBit k.val = true ∨ (y.realize v).val.testBit k.val = true := by
-  simp only [carryFormula, Formula.realize_iExs, Formula.realize_inf, Formula.realize_not,
-    realize_le, realize_bit, Term.realize_var, Term.realize_relabel, Function.comp_def,
-    Sum.elim_inl, Sum.elim_inr, Formula.realize_iAlls, Formula.realize_imp, Formula.realize_sup,
-    not_le, and_imp, and_assoc]
+  fo_simp [carryFormula, not_le, and_imp, and_assoc]
   constructor
   · rintro ⟨j, hj, hx, hy, h⟩
     exact ⟨j (), hj, hx, hy, fun k => h (fun _ => k)⟩
@@ -128,9 +126,7 @@ private theorem word_getLsbD {n : ℕ} (a : Fin n) (i : ℕ) :
 
 private theorem realize_addition_word (v : Fin 3 → Fin n) :
     (addition L).Realize v ↔ word (v 2) = word (v 0) + word (v 1) := by
-  rw [addition, Formula.realize_iAlls, BitVec.eq_of_getLsbD_eq_iff]
-  simp only [Formula.realize_iff, realize_bit, realize_carryFormula_word,
-    Term.realize_var, Sum.elim_inl, Sum.elim_inr, iff_iff_eq_xor]
+  fo_simp [addition, realize_carryFormula_word, iff_iff_eq_xor, BitVec.eq_of_getLsbD_eq_iff]
   constructor
   · intro h i hi
     rw [BitVec.getLsbD_add hi, word_getLsbD, word_getLsbD, word_getLsbD]
@@ -141,6 +137,7 @@ private theorem realize_addition_word (v : Fin 3 → Fin n) :
     exact hh
 
 /-- The formula defines ordinary natural-number addition, including out-of-range rejection. -/
+@[simp, fo_realize]
 theorem realize_addition (v : Fin 3 → Fin n) :
     (addition L).Realize v ↔ (v 0).val + (v 1).val = (v 2).val := by
   rw [realize_addition_word]

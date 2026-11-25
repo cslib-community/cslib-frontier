@@ -37,7 +37,7 @@ all three. Fixed supported secret width and the depth convention `2 * budget` ar
 from the canonical leveled overhead theorem. -/
 theorem exists_modLeveledGame_coin_evaluator {E : Scheme}
     (hkeyGen : IsPPTOn encUnary (encPair encBits encBits) E.keyGen)
-    (hencrypt : IsPPTOn (encPair encUnary (encPair encBits encBool)) encBits
+    (hencrypt : IsPPTOn (encKeyedInput encBool) encBits
       (fun (n, pk, bit) => E.encrypt n pk bit))
     {adversary : Encryption.Adversary} (hadversary : adversary.IsPPT)
     {width coins budget capacity : ℕ → ℕ}

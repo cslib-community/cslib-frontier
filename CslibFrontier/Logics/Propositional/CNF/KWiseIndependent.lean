@@ -175,8 +175,7 @@ theorem exists_two_pow_mul_countUnsat_le {k : ℕ} {h : ι → X → Bool}
   have h2 : (0 : ℝ) < 2 ^ k := by positivity
   have : ((2 ^ k * φ.countUnsat (h i ∘ e) : ℕ) : ℝ) ≤ φ.length := by
     push_cast
-    calc (2 : ℝ) ^ k * φ.countUnsat (h i ∘ e) ≤ 2 ^ k * (φ.length * (2 : ℝ)⁻¹ ^ k) :=
-          mul_le_mul_of_nonneg_left hi h2.le
+    calc (2 : ℝ) ^ k * φ.countUnsat (h i ∘ e) ≤ 2 ^ k * (φ.length * (2 : ℝ)⁻¹ ^ k) := by gcongr
       _ = φ.length := by rw [inv_pow, mul_left_comm, mul_inv_cancel₀ h2.ne', mul_one]
   exact_mod_cast this
 

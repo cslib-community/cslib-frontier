@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctProg
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.StrideOmega
+import CslibFrontier.Tactic.UpdateSimp
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -138,17 +140,10 @@ private theorem gmTailWrite_preserves_nonTail {n_max : ℕ} (gm : ℕ → ℕ) {
     (∀ idx, gmSlabMetaBase n_max ≤ idx → gmTailWrite n_max gm b d t r nt idx = gm idx) := by
   unfold gmTailWrite gmQIdx gmRIdx gmSlabTopIdx gmSlabDirIdx gmTailPtrFlatIdx gmTailOwnerIdx
     gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase
-  refine ⟨?_, Function.update_self ..,
-    by rw [Function.update_of_ne (by omega), Function.update_self],
-    fun b' hb' hne => ?_, fun b' hb' => ?_, fun b' hb' => ?_, fun b' hb' s hs => ?_,
-    fun idx hidx => ?_⟩
-  on_goal 5 =>
-    have hmul : b' * dirSlabsPerBucket n_max + s <
-        numBuckets n_max * dirSlabsPerBucket n_max := by
-      have : (b' + 1) * dirSlabsPerBucket n_max ≤ numBuckets n_max * dirSlabsPerBucket n_max :=
-        Nat.mul_le_mul_right _ hb'
-      nlinarith
-  all_goals repeat rw [Function.update_of_ne (by omega)]
+  exact ⟨by update_simp, by update_simp, by update_simp,
+    fun b' hb' hne => by update_simp, fun b' hb' => by update_simp,
+    fun b' hb' => by update_simp, fun b' hb' s hs => by update_simp,
+    fun idx hidx => by update_simp⟩
 
 /-- `gmTailWrite` points descriptor `d` at `t` and makes `d` the owner of `t`, leaving the other
 tail pointers and owners unchanged. -/
@@ -162,15 +157,7 @@ private theorem gmTailWrite_tail {n_max : ℕ} (gm : ℕ → ℕ) {b d : ℕ} (t
         if t' = t then d else gm (gmTailOwnerIdx n_max t')) := by
   unfold gmTailWrite gmRIdx gmTailPtrFlatIdx gmTailOwnerIdx gmTailOwnerBase gmTailPtrBase
     gmSlabDirBase
-  refine ⟨fun d' hd' => ?_, fun t' ht' => ?_⟩
-  · repeat rw [Function.update_of_ne (by omega)]
-    split_ifs with heq
-    · rw [heq, Function.update_self]
-    · rw [Function.update_of_ne (by omega)]
-  · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    split_ifs with heq
-    · rw [heq, Function.update_self]
-    · repeat rw [Function.update_of_ne (by omega)]
+  exact ⟨fun d' hd' => by split_ifs <;> update_simp, fun t' ht' => by split_ifs <;> update_simp⟩
 
 theorem gmAppendTail_preserves_nonTail {n_max : ℕ} (gm : ℕ → ℕ) {b : ℕ}
     (hb : b < numBuckets n_max) (hr : gm (gmRIdx b) < tailCapPerBucket n_max)
@@ -496,11 +483,7 @@ theorem update_slotOf_gmRemoveTail {α : Type*} (arr : ℕ → α) {n_max : ℕ}
   · rw [hptr]
     have hp_lt : slabPtrOf n_max gm b' (j / slabSize n_max) < gm 0 :=
       hslab.ptr_lt b' hb' _ (Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm]))
-    have hmod_lt := Nat.mod_lt j (slabSize_pos n_max)
-    have h1 : (slabPtrOf n_max gm b' (j / slabSize n_max) + 1) * slabSize n_max ≤
-        gm 0 * slabSize n_max := Nat.mul_le_mul_right _ hp_lt
-    rw [Nat.add_one_mul] at h1
-    exact Function.update_of_ne (by omega) ..
+    exact Function.update_of_ne (by stride_omega [slabSize_pos n_max]) ..
   · set r' := j - gm (gmQIdx b') * slabSize n_max
     have hr'_new : r' < gmRemoveTail n_max gm b (gmRIdx b') := by omega
     have hr'_old : r' < gm (gmRIdx b') := by
@@ -563,17 +546,23 @@ theorem ntails_lt_maxTailItems_of_r_lt {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ
     Finset.card_erase_of_mem (Finset.mem_range.mpr hd_new_lt), Finset.card_range] at hcard
   omega
 
-/-- Parameter-free `Memory.Prog` operation appending one tail item to bucket `b = d.2.2` at
-`base = d.2.1`. -/
+/-- Base address `d.2.1` in a parameter-free `(DictParams, (base, b))` bucket call. -/
+abbrev tailCallBase (d : DictParams × (ℕ × ℕ)) : ℕ := d.2.1
+
+/-- Bucket index `d.2.2` in a parameter-free `(DictParams, (base, b))` bucket call. -/
+abbrev tailCallBucket (d : DictParams × (ℕ × ℕ)) : ℕ := d.2.2
+
+/-- Parameter-free `Memory.Prog` operation appending one tail item to bucket `b = tailCallBucket d`
+at `base = tailCallBase d`. -/
 @[expose]
 def appendTailItemGenProg (d : DictParams × (ℕ × ℕ)) : Memory.Prog ℕ := do
-  let r_b ← readGMGenProg (d.1, (d.2.1, 4 + 3 * d.2.2 + 1))
-  let t_new ← readGMGenProg (d.1, (d.2.1, 1))
-  let d_new := d.2.2 * dpTailCap d.1 + r_b
-  writeGMGenProg (d.1, ((d.2.1, dpGmTailPtrBase d.1 + d_new), t_new))
-  writeGMGenProg (d.1, ((d.2.1, dpGmTailOwnerBase d.1 + t_new), d_new))
-  writeGMGenProg (d.1, ((d.2.1, 4 + 3 * d.2.2 + 1), r_b + 1))
-  let _ ← writeGMGenProg (d.1, ((d.2.1, 1), t_new + 1))
+  let r_b ← readGMGenProg (d.1, (tailCallBase d, 4 + 3 * tailCallBucket d + 1))
+  let t_new ← readGMGenProg (d.1, (tailCallBase d, 1))
+  let d_new := tailCallBucket d * dpTailCap d.1 + r_b
+  writeGMGenProg (d.1, ((tailCallBase d, dpGmTailPtrBase d.1 + d_new), t_new))
+  writeGMGenProg (d.1, ((tailCallBase d, dpGmTailOwnerBase d.1 + t_new), d_new))
+  writeGMGenProg (d.1, ((tailCallBase d, 4 + 3 * tailCallBucket d + 1), r_b + 1))
+  let _ ← writeGMGenProg (d.1, ((tailCallBase d, 1), t_new + 1))
   pure t_new
 
 /-- `Memory.Prog` operation appending one tail item to bucket `b = d.2` at `base = d.1`
@@ -616,18 +605,11 @@ private theorem writeGM_tailWrite_effect {U V w n_max h_space base b d t r nt : 
     gmAt base U V w n_max h_space s₄.mem =
       gmTailWrite n_max (gmAt base U V w n_max h_space s.mem) b d t r nt := by
   intro s₁ s₂ s₃ s₄
-  obtain ⟨hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
-    writeGMProg_effect (U := U) (V := V) (w := w) (h_space := h_space) (base := base) hw hptr ht s
-  obtain ⟨hf2, hout2, hq2, hv2, hl2, hg2⟩ :=
-    writeGMProg_effect (U := U) (V := V) (w := w) (h_space := h_space) (base := base) hw hown hd s₁
-  obtain ⟨hf3, hout3, hq3, hv3, hl3, hg3⟩ :=
-    writeGMProg_effect (U := U) (V := V) (w := w) (h_space := h_space) (base := base) hw hri hr s₂
-  obtain ⟨hf4, hout4, hq4, hv4, hl4, hg4⟩ :=
-    writeGMProg_effect (U := U) (V := V) (w := w) (h_space := h_space) (base := base) hw h1 hnt s₃
-  exact ⟨by rw [hf4, hf3, hf2, hf1],
-    fun a ha => by rw [hout4 a ha, hout3 a ha, hout2 a ha, hout1 a ha],
-    by rw [hq4, hq3, hq2, hq1], by rw [hv4, hv3, hv2, hv1],
-    by rw [hl4, hl3, hl2, hl1], by rw [hg4, hg3, hg2, hg1]; rfl⟩
+  refine ((gmFrame_writeGMProg hw hptr s).trans ((gmFrame_writeGMProg hw hown s₁).trans
+    ((gmFrame_writeGMProg hw hri s₂).trans (gmFrame_writeGMProg hw h1 s₃)))).effect hw ?_
+  rw [gmAt_writeGMProg hw h1 hnt s₃, gmAt_writeGMProg hw hri hr s₂,
+    gmAt_writeGMProg hw hown hd s₁, gmAt_writeGMProg hw hptr ht s]
+  rfl
 
 /-- Pure state effect and return value of `appendTailItemProg`. -/
 theorem appendTailItemProg_effect {U V w n_max h_space base b : ℕ}
@@ -686,8 +668,8 @@ def AppendTailItemPre (U V w₀ n_max h_space w base b : ℕ) (s : Memory.State)
 /-- Parameter-free precondition for `appendTailItemGenProg`. -/
 @[expose]
 def AppendTailItemGenPre (w : ℕ) (d : DictParams × (ℕ × ℕ)) (s : Memory.State) : Prop :=
-  let base := d.2.1
-  let b := d.2.2
+  let base := tailCallBase d
+  let b := tailCallBucket d
   let gm := gmAt base (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
   DictEnvGen w d.1 base ∧
   TailBijection (dpNMax d.1) gm (fun b' => gm (gmRIdx b')) (gm 1) ∧
@@ -736,43 +718,37 @@ theorem realizes_appendTailItemGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
       AppendTailItemGenPre
       (fun _ _ => 0) := by
-  realizeDictWith [appendTailItemGenPre_mk] using [realizes_readGMGen, realizes_writeGMGen]
-  all_goals rcases appendTailItem_bounds h.2 with ⟨hr_i, h1_i, hptr_i, hown_i, hr1_le, ht1_le⟩
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU hr_i.le
-  · exact fits_const_of_dictEnv h.1 (by omega)
-  · exact h.1
-  · exact hr_i
-  · exact fits_const_of_dictEnv h.1 (by omega)
-  · exact h1_i
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU hptr_i.le
-  · exact hptr_i
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU hown_i.le
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU (by omega)
-  · exact hown_i
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU hr1_le
-  · exact fits_of_le_max_n_one h.1 hw hnU hU ht1_le
+  realizeDictWith [appendTailItemGenPre_mk, tailCallBase, tailCallBucket] using
+    [realizes_readGMGen, realizes_writeGMGen]
+  all_goals
+    obtain ⟨hdict, h2⟩ := h
+    have hb_pos := h2.2.2.2
+    rcases appendTailItem_bounds h2 with ⟨hr_i, h1_i, hptr_i, hown_i, hr1_le, ht1_le⟩
+    first
+    | dictSide
+    | exact fits_of_le_globalMetaLen hdict hb_pos hw hnU hU (by omega)
 
-/-- Parameter-free `Memory.Prog` operation removing the last tail item of bucket `b = d.2.2` at
-`base = d.2.1`. -/
+/-- Parameter-free `Memory.Prog` operation removing the last tail item of bucket
+`b = tailCallBucket d` at `base = tailCallBase d`. -/
 @[expose]
 def removeLastTailItemGenProg (d : DictParams × (ℕ × ℕ)) : Memory.Prog Unit := do
-  let r_b ← readGMGenProg (d.1, (d.2.1, 4 + 3 * d.2.2 + 1))
+  let r_b ← readGMGenProg (d.1, (tailCallBase d, 4 + 3 * tailCallBucket d + 1))
   let r_del := r_b - 1
   let t_del ← readGMGenProg (d.1,
-    (d.2.1, dpGmTailPtrBase d.1 + (d.2.2 * dpTailCap d.1 + r_del)))
-  let n_tails ← readGMGenProg (d.1, (d.2.1, 1))
+    (tailCallBase d, dpGmTailPtrBase d.1 + (tailCallBucket d * dpTailCap d.1 + r_del)))
+  let n_tails ← readGMGenProg (d.1, (tailCallBase d, 1))
   let t_last := n_tails - 1
-  let d_last ← readGMGenProg (d.1, (d.2.1, dpGmTailOwnerBase d.1 + t_last))
+  let d_last ← readGMGenProg (d.1, (tailCallBase d, dpGmTailOwnerBase d.1 + t_last))
   let g_last := dpNMaxSubOne d.1 - t_last
   let g_del := dpNMaxSubOne d.1 - t_del
-  let q_move ← readQuotGenProg (d.1, (d.2.1, g_last))
-  writeQuotGenProg (d.1, ((d.2.1, g_del), q_move))
-  let v_move ← readValGenProg (d.1, (d.2.1, g_last))
-  writeValGenProg (d.1, ((d.2.1, g_del), v_move))
-  writeGMGenProg (d.1, ((d.2.1, dpGmTailPtrBase d.1 + d_last), t_del))
-  writeGMGenProg (d.1, ((d.2.1, dpGmTailOwnerBase d.1 + t_del), d_last))
-  writeGMGenProg (d.1, ((d.2.1, 4 + 3 * d.2.2 + 1), r_del))
-  writeGMGenProg (d.1, ((d.2.1, 1), t_last))
+  let q_move ← readQuotGenProg (d.1, (tailCallBase d, g_last))
+  writeQuotGenProg (d.1, ((tailCallBase d, g_del), q_move))
+  let v_move ← readValGenProg (d.1, (tailCallBase d, g_last))
+  writeValGenProg (d.1, ((tailCallBase d, g_del), v_move))
+  writeGMGenProg (d.1, ((tailCallBase d, dpGmTailPtrBase d.1 + d_last), t_del))
+  writeGMGenProg (d.1, ((tailCallBase d, dpGmTailOwnerBase d.1 + t_del), d_last))
+  writeGMGenProg (d.1, ((tailCallBase d, 4 + 3 * tailCallBucket d + 1), r_del))
+  writeGMGenProg (d.1, ((tailCallBase d, 1), t_last))
 
 /-- `Memory.Prog` operation removing the last tail item of bucket `b = d.2` at `base = d.1`
 (`0 < bucketBits n_max`, `1 ≤ gm (gmRIdx b)`), compacting the tail pool by moving the payload at
@@ -915,8 +891,8 @@ def RemoveLastTailItemPre (U V w₀ n_max h_space w base b : ℕ) (s : Memory.St
 /-- Parameter-free precondition for `removeLastTailItemGenProg`. -/
 @[expose]
 def RemoveLastTailItemGenPre (w : ℕ) (d : DictParams × (ℕ × ℕ)) (s : Memory.State) : Prop :=
-  let base := d.2.1
-  let b := d.2.2
+  let base := tailCallBase d
+  let b := tailCallBucket d
   let gm := gmAt base (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem
   DictEnvGen w d.1 base ∧
   TailBijection (dpNMax d.1) gm (fun b' => gm (gmRIdx b')) (gm 1) ∧
@@ -988,30 +964,13 @@ theorem realizes_removeLastTailItemGen :
       (WordEncoding.encode (α := DictParams × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
       RemoveLastTailItemGenPre
       (fun _ _ => 0) := by
-  realizeDictWith [removeLastTailItemGenPre_mk] using
+  realizeDictWith [removeLastTailItemGenPre_mk, tailCallBase, tailCallBucket] using
     [realizes_readGMGen, realizes_writeGMGen, realizes_readQuotGen, realizes_writeQuotGen,
       realizes_readValGen, realizes_writeValGen]
-  all_goals rcases removeLastTailItem_bounds h.2 with
-    ⟨b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11⟩
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU b0.le
-  · exact fits_const_of_dictEnv h.1 (by omega)
-  · exact h.1
-  · exact b0
-  · exact b1
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU b2.le
-  · exact b2
-  · exact fits_const_of_dictEnv h.1 (by omega)
-  · exact b3
-  · exact b4
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU b5.le
-  · exact b5
-  · exact b6
-  · exact b8
-  · exact b7
-  · exact b9
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU b10.le
-  · exact b10
-  · exact fits_of_le_globalMetaLen h.1 h.2.2.2.2 hw hnU hU b11.le
-  · exact b11
+  all_goals
+    obtain ⟨hdict, h2⟩ := h
+    have hb_pos := h2.2.2.2
+    rcases removeLastTailItem_bounds h2 with ⟨b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11⟩
+    dictSide
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

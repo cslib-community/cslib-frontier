@@ -74,8 +74,10 @@ part of this file.
   `unitOrOne`: at `N = 143`, `n = 0`, and `m₁ = m₂ = 0`, a fresh ciphertext `encNat 1` has mass
   `44 / 256 = 11 / 64`, while multiplying two independent encryptions gives mass
   `2316 / 65536 = 579 / 16384`. The scheme at a fixed modulus with exactly uniform randomness,
-  in `CslibFrontier.Crypto.Computational.Paillier.Finite`, satisfies both conditions. The IND-CPA
-  reduction ([KatzLindell2020], Theorem 15.13) is in
+  in `CslibFrontier.Crypto.Computational.Paillier.Finite`, satisfies both conditions.
+  `CslibFrontier.Crypto.Computational.Paillier.Statistical` bounds the statistical distance for
+  the implemented word algorithms by `10 / 2 ^ n` when both modulus factors have at least `n`
+  bits. The IND-CPA reduction ([KatzLindell2020], Theorem 15.13) is in
   `CslibFrontier.Crypto.Computational.Paillier.Security`.
 
 ## References
@@ -296,10 +298,10 @@ theorem decrypt_encrypt {gen : ℕ → ProbComp Desc} {n : ℕ} {keys : List Boo
     (hkeys : keys ∈ (ProbComp.eval (keyGen gen n)).support) {m : ℕ} (hm : m < ofBits keys.1)
     {ct : List Bool} (hct : ct ∈ (ProbComp.eval (encrypt n keys.1 m)).support) :
     decrypt keys.2 ct = encNat m := by
-  obtain ⟨d, rfl⟩ := exists_of_mem_support_keyGen hkeys
-  rw [ofBits_encNat] at hm
-  obtain ⟨r, hr, rfl⟩ := exists_of_mem_support_encrypt hct
-  rw [decrypt_encPair, decryptNat_eq d.one_lt_modulus d.coprime_totient hr
+  obtain ⟨d, hkeys_eq⟩ := exists_of_mem_support_keyGen hkeys
+  simp only [hkeys_eq, ofBits_encNat] at hm hct ⊢
+  obtain ⟨r, hr, hct_eq⟩ := exists_of_mem_support_encrypt hct
+  rw [hct_eq, decrypt_encPair, decryptNat_eq d.one_lt_modulus d.coprime_totient hr
     (natCast_ciphertext (NeZero.ne _) m r), Nat.mod_eq_of_lt hm]
 
 /-- **Preservation of plaintext addition under decryption** ([KatzLindell2020], Definition 15.14
@@ -313,15 +315,19 @@ not established here (and fails for the dyadic sampler plus `unitOrOne`: at `N =
 `m₁ = m₂ = 0`, fresh `encNat 1` has probability mass `44 / 256 = 11 / 64`, whereas multiplying two
 independent encryptions yields mass `2316 / 65536 = 579 / 16384`). The fixed-modulus scheme in
 `CslibFrontier.Crypto.Computational.Paillier.Finite` satisfies it
-(`Cslib.Crypto.eval_mul_paillierEncrypt`). -/
+(`Cslib.Crypto.eval_mul_paillierEncrypt`). For the word algorithm,
+`Cslib.Crypto.Paillier.closeTo_addCiphertexts` in `Paillier.Statistical` bounds the statistical
+distance by `10 / 2 ^ n` when both modulus factors have at least `n` bits. -/
 theorem decrypt_addCiphertexts {gen : ℕ → ProbComp Desc} {n : ℕ} {keys : List Bool × List Bool}
     (hkeys : keys ∈ (ProbComp.eval (keyGen gen n)).support) {m₁ m₂ : ℕ} {ct₁ ct₂ : List Bool}
     (hct₁ : ct₁ ∈ (ProbComp.eval (encrypt n keys.1 m₁)).support)
     (hct₂ : ct₂ ∈ (ProbComp.eval (encrypt n keys.1 m₂)).support) :
     decrypt keys.2 (addCiphertexts keys.1 ct₁ ct₂) = encNat ((m₁ + m₂) % ofBits keys.1) := by
-  obtain ⟨d, rfl⟩ := exists_of_mem_support_keyGen hkeys
-  obtain ⟨r₁, hr₁, rfl⟩ := exists_of_mem_support_encrypt hct₁
-  obtain ⟨r₂, hr₂, rfl⟩ := exists_of_mem_support_encrypt hct₂
+  obtain ⟨d, hkeys_eq⟩ := exists_of_mem_support_keyGen hkeys
+  simp only [hkeys_eq] at hct₁ hct₂ ⊢
+  obtain ⟨r₁, hr₁, hct₁_eq⟩ := exists_of_mem_support_encrypt hct₁
+  obtain ⟨r₂, hr₂, hct₂_eq⟩ := exists_of_mem_support_encrypt hct₂
+  rw [hct₁_eq, hct₂_eq]
   have hN : d.modulus ≠ 0 := NeZero.ne _
   have hc : ((ciphertext d.modulus m₁ r₁ * ciphertext d.modulus m₂ r₂ % d.modulus ^ 2 : ℕ) :
       ZMod (d.modulus ^ 2)) = (1 + d.modulus) ^ (m₁ + m₂) *

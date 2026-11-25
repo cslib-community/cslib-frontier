@@ -54,6 +54,9 @@ sees nothing.
 * `Cslib.Communication.NOF.cubeExpectation_gip`, `Cslib.Communication.NOF.expect_signVal_gip`: the
   cube expectation of the generalized inner product is its bias `(1 - 2 / 2 ^ k) ^ n`.
 * `Cslib.Communication.NOF.discrepancy_gip_pow_le`: `disc(GIP) ^ (2 ^ k) ≤ (1 - 2 / 2 ^ k) ^ n`.
+* `Cslib.Communication.NOF.two_mul_le_of_pow_le`,
+  `Cslib.Communication.NOF.two_mul_le_four_pow_mul_of_cube_discrepancy`: exponential trade-off from
+  a cube-discrepancy bound to communication depth `Ω(n / 4 ^ k)`.
 * `Cslib.Communication.NOF.PublicCoin.two_mul_lt_four_pow_mul_of_ecomplexityFun_gip_le`,
   `Cslib.Communication.NOF.Protocol.two_mul_le_four_pow_mul_of_ecomplexityFun_gip_le`: the
   Babai–Nisan–Szegedy lower bound `Ω(n / 4 ^ k)`.
@@ -153,7 +156,7 @@ theorem discrepancy_gip_pow_le [Nonempty ι] (n : ℕ) :
 
 /-- From a bound `A ^ (2 ^ k) ≤ 2 ^ (c 2 ^ k) (1 - 2 / 2 ^ k) ^ n` with `A⁻¹ ≤ exp m`, using
 `1 - x ≤ exp (-x)`: `2 n ≤ 4 ^ k (c + m)`. -/
-private theorem two_mul_le_of_pow_le {k n c : ℕ} (hk : k ≠ 0) {A m : ℝ} (hA : 0 < A)
+theorem two_mul_le_of_pow_le {k n c : ℕ} (hk : k ≠ 0) {A m : ℝ} (hA : 0 < A)
     (hAm : A⁻¹ ≤ Real.exp m) (h : A ^ (2 ^ k) ≤ 2 ^ (c * 2 ^ k) * (1 - 2 / 2 ^ k) ^ n) :
     2 * (n : ℝ) ≤ 4 ^ k * (c + m) := by
   -- Each factor is at most an exponential: `b ≤ exp t` gives `b ^ j ≤ exp (j t)`.
@@ -185,6 +188,19 @@ private theorem two_mul_le_of_pow_le {k n c : ℕ} (hk : k ≠ 0) {A m : ℝ} (h
     norm_num
   rw [h4]
   linarith
+
+/-- Deterministic cube-discrepancy trade-off: from `1 ≤ 2 ^ c * D` and
+`D ^ (2 ^ k) ≤ (1 - 2 / 2 ^ k) ^ n` (`k ≠ 0`), deduce `2 * n ≤ 4 ^ k * c`. -/
+theorem two_mul_le_four_pow_mul_of_cube_discrepancy {k n c : ℕ} (hk : k ≠ 0) {D : ℝ}
+    (h1 : 1 ≤ (2 : ℝ) ^ c * D) (hcube : D ^ (2 ^ k) ≤ (1 - 2 / (2 : ℝ) ^ k) ^ n) :
+    2 * n ≤ 4 ^ k * c := by
+  have hp : (1 : ℝ) ^ (2 ^ k) ≤ 2 ^ (c * 2 ^ k) * (1 - 2 / 2 ^ k) ^ n :=
+    calc (1 : ℝ) ^ (2 ^ k) ≤ ((2 : ℝ) ^ c * D) ^ (2 ^ k) := pow_le_pow_left₀ zero_le_one h1 _
+      _ = 2 ^ (c * 2 ^ k) * D ^ (2 ^ k) := by rw [mul_pow, pow_mul]
+      _ ≤ _ := mul_le_mul_of_nonneg_left hcube (by positivity)
+  have hle := two_mul_le_of_pow_le hk zero_lt_one (by rw [inv_one, Real.exp_zero]) hp
+  rw [add_zero] at hle
+  exact_mod_cast hle
 
 omit [DecidableEq ι] in
 /-- **Randomized protocols for the generalized inner product**: if `k ≥ 1` players holding `n`
@@ -237,20 +253,9 @@ theorem Protocol.two_mul_le_four_pow_mul_of_ecomplexityFun_gip_le [Nonempty ι] 
     (h : Protocol.ecomplexityFun (gip : (ι → BitString n) → Bool) ≤ c) :
     2 * n ≤ 4 ^ Fintype.card ι * c := by
   classical
-  have hd := Protocol.one_le_two_pow_mul_discrepancy_of_ecomplexityFun_le h
-    (PMF.uniformOfFintype (ι → BitString n))
-  have hp : (1 : ℝ) ^ (2 ^ Fintype.card ι) ≤
-      2 ^ (c * 2 ^ Fintype.card ι) * (1 - 2 / 2 ^ Fintype.card ι) ^ n :=
-    calc (1 : ℝ) ^ (2 ^ Fintype.card ι)
-        ≤ (2 ^ c * discrepancy (PMF.uniformOfFintype (ι → BitString n)) gip) ^
-            (2 ^ Fintype.card ι) := pow_le_pow_left₀ zero_le_one hd _
-      _ = 2 ^ (c * 2 ^ Fintype.card ι) *
-            discrepancy (PMF.uniformOfFintype (ι → BitString n)) gip ^ (2 ^ Fintype.card ι) := by
-          rw [mul_pow, pow_mul]
-      _ ≤ _ := mul_le_mul_of_nonneg_left (discrepancy_gip_pow_le n) (by positivity)
-  have := two_mul_le_of_pow_le Fintype.card_ne_zero zero_lt_one
-    (by rw [inv_one, Real.exp_zero]) hp
-  rw [add_zero] at this
-  exact_mod_cast this
+  exact two_mul_le_four_pow_mul_of_cube_discrepancy Fintype.card_ne_zero
+    (Protocol.one_le_two_pow_mul_discrepancy_of_ecomplexityFun_le h
+      (PMF.uniformOfFintype (ι → BitString n)))
+    (discrepancy_gip_pow_le n)
 
 end Cslib.Communication.NOF

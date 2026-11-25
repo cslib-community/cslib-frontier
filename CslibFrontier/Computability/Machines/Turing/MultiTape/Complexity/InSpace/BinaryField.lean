@@ -97,7 +97,7 @@ private theorem zip_inSpace (f : Bool → Option Bool → Option Bool) :
       (encPair encCoefficients encCoefficients)
       (encPair encBool (encPair encCoefficients encCoefficients))
       (fun p => (encPair encCoefficients encCoefficients p).length) := budget_prod
-    (budget_const (encB := encBool) false (.refl _))
+    (budget_const (encB := encBool) false)
     (ComputableInSpace.of_inO ComputableInO.id')
   exact budget_comp_linear hlin hp
 
@@ -157,7 +157,7 @@ private theorem mulXMod_inSpace :
   have hg := fst encCoefficients encCoefficients
   have hr := snd encCoefficients encCoefficients
   have hn := budget_natPred (budget_length hg)
-  have hs := budget_cons (budget_const (encB := encBool) false (.refl _)) hr
+  have hs := budget_cons (budget_const (encB := encBool) false) hr
   have ht := budget_headD false (budget_comp_linear (listDrop encBool) (budget_prod hs hn))
   have hx := budget_comp_linear xor_inSpace (budget_prod hs hg)
   exact (budget_comp_linear (listTake encBool)
@@ -269,7 +269,7 @@ theorem fieldMulMod_inSpace :
   have hleft := budget_comp_linear pad_inSpace (budget_prod ht hl)
   have hright := budget_comp_linear pad_inSpace (budget_prod ht hr)
   have hzero := budget_comp_linear pad_inSpace
-    (budget_prod ht (budget_const (encB := encCoefficients) [] (.refl _)))
+    (budget_prod ht (budget_const (encB := encCoefficients) []))
   have hinit := encRegisters_mk_budget hleft hzero
   have hout := fold_inSpace hg hright hinit
     (fun p => by simp [pad_length])
@@ -321,9 +321,9 @@ theorem modBits_inSpace :
   have hf := encRemainderInput_dividend_budget hid
   have ht := budget_tail hg
   have hone := budget_comp_linear pad_inSpace
-    (budget_prod ht (budget_const (encB := encCoefficients) [true] (.refl _)))
+    (budget_prod ht (budget_const (encB := encCoefficients) [true]))
   have hzero := budget_comp_linear pad_inSpace
-    (budget_prod ht (budget_const (encB := encCoefficients) [] (.refl _)))
+    (budget_prod ht (budget_const (encB := encCoefficients) []))
   have hinit := encRegisters_mk_budget hone hzero
   have hout := fold_inSpace hg hf hinit
     (fun p => by simp [pad_length])

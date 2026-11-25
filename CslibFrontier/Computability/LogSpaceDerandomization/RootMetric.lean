@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Tactic.PositivityLemma
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Analysis.RootError
@@ -89,9 +90,11 @@ end Definitions
 variable {s : ℕ} {N u : ℝ} {X Y : Ω → V → Prop} [∀ σ v, Decidable (X σ v)]
   [∀ σ v, Decidable (Y σ v)]
 
+@[positivity_lemma]
 theorem rowNormPow_nonneg (hNu : 0 ≤ N * u) (Z : Ω → V → V → ℝ) : 0 ≤ rowNormPow s N u X Y Z := by
   unfold rowNormPow; positivity
 
+@[positivity_lemma]
 theorem vertexNormPow_nonneg (hNu : 0 ≤ N * u) (v : Ω → V → ℝ) :
     0 ≤ vertexNormPow s N u X v := by
   unfold vertexNormPow; positivity

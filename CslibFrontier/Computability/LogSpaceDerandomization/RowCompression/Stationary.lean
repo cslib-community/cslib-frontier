@@ -98,7 +98,7 @@ theorem stationaryState_row_sub (j : ℕ) (y : ι) (ν : Fin 2) :
 private theorem six_sum_prefix_dyadicFloor_le (hη : 0 ≤ η) {m j : ℕ} (hj : j ≤ m) :
     6 * ∑ i ∈ range j, dyadicFloor η m i ≤ η / 100 := by
   have hsum : ∑ i ∈ range j, dyadicFloor η m i ≤ ∑ i ∈ range m, dyadicFloor η m i :=
-    sum_le_sum_of_subset_of_nonneg (range_mono hj) (fun i _ _ => dyadicFloor_nonneg hη m i)
+    sum_le_sum_of_subset_of_nonneg (range_mono hj) (fun _ _ _ => by positivity)
   exact (mul_le_mul_of_nonneg_left hsum (by norm_num)).trans
     (six_sum_range_dyadicFloor_le_scale hη m)
 
@@ -270,15 +270,14 @@ theorem abs_stationaryState_root_sub_le_weighted_dyadic {K : ℕ}
     H (truth y 0) (truth y 1) (firstRank s K 0 truth) ^ p| ≤ 3 * C * B
   have hcoef : 0 ≤ 12 * (1 + η / 2) / (η / 2) := by positivity
   have hB : 0 ≤ B := mul_nonneg hcoef (sum_nonneg fun i hi =>
-    mul_nonneg (dyadicFloor_nonneg hη.le m i) (hε i (mem_range.mp hi)))
+    mul_nonneg (by positivity) (hε i (mem_range.mp hi)))
   have huniform (y : ι) (ν : Fin 2) : |b.row y ν - truth y ν| ≤ η / 100 :=
     abs_stationaryState_row_sub_le_dyadic hη.le m j hj hno y ν
   have hweighted (y : ι) (hy : y ∈ s) (hd : η / 2 ≤ truth y 0) (ν : Fin 2) :
       |b.row y ν - truth y ν| ≤ B := by
     refine (abs_stationaryState_row_sub_le_weighted_dyadic hη m j hj hno y hd ν).trans ?_
     exact mul_le_mul_of_nonneg_left (sum_le_sum fun i hi =>
-      mul_le_mul_of_nonneg_left (herr i (mem_range.mp hi) y hy hd)
-        (dyadicFloor_nonneg hη.le m i)) hcoef
+      mul_le_mul_of_nonneg_left (herr i (mem_range.mp hi) y hy hd) (by positivity)) hcoef
   have hlow (y : ι) (hy : truth y 0 < η / 2) : b.row y 0 ≤ η ∧ truth y 0 ≤ η := by
     have h := le_of_abs_le (huniform y 0)
     constructor <;> linarith

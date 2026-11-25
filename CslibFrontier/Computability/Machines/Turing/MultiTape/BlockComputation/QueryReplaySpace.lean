@@ -92,12 +92,12 @@ theorem machine_halted_inSpace (M : MultiTapeTM k Bool Q) :
 theorem machine_emit_inSpace (M : MultiTapeTM k Bool Q) :
     ComputableInSpace (machine M).emit (encPair encConfig (encOption encBool)) encBits
       (fun p => (encPair encConfig (encOption encBool) p).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 /-- Native silent final-output component. The caller reads the returned state separately. -/
 theorem machine_finish_inSpace (M : MultiTapeTM k Bool Q) :
     ComputableInSpace (machine M).finish encConfig encBits (fun s => (encConfig s).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 /-- Explicit replay cell families include every cell and both layers of list framing. -/
 theorem length_encCells_le (cells : Fin k → List ℕ) {width : ℕ}
@@ -163,11 +163,11 @@ private theorem cellOfCode_inSpace : ComputableInSpace cellOfCode encNat
     (encFinite (Option Bool)) (fun n => (encNat n).length) := by
   have hid : ComputableInSpace (fun n : ℕ => n) encNat encNat
       (fun n => (encNat n).length) := of_inO ComputableInDegree.id'.inO_one
-  refine (budget_ite (budget_natEq hid (budget_const 1 (.refl _)))
-    (budget_const (encB := encFinite (Option Bool)) (some false) (.refl _))
-    (budget_ite (budget_natEq hid (budget_const 2 (.refl _)))
-      (budget_const (encB := encFinite (Option Bool)) (some true) (.refl _))
-      (budget_const (encB := encFinite (Option Bool)) none (.refl _)))).of_enc_eq ?_
+  refine (budget_ite (budget_natEq hid (budget_const 1))
+    (budget_const (encB := encFinite (Option Bool)) (some false))
+    (budget_ite (budget_natEq hid (budget_const 2))
+      (budget_const (encB := encFinite (Option Bool)) (some true))
+      (budget_const (encB := encFinite (Option Bool)) none))).of_enc_eq ?_
   intro n
   simp only [cellOfCode, Bool.decide_iff]
 
@@ -239,11 +239,11 @@ private theorem fixedActionTick_inSpace (a : Option (Action k Bool Q)) :
       | none => exact hcell
       | some b =>
         exact budget_comp_lin set (linear_mul 128)
-          (budget_prod hcell (budget_prod hhead (budget_const (symbolCode b) (.refl _))))
+          (budget_prod hcell (budget_prod hhead (budget_const (symbolCode b))))
     have ht := budget_finite (encC := encFinite OutputTrack) (fun t : OutputTrack =>
       t.emit a.output) (track_inSpace (k := k) (Q := Q))
     exact configMk inputLength_inSpace width_inSpace (budget_natPred remaining_inSpace)
-      hp (budget_const a.state (.refl _)) hh hc ht
+      hp (budget_const a.state) hh hc ht
 
 /-- Native step component. Transition lookup ranges only over fixed finite control, input
 symbols and the fixed tuple of work symbols; the windows themselves remain explicit lists. -/
@@ -265,7 +265,7 @@ theorem machine_next_inSpace (M : MultiTapeTM k Bool Q) :
   have hright := budget_natEq hp (budget_natSucc hN)
   have hboundary := budget_finite (encC := encBool) (fun q : Bool × Bool => q.1 || q.2)
     (budget_prod hleft hright)
-  have hread := budget_ite hboundary (budget_const none (.refl _)) hsymbol'
+  have hread := budget_ite hboundary (budget_const none) hsymbol'
   have ha := budget_finite (encC := encFinite (Option (Action k Bool Q)))
     (fun q : Option Q × Option Bool × (Fin k → Option Bool) =>
       q.1.map (fun c => M.tr c q.2.1 q.2.2))

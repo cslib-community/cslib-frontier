@@ -51,14 +51,14 @@ family are constant. The key may have ties, and the size bound uses natural-numb
   [Schlesinger2026Algebraic]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib
 
 variable {α β γ : Type*}
 
 /-- Every nondecreasing sequence has at most `T` adjacent changes under `f`. -/
-def ChangesAtMost [Preorder α] (f : α → β) (T : ℕ) : Prop :=
+@[expose] def ChangesAtMost [Preorder α] (f : α → β) (T : ℕ) : Prop :=
   ∀ z : ℕ → α, Monotone z → ∀ S : Finset ℕ,
     (∀ i ∈ S, f (z i) ≠ f (z (i + 1))) → S.card ≤ T
 
@@ -84,60 +84,47 @@ theorem ChangesAtMost.comp_antitone [Preorder α] [Preorder γ] {f : α → β} 
     ChangesAtMost (f ∘ g) T := by
   intro z hz S hS
   rcases S.eq_empty_or_nonempty with rfl | hne
-  · simp
+  · exact Nat.zero_le T
   · set M := S.max' hne + 1
     let z' : ℕ → α := fun k => g (z (M - min k M))
-    have hz' : Monotone z' := by
-      intro a b hab
-      apply hg
-      apply hz
-      omega
+    have hz' : Monotone z' := fun _ _ hab => hg (hz (by omega))
     have hlt : ∀ i ∈ S, i < M := fun i hi => Nat.lt_succ_of_le (S.le_max' i hi)
-    let rev : ℕ → ℕ := fun i => M - 1 - i
-    have hinj : Set.InjOn rev S := by
+    have hinj : Set.InjOn (fun i => M - 1 - i) S := by
       intro i hi j hj hij
       have := hlt i hi
       have := hlt j hj
-      dsimp only [rev] at hij
+      dsimp only at hij
       omega
     rw [← Finset.card_image_of_injOn hinj]
-    refine h z' hz' (S.image rev) ?_
-    intro k hk
+    refine h z' hz' (S.image fun i => M - 1 - i) fun k hk => ?_
     obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hk
     have hiM := hlt i hi
-    have h1 : M - min (rev i) M = i + 1 := by dsimp [rev]; omega
-    have h2 : M - min (rev i + 1) M = i := by dsimp [rev]; omega
+    have h1 : M - min (M - 1 - i) M = i + 1 := by omega
+    have h2 : M - min (M - 1 - i + 1) M = i := by omega
     dsimp only [z']
     rw [h1, h2]
     exact (hS i hi).symm
 
 /-- A constant function has no changes. -/
 theorem ChangesAtMost.const [Preorder α] (b : β) :
-    ChangesAtMost (fun _ : α => b) 0 := by
-  intro z hz S hS
-  have : S = ∅ := Finset.eq_empty_iff_forall_notMem.mpr fun i hi => hS i hi rfl
-  simp [this]
+    ChangesAtMost (fun _ : α => b) 0 := fun _ _ S hS => by
+  rw [Finset.eq_empty_iff_forall_notMem.mpr fun i hi => hS i hi rfl, Finset.card_empty]
 
 /-- A threshold predicate `decide (θ ≤ ·)` on a linear order changes at most once. -/
 theorem ChangesAtMost.decide_le [LinearOrder α] (θ : α) [DecidableRel (· ≤ · : α → α → Prop)] :
     ChangesAtMost (fun u : α => decide (θ ≤ u)) 1 := by
   intro z hz S hS
   have hcut (i : ℕ) (hi : i ∈ S) : z i < θ ∧ θ ≤ z (i + 1) := by
-    have hn : ¬ θ ≤ z i := by
-      intro hc
-      exact hS i hi (by simp [hc, hc.trans (hz (Nat.le_succ i))])
+    have hn : ¬ θ ≤ z i := fun hc =>
+      hS i hi (by simp only [hc, hc.trans (hz (Nat.le_succ i)), decide_true])
     have hp : θ ≤ z (i + 1) := by
       by_contra hn'
-      exact hS i hi (by simp [hn, hn'])
+      exact hS i hi (by simp only [hn, hn', decide_false])
     exact ⟨lt_of_not_ge hn, hp⟩
-  apply Finset.card_le_one.mpr
-  intro i hi j hj
-  by_contra hne
+  refine Finset.card_le_one.mpr fun i hi j hj => by_contra fun hne => ?_
   rcases Nat.lt_or_gt_of_ne hne with h | h
-  · have hle : θ ≤ z j := (hcut i hi).2.trans (hz (Nat.succ_le_of_lt h))
-    exact not_lt_of_ge hle (hcut j hj).1
-  · have hle : θ ≤ z i := (hcut j hj).2.trans (hz (Nat.succ_le_of_lt h))
-    exact not_lt_of_ge hle (hcut i hi).1
+  · exact not_lt_of_ge ((hcut i hi).2.trans (hz (Nat.succ_le_of_lt h))) (hcut j hj).1
+  · exact not_lt_of_ge ((hcut j hj).2.trans (hz (Nat.succ_le_of_lt h))) (hcut i hi).1
 
 /-- A threshold predicate `decide (· ≤ θ)` on a linear order changes at most once: it is
 `decide_le` in the order dual, precomposed with the antitone `toDual`. -/
@@ -178,7 +165,7 @@ theorem ChangesAtMost.finset_pi [Preorder α] {ι : Type*} {s : Finset ι} {β :
 
 /-- `Φ` has at most `M` pieces when it is constant on the level sets of a monotone rank
 function `π : α → ℕ` with values below `M`. -/
-def PiecesAtMost [Preorder α] (Φ : α → β) (M : ℕ) : Prop :=
+@[expose] def PiecesAtMost [Preorder α] (Φ : α → β) (M : ℕ) : Prop :=
   ∃ π : α → ℕ, Monotone π ∧ (∀ t, π t < M) ∧ ∀ t t', π t = π t' → Φ t = Φ t'
 
 /-- Increasing a piece bound preserves it. -/
@@ -218,7 +205,7 @@ theorem PiecesAtMost.changesAtMost [Preorder α] {Φ : α → β} {M : ℕ}
     intro i hi
     simp only [Finset.coe_Ioo, Set.mem_Ioo]
     exact ⟨(Nat.zero_le _).trans_lt (key i hi), lt _⟩
-  simpa using Finset.card_le_card_of_injOn _ maps inj
+  simpa only [Nat.card_Ioo, tsub_zero] using Finset.card_le_card_of_injOn _ maps inj
 
 variable [LinearOrder α]
 
@@ -259,7 +246,7 @@ private theorem card_nonconstant_groups_le {Ψ : α → β} {T : ℕ} (h : Chang
     obtain ⟨b1, b2, -⟩ := hchg g' hg'
     have hL : 0 < L := by
       rcases Nat.eq_zero_or_pos L with h0 | h0
-      · subst h0; simp at a2
+      · subst h0; simp only [mul_zero, zero_add, Nat.not_lt_zero] at a2
       · exact h0
     have e1 : chg g / L = g := Nat.div_eq_of_lt_le a1 (by rw [Nat.succ_mul]; exact a2)
     have e2 : chg g' / L = g' := Nat.div_eq_of_lt_le b1 (by rw [Nat.succ_mul]; exact b2)
@@ -281,7 +268,8 @@ private theorem exists_sorted_list {ι : Type*} (P : Finset ι) (key : ι → α
     exact hab.trans hbc
   have htotal : ∀ a b : ι, (decide (key a ≤ key b) || decide (key b ≤ key a)) = true := by
     intro a b
-    simpa using le_total (key a) (key b)
+    simp only [Bool.or_eq_true, decide_eq_true_eq]
+    exact le_total (key a) (key b)
   let l := P.toList.mergeSort (fun a b => decide (key a ≤ key b))
   have hperm : l.Perm P.toList := List.mergeSort_perm _ _
   have hsorted : l.Pairwise (fun a b => decide (key a ≤ key b) = true) :=
@@ -291,7 +279,7 @@ private theorem exists_sorted_list {ι : Type*} (P : Finset ι) (key : ι → α
     fun a => hperm.mem_iff.trans Finset.mem_toList, ?_⟩
   intro i j hi hj hij
   rcases hij.lt_or_eq with h | h
-  · simpa using List.pairwise_iff_getElem.mp hsorted i j hi hj h
+  · simpa only [decide_eq_true_eq] using List.pairwise_iff_getElem.mp hsorted i j hi hj h
   · subst h; exact le_rfl
 
 /-- **Lemma 1 (sorted groups).** If every `Ψ q` with `q ∈ Q` changes at most `T` times, there are
@@ -307,8 +295,10 @@ theorem ChangesAtMost.exists_sorted_group {ι κ : Type*} (P : Finset ι) (Q : F
   set N := P.card with hNdef
   set L := N / G with hLdef
   rcases Nat.eq_zero_or_pos L with hL | hL
-  · exact ⟨∅, Finset.empty_subset _, ∅, Finset.empty_subset _, by simp [hL],
-      by simp, by simp⟩
+  · exact ⟨∅, Finset.empty_subset _, ∅, Finset.empty_subset _,
+      by simp only [Finset.card_empty]; omega,
+      by simp only [Finset.card_empty, mul_zero, Nat.zero_le],
+      fun _ _ _ _ hp => (Finset.notMem_empty _ hp).elim⟩
   have hGL : G * L ≤ N := Nat.mul_div_le N G
   have hN : 0 < N := lt_of_lt_of_le (Nat.mul_pos hG hL) hGL
   obtain ⟨l, hlen, hnodup, hmem, hsorted⟩ := exists_sorted_list P key
@@ -393,8 +383,8 @@ theorem ChangesAtMost.length_le_succ_of_isChain {α β : Type*} [Preorder α] {f
         omega
       have h1 : min i (ts.length - 1) = i := by omega
       have h2 : min (i + 1) (ts.length - 1) = i + 1 := by omega
-      have hne := List.isChain_iff_getElem.mp halt i (by simpa using hi')
-      simpa [z, h1, h2] using hne
+      have hne := List.isChain_iff_getElem.mp halt i (by simp only [List.length_map]; exact hi')
+      simpa only [z, h1, h2, List.getElem_map] using hne
     have hcard := hf z hz (Finset.range (ts.length - 1)) hchg
     rw [Finset.card_range] at hcard
     omega

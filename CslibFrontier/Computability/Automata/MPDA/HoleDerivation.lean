@@ -97,12 +97,7 @@ theorem not_pendingAt_of_matches {m : ℕ} (h : Matches w q m) (hmx : m ≤ x) :
     ¬PendingAt w q x := by
   obtain ⟨hqm, i, hq, ⟨b, γ, hm⟩, -, hnet⟩ := h
   rintro ⟨-, hx, j, hq', hk⟩
-  obtain rfl : j = i := by
-    obtain ⟨a, γ', hq⟩ := hq
-    obtain ⟨a', γ'', hq'⟩ := hq'
-    rw [hq] at hq'
-    simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hq'
-    exact hq'.2.1.symm
+  obtain rfl := IsPushOn.unique hq' hq
   have := hk (m + 1 - (q + 1))
   have hneg := net_neg_of_pop (w := w) (a := q + 1) (m' := x + 1) (by omega) (by omega) hm hnet
   omega
@@ -423,9 +418,8 @@ theorem HoleBoundary.append_push {i : Fin n} {ps : List (ℕ × Γ)} {a : α} {�
       rw [hlen, show w.length + 1 - 1 + 1 = w.length + 1 by omega, List.extract_eq_take_drop,
         Nat.sub_self, List.take_zero, List.take_nil]
       simp⟩
-  have hmem : ∀ c ∈ C ++ [⟨i, (w.length, γ) :: ps⟩], c ∈ C ∨ c = ⟨i, (w.length, γ) :: ps⟩ := by
-    intro c hc
-    simpa using hc
+  have hmem : ∀ c ∈ C ++ [⟨i, (w.length, γ) :: ps⟩], c ∈ C ∨ c = ⟨i, (w.length, γ) :: ps⟩ :=
+    fun c hc => by simpa using hc
   refine ⟨by simpa using h₁, fun c hc e he => ?_, fun c hc => ?_, fun q hq => ?_, ?_⟩
   · rcases hmem c hc with hc | rfl
     · obtain ⟨⟨a', ha⟩, hp⟩ := h₂ c (by simp [hc]) e he
@@ -492,14 +486,11 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     by_contra hne
     obtain ⟨q, hq, ⟨a, δ, hqa⟩, hqk⟩ := exists_pending_push (u := w.extract (p + 1) w.length) hk
       (lt_of_le_of_ne hge (Ne.symm hne))
-    have hqw : p + 1 + q < w.length := by
-      rw [List.extract_eq_take_drop, List.length_take, List.length_drop] at hq
-      omega
+    rw [List.extract_eq_take_drop, List.length_take, List.length_drop] at hq
+    have hqw : p + 1 + q < w.length := by omega
     have hqa' : w[p + 1 + q]? = some (a, .push i δ) := by
-      rw [List.extract_eq_take_drop, List.getElem?_take_of_lt (by
-        rw [List.extract_eq_take_drop, List.length_take, List.length_drop] at hq; omega),
+      rwa [List.extract_eq_take_drop, List.getElem?_take_of_lt (by omega),
         List.getElem?_drop] at hqa
-      exact hqa
     have hqpend : PendingAt w (p + 1 + q) (w.length - 1) := by
       refine ⟨by omega, by omega, i, ⟨a, δ, hqa'⟩, fun k => ?_⟩
       have hd : (w.extract (p + 1) w.length).drop (q + 1) =
@@ -507,14 +498,10 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
         rw [List.extract_eq_take_drop, List.extract_eq_take_drop, List.drop_take, List.drop_drop,
           show w.length - (p + 1) - (q + 1) = w.length - 1 + 1 - (p + 1 + q + 1) by omega,
           show p + 1 + (q + 1) = p + 1 + q + 1 by omega]
-      rw [← hd]
-      exact hqk k
+      exact hd ▸ hqk k
     obtain ⟨c, hc, e, he, he'⟩ := h₄ _ hqpend
     obtain ⟨⟨a', hea⟩, -⟩ := h₂ c hc e he
-    have hci : c.stack = i := by
-      rw [he', hqa'] at hea
-      simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hea
-      exact hea.2.1.symm
+    have hci : c.stack = i := IsPushOn.unique ⟨a', e.2, hea⟩ ⟨a, δ, he' ▸ hqa'⟩
     have := holder c hc e he hci (by omega)
     omega
   -- The factor up to the pop is the factor up to the end of `w`, then the pop.
@@ -528,9 +515,8 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
   -- `p` is no longer pending after the pop.
   have hpnot : ¬PendingAt w' p (w'.length - 1) := by
     rintro ⟨-, -, j, ⟨a, δ, hj⟩, hk⟩
-    rw [List.getElem?_append_left hpw, hp₀] at hj
-    simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hj
-    obtain ⟨-, rfl, -⟩ := hj
+    rw [List.getElem?_append_left hpw] at hj
+    obtain rfl := IsPushOn.unique ⟨a₀, γ, hp₀⟩ ⟨a, δ, hj⟩
     have := hk ((w'.extract (p + 1) (w'.length - 1 + 1)).length)
     rw [List.take_length, hsplit _ (by omega), net_append, hnet] at this
     simp [net, Op.net, c₀] at this
@@ -553,9 +539,7 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     have hpopnet : net c.stack (List.take (k - (w.extract (e.1 + 1) w.length).length)
         [(b, Op.pop i γ)]) = if c.stack = i then -1 else 0 := by
       rw [List.take_of_length_le (by simp only [List.length_singleton]; omega)]
-      by_cases hci : c.stack = i
-      · simp [net, Op.net, hci]
-      · simp [net, Op.net, hci, Ne.symm hci]
+      by_cases hci : c.stack = i <;> simp [net, Op.net, hci, Ne.symm]
     rw [hpopnet]
     split_ifs with hci
     · -- Stack `i` is at least one above its height after `e`: the push at `p` is pending.

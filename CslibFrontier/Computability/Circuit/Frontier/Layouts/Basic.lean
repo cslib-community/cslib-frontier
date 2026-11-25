@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.Data.Nat.Log
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.Archimedean.Real.Basic
 import Mathlib.Data.Finset.Sort
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Tools for layout bounds
@@ -71,13 +72,13 @@ theorem ncard_edgeCut_union_add {S T : Set V} (h : Disjoint S T)
     have := hd (G.src e)
     have := hd (G.tgt e)
     simp only [mem_union, mem_inter_iff, mem_edgeCut]
-    tauto
+    lrat_tauto
   have h₂ : Disjoint (G.edgeCut (S ∪ T)) (G.edgeCut S ∩ G.edgeCut T) := by
     refine disjoint_left.mpr fun e he he' => ?_
     have := hd (G.src e)
     have := hd (G.tgt e)
     simp only [mem_union, mem_inter_iff, mem_edgeCut] at he he'
-    tauto
+    lrat_tauto
   have hST : (G.edgeCut (S ∪ T) ∪ (G.edgeCut S ∩ G.edgeCut T)).Finite := by
     rw [h₁]
     exact hS.union hT

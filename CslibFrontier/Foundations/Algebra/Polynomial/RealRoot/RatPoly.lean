@@ -449,10 +449,7 @@ theorem dyadic_width_lt_root_sep {cs : List ℚ} (hsep : (ofCoeffList cs).Separa
     exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (coeffSqNorm_ofCoeffList_le res.2) _)
   have hmignotte_s : (3 : ℝ) ≤ |α - β| ^ 2 * (s : ℝ) :=
     hmignotte.trans (mul_le_mul_of_nonneg_left (by exact_mod_cast hs_ge) (sq_nonneg _))
-  have hs_pos : (0 : ℝ) < (s : ℝ) := by
-    by_contra hle
-    rw [le_antisymm (le_of_not_gt hle) (Nat.cast_nonneg _), mul_zero] at hmignotte_s
-    linarith
+  have hs_pos : (0 : ℝ) < (s : ℝ) := pos_of_mul_pos_right (by linarith) (sq_nonneg |α - β|)
   have hlt_nat : 4 * b ^ 2 * s < 3 * 4 ^ k := by
     change k = Nat.clog 4 (4 * b ^ 2 * s / 3 + 1) at hk_eq
     have := hk_eq ▸ Nat.le_pow_clog (by decide : 1 < 4) (4 * b ^ 2 * s / 3 + 1); omega

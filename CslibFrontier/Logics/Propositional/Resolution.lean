@@ -295,9 +295,7 @@ theorem derives_nil_of_not_satisfiable {φ : CNF V} (h : ¬ φ.Satisfiable) : φ
   · convert hd₀ using 1
     exact (List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₀ (h₀' l hl ▸ hl)).symm
 termination_by φ.vars.toFinset.card
-decreasing_by
-  · exact hlt false
-  · exact hlt true
+decreasing_by all_goals exact hlt _
 
 /-- **Resolution refutes exactly the unsatisfiable formulas.** -/
 theorem derives_nil_iff_not_satisfiable : φ.Derives [] ↔ ¬ φ.Satisfiable :=

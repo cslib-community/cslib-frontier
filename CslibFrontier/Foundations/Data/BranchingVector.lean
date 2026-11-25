@@ -277,14 +277,14 @@ theorem leaves_of_not_isLeaf {s : σ} (h : T.isLeaf s = false) :
 
 /-- Every state in `T.leaves s` is a leaf. -/
 theorem isLeaf_of_mem_leaves {s l : σ} (hl : l ∈ T.leaves s) : T.isLeaf l = true := by
-  induction hm : T.measure s using Nat.strong_induction_on generalizing s with
-  | ind m ih =>
-    cases hleaf : T.isLeaf s
-    · rw [T.leaves_of_not_isLeaf hleaf, List.mem_flatMap] at hl
-      obtain ⟨c, hc, hlc⟩ := hl
-      exact ih (T.measure c) (hm ▸ T.measure_child_lt hleaf hc) hlc rfl
-    · rw [T.leaves_of_isLeaf hleaf, List.mem_singleton] at hl
-      rwa [hl]
+  cases hleaf : T.isLeaf s
+  · rw [T.leaves_of_not_isLeaf hleaf, List.mem_flatMap] at hl
+    obtain ⟨c, hc, hlc⟩ := hl
+    have := T.measure_child_lt hleaf hc
+    exact isLeaf_of_mem_leaves hlc
+  · rw [T.leaves_of_isLeaf hleaf, List.mem_singleton] at hl
+    rwa [hl]
+termination_by T.measure s
 
 /-- Number of leaves in the search tree rooted at `s`. -/
 @[expose] def leafCount (s : σ) : ℕ := (T.leaves s).length
@@ -446,81 +446,67 @@ private theorem sum_children_pow_le {r : ℝ} (hr : 1 ≤ r) {m : ℕ}
 at `s` has at most `r ^ T.measure s` leaves. -/
 theorem leafCount_le_pow {r : ℝ} (hr : 1 ≤ r) (hchar : charSum T.steps r ≤ 1) (s : σ) :
     (T.leafCount s : ℝ) ≤ r ^ T.measure s := by
-  suffices ∀ m (s : σ), T.measure s = m → (T.leafCount s : ℝ) ≤ r ^ m from this _ s rfl
-  intro m
-  induction m using Nat.strong_induction_on with
-  | ind m ih =>
-    intro s hm
-    cases hleaf : T.isLeaf s
-    · rw [T.leafCount_of_not_isLeaf hleaf, Nat.cast_list_sum, List.map_map]
-      obtain ⟨steps', hsub, hrel⟩ := T.children_steps s hleaf
-      have hrel' : List.Forall₂ (fun child d => T.measure child + d ≤ m) (T.children s) steps' :=
-        hm ▸ hrel
-      have hsum := T.sum_children_pow_le hr hrel' (f := fun c => (T.leafCount c : ℝ)) fun c hc =>
-        ih (T.measure c) (hm ▸ T.measure_child_lt hleaf hc) c rfl
-      have hchar' : charSum steps' r ≤ 1 :=
-        (charSum_sublist hsub (by linarith)).trans hchar
-      have hrm : 0 ≤ r ^ m := by positivity
-      calc
-        ((T.children s).map ((Nat.cast : ℕ → ℝ) ∘ T.leafCount)).sum
-            ≤ r ^ m * charSum steps' r := hsum
-        _ ≤ r ^ m * 1 := mul_le_mul_of_nonneg_left hchar' hrm
-        _ = r ^ m := mul_one _
-    · rw [T.leafCount_of_isLeaf hleaf, Nat.cast_one]
-      exact one_le_pow₀ hr
+  cases hleaf : T.isLeaf s
+  · rw [T.leafCount_of_not_isLeaf hleaf, Nat.cast_list_sum, List.map_map]
+    obtain ⟨steps', hsub, hrel⟩ := T.children_steps s hleaf
+    have hsum := T.sum_children_pow_le hr hrel (f := fun c => (T.leafCount c : ℝ)) fun c hc =>
+      have := T.measure_child_lt hleaf hc
+      leafCount_le_pow hr hchar c
+    have hchar' : charSum steps' r ≤ 1 :=
+      (charSum_sublist hsub (by linarith)).trans hchar
+    exact hsum.trans (mul_le_of_le_one_right (by positivity) hchar')
+  · rw [T.leafCount_of_isLeaf hleaf, Nat.cast_one]
+    exact one_le_pow₀ hr
+termination_by T.measure s
 
 /-- **Search-tree node bound.** If `1 ≤ r` and `charSum T.steps r ≤ 1`, then the total number of
 nodes (internal and leaf) in the search tree rooted at `s` is at most
 `(T.measure s + 1) * r ^ T.measure s`. -/
 theorem nodeCount_le_mul_pow {r : ℝ} (hr : 1 ≤ r) (hchar : charSum T.steps r ≤ 1) (s : σ) :
     (T.nodeCount s : ℝ) ≤ (T.measure s + 1 : ℝ) * r ^ T.measure s := by
-  suffices ∀ m (s : σ), T.measure s = m → (T.nodeCount s : ℝ) ≤ (m + 1 : ℝ) * r ^ m from
-    this _ s rfl
-  intro m
-  induction m using Nat.strong_induction_on with
-  | ind m ih =>
-    intro s hm
-    have hrm1 : 1 ≤ r ^ m := one_le_pow₀ hr
-    cases hleaf : T.isLeaf s
-    · rw [T.nodeCount_of_not_isLeaf hleaf, Nat.cast_add, Nat.cast_one, Nat.cast_list_sum,
-        List.map_map]
-      rcases hcs : T.children s with _ | ⟨c₀, cs⟩
-      · simp only [List.map_nil, List.sum_nil, add_zero]
-        have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg m
-        nlinarith
-      · obtain ⟨steps', hsub, hrel⟩ := T.children_steps s hleaf
-        have hrel' : List.Forall₂ (fun child d => T.measure child + d ≤ m) (c₀ :: cs) steps' :=
-          hm ▸ hcs ▸ hrel
-        have hchild_bound : ∀ c ∈ (c₀ :: cs),
-            ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount) c ≤ (m : ℝ) * r ^ T.measure c := by
-          intro c hc
-          have hc_mem : c ∈ T.children s := by rwa [hcs]
-          have hlt : T.measure c < m := hm ▸ T.measure_child_lt hleaf hc_mem
-          have hle_m : (T.measure c + 1 : ℝ) ≤ m := by exact_mod_cast hlt
-          have hih := ih (T.measure c) hlt c rfl
-          exact hih.trans (mul_le_mul_of_nonneg_right hle_m (by positivity))
-        have hsum1 : ((c₀ :: cs).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤
-            ((c₀ :: cs).map fun c => (m : ℝ) * r ^ T.measure c).sum :=
-          List.sum_le_sum hchild_bound
-        have hfactor := List.sum_map_mul_left (c₀ :: cs) (fun c => r ^ T.measure c) (m : ℝ)
-        have hsum2 := T.sum_children_pow_le hr hrel' (f := fun c => r ^ T.measure c)
-          fun _ _ => le_rfl
-        have hchar' : charSum steps' r ≤ 1 :=
-          (charSum_sublist hsub (by linarith)).trans hchar
-        have hmr : 0 ≤ (m : ℝ) * r ^ m := by positivity
-        have htot : ((c₀ :: cs).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤ (m : ℝ) * r ^ m := by
-          calc
-            ((c₀ :: cs).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum
-                ≤ (m : ℝ) * ((c₀ :: cs).map fun c => r ^ T.measure c).sum := hfactor ▸ hsum1
-            _ ≤ (m : ℝ) * (r ^ m * charSum steps' r) :=
-                mul_le_mul_of_nonneg_left hsum2 (Nat.cast_nonneg m)
-            _ = ((m : ℝ) * r ^ m) * charSum steps' r := by ring
-            _ ≤ ((m : ℝ) * r ^ m) * 1 := mul_le_mul_of_nonneg_left hchar' hmr
-            _ = (m : ℝ) * r ^ m := mul_one _
-        nlinarith
-    · rw [T.nodeCount_of_isLeaf hleaf, Nat.cast_one]
+  generalize hm : T.measure s = m
+  have hrm1 : 1 ≤ r ^ m := one_le_pow₀ hr
+  cases hleaf : T.isLeaf s
+  · rw [T.nodeCount_of_not_isLeaf hleaf, Nat.cast_add, Nat.cast_one, Nat.cast_list_sum,
+      List.map_map]
+    rcases hcs : T.children s with _ | ⟨c₀, cs⟩
+    · simp only [List.map_nil, List.sum_nil, add_zero]
       have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg m
       nlinarith
+    · obtain ⟨steps', hsub, hrel⟩ := T.children_steps s hleaf
+      have hrel' : List.Forall₂ (fun child d => T.measure child + d ≤ m) (c₀ :: cs) steps' :=
+        hm ▸ hcs ▸ hrel
+      have hchild_bound : ∀ c ∈ (c₀ :: cs),
+          ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount) c ≤ (m : ℝ) * r ^ T.measure c := by
+        intro c hc
+        have hc_mem : c ∈ T.children s := by rwa [hcs]
+        have hlt : T.measure c < m := hm ▸ T.measure_child_lt hleaf hc_mem
+        have hle_m : (T.measure c + 1 : ℝ) ≤ m := by exact_mod_cast hlt
+        exact (nodeCount_le_mul_pow hr hchar c).trans
+          (mul_le_mul_of_nonneg_right hle_m (by positivity))
+      have hsum1 : ((c₀ :: cs).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤
+          ((c₀ :: cs).map fun c => (m : ℝ) * r ^ T.measure c).sum :=
+        List.sum_le_sum hchild_bound
+      have hfactor := List.sum_map_mul_left (c₀ :: cs) (fun c => r ^ T.measure c) (m : ℝ)
+      have hsum2 := T.sum_children_pow_le hr hrel' (f := fun c => r ^ T.measure c)
+        fun _ _ => le_rfl
+      have hchar' : charSum steps' r ≤ 1 :=
+        (charSum_sublist hsub (by linarith)).trans hchar
+      have hmr : 0 ≤ (m : ℝ) * r ^ m := by positivity
+      have htot : ((c₀ :: cs).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤ (m : ℝ) * r ^ m := by
+        calc
+          ((c₀ :: cs).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum
+              ≤ (m : ℝ) * ((c₀ :: cs).map fun c => r ^ T.measure c).sum := hfactor ▸ hsum1
+          _ ≤ (m : ℝ) * (r ^ m * charSum steps' r) :=
+              mul_le_mul_of_nonneg_left hsum2 (Nat.cast_nonneg m)
+          _ = ((m : ℝ) * r ^ m) * charSum steps' r := by ring
+          _ ≤ ((m : ℝ) * r ^ m) * 1 := mul_le_mul_of_nonneg_left hchar' hmr
+          _ = (m : ℝ) * r ^ m := mul_one _
+      nlinarith
+  · rw [T.nodeCount_of_isLeaf hleaf, Nat.cast_one]
+    have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg m
+    nlinarith
+termination_by T.measure s
 
 /-- **Separating per-node overhead.** If `nodeWork u ≤ W` at every state reachable from `s`, then
 total tree work is at most `W * T.nodeCount s`. -/

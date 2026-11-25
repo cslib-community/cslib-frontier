@@ -45,7 +45,7 @@ theorem listReverse {α : Type} (enc : α ↪ List Bool) :
       (fun l => (encList enc l).length) := of_inO ComputableInDegree.id'.inO_one
   have hinit : ComputableInSpace (fun _ : List α => ([] : List α))
       (encList enc) (encList enc) (fun l => (encList enc l).length) :=
-    budget_const [] (.refl _)
+    budget_const []
   have hstep : ComputableInSpace (fun q : List α × α => q.2 :: q.1)
       (encPair (encList enc) enc) (encList enc)
       (fun q => (encPair (encList enc) enc q).length) :=
@@ -142,7 +142,7 @@ theorem bitsGetD (fallback : Bool) : ComputableInSpace
   have hlen := budget_comp_linear (of_inO ComputableInO.lengthNat) (fst encBits encNat)
   have hin := budget_natLt (snd encBits encNat) hlen
   have hread := budget_comp_linear hhead bitsDrop
-  refine (budget_ite hin hread (budget_const fallback (.refl _))).of_enc_eq fun p => ?_
+  refine (budget_ite hin hread (budget_const fallback)).of_enc_eq fun p => ?_
   simp only [List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop,
     decide_eq_true_eq]
   split_ifs with hi

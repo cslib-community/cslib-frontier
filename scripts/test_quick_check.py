@@ -454,6 +454,30 @@ class QuickCheckTests(unittest.TestCase):
         self.write("Demo/Base.lean", "def value : Bool := true\n")
         self.assertIn("@/demoTool", self.plan().targets)
 
+    def test_executable_importing_unrelated_library_module_is_omitted_and_keeps_focused_deferral(self):
+        with (self.root / "lakefile.toml").open("a") as stream:
+            stream.write('[[lean_lib]]\nname = "CslibFrontierTests"\nroots = []\nglobs = ["CslibFrontierTests.+"]\n')
+        self.write("Demo/Unchanged.lean", "import Init\ndef stable : Nat := 7\n")
+        self.write("Demo.lean", "import Demo.Base\nimport Demo.Middle\nimport Demo.Unchanged\n")
+        for test in ("Smoke", "Axioms"):
+            self.write(f"CslibFrontierTests/{test}.lean", "import Demo\n")
+        self.add_executable("import Demo.Unchanged")
+        self.write("Demo/Base.lean", "def value : Nat := 2\n")
+        plan = self.plan()
+        self.assertNotIn("@/demoTool", plan.targets)
+        self.assertNotIn("tools/Tool.lean", plan.restore_files)
+        focused = quick.make_plan(self.root, parser=self.simple_headers, focused=True)
+        self.assertNotIn("@/demoTool", focused.targets)
+        self.assertEqual(focused.deferred, ["CslibFrontierTests.Axioms", "CslibFrontierTests.Smoke"])
+        self.assertNotIn("CslibFrontierTests.Axioms", focused.targets)
+        # Even when an executable with only indexed library imports is itself affected,
+        # unedited global test leaves not imported by the executable remain deferred.
+        self.write("Demo/Unchanged.lean", "import Init\ndef stable : Nat := 8\n")
+        focused_with_exe = quick.make_plan(self.root, parser=self.simple_headers, focused=True)
+        self.assertIn("@/demoTool", focused_with_exe.targets)
+        self.assertEqual(focused_with_exe.deferred,
+                         ["CslibFrontierTests.Axioms", "CslibFrontierTests.Smoke"])
+
     def test_executable_local_helper_cannot_hide_an_importing_client(self):
         self.write("tools/Helper.lean", "import Demo.Base\ndef result : Nat := value\n")
         self.add_executable("import Helper")
@@ -859,6 +883,20 @@ class RepositoryLayoutTests(unittest.TestCase):
             quick.defaultdict(set))
         self.assertEqual(lint, {"CslibFrontier.A": ["CslibFrontier.A"],
                                 "CslibFrontierResults.B": ["CslibFrontierResults.B"]})
+
+    def test_repository_executables_have_no_unindexed_local_helpers(self):
+        # An unindexed local helper in a repository executable disables `--focused` deferral of
+        # `Smoke`/`Axioms` and builds that executable on every library edit.
+        modules, _, roots = quick.source_modules(REPO)
+        for exe in quick.executable_sources(REPO):
+            for dependency in QuickCheckTests.simple_headers(REPO, [exe.path])[exe.path]:
+                if any(dependency == r or dependency.startswith(r + ".") for r in roots):
+                    self.assertIn(dependency, modules)
+                else:
+                    for directory in (exe.source, REPO):
+                        self.assertFalse(
+                            (directory / Path(*dependency.split(".")).with_suffix(".lean")).exists(),
+                            f"{exe.path} imports unindexed local helper {dependency}")
 
 
 class NativeLeanTests(unittest.TestCase):

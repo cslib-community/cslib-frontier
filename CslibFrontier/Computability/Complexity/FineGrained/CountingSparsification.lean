@@ -219,12 +219,9 @@ private theorem iterate_step_map (g : CNF ℕ → ℕ) (r n : ℕ)
         (stk, acc)
     exact ih stk' acc'
 
-private theorem step_nil (g : CNF ℕ → ℕ) (n acc : ℕ) :
-    step M K g (n, ([], acc)) = (n, ([], acc)) := rfl
-
 private theorem iterate_step_nil (g : CNF ℕ → ℕ) (r n acc : ℕ) :
     (step M K g)^[r] (n, ([], acc)) = (n, ([], acc)) :=
-  Function.iterate_fixed (step_nil g n acc) r
+  Function.iterate_fixed rfl r
 
 /-! ### The root -/
 

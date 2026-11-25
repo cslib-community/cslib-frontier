@@ -124,8 +124,7 @@ theorem RAMTIME_additive_subset_DTIME {T : ℕ → ℕ} (hT : TimeConstructible 
       _ = _ := by ring
   calc (c + 1) * (T n + 1) + (n + (c + 1) * (T n + 1) + 1) ^ 4 * (k * (Nat.size n + 1) + 1) ^ 3
       ≤ (c + 1) * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) +
-          (c + 2) ^ 4 * (k + 1) ^ 3 * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) :=
-        Nat.add_le_add h₁ h₂
+          (c + 2) ^ 4 * (k + 1) ^ 3 * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) := by gcongr
     _ = ((c + 1) + (c + 2) ^ 4 * (k + 1) ^ 3) * ((n + T n + 1) ^ 4 * (Nat.size n + 1) ^ 3) := by
         ring
     _ ≤ _ := Nat.le_add_right _ _

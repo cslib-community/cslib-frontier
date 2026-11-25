@@ -78,7 +78,7 @@ private theorem finishWeight_inSpace :
   have hctx := SeedDigits.encState_context_budget Context encContext hid
   have hlayer := encContext_layer_budget hctx
   have hacc := SeedDigits.encState_accumulator_budget Context encContext hid
-  have hzero := budget_const (encB := encNat) 0 (.refl fun s => (e s).length)
+  have hzero := budget_const (encIn := e) (Bs := fun s => (e s).length) (encB := encNat) 0
   have hscaled := budget_comp_linear scaleAccumulatedWeight_inSpace (budget_prod hlayer hacc)
   exact (budget_ite (budget_natEq hlayer hzero) hzero hscaled).of_enc_eq fun s => by
     by_cases h : s.context.layer = 0 <;> simp [finishWeight, h]
@@ -244,9 +244,9 @@ private theorem enter_budget {α : Type} {enc : α ↪ List Bool}
     (h : ComputableInSpace loc enc (encLocated Context encContext) budget) :
     ComputableInSpace (fun x => enter (loc x)) enc encRuntimeState budget := by
   have hzero : ComputableInSpace (fun _ : α => 0) enc encNat budget :=
-    (constZero 0).weaken (.of_le fun _ => Nat.zero_le _)
+    budget_const 0
   have hflag : ComputableInSpace (fun _ : α => false) enc encBool budget :=
-    (constZero false).weaken (.of_le fun _ => Nat.zero_le _)
+    budget_const false
   exact encLocated_mk_budget ScanState encScanState
     (QueryMachine.encLocated_offset_budget Context encContext h)
     (SeedDigits.encState_mk_budget Context encContext
@@ -256,6 +256,9 @@ private theorem enter_budget {α : Type} {enc : α ↪ List Bool}
 theorem load_inSpace :
     ComputableInSpace load encInput encRuntimeState (fun x => (encContext x.context).length) :=
   enter_budget locate_inSpace
+
+private theorem drop_locate (x : Input) : (encInput x).drop (locate x).offset = x.seed := by
+  simp [locate, encInput_apply, encInputFields, encPair_apply, encBits_apply]
 
 /-- Dropping the initialized offset leaves exactly the original seed bits. -/
 theorem drop_seed (x : Input) : (encInput x).drop (load x).offset = x.seed := by
@@ -280,8 +283,8 @@ private theorem executor_runFrom_enter (word : List Bool) (loc : Located Context
 theorem executor_runFrom (x : Input) (t : ℕ) :
     executor.runFrom (encInput x) (load x) t =
       ⟨(load x).offset, (machine x.context).run x.seed t⟩ := by
-  have hseed : (encInput x).drop (locate x).offset = x.seed := drop_seed x
-  simpa only [load, enter, locate] using executor_runFrom_enter (encInput x) (locate x) hseed t
+  have h := executor_runFrom_enter (encInput x) (locate x) (drop_locate x) t
+  dsimp only [enter, locate] at h; dsimp only [load, enter, locate]; exact h
 
 /-- All native components charge space linear in the encoded located state or state and reply. -/
 theorem executor_parts_inSpace :
@@ -315,8 +318,7 @@ private theorem executor_finish_enter (word : List Bool) (loc : Located Context)
 theorem executor_finish (x : Input) :
     let last := executor.runFrom (encInput x) (load x) (x.seed.length + 1)
     executor.halted last = true ∧ executor.finish last = encNat (weight x.context x.seed) := by
-  have hseed : (encInput x).drop (locate x).offset = x.seed := drop_seed x
-  simpa only [load, enter, locate] using executor_finish_enter (encInput x) (locate x) hseed
+  unfold load; exact executor_finish_enter (encInput x) (locate x) (drop_locate x)
 
 /-- Compile the weight pass with a native context-and-offset initializer. The seed suffix is
 read from the original input. Workspace and binary output length are linear in the input
@@ -395,12 +397,9 @@ The binary result and workspace are both linear in the encoded prepared request.
 theorem weight_inSpace :
     ComputableInSpace (fun x : Input => SeedWeight.weight x.context x.seed)
       encInput encNat (fun x => (encInput x).length + 1) :=
-  weight_inSpace_of_locate
-    (locate_inSpace.mono_le fun x => by
-      change (encContext x.context).length ≤ (encInput x).length
-      rw [length_encInput]
-      omega)
-    drop_seed
+  weight_inSpace_of_locate (loc := locate) (seed := Input.seed)
+    (locate_inSpace.mono_le fun x => by rw [headerBudget, length_encInput]; omega)
+    drop_locate
 
 /-- The prepared request for a canonical seed in increasing index order and a valid vertex. -/
 @[expose] def canonicalInput {w n : ℕ} (seed : Fin (codeLength w n) → Bool)
@@ -453,9 +452,8 @@ theorem generatedWeight_computesInTimeAndSpace :
     rw [Nat.mul_assoc]
     exact Nat.mul_le_mul_left A (hC seed z)
   obtain ⟨houtput, htime, hspace⟩ := hrun x
-  refine ⟨⟨hword ▸ houtput, htime, hspace.mono hbound⟩, ?_⟩
-  rw [← hword]
-  exact (hlength x).trans hbound
+  exact ⟨⟨Eq.ndrec (motive := tm.Computes (encInput x)) houtput hword, htime, hspace.mono hbound⟩,
+    (congrArg List.length hword).symm.trans_le ((hlength x).trans hbound)⟩
 
 end Runtime
 

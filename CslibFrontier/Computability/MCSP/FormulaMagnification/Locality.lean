@@ -218,8 +218,7 @@ theorem noSetReal_le_noSet {s : ℕ → ℕ} {δ : ℕ → ℝ} (hδ : ∀ n, 0 
   have hpow : (0 : ℝ) < 2 ^ n := by positivity
   have hreal : (⌈1 / δ n⌉₊ : ℝ) * a ≤ ((⌈1 / δ n⌉₊ : ℝ) - 1) * 2 ^ n := by
     have hk0 : (0 : ℝ) ≤ ⌈1 / δ n⌉₊ := Nat.cast_nonneg _
-    have h1 : (⌈1 / δ n⌉₊ : ℝ) * a ≤ ⌈1 / δ n⌉₊ * ((1 - δ n) * 2 ^ n) :=
-      mul_le_mul_of_nonneg_left hlt.le hk0
+    have h1 : (⌈1 / δ n⌉₊ : ℝ) * a ≤ ⌈1 / δ n⌉₊ * ((1 - δ n) * 2 ^ n) := by gcongr
     have h2 : (⌈1 / δ n⌉₊ : ℝ) * ((1 - δ n) * 2 ^ n) ≤ ((⌈1 / δ n⌉₊ : ℝ) - 1) * 2 ^ n := by
       have : (⌈1 / δ n⌉₊ : ℝ) * ((1 - δ n) * 2 ^ n) =
           ((⌈1 / δ n⌉₊ : ℝ) - ⌈1 / δ n⌉₊ * δ n) * 2 ^ n := by ring

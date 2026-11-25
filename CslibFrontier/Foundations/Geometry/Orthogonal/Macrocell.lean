@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Simple
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Convex.Basic
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -184,14 +185,10 @@ private theorem index_eq_of_open_closed {r i j : ℤ} (hr : 0 < r) {x : ℝ}
   have hr' : (0 : ℝ) < r := by exact_mod_cast hr
   have hij : ¬ i < j := by
     intro h
-    have h' : (i : ℝ) + 1 ≤ j := by exact_mod_cast (show i + 1 ≤ j by omega)
-    push_cast at hi hj
-    nlinarith [hi.2, hj.1]
+    cast_nlinarith [hi.2, hj.1, h]
   have hji : ¬ j < i := by
     intro h
-    have h' : (j : ℝ) + 1 ≤ i := by exact_mod_cast (show j + 1 ≤ i by omega)
-    push_cast at hi hj
-    nlinarith [hi.1, hj.2]
+    cast_nlinarith [hi.1, hj.2, h]
   omega
 
 /-- A point in one open cell and another closed cell forces equal integer indices. -/

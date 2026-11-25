@@ -12,7 +12,6 @@ public import Mathlib.Data.Nat.Log
 public import Mathlib.Data.Rat.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Rat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -23,6 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Foundations.Data.Rat.Approximation
 import CslibFrontier.Foundations.Data.Rat.Reconstruction
 import Mathlib.Data.Rat.Floor
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.NumberTheory.DiophantineApproximation.Basic
 
 /-!
@@ -318,11 +318,11 @@ theorem recoverDyadicLogSq_eq_some {N k : ℕ} {q : ℚ} (hq : q.den ≤ N)
 open Turing.MultiTapeTM
 open Turing.MultiTapeTM.ComputableInPolyTime
 
-private abbrev encEuclidPair := encPair encNat encNat
+section
 
-private theorem natCastRat_polyTime :
-    ComputableInPolyTime (fun n : ℕ => (n : ℚ)) encNat encRat :=
-  (rat_intCast.comp intBin_natCast).of_enc_eq fun _ => rfl
+attribute [local irreducible] encRat encNat encUnary
+
+private abbrev encEuclidPair := encPair encNat encNat
 
 private def convergentStep (p : ℕ × ℕ) (state : ℕ × ℚ) : ℕ × ℚ :=
   let j := state.1 - 1
@@ -332,12 +332,15 @@ private def convergentStep (p : ℕ × ℕ) (state : ℕ × ℚ) : ℕ × ℚ :=
 private theorem convergentStep_polyTime :
     ComputableInPolyTime (fun x : (ℕ × ℕ) × (ℕ × ℚ) => convergentStep x.1 x.2)
       (encPair encEuclidPair (encPair encUnary encRat)) (encPair encUnary encRat) := by
-  have hpar := fst encEuclidPair (encPair encUnary encRat)
-  have hstate := snd encEuclidPair (encPair encUnary encRat)
-  have hj := unary_sub' hstate.fst' (const 1)
-  have hr := binary_gcdIterate.comp (hpar.prod hj)
-  have hquot := natCastRat_polyTime.comp (binary_div' hr.fst' hr.snd')
-  exact hj.prod (rat_add' hquot (rat_inv' hstate.snd'))
+  have hj : ComputableInPolyTime (fun x : (ℕ × ℕ) × (ℕ × ℚ) => x.2.1 - 1)
+      (encPair encEuclidPair (encPair encUnary encRat)) encUnary := by
+    unfold encEuclidPair
+    fun_prop
+  have hr : ComputableInPolyTime
+      (fun x : (ℕ × ℕ) × (ℕ × ℚ) => gcdStep^[x.2.1 - 1] x.1)
+      (encPair encEuclidPair (encPair encUnary encRat)) (encPair encNat encNat) :=
+    binary_gcdIterate.comp ((fst encEuclidPair (encPair encUnary encRat)).prod hj)
+  exact hj.prod (by dsimp only [convergentStep, encEuclidPair] at hr ⊢; fun_prop)
 
 private theorem convergentStep_iterate (p : ℕ × ℕ) (i j : ℕ) (hj : j ≤ i) :
     (convergentStep p)^[j] (i, euclidConvergent 0 (gcdStep^[i] p)) =
@@ -357,13 +360,10 @@ private theorem euclidConvergent_polyTime :
   let init (x : (ℕ × ℕ) × ℕ) := (x.2, euclidConvergent 0 (gcdStep^[x.2] x.1))
   have hinit : ComputableInPolyTime init input (encPair encUnary encRat) := by
     have hquot := binary_div' binary_gcdIterate.fst' binary_gcdIterate.snd'
-    exact (snd _ _).prod (natCastRat_polyTime.comp hquot)
+    exact (snd _ _).prod (rat_natCast.comp hquot)
   have hbound : PolyBounded (fun x => (input x).length)
       (fun x => 2 * (input x).length +
-        3 * ((input x).length + 1) * ((input x).length + 3) + 4) :=
-    (((PolyBounded.const 2).mul .self).add
-      (((PolyBounded.const 3).mul (PolyBounded.self.add (.const 1))).mul
-        (PolyBounded.self.add (.const 3)))).add (.const 4)
+        3 * ((input x).length + 1) * ((input x).length + 3) + 4) := by growth_poly
   have hloop := iterateWith (fst encEuclidPair encUnary) (snd _ _) hinit
     convergentStep_polyTime hbound (fun x j hj => by
       dsimp only [init]
@@ -413,17 +413,10 @@ private theorem midpointConvergents_polyTime :
 
 private theorem cellCandidates_polyTime :
     ComputableInPolyTime (fun p : ℕ × ℕ => cellCandidates p.1 p.2)
-      encEuclidPair (encList encRat) := by
-  have hmid : ComputableInPolyTime (fun p : ℕ × ℕ => (2 * p.2 + 1, 2 * p.1))
-      encEuclidPair encEuclidPair := by
-    unfold encEuclidPair
-    fun_prop
-  have hM := natCastRat_polyTime.comp (fst encNat encNat)
-  have hk := natCastRat_polyTime.comp (snd encNat encNat)
-  have hlo := rat_div' hk hM
-  have hlist := midpointConvergents_polyTime.comp hmid
-  have hcons := cons' hlo hlist
-  exact hcons
+      encEuclidPair (encList encRat) :=
+  cons' (by unfold encEuclidPair; fun_prop)
+    (midpointConvergents_polyTime.comp (g := fun p : ℕ × ℕ => (2 * p.2 + 1, 2 * p.1))
+      (by unfold encEuclidPair; fun_prop))
 
 private theorem inDyadicCell_polyTime {scale : ℕ → ℕ}
     (hscale : ComputableInPolyTime scale encNat encNat) :
@@ -432,30 +425,17 @@ private theorem inDyadicCell_polyTime {scale : ℕ → ℕ}
         let input := p.1
         inCell input.1 (scale input.1) input.2 p.2)
       (encPair encEuclidPair encRat) encBool := by
-  have hin := fst encEuclidPair encRat
-  have hN := hin.fst'
-  have hk := hin.snd'
-  have hq := snd encEuclidPair encRat
-  have hM := natCastRat_polyTime.comp (hscale.comp hN)
-  have hkRat := natCastRat_polyTime.comp hk
-  have hlo := rat_div' hkRat hM
-  have hhi := rat_div' (rat_add' hkRat (const 1)) hM
-  unfold inCell
-  exact decide_and (binary_le' (rat_den.comp hq) hN)
-    (decide_and (rat_le' hlo hq) (rat_lt' hq hhi))
+  fun_prop [inCell, encEuclidPair]
 
 private theorem recoverInCell_polyTime {scale : ℕ → ℕ}
     (hscale : ComputableInPolyTime scale encNat encNat) :
     ComputableInPolyTime (fun p : ℕ × ℕ => recoverInCell p.1 (scale p.1) p.2)
-      encEuclidPair (encOption encRat) := by
-  have hargs : ComputableInPolyTime (fun p : ℕ × ℕ => (scale p.1, p.2))
-      encEuclidPair encEuclidPair :=
-    (hscale.comp (fst encNat encNat)).prod (snd encNat encNat)
-  have hcandidates := cellCandidates_polyTime.comp hargs
-  have hfound := findWithInput
+      encEuclidPair (encOption encRat) :=
+  findWithInput
     (test := fun (p : ℕ × ℕ) => inCell p.1 (scale p.1) p.2)
-    hcandidates (inDyadicCell_polyTime hscale)
-  exact hfound
+    (cellCandidates_polyTime.comp (g := fun p : ℕ × ℕ => (scale p.1, p.2))
+      (by unfold encEuclidPair; fun_prop))
+    (inDyadicCell_polyTime hscale)
 
 /-- Recover a reduced rational in polynomial time from the binary denominator bound and cell
 index. The machine tests the included endpoint and the same midpoint convergents as
@@ -464,19 +444,16 @@ index. The machine tests the included endpoint and the same midpoint convergents
 theorem recoverDyadic_polyTime :
     ComputableInPolyTime (fun p : ℕ × ℕ => recoverDyadic p.1 p.2)
       (encPair encNat encNat) (encOption encRat) :=
-  recoverInCell_polyTime (scale := fun N => 2 ^ (2 * Nat.clog 2 N))
-    (binary_two_pow.comp (unary_mul' (const 2) binary_clog_two))
+  recoverInCell_polyTime (scale := fun N => 2 ^ (2 * Nat.clog 2 N)) (by fun_prop)
 
 /-- Polynomial-time recovery at the precision rounded after doubling, from the binary bound
 and cell index to an optional reduced rational encoded as in `recoverDyadic_polyTime`. -/
 @[fun_prop]
 theorem recoverDyadicLogSq_polyTime :
     ComputableInPolyTime (fun p : ℕ × ℕ => recoverDyadicLogSq p.1 p.2)
-      (encPair encNat encNat) (encOption encRat) := by
-  have hsquare : ComputableInPolyTime (fun N : ℕ => N ^ 2) encNat encNat := by
-    rw [show (fun N : ℕ => N ^ 2) = (fun N => N * N) from funext fun N => pow_two N]
-    fun_prop
-  exact recoverInCell_polyTime (scale := fun N => 2 ^ Nat.clog 2 (N ^ 2))
-    (binary_two_pow.comp (binary_clog_two.comp hsquare))
+      (encPair encNat encNat) (encOption encRat) :=
+  recoverInCell_polyTime (scale := fun N => 2 ^ Nat.clog 2 (N ^ 2)) (by fun_prop)
+
+end
 
 end Rat

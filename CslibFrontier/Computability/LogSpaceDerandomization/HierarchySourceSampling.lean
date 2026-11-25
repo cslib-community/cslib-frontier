@@ -204,11 +204,7 @@ theorem source_request_mean (hD : D ≠ 0) (hid : Function.Injective ident)
   rw [← ht] at hh
   have hf : 0 < r.terminal.rate := ht ▸ rate_pos k
   have hπ : 0 < (((side P k : ℝ)/P)^4) := by linarith [hh.1.lower]
-  have huπ : 0 < (((side P u : ℝ)/P)^4) := by
-    have : (0 : ℝ) < P := by exact_mod_cast (Fact.out : P.Prime).pos
-    have : (0 : ℝ) < side P u := by
-      exact_mod_cast side_pos P u (Fact.out : P.Prime).pos
-    positivity
+  have huπ : 0 < (((side P u : ℝ)/P)^4) := by have := (Fact.out : P.Prime).pos; positivity
   let A := HP.correctionSampling (stageSource D ident r hr) (splitTerminal D ident r)
     hh.1 hh.2 hf hπ hC hC1 hi
   have hp : ∀ x w, w ≠ x →

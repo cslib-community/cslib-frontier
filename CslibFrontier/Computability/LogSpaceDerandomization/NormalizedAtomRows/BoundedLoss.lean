@@ -28,6 +28,7 @@ open scoped BigOperators
 variable (HP : FourthRootHierarchyParams 16 1 16 32 8)
 
 /-- The hierarchy scalar cap is strictly positive. -/
+@[positivity_lemma]
 lemma cap_pos : 0 < HP.toHierarchyParams.atomCap := by
   have h := HP.toHierarchyParams.atomCap_gt
   have h0 := Nat.cast_nonneg (α := ℝ) HP.k

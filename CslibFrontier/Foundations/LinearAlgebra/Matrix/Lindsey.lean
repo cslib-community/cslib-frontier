@@ -154,8 +154,7 @@ private theorem sq_sum_mul_le_card_mul_sum_sq [Fintype α] (P : Finset α) (g H 
   have hH2 : ∑ p ∈ P, H p ^ 2 ≤ ∑ p, H p ^ 2 :=
     Finset.sum_le_sum_of_subset_of_nonneg (subset_univ P) fun p _ _ => sq_nonneg _
   have := Finset.sum_nonneg fun p (_ : p ∈ P) => sq_nonneg (H p)
-  calc (∑ p ∈ P, g p ^ 2) * ∑ p ∈ P, H p ^ 2 ≤ #P * ∑ p ∈ P, H p ^ 2 :=
-        mul_le_mul_of_nonneg_right hg2 this
+  calc (∑ p ∈ P, g p ^ 2) * ∑ p ∈ P, H p ^ 2 ≤ #P * ∑ p ∈ P, H p ^ 2 := by gcongr
     _ ≤ #P * ∑ p, H p ^ 2 := mul_le_mul_of_nonneg_left hH2 (Nat.cast_nonneg _)
 
 /-- Expanding the squared inner sum over all `p : α → ZMod 2` leaves only pairs `(q, q')` in the

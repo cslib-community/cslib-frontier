@@ -179,8 +179,7 @@ theorem card_filter_sum_bool_le_two_pow_div_sqrt {ι : Type*} [Fintype ι] [Deci
   have hpow : (2 : ℝ) ^ (Fintype.card ι - #S) * (2 : ℝ) ^ #S = (2 : ℝ) ^ Fintype.card ι := by
     rw [← pow_add, Nat.sub_add_cancel (card_le_univ S)]
   calc (2 : ℝ) ^ (Fintype.card ι - #S) * ((#S).choose (#S / 2) : ℝ)
-      ≤ (2 : ℝ) ^ (Fintype.card ι - #S) * ((2 : ℝ) ^ #S / Real.sqrt (#S + 1)) :=
-        mul_le_mul_of_nonneg_left hchoose (by positivity)
+      ≤ (2 : ℝ) ^ (Fintype.card ι - #S) * ((2 : ℝ) ^ #S / Real.sqrt (#S + 1)) := by gcongr
     _ = (2 : ℝ) ^ Fintype.card ι / Real.sqrt (#S + 1) := by rw [← mul_div_assoc, hpow]
 
 /-- **Half-open interval Littlewood–Offord bound**: for any half-open interval `[c, c + δ)` with

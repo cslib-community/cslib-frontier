@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Monotone.Clique.Essential
 public import CslibFrontier.Computability.Circuit.Monotone.Clique.LowerBound
 public import CslibFrontier.Foundations.Data.Nat.Choose
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.IntervalCases
 
 /-!
@@ -351,9 +352,7 @@ theorem two_rpow_sqrt_lt_size_of_separates {n k : ℕ} (hk : 2 ≤ k) (hn : k ^ 
   have sqrtPositive : 1 ≤ Nat.sqrt k := Nat.le_sqrt.2 (by omega)
   have exponentBound : Real.sqrt k ≤ ((2 * Nat.sqrt k : ℕ) : ℝ) := by
     have := Real.real_sqrt_lt_nat_sqrt_succ (a := k)
-    have : (1 : ℝ) ≤ Nat.sqrt k := by exact_mod_cast sqrtPositive
-    push_cast
-    linarith
+    cast_linarith [sqrtPositive]
   calc (2 : ℝ) ^ Real.sqrt k ≤ (2 : ℝ) ^ ((2 * Nat.sqrt k : ℕ) : ℝ) :=
         Real.rpow_le_rpow_of_exponent_le (by norm_num) exponentBound
     _ = ((2 ^ (2 * Nat.sqrt k) : ℕ) : ℝ) := by

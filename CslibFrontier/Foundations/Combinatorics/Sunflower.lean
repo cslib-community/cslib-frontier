@@ -19,9 +19,10 @@ import Mathlib.Tactic.Ring
 /-!
 # The sunflower lemma
 
-A family of sets is a *sunflower* with core `K` when any two distinct members intersect exactly in
-`K`. The Erdős–Rado sunflower lemma says that a family of more than `(p - 1) ^ w * w!` sets, each
-of at most `w` elements, contains a sunflower with `p` petals [Erdős and Rado][ErdosRado1960].
+A family of sets is a *sunflower* with core `K` when every member contains `K` and any two distinct
+members intersect in `K`. The Erdős–Rado sunflower lemma says that a family of more than
+`(p - 1) ^ w * w!` sets, each of at most `w` elements, contains a sunflower with `p` petals
+[Erdős and Rado][ErdosRado1960].
 
 The proof takes a maximal subfamily of pairwise disjoint sets. If it has `p` members, it is a
 sunflower with empty core. Otherwise its union is small and meets every nonempty set of the family,
@@ -50,9 +51,10 @@ open Finset
 
 variable {α : Type*} [DecidableEq α]
 
-/-- `S` is a sunflower with core `K`: any two distinct members of `S` intersect exactly in `K`. -/
+/-- `S` is a sunflower with core `K`: every member of `S` contains `K`, and any two distinct
+members of `S` intersect in `K`. -/
 def IsSunflower (S : Finset (Finset α)) (K : Finset α) : Prop :=
-  (S : Set (Finset α)).Pairwise fun s t => s ∩ t = K
+  (∀ s ∈ S, K ⊆ s) ∧ (S : Set (Finset α)).Pairwise fun s t => s ∩ t = K
 
 /-- `F` contains a sunflower with `p` petals. -/
 def ContainsSunflower (p : ℕ) (F : Finset (Finset α)) : Prop :=
@@ -68,27 +70,29 @@ theorem sunflowerBound_pos {p : ℕ} (hp : 2 ≤ p) (w : ℕ) : 0 < sunflowerBou
 /-- A subfamily of a sunflower with core `K` is a sunflower with core `K`. -/
 theorem IsSunflower.mono {S T : Finset (Finset α)} {K : Finset α} (h : IsSunflower T K)
     (hST : S ⊆ T) : IsSunflower S K :=
-  Set.Pairwise.mono (coe_subset.2 hST) h
+  ⟨fun s hs => h.1 s (hST hs), h.2.mono (coe_subset.2 hST)⟩
 
-/-- The core of a sunflower with at least two petals is contained in every petal. -/
+/-- The core of a sunflower is contained in every petal. -/
 theorem IsSunflower.subset_of_mem {S : Finset (Finset α)} {K s : Finset α} (h : IsSunflower S K)
-    (hS : 2 ≤ S.card) (hs : s ∈ S) : K ⊆ s := by
-  obtain ⟨t, ht, hts⟩ := exists_mem_ne (by omega : 1 < S.card) s
-  rw [← h hs ht (Ne.symm hts)]
-  exact inter_subset_left
+    (hs : s ∈ S) : K ⊆ s :=
+  h.1 s hs
 
 /-- Pairwise disjoint sets form a sunflower with empty core. -/
 theorem isSunflower_empty_of_pairwise_disjoint {S : Finset (Finset α)}
     (h : (S : Set (Finset α)).Pairwise Disjoint) : IsSunflower S ∅ :=
-  h.mono' fun _ _ hd => disjoint_iff_inter_eq_empty.1 hd
+  ⟨fun _ _ => empty_subset _, h.mono' fun _ _ hd => disjoint_iff_inter_eq_empty.1 hd⟩
 
-/-- Adding a point outside all members to every member of a sunflower gives a sunflower. -/
+/-- Adding a point to every member and to the core of a sunflower gives a sunflower. -/
 theorem IsSunflower.image_insert {S : Finset (Finset α)} {K : Finset α} (h : IsSunflower S K)
     (x : α) : IsSunflower (S.image (insert x)) (insert x K) := by
-  rintro _ hs' _ ht' hne
-  obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
-  obtain ⟨t, ht, rfl⟩ := mem_image.1 ht'
-  rw [← insert_inter_distrib, h hs ht fun e => hne (by rw [e])]
+  refine ⟨?_, ?_⟩
+  · rintro _ hs'
+    obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
+    exact insert_subset_insert x (h.subset_of_mem hs)
+  · rintro _ hs' _ ht' hne
+    obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
+    obtain ⟨t, ht, rfl⟩ := mem_image.1 ht'
+    rw [← insert_inter_distrib, h.2 hs ht fun e => hne (by rw [e])]
 
 private theorem containsSunflower_aux {p : ℕ} (hp : 2 ≤ p) :
     ∀ (w : ℕ) (F : Finset (Finset α)), (∀ s ∈ F, s.card ≤ w) →
@@ -149,28 +153,22 @@ private theorem containsSunflower_aux {p : ℕ} (hp : 2 ≤ p) :
           ((card_biUnion_le.trans (sum_le_card_nsmul _ _ _ h)).trans_eq (smul_eq_mul _ _)) _))
       have hUB : U.card * B ≤ (D.erase ∅).card * ((w + 1) * B) :=
         (Nat.mul_le_mul_right B hU).trans_eq (Nat.mul_assoc _ _ _)
-      have hsucc : sunflowerBound p (w + 1) = (p - 2) * ((w + 1) * B) + (w + 1) * B := by
-        rw [← Nat.succ_mul, show (p - 2).succ = p - 1 by omega]
+      have hsucc : sunflowerBound p (w + 1) = (p - 1) * ((w + 1) * B) := by
         simp only [B, sunflowerBound, pow_succ, Nat.factorial_succ]
         ring
-      have hX : 1 ≤ (w + 1) * B := Nat.one_le_iff_ne_zero.2 (by positivity)
-      by_cases hE : ∅ ∈ F
-      · have h1 : (F.filter (· = ∅)).card = 1 := by
-          simp [filter_eq' F ∅, hE]
-        have h2 : (D.erase ∅).card ≤ p - 2 := by
-          have := hmemD ∅ hE (disjoint_empty_left _)
-          rw [card_erase_of_mem this]
+      -- The empty set, if present, lies in `D`, so at most `p - 1` sets are counted here.
+      have hed : (F.filter (· = ∅)).card + (D.erase ∅).card ≤ p - 1 := by
+        by_cases hE : ∅ ∈ F
+        · rw [card_erase_of_mem (hmemD ∅ hE (disjoint_empty_left _))]
+          simp only [filter_eq' F ∅, hE, ↓reduceIte, card_singleton]
           omega
-        have := Nat.mul_le_mul_right ((w + 1) * B) h2
-        omega
-      · have h1 : (F.filter (· = ∅)).card = 0 := by
-          simp [filter_eq' F ∅, hE]
-        have h2 : (D.erase ∅).card ≤ p - 1 :=
-          (card_le_card (erase_subset _ _)).trans (by omega)
-        have := Nat.mul_le_mul_right ((w + 1) * B) h2
-        have : (p - 1) * ((w + 1) * B) = (p - 2) * ((w + 1) * B) + (w + 1) * B := by
-          rw [← Nat.succ_mul, show (p - 2).succ = p - 1 by omega]
-        omega
+        · simp only [filter_eq' F ∅, hE, ↓reduceIte, card_empty, zero_add]
+          exact card_erase_le.trans (by omega)
+      have h1 := Nat.mul_le_mul_right ((w + 1) * B) hed
+      rw [Nat.add_mul] at h1
+      have h2 := Nat.le_mul_of_pos_right (F.filter (· = ∅)).card
+        (Nat.mul_pos w.succ_pos hB : 0 < (w + 1) * B)
+      omega
     -- Remove `x`, apply the lemma for size `w`, and put `x` back.
     set G := F.filter (x ∈ ·)
     have hinj : Set.InjOn (fun s : Finset α => s.erase x) G := fun s hs t ht hst => by
@@ -201,10 +199,10 @@ theorem containsSunflower_of_forall_card_le (p w : ℕ) (F : Finset (Finset α))
     (hF : ∀ s ∈ F, s.card ≤ w) (hlarge : sunflowerBound p w < F.card) :
     ContainsSunflower p F := by
   rcases Nat.lt_or_ge p 2 with hp | hp
-  · -- At most one petal: any `p` sets will do.
+  · -- At most one petal: any `p` sets with empty core will do.
     obtain ⟨S, hS, hcard⟩ := exists_subset_card_eq (show p ≤ F.card by omega)
-    exact ⟨S, hS, hcard, ∅, fun s hs t ht hne =>
-      absurd (card_le_one.1 (show S.card ≤ 1 by omega) s hs t ht) hne⟩
+    exact ⟨S, hS, hcard, ∅, ⟨fun _ _ => empty_subset _, fun s hs t ht hne =>
+      absurd (card_le_one.1 (show S.card ≤ 1 by omega) s hs t ht) hne⟩⟩
   exact containsSunflower_aux hp w F hF hlarge
 
 end Cslib

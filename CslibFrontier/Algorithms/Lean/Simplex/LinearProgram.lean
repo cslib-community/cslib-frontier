@@ -11,8 +11,6 @@ public import CslibFrontier.Algorithms.Lean.Simplex.Bland
 public import Mathlib.Data.Fin.Tuple.Basic
 public import Mathlib.LinearAlgebra.Matrix.Notation
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.LinearProgramming
-import Mathlib.Algebra.BigOperators.Fin
-import Mathlib.Algebra.Order.Pi
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring

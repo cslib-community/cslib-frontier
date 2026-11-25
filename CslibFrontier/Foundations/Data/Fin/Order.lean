@@ -103,7 +103,7 @@ theorem Fin.exists_adjacent_ne_of_monotone_comp {α β : Type*} [PartialOrder β
 theorem Fin.sum_val_le_mul_self (n : ℕ) : (∑ j : Fin n, j.val) ≤ n * n := by
   calc
     _ ≤ ∑ _j : Fin n, n := Finset.sum_le_sum fun j _ => Nat.le_of_lt j.isLt
-    _ = n * n := by simp
+    _ = n * n := by rw [Finset.sum_const_nat fun _ _ => rfl, Finset.card_univ, Fintype.card_fin]
 
 /-- A threshold at least the first value and strictly below the last is crossed by an
 actual adjacent pair. The finite sequence need not be monotone. -/

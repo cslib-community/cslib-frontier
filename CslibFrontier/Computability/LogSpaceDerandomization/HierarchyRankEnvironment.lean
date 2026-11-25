@@ -92,6 +92,7 @@ structure Horizon (P : ℕ) where
   identifier_admissible : maxIdentifier < P
 
 /-- Every grid side is positive for a positive supplied modulus. -/
+@[positivity_lemma]
 theorem side_pos (P k : ℕ) (hP : 0 < P) : 0 < side P k := by
   have h := le_smul_ceilDiv (by positivity : 0 < (2: ℕ) ^ k) (b := P)
   by_contra hn
@@ -316,10 +317,9 @@ theorem mixed_pair_density (role : Fin J) (H : Horizon P) {k : ℕ}
   have hp := dens_eval_mem_and_eval_mem_le (P := P) (H := 4) (r := 1)
     (by decide) (side_le P k) hLt hwy
   have hq := one_div_two_le_frameDensity (P := P) (H := 4) (r := 1) (by decide)
-  have hq0 : 0 < frameDensity P 4 1 := by linarith
   have hh := side_div_pow_four_le H hk
   apply hp.trans
-  rw [div_le_iff₀ hq0]
+  rw [div_le_iff₀ (by positivity)]
   have hπ : 0 ≤ ((Lt: ℝ) / P) ^ 4 := by positivity
   nlinarith [mul_le_mul_of_nonneg_right hh hπ,
     mul_le_mul_of_nonneg_left hq (show 0 ≤ 32 * rate k * ((Lt: ℝ) / P) ^ 4 by positivity)]

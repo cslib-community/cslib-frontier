@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 public import CslibFrontier.Foundations.BooleanAnalysis.Variance
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 import CslibFrontier.Foundations.Data.BitString.AgreeExpect
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -34,9 +35,9 @@ For the nearly balanced choice `s = tribesSize w` of [O'Donnell, Definition 4.11
 influence is at most `8 Var log n / n` (`Cslib.BitString.influence_tribes_le_mul_log_div`). This is
 the sense in which the Kahn–Kalai–Linial theorem
 `Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence`, which finds an
-influence of at least `Var log n / (12 n)`, is sharp up to the constant
+influence of at least `Var log n / (4 n)`, is sharp up to the constant
 [KahnKalaiLinial1988] [O'Donnell, Sections 4.2 and 9.6][ODonnell2014]: no constant above `8` can
-replace `1 / 12` for all large `n` (`Cslib.BitString.exists_forall_influence_lt_mul_log_div`). The
+replace `1 / 4` for all large `n` (`Cslib.BitString.exists_forall_influence_lt_mul_log_div`). The
 asymptotic `1 ± o(1)` form is not formalized.
 
 ## Main results
@@ -188,14 +189,13 @@ theorem totalInfluence_tribes_le (w : ℕ) :
   · simp
   have hA : (1 - (2⁻¹ : ℝ) ^ w) ^ (tribesSize w - 1) ≤ 1 :=
     pow_le_one₀ (one_sub_inv_two_pow_nonneg w) (one_sub_inv_two_pow_le_one w)
-  have h2 : (tribesSize w : ℝ) < 2 ^ w := by exact_mod_cast tribesSize_lt_two_pow w
   have hpow := two_pow_eq_two_mul hw
   have hy : (2⁻¹ : ℝ) ^ (w - 1) * 2 ^ (w - 1) = 1 := by
     rw [← mul_pow]
     norm_num
   rw [Nat.cast_mul]
   have hy0 : (0 : ℝ) ≤ 2⁻¹ ^ (w - 1) := by positivity
-  have hsy : (tribesSize w : ℝ) * 2⁻¹ ^ (w - 1) ≤ 2 := by nlinarith
+  have hsy : (tribesSize w : ℝ) * 2⁻¹ ^ (w - 1) ≤ 2 := by cast_nlinarith [tribesSize_lt_two_pow w]
   calc (tribesSize w * w : ℝ) * (2⁻¹ ^ (w - 1) * (1 - 2⁻¹ ^ w) ^ (tribesSize w - 1))
       ≤ (tribesSize w * w : ℝ) * (2⁻¹ ^ (w - 1) * 1) := by gcongr
     _ = (tribesSize w * 2⁻¹ ^ (w - 1)) * w := by ring
@@ -208,16 +208,14 @@ private theorem influence_tribes_le_of (hw : 2 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ s
     rw [influence_tribes]
     exact mul_le_of_le_one_right (by positivity)
       (pow_le_one₀ (one_sub_inv_two_pow_nonneg w) (one_sub_inv_two_pow_le_one w))
-  have hw' : (2 : ℝ) ≤ w := by exact_mod_cast hw
   have hN₁ : ((2 : ℝ) ^ (w - 1)) ≤ ((s * w : ℕ) : ℝ) := by
     have : 2 ^ (w - 1) ≤ s * w := hs₁.trans (Nat.le_mul_of_pos_right _ (by omega))
     exact_mod_cast this
   have hNpos : (0 : ℝ) < ((s * w : ℕ) : ℝ) := lt_of_lt_of_le (by positivity) hN₁
   have hyN : (2⁻¹ : ℝ) ^ (w - 1) * ((s * w : ℕ) : ℝ) ≤ 2 * w := by
-    have h2 : (s : ℝ) < 2 ^ w := by exact_mod_cast hs₂
     have hpow := two_pow_eq_two_mul (show 1 ≤ w by omega)
     rw [Nat.cast_mul, inv_pow, ← div_eq_inv_mul, div_le_iff₀ (by positivity)]
-    nlinarith
+    cast_nlinarith [hs₂, hw]
   have hlog : ((w - 1 : ℕ) : ℝ) * Real.log 2 ≤ Real.log ((s * w : ℕ) : ℝ) := by
     rw [← Real.log_pow]
     exact Real.log_le_log (by positivity) hN₁
@@ -228,7 +226,7 @@ private theorem influence_tribes_le_of (hw : 2 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ s
   rw [hcast] at hlog
   refine hinf.trans ?_
   rw [le_div_iff₀ hNpos]
-  nlinarith
+  cast_nlinarith
 
 /-- **Upper bound on the influences of Tribes** [O'Donnell, Proposition 4.13][ODonnell2014], in
 explicit form: on `n = s w` bits with `s = tribesSize w` and `w ≥ 2`, every bit has influence at
@@ -301,7 +299,7 @@ theorem three_div_four_le_expect_sub_expect_sq_tribes (hw : 2 ≤ w) :
 
 /-- **Tribes witnesses the sharpness of KKL** [O'Donnell, Sections 4.2 and 9.6][ODonnell2014]: on
 `n = s w` bits with `s = tribesSize w` and `w ≥ 2`, every influence of Tribes is at most
-`8 Var log n / n`, against the influence of at least `Var log n / (12 n)` that
+`8 Var log n / n`, against the influence of at least `Var log n / (4 n)` that
 `Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence` provides for every
 Boolean function. The constant `8` is ours. -/
 theorem influence_tribes_le_mul_log_div (hw : 2 ≤ w) (k : Fin (tribesSize w * w)) :
@@ -322,7 +320,7 @@ theorem influence_tribes_le_mul_log_div (hw : 2 ≤ w) (k : Fin (tribesSize w * 
 
 /-- **The constant in KKL is at most `8`**: for every `c > 8` and every `n₀` there are `n ≥ n₀` and
 a Boolean function on `n` bits all of whose influences are less than `c Var log n / n`, so no
-constant above `8` can replace `1 / 12` in
+constant above `8` can replace `1 / 4` in
 `Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence` for all large `n`
 [KahnKalaiLinial1988] [O'Donnell, Sections 4.2 and 9.6][ODonnell2014]. The constant `8` is
 ours. -/

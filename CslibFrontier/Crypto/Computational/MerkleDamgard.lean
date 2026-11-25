@@ -121,7 +121,9 @@ theorem padOrTake_eq_self {n : ℕ} {w : List Bool} (hw : w.length = n) :
   subst hw
   simp [padOrTake]
 
-private theorem computableInPolyTime_padOrTake_comp
+/-- Normalizing a computed word to a computed unary length is computable in polynomial time. -/
+@[fun_prop]
+theorem computableInPolyTime_padOrTake_comp
     {γ : Type} {encIn : γ ↪ List Bool} {n : γ → ℕ} {w : γ → List Bool}
     (hn : ComputableInPolyTime n encIn encUnary)
     (hw : ComputableInPolyTime w encIn encBits) :

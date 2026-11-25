@@ -139,33 +139,13 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
     IsOraclePPT encBool (repeatToCPAAdversary ctBound A) := by
   let EState := encList (encPair encBits encBits)
   let EIn := encHandlerCall (encPair encUnary encBits) (encFinEnum Unit) EState
-  have hcond : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) =>
-        p.2.1.2.length == p.1.1)
-      EIn encBool := by
-    dsimp only [EIn, encHandlerCall, EState]; fun_prop
-  have hyes : IsOraclePPTOn EIn (encPair encBits EState)
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) => do
-        let r ← ProbOracleComp.sample (BitString.sampleList p.1.1)
-        let c ← List.take (ctBound p.1.1) <$>
-          ProbOracleComp.query ((), encPair encBits encBits (p.2.1.2, r))
-        return (c, (c, r) :: p.2.2)) := by
-    dsimp only [EIn, encHandlerCall, EState]
-    ppt
-  have hno : IsOraclePPTOn EIn (encPair encBits EState)
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) =>
-        pure ([], p.2.2)) :=
-    (ComputableInPolyTime.prod (ComputableInPolyTime.const [])
-      (by dsimp only [EIn, encHandlerCall, EState]; fun_prop)).isOraclePPTOn (Operation := Unit)
   have hhandler : IsOraclePPTOn EIn (encPair encBits EState)
       (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) =>
         repeatWrapperStep p.1.1 (ctBound p.1.1) p.2.1 p.2.2) := by
     unfold repeatWrapperStep
-    exact IsOraclePPTOn.cond hcond hyes hno
-  have hres : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × List Bool => 4 * ctBound pair.1.1 + 2 * pair.1.1 + 6)
-      (encPair (encPair encUnary encBits) encBits) encUnary := by
-    fun_prop
+    dsimp only [EIn, encHandlerCall, EState]
+    exact IsOraclePPTOn.cond (by fun_prop) (by ppt)
+      ((ComputableInPolyTime.const []).prod (by fun_prop)).isOraclePPTOn (Operation := Unit)
   have hrun : IsOraclePPTOn (encPair encUnary encBits) (encPair encOut EState)
       (fun caller : ℕ × List Bool =>
         (OracleComp.interpret
@@ -178,14 +158,13 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
       (initial := fun _ => ([] : List (List Bool × List Bool)))
       (resources := fun caller _ => 4 * ctBound caller.1 + 2 * caller.1 + 6)
       (by fun_prop) hhandler (ComputableInPolyTime.const [])
-      (fun _ _ => True) (fun _ => trivial) hres
+      (fun _ _ => True) (fun _ => trivial) (by fun_prop)
     intro caller request seen _ result hresult
     unfold repeatWrapperStep at hresult
     split_ifs at hresult with hlenEq
     · obtain ⟨r, hr, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
-      change r ∈ OracleComp.support (ProbOracleComp.sample (BitString.sampleList caller.1)) at hr
-      rw [ProbOracleComp.support_sample, BitString.eval_sampleList] at hr
-      have hrLen : r.length = caller.1 := BitString.length_of_mem_support_uniformList hr
+      have hrLen : r.length = caller.1 := BitString.length_of_mem_support_uniformList <| by
+        rwa [← BitString.eval_sampleList, ← ProbOracleComp.support_sample]
       obtain ⟨c, hc, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨rawCt, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hc
       cases OracleComp.eq_of_mem_supportWith_pure hresult
@@ -198,11 +177,9 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, Nat.le_add_right _ _⟩
   unfold repeatToCPAAdversary
-  have hpost : ComputableInPolyTime
-      (fun out : α × List (List Bool × List Bool) => hasDistinctCollision out.2)
-      (encPair encOut EState) encBool :=
-    (polyTime_hasDistinctCollision encBits encBits).comp (ComputableInPolyTime.snd _ _)
-  simpa only [bind_pure_comp] using (IsOraclePPTOn.map hrun hpost).isOraclePPT
+  simpa only [bind_pure_comp] using (IsOraclePPTOn.map hrun
+    ((polyTime_hasDistinctCollision encBits encBits).comp
+      (ComputableInPolyTime.snd _ _))).isOraclePPT
 
 /-- In Experiment `true` (`b = 1`), every recorded entry `(c, r)` in `repeatToCPAAdversary`
 satisfies `c ∈ support(E.encrypt n k r)` when `ctBound n` bounds ciphertext lengths on `n`-bit
@@ -213,8 +190,7 @@ private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : Symmetri
     (ctBound : ℕ → ℕ) (A : ℕ → List Bool → WordOracleComp Unit α) (n : ℕ)
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) true n) = PMF.pure false := by
-  simp only [cpaGame, symmetricCPAGameOn, ProbOracleComp.run, repeatToCPAAdversary, runWith_norm,
-    pmf_norm]
+  simp only [cpaGame, symmetricCPAGameOn, repeatToCPAAdversary, runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
   refine PMF.map_eq_pure_iff.mpr fun out hout => ?_
   have hinv := ProbOracleComp.runWith_invariant
@@ -355,8 +331,8 @@ private theorem eval_cpaGame_repeatToCPAAdversary_false_eq {α : Type} (E : Symm
       (ProbComp.eval (E.keyGen n)).bind fun k =>
         (ProbComp.eval (((A n []).runState (E.ciEncryptionOracle n k)).run [])).bind fun out =>
           (pairWithUniform n out.2).map hasDistinctCollision := by
-  simp only [cpaGame, symmetricCPAGameOn, ProbOracleComp.run, repeatToCPAAdversary,
-    ProbOracleComp.eval_runState, runWith_norm, pmf_norm]
+  simp only [cpaGame, symmetricCPAGameOn, repeatToCPAAdversary, ProbOracleComp.eval_runState,
+    runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   have hsim := ProbOracleComp.runWith_simulation
     (oracle := fun q cs => ProbComp.eval (E.ciEncryptionOracle n k q cs))

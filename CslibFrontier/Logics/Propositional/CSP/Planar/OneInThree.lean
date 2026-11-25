@@ -89,8 +89,7 @@ theorem triangleSem_relation (R : Set (Fin 3 → Bool)) [DecidablePred (· ∈ R
 /-- The triangle's binary symbol has exactly NAND semantics at its canonical ordered tuple. -/
 theorem triangleSem_nand (R : Set (Fin 3 → Bool)) [DecidablePred (· ∈ R)]
     (x : Fin 2 → Bool) : triangleSem R .nand (List.ofFn x) = true ↔ x ∈ nand := by
-  cases h₀ : x 0 <;> cases h₁ : x 1 <;>
-    simp [triangleSem, List.ofFn_succ, nand, h₀, h₁]
+  grind [triangleSem, List.ofFn_succ, nand]
 
 /-- NAND on all three adjacent pairs leaves precisely the three units or zero. -/
 theorem triangleBody_eval_iff (R : Set (Fin 3 → Bool)) [DecidablePred (· ∈ R)]

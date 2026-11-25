@@ -8,11 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Logic.Relation
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 /-!
 # Depth-first search
@@ -26,14 +24,16 @@ and the finished vertices, most recently finished first): if `u` is undiscovered
 its successors are visited in turn, and it is finished. The recursion budget `k` makes the
 definition structural; `Fintype.card V ≤ k` suffices, because each nested call discovers a new
 vertex. `Cslib.Algorithms.Lean.DFS.dfs adj k roots` visits the roots in turn from the empty
-state.
+state. Linear-time iterative execution on the standard-basis word RAM is proved in
+`CslibFrontier.Algorithms.WordRAM.DFS`.
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.DFS.Edge`: the edge relation of adjacency lists.
 * `Cslib.Algorithms.Lean.DFS.StronglyConnected`: mutual reachability in `Edge adj`.
+* `Cslib.Algorithms.Lean.DFS.State`: discovered-set and finishing-list state of depth-first search.
 * `Cslib.Algorithms.Lean.DFS.visit`, `Cslib.Algorithms.Lean.DFS.dfs`: depth-first search.
-* `Cslib.Algorithms.Lean.DFS.dfsM`: depth-first search in `TimeM`.
+* `Cslib.Algorithms.Lean.DFS.outDegreeSum`: total out-degree of a list of vertices.
 
 ## Main results
 
@@ -47,15 +47,6 @@ state.
 * `Cslib.Algorithms.Lean.DFS.dfs_scc_finished_order`: if a finished vertex `u` reaches `v` while
   `v` does not reach `u`, some vertex mutually reachable with `u` finishes after `v` (the
   component finishing-time property underlying Kosaraju's algorithm [Cormen et al.][CLRS2009]).
-* `Cslib.Algorithms.Lean.DFS.time_dfsM`, `Cslib.Algorithms.Lean.DFS.time_dfsM_le`: the cost is one
-  unit per root plus one per edge out of a finished vertex, so at most `|roots| + |E|`.
-
-## Cost model
-
-`Cslib.Algorithms.Lean.DFS.visitM` charges one unit per call of `visit`: one per root and one per
-adjacency-list entry examined. A call performs one membership test and at most one insertion into
-the discovered set and one cons onto the finishing list; these are counted as constant-time steps
-(as with a Boolean array indexed by the vertices), not charged separately.
 
 ## References
 
@@ -117,6 +108,9 @@ def visit [DecidableEq V] (adj : V → List V) : ℕ → V → State V → State
 /-- Depth-first search from each root in turn. -/
 def dfs [DecidableEq V] (adj : V → List V) (k : ℕ) (roots : List V) : State V :=
   roots.foldl (fun s u => visit adj k u s) ⟨∅, []⟩
+
+/-- The total out-degree of a list of vertices. -/
+def outDegreeSum (adj : V → List V) (l : List V) : ℕ := (l.map fun v => (adj v).length).sum
 
 variable {adj : V → List V}
 
@@ -227,11 +221,9 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
       Inv adj (visit adj k u s) ∧ Ext s (visit adj k u s) ∧ u ∈ (visit adj k u s).visited ∧
         ∀ x ∈ (visit adj k u s).visited, x ∈ s.visited ∨ Relation.ReflTransGen (Edge adj) u x
   | 0, u, s, hI, hk, _ => by
-    have hcard : s.visited.card = Fintype.card V := le_antisymm (Finset.card_le_univ _) (by omega)
-    have huniv : s.visited = Finset.univ := Finset.eq_univ_of_card _ hcard
-    refine ⟨hI, Ext.refl s, ?_, fun x hx => .inl hx⟩
-    rw [visit_zero, huniv]
-    exact Finset.mem_univ u
+    have huniv : s.visited = Finset.univ :=
+      Finset.eq_univ_of_card _ (le_antisymm (Finset.card_le_univ _) (by omega))
+    exact ⟨hI, Ext.refl s, (huniv ▸ Finset.mem_univ u : u ∈ s.visited), fun x hx => .inl hx⟩
   | k + 1, u, s, hI, hk, hgray => by
     by_cases hu : u ∈ s.visited
     · rw [visit_of_mem hu]
@@ -260,17 +252,8 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
             obtain ⟨hx', hxf'⟩ := hE₁.gray hx hxf
             exact hgt x hx' hxf'
         rw [List.foldl_cons]
-        refine ⟨hI₂, hE₁.trans hE₂, ?_, ?_⟩
-        · intro w hw
-          rcases List.mem_cons.1 hw with rfl | hw
-          · exact hE₂.visited_subset hv₁
-          · exact hv₂ w hw
-        · intro x hx
-          rcases hr₂ x hx with hx | hx
-          · rcases hr₁ x hx with hx | hx
-            · exact .inl hx
-            · exact .inr (Relation.ReflTransGen.head hv hx)
-          · exact .inr hx
+        exact ⟨hI₂, hE₁.trans hE₂, List.forall_mem_cons.2 ⟨hE₂.visited_subset hv₁, hv₂⟩,
+          fun x hx => (hr₂ x hx).elim (fun hx => (hr₁ x hx).imp id (.head hv)) .inr⟩
     rw [visit_of_notMem hu]
     set s₀ : State V := ⟨insert u s.visited, s.finished⟩ with hs₀
     have hI₀ : Inv adj s₀ :=
@@ -287,9 +270,8 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
       omega
     have hg₀ : ∀ x ∈ s₀.visited, x ∉ s₀.finished → Relation.ReflTransGen (Edge adj) x u := by
       intro x hx hxf
-      rcases Finset.mem_insert.1 hx with rfl | hx
-      · exact .refl
-      · exact hgray x hx hxf
+      obtain rfl | hx := Finset.mem_insert.1 hx
+      exacts [.refl, hgray x hx hxf]
     obtain ⟨hIt, hEt, hvt, hrt⟩ := hfold (adj u) (fun v hv => hv) s₀ hI₀ hk₀ hg₀
     set t := (adj u).foldl (fun t v => visit adj k v t) s₀ with ht
     obtain ⟨new, hnew, hdis, hvis⟩ := id hEt
@@ -297,16 +279,10 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
       rw [hnew, List.mem_append, not_or]
       exact ⟨fun h => hdis u h (Finset.mem_insert_self _ _), fun h => hu (hI.finished_subset u h)⟩
     have hut' : u ∈ t.visited := (hvis u).2 (.inl (Finset.mem_insert_self _ _))
-    have hf_sub' : ∀ x ∈ u :: t.finished, x ∈ t.visited := by
-      intro x hx
-      rcases List.mem_cons.1 hx with rfl | hx
-      · exact hut'
-      · exact hIt.finished_subset x hx
-    have hclosed' : ∀ x ∈ u :: t.finished, ∀ y ∈ adj x, y ∈ t.visited := by
-      intro x hx
-      rcases List.mem_cons.1 hx with rfl | hx
-      · exact hvt
-      · exact hIt.closed x hx
+    have hf_sub' : ∀ x ∈ u :: t.finished, x ∈ t.visited :=
+      List.forall_mem_cons.2 ⟨hut', hIt.finished_subset⟩
+    have hclosed' : ∀ x ∈ u :: t.finished, ∀ y ∈ adj x, y ∈ t.visited :=
+      List.forall_mem_cons.2 ⟨hvt, hIt.closed⟩
     refine ⟨?_, ?_, hut', ?_⟩
     · refine ⟨List.nodup_cons.2 ⟨hut, hIt.nodup⟩, hf_sub', hclosed', ?_, ?_⟩
       · intro x hx y hy
@@ -315,9 +291,7 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
           · exact .inl ((List.singleton_sublist.2 hyf).cons_cons x)
           · obtain ⟨hy₀, hyf₀⟩ := hEt.gray (hvt y hy) hyf
             exact .inr (hg₀ y hy₀ hyf₀)
-        · rcases hIt.order x hx y hy with h | h
-          · exact .inl (h.cons u)
-          · exact .inr h
+        · exact (hIt.order x hx y hy).imp (·.cons u) id
       · intro x hx y hxy hnyx
         by_cases hyt : y ∈ t.visited
         · by_cases hyf : y ∈ t.finished
@@ -359,18 +333,14 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
                   exact ⟨hzu, hzn, hzf⟩
                 exact .inr ⟨z, hEt.visited_subset (Finset.mem_insert_of_mem hzv), hzf', hxz⟩
     · refine ⟨u :: new, by simp [hnew, s₀], ?_, ?_⟩
-      · intro x hx
-        rcases List.mem_cons.1 hx with rfl | hx
-        · exact hu
-        · exact fun h => hdis x hx (Finset.mem_insert_of_mem h)
+      · exact List.forall_mem_cons.2 ⟨hu, fun x hx h => hdis x hx (Finset.mem_insert_of_mem h)⟩
       · intro x
         simp only [hvis, s₀, Finset.mem_insert, List.mem_cons]
         tauto
     · intro x hx
-      rcases hrt x hx with hx | hx
-      · rcases Finset.mem_insert.1 hx with rfl | hx
-        · exact .inr .refl
-        · exact .inl hx
+      obtain hx | hx := hrt x hx
+      · obtain rfl | hx := Finset.mem_insert.1 hx
+        exacts [.inr .refl, .inl hx]
       · exact .inr hx
 
 private theorem foldl_visit_spec [DecidableEq V] [Fintype V] {k : ℕ} (hk : Fintype.card V ≤ k) :
@@ -393,17 +363,11 @@ private theorem foldl_visit_spec [DecidableEq V] [Fintype V] {k : ℕ} (hk : Fin
       exact hxf' (hb x hx')
     obtain ⟨hI₂, hE₂, hb₂, hr₂, hR₂⟩ := foldl_visit_spec hk roots _ hI₁ hb₁
     rw [List.foldl_cons]
-    refine ⟨hI₂, hE₁.trans hE₂, hb₂, ?_, ?_⟩
-    · intro u hu
-      rcases List.mem_cons.1 hu with rfl | hu
-      · exact hE₂.visited_subset hr₁
-      · exact hr₂ u hu
-    · intro x hx
-      rcases hR₂ x hx with hx | ⟨r', hr', hx⟩
-      · rcases hR₁ x hx with hx | hx
-        · exact .inl hx
-        · exact .inr ⟨r, List.mem_cons_self, hx⟩
-      · exact .inr ⟨r', List.mem_cons_of_mem _ hr', hx⟩
+    refine ⟨hI₂, hE₁.trans hE₂, hb₂, List.forall_mem_cons.2 ⟨hE₂.visited_subset hr₁, hr₂⟩, ?_⟩
+    intro x hx
+    rcases hR₂ x hx with hx | ⟨r', hr', hx⟩
+    · exact (hR₁ x hx).imp id fun hx => ⟨r, List.mem_cons_self, hx⟩
+    · exact .inr ⟨r', List.mem_cons_of_mem _ hr', hx⟩
 
 private theorem dfs_spec [DecidableEq V] [Fintype V] {k : ℕ} (hk : Fintype.card V ≤ k)
     (roots : List V) :
@@ -455,102 +419,8 @@ theorem dfs_scc_finished_order (hk : Fintype.card V ≤ k) (roots : List V) {u v
     (hnvu : ¬ Relation.ReflTransGen (Edge adj) v u) :
     ∃ z, StronglyConnected adj u z ∧ [z, v] <+ (dfs adj k roots).finished := by
   obtain ⟨hI, hb, -, -⟩ := dfs_spec (adj := adj) hk roots
-  rcases hI.scc_order u hu v huv hnvu with ⟨z, huz, hsub⟩ | ⟨z, hzv, hzf, -⟩
-  · exact ⟨z, huz, hsub⟩
-  · exact absurd (hb z hzv) hzf
+  exact (hI.scc_order u hu v huv hnvu).resolve_right fun ⟨z, hzv, hzf, _⟩ => hzf (hb z hzv)
 
 end Results
-
-/-! ### Cost -/
-
-open TimeM
-
-/-- `visit` in `TimeM`, charging one unit per call. -/
-def visitM [DecidableEq V] (adj : V → List V) : ℕ → V → State V → TimeM ℕ (State V)
-  | 0, _, s => do ✓ return s
-  | k + 1, u, s => do
-    ✓
-    if u ∈ s.visited then return s
-    else
-      let t ← (adj u).foldlM (fun t v => visitM adj k v t) ⟨insert u s.visited, s.finished⟩
-      return ⟨t.visited, u :: t.finished⟩
-
-/-- Depth-first search from each root in turn, in `TimeM`. -/
-def dfsM [DecidableEq V] (adj : V → List V) (k : ℕ) (roots : List V) : TimeM ℕ (State V) :=
-  roots.foldlM (fun s u => visitM adj k u s) ⟨∅, []⟩
-
-/-- The total out-degree of a list of vertices. -/
-def outDegreeSum (adj : V → List V) (l : List V) : ℕ := (l.map fun v => (adj v).length).sum
-
-section CostProof
-
-variable [DecidableEq V]
-
-private theorem foldlM_visitM {k : ℕ}
-    (ih : ∀ u s, (visitM adj k u s).ret = visit adj k u s ∧
-      (visitM adj k u s).time + outDegreeSum adj s.finished =
-        1 + outDegreeSum adj (visit adj k u s).finished) :
-    ∀ (l : List V) (t : State V),
-      (l.foldlM (fun t v => visitM adj k v t) t).ret = l.foldl (fun t v => visit adj k v t) t ∧
-      (l.foldlM (fun t v => visitM adj k v t) t).time + outDegreeSum adj t.finished =
-        l.length + outDegreeSum adj (l.foldl (fun t v => visit adj k v t) t).finished
-  | [], t => by simp
-  | v :: l, t => by
-    obtain ⟨h₁, h₂⟩ := ih v t
-    obtain ⟨h₃, h₄⟩ := foldlM_visitM ih l (visit adj k v t)
-    simp only [List.foldlM_cons, List.foldl_cons, TimeM.ret_bind, TimeM.time_bind, h₁,
-      List.length_cons]
-    refine ⟨h₃, ?_⟩
-    omega
-
-private theorem visitM_spec :
-    ∀ (k : ℕ) (u : V) (s : State V), (visitM adj k u s).ret = visit adj k u s ∧
-      (visitM adj k u s).time + outDegreeSum adj s.finished =
-        1 + outDegreeSum adj (visit adj k u s).finished
-  | 0, u, s => by simp [visitM, visit_zero]
-  | k + 1, u, s => by
-    by_cases hu : u ∈ s.visited
-    · simp [visitM, visit_of_mem hu, hu]
-    · obtain ⟨h₁, h₂⟩ := foldlM_visitM (visitM_spec k) (adj u) ⟨insert u s.visited, s.finished⟩
-      rw [visit_of_notMem hu]
-      simp only [visitM, hu, ite_false, TimeM.ret_bind, TimeM.time_bind, TimeM.time_tick,
-        TimeM.ret_pure, TimeM.time_pure, h₁, true_and]
-      simp only [outDegreeSum, List.map_cons, List.sum_cons] at h₂ ⊢
-      omega
-
-/-- `visitM` computes `visit`. -/
-theorem ret_visitM (k : ℕ) (u : V) (s : State V) : (visitM adj k u s).ret = visit adj k u s :=
-  (visitM_spec k u s).1
-
-/-- `visitM` charges one unit plus the out-degrees of newly finished vertices. -/
-theorem time_visitM (k : ℕ) (u : V) (s : State V) :
-    (visitM adj k u s).time + outDegreeSum adj s.finished =
-      1 + outDegreeSum adj (visit adj k u s).finished :=
-  (visitM_spec k u s).2
-
-/-- `dfsM` computes `dfs`. -/
-theorem ret_dfsM (k : ℕ) (roots : List V) : (dfsM adj k roots).ret = dfs adj k roots :=
-  (foldlM_visitM (visitM_spec k) roots _).1
-
-/-- **The cost of depth-first search**: one unit per root and one per edge out of a finished
-vertex. -/
-theorem time_dfsM (k : ℕ) (roots : List V) :
-    (dfsM adj k roots).time = roots.length + outDegreeSum adj (dfs adj k roots).finished := by
-  have := (foldlM_visitM (adj := adj) (visitM_spec k) roots ⟨∅, []⟩).2
-  simpa [outDegreeSum, dfsM, dfs] using this
-
-end CostProof
-
-section Bound
-
-variable [DecidableEq V] [Fintype V]
-
-/-- The cost of depth-first search is at most the number of roots plus the number of edges. -/
-theorem time_dfsM_le {k : ℕ} (hk : Fintype.card V ≤ k) (adj : V → List V) (roots : List V) :
-    (dfsM adj k roots).time ≤ roots.length + ∑ v, (adj v).length := by
-  rw [time_dfsM, outDegreeSum, ← List.sum_toFinset _ (nodup_dfs_finished hk roots)]
-  exact Nat.add_le_add_left (Finset.sum_le_sum_of_subset (Finset.subset_univ _)) _
-
-end Bound
 
 end Cslib.Algorithms.Lean.DFS

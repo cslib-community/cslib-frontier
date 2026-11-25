@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.NumberTheory.AKS.Correctness
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Data.Nat.Log
 
 /-!
@@ -107,8 +108,7 @@ theorem prime_iff_passesUpTo {n r A : ℕ} (hn : 2 ≤ n)
     have h1 : Real.logb 2 n ^ 2 ≤ (Nat.clog 2 n : ℝ) ^ 2 :=
       pow_le_pow_left₀ h0 (logb_le_clog n) 2
     have h2 : ((Nat.clog 2 n ^ 2 : ℕ) : ℝ) < orderOf (n : ZMod r) := by exact_mod_cast hr
-    push_cast at h2
-    linarith
+    cast_linarith
   refine prime_of_passes hn hlog ⟨h1, h3, ?_⟩
   rcases h5 with h | h
   · exact Or.inl h

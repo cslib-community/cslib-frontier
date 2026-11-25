@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Reindex
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Native.Encoding
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.ValidProg
 
 /-!
 # Native realization of the memory heap's sift-up
@@ -158,16 +159,10 @@ theorem loop_currency_le {w : ℕ} {d : Env} {k fuel : ℕ} {s : Memory.State}
   obtain ⟨_, _, hpost⟩ := triple_iff.mp (step_triple hi hg)
   rw [clientResult_width w, clientState_width w] at hpost
   have hc' : memoryCost (step (d, a)) s ≤ 8 := by
-    unfold step
-    simp only [memoryCost, StateTransitionSpec.clientHistory,
-      StateTransitionSpec.runClient_lift_bind', StateTransitionSpec.totalCost_cons,
-      StateTransitionSpec.stepFn, Memory.step, Memory.charge]
-    split_ifs with hlt <;>
-      simp only [hlt, ↓reduceIte, PriorityQueue.BinaryHeap.Memory.swap,
-        ← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind,
-        StateTransitionSpec.runClient_lift, StateTransitionSpec.runClient_pure',
-        StateTransitionSpec.totalCost, StateTransitionSpec.stepFn, Memory.step, Memory.charge,
-        List.cons_append, List.nil_append, List.append_nil, Nat.add_zero] <;> omega
+    unfold step PriorityQueue.BinaryHeap.Memory.swap
+      BinaryHeap.Memory.Layout.heap BinaryHeap.Memory.Layout.key BinaryHeap.Memory.Layout.pos
+      Block.get Block.set
+    prog_cost
   exact ⟨hpost.1, by omega⟩
 
 /-- One fixed compiler-generated step body before all runtime layouts, widths and indices.
@@ -204,8 +199,7 @@ theorem realizes_loop :
       (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding
       (fun w (d, k) s => Shape w d k s)
       (fun (d, k) s => whileWork guard step (fun _ _ => 0) d (Nat.log 2 k) k s) := by
-  have hStep := realizes_step
-  realize
+  realize [realizes_step]
   intro hv
   refine whileSafe_of_measure _ _ _ w _ (Shape w d.1) (fun k _ => Nat.log 2 k)
     (fun k _ _ hz hk => by
@@ -261,20 +255,11 @@ theorem combined_le {w : ℕ} {d : IndexArgument} {s : Memory.State}
       (PriorityQueue.BinaryHeap.Memory.siftUp d.layout d.index))) :
     memoryCost (PriorityQueue.BinaryHeap.Memory.siftUp d.layout d.index) s + localWork d s ≤
       9 * Nat.log 2 d.index + 2 := by
-  have he := finish_loop_eq (d.heap, ()) (Nat.log 2 d.index) d.index le_rfl
-  have hvalid : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-      ((boundedWhile guard step (d.heap, ()) (Nat.log 2 d.index) d.index).bind fun _ => pure ())) :=
-    by
-      rw [← he] at hv
-      simpa only [← PFunctor.FreeM.bind_eq_bind] using hv
-  have hvloop := ((validHistory_bind w _ (fun _ => pure ()) s).mp hvalid).1
-  have hp := loop_currency_le hi hvloop
-  have hm : memoryCost (PriorityQueue.BinaryHeap.Memory.siftUp d.layout d.index) s =
-      memoryCost (boundedWhile guard step (d.heap, ()) (Nat.log 2 d.index) d.index) s := by
-    rw [← he]
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure, Nat.add_zero]
-  rw [hm]
-  unfold localWork
+  rw [← finish_loop_eq (d.heap, ()) (Nat.log 2 d.index) d.index le_rfl] at hv ⊢
+  simp only [← PFunctor.FreeM.bind_eq_bind] at hv
+  have hp := loop_currency_le hi ((validHistory_bind w _ _ s).mp hv).1
+  simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure, Nat.add_zero,
+    localWork]
   omega
 
 /-- One fixed native emitter repairs a sift-up defect in logarithmic instruction time. The

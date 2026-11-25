@@ -746,6 +746,11 @@ theorem blockNetwork_tensor_blockSink (e : Fin q × Fin k × Fin 3)
     (machine.blockNetwork input b σ).tensor (.inr (.inr e)) x = 1 := by
   unfold blockNetwork; rfl
 
+/-- An optional later appearance leads an edge to an interval only when it is present. -/
+private theorem eq_some_of_elim_eq_inl {α β : Type*} {o : Option α} {e : β} {i : α}
+    (h : o.elim (Sum.inr e) Sum.inl = Sum.inl i) : o = some i := by
+  cases o <;> simp_all
+
 omit [NeZero b] in
 /-- Every edge goes forward in time, from its interval to a later interval or to a sink. -/
 private theorem edgeTarget_eq_inl {e : BlockEdge k q} {i : Fin q}
@@ -756,12 +761,7 @@ private theorem edgeTarget_eq_inl {e : BlockEdge k q} {i : Fin q}
     · cases h
       fin_index [Sum.elim_inl, id_eq]
   · simp only [edgeTarget] at h
-    cases hf : firstAfter (InWindow σ hd (portBlock σ i' hd d)) i' with
-    | none => simp [hf] at h
-    | some i'' =>
-      simp only [hf, Option.elim_some, Sum.inl.injEq] at h
-      subst h
-      exact (firstAfter_eq_some_iff.mp hf).1
+    exact (firstAfter_eq_some_iff.mp (eq_some_of_elim_eq_inl h)).1
 
 omit [NeZero b] in
 /-- A block-counting network has no loops. -/
@@ -791,16 +791,8 @@ private theorem injOn_inEdges (i : Fin q) :
     obtain ⟨rfl, hport⟩ := heq
     simp only [Set.mem_ofPred_eq, edgeTarget] at he₁ he₂
     -- Both are previous appearances of the same block, read at the same window entry of `i`.
-    have hf : ∀ {i' : Fin q} {d' : Fin 3},
-        (firstAfter (InWindow σ h₁ (portBlock σ i' h₁ d')) i').elim
-          (Sum.inr (Sum.inr (i', h₁, d'))) Sum.inl = (Sum.inl i : Fin q ⊕ BlockEdge k q) →
-        firstAfter (InWindow σ h₁ (portBlock σ i' h₁ d')) i' = some i := by
-      intro i' d' h
-      cases hc : firstAfter (InWindow σ h₁ (portBlock σ i' h₁ d')) i' with
-      | none => simp [hc] at h
-      | some i'' => simp only [hc, Option.elim_some, Sum.inl.injEq] at h; rw [h]
-    have hf₁ := hf he₁
-    have hf₂ := hf he₂
+    have hf₁ := eq_some_of_elim_eq_inl he₁
+    have hf₂ := eq_some_of_elim_eq_inl he₂
     have hw₁ := (firstAfter_eq_some_iff.mp hf₁).2.1
     have hw₂ := (firstAfter_eq_some_iff.mp hf₂).2.1
     have hj : portBlock σ i₁ h₁ d₁ = portBlock σ i₂ h₁ d₂ := by
@@ -825,11 +817,9 @@ theorem maxDegreeLE_blockNetwork :
   · have hsplit : (machine.blockNetwork input b σ).incidenceSet (.inl i) ⊆
         {e | e.elim id Prod.fst = i} ∪ {e | edgeTarget σ e = .inl i} := by
       rintro e (he | he)
-      · left
-        rw [blockNetwork_src] at he
-        exact Sum.inl_injective he
-      · right
-        exact he
+      · rw [blockNetwork_src] at he
+        exact Or.inl (Sum.inl_injective he)
+      · exact Or.inr he
     have hout : {e : BlockEdge k q | e.elim id Prod.fst = i}.ncard ≤ 3 * k + 1 := by
       calc {e : BlockEdge k q | e.elim id Prod.fst = i}.ncard
           ≤ (Set.range (Sum.elim (fun _ : Unit => (Sum.inl i : BlockEdge k q))

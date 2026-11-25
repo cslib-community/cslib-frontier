@@ -18,6 +18,8 @@ import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Metric
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 import CslibFrontier.Foundations.Probability.Gaussian.Sheppard
 import CslibFrontier.Foundations.Probability.SecondMoment
+import CslibFrontier.Foundations.Probability.UnionBound
+import CslibFrontier.Foundations.Probability.WeightedSecondMoment
 
 /-!
 # Shared estimates of the Gaussian layouts
@@ -33,7 +35,11 @@ edge scores.
   most `vertexOverlap d R` of the balls around the vertices, and as many around the sources of
   the edges.
 * **Concentration.** The number of local events that occur deviates from its mean by `c` with
-  probability `O(|events| / c ^ 2)` (`measureReal_deviation_le`).
+  probability `O(|events| / c ^ 2)` (`measureReal_deviation_le`); so does a weighted count of local
+  events under any product of probability measures (`measureReal_weightedDeviation_le`). At
+  `c = η h` such a bound `a h / c ^ 2` is below one once `h > a / η ^ 2`
+  (`mul_div_mul_sq_lt_one`), and the union bound then gives a sample outside every deviation
+  event.
 * **Projections.** The product of standard Gaussians on `V → ℝ` is carried to the standard
   Gaussian measure of `EuclideanSpace ℝ V`, so a unit projection lands in a window of width `δ`
   with probability at most `δ / √(2π)` (`measureReal_window_le`), beyond `T` with probability at
@@ -50,6 +56,8 @@ edge scores.
 * `Cslib.Circuits.Frontier.Gaussian.vertexOverlap`: the overlap bound of the balls.
 * `Cslib.Circuits.Frontier.Gaussian.deviation`: the event that a count of events deviates from
   its mean.
+* `Cslib.Circuits.Frontier.Gaussian.weightedDeviation`: the event that a weighted count of events
+  deviates from its mean.
 * `Cslib.Circuits.Frontier.Gaussian.vertexCorrelation`: the limiting correlation of adjacent
   kernel rows in maximum degree `d`.
 
@@ -60,8 +68,9 @@ edge scores.
   distance one.
 * `Cslib.Circuits.Frontier.Gaussian.card_not_disjoint_closedBall_le`,
   `Cslib.Circuits.Frontier.Gaussian.card_not_disjoint_closedBall_src_le`: overlapping balls.
-* `Cslib.Circuits.Frontier.Gaussian.measureReal_deviation_le`: concentration of counts of local
-  events.
+* `Cslib.Circuits.Frontier.Gaussian.measureReal_deviation_le`,
+  `Cslib.Circuits.Frontier.Gaussian.measureReal_weightedDeviation_le`: concentration of counts and
+  weighted counts of local events.
 * `Cslib.Circuits.Frontier.Gaussian.measureReal_window_le`,
   `Cslib.Circuits.Frontier.Gaussian.measureReal_le_abs_le`,
   `Cslib.Circuits.Frontier.Gaussian.measureReal_mem_uIoc_le`: windows, tails and crossings.
@@ -104,12 +113,9 @@ private theorem edist_le_of_not_disjoint {v w : V} {r : ℕ}
     (h : ¬Disjoint (closedBall G.toSimpleGraph v r) (closedBall G.toSimpleGraph w r)) :
     G.toSimpleGraph.edist v w ≤ ((2 * r : ℕ) : ℕ∞) := by
   obtain ⟨z, hvz, hwz⟩ := not_disjoint_iff.mp h
-  calc G.toSimpleGraph.edist v w ≤ G.toSimpleGraph.edist v z + G.toSimpleGraph.edist z w :=
-        SimpleGraph.edist_triangle
-    _ = G.toSimpleGraph.edist v z + G.toSimpleGraph.edist w z := by
-        rw [SimpleGraph.edist_comm (u := z)]
-    _ ≤ r + r := add_le_add hvz hwz
-    _ = ((2 * r : ℕ) : ℕ∞) := by push_cast; ring
+  push_cast; rw [two_mul]
+  exact SimpleGraph.edist_triangle.trans
+    (add_le_add hvz ((SimpleGraph.edist_comm (u := z) (v := w)).trans_le hwz))
 
 omit [Fintype V] in
 /-- The closed ball of radius `r` around one end of an edge lies in the closed ball of radius
@@ -118,17 +124,15 @@ theorem closedBall_subset_of_mem_incidenceSet {e : E} {v w : V} (hv : e ∈ G.in
     (hw : e ∈ G.incidenceSet w) (r : ℕ) :
     closedBall G.toSimpleGraph w r ⊆ closedBall G.toSimpleGraph v (r + 1) := by
   intro z (hz : G.toSimpleGraph.edist w z ≤ r)
-  have h : G.toSimpleGraph.edist v z ≤ G.toSimpleGraph.edist w z + 1 := by
-    by_cases hvw : v = w
-    · rw [hvw]
-      exact le_self_add
-    · refine SimpleGraph.Adj.edist_le_edist_add_one
-        (Multigraph.toSimpleGraph_adj.mpr ⟨hvw, e, ?_⟩) z
-      rcases hv with hv | hv <;> rcases hw with hw | hw <;>
-        simp_all [Multigraph.ends, Sym2.eq_swap]
   change G.toSimpleGraph.edist v z ≤ ((r + 1 : ℕ) : ℕ∞)
   push_cast
-  exact h.trans (add_le_add_left hz 1)
+  refine (?_ : G.toSimpleGraph.edist v z ≤ G.toSimpleGraph.edist w z + 1).trans
+    (add_le_add_left hz 1)
+  by_cases hvw : v = w
+  · exact hvw ▸ le_self_add
+  · refine SimpleGraph.Adj.edist_le_edist_add_one
+      (Multigraph.toSimpleGraph_adj.mpr ⟨hvw, e, ?_⟩) z
+    rcases hv with hv | hv <;> rcases hw with hw | hw <;> simp_all [Multigraph.ends, Sym2.eq_swap]
 
 omit [Fintype V] in
 /-- The closed ball of radius `r` around the target of an edge lies in the closed ball of radius
@@ -197,13 +201,8 @@ theorem exists_sample_of_grid_bounds {Ω : Type*} [MeasurableSpace Ω] {P : Meas
     simpa only [Finset.sum_const, Finset.card_range, nsmul_eq_mul] using
       Finset.sum_le_sum (fun i hi => (measureReal_union_le _ _).trans
         (add_le_add (hA i (Finset.mem_range.mp hi)) (hB i (Finset.mem_range.mp hi))))
-  have hbad : ∃ ω, ω ∉ bad := by
-    by_contra! hall
-    have hlt := hbound.trans_lt hsmall
-    rw [Set.eq_univ_of_forall hall, probReal_univ] at hlt
-    exact lt_irrefl _ hlt
   simpa only [bad, mem_union, mem_iUnion, Finset.mem_range, not_or, not_exists,
-    and_assoc] using hbad
+    and_assoc] using exists_notMem_of_measureReal_lt_one (hbound.trans_lt hsmall)
 
 variable {V : Type*} [Fintype V]
 
@@ -237,6 +236,42 @@ theorem measureReal_deviation_le {A : κ → Set (V → ℝ)} (hA : ∀ k, Measu
 
 end Deviations
 
+section WeightedDeviations
+
+variable {κ : Type*}
+
+/-- The event that the weighted count `∑ k ∈ F, w k 1_{A k}` of the events `A k`, `k ∈ F`,
+deviates from its mean under `P` by at least `c`. -/
+def weightedDeviation {Ω : Type*} [MeasurableSpace Ω] (P : Measure Ω) (F : Finset κ)
+    (w : κ → ℝ) (A : κ → Set Ω) (c : ℝ) : Set Ω :=
+  {ω | c ≤ |∑ k ∈ F, w k * (A k).indicator (1 : Ω → ℝ) ω - ∑ k ∈ F, w k * P.real (A k)|}
+
+open Classical in
+/-- **Concentration of weighted local events.** Under a product of probability measures, if each
+event `A k`, `k ∈ F`, depends only on the coordinates in `S k`, each `S k` meets at most `D` of
+the sets `S l`, `l ∈ F`, and `0 ≤ w k ≤ W`, then the weighted count of the events that occur
+deviates from its mean by at least `c > 0` with probability at most `|F| W ^ 2 D / c ^ 2`. -/
+theorem measureReal_weightedDeviation_le {ι : Type*} [Fintype ι] {Ω : ι → Type*}
+    [∀ i, MeasurableSpace (Ω i)] {μ : ∀ i, Measure (Ω i)} [∀ i, IsProbabilityMeasure (μ i)]
+    (F : Finset κ) {A : κ → Set (Π i, Ω i)} (hA : ∀ k ∈ F, MeasurableSet (A k)) {w : κ → ℝ}
+    {W : ℝ} (hw0 : ∀ k ∈ F, 0 ≤ w k) (hwW : ∀ k ∈ F, w k ≤ W) (S : κ → Set ι)
+    (hAS : ∀ k ∈ F, DependsOn (· ∈ A k) (S k)) {D : ℕ}
+    (hD : ∀ k ∈ F, (F.filter fun l => ¬Disjoint (S k) (S l)).card ≤ D) {c : ℝ} (hc : 0 < c) :
+    (Measure.pi μ).real (weightedDeviation (Measure.pi μ) F w A c) ≤
+      F.card * W ^ 2 * D / c ^ 2 := by
+  rcases F.eq_empty_or_nonempty with rfl | ⟨k, hk⟩
+  · simp [weightedDeviation, hc.not_ge]
+  exact measureReal_pi_le_abs_sum_weighted_indicator_sub_le F hA
+    ((hw0 k hk).trans (hwW k hk)) hw0 hwW S hAS _ (fun _ _ _ _ h => not_not.mp h) hD hc
+
+/-- **The second-moment step.** A deviation bound `a h / c ^ 2` at `c = η h` is below one once
+`h` exceeds `a / η ^ 2`. -/
+theorem mul_div_mul_sq_lt_one {a η h : ℝ} (hη : η ≠ 0) (hh : 0 < h) (ha : a / η ^ 2 < h) :
+    a * h / (η * h) ^ 2 < 1 := by
+  rwa [show a * h / (η * h) ^ 2 = a / η ^ 2 / h by field_simp, div_lt_one hh]
+
+end WeightedDeviations
+
 /-! ### Projections of the sample -/
 
 section Projections
@@ -249,12 +284,10 @@ theorem measureReal_window_le {y : EuclideanSpace ℝ V} (hy : ‖y‖ = 1) (a :
     (hδ : 0 ≤ δ) :
     (Measure.pi fun _ : V => gaussianReal 0 1).real
         {ω | a ≤ ⟪y, WithLp.toLp 2 ω⟫ ∧ ⟪y, WithLp.toLp 2 ω⟫ < a + δ} ≤ δ / √(2 * π) := by
-  have hy0 : y ≠ 0 := by
-    rintro rfl
-    simp at hy
+  have hy0 : y ≠ 0 := fun h => by simp [h] at hy
   refine (measureReal_pi_gaussianReal_eq (s := {x | ⟪y, x⟫ ∈ Ico a (a + δ)})
-    ((by fun_prop : Measurable fun x : EuclideanSpace ℝ V => ⟪y, x⟫) measurableSet_Ico)).trans_le
-    ?_
+    ((by fun_prop : Measurable fun x : EuclideanSpace ℝ V => ⟪y, x⟫)
+      measurableSet_Ico)).trans_le ?_
   rw [measureReal_def]
   refine ENNReal.toReal_le_of_le_ofReal (by positivity)
     ((stdGaussian_inner_mem_le hy0 measurableSet_Ico).trans ?_)
@@ -269,9 +302,8 @@ theorem measureReal_le_abs_le {y : EuclideanSpace ℝ V} (hy : ‖y‖ = 1) {T :
   refine (measureReal_pi_gaussianReal_eq (s := {x | T ≤ |⟪y, x⟫|})
     (measurableSet_le measurable_const (by fun_prop))).trans_le ?_
   rw [measureReal_def]
-  refine ENNReal.toReal_le_of_le_ofReal (by positivity)
-    ((stdGaussian_le_abs_inner_le y hT).trans ?_)
-  rw [hy, one_pow]
+  exact ENNReal.toReal_le_of_le_ofReal (by positivity)
+    ((stdGaussian_le_abs_inner_le y hT).trans (by rw [hy, one_pow]))
 
 /-- **Sheppard's bound for the sample.** Two projections of the sample onto vectors of equal
 norm are separated by a threshold with probability at most their angle over `π`. -/
@@ -288,10 +320,7 @@ theorem inner_toLp_congr {y : EuclideanSpace ℝ V} {S : Set V} (hy : ∀ z ∉ 
     {ω ω' : V → ℝ} (h : ∀ z ∈ S, ω z = ω' z) :
     ⟪y, WithLp.toLp 2 ω⟫ = ⟪y, WithLp.toLp 2 ω'⟫ := by
   simp only [PiLp.inner_apply]
-  refine Finset.sum_congr rfl fun z _ => ?_
-  by_cases hz : z ∈ S
-  · simp [h z hz]
-  · simp [hy z hz]
+  exact Finset.sum_congr rfl fun z _ => by by_cases hz : z ∈ S <;> simp [hz, h, hy]
 
 end Projections
 
@@ -326,10 +355,8 @@ noncomputable def vertexCorrelation (d : ℕ) : ℝ :=
 
 /-- The limiting adjacent correlation `vertexCorrelation d` is positive for `d ≥ 2`. -/
 theorem vertexCorrelation_pos {d : ℕ} (hd : 2 ≤ d) : 0 < vertexCorrelation d := by
-  have hd' : (2 : ℝ) ≤ d := by exact_mod_cast hd
-  have : 0 < (d : ℝ) - 1 := by linarith
-  unfold vertexCorrelation
-  positivity
+  have : 0 < (d : ℝ) - 1 := by linarith [show (2 : ℝ) ≤ d by exact_mod_cast hd]
+  unfold vertexCorrelation; positivity
 
 /-- **Decay rate and radius.** In maximum degree `d ≥ 2`, every correlation below
 `vertexCorrelation d` is met by the truncated kernel bound for some decay rate `q ≥ 0` and some
@@ -337,52 +364,36 @@ radius `R`. -/
 theorem exists_decay_radius_degree {d : ℕ} (hd : 2 ≤ d) {ρ : ℝ}
     (hρ : ρ < vertexCorrelation d) :
     ∃ (q : ℝ) (R : ℕ), 0 ≤ q ∧ ρ ≤ 2 * q / (1 + q ^ 2) - d * ((d - 1) * q ^ 2) ^ R := by
-  set D : ℝ := (d : ℝ)
-  have hD : 2 ≤ D := by
-    simp only [D]
-    exact_mod_cast hd
-  set g := vertexCorrelation d
-  set q₀ := √(D - 1) / (D - 1)
+  let D : ℝ := d
+  have hD : 2 ≤ D := Nat.ofNat_le_cast.mpr hd
   have hu : 0 < D - 1 := by linarith
+  let g := vertexCorrelation d
+  let q₀ := √(D - 1) / (D - 1)
   have hq₀ : 0 < q₀ := by positivity
-  have hs : √(D - 1) ^ 2 = D - 1 := sq_sqrt hu.le
-  have hsq : q₀ ^ 2 = 1 / (D - 1) := by
-    simp only [q₀]
-    rw [div_pow, hs]
-    field_simp
+  have hsq : q₀ ^ 2 = 1 / (D - 1) := by rw [div_pow, sq_sqrt hu.le]; field_simp
   have hlim : 2 * q₀ / (1 + q₀ ^ 2) = g := by
+    have : D ≠ 0 := by linarith
+    have := hu.ne'
     rw [hsq]
-    have hD0 : D ≠ 0 := (by linarith : (0 : ℝ) < D).ne'
-    have hu0 := hu.ne'
     change 2 * (√(D - 1) / (D - 1)) / (1 + 1 / (D - 1)) = 2 * √(D - 1) / D
-    field_simp
-    ring
+    field_simp; ring
   obtain ⟨δ, hδ, hκ⟩ := Metric.continuousAt_iff.mp continuous_correlation.continuousAt
     ((g - ρ) / 2) (by linarith)
-  set q := q₀ - min δ q₀ / 2
+  let q := q₀ - min δ q₀ / 2
   have hmin : 0 < min δ q₀ := lt_min hδ hq₀
-  have hq0 : 0 ≤ q := by
-    simp only [q]
-    linarith [min_le_right δ q₀]
-  have hqq : q < q₀ := by
-    simp only [q]
-    linarith
-  have hκq : g - (g - ρ) / 2 < 2 * q / (1 + q ^ 2) := by
-    have hdist : dist q q₀ < δ := by
-      rw [Real.dist_eq, show q - q₀ = -(min δ q₀ / 2) by simp only [q]; ring, abs_neg,
-        abs_of_pos (by positivity)]
-      linarith [min_le_left δ q₀]
-    have H := hκ hdist
-    rw [Real.dist_eq, hlim] at H
-    linarith [neg_abs_le (2 * q / (1 + q ^ 2) - g)]
+  have hq0 : 0 ≤ q := by dsimp [q]; linarith [min_le_right δ q₀]
+  have hdist : dist q q₀ < δ := by
+    rw [Real.dist_eq, show q - q₀ = -(min δ q₀ / 2) by dsimp [q]; ring, abs_neg,
+      abs_of_pos (by positivity)]
+    linarith [min_le_left δ q₀]
+  have H := hκ hdist; rw [Real.dist_eq, hlim] at H
   have hdecay : (D - 1) * q ^ 2 < 1 := by
-    have hq2 : q ^ 2 < q₀ ^ 2 := by gcongr
-    have hq2' := mul_lt_mul_of_pos_left hq2 hu
-    rwa [hsq, mul_one_div_cancel hu.ne'] at hq2'
+    have hq2 := mul_lt_mul_of_pos_left (show q ^ 2 < q₀ ^ 2 by gcongr; dsimp [q]; linarith) hu
+    rwa [hsq, mul_one_div_cancel hu.ne'] at hq2
   obtain ⟨R, hR⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < (g - ρ) / (2 * D)) hdecay
   have hR' := mul_lt_mul_of_pos_left hR (by linarith : 0 < D)
-  have hcancel : D * ((g - ρ) / (2 * D)) = (g - ρ) / 2 := by field_simp
-  rw [hcancel] at hR'
-  exact ⟨q, R, hq0, by linarith⟩
+  have hD0 : D ≠ 0 := by linarith
+  rw [show D * ((g - ρ) / (2 * D)) = (g - ρ) / 2 by field_simp] at hR'
+  exact ⟨q, R, hq0, by linarith [neg_abs_le (2 * q / (1 + q ^ 2) - g)]⟩
 
 end Cslib.Circuits.Frontier.Gaussian

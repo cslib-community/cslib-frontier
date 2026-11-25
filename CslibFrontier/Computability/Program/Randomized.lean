@@ -157,6 +157,14 @@ private theorem runRand_step_jumpIf_neg (hp : p[pc]? = some (F.jumpIf t label))
     R.run p (k + 1) (R.running pc x) = R.run p k (R.running (pc + 1) x) := by
   rw [run, R.step_jumpIf_neg hp ht, pure_bind]
 
+private theorem bound_map {m : ProbComp (I.Data × ℕ)} {extra T : ℕ}
+    (hT : ∀ z ∈ ((fun z => (z.1, z.2 + extra)) <$> m).support, z.2 ≤ T) :
+    extra ≤ T ∧ ∀ z ∈ m.support, z.2 + extra ≤ T := by
+  have hm : ∀ z ∈ m.support, z.2 + extra ≤ T := fun z hz =>
+    hT (z.1, z.2 + extra) (OracleComp.mem_supportWith_map_iff.mpr ⟨z, hz, rfl⟩)
+  obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty m
+  exact ⟨(Nat.le_add_left _ _).trans (hm z₀ hz₀), hm⟩
+
 private theorem bound_seq {m₁ : ProbComp (I.Data × ℕ)} {m₂ : I.Data → ProbComp (I.Data × ℕ)}
     {extra T : ℕ} (bound : ∀ z ∈ (do
       let z₁ ← m₁
@@ -167,8 +175,9 @@ private theorem bound_seq {m₁ : ProbComp (I.Data × ℕ)} {m₂ : I.Data → P
   bound _ (OracleComp.mem_supportWith_bind_iff.mpr
     ⟨z₁, h₁, OracleComp.mem_supportWith_bind_iff.mpr ⟨z₂, h₂, rfl⟩⟩)
 
-private theorem run_loop_body {p : List F.Instr} {pc bodyPC exitPC k : ℕ} {x : I.Data}
+private theorem run_loop_iter {p : List F.Instr} {pc bodyPC exitPC T : ℕ} {x : I.Data}
     {body : Code I.Op I.Test} {mb : ProbComp (I.Data × ℕ)} {ml : I.Data → ProbComp (I.Data × ℕ)}
+    (hstep : ∀ {k}, R.run p (k + 1) (R.running pc x) = R.run p k (R.running bodyPC x))
     (hbody : Contains p bodyPC (body.assemble F bodyPC))
     (back : p[bodyPC + body.size]? = some (F.goto pc))
     (runBody : ∀ {T}, Contains p bodyPC (body.assemble F bodyPC) →
@@ -179,29 +188,37 @@ private theorem run_loop_body {p : List F.Instr} {pc bodyPC exitPC k : ℕ} {x :
       R.run p T (R.running pc y.1) = (do
         let z ← ml y.1
         R.run p (T - z.2) (R.running exitPC z.1)))
-    (bound : ∀ y ∈ mb.support, ∀ z ∈ (ml y.1).support, y.2 + z.2 + 2 ≤ k + 1) :
-    R.run p k (R.running bodyPC x) = (do
+    (hT : ∀ z ∈ (do
       let z₁ ← mb
       let z₂ ← ml z₁.1
-      let z := (z₂.1, z₁.2 + z₂.2 + 2)
-      R.run p (k + 1 - z.2) (R.running exitPC z.1)) := by
+      pure (z₂.1, z₁.2 + z₂.2 + 2) : ProbComp (I.Data × ℕ)).support, z.2 ≤ T) :
+    R.run p T (R.running pc x) =
+      ((do
+        let z₁ ← mb
+        let z₂ ← ml z₁.1
+        pure (z₂.1, z₁.2 + z₂.2 + 2)) >>= fun z =>
+          R.run p (T - z.2) (R.running exitPC z.1)) := by
+  have bound := @bound_seq I mb ml 2 T hT
+  obtain ⟨y₀, hy₀⟩ := ProbComp.support_nonempty mb
+  obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty (ml y₀.1)
+  have := bound hy₀ hz₀
+  obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
+  rw [hstep]
+  simp only [bind_assoc, pure_bind]
   have room : ∀ y ∈ mb.support, y.2 + 1 ≤ k := by
     intro y hy
     obtain ⟨z, hz⟩ := ProbComp.support_nonempty (ml y.1)
-    have := bound y hy z hz
+    have := bound hy hz
     omega
   rw [runBody hbody (fun y hy => Nat.le_of_succ_le (room y hy))]
   refine OracleComp.bind_congr_on_support fun y hy => ?_
   have := room y hy
-  have rem : k - y.2 = (k - y.2 - 1) + 1 := by omega
-  rw [rem, runRand_step_jump R back]
-  have hRest : ∀ z ∈ (ml y.1).support, z.2 ≤ k - y.2 - 1 := by
-    intro z hz
-    have := bound y hy z hz
-    omega
+  rw [show k - y.2 = (k - y.2 - 1) + 1 by omega, runRand_step_jump R back]
+  have hRest : ∀ z ∈ (ml y.1).support, z.2 ≤ k - y.2 - 1 := fun z hz => by
+    have := bound hy hz; omega
   rw [runRest y hy hRest]
   refine OracleComp.bind_congr_on_support fun z hz => ?_
-  have := bound y hy z hz
+  have := bound hy hz
   congr 1
   omega
 
@@ -235,54 +252,36 @@ theorem ExecRand.runRand_assemble {evalRand} {F : FlatMachine.{u, v, w, i} I}
       omega
     rw [ih₁ hp.append_left hT₁, bind_assoc]
     refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
-    have hT₂ : ∀ z₂ ∈ (m₂ z₁.1).support, z₂.2 ≤ T - z₁.2 := by
-      intro z₂ hz₂
-      have := bound hz₁ hz₂
-      omega
+    have hT₂ : ∀ z₂ ∈ (m₂ z₁.1).support, z₂.2 ≤ T - z₁.2 := fun z₂ hz₂ => by
+      have := bound hz₁ hz₂; omega
     have hc₂ : Contains p (pc + c₁.size) (c₂.assemble F (pc + c₁.size)) := by
       simpa using hp.append_right
     rw [ih₂ z₁ hz₁ hc₂ hT₂, bind_assoc]
     refine OracleComp.bind_congr_on_support fun z₂ _ => ?_
     simp only [pure_bind, Code.size, Nat.sub_sub, Nat.add_assoc]
   | @branch_pos cond pos neg x m hc _ ih =>
-    obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty m
-    have h1 : 1 ≤ T := by
-      have := hT (z₀.1, z₀.2 + 1) (OracleComp.mem_supportWith_map_iff.mpr ⟨z₀, hz₀, rfl⟩)
-      omega
+    obtain ⟨h1, hm⟩ := bound_map hT
     obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
     rw [runRand_step_jumpIf_pos R hp.head hc]
     have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble F (pc + 1))).cons_tail
     rw [Code.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
-    have hTm : ∀ z ∈ m.support, z.2 ≤ k := by
-      intro z hz
-      have := hT (z.1, z.2 + 1) (OracleComp.mem_supportWith_map_iff.mpr ⟨z, hz, rfl⟩)
-      omega
-    rw [ih hc' hTm, ← bind_pure_comp, bind_assoc]
+    rw [ih hc' (fun z hz => Nat.le_of_add_le_add_right (hm z hz)), ← bind_pure_comp, bind_assoc]
     refine OracleComp.bind_congr_on_support fun z _ => ?_
     simp only [pure_bind, Code.size, Nat.add_sub_add_right]
     rw [show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
   | @branch_neg cond pos neg x m hc _ ih =>
-    obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty m
-    have h2 : 2 ≤ T := by
-      have := hT (z₀.1, z₀.2 + 2) (OracleComp.mem_supportWith_map_iff.mpr ⟨z₀, hz₀, rfl⟩)
-      omega
+    obtain ⟨h2, hm⟩ := bound_map hT
     obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
     rw [runRand_step_jumpIf_neg R hp.head hc]
-    have hTm : ∀ z ∈ m.support, z.2 ≤ k := by
-      intro z hz
-      have := hT (z.1, z.2 + 2) (OracleComp.mem_supportWith_map_iff.mpr ⟨z, hz, rfl⟩)
-      omega
+    have hTm : ∀ z ∈ m.support, z.2 ≤ k := fun z hz => by have := hm z hz; omega
     rw [ih hp.cons_tail.append_left hTm, ← bind_pure_comp, bind_assoc]
     refine OracleComp.bind_congr_on_support fun z hz => ?_
-    have hk : 1 ≤ k - z.2 := by
-      have := hT (z.1, z.2 + 2) (OracleComp.mem_supportWith_map_iff.mpr ⟨z, hz, rfl⟩)
-      omega
-    have hrem : k - z.2 = (k + 1 - (z.2 + 2)) + 1 := by omega
+    have := hm z hz
     have hj : p[pc + 1 + neg.size]? = some (F.goto (pc + neg.size + pos.size + 2)) := by
       simpa using (hp.cons_tail.append_right (q₁ := neg.assemble F (pc + 1))).head
     simp only [pure_bind, Code.size]
-    rw [hrem, runRand_step_jump R hj]
-    rw [show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
+    rw [show k - z.2 = (k + 1 - (z.2 + 2)) + 1 by omega, runRand_step_jump R hj,
+      show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
   | @loop_exit cond body x hc =>
     have h2 : 2 ≤ T := hT (x, 2) rfl
     obtain ⟨k, rfl⟩ : ∃ k, T = k + 2 := ⟨T - 2, by omega⟩
@@ -290,37 +289,19 @@ theorem ExecRand.runRand_assemble {evalRand} {F : FlatMachine.{u, v, w, i} I}
       runRand_step_jump R hp.cons_tail.head]
     simp only [pure_bind, Code.size, show k + 1 + 1 - 2 = k by omega, Nat.add_assoc]
   | @loop_iter cond body x mb ml hc _ _ ihb ihl =>
-    have bound := @bound_seq I mb ml 2 T hT
-    obtain ⟨y, hy⟩ := ProbComp.support_nonempty mb
-    obtain ⟨z, hz⟩ := ProbComp.support_nonempty (ml y.1)
-    have := bound hy hz
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-    rw [runRand_step_jumpIf_pos R hp.head hc, bind_assoc]
-    have hbody : Contains p (pc + 2) (body.assemble F (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    have back : p[pc + 2 + body.size]? = some (F.goto pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
-    simp only [bind_assoc, pure_bind]
-    exact run_loop_body R hbody back (fun h hT => ihb h hT)
-      (fun y hy {_} hT => ihl y hy hp hT) (fun _ hy _ hz => bound hy hz)
+    exact run_loop_iter R (runRand_step_jumpIf_pos R hp.head hc)
+      (by simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left)
+      (by simpa using hp.cons_tail.cons_tail.append_right.head)
+      (fun h hT => ihb h hT) (fun y hy {_} hT => ihl y hy hp hT) hT
   | @loopUntil_exit cond body x hc =>
     have h1 : 1 ≤ T := hT (x, 1) rfl
     obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
     rw [runRand_step_jumpIf_pos R hp.head hc]
     simp only [pure_bind, Code.size, Nat.add_sub_cancel, Nat.add_assoc]
   | @loopUntil_iter cond body x mb ml hc _ _ ihb ihl =>
-    have bound := @bound_seq I mb ml 2 T hT
-    obtain ⟨y, hy⟩ := ProbComp.support_nonempty mb
-    obtain ⟨z, hz⟩ := ProbComp.support_nonempty (ml y.1)
-    have := bound hy hz
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-    rw [runRand_step_jumpIf_neg R hp.head hc, bind_assoc]
-    have hbody : Contains p (pc + 1) (body.assemble F (pc + 1)) := by
-      simpa using hp.cons_tail.append_left
-    have back : p[pc + 1 + body.size]? = some (F.goto pc) := by
-      simpa using hp.cons_tail.append_right.head
-    simp only [bind_assoc, pure_bind]
-    exact run_loop_body R hbody back (fun h hT => ihb h hT)
-      (fun y hy {_} hT => ihl y hy hp hT) (fun _ hy _ hz => bound hy hz)
+    exact run_loop_iter R (runRand_step_jumpIf_neg R hp.head hc)
+      (by simpa using hp.cons_tail.append_left)
+      (by simpa using hp.cons_tail.append_right.head)
+      (fun h hT => ihb h hT) (fun y hy {_} hT => ihl y hy hp hT) hT
 
 end Cslib.Program

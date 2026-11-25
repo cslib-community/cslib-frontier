@@ -77,17 +77,14 @@ theorem realize_convert {d m k : ℕ} (B : (language L).Term α)
         Nat.ofDigits (B.realize v).val (List.ofFn fun i => ((z i).realize v).val) := by
   have ha (w : ((Fin (k + 1) ⊕ Fin 2 × Fin k) × Fin d) → Fin n) b' x' y' z' :=
     realize_affine (d := d) (B.relabel Sum.inl) b' x' y' z' (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hB)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hBn)
+      (by fo_simp; exact hB) (by fo_simp; exact hBn)
   have hm (w : ((Fin (k + 1) ⊕ Fin 2 × Fin k) × Fin d) → Fin n) x' y' z' :=
     realize_multiply (d := d) (m := m) (B.relabel Sum.inl) x' y' z' (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hB)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hBn)
+      (by fo_simp; exact hB) (by fo_simp; exact hBn)
   have hd (w : ((Fin (k + 1) ⊕ Fin 2 × Fin k) × Fin d) → Fin n) x' z' :=
     realize_decode (d := d) (B.relabel Sum.inl) x' z' (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using
-        Nat.le_of_lt hB)
-  fo_simp [convert, ha, hm, hd, Function.comp_def, Fin.ext_iff, Nat.one_mul, and_assoc]
+      (by fo_simp; exact Nat.le_of_lt hB)
+  fo_simp [convert, ha, hm, hd, Fin.ext_iff, Nat.one_mul, and_assoc]
   constructor
   · rintro ⟨hNdigits, hz, w, hw0, hwe, hs⟩
     refine ⟨hNdigits, hz, ?_⟩
@@ -109,42 +106,23 @@ theorem realize_convert {d m k : ℕ} (B : (language L).Term α)
       simpa only [V, A, he] using Nat.ofDigits_ofFn_lt hB _ hz
     obtain ⟨q, hq0, hqe, hqb, hqs⟩ := Nat.exists_radix_quotients hN
       (fun i => ((x i).realize v).val)
-    have hr (i : Fin (k + 1)) := exists_word (B.realize v) (lt_of_le_of_lt (hqb i) hV)
-    choose R hR hRv using hr
-    have hdigit (i : Fin k) : ((x i).realize v).val ≤ V := by
-      have := hqs i
-      have := hqb i.castSucc
-      dsimp [V, A]
-      lia
-    have hdword (i : Fin k) := exists_word (B.realize v)
-      (lt_of_le_of_lt (hdigit i) hV)
-    choose D hD hDv using hdword
-    have ht (i : Fin k) : ∃ w : Fin d → Fin n,
-        (∀ j, (w j).val < (B.realize v).val) ∧
-        Nat.ofDigits (B.realize v).val (List.ofFn fun j => (w j).val) = q i.succ * A := by
-      apply exists_word (B.realize v)
+    choose R hR hRv using fun i : Fin (k + 1) =>
+      exists_word (B.realize v) (lt_of_le_of_lt (hqb i) hV)
+    have hdigit (i : Fin k) : ((x i).realize v).val ≤ V ∧ q i.succ * A ≤ V := by
       have := hqs i
       have := hqb i.castSucc
       dsimp [V, A] at *
-      apply lt_of_le_of_lt (show q i.succ * Nat.ofDigits (B.realize v).val
-        (List.ofFn fun i => ((N i).realize v).val) ≤
-        Nat.ofDigits (Nat.ofDigits (B.realize v).val (List.ofFn fun i => ((N i).realize v).val))
-          (List.ofFn fun i => ((x i).realize v).val) by nlinarith) hV
-    choose T hT hTv using ht
+      exact ⟨by lia, by nlinarith⟩
+    choose D hD hDv using fun i => exists_word (B.realize v) (lt_of_le_of_lt (hdigit i).1 hV)
+    choose T hT hTv using fun i => exists_word (B.realize v) (lt_of_le_of_lt (hdigit i).2 hV)
     let w : ((Fin (k + 1) ⊕ Fin 2 × Fin k) × Fin d) → Fin n := fun p =>
       Sum.elim (fun i => R i p.2) (fun i => (![D i.2, T i.2] i.1) p.2) p.1
     refine ⟨hNdigits, hz, w, ?_, ?_, ?_⟩
-    · have h := Nat.ofDigits_ofFn_inj hB (hR 0) hz
-        (show Nat.ofDigits (B.realize v).val (List.ofFn fun j => (R 0 j).val) = _ by
-          rw [hRv, hq0]
-          exact he)
-      exact fun j => congrFun h j
-    · have h := Nat.ofDigits_ofFn_inj hB (hR (Fin.last k))
-        (fun _ : Fin d => show 0 < (B.realize v).val by lia)
-        (show Nat.ofDigits (B.realize v).val (List.ofFn fun j => (R (Fin.last k) j).val) =
-            Nat.ofDigits (B.realize v).val (List.ofFn fun _ : Fin d => 0) by
-          simp only [hRv, hqe, List.ofFn_const, Nat.ofDigits_replicate_zero])
-      exact fun j => congrFun h j
+    · exact congrFun (Nat.ofDigits_ofFn_inj (x := fun j => (R 0 j).val) hB (hR 0) hz
+        (by rw [hRv, hq0]; exact he))
+    · exact congrFun (Nat.ofDigits_ofFn_inj (x := fun j => (R (Fin.last k) j).val)
+        (y := fun _ => 0) hB (hR _) (fun _ => by lia)
+        (by simp only [hRv, hqe, List.ofFn_const, Nat.ofDigits_replicate_zero]))
     · intro i
       dsimp [w]
       refine ⟨hD i, hDv i, hR i.succ, hNdigits, hT i, ?_, Nat.le_of_lt hB,

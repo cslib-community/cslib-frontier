@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Fintype.Perm
 import CslibFrontier.Foundations.Data.Nat.Choose
 import CslibFrontier.Foundations.GroupTheory.Perm.Fixing
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Data.Fintype.CardEmbedding
@@ -160,14 +161,12 @@ sets of size `s`, each failed by thirty permutations with probability at most
 private theorem choose_mul_pow_le {n s k : ℕ} (hs : 0 < s) (hsn : 2 * s ≤ n)
     (hk : 9 * s ≤ 10 * k) :
     (n.choose s : ℝ) * (3 ^ s * (s / (2 * n)) ^ k) ^ 30 ≤ (1 / 2) ^ s / 4 := by
-  have hs' : (0 : ℝ) < s := Nat.cast_pos.2 hs
   have hn : (0 : ℝ) < n := Nat.cast_pos.2 (by omega)
   set x : ℝ := s / (2 * n) with hx
   have hx0 : 0 < x := by positivity
   have hx4 : x ≤ 1 / 4 := by
     rw [hx, div_le_iff₀ (by positivity)]
-    have : (2 * s : ℝ) ≤ n := by exact_mod_cast hsn
-    linarith
+    cast_linarith [hsn, hs]
   have hchoose : (n.choose s : ℝ) ≤ (3 / (2 * x)) ^ s := by
     have h3 := pow_div_factorial_le_three_pow s
     calc (n.choose s : ℝ) ≤ n ^ s / s ! := Nat.choose_le_pow_div s n
@@ -181,7 +180,7 @@ private theorem choose_mul_pow_le {n s k : ℕ} (hs : 0 < s) (hsn : 2 * s ≤ n)
         field_simp
   have hpow : (3 ^ s * x ^ k) ^ 30 ≤ (3 ^ 30) ^ s * (x ^ 27) ^ s := by
     rw [mul_pow, ← pow_mul, ← pow_mul, ← pow_mul, ← pow_mul, mul_comm s 30]
-    exact mul_le_mul_of_nonneg_left (pow_le_pow_of_le_one hx0.le (by linarith) (by omega))
+    exact mul_le_mul_of_nonneg_left (pow_le_pow_of_le_one hx0.le (by cast_linarith) (by omega))
       (by positivity)
   calc (n.choose s : ℝ) * (3 ^ s * x ^ k) ^ 30
       ≤ (3 / (2 * x)) ^ s * ((3 ^ 30) ^ s * (x ^ 27) ^ s) := by gcongr

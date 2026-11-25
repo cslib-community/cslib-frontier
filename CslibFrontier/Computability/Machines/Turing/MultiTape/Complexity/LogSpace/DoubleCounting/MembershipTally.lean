@@ -194,9 +194,9 @@ theorem initial_inSpace {τ : Type} (encT : τ ↪ List Bool) :
     (encSum (encPair encRegisters encT) (encOption encBool)))
   (budget_comp_linear htag
     (encRegisters_mk_budget (budget_id (enc := encContext) (.refl _))
-      (budget_const (encIn := encContext) (encB := encNat) 0 (.refl _))
-      (budget_const (encIn := encContext) (encB := encResult) Scan.Result.zero
-        (.refl _)))).of_enc_eq fun _ => rfl
+      (budget_const (encIn := encContext) (encB := encNat) 0)
+      (budget_const (encIn := encContext) (encB := encResult) Scan.Result.zero))).of_enc_eq
+        fun _ => rfl
 
 /-- The query is the active walk's read position, or zero between calls. -/
 theorem query_inSpace {τ : Type} (encT : τ ↪ List Bool) (ctx : Context)
@@ -204,9 +204,9 @@ theorem query_inSpace {τ : Type} (encT : τ ↪ List Bool) (ctx : Context)
     (hq : ComputableInSpace walk.query encT encNat (fun t => (encT t).length)) :
     ComputableInSpace (machine ctx walk enter result).query (encState encT) encNat
       (fun s => (encState encT s).length) :=
-  (sumElim (budget_const (encIn := encRegisters) (encB := encNat) 0 (.refl _))
+  (sumElim (budget_const (encIn := encRegisters) (encB := encNat) 0)
     (sumElim (budget_comp_linear hq (snd encRegisters encT))
-      (budget_const (encIn := encOption encBool) (encB := encNat) 0 (.refl _)))).of_enc_eq
+      (budget_const (encIn := encOption encBool) (encB := encNat) 0))).of_enc_eq
     fun | .inl _ | .inr (.inl _) | .inr (.inr _) => rfl
 
 /-- The halt test reads only the phase tag. -/
@@ -214,18 +214,18 @@ theorem halted_inSpace {τ : Type} (encT : τ ↪ List Bool) (ctx : Context)
     (walk : NondeterministicQueryMachine τ) (enter : Registers → τ) (result : τ → Option ℕ) :
     ComputableInSpace (machine ctx walk enter result).halted (encState encT) encBool
       (fun s => (encState encT s).length) :=
-  (sumElim (budget_const (encIn := encRegisters) (encB := encBool) false (.refl _))
-    (sumElim (budget_const (encIn := encPair encRegisters encT) (encB := encBool) false (.refl _))
-      (budget_const (encIn := encOption encBool) (encB := encBool) true (.refl _)))).of_enc_eq
+  (sumElim (budget_const (encIn := encRegisters) (encB := encBool) false)
+    (sumElim (budget_const (encIn := encPair encRegisters encT) (encB := encBool) false)
+      (budget_const (encIn := encOption encBool) (encB := encBool) true))).of_enc_eq
     fun | .inl _ | .inr (.inl _) | .inr (.inr _) => rfl
 
 /-- Decode the optional terminal membership bit in linear workspace. -/
 theorem reply_inSpace {τ : Type} (encT : τ ↪ List Bool) :
     ComputableInSpace reply (encState encT) (encOption encBool)
       (fun s => (encState encT s).length) :=
-  (sumElim (budget_const (encIn := encRegisters) (encB := encOption encBool) none (.refl _))
+  (sumElim (budget_const (encIn := encRegisters) (encB := encOption encBool) none)
     (sumElim
-      (budget_const (encIn := encPair encRegisters encT) (encB := encOption encBool) none (.refl _))
+      (budget_const (encIn := encPair encRegisters encT) (encB := encOption encBool) none)
       (budget_id (enc := encOption encBool) (.refl _)))).of_enc_eq
     fun | .inl _ | .inr (.inl _) | .inr (.inr _) => rfl
 
@@ -265,7 +265,9 @@ theorem next_withParameter_inSpace {π τ : Type} (encParam : π ↪ List Bool)
   let hb₀ := snd' (snd' htail)
   let hctx := encRegisters_context_budget hr₀
   let hobs := encRegisters_observed_budget hr₀
-  let hno₀ := budget_const (encIn := encPair encRegisters encTail) (encB := encDone) none (.refl _)
+  let hno₀ :=
+    budget_const (Bs := fun a => (encPair encRegisters encTail a).length)
+      (encIn := encPair encRegisters encTail) (encB := encDone) none
   let hstop := budget_comp_linear finished (budget_ite hb₀ hno₀
     (budget_ite (budget_comp_linear matches_inSpace
       (budget_prod (encResult_tally_budget hobs) (encContext_expected_budget hctx)))
@@ -281,10 +283,10 @@ theorem next_withParameter_inSpace {π τ : Type} (encParam : π ↪ List Bool)
   let hread := snd' (snd encWalk encTail)
   let reject : State τ := .inr (.inr none)
   let hpending := budget_ite (budget_comp_linear hh ht)
-    (budget_ite (snd' hread) (budget_const reject (.refl _))
+    (budget_ite (snd' hread) (budget_const reject)
       (budget_comp_linear
-        (optionElimSnd (budget_const (encIn := encRegisters) (encB := encState encT) reject
-          (.refl _)) (budget_comp_linear select record_inSpace))
+        (optionElimSnd (budget_const (encIn := encRegisters) (encB := encState encT) reject)
+          (budget_comp_linear select record_inSpace))
         (budget_prod hr₁ (budget_comp_linear hr ht))))
     (budget_comp_linear running (budget_prod hr₁ (budget_comp_linear hn (budget_prod ht hread))))
   refine (sumElimFst hboundary
@@ -310,7 +312,9 @@ theorem next_inSpace {τ : Type} (encT : τ ↪ List Bool) (ctx : Context)
   let E := encState encT
   let hnext := next_withParameter_inSpace encUnit encT ctx walk (fun _ => enter) result
     (budget_comp_linear he (snd encUnit encRegisters)) hn hh hr
-  let hparam := budget_const (encIn := encPair E encReadChoice) (encB := encUnit) () (.refl _)
+  let hparam :=
+    budget_const (Bs := fun a => (encPair E encReadChoice a).length)
+      (encIn := encPair E encReadChoice) (encB := encUnit) ()
   (budget_comp_linear hnext
     (budget_prod (fst E encReadChoice) (budget_prod hparam (snd E encReadChoice)))).of_enc_eq
     fun _ => rfl
@@ -1018,8 +1022,8 @@ private theorem rankOr_budget {α : Type} {enc : α ↪ List Bool} {budget : α 
     (fallback : Fin N) {rank : α → ℕ} (hr : ComputableInSpace rank enc encNat budget) :
     ComputableInSpace (fun a => rankOr fallback (rank a)) enc
       (Fin.valEmbedding.trans encNat) budget := by
-  refine (budget_ite (budget_natLt hr ((constZero N).mono_le fun _ => Nat.zero_le _)) hr
-    ((constZero fallback.val).mono_le fun _ => Nat.zero_le _)).of_enc_eq fun a => ?_
+  refine (budget_ite (budget_natLt hr (budget_const N)) hr
+    (budget_const fallback.val)).of_enc_eq fun a => ?_
   by_cases h : rank a < N <;> simp [rankOr, h]
 
 private theorem enterWalk_inSpace (encCallee : τ ↪ List Bool) :

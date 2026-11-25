@@ -11,9 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.GoemansWilliamson
 public import Mathlib.Probability.Distributions.Gaussian.Multivariate
 import CslibFrontier.Foundations.Analysis.Normed.UnitSphere
-import CslibFrontier.Foundations.MeasureTheory.Constructions.BorelSpace.Order
 import CslibFrontier.Foundations.Probability.Gaussian.Sheppard
-import Mathlib.MeasureTheory.Integral.Average
 
 /-!
 # Goemans–Williamson random-hyperplane rounding for MAX-CUT

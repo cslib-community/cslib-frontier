@@ -178,26 +178,26 @@ theorem min_le_one_sub_spectralExpansion_reingoldStep {V : Type*} [Fintype V]
   have hμ₁ := G.spectralExpansion_le_one
   have hν₀ := H.spectralExpansion_nonneg
   set x := (1 - G.spectralExpansion) * (1 - H.spectralExpansion) ^ 2 with hx
-  have hν : (16 / 25 : ℝ) ≤ (1 - H.spectralExpansion) ^ 2 := by nlinarith
+  have hν : (16 / 25 : ℝ) ≤ (1 - H.spectralExpansion) ^ 2 := by
+    rw [show (16 / 25 : ℝ) = (4 / 5) ^ 2 by norm_num]; gcongr; linarith
   have hx₁ : x ≤ 1 :=
     (mul_le_mul (by linarith) (pow_le_one₀ (by linarith) (by linarith)) (sq_nonneg _)
       zero_le_one).trans_eq (one_mul 1)
   have hxγ : 16 / 25 * γ ≤ x := by
-    rw [hx]
-    calc 16 / 25 * γ ≤ (1 - H.spectralExpansion) ^ 2 * γ :=
-          mul_le_mul_of_nonneg_right hν hγ₀
-      _ ≤ (1 - H.spectralExpansion) ^ 2 * (1 - G.spectralExpansion) :=
-          mul_le_mul_of_nonneg_left hγ (sq_nonneg _)
-      _ = _ := mul_comm _ _
+    rw [hx, mul_comm (16 / 25)]
+    exact mul_le_mul hγ hν (by norm_num) (by linarith)
   have hstep : (reingoldStep H e G).spectralExpansion ≤ (1 - 16 / 25 * γ) ^ 2 :=
     (spectralExpansion_reingoldStep_le H e G).trans
       (pow_le_pow_left₀ (by linarith) (by linarith) 2)
   have hγ₁ : γ ≤ 1 := by linarith
   rcases le_total γ (1 / 6) with h | h
   · refine (min_le_left _ _).trans ?_
-    nlinarith
+    have hq : 0 ≤ γ * (25 - 128 * γ) := mul_nonneg hγ₀ (by linarith)
+    linarith [show 1 - (1 - 16 / 25 * γ) ^ 2 - 6 / 5 * γ = 2 / 625 * (γ * (25 - 128 * γ)) by ring]
   · refine (min_le_right _ _).trans ?_
-    nlinarith
+    have hq : (1 - 16 / 25 * γ) ^ 2 ≤ (67 / 75) ^ 2 :=
+      pow_le_pow_left₀ (by linarith) (by linarith) 2
+    linarith [show (67 / 75 : ℝ) ^ 2 ≤ 4 / 5 by norm_num]
 
 /-- **The spectral gap grows geometrically** [Reingold, Lemma 3.2][Reingold2008]: if `λ(H) ≤ 1 / 5`
 and the spectral gap of `G` is at least `γ ≥ 0`, the `ℓ`-th graph of the transformation has spectral

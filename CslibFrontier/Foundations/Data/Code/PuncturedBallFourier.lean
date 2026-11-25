@@ -47,10 +47,9 @@ coefficients `a x`, which vanish for `|x| > w`. The hypotheses are only required
 `2 w < n`, the range in which they are used.
 
 These forms agree with arXiv:1909.11929v1, which states both bounds for every `n` with no error
-term. An independent review of #4735 checked the specializations there. Saglam's `γ` is
-`H₂(ρ) / 2 - ψ(3, ρ)`, by Kirshner–Samorodnitsky Proposition 2.6 at `p = 3` with `t = 1 - 2 δ`,
-which gives Saglam's `1 - 2 u = √(ρ / (2 - 3 ρ))`. Saglam's integral is their tail exponent `τ`
-on `y ≤ 1 / 2 - √(ρ (1 - ρ))` (their §2.1.1–2.1.2).
+term. Saglam's `γ` is `H₂(ρ) / 2 - ψ(3, ρ)`, by Kirshner–Samorodnitsky Proposition 2.6 at `p = 3`
+with `t = 1 - 2 δ`, which gives Saglam's `1 - 2 u = √(ρ / (2 - 3 ρ))`. Saglam's integral is their
+tail exponent `τ` on `y ≤ 1 / 2 - √(ρ (1 - ρ))` (their §2.1.1–2.1.2).
 
 Everything else in Saglam's Appendix A is proved: `μ̂` has degree at most `w` and
 `𝔼 μ̂ ^ 2 = 1 / V` (`Cslib.Code.sum_charSum_sq`); `γ(ρ) ≥ c ρ` for `0 < ρ ≤ 1 / 2 - ε`
@@ -227,11 +226,9 @@ private theorem div_le_ksGamma_of_le {ρ : ℝ} (h0 : 0 < ρ) (h1 : ρ ≤ 3 / 2
   have l1 : log (1 - ρ) ≤ -ρ := by linarith only [log_le_sub_one_of_pos hρ1]
   -- `(1 - a) log (1 - a) ≥ -a`
   have l2 : -(3 * ρ / 2) ≤ (1 - 3 * ρ / 2) * log (1 - 3 * ρ / 2) := by
-    have hlog := one_sub_inv_le_log_of_pos ha
     have e : (1 - 3 * ρ / 2) * (1 - (1 - 3 * ρ / 2)⁻¹) = -(3 * ρ / 2) := by
       rw [mul_sub, mul_inv_cancel₀ ha.ne']; ring
-    have hm := mul_le_mul_of_nonneg_left hlog ha.le
-    rwa [e] at hm
+    exact e ▸ mul_le_mul_of_nonneg_left (one_sub_inv_le_log_of_pos ha) ha.le
   have hsplit : log (2 - 3 * ρ) = log 2 + log (1 - 3 * ρ / 2) := by
     rw [← log_mul two_ne_zero ha.ne']; ring_nf
   -- `-log ρ ≥ log (20 / 3) ≥ 3 log 2 - 1 / 5`
@@ -245,32 +242,14 @@ private theorem div_le_ksGamma_of_le {ρ : ℝ} (h0 : 0 < ρ) (h1 : ρ ≤ 3 / 2
     have h20 : log (20 / 3) = 3 * log 2 + log (5 / 6) := by
       rw [show (20 / 3 : ℝ) = 2 ^ 3 * (5 / 6) by norm_num, log_mul (by norm_num) (by norm_num),
         log_pow]; norm_num
-    rw [h20] at hl
-    rw [sub_eq_add_neg]
-    exact (add_le_add_right h56 _).trans hl
+    linarith only [hl, h56, h20]
   have hm1 : 2 * (1 - ρ) * log (1 - ρ) ≤ 2 * (1 - ρ) * (-ρ) :=
     mul_le_mul_of_nonneg_left l1 (mul_nonneg zero_le_two hρ1.le)
   have hm3 : ρ / 2 * (3 * log 2 - 1 / 5) ≤ ρ / 2 * (-log ρ) :=
     mul_le_mul_of_nonneg_left l3 (div_nonneg h0.le zero_le_two)
   have hρ2 : ρ * ρ ≤ 3 / 20 * ρ := mul_le_mul_of_nonneg_right h1 h0.le
   rw [ksGamma, hsplit]
-  calc ρ / 20 ≤ 2 / 5 * ρ - 2 * (ρ * ρ) := by
-        have h2 : 2 * (ρ * ρ) ≤ 3 / 10 * ρ := by
-          calc 2 * (ρ * ρ) ≤ 2 * (3 / 20 * ρ) := mul_le_mul_of_nonneg_left hρ2 zero_le_two
-            _ = 3 / 10 * ρ := by ring
-        have h10 : ρ / 20 ≤ 1 / 10 * ρ := by
-          calc ρ / 20 = 1 / 20 * ρ := by ring
-            _ ≤ 1 / 10 * ρ := mul_le_mul_of_nonneg_right (by norm_num) h0.le
-        calc ρ / 20 ≤ 1 / 10 * ρ := h10
-          _ = 2 / 5 * ρ - 3 / 10 * ρ := by ring
-          _ ≤ 2 / 5 * ρ - 2 * (ρ * ρ) := sub_le_sub_left h2 _
-    _ = (ρ / 2 * (3 * log 2 - 1 / 5) - 2 * (1 - ρ) * (-ρ)) +
-          (-(3 * ρ / 2) + ((1 - 3 * ρ / 2) * log 2 - log 2)) := by ring
-    _ ≤ (ρ / 2 * (-log ρ) - 2 * (1 - ρ) * log (1 - ρ)) +
-          ((1 - 3 * ρ / 2) * log (1 - 3 * ρ / 2) + ((1 - 3 * ρ / 2) * log 2 - log 2)) :=
-        add_le_add (sub_le_sub hm3 hm1) (add_le_add_left l2 _)
-    _ = -(ρ / 2 * log ρ) - 2 * (1 - ρ) * log (1 - ρ) - log 2 +
-          (1 - 3 * ρ / 2) * (log 2 + log (1 - 3 * ρ / 2)) := by ring
+  linarith only [hm1, hm3, l2, hρ2, h0]
 
 /-- **Positivity of the exponent** [Saglam2027, Appendix A]: for every `ε > 0` there is `c > 0` with
 `c ρ ≤ γ(ρ)` for `0 < ρ ≤ 1 / 2 - ε`. -/
@@ -286,19 +265,12 @@ theorem exists_mul_le_ksGamma {ε : ℝ} (hε : 0 < ε) :
   refine ⟨min (1 / 20) (2 * ksGamma ρ₀), lt_min (by norm_num) (mul_pos two_pos hpos),
     fun ρ h0 h1 => ?_⟩
   rcases le_total ρ (3 / 20) with hs | hl
-  · calc min (1 / 20) (2 * ksGamma ρ₀) * ρ ≤ 1 / 20 * ρ :=
-          mul_le_mul_of_nonneg_right (min_le_left _ _) h0.le
-      _ = ρ / 20 := by ring
-      _ ≤ ksGamma ρ := div_le_ksGamma_of_le h0 hs
+  · linarith only [mul_le_mul_of_nonneg_right (min_le_left (1 / 20) (2 * ksGamma ρ₀)) h0.le,
+      div_le_ksGamma_of_le h0 hs]
   · have hρhalf : ρ ≤ 1 / 2 := h1.trans (sub_le_self _ hε.le)
-    have hle : ksGamma ρ₀ ≤ ksGamma ρ :=
-      strictAntiOn_ksGamma.antitoneOn ⟨hl, hρhalf⟩ hρ₀m (h1.trans (le_max_left _ _))
-    calc min (1 / 20) (2 * ksGamma ρ₀) * ρ ≤ 2 * ksGamma ρ₀ * ρ :=
-          mul_le_mul_of_nonneg_right (min_le_right _ _) h0.le
-      _ ≤ 2 * ksGamma ρ₀ * (1 / 2) :=
-          mul_le_mul_of_nonneg_left hρhalf (mul_nonneg zero_le_two hpos.le)
-      _ = ksGamma ρ₀ := by ring
-      _ ≤ ksGamma ρ := hle
+    linarith only [mul_le_mul_of_nonneg_right (min_le_right (1 / 20) (2 * ksGamma ρ₀)) h0.le,
+      mul_le_mul_of_nonneg_left hρhalf (mul_nonneg zero_le_two hpos.le),
+      strictAntiOn_ksGamma.antitoneOn ⟨hl, hρhalf⟩ hρ₀m (h1.trans (le_max_left _ _))]
 
 /-- The integrand `log ((1 - 2 ρ + √((1 - 2 ρ) ^ 2 - 4 z (1 - z))) / (2 (1 - z)))` of the
 Kirshner–Samorodnitsky tail exponent [Saglam2027, Appendix A], in nats. -/
@@ -328,16 +300,9 @@ private theorem ksTailIntegrand_arg {ρ z : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < 1
         pow_le_one₀ h1ρ.le (sub_le_self _ (mul_nonneg zero_le_two hρ0))
       have h2 : 0 ≤ z * (1 - z) :=
         mul_nonneg hz0 (sub_nonneg.mpr (hz.trans (by norm_num)))
-      have hmul : (1 - 2 * ρ) ^ 2 * (z * (1 - z)) ≤ 1 * (z * (1 - z)) :=
-        mul_le_mul_of_nonneg_right h1 h2
-      calc (1 - 2 * ρ) ^ 2 - 4 * z * (1 - z)
-          = (1 - 2 * ρ) ^ 2 - 4 * (1 * (z * (1 - z))) := by ring
-        _ ≤ (1 - 2 * ρ) ^ 2 - 4 * ((1 - 2 * ρ) ^ 2 * (z * (1 - z))) :=
-          sub_le_sub_left (mul_le_mul_of_nonneg_left hmul (by norm_num)) _
-        _ = ((1 - 2 * ρ) * (1 - 2 * z)) ^ 2 := by ring
-    calc 1 - 2 * ρ + √((1 - 2 * ρ) ^ 2 - 4 * z * (1 - z))
-        ≤ 1 - 2 * ρ + (1 - 2 * ρ) * (1 - 2 * z) := add_le_add_right hs _
-      _ = (1 - 2 * ρ) * (2 * (1 - z)) := by ring
+      have hmul : (1 - 2 * ρ) ^ 2 * (z * (1 - z)) ≤ 1 * (z * (1 - z)) := by gcongr
+      linarith only [hmul]
+    linarith only [hs]
 
 /-- **The tail exponent bound** [Saglam2027, Appendix A]: the integrand is at most
 `log (1 - 2 ρ) ≤ -2 ρ`, so `T(ρ, y) ≤ h(ρ) - 2 ρ y` for `0 ≤ y ≤ 1 / 2`. -/
@@ -357,9 +322,7 @@ theorem ksTailExponent_le {ρ y : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < 1 / 2) (hy0
       _ = -2 * ρ := by ring
   rw [intervalIntegral.integral_const, smul_eq_mul, sub_zero] at hle
   rw [ksTailExponent]
-  calc binEntropy ρ + ∫ z in (0 : ℝ)..y, ksTailIntegrand ρ z
-      ≤ binEntropy ρ + y * (-2 * ρ) := add_le_add_right hle _
-    _ = binEntropy ρ - 2 * ρ * y := by ring
+  linarith only [hle]
 
 /-- `ε ^ 2 ≤ 1 / 2 - √(ρ (1 - ρ))` for `0 ≤ ρ ≤ 1 / 2 - ε`. -/
 theorem sq_le_half_sub_sqrt {ε ρ : ℝ} (hε : 0 ≤ ε) (hρ0 : 0 ≤ ρ) (hρ : ρ ≤ 1 / 2 - ε) :
@@ -369,10 +332,7 @@ theorem sq_le_half_sub_sqrt {ε ρ : ℝ} (hε : 0 ≤ ε) (hρ0 : 0 ≤ ρ) (h�
   have h1 : ε ^ 2 ≤ (1 / 2 - ρ) ^ 2 := pow_le_pow_left₀ hε (le_sub_comm.mp hρ) 2
   have h : √(ρ * (1 - ρ)) ≤ 1 / 2 - ε ^ 2 := by
     rw [sqrt_le_left (sub_nonneg.mpr hεsq)]
-    calc ρ * (1 - ρ) = 1 / 4 - (1 / 2 - ρ) ^ 2 := by ring
-      _ ≤ 1 / 4 - ε ^ 2 := sub_le_sub_left h1 _
-      _ ≤ 1 / 4 - ε ^ 2 + (ε ^ 2) ^ 2 := le_add_of_nonneg_right (sq_nonneg _)
-      _ = (1 / 2 - ε ^ 2) ^ 2 := by ring
+    linarith only [h1, sq_nonneg (ε ^ 2)]
   exact le_sub_comm.mp h
 
 end Exponents
@@ -479,12 +439,8 @@ theorem moment_le_of_ksThirdMomentBound (hKS : KSThirdMomentBound n w) (hw0 : 0 
       have := mul_le_mul_of_nonneg_left hc hnpos.le
       rwa [show (n : ℝ) * (c * (w / n)) = c * w by field_simp] at this
     have hlog := log_le_logb_two hn
-    have hlog0 := log_nonneg hn
-    calc 4 * log n ≤ 4 * logb 2 n := mul_le_mul_of_nonneg_left hlog (by norm_num)
-      _ ≤ (c * K) * logb 2 n := mul_le_mul_of_nonneg_right hcK (hlog0.trans hlog)
-      _ = c * (K * logb 2 n) := by ring
-      _ ≤ c * w := mul_le_mul_of_nonneg_left hK hc0.le
-      _ ≤ n * ksGamma (w / n) := h1
+    linarith only [hlog, h1, mul_le_mul_of_nonneg_right hcK ((log_nonneg hn).trans hlog),
+      mul_le_mul_of_nonneg_left hK hc0.le]
   have hexp : exp (-(n * ksGamma (w / n))) ≤ ((n : ℝ) ^ 4)⁻¹ := by
     rw [← exp_neg_mul_log 4 hnpos]
     push_cast
@@ -500,11 +456,7 @@ theorem moment_le_of_ksThirdMomentBound (hKS : KSThirdMomentBound n w) (hw0 : 0 
   calc (∑ y, |charSum B y / #B| ^ 3) / 2 ^ n
       ≤ (#B : ℝ)⁻¹ * (√((#B : ℝ)⁻¹) * √(exp (n * binEntropy (w / n)))) *
           exp (-(n * ksGamma (w / n))) := by
-        calc (∑ y, |charSum B y / #B| ^ 3) / 2 ^ n
-            ≤ (#B : ℝ)⁻¹ * √(#B : ℝ)⁻¹ * (√(exp (n * binEntropy (w / n))) *
-                exp (-(n * ksGamma (w / n)))) := h
-          _ = (#B : ℝ)⁻¹ * (√(#B : ℝ)⁻¹ * √(exp (n * binEntropy (w / n)))) *
-                exp (-(n * ksGamma (w / n))) := by ring
+        exact h.trans_eq (by ring)
     _ ≤ (#B : ℝ)⁻¹ * (2 * n) * ((n : ℝ) ^ 4)⁻¹ :=
         mul_le_mul (mul_le_mul_of_nonneg_left (hsq.trans hsqn) (inv_nonneg.2 hV.le)) hexp
           (exp_pos _).le (mul_nonneg (inv_nonneg.2 hV.le) (mul_nonneg zero_le_two hnpos.le))
@@ -539,13 +491,7 @@ private theorem threshold_le {n w y V : ℝ} (hn : 2 ≤ n) (hρ0 : 0 ≤ w / n)
     have hwy' : n * (2 * (w / n) * y) = 2 * (w * y) := by field_simp
     have hm := mul_le_mul_of_nonneg_left hT hnpos.le
     rw [mul_sub, hwy'] at hm
-    calc n * (ksTailExponent (w / n) y - binEntropy (w / n) / 2)
-        = n * ksTailExponent (w / n) y - n * binEntropy (w / n) / 2 := by ring
-      _ ≤ (n * binEntropy (w / n) - 2 * (w * y)) - n * binEntropy (w / n) / 2 :=
-        sub_le_sub_right hm _
-      _ = n * binEntropy (w / n) / 2 + -(2 * (w * y)) := by ring
-      _ ≤ n * binEntropy (w / n) / 2 + -(2 * log n) :=
-        add_le_add_right (neg_le_neg (mul_le_mul_of_nonneg_left hwy zero_le_two)) _
+    linarith only [hm, hwy]
   have hn2 : exp (-(2 * log n)) = (n ^ 2)⁻¹ := by
     rw [← Nat.cast_two]; exact exp_neg_mul_log 2 hnpos
   have hsqn : √(n + 1) ≤ n := by
@@ -581,8 +527,7 @@ private theorem exp_binEntropy_le_rpow {n w y : ℝ} (hw : 0 < w) (hlg : 0 < log
           (div_le_div_of_nonneg_left (exp_pos 1).le hu0 hy1)) hy0.le
       _ ≤ 2 * u * log (exp 1 / u) := mul_le_mul_of_nonneg_right hy2 hlog0
   rw [two_rpow_tail_eq, ← hu]
-  refine exp_le_exp.2 ?_
-  exact mul_le_mul_of_nonneg_left (sub_le_sub_right hent (log 2)) hn
+  exact exp_le_exp.2 (mul_le_mul_of_nonneg_left (sub_le_sub_right hent (log 2)) hn)
 
 /-- **The tail estimate of Lemma 3.1** [Saglam2027, Appendix A] from the Kirshner–Samorodnitsky
 tail bound, with `k = ⌈n log₂ n / w⌉` and `y = k / n`: if `ρ = w / n ≤ 1 / 2 - ε`,
@@ -598,10 +543,7 @@ theorem tail_le_of_ksTailBound (hKS : KSTailBound n w) (hw0 : 0 < w) {ε K : ℝ
   have hw1 : (1 : ℝ) ≤ w := by exact_mod_cast hw0
   have hε2pos : 0 < 2 / ε ^ 2 := div_pos two_pos (sq_pos_of_pos hε)
   have hnpos : (0 : ℝ) < n := hε2pos.trans_le hnε
-  have hwn' : (2 * w : ℝ) < n := by
-    calc (2 * w : ℝ) ≤ 2 * ((1 / 2 - ε) * n) := mul_le_mul_of_nonneg_left hρ zero_le_two
-      _ = n - 2 * (ε * n) := by ring
-      _ < n := sub_lt_self _ (mul_pos two_pos (mul_pos hε hnpos))
+  have hwn' : (2 * w : ℝ) < n := by linarith only [hρ, mul_pos hε hnpos]
   have hwn : 2 * w < n := by exact_mod_cast hwn'
   obtain ⟨hV, hsupp, hpar, hsq⟩ := puncturedBall_facts (n := n) hw0 (by omega)
   have hn2 : (2 : ℝ) ≤ n := by exact_mod_cast (show 2 ≤ n by omega)
@@ -613,19 +555,13 @@ theorem tail_le_of_ksTailBound (hKS : KSTailBound n w) (hw0 : 0 < w) {ε K : ℝ
   have huK : logb 2 n / w ≤ ε ^ 2 / 2 := by
     have h1 : logb 2 n / w ≤ 1 / K := by
       rw [div_le_div_iff₀ hwpos hKpos, one_mul, mul_comm]; exact hKw
-    have h2 : 1 / K ≤ 1 / (2 / ε ^ 2) := one_div_le_one_div_of_le hε2pos hK
-    rw [one_div_div] at h2
-    exact h1.trans h2
+    exact h1.trans ((one_div_le_one_div_of_le hε2pos hK).trans_eq (one_div_div _ _))
   have hnu : 1 / (n : ℝ) ≤ logb 2 n / w := by
     rw [div_le_div_iff₀ hnpos hwpos, one_mul]
-    calc (w : ℝ) ≤ n := by linarith only [hwn', hw1]
-      _ = 1 * n := (one_mul _).symm
-      _ ≤ logb 2 n * n := mul_le_mul_of_nonneg_right hlg hnpos.le
+    linarith only [hwn', hw1, mul_le_mul_of_nonneg_right hlg hnpos.le]
   have hεhalf : ε < 1 / 2 :=
     sub_pos.mp (pos_of_mul_pos_left (hwpos.trans_le hρ) hnpos.le)
-  have hε1 : ε ^ 2 < 1 / 4 := by
-    calc ε ^ 2 < (1 / 2) ^ 2 := pow_lt_pow_left₀ hεhalf hε.le two_ne_zero
-      _ = 1 / 4 := by norm_num
+  have hε1 : ε ^ 2 < 1 / 4 := (pow_lt_pow_left₀ hεhalf hε.le two_ne_zero).trans_eq (by norm_num)
   -- the parameter `y = ⌈n u⌉ / n`
   have hky1 : logb 2 n / w ≤ (⌈n * (logb 2 n / w)⌉₊ : ℝ) / n := by
     rw [le_div_iff₀ hnpos, mul_comm]; exact Nat.le_ceil _
@@ -644,12 +580,9 @@ theorem tail_le_of_ksTailBound (hKS : KSTailBound n w) (hw0 : 0 < w) {ε K : ℝ
   dsimp only at h
   simp_rw [← charSum_div_card_eq] at h
   rw [hpar] at h
-  have hwy : log n ≤ w * ((⌈n * (logb 2 n / w)⌉₊ : ℝ) / n) := by
-    have hl := log_le_logb_two (one_le_two.trans hn2)
-    have hmul : (w : ℝ) * (logb 2 n / w) = logb 2 n := mul_div_cancel₀ _ hwpos.ne'
-    calc log n ≤ logb 2 n := hl
-      _ = w * (logb 2 n / w) := hmul.symm
-      _ ≤ w * ((⌈n * (logb 2 n / w)⌉₊ : ℝ) / n) := mul_le_mul_of_nonneg_left hky1 hwpos.le
+  have hwy : log n ≤ w * ((⌈n * (logb 2 n / w)⌉₊ : ℝ) / n) :=
+    (log_le_logb_two (one_le_two.trans hn2)).trans ((mul_div_cancel₀ _ hwpos.ne').symm.trans_le
+      (mul_le_mul_of_nonneg_left hky1 hwpos.le))
   have hthr := threshold_le hn2 hρ0 (hρε.trans_lt (sub_lt_self _ hε)) hy0.le
     (hyε.trans (hε1.le.trans (by norm_num))) hwy hsq
   refine le_trans ?_ (exp_binEntropy_le_rpow hwpos hlgpos
@@ -681,11 +614,7 @@ theorem exists_puncturedBallFourierBounds_of_ks {ε : ℝ} (hε : 0 < ε) :
     have : (0 : ℝ) < w := (mul_pos hKpos (zero_lt_one.trans_le hlg)).trans_le hKw
     exact_mod_cast this
   have hwn : 2 * w < n := by
-    have : (2 * w : ℝ) < n := by
-      calc (2 * w : ℝ) ≤ 2 * ((1 / 2 - ε) * n) := mul_le_mul_of_nonneg_left hρ zero_le_two
-        _ = n - 2 * (ε * n) := by ring
-        _ < n := sub_lt_self _ (mul_pos two_pos (mul_pos hε hnpos))
-    exact_mod_cast this
+    exact_mod_cast (by linarith only [hρ, mul_pos hε hnpos] : (2 * w : ℝ) < n)
   refine ⟨moment_le_of_ksThirdMomentBound hM hw0 hwn
     hc (hγ _ (div_pos (by exact_mod_cast hw0) hnpos) (by rw [div_le_iff₀ hnpos]; exact hρ))
     (by rw [div_le_iff₀ hc, mul_comm] at hK4; exact hK4) hKw,

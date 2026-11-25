@@ -315,6 +315,12 @@ instance : DecidableEq (Result F)
   | .blossom _, .exhausted _ => isFalse (by intro h; cases h)
   | .blossom _, .augment _ => isFalse (by intro h; cases h)
 
+/-- Erasing a member of `remaining` and then filtering strictly decreases its length. -/
+theorem length_filter_erase_lt {α : Type*} [BEq α] [LawfulBEq α] {remaining : List α} {a : α}
+    {p : α → Bool} (ha : a ∈ remaining) :
+    ((remaining.erase a).filter p).length < remaining.length :=
+  (Nat.lt_succ_of_le (List.length_filter_le p _)).trans_eq (List.length_erase_add_one ha)
+
 /-- Run steps 2–5. The remaining incidence list is the termination measure; each continuation
 erases the selected input, regardless of any newly discovered children. The final filter only
 removes additional used ports. No unbounded fresh timestamp or variable-label scan is used. -/
@@ -331,13 +337,7 @@ removes additional used ports. No unbounded fresh timestamp or variable-label sc
       let next : Log F := (⟨input, outputs⟩ : Expansion F) :: es
       run sem f rs next ((remaining.erase input).filter fun a => decide (a ∉ next.used))
 termination_by remaining.length
-decreasing_by
-  have hm : input ∈ remaining := List.mem_of_find?_eq_some _hnext
-  have hpos : 0 < remaining.length := List.length_pos_of_mem hm
-  have herase := List.length_erase_of_mem hm
-  have hfilter := List.length_filter_le (fun a => decide (a ∉
-    Log.used ((⟨input, outputs⟩ : Expansion F) :: es))) (remaining.erase input)
-  omega
+decreasing_by exact length_filter_erase_lt (List.mem_of_find?_eq_some _hnext)
 
 /-- Fresh Algorithm 1 forest search. Preconditions about edge instances, validity and even
 delta-matroids belong to correctness theorems; the program itself is total on arbitrary CSPs. -/

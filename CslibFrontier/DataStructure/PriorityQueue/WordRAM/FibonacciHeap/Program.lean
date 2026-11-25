@@ -730,22 +730,9 @@ theorem BaseRegs.fits_of_le {n base w : ℕ} {x : Data rFib} (hb : x.Bounded w)
 
 theorem BaseRegs.set_non_base {n base : ℕ} {x : Data rFib} (hbr : BaseRegs n base x)
     {d : Fin rFib} (hd : 13 ≤ d.val) (v : ℕ) : BaseRegs n base (x.set d v) := by
-  have ne_of : ∀ r : Fin rFib, r.val < 13 → r ≠ d := fun r hr e => by subst e; omega
-  obtain ⟨h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩ := hbr
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of nReg (by decide))] using h0
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of frontierReg (by decide))] using h1
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of baseReg (by decide))] using h2
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of parBase (by decide))] using h3
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of childBase (by decide))] using h4
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of leftBase (by decide))] using h5
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of rightBase (by decide))] using h6
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of degBase (by decide))] using h7
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of markBase (by decide))] using h8
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of inBase (by decide))] using h9
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of consBase (by decide))] using h10
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of zeroP (by decide))] using h11
-  · simpa only [Data.set_regs, Function.update_of_ne (ne_of oneP (by decide))] using h12
+  have key (r : Fin rFib) (hr : r.val < 13) : (x.set d v).regs r = x.regs r :=
+    Data.set_regs_of_ne (fun e => by subst e; omega) v
+  regs_frame
 
 theorem BaseRegs.write_eq {n base : ℕ} {x : Data rFib} (hbr : BaseRegs n base x) (a v : ℕ) :
     BaseRegs n base (x.write a v) :=
@@ -801,90 +788,72 @@ theorem ofData_set_sz {n base : ℕ} (x : Data rFib) (v : ℕ) :
 
 /-! The `ofData_write_*` lemmas: a write into one of the nine arrays updates that field of
 `RawState.ofData` and leaves the other eight arrays alone, because the arrays occupy disjoint
-address ranges. Each proof compares the two sides field by field: `Function.update_of_ne`, with
-`omega` separating the address ranges, clears the untouched fields, and a case split on the
-written slot finishes the updated one. -/
+address ranges. Each proof unfolds `RawState.ofData`, clears the eight untouched fields with
+`Function.update_of_ne` (`omega`), and splits once on the written index for the updated field. -/
+
+local macro "ofData_write_tac " idx:term : tactic =>
+  `(tactic| {
+    simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
+    and_intros <;> funext u
+    all_goals try simp (disch := omega) only [Function.update_of_ne]
+    by_cases h : u = $idx
+    · subst h; simp only [Function.update_self, ↓reduceIte, *]
+    · try have := Fin.val_ne_of_ne h
+      simp (disch := omega) only [Function.update_of_ne] })
 
 theorem ofData_write_key {n base : ℕ} (x : Data rFib) (v : Fin n) (val : ℕ) :
     RawState.ofData n base (x.write (base + v.val) val) =
       { RawState.ofData n base x with
         key := Function.update (RawState.ofData n base x).key v val } := by
-  simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
-  and_intros <;> funext u <;>
-    simp (disch := omega) only [Function.update_of_ne, Function.update_apply, Fin.ext_iff]
-  split_ifs <;> first | rfl | omega
+  ofData_write_tac v
 
 theorem ofData_write_par {n base : ℕ} (x : Data rFib) (v : Fin n) (val : ℕ) :
     RawState.ofData n base (x.write (base + n + v.val) val) =
       { RawState.ofData n base x with
         par := Function.update (RawState.ofData n base x).par v val } := by
-  simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
-  and_intros <;> funext u <;>
-    simp (disch := omega) only [Function.update_of_ne, Function.update_apply, Fin.ext_iff]
-  split_ifs <;> first | rfl | omega
+  ofData_write_tac v
 
 theorem ofData_write_child {n base : ℕ} (x : Data rFib) (v : Fin n) (val : ℕ) :
     RawState.ofData n base (x.write (base + 2 * n + v.val) val) =
       { RawState.ofData n base x with
         child := Function.update (RawState.ofData n base x).child v val } := by
-  simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
-  and_intros <;> funext u <;>
-    simp (disch := omega) only [Function.update_of_ne, Function.update_apply, Fin.ext_iff]
-  split_ifs <;> first | rfl | omega
+  ofData_write_tac v
 
 theorem ofData_write_left {n base : ℕ} (x : Data rFib) (v : Fin n) (val : ℕ) :
     RawState.ofData n base (x.write (base + 3 * n + v.val) val) =
       { RawState.ofData n base x with
         left := Function.update (RawState.ofData n base x).left v val } := by
-  simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
-  and_intros <;> funext u <;>
-    simp (disch := omega) only [Function.update_of_ne, Function.update_apply, Fin.ext_iff]
-  split_ifs <;> first | rfl | omega
+  ofData_write_tac v
 
 theorem ofData_write_right {n base : ℕ} (x : Data rFib) (v : Fin n) (val : ℕ) :
     RawState.ofData n base (x.write (base + 4 * n + v.val) val) =
       { RawState.ofData n base x with
         right := Function.update (RawState.ofData n base x).right v val } := by
-  simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
-  and_intros <;> funext u <;>
-    simp (disch := omega) only [Function.update_of_ne, Function.update_apply, Fin.ext_iff]
-  split_ifs <;> first | rfl | omega
+  ofData_write_tac v
 
 theorem ofData_write_deg {n base : ℕ} (x : Data rFib) (v : Fin n) (val : ℕ) :
     RawState.ofData n base (x.write (base + 5 * n + v.val) val) =
       { RawState.ofData n base x with
         deg := Function.update (RawState.ofData n base x).deg v val } := by
-  simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
-  and_intros <;> funext u <;>
-    simp (disch := omega) only [Function.update_of_ne, Function.update_apply, Fin.ext_iff]
-  split_ifs <;> first | rfl | omega
+  ofData_write_tac v
 
 theorem ofData_write_mark {n base : ℕ} (x : Data rFib) (v : Fin n) (val : ℕ) :
     RawState.ofData n base (x.write (base + 6 * n + v.val) val) =
       { RawState.ofData n base x with
         mark := Function.update (RawState.ofData n base x).mark v val } := by
-  simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
-  and_intros <;> funext u <;>
-    simp (disch := omega) only [Function.update_of_ne, Function.update_apply, Fin.ext_iff]
-  split_ifs <;> first | rfl | omega
+  ofData_write_tac v
 
 theorem ofData_write_inHeap {n base : ℕ} (x : Data rFib) (v : Fin n) (val : ℕ) :
     RawState.ofData n base (x.write (base + 7 * n + v.val) val) =
       { RawState.ofData n base x with
         inHeap := Function.update (RawState.ofData n base x).inHeap v val } := by
-  simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
-  and_intros <;> funext u <;>
-    simp (disch := omega) only [Function.update_of_ne, Function.update_apply, Fin.ext_iff]
-  split_ifs <;> first | rfl | omega
+  ofData_write_tac v
 
 theorem ofData_write_cons {n base d : ℕ} (hd : d ≤ n) (x : Data rFib) (val : ℕ) :
     RawState.ofData n base (x.write (base + 8 * n + d) val) =
       { RawState.ofData n base x with
         cons := Function.update (RawState.ofData n base x).cons d val } := by
-  simp only [RawState.ofData, Data.write_mem, Data.write_regs, RawState.mk.injEq, and_true]
-  and_intros <;> funext u <;>
-    simp (disch := omega) only [Function.update_of_ne, Function.update_apply]
-  split_ifs <;> first | rfl | omega
+  ofData_write_tac d
 
 theorem ofData_supported {n base : ℕ} {x x' : Data rFib}
     (hreg : ∀ i : Fin rFib, inputReg i = false → x'.regs i = x.regs i)

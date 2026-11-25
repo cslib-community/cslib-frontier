@@ -6,6 +6,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 public import CslibFrontier.Crypto.Primitives.BlockCipher.CBCMAC
+public import CslibFrontier.Crypto.Primitives.PRF.PrefixFreeEncoding
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 import CslibFrontier.Probability.Uniform
 /-!
@@ -26,7 +27,7 @@ blocks. Every adaptive distinguisher that asks such messages is translated into 
 against basic random-function CBC-MAC on inputs of at most `L + 1` blocks whose queries are
 prefix-free whenever the length encoding is injective. The uniform-random-function step
 `abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le` (#6046) then gives the variable-length bound
-`q ^ 2 * (L + 1) ^ 2 / 2 ^ n`.
+`q ^ 2 * (L + 1) ^ 2 / (2 * 2 ^ n)`.
 
 ## Main definitions
 
@@ -40,13 +41,13 @@ prefix-free whenever the length encoding is injective. The uniform-random-functi
 
 ## Main results
 
-* `prependLength_injective`, `not_isPrefix_prependLength`, `cbcPrefixFree_of_forall_mem_range`:
-  length prepending is injective and, for an injective length encoding, prefix-free
-  ([BonehShoup2023], Section 6.6.1, pp. 235–236).
+* `prependLength_injective`, `not_isPrefix_prependLength`, `isPrefixFreeEncoding_prependLength`,
+  `cbcPrefixFree_of_forall_mem_range`: length prepending is injective and, for an injective length
+  encoding, prefix-free ([BonehShoup2023], Section 6.6.1, pp. 235–236).
 * `cbcUniformFunctionSuccess_map_prependLengthQueries`, `cbcIdealSuccess_map_prependLengthQueries`:
   the translated distinguisher has the same uniform-function and ideal acceptance probabilities.
 * `abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSuccess_le`:
-  information-theoretic uniform-random-function step `|urf - ideal| ≤ q ^ 2 * (L + 1) ^ 2 / 2 ^ n`
+  uniform-random-function step `|urf - ideal| ≤ q ^ 2 * (L + 1) ^ 2 / (2 * 2 ^ n)`
   (#6046) toward length-prepended CBC-MAC PRF security ([BonehShoup2023], Theorem 6.3 and
   Theorem 6.8; [KatzLindell2020], Section 4.4), bounding length-prepended CBC-MAC over a uniform
   random function rather than a keyed computational PRF.
@@ -128,6 +129,16 @@ theorem not_isPrefix_prependLength {L : ℕ} {encodeLength : Fin (L + 1) → Bit
   rintro ⟨hk, hp⟩
   refine hxy (lengthPrependedBlocks_injective (hp.eq_of_length ?_))
   rw [length_lengthPrependedBlocks, length_lengthPrependedBlocks, he hk]
+/-- **Method 1: length prepending is a prefix-free encoding** ([BonehShoup2023], Section 6.6.1,
+p. 235): restates `not_isPrefix_prependLength` as `PRF.IsPrefixFreeEncoding`. -/
+theorem isPrefixFreeEncoding_prependLength {L : ℕ}
+    {encodeLength : Fin (L + 1) → BitString n} (he : Function.Injective encodeLength) :
+    PRF.IsPrefixFreeEncoding
+      (fun x : LengthPrependedInput n L => cbcInputBlocks (prependLength encodeLength x)) := by
+  rw [PRF.IsPrefixFreeEncoding.iff_forall_prefix]
+  refine ⟨fun x => cbcInputBlocks_ne_nil _, fun x y hpre => ?_⟩
+  by_contra hxy
+  exact not_isPrefix_prependLength he hxy hpre
 /-- Every list of length-prepended inputs is prefix-free, for an injective length encoding. -/
 theorem cbcPrefixFree_of_forall_mem_range {L : ℕ} {encodeLength : Fin (L + 1) → BitString n}
     (he : Function.Injective encodeLength) {queries : List (CBCInput n (L + 1))}
@@ -251,14 +262,14 @@ theorem cbcIdealSuccess_map_prependLengthQueries {L : ℕ}
   CBC-MAC over a uniform random function `g : BitString n → BitString n` rather than a keyed
   computational PRF: for an injective length encoding and every distribution `D` over
   distinguishers that ask at most `q` block-aligned messages of at most `L` blocks,
-  length-prepended CBC-MAC with a uniform random function is `q ^ 2 * (L + 1) ^ 2 / 2 ^ n`-close to
-  a uniform random function on such messages. -/
+  length-prepended CBC-MAC with a uniform random function is within
+  `q ^ 2 * (L + 1) ^ 2 / (2 * 2 ^ n)` of a uniform random function on such messages. -/
 theorem abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSuccess_le (n q L : ℕ)
     {encodeLength : Fin (L + 1) → BitString n} (he : Function.Injective encodeLength)
     (D : PMF (OracleComp (LengthPrependedSpec n L) Bool))
     (hD : ∀ tree, D tree ≠ 0 → OracleComp.IsQueryBounded tree q) :
     |lengthPrependedUniformFunctionSuccess encodeLength D - lengthPrependedIdealSuccess n L D| ≤
-      (q : ℝ) ^ 2 * ((L : ℝ) + 1) ^ 2 / (2 : ℝ) ^ n := by
+      (q : ℝ) ^ 2 * ((L : ℝ) + 1) ^ 2 / (2 * (2 : ℝ) ^ n) := by
   rw [← cbcUniformFunctionSuccess_map_prependLengthQueries,
     ← cbcIdealSuccess_map_prependLengthQueries encodeLength D]
   have h := abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le n q (L + 1)

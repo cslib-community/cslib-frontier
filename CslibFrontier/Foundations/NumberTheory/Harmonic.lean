@@ -12,8 +12,6 @@ public import Mathlib.Algebra.Order.Field.Rat
 public import Mathlib.Data.Nat.Log
 public import Mathlib.NumberTheory.Harmonic.Defs
 import Mathlib.Algebra.BigOperators.Intervals
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Order.Interval.Finset.Nat
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.Linarith
@@ -116,33 +114,32 @@ theorem two_mul_sum_add_one_mul_harmonic (m : ℕ) :
 /-- Dyadic condensation upper bound `H_n ≤ ⌊log₂ n⌋ + 1` in `ℚ`. -/
 theorem harmonic_le_log_add_one (n : ℕ) :
     harmonic n ≤ (Nat.log 2 n : ℚ) + 1 := by
-  induction n using Nat.strong_induction_on with
-  | ind n ih =>
-    rcases lt_or_ge n 2 with hn2 | hn2
-    · interval_cases n <;> norm_num [harmonic]
-    · set half := n / 2
-      have hhalf_lt : half < n := Nat.div_lt_self (by omega) (by decide)
-      have hlog : Nat.log 2 n = Nat.log 2 half + 1 :=
-        Nat.log_of_one_lt_of_le (by decide) (by omega)
-      have hsplit : harmonic n =
-          harmonic half + ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹ := by
-        unfold harmonic
-        rw [← Finset.sum_range_add_sum_Ico _ (Nat.le_of_lt hhalf_lt)]
-        simp only [Nat.cast_add, Nat.cast_one]
-      have htail : ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹ ≤ 1 := by
-        calc
-          ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹
-            ≤ ∑ _i ∈ Finset.Ico half n, ((half : ℚ) + 1)⁻¹ := by
-              refine Finset.sum_le_sum fun i hi => ?_
-              have hle : (half : ℚ) + 1 ≤ (i : ℚ) + 1 := by
-                exact_mod_cast Nat.add_le_add_right (Finset.mem_Ico.mp hi).1 1
-              exact inv_anti₀ (by positivity) hle
-          _ = ((n - half : ℕ) : ℚ) / ((half : ℚ) + 1) := by
-              simp [div_eq_mul_inv]
-          _ ≤ 1 := by
-              rw [div_le_one (by positivity)]
-              have hcnt : n - half ≤ half + 1 := by omega
-              exact_mod_cast hcnt
-      rw [hsplit, hlog]
-      push_cast
-      linarith [ih half hhalf_lt]
+  rcases lt_or_ge n 2 with hn2 | hn2
+  · interval_cases n <;> norm_num [harmonic]
+  · set half := n / 2
+    have hhalf_lt : half < n := Nat.div_lt_self (by omega) (by decide)
+    have hlog : Nat.log 2 n = Nat.log 2 half + 1 :=
+      Nat.log_of_one_lt_of_le (by decide) (by omega)
+    have hsplit : harmonic n =
+        harmonic half + ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹ := by
+      unfold harmonic
+      rw [← Finset.sum_range_add_sum_Ico _ (Nat.le_of_lt hhalf_lt)]
+      simp only [Nat.cast_add, Nat.cast_one]
+    have htail : ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹ ≤ 1 := by
+      calc
+        ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹
+          ≤ ∑ _i ∈ Finset.Ico half n, ((half : ℚ) + 1)⁻¹ := by
+            refine Finset.sum_le_sum fun i hi => ?_
+            have hle : (half : ℚ) + 1 ≤ (i : ℚ) + 1 := by
+              exact_mod_cast Nat.add_le_add_right (Finset.mem_Ico.mp hi).1 1
+            exact inv_anti₀ (by positivity) hle
+        _ = ((n - half : ℕ) : ℚ) / ((half : ℚ) + 1) := by
+            simp [div_eq_mul_inv]
+        _ ≤ 1 := by
+            rw [div_le_one (by positivity)]
+            have hcnt : n - half ≤ half + 1 := by omega
+            exact_mod_cast hcnt
+    rw [hsplit, hlog]
+    push_cast
+    linarith [harmonic_le_log_add_one half]
+termination_by n

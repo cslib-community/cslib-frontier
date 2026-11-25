@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
@@ -172,10 +173,7 @@ private theorem evalWord_polyTime :
     (by polytime) (by polytime)
     (by polytime [BitString.listRows, BitString.listRow])
     (evalGate_step hf) (growth := fun p => 2 * ((fnDecoder.decode p.1).1.1 + 2) + 1)
-    (by
-      refine (hdec.polyBounded_length.add (PolyBounded.const 5)).mono fun p => ?_
-      simp only [encFn, encHeader, length_encPair, encUnary_apply, List.length_replicate]
-      omega)
+    (by growth_poly)
     (fun p labels g _ => length_evalGate_le _ _ _ _ _)
   have heq : (fun (F, X) => evalWord family F X) = fun p : List Bool × List Bool =>
       ((List.range (fnDecoder.decode p.1).1.2.2.2).foldl

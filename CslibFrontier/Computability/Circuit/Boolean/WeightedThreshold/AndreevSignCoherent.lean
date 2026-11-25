@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Combinatorics.CubeSplitting
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.FiberCount
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Ring.GeomSum
 
 /-!
@@ -275,13 +276,12 @@ theorem two_pow_mul_andreevCubeSplitBound_le (c : Circuit signature (2 ^ b + b *
   have hmain := two_pow_mul_sub_le_mul_sum_andreevCubeSplitCount c hd hcomp q
   unfold andreevCubeSplitBound
   rcases le_or_gt ((2 : ℝ) ^ b - b - 1 - Real.logb 2 (G + 1)) 0 with hn | hn
-  · rw [max_eq_left hn, zero_div, mul_zero]; exact hsum
+  · rwa [max_eq_left hn, zero_div, mul_zero]
   · have hb : (1 : ℝ) ≤ b := by
       rcases Nat.eq_zero_or_pos b with h0 | h0
       · subst h0; simp at hn; linarith
       · exact Nat.one_le_cast.mpr h0
-    rw [max_eq_right hn.le, ← mul_div_assoc, div_le_iff₀ (by linarith), mul_comm _ (_ + _)]
-    exact hmain
+    rwa [max_eq_right hn.le, ← mul_div_assoc, div_le_iff₀ (by linarith), mul_comm _ (_ + _)]
 
 /-! ### Lemma 15: a sign-coherent gate splits few cubes -/
 
@@ -437,9 +437,7 @@ private theorem pow_sub_pred_pow_le (m b : ℕ) :
   calc ∑ i ∈ range b, (m : ℝ) ^ i * ((m : ℝ) - 1) ^ (b - 1 - i)
       ≤ ∑ _i ∈ range b, (m : ℝ) ^ (b - 1) := sum_le_sum fun i hi => by
         have hib := mem_range.mp hi
-        have hm0 : (0 : ℝ) ≤ m - 1 := by
-          have : (1 : ℝ) ≤ m := Nat.one_le_cast.mpr hm
-          linarith
+        have hm0 : (0 : ℝ) ≤ m - 1 := by cast_linarith [hm]
         calc (m : ℝ) ^ i * ((m : ℝ) - 1) ^ (b - 1 - i) ≤ (m : ℝ) ^ i * (m : ℝ) ^ (b - 1 - i) :=
               mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hm0 (by linarith) _) (by positivity)
           _ = (m : ℝ) ^ (b - 1) := by rw [← pow_add]; congr 1; omega

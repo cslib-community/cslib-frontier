@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Subdivision
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Convex.Basic
 import Mathlib.Tactic.Linarith
 
@@ -49,12 +50,10 @@ private theorem int_between_of_near {a b c : ℤ} {x : ℝ}
   constructor
   · by_contra h
     have h' : c + 1 ≤ a := by omega
-    have h'' : (c : ℝ) + 1 ≤ (a : ℝ) := by exact_mod_cast h'
-    linarith [hc.2]
+    cast_linarith [h', hc.2]
   · by_contra h
     have h' : b ≤ c - 1 := by omega
-    have h'' : (b : ℝ) ≤ (c : ℝ) - 1 := by exact_mod_cast h'
-    linarith [hc.1]
+    cast_linarith [h', hc.1]
 
 /-- Distinct grid points are not within the open box of radius `1` about one another. -/
 theorem eq_of_nearGridPoint {a c : Point} (h : nearGridPoint c (realPoint a)) : a = c := by

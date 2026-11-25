@@ -282,9 +282,7 @@ private def varIdx [L.IsRelational] {k : ℕ} (t : L.Term (Empty ⊕ Fin k)) : F
 private theorem realize_eq_varIdx [L.IsRelational] {k : ℕ} (t : L.Term (Empty ⊕ Fin k))
     (a : Fin k → M) : t.realize (Sum.elim default a) = a (varIdx t) := by
   rw [realize_termVar, varIdx]
-  rcases termVar t with x | i
-  · exact x.elim
-  · rfl
+  grind
 
 /-- **Ehrenfeucht–Fraïssé, easy direction.** For a relational language, if Duplicator wins the
 `n`-round game from `(a, b)`, then `a` and `b` satisfy the same formulas of quantifier rank at

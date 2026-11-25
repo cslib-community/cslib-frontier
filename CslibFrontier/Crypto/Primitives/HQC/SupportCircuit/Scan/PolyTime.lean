@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Native generation of a corrected-suffix scan
@@ -197,15 +198,7 @@ private theorem polyBounded_collisionScanCodeBound {α : Type} {enc : α ↪ Lis
     (hc : ComputableInPolyTime count enc encUnary) :
     PolyBounded (fun a => (enc a).length)
       (fun a => collisionScanCodeBound (bits a) (count a)) := by
-  have hb' := hb.polyBounded
-  have hc' := hc.polyBounded
-  have hN := hb'.add (hc'.mul hb')
-  have hG := hc'.mul (((PolyBounded.const 13).mul hb').add (.const 6))
-  have hNG := hN.add hG
-  have hleft := (((PolyBounded.const 2).mul hG).mul
-    ((PolyBounded.const 23).add ((PolyBounded.const 8).mul hNG))).add (.const 1)
-  have hright := hN.mul (((PolyBounded.const 2).mul hNG).add (.const 1))
-  simpa [collisionScanCodeBound] using hleft.add hright
+  growth_poly
 
 private theorem length_collisionScanFold_le (bits offset count i : ℕ)
     (hi : i ≤ (List.range count).reverse.length) :

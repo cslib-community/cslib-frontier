@@ -58,20 +58,12 @@ DECLARED_NAME = re.compile(
     r"|scoped|local)\s+)*(?:class\s+(?:inductive|abbrev)|theorem|lemma|def|abbrev|structure|class"
     r"|inductive|opaque|instance(?:\s+\(priority\s*:=[^)]*\))?)\s+([^\s:({\[]+)")
 CODE_SPAN = re.compile(r"(`+).*?\1")
-# Label, then the URL with or without `<…>`, matching the targets `links()` reads.
-INLINE_LINK = re.compile(r"\[([^\]\n]+)\]\(\s*(?:<([^>\n]+)>|([^\s)]+))")
 # Anchors, as (Lean file, start line), that are stale or that queued pull requests will make
 # stale; the check tolerates them until they can be repointed without conflicting with or
 # ejecting those pull requests. Repoint the manual link and delete the entry (#3991). An entry
 # that no longer matches is listed in the result, not reported as an error, so a pull request
 # that repoints a link does not have to edit this list.
-STALE_SOURCE_ANCHORS: set[tuple[str, int]] = {
-    # Starts `computableInPolyTime_verify`, not the linked `scheme`; #4279 repoints it.
-    ("CslibFrontier/Crypto/Computational/TreeSignature.lean", 550),
-    # Stale on main. #4205 rewrites the manual sentence that links them.
-    ("CslibFrontier/Computability/StreamArithmetic/Interface.lean", 243),
-    ("CslibFrontier/Computability/StreamArithmetic/Interface.lean", 528),
-}
+STALE_SOURCE_ANCHORS: set[tuple[str, int]] = set()
 
 
 def fenced_lines(text: str):
@@ -130,14 +122,33 @@ WRAPPED_INLINE_LINK = re.compile(WRAPPED_LABEL + r"\(\s*(?:<([^>\n]+)>|([^\s)]+)
 REFERENCE_LINK = re.compile(WRAPPED_LABEL + r"\[([^\]\n]*)\]")
 
 
+def _mask_non_prose(text: str) -> str:
+    """Replace fenced blocks and inline code spans with spaces, preserving offsets and newlines."""
+    out: list[str] = []
+    fence = None
+    for line in text.splitlines(keepends=True):
+        body = line.rstrip("\r\n")
+        ending = line[len(body):]
+        match = FENCE.match(body)
+        if fence is not None:
+            if match and match[1][0] == fence[0] and len(match[1]) >= len(fence):
+                fence = None
+            out.append(" " * len(body) + ending)
+        elif match:
+            fence = match[1]
+            out.append(" " * len(body) + ending)
+        else:
+            out.append(CODE_SPAN.sub(lambda span: " " * len(span[0]), body) + ending)
+    return "".join(out)
+
+
 def labelled_links(text: str) -> list[tuple[int, str, str]]:
     """`(line number, label, URL)` of each inline and full or collapsed reference link outside
     code, with the label's whitespace collapsed; a wrapped label reports its first line. Code
     spans are blanked, so code showing a locator is not reported."""
     definitions = {key.casefold(): url for key, url in re.findall(
         r"^\s{0,3}\[([^\]]+)\]:\s*<?([^\s>]+)>?", prose(text), re.M)}
-    masked = "\n".join("" if fenced else CODE_SPAN.sub(lambda span: " " * len(span[0]), line)
-                       for _, line, fenced in fenced_lines(text))
+    masked = _mask_non_prose(text)
     found = []
     for link in WRAPPED_INLINE_LINK.finditer(masked):
         found.append((link.start(), " ".join(link[1].split()), link[2] or link[3]))
@@ -280,23 +291,12 @@ def declarations(lines: list[str]) -> dict[str, list[tuple[int, int]]]:
 
 
 def _iter_inline_links(text: str):
-    """Yield `(line_index, display, url, url_start, url_end)` for non-code inline links."""
-    fence = None
-    for line_idx, line in enumerate(text.splitlines()):
-        match = FENCE.match(line)
-        if fence is not None:
-            if match and match[1][0] == fence[0] and len(match[1]) >= len(fence):
-                fence = None
-            continue
-        if match:
-            fence = match[1]
-            continue
-        # Blank out code spans, keeping offsets, and read each label from the original line.
-        masked = CODE_SPAN.sub(lambda span: " " * len(span[0]), line)
-        for link in INLINE_LINK.finditer(masked):
-            url_group = 2 if link[2] is not None else 3
-            yield (line_idx, line[link.start(1):link.end(1)], link[url_group],
-                   link.start(url_group), link.end(url_group))
+    """Yield `(display, url, url_start, url_end)` for non-code inline links (including wrapped)."""
+    masked = _mask_non_prose(text)
+    for link in WRAPPED_INLINE_LINK.finditer(masked):
+        url_group = 2 if link[2] is not None else 3
+        display = " ".join(text[link.start(1):link.end(1)].split())
+        yield display, link[url_group], link.start(url_group), link.end(url_group)
 
 
 def link_texts(text: str) -> list[tuple[str, str]]:
@@ -306,7 +306,7 @@ def link_texts(text: str) -> list[tuple[str, str]]:
     code-formatted label (`` [`name`](…) ``) keeps its text. An optional `<…>` around the URL is
     dropped.
     """
-    return [(display, url) for _, display, url, _, _ in _iter_inline_links(text)]
+    return [(display, url) for display, url, _, _ in _iter_inline_links(text)]
 
 
 def names_declaration(text: str, name: str) -> bool:
@@ -562,8 +562,8 @@ def check(repo: Path, manual: Path | None = None) -> dict:
 
 
 def fix_anchors(repo: Path, manual: Path | None = None) -> list[dict[str, str]]:
-    """Repoint drifted single-line `[Ns.name](File.lean#Ln)` links to the declaration's current
-    header start line when uniquely identified.
+    """Repoint drifted `[Ns.name](File.lean#Ln)` links to the declaration's current header start
+    line when uniquely identified.
 
     Leaves valid anchors, whole-file (`#L1`) and range (`#La-Lb`) links, allowlisted
     `STALE_SOURCE_ANCHORS`, links whose text names no declaration, ambiguous multiple-match
@@ -579,9 +579,8 @@ def fix_anchors(repo: Path, manual: Path | None = None) -> list[dict[str, str]]:
     fixed: list[dict[str, str]] = []
     for doc in documents:
         original = doc.read_text()
-        raw_lines = original.splitlines(keepends=True)
-        edits: list[tuple[int, int, int, str]] = []
-        for line_idx, display, url, url_start, url_end in _iter_inline_links(original):
+        edits: list[tuple[int, int, str]] = []
+        for display, url, url_start, url_end in _iter_inline_links(original):
             parsed = urlsplit(html.unescape(url))
             fragment = unquote(parsed.fragment)
             if parsed.scheme or parsed.netloc or not parsed.path.endswith(".lean") or \
@@ -615,7 +614,7 @@ def fix_anchors(repo: Path, manual: Path | None = None) -> list[dict[str, str]]:
             new_frag = f"L{headers[0][0]}"
             if new_frag == fragment:
                 continue
-            edits.append((line_idx, url_start, url_end, f"{prefix}#{new_frag}"))
+            edits.append((url_start, url_end, f"{prefix}#{new_frag}"))
             fixed.append({
                 "document": doc.relative_to(manual).as_posix(),
                 "display": display,
@@ -624,10 +623,10 @@ def fix_anchors(repo: Path, manual: Path | None = None) -> list[dict[str, str]]:
                 "new": new_frag,
             })
         if edits:
-            for line_idx, start_col, end_col, new_url in reversed(edits):
-                line = raw_lines[line_idx]
-                raw_lines[line_idx] = line[:start_col] + new_url + line[end_col:]
-            doc.write_text("".join(raw_lines))
+            updated = original
+            for start_idx, end_idx, new_url in reversed(edits):
+                updated = updated[:start_idx] + new_url + updated[end_idx:]
+            doc.write_text(updated)
     return fixed
 
 

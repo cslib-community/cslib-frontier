@@ -9,12 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Elementary
 public import Mathlib.Data.Nat.Log
-import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.Field.GeomSum
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # Minimum-index dyadic band multiplication of signed-digit streams
@@ -376,22 +371,15 @@ private theorem abs_bandFold_sub_sum_le (x y : ℕ → ℤ) (t : ℕ) :
     set k := maxBand t - (rem + 1)
     have hk_lt : k < maxBand t := by omega
     have hk_succ : maxBand t - rem = k + 1 := by omega
-    have hle_rem : rem ≤ maxBand t := by omega
-    have ih := abs_bandFold_sub_sum_le x y t rem hle_rem
+    have ih := abs_bandFold_sub_sum_le x y t rem (by omega)
     rw [hk_succ] at ih
     set s := bandMargin (k + 1) - bandMargin k
-    have hs_add : bandMargin k + s = bandMargin (k + 1) := by
-      have hm : bandMargin k ≤ bandMargin (k + 1) := bandMargin_mono (Nat.le_succ k)
-      omega
+    have hs_add : bandMargin k + s = bandMargin (k + 1) :=
+      Nat.add_sub_of_le (bandMargin_mono (Nat.le_succ k))
     have hfl := abs_ediv_sub_div_lt_one (bandFold x y t rem)
       (by positivity : (0 : ℤ) < (2 : ℤ) ^ s)
     push_cast at hfl
-    have hIco : Ico k (maxBand t) = insert k (Ico (k + 1) (maxBand t)) := by
-      ext j
-      simp only [mem_Ico, mem_insert]
-      omega
-    have hk_not_mem : k ∉ Ico (k + 1) (maxBand t) := by simp
-    rw [hIco, sum_insert hk_not_mem, sum_insert hk_not_mem]
+    rw [sum_eq_sum_Ico_succ_bot hk_lt, sum_eq_sum_Ico_succ_bot hk_lt]
     set Q : ℝ := ((bandFold x y t rem / (2 : ℤ) ^ s : ℤ) : ℝ)
     set R : ℝ := (bandFold x y t rem : ℝ) / (2 : ℝ) ^ s
     set T : ℝ := ∑ j ∈ Ico (k + 1) (maxBand t), (bandSum x y t j : ℝ) / (2 : ℝ) ^ bandMargin j
@@ -419,18 +407,10 @@ private theorem sum_floor_err_le (K : ℕ) :
     ∑ k ∈ range K, 1 / (2 : ℝ) ^ bandMargin k ≤ 1 / 768 := by
   have hterm : ∀ k ∈ range K, 1 / (2 : ℝ) ^ bandMargin k ≤ (1 / 1024) * (1 / 4 : ℝ) ^ k := by
     intro k _
-    have hle := ten_add_two_mul_le_bandMargin k
-    have hpow_le : (2 : ℝ) ^ (10 + 2 * k) ≤ (2 : ℝ) ^ bandMargin k :=
-      pow_le_pow_right₀ (by norm_num) hle
-    have h1 : 1 / (2 : ℝ) ^ bandMargin k ≤ 1 / (2 : ℝ) ^ (10 + 2 * k) :=
-      one_div_le_one_div_of_le (by positivity) hpow_le
-    have h2 : 1 / (2 : ℝ) ^ (10 + 2 * k) = (1 / 1024) * (1 / 4 : ℝ) ^ k := by
-      have hp : (2 : ℝ) ^ (10 + 2 * k) = 1024 * (4 : ℝ) ^ k := by
-        rw [pow_add, pow_mul]
-        norm_num
-      rw [hp, one_div_pow]
-      field_simp
-    exact h1.trans_eq h2
+    calc 1 / (2 : ℝ) ^ bandMargin k ≤ 1 / (2 : ℝ) ^ (10 + 2 * k) :=
+          one_div_le_one_div_of_le (by positivity)
+            (pow_le_pow_right₀ (by norm_num) (ten_add_two_mul_le_bandMargin k))
+      _ = _ := by rw [pow_add, pow_mul, one_div_pow, one_div_mul_one_div]; norm_num
   calc ∑ k ∈ range K, 1 / (2 : ℝ) ^ bandMargin k
       ≤ ∑ k ∈ range K, (1 / 1024) * (1 / 4 : ℝ) ^ k := sum_le_sum hterm
     _ = (1 / 1024) * ∑ k ∈ range K, (1 / 4 : ℝ) ^ k := (mul_sum _ _ _).symm
@@ -469,21 +449,13 @@ private theorem sum_ray_tail_le (N r M : ℕ) :
       omega
     rw [hadd, pow_add, one_div_pow]
     ring
-  rw [hrw]
-  calc ∑ m ∈ F.image g, (1 / (2 : ℝ) ^ (M + 1)) * (1 / 2 : ℝ) ^ m
-      ≤ ∑ m ∈ range (2 * N + r + 1), (1 / (2 : ℝ) ^ (M + 1)) * (1 / 2 : ℝ) ^ m :=
-        sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
-    _ = (1 / (2 : ℝ) ^ (M + 1)) * ∑ m ∈ range (2 * N + r + 1), (1 / 2 : ℝ) ^ m :=
-        (mul_sum _ _ _).symm
-    _ ≤ (1 / (2 : ℝ) ^ (M + 1)) * (1 / (1 - (1 / 2 : ℝ))) :=
-        mul_le_mul_of_nonneg_left
-          (by simpa only [Finset.range_eq_Ico, pow_zero] using
-            geom_sum_Ico_le_of_lt_one (m := 0) (n := 2 * N + r + 1) (by norm_num) (by norm_num))
-          (by positivity)
-    _ = 1 / (2 : ℝ) ^ M := by
-        rw [pow_succ]
-        field_simp
-        ring
+  rw [hrw, ← mul_sum]
+  calc (1 / (2 : ℝ) ^ (M + 1)) * ∑ m ∈ F.image g, (1 / 2 : ℝ) ^ m
+      ≤ (1 / (2 : ℝ) ^ (M + 1)) * 2 := by
+        gcongr
+        exact (sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity).trans
+          (sum_geometric_two_le _)
+    _ = 1 / (2 : ℝ) ^ M := by rw [pow_succ]; field_simp
 
 private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
     (t N : ℕ) (hN : t + bandMargin (maxBand t) ≤ N) :
@@ -497,54 +469,32 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
     (2 : ℝ) ^ t * ((x p.1 : ℝ) * (y p.2 : ℝ) / (2 : ℝ) ^ (p.1 + p.2))
   have hret_sub : retainedUnion t K ⊆ Sq := by
     intro p hp
-    unfold retainedUnion at hp
-    rw [mem_biUnion] at hp
-    obtain ⟨k, hk, hpk⟩ := hp
-    have hk_le : k ≤ K := (mem_range.mp hk).le
-    have hm_le : bandMargin k ≤ bandMargin K := bandMargin_mono hk_le
+    obtain ⟨k, hk, hpk⟩ := mem_biUnion.mp hp
+    have hm_le : bandMargin k ≤ bandMargin K := bandMargin_mono (mem_range.mp hk).le
     obtain ⟨_, _, _, hsum⟩ := mem_filter.mp hpk
     rw [mem_product, mem_range, mem_range]
     omega
   rw [← sum_sdiff_eq_sub hret_sub]
   have hterm_bound : ∀ p : ℕ × ℕ, |term p| ≤ (2 : ℝ) ^ t * 36 * (1 / (2 : ℝ) ^ (p.1 + p.2)) := by
     intro p
-    dsimp [term]
-    rw [abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t), abs_div,
-      abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ (p.1 + p.2))]
-    have hprod : |(x p.1 : ℝ)| * |(y p.2 : ℝ)| ≤ 36 := by
-      have hx1 := hx.abs_cast_le p.1
-      have hy1 := hy.abs_cast_le p.2
-      nlinarith [abs_nonneg (x p.1 : ℝ), abs_nonneg (y p.2 : ℝ)]
-    calc (2 : ℝ) ^ t * (|(x p.1 : ℝ)| * |(y p.2 : ℝ)| / (2 : ℝ) ^ (p.1 + p.2))
-        ≤ (2 : ℝ) ^ t * (36 / (2 : ℝ) ^ (p.1 + p.2)) :=
-          mul_le_mul_of_nonneg_left (div_le_div_of_nonneg_right hprod (by positivity))
-            (by positivity)
+    have hx1 := hx.abs_cast_le p.1
+    have hy1 := hy.abs_cast_le p.2
+    calc |term p| = (2 : ℝ) ^ t * (|(x p.1 : ℝ)| * |(y p.2 : ℝ)| / (2 : ℝ) ^ (p.1 + p.2)) := by
+          simp [term, abs_mul, abs_div]
+      _ ≤ (2 : ℝ) ^ t * (6 * 6 / (2 : ℝ) ^ (p.1 + p.2)) := by gcongr
       _ = (2 : ℝ) ^ t * 36 * (1 / (2 : ℝ) ^ (p.1 + p.2)) := by ring
   have homit_gt : ∀ p ∈ Sq \ retainedUnion t K,
       t + bandMargin (bandIdx (min p.1 p.2)) < p.1 + p.2 := by
     intro p hp
     obtain ⟨hpSq, hpNot⟩ := mem_sdiff.mp hp
-    set r := min p.1 p.2
+    have hband := mem_band_bandIdx (min p.1 p.2)
+    set r := min p.1 p.2 with hr
     set k := bandIdx r
     by_cases hk : k < K
-    · by_contra hle
-      rw [not_lt] at hle
-      have hp_mem : p ∈ bandPairs t k := by
-        unfold bandPairs
-        rw [mem_filter]
-        have hband := mem_band_bandIdx r
-        have hprod : p ∈ range (t + bandMargin k + 1) ×ˢ range (t + bandMargin k + 1) := by
-          rw [mem_product, mem_range, mem_range]
-          omega
-        exact ⟨hprod, hband.1, hband.2, hle⟩
-      exact hpNot (mem_biUnion.mpr ⟨k, mem_range.mpr hk, hp_mem⟩)
-    · have hk_ge : K ≤ k := not_lt.mp hk
-      have hgt := two_mul_bandStart_gt_of_maxBand_le hk_ge
-      have hr_ge : bandStart k ≤ r := (mem_band_bandIdx r).1
-      have hr_le : 2 * r ≤ p.1 + p.2 := by
-        have h1 : r ≤ p.1 := min_le_left _ _
-        have h2 : r ≤ p.2 := min_le_right _ _
-        omega
+    · refine lt_of_not_ge fun hle => hpNot (mem_biUnion.mpr ⟨k, mem_range.mpr hk, ?_⟩)
+      refine mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr ?_, mem_range.mpr ?_⟩,
+        hband.1, hband.2, hle⟩ <;> omega
+    · have hgt := two_mul_bandStart_gt_of_maxBand_le (not_lt.mp hk)
       omega
   set w : ℕ × ℕ → ℝ := fun p => (2 : ℝ) ^ t * 36 * (1 / (2 : ℝ) ^ (p.1 + p.2))
   have habs_sum : |∑ p ∈ Sq \ retainedUnion t K, term p| ≤ ∑ p ∈ Sq \ retainedUnion t K, w p :=
@@ -642,27 +592,17 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
           rfl
       _ ≤ ∑ k ∈ range B, (72 / 1024) * (1 / 2 : ℝ) ^ k := by
           refine sum_le_sum fun k _ => ?_
-          have hw_le : (bandWidth k : ℝ) ≤ (2 : ℝ) ^ k := by
-            exact_mod_cast bandWidth_le_two_pow k
+          have hw_le : (bandWidth k : ℝ) ≤ (2 : ℝ) ^ k := mod_cast bandWidth_le_two_pow k
           have hm_le : (2 : ℝ) ^ (10 + 2 * k) ≤ (2 : ℝ) ^ bandMargin k :=
             pow_le_pow_right₀ (by norm_num) (ten_add_two_mul_le_bandMargin k)
           calc (bandWidth k : ℝ) * (72 / (2 : ℝ) ^ bandMargin k)
-              ≤ (2 : ℝ) ^ k * (72 / (2 : ℝ) ^ (10 + 2 * k)) :=
-                mul_le_mul hw_le
-                  (div_le_div_of_nonneg_left (by norm_num) (by positivity) hm_le)
-                  (by positivity) (by positivity)
+              ≤ (2 : ℝ) ^ k * (72 / (2 : ℝ) ^ (10 + 2 * k)) := by gcongr
             _ = (72 / 1024) * (1 / 2 : ℝ) ^ k := by
-                have hp : (2 : ℝ) ^ (10 + 2 * k) = 1024 * ((2 : ℝ) ^ k * (2 : ℝ) ^ k) := by
-                  rw [pow_add, two_mul, pow_add]
-                  norm_num
-                rw [hp, one_div_pow]
+                rw [pow_add, two_mul, pow_add, one_div_pow]
                 field_simp
+                ring
       _ = (72 / 1024) * ∑ k ∈ range B, (1 / 2 : ℝ) ^ k := (mul_sum _ _ _).symm
-      _ ≤ (72 / 1024) * (1 / (1 - (1 / 2 : ℝ))) :=
-          mul_le_mul_of_nonneg_left
-            (by simpa only [Finset.range_eq_Ico, pow_zero] using
-              geom_sum_Ico_le_of_lt_one (m := 0) (n := B) (by norm_num) (by norm_num))
-            (by norm_num)
+      _ ≤ (72 / 1024) * 2 := by gcongr; exact sum_geometric_two_le B
       _ = 9 / 64 := by norm_num
   have htwo : ∑ r ∈ range (N + 1), 36 / (2 : ℝ) ^ bandMargin (bandIdx r) +
       ∑ r ∈ range (N + 1), 36 / (2 : ℝ) ^ bandMargin (bandIdx r) =
@@ -725,12 +665,9 @@ theorem mulApprox_isScaledApprox {x y : ℕ → ℤ}
     have hprod_err : |streamPrefix x N * streamPrefix y N - streamVal x * streamVal y| ≤
         144 / (2 : ℝ) ^ N := by
       rw [hdecomp]
-      calc |streamPrefix x N * (streamPrefix y N - streamVal y) +
-            (streamPrefix x N - streamVal x) * streamVal y|
-          ≤ |streamPrefix x N * (streamPrefix y N - streamVal y)| +
-              |(streamPrefix x N - streamVal x) * streamVal y| := abs_add_le _ _
-        _ = |streamPrefix x N| * |streamPrefix y N - streamVal y| +
-              |streamPrefix x N - streamVal x| * |streamVal y| := by rw [abs_mul, abs_mul]
+      calc _ ≤ |streamPrefix x N| * |streamPrefix y N - streamVal y| +
+              |streamPrefix x N - streamVal x| * |streamVal y| :=
+            (abs_add_le _ _).trans_eq (by rw [abs_mul, abs_mul])
         _ ≤ 12 * (6 / (2 : ℝ) ^ N) + (6 / (2 : ℝ) ^ N) * 12 := by gcongr
         _ = 144 / (2 : ℝ) ^ N := by ring
     rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]

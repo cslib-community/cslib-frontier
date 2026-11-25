@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDra
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReferencePaths
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRouteMoves
 import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
 import Mathlib.Topology.MetricSpace.Bounded
 import Mathlib.Tactic.FinCases
@@ -425,5 +426,32 @@ example :
     simp only [hfalse d, Bool.false_eq_true] at hd
   obtain ⟨E, hE, hV, _⟩ := exists_subdivision_embedding_at_reference input_valid hD hcenter hfreeze
   exact ⟨D, hD, hpos 2 (by decide +kernel), hpos 3 (by decide +kernel), E, hE, hV⟩
+
+private def fixedLoop : FixedRotationInput := ⟨⟨[0], [(0, 0)]⟩, [some [0, 1]]⟩
+
+private def loopMoves : Moves (frame fixedLoop) :=
+  fun e v => decide (e.val = 1 ∧ v.val = 0)
+
+-- The middle edge winds oddly around the fixed original vertex while a spoke stays literal.
+example :
+    let f : Fin (subdivisionGraph fixedLoop).edges.length := ⟨0, by decide⟩
+    let e : Fin (subdivisionGraph fixedLoop).edges.length := ⟨1, by decide⟩
+    let ref := referenceDrawing fixedLoop
+    ∃ D : PolygonalDrawing (subdivisionGraph fixedLoop), D.route f = ref.route f ∧
+      D.vertex 0 ∉ (D.route e).support ∧
+      (D.route e).rayParity 1 (D.vertex 0) = (ref.route e).rayParity 1 (ref.vertex 0) + true := by
+  dsimp only
+  have hvalid : Valid fixedLoop := (validate_eq_true_iff fixedLoop).mp (by decide +kernel)
+  have hfixed : FrozenMoves (frame fixedLoop) loopMoves := by
+    unfold FrozenMoves
+    decide +kernel
+  obtain ⟨D, -, hkeep, -, havoid, hpar⟩ :=
+    exists_reference_drawing_with_move_rayParity hvalid loopMoves hfixed
+      (u := 1) one_ne_zero
+  refine ⟨D, hkeep ⟨0, by decide⟩ (by decide +kernel),
+    havoid ⟨1, by decide⟩ ⟨0, by decide⟩ (by decide +kernel), ?_⟩
+  have h := hpar ⟨1, by decide⟩ ⟨0, by decide⟩
+  have hbit : readMove (frame fixedLoop) loopMoves 1 0 = true := by decide +kernel
+  simpa only [hbit] using h
 
 end CslibFrontierTests.RotationEmbeddingNecessity

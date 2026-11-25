@@ -72,13 +72,11 @@ theorem realize_cardinality {m : ℕ} (B : (language L).Term α)
       Nat.ofDigits (B.realize v).val (List.ofFn fun i => ((N i).realize v).val) = n := by
   have ha (w : Fin 2 × Fin m → Fin n) b' x' y' z' :=
     realize_affine (d := m) (B.relabel Sum.inl) b' x' y' z' (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hB)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hBn)
+      (by fo_simp; exact hB) (by fo_simp; exact hBn)
   have hd (w : Fin 2 × Fin m → Fin n) x' z' :=
     realize_decode (d := m) (B.relabel Sum.inl) x' z' (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using
-        Nat.le_of_lt hB)
-  fo_simp [cardinality, ha, hd, Function.comp_def, Nat.one_mul, and_assoc]
+      (by fo_simp; exact Nat.le_of_lt hB)
+  fo_simp [cardinality, ha, hd, Nat.one_mul, and_assoc]
   have hn := Fact.out (p := 2 ≤ n)
   constructor
   · rintro ⟨w, _, hmax, _, hone, _, _, _, hN, he⟩
@@ -118,10 +116,8 @@ theorem realize_bitIndex {d : ℕ} (B e : (language L).Term α)
     realize_convert (B.relabel Sum.inl) (fun _ : Fin 1 => one L)
       (Fin.cons (.var (.inr ())) (fun _ : Fin r.val => e.relabel Sum.inl))
       (fun i => (y i).relabel Sum.inl) (Sum.elim v w)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hB)
-      (by simpa only [Term.realize_relabel, Function.comp_def, Sum.elim_inl] using hBn)
-      (by simp)
-  fo_simp [bitIndex, hc, Function.comp_def, List.ofFn_const, List.replicate_one,
+      (by fo_simp; exact hB) (by fo_simp; exact hBn) (by simp)
+  fo_simp [bitIndex, hc, List.ofFn_const, List.replicate_one,
     Nat.ofDigits_singleton, Nat.ofDigits_one, List.sum_replicate, smul_eq_mul,
     Nat.ofDigits_ofFn_succ, Fin.cons_zero, Fin.cons_succ, Nat.one_mul, Fin.le_def, not_le,
     and_assoc]

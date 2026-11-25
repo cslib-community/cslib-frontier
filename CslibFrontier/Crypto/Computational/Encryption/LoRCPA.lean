@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -453,14 +454,9 @@ theorem isPPTOn_lorRunOn {α : Type} {input : α ↪ List Bool}
       (fun p => lorStepOn valid encrypt adversary (security p.1) (pk p.1) (bit p.1) p.2) := by
     simpa only [lorStepOn, bind_pure_comp] using hquery.bind_with hcons
   obtain ⟨stBound, hstBound, hstLen⟩ := hadversary.state_growth
-  have hsecPoly : PolyBounded (fun a : α => (input a).length) security :=
-    hsecurity.polyBounded
-  have hstPoly := (PolyBounded.of_polynomiallyBounded security hstBound).comp hsecPoly
-  have hctPoly := (PolyBounded.of_polynomiallyBounded security hctBound).comp hsecPoly
   have hgrowthPoly : PolyBounded (fun a : α => (input a).length)
-      (fun a => 2 * stBound (security a) + 2 * ctBound (security a) + 1) :=
-    (((PolyBounded.const 2).mul hstPoly).add ((PolyBounded.const 2).mul hctPoly)).add
-      (PolyBounded.const 1)
+      (fun a => 2 * stBound (security a) + 2 * ctBound (security a) + 1) := by
+    growth_poly
   refine IsPPTOn.iterateWith_of_bounded_growth hcount hinitial hstep hgrowthPoly ?_
   intro a loopState next hnext
   simp only [lorStepOn, apply_ite ProbComp.eval, ProbComp.eval_bind, ProbComp.eval_pure,

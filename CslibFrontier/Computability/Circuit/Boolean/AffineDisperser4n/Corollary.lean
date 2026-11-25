@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n
 public import CslibFrontier.Computability.Complexity.AffineDisperser
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Li.PolyTime
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Explicit `4N - o(N)` circuit lower bounds in `P` and stratified Farkas optimality
@@ -23,8 +24,9 @@ This module packages three families of consequences of `four_mul_le_cost_add` an
   `4 * N - 19332 * N ^ (4 / 5)` genuinely binary `B₂` gates (`binaryB2Cost`, with constants and
   negations free), and hence at least `4 * N - 19332 * N ^ (4 / 5)` total gates, for all
   sufficiently large `N` (`exists_mem_P_eventually_le_cost_primeDisperser`,
-  `exists_mem_P_eventually_le_size_primeDisperser`). Achieving `4n - O(log n)`
-  (`Theorem 1.1` per `#4322`) remains open pending an `O(log n)`-dimension disperser (`#4323`).
+  `exists_mem_P_eventually_le_size_primeDisperser`). Formalizing `4n - O(log n)`
+  ([MishraSanthanam2026Revision1], Theorem 1.1, p. 2) remains open pending an explicit
+  `O(log n)`-dimension disperser in Lean (`#4323`).
 * **Explicit `4N - O(N / log N)` lower bound via `explicitDisperser`**: instantiating at
   `explicitDisperser` improves the constant from `60 * N / (Nat.log 2 N + 1) + 10` to
   `54 * N / (Nat.log 2 N + 1) + 9` under both `binaryB2Cost` and `size`
@@ -35,7 +37,8 @@ This module packages three families of consequences of `four_mul_le_cost_add` an
     `α = β + 2` (`weight_lower_bounds_of_sub_eq_four`).
   - **Original `State`-grounded bigraded optimality** (`stratifiedPotential`,
     `StratifiedStepSound`, `stratifiedStepSound_uniform`, `stratified_weight_sub_le_four`,
-    `stratified_weight_lower_bounds_of_sub_eq_four`, not from `[MishraSanthanam2027]`): for any
+    `stratified_weight_lower_bounds_of_sub_eq_four`, extending the discussion in
+    [MishraSanthanam2026Revision1], Remark 4.3): for any
     bigraded `(gateChildren, eqnChildren)` potential on `State n` that is sound across the
     `AffineDisperser4n` transitions (equation-free/pair-free initial states, `moveAffine`,
     `PairInSystem` + `unitDelete`, `Case 5b` pair creation, and `Case 5a` `andOnPairStep`),
@@ -71,10 +74,10 @@ This module packages three families of consequences of `four_mul_le_cost_add` an
 ## References
 
 * [O. S. Mishra and R. Santhanam, *An Explicit 4n - O(log n) Size Lower Bound against General
-  Boolean Circuits*][MishraSanthanam2027] (submission PDF inaccessible with HTTP 1042; `#4322`
-  records `4n - 10d` with `(6, 4, 10)`, whereas `(5, 3, 9)`, `binaryB2Cost`, the
-  `Li.primeDisperser` instantiation, and the bigraded Farkas optimality theorems are original to
-  this formalization)
+  Boolean Circuits*][MishraSanthanam2026Revision1], ECCC TR26-260 revision 1, Theorem 4.1
+  (p. 21) and Remark 4.3 (p. 26). The `(5, 3, 9)` weights, `binaryB2Cost`, the
+  `Li.primeDisperser` instantiation, and the bigraded Farkas optimality theorems are refinements
+  of this formalization.
 * [V. Shoup, *New algorithms for finding irreducible polynomials over finite fields*][Shoup1990]
 * [X. Li, *Two source extractors for asymptotically optimal entropy, and (many) more*][Li2023]
 -/
@@ -89,9 +92,10 @@ open Cslib.Complexity Cslib.AffineDisperser
 
 /-! ### Rational LP optimality for `(α, β, c) = (5, 3, 9)` -/
 
-/-- Rational Farkas lemma on the `#4322` linear constraints (`Remark 4.3` unverified against
-[MishraSanthanam2027]): under `α ≤ β + 2` and `c ≤ 2 * α - β + 2`, the leading coefficient `c - α`
-cannot exceed `4`. -/
+/-- Rational Farkas lemma on the `#4322` linear constraints: under `α ≤ β + 2` and
+`c ≤ 2 * α - β + 2`, the leading coefficient `c - α` cannot exceed `4`. This is a formal
+algebraic refinement of the potential-reweighting discussion in [MishraSanthanam2026Revision1],
+Remark 4.3 (p. 26), which states optimality without listing these inequalities. -/
 theorem weight_sub_le_four {α β c : ℚ} (h₁ : α ≤ β + 2) (h₂ : c ≤ 2 * α - β + 2) :
     c - α ≤ 4 := by
   linarith
@@ -275,24 +279,20 @@ private theorem exists_valid_of_baseStateOK {n : ℕ} (S : State n)
       solvable := fun u =>
         ⟨u, fun _ _ => rfl, fun _ he => absurd (heq ▸ he) (Finset.notMem_empty _)⟩
       unique := fun _ _ _ _ _ _ hv => absurd (haux ▸ hv) (Finset.notMem_empty _) }
+  have hlive : ∀ {k}, k ∈ S.live → k ∈ S.params ∨ k ∈ S.gates := fun hk =>
+    (Finset.mem_union.1 hk).imp_left fun h =>
+      (Finset.mem_union.1 h).resolve_right (haux ▸ Finset.notMem_empty _)
   have hcongr : ∀ {val val'}, S.Consistent val → S.Consistent val' →
       (∀ j ∈ S.params, val j = val' j) → ∀ k ∈ S.live, val k = val' k := by
     intro val val' hc hc' hag k
     induction k using Nat.strong_induction_on with
     | ind k ih =>
       intro hk
-      rcases Finset.mem_union.1 hk with hpa | hg
-      · rcases Finset.mem_union.1 hpa with hpk | hak
-        · exact hag k hpk
-        · exact absurd (haux ▸ hak) (Finset.notMem_empty _)
-      · rw [hc.2 k hg, hc'.2 k hg]
-        refine Gate.eval_congr fun i hi => ?_
-        have hilive := hwf.reads_live k hg i hi
-        rcases Finset.mem_union.1 hilive with hpa' | hg'
-        · rcases Finset.mem_union.1 hpa' with hp' | ha'
-          · exact hag i hp'
-          · exact absurd (haux ▸ ha') (Finset.notMem_empty _)
-        · exact ih i (hwf.reads_lt k hg i hg' hi) hilive
+      refine (hlive hk).elim (hag k) fun hg => ?_
+      rw [hc.2 k hg, hc'.2 k hg]
+      refine Gate.eval_congr fun i hi => ?_
+      have hilive := hwf.reads_live k hg i hi
+      exact (hlive hilive).elim (hag i) fun hg' => ih i (hwf.reads_lt k hg i hg' hi) hilive
   let evalFn : BooleanFunction n := fun x =>
     S.out.eval (Classical.choose
       (hwf.exists_consistent fun j => if hj : j < n then x ⟨j, hj⟩ else false))
@@ -311,10 +311,8 @@ private theorem exists_valid_of_baseStateOK {n : ℕ} (S : State n)
   have hspec := Classical.choose_spec
     (hwf.exists_consistent fun j => if hj : j < n then S.phi val ⟨j, hj⟩ else false)
   exact Lit.eval_congr fun i hi => hcongr hcons hspec.2
-    (fun j hj => by
-      have hlt : j < n := Finset.mem_range.1 (hp ▸ hj)
-      have hphi_j : S.phi val ⟨j, hlt⟩ = val j := by rw [hphi]
-      exact ((hspec.1 j hj).trans (dite_eq_left hlt)).trans hphi_j |>.symm) i (hwf.out_live i hi)
+    (fun j hj => by rw [hspec.1 j hj, dite_eq_left (Finset.mem_range.1 (hp ▸ hj)), hphi]) i
+    (hwf.out_live i hi)
 
 private def gateReadsNoGate {n : ℕ} (S : State n) (J : ℕ) : Bool :=
   (match (S.gate J).left with | .const _ => true | .node i => decide (i ∉ S.gates)) &&
@@ -350,8 +348,7 @@ private theorem not_partnersShareChild_of {n : ℕ} {S : State n}
     (h : ∀ pr ∈ S.pairs, S.children pr.fst ∩ S.children pr.snd = ∅) :
     ¬ S.PartnersShareChild := by
   rintro ⟨pr, hpr, x, hx⟩
-  rw [h pr hpr] at hx
-  exact Finset.notMem_empty x hx
+  exact Finset.notMem_empty x (h pr hpr ▸ hx)
 
 /-- `2`-input, `3`-gate state (`x₀ ∧ x₁`, `(!x₀) ∧ x₁`, `g₂ ∧ g₃`) witnessing `w 2 0 ≤ w_init`
 at `init_le` and `c + bp 1 0 1 0 ≤ 2 * w 2 0 + 2` under `Case 5b`. -/
@@ -373,9 +370,8 @@ private theorem fanout2_bounds {ce : ℚ} {w : ℕ → ℕ → ℚ} {bp : ℕ �
       (S.gateChildren 0).card = 2 ∧ (S.eqnChildren 0).card = 0 ∧
       (S.gateChildren 1).card = 2 ∧ (S.eqnChildren 1).card = 0 := by decide
   have hevalS : stratifiedPotential ce w bp S = 3 + 2 * w 2 0 := by
-    rcases hS_cards with ⟨hg, he, hu, hp, hg0, he0, hg1, he1⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.card_empty, Finset.sum_empty,
-      Finset.sum_pair (by decide : (0 : ℕ) ≠ 1), hg0, he0, hg1, he1]
+    simp only [stratifiedPotential, hS_cards, Finset.card_empty, Finset.sum_empty,
+      Finset.sum_pair (by decide : (0 : ℕ) ≠ 1)]
     ring
   rw [hevalS, hS_cards.1] at hinit
   have hpc := h.pairCreation_le hS (G := 2) (t₁ := 0) (t₂ := 1) (by decide) (by decide)
@@ -389,9 +385,8 @@ private theorem fanout2_bounds {ce : ℚ} {w : ℕ → ℕ → ℚ} {bp : ℕ �
       (S'.gateChildren 0).card = 1 ∧ (S'.eqnChildren 0).card = 0 ∧
       (S'.gateChildren 1).card = 1 ∧ (S'.eqnChildren 1).card = 0 := by decide
   have hevalS' : stratifiedPotential ce w bp S' = 1 + bp 1 0 1 0 := by
-    rcases hS'_cards with ⟨hg, he, hu, hp, -, hg0, he0, hg1, he1⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.card_empty, Finset.sum_empty,
-      Finset.sum_singleton, hg0, he0, hg1, he1]
+    simp only [stratifiedPotential, hS'_cards, Finset.card_empty, Finset.sum_empty,
+      Finset.sum_singleton]
     ring
   change stratifiedPotential ce w bp S' + c * ((S.a - S'.a : ℕ) : ℚ) ≤ _ at hpc
   rw [hevalS', hevalS, hS'_cards.2.2.2.2.1] at hpc
@@ -425,13 +420,11 @@ private theorem auxAux_ce_le_one {ce : ℚ} {w : ℕ → ℕ → ℚ} {bp : ℕ 
       (S₃.gateChildren 0).card = 0 ∧ (S₃.eqnChildren 0).card = 2 ∧
       (S₃.gateChildren 1).card = 0 ∧ (S₃.eqnChildren 1).card = 2 := by decide
   have he2 : stratifiedPotential ce w bp S₂ = 1 + 2 * ce + 2 * w 0 2 := by
-    rcases h2 with ⟨hg, he, hu, hp, hg0, he0, hg1, he1⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.sum_empty,
-      Finset.sum_pair (by decide : (0 : ℕ) ≠ 1), hg0, he0, hg1, he1]; ring
+    simp only [stratifiedPotential, h2, Finset.sum_empty,
+      Finset.sum_pair (by decide : (0 : ℕ) ≠ 1)]; ring
   have he3 : stratifiedPotential ce w bp S₃ = 3 * ce + 2 * w 0 2 := by
-    rcases h3 with ⟨hg, he, hu, hp, hg0, he0, hg1, he1⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.sum_empty,
-      Finset.sum_pair (by decide : (0 : ℕ) ≠ 1), hg0, he0, hg1, he1]; ring
+    simp only [stratifiedPotential, h3, Finset.sum_empty,
+      Finset.sum_pair (by decide : (0 : ℕ) ≠ 1)]; ring
   change stratifiedPotential ce w bp S₃ ≤ _ at hmov
   linarith
 
@@ -471,13 +464,9 @@ private theorem pairedPaired_bound {ce : ℚ} {w : ℕ → ℕ → ℚ} {bp : �
       (S₃.gateChildren 2).card = 0 ∧ (S₃.eqnChildren 2).card = 1 ∧
       (S₃.gateChildren 3).card = 1 ∧ (S₃.eqnChildren 3).card = 0 := by decide
   have he2 : stratifiedPotential ce w bp S₂ = 3 + 2 * bp 1 0 1 0 := by
-    rcases h2 with ⟨hg, he, hu, hp, c0, e0, c1, e1, c2, e2, c3, e3⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.sum_empty, Finset.sum_pair hpne,
-      c0, e0, c1, e1, c2, e2, c3, e3]; ring
+    simp only [stratifiedPotential, h2, Finset.sum_empty, Finset.sum_pair hpne]; ring
   have he3 : stratifiedPotential ce w bp S₃ = 2 + ce + 2 * bp 0 1 1 0 := by
-    rcases h3 with ⟨hg, he, hu, hp, c0, e0, c1, e1, c2, e2, c3, e3⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.sum_empty, Finset.sum_pair hpne,
-      c0, e0, c1, e1, c2, e2, c3, e3]; ring
+    simp only [stratifiedPotential, h3, Finset.sum_empty, Finset.sum_pair hpne]; ring
   change stratifiedPotential ce w bp S₃ ≤ _ at hmov
   linarith
 
@@ -548,18 +537,15 @@ private theorem farkasCycle_bounds {ce : ℚ} {w : ℕ → ℕ → ℚ} {bp : �
       (S₄.gateChildren 3).card = 1 ∧ (S₄.eqnChildren 3).card = 1 ∧
       (S₄.gateChildren 5).card = 2 ∧ (S₄.eqnChildren 5).card = 0 := by decide
   have he2 : stratifiedPotential ce w bp S₂ = 5 + ce + 2 * w 1 1 + bp 1 0 1 0 := by
-    rcases h2 with ⟨hg, he, hu, hp, c2, e2, c3, e3, c0, e0, c1, e1⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.sum_singleton,
-      Finset.sum_pair (by decide : (2 : ℕ) ≠ 3), pr₀, c2, e2, c3, e3, c0, e0, c1, e1]; ring
+    simp only [stratifiedPotential, h2, Finset.sum_singleton,
+      Finset.sum_pair (by decide : (2 : ℕ) ≠ 3), pr₀]; ring
   have he3 : stratifiedPotential ce w bp S₃ = 4 + 2 * ce + 2 * w 1 1 + bp 0 1 1 0 := by
-    rcases h3 with ⟨hg, he, hu, hp, c2, e2, c3, e3, c0, e0, c1, e1⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.sum_singleton,
-      Finset.sum_pair (by decide : (2 : ℕ) ≠ 3), pr₀, c2, e2, c3, e3, c0, e0, c1, e1]; ring
+    simp only [stratifiedPotential, h3, Finset.sum_singleton,
+      Finset.sum_pair (by decide : (2 : ℕ) ≠ 3), pr₀]; ring
   have he4 : stratifiedPotential ce w bp S₄ = 3 + ce + 2 * w 1 1 + w 2 0 := by
-    rcases h4 with ⟨hg, he, hu, hp, -, c2, e2, c3, e3, c5, e5⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.sum_empty,
+    simp only [stratifiedPotential, h4, Finset.sum_empty,
       Finset.sum_insert (by decide : (2 : ℕ) ∉ ({3, 5} : Finset ℕ)),
-      Finset.sum_pair (by decide : (3 : ℕ) ≠ 5), c2, e2, c3, e3, c5, e5]; ring
+      Finset.sum_pair (by decide : (3 : ℕ) ≠ 5)]; ring
   change stratifiedPotential ce w bp S₃ ≤ _ at hmov
   change stratifiedPotential ce w bp S₄ + c * ((S₃.a - S₄.a : ℕ) : ℚ) ≤ _ at hpis
   rw [he4, he3, h4.2.2.2.2.1] at hpis
@@ -605,13 +591,9 @@ private theorem aopWitness_bound {ce : ℚ} {w : ℕ → ℕ → ℚ} {bp : ℕ 
   have h3 : S₃.gates.card = 0 ∧ S₃.eqns.card = 0 ∧ S₃.unpaired = {0} ∧ S₃.pairs = ∅ ∧
       S₂.a - S₃.a = 1 ∧ (S₃.gateChildren 0).card = 0 ∧ (S₃.eqnChildren 0).card = 0 := by decide
   have he2 : stratifiedPotential ce w bp S₂ = 3 + 2 * bp 1 0 1 0 := by
-    rcases h2 with ⟨hg, he, hu, hp, c0, e0, c1, e1, c2, e2, c3, e3⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.sum_empty, Finset.sum_pair hpne,
-      pr₁, pr₂, c0, e0, c1, e1, c2, e2, c3, e3]; ring
+    simp only [stratifiedPotential, h2, Finset.sum_empty, Finset.sum_pair hpne, pr₁, pr₂]; ring
   have he3 : stratifiedPotential ce w bp S₃ = 0 := by
-    rcases h3 with ⟨hg, he, hu, hp, -, c0, e0⟩
-    simp only [stratifiedPotential, hg, he, hu, hp, Finset.sum_empty, Finset.sum_singleton,
-      c0, e0, h.w_zero]; ring
+    simp only [stratifiedPotential, h3, Finset.sum_empty, Finset.sum_singleton, h.w_zero]; ring
   change stratifiedPotential ce w bp S₃ + c * ((S₂.a - S₃.a : ℕ) : ℚ) ≤ _ at haop
   rw [he3, he2, h3.2.2.2.2.1] at haop
   norm_num at haop
@@ -662,14 +644,8 @@ theorem eventually_four_mul_le_cost_add_explicitDisperser :
   have hlb := four_mul_le_cost_add_explicitThreshold C hC
   have hdiv : explicitThreshold N ≤ 6 * N / (Nat.log 2 N + 1) :=
     Nat.le_div_iff_mul_le (Nat.succ_pos _) |>.2 (by linarith)
-  have hmul : 9 * (6 * N / (Nat.log 2 N + 1)) ≤ 54 * N / (Nat.log 2 N + 1) := by
-    rw [Nat.le_div_iff_mul_le (Nat.succ_pos _)]
-    have := Nat.div_mul_le_self (6 * N) (Nat.log 2 N + 1)
-    calc
-      9 * (6 * N / (Nat.log 2 N + 1)) * (Nat.log 2 N + 1)
-        = 9 * ((6 * N / (Nat.log 2 N + 1)) * (Nat.log 2 N + 1)) := by ring
-      _ ≤ 9 * (6 * N) := Nat.mul_le_mul_left 9 this
-      _ = 54 * N := by ring
+  have hmul : 9 * (6 * N / (Nat.log 2 N + 1)) ≤ 54 * N / (Nat.log 2 N + 1) :=
+    (Nat.mul_div_le_mul_div_assoc 9 (6 * N) _).trans_eq (by rw [← mul_assoc]; norm_num)
   omega
 
 /-- Asymptotic natural-number size lower bound for `explicitDisperser N`:
@@ -689,23 +665,18 @@ private theorem eventually_four_mul_sub_le_cost_of_computes_explicitDisperser :
       4 * (N : ℝ) - 54 * (N : ℝ) / ((Nat.log 2 N : ℝ) + 1) - 9 ≤
         (C.program.cost binaryB2Cost : ℝ) := by
   filter_upwards [eventually_four_mul_le_cost_add_explicitDisperser] with N hN C hC
-  have hlb : (4 * N : ℝ) ≤
-      (C.program.cost binaryB2Cost : ℝ) + ((54 * N / (Nat.log 2 N + 1) : ℕ) : ℝ) + 9 := by
-    exact_mod_cast hN C hC
   have hdiv : ((54 * N / (Nat.log 2 N + 1) : ℕ) : ℝ) ≤
       54 * (N : ℝ) / ((Nat.log 2 N : ℝ) + 1) := by
     simpa [Nat.cast_add, Nat.cast_mul] using
       (Nat.cast_div_le (α := ℝ) (m := 54 * N) (n := Nat.log 2 N + 1))
-  linarith
+  cast_linarith [hN C hC]
 
 private theorem eventually_four_mul_sub_le_size_of_computes_explicitDisperser :
     ∀ᶠ N in atTop, ∀ (C : Circuit (fullSignature 2 Bool) N 1),
       C.Computes fullInterpretation (single (explicitDisperser N)) →
       4 * (N : ℝ) - 54 * (N : ℝ) / ((Nat.log 2 N : ℝ) + 1) - 9 ≤ (C.size : ℝ) := by
   filter_upwards [eventually_four_mul_sub_le_cost_of_computes_explicitDisperser] with N hN C hC
-  have hle : (C.program.cost binaryB2Cost : ℝ) ≤ (C.size : ℝ) := by
-    exact_mod_cast cost_binaryB2Cost_le_size C
-  linarith [hN C hC]
+  cast_linarith [cost_binaryB2Cost_le_size C, hN C hC]
 
 /-- There exists an explicit language in `P` (`explicitDisperserLanguage`) whose `N`-bit slices
 require at least `4 * N - 54 * N / (Nat.log 2 N + 1) - 9` genuinely binary `B₂` gates. -/
@@ -755,9 +726,7 @@ private theorem eventually_four_mul_sub_le_size_of_computes_primeDisperser :
       C.Computes fullInterpretation (single (Li.primeDisperser N)) →
       4 * (N : ℝ) - 19332 * (N : ℝ) ^ ((4 : ℝ) / 5) ≤ (C.size : ℝ) := by
   filter_upwards [eventually_four_mul_sub_le_cost_of_computes_primeDisperser] with N hN C hC
-  have hle : (C.program.cost binaryB2Cost : ℝ) ≤ (C.size : ℝ) := by
-    exact_mod_cast cost_binaryB2Cost_le_size C
-  linarith [hN C hC]
+  cast_linarith [cost_binaryB2Cost_le_size C, hN C hC]
 
 /-- Unconditional explicit language in `P` (`Li.primeDisperserLanguage`) whose `N`-bit slices
 eventually require at least `4 * N - 19332 * N ^ (4 / 5)` genuinely binary `B₂` gates

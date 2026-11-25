@@ -51,61 +51,60 @@ private theorem monomial_divided_differences (x : Fin n → A) (e : Fin n →₀
       (e.degree = 0 → ∀ i, d i = 0) ∧
       (∀ i, eval x (d i) = eval x (pderiv i (monomial e a))) := by
   classical
-  generalize he : e.degree = k
-  induction k using Nat.strong_induction_on generalizing e a with
-  | ind k ih =>
-    by_cases he0 : e = 0
-    · subst e
-      refine ⟨fun _ => 0, ?_, ?_, ?_, ?_⟩ <;> simp
-    · obtain ⟨i, hi⟩ := Finsupp.ne_iff.mp he0
-      have hi : e i ≠ 0 := by simpa only [Finsupp.zero_apply] using hi
-      let e' := e - Finsupp.single i 1
-      have hres : e' + Finsupp.single i 1 = e :=
-        Finsupp.sub_add_single_one_cancel hi
-      have hdeg : e'.degree + 1 = e.degree := by
-        simpa only [map_add, Finsupp.degree_single] using congrArg Finsupp.degree hres
-      have hlt : e'.degree < k := by omega
-      obtain ⟨d, hd, hbound, hzero, hdiag⟩ := ih e'.degree hlt e' a rfl
-      let q : MvPolynomial (Fin n) A := monomial e' a
-      have hq : q * X i = monomial e a := by
-        rw [← pow_one (X i), ← monomial_add_single, hres]
-      let D : Fin n → MvPolynomial (Fin n) A := fun j =>
-        d j * X i + if j = i then C (eval x q) else 0
-      refine ⟨D, ?_, ?_, ?_, ?_⟩
-      · have hsum : (∑ j, D j * (C (x j) - X j)) =
-            (∑ j, d j * (C (x j) - X j)) * X i +
-              C (eval x q) * (C (x i) - X i) := by
-          simp only [D, add_mul, Finset.sum_add_distrib, ite_mul, zero_mul]
-          simp only [Finset.sum_ite_eq', Finset.mem_univ,
-            ↓reduceIte, Finset.sum_mul]
-          congr 1
-          apply Finset.sum_congr rfl
-          intro j _
-          ring
-        rw [hsum, ← hd, ← hq, map_mul, eval_X, map_mul]
-        change C (eval x q) * C (x i) - q * X i = _
+  by_cases he0 : e = 0
+  · subst e
+    refine ⟨fun _ => 0, ?_, ?_, ?_, ?_⟩ <;> simp
+  · obtain ⟨i, hi⟩ := Finsupp.ne_iff.mp he0
+    have hi : e i ≠ 0 := by simpa only [Finsupp.zero_apply] using hi
+    let e' := e - Finsupp.single i 1
+    have hres : e' + Finsupp.single i 1 = e :=
+      Finsupp.sub_add_single_one_cancel hi
+    have hdeg : e'.degree + 1 = e.degree := by
+      simpa only [map_add, Finsupp.degree_single] using congrArg Finsupp.degree hres
+    have hlt : e'.degree < e.degree := by omega
+    obtain ⟨d, hd, hbound, hzero, hdiag⟩ := monomial_divided_differences x e' a
+    let q : MvPolynomial (Fin n) A := monomial e' a
+    have hq : q * X i = monomial e a := by
+      rw [← pow_one (X i), ← monomial_add_single, hres]
+    let D : Fin n → MvPolynomial (Fin n) A := fun j =>
+      d j * X i + if j = i then C (eval x q) else 0
+    refine ⟨D, ?_, ?_, ?_, ?_⟩
+    · have hsum : (∑ j, D j * (C (x j) - X j)) =
+          (∑ j, d j * (C (x j) - X j)) * X i +
+            C (eval x q) * (C (x i) - X i) := by
+        simp only [D, add_mul, Finset.sum_add_distrib, ite_mul, zero_mul]
+        simp only [Finset.sum_ite_eq', Finset.mem_univ,
+          ↓reduceIte, Finset.sum_mul]
+        congr 1
+        apply Finset.sum_congr rfl
+        intro j _
         ring
-      · intro j
-        have hX : (X i : MvPolynomial (Fin n) A).totalDegree ≤ 1 := totalDegree_X_le i
-        have hC :
-            (if j = i then C (eval x q) else (0 : MvPolynomial (Fin n) A)).totalDegree = 0 := by
-          split_ifs <;> simp
-        have hb : (d j * X i).totalDegree ≤ e'.degree := by
-          by_cases hz : e'.degree = 0
-          · simp [hzero hz j]
-          · have hm := totalDegree_mul (d j) (X i)
-            have hj := hbound j
-            omega
-        exact (totalDegree_add _ _).trans (by rw [hC]; omega)
-      · intro hz
-        omega
-      · intro j
-        rw [← hq, pderiv_mul]
-        simp only [D, map_add, map_mul, eval_X, hdiag]
-        by_cases hj : j = i
-        · subst j
-          simp [q]
-        · simp [q, hj, Ne.symm hj]
+      rw [hsum, ← hd, ← hq, map_mul, eval_X, map_mul]
+      change C (eval x q) * C (x i) - q * X i = _
+      ring
+    · intro j
+      have hX : (X i : MvPolynomial (Fin n) A).totalDegree ≤ 1 := totalDegree_X_le i
+      have hC :
+          (if j = i then C (eval x q) else (0 : MvPolynomial (Fin n) A)).totalDegree = 0 := by
+        split_ifs <;> simp
+      have hb : (d j * X i).totalDegree ≤ e'.degree := by
+        by_cases hz : e'.degree = 0
+        · simp [hzero hz j]
+        · have hm := totalDegree_mul (d j) (X i)
+          have hj := hbound j
+          omega
+      exact (totalDegree_add _ _).trans (by rw [hC]; omega)
+    · intro hz
+      omega
+    · intro j
+      rw [← hq, pderiv_mul]
+      simp only [D, map_add, map_mul, eval_X, hdiag]
+      by_cases hj : j = i
+      · subst j
+        simp [q]
+      · simp [q, hj, Ne.symm hj]
+termination_by e.degree
+decreasing_by exact hlt
 
 /-- Every polynomial of degree at most `d + 1` has divided differences of
  degree at most `d`, including over rings with zero divisors. -/

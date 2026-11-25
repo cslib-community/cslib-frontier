@@ -93,7 +93,6 @@ the clause of a recursive call. -/
     | some d => replay L ⟨d :: e :: st, ptr, d :: trace⟩ (w.drop L)
     | none => ⟨e :: st, ptr, trace⟩
 termination_by _ w => w.length
-decreasing_by all_goals simp only [List.length_cons, List.length_drop]; omega
 
 /-- Recover the tape from an assignment and the resampled clauses (latest first): the bits read by
 the latest resampling are the current values of the variables of its clause, and the earlier bits

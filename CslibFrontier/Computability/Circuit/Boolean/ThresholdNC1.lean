@@ -112,14 +112,8 @@ theorem size_thresholdDeMorganCircuit_le (k j : ℕ) :
     (thresholdDeMorganCircuit k j).size ≤
       4 + k + 40 * k * Nat.clog 2 (k + 1) +
         Nat.clog 2 (k + 1) * (20 * Nat.clog 2 (k + 1) + 6) := by
-  dsimp [thresholdDeMorganCircuit]
-  split_ifs with h
-  · rw [Circuit.size_comp, Circuit.size_append, size_leCircuit, size_wordConstCircuit]
-    have hw := size_weightCircuit_le k
-    have hmax : max 1 k ≤ 1 + k := max_le (Nat.le_add_right 1 k) (Nat.le_add_left k 1)
-    nlinarith
-  · rw [Circuit.size_oneGate]
-    omega
+  have : max 1 k ≤ 1 + k := max_le (by omega) (by omega)
+  circuit_bound [thresholdDeMorganCircuit, size_leCircuit, size_wordConstCircuit]
 
 /-- `thresholdDeMorganCircuit k j` has depth at most `2 + 23 ⌈log₂ (k + 1)⌉`. -/
 theorem depth_thresholdDeMorganCircuit_le (k j : ℕ) :
@@ -283,13 +277,8 @@ theorem ExtOp.size_majorityDeMorganCircuit_le (op : ExtOp) :
         Nat.clog 2 (op.arity + 1) * (20 * Nat.clog 2 (op.arity + 1) + 6) := by
   cases op with
   | ac op =>
-    rw [majorityDeMorganCircuit, Formula.size_toCircuit]
-    have h1 := Op.size_deMorganFormula_le op
-    have h2 : max 1 op.arity ≤ 1 + op.arity := max_le (Nat.le_add_right 1 _) (Nat.le_add_left _ 1)
-    change op.deMorganFormula.size ≤
-      4 + op.arity + 40 * op.arity * Nat.clog 2 (op.arity + 1) +
-        Nat.clog 2 (op.arity + 1) * (20 * Nat.clog 2 (op.arity + 1) + 6)
-    omega
+    have := Op.size_deMorganFormula_le op
+    circuit_bound [majorityDeMorganCircuit, ExtOp.arity]
   | gate m => exact Boolean.size_majorityDeMorganCircuit_le m
 
 /-- The De Morgan circuit of a `TC` operation of arity `k` has depth at most
@@ -298,11 +287,9 @@ theorem ExtOp.depth_majorityDeMorganCircuit_le (op : ExtOp) :
     op.majorityDeMorganCircuit.depth ≤ 2 + 23 * Nat.clog 2 (op.arity + 1) := by
   cases op with
   | ac op =>
-    refine (Formula.depth_toCircuit_le _).trans ((Op.depth_deMorganFormula_le op).trans ?_)
-    have hclog : Nat.clog 2 op.arity ≤ Nat.clog 2 (op.arity + 1) :=
-      Nat.clog_mono_right 2 (Nat.le_succ _)
-    change max 1 (Nat.clog 2 op.arity) ≤ 2 + 23 * Nat.clog 2 (op.arity + 1)
-    omega
+    have := Op.depth_deMorganFormula_le op
+    have := Nat.clog_mono_right 2 (Nat.le_succ op.arity)
+    circuit_bound [majorityDeMorganCircuit, ExtOp.arity]
   | gate m => exact Boolean.depth_majorityDeMorganCircuit_le m
 
 /-- **De Morgan circuits simulate fan-in-bounded majority circuits**: a circuit over the `TC` basis

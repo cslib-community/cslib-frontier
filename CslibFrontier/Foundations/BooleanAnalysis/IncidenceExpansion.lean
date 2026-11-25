@@ -209,8 +209,7 @@ theorem coeff_incidenceSum_eq_of_le (I : κ → Finset ι) (c : κ → Finset ι
     add_eq_left]
   refine sum_eq_zero fun S hS => coeff_incidenceTerm_eq_zero c hc ?_
   have hlt : K < ∑ i, #(S i) := Nat.lt_of_not_le (mem_filter.mp hS).2
-  have hmono : k * (Fintype.card κ + 2 * t) ≤ k * (Fintype.card κ + 2 * (ℓ - 1)) :=
-    Nat.mul_le_mul_left k (by omega)
+  have hmono : k * (Fintype.card κ + 2 * t) ≤ k * (Fintype.card κ + 2 * (ℓ - 1)) := by gcongr; omega
   omega
 
 end Truncation

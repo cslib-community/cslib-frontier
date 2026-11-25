@@ -116,11 +116,6 @@ private def simCfg {width : ℕ} (hw : 0 < width) (cfg : Cfg k Bool State input)
     cfg.inputPos, cfg.workTapes, cfg.workTapePos,
     if cfg.state = none ∧ cfg.output = [true] then [true] else []⟩
 
-private theorem initial_table {width : ℕ} (hw : 0 < width)
-    (machine : MultiTapeCTM k Bool State) (input : List Bool) :
-    ((table hw machine).initialConfig input).tapes =
-      simCfg hw (Cfg.init machine.initial input) := rfl
-
 private theorem step_table {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) {cfg : Cfg k Bool (ScanState width State) input}
     {s : ScanState width State} (hs : cfg.state = some s) (bit : Bool) :
@@ -256,14 +251,11 @@ private theorem stepCoins_block_of_invalid {width : ℕ} (hw : 0 < width)
   induction bits using List.reverseRecOn with
   | nil => simp only [List.length_nil] at hlen; omega
   | append_singleton bits bit ih =>
-    have hpre : bits.length < width := by
-      simp only [List.length_append, List.length_singleton] at hlen
-      omega
-    rw [MultiTapePTM.stepCoins_append, MultiTapePTM.stepCoins_append,
-      stepCoins_prefix hw machine cfg state hs bits hpre, MultiTapePTM.stepCoins_cons,
-      MultiTapePTM.stepCoins_nil, step_table hw machine rfl]
     have hcursor : bits.length + 1 = width := by
       simpa only [List.length_append, List.length_singleton] using hlen
+    rw [MultiTapePTM.stepCoins_append, MultiTapePTM.stepCoins_append,
+      stepCoins_prefix hw machine cfg state hs bits (by omega), MultiTapePTM.stepCoins_cons,
+      MultiTapePTM.stepCoins_nil, step_table hw machine rfl]
     have hact' : (localActions machine state cfg.inputSymbol cfg.workTapeSymbols)[
         2 * BitString.binaryValue bits + bit.toNat]? = none := by
       simpa only [localActions, actions, hs, BitString.binaryValue_snoc] using hact
@@ -291,21 +283,14 @@ private theorem stepCoins_padding {width : ℕ} (hw : 0 < width)
     cases bit with
     | false =>
       simp only [scan, simCfg, startState, hs, Bool.false_eq_true, ↓reduceIte]
-      rw [apply_idle]
-      have hi := ih
-      simp only [simCfg, startState, hs] at hi
-      rw [hi]
+      simp only [simCfg, startState, hs] at ih
+      rw [apply_idle, ih]
       simp only [List.length_cons, List.replicate_succ, List.cons.injEq, true_and]
     | true =>
       simp only [scan, simCfg, startState, hs, ↓reduceIte]
       have hreject := reject_continuation hw machine (simCfg hw cfg) bits
       simp only [simCfg, hs] at hreject
-      constructor
-      · exact fun h => (hreject h).elim
-      · rintro ⟨_, h⟩
-        have := congrArg List.head? h
-        simp only [List.length_cons, List.replicate_succ, List.head?_cons, Option.some.injEq,
-          Bool.true_eq_false] at this
+      exact iff_of_false hreject fun ⟨_, h⟩ => by simp [List.replicate_succ] at h
 
 
 private theorem binaryCertificate_zeros (width count : ℕ) :
@@ -361,14 +346,13 @@ private theorem stepCoins_certificate_suffix {width : ℕ} (hw : 0 < width)
       suffix = List.replicate suffix.length false := by
   induction indices generalizing cfg with
   | nil =>
+    simp only [binaryCertificate, List.flatMap_nil, List.nil_append]
     cases hs : cfg.state with
     | none =>
-      simp only [binaryCertificate, List.flatMap_nil, List.nil_append]
       rw [stepCoins_padding hw machine cfg hs]
       simp only [decodeCertificate, hs, List.length_nil, List.replicate_zero, ↓reduceIte,
         Option.any_some, beq_iff_eq]
     | some state =>
-      simp only [binaryCertificate, List.flatMap_nil, List.nil_append]
       rw [stepCoins_prefix hw machine cfg state hs suffix hshort]
       simp only [bufferCfg, reduceCtorEq, decodeCertificate, hs, Option.any_none,
         Bool.false_eq_true, false_and]
@@ -377,10 +361,8 @@ private theorem stepCoins_certificate_suffix {width : ℕ} (hw : 0 < width)
     | none =>
       rw [stepCoins_padding hw machine cfg hs, append_eq_zeros,
         binaryCertificate_eq_zeros hsmall, machine.decodeCertificate_of_halted hs]
-      split_ifs with h
-      · simp only [Option.any_some, beq_iff_eq]
-        tauto
-      · simp only [Option.any_none, Bool.false_eq_true, false_and]
+      split_ifs <;>
+        simp only [Option.any_some, Option.any_none, beq_iff_eq, Bool.false_eq_true, false_and] <;>
         tauto
     | some state =>
       have hindex := hsmall index (List.mem_cons_self ..)
@@ -392,13 +374,12 @@ private theorem stepCoins_certificate_suffix {width : ℕ} (hw : 0 < width)
         (simCfg hw cfg)).output = [true] ↔ _
       cases hact : (machine.actions cfg)[index]? with
       | none =>
-        have hn := stepCoins_block_of_invalid hw machine cfg state hs
-          (BitString.binaryWord width index) (BitString.length_binaryWord hindex)
-          (by simpa only [BitString.binaryValue_binaryWord] using hact)
-          (binaryCertificate width indices ++ suffix)
-        simp only [decodeCertificate, hs, step?, hact, Option.map_none, bind, Option.bind_none,
-          Option.any_none, Bool.false_eq_true, false_and, iff_false]
-        exact hn
+        simpa only [decodeCertificate, hs, step?, hact, Option.map_none, bind, Option.bind_none,
+          Option.any_none, Bool.false_eq_true, false_and, iff_false] using
+          stepCoins_block_of_invalid hw machine cfg state hs
+            (BitString.binaryWord width index) (BitString.length_binaryWord hindex)
+            (by simpa only [BitString.binaryValue_binaryWord] using hact)
+            (binaryCertificate width indices ++ suffix)
       | some action =>
         rw [MultiTapePTM.stepCoins_append, stepCoins_block_of_valid hw machine cfg state hs
           (BitString.binaryWord width index) (BitString.length_binaryWord hindex)
@@ -416,20 +397,21 @@ private theorem stepCoins_certificate {width : ℕ} (hw : 0 < width)
   simpa only [List.append_nil, List.length_nil, List.replicate_zero, and_true] using
     stepCoins_certificate_suffix hw machine cfg [] hw indices hsmall
 
+private theorem binaryIndices_lt_two_pow {count width : ℕ} {word : List Bool} :
+    ∀ i ∈ binaryIndices count width word, i < 2 ^ width := by
+  intro i hi
+  obtain ⟨row, hrow, rfl⟩ := List.mem_map.mp hi
+  simpa only [BitString.length_of_mem_listRows hrow] using BitString.binaryValue_lt_two_pow row
+
 private theorem stepCoins_full {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (cfg : Cfg k Bool State input)
     (count : ℕ) (word : List Bool) (hlen : word.length = count * width) :
     ((table hw machine).stepCoins word (simCfg hw cfg)).output = [true] ↔
       machine.certificateAccepts (fun out => out == [true]) cfg
         (binaryIndices count width word) = true := by
-  have hsmall : ∀ i ∈ binaryIndices count width word, i < 2 ^ width := by
-    intro i hi
-    obtain ⟨row, hrow, rfl⟩ := List.mem_map.mp hi
-    have hr := BitString.length_of_mem_listRows hrow
-    simpa only [hr] using BitString.binaryValue_lt_two_pow row
-  have h := stepCoins_certificate hw machine cfg (binaryIndices count width word) hsmall
-  rw [binaryCertificate_binaryIndices hlen] at h
-  exact h
+  have h := stepCoins_certificate hw machine cfg (binaryIndices count width word)
+    binaryIndices_lt_two_pow
+  rwa [binaryCertificate_binaryIndices hlen] at h
 
 private theorem stepCoins_full_suffix {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (cfg : Cfg k Bool State input)
@@ -438,16 +420,10 @@ private theorem stepCoins_full_suffix {width : ℕ} (hw : 0 < width)
     ((table hw machine).stepCoins (word ++ suffix) (simCfg hw cfg)).output = [true] ↔
       ((table hw machine).stepCoins word (simCfg hw cfg)).output = [true] ∧
       suffix = List.replicate suffix.length false := by
-  have hsmall : ∀ i ∈ binaryIndices count width word, i < 2 ^ width := by
-    intro i hi
-    obtain ⟨row, hrow, rfl⟩ := List.mem_map.mp hi
-    have hr := BitString.length_of_mem_listRows hrow
-    simpa only [hr] using BitString.binaryValue_lt_two_pow row
   have h := stepCoins_certificate_suffix hw machine cfg suffix hshort
-    (binaryIndices count width word) hsmall
+    (binaryIndices count width word) binaryIndices_lt_two_pow
   rw [binaryCertificate_binaryIndices hlen] at h
-  rw [stepCoins_full hw machine cfg count word hlen]
-  exact h
+  rwa [stepCoins_full hw machine cfg count word hlen]
 
 private theorem acceptCount_partial {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (input : List Bool) (count rest : ℕ)
@@ -477,8 +453,7 @@ private theorem acceptCount_partial {width : ℕ} (hw : 0 < width)
     have h := stepCoins_full_suffix hw machine (Cfg.init machine.initial input) count
       ((List.ofFn word).take (count * width)) ((List.ofFn word).drop (count * width))
       ht (by rw [hd]; exact hrest)
-    rw [List.take_append_drop, hd, ← hp word] at h
-    exact h
+    rwa [List.take_append_drop, hd, ← hp word] at h
   refine Finset.card_bij (fun word _ => prefWord word) ?_ ?_ ?_
   · intro word hw'
     exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, by

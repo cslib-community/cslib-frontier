@@ -205,7 +205,6 @@ theorem normalized_mem_Icc (I : ℝ → ℝ → ℝ) (τ ρ Q γ : ℝ → ℝ)
     (σ : Γ × Ζ) (x y : V) :
     normalized I τ ρ Q γ K Kc f Xs Z Zt input prep maximum σ x y ∈ Set.Icc 0 (2 * B) := by
   have hQ0 := hQ0all (input x y / f)
-  have hQ1 := hQ1all (input x y / f)
   have hg0 : 0 ≤ rowGate ρ K f input {w | Z σ.2 w} x *
       incomingGate I τ K Kc f input {w | Xs σ.1 w} {w | Z σ.2 w} y :=
     mul_nonneg (hρ0 _) (hτ0 _)
@@ -213,21 +212,16 @@ theorem normalized_mem_Icc (I : ℝ → ℝ → ℝ) (τ ρ Q γ : ℝ → ℝ)
       incomingGate I τ K Kc f input {w | Xs σ.1 w} {w | Z σ.2 w} y ≤ 1 :=
     (mul_le_mul_of_nonneg_right (hρ1 _) (hτ0 _)).trans
       (by simpa only [one_mul] using hτ1 _)
-  have hc : (1 / 2 : ℝ) ≤ max (1 / 2)
-      (min 1 (normalizer Xs Zt prep x y)) := le_max_left _ _
-  have hc0 : 0 < max (1 / 2) (min 1 (normalizer Xs Zt prep x y)) := by linarith
   unfold normalized
   split_ifs
-  · have hn0 := div_nonneg (mul_nonneg hQ0 hg0) hc0.le
+  · have hn0 := div_nonneg (mul_nonneg hQ0 hg0)
+      ((by norm_num : (0 : ℝ) ≤ 1 / 2).trans (le_max_left _ (min 1 (normalizer Xs Zt prep x y))))
     have hn1 : Q (input x y / f) *
         (rowGate ρ K f input {w | Z σ.2 w} x *
           incomingGate I τ K Kc f input {w | Xs σ.1 w} {w | Z σ.2 w} y) /
-        max (1 / 2) (min 1 (normalizer Xs Zt prep x y)) ≤ 2 * B := by
-      apply (div_le_iff₀ hc0).mpr
-      calc
-        _ ≤ Q (input x y / f) := mul_le_of_le_one_right hQ0 hg1
-        _ ≤ B := hQ1
-        _ ≤ _ := by nlinarith [hB]
+        max (1 / 2) (min 1 (normalizer Xs Zt prep x y)) ≤ 2 * B :=
+      (le_abs_self _).trans ((Cslib.abs_mul_div_clip_le hg0 hg1 _).trans
+        (by rw [abs_of_nonneg hQ0]; linarith [hQ1all (input x y / f)]))
     exact ⟨mul_nonneg hn0 (hγ0 _),
       (mul_le_of_le_one_right hn0 (hγ1 _)).trans hn1⟩
   · exact ⟨le_rfl, mul_nonneg (by norm_num) hB⟩

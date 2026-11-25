@@ -45,7 +45,11 @@ Hence `v` straddles `t` with probability at most
 ## Main results
 
 * `Cslib.Circuits.Frontier.Gaussian.dependsOn_straddleEvent`: locality of straddling.
-* `Cslib.Circuits.Frontier.Gaussian.measureReal_straddleEvent_le_of_average`,
+* `Cslib.Circuits.Frontier.Gaussian.sum_arccos_edgeVector_offDiag_le_of_average`,
+  `Cslib.Circuits.Frontier.Gaussian.sum_arccos_edgeVector_offDiag_le`: Jensen and cap bounds on the
+  six off-diagonal `arccos` angles at a degree-`3` vertex under `G.MaxDegreeLE 3`.
+* `Cslib.Circuits.Frontier.Gaussian.four_mul_measureReal_straddleEvent_le`,
+  `Cslib.Circuits.Frontier.Gaussian.measureReal_straddleEvent_le_of_average`,
   `Cslib.Circuits.Frontier.Gaussian.measureReal_straddleEvent_le`: the straddling probability.
 
 ## References
@@ -135,7 +139,7 @@ private theorem four_le_card_filter_offDiag {ι : Type*} {s : Finset ι}
 /-- **Counting separated pairs.** If the edges at `v` form a three-element set `s`, then four
 times the probability that `v` straddles `t` is at most the sum, over the ordered pairs of
 distinct edges at `v`, of the probabilities that `t` separates their scores. -/
-private theorem four_mul_measureReal_straddleEvent_le [Finite E] {v : V} {s : Finset E}
+theorem four_mul_measureReal_straddleEvent_le [Finite E] {v : V} {s : Finset E}
     (hs : (s : Set E) = G.incidenceSet v) (hcard : s.card = 3) (t : ℝ) :
     4 * (Measure.pi fun _ : V => gaussianReal 0 1).real (straddleEvent G q R t v) ≤
       ∑ p ∈ s.offDiag, (Measure.pi fun _ : V => gaussianReal 0 1).real
@@ -171,6 +175,58 @@ private theorem four_mul_measureReal_straddleEvent_le [Finite E] {v : V} {s : Fi
         rw [integral_finsetSum _ fun p _ => hint _ (hBm p)]
         exact Finset.sum_congr rfl fun p _ => integral_indicator_one (hBm p)
 
+/-- **Jensen bound on the six off-diagonal `arccos` angles at a degree-`3` vertex** in a loopless
+multigraph of maximum degree at most `3`, given a lower bound `6 * a` on the off-diagonal
+inner-product sum. -/
+theorem sum_arccos_edgeVector_offDiag_le_of_average [Finite E] (hloop : G.Loopless)
+    (hdeg : G.MaxDegreeLE 3) (hq : 0 ≤ q) (hρ₀ : 0 ≤ ρ₀)
+    (hρ : ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R) {v : V} {s : Finset E}
+    (hs : (s : Set E) = G.incidenceSet v) (hcard : s.card = 3) {a : ℝ}
+    (haverage : 6 * a ≤ ∑ p ∈ s.offDiag, ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫) :
+    ∑ p ∈ s.offDiag, arccos ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ ≤ 6 * arccos a := by
+  have hoff : (s.offDiag.card : ℝ) = 6 := by
+    rw [Finset.offDiag_card, hcard]
+    norm_num
+  have hunit (e : E) : ‖edgeVector G q R e‖ = 1 := norm_edgeVector hloop hdeg hq (by linarith) hρ e
+  have hcap (e : E) (he : e ∈ s) : √((1 + ρ₀) / 2) ≤
+      ⟪edgeVector G q R e, unitKernelRow G.toSimpleGraph q R v⟫ :=
+    le_inner_edgeVector hloop hdeg hq hρ₀ hρ (by rw [← hs]; exact he)
+  have hpair (p : E × E) (hp : p ∈ s.offDiag) :
+      ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ ∈ Icc 0 1 := by
+    obtain ⟨h1, h2, -⟩ := Finset.mem_offDiag.mp hp
+    refine ⟨?_, (real_inner_le_norm _ _).trans_eq (by rw [hunit, hunit, one_mul])⟩
+    have := InnerProductGeometry.two_mul_sq_sub_one_le_inner (norm_unitKernelRow q R v)
+      (hunit p.1) (hunit p.2) (sqrt_nonneg _) (hcap _ h1) (hcap _ h2)
+    rw [sq_sqrt (by linarith)] at this
+    linarith
+  have hjensen := Real.sum_arccos_le_card_mul_arccos s.offDiag hpair (by rw [hoff]; exact haverage)
+  rwa [hoff] at hjensen
+
+/-- Cap lower bound `6 * ((1 + 3 * ρ₀) / 4)` on the off-diagonal inner-product sum at a degree-`3`
+vertex under `G.MaxDegreeLE 3`. -/
+private theorem le_sum_edgeVector_offDiag_inner [Finite E] (hloop : G.Loopless)
+    (hdeg : G.MaxDegreeLE 3) (hq : 0 ≤ q) (hρ₀ : 0 ≤ ρ₀)
+    (hρ : ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R) {v : V} {s : Finset E}
+    (hs : (s : Set E) = G.incidenceSet v) (hcard : s.card = 3) :
+    6 * ((1 + 3 * ρ₀) / 4) ≤ ∑ p ∈ s.offDiag, ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ := by
+  have h := InnerProductGeometry.le_sum_offDiag_inner (norm_unitKernelRow q R v)
+    (s := s) (y := edgeVector G q R) (fun e _ => norm_edgeVector hloop hdeg hq (by linarith) hρ e)
+    (sqrt_nonneg ((1 + ρ₀) / 2))
+    (fun e he => le_inner_edgeVector hloop hdeg hq hρ₀ hρ (by rw [← hs]; exact he))
+  rw [hcard, sq_sqrt (by linarith)] at h
+  linarith
+
+/-- **Cap-and-Jensen bound on the six off-diagonal `arccos` angles** at a degree-`3` vertex in a
+loopless multigraph of maximum degree at most `3`. -/
+theorem sum_arccos_edgeVector_offDiag_le [Finite E] (hloop : G.Loopless)
+    (hdeg : G.MaxDegreeLE 3) (hq : 0 ≤ q) (hρ₀ : 0 ≤ ρ₀)
+    (hρ : ρ₀ ≤ 2 * q / (1 + q ^ 2) - 3 * (2 * q ^ 2) ^ R) {v : V} {s : Finset E}
+    (hs : (s : Set E) = G.incidenceSet v) (hcard : s.card = 3) :
+    ∑ p ∈ s.offDiag, arccos ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ ≤
+      6 * arccos ((1 + 3 * ρ₀) / 4) :=
+  sum_arccos_edgeVector_offDiag_le_of_average hloop hdeg hq hρ₀ hρ hs hcard
+    (le_sum_edgeVector_offDiag_inner hloop hdeg hq hρ₀ hρ hs hcard)
+
 /-- **The straddling probability, from the average inner product.** In a loopless multigraph in
 which every vertex has three edges, let adjacent kernel rows have inner product at least
 `ρ₀ ≥ 0`. If the inner products of the edge vectors at `v`, over the ordered pairs of distinct
@@ -185,30 +241,14 @@ theorem measureReal_straddleEvent_le_of_average [Finite E] (hloop : G.Loopless)
       3 / (2 * π) * arccos a := by
   have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
   have hcard : s.card = 3 := by rw [← ncard_coe_finset, hs, h3]
-  have hoff : (s.offDiag.card : ℝ) = 6 := by
-    rw [Finset.offDiag_card, hcard]
-    norm_num
   have hunit (e : E) : ‖edgeVector G q R e‖ = 1 := norm_edgeVector hloop hdeg hq (by linarith) hρ e
-  have hcap (e : E) (he : e ∈ s) : √((1 + ρ₀) / 2) ≤
-      ⟪edgeVector G q R e, unitKernelRow G.toSimpleGraph q R v⟫ :=
-    le_inner_edgeVector hloop hdeg hq hρ₀ hρ (by rw [← hs]; exact he)
-  -- The inner products of distinct edge vectors at `v` lie in `[0, 1]`.
-  have hpair (p : E × E) (hp : p ∈ s.offDiag) :
-      ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ ∈ Icc 0 1 := by
-    obtain ⟨h1, h2, -⟩ := Finset.mem_offDiag.mp hp
-    refine ⟨?_, (real_inner_le_norm _ _).trans_eq (by rw [hunit, hunit, one_mul])⟩
-    have := InnerProductGeometry.two_mul_sq_sub_one_le_inner (norm_unitKernelRow q R v)
-      (hunit p.1) (hunit p.2) (sqrt_nonneg _) (hcap _ h1) (hcap _ h2)
-    rw [sq_sqrt (by linarith)] at this
-    linarith
-  -- Sheppard's bound for each pair, then Jensen's inequality for `arccos`.
   have hsheppard (p : E × E) : (Measure.pi fun _ : V => gaussianReal 0 1).real
       {ω | t ∈ Ι (edgeScore G q R ω p.1) (edgeScore G q R ω p.2)} ≤
         arccos ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ / π := by
     rw [← InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one (hunit p.1) (hunit p.2)]
     exact measureReal_mem_uIoc_le ((hunit p.1).trans (hunit p.2).symm) t
-  have hjensen := Real.sum_arccos_le_card_mul_arccos s.offDiag hpair (by rw [hoff]; exact haverage)
-  rw [hoff] at hjensen
+  have hjensen :=
+    sum_arccos_edgeVector_offDiag_le_of_average hloop hdeg hq hρ₀ hρ hs hcard haverage
   have hsum := (Finset.sum_le_sum fun p (_ : p ∈ s.offDiag) => hsheppard p).trans_eq
     (Finset.sum_div _ _ _).symm
   have h4 := (four_mul_measureReal_straddleEvent_le (q := q) (R := R) hs hcard t).trans hsum
@@ -226,18 +266,11 @@ theorem measureReal_straddleEvent_le [Finite E] (hloop : G.Loopless)
     (Measure.pi fun _ : V => gaussianReal 0 1).real (straddleEvent G q R t v) ≤
       straddleBound ρ₀ := by
   classical
-  have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
   obtain ⟨e₀, e₁, e₂, -, -, -, hinc⟩ := ncard_eq_three.mp (h3 v)
   set s : Finset E := {e₀, e₁, e₂}
   have hs : (s : Set E) = G.incidenceSet v := by simp [s, hinc]
   have hcard : s.card = 3 := by rw [← ncard_coe_finset, hs, h3]
-  refine measureReal_straddleEvent_le_of_average hloop h3 hq hρ₀ hρ t hs ?_
-  -- The cap bound: the inner products sum to at least `9 κ ^ 2 - 3 = 6 (1 + 3 ρ₀)/4`.
-  have h := InnerProductGeometry.le_sum_offDiag_inner (norm_unitKernelRow q R v)
-    (s := s) (y := edgeVector G q R) (fun e _ => norm_edgeVector hloop hdeg hq (by linarith) hρ e)
-    (sqrt_nonneg ((1 + ρ₀) / 2))
-    (fun e he => le_inner_edgeVector hloop hdeg hq hρ₀ hρ (by rw [← hs]; exact he))
-  rw [hcard, sq_sqrt (by linarith)] at h
-  linarith
+  exact measureReal_straddleEvent_le_of_average hloop h3 hq hρ₀ hρ t hs
+    (le_sum_edgeVector_offDiag_inner hloop (fun w => (h3 w).le) hq hρ₀ hρ hs hcard)
 
 end Cslib.Circuits.Frontier.Gaussian

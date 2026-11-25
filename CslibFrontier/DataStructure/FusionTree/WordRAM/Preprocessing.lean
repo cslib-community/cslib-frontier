@@ -160,11 +160,6 @@ theorem preprocessed_contentFits {B w : ℕ} {t : Tree} (ht : Tree.Valid B t)
     exact preprocessed_contentFits (ht.2.2.2 u hu).1
       (fun x hx => hb x (List.mem_flatMap.mpr ⟨u, hu, hx⟩))
 termination_by sizeOf t
-decreasing_by
-  have hlt := List.sizeOf_lt_of_mem hu
-  subst t
-  simp_wf
-  omega
 
 /-- The built tree has fitting actual preprocessing contents from full-key bounds alone. -/
 theorem preprocessed_contentFits_build (w : ℕ) (xs : List ℕ)

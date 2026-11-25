@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CycleSpace
+public import Mathlib.Logic.Equiv.Fin.Rotate
 
 /-!
 # Intersection parity of finite closed passage systems
@@ -61,6 +62,49 @@ variable {G : Graph} {x : Fin G.2.length → Bool} (P : ClosedPassages G x)
 
 /-- The actual indexed dart at one port of a passage. -/
 @[expose] def dart (i : Fin P.count) (b : Bool) : Dart G := (P.ports (i, b)).val
+
+section CyclicEdges
+
+variable {n : ℕ} (edges : Fin n ≃ {e : Fin G.edges.length // x e = true})
+  (startTag : Fin n → Bool)
+
+/-- Pair the outgoing dart of each edge with the incoming dart of its cyclic predecessor.
+The enumeration retains individual edge occurrences, so it also supports a loop or a closed
+traversal that uses parallel edges or revisits a vertex. -/
+@[expose] def ofCyclicEdges (hnext : ∀ i,
+    (Dart.vertex (G := G) ((edges i).val, !startTag i)) =
+      Dart.vertex ((edges (finRotate n i)).val, startTag (finRotate n i))) :
+    ClosedPassages G x :=
+  let order := Equiv.prodCongrLeft fun incoming : Bool =>
+    if incoming then (finRotate n).symm else Equiv.refl (Fin n)
+  let orient := Equiv.prodCongrRight fun i : Fin n =>
+    let flip (b : Bool) := startTag i ^^ b
+    have cancel (b : Bool) : flip (flip b) = b := by
+      change (startTag i ^^ (startTag i ^^ b)) = b
+      rw [← Bool.xor_assoc, Bool.xor_self, Bool.false_xor]
+    (⟨flip, flip, cancel, cancel⟩ : Equiv.Perm Bool)
+  { count := n
+    ports := order.trans <| orient.trans <| (Equiv.prodCongr edges (Equiv.refl Bool)).trans
+      Equiv.prodSubtypeFstEquivSubtypeProd.symm
+    vertex_eq := fun i => by
+      have hi := hnext ((finRotate n).symm i)
+      rw [Equiv.apply_symm_apply] at hi
+      change Dart.vertex ((edges i).val, startTag i ^^ false) =
+        Dart.vertex ((edges ((finRotate n).symm i)).val, startTag ((finRotate n).symm i) ^^ true)
+      simpa only [Bool.xor_false, Bool.xor_true] using hi.symm }
+
+/-- The outgoing port selects the start tag of the current edge. -/
+@[simp] theorem ofCyclicEdges_dart_false (hnext) (i : Fin n) :
+    (ofCyclicEdges edges startTag hnext).dart i false = ((edges i).val, startTag i) := by
+  exact Prod.ext rfl (Bool.xor_false _)
+
+/-- The incoming port selects the other tag of the cyclic predecessor's edge. -/
+@[simp] theorem ofCyclicEdges_dart_true (hnext) (i : Fin n) :
+    (ofCyclicEdges edges startTag hnext).dart i true =
+      ((edges ((finRotate n).symm i)).val, !startTag ((finRotate n).symm i)) := by
+  exact Prod.ext rfl (Bool.xor_true _)
+
+end CyclicEdges
 
 /-- Every passage port belongs to the declared edge support. -/
 theorem supported (i : Fin P.count) (b : Bool) : x (P.dart i b).1 = true :=

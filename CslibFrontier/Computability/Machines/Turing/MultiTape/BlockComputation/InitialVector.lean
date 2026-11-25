@@ -111,8 +111,8 @@ theorem values_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   have hsize := budget_comp_linear natSize hlimit
   have hn := budget_natMin hrequested hsize
   have hinit := budget_prod hm (budget_prod
-    (budget_const (encB := encNat) 0 (.refl _))
-    (budget_const (encB := encList encNat) [] (.refl _)))
+    (budget_const (encB := encNat) 0)
+    (budget_const (encB := encList encNat) []))
   have hstates (a : Args) (i : ℕ) (hi : i ≤ min a.2.2 a.1.size) :
       (encBuildState ((buildStep M e)^[i] (a.2.1, 0, []))).length ≤
         8 * (H + 2) * ((encArgs a).length + 1) := by

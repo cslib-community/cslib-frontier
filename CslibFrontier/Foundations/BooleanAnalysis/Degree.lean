@@ -91,20 +91,15 @@ theorem signSpan_mono {H K : ℕ} (hHK : H ≤ K) : signSpan F ι H ≤ signSpan
 /-- Each monomial expands into characters of its subsets. -/
 theorem monomial_mem_signSpan [Invertible (2 : F)] (S : Finset ι) :
     monomial F S ∈ signSpan F ι #S := by
-  classical
   have hfun : monomial F S = ∑ T ∈ S.powerset,
       (⅟2 ^ #S * (-1) ^ #T : F) • chi F T := by
     funext x
-    simp only [monomial, Finset.sum_apply, Pi.smul_apply, smul_eq_mul, chi,
-      neg_one_pow_toNat_eq_one_sub_two_mul_bitVal]
-    have hsplit : ∏ i ∈ S, bitVal F (x i) = ∏ i ∈ S, (⅟2 * (-(1 - 2 * bitVal F (x i)) + 1)) :=
-      Finset.prod_congr rfl fun i _ => by
-        rw [show -(1 - 2 * bitVal F (x i)) + 1 = 2 * bitVal F (x i) by ring, ← mul_assoc,
-          invOf_mul_self, one_mul]
-    rw [hsplit, Finset.prod_mul_distrib, Finset.prod_const, Finset.prod_add, Finset.mul_sum]
-    refine Finset.sum_congr rfl fun T hT => ?_
-    rw [Finset.prod_const_one, mul_one, Finset.prod_neg]
-    ring
+    have h := sum_powerset_chi_mul_chi (R := F) S x fun _ => true
+    have hc (T : Finset ι) : chi F T (fun _ => true) = (-1) ^ #T := by simp [chi]
+    simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, mul_assoc, ← Finset.mul_sum,
+      monomial_apply]
+    rw [Finset.sum_congr rfl fun T _ => by rw [← hc, mul_comm], h]
+    split_ifs <;> simp
   rw [hfun]
   exact Submodule.sum_mem _ fun T hT => Submodule.smul_mem _ _
     (Submodule.subset_span ⟨T, Finset.card_le_card (Finset.mem_powerset.mp hT), rfl⟩)
