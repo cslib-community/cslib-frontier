@@ -828,6 +828,19 @@ theorem EpochRep.prepare {U V w base : ℕ} {st : EpochState U} {ls : LatentSeed
     by simp [resizableInput_mBase, hrep.base_reg_eq],
     hrep.active_split⟩
 
+/-- Expectation of a pointwise bound `f ≤ g + (B + c * p)` on the support of `μ`. -/
+private theorem tsum_mul_le_of_le {α : Type*} (μ : PMF α) {f g p : α → ℝ≥0∞} {B c P : ℝ≥0∞}
+    (h : ∀ a ∈ μ.support, f a ≤ g a + (B + c * p a)) (hp : ∑' a, μ a * p a ≤ P) :
+    ∑' a, μ a * f a ≤ ∑' a, μ a * g a + (B + c * P) :=
+  calc ∑' a, μ a * f a ≤ ∑' a, (μ a * g a + (μ a * B + c * (μ a * p a))) :=
+        tsum_le_tsum fun a => by
+          by_cases ha : a ∈ μ.support
+          · exact (mul_le_mul_right (h a ha) _).trans_eq (by ring)
+          · simp [(PMF.apply_eq_zero_iff μ a).mpr ha]
+    _ = ∑' a, μ a * g a + (B + c * ∑' a, μ a * p a) := by
+        rw [tsum_add, tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
+    _ ≤ _ := by gcongr
+
 private theorem nat_dist_step_le_add_one {a b c : ℕ} (hab : Nat.dist a b ≤ 1) :
     Nat.dist b c ≤ Nat.dist a c + 1 := by
   unfold Nat.dist at *; omega
@@ -982,20 +995,14 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
         (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zFin θ_new) : ℝ≥0∞)) ≤
       (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞)) +
         (inEpochCharge : ℝ≥0∞) := by
-    rw [← tsum_add]
-    calc _ ≤ ∑' θ_new, (μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞) +
-            μ_u θ_new * (inEpochBaseCharge : ℝ≥0∞) + (12 * inEpochFactor : ℝ≥0∞) *
-              (μ_u θ_new * (probeExcess N_new (qStage1 U N_new θ_new.1)
-                (polyStage2 U N_new) θ_new.2 (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞))) :=
-          tsum_le_tsum fun θ_new => by
-            have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr (hop_spec θ_new).2.2.2.2.2.2.2
-            push_cast at hc
-            rw [← mul_add]; exact (mul_le_mul_right hc _).trans_eq (by ring)
-      _ ≤ _ := by
-          rw [tsum_add, tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right,
-            μ_u.tsum_coe, one_mul, add_assoc]
-          calc _ ≤ _ + ((inEpochBaseCharge : ℝ≥0∞) + (12 * inEpochFactor : ℝ≥0∞) * 5) := by gcongr
-            _ = _ := by unfold inEpochCharge; push_cast; ring
+    rw [← tsum_add]; simp_rw [← mul_add]
+    refine (tsum_mul_le_of_le μ_u (B := inEpochBaseCharge) (c := 12 * inEpochFactor)
+      (g := fun θ_new => inEpochPotential U w N_new base (zMid θ_new)) (fun θ_new _ => ?_)
+      hpr_le).trans_eq ?_
+    · have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr (hop_spec θ_new).2.2.2.2.2.2.2
+      push_cast at hc
+      exact hc.trans_eq (add_assoc _ _ _)
+    · unfold inEpochCharge; push_cast; ring
   refine ⟨μ_out, _, hex_seq.congr_dist hmap_data le_rfl, fun q hq => ?_, ?_, ?_⟩
   · dsimp only [μ_out] at hq
     rw [PMF.mem_support_map_iff] at hq
@@ -2003,42 +2010,9 @@ theorem resizableOpCode_step_expected_amortized {U V w base k_init : ℕ}
     have harg_prep : resizableArgMatch o (P.prepare resizableEncode o t.data).regs := by
       rw [hprep_eq]; exact resizableArgMatch_prepare o t.data.regs
     exact resizableOpCode_step_pointwise o hanc hrep_prep hval harg_prep hfit_peak
-  let dfltOut : PMF (StepROutcome (LatentSeed U) o.Result rResize) :=
-    PMF.pure ⟨LatentSeed.empty U,
-      { regs := fun _ => 0, mem := fun _ => 0, frontier := 0 }, a⟩
-  let μ_step (t : SeqROutcome (LatentSeed U) (Dynamic.Op.Result (U := U)) rResize) :
-      PMF (StepROutcome (LatentSeed U) o.Result rResize) :=
-    if ht : t ∈ ν.support then (hpt_all t ht).choose else dfltOut
-  let T_step (t : SeqROutcome (LatentSeed U) (Dynamic.Op.Result (U := U)) rResize) : ℝ≥0∞ :=
-    if ht : t ∈ ν.support then (hpt_all t ht).choose_spec.choose else 0
-  have hstep_spec (t : SeqROutcome (LatentSeed U) (Dynamic.Op.Result (U := U)) rResize)
-      (ht : t ∈ ν.support) :
-      ExecRCodeDist w resizableOpCode (P.prepare resizableEncode o t.data)
-        ((μ_step t).map StepROutcome.data) (T_step t)
-        (base + stepExactPeakWords V w st.cap st.dict o) ∧
-      (∀ q ∈ (μ_step t).support,
-        EpochRep U V w base st' q.latent q.data ∧
-        q.result = a ∧
-        resizableDecode o q.data.regs = some q.result ∧
-        (∀ addr < base, q.data.mem addr = t.data.mem addr)) ∧
-      (0 < n' →
-        if st'.cap = st.cap then
-          0 < n ∧
-            (μ_step t).map (fun q => q.latent.seedAt st.cap) = PMF.pure (t.latent.seedAt st.cap)
-        else
-          (μ_step t).map (fun q => q.latent.seedAt st'.cap) =
-            PMF.uniformOfFintype (QuotHashSeed U st'.cap)) ∧
-      T_step t + (∑' q, (μ_step t) q *
-          (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)) ≤
-        (resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞) +
-          ((resizableBaseCharge : ℝ≥0∞) +
-            if 0 < n then
-              (12 * inEpochFactor : ℝ≥0∞) *
-                (probeExcess st.cap (qStage1 U st.cap (t.latent.seedAt st.cap).1)
-                  (polyStage2 U st.cap) (t.latent.seedAt st.cap).2
-                  (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞)
-            else 0) := by
-    simpa only [μ_step, T_step, dite_eq_left ht] using (hpt_all t ht).choose_spec.choose_spec
+  have : Nonempty (PMF (StepROutcome (LatentSeed U) o.Result rResize)) :=
+    ⟨PMF.pure ⟨LatentSeed.empty U, { regs := fun _ => 0, mem := fun _ => 0, frontier := 0 }, a⟩⟩
+  choose! μ_step T_step hstep_spec using hpt_all
   refine ⟨μ_step, T_step, ?_, ⟨?_, ?_⟩, ?_⟩
   · intro t ht
     obtain ⟨hrep_t, _, _⟩ := hinv.1 t ht
@@ -2101,95 +2075,24 @@ theorem resizableOpCode_step_expected_amortized {U V w base k_init : ℕ}
           (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞) :=
       fun t => Cslib.Probability.PMF.tsum_map_mul (μ_step t) (t.appendStep o) _
     simp_rw [hmap_pot]
-    rw [← CompleteLattice.summable.tsum_add CompleteLattice.summable]
-    have hcomb_lhs : (∑' t, (ν t * T_step t + ν t * ∑' q, (μ_step t) q *
-        (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞))) =
-        ∑' t, ν t * (T_step t + ∑' q, (μ_step t) q *
-          (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)) :=
-      tsum_congr fun _ => (mul_add _ _ _).symm
-    rw [hcomb_lhs]
-    by_cases hn_pos : 0 < n
-    · have hpt_le : ∀ t,
-          ν t * (T_step t + ∑' q, (μ_step t) q *
-              (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)) ≤
-            ν t * (resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞) +
-              (ν t * (resizableBaseCharge : ℝ≥0∞) +
-                (12 * inEpochFactor : ℝ≥0∞) *
-                  (ν t * (probeExcess st.cap (qStage1 U st.cap (t.latent.seedAt st.cap).1)
-                    (polyStage2 U st.cap) (t.latent.seedAt st.cap).2
-                    (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞))) := by
-        intro t
-        by_cases ht : t ∈ ν.support
-        · have hc := (hstep_spec t ht).2.2.2
-          rw [ite_eq_left hn_pos] at hc
-          calc ν t * (T_step t + ∑' q, (μ_step t) q *
-                  (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞))
-              ≤ ν t * ((resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞) +
-                  ((resizableBaseCharge : ℝ≥0∞) +
-                    (12 * inEpochFactor : ℝ≥0∞) *
-                      (probeExcess st.cap (qStage1 U st.cap (t.latent.seedAt st.cap).1)
-                        (polyStage2 U st.cap) (t.latent.seedAt st.cap).2
-                        (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞))) :=
-                mul_le_mul_right hc (ν t)
-            _ = _ := by ring
-        · simp [(PMF.apply_eq_zero_iff ν t).mpr ht]
-      have hcap_U : st.cap ≤ U := by rcases hanc.1 with ⟨h0, _⟩ | ⟨_, _, _, hU'⟩ <;> omega
-      have hn_le_cap : n ≤ st.cap := by rcases hanc.1 with ⟨h0, _⟩ | ⟨_, hle, _, _⟩ <;> omega
-      have hS_le : ((Dictionary.dom st.dict).erase (opKey o)).card ≤ st.cap :=
-        (Finset.card_erase_le (s := Dictionary.dom st.dict) (a := opKey o)).trans hn_le_cap
-      let prFn (θ₀ : QuotHashSeed U st.cap) : ℝ≥0∞ :=
-        (probeExcess st.cap (qStage1 U st.cap θ₀.1) (polyStage2 U st.cap) θ₀.2
-          (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞)
-      have hpr_sum :
-          (∑' t, ν t * prFn (t.latent.seedAt st.cap)) ≤ 5 := by
+    rw [← tsum_add]; simp_rw [← mul_add]
+    let prFn (θ₀ : QuotHashSeed U st.cap) : ℝ≥0∞ :=
+      (probeExcess st.cap (qStage1 U st.cap θ₀.1) (polyStage2 U st.cap) θ₀.2
+        (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞)
+    have hpr_sum :
+        ∑' t, ν t * (if 0 < n then prFn (t.latent.seedAt st.cap) else 0) ≤ 5 := by
+      by_cases hn_pos : 0 < n
+      · obtain ⟨-, hn_le_cap, -, hcap_U⟩ := hanc.1.resolve_left fun h => by omega
+        simp only [hn_pos, ↓reduceIte]
         rw [← Cslib.Probability.PMF.tsum_map_mul ν (fun t => t.latent.seedAt st.cap) prFn,
           hinv.2 hn_pos]
-        exact tsum_uniform_probeExcess_reducedPolyHash_le_five hcap_U
-          (Dictionary.dom st.dict) (opKey o) hS_le
-      calc (∑' t, ν t * (T_step t + ∑' q, (μ_step t) q *
-              (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)))
-          ≤ ∑' t, (ν t * (resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞) +
-              (ν t * (resizableBaseCharge : ℝ≥0∞) +
-                (12 * inEpochFactor : ℝ≥0∞) *
-                  (ν t * prFn (t.latent.seedAt st.cap)))) := tsum_le_tsum hpt_le
-        _ = (∑' t, ν t * (resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞)) +
-              ((∑' t, ν t * (resizableBaseCharge : ℝ≥0∞)) +
-                (12 * inEpochFactor : ℝ≥0∞) *
-                  ∑' t, ν t * prFn (t.latent.seedAt st.cap)) := by
-            rw [CompleteLattice.summable.tsum_add CompleteLattice.summable,
-              CompleteLattice.summable.tsum_add CompleteLattice.summable, ENNReal.tsum_mul_left]
-        _ ≤ (∑' t, ν t * (resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞)) +
-              ((resizableBaseCharge : ℝ≥0∞) + (12 * inEpochFactor : ℝ≥0∞) * 5) := by
-            rw [ENNReal.tsum_mul_right, ν.tsum_coe, one_mul]; gcongr
-        _ = (∑' t, ν t * (resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞)) +
-              (resizableCharge : ℝ≥0∞) := by
-            unfold resizableCharge; push_cast; ring
-    · have hpt_le : ∀ t,
-          ν t * (T_step t + ∑' q, (μ_step t) q *
-              (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)) ≤
-            ν t * (resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞) +
-              ν t * (resizableCharge : ℝ≥0∞) := by
-        intro t
-        by_cases ht : t ∈ ν.support
-        · have hc := (hstep_spec t ht).2.2.2
-          rw [ite_eq_right hn_pos, add_zero] at hc
-          have hb_le : (resizableBaseCharge : ℝ≥0∞) ≤ (resizableCharge : ℝ≥0∞) :=
-            (Nat.cast_le (α := ℝ≥0∞)).mpr (by unfold resizableCharge; omega)
-          calc ν t * (T_step t + ∑' q, (μ_step t) q *
-                  (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞))
-              ≤ ν t * ((resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞) +
-                  (resizableCharge : ℝ≥0∞)) :=
-                mul_le_mul_right (hc.trans (add_le_add le_rfl hb_le)) (ν t)
-            _ = _ := mul_add _ _ _
-        · simp [(PMF.apply_eq_zero_iff ν t).mpr ht]
-      calc (∑' t, ν t * (T_step t + ∑' q, (μ_step t) q *
-              (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)))
-          ≤ ∑' t, (ν t * (resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞) +
-              ν t * (resizableCharge : ℝ≥0∞)) := tsum_le_tsum hpt_le
-        _ = (∑' t, ν t * (resizablePotential U w st.cap n st.initCount base t.data : ℝ≥0∞)) +
-              (resizableCharge : ℝ≥0∞) := by
-            rw [CompleteLattice.summable.tsum_add CompleteLattice.summable,
-              ENNReal.tsum_mul_right, ν.tsum_coe, one_mul]
+        exact tsum_uniform_probeExcess_reducedPolyHash_le_five hcap_U _ _
+          (Finset.card_erase_le.trans hn_le_cap)
+      · simp [hn_pos]
+    refine (tsum_mul_le_of_le ν (p := fun t => if 0 < n then prFn (t.latent.seedAt st.cap) else 0)
+      (fun t ht => (hstep_spec t ht).2.2.2.trans_eq (by rw [mul_ite, mul_zero]))
+      hpr_sum).trans_eq ?_
+    unfold resizableCharge; push_cast; ring
 
 /-- **Multi-Step Trajectory-Relative Expected Amortized Execution
 (`resizableOpCode_steps_expected_amortized`):**
