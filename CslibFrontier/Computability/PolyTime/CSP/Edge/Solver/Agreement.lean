@@ -57,56 +57,39 @@ private def potential (state : State) : ℕ :=
   else 2 * state.budget + state.frames.length + 1
 
 private theorem evaluate_step (state : State) : evaluate (step state) = evaluate state := by
-  rcases state with ⟨input, frames, budget, status⟩
-  cases status with
-  | some result =>
-    cases result with
-    | none => simp [step, evaluate, resume_none]
-    | some bits =>
-      cases frames with
-      | nil => rfl
-      | cons frame frames => rfl
-  | none =>
-    cases budget with
+  rcases state with ⟨input, frames, budget, _ | _ | bits⟩
+  · cases budget with
     | zero => simp [step, evaluate, recurse, resume_none]
     | succ budget =>
       cases hr : EdgeForest.run input with
       | none => simp [step, evaluate, recurse, hr, resume_none]
       | some result =>
-        rcases result with log | (event | event)
+        rcases result with _ | _ | event
         · simp [step, evaluate, recurse, hr, resume_none]
         · simp [step, evaluate, recurse, hr]
-        · cases hp : push input event with
-          | none => simp [step, evaluate, recurse, hr, hp, resume_none]
-          | some pair =>
-            rcases pair with ⟨frame, child⟩
-            simp [step, evaluate, recurse, hr, hp, resume]
+        · cases hp : push input event <;>
+            simp [step, evaluate, recurse, hr, hp, resume, resume_none]
+  · simp [step, evaluate, resume_none]
+  · cases frames <;> rfl
 
 private theorem potential_step (state : State) : potential (step state) ≤ potential state - 1 := by
-  rcases state with ⟨input, frames, budget, status⟩
-  cases status with
-  | some result =>
-    cases result with
-    | none => simp [step, potential]
-    | some bits =>
-      cases frames <;> simp [step, potential]
-  | none =>
-    cases budget with
+  rcases state with ⟨input, frames, budget, _ | _ | bits⟩
+  · cases budget with
     | zero => simp [step, potential]
     | succ budget =>
       cases hr : EdgeForest.run input with
       | none => simp [step, potential, hr]
       | some result =>
-        rcases result with log | (event | event)
+        rcases result with _ | _ | event
         · simp [step, potential, hr]
         · simp [step, potential, hr]
-        · cases hp : push input event with
-          | none => simp [step, potential, hr, hp]
-          | some pair =>
-            rcases pair with ⟨frame, child⟩
-            simp only [step, hr, hp, potential, Option.isSome_none, Bool.false_eq_true,
+        · cases hp : push input event
+          · simp [step, potential, hr, hp]
+          · simp only [step, hr, hp, potential, Option.isSome_none, Bool.false_eq_true,
               ↓reduceIte, List.length_cons]
             omega
+  · simp [step, potential]
+  · cases frames <;> simp [step, potential]
 
 private theorem potential_iterate (state : State) (n : ℕ) :
     potential (step^[n] state) ≤ potential state - n := by
@@ -127,31 +110,20 @@ private theorem evaluate_iterate (state : State) (n : ℕ) :
 every raw input, including malformed widths. Its entire operational clock is list-funded. -/
 theorem improve_eq_recurse (input : EdgeForest.Input) :
     improve input = recurse ((CSP.occurrences input.body).length + 1) input := by
-  let initial : State := ⟨input, [], (CSP.occurrences input.body).length + 1, none⟩
-  let final := step^[2 * (CSP.occurrences input.body).length + 3] initial
+  let n := (CSP.occurrences input.body).length
+  let initial : State := ⟨input, [], n + 1, none⟩
+  let final := step^[2 * n + 3] initial
   have hp : potential final = 0 := by
-    have hb := potential_iterate initial (2 * (CSP.occurrences input.body).length + 3)
+    have hb := potential_iterate initial (2 * n + 3)
     simp only [initial, potential, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
       List.length_nil] at hb
-    change potential final ≤ _ at hb
-    omega
-  have he := evaluate_iterate initial (2 * (CSP.occurrences input.body).length + 3)
-  change evaluate final = recurse ((CSP.occurrences input.body).length + 1) input at he
-  have hframes : final.frames = [] := by
-    have hb : final.frames.length ≤ potential final := by
-      unfold potential
-      split <;> omega
-    simpa only [List.length_eq_zero_iff] using (show final.frames.length = 0 by omega)
-  have hstatus : final.status.isSome = true := by
-    by_contra hn
-    simp only [potential, hn, ↓reduceIte] at hp
-    omega
+    change potential final ≤ _ at hb; omega
+  have he : evaluate final = recurse (n + 1) input := evaluate_iterate initial (2 * n + 3)
   change (if final.frames.isEmpty then final.status.join else none) = _
-  rw [hframes]
-  cases hs : final.status with
-  | none => simp [hs] at hstatus
-  | some result => simpa only [evaluate, hframes, hs, Option.getD_some, resume,
-      List.isEmpty_nil, ↓reduceIte, Option.join_some] using he
+  rcases hf : final with ⟨_, frames, budget, _ | result⟩ <;> rw [hf] at hp he
+  · simp [potential] at hp
+  · obtain rfl : frames = [] := by simpa [potential] using hp
+    simpa [evaluate, resume] using he
 
 /-- One frame executes the actual arbitrary-comparison lifting construction exactly. -/
 theorem lift_eq {F : CSP Table ℕ} (f : OccurrenceLabeling F Bool) (w : Walk F)
@@ -193,27 +165,15 @@ theorem recurse_eq (depth : ℕ) (F : CSP Table ℕ) (f : OccurrenceLabeling F B
     simp only [buffer, EdgeAugmenting.labeling_map] at hr
     cases hs : Forest.search Table.sem f with
     | exhausted log => simp [recurse, hr, hs, EdgeForest.code, Solver.improve]
-    | augment m =>
-      simp [recurse, hr, hs, EdgeForest.code, augment,
-        NativeForest.meetingWalk_code, NativeWalk.flip_code, Solver.improve]
+    | augment m => simp [recurse, hr, hs, EdgeForest.code, augment_code, Solver.improve]
     | blossom m =>
+      simp only [recurse, hr, hs, EdgeForest.code, push_code, Solver.improve]
       cases hb : m.blossomData with
-      | none =>
-        simp [recurse, hr, hs, EdgeForest.code, push,
-          NativeForest.blossom_code, hb, Solver.improve]
+      | none => rfl
       | some b =>
-        simp only [recurse, hr, hs, EdgeForest.code, push,
-          NativeForest.blossom_code, hb, Option.bind_eq_bind, Option.bind_some,
-          Solver.improve, Option.map_some, NativeWalk.internal_code]
-        simp only [buffer, NativeWalk.flip_code, Contraction.contract_eq,
-          Contraction.referenceRows_eq, EdgeAugmenting.labeling_map,
-          Contraction.flatten_referenceRows]
-        rw [ih]
-        cases hc : Solver.improve depth (Blossom.contract (b.prepare.flip f)
-            (Blossom.internal b.cycle)) (Blossom.reference (b.prepare.flip f)
-              (Blossom.internal b.cycle)) with
-        | none => rfl
-        | some g => simp only [Option.map_some, Option.bind_some, lift_eq]
+        simp only [Option.map_some, Option.bind_eq_bind, Option.bind_some, ih]
+        cases Solver.improve depth (Blossom.contract (b.prepare.flip f) (Blossom.internal b.cycle))
+          (Blossom.reference (b.prepare.flip f) (Blossom.internal b.cycle)) <;> simp [lift_eq]
 
 /-- Exact stack/source agreement on every exact-width raw input. The buffer round trip is
 the shared `EdgeAugmenting.buffer_eq` API, available through an ordinary `Buffer` import. -/

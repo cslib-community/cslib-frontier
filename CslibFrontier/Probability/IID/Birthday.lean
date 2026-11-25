@@ -76,11 +76,9 @@ private theorem min_div_two_le_one_sub_exp_neg {x : ℝ} (h0 : 0 ≤ x) :
     min (x / 2) 0.63 ≤ 1 - Real.exp (-x) := by
   rcases le_total x 1 with h1 | h1
   · exact (min_le_left _ _).trans (by linarith [Real.exp_neg_le_one_sub_div_two h0 h1])
-  · refine (min_le_right _ _).trans ?_
-    have h2 : Real.exp (-x) ≤ Real.exp (-1) := Real.exp_le_exp.2 (by linarith)
+  · have h2 := Real.exp_le_exp.2 (show -x ≤ -1 by linarith)
     have h3 := Real.exp_neg_one_lt_d9
-    norm_num at h3 ⊢
-    linarith
+    exact (min_le_right _ _).trans (by norm_num at h3 ⊢; linarith)
 
 /-! ### Mass of injective tuples -/
 
@@ -103,18 +101,13 @@ private theorem distinctMass_succ (p : α → ℝ) (k : ℕ) (s : Finset α) :
 private theorem distinctMass_insert (p : α → ℝ) : ∀ (k : ℕ) (s : Finset α) (x : α), x ∉ s →
     distinctMass p (k + 1) (insert x s) =
       distinctMass p (k + 1) s + (k + 1) * (p x * distinctMass p k s)
-  | 0, s, x, hx => by
-    simp only [distinctMass_succ, distinctMass_zero, mul_one, Finset.sum_insert hx, Nat.cast_zero,
-      zero_add, one_mul]
-    exact add_comm _ _
+  | 0, s, x, hx => by simp [distinctMass_succ, hx, add_comm]
   | k + 1, s, x, hx => by
-    have key : ∀ a ∈ s, p a * distinctMass p (k + 1) ((insert x s).erase a) =
+    have key (a) (ha : a ∈ s) : p a * distinctMass p (k + 1) ((insert x s).erase a) =
         p a * distinctMass p (k + 1) (s.erase a) +
           (k + 1) * (p x * (p a * distinctMass p k (s.erase a))) := by
-      intro a ha
-      have hax : x ≠ a := fun h => hx (h ▸ ha)
-      rw [Finset.erase_insert_of_ne hax,
-        distinctMass_insert p k (s.erase a) x (fun h => hx (Finset.mem_of_mem_erase h))]
+      rw [Finset.erase_insert_of_ne (fun h : x = a => hx (h ▸ ha)),
+        distinctMass_insert p k (s.erase a) x (hx ∘ Finset.mem_of_mem_erase)]
       ring
     rw [distinctMass_succ p (k + 1) (insert x s), Finset.sum_insert hx, Finset.erase_insert hx,
       Finset.sum_congr rfl key, Finset.sum_add_distrib, ← Finset.mul_sum, ← Finset.mul_sum,
@@ -136,25 +129,20 @@ private theorem distinctMass_le_step (k m : ℕ) {S px A B : ℝ} (hS : 0 ≤ S)
       ((m + 1).descFactorial (k + 1) : ℝ) * ((px + S) / ((m + 1 : ℕ) : ℝ)) ^ (k + 1) := by
   have ht0 : 0 ≤ S / m := div_nonneg hS (Nat.cast_nonneg m)
   have hmt : (m : ℝ) * (S / m) = S := by
-    rcases Nat.eq_zero_or_pos m with h0 | h0
-    · simp [h0, hS0 h0]
-    · have : (m : ℝ) ≠ 0 := by exact_mod_cast h0.ne'
-      field_simp
+    rcases Nat.eq_zero_or_pos m with rfl | h0
+    · simp [hS0 rfl]
+    · exact mul_div_cancel₀ S (Nat.cast_ne_zero.2 h0.ne')
   have hm1 : (0 : ℝ) < ((m + 1 : ℕ) : ℝ) := by positivity
   have hu0 : 0 ≤ (px + S) / ((m + 1 : ℕ) : ℝ) := div_nonneg (add_nonneg hpx hS) hm1.le
-  have hmu : ((m + 1 : ℕ) : ℝ) * ((px + S) / ((m + 1 : ℕ) : ℝ)) = px + S := by
-    have := hm1.ne'
-    field_simp
   have hpxu : px = ((m + 1 : ℕ) : ℝ) * ((px + S) / ((m + 1 : ℕ) : ℝ)) - m * (S / m) := by
-    rw [hmt, hmu]; ring
+    rw [hmt, mul_div_cancel₀ _ hm1.ne']; ring
   generalize S / (m : ℝ) = t at *
   generalize (px + S) / ((m + 1 : ℕ) : ℝ) = u at *
   rw [Nat.descFactorial_succ, Nat.cast_mul, cast_sub_mul_descFactorial] at hA
   rw [Nat.succ_descFactorial_succ, Nat.cast_mul]
-  have h1 : (k + 1 : ℝ) * (px * B) ≤ (k + 1) * (px * (m.descFactorial k * t ^ k)) := by gcongr
   calc A + (k + 1) * (px * B)
       ≤ ((m : ℝ) - k) * m.descFactorial k * t ^ (k + 1) +
-          (k + 1) * (px * (m.descFactorial k * t ^ k)) := add_le_add hA h1
+          (k + 1) * (px * (m.descFactorial k * t ^ k)) := add_le_add hA (by gcongr)
     _ = ((m + 1 : ℕ) : ℝ) * m.descFactorial k * (t ^ (k + 1) + (k + 1) * t ^ k * (u - t)) := by
         rw [hpxu]; push_cast; ring
     _ ≤ ((m + 1 : ℕ) : ℝ) * m.descFactorial k * u ^ (k + 1) := by
@@ -165,33 +153,27 @@ private theorem distinctMass_le_step (k m : ℕ) {S px A B : ℝ} (hS : 0 ≤ S)
 private theorem distinctMass_le (p : α → ℝ) (s : Finset α) (hp : ∀ a ∈ s, 0 ≤ p a) (k : ℕ) :
     distinctMass p k s ≤ (s.card.descFactorial k : ℝ) * ((∑ a ∈ s, p a) / s.card) ^ k := by
   induction s using Finset.induction_on generalizing k with
-  | empty =>
-    cases k with
-    | zero => simp
-    | succ k => simp [distinctMass_succ]
+  | empty => cases k <;> simp [distinctMass_succ]
   | insert x s hx ih =>
-    have hps : ∀ a ∈ s, 0 ≤ p a := fun a ha => hp a (Finset.mem_insert_of_mem ha)
     cases k with
     | zero => simp
     | succ k =>
+      have hps : ∀ a ∈ s, 0 ≤ p a := fun a ha => hp a (Finset.mem_insert_of_mem ha)
       rw [distinctMass_insert p k s x hx, Finset.card_insert_of_notMem hx, Finset.sum_insert hx]
       exact distinctMass_le_step k s.card (Finset.sum_nonneg hps)
         (hp x (Finset.mem_insert_self x s))
-        (fun h => by rw [Finset.card_eq_zero.1 h, Finset.sum_empty]) (ih hps (k + 1)) (ih hps k)
+        (fun h => by simp [Finset.card_eq_zero.1 h]) (ih hps (k + 1)) (ih hps k)
 
 /-- For constant weights `c`, the mass of injective `k`-tuples in `s` is `(|s|)_k c ^ k`. -/
 private theorem distinctMass_const (c : ℝ) : ∀ (k : ℕ) (s : Finset α),
     distinctMass (fun _ => c) k s = (s.card.descFactorial k : ℝ) * c ^ k
-  | 0, s => by simp
+  | 0, _ => by simp
   | k + 1, s => by
-    have key : ∀ a ∈ s, c * distinctMass (fun _ => c) k (s.erase a) =
-        c * (((s.card - 1).descFactorial k : ℝ) * c ^ k) := fun a ha => by
-      rw [distinctMass_const c k (s.erase a), Finset.card_erase_of_mem ha]
-    rw [distinctMass_succ, Finset.sum_congr rfl key, Finset.sum_const, nsmul_eq_mul]
-    rcases Nat.eq_zero_or_pos s.card with h | h
-    · simp [h]
-    · obtain ⟨m, hm⟩ : ∃ m, s.card = m + 1 := ⟨s.card - 1, by omega⟩
-      rw [hm, Nat.succ_descFactorial_succ, Nat.add_sub_cancel]; push_cast; ring
+    rw [distinctMass_succ, Finset.sum_congr rfl fun a ha => by
+      rw [distinctMass_const c k, Finset.card_erase_of_mem ha], Finset.sum_const, nsmul_eq_mul]
+    rcases s.card with _ | m
+    · simp
+    · rw [Nat.succ_descFactorial_succ, Nat.add_sub_cancel]; push_cast; ring
 
 /-- `distinctMass p k s` is the sum of `∏ i, p (v i)` over the injective `v : Fin k → α` with values
 in `s`. -/
@@ -199,36 +181,24 @@ private theorem sum_injective_eq_distinctMass [Fintype α] (p : α → ℝ) :
     ∀ (k : ℕ) (s : Finset α),
       (∑ v : Fin k → α, if Function.Injective v ∧ ∀ i, v i ∈ s then ∏ i, p (v i) else 0) =
         distinctMass p k s
-  | 0, s => by simp [Function.injective_of_subsingleton]
+  | 0, _ => by simp [Function.injective_of_subsingleton]
   | k + 1, s => by
-    have key : ∀ a : α,
-        (∑ w : Fin k → α, if Function.Injective (Fin.cons a w : Fin (k + 1) → α) ∧
-            ∀ i, (Fin.cons a w : Fin (k + 1) → α) i ∈ s
-          then ∏ i, p ((Fin.cons a w : Fin (k + 1) → α) i) else 0) =
-          if a ∈ s then p a * distinctMass p k (s.erase a) else 0 := by
-      intro a
-      rw [← sum_injective_eq_distinctMass p k (s.erase a)]
-      split_ifs with ha
-      · rw [Finset.mul_sum]
-        refine Finset.sum_congr rfl fun w _ => ?_
-        have hiff : (Function.Injective (Fin.cons a w : Fin (k + 1) → α) ∧
-            ∀ i, (Fin.cons a w : Fin (k + 1) → α) i ∈ s) ↔
-            (Function.Injective w ∧ ∀ i, w i ∈ s.erase a) := by
-          rw [Fin.cons_injective_iff, Fin.forall_fin_succ]
-          simp only [Fin.cons_zero, Fin.cons_succ, Finset.mem_erase, Set.mem_range, not_exists]
-          constructor
-          · rintro ⟨⟨h1, h2⟩, -, h4⟩; exact ⟨h2, fun i => ⟨h1 i, h4 i⟩⟩
-          · rintro ⟨h2, h3⟩; exact ⟨⟨fun i => (h3 i).1, h2⟩, ha, fun i => (h3 i).2⟩
-        by_cases h : Function.Injective w ∧ ∀ i, w i ∈ s.erase a
-        · rw [ite_eq_left (hiff.2 h), ite_eq_left h, Fin.prod_univ_succ]; simp
-        · rw [ite_eq_right (mt hiff.1 h), ite_eq_right h, mul_zero]
-      · refine Finset.sum_eq_zero fun w _ => ite_eq_right ?_
-        rintro ⟨-, h⟩
-        exact ha (by simpa using h 0)
     rw [distinctMass_succ, ← (Fin.consEquiv fun _ : Fin (k + 1) => α).sum_comp,
       Fintype.sum_prod_type]
-    refine (Finset.sum_congr rfl fun a _ => key a).trans ?_
-    rw [Finset.sum_ite_mem, Finset.univ_inter]
+    refine (Finset.sum_congr rfl fun a _ => ?_).trans
+      (by rw [Finset.sum_ite_mem, Finset.univ_inter])
+    split_ifs with ha
+    · rw [← sum_injective_eq_distinctMass p k (s.erase a), Finset.mul_sum]
+      refine Finset.sum_congr rfl fun w _ => ?_
+      have hiff : (Function.Injective (Fin.cons a w : Fin (k + 1) → α) ∧
+          ∀ i, (Fin.cons a w : Fin (k + 1) → α) i ∈ s) ↔
+          (Function.Injective w ∧ ∀ i, w i ∈ s.erase a) := by
+        simp only [Fin.cons_injective_iff, Set.mem_range, not_exists, Fin.forall_fin_succ,
+          Fin.cons_zero, Fin.cons_succ, Finset.mem_erase, ha, true_and, forall_and]
+        tauto
+      by_cases h : Function.Injective w ∧ ∀ i, w i ∈ s.erase a <;>
+        simp [hiff, h, Fin.prod_univ_succ]
+    · exact Finset.sum_eq_zero fun w _ => ite_eq_right fun ⟨_, h⟩ => ha (by simpa using h 0)
 
 end DistinctMass
 
