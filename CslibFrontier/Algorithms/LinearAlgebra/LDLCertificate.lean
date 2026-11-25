@@ -280,7 +280,7 @@ theorem den_dvd_denLcm {r : List ℚ} {q : ℚ} (hq : q ∈ r) : q.den ∣ denLc
 
 /-- `scaleRow s r` is `s` times `r`, entrywise and with zero padding, when every denominator of
 `r` divides `s`. -/
-private theorem cast_getD_scaleRow {s : ℕ} {r : List ℚ} (hs : ∀ q ∈ r, q.den ∣ s) (k : ℕ) :
+theorem cast_getD_scaleRow {s : ℕ} {r : List ℚ} (hs : ∀ q ∈ r, q.den ∣ s) (k : ℕ) :
     (((scaleRow s r).getD k 0 : ℤ) : ℚ) = s * r.getD k 0 := by
   rcases Nat.lt_or_ge k r.length with hk | hk
   · rw [List.getD_eq_getElem _ _ (by simpa [scaleRow] using hk), List.getD_eq_getElem _ _ hk]
@@ -421,7 +421,7 @@ private theorem getD_zipWith_mul (a b : List ℤ) (k : ℕ) :
   cases a[k]? <;> cases b[k]? <;> simp
 
 /-- The integer check of one entry, read back over `ℚ`. -/
-private theorem entry_eq_of_scaled {v : ℚ} {a : ℤ} {b S : ℕ} {D : ℤ} (hb : 0 < b)
+theorem entry_eq_of_scaled {v : ℚ} {a : ℤ} {b S : ℕ} {D : ℤ} (hb : 0 < b)
     (hv : (a : ℚ) = v * b) (h : a * (S : ℤ) = D * b) : v * S = D := by
   have hden : (b : ℚ) ≠ 0 := by positivity
   have h' : (a : ℚ) * S = D * b := by exact_mod_cast h
@@ -430,7 +430,7 @@ private theorem entry_eq_of_scaled {v : ℚ} {a : ℤ} {b S : ℕ} {D : ℤ} (hb
   linear_combination h'
 
 /-- The product `L * diagonal d * Lᵀ` is symmetric. -/
-private theorem transpose_LDLt : (c.L n * diagonal (c.d n) * (c.L n)ᵀ)ᵀ =
+theorem transpose_LDLt : (c.L n * diagonal (c.d n) * (c.L n)ᵀ)ᵀ =
     c.L n * diagonal (c.d n) * (c.L n)ᵀ := by
   rw [transpose_mul, transpose_mul, transpose_transpose, diagonal_transpose, Matrix.mul_assoc]
 
@@ -497,14 +497,14 @@ theorem eq_of_factors {rows : List (List ℚ)} (h : c.factors n rows = true) :
   · rw [← ofLists_transpose, h.1]
 
 /-- Casting a product of rational matrices to `ℝ`. -/
-private theorem map_ratCast_mul {l m k : ℕ} (A : Matrix (Fin l) (Fin m) ℚ)
+theorem map_ratCast_mul {l m k : ℕ} (A : Matrix (Fin l) (Fin m) ℚ)
     (B : Matrix (Fin m) (Fin k) ℚ) :
     (A * B).map ((↑) : ℚ → ℝ) = A.map ((↑) : ℚ → ℝ) * B.map ((↑) : ℚ → ℝ) :=
   Matrix.map_mul (f := Rat.castHom ℝ)
 
 /-- The real form of a factorization by a well-formed witness, with `L` unit lower
 triangular. -/
-private theorem map_eq_of_eq {v : Matrix (Fin n) (Fin n) ℚ} (hlen : c.lower.length = n)
+theorem map_eq_of_eq {v : Matrix (Fin n) (Fin n) ℚ} (hlen : c.lower.length = n)
     (hl : unitLowerFrom 0 c.lower = true) (hM : v = c.L n * diagonal (c.d n) * (c.L n)ᵀ) :
     ∃ L : Matrix (Fin n) (Fin n) ℝ, L.IsLowerTriangular ∧ (∀ i, L i i = 1) ∧
       v.map ((↑) : ℚ → ℝ) = L * diagonal (fun i => (c.d n i : ℝ)) * Lᴴ := by
@@ -516,7 +516,7 @@ private theorem map_eq_of_eq {v : Matrix (Fin n) (Fin n) ℚ} (hlen : c.lower.le
 
 /-- A well-formed witness with positive diagonal proves the matrix it factors positive
 definite over `ℝ`. -/
-private theorem posDef_of_eq {v : Matrix (Fin n) (Fin n) ℚ} (hlen : c.lower.length = n)
+theorem posDef_of_eq {v : Matrix (Fin n) (Fin n) ℚ} (hlen : c.lower.length = n)
     (hdlen : c.diag.length = n) (hl : unitLowerFrom 0 c.lower = true)
     (hd : c.diag.all (0 < ·) = true) (hM : v = c.L n * diagonal (c.d n) * (c.L n)ᵀ) :
     (v.map ((↑) : ℚ → ℝ)).PosDef := by
@@ -592,7 +592,7 @@ rows of `A` and `P` scaled by the lcm of all their denominators. It is
   lyapunovResidual n (A.map (scaleRow (denLcm A.flatten))) (P.map (scaleRow (denLcm P.flatten)))
 
 /-- Casting a product of integer matrices to `ℚ`. -/
-private theorem map_intCast_mul {l m k : ℕ} (A : Matrix (Fin l) (Fin m) ℤ)
+theorem map_intCast_mul {l m k : ℕ} (A : Matrix (Fin l) (Fin m) ℤ)
     (B : Matrix (Fin m) (Fin k) ℤ) :
     (A * B).map ((↑) : ℤ → ℚ) = A.map ((↑) : ℤ → ℚ) * B.map ((↑) : ℤ → ℚ) :=
   Matrix.map_mul (f := Int.castRingHom ℚ)

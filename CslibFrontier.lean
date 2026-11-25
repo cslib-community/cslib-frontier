@@ -293,6 +293,7 @@ public import CslibFrontier.Algorithms.Lean.ZFunction.Basic
 public import CslibFrontier.Algorithms.Lean.ZFunction.Search
 public import CslibFrontier.Algorithms.LinearAlgebra.BareissElimination
 public import CslibFrontier.Algorithms.LinearAlgebra.LDLCertificate
+public import CslibFrontier.Algorithms.LinearAlgebra.SparseLDLCertificate
 public import CslibFrontier.Algorithms.Matching.Edmonds
 public import CslibFrontier.Algorithms.Matching.MVV
 public import CslibFrontier.Algorithms.Matching.Tutte
