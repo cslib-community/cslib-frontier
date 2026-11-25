@@ -923,4 +923,20 @@ example :
   rw [hpoint, eval₂_degreePiecePolynomial]
   norm_num [hI, finSuccEquiv_X_zero]
 
+-- Choosing degree 0 or 1 for X₀ gives the same degree, coefficient norm and prime budgets.
+example :
+    let C : Controlled (fun _ : ℕ => X (0 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let L := C.boundedDegreePiece (n := fun _ => 1) Decoder.nat (.const 1)
+      (fun _ => 0) (.const 0) (fun _ => Nat.zero_le _)
+    let R := C.boundedDegreePiece (n := fun _ => 1) Decoder.nat (.const 1)
+      (fun _ => 1) (.const 1) (fun _ => le_rfl)
+    (L.degreeBound 0 = 4 ∧ L.massExponent 0 = degreePieceMassExponent 1 0 ∧ L.cutoff 0 = 2) ∧
+      R.degreeBound 0 = L.degreeBound 0 ∧ R.massExponent 0 = L.massExponent 0 ∧
+        R.cutoff 0 = L.cutoff 0 := by
+  intro C L R
+  simp only [L, R, Controlled.degreeBound_boundedDegreePiece,
+    Controlled.massExponent_boundedDegreePiece, Controlled.cutoff_boundedDegreePiece]
+  simp [C, Controlled.coordinate]
+
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
