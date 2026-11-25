@@ -579,15 +579,13 @@ theorem mem_basic_of_mem_stepTerms {φ : Feature k State} (hφ : φ ∈ basic n 
       simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl <;> rcases hl with rfl | rfl
     exacts [Or.inl (state_mem_basic _), Or.inl (head_mem_basic i hz), hsit y rfl,
       Or.inl (head_mem_basic i hy)]
-  · rcases hc with rfl | rfl | ⟨⟨y, s'⟩, -, rfl⟩
-    · simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl
-      rcases hl with rfl | rfl
+  · rcases hc with rfl | rfl | ⟨⟨y, s'⟩, -, rfl⟩ <;>
+      simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl
+    · rcases hl with rfl | rfl
       exacts [Or.inl (cell_mem_basic i hz s), Or.inl (state_mem_basic _)]
-    · simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl
-      rcases hl with rfl | rfl
+    · rcases hl with rfl | rfl
       exacts [Or.inl (cell_mem_basic i hz s), Or.inl (head_mem_basic i hz)]
-    · simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl
-      rcases hl with rfl | rfl | rfl
+    · rcases hl with rfl | rfl | rfl
       exacts [hsit y rfl, Or.inl (head_mem_basic i hz), Or.inl (cell_mem_basic i hz s')]
   · rcases hc with rfl | ⟨⟨y, o'⟩, -, rfl⟩ <;>
       simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl <;> rcases hl with rfl | rfl
