@@ -48,6 +48,40 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
+/-- Bundled `clientState`, `clientResult`, `memoryCost` bound and `ValidProg` facts for running
+`p` from `s`. -/
+private def CStep {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α)
+    (s' : Memory.State) (r : α) (C : ℕ) : Prop :=
+  (Memory.spec 0).clientState s p = s' ∧ (Memory.spec 0).clientResult s p = r ∧
+    memoryCost p s ≤ C ∧ ValidProg w F s p
+
+private theorem CStep.bind {α β : Type} {w F C₁ C₂ : ℕ} {s s₁ s₂ : Memory.State}
+    {f : Memory.Prog α} {g : α → Memory.Prog β} {x : α} {y : β}
+    (hf : CStep w F s f s₁ x C₁) (hg : CStep w F s₁ (g x) s₂ y C₂) :
+    CStep w F s (f >>= g) s₂ y (C₁ + C₂) := by
+  obtain ⟨h1, h2, h3, h4⟩ := hf
+  refine ⟨?_, ?_, ?_, validProg_bind h4 (by rw [h1, h2]; exact hg.2.2.2)⟩
+  · rw [clientState_bind, h1, h2]; exact hg.1
+  · rw [clientResult_bind, h1, h2]; exact hg.2.1
+  · rw [memoryCost_bind', h1, h2]; exact Nat.add_le_add h3 hg.2.2.1
+
+private theorem CStep.mono {α : Type} {w F C C' : ℕ} {s s' : Memory.State} {p : Memory.Prog α}
+    {r : α} (h : CStep w F s p s' r C) (hC : C ≤ C') : CStep w F s p s' r C' :=
+  ⟨h.1, h.2.1, h.2.2.1.trans hC, h.2.2.2⟩
+
+/-- Read a `CStep` off as a cost bound, validity and a property of the final state. -/
+private theorem CStep.elim {α : Type} {w F C C' : ℕ} {s s' : Memory.State} {p : Memory.Prog α}
+    {r : α} {P : Memory.State → Prop} (h : CStep w F s p s' r C) (hC : C ≤ C') (hP : P s') :
+    memoryCost p s ≤ C' ∧ ValidProg w F s p ∧ P ((Memory.spec 0).clientState s p) :=
+  ⟨h.2.2.1.trans hC, h.2.2.2, by rw [h.1]; exact hP⟩
+
+/-- A conditional single-slot update leaves every other slot unchanged. -/
+private theorem ite_update_apply_of_ne {α : Type} {p : Prop} [Decidable p] {f : ℕ → α}
+    {i k : ℕ} {x : α} (h : k ≠ i) : (if p then Function.update f i x else f) k = f k := by
+  split_ifs
+  · exact Function.update_of_ne h _ _
+  · rfl
+
 /-- Core `WhpCoreParams` removal sequence (`buf`, `liveSlice`, `overmarsSlice`) for
 `fastDeleteRemoveGenProg`. -/
 @[irreducible] private def delRemCoreGenProg :
@@ -117,9 +151,7 @@ private theorem realizes_delRemCoreGen :
       refine ⟨hins_o.le, om, ?_⟩
       change ValidWhpSlice n_max (fs.overmarsInsCount b) (slices1 (fs.overmarsSliceIdx b)) om
       dsimp only [slices1]
-      by_cases hin : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
-      · rw [ite_eq_left hin, Function.update_of_ne hne_lo.symm]; exact hv_o
-      · rw [ite_eq_right hin]; exact hv_o
+      rwa [ite_update_apply_of_ne hne_lo.symm]
     first
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep,
         fun h2 => (hb0 loc_del hld h2).2.2, fun h3 => (hb1 loc_del hld h3).2.2⟩
@@ -214,9 +246,7 @@ theorem realizes_fastDeleteRemoveGen :
       refine ⟨hins_o.le, om, ?_⟩
       change ValidWhpSlice n_max (fs.overmarsInsCount b) (slices1 (fs.overmarsSliceIdx b)) om
       dsimp only [slices1]
-      by_cases hin : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
-      · rw [ite_eq_left hin, Function.update_of_ne hne_lo.symm]; exact hv_o
-      · rw [ite_eq_right hin]; exact hv_o
+      rwa [ite_update_apply_of_ne hne_lo.symm]
     obtain ⟨_, _, hst3⟩ := delRemOmGenProg_fastStep (fs := fs_l) henv hv.curEp_or hb
       (hv.roles_valid b hb).2.1 hom_fn2 hfp_lt hst2.2.1 hst2.2.2.1
       (loc_del := loc_del) (st_del := st_del) (s := s2)
@@ -248,19 +278,9 @@ theorem realizes_fastDeleteRemoveGen :
          fun hrbt => ?_⟩
        obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn hrbt
        refine ⟨hins_r.le, rm, ?_⟩
-       have hsl2 : slices2 (fs.rebSliceIdx b) = slices1 (fs.rebSliceIdx b) := by
-         dsimp only [slices2]
-         by_cases ho : fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-             inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
-         · rw [ite_eq_left ho]; exact Function.update_of_ne hne_or.symm _ _
-         · rw [ite_eq_right ho]
-       have hsl1 : slices1 (fs.rebSliceIdx b) = fs.slices (fs.rebSliceIdx b) := by
-         dsimp only [slices1]
-         by_cases hl : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
-         · rw [ite_eq_left hl]; exact Function.update_of_ne hne_lr.symm _ _
-         · rw [ite_eq_right hl]
        change ValidWhpSlice n_max fs.rebInsCount (slices2 (fs.rebSliceIdx b)) rm
-       rwa [hsl2, hsl1])
+       dsimp only [slices2, slices1]
+       rwa [ite_update_apply_of_ne hne_or.symm, ite_update_apply_of_ne hne_lr.symm])
   )
 
 theorem fastDeleteRemoveGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
@@ -327,9 +347,7 @@ theorem fastDeleteRemoveGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
     refine ⟨hins_o.le, om, ?_⟩
     change ValidWhpSlice n_max (fs.overmarsInsCount b) (slices1 (fs.overmarsSliceIdx b)) om
     dsimp only [slices1]
-    by_cases hin : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
-    · rw [ite_eq_left hin, Function.update_of_ne hne_lo.symm]; exact hv_o
-    · rw [ite_eq_right hin]; exact hv_o
+    rwa [ite_update_apply_of_ne hne_lo.symm]
   obtain ⟨hmc3, hvp3, hst3⟩ := delRemOmGenProg_fastStep (fs := fs_l) henv hv.curEp_or hb
     (hv.roles_valid b hb).2.1 hom_fn2 hfp_lt hst2.2.1 hst2.2.2.1
     (loc_del := loc_del) (st_del := st_del) (s := s2)
@@ -351,58 +369,23 @@ theorem fastDeleteRemoveGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
     intro hrbt
     obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn hrbt
     refine ⟨hins_r.le, rm, ?_⟩
-    have hsl2 : slices2 (fs.rebSliceIdx b) = slices1 (fs.rebSliceIdx b) := by
-      dsimp only [slices2]
-      by_cases ho : fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
-          inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
-      · rw [ite_eq_left ho]; exact Function.update_of_ne hne_or.symm _ _
-      · rw [ite_eq_right ho]
-    have hsl1 : slices1 (fs.rebSliceIdx b) = fs.slices (fs.rebSliceIdx b) := by
-      dsimp only [slices1]
-      by_cases hl : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
-      · rw [ite_eq_left hl]; exact Function.update_of_ne hne_lr.symm _ _
-      · rw [ite_eq_right hl]
     change ValidWhpSlice n_max fs.rebInsCount (slices2 (fs.rebSliceIdx b)) rm
-    rwa [hsl2, hsl1]
+    dsimp only [slices2, slices1]
+    rwa [ite_update_apply_of_ne hne_or.symm, ite_update_apply_of_ne hne_lr.symm]
   obtain ⟨hmc4, hvp4, hst4⟩ := delRemRebGenProg_fastStep (fs := fs_o) u henv hv.curEp_or hb
     hr_lt hreb_fn3 hst3.2.1 hst3.2.2.1 (loc_del := loc_del) (st_del := st_del) (s := s3)
-  have hcore_st : (Memory.spec 0).clientState s
-      (delRemCoreGenProg ((((cp, base), b), loc_del), (st_del, (rKey_u, fp_live_u)))) = s3 := by
+  have hcore : CStep w (base + largeSpaceWhp c U V w n_max) s
+      (delRemCoreGenProg ((((cp, base), b), loc_del), (st_del, (rKey_u, fp_live_u)))) s3 ()
+      (2 * cTabWhp c + 573) := by
     unfold delRemCoreGenProg; dsimp only
-    rw [clientState_bind, clientState_bind]
+    exact .mono (.bind ⟨rfl, rfl, hmc1, hvp1⟩ <|
+      .bind ⟨rfl, rfl, hmc2, hvp2⟩ ⟨rfl, rfl, hmc3, hvp3⟩) (by omega)
   dsimp only
   unfold fastDeleteRemoveGenProg
   dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (delRemReadInfoGenProg ((((mkWhpParams c U V w n_max, base), b), loc_del), u.val) >>=
-        fun info =>
-        delRemCoreGenProg ((((cp, base), b), loc_del), info) >>= fun _ =>
-        delRemRebGenProg ((((mkWhpParams c U V w n_max, base), b), loc_del), (info.1, u.val))) =
-      (Memory.spec 0).clientState s3
-        (delRemRebGenProg
-          ((((mkWhpParams c U V w n_max, base), b), loc_del), (st_del, u.val))) := by
-    rw [clientState_bind, hri_st, hri_res]; dsimp only
-    rw [clientState_bind, hcore_st]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, ((hst1.trans hst2).trans hst3).trans hst4⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hri_st, hri_res]; dsimp only
-    rw [hcore_st]
-    unfold delRemCoreGenProg; dsimp only
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    have hri_mc' : memoryCost (delRemReadInfoGenProg
-        ((((mkWhpParams c U V w n_max, base), b), loc_del), u.val)) s ≤
-        hashEvalCostWhp c + 5 := hri_mc
-    dsimp only [s1, s2, s3, cp, st_del, rKey_u, fp_live_u] at hmc1 hmc2 hmc3 hmc4 ⊢
-    omega
-  · refine validProg_bind hri_vp ?_; rw [hri_st, hri_res]; dsimp only
-    have hcore_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (delRemCoreGenProg ((((cp, base), b), loc_del), (st_del, (rKey_u, fp_live_u)))) := by
-      unfold delRemCoreGenProg; dsimp only
-      exact validProg_bind hvp1 (validProg_bind hvp2 hvp3)
-    refine validProg_bind hcore_vp ?_; rw [hcore_st]
-    exact hvp4
+  exact CStep.elim (.bind ⟨hri_st, hri_res, hri_mc, hri_vp⟩ <| .bind hcore ⟨rfl, rfl, hmc4, hvp4⟩)
+    (by omega) (((hst1.trans hst2).trans hst3).trans hst4)
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 
