@@ -211,8 +211,7 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
         refine ⟨b, ?_, ?_⟩
         · simp only [instruction, hp, hb, Nat.succ_ne_zero, ↓reduceIte, Honest]
           exact ⟨hf, v, by simpa only [Nat.add_sub_cancel] using hx, hv, he, hw⟩
-        · intro _ _
-          exact hx.le.trans_lt hv
+        · exact fun _ _ => hx.le.trans_lt hv
   | edge =>
     simp only [Honest, hp] at hh
     obtain ⟨hf, he, hw⟩ := hh
