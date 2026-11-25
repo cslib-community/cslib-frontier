@@ -101,7 +101,8 @@ theorem widen (h : PolyErrBound f C lo hi) (hlo' : 0 < lo') (hl : lo' ≤ lo) (h
   refine ⟨by positivity, hlo', hl.trans (hle.trans hh), fun x => (hf x).trans ?_⟩
   have h₁ := rpow_le_rpow_add_rpow (abs_nonneg x) hlo' hl (hle.trans hh)
   have h₂ := rpow_le_rpow_add_rpow (abs_nonneg x) hlo' (hl.trans hle) hh
-  nlinarith
+  calc C * (|x| ^ lo + |x| ^ hi) ≤ C * (2 * (|x| ^ lo' + |x| ^ hi')) := by gcongr; linarith
+    _ = 2 * C * (|x| ^ lo' + |x| ^ hi') := by ring
 
 theorem mono (h : PolyErrBound f C lo hi) (hg : ∀ x, |g x| ≤ |f x|) : PolyErrBound g C lo hi :=
   ⟨h.1, h.2.1, h.2.2.1, fun x => (hg x).trans (h.2.2.2 x)⟩
@@ -188,24 +189,20 @@ theorem mul (hf : PolyErr f) (hg : PolyErr g) : PolyErr fun x => f x * g x := by
   have ht : 0 ≤ t := abs_nonneg x
   have e : ∀ u v : ℝ, 0 < u → 0 < v → t ^ u * t ^ v = t ^ (u + v) := fun u v hu hv =>
     (rpow_add' ht (by linarith)).symm
-  have b₁ := rpow_le_rpow_add_rpow ht (by linarith : 0 < a + c) le_rfl (by linarith : a + c ≤ b + d)
   have b₂ := rpow_le_rpow_add_rpow ht (by linarith : 0 < a + c) (by linarith : a + c ≤ a + d)
     (by linarith : a + d ≤ b + d)
   have b₃ := rpow_le_rpow_add_rpow ht (by linarith : 0 < a + c) (by linarith : a + c ≤ b + c)
     (by linarith : b + c ≤ b + d)
-  have b₄ := rpow_le_rpow_add_rpow ht (by linarith : 0 < a + c) (by linarith : a + c ≤ b + d)
-    le_rfl
   have hprod : (t ^ a + t ^ b) * (t ^ c + t ^ d) ≤ 4 * (t ^ (a + c) + t ^ (b + d)) := by
-    have := e a c ha hc
-    have := e a d ha (by linarith)
-    have := e b c (by linarith) hc
-    have := e b d (by linarith) (by linarith)
-    nlinarith
-  have hfx := hf x
-  have hgx := hg x
+    have hsum : (t ^ a + t ^ b) * (t ^ c + t ^ d) =
+        t ^ (a + c) + t ^ (a + d) + t ^ (b + c) + t ^ (b + d) := by
+      rw [add_mul, mul_add, mul_add, e a c ha hc, e a d ha (by linarith),
+        e b c (by linarith) hc, e b d (by linarith) (by linarith)]
+      ring
+    linarith [rpow_nonneg ht (a + c), rpow_nonneg ht (b + d)]
   rw [abs_mul]
   calc |f x| * |g x| ≤ (C * (t ^ a + t ^ b)) * (D * (t ^ c + t ^ d)) :=
-        mul_le_mul hfx hgx (abs_nonneg _) (by positivity)
+        mul_le_mul (hf x) (hg x) (abs_nonneg _) (by positivity)
     _ = C * D * ((t ^ a + t ^ b) * (t ^ c + t ^ d)) := by ring
     _ ≤ C * D * (4 * (t ^ (a + c) + t ^ (b + d))) := by gcongr
     _ = 4 * (C * D) * (t ^ (a + c) + t ^ (b + d)) := by ring
@@ -282,8 +279,8 @@ theorem exists_le (hf : PolyErr f) :
   rw [abs_of_nonneg h0]
   rcases h0.eq_or_lt with rfl | hpos
   · rw [zero_rpow hlo.ne', zero_rpow (by linarith)]; simp
-  · have := rpow_le_rpow_of_exponent_ge hpos h1 hle
-    nlinarith
+  · exact (mul_le_mul_of_nonneg_left
+      (add_le_add le_rfl (rpow_le_rpow_of_exponent_ge hpos h1 hle)) hC).trans_eq (by ring)
 
 /-- A polynomial error vanishes at `0`. -/
 theorem apply_zero (hf : PolyErr f) : f 0 = 0 := by
