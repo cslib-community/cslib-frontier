@@ -1271,14 +1271,14 @@ theorem oligopoly_surplus_five_sixths {Link Provider : Type*} [Fintype Link] [De
   classical
   -- Edge case 1: empty Link
   by_cases hne : Nonempty Link
-  · -- Edge case 2: ∀ i, p i * x i = 0 (Lemma 5.1)
+  · have of_opt (hopt : IsSocialOptimum d R latency x) :
+        5 * socialSurplus R latency y ≤ 6 * socialSurplus R latency x := by
+      linarith [hopt.2 y hy, hoe.2.1.socialSurplus_nonneg hoe.1]
+    -- Edge case 2: ∀ i, p i * x i = 0 (Lemma 5.1)
     by_cases hpos : ∃ i₀, 0 < p i₀ * x i₀
     · -- Edge case 3: ∑ x < d (Lemma 5.2(ii))
       rcases hoe.2.1.1.2.lt_or_eq with hlt_d | hsum_d
-      · have hopt := hoe.isSocialOptimum_of_sum_lt h hzs hlt_d
-        have hle := hopt.2 y hy
-        have hnn := hoe.2.1.socialSurplus_nonneg hoe.1
-        linarith
+      · exact of_opt (hoe.isSocialOptimum_of_sum_lt h hzs hlt_d)
       · -- Full demand ∑ k, x k = d with interior positivity on every link:
         have hall_pos := hoe.price_pos_and_flow_pos h hzs hpos
         -- Choose i₀ minimizing mc k := latency k (x k) + x k * latencyDeriv k (x k):
@@ -1447,11 +1447,8 @@ theorem oligopoly_surplus_five_sixths {Link Provider : Type*} [Fintype Link] [De
             ⟨hoe.2.1.1, dU, hdU0, by rw [hsum_d, sub_self, mul_zero],
               fun k => by linarith [hmc_eq k], fun k _ => by linarith [hmc_eq k]⟩)
     · push Not at hpos
-      have hopt := hoe.isSocialOptimum_of_forall_mul_eq_zero h fun i =>
-        le_antisymm (hpos i) (mul_nonneg (hoe.1 i) (hoe.2.1.1.1 i))
-      have hle := hopt.2 y hy
-      have hnn := hoe.2.1.socialSurplus_nonneg hoe.1
-      linarith
+      exact of_opt (hoe.isSocialOptimum_of_forall_mul_eq_zero h fun i =>
+        le_antisymm (hpos i) (mul_nonneg (hoe.1 i) (hoe.2.1.1.1 i)))
   · rw [not_nonempty_iff] at hne
     simp [socialSurplus]
 
@@ -2156,9 +2153,7 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
         refine nonneg_of_hasDerivAt_of_forall_pos hi hg_deriv fun t ht0 hti => ?_
         simp only [g, sub_zero, Function.update_eq_self]
         refine hx'min _ ⟨fun k => ?_, ?_⟩
-        · by_cases hki : k = i
-          · subst hki; simp only [Function.update_self]; linarith
-          · simp only [Function.update_of_ne hki]; exact hx'Feas.1 k
+        · simp only [Function.update_apply]; split_ifs <;> linarith [hx'Feas.1 k]
         · refine (Finset.sum_le_sum fun k _ => ?_).trans hx'Feas.2
           by_cases hki : k = i
           · subst hki; simp only [Function.update_self]; linarith
@@ -2250,14 +2245,10 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
           change ∑ k, x' k = B at heq_B
           simp only [B, X] at heq_B ⊢
           linarith
-        have hud_le_b : uDeriv X ≤ uDeriv (b i₀) :=
-          hu.deriv_le hbi₀_pos.le hbi₀_le_X
-        have hlat_mono : latency i₀ (b i₀) ≤ latency i₀ (x' i₀) :=
-          hl.latency_le i₀ hbi₀_pos.le hi₀_gt.le
         have hi₀_ge : uDeriv X ≤ latency i₀ (x' i₀) + p' i₀ := by
-          linarith [(hb i₀).2, hp'0 i₀]
-        intro j
-        exact hi₀_ge.trans (hswap i₀ j hxi₀_pos)
+          linarith [(hb i₀).2, hp'0 i₀, hu.deriv_le hbi₀_pos.le hbi₀_le_X,
+            hl.latency_le i₀ hbi₀_pos.le hi₀_gt.le]
+        exact fun j => hi₀_ge.trans (hswap i₀ j hxi₀_pos)
     refine ⟨x', hx'Feas.1, fun i hi => le_antisymm (hact_le i hi) (hall_ge i), hall_ge⟩
   · rw [not_nonempty_iff] at hne
     exact ⟨0, fun i => hne.elim i, fun i => hne.elim i, fun i => hne.elim i⟩
@@ -2731,8 +2722,7 @@ theorem IsElasticOligopolyEquilibrium.price_sub_mul_deriv_le_elastic {Link : Typ
   have hdenom_pos : 0 < 1 + U2 * Sinv := by positivity
   -- Suffices to show p i ≤ x i * latencyDeriv i (x i) + (U2 * x i) / (1 + U2 * Sinv):
   suffices hub : p i ≤ x i * latencyDeriv i (x i) + (U2 * x i) / (1 + U2 * Sinv) by
-    have h1 : p i - x i * latencyDeriv i (x i) ≤ (U2 * x i) / (1 + U2 * Sinv) := by linarith
-    exact (le_div_iff₀ hdenom_pos).mp h1
+    exact (le_div_iff₀ hdenom_pos).mp (by linarith)
   -- Subcase 1: uDeriv is flat immediately above X (∃ δ₀ > 0, uDeriv (X + δ₀) = cStar):
   by_cases hflat_u : ∃ δ₀ > 0, uDeriv (X + δ₀) = cStar
   · obtain ⟨δ₀, hδ₀, hud_flat⟩ := hflat_u
@@ -2751,9 +2741,7 @@ theorem IsElasticOligopolyEquilibrium.price_sub_mul_deriv_le_elastic {Link : Typ
       have hx'sum : ∑ k, x' k = X + δ := sum_update_add_eq x i δ
       have hw' : IsElasticPricedWardrop uDeriv latency (Function.update p i p') x' := by
         refine ⟨fun k => ?_, fun k _ => ?_, fun k => ?_⟩
-        · by_cases hki : k = i
-          · subst hki; simp only [x', Function.update_self]; linarith
-          · simp only [x', Function.update_of_ne hki]; exact hoe.2.1.1 k
+        · simp only [x', Function.update_apply]; split_ifs <;> linarith [hoe.2.1.1 k]
         · rw [hx'sum, hud_eq]
           by_cases hki : k = i
           · subst hki; simp [x', p']
@@ -2767,9 +2755,7 @@ theorem IsElasticOligopolyEquilibrium.price_sub_mul_deriv_le_elastic {Link : Typ
       have hbest := hoe.2.2 i p' x' hp'0 hw'
       simp only [x', p', Function.update_self, ← hi_eff] at hbest
       exact ⟨δ, hδ0, hδη, le_div_mul_add_of_mul_le hδ0 hε.le (by nlinarith)⟩
-    have hnn : 0 ≤ (U2 * x i) / (1 + U2 * Sinv) :=
-      div_nonneg (mul_nonneg hU2_nn hxi.le) hdenom_pos.le
-    linarith
+    linarith [div_nonneg (mul_nonneg hU2_nn hxi.le) hdenom_pos.le]
   -- Subcase 2: uDeriv strictly decreases above X!
   push Not at hflat_u
   refine le_mul_deriv_add_of_forall_pos_add (hl.hasDerivAt i (x i) hxi.le)
@@ -2832,11 +2818,9 @@ theorem IsElasticOligopolyEquilibrium.price_sub_mul_deriv_le_elastic {Link : Typ
         rw [Finset.lt_inf'_iff]
         intro q hq
         have hdq := hcomp_pos q (Finset.mem_erase.mp hq).1
-        have hlat_pos : 0 < latency q (x q) := by
-          rcases (hl.latency_nonneg q (hxpos q).le).eq_or_lt with hz | hp
-          · exact False.elim
-              (hdq.ne' ((hl.latency_eq_zero_iff_deriv_eq_zero q (hxpos q)).mp hz.symm))
-          · exact hp
+        have hlat_pos : 0 < latency q (x q) :=
+          (hl.latency_nonneg q (hxpos q).le).lt_of_ne fun hz =>
+            hdq.ne' ((hl.latency_eq_zero_iff_deriv_eq_zero q (hxpos q)).mp hz.symm)
         have hlt := hl.latency_sub_lt_of_pos q (hrStep_pos q hq) (hrStep_lt_x q hq) hlat_pos
         linarith
       exact ⟨mQ / 2, half_pos hmQ_pos, fun q hq =>
@@ -2994,7 +2978,10 @@ theorem elastic_oligopoly_surplus_two_thirds {Link : Type*} [Fintype Link] [Deci
     (hopt : IsElasticSocialOptimum u latency xS) :
     2 * elasticSocialSurplus u latency xS ≤ 3 * elasticSocialSurplus u latency x := by
   by_cases hne : Nonempty Link
-  · by_cases hpos : ∃ i₀, 0 < p i₀ * x i₀
+  · have of_opt (hx_opt : IsElasticSocialOptimum u latency x) :
+        2 * elasticSocialSurplus u latency xS ≤ 3 * elasticSocialSurplus u latency x := by
+      linarith [hx_opt.2 xS hopt.1, hoe.2.1.socialSurplus_nonneg hu hoe.1]
+    by_cases hpos : ∃ i₀, 0 < p i₀ * x i₀
     · have hall_pos := hoe.price_pos_and_flow_pos hu hl hopt hpos
       let X : ℝ := ∑ k, x k
       let U1 : ℝ := uDeriv X
@@ -3013,19 +3000,17 @@ theorem elastic_oligopoly_surplus_two_thirds {Link : Type*} [Fintype Link] [Deci
         linarith [hoe.mul_latencyDeriv_le_price hu hl k]
       let dU : ℝ := U1 - m
       have hdU0 : 0 ≤ dU := sub_nonneg.mpr (hmc_le i₀)
+      have of_eq (hdU_z : U1 = m) :
+          2 * elasticSocialSurplus u latency xS ≤ 3 * elasticSocialSurplus u latency x := by
+        have hmc_eq : ∀ k, mc k = U1 := fun k =>
+          le_antisymm (hmc_le k) (hdU_z ▸ hi₀_min k (Finset.mem_univ k))
+        exact of_opt (isElasticSocialOptimum_of_kkt hu hl hoe.2.1.1
+          (fun k => (hmc_eq k).ge) (fun k _ => hmc_eq k))
       -- Subcase A: some competitor q ≠ i₀ has latencyDeriv q (x q) = 0 -> dU = 0 -> x is optimal!
       by_cases hcomp_z : ∃ q, q ≠ i₀ ∧ latencyDeriv q (x q) = 0
       · obtain ⟨q, hqi₀, hq_z⟩ := hcomp_z
         have hp_eq := hoe.price_eq_mul_deriv_of_comp_deriv_zero hu hl hopt hpos hqi₀ hq_z
-        have hdU_z : U1 = m := by simp only [U1, ← heff_all i₀, m, mc, hp_eq]
-        have hmc_eq : ∀ k, mc k = U1 := fun k =>
-          le_antisymm (hmc_le k) (hdU_z ▸ hi₀_min k (Finset.mem_univ k))
-        have hx_opt : IsElasticSocialOptimum u latency x :=
-          isElasticSocialOptimum_of_kkt hu hl hoe.2.1.1
-            (fun k => (hmc_eq k).ge) (fun k _ => hmc_eq k)
-        have hle := hx_opt.2 xS hopt.1
-        have hnn := hoe.2.1.socialSurplus_nonneg hu hoe.1
-        linarith
+        exact of_eq (by simp only [U1, ← heff_all i₀, m, mc, hp_eq])
       push Not at hcomp_z
       have hcomp_pos : ∀ q, q ≠ i₀ → 0 < latencyDeriv q (x q) := fun q hq =>
         lt_of_le_of_ne (hl.latencyDeriv_nonneg q (hoe.2.1.1 q)) (Ne.symm (hcomp_z q hq))
@@ -3035,21 +3020,11 @@ theorem elastic_oligopoly_surplus_two_thirds {Link : Type*} [Fintype Link] [Deci
         ring
       -- Subcase B: U2 = 0 -> hmarkup gives dU * 1 ≤ 0 -> dU = 0 -> x is optimal!
       rcases hU2_nn.eq_or_lt with hU2_z | hU2_pos
-      · have hdU_le0 : dU ≤ 0 := by
-          change (p i₀ - x i₀ * latencyDeriv i₀ (x i₀)) *
-            (1 + U2 * ∑ q ∈ Finset.univ.erase i₀, (latencyDeriv q (x q))⁻¹) ≤
-            U2 * x i₀ at hmarkup
-          rw [← hU2_z, zero_mul, add_zero, zero_mul, ← hdU_eq_diff, mul_one] at hmarkup
-          exact hmarkup
-        have hdU_z : U1 = m := by simp only [dU] at hdU0 hdU_le0; linarith
-        have hmc_eq : ∀ k, mc k = U1 := fun k =>
-          le_antisymm (hmc_le k) (hdU_z ▸ hi₀_min k (Finset.mem_univ k))
-        have hx_opt : IsElasticSocialOptimum u latency x :=
-          isElasticSocialOptimum_of_kkt hu hl hoe.2.1.1
-            (fun k => (hmc_eq k).ge) (fun k _ => hmc_eq k)
-        have hle := hx_opt.2 xS hopt.1
-        have hnn := hoe.2.1.socialSurplus_nonneg hu hoe.1
-        linarith
+      · change (p i₀ - x i₀ * latencyDeriv i₀ (x i₀)) *
+          (1 + U2 * ∑ q ∈ Finset.univ.erase i₀, (latencyDeriv q (x q))⁻¹) ≤
+          U2 * x i₀ at hmarkup
+        rw [← hU2_z, zero_mul, add_zero, zero_mul, ← hdU_eq_diff, mul_one] at hmarkup
+        exact of_eq (le_antisymm (sub_nonpos.mp hmarkup) (hmc_le i₀))
       · -- Main Subcase C: U2 > 0 and ∀ q ≠ i₀, 0 < latencyDeriv q (x q)!
         let Δu : ℝ := u X - U1 * X
         have hΔu_nn : 0 ≤ Δu := hu.sub_mul_deriv_nonneg hX0
@@ -3093,13 +3068,8 @@ theorem elastic_oligopoly_surplus_two_thirds {Link : Type*} [Fintype Link] [Deci
           change (p i₀ - x i₀ * latencyDeriv i₀ (x i₀)) *
             (1 + U2 * ∑ q ∈ compSet, (latencyDeriv q (x q))⁻¹) ≤ U2 * x i₀ at hmarkup
           rw [← hdU_eq_diff] at hmarkup
-          have h1 : (dU + U2 * (dU * ∑ q ∈ compSet, (latencyDeriv q (x q))⁻¹)) ≤ U2 * x i₀ := by
-            nlinarith
-          have h2 : (dU / U2 + dU * ∑ q ∈ compSet, (latencyDeriv q (x q))⁻¹) * U2 =
-              dU + U2 * (dU * ∑ q ∈ compSet, (latencyDeriv q (x q))⁻¹) := by
-            have hne_u : U2 ≠ 0 := hU2_pos.ne'
-            field_simp
-          exact le_of_mul_le_mul_right (by rw [h2]; linarith) hU2_pos
+          rw [div_add' _ _ _ hU2_pos.ne', div_le_iff₀ hU2_pos]
+          linarith
         have hX_split : X = x i₀ + ∑ q ∈ compSet, x q :=
           (Finset.add_sum_erase Finset.univ x (Finset.mem_univ i₀)).symm
         have hdU_budget : ∑ q ∈ compSet, (dU ^ 2 / latencyDeriv q (x q) + dU * x q) ≤
@@ -3145,17 +3115,13 @@ theorem elastic_oligopoly_surplus_two_thirds {Link : Type*} [Fintype Link] [Deci
             hm0 (hi₀_min q (Finset.mem_univ q)) (by linarith [hmc_le q])
           linarith
         have h2U2 : 2 * (dU ^ 2 / (2 * U2)) = dU ^ 2 / U2 := by
-          have hne_u : U2 ≠ 0 := hU2_pos.ne'
-          field_simp
+          rw [mul_div_assoc', mul_div_mul_left _ _ two_ne_zero]
         rw [hpart_env] at hxS_env
         rw [hpart_x] at hx_decomp
         linarith
     · push Not at hpos
-      have hx_opt := hoe.isElasticSocialOptimum_of_forall_mul_eq_zero hu hl hopt fun i =>
-        le_antisymm (hpos i) (mul_nonneg (hoe.1 i) (hoe.2.1.1 i))
-      have hle := hx_opt.2 xS hopt.1
-      have hnn := hoe.2.1.socialSurplus_nonneg hu hoe.1
-      linarith
+      exact of_opt (hoe.isElasticSocialOptimum_of_forall_mul_eq_zero hu hl hopt fun i =>
+        le_antisymm (hpos i) (mul_nonneg (hoe.1 i) (hoe.2.1.1 i)))
   · rw [not_nonempty_iff] at hne
     simp [elasticSocialSurplus, hu.zero_at_zero]
 
