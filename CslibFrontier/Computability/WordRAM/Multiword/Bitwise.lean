@@ -98,61 +98,53 @@ theorem exec {w : ℕ} (hw : 2 ≤ w) {f : BinOp} (hf : Supported f)
       Frame x y ds ∧ ∀ i ∉ ds, y.regs i = x.regs i := by
   induction as generalizing bs ds x with
   | nil =>
-    cases bs with
-    | cons => simp only [List.length_cons, List.length_nil] at hab; omega
-    | nil =>
-      cases ds with
-      | cons => simp only [List.length_cons, List.length_nil] at had; omega
-      | nil =>
-        refine WP.Exact.exists_exec ?_
-        unfold program
-        wram_exec [List.length_nil]
-        rcases hf with rfl | rfl | rfl <;>
-          exact ⟨by simp [Bounded], by simp [value, BinOp.eval], frame_set_carry _ _ [], by simp⟩
+    obtain rfl := List.eq_nil_of_length_eq_zero hab.symm
+    obtain rfl := List.eq_nil_of_length_eq_zero had.symm
+    refine WP.Exact.exists_exec ?_
+    unfold program
+    wram_exec [List.length_nil]
+    rcases hf with rfl | rfl | rfl <;>
+      exact ⟨by simp [Bounded], by simp [value, BinOp.eval], frame_set_carry _ _ [], by simp⟩
   | cons a as ih =>
-    cases bs with
-    | nil => simp only [List.length_cons, List.length_nil] at hab; omega
-    | cons b bs =>
-      cases ds with
-      | nil => simp only [List.length_cons, List.length_nil] at had; omega
-      | cons d ds =>
-        have sub_in {i : Fin (r + 4)} (hi : i ∈ as ++ bs) : i ∈ a :: as ++ b :: bs := by
-          simp only [List.mem_append, List.mem_cons] at hi ⊢; tauto
-        have hdis' : List.Disjoint ds (as ++ bs) :=
-          List.disjoint_left.mpr fun i hi hj =>
-            List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi) (sub_in hj)
-        have hne (i : Fin (r + 4)) (hi : i ∈ as ++ bs) : i ≠ d := by
-          rintro rfl
-          exact List.disjoint_left.mp hdis List.mem_cons_self (sub_in hi)
-        have hzlt := eval_lt hf (ha a List.mem_cons_self) (hb b List.mem_cons_self)
-        have hzfit : Fits w (f.eval (x.regs a) (x.regs b)) := hzlt.trans (radix_fits hw)
-        refine WP.Exact.exists_exec ?_
-        unfold program
-        refine WP.Exact.seq (WP.Exact.bin rfl rfl rfl hzfit ?_)
-        have hza (i : Fin (r + 4)) (hi : i ∈ as ++ bs) :
-            (x.set d (f.eval (x.regs a) (x.regs b))).regs i = x.regs i := by
-          have := hne i hi; wram_simp
-        wram_call (ih bs ds (by simpa using hab) (by simpa using had)
-          (fun i hi => hin i (sub_in hi)) (fun i hi => hout i (List.mem_cons_of_mem d hi))
-          (List.nodup_cons.mp hnd).2 hdis' _
-          (fun i hi => hza i (List.mem_append_left _ hi) ▸ ha i (List.mem_cons_of_mem a hi))
-          (fun i hi => hza i (List.mem_append_right _ hi) ▸ hb i (List.mem_cons_of_mem b hi))) with
-          y ⟨hyb, hyv, hyf, hyp⟩
-        have hyd : y.regs d = f.eval (x.regs a) (x.regs b) := by
-          rw [hyp d (List.nodup_cons.mp hnd).1]; wram_simp
-        have hp : ∀ i ∉ d :: ds, y.regs i = x.regs i := fun i hi => by
-          rw [hyp i (fun hm => hi (List.mem_cons_of_mem d hm))]
-          have : i ≠ d := fun h => hi (h ▸ List.mem_cons_self)
-          wram_simp
-        refine ⟨by simp only [List.length_cons], fun i hi => ?_, ?_,
-          ⟨hyf.1, fun i hi _ _ => hp i hi⟩, hp⟩
-        · rcases List.mem_cons.mp hi with rfl | hi
-          · exact hyd ▸ hzlt
-          · exact hyb i hi
-        · rw [value_cons, value_cons, value_cons, hyd, hyv,
-            value_congr fun i hi => hza i (List.mem_append_left _ hi),
-            value_congr fun i hi => hza i (List.mem_append_right _ hi)]
-          exact (eval_cons hf (ha a List.mem_cons_self) (hb b List.mem_cons_self) _ _).symm
+    obtain ⟨b, bs, rfl⟩ := List.exists_cons_of_length_eq_add_one hab.symm
+    obtain ⟨d, ds, rfl⟩ := List.exists_cons_of_length_eq_add_one had.symm
+    have sub_in {i : Fin (r + 4)} (hi : i ∈ as ++ bs) : i ∈ a :: as ++ b :: bs := by
+      simp only [List.mem_append, List.mem_cons] at hi ⊢; tauto
+    have hdis' : List.Disjoint ds (as ++ bs) :=
+      List.disjoint_left.mpr fun i hi hj =>
+        List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi) (sub_in hj)
+    have hne (i : Fin (r + 4)) (hi : i ∈ as ++ bs) : i ≠ d := by
+      rintro rfl
+      exact List.disjoint_left.mp hdis List.mem_cons_self (sub_in hi)
+    have hzlt := eval_lt hf (ha a List.mem_cons_self) (hb b List.mem_cons_self)
+    have hzfit : Fits w (f.eval (x.regs a) (x.regs b)) := hzlt.trans (radix_fits hw)
+    refine WP.Exact.exists_exec ?_
+    unfold program
+    refine WP.Exact.seq (WP.Exact.bin rfl rfl rfl hzfit ?_)
+    have hza (i : Fin (r + 4)) (hi : i ∈ as ++ bs) :
+        (x.set d (f.eval (x.regs a) (x.regs b))).regs i = x.regs i := by
+      have := hne i hi; wram_simp
+    wram_call (ih bs ds (by simpa using hab) (by simpa using had)
+      (fun i hi => hin i (sub_in hi)) (fun i hi => hout i (List.mem_cons_of_mem d hi))
+      (List.nodup_cons.mp hnd).2 hdis' _
+      (fun i hi => hza i (List.mem_append_left _ hi) ▸ ha i (List.mem_cons_of_mem a hi))
+      (fun i hi => hza i (List.mem_append_right _ hi) ▸ hb i (List.mem_cons_of_mem b hi))) with
+      y ⟨hyb, hyv, hyf, hyp⟩
+    have hyd : y.regs d = f.eval (x.regs a) (x.regs b) := by
+      rw [hyp d (List.nodup_cons.mp hnd).1]; wram_simp
+    have hp : ∀ i ∉ d :: ds, y.regs i = x.regs i := fun i hi => by
+      rw [hyp i (fun hm => hi (List.mem_cons_of_mem d hm))]
+      have : i ≠ d := fun h => hi (h ▸ List.mem_cons_self)
+      wram_simp
+    refine ⟨by simp only [List.length_cons], fun i hi => ?_, ?_,
+      ⟨hyf.1, fun i hi _ _ => hp i hi⟩, hp⟩
+    · rcases List.mem_cons.mp hi with rfl | hi
+      · exact hyd ▸ hzlt
+      · exact hyb i hi
+    · rw [value_cons, value_cons, value_cons, hyd, hyv,
+        value_congr fun i hi => hza i (List.mem_append_left _ hi),
+        value_congr fun i hi => hza i (List.mem_append_right _ hi)]
+      exact (eval_cons hf (ha a List.mem_cons_self) (hb b List.mem_cons_self) _ _).symm
 
 end Cslib.WordRAM.Multiword.Bitwise
 
