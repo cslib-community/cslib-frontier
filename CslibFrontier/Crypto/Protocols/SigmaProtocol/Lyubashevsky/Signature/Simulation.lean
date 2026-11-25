@@ -219,9 +219,8 @@ private theorem outerMeasure_entry_le_lookup_isSome {M α : Type} [DecidableEq M
         List (Σ _ : M × (Fin n → ZMod q), BitString k) =>
         ((trace.2.2.map
           (fun entry : Σ _ : M × (Fin n → ZMod q), BitString k => (entry.1, entry.2))).lookup
-            target).isSome) ⁻¹' {true} := by
-    intro out hout
-    exact (entry_mem_iff_lookup_isSome out.2.2 target).mp hout
+            target).isSome) ⁻¹' {true} :=
+    fun out hout => (entry_mem_iff_lookup_isSome out.2.2 target).mp hout
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
   exact μ.toOuterMeasure.mono hsub
 
