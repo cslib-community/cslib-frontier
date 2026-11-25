@@ -261,8 +261,9 @@ theorem not_tendsto_structProb_even (c : ℝ) :
     ¬Tendsto (fun n => structProb (μ n) fun _ => Even n) atTop (nhds c) := by
   intro h
   have hval (n : ℕ) : structProb (μ n) (fun _ => Even n) = if Even n then 1 else 0 := by
-    by_cases hn : Even n <;> [simp only [hn, ↓reduceIte, structProb_true];
-      simp only [hn, ↓reduceIte, structProb_false] ]
+    by_cases hn : Even n
+    · simp only [hn, ↓reduceIte, structProb_true]
+    · simp only [hn, ↓reduceIte, structProb_false]
   have hev : Tendsto (2 * ·) atTop atTop := tendsto_id.const_mul_atTop' two_pos
   -- Along even `n` the probability is `1`, along odd `n` it is `0`.
   have h1 := h.comp hev

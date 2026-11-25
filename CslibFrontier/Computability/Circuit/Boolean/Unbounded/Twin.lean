@@ -132,8 +132,9 @@ theorem trace_twinProgram (p : Program signature n g) (x : BitString n) (b : Boo
   induction p generalizing b with
   | empty =>
     obtain ⟨i⟩ | ⟨j⟩ := w
-    · cases b <;> [exact (Fin.append_right x (fun i => !x i) i).trans (by simp);
-        exact (Fin.append_left x (fun i => !x i) i).trans (by simp)]
+    · cases b
+      · exact (Fin.append_right x (fun i => !x i) i).trans (by simp)
+      · exact (Fin.append_left x (fun i => !x i) i).trans (by simp)
     · exact j.elim0
   | gate p l ih =>
     induction w using Wire.lastCases with

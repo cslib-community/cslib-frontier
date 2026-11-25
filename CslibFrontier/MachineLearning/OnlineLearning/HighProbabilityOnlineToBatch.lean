@@ -142,13 +142,13 @@ theorem measureReal_average_integral_gt_le {f : Fin T → (Fin T → Z) → Z �
   have hTr : (0 : ℝ) < T := by exact_mod_cast hT
   refine le_trans (measureReal_mono fun S hS => ?_)
     (measureReal_sum_integral_gt_le hf hfresh hab hδ hδ1)
+  have hsq : (T : ℝ) * √(log (1 / δ) / (2 * T)) = √(T * log (1 / δ) / 2) := by
+    rw [show (T : ℝ) * log (1 / δ) / 2 = (T : ℝ) ^ 2 * (log (1 / δ) / (2 * T)) by field_simp,
+      sqrt_mul (sq_nonneg _), sqrt_sq hTr.le]
   simp only [Set.mem_ofPred_eq] at hS ⊢
   have h := mul_lt_mul_of_pos_left hS hTr
   rwa [mul_add, mul_inv_cancel_left₀ hTr.ne', mul_inv_cancel_left₀ hTr.ne',
-    mul_left_comm (T : ℝ) (b - a),
-    show (T : ℝ) * √(log (1 / δ) / (2 * T)) = √(T * log (1 / δ) / 2) by
-      rw [show (T : ℝ) * log (1 / δ) / 2 = (T : ℝ) ^ 2 * (log (1 / δ) / (2 * T)) by field_simp,
-        sqrt_mul (sq_nonneg _), sqrt_sq hTr.le]] at h
+    mul_left_comm (T : ℝ) (b - a), hsq] at h
 
 /-- **High-probability online-to-batch conversion for the iterates of an online learner.** If the
 iterate `w t S` depends only on the examples before round `t` and the loss `ℓ` takes values in

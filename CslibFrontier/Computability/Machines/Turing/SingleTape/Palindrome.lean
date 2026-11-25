@@ -151,21 +151,22 @@ theorem crossings_palWord_injective {ι : Bool → Symbol} {yes : Symbol} {T : �
   let X := {u : List Bool // u.length = x.length}
   let a : X := ⟨x, rfl⟩
   let b : X := ⟨y, hxy⟩
+  have hA (u v : X) : (u.val ++ List.replicate r false ++ v.val.reverse).Palindrome ↔
+      Communication.equality u v = true := by
+    rw [palindrome_append_replicate_append_reverse (v.property.trans u.property.symm),
+      Communication.equality, decide_eq_true_eq]
+    exact ⟨fun h => Subtype.ext h.symm, fun h => congrArg Subtype.val h.symm⟩
   have hinj := crossings_injOn_of_isFoolingSet hdec
     (Communication.isFoolingSet_equality ({a, b} : Finset X))
-    Subtype.val (List.replicate r false) (fun v : X => v.val.reverse)
-    (fun u v => by
-      change (u.val ++ List.replicate r false ++ v.val.reverse).Palindrome ↔ _
-      rw [palindrome_append_replicate_append_reverse (v.2.trans u.2.symm),
-        Communication.equality, decide_eq_true_eq]
-      exact ⟨fun h => Subtype.ext h.symm, fun h => congrArg Subtype.val h.symm⟩)
-    (fun p _ => p.1.2) (by simpa only [List.length_replicate] using hi)
-  refine congrArg (fun p : X × X => p.1.val) (hinj (by simp) (by simp) ?_ : (a, a) = (b, b))
-  change (tm.absInit ((palWord r x).map ι)).crossings ((x.length + i : ℕ) : ℤ)
-      (T (palWord r x).length) =
-    (tm.absInit ((palWord r y).map ι)).crossings ((x.length + i : ℕ) : ℤ)
-      (T (palWord r y).length)
-  simpa only [length_palWord, hxy] using h
+    (fun u : X => u.val) (List.replicate r false) (fun v : X => v.val.reverse) hA
+    (fun p _ => p.1.property) (by simpa only [List.length_replicate] using hi)
+  have hab : (a, a) = (b, b) := hinj (by simp) (by simp) (by
+    change (tm.absInit ((palWord r x).map ι)).crossings ((x.length + i : ℕ) : ℤ)
+        (T (palWord r x).length) =
+      (tm.absInit ((palWord r y).map ι)).crossings ((x.length + i : ℕ) : ℤ)
+        (T (palWord r y).length)
+    simpa only [length_palWord, hxy] using h)
+  exact congrArg (fun p : X × X => p.1.val) hab
 
 private lemma palindrome_ofFn_mix_iff (m r : ℕ) (x y : Fin m → Bool) :
     (List.ofFn x ++ List.replicate r false ++ (List.ofFn y).reverse).Palindrome ↔

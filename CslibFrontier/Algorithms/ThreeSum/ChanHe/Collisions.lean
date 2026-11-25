@@ -113,17 +113,18 @@ theorem sum_coll_mul_le {Q : Finset ℕ} (hP : ∀ p ∈ Q, p.Prime) {U : ℕ} {
     (hS : Bdd U S) (M₀ : ℕ) : ∑ q ∈ Q, coll S (M₀ * q) ≤ labelBits U * coll S M₀ := by
   set C := {xy ∈ S.offDiag | (M₀ : ℤ) ∣ xy.1 - xy.2}
   calc ∑ q ∈ Q, coll S (M₀ * q)
-      ≤ ∑ q ∈ Q, #{xy ∈ C | (q : ℤ) ∣ xy.1 - xy.2} := sum_le_sum fun q _ => card_le_card fun xy h =>
-        by
-          obtain ⟨hxy, hd⟩ := mem_filter.mp h
-          rw [Nat.cast_mul] at hd
-          exact mem_filter.mpr ⟨mem_filter.mpr ⟨hxy, dvd_of_mul_right_dvd hd⟩,
-            dvd_of_mul_left_dvd hd⟩
+      ≤ ∑ q ∈ Q, #{xy ∈ C | (q : ℤ) ∣ xy.1 - xy.2} := by
+        refine sum_le_sum fun q _ => card_le_card fun xy h => ?_
+        obtain ⟨hxy, hd⟩ := mem_filter.mp h
+        rw [Nat.cast_mul] at hd
+        exact mem_filter.mpr
+          ⟨mem_filter.mpr ⟨hxy, dvd_of_mul_right_dvd hd⟩, dvd_of_mul_left_dvd hd⟩
     _ = ∑ xy ∈ C, #{q ∈ Q | ((q : ℕ) : ℤ) ∣ xy.1 - xy.2} :=
         sum_card_bipartiteAbove_eq_sum_card_bipartiteBelow _
-    _ ≤ ∑ _xy ∈ C, labelBits U := sum_le_sum fun xy h =>
-        let ⟨hx, hy, hne⟩ := mem_offDiag.mp (mem_filter.mp h).1
-        card_prime_divisors_le hP (sub_ne_zero.mpr hne)
+    _ ≤ ∑ _xy ∈ C, labelBits U := by
+        refine sum_le_sum fun xy h => ?_
+        obtain ⟨hx, hy, hne⟩ := mem_offDiag.mp (mem_filter.mp h).1
+        exact card_prime_divisors_le hP (sub_ne_zero.mpr hne)
           ((abs_sub _ _).trans (by linarith [hS _ hx, hS _ hy]))
     _ = labelBits U * coll S M₀ := by rw [sum_const, smul_eq_mul, mul_comm, coll]
 
@@ -160,10 +161,10 @@ theorem firstP_spec (hQ : Q.Nonempty) (hP : ∀ p ∈ Q, p.Prime) (h₁ : Bdd U 
       coll S₂ p * #Q ≤ 3 * labelBits U * #S₂ ^ 2 ∧ coll S₃ p * #Q ≤ 3 * labelBits U * #S₃ ^ 2} := by
   obtain ⟨p, hp, c₁, c₂, c₃⟩ := exists_prime_coll_le hQ hP h₁ h₂ h₃ 1
   rw [one_mul] at c₁ c₂ c₃
-  exact minOrOne_mem ⟨p, mem_filter.mpr ⟨hp,
-    c₁.trans (Nat.mul_le_mul_left _ (coll_le_sq S₁ 1)),
-    c₂.trans (Nat.mul_le_mul_left _ (coll_le_sq S₂ 1)),
-    c₃.trans (Nat.mul_le_mul_left _ (coll_le_sq S₃ 1))⟩⟩
+  have hall : ∀ S : Finset ℤ, 3 * labelBits U * coll S 1 ≤ 3 * labelBits U * #S ^ 2 :=
+    fun S => Nat.mul_le_mul_left _ (coll_le_sq S 1)
+  exact minOrOne_mem
+    ⟨p, mem_filter.mpr ⟨hp, c₁.trans (hall S₁), c₂.trans (hall S₂), c₃.trans (hall S₃)⟩⟩
 
 /-- The second search succeeds, for any first factor `p`. -/
 theorem secondP_spec (hQ : Q.Nonempty) (hP : ∀ p ∈ Q, p.Prime) (h₁ : Bdd U S₁) (h₂ : Bdd U S₂)
@@ -171,9 +172,9 @@ theorem secondP_spec (hQ : Q.Nonempty) (hP : ∀ p ∈ Q, p.Prime) (h₁ : Bdd U
     secondP Q (labelBits U) S₁ S₂ S₃ p ∈ {q ∈ Q | coll S₁ (p * q) * #Q ≤ 3 * labelBits U *
       coll S₁ p ∧
       coll S₂ (p * q) * #Q ≤ 3 * labelBits U * coll S₂ p ∧
-      coll S₃ (p * q) * #Q ≤ 3 * labelBits U * coll S₃ p} :=
-  let ⟨q, hq, hc⟩ := exists_prime_coll_le hQ hP h₁ h₂ h₃ p
-  minOrOne_mem ⟨q, mem_filter.mpr ⟨hq, hc⟩⟩
+      coll S₃ (p * q) * #Q ≤ 3 * labelBits U * coll S₃ p} := by
+  obtain ⟨q, hq, hc⟩ := exists_prime_coll_le hQ hP h₁ h₂ h₃ p
+  exact minOrOne_mem ⟨q, mem_filter.mpr ⟨hq, hc⟩⟩
 
 /-- Both searches succeed, and the modulus leaves at most `9Λ²|S|²/|Q|²` colliding pairs in each of
 the three sets.  (A search that fails returns 1, which is not in `Q`.) -/

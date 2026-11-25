@@ -93,8 +93,10 @@ private theorem card_filter_neighborFinset_le (hD : ∀ v, G.degree v ≤ D) {d 
     #{v ∈ G.neighborFinset w | G.edist u v = d + 1 + 1} ≤ D - 1 := by
   classical
   obtain ⟨p, hpw, hp⟩ := exists_adj_edist_eq_of_edist_eq_add_one hw
-  refine (card_le_card (t := (G.neighborFinset w).erase p) fun v hv => ?_).trans ?_
-  · rw [mem_filter] at hv
+  have hsub : {v ∈ G.neighborFinset w | G.edist u v = d + 1 + 1} ⊆
+      (G.neighborFinset w).erase p := by
+    intro v hv
+    rw [mem_filter] at hv
     refine mem_erase.mpr ⟨?_, hv.1⟩
     rintro rfl
     have : ((d + 1 + 1 : ℕ) : ℕ∞) = d := by
@@ -102,9 +104,11 @@ private theorem card_filter_neighborFinset_le (hD : ∀ v, G.degree v ≤ D) {d 
       push_cast
       rfl
     exact absurd (Nat.cast_injective this) (by omega)
-  · rw [card_erase_of_mem ((G.mem_neighborFinset w p).mpr hpw.symm),
-      G.card_neighborFinset_eq_degree]
-    exact Nat.sub_le_sub_right (hD w) 1
+  calc _ ≤ #((G.neighborFinset w).erase p) := card_le_card hsub
+    _ = G.degree w - 1 := by
+      rw [card_erase_of_mem ((G.mem_neighborFinset w p).mpr hpw.symm),
+        G.card_neighborFinset_eq_degree]
+    _ ≤ D - 1 := Nat.sub_le_sub_right (hD w) 1
 
 /-- Every vertex at distance `d + 1` from `u` is a neighbour of a vertex at distance `d`. -/
 private theorem card_edist_eq_add_one_le_sum (u : V) (d : ℕ) :

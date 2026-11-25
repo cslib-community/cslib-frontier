@@ -132,8 +132,8 @@ private theorem mul_pauliZPow_apply {M : Matrix (ι → Bool) (ι → Bool) ℂ}
 private theorem pauliZPow_mul_apply {M : Matrix (ι → Bool) (ι → Bool) ℂ} (b y z : ι → Bool) :
     (pauliZPow b * M) y z = signVal (b ⬝ᵥ y) * M y z := by
   rw [Matrix.mul_apply, sum_eq_single y (fun w _ hw => by
-    rw [pauliZPow_apply, ite_eq_right (Ne.symm hw), zero_mul]) (by simp),
-    pauliZPow_apply, ite_eq_left rfl]
+    rw [pauliZPow_apply, ite_eq_right (Ne.symm hw), zero_mul]) (by simp)]
+  rw [pauliZPow_apply, ite_eq_left rfl]
 
 theorem pauliZPow_mul (b b' : ι → Bool) : pauliZPow b * pauliZPow b' = pauliZPow (b + b') := by
   ext y z
@@ -162,10 +162,12 @@ theorem pauliZPow_mul_pauliXPow (a b : ι → Bool) :
   rw [pauliZPow_mul_apply, Matrix.smul_apply, mul_pauliZPow_apply, pauliXPow_apply, smul_eq_mul]
   split_ifs with h
   · subst h
-    rw [show b ⬝ᵥ (y + a) = (b ⬝ᵥ y ^^ a ⬝ᵥ b) by rw [dotProduct_add, dotProduct_comm b a]; rfl]
+    have e : b ⬝ᵥ (y + a) = (b ⬝ᵥ y ^^ a ⬝ᵥ b) := by
+      rw [dotProduct_add, dotProduct_comm b a]; rfl
+    rw [e]
     push_cast [signVal_xor]
-    have h' : (signVal (a ⬝ᵥ b) : ℂ) * signVal (a ⬝ᵥ b) = 1 := by
-      exact_mod_cast signVal_mul_self (a ⬝ᵥ b)
+    have := signVal_mul_self (a ⬝ᵥ b)
+    have h' : (signVal (a ⬝ᵥ b) : ℂ) * signVal (a ⬝ᵥ b) = 1 := by exact_mod_cast this
     linear_combination -(signVal (b ⬝ᵥ y) : ℂ) * h'
   · simp
 
