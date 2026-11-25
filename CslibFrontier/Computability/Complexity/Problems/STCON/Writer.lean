@@ -97,30 +97,26 @@ private theorem reachesOut_entry {r c : ℕ} (hb : ∀ z ∈ [I.n, (I.s : ℕ), 
     by_cases ht : 0 < test.eval regs
     · simpa [ht] using htrue
     · simpa [ht] using hfalse
-  -- the second guarded bit, at label `29`
-  have h29 : (W).ReachesOut I.encode ((W).Active B) (29, regs) (26, regs)
-      [(decide (0 < guard₂.eval regs) && I.encode[pos₂.eval regs]?.getD false) ||
-        decide (0 < test.eval regs)] := by
-    refine ReachesOut.lt (show (W).instr 29 = _ from rfl) hb ?_
+  -- a guarded bit test at `l₁` / `l₁ + 1` short-circuits to `32` (`true`) or falls through to `l₂`
+  have hguard {l₁ l₂ : ℕ} {guard pos : Expr} {fall : Bool}
+      (hlt : (W).instr l₁ = lt (const 0) guard (l₁ + 1) l₂)
+      (hread : (W).instr (l₁ + 1) = read pos 32 l₂ l₂)
+      (hfall : (W).ReachesOut I.encode ((W).Active B) (l₂, regs) (26, regs) [fall]) :
+      (W).ReachesOut I.encode ((W).Active B) (l₁, regs) (26, regs)
+        [(decide (0 < guard.eval regs) && I.encode[pos.eval regs]?.getD false) || fall] := by
+    refine ReachesOut.lt hlt hb ?_
     rw [eval_const]
-    by_cases hg : 0 < guard₂.eval regs
+    by_cases hg : 0 < guard.eval regs
     · rw [ite_eq_left hg]
-      refine ReachesOut.read (show (W).instr 30 = _ from rfl) hb ?_
-      rcases I.encode[pos₂.eval regs]? with _ | _ | _
-      · simpa [hg, readLabel] using h31
-      · simpa [hg, readLabel] using h31
+      refine ReachesOut.read hread hb ?_
+      rcases I.encode[pos.eval regs]? with _ | _ | _
+      · simpa [hg, readLabel] using hfall
+      · simpa [hg, readLabel] using hfall
       · simpa [hg, readLabel] using htrue
-    · simpa [hg] using h31
-  refine ReachesOut.lt (show (W).instr 27 = _ from rfl) hb ?_
-  rw [eval_const]
-  by_cases hg : 0 < guard₁.eval regs
-  · rw [ite_eq_left hg]
-    refine ReachesOut.read (show (W).instr 28 = _ from rfl) hb ?_
-    rcases h : I.encode[pos₁.eval regs]? with _ | _ | _
-    · simpa [entryOf, hg, h, regs, readLabel] using h29
-    · simpa [entryOf, hg, h, regs, readLabel] using h29
-    · simpa [entryOf, hg, h, regs, readLabel] using htrue
-  · simpa [entryOf, hg, regs] using h29
+    · simpa [hg] using hfall
+  have h29 := hguard (guard := guard₂) (pos := pos₂) (l₁ := 29) (l₂ := 31) rfl rfl h31
+  rw [entryOf, Bool.or_assoc]
+  exact hguard (guard := guard₁) (pos := pos₁) (l₁ := 27) (l₂ := 29) rfl rfl h29
 
 /-- **The matrix row by row**, by the nested loops at labels `21` and `24`. -/
 private theorem reachesOut_rows {N : ℕ}
