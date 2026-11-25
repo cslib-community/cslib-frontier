@@ -116,9 +116,9 @@ private theorem sum_zipWith_rotate_congr {f g : ℕ → ℕ → ℕ} {p : List �
     (h : ∀ a ∈ p, ∀ b ∈ p, f a b = g a b) :
     (List.zipWith f p (p.rotate 1)).sum = (List.zipWith g p (p.rotate 1)).sum := by
   congr 1
-  refine List.ext_getElem (by simp) fun k hk _ => ?_
-  simp only [List.getElem_zipWith]
-  exact h _ (List.getElem_mem _) _ ((List.mem_rotate).1 (List.getElem_mem _))
+  exact List.ext_getElem (by simp) fun k _ _ => by
+    simpa only [List.getElem_zipWith] using
+      h _ (List.getElem_mem _) _ (List.mem_rotate.1 (List.getElem_mem _))
 
 /-- On a duplicate-free tour of two or more cities, no step stays at a city, so the tour length only
 depends on the distances between distinct cities. -/
@@ -130,13 +130,10 @@ private theorem sum_zipWith_rotate_congr_of_ne {f g : ℕ → ℕ → ℕ} {p : 
   simp only [List.length_zipWith, List.length_rotate, Nat.min_self] at hk
   simp only [List.getElem_zipWith, List.getElem_rotate]
   refine h _ (List.getElem_mem _) _ (List.getElem_mem _) fun he => ?_
-  have hlt : (k + 1) % p.length < p.length := Nat.mod_lt _ (by omega)
-  have := (hp.getElem_inj_iff (hi := hk) (hj := hlt)).1 he
+  have := (hp.getElem_inj_iff (hi := hk) (hj := Nat.mod_lt _ (by omega))).1 he
   rcases Nat.lt_or_ge (k + 1) p.length with h1 | h1
-  · rw [Nat.mod_eq_of_lt h1] at this
-    omega
-  · rw [show k + 1 = p.length by omega, Nat.mod_self] at this
-    omega
+  · rw [Nat.mod_eq_of_lt h1] at this; omega
+  · rw [show k + 1 = p.length by omega, Nat.mod_self] at this; omega
 
 /-! ### Membership in `NP` -/
 
@@ -149,33 +146,20 @@ private theorem sum_zipWith_rotate_congr_of_ne {f g : ℕ → ℕ → ℕ} {p : 
   ⟨toMatrix x.dist, x.bound⟩
 
 theorem toTSP_mem_iff (x : SymTSPInstance) : toTSP x ∈ TSP ↔ x ∈ SymTSP := by
-  have hlen : (toMatrix x.dist).length = x.dist.length := by simp [toMatrix]
-  have hdist : ∀ i < x.dist.length, ∀ j < x.dist.length,
-      TSP.dist (toMatrix x.dist) i j = dist x.dist i j := fun i hi j hj => by
-    simp [TSP.dist, toMatrix, List.getD_eq_getElem?_getD, hi, hj]
-  simp only [TSP, SymTSP, toTSP, Set.mem_ofPred_eq, hlen]
+  simp only [TSP, SymTSP, toTSP, Set.mem_ofPred_eq,
+    show (toMatrix x.dist).length = x.dist.length by simp [toMatrix]]
   refine exists_congr fun p => and_congr_right fun hp => ?_
-  have hlt : ∀ a ∈ p, a < x.dist.length := fun a ha => List.mem_range.1 (hp.subset ha)
-  rw [TSP.tourLength, tourLength,
-    sum_zipWith_rotate_congr fun a ha b hb => hdist a (hlt a ha) b (hlt b hb)]
+  rw [TSP.tourLength, tourLength, sum_zipWith_rotate_congr fun a ha b hb => ?_]
+  simp [TSP.dist, toMatrix, List.getD_eq_getElem?_getD, List.mem_range.1 (hp.subset ha),
+    List.mem_range.1 (hp.subset hb)]
 
 /-- Writing out the full symmetric matrix is polynomial-time. -/
 theorem computableInPolyTime_toTSP : ComputableInPolyTime toTSP encSymTSP encTSP := by
-  have hD : ComputableInPolyTime SymTSPInstance.dist encSymTSP (encList (encList encNat)) := by
-    fun_prop
   have hn : ComputableInPolyTime (fun x : SymTSPInstance => x.dist.length) encSymTSP encUnary :=
-    (length_list _).comp hD
-  have hentry : ComputableInPolyTime
-      (fun r : (SymTSPInstance × ℕ) × ℕ => dist r.1.1.dist r.1.2 r.2)
-      (encPair (encPair encSymTSP encUnary) encUnary) encNat := by
-    unfold dist TSP.dist
-    fun_prop
-  have hrow : ComputableInPolyTime
-      (fun q : SymTSPInstance × ℕ =>
-        (List.range q.1.dist.length).map fun j => dist q.1.dist q.2 j)
-      (encPair encSymTSP encUnary) (encList encNat) :=
-    mapWithInput (range.comp (hn.comp (fst _ _))) hentry
-  exact encTSP_mk_polyTime (mapWithInput (range.comp hn) hrow) (by fun_prop)
+    (length_list _).comp (by fun_prop)
+  exact encTSP_mk_polyTime (mapWithInput (range.comp hn)
+    (mapWithInput (range.comp (hn.comp (fst _ _))) (by unfold dist TSP.dist; fun_prop)))
+    (by fun_prop)
 
 /-- `SymTSP` reduces to `TSP` in polynomial time. -/
 theorem polyTimeReducible_TSP : PolyTimeReducible encSymTSP encTSP SymTSP TSP :=
@@ -199,42 +183,28 @@ theorem ofMatrix_mem_iff (x : TSPInstance) (hn : x.dist.length ≠ 1)
     (hsymm : ∀ i < x.dist.length, ∀ j < x.dist.length, i ≠ j →
       TSP.dist x.dist i j = TSP.dist x.dist j i) :
     ofMatrix x ∈ SymTSP ↔ x ∈ TSP := by
-  have hlen : (ofMatrix x).dist.length = x.dist.length := by simp [ofMatrix]
-  have hdist : ∀ i < x.dist.length, ∀ j < x.dist.length, i ≠ j →
-      dist (ofMatrix x).dist i j = TSP.dist x.dist i j := fun i hi j hj hij => by
-    have hmax : max i j < x.dist.length := max_lt hi hj
-    have hmin : min i j < max i j := by omega
-    have hrow : TSP.dist (ofMatrix x).dist (max i j) (min i j) =
-        TSP.dist x.dist (max i j) (min i j) := by
-      simp [TSP.dist, ofMatrix, List.getD_eq_getElem?_getD, hmax, hmin]
-    simp only [dist, hij, ↓reduceIte, hrow]
-    rcases le_total i j with h | h
-    · rw [max_eq_right h, min_eq_left h, hsymm j hj i hi (Ne.symm hij)]
-    · rw [max_eq_left h, min_eq_right h]
-  simp only [TSP, SymTSP, Set.mem_ofPred_eq, hlen]
+  simp only [TSP, SymTSP, Set.mem_ofPred_eq,
+    show (ofMatrix x).dist.length = x.dist.length by simp [ofMatrix]]
   refine exists_congr fun p => and_congr_right fun hp => ?_
-  have hlt : ∀ a ∈ p, a < x.dist.length := fun a ha => List.mem_range.1 (hp.subset ha)
+  have hlt {a} (ha : a ∈ p) : a < x.dist.length := List.mem_range.1 (hp.subset ha)
   rw [tourLength, TSP.tourLength, show (ofMatrix x).bound = x.bound from rfl,
     sum_zipWith_rotate_congr_of_ne (hp.nodup_iff.2 List.nodup_range)
-      (by rw [hp.length_eq, List.length_range]; exact hn)
-      fun a ha b hb hab => hdist a (hlt a ha) b (hlt b hb) hab]
+      (by rw [hp.length_eq, List.length_range]; exact hn) fun i hi j hj hij => ?_]
+  have hrow : TSP.dist (ofMatrix x).dist (max i j) (min i j) =
+      TSP.dist x.dist (max i j) (min i j) := by
+    simp [TSP.dist, ofMatrix, List.getD_eq_getElem?_getD, max_lt (hlt hi) (hlt hj),
+      show min i j < max i j by omega]
+  simp only [dist, hij, ↓reduceIte, hrow]
+  rcases le_total i j with h | h
+  · rw [max_eq_right h, min_eq_left h, hsymm j (hlt hj) i (hlt hi) hij.symm]
+  · rw [max_eq_left h, min_eq_right h]
 
 /-- Taking the lower triangle is polynomial-time. -/
 theorem computableInPolyTime_ofMatrix : ComputableInPolyTime ofMatrix encTSP encSymTSP := by
-  have hD : ComputableInPolyTime TSPInstance.dist encTSP (encList (encList encNat)) := by
-    fun_prop
   have hn : ComputableInPolyTime (fun x : TSPInstance => x.dist.length) encTSP encUnary :=
-    (length_list _).comp hD
-  have hentry : ComputableInPolyTime
-      (fun r : (TSPInstance × ℕ) × ℕ => TSP.dist r.1.1.dist r.1.2 r.2)
-      (encPair (encPair encTSP encUnary) encUnary) encNat := by
-    unfold TSP.dist
-    fun_prop
-  have hrow : ComputableInPolyTime
-      (fun q : TSPInstance × ℕ => (List.range q.2).map fun j => TSP.dist q.1.dist q.2 j)
-      (encPair encTSP encUnary) (encList encNat) :=
-    mapWithInput (range.comp (snd _ _)) hentry
-  exact encSymTSP_mk_polyTime (mapWithInput (range.comp hn) hrow) (by fun_prop)
+    (length_list _).comp (by fun_prop)
+  exact encSymTSP_mk_polyTime (mapWithInput (range.comp hn)
+    (mapWithInput (range.comp (snd _ _)) (by unfold TSP.dist; fun_prop))) (by fun_prop)
 
 end SymTSP
 
@@ -260,21 +230,17 @@ theorem toSymTSP_mem_iff (G : Graph) : toSymTSP G ∈ SymTSP ↔ G ∈ HamCycle 
       have ha : a < 2 := List.mem_range.1 (hp.subset (by simp))
       have hb : b < 2 := List.mem_range.1 (hp.subset (by simp))
       have hab : a ≠ b := by simpa using hp.nodup_iff.2 List.nodup_range
-      revert hle
-      interval_cases a <;> interval_cases b <;> first | omega | decide
-    · rw [show p = [0] from List.perm_singleton.1 (by simpa using hp)] at hle
-      revert hle
-      decide
-  · have hadj : ∀ u v, G.adjBool u v = G.adjBool v u := fun u v => Bool.eq_iff_iff.2 (by
-      rw [Graph.adjBool_eq_true_iff, Graph.adjBool_eq_true_iff, SimpleGraph.adj_comm])
-    refine SymTSP.ofMatrix_mem_iff _ ?_ fun i hi j hj _ => ?_
-    · simp only [toTSP, hn, ↓reduceIte, List.length_map]
-      omega
-    · simp only [toTSP, hn, ↓reduceIte, List.length_map] at hi hj ⊢
-      simp only [TSP.dist, List.getD_eq_getElem?_getD, List.getElem?_map,
-        List.getElem?_eq_getElem hi, List.getElem?_eq_getElem hj, Option.map_some,
-        Option.getD_some]
-      rw [hadj]
+      revert hle; interval_cases a <;> interval_cases b <;> first | omega | decide
+    · rw [List.perm_singleton.1 (by simpa using hp : p.Perm [0])] at hle
+      revert hle; decide
+  · have hadj (u v : ℕ) : G.adjBool u v = G.adjBool v u := Bool.eq_iff_iff.2
+      (by rw [Graph.adjBool_eq_true_iff, Graph.adjBool_eq_true_iff, SimpleGraph.adj_comm])
+    refine SymTSP.ofMatrix_mem_iff _ (by simp only [toTSP, hn, ↓reduceIte, List.length_map]; omega)
+      fun i hi j hj _ => ?_
+    simp only [toTSP, hn, ↓reduceIte, List.length_map] at hi hj ⊢
+    simp only [TSP.dist, List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_eq_getElem hi, List.getElem?_eq_getElem hj, Option.map_some, Option.getD_some,
+      hadj]
 
 /-- The reduction `toSymTSP` is polynomial-time. -/
 theorem computableInPolyTime_toSymTSP : ComputableInPolyTime toSymTSP encGraph encSymTSP := by

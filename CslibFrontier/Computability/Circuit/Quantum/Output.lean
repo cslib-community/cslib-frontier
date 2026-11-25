@@ -67,24 +67,14 @@ an event impossible. -/
     y ∈ patternAt m ps ↔ ∀ p ∈ ps, p.1 < m ∧ readBit y p.1 = p.2 := by
   simp [patternAt]
 
-@[simp] theorem patternAt_nil : patternAt m [] = univ := by
-  ext y
-  simp
+@[simp] theorem patternAt_nil : patternAt m [] = univ := by ext y; simp
 
 /-- Appending one specified bit intersects the previous event with that bit's event. -/
 theorem mem_patternAt_append {ps : List (ℕ × Bool)} {j : ℕ} {b : Bool}
     {y : Fin m → Bool} :
     y ∈ patternAt m (ps ++ [(j, b)]) ↔
       y ∈ patternAt m ps ∧ j < m ∧ readBit y j = b := by
-  rw [mem_patternAt, mem_patternAt]
-  constructor
-  · intro h
-    exact ⟨fun p hp => h p (List.mem_append_left _ hp), h (j, b) (by simp)⟩
-  · rintro ⟨h, hj, hb⟩ p hp
-    rcases List.mem_append.mp hp with hp | hp
-    · exact h p hp
-    · have hp' : p = (j, b) := List.mem_singleton.mp hp
-      simpa [hp'] using And.intro hj hb
+  simp only [mem_patternAt, List.forall_mem_append, List.forall_mem_singleton]
 
 @[simp] theorem patternProb_nil (m : ℕ) (gs : List GateCode) (x : List Bool) :
     patternProb m gs [] x = 1 := by
@@ -122,13 +112,10 @@ theorem readBit_classicalRun_flipCodes {S : List ℕ} (hS : S.Nodup)
   | nil => simp [flipCodes]
   | cons a S ih =>
     obtain ⟨ha, hS⟩ := List.nodup_cons.mp hS
-    have hma : a < m := hvalid a (by simp)
-    have hvalid' : ∀ j ∈ S, j < m := fun j hj => hvalid j (by simp [hj])
-    rw [show flipCodes (a :: S) = (false, a, []) :: flipCodes S from rfl,
-      classicalRun_cons, ih hS hvalid', readBit_classicalStep]
+    rw [show flipCodes (a :: S) = (false, a, []) :: flipCodes S from rfl, classicalRun_cons,
+      ih hS (fun j hj => hvalid j (List.mem_cons_of_mem a hj)), readBit_classicalStep]
     by_cases hca : c = a
-    · subst c
-      simp [ha, hma]
+    · subst hca; simp [ha, hvalid c List.mem_cons_self]
     · simp [hca]
 
 /-- Terminal NOT gates use no Hadamards. -/
@@ -151,9 +138,8 @@ theorem length_patternZeros_le (ps : List (ℕ × Bool)) : (patternZeros ps).len
 /-- The zero wires of a pattern on valid wires are valid. -/
 theorem patternZeros_lt {ps : List (ℕ × Bool)} (hvalid : ∀ p ∈ ps, p.1 < m) :
     ∀ j ∈ patternZeros ps, j < m := by
-  intro j hj
-  obtain ⟨p, hp, rfl⟩ := List.mem_map.mp ((patternZeros_sublist ps).subset hj)
-  exact hvalid p hp
+  simp only [patternZeros, List.forall_mem_map, List.mem_filter]
+  exact fun p hp => hvalid p hp.1
 
 /-- Zero wires are distinct when the pattern's wires are distinct. -/
 theorem nodup_patternZeros {ps : List (ℕ × Bool)} (hps : (patternWires ps).Nodup) :
@@ -163,33 +149,23 @@ theorem nodup_patternZeros {ps : List (ℕ × Bool)} (hps : (patternWires ps).No
 /-- For a pattern on distinct wires, a specified wire is flipped exactly when its bit is zero. -/
 theorem mem_patternZeros_iff {ps : List (ℕ × Bool)} (hps : (patternWires ps).Nodup)
     {p : ℕ × Bool} (hp : p ∈ ps) : p.1 ∈ patternZeros ps ↔ p.2 = false := by
-  constructor
-  · intro h
-    obtain ⟨q, hq, hqp⟩ := List.mem_map.mp h
-    obtain ⟨hq, hzero⟩ := List.mem_filter.mp hq
-    have heq : q = p := List.inj_on_of_nodup_map hps hq hp hqp
-    simpa [heq] using hzero
-  · intro h
-    exact List.mem_map.mpr ⟨p, List.mem_filter.mpr ⟨hp, by simp [h]⟩, rfl⟩
+  refine ⟨fun h => ?_, fun h => List.mem_map.mpr ⟨p, List.mem_filter.mpr ⟨hp, by simp [h]⟩, rfl⟩⟩
+  obtain ⟨q, hq, hqp⟩ := List.mem_map.mp h
+  obtain ⟨hq, hzero⟩ := List.mem_filter.mp hq
+  simpa [List.inj_on_of_nodup_map hps hq hp hqp] using hzero
 
 /-- Appending a list of NOT gates does not change the Hadamard denominator. -/
 theorem hadamardCount_append_flipCodes (gs : List GateCode) (S : List ℕ) :
     hadamardCount (gs ++ GateCode.flipCodes S) = hadamardCount gs := by
   induction gs with
   | nil => simp
-  | cons g gs ih =>
-    obtain ⟨b, t, cs⟩ := g
-    cases b <;> simp [ih]
+  | cons g gs ih => rcases g with ⟨_ | _, _, _⟩ <;> simp [ih]
 
 /-- The existing all-one event, expressed through numbered-wire reads. -/
 theorem mem_onesAt_iff {S : List ℕ} {y : Fin m → Bool} :
     y ∈ onesAt m S ↔ ∀ j ∈ S, j < m ∧ readBit y j = true := by
   simp only [onesAt, mem_filter, mem_univ, true_and]
-  apply forall_congr'
-  intro j
-  apply forall_congr'
-  intro _
-  exact ⟨fun ⟨h, hv⟩ => ⟨h, (readBit_of_lt y h).trans hv⟩,
+  exact forall₂_congr fun j _ => ⟨fun ⟨h, hv⟩ => ⟨h, (readBit_of_lt y h).trans hv⟩,
     fun ⟨h, hv⟩ => ⟨h, (readBit_of_lt y h).symm.trans hv⟩⟩
 
 /-- Flipping each desired-zero wire converts a valid pattern with distinct wires to an all-one
@@ -198,19 +174,11 @@ theorem classicalRun_flipCodes_mem_onesAt_iff {ps : List (ℕ × Bool)}
     (hps : (patternWires ps).Nodup) (hvalid : ∀ p ∈ ps, p.1 < m) (y : Fin m → Bool) :
     GateCode.classicalRun (GateCode.flipCodes (patternZeros ps)) y ∈
         onesAt m (patternWires ps) ↔ y ∈ patternAt m ps := by
-  have hzero := patternZeros_lt hvalid
-  rw [mem_onesAt_iff, mem_patternAt]
-  change (∀ j ∈ ps.map Prod.fst, _) ↔ _
-  simp only [List.forall_mem_map]
-  apply forall_congr'
-  intro p
-  apply forall_congr'
-  intro hp
-  rw [GateCode.readBit_classicalRun_flipCodes (nodup_patternZeros hps) hzero]
-  have hdec : decide (p.1 ∈ patternZeros ps) = !p.2 := by
-    simp only [mem_patternZeros_iff hps hp]
-    cases p.2 <;> rfl
-  rw [hdec]
+  simp only [mem_onesAt_iff, mem_patternAt, patternWires, List.forall_mem_map]
+  refine forall₂_congr fun p hp => ?_
+  rw [GateCode.readBit_classicalRun_flipCodes (nodup_patternZeros hps) (patternZeros_lt hvalid),
+    show decide (p.1 ∈ patternZeros ps) = !p.2 by
+      simp only [mem_patternZeros_iff hps hp]; cases p.2 <;> rfl]
   cases p.2 <;> cases readBit y p.1 <;> simp
 
 /-- The probability of an arbitrary pattern is the existing all-one probability after terminal
@@ -220,14 +188,12 @@ theorem onesProb_append_flipCodes_eq_patternProb (gs : List GateCode)
     (hvalid : ∀ p ∈ ps, p.1 < m) (x : List Bool) :
     onesProb m (gs ++ GateCode.flipCodes (patternZeros ps)) (patternWires ps) x =
       patternProb m gs ps x := by
-  have hzero := patternZeros_lt hvalid
   rw [onesProb, Circuit.ofCodes_append, Circuit.run, Circuit.eval_append,
-    Circuit.measureProb_eval_ofCodes (GateCode.isClassical_flipCodes hzero)]
+    Circuit.measureProb_eval_ofCodes (GateCode.isClassical_flipCodes (patternZeros_lt hvalid))]
   change (∑ y, if GateCode.classicalRun (GateCode.flipCodes (patternZeros ps)) y ∈
     onesAt m (patternWires ps) then _ else 0) = _
   simp only [classicalRun_flipCodes_mem_onesAt_iff hps hvalid]
-  rw [patternProb, measureProb, ← sum_filter, filter_mem_eq_of_subset (subset_univ _)]
-  rfl
+  rw [patternProb, measureProb, ← sum_filter, filter_mem_eq_of_subset (subset_univ _)]; rfl
 
 /-- A pattern event is a sum over its indicator on all measurement outcomes. -/
 theorem measureProb_patternAt_eq_sum (ψ : Qubits m) (ps : List (ℕ × Bool)) :
@@ -244,8 +210,7 @@ theorem measureProb_patternAt_partition (ψ : Qubits m) (ps : List (ℕ × Bool)
         measureProb ψ (patternAt m (ps ++ [(j, true)])) := by
   rw [measureProb_patternAt_eq_sum, measureProb_patternAt_eq_sum,
     measureProb_patternAt_eq_sum, ← sum_add_distrib]
-  apply sum_congr rfl
-  intro y _
+  refine sum_congr rfl fun y _ => ?_
   simp only [mem_patternAt_append]
   by_cases hy : y ∈ patternAt m ps
   · cases readBit y j <;> simp [hy, hj]
@@ -270,19 +235,14 @@ theorem mem_patternAt_zip_iff {S : List ℕ} {bs : List Bool}
     (hS : ∀ j ∈ S, j < m) (hlen : bs.length = S.length) (y : Fin m → Bool) :
     y ∈ patternAt m (S.zip bs) ↔ S.map (readBit y) = bs := by
   induction S generalizing bs with
-  | nil =>
-    have : bs = [] := List.eq_nil_of_length_eq_zero hlen
-    subst bs
-    simp
+  | nil => obtain rfl := List.eq_nil_of_length_eq_zero hlen; simp
   | cons j S ih =>
     cases bs with
     | nil => simp at hlen
     | cons b bs =>
-      have hj : j < m := hS j (by simp)
-      have hS' : ∀ k ∈ S, k < m := fun k hk => hS k (by simp [hk])
-      have hlen' : bs.length = S.length := by simpa using hlen
-      rw [List.zip_cons_cons, mem_patternAt_cons, ih hS' hlen']
-      simp [hj]
+      rw [List.zip_cons_cons, mem_patternAt_cons,
+        ih (fun k hk => hS k (List.mem_cons_of_mem j hk)) (by simpa using hlen)]
+      simp [hS j List.mem_cons_self]
 
 /-- The marginal of the existing measurement on a list of valid wires agrees with the pattern
 probability. -/
@@ -293,8 +253,7 @@ theorem measure_map_readBit_apply (gs : List GateCode) (x : List Bool)
       (fun y => S.map (readBit y))) bs = ENNReal.ofReal (patternProb m gs (S.zip bs) x) := by
   rw [PMF.map_apply, tsum_fintype, patternProb, measureProb_patternAt_eq_sum,
     ENNReal.ofReal_sum_of_nonneg (fun _ _ => by split_ifs <;> positivity)]
-  apply sum_congr rfl
-  intro y _
+  refine sum_congr rfl fun y _ => ?_
   simp only [mem_patternAt_zip_iff hS hlen]
   by_cases h : S.map (readBit y) = bs
   · simp [h]
@@ -308,9 +267,8 @@ theorem patternProb_eq_onesGap (gs : List GateCode) (hgs : ∀ g ∈ gs, g.WellF
     patternProb m gs ps x =
       (onesGap (patternWires ps) (gs ++ GateCode.flipCodes (patternZeros ps))
         (List.ofFn (inputState m x)) : ℝ) / 2 ^ hadamardCount gs := by
-  have hzero := patternZeros_lt hvalid
   rw [← onesProb_append_flipCodes_eq_patternProb gs hps hvalid,
-    onesProb_eq_onesGap _ (GateCode.wellFormed_append_flipCodes hgs hzero),
+    onesProb_eq_onesGap _ (GateCode.wellFormed_append_flipCodes hgs (patternZeros_lt hvalid)),
     hadamardCount_append_flipCodes]
 
 end Cslib.Quantum

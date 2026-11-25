@@ -69,19 +69,15 @@ theorem sum_finsuppAntidiag_prod_choose (hS : S.Nonempty) (t : ℕ) (d : ι → 
     rw [prod_mul_distrib, prod_pow_eq_pow_sum, ← Units.coe_prod]
     congr 2
     simp_rw [invOneSubPow_eq_inv_one_sub_pow]
-    rw [prod_pow_eq_pow_sum]
-    congr 1
-    rw [sum_add_distrib, sum_const, smul_eq_mul, mul_one]
-    omega
+    rw [prod_pow_eq_pow_sum, sum_add_distrib, sum_const, smul_eq_mul, mul_one]
+    congr 1; omega
   have h := congrArg (coeff t) hprod
   rw [coeff_prod, coeff_X_pow_mul', invOneSubPow_val_succ_eq_mk_add_choose, coeff_mk] at h
   simp_rw [coeff_X_pow_mul_invOneSubPow] at h
   rw [← Nat.cast_inj (R := ℤ)]
-  simp only [Nat.cast_sum, Nat.cast_prod]
-  rw [h]
+  simp only [Nat.cast_sum, Nat.cast_prod, h]
   split_ifs with hH
-  · congr 2
-    omega
+  · congr 2; omega
   · rw [Nat.choose_eq_zero_of_lt (by omega), Nat.cast_zero]
 
 /-- The sum over the weak compositions `M` of `t` of the product of falling factorials
@@ -94,11 +90,9 @@ theorem sum_finsuppAntidiag_prod_descFactorial (hS : S.Nonempty) (t : ℕ) (d : 
 
 private theorem choose_succ_mul {t r : ℕ} (hr : 0 < r) (H : ℕ) :
     (t + r - 1).choose (H + 1 + r - 1) * (r + H) = (t + r - 1).choose (H + r - 1) * (t - H) := by
-  have h := Nat.choose_succ_right_eq (t + r - 1) (H + r - 1)
-  have h₁ : H + 1 + r - 1 = H + r - 1 + 1 := by omega
-  have h₂ : r + H = H + r - 1 + 1 := by omega
-  have h₃ : t + r - 1 - (H + r - 1) = t - H := by omega
-  rw [h₁, h₂, h, h₃]
+  simpa only [show H + 1 + r - 1 = H + r - 1 + 1 by omega, show r + H = H + r - 1 + 1 by omega,
+    show t + r - 1 - (H + r - 1) = t - H by omega] using
+    Nat.choose_succ_right_eq (t + r - 1) (H + r - 1)
 
 private theorem choose_zero_eq {t r : ℕ} (hr : 0 < r) :
     (t + r - 1).choose (0 + r - 1) = r.multichoose t := by
@@ -119,42 +113,32 @@ private theorem choose_le {t r : ℕ} (hr : 0 < r) (H : ℕ) :
           gcongr
           · exact_mod_cast Nat.sub_le t H
           · exact le_add_of_nonneg_right (Nat.cast_nonneg H)
-      _ = (t + r - 1).choose (H + r - 1) * ((t : ℝ) / r) := by ring
-      _ ≤ r.multichoose t * ((t : ℝ) / r) ^ H * ((t : ℝ) / r) := by gcongr
+      _ ≤ r.multichoose t * ((t : ℝ) / r) ^ H * ((t : ℝ) / r) := by
+          rw [mul_div_assoc]; gcongr
 
 private theorem exp_step {t r H : ℝ} (ht : 0 < t) (hr : 0 < r) (hH : 0 ≤ H) (h : 2 * H ≤ t) :
     Real.exp (-((H + 1) ^ 2 / t) - (H + 1) ^ 2 / (2 * r)) * (t / r) ≤
       Real.exp (-(H ^ 2 / t) - H ^ 2 / (2 * r)) * ((t - H) / (r + H)) := by
-  have hx : 0 ≤ H / t := by positivity
-  have hx' : H / t ≤ 1 / 2 := by rw [div_le_iff₀ ht]; linarith
-  have hy : 0 ≤ H / r := by positivity
   have h₁ : Real.exp (-(2 * (H / t))) ≤ 1 - H / t := by
     rw [Real.exp_neg, inv_le_iff_one_le_mul₀ (Real.exp_pos _)]
-    nlinarith [Real.add_one_le_exp (2 * (H / t))]
-  have h₂ : Real.exp (-(H / r)) ≤ (1 + H / r)⁻¹ := by
-    rw [Real.exp_neg]
-    exact inv_anti₀ (by positivity) (by linarith [Real.add_one_le_exp (H / r)])
+    have : H / t ≤ 1 / 2 := (div_le_iff₀ ht).mpr (by linarith)
+    nlinarith [Real.add_one_le_exp (2 * (H / t)), div_nonneg hH ht.le]
+  have h₂ : Real.exp (-(H / r)) ≤ (1 + H / r)⁻¹ :=
+    Real.exp_neg _ ▸ inv_anti₀ (by positivity) (by linarith [Real.add_one_le_exp (H / r)])
   have h₃ : -((H + 1) ^ 2 / t) - (H + 1) ^ 2 / (2 * r) ≤
       (-(H ^ 2 / t) - H ^ 2 / (2 * r)) + (-(2 * (H / t)) + -(H / r)) := by
     have e₁ : (H + 1) ^ 2 / t = H ^ 2 / t + 2 * (H / t) + 1 / t := by field_simp; ring
-    have e₂ : (H + 1) ^ 2 / (2 * r) = H ^ 2 / (2 * r) + H / r + 1 / (2 * r) := by
-      field_simp; ring
-    have : 0 < 1 / t := by positivity
-    have : 0 < 1 / (2 * r) := by positivity
-    linarith
-  have h₄ : (t - H) / (r + H) = (1 - H / t) * (1 + H / r)⁻¹ * (t / r) := by
-    field_simp
+    have e₂ : (H + 1) ^ 2 / (2 * r) = H ^ 2 / (2 * r) + H / r + 1 / (2 * r) := by field_simp; ring
+    linarith [one_div_pos.mpr ht, one_div_pos.mpr (by positivity : 0 < 2 * r)]
   calc Real.exp (-((H + 1) ^ 2 / t) - (H + 1) ^ 2 / (2 * r)) * (t / r)
-      ≤ Real.exp ((-(H ^ 2 / t) - H ^ 2 / (2 * r)) + (-(2 * (H / t)) + -(H / r))) * (t / r) := by
-        gcongr
-    _ = Real.exp (-(H ^ 2 / t) - H ^ 2 / (2 * r)) *
+      ≤ Real.exp (-(H ^ 2 / t) - H ^ 2 / (2 * r)) *
           (Real.exp (-(2 * (H / t))) * Real.exp (-(H / r)) * (t / r)) := by
+        refine (mul_le_mul_of_nonneg_right (Real.exp_le_exp.mpr h₃) (by positivity)).trans_eq ?_
         rw [Real.exp_add, Real.exp_add]; ring
-    _ ≤ Real.exp (-(H ^ 2 / t) - H ^ 2 / (2 * r)) *
-          ((1 - H / t) * (1 + H / r)⁻¹ * (t / r)) := by
-        have : 0 ≤ 1 - H / t := by linarith
+    _ ≤ Real.exp (-(H ^ 2 / t) - H ^ 2 / (2 * r)) * ((1 - H / t) * (1 + H / r)⁻¹ * (t / r)) := by
+        have : 0 ≤ 1 - H / t := by linarith [Real.exp_pos (-(2 * (H / t)))]
         gcongr
-    _ = _ := by rw [h₄]
+    _ = _ := by field_simp
 
 private theorem le_choose {t r : ℕ} (hr : 0 < r) (H : ℕ) (hH : 2 * H ≤ t) :
     Real.exp (-((H : ℝ) ^ 2 / t) - (H : ℝ) ^ 2 / (2 * r)) *
@@ -166,8 +150,8 @@ private theorem le_choose {t r : ℕ} (hr : 0 < r) (H : ℕ) (hH : 2 * H ≤ t) 
     have ht : (0 : ℝ) < t := by exact_mod_cast (by omega : 0 < t)
     have h : ((t + r - 1).choose (H + 1 + r - 1) : ℝ) * (r + H) =
         (t + r - 1).choose (H + r - 1) * (t - H : ℕ) := by exact_mod_cast choose_succ_mul hr H
-    have hstep := exp_step ht hr' (Nat.cast_nonneg H)
-      (by exact_mod_cast (by omega : 2 * H ≤ t))
+    have hstep := exp_step ht hr' (Nat.cast_nonneg H) (by exact_mod_cast (by omega : 2 * H ≤ t))
+    have hsub : (0 : ℝ) ≤ (t : ℝ) - H := sub_nonneg.mpr (by exact_mod_cast (by omega : H ≤ t))
     rw [eq_div_of_mul_eq (by positivity) h, Nat.cast_sub (by omega), Nat.cast_succ, pow_succ]
     calc Real.exp (-(((H : ℝ) + 1) ^ 2 / t) - ((H : ℝ) + 1) ^ 2 / (2 * r)) *
           (r.multichoose t * (((t : ℝ) / r) ^ H * ((t : ℝ) / r)))
@@ -176,16 +160,12 @@ private theorem le_choose {t r : ℕ} (hr : 0 < r) (H : ℕ) (hH : 2 * H ≤ t) 
               ((t : ℝ) / r)) := by ring
       _ ≤ r.multichoose t * ((t : ℝ) / r) ^ H *
             (Real.exp (-((H : ℝ) ^ 2 / t) - (H : ℝ) ^ 2 / (2 * r)) *
-              (((t : ℝ) - H) / (r + H))) := by gcongr
+              (((t : ℝ) - H) / (r + H))) :=
+          mul_le_mul_of_nonneg_left hstep (by positivity)
       _ = Real.exp (-((H : ℝ) ^ 2 / t) - (H : ℝ) ^ 2 / (2 * r)) *
             (r.multichoose t * ((t : ℝ) / r) ^ H) * (((t : ℝ) - H) / (r + H)) := by ring
-      _ ≤ (t + r - 1).choose (H + r - 1) * (((t : ℝ) - H) / (r + H)) := by
-          have : (0 : ℝ) ≤ (t : ℝ) - H := by
-            have : (H : ℝ) ≤ t := by exact_mod_cast (by omega : H ≤ t)
-            linarith
-          gcongr
-          exact ih (by omega)
-      _ = _ := by ring
+      _ ≤ _ := (mul_le_mul_of_nonneg_right (ih (by omega))
+          (div_nonneg hsub (by positivity))).trans_eq (mul_div_assoc ..).symm
 
 /-- **Upper comparison of factorial moments.** The sum over the weak compositions of `t` of a
 product of falling factorials is at most the number of compositions times the corresponding

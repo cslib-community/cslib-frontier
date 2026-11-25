@@ -59,26 +59,12 @@ theorem canonicalFilter_inequality (u v : V) (h : u ≠ v)
     (s : Set ↥((inequality V)ᶜ)) :
     canonicalFilter (inequality V) (inequalityEdge u v h) s ↔
       diagonal u ∈ s ∨ diagonal v ∈ s := by
-  have row : outsideRow (inequality V) u = {diagonal u} := by
-    ext x
-    constructor
-    · intro hx
-      have heq : x.val.1 = x.val.2 := Classical.not_not.mp x.property
-      apply Set.mem_singleton_iff.mpr
-      apply Subtype.ext
-      exact Prod.ext hx (heq.symm.trans hx)
-    · rintro rfl
-      rfl
-  have col : outsideColumn (inequality V) v = {diagonal v} := by
-    ext x
-    constructor
-    · intro hx
-      have heq : x.val.1 = x.val.2 := Classical.not_not.mp x.property
-      apply Set.mem_singleton_iff.mpr
-      apply Subtype.ext
-      exact Prod.ext (heq.trans hx) hx
-    · rintro rfl
-      rfl
+  have row : outsideRow (inequality V) u = {diagonal u} := Set.ext fun x =>
+    ⟨fun hx => Subtype.ext <| Prod.ext hx ((Classical.not_not.mp x.property).symm.trans hx),
+      by rintro rfl; rfl⟩
+  have col : outsideColumn (inequality V) v = {diagonal v} := Set.ext fun x =>
+    ⟨fun hx => Subtype.ext <| Prod.ext ((Classical.not_not.mp x.property).trans hx) hx,
+      by rintro rfl; rfl⟩
   change (outsideRow (inequality V) u ⊆ s ∨ outsideColumn (inequality V) v ⊆ s) ↔ _
   rw [row, col, Set.singleton_subset_iff, Set.singleton_subset_iff]
 
@@ -88,9 +74,7 @@ theorem canonicalFilter_inequality_isUltra (u v : V) (h : u ≠ v) :
   classical
   intro s
   simp only [canonicalFilter_inequality, Set.mem_compl_iff]
-  by_cases hu : diagonal u ∈ s
-  · exact Or.inl (Or.inl hu)
-  · exact Or.inr (Or.inl hu)
+  exact (em (diagonal u ∈ s)).imp Or.inl Or.inl
 
 variable [Fintype V]
 
@@ -102,15 +86,13 @@ theorem inequality_signature_injective
   classical
   intro u v heq
   by_contra hne
-  let e := inequalityEdge u v hne
-  apply c.isCover (canonicalWitness (inequality V) e)
-  intro p hp
-  obtain ⟨i, hi⟩ := List.mem_iff_get.mp hp
+  refine c.isCover (canonicalWitness (inequality V) (inequalityEdge u v hne)) fun p hp => ?_
+  obtain ⟨i, rfl⟩ := List.mem_iff_get.mp hp
   have hs := congrFun heq i
-  have he : diagonal u ∈ p.1 ↔ diagonal v ∈ p.1 := by grind [Set.mem_iff_boolIndicator]
-  change canonicalFilter (inequality V) e p.1 →
-    canonicalFilter (inequality V) e p.2 → canonicalFilter (inequality V) e (p.1 ∩ p.2)
-  simp only [e, canonicalFilter_inequality, Set.mem_inter_iff]
+  have he : diagonal u ∈ (c.pairs.get i).1 ↔ diagonal v ∈ (c.pairs.get i).1 := by
+    grind [Set.mem_iff_boolIndicator]
+  change canonicalFilter _ _ _ → canonicalFilter _ _ _ → canonicalFilter _ _ _
+  simp only [he, canonicalFilter_inequality, Set.mem_inter_iff]
   tauto
 
 /-- A canonical cover needs enough bit signatures to label all vertices. -/
@@ -141,30 +123,21 @@ private theorem exists_union_formula {U α : Type*} {m : ℕ}
       by simp [Monotone.const]⟩
   | @insert a s ha ih =>
     obtain ⟨F, hF, cF⟩ := h a (Finset.mem_insert_self _ _)
-    obtain ⟨G, hG, cG⟩ := ih (fun a ha => h a (Finset.mem_insert_of_mem ha))
-    refine ⟨Monotone.or F G, ?_, ?_⟩
-    · simp [Monotone.or, Monotone.setInterpretation, hF, hG]
-    · simp [Monotone.or, Fin.sum_univ_two, cF, cG, ha]
+    obtain ⟨G, hG, cG⟩ := ih fun a ha => h a (Finset.mem_insert_of_mem ha)
+    exact ⟨Monotone.or F G, by simp [Monotone.or, Monotone.setInterpretation, hF, hG],
+      by simp [Monotone.or, Fin.sum_univ_two, cF, cG, ha]⟩
 
 private theorem exists_coordinate_formula (P : V → Prop) (right : Bool) :
     ∃ F : Formula Monotone.signature (Fintype.card V + Fintype.card V),
       F.eval (Monotone.setInterpretation (V × V)) sources =
         {x | P (if right then x.2 else x.1)} ∧ F.cost Monotone.andCost = 0 := by
   classical
-  let s := Finset.univ.filter P
-  have h (v : V) (_ : v ∈ s) :
-      ∃ F : Formula Monotone.signature (Fintype.card V + Fintype.card V),
-        F.eval (Monotone.setInterpretation (V × V)) sources =
-          {x | (if right then x.2 else x.1) = v} ∧ F.cost Monotone.andCost = 0 := by
-    cases right
-    · exact ⟨.input (Fin.castAdd _ (Fintype.equivFin V v)), row_source v, rfl⟩
-    · exact ⟨.input (Fin.natAdd _ (Fintype.equivFin V v)), column_source v, rfl⟩
-  obtain ⟨F, hF, cF⟩ := exists_union_formula sources s
-    (fun v => {x | (if right then x.2 else x.1) = v}) (fun _ => 0) h
-  refine ⟨F, ?_, by simpa using cF⟩
-  rw [hF]
-  ext x
-  simp [s]
+  obtain ⟨F, hF, cF⟩ := exists_union_formula sources (Finset.univ.filter P)
+    (fun v => {x | (if right then x.2 else x.1) = v}) (fun _ => 0) fun v _ => by
+      cases right
+      · exact ⟨.input (Fin.castAdd _ (Fintype.equivFin V v)), row_source v, rfl⟩
+      · exact ⟨.input (Fin.natAdd _ (Fintype.equivFin V v)), column_source v, rfl⟩
+  exact ⟨F, Set.ext fun x => by simp [hF], by simpa using cF⟩
 
 private theorem exists_bit_inequality_formula {n : ℕ} (i : Fin n) :
     ∃ F : Formula Monotone.signature
@@ -194,13 +167,10 @@ theorem exists_inequality_circuit (n : ℕ) :
         inequality (Fin n → Bool) ∧ c.program.cost Monotone.andCost = n := by
   obtain ⟨F, hF, cF⟩ := exists_union_formula sources (Finset.univ : Finset (Fin n))
     (fun i => {x : (Fin n → Bool) × (Fin n → Bool) | x.1 i ≠ x.2 i}) (fun _ => 1)
-    (fun i _ => exists_bit_inequality_formula i)
-  refine ⟨F.toCircuit, ?_, ?_⟩
-  · rw [Formula.eval_toCircuit, hF]
-    ext x
-    simp [inequality, funext_iff]
-  · rw [Formula.cost_toCircuit, cF]
-    simp
+    fun i _ => exists_bit_inequality_formula i
+  exact ⟨F.toCircuit,
+    Set.ext fun x => by simp [Formula.eval_toCircuit, hF, inequality, funext_iff],
+    by simp [Formula.cost_toCircuit, cF]⟩
 
 /-- Proposition 40: canonical cover, full cover, and intersection complexity of inequality
 on `2^n` vertices per side all equal `n`. -/
@@ -220,12 +190,9 @@ theorem inequality_complexities (n : ℕ) :
   obtain ⟨c, hc, cc⟩ := exists_inequality_circuit n
   have upper : ecomplexityFrom (Monotone.setInterpretation ((Fin n → Bool) × (Fin n → Bool)))
       Monotone.andCost (fun _ : Unit => fun _ : Fin 1 => inequality (Fin n → Bool))
-      (fun _ : Unit => sources) ≤ n := by
-    apply (ecomplexityFrom_le_of_computesFrom c ?_).trans_eq (congrArg (fun k : ℕ => (k : ℕ∞)) cc)
-    intro _
-    funext i
-    have : i = 0 := Subsingleton.elim _ _
-    simpa only [this] using hc
+      (fun _ : Unit => sources) ≤ n :=
+    (ecomplexityFrom_le_of_computesFrom c fun _ => funext fun i =>
+      Subsingleton.elim i 0 ▸ hc).trans_eq (congrArg Nat.cast cc)
   exact ⟨le_antisymm (canon.trans (full.trans upper)) lower,
     le_antisymm (full.trans upper) (lower.trans canon),
     le_antisymm upper (lower.trans (canon.trans full))⟩
