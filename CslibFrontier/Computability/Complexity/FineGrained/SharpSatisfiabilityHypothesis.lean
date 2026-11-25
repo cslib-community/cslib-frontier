@@ -33,6 +33,11 @@ over occurring variables. For a declared finite superset of those variables,
 ## Main results
 
 * `Cslib.Complexity.SharpSH_iff_SharpKSAT`: the fixed-width size formulation.
+
+## References
+
+* [MIT Hardness Group, *ETH is Dead, Long Live SH*][MITHardnessGroup2026SH], v2, §2 and
+  §2.1, Lemma 2.1.
 -/
 
 public section
@@ -41,7 +46,8 @@ namespace Cslib.Complexity
 
 open Cslib.Logic.PL Turing.MultiTapeTM
 
-/-- The counting Satisfiability Hypothesis in the native deterministic multitape model.
+/-- The counting Satisfiability Hypothesis [MITHardnessGroup2026SH, v2, §2, p. 5]
+in the native deterministic multitape model.
 It rules out any fixed power saving in the exponent for computing `SharpSAT` from binary
 CNF to binary counts, with size given by occurring variables, clauses, and literal occurrences. -/
 @[expose] def SharpSH : Prop :=
@@ -64,7 +70,8 @@ private theorem toSharpThreeSAT_size_le (φ : CNF ℕ) :
     (length_vars_toSharpThreeSAT φ).2
   omega
 
-/-- The native counting size formulation of `SharpSH`. For any fixed width `k ≥ 3`, it is
+/-- The native counting size formulation [MITHardnessGroup2026SH, v2, §2.1, Lemma 2.1].
+For any fixed width `k ≥ 3`, `SharpSH` is
 equivalent to the absence of a fixed power saving for `SharpKSAT k` in the number of
 occurring variables plus clauses. On wider inputs `SharpKSAT k` returns zero. -/
 theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
