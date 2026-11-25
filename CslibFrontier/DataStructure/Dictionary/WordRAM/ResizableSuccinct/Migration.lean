@@ -1338,55 +1338,30 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
   have hfit6 : Fits w 6 := hfit_fr.of_le (by rw [hfr]; omega)
   have hfit2 : Fits w 2 := hfit6.of_le (by decide)
   have hfit1 : Fits w 1 := hfit6.of_le (by decide)
+  have hN0_of : n = 0 → st.cap = 0 := fun hn0 => (hanc.1.resolve_right (by omega)).2
   have hL_x : x.frontier ≤ L_peak := by
-    rw [hfr]; dsimp only [L_peak, stepExactPeakWords]
+    have hmig : n ≠ 0 → compactedEpochWords U V w st.cap n ≤ migratePeakWords U V w st.cap n :=
+      fun hn0 => by
+        have := le_max_left (compactedItemWords U V w st.cap n)
+          (compactedItemWords U V w (targetCap U n) n)
+        unfold compactedEpochWords migratePeakWords migrateArenaWords
+        rw [ite_eq_right hn0]; omega
+    rw [hfr]; refine Nat.add_le_add_left ?_ base
     cases o with
-    | query u =>
-      exact Nat.add_le_add_left (compactedEpochWords_mono (le_max_left _ _)) base
+    | query u => exact compactedEpochWords_mono (le_max_left _ _)
     | insert u v =>
-      change base + compactedEpochWords U V w st.cap n ≤ base + (if n = 0 then _ else _)
-      by_cases hn0 : n = 0
-      · rw [ite_eq_left hn0, hn0]
-        have hN0 : st.cap = 0 := by rcases hanc.1 with ⟨_, hN0⟩ | ⟨h1, _, _, _⟩ <;> omega
-        rw [hN0]
-        exact Nat.add_le_add_left (eight_le_compactedEpochWords U V w _ 1) base
-      · rw [ite_eq_right hn0]
-        split_ifs
-        · refine (Nat.add_le_add_left ?_ base).trans (Nat.add_le_add_left (le_max_left _ _) base)
-          unfold compactedEpochWords migratePeakWords migrateArenaWords
-          rw [ite_eq_right hn0]
-          have hc_le : compactedItemWords U V w st.cap n ≤
-              max (compactedItemWords U V w st.cap n)
-                (compactedItemWords U V w (targetCap U n) n) + 6 :=
-            (le_max_left _ _).trans (Nat.le_add_right _ 6)
-          dsimp only [n] at hc_le ⊢
-          omega
-        · exact Nat.add_le_add_left (compactedEpochWords_mono (le_max_left _ _)) base
+      dsimp only [stepExactPeakWords]
+      split_ifs with hn0 hm
+      · rw [hN0_of hn0, show n = 0 from hn0]; exact eight_le_compactedEpochWords U V w _ 1
+      · exact (hmig hn0).trans (le_max_left _ _)
+      · exact compactedEpochWords_mono (le_max_left _ _)
     | delete u =>
-      change base + compactedEpochWords U V w st.cap n ≤ base + (if n = 0 then _ else _)
-      by_cases hn0 : n = 0
-      · rw [ite_eq_left hn0, hn0]
-        have hN0 : st.cap = 0 := by rcases hanc.1 with ⟨_, hN0⟩ | ⟨h1, _, _, _⟩ <;> omega
-        rw [hN0]
-      · rw [ite_eq_right hn0]
-        by_cases hn1 : n = 1
-        · rw [ite_eq_left hn1, hn1]
-        · rw [ite_eq_right hn1]
-          split_ifs
-          · refine (Nat.add_le_add_left ?_ base).trans (Nat.add_le_add_left (le_max_left _ _) base)
-            unfold compactedEpochWords migratePeakWords migrateArenaWords
-            rw [ite_eq_right hn0]
-            have hc_le : compactedItemWords U V w st.cap n ≤
-                max (compactedItemWords U V w st.cap n)
-                  (compactedItemWords U V w (targetCap U n) n) + 6 :=
-              (le_max_left _ _).trans (Nat.le_add_right _ 6)
-            dsimp only [n] at hc_le ⊢
-            omega
-          · have ⟨hn1_le, _⟩ := card_dom_delete_bounds st.dict u
-            have hmax_n : max n (Dictionary.dom (Function.update st.dict u none)).card = n :=
-              Nat.max_eq_left (card_dom_delete_bounds st.dict u).2
-            dsimp only [inEpochPeakWords, Dynamic.spec, StateTransitionSpec.stepFn, Dynamic.step]
-            rw [hmax_n]
+      dsimp only [stepExactPeakWords]
+      split_ifs with hn0 hn1 hm
+      · rw [hN0_of hn0, show n = 0 from hn0]
+      · rw [show n = 1 from hn1]
+      · exact (hmig hn0).trans (le_max_left _ _)
+      · exact compactedEpochWords_mono (le_max_left _ _)
   -- Prefix: `loadAtOffCode mBase mCnt mCur 6; mZero := 0; mOne := 1` (5 steps)
   obtain ⟨hex_ldn, hx₁b⟩ := loadAtOffCode_exec (rAddr := mBase) (rDst := mCnt) (rTmp := mCur)
     (off := 6) hx hL_x (mReg_ne (by decide)) hbase hfit6 (by rw [hfr]; omega)
@@ -1412,7 +1387,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
   by_cases hn0 : n = 0
   · have hc_n0 : (Cond.eq mCnt mZero).Holds x₂.toData := by
       change x₂.regs mCnt = x₂.regs mZero; rw [hx₂_cnt, hx₂_z, hn0]
-    have hN0 : st.cap = 0 := by rcases hanc.1 with ⟨_, hN0⟩ | ⟨h1, _, _, _⟩ <;> omega
+    have hN0 := hN0_of hn0
     have hinit0 : st.initCount = 0 := hanc.2.2.1.mp hn0
     have hs_emp : st.dict = Dictionary.empty U := dict_eq_empty_of_card_zero hn0
     have hfr8 : x.frontier = base + 8 := by
@@ -1569,13 +1544,13 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         rw [hs_emp]; funext k
         by_cases hku : k = u <;> simp [hku, Dictionary.empty]
       have hn'0 : n' = 0 := by dsimp only [n']; rw [hs'_emp, Dictionary.dom_empty]; rfl
+      have hcap0 : st'.cap = 0 := by
+        dsimp only [st', EpochState.step, nextEpochCap]; rw [ite_eq_left hn0]
+      have hinit0' : st'.initCount = 0 := by
+        dsimp only [st', EpochState.step, nextEpochInit]; rw [ite_eq_left hn0]
       refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all, fun q hq => ?_,
         fun hn'_pos => absurd hn'0 hn'_pos.ne', ?_⟩
       · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
-        have hcap0 : st'.cap = 0 := by
-          dsimp only [st', EpochState.step, nextEpochCap]; rw [ite_eq_left hn0]
-        have hinit0' : st'.initCount = 0 := by
-          dsimp only [st', EpochState.step, nextEpochInit]; rw [ite_eq_left hn0]
         refine ⟨⟨hrep.cap_eq.trans (hN0.trans hcap0.symm), ?_,
           by simp [q_out, z, RData.set, hx₂_base],
           fun hn'_pos => absurd hn'0 hn'_pos.ne'⟩, rfl, rfl, fun _ _ => rfl⟩
@@ -1584,10 +1559,6 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
       · rw [ite_eq_right (by omega : ¬0 < n), add_zero, hpot_x_zero, Nat.cast_zero, zero_add]
         rw [tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
         simp only [PMF.pure_apply_self, one_mul]
-        have hcap0 : st'.cap = 0 := by
-          dsimp only [st', EpochState.step, nextEpochCap]; rw [ite_eq_left hn0]
-        have hinit0' : st'.initCount = 0 := by
-          dsimp only [st', EpochState.step, nextEpochInit]; rw [ite_eq_left hn0]
         rw [hcap0, hinit0', hn'0, resizablePotential_zero, Nat.cast_zero, add_zero]
         exact (Nat.cast_le (α := ℝ≥0∞)).mpr (by unfold resizableBaseCharge; omega)
   · -- Active epoch: `1 ≤ n`
@@ -1635,149 +1606,72 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         exact ⟨by rw [show x₄.regs mTag = x₂.regs mTag by simp [x₄, x₃, RData.set], hx₂_arg.1],
           by rw [show x₄.regs mArgU = x₂.regs mArgU by simp [x₄, x₃, RData.set], hx₂_arg.2.1],
           by rw [show x₄.regs mArgV = x₂.regs mArgV by simp [x₄, x₃, RData.set], hx₂_arg.2.2]⟩
-      have hn_le_cap : n ≤ st.cap := by rcases hanc.1 with ⟨h0, _⟩ | ⟨_, hle, _, _⟩ <;> omega
-      have hcap_le_4n : st.cap ≤ 4 * n := by rcases hanc.1 with ⟨h0, _⟩ | ⟨_, _, h4, _⟩ <;> omega
-      have hcap_le_U : st.cap ≤ U := by rcases hanc.1 with ⟨h0, _⟩ | ⟨_, _, _, hU'⟩ <;> omega
-      obtain ⟨hn_le_n', hn'_le_n1⟩ := card_dom_insert_bounds st.dict u v
-      change n ≤ n' at hn_le_n'
-      change n' ≤ n + 1 at hn'_le_n1
+      obtain ⟨hn_le_n', hn'_le_n1⟩ : n ≤ n' ∧ n' ≤ n + 1 := card_dom_insert_bounds st.dict u v
       have hdist_ins : Nat.dist n n' ≤ 1 := by unfold Nat.dist; omega
-      by_cases hn_eq : n = st.cap
-      · have hc_eq : (Cond.eq mCnt mNNew).Holds x₄.toData := by
-          change x₄.regs mCnt = x₄.regs mNNew; rw [hx₄_cnt, hx₄_nn]; exact hn_eq
-        by_cases hU_lt : U - 1 < st.cap
-        · -- `st.cap = U` (`n = U`): hit in place, no migration
-          have hc_lt : (Cond.lt mTmpA mNNew).Holds x₄.toData := by
-            change x₄.regs mTmpA < x₄.regs mNNew; rw [hx₄_u1, hx₄_nn]; exact hU_lt
-          have hcap_U : st.cap = U := by have := hhdr.pos_U; omega
-          have hnot_mig : ¬(n = st.cap ∧ st.cap < U) := by omega
-          have hn'_eq_U : n' = st.cap := by
-            dsimp only [n', st', EpochState.step, Dynamic.spec, StateTransitionSpec.stepFn,
-              Dynamic.step]
-            rw [card_dom_insert_eq_of_card_eq_U (hn_eq.trans hcap_U), hcap_U]
-          have hval_in : InEpochValid V st.cap st.dict (.insert u v) :=
-            ⟨hval, show EpochValid U n' st.cap from
-              Or.inr ⟨by omega, hn'_eq_U.le, by omega, hcap_le_U⟩⟩
-          have hpeak_eq : stepExactPeakWords V w st.cap st.dict (.insert u v) =
-              inEpochPeakWords V w st.cap n st.dict (.insert u v) := by
-            dsimp only [stepExactPeakWords]
-            change (if n = 0 then _ else _) = _
-            rw [ite_eq_right hn0, ite_eq_right hnot_mig]
-          have hcap_same : st'.cap = st.cap := by
-            dsimp only [st', EpochState.step, nextEpochCap]
-            change (if n = 0 then _ else _) = _
-            rw [ite_eq_right hn0, ite_eq_right hnot_mig]
-          have hinit_same : st'.initCount = st.initCount := by
-            dsimp only [st', EpochState.step, nextEpochInit]
-            change (if n = 0 then _ else _) = _
-            rw [ite_eq_right hn0, ite_eq_right hnot_mig]
-          obtain ⟨q_out, stepsOp, hex_op, hqls, hqrep, hqres, hqdec, hqbel, hqcost⟩ :=
-            exec_inEpoch_branch (overhead := 18) (.insert u v) hx₄b hn_pos hanc.1 hval_in
-              hfr hsplit hx₄_base hx₄_arg (fun _ _ => rfl) rfl hdist_ins hpeak_eq hfit_peak
-              hcap_same hinit_same hrep.cap_eq (by decide)
-          have hex_ins : RDemonicExec w L_peak resizableInsertActiveCode x₂ (8 + stepsOp)
-              (· = q_out.data) :=
-            (hex_ldN.seq_eq (hex_ldU.seq_eq
-              (RDemonicExec.branch_pos hc_eq (RDemonicExec.branch_pos hc_lt hex_op)))).mono
-              (by omega) (fun _ h => h)
-          have hex_all : RDemonicExec w L_peak resizableOpCode x (18 + stepsOp)
-              (· = q_out.data) :=
-            (hex_ldn.seq_eq <| hex_z0.seq_eq <| hex_o1.seq_eq <|
-              RDemonicExec.branch_neg hnc_n0
-                (RDemonicExec.branch_neg hnc_t0 (RDemonicExec.branch_pos hc_t1 hex_ins))).mono
-              (by omega) (fun _ h => h)
-          exact package_active_inEpoch_step hn_pos hcap_same hex_all hqls hqrep hqres hqdec hqbel
-            hqcost
-        · -- `n = st.cap < U`: capacity-doubling migration!
-          have hnc_lt : ¬(Cond.lt mTmpA mNNew).Holds x₄.toData := by
-            change ¬(x₄.regs mTmpA < x₄.regs mNNew); rw [hx₄_u1, hx₄_nn]; exact hU_lt
-          have hcap_lt_U : st.cap < U := by have := hhdr.pos_U; omega
-          have hmig : n = st.cap ∧ st.cap < U := ⟨hn_eq, hcap_lt_U⟩
-          have hn_lt_U : n < U := hn_eq ▸ hcap_lt_U
-          have hval_tc : InEpochValid V (targetCap U n) st.dict (.insert u v) := by
-            refine ⟨hval, show EpochValid U n' (targetCap U n) from
-              Or.inr ⟨by omega, ?_, ?_, ?_⟩⟩
-            · unfold targetCap; rw [ite_eq_right hn0]
-              exact hn'_le_n1.trans (le_min (by omega) hn_lt_U)
-            · unfold targetCap; rw [ite_eq_right hn0]
-              exact (min_le_left _ _).trans (by omega)
-            · unfold targetCap; rw [ite_eq_right hn0]; exact min_le_right _ _
-          have hpeak_eq : stepExactPeakWords V w st.cap st.dict (.insert u v) =
-              max (migratePeakWords U V w st.cap n)
-                (inEpochPeakWords V w (targetCap U n) n st.dict (.insert u v)) := by
-            dsimp only [stepExactPeakWords]
-            change (if n = 0 then _ else _) = _
-            rw [ite_eq_right hn0, ite_eq_left hmig]
-          have hst'_cap : st'.cap = targetCap U n := by
-            dsimp only [st', EpochState.step, nextEpochCap]
-            change (if n = 0 then _ else _) = _
-            rw [ite_eq_right hn0, ite_eq_left hmig]
-          have hst'_init : st'.initCount = n := by
-            dsimp only [st', EpochState.step, nextEpochInit]
-            change (if n = 0 then _ else _) = _
-            rw [ite_eq_right hn0, ite_eq_left hmig]
-          have hdist_rel : n ≤ 2 * Nat.dist n st.initCount :=
-            (insert_mig_dist_eq hn_pos hanc hn_eq hcap_lt_U).le
-          have hdist_post : Nat.dist n' n ≤ 1 := by rw [Nat.dist_comm]; exact hdist_ins
-          obtain ⟨μ_out, T_mig_op, hex_mig_op, hout_all, hmap_u, hcost_mig_op⟩ :=
-            exec_migrate_then_inEpoch (overhead := 19) (.insert u v) hx₄b hn_pos hanc hval_tc
-              hfr hsplit hx₄_base hx₄_arg (fun _ _ => rfl) hdist_rel hdist_post hpeak_eq
-              hfit_peak hst'_cap hst'_init (by decide)
-          have hex_ins : ExecRCodeDist w resizableInsertActiveCode x₂
-              (μ_out.map StepROutcome.data) (9 + T_mig_op) L_peak :=
-            ((ExecRCodeDist.of_demonicExec hex_ldN).seq_pure <|
-              (ExecRCodeDist.of_demonicExec hex_ldU).seq_pure <|
-              ExecRCodeDist.branch_pos hc_eq <|
-              ExecRCodeDist.branch_neg hnc_lt hex_mig_op).mono (le_of_eq (by push_cast; ring))
-          have hex_all : ExecRCodeDist w resizableOpCode x
-              (μ_out.map StepROutcome.data) (19 + T_mig_op) L_peak :=
-            ((ExecRCodeDist.of_demonicExec hex_ldn).seq_pure <|
-              (ExecRCodeDist.of_demonicExec hex_z0).seq_pure <|
-              (ExecRCodeDist.of_demonicExec hex_o1).seq_pure <|
-              ExecRCodeDist.branch_neg hnc_n0 <|
-              ExecRCodeDist.branch_neg hnc_t0 <|
-              ExecRCodeDist.branch_pos hc_t1 hex_ins).mono (le_of_eq (by push_cast; ring))
-          have hcap_ne : st'.cap ≠ st.cap := by
-            rw [hst'_cap, ← hn_eq]; unfold targetCap; rw [ite_eq_right hn0]
-            have : n + 1 ≤ min (2 * n) U := le_min (by omega) hn_lt_U
-            omega
-          refine ⟨μ_out, _, hex_all, hout_all,
-            fun _ => by rw [ite_eq_right hcap_ne]; exact hmap_u, ?_⟩
-          calc ((19 : ℝ≥0∞) + T_mig_op) +
-                (∑' q, μ_out q *
-                  (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞))
-              ≤ (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞) +
-                (resizableBaseCharge : ℝ≥0∞) := hcost_mig_op
-            _ ≤ _ := add_le_add le_rfl le_self_add
-      · -- `n < st.cap`: active in-epoch insert, no migration
-        have hnc_eq : ¬(Cond.eq mCnt mNNew).Holds x₄.toData := by
-          change x₄.regs mCnt ≠ x₄.regs mNNew; rw [hx₄_cnt, hx₄_nn]; exact hn_eq
-        have hn_lt_cap : n < st.cap := lt_of_le_of_ne hn_le_cap hn_eq
-        have hnot_mig : ¬(n = st.cap ∧ st.cap < U) := fun h => hn_eq h.1
-        have hval_in : InEpochValid V st.cap st.dict (.insert u v) :=
-          ⟨hval, show EpochValid U n' st.cap from
-            Or.inr ⟨by omega, by omega, by omega, hcap_le_U⟩⟩
+      by_cases hmig : n = st.cap ∧ st.cap < U
+      · -- `n = st.cap < U`: capacity-doubling migration!
+        have hc_eq : (Cond.eq mCnt mNNew).Holds x₄.toData := by
+          change x₄.regs mCnt = x₄.regs mNNew; rw [hx₄_cnt, hx₄_nn]; exact hmig.1
+        have hnc_lt : ¬(Cond.lt mTmpA mNNew).Holds x₄.toData := by
+          change ¬(x₄.regs mTmpA < x₄.regs mNNew); rw [hx₄_u1, hx₄_nn]; omega
+        have hpeak_eq : stepExactPeakWords V w st.cap st.dict (.insert u v) =
+            max (migratePeakWords U V w st.cap n)
+              (inEpochPeakWords V w (targetCap U n) n st.dict (.insert u v)) := by
+          dsimp only [stepExactPeakWords]; rw [ite_eq_right hn0, ite_eq_left hmig]
+        have hst'_cap : st'.cap = targetCap U n := by
+          dsimp only [st', EpochState.step, nextEpochCap]; rw [ite_eq_right hn0, ite_eq_left hmig]
+        have hst'_init : st'.initCount = n := by
+          dsimp only [st', EpochState.step, nextEpochInit]; rw [ite_eq_right hn0, ite_eq_left hmig]
+        obtain ⟨μ_out, T_mig_op, hex_mig_op, hout_all, hmap_u, hcost_mig_op⟩ :=
+          exec_migrate_then_inEpoch (overhead := 19) (.insert u v) hx₄b hn_pos hanc
+            ⟨hval, epochValid_insert_mig hn0 hmig⟩ hfr hsplit hx₄_base hx₄_arg (fun _ _ => rfl)
+            (insert_mig_dist_eq hn_pos hanc hmig.1 hmig.2).le
+            (by rw [Nat.dist_comm]; exact hdist_ins) hpeak_eq hfit_peak hst'_cap hst'_init
+            (by decide)
+        have hex_ins : ExecRCodeDist w resizableInsertActiveCode x₂
+            (μ_out.map StepROutcome.data) (9 + T_mig_op) L_peak :=
+          ((ExecRCodeDist.of_demonicExec hex_ldN).seq_pure <|
+            (ExecRCodeDist.of_demonicExec hex_ldU).seq_pure <|
+            ExecRCodeDist.branch_pos hc_eq <|
+            ExecRCodeDist.branch_neg hnc_lt hex_mig_op).mono (le_of_eq (by push_cast; ring))
+        have hex_all : ExecRCodeDist w resizableOpCode x
+            (μ_out.map StepROutcome.data) (19 + T_mig_op) L_peak :=
+          ((ExecRCodeDist.of_demonicExec hex_ldn).seq_pure <|
+            (ExecRCodeDist.of_demonicExec hex_z0).seq_pure <|
+            (ExecRCodeDist.of_demonicExec hex_o1).seq_pure <|
+            ExecRCodeDist.branch_neg hnc_n0 <|
+            ExecRCodeDist.branch_neg hnc_t0 <|
+            ExecRCodeDist.branch_pos hc_t1 hex_ins).mono (le_of_eq (by push_cast; ring))
+        have hcap_ne : st'.cap ≠ st.cap := by rw [hst'_cap, targetCap_of_ne_zero hn0]; omega
+        exact ⟨μ_out, _, hex_all, hout_all, fun _ => by rw [ite_eq_right hcap_ne]; exact hmap_u,
+          hcost_mig_op.trans (add_le_add le_rfl le_self_add)⟩
+      · -- No migration: in-place hit at `n = st.cap = U`, or `n < st.cap`
         have hpeak_eq : stepExactPeakWords V w st.cap st.dict (.insert u v) =
             inEpochPeakWords V w st.cap n st.dict (.insert u v) := by
-          dsimp only [stepExactPeakWords]
-          change (if n = 0 then _ else _) = _
-          rw [ite_eq_right hn0, ite_eq_right hnot_mig]
+          dsimp only [stepExactPeakWords]; rw [ite_eq_right hn0, ite_eq_right hmig]
         have hcap_same : st'.cap = st.cap := by
-          dsimp only [st', EpochState.step, nextEpochCap]
-          change (if n = 0 then _ else _) = _
-          rw [ite_eq_right hn0, ite_eq_right hnot_mig]
+          dsimp only [st', EpochState.step, nextEpochCap]; rw [ite_eq_right hn0, ite_eq_right hmig]
         have hinit_same : st'.initCount = st.initCount := by
-          dsimp only [st', EpochState.step, nextEpochInit]
-          change (if n = 0 then _ else _) = _
-          rw [ite_eq_right hn0, ite_eq_right hnot_mig]
+          dsimp only [st', EpochState.step, nextEpochInit]; rw [ite_eq_right hn0, ite_eq_right hmig]
         obtain ⟨q_out, stepsOp, hex_op, hqls, hqrep, hqres, hqdec, hqbel, hqcost⟩ :=
-          exec_inEpoch_branch (overhead := 18) (.insert u v) hx₄b hn_pos hanc.1 hval_in
-            hfr hsplit hx₄_base hx₄_arg (fun _ _ => rfl) rfl hdist_ins hpeak_eq hfit_peak
-            hcap_same hinit_same hrep.cap_eq (by decide)
+          exec_inEpoch_branch (overhead := 18) (.insert u v) hx₄b hn_pos hanc.1
+            ⟨hval, epochValid_insert_keep hanc.1 hn0 hmig⟩ hfr hsplit hx₄_base hx₄_arg
+            (fun _ _ => rfl) rfl hdist_ins hpeak_eq hfit_peak hcap_same hinit_same hrep.cap_eq
+            (by decide)
         have hex_ins : RDemonicExec w L_peak resizableInsertActiveCode x₂ (8 + stepsOp)
-            (· = q_out.data) :=
-          (hex_ldN.seq_eq (hex_ldU.seq_eq (RDemonicExec.branch_neg hnc_eq hex_op))).mono
-            (by omega) (fun _ h => h)
+            (· = q_out.data) := by
+          by_cases hn_eq : n = st.cap
+          · have hc_eq : (Cond.eq mCnt mNNew).Holds x₄.toData := by
+              change x₄.regs mCnt = x₄.regs mNNew; rw [hx₄_cnt, hx₄_nn]; exact hn_eq
+            have hc_lt : (Cond.lt mTmpA mNNew).Holds x₄.toData := by
+              change x₄.regs mTmpA < x₄.regs mNNew; rw [hx₄_u1, hx₄_nn]; omega
+            exact (hex_ldN.seq_eq (hex_ldU.seq_eq
+              (RDemonicExec.branch_pos hc_eq (RDemonicExec.branch_pos hc_lt hex_op)))).mono
+              (by omega) (fun _ h => h)
+          · have hnc_eq : ¬(Cond.eq mCnt mNNew).Holds x₄.toData := by
+              change x₄.regs mCnt ≠ x₄.regs mNNew; rw [hx₄_cnt, hx₄_nn]; exact hn_eq
+            exact (hex_ldN.seq_eq (hex_ldU.seq_eq (RDemonicExec.branch_neg hnc_eq hex_op))).mono
+              (by omega) (fun _ h => h)
         have hex_all : RDemonicExec w L_peak resizableOpCode x (18 + stepsOp)
             (· = q_out.data) :=
           (hex_ldn.seq_eq <| hex_z0.seq_eq <| hex_o1.seq_eq <|
@@ -1811,6 +1705,10 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           rwa [hn1] at h0
         obtain ⟨z, steps_d1, hex_d1, hzb, hz_base, hbel_z, hd1_cases⟩ :=
           deleteLastOneCode_demonicExec u hx₂b hev1 hfr1 hsplit1 hx₂_base hx₂_arg.2
+        have hsteps : steps_d1 ≤ deleteLastOneCharge := by
+          split_ifs at hd1_cases
+          · exact hd1_cases.2.2
+          · exact hd1_cases.2.2.2.2
         have hex_d1_L : RDemonicExec w L_peak deleteLastOneCode x₂ steps_d1 (· = z) := by
           rw [hpeak_d1]; exact hex_d1
         have hex_all : RDemonicExec w L_peak resizableOpCode x (12 + steps_d1) (· = z) :=
@@ -1820,6 +1718,12 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
                 (RDemonicExec.branch_neg hnc_t1
                   (RDemonicExec.branch_pos hc_n1 hex_d1_L)))).mono
             (by omega) (fun _ h => h)
+        have hle_b : ((12 + steps_d1 : ℕ) : ℝ≥0∞) ≤ (resizableBaseCharge : ℝ≥0∞) := by
+          refine (Nat.cast_le (α := ℝ≥0∞)).mpr ?_
+          unfold resizableBaseCharge
+          have := le_max_of_le_right (b := initFirstCharge)
+            (le_max_left deleteLastOneCharge (inEpochCharge + 2 * migLinearFactor))
+          omega
         by_cases hsome : (st.dict u).isSome
         · rw [ite_eq_left hsome] at hd1_cases
           obtain ⟨hs_empty, hrep_z, _⟩ := hd1_cases
@@ -1827,11 +1731,9 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           have hn'0 : n' = 0 := by dsimp only [n']; rw [hs'_emp, Dictionary.dom_empty]; rfl
           have hcap0 : st'.cap = 0 := by
             dsimp only [st', EpochState.step, nextEpochCap]
-            change (if n = 0 then _ else _) = 0
             rw [ite_eq_right hn0, ite_eq_left hn1, ite_eq_left hsome]
           have hinit0' : st'.initCount = 0 := by
             dsimp only [st', EpochState.step, nextEpochInit]
-            change (if n = 0 then _ else _) = 0
             rw [ite_eq_right hn0, ite_eq_left hn1, ite_eq_left hsome]
           let q_out : StepROutcome (LatentSeed U) Unit rResize := ⟨LatentSeed.empty U, z, ()⟩
           refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all,
@@ -1845,23 +1747,16 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
               tsum_eq_single q_out (fun b hb => by simp [PMF.pure_apply, hb])]
             simp only [PMF.pure_apply_self, one_mul]
             rw [hcap0, hinit0', hn'0, resizablePotential_zero, Nat.cast_zero, add_zero]
-            have hle_b : 12 + steps_d1 ≤ resizableBaseCharge := by
-              unfold resizableBaseCharge
-              have := le_max_of_le_right (b := initFirstCharge)
-                (le_max_left deleteLastOneCharge (inEpochCharge + 2 * migLinearFactor))
-              omega
-            exact ((Nat.cast_le (α := ℝ≥0∞)).mpr hle_b).trans (le_self_add.trans le_add_self)
+            exact hle_b.trans (le_self_add.trans le_add_self)
         · rw [ite_eq_right hsome] at hd1_cases
           obtain ⟨hs_same, hzf_same, hsplit_z, hpot_eq, _⟩ := hd1_cases
           have hs'_same : st'.dict = st.dict := hs_same
           have hn'1 : n' = 1 := by dsimp only [n']; rw [hs'_same]; exact hn1
           have hcap_same : st'.cap = st.cap := by
             dsimp only [st', EpochState.step, nextEpochCap]
-            change (if n = 0 then _ else _) = _
             rw [ite_eq_right hn0, ite_eq_left hn1, ite_eq_right hsome]
           have hinit_same : st'.initCount = st.initCount := by
             dsimp only [st', EpochState.step, nextEpochInit]
-            change (if n = 0 then _ else _) = _
             rw [ite_eq_right hn0, ite_eq_left hn1, ite_eq_right hsome]
           let q_out : StepROutcome (LatentSeed U) Unit rResize := ⟨ls, z, ()⟩
           refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all,
@@ -1885,29 +1780,13 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
               rw [hpot_eq]
               rfl
             rw [hpot_full]
-            have hle_b : 12 + steps_d1 ≤ resizableBaseCharge := by
-              unfold resizableBaseCharge
-              have := le_max_of_le_right (b := initFirstCharge)
-                (le_max_left deleteLastOneCharge (inEpochCharge + 2 * migLinearFactor))
-              omega
-            calc ((12 + steps_d1 : ℕ) : ℝ≥0∞) +
-                  (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞)
-                = (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞) +
-                  ((12 + steps_d1 : ℕ) : ℝ≥0∞) := by ring
-              _ ≤ (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞) +
-                  (resizableBaseCharge : ℝ≥0∞) :=
-                add_le_add le_rfl ((Nat.cast_le (α := ℝ≥0∞)).mpr hle_b)
-              _ ≤ _ := add_le_add le_rfl le_self_add
+            exact (add_comm _ _).le.trans (add_le_add le_rfl (hle_b.trans le_self_add))
       · -- `2 ≤ n`: `resizableDeleteGeTwoCode`
         have hn2 : 2 ≤ n := by omega
         have hnc_n1 : ¬(Cond.eq mCnt mOne).Holds x₂.toData := by
           change x₂.regs mCnt ≠ x₂.regs mOne; rw [hx₂_cnt, hx₂_o]; exact hn1
-        have hn_le_cap : n ≤ st.cap := by rcases hanc.1 with ⟨h0, _⟩ | ⟨_, hle, _, _⟩ <;> omega
-        have hcap_le_U : st.cap ≤ U := by rcases hanc.1 with ⟨h0, _⟩ | ⟨_, _, _, hU'⟩ <;> omega
-        have hnU : n ≤ U := hn_le_cap.trans hcap_le_U
-        obtain ⟨hn1_le_n', hn'_le_n⟩ := card_dom_delete_bounds st.dict u
-        change n - 1 ≤ n' at hn1_le_n'
-        change n' ≤ n at hn'_le_n
+        obtain ⟨-, hn_le_cap, -, hcap_le_U⟩ := hanc.1.resolve_left fun h => hn0 h.1
+        obtain ⟨hn1_le_n', hn'_le_n⟩ : n - 1 ≤ n' ∧ n' ≤ n := card_dom_delete_bounds st.dict u
         have hdist_del : Nat.dist n n' ≤ 1 := by unfold Nat.dist; omega
         -- 1. `loadAtOffCode mBase mNNew mCur 5` (3 steps)
         obtain ⟨hex_ldN, hx₃b⟩ := loadAtOffCode_exec (rAddr := mBase) (rDst := mNNew)
@@ -1961,35 +1840,23 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           have hnc_lt : ¬(Cond.lt mTmpB mTmpA).Holds x₇.toData := by
             change ¬(x₇.regs mTmpB < x₇.regs mTmpA)
             rw [hx₇_tb, hx₇_ta]; omega
-          have hval_tc : InEpochValid V (targetCap U n) st.dict (.delete u) := by
-            refine ⟨hval, show EpochValid U n' (targetCap U n) from
-              Or.inr ⟨by omega, ?_, ?_, ?_⟩⟩
-            · unfold targetCap; rw [ite_eq_right hn0]
-              exact hn'_le_n.trans (le_min (by omega) hnU)
-            · unfold targetCap; rw [ite_eq_right hn0]
-              exact (min_le_left _ _).trans (by omega)
-            · unfold targetCap; rw [ite_eq_right hn0]; exact min_le_right _ _
           have hpeak_eq : stepExactPeakWords V w st.cap st.dict (.delete u) =
               max (migratePeakWords U V w st.cap n)
                 (inEpochPeakWords V w (targetCap U n) n st.dict (.delete u)) := by
             dsimp only [stepExactPeakWords]
-            change (if n = 0 then _ else _) = _
             rw [ite_eq_right hn0, ite_eq_right hn1, ite_eq_left hmig]
           have hst'_cap : st'.cap = targetCap U n := by
             dsimp only [st', EpochState.step, nextEpochCap]
-            change (if n = 0 then _ else _) = _
             rw [ite_eq_right hn0, ite_eq_right hn1, ite_eq_left hmig]
           have hst'_init : st'.initCount = n := by
             dsimp only [st', EpochState.step, nextEpochInit]
-            change (if n = 0 then _ else _) = _
             rw [ite_eq_right hn0, ite_eq_right hn1, ite_eq_left hmig]
-          have hdist_rel : n ≤ 2 * Nat.dist n st.initCount :=
-            delete_mig_le_two_dist hn2 hanc hmig
-          have hdist_post : Nat.dist n' n ≤ 1 := by rw [Nat.dist_comm]; exact hdist_del
           obtain ⟨μ_out, T_mig_op, hex_mig_op, hout_all, hmap_u, hcost_mig_op⟩ :=
-            exec_migrate_then_inEpoch (overhead := 22) (.delete u) hx₇b hn_pos hanc hval_tc
-              hfr hsplit hx₇_base hx₇_arg (fun _ _ => rfl) hdist_rel hdist_post hpeak_eq
-              hfit_peak hst'_cap hst'_init (by decide)
+            exec_migrate_then_inEpoch (overhead := 22) (.delete u) hx₇b hn_pos hanc
+              ⟨hval, epochValid_delete_mig hanc.1 hn2⟩ hfr hsplit hx₇_base hx₇_arg
+              (fun _ _ => rfl) (delete_mig_le_two_dist hn2 hanc hmig)
+              (by rw [Nat.dist_comm]; exact hdist_del) hpeak_eq hfit_peak hst'_cap hst'_init
+              (by decide)
           have hex_ge2 : ExecRCodeDist w resizableDeleteGeTwoCode x₂
               (μ_out.map StepROutcome.data) (9 + T_mig_op) L_peak :=
             ((ExecRCodeDist.of_demonicExec hex_ldN).seq_pure <|
@@ -2007,42 +1874,28 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
               ExecRCodeDist.branch_neg hnc_t0 <|
               ExecRCodeDist.branch_neg hnc_t1 <|
               ExecRCodeDist.branch_neg hnc_n1 hex_ge2).mono (le_of_eq (by push_cast; ring))
-          have hcap_ne : st'.cap ≠ st.cap := by
-            rw [hst'_cap]; unfold targetCap; rw [ite_eq_right hn0]
-            have : min (2 * n) U ≤ 2 * n := min_le_left _ _
-            omega
-          refine ⟨μ_out, _, hex_all, hout_all,
-            fun _ => by rw [ite_eq_right hcap_ne]; exact hmap_u, ?_⟩
-          calc ((22 : ℝ≥0∞) + T_mig_op) +
-                (∑' q, μ_out q *
-                  (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞))
-              ≤ (resizablePotential U w st.cap n st.initCount base x : ℝ≥0∞) +
-                (resizableBaseCharge : ℝ≥0∞) := hcost_mig_op
-            _ ≤ _ := add_le_add le_rfl le_self_add
+          have hcap_ne : st'.cap ≠ st.cap := by rw [hst'_cap, targetCap_of_ne_zero hn0]; omega
+          exact ⟨μ_out, _, hex_all, hout_all, fun _ => by rw [ite_eq_right hcap_ne]; exact hmap_u,
+            hcost_mig_op.trans (add_le_add le_rfl le_self_add)⟩
         · -- `4 * (n - 1) ≥ st.cap`: active in-epoch delete, no migration
           have hc_lt : (Cond.lt mTmpB mTmpA).Holds x₇.toData := by
             change x₇.regs mTmpB < x₇.regs mTmpA
             rw [hx₇_tb, hx₇_ta]; omega
-          have hval_in : InEpochValid V st.cap st.dict (.delete u) :=
-            ⟨hval, show EpochValid U n' st.cap from
-              Or.inr ⟨by omega, hn'_le_n.trans hn_le_cap, by omega, hcap_le_U⟩⟩
           have hpeak_eq : stepExactPeakWords V w st.cap st.dict (.delete u) =
               inEpochPeakWords V w st.cap n st.dict (.delete u) := by
             dsimp only [stepExactPeakWords]
-            change (if n = 0 then _ else _) = _
             rw [ite_eq_right hn0, ite_eq_right hn1, ite_eq_right hmig]
           have hcap_same : st'.cap = st.cap := by
             dsimp only [st', EpochState.step, nextEpochCap]
-            change (if n = 0 then _ else _) = _
             rw [ite_eq_right hn0, ite_eq_right hn1, ite_eq_right hmig]
           have hinit_same : st'.initCount = st.initCount := by
             dsimp only [st', EpochState.step, nextEpochInit]
-            change (if n = 0 then _ else _) = _
             rw [ite_eq_right hn0, ite_eq_right hn1, ite_eq_right hmig]
           obtain ⟨q_out, stepsOp, hex_op, hqls, hqrep, hqres, hqdec, hqbel, hqcost⟩ :=
-            exec_inEpoch_branch (overhead := 21) (.delete u) hx₇b hn_pos hanc.1 hval_in
-              hfr hsplit hx₇_base hx₇_arg (fun _ _ => rfl) rfl hdist_del hpeak_eq hfit_peak
-              hcap_same hinit_same hrep.cap_eq (by decide)
+            exec_inEpoch_branch (overhead := 21) (.delete u) hx₇b hn_pos hanc.1
+              ⟨hval, epochValid_delete_keep hanc.1 hn2 hmig⟩ hfr hsplit hx₇_base hx₇_arg
+              (fun _ _ => rfl) rfl hdist_del hpeak_eq hfit_peak hcap_same hinit_same hrep.cap_eq
+              (by decide)
           have hex_ge2 : RDemonicExec w L_peak resizableDeleteGeTwoCode x₂ (8 + stepsOp)
               (· = q_out.data) :=
             (hex_ldN.seq_eq <| hex_s1.seq_eq <| hex_s2.seq_eq <| hex_c2.seq_eq <|
