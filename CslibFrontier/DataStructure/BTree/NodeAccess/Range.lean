@@ -160,8 +160,8 @@ private theorem rangeR_spec {s : Store α β H} {fuel : ℕ} {lo hi : α} {root 
     {tr : BTree α β} (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
     eval s (rangeR fuel lo hi root) = BTree.range lo hi tr ∧
       countQueries s (rangeR fuel lo hi root) = rangeVisits lo hi tr :=
-  spec_of_step (rangeR · lo hi) (fun rec v => rangeScan rec lo hi v.first v.rest) (fun _ => rfl)
-    (fun _ => rfl) (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
+  descent_spec_of_step (rangeR · lo hi) (fun rec v => rangeScan rec lo hi v.first v.rest)
+    (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
     (fun tr e q => e = BTree.range lo hi tr ∧ q = rangeVisits lo hi tr)
     ⟨(BTree.range_leaf lo hi).symm, (rangeVisits_leaf lo hi).symm⟩
     (fun _ h first rest hd => ((denotes_some_node_iff s h first rest).mp hd).elim rangeScan_spec)

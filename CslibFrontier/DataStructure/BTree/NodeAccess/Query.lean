@@ -132,7 +132,7 @@ private theorem countQueries_maxScan_le (s : Store α β H)
 
 theorem countQueries_maxR_le_fuel (s : Store α β H) (fuel : ℕ) (root : Option H) :
     countQueries s (maxR fuel root) ≤ fuel :=
-  countQueries_le_fuel_of_step s maxR (fun rec v => maxScan rec v.first v.rest) (fun _ => rfl)
+  countQueries_descent_le_fuel s maxR (fun rec v => maxScan rec v.first v.rest) (fun _ => rfl)
     (fun _ => rfl) (fun _ _ => rfl) (fun rec _ hrec _ => countQueries_maxScan_le s rec hrec _ _)
     fuel root
 
@@ -239,7 +239,7 @@ private theorem maxScan_spec {s : Store α β H} {fuel : ℕ}
 private theorem maxR_spec {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
     (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
     eval s (maxR fuel root) = BTree.max? tr ∧ countQueries s (maxR fuel root) ≤ tr.height :=
-  spec_of_step maxR (fun rec v => maxScan rec v.first v.rest) (fun _ => rfl) (fun _ => rfl)
+  descent_spec_of_step maxR (fun rec v => maxScan rec v.first v.rest) (fun _ => rfl) (fun _ => rfl)
     (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
     (fun tr e q => e = BTree.max? tr ∧ q ≤ tr.height) ⟨BTree.max?_leaf.symm, Nat.zero_le _⟩
     (fun _ h first rest hd => ((denotes_some_node_iff s h first rest).mp hd).elim maxScan_spec)
@@ -363,7 +363,7 @@ private theorem countQueries_lookupScan_le (s : Store α β H)
 
 theorem countQueries_lookupR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (root : Option H) :
     countQueries s (lookupR fuel k root) ≤ fuel :=
-  countQueries_le_fuel_of_step s (lookupR · k) (fun rec v => lookupScan rec k v.first v.rest)
+  countQueries_descent_le_fuel s (lookupR · k) (fun rec v => lookupScan rec k v.first v.rest)
     (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
     (fun rec _ hrec _ => countQueries_lookupScan_le s rec k hrec _ _) fuel root
 
@@ -387,7 +387,7 @@ private theorem countQueries_predScan_le (s : Store α β H)
 
 theorem countQueries_predR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (root : Option H) :
     countQueries s (predR fuel k root) ≤ fuel :=
-  countQueries_le_fuel_of_step s (predR · k) (fun rec v => predScan rec k v.first v.rest)
+  countQueries_descent_le_fuel s (predR · k) (fun rec v => predScan rec k v.first v.rest)
     (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
     (fun rec _ hrec _ => countQueries_predScan_le s rec k hrec _ _) fuel root
 
@@ -407,7 +407,7 @@ private theorem countQueries_succScan_le (s : Store α β H)
 
 theorem countQueries_succR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (root : Option H) :
     countQueries s (succR fuel k root) ≤ fuel :=
-  countQueries_le_fuel_of_step s (succR · k) (fun rec v => succScan rec k v.first v.rest)
+  countQueries_descent_le_fuel s (succR · k) (fun rec v => succScan rec k v.first v.rest)
     (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
     (fun rec _ hrec _ => countQueries_succScan_le s rec k hrec _ _) fuel root
 
@@ -428,7 +428,7 @@ private theorem countQueries_rankScan_le (s : RankedStore α β H)
 
 theorem countQueries_rankR_le_fuel (s : RankedStore α β H) (fuel : ℕ) (k : α) (root : Option H) :
     countQueries s (rankR fuel k root) ≤ fuel :=
-  countQueries_le_fuel_of_step s (rankR · k) (fun rec v => rankScan rec k v.first v.rest)
+  countQueries_descent_le_fuel s (rankR · k) (fun rec v => rankScan rec k v.first v.rest)
     (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
     (fun rec _ hrec _ => countQueries_rankScan_le s rec k hrec _ _) fuel root
 
@@ -471,7 +471,7 @@ private theorem lookupR_spec {s : Store α β H} {fuel : ℕ} {k : α} {root : O
     {tr : BTree α β} (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
     eval s (lookupR fuel k root) = BTree.lookup k tr ∧
       countQueries s (lookupR fuel k root) ≤ tr.height :=
-  spec_of_step (lookupR · k) (fun rec v => lookupScan rec k v.first v.rest) (fun _ => rfl)
+  descent_spec_of_step (lookupR · k) (fun rec v => lookupScan rec k v.first v.rest) (fun _ => rfl)
     (fun _ => rfl) (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
     (fun tr e q => e = BTree.lookup k tr ∧ q ≤ tr.height)
     ⟨(BTree.lookup_leaf k).symm, Nat.zero_le _⟩
@@ -535,7 +535,7 @@ private theorem predR_spec {s : Store α β H} {fuel : ℕ} {k : α} {root : Opt
     {tr : BTree α β} (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
     eval s (predR fuel k root) = BTree.pred? k tr ∧
       countQueries s (predR fuel k root) ≤ tr.height :=
-  spec_of_step (predR · k) (fun rec v => predScan rec k v.first v.rest) (fun _ => rfl)
+  descent_spec_of_step (predR · k) (fun rec v => predScan rec k v.first v.rest) (fun _ => rfl)
     (fun _ => rfl) (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
     (fun tr e q => e = BTree.pred? k tr ∧ q ≤ tr.height)
     ⟨(BTree.pred?_leaf k).symm, Nat.zero_le _⟩
@@ -588,7 +588,7 @@ private theorem succR_spec {s : Store α β H} {fuel : ℕ} {k : α} {root : Opt
     {tr : BTree α β} (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
     eval s (succR fuel k root) = BTree.succ? k tr ∧
       countQueries s (succR fuel k root) ≤ tr.height :=
-  spec_of_step (succR · k) (fun rec v => succScan rec k v.first v.rest) (fun _ => rfl)
+  descent_spec_of_step (succR · k) (fun rec v => succScan rec k v.first v.rest) (fun _ => rfl)
     (fun _ => rfl) (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
     (fun tr e q => e = BTree.succ? k tr ∧ q ≤ tr.height)
     ⟨(BTree.succ?_leaf k).symm, Nat.zero_le _⟩
@@ -655,7 +655,7 @@ private theorem rankR_spec {s : RankedStore α β H} {fuel : ℕ} {k : α} {root
     {tr : BTree α β} (hd : DenotesRanked s root tr) (hf : tr.height ≤ fuel) :
     eval s (rankR fuel k root) = BTree.rank k tr ∧
       countQueries s (rankR fuel k root) ≤ tr.height :=
-  spec_of_step (rankR · k) (fun rec v => rankScan rec k v.first v.rest) (fun _ => rfl)
+  descent_spec_of_step (rankR · k) (fun rec v => rankScan rec k v.first v.rest) (fun _ => rfl)
     (fun _ => rfl) (fun _ _ => rfl) (denotesRanked_some_leaf s) (denotesRanked_none_node s)
     (fun tr e q => e = BTree.rank k tr ∧ q ≤ tr.height) ⟨(BTree.rank_leaf k).symm, Nat.zero_le _⟩
     (fun _ h first rest hd => by

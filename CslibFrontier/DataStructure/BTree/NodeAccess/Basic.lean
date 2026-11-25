@@ -49,9 +49,6 @@ unaugmented store.
 * `NodeAccess.denotes_canonicalStore`, `NodeAccess.denotesRanked_canonicalRankedStore`: every
   `BTree α β` is denoted by its canonical handle reference.
 * `NodeAccess.DenotesRanked.toDenotes`: forgetting child-size annotations preserves `Denotes`.
-* `NodeAccess.countQueries_le_fuel_of_step`, `NodeAccess.spec_of_step`: the page-read bound and
-  the specification of a fuel-bounded descent, from the corresponding facts about its within-page
-  step.
 
 ## References
 
@@ -444,13 +441,14 @@ section Descent
 Each query in this model is a *descent* `R`: without fuel or at an empty reference it returns a
 default `d`, and at `some h` it reads the page of `h` and runs a within-page `step`, which may call
 `R` again with one unit less fuel. The pages may be unaugmented or ranked, so the lemmas below are
-stated for an arbitrary page type `V`. -/
+stated for an arbitrary page type `V`: `countQueries_descent_le_fuel` bounds the page reads of a
+descent by its fuel, and `descent_spec_of_step` proves its specification from one for the step. -/
 
 variable {α β H V γ : Type}
 
 /-- A descent issues at most `fuel` page reads under every store, provided its within-page step
 issues no more reads than its recursive calls. -/
-theorem countQueries_le_fuel_of_step (s : H → V)
+theorem countQueries_descent_le_fuel (s : H → V)
     (R : ℕ → Option H → (PFunctor.mk H fun _ => V).FreeM γ)
     (step : (Option H → (PFunctor.mk H fun _ => V).FreeM γ) → V →
       (PFunctor.mk H fun _ => V).FreeM γ)
@@ -474,7 +472,7 @@ count) at every tree `tr` that its root reference denotes under `D` with `tr.hei
 suffices that `Spec` holds at the empty tree with result `d` and no reads, and that the within-page
 step at a denoted node meets `Spec`, counting the page read, whenever the recursive calls meet it at
 the node's children. -/
-theorem spec_of_step {s : H → V} (R : ℕ → Option H → (PFunctor.mk H fun _ => V).FreeM γ)
+theorem descent_spec_of_step {s : H → V} (R : ℕ → Option H → (PFunctor.mk H fun _ => V).FreeM γ)
     (step : (Option H → (PFunctor.mk H fun _ => V).FreeM γ) → V →
       (PFunctor.mk H fun _ => V).FreeM γ)
     {d : γ} (hzero : ∀ r, R 0 r = pure d) (hnone : ∀ fuel, R (fuel + 1) none = pure d)
