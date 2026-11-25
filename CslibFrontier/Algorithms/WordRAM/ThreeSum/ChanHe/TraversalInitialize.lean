@@ -71,12 +71,9 @@ theorem initializeRoot_exec {a : Arena} {w : ℕ} (x : Data 128) (e : Entry)
       · subst i
         simpa +decide [Data.set, zero, one] using hc.2.2.2.2.2.2.2.2.2.2.symm
       · simp only [Function.update_of_ne ho, Function.update_of_ne hz]
-  have ploaded : e.Loaded p := by
-    refine ⟨(pmeta _ (Or.inl (by decide))).trans hl.1, ?_, ?_⟩
-    · intro j
-      exact (pmeta _ (Or.inl (by dsimp [arraySource, slot]; omega))).trans (hl.2.1 j)
-    · intro j
-      exact (pmeta _ (Or.inl (by dsimp [arrayLength, slot]; omega))).trans (hl.2.2 j)
+  have ploaded : e.Loaded p := ⟨(pmeta _ (Or.inl (by decide))).trans hl.1,
+    fun j => (pmeta _ (Or.inl (by dsimp [arraySource, slot]; omega))).trans (hl.2.1 j),
+    fun j => (pmeta _ (Or.inl (by dsimp [arrayLength, slot]; omega))).trans (hl.2.2 j)⟩
   have pstack : WordStack.Rep w a.stack a.capacity [] (p.comap registers) := by
     refine ⟨⟨fun i => (hp.bounded hx).1 (registers i), (hp.bounded hx).2⟩,
       ?_, ?_, Nat.zero_le _, fun i => Fin.elim0 i⟩
