@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import resolve_aggregate_conflict as rac  # noqa: E402
+from aggregate_order import import_key  # noqa: E402
 
 SCRIPT = pathlib.Path(rac.__file__).resolve()
 PREAMBLE = "module  -- shake: keep-all --deprecated_module: ignore\n\n"
@@ -25,11 +26,16 @@ def aggregate(*names: str, preamble: str = PREAMBLE, keyword: str = "public impo
     return preamble + "".join(f"{keyword} CslibFrontier.{name}\n" for name in names)
 
 
+def ordered(*names: str, **style: str) -> str:
+    """An aggregate importing `CslibFrontier.<name>` for each name, in `mk_all`'s order."""
+    return aggregate(*sorted(names, key=lambda name: import_key(f"CslibFrontier.{name}")), **style)
+
+
 class MergeAggregateTests(unittest.TestCase):
     def test_same_gap_insertions_are_kept_in_order(self) -> None:
         base = aggregate("A", "Z")
         merged = rac.merge_aggregate(base, aggregate("A", "K", "Z"), aggregate("A", "B", "Z"))
-        self.assertEqual(merged, aggregate("A", "B", "K", "Z"))
+        self.assertEqual(merged, ordered("A", "B", "K", "Z"))
 
     def test_a_deletion_is_not_resurrected(self) -> None:
         # One side moves `C` to `D`; the other adds `B` next to it, where union would keep `C`.
@@ -38,23 +44,23 @@ class MergeAggregateTests(unittest.TestCase):
                              (aggregate("A", "B", "C", "E"), aggregate("A", "D", "E"))):
             with self.subTest(ours=ours):
                 self.assertEqual(rac.merge_aggregate(base, ours, theirs),
-                                 aggregate("A", "B", "D", "E"))
+                                 ordered("A", "B", "D", "E"))
 
     def test_shared_changes_agree(self) -> None:
         base = aggregate("A", "C", "E")
-        both = aggregate("A", "B", "E")
+        both = ordered("A", "B", "E")
         self.assertEqual(rac.merge_aggregate(base, both, both), both)
 
-    def test_output_is_sorted_by_module_name(self) -> None:
+    def test_output_is_in_mk_all_order(self) -> None:
         base = aggregate("A", "C")
         merged = rac.merge_aggregate(base, aggregate("C", "A", "B"), aggregate("A", "C", "B.X"))
-        self.assertEqual(merged, aggregate("A", "B", "B.X", "C"))
+        self.assertEqual(merged, ordered("A", "B", "B.X", "C"))
 
     def test_plain_imports(self) -> None:
         plain = {"preamble": "", "keyword": "import"}
         merged = rac.merge_aggregate(aggregate("A", **plain), aggregate("A", "C", **plain),
                                      aggregate("A", "B", **plain))
-        self.assertEqual(merged, aggregate("A", "B", "C", **plain))
+        self.assertEqual(merged, ordered("A", "B", "C", **plain))
 
     def test_different_headers_are_refused(self) -> None:
         base = aggregate("A")
@@ -121,7 +127,7 @@ class DriverTests(unittest.TestCase):
         self.configure()
         merged = self.merge(aggregate("A", "D", "E"), aggregate("A", "B", "C", "E"))
         self.assertEqual(merged.returncode, 0, merged.stderr)
-        self.assertEqual(self.result(), aggregate("A", "B", "D", "E"))
+        self.assertEqual(self.result(), ordered("A", "B", "D", "E"))
 
     def test_driver_refusal_leaves_a_conflict(self) -> None:
         self.configure()

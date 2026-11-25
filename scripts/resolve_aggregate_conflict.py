@@ -2,14 +2,14 @@
 """Git merge driver for the `mk_all` import aggregates: merge their import lines as sets.
 
 `lake exe mk_all` writes each aggregate (`CslibFrontier.lean`, `CslibFrontierResults.lean`) as a fixed
-header followed by one import line per module, sorted by module name. Two branches
-that add modules between the same neighbours conflict as text, and `merge=union` keeps imports
-that one side deleted and can misorder the added ones. This driver merges the import lines three
-ways as sets: it keeps every line that either side added and drops every line of the base that
-either side deleted, then writes the header and the sorted lines. The header (the lines before
-the first import) must be the same in all three versions and every later line an import (`import
-M` or `public import M`). Otherwise the driver leaves `git merge-file`'s text merge, with conflict
-markers where it finds them, and exits nonzero, so git reports a conflict.
+header followed by one import line per module, in hash order (`aggregate_order.import_key`). Two
+branches that add modules between the same neighbours conflict as text, and `merge=union` keeps
+imports that one side deleted and can misorder the added ones. This driver merges the import lines
+three ways as sets: it keeps every line that either side added and drops every line of the base
+that either side deleted, then writes the header and the lines in that order. The header (the
+lines before the first import) must be the same in all three versions and every later line an
+import (`import M` or `public import M`). Otherwise the driver leaves `git merge-file`'s text
+merge, with conflict markers where it finds them, and exits nonzero, so git reports a conflict.
 
 `.gitattributes` names the driver `leanagg` for the aggregates; enable it once per clone with
 
@@ -30,6 +30,8 @@ import re
 import subprocess
 import sys
 import tempfile
+
+from aggregate_order import import_key
 
 IMPORT = re.compile(r"(?:public )?import (\S+)")
 
@@ -59,7 +61,7 @@ def merge_aggregate(base: str, ours: str, theirs: str) -> str:
         raise Refusal("the headers before the imports differ")
     kept, ours_set, theirs_set = set(base_lines), set(ours_lines), set(theirs_lines)
     merged = (ours_set | theirs_set) - (kept - ours_set) - (kept - theirs_set)
-    lines = sorted(merged, key=lambda line: (IMPORT.fullmatch(line).group(1), line))
+    lines = sorted(merged, key=lambda line: (import_key(IMPORT.fullmatch(line).group(1)), line))
     return "".join(f"{line}\n" for line in header + lines)
 
 

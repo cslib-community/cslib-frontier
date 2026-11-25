@@ -25,6 +25,8 @@ import sys
 import tempfile
 import tomllib
 
+from aggregate_order import import_key
+
 
 AGGREGATE = "CslibFrontier.lean"
 # scripts/MkAll.lean, module-style branch; intentionally not a general Lean header parser.
@@ -124,7 +126,7 @@ def scratch_git(repo: Path, commits: tuple[str, ...]):
 
 
 def canonical(entries: dict[str, dict[str, str]]) -> bytes:
-    """Mirror mk_all's CslibFrontier root: all .lean modules, sorted by module name."""
+    """Mirror mk_all's CslibFrontier root: all .lean modules, in its hash order."""
     modules = []
     for path, entry in entries.items():
         if path.startswith("CslibFrontier/") and path.endswith(".lean"):
@@ -135,7 +137,8 @@ def canonical(entries: dict[str, dict[str, str]]) -> bytes:
                     f"nonregular Lean module: {path}")
             modules.append(".".join(parts))
     require(bool(modules), "empty CslibFrontier library")
-    return MODULE_HEADER + b"".join(f"public import {name}\n".encode() for name in sorted(modules))
+    return MODULE_HEADER + b"".join(f"public import {name}\n".encode()
+                                    for name in sorted(modules, key=import_key))
 
 
 def check_aggregate(git: Git, entries: dict, label: str) -> None:
@@ -154,7 +157,7 @@ def check_aggregate(git: Git, entries: dict, label: str) -> None:
     content = git.blob(entries[AGGREGATE])
     require(content.startswith(MODULE_HEADER), f"{label}: changed known aggregate preamble")
     # Exact generation rejects options/declarations, comments, malformed, repeated, missing,
-    # extra and unsorted imports. General Lean parsing would accept too much here.
+    # extra and misordered imports. General Lean parsing would accept too much here.
     require(content == canonical(entries), f"{label}: aggregate is not canonical for its inventory")
 
 

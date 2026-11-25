@@ -33,12 +33,14 @@ LAKEFILE = 'name = "fixture"\n\n[[lean_lib]]\nname = "CslibFrontier"\n'
 PREAMBLE = "module  -- shake: keep-all --deprecated_module: ignore\n\n"
 ATTRIBUTES = "CslibFrontier.lean merge=leanagg\nreferences.bib merge=bibkeys\n"
 LIB = "namespace Foo\ndef x := 1\nend Foo\n\nnamespace Bar\ndef y := 2\nend Bar\n"
-# What the run uses from the fixture's `main`: the check, the resolvers and the modules that the
-# bibliography resolver imports.
+# What the run uses from the fixture's `main`: the check, the resolvers and the modules that they
+# import.
 SCRIPTS = ("check_restack.py", "resolve_bib_conflict.py", "resolve_aggregate_conflict.py",
-           "check_hygiene.py", "proof_lengths.py", "upstream.py")
+           "aggregate_order.py", "check_hygiene.py", "proof_lengths.py", "upstream.py")
 
 def aggregate(*names: str) -> str:
+    """`CslibFrontier.lean` importing `CslibFrontier.<name>` for each name, in the order given; as
+    in `test_check_restack.py`, the fixture names' alphabetical order is `mk_all`'s hash order."""
     return PREAMBLE + "".join(f"public import CslibFrontier.{name}\n" for name in names)
 
 
@@ -73,8 +75,8 @@ class RestackMechanicalTests(unittest.TestCase):
         scripts = {f"scripts/{name}": (ROOT / "scripts" / name).read_text() for name in SCRIPTS}
         self.commit("base", {"lakefile.toml": LAKEFILE, ".gitattributes": ATTRIBUTES,
                              ".gitignore": ".lake/\n",
-                             "CslibFrontier.lean": aggregate("A", "C", "E"),
-                             **modules("A", "C", "E"), "Lib.lean": LIB,
+                             "CslibFrontier.lean": aggregate("Ant", "Cap", "Emu"),
+                             **modules("Ant", "Cap", "Emu"), "Lib.lean": LIB,
                              "references.bib": bib(entry("a"), entry("c"), entry("e")), **scripts})
         self.git("push", "-q", "origin", "main")
 
@@ -95,10 +97,10 @@ class RestackMechanicalTests(unittest.TestCase):
         return self.git("rev-parse", "HEAD")
 
     def feature(self, files: dict[str, str | None] | None = None) -> str:
-        """Push a PR branch (number 7) adding `CslibFrontier.B`; returns its head."""
+        """Push a PR branch (number 7) adding `CslibFrontier.Bee`; returns its head."""
         self.git("checkout", "-q", "-b", "feature", "main")
-        head = self.commit("feature", files or {"CslibFrontier.lean": aggregate("A", "B", "C", "E"),
-                                                **modules("B")})
+        head = self.commit("feature", files or {
+            "CslibFrontier.lean": aggregate("Ant", "Bee", "Cap", "Emu"), **modules("Bee")})
         self.publish(head)
         return head
 
@@ -134,7 +136,8 @@ class RestackMechanicalTests(unittest.TestCase):
 
     def aggregate_conflict(self) -> str:
         approved = self.feature()
-        self.on_main({"CslibFrontier.lean": aggregate("A", "Bb", "C", "E"), **modules("Bb")})
+        self.on_main({"CslibFrontier.lean": aggregate("Ant", "Bees", "Cap", "Emu"),
+                      **modules("Bees")})
         return approved
 
     def assert_restacked(self, old: str, code: int, out: str) -> str:
@@ -159,7 +162,7 @@ class RestackMechanicalTests(unittest.TestCase):
         new = self.assert_restacked(approved, code, out)
         self.assertIn("in: CslibFrontier.lean", out)
         self.assertEqual(self.git("show", f"{new}:CslibFrontier.lean"),
-                         aggregate("A", "B", "Bb", "C", "E").rstrip("\n"))
+                         aggregate("Ant", "Bee", "Bees", "Cap", "Emu").rstrip("\n"))
         self.assertEqual((self.git("status", "--porcelain", "--ignored"),
                           self.git("rev-parse", "HEAD")), before)
 
@@ -219,10 +222,10 @@ class RestackMechanicalTests(unittest.TestCase):
     # Refusals.
 
     def test_conflict_in_another_path_is_refused(self) -> None:
-        approved = self.feature({"CslibFrontier.lean": aggregate("A", "B", "C", "E"),
-                                 **modules("B"), "Lib.lean": LIB.replace("y := 2", "y := 3")})
-        self.on_main({"CslibFrontier.lean": aggregate("A", "Bb", "C", "E"), **modules("Bb"),
-                      "Lib.lean": LIB.replace("y := 2", "y := 4")})
+        approved = self.feature({"CslibFrontier.lean": aggregate("Ant", "Bee", "Cap", "Emu"),
+                                 **modules("Bee"), "Lib.lean": LIB.replace("y := 2", "y := 3")})
+        self.on_main({"CslibFrontier.lean": aggregate("Ant", "Bees", "Cap", "Emu"),
+                      **modules("Bees"), "Lib.lean": LIB.replace("y := 2", "y := 4")})
         self.git("fetch", "-q", "origin")
         before = self.state()
         code, out = self.run_script(approved, "--push")

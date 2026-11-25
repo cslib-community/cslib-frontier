@@ -17,10 +17,11 @@ set_option linter.style.header false
 /-! # Generate import aggregators with Lake's library source directories
 
 Adapted from Mathlib's `scripts/mk_all.lean` by Yaël Dillies and Damiano Testa. The command-line
-options, module-style inference, import sorting and update exit codes follow that script.
+options, module-style inference and update exit codes follow that script.
 Each library is scanned relative to its configured `srcDir`, so a root such as `src/Lib.lean`
 imports `Lib.*`, without a `src` prefix.
-The shared `Mathlib.Util.GetAllModules` utility supplies discovery and deterministic sorting.
+The shared `Mathlib.Util.GetAllModules` utility supplies discovery.
+Unlike Mathlib's script, this one writes the imports in hash order (`importLt`), not alphabetically.
 -/
 
 namespace CslibFrontierScripts.MkAll
@@ -57,6 +58,24 @@ def getLibraryRoots (selected : Option String) : IO (Array LibraryRoot) := do
     roots := roots.push ⟨← IO.FS.realPath package.srcDir, "Mathlib".push pathSeparator ++ "Tactic"⟩
   return roots
 
+/-- The 64-bit FNV-1a hash of the UTF-8 bytes of a module name, followed by MurmurHash3's `fmix64`
+finalizer. FNV-1a alone leaves names that differ only in their last characters (`Part1`, `Part2`)
+close together; the finalizer spreads them over the whole range. -/
+def importHash (name : String) : UInt64 :=
+  let h := name.toUTF8.foldl (fun h byte => (h ^^^ byte.toUInt64) * 0x100000001b3)
+    0xcbf29ce484222325
+  let h := (h ^^^ (h >>> 33)) * 0xff51afd7ed558ccd
+  let h := (h ^^^ (h >>> 33)) * 0xc4ceb9fe1a85ec53
+  h ^^^ (h >>> 33)
+
+/-- Whether module `a`'s import precedes module `b`'s in an aggregator: by `importHash`, then by
+name. Alphabetical order puts the modules of one directory next to each other, so two pull requests
+that add modules to the same directory insert lines into the same gap and conflict as text on
+GitHub, which ignores the local merge driver. Hash order scatters those lines over the whole file
+(#8486). `scripts/aggregate_order.py` implements the same order for the Python tools. -/
+def importLt (a b : String) : Bool :=
+  importHash a < importHash b || (importHash a == importHash b && a < b)
+
 /-- Generate or check one aggregator in its library's source directory, restoring the caller's
 working directory even if scanning or writing fails. -/
 def updateRoot (root : LibraryRoot) (git check moduleFlag : Bool) : IO Bool := do
@@ -80,7 +99,7 @@ def updateRoot (root : LibraryRoot) (git check moduleFlag : Bool) : IO Bool := d
             Fix or delete the file, then re-run `mk_all` (with `--module` if you want a \
             module-style aggregator)."
       else pure false
-    let mut allFiles ← getAllModulesSorted git d
+    let mut allFiles := (← getAllModulesSorted git d).qsort importLt
     if d == "Mathlib" then
       allFiles := #["Std", "Batteries"] ++ allFiles
     let fileContent :=

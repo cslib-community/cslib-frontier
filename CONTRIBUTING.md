@@ -42,8 +42,9 @@ branches that add entries between the same neighbours conflict as text;
 `scripts/resolve_bib_conflict.py` merges the file entry by entry and refuses when both sides
 changed one entry. To have `git merge` use it for `references.bib`, run once per clone:
 `git config merge.bibkeys.driver 'python3 scripts/resolve_bib_conflict.py --driver %O %A %B'`.
-The `mk_all` import aggregates have a similar opt-in driver, which merges their import lines as
-sets and writes them sorted:
+The `mk_all` import aggregates list their imports in hash order rather than alphabetically, so
+branches adding modules to one directory rarely conflict (#8486). Their opt-in driver merges the
+import lines as sets and writes them in that order:
 `git config merge.leanagg.driver 'python3 scripts/resolve_aggregate_conflict.py %O %A %B'`.
 Without it, git merges them as text; regenerate them with `lake exe mk_all` rather than trusting a
 hand or `merge=union` merge.

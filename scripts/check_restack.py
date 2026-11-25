@@ -322,8 +322,9 @@ def library_roots(root: Path, commit: str, entries: dict[str, str]) -> dict[str,
 def canonical_aggregate(entries: dict[str, str], source: str, directory: str,
                         module_style: bool) -> bytes:
     """What `scripts/MkAll.lean` writes for the library root `directory`: an import of every module
-    file below it, named relative to the library's `source` directory and sorted by name, after
-    the module-style preamble when `module_style` holds."""
+    file below it, named relative to the library's `source` directory, in `mk_all`'s hash order
+    (`aggregate_order.import_key`), after the module-style preamble when `module_style` holds."""
+    from aggregate_order import import_key
     names = []
     for path, mode in entries.items():
         if not path.startswith(f"{directory}/"):
@@ -336,7 +337,7 @@ def canonical_aggregate(entries: dict[str, str], source: str, directory: str,
                 raise Underivable(f"`mk_all` would not import `{path}` by a plain module name")
             names.append(".".join(parts))
     keyword = b"public import " if module_style else b"import "
-    imports = b"\n".join(keyword + name.encode() for name in sorted(names))
+    imports = b"\n".join(keyword + name.encode() for name in sorted(names, key=import_key))
     return (MODULE_PREAMBLE if module_style else b"") + imports + b"\n"
 
 
