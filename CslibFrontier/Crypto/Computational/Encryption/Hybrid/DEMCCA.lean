@@ -170,21 +170,16 @@ theorem run_hybridDEMHandler_after (E : SymmetricCipher)
       have hc' : encPair encBits encBits (ctK, dropFrame request.2) = request.2 := by
         simpa only [hk] using hc
       simp only [hybridDEMHandler, hybridDecrypt, beq_iff_eq, hk, hc', ↓reduceIte,
-        OracleComp.interpret_map, ProbOracleComp.interpret_query, heq]
-      simp only [StateT.run_map]
+        OracleComp.interpret_map, ProbOracleComp.interpret_query, heq, StateT.run_map]
       dsimp only [StateT.run, SymmetricCipher.oneTimeCCAOracle]
       by_cases hd : dropFrame request.2 = ctD
       · simp [hd]
       · simp [hd, List.take_of_length_le (hbound _)]
-    · have hne : request.2 ≠ encPair encBits encBits (ctK, ctD) := by
-        intro h
-        exact hk ((congrArg unframe h).trans (unframe_encPair_encBits _ _ _))
+    · have hne : request.2 ≠ encPair encBits encBits (ctK, ctD) :=
+        fun h => hk ((congrArg unframe h).trans (unframe_encPair_encBits _ _ _))
       simp only [hybridDEMHandler, hybridDecrypt, beq_iff_eq, hc, hk, hne, ↓reduceIte,
         OracleComp.interpret_pure, StateT.run_pure]
-  · have hne : request.2 ≠ encPair encBits encBits (ctK, ctD) := by
-      intro h
-      apply hc
-      simp [h]
+  · have hne : request.2 ≠ encPair encBits encBits (ctK, ctD) := fun h => hc (by simp [h])
     simp only [hybridDEMHandler, hybridDecrypt, beq_iff_eq, hc, hne, ↓reduceIte,
       OracleComp.interpret_pure, StateT.run_pure, encOption_none]
 
@@ -260,9 +255,8 @@ private theorem eval_run_hybridDEMContinuation (E : SymmetricCipher)
     apply PMF.bind_congr_on_support
     intro ct hmem
     have hlen : (if bit then ChoiceOut.msg₁ choice.1 else ChoiceOut.msg₀ choice.1).length = n := by
-      have h := hvalid
-      simp only [Bool.and_eq_true, beq_iff_eq] at h
-      split_ifs <;> first | exact h.1 | exact h.2
+      simp only [Bool.and_eq_true, beq_iff_eq] at hvalid
+      cases bit <;> simp [hvalid]
     rw [List.take_of_length_le (hct _ hlen ct hmem)]
     have hguess := eval_run_substituted_phase (E.oneTimeCCAOracle n k bit)
       (hybridDEMHandler E decaps decBound n sk ctK)
@@ -272,14 +266,10 @@ private theorem eval_run_hybridDEMContinuation (E : SymmetricCipher)
       (adversary.guess n (ChoiceOut.state choice.1) (encPair encBits encBits (ctK, ct)))
     rw [hguess]
     simp only [PMF.bind_map, Function.comp_def]
-    have hp : (fun request (s : Unit) =>
-        (pure (if request.2 == encPair encBits encBits (ctK, ct) then [] else
-          encOption encBits (decrypt n sk request.2), s) : ProbComp (List Bool × Unit))) =
-        cca2Phase2Oracle encBits decrypt n sk (encPair encBits encBits (ctK, ct)) := by
-      funext request s
-      unfold cca2Phase2Oracle
-      split_ifs <;> rfl
-    rw [hp]
+    congr 5
+    funext request s
+    unfold cca2Phase2Oracle
+    split_ifs <;> rfl
   · simp only [hvalid]
     change (PMF.pure (false, ([] : List (List Bool)))).bind (fun a => PMF.pure a.1) = _
     exact PMF.pure_bind _ _

@@ -130,22 +130,16 @@ theorem parseFuel_tokens (φ : QBF ℕ) (rest : List (Kind × ℕ)) (fuel : ℕ)
     | zero => simp [tokens] at hf
     | succ fuel =>
       simp only [tokens, List.length_cons] at hf
-      simp only [tokens, List.cons_append, Cslib.PrefixParser.parseFuel, readToken]
-      rw [ih rest fuel (Nat.le_of_succ_le_succ hf)]
-      rfl
+      simp [tokens, Cslib.PrefixParser.parseFuel, readToken,
+        ih rest fuel (Nat.le_of_succ_le_succ hf)]
   | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
     cases fuel with
     | zero => simp [tokens] at hf
     | succ fuel =>
       simp only [tokens, List.length_cons, List.length_append] at hf
-      simp only [tokens, List.cons_append, List.append_assoc,
-        Cslib.PrefixParser.parseFuel, readToken]
-      rw [ihφ (ψ.tokens ++ rest) fuel
-        (Nat.le_trans (Nat.le_add_right _ _) (Nat.le_of_succ_le_succ hf))]
-      dsimp only [Bind.bind, Option.bind]
-      rw [ihψ rest fuel
-        (Nat.le_trans (Nat.le_add_left _ _) (Nat.le_of_succ_le_succ hf))]
-      rfl
+      simp [tokens, List.append_assoc, Cslib.PrefixParser.parseFuel, readToken,
+        ihφ (ψ.tokens ++ rest) fuel ((Nat.le_add_right _ _).trans (Nat.le_of_succ_le_succ hf)),
+        ihψ rest fuel ((Nat.le_add_left _ _).trans (Nat.le_of_succ_le_succ hf))]
 
 /-- **Tokens in prefix order determine the formula**, and what follows them. -/
 theorem tokens_append_inj {φ ψ : QBF ℕ} {r r' : List (Kind × ℕ)}
@@ -161,15 +155,7 @@ theorem tokens_ne_nil (φ : QBF ℕ) : φ.tokens ≠ [] := by
 
 /-- A formula has one token for each of its nodes. -/
 theorem length_tokens (φ : QBF ℕ) : φ.tokens.length = φ.size := by
-  induction φ with
-  | var v => rfl
-  | top => rfl
-  | bot => rfl
-  | not φ ih => simp only [tokens, size, List.length_cons, ih]
-  | and φ ψ ihφ ihψ => simp only [tokens, size, List.length_cons, List.length_append, ihφ, ihψ]
-  | or φ ψ ihφ ihψ => simp only [tokens, size, List.length_cons, List.length_append, ihφ, ihψ]
-  | ex v φ ih => simp only [tokens, size, List.length_cons, ih]
-  | all v φ ih => simp only [tokens, size, List.length_cons, ih]
+  induction φ <;> simp [tokens, size, *]
 
 end Cslib.Logic.PL.QBF
 
@@ -190,9 +176,8 @@ def kindIndex : QBF.Kind → ℕ
   | .ex => 6
   | .all => 7
 
-theorem kindIndex_injective : Function.Injective kindIndex := by
-  intro a b h
-  cases a <;> cases b <;> simp_all [kindIndex]
+theorem kindIndex_injective : Function.Injective kindIndex :=
+  fun a b h => by cases a <;> cases b <;> simp_all [kindIndex]
 
 /-- Kinds encoded by their index in unary. -/
 def encKind : QBF.Kind ↪ List Bool :=
@@ -215,11 +200,9 @@ theorem encQBF_apply (φ : QBF ℕ) : encQBF φ = encList TQBF.encToken φ.token
 /-- Every node takes at least three bits. -/
 theorem three_mul_length_tokens_le (φ : QBF ℕ) : 3 * φ.tokens.length ≤ (encQBF φ).length := by
   rw [encQBF_apply]
-  generalize φ.tokens = l
-  induction l with
+  induction φ.tokens with
   | nil => simp
-  | cons t l ih =>
-    enc_len
+  | cons _ _ ih => enc_len
 
 /-! ### True closed formulas -/
 
