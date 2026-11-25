@@ -5,9 +5,12 @@ brief and says when to read this file; the full text here governs the details.
 
 ## Review cycle
 
-Maintainers arrange independent review of correctness and API quality (naming, reuse, placement,
-documentation and source credit). One non-authoring reviewer may cover both. Add a reviewer for a
-specific uncovered question or needed expertise, not to reach an approval count.
+Coordinators arrange independent review of correctness and API quality (naming, reuse, placement,
+documentation and source credit). Agent review is the gate for merging: no change waits for human
+review. Humans intend to read and spot-check merged code, including when it is upstreamed to
+CSLib, and agent review is never presented as human review. One non-authoring reviewer may cover
+both questions. Add a reviewer for a specific uncovered question or needed expertise, not to reach
+an approval count.
 
 Read the actual definitions, statements and proof arguments, and inspect representative clients.
 For substantive mathematics, explain briefly what is proved, its limiting hypotheses/model/resource
@@ -110,19 +113,21 @@ still a finding: it is tracked by an issue or a baseline entry and shows in the 
 hypothesis or a deliberate model boundary is not a gap.
 
 Before a published theorem enters the [results inventory](../results/README.md), its statement is
-checked against the source by a reviewer, human or agent, from outside the authoring fleet. The
+checked against the source by a non-author: someone who took no part in its implementation or
+design, working in a separate context, who may be an agent of the authoring fleet or account. The
 checker reads the cited passages in the source itself, not locators copied from the PR, reads the
 definitions the statement names, as the step "Read the statement before the prose, and open what
-it names" asks of every headline, and records the check in a comment that says who made it, what
-was read, which deviations were accepted and what was not checked. The comment answers each point
+it names" asks of every headline, and records the check in a comment that says who made it (the
+agent or session, or the person), which version of the source and which passages were read, which
+deviations were accepted and what was not checked. The comment answers each point
 listed under
 [The cited result is the unit of quality](statements.md#the-cited-result-is-the-unit-of-quality),
 and the affected points are checked again, as a delta, when the statement or a definition it names
 changes in meaning. A headline for a cited result is registered after this check, or is presented
 as a step under [Faithful headlines](statements.md#faithful-headlines) rule 2. An agent's check says that it is an agent's and is never presented as a
 human one. The check is a step of its own, separate from the ordinary independent review, which
-is still required. A maintainer may require a human check for entries from their own fleet by
-saying so on the entry's PR or tracking issue; that requirement then holds for those entries.
+is still required. The same eligibility and record apply when a reviewer confirms a locator in the
+[assumptions inventory](../manual/programs-crypto-and-probability/assumptions.md).
 
 Before approving library changes, read the **Parallel-definition**, **Duplicate-statement** and
 **Repeated-proof-block** notices in the CI job summary or step logs for the reviewed revision. Inspect both
@@ -189,13 +194,10 @@ helper or an old copy. Invoke the trusted script by its path; from private scrat
 explicitly ([queue command](../manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
 Keep the approved PR head; do not refresh its branch just to obtain the tool. The helper queues
 exactly that head once its required check passes; `--wait 30` waits up to 30 minutes for a running
-check. Write access is sufficient authority to queue a head approved under this cycle. Approve
-without queueing, and say why in the approval, when:
-
-- human review has been requested in the PR, its comments or a linked issue; queueing is then left
-  to that human or to whomever they name;
-- the approval names a hold, such as an unlanded lower PR, a migration or an upstream dependency;
-  queue once the hold clears.
+check. Write access is sufficient authority to queue a head approved under this cycle, and a
+request for human review is not a hold. Approve without queueing, and say why in the approval,
+when the approval names a hold, such as an unlanded lower PR, a migration or an upstream
+dependency; queue once the hold clears.
 
 Pending source or advisory-notice review is also a hold. Inspect that material,
 record the hold's resolution and link the existing proof/API/caller assessment before queueing;

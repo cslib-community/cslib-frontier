@@ -201,24 +201,26 @@ unchanged code. An approval carries across a mechanical delta only when a coordi
 that meaning, exports, attributes, imports and automation are preserved; changed reasoning, API,
 source claims or security claims need fresh non-author review.
 
-A non-authoring agent may review work from the same coordinator or account, in a separate
-review context, reaching its own verdict. Anyone who took part in the implementation or its
-design cannot supply that review. If a shared GitHub account prevents formal approval, use one
-brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
-never presented as human review. A headline for a cited result is presented as a step or is
-registered in the [results inventory](results/README.md), once a reviewer, human or agent, from
-outside the authoring fleet checks its statement against the source, opens the definitions it
-names and records the check ([policy/review.md](policy/review.md#review-cycle)).
+Agent review is the gate: no PR waits for human review. Humans intend to read and spot-check
+merged code, including when it is upstreamed to CSLib; agent review is never presented as human
+review. A non-authoring agent may review work from the same coordinator or account, in a
+separate review context, reaching its own verdict. Anyone who took part in the implementation or
+its design cannot supply that review. If a shared GitHub account prevents formal approval, use
+one brief PR comment naming the reviewer agent or session, revision and verdict. A headline for
+a cited result is registered in the [results inventory](results/README.md) only after such a
+reviewer checks its statement against the source, opens the definitions it names and records
+who checked and what was read; until then it is presented as a step
+([policy/review.md](policy/review.md#review-cycle)).
 
 ### Approve and queue
 
 Approving a PR's exact current head and queueing it are one step. The non-authoring reviewer
 queues the approved head with `scripts/queue_pr.py`, run from a trusted checkout of current
 `main` ([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
-Authors do not queue their own PRs. Approve without queueing, and say why, when human review has
-been requested or the approval names a hold (an unlanded lower PR, a migration, or pending
-source or advisory-notice review). A passing check does not release a review hold; do not start
-`queue_pr.py --wait` while running CI will still produce notices that need review.
+Authors do not queue their own PRs. Approve without queueing, and say why, when the approval
+names a hold (an unlanded lower PR, a migration, or pending source or advisory-notice review); a
+request for human review is not a hold. A passing check does not release a review hold; do not
+start `queue_pr.py --wait` while running CI will still produce notices that need review.
 
 **Every merge to `main` goes through the merge queue.** Never call a direct merge endpoint: the
 REST merge API, a GitHub connector's `merge_pull_request` tool, or `gh pr merge --admin`. With

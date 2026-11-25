@@ -141,9 +141,9 @@ cited result. A stand-in—such as a helper that assumes a property of its own r
 bound for parameters chosen after the adversary—never occupies the cited result's entry (if a
 step is listed at all, its own title and `theorem` field say it is a step of that result), and
 original results are not registered as proofs of a nearby source theorem. A published theorem
-enters the inventory only after a reviewer from outside the authoring fleet, human or agent, has
-checked its statement against the source and recorded the check
-([review cycle](../AGENTS.md#review-cycle)).
+enters the inventory only after a non-author working in a separate context, who may be an agent
+of the authoring fleet, has checked its statement against the source and recorded who checked and
+what was read ([review cycle](../AGENTS.md#review-cycle)).
 
 ## Remaining collection work
 

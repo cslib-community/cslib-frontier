@@ -56,7 +56,7 @@ python3 /path/to/trusted-main/scripts/queue_pr.py <PR> <approved-head> \
   --repo cslib-community/cslib-frontier
 ```
 
-The script refuses any other head, a draft, a stacked PR still based on another branch, a conflict and failed checks. It reads every page of check results for that commit before choosing the latest attempt from the required GitHub App; a later page cannot hide a failed or running rerun behind an older success. The reviewer does not queue when human review has been requested in the PR or its issue, or when the approval names a hold. Do not start `--wait` while completing CI will produce unread notices or manual pages; [Approve and queue](../../AGENTS.md#approve-and-queue) gives the rule. Updating `main` does not upgrade an already-running copy; its owner stops an old waiter before replacing it after holds clear.
+The script refuses any other head, a draft, a stacked PR still based on another branch, a conflict and failed checks. It reads every page of check results for that commit before choosing the latest attempt from the required GitHub App; a later page cannot hide a failed or running rerun behind an older success. The reviewer does not queue when the approval names a hold; a request for human review is not a hold. Do not start `--wait` while completing CI will produce unread notices or manual pages; [Approve and queue](../../AGENTS.md#approve-and-queue) gives the rule. Updating `main` does not upgrade an already-running copy; its owner stops an old waiter before replacing it after holds clear.
 
 When another PR is already queued, `queue_pr.py` replays the live queue prefix ahead of the
 approved head just before enqueueing (using the trusted checkout, `GIT_DIR` including a full bare
@@ -117,7 +117,7 @@ elaboration on unchanged restored sources, so it belongs to validation rather th
 | The intended theorem is formalized | Definitions, statement, source mapping and model/nonvacuity review |
 | An API is easier to use | Representative before/after client and validation |
 | A task is complete | Original acceptance criteria and remaining broader objective |
-| A change is ready to integrate | Final revision's validation and independent review, maintainer authority |
+| A change is ready to integrate | Final revision's validation and independent agent review, no open hold |
 | A development step took a given time | Defined endpoints, timestamps and measurement convention |
 
 The issue owns scope and remaining work; the PR owns the final change, validation and review. Link evidence instead of repeating it. Keep polling and internal coordination out of public records. Distinguish completed milestones from the broader objective. A coordinator with authority monitors a queued PR until it lands or receives a concrete disposition: queued work is not integrated work.

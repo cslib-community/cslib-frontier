@@ -385,9 +385,10 @@ rerun `--update`.
 AI-assisted and human-written contributions follow the same standards. Disclose which AI tools
 you used and for what in the PR description. The contributor is responsible for the result and
 for resolving review findings; a generated proof or review is not evidence of human approval.
-Maintainers decide scope and acceptance, and arrange the independent API and correctness reviews
-required by [AGENTS.md](AGENTS.md#review-cycle). Contributors need not install a maintainer's
-agent tooling to submit a change.
+Maintainers decide scope. The independent API and correctness review required by
+[AGENTS.md](AGENTS.md#review-cycle) decides acceptance; agents perform it and no change waits for
+human review. Humans intend to read and spot-check merged code, including when it is upstreamed to
+CSLib. Contributors need not install a maintainer's agent tooling to submit a change.
 
 Use the [validation sequence](AGENTS.md#validation-sequence) for the project gates and
 when focused local checks or hosted CI supply the required evidence. `scripts/build.sh` and
