@@ -77,6 +77,13 @@ example : Graph.RotationCertificate.verifyGenusZero
       (dipoleRotation.mergeVertices (0, false) (0, true) (by decide))) = false := by
   decide +kernel
 
+private theorem faceFromTable (d e : Graph.Dart G)
+    (he : (Graph.RotationCertificate.faceTable G c).getD d.index 0 = e.index) :
+    r.faceNext d = e := by
+  apply (Graph.Dart.indexEquiv G).injective
+  apply Fin.ext
+  exact (Graph.RotationCertificate.getD_faceTable (by decide) d).symm.trans he
+
 -- Joining both ends retains four distinct parallel edges and the unrelated loop.
 example :
     let a := r.faceNext h.reverse
@@ -90,12 +97,38 @@ example :
   obtain ⟨hne, hne', hz, _, _, _⟩ :=
     r.numericalGenusZero_mergeEdgeEnds (by decide) genus h k (by decide) (by decide) different
   refine ⟨hne, hne', hz, ?_⟩
-  have face (d e : Graph.Dart G) (he : (Graph.RotationCertificate.faceTable G c).getD d.index 0 =
-      e.index) : r.faceNext d = e := by
-    apply (Graph.Dart.indexEquiv G).injective
-    apply Fin.ext
-    exact (Graph.RotationCertificate.getD_faceTable (by decide) d).symm.trans he
-  rw [face h.reverse (1, false) (by decide), face k.reverse (3, false) (by decide)]
+  rw [faceFromTable h.reverse (1, false) (by decide),
+    faceFromTable k.reverse (3, false) (by decide)]
   decide +kernel
+
+-- The joined digons have opposite orders of their two payload darts around the retained marker.
+example : ∃ (H : Graph) (s : Graph.RotationSystem H) (lift : Graph.Dart H ↪ Graph.Dart G),
+    s.NumericalGenusZero ∧ H.edges = [(0, 1), (0, 1), (0, 1), (4, 4)] ∧
+      (∃ x y, lift x = (1, false) ∧ lift y = (3, false) ∧ s.rotate x = y) ∧
+      (∃ x y, lift x = (3, true) ∧ lift y = (1, true) ∧ s.rotate x = y) := by
+  obtain ⟨H, s, lift, _, hedges, hz, _, hrange, hrotate⟩ :=
+    r.exists_numericalGenusZero_glueMarkerEdges (by decide) genus h k
+      (by decide) (by decide) different
+  let f := r.rotate * Equiv.swap (r.faceNext h.reverse) (r.faceNext k.reverse) *
+    Equiv.swap h.reverse k.reverse
+  have splice (x y : Graph.Dart G) (hx : x.1 ≠ k.1) (hy : y.1 ≠ k.1)
+      (tag : Bool) (h₁ : f x = (k.1, tag)) (h₂ : f (k.1, tag) = y) :
+      ∃ X Y, lift X = x ∧ lift Y = y ∧ s.rotate X = Y := by
+    obtain ⟨X, hX⟩ := (hrange x).mpr hx
+    obtain ⟨Y, hY⟩ := (hrange y).mpr hy
+    refine ⟨X, Y, hX, hY, (hrotate X Y).mpr (Or.inr ⟨tag, ?_, ?_⟩)⟩
+    · rw [hX]
+      exact h₁
+    · rw [hY]
+      exact h₂
+  have ha : r.faceNext h.reverse = (1, false) := faceFromTable _ _ (by decide)
+  have hb : r.faceNext k.reverse = (3, false) := faceFromTable _ _ (by decide)
+  refine ⟨H, s, lift, hz, hedges.trans (by decide +kernel),
+    splice (1, false) (3, false) (by decide) (by decide) false ?_ ?_,
+    splice (3, true) (1, true) (by decide) (by decide) true ?_ ?_⟩
+  all_goals
+    dsimp only [f]
+    rw [ha, hb]
+    decide +kernel
 
 end CslibFrontierTests.RotationVertexJoin
