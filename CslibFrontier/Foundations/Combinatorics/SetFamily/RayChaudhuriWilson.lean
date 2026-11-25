@@ -100,16 +100,12 @@ private def ind [DecidableEq κ] (X : Finset κ) : κ → Bool := fun i => decid
 private theorem monomial_ind_of_subset [DecidableEq κ] {I X : Finset κ} (h : I ⊆ X) :
     monomial K I (ind X) = 1 := by
   rw [monomial_apply]
-  split_ifs with h'
-  · rfl
-  · exact absurd (fun i hi => decide_eq_true (h hi)) h'
+  exact ite_eq_left fun i hi => decide_eq_true (h hi)
 
 private theorem monomial_ind_of_not_subset [DecidableEq κ] {I X : Finset κ} (h : ¬ I ⊆ X) :
     monomial K I (ind X) = 0 := by
   rw [monomial_apply]
-  split_ifs with h'
-  · exact absurd (fun i hi => of_decide_eq_true (h' i hi)) h
-  · rfl
+  exact ite_eq_right fun h' => h fun i hi => of_decide_eq_true (h' i hi)
 
 /-- The function `x ↦ |A ∩ X| - c` at `x = ind X`: the sum of the bits of `A`, less `c`. -/
 private def cardInterSub (A : Finset κ) (c : K) : (κ → Bool) → K :=
@@ -117,12 +113,11 @@ private def cardInterSub (A : Finset κ) (c : K) : (κ → Bool) → K :=
 
 private theorem cardInterSub_ind [DecidableEq κ] (A X : Finset κ) (c : K) :
     cardInterSub A c (ind X) = (#(A ∩ X) : K) - c := by
-  have h : ∀ i, monomial K {i} (ind X) = if i ∈ X then 1 else 0 := fun i => by
+  have h (i) : monomial K {i} (ind X) = if i ∈ X then 1 else 0 := by
     split_ifs with hi
-    · exact monomial_ind_of_subset (singleton_subset_iff.2 hi)
-    · exact monomial_ind_of_not_subset (mt singleton_subset_iff.1 hi)
-  simp only [cardInterSub, Pi.sub_apply, Finset.sum_apply, h]
-  rw [sum_boole, filter_mem_eq_inter]
+    exacts [monomial_ind_of_subset (singleton_subset_iff.2 hi),
+      monomial_ind_of_not_subset (mt singleton_subset_iff.1 hi)]
+  simp only [cardInterSub, Pi.sub_apply, Finset.sum_apply, h, sum_boole, filter_mem_eq_inter]
 
 private theorem cardInterSub_mem (A : Finset κ) (c : K) : cardInterSub A c ∈ lowDegree K κ 1 :=
   Submodule.sub_mem _ (Submodule.sum_mem _ fun i _ => monomial_mem_lowDegree (card_singleton i).le)
@@ -135,8 +130,7 @@ private theorem prod_cardInterSub_mem (A : Finset κ) (L : Finset K) :
 
 private theorem prod_cardInterSub_ind [DecidableEq κ] (A X : Finset κ) (L : Finset K) :
     (∏ l ∈ L, cardInterSub A l) (ind X) = ∏ l ∈ L, ((#(A ∩ X) : K) - l) := by
-  rw [Finset.prod_apply]
-  exact prod_congr rfl fun l _ => cardInterSub_ind A X l
+  rw [Finset.prod_apply]; exact prod_congr rfl fun l _ => cardInterSub_ind A X l
 
 /-- A linearly independent family of functions of degree at most `s` has at most as many members
 as there are sets of at most `s` coordinates (`Cslib.BitString.finrank_lowDegree_le`). -/
@@ -155,11 +149,8 @@ private theorem card_filter_card_le_eq_add {κ : Type*} [Fintype κ] (s : ℕ) :
       Fintype.card {I : Finset κ // #I < s} + (Fintype.card κ).choose s := by
   classical
   rw [Fintype.card_subtype, ← Fintype.card_finset_len s, Fintype.card_subtype,
-    ← card_union_of_disjoint (disjoint_filter.2 fun I _ h1 h2 => by omega), ← filter_or]
-  congr 1
-  ext I
-  simp only [mem_filter, mem_univ, true_and]
-  exact le_iff_lt_or_eq
+    ← card_union_of_disjoint (disjoint_filter.2 fun _ _ _ _ => by omega), ← filter_or]
+  exact congrArg card (ext fun _ => by simp [le_iff_lt_or_eq])
 
 variable {K ι κ : Type*} [Field K] [Fintype ι] [Fintype κ] [DecidableEq κ]
 
@@ -173,18 +164,15 @@ theorem Fintype.card_le_sum_choose_of_card_inter_mem (A : ι → Finset κ) (L :
   classical
   rw [← Finset.card_filter_card_le_eq_sum_choose]
   refine card_le_of_linearIndependent (fun i => ∏ l ∈ L, cardInterSub (A i) l)
-    (fun i => prod_cardInterSub_mem (A i) L) ?_
-  rw [Fintype.linearIndependent_iff]
-  intro g hg i
+    (fun i => prod_cardInterSub_mem (A i) L) (Fintype.linearIndependent_iff.2 fun g hg i => ?_)
   have h := congrFun hg (ind (A i))
   simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply,
     prod_cardInterSub_ind] at h
-  rw [Finset.sum_eq_single i
-    (fun j _ hj => by rw [prod_eq_zero (hinter j i hj) (sub_self _), mul_zero])
+  rw [Finset.sum_eq_single i (fun j _ hj => by
+      rw [prod_eq_zero (hinter j i hj) (sub_self _), mul_zero])
     (fun h => absurd (mem_univ i) h), inter_self] at h
-  have hne : ∏ l ∈ L, ((#(A i) : K) - l) ≠ 0 :=
-    prod_ne_zero_iff.2 fun l hl => sub_ne_zero.2 fun h => hself i (h ▸ hl)
-  exact (mul_eq_zero.1 h).resolve_right hne
+  exact (mul_eq_zero.1 h).resolve_right
+    (prod_ne_zero_iff.2 fun l hl => sub_ne_zero.2 fun h => hself i (h ▸ hl))
 
 /-- **The uniform bound**: a `d`-uniform family whose distinct members meet in a number of points
 lying in `L ⊆ K`, with `d ∉ L` and `(j : K) ≠ d` for `j < |L|`, has at most `C(|κ|, |L|)` members.
@@ -194,77 +182,49 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
     (hd : (d : K) ∉ L) (hL : ∀ j < #L, (j : K) ≠ d) :
     Fintype.card ι ≤ (Fintype.card κ).choose #L := by
   classical
-  set s := #L with hs
-  -- The functions of the members, and `x ↦ x_I (|X| - d)` for `|I| < s`, which vanish on them.
+  set s := #L
   let f : ι ⊕ {I : Finset κ // #I < s} → (κ → Bool) → K := Sum.elim
     (fun i => ∏ l ∈ L, cardInterSub (A i) l)
     (fun I => Cslib.BitString.monomial K I.1 * cardInterSub univ (d : K))
   have hmem : ∀ t, f t ∈ Cslib.BitString.lowDegree K κ s := by
     rintro (i | I)
     · exact prod_cardInterSub_mem (A i) L
-    · refine Cslib.BitString.lowDegree_mono (by have := I.2; omega)
-        (Cslib.BitString.mul_mem_lowDegree
-          (Cslib.BitString.monomial_mem_lowDegree (R := K) (le_refl #I.1))
+    · exact Cslib.BitString.lowDegree_mono (by have := I.2; omega)
+        (Cslib.BitString.mul_mem_lowDegree (Cslib.BitString.monomial_mem_lowDegree le_rfl)
           (cardInterSub_mem univ (d : K)))
-  have hli : LinearIndependent K f := by
-    rw [Fintype.linearIndependent_iff]
-    intro g hg
-    have hev : ∀ X, ∑ t, g t * f t (ind X) = 0 := fun X => by
-      have h := congrFun hg (ind X)
-      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] at h
-      exact h
-    -- Evaluating at the members kills the coefficients of the `f (inl i)`.
-    have hF : ∀ i, g (Sum.inl i) = 0 := by
-      intro i
+  have hli : LinearIndependent K f := Fintype.linearIndependent_iff.2 fun g hg => by
+    have hev (X) : ∑ t, g t * f t (ind X) = 0 := by
+      simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] using
+        congrFun hg (ind X)
+    have hF (i) : g (Sum.inl i) = 0 := by
       have h := hev (A i)
-      rw [Fintype.sum_sum_type] at h
-      have hr : ∀ I : {I : Finset κ // #I < s},
-          g (Sum.inr I) * f (Sum.inr I) (ind (A i)) = 0 := by
-        intro I
-        simp only [f, Sum.elim_inr, Pi.mul_apply, cardInterSub_ind, univ_inter, hcard, sub_self,
-          mul_zero]
-      have hl : ∀ j, j ≠ i → g (Sum.inl j) * f (Sum.inl j) (ind (A i)) = 0 := by
-        intro j hj
-        simp only [f, Sum.elim_inl, prod_cardInterSub_ind]
-        rw [prod_eq_zero (hinter j i hj) (sub_self _), mul_zero]
-      rw [Finset.sum_eq_zero fun I _ => hr I, add_zero,
-        Finset.sum_eq_single i (fun j _ hj => hl j hj) (fun h => absurd (mem_univ i) h)] at h
+      rw [Fintype.sum_sum_type, Finset.sum_eq_zero fun (I : {I : Finset κ // #I < s}) _ => by
+          simp [f, Pi.mul_apply, cardInterSub_ind, hcard], add_zero,
+        Finset.sum_eq_single i (fun j _ hj => by
+          simp only [f, Sum.elim_inl, prod_cardInterSub_ind]
+          rw [prod_eq_zero (hinter j i hj) (sub_self _), mul_zero])
+        (fun h => absurd (mem_univ i) h)] at h
       simp only [f, Sum.elim_inl, prod_cardInterSub_ind, inter_self, hcard] at h
-      have hne : ∏ l ∈ L, ((d : K) - l) ≠ 0 :=
-        prod_ne_zero_iff.2 fun l hl => sub_ne_zero.2 fun h => hd (h ▸ hl)
-      exact (mul_eq_zero.1 h).resolve_right hne
-    have hG : ∀ X, ∑ I : {I : Finset κ // #I < s},
-        g (Sum.inr I) * (Cslib.BitString.monomial K I.1 (ind X) * ((#X : K) - d)) = 0 := by
-      intro X
-      have h := hev X
+      exact (mul_eq_zero.1 h).resolve_right
+        (prod_ne_zero_iff.2 fun l hl => sub_ne_zero.2 fun h => hd (h ▸ hl))
+    have hI : ∀ m (I : {I : Finset κ // #I < s}), #I.1 = m → g (Sum.inr I) = 0 := by
+      intro m
+      induction m using Nat.strong_induction_on with | _ m ih => ?_
+      intro I hIm
+      have h := hev I.1
       rw [Fintype.sum_sum_type] at h
       simp only [hF, zero_mul, sum_const_zero, zero_add, f, Sum.elim_inr, Pi.mul_apply,
         cardInterSub_ind, univ_inter] at h
-      exact h
-    -- Evaluating at `I` itself, by induction on `|I|`, kills the coefficient of `f (inr I)`.
-    have hI : ∀ m, ∀ I : {I : Finset κ // #I < s}, #I.1 = m → g (Sum.inr I) = 0 := by
-      intro m
-      induction m using Nat.strong_induction_on with
-      | _ m ih =>
-        intro I hIm
-        have h := hG I.1
-        rw [Finset.sum_eq_single I] at h
-        · rw [monomial_ind_of_subset (subset_refl _), one_mul] at h
-          have hne : (#I.1 : K) - d ≠ 0 := sub_ne_zero.2 (hL _ I.2)
-          exact (mul_eq_zero.1 h).resolve_right hne
-        · intro J _ hJI
-          by_cases hsub : J.1 ⊆ I.1
-          · have hlt : #J.1 < m := hIm ▸ card_lt_card
-              (Finset.ssubset_iff_subset_ne.2 ⟨hsub, fun h => hJI (Subtype.ext h)⟩)
-            rw [ih _ hlt J rfl, zero_mul]
-          · rw [monomial_ind_of_not_subset hsub, zero_mul, mul_zero]
-        · exact fun h => absurd (mem_univ I) h
-    rintro (i | I)
-    · exact hF i
-    · exact hI _ I rfl
+      rw [Finset.sum_eq_single I (fun J _ hJI => ?_) (fun h => absurd (mem_univ I) h),
+        monomial_ind_of_subset Subset.rfl, one_mul] at h
+      · exact (mul_eq_zero.1 h).resolve_right (sub_ne_zero.2 (hL _ I.2))
+      · by_cases hsub : J.1 ⊆ I.1
+        · rw [ih _ (hIm ▸ card_lt_card (Finset.ssubset_iff_subset_ne.2
+            ⟨hsub, mt Subtype.ext hJI⟩)) J rfl, zero_mul]
+        · rw [monomial_ind_of_not_subset hsub, zero_mul, mul_zero]
+    rintro (i | I); exacts [hF i, hI _ I rfl]
   have h1 := card_le_of_linearIndependent f hmem hli
-  rw [card_filter_card_le_eq_add, Fintype.card_sum] at h1
-  omega
+  rw [card_filter_card_le_eq_add, Fintype.card_sum] at h1; omega
 
 /-- **Ray-Chaudhuri–Wilson**: a `d`-uniform family whose distinct members meet in a number of
 points lying in a set `L` of naturals below `d` has at most `C(|κ|, |L|)` members
@@ -273,20 +233,19 @@ theorem Fintype.card_le_choose_of_card_inter_mem_of_lt (A : ι → Finset κ) {d
     (hcard : ∀ i, #(A i) = d) (hinter : ∀ i j, i ≠ j → #(A i ∩ A j) ∈ L)
     (hL : ∀ l ∈ L, l < d) :
     Fintype.card ι ≤ (Fintype.card κ).choose #L := by
-  have h := Fintype.card_le_choose_of_card_inter_mem (K := ℚ) A (L.map Nat.castEmbedding) hcard
-    (fun i j hij => mem_map_of_mem _ (hinter i j hij)) ?_ ?_
-  · rwa [Finset.card_map] at h
-  · intro hd
-    obtain ⟨l, hl, hld⟩ := mem_map.1 hd
-    rw [Nat.castEmbedding_apply, Nat.cast_inj] at hld
-    exact (hL l hl).ne hld
-  · intro j hj hjd
-    rw [Finset.card_map] at hj
-    rw [Nat.cast_inj] at hjd
-    subst hjd
-    have h := Finset.card_le_card (s := L) (t := range j) fun l hl => mem_range.2 (hL l hl)
-    rw [Finset.card_range] at h
-    omega
+  simpa only [Finset.card_map] using
+    Fintype.card_le_choose_of_card_inter_mem (K := ℚ) A (L.map Nat.castEmbedding) hcard
+      (fun i j hij => mem_map_of_mem _ (hinter i j hij))
+      (fun hd => by
+        obtain ⟨l, hl, hld⟩ := mem_map.1 hd
+        rw [Nat.castEmbedding_apply, Nat.cast_inj] at hld
+        exact (hL l hl).ne hld)
+      fun j hj hjd => by
+        rw [Finset.card_map] at hj
+        cases Nat.cast_inj.1 hjd
+        have := card_le_card (s := L) (t := range d) fun l hl => mem_range.2 (hL l hl)
+        rw [Finset.card_range] at this
+        omega
 
 /-- **Modular Frankl–Wilson**, uniform case: for a prime `p` and a set `L` of residues mod `p`, a
 `d`-uniform family with `d mod p ∉ L` whose distinct members meet in a number of points lying in
@@ -300,9 +259,7 @@ theorem Fintype.card_le_choose_of_card_inter_mem_zmod {p : ℕ} [Fact p.Prime] (
     (hL : #L ≤ d % p) :
     Fintype.card ι ≤ (Fintype.card κ).choose #L := by
   refine Fintype.card_le_choose_of_card_inter_mem A L hcard hinter hd fun j hj hjd => ?_
-  rw [ZMod.natCast_eq_natCast_iff'] at hjd
-  have hdp := Nat.mod_lt d (Fact.out : p.Prime).pos
-  rw [Nat.mod_eq_of_lt (by omega : j < p)] at hjd
-  omega
+  have := Nat.mod_lt d (Fact.out : p.Prime).pos
+  rw [ZMod.natCast_eq_natCast_iff', Nat.mod_eq_of_lt (by omega : j < p)] at hjd; omega
 
 end
