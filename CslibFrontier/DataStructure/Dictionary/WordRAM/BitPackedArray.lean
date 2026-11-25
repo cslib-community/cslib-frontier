@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.WordRAM.ExactLog
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 public import Mathlib.Data.Nat.Bitwise
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Mask
 import Mathlib.Tactic.Ring
 
 /-!
@@ -215,9 +216,6 @@ theorem highWidth_lt {k w idx : ℕ} (hw : 0 < w) (hkw : k ≤ w) :
 
 /-! ## Section 2: Bitwise shift/mask algebra and disjoint-interval non-interference -/
 
-private theorem and_mask_lt (v j : ℕ) : v &&& (2 ^ j - 1) < 2 ^ j :=
-  Nat.and_le_right.trans_lt (Nat.sub_lt (Nat.two_pow_pos j) one_pos)
-
 /-- Shifting `x < 2 ^ len` left by `a` and right by `a`, then masking to `len` bits, recovers
 `x`. -/
 theorem shiftLeft_shiftRight_and_self {x a len : ℕ} (hx : x < 2 ^ len) :
@@ -257,7 +255,7 @@ theorem extract_xor_shiftLeft_self (word a len : ℕ) {val : ℕ} (hval : val < 
     (((word ^^^ ((old ^^^ val) <<< a)) >>> a) &&& (2 ^ len - 1)) = val := by
   intro old
   rw [Nat.shiftRight_xor_distrib, Nat.and_xor_distrib_right,
-    shiftLeft_shiftRight_and_self (Nat.xor_lt_two_pow (and_mask_lt _ _) hval)]
+    shiftLeft_shiftRight_and_self (Nat.xor_lt_two_pow (Nat.and_two_pow_sub_one_lt _ _) hval)]
   change old ^^^ (old ^^^ val) = val
   rw [← Nat.xor_assoc, Nat.xor_self, Nat.zero_xor]
 
@@ -305,8 +303,9 @@ theorem readBitSlice_lt (base wOff bOff k w : ℕ) (mem : ℕ → ℕ) :
   dsimp only [readBitSlice]
   conv_rhs => rw [← Nat.add_sub_of_le (Nat.min_le_left k (w - bOff))]
   exact Nat.xor_lt_two_pow
-    ((and_mask_lt _ _).trans_le (Nat.pow_le_pow_right two_pos (Nat.le_add_right _ _)))
-    ((Nat.shiftLeft_lt (and_mask_lt _ _)).trans_eq (by rw [Nat.add_comm]))
+    ((Nat.and_two_pow_sub_one_lt _ _).trans_le
+      (Nat.pow_le_pow_right two_pos (Nat.le_add_right _ _)))
+    ((Nat.shiftLeft_lt (Nat.and_two_pow_sub_one_lt _ _)).trans_eq (by rw [Nat.add_comm]))
 
 /-- Reading a bit-slice from zeroed words returns `0`. -/
 theorem readBitSlice_zero {base wOff bOff k w : ℕ} {mem : ℕ → ℕ}
@@ -321,8 +320,8 @@ theorem readBitSlice_writeBitSlice_self (base wOff bOff k w : ℕ) (mem : ℕ �
   dsimp only [readBitSlice, writeBitSlice]
   rw [Function.update_of_ne (by omega : base + wOff ≠ base + wOff + 1),
     Function.update_self, Function.update_self,
-    extract_xor_shiftLeft_self _ _ _ (and_mask_lt _ _),
-    extract_xor_shiftLeft_self _ _ _ (and_mask_lt _ _)]
+    extract_xor_shiftLeft_self _ _ _ (Nat.and_two_pow_sub_one_lt _ _),
+    extract_xor_shiftLeft_self _ _ _ (Nat.and_two_pow_sub_one_lt _ _)]
   exact low_xor_high_shiftLeft (by rwa [Nat.add_sub_of_le (Nat.min_le_left _ _)])
 
 /-- Updating word `addr_w` by XORing at `[a, a + len)` preserves extracting `[b, b + len')` from
@@ -365,13 +364,15 @@ theorem readBitSlice_writeBitSlice_of_disjoint {base wOff bOff k wOff' bOff' k' 
         ((mem (base + rOff) >>> rb) &&& (2 ^ rlen - 1)) := by
     have hloW : (wOff + 1) * w = wOff * w + w := Nat.succ_mul wOff w
     rw [extract_update_xor_of_disjoint mem₁ (base + wOff + 1) (base + rOff)
-      (Nat.xor_lt_two_pow (and_mask_lt _ _) (and_mask_lt _ _)) fun he => by
+      (Nat.xor_lt_two_pow (Nat.and_two_pow_sub_one_lt _ _) (Nat.and_two_pow_sub_one_lt _ _))
+      fun he => by
         rcases Nat.eq_zero_or_pos k₁ with hk1 | hk1
         · left; omega
         · have : rOff * w = (wOff + 1) * w := congrArg (· * w) (by omega)
           omega]
     exact extract_update_xor_of_disjoint mem (base + wOff) (base + rOff)
-      (Nat.xor_lt_two_pow (and_mask_lt _ _) (and_mask_lt _ _)) fun he => by
+      (Nat.xor_lt_two_pow (Nat.and_two_pow_sub_one_lt _ _) (Nat.and_two_pow_sub_one_lt _ _))
+      fun he => by
         have : rOff * w = wOff * w := congrArg (· * w) (by omega)
         omega
   have hlo' : (wOff' + 1) * w = wOff' * w + w := Nat.succ_mul wOff' w
@@ -503,8 +504,10 @@ theorem writePacked_lt_two_pow {base k w : ℕ} (hw : 0 < w) (hkw : k ≤ w) {me
   have h0 := bitOffset_add_lowWidth_le (k := k) (idx := idx) hw
   have h1 := lowWidth_add_highWidth k w idx
   refine upd_lt (upd_lt hmem (shiftLeft_lt_two_pow_of_lt
-    (Nat.xor_lt_two_pow (and_mask_lt _ _) (and_mask_lt _ _)) (by omega)))
-    (shiftLeft_lt_two_pow_of_lt (Nat.xor_lt_two_pow (and_mask_lt _ _) (and_mask_lt _ _))
+    (Nat.xor_lt_two_pow (Nat.and_two_pow_sub_one_lt _ _) (Nat.and_two_pow_sub_one_lt _ _))
+    (by omega)))
+    (shiftLeft_lt_two_pow_of_lt
+      (Nat.xor_lt_two_pow (Nat.and_two_pow_sub_one_lt _ _) (Nat.and_two_pow_sub_one_lt _ _))
       (by omega)) addr
 
 /-! ## Section 4: Structured Word-RAM programs (`readPackedCode` and `writePackedCode`) -/
@@ -708,12 +711,12 @@ theorem readPackedCode_execWithin {base offset N k w idx : ℕ} {x : Data 10}
     addrSetupCode_execWithin hw hkw hidx hbase hr1 hr8 hr9 (hr1 ▸ hx.1 1) hfit_end
   have hsum := lowWidth_add_highWidth k w idx
   have hlow : Fits w ((x.mem (base + offset + wordOffset k w idx) >>> bitOffset k w idx) &&&
-      (2 ^ lowWidth k w idx - 1)) := Fits.mono (and_mask_lt _ _) (by omega)
+      (2 ^ lowWidth k w idx - 1)) := Fits.mono (Nat.and_two_pow_sub_one_lt _ _) (by omega)
   have hhigh : Fits w ((x.mem (base + offset + wordOffset k w idx + 1) >>> 0) &&&
-      (2 ^ highWidth k w idx - 1)) := Fits.mono (and_mask_lt _ _) (by omega)
+      (2 ^ highWidth k w idx - 1)) := Fits.mono (Nat.and_two_pow_sub_one_lt _ _) (by omega)
   have hshl : Fits w (((x.mem (base + offset + wordOffset k w idx + 1) >>> 0) &&&
       (2 ^ highWidth k w idx - 1)) <<< lowWidth k w idx) :=
-    shiftLeft_lt_two_pow_of_lt (and_mask_lt _ _) (by omega)
+    shiftLeft_lt_two_pow_of_lt (Nat.and_two_pow_sub_one_lt _ _) (by omega)
   have hshr0 : Fits w (x.mem (base + offset + wordOffset k w idx) >>> bitOffset k w idx) :=
     (hx.2 _).of_le (Nat.shiftRight_le _ _)
   have hshr1 : Fits w (x.mem (base + offset + wordOffset k w idx + 1) >>> 0) := hx.2 _
@@ -760,9 +763,11 @@ theorem writePackedCode_execWithin {base offset N k w idx val : ℕ} {x : Data 1
       (2 ^ highWidth k w idx - 1) = old₁
   generalize hval₁ : (val >>> lowWidth k w idx) &&& (2 ^ highWidth k w idx - 1) = val₁
   have hδ0 : old₀ ^^^ val₀ < 2 ^ lowWidth k w idx :=
-    Nat.xor_lt_two_pow (hold₀ ▸ and_mask_lt _ _) (hval₀ ▸ and_mask_lt _ _)
+    Nat.xor_lt_two_pow (hold₀ ▸ Nat.and_two_pow_sub_one_lt _ _)
+      (hval₀ ▸ Nat.and_two_pow_sub_one_lt _ _)
   have hδ1 : old₁ ^^^ val₁ < 2 ^ highWidth k w idx :=
-    Nat.xor_lt_two_pow (hold₁ ▸ and_mask_lt _ _) (hval₁ ▸ and_mask_lt _ _)
+    Nat.xor_lt_two_pow (hold₁ ▸ Nat.and_two_pow_sub_one_lt _ _)
+      (hval₁ ▸ Nat.and_two_pow_sub_one_lt _ _)
   have hsh0 : Fits w ((old₀ ^^^ val₀) <<< bitOffset k w idx) :=
     shiftLeft_lt_two_pow_of_lt hδ0 (by omega)
   have hsh1 : Fits w ((old₁ ^^^ val₁) <<< 0) := Fits.mono hδ1 (by omega)
@@ -774,8 +779,10 @@ theorem writePackedCode_execWithin {base offset N k w idx val : ℕ} {x : Data 1
     (hx.2 _).of_le (Nat.shiftRight_le _ _),
     show Fits w (x.mem (base + offset + wordOffset k w idx + 1) >>> 0) from hx.2 _,
     (hr2 ▸ hx.1 2).of_le (Nat.shiftRight_le _ _),
-    Fits.mono (hold₀ ▸ and_mask_lt _ _) h0_le, Fits.mono (hval₀ ▸ and_mask_lt _ _) h0_le,
-    Fits.mono (hold₁ ▸ and_mask_lt _ _) h1_le, Fits.mono (hval₁ ▸ and_mask_lt _ _) h1_le,
+    Fits.mono (hold₀ ▸ Nat.and_two_pow_sub_one_lt _ _) h0_le,
+    Fits.mono (hval₀ ▸ Nat.and_two_pow_sub_one_lt _ _) h0_le,
+    Fits.mono (hold₁ ▸ Nat.and_two_pow_sub_one_lt _ _) h1_le,
+    Fits.mono (hval₁ ▸ Nat.and_two_pow_sub_one_lt _ _) h1_le,
     Fits.mono hδ0 h0_le, Fits.mono hδ1 h1_le, hsh0, hsh1]
   refine ⟨?_, by wram_simp [hr0, hr1', hr2'.trans hr2]⟩
   subst hold₀ hval₀ hold₁ hval₁

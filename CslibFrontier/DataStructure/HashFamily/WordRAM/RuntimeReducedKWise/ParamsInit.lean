@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.GlueVector
 public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.ReducedKWise
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Mask
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -288,7 +289,7 @@ private theorem realizesBounded_initTableWrite :
       rw [Nat.shiftRight_eq_div_pow _ (rPack w w₀ b b'),
         Nat.shiftRight_eq_div_pow _ (rPack w w₀ b b')]
       exact Nat.div_le_div_right hprev_le
-    have hsub_lt := and_two_pow_sub_one_lt idx (rPack w w₀ b b')
+    have hsub_lt := Nat.and_two_pow_sub_one_lt idx (rPack w w₀ b b')
     have hsh_lt : (idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b') < w :=
       packSlot_sh_lt hc_lt.le
     have hpSh_lt :
@@ -351,7 +352,7 @@ private theorem realizesBounded_initTableStepGen :
   · refine ⟨w₀, b, b', k, hc_lt, rfl, hidx, hfr, ?_,
         clmulTab_prev_limb (w := w) (tBase := ReducedKWise.tabBase hashBase w₀ b b' k) hidx hentry⟩
     change (s.mem _ &&& ((1 <<< _) - 1)) < _
-    rw [Nat.shiftLeft_eq, one_mul]; exact and_two_pow_sub_one_lt _ _
+    rw [Nat.shiftLeft_eq, one_mul]; exact Nat.and_two_pow_sub_one_lt _ _
 
 private theorem initTableGenProg_aux {w w₀ b b' k hashBase : ℕ} {s₀ : Memory.State}
     (hc_lt : 2 * rChunk w₀ b b' < w)
@@ -401,7 +402,7 @@ private theorem initTableGenProg_aux {w w₀ b b' k hashBase : ℕ} {s₀ : Memo
         have htBase_end :
             ReducedKWise.tabBase hashBase w₀ b b' k + reducedTableWords (rStep w₀ b b') w ≤
               s.frontier := by wram_omega
-        have hsub_lt := and_two_pow_sub_one_lt idx (rPack w w₀ b b')
+        have hsub_lt := Nat.and_two_pow_sub_one_lt idx (rPack w w₀ b b')
         have hsh_lt : (idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b') < w :=
           packSlot_sh_lt hc_lt.le
         let sh := (idx &&& (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b')
@@ -409,7 +410,7 @@ private theorem initTableGenProg_aux {w w₀ b b' k hashBase : ℕ} {s₀ : Memo
           idx >>> rPack w w₀ b b')) &&&
           ((1 <<< sh) - 1)
         have hmasked_lt : masked < 2 ^ sh := by
-          dsimp only [masked]; rw [Nat.shiftLeft_eq, one_mul]; exact and_two_pow_sub_one_lt _ sh
+          dsimp only [masked]; rw [Nat.shiftLeft_eq, one_mul]; exact Nat.and_two_pow_sub_one_lt _ sh
         have hlimb := clmulTab_prev_limb (w := w)
           (tBase := ReducedKWise.tabBase hashBase w₀ b b' k) hidx hentry
         dsimp only [ReducedKWise.tabBase] at hlimb
@@ -558,10 +559,11 @@ private theorem realizesBounded_karatsubaHalf :
     have _ : Fits w w := Nat.lt_two_pow_self
     have h_le : (w₀ - 1) / 2 ≤ w₀ - 1 := Nat.div_le_self _ 2
     have h2_le : 2 * ((w₀ - 1) / 2) ≤ w₀ - 1 := Nat.mul_div_le _ 2
-    have hα0 : α &&& (2 ^ ((w₀ - 1) / 2) - 1) < 2 ^ ((w₀ - 1) / 2) := and_two_pow_sub_one_lt _ _
+    have hα0 : α &&& (2 ^ ((w₀ - 1) / 2) - 1) < 2 ^ ((w₀ - 1) / 2) := Nat.and_two_pow_sub_one_lt _ _
     have hα1 : α >>> ((w₀ - 1) / 2) < 2 ^ ((w₀ - 1) - (w₀ - 1) / 2) :=
       shiftRight_lt_pow_sub h_le hα_lt
-    have hx0 : x' &&& (2 ^ ((w₀ - 1) / 2) - 1) < 2 ^ ((w₀ - 1) / 2) := and_two_pow_sub_one_lt _ _
+    have hx0 : x' &&& (2 ^ ((w₀ - 1) / 2) - 1) < 2 ^ ((w₀ - 1) / 2) :=
+      Nat.and_two_pow_sub_one_lt _ _
     have hx1 : x' >>> ((w₀ - 1) / 2) < 2 ^ ((w₀ - 1) - (w₀ - 1) / 2) :=
       shiftRight_lt_pow_sub h_le hx'_lt
     have hmul00 : (α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' &&& (2 ^ ((w₀ - 1) / 2) - 1)) <
@@ -574,19 +576,19 @@ private theorem realizesBounded_karatsubaHalf :
     have hp1 : (((α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' >>> ((w₀ - 1) / 2))) &&&
         (2 ^ ((w₀ - 1) - (w₀ - 1) / 2) - 1)) <<< ((w₀ - 1) / 2) < 2 ^ (w₀ - 1) := by
       rw [Nat.shiftLeft_eq]
-      exact (Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt _ _)
+      exact (Nat.mul_lt_mul_of_pos_right (Nat.and_two_pow_sub_one_lt _ _)
         (Nat.two_pow_pos _)).trans_eq (by rw [← pow_add, Nat.sub_add_cancel h_le])
     have hp2 : (((α >>> ((w₀ - 1) / 2)) * (x' &&& (2 ^ ((w₀ - 1) / 2) - 1))) &&&
         (2 ^ ((w₀ - 1) - (w₀ - 1) / 2) - 1)) <<< ((w₀ - 1) / 2) < 2 ^ (w₀ - 1) := by
       rw [Nat.shiftLeft_eq]
-      exact (Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt _ _)
+      exact (Nat.mul_lt_mul_of_pos_right (Nat.and_two_pow_sub_one_lt _ _)
         (Nat.two_pow_pos _)).trans_eq (by rw [← pow_add, Nat.sub_add_cancel h_le])
     have hq3 : ((α >>> ((w₀ - 1) / 2)) &&& (2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1)) *
         ((x' >>> ((w₀ - 1) / 2)) &&& (2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1)) <
           2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) := by
-      have h2 := and_two_pow_sub_one_lt (x' >>> ((w₀ - 1) / 2)) ((w₀ - 1) - 2 * ((w₀ - 1) / 2))
+      have h2 := Nat.and_two_pow_sub_one_lt (x' >>> ((w₀ - 1) / 2)) ((w₀ - 1) - 2 * ((w₀ - 1) / 2))
       have hle1 : (α >>> ((w₀ - 1) / 2)) &&& (2 ^ ((w₀ - 1) - 2 * ((w₀ - 1) / 2)) - 1) ≤ 1 := by
-        have h1 := and_two_pow_sub_one_lt (α >>> ((w₀ - 1) / 2)) ((w₀ - 1) - 2 * ((w₀ - 1) / 2))
+        have h1 := Nat.and_two_pow_sub_one_lt (α >>> ((w₀ - 1) / 2)) ((w₀ - 1) - 2 * ((w₀ - 1) / 2))
         have : 2 ^ 1 = 2 := rfl
         wram_omega [this]
       exact lt_of_le_of_lt (by calc _ ≤ 1 * _ := Nat.mul_le_mul_right _ hle1
@@ -597,14 +599,14 @@ private theorem realizesBounded_karatsubaHalf :
       rw [Nat.shiftLeft_eq]
       exact (Nat.mul_lt_mul_of_pos_right hq3 (Nat.two_pow_pos _)).trans_eq
         (by rw [← pow_add, Nat.sub_add_cancel h2_le])
-    have hp0_lt := and_two_pow_sub_one_lt
+    have hp0_lt := Nat.and_two_pow_sub_one_lt
       ((α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' &&& (2 ^ ((w₀ - 1) / 2) - 1))) (w₀ - 1)
-    have hs1_lt := and_two_pow_sub_one_lt
+    have hs1_lt := Nat.and_two_pow_sub_one_lt
       ((((α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' &&& (2 ^ ((w₀ - 1) / 2) - 1))) &&&
         (2 ^ (w₀ - 1) - 1)) +
        ((((α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' >>> ((w₀ - 1) / 2))) &&&
         (2 ^ ((w₀ - 1) - (w₀ - 1) / 2) - 1)) <<< ((w₀ - 1) / 2))) (w₀ - 1)
-    have hs2_lt := and_two_pow_sub_one_lt
+    have hs2_lt := Nat.and_two_pow_sub_one_lt
       ((((((α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' &&& (2 ^ ((w₀ - 1) / 2) - 1))) &&&
         (2 ^ (w₀ - 1) - 1)) +
        ((((α &&& (2 ^ ((w₀ - 1) / 2) - 1)) * (x' >>> ((w₀ - 1) / 2))) &&&
@@ -648,14 +650,14 @@ theorem realizesBounded_reduceKeyGen :
     have hhalf_lt : (Memory.spec 0).clientResult s
         (karatsubaHalfProg (mkHashParams w w₀ b b' k, s.mem hashBase,
           uVal &&& (2 ^ (w₀ - 1) - 1))) < 2 ^ (w₀ - 1) := by
-      dsimp only [karatsubaHalfProg]; exact and_two_pow_sub_one_lt _ (w₀ - 1)
+      dsimp only [karatsubaHalfProg]; exact Nat.and_two_pow_sub_one_lt _ (w₀ - 1)
     have hbit : uVal &&& 1 < 2 := by
       rw [Nat.and_two_pow_sub_one_eq_mod uVal 1]; exact Nat.mod_lt uVal two_pos)
   all_goals try omega
   all_goals try exact ⟨w₀, b, b', k, hw₀_pos, hw₀_le, hc_lt, rfl, hα_lt,
-    and_two_pow_sub_one_lt _ (w₀ - 1)⟩
+    Nat.and_two_pow_sub_one_lt _ (w₀ - 1)⟩
   all_goals try wram_omega
-  have hm1 := and_two_pow_sub_one_lt ((uVal >>> 1) +
+  have hm1 := Nat.and_two_pow_sub_one_lt ((uVal >>> 1) +
     (Memory.spec 0).clientResult s
       (karatsubaHalfProg (mkHashParams w w₀ b b' k, s.mem hashBase,
         uVal &&& (2 ^ (w₀ - 1) - 1)))) (w₀ - 1)

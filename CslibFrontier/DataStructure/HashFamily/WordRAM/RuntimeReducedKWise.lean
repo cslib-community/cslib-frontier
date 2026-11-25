@@ -11,6 +11,7 @@ public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise.Horner
 public import CslibFrontier.Tactic.WramOmega.Init
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Mask
 import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.ValidProg
 import CslibFrontier.Tactic.WramOmega
@@ -119,7 +120,7 @@ private theorem realizesBounded_packOutStepGen :
       rw [Nat.shiftLeft_eq]
       calc (s.mem (scratchBase + m) &&& (2 ^ rChunk w₀ b b' - 1)) * 2 ^ sh
           < 2 ^ rChunk w₀ b b' * 2 ^ sh :=
-            Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt _ _) (Nat.two_pow_pos sh)
+            Nat.mul_lt_mul_of_pos_right (Nat.and_two_pow_sub_one_lt _ _) (Nat.two_pow_pos sh)
         _ = 2 ^ (rChunk w₀ b b' + sh) := (pow_add 2 _ sh).symm
         _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
     first | exact hpart | exact Nat.xor_lt_two_pow hout_lt hpart)
@@ -128,7 +129,7 @@ private theorem realizesBounded_packOutStepGen :
       rw [Nat.shiftLeft_eq 1 remB, one_mul, Nat.shiftLeft_eq]
       calc (s.mem (scratchBase + m) &&& (2 ^ remB - 1)) * 2 ^ sh
           < 2 ^ remB * 2 ^ sh :=
-            Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt _ remB) (Nat.two_pow_pos sh)
+            Nat.mul_lt_mul_of_pos_right (Nat.and_two_pow_sub_one_lt _ remB) (Nat.two_pow_pos sh)
         _ = 2 ^ (remB + sh) := (pow_add 2 remB sh).symm
         _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
     first | exact hpart | exact Nat.xor_lt_two_pow hout_lt hpart)
@@ -160,7 +161,7 @@ private theorem packOutLoop_spec {w w₀ b b' k scratchBase evalVal : ℕ} {s₀
         have hout_lt :
             (packLimbs (rChunk w₀ b b') m (getLimb (rChunk w₀ b b') evalVal) &&& (2 ^ b' - 1)) <
               2 ^ w :=
-          (and_two_pow_sub_one_lt _ b').trans_le (Nat.pow_le_pow_right two_pos hb'_le)
+          (Nat.and_two_pow_sub_one_lt _ b').trans_le (Nat.pow_le_pow_right two_pos hb'_le)
         refine ⟨⟨w₀, b, b', k, hb'_le, hc_lt, rfl, hfr_s, hm, hout_lt, Nat.sub_le _ _, by omega⟩,
           ?_, ?_, ?_, fun _ _ => ?_, ?_, ?_⟩
         · dsimp only [packOutStepGenProg, hp, hpC_mk, hpMaskC_mk]; valid_prog; omega

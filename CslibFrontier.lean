@@ -8546,6 +8546,7 @@ public import CslibFrontier.Foundations.Data.Nat.Bits.Halving
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Carry
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.CommonPrefix
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.HighestDiff
+public import CslibFrontier.Foundations.Data.Nat.Bitwise.Mask
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Multiplication
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.PackedCount
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Packing
