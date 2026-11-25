@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import Mathlib.NumberTheory.Bertrand
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -497,18 +498,7 @@ private lemma init_pt : ComputableInPolyTime init encLoopInput encVState := by
 
 private lemma growth_polyBounded :
     PolyBounded (fun I => (encLoopInput I).length) (fun I => 8 * claimBound I + 8) := by
-  refine PolyBounded.of_forall_le 64 2 fun I => ?_
-  have hparams : (encParams I.toParams).length ≤ (encLoopInput I).length :=
-    length_le_encPair_left encParams _ (I.toParams, I.tokens)
-  have hxs : (encList encNat I.xs).length ≤ (encLoopInput I).length := by
-    refine le_trans ?_ hparams
-    rw [encParams_apply]
-    exact length_le_encPair_left _ _ (I.xs, I.modulusPred, I.degree)
-  have hq : I.modulusPred ≤ (encLoopInput I).length := by
-    refine le_trans ?_ hparams
-    enc_len [encParams_apply, encParamsFields]
-  unfold claimBound
-  nlinarith
+  growth_poly
 
 /-- **The machine is strict oracle PPT** in its encoded input. -/
 private theorem isOraclePPTOn_loop : IsOraclePPTOn encLoopInput encVState loop := by

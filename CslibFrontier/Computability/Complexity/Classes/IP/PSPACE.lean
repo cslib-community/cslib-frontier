@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Foundations.Data.List.Append
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -502,13 +503,10 @@ theorem computableInPolySpace_evaluate [Finite Control] [Inhabited α]
     exact binary_two_pow.comp hexp
   have hinit : ComputableInPolyTime (fun a : α => ((a, [], none) : EvalState α)) enc
       (encEvalState enc) := by fun_prop
-  have hlen := hfuel.polyBounded_length
-  simp only [encUnary_apply, List.length_replicate] at hlen
   have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit)
     (computableInPolySpace_evalStep M hfuel)
     (B := fun a => 2 * (enc a).length + 2 * fuel a * (14 * fuel a + 21) + fuel a + 4)
-    (((((PolyBounded.const 2).mul .self).add (((PolyBounded.const 2).mul hlen).mul
-      (((PolyBounded.const 14).mul hlen).add (.const 21)))).add hlen).add (.const 4))
+    (by growth_poly)
     (fun a j _ => length_encEvalState_iterate_le M a j)
   have hpost : ComputableInPolyTime (fun s : EvalState α => s.2.2.getD 0)
       (encEvalState enc) encNat := by fun_prop

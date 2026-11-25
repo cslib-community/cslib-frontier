@@ -20,12 +20,16 @@ import Mathlib.Tactic.Linarith
 
 The *multiplicative weights* (MW) algorithm with learning rate `η` multiplies the weight of an
 expert with loss `x` by `1 - η x` (`mwFactor`) [AroraHazanKale2012, §2, Figure 1]; this is the
-*prod* algorithm of Cesa-Bianchi, Mansour and Stoltz [CesaBianchiMansourStoltz2007]. For losses in
-`[-1, 1]` and `0 < η ≤ 1 / 2`, its total expected loss exceeds the total loss of every expert `i`
-by at most `η ∑ t, |ℓ t i| + ln n / η` (`mw_regret_le`, [AroraHazanKale2012, Theorem 2.1]).
-Averaging over a distribution on the experts gives the same bound against mixed strategies
-(`mw_regret_le_stdSimplex`, [AroraHazanKale2012, Corollary 2.2]), and with `η = √(ln n / T)` the
-regret is at most `2 √(T ln n)` (`mw_regret_le_sqrt`).
+*prod* algorithm of Cesa-Bianchi, Mansour and Stoltz [CesaBianchiMansourStoltz2007] and the
+*Polynomial Weights* (PW) algorithm of Blum and Mansour [BlumMansour2007AGT, §4.3.3] (which
+coincides with *Randomized Weighted Majority* on `{0, 1}` losses [BlumMansour2007AGT, §4.3.2]).
+For losses in `[-1, 1]` and `0 < η ≤ 1 / 2`, its total expected loss exceeds the total loss of
+every expert `i` by at most `η ∑ t, |ℓ t i| + ln n / η` (`mw_regret_le`,
+[AroraHazanKale2012, Theorem 2.1]). Averaging over a distribution on the experts gives the same
+bound against mixed strategies (`mw_regret_le_stdSimplex`, [AroraHazanKale2012, Corollary 2.2]),
+with `η = √(ln n / T)` and `T ≥ 4 ln n` the regret is at most `2 √(T ln n)` (`mw_regret_le_sqrt`),
+and on `[0, 1]` losses the capped rate `η = min √(ln n / T) (1 / 2)` achieves `2 √(T ln n)` for
+every horizon `T` (`mw_regret_le_sqrt_of_mem_Icc`, [BlumMansour2007AGT, Theorems 4.5 and 4.6]).
 
 The proof combines the potential inequality `sum_log_le_log_card_add` with two estimates. The
 expected update factor is `1 - η` times the expected loss, and `log (1 - x) ≤ -x`. For the factor of
@@ -46,12 +50,16 @@ the two convexity bounds `(1 - η) ^ x ≤ 1 - η x` on `[0, 1]` and `(1 + η) ^
 * `Cslib.MachineLearning.OnlineLearning.Experts.mw_regret_le_stdSimplex`:
   [AroraHazanKale2012, Corollary 2.2].
 * `Cslib.MachineLearning.OnlineLearning.Experts.mw_regret_le_sqrt`: regret `2 √(T ln n)` with the
-  tuned learning rate.
+  tuned learning rate for `T ≥ 4 ln n`.
+* `Cslib.MachineLearning.OnlineLearning.Experts.mw_regret_le_sqrt_of_mem_Icc`: regret
+  `2 √(T ln n)` on `[0, 1]` losses for every horizon `T` with `η = min √(ln n / T) (1 / 2)`
+  [BlumMansour2007AGT, Theorems 4.5 and 4.6].
 
 ## References
 
 * [S. Arora, E. Hazan, S. Kale, *The Multiplicative Weights Update Method: a Meta-Algorithm and
   Applications*][AroraHazanKale2012]
+* [A. Blum and Y. Mansour, *Learning, Regret Minimization, and Equilibria*][BlumMansour2007AGT]
 * [N. Cesa-Bianchi, Y. Mansour, G. Stoltz, *Improved second-order bounds for prediction with expert
   advice*][CesaBianchiMansourStoltz2007]
 -/
@@ -168,5 +176,70 @@ theorem mw_regret_le_sqrt (hn : 2 ≤ Fintype.card ι) (hT : 4 * log (Fintype.ca
       _ = T := by simp only [sum_const, card_range, nsmul_eq_mul, mul_one]
   rw [← sqrt_div_mul_add_div_sqrt_div hL hT0]
   nlinarith [mul_le_mul_of_nonneg_left habs hη.le]
+
+/-- **Tuned regret of multiplicative weights on `[0, 1]` losses for every horizon**
+[BlumMansour2007AGT, Theorems 4.5 and 4.6, pp. 85–87]: for losses in `[0, 1]` and every horizon
+`T : ℕ`, MW with the capped learning rate `η = min √(ln n / T) (1 / 2)` has regret at most
+`2 √(T ln n)` against every expert `i`. On `{0, 1}` losses `mwFactor` coincides with Randomized
+Weighted Majority (`(1 - η) ^ ℓ = 1 - η ℓ`), so together with `mw_regret_le` (for binary losses)
+and `mw_regret_le_sq` (for `[0, 1]` losses) this covers the tuned bounds of Theorems 4.5 and 4.6
+without the horizon floor `T ≥ 4 ln n` of `mw_regret_le_sqrt`. -/
+theorem mw_regret_le_sqrt_of_mem_Icc
+    (hℓ : ∀ s < T, ∀ i, ℓ s i ∈ Set.Icc (0 : ℝ) 1) (i : ι) :
+    ∑ t ∈ range T, ∑ j,
+        prob (mwFactor (min √(log (Fintype.card ι) / T) (1 / 2))) ℓ t j * ℓ t j ≤
+      ∑ t ∈ range T, ℓ t i + 2 * √(T * log (Fintype.card ι)) := by
+  have : Nonempty ι := ⟨i⟩
+  rcases Nat.eq_zero_or_pos T with rfl | hTpos
+  · simp only [range_zero, sum_empty, Nat.cast_zero, zero_mul, sqrt_zero, mul_zero, add_zero,
+      le_rfl]
+  by_cases hn : 2 ≤ Fintype.card ι
+  · set L := log (Fintype.card ι) with hLdef
+    have hL : 0 < L := log_pos (by exact_mod_cast hn)
+    have hT0 : (0 : ℝ) < T := Nat.cast_pos.mpr hTpos
+    have hhalf : (1 / 2 : ℝ) = √(1 / 4) := by
+      rw [show (1 / 4 : ℝ) = (1 / 2) ^ 2 by norm_num, sqrt_sq (by norm_num)]
+    by_cases h4 : 4 * L ≤ T
+    · have hle : √(L / T) ≤ 1 / 2 := by
+        rw [hhalf]
+        exact sqrt_le_sqrt (by rw [div_le_iff₀ hT0]; linarith)
+      rw [min_eq_left hle]
+      exact mw_regret_le_sqrt hn h4 (fun s hs j =>
+        abs_le.mpr ⟨by linarith [(hℓ s hs j).1], (hℓ s hs j).2⟩) i
+    · have hge : (1 / 2 : ℝ) ≤ √(L / T) := by
+        rw [hhalf]
+        exact sqrt_le_sqrt (by rw [le_div_iff₀ hT0]; linarith)
+      rw [min_eq_right hge]
+      have hφ : ∀ s < T, ∀ j, 0 < mwFactor (1 / 2) (ℓ s j) := fun s hs j => by
+        rw [mwFactor_apply]; linarith [(hℓ s hs j).2]
+      have hloss : ∑ t ∈ range T, ∑ j, prob (mwFactor (1 / 2)) ℓ t j * ℓ t j ≤ T := by
+        calc ∑ t ∈ range T, ∑ j, prob (mwFactor (1 / 2)) ℓ t j * ℓ t j
+            ≤ ∑ t ∈ range T, ∑ j, prob (mwFactor (1 / 2)) ℓ t j * 1 :=
+              sum_le_sum fun t ht => sum_le_sum fun j _ =>
+                mul_le_mul_of_nonneg_left (hℓ t (mem_range.mp ht) j).2
+                  (prob_nonneg (fun s hs => hφ s (lt_trans hs (mem_range.mp ht))) j)
+          _ = ∑ _t ∈ range T, (1 : ℝ) := sum_congr rfl fun t ht => by
+              simp only [mul_one, sum_prob (fun s hs => hφ s (lt_trans hs (mem_range.mp ht)))]
+          _ = T := by simp only [sum_const, card_range, nsmul_eq_mul, mul_one]
+      have hi_nn : 0 ≤ ∑ t ∈ range T, ℓ t i :=
+        sum_nonneg fun t ht => (hℓ t (mem_range.mp ht) i).1
+      have hT_le : (T : ℝ) ≤ 2 * √(T * L) := by
+        refine le_of_sq_le_sq ?_ (mul_nonneg zero_le_two (sqrt_nonneg _))
+        rw [mul_pow, sq_sqrt (mul_nonneg hT0.le hL.le)]
+        nlinarith
+      linarith
+  · have hcard : Fintype.card ι = 1 := le_antisymm (by omega) Fintype.card_pos
+    have : Subsingleton ι := Fintype.card_le_one_iff_subsingleton.mp hcard.le
+    have hlog : log (Fintype.card ι) = 0 := by rw [hcard, Nat.cast_one, log_one]
+    have hmin : min √(log (Fintype.card ι) / T) (1 / 2) = 0 := by
+      rw [hlog, zero_div, sqrt_zero, min_eq_left (by norm_num)]
+    rw [hmin, hlog, mul_zero, sqrt_zero, mul_zero, add_zero]
+    have hφ : ∀ s < T, ∀ j, 0 < mwFactor 0 (ℓ s j) := fun _ _ _ => by
+      rw [mwFactor_apply, zero_mul, sub_zero]; exact zero_lt_one
+    refine (sum_congr rfl fun t ht => ?_).le
+    have h1 : prob (mwFactor 0) ℓ t i = 1 := by
+      have hs := sum_prob (fun s hs => hφ s (lt_trans hs (mem_range.mp ht)))
+      rwa [Fintype.sum_subsingleton _ i] at hs
+    rw [Fintype.sum_subsingleton _ i, h1, one_mul]
 
 end Cslib.MachineLearning.OnlineLearning.Experts

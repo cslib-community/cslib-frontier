@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Word
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Languages.Probabilistic.UniformNat
 public import CslibFrontier.Crypto.Computational.SIS.Module.ApproximateSampling
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
@@ -330,8 +331,7 @@ theorem uniformList_map_coinResidues :
         simp only [PMF.bind_map, Function.comp_def]
     _ = _ := by
         rw [h₁, h₂, h₃]
-        simp only [sampleCoins, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_map,
-          PMF.map_bind, PMF.pure_map, Function.comp_def]
+        simp only [sampleCoins, pmf_norm]
 
 /-- **Encryption realizes K-PKE.** Encrypting `m` under the word of a public key `pk`, with
 `coinLength P` fair coins, has the law of the word of K-PKE's encryption `encrypt P pk` of the
@@ -375,11 +375,10 @@ theorem eval_keyGenWord (precision : ℕ) :
                 (cbdVecResidues P.k P.n P.q P.η₁)).bind fun e =>
                   PMF.pure (encPublicKeyResidues (A, publicKeyResidues P A s e),
                     encPolyVecResidues s) := by
-        simp only [keyGenWord, sampleMatrixResidues, keyWords, ProbComp.eval_bind,
-          ProbComp.eval_pure, BitString.eval_sampleList, PMF.bind_map, Function.comp_def]
+        simp only [keyGenWord, sampleMatrixResidues, keyWords, BitString.eval_sampleList, pmf_norm]
     _ = _ := by
         rw [hA, hs]
-        simp only [PMF.bind_map, Function.comp_def, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+        simp only [pmf_norm]
         congr 1 with A : 1
         congr 1 with s : 1
         congr 1 with e : 1
@@ -400,9 +399,8 @@ theorem closeTo_keyGenWord (precision : ℕ) :
       return encodePublicKey (P := P) (moduleLWEKeyGen A s e))
   rw [eval_keyGenWord]
   convert h using 1
-  · simp only [keyGen, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.map_bind,
-      PMF.pure_map, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  · simp only [PMF.map_bind, PMF.pure_map, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  · simp only [keyGen, ProbComp.eval_uniform, pmf_norm]
+  · simp only [pmf_norm]
     rfl
 
 end Laws

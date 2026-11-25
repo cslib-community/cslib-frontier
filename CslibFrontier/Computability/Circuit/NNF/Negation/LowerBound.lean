@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.NNF.Rectangle
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CubicEdgeColoring
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
@@ -398,10 +399,7 @@ theorem sum_pow_card_filter_not_isFree_le (hS : M.IsSeparatedCrossing A c S) :
           have hsum : ∑ y ∈ (I.filter fun y => clearOn T y = b).erase b, a y ≤
               #((I.filter fun y => clearOn T y = b).erase b) * (3 / 2 : ℝ) := by
             rw [← nsmul_eq_mul, ← sum_const]; exact sum_le_sum fun y _ => hle y
-          have hc : (#((I.filter fun y => clearOn T y = b).erase b) : ℝ) + 1 =
-              #(I.filter fun y => clearOn T y = b) := by exact_mod_cast h1
-          have hc16 : (#(I.filter fun y => clearOn T y = b) : ℝ) ≤ 16 := by exact_mod_cast hcard
-          nlinarith
+          cast_nlinarith [hcard, h1]
       _ = 47 / 32 * ∑ x ∈ I, g x := by rw [mul_sum]
       _ ≤ 47 / 32 * ((47 / 32 : ℝ) ^ #J * #I) := by gcongr; exact ih hJS
       _ = (47 / 32 : ℝ) ^ #(insert u J) * #I := by rw [card_insert_of_notMem hu, pow_succ]; ring
@@ -528,9 +526,7 @@ theorem sum_witness_le (hS : M.IsSeparatedCrossing A c S) :
             have hsum : ∑ z ∈ F.erase y, a z ≤ #(F.erase y) := by
               rw [← mul_one (#(F.erase y) : ℝ), ← nsmul_eq_mul, ← sum_const]
               exact sum_le_sum fun z _ => hale z
-            have hc : (#(F.erase y) : ℝ) + 1 = #F := by exact_mod_cast card_erase_add_one hyF
-            have hc3 : (#F : ℝ) ≤ 3 := by exact_mod_cast hcard
-            linarith
+            cast_linarith [hcard, card_erase_add_one hyF]
           · simp only [k, ite_eq_right hfree, one_mul]
             rw [← mul_one (#F : ℝ), ← nsmul_eq_mul, ← sum_const]
             exact sum_le_sum fun z _ => hale z
@@ -678,8 +674,7 @@ theorem exists_isSeparatedCrossing {γ : ℝ} (hG : IsBalancedCutExpander M.toSi
   -- Some colour carries a third of the crossing edges.
   obtain ⟨c, hc⟩ : ∃ c : Fin 3, γ * Fintype.card V ≤ 3 * #(A.filter fun u => M.mate c u ∉ A) := by
     by_contra! h
-    push_cast at hcross
-    linarith [h 0, h 1, h 2]
+    cast_linarith [h 0, h 1, h 2]
   obtain ⟨S, hSU, hS, hcard⟩ := exists_subset_pairwise_not
     (fun u u' => ¬Disjoint (M.edgeNbhd c u) (M.edgeNbhd c u'))
     (fun _ _ h h' => h h'.symm)
@@ -687,8 +682,7 @@ theorem exists_isSeparatedCrossing {γ : ℝ} (hG : IsBalancedCutExpander M.toSi
     42 _ fun u _ => card_filter_not_disjoint_le c _ u
   refine ⟨c, S, ⟨fun u hu => (mem_filter.mp (hSU hu)).1, fun u hu => (mem_filter.mp (hSU hu)).2,
     fun u hu u' hu' hne => not_not.mp (hS u hu u' hu' hne)⟩, ?_⟩
-  have : (#(A.filter fun u => M.mate c u ∉ A) : ℝ) ≤ 42 * #S := by exact_mod_cast hcard
-  linarith
+  cast_linarith [hcard]
 
 /-! ### The cover number of the zeros of `f_G` -/
 

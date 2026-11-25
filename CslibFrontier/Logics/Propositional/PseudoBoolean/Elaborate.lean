@@ -73,9 +73,10 @@ def checkResult (F : List PBConstr) (obj : Option Objective) (pres : Option (Lis
 /-- **Check an augmented proof for an OPB instance**: parse the instance, elaborate the proof and
 check the kernel proof; the conclusion, if accepted. -/
 def checkAugmented (opb pbp : String) : Option Conclusion :=
-  (parseOPB opb).bind fun I =>
+  let N := opbNames opb
+  (parseOPBWith N opb).bind fun I =>
     checkResult I.constraints I.objective I.preserved
-      (elaborate I.constraints I.objective I.preserved pbp)
+      (elaborate I.constraints I.objective I.preserved pbp N)
 
 /-- **Check an augmented proof for a DIMACS CNF formula**, its clause `1 -2 3 0` read as the
 constraint `x1 + ~x2 + x3 >= 1`. -/
@@ -109,7 +110,7 @@ theorem exists_checkRed_of_checkAugmented {opb pbp : String} {c : Conclusion}
       P.conclusion = c := by
   obtain ⟨I, hI, h⟩ := Option.bind_eq_some_iff.1 h
   obtain ⟨P, hP, hc⟩ := exists_checkRed_of_checkResult h
-  exact ⟨I, P, hI, hP, hc⟩
+  exact ⟨I, P, parseOPB_eq_parseOPBWith opb ▸ hI, hP, hc⟩
 
 /-- **An accepted augmented proof for a DIMACS formula gives an accepted kernel proof** for its
 clauses read as constraints. -/

@@ -157,9 +157,6 @@ theorem exists_computableInO_modSum {encC : C ↪ List Bool}
   set L : C → ℕ := fun c => (encC c).length with hL
   set lm : C → ℕ := fun c => (encNat (modulus c)).length with hlm
   set lk : C → ℕ := fun c => (encNat (count c)).length with hlk
-  have hLp : PolyBounded L L := PolyBounded.self
-  have hlmp : PolyBounded L lm := hmodulus.polyBounded_length
-  have hlkp : PolyBounded L lk := hcount.polyBounded_length
   -- A state `(j, (c, acc))` with `j ≤ count c` and `acc < modulus c` has length at most `S c`; the
   -- input of the addition has length at most `S' c`; the accumulator pair at most `B c`.
   let S : C → ℕ := fun c => 2 * lk c + 2 * L c + lm c + 2
@@ -220,10 +217,6 @@ theorem exists_computableInO_modSum {encC : C ↪ List Bool}
   -- Collect the polynomial overhead.
   let V : C → ℕ := fun c => pK (L c) + (L c + pI (L c)) + 2 * (2 * lk c + 1 + B c) +
     2 * (lk c + 1) ^ 2 + (lk c + 1) + lk c + U c
-  have hSp : PolyBounded L S := by growth_poly
-  have hS'p : PolyBounded L S' := ((PolyBounded.const 5).mul hlmp).add (PolyBounded.const 2)
-  have hBp : PolyBounded L B := by growth_poly
-  have hUp : PolyBounded L U := by growth_poly
   have hVp : PolyBounded L V := by growth_poly
   obtain ⟨a, d, hV⟩ := hVp.exists_le
   refine ⟨a, d, (hout.mono_le (fun c => ?_) fun c => ?_).of_enc_eq fun c => rfl⟩
