@@ -79,7 +79,9 @@ private theorem exists_cover_of_coveredBy_push (ι : I → I') {A : PartyTensor 
   have h1 : push ι (A.withEntry fun x => v k (emb x)) ≤ (push ι A).withEntry (v k) :=
     le_of_entry_eq (fun _ x => x) fun x => by
       rw [push_entry]
-      exact congrArg (v k) (funext fun _ => funext fun ⟨_, heq⟩ => by subst heq; rfl)
+      refine congrArg (v k) (funext fun _ => funext fun ⟨_, heq⟩ => ?_)
+      subst heq
+      rfl
   have h4 := antisymmRel_push_push π ι (A.withEntry fun x => v k (emb x))
   rw [show π ∘ ι = id from funext hπ] at h4
   exact (h4.trans (antisymmRel_push_id _)).ge.trans (push_le_push π (h1.trans (hr k)))
@@ -91,8 +93,10 @@ private theorem le_sum_extendProduct (ι : I → I') (π : L → I' → I) (hπ 
     (hb : (push ι A).CoveredBy b) : F A ≤ ∑ k, extendProduct π θ F (b k) := by
   obtain ⟨a, ha, hr⟩ := exists_cover_of_coveredBy_push ι hb
   refine (F.le_sum A a ha).trans (Finset.sum_le_sum fun k _ => ?_)
+  -- `F (a k)` is at most every factor `F (π l (b k))`, so at most their weighted geometric mean
   rcases (F.nonneg (a k)).eq_or_lt with h0 | h0
-  · rw [← h0]; exact (extendProduct_spec π θ hθ F).1 _
+  · rw [← h0]
+    exact (extendProduct_spec π θ hθ F).1 _
   · calc F (a k) = F (a k) ^ (∑ l, θ l) := by rw [hθ1, Real.rpow_one]
       _ = ∏ l, F (a k) ^ θ l := Real.rpow_sum_of_pos h0 _ _
       _ ≤ extendProduct π θ F (b k) := Finset.prod_le_prod₀
@@ -107,11 +111,15 @@ private theorem extendProduct_push (ι : I → I') (π : L → I' → I) (hπ : 
     have h := antisymmRel_push_push (π l) ι A
     rw [show π l ∘ ι = id from funext (hπ l)] at h
     exact h.trans (antisymmRel_push_id _)
-  rw [show extendProduct π θ F (push ι A) = ∏ l, F A ^ θ l from
-    Finset.prod_congr rfl fun l _ => by rw [F.congr (retr l)]]
+  have h1 : extendProduct π θ F (push ι A) = ∏ l, F A ^ θ l :=
+    Finset.prod_congr rfl fun l _ => by rw [F.congr (retr l)]
+  rw [h1]
   rcases (F.nonneg A).eq_or_lt with h0 | h0
-  · obtain ⟨l, hl⟩ : ∃ l, θ l ≠ 0 := by by_contra! hne; simp [hne] at hθ1
-    rw [← h0]; exact Finset.prod_eq_zero (Finset.mem_univ l) (Real.zero_rpow hl)
+  · obtain ⟨l, hl⟩ : ∃ l, θ l ≠ 0 := by
+      by_contra! hne
+      simp [hne] at hθ1
+    rw [← h0]
+    exact Finset.prod_eq_zero (Finset.mem_univ l) (Real.zero_rpow hl)
   · rw [← Real.rpow_sum_of_pos h0, hθ1, Real.rpow_one]
 
 /-- There is an upper functional `p ≤ f` with `p(ιA) = φ(A)` for all `A`: the infimum `p(t)` of
@@ -126,13 +134,15 @@ private theorem exists_upperFunctional_extend (ι : I → I') (π : L → I' →
   set f : PartyTensor K I' → ℝ := extendProduct π θ F
   have hcongr {s t : PartyTensor K I'} (h : AntisymmRel (· ≤ ·) s t) : f s = f t :=
     le_antisymm (fmono h.1) (fmono h.2)
+  -- the sums `∑ f (b k)` over the covers of a class of tensors
   set S : Antisymmetrization (PartyTensor K I') (· ≤ ·) → Set ℝ := fun m =>
     {W | ∃ (κ : Type) (_ : Fintype κ) (b : κ → Antisymmetrization (PartyTensor K I') (· ≤ ·)),
       (tensorCovering K I').CoveredBy m b ∧ ∑ k, f (ofAntisymmetrization (· ≤ ·) (b k)) = W}
   have hne (t) : (S t).Nonempty :=
     ⟨_, Unit, inferInstance, fun _ => t, (tensorCovering K I').refl t, rfl⟩
   have h0 (t w) : w ∈ S t → 0 ≤ w := by
-    rintro ⟨_, _, _, -, rfl⟩; exact Finset.sum_nonneg fun _ _ => f0 _
+    rintro ⟨_, _, _, -, rfl⟩
+    exact Finset.sum_nonneg fun _ _ => f0 _
   have hlow (A : PartyTensor K I) (w) :
       w ∈ S (toAntisymmetrization (· ≤ ·) (push ι A)) → F A ≤ w := by
     rintro ⟨κ, _, b, hb, rfl⟩
@@ -154,8 +164,9 @@ private theorem exists_upperFunctional_extend (ι : I → I') (π : L → I' →
         (hcongr (antisymmRel_ofAntisymmetrization_mul _ _)).trans (fmul _ _)
     · intro κ _ t b hb w hw
       choose μ _ c hc hw using hw
-      exact ⟨_, ⟨Σ k, μ k, inferInstance, _, (tensorCovering K I').bind hb hc, rfl⟩,
-        by rw [Fintype.sum_sigma]; exact (Finset.sum_congr rfl fun k _ => hw k).le⟩
+      refine ⟨_, ⟨Σ k, μ k, inferInstance, _, (tensorCovering K I').bind hb hc, rfl⟩, ?_⟩
+      rw [Fintype.sum_sigma]
+      exact (Finset.sum_congr rfl fun k _ => hw k).le
   have Pf (t) : UpperFunctional.ofIsUpperFunctional hpre t ≤ f t := by
     rw [UpperFunctional.ofIsUpperFunctional_apply]
     exact csInf_le ⟨0, h0 _⟩ (hup t)

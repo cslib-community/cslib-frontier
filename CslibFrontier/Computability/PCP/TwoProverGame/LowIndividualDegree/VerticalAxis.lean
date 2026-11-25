@@ -102,21 +102,18 @@ theorem verticalDisagreement_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ) 
       (1 - Measurement.agreement S.state (decodedPoint S.alice (Fin.snoc u t))
         ((decodedVertical S.bob d u).map (fun f => f.value t)))) ≤
       2 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .axis).commutingWinProb S) := by
-  have hpt (u : Point F n) (t : F) :
-      1 - Measurement.agreement S.state (decodedPoint S.alice (Fin.snoc u t))
-        ((decodedVertical S.bob d u).map (fun f => f.value t)) ≤
-      2 * (1 - axisScoreAt S d (Fin.snoc u t) (Fin.last n)) := by
-    have h := acceptScore_le_verticalAgreement S d u t
-    have hr := acceptScore_le_one S d (.axis (verticalLine u)) (.point (Fin.snoc u t))
-    have ha : axisScoreAt S d (Fin.snoc u t) (Fin.last n) =
-        (acceptScore S d (.point (Fin.snoc u t)) (.axis (verticalLine u)) +
-          acceptScore S d (.axis (verticalLine u)) (.point (Fin.snoc u t))) / 2 := by
-      rw [axisScoreAt, linePoints_snoc_vertical]
-    linarith
-  refine (expect_le_expect fun u _ => expect_le_expect fun t _ => hpt u t).trans ?_
-  simp only [← Finset.mul_expect,
-    Fintype.expect_fin_snoc (f := fun w => 1 - axisScoreAt S d w (Fin.last n)), mul_assoc]
-  exact mul_le_mul_of_nonneg_left (axisLossAt_le n d S (Fin.last n)) (by norm_num)
+  let f (w : Point F (n + 1)) := 1 - axisScoreAt S d w (Fin.last n)
+  calc
+    _ ≤ 𝔼 u : Point F n, 𝔼 t : F, (2 * f (Fin.snoc u t)) := by
+      refine expect_le_expect fun u _ => expect_le_expect fun t _ => ?_
+      have h := acceptScore_le_verticalAgreement S d u t
+      have hr := acceptScore_le_one S d (.axis (verticalLine u)) (.point (Fin.snoc u t))
+      unfold f axisScoreAt
+      rw [linePoints_snoc_vertical]
+      linarith
+    _ ≤ _ := by
+      simp only [← Finset.mul_expect, Fintype.expect_fin_snoc, mul_assoc]
+      exact mul_le_mul_of_nonneg_left (axisLossAt_le n d S (Fin.last n)) (by norm_num)
 
 section Norm
 
@@ -128,6 +125,7 @@ theorem decodedPoint_stateDist_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ
       S.state.norm ((decodedPoint S.bob u).effect a - (decodedPoint S.alice u).effect a) ^ 2) ≤
     2 * (1 - (branchGame (F := F) n d .consistency).commutingWinProb S) := by
   classical
+  rw [consistencyScore_eq_expect]
   have hpt (u : Point F (n + 1)) :
       (∑ a, S.state.norm ((decodedPoint S.bob u).effect a -
         (decodedPoint S.alice u).effect a) ^ 2) ≤
@@ -139,14 +137,16 @@ theorem decodedPoint_stateDist_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ
       by_cases h : accepts d (.point u) (.point u) a b
       · obtain ⟨z, rfl, rfl⟩ := exists_eq_of_accepts_points d u u a b h
         simp only [ite_eq_left h, ite_true, CommutingStrategy.prob, le_refl]
-      · rw [ite_eq_right h]; exact ite_nonneg (S.prob_nonneg _ _ _ _) le_rfl
+      · rw [ite_eq_right h]
+        exact ite_nonneg (S.prob_nonneg _ _ _ _) le_rfl
     have h := Measurement.sum_norm_sub_sq_le S.state (decodedPoint S.alice u) (decodedPoint S.bob u)
       fun a => Measurement.commute_map_map _ _ (S.commute (.point u) (.point u)) _ _ a a
     simp only [S.state.norm_sub_comm ((decodedPoint S.bob u).effect _)]
     linarith
-  rw [consistencyScore_eq_expect]
-  refine (expect_le_expect fun u _ => hpt u).trans_eq ?_
-  simp only [← Finset.mul_expect, expect_sub_distrib, Fintype.expect_const]
+  calc
+    _ ≤ 𝔼 u : Point F (n + 1), (2 * (1 - acceptScore S d (.point u) (.point u))) :=
+      expect_le_expect fun u _ => hpt u
+    _ = _ := by simp only [← Finset.mul_expect, expect_sub_distrib, Fintype.expect_const]
 
 private theorem vertical_stateDist_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ) :
     (𝔼 u : Point F n, 𝔼 t : F, ∑ a, S.state.norm
@@ -154,19 +154,21 @@ private theorem vertical_stateDist_le (S : CommutingStrategy Q Q Ans Ans A) (d :
         ((decodedVertical S.bob d u).map (fun f => f.value t)).effect a) ^ 2) ≤
       4 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .axis).commutingWinProb S) := by
   classical
-  have hpt (u : Point F n) (t : F) :
-      (∑ a, S.state.norm ((decodedPoint S.alice (Fin.snoc u t)).effect a -
-        ((decodedVertical S.bob d u).map (fun f => f.value t)).effect a) ^ 2) ≤
-      2 * (1 - Measurement.agreement S.state (decodedPoint S.alice (Fin.snoc u t))
-        ((decodedVertical S.bob d u).map (fun f => f.value t))) := by
-    have h := Measurement.sum_norm_sub_sq_le S.state (decodedPoint S.alice (Fin.snoc u t))
-      ((decodedVertical S.bob d u).map (fun f => f.value t)) fun a => by
-        rw [decodedPoint, decodedVertical, Measurement.map_map]
-        exact Measurement.commute_map_map _ _
-          (S.commute (.point (Fin.snoc u t)) (.axis (verticalLine u))) _ _ a a
-    linarith
-  refine (expect_le_expect fun u _ => expect_le_expect fun t _ => hpt u t).trans ?_
-  simp only [← Finset.mul_expect]; linarith [verticalDisagreement_le S d]
+  let loss (u : Point F n) (t : F) :=
+    1 - Measurement.agreement S.state (decodedPoint S.alice (Fin.snoc u t))
+      ((decodedVertical S.bob d u).map (fun f => f.value t))
+  calc
+    _ ≤ 𝔼 u : Point F n, 𝔼 t : F, (2 * loss u t) := by
+      refine expect_le_expect fun u _ => expect_le_expect fun t _ => ?_
+      have h := Measurement.sum_norm_sub_sq_le S.state (decodedPoint S.alice (Fin.snoc u t))
+        ((decodedVertical S.bob d u).map (fun f => f.value t)) fun a => by
+          rw [decodedPoint, decodedVertical, Measurement.map_map]
+          exact Measurement.commute_map_map _ _
+            (S.commute (.point (Fin.snoc u t)) (.axis (verticalLine u))) _ _ a a
+      dsimp only [loss]
+      linarith
+    _ = 2 * (𝔼 u : Point F n, 𝔼 t : F, loss u t) := by simp only [← Finset.mul_expect]
+    _ ≤ _ := by linarith [verticalDisagreement_le S d]
 
 /-- Bob's decoded point and vertical-line measurements have squared state distance controlled
 by the consistency and axis losses. This is the same-side comparison used in Equation (112). -/
@@ -176,26 +178,28 @@ theorem bob_vertical_stateDist_le (S : CommutingStrategy Q Q Ans Ans A) (d : ℕ
         ((decodedVertical S.bob d u).map (fun f => f.value t)).effect a) ^ 2) ≤
       8 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .axis).commutingWinProb S) +
       4 * (1 - (branchGame (F := F) n d .consistency).commutingWinProb S) := by
-  have hpt (u : Point F n) (t : F) :
-      (∑ a, S.state.norm ((decodedPoint S.bob (Fin.snoc u t)).effect a -
-        ((decodedVertical S.bob d u).map (fun f => f.value t)).effect a) ^ 2) ≤
-      2 * (∑ a, S.state.norm ((decodedPoint S.bob (Fin.snoc u t)).effect a -
-        (decodedPoint S.alice (Fin.snoc u t)).effect a) ^ 2) +
-      2 * (∑ a, S.state.norm ((decodedPoint S.alice (Fin.snoc u t)).effect a -
-        ((decodedVertical S.bob d u).map (fun f => f.value t)).effect a) ^ 2) := by
-    rw [Finset.mul_sum, Finset.mul_sum, ← sum_add_distrib]
-    refine sum_le_sum fun a _ => ?_
-    let b := (decodedPoint S.bob (Fin.snoc u t)).effect a
-    let p := (decodedPoint S.alice (Fin.snoc u t)).effect a
-    let ℓ := ((decodedVertical S.bob d u).map (fun f => f.value t)).effect a
-    have h : S.state.norm (b - ℓ) ≤ S.state.norm (b - p) + S.state.norm (p - ℓ) :=
-      sub_add_sub_cancel b p ℓ ▸ S.state.norm_add_le _ _
-    exact (pow_le_pow_left₀ (S.state.norm_nonneg _) h 2).trans
-      (by nlinarith [sq_nonneg (S.state.norm (b - p) - S.state.norm (p - ℓ))])
-  refine (expect_le_expect fun u _ => expect_le_expect fun t _ => hpt u t).trans ?_
-  simp only [expect_add_distrib, ← Finset.mul_expect, Fintype.expect_fin_snoc (f := fun w =>
-    ∑ a, S.state.norm ((decodedPoint S.bob w).effect a - (decodedPoint S.alice w).effect a) ^ 2)]
-  linarith [decodedPoint_stateDist_le S d, vertical_stateDist_le S d]
+  let point (w : Point F (n + 1)) :=
+    ∑ a, S.state.norm ((decodedPoint S.bob w).effect a - (decodedPoint S.alice w).effect a) ^ 2
+  let line (u : Point F n) (t : F) :=
+    ∑ a, S.state.norm ((decodedPoint S.alice (Fin.snoc u t)).effect a -
+      ((decodedVertical S.bob d u).map (fun f => f.value t)).effect a) ^ 2
+  calc
+    _ ≤ 𝔼 u : Point F n, 𝔼 t : F, (2 * point (Fin.snoc u t) + 2 * line u t) := by
+      refine expect_le_expect fun u _ => expect_le_expect fun t _ => ?_
+      rw [Finset.mul_sum, Finset.mul_sum, ← sum_add_distrib]
+      refine sum_le_sum fun a _ => ?_
+      let b := (decodedPoint S.bob (Fin.snoc u t)).effect a
+      let p := (decodedPoint S.alice (Fin.snoc u t)).effect a
+      let ℓ := ((decodedVertical S.bob d u).map (fun f => f.value t)).effect a
+      have h : S.state.norm (b - ℓ) ≤ S.state.norm (b - p) + S.state.norm (p - ℓ) :=
+        sub_add_sub_cancel b p ℓ ▸ S.state.norm_add_le _ _
+      exact (pow_le_pow_left₀ (S.state.norm_nonneg _) h 2).trans
+        (by nlinarith [sq_nonneg (S.state.norm (b - p) - S.state.norm (p - ℓ))])
+    _ = 2 * (𝔼 w, point w) + 2 * (𝔼 u, 𝔼 t, line u t) := by
+      simp only [expect_add_distrib, ← Finset.mul_expect, Fintype.expect_fin_snoc]
+    _ ≤ _ := by
+      dsimp only [point, line]
+      linarith [decodedPoint_stateDist_le S d, vertical_stateDist_le S d]
 
 /-- The average successful mismatch changes by at most the square root of the
 same-side state-distance bound when comparing to the decoded vertical line or point.
@@ -223,10 +227,14 @@ theorem successfulMismatch_vertical_abs_sub_le (S : CommutingStrategy Q Q Ans An
       (𝔼 u : Point F n, 𝔼 t : F, Measurement.successfulMismatch S.state (P u t) (Q₁ u t)) +
         √(8 * (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .axis).commutingWinProb S) +
           4 * (1 - (branchGame (F := F) n d .consistency).commutingWinProb S)) := by
-    refine (expect_le_expect fun u _ => expect_le_expect fun t _ =>
-      h u t ▸ Measurement.successfulMismatch_le _ _ _ _).trans ?_
-    simp only [expect_add_distrib]
-    exact add_le_add_right (hj.trans (Real.sqrt_le_sqrt (bob_vertical_stateDist_le S d))) _
+    calc
+      _ ≤ 𝔼 u : Point F n, 𝔼 t : F,
+        (Measurement.successfulMismatch S.state (P u t) (Q₁ u t) + √(err u t)) :=
+        expect_le_expect fun u _ => expect_le_expect fun t _ =>
+          h u t ▸ Measurement.successfulMismatch_le _ _ _ _
+      _ ≤ _ := by
+        simp only [expect_add_distrib]
+        exact add_le_add_right (hj.trans (Real.sqrt_le_sqrt (bob_vertical_stateDist_le S d))) _
   exact abs_sub_le_iff.mpr ⟨sub_le_iff_le_add'.mpr (transfer fun _ _ => rfl),
     sub_le_iff_le_add'.mpr (transfer fun _ _ => sum_congr rfl fun _ _ => by
       rw [S.state.norm_sub_comm])⟩

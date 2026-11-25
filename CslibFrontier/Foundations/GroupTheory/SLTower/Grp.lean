@@ -68,14 +68,18 @@ noncomputable def shMat (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) : Matr
 theorem shMat_apply (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) (a b : Fin h) :
     (shMat i A : Matrix (Fin h) (Fin h) (R (n + 1))) a b =
       (wt i a : (R (n + 1))ˣ) * (cst (n + 1) (A (a - i) (b - i)) * ((wt i b)⁻¹ : (R (n + 1))ˣ)) :=
-  by rw [shMat, Matrix.diagonal_mul, Matrix.mul_diagonal]; rfl
+          by
+  rw [shMat, Matrix.diagonal_mul, Matrix.mul_diagonal]
+  rfl
 
 theorem shMat_one (i : Fin h) : (shMat i 1 : Matrix (Fin h) (Fin h) (R (n + 1))) = 1 := by
   ext a b
   rw [shMat_apply]
   by_cases hab : a = b
-  · subst hab; simp
-  · rw [Matrix.one_apply_ne fun e => hab (sub_left_injective e), Matrix.one_apply_ne hab]; simp
+  · subst hab
+    simp
+  · rw [Matrix.one_apply_ne fun e => hab (sub_left_injective e), Matrix.one_apply_ne hab]
+    simp
 
 theorem shMat_mul (i : Fin h) (A B : Matrix (Fin h) (Fin h) (ZMod 2)) :
     (shMat i (A * B) : Matrix (Fin h) (Fin h) (R (n + 1))) = shMat i A * shMat i B := by
@@ -93,7 +97,8 @@ theorem det_shMat (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) :
     Matrix.det_submatrix_equiv_self, ← RingHom.mapMatrix_apply, ← RingHom.map_det]
   have h1 : (∏ a, ((wt i a : (R (n + 1))ˣ) : R (n + 1))) *
       ∏ a, (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n + 1)) = 1 := by
-    rw [← Finset.prod_mul_distrib]; exact Finset.prod_eq_one fun a _ => Units.mul_inv _
+    rw [← Finset.prod_mul_distrib]
+    exact Finset.prod_eq_one fun a _ => Units.mul_inv _
   linear_combination (cst (n + 1) A.det) * h1
 
 /-- The embedding of SL_h(F₂) shifted by i. -/
@@ -112,7 +117,8 @@ theorem evG_apply (g : G h n) (a b : Fin h) : (evG g).1 a b = ev n (g.1 a b) := 
 
 omit [NeZero h] in
 theorem ev_wt (i a : Fin h) : ev n ((wt i a : (R (n + 1))ˣ) : R (n + 1)) = 1 := by
-  rw [wt]; split_ifs
+  rw [wt]
+  split_ifs
   · simpa only [map_mul, show ev n (tu n : R (n + 1)) = 1 from ev_t n, one_mul, map_one] using
       congrArg (ev n) (Units.mul_inv (tu n))
   · simp
@@ -194,14 +200,15 @@ theorem wt_sub_one (h2 : 2 ≤ h) {i k : Fin h} (hk : k ≠ i) :
     have hi0 : (0 : Fin h) < i := Fin.pos_iff_ne_zero.2 hk.symm
     have hl : ¬ ((0 : Fin h) - 1 < i) := by
       rw [Fin.lt_def, zero_sub, Fin.val_neg', Fin.val_one',
-        Nat.mod_eq_of_lt (by omega : 1 < h), Nat.mod_eq_of_lt (by omega : h - 1 < h)]
+        Nat.mod_eq_of_lt (by omega : 1 < h),
+        Nat.mod_eq_of_lt (by omega : h - 1 < h)]
       omega
     rw [wt, wt, ite_eq_right hl, ite_eq_left hi0, tt, ite_eq_left rfl, inv_inv, Units.val_one,
       one_mul, tu_val]
   · have hk0 : 0 < k.1 := Nat.pos_of_ne_zero fun e => h0 (Fin.ext e)
     have h1 : (k - 1).1 = k.1 - 1 := by
       have hle : (1 : Fin h) ≤ k := by
-        rw [Fin.le_def, Fin.val_one', Nat.mod_eq_of_lt (by omega)]; exact hk0
+        rwa [Fin.le_def, Fin.val_one', Nat.mod_eq_of_lt (by omega)]
       rw [Fin.sub_val_of_le hle, Fin.val_one', Nat.mod_eq_of_lt (by omega)]
     have hki : k.1 ≠ i.1 := fun e => hk (Fin.ext e)
     have hlt_iff : k - 1 < i ↔ k < i := by rw [Fin.lt_def, Fin.lt_def, h1]; omega

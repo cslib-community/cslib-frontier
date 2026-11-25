@@ -439,8 +439,8 @@ theorem isPPTOn_lorRunOn {α : Type} {input : α ↪ List Bool}
             ((fst encMsg encMsg).comp ((fst _ encBits).comp (snd _ (encChoiceOut encMsg)))))
         (const []).isPPTOn
     simpa only [lorStepOn, bind_pure_comp] using hquery.bind_with <|
-      henc.map_with (f := fun q c => (ChoiceOut.state q.2, c :: q.1.2.2))
-        (by dsimp only [stepMidEnc, encLoRLoopState, encChoiceOut]; fun_prop)
+      henc.map_with (f := fun q c => (ChoiceOut.state q.2, c :: q.1.2.2)) <| by
+        dsimp only [stepMidEnc, encLoRLoopState, encChoiceOut]; fun_prop
   obtain ⟨stBound, hstBound, hstLen⟩ := hadversary.state_growth
   refine IsPPTOn.iterateWith_of_bounded_growth hcount hinitial hstep
     (growth := fun a => 2 * stBound (security a) + 2 * ctBound (security a) + 1)

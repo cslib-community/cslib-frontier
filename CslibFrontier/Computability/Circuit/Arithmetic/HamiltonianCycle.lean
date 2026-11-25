@@ -65,8 +65,9 @@ theorem totalDegree_hamiltonianCycleSum_genericMatrix_le {K : Type u} [CommSemir
     (genericMatrix K n).hamiltonianCycleSum.totalDegree ≤ n := by
   rw [Matrix.hamiltonianCycleSum]
   refine totalDegree_finsetSum_le fun σ _ => (totalDegree_finsetProd _ _).trans ?_
-  exact (Finset.sum_le_sum (g := fun _ => 1) fun i _ =>
-    (totalDegree_monomial_le _ _).trans (by simp)).trans_eq (by simp)
+  calc _ ≤ ∑ _i : Fin n, 1 :=
+        Finset.sum_le_sum fun i _ => (totalDegree_monomial_le _ _).trans (by simp)
+    _ = n := by simp
 
 /-- The Hamiltonian cycle family is a p-family. -/
 theorem isPFamily_hcFamily {K : Type u} [CommSemiring K] : (hcFamily K).IsPFamily :=
@@ -119,7 +120,8 @@ private theorem orderBits_injective : Function.Injective (orderBits n) := by
 private theorem projection_pos (e : Fin (n * n) → Bool) (i u : Fin n) :
     projection (booleanAssignment e) (pos (K := K) n i u) =
       C (bif e (finProdFinEquiv (i, u)) then 1 else 0) := by
-  rw [pos, projection_X]; simp only [booleanAssignment, Fin.append_right, Sum.elim_inr]
+  rw [pos, projection_X]
+  simp only [booleanAssignment, Fin.append_right, Sum.elim_inr]
 
 private theorem projection_entry (e : Fin (n * n) → Bool) (u v : Fin n) :
     projection (booleanAssignment e) (entry (K := K) n u v) =
@@ -137,7 +139,8 @@ private theorem projection_orderTest_orderBits (π : Equiv.Perm (Fin n)) :
     projection (booleanAssignment (orderBits n π)) (orderTest (K := K) n) = 1 := by
   simp only [orderTest, map_mul, map_prod, map_sub, map_one, map_sum, projection_pos_orderBits]
   rw [Finset.prod_eq_one, Finset.prod_eq_one, one_mul]
-  · intro i _; simp
+  · intro i _
+    simp
   · intro p hp
     obtain ⟨hne, h⟩ := (mem_filter.1 hp).2
     have : ¬ (π p.1.1 = p.1.2 ∧ π p.2.1 = p.2.2) := fun ⟨h1, h2⟩ =>

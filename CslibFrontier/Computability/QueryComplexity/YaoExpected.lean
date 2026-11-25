@@ -161,13 +161,19 @@ private theorem exists_expectedCost_saddle_finite [Finite ι] (f : (ι → Bool)
       (Finsupp.mapDomain_support (by simpa only [StdSimplex.weights_map] using ht))
     exact profileTree_computes f a
   · intro x
-    rw [RandomizedDecisionTree.expectedCost_map, Finsupp.sum_fintype _ _ fun _ => zero_mul _]
-    simpa only [profileTree_cost] using hp x
+    calc RandomizedDecisionTree.expectedCost (p.map (profileTree f)) x
+        = ∑ a, p.weights a * ((profileTree f a).cost x : ℝ) := by
+          rw [RandomizedDecisionTree.expectedCost_map, Finsupp.sum_fintype _ _ fun _ => zero_mul _]
+      _ = ∑ a, p.weights a * ((a.val x).val : ℝ) := by simp only [profileTree_cost]
+      _ ≤ v := hp x
   · intro t ht
     obtain ⟨a, ha⟩ := exists_costProfile_le f t ht
     rw [DecisionTree.distributionalCost_eq_sum, Finsupp.sum_fintype _ _ fun _ => zero_mul _]
-    exact (hq a).trans <| Finset.sum_le_sum fun x _ =>
-      mul_le_mul_of_nonneg_left (Nat.cast_le.mpr (ha x)) (q.weights_nonneg x)
+    calc
+      v ≤ ∑ x, q.weights x * ((a.val x).val : ℝ) := hq a
+      _ ≤ ∑ x, q.weights x * (t.cost x : ℝ) :=
+        Finset.sum_le_sum fun x _ =>
+          mul_le_mul_of_nonneg_left (Nat.cast_le.mpr (ha x)) (q.weights_nonneg x)
 
 /-- Each input distribution has a correct deterministic tree attaining its optimum. -/
 theorem exists_computes_distributionalCost_eq [Finite ι]

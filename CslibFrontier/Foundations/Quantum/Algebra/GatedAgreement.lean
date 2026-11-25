@@ -57,7 +57,8 @@ theorem sum_norm_sub_success_mul_sq_eq (φ : AlgState A)
   have h (a : α) : φ.norm (P.effect (some a) - G * Q.effect a) ^ 2 =
       (φ (P.effect (some a))).re + (φ (G * Q.effect a)).re -
         2 * (φ (P.effect (some a) * Q.effect a)).re := by
-    let E := P.effect (some a); let B := Q.effect a
+    let E := P.effect (some a)
+    let B := Q.effect a
     have hGQ : Commute G B := Commute.sum_left _ _ _ fun _ _ => hc _ _
     have hPG : Commute E G :=
       (Commute.sum_left _ _ _ fun b _ => hp.commute_effect (some b) (some a)).symm
@@ -69,9 +70,11 @@ theorem sum_norm_sub_success_mul_sq_eq (φ : AlgState A)
       rw [← mul_assoc, hPG.eq, hp.successfulEffect_mul_some P a]
     have hGBE : G * B * E = E * B := by
       rw [mul_assoc, ← (hc (some a) a).eq, ← mul_assoc, hp.successfulEffect_mul_some P a]
-    have hGBsq : G * B * (G * B) = G * B := by
-      rw [mul_assoc, hGQ.symm.left_comm, ← mul_assoc, hp.successfulEffect_mul_self P,
-        show B * B = B from hq a]
+    have hGBsq : G * B * (G * B) = G * B := calc
+      _ = G * (B * G) * B := by simp only [mul_assoc]
+      _ = G * (G * B) * B := by rw [← hGQ.eq]
+      _ = (G * G) * (B * B) := by simp only [mul_assoc]
+      _ = _ := by rw [hp.successfulEffect_mul_self P, show B * B = B from hq a]
     change φ.norm (E - G * B) ^ 2 = _
     rw [AlgState.norm_sq, star_sub, hE, hGB, sub_mul, mul_sub, mul_sub,
       show E * E = E from hp _, hEGB, hGBE, hGBsq]
@@ -178,7 +181,8 @@ theorem abs_sum_mul_pointOrder_sub_le {β : Type*} [Fintype β]
           sum_le_sum fun a _ => sum_le_sum fun b _ => pow_le_pow_left₀ (φ.norm_nonneg _)
             (φ.norm_mul_le_of_star_mul_self_le_one (star_mul_self_le_one hJ) _) _
       _ ≤ ∑ a : α, φ.norm (P.effect (some a)) ^ 2 :=
-          sum_le_sum fun a _ => sum_norm_some_effect_mul_sq_le φ N hn (P.effect (some a))
+        sum_le_sum fun a _ =>
+          sum_norm_some_effect_mul_sq_le φ N hn (P.effect (some a))
       _ ≤ 1 := by
           simpa only [mul_one, AlgState.norm_one, one_pow] using
             sum_norm_some_effect_mul_sq_le φ P hp 1

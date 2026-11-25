@@ -161,9 +161,10 @@ theorem tendsto_Q_three (hr : r ∈ Set.Icc (0 : ℝ) 1) :
 
 /-- `x ↦ (x / (1 - x)) ^ 2` is continuous on `[0, 1 / 2]`. -/
 private theorem continuousOn_div_one_sub_sq :
-    ContinuousOn (fun x : ℝ => (x / (1 - x)) ^ 2) (Set.uIcc 0 (1 / 2)) :=
-  (continuousOn_id.div (by fun_prop) fun _ hx =>
-    by linarith [(Set.uIcc_of_le (by norm_num : (0 : ℝ) ≤ 1 / 2) ▸ hx).2]).pow 2
+    ContinuousOn (fun x : ℝ => (x / (1 - x)) ^ 2) (Set.uIcc 0 (1 / 2)) := by
+  refine (continuousOn_id.div (by fun_prop) fun x hx => ?_).pow 2
+  rw [Set.uIcc_of_le (by norm_num)] at hx
+  linarith [hx.2]
 
 /-- **The integral of the limit** [Paturi, Pudlák, Saks, Zane, p. 354][PaturiPudlakSaksZane2005]:
 `∫₀¹ R3 r dr = 2 - 2 log 2`, since `1 / (1 - r) + 2 log (1 - r) + r` is an antiderivative of
@@ -177,7 +178,8 @@ theorem integral_R3 : ∫ r in (0 : ℝ)..1, R3 r = 2 - 2 * Real.log 2 := by
   have hF (x : ℝ) (hx : x ∈ Set.uIcc (0 : ℝ) (1 / 2)) :
       HasDerivAt (fun y => (1 - y)⁻¹ + 2 * Real.log (1 - y) + y) ((x / (1 - x)) ^ 2) x := by
     have hx1 : 1 - x ≠ 0 := by linarith [(hI ▸ hx).2]
-    have hd : HasDerivAt (fun y : ℝ => 1 - y) (-1) x := by simpa using (hasDerivAt_id x).const_sub 1
+    have hd : HasDerivAt (fun y : ℝ => 1 - y) (-1) x := by
+      simpa using (hasDerivAt_id x).const_sub 1
     refine (((hd.inv hx1).add ((hd.log hx1).const_mul 2)).add (hasDerivAt_id' x)).congr_deriv ?_
     field_simp
     ring

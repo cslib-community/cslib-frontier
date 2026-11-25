@@ -258,7 +258,8 @@ theorem ecomplexity_le_of_forall_distributionalComplexity_le [Finite A] {c : ℕ
     (hc : ∃ m : M, C.cost m ≤ c)
     (h : ∀ ν : PMF X, (∀ x ∈ ν.support, x ∈ A) → C.distributionalComplexity ε R ν ≤ c) :
     C.ecomplexity ε R A ≤ c := by
-  have : Nonempty {m : M // C.cost m ≤ c} := let ⟨m₀, hm₀⟩ := hc; ⟨⟨m₀, hm₀⟩⟩
+  obtain ⟨m₀, hm₀⟩ := hc
+  have : Nonempty {m : M // C.cost m ≤ c} := ⟨⟨m₀, hm₀⟩⟩
   obtain ⟨μ, hμ, hmax⟩ := PMF.exists_maxCost_le_and_forall_errorProb_le
     (cost := C.cost) (Acc := fun m x => R x (C.eval m x)) (D := A) (c := c) (ε := ε) fun ν hν =>
       let ⟨m, herr, hm⟩ := distributionalComplexity_le_iff.mp (h ν hν)

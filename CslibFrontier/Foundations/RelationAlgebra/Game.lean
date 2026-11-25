@@ -183,7 +183,10 @@ theorem hasWinningStrategy_iff : F.HasWinningStrategy ↔ ∃ W : Set F.Position
       fun _ hP v => ⟨_, .answer v hP, hσ.answer v hP⟩⟩, fun ⟨W, hopen, hW⟩ => ?_⟩
   choose opening hopenW hopen using hopen
   have hW' (P : F.Position) (v : P.Move) : ∃ Q, P ∈ W → Q ∈ W ∧ Q.Answers v :=
-    if hP : P ∈ W then let ⟨Q, hQ⟩ := hW P hP v; ⟨Q, fun _ => hQ⟩ else ⟨P, fun h => (hP h).elim⟩
+    if hP : P ∈ W then
+      let ⟨Q, hQ⟩ := hW P hP v
+      ⟨Q, fun _ => hQ⟩
+    else ⟨P, fun h => (hP h).elim⟩
   choose answer hanswer using hW'
   have hreach (P : F.Position) (hP : Strategy.Reachable ⟨opening, answer⟩ P) : P ∈ W := by
     induction hP with
@@ -202,7 +205,9 @@ theorem HasWinningStrategy.of_forall_exists_comap_castSucc
     F.HasWinningStrategy := by
   classical
   exact hasWinningStrategy_iff.mpr ⟨{P | P.network ∈ W P.size},
-    fun a => let ⟨n, N, hN, h⟩ := opening a; ⟨⟨n, N⟩, hN, h⟩,
+    fun a =>
+      let ⟨n, N, hN, h⟩ := opening a
+      ⟨⟨n, N⟩, hN, h⟩,
     fun ⟨n, N⟩ hN ⟨i, j, a, b, hab⟩ =>
       if hp : ∃ p, N i p = a ∧ N p j = b then ⟨⟨n, N⟩, hN, le_rfl, hp⟩
       else let ⟨N', hN', hNN', hab'⟩ := answer n N hN i j a b hab fun p ha hb => hp ⟨p, ha, hb⟩
@@ -214,6 +219,7 @@ theorem HasWinningStrategy.of_saturated
     (h : ∀ a, ∃ (D : Type w) (N : AtomicNetwork F D), N.Saturated ∧ ∃ m n, N m n = a) :
     F.HasWinningStrategy := by
   classical
+  -- a finite set of nodes can be enlarged to contain any further node
   have extend {D : Type w} {k : ℕ} (f : Fin k ↪ D) (p : D) : ∃ (k' : ℕ) (f' : Fin k' ↪ D)
       (hk : k ≤ k'), (∀ i, f' (i.castLE hk) = f i) ∧ p ∈ Set.range f' :=
     if hp : p ∈ Set.range f then ⟨k, f, le_rfl, fun _ => rfl, hp⟩
@@ -241,22 +247,29 @@ theorem HasWinningStrategy.exists_saturated [Countable α] (h : F.HasWinningStra
   obtain ⟨P₀, hP₀, m₀, n₀, ha⟩ := hopen a
   have : Nonempty α := ⟨a⟩
   obtain ⟨e, he⟩ := exists_surjective_nat (ℕ × ℕ × α × α)
+  -- a round in which ∀ makes the move coded by `d`, if `d` codes a move
   have step (P : W) (d : ℕ × ℕ × α × α) : ∃ Q : W, P.1 ≤ Q.1 ∧
       ∀ v : P.1.Move, (v.m.1, v.n.1, v.a, v.b) = d → Q.1.Answers v := by
     by_cases hd : ∃ v : P.1.Move, (v.m.1, v.n.1, v.a, v.b) = d
-    · obtain ⟨v, rfl⟩ := hd; obtain ⟨Q, hQ, hQv⟩ := hW P.1 P.2 v
+    · obtain ⟨v, rfl⟩ := hd
+      obtain ⟨Q, hQ, hQv⟩ := hW P.1 P.2 v
       refine ⟨⟨Q, hQ⟩, hQv.1, fun ⟨_, _, _, _, _⟩ hv => ?_⟩
-      cases v; simp only [Prod.mk.injEq, Fin.val_inj] at hv
-      obtain ⟨rfl, rfl, rfl, rfl⟩ := hv; exact hQv
+      cases v
+      simp only [Prod.mk.injEq, Fin.val_inj] at hv
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := hv
+      exact hQv
     · exact ⟨P, le_rfl, fun v hv => (hd ⟨v, hv⟩).elim⟩
   choose next hle hnext using step
+  -- the play in which the moves of ∀ follow `e`, each code recurring infinitely often
   let play : ℕ → W := fun k => k.rec ⟨P₀, hP₀⟩ fun k P => next P (e k.unpair.1)
   have hplay : Monotone fun k => (play k).1 := monotone_nat_of_le_succ fun k => hle _ _
   have lt_size {i k l : ℕ} (hkl : k ≤ l) (hi : i < (play k).1.size) : i < (play l).1.size :=
     hi.trans_le (Position.size_mono (hplay hkl))
+  -- its limit
   let D : Type := {i : ℕ // ∃ k, i < (play k).1.size}
   have common (d e : D) : ∃ k, d.1 < (play k).1.size ∧ e.1 < (play k).1.size :=
-    let ⟨k, hk⟩ := d.2; let ⟨l, hl⟩ := e.2
+    let ⟨k, hk⟩ := d.2
+    let ⟨l, hl⟩ := e.2
     ⟨max k l, lt_size (le_max_left k l) hk, lt_size (le_max_right k l) hl⟩
   choose lvl hlvl using common
   let label (d e : D) : α := (play (lvl d e)).1.network ⟨d, (hlvl d e).1⟩ ⟨e, (hlvl d e).2⟩
@@ -268,7 +281,8 @@ theorem HasWinningStrategy.exists_saturated [Countable α] (h : F.HasWinningStra
     { label := label
       label_mem_id := (AtomicNetwork.label_mem_id _).trans (Fin.ext_iff.trans Subtype.ext_iff.symm)
       conv_label := fun d e => by
-        rw [label_eq e d _ (hlvl d e).2 (hlvl d e).1]; exact AtomicNetwork.conv_label _ _ _
+        rw [label_eq e d _ (hlvl d e).2 (hlvl d e).1]
+        exact AtomicNetwork.conv_label _ _ _
       label_mem_cycles := fun d e f => by
         obtain ⟨l, hf⟩ := f.2
         have hd := lt_size (le_max_left (lvl d e) l) (hlvl d e).1

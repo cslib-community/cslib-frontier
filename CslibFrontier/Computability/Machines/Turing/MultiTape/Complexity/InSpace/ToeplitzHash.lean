@@ -129,10 +129,16 @@ theorem toeplitzHashNat_lt_two_pow_size (n z o x : ℕ) : toeplitzHashNat n z o 
         (Nat.pow_le_pow_right two_pos (hk.trans ht)))
     have hconst (xs : List ℕ) : xs.foldl (fun b _ => b) false = false := by
       induction xs <;> simp [*]
-    rw [toeplitzHashNat, testBit_foldr_range, show toeplitzHashBitNat n z o x k = false by
+    have hbit : toeplitzHashBitNat n z o x k = false := by
       simp only [toeplitzHashBitNat, hz _ (by omega : k ≤ o + (n + n - 1) + k),
         fun t => hz (o + (k + t)) (by omega), Bool.false_and, Bool.xor_false]
-      exact hconst _, Bool.and_false]
+      exact hconst _
+    rw [toeplitzHashNat, testBit_foldr_range, hbit, Bool.and_false]
+
+/-- Bit `k < n` of the packed Toeplitz hash is `toeplitzHashBitNat n z o x k`. -/
+private theorem testBit_toeplitzHashNat_of_lt {n k : ℕ} (z o x : ℕ) (hk : k < n) :
+    (toeplitzHashNat n z o x).testBit k = toeplitzHashBitNat n z o x k := by
+  simp [toeplitzHashNat, testBit_foldr_range, hk]
 
 /-! ### The packed Toeplitz hash in linear space -/
 
@@ -270,6 +276,13 @@ private theorem hashStep_inSpace :
     (ComputableInSpace.budget_const none)).of_enc_eq fun _ => by
       simp only [hashStep, decide_eq_true_eq]; rfl
 
+/-- Halving `m / 2 ^ k` drops bit `k` of `m`. -/
+private theorem div_two_pow_eq (m k : ℕ) :
+    m / 2 ^ k = 2 * (m / 2 ^ (k + 1)) + (m.testBit k).toNat := by
+  rw [Nat.testBit_eq_decide_div_mod_eq, pow_succ, ← Nat.div_div_eq_div_mul]
+  generalize m / 2 ^ k = q
+  rcases Nat.mod_two_eq_zero_or_one q with h | h <;> simp [h] <;> omega
+
 /-- **The packed Toeplitz hash in linear space**: `toeplitzHashNat n z o x` is computable within
 work space linear in the length of the encoded arguments. A loop appends the `n` output bits
 most significant first; each bit is computed by an inner loop over the `n` columns, reading the
@@ -288,20 +301,15 @@ theorem computableInSpace_toeplitzHashNat :
     (fun q j => ⟨q.n - j, toeplitzHashNat q.n q.z q.o q.x / 2 ^ (q.n - j)⟩) (fun q => q.n)
     hinit hashStep_inSpace (fun q => ?_) (fun q j hj => ?_) (fun q => ?_)
     (fun q j _ => ?_))).weaken (.of_le_linear 10 16 fun q => by
-      have := Nat.log2_le_self (encToeplitzHashArgs q).length; omega)).of_enc_eq
-    fun _ => by simp
+      have := Nat.log2_le_self (encToeplitzHashArgs q).length
+      omega)).of_enc_eq fun _ => by simp
   · simp [Nat.div_eq_of_lt (toeplitzHashNat_lt _ _ _ _)]
   · simp only [hashStep, show 0 < q.n - j by omega, ↓reduceIte, Option.some.injEq,
       HashReg.mk.injEq]
     refine ⟨by omega, ?_⟩
-    set k := q.n - j - 1
-    have htb : (toeplitzHashNat q.n q.z q.o q.x).testBit k =
-        toeplitzHashBitNat q.n q.z q.o q.x k := by
-      simp [toeplitzHashNat, testBit_foldr_range, show k < q.n by omega]
-    rw [← htb, Nat.testBit_eq_decide_div_mod_eq, show q.n - (j + 1) = k by omega,
-      show q.n - j = k + 1 by omega, pow_succ, ← Nat.div_div_eq_div_mul]
-    generalize toeplitzHashNat q.n q.z q.o q.x / 2 ^ k = m
-    rcases Nat.mod_two_eq_zero_or_one m with h | h <;> simp [h] <;> omega
+    rw [← testBit_toeplitzHashNat_of_lt _ _ _ (by omega : q.n - j - 1 < q.n),
+      show q.n - (j + 1) = q.n - j - 1 by omega, div_two_pow_eq _ (q.n - j - 1),
+      show q.n - j - 1 + 1 = q.n - j by omega]
   · simp [hashStep]
   · have := Turing.MultiTapeTM.length_encNat_mono (Nat.sub_le q.n j)
     have : (encNat (toeplitzHashNat q.n q.z q.o q.x / 2 ^ (q.n - j))).length ≤

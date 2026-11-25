@@ -68,7 +68,8 @@ theorem collarRoute_eq_map (reflected : Bool) (r : Route) :
 /-- Placement commutes with inclusion of the integer lattice. -/
 theorem realPoint_collarPoint (reflected : Bool) (p : Point) :
     realPoint (collarPoint reflected p) = collarReal reflected (realPoint p) := by
-  cases reflected <;> simp [collarPoint, collarReal, realPoint_add, realPoint_mirrorPoint]
+  cases reflected <;>
+    simp [collarPoint, collarReal, realPoint_add, realPoint_mirrorPoint]
 
 /-- The common affine placement does not identify real points. -/
 theorem collarReal_injective (reflected : Bool) : Function.Injective (collarReal reflected) := by
@@ -83,21 +84,25 @@ theorem collarPoint_injective (reflected : Bool) : Function.Injective (collarPoi
 /-- Placement maps the full continuous support. -/
 theorem support_collarRoute (reflected : Bool) (r : Route) :
     support (collarRoute reflected r) = collarReal reflected '' support r := by
-  unfold collarRoute; rw [support_translate]
+  unfold collarRoute
+  rw [support_translate]
   cases reflected
   · rfl
   · change (fun p => p + realPoint (collarOffset true)) '' support (mirrorRoute r) = _
-    rw [support_mirrorRoute, Set.image_image]; rfl
+    rw [support_mirrorRoute, Set.image_image]
+    rfl
 
 /-- Membership in a placed support is exactly placed membership. -/
 theorem mem_support_collarRoute_iff (reflected : Bool) (r : Route) (p : ℝ × ℝ) :
     collarReal reflected p ∈ support (collarRoute reflected r) ↔ p ∈ support r := by
-  rw [support_collarRoute]; exact (collarReal_injective reflected).mem_set_image
+  rw [support_collarRoute]
+  exact (collarReal_injective reflected).mem_set_image
 
 /-- Placement preserves proper orthogonality. -/
 theorem isOrthogonal_collarRoute (reflected : Bool) {r : Route} (hr : IsOrthogonal r) :
     IsOrthogonal (collarRoute reflected r) := by
-  unfold collarRoute; rw [isOrthogonal_translate_iff]
+  unfold collarRoute
+  rw [isOrthogonal_translate_iff]
   cases reflected
   · exact hr
   · exact (isOrthogonal_mirrorRoute_iff r).2 hr
@@ -105,7 +110,8 @@ theorem isOrthogonal_collarRoute (reflected : Bool) {r : Route} (hr : IsOrthogon
 /-- Placement preserves continuous simplicity. -/
 theorem isSimple_collarRoute (reflected : Bool) {r : Route} (hr : IsSimple r) :
     IsSimple (collarRoute reflected r) := by
-  unfold collarRoute; rw [isSimple_translate_iff]
+  unfold collarRoute
+  rw [isSimple_translate_iff]
   cases reflected
   · exact hr
   · exact (isSimple_mirrorRoute_iff r).2 hr
@@ -113,7 +119,8 @@ theorem isSimple_collarRoute (reflected : Bool) {r : Route} (hr : IsSimple r) :
 /-- Placement preserves total Manhattan wire length. -/
 theorem wireLength_collarRoute (reflected : Bool) (r : Route) :
     wireLength (collarRoute reflected r) = wireLength r := by
-  unfold collarRoute; rw [wireLength_translate]
+  unfold collarRoute
+  rw [wireLength_translate]
   cases reflected
   · rfl
   · exact wireLength_mirrorRoute r
@@ -142,7 +149,8 @@ theorem support_inPointBox_of_points {r : Route} {c : Point} {radius : ℕ}
   rcases hp with ⟨q, hq, rfl⟩ | ⟨e, he, hp⟩
   · exact hr q hq
   · have hm := List.of_mem_zip he
-    have ha := hr e.1 hm.1; have hb := hr e.2 (List.mem_of_mem_tail hm.2)
+    have ha := hr e.1 hm.1
+    have hb := hr e.2 (List.mem_of_mem_tail hm.2)
     obtain ⟨hx, hy⟩ : (min (e.1.1 : ℝ) (e.2.1 : ℝ) ≤ p.1 ∧ p.1 ≤ max (e.1.1 : ℝ) (e.2.1 : ℝ)) ∧
       (min (e.1.2 : ℝ) (e.2.2 : ℝ) ≤ p.2 ∧ p.2 ≤ max (e.1.2 : ℝ) (e.2.2 : ℝ)) :=
         mem_segment_bounds hp
@@ -153,10 +161,12 @@ theorem support_inPointBox_of_points {r : Route} {c : Point} {radius : ℕ}
 theorem collarPoint_in_innerBox (reflected : Bool) {q : Point}
     (hq : 0 ≤ q.1 ∧ q.1 ≤ 180000 ∧ 0 ≤ q.2 ∧ q.2 ≤ 180000) :
     inPointBox (270000, 270000) 90000 (realPoint (collarPoint reflected q)) := by
-  have hi : 180000 ≤ (collarPoint reflected q).1 ∧ (collarPoint reflected q).1 ≤ 360000 ∧
+  have hi : 180000 ≤ (collarPoint reflected q).1 ∧
+      (collarPoint reflected q).1 ≤ 360000 ∧
       180000 ≤ (collarPoint reflected q).2 ∧ (collarPoint reflected q).2 ≤ 360000 := by
     cases reflected <;> dsimp [collarPoint, collarOffset, mirrorPoint] <;> omega
-  norm_num [inPointBox, realPoint]; exact_mod_cast hi
+  norm_num [inPointBox, realPoint]
+  exact_mod_cast hi
 
 /-- A placed local route stays inside the collar's closed inner square. -/
 theorem collarRoute_in_innerBox (reflected : Bool) {r : Route}
@@ -236,12 +246,14 @@ theorem disjoint_collarRoute_connector {s : PortAssignment}
     (hi : realPoint (innerTemplatePort i) ∉ support r) :
     Disjoint (support (collarRoute (collarReflected s) r))
       (support ((collarRoutes s).getD i [])) := by
-  rw [Set.disjoint_left]; intro p hp hq
+  rw [Set.disjoint_left]
+  intro p hp hq
   by_cases hs : s.Distinct
   · rw [collar_core_contact hs hq (collarRoute_in_innerBox _ hb hp),
       ← collarPoint_innerTemplatePort, realPoint_collarPoint] at hp
     exact hi ((mem_support_collarRoute_iff _ r _).1 hp)
-  · have hall : ∀ a ∈ collarAssignments, a.Distinct := by decide
+  · -- Repeated sides have no table entry, so the connector is empty.
+    have hall : ∀ a ∈ collarAssignments, a.Distinct := by decide
     have hn : s ∉ collarAssignments := fun hm => hs (hall s hm)
     have hnil : collarRoutes s = [] := by
       rw [collarRoutes, List.idxOf_eq_length hn, List.getD_eq_getElem?_getD,
@@ -263,7 +275,8 @@ theorem collarPrefixRoute_contact {s : PortAssignment} (hs : s.Distinct)
     {p : ℝ × ℝ} (hp : p ∈ support (collarPrefixRoute s i r))
     (hq : p ∈ support (collarPrefixRoute s j t)) :
     ∃ q ∈ support r, q ∈ support t ∧ p = collarReal (collarReflected s) q := by
-  rw [support_collarPrefixRoute hs hr] at hp; rw [support_collarPrefixRoute hs ht] at hq
+  rw [support_collarPrefixRoute hs hr] at hp
+  rw [support_collarPrefixRoute hs ht] at hq
   rcases hp with hp | hp <;> rcases hq with hq | hq
   · rw [support_collarRoute] at hp hq
     obtain ⟨x, hx, rfl⟩ := hp
@@ -281,7 +294,8 @@ theorem collarPrefixRoute_not_mem_corePoint {s : PortAssignment} (hs : s.Distinc
     {q : Point} (hq : 0 ≤ q.1 ∧ q.1 ≤ 180000 ∧ 0 ≤ q.2 ∧ q.2 ≤ 180000)
     (hqi : q ≠ innerTemplatePort i) (hn : realPoint q ∉ support r) :
     realPoint (collarPoint (collarReflected s) q) ∉ support (collarPrefixRoute s i r) := by
-  rw [support_collarPrefixRoute hs hr]; rintro (hp | hp)
+  rw [support_collarPrefixRoute hs hr]
+  rintro (hp | hp)
   · rw [realPoint_collarPoint] at hp
     exact hn ((mem_support_collarRoute_iff ..).1 hp)
   · have he := collar_core_contact hs hp (collarPoint_in_innerBox _ hq)

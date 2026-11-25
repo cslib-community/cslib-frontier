@@ -69,11 +69,11 @@ theorem countP_range_bitGeneratorNat_accepts {k : ℕ} {State : Type}
           (M.toNTM.initCfg input)).output = [true])) =
       M.acceptNisanSeeds input n r := by
   classical
-  simp only [show ∀ z, (List.ofFn fun j : Fin (2 ^ r * n) =>
-        Crypto.PRG.Nisan.bitGeneratorNat n r z j) =
-      List.ofFn (Crypto.PRG.Nisan.bitGenerator n r (Crypto.PRG.Nisan.seedOfNat n r z)) from
-    fun z => congrArg List.ofFn (funext fun j =>
-      Crypto.PRG.Nisan.bitGeneratorNat_eq n r z j j.isLt)]
+  have hfun (z : ℕ) :
+      (List.ofFn fun j : Fin (2 ^ r * n) => Crypto.PRG.Nisan.bitGeneratorNat n r z j) =
+        List.ofFn (Crypto.PRG.Nisan.bitGenerator n r (Crypto.PRG.Nisan.seedOfNat n r z)) :=
+    congrArg List.ofFn (funext fun j => Crypto.PRG.Nisan.bitGeneratorNat_eq n r z j j.isLt)
+  simp only [hfun]
   refine (Crypto.PRG.Nisan.countP_range_seedOfNat n r fun s => decide
     ((M.stepCoins (List.ofFn (Crypto.PRG.Nisan.bitGenerator n r s))
         (M.toNTM.initCfg input)).Halted ∧
@@ -102,7 +102,9 @@ private theorem log2_le_logSqBudget (w : List Bool) : Nat.log2 w.length ≤ logS
 
 private theorem log2_budget :
     ComputableInSpace (fun w : List Bool => Nat.log2 w.length) encBits encNat logSqBudget :=
-  log2_length_inSpace.mono_le fun w => by rw [encBits_apply]; exact log2_le_logSqBudget w
+  log2_length_inSpace.mono_le fun w => by
+    rw [encBits_apply]
+    exact log2_le_logSqBudget w
 
 /-- The number of hash seeds `r = d (log₂ m + 2) + 1` on inputs of length `m`. -/
 private abbrev nisanHashSeeds (d : ℕ) (w : List Bool) : ℕ := d * (Nat.log2 w.length + 2) + 1

@@ -81,7 +81,8 @@ private theorem foldr_max_eq_zero_or_mem (l : List ℕ) :
   induction l with
   | nil => simp
   | cons a l ih =>
-    rw [List.foldr_cons]; rcases max_choice a (l.foldr max 0) with h | h <;>
+    rw [List.foldr_cons]
+    rcases max_choice a (l.foldr max 0) with h | h <;>
       simp only [h, List.mem_cons] <;> tauto
 
 /-- The largest weight of `I`, `0` when there is none. -/
@@ -106,7 +107,8 @@ theorem seedWidth_eq (I : CMMSAInstance) (lam : ℕ) :
     seedWidth I lam = Nat.clog 2 (maxWeight I * lam) := by
   refine le_antisymm (Finset.sup_le fun v hv => Nat.clog_mono_right _ <| Nat.mul_le_mul_right _ <|
     le_maxWeight ?_) ?_
-  · rw [List.getD_eq_getElem _ _ (Finset.mem_range.1 hv)]; exact List.getElem_mem _
+  · rw [List.getD_eq_getElem _ _ (Finset.mem_range.1 hv)]
+    exact List.getElem_mem _
   · rcases maxWeight_eq_zero_or_mem I with h | h
     · simp [h]
     · obtain ⟨v, hv, hw⟩ := List.getElem_of_mem h

@@ -164,8 +164,8 @@ theorem formula_polyTime {α : Type} {enc : α ↪ List Bool} {f : α → Prenex
       QBF.blocks] using hm
   | succ i ih =>
     intro bs φ hb hm hl
-    have ht := ih (!q) (fun a => (bs a).tail) φ (by fun_prop) hm fun a => by
-      simp only [List.length_tail, hl, Nat.add_sub_cancel]
+    have ht := ih (!q) (fun a => (bs a).tail) φ (by fun_prop) hm
+      (fun a => by simp only [List.length_tail, hl, Nat.add_sub_cancel])
     have hhead : ComputableInPolyTime (fun a => (bs a).headD []) enc (encList encNat) := by
       fun_prop
     have hsplit a : QBF.blocks q (bs a) (φ a) =
@@ -187,7 +187,8 @@ theorem startsCorrectly_polyTime (q : Bool) :
     ComputableInPolyTime (startsCorrectly q) encQBF encBool := by
   have := computableInPolyTime_decide_quantifierFree
   have := initialVars_polyTime q
-  unfold startsCorrectly; fun_prop
+  unfold startsCorrectly
+  fun_prop
 
 /-- A nonempty initial block starts with the declared polarity. -/
 theorem startsCorrectly_formula (a : PrenexQBF) (q : Bool) (h : a.blocks ≠ [])

@@ -270,10 +270,10 @@ theorem acceptCoins_div_eq_sum_liveConfigMatrix (R : Type*) [Field R] [CharZero 
   rw [hvec] at h
   rw [acceptCoins_eq_configMatrix_pow_mulVec R hV hinit, configMatrix, h, Finset.sum_div]
   refine Finset.sum_congr rfl fun t ht => ?_
-  rw [smul_pow, Matrix.smul_mulVec, Pi.smul_apply, smul_eq_mul, liveConfigMatrix,
-    show (2 : R) ^ T = 2 ^ (T - t) * 2 ^ t by
-      rw [← pow_add, Nat.sub_add_cancel (Nat.lt_succ_iff.mp (Finset.mem_range.mp ht))],
-    inv_pow, mul_div_mul_left _ _ (pow_ne_zero _ two_ne_zero), div_eq_inv_mul]
+  have h2 : (2 : R) ^ T = 2 ^ (T - t) * 2 ^ t := by
+    rw [← pow_add, Nat.sub_add_cancel (Nat.lt_succ_iff.mp (Finset.mem_range.mp ht))]
+  rw [smul_pow, Matrix.smul_mulVec, Pi.smul_apply, smul_eq_mul, liveConfigMatrix, h2, inv_pow,
+    mul_div_mul_left _ _ (pow_ne_zero _ two_ne_zero), div_eq_inv_mul]
 
 open scoped Classical in
 /-- **The live matrix is nilpotent on reachable views**: if every view of `V` is reachable and

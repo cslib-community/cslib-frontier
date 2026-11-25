@@ -123,7 +123,8 @@ theorem sampleSupport2_density_bounds {width n count : ℕ} (h : count ≤ n) (S
 @[aesop (rule_sets := [finiteness]) safe apply]
 theorem supportUpperDensity_ne_top (width n offset count : ℕ) :
     supportUpperDensity width n offset count ≠ ⊤ := by
-  unfold supportUpperDensity; finiteness
+  unfold supportUpperDensity
+  finiteness
 
 /-- **Corrected HQC Lemma 6.5:** the density bounds transfer to every nonnegative payoff.
 Using extended nonnegative values also permits unbounded payoffs without summability premises. -/
@@ -158,7 +159,8 @@ theorem sampleSupport2_event_bounds {width n count : ℕ} (h : count ≤ n)
   have hb := sampleSupport2_expect_bounds (width := width) h (E.indicator 1)
   simp only [ProbComp.expect, ← PMF.toOuterMeasure_eq_tsum_mul_indicator] at hb
   simp only [ProbComp.probability_map_decide_mem]
-  exact ⟨by ennreal_to_real using hb.1, by ennreal_to_real using hb.2⟩
+  exact ⟨by ennreal_to_real using hb.1,
+    by ennreal_to_real using hb.2⟩
 
 /-- The finite real-valued expectation form of corrected Lemma 6.5. Only values on valid
 supports must be nonnegative, since both samplers are supported there. -/
@@ -191,7 +193,8 @@ private theorem lower_factor_real {M d : ℕ} (hM : 0 < M) :
 private theorem upper_factor_real {M d : ℕ} (hM : 0 < M) (hd : 0 < d) :
     ((((M / d + 1) * d : ℕ) : ℝ) / M) = 1 + ((d : ℝ) - (M % d : ℕ)) / (M : ℝ) := by
   have heq : (M / d + 1) * d = M + (d - M % d) := by
-    have := Nat.mod_lt M hd; have := Nat.div_add_mod M d
+    have := Nat.mod_lt M hd
+    have := Nat.div_add_mod M d
     rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm d] at *; omega
   rw [heq, Nat.cast_add, Nat.cast_sub (Nat.mod_lt M hd).le, add_div,
     div_self (by exact_mod_cast hM.ne')]
@@ -200,7 +203,8 @@ private theorem upper_factor_real {M d : ℕ} (hM : 0 < M) (hd : 0 < d) :
 theorem supportLowerDensity_toReal (width n offset count : ℕ) :
     (supportLowerDensity width n offset count).toReal =
       ∏ j : Fin count, (1 - (2 ^ width % (n - (offset + j.val)) : ℕ) / (2 ^ width : ℝ)) := by
-  rw [supportLowerDensity]; ennreal_to_real
+  rw [supportLowerDensity]
+  ennreal_to_real
   exact Finset.prod_congr rfl fun j _ => by
     simpa only [Nat.cast_pow, Nat.cast_ofNat] using
       lower_factor_real (M := 2 ^ width) (d := n - (offset + j.val)) (by positivity)
@@ -211,7 +215,8 @@ theorem supportUpperDensity_toReal {width n offset count : ℕ} (h : offset + co
       ∏ j : Fin count,
         (1 + ((n - (offset + j.val) : ℕ) -
           (2 ^ width % (n - (offset + j.val)) : ℕ)) / (2 ^ width : ℝ)) := by
-  rw [supportUpperDensity]; ennreal_to_real
+  rw [supportUpperDensity]
+  ennreal_to_real
   exact Finset.prod_congr rfl fun j _ => by
     simpa only [Nat.cast_pow, Nat.cast_ofNat] using
       upper_factor_real (M := 2 ^ width) (d := n - (offset + j.val)) (by positivity)

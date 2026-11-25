@@ -91,9 +91,10 @@ theorem identityBlock_none :
 
 /-- The grains sum to at most `2 n`. -/
 theorem sum_identityGrain_le : ∑ a, identityGrain q a ≤ 2 * Fintype.card α := by
-  have h : ∑ a, (identityGrain q a : ℝ) ≤ 2 * Fintype.card α :=
-    (sum_le_sum fun a _ => Nat.floor_le (by positivity)).trans_eq
-      (by rw [← mul_sum, sum_toReal, mul_one])
+  have h : (∑ a, identityGrain q a : ℝ) ≤ 2 * Fintype.card α :=
+    calc ∑ a, (identityGrain q a : ℝ) ≤ ∑ a, 2 * (Fintype.card α : ℝ) * (q a).toReal :=
+          sum_le_sum fun a _ => Nat.floor_le (by positivity)
+      _ = 2 * Fintype.card α := by rw [← mul_sum, sum_toReal, mul_one]
   exact_mod_cast h
 
 /-- The cells of Goldreich's kernel: a block of `identityBlock q (some a)` cells for each element
@@ -109,7 +110,8 @@ theorem card_identityDomain : Fintype.card (IdentityDomain q) = 4 * Fintype.card
   rw [Fintype.card_sigma, Fintype.sum_option]
   simp only [Fintype.card_fin]
   simp only [identityBlock, sum_add_distrib, sum_const, card_univ, smul_eq_mul]
-  have := sum_identityGrain_le q; omega
+  have := sum_identityGrain_le q
+  omega
 
 /-- The rounding error `2 n q(a) - ⌊2 n q(a)⌋ ∈ [0, 1)`. -/
 private noncomputable def identityRemainder (a : α) : ℝ :=
@@ -291,7 +293,8 @@ theorem isTester_identity_of_uniform {k : ℕ} {T : (Fin k → IdentityDomain q)
     (hT : IsTester T {uniformOfFintype (IdentityDomain q)} (ε / 3)) :
     IsTester (fun x => (pi fun i => identityKernel q (x i)).bind T) {q} ε := by
   refine hT.bind_pi (identityKernel q) ?_ ?_
-  · intro _ hq'; simp [Set.mem_singleton_iff.mp hq', bind_identityKernel_self]
+  · intro _ hq'
+    simp [Set.mem_singleton_iff.mp hq', bind_identityKernel_self]
   · intro p hp _ hq'
     rw [Set.mem_singleton_iff.mp hq', ← bind_identityKernel_self]
     linarith [hp q (Set.mem_singleton q), dist_le_three_mul_dist_bind_identityKernel q p]

@@ -96,9 +96,9 @@ theorem inPort_source_injective (hp : PairedPorts M dOut dIn) (v : V)
 
 /-- Every nonzero matrix entry is realized by an active incoming port. -/
 theorem exists_inPort_of_ne_zero (hp : PairedPorts M dOut dIn) {u v : V} (h : M u v ≠ 0) :
-    ∃ q p, hp.inPort v q = some (u, p) :=
-  let ⟨p, q, hpq⟩ := hp.exists_outPort_of_ne_zero h
-  ⟨q, p, (hp.outPort_eq_some_iff u p v q).mp hpq⟩
+    ∃ q p, hp.inPort v q = some (u, p) := by
+  obtain ⟨p, q, hpq⟩ := hp.exists_outPort_of_ne_zero h
+  exact ⟨q, p, (hp.outPort_eq_some_iff u p v q).mp hpq⟩
 
 /-- Weight carried by incoming port `(v, q)`, defined via the paired outgoing port. -/
 @[expose] def inWeight (hp : PairedPorts M dOut dIn) (v : V) (q : Fin dIn) : R :=
@@ -197,7 +197,8 @@ theorem mulVec_apply_eq_sum_outPort {V R : Type*} [Fintype V] [NonAssocSemiring 
   refine Finset.sum_congr rfl fun p _ => ?_
   rcases hp.outPort u p with _ | ⟨v, q⟩
   · simp
-  · rw [Finset.sum_eq_single v (fun w _ hw => by simp [hw.symm]) (by simp)]; simp
+  · rw [Finset.sum_eq_single v (fun w _ hw => by simp [hw.symm]) (by simp)]
+    simp
 
 /-- Local incoming-port formula for `(Mᵀ *ᵥ x) v` in terms of `inWeight`. -/
 theorem transpose_mulVec_apply_eq_sum_inPort {V R : Type*} [Fintype V] [NonAssocSemiring R]
@@ -430,7 +431,9 @@ private theorem val_symm_toLex (T n : ℕ) (i : Fin (T + 1)) (v : Fin n) :
   have h := timeLayerEquiv_val T n ((timeLayerEquiv T n).symm (toLex (i, v)))
   rw [Equiv.apply_symm_apply] at h
   dsimp only [ofLex_toLex] at h
-  linarith
+  calc
+    ((timeLayerEquiv T n).symm (toLex (i, v))).val = v.val + n * i.val := h
+    _ = i.val * n + v.val := by ring
 
 private theorem val_div_symm_toLex (T n : ℕ) (i : Fin (T + 1)) (v : Fin n) :
     ((timeLayerEquiv T n).symm (toLex (i, v))).val / n = i.val :=

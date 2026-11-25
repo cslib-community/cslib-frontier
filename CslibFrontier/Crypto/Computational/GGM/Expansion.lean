@@ -92,7 +92,9 @@ theorem expansionOracle_bounds (generator : List Bool → List Bool) (sample : P
     obtain ⟨_, hcache', hgrowth⟩ := memoize_call_size_le encBits encBits
       (fun _ : List Bool => (ProbComp.eval sample).map (List.take (2 * n)))
       (query.take depth) cache (2 * n) hcache
-      (by rintro _ h; obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff ..).mp h; simp)
+      (fun _ h => by
+        obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff ..).mp h
+        simp)
       (expansion, next) (by simpa only [ProbComp.eval_memoize, ProbComp.eval_map] using hsample)
     refine ⟨hcache', (length_eval_le ..).trans (length_selectChild_le ..), ?_⟩
     change (cacheEncoding next).length ≤
@@ -160,7 +162,8 @@ private theorem frontierOracle_preserves_labels (generator : List Bool → List 
       (fun _ seed => seed.length = n) (query.take depth) cache hcache
       (fun _ => BitString.length_of_mem_support_uniformList) (seed, cache')
       (by simpa only [ProbComp.eval_memoize, BitString.eval_sampleList] using hseed)).2
-  · supp_cases hresult [frontierOracle, prefixHybridOracle, beq_iff_eq, hquery]; exact hcache
+  · supp_cases hresult [frontierOracle, prefixHybridOracle, beq_iff_eq, hquery]
+    exact hcache
 
 private theorem expansionOracle_generated_step (generator : List Bool → List Bool) (n depth : ℕ)
     (hdepth : depth < n) (query : List Bool) (cache : Cache)
@@ -181,7 +184,8 @@ private theorem expansionOracle_generated_step (generator : List Bool → List B
     rw [show expandCache generator n cache =
       cache.map (fun entry => (entry.1, (generator entry.2).take (2 * n))) from rfl, ← hmap]
     simp only [pmf_norm]
-    apply PMF.bind_congr_on_support; rintro ⟨seed, next⟩ hseed
+    apply PMF.bind_congr_on_support
+    rintro ⟨seed, next⟩ hseed
     have hlength := (RandomOracle.memoize_invariant (fun _ : List Bool => BitString.uniformList n)
       (fun _ seed => seed.length = n) (query.take depth) cache hcache
       (fun _ => BitString.length_of_mem_support_uniformList) (seed, next) hseed).1
@@ -242,7 +246,8 @@ private theorem selectChild_ofFn (n : ℕ) (expansion : BitString (2 * n)) (bit 
   have h : List.ofFn expansion =
       List.ofFn (BitString.block expansion 0) ++ List.ofFn (BitString.block expansion 1) := by
     rw [List.ofFn_mul]
-    simp only [List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil]
+    simp only [List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil,
+      List.append_nil]
     congr 1 <;> apply congrArg List.ofFn <;> funext j <;>
       simp [BitString.block, finProdFinEquiv, Nat.add_comm]
   rw [h]
@@ -267,7 +272,8 @@ private theorem ofFn_childTable (n depth : ℕ) (table : BitString depth → Bit
   change List.ofFn (childrenEquiv n (table (Fin.init q)) (q (Fin.last depth))) = _
   rw [selectChild_ofFn]
   have hprefix : Fin.init q = BitString.ofList depth (query.take depth) := by
-    funext i; simp [q, Fin.init, BitString.ofList, i.isLt, show i.val < depth + 1 by lia]
+    funext i
+    simp [q, Fin.init, BitString.ofList, i.isLt, show i.val < depth + 1 by lia]
   simp [q, hprefix, BitString.ofList]
 
 /-- Uniform expansions give the next prefix hybrid: the two independent children of each parent
@@ -281,11 +287,14 @@ theorem expansionGame_uniform (generator : List Bool → List Bool) (adversary :
   let fromChild := fun query seed : List Bool => eval generator seed (query.drop (depth + 1))
   calc
     _ = ProbComp.eval (prefixTableGame n depth (2 * n) fromParent (adversary n [])) := by
-      rw [prefix_eager n depth (2 * n) hdepth.le]; simp only [expansionGame, runWith_norm, pmf_norm]
-      congr 4 with request cache : 2; by_cases hq : request.2.length = n
-      · simp only [pmf_norm, expansionOracle, hq, ite_true, ProbComp.eval_memoize,
-          BitString.eval_sampleList, BitString.uniformList_take (Nat.le_refl (2 * n))]; rfl
-      · simp [expansionOracle, hq]
+      rw [prefix_eager n depth (2 * n) hdepth.le]
+      simp only [expansionGame, runWith_norm, pmf_norm]
+      congr 4 with request cache : 2
+      by_cases hquery : request.2.length = n
+      · simp only [pmf_norm, expansionOracle, hquery, ite_true, ProbComp.eval_memoize,
+          BitString.eval_sampleList, BitString.uniformList_take (Nat.le_refl (2 * n))]
+        rfl
+      · simp [expansionOracle, hquery]
     _ = ProbComp.eval (prefixTableGame n (depth + 1) n fromChild (adversary n [])) := by
       simp only [prefixTableGame, ProbComp.eval_bind, ProbComp.eval_uniform]
       rw [← PMF.uniformOfFintype_map_equiv (childTableEquiv n depth), PMF.bind_map]
@@ -293,7 +302,9 @@ theorem expansionGame_uniform (generator : List Bool → List Bool) (adversary :
     _ = _ := by
       rw [prefix_eager n (depth + 1) n (by lia)]
       simp only [hybridGame, prefixHybridGame, runWith_norm, pmf_norm]
-      congr 4 with request cache : 2; by_cases hq : request.2.length = n <;>
-        simp [prefixHybridOracle, hq, fromChild, ProbComp.eval_memoize, PMF.map, Function.comp_def]
+      congr 4 with request cache : 2
+      by_cases hquery : request.2.length = n <;>
+        simp [prefixHybridOracle, hquery, fromChild, ProbComp.eval_memoize,
+          PMF.map, Function.comp_def]
 
 end Cslib.Crypto.GGM

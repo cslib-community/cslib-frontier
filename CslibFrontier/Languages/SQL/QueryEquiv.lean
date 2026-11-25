@@ -115,24 +115,30 @@ variable {α β : Type*} {ℓ ℓ' : EquivLevel} {l₁ l₂ l₃ l₄ : List α}
 @[simp] theorem rel_set : set.Rel l₁ l₂ ↔ ∀ a, a ∈ l₁ ↔ a ∈ l₂ := Iff.rfl
 
 theorem Rel.refl (ℓ : EquivLevel) (l : List α) : ℓ.Rel l l := by
-  cases ℓ; exacts [rfl, List.Perm.refl l, fun _ => Iff.rfl]
+  cases ℓ
+  exacts [rfl, List.Perm.refl l, fun _ => Iff.rfl]
 
 theorem Rel.symm (h : ℓ.Rel l₁ l₂) : ℓ.Rel l₂ l₁ := by
-  cases ℓ; exacts [Eq.symm h, List.Perm.symm h, fun a => (h a).symm]
+  cases ℓ
+  exacts [Eq.symm h, List.Perm.symm h, fun a => (h a).symm]
 
 theorem Rel.trans (h₁₂ : ℓ.Rel l₁ l₂) (h₂₃ : ℓ.Rel l₂ l₃) : ℓ.Rel l₁ l₃ := by
-  cases ℓ; exacts [Eq.trans h₁₂ h₂₃, List.Perm.trans h₁₂ h₂₃, fun a => (h₁₂ a).trans (h₂₃ a)]
+  cases ℓ
+  exacts [Eq.trans h₁₂ h₂₃, List.Perm.trans h₁₂ h₂₃, fun a => (h₁₂ a).trans (h₂₃ a)]
 
 /-- Lists related at a level have the same members. -/
 theorem Rel.mem_iff (h : ℓ.Rel l₁ l₂) (a : α) : a ∈ l₁ ↔ a ∈ l₂ := by
-  cases ℓ; exacts [h ▸ Iff.rfl, List.Perm.mem_iff h, h a]
+  cases ℓ
+  exacts [h ▸ Iff.rfl, List.Perm.mem_iff h, h a]
 
 /-- A relation at a finer level holds at every coarser one. -/
 theorem Rel.mono (hℓ : ℓ ≤ ℓ') (h : ℓ.Rel l₁ l₂) : ℓ'.Rel l₁ l₂ := by
-  cases ℓ
-  · subst h; exact Rel.refl _ _
-  · cases ℓ'; exacts [absurd hℓ (by decide), h, fun _ => List.Perm.mem_iff h]
-  · cases ℓ'; exacts [absurd hℓ (by decide), absurd hℓ (by decide), h]
+  cases ℓ <;> cases ℓ'
+  all_goals first
+    | exact h
+    | exact absurd hℓ (by decide)
+    | exact h ▸ Rel.refl _ _
+    | exact fun a => Rel.mem_iff (ℓ := bag) h a
 
 theorem Rel.append (h₁ : ℓ.Rel l₁ l₂) (h₂ : ℓ.Rel l₃ l₄) : ℓ.Rel (l₁ ++ l₃) (l₂ ++ l₄) := by
   cases ℓ
@@ -144,7 +150,8 @@ its input, relates related lists at every level. -/
 theorem Rel.lift {F : List α → List β} (hperm : ∀ {l₁ l₂ : List α}, l₁.Perm l₂ → (F l₁).Perm (F l₂))
     (hmem : ∀ {l₁ l₂ : List α}, (∀ a, a ∈ l₁ ↔ a ∈ l₂) → ∀ b, b ∈ F l₁ ↔ b ∈ F l₂)
     (h : ℓ.Rel l₁ l₂) : ℓ.Rel (F l₁) (F l₂) := by
-  cases ℓ; exacts [h ▸ rfl, hperm h, hmem h]
+  cases ℓ
+  exacts [h ▸ rfl, hperm h, hmem h]
 
 theorem Rel.filter (p : α → Bool) (h : ℓ.Rel l₁ l₂) : ℓ.Rel (l₁.filter p) (l₂.filter p) :=
   h.lift (List.Perm.filter p) fun h a => by simp only [List.mem_filter, h a]
@@ -318,9 +325,11 @@ theorem select_select_expr {q : Query S n} {Γ : Fin n → SqlType} (hq : q.type
     Equiv ℓ (Query.select p (Query.select c q)) (Query.select p' (Query.select c q)) :=
   fun D hD => by
     simp only [eval_select]
-    rcases h : q.eval D with _ | rs; · exact .none
+    rcases h : q.eval D with _ | rs
+    · exact .none
     rw [Except.ok_bind]
-    rcases hc : c.filterRows rs with _ | rs'; · exact .none
+    rcases hc : c.filterRows rs with _ | rs'
+    · exact .none
     exact (EquivLevel.Rel.refl ℓ rs').filterRows fun _ hr =>
       hp.evalTruth (conforms_of_eval_eq_ok hD hq h _ (Expr.mem_of_filterRows_eq_ok hc hr))
 
@@ -330,7 +339,8 @@ theorem project_expr {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = s
     {es es' : Fin k → Expr n} (hes : ∀ i, (es i).Equiv Γ (es' i)) :
     Equiv ℓ (Query.project es q) (Query.project es' q) := fun D hD => by
   simp only [eval_project]
-  rcases h : q.eval D with _ | rs; · exact .none
+  rcases h : q.eval D with _ | rs
+  · exact .none
   exact (EquivLevel.Rel.refl ℓ rs).mapM_evalRow fun r hr =>
     Expr.toOption_evalRow_congr fun i => hes i r (conforms_of_eval_eq_ok hD hq h r hr)
 
@@ -341,8 +351,10 @@ theorem join_expr {q₁ : Query S n} {q₂ : Query S m} {Γ : Fin n → SqlType}
     (hθ : θ.Equiv (Fin.append Γ Δ) θ') : Equiv ℓ (Query.join θ q₁ q₂) (Query.join θ' q₁ q₂) :=
   fun D hD => by
     simp only [eval_join]
-    rcases hrs : q₁.eval D with _ | rs; · exact .none
-    rcases hss : q₂.eval D with _ | ss; · exact .none
+    rcases hrs : q₁.eval D with _ | rs
+    · exact .none
+    rcases hss : q₂.eval D with _ | ss
+    · exact .none
     exact (EquivLevel.Rel.refl ℓ _).filterRows fun _ ht => hθ.evalTruth
       (Row.conforms_of_mem_product (conforms_of_eval_eq_ok hD h₁ hrs)
         (conforms_of_eval_eq_ok hD h₂ hss) ht)
