@@ -179,34 +179,27 @@ private theorem create (r : Fin L.ptrRegs) :
     simp only [Instr.effect, List.length_append, List.length_singleton] at ha hb
     by_cases ha' : a < x.heap.length <;> by_cases hb' : b < x.heap.length
     · exact h.injective ha' hb' (by simpa only [hg a ha', hg b hb'] using hab)
-    · have hb'' : b = x.heap.length := by omega
-      rw [hb'', hfresh, hg a ha'] at hab
-      have := h.bound ha'
-      omega
-    · have ha'' : a = x.heap.length := by omega
-      rw [ha'', hfresh, hg b hb'] at hab
-      have := h.bound hb'
-      omega
+    · rw [show b = x.heap.length by omega, hfresh, hg a ha'] at hab
+      exact absurd hab (h.bound ha').ne
+    · rw [show a = x.heap.length by omega, hfresh, hg b hb'] at hab
+      exact absurd hab.symm (h.bound hb').ne
     · omega
   · intro a ha
     simp only [Instr.effect, List.length_append, List.length_singleton] at ha ⊢
     by_cases ha' : a < x.heap.length
-    · rw [hg a ha']
-      exact Nat.lt_succ_of_lt (h.bound ha')
-    · have : a = x.heap.length := by omega
-      simp [this, hfresh]
+    · simpa only [hg a ha'] using Nat.lt_succ_of_lt (h.bound ha')
+    · simp [show a = x.heap.length by omega, hfresh]
   · intro a ha
     simp only [Instr.effect, List.length_append, List.length_singleton] at ha
     change (y.heap ++ [Record.blank])[g a]? =
       ((x.heap ++ [Record.blank])[a]?).map (Record.relabel g)
     by_cases ha' : a < x.heap.length
-    · rw [hg a ha']
-      rw [List.getElem?_append_left (h.bound ha'), List.getElem?_append_left ha', h.heap ha']
+    · rw [hg a ha', List.getElem?_append_left (h.bound ha'), List.getElem?_append_left ha',
+        h.heap ha']
       cases hn : x.heap[a]? with
       | none => rfl
       | some n => simp [h.relabel_congr hg (List.mem_of_getElem? hn)]
-    · have : a = x.heap.length := by omega
-      simp [this, hfresh, Record.relabel, Record.blank]
+    · simp [show a = x.heap.length by omega, hfresh, Record.relabel, Record.blank]
 
 /-- Every instruction preserves heap embeddings. Allocation extends the map at the fresh
 source address and leaves its values on all previously allocated source addresses unchanged. -/
@@ -254,10 +247,7 @@ theorem effect (i : Instr M L) :
       (Instr.effect_valid (i := .storeData field base s) h.target_valid) ?_⟩
     intro n _
     simp [Record.relabel, h.data]
-  | goto _ => exact ⟨f, fun _ _ => rfl, h⟩
-  | ifPtrEq _ _ _ => exact ⟨f, fun _ _ => rfl, h⟩
-  | ifTest _ _ _ _ => exact ⟨f, fun _ _ => rfl, h⟩
-  | halt => exact ⟨f, fun _ _ => rfl, h⟩
+  | goto _ | ifPtrEq _ _ _ | ifTest _ _ _ _ | halt => exact ⟨f, fun _ _ => rfl, h⟩
 
 end State.Embeds
 
