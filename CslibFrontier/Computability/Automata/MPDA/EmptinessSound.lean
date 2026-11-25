@@ -179,11 +179,9 @@ private theorem RunsTo.pop_aux {K : ℕ} {ν : HoleList n State} {w : List (Symb
   rcases pushes with _ | ⟨⟨p, γ'⟩, ps⟩
   · simp at hsym₀
   obtain ⟨rfl, hps⟩ : γ' = γ ∧ ps.map Prod.snd = r.map Prod.fst := by simpa using hsym₀
-  have hCpost : ∀ c ∈ Cpost, c.stack ≠ i := by
-    intro c hc
+  have hCpost : ∀ c ∈ Cpost, c.stack ≠ i := fun c hc => by
     obtain ⟨h, hh, hch⟩ := List.Forall₂.exists_mem_of_mem hstpost hc
-    rw [hch]
-    exact hpost h hh
+    exact hch ▸ hpost h hh
   refine ⟨s₀, hs₀, Cpre, Cpost, ps, .pop hd hCpost, hstpre, hstpost, hsympre, hsympost, hps,
     hrun.comp _ (.single _ (configLTS_tr.mpr ⟨hb, ?_⟩))⟩
   exact Op.apply_pop.mpr (stacksOf_pop hCpost)
@@ -264,10 +262,7 @@ theorem mem_holeSegments_iff_realizes {i : Fin n} {s t : State} :
   · intro h
     induction h with
     | refl => exact ⟨[], .nil⟩
-    | tail _ hstep ih =>
-      obtain ⟨r, hr⟩ := ih
-      obtain ⟨γ, hγ⟩ := hstep
-      exact ⟨_, .cons hr hγ⟩
+    | tail _ hstep ih => exact ih.elim fun r hr => hstep.elim fun γ hγ => ⟨_, .cons hr hγ⟩
   · rintro ⟨r, hr⟩
     induction hr with
     | nil => exact .refl
@@ -328,8 +323,7 @@ theorem Reachable.exists_runsTo {K : ℕ} {μ : HoleList n State}
       simp only at hs
       subst hs
       obtain ⟨rs₀, rs₁, rfl, -, hrs₀, hrs₁⟩ := List.Forall₂.split_right hrs
-      rcases hrs₁ with _ | ⟨hr, hnil⟩
-      cases hnil
+      rcases hrs₁ with _ | ⟨hr, ⟨⟩⟩
       obtain ⟨w, hw⟩ := ih rs₀ hrs₀
       obtain ⟨v, hv⟩ := hr.exists_blockRun
       exact ⟨w ++ v, hw.hole hK hv⟩
