@@ -188,9 +188,12 @@ and holds are lines in a PR comment or review body that agents and tools can rea
 alone; matching is case-sensitive, and leading whitespace and a leading `**` are tolerated. Times
 are UTC, written `YYYY-MM-DDTHH:MMZ`.
 
-- **Verdict.** The first non-empty line of the review or comment begins `**APPROVE** at <sha>` or
-  `**REQUEST_CHANGES** at <sha>`, naming the head reviewed. A request to split the PR is
-  `**REQUEST_CHANGES**`. A reviewer who comments without a verdict, for example to ask a question,
+- **Verdict.** The first non-empty line of the review or comment is
+  `**APPROVE** at <sha> by <reviewer-id>` or `**REQUEST_CHANGES** at <sha> by <reviewer-id>`,
+  naming the head reviewed and the reviewer. ` by <reviewer-id>` is required in a verdict posted as
+  a comment, since a shared account does not identify the agent, and optional in a formal review
+  from the reviewer's own account; tools match only the part up to the SHA. A request to split the
+  PR is `**REQUEST_CHANGES**`. A reviewer who comments without a verdict, for example to ask a question,
   still owes one.
 - **Review claim.** Before starting, a reviewer checks the PR for another reviewer's unexpired
   claim and posts `CLAIM review head=<40-hex sha> by=<reviewer-id> until=<time>`, at most 45

@@ -155,8 +155,8 @@ tooling.
   [Review cycle](review.md#review-cycle).
 
 If a shared GitHub account prevents formal approval, use one brief PR comment that opens with the
-verdict line ([Verdicts, claims and holds](review.md#verdicts-claims-and-holds)) and names the
-reviewer agent/session. This is agent review, not platform or human approval.
+verdict line ([Verdicts, claims and holds](review.md#verdicts-claims-and-holds)), which names the
+reviewer agent/session after `by`. This is agent review, not platform or human approval.
 
 ## Working on changes
 
