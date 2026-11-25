@@ -140,9 +140,7 @@ theorem degZ_le_of_dvd {R : Type*} [CommRing R] [IsDomain R] {A B : R[X][X][X]}
     (hB : B ≠ 0) (hdvd : A ∣ B) :
     degZ A ≤ degZ B := by
   rcases hdvd with ⟨C, rfl⟩
-  have hA : A ≠ 0 := left_ne_zero_of_mul hB
-  have hC : C ≠ 0 := right_ne_zero_of_mul hB
-  rw [degZ_mul hA hC]
+  rw [degZ_mul (left_ne_zero_of_mul hB) (right_ne_zero_of_mul hB)]
   exact Nat.le_add_right _ _
 
 theorem degZ₂_coeff_le_degZ {R : Type*} [CommSemiring R] (Q : R[X][X][X]) (b : ℕ) :
@@ -184,9 +182,8 @@ structure DegBound (R : Type*) [CommRing R] where
   mul_le := by exact degZ₂_mul_le
 
 theorem DegBound.sub_le {R : Type*} [CommRing R] (db : DegBound R) (x y : R) :
-    db.deg (x - y) ≤ max (db.deg x) (db.deg y) := by
-  rw [sub_eq_add_neg]
-  exact (db.add_le x (-y)).trans (by rw [db.neg])
+    db.deg (x - y) ≤ max (db.deg x) (db.deg y) :=
+  sub_eq_add_neg x y ▸ (db.add_le x (-y)).trans_eq (by rw [db.neg])
 
 theorem DegBound.sum_le {R : Type*} [CommRing R] (db : DegBound R) {α : Type*}
     (s : Finset α) (u : α → R) {B : ℕ} (h : ∀ i ∈ s, db.deg (u i) ≤ B) :
@@ -196,8 +193,8 @@ theorem DegBound.sum_le {R : Type*} [CommRing R] (db : DegBound R) {α : Type*}
   | empty => simp [db.zero]
   | insert a s ha ih =>
     rw [sum_insert ha]
-    exact (db.add_le _ _).trans (max_le (h a (mem_insert_self a s))
-      (ih fun i hi => h i (mem_insert_of_mem hi)))
+    exact (db.add_le _ _).trans
+      (max_le (h a (mem_insert_self a s)) (ih fun i hi => h i (mem_insert_of_mem hi)))
 
 theorem DegBound.pow_le {R : Type*} [CommRing R] (db : DegBound R) (x : R) (n : ℕ) :
     db.deg (x ^ n) ≤ n * db.deg x := by
@@ -215,8 +212,8 @@ private theorem DegBound.prod_le {R : Type*} [CommRing R] (db : DegBound R) {α 
   | empty => simp [db.one]
   | insert a s ha ih =>
     rw [prod_insert ha, sum_insert ha]
-    exact (db.mul_le _ _).trans (Nat.add_le_add (h a (mem_insert_self a s))
-      (ih fun i hi => h i (mem_insert_of_mem hi)))
+    exact (db.mul_le _ _).trans
+      (Nat.add_le_add (h a (mem_insert_self a s)) (ih fun i hi => h i (mem_insert_of_mem hi)))
 
 private theorem DegBound.natCast_eq_zero {R : Type*} [CommRing R] (db : DegBound R) (n : ℕ) :
     db.deg n = 0 := by
@@ -224,16 +221,13 @@ private theorem DegBound.natCast_eq_zero {R : Type*} [CommRing R] (db : DegBound
   | zero => simpa using db.zero
   | succ n ih =>
     rw [Nat.cast_succ]
-    exact Nat.eq_zero_of_le_zero
-      ((db.add_le n 1).trans (max_le (by rw [ih]) (by rw [db.one])))
+    exact Nat.eq_zero_of_le_zero ((db.add_le n 1).trans (by simp [ih, db.one]))
 
 private theorem DegBound.derivative_coeff_le {R : Type*} [CommRing R] (db : DegBound R)
     {f : R[X]} {B : ℕ} (hf : ∀ b, db.deg (f.coeff b) ≤ B) (b : ℕ) :
     db.deg (f.derivative.coeff b) ≤ B := by
-  rw [coeff_derivative]
-  refine (db.mul_le _ _).trans ?_
-  rw [← Nat.cast_succ, db.natCast_eq_zero (b + 1), add_zero]
-  exact hf (b + 1)
+  rw [coeff_derivative, ← Nat.cast_succ]
+  exact (db.mul_le _ _).trans (by rw [db.natCast_eq_zero, add_zero]; exact hf (b + 1))
 
 theorem DegBound.resultant_le {R : Type*} [CommRing R] (db : DegBound R)
     {f g : R[X]} (m n : ℕ) {Bf Bg : ℕ}
@@ -241,19 +235,17 @@ theorem DegBound.resultant_le {R : Type*} [CommRing R] (db : DegBound R)
     db.deg (Polynomial.resultant f g m n) ≤ m * Bg + n * Bf := by
   rw [Polynomial.resultant, Matrix.det_apply]
   refine db.sum_le _ _ fun σ _ => ?_
-  have hz : ∀ (s : ℤˣ) (x : R), db.deg (s • x) = db.deg x := fun s x => by
-    rcases Int.units_eq_one_or s with rfl | rfl <;> simp [Units.smul_def, db.neg]
-  rw [hz]
+  rw [show ∀ (s : ℤˣ) (x : R), db.deg (s • x) = db.deg x from fun s x => by
+    rcases Int.units_eq_one_or s with rfl | rfl <;> simp [Units.smul_def, db.neg]]
   let bnd : Fin (m + n) → ℕ := Fin.addCases (fun _ => Bg) (fun _ => Bf)
-  refine (db.prod_le Finset.univ _ bnd fun j _ => ?_).trans_eq ?_
-  · induction j using Fin.addCases with
-    | left j =>
-      simp only [bnd, Polynomial.sylvester, Matrix.of_apply, Fin.addCases_left]
-      split_ifs <;> [exact hg _; exact db.zero ▸ Nat.zero_le _]
-    | right j =>
-      simp only [bnd, Polynomial.sylvester, Matrix.of_apply, Fin.addCases_right]
-      split_ifs <;> [exact hf _; exact db.zero ▸ Nat.zero_le _]
-  · simp [bnd, Fin.sum_univ_add]
+  refine (db.prod_le Finset.univ _ bnd fun j _ => ?_).trans_eq (by simp [bnd, Fin.sum_univ_add])
+  induction j using Fin.addCases with
+  | left j =>
+    simp only [bnd, Polynomial.sylvester, Matrix.of_apply, Fin.addCases_left]
+    split_ifs <;> [exact hg _; exact db.zero ▸ Nat.zero_le _]
+  | right j =>
+    simp only [bnd, Polynomial.sylvester, Matrix.of_apply, Fin.addCases_right]
+    split_ifs <;> [exact hf _; exact db.zero ▸ Nat.zero_le _]
 
 theorem DegBound.leadingCoeff_mul_resultant_derivative_le {R : Type*} [CommRing R]
     (db : DegBound R) {f : R[X]} (hf_deg : 1 ≤ f.natDegree) {B : ℕ}
@@ -262,8 +254,8 @@ theorem DegBound.leadingCoeff_mul_resultant_derivative_le {R : Type*} [CommRing 
         Polynomial.resultant f f.derivative f.natDegree f.derivative.natDegree) ≤
       2 * f.natDegree * B := by
   have hf'_deg := Polynomial.natDegree_derivative_le f
-  have hres := db.resultant_le f.natDegree f.derivative.natDegree hf (db.derivative_coeff_le hf)
-  refine (db.mul_le _ _).trans <| (Nat.add_le_add (hf f.natDegree) hres).trans ?_
+  refine (db.mul_le _ _).trans <| (Nat.add_le_add (hf f.natDegree)
+    (db.resultant_le f.natDegree f.derivative.natDegree hf (db.derivative_coeff_le hf))).trans ?_
   rw [← add_mul, show B + (f.natDegree + f.derivative.natDegree) * B =
     (1 + (f.natDegree + f.derivative.natDegree)) * B by ring]
   exact Nat.mul_le_mul_right B (by omega)
@@ -271,35 +263,24 @@ theorem DegBound.leadingCoeff_mul_resultant_derivative_le {R : Type*} [CommRing 
 /-- Shared root-counting and resultant helpers. -/
 theorem card_filter_eval_eq_zero_le {R : Type*} [CommRing R] [IsDomain R]
     [DecidableEq R] {p : R[X]} (hp : p ≠ 0) (T : Finset R) :
-    #(T.filter fun z => p.eval z = 0) ≤ p.natDegree := by
-  have hsub : T.filter (fun z => p.eval z = 0) ⊆ p.roots.toFinset := by
-    intro z hz
-    rw [Multiset.mem_toFinset, mem_roots hp, IsRoot]
-    exact (mem_filter.1 hz).2
-  exact (card_le_card hsub).trans ((Multiset.toFinset_card_le _).trans (Polynomial.card_roots' p))
+    #(T.filter fun z => p.eval z = 0) ≤ p.natDegree :=
+  (card_le_card fun _ hz => Multiset.mem_toFinset.2 ((mem_roots hp).2 (mem_filter.1 hz).2)).trans
+    ((Multiset.toFinset_card_le _).trans (Polynomial.card_roots' p))
 
 theorem resultant_ne_zero_of_isCoprime_map {R K : Type*} [CommRing R]
     [Field K] (φ : R →+* K) (hφ : Function.Injective φ) {f g : R[X]}
     (hcop : IsCoprime (f.map φ) (g.map φ)) :
-    Polynomial.resultant f g f.natDegree g.natDegree ≠ 0 := by
-  intro h0
-  have hmap : Polynomial.resultant (f.map φ) (g.map φ) = 0 := by
-    change Polynomial.resultant (f.map φ) (g.map φ)
-      (f.map φ).natDegree (g.map φ).natDegree = 0
-    rw [Polynomial.natDegree_map_eq_of_injective hφ,
-      Polynomial.natDegree_map_eq_of_injective hφ,
-      Polynomial.resultant_map_map, h0, map_zero]
-  exact (Polynomial.resultant_eq_zero_iff.1 hmap).2 hcop
+    Polynomial.resultant f g f.natDegree g.natDegree ≠ 0 := fun h0 =>
+  (Polynomial.resultant_eq_zero_iff.1 (by
+    change Polynomial.resultant (f.map φ) (g.map φ) (f.map φ).natDegree (g.map φ).natDegree = 0
+    rw [Polynomial.natDegree_map_eq_of_injective hφ, Polynomial.natDegree_map_eq_of_injective hφ,
+      Polynomial.resultant_map_map, h0, map_zero])).2 hcop
 
 theorem coeff_sum_Icc_C_mul_X_pow {R : Type*} [Semiring R] (a b k : ℕ) (f : ℕ → R) :
     (∑ j ∈ Icc a b, C (f j) * X ^ j).coeff k = if a ≤ k ∧ k ≤ b then f k else 0 := by
-  rw [finsetSum_coeff]
-  simp only [coeff_C_mul, coeff_X_pow, mul_ite, mul_one, mul_zero]
-  have hsum : (∑ j ∈ Icc a b, if k = j then f j else 0) =
-      ∑ j ∈ Icc a b, if j = k then f j else 0 :=
-    Finset.sum_congr rfl fun j _ => if_congr eq_comm rfl rfl
-  rw [hsum, Finset.sum_ite_eq']
-  simp only [mem_Icc]
+  simp only [finsetSum_coeff, coeff_C_mul, coeff_X_pow, mul_ite, mul_one, mul_zero,
+    Finset.sum_congr rfl fun j (_ : j ∈ Icc a b) => if_congr (eq_comm (a := k) (b := j)) rfl rfl,
+    Finset.sum_ite_eq', mem_Icc]
 
 section CurveEval
 
@@ -321,22 +302,16 @@ noncomputable abbrev curveWord [DecidableEq F] {ι : Type*} {r : ℕ}
 
 theorem exists_mem_eval_map_eq_zero {R S : Type*} [CommRing R] [CommRing S] [IsDomain S]
     (φ : R →+* S) (ms : Multiset R[X]) (y : S) (h : (ms.prod.map φ).eval y = 0) :
-    ∃ f ∈ ms, (f.map φ).eval y = 0 := by
-  have hprod : (ms.map fun f => (f.map φ).eval y).prod = 0 := by
-    rw [← h, Polynomial.map_multiset_prod, Polynomial.eval_multiset_prod, Multiset.map_map]
-    rfl
-  exact Multiset.mem_map.1 (Multiset.prod_eq_zero_iff.1 hprod)
+    ∃ f ∈ ms, (f.map φ).eval y = 0 :=
+  Multiset.mem_map.1 <| Multiset.prod_eq_zero_iff.1 <| by
+    rwa [Polynomial.map_multiset_prod, Polynomial.eval_multiset_prod, Multiset.map_map] at h
 
 theorem ceil_div_le_card_of_sum_le {ι : Type*} {W : ι → ℕ} {M B_W : ℕ} (hM : 0 < M)
     (hW_le : ∀ i, W i ≤ M) {A : Finset ι} (hsum : B_W ≤ ∑ i ∈ A, W i) :
     (B_W + M - 1) / M ≤ #A := by
-  have h1 : B_W ≤ #A * M :=
-    hsum.trans ((Finset.sum_le_sum fun i _ => hW_le i).trans (by simp))
-  have h2 : B_W + M - 1 < (#A + 1) * M := by
-    rw [add_mul, one_mul]
-    omega
-  have h3 : (B_W + M - 1) / M < #A + 1 := (Nat.div_lt_iff_lt_mul hM).2 h2
-  omega
+  have h1 : B_W ≤ #A * M := hsum.trans ((Finset.sum_le_sum fun i _ => hW_le i).trans (by simp))
+  exact Nat.le_of_lt_succ (show (B_W + M - 1) / M < #A + 1 from
+    (Nat.div_lt_iff_lt_mul hM).2 (by rw [add_mul, one_mul]; omega))
 
 end CurveEval
 
