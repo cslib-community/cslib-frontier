@@ -939,4 +939,26 @@ example :
     Controlled.massExponent_boundedDegreePiece, Controlled.cutoff_boundedDegreePiece]
   simp [C, Controlled.coordinate]
 
+-- At bound 2, the two-bit prefix 10 selects degree 2 and 11 wraps to 0.
+example (suffix : List Bool) :
+    (Controlled.decodeDegreeChoice 2 ([true, false] ++ suffix)).val = 2 ∧
+      (Controlled.decodeDegreeChoice 2 ([true, true] ++ suffix)).val = 0 ∧
+        ([true, false] ++ suffix).drop 2 = suffix := by
+  simp only [Controlled.decodeDegreeChoice, show (2 : ℕ).size = 2 by decide,
+    List.take_left' (by decide : [true, false].length = 2),
+    List.take_left' (by decide : [true, true].length = 2),
+    List.drop_left' (by decide : [true, false].length = 2)]
+  decide
+
+-- The controlled lift uses the source budgets for both empty and nonempty words.
+example :
+    let C : Controlled (fun _ : ℕ => X (0 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let W := C.wordDegreePiece (n := fun _ => 1) Decoder.nat (.const 1)
+    W.cutoff (0, [true, false]) = 2 ∧ W.degreeBound (0, []) = 4 := by
+  intro C W
+  simp only [W, Controlled.wordDegreePiece, Controlled.cutoff_boundedDegreePiece,
+    Controlled.degreeBound_boundedDegreePiece]
+  exact ⟨rfl, rfl⟩
+
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
