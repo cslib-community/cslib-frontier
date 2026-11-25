@@ -48,16 +48,6 @@ theorem IsBitonic.min_le_max_halves [LinearOrder κ] {n : ℕ} (first second : F
       hij (by fin_index) (by fin_index)
     simpa only [Fin.append_left, Fin.append_right] using h'.2
 
-private theorem append_left_value {n m : ℕ} (first : Fin n → κ) (second : Fin m → κ)
-    (i : Fin (n + m)) (hi : i.val < n) : Fin.append first second i = first ⟨i.val, hi⟩ :=
-  Fin.append_left first second ⟨i.val, hi⟩
-
-private theorem append_right_value {n m : ℕ} (first : Fin n → κ) (second : Fin m → κ)
-    (i : Fin (n + m)) (hi : ¬i.val < n) :
-    Fin.append first second i = second ⟨i.val - n, by lia⟩ := by
-  have heq : i = Fin.natAdd n ⟨i.val - n, by lia⟩ := by fin_index
-  exact (congrArg (Fin.append first second) heq).trans (Fin.append_right _ _ _)
-
 /-- An increasing tuple followed by a decreasing tuple is bitonic. -/
 theorem isBitonic_append [LinearOrder κ] {n m : ℕ} {first : Fin n → κ}
     {second : Fin m → κ} (hfirst : Monotone first) (hsecond : Antitone second) :
@@ -65,17 +55,18 @@ theorem isBitonic_append [LinearOrder κ] {n m : ℕ} {first : Fin n → κ}
   have hpeak (i j k : Fin (n + m)) (hij : i < j) (hjk : j < k) :
       min (Fin.append first second i) (Fin.append first second k) ≤
         Fin.append first second j := by
-    by_cases hj : j.val < n
-    · have hi : i.val < n := by lia
-      apply (min_le_left _ _).trans
-      rw [append_left_value first second i hi, append_left_value first second j hj]
-      exact hfirst (le_of_lt hij)
-    · have hk : ¬k.val < n := by lia
-      apply (min_le_right _ _).trans
-      rw [append_right_value first second k hk, append_right_value first second j hj]
-      apply hsecond
-      change j.val - n ≤ k.val - n
-      lia
+    cases j using Fin.addCases with
+    | left j =>
+      cases i using Fin.addCases with
+      | left i =>
+        exact (min_le_left _ _).trans (by simpa only [Fin.append_left] using hfirst (le_of_lt hij))
+      | right _ => fin_index
+    | right j =>
+      cases k using Fin.addCases with
+      | left _ => fin_index
+      | right k =>
+        exact (min_le_right _ _).trans (by
+          simpa only [Fin.append_right] using hsecond (Nat.le_of_add_le_add_left (le_of_lt hjk)))
   intro i j k l hij hjk hkl
   exact ⟨(hpeak i j k hij hjk).trans (le_max_left _ _),
     (hpeak j k l hjk hkl).trans (le_max_right _ _)⟩
@@ -90,20 +81,18 @@ private theorem monotone_append [Preorder κ] {n m : ℕ} {first : Fin n → κ}
   · fin_index
   · simpa only [Fin.append_right] using hsecond (Nat.le_of_add_le_add_left hij)
 
-/-- Projected keys after one layer are the pointwise minima and maxima of the two halves. -/
-private theorem compareLayer_keys [LinearOrder κ] (key : α → κ) {n : ℕ} (ascending : Bool)
+/-- Projected keys of the two halves after one layer are the pointwise minima and maxima. -/
+private theorem compareLayer_halves [LinearOrder κ] (key : α → κ) {n : ℕ} (ascending : Bool)
     (input : Fin (n + n) → α) :
-    key ∘ compareLayer key ascending input =
-      let first := key ∘ input ∘ Fin.castAdd n
-      let second := key ∘ input ∘ Fin.natAdd n
-      if ascending then Fin.append (min first second) (max first second)
-      else Fin.append (max first second) (min first second) := by
-  funext index
-  dsimp only [compareLayer, Function.comp_def]
-  cases ascending <;> cases index using Fin.addCases <;>
-    dsimp only [compareLayer.source, Function.comp_def] <;>
-    simp only [Bool.false_eq_true,
-      ↓reduceIte, Fin.addCases_left, Fin.addCases_right, Fin.append_left, Fin.append_right] <;>
+    let first := key ∘ input ∘ Fin.castAdd n
+    let second := key ∘ input ∘ Fin.natAdd n
+    key ∘ compareLayer key ascending input ∘ Fin.castAdd n =
+      (if ascending then min first second else max first second) ∧
+    key ∘ compareLayer key ascending input ∘ Fin.natAdd n =
+      (if ascending then max first second else min first second) := by
+  constructor <;> funext i <;> cases ascending <;>
+    dsimp only [compareLayer, compareLayer.source, Function.comp_def] <;>
+    simp only [Bool.false_eq_true, ↓reduceIte, Fin.addCases_left, Fin.addCases_right] <;>
     split_ifs <;> simp_all [min_def, max_def, -Fin.natAdd_eq_addNat]
 
 private theorem perm_cross [Preorder κ] (key : α → κ) {n m : ℕ}
@@ -132,38 +121,12 @@ theorem merge_sorted [LinearOrder κ] (key : α → κ) (depth : ℕ) (ascending
     let left := key ∘ input ∘ Fin.castAdd (arity depth)
     let right := key ∘ input ∘ Fin.natAdd (arity depth)
     have hpairs : IsBitonic (Fin.append left right) := by
-      have hsplit : Fin.append (input ∘ Fin.castAdd (arity depth))
-          (input ∘ Fin.natAdd (arity depth)) = input := Fin.append_castAdd_natAdd
-      simpa only [left, right, ← Fin.comp_append, hsplit] using hbitonic
+      rwa [show Fin.append left right = key ∘ input from
+        Fin.append_castAdd_natAdd (f := key ∘ input)]
     let compared := compareLayer key (n := arity depth) ascending input
     let first := compared ∘ Fin.castAdd (arity depth)
     let second := compared ∘ Fin.natAdd (arity depth)
-    have hfirst : key ∘ first = if ascending then min left right else max left right := by
-      funext i
-      dsimp only [first, compared, left, right, Function.comp_def]
-      have h := congrFun (compareLayer_keys key ascending input) (Fin.castAdd (arity depth) i)
-      cases ascending <;>
-        simpa only [Bool.false_eq_true, ↓reduceIte, Fin.append_left, Function.comp_def] using h
-    have hsecond : key ∘ second = if ascending then max left right else min left right := by
-      funext i
-      dsimp only [second, compared, left, right, Function.comp_def]
-      have h := congrFun (compareLayer_keys key ascending input) (Fin.natAdd (arity depth) i)
-      cases ascending <;>
-        simpa only [Bool.false_eq_true, ↓reduceIte, Fin.append_right, Function.comp_def] using h
-    have hbfirst : IsBitonic (key ∘ first) := by
-      rw [hfirst]
-      cases ascending
-      · exact hpairs.max_halves left right
-      · exact hpairs.min_halves left right
-    have hbsecond : IsBitonic (key ∘ second) := by
-      rw [hsecond]
-      cases ascending
-      · exact hpairs.min_halves left right
-      · exact hpairs.max_halves left right
-    have hf := ih ascending first hbfirst
-    have hs := ih ascending second hbsecond
-    have hpf := merge_perm key depth ascending first
-    have hps := merge_perm key depth ascending second
+    obtain ⟨hfirst, hsecond⟩ := compareLayer_halves key ascending input
     change if ascending then Monotone (key ∘ Fin.append
       (merge key depth ascending first) (merge key depth ascending second)) else
       Antitone (key ∘ Fin.append
@@ -171,16 +134,20 @@ theorem merge_sorted [LinearOrder κ] (key : α → κ) (depth : ℕ) (ascending
     rw [Fin.comp_append]
     cases ascending with
     | false =>
-      apply monotone_append (κ := OrderDual κ) hf hs
-      apply perm_cross (κ := OrderDual κ) key hpf hps
-      intro i j
+      simp only [Bool.false_eq_true, ↓reduceIte] at hfirst hsecond
+      refine monotone_append (κ := OrderDual κ)
+        (ih false first (hfirst ▸ hpairs.max_halves left right))
+        (ih false second (hsecond ▸ hpairs.min_halves left right))
+        (perm_cross (κ := OrderDual κ) key (merge_perm ..) (merge_perm ..) fun i j => ?_)
       change (key ∘ second) j ≤ (key ∘ first) i
       rw [hfirst, hsecond]
       exact hpairs.min_le_max_halves left right j i
     | true =>
-      apply monotone_append hf hs
-      apply perm_cross key hpf hps
-      intro i j
+      simp only [↓reduceIte] at hfirst hsecond
+      refine monotone_append
+        (ih true first (hfirst ▸ hpairs.min_halves left right))
+        (ih true second (hsecond ▸ hpairs.max_halves left right))
+        (perm_cross key (merge_perm ..) (merge_perm ..) fun i j => ?_)
       change (key ∘ first) i ≤ (key ∘ second) j
       rw [hfirst, hsecond]
       exact hpairs.min_le_max_halves left right i j
