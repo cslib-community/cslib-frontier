@@ -17,7 +17,8 @@ import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.WordCode
 * the sizes of the hidden variables and of the clauses for one tape, one input, one step;
 * the code of a one-letter word on three places;
 * renaming the two inputs of an automaton by the swap;
-* the value of an automaton on the one-letter input `[true]` as a clause sum. -/
+* the value of an automaton on the one-letter input `[true]` as a clause sum;
+* change of rings from `ℤ` to `ℚ`. -/
 
 set_option linter.privateModule false
 
@@ -64,5 +65,11 @@ example (mu : Letter Unit (Fin 1) Bool → Matrix (Fin 2) (Fin 2) ℤ) :
     domainClauseSum (runLits (Γ := Bool) (S := Unit) (n := 1) (t := 1) (M := 4) (N := 2) 0 1)
       (runWeights mu) (code 2 fun _ : Fin 1 => [true]) = runVal mu 0 1 1 fun _ => [true] :=
   runVal_eq_domainClauseSum mu 0 1 _ (by norm_num) (by decide)
+
+/-- Mapping integer matrices to rational ones maps the value. -/
+example (mu : Letter Unit (Fin 1) Bool → Matrix (Fin 2) (Fin 2) ℤ) :
+    runVal (fun a => (mu a).map (Int.castRingHom ℚ)) 0 1 3 (fun _ => [true]) =
+      (runVal mu 0 1 3 fun _ => [true] : ℤ) :=
+  (runVal_map (Int.castRingHom ℚ) mu 0 1 3 _).trans (by simp)
 
 end CslibFrontierTests.TapeRunSum
