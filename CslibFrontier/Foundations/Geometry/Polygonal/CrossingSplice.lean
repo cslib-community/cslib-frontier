@@ -7,6 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.Geometry.Polygonal.Neighborhood
 public import CslibFrontier.Foundations.Geometry.Polygonal.Route
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteIntersectionParity
 public import Mathlib.Topology.MetricSpace.Pseudo.Defs
@@ -25,8 +26,8 @@ import Mathlib.LinearAlgebra.AffineSpace.Midpoint
 Cut the two crossing segments at the boundary of their disk. Reverse the intervening
 portion and join the two entry points and the two exit points, so the result is one
 route. Its exterior support, outer endpoints and outgoing directions are preserved,
-and its support in the disk is exactly two disjoint chords. The splice preserves
-intersection parity against any route avoiding the disk.
+and its support in the disk is exactly two disjoint chords without interior crossings.
+The splice preserves intersection parity against any route avoiding the disk.
 -/
 
 public section
@@ -77,7 +78,10 @@ private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) 
       q.support = intervalSupport p i j s t ∧
       (∀ r : Route, q.intersectionParity r = intervalParity p i j s t r) ∧
       (i = 0 → s = 0 → ∃ c : ℝ, 0 < c ∧ q.germ false = c • p.germ false) ∧
-      (j = Fin.last p.bends → t = 1 → ∃ c : ℝ, 0 < c ∧ q.germ true = c • p.germ true) := by
+      (j = Fin.last p.bends → t = 1 → ∃ c : ℝ, 0 < c ∧ q.germ true = c • p.germ true) ∧
+      ∃ e : Fin q.segments ≃o Set.Icc i j, ∀ k {u : ℝ}, u ∈ Set.Ioo 0 1 →
+        ∃ v ∈ Set.Ioo (if (e k).val = i then s else 0) (if (e k).val = j then t else 1),
+          v ∈ Set.Icc 0 1 ∧ q.eval k u = p.eval (e k).val v := by
   obtain ⟨q, e, hstart, hfinish, hspec⟩ := p.exists_subroute_between i j hij hs ht hst
   have hparity (r : Route) : q.intersectionParity r = intervalParity p i j s t r := by
     classical
@@ -114,30 +118,38 @@ private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) 
     simp only [hj', ↓reduceIte] at hlt he
     apply exists_pos_smul_germ_of_end_eval q p true hlt ht₁
     simpa only [endSegment, ↓reduceIte, hj] using he
-  refine ⟨q, hstart, hfinish, ?_, hparity, hgerm_start, hgerm_finish⟩
-  ext w
-  rw [q.mem_support_iff]
-  constructor
-  · rintro ⟨k, u, hu, hwu⟩
-    obtain ⟨_, hlt, _, he⟩ := hspec k
-    let a := if (e k).val = i then s else 0
-    let b := if (e k).val = j then t else 1
-    have huv : AffineMap.lineMap a b u ∈ Set.Icc a b := by
-      rw [← segment_eq_Icc hlt.le]
-      exact lineMap_mem_segment ℝ a b hu
-    exact ⟨(e k).val, (e k).property, _, huv, (he u).symm.trans hwu⟩
-  · rintro ⟨k, hk, u, hu, hwu⟩
-    let l := e.symm ⟨k, hk⟩
-    have hel : (e l).val = k := congrArg Subtype.val (e.apply_symm_apply ⟨k, hk⟩)
-    obtain ⟨_, hlt, _, he⟩ := hspec l
-    rw [← hel] at hu hwu
-    have hu' : u ∈ segment ℝ (if (e l).val = i then s else 0)
-        (if (e l).val = j then t else 1) := by
-      rw [segment_eq_Icc hlt.le]
-      exact hu
-    rw [segment_eq_image_lineMap] at hu'
-    obtain ⟨v, hv, rfl⟩ := hu'
-    exact ⟨l, v, hv, (he v).trans hwu⟩
+  refine ⟨q, hstart, hfinish, ?_, hparity, hgerm_start, hgerm_finish, e, ?_⟩
+  · ext w
+    rw [q.mem_support_iff]
+    constructor
+    · rintro ⟨k, u, hu, hwu⟩
+      obtain ⟨_, hlt, _, he⟩ := hspec k
+      let a := if (e k).val = i then s else 0
+      let b := if (e k).val = j then t else 1
+      have huv : AffineMap.lineMap a b u ∈ Set.Icc a b := by
+        rw [← segment_eq_Icc hlt.le]
+        exact lineMap_mem_segment ℝ a b hu
+      exact ⟨(e k).val, (e k).property, _, huv, (he u).symm.trans hwu⟩
+    · rintro ⟨k, hk, u, hu, hwu⟩
+      let l := e.symm ⟨k, hk⟩
+      have hel : (e l).val = k := congrArg Subtype.val (e.apply_symm_apply ⟨k, hk⟩)
+      obtain ⟨_, hlt, _, he⟩ := hspec l
+      rw [← hel] at hu hwu
+      have hu' : u ∈ segment ℝ (if (e l).val = i then s else 0)
+          (if (e l).val = j then t else 1) := by
+        rw [segment_eq_Icc hlt.le]
+        exact hu
+      rw [segment_eq_image_lineMap] at hu'
+      obtain ⟨v, hv, rfl⟩ := hu'
+      exact ⟨l, v, hv, (he v).trans hwu⟩
+  · intro k u hu
+    obtain ⟨hl, hlt, hh, he⟩ := hspec k
+    let lo := if (e k).val = i then s else 0
+    let hi := if (e k).val = j then t else 1
+    have hv : AffineMap.lineMap lo hi u ∈ Set.Ioo lo hi := by
+      rw [← openSegment_eq_Ioo hlt]
+      exact lineMap_mem_openSegment ℝ lo hi hu
+    exact ⟨_, hv, ⟨hl.trans hv.1.le, hv.2.le.trans hh⟩, he u⟩
 
 private theorem intervalSupport_subset (p : Route) (i j : Fin p.segments) {s t : ℝ}
     (hs : 0 ≤ s) (ht : t ≤ 1) : intervalSupport p i j s t ⊆ p.support := by
@@ -190,7 +202,8 @@ private theorem intervalParity_splice (p : Route) {i j : Fin p.segments} (hij : 
 route portions. The resulting route has the same outer endpoints and exterior support.
 Inside the disk its support is precisely the two chords, and neither contains the center.
 Its indexed intersection parity against every route disjoint from the disk is preserved.
-Both outgoing germs are positive multiples of their originals. -/
+Both outgoing germs are positive multiples of their originals. No two distinct segments
+of the splice meet in their open interiors inside the closed disk. -/
 theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (hij : i < j)
     {z : ℂ} {ρ : ℝ} (hρ : 0 < ρ)
     (hzi : z ∈ openSegment ℝ (p.point i.castSucc) (p.point i.succ))
@@ -205,6 +218,9 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       (∀ r : Route, Disjoint (Metric.closedBall z ρ) r.support →
         q.intersectionParity r = p.intersectionParity r) ∧
       (∀ b : Bool, ∃ c : ℝ, 0 < c ∧ q.germ b = c • p.germ b) ∧
+      Disjoint (Metric.closedBall z ρ)
+        (openSegmentCrossings (fun k : Fin q.segments => q.point k.castSucc)
+          (fun k => q.point k.succ)) ∧
       ∃ li ui lj uj : ℝ, 0 < li ∧ li < ui ∧ ui < 1 ∧ 0 < lj ∧ lj < uj ∧ uj < 1 ∧
         p.eval i li ∈ Metric.sphere z ρ ∧ p.eval i ui ∈ Metric.sphere z ρ ∧
         p.eval j lj ∈ Metric.sphere z ρ ∧ p.eval j uj ∈ Metric.sphere z ρ ∧
@@ -237,12 +253,14 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
   have hdisjoint : Disjoint (segment ℝ a c) (segment ℝ b d) :=
     disjoint_segments_of_antipodal_pairs ha hc hcb hiMid hjMid
   let jlast : Fin p.segments := Fin.last p.bends
-  obtain ⟨A, hA₀, hA₁, hA, hAp, hAg, _⟩ := exists_route_support_between p 0 i (Fin.zero_le i)
+  obtain ⟨A, hA₀, hA₁, hA, hAp, hAg, _, eA, hAt⟩ :=
+    exists_route_support_between p 0 i (Fin.zero_le i)
     (s := 0) (t := li) ⟨le_rfl, zero_lt_one⟩ ⟨hli, (hi₀.trans hui).le⟩ (fun _ => hli)
-  obtain ⟨M, hM₀, hM₁, hM, hMp, _, _⟩ := exists_route_support_between p i j hij.le
+  obtain ⟨M, hM₀, hM₁, hM, hMp, _, _, eM, hMt⟩ := exists_route_support_between p i j hij.le
     (s := ui) (t := lj) ⟨(hli.trans hi₀).le, hui⟩ ⟨hlj, (hj₀.trans huj).le⟩
     (fun h => (hij.ne h).elim)
-  obtain ⟨S, hS₀, hS₁, hS, hSp, _, hSg⟩ := exists_route_support_between p j jlast (Fin.le_last j)
+  obtain ⟨S, hS₀, hS₁, hS, hSp, _, hSg, eS, hSt⟩ :=
+    exists_route_support_between p j jlast (Fin.le_last j)
     (s := uj) (t := 1) ⟨(hlj.trans hj₀).le, huj⟩ ⟨zero_lt_one, le_rfl⟩ (fun _ => huj)
   let L := line a c
   let R := line b d
@@ -344,6 +362,78 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
   have hother (k : Fin p.segments) (u : ℝ) (hu : u ∈ Set.Icc 0 1)
       (hki : k ≠ i) (hkj : k ≠ j) (hw : p.eval k u ∈ B) : False :=
     Set.disjoint_left.mp (honly k hki hkj) (lineMap_mem_segment ℝ _ _ hu) hw
+  have hretained (k : Fin p.segments) (u : ℝ) (hu : u ∈ Set.Icc 0 1)
+      (hki : k = i → u < li ∨ ui < u) (hkj : k = j → u < lj ∨ uj < u) :
+      p.eval k u ∉ B := by
+    intro hw
+    by_cases hi : k = i
+    · have hu' := (hiBall u).mp (hi ▸ hw)
+      exact (hki hi).elim (fun h => h.not_ge hu'.1) (fun h => h.not_ge hu'.2)
+    by_cases hj : k = j
+    · have hu' := (hjBall u).mp (hj ▸ hw)
+      exact (hkj hj).elim (fun h => h.not_ge hu'.1) (fun h => h.not_ge hu'.2)
+    exact hother k u hu hi hj hw
+  have hAopen (k : Fin A.segments) {u : ℝ} (hu : u ∈ Set.Ioo 0 1) : A.eval k u ∉ B := by
+    obtain ⟨v, hv, hv₀, he⟩ := hAt k hu
+    rw [he]
+    apply hretained _ _ hv₀
+    · intro hi
+      exact Or.inl (by simpa only [hi, ↓reduceIte] using hv.2)
+    · intro hj
+      exact (hij.not_ge (hj ▸ (eA k).property.2)).elim
+  have hMopen (k : Fin M.reverse.segments) {u : ℝ} (hu : u ∈ Set.Ioo 0 1) :
+      M.reverse.eval k u ∉ B := by
+    have hu' : 1 - u ∈ Set.Ioo 0 1 := ⟨sub_pos.mpr hu.2, sub_lt_self _ hu.1⟩
+    obtain ⟨v, hv, hv₀, he⟩ := hMt k.rev hu'
+    rw [eval_reverse, he]
+    apply hretained _ _ hv₀
+    · intro hi
+      exact Or.inr (by simpa only [hi, ↓reduceIte] using hv.1)
+    · intro hj
+      exact Or.inl (by simpa only [hj, ↓reduceIte] using hv.2)
+  have hSopen (k : Fin S.segments) {u : ℝ} (hu : u ∈ Set.Ioo 0 1) : S.eval k u ∉ B := by
+    obtain ⟨v, hv, hv₀, he⟩ := hSt k hu
+    rw [he]
+    apply hretained _ _ hv₀
+    · intro hi
+      exact (hij.not_ge (hi ▸ (eS k).property.1)).elim
+    · intro hj
+      exact Or.inr (by simpa only [hj, ↓reduceIte] using hv.1)
+  have hchord (k : Fin q.segments) {u : ℝ} (hu : u ∈ Set.Ioo 0 1) (hw : q.eval k u ∈ B) :
+      (k.val = A.segments ∧ q.eval k u ∈ segment ℝ a c) ∨
+      (k.val = ((A.concat L).concat M.reverse).segments ∧ q.eval k u ∈ segment ℝ b d) := by
+    rcases concat_eval_cases _ S hjoinS k u with ⟨k₄, h₄, he₄⟩ | ⟨kS, _, heS⟩
+    · rcases concat_eval_cases _ R hjoinR k₄ u with ⟨k₃, h₃, he₃⟩ | ⟨kR, hR, heR⟩
+      · rcases concat_eval_cases _ M.reverse hjoinM k₃ u with ⟨k₂, h₂, he₂⟩ | ⟨kM, _, heM⟩
+        · rcases concat_eval_cases A L hjoinL k₂ u with ⟨kA, _, heA⟩ | ⟨kL, hL, heL⟩
+          · exact (hAopen kA hu ((he₄.trans (he₃.trans (he₂.trans heA))) ▸ hw)).elim
+          · left
+            refine ⟨h₄.trans (h₃.trans (h₂.trans ?_)), ?_⟩
+            · simpa only [show kL.val = 0 from Nat.lt_one_iff.mp kL.isLt, add_zero] using hL
+            · rw [he₄, he₃, he₂, heL, eval_line]
+              exact lineMap_mem_segment ℝ _ _ (Set.Ioo_subset_Icc_self hu)
+        · exact (hMopen kM hu ((he₄.trans (he₃.trans heM)) ▸ hw)).elim
+      · right
+        refine ⟨h₄.trans ?_, ?_⟩
+        · simpa only [show kR.val = 0 from Nat.lt_one_iff.mp kR.isLt, add_zero] using hR
+        · rw [he₄, heR, eval_line]
+          exact lineMap_mem_segment ℝ _ _ (Set.Ioo_subset_Icc_self hu)
+    · exact (hSopen kS hu (heS ▸ hw)).elim
+  have hNoCross : Disjoint B (openSegmentCrossings
+      (fun k : Fin q.segments => q.point k.castSucc) (fun k => q.point k.succ)) := by
+    apply Set.disjoint_left.mpr
+    rintro w hw ⟨k, l, hkl, hk, hl⟩
+    rw [openSegment_eq_image_lineMap] at hk hl
+    obtain ⟨u, hu, he⟩ := hk
+    obtain ⟨v, hv, he'⟩ := hl
+    change q.eval k u = w at he
+    change q.eval l v = w at he'
+    rcases hchord k hu (he.symm ▸ hw) with ⟨hk, hk'⟩ | ⟨hk, hk'⟩ <;>
+      rcases hchord l hv (he'.symm ▸ hw) with ⟨hl, hl'⟩ | ⟨hl, hl'⟩
+    · exact hkl (Fin.ext (hk.trans hl.symm))
+    · exact Set.disjoint_left.mp hdisjoint (he ▸ hk') (he' ▸ hl')
+    · exact Set.disjoint_left.mp hdisjoint (he' ▸ hl') (he ▸ hk')
+    · exact hkl (Fin.ext (hk.trans hl.symm))
   have hInside : E ∩ B ⊆ N := by
     rintro w ⟨(hA' | hM') | hS', hw⟩
     · rw [hA] at hA'
@@ -388,8 +478,8 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     have hzB : z ∈ q.support ∩ B := ⟨hz, Metric.mem_closedBall_self hρ.le⟩
     rw [hDisk] at hzB
     exact hcenter hzB
-  refine ⟨q, hstart, hfinish, hNoCenter, ?_, ?_, ?_, li, ui, lj, uj, hli, hi₀, hui, hlj, hj₀, huj,
-    ha, hb, hc, hd, hDisk, hdisjoint⟩
+  refine ⟨q, hstart, hfinish, hNoCenter, ?_, ?_, ?_, hNoCross, li, ui, lj, uj,
+    hli, hi₀, hui, hlj, hj₀, huj, ha, hb, hc, hd, hDisk, hdisjoint⟩
   · change q.support \ B = p.support \ B
     rw [hq]
     ext w
