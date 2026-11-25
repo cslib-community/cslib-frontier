@@ -302,22 +302,17 @@ private theorem peelSCCs_spec [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs)
         (∀ c ∈ comps, ∃ r, ∀ w, w ∈ c ↔ StronglyConnected adj r w) ∧
         (∀ {i j : ℕ} (hi : i < comps.length) (hj : j < comps.length) {u v : V},
           u ∈ comps[i] → v ∈ comps[j] → Edge adj u v → i ≤ j)
-  | [], vis, _, _, _ => by
-    refine ⟨by simp [peelSCCs], by simp [peelSCCs], by simp [peelSCCs], by simp [peelSCCs], ?_⟩
-    intro i _ hi
-    simp [peelSCCs] at hi
+  | [], vis, _, _, _ => by simp [peelSCCs]
   | r :: rs, vis, hnd, hcl, hord => by
     rw [List.nodup_cons] at hnd
     rcases hnd with ⟨hr_not_rs, hrs_nd⟩
     set rev := transposeAdj adj vs
     obtain ⟨hvis_s, hnd_s, hfin_s⟩ := visit_nil_spec (g := rev) hk hcl r
     set s := visit rev k r ⟨vis, []⟩
-    have hvis_adj : ∀ w, w ∈ s.visited ↔ w ∈ vis ∨ Relation.ReflTransGen (Edge adj) w r := by
-      intro w
-      rw [hvis_s, reflTransGen_edge_transposeAdj_iff hvs]
-    have hfin_adj : ∀ w, w ∈ s.finished ↔ w ∉ vis ∧ Relation.ReflTransGen (Edge adj) w r := by
-      intro w
-      rw [hfin_s, reflTransGen_edge_transposeAdj_iff hvs]
+    have hvis_adj : ∀ w, w ∈ s.visited ↔ w ∈ vis ∨ Relation.ReflTransGen (Edge adj) w r :=
+      fun w => by rw [hvis_s, reflTransGen_edge_transposeAdj_iff hvs]
+    have hfin_adj : ∀ w, w ∈ s.finished ↔ w ∉ vis ∧ Relation.ReflTransGen (Edge adj) w r :=
+      fun w => by rw [hfin_s, reflTransGen_edge_transposeAdj_iff hvs]
     have hcl' : ∀ u ∈ s.visited, ∀ v ∈ rev u, v ∈ s.visited := by
       intro u hu v huv
       have hvu : Edge adj v u := (edge_transposeAdj_iff hvs).1 huv
@@ -355,16 +350,10 @@ private theorem peelSCCs_spec [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs)
         simp [hnil] at hm
       refine ⟨ih_ne, ih_nd, fun w => ?_, ih_scc, ih_cond⟩
       rw [ih_mem, hvis_adj]
-      constructor
-      · rintro ⟨hnv, r', hr', hwr'⟩
-        exact ⟨fun hv => hnv (.inl hv), r', List.mem_cons_of_mem r hr', hwr'⟩
-      · rintro ⟨hnv, r', hr', hwr'⟩
-        rcases List.mem_cons.1 hr' with rfl | hr'
-        · exact absurd (hall_vis w hwr') hnv
-        · exact ⟨fun h => h.elim hnv (fun hwr => hnv (hall_vis w hwr)), r', hr', hwr'⟩
-    · have hne : s.finished ≠ [] := by
-        intro hnil
-        exact he (List.isEmpty_iff.2 hnil)
+      by_cases hwr : Relation.ReflTransGen (Edge adj) w r
+      · simp [hwr, hall_vis w hwr]
+      · simp [hwr]
+    · have hne : s.finished ≠ [] := fun hnil => he (List.isEmpty_iff.2 hnil)
       have hr_nvis : r ∉ vis := by
         intro hrv
         obtain ⟨x₀, hx₀⟩ := List.exists_mem_of_ne_nil s.finished hne
@@ -384,33 +373,15 @@ private theorem peelSCCs_spec [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs)
           refine ⟨fun hwv => hr_nvis ?_, hwr⟩
           exact reach_of_closed hcl hwv ((reflTransGen_edge_transposeAdj_iff hvs).2 hrw)
       set rest := peelSCCs rev k s.visited rs
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · intro c hc
-        rcases List.mem_cons.1 hc with rfl | hc
-        · exact hne
-        · exact ih_ne c hc
+      refine ⟨List.forall_mem_cons.2 ⟨hne, ih_ne⟩, ?_, fun w => ?_,
+        List.forall_mem_cons.2 ⟨⟨r, hs_scc⟩, ih_scc⟩, ?_⟩
       · rw [List.flatten_cons, List.nodup_append]
         refine ⟨hnd_s, ih_nd, fun w hw₁ _ hw₂ hww' => ?_⟩
         subst hww'
         have hw_vis : w ∈ s.visited := (hvis_adj w).2 (.inr ((hfin_adj w).1 hw₁).2)
         exact ((ih_mem w).1 hw₂).1 hw_vis
-      · intro w
-        rw [List.flatten_cons, List.mem_append, hfin_adj, ih_mem, hvis_adj]
-        by_cases hwr : Relation.ReflTransGen (Edge adj) w r
-        · simp only [hwr, and_true, or_true, not_true_eq_false, false_and, or_false]
-          exact ⟨fun hnv => ⟨hnv, r, List.mem_cons_self, hwr⟩, fun ⟨hnv, _⟩ => hnv⟩
-        · simp only [hwr, and_false, or_false, false_or]
-          constructor
-          · rintro ⟨hnv, r', hr', hwr'⟩
-            exact ⟨hnv, r', List.mem_cons_of_mem r hr', hwr'⟩
-          · rintro ⟨hnv, r', hr', hwr'⟩
-            rcases List.mem_cons.1 hr' with rfl | hr'
-            · exact absurd hwr' hwr
-            · exact ⟨hnv, r', hr', hwr'⟩
-      · intro c hc
-        rcases List.mem_cons.1 hc with rfl | hc
-        · exact ⟨r, hs_scc⟩
-        · exact ih_scc c hc
+      · rw [List.flatten_cons, List.mem_append, hfin_adj, ih_mem, hvis_adj]
+        by_cases hwr : Relation.ReflTransGen (Edge adj) w r <;> simp [hwr]
       · intro i j hi hj u v hu hv huv
         cases i with
         | zero => exact Nat.zero_le j
