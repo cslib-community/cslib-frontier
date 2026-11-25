@@ -82,38 +82,25 @@ theorem timeAverage_productDist_isApproxCorrelatedEquilibrium
   classical
   apply isApproxCorrelatedEquilibrium_iff.mpr
   intro i δ
+  have h_eval (φ : S i → S i) :
+      (∑ a, (timeAverage (fun t => productDist (h_nonneg t) (h_sum t)) T hT).weights.sum
+        (fun s w => w * if s i = a then G.cost i (update s i (φ a)) else 0)) =
+      (∑ t ∈ range T, ∑ a, p t i a * G.deviationCost (p t) i (φ a)) / (T : ℝ) := by
+    rw [sum_comm, sum_div]
+    refine sum_congr rfl fun a _ => ?_
+    rw [timeAverage_sum _ hT]
+    refine congrArg (· / (T : ℝ)) (sum_congr rfl fun t _ => ?_)
+    rw [productDist_sum (h_nonneg t) (h_sum t)]
+    exact sum_ite_productWeight G (p t) (h_sum t i) a (φ a)
   have hL : (∑ a, (timeAverage (fun t => productDist (h_nonneg t) (h_sum t)) T hT).weights.sum
       (fun s w => w * if s i = a then G.cost i s else 0)) =
       (∑ t ∈ range T, ∑ a, p t i a * G.deviationCost (p t) i a) / (T : ℝ) := by
-    rw [sum_comm, sum_div]
-    refine sum_congr rfl fun a _ => ?_
-    rw [timeAverage_sum _ hT]
-    refine congrArg (fun x => x / (T : ℝ)) ?_
-    refine sum_congr rfl fun t _ => ?_
-    have h_prod := productDist_sum (h_nonneg t) (h_sum t)
-      (fun s => if s i = a then G.cost i s else 0)
-    rw [h_prod]
-    have h_ite := sum_ite_productWeight G (p t) (h_sum t i) a a
-    have h_eq : (∑ s, productWeight (p t) s * if s i = a then G.cost i s else 0) =
-        ∑ s, productWeight (p t) s * if s i = a then G.cost i (update s i a) else 0 := by
-      refine sum_congr rfl fun s _ => ?_
-      split_ifs with hs
-      · rw [← hs, update_eq_self]
-      · rfl
-    rw [h_eq, h_ite]
-  have hR_eq : (∑ a, (timeAverage (fun t => productDist (h_nonneg t) (h_sum t)) T hT).weights.sum
-      (fun s w => w * if s i = a then G.cost i (update s i (δ a)) else 0)) =
-      (∑ t ∈ range T, ∑ a, p t i a * G.deviationCost (p t) i (δ a)) / (T : ℝ) := by
-    rw [sum_comm, sum_div]
-    refine sum_congr rfl fun a _ => ?_
-    rw [timeAverage_sum _ hT]
-    refine congrArg (fun x => x / (T : ℝ)) ?_
-    refine sum_congr rfl fun t _ => ?_
-    have h_prod := productDist_sum (h_nonneg t) (h_sum t)
-      (fun s => if s i = a then G.cost i (update s i (δ a)) else 0)
-    rw [h_prod]
-    exact sum_ite_productWeight G (p t) (h_sum t i) a (δ a)
-  rw [hL, hR_eq, ← add_div]
+    rw [← h_eval (fun a => a)]
+    refine sum_congr rfl fun a _ => congrArg _ (funext fun s => funext fun w => ?_)
+    split_ifs with hs
+    · rw [← hs, update_eq_self]
+    · rfl
+  rw [hL, h_eval δ, ← add_div]
   exact div_le_div_of_nonneg_right (hR i δ) (Nat.cast_nonneg T)
 
 /-- The coupled multi-player **Blum–Mansour dynamics** for a fixed finite horizon `T`: in round `t`,
