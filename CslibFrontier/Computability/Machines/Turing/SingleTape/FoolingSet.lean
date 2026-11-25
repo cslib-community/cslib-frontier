@@ -131,22 +131,12 @@ theorem crossing_foolingSet_bit_bound (bits : ℕ)
     (hbits : 2 * Nat.clog 2 (Fintype.card tm.State + 2) ≤ bits) (hcard : 2 ^ bits ≤ S.card) :
     (middle.length + 1) * bits ≤ 4 * Nat.clog 2 (Fintype.card tm.State + 2) * T n := by
   let d := Nat.clog 2 (Fintype.card tm.State + 2)
-  let L := (bits - 1) / d
-  have hd : 0 < d := Nat.clog_pos one_lt_two (by omega)
-  have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d := by
-    rw [Fintype.card_option]
-    exact Nat.le_pow_clog one_lt_two _
-  have hdiv : d * L + (bits - 1) % d = bits - 1 := Nat.div_add_mod (bits - 1) d
-  have hmod := Nat.mod_lt (bits - 1) hd
-  have hL : 2 * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ bits := by
-    calc 2 * (Fintype.card (Option tm.State) + 1) ^ L
-        ≤ 2 * (2 ^ d) ^ L := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hpow L)
-      _ = 2 ^ (d * L + 1) := by rw [← pow_mul]; ring
-      _ ≤ 2 ^ bits := Nat.pow_le_pow_right (by norm_num) (by omega)
+  obtain ⟨L, hL0, hbitsL⟩ := tm.exists_crossing_length_of_bits (r := 1) le_rfl (by omega)
+  have hL : 2 * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ bits := by simpa using hL0
   have h := crossing_foolingSet_half_bound hdec hS leftWord middle rightWord hA hprefix hlength L
     (hL.trans hcard)
   calc (middle.length + 1) * bits ≤ (middle.length + 1) * (2 * (d * L)) :=
-      Nat.mul_le_mul_left _ (by omega)
+      Nat.mul_le_mul_left _ hbitsL
     _ = 2 * d * ((middle.length + 1) * L) := by ring
     _ ≤ 2 * d * (2 * T n) := Nat.mul_le_mul_left _ h
     _ = 4 * Nat.clog 2 (Fintype.card tm.State + 2) * T n := by ring

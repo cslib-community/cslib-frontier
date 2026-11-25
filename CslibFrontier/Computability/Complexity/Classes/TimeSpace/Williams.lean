@@ -71,7 +71,10 @@ private theorem le_affine_sqrt_of_sq_le {x y C : ℕ} (h : x ^ 2 ≤ C * (y + 1)
         Nat.mul_le_mul (by nlinarith)
           (by nlinarith [Nat.sqrt_le_add y])
       _ = _ := by ring
-  linarith [(Nat.pow_le_pow_iff_left (by decide : (2 : ℕ) ≠ 0)).mp hsq]
+  calc
+    x ≤ (C + 1) * (Nat.sqrt y + 1) :=
+      (Nat.pow_le_pow_iff_left (by decide : (2 : ℕ) ≠ 0)).mp hsq
+    _ = _ := by ring
 
 /-- The complete driver absorbs an arbitrary affine source clock into the conventional
 square-root-time-log-time resource, including its input-length scan. -/
