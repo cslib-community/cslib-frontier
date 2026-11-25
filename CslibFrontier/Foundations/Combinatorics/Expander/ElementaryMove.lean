@@ -90,9 +90,8 @@ private theorem half_le_expect_nz : (1 / 2 : ℝ) ≤ 𝔼 c : ZMod P, nz c := b
   have h (c : ZMod P) : nz c = 1 - if c = 0 then 1 else 0 := by
     unfold nz; split_ifs <;> norm_num
   have hP : (2 : ℝ) ≤ P := by exact_mod_cast (Fact.out : P.Prime).two_le
-  have hsum : (∑ _c : ZMod P, (1 : ℝ)) = P := by simp
   simp only [h, expect_sub_distrib, Fintype.expect_eq_sum_div_card, sum_ite_eq', mem_univ,
-    ite_true, ZMod.card, hsum]
+    ite_true, sum_const, card_univ, ZMod.card, nsmul_eq_mul, mul_one]
   rw [div_self (by positivity)]
   have : (1 : ℝ) / P ≤ 1 / 2 := by
     rw [div_le_div_iff₀ (by positivity) (by norm_num)]
@@ -227,12 +226,11 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
       exact hfib hc fun F ↦ (g F - 𝔼 F', g (update F' k c)) ^ 2
   -- The coordinate `k` of `w` is not seen.
   have hk : 𝔼 q, (G q - 𝔼 a, G (q.1, update q.2 k a)) ^ 2 = 0 := by
-    have h (q : ZMod P × (Fin H → ZMod P)) (a : ZMod P) : G (q.1, update q.2 k a) = G q := by
-      have : update (q.1 • update q.2 k a) k q.1 = update (q.1 • q.2) k q.1 := by
-        funext t
-        by_cases ht : t = k <;> simp [ht]
-      simp only [hG, hΨ, this]
-    simp [h]
+    have h (q : ZMod P × (Fin H → ZMod P)) (a : ZMod P) :
+        update (q.1 • update q.2 k a) k q.1 = update (q.1 • q.2) k q.1 := by
+      funext t
+      by_cases ht : t = k <;> simp [ht]
+    simp [hG, hΨ, h]
   -- A move of `w` that is an elementary move of `F` costs at most `dir g`.
   have hterm {a b : Fin H} (hab : b ≠ a)
       (M : ZMod P × (Fin H → ZMod P) → ZMod P × (Fin H → ZMod P)) (hM₁ : ∀ q, (M q).1 = q.1)
@@ -269,21 +267,18 @@ private theorem fiber_bound (hH : 3 ≤ H) (k : Fin H) (g : (Fin H → ZMod P) �
     have e3 := hmv 3 (a := j) (b := k) hjk.symm fun c w ↦ update_smul_translate hjk c w
     linarith
   -- Efron–Stein, with the coordinate `k` free and the others paired.
-  have hD : 0 ≤ dir g :=
-    sum_nonneg fun _ _ ↦ sum_nonneg fun _ _ ↦ expect_nonneg fun _ _ ↦ sq_nonneg _
   rw [← hL]
   refine (Fintype.expect_sq_sub_expect_le_sum_expect_sq_sub_update G).trans ?_
   calc ∑ i, 𝔼 q, (G q - 𝔼 a, G (q.1, update q.2 i a)) ^ 2 ≤ ∑ _i : Fin H, 2048 * dir g := by
         refine sum_le_sum fun i _ ↦ ?_
         rcases eq_or_ne i k with rfl | hik
         · rw [hk]
-          positivity
+          exact mul_nonneg (by norm_num)
+            (sum_nonneg fun _ _ ↦ sum_nonneg fun _ _ ↦ expect_nonneg fun _ _ ↦ sq_nonneg _)
         · exact hi i hik
     _ = 2048 * H * dir g := by
         rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
         ring
-
-
 
 /-- **Gluing two fibrations**: for `k ≠ l`, the fiber averages over `{F k = c}` and `{F l = d}`
 differ little on independent nonzero values `c` and `d`. -/
@@ -294,23 +289,20 @@ private theorem expect_nz_nz_sq_le {k l : Fin H} (hkl : k ≠ l) (g : (Fin H →
   rw [← expect_comp_eval_eval hkl fun c d ↦ nz c * nz d * (fib g k c - fib g l d) ^ 2,
     mul_expect, mul_expect, ← expect_add_distrib]
   refine expect_le_expect fun F _ ↦ ?_
-  have h1 := nz_nonneg (F k)
-  have h2 := nz_nonneg (F l)
-  have h3 := nz_le_one (F k)
-  have h4 := nz_le_one (F l)
   have hsq : (fib g k (F k) - fib g l (F l)) ^ 2 ≤
       2 * (g F - fib g k (F k)) ^ 2 + 2 * (g F - fib g l (F l)) ^ 2 := by
     nlinarith [sq_nonneg (2 * g F - fib g k (F k) - fib g l (F l))]
-  have hA := sq_nonneg (g F - fib g k (F k))
-  have hB := sq_nonneg (g F - fib g l (F l))
-  have hkk : nz (F k) * nz (F l) ≤ nz (F k) := by nlinarith
-  have hll : nz (F k) * nz (F l) ≤ nz (F l) := by nlinarith
+  have hkk : nz (F k) * nz (F l) ≤ nz (F k) :=
+    mul_le_of_le_one_right (nz_nonneg _) (nz_le_one _)
+  have hll : nz (F k) * nz (F l) ≤ nz (F l) :=
+    mul_le_of_le_one_left (nz_nonneg _) (nz_le_one _)
   calc nz (F k) * nz (F l) * (fib g k (F k) - fib g l (F l)) ^ 2
       ≤ nz (F k) * nz (F l) * (2 * (g F - fib g k (F k)) ^ 2 + 2 * (g F - fib g l (F l)) ^ 2) :=
-        mul_le_mul_of_nonneg_left hsq (mul_nonneg h1 h2)
+        mul_le_mul_of_nonneg_left hsq (mul_nonneg (nz_nonneg _) (nz_nonneg _))
     _ ≤ 2 * (nz (F k) * (g F - fib g k (F k)) ^ 2) +
           2 * (nz (F l) * (g F - fib g l (F l)) ^ 2) := by
-        nlinarith [mul_le_mul_of_nonneg_right hkk hA, mul_le_mul_of_nonneg_right hll hB]
+        nlinarith [mul_le_mul_of_nonneg_right hkk (sq_nonneg (g F - fib g k (F k))),
+          mul_le_mul_of_nonneg_right hll (sq_nonneg (g F - fib g l (F l)))]
 
 /-- Averaging the gluing term over `d`: the second moment of `X` about the weighted mean of `Y` on
 the nonzero values is at most twice the gluing term of `X` and `Y`. -/
@@ -370,8 +362,6 @@ theorem exists_expect_sq_sub_le_elementaryMove (hH : 3 ≤ H) (g : (Fin H → ZM
   have h01 : k₀ ≠ k₁ := by simp [k₀, k₁, Fin.ext_iff]
   set B := 2048 * (H : ℝ) * dir g
   have hS (k : Fin H) : 𝔼 F, nz (F k) * (g F - fib g k (F k)) ^ 2 ≤ B := fiber_bound hH k g
-  have hS0 (k : Fin H) : 0 ≤ 𝔼 F, nz (F k) * (g F - fib g k (F k)) ^ 2 :=
-    expect_nonneg fun F _ ↦ mul_nonneg (nz_nonneg _) (sq_nonneg _)
   set ybar := (𝔼 d, nz d * fib g k₀ d) / 𝔼 d : ZMod P, nz d
   refine ⟨ybar, ?_⟩
   -- On `{F k ≠ 0}`, `g` is close to `ybar`.

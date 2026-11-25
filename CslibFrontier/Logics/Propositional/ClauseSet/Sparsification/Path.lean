@@ -194,9 +194,8 @@ theorem card_newContaining_lt_of_steps {θ : ℕ → ℕ} (hθ : ∀ r, 1 ≤ θ
     have hSq₀ : S ⊆ q₀ := (hγ q₀ (mem_sdiff.mp hq₀).1).2.2
     have hdisj : Disjoint (H m) S := Finset.disjoint_sdiff.mono_right (hD₀q ▸ hSq₀)
     have hcardHS : (H m ∪ S).card = (H m).card + S.card := card_union_of_disjoint hdisj
-    have hj : j = c m - (H m).card := by
-      rw [← (hγ q₀ (mem_sdiff.mp hq₀).1).2.1]
-      exact card_of_mem_petals (hQpetal q₀ hq₀)
+    have hj : j = c m - (H m).card :=
+      (hγ q₀ (mem_sdiff.mp hq₀).1).2.1 ▸ card_of_mem_petals (hQpetal q₀ hq₀)
     have hHc : (H m).card < c m := (hchoice m hm).1.2.1
     have hQle : Q.card ≤ (flower (ψ m) (c m) (H m ∪ S)).card := by
       refine (card_le_card (t := (flower (ψ m) (c m) (H m ∪ S)).image (· \ H m)) ?_).trans
@@ -355,13 +354,12 @@ theorem card_introducedOfCard_le (hleaf : Sparse θ (P.node P.len)) (U : Finset 
         by_contra hna
         exact Nat.find_min hex (by omega) ⟨by omega, hna⟩
       have hmlen : m < P.len := by omega
-      have hred := reduced_node m hmlen.le
       have hstep : a ∉ child (P.node m) (P.size m) (P.heart m) (P.dir m) := by
-        rw [← P.step m hmlen, ← hm]; exact hm₀a
-      obtain ⟨b, hb, hba⟩ := exists_ssubset_of_notMem_reduce hred hma hstep
-      refine mem_biUnion.mpr ⟨m, mem_range.mpr hmlen, mem_biUnion.mpr ⟨b, ?_, ?_⟩⟩
-      · exact mem_filter.mpr ⟨hb, hac ▸ card_lt_card hba⟩
-      · exact mem_filter.mpr ⟨hma, hnew, hac, hba.subset⟩
+        rwa [← P.step m hmlen, ← hm]
+      obtain ⟨b, hb, hba⟩ := exists_ssubset_of_notMem_reduce (reduced_node m hmlen.le) hma hstep
+      exact mem_biUnion.mpr ⟨m, mem_range.mpr hmlen, mem_biUnion.mpr ⟨b,
+        mem_filter.mpr ⟨hb, hac ▸ card_lt_card hba⟩,
+        mem_filter.mpr ⟨hma, hnew, hac, hba.subset⟩⟩⟩
   have hmaps : ∀ b ∈ P.introduced.filter (·.card < c), b.card ∈ Ico 1 c := by
     intro b hb
     obtain ⟨hbI, hbc⟩ := mem_filter.mp hb
@@ -418,10 +416,8 @@ theorem mul_card_petalSteps_le (j : ℕ) :
 private theorem card_le_of_mem_node {k : ℕ} (hk : ∀ C ∈ P.node 0, C.card ≤ k) :
     ∀ i ≤ P.len, ∀ C ∈ P.node i, C.card ≤ k
   | 0, _ => hk
-  | i + 1, hi => by
-    intro C hC
-    rw [P.step i hi] at hC
-    exact card_le_of_mem_child hθ (heavy hi) (card_le_of_mem_node hk i (by omega)) hC
+  | i + 1, hi => fun _ hC =>
+    card_le_of_mem_child hθ (heavy hi) (card_le_of_mem_node hk i (by omega)) (P.step i hi ▸ hC)
 
 /-- In a branch from a clause set of width `k`, every chosen flower size is at most `k`. -/
 private theorem size_le {k : ℕ} (hk : ∀ C ∈ P.node 0, C.card ≤ k) {i : ℕ} (hi : i < P.len) :

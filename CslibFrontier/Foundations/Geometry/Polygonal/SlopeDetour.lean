@@ -183,15 +183,12 @@ private theorem contact_abscissa {r s t d e q x y : ℝ} (hr : 0 < r) (hst : s �
       _ = (s - t) * x + (d - e) * (1 - |x| / r) := by rw [hd]; ring
       _ = 0 := by linarith
   have hzero := (mul_eq_zero.mp hprod).resolve_left (sub_ne_zero.mpr hst)
-  have hneg : x < 0 := by
-    by_contra h
+  have hneg : x < 0 := by_contra fun h => by
     have hnonneg : 0 ≤ x := not_lt.mp h
     rw [abs_of_nonneg hnonneg] at hzero
     have hw : 0 ≤ 1 - x / r := sub_nonneg.mpr ((div_le_one hr).mpr hx.2)
-    have hx0 : x = 0 := by linarith only [hzero, hnonneg, mul_nonneg hq.le hw]
-    rw [hx0] at hzero
-    simp only [zero_div, sub_zero, mul_one, zero_add] at hzero
-    exact hq.ne' hzero
+    obtain rfl : x = 0 := by linarith only [hzero, hnonneg, mul_nonneg hq.le hw]
+    simp [hq.ne'] at hzero
   rw [abs_of_neg hneg] at hzero
   apply (eq_div_iff (by linarith only [hr, hq] : r + q ≠ 0)).mpr
   field_simp [hr.ne'] at hzero
@@ -226,10 +223,9 @@ private theorem pair_separation {r s t d e q : ℝ} (hr : 0 < r) (hst : s ≠ t)
     member_first hr hk hxr
   obtain ⟨v, hv, hve⟩ := member_first (s := t) hr hk' hxr
   replace hve : (member r t e keep').eval 0 v = z := hve.trans (Complex.ext rfl hroot.symm)
-  have hz : z ∈ (member r s d keep).support ∧ z ∈ (member r t e keep').support := by
-    constructor
-    · exact hue ▸ (member r s d keep).at_mem_support 0 ⟨hu.1.le, hu.2.le⟩
-    · exact hve ▸ (member r t e keep').at_mem_support 0 ⟨hv.1.le, hv.2.le⟩
+  have hz : z ∈ (member r s d keep).support ∧ z ∈ (member r t e keep').support :=
+    ⟨hue ▸ (member r s d keep).at_mem_support 0 ⟨hu.1.le, hu.2.le⟩,
+     hve ▸ (member r t e keep').at_mem_support 0 ⟨hv.1.le, hv.2.le⟩⟩
   have common {w : ℂ} (hw : w ∈ (member r s d keep).support)
       (hw' : w ∈ (member r t e keep').support) : w = z := by
     obtain ⟨hwx, hwy⟩ := member_support hr hk hw
@@ -239,10 +235,8 @@ private theorem pair_separation {r s t d e q : ℝ} (hr : 0 < r) (hst : s ≠ t)
     rw [hwy, hwre, abs_of_neg hx.2]
     change s * x + d * (1 - -x / r) = s * x + d * (1 + x / r)
     ring
-  refine ⟨⟨z, hz, fun w hw => common hw.1 hw.2⟩, ?_, ?_⟩
-  · intro w hw hw'
-    rw [common hw hw']
-    exact ⟨hx.1, hx.2, u, v, hu, hv, hue, hve⟩
+  refine ⟨⟨z, hz, fun w hw => common hw.1 hw.2⟩,
+    fun w hw hw' => common hw hw' ▸ ⟨hx.1, hx.2, u, v, hu, hv, hue, hve⟩, ?_⟩
   · rw [member_first_vector r s d keep hk, member_first_vector r t e keep' hk']
     simp only [Complex.smul_re, Complex.smul_im, smul_eq_mul]
     have hm (b : Bool) : (if b then (2 : ℝ) else 1) ≠ 0 := by cases b <;> norm_num
@@ -396,20 +390,14 @@ theorem exists_slopeDetour_separation {ι : Type*} [Finite ι]
   refine ⟨d, ?_⟩
   have hR : (fun i =>
       if fixedIndex = some i then line ⟨-r, -r * s i⟩ ⟨r, r * s i⟩
-      else slopeDetour r (s i) (d i)) = R := by
-    funext i
-    simp [R, member, keep]
+      else slopeDetour r (s i) (d i)) = R := funext fun i => by simp [R, member, keep]
   rw [hR]
-  dsimp only
-  refine ⟨?_, ?_, fun i j hij => (hpair i j hij).1,
-    fun i j hij => (hpair i j hij).2.1, fun i j hij => (hpair i j hij).2.2, ?_⟩
-  · intro i
-    exact ⟨(member_ends r (s i) (d i) (keep i)).1,
+  refine ⟨fun i => ⟨(member_ends r (s i) (d i) (keep i)).1,
       (member_ends r (s i) (d i) (keep i)).2, member_simple hr _ _ _,
-      fun _ hz => member_tube hr (hkeep i) (hd i) hz⟩
-  · intro f hf
-    have hk : keep f = true := by simp [keep, hf]
-    exact ⟨hkeep f hk, by simp [R, member, hk]⟩
+      fun _ hz => member_tube hr (hkeep i) (hd i) hz⟩,
+    fun f hf => ⟨by simp [d, height, a, hf], by simp [R, member, keep, hf]⟩,
+    fun i j hij => (hpair i j hij).1, fun i j hij => (hpair i j hij).2.1,
+    fun i j hij => (hpair i j hij).2.2, ?_⟩
   · intro i j k hij hik hjk z hi hj hk
     obtain ⟨hx, hz0, _⟩ := (hpair i j hij).2.1 z hi hj
     have hw : 0 < 1 - |z.re| / r := by

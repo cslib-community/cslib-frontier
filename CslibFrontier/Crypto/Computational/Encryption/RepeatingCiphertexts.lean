@@ -209,16 +209,14 @@ private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : Symmetri
       unfold repeatWrapperStep at hstep
       by_cases hq : (q.2.length == n) = true
       · simp only [hq, ↓reduceIte, runWith_norm, BitString.eval_sampleList, symmetricCPAReplyOn,
-          unframe_encPair_encBits, dropFrame_encPair_encBits, pmf_norm] at hstep
-        rw [PMF.mem_support_bind_iff] at hstep
+          unframe_encPair_encBits, dropFrame_encPair_encBits, pmf_norm,
+          PMF.mem_support_bind_iff] at hstep
         obtain ⟨r, hr, hstep⟩ := hstep
         have hrLen : r.length = n := BitString.length_of_mem_support_uniformList hr
         simp only [hrLen, beq_self_eq_true, Bool.and_self, ↓reduceIte, pmf_norm,
-          PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hstep
+          PMF.mem_support_pure_iff] at hstep
         obtain ⟨rawCt, hrawCt, heq⟩ := hstep
-        have htake : List.take (ctBound n) rawCt = rawCt :=
-          List.take_of_length_le (hctBound k hk r hrLen rawCt hrawCt)
-        rw [htake] at heq
+        rw [List.take_of_length_le (hctBound k hk r hrLen rawCt hrawCt)] at heq
         obtain ⟨-, rfl⟩ := Prod.mk.inj heq.symm
         intro p hp
         rcases List.mem_cons.mp hp with rfl | hp
@@ -281,11 +279,9 @@ private theorem half_le_uniformList_bne {n : ℕ} (hn : 1 ≤ n) (target : List 
     · intro r hr
       simp [beq_eq_false_iff_ne.mpr hr]
   have hle : BitString.uniformList n target ≤ (1 : ℝ≥0∞) / 2 := by
-    refine (BitString.uniformList_apply_le n target).trans ?_
-    have hpow : (2 : ℝ≥0∞) ≤ 2 ^ n := by
-      simpa only [pow_one] using
-        (pow_le_pow_right' (by norm_num : (1 : ℝ≥0∞) ≤ 2) hn)
-    exact ENNReal.div_le_div_left hpow 1
+    refine (BitString.uniformList_apply_le n target).trans (ENNReal.div_le_div_left ?_ 1)
+    have h12 : (1 : ℝ≥0∞) ≤ 2 := by norm_num
+    simpa only [pow_one] using pow_le_pow_right' h12 hn
   rw [hnot, heq]
   calc (1 : ℝ≥0∞) / 2 = 1 - 1 / 2 := by norm_num
     _ ≤ 1 - BitString.uniformList n target := tsub_le_tsub_left hle 1
@@ -436,12 +432,8 @@ theorem INDCPA.negligible_repeatCiphertextGame {α : Type} {encOut : α ↪ List
     Negligible fun n => Game.succProbability (E.repeatCiphertextGame A n) := by
   obtain ⟨ctBound, hpoly, hctBound⟩ := E.exists_ciphertext_length_bound_of_length_eq
   have hneg := h (repeatToCPAAdversary ctBound A) (isOraclePPT_repeatToCPAAdversary hpoly hA)
-  have htwo : Negligible fun n =>
-      (2 : ℝ≥0) * Game.advantage
-        (ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) false n))
-        (ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) true n)) :=
-    hneg.polynomiallyBounded_mul (p := fun _ => 2) (by fun_prop)
-  refine negligible_of_eventually_le htwo ?_
+  refine negligible_of_eventually_le
+    (hneg.polynomiallyBounded_mul (p := fun _ => 2) (by fun_prop)) ?_
   exact Filter.eventually_atTop.mpr ⟨1, fun n hn =>
     succProbability_repeatCiphertextGame_le_two_mul_advantage E ctBound A hn (hctBound n)⟩
 

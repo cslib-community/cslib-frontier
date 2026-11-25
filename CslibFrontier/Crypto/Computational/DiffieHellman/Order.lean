@@ -86,22 +86,10 @@ private theorem uniform_mul_decide_eq_zero_apply (F : PrimeOrderGroupFamily) (d 
         (0 : ZMod (F.order d))
   rw [PMF.bind_apply, tsum_fintype]
   simp only [hinner, PMF.uniformOfFintype_apply, ZMod.card]
-  rw [← Finset.sum_erase_add _ _ (Finset.mem_univ (0 : ZMod (F.order d)))]
-  have herase :
-      ∑ x ∈ Finset.univ.erase (0 : ZMod (F.order d)),
-        (F.order d : ℝ≥0∞)⁻¹ * (if x = 0 then 1 else (F.order d : ℝ≥0∞)⁻¹) =
-      ((F.order d - 1 : ℕ) : ℝ≥0∞) * ((F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹) := by
-    have hcongr :
-        ∑ x ∈ Finset.univ.erase (0 : ZMod (F.order d)),
-          (F.order d : ℝ≥0∞)⁻¹ * (if x = 0 then 1 else (F.order d : ℝ≥0∞)⁻¹) =
-        ∑ _x ∈ Finset.univ.erase (0 : ZMod (F.order d)),
-          (F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹ := by
-      refine Finset.sum_congr rfl fun x hx => ?_
-      simp [Finset.ne_of_mem_erase hx]
-    rw [hcongr, Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ,
-      ZMod.card, nsmul_eq_mul]
-  rw [herase]
-  simp [add_comm]
+  rw [← Finset.sum_erase_add _ _ (Finset.mem_univ (0 : ZMod (F.order d))),
+    Finset.sum_congr (g := fun _ => (F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹) rfl
+      fun x hx => by simp [Finset.ne_of_mem_erase hx]]
+  simp [Finset.card_erase_of_mem (Finset.mem_univ _), ZMod.card, add_comm]
 
 /-- For any setup distribution `setup`, the expected inverse group order
 `∑' d, setup n d * (F.order d)⁻¹` is at most twice the DDH advantage of testing whether the
@@ -215,11 +203,8 @@ theorem CDH.negligible_expected_inv_order {F : PrimeOrderGroupFamily} {setup : �
 theorem CDH.negligible_inv_order {F : PrimeOrderGroupFamily} {d : ℕ → F.Desc}
     (hCDH : F.CDH (fun n => PMF.pure (d n))) :
     Negligible fun n => (F.order (d n) : ℝ≥0)⁻¹ := by
-  refine hCDH.negligible_expected_inv_order.congr' (Filter.Eventually.of_forall fun n => ?_)
-  dsimp only
-  have h : (∑' d', PMF.pure (d n) d' * (F.order d' : ℝ≥0∞)⁻¹) = (F.order (d n) : ℝ≥0∞)⁻¹ := by
-    simp [PMF.pure_apply]
-  rw [h, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
+  refine hCDH.negligible_expected_inv_order.congr fun n => ?_
+  simp [PMF.pure_apply]
 
 /-- If `Game.advantage (f d) (g d) ≤ (F.order d)⁻¹` for every group description `d`, then
 averaging over `setup` yields advantage at most `(∑' d, setup d * (F.order d)⁻¹).toNNReal`. -/
@@ -231,15 +216,11 @@ theorem advantage_bind_le_expected_inv_order (F : PrimeOrderGroupFamily)
   let errPMF : F.Desc → Game := fun d =>
     (PMF.uniformOfFintype (ZMod (F.order d))).bind fun x => PMF.pure (decide (x = 0))
   have herr_true (d : F.Desc) : errPMF d true = (F.order d : ℝ≥0∞)⁻¹ := by
-    dsimp only [errPMF]
-    rw [PMF.bind_apply, tsum_fintype]
-    simp [PMF.uniformOfFintype_apply, PMF.pure_apply, ZMod.card, eq_comm (a := true)]
-  have herr_succ :
-      Game.succProbability (setup.bind errPMF) =
-        (∑' d, setup d * (F.order d : ℝ≥0∞)⁻¹).toNNReal := by
-    unfold Game.succProbability
-    rw [PMF.bind_apply]
-    simp_rw [herr_true]
+    simpa only [errPMF, ZMod.card, eq_comm (a := (0 : ZMod (F.order d)))] using
+      uniformOfFintype_bind_decide_eq_apply_true (0 : ZMod (F.order d))
+  have herr_succ : Game.succProbability (setup.bind errPMF) =
+      (∑' d, setup d * (F.order d : ℝ≥0∞)⁻¹).toNNReal := by
+    simp [Game.succProbability, PMF.bind_apply, herr_true]
   rw [← herr_succ]
   refine Game.advantage_bind_le_succProbability_bind setup f g errPMF fun d => ?_
   rw [herr_true, ← ENNReal.coe_natCast,

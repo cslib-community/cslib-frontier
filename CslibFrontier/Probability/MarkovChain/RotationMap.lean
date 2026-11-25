@@ -239,9 +239,8 @@ theorem hittingTime_randomWalk_le_of_reachable {s t : V} (h : G.toSimpleGraph.Re
   classical
   obtain ⟨p, hp⟩ := h.exists_isPath
   refine (hittingTime_randomWalk_le_length_mul p).trans ?_
-  have := hp.length_lt
   gcongr
-  exact_mod_cast Nat.le_sub_one_of_lt this
+  exact_mod_cast Nat.le_sub_one_of_lt hp.length_lt
 
 /-! ### Survival probabilities count label sequences -/
 
@@ -458,15 +457,12 @@ theorem distToStationary_randomWalk_le [Nonempty V] (t : ℕ) :
     G.randomWalk.distToStationary (PMF.uniformOfFintype V) t ≤
       (1 / 2) * Real.sqrt (Fintype.card V - 1) * G.spectralExpansion ^ t := by
   have hcard : (0 : ℝ) < Fintype.card V := Nat.cast_pos.mpr Fintype.card_pos
-  have hmin (v : V) : (Fintype.card V : ℝ)⁻¹ ≤ (PMF.uniformOfFintype V v).toReal := by
-    rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
   have hd := (isReversible_uniform_randomWalk (G := G)).distToStationary_le_of_le_toReal
-    (inv_pos.mpr hcard) hmin t
-  rw [spectralContraction_randomWalk] at hd
-  refine hd.trans_eq ?_
+    (inv_pos.mpr hcard) (fun v => by
+      rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]) t
   have hratio : (1 - (Fintype.card V : ℝ)⁻¹) / (Fintype.card V : ℝ)⁻¹ = Fintype.card V - 1 := by
     field_simp [hcard.ne']
-  rw [hratio]
+  rwa [spectralContraction_randomWalk, hratio] at hd
 
 omit [DecidableEq V] in
 /-- **Mixing-time bound for a regular random walk** from `λ(G) < 1`:
@@ -477,15 +473,14 @@ theorem mixingTime_randomWalk_le [Nonempty V] (hlam : G.spectralExpansion < 1)
       (⌈(1 - G.spectralExpansion)⁻¹ *
         ((1 / 2) * Real.log (Fintype.card V) + Real.log (1 / (2 * ε)))⌉₊ : ℕ) := by
   have hcard : (0 : ℝ) < Fintype.card V := Nat.cast_pos.mpr Fintype.card_pos
-  have hmin (v : V) : (Fintype.card V : ℝ)⁻¹ ≤ (PMF.uniformOfFintype V v).toReal := by
-    rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
   have hgap_eq : G.randomWalk.absSpectralGap (PMF.uniformOfFintype V) =
       1 - G.spectralExpansion := by
     linarith [G.randomWalk.one_sub_absSpectralGap (PMF.uniformOfFintype V),
       G.spectralContraction_randomWalk]
-  have hgap : 0 < G.randomWalk.absSpectralGap (PMF.uniformOfFintype V) := by linarith
   refine ((isReversible_uniform_randomWalk (G := G)).mixingTime_le_of_absSpectralGap_pos
-    (inv_pos.mpr hcard) hmin hgap hε).trans_eq ?_
+    (inv_pos.mpr hcard) (fun v => by
+      rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast])
+    (by linarith) hε).trans_eq ?_
   congr 2
   rw [hgap_eq, one_div (Fintype.card V : ℝ)⁻¹, inv_inv]
 

@@ -56,7 +56,6 @@ namespace Cslib
 
 open Finset
 
-
 namespace Logic.PL
 
 open BitString
@@ -139,25 +138,17 @@ private theorem flipOn_mem_solutions_of_independent {ψ : ClauseSet (Fin N)} {x 
     {M : Finset (Fin N)} (hx : x ∈ ψ.solutions) (hmove : ∀ i ∈ M, flipOn {i} x ∈ ψ.solutions)
     (hind : ∀ u ∈ M, ∀ w ∈ M, u ≠ w → w ∉ ψ.neighbors u) {T : Finset (Fin N)} (hT : T ⊆ M) :
     flipOn T x ∈ ψ.solutions := by
-  have h := flipOn_biUnion_mem_solutions_of_separated (T := fun i => {i}) hx hmove
-    (fun C hC j hj j' hj' hne hmeet hmeet' => by
-      obtain ⟨l, hl, hlj⟩ := hmeet
-      obtain ⟨l', hl', hlj'⟩ := hmeet'
-      rw [mem_singleton] at hlj hlj'
-      apply hind j hj j' hj' hne
-      simp only [neighbors, mem_filter, mem_univ, true_and]
-      exact ⟨Ne.symm hne, C, hC, ⟨l, hl, hlj⟩, l', hl', hlj'⟩) hT
-  simpa using h
+  simpa using flipOn_biUnion_mem_solutions_of_separated (T := fun i => {i}) hx hmove
+    (fun C hC j hj j' hj' hne ⟨l, hl, hlj⟩ ⟨l', hl', hlj'⟩ =>
+      hind j hj j' hj' hne (mem_filter.mpr ⟨mem_univ _, Ne.symm hne, C, hC,
+        ⟨l, hl, mem_singleton.mp hlj⟩, l', hl', mem_singleton.mp hlj'⟩)) hT
 
 /-- Co-occurrence adjacency in `neighbors` is symmetric. -/
 theorem mem_neighbors_comm {ψ : ClauseSet (Fin N)} {u w : Fin N} :
     w ∈ ψ.neighbors u ↔ u ∈ ψ.neighbors w := by
   simp only [neighbors, mem_filter, mem_univ, true_and]
-  constructor
-  · rintro ⟨hne, C, hC, hu, hw⟩
-    exact ⟨Ne.symm hne, C, hC, hw, hu⟩
-  · rintro ⟨hne, C, hC, hw, hu⟩
-    exact ⟨Ne.symm hne, C, hC, hu, hw⟩
+  exact ⟨fun ⟨hne, C, hC, hu, hw⟩ => ⟨hne.symm, C, hC, hw, hu⟩,
+    fun ⟨hne, C, hC, hw, hu⟩ => ⟨hne.symm, C, hC, hu, hw⟩⟩
 
 /-- **Few non-isolated directions**: if every variable has at most `Δ` neighbours and the
 solutions contain no subcube of dimension `D`, every solution has at most `(D - 1)(Δ + 1)`
@@ -239,18 +230,13 @@ private theorem sum_two_rpow_card_isolatedDirections_div_le {ψ : ClauseSet (Fin
     (hk1 : 1 ≤ k) (hk : ∀ C ∈ ψ, C.card ≤ k) :
     ∑ x ∈ ψ.solutions, (2 : ℝ) ^ (((isolatedDirections ψ.solutions x).card : ℝ) / k) ≤
       2 ^ N := by
-  have h := CNF.sum_two_rpow_card_isolated_div_le (φ := ψ.toCNF) hk1
-    fun c hc => ClauseSet.length_le_of_mem_toCNF hk hc
-  have hsol : ψ.solutions = ({x | ψ.toCNF.eval x = true} : Finset (BitString N)) := by
-    ext x
-    simp [eval_toCNF_eq_true_iff]
-  refine le_of_eq_of_le (sum_congr hsol fun x _ => ?_) h
-  have hiso : isolatedDirections ψ.solutions x =
-      ({i | ψ.toCNF.eval (Function.update x i (!x i)) = false} : Finset (Fin N)) := by
-    ext i
-    simp only [isolatedDirections, flipOn_singleton, mem_filter, mem_univ, true_and,
-      mem_solutions, ← eval_toCNF_eq_true_iff, Bool.not_eq_true]
-  rw [hiso]
+  refine le_of_eq_of_le
+    (sum_congr (Finset.ext fun _ => by simp [eval_toCNF_eq_true_iff]) fun x _ => ?_)
+    (CNF.sum_two_rpow_card_isolated_div_le hk1 fun c => ClauseSet.length_le_of_mem_toCNF hk)
+  suffices isolatedDirections ψ.solutions x =
+      ({i | ψ.toCNF.eval (Function.update x i (!x i)) = false} : Finset (Fin N)) by rw [this]
+  ext i
+  simp [isolatedDirections, flipOn_singleton, ← eval_toCNF_eq_true_iff]
 
 /-- **Few solutions in bounded degree**: if every clause of `ψ` has at most `k ≥ 1` literals, every
 variable has at most `Δ` neighbours, and the solutions contain no subcube of dimension `D`, then

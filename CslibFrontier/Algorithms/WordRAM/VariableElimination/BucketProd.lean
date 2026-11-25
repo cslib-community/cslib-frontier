@@ -238,9 +238,7 @@ theorem evalBucketProd_result {args : BucketProdArgs} {outScope : List ℕ}
         f.evalAt args.dom σ := by
       rw [hel, FactorTable.evalAt, Array.getD]
       split_ifs with hlt
-      · have hlt' : Nat.ofDigits args.dom (f.scope.map σ) < f.entries.toList.length := by
-          simpa using hlt
-        rw [hent.2.get _ hlt', Array.getElem_toList]
+      · rw [hent.2.get _ (by simpa using hlt), Array.getElem_toList]
         rfl
       · rfl
     dsimp only [env]
@@ -282,14 +280,12 @@ theorem evalBucketProd_realizes :
           capFactor f := holdsFactor_read_entry_le hf
     have hprod_cap : st.prod * capFactor f * (rem'.map capFactor).prod ≤ B := by
       simpa [List.map_cons, List.prod_cons, Nat.mul_assoc] using hprod_le
-    have hprod_f : st.prod * capFactor f ≤ B := by
-      have h1' : 1 ≤ (rem'.map capFactor).prod :=
-        List.one_le_prod_of_one_le (by simp [one_le_capFactor])
-      exact (Nat.le_mul_of_pos_right _ h1').trans hprod_cap
+    have hprod_f : st.prod * capFactor f ≤ B :=
+      (Nat.le_mul_of_pos_right _ (List.one_le_prod_of_one_le (l := rem'.map capFactor)
+        (by simp [one_le_capFactor]))).trans hprod_cap
     obtain ⟨hd, hsl, hel, hsc, hent⟩ := hf
-    have hpow_f : Fits w (d.dom ^ s.mem (st.curDesc + 1)) := by
-      rw [hsl]
-      exact hdomPow.of_le (Nat.pow_le_pow_right hdom hf_max)
+    have hpow_f : Fits w (d.dom ^ s.mem (st.curDesc + 1)) :=
+      hsl ▸ hdomPow.of_le (Nat.pow_le_pow_right hdom hf_max)
     refine ⟨⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le (by omega),
       hmem.frontier_fits.of_le (by omega), ⟨hdom, ha, h1, hmem.frontier_fits.of_le hout,
         hmem.frontier_fits.of_le (by rw [hsl]; exact hsc.1), hpow_f⟩, ?_⟩, ?_⟩
@@ -303,9 +299,7 @@ theorem evalBucketProd_realizes :
         have hlt_sz : fIdx < f.entries.size := by simpa [hel] using hlt
         exact ⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le hd,
           hB.of_le ((Nat.mul_le_mul_left st.prod he).trans hprod_f)⟩
-      · refine ⟨trivial, hmem.frontier_fits.of_le hd, ?_⟩
-        change Fits w (st.prod * 0)
-        simp
+      · exact ⟨trivial, hmem.frontier_fits.of_le hd, Nat.mul_zero st.prod ▸ fits_zero w⟩
     · rw [bucketProdStep_state, bucketProdStep_result]
       exact ⟨rfl, rem', hrem_len, hrem'_holds, hrem'_max,
         (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left st.prod (hent_le _))).trans hprod_cap⟩

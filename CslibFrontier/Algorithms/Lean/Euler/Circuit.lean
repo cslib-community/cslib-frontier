@@ -292,14 +292,11 @@ vertices of even degree. -/
 theorem even_degree_of_isEulerCircuit {H : List (α × α)} {u : α} {w : List α}
     (h : IsEulerCircuit H u w) (x : α) : Even (degree H x) := by
   obtain ⟨w', rfl⟩ := List.head?_eq_some_iff.mp h.head
-  have hl : (u :: w').getLast (List.cons_ne_nil _ _) = u := by
-    have := h.getLast
-    rw [List.getLast?_eq_some_getLast (List.cons_ne_nil _ _)] at this
-    exact Option.some.inj this
-  have := degree_consecutivePairs_cons u w' x
-  rw [hl] at this
-  rw [← degree_eq_of_perm h.perm]
-  exact Nat.even_iff.mpr (by split_ifs at this <;> omega)
+  have hl : (u :: w').getLast (List.cons_ne_nil _ _) = u :=
+    Option.some.inj ((List.getLast?_eq_some_getLast _).symm.trans h.getLast)
+  have hdeg := degree_consecutivePairs_cons u w' x
+  rw [degree_eq_of_perm h.perm, hl] at hdeg
+  exact Nat.even_iff.mpr (by split_ifs at hdeg <;> omega)
 
 /-! ### Greedy walks -/
 
@@ -506,10 +503,8 @@ theorem eulerLoop_spec {H : List (α × α)} {u : α}
   | case2 fuel w R hfind =>
     intro h1 h2 h3 _ _
     obtain rfl : R = [] := eq_nil_of_forall_not_touches (List.mem_of_mem_head? h1) hconn h3
-      fun x hx e he => by
-        have := List.find?_eq_none.1 hfind x hx
-        simp only [List.any_eq_true, not_exists, not_and, Bool.not_eq_true] at this
-        exact this e he
+      fun x hx e he => Bool.eq_false_iff.mpr fun ht =>
+        List.find?_eq_none.mp hfind x hx (List.any_eq_true.mpr ⟨e, he, ht⟩)
     exact ⟨h1, h2, by simpa using h3.symm⟩
   | case3 fuel w R x hfind r ih =>
     intro h1 h2 h3 h4 h5

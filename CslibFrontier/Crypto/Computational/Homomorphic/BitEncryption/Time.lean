@@ -157,18 +157,9 @@ theorem exists_encryptBitsCoins_time_bound
     exact h.trans (Nat.le_succ _)
   have hM (a : α) : (input a).length ≤ B (input a).length := by dsimp only [B]; omega
   refine (hmap.mono 2 (fun a => ?_) (fun a => ?_)).of_enc_eq fun a => ?_
-  · have := hM a
-    obtain ⟨_, _⟩ := hsize a
-    have := hcount a
-    have := htimeMax a
-    have := hout a
-    rw [hrowsLength]
-    nlinarith
-  · have := hM a
-    obtain ⟨_, _⟩ := hsize a
-    have := hspaceMax a
-    have := hout a
-    nlinarith
+  · rw [hrowsLength]
+    nlinarith [hM a, (hsize a).1, (hsize a).2, hcount a, htimeMax a, hout a]
+  · nlinarith [hM a, (hsize a).1, (hsize a).2, hspaceMax a, hout a]
   · congr 1
     exact List.map_uncurry_zip_eq_zipWith.symm
 

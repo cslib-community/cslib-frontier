@@ -800,13 +800,11 @@ theorem advantage_hashedElGamalCipherUniformKeyGameOn_demKeyGameOn_le {Msg : Typ
     by_cases hv :
         valid n (encPair F.encDesc encBits (d, F.encode d ((a : ZMod (F.order d)) • F.generator d)))
           choice.1.1 choice.1.2 = true
-    · have hvs := hvalid_imp d (F.encode d ((a : ZMod (F.order d)) • F.generator d))
-        choice.1.1 choice.1.2 hv
+    · have hvs := hvalid_imp d _ choice.1.1 choice.1.2 hv
       simp only [encPair_apply, encBits_apply] at hv
       simp only [hv, hvs, ↓reduceIte]
     · simp only [Bool.not_eq_true, encPair_apply, encBits_apply] at hv
-      by_cases hvs : validSym n [] choice.1.1 choice.1.2 = true <;>
-        simp only [hv, hvs, Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
+      split_ifs <;> simp only [hv, Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
   rw [hgame2, hdem]
   peel_binds d
   rw [Game.advantage_comm]
@@ -1207,21 +1205,15 @@ theorem DDH.negligible_hashedElGamalCipherCPAGameOn_ideal_linearHashKDF_of_demOn
             (F.linearHashSeedLen outLen bound))
           (F.linearHashKDF keyLen bound) encryptSym adversary true n) := by
   have hseed_poly := F.computableInPolyTime_linearHashSeedLen hout_poly hbound_poly
-  have hsetup_seeded := F.isPPTOn_seededSetupProb hsetup hseed_poly
-  have hDDH_seeded :
-      F.withSeed.DDH (fun n => ProbComp.eval (F.seededSetupProb setupProb
-        (F.linearHashSeedLen outLen bound) n)) := by
-    simp only [F.eval_seededSetupProb]
-    exact hDDH.withSeed hseed_poly
-  have hKDF_seeded :
-      F.withSeed.SecureKDF (fun n => ProbComp.eval (F.seededSetupProb setupProb
-        (F.linearHashSeedLen outLen bound) n))
-        (F.linearHashKDF keyLen bound) outLen := by
-    simp only [F.eval_seededSetupProb]
-    exact F.secureKDF_linearHashKDF hKDF
+  have hsetup_eq : (fun n => ProbComp.eval (F.seededSetupProb setupProb
+      (F.linearHashSeedLen outLen bound) n)) =
+      F.seededSetup (fun m => ProbComp.eval (setupProb m)) (F.linearHashSeedLen outLen bound) :=
+    funext (F.eval_seededSetupProb setupProb _)
+  have hDDH' := hsetup_eq.symm ▸ hDDH.withSeed hseed_poly
   simpa only [F.eval_seededSetupProb] using
-    hDDH_seeded.negligible_hashedElGamalCipherCPAGameOn_ideal_of_demOneTimeKeyINDCPAOn
-      hKDF_seeded hDEM hsetup_seeded hvalid hvalid_imp
+    hDDH'.negligible_hashedElGamalCipherCPAGameOn_ideal_of_demOneTimeKeyINDCPAOn
+      (hsetup_eq.symm ▸ F.secureKDF_linearHashKDF hKDF) hDEM
+      (F.isPPTOn_seededSetupProb hsetup hseed_poly) hvalid hvalid_imp
       (F.computableInPolyTime_linearHashKDF hkey_poly hbound_poly) hencryptSym hA
 
 /-- Ideal-sampling step, not the cited result: IND-CPA security of the general-cipher Hashed

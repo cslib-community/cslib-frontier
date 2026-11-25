@@ -357,9 +357,8 @@ private theorem outerLoop_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
       BFSInv P σ T (PBFS.outerLoop T σ fuel B) ∧
         (PBFS.outerLoop T σ fuel B).qHead = (PBFS.outerLoop T σ fuel B).qTail
   | 0, B, hinv, hfuel => by
-    have hqt : B.qTail < T.numStates := qTail_lt_numStates hT.one_le hinv.q_bounds hinv.q_inj
-    have hge : ¬(B.qHead < B.qTail) := by omega
-    have hle := hinv.qHead_le
+    have := qTail_lt_numStates hT.one_le hinv.q_bounds hinv.q_inj
+    have := hinv.qHead_le
     exact ⟨hinv, by omega⟩
   | fuel + 1, B, hinv, hfuel => by
     dsimp only [PBFS.outerLoop]
@@ -391,35 +390,23 @@ structure AutomatonInv (P : List (List ℕ)) (σ : ℕ) (T : PTrie) (B : PBFS) :
 
 theorem rootLoopInv_init {P : List (List ℕ)} {σ : ℕ} {T : PTrie} (hT : TreeInv σ T) :
     RootLoopInv P σ T 0 PBFS.init := by
-  have hinit_disc : PBFS.init.disc = {0} := by
-    simp only [PBFS.init, PBFS.disc, Finset.range_zero, Finset.image_empty]
-    rfl
+  have hinit_disc : PBFS.init.disc = {0} := by simp [PBFS.init, PBFS.disc]
   exact
     { qHead_zero := rfl
       q_bounds := fun _ hi => absurd hi (Nat.not_lt_zero _)
       q_inj := fun _ hi => absurd hi (Nat.not_lt_zero _)
-      disc_iff := fun w _ => by
-        rw [hinit_disc]
-        simp only [Finset.mem_singleton, Nat.not_lt_zero, false_and, exists_false, or_false]
+      disc_iff := fun w _ => by simp [hinit_disc]
       delta_zero := fun _ hc => absurd hc (Nat.not_lt_zero _)
       tables :=
         { zero_vals := ⟨rfl, rfl, rfl⟩
-          fail_spec := fun x hx _ => by
-            rw [hinit_disc, Finset.mem_singleton] at hx
-            omega
+          fail_spec := fun x hx _ => by simp [hinit_disc] at hx; omega
           outHead_spec := fun x hx => by
-            rw [hinit_disc] at hx ⊢
-            rw [Finset.mem_singleton] at hx
-            subst hx
-            exact ⟨Finset.mem_singleton_self 0, Nat.le_refl _⟩
-          outNext_spec := fun x hx _ => by
-            rw [hinit_disc, Finset.mem_singleton] at hx
-            omega
+            obtain rfl : x = 0 := by simpa [hinit_disc] using hx
+            exact ⟨hinit_disc.symm ▸ Finset.mem_singleton_self 0, le_rfl⟩
+          outNext_spec := fun x hx _ => by simp [hinit_disc] at hx; omega
           follow_spec := fun x hx => by
-            rw [hinit_disc, Finset.mem_singleton] at hx
-            subst hx
-            rw [hT.str_zero, output_nil, List.map_nil]
-            exact followOut_zero_right _ _ _ } }
+            obtain rfl : x = 0 := by simpa [hinit_disc] using hx
+            simp [PBFS.init, hT.str_zero, output_nil, followOut_zero_right] } }
 
 theorem bfsInv_rootLoop {P : List (List ℕ)} {σ : ℕ} {T : PTrie} (hT : TreeInv σ T)
     (hchar : ∀ u < T.numStates, ∀ a < σ, IsNode P (T.strOf u ++ [a]) ↔ 0 < T.trie u a)
@@ -429,23 +416,16 @@ theorem bfsInv_rootLoop {P : List (List ℕ)} {σ : ℕ} {T : PTrie} (hT : TreeI
   have hRoot := rootLoop_spec hT hchar hterm σ 0 PBFS.init (by omega) (rootLoopInv_init hT)
   rw [Nat.zero_add] at hRoot
   set B₀ := PBFS.rootLoop T σ 0 PBFS.init
-  have hexp₀ : B₀.expAt B₀.qHead = {0} := by
-    rw [hRoot.qHead_zero]
-    simp only [PBFS.expAt, Finset.range_zero, Finset.image_empty]
-    rfl
+  have hexp₀ : B₀.expAt B₀.qHead = {0} := by simp [hRoot.qHead_zero, PBFS.expAt]
   refine ⟨?_, hRoot.qHead_zero⟩
   exact
     { qHead_le := by rw [hRoot.qHead_zero]; exact Nat.zero_le _
       q_bounds := fun i hi => ⟨(hRoot.q_bounds i hi).1, (hRoot.q_bounds i hi).2.1⟩
       q_inj := hRoot.q_inj
-      disc_iff := fun w hw => by
-        rw [hexp₀, hRoot.disc_iff w hw]
-        simp only [Finset.mem_singleton, exists_eq_left]
+      disc_iff := fun w hw => by simp [hexp₀, hRoot.disc_iff w hw]
       q_mono := fun i j hij hj => by
         rw [(hRoot.q_bounds i (lt_of_le_of_lt hij hj)).2.2, (hRoot.q_bounds j hj).2.2]
-      q_depth_ub := fun j hj _ => by
-        rw [(hRoot.q_bounds j hj).2.2]
-        omega
+      q_depth_ub := fun j hj _ => by rw [(hRoot.q_bounds j hj).2.2]; omega
       lt_depth_mem_exp := fun v hv hlt hdv => by
         rw [hexp₀, Finset.mem_singleton]
         rw [hRoot.qHead_zero] at hlt hdv
@@ -453,11 +433,8 @@ theorem bfsInv_rootLoop {P : List (List ℕ)} {σ : ℕ} {T : PTrie} (hT : TreeI
         have hv_nil : T.strOf v = [] := List.eq_nil_of_length_eq_zero (by omega)
         exact hT.str_inj v hv 0 hT.one_le (hv_nil.trans hT.str_zero.symm)
       delta_spec := fun u hu c hc => by
-        rw [hexp₀, Finset.mem_singleton] at hu
-        subst hu
-        obtain ⟨h1, h2⟩ := hRoot.delta_zero c hc
-        rw [hT.str_zero]
-        exact ⟨h1, h2⟩
+        obtain rfl : u = 0 := by simpa [hexp₀] using hu
+        simpa [hT.str_zero] using hRoot.delta_zero c hc
       tables := hRoot.tables }
 
 theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
@@ -473,9 +450,7 @@ theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
     (PBFS.build T σ).qHead = (PBFS.build T σ).qTail at hOuter
   obtain ⟨hFinal, hqh_eq⟩ := hOuter
   set B := PBFS.build T σ
-  have hexp_eq_disc : B.expAt B.qHead = B.disc := by
-    dsimp only [PBFS.expAt, PBFS.disc]
-    rw [hqh_eq]
+  have hexp_eq_disc : B.expAt B.qHead = B.disc := by simp only [PBFS.expAt, PBFS.disc, hqh_eq]
   have hall_disc : ∀ w < T.numStates, w ∈ B.disc := by
     intro w
     induction w using Nat.strong_induction_on with
@@ -484,9 +459,8 @@ theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
       rcases Nat.eq_zero_or_pos w with rfl | hpos
       · exact Finset.mem_insert_self 0 _
       · obtain ⟨u, huw, c, hc, htuc, _⟩ := hT.parent_exists w hpos hw
-        have hu_disc : u ∈ B.disc := ih u huw (lt_trans huw hw)
-        have hu_exp : u ∈ B.expAt B.qHead := hexp_eq_disc.symm ▸ hu_disc
-        exact (hFinal.disc_iff w hw).mpr (Or.inr ⟨u, hu_exp, c, hc, htuc⟩)
+        exact (hFinal.disc_iff w hw).mpr
+          (Or.inr ⟨u, hexp_eq_disc.symm ▸ ih u huw (lt_trans huw hw), c, hc, htuc⟩)
   refine
     { qHead_eq_qTail := hqh_eq
       qTail_lt := qTail_lt_numStates hT.one_le hFinal.q_bounds hFinal.q_inj

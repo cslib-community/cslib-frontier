@@ -175,20 +175,18 @@ private theorem eval_publicKeyChainHybrid_of_width_zero (n depth : ℕ)
     (test : (List (List Bool) × List (List (List Bool))) → ProbComp Bool) :
     ProbComp.eval (E.publicKeyChainHybrid n depth depth >>= test) =
       ProbComp.eval (E.publicKeyChainHybrid n depth 0 >>= test) := by
-  have hstep : ∀ k ≤ depth,
-      ProbComp.eval (E.publicKeyChainHybrid n depth k >>= test) =
-        ProbComp.eval (E.publicKeyChainHybrid n depth 0 >>= test) := by
-    intro k hk
-    induction k with
-    | zero => rfl
-    | succ k ih =>
-      have hdepth_eq : k + (depth - k - 1) + 1 = depth := by omega
-      have h0 := E.eval_publicKeyLinkHybrid_zero n k (depth - k - 1)
-      have hlen := E.eval_publicKeyLinkHybrid_length n k (depth - k - 1) 0 hwidth
-      rw [hdepth_eq] at h0 hlen
-      rw [ProbComp.eval_bind, ← h0, hlen, ← ProbComp.eval_bind]
-      exact ih (by omega)
-  exact hstep depth le_rfl
+  suffices ∀ k ≤ depth, ProbComp.eval (E.publicKeyChainHybrid n depth k >>= test) =
+      ProbComp.eval (E.publicKeyChainHybrid n depth 0 >>= test) from this depth le_rfl
+  intro k hk
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    have hdepth_eq : k + (depth - k - 1) + 1 = depth := by omega
+    have h0 := E.eval_publicKeyLinkHybrid_zero n k (depth - k - 1)
+    have hlen := E.eval_publicKeyLinkHybrid_length n k (depth - k - 1) 0 hwidth
+    rw [hdepth_eq] at h0 hlen
+    rw [ProbComp.eval_bind, ← h0, hlen, ← ProbComp.eval_bind]
+    exact ih (by omega)
 
 /-- The real-to-zero public-key gap equals `(depth : ℝ) * capacity` times the signed gap of
 `exactKeyChainHybridGame`, with no dyadic rounding factor. -/
@@ -897,13 +895,11 @@ theorem isPPT_modLeveledAdversary {E : Scheme}
     (hcapacity : ComputableInPolyTime capacity encUnary encUnary) :
     (modLeveledAdversary E coins depth capacity adversary).IsPPT := by
   have htag := computableInPolyTime_tagLeveledChoice
-  have hswap := computableInPolyTime_swapLeveledChoice
   have hzero := isPPT_zeroLinkAdversary hencrypt hadversary hkeyGen hdepth
   have hlinkFalse := Scheme.isPPT_modLinkAdversary hkeyGen hencrypt
     (isPPTOn_publicKeyGame hencrypt hadversary false) hcoins hdepth hcapacity
   have hlinkTrue := Scheme.isPPT_modLinkAdversary hkeyGen hencrypt
     (isPPTOn_publicKeyGame hencrypt hadversary true) hcoins hdepth hcapacity
-  have hlev := isPPT_leveledAdversary hencrypt hadversary hkeyGen hdepth hcapacity
   constructor
   · change IsPPTOn (encPair encUnary encBits) (encPair (encPair encBool encBool) encBits)
       (fun p => (modLeveledAdversary E coins depth capacity adversary).choose p.1 p.2)
@@ -914,7 +910,8 @@ theorem isPPT_modLeveledAdversary {E : Scheme}
       apply IsPPTOn.ite (by polytime)
       · exact (hlinkFalse.choose.on.preprocess (by fun_prop)).map (htag false false)
       · apply IsPPTOn.ite (by polytime)
-        · exact (hlinkTrue.choose.on.preprocess (by fun_prop)).map ((htag false true).comp hswap)
+        · exact (hlinkTrue.choose.on.preprocess (by fun_prop)).map
+            ((htag false true).comp computableInPolyTime_swapLeveledChoice)
         · apply (Probability.isPPTOn_sampleModIndex
             (hcoins.comp (by fun_prop)) (hdepth.comp (by fun_prop))).bind_with
           apply (Probability.isPPTOn_sampleModIndex
@@ -925,7 +922,7 @@ theorem isPPT_modLeveledAdversary {E : Scheme}
             · exact (ComputableInPolyTime.const rejectLeveledChoice).isPPTOn
           · exact (ComputableInPolyTime.const rejectLeveledChoice).isPPTOn
     · exact hzero.choose.on.map (htag true false)
-  · exact hlev.guess
+  · exact (isPPT_leveledAdversary hencrypt hadversary hkeyGen hdepth hcapacity).guess
 
 /-- Specialization of `isPPT_modLeveledAdversary` to `2 * n` coins per modular index sample. -/
 theorem isPPT_modLeveledAdversary_two_mul {E : Scheme}
@@ -988,11 +985,8 @@ theorem advantage_exactLeveledAdversary_modLeveledAdversary_le (E : Scheme)
   by_cases hpos : 0 < depth n ∧ 0 < capacity n
   · have : NeZero (depth n) := ⟨hpos.1.ne'⟩
     have : NeZero (capacity n) := ⟨hpos.2.ne'⟩
-    have hexact :
-        ProbComp.eval (Encryption.game E.keyGen E.encrypt
-          (exactLeveledAdversary E depth capacity adversary) bit n) =
-        (PMF.uniformOfFintype (Fin 3)).bind fun hop =>
-          exactLeveledBranch E depth capacity adversary bit n hop.val :=
+    have hexact : _ = (PMF.uniformOfFintype (Fin 3)).bind fun hop =>
+        exactLeveledBranch E depth capacity adversary bit n hop.val :=
       eval_exactLeveledAdversary E depth capacity adversary bit n
     have hmod :
         ProbComp.eval (Encryption.game E.keyGen E.encrypt
@@ -1089,11 +1083,10 @@ theorem advantage_scheme_le_modLeveledAdversary_two_mul {E : Scheme}
   refine (advantage_scheme_le_modLeveledAdversary D (fun n => 2 * n) budget capacity adversary
     n width hbudget_pos hcapacity_pos hwidth hcapacity).trans ?_
   have hle : ((3 + 2 * budget n + capacity n : ℕ) : ℝ≥0) ≤ (2 : ℝ≥0) ^ n := by exact_mod_cast htail
-  have hpos : (0 : ℝ≥0) < (2 : ℝ≥0) ^ n := by positivity
+  have hpow : (2 : ℝ≥0) ^ (2 * n) = (2 : ℝ≥0) ^ n * (2 : ℝ≥0) ^ n := by rw [Nat.two_mul, pow_add]
   have htail_div :
       2 * ((3 + 2 * budget n + capacity n : ℕ) : ℝ≥0) / 2 ^ (2 * n) ≤ 2 / 2 ^ n := by
-    have hpow : (2 : ℝ≥0) ^ (2 * n) = (2 : ℝ≥0) ^ n * (2 : ℝ≥0) ^ n := by rw [Nat.two_mul, pow_add]
-    rw [hpow, ← mul_div_mul_right (2 : ℝ≥0) ((2 : ℝ≥0) ^ n) hpos.ne']
+    rw [hpow, ← mul_div_mul_right (2 : ℝ≥0) ((2 : ℝ≥0) ^ n) (pow_ne_zero n two_ne_zero)]
     gcongr
   gcongr
 
@@ -1145,12 +1138,10 @@ theorem length_publicKey_support_keyGen_le {E : Scheme}
     {kp : List Bool × List Bool}
     (hkp : kp ∈ (ProbComp.eval (keyGen E n budget)).support) :
     kp.1.length ≤ publicKeyLengthBound (2 * budget) width pkBound ctBound := by
-  have hmap : kp.1 ∈ ((ProbComp.eval (keyGen E n budget)).map Prod.fst).support :=
-    (PMF.mem_support_map_iff _ _ _).mpr ⟨kp, hkp, rfl⟩
+  have hmap := (PMF.mem_support_map_iff Prod.fst _ kp.1).mpr ⟨kp, hkp, rfl⟩
   rw [eval_keyGen_public] at hmap
   rcases (PMF.mem_support_map_iff _ _ _).mp hmap with ⟨artifact, hart, hfst⟩
-  rw [← hfst]
-  exact length_encPublicKey_support_publicKeyChainHybrid_le n (2 * budget) (2 * budget)
+  exact hfst ▸ length_encPublicKey_support_publicKeyChainHybrid_le n (2 * budget) (2 * budget)
     width pkBound ctBound hkey henc hart
 
 /-- Coin-count formula for the message-selection stage of `leveledAdversary` in terms of

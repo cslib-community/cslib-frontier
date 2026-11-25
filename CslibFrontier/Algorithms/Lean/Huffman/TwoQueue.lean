@@ -314,12 +314,10 @@ private theorem twoQueueSteps_eq_twoQueueLoop {α β : Type u} [Add β] [LE β]
           have hsz₂ := popMin_size_eq hr₂
           dsimp only
           let q_next := q₂''.enqueue ⟨.branch a.tree b.tree, a.wt + b.wt⟩
-          have hle_fuel : q₁''.length + q_next.size ≤ fuel := by
-            simp only [q_next, FifoQueue.size_enqueue]; omega
-          have hle_n : q₁''.length + q_next.size ≤ n := by
-            simp only [q_next, FifoQueue.size_enqueue]; omega
-          exact (twoQueueSteps_eq_twoQueueLoop fuel q₁'' q_next hle_fuel).trans
-            (twoQueueSteps_eq_twoQueueLoop n q₁'' q_next hle_n).symm
+          exact (twoQueueSteps_eq_twoQueueLoop fuel q₁'' q_next
+              (by simp only [q_next, FifoQueue.size_enqueue]; omega)).trans
+            (twoQueueSteps_eq_twoQueueLoop n q₁'' q_next
+              (by simp only [q_next, FifoQueue.size_enqueue]; omega)).symm
 
 /-- Fuel-free unfolding equation for `twoQueueLoop`. -/
 theorem twoQueueLoop_step {α β : Type u} [Add β] [LE β] [DecidableRel (· ≤ · : β → β → Prop)]
@@ -551,14 +549,11 @@ theorem huffmanFromSorted_spec {α β : Type u}
     simp only [FifoQueue.toList_empty, List.append_nil, q₁, List.mem_map] at he
     rcases he with ⟨a, ha, rfl⟩
     exact ⟨rfl, hw a ha⟩
-  have hne_q : q₁ ++ (FifoQueue.empty : FifoQueue (WeightedTree α β)).toList ≠ [] := by
-    simpa [q₁, FifoQueue.toList_empty] using hne
-  rcases twoQueueLoop_correct hinv hne_q with ⟨T, hT_ret, hT_build⟩
-  have hmap_trees : ((q₁ ++ (FifoQueue.empty : FifoQueue (WeightedTree α β)).toList).map
-      WeightedTree.tree) = syms.map .leaf := by
-    simp [q₁, List.map_map, Function.comp_def]
-  rw [hmap_trees] at hT_build
-  exact ⟨T, hT_ret, hT_build, hT_build.leaves_perm⟩
+  rcases twoQueueLoop_correct hinv (by simpa [q₁, FifoQueue.toList_empty] using hne) with
+    ⟨T, hT_ret, hT_build⟩
+  have hT_build' : IsHuffmanBuild w (syms.map .leaf) T := by
+    simpa [q₁, List.map_map, Function.comp_def] using hT_build
+  exact ⟨T, hT_ret, hT_build', hT_build'.leaves_perm⟩
 
 /-- **End-to-End Correctness of `huffman`**: on any nonempty symbol list `syms` with nonnegative
 weights, `huffman w syms` returns `some T` satisfying `IsHuffmanBuild w (syms.map .leaf) T` and

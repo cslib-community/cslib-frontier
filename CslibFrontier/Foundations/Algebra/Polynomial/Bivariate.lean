@@ -194,15 +194,12 @@ homomorphism `φ : R →+* S` commutes with `shift`. -/
 theorem map_shift (φ : R →+* S) (x y : R) (Q : R[X][Y]) :
     shift (φ x) (φ y) (Q.map (Polynomial.mapRingHom φ)) =
       (shift x y Q).map (Polynomial.mapRingHom φ) := by
-  rw [shift_apply, shift_apply, Polynomial.map_map]
   have hcomp :
       (taylorAlgHom (φ x) : S[X] →+* S[X]).comp (Polynomial.mapRingHom φ) =
         (Polynomial.mapRingHom φ).comp (taylorAlgHom x : R[X] →+* R[X]) := by
     apply Polynomial.ringHom_ext <;> simp [taylor_C, taylor_X]
-  rw [hcomp, ← Polynomial.map_map]
-  have hCy : C (φ y) = Polynomial.mapRingHom φ (C y) := by
-    rw [Polynomial.coe_mapRingHom, Polynomial.map_C]
-  rw [hCy, ← Polynomial.map_taylor]
+  rw [shift_apply, shift_apply, Polynomial.map_map, hcomp, ← Polynomial.map_map,
+    Polynomial.map_taylor, Polynomial.coe_mapRingHom, Polynomial.map_C]
 
 end Shift
 
@@ -354,9 +351,8 @@ theorem VanishesToOrder.X_sub_C_pow_dvd_eval {R : Type*} [CommRing R] {m : ℕ} 
   -- Shift back by `-x`.
   obtain ⟨T, hT⟩ := hdvd_shift
   refine ⟨taylor (-x) T, ?_⟩
-  have hback : Q.eval P = taylor (-x) (taylor x (Q.eval P)) := by
-    rw [taylor_taylor, neg_add_cancel, taylor_zero]
-  rw [hback, hT, taylor_mul, taylor_X_pow, C_neg, ← sub_eq_add_neg]
+  rw [← taylor_zero (Q.eval P), ← neg_add_cancel x, ← taylor_taylor, hT, taylor_mul,
+    taylor_X_pow, C_neg, ← sub_eq_add_neg]
 
 end Vanishing
 
@@ -473,8 +469,7 @@ theorem weightedDegree_mul [NoZeroDivisors R] {d : ℕ} {A B : R[X][Y]}
         have h2 := le_weightedDegree (d := d) (right_ne_zero_of_mul h0)
         dsimp only at h1 h2
         exact hne (Prod.ext (by omega) (by omega))
-      · intro hmem
-        exact absurd (mem_antidiagonal.2 rfl : (a₁, a₂) ∈ antidiagonal (a₁ + a₂)) hmem
+      · exact fun hmem => absurd (mem_antidiagonal.2 rfl : (a₁, a₂) ∈ antidiagonal (a₁ + a₂)) hmem
     · intro j hj hne
       rw [mem_antidiagonal] at hj
       rw [coeff_mul]
@@ -487,12 +482,8 @@ theorem weightedDegree_mul [NoZeroDivisors R] {d : ℕ} {A B : R[X][Y]}
       have hj1 := hmax₁ i.1 j.1 (left_ne_zero_of_mul h0) (by omega)
       have hj2 := hmax₂ i.2 j.2 (right_ne_zero_of_mul h0) (by omega)
       exact hne (Prod.ext (by omega) (by omega))
-    · intro hmem
-      exact absurd (mem_antidiagonal.2 rfl : (b₁, b₂) ∈ antidiagonal (b₁ + b₂)) hmem
-  have hne : ((A * B).coeff (b₁ + b₂)).coeff (a₁ + a₂) ≠ 0 := by
-    rw [hcoeff]
-    exact mul_ne_zero ha₁ ha₂
-  have hle := le_weightedDegree (d := d) hne
+    · exact fun hmem => absurd (mem_antidiagonal.2 rfl : (b₁, b₂) ∈ antidiagonal (b₁ + b₂)) hmem
+  have hle := le_weightedDegree (d := d) (hcoeff ▸ mul_ne_zero ha₁ ha₂)
   rw [mul_add] at hle
   omega
 
@@ -643,9 +634,7 @@ theorem exists_eq_mul_eval_ne_zero_of_squarefree {Q : F[X][Y]} (hsq : Squarefree
   obtain ⟨S, rfl⟩ := dvd_iff_isRoot.2 hQP
   refine ⟨S, rfl, fun hSP => ?_⟩
   obtain ⟨T, rfl⟩ := dvd_iff_isRoot.2 hSP
-  have hu : IsUnit (Y - C P : F[X][Y]) :=
-    hsq (Y - C P) ⟨T, by ring⟩
-  have hdeg := Polynomial.natDegree_eq_zero_of_isUnit hu
+  have hdeg := Polynomial.natDegree_eq_zero_of_isUnit (hsq (Y - C P) ⟨T, by ring⟩)
   rw [natDegree_X_sub_C] at hdeg
   omega
 

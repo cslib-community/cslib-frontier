@@ -80,14 +80,10 @@ lemma ballot_ceiling_inv {b : Ballot Proposer}
       · exact ih.1 (.phase2a b' v) (hact ▸ hen).2
     · rcases acceptors_synodStep_cases qs (ss n) (xs n) a with heq |
           ⟨b', hact, _, heq, _⟩ | ⟨b', v, hact, _, heq⟩ | ⟨_, heq⟩
-      · rw [heq] at hmb
-        exact ih.2 a mb hmb
-      · rw [heq] at hmb
-        exact Option.some.inj hmb ▸ ih.1 (.phase1a b') (hact ▸ hen).2
-      · rw [heq] at hmb
-        exact Option.some.inj hmb ▸ ih.1 (.phase2a b' v) (hact ▸ hen).2
-      · rw [heq] at hmb
-        exact ih.2 a mb hmb
+      · exact ih.2 a mb (heq ▸ hmb)
+      · exact Option.some.inj (heq ▸ hmb) ▸ ih.1 (.phase1a b') (hact ▸ hen).2
+      · exact Option.some.inj (heq ▸ hmb) ▸ ih.1 (.phase2a b' v) (hact ▸ hen).2
+      · exact ih.2 a mb (by simpa [heq] using hmb)
 
 /-- Once proposer `p` prepares round `r` cleanly with no higher ballot prepared, its round stays
 `some r`. -/
@@ -101,10 +97,8 @@ lemma sole_leader_round_inv {p : Proposer} {r : ℕ}
       ∀ r', xs n ≠ .prepare p r' := by
   have hnot_prep (n : ℕ) (hround : ((ss n).proposers p).round = some r) (r' : ℕ)
       (hact : xs n = .prepare p r') : False := by
-    have hen := (hexec n).1
-    rw [hact] at hen
-    dsimp only [synodEnabled] at hen
-    rw [hround] at hen
+    have hen := hact ▸ (hexec n).1
+    simp only [synodEnabled, hround] at hen
     have hle := (Ballot.le_iff _ _).mp (hno_higher n p r' hact)
     dsimp only at hle
     rcases hle with hlt | ⟨heq, _⟩ <;> omega

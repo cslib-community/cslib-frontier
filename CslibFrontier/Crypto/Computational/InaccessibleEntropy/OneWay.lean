@@ -347,12 +347,12 @@ theorem rompelBaseHashFin_eq_iff {n m : ℕ} (gFin : BitString n → BitString m
           prefixProj n z.truncIndex
             (Cslib.BitString.LinearHash.affineHash (z.hashRows, z.hashShift)
               (gFin z.preimage)) := by
-  cases z'; cases z
+  cases z'
+  cases z
   simp only [rompelBaseHashFin, RompelBaseOutput.mk.injEq, RompelBaseInput.truncIndex]
-  exact ⟨fun ⟨rfl, rfl, rfl, h⟩ =>
-      ⟨rfl, rfl, rfl, (zeroPadPrefix_eq_iff_prefixProj_eq _ _).mp h⟩,
-    fun ⟨rfl, rfl, rfl, h⟩ =>
-      ⟨rfl, rfl, rfl, (zeroPadPrefix_eq_iff_prefixProj_eq _ _).mpr h⟩⟩
+  refine and_congr_right fun h1 => and_congr_right fun h2 => and_congr_right fun h3 => ?_
+  rw [h1, h2, h3, zeroPadPrefix_eq_iff_prefixProj_eq]
+  rfl
 
 /-- Word-level evaluator of `[HHRVW2020]`'s base function $F_0$
 (Section 4.2, Theorem 4.5, p. 21). -/
@@ -490,13 +490,11 @@ theorem rompelAccessibleSet_subset_fiber (c : ℕ) (g : List Bool → List Bool)
         (wordToFinMap (rompelBaseInLen n (outLen n)) (rompelBaseOutLen n (outLen n))
           (rompelBaseEvalWord g outLen n) b) := by
   intro b' hb'
-  rw [rompelAccessibleSet, mem_map] at hb'
-  obtain ⟨z', hz', rfl⟩ := hb'
-  have hz'_fib := mem_fiberSet _ _ _ |>.mp (rompelAccessibleInputSet_subset_fiber c _ _ hz')
+  obtain ⟨z', hz', rfl⟩ := mem_map.mp hb'
+  have hz'_fib := (mem_fiberSet _ _ _).mp (rompelAccessibleInputSet_subset_fiber c _ _ hz')
   rw [mem_fiberSet]
-  simp only [Equiv.coe_toEmbedding]
   conv_rhs => rw [← (rompelBaseInputEquiv n (outLen n)).apply_symm_apply b]
-  rw [wordToFinMap_rompelBaseEvalWord, wordToFinMap_rompelBaseEvalWord, hz'_fib]
+  simp only [Equiv.coe_toEmbedding, wordToFinMap_rompelBaseEvalWord, hz'_fib]
 
 /-- Uniform strict-PPT inverter reduction (`[HHRVW2020]`, Section 4.2, Claim 4.6, pp. 21–22):
 on challenge image `y`, sample uniform `x` and `rBits`, sample a prefix-colliding affine seed via
@@ -679,10 +677,9 @@ private theorem rompelBase_escape_seed_toReal_le (c : ℕ) (g : List Bool → Li
         mem_filter.mpr ⟨(mem_fiberSet _ _ _).mpr hhash, hlight⟩
       dsimp only [gFin, m, z] at hz' ⊢
       simpa only [(rompelBaseInputEquiv n (outLen n)).symm_apply_apply] using hz'
-    · have htake : raw.take n = List.ofFn z'.preimage := by
-        rw [← hpack', RompelBaseInput.packWord, List.append_assoc,
-          List.take_left' (List.length_ofFn (f := z'.preimage))]
-      rw [htake, hg_ofFn]
+    · nth_rw 1 [← hpack']
+      rw [RompelBaseInput.packWord, List.append_assoc,
+        List.take_left' (List.length_ofFn (f := z'.preimage)), hg_ofFn]
   have hbind (b : List Bool → Bool) :
       (pA >>= fun raw => PMF.pure (b raw)) true = ∑' raw, if b raw then pA raw else 0 := by
     rw [show (pA >>= _) = pA.bind _ from rfl, PMF.bind_apply]
@@ -955,8 +952,6 @@ theorem rompelBase_heavy_sibling_prob_ge {n m : ℕ} (gFin : BitString n → Bit
   let Ebad : Finset S := E.filter fun s => ¬ (#(otherColl s) ≤ 2 * 2 ^ (n - r))
   -- Markov's inequality on `E`: at least half of `s ∈ E` have `#(otherColl s) ≤ 2 * 2 ^ (n - r)`.
   have hEgood_ge : (#E : ℝ) / 2 ≤ (#Egood : ℝ) := by
-    have hsum : (∑ s ∈ E, (#(otherColl s) : ℝ)) ≤ (2 : ℝ) ^ (n - r) * (#E : ℝ) :=
-      rompelBase_sum_otherColl_le hr gFin hne
     have hpart : (#Egood : ℝ) + (#Ebad : ℝ) = (#E : ℝ) := by
       exact_mod_cast card_filter_add_card_filter_not (s := E)
         (p := fun s => #(otherColl s) ≤ 2 * 2 ^ (n - r))
@@ -967,7 +962,7 @@ theorem rompelBase_heavy_sibling_prob_ge {n m : ℕ} (gFin : BitString n → Bit
       exact_mod_cast (Nat.lt_of_not_le (mem_filter.mp hs).2).le
     have hEbad_le : 2 * (#Ebad : ℝ) ≤ (#E : ℝ) := by
       refine le_of_mul_le_mul_left ?_ (by positivity : (0 : ℝ) < (2 : ℝ) ^ (n - r))
-      linarith [hbad.trans hsum]
+      linarith [hbad.trans (rompelBase_sum_otherColl_le hr gFin hne)]
     linarith
   have hcoll_le {s : S} (hs : s ∈ Egood) : #(collInputs s) ≤ 4 * 2 ^ (n - r) := by
     have hsub : collInputs s ⊆
@@ -1418,10 +1413,7 @@ theorem logGap_le_inv_rompelGapDenom {d : ℝ} (hd : 0 < d) {c n : ℕ}
 
 private theorem mul_log_le_self_of_four_mul_sq_le (c n : ℕ) (hn : 4 * c * c ≤ n) :
     c * Nat.log 2 n ≤ n := by
-  have hsq := Nat.mul_log_le_add_sq Nat.one_lt_two (2 * c) n
-  have hmul : (2 * c) * Nat.log 2 n = 2 * (c * Nat.log 2 n) := by ring
-  have h4 : (2 * c) * (2 * c) = 4 * c * c := by ring
-  omega
+  nlinarith [Nat.mul_log_le_add_sq Nat.one_lt_two (2 * c) n]
 
 /-- Construct an `InaccessibleEntropyFamily` at polynomial light-image threshold exponent `c` from
 any fixed-output-length `OneWay` function `g`. Note that `inLen`, `outLen`, and `evalWord` are

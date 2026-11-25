@@ -48,16 +48,12 @@ theorem sameParent_of_mem_outgoing {es : Log F} (hn : es.children.Nodup)
       | none => exact False.elim (List.find?_eq_none.mp hfind o ho (by simp))
       | some p =>
         have hv : p.var = o.var := by simpa only [beq_iff_eq] using List.find?_some hfind
-        have he := List.inj_on_of_nodup_map hn'.1 (List.mem_of_find?_eq_some hfind) ho hv
-        subst p
+        cases List.inj_on_of_nodup_map hn'.1 (List.mem_of_find?_eq_some hfind) ho hv
         simp [SameParent, parent?, hfind]
-    · have hnone : e.outputs.find? (fun p => p.var == o.var) = none := by
-        apply List.find?_eq_none.mpr
-        intro p hp
-        have hnot : p.var ≠ o.var := fun he => hn'.2.2
-          p.var (List.mem_map.mpr ⟨p, hp, rfl⟩) o.var
-          (by rw [children_eq_map_outgoing]; exact List.mem_map.mpr ⟨o, ho, rfl⟩) he
-        simpa only [beq_iff_eq] using hnot
+    · have hnone : e.outputs.find? (fun p => p.var == o.var) = none :=
+        List.find?_eq_none.mpr fun p hp => beq_iff_eq.not.mpr fun he =>
+          hn'.2.2 p.var (List.mem_map_of_mem hp) o.var
+            (children_eq_map_outgoing _ ▸ List.mem_map_of_mem ho) he
       simpa only [SameParent, parent?, hnone] using ih hn'.2.1 ho
 
 
@@ -164,12 +160,9 @@ private theorem rank_arc (h : Partial sem f rs es e) {a : Arc F}
     (ha : a ∈ Log.arcs (e :: es)) :
     if a.incoming then Log.birth (e :: es) a.occurrence.var < 2 * a.time + 1
     else 2 * a.time + 1 < Log.birth (e :: es) a.occurrence.var := by
-  have hold : ∀ v, es.Visited rs v → Log.birth (e :: es) v = es.birth v := by
-    intro v hv
-    have hn : v ∉ e.outputs.map Occurrence.var := by
-      rintro hm
-      obtain ⟨o, ho, he⟩ := List.mem_map.mp hm
-      exact h.fresh o ho (he.symm ▸ hv)
+  have hold (v : V) (hv : es.Visited rs v) : Log.birth (e :: es) v = es.birth v := by
+    have hn : v ∉ e.outputs.map Occurrence.var :=
+      fun hm => (List.mem_map.mp hm).elim fun o ⟨ho, he⟩ => h.fresh o ho (he.symm ▸ hv)
     simp [Log.birth, hn]
   rcases h.arc_cases ha with ha | rfl | ⟨o, ho, rfl⟩
   · rw [hold _ (Log.Grown.used_visited h.grown (es.mem_arcs ha).1)]
@@ -248,9 +241,7 @@ theorem scan_isFDAG {sem : Rel → List Bool → Bool} {f : OccurrenceLabeling F
     (bs : List (Occurrence F)) (hb : bs ⊆ partners sem f input) :
     (Log.toDAG rs (⟨input, (scan rs es input [] bs).outputs⟩ :: es)).IsFDAG sem f := by
   obtain ⟨hfr, hn, hs⟩ := scan_outputs rs es input bs [] (by simp) (by simp)
-  have hp : Partial sem f rs es ⟨input, (scan rs es input [] bs).outputs⟩ :=
-    ⟨hg, hv, hu, hfr, hn, fun o ho => hb (hs ho)⟩
-  exact hp.isFDAG hF hf
+  exact Partial.isFDAG ⟨hg, hv, hu, hfr, hn, fun o ho => hb (hs ho)⟩ hF hf
 
 /-- Exact stopping conditions at the first meeting of an actual scan. -/
 theorem scan_meeting_spec (rs : List V) (es : Log F) (input : Occurrence F)
@@ -312,19 +303,14 @@ theorem Trace.output_unused (h : Trace sem f m) : m.output ∉ m.older.used := b
   obtain ⟨a, ha, he⟩ := (Log.exists_arc_iff _ _).mpr hu
   cases hi : a.incoming with
   | false =>
-    have hm : m.output ∈ m.older.outgoing := he ▸ Log.mem_outgoing_of_arc ha hi
     have hp := Log.sameParent_of_mem_outgoing h.expansion.children_nodup
-      (List.mem_append_right m.current.outputs hm)
-    have hc := ((mem_partners sem f _ _).mp h.partner).1
-    exact h.not_parent (by simpa only [← hc] using hp)
+      (List.mem_append_right m.current.outputs (he ▸ Log.mem_outgoing_of_arc ha hi))
+    exact h.not_parent (by simpa only [← ((mem_partners sem f _ _).mp h.partner).1] using hp)
   | true =>
-    have hp := (mem_partners sem f _ _).mp h.partner
-    have hpartner : m.current.input ∈ partners sem f a.occurrence := by
-      apply (mem_partners sem f _ _).mpr
-      rw [he]
-      exact ⟨hp.1.symm, Ne.symm hp.2.1, by rw [pairFlip_comm]; exact hp.2.2⟩
-    obtain ⟨c, hc, he, _, _⟩ := h.expansion.grown.saturated ha hi hpartner
-    exact h.expansion.unused (he ▸ (m.older.mem_arcs hc).1)
+    obtain ⟨hc1, hne, hv⟩ := (mem_partners sem f _ _).mp h.partner
+    obtain ⟨c, hc, he', _, _⟩ := h.expansion.grown.saturated ha hi
+      ((mem_partners sem f _ _).mpr ⟨he ▸ hc1.symm, he ▸ hne.symm, he ▸ pairFlip_comm f _ _ ▸ hv⟩)
+    exact h.expansion.unused (he' ▸ (m.older.mem_arcs hc).1)
 
 /-- After pruning, exactly the two incoming arcs remain at the terminal copy. All older
 arcs survive, and the supported variables include the pruned, now isolated children. -/
@@ -480,11 +466,8 @@ theorem search_terminal_isFDAG (sem : Rel → List Bool → Bool)
     (search sem f).Events (fun m => m.toDAG.IsFDAG sem f ∧ m.prunedDAG.IsFDAG sem f) := by
   have hs := search_trace sem f hF
   cases hr : search sem f with
-  | exhausted es => trivial
-  | augment m =>
-    rw [hr] at hs
-    exact ⟨hs.expansion.isFDAG hF hf, hs.pruned_isFDAG hF hf⟩
-  | blossom m =>
+  | exhausted _ => trivial
+  | augment m | blossom m =>
     rw [hr] at hs
     exact ⟨hs.expansion.isFDAG hF hf, hs.pruned_isFDAG hF hf⟩
 
