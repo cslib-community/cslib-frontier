@@ -94,10 +94,8 @@ theorem InitializedFirstRecord.exec_consumer (ready : InitializedFirstRecord W m
 /-- A consumer preserving the low 65 registers retains the complete original producer bank. -/
 theorem InitializedFirstRecord.producer_frame (ready : InitializedFirstRecord W m n g p values)
     {y : Data 320} (hy : ∀ j : Fin 320, j.val < 65 → y.regs j = ready.state.regs j) :
-    ∀ j : Fin 64, y.regs (producerBank j) = ready.producer.regs j := by
-  intro j
-  rw [hy (producerBank j) (by change j.val < 65; omega)]
-  exact congrArg (fun d : Data 64 => d.regs j) ready.comap_eq
+    ∀ j : Fin 64, y.regs (producerBank j) = ready.producer.regs j := fun j =>
+  (hy _ (by change j.val < 65; omega)).trans (congrArg (fun d : Data 64 => d.regs j) ready.comap_eq)
 
 /-- Produce the first actual occupied record from original input alone. No layout, native run,
 selected index or intermediate physical-fit certificate is an input hypothesis. -/
@@ -133,10 +131,8 @@ theorem prepare_first_input {W m n g p A : ℕ} (values : List ℤ)
   have zmap : z.comap producerBank = a := by
     ext j
     · change Function.update x.regs Reg.ordinal 0 (producerBank j) = a.regs j
-      have hne : producerBank j ≠ Reg.ordinal := fun heq => by
-        have hh := congrArg Fin.val heq
-        change j.val = 64 at hh
-        omega
+      have hne : producerBank j ≠ Reg.ordinal := fun heq =>
+        absurd (show j.val = 64 from congrArg Fin.val heq) (by omega)
       exact (Function.update_of_ne hne _ _).trans (producerBank_injective.extend_apply _ _ j)
     · rfl
   have hQ : recordQueryCount n (D m) p (fun q => values.getD q 0) idx ≤ n ^ 2 := by

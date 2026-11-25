@@ -95,9 +95,8 @@ theorem exec_scan {w N capacity : ℕ} (child : Bool) (x : Data registers) (inpu
     refine ⟨z, hz, ⟨(hrf epoch (by decide)).trans hye, ?_, ?_, hsource, ?_, ?_⟩, hidx⟩
     · simpa only [hyt, ← scanSet_succ] using hcz
     · simpa only [hyo, hys, hye, hyt, ← scanSet_succ] using htz
-    · intro a hao has
-      rw [hmf a (by simpa only [hyo] using hao) (by simpa only [hys] using has)]
-      exact hframe a hao has
+    · exact fun a hao has => (hmf a (by simpa only [hyo] using hao)
+        (by simpa only [hys] using has)).trans (hframe a hao has)
     · exact fun i hi => (hrf i (fun h => hi (Or.inl h))).trans (hfrozen i hi)
   refine WP.exists_execWithin ?_
   dsimp only [E] at hE

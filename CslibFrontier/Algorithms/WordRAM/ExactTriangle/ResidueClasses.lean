@@ -191,9 +191,8 @@ theorem exec_at {w : ℕ} (header n p : ℕ) (values : ℕ → ℤ) (initial : D
     canonical (bank_injective 16 (by decide)) with v ⟨hvm, -⟩
   wram_simp at hvm
   have hresmem (q : ℕ) (hq : q < 3 * N) : v.mem (base + 3 * N + q) = R q := by
-    rw [hvm]
-    simp only [Residues.memory]
-    rw [ite_eq_left (by omega), show base + 3 * N + q - (base + (N + N + N)) = q by omega]
+    rw [hvm, Residues.memory, ite_eq_left (by omega),
+      show base + 3 * N + q - (base + (N + N + N)) = q by omega]
   wram_exec
   wram_call (Classes.exec _ R h1
     (fun q hq => by
@@ -207,20 +206,13 @@ theorem exec_at {w : ℕ} (header n p : ℕ) (values : ℕ → ℤ) (initial : D
     (by wram_simp; exact haddress.of_le (by dsimp [N] at *; omega)))
     canonical (bank_injective 20 (by decide)) with z ⟨-, hzcounts, hzpairs, hzframe⟩
   wram_simp at hzcounts hzpairs hzframe
-  have hbase3 : base + (N + N + N) = base + 3 * N := by omega
   have hbase6 : base + (N + N + N) + (N + N + N) = base + 6 * N := by omega
   rw [hbase6] at hzcounts hzpairs hzframe
-  refine ⟨by wram_simp; omega,
-    by wram_simp; omega, by wram_simp; omega, by wram_simp; omega,
-    ?_, hzcounts, hzpairs, ?_⟩
-  · intro q hq
-    wram_simp
-    rw [hzframe _ (by omega) (by omega)]
-    exact hresmem q hq
-  · intro a ha
-    wram_simp
-    rw [hzframe a (by omega) (by omega), hvm]
-    dsimp only [Residues.memory]
+  refine ⟨by wram_simp; omega, by wram_simp; omega, by wram_simp; omega, by wram_simp; omega,
+    fun q hq => ?_, hzcounts, hzpairs, fun a ha => ?_⟩
+  · wram_simp; rw [hzframe _ (by omega) (by omega)]; exact hresmem q hq
+  · wram_simp
+    rw [hzframe a (by omega) (by omega), hvm, Residues.memory]
     exact ite_eq_right (by omega)
 
 /-- Read the input header, compute all three residue matrices and enumerate the A–B queries.

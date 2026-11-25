@@ -50,10 +50,7 @@ theorem admissionWidth_le_log {n D g p A κ : ℕ} (hn : 1 ≤ n)
       _ = (b ^ 2) ^ 256 := (Nat.pow_mul (b ^ 2) 2 128).symm
       _ ≤ (b ^ 2) ^ (κ + 256) := Nat.pow_le_pow_right (Nat.pow_pos hb1)
         (Nat.le_add_left 256 κ)
-      _ = b ^ E := by
-        rw [← Nat.pow_mul]
-        exact congrArg (fun j : ℕ => b ^ j)
-          (by dsimp only [E]; omega : 2 * (κ + 256) = E)
+      _ = b ^ E := by rw [← Nat.pow_mul, (by dsimp only [E]; omega : 2 * (κ + 256) = E)]
   have hn2 : n ^ 2 ≤ b ^ E := (Nat.pow_le_pow_left (by dsimp only [b]; omega : n ≤ b) 2).trans
     (Nat.pow_le_pow_right hb1 (by dsimp only [E]; omega))
   have hnE : n ≤ b ^ E := (show n ≤ n ^ 2 by nlinarith only [hn]).trans hn2
@@ -74,8 +71,7 @@ theorem admissionWidth_le_log {n D g p A κ : ℕ} (hn : 1 ≤ n)
       _ ≤ b ^ 10 * b ^ E := Nat.mul_le_mul_right _
         ((show 576 ≤ (2 : ℕ) ^ 10 by decide).trans (Nat.pow_le_pow_left hb 10))
       _ = b ^ (2 * κ + 522) := by
-        rw [← Nat.pow_add]
-        exact congrArg (fun j : ℕ => b ^ j) (by dsimp only [E]; omega : 10 + E = 2 * κ + 522)
+        rw [← Nat.pow_add, (by dsimp only [E]; omega : 10 + E = 2 * κ + 522)]
   have hbase := Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) b
   have hlogBound := henvelope.trans (Nat.pow_le_pow_left hbase (2 * κ + 522))
   rw [← Nat.pow_mul] at hlogBound

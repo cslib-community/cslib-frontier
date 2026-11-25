@@ -137,16 +137,7 @@ private theorem body_step {w N R : ℕ} (hfN : Fits w N) (hfR : Fits w (R + 1)) 
       (Finset.card_filter_le _ _).trans (Finset.card_range A).le
     have ho_le : o ≤ 1 := by dsimp [o]; split_ifs <;> omega
     have ho_iff : o = 1 ↔ ∀ b < A + 1, Nat.gcd N b = 1 ∨ Nat.gcd N b = N := by
-      dsimp [o]
-      constructor
-      · intro h b hb
-        split_ifs at h with hc'
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hb with hb | rfl
-        · exact hyiff.mp h b hb
-        · exact hc'
-      · intro h
-        simp only [h A (by omega), ↓reduceIte]
-        exact hyiff.mpr fun b hb => h b (by omega)
+      rw [Nat.forall_lt_succ_right, ← hyiff]; dsimp [o]; split_ifs with h <;> simp [h]
     wram_exec [hg₄, hy₄1, hy₄p, hy₄a] <;>
       { have hcard : ((Finset.range (A + 1)).filter R.Coprime).card =
             ((Finset.range A).filter R.Coprime).card + (if R.Coprime A then 1 else 0) := by
