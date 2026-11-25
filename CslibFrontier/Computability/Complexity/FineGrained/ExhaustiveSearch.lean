@@ -353,17 +353,22 @@ theorem DecidableInPowerExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν :
   have hx : 1 ≤ (μA a + 1 : ℝ) := le_add_of_nonneg_left (Nat.cast_nonneg _)
   have hq := Real.rpow_le_rpow_of_exponent_le hx (le_max_left q (b * p))
   have hp' := Real.rpow_le_rpow_of_exponent_le hx (le_max_right q (b * p))
-  refine (mul_le_mul_of_nonneg_right (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)
-    (by positivity)).trans (by simp)
-  push_cast
-  calc
-    _ ≤ (C : ℝ) * (μA a + 1 : ℝ) ^ max q (b * p) +
-        R * (μA a + 1 : ℝ) ^ max q (b * p) :=
-      add_le_add (mul_le_mul_of_nonneg_left hq (Nat.cast_nonneg C))
-        (mul_le_mul_of_nonneg_left hp' hR)
-    _ ≤ _ := by
-      rw [← add_mul]
-      exact mul_le_mul_of_nonneg_right (add_le_add le_rfl (Nat.le_ceil R)) (by positivity)
+  have hexponent : C * (μA a + 1 : ℝ) ^ q + R * (μA a + 1 : ℝ) ^ (b * p) ≤
+      ((C + ⌈R⌉₊ : ℕ) : ℝ) * (μA a + 1 : ℝ) ^ max q (b * p) := by
+    push_cast
+    calc
+      _ ≤ (C : ℝ) * (μA a + 1 : ℝ) ^ max q (b * p) +
+          R * (μA a + 1 : ℝ) ^ max q (b * p) :=
+        add_le_add (mul_le_mul_of_nonneg_left hq (Nat.cast_nonneg C))
+          (mul_le_mul_of_nonneg_left hp' hR)
+      _ ≤ _ := by
+        rw [← add_mul]
+        exact mul_le_mul_of_nonneg_right (add_le_add le_rfl (Nat.le_ceil R)) (by positivity)
+  have hbound := mul_le_mul_of_nonneg_right
+    (Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) hexponent)
+    (show 0 ≤ ((encA a).length + 1 : ℝ) ^ E by positivity)
+  simp only [Nat.cast_one, one_mul]
+  exact hbound.trans (le_add_of_nonneg_right zero_le_one)
 
 /-- **Subexponential-time transfer along an exhaustive search with sublinear branch exponent.** If
 $f : \alpha \times \mathbb{N} \to \beta$ and $\nu : \alpha \to \mathbb{N}$ are computable in
