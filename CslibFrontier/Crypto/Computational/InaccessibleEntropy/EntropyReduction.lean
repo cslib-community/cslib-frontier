@@ -716,9 +716,8 @@ private theorem shrunkCollPred_imp_shrunkEscPred {w₁ out₁ j₀ s : ℕ}
     simpa only [ShrunkHashOutput.unpackWord_packWord] using
       congrArg (ShrunkHashOutput.unpackWord w₁ out₁ s) hp
   have hoRows_eq : v'.outRows = oRows := congrArg ShrunkHashOutput.outRows hf₃_eq
-  have hf₂_eq : inputHashFin f₁ j₀ v'.inner = inputHashFin f₁ j₀ ⟨z, iRows⟩ := by
-    by_contra hne₂
-    exact hnot_out ⟨v'.inner, hne₂,
+  have hf₂_eq : inputHashFin f₁ j₀ v'.inner = inputHashFin f₁ j₀ ⟨z, iRows⟩ :=
+    Classical.byContradiction fun hne₂ => hnot_out ⟨v'.inner, hne₂,
       by rwa [show (⟨v'.inner, oRows⟩ : ShrunkHashInput _ _ _) = v' by rw [← hoRows_eq]]⟩
   have hiRows_eq : v'.inner.inRows = iRows := congrArg InputHashedOutput.inRows hf₂_eq
   have hz_ne : v'.inner.base ≠ z := fun hz_eq => hne_raw <| by
