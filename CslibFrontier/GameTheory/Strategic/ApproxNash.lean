@@ -200,17 +200,9 @@ theorem ncard_support_uniformMultiset_le {α : Type*} [DecidableEq α]
 private theorem uniformMultiset_dotProduct_of_map_univ {α : Type*} [Fintype α] [DecidableEq α]
     {k : ℕ} (ω : Fin k → α) (f : α → ℝ) :
     uniformMultiset ((univ : Finset (Fin k)).val.map ω) ⬝ᵥ f = (∑ t : Fin k, f (ω t)) / k := by
-  set m : Multiset α := (univ : Finset (Fin k)).val.map ω
-  have hcard : m.card = k := by simp [m]
-  change ∑ a : α, ((m.count a : ℝ) / m.card) * f a = (∑ t : Fin k, f (ω t)) / k
-  have hmul : ∑ a : α, ((m.count a : ℝ) / m.card) * f a =
-      (∑ a : α, (m.count a : ℝ) * f a) / k := by
-    rw [hcard, sum_div]
-    exact sum_congr rfl fun a _ => div_mul_eq_mul_div _ _ _
-  rw [hmul, sum_multiset_count_mul]
-  congr 1
-  simp only [m, Finset.sum, Multiset.map_map]
-  rfl
+  change ∑ a : α, _ = _
+  simp_rw [uniformMultiset_apply, div_mul_eq_mul_div, ← sum_div, sum_multiset_count_mul]
+  simp [Finset.sum, Function.comp_def]
 
 end UniformMultiset
 
@@ -244,30 +236,20 @@ theorem isApproxBestResponse₁_iff_pure :
     G.IsApproxBestResponse₁ ε x y ↔
       IsMixedStrategy x ∧ ∀ i : M, (G.A *ᵥ y) i ≤ G.payoff₁ x y + ε := by
   classical
-  constructor
-  · rintro ⟨hx, h⟩
-    refine ⟨hx, fun i => ?_⟩
-    have hi := h _ (isMixedStrategy_single i)
-    rwa [payoff₁_eq_dotProduct, single_dotProduct, one_mul] at hi
-  · rintro ⟨hx, h⟩
-    refine ⟨hx, fun x' hx' => ?_⟩
-    rw [payoff₁_eq_dotProduct]
-    exact hx'.dotProduct_le_of_forall_le h
+  refine and_congr_right fun _ => ⟨fun h i => ?_, fun h x' hx' =>
+    G.payoff₁_eq_dotProduct x' y ▸ hx'.dotProduct_le_of_forall_le h⟩
+  simpa only [payoff₁_eq_dotProduct, single_dotProduct, one_mul] using
+    h _ (isMixedStrategy_single i)
 
 /-- Pure-column characterization of `IsApproxBestResponse₂`. -/
 theorem isApproxBestResponse₂_iff_pure :
     G.IsApproxBestResponse₂ ε y x ↔
       IsMixedStrategy y ∧ ∀ j : N, (x ᵥ* G.B) j ≤ G.payoff₂ x y + ε := by
   classical
-  constructor
-  · rintro ⟨hy, h⟩
-    refine ⟨hy, fun j => ?_⟩
-    have hj := h _ (isMixedStrategy_single j)
-    rwa [payoff₂_eq_dotProduct, single_dotProduct, one_mul] at hj
-  · rintro ⟨hy, h⟩
-    refine ⟨hy, fun y' hy' => ?_⟩
-    rw [payoff₂_eq_dotProduct]
-    exact hy'.dotProduct_le_of_forall_le h
+  refine and_congr_right fun _ => ⟨fun h j => ?_, fun h y' hy' =>
+    G.payoff₂_eq_dotProduct x y' ▸ hy'.dotProduct_le_of_forall_le h⟩
+  simpa only [payoff₂_eq_dotProduct, single_dotProduct, one_mul] using
+    h _ (isMixedStrategy_single j)
 
 /-- Pure-deviation characterization of `IsApproxNash`. -/
 theorem isApproxNash_iff_pure :
