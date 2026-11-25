@@ -155,10 +155,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
   have hs₂_mc : s₂.regs mClauses = G.φ.length := (hs₂_fr0 mClauses (by decide)).trans hs₀_mc
   cases hchk : checkClauses G.φ
   · -- Invalid clause width: return `[]`
-    have hs₂_ok0 : s₂.regs compIdxReg = 0 := by
-      rw [hs₂_ok, show G.φ.foldl (fun acc c => acc && isValidTwoClause c) true =
-        checkClauses G.φ from rfl, hchk]
-      rfl
+    have hs₂_ok0 : s₂.regs compIdxReg = 0 := hs₂_ok.trans (congrArg Bool.toNat hchk)
     have hncond : ¬ (Cond.eq compIdxReg cOne).Holds s₂ := by
       change ¬ s₂.regs compIdxReg = s₂.regs cOne; omega
     have hneg : ExecWithin (B := .standard) w (ram[ *outBase ← cZero ])
@@ -171,10 +168,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     rw [hans]
     exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
   · -- Valid 2-CNF: every clause has `1 ≤ length ≤ 2`
-    have hs₂_ok1 : s₂.regs compIdxReg = 1 := by
-      rw [hs₂_ok, show G.φ.foldl (fun acc c => acc && isValidTwoClause c) true =
-        checkClauses G.φ from rfl, hchk]
-      rfl
+    have hs₂_ok1 : s₂.regs compIdxReg = 1 := hs₂_ok.trans (congrArg Bool.toNat hchk)
     have hcond_chk : (Cond.eq compIdxReg cOne).Holds s₂ := by
       change s₂.regs compIdxReg = s₂.regs cOne; omega
     obtain ⟨hw_φ, hnil_φ⟩ := (checkClauses_eq_true_iff G.φ).1 hchk
@@ -299,9 +293,8 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             (ram[ *outBase ← cZero ]))
           s₈ y 5 ∧ y.regs outBase = G.outAddrBase ∧
           outputList y.mem G.outAddrBase = answerWords G := by
-        set ok_all := (List.finRange G.n).foldl
+        cases hok_all : (List.finRange G.n).foldl
           (fun acc v => acc && decide (compIdx (v, true) ≠ compIdx (v, false))) true
-        cases hok_all : ok_all
         · have hs₈_ok0 : s₈.regs compIdxReg = 0 := by rw [hs₈_ok, hok_all]; rfl
           have hncond_ok : ¬ (Cond.eq compIdxReg cOne).Holds s₈ := by
             change ¬ s₈.regs compIdxReg = s₈.regs cOne; omega
@@ -313,11 +306,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           rw [outputList_eq_iff]
           have hans : answerWords G = [] := by
             dsimp only [answerWords, solveFin, solve, extractAssignment]
-            have hfold_eq :
-                (List.finRange G.n).foldl
-                  (fun ok v => ok && decide (compIdx (v, true) ≠ compIdx (v, false))) true =
-                ok_all := rfl
-            rw [hchk, hfold_eq, hok_all]
+            rw [hchk, hok_all]
             rfl
           rw [hans]
           exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
@@ -336,9 +325,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               s₈ y_sat 4 := by
             wram_exec [hs₈_nv, hs₈_1, hs₈_ob, hf_n1, hf_ob1]
           have hdist_all : ∀ v : Fin G.n, compIdx (v, true) ≠ compIdx (v, false) := by
-            have hall : (List.finRange G.n).foldl
-                (fun acc v => acc && decide (compIdx (v, true) ≠ compIdx (v, false))) true =
-                  true := hok_all
+            have hall := hok_all
             rw [foldl_and_eq_and_all, Bool.true_and, List.all_eq_true] at hall
             exact fun v => of_decide_eq_true (hall v (List.mem_finRange v))
           refine ⟨y_sat, (hpos_sat.branch_pos hcond_ok).mono (by omega),
@@ -348,11 +335,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               1 :: (List.finRange G.n).map
                 (fun v => (decide (compIdx (v, false) < compIdx (v, true))).toNat) := by
             dsimp only [answerWords, solveFin, solve, extractAssignment, encodeAssignment]
-            have hfold_eq :
-                (List.finRange G.n).foldl
-                  (fun ok v => ok && decide (compIdx (v, true) ≠ compIdx (v, false))) true =
-                ok_all := rfl
-            rw [hchk, hfold_eq, hok_all]
+            rw [hchk, hok_all]
             rfl
           rw [hans]
           refine ⟨by wram_simp [y_sat]; simp, fun ⟨i, hi⟩ => ?_⟩
