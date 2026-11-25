@@ -90,12 +90,8 @@ theorem Valid.unit_delete {S : State n} {d : ℕ} (hS : S.Valid f) (hf : IsAffin
   have hdrop : (S.swap x Q c T).DropEqnOK e x := by
     refine ⟨he, Finset.mem_insert_self _ _, hxe, fun e' he' hee hxe' => ?_, fun K hK hr => ?_,
       Valid.not_out_reads_param hS hf ha hxp⟩
-    · have : Sum.inr e' ∈ S.children x := (SemiCircuit.inr_mem_children _).2 ⟨he', hxe'⟩
-      rw [hc, Finset.mem_singleton] at this
-      exact hee (Sum.inr.inj this)
-    · have : Sum.inl K ∈ S.children x := (SemiCircuit.inl_mem_children _).2 ⟨hK, hr⟩
-      rw [hc] at this
-      simp at this
+    · exact hee (by simpa [hc] using (SemiCircuit.inr_mem_children S.toSemiCircuit).2 ⟨he', hxe'⟩)
+    · simpa [hc] using (SemiCircuit.inl_mem_children S.toSemiCircuit).2 ⟨hK, hr⟩
   have hS' := hS₁.dropEqn hdrop
   set S' := (S.swap x Q c T).dropEqn e x
   have hparams : S'.params = insert Q (S.params.erase x) := rfl

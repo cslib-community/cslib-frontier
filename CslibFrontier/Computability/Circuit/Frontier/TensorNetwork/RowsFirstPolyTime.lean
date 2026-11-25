@@ -91,14 +91,8 @@ theorem rowsFirst_polyTime :
   -- Each edge has one row port and one column port.
   have hlen := (ComputableInPolyTime.length_list _).comp hvs
   have hcap := ComputableInPolyTime.binary_min_unary' hlen hr
-  have htake : ComputableInPolyTime (fun G : ℕ × DescribedNetwork T =>
-      G.2.vertices.take (min G.2.vertices.length G.1)) (encPair encNat (encDescribed encT))
-      (encList (encPair (encList encNat) encT)) :=
-    ComputableInPolyTime.listTakeWithInput hvs hcap
-  have hdrop : ComputableInPolyTime (fun G : ℕ × DescribedNetwork T =>
-      G.2.vertices.drop (min G.2.vertices.length G.1)) (encPair encNat (encDescribed encT))
-      (encList (encPair (encList encNat) encT)) :=
-    ComputableInPolyTime.listDropWithInput hvs hcap
+  have htake := ComputableInPolyTime.listTakeWithInput hvs hcap
+  have hdrop := ComputableInPolyTime.listDropWithInput hvs hcap
   have hflat {l : ℕ × DescribedNetwork T → List (List ℕ × T)}
       (hl : ComputableInPolyTime l (encPair encNat (encDescribed encT))
         (encList (encPair (encList encNat) encT))) :

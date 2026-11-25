@@ -58,14 +58,10 @@ private theorem mul_bit (hn : n ≠ 0) (x y : BinaryField n) (j : Fin n) :
       (bitEquiv.symm (B x ij.1 * B y ij.2) • r ^ (degreeIndex ij).val : BinaryField n) =
       x * y := (Finset.sum_fiberwise univ degreeIndex _).trans hxy.symm
   rw [← group, map_sum, Finset.sum_apply]
-  apply sum_congr rfl
-  intro e _
+  refine sum_congr rfl fun e _ => ?_
   rw [map_sum, Finset.sum_apply, productCoeff, Finset.sum_mul]
-  apply sum_congr rfl
-  intro ij hij
-  have he := (Finset.mem_filter.mp hij).2
-  change degreeIndex ij = e at he
-  rw [he]
+  refine sum_congr rfl fun ij hij => ?_
+  rw [show degreeIndex ij = e from (Finset.mem_filter.mp hij).2]
   cases B x ij.1 * B y ij.2 <;> simp [r, ← Bool.zero_eq_false, ← Bool.one_eq_true]
 
 /-- Multiply two available field elements in power-basis coordinates, sharing the unreduced
@@ -97,8 +93,7 @@ theorem synthesis_binaryFieldMul (hn : n ≠ 0) (s : Set (BooleanFunction a))
       Synthesis.of_mem (s := s') (Or.inr ⟨e, rfl⟩)
     have he (z : BitString a) : (∑ e ∈ active, c e z) = B (x z * y z) j := by
       rw [mul_bit hn, sum_filter]
-      apply sum_congr rfl
-      intro e _
+      refine sum_congr rfl fun e _ => ?_
       change (if b e j = true then c e z else 0) = c e z * b e j
       cases b e j <;> cases c e z <;> rfl
     refine (hs.congr_iff (fun z => by rw [he])).mono Set.Subset.rfl Set.Subset.rfl ?_

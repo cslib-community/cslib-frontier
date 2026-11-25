@@ -49,17 +49,18 @@ namespace Cslib.Circuits.Boolean.Zhegalkin
 theorem simulates_deMorgan : interpretation.Simulates Boolean.interpretation := by
   rw [Interpretation.simulates_iff]
   intro op
+  suffices ∃ a wa,
+      CostSynthesis interpretation andCost (inputs _) {Boolean.interpretation op} a wa by
+    obtain ⟨a, wa, h⟩ := this
+    exact h.exists_circuit.imp fun _ h => h.1
   cases op with
   | const b =>
     cases b
-    · obtain ⟨c, hc, -, -⟩ := ((synth_consts 0).mono Set.Subset.rfl
-        (Set.singleton_subset_iff.mpr (Or.inl rfl)) le_rfl le_rfl).exists_circuit
-      exact ⟨c, hc⟩
-    · obtain ⟨c, hc, -, -⟩ := ((synth_consts 0).mono Set.Subset.rfl
-        (Set.singleton_subset_iff.mpr (Or.inr rfl)) le_rfl le_rfl).exists_circuit
-      exact ⟨c, hc⟩
+    · exact ⟨_, _, (synth_consts 0).mono Set.Subset.rfl
+        (Set.singleton_subset_iff.mpr (Or.inl rfl)) le_rfl le_rfl⟩
+    · exact ⟨_, _, (synth_consts 0).mono Set.Subset.rfl
+        (Set.singleton_subset_iff.mpr (Or.inr rfl)) le_rfl le_rfl⟩
   | not =>
-    have h1 := synth_consts 1
     have hnot : CostSynthesis interpretation andCost
         (inputs 1 ∪ {constZero 1, constOne 1}) {Boolean.interpretation .not} 1 0 := by
       have hx0 : (fun x : Fin 1 → Bool => x 0) ∈ inputs 1 ∪ {constZero 1, constOne 1} :=
@@ -72,17 +73,10 @@ theorem simulates_deMorgan : interpretation.Simulates Boolean.interpretation := 
       funext x
       change (!x 0) = (x 0 ^^ true)
       cases x 0 <;> rfl
-    obtain ⟨c, hc, -, -⟩ := (h1.trans hnot).exists_circuit
-    exact ⟨c, hc⟩
+    exact ⟨_, _, (synth_consts 1).trans hnot⟩
   | and =>
-    let args : Fin 2 → BooleanFunction 2 := fun i x => x i
-    have hand_raw := CostSynthesis.gate (I := interpretation) (w := andCost) (s := inputs 2)
-      Op.and args fun i => ⟨i, rfl⟩
-    have hand : CostSynthesis interpretation andCost (inputs 2)
-        {Boolean.interpretation .and} 1 1 :=
-      hand_raw.mono Set.Subset.rfl (by rintro _ rfl; rfl) le_rfl le_rfl
-    obtain ⟨c, hc, -, -⟩ := hand.exists_circuit
-    exact ⟨c, hc⟩
+    exact ⟨_, _, (CostSynthesis.gate (I := interpretation) (w := andCost) (s := inputs 2) Op.and
+      (fun i x => x i) fun i => ⟨i, rfl⟩).mono Set.Subset.rfl (by rintro _ rfl; rfl) le_rfl le_rfl⟩
   | or =>
     let args : Fin 2 → BooleanFunction 2 := fun i x => x i
     have hand : CostSynthesis interpretation andCost (inputs 2)
@@ -110,8 +104,7 @@ theorem simulates_deMorgan : interpretation.Simulates Boolean.interpretation := 
       funext x
       change (x 0 || x 1) = ((x 0 ^^ x 1) ^^ (x 0 && x 1))
       cases x 0 <;> cases x 1 <;> rfl
-    obtain ⟨c, hc, -, -⟩ := ((hand.union hxor).trans hor).exists_circuit
-    exact ⟨c, hc⟩
+    exact ⟨_, _, (hand.union hxor).trans hor⟩
 
 /-- The Zhegalkin basis `{⊕, ∧, 1}` is functionally complete. -/
 instance : interpretation.IsComplete :=

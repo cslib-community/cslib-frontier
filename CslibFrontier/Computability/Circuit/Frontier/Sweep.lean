@@ -195,11 +195,8 @@ theorem ncard_le_mul_transitionCount [Finite ι] [Finite U] {KL KR : ℕ} (hKL :
     not_le.mp (Nat.notMem_of_lt_sInf (s := {t | KL ≤ (P.pastSide t x).ncard}) ht)
   have hle_length : ∀ x ∈ S, P.chargeTime KL x ≤ P.length := fun x hx =>
     Nat.sInf_le (hlength x hx)
-  have hpos : ∀ x ∈ S, 0 < P.chargeTime KL x := fun x hx => by
-    refine Nat.pos_of_ne_zero fun h0 => ?_
-    have := h0 ▸ hcharged x hx
-    have := P.ncard_pastSide_zero_le x
-    omega
+  have hpos : ∀ x ∈ S, 0 < P.chargeTime KL x := fun x hx => Nat.pos_of_ne_zero fun h0 => by
+    have := h0 ▸ hcharged x hx; have := P.ncard_pastSide_zero_le x; omega
   -- Each input is charged to the step `t` whose completion charges it: `chargeTime = t + 1`.
   set step : (ι → U) → ℕ := fun x => P.chargeTime KL x - 1
   -- An input charged at step `t` is determined by its transition, its part revealed by time
@@ -208,12 +205,10 @@ theorem ncard_le_mul_transitionCount [Finite ι] [Finite U] {KL KR : ℕ} (hKL :
       (KL - 1) * (KR - 1) := by
     intro t τ
     rcases eq_empty_or_nonempty {y ∈ {y ∈ S | step y = t} | P.transition t y = τ} with h | h
-    · rw [h, ncard_empty]
-      exact Nat.zero_le _
+    · rw [h, ncard_empty]; exact Nat.zero_le _
     obtain ⟨x, ⟨hxS, hxt : P.chargeTime KL x - 1 = t⟩, hxτ⟩ := h
     have hxcharge : P.chargeTime KL x = t + 1 := by have := hpos x hxS; omega
-    have hpast : (P.pastSide t x).ncard ≤ KL - 1 := by
-      have := hbefore x t (by omega); omega
+    have hpast : (P.pastSide t x).ncard ≤ KL - 1 := by have := hbefore x t (by omega); omega
     have hfuture : (P.futureSide (t + 1) x).ncard ≤ KR - 1 := by
       have := hxcharge ▸ hcharged x hxS
       rcases hsides (t + 1) (hxcharge ▸ hle_length x hxS) x hxS with h | h <;> omega
@@ -227,25 +222,20 @@ theorem ncard_le_mul_transitionCount [Finite ι] [Finite U] {KL KR : ℕ} (hKL :
             simp only [transition, Prod.mk.injEq] at hyx
             exact ⟨⟨y, ⟨hyS, hyx.1⟩, rfl⟩, ⟨y, ⟨hyS, hyx.2.1⟩, rfl⟩⟩
           · rintro y ⟨-, hyτ⟩ y' ⟨-, hy'τ⟩ hyy'
-            simp only [Prod.mk.injEq, domRestrict_eq_domRestrict_iff] at hyy'
-            have hnew : EqOn y y' (P.newly t) := by
-              have h := hyτ.trans hy'τ.symm
-              simp only [transition, Prod.mk.injEq, domRestrict_eq_domRestrict_iff] at h
-              exact h.2.2
+            have h := hyτ.trans hy'τ.symm
+            simp only [transition, Prod.mk.injEq, domRestrict_eq_domRestrict_iff] at h hyy'
             funext i
             by_cases h₁ : i ∈ P.revealed t
             · exact hyy'.1 h₁
             by_cases h₂ : i ∈ P.revealed (t + 1)
-            · exact hnew ⟨h₂, h₁⟩
-            · exact hyy'.2 h₂
+            exacts [h.2.2 ⟨h₂, h₁⟩, hyy'.2 h₂]
       _ = (P.pastSide t x).ncard * (P.futureSide (t + 1) x).ncard := ncard_prod
       _ ≤ (KL - 1) * (KR - 1) := Nat.mul_le_mul hpast hfuture
   -- Sum over the steps.
   calc S.ncard
       = ∑ t ∈ Finset.range P.length, {y ∈ S | step y = t}.ncard :=
         ncard_eq_sum_ncard_fiberwise (toFinite S) fun x hx => by
-          have := hle_length x hx
-          have := hpos x hx
+          have := hle_length x hx; have := hpos x hx
           simp only [Finset.coe_range, mem_Iio, step]
           omega
     _ ≤ ∑ t ∈ Finset.range P.length, (KL - 1) * (KR - 1) * (P.transition t '' S).ncard := by

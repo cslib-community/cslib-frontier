@@ -120,10 +120,8 @@ theorem sum_prod_codeTable [Fintype Ro] [Nonempty Ro] [Fintype Z]
       hconn (fun p => (f p).1) (fun ν => congrArg Sigma.fst (hpair ν)) p p₀
     obtain ⟨i, hi⟩ : ∃ i, i = (f p₀).1 := ⟨_, rfl⟩
     have hex (p : Ro) : ∃ gp : (ν : {ν // Holds h p ν}) → S i ν, f p = ⟨i, gp⟩ := by
-      have hp := (hall p).trans hi.symm
-      generalize f p = q at hp ⊢
-      obtain ⟨i', g'⟩ := q
-      obtain rfl : i' = i := hp
+      rcases hfp : f p with ⟨i', g'⟩
+      obtain rfl : i' = i := by rw [hi, ← hall p, hfp]
       exact ⟨g', rfl⟩
     choose gp hgp using hex
     have hg (p : Ro) : (fun ν : {ν // Holds h p ν} => gp (h ν false) ⟨ν, false, rfl⟩) = gp p := by
