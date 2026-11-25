@@ -67,15 +67,33 @@ def csaCarryCode (w i : ℕ) : List (Op × List ℕ) × List ℕ :=
       ![i - 1, w + (i - 1), w + (w + (i - 1))]
   else ([(.const false, [])], [w + (w + w)])
 
-private theorem csaFormulaCode_eq (w : ℕ) (F : Formula signature 3) (j : Fin w) :
-    formulaCode (w + (w + w)) F ![j.val, w + j.val, w + (w + j.val)] =
-      (F.rename ![Fin.castAdd (w + w) j, Fin.natAdd w (Fin.castAdd w j),
-        Fin.natAdd w (Fin.natAdd w j)]).toCircuit.code := by
+private theorem csaSumCode_eq (w : ℕ) (i : Fin w) :
+    csaSumCode w i.val = (csaSumFormula w i).toCircuit.code := by
   let wires : Fin 3 → Fin (w + (w + w)) :=
-    ![Fin.castAdd (w + w) j, Fin.natAdd w (Fin.castAdd w j), Fin.natAdd w (Fin.natAdd w j)]
-  have hw : (fun k => (wires k).val) = ![j.val, w + j.val, w + (w + j.val)] := by
-    funext k; fin_cases k <;> simp [wires, Nat.add_comm]
-  simpa only [hw] using formulaCode_eq_code F wires
+    ![Fin.castAdd (w + w) i, Fin.natAdd w (Fin.castAdd w i), Fin.natAdd w (Fin.natAdd w i)]
+  have hw : (fun j => (wires j).val) = ![i.val, w + i.val, w + (w + i.val)] := by
+    funext j
+    fin_cases j <;> simp [wires, Nat.add_comm]
+  have h := formulaCode_eq_code sumTemplate wires
+  rw [hw] at h
+  exact h
+
+private theorem csaCarryCode_eq (w : ℕ) (i : Fin w) :
+    csaCarryCode w i.val = (csaCarryFormula w i).toCircuit.code := by
+  by_cases hi : 0 < i.val
+  · let j : Fin w := ⟨i.val - 1, by omega⟩
+    let wires : Fin 3 → Fin (w + (w + w)) :=
+      ![Fin.castAdd (w + w) j, Fin.natAdd w (Fin.castAdd w j), Fin.natAdd w (Fin.natAdd w j)]
+    have hw : (fun k => (wires k).val) =
+        ![i.val - 1, w + (i.val - 1), w + (w + (i.val - 1))] := by
+      funext k
+      fin_cases k <;> simp [wires, j, Nat.add_comm]
+    have h := formulaCode_eq_code (maj3Formula (0 : Fin 3) 1 2) wires
+    rw [hw] at h
+    simp only [csaCarryCode, csaCarryFormula, hi, ↓reduceIte, ↓reduceDIte]
+    exact h
+  · simp only [csaCarryCode, csaCarryFormula, hi, ↓reduceIte, ↓reduceDIte]
+    rfl
 
 /-- Generate the full three-to-two carry-save circuit code from its width. -/
 def csa3to2Code (w : ℕ) : List (Op × List ℕ) × List ℕ :=
@@ -86,54 +104,79 @@ def csa3to2Code (w : ℕ) : List (Op × List ℕ) × List ℕ :=
 /-- Generation preserves the exact existing circuit, including its unequal carry-bit blocks. -/
 theorem csa3to2Code_eq_code (w : ℕ) : csa3to2Code w = (csa3to2 w).code := by
   have hs : (List.range w).map (csaSumCode w) =
-      List.ofFn (fun i : Fin w => (csaSumFormula w i).toCircuit.code) :=
-    List.ext_getElem (by simp) fun i hi _ => by
-      simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn]
-      exact csaFormulaCode_eq w sumTemplate ⟨i, by simpa using hi⟩
+      List.ofFn (fun i : Fin w => (csaSumFormula w i).toCircuit.code) := by
+    apply List.ext_getElem (by simp)
+    intro i hi hi'
+    simpa only [List.getElem_map, List.getElem_range, List.getElem_ofFn] using
+      csaSumCode_eq w ⟨i, by simpa using hi⟩
   have hc : (List.range w).map (csaCarryCode w) =
-      List.ofFn (fun i : Fin w => (csaCarryFormula w i).toCircuit.code) :=
-    List.ext_getElem (by simp) fun i hi _ => by
-      have hiw : i < w := by simpa using hi
-      simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn, csaCarryCode,
-        csaCarryFormula]
-      split_ifs with h
-      · exact csaFormulaCode_eq w (maj3Formula 0 1 2) ⟨i - 1, by omega⟩
-      · rfl
+      List.ofFn (fun i : Fin w => (csaCarryFormula w i).toCircuit.code) := by
+    apply List.ext_getElem (by simp)
+    intro i hi hi'
+    simpa only [List.getElem_map, List.getElem_range, List.getElem_ofFn] using
+      csaCarryCode_eq w ⟨i, by simpa using hi⟩
   rw [csa3to2Code, hs, hc, appendCodes_code, appendCodes_code, appendCode_code]
   rfl
-
-private theorem computableInPolyTime_csaFormulaCode (F : Formula signature 3) {g : ℕ × ℕ → ℕ}
-    (hg : ComputableInPolyTime g (encPair encUnary encUnary) encNat) :
-    ComputableInPolyTime
-      (fun p : ℕ × ℕ => formulaCode (p.1 + (p.1 + p.1)) F ![g p, p.1 + g p, p.1 + (p.1 + g p)])
-      (encPair encUnary encUnary) encCode := by
-  have hw : ComputableInPolyTime (fun p : ℕ × ℕ => p.1) (encPair encUnary encUnary) encNat :=
-    unary_to_binary.comp (fst _ _)
-  refine computableInPolyTime_formulaCode _ (by fun_prop) fun j => ?_
-  fin_cases j
-  · exact hg
-  · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + g p) _ encNat; fun_prop
-  · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + (p.1 + g p)) _ encNat; fun_prop
 
 /-- The actual three-to-two reducer has a uniform native generator on unary widths. -/
 @[fun_prop] theorem computableInPolyTime_csa3to2 :
     ComputableInPolyTime (fun w => (csa3to2 w).code) encUnary encCode := by
-  have hw : ComputableInPolyTime (fun p : ℕ × ℕ => p.1) (encPair encUnary encUnary) encNat :=
-    unary_to_binary.comp (fst _ _)
-  have hi : ComputableInPolyTime (fun p : ℕ × ℕ => p.2) (encPair encUnary encUnary) encNat :=
-    unary_to_binary.comp (snd _ _)
+  have hw : ComputableInPolyTime (fun p : ℕ × ℕ => p.1)
+      (encPair encUnary encUnary) encNat := unary_to_binary.comp (fst _ _)
+  have hi : ComputableInPolyTime (fun p : ℕ × ℕ => p.2)
+      (encPair encUnary encUnary) encNat := unary_to_binary.comp (snd _ _)
   have hs : ComputableInPolyTime (fun p : ℕ × ℕ => csaSumCode p.1 p.2)
-      (encPair encUnary encUnary) encCode := computableInPolyTime_csaFormulaCode _ hi
-  have hm := computableInPolyTime_csaFormulaCode (maj3Formula (0 : Fin 3) 1 2)
-    (show ComputableInPolyTime (fun p : ℕ × ℕ => p.2 - 1) (encPair encUnary encUnary) encNat
-      from by fun_prop)
+      (encPair encUnary encUnary) encCode := by
+    apply computableInPolyTime_formulaCode _ (by fun_prop)
+    intro j
+    fin_cases j
+    · exact hi
+    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + p.2) _ encNat
+      fun_prop
+    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + (p.1 + p.2)) _ encNat
+      fun_prop
+  have hm : ComputableInPolyTime
+      (fun p : ℕ × ℕ => formulaCode (p.1 + (p.1 + p.1)) (maj3Formula (0 : Fin 3) 1 2)
+        ![p.2 - 1, p.1 + (p.2 - 1), p.1 + (p.1 + (p.2 - 1))])
+      (encPair encUnary encUnary) encCode := by
+    apply computableInPolyTime_formulaCode _ (by fun_prop)
+    intro j
+    fin_cases j
+    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.2 - 1) _ encNat
+      fun_prop
+    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + (p.2 - 1)) _ encNat
+      fun_prop
+    · change ComputableInPolyTime (fun p : ℕ × ℕ => p.1 + (p.1 + (p.2 - 1))) _ encNat
+      fun_prop
   have hc : ComputableInPolyTime (fun p : ℕ × ℕ => csaCarryCode p.1 p.2)
-      (encPair encUnary encUnary) encCode := by unfold csaCarryCode; fun_prop
+      (encPair encUnary encUnary) encCode := by
+    unfold csaCarryCode
+    fun_prop
   have hw' := unary_to_binary
   have hn : ComputableInPolyTime (fun w : ℕ => w + (w + w)) encUnary encNat := by fun_prop
-  simpa only [← csa3to2Code_eq_code, csa3to2Code] using computableInPolyTime_appendCode hn
+  have h := computableInPolyTime_appendCode hn
     (computableInPolyTime_appendCodes hn (mapWithInput range hs))
     (computableInPolyTime_appendCodes hn (mapWithInput range hc))
+  simpa only [← csa3to2Code_eq_code, csa3to2Code] using h
+
+private theorem csa4to2FirstIn_val (w : ℕ) (i : Fin (w + (w + w))) :
+    (csa4to2FirstIn w i).val = i.val := by
+  induction i using Fin.addCases with
+  | left i => simp [csa4to2FirstIn]
+  | right i =>
+    induction i using Fin.addCases with
+    | left i => simp [csa4to2FirstIn, Nat.add_comm]
+    | right i => simp [csa4to2FirstIn, -Fin.natAdd_eq_addNat, Nat.add_assoc]
+
+private theorem code_csa4to2FirstIn (w : ℕ) :
+    (Circuit.wiring signature (csa4to2FirstIn w)).code = ([], List.range (w + (w + w))) := by
+  simpa using Circuit.code_wiring_eq_map (σ := signature) (g := id) (csa4to2FirstIn_val w)
+
+private theorem code_csa4to2LastIn (w : ℕ) :
+    (Circuit.wiring signature
+      (Fin.natAdd (w + w) ∘ Fin.natAdd w : Fin w → Fin ((w + w) + (w + w)))).code =
+      ([], (List.range w).map (fun i => (w + w) + (w + i))) :=
+  Circuit.code_wiring_eq_map fun i => by simp [Nat.add_comm]
 
 /-- Generate the existing two-layer carry-save reducer, including all input wiring. -/
 def csa4to2Code (w : ℕ) : List (Op × List ℕ) × List ℕ :=
@@ -144,40 +187,35 @@ def csa4to2Code (w : ℕ) : List (Op × List ℕ) × List ℕ :=
 
 /-- The generated code is exactly the existing four-to-two circuit's code. -/
 theorem csa4to2Code_eq_code (w : ℕ) : csa4to2Code w = (csa4to2 w).code := by
-  have hfirst : (Circuit.wiring signature (csa4to2FirstIn w)).code =
-      ([], List.range (w + (w + w))) := by
-    refine (Circuit.code_wiring_eq_map (σ := signature) (g := id) fun i => ?_).trans (by simp)
-    induction i using Fin.addCases with
-    | left => simp [csa4to2FirstIn]
-    | right i =>
-      induction i using Fin.addCases with
-      | left => simp [csa4to2FirstIn, Nat.add_comm]
-      | right => simp [csa4to2FirstIn, -Fin.natAdd_eq_addNat, Nat.add_assoc]
-  have hlast : (Circuit.wiring signature
-      (Fin.natAdd (w + w) ∘ Fin.natAdd w : Fin w → Fin ((w + w) + (w + w)))).code =
-      ([], (List.range w).map fun i => (w + w) + (w + i)) :=
-    Circuit.code_wiring_eq_map fun _ => by simp [Nat.add_comm]
-  rw [csa4to2Code, csa3to2Code_eq_code, ← hfirst, ← hlast, compCode_code, appendCode_code,
-    compCode_code]
+  rw [csa4to2Code, csa3to2Code_eq_code, ← code_csa4to2FirstIn, ← code_csa4to2LastIn,
+    compCode_code, appendCode_code, compCode_code]
   rfl
 
 /-- The actual four-to-two reducer has a uniform native generator on unary widths. -/
 @[fun_prop] theorem computableInPolyTime_csa4to2 :
     ComputableInPolyTime (fun w => (csa4to2 w).code) encUnary encCode := by
   have hw := unary_to_binary
-  have hn : ComputableInPolyTime (fun w : ℕ => (w + w) + (w + w)) encUnary encNat := by fun_prop
-  have hfirst : ComputableInPolyTime (fun w : ℕ => ([], List.range (w + (w + w))))
-      encUnary encCode := by
-    simpa only [Function.comp_def, List.map_id_fun', id_eq] using (const []).prod (hw.map.comp
-      (range.comp (by fun_prop : ComputableInPolyTime (fun w => w + (w + w)) encUnary encUnary)))
+  have hn : ComputableInPolyTime
+      (fun w : ℕ => (w + w) + (w + w)) encUnary encNat := by fun_prop
+  have hfirst : ComputableInPolyTime
+      (fun w : ℕ => ([], List.range (w + (w + w)))) encUnary encCode := by
+    have hr := unary_to_binary.map.comp
+      (range.comp (show ComputableInPolyTime (fun w : ℕ => w + (w + w))
+        encUnary encUnary from by fun_prop))
+    simpa only [Function.comp_def, List.map_id_fun', id_eq] using (const []).prod hr
   have hlast : ComputableInPolyTime
-      (fun w : ℕ => ([], (List.range w).map fun i => (w + w) + (w + i))) encUnary encCode := by
-    have := hw.comp (fst encUnary encUnary); have := hw.comp (snd encUnary encUnary)
-    exact (const []).prod (mapWithInput range (by fun_prop : ComputableInPolyTime
-      (fun p : ℕ × ℕ => (p.1 + p.1) + (p.1 + p.2)) (encPair encUnary encUnary) encNat))
+      (fun w : ℕ => ([], (List.range w).map (fun i => (w + w) + (w + i))))
+      encUnary encCode := by
+    have hw' := unary_to_binary.comp (fst encUnary encUnary)
+    have hi := unary_to_binary.comp (snd encUnary encUnary)
+    exact (const []).prod (mapWithInput range (show ComputableInPolyTime
+      (fun p : ℕ × ℕ => (p.1 + p.1) + (p.1 + p.2)) (encPair encUnary encUnary) encNat
+      from by fun_prop))
   have h3 : ComputableInPolyTime csa3to2Code encUnary encCode := by
     simpa only [← csa3to2Code_eq_code] using computableInPolyTime_csa3to2
-  simpa only [← csa4to2Code_eq_code, csa4to2Code] using computableInPolyTime_compCode hn h3
-    (computableInPolyTime_appendCode hn hlast (computableInPolyTime_compCode hn h3 hfirst))
+  have h := computableInPolyTime_compCode hn h3
+    (computableInPolyTime_appendCode hn hlast
+      (computableInPolyTime_compCode hn h3 hfirst))
+  simpa only [← csa4to2Code_eq_code, csa4to2Code] using h
 
 end Cslib.Circuits.Boolean
