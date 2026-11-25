@@ -57,31 +57,26 @@ variable {α β : Type*} [Primcodable α] [Primcodable β]
 
 /-- Computable predicates are closed under conjunction. -/
 protected theorem and {p q : α → Prop} (hp : ComputablePred p) (hq : ComputablePred q) :
-    ComputablePred fun a => p a ∧ q a := by
-  obtain ⟨_, hp⟩ := hp
-  obtain ⟨_, hq⟩ := hq
-  exact Computable.computablePred <| (Primrec.and.to_comp.comp hp hq).of_eq fun a => by simp
+    ComputablePred fun a => p a ∧ q a :=
+  let ⟨_, hp⟩ := hp; let ⟨_, hq⟩ := hq
+  Computable.computablePred <| (Primrec.and.to_comp.comp hp hq).of_eq fun _ => by simp
 
 /-- Computable predicates are closed under disjunction. -/
 protected theorem or {p q : α → Prop} (hp : ComputablePred p) (hq : ComputablePred q) :
-    ComputablePred fun a => p a ∨ q a := by
-  obtain ⟨_, hp⟩ := hp
-  obtain ⟨_, hq⟩ := hq
-  exact Computable.computablePred <| (Primrec.or.to_comp.comp hp hq).of_eq fun a => by simp
+    ComputablePred fun a => p a ∨ q a :=
+  let ⟨_, hp⟩ := hp; let ⟨_, hq⟩ := hq
+  Computable.computablePred <| (Primrec.or.to_comp.comp hp hq).of_eq fun _ => by simp
 
 /-- Computable predicates are closed under implication. -/
 protected theorem imp {p q : α → Prop} (hp : ComputablePred p) (hq : ComputablePred q) :
     ComputablePred fun a => p a → q a :=
-  (hp.not.or hq).of_eq fun _ => by
-    classical
-    exact imp_iff_not_or.symm
+  (hp.not.or hq).of_eq fun _ => by classical exact imp_iff_not_or.symm
 
 /-- Substituting a computable function into a computable predicate gives a computable
 predicate. -/
 protected theorem comp {p : β → Prop} {f : α → β} (hp : ComputablePred p) (hf : Computable f) :
-    ComputablePred fun a => p (f a) := by
-  obtain ⟨_, hp⟩ := hp
-  exact Computable.computablePred (hp.comp hf)
+    ComputablePred fun a => p (f a) :=
+  let ⟨_, hp⟩ := hp; (hp.comp hf).computablePred
 
 /-- Comparing two computable natural-number functions with `≤` is computable. -/
 theorem nat_le {f g : α → ℕ} (hf : Computable f) (hg : Computable g) :
@@ -101,26 +96,18 @@ theorem forall_lt {p : α → ℕ → Prop} (hp : ComputablePred (Function.uncur
   -- `F (a, n)` folds the indicator `b (a, i)` over `i < n` with `&&`.
   let F : α × ℕ → Bool := fun x =>
     Nat.rec (motive := fun _ => Bool) true (fun i acc => acc && b (x.1, i)) x.2
-  have hh : Computable₂ fun (x : α × ℕ) (iacc : ℕ × Bool) => iacc.2 && b (x.1, iacc.1) :=
-    (Primrec.and.to_comp.comp (Computable.snd.comp Computable.snd)
+  have hF : Computable F := Computable.nat_rec Computable.snd (Computable.const true)
+    ((Primrec.and.to_comp.comp (Computable.snd.comp Computable.snd)
       (hb.comp (Computable.pair (Computable.fst.comp Computable.fst)
-        (Computable.fst.comp Computable.snd)))).to₂
-  have hF : Computable F := Computable.nat_rec Computable.snd (Computable.const true) hh
-  have key : ∀ a n, F (a, n) = true ↔ ∀ i < n, p a i := by
-    intro a n
+        (Computable.fst.comp Computable.snd)))).to₂)
+  have key (a : α) (n : ℕ) : F (a, n) = true ↔ ∀ i < n, p a i := by
     induction n with
     | zero => simp [F]
     | succ n ih =>
-      have hpi : p a n ↔ b (a, n) = true := by
-        rw [show p a n = Function.uncurry p (a, n) from rfl, hpb]
       change (F (a, n) && b (a, n)) = true ↔ _
-      rw [Bool.and_eq_true, ih, ← hpi]
-      constructor
-      · rintro ⟨h, h'⟩ i hi
-        rcases Nat.lt_succ_iff_lt_or_eq.1 hi with hi | rfl
-        exacts [h i hi, h']
-      · intro h
-        exact ⟨fun i hi => h i (Nat.lt_succ_of_lt hi), h n (Nat.lt_succ_self n)⟩
+      rw [Bool.and_eq_true, ih, ← (congrFun hpb (a, n) : p a n = (b (a, n) = true))]
+      exact ⟨fun ⟨h, h'⟩ i hi => (Nat.lt_succ_iff_lt_or_eq.1 hi).elim (h i) (· ▸ h'),
+        fun h => ⟨fun i hi => h i (Nat.lt_succ_of_lt hi), h n (Nat.lt_succ_self n)⟩⟩
   exact computable_iff.2 ⟨fun a => F (a, f a), hF.comp (Computable.pair Computable.id hf),
     funext fun a => propext (key a (f a)).symm⟩
 
@@ -164,16 +151,13 @@ theorem rePred_exists {p : α → β → Prop} (hp : ComputablePred (Function.un
   have hf : Computable₂ f :=
     Computable.option_getD (Computable.option_map (Computable.decode.comp Computable.snd)
       hp'.to₂) (Computable.const false)
-  let q : α → ℕ →. Bool := fun a n => Part.some (f a n)
-  have hq : Partrec fun a => Nat.rfind (q a) := Partrec.rfind hf.partrec₂
-  refine hq.dom_re.of_eq fun a => Nat.rfind_dom.trans ⟨fun ⟨n, hn, _⟩ => ?_,
-    fun ⟨b, hb⟩ => ⟨Encodable.encode b, ?_, fun _ => trivial⟩⟩
-  · have hn' : f a n = true := (Part.mem_some_iff.1 hn).symm
-    simp only [f] at hn'
-    cases hb : Encodable.decode (α := β) n with
-    | none => simp [hb] at hn'
-    | some b => exact ⟨b, by simpa [hb] using hn'⟩
-  · exact Part.mem_some_iff.2 (by simp [f, Encodable.encodek, hb])
+  refine (Partrec.rfind hf.partrec₂).dom_re.of_eq fun a => Nat.rfind_dom.trans
+    ⟨fun ⟨n, hn, _⟩ => ?_,
+      fun ⟨b, hb⟩ => ⟨Encodable.encode b, Part.mem_some_iff.2 (by simp [f, Encodable.encodek, hb]),
+        fun _ => trivial⟩⟩
+  cases hb : Encodable.decode (α := β) n with
+  | none => simp [f, hb] at hn
+  | some b => exact ⟨b, by simpa [f, hb] using (Part.mem_some_iff.1 hn).symm⟩
 
 end ComputablePred
 
@@ -194,10 +178,10 @@ theorem REPred.exists_not_of_not_exists_rePred_iff {α : Type*} [Primcodable α]
 /-- **An r.e. predicate that implies a non-r.e. one misses a point.** If `p` is not r.e., every
 r.e. `S` that implies `p` misses some point where `p` holds. -/
 theorem REPred.exists_not_of_not_rePred {α : Type*} [Primcodable α] {p S : α → Prop}
-    (hp : ¬REPred p) (hS : REPred S) (hsound : ∀ a, S a → p a) : ∃ a, p a ∧ ¬S a := by
-  obtain ⟨a, -, h⟩ := hS.exists_not_of_not_exists_rePred_iff (D := fun _ => True)
+    (hp : ¬REPred p) (hS : REPred S) (hsound : ∀ a, S a → p a) : ∃ a, p a ∧ ¬S a :=
+  let ⟨a, _, h⟩ := hS.exists_not_of_not_exists_rePred_iff (D := fun _ => True)
     (fun ⟨_, hT, hTp⟩ => hp (hT.of_eq fun a => hTp a trivial)) hsound
-  exact ⟨a, h⟩
+  ⟨a, h⟩
 
 namespace ComputablePred
 
@@ -210,20 +194,19 @@ proof. -/
 theorem exists_forall_not_of_not_exists_rePred_iff {D p : α → Prop} {P : α → β → Prop}
     (hP : ComputablePred (Function.uncurry P))
     (hp : ¬∃ T : α → Prop, REPred T ∧ ∀ a, D a → (T a ↔ p a)) (hsound : ∀ a b, P a b → p a) :
-    ∃ a, D a ∧ p a ∧ ∀ b, ¬P a b := by
-  obtain ⟨a, ha, h, hS⟩ := (rePred_exists hP).exists_not_of_not_exists_rePred_iff hp
+    ∃ a, D a ∧ p a ∧ ∀ b, ¬P a b :=
+  let ⟨a, ha, h, hS⟩ := (rePred_exists hP).exists_not_of_not_exists_rePred_iff hp
     fun a ⟨b, hb⟩ => hsound a b hb
-  exact ⟨a, ha, h, fun b hb => hS ⟨b, hb⟩⟩
+  ⟨a, ha, h, fun b hb => hS ⟨b, hb⟩⟩
 
 /-- **A sound decidable proof relation for a non-r.e. predicate is incomplete.** If `p` is not
 r.e., and `P a b` ("`b` is a proof of `a`") is decidable and only points of `p` have proofs, then
 some point where `p` holds has no proof. -/
 theorem exists_forall_not_of_not_rePred {p : α → Prop} {P : α → β → Prop}
     (hP : ComputablePred (Function.uncurry P)) (hp : ¬REPred p) (hsound : ∀ a b, P a b → p a) :
-    ∃ a, p a ∧ ∀ b, ¬P a b := by
-  obtain ⟨a, h, hS⟩ := (rePred_exists hP).exists_not_of_not_rePred hp
-    fun a ⟨b, hb⟩ => hsound a b hb
-  exact ⟨a, h, fun b hb => hS ⟨b, hb⟩⟩
+    ∃ a, p a ∧ ∀ b, ¬P a b :=
+  let ⟨a, h, hS⟩ := (rePred_exists hP).exists_not_of_not_rePred hp fun a ⟨b, hb⟩ => hsound a b hb
+  ⟨a, h, fun b hb => hS ⟨b, hb⟩⟩
 
 end ComputablePred
 
