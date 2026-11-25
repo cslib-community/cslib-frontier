@@ -171,8 +171,7 @@ theorem configurationJustesenSourceLoop_haltsWithin_clock
       rw [justesenRetainedSourceRound_withInit]
       exact (hround w seed source target limit hlimit r hr).1)
     (fun r hr => (hmember w seed source target limit hlimit r hr).1)
-  refine HaltsWithin.mono (justesenSourceLoop ntm c context limit) w hrun ?_
-  exact Nat.add_le_add_right
+  exact HaltsWithin.mono (justesenSourceLoop ntm c context limit) w hrun <| Nat.add_le_add_right
     (Nat.add_le_add_right (Nat.mul_le_mul_right (roundClock + 1) hlimit) memberClock) 1
 
 /-- At valid initialized entries, every prefix of the concrete source loop has logarithmic
@@ -259,10 +258,9 @@ theorem configurationJustesenSourceLoop_exists_routines
   obtain ⟨hrq, hrn, hrh, hrr⟩ := justesenRetainedSourceRound_parts_inSpace ntm c initial
   obtain ⟨hmq, hmn, hmh, hmr⟩ := justesenSourceMembershipMachine_parts_inSpace ntm c
   obtain ⟨C, hspace⟩ := configurationJustesenSourceLoop_length_run_le_log ntm c
-  have hstates : ∀ a bits, (encJustesenSourceLoopState
+  have hstates (a : α) (bits : List Bool) : (encJustesenSourceLoopState
       ((justesenSourceLoop ntm c (contextOf a) (limitOf a)).run (enc a) bits)).length ≤
         C * (Nat.log2 (enc a).length + 1) := by
-    intro a bits
     obtain ⟨seed, source, target, hctx, hlimit⟩ := hvalid a
     rw [hctx]
     exact hspace (enc a) seed source target (limitOf a) hlimit bits
@@ -305,10 +303,8 @@ theorem justesenSourceLoop_native_firstHalting_accept_iff
   rw [SourceRoundLoop.native_firstHalting_accept_iff initial round justesenRetainedSourceRoundEntry
     justesenRetainedSourceRoundReply member justesenSourceMembershipStart
     MembershipTally.retainedReply registers R a bits]
-  apply exists_congr
-  intro verdict
-  exact (SourceRoundLoop.firstHalting_iff_replayRounds (registers a) round
-    justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply member
+  exact exists_congr fun verdict => (SourceRoundLoop.firstHalting_iff_replayRounds (registers a)
+    round justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply member
     justesenSourceMembershipStart MembershipTally.retainedReply (enc a) bits verdict).symm
 
 /-- A completed full-fuel scan returns the first nonunique radius, or a reachability verdict
@@ -333,11 +329,10 @@ theorem configurationJustesenSourceLoop_correct
     justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply member
     justesenSourceMembershipStart MembershipTally.retainedReply w bits verdict).mp
       ⟨hfirst, hresult⟩
-  have hspec := SourceRoundLoop.replayRounds_correct round justesenRetainedSourceRoundEntry
+  exact SourceRoundLoop.replayRounds_correct round justesenRetainedSourceRoundEntry
     justesenRetainedSourceRoundReply member justesenSourceMembershipStart
     MembershipTally.retainedReply w (r := edge) (source := source) (target := target) context
-    (by
-      intro fuel radius hpass selectors update rest hreply
+    (fun fuel radius hpass selectors update rest hreply => by
       let r : SourceRoundLoop.Registers JustesenSourceContext :=
         ⟨context, fuel, radius, expected edge source radius⟩
       obtain ⟨callBits, _, hhalt, hret⟩ :=
@@ -347,12 +342,10 @@ theorem configurationJustesenSourceLoop_correct
       rw [← run_withInit, justesenRetainedSourceRound_withInit] at hret
       exact configurationJustesenRetainedSourceRound_correct ntm c w
         seed source target fuel radius hpass callBits update hhalt hret)
-    (by
-      intro fuel radius _ selectors hit rest hreply
-      exact (justesenSourceMembership_readReply_correct ntm c w seed source target
+    (fun fuel radius _ selectors hit rest hreply =>
+      (justesenSourceMembership_readReply_correct ntm c w seed source target
         fuel radius selectors hit rest hreply).trans mem_round.symm)
     hscan
-  exact hspec
 
 /-- Every valid full-fuel source scan has exactly one first-halting selector list
 that returns a verdict. -/
@@ -402,8 +395,7 @@ theorem configurationJustesenSourceLoop_existsUnique_firstHalting
     have h := justesenSourceMembership_existsUnique_firstHalting ntm c w
       seed source target r.fuel r.radius (hr.2.2.2.2 r.radius le_rfl)
     dsimp only at h
-    rw [← hnormalized r hr] at h
-    exact h
+    rwa [← hnormalized r hr] at h
   have hp : P initial := justesenSourceRoundExact_start context edge source
   obtain ⟨bits, verdict, hfirst, hreply⟩ := SourceRoundLoop.exists_successful_firstHalting
     initial round justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply member
