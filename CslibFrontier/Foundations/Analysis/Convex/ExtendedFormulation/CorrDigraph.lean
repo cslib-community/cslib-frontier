@@ -339,15 +339,12 @@ private theorem mem_slotDetour_iff {p : ℕ} (b : Finset (Fin p)) (v : CorrVar p
     x ∈ slotDetour b v ℓ ↔
       ∃ q, x = .clause q.1 q.2 ∧ clauseOwner b q = ⟨v, ℓ⟩ := by
   unfold slotDetour
-  constructor
-  · intro hx
-    split at hx
-    · split_ifs at hx with ho
-      · exact ⟨_, List.mem_singleton.1 hx, ho⟩
-      · cases hx
+  refine ⟨fun hx => ?_, by rintro ⟨q, rfl, hq⟩; simp [slotClause_clauseOwner hq, hq]⟩
+  split at hx
+  · split_ifs at hx with ho
+    · exact ⟨_, List.mem_singleton.1 hx, ho⟩
     · cases hx
-  · rintro ⟨q, rfl, hq⟩
-    simp [slotClause_clauseOwner hq, hq]
+  · cases hx
 
 private def slotVisit {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
     (ℓ : Fin (chainSlots p v)) : List (CorrDigraphV p) :=
@@ -361,8 +358,7 @@ private def slotVisit {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVa
 
 private theorem slotVisit_ne_nil {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
     (ℓ : Fin (chainSlots p v)) : slotVisit _hp b v ℓ ≠ [] := by
-  unfold slotVisit
-  split_ifs <;> simp
+  unfold slotVisit; split_ifs <;> simp
 
 private def varBlock {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p) :
     List (CorrDigraphV p) :=
@@ -374,14 +370,11 @@ private def varBlock {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar 
       (((List.finRange (chainSlots p v)).map Fin.rev).flatMap (slotVisit hp b v))
 
 private theorem varBlock_ne_nil {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p) :
-    varBlock hp b v ≠ [] := by
-  unfold varBlock
-  split_ifs <;> simp
+    varBlock hp b v ≠ [] := by unfold varBlock; split_ifs <;> simp
 
 private theorem head_varBlock {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p) :
     (varBlock hp b v).head (varBlock_ne_nil hp b v) = .gate v := by
-  unfold varBlock
-  split_ifs <;> simp
+  unfold varBlock; split_ifs <;> simp
 
 private theorem List.consecutivePairs_slotVisit_mem {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p))
     (v : CorrVar p) (ℓ : Fin (chainSlots p v)) {x y : CorrDigraphV p}
@@ -414,15 +407,13 @@ private theorem head_slotVisit {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v
     (ℓ : Fin (chainSlots p v)) :
     (slotVisit _hp b v ℓ).head (slotVisit_ne_nil _hp b v ℓ) =
       if assignVarVal b v = false then ch(v, 3 * ℓ.1) else ch(v, 3 * ℓ.1 + 2) := by
-  unfold slotVisit
-  split_ifs <;> simp
+  unfold slotVisit; split_ifs <;> simp
 
 private theorem getLast_slotVisit {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
     (ℓ : Fin (chainSlots p v)) :
     (slotVisit _hp b v ℓ).getLast (slotVisit_ne_nil _hp b v ℓ) =
       if assignVarVal b v = false then ch(v, 3 * ℓ.1 + 2) else ch(v, 3 * ℓ.1) := by
-  unfold slotVisit
-  split_ifs <;> simp
+  unfold slotVisit; split_ifs <;> simp
 
 private theorem getLast_varBlock {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p) :
     (varBlock hp b v).getLast (varBlock_ne_nil hp b v) =
@@ -436,8 +427,7 @@ private theorem getLast_varBlock {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (
   · simp
   · rw [List.getLast_append_of_ne_nil _ (List.flatMap_ne_nil hrev hsv),
       List.getLast_flatMap hrev hsv, getLast_slotVisit]
-    simp [hval, val_getLast_finRange]
-    omega
+    simp [hval, val_getLast_finRange]; omega
 
 private theorem List.consecutivePairs_varBlock_mem {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p))
     (v : CorrVar p) {x y : CorrDigraphV p}
@@ -501,14 +491,8 @@ private theorem mem_slotVisit_iff {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p))
 
 private theorem slotVisit_nodup {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
     (ℓ : Fin (chainSlots p v)) : (slotVisit _hp b v ℓ).Nodup := by
-  have hdet : slotDetour b v ℓ = [] ∨ ∃ e c, slotDetour b v ℓ = [.clause e c] := by
-    unfold slotDetour
-    split
-    · split_ifs
-      exacts [.inr ⟨_, _, rfl⟩, .inl rfl]
-    · exact .inl rfl
-  unfold slotVisit
-  rcases hdet with h | ⟨e, c, h⟩ <;> split_ifs <;> simp [h]
+  unfold slotVisit slotDetour
+  rcases slotClause p v ℓ with _ | ⟨_, _⟩ <;> dsimp only <;> split_ifs <;> simp
 
 private theorem slotVisit_disjoint {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
     {ℓ₁ ℓ₂ : Fin (chainSlots p v)} (hne : ℓ₁ ≠ ℓ₂) :
@@ -517,10 +501,7 @@ private theorem slotVisit_disjoint {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)
   rw [mem_slotVisit_iff] at h₁ h₂
   rcases h₁ with (rfl | rfl | rfl) | ⟨⟨e₁, c₁⟩, rfl, hq₁⟩ <;>
     rcases h₂ with (h | h | h) | ⟨⟨e₂, c₂⟩, h, hq₂⟩ <;>
-    first
-    | exact hne (Fin.ext (by have := chain_inj h; omega))
-    | cases h
-  -- The case left is a clause owned by both slots.
+    first | exact hne (Fin.ext (by have := chain_inj h; omega)) | cases h
   exact hne (eq_of_heq (Sigma.mk.inj (hq₁.symm.trans hq₂)).2)
 
 private theorem mem_varBlock_iff {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
@@ -529,7 +510,6 @@ private theorem mem_varBlock_iff {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (
       x = .gate v ∨
       (∃ k : Fin (chainLen p v), x = .chain v k) ∨
       (∃ q, x = .clause q.1 q.2 ∧ (clauseOwner b q).1 = v) := by
-  -- Both orientations visit the gate, the last chain vertex and every slot.
   have hblock : x ∈ varBlock hp b v ↔
       x = .gate v ∨ x = ch(v, 3 * chainSlots p v) ∨ ∃ ℓ, x ∈ slotVisit hp b v ℓ := by
     have hrev (ℓ : Fin (chainSlots p v)) : ℓ ∈ (List.finRange (chainSlots p v)).map Fin.rev :=
@@ -538,16 +518,14 @@ private theorem mem_varBlock_iff {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (
     split_ifs <;> simp only [List.mem_append, List.mem_cons, List.mem_nil_iff, or_false,
       List.mem_flatMap, List.mem_finRange, true_and, hrev] <;> tauto
   simp only [hblock, mem_slotVisit_iff]
-  constructor
-  · rintro (rfl | rfl | ⟨ℓ, (rfl | rfl | rfl) | ⟨q, rfl, hq⟩⟩) <;> simp [*]
-  · rintro (rfl | ⟨k, rfl⟩ | ⟨q, rfl, rfl⟩)
-    · exact .inl rfl
-    · by_cases hk : k.1 = 3 * chainSlots p v
-      · exact .inr (.inl (congrArg _ (Fin.ext hk)))
-      · refine .inr (.inr ⟨⟨k.1 / 3, by have := k.2; simp only [chainLen] at this; omega⟩, .inl ?_⟩)
-        simp only [CorrDigraphV.chain.injEq, heq_eq_eq, true_and, Fin.ext_iff]
-        omega
-    · exact .inr (.inr ⟨_, .inr ⟨q, rfl, rfl⟩⟩)
+  refine ⟨by rintro (rfl | rfl | ⟨ℓ, (rfl | rfl | rfl) | ⟨q, rfl, hq⟩⟩) <;> simp [*], ?_⟩
+  rintro (rfl | ⟨k, rfl⟩ | ⟨q, rfl, rfl⟩)
+  · exact .inl rfl
+  · by_cases hk : k.1 = 3 * chainSlots p v
+    · exact .inr (.inl (congrArg _ (Fin.ext hk)))
+    · exact .inr (.inr ⟨⟨k.1 / 3, by have := k.2; simp only [chainLen] at this; omega⟩,
+        .inl (by simp only [CorrDigraphV.chain.injEq, heq_eq_eq, true_and, Fin.ext_iff]; omega)⟩)
+  · exact .inr (.inr ⟨_, .inr ⟨q, rfl, rfl⟩⟩)
 
 private theorem varBlock_nodup {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p) :
     (varBlock hp b v).Nodup := by
