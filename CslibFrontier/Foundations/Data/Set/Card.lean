@@ -27,6 +27,8 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
   `f` takes at most as many values on `s` as `g`.
 * `Set.encard_lt_coe_iff_finite_ncard_lt`: `encard` and `ncard` agree below a natural number
   (`Set.encard_le_coe_iff_finite_ncard_le`).
+* `Set.encard_le_three_of_subset`: a subset of `{a, b, c}` has at most three elements
+  (`Finset.card_le_three`).
 * `Set.finite_setOf_le_ncard_fiber`, `Set.mul_ncard_setOf_le_ncard_fiber_le`: a finite set has
   finitely many fibers with at least `n ≠ 0` elements, and at most `s.ncard / n` of them.
 -/
@@ -47,6 +49,15 @@ theorem encard_lt_coe_iff_finite_ncard_lt {s : Set α} {k : ℕ} :
     exact ⟨hs, by exact_mod_cast h⟩
   · rw [← hs.cast_ncard_eq]
     exact_mod_cast h
+
+/-- A subset of `{a, b, c}` has at most three elements, counted with `encard`. -/
+theorem encard_le_three_of_subset {s : Set α} (a b c : α) (h : s ⊆ {a, b, c}) :
+    s.encard ≤ 3 :=
+  calc
+    s.encard ≤ ({a, b, c} : Set α).encard := encard_le_encard h
+    _ ≤ ({b, c} : Set α).encard + 1 := encard_insert_le {b, c} a
+    _ ≤ ({c} : Set α).encard + 1 + 1 := add_le_add (encard_insert_le {c} b) le_rfl
+    _ = 3 := by rw [encard_singleton]; rfl
 
 /-- A finite set that `f` maps into the finset `t` is the disjoint union of its fibers over
 `t`. -/

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.FirstOrder.Problems.CNF
 public import CslibFrontier.Logics.FirstOrder.Problems.Coloring
+import CslibFrontier.Foundations.Data.Set.Card
 import CslibFrontier.Tactic.FirstOrder
 import Mathlib.Tactic.FinCases
 
@@ -201,15 +202,6 @@ theorem satisfiable_cnfInterpretation_iff :
       · exact .inr ⟨_, List.mem_cons_self, formula_realize_top, fun _ => d 0,
           formula_realize_top, fun j i hj => by cases Option.some.inj hj; rfl, h⟩
 
-private theorem encard_le_three_of_subset {α : Type*} {s : Set α} {a b c : α}
-    (h : s ⊆ {a, b, c}) : s.encard ≤ 3 := by
-  refine (Set.encard_le_encard h).trans ?_
-  refine (Set.encard_insert_le _ _).trans ?_
-  have := Set.encard_insert_le ({c} : Set α) b
-  rw [Set.encard_singleton] at this
-  calc ({b, c} : Set α).encard + 1 ≤ 1 + 1 + 1 := by gcongr
-    _ = 3 := by norm_num
-
 /-- **The CNF structure of the colorings of a graph is a 3-CNF structure.** -/
 theorem isThreeCNF_cnfInterpretation : IsThreeCNF (cnfInterpretation.Model M) := by
   rintro ⟨t, d, hd⟩
@@ -219,8 +211,8 @@ theorem isThreeCNF_cnfInterpretation : IsThreeCNF (cnfInterpretation.Model M) :=
     exact ⟨τ, hτ, y, hy, hc⟩
   cases t with
   | var c =>
-    refine encard_le_three_of_subset (a := (true, ⟨.var c, d, hd⟩)) (b := (false, ⟨.var c, d, hd⟩))
-      (c := (false, ⟨.var c, d, hd⟩)) fun ⟨b, e⟩ hl => ?_
+    refine Set.encard_le_three_of_subset (true, ⟨.var c, d, hd⟩) (false, ⟨.var c, d, hd⟩)
+      (false, ⟨.var c, d, hd⟩) fun ⟨b, e⟩ hl => ?_
     obtain ⟨τ, hτ, y, hy, hc⟩ := hlit _ hl
     obtain rfl := List.mem_singleton.1 hτ
     have he : e = ⟨.var c, d, hd⟩ := Model.ext_toSigma (hy.trans (by
@@ -229,8 +221,8 @@ theorem isThreeCNF_cnfInterpretation : IsThreeCNF (cnfInterpretation.Model M) :=
     subst he
     cases b <;> simp
   | vertex =>
-    refine encard_le_three_of_subset (a := (true, varElt 0 (d 0))) (b := (true, varElt 1 (d 0)))
-      (c := (true, varElt 2 (d 0))) fun ⟨b, e⟩ hl => ?_
+    refine Set.encard_le_three_of_subset (true, varElt 0 (d 0)) (true, varElt 1 (d 0))
+      (true, varElt 2 (d 0)) fun ⟨b, e⟩ hl => ?_
     obtain ⟨τ, hτ, y, hy, hc⟩ := hlit _ hl
     cases b
     · simp [coloringClauseTemplates] at hτ
@@ -246,8 +238,8 @@ theorem isThreeCNF_cnfInterpretation : IsThreeCNF (cnfInterpretation.Model M) :=
           funext fun j => (hc j j rfl).trans (congrArg d (Subsingleton.elim _ _))
         exact .inr (.inr (Prod.ext rfl (Model.ext_toSigma hy)))
   | edge c =>
-    refine encard_le_three_of_subset (a := (false, varElt c (d 0))) (b := (false, varElt c (d 1)))
-      (c := (false, varElt c (d 1))) fun ⟨b, e⟩ hl => ?_
+    refine Set.encard_le_three_of_subset (false, varElt c (d 0)) (false, varElt c (d 1))
+      (false, varElt c (d 1)) fun ⟨b, e⟩ hl => ?_
     obtain ⟨τ, hτ, y, hy, hc⟩ := hlit _ hl
     cases b
     · simp only [coloringClauseTemplates, List.mem_cons, List.not_mem_nil, or_false] at hτ
