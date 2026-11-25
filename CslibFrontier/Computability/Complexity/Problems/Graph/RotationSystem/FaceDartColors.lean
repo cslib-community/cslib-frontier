@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CycleSpace
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CycleSpaceConverse
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 
 /-!
 # Clockwise dart colors for actual face boundaries
@@ -18,6 +19,8 @@ face of its reverse. With the existing `faceNext = rotate⁻¹ ∘ reverse`, the
 `P (rotate d) = P d.reverse`. The reversal is essential: reading the face of `d` directly
 would give the opposite recurrence. Conversely this recurrence descends to actual face colors.
 The existing cycle-space converse then gives a numerical genus criterion in these coordinates.
+`color_ends_eq_of_dart_path` sums route transport along consecutive darts, and
+`color_sum_eq_true_iff_inverse_rotate_of_three_darts` reads the order at a degree-three vertex.
 -/
 
 public section
@@ -91,5 +94,71 @@ theorem numericalGenusZero_of_vertexEven_dartColors
   intro x hx
   obtain ⟨P, hP, he⟩ := hcolor x hx
   exact r.exists_faceColors_of_dartColors x P hP he
+
+/-- Along a nonempty path of consecutive darts, the sum of its endpoint colors is the
+last edge label plus the sum of all route contributions. Each internal turn follows the
+inverse vertex rotation, as it does at the internal vertices of a degree-two path. -/
+theorem color_ends_eq_of_dart_path {n : ℕ} (path : Fin (n + 1) → Dart G)
+    (color : Dart G → Bool) (label crossing : Fin G.edges.length → Bool)
+    (hstep : ∀ i : Fin n, r.rotate.symm (path i.castSucc).reverse = path i.succ)
+    (hedge : ∀ d, color d + color d.reverse = label d.1 + crossing d.1)
+    (hsector : ∀ d, color d + color (r.rotate.symm d) = label d.1) :
+    color (path 0) + color (path (Fin.last n)).reverse =
+      label (path (Fin.last n)).1 + ∑ i, crossing (path i).1 := by
+  let entry (i : Fin (n + 1)) := color (path i)
+  let exit (i : Fin (n + 1)) := color (path i).reverse
+  have across (i : Fin (n + 1)) :
+      exit i - entry i = label (path i).1 + crossing (path i).1 := by
+    rw [BooleanRing.sub_eq_add, add_comm]
+    exact hedge (path i)
+  have turn (i : Fin n) : entry i.succ - exit i.castSucc = label (path i.castSucc).1 := by
+    rw [BooleanRing.sub_eq_add, add_comm]
+    have h := hsector (path i.castSucc).reverse
+    rw [hstep i] at h
+    exact h
+  have telescope := Fin.sum_univ_adjacent_differences entry exit
+  simp_rw [across, turn] at telescope
+  rw [Finset.sum_add_distrib, Fin.sum_univ_castSucc (fun i => label (path i).1)] at telescope
+  calc
+    _ = exit (Fin.last n) - entry 0 := by rw [BooleanRing.sub_eq_add, add_comm]
+    _ = _ := by
+      rw [← telescope]
+      generalize (∑ i : Fin n, label (path i.castSucc).1) = s
+      calc
+        _ = (label (path (Fin.last n)).1 + ∑ i, crossing (path i).1) + (s + s) := by ac_rfl
+        _ = _ := by rw [BooleanRing.add_self, add_zero]
+
+/-- At a vertex with exactly the given three darts, a selected dart followed by an
+unselected dart in counterclockwise order is detected by their clockwise-side colors.
+The two other positions are distinguished using the actual vertex permutation. -/
+theorem color_sum_eq_true_iff_inverse_rotate_of_three_darts
+    (color : Dart G → Bool) (label : Fin G.edges.length → Bool)
+    (hsector : ∀ d, color d + color (r.rotate.symm d) = label d.1)
+    (a b c : Dart G) (hab : a.vertex = b.vertex) (hac : a.vertex = c.vertex)
+    (hab' : a ≠ b) (hac' : a ≠ c) (hbc : b ≠ c)
+    (hall : ∀ d, d.vertex = a.vertex → d = a ∨ d = b ∨ d = c)
+    (ha : label a.1 = true) (hc : label c.1 = false) :
+    color a + color c = true ↔ r.rotate.symm a = c := by
+  have vertex (d : Dart G) : (r.rotate.symm d).vertex = d.vertex := by
+    rw [← r.vertex_rotate (r.rotate.symm d), r.rotate.apply_symm_apply]
+  have not_fixed (d f : Dart G) (hv : f.vertex = d.vertex) (hne : f ≠ d) :
+      r.rotate.symm d ≠ d := by
+    intro h
+    have heq := congrArg r.rotate h
+    rw [r.rotate.apply_symm_apply] at heq
+    exact hne (((r.sameCycle_iff f d).mpr hv).eq_of_right heq.symm)
+  by_cases h : r.rotate.symm a = c
+  · exact ⟨fun _ => h, fun _ => by simpa only [h, ha] using hsector a⟩
+  · have habNext : r.rotate.symm a = b :=
+      ((hall _ (vertex a)).resolve_left (not_fixed a b hab.symm hab'.symm)).resolve_right h
+    have hcNext : r.rotate.symm c = a := by
+      rcases hall _ ((vertex c).trans hac.symm) with he | he | he
+      · exact he
+      · exact (hac' (r.rotate.symm.injective (habNext.trans he.symm))).elim
+      · exact (not_fixed c b (hab.symm.trans hac) hbc he).elim
+    have hzero : color a + color c = false := by
+      rw [add_comm]
+      simpa only [hcNext, hc] using hsector c
+    simp [hzero, h]
 
 end Cslib.Complexity.Graph.RotationSystem

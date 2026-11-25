@@ -28,6 +28,7 @@ here is about prices.
 
 ## Main results
 
+* `Separation.windowPlace_natCast`: the relative place at `i ∈ [0, n²]` is `i / n²`.
 * `Separation.mean_windowPlace`: the relative place has mean `1/2`.
 * `Separation.le_of_second_diff_le`: a sequence with second differences at most `2ω` grows at
   most quadratically.
@@ -109,7 +110,15 @@ theorem eventually_large {T : ℕ} (hT : 2 ≤ T) (R : ℕ) :
 /-! ### The relative place in a window -/
 
 /-- The relative place `i / n²` of a point in the `n`-th window, clamped to `[0, 1]`. -/
-noncomputable def windowPlace : WindowFn := fun n _ i _ => (clamp (n ^ 2) i : ℕ) / (n : ℝ) ^ 2
+noncomputable def windowPlace : WindowFn :=
+  fun n _ i _ => (clamp (n ^ 2) i : ℕ) / (n : ℝ) ^ 2
+
+/-- At a point `i ∈ [0, n²]` of the window, the relative place is `i / n²`. -/
+theorem windowPlace_natCast {n i : ℕ} (hi : i ≤ n ^ 2) (b : Bool) (k : ℤ) :
+    windowPlace n b i k = (i : ℝ) / n ^ 2 := by
+  rw [windowPlace, clamp_cast (Int.natCast_nonneg i) (by exact_mod_cast hi)]
+  push_cast
+  rfl
 
 theorem windowPlace_nonneg (n : ℕ) (b : Bool) (i k : ℤ) : 0 ≤ windowPlace n b i k := by
   unfold windowPlace
@@ -140,12 +149,8 @@ theorem mean_windowPlace : windowPlace.mean = 1 / 2 := by
       rw [← Nat.cast_sum, Finset.sum_range_id, ← Nat.choose_two_right, Nat.cast_choose_two]
     rw [← hsum, Finset.sum_div, Finset.mul_sum]
     refine Finset.sum_congr rfl fun i hi => ?_
-    have hp : ∀ k ∈ range n, windowPlace n b (i : ℕ) (k : ℕ) = (i : ℝ) / n ^ 2 := by
-      intro k _
-      rw [windowPlace, clamp_cast (Int.natCast_nonneg i)
-        (by exact_mod_cast (Finset.mem_range.1 hi).le)]
-      push_cast
-      rfl
+    have hp : ∀ k ∈ range n, windowPlace n b (i : ℕ) (k : ℕ) = (i : ℝ) / n ^ 2 := fun k _ =>
+      windowPlace_natCast (Finset.mem_range.1 hi).le b k
     rw [Finset.sum_congr rfl hp, Finset.sum_const, Finset.card_range, nsmul_eq_mul]
   rw [windowAvg_eq_sum, Finset.sum_congr rfl fun b _ => h2 b, Finset.sum_const, Finset.card_univ,
     Fintype.card_bool, nsmul_eq_mul]

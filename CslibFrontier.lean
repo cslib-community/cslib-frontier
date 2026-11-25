@@ -1384,7 +1384,9 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.RootFormula
 public import CslibFrontier.Computability.Circuit.Arithmetic.SPCircuit
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.AtOne
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Crossing
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Curvature
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Estimates
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Fan
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Identity
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Inversion
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Length
@@ -1422,6 +1424,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Wal
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Window
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flag.Words
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flat.CubeEndPoints
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flat.CubePoints
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flat.EndPoints
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flat.LowerNumbers
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Flat.NetworkPolynomial
@@ -5116,9 +5119,11 @@ public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Restrict
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Universal
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0Window
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.TM0WindowEncoding
+public import CslibFrontier.Computability.Machines.Turing.TM2.Computable
 public import CslibFrontier.Computability.Machines.Turing.TM2.ConfigBound
 public import CslibFrontier.Computability.Machines.Turing.TM2.Degree
 public import CslibFrontier.Computability.Machines.Turing.TM2.Encoding
+public import CslibFrontier.Computability.Machines.Turing.TM2.PartrecToTM2
 public import CslibFrontier.Computability.Machines.Turing.TM2.PolySpace
 public import CslibFrontier.Computability.Machines.Turing.TM2.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.TM2.Recoding
@@ -6431,6 +6436,8 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordReduction
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordSeedExtraction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRouting
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTables
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Coins
@@ -6443,6 +6450,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFreePair
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Eager
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Independent
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Split
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
@@ -7810,6 +7818,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
 public import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
 public import CslibFrontier.Foundations.BooleanAnalysis.KhintchineKahane
 public import CslibFrontier.Foundations.BooleanAnalysis.LargeCoefficient
+public import CslibFrontier.Foundations.BooleanAnalysis.LevelK
 public import CslibFrontier.Foundations.BooleanAnalysis.LevelOneInequality
 public import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.LightPatterns
@@ -8898,6 +8907,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Basic
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Price.Random
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Spectrum
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Unit
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.UnitExponent
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Polynomial
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Primal
