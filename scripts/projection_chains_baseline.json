@@ -241,6 +241,7 @@
  "CslibFrontier/DataStructure/PriorityQueue/WordRAM/FibonacciHeap.lean": 3,
  "CslibFrontier/DataStructure/Retroactive/Basic.lean": 1,
  "CslibFrontier/DataStructure/StateTransition.lean": 4,
+ "CslibFrontier/DataStructure/StateTransition/ClientMap.lean": 2,
  "CslibFrontier/DataStructure/WordRAM/Randomized/ObliviousSequence.lean": 2,
  "CslibFrontier/Foundations/BooleanAnalysis/BucketWeight.lean": 4,
  "CslibFrontier/Foundations/BooleanAnalysis/SparseHermiteRecovery.lean": 3,

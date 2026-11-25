@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Realization.While
 public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.DataStructure.Memory.Frame
+public import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Admissibility and loop-invariant combinators for `Memory.Prog`
@@ -35,8 +36,7 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
 
 * `clientState_read`, `clientResult_read`, `clientState_write`, `clientResult_write`,
   `clientState_allocDirty`, `clientResult_allocDirty`,
-  `runClient_allocDirty`, `runClient_map`, `runClient_ite`,
-  `prog_clientResult_map`, `prog_clientState_ite`, `prog_clientResult_ite`,
+  `runClient_allocDirty`, `runClient_ite`, `prog_clientState_ite`, `prog_clientResult_ite`,
   `state_frontier_ite`, `state_mem_ite`, `memoryCost_read`, `memoryCost_write`,
   `memoryCost_alloc`, `memoryCost_allocDirty`, `memoryCost_ite`: primitive state, result, and cost
   equations.
@@ -50,7 +50,7 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
   `memoryCost_iterate_le_potential`: generic loop invariant and cost lemmas, including an amortized
   bound with a potential.
 * `clientResult_bind_read`, `clientState_bind_write`, `runClient_read`, `runClient_write`,
-  `clientState_map`, `memoryCost_bind_le`,
+  `memoryCost_bind_le`,
   `memoryCost_read_bind_le`, `memoryCost_write_bind_le`, `memoryCost_ite_le`,
   `validHistory_iterate_nat`, `validHistory_iterate_fst`: reductions through primitive steps and
   cost and admissibility combinators for counting loops.
@@ -95,28 +95,11 @@ theorem runClient_allocDirty (w : ℕ) (s : (Memory.spec w).State) (k : ℕ) :
       (s.frontier, ⟨s.mem, s.frontier + k⟩, [Memory.Op.allocDirty k]) :=
   rfl
 
-theorem runClient_map {α β : Type} (w : ℕ) (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
-    (Memory.spec w).runClient s (g <$> p : Memory.Prog β) =
-      (g ((Memory.spec w).clientResult s p), (Memory.spec w).clientState s p,
-        (Memory.spec w).clientHistory s p) := by
-  induction p generalizing s with
-  | pure _ => rfl
-  | liftBind op k ih =>
-    change (Memory.spec w).runClient s (PFunctor.FreeM.liftBind op (fun x => g <$> k x)) = _
-    simp only [StateTransitionSpec.runClient, StateTransitionSpec.clientResult,
-      StateTransitionSpec.clientState, StateTransitionSpec.clientHistory, ih]
-
 theorem runClient_ite {α : Type} (w : ℕ) (c : Prop) [Decidable c]
     (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
     (Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α) =
       if c then (Memory.spec w).runClient s p₁ else (Memory.spec w).runClient s p₂ := by
   split_ifs <;> rfl
-
-@[client_simps] theorem prog_clientResult_map {α β : Type} (w : ℕ)
-    (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
-    (Memory.spec w).clientResult s (g <$> p : Memory.Prog β) =
-      g ((Memory.spec w).clientResult s p) := by
-  simpa [StateTransitionSpec.clientResult] using congrArg Prod.fst (runClient_map w s g p)
 
 theorem prog_clientState_ite {α : Type} (w : ℕ)
     (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
@@ -476,13 +459,6 @@ theorem runClient_write (w : ℕ) (s : (Memory.spec w).State) (a v : ℕ) :
       ((), ⟨Function.update s.mem a v, s.frontier⟩, [Memory.Op.write a v]) :=
   rfl
 
-theorem clientState_map {α β : Type} (w : ℕ) (f : α → β) (p : Memory.Prog α)
-    (s : Memory.State) :
-    (Memory.spec w).clientState s (f <$> p) = (Memory.spec w).clientState s p := by
-  induction p generalizing s with
-  | pure _ => rfl
-  | liftBind _ _ ih => exact ih _ _
-
 theorem memoryCost_bind_le {α β : Type} {p : Memory.Prog α} {q : α → Memory.Prog β}
     {s : Memory.State} {k₁ k₂ : ℕ} (h₁ : memoryCost p s ≤ k₁)
     (h₂ : ∀ x t, memoryCost (q x) t ≤ k₂) :
@@ -573,7 +549,7 @@ theorem preservesAt_bind {a : ℕ} {α β : Type} {p : Memory.Prog α} {k : α �
 
 theorem preservesAt_map {a : ℕ} {α β : Type} (f : α → β) {p : Memory.Prog α}
     (hp : PreservesAt a p) : PreservesAt a (f <$> p) := fun s => by
-  rw [clientState_map, hp]
+  rw [StateTransitionSpec.clientState_map, hp]
 
 theorem preservesAt_ite {a : ℕ} {α : Type} (c : Prop) [Decidable c]
     {p₁ p₂ : Memory.Prog α} (h₁ : PreservesAt a p₁) (h₂ : PreservesAt a p₂) :

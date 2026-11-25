@@ -4,15 +4,22 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Circuit.Fusion.Converse
+import Mathlib.Tactic.FinCases
 
 /-!
 # Semi-ultrafilter converse clients
 
 The cases include no primary or auxiliary inputs, empty and full targets, the fixed empty
 rejection on an empty carrier, a rejected self-pair, simultaneous acceptance of complementary
-sets, and a nonconstant XOR function with a one-pair cover and a five-AND universal verifier.
+sets, compressed labels for duplicate sets, and a nonconstant XOR function with a one-pair cover
+and a three-AND universal verifier using two auxiliary bits. Ordinary module imports exercise
+the exported compiler and certificate API.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.FusionConverse
 
@@ -83,15 +90,78 @@ example : ∃ a, ∃ g : BooleanFunction (2 + a),
     ∃ c : Circuit Monotone.signature ((2 + a) + (2 + a)) 1,
     forallGuess g = (fun x => x 0 ^^ x 1) ∧
       c.ComputesFrom Monotone.interpretation (single g) AltFormula.literals ∧
-      c.program.cost Monotone.andCost = 5 ∧ a = 3 := by
+      c.program.cost Monotone.andCost = 3 ∧ a = 2 := by
   obtain ⟨cover, hcover⟩ := exists_pairCover_forallGuess xorVerifier xorCircuit xor_computes
   have hc : cover.pairs.length = 1 := hcover
   have hquant : forallGuess xorVerifier = (fun x => x 0 ^^ x 1) := by decide
   obtain ⟨g, c, hg, hcomputes, hcost⟩ := cover.exists_forallGuess (forallGuess xorVerifier)
-  exact ⟨size cover.pairs, g, c, hg.trans hquant, hcomputes, by simpa [hc] using hcost,
-    by simp [size, hc]⟩
+  exact ⟨compactSize cover.pairs, g, c, hg.trans hquant, hcomputes, by simpa [hc] using hcost,
+    by simp [compactSize, hc]⟩
+
+-- Compressing the labels keeps the empty-carrier contradiction even when there are no pairs.
+example : compactInvalid ([] : List (Set (Fin 0) × Set (Fin 0)))
+    (fun _ : Fin 0 => ∅) Fin.elim0 Fin.elim0 := by
+  refine Or.inl (Or.inr (Or.inl ⟨none, ?_, rfl⟩))
+  ext i
+  exact i.elim0
+
+example : ¬ compactInvalid ([] : List (Set Bool × Set Bool))
+    (fun _ : Fin 0 => ∅) Fin.elim0 Fin.elim0 := by
+  rintro (h | ⟨i, _, _⟩ | ⟨i, _, _⟩)
+  · rcases h with ⟨i, _, hi⟩ | ⟨i, hu, _⟩ | ⟨i, _, _⟩
+    · cases i with
+      | none => cases hi
+      | some i => exact i.elim0
+    · cases i with
+      | none =>
+        exact Set.empty_ne_univ (by simpa only [sets, Set.union_empty] using hu)
+      | some i => exact i.elim0
+    · exact i.elim0
+  · exact i.elim0
+  · exact i.elim0
+
+-- Duplicate component sets cannot be assigned contradictory labels.
+example : compactInvalid ([({false}, {false})] : List (Set Bool × Set Bool))
+    (fun _ : Fin 0 => ∅) Fin.elim0 ![true, false] := by
+  refine Or.inr (Or.inr ⟨0, rfl, Or.inl ⟨some (left _ 0), ?_, rfl⟩⟩)
+  simp
+
+-- For a complementary pair with empty intersection, precisely one component must be accepted.
+-- Both false violate the covering condition; both true force acceptance of the empty set.
+example (y : Fin 2 → Bool) :
+    compactInvalid ([({false}, {true})] : List (Set Bool × Set Bool))
+      (fun _ : Fin 0 => ∅) Fin.elim0 y ↔ y 0 = y 1 := by
+  have hpoint (u : Bool) (h₀ : y 0 = !u) (h₁ : y 1 = u) :
+      ¬ compactInvalid ([({false}, {true})] : List (Set Bool × Set Bool))
+        (fun _ : Fin 0 => ∅) Fin.elim0 y := by
+    have hy : y = compactPointLabels ([({false}, {true})] : List (Set Bool × Set Bool)) u := by
+      funext i
+      fin_cases i
+      · change y 0 = pointLabels ([({false}, {true})] : List (Set Bool × Set Bool))
+          u (left _ 0)
+        cases u <;> simpa [pointLabels] using h₀
+      · change y 1 = pointLabels ([({false}, {true})] : List (Set Bool × Set Bool))
+          u (right _ 0)
+        cases u <;> simpa [pointLabels] using h₁
+    rw [← invalid_expandLabels_iff, hy, expandLabels_compactPointLabels]
+    exact not_invalid_pointLabels _ _ _ u (fun i => i.elim0)
+  cases h₀ : y 0 <;> cases h₁ : y 1
+  · refine iff_of_true ?_ rfl
+    refine Or.inr (Or.inl ⟨0, h₀, Or.inr (Or.inl ⟨some (right _ 0), ?_, ?_⟩)⟩)
+    · ext b
+      cases b <;> simp
+    · rw [label, expandLabels_right]
+      change y 1 = false
+      exact h₁
+  · exact iff_of_false (hpoint true h₀ h₁) (by decide)
+  · exact iff_of_false (hpoint false h₀ h₁) (by decide)
+  · refine iff_of_true ?_ rfl
+    refine Or.inl (Or.inl ⟨some (inter _ 0), ?_, ?_⟩)
+    · simp
+    · simp [label, expandLabels_inter, h₀, h₁]
 
 example : econondeterministicAndComplexity (fun x : BitString 2 => x 0 ^^ x 1) ≤ 1 := by
   exact econondeterministicAndComplexity_le_cost xorVerifier (by decide) xorCircuit xor_computes
 
 end CslibFrontierTests.FusionConverse
+

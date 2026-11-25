@@ -19,6 +19,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
 public import CslibFrontier.Tactic.PolyTime.Init
+public import CslibFrontier.Tactic.CertificatePreparation
 
 /-!
 # Synthesizing polynomial-time certificates
@@ -36,8 +37,9 @@ Plain search excludes rules that would start search in the internal tidy calculu
 imported rule is excluded is decided once per file and shared by later calls (#1155); rules of
 the current module are classified by each call.
 
-Goal preparation, shared with `ppt`, runs before the search. `polytime [f, g]` unfolds the hinted
-definitions in the goal and inlines the `let`s they expose. Every form replaces local encoding
+Goal preparation, shared with `ppt`, `logspace` and `space`, runs before the search.
+`polytime [f, g]` unfolds the hinted definitions in the goal and inlines the `let`s they expose.
+Every form replaces local encoding
 `let`s (`let E := encPair encUnary encBits`) by their values in the goal and the hypotheses, and
 adds the certificates stored in fields of local structures (a scheme's `S.decrypt_polyTime`, an
 admissibility hypothesis's `h.guess`, a conjunction's components) as local facts.
@@ -45,7 +47,7 @@ admissibility hypothesis's `h.guess`, a conjunction's components) as local facts
 ## Main definitions
 
 * `polytime`: prove a polynomial-time certificate using the `PolyTime` Aesop rule set.
-* `Cslib.Tactic.PolyTime.Internal.prepareGoal`: the goal preparation shared with `ppt`.
+* `Cslib.Tactic.prepareCertificateGoal`: the preparation shared by efficiency tactics.
 
 ## References
 
@@ -995,94 +997,6 @@ private meta def polytimeFoldAlternative : Lean.Elab.Tactic.TacticM Unit :=
 private meta def polytimeIterateAlternative : Lean.Elab.Tactic.TacticM Unit :=
   polytimeIterate withLocalCall
 
-open Lean Meta in
-/-- Whether a type is an encoding `α ↪ List Bool`, looking through reducible aliases. -/
-private meta def isEncodingType (type : Expr) : MetaM Bool := do
-  let type ← whnfR (← instantiateMVars type)
-  unless type.isAppOfArity ``Function.Embedding 2 do return false
-  return (← whnfR type.getAppArgs[1]!).isAppOfArity ``List 1
-
-open Lean Meta Elab Tactic in
-/-- Replace local encoding `let`s by their values in the goal and in the hypotheses that mention
-them, so that the spelled-out encodings of certificates and rules match. Other local definitions
-keep their names. -/
-private meta def Internal.unfoldEncodingLets : TacticM Unit := withMainContext do
-  let mut lets : Array FVarId := #[]
-  for decl in ← getLCtx do
-    if decl.isLet && !decl.isImplementationDetail && (← isEncodingType decl.type) then
-      lets := lets.push decl.fvarId
-  if lets.isEmpty then return
-  let mut goal ← getMainGoal
-  let target ← instantiateMVars (← goal.getType)
-  if target.hasAnyFVar lets.contains then
-    goal ← goal.replaceTargetDefEq (← zetaDeltaFVars target lets)
-  for decl in ← getLCtx do
-    if decl.isImplementationDetail || decl.isLet then continue
-    let type ← instantiateMVars decl.type
-    if type.hasAnyFVar lets.contains then
-      goal ← goal.replaceLocalDeclDefEq decl.fvarId (← zetaDeltaFVars type lets)
-  replaceMainGoal [goal]
-
-open Lean Meta in
-/-- Whether a proposition, under its universal binders, is a `fun_prop` function property such
-as a polynomial-time or PPT certificate. -/
-private meta def isCertificateFact (type : Expr) : MetaM Bool :=
-  forallTelescopeReducing type fun _ body => do
-    return (← Mathlib.Meta.FunProp.getFunProp? (← instantiateMVars body)).isSome
-
-open Lean Meta in
-/-- The certificates stored in the fields of a structure value or proof, such as the `IsPPTOn`
-fields of a scheme or of an admissibility structure, searching nested structures to `depth`. -/
-private meta def fieldCertificates : Expr → Nat → MetaM (Array Expr)
-  | _, 0 => return #[]
-  | e, depth + 1 => do
-    let type ← whnfR (← instantiateMVars (← inferType e))
-    let some name := type.getAppFn.constName? | return #[]
-    let env ← getEnv
-    unless isStructure env name do return #[]
-    let mut found := #[]
-    for field in getStructureFieldsFlattened env name (includeSubobjectFields := false) do
-      let some projection ← observing? (mkProjection e field) | continue
-      let fieldType ← inferType projection
-      if ← isProp fieldType then
-        if ← isCertificateFact fieldType then
-          found := found.push projection
-          continue
-      found := found ++ (← fieldCertificates projection depth)
-    return found
-
-open Lean Meta Elab Tactic in
-/-- Add the certificates stored in fields of local structures (schemes, admissibility
-structures, conjunctions) as local facts that composition can use directly. Facts already in
-the context are not repeated. -/
-private meta def Internal.exposeFieldCertificates : TacticM Unit := withMainContext do
-  let mut goal ← getMainGoal
-  for decl in ← getLCtx do
-    if decl.isImplementationDetail || decl.isLet then continue
-    for proof in ← fieldCertificates decl.toExpr 2 do
-      let type ← inferType proof
-      let known ← goal.withContext do
-        (← getLCtx).anyM fun other => do
-          if other.isImplementationDetail then return false
-          withReducible <| isDefEq other.type type
-      unless known do
-        let (_, next) ← goal.note (← mkFreshUserName `field) proof
-        goal := next
-  replaceMainGoal [goal]
-
-open Lean Meta Elab Tactic in
-/-- Prepare a certificate goal: unfold the hinted definitions, inline literal `let`s in the goal,
-unfold local encoding `let`s, and expose certificates stored in fields of local structures.
-Inlining does not unfold named programs or change their certificate lookup. -/
-meta def Internal.prepareGoal (hints : Array Ident) : TacticM Unit := do
-  unless hints.isEmpty do
-    evalTactic (← `(tactic| unfold $hints*))
-  liftMetaTactic1 fun goal => do
-    goal.replaceTargetDefEq (← zetaReduce (← instantiateMVars (← goal.getType))
-      (zetaDelta := !hints.isEmpty))
-  Internal.unfoldEncodingLets
-  Internal.exposeFieldCertificates
-
 /-- Prove a polynomial-time certificate from known routines and controlled loop rules.
 
 `polytime [f, g]` first unfolds the definitions `f` and `g` in the goal. Before searching, every
@@ -1099,7 +1013,7 @@ open Lean Elab Tactic in
   let hints := match stx with
     | `(tactic| polytime [$hints,*]) => hints.getElems
     | _ => #[]
-  withMainContext do Internal.prepareGoal hints
+  withMainContext do prepareCertificateGoal hints
   Internal.withFailureHint "polytime" <| Internal.withPlainRuleCache do
     evalTactic (← `(tactic| solve |
       aesop
