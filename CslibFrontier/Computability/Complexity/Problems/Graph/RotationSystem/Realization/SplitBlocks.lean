@@ -404,15 +404,14 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
   rcases r.contractionLift_rotate_cases huv d.val with h | ⟨h, h'⟩ | ⟨h, h'⟩ |
     ⟨h, hfix, h'⟩ | ⟨h, hfix, h'⟩
   · change r.rotate a = b at h
-    have hab : a.vertex = b.vertex := (r.vertex_rotate a).symm.trans (congrArg Dart.vertex h)
+    have hab := vrot h
     by_cases hav : a.vertex = v
     · have hbv : b.vertex = v := hab.symm.trans hav
       have hoa : oV.vertex = a.vertex := hvV.trans hav.symm
       have hsucc := r.rotationDistance_rotate_of_ne oV a hoa (h ▸ hbV)
       rw [h] at hsucc
       have hpos := r.rotationDistance_pos_of_ne oV a hoa haV
-      rw [ite_eq_left hav] at hk
-      rw [ite_eq_left hbv] at hl
+      simp only [ite_eq_left hav, ite_eq_left hbv] at hk hl
       exact next (by omega)
     · have hau : a.vertex = u := ((contractionLift_vertex_eq_iff G u v d.val).mp
         d.property).resolve_right hav
@@ -421,8 +420,7 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
       have hsucc := r.rotationDistance_rotate_of_ne oU a hoa (h ▸ hbU)
       rw [h] at hsucc
       have hpos := r.rotationDistance_pos_of_ne oU a hoa haU
-      rw [ite_eq_right hav] at hk
-      rw [ite_eq_right hbv] at hl
+      simp only [ite_eq_right hav, ite_eq_right hbv] at hk hl
       exact next (by omega)
   · change r.rotate a = oV at h
     change r.rotate oU = b at h'
@@ -432,8 +430,7 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
     have hlast := r.rotationDistance_of_rotate_eq oV a (hvV.trans hav.symm) h
     have hpos := r.rotationDistance_pos_of_ne oV a (hvV.trans hav.symm) haV
     have hfirst := first h' hbU
-    rw [ite_eq_left hav] at hk
-    rw [ite_eq_right hbv] at hl
+    simp only [ite_eq_left hav, ite_eq_right hbv] at hk hl
     exact next (by dsimp [nV] at *; omega)
   · change r.rotate a = oU at h
     change r.rotate oV = b at h'
@@ -443,8 +440,7 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
     have hlast := r.rotationDistance_of_rotate_eq oU a (hvU.trans hau.symm) h
     have hpos := r.rotationDistance_pos_of_ne oU a (hvU.trans hau.symm) haU
     have hfirst := first h' hbV
-    rw [ite_eq_right hav] at hk
-    rw [ite_eq_left hbv] at hl
+    simp only [ite_eq_right hav, ite_eq_left hbv] at hk hl
     exact wrap (by dsimp [nU] at *; omega) (by omega)
   · change r.rotate a = oV at h
     change r.rotate oU = oU at hfix
@@ -456,8 +452,7 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
     have hfirst := first h' hbV
     have hperiod := Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix
     have hU : nU = 0 := by simp only [nU, hperiod, Nat.sub_self]
-    rw [ite_eq_left hav] at hk
-    rw [ite_eq_left hbv] at hl
+    simp only [ite_eq_left hav, ite_eq_left hbv] at hk hl
     exact wrap (by dsimp [nV] at *; omega) (by omega)
   · change r.rotate a = oU at h
     change r.rotate oV = oV at hfix
@@ -471,8 +466,7 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
     have hfirst := first h' hbU
     have hperiod := Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix
     have hV : nV = 0 := by simp only [nV, hperiod, Nat.sub_self]
-    rw [ite_eq_right hav] at hk
-    rw [ite_eq_right hbv] at hl
+    simp only [ite_eq_right hav, ite_eq_right hbv] at hk hl
     exact wrap (by dsimp [nU] at *; omega) (by omega)
 
 /-- Whenever the contracted vertex has a retained dart, its block rank zero is an
