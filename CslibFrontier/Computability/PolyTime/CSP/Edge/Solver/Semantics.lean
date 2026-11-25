@@ -120,7 +120,8 @@ theorem decideSAT_eq_true (F : CSP Table ℕ) :
     decideSAT F = true ↔ checkModel F = true ∧ F.Satisfiable Table.sem := by
   by_cases hm : checkModel F = true
   · obtain ⟨bits, hb, ho⟩ := optimize_spec F hm
-    have hz : (defects (EdgeAugmenting.labeling F bits)).card = 0 ↔ F.Satisfiable Table.sem := by
+    have hz : (defects (EdgeAugmenting.labeling F bits)).card = 0 ↔
+        F.Satisfiable Table.sem := by
       rw [satisfiable_iff_exists_zero_defects Table.sem]
       exact ⟨fun h => ⟨_, ho.1, h⟩, fun ⟨g, hg, _⟩ => by have := ho.2 g hg; omega⟩
     have hh := (no_inconsistent_iff F bits).trans hz

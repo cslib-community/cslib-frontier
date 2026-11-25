@@ -72,7 +72,10 @@ private theorem lem_count_interleave (k E : ℕ) : stateCount E ^ k ≤ stateCou
         fun _ => by simp).symm
   · change energy (interleave k fun r => (s r).1) + energy (interleave k fun r => (s r.rev).2) ≤ _
     rw [energy_interleave s fun r => (hs' r).1, mul_assoc]
-    exact Nat.mul_le_mul_left _ ((Finset.sum_le_sum fun r _ => (hs' r).2).trans_eq (by simp))
+    refine Nat.mul_le_mul_left _ ?_
+    calc ∑ r, (energy (s r).1 + energy (s r).2) ≤ ∑ _r : Fin k, E :=
+          Finset.sum_le_sum fun r _ => (hs' r).2
+      _ = k * E := by simp
 
 /-- Proof of Lemma B.1: for `0 < t < 1`, the number of sets `S` with `∑_{i ∈ S} (2 i + 1) ≤ E` is
 at most `t^(-E) ∏_i (1 + t^(2 i + 1)) ≤ t^(-E) e^(1 / (1 - t))`. -/
@@ -94,8 +97,10 @@ private theorem lem_count_sets (E : ℕ) {t : ℝ} (h0 : 0 < t) (h1 : t < 1) :
     _ = Real.exp (∑ i ∈ range E, t ^ i) := (Real.exp_sum _ _).symm
     _ ≤ Real.exp (1 / (1 - t)) := Real.exp_le_exp.2 <| by
         rw [geom_sum_eq h1.ne, one_div, ← neg_div_neg_eq, neg_sub, neg_sub, div_eq_mul_inv]
-        exact (mul_le_mul_of_nonneg_right (by linarith [pow_pos h0 E])
-          (inv_nonneg.2 (by linarith))).trans_eq (one_mul _)
+        calc (1 - t ^ E) * (1 - t)⁻¹ ≤ 1 * (1 - t)⁻¹ :=
+              mul_le_mul_of_nonneg_right (by linarith [pow_pos h0 E])
+                (inv_nonneg.2 (by linarith))
+          _ = _ := one_mul _
 
 /-- Proof of Lemma B.1: a state is a pair of such sets, and `1 - t = 1 / (2 √E)` gives
 `log P(E) ≤ 10 √E` for `E ≥ 1`. -/
@@ -136,10 +141,13 @@ private theorem lem_count_upper {E : ℕ} (hE : 1 ≤ E) : Real.log (stateCount 
           exact Real.exp_le_exp.2 (by linarith)
   change logLowStates E ≤ _
   rw [logLowStates, Real.log_le_iff_le_exp (by exact_mod_cast lowStates_card_pos E)]
-  exact (show ((lowStates E).card : ℝ) ≤ (lowSets E).card * (lowSets E).card by
-      exact_mod_cast card_lowStates_le E).trans <|
-    (mul_le_mul h2 h2 (Nat.cast_nonneg _) (Real.exp_pos _).le).trans_eq
-      (by rw [← Real.exp_add]; ring_nf)
+  calc ((lowStates E).card : ℝ) ≤ (lowSets E).card * (lowSets E).card := by
+        exact_mod_cast card_lowStates_le E
+    _ ≤ Real.exp (5 * Real.sqrt E) * Real.exp (5 * Real.sqrt E) :=
+        mul_le_mul h2 h2 (Nat.cast_nonneg _) (Real.exp_pos _).le
+    _ = _ := by
+        rw [← Real.exp_add]
+        ring_nf
 
 /-- **Paper: Lemma B.1.** There is `κ > 0` with `log P(E) ≤ κ √E` for all `E`, and
 `log P(E) ≥ (κ - ε) √E` for every `ε > 0` and all large `E`. -/

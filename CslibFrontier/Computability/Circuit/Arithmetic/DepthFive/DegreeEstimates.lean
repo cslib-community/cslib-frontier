@@ -61,7 +61,8 @@ theorem Good.q_le_one (hp : p.Good) : p.q ≤ 1 := hp.q_le_half.trans (by norm_n
 theorem Good.q_rpow_quarter_le (hp : p.Good) : p.q ^ (1 / 4 : ℝ) ≤ 1 / 4 := by
   calc p.q ^ (1 / 4 : ℝ) ≤ ((p.n : ℝ) ^ (-(2 : ℝ) / 5)) ^ (1 / 4 : ℝ) :=
         Real.rpow_le_rpow hp.q_pos.le hp.q_le_rpow (by norm_num)
-    _ = (p.n : ℝ) ^ (-(1 : ℝ) / 10) := by rw [← Real.rpow_mul p.n.cast_nonneg]; norm_num
+    _ = (p.n : ℝ) ^ (-(1 : ℝ) / 10) := by
+        rw [← Real.rpow_mul p.n.cast_nonneg]; norm_num
     _ ≤ ((2 : ℝ) ^ 20) ^ (-(1 : ℝ) / 10) :=
         Real.rpow_le_rpow_of_nonpos (by positivity) (by exact_mod_cast hp.n_ge) (by norm_num)
     _ = 1 / 4 := by

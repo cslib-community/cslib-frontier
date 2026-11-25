@@ -202,7 +202,8 @@ private theorem card_filter_pow_le {S : Finset V} (hS : 0 < #S)
   set k := #S - (#S - 1) / 10
   have hn : (0 : ℝ) < n := Nat.cast_pos.2 (by omega)
   have hc : (#{σ : Perm V | k ≤ #{v ∈ S | σ v ∈ S}} : ℝ) * (2 * n) ^ k ≤
-      3 ^ #S * #S ^ k * n ! := by exact_mod_cast card_filter_mul_pow_le S (k := k) (by omega)
+      3 ^ #S * #S ^ k * n ! := by
+    exact_mod_cast card_filter_mul_pow_le S (k := k) (by omega)
   have h1 : (#{σ : Perm V | k ≤ #{v ∈ S | σ v ∈ S}} : ℝ) ≤
       n ! * (3 ^ #S * (#S / (2 * n)) ^ k) := by
     rw [div_pow, ← mul_div_assoc, ← mul_div_assoc, le_div_iff₀ (by positivity)]

@@ -178,7 +178,8 @@ theorem orthogonalRoutes_wireLength_le (G : Graph) (ports : List (Fin 3 × Fin 3
       (List.idxOf_lt_length_iff.2 hm.2) _ _
   calc
     _ ≤ ((G.orthogonalRoutes ports).map fun _ =>
-          80 * G.vertices.length + 10 * G.edges.length).sum := List.sum_le_sum hbound
+          80 * G.vertices.length + 10 * G.edges.length).sum :=
+      List.sum_le_sum hbound
     _ = G.edges.length * (80 * G.vertices.length + 10 * G.edges.length) := by simp
     _ ≤ 90 * (G.vertices.length + G.edges.length) ^ 2 := by nlinarith
 

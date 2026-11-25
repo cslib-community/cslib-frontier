@@ -80,7 +80,8 @@ theorem crt_firstCircleFlag_sign (m : ι → ℤ) (c : ℕ → ι → ℤ) (X : 
     ∃ k ≤ K, FirstCircleFlag t (fun j => crtCircleApprox m B (c j)) k ∧
       (0 < X ↔ crtCircleApprox m B (c k) < 1 / 2) ∧
       (X < 0 ↔ 1 / 2 < crtCircleApprox m B (c k)) := by
-  have hP : (0 : ℚ) < (∏ i, m i : ℤ) := by exact_mod_cast prod_pos fun i _ => hm i
+  have hP : (0 : ℚ) < (∏ i, m i : ℤ) := by
+    exact_mod_cast prod_pos fun i _ => hm i
   let q : ℚ := (X : ℚ) / (∏ i, m i : ℤ)
   have hstart : |q| < a := by
     simpa only [q, abs_div, abs_of_pos hP, div_lt_iff₀ hP] using hmag

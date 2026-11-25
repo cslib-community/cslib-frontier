@@ -282,7 +282,8 @@ theorem isSubmodular_sum {ι : Type*} {α : Type*} {β : Type*} [DecidableEq α]
     IsSubmodular (fun S => ∑ i ∈ s, g i S) := by
   classical
   induction s using Finset.induction with
-  | empty => simpa using isSubmodular_const (α := α) (0 : β)
+  | empty =>
+    simpa using isSubmodular_const (α := α) (0 : β)
   | insert i s' hi ih =>
     intro A B
     simpa [Finset.sum_insert hi] using
@@ -297,7 +298,8 @@ theorem IsSubmodular.nsmul {α : Type*} {β : Type*} [DecidableEq α]
   | zero =>
     intro _ _
     simp
-  | succ m ih => simpa [succ_nsmul] using ih.add hf
+  | succ m ih =>
+    simpa [succ_nsmul] using ih.add hf
 
 /-- Truncating a monotone function above at a constant `c` (`fun S => min (f S) c`) preserves
 monotonicity. -/

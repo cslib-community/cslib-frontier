@@ -207,8 +207,10 @@ theorem stepValue_spec (a b : BitVec k) :
     have hn : 1 < 2 ^ k := by have := a.isLt; omega
     have hsum : (b + 1).toNat = b.toNat + 1 := by
       simp [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hn, Nat.mod_eq_of_lt hs]
-    have he : b + 1 = a ↔ b.toNat + 1 = a.toNat := by rw [← BitVec.toNat_inj, hsum]
-    simp only [stepValue, BitVec.ult, decide_eq_true_eq, h, ite_true, he, advance, ha, and_self]
+    have he : b + 1 = a ↔ b.toNat + 1 = a.toNat := by
+      rw [← BitVec.toNat_inj, hsum]
+    simp only [stepValue, BitVec.ult, decide_eq_true_eq, h, ite_true, he, advance,
+      ha, and_self]
     split_ifs with heq
     · exact BitVec.eq_of_toNat_eq (by simp [heq])
     · exact BitVec.eq_of_toNat_eq (by

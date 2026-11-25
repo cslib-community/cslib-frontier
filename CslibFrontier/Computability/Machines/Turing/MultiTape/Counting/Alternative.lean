@@ -139,7 +139,8 @@ theorem runList_alternative (first : MultiTapeCTM k Symbol State₀)
       [jump (some (.inl first.initial)), jump (some (.inr second.initial))] := by
     simp [actions, Cfg.init, alternative]
   have hjump (state : Option (State₀ ⊕ State₁)) : (jump (k := k) state).apply
-      (Cfg.init (alternative first second).initial input) = Cfg.init state input := by
+      (Cfg.init (alternative first second).initial input) =
+        Cfg.init state input := by
     simp [jump, Turing.Action.apply, Cfg.init, moveInputPos, alternative]
   rw [runList_succ _ _ fuel none rfl, ha]
   simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, hjump]

@@ -63,7 +63,8 @@ theorem integral_fourierChar_tsum_translate {L : Submodule ℤ E} [Countable L]
     inferInstanceAs (VAddInvariantMeasure L.toAddSubgroup E volume)
   let g : E → ℂ := fun x => Real.fourierChar (-⟪x, w⟫) • f x
   have hg : Integrable g := (Real.fourierIntegral_convergent_iff w).2 hf
-  have hinv (z : L) (x : E) : Real.fourierChar (-⟪x + z, w⟫) = Real.fourierChar (-⟪x, w⟫) := by
+  have hinv (z : L) (x : E) :
+      Real.fourierChar (-⟪x + z, w⟫) = Real.fourierChar (-⟪x, w⟫) := by
     simp only [inner_add_left, neg_add, AddChar.map_add_eq_mul, AddChar.map_neg_eq_inv,
       fourierChar_inner_eq_one hw z, inv_one, mul_one]
   calc

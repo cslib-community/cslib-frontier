@@ -71,13 +71,19 @@ theorem foldlM_run_except {σ ε β γ : Type u} (g : β → γ → StateT σ (E
         x.bind fun p => l.foldl (fun acc c => acc.bind fun p => (g p.1 c).run p.2) (.ok p) := by
     induction l generalizing x with
     | nil => cases x <;> rfl
-    | cons c l ih => cases x with | error e => exact ih (.error e) | ok p => rfl
+    | cons c l ih =>
+      cases x with
+      | error e => exact (ih (.error e)).trans rfl
+      | ok p => rfl
   induction l generalizing b s with
   | nil => rfl
   | cons c l ih =>
     rw [List.foldlM_cons, StateT.run_bind, List.foldl_cons]
-    change Except.bind _ _ = l.foldl _ ((g b c).run s)
+    change _ = l.foldl _ ((g b c).run s)
     rw [hsplit]
-    exact congrArg (Except.bind _) (funext fun p => ih p.1 p.2)
+    change Except.bind _ _ = Except.bind _ _
+    congr 1
+    funext p
+    exact ih p.1 p.2
 
 end StateT

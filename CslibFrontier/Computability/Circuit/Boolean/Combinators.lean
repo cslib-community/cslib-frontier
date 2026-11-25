@@ -71,7 +71,8 @@ theorem complexity_decide_forall_mem_le {ι : Type*} (s : Finset ι)
   classical
   obtain rfl : dec = fun x => Finset.decidableDforallFinset := Subsingleton.elim _ _
   induction s using Finset.induction_on with
-  | empty => simpa using (Synthesis.const (s := inputs n) true).complexity_le
+  | empty =>
+    simpa using (Synthesis.const (s := inputs n) true).complexity_le
   | insert i s hi ih =>
     have heq : (fun x => decide (∀ j ∈ insert i s, F j x = true)) =
         fun x => F i x && decide (∀ j ∈ s, F j x = true) := by
@@ -93,7 +94,8 @@ theorem complexity_decide_exists_mem_le {ι : Type*} (s : Finset ι)
   classical
   obtain rfl : dec = fun x => Finset.decidableExistsAndFinset := Subsingleton.elim _ _
   induction s using Finset.induction_on with
-  | empty => simpa using (Synthesis.const (s := inputs n) false).complexity_le
+  | empty =>
+    simpa using (Synthesis.const (s := inputs n) false).complexity_le
   | insert i s hi ih =>
     have heq : (fun x => decide (∃ j ∈ insert i s, F j x = true)) =
         fun x => F i x || decide (∃ j ∈ s, F j x = true) := by
