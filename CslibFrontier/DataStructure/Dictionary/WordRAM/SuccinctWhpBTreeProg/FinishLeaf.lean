@@ -195,6 +195,22 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       rw [clientState_laneGetGenProg]
       split_ifs <;> exact validProg_pure _
     · exact validProg_pure _
+  set p0 := (mkWhpCoreParams c U V w n_max, base)
+  set P : Memory.Prog Unit :=
+    readBTreeNodeGenProg ((p0, sIdx), leafIdx) >>= fun nd =>
+      swarRankGenProg (p0.1, ((nd.1 / 2, q), nd.2.1)) >>= fun r0 =>
+      (if r0 < nd.1 / 2 then
+        laneGetGenProg ((keyLaneBitsWhp n_max, nd.2.1), r0) >>= fun k_r =>
+        if k_r = q then pure 1 else pure 0
+      else pure 0) >>= fun ht =>
+      if ht = 1 then
+        wordUpdateAtGenProg (((valLaneBitsWhp n_max, r0), val), nd.2.2) >>= fun v' =>
+        writeBTreeNodeGenProg (((p0, sIdx), leafIdx), (nd.1, (nd.2.1, v')))
+      else
+        wordInsertAtGenProg (((keyLaneBitsWhp n_max, r0), q), nd.2.1) >>= fun k' =>
+        wordInsertAtGenProg (((valLaneBitsWhp n_max, r0), val), nd.2.2) >>= fun v' =>
+        writeBTreeNodeGenProg (((p0, sIdx), leafIdx), (1 + 2 * (nd.1 / 2 + 1), (k', v')))
+    with hP
   by_cases hhit : r < cnt ∧ laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r = q
   · obtain ⟨hrc, hkeq⟩ := hhit
     have hhit_res : (Memory.spec 0).clientResult s hitProg = 1 := by
@@ -223,26 +239,10 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       writeBTreeNodeGenProg_spec (nd := nd') henv hsIdx (hleaf_lt.trans_le hrep.1)
         hm_lt hk_lt hv'_lt (s := s)
     dsimp only at hwn_fr hwn_mc hwn_vp hwn_up hwn_other hwn_out
-    set p0 := (mkWhpCoreParams c U V w n_max, base)
-    have hs'_wn : (Memory.spec 0).clientState s
-        (readBTreeNodeGenProg ((p0, sIdx), leafIdx) >>= fun nd =>
-          swarRankGenProg (p0.1, ((nd.1 / 2, q), nd.2.1)) >>= fun r0 =>
-          (if r0 < nd.1 / 2 then
-            laneGetGenProg ((keyLaneBitsWhp n_max, nd.2.1), r0) >>= fun k_r =>
-            if k_r = q then pure 1 else pure 0
-          else pure 0) >>= fun ht =>
-          if ht = 1 then
-            wordUpdateAtGenProg (((valLaneBitsWhp n_max, r0), val), nd.2.2) >>= fun v' =>
-            writeBTreeNodeGenProg (((p0, sIdx), leafIdx), (nd.1, (nd.2.1, v')))
-          else
-            wordInsertAtGenProg (((keyLaneBitsWhp n_max, r0), q), nd.2.1) >>= fun k' =>
-            wordInsertAtGenProg (((valLaneBitsWhp n_max, r0), val), nd.2.2) >>= fun v' =>
-            writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
-              (1 + 2 * (nd.1 / 2 + 1), (k', v')))) =
-        (Memory.spec 0).clientState s
-          (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
-            (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) := by
-      rw [clientState_bind, hnd_st, hnd_res,
+    have hs'_wn : (Memory.spec 0).clientState s P = (Memory.spec 0).clientState s
+        (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
+          (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) := by
+      rw [hP, clientState_bind, hnd_st, hnd_res,
         clientState_bind, clientState_swarRankGenProg,
         clientResult_swarRankGenProg hth, hcnt_div, hr_def]
       change (Memory.spec 0).clientState s (hitProg >>= _) = _
@@ -252,7 +252,7 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
         clientResult_wordUpdateAtGenProg]
     rw [hs'_wn]
     refine ⟨hwn_fr, ?_, ?_, ?_, hwn_other, hwn_out⟩
-    · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res]
+    · rw [hP, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res]
       rw [← PFunctor.FreeM.bind_eq_bind]
       rw [memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg,
         clientResult_swarRankGenProg hth, hcnt_div, hr_def]
@@ -261,7 +261,7 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       simp only [↓reduceIte]
       rw [memoryCost_bind, clientState_wordUpdateAtGenProg, memoryCost_wordUpdateAtGenProg,
         memoryCost_writeBTreeNodeGenProg]
-    · refine validProg_bind hnd_vp ?_
+    · rw [hP]; refine validProg_bind hnd_vp ?_
       rw [hnd_st, hnd_res]
       refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
       rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth, hcnt_div, hr_def]
@@ -284,11 +284,12 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
         (hbm_eq _ (by omega)).trans hrep.2.2.1,
         hwn_up sl hrep.1 fun v hv _ => hrep.2.2.2 v hv⟩
   · -- Miss: insert `(q, val)` at lane `r` (`cnt + 1 ≤ 2 * tMin - 1`)
+    have hne : r < cnt → laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r ≠ q :=
+      fun hrc heq => hhit ⟨hrc, heq⟩
     have hhit_res : (Memory.spec 0).clientResult s hitProg = 0 := by
       dsimp only [hitProg]
       by_cases hrc : r < cnt
-      · have hne : laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r ≠ q :=
-          fun heq => hhit ⟨hrc, heq⟩
+      · have hne := hne hrc
         simp only [hrc, ↓reduceIte]
         rw [clientResult_bind, clientState_laneGetGenProg,
           clientResult_laneGetGenProg]
@@ -303,8 +304,7 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
               wordInsertAt (valLaneBitsWhp n_max) r val (sl.nodes leafIdx).valsWord⟩) } := by
       unfold finishLeafInsert
       by_cases hrc : r < cnt
-      · have hne : laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r ≠ q :=
-          fun heq => hhit ⟨hrc, heq⟩
+      · have hne := hne hrc
         simp [cnt, r, hrc, hne]
       · simp [cnt, r, hrc]
     let nd' : BTreeNode :=
@@ -331,26 +331,10 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       writeBTreeNodeGenProg_spec (nd := nd') henv hsIdx (hleaf_lt.trans_le hrep.1)
         hm'_lt hk'_lt hv'_lt (s := s)
     dsimp only at hwn_fr hwn_mc hwn_vp hwn_up hwn_other hwn_out
-    set p0 := (mkWhpCoreParams c U V w n_max, base)
-    have hs'_wn : (Memory.spec 0).clientState s
-        (readBTreeNodeGenProg ((p0, sIdx), leafIdx) >>= fun nd =>
-          swarRankGenProg (p0.1, ((nd.1 / 2, q), nd.2.1)) >>= fun r0 =>
-          (if r0 < nd.1 / 2 then
-            laneGetGenProg ((keyLaneBitsWhp n_max, nd.2.1), r0) >>= fun k_r =>
-            if k_r = q then pure 1 else pure 0
-          else pure 0) >>= fun ht =>
-          if ht = 1 then
-            wordUpdateAtGenProg (((valLaneBitsWhp n_max, r0), val), nd.2.2) >>= fun v' =>
-            writeBTreeNodeGenProg (((p0, sIdx), leafIdx), (nd.1, (nd.2.1, v')))
-          else
-            wordInsertAtGenProg (((keyLaneBitsWhp n_max, r0), q), nd.2.1) >>= fun k' =>
-            wordInsertAtGenProg (((valLaneBitsWhp n_max, r0), val), nd.2.2) >>= fun v' =>
-            writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
-              (1 + 2 * (nd.1 / 2 + 1), (k', v')))) =
-        (Memory.spec 0).clientState s
-          (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
-            (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) := by
-      rw [clientState_bind, hnd_st, hnd_res,
+    have hs'_wn : (Memory.spec 0).clientState s P = (Memory.spec 0).clientState s
+        (writeBTreeNodeGenProg (((p0, sIdx), leafIdx),
+          (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) := by
+      rw [hP, clientState_bind, hnd_st, hnd_res,
         clientState_bind, clientState_swarRankGenProg,
         clientResult_swarRankGenProg hth, hcnt_div, hr_def]
       change (Memory.spec 0).clientState s (hitProg >>= _) = _
@@ -364,7 +348,7 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       rfl
     rw [hs'_wn]
     refine ⟨hwn_fr, ?_, ?_, ?_, hwn_other, hwn_out⟩
-    · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res]
+    · rw [hP, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res]
       rw [← PFunctor.FreeM.bind_eq_bind]
       rw [memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg,
         clientResult_swarRankGenProg hth, hcnt_div, hr_def]
@@ -374,7 +358,7 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       rw [memoryCost_bind, clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg]
       rw [memoryCost_bind, clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg,
         memoryCost_writeBTreeNodeGenProg]
-    · refine validProg_bind hnd_vp ?_
+    · rw [hP]; refine validProg_bind hnd_vp ?_
       rw [hnd_st, hnd_res]
       refine validProg_bind (validWhpProg_swarRankGenProg _) ?_
       rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth, hcnt_div, hr_def]
