@@ -73,6 +73,43 @@ private theorem stepWeight_mul_stepWeight {r : ℕ} (hr : 2 ≤ r) (θ : ℝ) (e
   rw [hk1, mul_comm (√(((hyperEdge c e.1).card : ℝ) - 1)) (√(r : ℝ)), div_mul_div_comm,
     mul_self_sqrt (mul_nonneg (sqrt_nonneg _) (sqrt_nonneg _)), ← sqrt_mul hr0, ← pow_two]
 
+/-- Shared final step of the correlation bounds: if the nonnegative rows `a, b` dominate `q` times
+the previous-step rows `b₀, a₀` coordinatewise, the boundary mass where `a > a₀` or `b > b₀` is at
+most `E`, and `0 < P ≤ ‖a‖ ‖b‖`, then the normalized inner product is at least
+`2 q / (1 + q²) - E / P`. -/
+private theorem two_mul_div_sub_le_inner_normalize {ι : Type*} [Fintype ι] {q E P : ℝ}
+    (hq0 : 0 ≤ q) (hq1 : q ≤ 1) {a b a₀ b₀ : ι → ℝ} (ha : ∀ z, 0 ≤ a z) (hb : ∀ z, 0 ≤ b z)
+    (hab : ∀ z, q * b₀ z ≤ a z) (hba : ∀ z, q * a₀ z ≤ b z)
+    (hE : (∑ z with a₀ z < a z, a z ^ 2) + ∑ z with b₀ z < b z, b z ^ 2 ≤ E)
+    (hP : 0 < P) (hPab : P ≤ ‖WithLp.toLp 2 a‖ * ‖WithLp.toLp 2 b‖) :
+    2 * q / (1 + q ^ 2) - E / P ≤
+      ⟪‖WithLp.toLp 2 a‖⁻¹ • WithLp.toLp 2 a, ‖WithLp.toLp 2 b‖⁻¹ • WithLp.toLp 2 b⟫ := by
+  set A := WithLp.toLp 2 a
+  set B := WithLp.toLp 2 b
+  have hdef : 2 * q / (1 + q ^ 2) * (‖A‖ ^ 2 + ‖B‖ ^ 2) / 2 - ⟪A, B⟫ ≤ E := by
+    rw [EuclideanSpace.real_norm_sq_eq, EuclideanSpace.real_norm_sq_eq, PiLp.inner_apply]
+    simp only [RCLike.inner_apply, conj_trivial]
+    have hrew : 2 * q / (1 + q ^ 2) * ((∑ z, A z ^ 2) + ∑ z, B z ^ 2) / 2 - ∑ z, B z * A z =
+        ∑ z, (2 * q / (1 + q ^ 2) * (A z ^ 2 + B z ^ 2) / 2 - A z * B z) := by
+      rw [Finset.sum_sub_distrib, ← Finset.sum_div, ← Finset.mul_sum, Finset.sum_add_distrib]
+      simp only [mul_comm (B _)]
+    rw [hrew]
+    refine (Finset.sum_le_sum fun z _ =>
+      two_mul_div_step_defect_le hq0 hq1 (ha z) (hb z) (hab z) (hba z)).trans ?_
+    rwa [Finset.sum_add_distrib, ← Finset.sum_filter, ← Finset.sum_filter]
+  have hE0 : 0 ≤ E := (add_nonneg (Finset.sum_nonneg fun _ _ => sq_nonneg _)
+    (Finset.sum_nonneg fun _ _ => sq_nonneg _)).trans hE
+  have hκ0 : 0 ≤ 2 * q / (1 + q ^ 2) := by positivity
+  have hamgm : 2 * ‖A‖ * ‖B‖ ≤ ‖A‖ ^ 2 + ‖B‖ ^ 2 := by nlinarith [sq_nonneg (‖A‖ - ‖B‖)]
+  have hinner : 2 * q / (1 + q ^ 2) * (‖A‖ * ‖B‖) - E ≤ ⟪A, B⟫ := by
+    nlinarith [mul_le_mul_of_nonneg_left hamgm hκ0]
+  have hEP : E ≤ E / P * (‖A‖ * ‖B‖) := by
+    rw [div_mul_eq_mul_div, le_div_iff₀ hP]
+    exact mul_le_mul_of_nonneg_left hPab hE0
+  rw [real_inner_smul_left, real_inner_smul_right, ← mul_assoc, ← mul_inv, inv_mul_eq_div,
+    le_div_iff₀ (hP.trans_le hPab), sub_mul]
+  linarith
+
 /-- **Two-step pairwise correlation lower bound:** for `S ≥ 1` and `u, v ∈ hyperEdge c e.1`,
 `⟪hyperUnitRow u, hyperUnitRow v⟫ ≥ 2 q₂' / (1 + q₂'²) - 4 D θ ^ (4S - 2)` where
 `q₂' = θ² / √(r (k - 1))`. -/
@@ -93,70 +130,27 @@ private theorem twoStep_le_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤ r) (hfan : c
     exact (div_le_self (sq_nonneg θ) h1).trans (pow_le_one₀ hθ0.le hθ1)
   set m := 2 * S - 2
   have hm2 : m + 2 = 2 * S := by omega
-  let a := WithLp.toLp 2 (walkMax c K₀ r θ (2 * S) (.inl u))
-  let b := WithLp.toLp 2 (walkMax c K₀ r θ (2 * S) (.inl v))
-  have ha1 : 1 ≤ ‖a‖ := one_le_norm_walkMax c K₀ r θ (2 * S) u
-  have hb1 : 1 ≤ ‖b‖ := one_le_norm_walkMax c K₀ r θ (2 * S) v
-  have ha_pos : 0 < ‖a‖ := zero_lt_one.trans_le ha1
-  have hb_pos : 0 < ‖b‖ := zero_lt_one.trans_le hb1
-  have hstep_uv (z : HyperNode c) :
-      q₂' * walkMax c K₀ r θ m (.inl v) z ≤ walkMax c K₀ r θ (2 * S) (.inl u) z := by
-    rw [← hm2, show q₂' = stepWeight c K₀ r θ (.inl u) (.inr e) *
-        stepWeight c K₀ r θ (.inr e) (.inl v) from
-      (stepWeight_mul_stepWeight c K₀ hr θ e u v).symm, mul_assoc]
+  have hstep {x y : HyperNode c} (hx : x ∈ hyperEdge c e.1) (hy : y ∈ hyperEdge c e.1)
+      (z : HyperNode c) :
+      q₂' * walkMax c K₀ r θ m (.inl y) z ≤ walkMax c K₀ r θ (2 * S) (.inl x) z := by
+    rw [← hm2, show q₂' = stepWeight c K₀ r θ (.inl x) (.inr e) *
+        stepWeight c K₀ r θ (.inr e) (.inl y) from
+      (stepWeight_mul_stepWeight c K₀ hr θ e x y).symm, mul_assoc]
     exact (mul_le_mul_of_nonneg_left
-      (step_mul_walkMax_le c K₀ r θ m (x := .inr e) (y := .inl v) hv z)
+      (step_mul_walkMax_le c K₀ r θ m (x := .inr e) (y := .inl y) hy z)
       (stepWeight_nonneg c K₀ r hθ0.le _ _)).trans
-      (step_mul_walkMax_le c K₀ r θ (m + 1) (x := .inl u) (y := .inr e) hu z)
-  have hstep_vu (z : HyperNode c) :
-      q₂' * walkMax c K₀ r θ m (.inl u) z ≤ walkMax c K₀ r θ (2 * S) (.inl v) z := by
-    rw [← hm2, show q₂' = stepWeight c K₀ r θ (.inl v) (.inr e) *
-        stepWeight c K₀ r θ (.inr e) (.inl u) from
-      (stepWeight_mul_stepWeight c K₀ hr θ e v u).symm, mul_assoc]
-    exact (mul_le_mul_of_nonneg_left
-      (step_mul_walkMax_le c K₀ r θ m (x := .inr e) (y := .inl u) hu z)
-      (stepWeight_nonneg c K₀ r hθ0.le _ _)).trans
-      (step_mul_walkMax_le c K₀ r θ (m + 1) (x := .inl v) (y := .inr e) hv z)
-  have hsum_def : 2 * q₂' / (1 + q₂' ^ 2) * (‖a‖ ^ 2 + ‖b‖ ^ 2) / 2 - ⟪a, b⟫ ≤
-      4 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S - 2) := by
-    rw [EuclideanSpace.real_norm_sq_eq, EuclideanSpace.real_norm_sq_eq, PiLp.inner_apply]
-    simp only [RCLike.inner_apply, conj_trivial]
-    have hrew : 2 * q₂' / (1 + q₂' ^ 2) * ((∑ z, a z ^ 2) + ∑ z, b z ^ 2) / 2 -
-          ∑ z, b z * a z =
-        ∑ z, (2 * q₂' / (1 + q₂' ^ 2) * (a z ^ 2 + b z ^ 2) / 2 - a z * b z) := by
-      rw [Finset.sum_sub_distrib, ← Finset.sum_div, ← Finset.mul_sum, Finset.sum_add_distrib]
-      simp only [mul_comm (b _)]
-    rw [hrew]
-    have hpt (z : HyperNode c) := two_mul_div_step_defect_le hq₂'_nn hq₂'_le
-      (walkMax_nonneg c K₀ r hθ0.le (2 * S) (.inl u) z)
-      (walkMax_nonneg c K₀ r hθ0.le (2 * S) (.inl v) z) (hstep_uv z) (hstep_vu z)
-    have hsum_le := Finset.sum_le_sum fun z (_ : z ∈ Finset.univ) => hpt z
-    rw [Finset.sum_add_distrib, ← Finset.sum_filter, ← Finset.sum_filter] at hsum_le
-    have hbu := sum_sq_walkMax_twoStep_strict_le c K₀ hr hfan hθ0 hθ1 m (.inl u)
-    have hbv := sum_sq_walkMax_twoStep_strict_le c K₀ hr hfan hθ0 hθ1 m (.inl v)
-    have hexp : 2 * m + 2 = 4 * S - 2 := by omega
-    rw [hm2, hexp] at hbu hbv
-    exact hsum_le.trans (by linarith)
-  have hamgm : 2 * ‖a‖ * ‖b‖ ≤ ‖a‖ ^ 2 + ‖b‖ ^ 2 := by nlinarith [sq_nonneg (‖a‖ - ‖b‖)]
-  have hprod_ge : 1 ≤ ‖a‖ * ‖b‖ := one_mul (1 : ℝ) ▸ mul_le_mul ha1 hb1 zero_le_one ha_pos.le
-  have hinner_ab : (2 * q₂' / (1 + q₂' ^ 2)) * (‖a‖ * ‖b‖) -
-      4 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S - 2) ≤ ⟪a, b⟫ := by
-    have hκ0 : 0 ≤ 2 * q₂' / (1 + q₂' ^ 2) := by positivity
-    nlinarith [mul_le_mul_of_nonneg_left hamgm hκ0]
-  have hdiv := div_le_div_of_nonneg_right hinner_ab (mul_pos ha_pos hb_pos).le
-  have herr_le : 4 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S - 2) / (‖a‖ * ‖b‖) ≤
-      4 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S - 2) :=
-    div_le_self (by positivity) hprod_ge
-  have h1 : (2 * q₂' / (1 + q₂' ^ 2) * (‖a‖ * ‖b‖) -
-      4 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S - 2)) / (‖a‖ * ‖b‖) =
-      2 * q₂' / (1 + q₂' ^ 2) - 4 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S - 2) / (‖a‖ * ‖b‖) := by
-    rw [sub_div, mul_div_cancel_right₀ _ (mul_pos ha_pos hb_pos).ne']
-  have h2 : ⟪a, b⟫ / (‖a‖ * ‖b‖) = ⟪hyperUnitRow c K₀ r θ S u, hyperUnitRow c K₀ r θ S v⟫ := by
-    dsimp only [hyperUnitRow]
-    rw [real_inner_smul_left, real_inner_smul_right]
-    change ⟪a, b⟫ / (‖a‖ * ‖b‖) = ‖a‖⁻¹ * (‖b‖⁻¹ * ⟪a, b⟫)
-    field_simp
-  linarith
+      (step_mul_walkMax_le c K₀ r θ (m + 1) (x := .inl x) (y := .inr e) hx z)
+  have hbu := sum_sq_walkMax_twoStep_strict_le c K₀ hr hfan hθ0 hθ1 m (.inl u)
+  have hbv := sum_sq_walkMax_twoStep_strict_le c K₀ hr hfan hθ0 hθ1 m (.inl v)
+  have hexp : 2 * m + 2 = 4 * S - 2 := by omega
+  rw [hm2, hexp] at hbu hbv
+  have h := two_mul_div_sub_le_inner_normalize (E := 4 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S - 2))
+    hq₂'_nn hq₂'_le (walkMax_nonneg c K₀ r hθ0.le (2 * S) (.inl u))
+    (walkMax_nonneg c K₀ r hθ0.le (2 * S) (.inl v)) (hstep hu hv) (hstep hv hu) (by linarith)
+    one_pos (one_mul (1 : ℝ) ▸ mul_le_mul (one_le_norm_walkMax c K₀ r θ (2 * S) u)
+      (one_le_norm_walkMax c K₀ r θ (2 * S) v) zero_le_one (norm_nonneg _))
+  rw [div_one] at h
+  exact h
 
 /-- **One-step vertex-to-hyperedge center correlation lower bound:** for `S ≥ 1` and
 `v ∈ hyperEdge c e.1`, there exists a unit center vector `w_e` (independent of `v`) with
@@ -204,9 +198,6 @@ private theorem oneStep_le_inner_hyperUnitRow_center {r : ℕ} (hr : 2 ≤ r) (h
   have hb_pos : 0 < ‖b‖ := hq₁'_pos.trans_le hb_ge
   refine ⟨‖b‖⁻¹ • b, by rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hb_pos.ne'], ?_⟩
   intro v hv
-  let a := WithLp.toLp 2 (walkMax c K₀ r θ (2 * S) (.inl v))
-  have ha1 : 1 ≤ ‖a‖ := one_le_norm_walkMax c K₀ r θ (2 * S) v
-  have ha_pos : 0 < ‖a‖ := zero_lt_one.trans_le ha1
   have hstep_ve (z : HyperNode c) :
       q₁' * walkMax c K₀ r θ m (.inr e) z ≤ walkMax c K₀ r θ (2 * S) (.inl v) z := by
     rw [← hm1, ← (hq₁'_eq_all v).2]
@@ -215,47 +206,15 @@ private theorem oneStep_le_inner_hyperUnitRow_center {r : ℕ} (hr : 2 ≤ r) (h
       q₁' * walkMax c K₀ r θ m (.inl v) z ≤ walkMax c K₀ r θ (2 * S) (.inr e) z := by
     rw [← hm1, ← (hq₁'_eq_all v).1]
     exact step_mul_walkMax_le c K₀ r θ m (x := .inr e) (y := .inl v) hv z
-  have hsum_def : 2 * q₁' / (1 + q₁' ^ 2) * (‖a‖ ^ 2 + ‖b‖ ^ 2) / 2 - ⟪a, b⟫ ≤
-      2 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S) := by
-    rw [EuclideanSpace.real_norm_sq_eq, EuclideanSpace.real_norm_sq_eq, PiLp.inner_apply]
-    simp only [RCLike.inner_apply, conj_trivial]
-    have hrew : 2 * q₁' / (1 + q₁' ^ 2) * ((∑ z, a z ^ 2) + ∑ z, b z ^ 2) / 2 -
-          ∑ z, b z * a z =
-        ∑ z, (2 * q₁' / (1 + q₁' ^ 2) * (a z ^ 2 + b z ^ 2) / 2 - a z * b z) := by
-      rw [Finset.sum_sub_distrib, ← Finset.sum_div, ← Finset.mul_sum, Finset.sum_add_distrib]
-      simp only [mul_comm (b _)]
-    rw [hrew]
-    have hpt (z : HyperNode c) := two_mul_div_step_defect_le hq₁'_pos.le hq₁'_le
-      (walkMax_nonneg c K₀ r hθ0.le (2 * S) (.inl v) z)
-      (walkMax_nonneg c K₀ r hθ0.le (2 * S) (.inr e) z) (hstep_ve z) (hstep_ev z)
-    have hsum_le := Finset.sum_le_sum fun z (_ : z ∈ Finset.univ) => hpt z
-    rw [Finset.sum_add_distrib, ← Finset.sum_filter, ← Finset.sum_filter] at hsum_le
-    have hbv := sum_sq_walkMax_strict_le c K₀ hr hfan hθ0 hθ1 m (.inl v)
-    have hbe := sum_sq_walkMax_strict_le c K₀ hr hfan hθ0 hθ1 m (.inr e)
-    have hexp : 2 * (m + 1) = 4 * S := by omega
-    rw [hexp] at hbv hbe
-    rw [hm1] at hbv hbe
-    exact hsum_le.trans (by linarith)
-  have hamgm : 2 * ‖a‖ * ‖b‖ ≤ ‖a‖ ^ 2 + ‖b‖ ^ 2 := by nlinarith [sq_nonneg (‖a‖ - ‖b‖)]
-  have hprod_ge : q₁' ≤ ‖a‖ * ‖b‖ := one_mul q₁' ▸ mul_le_mul ha1 hb_ge hq₁'_pos.le ha_pos.le
-  have hinner_ab : (2 * q₁' / (1 + q₁' ^ 2)) * (‖a‖ * ‖b‖) -
-      2 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S) ≤ ⟪a, b⟫ := by
-    have hκ0 : 0 ≤ 2 * q₁' / (1 + q₁' ^ 2) := by positivity
-    nlinarith [mul_le_mul_of_nonneg_left hamgm hκ0]
-  have hdiv := div_le_div_of_nonneg_right hinner_ab (mul_pos ha_pos hb_pos).le
-  have herr_le : 2 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S) / (‖a‖ * ‖b‖) ≤
-      2 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S) / q₁' :=
-    div_le_div_of_nonneg_left (by positivity) hq₁'_pos hprod_ge
-  have h1 : (2 * q₁' / (1 + q₁' ^ 2) * (‖a‖ * ‖b‖) -
-      2 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S)) / (‖a‖ * ‖b‖) =
-      2 * q₁' / (1 + q₁' ^ 2) - 2 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S) / (‖a‖ * ‖b‖) := by
-    rw [sub_div, mul_div_cancel_right₀ _ (mul_pos ha_pos hb_pos).ne']
-  have h2 : ⟪a, b⟫ / (‖a‖ * ‖b‖) = ⟪hyperUnitRow c K₀ r θ S v, ‖b‖⁻¹ • b⟫ := by
-    dsimp only [hyperUnitRow]
-    rw [real_inner_smul_left, real_inner_smul_right]
-    change ⟪a, b⟫ / (‖a‖ * ‖b‖) = ‖a‖⁻¹ * (‖b‖⁻¹ * ⟪a, b⟫)
-    field_simp
-  linarith
+  have hbv := sum_sq_walkMax_strict_le c K₀ hr hfan hθ0 hθ1 m (.inl v)
+  have hbe := sum_sq_walkMax_strict_le c K₀ hr hfan hθ0 hθ1 m (.inr e)
+  have hexp : 2 * (m + 1) = 4 * S := by omega
+  rw [hexp, hm1] at hbv hbe
+  exact two_mul_div_sub_le_inner_normalize (E := 2 * (max (r + 1) K₀ : ℝ) * θ ^ (4 * S))
+    hq₁'_pos.le hq₁'_le (walkMax_nonneg c K₀ r hθ0.le (2 * S) (.inl v))
+    (walkMax_nonneg c K₀ r hθ0.le (2 * S) (.inr e)) hstep_ve hstep_ev (by linarith) hq₁'_pos
+    (one_mul q₁' ▸ mul_le_mul (one_le_norm_walkMax c K₀ r θ (2 * S) v) hb_ge hq₁'_pos.le
+      (norm_nonneg _))
 
 /-- **Two-step star-cone sum of inner products on `hyperUnitRow`:** when `3 ≤ k` and the perturbed
 cone tangent hypotheses hold at `q₂' = θ² / √(r (k - 1))`, the off-diagonal inner products of
