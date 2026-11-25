@@ -522,7 +522,8 @@ theorem hasse_bound_zmod {p : ℕ} [Fact p.Prime] (W : WeierstrassCurve (ZMod p)
   · obtain ⟨h1, h5⟩ := natCard_point_zmod_two W
     have : 1 ≤ Real.sqrt 2 := Real.one_le_sqrt.2 (by norm_num)
     simp only [Nat.cast_ofNat]
-    exact ⟨by cast_linarith [h5, h1], by cast_linarith⟩
+    refine ⟨?_, by cast_linarith⟩
+    cast_linarith [h5, h1]
   · obtain ⟨h1, h2⟩ := abs_le.1
       (ZMod.card p ▸ abs_natCard_point_sub_le (ZMod.ringChar_zmod_n p ▸ hp) W)
     exact ⟨by linarith, by linarith⟩

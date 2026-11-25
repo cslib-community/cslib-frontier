@@ -104,7 +104,9 @@ private theorem le_split (k : ℕ) (hk : k ≤ b) (x y : Fin (2 ^ b)) :
   have hy := Nat.mod_add_div y.val (2 ^ k)
   constructor
   · intro h
-    exact ⟨Nat.div_le_div_right h, fun he => by rw [he] at hx; lia⟩
+    refine ⟨Nat.div_le_div_right h, fun he => ?_⟩
+    rw [he] at hx
+    lia
   · rintro ⟨h, he⟩
     obtain hlt | hq := h.lt_or_eq
     · exact le_of_not_gt fun hn => hlt.not_ge (Nat.div_le_div_right hn.le)

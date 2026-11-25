@@ -304,8 +304,10 @@ theorem mgf_le_exp_bennett_of_le {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : M
   rcases eq_or_lt_of_le ht with rfl | ht_pos
   · simp [mgf]
   · set c := (Real.exp (t * b) - 1 - t * b) / b ^ 2
-    have hc_nn : 0 ≤ c := div_nonneg
-      (by linarith [Real.add_one_le_exp (t * b)]) (by positivity)
+    have hc_nn : 0 ≤ c :=
+      div_nonneg
+        (by linarith [Real.add_one_le_exp (t * b)])
+        (by positivity)
     have hint1 : Integrable (fun ω : Ω => (1 : ℝ) + t * X ω) μ :=
       (integrable_const (1 : ℝ)).add (hX.const_mul t)
     have hint2 : Integrable (fun ω : Ω => c * X ω ^ 2) μ := hX2.const_mul c
@@ -398,8 +400,10 @@ theorem tsum_mul_exp_le_bennett (q : PMF α) (d : α → ℝ) {b v : ℝ}
           (Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left (hd'_le x) hs)) ENNReal.toReal_nonneg)
         ((summable_toReal q).mul_right (Real.exp (s * b)))
     set c := (Real.exp (s * b) - 1 - s * b) / b ^ 2
-    have hc_nn : 0 ≤ c := div_nonneg
-      (by linarith [Real.add_one_le_exp (s * b)]) (by positivity)
+    have hc_nn : 0 ≤ c :=
+      div_nonneg
+        (by linarith [Real.add_one_le_exp (s * b)])
+        (by positivity)
     have hsd1 : Summable fun x => (q x).toReal * d' x := hmul1.symm ▸ hd1
     have hsd2 : Summable fun x => (q x).toReal * d' x ^ 2 := hmul2.symm ▸ hd2
     have hpt (x : α) : (q x).toReal * Real.exp (s * d' x) ≤

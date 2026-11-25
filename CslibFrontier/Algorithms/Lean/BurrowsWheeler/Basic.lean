@@ -381,7 +381,8 @@ theorem lfMap_bwtLast_injOn (w : List α) {r r' : ℕ} (hr : r < (bwtMatrix w).l
       rw [← getElem?_bwtFirst_lfMap, ← hab', getElem?_bwtFirst_lfMap, hc]
     have e1 := hab' ▸ count_take_bwtFirst_lfMap w hc
     rw [count_take_bwtFirst_lfMap w hcb] at e1
-    have hmono := ((List.take_prefix_take_left (l := bwtLast w) hab).sublist).count_le (bwtLast w)[a]
+    have hmono :=
+      ((List.take_prefix_take_left (l := bwtLast w) hab).sublist).count_le (bwtLast w)[a]
     rw [List.take_add_one, List.count_append, hc] at hmono
     simp at hmono
     omega

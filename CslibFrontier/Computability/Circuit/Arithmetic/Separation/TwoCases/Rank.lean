@@ -479,7 +479,9 @@ theorem exists_sq_eq_rank (hK : ¬ ContractingCase K) (hμ : 3 ≤ μ) :
   have hx : Extremal K w := ⟨hw, hr⟩
   refine ⟨w, hw, fun a a' => ?_⟩
   obtain ⟨p, q, S, hS⟩ := exists_X (a + a')
-  have e : a - a' = a + a' := by ext i j; exact CharTwo.sub_eq_add _ _
+  have e : a - a' = a + a' := by
+    ext i j
+    exact CharTwo.sub_eq_add _ _
   rw [e, hS, rank_X, ← add_cancel_left a a', hS, ← nn, hx.nn_X hμ,
     sum_congr rfl fun i _ => hx.nn_eq_one hμ a (by simp [rank_X])]
   simp

@@ -538,7 +538,11 @@ private theorem mem_varBlock_iff {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (
     · exact .inl rfl
     · by_cases hk : k.1 = 3 * chainSlots p v
       · exact .inr (.inl (congrArg _ (Fin.ext hk)))
-      · refine .inr (.inr ⟨⟨k.1 / 3, by have := k.2; simp only [chainLen] at this; omega⟩, .inl ?_⟩)
+      · have hk3 : k.1 / 3 < chainSlots p v := by
+          have := k.2
+          simp only [chainLen] at this
+          omega
+        refine .inr (.inr ⟨⟨k.1 / 3, hk3⟩, .inl ?_⟩)
         simp only [CorrDigraphV.chain.injEq, heq_eq_eq, true_and, Fin.ext_iff]
         omega
     · exact .inr (.inr ⟨_, .inr ⟨q, rfl, rfl⟩⟩)
