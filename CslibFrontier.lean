@@ -3105,6 +3105,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityH
 public import CslibFrontier.Computability.Complexity.FineGrained.Schoening
 public import CslibFrontier.Computability.Complexity.FineGrained.SchoeningMachine
 public import CslibFrontier.Computability.Complexity.FineGrained.SearchStep
+public import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
 public import CslibFrontier.Computability.Complexity.FineGrained.SingleSubexp
 public import CslibFrontier.Computability.Complexity.FineGrained.SparseBranchAsymptotics
 public import CslibFrontier.Computability.Complexity.FineGrained.SparseBranchSchedule
