@@ -272,10 +272,8 @@ theorem sq_correlation_quadForm_mul_le_of_node_cut {σ : Signature.{v}} {n : ℕ
     let msg : (↥Oᶜ → Bool) → Bool × (G_cut → Bool) := fun y =>
       (decide (c.eval I (e.symm (a, y)) 0 ∈ Acc),
         fun g => c.program.trace I (e.symm (a, y)) (Compiler.ActiveSignal.gate g.val).wire)
-    have hT_msg : ∀ y₁ y₂, msg y₁ = msg y₂ → (y₁ ∈ T_a ↔ y₂ ∈ T_a) := by
-      intro y₁ y₂ h
-      have hdec := (Prod.mk.inj h).1
-      simpa [T_a, T] using hdec
+    have hT_msg : ∀ y₁ y₂, msg y₁ = msg y₂ → (y₁ ∈ T_a ↔ y₂ ∈ T_a) := fun y₁ y₂ h => by
+      simpa [T_a, T] using (Prod.mk.inj h).1
     have hrect_msg : ∀ y₀ : ↥Oᶜ → Bool, ∃ (B₁ : Set (X_cut → Bool)) (B₂ : Set (↥X_cutᶜ → Bool)),
         {y | msg y = msg y₀} = rectangle X_cut B₁ B₂ := by
       intro y₀
@@ -293,15 +291,12 @@ theorem sq_correlation_quadForm_mul_le_of_node_cut {σ : Signature.{v}} {n : ℕ
           intro w hw
           cases w with
           | input i hi =>
-            have hniL : i ∉ L := by
-              rintro ⟨_, hsubA⟩
-              obtain ⟨u, hu, huAc⟩ := hw.2
-              exact huAc (hsubA hu)
-            have hniR : i ∉ R' := by
-              rintro ⟨_, hsubAc⟩
-              obtain ⟨u, hu, huA⟩ := hw.1
-              exact hsubAc hu huA
-            have hiO : i ∈ O := fun hLR => hLR.elim hniL hniR
+            have hiO : i ∈ O := by
+              rintro (⟨_, hsubA⟩ | ⟨_, hsubAc⟩)
+              · obtain ⟨u, hu, huAc⟩ := hw.2
+                exact huAc (hsubA hu)
+              · obtain ⟨u, hu, huA⟩ := hw.1
+                exact hsubAc hu huA
             change (sliceEquiv O).symm (a, y₁) i = (sliceEquiv O).symm (a, y₂) i
             rw [sliceEquiv_symm_of_mem a y₁ hiO, sliceEquiv_symm_of_mem a y₂ hiO]
           | gate g =>
@@ -313,9 +308,8 @@ theorem sq_correlation_quadForm_mul_le_of_node_cut {σ : Signature.{v}} {n : ℕ
           change (sliceEquiv O).symm (a, y) i = (sliceEquiv O).symm (a, y₁) i
           by_cases hiO : i ∈ O
           · rw [sliceEquiv_symm_of_mem a y hiO, sliceEquiv_symm_of_mem a y₁ hiO]
-          · have hiLR : i ∈ L ∪ R' := not_not.mp hiO
-            have hniR : i ∉ R' := fun ⟨_, hsubAc⟩ => hsubAc hu huA
-            have hiL : i ∈ L := hiLR.resolve_right hniR
+          · have hiL : i ∈ L :=
+              (not_not.mp hiO : i ∈ L ∪ R').resolve_right fun ⟨_, hsubAc⟩ => hsubAc hu huA
             rw [sliceEquiv_symm_of_not_mem a y hiO, sliceEquiv_symm_of_not_mem a y₁ hiO]
             exact (congrFun hdom₁ ⟨⟨i, hiO⟩, hiL⟩).symm
         have hzy : EqOn (e.symm (a, y)) (e.symm (a, y₂)) (Compiler.nodeReadIn c A)ᶜ := by
