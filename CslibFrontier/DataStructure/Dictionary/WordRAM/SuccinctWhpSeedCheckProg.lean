@@ -1831,6 +1831,34 @@ private theorem findSaltInRange_le {fpAt : ℕ → ℕ → ℕ} {lo len k : ℕ}
     dsimp only [findSaltInRange]
     split_ifs <;> omega
 
+private theorem checkNoEqBefore_congr {f g : ℕ → ℕ} {target r : ℕ} (h : ∀ t < r, f t = g t) :
+    checkNoEqBefore f target r = checkNoEqBefore g target r := by
+  induction r with
+  | zero => rfl
+  | succ r ih =>
+    dsimp only [checkNoEqBefore]
+    rw [ih fun t ht => h t (Nat.lt_succ_of_lt ht), h r (Nat.lt_succ_self r)]
+
+private theorem checkPairwiseDistinctOn_congr {f g : ℕ → ℕ} {m : ℕ} (h : ∀ t < m, f t = g t) :
+    checkPairwiseDistinctOn f m = checkPairwiseDistinctOn g m := by
+  induction m with
+  | zero => rfl
+  | succ m ih =>
+    dsimp only [checkPairwiseDistinctOn]
+    rw [ih fun t ht => h t (Nat.lt_succ_of_lt ht), h m (Nat.lt_succ_self m),
+      checkNoEqBefore_congr fun t ht => h t (Nat.lt_succ_of_lt ht)]
+
+/-- `findSaltInRange` only reads `fpAt salt idx` for `salt < k` and `lo ≤ idx < lo + len`. -/
+private theorem findSaltInRange_congr {f g : ℕ → ℕ → ℕ} {lo len k : ℕ}
+    (h : ∀ salt < k, ∀ idx, lo ≤ idx → idx < lo + len → f salt idx = g salt idx) :
+    findSaltInRange f lo len k = findSaltInRange g lo len k := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    dsimp only [findSaltInRange]
+    rw [ih fun salt hs => h salt (Nat.lt_succ_of_lt hs), checkPairwiseDistinctOn_congr
+      fun t ht => h k (Nat.lt_succ_self k) (lo + t) (Nat.le_add_right lo t) (by omega)]
+
 private theorem realizes_findSaltsBktStep :
     Realizes .exact findSaltsBktStepProg
       (WordEncoding.encode (α := (ChkRt × HashRt) × (ℕ × ℕ)))
@@ -1963,191 +1991,136 @@ private theorem findSaltsBktLoop_spec {c U V w n_max base : ℕ} {θ : SeedWhp c
       offValWhp c U w n_max + packedWords n_max (valBits V) w := rfl
   have hpa_le_bm : offPermAct c U V w n_max ≤ offBktMeta c U V w n_max := by
     unfold offBktMeta offLocState; omega
-  induction rem with
-  | zero =>
-    intro b₀ ok₀ s _ hout hsalts hok
-    unfold findSaltsBktLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨trivial, rfl, Prod.ext rfl hok, validProg_pure _, hsalts, hout⟩
-  | succ rem ih =>
-    intro b₀ ok₀ s hle hout hsalts hok
-    have hb_lt : b₀ < M := by omega
-    have hseed_s : SeedWhpMemRep base c U w n_max θ s.mem :=
-      SeedWhpMemRep.congr_hash hw (fun a _ ha2 => (hout a (Or.inl (by omega))).symm) hseed₀
-    have hpre : FindSaltsBktStepPre w ((crt, hrt), (b₀, ok₀)) s :=
-      ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed_s⟩, hb_lt⟩
-    have hfb_eq : ∀ k ≤ M,
-        readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem k = fbMem k :=
-      fun k hk => readPacked_congr hw (fun a ⟨ha1, _⟩ => hout a (Or.inr ha1)) (Nat.lt_succ_of_le hk)
-    have hq_eq : ∀ idx < n_max,
-        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s.mem idx = qMem idx :=
-      fun idx hidx => readPacked_congr hw (fun a ⟨_, ha2⟩ => hout a (Or.inl (by omega))) hidx
-    obtain ⟨hlo_le_hi, hhi_le_n⟩ := hfb_adj b₀ hb_lt
-    set lo := fbMem b₀
-    set hi := fbMem (b₀ + 1)
-    set len := hi - lo
-    have hlo_len : lo + len ≤ n_max := by
-      dsimp only [lo, hi, len, fbMem] at hlo_le_hi hhi_le_n ⊢; omega
-    obtain ⟨_, hfsl_st, hfsl_res, hfsl_vp⟩ := findSaltLoop_spec (lo := lo) (len := len)
-      henv hseed_s hlo_len (sMaxWhp c n_max) 0 0 (by omega) rfl (s := s)
-    rw [Nat.zero_add] at hfsl_res
-    -- Identify `findSaltLoop_spec`'s `fpMem` on `s` with `fpMem` on `s₀`
-    have hfp_congr : ∀ salt t, t < len →
-        (let fb_s := fun b => readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w
-           s.mem b
-         let q_s := fun k => readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w
-           s.mem k
-         let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-           (csrBucketOfIdx fb_s (lo + t) M) (q_s (lo + t))
-         if hs : salt < sMaxWhp c n_max then
-           if hu : kv < U then fpHash c U n_max θ.2 ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
-         else 0) = fpMem salt (lo + t) := by
-      intro salt t ht
-      have hidx_n : lo + t < n_max := by omega
-      dsimp only [fpMem]
-      simp only [csrBucketOfIdx_congr hfb_eq, hq_eq (lo + t) hidx_n]
-    have hfind_congr : ∀ k,
-        findSaltInRange
-          (fun salt idx =>
-            let fb_s := fun b => readPacked (base + offFbStart c U V w n_max)
-              (globalPtrBits n_max) w s.mem b
-            let q_s := fun j => readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w
-              s.mem j
-            let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-              (csrBucketOfIdx fb_s idx M) (q_s idx)
-            if hs : salt < sMaxWhp c n_max then
-              if hu : kv < U then fpHash c U n_max θ.2 ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
-            else 0) lo len k =
-        findSaltInRange fpMem lo len k := by
-      intro k
-      induction k with
-      | zero => rfl
-      | succ k ihk =>
-        dsimp only [findSaltInRange]
-        rw [ihk]
-        have hpd : ∀ m ≤ len,
-            checkPairwiseDistinctOn (fun t =>
-              let fb_s := fun b => readPacked (base + offFbStart c U V w n_max)
-                (globalPtrBits n_max) w s.mem b
-              let q_s := fun j => readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w
-                s.mem j
-              let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-                (csrBucketOfIdx fb_s (lo + t) M) (q_s (lo + t))
-              if hs : k < sMaxWhp c n_max then
-                if hu : kv < U then fpHash c U n_max θ.2 ⟨k, hs⟩ ⟨kv, hu⟩ else 0
-              else 0) m =
-            checkPairwiseDistinctOn (fun t => fpMem k (lo + t)) m := by
-          intro m hm
-          induction m with
-          | zero => rfl
-          | succ m ihm =>
-            dsimp only [checkPairwiseDistinctOn]
-            rw [ihm (Nat.le_of_succ_le hm), hfp_congr k m (Nat.lt_of_succ_le hm)]
-            congr 1
-            have hne_eq : ∀ r ≤ m,
-                checkNoEqBefore (fun t =>
-                  let fb_s := fun b => readPacked (base + offFbStart c U V w n_max)
-                    (globalPtrBits n_max) w s.mem b
-                  let q_s := fun j => readPacked (base + offQuotWhp c w n_max)
-                    (quotBitsWhp U n_max) w s.mem j
-                  let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-                    (csrBucketOfIdx fb_s (lo + t) M) (q_s (lo + t))
-                  if hs : k < sMaxWhp c n_max then
-                    if hu : kv < U then fpHash c U n_max θ.2 ⟨k, hs⟩ ⟨kv, hu⟩ else 0
-                  else 0) (fpMem k (lo + m)) r =
-                checkNoEqBefore (fun t => fpMem k (lo + t)) (fpMem k (lo + m)) r := by
-              intro r hr
-              induction r with
-              | zero => rfl
-              | succ r ihr =>
-                dsimp only [checkNoEqBefore]
-                rw [ihr (Nat.le_of_succ_le hr),
-                  hfp_congr k r (Nat.lt_of_lt_of_le (Nat.lt_of_succ_le hr) (Nat.le_of_succ_le hm))]
-            exact hne_eq m le_rfl
-        rw [hpd len le_rfl]
-    rw [hfind_congr] at hfsl_res
-    set s1_val := salt1Of b₀
-    have hs1_le : s1_val ≤ sMaxWhp c n_max := findSaltInRange_le
-    have hsVal_pow : s1_val - 1 < 2 ^ globalPtrBits n_max :=
-      lt_two_pow_globalPtrBits_of_le_n_max (by omega)
-    have hidx_bm : 16 * b₀ + 1 < 16 * M := by omega
-    set p1 := findSaltsBktStepProg ((crt, hrt), (b₀, ok₀))
-    set m1 := writePacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem
-      (16 * b₀ + 1) (s1_val - 1)
-    have hfsl_res' : (Memory.spec 0).clientResult s
-        (findSaltLoopProg
-          (((((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), (lo, len)), (0, 0)),
-            sMaxWhp c n_max))) = (sMaxWhp c n_max, s1_val) := hfsl_res
-    obtain ⟨hws_st, hws_res, hws_vp⟩ := writeSaltResultProg_spec (b := b₀) (allOk := ok₀)
-      (s1 := s1_val) henv hb_lt hs1_le (s := s)
-    have hlo_hi' : fbMem b₀ ≤ fbMem (b₀ + 1) := hlo_le_hi
-    have hhi_n' : fbMem (b₀ + 1) ≤ n_max := hhi_le_n
-    have hs_step : (Memory.spec 0).clientState s p1 = { mem := m1, frontier := s.frontier } := by
-      dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
-      dsimp only [crt, mkChkRt, ckBase, ckW, ckNMax, ckSMax, ckGBits, ckOffFb, ckOffBm]
-      simp only [pure_bind]
-      rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen,
-        hfb_eq b₀ hb_lt.le, clientState_bind, clientState_readPackedGen,
-        clientResult_readPackedGen, hfb_eq (b₀ + 1) hb_lt]
-      simp only [hlo_hi', hhi_n', ↓reduceIte]
-      rw [clientState_bind]; dsimp only [mkChkRt, hrt, lo, hi, len] at hfsl_st hfsl_res' ⊢
-      rw [hfsl_st, hfsl_res']; exact hws_st
-    set ok1 := if allSaltsFoundRec salt1Of (b₀ + 1) then 1 else 0
-    have hr_step : (Memory.spec 0).clientResult s p1 = (b₀ + 1, ok1) := by
-      dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
-      dsimp only [crt, mkChkRt, ckBase, ckW, ckNMax, ckSMax, ckGBits, ckOffFb, ckOffBm]
-      simp only [pure_bind]
-      rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
-        hfb_eq b₀ hb_lt.le, clientResult_bind, clientState_readPackedGen,
-        clientResult_readPackedGen, hfb_eq (b₀ + 1) hb_lt]
-      simp only [hlo_hi', hhi_n', ↓reduceIte]
-      rw [clientResult_bind]; dsimp only [mkChkRt, hrt, lo, hi, len] at hfsl_st hfsl_res' ⊢
-      rw [hfsl_st, hfsl_res', hws_res]
-      dsimp only [ok1, allSaltsFoundRec, s1_val]
-      rw [hok]
-      by_cases ha0 : allSaltsFoundRec salt1Of b₀ = true
-      · by_cases hsz : salt1Of b₀ = 0 <;> simp [ha0, hsz]
-      · simp [Bool.eq_false_iff.mpr ha0]
-    have hvp_step : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
-      dsimp only [crt, mkChkRt, ckBase, ckW, ckNMax, ckSMax, ckGBits, ckOffFb, ckOffBm]
-      simp only [pure_bind]
-      refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
-      rw [clientState_readPackedGen, clientResult_readPackedGen, hfb_eq b₀ hb_lt.le]
-      refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
-      rw [clientState_readPackedGen, clientResult_readPackedGen, hfb_eq (b₀ + 1) hb_lt]
-      simp only [hlo_hi', hhi_n', ↓reduceIte]
-      dsimp only [mkChkRt, hrt, lo, hi, len] at hfsl_vp hfsl_st hfsl_res' ⊢
-      refine validProg_bind hfsl_vp ?_; rw [hfsl_st, hfsl_res']
-      exact hws_vp
-    set s1 : Memory.State := { mem := m1, frontier := s.frontier }
-    have hout1 : ∀ a, (a < base + offBktMeta c U V w n_max ∨ base + offFbStart c U V w n_max ≤ a) →
-        s1.mem a = s₀.mem a := by
-      intro a ha
-      dsimp only [s1, m1]
-      rw [writePacked_outside hw _ hidx_bm _ (by omega)]
-      exact hout a ha
-    have hsalts1 : ∀ b < b₀ + 1,
-        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s1.mem (16 * b + 1) =
-          salt1Of b - 1 := by
-      intro b hb
-      dsimp only [s1, m1]
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hb with hlt | rfl
-      · rw [readPacked_writePacked_of_ne hw _ (by omega)]; exact hsalts b hlt
-      · exact readPacked_writePacked_self _ _ _ _ _ hsVal_pow
-    obtain ⟨hsafe_r, hf_r, hres_r, hvp_r, hsalts_r, hout_r⟩ :=
-      ih (b₀ + 1) ok1 s1 (by omega) hout1 hsalts1 rfl
-    have hadd : b₀ + 1 + rem = b₀ + (rem + 1) := by omega
-    rw [hadd] at hsalts_r
-    unfold findSaltsBktLoopProg at hf_r hres_r hvp_r hsalts_r hout_r ⊢
-    dsimp only [iterate]
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width, hs_step, hr_step]; exact hsafe_r
-    · rw [clientState_bind, hs_step, hr_step]; exact hf_r
-    · rw [clientResult_bind, hs_step, hr_step, hres_r, hadd]
-    · refine validProg_bind hvp_step ?_; rw [hs_step, hr_step]; exact hvp_r
-    · intro b hb; rw [clientState_bind, hs_step, hr_step]; exact hsalts_r b hb
-    · intro a ha; rw [clientState_bind, hs_step, hr_step]; exact hout_r a ha
+  intro bs ok s₁ hle hout₁ hsalts₁ hok
+  subst hok
+  unfold findSaltsBktLoopProg
+  obtain ⟨hsafe, hvp, hres, hf, hsalts, hout⟩ := validProg_iterate_of_inv (n := rem)
+    (body := findSaltsBktStepProg) (safe := FindSaltsBktStepPre) (d := (crt, hrt)) (w := w)
+    (F := base + largeSpaceWhp c U V w n_max)
+    (a := (bs, if allSaltsFoundRec salt1Of bs then 1 else 0)) (s := s₁)
+    (fun k a t => a = (bs + k, if allSaltsFoundRec salt1Of (bs + k) then 1 else 0) ∧
+      t.frontier = s₁.frontier ∧
+      (∀ b < bs + k, readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w t.mem
+        (16 * b + 1) = salt1Of b - 1) ∧
+      ∀ a, (a < base + offBktMeta c U V w n_max ∨ base + offFbStart c U V w n_max ≤ a) →
+        t.mem a = s₀.mem a)
+    (fun k hk a s ⟨ha, hf, hsalts, hout⟩ => by
+      subst ha
+      have hb_lt : bs + k < M := by omega
+      rw [← Nat.add_assoc bs k 1]
+      clear hk hle hsalts₁ hout₁
+      generalize bs + k = b₀ at hb_lt hsalts ⊢
+      generalize hok : (if allSaltsFoundRec salt1Of b₀ then 1 else 0) = ok₀
+      have hseed_s : SeedWhpMemRep base c U w n_max θ s.mem :=
+        SeedWhpMemRep.congr_hash hw (fun a _ ha2 => (hout a (Or.inl (by omega))).symm) hseed₀
+      have hpre : FindSaltsBktStepPre w ((crt, hrt), (b₀, ok₀)) s :=
+        ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed_s⟩, hb_lt⟩
+      have hfb_eq : ∀ k ≤ M,
+          readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem k = fbMem k :=
+        fun k hk =>
+          readPacked_congr hw (fun a ⟨ha1, _⟩ => hout a (Or.inr ha1)) (Nat.lt_succ_of_le hk)
+      have hq_eq : ∀ idx < n_max,
+          readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s.mem idx = qMem idx :=
+        fun idx hidx => readPacked_congr hw (fun a ⟨_, ha2⟩ => hout a (Or.inl (by omega))) hidx
+      obtain ⟨hlo_le_hi, hhi_le_n⟩ := hfb_adj b₀ hb_lt
+      set lo := fbMem b₀
+      set hi := fbMem (b₀ + 1)
+      set len := hi - lo
+      have hlo_len : lo + len ≤ n_max := by
+        dsimp only [lo, hi, len, fbMem] at hlo_le_hi hhi_le_n ⊢; omega
+      obtain ⟨_, hfsl_st, hfsl_res, hfsl_vp⟩ := findSaltLoop_spec (lo := lo) (len := len)
+        henv hseed_s hlo_len (sMaxWhp c n_max) 0 0 (by omega) rfl (s := s)
+      rw [Nat.zero_add] at hfsl_res
+      -- Identify `findSaltLoop_spec`'s `fpMem` on `s` with `fpMem` on `s₀`
+      have hfp_congr : ∀ salt idx, idx < n_max →
+          (let fb_s := fun b => readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w
+             s.mem b
+           let q_s := fun k => readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w
+             s.mem k
+           let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
+             (csrBucketOfIdx fb_s idx M) (q_s idx)
+           if hs : salt < sMaxWhp c n_max then
+             if hu : kv < U then fpHash c U n_max θ.2 ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
+           else 0) = fpMem salt idx := by
+        intro salt idx hidx
+        dsimp only [fpMem]
+        simp only [csrBucketOfIdx_congr hfb_eq, hq_eq idx hidx]
+      rw [findSaltInRange_congr (lo := lo) (len := len) (k := sMaxWhp c n_max)
+        fun salt _ idx _ hidx => hfp_congr salt idx (by omega)] at hfsl_res
+      set s1_val := salt1Of b₀
+      have hs1_le : s1_val ≤ sMaxWhp c n_max := findSaltInRange_le
+      have hsVal_pow : s1_val - 1 < 2 ^ globalPtrBits n_max :=
+        lt_two_pow_globalPtrBits_of_le_n_max (by omega)
+      have hidx_bm : 16 * b₀ + 1 < 16 * M := by omega
+      set p1 := findSaltsBktStepProg ((crt, hrt), (b₀, ok₀))
+      set m1 := writePacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem
+        (16 * b₀ + 1) (s1_val - 1)
+      have hfsl_res' : (Memory.spec 0).clientResult s
+          (findSaltLoopProg
+            (((((mkChkRt c U V w n_max base, mkHashRt c U w n_max base), (lo, len)), (0, 0)),
+              sMaxWhp c n_max))) = (sMaxWhp c n_max, s1_val) := hfsl_res
+      obtain ⟨hws_st, hws_res, hws_vp⟩ := writeSaltResultProg_spec (b := b₀) (allOk := ok₀)
+        (s1 := s1_val) henv hb_lt hs1_le (s := s)
+      have hlo_hi' : fbMem b₀ ≤ fbMem (b₀ + 1) := hlo_le_hi
+      have hhi_n' : fbMem (b₀ + 1) ≤ n_max := hhi_le_n
+      have hs_step : (Memory.spec 0).clientState s p1 = { mem := m1, frontier := s.frontier } := by
+        dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
+        dsimp only [crt, mkChkRt, ckBase, ckW, ckNMax, ckSMax, ckGBits, ckOffFb, ckOffBm]
+        simp only [pure_bind]
+        rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen,
+          hfb_eq b₀ hb_lt.le, clientState_bind, clientState_readPackedGen,
+          clientResult_readPackedGen, hfb_eq (b₀ + 1) hb_lt]
+        simp only [hlo_hi', hhi_n', ↓reduceIte]
+        rw [clientState_bind]; dsimp only [mkChkRt, hrt, lo, hi, len] at hfsl_st hfsl_res' ⊢
+        rw [hfsl_st, hfsl_res']; exact hws_st
+      set ok1 := if allSaltsFoundRec salt1Of (b₀ + 1) then 1 else 0
+      have hr_step : (Memory.spec 0).clientResult s p1 = (b₀ + 1, ok1) := by
+        dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
+        dsimp only [crt, mkChkRt, ckBase, ckW, ckNMax, ckSMax, ckGBits, ckOffFb, ckOffBm]
+        simp only [pure_bind]
+        rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
+          hfb_eq b₀ hb_lt.le, clientResult_bind, clientState_readPackedGen,
+          clientResult_readPackedGen, hfb_eq (b₀ + 1) hb_lt]
+        simp only [hlo_hi', hhi_n', ↓reduceIte]
+        rw [clientResult_bind]; dsimp only [mkChkRt, hrt, lo, hi, len] at hfsl_st hfsl_res' ⊢
+        rw [hfsl_st, hfsl_res', hws_res]
+        dsimp only [ok1, allSaltsFoundRec, s1_val]
+        rw [← hok]
+        by_cases ha0 : allSaltsFoundRec salt1Of b₀ = true
+        · by_cases hsz : salt1Of b₀ = 0 <;> simp [ha0, hsz]
+        · simp [Bool.eq_false_iff.mpr ha0]
+      have hvp_step : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
+        dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
+        dsimp only [crt, mkChkRt, ckBase, ckW, ckNMax, ckSMax, ckGBits, ckOffFb, ckOffBm]
+        simp only [pure_bind]
+        refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
+        rw [clientState_readPackedGen, clientResult_readPackedGen, hfb_eq b₀ hb_lt.le]
+        refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
+        rw [clientState_readPackedGen, clientResult_readPackedGen, hfb_eq (b₀ + 1) hb_lt]
+        simp only [hlo_hi', hhi_n', ↓reduceIte]
+        dsimp only [mkChkRt, hrt, lo, hi, len] at hfsl_vp hfsl_st hfsl_res' ⊢
+        refine validProg_bind hfsl_vp ?_; rw [hfsl_st, hfsl_res']
+        exact hws_vp
+      set s1 : Memory.State := { mem := m1, frontier := s.frontier }
+      have hout1 : ∀ a,
+          (a < base + offBktMeta c U V w n_max ∨ base + offFbStart c U V w n_max ≤ a) →
+            s1.mem a = s₀.mem a := by
+        intro a ha
+        dsimp only [s1, m1]
+        rw [writePacked_outside hw _ hidx_bm _ (by omega)]
+        exact hout a ha
+      have hsalts1 : ∀ b < b₀ + 1,
+          readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s1.mem (16 * b + 1) =
+            salt1Of b - 1 := by
+        intro b hb
+        dsimp only [s1, m1]
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hb with hlt | rfl
+        · rw [readPacked_writePacked_of_ne hw _ (by omega)]; exact hsalts b hlt
+        · exact readPacked_writePacked_self _ _ _ _ _ hsVal_pow
+      rw [hs_step, hr_step]
+      exact ⟨hpre, hvp_step, rfl, hf, hsalts1, hout1⟩)
+    ⟨rfl, rfl, hsalts₁, hout₁⟩
+  exact ⟨hsafe, hf, hres, hvp, hsalts, hout⟩
 
 /-! ### Part 3e: Top-level `checkGoodSeedOnStateGenProg` -/
 
@@ -2174,90 +2147,87 @@ private theorem findSaltsBktLoop_safe {c U V w n_max base : ℕ} {θ : SeedWhp c
       b₀ + rem ≤ numBucketsWhp n_max →
       SeedWhpMemRep base c U w n_max θ s.mem →
       iterationSafe findSaltsBktStepProg FindSaltsBktStepPre w (crt, hrt) rem (b₀, ok₀) s := by
-  intro crt hrt rem
+  intro crt hrt rem bs oks s₁ hle₁ hseed₁
   have hw := henv.2.1
   have hq_le_bm := offQuot_le_offBktMeta c U V w n_max
-  induction rem with
-  | zero => intro _ _ _ _ _; exact trivial
-  | succ rem ih =>
-    intro b₀ ok₀ s hle hseed
-    have hb_lt : b₀ < numBucketsWhp n_max := by omega
-    have hpre : FindSaltsBktStepPre w ((crt, hrt), (b₀, ok₀)) s :=
-      ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hb_lt⟩
-    set p1 := findSaltsBktStepProg ((crt, hrt), (b₀, ok₀))
-    have hws_fst : ∀ cfg okv sv s',
-        ((Memory.spec 0).clientResult s' (writeSaltResultProg (cfg, (okv, sv)))).1 =
-          cfg.2.2 + 1 := by
-      intro ⟨⟨⟨b0, ob0⟩, gb0, w0⟩, sm0, bk0⟩ okv sv s'
-      unfold writeSaltResultProg; dsimp only; simp only [pure_bind]
-      by_cases hsm : sv ≤ sm0
-      · simp only [hsm, ↓reduceIte]
-        by_cases h1s : 1 ≤ sv
-        · simp only [h1s, ↓reduceIte]; rw [clientResult_bind]
-          split_ifs <;> rfl
-        · simp only [h1s, ↓reduceIte]; rw [clientResult_bind]; rfl
-      · simp only [hsm, ↓reduceIte]; rw [clientResult_bind]; rfl
-    have hws_mem : ∀ okv sv s',
-        ∃ vVal,
-          ((Memory.spec 0).clientState s'
-            (writeSaltResultProg
-              ((((base, offBktMeta c U V w n_max), (globalPtrBits n_max, w)),
-                (sMaxWhp c n_max, b₀)), (okv, sv)))).mem =
-            writePacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s'.mem
-              (16 * b₀ + 1) vVal := by
-      intro okv sv s'
-      unfold writeSaltResultProg; dsimp only; simp only [pure_bind]
-      by_cases hsm : sv ≤ sMaxWhp c n_max
-      · simp only [hsm, ↓reduceIte]
-        by_cases h1s : 1 ≤ sv
-        · simp only [h1s, ↓reduceIte]
-          rw [clientState_bind, clientState_writePackedGen]
-          exact ⟨sv - 1, by split_ifs <;> rfl⟩
-        · simp only [h1s, ↓reduceIte]
-          rw [clientState_bind, clientState_writePackedGen]; exact ⟨0, rfl⟩
-      · simp only [hsm, ↓reduceIte]
+  refine iterationSafe_of_stepInv findSaltsBktStepProg FindSaltsBktStepPre w (crt, hrt)
+    (fun j a t => a.1 + j ≤ numBucketsWhp n_max ∧ SeedWhpMemRep base c U w n_max θ t.mem)
+    (fun j a s h => ?_) (a := (bs, oks)) ⟨hle₁, hseed₁⟩
+  obtain ⟨b₀, ok₀⟩ := a
+  obtain ⟨hle, hseed⟩ := h
+  dsimp only at hle
+  have hb_lt : b₀ < numBucketsWhp n_max := by omega
+  have hpre : FindSaltsBktStepPre w ((crt, hrt), (b₀, ok₀)) s :=
+    ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, hseed⟩, hb_lt⟩
+  set p1 := findSaltsBktStepProg ((crt, hrt), (b₀, ok₀))
+  have hws_fst : ∀ cfg okv sv s',
+      ((Memory.spec 0).clientResult s' (writeSaltResultProg (cfg, (okv, sv)))).1 =
+        cfg.2.2 + 1 := by
+    intro ⟨⟨⟨b0, ob0⟩, gb0, w0⟩, sm0, bk0⟩ okv sv s'
+    unfold writeSaltResultProg; dsimp only; simp only [pure_bind]
+    by_cases hsm : sv ≤ sm0
+    · simp only [hsm, ↓reduceIte]
+      by_cases h1s : 1 ≤ sv
+      · simp only [h1s, ↓reduceIte]; rw [clientResult_bind]
+        split_ifs <;> rfl
+      · simp only [h1s, ↓reduceIte]; rw [clientResult_bind]; rfl
+    · simp only [hsm, ↓reduceIte]; rw [clientResult_bind]; rfl
+  have hws_mem : ∀ okv sv s',
+      ∃ vVal,
+        ((Memory.spec 0).clientState s'
+          (writeSaltResultProg
+            ((((base, offBktMeta c U V w n_max), (globalPtrBits n_max, w)),
+              (sMaxWhp c n_max, b₀)), (okv, sv)))).mem =
+          writePacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s'.mem
+            (16 * b₀ + 1) vVal := by
+    intro okv sv s'
+    unfold writeSaltResultProg; dsimp only; simp only [pure_bind]
+    by_cases hsm : sv ≤ sMaxWhp c n_max
+    · simp only [hsm, ↓reduceIte]
+      by_cases h1s : 1 ≤ sv
+      · simp only [h1s, ↓reduceIte]
+        rw [clientState_bind, clientState_writePackedGen]
+        exact ⟨sv - 1, by split_ifs <;> rfl⟩
+      · simp only [h1s, ↓reduceIte]
         rw [clientState_bind, clientState_writePackedGen]; exact ⟨0, rfl⟩
-    have hfst : ((Memory.spec 0).clientResult s p1).1 = b₀ + 1 := by
-      dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
-      simp only [pure_bind]
-      rw [clientResult_bind, clientState_readPackedGen, clientResult_bind,
-        clientState_readPackedGen]
-      split_ifs with h1 h2
-      · rw [clientResult_bind]; exact hws_fst _ _ _ _
-      · rfl
-      · rfl
-    have hseed' : SeedWhpMemRep base c U w n_max θ ((Memory.spec 0).clientState s p1).mem := by
-      dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
-      simp only [pure_bind]
-      rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen,
-        clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
-      split_ifs with h1 h2
-      · rw [clientState_bind]
-        set lo := readPacked (ckBase crt + ckOffFb crt) (ckGBits crt) (ckW crt) s.mem b₀
-        set hi := readPacked (ckBase crt + ckOffFb crt) (ckGBits crt) (ckW crt) s.mem (b₀ + 1)
-        dsimp only [crt, mkChkRt, ckBase, ckW, ckNMax, ckGBits, ckOffFb] at h1 h2 lo hi ⊢
-        obtain ⟨_, hfsl_st, _, _⟩ := findSaltLoop_spec (lo := lo) (len := hi - lo)
-          henv hseed (by omega) (sMaxWhp c n_max) 0 0 (by omega) rfl (s := s)
-        dsimp only [crt, hrt, mkChkRt, ckSMax, ckOffBm] at hfsl_st ⊢
-        rw [hfsl_st]
-        obtain ⟨vVal, hm_eq⟩ := hws_mem ok₀
-          ((Memory.spec 0).clientResult s
-            (findSaltLoopProg
-              (((((crt, mkHashRt c U w n_max base), (lo, hi - lo)),
-                (0, 0)), sMaxWhp c n_max)))).2 s
-        dsimp only [crt, mkChkRt] at hm_eq
-        rw [hm_eq]
-        exact SeedWhpMemRep.congr_hash hw (fun a _ ha2 =>
-          (writePacked_outside hw _ (by omega : 16 * b₀ + 1 < 16 * numBucketsWhp n_max) _ (by
-            omega)).symm) hseed
-      · exact hseed
-      · exact hseed
-    refine ⟨hpre, ?_⟩
-    rw [clientState_width, clientResult_width]
-    set res := (Memory.spec 0).clientResult s p1
-    have heta : res = (b₀ + 1, res.2) := Prod.ext hfst rfl
-    rw [heta]
-    exact ih (b₀ + 1) res.2 _ (by omega) hseed'
+    · simp only [hsm, ↓reduceIte]
+      rw [clientState_bind, clientState_writePackedGen]; exact ⟨0, rfl⟩
+  have hfst : ((Memory.spec 0).clientResult s p1).1 = b₀ + 1 := by
+    dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
+    simp only [pure_bind]
+    rw [clientResult_bind, clientState_readPackedGen, clientResult_bind,
+      clientState_readPackedGen]
+    split_ifs with h1 h2
+    · rw [clientResult_bind]; exact hws_fst _ _ _ _
+    · rfl
+    · rfl
+  have hseed' : SeedWhpMemRep base c U w n_max θ ((Memory.spec 0).clientState s p1).mem := by
+    dsimp only [p1]; unfold findSaltsBktStepProg; dsimp only
+    simp only [pure_bind]
+    rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen,
+      clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
+    split_ifs with h1 h2
+    · rw [clientState_bind]
+      set lo := readPacked (ckBase crt + ckOffFb crt) (ckGBits crt) (ckW crt) s.mem b₀
+      set hi := readPacked (ckBase crt + ckOffFb crt) (ckGBits crt) (ckW crt) s.mem (b₀ + 1)
+      dsimp only [crt, mkChkRt, ckBase, ckW, ckNMax, ckGBits, ckOffFb] at h1 h2 lo hi ⊢
+      obtain ⟨_, hfsl_st, _, _⟩ := findSaltLoop_spec (lo := lo) (len := hi - lo)
+        henv hseed (by omega) (sMaxWhp c n_max) 0 0 (by omega) rfl (s := s)
+      dsimp only [crt, hrt, mkChkRt, ckSMax, ckOffBm] at hfsl_st ⊢
+      rw [hfsl_st]
+      obtain ⟨vVal, hm_eq⟩ := hws_mem ok₀
+        ((Memory.spec 0).clientResult s
+          (findSaltLoopProg
+            (((((crt, mkHashRt c U w n_max base), (lo, hi - lo)),
+              (0, 0)), sMaxWhp c n_max)))).2 s
+      dsimp only [crt, mkChkRt] at hm_eq
+      rw [hm_eq]
+      exact SeedWhpMemRep.congr_hash hw (fun a _ ha2 =>
+        (writePacked_outside hw _ (by omega : 16 * b₀ + 1 < 16 * numBucketsWhp n_max) _ (by
+          omega)).symm) hseed
+    · exact hseed
+    · exact hseed
+  exact ⟨hpre, by rw [hfst]; omega, hseed'⟩
 
 private theorem realizes_checkGoodSeedBody :
     Realizes .exact checkGoodSeedBodyProg
@@ -2461,53 +2431,7 @@ theorem checkGoodSeedOnStateGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWh
     have hhi_le : csr.fbStart (b + 1) ≤ n_max := (hmono (b + 1) M hb le_rfl).trans hN_le
     have hle_b := hv.2.1 b hb
     dsimp only [salt1Pure]
-    have hrec : ∀ k,
-        findSaltInRange (fun salt idx =>
-          let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-            (csrBucketOfIdx fbMem idx M) (qMem idx)
-          if hs : salt < sMaxWhp c n_max then
-            if hu : kv < U then fpHash c U n_max θ.2 ⟨salt, hs⟩ ⟨kv, hu⟩ else 0
-          else 0) (csr.fbStart b) (csr.fbStart (b + 1) - csr.fbStart b) k =
-        findSaltInRange fpAt (csr.fbStart b) (csr.fbStart (b + 1) - csr.fbStart b) k := by
-      intro k
-      induction k with
-      | zero => rfl
-      | succ k ihk =>
-        dsimp only [findSaltInRange]; rw [ihk]
-        set lo_b := csr.fbStart b
-        set len_b := csr.fbStart (b + 1) - csr.fbStart b
-        have hpd : ∀ m ≤ len_b,
-            checkPairwiseDistinctOn (fun t =>
-              let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-                (csrBucketOfIdx fbMem (lo_b + t) M) (qMem (lo_b + t))
-              if hs : k < sMaxWhp c n_max then
-                if hu : kv < U then fpHash c U n_max θ.2 ⟨k, hs⟩ ⟨kv, hu⟩ else 0
-              else 0) m =
-            checkPairwiseDistinctOn (fun t => fpAt k (lo_b + t)) m := by
-          intro m hm
-          induction m with
-          | zero => rfl
-          | succ m ihm =>
-            dsimp only [checkPairwiseDistinctOn]
-            rw [ihm (Nat.le_of_succ_le hm), hfp_pt k (lo_b + m) (by omega)]
-            congr 1
-            have hne_c : ∀ r ≤ m,
-                checkNoEqBefore (fun t =>
-                  let kv := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1)
-                    (csrBucketOfIdx fbMem (lo_b + t) M) (qMem (lo_b + t))
-                  if hs : k < sMaxWhp c n_max then
-                    if hu : kv < U then fpHash c U n_max θ.2 ⟨k, hs⟩ ⟨kv, hu⟩ else 0
-                  else 0) (fpAt k (lo_b + m)) r =
-                checkNoEqBefore (fun t => fpAt k (lo_b + t)) (fpAt k (lo_b + m)) r := by
-              intro r hr
-              induction r with
-              | zero => rfl
-              | succ r ihr =>
-                dsimp only [checkNoEqBefore]
-                rw [ihr (Nat.le_of_succ_le hr), hfp_pt k (lo_b + r) (by omega)]
-            exact hne_c m le_rfl
-        exact congrArg (if _ != 0 then _ else if · then k + 1 else 0) (hpd len_b le_rfl)
-    exact hrec (sMaxWhp c n_max)
+    exact findSaltInRange_congr fun salt _ idx _ hidx => hfp_pt salt idx (by omega)
   have hall_congr : ∀ k ≤ M,
       allSaltsFoundRec (fun b =>
         findSaltInRange (fun salt idx =>
