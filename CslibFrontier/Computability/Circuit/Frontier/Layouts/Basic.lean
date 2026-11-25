@@ -51,8 +51,7 @@ variable {V E : Type*} (G : Multigraph V E)
 /-- Edge cuts are subadditive. -/
 theorem edgeCut_union_subset (S T : Set V) : G.edgeCut (S ∪ T) ⊆ G.edgeCut S ∪ G.edgeCut T := by
   intro e
-  simp only [mem_edgeCut, mem_union]
-  tauto
+  simp only [mem_edgeCut, mem_union]; tauto
 
 /-- The cardinality of the edge cut of a union is at most the sum of the cardinalities of the edge
 cuts. -/
@@ -69,22 +68,18 @@ theorem ncard_edgeCut_union_add {S T : Set V} (h : Disjoint S T)
   have hd (v : V) : v ∈ S → v ∉ T := fun hv => disjoint_left.mp h hv
   have h₁ : G.edgeCut (S ∪ T) ∪ (G.edgeCut S ∩ G.edgeCut T) = G.edgeCut S ∪ G.edgeCut T := by
     ext e
-    have := hd (G.src e)
-    have := hd (G.tgt e)
+    have := hd (G.src e); have := hd (G.tgt e)
     simp only [mem_union, mem_inter_iff, mem_edgeCut]
     lrat_tauto
-  have h₂ : Disjoint (G.edgeCut (S ∪ T)) (G.edgeCut S ∩ G.edgeCut T) := by
-    refine disjoint_left.mpr fun e he he' => ?_
-    have := hd (G.src e)
-    have := hd (G.tgt e)
-    simp only [mem_union, mem_inter_iff, mem_edgeCut] at he he'
-    lrat_tauto
-  have hST : (G.edgeCut (S ∪ T) ∪ (G.edgeCut S ∩ G.edgeCut T)).Finite := by
-    rw [h₁]
-    exact hS.union hT
+  have h₂ : Disjoint (G.edgeCut (S ∪ T)) (G.edgeCut S ∩ G.edgeCut T) :=
+    disjoint_left.mpr fun e he he' => by
+      have := hd (G.src e); have := hd (G.tgt e)
+      simp only [mem_union, mem_inter_iff, mem_edgeCut] at he he'
+      lrat_tauto
+  have hST : (G.edgeCut (S ∪ T) ∪ (G.edgeCut S ∩ G.edgeCut T)).Finite := h₁.symm ▸ hS.union hT
   have := ncard_union_add_ncard_inter (G.edgeCut S) (G.edgeCut T) hS hT
-  rw [← h₁, ncard_union_eq h₂ (hST.subset subset_union_left)
-    (hST.subset subset_union_right)] at this
+  rw [← h₁, ncard_union_eq h₂ (hST.subset subset_union_left) (hST.subset subset_union_right)]
+    at this
   omega
 
 /-- In a loopless multigraph, the edges leaving a single vertex are the edges at it. -/
@@ -92,11 +87,7 @@ theorem edgeCut_singleton (hG : G.Loopless) (v : V) : G.edgeCut {v} = G.incidenc
   ext e
   have := hG e
   simp only [mem_edgeCut, mem_singleton_iff, mem_incidenceSet]
-  constructor
-  · intro h
-    by_contra h'
-    exact h (iff_of_false (not_or.mp h').1 (not_or.mp h').2)
-  · rintro (h | h) <;> grind
+  grind
 
 variable {G} in
 /-- In a connected multigraph, some edge leaves every set of vertices other than the empty set
@@ -107,8 +98,7 @@ theorem edgeCut_nonempty (hG : G.toSimpleGraph.Connected) {S : Set V} {u v : V} 
   obtain ⟨d, -, hd₁, hd₂⟩ := p.exists_boundary_dart S hu hv
   obtain ⟨-, e, he⟩ := toSimpleGraph_adj.mp d.adj
   refine ⟨e, ?_⟩
-  rcases Sym2.eq_iff.mp he with ⟨hs, ht⟩ | ⟨hs, ht⟩ <;>
-    simp only [mem_edgeCut, hs, ht] <;> tauto
+  rcases Sym2.eq_iff.mp he with ⟨hs, ht⟩ | ⟨hs, ht⟩ <;> simp only [mem_edgeCut, hs, ht] <;> tauto
 
 /-- **The handshake lemma.** In a finite loopless multigraph, the numbers of edges at the
 vertices add up to twice the number of edges. -/
@@ -119,18 +109,13 @@ theorem sum_ncard_incidenceSet [Fintype V] [Finite E] (hG : G.Loopless) :
   have hinc (v : V) : (G.incidenceSet v).ncard =
       ∑ e, if G.src e = v ∨ G.tgt e = v then 1 else 0 := by
     rw [Finset.sum_boole, ← ncard_coe_finset]
-    congr 1
-    ext e
-    simp [mem_incidenceSet]
+    exact congrArg Set.ncard (by ext e; simp [mem_incidenceSet])
   simp only [hinc]
   rw [Finset.sum_comm, Nat.card_eq_fintype_card, ← Finset.card_univ, Finset.card_eq_sum_ones,
     Finset.mul_sum]
   refine Finset.sum_congr rfl fun e _ => ?_
-  rw [Finset.sum_boole, mul_one]
-  have : Finset.univ.filter (fun v => G.src e = v ∨ G.tgt e = v) = {G.src e, G.tgt e} := by
-    ext v
-    simp [eq_comm]
-  rw [this, Finset.card_pair (hG e)]
+  rw [Finset.sum_boole, mul_one, show Finset.univ.filter (fun v => G.src e = v ∨ G.tgt e = v) =
+      {G.src e, G.tgt e} by ext; simp [eq_comm], Finset.card_pair (hG e)]
   rfl
 
 /-- No layout is wider than the number of edges. -/
@@ -160,7 +145,7 @@ theorem initial_eq_of_lt_iff {α : Type*} [LinearOrder α] {f : V → α} {π : 
     (hπ : ∀ v w, π v < π w ↔ f v < f w) {t : ℕ} (ht : t < Nat.card V) :
     π.initial t = {v | f v < f (π.symm ⟨t, ht⟩)} := by
   ext v
-  rw [mem_initial, mem_ofPred_eq,← hπ, Equiv.apply_symm_apply, Fin.lt_def]
+  rw [mem_initial, mem_ofPred_eq, ← hπ, Equiv.apply_symm_apply, Fin.lt_def]
 
 end Layout
 
@@ -173,9 +158,7 @@ theorem LayoutBound.mono {d : ℕ} {A A' : ℝ} (h : LayoutBound d A) (hAA' : A 
   obtain ⟨C, hC⟩ := h η hη
   refine ⟨C, fun V E _ _ G hconn hloop hdeg => ?_⟩
   obtain ⟨π, hπ⟩ := hC V E G hconn hloop hdeg
-  refine ⟨π, hπ.trans ?_⟩
-  have : (A + η) * G.cycleRank ≤ (A' + η) * G.cycleRank := by gcongr
-  linarith
+  exact ⟨π, by linarith only [hπ, show (A + η) * G.cycleRank ≤ (A' + η) * G.cycleRank by gcongr]⟩
 
 /-- **Logarithmic error terms.** To prove the layout hypothesis it suffices to find, for every
 `η > 0`, layouts of width at most `(A + η) β₁ + D log₂ |V| + C`, for a constant `C`: the term
@@ -190,16 +173,12 @@ theorem LayoutBound.of_natLog {d D : ℕ} {A : ℝ}
   obtain ⟨m, hm⟩ := exists_nat_gt ((D : ℝ) / η)
   refine ⟨C + η * (m * m : ℕ), fun V E _ _ G hconn hloop hdeg => ?_⟩
   obtain ⟨π, hπ⟩ := hC V E G hconn hloop hdeg
-  refine ⟨π, hπ.trans ?_⟩
   have hDm : (D : ℝ) ≤ η * m := ((div_lt_iff₀ hη).mp hm).le.trans_eq (mul_comm _ _)
   have hlog : (m : ℝ) * Nat.log 2 (Nat.card V) ≤ Nat.card V + (m * m : ℕ) := by
     exact_mod_cast Nat.mul_log_le_add_sq Nat.one_lt_two m (Nat.card V)
   have hDlog : (D : ℝ) * Nat.log 2 (Nat.card V) ≤ η * (Nat.card V + (m * m : ℕ)) :=
-    calc (D : ℝ) * Nat.log 2 (Nat.card V)
-        ≤ (η * m) * Nat.log 2 (Nat.card V) :=
-          mul_le_mul_of_nonneg_right hDm (Nat.cast_nonneg _)
-      _ = η * ((m : ℝ) * Nat.log 2 (Nat.card V)) := mul_assoc _ _ _
-      _ ≤ η * (Nat.card V + (m * m : ℕ)) := mul_le_mul_of_nonneg_left hlog hη.le
-  linarith
+    (mul_le_mul_of_nonneg_right hDm (Nat.cast_nonneg _)).trans
+      ((mul_assoc _ _ _).le.trans (mul_le_mul_of_nonneg_left hlog hη.le))
+  exact ⟨π, by linarith only [hπ, hDlog]⟩
 
 end Cslib.Circuits.Frontier

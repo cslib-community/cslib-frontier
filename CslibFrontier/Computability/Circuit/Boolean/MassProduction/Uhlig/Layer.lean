@@ -113,14 +113,10 @@ theorem pairSelect_comp_pairWires (s : Fin 2) (j : ℕ) (i : Fin t)
     (x : BitString (2 * t * (p + w))) :
     pairSelect s j (x ∘ pairWires i) =
       ![first, second] s (rank x (pairCopy 0 i)) (rank x (pairCopy 1 i)) j := by
-  have h0 : (x ∘ pairWires i) ∘ Fin.castAdd p =
-      BitString.block x (pairCopy 0 i) ∘ Fin.castAdd w := by
-    funext a
-    simp only [pairWires, BitString.block, Function.comp_apply, Fin.append_left]
-  have h1 : (x ∘ pairWires i) ∘ Fin.natAdd p =
-      BitString.block x (pairCopy 1 i) ∘ Fin.castAdd w := by
-    funext a
-    simp only [pairWires, BitString.block, Function.comp_apply, Fin.append_right]
+  have h0 : (x ∘ pairWires i) ∘ Fin.castAdd p = BitString.block x (pairCopy 0 i) ∘ Fin.castAdd w :=
+    funext fun _ => by simp only [pairWires, BitString.block, Function.comp_apply, Fin.append_left]
+  have h1 : (x ∘ pairWires i) ∘ Fin.natAdd p = BitString.block x (pairCopy 1 i) ∘ Fin.castAdd w :=
+    funext fun _ => by simp only [pairWires, BitString.block, Function.comp_apply, Fin.append_right]
   simp only [pairSelect, rank, h0, h1]
 
 /-- The suffix bit `k` routed to resource `j` from pair `i`. -/
@@ -158,13 +154,11 @@ def decoded (s : Fin 2) (i : Fin t) (y : BitString (2 * t * (p + w) + (2 ^ p + 1
 private theorem synthesis_decoded (s : Fin 2) (i : Fin t) :
     Synthesis interpretation (inputs (2 * t * (p + w) + (2 ^ p + 1) * t)) {decoded s i}
       ((2 ^ p + 1) * (selectorCost p + 5) + 1) := by
-  have h := Synthesis.sum (s := inputs (2 * t * (p + w) + (2 ^ p + 1) * t)) univ
+  refine (Synthesis.sum (s := inputs (2 * t * (p + w) + (2 ^ p + 1) * t)) univ
     (fun (j : Fin (2 ^ p + 1)) y => pairSelect s j (y ∘ Fin.castAdd _ ∘ pairWires i) &&
-      y (Fin.natAdd _ (finProdFinEquiv (j, i))))
-    (fun _ => selectorCost p + 1)
-    fun j _ => (Synthesis.selected _ _).and (Synthesis.of_mem ⟨_, rfl⟩)
-  refine h.mono Set.Subset.rfl Set.Subset.rfl (le_of_eq ?_)
-  simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
+      y (Fin.natAdd _ (finProdFinEquiv (j, i)))) (fun _ => selectorCost p + 1)
+    fun j _ => (Synthesis.selected _ _).and (Synthesis.of_mem ⟨_, rfl⟩)).mono
+    Set.Subset.rfl Set.Subset.rfl (by simp)
 
 /-- If the decoder reads the inputs and, for every resource, its value on the routed
 suffixes of pair `i`, then copy `s` of pair `i` decodes to `f` on that copy's input. -/
@@ -180,10 +174,10 @@ theorem decoded_eq (f : BooleanFunction (p + w)) (s : Fin 2) (i : Fin t)
   simp only [decoded] at hy ⊢
   rw [← Function.comp_assoc, hx]
   simp only [pairSelect_comp_pairWires, hy, resource]
-  rw [Fin.sum_univ_eq_sum_range (fun j => ![first, second] s (rank x (pairCopy 0 i))
+  rw [Fin.sum_univ_eq_sum_range fun j => ![first, second] s (rank x (pairCopy 0 i))
     (rank x (pairCopy 1 i)) j && code (restriction f (if first (rank x (pairCopy 0 i))
       (rank x (pairCopy 1 i)) j then BitString.block x (pairCopy 0 i) ∘ Fin.natAdd p
-    else BitString.block x (pairCopy 1 i) ∘ Fin.natAdd p)) j)]
+    else BitString.block x (pairCopy 1 i) ∘ Fin.natAdd p)) j]
   match s with
   | 0 =>
     rw [Matrix.cons_val_zero, sum_first_code_route (restriction_two_pow f) (hrank _)]
@@ -225,10 +219,8 @@ theorem complexity_directProduct_two_mul_le {B : ℕ}
   refine complexity_le_iff.mpr ⟨layer, fun x => ?_, ?_⟩
   · have hfront : cFront.eval interpretation x = Fin.append x fun q =>
         routedBit (finProdFinEquiv.symm q).1 (finProdFinEquiv.symm (finProdFinEquiv.symm q).2).1
-          (finProdFinEquiv.symm (finProdFinEquiv.symm q).2).2 x := by
-      rw [hcFront x]
-      funext l
-      refine Fin.addCases (fun l => ?_) (fun q => ?_) l <;> simp [front]
+          (finProdFinEquiv.symm (finProdFinEquiv.symm q).2).2 x :=
+      (hcFront x).trans (funext (Fin.addCases (fun _ => by simp [front]) fun _ => by simp [front]))
     funext c
     obtain ⟨⟨s, i⟩, rfl⟩ := finProdFinEquiv.surjective c
     simp only [layer, Circuit.eval_comp, hcDec _, hfront, Circuit.eval_parallel,
@@ -246,8 +238,7 @@ theorem complexity_directProduct_two_mul_le {B : ℕ}
       Fintype.card_fin, smul_eq_mul, mul_zero, zero_add] at hsFront hsDec
     simp only [layer, Circuit.size_comp, Circuit.size_parallel, Circuit.size_parallelFamily,
       Circuit.size_wiring, zero_add]
-    refine (Nat.add_le_add (Nat.add_le_add hsFront hbankSize) hsDec).trans (le_of_eq ?_)
-    unfold layerOverhead
-    ring
+    exact (Nat.add_le_add (Nat.add_le_add hsFront hbankSize) hsDec).trans_eq
+      (by unfold layerOverhead; ring)
 
 end Cslib.Circuits.Boolean.MassProduction.Uhlig

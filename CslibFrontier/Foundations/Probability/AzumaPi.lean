@@ -75,17 +75,14 @@ theorem HasSubgaussianMGF.measure_sqrt_lt_le (h : HasSubgaussianMGF X c μ) {δ 
   have hL : 0 ≤ log (1 / δ) := log_nonneg (by rw [le_div_iff₀ hδ]; simpa using hδ1)
   rcases eq_or_ne c 0 with rfl | hc
   · have h0 : μ {ω | 0 < X ω} = 0 :=
-      measure_mono_null (fun ω (hω : 0 < X ω) => by simp [hω.ne'])
+      measure_mono_null (Set.ofPred_subset_ofPred.2 fun ω hω => by simp [hω.ne'])
         (ae_iff.1 h.ae_eq_zero_of_hasSubgaussianMGF_zero)
     simpa [measureReal_def, h0] using hδ.le
-  · have hc' : (0 : ℝ) < c := by positivity
-    calc μ.real {ω | √(2 * c * log (1 / δ)) < X ω}
-        ≤ μ.real {ω | √(2 * c * log (1 / δ)) ≤ X ω} :=
-          measureReal_mono (Set.ofPred_subset_ofPred.2 fun _ hω => hω.le)
-      _ ≤ exp (-√(2 * c * log (1 / δ)) ^ 2 / (2 * c)) := h.measure_ge_le (sqrt_nonneg _)
-      _ = δ := by
-        rw [sq_sqrt (by positivity), one_div, log_inv,
-          show -(2 * (c : ℝ) * -log δ) / (2 * c) = log δ by field_simp, exp_log hδ]
+  · have : (0 : ℝ) < c := by positivity
+    refine (measureReal_mono (Set.ofPred_subset_ofPred.2 fun _ hω => hω.le)).trans
+      ((h.measure_ge_le (sqrt_nonneg _)).trans_eq ?_)
+    rw [sq_sqrt (by positivity), one_div, log_inv,
+      show -(2 * (c : ℝ) * -log δ) / (2 * c) = log δ by field_simp, exp_log hδ]
 
 end Tail
 
@@ -110,10 +107,8 @@ private theorem abs_le_of_integral_update_eq_zero {Y : (∀ i, α i) → ℝ} {i
     simpa [hmean v] using integral_mono (integrable_const a) hint fun z => (ha z).1
   have h2 : 0 ≤ a + c := by
     simpa [hmean v] using integral_mono hint (integrable_const (a + c)) fun z => (ha z).2
-  have hv := ha (v i)
-  rw [Function.update_eq_self] at hv
-  rw [abs_le]
-  constructor <;> linarith [hv.1, hv.2]
+  have hv : Y v ∈ Set.Icc a (a + c) := Function.update_eq_self i v ▸ ha (v i)
+  exact abs_le.2 ⟨by linarith only [h2, hv.1], by linarith only [h1, hv.2]⟩
 
 /-- **Azuma–Hoeffding under a product measure, sub-Gaussian form.** Let `Y i` not depend on the
 coordinates after `i`, have mean `0` over coordinate `i`, and range over an interval of length
@@ -132,10 +127,9 @@ theorem hasSubgaussianMGF_sum_pi (hY : ∀ i, Measurable (Y i))
       (measurable_const.mul (Finset.measurable_sum s fun i _ => hY i)).exp.aestronglyMeasurable
       (exp (|t| * ∑ i ∈ s, (c i : ℝ))) (Filter.Eventually.of_forall fun v => by
         rw [Real.norm_eq_abs, abs_exp, exp_le_exp]
-        refine (le_abs_self _).trans ?_
-        rw [abs_mul]
-        exact mul_le_mul_of_nonneg_left
-          ((abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun i _ => habs i v)) (abs_nonneg t))
+        exact (le_abs_self _).trans ((abs_mul _ _).le.trans (mul_le_mul_of_nonneg_left
+          ((abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun i _ => habs i v))
+          (abs_nonneg t))))
   have key : ∀ (s : Finset ι) (t : ℝ), ∫ v, exp (t * ∑ i ∈ s, Y i v) ∂Measure.pi μ ≤
       exp ((∑ i ∈ s, ((c i : ℝ) / 2) ^ 2) * t ^ 2 / 2) := by
     intro s t
@@ -145,14 +139,12 @@ theorem hasSubgaussianMGF_sum_pi (hY : ∀ i, Measurable (Y i))
       have hj : j ∉ s := fun h => lt_irrefl j (hlt j h)
       have hP : ∀ v z, ∑ i ∈ s, Y i (Function.update v j z) = ∑ i ∈ s, Y i v :=
         fun v z => Finset.sum_congr rfl fun i hi => hadapted i j (hlt i hi) v z
-      have hstep : ∀ v, ∫ z, exp (t * Y j (Function.update v j z)) ∂μ j ≤
+      have hstep (v) : ∫ z, exp (t * Y j (Function.update v j z)) ∂μ j ≤
           exp (((c j : ℝ) / 2) ^ 2 * t ^ 2 / 2) := by
-        intro v
         obtain ⟨a, ha⟩ := hrange j v
-        have hsub := hasSubgaussianMGF_of_mem_Icc_of_integral_eq_zero
+        simpa [mgf] using (hasSubgaussianMGF_of_mem_Icc_of_integral_eq_zero
           ((hY j).comp (measurable_update v)).aemeasurable (Filter.Eventually.of_forall ha)
-          (hmean j v)
-        simpa [mgf] using hsub.mgf_le t
+          (hmean j v)).mgf_le t
       calc ∫ v, exp (t * ∑ i ∈ insert j s, Y i v) ∂Measure.pi μ
           = ∫ v, ∫ z, exp (t * ∑ i ∈ insert j s, Y i (Function.update v j z)) ∂μ j
               ∂Measure.pi μ := (integral_integral_update μ (hint (insert j s) t) j).symm
@@ -161,26 +153,20 @@ theorem hasSubgaussianMGF_sum_pi (hY : ∀ i, Measurable (Y i))
             congr 1 with v
             rw [← integral_const_mul]
             congr 1 with z
-            rw [Finset.sum_insert hj, hP, mul_add, exp_add]
-            exact mul_comm _ _
-        _ ≤ ∫ v, exp (t * ∑ i ∈ s, Y i v) * exp (((c j : ℝ) / 2) ^ 2 * t ^ 2 / 2)
-              ∂Measure.pi μ :=
-            integral_mono_of_nonneg
+            rw [Finset.sum_insert hj, hP, mul_add, exp_add, mul_comm (exp _)]
+        _ ≤ (∫ v, exp (t * ∑ i ∈ s, Y i v) ∂Measure.pi μ) *
+              exp (((c j : ℝ) / 2) ^ 2 * t ^ 2 / 2) := by
+            rw [← integral_mul_const]
+            exact integral_mono_of_nonneg
               (Filter.Eventually.of_forall fun v =>
                 mul_nonneg (exp_pos _).le (integral_nonneg fun _ => (exp_pos _).le))
               ((hint s t).mul_const _)
               (Filter.Eventually.of_forall fun v =>
                 mul_le_mul_of_nonneg_left (hstep v) (exp_pos _).le)
-        _ = (∫ v, exp (t * ∑ i ∈ s, Y i v) ∂Measure.pi μ) *
-              exp (((c j : ℝ) / 2) ^ 2 * t ^ 2 / 2) := integral_mul_const _ _
-        _ ≤ exp ((∑ i ∈ s, ((c i : ℝ) / 2) ^ 2) * t ^ 2 / 2) *
-              exp (((c j : ℝ) / 2) ^ 2 * t ^ 2 / 2) :=
-            mul_le_mul_of_nonneg_right ih (exp_pos _).le
-        _ = exp ((∑ i ∈ insert j s, ((c i : ℝ) / 2) ^ 2) * t ^ 2 / 2) := by
-            rw [← exp_add, Finset.sum_insert hj]
-            ring_nf
-  refine ⟨hint univ, fun t => ?_⟩
-  simpa [mgf] using key univ t
+        _ ≤ exp ((∑ i ∈ insert j s, ((c i : ℝ) / 2) ^ 2) * t ^ 2 / 2) := by
+            rw [Finset.sum_insert hj, add_mul, add_div, exp_add, mul_comm (exp _)]
+            exact mul_le_mul_of_nonneg_right ih (exp_pos _).le
+  exact ⟨hint univ, fun t => by simpa [mgf] using key univ t⟩
 
 /-- **The Azuma–Hoeffding inequality under a product measure.** Let `Y i` not depend on the
 coordinates after `i`, have mean `0` over coordinate `i`, and range over an interval of length
@@ -192,8 +178,8 @@ theorem measure_sum_ge_le_pi (hY : ∀ i, Measurable (Y i))
     (hrange : ∀ i v, ∃ a : ℝ, ∀ z, Y i (Function.update v i z) ∈ Set.Icc a (a + c i))
     {ε : ℝ} (hε : 0 ≤ ε) :
     (Measure.pi μ).real {v | ε ≤ ∑ i, Y i v} ≤ exp (-2 * ε ^ 2 / ∑ i, (c i : ℝ) ^ 2) := by
-  refine ((hasSubgaussianMGF_sum_pi hY hadapted hmean hrange).measure_ge_le hε).trans_eq ?_
-  congr 1
+  refine ((hasSubgaussianMGF_sum_pi hY hadapted hmean hrange).measure_ge_le hε).trans_eq
+    (congrArg exp ?_)
   push_cast
   simp only [div_pow, ← Finset.sum_div]
   ring
