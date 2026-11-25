@@ -636,18 +636,18 @@ tensorization and comparison inequalities ([Tsybakov](../sources.md#tsybakov09),
   [`echiSquare_ne_top_iff`](../../CslibFrontier/Probability/ChiSquare.lean#L145) equates finiteness
   to `p.support ⊆ q.support`, and real-valued theorems state `p.support ⊆ q.support` explicitly so
   `x / 0 = 0` never hides off-support mass. These cover tensorization
-  ([`one_add_chiSquare_pi`](../../CslibFrontier/Probability/ChiSquare.lean#L243),
-  [`one_add_chiSquare_iid`](../../CslibFrontier/Probability/ChiSquare.lean#L271)), TV upper bounds
-  ([`dist_le_sqrt_chiSquare_div_two`](../../CslibFrontier/Probability/ChiSquare.lean#L296),
-  [`tvDist_le_sqrt_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L312)), data
-  processing ([`chiSquare_bind_le`](../../CslibFrontier/Probability/ChiSquare.lean#L333)), the
+  ([`one_add_chiSquare_pi`](../../CslibFrontier/Probability/ChiSquare.lean#L246),
+  [`one_add_chiSquare_iid`](../../CslibFrontier/Probability/ChiSquare.lean#L274)), TV upper bounds
+  ([`dist_le_sqrt_chiSquare_div_two`](../../CslibFrontier/Probability/ChiSquare.lean#L299),
+  [`tvDist_le_sqrt_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L315)), data
+  processing ([`chiSquare_bind_le`](../../CslibFrontier/Probability/ChiSquare.lean#L336)), the
   mixture second-moment identity
-  ([`one_add_chiSquare_bind_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L358),
-  [`one_add_chiSquare_bind_iid_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L390)), and the
+  ([`one_add_chiSquare_bind_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L361),
+  [`one_add_chiSquare_bind_iid_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L395)), and the
   comparison hierarchy `2 h² ≤ KL ≤ log (1 + χ²) ≤ χ²`
-  ([`two_mul_hellingerSq_le_toReal_klDiv`](../../CslibFrontier/Probability/ChiSquare.lean#L433),
-  [`toReal_klDiv_le_log_one_add_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L443),
-  [`two_mul_hellingerSq_le_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L477)).
+  ([`two_mul_hellingerSq_le_toReal_klDiv`](../../CslibFrontier/Probability/ChiSquare.lean#L443),
+  [`toReal_klDiv_le_log_one_add_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L453),
+  [`two_mul_hellingerSq_le_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L487)).
 - **Rényi moments and Rényi divergence (arbitrary discrete types).** Import
   [Renyi.lean](../../CslibFrontier/Probability/Renyi.lean). `renyiMoment α p q` defines
   `∑' x, p x * (p x / q x) ^ (α - 1)` on nonnegative weight functions `X → ℝ≥0∞` (so off-support
