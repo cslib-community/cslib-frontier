@@ -17,7 +17,7 @@ distinguish agents. Resolve an unclear contract with the task owner before exten
 
 A task brief might request a named problem's membership in `NP` under a specified encoding, with a verifier and certificate-length bound. Say whether a reduction or completeness theorem is also required. That keeps a membership proof from silently becoming a report that completeness is done.
 
-Choose parallel tasks with separate mutable files and build outputs. Prioritize fixes and landing existing work when review or integration is the bottleneck. Before taking over work, inspect its issue, PR and activity and notify its owner in the task record. A claim with no open PR and no activity is released 24 hours after that notice; a PR awaiting review is never released by silence. Follow the [role and ownership rules](../../AGENTS.md#agent-roles-and-task-ownership).
+Choose parallel tasks with separate mutable files and build outputs. Prioritize fixes and landing existing work when review or integration is the bottleneck. Before taking over work, inspect its issue, PR and activity and notify its owner in the task record. A claim with no open PR and no activity is released 24 hours after that notice, or 6 hours when its owner is an agent session on the same GitHub account; a PR awaiting review is never released by silence, and one whose author has not answered a request for changes for 48 hours is converted to draft. A stacked chain has at most three open unlanded layers ([Stacked chains](../../policy/review.md#stacked-chains)). Follow the [role and ownership rules](../../AGENTS.md#agent-roles-and-task-ownership).
 
 ## Isolate work and build outputs
 
@@ -39,7 +39,7 @@ Worktrees also share one stash stack, `refs/stash`, so `git stash pop` in your w
 
 Inspect existing definitions before introducing abstractions. Require the exact Lean contract and source-to-statement mapping for a claimed textbook endpoint. During implementation use focused diagnostics and clients; at handoff use the [contribution validation rules](contributing.md).
 
-Assign review by the unanswered question. One non-authoring reviewer may cover correctness and API quality; add another for specific uncovered expertise. Give reviewers the revision, intended endpoint and validation evidence, and require inspection of definitions. Restating the author's summary is not independent source review.
+Assign review by the unanswered question. One non-authoring reviewer may cover correctness and API quality; add another for specific uncovered expertise. Give reviewers the revision, intended endpoint and validation evidence, and require inspection of definitions. Restating the author's summary is not independent source review. A reviewer first checks the PR for another reviewer's unexpired `CLAIM` line, posts its own for the head, and ends with a `**APPROVE** at <sha> by <id>` or `**REQUEST_CHANGES** at <sha> by <id>` verdict line; a hold is a `HOLD` line with an owner and an expiry. [Verdicts, claims and holds](../../policy/review.md#verdicts-claims-and-holds) gives the formats and the coordinators' sweeps.
 
 The [semantic-withdrawal cases](../history/case-studies.md) explain why hypotheses, adversary power and realizability need attention after successful Lean checking. They are historical diagnoses, not asserted defects in the reviewed snapshot. The circuit-synthesis case illustrates a concrete API review question: does simplifying construction preserve wire sharing and charge the actual gates?
 
@@ -56,7 +56,7 @@ python3 /path/to/trusted-main/scripts/queue_pr.py <PR> <approved-head> \
   --repo cslib-community/cslib-frontier
 ```
 
-The script refuses any other head, a draft, a stacked PR still based on another branch, a conflict and failed checks. It reads every page of check results for that commit before choosing the latest attempt from the required GitHub App; a later page cannot hide a failed or running rerun behind an older success. The reviewer does not queue when human review has been requested in the PR or its issue, or when the approval names a hold. Do not start `--wait` while completing CI will produce unread notices or manual pages; [Approve and queue](../../AGENTS.md#approve-and-queue) gives the rule. Updating `main` does not upgrade an already-running copy; its owner stops an old waiter before replacing it after holds clear.
+The script refuses any other head, a draft, a stacked PR still based on another branch, a conflict and failed checks. It reads every page of check results for that commit before choosing the latest attempt from the required GitHub App; a later page cannot hide a failed or running rerun behind an older success. The reviewer does not queue when the approval names a hold; a request for human review is not a hold, but a maintainer's hold is. Do not start `--wait` while completing CI will produce unread notices or manual pages; [Approve and queue](../../AGENTS.md#approve-and-queue) gives the rule. Updating `main` does not upgrade an already-running copy; its owner stops an old waiter before replacing it after holds clear.
 
 When another PR is already queued, `queue_pr.py` replays the live queue prefix ahead of the
 approved head just before enqueueing (using the trusted checkout, `GIT_DIR` including a full bare
@@ -77,6 +77,20 @@ conflicting files and the first prefix where each overlaps. GitHub can reorder t
 the snapshot. The check fetches missing Git objects, leaves branches and the queue untouched,
 and exits 0 for a clean textual merge, 1 for a conflict and 2 for an incomplete check.
 
+On every run, just before enqueueing, `queue_pr.py` also reads the PR's comments and submitted
+reviews for review records: whole lines, outside fenced code blocks, with times written
+`YYYY-MM-DDTHH:MMZ`. It refuses while a `HOLD owner=<id> until=<time> reason=<text>` line is in
+force (`until` has not passed and its owner has posted no later `HOLD-RELEASED by=<id>
+reason=<text>` line; `by=maintainer` or `by=SamuelSchlesinger` releases an `owner=maintainer`
+hold); while another reviewer's `CLAIM review head=<approved-head> by=<id> until=<time>` is
+unexpired (never more than 45 minutes after it was posted) and that reviewer has posted no
+verdict at the head since; and when a `**REQUEST_CHANGES** at <approved-head>` verdict is not
+followed by a later `**APPROVE**` at that head. A verdict is a post whose first non-empty line
+begins with one of those two prefixes. Pass `--reviewer <your-id>` so that your own claim does
+not block. Free-text holds cannot be parsed, so comments since the newest approval at the head
+that say "hold" or "holding" outside a record are listed as an advisory to read before relying
+on the enqueue. These refusals are a backstop, not the reviewer's check of the discussion.
+
 For a dependency upgrade, a tender holding several approved heads can start one watcher at the
 first new-pin `main` commit. Supply the individual PR numbers and the SHAs their reviews cover:
 
@@ -95,6 +109,8 @@ moved and closed PRs. A non-author rechecks discussion and remaining holds befor
 heads were reported, 1 means it was unavailable and 2 means the check could not complete.
 
 Merge `main` into an approved PR only when it conflicts, needs a change on `main` to pass CI, or a lower stacked PR has landed; the merge queue already tests each PR on top of the current `main`. GitHub declines any push to the branch of a PR still in the merge queue, even when its entry is unmergeable, so whoever restacks a queued PR first removes it with **Remove from queue** on the PR page or the `dequeuePullRequest` command in [Restacks](../../AGENTS.md#restacks). Dequeueing merges nothing; a non-author queues the new head again under the rules below. After such a restack, `python3 scripts/check_restack.py <approved head> <new head>`, run from a checkout of current `origin/main` after `git fetch origin`, replays the approved change onto the new head's `main` and compares the result with the new head. For a PR approved while stacked on another branch, add `--approved-base <lower head at approval>`, even when the approved head had also merged a newer `main` than that head: the script then replays from the merge of the two, so `main`'s changes are not counted as the PR's own. When the replay and the new head match and CI passes, the approval carries over: post the result line, and the non-author who queues the new head reruns the command it names. Otherwise review the paths and diffs it prints. When the only conflicts are in the `mk_all` aggregates or `references.bib`, `python3 scripts/restack_mechanical.py <PR> --approved-head <approved head>` checks that the head is the approved change, merges with the drivers, writes the aggregates as `lake exe mk_all` would and runs this check, without running the PR's code, then prints the final check result and the `queue_pr.py` command for after CI. Report the unprefixed final result line. Output marked `approval pre-check` only verifies the existing head. It refuses any other conflict, pushes only with `--push` (and only if the check passes and the branch has not moved), and never queues or comments. When a hand restack shifts `#L` declaration anchors in maintained `manual/` pages, `python3 scripts/check_operator_manual.py --fix-anchors` repoints unambiguous `[Ns.name](File.lean#Ln)` headers before re-checking. See [Restacks](../../AGENTS.md#restacks).
+
+A restack that only merges entries of `references.bib` or `manual/sources.md` needs no fresh review once `check_restack.py` reports it identical.
 
 ## Record evidence at the level of the claim
 
@@ -117,7 +133,7 @@ elaboration on unchanged restored sources, so it belongs to validation rather th
 | The intended theorem is formalized | Definitions, statement, source mapping and model/nonvacuity review |
 | An API is easier to use | Representative before/after client and validation |
 | A task is complete | Original acceptance criteria and remaining broader objective |
-| A change is ready to integrate | Final revision's validation and independent review, maintainer authority |
+| A change is ready to integrate | Final revision's validation and independent agent review, no open hold |
 | A development step took a given time | Defined endpoints, timestamps and measurement convention |
 
 The issue owns scope and remaining work; the PR owns the final change, validation and review. Link evidence instead of repeating it. Keep polling and internal coordination out of public records. Distinguish completed milestones from the broader objective. A coordinator with authority monitors a queued PR until it lands or receives a concrete disposition: queued work is not integrated work.

@@ -85,15 +85,15 @@ example (S : Sampler) :
   fail_if_success fun_prop
   ppt
 
-/-- A structure bundling a parameterized oracle-PPT routine, exercising post-`prepareGoal`
-unfolding of `IsOraclePPT` fields. -/
+/-- A bundled parameterized oracle-PPT routine, exercising unfolding of `IsOraclePPT` fields
+after shared certificate preparation. -/
 private structure OracleSubroutine where
   /-- Parameterized oracle routine returning a bit. -/
   run : ℕ → List Bool → WordOracleComp Unit Bool
   /-- Uniform strict oracle-PPT certificate for `run`. -/
   run_ppt : IsOraclePPT encBool run
 
--- Structure-field `IsOraclePPT` certificates are exposed by `prepareGoal` and unfolded so
+-- Shared preparation exposes structure-field `IsOraclePPT` certificates, which are unfolded so
 -- `oraclePptKnownCall` prepares tuple arguments across monadic sequencing and mapped queries.
 example (A : OracleSubroutine) (S : Sampler) :
     IsOraclePPT encBool (fun n word => do

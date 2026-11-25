@@ -186,14 +186,22 @@ private abbrev armComponent := awayPair.connectedComponentMk two
 private def spurComponents (k : Fin 3) : Option awayPair.ConnectedComponent :=
   if k = 0 then some armComponent else none
 
--- Extra edges at an internal vertex and a separator do not change the triple comparison.
-example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realizes spurRotation ∧
-    spurRotation.rotate.symm (spurArms 0 0).reverse ≠ spurArms 0 1 ∧
-    (spurRotation.rotationDistance (0, false) (2, false) <
-      spurRotation.rotationDistance (0, false) (3, false) ↔
-      spurRotation.rotationDistance (1, true) (3, true) <
-        spurRotation.rotationDistance (1, true) (2, true)) := by
+-- Taking the subdivided arm as the reference, the two direct pieces have opposite list
+-- orders in a realized rotation with extra edges at an interior vertex and a separator.
+example :
+    let first (k : Fin 3) := spurArms k 0
+    let last (k : Fin 3) := (spurArms k (Fin.last (armLength k))).reverse
+    let pieces : List (Fin 3) := [1, 2]
+    ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realizes spurRotation ∧
+      spurRotation.rotate.symm (spurArms 0 0).reverse ≠ spurArms 0 1 ∧
+      pieces.mergeSort (fun i j => decide
+        (spurRotation.rotationDistance (last 0) (last i) ≤
+          spurRotation.rotationDistance (last 0) (last j))) =
+        (pieces.mergeSort (fun i j => decide
+          (spurRotation.rotationDistance (first 0) (first i) ≤
+            spurRotation.rotationDistance (first 0) (first j)))).reverse := by
   classical
+  dsimp only
   have hG : ∀ v ∈ withSpurs.incidenceVertices, v ∈ withSpurs.vertices := by decide
   have genus : spurRotation.NumericalGenusZero := by
     have check := RotationCertificate.verifyRotation_ofRotation spurRotation hG
@@ -206,9 +214,9 @@ example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realize
   let last (k : Fin 3) := (spurArms k (Fin.last (armLength k))).reverse
   have heven : D.EvenCrossings (fun w => w = 0 ∨ w = 1) :=
     fun _ _ hne _ => crossingParity_of_embedding hD hne
-  apply hreg.rotationDistance_lt_iff_of_separating_components hD.simple hR hG heven
+  apply hreg.mergeSort_eq_reverse_of_separating_components hD.simple hR hG heven
     one (Or.inl rfl) (Or.inr rfl) first last (by decide) (by decide) (by decide)
-    spurComponents _ _ (o := 0) (i := 1) (j := 2) (by decide) (by decide)
+    spurComponents _ _ 0 [1, 2] (by decide)
   · intro i j C hi hj
     have eqZero {k : Fin 3} (h : spurComponents k = some C) : k = 0 := by
       by_contra hne

@@ -204,6 +204,7 @@ public import CslibFrontier.Algorithms.Lean.Query.Arith.MatMul
 public import CslibFrontier.Algorithms.Lean.Query.BinarySearch
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.CostHom
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.FilterM
+public import CslibFrontier.Algorithms.Lean.Query.FreeM.LiftM
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.MOfFn
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.Tabulate
 public import CslibFrontier.Algorithms.Lean.Query.Matroid.Greedy
@@ -215,11 +216,13 @@ public import CslibFrontier.Algorithms.Lean.Query.Select.Cost
 public import CslibFrontier.Algorithms.Lean.Query.Select.Defs
 public import CslibFrontier.Algorithms.Lean.Query.Select.MinMax.Basic
 public import CslibFrontier.Algorithms.Lean.Query.Select.MinMax.LowerBound
+public import CslibFrontier.Algorithms.Lean.Query.Select.Quota
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.MinPlus
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.MinPlusViaNegTriangle
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.NegTriangleFinding
 public import CslibFrontier.Algorithms.Lean.Query.ShortestPaths.NegTriangleSubcubic
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Fooling
+public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.KeyOracle
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.QueriedPairs
 public import CslibFrontier.Algorithms.Lean.Query.Sort.Merge.CountBound
 public import CslibFrontier.Algorithms.Lean.Query.Submodular.Greedy
@@ -4494,7 +4497,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.CopyWord
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.DivConq
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Foldl
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Id
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Ite
@@ -8027,6 +8029,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
 public import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 public import CslibFrontier.Foundations.Combinatorics.Expander.Walk
 public import CslibFrontier.Foundations.Combinatorics.Expander.Zigzag
+public import CslibFrontier.Foundations.Combinatorics.FewBadRounds
 public import CslibFrontier.Foundations.Combinatorics.FiniteCover
 public import CslibFrontier.Foundations.Combinatorics.FiniteCover.Basic
 public import CslibFrontier.Foundations.Combinatorics.FunctionPlaces
@@ -8076,6 +8079,7 @@ public import CslibFrontier.Foundations.Combinatorics.LovaszSteinCover
 public import CslibFrontier.Foundations.Combinatorics.MajorityTree
 public import CslibFrontier.Foundations.Combinatorics.MajorityVote
 public import CslibFrontier.Foundations.Combinatorics.MajorityVote.Weighted
+public import CslibFrontier.Foundations.Combinatorics.MaximaVectors
 public import CslibFrontier.Foundations.Combinatorics.MinIsolation.BaseSix
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Arborescence
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.BEST
@@ -8083,6 +8087,7 @@ public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Basic
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Connectivity
 public import CslibFrontier.Foundations.Combinatorics.Multigraph
 public import CslibFrontier.Foundations.Combinatorics.Multigraph.CutSpace
+public import CslibFrontier.Foundations.Combinatorics.Multigraph.MinimumSpanningForest
 public import CslibFrontier.Foundations.Combinatorics.PacketPacking
 public import CslibFrontier.Foundations.Combinatorics.PartialLabelScores
 public import CslibFrontier.Foundations.Combinatorics.PerfectHashFamily.Basic
@@ -8094,6 +8099,7 @@ public import CslibFrontier.Foundations.Combinatorics.Quiver.Path.Chain
 public import CslibFrontier.Foundations.Combinatorics.RectangleFreeMatrix
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
+public import CslibFrontier.Foundations.Combinatorics.SeparatingCoordinates
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Bollobas
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
@@ -10571,6 +10577,7 @@ public import CslibFrontier.Probability.UniformNat
 public import CslibFrontier.Probability.UniformOrder
 public import CslibFrontier.Probability.UniversalHash
 public import CslibFrontier.Probability.UniversalHash.MultiSample
+public import CslibFrontier.Tactic.CertificatePreparation
 public import CslibFrontier.Tactic.CircuitBound
 public import CslibFrontier.Tactic.CircuitBound.Init
 public import CslibFrontier.Tactic.CommuteLeft
