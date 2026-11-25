@@ -126,15 +126,12 @@ theorem card_unsatArcs_augmentByBottleneck_lt (hanti : ∀ u v, 0 < L.cap u v �
       g.unsatArcs.card := by
   obtain ⟨e, hlt, hsat⟩ := exists_saturated_augmentByBottleneck_of_slackNet hst hp
   have hsub : (g.augmentByBottleneck p (isAugmentingPath_of_slackNet hp)).unsatArcs ⊆
-      g.unsatArcs := by
-    intro x hx
+      g.unsatArcs := fun x hx => by
     rw [mem_unsatArcs] at hx ⊢
     have := le_augmentByBottleneck_of_slackNet hanti hp x.1 x.2
     omega
-  refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).mpr ⟨e, ?_, ?_⟩)
-  · exact (mem_unsatArcs _ _).mpr hlt
-  · rw [mem_unsatArcs, not_lt]
-    exact hsat
+  exact Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).mpr
+    ⟨e, (mem_unsatArcs _ _).mpr hlt, mt (mem_unsatArcs _ _).mp (not_lt.mpr hsat)⟩)
 
 /-- A level network has at most `|N.posArcs|` arcs: it has no antiparallel arcs and its arcs lie
 in `N.symArcs`. -/
@@ -166,11 +163,9 @@ theorem card_unsatArcs_zero_levelNet_le (f : N.Flow) (d : V → ℕ) :
     have h₂ := ((hmem x.swap).mp he).1
     simp only [Prod.fst_swap, Prod.snd_swap] at h₂
     omega
-  have hcard : A.card + (A.image Prod.swap).card ≤ N.symArcs.card := by
-    rw [← Finset.card_union_of_disjoint hdisj]
-    exact Finset.card_le_card (Finset.union_subset hA hB)
-  have himg : (A.image Prod.swap).card = A.card :=
-    Finset.card_image_of_injective _ Prod.swap_injective
+  have hcard := Finset.card_le_card (Finset.union_subset hA hB)
+  rw [Finset.card_union_of_disjoint hdisj,
+    Finset.card_image_of_injective _ Prod.swap_injective] at hcard
   have := N.card_symArcs_le_two_mul_posArcs
   omega
 
@@ -407,15 +402,12 @@ theorem dinitz_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fi
   rw [Fintype.card_fin] at hphases
   simp only [dinitz, hst, ↓reduceIte]
   set out := dinitzLoop N adj (n - 1) (FlowMatrix.ofFlow (Flow.zero N)) 0 0
-  have hno' : ¬ ∃ p, out.flow.IsAugmentingPath p := by
-    rwa [out.flow.exists_augmentingPath_iff_resReachable]
-  have hmax := (out.flow.isMaxFlow_iff_not_exists_augmentingPath hst).mpr hno'
-  have his := out.flow.reachableCut_isCut hno'
+  have hno' : ¬ ∃ p, out.flow.IsAugmentingPath p :=
+    mt out.flow.exists_augmentingPath_iff_resReachable.mp hno
   have hval := out.flow.value_eq_cutCapacity_reachableCut hno'
-  have hmin := out.flow.isMinCut_of_value_eq_cutCapacity his hval
-  rw [← hcut] at hmin hval
-  exact ⟨hmax, hmin, hval, hcut, hphases,
-    le_trans hk (Nat.mul_le_mul_right _ hphases)⟩
+  have hmin := out.flow.isMinCut_of_value_eq_cutCapacity (out.flow.reachableCut_isCut hno') hval
+  exact ⟨(out.flow.isMaxFlow_iff_not_exists_augmentingPath hst).mpr hno', hcut ▸ hmin,
+    hcut ▸ hval, hcut, hphases, hk.trans (Nat.mul_le_mul_right _ hphases)⟩
 
 /-- Correctness of `dinitzDense` without external adjacency obligations. -/
 theorem dinitzDense_correct {n : ℕ} {N : Network (Fin n)} (hst : N.s ≠ N.t) :

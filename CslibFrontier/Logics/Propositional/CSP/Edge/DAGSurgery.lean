@@ -67,9 +67,7 @@ theorem pairFlip_cancel (f : OccurrenceLabeling F Bool) (a b c : Occurrence F) :
 
 private theorem pairFlip_at_other (f : OccurrenceLabeling F Bool) {a b q : Occurrence F}
     (ha : q.1 ≠ a.1) (hb : q.1 ≠ b.1) : pairFlip f a b q = f q := by
-  have hqa : q ≠ a := fun h => ha (congrArg Sigma.fst h)
-  have hqb : q ≠ b := fun h => hb (congrArg Sigma.fst h)
-  simp [pairFlip, flipOn_apply, hqa, hqb]
+  simp [pairFlip, flipOn_apply, mt (congrArg Sigma.fst) ha, mt (congrArg Sigma.fst) hb]
 
 private theorem localTuple_pairFlip (f : OccurrenceLabeling F Bool) (i : Fin F.length)
     (a b : Fin F[i].scope.length) (hab : a ≠ b) :
@@ -85,14 +83,10 @@ theorem validLabeling_pairFlip_iff {sem : Rel → List Bool → Bool}
     {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)
     (i : Fin F.length) (a b : Fin F[i].scope.length) (hab : a ≠ b) :
     ValidLabeling sem (pairFlip f ⟨i, a⟩ ⟨i, b⟩) ↔
-      sem F[i].rel (List.ofFn (flipOn {a, b} (fun j => f ⟨i, j⟩))) = true := by
-  constructor
-  · intro hv
-    have h := hv i
-    rwa [localTuple_pairFlip f i a b hab] at h
-  · intro hv
+      sem F[i].rel (List.ofFn (flipOn {a, b} (fun j => f ⟨i, j⟩))) = true :=
+  ⟨fun hv => localTuple_pairFlip f i a b hab ▸ hv i, fun hv => by
     rw [pairFlip_eq f (sigma_mk_injective.ne hab)]
-    exact EdgeInstance.validLabeling_flipOn_pair hf i a b hv
+    exact EdgeInstance.validLabeling_flipOn_pair hf i a b hv⟩
 
 private theorem four_eq (f : OccurrenceLabeling F Bool) (i : Fin F.length)
     {a b c d : Fin F[i].scope.length}
@@ -157,11 +151,8 @@ private theorem valid_four_occurrences {sem : Rel → List Bool → Bool}
     (hacf : ¬ ValidLabeling sem (pairFlip f a c))
     (hadf : ¬ ValidLabeling sem (pairFlip f a d)) :
     ValidLabeling sem (pairFlip (pairFlip f a b) c d) := by
-  rcases a with ⟨i, a⟩
-  rcases b with ⟨j, b⟩
-  rcases c with ⟨k, c⟩
-  rcases d with ⟨l, d⟩
-  cases hiab; cases hiac; cases hiad
+  rcases a, b, c, d with ⟨⟨i, a⟩, ⟨_, b⟩, ⟨_, c⟩, ⟨_, d⟩⟩
+  obtain ⟨rfl, rfl, rfl⟩ : _ = _ ∧ _ = _ ∧ _ = _ := ⟨hiab, hiac, hiad⟩
   exact valid_pairFlip_pairFlip_of_no_cross hM hf i
     (fun h => hab (h ▸ rfl)) (fun h => hac (h ▸ rfl)) (fun h => had (h ▸ rfl))
     (fun h => hbc (h ▸ rfl)) (fun h => hbd (h ▸ rfl)) (fun h => hcd (h ▸ rfl))
@@ -178,11 +169,8 @@ private theorem not_valid_four_occurrences {sem : Rel → List Bool → Bool}
     (hacf : ¬ ValidLabeling sem (pairFlip f a c))
     (hadf : ¬ ValidLabeling sem (pairFlip f a d)) :
     ¬ ValidLabeling sem (pairFlip (pairFlip f a b) c d) := by
-  rcases a with ⟨i, a⟩
-  rcases b with ⟨j, b⟩
-  rcases c with ⟨k, c⟩
-  rcases d with ⟨l, d⟩
-  cases hiab; cases hiac; cases hiad
+  rcases a, b, c, d with ⟨⟨i, a⟩, ⟨_, b⟩, ⟨_, c⟩, ⟨_, d⟩⟩
+  obtain ⟨rfl, rfl, rfl⟩ : _ = _ ∧ _ = _ ∧ _ = _ := ⟨hiab, hiac, hiad⟩
   exact not_valid_pairFlip_pairFlip_of_no_cross hM hf i
     (fun h => hab (h ▸ rfl)) (fun h => hac (h ▸ rfl)) (fun h => had (h ▸ rfl))
     (fun h => hbc (h ▸ rfl)) (fun h => hbd (h ▸ rfl)) (fun h => hcd (h ▸ rfl))
@@ -195,21 +183,13 @@ private theorem valid_pairFlip_other_iff {sem : Rel → List Bool → Bool}
     ValidLabeling sem (pairFlip (pairFlip f a b) c d) ↔
       ValidLabeling sem (pairFlip f c d) := by
   by_cases hcd : c = d
-  · subst d
-    simp only [pairFlip_self]
-    exact iff_of_true hv hf
-  rcases c with ⟨i, c⟩
-  rcases d with ⟨j, d⟩
-  dsimp only at hicd hic
-  subst j
+  · simp [hcd, pairFlip_self, hv, hf]
+  rcases c, d with ⟨⟨i, c⟩, ⟨_, d⟩⟩
+  cases hicd
   have hne : c ≠ d := fun h => hcd (h ▸ rfl)
-  rw [validLabeling_pairFlip_iff hv i c d hne,
-    validLabeling_pairFlip_iff hf i c d hne]
-  have he : (fun j => pairFlip f a b ⟨i, j⟩) = (fun j => f ⟨i, j⟩) := by
-    funext j
-    exact pairFlip_at_other f hic (hiab ▸ hic)
-  exact Iff.of_eq (congrArg
-    (fun bits => sem F[i].rel (List.ofFn (flipOn {c, d} bits)) = true) he)
+  rw [validLabeling_pairFlip_iff hv i c d hne, validLabeling_pairFlip_iff hf i c d hne]
+  exact Iff.of_eq (congrArg (fun bits => sem F[i].rel (List.ofFn (flipOn {c, d} bits)) = true)
+    (funext fun _ => pairFlip_at_other f hic (hiab ▸ hic)))
 
 variable {sem : Rel → List Bool → Bool} {f : OccurrenceLabeling F Bool} {T : DAG F}
 
@@ -556,9 +536,7 @@ theorem IsFDAG.valid_flip_of_pairedCopies (h : T.IsFDAG sem f)
     by_cases ht : T.copies.Nonempty
     · have hex : ∃ t, ∃ c ∈ T.copies, c.2 = t := ht.elim fun c hc => ⟨c.2, c, hc, rfl⟩
       obtain ⟨c, hc, hct⟩ := Nat.find_spec hex
-      have he : T.Earliest c := ⟨hc, fun d hd => by
-        rw [hct]
-        exact Nat.find_min' hex ⟨d, hd, rfl⟩⟩
+      have he : T.Earliest c := ⟨hc, fun d hd => hct ▸ Nat.find_min' hex ⟨d, hd, rfl⟩⟩
       obtain ⟨a, ha, b, hb, hai, hac, hbc, hab, hpair⟩ := hp c hc
       have hcopies : a.copy = b.copy := hac.trans hbc.symm
       have hne : a.occurrence ≠ b.occurrence := fun hh => hab (h.unique a ha b hb hh)
@@ -569,9 +547,9 @@ theorem IsFDAG.valid_flip_of_pairedCopies (h : T.IsFDAG sem f)
         exact card_erase_lt_of_mem (hac ▸ hc)
       have hv := ih _ hsmall hs (hp.removeCopy h.supported a.copy) rfl
       rwa [h.flip_removeCopy ha hb hcopies hne (fun e hem hec => hpair e hem (hec.trans hac))] at hv
-    · have hc : T.copies = ∅ := not_nonempty_iff_eq_empty.mp ht
-      have ha : T.arcs = ∅ := eq_empty_iff_forall_notMem.mpr fun a ham => by
-        simpa only [hc, Finset.notMem_empty] using (h.supported a ham).2
+    · simp only [not_nonempty_iff_eq_empty] at ht
+      have ha : T.arcs = ∅ := eq_empty_iff_forall_notMem.mpr fun a ham =>
+        notMem_empty _ (ht ▸ (h.supported a ham).2)
       simpa only [flip, ha, image_empty, flipOn_empty] using h.valid
 
 end Surgery
@@ -623,8 +601,7 @@ theorem IsFDAG.flip_walk_of_no_prefix_extension (h : T.IsFDAG sem f)
         ¬ ((w.take n).snoc o e.occurrence).IsFWalk sem f) :
     T.IsFDAG sem (w.flip f) := by
   classical
-  have hprefix : ∀ n, n ≤ w.steps.length → T.IsFDAG sem ((w.take n).flip f) := by
-    intro n
+  have hprefix (n : ℕ) : n ≤ w.steps.length → T.IsFDAG sem ((w.take n).flip f) := by
     induction n with
     | zero =>
       intro _
@@ -636,9 +613,8 @@ theorem IsFDAG.flip_walk_of_no_prefix_extension (h : T.IsFDAG sem f)
       have hcurrent := ih (by omega)
       let o := w.steps[n].1
       let p := w.steps[n].2
-      have hstep : w.steps[n] = (o, p) := rfl
       have hs : (w.take (n + 1)).steps = (w.take n).steps ++ [(o, p)] :=
-        (List.take_succ_eq_append_getElem hlt).trans (by rw [hstep]; rfl)
+        List.take_succ_eq_append_getElem hlt
       have hsnoc : w.take (n + 1) = (w.take n).snoc o p := by
         cases w
         exact congrArg (Walk.mk _) hs
@@ -648,21 +624,14 @@ theorem IsFDAG.flip_walk_of_no_prefix_extension (h : T.IsFDAG sem f)
       have ho : o.var = (w.take n).finish := hl.2.1
       have hc : o.1 = p.1 := hl.2.2.1
       have hnd : ((w.take n).edges ++ [o, p]).Nodup := by
-        have he : (w.take (n + 1)).edges = (w.take n).edges ++ [o, p] := by
-          change Walk.edgesOf (w.take (n + 1)).steps = _
-          rw [hs, Walk.edgesOf_append]
-          rfl
-        simpa only [he] using hwalk.2
+        have he := hwalk.2
+        rwa [Walk.edges, hs, Walk.edgesOf_append] at he
       have hnd' := List.nodup_append.mp hnd
       have hop : o ≠ p := (List.nodup_cons.mp hnd'.2.1).1 ∘ List.mem_singleton.mpr
       have hnoo : o ∉ (w.take n).edges := fun hh => hnd'.2.2 o hh o (by simp) rfl
       have hnop : p ∉ (w.take n).edges := fun hh => hnd'.2.2 p hh p (by simp) rfl
-      have hmem : ∀ q ∈ [o, p], q ∈ w.edges := by
-        intro q hq
-        exact List.mem_flatMap.mpr ⟨w.steps[n], List.getElem_mem hlt,
-          by simpa only [hstep] using hq⟩
-      have hom := hmem o (by simp)
-      have hpm := hmem p (by simp)
+      have hom : o ∈ w.edges := List.mem_flatMap.mpr ⟨w.steps[n], List.getElem_mem hlt, by simp [o]⟩
+      have hpm : p ∈ w.edges := List.mem_flatMap.mpr ⟨w.steps[n], List.getElem_mem hlt, by simp [p]⟩
       have hdis : ∀ e ∈ T.arcs, o ≠ e.occurrence ∧ p ≠ e.occurrence := fun e he =>
         ⟨fun hh => hvars o hom (hh ▸ (h.supported e he).1),
           fun hh => hvars p hpm (hh ▸ (h.supported e he).1)⟩
@@ -682,14 +651,11 @@ theorem IsFDAG.flip_walk_of_no_prefix_extension (h : T.IsFDAG sem f)
           exacts [Or.inl rfl, Or.inr (hw.1.not_inconsistent_finish_take hn0 hlt)]
         have hsn := (hw.1.take n).snoc ho hce hne hnoo hnew hi
           (by rwa [pairFlip_eq _ hne] at hv)
-        have hends : (w.take n).start ≠ ((w.take n).snoc o e.occurrence).finish := by
-          rw [Walk.finish_snoc]
-          exact fun hh => hstart (hh ▸ (h.supported e he).1)
-        exact hno n hlt e he o ho hce ⟨hsn, hends⟩
+        exact hno n hlt e he o ho hce
+          ⟨hsn, Walk.finish_snoc _ _ _ ▸ fun hh => hstart (hh ▸ (h.supported e he).1)⟩
       rw [hsnoc, Walk.flip_snoc _ _ _ _ (hw.1.1.take n) hnoo hnop hop, ← pairFlip_eq _ hop]
       exact hcurrent.external_pair hM hc hop hv hdis hcross
-  have hv := hprefix w.steps.length (Nat.le_refl _)
-  simpa only [Walk.take, List.take_length] using hv
+  simpa only [Walk.take, List.take_length] using hprefix w.steps.length le_rfl
 
 end ExternalWalk
 

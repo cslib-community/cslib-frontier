@@ -143,17 +143,15 @@ theorem quad_size {S : State n} {x y z G D : ℕ} {α β γ c : Bool}
 with `.inl D` and `.inl G` removed. -/
 theorem quad_children_subset (S : State n) (x y z G D : ℕ) (α β γ c : Bool) (w : ℕ) :
     (S.quad x y z G D α β γ c).children w ⊆ ((S.children w).erase (.inl D)).erase (.inl G) := by
-  intro v hv
-  rcases v with K | e
-  · simp only [SemiCircuit.inl_mem_children] at hv
-    change K ∈ (S.gates.erase D).erase G ∧ _ at hv
-    obtain ⟨hK, hr⟩ := hv
-    simp only [Finset.mem_erase] at hK ⊢
-    exact ⟨fun he => hK.1 (Sum.inl.inj he), fun he => hK.2.1 (Sum.inl.inj he),
-      (SemiCircuit.inl_mem_children _).2 ⟨hK.2.2, hr⟩⟩
-  · simp only [SemiCircuit.inr_mem_children] at hv
-    simp only [Finset.mem_erase, ne_eq, reduceCtorEq, not_false_eq_true, true_and]
-    exact (SemiCircuit.inr_mem_children _).2 hv
+  rintro (K | e) hv
+  · obtain ⟨hK, hr⟩ := (SemiCircuit.inl_mem_children (S.quad x y z G D α β γ c).toSemiCircuit).1 hv
+    obtain ⟨hKG, hKD, hK⟩ : K ≠ G ∧ K ≠ D ∧ K ∈ S.gates := by
+      simpa [quad, SemiCircuit.quad, and_assoc] using hK
+    simp only [Finset.mem_erase, ne_eq, Sum.inl.injEq]
+    exact ⟨hKG, hKD, (SemiCircuit.inl_mem_children _).2 ⟨hK, hr⟩⟩
+  · simp only [Finset.mem_erase, ne_eq, reduceCtorEq, not_false_eq_true, true_and]
+    exact (SemiCircuit.inr_mem_children _).2
+      ((SemiCircuit.inr_mem_children (S.quad x y z G D α β γ c).toSemiCircuit).1 hv)
 
 namespace QuadOK
 
@@ -227,11 +225,11 @@ theorem Valid.quad {S : State n} (hS : S.Valid f) {x y z G D : ℕ} {α β γ c 
         simp only [σ, quadValue, Function.update_of_ne (hneG hj)]
       phi_affine := fun k τ hτ htame => by
         obtain ⟨τ', hτ', htame', hagree⟩ := h.affine hS hτ htame
-        have hcomp := hS.phi_affine k τ' hτ' htame'
         have heq : (S.quad x y z G D α β γ c).phi ∘ τ = S.phi ∘ τ' := funext fun u =>
           hS.phi_congr _ _ fun j hj => by
             simpa only [σ, quadValue, Function.update_of_ne (hneG hj)] using (hagree u j hj).symm
-        rwa [heq]
+        rw [heq]
+        exact hS.phi_affine k τ' hτ' htame'
       congr := fun val val' hv j hj => ?_
       inj := fun val val' hv j hj => ?_
       consistent := fun val hval => (h.toQuadOK.consistent hS.wf hval).1
@@ -245,17 +243,11 @@ theorem Valid.quad {S : State n} (hS : S.Valid f) {x y z G D : ℕ} {α β γ c 
     · rw [hσ val j hjz (hneG hj), hσ val' j hjz (hneG hj)]
       exact hv j (Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hjz, hj⟩))
   · rcases Finset.mem_insert.1 hj with rfl | hj
-    · have hz := hv z h.mem_z
-      have hx := hv x h.mem_x
-      have hy := hv y h.mem_y
-      rw [hσ val x h.x_ne_z (hneG h.mem_x), hσ val' x h.x_ne_z (hneG h.mem_x)] at hx
-      rw [hσ val y h.y_ne_z (hneG h.mem_y), hσ val' y h.y_ne_z (hneG h.mem_y)] at hy
-      rw [hσz, hσz, hx, hy] at hz
-      simpa using hz
-    · have := hv j (Finset.mem_of_mem_erase hj)
-      have hjG := hneG (Finset.mem_of_mem_erase hj)
-      rwa [hσ val j (Finset.ne_of_mem_erase hj) hjG,
-        hσ val' j (Finset.ne_of_mem_erase hj) hjG] at this
+    · have hx : val x = val' x := by simpa only [hσ _ x h.x_ne_z (hneG h.mem_x)] using hv x h.mem_x
+      have hy : val y = val' y := by simpa only [hσ _ y h.y_ne_z (hneG h.mem_y)] using hv y h.mem_y
+      simpa [hσz, hx, hy] using hv z h.mem_z
+    · simpa only [hσ _ j (Finset.ne_of_mem_erase hj) (hneG (Finset.mem_of_mem_erase hj))] using
+        hv j (Finset.mem_of_mem_erase hj)
 
 end State
 

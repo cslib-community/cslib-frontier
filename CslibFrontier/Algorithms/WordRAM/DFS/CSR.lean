@@ -439,25 +439,18 @@ private theorem partialCSRAt_step {N : ℕ}
         show mem₁ (curBase + u.val) = mem (curBase + u.val) from Function.update_of_ne hne _ _]
       exact hp.2.1 u
   · rcases eq_or_ne src u with rfl | hu
-    · have hlen_upd : (Function.update part src (dst :: part src) src).length =
-          (part src).length + 1 := by simp
-      have hm_cur : mem' (curBase + src.val) = c := by
+    · have hm_cur : mem' (curBase + src.val) = c := by
         change Function.update mem₁ (edgeBase + c) dst.val (curBase + src.val) = c
         rw [Function.update_of_ne (by omega)]
         exact Function.update_self _ _ _
       rw [hm_cur]
-      have hget_upd : ∀ j (hj : j < (Function.update part src (dst :: part src) src).length),
-          (Function.update part src (dst :: part src) src)[j] =
-            (dst :: part src)[j]'(by simpa [hlen_upd] using hj) := by
-        intro j hj
-        simp
-      rw [hget_upd k hk]
+      simp only [Function.update_self] at hk ⊢
       cases k with
       | zero =>
         change Function.update mem₁ (edgeBase + c) dst.val (edgeBase + c + 0) = dst.val
         rw [Nat.add_zero, Function.update_self]
       | succ k' =>
-        have hk' : k' < (part src).length := by omega
+        have hk' : k' < (part src).length := by simpa using hk
         have hidx : edgeBase + c + (k' + 1) = edgeBase + mem (curBase + src.val) + k' := by omega
         change Function.update mem₁ (edgeBase + c) dst.val (edgeBase + c + (k' + 1)) =
           ((part src)[k']).val
@@ -467,13 +460,7 @@ private theorem partialCSRAt_step {N : ℕ}
         rw [Function.update_of_ne (by omega)]
         exact hp.2.2 src k' hk'
     · have hu' : u ≠ src := hu.symm
-      have hget_upd : ∀ j (hj : j < (Function.update part src (dst :: part src) u).length),
-          (Function.update part src (dst :: part src) u)[j] =
-            (part u)[j]'(by simpa [Function.update_of_ne hu'] using hj) := by
-        intro j hj
-        simp [Function.update_of_ne hu']
-      rw [hget_upd k hk]
-      have hk_u : k < (part u).length := by simpa [Function.update_of_ne hu'] using hk
+      simp only [Function.update_of_ne hu'] at hk ⊢
       have hne_c : curBase + u.val ≠ curBase + src.val := fun h => hu' (Fin.ext (by omega))
       have hm_cur : mem' (curBase + u.val) = mem (curBase + u.val) := by
         change Function.update mem₁ (edgeBase + c) dst.val (curBase + u.val) = mem (curBase + u.val)
@@ -495,7 +482,7 @@ private theorem partialCSRAt_step {N : ℕ}
       rw [Function.update_of_ne (by omega)]
       change Function.update mem (curBase + src.val) c (edgeBase + mem (curBase + u.val) + k) = _
       rw [Function.update_of_ne (by omega)]
-      exact hp.2.2 u k hk_u
+      exact hp.2.2 u k hk
   · exact (Function.update_of_ne (by omega) _ _).trans (Function.update_of_ne (by omega) _ _)
 
 theorem backfillStepCode_spec {N w : ℕ}

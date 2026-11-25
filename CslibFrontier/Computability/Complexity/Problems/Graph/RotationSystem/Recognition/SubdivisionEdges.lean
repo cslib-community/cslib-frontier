@@ -181,21 +181,10 @@ private theorem subdivisionDart_of_original_vertex (I : FixedRotationInput)
   have hright := congrArg Prod.snd hends
   refine Prod.ext (Fin.ext ?_) rfl
   change 3 * i.val + (if b then 2 else 0) = e.val
-  fin_cases k <;> cases b
-  · exact he.symm
-  · change Dart.vertex (e, true) = I.graph.vertices.length + 2 * i.val at hright
-    change Dart.vertex (e, true) < I.graph.vertices.length at hd
+  fin_cases k <;> cases b <;>
+    simp only [SubdivisionEdgeIndex.endpoints, Fin.getElem_fin, List.getElem_cons_zero,
+      List.getElem_cons_succ, Bool.false_eq_true, ↓reduceIte] at he hleft hright ⊢ <;>
     omega
-  · change Dart.vertex (e, false) = I.graph.vertices.length + 2 * i.val at hleft
-    change Dart.vertex (e, false) < I.graph.vertices.length at hd
-    omega
-  · change Dart.vertex (e, true) = I.graph.vertices.length + 2 * i.val + 1 at hright
-    change Dart.vertex (e, true) < I.graph.vertices.length at hd
-    omega
-  · change Dart.vertex (e, false) = I.graph.vertices.length + 2 * i.val + 1 at hleft
-    change Dart.vertex (e, false) < I.graph.vertices.length at hd
-    omega
-  · exact he.symm
 
 /-- At an original vertex, the subdivision darts are exactly the original incident darts,
 with their distinct occurrence indices and end tags retained. -/
@@ -239,22 +228,17 @@ theorem subdivisionGraph_edge_injective {I : FixedRotationInput} (hI : Valid I) 
     Function.Injective (fun e : Fin (subdivisionGraph I).edges.length =>
       (s(((subdivisionGraph I).edges[e]).1, ((subdivisionGraph I).edges[e]).2) : Sym2 ℕ)) := by
   intro e f h
-  generalize hIe : subdivisionEdgeIndex I e = de
-  generalize hIf : subdivisionEdgeIndex I f = df
-  obtain ⟨i, k⟩ := de
-  obtain ⟨j, l⟩ := df
-  have he : e.val = 3 * i.val + k.val := by
-    simpa only [hIe] using subdivisionEdgeIndex_val I e
-  have hf : f.val = 3 * j.val + l.val := by
-    simpa only [hIf] using subdivisionEdgeIndex_val I f
-  have hep := subdivision_edge_endpoints I e
-  have hfp := subdivision_edge_endpoints I f
-  rw [hIe] at hep
-  rw [hIf] at hfp
+  have he := subdivisionEdgeIndex_val I e
+  have hf := subdivisionEdgeIndex_val I f
+  have hp := Sym2.eq_iff.mp h
+  rw [subdivision_edge_endpoints I e, subdivision_edge_endpoints I f] at hp
+  rcases hIe : subdivisionEdgeIndex I e with ⟨i, k⟩
+  rcases hIf : subdivisionEdgeIndex I f with ⟨j, l⟩
+  rw [hIe] at he hp
+  rw [hIf] at hf hp
+  dsimp only at he hf
   have hi := hI.edge_endpoints_lt (List.getElem_mem i.isLt)
   have hj := hI.edge_endpoints_lt (List.getElem_mem j.isLt)
-  have hp := Sym2.eq_iff.mp h
-  rw [hep, hfp] at hp
   fin_cases k <;> fin_cases l <;>
     simp only [SubdivisionEdgeIndex.endpoints, Fin.getElem_fin, List.getElem_cons_zero,
       List.getElem_cons_succ] at hp

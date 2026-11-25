@@ -159,9 +159,8 @@ theorem synthesis_transient_forest_reachability
       ⟨hjeq hf ▸ (Classical.choose_spec ((hmarkSpec z).1 hf)).1, _,
         Nat.le_of_lt_succ (Classical.choose ((hmarkSpec z).1 hf)).isLt, (hjeq hf).symm⟩
     have hHcomplete : (∃ d ≤ 2 * L, f^[d] (inputLeft z) ∈ forestMarks f tables.H) →
-        foundH z = true := by
-      rintro ⟨d, hd, hmem⟩
-      exact (hmarkSpec z).2 ⟨⟨d, Nat.lt_succ_of_le hd⟩, hmem⟩
+        foundH z = true := fun ⟨d, hd, hmem⟩ =>
+      (hmarkSpec z).2 ⟨⟨d, Nat.lt_succ_of_le hd⟩, hmem⟩
     have hAsound : foundA z = true → ForestAnchor f tables.H L (inputRight z) (anchorState z) :=
       fun hf => ((hanchorSpec z).1 hf).1
     have hAcomplete : (∃ b, ForestAnchor f tables.H L (inputRight z) b) → foundA z = true :=
@@ -180,13 +179,9 @@ theorem synthesis_transient_forest_reachability
         intervalBit z = true ↔
           (tables.low (anchorState z) ≤ tables.low hChosen ∧
             tables.low hChosen ≤ tables.high (anchorState z)) := by
-      have hmEq : markLabels z = forestLabelWord tables.low tables.high hChosen := by
-        rw [hjeq hfH]
-        exact (Classical.choose_spec ((hmarkSpec z).1 hfH)).2
-      have haEq : anchorLabels z = forestLabelWord tables.low tables.high (anchorState z) :=
-        ((hanchorSpec z).1 hfA).2
       dsimp only [intervalBit]
-      rw [hmEq, haEq]
+      rw [(Classical.choose_spec ((hmarkSpec z).1 hfH)).2, ← hjeq hfH,
+        ((hanchorSpec z).1 hfA).2]
       exact forest_label_interval tables.low tables.high (anchorState z) hChosen
     rw [Bool.or_eq_true, Bool.and_eq_true, Bool.and_eq_true, Bool.and_eq_true,
       hshortIff, hverifyIff]

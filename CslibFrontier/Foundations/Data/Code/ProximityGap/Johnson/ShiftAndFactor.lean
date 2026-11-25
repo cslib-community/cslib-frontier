@@ -159,25 +159,22 @@ theorem exists_good_shift_and_factor
     obtain ⟨hz_TR, hHz_ne⟩ := mem_filter.1 hz
     obtain ⟨P, hP_deg, hR_eval0, hW_P⟩ := hTR_mem z hz_TR
     have hS_eval0 : (evZ₂ z S).eval (P ^ μ) = 0 := by
-      have hmap : evZ₂ z R = Polynomial.expand F[X] μ (evZ₂ z S) := by
-        rw [← hexp_S, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_expand]
-      rwa [hmap, Polynomial.expand_eval] at hR_eval0
+      rwa [← hexp_S, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_expand,
+        Polynomial.expand_eval] at hR_eval0
     set yz : F := (P ^ μ).eval x₀
     have hS₀_eval0 : (S₀.map (evZ z)).eval yz = 0 := by
       rw [hS₀_map_evZ z, Polynomial.eval_map]
       have hhom := Polynomial.hom_eval₂ (evZ₂ z S) (RingHom.id F[X])
         (Polynomial.evalRingHom x₀) (P ^ μ)
-      rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
-      change (evZ₂ z S).eval₂ (Polynomial.evalRingHom x₀) (Polynomial.evalRingHom x₀ (P ^ μ)) = 0
-      rw [← hhom, hS_eval0, map_zero]
-    have hγ_eval_ne : (S₀.derivative.map (evZ z)).eval yz ≠ 0 := fun hγ0 => by
+      simpa only [RingHom.comp_id, Polynomial.eval₂_id, hS_eval0, map_zero, coe_evalRingHom]
+        using hhom.symm
+    have hγ_eval_ne : (S₀.derivative.map (evZ z)).eval yz ≠ 0 := fun hγ0 => hHz_ne <| by
       obtain ⟨A₀, B₀, hAB⟩ := hbez₀
       have hm := congrArg (fun p : F[X][X] => (p.map (evZ z)).eval yz) hAB
       simp only [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_C, eval_add, eval_mul,
         eval_C, hS₀_eval0, zero_mul, zero_add, hγ0] at hm
-      exact hHz_ne (by
-        have hΔ0 : (Δ.eval (C x₀)).eval z = 0 := by simpa only [evZ, coe_evalRingHom] using hm.symm
-        simp only [H, eval_mul, hΔ0, mul_zero])
+      simp only [evZ, coe_evalRingHom] at hm
+      simp [H, hm.symm]
     have hc₀_z_ne : c₀.eval z ≠ 0 := fun h0 => hHz_ne <| by
       have hlc : S.leadingCoeff.eval (C x₀) = c₀ * gs.prod.leadingCoeff := by
         calc S.leadingCoeff.eval (C x₀) = S₀.coeff S₀.natDegree := by
@@ -209,9 +206,8 @@ theorem exists_good_shift_and_factor
   have hF_dvd : Fstar ∣ S₀ := (Multiset.dvd_prod hF_mem).trans ⟨C c₀, by rw [hS₀_eq, mul_comm]⟩
   have hF_degZ : degZ₂ Fstar ≤ B_Z := by
     obtain ⟨Q', hQ'⟩ := hF_dvd
-    have hQ'0 : Q' ≠ 0 := fun h => hS₀_ne (by rw [hQ', h, mul_zero])
-    have hmul := degZ₂_mul hF_irred.ne_zero hQ'0
-    rw [← hQ'] at hmul; omega
+    have hmul := hQ' ▸ degZ₂_mul hF_irred.ne_zero (fun h => hS₀_ne (by simp [hQ', h]))
+    omega
   exact ⟨x₀, Fstar, T_ofG Fstar, hS₀_deg, hS₀_degZ, hΔ_x₀_ne, hbez₀, hF_irred, hF_prim, hF_deg1,
     (Polynomial.natDegree_le_of_dvd hF_dvd hS₀_ne).trans hS₀_deg.le, hF_degZ, hF_dvd,
     (Finset.filter_subset _ _).trans (Finset.filter_subset _ _), hF_card, fun z hz =>

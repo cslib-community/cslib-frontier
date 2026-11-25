@@ -100,15 +100,9 @@ theorem dartSequenceRoute_spec {G : Graph} (D : PolygonalDrawing G) {n : ℕ}
     rw [dartSequenceRoute_zero]
     obtain ⟨hstart, hfinish, hfirst, hlast, hsupport, hparity⟩ :=
       orientedRoute_spec D (path 0)
-    refine ⟨hstart, hfinish, hfirst, hlast, ?_, fun e => ?_⟩
-    · rw [hsupport]
-      ext z
-      simp only [Set.mem_iUnion]
-      refine ⟨fun hz => ⟨0, hz⟩, ?_⟩
-      rintro ⟨i, hi⟩
-      rwa [Fin.fin_one_eq_zero i] at hi
-    · rw [Fin.sum_univ_one]
-      exact hparity e
+    refine ⟨hstart, hfinish, hfirst, hlast, ?_, fun e => by simpa using hparity e⟩
+    ext z
+    simp [hsupport, Fin.fin_one_eq_zero]
   | succ n ih =>
     let tail (i : Fin (n + 1)) := path i.succ
     let d := path 0
@@ -117,13 +111,9 @@ theorem dartSequenceRoute_spec {G : Graph} (D : PolygonalDrawing G) {n : ℕ}
     obtain ⟨hpStart, hpFinish, hpFirst, _, hpSupport, hpParity⟩ := orientedRoute_spec D d
     obtain ⟨hqStart, hqFinish, _, hqLast, hqSupport, hqParity⟩ := ih tail (fun i => by
       simpa only [tail, Fin.castSucc_succ] using hstep i.succ)
-    have hjoin : p.finish = q.start := by
-      change p.finish = _ at hpFinish
-      change q.start = _ at hqStart
-      rw [hpFinish, hqStart]
-      exact congrArg D.vertex (hstep 0)
-    have hroute : D.dartSequenceRoute path = p.concat q := dartSequenceRoute_succ D path
-    rw [hroute]
+    have hjoin : p.finish = q.start :=
+      hpFinish.trans ((congrArg D.vertex (hstep 0)).trans hqStart.symm)
+    rw [dartSequenceRoute_succ D path]
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
     · exact (Route.endpoint_concat p q hjoin false).trans hpStart
     · exact (Route.endpoint_concat p q hjoin true).trans hqFinish
@@ -155,12 +145,8 @@ private theorem exists_oriented_segment_equiv {G : Graph} (D : PolygonalDrawing 
   rcases d with ⟨i, tag⟩
   cases tag
   · exact ⟨Equiv.refl _, fun _ _ => rfl⟩
-  · refine ⟨Fin.revPerm, fun j t => ?_⟩
-    change (D.route i).reverse.eval (Fin.revPerm j) t = (D.route i).eval j (1 - t)
-    change Fin (D.route i).segments at j
-    change (D.route i).reverse.eval j.rev t = (D.route i).eval j (1 - t)
-    exact (Route.eval_reverse _ j.rev t).trans
-      (congrArg (fun k => (D.route i).eval k (1 - t)) (Fin.rev_rev j))
+  · exact ⟨Fin.revPerm, fun j t => (Route.eval_reverse _ j.rev t).trans
+      (congrArg (fun k => (D.route i).eval k (1 - t)) (Fin.rev_rev j))⟩
 
 /-- Every segment of a consecutive dart sequence corresponds bijectively to one original
 route segment at one traversal position. Repeated traversals keep separate indices, and

@@ -321,11 +321,8 @@ theorem pivotPayment_optimalPolicyWithout (env : DynamicEnv ι S K) (i : ι)
     {t₀ h₀ len₀ e : ℕ} (hist : List S) (hlen : hist.length = len₀ + e) (s : S) :
     env.pivotPayment i (t₀ + e) (h₀ - e - 1) s
       (env.optimalPolicyWithout i t₀ h₀ len₀ (s :: hist)) = 0 := by
-  have hel : hist.length - len₀ = e := by omega
-  unfold optimalPolicyWithout toHistoryPolicy
-  dsimp only
-  rw [hel]
-  exact env.pivotPayment_optimalActionWithout i (t₀ + e) (h₀ - e - 1) s
+  simpa only [optimalPolicyWithout, toHistoryPolicy, show hist.length - len₀ = e by omega] using
+    env.pivotPayment_optimalActionWithout i (t₀ + e) (h₀ - e - 1) s
 
 /-- Expected discounted cumulative utility of agent `i` under dynamic VCG payments when the
 mechanism executes history-dependent policy `σ` over remaining horizon `h` starting at `(t, s)`. -/
@@ -436,27 +433,22 @@ theorem delayedUtility_le_truthful (env : DynamicEnv ι S K) (i : ι)
     intro d'
     induction d' with
     | zero =>
-      intro e hs s' hlen hed hele
-      have hagree :
-          ∀ (rem : ℕ) (t : ℕ) (hs' : List S) (s'' : S),
-            len₀ + d ≤ hs'.length →
-            env.agentUtility i σ t rem hs' s'' = env.agentUtility i stitched t rem hs' s'' := by
-        intro rem
+      intro e hs s' hlen hed _
+      have hagree (rem : ℕ) : ∀ (t : ℕ) (hs' : List S) (s'' : S),
+          len₀ + d ≤ hs'.length →
+          env.agentUtility i σ t rem hs' s'' = env.agentUtility i stitched t rem hs' s'' := by
         induction rem with
         | zero => intro _ _ _ _; rfl
         | succ rem ihr =>
           intro t hs' s'' hlen'
           have hst : stitched (s'' :: hs') = σ (s'' :: hs') := ite_eq_right (by omega)
-          have hlen'' : len₀ + d ≤ (s'' :: hs').length := by simp; omega
-          simp only [agentUtility, hst, ihr (t + 1) (s'' :: hs') _ hlen'']
-      simp only [delayedUtility]
-      exact le_of_eq (hagree (h₀ - e) (t₀ + e) hs s' (by omega))
+          simp only [agentUtility, hst, ihr (t + 1) (s'' :: hs') _ (by simp; omega)]
+      exact (hagree (h₀ - e) (t₀ + e) hs s' (by omega)).le
     | succ d' ih =>
       intro e hs s' hlen hed hele
-      by_cases hrem0 : h₀ - e = 0
-      · rw [hrem0]
-        simp only [delayedUtility, agentUtility, le_rfl]
-      · obtain ⟨rem, hrem⟩ := Nat.exists_eq_succ_of_ne_zero hrem0
+      rcases Nat.eq_zero_or_pos (h₀ - e) with hrem0 | hpos
+      · simp [hrem0, delayedUtility, agentUtility]
+      · obtain ⟨rem, hrem⟩ := Nat.exists_eq_succ_of_ne_zero hpos.ne'
         have hst : stitched (s' :: hs) = env.bellmanAction (env.othersVal i) (t₀ + e) rem s' := by
           simp only [stitched, show hs.length - len₀ = e by omega, show e < d by omega,
             ↓reduceIte, show h₀ - e - 1 = rem by omega]
@@ -466,11 +458,12 @@ theorem delayedUtility_le_truthful (env : DynamicEnv ι S K) (i : ι)
         have := env.discount_nonneg
         refine le_add_of_nonneg_of_le (hnonneg _ _ _) ?_
         gcongr with s''
-        have hstep := ih (e + 1) (s' :: hs) s'' (by simp [hlen]; omega) (by omega) (by omega)
-        rwa [show t₀ + (e + 1) = t₀ + e + 1 by omega, show h₀ - (e + 1) = rem by omega] at hstep
-  have h1 := hle_stitched d 0 hist s (by simp [len₀]) (by omega) (Nat.zero_le h₀)
-  simp only [Nat.add_zero, Nat.sub_zero] at h1
-  exact h1.trans (env.isTruthful i stitched t₀ h₀ hist s)
+        have hlen' : (s' :: hs).length = len₀ + (e + 1) := by simp [hlen]; omega
+        simpa only [Nat.add_assoc, show h₀ - (e + 1) = rem by omega] using
+          ih (e + 1) (s' :: hs) s'' hlen' (by omega) (by omega)
+  simpa only [Nat.add_zero, Nat.sub_zero] using
+    (hle_stitched d 0 hist s (by simp [len₀]) (by omega) (Nat.zero_le h₀)).trans
+      (env.isTruthful i stitched t₀ h₀ hist s)
 
 end PivotMechanism
 

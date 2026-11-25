@@ -101,19 +101,11 @@ private theorem integrableOn_deriv_g (θ x₀ : ℝ) (s : Set ℝ) :
 private theorem tendsto_gfun_of_tendsto_phi (θ x₀ : ℝ) {l : Filter ℝ}
     (hl : Tendsto phi l (𝓝 0)) :
     Tendsto (gfun (J := J) (sj := sj) (h := h) θ x₀) l (𝓝 0) := by
-  have h0 : ∀ x, 0 ≤ gfun (J := J) (sj := sj) (h := h) θ x₀ x := fun x => by
-    unfold gfun
-    have := phi_pos x
-    have := phi_pos (beta J sj h θ x₀ x)
-    positivity
-  have h1 : ∀ x, gfun (J := J) (sj := sj) (h := h) θ x₀ x ≤ 1 / 2 * phi x := fun x => by
-    unfold gfun
-    have := phi_pos x
-    nlinarith [phi_le (beta J sj h θ x₀ x)]
-  have h2 : Tendsto (fun x => 1 / 2 * phi x) l (𝓝 0) := by
-    have := hl.const_mul (1 / 2)
-    rwa [mul_zero] at this
-  exact squeeze_zero h0 h1 h2
+  refine squeeze_zero (fun x => mul_nonneg (phi_pos x).le (phi_pos _).le) (fun x => ?_)
+    (by simpa using hl.const_mul (1 / 2))
+  unfold gfun
+  have := phi_pos x
+  nlinarith [phi_le (beta J sj h θ x₀ x)]
 
 /-- **IBP, low part.** -/
 theorem ibp_low {θ x₀ : ℝ} (hsi : 0 < si) (hsj : 0 < sj) (hθ : Real.sin θ ≠ 0) :
@@ -144,9 +136,7 @@ theorem ibp_low {θ x₀ : ℝ} (hsi : 0 < si) (hsj : 0 < sj) (hθ : Real.sin θ
       (integrableOn_deriv_g θ x₀ _) (tendsto_gfun_of_tendsto_phi θ x₀ tendsto_phi_atBot)
     rw [integral_neg, sub_zero] at hftc
     linarith
-  · rw [ite_eq_right hx, neg_zero]
-    have : ∀ x₁, indA I si h x₀ x₁ = 0 := fun x₁ => by simp [indA, hx]
-    simp [this]
+  · simp [indA, hx]
 
 /-- **IBP, high part.** -/
 theorem ibp_high {θ x₀ : ℝ} (hsi : 0 < si) (hsj : 0 < sj) (hθ : Real.sin θ ≠ 0) :
@@ -177,9 +167,7 @@ theorem ibp_high {θ x₀ : ℝ} (hsi : 0 < si) (hsj : 0 < sj) (hθ : Real.sin �
       (integrableOn_deriv_g θ x₀ _) (tendsto_gfun_of_tendsto_phi θ x₀ tendsto_phi_atTop)
     rw [integral_neg, zero_sub] at hftc
     linarith
-  · rw [ite_eq_right hx]
-    have : ∀ x₁, indB I si h x₀ x₁ = 0 := fun x₁ => by simp [indB, hx]
-    simp [this]
+  · simp [indB, hx]
 
 end Rot
 end Cslib.Circuits.Frontier.Switched

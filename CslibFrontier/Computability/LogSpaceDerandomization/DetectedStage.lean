@@ -119,15 +119,12 @@ theorem card_overloaded_le (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar)
     exact ⟨⟨i, hi⟩, lt_card_of_lt_columnDetector hch hf hϕ0 hϕ1 hϕδ hρ1 hJ hU⟩
   rcases O.eq_empty_or_nonempty with hO | hO
   · rw [hO, card_empty, mul_zero]; exact Nat.zero_le _
-  have hk : 0 < k := by
-    obtain ⟨y, hy⟩ := hO
-    obtain ⟨⟨i, hi⟩, -⟩ := hinc y hy
-    omega
+  obtain ⟨y₀, hy₀⟩ := hO
+  have hk : 0 < k := (hinc y₀ hy₀).choose.pos
   set N := ⌊J / (4 * Cπ * f)⌋₊ + 1
-  have hN : ∀ y ∈ O, ∃ i : Fin k, N ≤ #({x | δ₀ * f < pilotInput c γ U C i x y} : Finset V) := by
-    intro y hy
-    obtain ⟨i, hi⟩ := hinc y hy
-    exact ⟨i, Nat.succ_le_of_lt ((Nat.floor_lt (by positivity)).mpr hi)⟩
+  have hN : ∀ y ∈ O, ∃ i : Fin k, N ≤ #({x | δ₀ * f < pilotInput c γ U C i x y} : Finset V) :=
+    fun y hy => (hinc y hy).imp fun _ hi =>
+      Nat.succ_le_of_lt ((Nat.floor_lt (by positivity)).mpr hi)
   have hcount := card_mul_le_of_incidences (fun i : Fin k => pilotInput c γ U C i)
     (fun i x y => hseq.input_nonneg hC0 i x y) (fun i => (i : ℝ) + 1)
     (fun i x => (hseq.sum_input_le hC1 i x).1) A
@@ -168,10 +165,8 @@ theorem card_le_of_pilot_pos (hch : RetentionChannels X Y f π cπ Cπ Cpair Cva
   set U := columnDetector X Y ϕ ρ J K f
   have hseq := isCorrectionSeq_pilotCorrection (U := U) hC0 hc0 hct hγ0 hγ1
   by_contra hlt
-  have hrow : ∀ x, ∑ w, pilotInput c γ U C i x w ≤ (k : ℝ) := fun x => by
-    have := (hseq.sum_input_le hC1 i x).1
-    have hik : (i : ℝ) + 1 ≤ k := by exact_mod_cast hi
-    exact this.trans hik
+  have hrow : ∀ x, ∑ w, pilotInput c γ U C i x w ≤ (k : ℝ) := fun x =>
+    (hseq.sum_input_le hC1 i x).1.trans (by exact_mod_cast hi)
   have hU : 19 / 20 ≤ U (pilotInput c γ U C i) y :=
     le_columnDetector hch hf hcπ hCpair hϕδ hρ1 hη hρη (hseq.input_nonneg hC0 i) hrow hK hJ hRJ
       hRvar (not_le.mp hlt)
@@ -262,28 +257,20 @@ theorem detectedStage_rates (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar
   · -- the weights lie in `[0, 1]`
     unfold detectorWeight
     split_ifs
-    · exact ⟨zero_le_one, le_rfl⟩
-    · exact ⟨hκ0 _, hκ1 _⟩
+    exacts [⟨zero_le_one, le_rfl⟩, ⟨hκ0 _, hκ1 _⟩]
   · -- only overloaded vertices have active extra copies
     simp only [detectorWeight, hj, ↓reduceIte] at hr
     simp only [overloaded, mem_filter, mem_univ, true_and]
-    by_contra hle
-    exact hr (hκq _ (not_lt.mp hle))
+    exact not_le.mp fun hle => hr (hκq _ hle)
   · -- every column is fully corrected or overloaded with all copies active
     by_cases hg : γ (M y) = 1
-    · left
-      intro t
-      simp only [hg, mul_one]
-      exact hcθ₂ t
+    · exact Or.inl fun t => by simpa only [hg, mul_one] using hcθ₂ t
     · right
-      have hhalf : 1 / 2 < M y := by
-        by_contra hle
-        exact hg (hγhalf _ (not_lt.mp hle))
+      have hhalf : 1 / 2 < M y := not_le.mp fun hle => hg (hγhalf _ hle)
       refine ⟨fun j => ?_, ?_⟩
       · unfold detectorWeight
         split_ifs
-        · rfl
-        · exact hκhalf _ hhalf
+        exacts [rfl, hκhalf _ hhalf]
       · simp only [overloaded, mem_filter, mem_univ, true_and]
         linarith
 

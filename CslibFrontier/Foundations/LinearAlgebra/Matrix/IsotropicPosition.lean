@@ -223,11 +223,8 @@ private theorem exists_le_log_det_sub {X : Type*} [Fintype X] [Nonempty X] {d : 
   have hsum := sum_le_sum fun k (_ : k ∈ (univ : Finset (Fin m))) =>
     log_det_submatrix_sq_add_sum_le U t (e k) (hU (e k))
   rw [sum_add_distrib, hcount, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] at hsum
-  rw [div_le_iff₀ (by exact_mod_cast hm0)]
-  have h2 : (Real.log (∑ x, Real.exp (t x) • vecMulVec (U x) (U x)).det -
-      d / m * ∑ x, t x) * m = m * Real.log (∑ x, Real.exp (t x) • vecMulVec (U x) (U x)).det -
-        d * ∑ x, t x := by
-    field_simp
+  rw [div_le_iff₀ (by exact_mod_cast hm0), sub_mul, mul_right_comm (d / m : ℝ),
+    div_mul_cancel₀ _ (by positivity)]
   linarith
 
 /-- Changing the single coordinate `t x` to `b` changes `∑ z, g z (t z)` by
@@ -276,14 +273,11 @@ private theorem le_add_of_neg_sq_lt_log {q r ε : ℝ} (hq : 0 ≤ q) (hr : 0 �
     nlinarith
   have key : δ * (1 - δ) * q < δ ^ 2 + r * δ := by
     nlinarith [mul_le_mul_of_nonneg_right hexp hq]
-  have key2 : (1 - δ) * q < δ + r := by
-    by_contra! hcon
-    nlinarith [mul_le_mul_of_nonneg_left hcon hδ0.le]
-  have hδdef : δ * (1 + r + ε) = ε := by rw [hδ]; field_simp
+  have hδdef : δ * (1 + r + ε) = ε := div_mul_cancel₀ ε (by positivity)
   by_contra! hcon
-  have : (1 - δ) * (r + ε) < δ + r :=
-    lt_of_le_of_lt (mul_le_mul_of_nonneg_left hcon.le (by linarith)) key2
-  nlinarith
+  have h1 : δ * (1 - δ) * (r + ε) ≤ δ * (1 - δ) * q :=
+    mul_le_mul_of_nonneg_left hcon.le (mul_nonneg hδ0.le (by linarith))
+  nlinarith [congrArg (δ * ·) hδdef]
 
 /-- **Approximate isotropic position** (Forster's lemma up to `ε`). If the `m = |X|` rows of
 `U : Matrix X (Fin d) ℝ` are in general position (every `d × d` submatrix is invertible) and

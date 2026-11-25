@@ -96,9 +96,7 @@ theorem answersUpTo_const (pts : Fin q → ι → Bool) (f : (ι → Bool) → B
   | k + 1, hk => by
     funext j
     simp only [answersUpTo, answersUpTo_const pts f k]
-    refine Fin.lastCases ?_ (fun j => ?_) j
-    · exact (Fin.snoc_last ..).trans rfl
-    · exact (Fin.snoc_castSucc ..).trans rfl
+    exact Fin.lastCases (Fin.snoc_last ..) (fun _ => Fin.snoc_castSucc ..) j
 
 /-- The decision tree asking the remaining `r` adaptive queries after the answers `a` to the first
 `k`, then outputting `H` of all `q` answers. -/
@@ -221,22 +219,19 @@ private theorem complexity_append_answersUpTo_le (Q : (i : Fin q) → BitString 
     rw [card_univ, Fintype.card_fin] at hsel
     have hinner : complexity interpretation inner ≤ complexity interpretation (Q ⟨k, hk⟩) := by
       refine (complexity_append_le (fun y : Fin (2 ^ n + k) → Bool => y ∘ Fin.castAdd k) _).trans ?_
-      rw [complexity_wiring, zero_add]
       have h := complexity_comp_le (I := interpretation)
         (fun y : Fin (2 ^ n + k) → Bool => y ∘ Fin.natAdd (2 ^ n)) (Q ⟨k, hk⟩)
-      rwa [complexity_wiring, zero_add] at h
+      rw [complexity_wiring, zero_add] at h ⊢
+      exact h
     have hg : complexity interpretation (single g) ≤
         complexity interpretation (Q ⟨k, hk⟩) + (2 ^ n * (2 * n + 3) + 1) := by
-      have hcomp := complexity_comp_le (I := interpretation) inner
-        (single fun zx : Fin (2 ^ n + n) → Bool =>
-          zx (Fin.castAdd n (BitString.equivFin n fun j => zx (Fin.natAdd (2 ^ n) j))))
       have heq : single g = (single fun zx : Fin (2 ^ n + n) → Bool =>
           zx (Fin.castAdd n (BitString.equivFin n fun j => zx (Fin.natAdd (2 ^ n) j)))) ∘
             inner := by
         funext y i
         simp [g, inner, single]
       rw [heq]
-      exact hcomp.trans (add_le_add hinner hsel)
+      exact (complexity_comp_le _ _).trans (add_le_add hinner hsel)
     have happ : complexity interpretation
         (fun y : Fin (2 ^ n + k) → Bool => Fin.append (y ∘ id) (single g y)) ≤
           complexity interpretation (single g) := by

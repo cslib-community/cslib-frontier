@@ -155,9 +155,7 @@ theorem dens_filter_not_relativeHashEstimate_le {k p : ℕ} (h : ∀ j, ι j →
     dens {ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
       ¬ (#S ≤ relativeHashEstimate h y S ω ∧
         p * relativeHashEstimate h y S ω ≤ (p + 1) * #S)} ≤ (n + 1) * (8 / 9) ^ r := by
-  have hk : k ≠ 0 := by
-    rintro rfl
-    simp at hp
+  have hk : k ≠ 0 := fun h => by simp [h] at hp
   by_cases hX : Nonempty X
   · obtain ⟨x⟩ := hX
     have : ∀ j, Nonempty (ι j) := fun j => (hh j).nonempty (fun _ => x) (y j)
@@ -169,26 +167,17 @@ theorem dens_filter_not_relativeHashEstimate_le {k p : ℕ} (h : ∀ j, ι j →
     rw [show 128 = 16 * 8 by norm_num, mul_assoc]
     exact Nat.mul_le_mul_left 16 hle
   · have : IsEmpty X := not_nonempty_iff.mp hX
-    have hS0 : S = ∅ := eq_empty_of_isEmpty S
-    subst hS0
+    obtain rfl : S = ∅ := eq_empty_of_isEmpty S
     have hpi : (Fintype.piFinset fun _ : Fin k => (∅ : Finset X)) = ∅ :=
       card_eq_zero.mp (by rw [Fintype.card_piFinset_const, card_empty, zero_pow hk])
-    have hest : ∀ ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j,
-        relativeHashEstimate h y ∅ ω = 0 := fun ω => by
-      have ha : ¬ hashAnswer h y ∅ ω 0 := by
-        rintro ⟨_, hr⟩
-        simp at hr
-      have hhe : hashEstimate h y ∅ ω = 0 := by
-        simp only [hashEstimate, estimate, ha, ↓reduceIte]
-      simp only [relativeHashEstimate, hpi, hhe, mul_zero]
-      by_contra hne
-      have h0 := (Nat.le_nthRoot_iff hk).mp (Nat.one_le_iff_ne_zero.mpr hne)
-      simp at h0
+    have hest (ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j) : relativeHashEstimate h y ∅ ω = 0 := by
+      have ha : ¬ hashAnswer h y ∅ ω 0 := fun ⟨_, hr⟩ => by simp at hr
+      simp only [relativeHashEstimate, hpi, hashEstimate, estimate, ha, ↓reduceIte, mul_zero]
+      exact Nat.eq_zero_of_not_pos fun hpos => by simpa using (Nat.le_nthRoot_iff hk).mp hpos
     have hemp : ({ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
         ¬ (#(∅ : Finset X) ≤ relativeHashEstimate h y ∅ ω ∧
-          p * relativeHashEstimate h y ∅ ω ≤ (p + 1) * #(∅ : Finset X))} : Finset _) = ∅ := by
-      ext ω
-      simp [hest ω]
+          p * relativeHashEstimate h y ∅ ω ≤ (p + 1) * #(∅ : Finset X))} : Finset _) = ∅ :=
+      Finset.ext fun ω => by simp [hest ω]
     rw [hemp, dens_empty]
     positivity
 

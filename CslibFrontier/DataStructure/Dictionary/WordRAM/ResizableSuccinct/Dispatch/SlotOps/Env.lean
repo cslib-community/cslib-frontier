@@ -211,15 +211,10 @@ theorem FixedCoupled.quot_val_at_slotOf {metaBase itemBase U V w N m_items b j :
   intro gm td g d
   have htd := fun hb_pos => hcpl.tailDenseInv hb_pos
   obtain ⟨hd_lt, _, _⟩ := denseOfPhys_slotOf_lt_and_inv hslot htd hb hj
-  have hvirt := physOfDense_denseOfPhys_slotOf hslot htd hb hj
+  have hvirt : physByBase N (gm 0 * slabSize N) (compDTAt metaBase U w N s.mem) d = g :=
+    physOfDense_denseOfPhys_slotOf hslot htd hb hj
   have hq0 := hcpl.quot_eq d hd_lt
   have hv0 := hcpl.val_eq d hd_lt
-  change compQuotAt itemBase U V w N (epochTotalSlots N gm) s.mem d =
-    quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem
-      (physOfDense N gm (compDTAt metaBase U w N s.mem) d) at hq0
-  change compValAt itemBase U V w N (epochTotalSlots N gm) s.mem d =
-    valAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem
-      (physOfDense N gm (compDTAt metaBase U w N s.mem) d) at hv0
   rw [hvirt] at hq0 hv0
   exact ⟨hd_lt,
     (compQuotAt_of_lt s.mem (lt_of_lt_of_le hd_lt hm) hd_lt).trans hq0,
@@ -247,7 +242,8 @@ theorem FixedCoupled.writeVal_slotOf {metaBase itemBase U V w N b j v : ℕ}
   have hg_lt : g < N := (slotOf_lt_and_injective hslot).1 b hb j hj
   have htd := fun hb_pos => hcpl.tailDenseInv hb_pos
   obtain ⟨hd_lt, _, _⟩ := denseOfPhys_slotOf_lt_and_inv hslot htd hb hj
-  have hvirt := physOfDense_denseOfPhys_slotOf hslot htd hb hj
+  have hvirt : physByBase N (gm 0 * slabSize N) (compDTAt metaBase U w N s.mem) d = g :=
+    physOfDense_denseOfPhys_slotOf hslot htd hb hj
   obtain ⟨hlm_f, hgm_f, htd_f, hdt_f⟩ :=
     writeCompVal_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N) (v := v)
       hw hitem hd_lt s.mem
@@ -270,17 +266,14 @@ theorem FixedCoupled.writeVal_slotOf {metaBase itemBase U V w N b j v : ℕ}
     rw [hdt_f, hv_fix]
     by_cases hdeq : d' = d
     · subst hdeq
-      rw [compValAt_writeCompVal_self s.mem hd_lt hv_lt]
-      change v = Function.update (valAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-        s_fix.mem) g v (physOfDense N gm (compDTAt metaBase U w N s.mem) d)
-      rw [hvirt, Function.update_self]
+      rw [compValAt_writeCompVal_self s.mem hd_lt hv_lt, hvirt, Function.update_self]
     · rw [compValAt_writeCompVal_of_ne hw s.mem hdeq]
       have hg_ne : physByBase N (gm 0 * slabSize N) (compDTAt metaBase U w N s.mem) d' ≠ g := by
         intro heq
         apply hdeq
         obtain ⟨hb'_lt, hj'_lt, hd'_eq⟩ := ownerBucketOfDense_lt_and_slotOf hslot htd hd'
-        have hv' := physOfDense_eq_slotOf_owner hslot htd hd'
-        change physOfDense N gm (compDTAt metaBase U w N s.mem) d' = g at heq
+        have hv' : physByBase N (gm 0 * slabSize N) (compDTAt metaBase U w N s.mem) d' = _ :=
+          physOfDense_eq_slotOf_owner hslot htd hd'
         rw [hv'] at heq
         obtain ⟨rfl, rfl⟩ := (slotOf_lt_and_injective hslot).2 _ hb'_lt _ hj'_lt b hb j hj heq
         exact hd'_eq.symm
@@ -329,9 +322,7 @@ theorem validProg_bind_of_eq {α β : Type} {w : ℕ} {s : Memory.State}
     (hp : ValidProg w 0 s p)
     (hres : (Memory.spec 0).clientResult s p = a)
     (hk : ∀ s' : Memory.State, s' = (Memory.spec 0).clientState s p → ValidProg w 0 s' (k a)) :
-    ValidProg w 0 s (p >>= k) := by
-  refine validProg_bind hp ?_
-  rw [hres]
-  exact hk _ rfl
+    ValidProg w 0 s (p >>= k) :=
+  validProg_bind hp (hres.symm ▸ hk _ rfl)
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

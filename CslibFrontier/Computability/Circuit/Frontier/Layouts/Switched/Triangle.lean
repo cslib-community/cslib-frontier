@@ -46,11 +46,10 @@ def lawLt (s α : ℝ) : ℝ := (gaussianReal 0 1).real {w | s * w < α}
 
 private theorem lawLt_neg (s β : ℝ) :
     (gaussianReal 0 1).real {w | -s * w < β} = lawLt s β := by
-  have hm : Measurable fun w : ℝ => -w := measurable_neg
   have hs : MeasurableSet {w : ℝ | s * w < β} := measurableSet_lt (by fun_prop) measurable_const
   have h := gaussianReal_map_neg (μ := (0 : ℝ)) (v := 1)
   rw [neg_zero] at h
-  rw [lawLt, ← h, map_measureReal_apply hm hs]
+  rw [lawLt, ← h, map_measureReal_apply measurable_neg hs]
   congr 1
   ext w
   simp [neg_mul, mul_neg]
@@ -62,10 +61,8 @@ private theorem prob_down_up {s₀ s₁ α β : ℝ} (h0 : 0 ≤ s₀) (h1 : 0 �
   set γ := gaussianReal 0 1
   set A := {w : ℝ | s₀ * w < α}
   set B := {w : ℝ | -s₁ * w < β}
-  have hA : MeasurableSet A := measurableSet_lt (by fun_prop) measurable_const
   have hB : MeasurableSet B := measurableSet_lt (by fun_prop) measurable_const
-  have hset : {w | s₀ * w < α ∧ -s₁ * w < β} = A ∩ B := rfl
-  rw [hset, ← lawLt_neg s₁ β]
+  rw [← lawLt_neg s₁ β]
   change γ.real (A ∩ B) = max (γ.real A + γ.real B - 1) 0
   have hunion := measureReal_union_add_inter (μ := γ) (s := A) (t := B) hB
   by_cases hcov : A ∪ B = univ
@@ -88,9 +85,7 @@ private theorem prob_down_up {s₀ s₁ α β : ℝ} (h0 : 0 ≤ s₀) (h1 : 0 �
         by_contra hc; push Not at hc; nlinarith [hw.1]
       nlinarith [hw.2]
     rw [hemp, measureReal_empty] at hunion ⊢
-    rw [max_eq_right]
-    have := measureReal_le_one (μ := γ) (s := A ∪ B)
-    linarith
+    rw [max_eq_right (by linarith [measureReal_le_one (μ := γ) (s := A ∪ B)])]
 
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
   [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E]
@@ -107,13 +102,11 @@ private theorem prob_inner_lt (r : E) (α : ℝ) :
     have huu : ⟪u, u⟫ = 1 := by
       rw [real_inner_self_eq_norm_sq, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hnr.ne']
       norm_num
-    have hrx : ∀ x : E, ⟪r, x⟫ = ‖r‖ * ⟪u, x⟫ := fun x => by
-      simp only [u, real_inner_smul_left]; field_simp
-    have hs : MeasurableSet {w : ℝ | ‖r‖ * w < α} := measurableSet_lt (by fun_prop) measurable_const
-    rw [lawLt, ← stdGaussian_map_inner_unit_sq huu, map_measureReal_apply (by fun_prop) hs]
+    rw [lawLt, ← stdGaussian_map_inner_unit_sq huu,
+      map_measureReal_apply (by fun_prop) (measurableSet_lt (by fun_prop) measurable_const)]
     congr 1
     ext x
-    simp [hrx]
+    simp [u, real_inner_smul_left, mul_inv_cancel_left₀ hnr.ne']
 
 /-- The planar conditional probability at the pivot level `z`. -/
 private theorem planar_slice {γ₀ γ₁ h z : ℝ} (h0 : 0 ≤ Real.sin γ₀) (h1 : 0 ≤ Real.sin γ₁) :
@@ -126,10 +119,8 @@ private theorem planar_slice {γ₀ γ₁ h z : ℝ} (h0 : 0 ≤ Real.sin γ₀)
     ext w
     simp only [planarSet, Set.mem_preimage, Set.mem_ofPred_eq, hz, true_and]
     constructor <;> rintro ⟨a, b⟩ <;> constructor <;> linarith
-  · have : Prod.mk z ⁻¹' planarSet γ₀ γ₁ h = ∅ := by
-      ext w
-      simp [planarSet, hz]
-    rw [this, measureReal_empty]
+  · rw [(Set.eq_empty_iff_forall_notMem (s := Prod.mk z ⁻¹' planarSet γ₀ γ₁ h)).mpr
+      fun _ hw => hz hw.1, measureReal_empty]
 
 private theorem planarProb_eq_integral (γ₀ γ₁ h : ℝ) :
     planarProb γ₀ γ₁ h =
@@ -184,11 +175,9 @@ theorem triangle_lemma {w₀ w₁ w₂ : E} (h₀ : ‖w₀‖ = 1) (h₁ : ‖w
   have hsin₀ : 0 ≤ Real.sin (Real.arccos c₀) := by rw [Real.sin_arccos]; positivity
   have hsin₁ : 0 ≤ Real.sin (Real.arccos c₁) := by rw [Real.sin_arccos]; positivity
   have hint2 : Integrable (fun z => (stdGaussian E).real {x | (z, remainder w₂ x) ∈ S})
-      (gaussianReal 0 1) := by
-    refine Integrable.of_bound (C := 1) (measurable_cond hS).aestronglyMeasurable
-      (ae_of_all _ fun z => ?_)
-    rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]
-    exact measureReal_le_one
+      (gaussianReal 0 1) :=
+    Integrable.of_bound (measurable_cond hS).aestronglyMeasurable 1
+      (ae_of_all _ fun _ => by simp [abs_of_nonneg measureReal_nonneg, measureReal_le_one])
   have hplanar_le : ∀ z, (gaussianReal 0 1).real (Prod.mk z ⁻¹'
       planarSet (Real.arccos c₀) (Real.arccos c₁) h) ≤
       (stdGaussian E).real {x | (z, remainder w₂ x) ∈ S} := by
@@ -199,10 +188,8 @@ theorem triangle_lemma {w₀ w₁ w₂ : E} (h₀ : ‖w₀‖ = 1) (h₁ : ‖w
       have hslice : {x : E | (z, remainder w₂ x) ∈ S} =
           {x | ⟪r₀, x⟫ < h - c₀ * z} ∩ {x | ⟪r₁, x⟫ < h - c₁ * z} := by
         ext x
-        simp only [S, Set.mem_ofPred_eq, Set.mem_inter_iff, hz, true_and]
-        have e0 : ⟪r₀, remainder w₂ x⟫ = ⟪r₀, x⟫ := inner_remainder_of_orth (horth w₀) x
-        have e1 : ⟪r₁, remainder w₂ x⟫ = ⟪r₁, x⟫ := inner_remainder_of_orth (horth w₁) x
-        rw [e0, e1]
+        simp only [S, r₀, r₁, Set.mem_ofPred_eq, Set.mem_inter_iff, hz, true_and,
+          inner_remainder_of_orth (horth w₀) x, inner_remainder_of_orth (horth w₁) x]
         constructor <;> rintro ⟨a, b⟩ <;> constructor <;> linarith
       rw [hslice, hcos w₀ h₀, hcos w₁ h₁, ← hnorm w₀ h₀, ← hnorm w₁ h₁,
         ← prob_inner_lt, ← prob_inner_lt]

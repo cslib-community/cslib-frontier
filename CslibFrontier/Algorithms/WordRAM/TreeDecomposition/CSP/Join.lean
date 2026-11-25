@@ -156,24 +156,18 @@ private theorem joinFillProg_spec {w : ℕ} (counting : Bool) (a : JoinFillArgs)
   have hentry_fit : Fits w entryVal := by
     have hmem_e : entryVal ∈ targetTbl := List.getElem_mem _
     exact hfit_cap.of_le (mem_dpInstTree_le counting hq cs vars (.join left right) _ hmem_e)
-  have hl_addr_lt : a.lTblPtr + m < t.frontier := by rw [hfr_t]; omega
-  have hr_addr_lt : a.rTblPtr + mr < t.frontier := by rw [hfr_t]; omega
-  have hdst_lt : a.tblPtr + m < t.frontier := by rw [hfr_t]; omega
   obtain ⟨hst_ev, hres_ev⟩ := joinFillStep_eval a m t
   dsimp only [mr] at hprod_eq
-  have hst_t₁ : (Memory.spec 0).clientState t (joinFillStep (a, m)) =
-      ⟨Function.update t.mem (a.tblPtr + m) entryVal, t.frontier⟩ := by
-    rw [hst_ev, hr_rp, hprod_eq]
   have hv_step : (Memory.spec w).ValidHistory t
       ((Memory.spec w).clientHistory t (joinFillStep (a, m))) := by
     unfold joinFillStep
     dsimp only
-    refine validHistory_read_bind hl_addr_lt ?_
+    refine validHistory_read_bind (by rw [hfr_t]; omega) ?_
     refine validHistory_bind_step hv_rp ?_
     rw [hst_rp, hr_rp]
-    refine validHistory_read_bind hr_addr_lt ?_
+    refine validHistory_read_bind (by rw [hfr_t]; omega) ?_
     rw [hprod_eq]
-    exact validHistory_write_bind hdst_lt hentry_fit (validHistory_pure w _ _)
+    exact validHistory_write_bind (by rw [hfr_t]; omega) hentry_fit (validHistory_pure w _ _)
   have hc_step : memoryCost (joinFillStep (a, m)) t ≤ stepCost := by
     unfold joinFillStep
     dsimp only
@@ -182,7 +176,7 @@ private theorem joinFillProg_spec {w : ℕ} (counting : Bool) (a : JoinFillArgs)
       memoryCost_bind', memoryCost_write, memoryCost_pure]
     dsimp only [stepCost]
     omega
-  exact ⟨hv_step, hst_t₁, hres_ev, trivial, hc_step⟩
+  exact ⟨hv_step, by rw [hst_ev, hr_rp, hprod_eq], hres_ev, trivial, hc_step⟩
 
 private theorem joinFillProg_realizes :
     Realizes .exact joinFillProg WordEncoding.encode WordEncoding.encode
@@ -377,15 +371,10 @@ theorem joinNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : JoinNodeArgs)
   · rw [hsEnd_eq]
     exact (FrameOutsideRange.of_preservesBelow a.dCur (a.dCur + 4) hp_s_s₂).trans hframe_wd
   · rw [hsEnd_eq]
-    refine ⟨hdCur, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [hm0]; exact hleft.bag_lo
-    · rw [hm1]; rfl
-    · rw [hm0]
-      exact hlBag_s₂.frame_outsideRange (.inr (le_trans hdCur hleft.bag_lo)) hframe_wd
-    · rw [hm2]; exact hFlo
-    · rw [hm3]; rfl
-    · rw [hm2]
-      exact htbl_fill.frame_outsideRange (.inr (le_trans hdCur hFlo)) hframe_wd
+    exact ⟨hdCur, hm0 ▸ hleft.bag_lo, hm1,
+      hm0 ▸ hlBag_s₂.frame_outsideRange (.inr (le_trans hdCur hleft.bag_lo)) hframe_wd,
+      hm2 ▸ hFlo, hm3,
+      hm2 ▸ htbl_fill.frame_outsideRange (.inr (le_trans hdCur hFlo)) hframe_wd⟩
   · unfold joinNodeProg
     iterate 7 rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read]
     rw [hm_lbLen, hm_ltLen, hm_rbLen, memoryCost_bind', memoryCost_allocDirty, ha1_s, ha1_r,

@@ -85,11 +85,9 @@ private theorem subset_kernel (S E : Finset ι) :
     congr 1
     exact propext ⟨fun h => hSE.antisymm (sdiff_eq_empty_iff_subset.mp h),
       fun h => by simp [h]⟩
-  · have hnone : ∀ U ∈ E.powerset, ¬S ⊆ U := fun U hU hSU =>
-        hSE (hSU.trans (mem_powerset.mp hU))
-    have hne : S ≠ E := fun h => hSE (h ▸ Subset.refl _)
-    simp only [ite_eq_right hne]
-    exact sum_eq_zero fun U hU => by simp [hnone U hU]
+  · rw [ite_eq_right fun h : S = E => hSE h.subset]
+    exact sum_eq_zero fun U hU =>
+      mul_eq_zero_of_right _ (ite_eq_right fun hSU => hSE (hSU.trans (mem_powerset.mp hU)))
 
 /-! ### The Möbius transform on the subsets of a set -/
 
@@ -119,21 +117,17 @@ public theorem subsetMobius_add (f g : Finset ι → M) (S : Finset ι) :
 private theorem sum_neg_one_pow_superset [DecidableEq ι] {U T : Finset ι} (hUT : U ⊆ T) :
     (∑ S ∈ T.powerset with U ⊆ S, (-1 : ℤ) ^ (#S - #U)) = if U = T then 1 else 0 := by
   have hbij : (∑ S ∈ T.powerset with U ⊆ S, (-1 : ℤ) ^ (#S - #U)) =
-      ∑ Z ∈ (T \ U).powerset, (-1 : ℤ) ^ #Z := by
-    refine sum_nbij' (fun S => S \ U) (fun Z => Z ∪ U) ?_ ?_ ?_ ?_ ?_
-    · intro S hS
-      simp only [mem_filter, mem_powerset] at hS ⊢
-      exact sdiff_subset_sdiff hS.1 subset_rfl
-    · intro Z hZ
-      simp only [mem_filter, mem_powerset] at hZ ⊢
-      exact ⟨union_subset (hZ.trans sdiff_subset) hUT, subset_union_right⟩
-    · intro S hS
-      exact sdiff_union_of_subset (mem_filter.mp hS).2
-    · intro Z hZ
-      have hZ' : Disjoint Z U := disjoint_of_subset_left (mem_powerset.mp hZ) sdiff_disjoint
-      exact union_sdiff_cancel_right hZ'
-    · intro S hS
-      rw [card_sdiff_of_subset (mem_filter.mp hS).2]
+      ∑ Z ∈ (T \ U).powerset, (-1 : ℤ) ^ #Z :=
+    sum_nbij' (· \ U) (· ∪ U)
+      (fun S hS => mem_powerset.mpr
+        (sdiff_subset_sdiff (mem_powerset.mp (mem_filter.mp hS).1) subset_rfl))
+      (fun Z hZ => mem_filter.mpr
+        ⟨mem_powerset.mpr (union_subset ((mem_powerset.mp hZ).trans sdiff_subset) hUT),
+          subset_union_right⟩)
+      (fun S hS => sdiff_union_of_subset (mem_filter.mp hS).2)
+      (fun Z hZ => union_sdiff_cancel_right
+        (disjoint_of_subset_left (mem_powerset.mp hZ) sdiff_disjoint))
+      fun S hS => by rw [card_sdiff_of_subset (mem_filter.mp hS).2]
   rw [hbij, sum_powerset_neg_one_pow_card]
   exact if_congr ⟨fun he => hUT.antisymm (sdiff_eq_empty_iff_subset.mp he), fun h => by simp [h]⟩
     rfl rfl
@@ -161,15 +155,7 @@ public theorem subsetMobius_monomial [DecidableEq ι] (U S : Finset ι) :
     subsetMobius (fun T => monomial R U fun i => decide (i ∈ T)) S = if U = S then 1 else 0 := by
   convert subset_kernel (R := R) U S using 1
   · rw [subsetMobius]
-    refine sum_congr rfl fun T _ => ?_
-    rw [monomial_apply, zsmul_eq_mul, Int.cast_pow, Int.cast_neg, Int.cast_one]
-    congr 1
-    simp only [decide_eq_true_eq]
-    split_ifs with h₁ h₂ h₂
-    · rfl
-    · exact absurd (fun i hi => h₁ i hi) h₂
-    · exact absurd (fun i hi => h₂ hi) h₁
-    · rfl
+    exact sum_congr rfl fun T _ => by simp [monomial_apply, ← subset_iff, zsmul_eq_mul]
   · split_ifs <;> rfl
 
 /-- **The subset Möbius transform vanishes above the degree**: for a function of degree at most
@@ -271,13 +257,10 @@ public theorem eq_sum_subsetMobius_of_local {I : Finset ι} {g : (ι → Bool) �
   have hgx : g x = g fun v => decide (v ∈ W) :=
     hg _ _ fun v hv => by simp only [W, mem_filter, hv, true_and, Bool.decide_eq_true]
   rw [hgx, ← sum_powerset_subsetMobius (fun T => g fun v => decide (v ∈ T)) W]
-  simp only [mul_ite, mul_one, mul_zero]
-  rw [← sum_filter]
+  simp only [mul_ite, mul_one, mul_zero, ← sum_filter]
   refine sum_congr ?_ fun _ _ => rfl
   ext S
-  simp only [mem_powerset, mem_filter, W, subset_iff]
-  exact ⟨fun h => ⟨fun v hv => (h hv).1, fun v hv => (h hv).2⟩,
-    fun h v hv => ⟨h.1 hv, h.2 v hv⟩⟩
+  simp [W, subset_iff, forall_and]
 
 /-- **Monomial expansion on the cube.** Every function on a finite cube is the combination of the
 monomials with coefficients the subset Möbius transform of its values at indicators of sets: the

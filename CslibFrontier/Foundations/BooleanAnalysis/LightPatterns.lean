@@ -116,8 +116,7 @@ private theorem sixtyThree_div_sixtyFour_le_rpow {k r : ℝ} (hk : 1 ≤ k) (hr 
   have hBp : 0 < B := Real.rpow_pos_of_pos (by norm_num) k
   have ha : 0 < a := by dsimp [a]; positivity
   have hkr : r * (512 * k) ≤ 1 := (le_div_iff₀ (by positivity)).mp hr'
-  have hrk : r ≤ r * k := by simpa only [mul_one] using mul_le_mul_of_nonneg_left hk hr
-  have hlog : Real.log a = -(k / 2 + 1) * Real.log 2 := by
+  have hlog : Real.log a * (5 * r) = -((k / 2 + 1) * (5 * r) * Real.log 2) := by
     dsimp [a, B]
     rw [Real.log_div one_ne_zero (by positivity), Real.log_one,
       Real.log_mul (by norm_num) (by positivity), Real.log_sqrt hBp.le,
@@ -127,10 +126,7 @@ private theorem sixtyThree_div_sixtyFour_le_rpow {k r : ℝ} (hk : 1 ≤ k) (hr 
   rw [← Real.rpow_def_of_pos ha, hlog] at he
   have hloss : (k / 2 + 1) * (5 * r) * Real.log 2 ≤ (k / 2 + 1) * (5 * r) :=
     mul_le_of_le_one_right (by positivity) Real.log_two_lt_one.le
-  have hlin : (k / 2 + 1) * (5 * r) = 5 / 2 * (r * k) + 5 * r := by ring
-  have hneg : -(k / 2 + 1) * Real.log 2 * (5 * r) = -((k / 2 + 1) * (5 * r) * Real.log 2) := by ring
-  have hkr' : r * (512 * k) = 512 * (r * k) := by ring
-  linarith
+  nlinarith
 
 /-- **The harmonic mean transform at a sparse random set**, as in the proof of
 [Korten, Lemma 10][Korten2026]: for a density `f` relative to the uniform distribution bounded by
@@ -239,11 +235,14 @@ private theorem coordinateMarginal_normalize (mass : (ι → Bool) → ℝ) (s :
     exact_mod_cast h
   unfold coordinateMarginal coordinateMass
   rw [Fintype.expect_eq_sum_div_card, ← mul_sum, hc]
-  have hp : (0 : ℝ) < Fintype.card ({i // s i ≠ true} → Bool) := by
-    exact_mod_cast (Fintype.card_pos : 0 < Fintype.card ({i // s i ≠ true} → Bool))
+  have hp : (0 : ℝ) < Fintype.card ({i // s i ≠ true} → Bool) := Nat.cast_pos.mpr Fintype.card_pos
   field_simp
 
 /-! ### Korten's light-patterns lemma -/
+
+private theorem two_pow_mul_rpow_eq {m : ℕ} {x y : ℝ} (h : (m : ℝ) + x = y) :
+    (2 : ℝ) ^ m * (2 : ℝ) ^ x = (2 : ℝ) ^ y := by
+  rw [← h, Real.rpow_add two_pos, Real.rpow_natCast]
 
 /-- Scaling `mass` by `2 ^ |ι|` converts the marginal-density threshold `2 ^ (-2 k - 2)` into the
 pattern-mass count bound at threshold `2 ^ (-|s| - 2 k - 2)`. -/
@@ -259,14 +258,9 @@ private theorem ite_expect_coordinateMarginal_le_of_normalize (mass : (ι → Bo
   let m := Fintype.card {i // s i = true}
   have hp : (0 : ℝ) < (2 : ℝ) ^ m := by positivity
   have hthreshold : (2 : ℝ) ^ m * (2 : ℝ) ^ (-(m : ℝ) - 2 * k - 2) =
-      (2 : ℝ) ^ (-2 * k - 2) := by
-    rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
-  have hcount : (2 : ℝ) ^ (-k) * (2 : ℝ) ^ m = (2 : ℝ) ^ ((m : ℝ) - k) := by
-    rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
+      (2 : ℝ) ^ (-2 * k - 2) := two_pow_mul_rpow_eq (by ring)
+  have hcount : (2 : ℝ) ^ (-k) * (2 : ℝ) ^ m = (2 : ℝ) ^ ((m : ℝ) - k) :=
+    (mul_comm _ _).trans (two_pow_mul_rpow_eq (by ring))
   have he (z : {i // s i = true} → Bool) :
       coordinateMarginal f s z ≤ (2 : ℝ) ^ (-2 * k - 2) ↔
         coordinateMass mass s z ≤ (2 : ℝ) ^ (-(m : ℝ) - 2 * k - 2) := by
@@ -301,10 +295,8 @@ theorem le_bernoulliAverage_card_coordinateMass_le
     dsimp [f]
     rw [Fintype.expect_eq_sum_div_card, ← mul_sum, hmean]
     simp
-  have hproduct : (2 : ℝ) ^ Fintype.card ι * (2 : ℝ) ^ (k - Fintype.card ι) = (2 : ℝ) ^ k := by
-    rw [← Real.rpow_natCast, ← Real.rpow_add (by norm_num)]
-    congr 1
-    ring
+  have hproduct : (2 : ℝ) ^ Fintype.card ι * (2 : ℝ) ^ (k - Fintype.card ι) = (2 : ℝ) ^ k :=
+    two_pow_mul_rpow_eq (by ring)
   have hfb : ∀ x, f x ≤ (2 : ℝ) ^ k := fun x =>
     (mul_le_mul_of_nonneg_left (hbound x) (by positivity)).trans_eq hproduct
   have hr1 : r ≤ 1 := (le_one_div_512_of_le_div hk hr').trans (by norm_num)

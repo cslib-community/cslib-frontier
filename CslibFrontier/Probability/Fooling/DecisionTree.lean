@@ -225,10 +225,9 @@ theorem abs_map_eval_apply_sub_le {X : PMF (ι → Bool)} {t : ℕ} {ε : ℝ}
     |((X.map T.eval) true).toReal -
         (((PMF.uniformOfFintype (ι → Bool)).map T.eval) true).toReal| ≤ 2 ^ t * ε := by
   rw [map_eval_apply_toReal_sub]
-  have h := abs_sum_mul_eval_le (fun P => #P ≤ t) _
+  simpa using abs_sum_mul_eval_le (fun P => #P ≤ t) _
     (abs_sum_filter_sub_le_of_dist_map_restrict_le ht hX) T hT hT
     (fun c => if true = c then (1 : ℝ) else 0) (C := 1) fun z => by split_ifs <;> simp
-  rwa [one_mul] at h
 
 /-- **Adaptive tests of almost `t`-wise independence** [Goldreich, Exercise 8.32(2)]
 [Goldreich2007DraftR4]. If every `t` fixed positions of `X` are `ε`-close to uniform, then every
@@ -268,12 +267,9 @@ private theorem sum_filter_uniformOfFintype_map {Ω : Type*} [Fintype Ω] [Nonem
     ∑ z with ∀ i ∈ P, z i = a i, (((PMF.uniformOfFintype Ω).map u) z).toReal =
       𝔼 s, if ∀ i ∈ P, u s i = a i then (1 : ℝ) else 0 := by
   classical
-  rw [sum_filter]
-  rw [sum_congr rfl fun z _ => (mul_boole (∀ i ∈ P, z i = a i)
-    (((PMF.uniformOfFintype Ω).map u) z).toReal).symm]
-  have h := Probability.PMF.sum_map_mul (PMF.uniformOfFintype Ω) u
-    fun z => if ∀ i ∈ P, z i = a i then (1 : ℝ) else 0
-  rw [h]
+  rw [sum_filter, sum_congr rfl fun z _ => (mul_boole (∀ i ∈ P, z i = a i)
+      (((PMF.uniformOfFintype Ω).map u) z).toReal).symm,
+    Probability.PMF.sum_map_mul]
   simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
     Fintype.expect_eq_sum_div_card, inv_mul_eq_div, sum_div]
 
@@ -299,8 +295,8 @@ private theorem sum_filter_eq (hG : IsKWiseIndependentHash t G) (P : Finset (Pos
   rw [sum_sub_distrib, ← Probability.PMF.uniformOfFintype_map_equiv (Equiv.curry Pos κ Bool).symm,
     sum_filter_uniformOfFintype_map, sum_filter_uniformOfFintype_map]
   simp only [Equiv.curry_symm_apply]
-  have hid := expect_cube_eq (f := id) (isKWiseIndependentHash_id t) P hP a
-  simp only [id] at hid
+  have hid : (𝔼 s, if ∀ i ∈ P, Function.uncurry s i = a i then (1 : ℝ) else 0) = _ :=
+    expect_cube_eq (isKWiseIndependentHash_id t) P hP a
   rw [expect_cube_eq hG P hP, hid, sub_self]
 
 /-- **`t`-wise independent generators fool adaptive block tests, deterministic case.** If `G` is a

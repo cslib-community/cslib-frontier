@@ -308,30 +308,24 @@ theorem tablesInv_push {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     rw [hdisc'] at hx
     rcases Finset.mem_insert.mp hx with hxs | hx_old
     · subst x
-      rw [houtHead', Function.update_self]
-      have hterm_s := hterm s hs_lt
-      simp only [hs_str_ne, ne_eq, not_false_eq_true, true_and] at hterm_s
-      rw [output_eq_of_ne_nil P hs_str_ne, List.map_append, ← hdf_str]
-      by_cases hmemP : T.strOf s ∈ P
-      · simp only [hmemP, ↓reduceIte] at hterm_s ⊢
-        simp only [hterm_s, Nat.zero_lt_one, ↓reduceIte, List.map_cons, List.map_nil,
-          List.singleton_append]
+      have hterm_s : T.isTerm s = if T.strOf s ∈ P then 1 else 0 := by
+        simpa [hs_str_ne] using hterm s hs_lt
+      rw [houtHead', Function.update_self, hterm_s, output_eq_of_ne_nil P hs_str_ne,
+        List.map_append, ← hdf_str]
+      by_cases hmemP : T.strOf s ∈ P <;> simp only [hmemP, ↓reduceIte]
+      · simp only [Nat.zero_lt_one, ↓reduceIte, List.map_cons, List.map_nil, List.singleton_append]
         have hs_depth_lt : T.depth s < T.numStates :=
           lt_of_le_of_lt (depth_le_self hT s hs_lt) hs_lt
         cases hN : T.numStates with
         | zero => omega
         | succ m =>
           rw [followOut_pos _ _ hs_pos, houtNext', Function.update_self, ← houtNext',
-            hcongr m (B.outHead df) hoh_disc, ← hT.depth_eq s hs_lt]
-          congr 1
-          have hfuel := followOut_fuel_eq
-            (fun y hy hyp => htab.outNext_spec y hy hyp)
-            m T.numStates (B.outHead df) hoh_disc
-            (Or.inr (by omega))
-            (Or.inr (lt_of_le_of_lt (depth_le_self hT _ hoh_lt) hoh_lt))
-          rw [hfuel, htab.follow_spec df hdf_disc]
-      · simp only [hmemP, ↓reduceIte] at hterm_s ⊢
-        simp only [hterm_s, lt_self_iff_false, ↓reduceIte, List.map_nil, List.nil_append]
+            hcongr m (B.outHead df) hoh_disc, ← hT.depth_eq s hs_lt,
+            followOut_fuel_eq (fun y hy hyp => htab.outNext_spec y hy hyp) m T.numStates
+              (B.outHead df) hoh_disc (Or.inr (by omega))
+              (Or.inr (lt_of_le_of_lt (depth_le_self hT _ hoh_lt) hoh_lt)),
+            htab.follow_spec df hdf_disc]
+      · simp only [lt_self_iff_false, ↓reduceIte, List.map_nil, List.nil_append]
         rw [hcongr T.numStates (B.outHead df) hoh_disc, htab.follow_spec df hdf_disc]
     · rw [houtHead', Function.update_of_ne (by rintro rfl; exact hs_not hx_old),
         hcongr T.numStates (B.outHead x) (htab.outHead_spec x hx_old).1,
@@ -341,21 +335,10 @@ theorem disc_push_queue (B : PBFS) (s : ℕ) :
     PBFS.disc { B with queue := Function.update B.queue B.qTail s, qTail := B.qTail + 1 } =
       insert s B.disc := by
   ext x
-  simp only [PBFS.disc, Finset.mem_insert, Finset.mem_image, Finset.mem_range]
-  constructor
-  · rintro (rfl | ⟨i, hi, rfl⟩)
-    · exact Or.inr (Or.inl rfl)
-    · rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hi) with hlt | rfl
-      · rw [Function.update_of_ne (by omega)]
-        exact Or.inr (Or.inr ⟨i, hlt, rfl⟩)
-      · rw [Function.update_self]
-        exact Or.inl rfl
-  · rintro (rfl | rfl | ⟨i, hi, rfl⟩)
-    · refine Or.inr ⟨B.qTail, Nat.lt_succ_self _, ?_⟩
-      rw [Function.update_self]
-    · exact Or.inl rfl
-    · refine Or.inr ⟨i, Nat.lt_succ_of_lt hi, ?_⟩
-      rw [Function.update_of_ne (by omega)]
+  simp only [PBFS.disc, Finset.range_add_one, Finset.image_insert, Function.update_self]
+  rw [Finset.image_congr (fun i hi => Function.update_of_ne (Finset.mem_range.1 hi).ne s B.queue)]
+  simp only [Finset.mem_insert, Finset.mem_image, Finset.mem_range]
+  tauto
 
 /-- Loop invariant maintained after processing the first `a` symbols during `PBFS.rootLoop`. -/
 structure RootLoopInv (P : List (List ℕ)) (σ : ℕ) (T : PTrie) (a : ℕ) (B : PBFS) :

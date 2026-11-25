@@ -97,11 +97,7 @@ theorem runFrom_one (E : ScheduleSearch.Evaluator) (P : Parameters)
     (machine E k P).runFrom w (.inl (w.length, guess, none)) (T + 2) =
       .inl (resume E (w.length, guess, none) ((ScheduleSearch.machine E k).runFrom w
         (ScheduleSearch.initial E (w.length, P.blockWidth guess, P.horizon guess)) T)) := by
-  apply QueryMachine.withCalls_runFrom_call
-  · rfl
-  · rfl
-  · exact hpre
-  · exact hhalt
+  exact QueryMachine.withCalls_runFrom_call _ _ _ _ _ _ _ _ rfl rfl hpre hhalt
 
 /-- If the source machine halts, increasing native time guesses reaches exactly its Boolean
 output decision at a first halt. The completed guess never exceeds `max (input.length+1) τ`. -/
@@ -139,10 +135,8 @@ theorem exists_first_decision {E : ScheduleSearch.Evaluator} {M : MultiTapeTM k 
         (match value guess with
           | none => (w.length, guess + 1, none)
           | some answer => (w.length, guess, some answer)) := by
-      change (match ScheduleSearch.answer _ with
-        | none => (w.length, guess + 1, none)
-        | some answer => (w.length, guess, some answer)) = _
-      rw [hans]
+      rw [resume, hans]
+      rfl
     refine ⟨T + 2, (runFrom_one E P w guess T hpre hT).trans (congrArg Sum.inl hresume),
       runFrom_one_encoding_le E A P w.length guess bound none w T rfl hguess hpre hT
         (fun t ht => (hsize t ht).trans
@@ -167,13 +161,8 @@ theorem exists_first_decision {E : ScheduleSearch.Evaluator} {M : MultiTapeTM k 
       (fun guess answer _ hguess hv => by simpa only [hv] using hstep guess (by omega))
   · simp only [hnone bound (Nat.le_max_left _ _) (by omega), reduceCtorEq] at hbound
   rw [Option.some.inj (hv.symm.trans ((hsafe guess).resolve_left (by simp [hv])))] at hrun
-  have hU : (machine E k P).halted ((machine E k P).runFrom w (initial E w.length) U) = true := by
-    change (machine E k P).halted ((machine E k P).runFrom w
-      (.inl (w.length, w.length + 1, none)) U) = true
-    rw [hrun]
-    rfl
   obtain ⟨T, hle, hT, hpre, hstate⟩ := QueryMachine.exists_first_halt_le
-    (machine E k P) w (initial E w.length) U hU
+    (machine E k P) w (initial E w.length) U (congrArg (machine E k P).halted hrun)
   exact ⟨T, guess, Nat.le_of_lt_succ hguess, hpre, hstate.trans hrun, hT,
     fun t ht => hspace t (ht.trans hle)⟩
 

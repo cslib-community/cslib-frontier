@@ -90,12 +90,12 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq]
     refine ⟨fun l hl' h => ?_, fun l hl' l' hl'' h => ?_⟩
     · have := hσρ _ _ h
-      rw [hl l hl'] at this
-      cases l.2 <;> simp at this
+      have := hl l hl'
+      grind
     · subst h
-      have h1 := hl _ hl''
-      rw [hl l hl'] at h1
-      cases l.2 <;> simp at h1
+      have := hl _ hl''
+      have := hl l hl'
+      grind
   · rintro ⟨ls, hls, hc⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq] at hc
     obtain ⟨hρ, hpair⟩ := hc
@@ -110,17 +110,15 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
       simp only [σ]
       rcases hf : ls.find? (fun l' => l'.1 = l.1) with _ | l'
       · exact absurd hf fun h => List.find?_eq_none.1 h l hl (by simp)
-      · have hl' := List.mem_of_find?_eq_some hf
-        have hv : l'.1 = l.1 := by simpa using List.find?_some hf
-        have := hpair l hl l' hl'
+      · have hv : l'.1 = l.1 := by simpa using List.find?_some hf
+        have := hpair l hl l' (List.mem_of_find?_eq_some hf)
         cases hb : l'.2 <;> cases hb' : l.2 <;> simp_all [Prod.ext_iff]
     refine ⟨σ, fun y c hy => ?_, ?_⟩
     · simp only [σ]
       rcases hf : ls.find? (fun l' => l'.1 = y) with _ | l'
       · simp only [hf, hy, Option.getD_some]
-      · have hl' := List.mem_of_find?_eq_some hf
-        have hv : l'.1 = y := by simpa using List.find?_some hf
-        have := hρ l' hl'
+      · have hv : l'.1 = y := by simpa using List.find?_some hf
+        have := hρ l' (List.mem_of_find?_eq_some hf)
         rw [hv, hy] at this
         cases hb : l'.2 <;> cases c <;> simp_all
     · -- every clause contains its chosen literal
@@ -176,35 +174,29 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
   -- implication by one subformula
   have hone : ∀ ψ : CNF (Fin n),
       (∀ σ : Fin n → Bool, (∀ y c, τ y = some c → σ y = c) → ψ.eval σ = true → σ x = b) ↔
-        τ x = some b ∨ ¬SatExt ρ ψ := by
-    intro ψ
+        τ x = some b ∨ ¬SatExt ρ ψ := fun ψ => by
     constructor
     · intro h
       by_contra hc
       simp only [not_or, not_not] at hc
       obtain ⟨hτx, σ, hσρ, hψ⟩ := hc
       have hσx : σ x = !b := hσρ x _ (by simp [hρ])
-      have hστ : ∀ y c, τ y = some c → σ y = c := by
-        intro y c hy
+      have hστ : ∀ y c, τ y = some c → σ y = c := fun y c hy => by
         by_cases hyx : y = x
         · subst hyx
-          rw [hσx]
           cases c <;> cases b <;> simp_all
-        · exact hσρ y c (by rw [hρ, Function.update_of_ne hyx]; exact hy)
+        · exact hσρ y c (by rwa [hρ, Function.update_of_ne hyx])
       have := h σ hστ hψ
-      rw [hσx] at this
-      cases b <;> simp at this
+      grind
     · rintro (hτx | hsat) σ hστ hψ
       · exact hστ x b hτx
       · by_contra hσx
         refine hsat ⟨σ, fun y c hy => ?_, hψ⟩
-        by_cases hyx : y = x
+        rw [hρ, Function.update_apply] at hy
+        split_ifs at hy with hyx
         · subst hyx
-          simp only [hρ, Function.update_self, Option.some.injEq] at hy
-          subst hy
           cases h : σ y <;> cases b <;> simp_all
-        · rw [hρ, Function.update_of_ne hyx] at hy
-          exact hστ y c hy
+        · exact hστ y c hy
   have hsearch : (∃ ψ : CNF (Fin n), (∀ c ∈ ψ, c ∈ φ) ∧ ψ.length ≤ w ∧ ¬SatExt ρ ψ) ↔
       ∃ cs ∈ (List.replicate w φ).sections, ¬SatExt ρ cs := by
     constructor

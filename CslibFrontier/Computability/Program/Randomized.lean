@@ -205,8 +205,7 @@ private theorem run_loop_iter {p : List F.Instr} {pc bodyPC exitPC T : ℕ} {x :
   obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
   rw [hstep]
   simp only [bind_assoc, pure_bind]
-  have room : ∀ y ∈ mb.support, y.2 + 1 ≤ k := by
-    intro y hy
+  have room : ∀ y ∈ mb.support, y.2 + 1 ≤ k := fun y hy => by
     obtain ⟨z, hz⟩ := ProbComp.support_nonempty (ml y.1)
     have := bound hy hz
     omega
@@ -245,8 +244,7 @@ theorem ExecRand.runRand_assemble {evalRand} {F : FlatMachine.{u, v, w, i} I}
     simp only [pure_bind, Code.size, Nat.add_sub_cancel]
   | @seq c₁ c₂ x m₁ m₂ _ _ ih₁ ih₂ =>
     have bound := @bound_seq I m₁ m₂ 0 T hT
-    have hT₁ : ∀ z₁ ∈ m₁.support, z₁.2 ≤ T := by
-      intro z₁ hz₁
+    have hT₁ : ∀ z₁ ∈ m₁.support, z₁.2 ≤ T := fun z₁ hz₁ => by
       obtain ⟨z₂, hz₂⟩ := ProbComp.support_nonempty (m₂ z₁.1)
       have := bound hz₁ hz₂
       omega
@@ -254,9 +252,7 @@ theorem ExecRand.runRand_assemble {evalRand} {F : FlatMachine.{u, v, w, i} I}
     refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
     have hT₂ : ∀ z₂ ∈ (m₂ z₁.1).support, z₂.2 ≤ T - z₁.2 := fun z₂ hz₂ => by
       have := bound hz₁ hz₂; omega
-    have hc₂ : Contains p (pc + c₁.size) (c₂.assemble F (pc + c₁.size)) := by
-      simpa using hp.append_right
-    rw [ih₂ z₁ hz₁ hc₂ hT₂, bind_assoc]
+    rw [ih₂ z₁ hz₁ (by simpa using hp.append_right) hT₂, bind_assoc]
     refine OracleComp.bind_congr_on_support fun z₂ _ => ?_
     simp only [pure_bind, Code.size, Nat.sub_sub, Nat.add_assoc]
   | @branch_pos cond pos neg x m hc _ ih =>
@@ -283,8 +279,7 @@ theorem ExecRand.runRand_assemble {evalRand} {F : FlatMachine.{u, v, w, i} I}
     rw [show k - z.2 = (k + 1 - (z.2 + 2)) + 1 by omega, runRand_step_jump R hj,
       show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
   | @loop_exit cond body x hc =>
-    have h2 : 2 ≤ T := hT (x, 2) rfl
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 2 := ⟨T - 2, by omega⟩
+    obtain ⟨k, rfl⟩ : ∃ k, T = k + 2 := ⟨T - 2, by have := hT (x, 2) rfl; omega⟩
     rw [show k + 2 = (k + 1) + 1 by omega, runRand_step_jumpIf_neg R hp.head hc,
       runRand_step_jump R hp.cons_tail.head]
     simp only [pure_bind, Code.size, show k + 1 + 1 - 2 = k by omega, Nat.add_assoc]
@@ -294,8 +289,7 @@ theorem ExecRand.runRand_assemble {evalRand} {F : FlatMachine.{u, v, w, i} I}
       (by simpa using hp.cons_tail.cons_tail.append_right.head)
       (fun h hT => ihb h hT) (fun y hy {_} hT => ihl y hy hp hT) hT
   | @loopUntil_exit cond body x hc =>
-    have h1 : 1 ≤ T := hT (x, 1) rfl
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
+    obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by have := hT (x, 1) rfl; omega⟩
     rw [runRand_step_jumpIf_pos R hp.head hc]
     simp only [pure_bind, Code.size, Nat.add_sub_cancel, Nat.add_assoc]
   | @loopUntil_iter cond body x mb ml hc _ _ ihb ihl =>

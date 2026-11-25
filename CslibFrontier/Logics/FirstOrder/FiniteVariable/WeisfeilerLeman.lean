@@ -157,11 +157,8 @@ private theorem exists_equiv_stepProfile_iff (v₀ : V) (n : ℕ) (u : Fin k →
         G.wlStepProfile (G.wlColoring n) u c = H.wlStepProfile (H.wlColoring n) w (f c)) ↔
       G.wlColoring (n + 1) u = H.wlColoring (n + 1) w := by
   rw [wlColoring_succ_eq_iff, ← Equiv.exists_apply_eq_iff_map_univ_eq]
-  constructor
-  · rintro ⟨f, hf⟩
-    exact ⟨(hf v₀).1, f, fun c => ((hf c).2).symm⟩
-  · rintro ⟨huw, f, hf⟩
-    exact ⟨f, fun c => ⟨huw, (hf c).symm⟩⟩
+  exact ⟨fun ⟨f, hf⟩ => ⟨(hf v₀).1, f, fun c => (hf c).2.symm⟩,
+    fun ⟨huw, f, hf⟩ => ⟨f, fun c => ⟨huw, (hf c).symm⟩⟩⟩
 
 /-- With all `k + 1` pebbles placed on `Fin.snoc u v` and `Fin.snoc w z`, Duplicator wins the
 `n`-round bijective game iff `u` and `w` have the same round-`n` `k`-WL color and `(u, v)` and
@@ -217,16 +214,12 @@ theorem bijPebbleWins_graph_range_castSucc_iff (n : ℕ) (u : Fin k → V) (w : 
       Fin.forall_iff_castSucc]
     simp only [insert_last_range_castSucc, Fin.update_snoc_last, bijPebbleWins_graph_univ_snoc_iff,
       exists_equiv_stepProfile_iff v₀ n u w, insert_castSucc_range_castSucc, ← Fin.snoc_update, ih]
-    constructor
-    · exact fun ⟨_, hlast, _⟩ => hlast
-    · intro hcol
-      have hatom : G.tupleAtom u = H.tupleAtom w := by
-        rw [← wlColoring_zero, ← wlColoring_zero]
-        exact wlColoring_eq_of_le (Nat.zero_le (n + 1)) hcol
-      refine ⟨hatom, hcol, fun i => ?_⟩
-      obtain ⟨_, hmset⟩ := wlColoring_succ_eq_iff.1 hcol
-      obtain ⟨f, hf⟩ := Equiv.exists_apply_eq_iff_map_univ_eq.2 hmset
-      exact ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).symm).2 i⟩
+    refine ⟨fun ⟨_, hlast, _⟩ => hlast, fun hcol => ?_⟩
+    obtain ⟨_, hmset⟩ := wlColoring_succ_eq_iff.1 hcol
+    obtain ⟨f, hf⟩ := Equiv.exists_apply_eq_iff_map_univ_eq.2 hmset
+    refine ⟨?_, hcol, fun i => ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).symm).2 i⟩⟩
+    rw [← wlColoring_zero, ← wlColoring_zero]
+    exact wlColoring_eq_of_le (Nat.zero_le (n + 1)) hcol
 
 /-- Duplicator wins the infinite bijective `(k + 1)`-pebble game from `(Set.range Fin.castSucc,
 Fin.snoc u v₀, Fin.snoc w w₀)` if and only if `u` and `w` receive the same `k`-WL color in every
@@ -269,12 +262,8 @@ private theorem prefixPebbles_self (k : ℕ) :
     prefixPebbles k k = Set.range (Fin.castSucc : Fin k → Fin (k + 1)) := by
   ext j
   simp only [prefixPebbles, Set.mem_ofPred_eq, Set.mem_range]
-  refine Fin.lastCases ?_ ?_ j
-  · simp only [Fin.val_last, lt_self_iff_false, false_iff]
-    rintro ⟨i, hi⟩
-    exact Fin.castSucc_ne_last i hi
-  · intro i
-    exact iff_of_true i.isLt ⟨i, rfl⟩
+  refine Fin.lastCases ?_ (fun i => iff_of_true i.isLt ⟨i, rfl⟩) j
+  simp [Fin.castSucc_ne_last]
 
 private theorem insert_prefixPebbles {k m : ℕ} (hm : m < k) :
     insert (⟨m, by omega⟩ : Fin (k + 1)) (prefixPebbles k m) = prefixPebbles k (m + 1) := by
@@ -358,8 +347,7 @@ theorem wlHistogram_eq_of_bijPebbleWins_graph_empty {n : ℕ} {a : Fin (k + 1) �
       choose g hg using hmove
       refine ⟨snocCongrEquiv F g, fun t' => ?_⟩
       have ht' := hg (Fin.init t') (t' (Fin.last m))
-      rw [Fin.snoc_init_self] at ht'
-      exact ht'
+      rwa [Fin.snoc_init_self] at ht'
   obtain ⟨F, hF⟩ := hprefix k le_rfl
   rw [wlHistogram_eq, wlHistogram_eq]
   refine Equiv.exists_apply_eq_iff_map_univ_eq.1

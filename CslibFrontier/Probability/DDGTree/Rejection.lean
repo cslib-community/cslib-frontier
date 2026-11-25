@@ -170,25 +170,13 @@ theorem decodeTrials_append_of_some {spec : BlockRejectionSpec α} {t : ℕ} {w 
   induction t generalizing w with
   | zero => simp at h
   | succ t ih =>
-    have hw1 : spec.width ≤ w.length := by
-      have : 1 * spec.width ≤ (t + 1) * spec.width := Nat.mul_le_mul_right _ (by omega)
-      omega
-    have htake : (w ++ v).take spec.width = w.take spec.width :=
-      List.take_append_of_le_length hw1
-    have hdrop : (w ++ v).drop spec.width = w.drop spec.width ++ v :=
-      List.drop_append_of_le_length hw1
-    rw [decodeTrials_succ, htake, hdrop]
+    rw [Nat.succ_mul] at hw
+    have hw1 : spec.width ≤ w.length := by omega
+    rw [decodeTrials_succ, List.take_append_of_le_length hw1, List.drop_append_of_le_length hw1]
     rw [decodeTrials_succ] at h
-    cases hatt : spec.attempt (w.take spec.width) with
-    | some b =>
-      rw [hatt] at h
-      exact h
-    | none =>
-      rw [hatt] at h
-      refine ih ?_ h
-      rw [List.length_drop]
-      rw [Nat.succ_mul] at hw
-      omega
+    cases hatt : spec.attempt (w.take spec.width) <;> rw [hatt] at h
+    · exact ih (by rw [List.length_drop]; omega) h
+    · exact h
 
 theorem decodeTrials_mono_of_some {spec : BlockRejectionSpec α} {t t' : ℕ} {w : List Bool} {a : α}
     (htt : t ≤ t') (h : spec.decodeTrials t w = some a) :
@@ -198,29 +186,18 @@ theorem decodeTrials_mono_of_some {spec : BlockRejectionSpec α} {t t' : ℕ} {w
   | succ t ih =>
     obtain ⟨k, rfl⟩ : ∃ k, t' = k + 1 := ⟨t' - 1, by omega⟩
     rw [decodeTrials_succ] at h ⊢
-    cases hatt : spec.attempt (w.take spec.width) with
-    | some b =>
-      rw [hatt] at h
-      exact h
-    | none =>
-      rw [hatt] at h
-      exact ih (by omega) h
+    cases hatt : spec.attempt (w.take spec.width) <;> rw [hatt] at h
+    · exact ih (by omega) h
+    · exact h
 
 theorem decodeTrials_take (spec : BlockRejectionSpec α) (t : ℕ) (w : List Bool) :
     spec.decodeTrials t (w.take (t * spec.width)) = spec.decodeTrials t w := by
   induction t generalizing w with
   | zero => rfl
   | succ t ih =>
-    have hle : spec.width ≤ (t + 1) * spec.width := by
-      rw [Nat.succ_mul]
-      omega
-    have htake : (w.take ((t + 1) * spec.width)).take spec.width = w.take spec.width := by
-      rw [List.take_take, Nat.min_eq_left hle]
-    have hdrop : (w.take ((t + 1) * spec.width)).drop spec.width =
-        (w.drop spec.width).take (t * spec.width) := by
-      rw [List.drop_take, show (t + 1) * spec.width - spec.width = t * spec.width by
-        rw [Nat.succ_mul]; omega]
-    rw [decodeTrials_succ, decodeTrials_succ, htake, hdrop]
+    have hle : spec.width ≤ (t + 1) * spec.width := by rw [Nat.succ_mul]; omega
+    rw [decodeTrials_succ, decodeTrials_succ, List.take_take, Nat.min_eq_left hle,
+      List.drop_take, Nat.succ_mul, Nat.add_sub_cancel]
     cases spec.attempt (w.take spec.width) with
     | some a => rfl
     | none => exact ih (w.drop spec.width)
@@ -274,11 +251,8 @@ theorem runTrials_none (spec : BlockRejectionSpec α) (t : ℕ) :
   induction t with
   | zero => simp
   | succ t ih =>
-    rw [runTrials_succ, PMF.bind_apply, tsum_option_eq]
-    have hsome : ∑' a : α, spec.singleLaw (some a) *
-        (PMF.pure (some a) : PMF (Option α)) none = 0 := by
-      simp
-    rw [hsome, add_zero, ih, pow_succ']
+    rw [runTrials_succ, PMF.bind_apply, tsum_option_eq,
+      tsum_eq_zero_iff.mpr fun a => by simp, add_zero, ih, pow_succ']
     rfl
 
 /-- Accepted outcome mass after `t` trials. -/
@@ -553,10 +527,9 @@ theorem one_half_le_acceptProb_uniformFinRejectionSpec (n : ℕ) [NeZero n] :
       rw [Nat.clog_le_iff_le_pow Nat.one_lt_two]
       have := Nat.lt_pow_succ_log_self Nat.one_lt_two (n - 1)
       omega
-    have hle1 : 2 ^ Nat.clog 2 n ≤ 2 ^ (Nat.log 2 (n - 1) + 1) :=
-      Nat.pow_le_pow_right (by decide) hclog
-    have hle2 : 2 ^ Nat.log 2 (n - 1) ≤ n - 1 := Nat.pow_log_le_self 2 (by omega)
-    rw [pow_succ] at hle1
+    have hle1 : 2 ^ Nat.clog 2 n ≤ 2 ^ Nat.log 2 (n - 1) * 2 :=
+      pow_succ 2 (Nat.log 2 (n - 1)) ▸ Nat.pow_le_pow_right (by decide) hclog
+    have := Nat.pow_log_le_self 2 (x := n - 1) (by omega)
     omega
 
 /-- After `t` trials of `uniformFinRejectionSpec n` (`n ≥ 1`), rejection probability is at most

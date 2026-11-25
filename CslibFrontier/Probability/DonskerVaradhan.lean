@@ -246,12 +246,8 @@ theorem freeEnergy_sub_eq_toReal_klDiv_tilted {μ ν : Measure α} [IsProbabilit
     (hgμ : Integrable g μ) (hexp : Integrable (fun x => exp (-β * g x)) ν) :
     (∫ x, g x ∂μ + (klDiv μ ν).toReal / β) - (-log (∫ x, exp (-β * g x) ∂ν) / β) =
       (klDiv μ (ν.tilted fun x => -β * g x)).toReal / β := by
-  have hmul := toReal_klDiv_tilted_right hkl (hgμ.const_mul (-β)) hexp
-  have hint : ∫ x, -β * g x ∂μ = -β * ∫ x, g x ∂μ := integral_const_mul _ _
-  rw [hint] at hmul
-  rw [hmul]
-  field_simp
-  ring
+  rw [toReal_klDiv_tilted_right hkl (hgμ.const_mul (-β)) hexp, integral_const_mul]
+  field_simp; ring
 
 /-- The Gibbs posterior `ν.tilted (fun x => -β * g x)` minimizes the KL-regularized loss
 `μ ↦ ∫ g ∂μ + KL(μ ‖ ν) / β` over all probability measures with `KL(μ ‖ ν) < ∞` and
@@ -263,16 +259,11 @@ theorem freeEnergy_tilted_le {μ ν : Measure α} [IsProbabilityMeasure μ] [IsP
     ∫ x, g x ∂(ν.tilted fun x => -β * g x) +
         (klDiv (ν.tilted fun x => -β * g x) ν).toReal / β ≤
       ∫ x, g x ∂μ + (klDiv μ ν).toReal / β := by
-  have hopt := toReal_klDiv_tilted_self hexp (hgt.const_mul (-β))
-  have hint : ∫ x, -β * g x ∂(ν.tilted fun x => -β * g x) =
-      -β * ∫ x, g x ∂(ν.tilted fun x => -β * g x) := integral_const_mul _ _
-  rw [hint] at hopt
   have hval : ∫ x, g x ∂(ν.tilted fun x => -β * g x) +
       (klDiv (ν.tilted fun x => -β * g x) ν).toReal / β =
       -log (∫ x, exp (-β * g x) ∂ν) / β := by
-    rw [hopt]
-    field_simp
-    ring
+    rw [toReal_klDiv_tilted_self hexp (hgt.const_mul (-β)), integral_const_mul]
+    field_simp; ring
   rw [hval, ← sub_nonneg, freeEnergy_sub_eq_toReal_klDiv_tilted hkl hβ.ne' hgμ hexp]
   exact div_nonneg ENNReal.toReal_nonneg hβ.le
 
@@ -288,14 +279,7 @@ theorem freeEnergy_eq_tilted_iff {μ ν : Measure α} [IsProbabilityMeasure μ]
   have hne : klDiv μ (ν.tilted fun x => -β * g x) ≠ ⊤ :=
     klDiv_tilted_right_ne_top hkl (hgμ.const_mul (-β)) hexp
   rw [← sub_eq_zero, freeEnergy_sub_eq_toReal_klDiv_tilted hkl hβ.ne' hgμ hexp,
-    div_eq_zero_iff]
-  constructor
-  · rintro (h | h)
-    · rw [ENNReal.toReal_eq_zero_iff] at h
-      exact klDiv_eq_zero_iff.mp (h.resolve_right hne)
-    · exact absurd h hβ.ne'
-  · intro h
-    left
-    rw [h, klDiv_self, ENNReal.toReal_zero]
+    div_eq_zero_iff, or_iff_left hβ.ne', ENNReal.toReal_eq_zero_iff, or_iff_left hne,
+    klDiv_eq_zero_iff]
 
 end Cslib.Probability
