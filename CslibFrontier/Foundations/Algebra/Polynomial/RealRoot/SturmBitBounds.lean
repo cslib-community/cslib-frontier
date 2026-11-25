@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.LinearAlgebra.Matrix.KroneckerRank
 import Mathlib.Data.List.GetD
 import Mathlib.LinearAlgebra.Dimension.Finrank
 import Mathlib.LinearAlgebra.Matrix.Adjugate
+import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
 
 /-!
 # Polynomial Coefficient Bit Bounds and Frontier Size Bounds for Rational Sturm Sequences
@@ -26,7 +27,7 @@ denominators to `(F₀, F₁) ∈ ℤ[X]²` and normalizing the `i`-th extended 
 normalized Bézout pair `(Ũ_i, Ṽ_i)` as the unique solution of an integer Sylvester linear system of
 width `N ≤ 2 * cs.length`. Extracting a nonsingular `N × N` minor
 (`Matrix.exists_submatrix_det_ne_zero`), solving by Cramer's rule (`Matrix.adjugate_mul`), and
-bounding integer determinants by Hadamard's inequality (`Matrix.hadamard_det_sq_le`) bounds every
+bounding integer determinants by the Leibniz-expansion bound (`Matrix.det_le`) bounds every
 coefficient of `Ũ_i`, `Ṽ_i`, and `Ẽ_i`, while the recurrence
 `c_i = c_{i-2} * (Ṽ_{i-1}.leadingCoeff / Ṽ_i.leadingCoeff)` telescopes the leading coefficients
 across at most `cs.length` steps.
@@ -62,7 +63,7 @@ namespace Cslib.RealRoot
 open Polynomial Matrix
 open scoped BigOperators
 
-/-! ### Part 1: Rational numerator/denominator, Hadamard determinant, and integer Cramer bounds -/
+/-! ### Part 1: Rational numerator/denominator, integer determinant, and Cramer bounds -/
 
 private theorem rat_num_den_le_of_eq_div {q : ℚ} {a b : ℤ} (hb : b ≠ 0)
     (heq : q = (a : ℚ) / (b : ℚ)) :
@@ -76,77 +77,27 @@ private theorem rat_mul_div_num_den_le {q u v : ℚ} {K M : ℕ} (hv : v ≠ 0)
     (hvB : Int.natAbs v.num ≤ M ∧ v.den ≤ M) :
     Int.natAbs (q * (u / v)).num ≤ K * M ^ 2 ∧ (q * (u / v)).den ≤ K * M ^ 2 := by
   have hv_num : v.num ≠ 0 := Rat.num_ne_zero.mpr hv
-  let numZ : ℤ := q.num * u.num * (v.den : ℤ)
-  let denZ : ℤ := (q.den : ℤ) * (u.den : ℤ) * v.num
-  have hdenZ : denZ ≠ 0 :=
-    mul_ne_zero (mul_ne_zero (Int.natCast_ne_zero.mpr q.den_nz)
-      (Int.natCast_ne_zero.mpr u.den_nz)) hv_num
-  have heq : q * (u / v) = (numZ : ℚ) / (denZ : ℚ) := by
-    have hq0 : (q.den : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr q.den_nz
-    have hu0 : (u.den : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr u.den_nz
-    have hv0 : (v.den : ℚ) ≠ 0 := Nat.cast_ne_zero.mpr v.den_nz
-    have hvn0 : (v.num : ℚ) ≠ 0 := Int.cast_ne_zero.mpr hv_num
+  have hd : (q.den * u.den * v.num : ℤ) ≠ 0 := by positivity
+  have heq : q * (u / v) =
+      ((q.num * u.num * v.den : ℤ) : ℚ) / ((q.den * u.den * v.num : ℤ) : ℚ) := by
     conv_lhs => rw [← Rat.num_div_den q, ← Rat.num_div_den u, ← Rat.num_div_den v]
-    simp only [numZ, denZ, Int.cast_mul, Int.cast_natCast]
+    have := q.den_nz; have := u.den_nz; have := v.den_nz
+    push_cast
     field_simp
-  obtain ⟨hn, hd⟩ := rat_num_den_le_of_eq_div hdenZ heq
-  have hn_le : Int.natAbs numZ ≤ K * M ^ 2 := by
-    simp only [numZ, Int.natAbs_mul, Int.natAbs_natCast, sq]
-    calc Int.natAbs q.num * Int.natAbs u.num * v.den
-        ≤ K * M * M := Nat.mul_le_mul (Nat.mul_le_mul hq.1 hu.1) hvB.2
-      _ = K * (M * M) := by ring
-  have hd_le : Int.natAbs denZ ≤ K * M ^ 2 := by
-    simp only [denZ, Int.natAbs_mul, Int.natAbs_natCast, sq]
-    calc q.den * u.den * Int.natAbs v.num
-        ≤ K * M * M := Nat.mul_le_mul (Nat.mul_le_mul hq.2 hu.2) hvB.1
-      _ = K * (M * M) := by ring
-  exact ⟨hn.trans hn_le, hd.trans hd_le⟩
+  obtain ⟨hn, hd'⟩ := rat_num_den_le_of_eq_div hd heq
+  simp only [Int.natAbs_mul, Int.natAbs_natCast, sq, ← mul_assoc] at hn hd' ⊢
+  exact ⟨hn.trans (Nat.mul_le_mul (Nat.mul_le_mul hq.1 hu.1) hvB.2),
+    hd'.trans (Nat.mul_le_mul (Nat.mul_le_mul hq.2 hu.2) hvB.1)⟩
 
 private theorem int_det_natAbs_le {N H : ℕ} (K : Matrix (Fin N) (Fin N) ℤ)
     (hK : ∀ i j, Int.natAbs (K i j) ≤ H) :
     Int.natAbs K.det ≤ (N * H) ^ N := by
-  cases N with
-  | zero =>
-    simp only [det_fin_zero, Int.natAbs_one, zero_mul, pow_zero, le_refl]
-  | succ m =>
-    let N := m + 1
-    let KC : Matrix (Fin N) (Fin N) ℂ := K.map (algebraMap ℤ ℂ)
-    have hdet_norm : ‖KC.det‖ = (Int.natAbs K.det : ℝ) := by
-      have hmap : KC.det = algebraMap ℤ ℂ K.det := (RingHom.map_det (algebraMap ℤ ℂ) K).symm
-      rw [hmap, eq_intCast, Complex.norm_intCast, ← Int.cast_abs, Int.abs_eq_natAbs,
-        Int.cast_natCast]
-    have hrow : ∀ i : Fin N, ∑ j : Fin N, ‖KC i j‖ ^ 2 ≤ ((N * H : ℕ) : ℝ) ^ 2 := fun i => by
-      have hentry : ∀ j : Fin N, ‖KC i j‖ ^ 2 ≤ (H : ℝ) ^ 2 := fun j => by
-        have hnorm : ‖KC i j‖ = (Int.natAbs (K i j) : ℝ) := by
-          simp only [KC, map_apply, eq_intCast, Complex.norm_intCast, ← Int.cast_abs,
-            Int.abs_eq_natAbs, Int.cast_natCast]
-        rw [hnorm]
-        have hle : (Int.natAbs (K i j) : ℝ) ≤ (H : ℝ) := by exact_mod_cast hK i j
-        exact sq_le_sq' (by linarith [Nat.cast_nonneg (α := ℝ) (Int.natAbs (K i j))]) hle
-      have hsum : ∑ j : Fin N, ‖KC i j‖ ^ 2 ≤ (N : ℝ) * (H : ℝ) ^ 2 := by
-        calc ∑ j : Fin N, ‖KC i j‖ ^ 2
-            ≤ ∑ _j : Fin N, (H : ℝ) ^ 2 := Finset.sum_le_sum fun j _ => hentry j
-          _ = (N : ℝ) * (H : ℝ) ^ 2 := by
-              simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-      have hN : N * H ^ 2 ≤ (N * H) ^ 2 := by
-        have h1 : 1 ≤ N := Nat.succ_pos m
-        nlinarith
-      exact hsum.trans (by exact_mod_cast hN)
-    have hhad := Matrix.hadamard_det_sq_le KC
-    rw [hdet_norm] at hhad
-    have hprod : (∏ i : Fin N, ∑ j : Fin N, ‖KC i j‖ ^ 2) ≤ (((N * H) ^ N : ℕ) : ℝ) ^ 2 := by
-      calc (∏ i : Fin N, ∑ j : Fin N, ‖KC i j‖ ^ 2)
-          ≤ ∏ _i : Fin N, (((N * H : ℕ) : ℝ) ^ 2) :=
-            Finset.prod_le_prod₀ (fun i _ => Finset.sum_nonneg fun j _ => sq_nonneg _)
-              fun i _ => hrow i
-        _ = (((N * H) ^ N : ℕ) : ℝ) ^ 2 := by
-            simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fin]
-            push_cast
-            ring
-    have hsq_real : ((Int.natAbs K.det : ℕ) : ℝ) ^ 2 ≤ (((N * H) ^ N : ℕ) : ℝ) ^ 2 :=
-      hhad.trans hprod
-    have hsq_nat : (Int.natAbs K.det) ^ 2 ≤ ((N * H) ^ N) ^ 2 := by exact_mod_cast hsq_real
-    exact (Nat.pow_le_pow_iff_left (by decide : 2 ≠ 0)).mp hsq_nat
+  have h := Matrix.det_le (abv := AbsoluteValue.abs) (x := (H : ℤ)) fun i j => by
+    simpa only [AbsoluteValue.abs_apply, Int.abs_eq_natAbs, Nat.cast_le] using hK i j
+  simp only [AbsoluteValue.abs_apply, Int.abs_eq_natAbs, Fintype.card_fin, nsmul_eq_mul] at h
+  calc K.det.natAbs ≤ N.factorial * H ^ N := by exact_mod_cast h
+    _ ≤ N ^ N * H ^ N := by gcongr; exact Nat.factorial_le_pow N
+    _ = (N * H) ^ N := (mul_pow _ _ _).symm
 
 private theorem exists_cramer_rep_of_inj_mulVec {R N H : ℕ}
     (S : Matrix (Fin R) (Fin N) ℤ) (rhs : Fin R → ℤ)
@@ -792,13 +743,9 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
   have hN_le : N ≤ 2 * n := by
     dsimp only [N, nu, nv, n]
     omega
-  have hNH_le_M : (N * H) ^ N ≤ M := by
-    calc (N * H) ^ N
-        ≤ (2 * n * H) ^ N := Nat.pow_le_pow_left (Nat.mul_le_mul_right H hN_le) N
-      _ ≤ (2 * n * H) ^ (2 * n) := by
-          refine Nat.pow_le_pow_right ?_ hN_le
-          have hn1 : 1 ≤ n := Nat.succ_pos d₀
-          nlinarith
+  have hNH_le_M : (N * H) ^ N ≤ M :=
+    (Nat.pow_le_pow_left (Nat.mul_le_mul_right H hN_le) N).trans
+      (Nat.pow_le_pow_right (Nat.mul_pos (by omega) hH) hN_le)
   have hdDet_M : Int.natAbs dDet ≤ M := hdDet_le.trans hNH_le_M
   have hnums_M : ∀ j, Int.natAbs (nums j) ≤ M := fun j => (hnums_le j).trans hNH_le_M
   have hvT_lc_eq : ti.2.2.leadingCoeff / ti.1.leadingCoeff = vTilde.coeff (d₀ - δ) := by
@@ -839,49 +786,30 @@ private theorem normalized_bezoutSturm_cramer {F₀ F₁ : ℤ[X]} {H : ℕ} (hH
       Int.natAbs ((polyFromFin w * P).coeff r) ≤ s * (M * H) := by
     intro s w P r hw hP
     rw [coeff_polyFromFin_mul]
-    have htri : ∀ (t : Finset (Fin s)),
-        Int.natAbs (∑ a ∈ t, w a * (if a.1 ≤ r then P.coeff (r - a.1) else 0)) ≤
-          t.card * (M * H) := by
-      intro t
-      induction t using Finset.cons_induction with
-      | empty => simp only [Finset.sum_empty, Int.natAbs_zero, Finset.card_empty, zero_mul, le_refl]
-      | cons a t ha ih =>
-        rw [Finset.sum_cons, Finset.card_cons]
-        have hterm : Int.natAbs (w a * (if a.1 ≤ r then P.coeff (r - a.1) else 0)) ≤ M * H := by
-          rw [Int.natAbs_mul]
-          refine Nat.mul_le_mul (hw a) ?_
-          split_ifs
-          · exact hP _
-          · simp only [Int.natAbs_zero, Nat.zero_le]
-        calc Int.natAbs (w a * (if a.1 ≤ r then P.coeff (r - a.1) else 0) +
-              ∑ x ∈ t, w x * (if x.1 ≤ r then P.coeff (r - x.1) else 0))
-            ≤ Int.natAbs (w a * (if a.1 ≤ r then P.coeff (r - a.1) else 0)) +
-                Int.natAbs (∑ x ∈ t, w x * (if x.1 ≤ r then P.coeff (r - x.1) else 0)) :=
-              Int.natAbs_add_le _ _
-          _ ≤ M * H + t.card * (M * H) := Nat.add_le_add hterm ih
-          _ = (t.card + 1) * (M * H) := by ring
-    simpa only [Finset.card_univ, Fintype.card_fin] using htri Finset.univ
+    refine (Int.natAbs_sum_le _ _).trans
+      ((Finset.sum_le_card_nsmul _ _ (M * H) fun a _ => ?_).trans_eq
+        (by simp only [Finset.card_univ, Fintype.card_fin, smul_eq_mul]))
+    rw [Int.natAbs_mul]
+    refine Nat.mul_le_mul (hw a) ?_
+    split_ifs
+    · exact hP _
+    · simp only [Int.natAbs_zero, Nat.zero_le]
   refine ⟨hv_num_le.trans (hnums_M _), hv_den_le.trans hdDet_M, dDet, EInt, hdDet0, hdDet_M,
     ?_, ?_⟩
   · intro r
     dsimp only [EInt]
-    rw [coeff_add]
+    refine (coeff_add (UInt * F₀) (VInt * F₁) r ▸ Int.natAbs_add_le _ _).trans ?_
     have h1 := hsum_int_natAbs (fun a : Fin nu => nums (Fin.castAdd nv a)) F₀ r
       (fun a => hnums_M _) hF₀
     have h2 := hsum_int_natAbs (fun b : Fin nv => nums (Fin.natAdd nu b)) F₁ r
       (fun b => hnums_M _) hF₁
-    calc Int.natAbs ((UInt * F₀).coeff r + (VInt * F₁).coeff r)
-        ≤ Int.natAbs ((UInt * F₀).coeff r) + Int.natAbs ((VInt * F₁).coeff r) :=
-          Int.natAbs_add_le _ _
-      _ ≤ nu * (M * H) + nv * (M * H) := Nat.add_le_add h1 h2
-      _ = N * (M * H) := by dsimp only [N]; ring
-      _ ≤ (2 * n) * (M * H) := Nat.mul_le_mul_right (M * H) hN_le
-      _ = 2 * n * M * H := by ring
+    calc _ ≤ nu * (M * H) + nv * (M * H) := Nat.add_le_add h1 h2
+      _ = N * (M * H) := (add_mul _ _ _).symm
+      _ ≤ 2 * n * M * H := by rw [← mul_assoc]; gcongr
   · intro r
     have hc := congrArg (fun p => p.coeff r) hEInt_map
     rw [coeff_map, coeff_C_mul, eq_intCast] at hc
-    have hdQ : (dDet : ℚ) ≠ 0 := Int.cast_ne_zero.mpr hdDet0
-    exact (eq_div_iff hdQ).mpr (by rw [mul_comm]; exact hc.symm)
+    exact eq_div_of_mul_eq (Int.cast_ne_zero.mpr hdDet0) (by rw [mul_comm]; exact hc.symm)
 
 /-! ### Part 4: Leading-coefficient telescoping and `hasCoeffBitBound_of_mem_sturmSeqList` -/
 
@@ -908,33 +836,19 @@ private theorem bezoutSturm_leadingCoeff_bound {F₀ F₁ : ℤ[X]} {H : ℕ} (h
   set FQ₁ := F₁.map (algebraMap ℤ ℚ)
   set n := FQ₀.natDegree + 1
   set M := (2 * n * H) ^ (2 * n)
-  have hHM_ge : H ≤ M := by
-    have hn1 : 1 ≤ n := Nat.succ_pos _
-    have hbase : H ≤ 2 * n * H := by nlinarith
-    have hpow1 : 2 * n * H ≤ (2 * n * H) ^ (2 * n) :=
-      Nat.le_self_pow (by omega) (2 * n * H)
-    exact hbase.trans hpow1
+  have hHM_ge : H ≤ M :=
+    (Nat.le_mul_of_pos_left H (by omega)).trans (Nat.le_self_pow (by omega) (2 * n * H))
   have hM_ge1 : 1 ≤ M := hH.trans hHM_ge
   intro i
   induction i using Nat.strong_induction_on with
   | ind i ih =>
     intro hik
     rcases i with _ | _ | j
-    · dsimp only [bezoutSturm]
-      simp only [pow_zero, mul_one]
-      have hlc : FQ₀.leadingCoeff = ((F₀.coeff FQ₀.natDegree : ℤ) : ℚ) := by
-        dsimp only [FQ₀]
-        rw [leadingCoeff, coeff_map, eq_intCast]
-      rw [hlc]
-      simp only [Rat.num_intCast, Rat.den_intCast]
+    · simp only [bezoutSturm, pow_zero, mul_one, FQ₀, leadingCoeff, coeff_map, eq_intCast,
+        Rat.num_intCast, Rat.den_intCast]
       exact ⟨hF₀ _, hH⟩
-    · dsimp only [bezoutSturm]
-      simp only [Nat.zero_add, pow_one]
-      have hlc : FQ₁.leadingCoeff = ((F₁.coeff FQ₁.natDegree : ℤ) : ℚ) := by
-        dsimp only [FQ₁]
-        rw [leadingCoeff, coeff_map, eq_intCast]
-      rw [hlc]
-      simp only [Rat.num_intCast, Rat.den_intCast]
+    · simp only [bezoutSturm, Nat.zero_add, pow_one, FQ₁, leadingCoeff, coeff_map, eq_intCast,
+        Rat.num_intCast, Rat.den_intCast]
       exact ⟨(hF₁ _).trans (Nat.le_mul_of_pos_right H hM_ge1),
         hH.trans (Nat.le_mul_of_pos_right H hM_ge1)⟩
     · have hj_prev := ih j (by omega) (by omega)
@@ -987,14 +901,9 @@ theorem hasCoeffBitBound_of_mem_sturmSeqList {B : ℕ} {cs : List ℚ} (hB : Has
     HasCoeffBitBound (sturmBitBound cs.length B) f := by
   classical
   let pList := CoeffList.trim cs
-  have hp_empty : pList.isEmpty = false := by
-    by_contra htrue
-    rw [Bool.not_eq_false] at htrue
-    simp only [sturmSeqList, pList, htrue, ↓reduceIte, List.not_mem_nil] at hf
   have hp_ne_nil : pList ≠ [] := fun hnil => by
-    dsimp only [pList] at hnil
-    rw [show pList = [] from hnil, List.isEmpty_nil] at hp_empty
-    exact Bool.noConfusion hp_empty
+    simp only [sturmSeqList, show CoeffList.trim cs = [] from hnil, List.isEmpty_nil, ↓reduceIte,
+      List.not_mem_nil] at hf
   have hP₀_ne : ofCoeffList pList ≠ 0 :=
     (CoeffList.isTrimmed_trim cs).ofCoeffList_ne_zero hp_ne_nil
   let n := cs.length
@@ -1045,12 +954,9 @@ theorem hasCoeffBitBound_of_mem_sturmSeqList {B : ℕ} {cs : List ℚ} (hB : Has
         simpa only [ns, clearDenomsList, List.length_map] using hm
       have hget : ns[m] = (pList[m]).num * ((D / (pList[m]).den : ℕ) : ℤ) := by
         simp only [ns, clearDenomsList, List.getElem_map, D]
-      rw [hget, Int.natAbs_mul, Int.natAbs_natCast]
-      calc Int.natAbs (pList[m]).num * (D / (pList[m]).den)
-          ≤ 2 ^ B * D := Nat.mul_le_mul (hpB pList[m] (List.getElem_mem hm')).1
-              (Nat.div_le_self D (pList[m]).den)
-        _ ≤ 2 ^ B * 2 ^ (n * B) := Nat.mul_le_mul_left _ hD_le
-        _ = 2 ^ ((n + 1) * B) := by rw [← pow_add]; congr 1; ring
+      rw [hget, Int.natAbs_mul, Int.natAbs_natCast, show (n + 1) * B = B + n * B by ring, pow_add]
+      exact Nat.mul_le_mul (hpB pList[m] (List.getElem_mem hm')).1
+        ((Nat.div_le_self D (pList[m]).den).trans hD_le)
     · rw [List.getD_eq_default _ _ (by omega)]
       simp only [Int.natAbs_zero, Nat.zero_le]
   have hF₀_H : ∀ m, Int.natAbs (F₀.coeff m) ≤ H := fun m =>
@@ -1108,21 +1014,14 @@ theorem hasCoeffBitBound_of_mem_sturmSeqList {B : ℕ} {cs : List ℚ} (hB : Has
       qr.den ≤ 2 * n * H ^ 2 * P2 ^ (n + 1) := by
     intro r
     dsimp only
-    have hK_ge_H : H ≤ 2 * n * H ^ 2 * P2 ^ (n + 1) := by
-      have hpow_pos : 1 ≤ P2 ^ (n + 1) := Nat.one_le_pow (n + 1) P2 hP2_pos
-      have h1 : 1 ≤ 2 * n * H * P2 ^ (n + 1) :=
-        Nat.mul_pos (Nat.mul_pos (by omega) hH_pos) hpow_pos
-      calc H = H * 1 := (mul_one H).symm
-        _ ≤ H * (2 * n * H * P2 ^ (n + 1)) := Nat.mul_le_mul_left H h1
-        _ = 2 * n * H ^ 2 * P2 ^ (n + 1) := by ring
+    have hK_ge_H : H ≤ 2 * n * H ^ 2 * P2 ^ (n + 1) :=
+      calc H ≤ H * (2 * n * H * P2 ^ (n + 1)) := Nat.le_mul_of_pos_right H
+            (Nat.mul_pos (Nat.mul_pos (by omega) hH_pos) (Nat.pow_pos hP2_pos))
+        _ = _ := by ring
     rcases i with _ | _ | j
-    · dsimp only [bezoutSturm, FQ₀]
-      rw [coeff_map, eq_intCast]
-      simp only [Rat.num_intCast, Rat.den_intCast]
+    · simp only [bezoutSturm, FQ₀, coeff_map, eq_intCast, Rat.num_intCast, Rat.den_intCast]
       exact ⟨(hF₀_H r).trans hK_ge_H, hH_pos.trans hK_ge_H⟩
-    · dsimp only [bezoutSturm, FQ₁]
-      rw [coeff_map, eq_intCast]
-      simp only [Rat.num_intCast, Rat.den_intCast]
+    · simp only [bezoutSturm, FQ₁, coeff_map, eq_intCast, Rat.num_intCast, Rat.den_intCast]
       exact ⟨(hF₁_H r).trans hK_ge_H, hH_pos.trans hK_ge_H⟩
     · have hFQ₁_ne : FQ₁ ≠ 0 := hpos 1 (by omega)
       have hd10 : FQ₁.natDegree < FQ₀.natDegree := by
@@ -1226,21 +1125,13 @@ theorem hasCoeffBitBound_of_mem_sturmSeqList {B : ℕ} {cs : List ℚ} (hB : Has
         _ = 4 * (n + 1) ^ 2 * (B + 1) := by ring
     dsimp only [sturmBitBound]
     nlinarith [Nat.pow_le_pow_left hn_pos 2]
-  have hnum_K : Int.natAbs qr.num ≤ Kbig := by
-    dsimp only [Kbig]
-    calc Int.natAbs qr.num
-        ≤ 2 * n * H ^ 2 * P2 ^ (n + 1) := hnum_Ei
-      _ = 1 * (2 * n * H ^ 2 * P2 ^ (n + 1)) := (one_mul _).symm
-      _ ≤ H * (2 * n * H ^ 2 * P2 ^ (n + 1)) := Nat.mul_le_mul_right _ hH_pos
-      _ = 2 * n * H ^ 3 * P2 ^ (n + 1) := by ring
+  have hnum_K : Int.natAbs qr.num ≤ Kbig :=
+    hnum_Ei.trans ((Nat.le_mul_of_pos_left _ hH_pos).trans_eq (by dsimp only [Kbig]; ring))
   have hden_K : Int.natAbs ((qr.den : ℤ) * (D : ℤ)) ≤ Kbig := by
     rw [Int.natAbs_mul, Int.natAbs_natCast, Int.natAbs_natCast]
     have hDH : D ≤ H :=
       hH_def ▸ hD_le.trans (Nat.pow_le_pow_right zero_lt_two hDH_exp)
-    dsimp only [Kbig]
-    calc qr.den * D
-        ≤ (2 * n * H ^ 2 * P2 ^ (n + 1)) * H := Nat.mul_le_mul hden_Ei hDH
-      _ = 2 * n * H ^ 3 * P2 ^ (n + 1) := by ring
+    exact (Nat.mul_le_mul hden_Ei hDH).trans_eq (by dsimp only [Kbig]; ring)
   exact ⟨(hnum_f.trans hnum_K).trans hKbig_le, (hden_f.trans hden_K).trans hKbig_le⟩
 
 /-! ### Part 5: Unconditional active Sturm-interval count bound -/
