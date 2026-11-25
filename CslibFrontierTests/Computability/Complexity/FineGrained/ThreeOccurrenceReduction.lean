@@ -94,4 +94,13 @@ example (h : SH) :
   ⟨h.not_decidableInPowerExpTime_threeSATThree_numVars (by norm_num) (by norm_num),
     h.not_decidableInPowerExpTime_threeSATThree_length (by norm_num) (by norm_num)⟩
 
+/-- #SH excludes a square-root exponent for exact counting in both size parameters. -/
+example (h : SharpSH) :
+    (¬ComputableInPowerExpTime SharpThreeSATThree encCNF Turing.MultiTapeTM.encNat
+      CNF.numVars (1 / 2)) ∧
+    (¬ComputableInPowerExpTime SharpThreeSATThree encCNF Turing.MultiTapeTM.encNat
+      List.length (1 / 2)) :=
+  ⟨h.not_computableInPowerExpTime_sharpThreeSATThree_numVars (by norm_num) (by norm_num),
+    h.not_computableInPowerExpTime_sharpThreeSATThree_length (by norm_num) (by norm_num)⟩
+
 end Cslib.Complexity.Tests.ThreeOccurrenceReduction
