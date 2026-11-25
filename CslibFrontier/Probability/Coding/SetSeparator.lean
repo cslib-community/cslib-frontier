@@ -260,20 +260,11 @@ private theorem sum_codebook_prefix_false {S T : ℕ} {A B : Finset (Fin S)}
       (if ∀ j : Fin T, j.val < m → separates (θ j) A B = false then (1 : ℝ) else 0) =
         ∏ j : Fin T,
           (if j.val < m then (if separates (θ j) A B = false then (1 : ℝ) else 0) else 1) := by
-    by_cases hall : ∀ j : Fin T, j.val < m → separates (θ j) A B = false
-    · rw [ite_eq_left hall]
-      symm
-      refine Finset.prod_eq_one fun j _ => ?_
-      by_cases hj : j.val < m
-      · rw [ite_eq_left hj, ite_eq_left (hall j hj)]
-      · rw [ite_eq_right hj]
-    · rw [ite_eq_right hall]
-      obtain ⟨j₀, hj₀, htrue⟩ :
-          ∃ j : Fin T, ∃ (_ : j.val < m), separates (θ j) A B ≠ false := by
-        simpa only [not_forall] using hall
-      symm
-      refine Finset.prod_eq_zero (Finset.mem_univ j₀) ?_
-      rw [ite_eq_left hj₀, ite_eq_right htrue]
+    split_ifs with hall
+    · exact (Finset.prod_eq_one fun j _ => by by_cases hj : j.val < m <;> simp [hj, hall j]).symm
+    · push Not at hall
+      obtain ⟨j, hj, hsep⟩ := hall
+      exact (Finset.prod_eq_zero (Finset.mem_univ j) (by simp [hj, hsep])).symm
   let g (j : Fin T) (r : Fin S → Bool) : ℝ :=
     (rowPMF r).toReal * (if j.val < m then (if separates r A B = false then 1 else 0) else 1)
   have hterm (θ : Fin T → Fin S → Bool) :
@@ -299,42 +290,21 @@ private theorem sum_codebook_prefix_false {S T : ℕ} {A B : Finset (Fin S)}
       simp_rw [ite_eq_right hj, mul_one]
       exact sum_toReal rowPMF
   simp_rw [hfactor]
-  rw [Finset.prod_ite, Finset.prod_const_one, mul_one, Finset.prod_const]
-  have hcard : (Finset.univ.filter fun j : Fin T => j.val < m).card = m := by
-    refine Eq.trans ?_ (Finset.card_range m)
-    refine Finset.card_bij (fun j _ => j.val) ?_ ?_ ?_
-    · intro j hj
-      exact Finset.mem_range.mpr (Finset.mem_filter.mp hj).2
-    · intro j₁ _ j₂ _ hval
-      exact Fin.ext hval
-    · intro x hx
-      have hxm : x < m := Finset.mem_range.mp hx
-      exact ⟨⟨x, lt_of_lt_of_le hxm hm⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hxm⟩, rfl⟩
-  rw [hcard]
+  rw [Finset.prod_ite, Finset.prod_const_one, mul_one, Finset.prod_const,
+    Fin.card_filter_val_lt, min_eq_right hm]
 
 private theorem nat_log_le_add_sum_ge {v k L : ℕ} (hv1 : 1 ≤ v) (hvL : v ≤ 2 ^ L) :
     Nat.log 2 v ≤ k + ∑ s ∈ Finset.range (L - k), (if 2 ^ (k + 1 + s) ≤ v then 1 else 0) := by
   set ℓ := Nat.log 2 v
-  have hℓL : ℓ ≤ L := by
-    calc ℓ ≤ Nat.log 2 (2 ^ L) := Nat.log_mono_right hvL
-      _ = L := Nat.log_pow Nat.one_lt_two L
-  rcases le_or_gt ℓ k with hle | hgt
-  · omega
-  · have hsub : Finset.range (ℓ - k) ⊆ Finset.range (L - k) :=
-      Finset.range_mono (by omega)
-    have hsum_ge : ℓ - k ≤
-        ∑ s ∈ Finset.range (L - k), (if 2 ^ (k + 1 + s) ≤ v then 1 else 0) := by
-      calc ℓ - k
-          = ∑ s ∈ Finset.range (ℓ - k), 1 := by simp
-        _ = ∑ s ∈ Finset.range (ℓ - k), (if 2 ^ (k + 1 + s) ≤ v then 1 else 0) := by
-            refine Finset.sum_congr rfl fun s hs => ?_
-            have hs_lt : s < ℓ - k := Finset.mem_range.mp hs
-            have hpow : 2 ^ (k + 1 + s) ≤ v :=
-              (Nat.le_log_iff_pow_le Nat.one_lt_two (by omega)).mp (by omega)
-            rw [ite_eq_left hpow]
-        _ ≤ ∑ s ∈ Finset.range (L - k), (if 2 ^ (k + 1 + s) ≤ v then 1 else 0) :=
-            Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => Nat.zero_le _
-    omega
+  have hℓL : ℓ ≤ L := (Nat.log_mono_right hvL).trans (Nat.log_pow Nat.one_lt_two L).le
+  calc ℓ ≤ k + (ℓ - k) := by omega
+    _ = k + ∑ s ∈ Finset.range (ℓ - k), (if 2 ^ (k + 1 + s) ≤ v then 1 else 0) := by
+        rw [Finset.sum_ite_of_true]
+        · simp
+        · intro s hs
+          rw [Finset.mem_range] at hs
+          exact (Nat.le_log_iff_pow_le Nat.one_lt_two (by omega)).mp (by omega)
+    _ ≤ _ := Nat.add_le_add_left (Finset.sum_le_sum_of_subset (Finset.range_mono (by omega))) k
 
 private theorem expected_length_encOf_le {S : ℕ} {A B : Finset (Fin S)} (hdisj : Disjoint A B) :
     let T := 2 ^ (2 * S + 2)
@@ -440,13 +410,7 @@ private theorem expected_length_encOf_le {S : ℕ} {A B : Finset (Fin S)} (hdisj
       exact inv_anti₀ hmp_pos (by linarith)
     calc ∑ s ∈ Finset.range (L - k), (∑ θ, (cbPMF θ).toReal * fail (2 ^ (k + s)) θ)
         ≤ ∑ s ∈ Finset.range (L - k), (2⁻¹ : ℝ) ^ s := Finset.sum_le_sum hterm_le
-      _ = ((2⁻¹ : ℝ) ^ (L - k) - 1) / (2⁻¹ - 1) := geom_sum_eq (by norm_num) (L - k)
-      _ ≤ 2 := by
-        have hpos : (0 : ℝ) ≤ (2⁻¹ : ℝ) ^ (L - k) := by positivity
-        have hdiv : ((2⁻¹ : ℝ) ^ (L - k) - 1) / (2⁻¹ - 1) =
-            2 - 2 * (2⁻¹ : ℝ) ^ (L - k) := by ring
-        rw [hdiv]
-        linarith
+      _ ≤ 2 := by simpa only [one_div] using sum_geometric_two_le (L - k)
   have hfallback_le : (S + 1 : ℝ) * (∑ θ, (cbPMF θ).toReal * fail T θ) ≤ 1 := by
     rw [sum_codebook_prefix_false hdisj le_rfl]
     have hTp_eq : (T : ℝ) * p = (2 : ℝ) ^ (L - k) := by
@@ -512,22 +476,13 @@ theorem exists_prefixFree_separator_code (S : ℕ)
       _ = bound := by
           simp only [bound, mul_add, mul_left_comm _ (2 : ℝ), Finset.sum_add_distrib,
             ← Finset.sum_mul, sum_toReal μ, one_mul, ← Finset.mul_sum]
-  have hexists_θ : ∃ θ : Fin T → Fin S → Bool, score θ ≤ bound := by
-    by_contra! hgt
-    have hlt : bound < ∑ θ, (cbPMF θ).toReal * score θ := by
-      have hpos : ∀ θ ∈ (Finset.univ : Finset (Fin T → Fin S → Bool)),
-          (cbPMF θ).toReal * bound < (cbPMF θ).toReal * score θ := by
-        intro θ _
-        have hm_pos : 0 < (cbPMF θ).toReal := by
-          simp [cbPMF, PMF.uniformOfFintype_apply, Fintype.card_fin,
-            Fintype.card_bool, ENNReal.toReal_inv, ENNReal.toReal_pow]
-        exact mul_lt_mul_of_pos_left (hgt θ) hm_pos
-      calc bound = ∑ θ, (cbPMF θ).toReal * bound := by
-              rw [← Finset.sum_mul, sum_toReal cbPMF, one_mul]
-        _ < ∑ θ, (cbPMF θ).toReal * score θ :=
-              Finset.sum_lt_sum_of_nonempty Finset.univ_nonempty hpos
-    linarith
-  obtain ⟨θ₀, hθ₀⟩ := hexists_θ
-  exact ⟨encOf θ₀, sepOf θ₀, isPrefixFree_range_encOf θ₀, fun A B hAB => sepOf_encOf θ₀ hAB, hθ₀⟩
+  obtain ⟨θ₀, -, hθ₀⟩ := Finset.exists_le_of_sum_le (f := fun θ => (cbPMF θ).toReal * score θ)
+    (g := fun θ => (cbPMF θ).toReal * bound) Finset.univ_nonempty
+    (by simpa only [← Finset.sum_mul, sum_toReal cbPMF, one_mul] using havg)
+  have hpos : 0 < (cbPMF θ₀).toReal := by
+    simp [cbPMF, PMF.uniformOfFintype_apply, Fintype.card_fin, Fintype.card_bool,
+      ENNReal.toReal_inv, ENNReal.toReal_pow]
+  exact ⟨encOf θ₀, sepOf θ₀, isPrefixFree_range_encOf θ₀, fun A B hAB => sepOf_encOf θ₀ hAB,
+    le_of_mul_le_mul_left hθ₀ hpos⟩
 
 end Cslib.Probability.Coding
