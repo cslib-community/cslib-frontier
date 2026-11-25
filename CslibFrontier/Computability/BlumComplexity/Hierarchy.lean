@@ -134,44 +134,33 @@ theorem exists_arbitrarilyComplex {t : ℕ → ℕ} (ht : Computable t) :
     ∃ f : ℕ → ℕ, Computable f ∧ (∀ n, f n ≤ 1) ∧
       ∀ c : Code, (∀ n, f n ∈ c.eval n) → ∀ᶠ n in atTop, ∀ m ∈ Φ.cost c n, t n < m := by
   let f : ℕ → ℕ := fun y => (diag Φ t y).get (dom_diag Φ t y)
-  have hfmem : ∀ y, f y ∈ diag Φ t y := fun y => Part.get_mem _
-  have hfc : ∀ y i w, run Φ t y = some i → w ∈ (ofNat Code i).eval y → f y = 1 - w := by
-    intro y i w hc hw
-    have h : 1 - w ∈ diag Φ t y := by
-      unfold diag sel post
-      rw [hc, Option.map_some, Option.getD_some]
-      exact Part.mem_map_iff _ |>.2 ⟨w, hw, by rw [Option.map_some, Option.getD_some]⟩
-    exact Part.mem_unique (hfmem y) h
-  have hf0 : ∀ y, run Φ t y = none → f y = 0 := by
-    intro y hc
-    have h : 0 ∈ diag Φ t y := by
-      unfold diag sel post
-      rw [hc, Option.map_none, Option.getD_none]
-      exact Part.mem_map_iff _ |>.2 ⟨0, Part.mem_some 0, by rw [Option.map_none, Option.getD_none]⟩
-    exact Part.mem_unique (hfmem y) h
-  have hf1 : ∀ y, f y ≤ 1 := by
-    intro y
+  have hfmem (y : ℕ) : f y ∈ diag Φ t y := Part.get_mem _
+  have hfc (y i w : ℕ) (hc : run Φ t y = some i) (hw : w ∈ (ofNat Code i).eval y) :
+      f y = 1 - w :=
+    Part.mem_unique (hfmem y) <| by
+      simp only [diag, sel, post, hc, Option.map_some, Option.getD_some, Part.mem_map_iff]
+      exact ⟨w, hw, rfl⟩
+  have hf0 (y : ℕ) (hc : run Φ t y = none) : f y = 0 :=
+    Part.mem_unique (hfmem y) <| by
+      simp only [diag, sel, post, hc, Option.map_none, Option.getD_none, Part.mem_map_iff]
+      exact ⟨0, Part.mem_some 0, trivial⟩
+  have hf1 (y : ℕ) : f y ≤ 1 := by
     cases hc : run Φ t y with
-    | none => rw [hf0 y hc]; exact zero_le_one
+    | none => simp [hf0 y hc]
     | some i =>
       obtain ⟨-, -, -, hE, -⟩ := canc_eq_some.1 hc
       obtain ⟨m, hm, -⟩ := (elig_eq_true Φ).1 hE
       obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 ((Φ.dom_cost_iff _ _).1 (Part.dom_iff_mem.2 ⟨m, hm⟩))
       rw [hfc y i w hc hw]
       omega
-  have hfcomp : Computable f := (partrec_diag Φ ht).of_eq_tot hfmem
-  refine ⟨f, hfcomp, hf1, fun c hc => ?_⟩
-  have hnc : ∀ y, run Φ t y ≠ some (encode c) := by
-    intro y hy
-    have h := hfc y (encode c) (f y) hy (by simpa using hc y)
+  refine ⟨f, (partrec_diag Φ ht).of_eq_tot hfmem, hf1, fun c hc => ?_⟩
+  have hnc (y : ℕ) (hy : run Φ t y = some (encode c)) : False := by
+    have := hfc y (encode c) (f y) hy (by simpa using hc y)
     have := hf1 y
     omega
   filter_upwards [eventually_not_eligible hnc] with y hy m hm
-  by_contra hle
-  push Not at hle
-  have : elig Φ t (encode c) y = true := (elig_eq_true Φ).2 ⟨m, by simpa using hm, hle⟩
-  rw [hy] at this
-  exact Bool.false_ne_true this
+  by_contra! hle
+  exact Bool.false_ne_true (hy ▸ (elig_eq_true Φ).2 ⟨m, by simpa using hm, hle⟩)
 
 /-- For every computable bound `t`, some computable `0`/`1`-valued function lies outside
 `C_t`. -/
@@ -182,9 +171,7 @@ theorem exists_not_mem_complexityClass {t : ℕ → ℕ} (ht : Computable t) :
   obtain ⟨c, hcf, hev⟩ := mem_complexityClass.1 hmem
   obtain ⟨n, hn, hn'⟩ := ((hc c hcf).and hev).exists
   obtain ⟨m, hm⟩ := Part.dom_iff_mem.1 (Φ.dom_cost_of_total hcf n)
-  have h1 := hn m hm
-  have h2 := hn' m hm
-  omega
+  exact absurd (hn m hm) (not_lt.2 (hn' m hm))
 
 /-- No complexity class of a computable bound contains every computable function. -/
 theorem not_forall_mem_complexityClass {t : ℕ → ℕ} (ht : Computable t) :

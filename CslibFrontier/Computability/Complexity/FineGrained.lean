@@ -104,26 +104,22 @@ theorem DecidableInTimeO.mono (h : DecidableInTimeO A enc T) (c : ℕ)
     (hT : ∀ a, T a ≤ c * T' a + c) (hT' : ∀ a, 0 ≤ T' a) : DecidableInTimeO A enc T' := by
   obtain ⟨c₀, t, s, ht, h⟩ := h
   refine ⟨c₀ * c + c₀, t, s, fun a => (ht a).trans ?_, h⟩
-  have h₁ := mul_le_mul_of_nonneg_left (hT a) (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀)
-  have h₂ := mul_nonneg (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀) (hT' a)
   push_cast
-  nlinarith
+  nlinarith [mul_le_mul_of_nonneg_left (hT a) (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀),
+    mul_nonneg (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀) (hT' a)]
 
 /-- **`DTIME` in terms of `DecidableInTimeO`.** For a bound that is a function of the length of
 the encoded instance, `Cslib.Complexity.DecidableInTimeO` is membership in
 `Cslib.Complexity.DTIME`. -/
 theorem mem_DTIME_iff_decidableInTimeO {t : ℕ → ℕ} :
     A ∈ DTIME enc t ↔ DecidableInTimeO A enc fun a => t (enc a).length := by
-  constructor
-  · rintro ⟨c₁, c₂, s, h⟩
-    refine ⟨c₁ + c₂, _, _, fun a => ?_, h⟩
-    push_cast
+  refine ⟨fun ⟨c₁, c₂, s, h⟩ => ⟨c₁ + c₂, _, _, fun a => ?_, h⟩, fun ⟨c, t', s, ht', h⟩ => ?_⟩
+  · push_cast
     nlinarith [(Nat.cast_nonneg (t (enc a).length) : (0 : ℝ) ≤ _),
       (Nat.cast_nonneg c₂ : (0 : ℝ) ≤ _), (Nat.cast_nonneg c₁ : (0 : ℝ) ≤ _)]
-  · rintro ⟨c, t', s, ht', h⟩
-    have ht : ∀ a, t' a ≤ c * t (enc a).length + c := fun a => by
+  · have ht (a : α) : t' a ≤ c * t (enc a).length + c := by
       have := ht' a
-      simp only at this
+      dsimp only at this
       exact_mod_cast this
     obtain ⟨k, h⟩ := ComputableInTimeAndSpace.exists_space_linear h
     exact ⟨c, c, fun n => k * (c * t n + c) + k,
@@ -172,30 +168,22 @@ theorem DecidableInTimeO.inter {p : α → Bool} (hp : ComputableInPolyTime p en
       fun a => (if p a = true then T a else 0) + ((enc a).length + 1) ^ e := by
   obtain ⟨g, t, c, hg, hgB, ht⟩ := hB.exists_computableInO
   obtain ⟨d, _, hp⟩ := hp.exists_degree
-  have h := hp.inO.ite hg (ComputableInO.const false)
   refine ⟨d + 1, DecidableInTimeO.mono (T := fun a => ((((enc a).length + 1) ^ d +
     if p a then t a else (enc a).length : ℕ) : ℝ))
-    (DecidableInTimeO.of_computableInO h (fun a => ?_) fun a => le_rfl) (c + 2)
-    (fun a => ?_) fun a => ?_⟩
-  · simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, hgB]
-    cases p a <;> simp
-  · have hL : ((enc a).length : ℝ) + 1 ≤ ((enc a).length + 1) ^ (d + 1) := by
-      have := one_le_pow₀ (M₀ := ℝ) (n := d) (by linarith [(Nat.cast_nonneg (enc a).length :
-        (0 : ℝ) ≤ _)] : (1 : ℝ) ≤ (enc a).length + 1)
-      rw [pow_succ]
-      nlinarith [(Nat.cast_nonneg (enc a).length : (0 : ℝ) ≤ _)]
-    have hd : (((enc a).length : ℝ) + 1) ^ d ≤ ((enc a).length + 1) ^ (d + 1) :=
-        by gcongr <;> linarith
-    have hc : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-    have hpos : (0 : ℝ) ≤ ((enc a).length + 1) ^ (d + 1) := by positivity
-    split_ifs with hpa
-    · push_cast
-      nlinarith [ht a, hT a]
-    · push_cast
-      nlinarith
-  · split_ifs
-    · exact add_nonneg (hT a) (by positivity)
-    · positivity
+    (DecidableInTimeO.of_computableInO (hp.inO.ite hg (.const false))
+      (fun a => by simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, hgB]; cases p a <;> simp)
+      fun _ => le_rfl) (c + 2)
+    (fun a => ?_) fun a => by split_ifs; exacts [add_nonneg (hT a) (by positivity), by positivity]⟩
+  have h1 : (1 : ℝ) ≤ (enc a).length + 1 := by
+    linarith [(Nat.cast_nonneg (enc a).length : (0 : ℝ) ≤ _)]
+  have hL : ((enc a).length : ℝ) + 1 ≤ ((enc a).length + 1) ^ (d + 1) := by
+    rw [pow_succ]
+    nlinarith [one_le_pow₀ (n := d) h1]
+  have hd : (((enc a).length : ℝ) + 1) ^ d ≤ ((enc a).length + 1) ^ (d + 1) :=
+    pow_le_pow_right₀ h1 d.le_succ
+  have hc : (0 : ℝ) ≤ c := Nat.cast_nonneg c
+  have hpos : (0 : ℝ) ≤ ((enc a).length + 1) ^ (d + 1) := by positivity
+  split_ifs <;> push_cast <;> nlinarith [ht a, hT a]
 
 end Machines
 

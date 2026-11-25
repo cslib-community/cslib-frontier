@@ -37,31 +37,22 @@ namespace Turing.MultiTapeTM.Universal
 
 private lemma length_eSym_map_eBit_le (o : Option Bool) :
     (eSym (o.map eBit)).length ≤ 2 := by
-  rcases o with _ | b
-  · decide
-  · cases b <;> decide
+  rcases o with _ | (_ | _) <;> decide
 
 private lemma length_eTA_map_eBit_le (a : Option (Option Bool) × SignType) :
     (eTA (a.1.map (Option.map eBit), a.2)).length ≤ 8 := by
-  rcases a with ⟨write, move⟩
-  rcases write with _ | write
-  · rcases move with _ | _ | _ <;> decide
-  · rcases write with _ | bit
-    · rcases move with _ | _ | _ <;> decide
-    · cases bit <;> rcases move with _ | _ | _ <;> decide
+  rcases a with ⟨_ | (_ | (_ | _)), _ | _ | _⟩ <;> decide
 
 private lemma length_key_le {k Q : ℕ} {State : Type} (eS : State ↪ ℕ)
     (hS : ∀ q, eS q < Q) (q : State) (inp : Option Bool) (work : Fin k → Option Bool) :
     (eKey (key (eS q) (inp.map eBit) (Option.map eBit ∘ work))).length ≤
       2 * Q + 5 * k + 6 := by
   have hinp := length_eSym_map_eBit_le inp
-  have hwork :
-      (encList eSym (List.ofFn (Option.map eBit ∘ work))).length ≤ k * 5 := by
+  have hwork : (encList eSym (List.ofFn (Option.map eBit ∘ work))).length ≤ k * 5 := by
     simpa only [List.length_ofFn, Nat.mul_comm] using
-      length_encList_le eSym (List.ofFn (Option.map eBit ∘ work))
-        (fun o ho => by
-          obtain ⟨i, rfl⟩ := List.mem_ofFn.mp ho
-          exact length_eSym_map_eBit_le (work i))
+      length_encList_le eSym (List.ofFn (Option.map eBit ∘ work)) fun _ ho => by
+        obtain ⟨i, rfl⟩ := List.mem_ofFn.mp ho
+        exact length_eSym_map_eBit_le (work i)
   have hq := hS q
   simp only [eKey_apply, key, length_encPair, encUnary_apply, List.length_replicate]
   omega
@@ -69,28 +60,24 @@ private lemma length_key_le {k Q : ℕ} {State : Type} (eS : State ↪ ℕ)
 private lemma length_action_le {k Q : ℕ} {State : Type} (eS : State ↪ ℕ)
     (hS : ∀ q, eS q < Q) (a : Action k Bool State) :
     (eAct (.ofAction (a.map eS eBit))).length ≤ 34 * k + Q + 9 := by
-  have hwork :
-      (encList eTA (List.ofFn (a.map eS eBit).workTapes)).length ≤ k * 17 := by
+  have hwork : (encList eTA (List.ofFn fun i =>
+      ((a.workTapes i).1.map (Option.map eBit), (a.workTapes i).2))).length ≤ k * 17 := by
     simpa only [List.length_ofFn, Nat.mul_comm] using
-      length_encList_le eTA (List.ofFn (a.map eS eBit).workTapes)
-        (fun ta hta => by
+      length_encList_le eTA
+        (List.ofFn fun i => ((a.workTapes i).1.map (Option.map eBit), (a.workTapes i).2))
+        fun _ hta => by
           obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hta
-          exact length_eTA_map_eBit_le (a.workTapes i))
+          exact length_eTA_map_eBit_le (a.workTapes i)
   have hout := length_eSym_map_eBit_le a.output
   have hstate : (eSym (a.state.map eS)).length ≤ Q := by
     rcases a.state with _ | q
     · simp [eSym]
-    · simp only [Option.map_some, eSym, encOption_some, List.length_cons, encUnary_apply,
+    · have := hS q
+      simp only [Option.map_some, eSym, encOption_some, List.length_cons, encUnary_apply,
         List.length_replicate]
-      have hq := hS q
       omega
   have hmove : (encSign a.inputTape).length ≤ 1 := by
     rcases a.inputTape with _ | _ | _ <;> simp [encSign]
-  have hwork' :
-      (encList eTA
-        (List.ofFn (fun i => ((a.workTapes i).1.map (Option.map eBit),
-          (a.workTapes i).2)))).length ≤ k * 17 := by
-    simpa only [Action.map] using hwork
   simp only [eAct_apply, Act.ofAction, Action.map, length_encPair]
   omega
 
@@ -118,39 +105,28 @@ state range. This charges the transition table itself, independently of any late
 theorem descLen_desc_le {k Q : ℕ} {State : Type} [Fintype State]
     (eS : State ↪ ℕ) (hS : ∀ q, eS q < Q) (tm : MultiTapeTM k Bool State) :
     descLen (desc eS eBit tm) ≤ descSizeBound k Q := by
-  let stateFin : State → Fin Q := fun q => ⟨eS q, hS q⟩
   have hstateCard : Fintype.card State ≤ Q := by
-    simpa only [Fintype.card_fin] using Fintype.card_le_of_injective stateFin fun a b hab =>
-      eS.injective (Fin.ext_iff.mp hab)
-  have htable :
-      (encList (encPair eKey eAct) (desc eS eBit tm).table).length ≤
+    simpa only [Fintype.card_fin] using
+      Fintype.card_le_of_injective (fun q => (⟨eS q, hS q⟩ : Fin Q)) fun a b hab =>
+        eS.injective (Fin.ext_iff.mp hab)
+  have htable : (encList (encPair eKey eAct)
+      ((Finset.univ : Finset (State × Option Bool × (Fin k → Option Bool))).toList.map
+        fun e => (key (eS e.1) (e.2.1.map eBit) (Option.map eBit ∘ e.2.2),
+          .ofAction ((tm.tr e.1 e.2.1 e.2.2).map eS eBit)))).length ≤
         (Q * 3 * 3 ^ k) * (10 * Q + 88 * k + 45) := by
-    refine (length_encList_le (encPair eKey eAct) (desc eS eBit tm).table
-      (b := 5 * Q + 44 * k + 22) ?_).trans ?_
+    refine (length_encList_le (encPair eKey eAct) _ (b := 5 * Q + 44 * k + 22) ?_).trans ?_
     · intro entry hentry
-      simp only [desc, List.mem_map] at hentry
-      obtain ⟨e, -, rfl⟩ := hentry
+      obtain ⟨e, -, rfl⟩ := List.mem_map.mp hentry
       exact length_transition_le eS hS tm e
-    · simp only [desc, List.length_map, Finset.length_toList, Finset.card_univ,
-        Fintype.card_prod, Fintype.card_option, Fintype.card_bool, Fintype.card_fun,
-        Fintype.card_fin]
+    · simp only [List.length_map, Finset.length_toList, Finset.card_univ, Fintype.card_prod,
+        Fintype.card_option, Fintype.card_bool, Fintype.card_fun, Fintype.card_fin]
       norm_num
       have hcount : Fintype.card State * (3 * 3 ^ k) ≤ Q * 3 * 3 ^ k := by
         simpa only [Nat.mul_assoc] using Nat.mul_le_mul_right (3 * 3 ^ k) hstateCard
-      have hwidth : 2 * (5 * Q + 44 * k + 22) + 1 ≤ 10 * Q + 88 * k + 45 := by
-        omega
-      exact Nat.mul_le_mul hcount hwidth
-  have htable' :
-      (encList (encPair eKey eAct)
-        ((Finset.univ : Finset (State × Option Bool × (Fin k → Option Bool))).toList.map
-          fun e => (key (eS e.1) (e.2.1.map eBit) (Option.map eBit ∘ e.2.2),
-            .ofAction ((tm.tr e.1 e.2.1 e.2.2).map eS eBit)))).length ≤
-        (Q * 3 * 3 ^ k) * (10 * Q + 88 * k + 45) := by
-    simpa only [desc] using htable
+      exact Nat.mul_le_mul hcount (by omega)
   have hq := hS tm.q₀
   simp only [descLen, desc, eDesc_apply, length_encPair, encUnary_apply,
-    List.length_replicate]
-  unfold descSizeBound
+    List.length_replicate, descSizeBound]
   omega
 
 end Turing.MultiTapeTM.Universal

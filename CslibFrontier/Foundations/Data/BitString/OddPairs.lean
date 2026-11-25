@@ -100,19 +100,17 @@ def oddPairs (ι : Type*) [Fintype ι] [DecidableEq ι] : Finset ((ι → Bool) 
 /-- A nonempty index type has an odd pair: take the same one-hot string twice. -/
 theorem oddPairs_nonempty [Nonempty ι] : Nonempty ↥(oddPairs ι) := by
   obtain ⟨i⟩ := ‹Nonempty ι›
-  let u : ι → Bool := Pi.single i true
-  refine ⟨⟨(u, u), mem_oddPairs.mpr ?_⟩⟩
-  simpa [u] using (show true * true = true from rfl)
+  exact ⟨⟨(Pi.single i true, Pi.single i true), mem_oddPairs.mpr (by simp; rfl)⟩⟩
 
 /-- The odd pairs have density `(1 - 2⁻ⁿ) / 2` among all pairs of `n`-bit strings; for `n = 0` there
 are none. -/
 theorem dens_oddPairs : ((oddPairs ι).dens : ℝ) = (1 - ((2 : ℝ) ^ Fintype.card ι)⁻¹) / 2 := by
-  have hc := two_mul_card_dotProduct_eq_true_add_two_pow (ι := ι)
   have hN : (0 : ℝ) < 2 ^ Fintype.card ι := by positivity
   rw [Finset.dens, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast, Fintype.card_prod,
     Fintype.card_fun, Fintype.card_bool]
   have hc' : 2 * ((oddPairs ι).card : ℝ) + 2 ^ Fintype.card ι =
-      2 ^ Fintype.card ι * 2 ^ Fintype.card ι := by exact_mod_cast hc
+      2 ^ Fintype.card ι * 2 ^ Fintype.card ι := by
+    exact_mod_cast two_mul_card_dotProduct_eq_true_add_two_pow (ι := ι)
   push_cast
   field_simp
   linarith
@@ -123,7 +121,8 @@ noncomputable def oddExpect (f : (ι → Bool) → (ι → Bool) → ℝ) : ℝ 
 
 theorem oddExpect_def (f : (ι → Bool) → (ι → Bool) → ℝ) :
     oddExpect f = 𝔼 a, 𝔼 b, if a ⬝ᵥ b = true then f a b else 0 := by
-  unfold oddExpect; rfl
+  unfold oddExpect
+  rfl
 
 variable {f g : (ι → Bool) → (ι → Bool) → ℝ}
 
@@ -132,19 +131,15 @@ theorem oddExpect_mono (h : ∀ a b, a ⬝ᵥ b = true → f a b ≤ g a b) :
   rw [oddExpect_def, oddExpect_def]
   exact expect_le_expect fun a _ => expect_le_expect fun b _ => by
     split_ifs with hab
-    · exact h a b hab
-    · exact le_rfl
+    exacts [h a b hab, le_rfl]
 
 theorem oddExpect_nonneg (h : ∀ a b, a ⬝ᵥ b = true → 0 ≤ f a b) : 0 ≤ oddExpect f := by
-  have h0 := oddExpect_mono (f := fun _ _ => 0) h
-  rwa [oddExpect_def (fun _ _ => 0), show (𝔼 a : ι → Bool, 𝔼 b : ι → Bool,
-    if a ⬝ᵥ b = true then (0 : ℝ) else 0) = 0 by simp] at h0
+  simpa [oddExpect_def] using oddExpect_mono (f := fun _ _ => 0) h
 
 /-- At most half of all pairs have odd inner product. -/
 theorem dens_oddPairs_le_half : ((oddPairs ι).dens : ℝ) ≤ 1 / 2 := by
   rw [dens_oddPairs]
-  have h : 0 ≤ ((2 : ℝ) ^ Fintype.card ι)⁻¹ := by positivity
-  linarith
+  linarith [show 0 ≤ ((2 : ℝ) ^ Fintype.card ι)⁻¹ by positivity]
 
 /-- The masked average is the density of the odd pairs times the conditional average over them. -/
 theorem oddExpect_eq_dens_smul (f : (ι → Bool) → (ι → Bool) → ℝ) :
@@ -169,21 +164,18 @@ theorem oddExpect_fst (g : (ι → Bool) → ℝ) :
   rw [oddExpect_def, Finset.mul_expect]
   refine expect_congr rfl fun a _ => ?_
   by_cases ha : a = 0
-  · subst a
-    simp
+  · simp [ha]
   simp only [ha, ite_false]
   let S := (univ : Finset (ι → Bool)).filter fun b => a ⬝ᵥ b = true
-  have hS (b : ι → Bool) : a ⬝ᵥ b = true ↔ b ∈ S := by simp [S]
-  simp_rw [hS]
-  rw [Fintype.expect_ite_mem, NNRat.smul_def, dens_oddFiber ha]
-  rw [Finset.expect_const (oddFiber_nonempty ha)]
+  simp_rw [show ∀ b, (a ⬝ᵥ b = true) ↔ b ∈ S by simp [S]]
+  rw [Fintype.expect_ite_mem, NNRat.smul_def, dens_oddFiber ha,
+    Finset.expect_const (oddFiber_nonempty ha)]
 
 /-- Swapping the two coordinates preserves the masked odd-pair average. -/
 theorem oddExpect_swap (g : (ι → Bool) → (ι → Bool) → ℝ) :
     oddExpect (fun a b => g b a) = oddExpect g := by
   rw [oddExpect_def, oddExpect_def, Finset.expect_comm]
-  refine expect_congr rfl fun a _ => expect_congr rfl fun b _ => ?_
-  rw [dotProduct_comm b a]
+  exact expect_congr rfl fun a _ => expect_congr rfl fun b _ => by rw [dotProduct_comm b a]
 
 /-- The second marginal has the same distribution as the first. -/
 theorem oddExpect_snd (g : (ι → Bool) → ℝ) :
@@ -193,12 +185,10 @@ theorem oddExpect_snd (g : (ι → Bool) → ℝ) :
 /-- Recover the uniform average from the masked first marginal and the contribution at zero. -/
 theorem expect_eq_two_mul_oddExpect_fst_add_zero (g : (ι → Bool) → ℝ) :
     (𝔼 a, g a) = 2 * oddExpect (fun a _ => g a) + g 0 / Fintype.card (ι → Bool) := by
-  have hsplit : (𝔼 a, g a) = (𝔼 a, if a = 0 then 0 else g a) +
-      (𝔼 a, if a = 0 then g a else 0) := by
-    rw [← Finset.expect_add_distrib]
-    refine expect_congr rfl fun a _ => ?_
-    split_ifs <;> simp
-  rw [hsplit, oddExpect_fst, Fintype.expect_ite_eq']
+  rw [show (𝔼 a, g a) = (𝔼 a, if a = 0 then 0 else g a) + (𝔼 a, if a = 0 then g a else 0) by
+      rw [← Finset.expect_add_distrib]
+      exact expect_congr rfl fun _ _ => by split_ifs <;> simp,
+    oddExpect_fst, Fintype.expect_ite_eq']
   simp only [NNRat.smul_def, NNRat.cast_inv, NNRat.cast_natCast, div_eq_inv_mul]
   ring
 

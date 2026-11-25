@@ -109,9 +109,8 @@ theorem succProbability_uniformList_test_le {generator : List Bool → List Bool
     · exact PMF.coe_le_one _ _
     simp only [test, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_apply, PMF.pure_apply]
     refine le_of_eq (tsum_eq_zero_iff.2 fun x => ?_)
-    have hne : generator x ≠ List.ofFn r := fun hx => hr <| mem_image.2
-      ⟨x, hP x (by rw [← hlen x, hx, List.length_ofFn]), hx⟩
-    simp [hne]
+    simp [show generator x ≠ List.ofFn r from fun hx => hr <| mem_image.2
+      ⟨x, hP x (by rw [← hlen x, hx, List.length_ofFn]), hx⟩]
   have hgame : distinguishingGame (BitString.uniformList (ℓ n)) (test generator adversary n) true ≤
       ((2 : ℝ≥0∞) ^ ℓ n)⁻¹ * (#T : ℝ≥0∞) := by
     rw [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind, BitString.uniformList, PMF.bind_map,
@@ -129,14 +128,10 @@ theorem succProbability_uniformList_test_le {generator : List Bool → List Bool
           gcongr
           exact card_le_card_of_injOn List.ofFn (fun r hr => by simpa using hr)
             fun r _ s _ h => List.ofFn_injective h
-  have hT : (#T : ℝ≥0) ≤ ε * 2 ^ ℓ n :=
-    (by exact_mod_cast card_image_le : (#T : ℝ≥0) ≤ #P).trans hε
-  have hfin : distinguishingGame (BitString.uniformList (ℓ n)) (test generator adversary n) true ≤
-      (ε : ℝ≥0∞) := by
-    refine hgame.trans ?_
-    rw [ENNReal.inv_mul_le_iff (by positivity) (by simp), mul_comm]
-    exact_mod_cast hT
-  exact (ENNReal.toNNReal_mono ENNReal.coe_ne_top hfin).trans_eq (ENNReal.toNNReal_coe _)
+  refine (ENNReal.toNNReal_mono ENNReal.coe_ne_top (hgame.trans ?_)).trans_eq
+    (ENNReal.toNNReal_coe _)
+  rw [ENNReal.inv_mul_le_iff (by positivity) (by simp), mul_comm]
+  exact_mod_cast (by exact_mod_cast card_image_le : (#T : ℝ≥0) ≤ #P).trans hε
 
 end PRGToOneWay
 
@@ -171,15 +166,12 @@ theorem PseudorandomGenerator.oneWay {generator : List Bool → List Bool} {ℓ 
   refine hgenerator.oneWay_of_card_le hε
     (fun n => BitString.shortWords (ℓ n - n)) (fun n x hx => BitString.mem_shortWords.2 ?_)
     fun n => ?_
-  · have := hℓ x.length
-    have := hℓ n
-    omega
-  · have h : ((1 / 2 : ℝ≥0) ^ n + (1 / 2) ^ n) * 2 ^ ℓ n = 2 ^ (ℓ n - n + 1) := by
-      obtain ⟨k, hk⟩ : ∃ k, ℓ n = k + n := ⟨ℓ n - n, by have := hℓ n; omega⟩
+  · have := hℓ x.length; have := hℓ n; omega
+  · obtain ⟨k, hk⟩ : ∃ k, ℓ n = k + n := ⟨ℓ n - n, by have := hℓ n; omega⟩
+    rw [show ((1 / 2 : ℝ≥0) ^ n + (1 / 2) ^ n) * 2 ^ ℓ n = 2 ^ (ℓ n - n + 1) by
       rw [hk, Nat.add_sub_cancel, pow_add, pow_succ, one_div_pow]
       field_simp
-      ring
-    rw [h]
+      ring]
     exact_mod_cast (BitString.card_shortWords_lt _).le
 
 /-- A pseudorandom generator whose output length `ℓ` is injective and whose gap `2 ^ (n - ℓ n)` is
@@ -191,21 +183,19 @@ theorem PseudorandomGenerator.oneWay_of_injective {generator : List Bool → Lis
     (hgap : Negligible fun n => (1 / 2 : ℝ≥0) ^ (ℓ n - n)) : OneWay generator := by
   refine hgenerator.oneWay_of_card_le hgap BitString.wordsOfLength
     (fun n x hx => BitString.mem_wordsOfLength.mpr (hinj hx)) fun n => ?_
-  have h : (1 / 2 : ℝ≥0) ^ (ℓ n - n) * 2 ^ ℓ n = 2 ^ n := by
-    obtain ⟨k, hk⟩ : ∃ k, ℓ n = k + n := ⟨ℓ n - n, by have := hgenerator.stretch n; omega⟩
+  obtain ⟨k, hk⟩ : ∃ k, ℓ n = k + n := ⟨ℓ n - n, by have := hgenerator.stretch n; omega⟩
+  rw [show (1 / 2 : ℝ≥0) ^ (ℓ n - n) * 2 ^ ℓ n = 2 ^ n by
     rw [hk, Nat.add_sub_cancel, pow_add, one_div_pow]
-    field_simp
-  rw [h]
+    field_simp]
   exact_mod_cast (BitString.card_wordsOfLength n).le
 
 /-- **Every pseudorandom generator yields a one-way function.** Truncate the generator to one bit
 of stretch, amplify it to stretch `n ↦ 2 n + 1`, and apply `PseudorandomGenerator.oneWay`. -/
 theorem PseudorandomGenerator.exists_oneWay {generator : List Bool → List Bool} {ℓ : ℕ → ℕ}
-    (hgenerator : PseudorandomGenerator generator ℓ) : ∃ f : List Bool → List Bool, OneWay f := by
-  have h1 := hgenerator.truncate (fun n => n + 1) (by polytime) hgenerator.stretch
-    fun n => Nat.lt_succ_self n
-  have h2 := h1.amplify (fun n => 2 * n + 1) (by polytime) fun n => by omega
-  exact ⟨_, h2.oneWay fun n => by omega⟩
+    (hgenerator : PseudorandomGenerator generator ℓ) : ∃ f : List Bool → List Bool, OneWay f :=
+  ⟨_, ((hgenerator.truncate (fun n => n + 1) (by polytime) hgenerator.stretch
+    Nat.lt_succ_self).amplify (fun n => 2 * n + 1) (by polytime) fun _ => by omega).oneWay
+    fun _ => by omega⟩
 
 /-- **One-way functions exist if and only if pseudorandom generators exist** [HILL1999]. The
 forward direction is `OneWay.exists_pseudorandomGenerator`, the converse

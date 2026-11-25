@@ -152,29 +152,25 @@ private theorem regularScale_sq :
 /-- **Compression of the regular representation**: `Vᴴ g(y) V = E_z f(z)ᴴ f(zy)`. -/
 theorem regularIsometry_compress (y : G) :
     (regularIsometry f)ᴴ * regularRep y * regularIsometry f = 𝔼 z, (f z)ᴴ * f (z * y) := by
-  have h : (regularIsometry f)ᴴ * regularRep y * regularIsometry f =
-      ((Fintype.card G : ℂ))⁻¹ • ∑ z, (f z)ᴴ * f (z * y) := by
-    ext j j'
-    rw [Matrix.mul_assoc, Matrix.mul_apply, Fintype.sum_prod_type, sum_comm, Matrix.smul_apply,
-      Matrix.sum_apply, smul_eq_mul, mul_sum]
-    refine sum_congr rfl fun z _ => ?_
-    rw [Matrix.mul_apply, mul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    rw [regularRep_mul_apply, conjTranspose_apply, regularIsometry_apply, regularIsometry_apply,
-      conjTranspose_apply, star_mul', Complex.star_def, Complex.conj_ofReal, ← regularScale_sq]
-    ring
-  rw [h, expect_univ, ← NNRat.cast_smul_eq_nnqsmul ℂ]
+  rw [expect_univ, ← NNRat.cast_smul_eq_nnqsmul ℂ]
   push_cast
-  rfl
+  ext j j'
+  rw [Matrix.mul_assoc, Matrix.mul_apply, Fintype.sum_prod_type, sum_comm, Matrix.smul_apply,
+    Matrix.sum_apply, smul_eq_mul, mul_sum]
+  refine sum_congr rfl fun z _ => ?_
+  rw [Matrix.mul_apply, mul_sum]
+  refine sum_congr rfl fun i _ => ?_
+  rw [regularRep_mul_apply, conjTranspose_apply, regularIsometry_apply, regularIsometry_apply,
+    conjTranspose_apply, star_mul', Complex.star_def, Complex.conj_ofReal, ← regularScale_sq]
+  ring
 
 omit [DecidableEq G] in
 /-- The averaging isometry is an isometry when the `f(x)` are unitary. -/
 theorem conjTranspose_regularIsometry_mul (hf : ∀ x, (f x)ᴴ * f x = 1) :
     (regularIsometry f)ᴴ * regularIsometry f = 1 := by
   classical
-  have h := regularIsometry_compress f 1
-  simp only [regularRep_one, Matrix.mul_one, mul_one, hf, Fintype.expect_const] at h
-  exact h
+  simpa only [regularRep_one, Matrix.mul_one, mul_one, hf, Fintype.expect_const] using
+    regularIsometry_compress f 1
 
 /-- The rows of `V f(y) - g(y) V` are the multiplicative defects: row `(i, z)` is
 `|G|^{-1/2} (f(z) f(y) - f(zy))_i`. -/
@@ -191,21 +187,17 @@ theorem regularIsometry_mul_sub_gram (y : G) :
     let D := regularIsometry f * f y - regularRep y * regularIsometry f
     Dᴴ * D = 𝔼 z, (f z * f y - f (z * y))ᴴ * (f z * f y - f (z * y)) := by
   intro D
-  have h : Dᴴ * D = ((Fintype.card G : ℂ))⁻¹ •
-      ∑ z, (f z * f y - f (z * y))ᴴ * (f z * f y - f (z * y)) := by
-    ext j k
-    rw [Matrix.mul_apply, Fintype.sum_prod_type, sum_comm, Matrix.smul_apply, Matrix.sum_apply,
-      smul_eq_mul, mul_sum]
-    refine sum_congr rfl fun z _ => ?_
-    rw [Matrix.mul_apply, mul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    simp only [D, conjTranspose_apply, regularIsometry_mul_sub_apply, star_mul',
-      Complex.star_def, Complex.conj_ofReal]
-    rw [← regularScale_sq]
-    ring
-  rw [h, expect_univ, ← NNRat.cast_smul_eq_nnqsmul ℂ]
+  rw [expect_univ, ← NNRat.cast_smul_eq_nnqsmul ℂ]
   push_cast
-  rfl
+  ext j k
+  rw [Matrix.mul_apply, Fintype.sum_prod_type, sum_comm, Matrix.smul_apply, Matrix.sum_apply,
+    smul_eq_mul, mul_sum]
+  refine sum_congr rfl fun z _ => ?_
+  rw [Matrix.mul_apply, mul_sum]
+  refine sum_congr rfl fun i _ => ?_
+  simp only [D, conjTranspose_apply, regularIsometry_mul_sub_apply, star_mul',
+    Complex.star_def, Complex.conj_ofReal, ← regularScale_sq]
+  ring
 
 /-- **The averaging isometry intertwines approximately**, for any matrices `f(x)`:
 `E_y ‖(V f(y) - g(y) V) ψ‖² = E_{x,y} ‖(f(x) f(y) - f(xy)) ψ‖²`. -/
@@ -240,11 +232,10 @@ theorem expect_norm_sub_compress_sq_le (φ : AlgState (Matrix ι ι ℂ))
       𝔼 x, 𝔼 y, φ.norm (f x * f y - f (x * y)) ^ 2 := by
   rw [expect_comm]
   refine expect_le_expect fun y _ => ?_
-  have hdiff : f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f =
-      𝔼 x, (f x)ᴴ * (f x * f y - f (x * y)) := by
+  rw [show f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f =
+      𝔼 x, (f x)ᴴ * (f x * f y - f (x * y)) by
     simp only [regularIsometry_compress, Matrix.mul_sub, ← Matrix.mul_assoc, hf,
-      Matrix.one_mul, expect_sub_distrib, expect_const univ_nonempty]
-  rw [hdiff]
+      Matrix.one_mul, expect_sub_distrib, expect_const univ_nonempty]]
   exact φ.norm_expect_mul_sq_le _ fun x _ => by
     rw [star_eq_conjTranspose, conjTranspose_conjTranspose, mul_eq_one_comm.mp (hf x)]
 
@@ -257,9 +248,8 @@ theorem sum_vector_norm_sub_compress_le (hf : ∀ x, (f x)ᴴ * f x = 1) (ψ : E
         (f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f) ^ 2) / Fintype.card G ≤
       (∑ x, ∑ y, (AlgState.vector ψ hψ).norm (f x * f y - f (x * y)) ^ 2) /
         (Fintype.card G) ^ 2 := by
-  have h := expect_norm_sub_compress_sq_le f (AlgState.vector ψ hψ) hf
-  simp only [Fintype.expect_eq_sum_div_card, ← sum_div] at h
-  rwa [div_div, ← sq] at h
+  simpa only [Fintype.expect_eq_sum_div_card, ← sum_div, div_div, ← sq] using
+    expect_norm_sub_compress_sq_le f (AlgState.vector ψ hψ) hf
 
 /-- **Exact representations are recovered exactly**: if the unitaries `f(x)` multiply like `G`,
 then `Vᴴ g(y) V = f(y)` for every `y`. -/
