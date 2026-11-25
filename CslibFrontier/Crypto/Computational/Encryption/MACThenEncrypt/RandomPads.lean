@@ -558,10 +558,8 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
     split_ifs at hresult with hlenEq
     · obtain ⟨tag, _, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨r, hr, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
-      change r ∈ OracleComp.support
-        (ProbOracleComp.sample (BitString.sampleList p.1.1)) at hr
-      rw [ProbOracleComp.support_sample, BitString.eval_sampleList] at hr
-      have hrLen : r.length = p.1.1 := BitString.length_of_mem_support_uniformList hr
+      have hrLen : r.length = p.1.1 := BitString.length_of_mem_support_uniformList <| by
+        rwa [← BitString.eval_sampleList, ← ProbOracleComp.support_sample]
       obtain ⟨pad, hpad, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨rawPad, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hpad
       cases OracleComp.eq_of_mem_supportWith_pure hresult
