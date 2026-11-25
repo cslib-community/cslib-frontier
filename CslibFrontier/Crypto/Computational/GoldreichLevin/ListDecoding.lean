@@ -557,24 +557,19 @@ theorem prune_bad_samples_le_quarter (predictor : BitString n → Bool) {precisi
             γ ≤ |(empiricalHits predictor samples x : ℝ) / m - agreement predictor x|} ⊆
         ⋃ x ∈ C,
           {samples : Fin m → BitString n |
-            γ ≤ |(empiricalHits predictor samples x : ℝ) / m - agreement predictor x|} := by
-    intro samples hs
-    rcases hs with ⟨x, hx, hdev⟩
-    exact Set.mem_biUnion hx hdev
+            γ ≤ |(empiricalHits predictor samples x : ℝ) / m - agreement predictor x|} :=
+    fun _ ⟨_, hx, hdev⟩ => Set.mem_biUnion hx hdev
   have hexp_eq : -((m : ℝ) * γ ^ 2) / 2 = -((k + 3 : ℕ) : ℝ) := by
     dsimp [m, γ, k, pruneSampleCount]
     push_cast
     field_simp
     ring
   have hE_le : E ≤ 1 / (4 * (2 : ℝ) ^ k) := by
+    have hexp := exp_neg_nat_le_inv_two_pow (k + 3)
+    rw [show (2 : ℝ) ^ (k + 3) = 8 * 2 ^ k by ring] at hexp
     dsimp [E]
     rw [hexp_eq]
-    have hexp := exp_neg_nat_le_inv_two_pow (k + 3)
-    have hpow : (2 : ℝ) ^ (k + 3) = 8 * (2 : ℝ) ^ k := by ring
-    rw [hpow] at hexp
-    have hmul := mul_le_mul_of_nonneg_left hexp (by norm_num : (0 : ℝ) ≤ 2)
-    have hdiv : (2 : ℝ) * (1 / (8 * (2 : ℝ) ^ k)) = 1 / (4 * (2 : ℝ) ^ k) := by ring
-    linarith
+    linarith [show (2 : ℝ) * (1 / (8 * 2 ^ k)) = 1 / (4 * 2 ^ k) by ring]
   have hcard : (C.card : ℝ) ≤ (2 : ℝ) ^ k := by
     exact_mod_cast card_candidates_le predictor masks
   have hprod : (C.card : ℝ) * E ≤ 1 / 4 := by
@@ -582,27 +577,16 @@ theorem prune_bad_samples_le_quarter (predictor : BitString n → Bool) {precisi
       (C.card : ℝ) * E ≤ (2 : ℝ) ^ k * (1 / (4 * (2 : ℝ) ^ k)) := by gcongr
       _ = 1 / 4 := by field_simp
   calc
-    (PMF.uniformOfFintype (Fin m → BitString n)).toOuterMeasure
-        {samples |
-          ∃ x ∈ C,
-            γ ≤ |(empiricalHits predictor samples x : ℝ) / m - agreement predictor x|}
-      ≤ (PMF.uniformOfFintype (Fin m → BitString n)).toOuterMeasure
-          (⋃ x ∈ C,
-            {samples |
-              γ ≤ |(empiricalHits predictor samples x : ℝ) / m - agreement predictor x|}) :=
-        (PMF.uniformOfFintype (Fin m → BitString n)).toOuterMeasure.mono hsub
     _ ≤ ∑ x ∈ C,
           (PMF.uniformOfFintype (Fin m → BitString n)).toOuterMeasure
             {samples |
               γ ≤ |(empiricalHits predictor samples x : ℝ) / m - agreement predictor x|} :=
-        MeasureTheory.measure_biUnion_finset_le C _
-    _ ≤ ∑ _x ∈ C, ENNReal.ofReal E := by
-        refine Finset.sum_le_sum fun x _ => ?_
-        exact empiricalHits_div_sub_agreement_ge_le predictor x hγ
-    _ = (C.card : ℝ≥0∞) * ENNReal.ofReal E := by
-        rw [Finset.sum_const, nsmul_eq_mul]
+        (MeasureTheory.measure_mono hsub).trans (MeasureTheory.measure_biUnion_finset_le C _)
+    _ ≤ ∑ _x ∈ C, ENNReal.ofReal E :=
+        Finset.sum_le_sum fun x _ => empiricalHits_div_sub_agreement_ge_le predictor x hγ
     _ = ENNReal.ofReal ((C.card : ℝ) * E) := by
-        rw [ENNReal.ofReal_mul (Nat.cast_nonneg C.card), ENNReal.ofReal_natCast]
+        rw [Finset.sum_const, nsmul_eq_mul, ENNReal.ofReal_mul (Nat.cast_nonneg C.card),
+          ENNReal.ofReal_natCast]
     _ ≤ ENNReal.ofReal (1 / 4) := ENNReal.ofReal_le_ofReal hprod
     _ = (1 / 4 : ℝ≥0∞) := by simp
 
@@ -701,9 +685,8 @@ theorem prunedCandidates_good_of_accurate (predictor : BitString n → Bool) {pr
     have hsub :
         prunedCandidates predictor (2 * precision + 3) (4 * precision) masks samples ⊆
           Finset.univ.filter (fun x : BitString n =>
-            1 / 2 + 1 / (2 * (precision : ℝ)) ≤ agreement predictor x) := by
-      intro x hx
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ x, h2 x hx⟩
+            1 / 2 + 1 / (2 * (precision : ℝ)) ≤ agreement predictor x) :=
+      fun x hx => Finset.mem_filter.mpr ⟨Finset.mem_univ x, h2 x hx⟩
     exact (Finset.card_le_card hsub).trans (card_filter_agreement_ge_half_inv_le predictor hprec)
   exact ⟨h1, h2, h3⟩
 
@@ -734,8 +717,7 @@ theorem decodePruned_simultaneous_failure_le_half (predictor : BitString n → B
   have hmasks_fail :
       (PMF.uniformOfFintype (Fin k → BitString n)).toOuterMeasure GoodMasksᶜ ≤ (1 / 4 : ℝ≥0∞) := by
     have h := decode_listMaskCount_simultaneous_failure_le_quarter predictor hprec
-    rw [decode, PMF.toOuterMeasure_map_apply] at h
-    exact h
+    rwa [decode, PMF.toOuterMeasure_map_apply] at h
   have hstep :
       ∀ masks ∈ (PMF.uniformOfFintype (Fin k → BitString n)).support,
         masks ∈ GoodMasks →
@@ -753,10 +735,8 @@ theorem decodePruned_simultaneous_failure_le_half (predictor : BitString n → B
     have hacc :
         ∀ x ∈ candidates predictor masks,
           |(empiricalHits predictor samples x : ℝ) / pruneSampleCount n precision -
-            agreement predictor x| < 1 / (4 * (precision : ℝ)) := by
-      intro x hx
-      by_contra hge
-      exact hgood ⟨x, hx, not_lt.mp hge⟩
+            agreement predictor x| < 1 / (4 * (precision : ℝ)) :=
+      fun x hx => not_le.mp fun hge => hgood ⟨x, hx, hge⟩
     exact hbad (prunedCandidates_good_of_accurate predictor hprec masks samples hmasks hacc)
   have hbind :=
     Probability.PMF.toOuterMeasure_bind_failure_le
@@ -769,12 +749,7 @@ theorem decodePruned_simultaneous_failure_le_half (predictor : BitString n → B
     have h : ENNReal.ofReal (1 / 4 + 1 / 4) = ENNReal.ofReal (1 / 2) := by norm_num
     rw [ENNReal.ofReal_add (by norm_num) (by norm_num)] at h
     simpa using h
-  calc
-    (decodePruned predictor k m (2 * precision + 3) (4 * precision)).toOuterMeasure GoodListᶜ
-      ≤ (PMF.uniformOfFintype (Fin k → BitString n)).toOuterMeasure GoodMasksᶜ + (1 / 4 : ℝ≥0∞) :=
-        hbind
-    _ ≤ (1 / 4 : ℝ≥0∞) + (1 / 4 : ℝ≥0∞) := by gcongr
-    _ = (1 / 2 : ℝ≥0∞) := hhalf
+  exact hbind.trans ((add_le_add hmasks_fail le_rfl).trans_eq hhalf)
 
 /-- **Pruned simultaneous list-decoding success bound (`ℝ≥0∞`)**: for `0 < precision`,
 `decodePruned` succeeds with probability at least `1 / 2` in returning a list that:
