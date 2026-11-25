@@ -212,6 +212,12 @@ private theorem rebScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ 
         rw [heq, hr1_idx]; dsimp only [fs1, cur, rIdx]; rw [hadd]
 
 
+/-- Slice indices `3 * b' + r'` and `3 * b + r` with roles `< 3` differ unless the buckets and the
+roles both agree. -/
+private theorem sliceIdx_ne {b b' r r' : ℕ} (hr' : r' < 3) (hr : r < 3)
+    (hne : b' = b → r' ≠ r) : 3 * b' + r' ≠ 3 * b + r := fun heq =>
+  hne (sliceIdx_inj hr' hr heq).1 (sliceIdx_inj hr' hr heq).2
+
 /-- Stage-2 tick scans 16 coordinates under `rebCandSalt` and swaps collision-free slices. -/
 theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {dict : State U}
@@ -243,16 +249,10 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       fs.rebRole b ≠ fs.overmarsRole b := by
     dsimp only [FastState.rebRole]; omega
   set rIdx := fs.rebSliceIdx b
-  have hne_live_r : ∀ b' < numBucketsWhp n_max, fs.liveSliceIdx b' ≠ rIdx := by
-    intro b' hb'; dsimp only [FastState.liveSliceIdx, rIdx, FastState.rebSliceIdx]
-    by_cases hbb : b' = b
-    · subst hbb; omega
-    · intro heq; exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hrr_b.1 heq).1
-  have hne_om_r : ∀ b' < numBucketsWhp n_max, fs.overmarsSliceIdx b' ≠ rIdx := by
-    intro b' hb'; dsimp only [FastState.overmarsSliceIdx, rIdx, FastState.rebSliceIdx]
-    by_cases hbb : b' = b
-    · subst hbb; omega
-    · intro heq; exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hrr_b.1 heq).1
+  have hne_live_r : ∀ b' < numBucketsWhp n_max, fs.liveSliceIdx b' ≠ rIdx := fun b' hb' =>
+    sliceIdx_ne (hc.roles_valid b' hb').1 hrr_b.1 fun h => h ▸ hrr_b.2.1.symm
+  have hne_om_r : ∀ b' < numBucketsWhp n_max, fs.overmarsSliceIdx b' ≠ rIdx := fun b' hb' =>
+    sliceIdx_ne (hc.roles_valid b' hb').2.1 hrr_b.1 fun h => h ▸ hrr_b.2.2.symm
   by_cases hcs_lt : fs.rebCandSalt < sMaxWhp c n_max
   · rw [ite_eq_left hcs_lt]
     obtain ⟨hcur_r, hinj_r, rm0, hvr0, hrr0⟩ := hreb hcs_lt
@@ -267,20 +267,13 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       rw [hscan_c]
       dsimp only
       rw [ite_eq_left (by decide)]
+      have hreset_ne : ∀ i ≠ rIdx, Function.update (Function.update fs.slices rIdx sl_c) rIdx
+          (resetBTreeSlice (Function.update fs.slices rIdx sl_c rIdx)) i = fs.slices i :=
+        fun i hi => by rw [Function.update_idem]; exact Function.update_of_ne hi _ _
       refine step_of_inLiveTree_eq hc hom rfl hc.epochClock_lt
         hc.rebStage_le rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-        (fun b' hb' => by
-          change Function.update (Function.update fs.slices rIdx sl_c) rIdx
-            (resetBTreeSlice (Function.update fs.slices rIdx sl_c rIdx))
-            (fs.liveSliceIdx b') = fs.slices (fs.liveSliceIdx b')
-          rw [Function.update_idem]
-          exact Function.update_of_ne (hne_live_r b' hb') _ _)
-        (fun b' hb' => by
-          change Function.update (Function.update fs.slices rIdx sl_c) rIdx
-            (resetBTreeSlice (Function.update fs.slices rIdx sl_c rIdx))
-            (fs.overmarsSliceIdx b') = fs.slices (fs.overmarsSliceIdx b')
-          rw [Function.update_idem]
-          exact Function.update_of_ne (hne_om_r b' hb') _ _)
+        (fun b' hb' => hreset_ne _ (hne_live_r b' hb'))
+        (fun b' hb' => hreset_ne _ (hne_om_r b' hb'))
         (fun _ _ _ _ => rfl)
         (by dsimp only [FastState.oldEp]; rw [ite_eq_left (by omega : fs.rebStage ≤ 3)]; exact hbo)
         ?_ rfl
@@ -324,6 +317,20 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         have hinL_sw_b : ∀ st, (inLiveTree 2 fs.oldEp 1 st = true) ↔
             (st = 1 ∨ st = 2 + fs.oldEp) := by
           intro st; simp [inLiveTree]
+        have hst_sw : fsSw.rebStage = 2 := hs2
+        have hold_sw : fsSw.oldEp = fs.oldEp := rfl
+        have hls_sw : fsSw.locState = fs.locState := rfl
+        have hfp_sw : ∀ s, fsSw.fpAt c U n_max θ s = fs.fpAt c U n_max θ s :=
+          fun s => by funext b0; exact fpAt_eq_of_fields rfl rfl s b0
+        have hsw_b : fsSw.rebDoneFlag b = 1 ∧ fsSw.bktSalt b = fs.rebCandSalt ∧
+            fsSw.liveInsCount b = ins' := by
+          dsimp only [fsSw, epochTickStage2Swap, fsScan]; simp
+        have hsw_o : ∀ b' ≠ b, fsSw.rebDoneFlag b' = fs.rebDoneFlag b' ∧
+            fsSw.bktSalt b' = fs.bktSalt b' ∧ fsSw.liveInsCount b' = fs.liveInsCount b' :=
+          fun b' hbb => by
+            dsimp only [fsSw, epochTickStage2Swap, fsScan]
+            exact ⟨Function.update_of_ne hbb _ _, Function.update_of_ne hbb _ _,
+              Function.update_of_ne hbb _ _⟩
         have hSw_core : CoreFastInv c U V n_max θ fsSw dict :=
           { hth := hc.hth
             curEp_or := hc.curEp_or
@@ -359,75 +366,33 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
               · subst hbb; simp [hcs_lt]
               · simp [hbb, hc.bktSalt_lt b' hb']
             live_fp_inj := fun b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq => by
-              have hst_eq : fsSw.rebStage = 2 := hs2
-              have hold_eq : fsSw.oldEp = fs.oldEp := rfl
-              have hls_eq : fsSw.locState = fs.locState := rfl
-              have hfp_eq : ∀ s, fsSw.fpAt c U n_max θ s = fs.fpAt c U n_max θ s :=
-                fun s => by funext b0; exact fpAt_eq_of_fields rfl rfl s b0
-              rw [hst_eq, hold_eq, hls_eq] at hin₁ hin₂
-              rw [hfp_eq] at hfeq
+              rw [hst_sw, hold_sw, hls_sw] at hin₁ hin₂
+              rw [hfp_sw] at hfeq
               by_cases hbb : b' = b
               · subst hbb
-                have hdf1 : fsSw.rebDoneFlag b = 1 := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]; simp
-                have hbs_b : fsSw.bktSalt b = fs.rebCandSalt := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]; simp
-                rw [hdf1] at hin₁ hin₂
-                rw [hbs_b] at hfeq
+                rw [hsw_b.1] at hin₁ hin₂
+                rw [hsw_b.2.1] at hfeq
                 exact hinj' l₁ hl₁ l₂ hl₂ ((hinL_sw_b _).mp hin₁) ((hinL_sw_b _).mp hin₂) hfeq
-              · have hdf_o : fsSw.rebDoneFlag b' = fs.rebDoneFlag b' := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]
-                  exact Function.update_of_ne hbb _ _
-                have hbs_o : fsSw.bktSalt b' = fs.bktSalt b' := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]
-                  exact Function.update_of_ne hbb _ _
-                rw [hdf_o, ← hs2] at hin₁ hin₂; rw [hbs_o] at hfeq
+              · rw [(hsw_o b' hbb).1, ← hs2] at hin₁ hin₂; rw [(hsw_o b' hbb).2.1] at hfeq
                 exact hc.live_fp_inj b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq
             live_valid := fun b' hb' => by
-              have hst_eq : fsSw.rebStage = 2 := hs2
-              have hold_eq : fsSw.oldEp = fs.oldEp := rfl
-              have hls_eq : fsSw.locState = fs.locState := rfl
               have hbkt_eq : fsSw.bktCount = fs.bktCount := rfl
-              have hfp_eq : ∀ s, fsSw.fpAt c U n_max θ s = fs.fpAt c U n_max θ s :=
-                fun s => by funext b0; exact fpAt_eq_of_fields rfl rfl s b0
-              rw [hst_eq, hold_eq, hls_eq, hbkt_eq, hfp_eq]
+              rw [hst_sw, hold_sw, hls_sw, hbkt_eq, hfp_sw]
               by_cases hbb : b' = b
               · subst hbb
-                have hdf1 : fsSw.rebDoneFlag b = 1 := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]; simp
-                have hbs_b : fsSw.bktSalt b = fs.rebCandSalt := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]; simp
-                have hlic_b : fsSw.liveInsCount b = ins' := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]; simp
                 have hl_idx : fsSw.liveSliceIdx b = rIdx := by
                   change 3 * b + Function.update fs.liveRole b (fs.rebRole b) b =
                     3 * b + fs.rebRole b
                   rw [Function.update_self]
                 have hsl_b : fsSw.slices (fsSw.liveSliceIdx b) = sl' := by
                   rw [hl_idx]
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]
-                  have hro_ne : rIdx ≠ fs.overmarsSliceIdx b := (hne_om_r b hb).symm
                   change Function.update (Function.update fs.slices rIdx sl')
                     (fs.overmarsSliceIdx b) _ rIdx = sl'
-                  rw [Function.update_of_ne hro_ne, Function.update_self]
-                rw [hdf1, hbs_b, hlic_b, hsl_b]
+                  rw [Function.update_of_ne (hne_om_r b hb).symm, Function.update_self]
+                rw [hsw_b.1, hsw_b.2.1, hsw_b.2.2, hsl_b]
                 exact ⟨rm', hv', hrr'.congr (fun _ _ => rfl)
                   (fun loc _ => hinL_sw_b (fs.locState b loc))⟩
-              · obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b' hb'
-                have hdf_o : fsSw.rebDoneFlag b' = fs.rebDoneFlag b' := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]
-                  exact Function.update_of_ne hbb _ _
-                have hbs_o : fsSw.bktSalt b' = fs.bktSalt b' := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]
-                  exact Function.update_of_ne hbb _ _
-                have hlic_o : fsSw.liveInsCount b' = fs.liveInsCount b' := by
-                  dsimp only [fsSw, epochTickStage2Swap, fsScan]
-                  exact Function.update_of_ne hbb _ _
-                have hne_om_b : fs.liveSliceIdx b' ≠ fs.overmarsSliceIdx b := by
-                  dsimp only [FastState.liveSliceIdx, FastState.overmarsSliceIdx]
-                  intro heq
-                  exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_b heq).1
-                have hl_idx : fsSw.liveSliceIdx b' = fs.liveSliceIdx b' := by
+              · have hl_idx : fsSw.liveSliceIdx b' = fs.liveSliceIdx b' := by
                   dsimp only [fsSw, epochTickStage2Swap, fsScan, FastState.liveSliceIdx]
                   rw [Function.update_of_ne hbb]
                 have hsl_o :
@@ -435,9 +400,12 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
                   rw [hl_idx]
                   change Function.update (Function.update fs.slices rIdx sl')
                     (fs.overmarsSliceIdx b) _ (fs.liveSliceIdx b') = _
+                  have hne_om_b : fs.liveSliceIdx b' ≠ fs.overmarsSliceIdx b :=
+                    sliceIdx_ne (hc.roles_valid b' hb').1 hor_b fun h => absurd h hbb
                   rw [Function.update_of_ne hne_om_b, Function.update_of_ne (hne_live_r b' hb')]
+                obtain ⟨hdf_o, hbs_o, hlic_o⟩ := hsw_o b' hbb
                 rw [hdf_o, hbs_o, hlic_o, hsl_o, ← hs2]
-                exact ⟨lm, hvl, hrl⟩
+                exact hc.live_valid b' hb'
             rKey_buf_inj := hc.rKey_buf_inj
             bufCur_valid := hc.bufCur_valid
             bufOld_valid := by
@@ -451,10 +419,8 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             left
             dsimp only [fsSw, epochTickStage2Swap, fsScan]
             simp [hins'_lt5]
-          · have hne_om2 : fs.overmarsSliceIdx b' ≠ fs.overmarsSliceIdx b := by
-              dsimp only [FastState.overmarsSliceIdx]
-              intro heq
-              exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_b heq).1
+          · have hne_om2 : fs.overmarsSliceIdx b' ≠ fs.overmarsSliceIdx b :=
+              sliceIdx_ne (hc.roles_valid b' hb').2.1 hor_b fun h => absurd h hbb
             have hu_ne : ∀ (f : ℕ → ℕ) v, Function.update f b v b' = f b' :=
               fun _ _ => Function.update_of_ne hbb _ _
             refine (hom b' hb').of_eq_on
@@ -488,9 +454,6 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             (show 3 ≤ 5 by decide) rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
             rfl rfl rfl (fun _ _ => rfl) (fun _ _ => rfl)
             (fun b' hb' loc hloc => by
-              have hst_sw : fsSw.rebStage = 2 := hs2
-              have hold_sw : fsSw.oldEp = fs.oldEp := rfl
-              have hls_sw : fsSw.locState = fs.locState := rfl
               change inLiveTree 3 fsSw.oldEp (fsSw.rebDoneFlag b') (fsSw.locState b' loc) =
                 inLiveTree fsSw.rebStage fsSw.oldEp (fsSw.rebDoneFlag b') (fsSw.locState b' loc)
               rw [hst_sw, hold_sw, hls_sw]
@@ -517,16 +480,12 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           have hrr_n : fsSw.rebRole bNext < 3 ∧ fsSw.rebRole bNext ≠ fsSw.liveRole bNext ∧
               fsSw.rebRole bNext ≠ fsSw.overmarsRole bNext := by
             dsimp only [FastState.rebRole]; omega
-          have hne_live_n : ∀ b' < numBucketsWhp n_max, fsSw.liveSliceIdx b' ≠ rIdxNext := by
-            intro b' hb'; dsimp only [FastState.liveSliceIdx, rIdxNext, FastState.rebSliceIdx]
-            by_cases hbb : b' = bNext
-            · subst hbb; omega
-            · intro heq; exact hbb (sliceIdx_inj (hSw_core.roles_valid b' hb').1 hrr_n.1 heq).1
-          have hne_om_n : ∀ b' < numBucketsWhp n_max, fsSw.overmarsSliceIdx b' ≠ rIdxNext := by
-            intro b' hb'; dsimp only [FastState.overmarsSliceIdx, rIdxNext, FastState.rebSliceIdx]
-            by_cases hbb : b' = bNext
-            · subst hbb; omega
-            · intro heq; exact hbb (sliceIdx_inj (hSw_core.roles_valid b' hb').2.1 hrr_n.1 heq).1
+          have hne_live_n : ∀ b' < numBucketsWhp n_max, fsSw.liveSliceIdx b' ≠ rIdxNext :=
+            fun b' hb' => sliceIdx_ne (hSw_core.roles_valid b' hb').1 hrr_n.1
+              fun h => h ▸ hrr_n.2.1.symm
+          have hne_om_n : ∀ b' < numBucketsWhp n_max, fsSw.overmarsSliceIdx b' ≠ rIdxNext :=
+            fun b' hb' => sliceIdx_ne (hSw_core.roles_valid b' hb').2.1 hrr_n.1
+              fun h => h ▸ hrr_n.2.2.symm
           refine step_of_inLiveTree_eq hSw_core hSw_om rfl hc.epochClock_lt
             hc.rebStage_le rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
             (fun b' hb' => Function.update_of_ne (hne_live_n b' hb') _ _)

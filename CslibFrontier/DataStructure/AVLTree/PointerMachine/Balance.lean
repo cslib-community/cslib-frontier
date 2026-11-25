@@ -124,10 +124,8 @@ private theorem inChild_correct (right : Bool)
     refine ⟨1, .single ?_, rfl, rfl⟩
     cases right <;>
       simp [step, pc, Instr.effect, Instr.next, State.deref, cursor, lookup, record, hroot]
-  obtain ⟨nl, c, d, rfl⟩ : ∃ nl c d, new = .node nl c d := by
-    cases new with
-    | nil => exact (nonempty rfl).elim
-    | node nl c d => exact ⟨nl, c, d, rfl⟩
+  obtain _ | ⟨nl, c, d⟩ := new
+  · exact (nonempty rfl).elim
   have saved : t.ptr 6 = some o := by simpa [State.setPtr] using built.saved
   have read : ({ t with pc := 0 } : State M (layout extra (regs + 1))).deref 0 =
       some (record (root c) (root d) (some label.address) nl) := by
@@ -187,9 +185,8 @@ private theorem rotate_effect {s t : State M (layout extra (regs + 1))} {right :
     simp only [addresses, BinaryTree.map, SearchTree.elements,
       Finset.mem_insert, Finset.mem_union, not_or] at hz
     refine frame z hz.2.1.1 hz.1 fun eq => ?_
-    cases right
-    · exact hz.2.1.2.2 (root_mem_addresses eq)
-    · exact hz.2.1.2.1 (root_mem_addresses eq)⟩, size, data⟩
+    cases right; exacts [hz.2.1.2.2 (root_mem_addresses eq), hz.2.1.2.1 (root_mem_addresses eq)]⟩,
+    size, data⟩
 
 private theorem rotate_correct (right : Bool) {zero maxSucc : M.Op} {encode : ℕ → M.Value}
     (zero_spec : ∀ a b, M.evalOp zero a b = encode 0)
@@ -300,9 +297,7 @@ private theorem doubleRotate_correct (right : Bool) (zero maxSucc : M.Op) (encod
     s u label _ mid sibling parent child.address 39 _ rep distinct cursor pc (root_nodeAt ..)
     run' eff midNe
   have hcMid : (rotateAt (!right) (child.data 0) N O).HeightConsistent := by
-    cases right
-    · exact heightConsistent_rotateLeft ho hn
-    · exact heightConsistent_rotateRight hn ho
+    cases right; exacts [heightConsistent_rotateLeft ho hn, heightConsistent_rotateRight hn ho]
   obtain ⟨t, tree, outerRun, outer⟩ := rotate_correct right zero_spec max_spec notKey
     (s := { v with pc := 0 }) rv dv eff.matched ms hcMid hs rotNe cv rfl
   refine ⟨_, tree, innerRun.sequence outerRun,
@@ -311,8 +306,7 @@ private theorem doubleRotate_correct (right : Bool) (zero maxSucc : M.Op) (encod
       outer.size.trans (size.trans eff.size), fun i hi hj => ?_⟩⟩
   · rw [outer.footprint, nodeAt_addresses, nodeAt_addresses, eff.footprint]
   · rw [outer.frame z (by rwa [nodeAt_addresses, eff.footprint, ← nodeAt_addresses]), frame z hz]
-  · rw [outer.data i hi hj]
-    exact data ▸ eff.data i hi hj
+  · exact (outer.data i hi hj).trans (data ▸ eff.data i hi hj)
 
 /-- Handle a heavy child: compare its two child heights and perform a single or double
 rotation. `side = true` selects the left-heavy case and its final right rotation. -/

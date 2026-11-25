@@ -125,8 +125,8 @@ theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
       by_cases hn_lt : n < N₀
       · exact (hk_hi.trans (Nat.logStar_mono hn_lt.le)).trans
           ((Nat.le_succ _).trans (_root_.le_max_right _ _))
-      · have hn_ge : N₀ ≤ n := Nat.not_lt.mp hn_lt
-        exact (Nat.lt_of_not_ge fun hge => hbig ⟨hn_ge, hge⟩).le.trans (_root_.le_max_left _ _)
+      · exact (Nat.lt_of_not_ge fun hge => hbig ⟨Nat.not_lt.mp hn_lt, hge⟩).le.trans
+          (_root_.le_max_left _ _)
     clear hs_off hK_cap hN₀
     exact (mul_le_linear_of_le_half (Nat.cast_nonneg n) (Nat.cast_nonneg k) hc1
       (by exact_mod_cast hK_pos) (by exact_mod_cast hk_le_K)).trans
@@ -165,10 +165,9 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
   have hM_fan : ((2 ^ 64 : ℕ) : ℝ) ≤ (γ / 2) * (M_exp : ℝ) := by
     have h1 : 2 * ((2 ^ 64 : ℕ) : ℝ) / γ ≤ (M_exp : ℝ) :=
       (Nat.le_ceil _).trans (by rw [← hM_exp]; exact_mod_cast _root_.le_max_left _ _)
-    calc ((2 ^ 64 : ℕ) : ℝ)
-        = (2 * ((2 ^ 64 : ℕ) : ℝ) / γ) * (γ / 2) := by have : γ ≠ 0 := hγ.ne'; field_simp
-      _ ≤ (M_exp : ℝ) * (γ / 2) := mul_le_mul_of_nonneg_right h1 (by positivity)
-      _ = (γ / 2) * (M_exp : ℝ) := mul_comm _ _
+    rw [div_le_iff₀ hγ] at h1
+    generalize ((2 ^ 64 : ℕ) : ℝ) = A at h1 ⊢
+    linarith
   have hM11 : 11 / γ ≤ (M_exp : ℝ) :=
     (Nat.le_ceil _).trans (by rw [← hM_exp]; exact_mod_cast _root_.le_max_right _ _)
   clear hM_exp
@@ -241,9 +240,7 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
         Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one,
         Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hl
       have hlogn : Real.logb 2 n ≤ (2 / γ) * (3 + 64 * (H : ℝ)) := by
-        have hd : Real.logb 2 n ≤ (3 + 64 * (H : ℝ)) / (γ / 2) :=
-          (le_div_iff₀ (by positivity : 0 < γ / 2)).mpr (by linarith)
-        exact hd.trans_eq (by field_simp)
+        rw [div_mul_eq_mul_div, le_div_iff₀ hγ]; linarith
       exact (Real.logb_le_logb_of_le (by norm_num) (by positivity)
         (div_le_self hn_pos.le hR1_ge)).trans hlogn
   have hnU : n ≤ U := Nat.le_trans (Nat.le_mul_of_pos_left n (by decide)) hU

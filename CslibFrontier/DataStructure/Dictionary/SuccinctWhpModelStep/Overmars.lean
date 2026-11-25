@@ -169,18 +169,15 @@ private theorem overmarsScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c
           ?_, ?_⟩
         · dsimp only [fs1, FastState.overmarsSliceIdx, omIdx]
           simpa only [Function.update_self] using hins1.2
-        · rw [fpAt_eq_of_fields (fs₁ := fs1) (fs₂ := fs) rfl rfl]
-          have hold_eq : fs1.oldEp = fs.oldEp := rfl
-          rw [hold_eq]
+        · rw [fpAt_eq_of_fields (fs₁ := fs1) (fs₂ := fs) rfl rfl,
+            show fs1.oldEp = fs.oldEp from rfl]
           dsimp only [fs1]
           simpa only [Function.update_self, hmin1] using hrel1
       obtain ⟨sl', cur', ins', omMap', heq', hcur', hins', hv', hrel'⟩ :=
         ih fs1 hcnt_le hinj
           (by dsimp only [fs1]; rw [Function.update_self]; omega) hfs1_om
-      have hfp1 : fs1.fpAt c U n_max θ (fs1.bktSalt b) b =
-          fs.fpAt c U n_max θ (fs.bktSalt b) b := fpAt_eq_of_fields rfl rfl _ _
-      have hold1 : fs1.oldEp = fs.oldEp := rfl
-      rw [hfp1, hold1] at hrel'
+      rw [fpAt_eq_of_fields (fs₁ := fs1) (fs₂ := fs) rfl rfl,
+        show fs1.oldEp = fs.oldEp from rfl] at hrel'
       dsimp only [fs1, FastState.overmarsSliceIdx] at heq' hcur' hins' hrel'
       rw [Function.update_self] at hcur' hins'
       refine ⟨sl', cur', ins', omMap', ?_, by omega, by omega, hv', hrel'⟩
@@ -211,17 +208,14 @@ private theorem overmarsScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c
               inLiveTree fs1.rebStage fs1.oldEp (fs1.rebDoneFlag b) (fs1.locState b loc) = true)
             (min (fs1.bktCount b) (fs1.overmarsCursor b)) omMap1 := by
         refine ⟨omMap, hv, ?_⟩
-        rw [fpAt_eq_of_fields (fs₁ := fs1) (fs₂ := fs) rfl rfl]
-        have hold_eq : fs1.oldEp = fs.oldEp := rfl
-        rw [hold_eq]
+        rw [fpAt_eq_of_fields (fs₁ := fs1) (fs₂ := fs) rfl rfl,
+          show fs1.oldEp = fs.oldEp from rfl]
         dsimp only [fs1]
         simpa only [Function.update_self] using hrel1
       obtain ⟨sl', cur', ins', omMap', heq', hcur', hins', hv', hrel'⟩ :=
         ih fs1 hcnt_le hinj (by dsimp only [fs1]; omega) hfs1_om
-      have hfp1 : fs1.fpAt c U n_max θ (fs1.bktSalt b) b =
-          fs.fpAt c U n_max θ (fs.bktSalt b) b := fpAt_eq_of_fields rfl rfl _ _
-      have hold1 : fs1.oldEp = fs.oldEp := rfl
-      rw [hfp1, hold1] at hrel'
+      rw [fpAt_eq_of_fields (fs₁ := fs1) (fs₂ := fs) rfl rfl,
+        show fs1.oldEp = fs.oldEp from rfl] at hrel'
       dsimp only [fs1, FastState.overmarsSliceIdx] at heq' hcur' hins' hrel'
       rw [Function.update_self] at hcur'
       refine ⟨sl', cur', ins', omMap', ?_, by omega, by omega, hv', hrel'⟩
@@ -286,6 +280,13 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
     · intro heq
       have hrr : 3 - fs.liveRole b' - fs.overmarsRole b' < 3 := by omega
       exact hbb (sliceIdx_inj hor_lt hrr heq).1.symm
+  have hne_other : ∀ b' < numBucketsWhp n_max, b' ≠ b →
+      3 * b' + fs.liveRole b' ≠ fs.overmarsSliceIdx b ∧
+        3 * b' + fs.overmarsRole b' ≠ 3 * b + fs.overmarsRole b := by
+    intro b' hb' hbb
+    dsimp only [FastState.overmarsSliceIdx]
+    exact ⟨fun heq => hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1,
+      fun heq => hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1⟩
   by_cases hdone : fs1.bktCount b ≤ fs1.overmarsCursor b
   · rw [ite_eq_left hdone]
     dsimp only [fs1] at hdone
@@ -330,12 +331,8 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
             exact hv1
           · obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b' hb'
             refine ⟨lm, ?_, hrl⟩
-            have hne_s : 3 * b' + fs.liveRole b' ≠ fs.overmarsSliceIdx b := by
-              dsimp only [FastState.overmarsSliceIdx]
-              intro heq
-              exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1
             dsimp only [FastState.liveSliceIdx, fsSwap, fs1]
-            simp only [Function.update_of_ne hbb, Function.update_of_ne hne_s]
+            simp only [Function.update_of_ne hbb, Function.update_of_ne (hne_other b' hb' hbb).1]
             exact hvl }
     · intro b' hb'
       by_cases hbb : b' = b
@@ -344,19 +341,9 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
         dsimp only [fsSwap, fs1]
         simp only [Function.update_self]
         exact ⟨trivial, hins_lt5⟩
-      · have hne_om : 3 * b' + fs.overmarsRole b' ≠ fs.overmarsSliceIdx b := by
-          dsimp only [FastState.overmarsSliceIdx]
-          intro heq
-          exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1
-        refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
-          rfl ?_ ?_ ?_ ?_ ?_
-        · dsimp only [fsSwap, fs1]; exact Function.update_of_ne hbb _ _
-        · dsimp only [fsSwap, fs1]; simp only [Function.update_of_ne hbb]
-        · dsimp only [fsSwap, fs1]; simp only [Function.update_of_ne hbb]
-        · dsimp only [fsSwap, fs1]; simp only [Function.update_of_ne hbb]
-        · dsimp only [FastState.overmarsSliceIdx, fsSwap, fs1] at hne_om ⊢
-          simp only [Function.update_of_ne hbb]
-          exact Function.update_of_ne hne_om _ _
+      · refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
+          rfl ?_ ?_ ?_ ?_ ?_ <;> dsimp only [FastState.overmarsSliceIdx, fsSwap, fs1] <;>
+          simp only [Function.update_of_ne hbb, Function.update_of_ne (hne_other b' hb' hbb).2]
   · rw [ite_eq_right hdone]
     dsimp only [fs1] at hdone
     rw [Function.update_self] at hdone
@@ -380,9 +367,7 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
           have hne_s : fs.liveSliceIdx b' ≠ fs.overmarsSliceIdx b := by
             by_cases hbb : b' = b
             · subst hbb; exact hne_lo.symm
-            · dsimp only [FastState.liveSliceIdx, FastState.overmarsSliceIdx]
-              intro heq
-              exact hbb (sliceIdx_inj (hc.roles_valid b' hb').1 hor_lt heq).1
+            · exact (hne_other b' hb' hbb).1
           dsimp only [fs1, FastState.liveSliceIdx] at hne_s ⊢
           rwa [Function.update_of_ne hne_s] }
     · intro b' hb'
@@ -392,17 +377,9 @@ private theorem overmarsStep_post_scan {c U V n_max b cur1 ins1 : ℕ}
         dsimp only [fs1, FastState.overmarsSliceIdx]
         simp only [Function.update_self]
         exact ⟨trivial, h16_cur, hcur_lt_b, hlin_cur, hins_cur, omMap1, hv1, hrel1⟩
-      · have hne_om : 3 * b' + fs.overmarsRole b' ≠ fs.overmarsSliceIdx b := by
-          dsimp only [FastState.overmarsSliceIdx]
-          intro heq
-          exact hbb (sliceIdx_inj (hc.roles_valid b' hb').2.1 hor_lt heq).1
-        refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
-          rfl rfl ?_ ?_ ?_ ?_
-        · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-        · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-        · dsimp only [fs1]; exact Function.update_of_ne hbb _ _
-        · dsimp only [FastState.overmarsSliceIdx, fs1]
-          exact Function.update_of_ne hne_om _ _
+      · refine (hom_other b' hb' hbb).of_eq_on (fpAt_eq_of_fields rfl rfl _ _) rfl rfl rfl rfl
+          rfl rfl ?_ ?_ ?_ ?_ <;> dsimp only [FastState.overmarsSliceIdx, fs1] <;>
+          simp only [Function.update_of_ne hbb, Function.update_of_ne (hne_other b' hb' hbb).2]
 
 /-- `overmarsStep` on bucket `b < numBucketsWhp n_max` restores `OvermarsBucketInv` on `b` while
 preserving `CoreFastInv`, `OvermarsBucketInv` on all `b' ≠ b`, `ValidEpochStage`, and

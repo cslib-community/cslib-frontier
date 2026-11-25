@@ -45,15 +45,37 @@ theorem lt_of_lt_update_le {cnt : ℕ → ℕ} {b k b' loc : ℕ} (hk : k ≤ cn
   · subst hbb; rw [Function.update_self] at h; omega
   · rwa [Function.update_of_ne hbb] at h
 
+private theorem ite_update_apply_of_ne {α β : Type*} [DecidableEq α] {P : Prop} [Decidable P]
+    {m : α → β} {k₀ k : α} {x : β} (h : P → k ≠ k₀) :
+    (if P then Function.update m k₀ x else m) k = m k := by
+  split_ifs with hp
+  · exact Function.update_of_ne (h hp) _ _
+  · rfl
+
 private theorem option_ite_update_none_eq_some {α β : Type*} [DecidableEq α]
     {P : Prop} [Decidable P] {m : α → Option β} {k₀ k : α} {v : β}
     (h : (if P then Function.update m k₀ none else m) k = some v) :
     m k = some v ∧ ¬(P ∧ k = k₀) := by
-  split_ifs at h with hp
-  · by_cases hk : k = k₀
-    · rw [hk, Function.update_self] at h; cases h
-    · rw [Function.update_of_ne hk] at h; exact ⟨h, fun ⟨_, heq⟩ => hk heq⟩
-  · exact ⟨h, fun ⟨hp', _⟩ => hp hp'⟩
+  by_cases hp : P ∧ k = k₀
+  · obtain ⟨hp, rfl⟩ := hp
+    rw [ite_eq_left hp, Function.update_self] at h; cases h
+  · exact ⟨(ite_update_apply_of_ne fun hp' hk => hp ⟨hp', hk⟩).symm.trans h, hp⟩
+
+private theorem option_ite_update_some_eq_some {α β : Type*} [DecidableEq α]
+    {P : Prop} [Decidable P] {m : α → Option β} {k₀ k : α} {v₀ v : β}
+    (h : (if P then Function.update m k₀ (some v₀) else m) k = some v) :
+    (P ∧ k = k₀ ∧ v = v₀) ∨ (m k = some v ∧ ¬(P ∧ k = k₀)) := by
+  by_cases hp : P ∧ k = k₀
+  · obtain ⟨hp, rfl⟩ := hp
+    rw [ite_eq_left hp, Function.update_self, Option.some.injEq] at h
+    exact .inl ⟨hp, rfl, h.symm⟩
+  · exact .inr ⟨(ite_update_apply_of_ne fun hp' hk => hp ⟨hp', hk⟩).symm.trans h, hp⟩
+
+private theorem lt_update_of_succ_iff {cnt : ℕ → ℕ} {b₀ n b loc : ℕ} (hcnt : cnt b₀ = n + 1) :
+    loc < Function.update cnt b₀ n b ↔ loc < cnt b ∧ ¬(b = b₀ ∧ loc = n) := by
+  rcases eq_or_ne b b₀ with rfl | hb
+  · rw [Function.update_self]; omega
+  · rw [Function.update_of_ne hb]; exact ⟨fun h => ⟨h, fun h' => hb h'.1⟩, And.left⟩
 
 private theorem sliceMapRel_of_some_iff {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {m : ℕ → Option ℕ}
     (hsome : ∀ fp loc, m fp = some loc ↔ loc < X ∧ P loc ∧ f loc = fp) :
@@ -69,38 +91,22 @@ theorem sliceMapRel_delete_last {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {
     (hrel : SliceMapRel f P (X + 1) m) (_hp : P X)
     (hinj : ∀ loc < X, P loc → f loc ≠ f X) :
     SliceMapRel f P X (Function.update m (f X) none) := by
-  refine ⟨fun fp => ?_, fun fp loc => ?_⟩
-  · by_cases hfp : fp = f X
-    · subst hfp
-      simp only [Function.update_self, true_iff]
-      exact hinj
-    · rw [Function.update_of_ne hfp, hrel.1 fp]
-      refine ⟨fun hall loc hlt hpl => hall loc (Nat.lt_succ_of_lt hlt) hpl,
-        fun hall loc hlt hpl => ?_⟩
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
-      · exact hall loc hlt' hpl
-      · exact Ne.symm hfp
-  · by_cases hfp : fp = f X
-    · subst hfp
-      simp only [Function.update_self, reduceCtorEq, false_iff]
-      rintro ⟨hlt, hpl, heq⟩
-      exact hinj loc hlt hpl heq
-    · rw [Function.update_of_ne hfp, hrel.2 fp loc]
-      exact ⟨fun ⟨hlt, hpl, heq⟩ =>
-        ⟨Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hlt) (fun h => hfp (h ▸ heq.symm)), hpl, heq⟩,
-        fun ⟨hlt, hpl, heq⟩ => ⟨Nat.lt_succ_of_lt hlt, hpl, heq⟩⟩
+  refine sliceMapRel_of_some_iff fun fp loc => ?_
+  by_cases hfp : fp = f X
+  · subst hfp
+    simp only [Function.update_self, reduceCtorEq, false_iff]
+    rintro ⟨hlt, hpl, heq⟩
+    exact hinj loc hlt hpl heq
+  · rw [Function.update_of_ne hfp, hrel.2 fp loc]
+    exact ⟨fun ⟨hlt, hpl, heq⟩ =>
+      ⟨Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hlt) (fun h => hfp (h ▸ heq.symm)), hpl, heq⟩,
+      fun ⟨hlt, hpl, heq⟩ => ⟨Nat.lt_succ_of_lt hlt, hpl, heq⟩⟩
 
 theorem sliceMapRel_skip_last {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {m : ℕ → Option ℕ}
     (hrel : SliceMapRel f P (X + 1) m) (hnp : ¬P X) :
-    SliceMapRel f P X m := by
-  refine ⟨fun fp => ?_, fun fp loc => ?_⟩
-  · rw [hrel.1 fp]
-    refine ⟨fun hall loc hlt hpl => hall loc (Nat.lt_succ_of_lt hlt) hpl,
-      fun hall loc hlt hpl => ?_⟩
-    rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
-    · exact hall loc hlt' hpl
-    · exact absurd hpl hnp
-  · rw [hrel.2 fp loc]
+    SliceMapRel f P X m :=
+  sliceMapRel_of_some_iff fun fp loc => by
+    rw [hrel.2 fp loc]
     exact ⟨fun ⟨hlt, hpl, heq⟩ =>
       ⟨Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hlt) (fun h => hnp (h ▸ hpl)), hpl, heq⟩,
       fun ⟨hlt, hpl, heq⟩ => ⟨Nat.lt_succ_of_lt hlt, hpl, heq⟩⟩
@@ -121,66 +127,36 @@ theorem sliceMapRel_relocate_full {f f' : ℕ → ℕ} {P P' : ℕ → Prop} [De
     SliceMapRel f' P' loc_last
       (if P loc_last then Function.update m1 (f loc_last) (some loc_del) else m1) := by
   intro m1
-  have hm1_last : P loc_last → (m1 (f loc_last)).isSome = true := by
-    intro hpl
-    have h0_last : m0 (f loc_last) = some loc_last :=
-      (hrel.2 (f loc_last) loc_last).mpr ⟨Nat.lt_succ_self _, hpl, rfl⟩
-    dsimp only [m1]
-    split_ifs with hpd
-    · have hne : f loc_last ≠ f loc_del := fun heq =>
-        Nat.ne_of_gt hlt_del
-          (hinj loc_last (Nat.lt_succ_self _) loc_del (by omega) hpl hpd heq)
-      rw [Function.update_of_ne hne, h0_last]; rfl
-    · rw [h0_last]; rfl
-  refine ⟨hm1_last, sliceMapRel_of_some_iff fun fp loc => ?_⟩
-  constructor
-  · intro hs
-    by_cases hpl : P loc_last
-    · rw [ite_eq_left hpl] at hs
-      by_cases hfp_l : fp = f loc_last
-      · subst hfp_l
-        rw [Function.update_self, Option.some.injEq] at hs
-        subst hs
-        exact ⟨hlt_del, hP_del.mpr hpl, hf_del⟩
-      · rw [Function.update_of_ne hfp_l] at hs
-        have h0s := option_ite_update_none_eq_some hs
-        obtain ⟨hlt1, hpl_loc, hfl_eq⟩ := (hrel.2 fp loc).mp h0s.1
-        have hne_last : loc ≠ loc_last := fun h => hfp_l (h ▸ hfl_eq.symm)
-        have hlt_ll : loc < loc_last := by omega
-        have hne_del : loc ≠ loc_del := fun h => h0s.2 ⟨h ▸ hpl_loc, h ▸ hfl_eq.symm⟩
-        exact ⟨hlt_ll, (hP_pres loc hlt_ll hne_del).mpr hpl_loc,
-          (hf_pres loc hlt_ll hne_del).trans hfl_eq⟩
-    · rw [ite_eq_right hpl] at hs
-      have h0s := option_ite_update_none_eq_some hs
-      obtain ⟨hlt1, hpl_loc, hfl_eq⟩ := (hrel.2 fp loc).mp h0s.1
-      have hne_last : loc ≠ loc_last := fun h => hpl (h ▸ hpl_loc)
+  have hm1_last : P loc_last → (m1 (f loc_last)).isSome = true := fun hpl => by
+    have h : m1 (f loc_last) = some loc_last := by
+      dsimp only [m1]
+      rw [ite_update_apply_of_ne fun hpd heq => Nat.ne_of_gt hlt_del
+        (hinj loc_last (Nat.lt_succ_self _) loc_del (by omega) hpl hpd heq)]
+      exact (hrel.2 (f loc_last) loc_last).mpr ⟨Nat.lt_succ_self _, hpl, rfl⟩
+    rw [h]; rfl
+  refine ⟨hm1_last, sliceMapRel_of_some_iff fun fp loc => ⟨fun hs => ?_, ?_⟩⟩
+  · rcases option_ite_update_some_eq_some hs with ⟨hpl, rfl, rfl⟩ | ⟨hs, hnl⟩
+    · exact ⟨hlt_del, hP_del.mpr hpl, hf_del⟩
+    · obtain ⟨h0s, hnd⟩ := option_ite_update_none_eq_some hs
+      obtain ⟨hlt1, hpl_loc, hfl_eq⟩ := (hrel.2 fp loc).mp h0s
+      have hne_last : loc ≠ loc_last := fun h => hnl ⟨h ▸ hpl_loc, h ▸ hfl_eq.symm⟩
+      have hne_del : loc ≠ loc_del := fun h => hnd ⟨h ▸ hpl_loc, h ▸ hfl_eq.symm⟩
       have hlt_ll : loc < loc_last := by omega
-      have hne_del : loc ≠ loc_del := fun h => h0s.2 ⟨h ▸ hpl_loc, h ▸ hfl_eq.symm⟩
       exact ⟨hlt_ll, (hP_pres loc hlt_ll hne_del).mpr hpl_loc,
         (hf_pres loc hlt_ll hne_del).trans hfl_eq⟩
   · rintro ⟨hlt_ll, hp', hf'_eq⟩
     by_cases hld : loc = loc_del
     · subst hld
-      have hpl : P loc_last := hP_del.mp hp'
-      have hfp_l : fp = f loc_last := hf'_eq.symm.trans hf_del
-      subst hfp_l
-      rw [ite_eq_left hpl, Function.update_self]
+      obtain rfl : fp = f loc_last := hf'_eq.symm.trans hf_del
+      rw [ite_eq_left (hP_del.mp hp'), Function.update_self]
     · have hpl_loc : P loc := (hP_pres loc hlt_ll hld).mp hp'
       have hfl_eq : f loc = fp := (hf_pres loc hlt_ll hld).symm.trans hf'_eq
-      have h0s : m0 fp = some loc := (hrel.2 fp loc).mpr ⟨by omega, hpl_loc, hfl_eq⟩
-      have hm1s : m1 fp = some loc := by
-        dsimp only [m1]
-        split_ifs with hpd
-        · have hne_d : fp ≠ f loc_del := fun heq =>
-            hld (hinj loc (by omega) loc_del (by omega) hpl_loc hpd (hfl_eq.trans heq))
-          rwa [Function.update_of_ne hne_d]
-        · exact h0s
-      split_ifs with hpl
-      · have hne_l : fp ≠ f loc_last := fun heq =>
-          Nat.ne_of_lt hlt_ll
-            (hinj loc (by omega) loc_last (Nat.lt_succ_self _) hpl_loc hpl (hfl_eq.trans heq))
-        rwa [Function.update_of_ne hne_l]
-      · exact hm1s
+      rw [ite_update_apply_of_ne fun hpl heq => Nat.ne_of_lt hlt_ll
+        (hinj loc (by omega) loc_last (Nat.lt_succ_self _) hpl_loc hpl (hfl_eq.trans heq))]
+      dsimp only [m1]
+      rw [ite_update_apply_of_ne fun hpd heq =>
+        hld (hinj loc (by omega) loc_del (by omega) hpl_loc hpd (hfl_eq.trans heq))]
+      exact (hrel.2 fp loc).mpr ⟨by omega, hpl_loc, hfl_eq⟩
 
 /-- Relocating `loc_last` into `loc_del < cur ≤ loc_last` across a prefix `0 .. cur - 1`, assuming
 no collision between `f loc_last` and any remaining active item `< cur \ {loc_del}`. -/
@@ -198,50 +174,27 @@ theorem sliceMapRel_relocate_prefix {f f' : ℕ → ℕ} {P P' : ℕ → Prop} [
     SliceMapRel f' P' cur
       (if P loc_last then Function.update m1 (f loc_last) (some loc_del) else m1) := by
   intro m1
-  refine sliceMapRel_of_some_iff fun fp loc => ?_
-  constructor
-  · intro hs
-    by_cases hpl : P loc_last
-    · rw [ite_eq_left hpl] at hs
-      by_cases hfp_l : fp = f loc_last
-      · subst hfp_l
-        rw [Function.update_self, Option.some.injEq] at hs
-        subst hs
-        exact ⟨hlt_cur, hP_del.mpr hpl, hf_del⟩
-      · rw [Function.update_of_ne hfp_l] at hs
-        have h0s := option_ite_update_none_eq_some hs
-        obtain ⟨hlt_c, hpl_loc, hfl_eq⟩ := (hrel.2 fp loc).mp h0s.1
-        have hne_del : loc ≠ loc_del := fun h => h0s.2 ⟨h ▸ hpl_loc, h ▸ hfl_eq.symm⟩
-        exact ⟨hlt_c, (hP_pres loc hlt_c hne_del).mpr hpl_loc,
-          (hf_pres loc hlt_c hne_del).trans hfl_eq⟩
-    · rw [ite_eq_right hpl] at hs
-      have h0s := option_ite_update_none_eq_some hs
-      obtain ⟨hlt_c, hpl_loc, hfl_eq⟩ := (hrel.2 fp loc).mp h0s.1
-      have hne_del : loc ≠ loc_del := fun h => h0s.2 ⟨h ▸ hpl_loc, h ▸ hfl_eq.symm⟩
+  refine sliceMapRel_of_some_iff fun fp loc => ⟨fun hs => ?_, ?_⟩
+  · rcases option_ite_update_some_eq_some hs with ⟨hpl, rfl, rfl⟩ | ⟨hs, -⟩
+    · exact ⟨hlt_cur, hP_del.mpr hpl, hf_del⟩
+    · obtain ⟨h0s, hnd⟩ := option_ite_update_none_eq_some hs
+      obtain ⟨hlt_c, hpl_loc, hfl_eq⟩ := (hrel.2 fp loc).mp h0s
+      have hne_del : loc ≠ loc_del := fun h => hnd ⟨h ▸ hpl_loc, h ▸ hfl_eq.symm⟩
       exact ⟨hlt_c, (hP_pres loc hlt_c hne_del).mpr hpl_loc,
         (hf_pres loc hlt_c hne_del).trans hfl_eq⟩
   · rintro ⟨hlt_c, hp', hf'_eq⟩
     by_cases hld : loc = loc_del
     · subst hld
-      have hpl : P loc_last := hP_del.mp hp'
-      have hfp_l : fp = f loc_last := hf'_eq.symm.trans hf_del
-      subst hfp_l
-      rw [ite_eq_left hpl, Function.update_self]
+      obtain rfl : fp = f loc_last := hf'_eq.symm.trans hf_del
+      rw [ite_eq_left (hP_del.mp hp'), Function.update_self]
     · have hpl_loc : P loc := (hP_pres loc hlt_c hld).mp hp'
       have hfl_eq : f loc = fp := (hf_pres loc hlt_c hld).symm.trans hf'_eq
-      have h0s : m0 fp = some loc := (hrel.2 fp loc).mpr ⟨hlt_c, hpl_loc, hfl_eq⟩
-      have hm1s : m1 fp = some loc := by
-        dsimp only [m1]
-        split_ifs with hpd
-        · have hne_d : fp ≠ f loc_del := fun heq =>
-            hld (hinj_cur loc hlt_c loc_del hlt_cur hpl_loc hpd (hfl_eq.trans heq))
-          rwa [Function.update_of_ne hne_d]
-        · exact h0s
-      split_ifs with hpl
-      · have hne_l : fp ≠ f loc_last := fun heq =>
-          hno_coll hpl loc hlt_c hld hpl_loc (hfl_eq.trans heq)
-        rwa [Function.update_of_ne hne_l]
-      · exact hm1s
+      rw [ite_update_apply_of_ne fun hpl heq =>
+        hno_coll hpl loc hlt_c hld hpl_loc (hfl_eq.trans heq)]
+      dsimp only [m1]
+      rw [ite_update_apply_of_ne fun hpd heq =>
+        hld (hinj_cur loc hlt_c loc_del hlt_cur hpl_loc hpd (hfl_eq.trans heq))]
+      exact (hrel.2 fp loc).mpr ⟨hlt_c, hpl_loc, hfl_eq⟩
 
 /-- Deleting `loc_last` when `bktCnt b₀ = loc_last + 1` shrinks to `loc_last`. -/
 theorem bufMapRel_delete_last {M tag b₀ loc_last : ℕ} {bktCnt : ℕ → ℕ}
@@ -256,41 +209,19 @@ theorem bufMapRel_delete_last {M tag b₀ loc_last : ℕ} {bktCnt : ℕ → ℕ}
       rKeyOf' b loc = rKeyOf b loc) :
     BufMapRel M tag (Function.update bktCnt b₀ loc_last) locSt' rKeyOf'
       (if locSt b₀ loc_last = tag then Function.update m0 (rKeyOf b₀ loc_last) none else m0) := by
-  let bktCnt' := Function.update bktCnt b₀ loc_last
-  have hlt_orig : ∀ b < M, ∀ loc < bktCnt' b, loc < bktCnt b ∧ ¬(b = b₀ ∧ loc = loc_last) := by
-    intro b _ loc hlt
-    dsimp only [bktCnt'] at hlt
-    by_cases hb_eq : b = b₀
-    · subst hb_eq; rw [Function.update_self] at hlt
-      exact ⟨by omega, fun ⟨_, h⟩ => by omega⟩
-    · rw [Function.update_of_ne hb_eq] at hlt
-      exact ⟨hlt, fun ⟨h, _⟩ => hb_eq h⟩
-  refine BufMapRel.of_some_iff fun rk b loc => ?_
-  constructor
-  · intro hs
-    have h0s := option_ite_update_none_eq_some hs
-    obtain ⟨hb, hloc, hst0, hrk0⟩ := (hrel.2 rk b loc).mp h0s.1
-    have hne : ¬(b = b₀ ∧ loc = loc_last) := fun ⟨h1, h2⟩ =>
-      h0s.2 ⟨h1 ▸ h2 ▸ hst0, h1 ▸ h2 ▸ hrk0.symm⟩
-    have hloc' : loc < bktCnt' b := by
-      dsimp only [bktCnt']
-      by_cases hb_eq : b = b₀
-      · subst hb_eq; rw [Function.update_self]
-        have : loc ≠ loc_last := fun h => hne ⟨rfl, h⟩
-        omega
-      · rwa [Function.update_of_ne hb_eq]
+  refine BufMapRel.of_some_iff fun rk b loc => ⟨fun hs => ?_, ?_⟩
+  · obtain ⟨h0s, hne⟩ := option_ite_update_none_eq_some hs
+    obtain ⟨hb, hloc, hst0, hrk0⟩ := (hrel.2 rk b loc).mp h0s
+    have hloc' := (lt_update_of_succ_iff hcnt₀).mpr
+      ⟨hloc, fun ⟨h1, h2⟩ => hne ⟨h1 ▸ h2 ▸ hst0, h1 ▸ h2 ▸ hrk0.symm⟩⟩
     exact ⟨hb, hloc', (hst_pres b hb loc hloc').trans hst0,
       (hrk_pres b hb loc hloc').trans hrk0⟩
   · rintro ⟨hb, hloc', hst', hrk'⟩
-    obtain ⟨hloc, hne⟩ := hlt_orig b hb loc hloc'
+    obtain ⟨hloc, hne⟩ := (lt_update_of_succ_iff hcnt₀).mp hloc'
     have hst0 : locSt b loc = tag := (hst_pres b hb loc hloc').symm.trans hst'
     have hrk0 : rKeyOf b loc = rk := (hrk_pres b hb loc hloc').symm.trans hrk'
-    have h0s : m0 rk = some (b, loc) := (hrel.2 rk b loc).mpr ⟨hb, hloc, hst0, hrk0⟩
-    split_ifs with htl
-    · have hrk_ne : rk ≠ rKeyOf b₀ loc_last := fun heq =>
-        hne (hinj b hb loc hloc hst0 htl (hrk0.trans heq))
-      rwa [Function.update_of_ne hrk_ne]
-    · exact h0s
+    rw [ite_update_apply_of_ne fun htl heq => hne (hinj b hb loc hloc hst0 htl (hrk0.trans heq))]
+    exact (hrel.2 rk b loc).mpr ⟨hb, hloc, hst0, hrk0⟩
 
 /-- Relocating `(b₀, loc_last)` into `(b₀, loc_del)` (`loc_del < loc_last`) in `BufMapRel`. -/
 theorem bufMapRel_relocate_last {M tag b₀ loc_del loc_last : ℕ} {bktCnt : ℕ → ℕ}
@@ -312,92 +243,41 @@ theorem bufMapRel_relocate_last {M tag b₀ loc_del loc_last : ℕ} {bktCnt : �
         Function.update m1 (rKeyOf b₀ loc_last) (some (b₀, loc_del))
       else m1) := by
   intro m1
-  let bktCnt' := Function.update bktCnt b₀ loc_last
   have hll_lt : loc_last < bktCnt b₀ := by omega
   have hld_lt : loc_del < bktCnt b₀ := by omega
   have hm1_last : locSt b₀ loc_last = tag → m1 (rKeyOf b₀ loc_last) = some (b₀, loc_last) := by
     intro htl
-    have h0s : m0 (rKeyOf b₀ loc_last) = some (b₀, loc_last) :=
-      (hrel.2 _ b₀ loc_last).mpr ⟨hb₀, hll_lt, htl, rfl⟩
     dsimp only [m1]
-    split_ifs with htd
-    · have hne : rKeyOf b₀ loc_last ≠ rKeyOf b₀ loc_del := fun heq =>
-        Nat.ne_of_gt hlt_del ((hinj b₀ hb₀ loc_last hll_lt b₀ hb₀ loc_del hld_lt htl htd heq).2)
-      rwa [Function.update_of_ne hne]
-    · exact h0s
-  refine ⟨hm1_last, BufMapRel.of_some_iff fun rk b loc => ?_⟩
-  have hlt_orig : ∀ b < M, ∀ loc < bktCnt' b, loc < bktCnt b ∧ ¬(b = b₀ ∧ loc = loc_last) := by
-    intro b _ loc hlt
-    dsimp only [bktCnt'] at hlt
-    by_cases hb_eq : b = b₀
-    · subst hb_eq; rw [Function.update_self] at hlt
-      exact ⟨by omega, fun ⟨_, h⟩ => by omega⟩
-    · rw [Function.update_of_ne hb_eq] at hlt
-      exact ⟨hlt, fun ⟨h, _⟩ => hb_eq h⟩
-  constructor
-  · intro hs
-    by_cases htl : locSt b₀ loc_last = tag
-    · rw [ite_eq_left htl] at hs
-      by_cases hrk_l : rk = rKeyOf b₀ loc_last
-      · subst hrk_l
-        rw [Function.update_self, Option.some.injEq, Prod.mk.injEq] at hs
-        rcases hs with ⟨rfl, rfl⟩
-        refine ⟨hb₀, ?_, hst_del.trans htl, hrk_del⟩
-        rw [Function.update_self]; exact hlt_del
-      · rw [Function.update_of_ne hrk_l] at hs
-        have h0s := option_ite_update_none_eq_some hs
-        obtain ⟨hb, hloc, hst0, hrk0⟩ := (hrel.2 rk b loc).mp h0s.1
-        have hne_last : ¬(b = b₀ ∧ loc = loc_last) := fun ⟨h1, h2⟩ =>
-          hrk_l (h1 ▸ h2 ▸ hrk0.symm)
-        have hne_del : ¬(b = b₀ ∧ loc = loc_del) := fun ⟨h1, h2⟩ =>
-          h0s.2 ⟨h1 ▸ h2 ▸ hst0, h1 ▸ h2 ▸ hrk0.symm⟩
-        have hloc' : loc < bktCnt' b := by
-          dsimp only [bktCnt']
-          by_cases hb_eq : b = b₀
-          · subst hb_eq; rw [Function.update_self]
-            have : loc ≠ loc_last := fun h => hne_last ⟨rfl, h⟩
-            omega
-          · rwa [Function.update_of_ne hb_eq]
-        exact ⟨hb, hloc', (hst_pres b hb loc hloc' hne_del).trans hst0,
-          (hrk_pres b hb loc hloc' hne_del).trans hrk0⟩
-    · rw [ite_eq_right htl] at hs
-      have h0s := option_ite_update_none_eq_some hs
-      obtain ⟨hb, hloc, hst0, hrk0⟩ := (hrel.2 rk b loc).mp h0s.1
-      have hne_last : ¬(b = b₀ ∧ loc = loc_last) := fun ⟨h1, h2⟩ => htl (h1 ▸ h2 ▸ hst0)
+    rw [ite_update_apply_of_ne fun htd heq => Nat.ne_of_gt hlt_del
+      (hinj b₀ hb₀ loc_last hll_lt b₀ hb₀ loc_del hld_lt htl htd heq).2]
+    exact (hrel.2 _ b₀ loc_last).mpr ⟨hb₀, hll_lt, htl, rfl⟩
+  refine ⟨hm1_last, BufMapRel.of_some_iff fun rk b loc => ⟨fun hs => ?_, ?_⟩⟩
+  · rcases option_ite_update_some_eq_some hs with ⟨htl, rfl, hbl⟩ | ⟨hs, hnl⟩
+    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hbl
+      refine ⟨hb₀, ?_, hst_del.trans htl, hrk_del⟩
+      rw [Function.update_self]; exact hlt_del
+    · obtain ⟨h0s, hnd⟩ := option_ite_update_none_eq_some hs
+      obtain ⟨hb, hloc, hst0, hrk0⟩ := (hrel.2 rk b loc).mp h0s
       have hne_del : ¬(b = b₀ ∧ loc = loc_del) := fun ⟨h1, h2⟩ =>
-        h0s.2 ⟨h1 ▸ h2 ▸ hst0, h1 ▸ h2 ▸ hrk0.symm⟩
-      have hloc' : loc < bktCnt' b := by
-        dsimp only [bktCnt']
-        by_cases hb_eq : b = b₀
-        · subst hb_eq; rw [Function.update_self]
-          have : loc ≠ loc_last := fun h => hne_last ⟨rfl, h⟩
-          omega
-        · rwa [Function.update_of_ne hb_eq]
+        hnd ⟨h1 ▸ h2 ▸ hst0, h1 ▸ h2 ▸ hrk0.symm⟩
+      have hloc' := (lt_update_of_succ_iff hcnt₀).mpr
+        ⟨hloc, fun ⟨h1, h2⟩ => hnl ⟨h1 ▸ h2 ▸ hst0, h1 ▸ h2 ▸ hrk0.symm⟩⟩
       exact ⟨hb, hloc', (hst_pres b hb loc hloc' hne_del).trans hst0,
         (hrk_pres b hb loc hloc' hne_del).trans hrk0⟩
   · rintro ⟨hb, hloc', hst', hrk'⟩
     by_cases hbd : b = b₀ ∧ loc = loc_del
     · rcases hbd with ⟨rfl, rfl⟩
-      have htl : locSt b loc_last = tag := hst_del.symm.trans hst'
-      have hrk_l : rk = rKeyOf b loc_last := hrk'.symm.trans hrk_del
-      subst hrk_l
-      rw [ite_eq_left htl, Function.update_self]
-    · obtain ⟨hloc, hne_last⟩ := hlt_orig b hb loc hloc'
+      obtain rfl : rk = rKeyOf b loc_last := hrk'.symm.trans hrk_del
+      rw [ite_eq_left (hst_del.symm.trans hst'), Function.update_self]
+    · obtain ⟨hloc, hne_last⟩ := (lt_update_of_succ_iff hcnt₀).mp hloc'
       have hst0 : locSt b loc = tag := (hst_pres b hb loc hloc' hbd).symm.trans hst'
       have hrk0 : rKeyOf b loc = rk := (hrk_pres b hb loc hloc' hbd).symm.trans hrk'
-      have h0s : m0 rk = some (b, loc) := (hrel.2 rk b loc).mpr ⟨hb, hloc, hst0, hrk0⟩
-      have hm1s : m1 rk = some (b, loc) := by
-        dsimp only [m1]
-        split_ifs with htd
-        · have hne_d : rk ≠ rKeyOf b₀ loc_del := fun heq =>
-            hbd (hinj b hb loc hloc b₀ hb₀ loc_del hld_lt hst0 htd (hrk0.trans heq))
-          rwa [Function.update_of_ne hne_d]
-        · exact h0s
-      split_ifs with htl
-      · have hne_l : rk ≠ rKeyOf b₀ loc_last := fun heq =>
-          hne_last (hinj b hb loc hloc b₀ hb₀ loc_last hll_lt hst0 htl (hrk0.trans heq))
-        rwa [Function.update_of_ne hne_l]
-      · exact hm1s
+      rw [ite_update_apply_of_ne fun htl heq =>
+        hne_last (hinj b hb loc hloc b₀ hb₀ loc_last hll_lt hst0 htl (hrk0.trans heq))]
+      dsimp only [m1]
+      rw [ite_update_apply_of_ne fun htd heq =>
+        hbd (hinj b hb loc hloc b₀ hb₀ loc_del hld_lt hst0 htd (hrk0.trans heq))]
+      exact (hrel.2 rk b loc).mpr ⟨hb, hloc, hst0, hrk0⟩
 
 theorem buf_del_at_ep {c n_max st rKey ep : ℕ} (buf : ℕ → BufTrie)
     (hep : ep = 0 ∨ ep = 1) :
@@ -407,13 +287,7 @@ theorem buf_del_at_ep {c n_max st rKey ep : ℕ} (buf : ℕ → BufTrie)
         Function.update buf 1 (bufDelete (cTabWhp c) (bCharWhp n_max) (buf 1) rKey)
       else buf) ep =
       if st = 2 + ep then bufDelete (cTabWhp c) (bCharWhp n_max) (buf ep) rKey else buf ep := by
-  rcases hep with rfl | rfl
-  · by_cases h2 : st = 2
-    · simp [h2]
-    · by_cases h3 : st = 3 <;> simp [h2, h3]
-  · by_cases h3 : st = 3
-    · simp [h3]
-    · by_cases h2 : st = 2 <;> simp [h2, h3]
+  rcases hep with rfl | rfl <;> split_ifs <;> simp_all
 
 theorem buf_ins_at_ep {c n_max st rKey b loc ep : ℕ} (buf : ℕ → BufTrie)
     (hep : ep = 0 ∨ ep = 1) :
@@ -424,13 +298,7 @@ theorem buf_ins_at_ep {c n_max st rKey b loc ep : ℕ} (buf : ℕ → BufTrie)
       else buf) ep =
       if st = 2 + ep then bufInsert (cTabWhp c) (bCharWhp n_max) (buf ep) rKey b loc
       else buf ep := by
-  rcases hep with rfl | rfl
-  · by_cases h2 : st = 2
-    · simp [h2]
-    · by_cases h3 : st = 3 <;> simp [h2, h3]
-  · by_cases h3 : st = 3
-    · simp [h3]
-    · by_cases h2 : st = 2 <;> simp [h2, h3]
+  rcases hep with rfl | rfl <;> split_ifs <;> simp_all
 
 /-- Releasing `loc_last` (`fs.bktCount b = loc_last + 1`) preserves all backyard-pool invariants. -/
 theorem pool_release_last {c U V n_max b loc_last : ℕ} {θ : SeedWhp c U n_max}
@@ -465,10 +333,9 @@ theorem pool_release_last {c U V n_max b loc_last : ℕ} {θ : SeedWhp c U n_max
   have hsub_le : ∀ b' < numBucketsWhp n_max,
       fs'.bktCount b' - capFrontWhp n_max ≤ fs.bktCount b' - capFrontWhp n_max := by
     intro b' _
-    rw [hbkt']
-    by_cases hbb : b' = b
-    · subst hbb; rw [Function.update_self]; omega
-    · rw [Function.update_of_ne hbb]
+    rcases eq_or_ne b' b with rfl | hbb
+    · rw [hbkt', Function.update_self]; omega
+    · rw [hbkt', Function.update_of_ne hbb]
   have hsum_split_old := Finset.add_sum_erase (range (numBucketsWhp n_max))
     (fun b' => fs.bktCount b' - capFrontWhp n_max) (Finset.mem_range.mpr hb)
   have hsum_split_new := Finset.add_sum_erase (range (numBucketsWhp n_max))
@@ -492,15 +359,13 @@ theorem pool_release_last {c U V n_max b loc_last : ℕ} {θ : SeedWhp c U n_max
   · intro j hj
     rw [htop'] at hj
     rw [hstk']
-    split_ifs with hcf
-    · rw [ite_eq_left hcf] at hj
-      by_cases hjeq : j = fs.poolFreeTop
-      · subst hjeq; rw [Function.update_self]
+    split_ifs at hj ⊢ with hcf
+    · rcases eq_or_ne j fs.poolFreeTop with rfl | hjeq
+      · rw [Function.update_self]
         exact (hc.backPtr_valid b hb (loc_last - capFrontWhp n_max) (by omega)).1
       · rw [Function.update_of_ne hjeq]
         exact hc.freeStack_lt j (by omega)
-    · rw [ite_eq_right hcf] at hj
-      exact hc.freeStack_lt j hj
+    · exact hc.freeStack_lt j hj
   · intro b₁ hb₁ k₁ hk₁ b₂ hb₂ k₂ hk₂ heq
     rw [hbp'] at heq
     exact hc.backPtr_inj b₁ hb₁ k₁ (hk₁.trans_le (hsub_le b₁ hb₁))
@@ -1042,21 +907,18 @@ theorem preTick_after_delete_of_stage2 {c U V n_max b loc_del loc_last : ℕ}
   split_ifs at hpre0 ⊢ with hs0 hs1 hs2 hs3
   · obtain ⟨hia_eq, _, hsome_old⟩ := hold_props (by omega)
     rw [hia_eq]
-    refine ⟨hpre0.1, fun id hid b' loc' hchk => ?_⟩
-    obtain ⟨loc₀, hchk0⟩ := hsome_old id b' loc' hchk
-    exact hpre0.2 id hid b' loc₀ hchk0
+    exact ⟨hpre0.1, fun id hid b' loc' hchk =>
+      (hsome_old id b' loc' hchk).elim fun loc₀ h => hpre0.2 id hid b' loc₀ h⟩
   · obtain ⟨hia_eq, _, hsome_old⟩ := hold_props (by omega)
     rcases hpre0 with ⟨hs1_1, hs1_2, hs1_3, hs1_4, hs1_5, hs1_6⟩
     rw [hia_eq]
-    refine ⟨hs1_1, hs1_2, hs1_3, hs1_4, fun id hid b' loc' hchk => ?_,
-      fun id hid b' loc' hchk => ?_⟩
-    · obtain ⟨loc₀, hchk0⟩ := hsome_old id b' loc' hchk
-      exact hs1_5 id hid b' loc₀ hchk0
-    · obtain ⟨loc₀, hchk0⟩ := hsome_old id b' loc' hchk
-      exact hs1_6 id hid b' loc₀ hchk0
+    exact ⟨hs1_1, hs1_2, hs1_3, hs1_4,
+      fun id hid b' loc' hchk =>
+        (hsome_old id b' loc' hchk).elim fun loc₀ h => hs1_5 id hid b' loc₀ h,
+      fun id hid b' loc' hchk =>
+        (hsome_old id b' loc' hchk).elim fun loc₀ h => hs1_6 id hid b' loc₀ h⟩
   · have hs2' := hstage2 hs2
-    rw [hdc_eq, hdb_eq, hdi_eq, hdn_eq] at hs2'
-    exact hs2'
+    rwa [hdc_eq, hdb_eq, hdi_eq, hdn_eq] at hs2'
   · obtain ⟨hia_eq, hnone_old, _⟩ := hold_props (by omega)
     rw [hia_eq]
     exact ⟨hpre0.1, fun id hid => hnone_old id (hpre0.2 id hid)⟩

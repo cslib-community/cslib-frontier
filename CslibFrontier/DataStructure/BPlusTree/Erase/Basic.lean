@@ -488,13 +488,11 @@ private theorem mended_mergeSplit {l r : BPlusTree α β} {h : ℕ} (hl : Underf
       obtain ⟨h', rfl⟩ : ∃ h', h = h' + 1 :=
         ⟨lf.height, by rw [← hl.height_eq, hl.balanced.height_node]⟩
       simp only [width_node] at hlo hhi
-      refine mended_ofNode (hl.good_of_mem_children List.mem_cons_self) (fun e he => ?_)
-        (by simp; omega) (by simp; omega)
-      rcases List.mem_append.1 he with he | he
-      · exact hl.good_of_mem_children (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
-      · rcases List.mem_cons.1 he with rfl | he
-        · exact hr.good_of_mem_children List.mem_cons_self
-        · exact hr.good_of_mem_children (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
+      exact mended_ofNode (hl.good_of_mem_children List.mem_cons_self)
+        (List.forall_mem_append.2 ⟨fun _ he => hl.good_of_mem_children (List.mem_cons_of_mem _
+          (List.mem_map_of_mem he)), List.forall_mem_cons.2 ⟨hr.good_of_mem_children
+          List.mem_cons_self, fun _ he => hr.good_of_mem_children (List.mem_cons_of_mem _
+          (List.mem_map_of_mem he))⟩⟩) (by simp; omega) (by simp; omega)
 
 /-- Repair against the right sibling: the results are good, with one branch fewer or none. -/
 private theorem good_rebalanceRight {c r : BPlusTree α β} {h : ℕ}
@@ -795,22 +793,15 @@ private theorem sep_mergeSplit {l r : BPlusTree α β} {s : α} (hl : Separated 
     cases r with
     | leaf re => exact ⟨hl, hr, hls, hrs⟩
     | node rf rr =>
-      have hne : ∀ e : Branch α β, e ∈ lr ++ (s, rf) :: rr → e.child.toList ≠ [] := by
-        intro e he
-        rcases List.mem_append.1 he with he | he
-        · exact hln _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
-        · rcases List.mem_cons.1 he with rfl | he
-          · exact hrn _ List.mem_cons_self
-          · exact hrn _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
-      refine sep_ofNode (separated_node_of_linked
+      have hne : ∀ e : Branch α β, e ∈ lr ++ (s, rf) :: rr → e.child.toList ≠ [] :=
+        List.forall_mem_append.2 ⟨fun _ he => hln _ (List.mem_cons_of_mem _ (List.mem_map_of_mem
+          he)), List.forall_mem_cons.2 ⟨hrn _ List.mem_cons_self, fun _ he => hrn _
+          (List.mem_cons_of_mem _ (List.mem_map_of_mem he))⟩⟩
+      exact sep_ofNode (separated_node_of_linked
         (hl.linked.append hr.linked hls fun p hp =>
           hrs p (by rw [toList_node]; exact List.mem_append_left _ hp))
-        hl.first (fun e he => ?_) hne) hne
-      rcases List.mem_append.1 he with he | he
-      · exact hl.of_mem_rest he
-      · rcases List.mem_cons.1 he with rfl | he
-        · exact hr.first
-        · exact hr.of_mem_rest he
+        hl.first (List.forall_mem_append.2 ⟨fun _ => hl.of_mem_rest,
+          List.forall_mem_cons.2 ⟨hr.first, fun _ => hr.of_mem_rest⟩⟩) hne) hne
 
 /-- The erasure among the branches after a good child `prev` keeps the separator convention
 between neighbours and keeps every child separated; the entries of the tree in the place of
@@ -863,9 +854,7 @@ private theorem linked_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch �
           refine ⟨l₁, l₂, l₃, fun x hx => ?_⟩
           have hx := mem_toList_of_mem_withRest_fst hx
           rw [toList_mergeSplit] at hx
-          rcases List.mem_append.1 hx with hx | hx
-          · exact Or.inl hx
-          · exact Or.inr (List.mem_append_left _ (subc.subset hx))
+          exact (List.mem_append.1 hx).imp id fun hx => List.mem_append_left _ (subc.subset hx)
         · exact ⟨⟨h₁, fun p hp' => h₂ p (subc.subset hp'), trivial⟩, hps, by simpa using sce,
             fun x hx => Or.inl hx⟩
       · -- the search moves on
@@ -894,9 +883,7 @@ private theorem linked_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch �
         refine ⟨l₁, l₂, l₃, fun x hx => ?_⟩
         have hx := mem_toList_of_mem_withRest_fst hx
         rw [toList_mergeSplit] at hx
-        rcases List.mem_append.1 hx with hx | hx
-        · exact Or.inl (hsub.subset hx)
-        · exact Or.inr (List.mem_append_left _ hx)
+        exact (List.mem_append.1 hx).imp (hsub.subset ·) (List.mem_append_left _ ·)
       · exact ⟨⟨fun p hp' => h₁ p (hsub.subset hp'), h₂, h₃⟩, hpes,
           List.forall_mem_cons.2 ⟨sc, hrs⟩, fun x hx => Or.inl (hsub.subset hx)⟩
 
