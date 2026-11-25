@@ -49,32 +49,23 @@ theorem mem_matchingScope_even (G : Graph) (v i : ℕ) :
     2 * i ∈ G.matchingScope v ↔
       i < G.edgeList.length ∧ incident (G.edgeList.getD i (0, 0)) v = true := by
   simp only [matchingScope, List.mem_cons, List.mem_map, List.mem_filter, List.mem_range]
-  constructor
-  · rintro (h | ⟨j, hj, he⟩)
-    · omega
-    · have : j = i := by omega
-      subst j
-      exact hj
-  · exact fun h => Or.inr ⟨i, h, rfl⟩
+  refine ⟨?_, fun h => .inr ⟨i, h, rfl⟩⟩
+  rintro (h | ⟨j, hj, he⟩)
+  · omega
+  · obtain rfl : j = i := by omega
+    exact hj
 
 /-- An unmatched port appears in exactly its own vertex's choice scope. -/
 theorem mem_matchingScope_odd (G : Graph) (v w : ℕ) :
     2 * w + 1 ∈ G.matchingScope v ↔ w = v := by
   simp only [matchingScope, List.mem_cons, List.mem_map, List.mem_filter, List.mem_range]
-  constructor
-  · rintro (h | ⟨j, _, he⟩) <;> omega
-  · intro h
-    subst w
-    exact Or.inl rfl
+  exact ⟨by rintro (h | ⟨_, _, _⟩) <;> omega, by rintro rfl; exact .inl rfl⟩
 
 /-- All generated choice scopes are duplicate-free, for arbitrary raw graph data. -/
 theorem nodup_matchingScope (G : Graph) (v : ℕ) : (G.matchingScope v).Nodup := by
   rw [matchingScope, List.nodup_cons]
-  constructor
-  · simp only [List.mem_map, List.mem_filter, List.mem_range, not_exists, not_and]
-    intro i _ h
-    omega
-  · exact (List.nodup_range.filter _).map (fun i j h => by omega)
+  exact ⟨fun h => by obtain ⟨_, _, _⟩ := List.mem_map.mp h; omega,
+    (List.nodup_range.filter _).map fun _ _ h => by omega⟩
 
 end Cslib.Complexity.Graph
 
@@ -86,41 +77,33 @@ open Cslib.Logic.PL
 theorem count_vars_matchingInstance_even (G : Graph) (i : ℕ) :
     G.matchingInstance.vars.count (2 * i) = G.perfectMatchingInstance.vars.count i := by
   have hc (v : ℕ) : (G.matchingScope v).count (2 * i) =
-      (((List.range G.edgeList.length).filter fun j =>
-        incident (G.edgeList.getD j (0, 0)) v).count i) := by
+      ((List.range G.edgeList.length).filter fun j =>
+        incident (G.edgeList.getD j (0, 0)) v).count i := by
     rw [matchingScope, List.count_cons]
     simp only [beq_iff_eq, show 2 * v + 1 ≠ 2 * i by omega, ↓reduceIte, Nat.add_zero]
-    exact List.count_map_of_injective _ _ (fun a b h => by omega) _
+    exact List.count_map_of_injective _ _ (fun _ _ h => by omega) _
+  have hp (v : ℕ) : ([2 * v + 1] : List ℕ).count (2 * i) = 0 :=
+    List.count_eq_zero_of_not_mem fun h => by rw [List.mem_singleton] at h; omega
   simp only [matchingInstance, perfectMatchingInstance, CSP.vars, List.flatMap_append,
-    List.flatMap_map, List.count_append, List.count_flatMap, Function.comp_def, hc]
-  have hz : (G.distinctVertices.map fun v => ([2 * v + 1] : List ℕ).count (2 * i)).sum = 0 := by
-    apply List.sum_eq_zero
-    intro n hn
-    obtain ⟨v, _, rfl⟩ := List.mem_map.mp hn
-    simp only [List.count_singleton, beq_iff_eq,
-      show 2 * v + 1 ≠ 2 * i by omega, ↓reduceIte]
-  rw [hz, Nat.add_zero]
+    List.flatMap_map, List.count_append, List.count_flatMap, Function.comp_def, hc, hp]
+  rw [Nat.add_eq_left]
+  exact List.sum_eq_zero fun _ hn => by obtain ⟨_, _, rfl⟩ := List.mem_map.mp hn; rfl
 
 /-- Each declared vertex's private port occurs exactly twice. -/
 theorem count_vars_matchingInstance_odd (G : Graph) (w : ℕ) :
     G.matchingInstance.vars.count (2 * w + 1) = if w ∈ G.vertices then 2 else 0 := by
   have hc (v : ℕ) : (G.matchingScope v).count (2 * w + 1) = if v = w then 1 else 0 := by
     have he : (((List.range G.edgeList.length).filter fun i =>
-        incident (G.edgeList.getD i (0, 0)) v).map fun i => 2 * i).count (2 * w + 1) = 0 := by
-      apply List.count_eq_zero_of_not_mem
-      simp only [List.mem_map, List.mem_filter, List.mem_range, not_exists, not_and]
-      intro i _ h
-      omega
+        incident (G.edgeList.getD i (0, 0)) v).map fun i => 2 * i).count (2 * w + 1) = 0 :=
+      List.count_eq_zero_of_not_mem fun h => by obtain ⟨_, _, _⟩ := List.mem_map.mp h; omega
     simp only [matchingScope, List.count_cons, beq_iff_eq, he, Nat.zero_add]
     split_ifs <;> omega
   have hp (v : ℕ) : ([2 * v + 1] : List ℕ).count (2 * w + 1) = if v = w then 1 else 0 := by
-    simp only [List.count_singleton, beq_iff_eq]
-    split_ifs <;> omega
+    simp only [List.count_singleton, beq_iff_eq]; split_ifs <;> omega
   simp only [matchingInstance, CSP.vars, List.flatMap_append, List.flatMap_map,
     List.count_append, List.count_flatMap, Function.comp_def, hc, hp]
   rw [← List.sum_toFinset _ G.nodup_distinctVertices, Finset.sum_ite_eq']
-  simp only [List.mem_toFinset, mem_distinctVertices]
-  split_ifs <;> rfl
+  simp only [List.mem_toFinset, mem_distinctVertices]; split_ifs <;> rfl
 
 /-- Every generated variable is an original edge position or a declared private port. -/
 theorem mem_vars_matchingInstance (G : Graph) {x : ℕ} :
@@ -141,16 +124,13 @@ theorem mem_vars_matchingInstance (G : Graph) {x : ℕ} :
 
 /-- The optimizer's two-occurrence guard follows internally on every raw graph. -/
 theorem edgeInstance_matchingInstance (G : Graph) : CSP.EdgeInstance G.matchingInstance := by
-  apply CSP.edgeInstance_of_count_eq_two
-  · intro c hc
-    simp only [matchingInstance, List.mem_append, List.mem_map, mem_distinctVertices] at hc
-    rcases hc with ⟨v, _, rfl⟩ | ⟨v, _, rfl⟩
-    · exact nodup_matchingScope G v
-    · exact List.nodup_singleton _
-  · intro x hx
-    rcases (mem_vars_matchingInstance G).mp hx with ⟨i, hi, rfl⟩ | ⟨v, hv, rfl⟩
-    · rw [count_vars_matchingInstance_even]
-      exact count_vars_perfectMatchingInstance_eq_two G hi
+  refine CSP.edgeInstance_of_count_eq_two (fun c hc => ?_) fun x hx => ?_
+  · simp only [matchingInstance, List.mem_append, List.mem_map, mem_distinctVertices] at hc
+    rcases hc with ⟨v, _, rfl⟩ | ⟨_, _, rfl⟩
+    exacts [nodup_matchingScope G v, List.nodup_singleton _]
+  · rcases (mem_vars_matchingInstance G).mp hx with ⟨i, hi, rfl⟩ | ⟨v, hv, rfl⟩
+    · exact (count_vars_matchingInstance_even G i).trans
+        (count_vars_perfectMatchingInstance_eq_two G hi)
     · simp only [count_vars_matchingInstance_odd, hv, ↓reduceIte]
 
 /-- Each generated relation is a nonempty even delta-matroid on its actual scope positions. -/
@@ -160,9 +140,9 @@ theorem evenConstraints_matchingInstance (G : Graph) :
       BitString.IsEvenDeltaMatroid {t : Fin c.scope.length → Bool |
         c.rel.sem (List.ofFn t) = true} := by
     simp only [matchingInstance, List.mem_append, List.mem_map, mem_distinctVertices] at hc
-    rcases hc with ⟨v, _, rfl⟩ | ⟨v, _, rfl⟩
-    · exact CSP.Table.isEvenDeltaMatroid_exactlyOne _ (List.cons_ne_nil _ _)
-    · exact CSP.Table.isEvenDeltaMatroid_pinTable false
+    rcases hc with ⟨_, _, rfl⟩ | ⟨_, _, rfl⟩
+    exacts [CSP.Table.isEvenDeltaMatroid_exactlyOne _ (List.cons_ne_nil _ _),
+      CSP.Table.isEvenDeltaMatroid_pinTable false]
   exact fun i => hgood _ (List.getElem_mem i.isLt)
 
 end Cslib.Complexity.Graph

@@ -101,10 +101,9 @@ theorem correctOn_toROM {S : Scheme PK SK M Sig} {adm : M → Prop}
       ∀ σ ∈ (ProbComp.eval (S.sign keys.2 m)).support, S.verify keys.1 m σ = true) :
     S.toROM.CorrectOn adm := by
   dsimp only [ROMSignature.Scheme.CorrectOn, toROM]
-  intro keys hkeys m hm σ hσ cache signed hsigned verified hverified
+  rintro keys hkeys m hm σ hσ _ _ hsigned _ hverified
   simp only [interp_norm, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hsigned hverified
-  subst hsigned hverified
-  exact h keys hkeys m hm σ hσ
+  subst hsigned hverified; exact h keys hkeys m hm σ hσ
 
 /-- A correct scheme is a correct random-oracle scheme. -/
 theorem correct_toROM {S : Scheme PK SK M Sig} (h : S.Correct) : S.toROM.Correct :=
@@ -124,33 +123,16 @@ private theorem runWith_runLoggedForger_toROM (S : Scheme PK SK M Sig) (A : Forg
       ProbComp.eval ((A pk).runLogWith (Signer.ofSign S.sign sk)) := by
   rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
   unfold ROMSignature.runLoggedForger Forger.toROM
-  have hcomp :
-      interpret
-        (sumHandler
-          (fun k => StateT.lift (ProbOracleComp.sample
-            (spec := ROMSignature.ForgerSpec M Empty Sig Unit) (ProbComp.unifFin k)))
-          ROMSignature.logSigning)
-        (interpret
-          (sumHandler
-            (fun k => ProbOracleComp.sample (spec := ROMSignature.ForgerSpec M Empty Sig Unit)
-              (ProbComp.unifFin k))
-            (fun m => ProbOracleComp.query (spec := ROMSignature.ForgerSpec M Empty Sig Unit)
-              (.inl m)))
-          (A pk)) =
-      interpret
-        (sumHandler
-          (fun k => StateT.lift (ProbOracleComp.sample
-            (spec := ROMSignature.ForgerSpec M Empty Sig Unit) (ProbComp.unifFin k)))
-          (fun m => ROMSignature.logSigning (.inl m)))
-        (A pk) := by
-    rw [interpret_interpret]
-    congr 1 with q : 1
-    cases q with
-    | inl k =>
-      simp [sumHandler, ProbOracleComp.sample, ProbComp.unifFin]
-    | inr m =>
-      simp [sumHandler, ProbOracleComp.query]
-  rw [hcomp, ProbOracleComp.runWith_run_interpret, PMF.map_comp]
+  rw [interpret_interpret, show (fun x => interpret (sumHandler
+      (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))) ROMSignature.logSigning)
+      (sumHandler (fun k => ProbOracleComp.sample (ProbComp.unifFin k))
+        (fun m => ProbOracleComp.query (.inl m)) x)) =
+      sumHandler (fun k => StateT.lift (ProbOracleComp.sample
+        (spec := ROMSignature.ForgerSpec M Empty Sig Unit) (ProbComp.unifFin k)))
+        fun m => ROMSignature.logSigning (.inl m) from funext fun
+    | .inl _ => by simp [sumHandler, ProbOracleComp.sample, ProbComp.unifFin]
+    | .inr _ => by simp [sumHandler, ProbOracleComp.query],
+    ProbOracleComp.runWith_run_interpret, PMF.map_comp]
   exact ProbOracleComp.runWith_map_state _
     (fun m log => ProbComp.eval (ProbOracleComp.logOracle (Signer.ofSign S.sign sk) m log))
     (fun (state : List (M × Sig) × List (Empty × Unit)) => state.1.reverse)
@@ -158,8 +140,8 @@ private theorem runWith_runLoggedForger_toROM (S : Scheme PK SK M Sig) (A : Forg
       simp only [ROMSignature.forgerWorldImpl, toROM, StateT.run, interp_norm, pmf_norm,
         ROMSignature.logSigning, bind_pure_comp, ProbOracleComp.runWith_map,
         ProbOracleComp.runWith_query]
-      have hpure : ∀ σ : Sig, (pure σ : StateT (List (Empty × Unit)) PMF Sig) cache =
-          PMF.pure (σ, cache) := fun _ => rfl
+      have hpure (σ : Sig) : (pure σ : StateT (List (Empty × Unit)) PMF Sig) cache =
+          PMF.pure (σ, cache) := rfl
       simp only [Prod.map_fst, List.reverse_cons, hpure, PMF.pure_map, ProbOracleComp.logOracle,
         Signer.ofSign_apply, ProbComp.eval_map]
       rfl)
@@ -188,11 +170,9 @@ theorem worldGame_toROM_eufCma [DecidableEq M] (S : Scheme PK SK M Sig) (A : For
     ROMSignature.worldGame S.toROM A.toROM
         (fun verified ⟨m, _⟩ pairs => verified && !(pairs.map Prod.fst).contains m) =
       ProbComp.eval (S.eufCmaExperiment A) := by
-  refine Eq.trans ?_ (S.worldGame_toROM freshMessage A)
-  congr 1
-  funext verified msig pairs
-  have hmem : ∀ x, x ∈ pairs.reverse.map Prod.fst ↔ x ∈ pairs.map Prod.fst := by
-    simp [List.mem_map]
+  rw [← S.worldGame_toROM freshMessage A]
+  congr 1; funext _ _ pairs
+  have hmem (x) : x ∈ pairs.reverse.map Prod.fst ↔ x ∈ pairs.map Prod.fst := by simp [List.mem_map]
   simp only [freshMessage, hmem, List.contains_eq_mem, decide_not]
 
 /-- The random-oracle SUF-CMA experiment of `S.toROM` is `S.sufCmaExperiment`. -/
@@ -201,9 +181,8 @@ theorem worldGame_toROM_sufCma [DecidableEq M] [DecidableEq Sig] (S : Scheme PK 
     ROMSignature.worldGame S.toROM A.toROM
         (fun verified msig pairs => verified && !pairs.contains msig) =
       ProbComp.eval (S.sufCmaExperiment A) := by
-  refine Eq.trans ?_ (S.worldGame_toROM freshPair A)
-  congr 1
-  funext verified msig pairs
+  rw [← S.worldGame_toROM freshPair A]
+  congr 1; funext _ _ _
   simp [freshPair]
 
 end Scheme
@@ -219,10 +198,8 @@ theorem SignatureScheme.eufCmaGame_eq_worldGame_toROM (S : SignatureScheme) (adv
         (fun verified (⟨m, _⟩ : List Bool × List Bool) pairs =>
           verified && !(pairs.map Prod.fst).contains m) := by
   rw [S.eufCmaGame_eq_eufCmaExperiment, ← Signature.Scheme.worldGame_toROM_eufCma]
-  congr 1
-  funext verified msig pairs
-  simp only [List.contains_eq_mem]
-  congr
+  congr 1; funext _ _ _
+  simp only [List.contains_eq_mem]; congr
 
 /-- At each parameter `n`, honest signatures of `n`-bit messages verify in
 `(S.toScheme n).toROM`. -/
@@ -241,10 +218,8 @@ theorem WordSignatureScheme.eufCmaGame_eq_worldGame_toROM (S : WordSignatureSche
         (fun verified (⟨m, _⟩ : List Bool × List Bool) pairs =>
           verified && !(pairs.map Prod.fst).contains m) := by
   rw [S.eufCmaGame_eq_eufCmaExperiment, ← Signature.Scheme.worldGame_toROM_eufCma]
-  congr 1
-  funext verified msig pairs
-  simp only [List.contains_eq_mem]
-  congr
+  congr 1; funext _ _ _
+  simp only [List.contains_eq_mem]; congr
 
 /-- At each parameter `n`, `(S.toScheme n).toROM` is correct on every message. -/
 theorem WordSignatureScheme.correct_toROM (S : WordSignatureScheme) (n : ℕ) :

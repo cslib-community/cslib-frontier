@@ -92,26 +92,19 @@ theorem CNF.evalOne_flatMap_eq_true_iff {ι : Type*} (σ : V → Bool) (l : List
 /-- Clause exact-one evaluation depends only on the variables occurring in it. -/
 theorem Clause.evalOne_congr {σ τ : V → Bool} {c : Clause V}
     (h : ∀ l ∈ c, σ l.1 = τ l.1) : c.evalOne σ = c.evalOne τ := by
-  unfold Clause.evalOne
-  congr 1
-  apply List.countP_congr
-  intro l hl
-  simp only [Literal.eval, h l hl]
+  exact congrArg (· == 1) (List.countP_congr fun l hl => by simp only [Literal.eval, h l hl])
 
 /-- Formula exact-one evaluation depends only on its variables. -/
 theorem CNF.evalOne_congr {σ τ : V → Bool} {φ : CNF V}
     (h : ∀ v ∈ φ.vars, σ v = τ v) : φ.evalOne σ = φ.evalOne τ := by
   rw [Bool.eq_iff_iff, CNF.evalOne_eq_true_iff, CNF.evalOne_eq_true_iff]
-  refine forall₂_congr fun c hc => ?_
-  rw [Clause.evalOne_congr (fun l hl => h l.1 ?_)]
-  exact CNF.mem_vars.mpr ⟨c, hc, l.2, hl⟩
+  exact forall₂_congr fun c hc => by
+    rw [Clause.evalOne_congr fun l hl => h l.1 (CNF.mem_vars.mpr ⟨c, hc, l.2, hl⟩)]
 
 /-- Exact-one clause evaluation commutes with relabelling. -/
 @[simp] theorem Clause.evalOne_relabel (f : V → W) (σ : W → Bool) (c : Clause V) :
     (c.relabel f).evalOne σ = c.evalOne (σ ∘ f) := by
-  unfold Clause.evalOne Clause.relabel
-  rw [List.countP_map]
-  rfl
+  rw [Clause.evalOne, Clause.relabel, List.countP_map]; rfl
 
 /-- Exact-one formula evaluation commutes with relabelling. -/
 @[simp] theorem CNF.evalOne_relabel (f : V → W) (σ : W → Bool) (φ : CNF V) :
@@ -136,11 +129,9 @@ theorem Clause.eval_atMostOneOccurrences (σ : V → Bool) (c : Clause V) :
   induction c with
   | nil => simp [Clause.atMostOneOccurrences]
   | cons l c ih =>
-    have head (l : Literal V) :
-        CNF.eval σ (c.map fun k => [Std.Sat.Literal.negate l, Std.Sat.Literal.negate k]) =
-          true ↔ (Literal.eval σ l = true → c.countP (Literal.eval σ) = 0) := by
-      cases h : Literal.eval σ l <;>
-        simp [CNF.eval, Clause.eval, List.countP_eq_zero, h]
+    have head : CNF.eval σ (c.map fun k => [Std.Sat.Literal.negate l, Std.Sat.Literal.negate k]) =
+        true ↔ (Literal.eval σ l = true → c.countP (Literal.eval σ) = 0) := by
+      cases h : Literal.eval σ l <;> simp [CNF.eval, Clause.eval, List.countP_eq_zero, h]
     rw [Clause.atMostOneOccurrences, CNF.eval_append, Bool.and_eq_true, head, ih]
     cases h : Literal.eval σ l <;>
       simp only [List.countP_cons, h, Bool.false_eq_true, ↓reduceIte,
@@ -149,19 +140,16 @@ theorem Clause.eval_atMostOneOccurrences (σ : V → Bool) (c : Clause V) :
 /-- Exact-one clause encoding preserves evaluation under the same assignment. -/
 @[simp] theorem Clause.eval_oneEncoding (σ : V → Bool) (c : Clause V) :
     c.oneEncoding.eval σ = c.evalOne σ := by
-  rw [Bool.eq_iff_iff, Clause.oneEncoding, CNF.eval_append, Bool.and_eq_true]
-  rw [CNF.eval_cons, CNF.eval_nil, Bool.and_true, Clause.eval_atMostOneOccurrences,
-    Clause.evalOne_eq_true_iff]
-  have hpos : c.eval σ = true ↔ 0 < c.countP (Literal.eval σ) := by
-    simp [Clause.eval, List.countP_pos_iff]
-  rw [hpos]
+  rw [Bool.eq_iff_iff, Clause.oneEncoding, CNF.eval_append, Bool.and_eq_true, CNF.eval_cons,
+    CNF.eval_nil, Bool.and_true, Clause.eval_atMostOneOccurrences, Clause.evalOne_eq_true_iff,
+    show (c.eval σ = true) ↔ 0 < c.countP (Literal.eval σ) by
+      simp [Clause.eval, List.countP_pos_iff]]
   omega
 
 /-- Exact-one formula encoding preserves evaluation under the same assignment. -/
 @[simp] theorem CNF.eval_oneEncoding (σ : V → Bool) (φ : CNF V) :
     φ.oneEncoding.eval σ = φ.evalOne σ := by
-  rw [Bool.eq_iff_iff, CNF.oneEncoding, CNF.eval_flatMap_eq_true_iff,
-    CNF.evalOne_eq_true_iff]
+  rw [Bool.eq_iff_iff, CNF.oneEncoding, CNF.eval_flatMap_eq_true_iff, CNF.evalOne_eq_true_iff]
   simp
 
 /-- The ordinary encoding is satisfiable exactly when the exact-one source is. -/
@@ -180,29 +168,19 @@ theorem Clause.fst_mem_of_mem_atMostOneOccurrences {c : Clause V} {d : Clause V}
     rcases hd with ⟨k', hk', rfl⟩ | hd
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
       rcases hl with rfl | rfl
-      · exact ⟨k, List.mem_cons_self, rfl⟩
-      · exact ⟨k', List.mem_cons_of_mem _ hk', rfl⟩
-    · obtain ⟨k', hk', he⟩ := ih hd
-      exact ⟨k', List.mem_cons_of_mem _ hk', he⟩
+      exacts [⟨k, List.mem_cons_self, rfl⟩, ⟨k', List.mem_cons_of_mem _ hk', rfl⟩]
+    · exact let ⟨k', hk', he⟩ := ih hd; ⟨k', List.mem_cons_of_mem _ hk', he⟩
 
 /-- The encoding has exactly the variables of the source, irrespective of repetitions. -/
 theorem CNF.mem_vars_oneEncoding {φ : CNF V} {v : V} :
     v ∈ φ.oneEncoding.vars ↔ v ∈ φ.vars := by
-  constructor
-  · intro hv
-    obtain ⟨d, hd, b, hl⟩ := CNF.mem_vars.mp hv
-    obtain ⟨c, hc, hd⟩ := List.mem_flatMap.mp hd
-    rcases List.mem_append.mp hd with hd | hd
-    · have hd' : d = c := List.mem_singleton.mp hd
-      subst d
-      exact CNF.mem_vars.mpr ⟨c, hc, b, hl⟩
-    · obtain ⟨k, hk, he⟩ := Clause.fst_mem_of_mem_atMostOneOccurrences hd hl
-      have hk' : (v, k.2) = k := Prod.ext he rfl
-      exact CNF.mem_vars.mpr ⟨c, hc, k.2, hk'.symm ▸ hk⟩
-  · intro hv
-    obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp hv
-    exact CNF.mem_vars.mpr ⟨c, List.mem_flatMap.mpr
-      ⟨c, hc, List.mem_append.mpr (Or.inl (List.mem_singleton_self _))⟩, b, hl⟩
+  simp only [CNF.mem_vars, CNF.oneEncoding, List.mem_flatMap, Clause.oneEncoding, List.mem_append,
+    List.mem_singleton]
+  refine ⟨?_, fun ⟨c, hc, b, hl⟩ => ⟨c, ⟨c, hc, .inl rfl⟩, b, hl⟩⟩
+  rintro ⟨d, ⟨c, hc, hd | hd⟩, b, hl⟩
+  · exact ⟨c, hc, b, hd ▸ hl⟩
+  · obtain ⟨k, hk, he⟩ := Clause.fst_mem_of_mem_atMostOneOccurrences hd hl
+    exact ⟨c, hc, k.2, (Prod.ext he rfl : (v, k.2) = k) ▸ hk⟩
 
 /-- The pair encoding commutes with renaming variables. -/
 theorem Clause.atMostOneOccurrences_relabel (f : V → W) (c : Clause V) :

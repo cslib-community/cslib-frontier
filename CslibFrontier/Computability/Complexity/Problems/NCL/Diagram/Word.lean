@@ -132,10 +132,8 @@ private theorem idx_sumElim_injective (D₁ : Diagram Γ a b) (D₂ : Diagram Γ
     Function.Injective (Sum.elim (idx D₁) fun e => innerCount D₁ + idx D₂ e) := by
   rintro (e | e) (e' | e') h <;> simp only [Sum.elim_inl, Sum.elim_inr] at h
   · rw [h₁ h]
-  · have := idx_lt D₁ e
-    omega
-  · have := idx_lt D₁ e'
-    omega
+  · have := idx_lt D₁ e; omega
+  · have := idx_lt D₁ e'; omega
   · rw [h₂ (Nat.add_left_cancel h)]
 
 private theorem idx_injective :
@@ -153,19 +151,17 @@ order of creation. -/
 /-- Every edge name precedes the next unused name, when the incoming names do. -/
 theorem name_lt (D : Diagram Γ a b) (top : Fin a.length → ℕ) (k : ℕ)
     (htop : ∀ i, top i < k) (e : D.Edge) : name D top k e < k + innerCount D := by
-  rcases e with i | e
-  · exact (htop i).trans_le (Nat.le_add_right _ _)
-  · exact Nat.add_lt_add_left (idx_lt D e) k
+  exact e.casesOn (fun i => (htop i).trans_le (Nat.le_add_right _ _))
+    fun e => Nat.add_lt_add_left (idx_lt D e) k
 
 /-- The edge numbers are bounded by the top wires and the wires created inside. -/
 theorem num_lt (D : Diagram Γ a b) (e : D.Edge) :
     D.num e < a.length + innerCount D := name_lt D Fin.val a.length (fun i => i.isLt) e
 
 theorem num_injective (D : Diagram Γ a b) : Function.Injective D.num := by
-  rintro (i | e) (i' | e') h <;> simp only [num, name, Sum.elim_inl, Sum.elim_inr] at h
+  rintro (i | e) (i' | e') h <;> simp only [num, name, Sum.elim_inl, Sum.elim_inr] at h <;>
+    try omega
   · rw [Fin.ext h]
-  · omega
-  · omega
   · rw [idx_injective D (Nat.add_left_cancel h)]
 
 /-- The vertices of a diagram, in the order of its layers. -/
@@ -186,8 +182,7 @@ variable {I}
 
 private theorem take_prefix {P L S : List ℕ} {k : ℕ} (h : P.length = k) :
     (P ++ L ++ S).take k = P := by
-  rw [List.append_assoc]
-  exact List.take_left' h
+  exact List.append_assoc P L S ▸ List.take_left' h
 
 private theorem drop_prefix {P S : List ℕ} {k n : ℕ} (h : P.length = k) (f : Fin n → ℕ) :
     (P ++ List.ofFn f ++ S).drop (k + n) = S :=
@@ -205,9 +200,7 @@ theorem name_compRight (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c) (top : Fi
     (k : ℕ) (x : D₂.Edge) :
     name (comp D₁ D₂) top k (compRight D₁ D₂ x) =
       name D₂ (fun j => name D₁ top k (D₁.bottom j)) (k + innerCount D₁) x := by
-  rcases x with i | e
-  · exact name_compLeft D₁ D₂ top k _
-  · exact (Nat.add_assoc ..).symm
+  exact x.casesOn (fun _ => name_compLeft D₁ D₂ top k _) fun _ => (Nat.add_assoc ..).symm
 
 theorem name_tensorLeft (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (top : Fin (a ++ c).length → ℕ) (k : ℕ) (x : D₁.Edge) :
@@ -219,9 +212,7 @@ theorem name_tensorRight (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (top : Fin (a ++ c).length → ℕ) (k : ℕ) (x : D₂.Edge) :
     name (tensor D₁ D₂) top k (tensorRight D₁ D₂ x) =
       name D₂ (fun j => top ((List.appendIndexEquiv a c) (.inr j))) (k + innerCount D₁) x := by
-  rcases x with i | e
-  · rfl
-  · exact (Nat.add_assoc ..).symm
+  exact x.casesOn (fun _ => rfl) fun _ => (Nat.add_assoc ..).symm
 
 /-- **Running the word of a diagram builds its graph.** Started on a stack whose wires from offset
 `k` carry the edges `top`, with `c` the next edge number, the run replaces those wires by the
@@ -237,8 +228,7 @@ theorem run_toWord {a b : List Color} (D : Diagram Γ a b) (k : ℕ) (P S : List
     simp only [toWord, Word.run, List.foldl_cons, List.foldl_nil, Slice.run, take_prefix hP,
       drop_prefix hP, getD_prefix hP, vertexList]
     rfl
-  | id a =>
-    simp [toWord, Word.run, innerCount, vertexList, name, bottom]
+  | id a => simp [toWord, Word.run, innerCount, vertexList, name, bottom]
   | swap x y =>
     subst hP
     simp [toWord, Word.run, Slice.run, innerCount, vertexList, name, bottom, List.ofFn_succ,
@@ -251,8 +241,7 @@ theorem run_toWord {a b : List Color} (D : Diagram Γ a b) (k : ℕ) (P S : List
   | @tensor a b c' d D₁ D₂ ih₁ ih₂ =>
     rw [toWord, Word.run_append, List.ofFn_appendIndexEquiv a c' top, ← List.append_assoc P,
       List.append_assoc (P ++ _), ih₁ k P _ hP, ← List.append_assoc,
-      ih₂ (k + b.length) _ S (by simp [hP])]
-    simp only [Word.State.mk.injEq]
+      ih₂ (k + b.length) _ S (by simp [hP]), Word.State.mk.injEq]
     refine ⟨?_, Nat.add_assoc .., ?_⟩
     · rw [List.ofFn_appendIndexEquiv b d
         (fun j => name (tensor D₁ D₂) top c ((tensor D₁ D₂).bottom j))]
@@ -268,9 +257,8 @@ theorem forall_mem_vertexList_iff {a b : List Color} (D : Diagram Γ a b)
     (∀ v ∈ vertexList I D, P v) ↔ ∀ v, P (D.graph I v) := by
   induction D with
   | gen g =>
-    refine ⟨fun h i => h _ (List.getElem_mem _), fun h v hv => ?_⟩
-    obtain ⟨i, rfl⟩ := List.get_of_mem hv
-    exact h i
+    exact ⟨fun h _ => h _ (List.getElem_mem _),
+      fun h _ hv => let ⟨i, he⟩ := List.get_of_mem hv; he ▸ h i⟩
   | id _ | swap _ _ => simp [vertexList, graph, Vtx]
   | comp D₁ D₂ ih₁ ih₂ | tensor D₁ D₂ ih₁ ih₂ =>
     simp only [vertexList, List.forall_mem_append, List.forall_mem_map, graph, Vtx, Sum.forall,
@@ -299,8 +287,7 @@ theorem run_toWord_closed (D : Diagram Γ [] []) :
 theorem forall_run_toWord_iff (D : Diagram Γ [] []) (s : ℕ → Bool) :
     (∀ v ∈ (Word.run (toWord I D 0) ⟨[], 0, []⟩).verts, v.Sat s) ↔
       (D.graph I).Legal (s ∘ name D Fin.elim0 0) := by
-  rw [run_toWord_closed, ← forall_vertexList_iff]
-  simp
+  simp [run_toWord_closed, ← forall_vertexList_iff]
 
 end Diagram
 
