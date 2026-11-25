@@ -60,11 +60,9 @@ variable {Γ : List Color → List Color → Type}
   | .cross c d => Prim.cross c d⟩
 
 private theorem forward {I : Diagram.Interp Γ} (hI : I.Forward) : (interp I).Forward := by
-  intro a b g v hv p hp
-  cases g with
-  | base g => exact hI g v hv p hp
-  | cross c d =>
-    simp only [interp, Prim.cross, List.mem_cons, List.not_mem_nil, or_false] at hv
+  rintro a b (g | ⟨c, d⟩) v hv p hp
+  · exact hI g v hv p hp
+  · simp only [interp, Prim.cross, List.mem_cons, List.not_mem_nil, or_false] at hv
     rcases hv with rfl | rfl <;>
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hp <;>
       rcases hp with rfl | rfl <;> rfl
@@ -155,18 +153,16 @@ theorem forget_bottom (D : Diagram Γ a b) (j : Fin b.length) :
     rw [bottom_comp, bottom_comp]
     rcases he : (diagram D₂).bottom j with k | e
     · change forget (D₁.comp D₂) (compLeft (diagram D₁) (diagram D₂) ((diagram D₁).bottom k)) = _
-      rw [forget_compLeft, ih₁]
-      have hj := ih₂ j
-      rw [he, forget_top] at hj
-      rw [← hj]
+      have hj := he ▸ ih₂ j
+      rw [forget_top] at hj
+      rw [forget_compLeft, ih₁, ← hj]
       rfl
     · change compRight D₁ D₂ (forget D₂ (.inr e)) = _
       rw [← he, ih₂]
   | @tensor a b c d D₁ D₂ ih₁ ih₂ =>
-    obtain ⟨z, rfl⟩ := (List.appendIndexEquiv b d).surjective j
-    cases z with
-    | inl k => rw [bottom_tensor_left, forget_tensorLeft, ih₁, bottom_tensor_left]
-    | inr k => rw [bottom_tensor_right, forget_tensorRight, ih₂, bottom_tensor_right]
+    rcases (List.appendIndexEquiv b d).surjective j with ⟨k | k, rfl⟩
+    · rw [bottom_tensor_left, forget_tensorLeft, ih₁, bottom_tensor_left]
+    · rw [bottom_tensor_right, forget_tensorRight, ih₂, bottom_tensor_right]
 
 private theorem forget_compRight (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c) (e : (diagram D₂).Edge) :
     forget (D₁.comp D₂) (compRight (diagram D₁) (diagram D₂) e) =
@@ -237,30 +233,15 @@ private theorem legal_enc (I : Interp Γ) (D : Diagram Γ a b) {s : D.Edge → B
   | gen g => exact hs
   | id _ => exact fun v => v.elim
   | swap c d =>
-    change ((gen (Prim.cross c d)).graph Prim.interp).Legal (enc (swap c d) s)
-    apply (genLegal_iff (Prim.cross c d) _).1
-    apply (Prim.genLegal_cross c d _).2
-    exact ⟨le_rfl, le_rfl⟩
+    exact (genLegal_iff (Prim.cross c d) _).1 ((Prim.genLegal_cross c d _).2 ⟨le_rfl, le_rfl⟩)
   | comp D₁ D₂ ih₁ ih₂ =>
     obtain ⟨h₁, h₂⟩ := (legal_comp_iff D₁ D₂ s).1 hs
-    apply (legal_comp_iff (diagram D₁) (diagram D₂) _).2
-    constructor
-    · convert ih₁ h₁ using 1
-      funext e
-      exact congrArg s (forget_compLeft D₁ D₂ e)
-    · convert ih₂ h₂ using 1
-      funext e
-      exact congrArg s (forget_compRight D₁ D₂ e)
+    exact (legal_comp_iff (diagram D₁) (diagram D₂) _).2
+      ⟨(enc_compLeft D₁ D₂ s).symm ▸ ih₁ h₁, (enc_compRight D₁ D₂ s).symm ▸ ih₂ h₂⟩
   | tensor D₁ D₂ ih₁ ih₂ =>
     obtain ⟨h₁, h₂⟩ := (legal_tensor_iff D₁ D₂ s).1 hs
-    apply (legal_tensor_iff (diagram D₁) (diagram D₂) _).2
-    constructor
-    · convert ih₁ h₁ using 1
-      funext e
-      exact congrArg s (forget_tensorLeft D₁ D₂ e)
-    · convert ih₂ h₂ using 1
-      funext e
-      exact congrArg s (forget_tensorRight D₁ D₂ e)
+    exact (legal_tensor_iff (diagram D₁) (diagram D₂) _).2
+      ⟨(enc_tensorLeft D₁ D₂ s).symm ▸ ih₁ h₁, (enc_tensorRight D₁ D₂ s).symm ▸ ih₂ h₂⟩
 
 private def Sound (I : Interp Γ) (D : Diagram Γ a b) : Prop :=
   ∀ {s : D.Edge → Bool} {t : (diagram D).Edge → Bool},
@@ -273,15 +254,11 @@ private theorem sound_comp {I : Interp Γ} (D₁ : Diagram Γ a b) (D₂ : Diagr
     (ih₁ : Sound I D₁) (ih₂ : Sound I D₂) : Sound I (D₁.comp D₂) := by
   intro s t ht htop hborn
   obtain ⟨h₁, h₂⟩ := (legal_comp_iff (diagram D₁) (diagram D₂) t).1 ht
-  have hr₁ := ih₁ (s := s ∘ compLeft D₁ D₂) h₁ (fun i => htop i) (fun e => hborn (.inl e))
+  have hr₁ := ih₁ (s := s ∘ compLeft D₁ D₂) h₁ htop (fun e => hborn (.inl e))
   have hr₂ := ih₂ (s := s ∘ compRight D₁ D₂) h₂ hr₁.2 (fun e => hborn (.inr e))
-  refine ⟨(legal_comp_iff D₁ D₂ s).2 ⟨hr₁.1, hr₂.1⟩, ?_⟩
-  intro j
-  have hj := hr₂.2 j
-  change t (compRight (diagram D₁) (diagram D₂) ((diagram D₂).bottom j)) ≤
-    s (compRight D₁ D₂ (D₂.bottom j)) at hj
-  rw [← bottom_comp, ← bottom_comp] at hj
-  exact hj
+  refine ⟨(legal_comp_iff D₁ D₂ s).2 ⟨hr₁.1, hr₂.1⟩, fun j => ?_⟩
+  rw [bottom_comp, bottom_comp]
+  exact hr₂.2 j
 
 private theorem sound_tensor {I : Interp Γ} (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (ih₁ : Sound I D₁) (ih₂ : Sound I D₂) : Sound I (D₁.tensor D₂) := by
@@ -291,40 +268,25 @@ private theorem sound_tensor {I : Interp Γ} (D₁ : Diagram Γ a b) (D₂ : Dia
     (fun i => htop ((List.appendIndexEquiv a c) (.inl i)))
     (fun e => hborn (.inl e))
   have hr₂ := ih₂ (s := s ∘ tensorRight D₁ D₂) h₂
-    (fun i => htop ((List.appendIndexEquiv a c) (.inr i)))
-    (fun e => hborn (.inr e))
-  refine ⟨(legal_tensor_iff D₁ D₂ s).2 ⟨hr₁.1, hr₂.1⟩, ?_⟩
-  intro j
-  obtain ⟨z, rfl⟩ := (List.appendIndexEquiv b d).surjective j
-  cases z with
-  | inl k =>
-    have hj := hr₁.2 k
-    change t (tensorLeft (diagram D₁) (diagram D₂) ((diagram D₁).bottom k)) ≤
-      s (tensorLeft D₁ D₂ (D₁.bottom k)) at hj
-    simpa only [← bottom_tensor_left] using hj
-  | inr k =>
-    have hj := hr₂.2 k
-    change t (tensorRight (diagram D₁) (diagram D₂) ((diagram D₂).bottom k)) ≤
-      s (tensorRight D₁ D₂ (D₂.bottom k)) at hj
-    simpa only [← bottom_tensor_right] using hj
+    (fun i => htop ((List.appendIndexEquiv a c) (.inr i))) (fun e => hborn (.inr e))
+  refine ⟨(legal_tensor_iff D₁ D₂ s).2 ⟨hr₁.1, hr₂.1⟩, fun j => ?_⟩
+  rcases (List.appendIndexEquiv b d).surjective j with ⟨k | k, rfl⟩
+  · rw [bottom_tensor_left, bottom_tensor_left]
+    exact hr₁.2 k
+  · rw [bottom_tensor_right, bottom_tensor_right]
+    exact hr₂.2 k
 
 private theorem sound_bound {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b) :
     Sound I D := by
   induction D with
   | gen g =>
-    intro s t ht htop hborn
-    exact ⟨legal_top_mono hI (gen g) ht htop hborn, fun j => (hborn j).le⟩
-  | id _ =>
-    intro s t ht htop hborn
-    exact ⟨fun v => v.elim, htop⟩
+    exact fun ht htop hborn => ⟨legal_top_mono hI (gen g) ht htop hborn, fun j => (hborn j).le⟩
+  | id _ => exact fun _ htop _ => ⟨fun v => v.elim, htop⟩
   | swap c d =>
-    intro s t ht htop hborn
+    intro s t ht htop _
     have hc := (Prim.genLegal_cross c d t).1 ((genLegal_iff (Prim.cross c d) t).2 ht)
-    refine ⟨fun v => v.elim, ?_⟩
-    intro j
-    refine Fin.cases ?_ (Fin.cases ?_ (fun k => k.elim0)) j
-    · exact hc.2.trans (htop 1)
-    · exact hc.1.trans (htop 0)
+    exact ⟨fun v => v.elim,
+      Fin.cases (hc.2.trans (htop 1)) (Fin.cases (hc.1.trans (htop 0)) fun k => k.elim0)⟩
   | comp D₁ D₂ ih₁ ih₂ => exact sound_comp D₁ D₂ ih₁ ih₂
   | tensor D₁ D₂ ih₁ ih₂ => exact sound_tensor D₁ D₂ ih₁ ih₂
 
@@ -342,23 +304,21 @@ private theorem step_abs {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b)
     exact .single ⟨legal_abs hI D hs, legal_abs hI D ht, e,
       reverse_comp_of_injective (original_injective D) s e⟩
   · have ha : abs D (reverse s y) = abs D s :=
-      reverse_comp_of_not_mem_range s (fun e h => hy ⟨e, h⟩)
+      reverse_comp_of_not_mem_range s fun e h => hy ⟨e, h⟩
     rw [ha]
 
 private theorem reachable_enc_reverse {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b)
     (s : D.Edge → Bool) (e : D.Edge) (he : s e = false)
     (hs : (D.graph I).Legal s) (ht : (D.graph I).Legal (reverse s e)) :
     ((diagram D).graph (Routed.interp I)).Reachable (enc D s) (enc D (reverse s e)) := by
-  have hle : ∀ y, enc D s y ≤ enc D (reverse s e) y := by
-    intro y
+  have hle : ∀ y, enc D s y ≤ enc D (reverse s e) y := fun y => by
     change s (forget D y) ≤ reverse s e (forget D y)
     by_cases hy : forget D y = e
-    · rw [hy, reverse_self, he]
-      exact Bool.false_le _
+    · simp [hy, reverse_self, he]
     · rw [reverse_of_ne s hy]
-  have hr := reachable_of_le_within (Routed.forward hI) (diagram D) (legal_enc I D hs)
-    (legal_enc I D ht) hle (P := fun _ => True) (fun _ _ _ => trivial)
-  exact Relation.ReflTransGen.mono (fun _ _ h => h.2) _ _ hr
+  exact Relation.ReflTransGen.mono (fun _ _ h => h.2) _ _
+    (reachable_of_le_within (Routed.forward hI) (diagram D) (legal_enc I D hs)
+      (legal_enc I D ht) hle (P := fun _ => True) fun _ _ _ => trivial)
 
 private theorem step_enc {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b)
     {s t : D.Edge → Bool} (h : (D.graph I).Step s t) :
@@ -366,11 +326,8 @@ private theorem step_enc {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b)
   obtain ⟨hs, ht, e, rfl⟩ := h
   cases he : s e
   · exact reachable_enc_reverse hI D s e he hs ht
-  · have he' : reverse s e e = false := by simp [he]
-    have hs' : (D.graph I).Legal (reverse (reverse s e) e) := by
-      simpa only [reverse_reverse] using hs
-    have hr := reachable_enc_reverse hI D (reverse s e) e he' ht hs'
-    simpa only [reverse_reverse] using hr.symm
+  · simpa only [reverse_reverse] using (reachable_enc_reverse hI D (reverse s e) e
+      (by simp [he]) ht (by simpa only [reverse_reverse] using hs)).symm
 
 /-- Replacing swaps by wire relations preserves reachability for forward generators. -/
 @[expose] def simulation {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b) :

@@ -66,10 +66,10 @@ private theorem rank_eq_card (rows : List ℕ) (i : ℕ) :
 
 private theorem rank_lt (rows : List ℕ) {i : ℕ} (hi : i < rows.length) :
     List.rowRank rows i < rows.length := by
-  have hs : ((Finset.range rows.length).filter fun j => key rows j < key rows i) ⊂
-      Finset.range rows.length :=
-    Finset.filter_ssubset.mpr ⟨i, Finset.mem_range.mpr hi, lt_irrefl (key rows i)⟩
-  simpa only [← rank_eq_card, Finset.card_range] using Finset.card_lt_card hs
+  rw [rank_eq_card]
+  exact (Finset.card_lt_card
+    (Finset.filter_ssubset.mpr ⟨i, Finset.mem_range.mpr hi, lt_irrefl (key rows i)⟩)).trans_eq
+    (Finset.card_range _)
 
 private theorem rank_lt_rank (rows : List ℕ) {i j : ℕ} (hi : i < rows.length)
     (hij : key rows i < key rows j) : List.rowRank rows i < List.rowRank rows j := by
@@ -95,16 +95,14 @@ private theorem rank_injective (rows : List ℕ) {i j : ℕ}
 
 private theorem rank_surjective (rows : List ℕ) :
     Function.Surjective (fun i : Fin rows.length => (⟨List.rowRank rows i, rank_lt rows i.isLt⟩ :
-      Fin rows.length)) := by
-  apply Finite.surjective_of_injective
-  intro i j h
-  apply Fin.ext
-  exact rank_injective rows i.isLt j.isLt (congrArg Fin.val h)
+      Fin rows.length)) :=
+  Finite.surjective_of_injective fun i j h =>
+    Fin.ext (rank_injective rows i.isLt j.isLt (congrArg Fin.val h))
 
-private theorem ranks_nodup (rows : List ℕ) : (ranks rows).Nodup := by
-  apply List.Nodup.map_on _ List.nodup_range
-  intro i hi j hj he
-  exact rank_injective rows (List.mem_range.mp hi) (List.mem_range.mp hj) he
+private theorem ranks_nodup (rows : List ℕ) : (ranks rows).Nodup :=
+  List.Nodup.map_on
+    (fun _ hi _ hj => rank_injective rows (List.mem_range.mp hi) (List.mem_range.mp hj))
+    List.nodup_range
 
 private theorem mem_ranks_iff (rows : List ℕ) (k : ℕ) : k ∈ ranks rows ↔ k < rows.length := by
   constructor
@@ -117,16 +115,13 @@ private theorem mem_ranks_iff (rows : List ℕ) (k : ℕ) : k ∈ ranks rows ↔
 
 private theorem idxOf_rank (rows : List ℕ) {i : ℕ} (hi : i < rows.length) :
     (ranks rows).idxOf (List.rowRank rows i) = i := by
-  have hlen : i < (ranks rows).length := by simpa only [ranks, List.length_map,
-    List.length_range] using hi
   simpa only [ranks, List.getElem_map, List.getElem_range] using
-    (ranks_nodup rows).idxOf_getElem i hlen
+    (ranks_nodup rows).idxOf_getElem i (by simpa [ranks] using hi)
 
 private theorem rank_idxOf (rows : List ℕ) {i : ℕ} (hi : i < rows.length) :
     List.rowRank rows ((ranks rows).idxOf i) = i := by
-  have hm := (mem_ranks_iff rows i).mpr hi
-  have hlen := List.idxOf_lt_length_of_mem hm
-  simpa only [ranks, List.getElem_map, List.getElem_range] using List.getElem_idxOf hlen
+  simpa only [ranks, List.getElem_map, List.getElem_range] using
+    List.getElem_idxOf (List.idxOf_lt_length_of_mem ((mem_ranks_iff rows i).mpr hi))
 
 private theorem idxOf_lt (rows : List ℕ) {i : ℕ} (hi : i < rows.length) :
     (ranks rows).idxOf i < rows.length := by
@@ -179,25 +174,20 @@ theorem indices_perm_range (rows : List ℕ) : (indices rows).Perm (List.range r
 /-- Looking up an original vertex in the sorted index array gives its actual computed rank. -/
 theorem idxOf_indices (rows : List ℕ) (i : Fin rows.length) :
     (indices rows).idxOf i.val = (equiv rows i).val := by
-  have hn : (indices rows).Nodup :=
-    (indices_perm_range rows).nodup_iff.mpr List.nodup_range
-  have hi : (equiv rows i).val < (indices rows).length := by
-    simpa only [length_indices] using (equiv rows i).isLt
   simpa only [← equiv_symm_apply_eq_getElem, Equiv.symm_apply_apply] using
-    hn.idxOf_getElem (equiv rows i).val hi
+    ((indices_perm_range rows).nodup_iff.mpr List.nodup_range).idxOf_getElem (equiv rows i).val
+      (by simpa only [length_indices] using (equiv rows i).isLt)
 
 /-- Reading rows in the computed index order is monotone. -/
 theorem monotone_row_symm (rows : List ℕ) :
-    Monotone (fun i => rows.getD ((equiv rows).symm i).val 0) := by
-  intro i j hij
+    Monotone (fun i => rows.getD ((equiv rows).symm i).val 0) := fun i j hij => by
   by_contra h
-  have hkey : key rows ((equiv rows).symm j).val < key rows ((equiv rows).symm i).val :=
-    Prod.Lex.toLex_lt_toLex.mpr (Or.inl (Nat.lt_of_not_ge h))
-  have hr := rank_lt_rank rows ((equiv rows).symm j).isLt hkey
+  have hr := rank_lt_rank rows ((equiv rows).symm j).isLt
+    (Prod.Lex.toLex_lt_toLex.mpr (Or.inl (Nat.lt_of_not_ge h)))
   change (equiv rows ((equiv rows).symm j)).val <
     (equiv rows ((equiv rows).symm i)).val at hr
   simp only [Equiv.apply_symm_apply] at hr
-  exact (not_lt_of_ge hij) hr
+  exact not_lt_of_ge hij hr
 
 end Cslib.Complexity.NCL.ConstraintGraph.RowOrder
 

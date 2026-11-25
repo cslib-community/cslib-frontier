@@ -324,15 +324,13 @@ private theorem dinitzLoop_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n →
     omega
   | fuel + 1, M, ph, k, flows, hfuel, hrun, hph, hk => by
     simp only [dinitzLoop]
-    split
-    · rename_i hge
-      refine ⟨fun hreach => ?_, filter_bfsDistVec_eq_reachableCut _, ⟨flows, hrun, rfl, hph⟩, hk⟩
+    split_ifs with hge
+    · refine ⟨fun hreach => ?_, filter_bfsDistVec_eq_reachableCut _, ⟨flows, hrun, rfl, hph⟩, hk⟩
       have hlt := (M.toFlow.resDist_lt_card_iff_resReachable N.t).mpr hreach
       rw [vget_bfsDistVec] at hge
       rw [Fintype.card_fin] at hlt
       omega
-    · rename_i hlt
-      rw [vget_bfsDistVec] at hlt
+    · rw [vget_bfsDistVec] at hge
       have hreach : M.toFlow.ResReachable N.s N.t := by
         rw [← M.toFlow.resDist_lt_card_iff_resReachable, Fintype.card_fin]
         omega
@@ -366,22 +364,15 @@ private theorem dinitzLoop_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n →
       have hrun' : N.IsDinitzRun (ph + 1) flows' := by
         intro i hi
         rcases Nat.lt_or_ge i ph with hlt' | hge'
-        · have h₁ : i ≤ ph := Nat.le_of_lt hlt'
-          have h₂ : i + 1 ≤ ph := hlt'
-          simp only [flows', h₁, h₂, ↓reduceIte]
+        · simp only [flows', hlt'.le, show i + 1 ≤ ph from hlt', ↓reduceIte]
           exact hrun i hlt'
-        · have heq : i = ph := by omega
-          subst heq
-          have h₂ : ¬ i + 1 ≤ i := by omega
-          simp only [flows', le_rfl, h₂, ↓reduceIte, hph]
-          exact hstep
+        · obtain rfl : i = ph := by omega
+          simpa [flows', hph, Nat.not_succ_le_self] using hstep
       obtain ⟨h₁, h₂, ⟨flows'', hrun'', h0, hlast⟩, h₄⟩ := dinitzLoop_spec hadj hst fuel
         (FlowMatrix.ofFlow (M.toFlow.augmentLevel B.flow.toFlow)) (ph + 1) (k + B.pushes) flows'
         (by omega) hrun' (by simp [flows'])
         (by rw [Nat.succ_mul]; omega)
-      refine ⟨h₁, h₂, ⟨flows'', hrun'', ?_, hlast⟩, h₄⟩
-      rw [h0]
-      simp [flows']
+      exact ⟨h₁, h₂, ⟨flows'', hrun'', by simp [h0, flows'], hlast⟩, h₄⟩
 
 /-- The phases of `dinitz` form a run of Dinitz phases from the zero flow to the output flow. -/
 theorem dinitz_isDinitzRun {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}

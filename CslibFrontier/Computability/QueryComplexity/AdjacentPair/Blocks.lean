@@ -70,10 +70,10 @@ theorem adjacentPairBlocks_eq_true_iff {h : ∑ b, sizes b = n} {x : BitString n
 accepted block of size at most `M` has local sensitivity at most `M`. -/
 theorem sensitivity_adjacentPairBlocks_le (h : ∑ b, sizes b = n) {M : ℕ}
     (hM : ∀ b, sizes b ≤ M) : sensitivity (adjacentPairBlocks h) ≤ max (3 * k) M := by
-  have h' := sensitivity_orBlocks_le h (fun b => adjacentPair (sizes b)) (S₀ := 3) (S₁ := M)
-    (fun _ _ hx => sensitivityAt_adjacentPair_le_three hx)
-    (fun b _ hx => (sensitivityAt_adjacentPair_of_true hx).trans_le (hM b))
-  rwa [mul_comm] at h'
+  rw [adjacentPairBlocks, mul_comm]
+  exact sensitivity_orBlocks_le h (fun b => adjacentPair (sizes b))
+    (S₀ := 3) (S₁ := M) (fun _ _ => sensitivityAt_adjacentPair_le_three)
+    fun b _ hx => (sensitivityAt_adjacentPair_of_true hx).trans_le (hM b)
 
 /-- The input whose only true bits are the first two positions of block `b`. -/
 @[expose] def adjacentPairStart (h : ∑ b, sizes b = n) (b : Fin k) : BitString n :=

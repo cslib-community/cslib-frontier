@@ -361,8 +361,8 @@ private theorem contractAdjCellProg_realizes :
   all_goals
     obtain ⟨hu, hcol, hk, hws⟩ := h
     exact hws.of_le (by
-      dsimp only [wsSize, frameMaskBase, frameBEntryBase, frameBExitBase, frameBase,
-        curAdjBase, nextAdjBase]
+      dsimp only [wsSize, frameMaskBase, frameBEntryBase, frameBExitBase, frameBase, curAdjBase,
+        nextAdjBase]
       nlinarith)
 
 /-- Writes contracted signed cost `(u, col)` into `nextCostBase` using reduced exit costs. -/
@@ -425,9 +425,7 @@ private theorem contractCostCellProg_realizes :
     | exact hws.of_le (by
         have hbx : s.mem (frameBExitBase d.1.ws d.1.n d.1.k + d.2) < d.1.n := ‹_›
         have hbx_c := List.mul_add_lt_sq hbx hcol
-        have hfx : s.mem (frameParentBase d.1.ws d.1.n d.1.k +
-            s.mem (frameBExitBase d.1.ws d.1.n d.1.k + d.2)) < d.1.n :=
-          (hsub ‹_› ‹_› ‹_› hbx).1
+        have hfx := (hsub ‹_› ‹_› ‹_› hbx).1
         have hbx_f := List.mul_add_lt_sq hbx hfx
         dsimp only [wsSize, frameParentBase, frameMaskBase, frameBEntryBase, frameBExitBase,
           frameBase, curAdjBase, curCostBase, nextCostBase] at hbx hbx_c hfx hbx_f ⊢
@@ -718,8 +716,8 @@ private theorem contractRoundBodyProg_realizes :
     Realizes .exact contractRoundBodyProg encContractArgs wordWords
       ContractRoundBodySafe (fun _ _ => 0) := by
   unfold contractRoundBodyProg
-  realize [cycleMaskProg_realizes, bestEntryProg_realizes,
-    bestExitProg_realizes, contractTablesProg_realizes]
+  realize [cycleMaskProg_realizes, bestEntryProg_realizes, bestExitProg_realizes,
+    contractTablesProg_realizes]
   all_goals
     obtain ⟨hk, hws, hz, hcm, hbe, hbx, hct, hcp⟩ := h
     first

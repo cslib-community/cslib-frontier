@@ -63,22 +63,20 @@ theorem Len.rms_comp {G H : Type*} [Group G] [Group H] [Fintype G] [Fintype H] (
   classical
   unfold Len.rms
   congr 1
-  have hG : (0 : ℝ) < Fintype.card G := by exact_mod_cast Fintype.card_pos
-  have hH : (0 : ℝ) < Fintype.card H := by exact_mod_cast Fintype.card_pos
+  have hG : (0 : ℝ) < Fintype.card G := mod_cast Fintype.card_pos
+  have hH : (0 : ℝ) < Fintype.card H := mod_cast Fintype.card_pos
   rw [div_eq_div_iff hG.ne' hH.ne']
   have h1 : ∑ h : H, ∑ g : G, l (h * φ g) ^ 2 = Fintype.card G * ∑ h : H, l h ^ 2 := by
-    rw [sum_comm]
-    have e : ∀ g, ∑ h : H, l (h * φ g) ^ 2 = ∑ h : H, l h ^ 2 := fun g =>
-      Equiv.sum_comp (Equiv.mulRight (φ g)) (fun h => l h ^ 2)
-    rw [sum_congr rfl fun g _ => e g]
+    have e (g) : ∑ h : H, l (h * φ g) ^ 2 = ∑ h : H, l h ^ 2 :=
+      Equiv.sum_comp (Equiv.mulRight (φ g)) fun h => l h ^ 2
+    rw [sum_comm, sum_congr rfl fun g _ => e g]
     simp
   have h2 : ∑ h : H, ∑ g : G, l (h * φ g) ^ 2 = Fintype.card H * ∑ g : G, l (φ g) ^ 2 := by
-    have : ∀ h : H, ∑ g : G, l (h * φ g) ^ 2 = ∑ g : G, l (φ g) ^ 2 := by
-      intro h
+    have e (h : H) : ∑ g : G, l (h * φ g) ^ 2 = ∑ g : G, l (φ g) ^ 2 := by
       obtain ⟨k, rfl⟩ := hφ h
-      rw [← Equiv.sum_comp (Equiv.mulLeft k) (fun g => l (φ g) ^ 2)]
-      exact sum_congr rfl fun g _ => by rw [Equiv.coe_mulLeft, map_mul φ]
-    rw [sum_congr rfl fun h _ => this h]
+      exact (sum_congr rfl fun g _ => by rw [← map_mul φ]; rfl).trans
+        (Equiv.sum_comp (Equiv.mulLeft k) fun g => l (φ g) ^ 2)
+    rw [sum_congr rfl fun h _ => e h]
     simp
   change (∑ g : G, l (φ g) ^ 2) * _ = _
   linarith
@@ -89,46 +87,26 @@ theorem Len.rms_comp {G H : Type*} [Group G] [Group H] [Fintype G] [Fintype H] (
 
 theorem bd_one (m : ℕ) (s : ℝ) : Bd m s 1 0 := by
   intro l _
-  have : ∀ g : U 1, g = 1 := by
-    intro g
-    apply mat_inj
-    ext i j
+  have h1 (g : U 1) : g = 1 := mat_inj <| Matrix.ext fun i j => by
     rw [Subsingleton.elim i j, mat_diag, mat_one, Matrix.one_apply_eq]
-  have h : ∑ g : U 1, l g ^ 2 = 0 := sum_eq_zero fun g _ => by rw [this g, map_one_eq_zero l]; simp
-  rw [Len.rms, h]
+  rw [Len.rms, sum_eq_zero fun g _ => by simp [h1 g, map_one_eq_zero l]]
   simp
 
 theorem S_add_le {a b : ℕ} (l : Len (U (a + b))) :
     Len.S (l.comp (win (hl (a := a) (b := b)))) + Len.S (l.comp (win (hr (a := a) (b := b)))) ≤
       l.S := by
   unfold Len.S
-  have e1 : ∀ j, (l.comp (win (hl (a := a) (b := b)))) (x a j) = l (x _ (wt hl j)) := by
-    intro j
-    change l (win hl (x a j)) = _
-    rw [win_x]
-  have e2 : ∀ j, (l.comp (win (hr (a := a) (b := b)))) (x b j) = l (x _ (wt hr j)) := by
-    intro j
-    change l (win hr (x b j)) = _
-    rw [win_x]
-  rw [sum_congr rfl fun j _ => e1 j, sum_congr rfl fun j _ => e2 j]
-  have i1 : Function.Injective (wt (hl (a := a) (b := b))) := by
-    intro j j' h
-    simpa [wt, Fin.ext_iff] using h
-  have i2 : Function.Injective (wt (hr (a := a) (b := b))) := by
-    intro j j' h
-    simpa [wt, Fin.ext_iff] using h
-  rw [← sum_image (s := univ) (g := wt (hl (a := a) (b := b))) (f := fun k => l (x _ k))
-      (fun j _ j' _ h => i1 h),
-    ← sum_image (s := univ) (g := wt (hr (a := a) (b := b))) (f := fun k => l (x _ k))
-      (fun j _ j' _ h => i2 h), ← sum_union]
+  have hblock {p n} (hp : p + n ≤ a + b) :
+      ∑ j, (l.comp (win hp)) (x n j) = ∑ k ∈ univ.image (wt hp), l (x _ k) := by
+    rw [sum_image fun _ _ _ _ h => by simpa [wt, Fin.ext_iff] using h]
+    exact sum_congr rfl fun _ _ => congrArg l (win_x ..)
+  rw [hblock hl, hblock hr, ← sum_union]
   · exact sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => apply_nonneg l _
   · rw [disjoint_left]
-    intro k h1 h2
-    simp only [mem_image, mem_univ, true_and] at h1 h2
-    obtain ⟨j, rfl⟩ := h1
-    obtain ⟨j', h⟩ := h2
-    simp only [wt, Fin.ext_iff] at h
-    omega
+    rintro k hk₁ hk₂
+    obtain ⟨j, -, rfl⟩ := mem_image.1 hk₁
+    obtain ⟨j', -, h⟩ := mem_image.1 hk₂
+    simp only [wt, Fin.ext_iff] at h; omega
 
 /-- The upper left block. -/
 def tr {n n' : ℕ} (h : n ≤ n') : U n' →* U n where
@@ -160,15 +138,11 @@ theorem tr_apply {n n' : ℕ} (h : n ≤ n') (A : U n') (i j : Fin n) :
 
 theorem tr_surjective {n n' : ℕ} (h : n ≤ n') : Function.Surjective (tr h) := by
   intro A
-  refine ⟨win (p := 0) (by omega : 0 + n ≤ n') A, ?_⟩
-  apply mat_inj
-  ext i j
-  have e : ∀ i : Fin n, Fin.castLE h i = we (p := 0) (by omega : 0 + n ≤ n') i := by
-    intro i
-    simp [we, Fin.ext_iff]
-  rw [tr_apply, mat_win, e, e, wm, Matrix.add_apply, Matrix.sub_apply, wi_mul_we, wi_mul_we,
-    Matrix.one_apply, Matrix.one_apply]
-  simp [we_inj]
+  have h0 : 0 + n ≤ n' := by omega
+  refine ⟨win h0 A, mat_inj <| Matrix.ext fun i j => ?_⟩
+  have e (k : Fin n) : Fin.castLE h k = we h0 k := by simp [we, Fin.ext_iff]
+  rw [tr_apply, mat_win, e, e, wm, Matrix.add_apply, Matrix.sub_apply, wi_mul_we, wi_mul_we]
+  simp [Matrix.one_apply, we_inj]
 
 theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ : 0 ≤ κ) (hB : Bd m s n' κ) :
     Bd m s n κ := by
@@ -177,44 +151,25 @@ theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ 
   rw [Len.rms_comp _ _ (tr_surjective h)] at h1
   refine h1.trans (mul_le_mul_of_nonneg_left ?_ hκ)
   unfold Len.S
-  have e : ∀ j : Fin (n' - 1), (l.comp (tr h)) (x n' j) =
+  have e (j : Fin (n' - 1)) : (l.comp (tr h)) (x n' j) =
       if hj : j.1 < n - 1 then l (x n ⟨j.1, hj⟩) else 0 := by
-    intro j
     change l (tr h (x n' j)) = _
     split_ifs with hj
-    · congr 1
-      apply mat_inj
-      ext a b
-      rw [tr_apply, mat_x, mat_x]
-      simp [Matrix.one_apply, Matrix.single_apply, lo, hi, Fin.ext_iff]
-    · have : tr h (x n' j) = 1 := by
-        apply mat_inj
-        ext a b
-        rw [tr_apply, mat_x, mat_one]
-        have : ¬ (j.1 = a.1 ∧ j.1 + 1 = b.1) := by
+    · refine congrArg l (mat_inj <| Matrix.ext fun a b => ?_)
+      simp [tr_apply, mat_x, Matrix.one_apply, Matrix.single_apply, lo, hi, Fin.ext_iff]
+    · have htr : tr h (x n' j) = 1 := mat_inj <| Matrix.ext fun a b => by
+        have : ¬(j.1 = a.1 ∧ j.1 + 1 = b.1) := by
           have := b.2
           omega
-        simp [Matrix.one_apply, lo, hi, Fin.ext_iff, this]
-      rw [this, map_one_eq_zero l]
-  rw [sum_congr rfl fun j _ => e j]
-  rw [← Finset.sum_filter_add_sum_filter_not univ (fun j : Fin (n' - 1) => j.1 < n - 1)]
-  rw [Finset.sum_eq_zero (s := univ.filter fun j : Fin (n' - 1) => ¬ j.1 < n - 1), add_zero]
-  · refine le_of_eq ?_
-    refine sum_bij' (fun j hj => ⟨j.1, by simpa using hj⟩)
-      (fun j _ => ⟨j.1, by have := j.2; omega⟩) ?_ ?_ ?_ ?_ ?_
-    · intro j _
-      exact mem_univ _
-    · intro j _
-      simp
-    · intro j _
-      rfl
-    · intro j _
-      rfl
-    · intro j hj
-      have : j.1 < n - 1 := by simpa using hj
-      simp [this]
-  · intro j hj
-    have : ¬ j.1 < n - 1 := by simpa using hj
-    simp [this]
+        simp [tr_apply, mat_x, mat_one, Matrix.one_apply, lo, hi, Fin.ext_iff, this]
+      rw [htr, map_one_eq_zero l]
+  rw [sum_congr rfl fun j _ => e j,
+    ← sum_filter_add_sum_filter_not univ (fun j : Fin (n' - 1) => j.1 < n - 1),
+    sum_eq_zero (s := univ.filter fun j : Fin (n' - 1) => ¬ j.1 < n - 1)
+      (fun j hj => by simp [(mem_filter.1 hj).2]), add_zero]
+  exact le_of_eq <| sum_bij' (fun j hj => ⟨j.1, (mem_filter.1 hj).2⟩)
+    (fun j _ => ⟨j.1, by have := j.2; omega⟩) (fun _ _ => mem_univ _)
+    (fun j _ => by simp [j.2]) (fun _ _ => rfl) (fun _ _ => rfl)
+    fun j hj => by simp [(mem_filter.1 hj).2]
 
 end Cslib.Circuits.Arithmetic.Separation.Flag

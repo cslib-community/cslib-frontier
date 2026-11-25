@@ -661,6 +661,14 @@ theorem maxConsistentWidth_two (d h : ℕ) :
       rw [hl, Finset.Ico_self, Finset.sum_empty, Nat.zero_add, Nat.add_sub_cancel, ih d,
         Nat.succ_min_succ, Nat.pow_succ, Nat.mul_comm]
 
+private theorem sum_Ico_sub_eq_sum_range {R : Type*} [AddCommMonoid R] (f : ℕ → ℕ → R)
+    {a D : ℕ} (ha : a < D) :
+    ∑ d ∈ Finset.Ico a D, f (d - a) (D - d - 1) =
+      ∑ m ∈ Finset.range (D - (a + 1) + 1), f m (D - (a + 1) - m) := by
+  rw [Finset.sum_Ico_eq_sum_range, show D - (a + 1) + 1 = D - a by omega]
+  refine Finset.sum_congr rfl fun m _ => ?_
+  rw [Nat.add_sub_cancel_left, show D - (a + m) - 1 = D - (a + 1) - m by omega]
+
 private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
     (hk : 2 ≤ k) (hD : k ≤ D) (f : ℕ → ℕ → R)
     (hf0 : ∀ h, f 0 h = 1)
@@ -683,6 +691,13 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
     rw [h0, hf0]
     ring
   rw [hrange]
+  have hstep : ∀ d, 1 ≤ d → d < D → f d (D - d) =
+      (∑ j ∈ Finset.Ico 1 (min d (k - 1)), f (d - j) (D - d - 1)) +
+        2 * f (d - min d (k - 1)) (D - d - 1) := by
+    intro d hd1 hdD
+    obtain ⟨d', rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
+    obtain ⟨h', hh'⟩ : ∃ h', D - (d' + 1) = h' + 1 := ⟨D - (d' + 1) - 1, by omega⟩
+    rw [hh', Nat.add_sub_cancel, hfrec]
   rw [← Finset.sum_Ico_consecutive (f := fun d => f d (D - d))
     (m := 1) (n := k - 1) (k := D) (by omega) (by omega)]
   have hlow : ∑ d ∈ Finset.Ico 1 (k - 1), f d (D - d) =
@@ -693,14 +708,8 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
           1 + ∑ j ∈ Finset.Ico 1 (d + 1), f (d - j) (D - d - 1) := by
       intro d hd
       simp only [Finset.mem_Ico] at hd
-      obtain ⟨d', rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
-      obtain ⟨h', hh'⟩ : ∃ h', D - (d' + 1) = h' + 1 := ⟨D - (d' + 1) - 1, by omega⟩
-      rw [hh', Nat.add_sub_cancel, hfrec]
-      have hl : min (d' + 1) (k - 1) = d' + 1 := Nat.min_eq_left (by omega)
-      rw [hl, Nat.sub_self, hf0]
-      conv_rhs =>
-        rw [Finset.sum_Ico_succ_top (by omega) (fun j => f (d' + 1 - j) h'),
-          Nat.sub_self, hf0]
+      rw [hstep d (by omega) (by omega), Nat.min_eq_left (by omega : d ≤ k - 1), Nat.sub_self,
+        hf0, Finset.sum_Ico_succ_top (by omega : 1 ≤ d), Nat.sub_self, hf0]
       ring
     rw [Finset.sum_congr rfl hterm, Finset.sum_add_distrib, Finset.sum_const, Nat.card_Ico,
       nsmul_one, show k - 1 - 1 = k - 2 by omega]
@@ -714,22 +723,10 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
             2 * f (d - (k - 1)) (D - d - 1) := by
       intro d hd
       simp only [Finset.mem_Ico] at hd
-      obtain ⟨d', rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
-      obtain ⟨h', hh'⟩ : ∃ h', D - (d' + 1) = h' + 1 := ⟨D - (d' + 1) - 1, by omega⟩
-      rw [hh', Nat.add_sub_cancel, hfrec]
-      have hl : min (d' + 1) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-      rw [hl]
+      rw [hstep d (by omega) (by omega), Nat.min_eq_right (by omega : k - 1 ≤ d)]
     rw [Finset.sum_congr rfl hterm, Finset.sum_add_distrib, ← Finset.mul_sum]
     congr 2
-    refine Finset.sum_bij (fun d _ => d - (k - 1)) ?_ ?_ ?_ ?_
-    · intro d hd; simp only [Finset.mem_Ico, Finset.mem_range] at hd ⊢; omega
-    · intro d₁ hd₁ d₂ hd₂ heq; simp only [Finset.mem_Ico] at hd₁ hd₂; omega
-    · intro m hm
-      simp only [Finset.mem_range] at hm
-      exact ⟨m + (k - 1), by simp only [Finset.mem_Ico]; omega, Nat.add_sub_cancel _ _⟩
-    · intro d hd
-      simp only [Finset.mem_Ico] at hd
-      rw [show D - d - 1 = D - k - (d - (k - 1)) by omega]
+    rw [sum_Ico_sub_eq_sum_range f (by omega), show k - 1 + 1 = k by omega]
   rw [hlow, hhigh]
   have hfub :
       (∑ d ∈ Finset.Ico 1 (k - 1),
@@ -743,20 +740,8 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
           ∑ j ∈ Finset.Ico 1 (d + 1), f (d - j) (D - d - 1) =
         ∑ j ∈ Finset.Ico 1 (k - 1),
           ∑ d ∈ Finset.Ico j (k - 1), f (d - j) (D - d - 1) := by
-      rw [Finset.sum_sigma', Finset.sum_sigma']
-      refine Finset.sum_bij (fun p _ => ⟨p.2, p.1⟩) ?_ ?_ ?_ ?_
-      · intro p hp
-        simp only [Finset.mem_sigma, Finset.mem_Ico] at hp ⊢
-        omega
-      · rintro ⟨d₁, j₁⟩ _ ⟨d₂, j₂⟩ _ heq
-        simp only [Sigma.mk.injEq] at heq
-        rcases heq with ⟨rfl, h2⟩
-        cases eq_of_heq h2
-        rfl
-      · rintro ⟨j, d⟩ hp
-        simp only [Finset.mem_sigma, Finset.mem_Ico] at hp
-        exact ⟨⟨d, j⟩, by simp only [Finset.mem_sigma, Finset.mem_Ico]; omega, rfl⟩
-      · intro _ _; rfl
+      exact Finset.sum_comm' fun d j => by
+        simp only [Finset.mem_Ico]; constructor <;> intro h <;> omega
     rw [hswap1, Finset.sum_comm (s := Finset.Ico (k - 1) D) (t := Finset.Ico 1 (k - 1)),
       ← Finset.sum_add_distrib]
     have hmerge : ∀ j ∈ Finset.Ico 1 (k - 1),
@@ -767,15 +752,7 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
       simp only [Finset.mem_Ico] at hj
       rw [Finset.sum_Ico_consecutive (f := fun d => f (d - j) (D - d - 1))
         (m := j) (n := k - 1) (k := D) (by omega) (by omega)]
-      refine Finset.sum_bij (fun d _ => d - j) ?_ ?_ ?_ ?_
-      · intro d hd; simp only [Finset.mem_Ico, Finset.mem_range] at hd ⊢; omega
-      · intro d₁ hd₁ d₂ hd₂ heq; simp only [Finset.mem_Ico] at hd₁ hd₂; omega
-      · intro m hm
-        simp only [Finset.mem_range] at hm
-        exact ⟨m + j, by simp only [Finset.mem_Ico]; omega, Nat.add_sub_cancel _ _⟩
-      · intro d hd
-        simp only [Finset.mem_Ico] at hd
-        rw [show D - d - 1 = D - (j + 1) - (d - j) by omega]
+      exact sum_Ico_sub_eq_sum_range f (by omega)
     rw [Finset.sum_congr rfl hmerge]
     refine Finset.sum_bij (fun j _ => j + 1) ?_ ?_ ?_ ?_
     · intro j hj; simp only [Finset.mem_Ico] at hj ⊢; omega
@@ -1072,6 +1049,10 @@ private structure PrefixBuilder (N g : ℕ) where
 private def PrefixBuilder.mulCost {N g : ℕ} (B : PrefixBuilder N g) : ℕ :=
   B.program.cost fun | .mul => 1 | .id => 0
 
+private theorem PrefixBuilder.input_ne_of_lo_ne {N g : ℕ} (B : PrefixBuilder N g) {i : Fin N}
+    {v : Wire N g} (h : B.lo v ≠ i.val) : (Wire.input i : Wire N g) ≠ v := by
+  rintro rfl; exact h (B.validInputs i).1
+
 private def PrefixBuilder.uses {N g : ℕ} (B : PrefixBuilder N g) (w : Wire N g) : ℕ :=
   progOutDeg B.program w + ((Finset.range N).filter fun j => B.outs j = some w).card
 
@@ -1094,6 +1075,16 @@ private def BuilderExt.trans {N g₀ g₁ g₂ : ℕ} {B₀ : PrefixBuilder N g�
   hi_emb u := by simp only [Function.comp_apply, e₂.hi_emb, e₁.hi_emb]
   depth_emb u := by simp only [Function.comp_apply, e₂.depth_emb, e₁.depth_emb]
   outs_old j w h := e₂.outs_old j (e₁.emb w) (e₁.outs_old j w h)
+
+private theorem BuilderExt.emb_ne_input {N g g' : ℕ} {B : PrefixBuilder N g}
+    {B' : PrefixBuilder N g'} (e : BuilderExt B B') {u : Wire N g} {i : Fin N}
+    (h : u ≠ .input i) : e.emb u ≠ .input i :=
+  fun heq => h (e.emb_injective (heq.trans (e.emb_input i).symm))
+
+private theorem BuilderExt.emb_ne_input_of_lo {N g g' : ℕ} {B : PrefixBuilder N g}
+    {B' : PrefixBuilder N g'} (e : BuilderExt B B') {u : Wire N g} {i : Fin N}
+    (h : B.lo u ≠ i.val) : e.emb u ≠ .input i :=
+  e.emb_ne_input (B.input_ne_of_lo_ne h).symm
 
 private def PrefixBuilder.empty (N : ℕ) : PrefixBuilder N 0 where
   program := .empty
@@ -1485,6 +1476,186 @@ private theorem PrefixBuilder.uses_addMul_le {N g k : ℕ} (B : PrefixBuilder N 
       · rw [hu1, B.uses_addMul_right w₀ w₁ h0 hmid h1]; exact hw₁
       · rw [B.uses_addMul_ne w₀ w₁ h0 hmid h1 u hu0 hu1]; exact hall u
 
+/-- Final step shared by both cases of `compileChain_exists`. Given the builder `B₁` compiled from
+`B` for every tree of a chain except the last, whose root `u_init` covers `[a, m₂)`, multiply the
+spine wire by `u_init`, compile `last` from the product, and multiply `u_init` by the root of
+`last`. -/
+private theorem compileChain_snoc {N k a m₂ b : ℕ} (hk : 2 ≤ k) (last : ConsistentTree m₂ b)
+    (hlast : ∀ {g : ℕ} (B : PrefixBuilder N g) (v : Wire N g),
+      1 ≤ m₂ → b ≤ N → last.FanoutAtMost k →
+      B.lo v = 0 → B.hi v = m₂ → B.uses v = 0 →
+      last.inDepth ≤ B.program.wireDepths v →
+      (∀ j, m₂ - 1 ≤ j → j < b - 1 → B.outs j = none) →
+      (∀ i : Fin N, m₂ ≤ i.val → i.val < b → B.uses (.input i) = 0) →
+      (∀ w : Wire N g, B.uses w ≤ k) →
+      ∃ (g' : ℕ) (B' : PrefixBuilder N g') (e : BuilderExt B B') (u : Wire N g'),
+        B'.lo u = m₂ ∧ B'.hi u = b ∧
+        B'.program.wireDepths u ≤ last.inDepth ∧
+        B'.uses u = 0 ∧
+        B'.mulCost = B.mulCost + 2 * (b - m₂ - 1) ∧
+        (∀ j, m₂ - 1 ≤ j → j < b - 1 →
+          ∃ w, B'.outs j = some w ∧ B'.lo w = 0 ∧ B'.hi w = j + 1 ∧
+            B'.program.wireDepths w ≤ B.program.wireDepths v + last.outDepth) ∧
+        (∀ j, (j < m₂ - 1 ∨ b - 1 ≤ j) → B'.outs j = (B.outs j).map e.emb) ∧
+        (∀ w : Wire N g, w ≠ v → (∀ i : Fin N, m₂ ≤ i.val → i.val < b → w ≠ .input i) →
+          e.emb w ≠ u ∧ B'.uses (e.emb w) = B.uses w) ∧
+        (∀ w' : Wire N g', B'.uses w' ≤ k))
+    {g g₁ : ℕ} (B : PrefixBuilder N g) (v : Wire N g) (B₁ : PrefixBuilder N g₁)
+    (e₁ : BuilderExt B B₁) (u_init : Wire N g₁) (r dIn dOut : ℕ)
+    (ha : 1 ≤ a) (hbN : b ≤ N) (ham : a < m₂) (hmb : m₂ < b) (hfan : last.FanoutAtMost k)
+    (hv_lo : B.lo v = 0) (hv_hi : B.hi v = a) (hv_uses : B.uses v + (r + 1) ≤ k)
+    (hv_depth : max dIn last.inDepth + 1 ≤ B.program.wireDepths v)
+    (houts_free : ∀ j, a - 1 ≤ j → j < b - 1 → B.outs j = none)
+    (hin_free : ∀ i : Fin N, a ≤ i.val → i.val < b → B.uses (.input i) = 0)
+    (hui_lo : B₁.lo u_init = a) (hui_hi : B₁.hi u_init = m₂)
+    (hui_d : B₁.program.wireDepths u_init ≤ dIn) (hui_u : B₁.uses u_init = 0)
+    (hv_B₁_uses : B₁.uses (e₁.emb v) = B.uses v + r)
+    (hcost₁ : B₁.mulCost = B.mulCost + 2 * (m₂ - a - 1))
+    (hout₁_in : ∀ j, a - 1 ≤ j → j < m₂ - 1 → ∃ w, B₁.outs j = some w ∧ B₁.lo w = 0 ∧
+      B₁.hi w = j + 1 ∧ B₁.program.wireDepths w ≤ B.program.wireDepths v + dOut + 1)
+    (hout₁_out : ∀ j, (j < a - 1 ∨ m₂ - 1 ≤ j) → B₁.outs j = (B.outs j).map e₁.emb)
+    (hold₁ : ∀ w : Wire N g, w ≠ v → (∀ i : Fin N, a ≤ i.val → i.val < m₂ → w ≠ .input i) →
+      e₁.emb w ≠ u_init ∧ B₁.uses (e₁.emb w) = B.uses w)
+    (hall₁ : ∀ w' : Wire N g₁, B₁.uses w' ≤ k) :
+    ∃ (g' : ℕ) (B' : PrefixBuilder N g') (e : BuilderExt B B') (u : Wire N g'),
+      B'.lo u = a ∧ B'.hi u = b ∧
+      B'.program.wireDepths u ≤ max dIn last.inDepth + 1 ∧
+      B'.uses u = 0 ∧
+      B'.uses (e.emb v) = B.uses v + (r + 1) ∧
+      B'.mulCost = B.mulCost + 2 * (b - a - 1) ∧
+      (∀ j, a - 1 ≤ j → j < b - 1 →
+        ∃ w, B'.outs j = some w ∧ B'.lo w = 0 ∧ B'.hi w = j + 1 ∧
+          B'.program.wireDepths w ≤ B.program.wireDepths v + max dOut last.outDepth + 1) ∧
+      (∀ j, (j < a - 1 ∨ b - 1 ≤ j) → B'.outs j = (B.outs j).map e.emb) ∧
+      (∀ w : Wire N g, w ≠ v → (∀ i : Fin N, a ≤ i.val → i.val < b → w ≠ .input i) →
+        e.emb w ≠ u ∧ B'.uses (e.emb w) = B.uses w) ∧
+      (∀ w' : Wire N g', B'.uses w' ≤ k) := by
+  let v_in_B₁ := e₁.emb v
+  have hv_B₁_lo : B₁.lo v_in_B₁ = 0 := by rw [e₁.lo_emb, hv_lo]
+  have hv_B₁_hi : B₁.hi v_in_B₁ = a := by rw [e₁.hi_emb, hv_hi]
+  have hv_B₁_d : B₁.program.wireDepths v_in_B₁ = B.program.wireDepths v := e₁.depth_emb v
+  have h0_2 : B₁.lo v_in_B₁ < B₁.hi v_in_B₁ := by omega
+  have hmid_2 : B₁.hi v_in_B₁ = B₁.lo u_init := by omega
+  have h1_2 : B₁.lo u_init < B₁.hi u_init := by omega
+  let B₂ := B₁.addMul v_in_B₁ u_init h0_2 hmid_2 h1_2
+  let e₂ := B₁.addMulExt v_in_B₁ u_init h0_2 hmid_2 h1_2
+  let v_last : Wire N (g₁ + 1) := .gate (Fin.last g₁)
+  have hvl_lo : B₂.lo v_last = 0 := by
+    simp only [B₂, v_last, PrefixBuilder.addMul, liftWireVal_last, hv_B₁_lo]
+  have hvl_hi : B₂.hi v_last = m₂ := by
+    simp only [B₂, v_last, PrefixBuilder.addMul, liftWireVal_last, hui_hi]
+  have hvl_d_eq : B₂.program.wireDepths v_last = B.program.wireDepths v + 1 := by
+    have := B₁.depth_addMul_last v_in_B₁ u_init h0_2 hmid_2 h1_2
+    dsimp only [B₂, v_last] at *; omega
+  have houts₂ : ∀ j, m₂ - 1 ≤ j → j < b - 1 → B₂.outs j = none := by
+    intro j hj1 hj2
+    simp only [B₂, PrefixBuilder.addMul]
+    rw [hout₁_out j (Or.inr hj1), houts_free j (by omega) hj2, Option.map_none, Option.map_none]
+  have hin₂ : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → B₂.uses (.input i) = 0 := by
+    intro i hi1 hi2
+    have hne_v : (Wire.input i : Wire N g₁) ≠ v_in_B₁ := B₁.input_ne_of_lo_ne (by omega)
+    have hne_ui : (Wire.input i : Wire N g₁) ≠ u_init := B₁.input_ne_of_lo_ne (by omega)
+    have hB₁_in : B₁.uses (.input i) = 0 := by
+      have h1 : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
+      have h2 : ∀ i' : Fin N, a ≤ i'.val → i'.val < m₂ →
+          (Wire.input i : Wire N g) ≠ .input i' :=
+        fun i' _ hi'2 => mt Wire.input.inj (Fin.ne_of_val_ne (by omega))
+      rw [← e₁.emb_input i]
+      exact (hold₁ (.input i) h1 h2).2.trans (hin_free i (by omega) hi2)
+    exact (B₁.uses_addMul_ne v_in_B₁ u_init h0_2 hmid_2 h1_2 (.input i) hne_v hne_ui).trans
+      hB₁_in
+  have hall₂ : ∀ w' : Wire N (g₁ + 1), B₂.uses w' ≤ k :=
+    B₁.uses_addMul_le v_in_B₁ u_init h0_2 hmid_2 h1_2
+      (by dsimp only [v_in_B₁] at *; omega) (by omega) hall₁
+  obtain ⟨g₃, B₃, e₃, u_last, hul_lo, hul_hi, hul_d, hul_u, hcost₃, hout₃_in, hout₃_out, hold₃,
+      hall₃⟩ :=
+    hlast B₂ v_last (by omega) hbN hfan hvl_lo hvl_hi
+      (B₁.uses_addMul_last v_in_B₁ u_init h0_2 hmid_2 h1_2) (by omega) houts₂ hin₂ hall₂
+  let ui_in_B₃ := e₃.emb (e₂.emb u_init)
+  have hui_B₃_lo : B₃.lo ui_in_B₃ = a := by rw [e₃.lo_emb, e₂.lo_emb, hui_lo]
+  have hui_B₃_hi : B₃.hi ui_in_B₃ = m₂ := by rw [e₃.hi_emb, e₂.hi_emb, hui_hi]
+  have hui_B₃_d : B₃.program.wireDepths ui_in_B₃ = B₁.program.wireDepths u_init := by
+    rw [e₃.depth_emb, e₂.depth_emb]
+  have hui_B₃_uses : B₃.uses ui_in_B₃ = 1 := by
+    have h1 : e₂.emb u_init ≠ v_last := castSucc_ne_lastGate u_init
+    have h2 : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb u_init ≠ .input i :=
+      fun i hi1 _ => e₂.emb_ne_input_of_lo (by omega)
+    have hstep := B₁.uses_addMul_right v_in_B₁ u_init h0_2 hmid_2 h1_2
+    rw [hui_u] at hstep
+    exact (hold₃ (e₂.emb u_init) h1 h2).2.trans hstep
+  have h0_4 : B₃.lo ui_in_B₃ < B₃.hi ui_in_B₃ := by omega
+  have hmid_4 : B₃.hi ui_in_B₃ = B₃.lo u_last := by omega
+  have h1_4 : B₃.lo u_last < B₃.hi u_last := by omega
+  let B₄ := B₃.addMul ui_in_B₃ u_last h0_4 hmid_4 h1_4
+  let e₄ := B₃.addMulExt ui_in_B₃ u_last h0_4 hmid_4 h1_4
+  let u : Wire N (g₃ + 1) := .gate (Fin.last g₃)
+  let e_all := ((e₁.trans e₂).trans e₃).trans e₄
+  have hv_B₃_uses : B₃.uses (e₃.emb (e₂.emb v_in_B₁)) = B.uses v + r + 1 := by
+    have h1 : e₂.emb v_in_B₁ ≠ v_last := castSucc_ne_lastGate v_in_B₁
+    have h2 : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb v_in_B₁ ≠ .input i :=
+      fun i hi1 _ => e₂.emb_ne_input_of_lo (by omega)
+    have hstep := B₁.uses_addMul_left v_in_B₁ u_init h0_2 hmid_2 h1_2
+    rw [hv_B₁_uses] at hstep
+    exact (hold₃ _ h1 h2).2.trans hstep
+  refine ⟨g₃ + 1, B₄, e_all, u, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [B₄, u, PrefixBuilder.addMul, liftWireVal_last, hui_B₃_lo]
+  · simp only [B₄, u, PrefixBuilder.addMul, liftWireVal_last, hul_hi]
+  · have := B₃.depth_addMul_last ui_in_B₃ u_last h0_4 hmid_4 h1_4
+    dsimp only [B₄, u] at *; omega
+  · exact B₃.uses_addMul_last ui_in_B₃ u_last h0_4 hmid_4 h1_4
+  · have hlo (w) (hw : B₃.lo w ≠ 0) : e₃.emb (e₂.emb v_in_B₁) ≠ w := fun heq => hw <| by
+      rw [← heq, e₃.lo_emb, e₂.lo_emb, hv_B₁_lo]
+    rw [← Nat.add_assoc]
+    exact (B₃.uses_addMul_ne ui_in_B₃ u_last h0_4 hmid_4 h1_4 _ (hlo _ (by omega))
+      (hlo _ (by omega))).trans hv_B₃_uses
+  · have hc2 : B₂.mulCost = B₁.mulCost + 1 := by
+      simp only [PrefixBuilder.mulCost, B₂, PrefixBuilder.addMul, Program.cost_gate]
+    have hc4 : B₄.mulCost = B₃.mulCost + 1 := by
+      simp only [PrefixBuilder.mulCost, B₄, PrefixBuilder.addMul, Program.cost_gate]
+    omega
+  · intro j hj1 hj2
+    by_cases hjm : j < m₂ - 1
+    · obtain ⟨w₁, hw₁_eq, hw₁_lo, hw₁_hi, hw₁_d⟩ := hout₁_in j hj1 hjm
+      have hw₃_eq : B₃.outs j = some (e₃.emb (e₂.emb w₁)) := by
+        rw [hout₃_out j (Or.inl hjm)]
+        simp only [B₂, PrefixBuilder.addMul, hw₁_eq, Option.map_some]; rfl
+      refine ⟨e₄.emb (e₃.emb (e₂.emb w₁)), ?_, ?_, ?_, ?_⟩
+      · simp only [B₄, PrefixBuilder.addMul, hw₃_eq, Option.map_some]; rfl
+      · rw [e₄.lo_emb, e₃.lo_emb, e₂.lo_emb, hw₁_lo]
+      · rw [e₄.hi_emb, e₃.hi_emb, e₂.hi_emb, hw₁_hi]
+      · rw [e₄.depth_emb, e₃.depth_emb, e₂.depth_emb]
+        omega
+    · obtain ⟨w₃, hw₃_eq, hw₃_lo, hw₃_hi, hw₃_d⟩ := hout₃_in j (by omega) hj2
+      refine ⟨e₄.emb w₃, ?_, ?_, ?_, ?_⟩
+      · simp only [B₄, PrefixBuilder.addMul, hw₃_eq, Option.map_some]; rfl
+      · rw [e₄.lo_emb, hw₃_lo]
+      · rw [e₄.hi_emb, hw₃_hi]
+      · rw [e₄.depth_emb]
+        omega
+  · intro j hj
+    have hj3 : j < m₂ - 1 ∨ b - 1 ≤ j := by omega
+    have hj1 : j < a - 1 ∨ m₂ - 1 ≤ j := by omega
+    simp only [B₄, PrefixBuilder.addMul]
+    rw [hout₃_out j hj3]
+    simp only [B₂, PrefixBuilder.addMul, Option.map_map]
+    rw [hout₁_out j hj1]
+    simp only [Option.map_map]; rfl
+  · intro w hw_ne hw_in
+    refine ⟨castSucc_ne_lastGate _, ?_⟩
+    obtain ⟨hne_ui, huses₁⟩ := hold₁ w hw_ne (fun i hi1 hi2 => hw_in i hi1 (by omega))
+    have hne_v : e₁.emb w ≠ v_in_B₁ := fun heq => hw_ne (e₁.emb_injective heq)
+    have huses₂ : B₂.uses (e₂.emb (e₁.emb w)) = B.uses w :=
+      (B₁.uses_addMul_ne v_in_B₁ u_init h0_2 hmid_2 h1_2 _ hne_v hne_ui).trans huses₁
+    have h2_w : e₂.emb (e₁.emb w) ≠ v_last := castSucc_ne_lastGate _
+    have h3_w : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb (e₁.emb w) ≠ .input i :=
+      fun i hi1 hi2 => e₂.emb_ne_input (e₁.emb_ne_input (hw_in i (by omega) hi2))
+    obtain ⟨hne_ul, huses₃⟩ := hold₃ _ h2_w h3_w
+    have hne_ui_B₃ : e₃.emb (e₂.emb (e₁.emb w)) ≠ ui_in_B₃ :=
+      fun heq => hne_ui (e₂.emb_injective (e₃.emb_injective heq))
+    exact (B₃.uses_addMul_ne ui_in_B₃ u_last h0_4 hmid_4 h1_4 _ hne_ui_B₃ hne_ul).trans
+      (huses₃.trans huses₂)
+  · exact B₃.uses_addMul_le ui_in_B₃ u_last h0_4 hmid_4 h1_4 (by omega) (by omega) hall₃
+
 mutual
 private theorem compileTree_exists {N k : ℕ} (hk : 2 ≤ k) :
     ∀ {a b : ℕ} (t : ConsistentTree a b) {g : ℕ} (B : PrefixBuilder N g) (v : Wire N g),
@@ -1512,12 +1683,7 @@ private theorem compileTree_exists {N k : ℕ} (hk : 2 ≤ k) :
     let B₁ := B.assignOut (a - 1) v
     let e₁ := B.assignOutExt (a - 1) v hnone
     let u : Wire N g := .input ⟨a, hbN⟩
-    have hvu : u ≠ v := by
-      intro heq
-      have hlo := (B.validInputs ⟨a, hbN⟩).1
-      change B.lo u = a at hlo
-      rw [heq, hv_lo] at hlo
-      omega
+    have hvu : u ≠ v := B.input_ne_of_lo_ne (show B.lo v ≠ a by omega)
     refine ⟨g, B₁, e₁, u, (B.validInputs ⟨a, hbN⟩).1, (B.validInputs ⟨a, hbN⟩).2, le_rfl, ?_, ?_,
       ?_, ?_, ?_, B.uses_assignOut_le (by omega) v hnone (by omega) hall_uses⟩
     · exact (B.uses_assignOut_ne (a - 1) v u hnone hvu).trans
@@ -1559,8 +1725,7 @@ private theorem compileTree_exists {N k : ℕ} (hk : 2 ≤ k) :
       simp only [B₁, PrefixBuilder.addId, houts_free j hj1 hj2, Option.map_none]
     have hin₁ : ∀ i : Fin N, a ≤ i.val → i.val < b → B₁.uses (.input i) = 0 := by
       intro i hi1 hi2
-      have hne : (Wire.input i : Wire N g) ≠ v := by
-        intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+      have hne : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
       exact (B.uses_addId_ne v (.input i) hne).trans (hin_free i hi1 hi2)
     have hall₁ : ∀ w' : Wire N (g + 1), B₁.uses w' ≤ k :=
       B.uses_addId_le v (by omega) hall_uses
@@ -1583,9 +1748,8 @@ private theorem compileTree_exists {N k : ℕ} (hk : 2 ≤ k) :
       rfl
     · intro w hw_ne hw_in
       have h1 : e₁.emb w ≠ v₁ := castSucc_ne_lastGate w
-      have h2 : ∀ i : Fin N, a ≤ i.val → i.val < b → e₁.emb w ≠ .input i := by
-        intro i hi1 hi2 heq
-        exact hw_in i hi1 hi2 (e₁.emb_injective (heq.trans (e₁.emb_input i).symm))
+      have h2 : ∀ i : Fin N, a ≤ i.val → i.val < b → e₁.emb w ≠ .input i :=
+        fun i hi1 hi2 => e₁.emb_ne_input (hw_in i hi1 hi2)
       obtain ⟨hne_u, huses_w⟩ := hold (e₁.emb w) h1 h2
       refine ⟨hne_u, ?_⟩
       exact huses_w.trans (B.uses_addId_ne v w hw_ne)
@@ -1636,184 +1800,32 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       simp only [B₁, PrefixBuilder.addId, houts_free j hj1 (by omega), Option.map_none]
     have hin₁ : ∀ i : Fin N, a ≤ i.val → i.val < m → B₁.uses (.input i) = 0 := by
       intro i hi1 hi2
-      have hne : (Wire.input i : Wire N g) ≠ v := by
-        intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+      have hne : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
       exact (B.uses_addId_ne v (.input i) hne).trans (hin_free i hi1 (by omega))
-    have hall₁ : ∀ w' : Wire N (g + 1), B₁.uses w' ≤ k :=
-      B.uses_addId_le v (by omega) hall_uses
+    have hd1 := B.depth_addId_last v
     obtain ⟨g₂, B₂, e₂, u₁, hu₁_lo, hu₁_hi, hu₁_d, hu₁_u, hcost₂, hout₂_in, hout₂_out, hold₂,
         hall₂⟩ :=
       compileTree_exists hk t₁ B₁ v₁ ha (by omega) hfan.1 hv₁_lo hv₁_hi (B.uses_addId_last v)
-        (by have := B.depth_addId_last v; dsimp only [B₁, v₁] at *; omega) houts₁ hin₁ hall₁
-    let v_in_B₂ := e₂.emb (e₁.emb v)
-    have hv_B₂_lo : B₂.lo v_in_B₂ = 0 := by rw [e₂.lo_emb, e₁.lo_emb, hv_lo]
-    have hv_B₂_hi : B₂.hi v_in_B₂ = a := by rw [e₂.hi_emb, e₁.hi_emb, hv_hi]
-    have hv_B₂_d : B₂.program.wireDepths v_in_B₂ = B.program.wireDepths v := by
-      rw [e₂.depth_emb, e₁.depth_emb]
-    have hv_B₂_uses : B₂.uses v_in_B₂ = B.uses v + 1 := by
-      have h1 : e₁.emb v ≠ v₁ := castSucc_ne_lastGate v
-      have h2 : ∀ i : Fin N, a ≤ i.val → i.val < m → e₁.emb v ≠ .input i := by
-        intro i hi1 _ heq
-        have := e₁.emb_injective (heq.trans (e₁.emb_input i).symm)
-        have hlo := (B.validInputs i).1
-        rw [← this, hv_lo] at hlo; omega
-      exact (hold₂ (e₁.emb v) h1 h2).2.trans (B.uses_addId_self v)
-    have h0_3 : B₂.lo v_in_B₂ < B₂.hi v_in_B₂ := by omega
-    have hmid_3 : B₂.hi v_in_B₂ = B₂.lo u₁ := by omega
-    have h1_3 : B₂.lo u₁ < B₂.hi u₁ := by omega
-    let B₃ := B₂.addMul v_in_B₂ u₁ h0_3 hmid_3 h1_3
-    let e₃ := B₂.addMulExt v_in_B₂ u₁ h0_3 hmid_3 h1_3
-    let v₂ : Wire N (g₂ + 1) := .gate (Fin.last g₂)
-    have hv₂_lo : B₃.lo v₂ = 0 := by
-      simp only [B₃, v₂, PrefixBuilder.addMul, liftWireVal_last, hv_B₂_lo]
-    have hv₂_hi : B₃.hi v₂ = m := by
-      simp only [B₃, v₂, PrefixBuilder.addMul, liftWireVal_last, hu₁_hi]
-    have hv₂_d_eq : B₃.program.wireDepths v₂ = B.program.wireDepths v + 1 := by
-      have := B₂.depth_addMul_last v_in_B₂ u₁ h0_3 hmid_3 h1_3
-      dsimp only [B₃, v₂] at *
-      omega
-    have houts₃ : ∀ j, m - 1 ≤ j → j < b - 1 → B₃.outs j = none := by
-      intro j hj1 hj2
-      simp only [B₃, PrefixBuilder.addMul]
-      rw [hout₂_out j (Or.inr hj1)]
-      simp only [B₁, PrefixBuilder.addId, houts_free j (by omega) hj2, Option.map_none]
-    have hin₃ : ∀ i : Fin N, m ≤ i.val → i.val < b → B₃.uses (.input i) = 0 := by
-      intro i hi1 hi2
-      have hne_v : (Wire.input i : Wire N g₂) ≠ v_in_B₂ := by
-        intro heq; have hlo := (B₂.validInputs i).1; rw [heq, hv_B₂_lo] at hlo; omega
-      have hne_u₁ : (Wire.input i : Wire N g₂) ≠ u₁ := by
-        intro heq; have hlo := (B₂.validInputs i).1; rw [heq, hu₁_lo] at hlo; omega
-      have hB₂_in : B₂.uses (.input i) = 0 := by
-        have h1 : e₁.emb (.input i) ≠ v₁ := castSucc_ne_lastGate (.input i)
-        have h2 : ∀ i' : Fin N, a ≤ i'.val → i'.val < m → e₁.emb (.input i) ≠ .input i' := by
-          intro i' _ hi'2 heq
-          have := Fin.val_eq_of_eq (Wire.input.inj
-            (e₁.emb_injective (heq.trans (e₁.emb_input i').symm)))
-          omega
-        have h_eq : e₂.emb (e₁.emb (.input i)) = .input i := by rw [e₁.emb_input, e₂.emb_input]
-        rw [← h_eq]
-        have hne0 : (Wire.input i : Wire N g) ≠ v := by
-          intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
-        exact (hold₂ _ h1 h2).2.trans
-          ((B.uses_addId_ne v (.input i) hne0).trans (hin_free i (by omega) hi2))
-      exact (B₂.uses_addMul_ne v_in_B₂ u₁ h0_3 hmid_3 h1_3 (.input i) hne_v hne_u₁).trans hB₂_in
-    have hall₃ : ∀ w' : Wire N (g₂ + 1), B₃.uses w' ≤ k :=
-      B₂.uses_addMul_le v_in_B₂ u₁ h0_3 hmid_3 h1_3 (by omega) (by omega) hall₂
-    obtain ⟨g₄, B₄, e₄, u₂, hu₂_lo, hu₂_hi, hu₂_d, hu₂_u, hcost₄, hout₄_in, hout₄_out, hold₄,
-        hall₄⟩ :=
-      compileTree_exists hk t₂ B₃ v₂ (by omega) hbN hfan.2 hv₂_lo hv₂_hi
-        (B₂.uses_addMul_last v_in_B₂ u₁ h0_3 hmid_3 h1_3) (by omega) houts₃ hin₃ hall₃
-    let u₁_in_B₄ := e₄.emb (e₃.emb u₁)
-    have hu₁_B₄_lo : B₄.lo u₁_in_B₄ = a := by rw [e₄.lo_emb, e₃.lo_emb, hu₁_lo]
-    have hu₁_B₄_hi : B₄.hi u₁_in_B₄ = m := by rw [e₄.hi_emb, e₃.hi_emb, hu₁_hi]
-    have hu₁_B₄_d : B₄.program.wireDepths u₁_in_B₄ = B₂.program.wireDepths u₁ := by
-      rw [e₄.depth_emb, e₃.depth_emb]
-    have hu₁_B₄_uses : B₄.uses u₁_in_B₄ = 1 := by
-      have h1 : e₃.emb u₁ ≠ v₂ := castSucc_ne_lastGate u₁
-      have h2 : ∀ i : Fin N, m ≤ i.val → i.val < b → e₃.emb u₁ ≠ .input i := by
-        intro i hi1 _ heq
-        have hlo : B₃.lo (e₃.emb u₁) = a := by rw [e₃.lo_emb, hu₁_lo]
-        rw [heq, (B₃.validInputs i).1] at hlo; omega
-      have hstep := B₂.uses_addMul_right v_in_B₂ u₁ h0_3 hmid_3 h1_3
-      rw [hu₁_u] at hstep
-      exact (hold₄ (e₃.emb u₁) h1 h2).2.trans hstep
-    have h0_5 : B₄.lo u₁_in_B₄ < B₄.hi u₁_in_B₄ := by omega
-    have hmid_5 : B₄.hi u₁_in_B₄ = B₄.lo u₂ := by omega
-    have h1_5 : B₄.lo u₂ < B₄.hi u₂ := by omega
-    let B₅ := B₄.addMul u₁_in_B₄ u₂ h0_5 hmid_5 h1_5
-    let e₅ := B₄.addMulExt u₁_in_B₄ u₂ h0_5 hmid_5 h1_5
-    let u : Wire N (g₄ + 1) := .gate (Fin.last g₄)
-    let e_all := (((e₁.trans e₂).trans e₃).trans e₄).trans e₅
-    have hv_B₄_uses : B₄.uses (e₄.emb (e₃.emb v_in_B₂)) = B.uses v + 2 := by
-      have h1 : e₃.emb v_in_B₂ ≠ v₂ := castSucc_ne_lastGate v_in_B₂
-      have h2 : ∀ i : Fin N, m ≤ i.val → i.val < b → e₃.emb v_in_B₂ ≠ .input i := by
-        intro i hi1 _ heq
-        have hlo : B₃.lo (e₃.emb v_in_B₂) = 0 := by rw [e₃.lo_emb, hv_B₂_lo]
-        rw [heq, (B₃.validInputs i).1] at hlo; omega
-      have hstep := B₂.uses_addMul_left v_in_B₂ u₁ h0_3 hmid_3 h1_3
-      rw [hv_B₂_uses] at hstep
-      exact (hold₄ _ h1 h2).2.trans hstep
-    refine ⟨g₄ + 1, B₅, e_all, u, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · simp only [B₅, u, PrefixBuilder.addMul, liftWireVal_last, hu₁_B₄_lo]
-    · simp only [B₅, u, PrefixBuilder.addMul, liftWireVal_last, hu₂_hi]
-    · have := B₄.depth_addMul_last u₁_in_B₄ u₂ h0_5 hmid_5 h1_5
-      simp only [ConsistentChain.inDepth]
-      dsimp only [B₅, u] at *; omega
-    · exact B₄.uses_addMul_last u₁_in_B₄ u₂ h0_5 hmid_5 h1_5
-    · simp only [ConsistentChain.arity]
-      have hv_ne1 : e₄.emb (e₃.emb v_in_B₂) ≠ u₁_in_B₄ := by
-        intro heq
-        have hlo : B₄.lo (e₄.emb (e₃.emb v_in_B₂)) = 0 := by rw [e₄.lo_emb, e₃.lo_emb, hv_B₂_lo]
-        rw [heq, hu₁_B₄_lo] at hlo; omega
-      have hv_ne2 : e₄.emb (e₃.emb v_in_B₂) ≠ u₂ := by
-        intro heq
-        have hlo : B₄.lo (e₄.emb (e₃.emb v_in_B₂)) = 0 := by rw [e₄.lo_emb, e₃.lo_emb, hv_B₂_lo]
-        rw [heq, hu₂_lo] at hlo; omega
-      exact (B₄.uses_addMul_ne u₁_in_B₄ u₂ h0_5 hmid_5 h1_5 _ hv_ne1 hv_ne2).trans hv_B₄_uses
-    · have hc3 : B₃.mulCost = B₂.mulCost + 1 := by
-        simp only [PrefixBuilder.mulCost, B₃, PrefixBuilder.addMul, Program.cost_gate]
-      have hc5 : B₅.mulCost = B₄.mulCost + 1 := by
-        simp only [PrefixBuilder.mulCost, B₅, PrefixBuilder.addMul, Program.cost_gate]
-      have hc1 : B₁.mulCost = B.mulCost := by
+        (by dsimp only [B₁, v₁] at *; omega) houts₁ hin₁ (B.uses_addId_le v (by omega) hall_uses)
+    refine compileChain_snoc hk t₂ (compileTree_exists hk t₂) B v B₂ (e₁.trans e₂) u₁ 1 t₁.inDepth
+      t₁.outDepth ha hbN hlt1 hlt2 hfan.2 hv_lo hv_hi hv_uses hv_depth houts_free hin_free hu₁_lo
+      hu₁_hi hu₁_d hu₁_u ?_ ?_ ?_ ?_ ?_ hall₂
+    · exact (hold₂ (e₁.emb v) (castSucc_ne_lastGate v)
+        fun i hi1 _ => e₁.emb_ne_input_of_lo (by omega)).2.trans (B.uses_addId_self v)
+    · have hc1 : B₁.mulCost = B.mulCost := by
         simp only [PrefixBuilder.mulCost, B₁, PrefixBuilder.addId, Program.cost_gate, Nat.add_zero]
       omega
     · intro j hj1 hj2
-      by_cases hjm : j < m - 1
-      · obtain ⟨w₂, hw₂_eq, hw₂_lo, hw₂_hi, hw₂_d⟩ := hout₂_in j hj1 hjm
-        have hw₄_eq : B₄.outs j = some (e₄.emb (e₃.emb w₂)) := by
-          rw [hout₄_out j (Or.inl hjm)]
-          simp only [B₃, PrefixBuilder.addMul, hw₂_eq, Option.map_some]; rfl
-        refine ⟨e₅.emb (e₄.emb (e₃.emb w₂)), ?_, ?_, ?_, ?_⟩
-        · simp only [B₅, PrefixBuilder.addMul, hw₄_eq, Option.map_some]; rfl
-        · rw [e₅.lo_emb, e₄.lo_emb, e₃.lo_emb, hw₂_lo]
-        · rw [e₅.hi_emb, e₄.hi_emb, e₃.hi_emb, hw₂_hi]
-        · rw [e₅.depth_emb, e₄.depth_emb, e₃.depth_emb]
-          have hd1 := B.depth_addId_last v
-          simp only [ConsistentChain.maxOutDepth]
-          dsimp only [B₁, v₁] at *; omega
-      · obtain ⟨w₄, hw₄_eq, hw₄_lo, hw₄_hi, hw₄_d⟩ := hout₄_in j (by omega) hj2
-        refine ⟨e₅.emb w₄, ?_, ?_, ?_, ?_⟩
-        · simp only [B₅, PrefixBuilder.addMul, hw₄_eq, Option.map_some]; rfl
-        · rw [e₅.lo_emb, hw₄_lo]
-        · rw [e₅.hi_emb, hw₄_hi]
-        · rw [e₅.depth_emb]
-          simp only [ConsistentChain.maxOutDepth]
-          omega
+      obtain ⟨w, hw_eq, hw_lo, hw_hi, hw_d⟩ := hout₂_in j hj1 hj2
+      refine ⟨w, hw_eq, hw_lo, hw_hi, ?_⟩
+      dsimp only [B₁, v₁] at hw_d; omega
     · intro j hj
-      have hj4 : j < m - 1 ∨ b - 1 ≤ j := by omega
-      have hj2 : j < a - 1 ∨ m - 1 ≤ j := by omega
-      simp only [B₅, PrefixBuilder.addMul]
-      rw [hout₄_out j hj4]
-      simp only [B₃, PrefixBuilder.addMul, Option.map_map]
-      rw [hout₂_out j hj2]
-      simp only [B₁, PrefixBuilder.addId, Option.map_map]
-      rfl
+      rw [hout₂_out j hj]
+      simp only [B₁, PrefixBuilder.addId, Option.map_map]; rfl
     · intro w hw_ne hw_in
-      refine ⟨castSucc_ne_lastGate _, ?_⟩
-      have h1_w : e₁.emb w ≠ v₁ := castSucc_ne_lastGate w
-      have h2_w : ∀ i : Fin N, a ≤ i.val → i.val < m → e₁.emb w ≠ .input i := by
-        intro i hi1 hi2 heq
-        exact hw_in i hi1 (by omega) (e₁.emb_injective (heq.trans (e₁.emb_input i).symm))
-      obtain ⟨hne_u₁, huses₂⟩ := hold₂ (e₁.emb w) h1_w h2_w
-      have hne_v₂ : e₂.emb (e₁.emb w) ≠ v_in_B₂ :=
-        fun heq => hw_ne (e₁.emb_injective (e₂.emb_injective heq))
-      have huses₃ : B₃.uses (e₃.emb (e₂.emb (e₁.emb w))) = B.uses w :=
-        (B₂.uses_addMul_ne v_in_B₂ u₁ h0_3 hmid_3 h1_3 _ hne_v₂ hne_u₁).trans
-          (huses₂.trans (B.uses_addId_ne v w hw_ne))
-      have h3_w : e₃.emb (e₂.emb (e₁.emb w)) ≠ v₂ := castSucc_ne_lastGate _
-      have h4_w : ∀ i : Fin N, m ≤ i.val → i.val < b →
-          e₃.emb (e₂.emb (e₁.emb w)) ≠ .input i := by
-        intro i hi1 hi2 heq
-        have h_eq : e₃.emb (e₂.emb (e₁.emb (.input i))) = .input i := by
-          rw [e₁.emb_input, e₂.emb_input, e₃.emb_input]
-        exact hw_in i (by omega) hi2
-          (e₁.emb_injective (e₂.emb_injective (e₃.emb_injective (heq.trans h_eq.symm))))
-      obtain ⟨hne_u₂, huses₄⟩ := hold₄ _ h3_w h4_w
-      have hne_u₁_B₄ : e₄.emb (e₃.emb (e₂.emb (e₁.emb w))) ≠ u₁_in_B₄ :=
-        fun heq => hne_u₁ (e₃.emb_injective (e₄.emb_injective heq))
-      exact (B₄.uses_addMul_ne u₁_in_B₄ u₂ h0_5 hmid_5 h1_5 _ hne_u₁_B₄ hne_u₂).trans
-        (huses₄.trans huses₃)
-    · exact B₄.uses_addMul_le u₁_in_B₄ u₂ h0_5 hmid_5 h1_5 (by omega) (by omega) hall₄
+      obtain ⟨hne, huses⟩ := hold₂ (e₁.emb w) (castSucc_ne_lastGate w)
+        fun i hi1 hi2 => e₁.emb_ne_input (hw_in i hi1 hi2)
+      exact ⟨hne, huses.trans (B.uses_addId_ne v w hw_ne)⟩
   | a, m₁, b, .snoc (m₂ := m₂) init last, g, B, v, ha, hbN, hfan, hv_lo, hv_hi, hv_uses, hv_depth,
       houts_free, hin_free, hall_uses => by
     have hlt_init := init.lt
@@ -1825,149 +1837,10 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       compileChain_exists hk init B v ha (by omega) hfan.1 hv_lo hv_hi (by omega) (by omega)
         (fun j hj1 hj2 => houts_free j hj1 (by omega))
         (fun i hi1 hi2 => hin_free i hi1 (by omega)) hall_uses
-    let v_in_B₁ := e₁.emb v
-    have hv_B₁_lo : B₁.lo v_in_B₁ = 0 := by rw [e₁.lo_emb, hv_lo]
-    have hv_B₁_hi : B₁.hi v_in_B₁ = a := by rw [e₁.hi_emb, hv_hi]
-    have hv_B₁_d : B₁.program.wireDepths v_in_B₁ = B.program.wireDepths v := e₁.depth_emb v
-    have h0_2 : B₁.lo v_in_B₁ < B₁.hi v_in_B₁ := by omega
-    have hmid_2 : B₁.hi v_in_B₁ = B₁.lo u_init := by omega
-    have h1_2 : B₁.lo u_init < B₁.hi u_init := by omega
-    let B₂ := B₁.addMul v_in_B₁ u_init h0_2 hmid_2 h1_2
-    let e₂ := B₁.addMulExt v_in_B₁ u_init h0_2 hmid_2 h1_2
-    let v_last : Wire N (g₁ + 1) := .gate (Fin.last g₁)
-    have hvl_lo : B₂.lo v_last = 0 := by
-      simp only [B₂, v_last, PrefixBuilder.addMul, liftWireVal_last, hv_B₁_lo]
-    have hvl_hi : B₂.hi v_last = m₂ := by
-      simp only [B₂, v_last, PrefixBuilder.addMul, liftWireVal_last, hui_hi]
-    have hvl_d_eq : B₂.program.wireDepths v_last = B.program.wireDepths v + 1 := by
-      have := B₁.depth_addMul_last v_in_B₁ u_init h0_2 hmid_2 h1_2
-      dsimp only [B₂, v_last] at *; omega
-    have houts₂ : ∀ j, m₂ - 1 ≤ j → j < b - 1 → B₂.outs j = none := by
-      intro j hj1 hj2
-      simp only [B₂, PrefixBuilder.addMul]
-      rw [hout₁_out j (Or.inr hj1), houts_free j (by omega) hj2, Option.map_none, Option.map_none]
-    have hin₂ : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → B₂.uses (.input i) = 0 := by
-      intro i hi1 hi2
-      have hne_v : (Wire.input i : Wire N g₁) ≠ v_in_B₁ := by
-        intro heq; have hlo := (B₁.validInputs i).1; rw [heq, hv_B₁_lo] at hlo; omega
-      have hne_ui : (Wire.input i : Wire N g₁) ≠ u_init := by
-        intro heq; have hlo := (B₁.validInputs i).1; rw [heq, hui_lo] at hlo; omega
-      have hB₁_in : B₁.uses (.input i) = 0 := by
-        have h1 : (Wire.input i : Wire N g) ≠ v := by
-          intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
-        have h2 : ∀ i' : Fin N, a ≤ i'.val → i'.val < m₂ →
-            (Wire.input i : Wire N g) ≠ .input i' := by
-          intro i' _ hi'2 heq
-          have := Fin.val_eq_of_eq (Wire.input.inj heq); omega
-        rw [← e₁.emb_input i]
-        exact (hold₁ (.input i) h1 h2).2.trans (hin_free i (by omega) hi2)
-      exact (B₁.uses_addMul_ne v_in_B₁ u_init h0_2 hmid_2 h1_2 (.input i) hne_v hne_ui).trans
-        hB₁_in
-    have hall₂ : ∀ w' : Wire N (g₁ + 1), B₂.uses w' ≤ k :=
-      B₁.uses_addMul_le v_in_B₁ u_init h0_2 hmid_2 h1_2
-        (by dsimp only [v_in_B₁] at *; omega) (by omega) hall₁
-    obtain ⟨g₃, B₃, e₃, u_last, hul_lo, hul_hi, hul_d, hul_u, hcost₃, hout₃_in, hout₃_out, hold₃,
-        hall₃⟩ :=
-      compileTree_exists hk last B₂ v_last (by omega) hbN hfan.2 hvl_lo hvl_hi
-        (B₁.uses_addMul_last v_in_B₁ u_init h0_2 hmid_2 h1_2) (by omega) houts₂ hin₂ hall₂
-    let ui_in_B₃ := e₃.emb (e₂.emb u_init)
-    have hui_B₃_lo : B₃.lo ui_in_B₃ = a := by rw [e₃.lo_emb, e₂.lo_emb, hui_lo]
-    have hui_B₃_hi : B₃.hi ui_in_B₃ = m₂ := by rw [e₃.hi_emb, e₂.hi_emb, hui_hi]
-    have hui_B₃_d : B₃.program.wireDepths ui_in_B₃ = B₁.program.wireDepths u_init := by
-      rw [e₃.depth_emb, e₂.depth_emb]
-    have hui_B₃_uses : B₃.uses ui_in_B₃ = 1 := by
-      have h1 : e₂.emb u_init ≠ v_last := castSucc_ne_lastGate u_init
-      have h2 : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb u_init ≠ .input i := by
-        intro i hi1 _ heq
-        have hlo : B₂.lo (e₂.emb u_init) = a := by rw [e₂.lo_emb, hui_lo]
-        rw [heq, (B₂.validInputs i).1] at hlo; omega
-      have hstep := B₁.uses_addMul_right v_in_B₁ u_init h0_2 hmid_2 h1_2
-      rw [hui_u] at hstep
-      exact (hold₃ (e₂.emb u_init) h1 h2).2.trans hstep
-    have h0_4 : B₃.lo ui_in_B₃ < B₃.hi ui_in_B₃ := by omega
-    have hmid_4 : B₃.hi ui_in_B₃ = B₃.lo u_last := by omega
-    have h1_4 : B₃.lo u_last < B₃.hi u_last := by omega
-    let B₄ := B₃.addMul ui_in_B₃ u_last h0_4 hmid_4 h1_4
-    let e₄ := B₃.addMulExt ui_in_B₃ u_last h0_4 hmid_4 h1_4
-    let u : Wire N (g₃ + 1) := .gate (Fin.last g₃)
-    let e_all := ((e₁.trans e₂).trans e₃).trans e₄
-    have hv_B₃_uses : B₃.uses (e₃.emb (e₂.emb v_in_B₁)) = B.uses v + init.arity + 1 := by
-      have h1 : e₂.emb v_in_B₁ ≠ v_last := castSucc_ne_lastGate v_in_B₁
-      have h2 : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb v_in_B₁ ≠ .input i := by
-        intro i hi1 _ heq
-        have hlo : B₂.lo (e₂.emb v_in_B₁) = 0 := by rw [e₂.lo_emb, hv_B₁_lo]
-        rw [heq, (B₂.validInputs i).1] at hlo; omega
-      have hstep := B₁.uses_addMul_left v_in_B₁ u_init h0_2 hmid_2 h1_2
-      rw [hv_B₁_uses] at hstep
-      exact (hold₃ _ h1 h2).2.trans hstep
-    refine ⟨g₃ + 1, B₄, e_all, u, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · simp only [B₄, u, PrefixBuilder.addMul, liftWireVal_last, hui_B₃_lo]
-    · simp only [B₄, u, PrefixBuilder.addMul, liftWireVal_last, hul_hi]
-    · have := B₃.depth_addMul_last ui_in_B₃ u_last h0_4 hmid_4 h1_4
-      simp only [ConsistentChain.inDepth]
-      dsimp only [B₄, u] at *; omega
-    · exact B₃.uses_addMul_last ui_in_B₃ u_last h0_4 hmid_4 h1_4
-    · simp only [ConsistentChain.arity, ← Nat.add_assoc]
-      have hv_ne1 : e₃.emb (e₂.emb v_in_B₁) ≠ ui_in_B₃ := by
-        intro heq
-        have hlo : B₃.lo (e₃.emb (e₂.emb v_in_B₁)) = 0 := by rw [e₃.lo_emb, e₂.lo_emb, hv_B₁_lo]
-        rw [heq, hui_B₃_lo] at hlo; omega
-      have hv_ne2 : e₃.emb (e₂.emb v_in_B₁) ≠ u_last := by
-        intro heq
-        have hlo : B₃.lo (e₃.emb (e₂.emb v_in_B₁)) = 0 := by rw [e₃.lo_emb, e₂.lo_emb, hv_B₁_lo]
-        rw [heq, hul_lo] at hlo; omega
-      exact (B₃.uses_addMul_ne ui_in_B₃ u_last h0_4 hmid_4 h1_4 _ hv_ne1 hv_ne2).trans hv_B₃_uses
-    · have hc2 : B₂.mulCost = B₁.mulCost + 1 := by
-        simp only [PrefixBuilder.mulCost, B₂, PrefixBuilder.addMul, Program.cost_gate]
-      have hc4 : B₄.mulCost = B₃.mulCost + 1 := by
-        simp only [PrefixBuilder.mulCost, B₄, PrefixBuilder.addMul, Program.cost_gate]
-      omega
-    · intro j hj1 hj2
-      by_cases hjm : j < m₂ - 1
-      · obtain ⟨w₁, hw₁_eq, hw₁_lo, hw₁_hi, hw₁_d⟩ := hout₁_in j hj1 hjm
-        have hw₃_eq : B₃.outs j = some (e₃.emb (e₂.emb w₁)) := by
-          rw [hout₃_out j (Or.inl hjm)]
-          simp only [B₂, PrefixBuilder.addMul, hw₁_eq, Option.map_some]; rfl
-        refine ⟨e₄.emb (e₃.emb (e₂.emb w₁)), ?_, ?_, ?_, ?_⟩
-        · simp only [B₄, PrefixBuilder.addMul, hw₃_eq, Option.map_some]; rfl
-        · rw [e₄.lo_emb, e₃.lo_emb, e₂.lo_emb, hw₁_lo]
-        · rw [e₄.hi_emb, e₃.hi_emb, e₂.hi_emb, hw₁_hi]
-        · rw [e₄.depth_emb, e₃.depth_emb, e₂.depth_emb]
-          simp only [ConsistentChain.maxOutDepth]
-          omega
-      · obtain ⟨w₃, hw₃_eq, hw₃_lo, hw₃_hi, hw₃_d⟩ := hout₃_in j (by omega) hj2
-        refine ⟨e₄.emb w₃, ?_, ?_, ?_, ?_⟩
-        · simp only [B₄, PrefixBuilder.addMul, hw₃_eq, Option.map_some]; rfl
-        · rw [e₄.lo_emb, hw₃_lo]
-        · rw [e₄.hi_emb, hw₃_hi]
-        · rw [e₄.depth_emb]
-          simp only [ConsistentChain.maxOutDepth]
-          omega
-    · intro j hj
-      have hj3 : j < m₂ - 1 ∨ b - 1 ≤ j := by omega
-      have hj1 : j < a - 1 ∨ m₂ - 1 ≤ j := by omega
-      simp only [B₄, PrefixBuilder.addMul]
-      rw [hout₃_out j hj3]
-      simp only [B₂, PrefixBuilder.addMul, Option.map_map]
-      rw [hout₁_out j hj1]
-      simp only [Option.map_map]; rfl
-    · intro w hw_ne hw_in
-      refine ⟨castSucc_ne_lastGate _, ?_⟩
-      obtain ⟨hne_ui, huses₁⟩ := hold₁ w hw_ne (fun i hi1 hi2 => hw_in i hi1 (by omega))
-      have hne_v : e₁.emb w ≠ v_in_B₁ := fun heq => hw_ne (e₁.emb_injective heq)
-      have huses₂ : B₂.uses (e₂.emb (e₁.emb w)) = B.uses w :=
-        (B₁.uses_addMul_ne v_in_B₁ u_init h0_2 hmid_2 h1_2 _ hne_v hne_ui).trans huses₁
-      have h2_w : e₂.emb (e₁.emb w) ≠ v_last := castSucc_ne_lastGate _
-      have h3_w : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → e₂.emb (e₁.emb w) ≠ .input i := by
-        intro i hi1 hi2 heq
-        have h_eq : e₂.emb (e₁.emb (.input i)) = .input i := by rw [e₁.emb_input, e₂.emb_input]
-        exact hw_in i (by omega) hi2 (e₁.emb_injective (e₂.emb_injective (heq.trans h_eq.symm)))
-      obtain ⟨hne_ul, huses₃⟩ := hold₃ _ h2_w h3_w
-      have hne_ui_B₃ : e₃.emb (e₂.emb (e₁.emb w)) ≠ ui_in_B₃ :=
-        fun heq => hne_ui (e₂.emb_injective (e₃.emb_injective heq))
-      exact (B₃.uses_addMul_ne ui_in_B₃ u_last h0_4 hmid_4 h1_4 _ hne_ui_B₃ hne_ul).trans
-        (huses₃.trans huses₂)
-    · exact B₃.uses_addMul_le ui_in_B₃ u_last h0_4 hmid_4 h1_4 (by omega) (by omega) hall₃
+    exact compileChain_snoc hk last (compileTree_exists hk last) B v B₁ e₁ u_init init.arity
+      init.inDepth init.maxOutDepth ha hbN hlt_init hlt_last hfan.2 hv_lo hv_hi hv_uses hv_depth
+      houts_free hin_free hui_lo hui_hi hui_d hui_u hv_B₁_uses hcost₁ hout₁_in hout₁_out hold₁
+      hall₁
 end
 
 private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN : 1 ≤ N) :
@@ -2005,10 +1878,8 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
           have hj_ne : j ≠ 0 := by omega
           simp only [B₁, PrefixBuilder.assignOut, hj_ne, ↓reduceIte]; rfl
         · intro i hi
-          have hne : (Wire.input i : Wire N 0) ≠ v₀ := by
-            intro heq
-            have hval : i.val = 0 := Fin.val_eq_of_eq (Wire.input.inj heq)
-            omega
+          have hne : (Wire.input i : Wire N 0) ≠ v₀ :=
+            mt Wire.input.inj (Fin.ne_of_val_ne (show i.val ≠ 0 by omega))
           exact (B₀.uses_assignOut_ne 0 v₀ (.input i) rfl hne).trans
             (PrefixBuilder.uses_empty (.input i))
         · exact B₀.uses_assignOut_le hN v₀ rfl
@@ -2034,11 +1905,13 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
           have hd_last := B.depth_addMul_last v inp h0 hmid h1
           have hd_inp : B.program.wireDepths inp = 0 := rfl
           dsimp only [B₁, v'] at *; omega
-        refine ⟨g + 1, B₂, v', ?_, ?_, hv'_d, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-        · simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul, liftWireVal_last,
+        have hv'_lo : B₂.lo v' = 0 := by
+          simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul, liftWireVal_last,
             hv_lo]
-        · simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul, liftWireVal_last,
+        have hv'_hi : B₂.hi v' = m + 2 := by
+          simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul, liftWireVal_last,
             hinp_hi]
+        refine ⟨g + 1, B₂, v', hv'_lo, hv'_hi, hv'_d, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
         · have := B₁.uses_assignOut_self hmN v' hnone₁
           have := B.uses_addMul_last v inp h0 hmid h1
           dsimp only [B₁, B₂, v'] at *; omega
@@ -2050,11 +1923,8 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
         · intro j hj
           by_cases hjeq : j = m + 1
           · subst hjeq
-            refine ⟨v', by simp only [B₂, PrefixBuilder.assignOut, ↓reduceIte], ?_, ?_, hv'_d⟩
-            · simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul,
-                liftWireVal_last, hv_lo]
-            · simp only [B₂, PrefixBuilder.assignOut, B₁, v', PrefixBuilder.addMul,
-                liftWireVal_last, hinp_hi]
+            exact ⟨v', by simp only [B₂, PrefixBuilder.assignOut, ↓reduceIte], hv'_lo, hv'_hi,
+              hv'_d⟩
           · obtain ⟨w, hw_eq, hw_lo, hw_hi, hw_d⟩ := hout_lt j (by omega)
             refine ⟨e₁.emb w, ?_, ?_, ?_, ?_⟩
             · simp only [B₂, PrefixBuilder.assignOut, hjeq, ↓reduceIte, B₁,
@@ -2068,12 +1938,9 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
             hout_ge j (by omega), Option.map_none]
         · intro i hi
           have hne_v' : (Wire.input i : Wire N (g + 1)) ≠ v' := castSucc_ne_lastGate (.input i)
-          have hne_v : (Wire.input i : Wire N g) ≠ v := by
-            intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
-          have hne_inp : (Wire.input i : Wire N g) ≠ inp := by
-            intro heq
-            have hval : i.val = m + 1 := Fin.val_eq_of_eq (Wire.input.inj heq)
-            omega
+          have hne_v : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
+          have hne_inp : (Wire.input i : Wire N g) ≠ inp :=
+            mt Wire.input.inj (Fin.ne_of_val_ne (show i.val ≠ m + 1 by omega))
           exact (B₁.uses_assignOut_ne (m + 1) v' (.input i) hnone₁ hne_v').trans
             ((B.uses_addMul_ne v inp h0 hmid h1 (.input i) hne_v hne_inp).trans
               (hin_ge i (by omega)))
@@ -2134,10 +2001,8 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
     have hpref_lb : ∀ r ≤ D, r ≤ prefSum r - 1 := by
       intro r hr
       have h_lb : r ≤ ∑ m ∈ Finset.range r, w m := by
-        calc
-          r = ∑ _m ∈ Finset.range r, 1 := by
-            rw [Finset.sum_const, Finset.card_range, smul_eq_mul, Nat.mul_one]
-          _ ≤ ∑ m ∈ Finset.range r, w m := Finset.sum_le_sum fun m hm =>
+        simpa only [Finset.card_range, smul_eq_mul, Nat.mul_one] using
+          Finset.card_nsmul_le_sum (Finset.range r) w 1 fun m hm =>
             (hw_bd m (Nat.lt_of_lt_of_le (Finset.mem_range.mp hm) hr)).1
       simp only [prefSum]
       omega
@@ -2189,11 +2054,7 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
           let B₂ := B₁.addMul v u_d h0 hmid h1
           let e₂ := B₁.addMulExt v u_d h0 hmid h1
           let v_next : Wire N (g + 1) := .gate (Fin.last g)
-          have hv_ne_ud : v ≠ u_d := by
-            intro heq
-            have hlo := (B.validInputs ⟨a, by omega⟩).1
-            change B.lo u_d = a at hlo
-            rw [← heq, hv_lo] at hlo; omega
+          have hv_ne_ud : v ≠ u_d := Ne.symm (B.input_ne_of_lo_ne (show B.lo v ≠ a by omega))
           refine ⟨g + 1, B₂, v_next, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
           · simp only [B₂, v_next, PrefixBuilder.addMul, liftWireVal_last, B₁,
               PrefixBuilder.assignOut, hv_lo]
@@ -2235,12 +2096,9 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
             simp only [B₂, PrefixBuilder.addMul, B₁, PrefixBuilder.assignOut, hj_ne, ↓reduceIte,
               hout_ge j (by omega), Option.map_none]
           · intro i hi
-            have hne_v : (Wire.input i : Wire N g) ≠ v := by
-              intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
-            have hne_ud : (Wire.input i : Wire N g) ≠ u_d := by
-              intro heq
-              have hval : i.val = a := Fin.val_eq_of_eq (Wire.input.inj heq)
-              omega
+            have hne_v : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
+            have hne_ud : (Wire.input i : Wire N g) ≠ u_d :=
+              mt Wire.input.inj (Fin.ne_of_val_ne (show i.val ≠ a by omega))
             exact (B₁.uses_addMul_ne v u_d h0 hmid h1 (.input i) hne_v hne_ud).trans
               ((B.uses_assignOut_ne (a - 1) v (.input i) hnone hne_v).trans (hin_ge i (by omega)))
           · have hall₁ : ∀ w' : Wire N g, B₁.uses w' ≤ k :=
@@ -2275,8 +2133,7 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
             simp only [B₁, PrefixBuilder.addId, hout_ge j hj1, Option.map_none]
           have hin₁ : ∀ i : Fin N, a ≤ i.val → B₁.uses (.input i) = 0 := by
             intro i hi1
-            have hne : (Wire.input i : Wire N g) ≠ v := by
-              intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+            have hne : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
             exact (B.uses_addId_ne v (.input i) hne).trans (hin_ge i hi1)
           have hall₁ : ∀ w' : Wire N (g + 1), B₁.uses w' ≤ k :=
             B.uses_addId_le v (by omega) hall
@@ -2290,11 +2147,8 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
           have hv2_d : B₂.program.wireDepths v_in_B₂ = d := by rw [e₂.depth_emb, e₁.depth_emb, hv_d]
           have hv2_uses : B₂.uses v_in_B₂ = 1 := by
             have h1 : e₁.emb v ≠ v_buf := castSucc_ne_lastGate v
-            have h2 : ∀ i : Fin N, a ≤ i.val → i.val < b → e₁.emb v ≠ .input i := by
-              intro i hi1 _ heq
-              have := e₁.emb_injective (heq.trans (e₁.emb_input i).symm)
-              have hlo := (B.validInputs i).1
-              rw [← this, hv_lo] at hlo; omega
+            have h2 : ∀ i : Fin N, a ≤ i.val → i.val < b → e₁.emb v ≠ .input i :=
+              fun i hi1 _ => e₁.emb_ne_input_of_lo (by omega)
             have hstep := B.uses_addId_self v
             rw [hv_u] at hstep
             exact (hold₂ (e₁.emb v) h1 h2).2.trans hstep
@@ -2338,18 +2192,13 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
             rw [hout₂_out j (Or.inr hj)]
             simp only [B₁, PrefixBuilder.addId, hout_ge j (by omega), Option.map_none]
           · intro i hi
-            have hne_v : (Wire.input i : Wire N g₂) ≠ v_in_B₂ := by
-              intro heq; have hlo := (B₂.validInputs i).1; rw [heq, hv2_lo] at hlo; omega
-            have hne_ud : (Wire.input i : Wire N g₂) ≠ u_d := by
-              intro heq; have hlo := (B₂.validInputs i).1; rw [heq, hud_lo] at hlo; omega
+            have hne_v : (Wire.input i : Wire N g₂) ≠ v_in_B₂ := B₂.input_ne_of_lo_ne (by omega)
+            have hne_ud : (Wire.input i : Wire N g₂) ≠ u_d := B₂.input_ne_of_lo_ne (by omega)
             have hB₂_in : B₂.uses (.input i) = 0 := by
               have h1_in : e₁.emb (.input i) ≠ v_buf := castSucc_ne_lastGate (.input i)
               have h2_in : ∀ i' : Fin N, a ≤ i'.val → i'.val < b →
-                  e₁.emb (.input i) ≠ .input i' := by
-                intro i' _ hi'2 heq
-                have := Fin.val_eq_of_eq (Wire.input.inj
-                  (e₁.emb_injective (heq.trans (e₁.emb_input i').symm)))
-                omega
+                  e₁.emb (.input i) ≠ .input i' :=
+                fun i' _ hi'2 => e₁.emb_ne_input (mt Wire.input.inj (Fin.ne_of_val_ne (by omega)))
               have h_eq : e₂.emb (e₁.emb (.input i)) = .input i := by
                 rw [e₁.emb_input, e₂.emb_input]
               rw [← h_eq]

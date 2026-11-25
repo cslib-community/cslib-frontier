@@ -327,39 +327,34 @@ theorem tableEntries_lt_normalFormEntries (M : GraphicalGame ι S) [DecidableRel
     (hntop : M.graph ≠ ⊤) (hcard : ∀ i, 2 ≤ Fintype.card (S i)) :
     M.tableEntries < CostGame.normalFormEntries ι S := by
   rw [M.tableEntries_eq_sum_prod, CostGame.normalFormEntries_eq]
-  have hex : ∃ i k : ι, i ≠ k ∧ ¬ M.graph.Adj i k := by
+  obtain ⟨i₀, k₀, hne, hnadj⟩ : ∃ i k : ι, i ≠ k ∧ ¬ M.graph.Adj i k := by
     by_contra hall
     push Not at hall
     apply hntop
     ext i k
-    simp only [SimpleGraph.top_adj]
-    exact ⟨M.graph.ne_of_adj, hall i k⟩
-  obtain ⟨i₀, k₀, hne, hnadj⟩ := hex
+    simpa only [SimpleGraph.top_adj] using ⟨M.graph.ne_of_adj, hall i k⟩
+  have hk_not : k₀ ∉ insert i₀ (M.graph.neighborFinset i₀) := by
+    simp [M.graph.mem_neighborFinset, hne.symm, hnadj]
+  have hpos : 0 < ∏ j ∈ insert i₀ (M.graph.neighborFinset i₀), Fintype.card (S j) :=
+    Finset.prod_pos fun j _ => by have := hcard j; omega
+  have hlt : ∏ j ∈ insert i₀ (M.graph.neighborFinset i₀), Fintype.card (S j) <
+      ∏ j : ι, Fintype.card (S j) :=
+    calc ∏ j ∈ insert i₀ (M.graph.neighborFinset i₀), Fintype.card (S j)
+        < ∏ j ∈ insert k₀ (insert i₀ (M.graph.neighborFinset i₀)), Fintype.card (S j) := by
+          rw [Finset.prod_insert hk_not]
+          exact lt_mul_of_one_lt_left hpos (by have := hcard k₀; omega)
+      _ ≤ ∏ j : ι, Fintype.card (S j) :=
+          Finset.prod_le_prod_of_subset_of_one_le (Finset.subset_univ _) fun j _ _ => by
+            have := hcard j
+            omega
   have hle : ∀ i ∈ (univ : Finset ι),
       ∏ j ∈ insert i (M.graph.neighborFinset i), Fintype.card (S j) ≤
         ∏ j : ι, Fintype.card (S j) := fun i _ =>
     Finset.prod_le_prod_of_subset_of_one_le (Finset.subset_univ _) fun j _ _ => by
       have := hcard j
       omega
-  have hlt : ∏ j ∈ insert i₀ (M.graph.neighborFinset i₀), Fintype.card (S j) <
-      ∏ j : ι, Fintype.card (S j) := by
-    have hk_not : k₀ ∉ insert i₀ (M.graph.neighborFinset i₀) := by
-      simp only [Finset.mem_insert, M.graph.mem_neighborFinset, not_or]
-      exact ⟨Ne.symm hne, hnadj⟩
-    have hpos : 0 < ∏ j ∈ insert i₀ (M.graph.neighborFinset i₀), Fintype.card (S j) :=
-      Finset.prod_pos fun j _ => by
-        have := hcard j
-        omega
-    have hsub : insert k₀ (insert i₀ (M.graph.neighborFinset i₀)) ⊆ univ := Finset.subset_univ _
-    have hstep : ∏ j ∈ insert i₀ (M.graph.neighborFinset i₀), Fintype.card (S j) <
-        ∏ j ∈ insert k₀ (insert i₀ (M.graph.neighborFinset i₀)), Fintype.card (S j) := by
-      rw [Finset.prod_insert hk_not]
-      exact lt_mul_of_one_lt_left hpos (by have := hcard k₀; omega)
-    exact hstep.trans_le (Finset.prod_le_prod_of_subset_of_one_le hsub fun j _ _ => by
-      have := hcard j
-      omega)
-  have hsum_lt := Finset.sum_lt_sum hle ⟨i₀, mem_univ i₀, hlt⟩
-  simpa only [Finset.sum_const, card_univ, smul_eq_mul] using hsum_lt
+  simpa only [Finset.sum_const, card_univ, smul_eq_mul] using
+    Finset.sum_lt_sum hle ⟨i₀, mem_univ i₀, hlt⟩
 
 end RepresentationSize
 
@@ -377,26 +372,22 @@ theorem sum_productWeight_mul_restrict (P : ι → Prop) [DecidablePred P]
     ∑ s : (∀ i, S i), productWeight p s * f (fun j => s j.1) =
       ∑ u : (∀ j : {j : ι // P j}, S j.1), (∏ j : {j : ι // P j}, p j.1 (u j)) * f u := by
   let e := (Equiv.piEquivPiSubtypeProd P S).symm
-  have hprod : ∀ x : (∀ j : {j // P j}, S j.1) × (∀ j : {j // ¬ P j}, S j.1),
-      productWeight p (e x) =
-        (∏ j : {j // P j}, p j.1 (x.1 j)) * (∏ j : {j // ¬ P j}, p j.1 (x.2 j)) := by
-    intro x
-    rw [productWeight_def, ← Finset.prod_filter_mul_prod_filter_not univ P (fun j => p j (e x j))]
-    have h1 : ∏ j ∈ univ.filter P, p j (e x j) = ∏ j : {j // P j}, p j.1 (x.1 j) := by
-      rw [Finset.prod_subtype (univ.filter P) (p := P) (fun _ => mem_filter_univ _)]
-      refine prod_congr rfl fun j _ => ?_
-      simp [e, Equiv.piEquivPiSubtypeProd, j.2]
-    have h2 : ∏ j ∈ univ.filter (fun j => ¬ P j), p j (e x j) =
-        ∏ j : {j // ¬ P j}, p j.1 (x.2 j) := by
-      rw [Finset.prod_subtype (univ.filter fun j => ¬ P j) (p := fun j => ¬ P j)
-        (fun _ => mem_filter_univ _)]
-      refine prod_congr rfl fun j _ => ?_
-      simp [e, Equiv.piEquivPiSubtypeProd, j.2]
-    rw [h1, h2]
+  have hprod (u : ∀ j : {j // P j}, S j.1) (v : ∀ j : {j // ¬ P j}, S j.1) :
+      productWeight p (e (u, v)) =
+        (∏ j : {j // P j}, p j.1 (u j)) * (∏ j : {j // ¬ P j}, p j.1 (v j)) := by
+    rw [productWeight_def,
+      ← Finset.prod_filter_mul_prod_filter_not univ P (fun j => p j (e (u, v) j)),
+      Finset.prod_subtype (univ.filter P) (p := P) (fun _ => mem_filter_univ _)
+        (fun j => p j (e (u, v) j)),
+      Finset.prod_subtype (univ.filter fun j => ¬ P j) (p := fun j => ¬ P j)
+        (fun _ => mem_filter_univ _) (fun j => p j (e (u, v) j))]
+    exact congrArg₂ (· * ·)
+      (prod_congr rfl fun j _ => by simp [e, Equiv.piEquivPiSubtypeProd, j.2])
+      (prod_congr rfl fun j _ => by simp [e, Equiv.piEquivPiSubtypeProd, j.2])
   have hrest : ∑ v : (∀ j : {j // ¬ P j}, S j.1), ∏ j : {j // ¬ P j}, p j.1 (v j) = 1 := by
     rw [← Fintype.prod_sum (fun j : {j // ¬ P j} => p j.1)]
     exact prod_eq_one fun j _ => hp j.1 j.2
-  rw [← Fintype.sum_equiv e _ (fun s => productWeight p s * f (fun j => s j.1)) fun x => rfl]
+  rw [← Fintype.sum_equiv e _ (fun s => productWeight p s * f (fun j => s j.1)) fun _ => rfl]
   calc ∑ x : (∀ j : {j // P j}, S j.1) × (∀ j : {j // ¬ P j}, S j.1),
         productWeight p (e x) * f (fun j => e x j.1)
       = ∑ u : (∀ j : {j // P j}, S j.1), ∑ v : (∀ j : {j // ¬ P j}, S j.1),
@@ -407,7 +398,7 @@ theorem sum_productWeight_mul_restrict (P : ι → Prop) [DecidablePred P]
         have hrestrict : (fun j : {j // P j} => e (u, v) j.1) = u := by
           ext j
           simp [e, Equiv.piEquivPiSubtypeProd, j.2]
-        rw [hprod (u, v), hrestrict]
+        rw [hprod u v, hrestrict]
         ring
     _ = ∑ u : (∀ j : {j // P j}, S j.1), (∏ j : {j // P j}, p j.1 (u j)) * f u := by
         refine sum_congr rfl fun u _ => ?_
@@ -468,10 +459,7 @@ theorem payoff_update_eq_localNeighborPayoff (i : ι) (a : S i) (s : ∀ k, S k)
   rw [payoff_eq_localPayoff, localNeighborPayoff]
   congr 1
   ext ⟨j, hj⟩
-  by_cases hji : j = i
-  · subst hji
-    simp
-  · simp [hji]
+  rcases eq_or_ne j i with rfl | hji <;> simp [*]
 
 /-- Purely local expected payoff of player `i` playing pure action `a` when its neighbors in
 `M.graph` use mixed strategies `nbr`. -/
@@ -561,38 +549,26 @@ theorem isApproxNash_iff_mixed {ε : ℝ} {p : ∀ i, S i → ℝ} :
     M.IsApproxNash ε p ↔ (∀ i, IsMixedStrategy (p i)) ∧
       ∀ i (x : S i → ℝ), IsMixedStrategy x →
         M.expectedPayoff (update p i x) i ≤ M.expectedPayoff p i + ε := by
-  refine and_congr_right fun hp => forall_congr' fun i => ⟨fun hi x hx => ?_, fun hi a => ?_⟩
-  · have hdev : ∀ a, M.deviationPayoff (update p i x) i a = M.deviationPayoff p i a := fun a =>
-      M.deviationPayoff_congr_neighbors
-        (fun k _ => by
-          by_cases hki : k = i
-          · subst hki; simp [hx.sum_eq_one]
-          · simp [hki, (hp k).sum_eq_one])
-        (fun k _ => (hp k).sum_eq_one)
-        (fun j hj => update_of_ne (M.graph.ne_of_adj hj).symm x p) a
-    have hsum1 : ∑ a, update p i x i a = 1 := by simp [hx.sum_eq_one]
-    rw [← M.sum_mul_deviationPayoff_eq_expectedPayoff (update p i x) hsum1]
-    simp only [update_self, hdev]
-    calc ∑ a, x a * M.deviationPayoff p i a
-        ≤ ∑ a, x a * (M.expectedPayoff p i + ε) :=
-          sum_le_sum fun a _ => mul_le_mul_of_nonneg_left (hi a) (hx.nonneg a)
-      _ = M.expectedPayoff p i + ε := by
-          rw [← sum_mul, hx.sum_eq_one, one_mul]
+  refine and_congr_right fun hp => forall_congr' fun i => ?_
+  have hexp (x : S i → ℝ) (hx : IsMixedStrategy x) :
+      M.expectedPayoff (update p i x) i = ∑ b, x b * M.deviationPayoff p i b := by
+    have hupd (k : ι) (_ : ¬ M.graph.Adj i k) : ∑ a, update p i x k a = 1 := by
+      rcases eq_or_ne k i with rfl | hki
+      · simp [hx.sum_eq_one]
+      · simp [hki, (hp k).sum_eq_one]
+    rw [← M.sum_mul_deviationPayoff_eq_expectedPayoff (update p i x) (by simp [hx.sum_eq_one])]
+    refine sum_congr rfl fun b _ => ?_
+    rw [update_self, M.deviationPayoff_congr_neighbors hupd (fun k _ => (hp k).sum_eq_one)
+      (fun j hj => update_of_ne (M.graph.ne_of_adj hj).symm x p) b]
+  refine ⟨fun hi x hx => ?_, fun hi a => ?_⟩
+  · rw [hexp x hx]
+    calc ∑ b, x b * M.deviationPayoff p i b
+        ≤ ∑ b, x b * (M.expectedPayoff p i + ε) :=
+          sum_le_sum fun b _ => mul_le_mul_of_nonneg_left (hi b) (hx.nonneg b)
+      _ = M.expectedPayoff p i + ε := by rw [← sum_mul, hx.sum_eq_one, one_mul]
   · classical
-    have hsingle := hi (Pi.single a 1) (isMixedStrategy_single a)
-    have hdev : M.deviationPayoff (update p i (Pi.single a 1)) i a = M.deviationPayoff p i a :=
-      M.deviationPayoff_congr_neighbors
-        (fun k _ => by
-          by_cases hki : k = i
-          · subst hki; simp [(isMixedStrategy_single a).sum_eq_one]
-          · simp [hki, (hp k).sum_eq_one])
-        (fun k _ => (hp k).sum_eq_one)
-        (fun j hj => update_of_ne (M.graph.ne_of_adj hj).symm _ p) a
-    have hsum1 : ∑ b, update p i (Pi.single a 1) i b = 1 := by
-      simp [(isMixedStrategy_single a).sum_eq_one]
-    rw [← M.sum_mul_deviationPayoff_eq_expectedPayoff (update p i (Pi.single a 1)) hsum1] at hsingle
-    simpa only [update_self, Pi.single_apply, ite_mul, one_mul, zero_mul, sum_ite_eq', mem_univ,
-      ↓reduceIte, hdev] using hsingle
+    simpa only [hexp _ (isMixedStrategy_single a), Pi.single_apply, ite_mul, one_mul, zero_mul,
+      sum_ite_eq', mem_univ, ↓reduceIte] using hi (Pi.single a 1) (isMixedStrategy_single a)
 
 /-- Purely local `ε`-best-response predicate for player `i` against neighbor mixed strategies `nbr`
 ([Kearns2007], §7.2–7.3, pp. 162, 165). -/
@@ -615,20 +591,13 @@ theorem isApproxBestResponse_zero_iff {i : ι} {x : S i → ℝ}
 `p i` is locally an `ε`-best response to `(fun j : M.graph.neighborSet i => p j.1)`. -/
 theorem isApproxNash_iff_local {ε : ℝ} {p : ∀ i, S i → ℝ} :
     M.IsApproxNash ε p ↔ ∀ i, M.IsApproxBestResponse ε i (p i) (fun j => p j.1) := by
-  constructor
-  · rintro ⟨hp, hbr⟩ i
-    refine ⟨hp i, fun a => ?_⟩
-    have hdev : ∀ b, M.localDeviationPayoff i b (fun j => p j.1) = M.deviationPayoff p i b :=
-      fun b => (M.deviationPayoff_eq_localDeviationPayoff (fun k _ => (hp k).sum_eq_one) b).symm
-    simp only [hdev, M.sum_mul_deviationPayoff_eq_expectedPayoff p (hp i).sum_eq_one]
+  refine ⟨fun ⟨hp, hbr⟩ i => ⟨hp i, fun a => ?_⟩,
+    fun h => ⟨fun i => (h i).1, fun i a => ?_⟩⟩
+  · simp_rw [← M.deviationPayoff_eq_localDeviationPayoff (fun k _ => (hp k).sum_eq_one),
+      M.sum_mul_deviationPayoff_eq_expectedPayoff p (hp i).sum_eq_one]
     exact hbr i a
-  · intro h
-    have hp : ∀ i, IsMixedStrategy (p i) := fun i => (h i).1
-    refine ⟨hp, fun i a => ?_⟩
-    have hdev : ∀ b, M.deviationPayoff p i b = M.localDeviationPayoff i b (fun j => p j.1) :=
-      fun b => M.deviationPayoff_eq_localDeviationPayoff (fun k _ => (hp k).sum_eq_one) b
-    rw [← M.sum_mul_deviationPayoff_eq_expectedPayoff p (hp i).sum_eq_one]
-    simp only [hdev]
+  · rw [← M.sum_mul_deviationPayoff_eq_expectedPayoff p ((h i).1).sum_eq_one]
+    simp_rw [M.deviationPayoff_eq_localDeviationPayoff (fun k _ => ((h k).1).sum_eq_one)]
     exact (h i).2 a
 
 /-- **Locality of exact Nash equilibrium**: `p` is a mixed Nash equilibrium of `M.toCostGame` if
@@ -725,18 +694,13 @@ theorem exists_graphicalGame_not_expectedPayoffEquiv {G : SimpleGraph ι}
         if (hi ▸ u : ∀ j : ClosedNeighborhood G i₀, S j.1) = u₀ then 1 else 0
       else 0
   }, rfl, fun hep => hne ?_⟩
-  have hval : ∀ ρ : Convexity.StdSimplex ℝ (∀ i, S i),
+  have hval (ρ : Convexity.StdSimplex ℝ (∀ i, S i)) :
       ρ.weights.sum (fun s w =>
         w * (if (fun j : ClosedNeighborhood G i₀ => s j.1) = u₀ then (1 : ℝ) else 0)) =
         neighborhoodMarginal G ρ i₀ u₀ := by
-    intro ρ
     rw [neighborhoodMarginal_def]
-    refine Finsupp.sum_congr fun s _ => ?_
-    split_ifs <;> ring
-  have hi₀ := hep i₀
-  simp only [GraphicalGame.payoff_eq_localPayoff, ↓reduceDIte] at hi₀
-  rw [hval σ, hval τ] at hi₀
-  exact hi₀
+    exact Finsupp.sum_congr fun _ _ => by split_ifs <;> ring
+  simpa only [GraphicalGame.payoff_eq_localPayoff, ↓reduceDIte, hval] using hep i₀
 
 /-- **Local neighborhood equivalence preserves approximate correlated equilibria** ([Kearns2007],
 Lemma 7.10, p. 171, generalized to additive slack `ε`). -/
@@ -752,16 +716,12 @@ theorem LocalNeighborhoodEquiv.isApproxCorrelatedEquilibrium_iff [DecidableEq ι
   let fδ : (∀ j : ClosedNeighborhood M.graph i, S j.1) → ℝ := fun u =>
     -M.localPayoff i fun j =>
       if hj : j.1 = i then cast (congrArg S hj.symm) (δ (u ⟨i, Or.inl rfl⟩)) else u j
-  have hcost_upd : ∀ s : ∀ k, S k,
+  have hcost_upd (s : ∀ k, S k) :
       M.toCostGame.cost i (update s i (δ (s i))) = fδ (fun j => s j.1) := by
-    intro s
     simp only [GraphicalGame.toCostGame_cost, GraphicalGame.payoff_eq_localPayoff, fδ, neg_inj]
     congr 1
     ext ⟨j, hj⟩
-    by_cases hji : j = i
-    · subst hji
-      simp
-    · simp [hji]
+    rcases eq_or_ne j i with rfl | hji <;> simp [*]
   have h2 : σ.weights.sum (fun s w => w * M.toCostGame.cost i (update s i (δ (s i)))) =
       τ.weights.sum (fun s w => w * M.toCostGame.cost i (update s i (δ (s i)))) := by
     simp only [hcost_upd]

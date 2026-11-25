@@ -38,11 +38,10 @@ theorem mem_pairLabels (es : List E) (p : Port E) : p ∈ Sinks.pairLabels es �
 theorem length_pairLabels (es : List E) : (Sinks.pairLabels es).length = 2 * es.length := by
   induction es with
   | nil => rfl
-  | cons e es ih =>
-    simp only [Sinks.pairLabels, List.flatMap_cons, List.length_append,
-      List.length_cons, List.length_nil]
+  | cons _ es ih =>
+    simp only [Sinks.pairLabels, List.flatMap_cons, List.length_append, List.length_cons,
+      List.length_nil]
     change 2 + (Sinks.pairLabels es).length = 2 * (es.length + 1)
-    rw [ih, Nat.mul_add, Nat.mul_one]
     omega
 
 /-- Distinct edges give distinct paired incidence labels. -/
@@ -52,11 +51,8 @@ theorem pairLabels_nodup {es : List E} (hn : es.Nodup) : (Sinks.pairLabels es).N
   | cons e es ih =>
     obtain ⟨he, hn⟩ := List.nodup_cons.1 hn
     change (Port.mk e false :: Port.mk e true :: Sinks.pairLabels es).Nodup
-    rw [List.nodup_cons, List.nodup_cons]
-    refine ⟨?_, ?_, ih hn⟩
-    · simpa only [List.mem_cons, Port.mk.injEq, Bool.false_eq_true, and_false,
-        false_or, mem_pairLabels] using he
-    · simpa only [mem_pairLabels] using he
+    exact List.nodup_cons.2 ⟨by simpa [mem_pairLabels] using he,
+      List.nodup_cons.2 ⟨by simpa [mem_pairLabels] using he, ih hn⟩⟩
 
 private theorem pairLabels_coe (es : List E) :
     (↑(Sinks.pairLabels es) : Multiset (Port E)) =
@@ -65,9 +61,8 @@ private theorem pairLabels_coe (es : List E) :
   | nil => simp [Sinks.pairLabels]
   | cons e es ih =>
     change ↑(Port.mk e false :: Port.mk e true :: Sinks.pairLabels es) =
-      ({Port.mk e false} + {Port.mk e true}) +
-        (es.map (fun e => ({Port.mk e false} + {Port.mk e true} : Multiset (Port E)))).sum
-    simp [← Multiset.cons_coe, ih]
+      (({Port.mk e false} + {Port.mk e true} : Multiset (Port E)) + _)
+    simp [← Multiset.cons_coe, ih]; rfl
 
 /-- Well-formed vertex data can be reordered into consecutive endpoint pairs. -/
 theorem incidencePerm {m : ℕ} (vs : List (Vertex (Fin m)))

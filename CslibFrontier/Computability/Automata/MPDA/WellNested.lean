@@ -112,9 +112,7 @@ theorem configLTS_mTr {w : List (Symbol × Op n Γ)} (hw : WellNested w)
     {s s' : State} (h : M.MTr s w s') (σ : Stacks n Γ) :
     M.configLTS.MTr ⟨s, σ⟩ w ⟨s', σ⟩ := by
   induction hw generalizing s s' σ with
-  | nil =>
-    rw [LTS.MTr.nil_eq _ h]
-    exact .refl
+  | nil => exact LTS.MTr.nil_eq _ h ▸ .refl
   | nop _ ih =>
     obtain ⟨s₁, htr, hrest⟩ := LTS.MTr.cons_iff.mp h
     exact .stepL (s2 := ⟨s₁, σ⟩) (configLTS_tr.mpr ⟨htr, Op.apply_nop.mpr rfl⟩) (ih hrest σ)
@@ -123,11 +121,9 @@ theorem configLTS_mTr {w : List (Symbol × Op n Γ)} (hw : WellNested w)
     obtain ⟨s₂, hw, hrest⟩ := LTS.MTr.split hrest
     obtain ⟨s₃, hpop, hw'⟩ := LTS.MTr.cons_iff.mp hrest
     let σ₁ := Function.update σ i (γ :: σ i)
-    have hpush' : M.configLTS.Tr ⟨s, σ⟩ (a, .push i γ) ⟨s₁, σ₁⟩ :=
-      configLTS_tr.mpr ⟨hpush, Op.apply_push.mpr rfl⟩
-    have hpop' : M.configLTS.Tr ⟨s₂, σ₁⟩ (b, .pop i γ) ⟨s₃, σ⟩ :=
-      configLTS_tr.mpr ⟨hpop, Op.apply_pop.mpr (by simp [σ₁])⟩
-    exact .stepL hpush' ((ih hw σ₁).comp _ (.stepL hpop' (ih' hw' σ)))
+    exact .stepL (configLTS_tr.mpr ⟨hpush, Op.apply_push.mpr rfl⟩)
+      ((ih hw σ₁).comp _ (.stepL (configLTS_tr.mpr ⟨hpop, Op.apply_pop.mpr (by simp [σ₁])⟩)
+        (ih' hw' σ)))
 
 /-- A well-nested sequence labels a run on configurations exactly when it labels a run of the
 control, and then the stacks are left unchanged. -/

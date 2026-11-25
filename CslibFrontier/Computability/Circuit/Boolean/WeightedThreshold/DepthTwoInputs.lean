@@ -104,9 +104,8 @@ weights. -/
 theorem argWeight_id (w : Fin n → ℝ) (θ : ℝ) :
     argWeight ⟨n, w, θ⟩ id = w := by
   funext i
-  simp only [argWeight, lineWeight, inputLine, Wire.input.injEq]
-  rw [Finset.sum_filter]
-  simp only [id_eq, sum_ite_eq', ite_eq_left_iff]
+  simp only [argWeight, lineWeight, inputLine, Wire.input.injEq, sum_filter, id_eq, sum_ite_eq',
+    ite_eq_left_iff]
   exact fun h => (h (mem_univ i)).elim
 
 /-- A threshold gate applied to selected inputs `x ∘ args` is the linear threshold function of
@@ -243,33 +242,26 @@ theorem lines_depthTwoInputs_bottom_or_output (bottom : Fin G → Op)
     (∃ j, (depthTwoInputs bottom args u v θ).program.lines k =
         ⟨bottom j, fun a => .input (args j a)⟩) ∨
       (depthTwoInputs bottom args u v θ).outputs 0 = .gate k := by
-  set inner := (Circuit.pi fun j => Circuit.oneGate (σ := signature) (bottom j) (args j)).append
-    (Circuit.wiring signature (id : Fin n → Fin n)) with hinner
-  obtain ⟨k, rfl⟩ | ⟨k, rfl⟩ :
-      (∃ k', k = Fin.castAdd 1 k') ∨ ∃ k', k = Fin.natAdd inner.size k' :=
-    Fin.addCases (motive := fun k => (∃ k', k = Fin.castAdd 1 k') ∨ ∃ k', k = Fin.natAdd _ k')
-      (fun k' => .inl ⟨k', rfl⟩) (fun k' => .inr ⟨k', rfl⟩) k
-  · refine .inl ?_
-    obtain ⟨k, rfl⟩ : ∃ k', k = Fin.castAdd 0 k' := ⟨k, rfl⟩
+  refine Fin.addCases (motive := fun k =>
+    (∃ j, (depthTwoInputs bottom args u v θ).program.lines k =
+      ⟨bottom j, fun a => .input (args j a)⟩) ∨
+    (depthTwoInputs bottom args u v θ).outputs 0 = .gate k) (fun k => .inl ?_) (fun k => .inr ?_) k
+  · obtain ⟨k, rfl⟩ : ∃ k', k = Fin.castAdd 0 k' := ⟨k, rfl⟩
     obtain ⟨j, k', f, hi, -, hk⟩ := Circuit.exists_lines_pi
       (fun j => Circuit.oneGate (σ := signature) (bottom j) (args j)) k
-    refine ⟨j, ?_⟩
     obtain rfl : k' = Fin.last 0 := Fin.fin_one_eq_zero k'
-    refine (Program.lines_append_castAdd _ _ _ _).trans ?_
-    refine (congrArg (fun l => Line.mapWires l (Wire.castAdd 1))
-      (Program.lines_append_castAdd _ _ _ k)).trans ?_
+    refine ⟨j, (Program.lines_append_castAdd _ _ _ _).trans <|
+      (congrArg (Line.mapWires · (Wire.castAdd 1))
+        (Program.lines_append_castAdd _ _ _ _)).trans ?_⟩
     rw [hk]
     change (((((Program.empty : Program signature n 0).gate
       (⟨bottom j, fun a => Wire.input (args j a)⟩ : Line signature n 0)).lines
         (Fin.last 0)).mapWires f).mapWires (Wire.castAdd 0)).mapWires (Wire.castAdd 1) = _
     rw [Program.lines_gate_last]
-    exact congrArg (Line.mk (σ := signature) (bottom j))
-      (funext fun a => by
-        change Wire.castAdd 1 (Wire.castAdd 0 (f (Wire.input (args j a)))) = _
-        rw [hi]
-        rfl)
-  · refine .inr ?_
-    obtain rfl : k = Fin.last 0 := Fin.fin_one_eq_zero k
+    exact congrArg (Line.mk (σ := signature) (bottom j)) (funext fun a => by
+      change Wire.castAdd 1 (Wire.castAdd 0 (f (Wire.input (args j a)))) = _
+      rw [hi]; rfl)
+  · obtain rfl : k = Fin.last 0 := Fin.fin_one_eq_zero k
     rfl
 
 /-- The active wire count of `depthTwoInputs` with `G` bottom gates of arity at most `A` is at most
@@ -285,28 +277,24 @@ theorem wireCount_depthTwoInputs_le (bottom : Fin G → Op)
   have hk (k : Fin c.size) : #(lineSupport (c.program.lines k)) ≤
       A + if c.outputs 0 = .gate k then G + 1 + n else 0 := by
     rcases lines_depthTwoInputs_bottom_or_output bottom args u v θ k with ⟨j, hj⟩ | hout
-    · refine (card_lineSupport_le_arity _).trans ?_
-      rw [hj]
-      exact (hA j).trans (Nat.le_add_right _ _)
-    · have hout' : c.outputs 0 = .gate k := hout
-      simp only [hout', ↓reduceIte]
+    · exact (card_lineSupport_le_arity _).trans (hj ▸ (hA j).trans (Nat.le_add_right _ _))
+    · simp only [show c.outputs 0 = .gate k from hout, ↓reduceIte]
       refine (card_le_univ _).trans ?_
       rw [Fintype.card_congr (Wire.equiv n c.size), Fintype.card_sum, Fintype.card_fin,
         Fintype.card_fin, hsize]
       omega
-  have hone : #({k : Fin c.size | c.outputs 0 = .gate k} : Finset _) ≤ 1 := by
-    refine card_le_one.mpr fun k hk k' hk' => ?_
-    simp only [mem_filter, mem_univ, true_and] at hk hk'
-    exact Wire.gate.inj (hk.symm.trans hk')
-  calc c.wireCount = ∑ k : Fin c.size, #(lineSupport (c.program.lines k)) := rfl
-    _ ≤ ∑ k : Fin c.size, (A + if c.outputs 0 = .gate k then G + 1 + n else 0) :=
+  have hone : #({k : Fin c.size | c.outputs 0 = .gate k} : Finset _) ≤ 1 :=
+    card_le_one.mpr fun k hk k' hk' => by
+      simp only [mem_filter, mem_univ, true_and] at hk hk'
+      exact Wire.gate.inj (hk.symm.trans hk')
+  calc c.wireCount ≤ ∑ k : Fin c.size, (A + if c.outputs 0 = .gate k then G + 1 + n else 0) :=
         sum_le_sum fun k _ => hk k
     _ = c.size * A + #({k : Fin c.size | c.outputs 0 = .gate k} : Finset _) * (G + 1 + n) := by
         rw [sum_add_distrib, sum_const, card_univ, Fintype.card_fin, smul_eq_mul, ← sum_filter,
           sum_const, smul_eq_mul]
     _ ≤ (G + 1) * A + (G + 1 + n) := by
-        have h1 : c.size * A = (G + 1) * A := by rw [hsize]
-        have h2 := Nat.mul_le_mul_right (G + 1 + n) hone
+        have := congrArg (· * A) hsize
+        have := Nat.mul_le_mul_right (G + 1 + n) hone
         omega
 
 /-- The input weights of a gate of `depthTwoInputs` other than the output gate are the
@@ -334,11 +322,8 @@ theorem op_lines_depthTwoInputs (bottom : Fin G → Op)
       ((depthTwoInputs bottom args u v θ).program.lines k).op = depthTwoInputsTop u v θ := by
   rcases lines_depthTwoInputs_bottom_or_output bottom args u v θ k with ⟨j, hj⟩ | h
   · exact .inl ⟨j, by rw [hj]⟩
-  · refine .inr ?_
-    obtain rfl : k = Fin.natAdd _ (0 : Fin 1) := Wire.gate.inj (h.symm.trans rfl)
-    refine (congrArg Line.op (Program.lines_append_natAdd _ _ _ (0 : Fin 1))).trans ?_
-    rw [Line.mapWires_op]
-    rfl
+  · obtain rfl : k = Fin.natAdd _ (0 : Fin 1) := Wire.gate.inj (h.symm.trans rfl)
+    exact .inr ((congrArg Line.op (Program.lines_append_natAdd _ _ _ (0 : Fin 1))).trans rfl)
 
 /-- **Weight magnitudes of `depthTwoInputs`.** If every bottom weight and every top weight on
 gates and inputs has absolute value at most `W`, then so has every weight of every gate of
@@ -352,10 +337,8 @@ theorem abs_weight_lines_depthTwoInputs_le (bottom : Fin G → Op)
   revert a
   rcases op_lines_depthTwoInputs bottom args u v θ k with ⟨j, h⟩ | h <;> rw [h]
   · exact hbottom j
-  · intro a
-    refine Fin.addCases (fun j => ?_) (fun i => ?_) a
-    · simpa only [Fin.append_left] using hu j
-    · simpa only [Fin.append_right] using hv i
+  · exact Fin.addCases (fun j => by simpa only [Fin.append_left] using hu j)
+      (fun i => by simpa only [Fin.append_right] using hv i)
 
 /-- **Threshold magnitudes of `depthTwoInputs`.** If every bottom threshold and the top threshold
 have absolute value at most `W`, then so has the threshold of every gate of the circuit. -/
@@ -382,9 +365,8 @@ theorem isSignCoherent_inputWeight_depthTwoInputs {b m : ℕ} {blockVar : Fin b 
     IsSignCoherent blockVar (inputWeight (depthTwoInputs bottom args u v θ).program k) := by
   obtain rfl : o = 0 := Fin.fin_one_eq_zero o
   have hne : (depthTwoInputs bottom args u v θ).outputs 0 ≠ .gate k := by
-    rw [htop]
-    intro hkt
-    cases hkt
+    rintro hkt
+    cases Wire.gate.inj (htop.symm.trans hkt)
     exact (mem_gateSupport _ _ _).mp hk (gateWeight_eq_zero_of_le _ _ _ le_rfl)
   obtain ⟨j, hj⟩ := inputWeight_depthTwoInputs_of_ne bottom args u v θ hne
   exact hj ▸ h j

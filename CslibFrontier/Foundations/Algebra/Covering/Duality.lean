@@ -61,10 +61,8 @@ theorem isUpperFunctional_sInf_certificate {C : M} {A : B → M} {η : ℝ} (hη
       ∀ β, Respects (fun t => sInf {W | ∃ k, Nonempty (Certificate D C A η t k W)}) (A β) C η := by
   classical
   set S : M → Set ℝ := fun t => {W | ∃ k, Nonempty (Certificate D C A η t k W)} with hS
-  have hne : ∀ t, (S t).Nonempty := by
-    intro t
-    obtain ⟨r, hr⟩ := hone t
-    exact ⟨_, 0, ⟨.cover hr fun _ => .one 0⟩⟩
+  have hne : ∀ t, (S t).Nonempty := fun t =>
+    (hone t).elim fun _ hr => ⟨_, 0, ⟨.cover hr fun _ => .one 0⟩⟩
   have h0 : ∀ t, ∀ w ∈ S t, 0 ≤ w := fun t w ⟨k, ⟨c⟩⟩ => c.weight_nonneg hη
   refine ⟨isUpperFunctional_sInf hne h0 ⟨0, ⟨.one 0⟩⟩ (fun w ⟨k, hk⟩ => h k w hk)
     (fun s t a ⟨k, ⟨c⟩⟩ b ⟨l, ⟨c'⟩⟩ => ⟨k + l, ⟨c.mul hη c'⟩⟩) ?_, fun β => ?_⟩
@@ -93,8 +91,7 @@ private theorem thm_duality_exchange {C : M} {A : B → M} {η : ℝ} (hη : 0 <
   have hlt : ∑ j, η ^ (∑ β, v j β) < 1 := hW.trans_lt hW1
   refine ⟨κ, inferInstance, u, v, hu, fun j => ?_, hc, hlt.le⟩
   by_contra hge
-  have h1 := hu j
-  have h2 : ∑ β, v j β = 0 := by omega
+  have h2 : ∑ β, v j β = 0 := by have := hu j; omega
   have h3 := Finset.single_le_sum (f := fun j => η ^ (∑ β, v j β))
     (fun j _ => by positivity) (Finset.mem_univ j)
   simp only [h2, pow_zero] at h3
@@ -140,12 +137,8 @@ private theorem thm_duality_replace {C : M} {A : B → M} {η : ℝ} (hη : 0 < 
         ac_rfl
       · rw [Fintype.sum_sigma]
         refine le_trans (Finset.sum_le_sum fun j _ => ?_) hw
-        calc ∑ x, η ^ (∑ β, (v j β + v' j x β)) =
-            η ^ (∑ β, v j β) * ∑ x, η ^ (∑ β, v' j x β) := by
-              rw [Finset.mul_sum]
-              exact Finset.sum_congr rfl fun x _ => by rw [← pow_add, Finset.sum_add_distrib]
-          _ ≤ η ^ (∑ β, v j β) * 1 := by gcongr; exact hw' j
-          _ = _ := mul_one _
+        simp only [Finset.sum_add_distrib, pow_add, ← Finset.mul_sum]
+        exact mul_le_of_le_one_right (by positivity) (hw' j)
 
 omit [Fintype B] in
 /-- Proof of Theorem A.6, the remaining factors: if `C` is covered by `c` copies of `a`, then `Cⁿ`
@@ -158,11 +151,8 @@ private theorem thm_duality_copies {C a : M} {c : ℕ} (hc : D.CoveredBy C (fun 
   | zero => exact ⟨Unit, inferInstance, by simp, by simpa using D.refl (1 : M)⟩
   | succ n ih =>
     obtain ⟨μ, _, hμ, hcov⟩ := ih
-    refine ⟨Σ _ : μ, Fin c, inferInstance, ?_, ?_⟩
-    · rw [Fintype.card_sigma]
-      simp [hμ, pow_succ]
-    · have := D.mul_mul hcov hc
-      simpa only [pow_succ] using this
+    exact ⟨Σ _ : μ, Fin c, inferInstance, by simp [Fintype.card_sigma, hμ, pow_succ],
+      by simpa only [pow_succ] using D.mul_mul hcov hc⟩
 
 /-- Proof of Theorem A.6, second half: from a certificate for `1` of level `k₀` and weight below
 `1`, and a cover of `C` by `c` copies of some `A_β`, a cover of `C^N` by products of `N` factors.
@@ -186,8 +176,7 @@ theorem exists_coveredBy_pow_of_certificate {C : M} {A : B → M} {η : ℝ} (h�
   · rw [Fintype.card_sigma]
     push_cast
     have h1 : ∀ j, (Fintype.card (μ j) : ℝ) ≤ E := fun j => by
-      rw [hμ j]
-      push_cast
+      rw [hμ j, Nat.cast_pow]
       calc (c : ℝ) ^ u' j ≤ ((c : ℝ) + 1) ^ u' j := by gcongr; linarith
         _ ≤ E := pow_le_pow_right₀ (by linarith [Nat.cast_nonneg (α := ℝ) c]) (hu' j).le
     have h2 : (Fintype.card κ' : ℝ) * η ^ N ≤ 1 := by
@@ -204,8 +193,7 @@ theorem exists_coveredBy_pow_of_certificate {C : M} {A : B → M} {η : ℝ} (h�
       _ ≤ 1 * (E * (η⁻¹) ^ N) := by gcongr
       _ = _ := one_mul _
   · have := hs' x.1
-    rw [Finset.sum_add_distrib]
-    simp only [Finset.sum_ite_eq', Finset.mem_univ, ite_true]
+    simp only [Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
     omega
   · refine D.bind (b := fun j => C ^ u' j * (∏ β, A β ^ v' j β))
       (c := fun j (_ : μ j) => (∏ β, A β ^ (v' j β + if β = β₀ then u' j else 0))) hc' fun j => ?_

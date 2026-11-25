@@ -34,9 +34,8 @@ variable {α : Type u} {β : Type v} [LinearOrder α] {lo hi : α}
 
 /-- A block with a non-empty restriction has an entry in the interval. -/
 private theorem exists_mem_of_range_ne_nil {l : List (α × β)} (h : range lo hi l ≠ []) :
-    ∃ p ∈ l, lo ≤ p.1 ∧ p.1 ≤ hi := by
-  obtain ⟨p, hp⟩ := List.exists_mem_of_ne_nil _ h
-  exact ⟨p, (mem_range_iff.1 hp).1, (mem_range_iff.1 hp).2⟩
+    ∃ p ∈ l, lo ≤ p.1 ∧ p.1 ≤ hi :=
+  (List.exists_mem_of_ne_nil _ h).imp fun _ hp => mem_range_iff.1 hp
 
 /-- Restricting a concatenation of non-empty blocks with strictly increasing keys to a closed
 interval: the blocks split as a prefix, a run and a suffix such that the restriction is that of
@@ -84,20 +83,12 @@ theorem exists_run_range_flatten {L : List (List (α × β))} (hs : L.flatten.Is
             have hhead := List.head_dropWhile_not P hR'
             change P (R.head _) = false at hhead
             simpa only [hR, List.head_cons] using hhead
-          exact ⟨r₀, by
-            rw [← hrun, hR, List.takeWhile_cons, h₀, Bool.not_false]
-            simp only [↓reduceIte]
-            exact List.mem_cons_self⟩
+          exact ⟨r₀, by simp [← hrun, hR, h₀]⟩
       obtain ⟨x, hx, hlo, -⟩ := exists_mem_of_range_ne_nil (hrun' r hr)
-      obtain ⟨y, hy⟩ := List.exists_mem_of_ne_nil p₀
-        (hne p₀ (by
-          rw [hL, hpo]
-          exact List.mem_append_right _ (List.mem_append_right _ List.mem_cons_self)))
+      obtain ⟨y, hy⟩ := List.exists_mem_of_ne_nil p₀ (hne p₀ (by simp [hL, hpo]))
       have hxy : x.1 < y.1 := hrp r hr p₀ (hpo ▸ List.mem_cons_self) x hx y hy
-      have hhi : hi < y.1 := by
-        rcases range_eq_nil_iff.1 hp₀ y hy with h | h
-        · exact absurd (hlo.trans_lt hxy) (not_lt_of_gt h)
-        · exact h
+      have hhi : hi < y.1 :=
+        (range_eq_nil_iff.1 hp₀ y hy).resolve_left fun h => lt_asymm h (hlo.trans_lt hxy)
       rw [hpo] at hpp
       intro l hl
       rcases List.mem_cons.1 hl with rfl | hl
@@ -106,26 +97,20 @@ theorem exists_run_range_flatten {L : List (List (α × β))} (hs : L.flatten.Is
           Or.inr (hhi.trans ((List.pairwise_cons.1 hpp).1 l hl y hy q hq))
   refine ⟨pre, run, post, by rw [hL, List.append_assoc], ?_, hrun', ?_⟩
   · have h₁ : (pre.map (range lo hi)).flatten = [] :=
-      List.flatten_eq_nil_iff.2 fun l hl => by
-        obtain ⟨a, ha, rfl⟩ := List.mem_map.1 hl
-        exact hpre' a ha
+      List.flatten_eq_nil_iff.2 (List.forall_mem_map.2 hpre')
     have h₂ : (post.map (range lo hi)).flatten = [] :=
-      List.flatten_eq_nil_iff.2 fun l hl => by
-        obtain ⟨a, ha, rfl⟩ := List.mem_map.1 hl
-        exact hpost' a ha
+      List.flatten_eq_nil_iff.2 (List.forall_mem_map.2 hpost')
     have hf : range lo hi (pre ++ (run ++ post)).flatten =
         ((pre ++ (run ++ post)).map (range lo hi)).flatten := List.filter_flatten ..
     rw [hL, hf, List.map_append, List.map_append, List.flatten_append, List.flatten_append,
       h₁, h₂, List.nil_append, List.append_nil]
   · intro l hl
     cases hT : run with
-    | nil => rw [hT, List.drop_nil, List.dropLast_nil] at hl; exact absurd hl List.not_mem_nil
+    | nil => simp [hT] at hl
     | cons a T =>
       rw [hT] at hl hpr hrun'
       simp only [List.drop_one, List.tail_cons] at hl
-      have hTne : T ≠ [] := fun hTe => by
-        rw [hTe, List.dropLast_nil] at hl
-        exact absurd hl List.not_mem_nil
+      have hTne : T ≠ [] := fun hTe => by simp [hTe] at hl
       have hlT : l ∈ T := List.mem_of_mem_dropLast hl
       obtain ⟨x, hx, hlo, -⟩ := exists_mem_of_range_ne_nil (hrun' a List.mem_cons_self)
       obtain ⟨z, hz, -, hhi⟩ := exists_mem_of_range_ne_nil

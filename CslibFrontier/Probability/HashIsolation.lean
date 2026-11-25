@@ -54,43 +54,36 @@ private theorem sum_isolation_error_le (size count : ℕ) (hsize : 0 < size) :
       Real.logb 2 size + 2 := by
   let cutoff := Nat.log 2 size
   let mass : ℝ := size - 1
-  have hmass : 0 ≤ mass := by
-    have h : (1 : ℝ) ≤ size := by exact_mod_cast (Nat.succ_le_iff.mpr hsize)
-    dsimp [mass]
-    linarith
+  have hmass : 0 ≤ mass := sub_nonneg.2 (Nat.one_le_cast.2 hsize)
   have hcast : (size - 1 : ℕ) = mass := by simp [mass, Nat.cast_sub (by lia : 1 ≤ size)]
   have htail : (∑ i ∈ Finset.range count, mass / (2 : ℝ) ^ (cutoff + i + 1)) ≤
       mass / 2 ^ cutoff := by
     calc
       _ = mass / 2 ^ (cutoff + 1) * ∑ i ∈ Finset.range count, (1 / (2 : ℝ)) ^ i := by
         rw [Finset.mul_sum]
-        apply Finset.sum_congr rfl
-        intro i _
+        refine Finset.sum_congr rfl fun i _ => ?_
         rw [show cutoff + i + 1 = (cutoff + 1) + i by lia, pow_add, div_pow, one_pow]
         field_simp
       _ ≤ mass / 2 ^ (cutoff + 1) * 2 :=
         mul_le_mul_of_nonneg_left (sum_geometric_two_le count) (by positivity)
       _ = _ := by rw [pow_succ]; field_simp
   have hratio : mass / (2 : ℝ) ^ cutoff ≤ 2 := by
+    have hr : (size : ℝ) < 2 ^ (cutoff + 1) :=
+      mod_cast Nat.lt_pow_succ_log_self Nat.one_lt_two size
     rw [div_le_iff₀ (by positivity)]
-    have h := Nat.lt_pow_succ_log_self Nat.one_lt_two size
-    have hr : (size : ℝ) < 2 ^ (cutoff + 1) := by exact_mod_cast h
-    rw [pow_succ] at hr
     dsimp [mass]
-    linarith
+    linarith [pow_succ (2 : ℝ) cutoff]
   calc
     _ ≤ ∑ i ∈ Finset.range (cutoff + count), min 1 (mass / (2 : ℝ) ^ (i + 1)) := by
       rw [hcast]
-      apply Finset.sum_le_sum_of_subset_of_nonneg (Finset.range_mono (by lia))
-      intro i _ _
-      exact le_min (by norm_num) (by positivity)
+      exact Finset.sum_le_sum_of_subset_of_nonneg (Finset.range_mono (by lia))
+        fun i _ _ => le_min (by norm_num) (by positivity)
     _ = (∑ i ∈ Finset.range cutoff, min 1 (mass / (2 : ℝ) ^ (i + 1))) +
         ∑ i ∈ Finset.range count, min 1 (mass / (2 : ℝ) ^ (cutoff + i + 1)) :=
       Finset.sum_range_add _ _ _
-    _ ≤ cutoff + mass / 2 ^ cutoff := by
-      apply add_le_add
-      · exact (Finset.sum_le_sum (fun i _ => min_le_left _ _)).trans_eq (by simp)
-      · exact (Finset.sum_le_sum (fun i _ => min_le_right _ _)).trans htail
+    _ ≤ cutoff + mass / 2 ^ cutoff :=
+      add_le_add ((Finset.sum_le_sum fun i _ => min_le_left _ _).trans_eq (by simp))
+        ((Finset.sum_le_sum fun i _ => min_le_right _ _).trans htail)
     _ ≤ Real.logb 2 size + 2 := add_le_add (Real.natLog_le_logb size 2) hratio
 
 omit [Finite Image] in
@@ -169,26 +162,19 @@ theorem mean_conditionalEntropy_hash_le [Finite Seed] (count : ℕ) (seed : PMF 
   apply div_le_div_of_nonneg_right _ (Nat.cast_nonneg count)
   calc
     _ ≤ ∑ i : Fin count, ∑ x, (source x).toReal *
-        min 1 ((Nat.card {y // f y = f x} - 1 : ℕ) / (2 : ℝ) ^ (i.val + 1)) := by
-      apply Finset.sum_le_sum
-      intro i _
-      simpa [Fintype.card_fun] using (hhash i).conditionalEntropy_hash_le source f (predicate i)
+        min 1 ((Nat.card {y // f y = f x} - 1 : ℕ) / (2 : ℝ) ^ (i.val + 1)) :=
+      Finset.sum_le_sum fun i _ => by
+        simpa [Fintype.card_fun] using (hhash i).conditionalEntropy_hash_le source f (predicate i)
     _ = ∑ x, (source x).toReal * ∑ i ∈ Finset.range count,
         min 1 ((Nat.card {y // f y = f x} - 1 : ℕ) / (2 : ℝ) ^ (i + 1)) := by
       rw [Finset.sum_comm]
-      apply Finset.sum_congr rfl
-      intro x _
-      rw [← Finset.mul_sum]
-      congr 1
-      exact Fin.sum_univ_eq_sum_range (fun i =>
-        min 1 ((Nat.card {y // f y = f x} - 1 : ℕ) / (2 : ℝ) ^ (i + 1))) count
+      refine Finset.sum_congr rfl fun x _ => ?_
+      rw [← Finset.mul_sum, Fin.sum_univ_eq_sum_range (fun i =>
+        min 1 ((Nat.card {y // f y = f x} - 1 : ℕ) / (2 : ℝ) ^ (i + 1))) count]
     _ ≤ ∑ x, (source x).toReal * (Real.logb 2 (Nat.card {y // f y = f x}) + 2) := by
-      apply Finset.sum_le_sum
-      intro x _
-      apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
-      apply sum_isolation_error_le
-      rw [Nat.card_eq_fintype_card]
-      exact Fintype.card_pos_iff.mpr ⟨⟨x, rfl⟩⟩
+      exact Finset.sum_le_sum fun x _ => mul_le_mul_of_nonneg_left
+        (sum_isolation_error_le _ _ (Nat.card_pos_iff.2 ⟨⟨⟨x, rfl⟩⟩, inferInstance⟩))
+        ENNReal.toReal_nonneg
     _ = _ := by simp only [mul_add, Finset.sum_add_distrib, ← Finset.sum_mul, sum_toReal, one_mul]
 
 omit [Fintype Seed] [Fintype Output] in

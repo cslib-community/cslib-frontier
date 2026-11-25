@@ -113,14 +113,9 @@ theorem integrated_mean_tail_capacity
   let Yt := retainedMask t Lt D suffix
   let C := 2 + 256 * M / η
   have hM : 0 ≤ M := (sum_nonneg (fun y _ => hG 0 y)).trans (hmass 0)
-  have hC : 2 ≤ C := by
-    dsimp [C]
-    linarith [div_nonneg (mul_nonneg (by norm_num : (0 : ℝ) ≤ 256) hM) hη.le]
-  have hC0 : 0 ≤ C := (by norm_num : (0 : ℝ) ≤ 2).trans hC
-  have hCC : C ≤ C ^ 4 := by
-    have h1 : C ≤ C ^ 2 := by nlinarith
-    have h2 : C ^ 2 ≤ C ^ 4 := by nlinarith [sq_nonneg (C ^ 2 - 1)]
-    exact h1.trans h2
+  have hC : 2 ≤ C := le_add_of_nonneg_right (by positivity)
+  have hC0 : 0 ≤ C := by linarith
+  have hCC : C ≤ C ^ 4 := le_self_pow₀ (by linarith) (by norm_num)
   let f := fun j σ x => if meanFirstEvent t D suffix k m j η G n K Δ raw σ x then
     meanRowTail t Lt D suffix m j μ σ x else 0
   have hterm (j : ℕ) (hj : j < m) : vertexNormPow 4 N u X (f j) ≤
@@ -133,15 +128,13 @@ theorem integrated_mean_tail_capacity
         q * #{σ : Environment P J | X σ x ∧ Yt σ y} := by
       have hc := actual_rarity_card s t hst Ls Lt D hD sourceSuffix suffix H hk hLt G hG hmass
         (dyadicFloor_pos hη m j) (lt_of_lt_of_le (by positivity) (hn j hj)) x y
-      have hsub : (
-        {σ : Environment P J | X σ x ∧ Yt σ y ∧ meanFirstEvent t D suffix k m j η G n K Δ raw σ x}
-          : Finset _) ⊆
-        ({σ : Environment P J | X σ x ∧ Yt σ y ∧ heavyCountEvent (retainedMask t (side P k) D
-          suffix)
-          univ (fun y => G x y / rate k) (dyadicFloor η m j) (n j) σ} : Finset _) := by
-          intro σ hσ
-          have hh := (mem_filter.mp hσ).2
-          exact mem_filter.mpr ⟨mem_univ _, hh.1, hh.2.1, hh.2.2.2⟩
+      have hsub : ({σ : Environment P J | X σ x ∧ Yt σ y ∧
+          meanFirstEvent t D suffix k m j η G n K Δ raw σ x} : Finset _) ⊆
+          ({σ : Environment P J | X σ x ∧ Yt σ y ∧ heavyCountEvent (retainedMask t (side P k) D
+            suffix) univ (fun y => G x y / rate k) (dyadicFloor η m j) (n j) σ} : Finset _) := by
+        intro σ hσ
+        have hh := (mem_filter.mp hσ).2
+        exact mem_filter.mpr ⟨mem_univ _, hh.1, hh.2.1, hh.2.2.2⟩
       apply (Nat.cast_le.mpr (card_le_card hsub)).trans
       rw [show retainedMask t (side P k) D suffix =
         (fun (τ : Environment P J) w => frameRetains P 4 (side P k) (τ t)
@@ -156,26 +149,22 @@ theorem integrated_mean_tail_capacity
       rw [←mul_assoc, mul_comm (((128 : ℝ) ^ dyadicSlack m j) ^ 4), mul_assoc]
       apply mul_le_mul_of_nonneg_left _ (inv_nonneg.mpr hNu)
       rw [mul_expect]
-      apply expect_le_expect
-      intro σ _
+      refine expect_le_expect fun σ _ => ?_
       rw [mul_sum]
-      apply sum_le_sum
-      intro x _
+      refine sum_le_sum fun x _ => ?_
       by_cases hevent : meanFirstEvent t D suffix k m j η G n K Δ raw σ x
       · have ht := meanRowTail_le t Lt D suffix m j hj μ B hB hμ σ x
         have hn : 0 ≤ meanRowTail t Lt D suffix m j μ σ x :=
           sum_nonneg fun i _ => mul_nonneg (by positivity) kthLargest_nonneg
         simp only [f, g, hevent, ↓reduceIte, abs_of_nonneg hn, abs_of_nonneg kthLargest_nonneg]
-        have hh := pow_le_pow_left₀ hn ht 4
-        simpa only [mul_pow] using hh
-      · simp only [f, g, hevent, ↓reduceIte, abs_zero, zero_pow (by norm_num : 4 ≠ 0), mul_zero];
-        exact le_rfl
+        simpa only [mul_pow] using pow_le_pow_left₀ hn ht 4
+      · simp only [f, g, hevent, ↓reduceIte, abs_zero, zero_pow (by norm_num : 4 ≠ 0), mul_zero,
+          le_refl]
     have hb := (mul_le_mul_of_nonneg_left (ha.trans (mul_le_mul_of_nonneg_left hbudget hq))
       (show 0 ≤ ((128 : ℝ) ^ dyadicSlack m j) ^ 4 by positivity))
     have hnum := mean_schedule_budget hη hM (ε := ε) m j
-    have hncast : (2 : ℝ) ^ (64 * dyadicSlack m j) ≤ (n j : ℝ) := by exact_mod_cast hn j hj
     have hqle : q ≤ (2 + 256 * M / dyadicFloor η m j) / (2 : ℝ) ^ (64 * dyadicSlack m j) :=
-      div_le_div_of_nonneg_left (by positivity) (by positivity) hncast
+      div_le_div_of_nonneg_left (by positivity) (by positivity) (by exact_mod_cast hn j hj)
     calc
       _ ≤ ((128 : ℝ) ^ dyadicSlack m j) ^ 4 * (q * ε ^ 4) := hp.trans hb
       _ = q * (ε * 128 ^ dyadicSlack m j) ^ 4 := by ring
@@ -183,10 +172,7 @@ theorem integrated_mean_tail_capacity
         dyadicSlack m j) ^ 4 :=
         mul_le_mul_of_nonneg_right hqle (by positivity)
       _ ≤ C * ε ^ 4 * ((1 / 64 : ℝ) ^ dyadicSlack m j) ^ 4 := hnum
-      _ ≤ (C * ε * (1 / 64 : ℝ) ^ dyadicSlack m j) ^ 4 := by
-        have hh := mul_le_mul_of_nonneg_right hCC
-          (show 0 ≤ ε ^ 4 * ((1 / 64 : ℝ) ^ dyadicSlack m j) ^ 4 by positivity)
-        nlinarith [hh]
+      _ ≤ (C * ε * (1 / 64 : ℝ) ^ dyadicSlack m j) ^ 4 := by rw [mul_pow, mul_pow]; gcongr
   have hs := vertexNormPow_sum_le_pow_sum (by norm_num : 4 ≠ 0) hNu (range m) f
     (fun _ => 1) (fun j => C * ε * (1 / 64 : ℝ) ^ dyadicSlack m j)
     (fun _ _ => by norm_num) (fun _ _ => by positivity) (fun j hj => hterm j (mem_range.mp hj))
@@ -195,8 +181,7 @@ theorem integrated_mean_tail_capacity
     (by norm_num) (by norm_num) (by norm_num) (by norm_num) m
   norm_num only [one_pow, one_mul] at hsum
   have hsum' : ∑ j ∈ range m, C * ε * (1 / 64 : ℝ) ^ dyadicSlack m j ≤ C * ε * (1 / 63) := by
-    rw [←mul_sum]
-    exact mul_le_mul_of_nonneg_left hsum (by positivity)
+    rw [← mul_sum]; gcongr
   exact hs.trans (pow_le_pow_left₀ (sum_nonneg fun j _ => by positivity) hsum' 4)
 
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

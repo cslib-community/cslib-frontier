@@ -7,7 +7,11 @@ Authors: Anthropic, PBC, Aviv Bar Natan
 module
 -- upstream: local-only (test driver)
 
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.PlayMoves
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Capacity
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EndUnits
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EverHeld
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.ProgramUnits
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Rules
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Transfer
 import CslibFrontier.Foundations.Algebra.BigOperators.Sym
@@ -30,18 +34,33 @@ import Mathlib.Data.Fintype.BigOperators
   chosen (`Tower.IsChosenType`); with the ratio `D = 2` the tower and its laws satisfy `StageRate`
   at the rate `1`, the boundary case of `towerPlan_ok_moveCap`; `startBound` and `moveCap` on its
   numbers are `10` and `33`, and the relay of the edge uses between `1` and `moveCap` units.
-* `towerPlan_ok` for an arbitrary tower, under its hypotheses: a slot is given at most `cap`
-  units.
+* The units of that plan in the end, with the outcome `1` on every channel: the relay of the edge
+  is the only move and uses the one unit on the edge, so the outcomes are good and its channels
+  have one alive unit each. The new unit `0` of its first channel is assigned to the chamber
+  `false`, and by `card_assignedUnits_le` it is the only unit between that chamber and its parent,
+  within `edgeUnitBound` at the rate `1`; the initial unit is not current after all moves
+  (`unitTarget_eq_done_of_mem_cur`).
+* The sizes of that tower, its routes and its laws are at most `2` (`SizeBound`): its tree has
+  three nodes, and a placement with one extra party exists (`exists_placement`). With one initial
+  unit between two base parties and one unit on every channel, its plan has at most `1092` units
+  and satisfies the bounds of the program (`ProgramBound`, `UnitBound`) for `Y = 1100`, and from
+  any program for the inputs, `counts_stage`, `tree_stage` and `units_stage` compute its numbers,
+  its tree and its units.
+* For an arbitrary tower, under the hypotheses of the statements: `towerPlan_ok` bounds the units
+  given at a slot by `cap`; no alive unit of a channel of a law move is current after all moves;
+  the units that a party ever holds, exactly; possible outcomes are good, in the form that
+  `Cut.Plan.value_moves` needs; and for good outcomes, the units that the party of a node ever
+  holds.
 * Laws at the vertices of other towers: the laws of the tower with one edge, at the vertices of
   the tower without edges, with the same constants; the laws at the vertices of a tower of
   `SL_h(F₂)` at the vertices of every other one; and the `3` pairs of different elements of
-  `Fin 3`, from the `6` ordered ones. -/
+  `Fin 3`, from the `6` ordered ones and as a subtype of `Sym2 (Fin 3)`. -/
 
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.SeparationTowerPlan
 
-open Finset Cslib Cslib.CoveringTower Cslib.Circuits.Arithmetic.Separation
+open Finset Cslib Cslib.CoveringTower Cslib.Circuits Cslib.Circuits.Arithmetic.Separation
   Cslib.Circuits.Arithmetic.Separation.Cut Cslib.Circuits.Arithmetic.Separation.TowerPlan
 
 variable {F : Type} [CommSemiring F] {h b D J r m Uu A A' U0 U1 lhat cap : ℕ}
@@ -291,12 +310,13 @@ private def edgePlacement : Placement edgeTower edgeBase 1 where
 /-- One unit from the base party `0` to the base party `1`, and none between other parties. -/
 private def edgeCounts : Fin 2 → Fin 2 → Fin 2 := fun a c => if a < c then 1 else 0
 
-/-- The first step from `false` to `true` arrives. -/
-private theorem not_one_lt_pl (γ : Bool) : ¬ 1 < edgeRoutes.pl false true γ := fun h1 => by
-  obtain ⟨_, -, -, hne⟩ := edgeRoutes.exists_edge false true γ (s := 0) (by omega)
-  have := edgeRoutes.pn_ne false true γ h1
+/-- The routes between the two chambers arrive after the first step. -/
+private theorem not_one_lt_pl {c c' : Bool} (hc : c ≠ c') (γ : Bool) :
+    ¬ 1 < edgeRoutes.pl c c' γ := fun h1 => by
+  obtain ⟨_, -, -, hne⟩ := edgeRoutes.exists_edge c c' γ (s := 0) (by omega)
+  have := edgeRoutes.pn_ne c c' γ h1
   rw [edgeRoutes.pn_zero] at hne
-  cases h : edgeRoutes.pn false true γ 1 <;> simp_all
+  cases h : edgeRoutes.pn c c' γ 1 <;> cases c <;> cases c' <;> simp_all
 
 /-- The unit from the party `0` to the party `1` goes over the edge, at the last stage. -/
 private theorem initialTarget_edge (k : ℕ) :
@@ -305,7 +325,7 @@ private theorem initialTarget_edge (k : ℕ) :
   obtain ⟨e, he, -⟩ := edgeRoutes.exists_edge false true (batchChamber edgeBase 0 k) hpl
   have h0 : ¬ (0 < 2 * 1 ∧
       1 < edgeRoutes.pl (edgeBase 0) (edgeBase 1) (batchChamber edgeBase 0 k)) :=
-    fun h => not_one_lt_pl _ h.2
+    fun h => not_one_lt_pl Bool.false_ne_true _ h.2
   simp only [initialTarget, show (0 : Fin 2) ≠ 1 by decide, ↓reduceIte, h0, dite_false,
     stepTarget]
   cases e
@@ -417,7 +437,183 @@ example : 1 ≤ (towerPlan edgeRoutes (edgeLaws F) edgePlacement 2 1 1).count ed
     (U1 := 1) edgeStageRate le_rfl
   ⟨(card_pos.2 ⟨_, init_mem_given⟩).trans_le (hP.card_given_le _ _ _), hP.count_le _ _ _⟩
 
-/-! ### The rules for an arbitrary tower -/
+/-! ### The units in the end, for the tower with one edge -/
+
+/-- The relay of the edge is the only move of the plan: the routes need no relays, and the tower
+has no stages. -/
+private theorem eq_edgeRelay (mv : Move edgeRoutes edgeBase (edgeLaws F)) : mv = edgeRelay := by
+  rcases mv with ⟨⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e, hx⟩ | l
+  · exact absurd (by have := hx.2; omega) (not_one_lt_pl (edgeBase.injective.ne hx.1) γ)
+  · exact j.elim0
+  · exact j.elim0
+  · rfl
+  · exact l.stage.elim0
+
+/-- The outcome `1` on every channel. -/
+private def edgeOutcome : (moves edgeRoutes (edgeLaws F) edgePlacement).Channel → Fin 2 :=
+  fun _ => 1
+
+/-- The edge carries one unit, the initial unit from the party `0` to the party `1`: the units of
+the channels of the relay of the edge are done. -/
+private theorem load_edge :
+    load 2 (initialCounts edgeCounts) (outcomeOf _ _ edgePlacement o) (.edge 0 ()) = 1 := by
+  rw [load_eq_card, card_eq_one]
+  refine ⟨.init 0 1 0, eq_singleton_iff_unique_mem.2 ⟨mem_filter.2
+    ⟨mem_aliveUnits.2 ⟨by decide, by decide⟩, initialTarget_edge 0⟩, fun u hu => ?_⟩⟩
+  obtain ⟨hu, ht⟩ := mem_filter.1 hu
+  rcases u with ⟨a, c, k⟩ | ⟨ν, k⟩
+  · obtain ⟨rfl, rfl, rfl⟩ := (by decide : ∀ a c : Fin 2, ∀ k : Fin 1,
+      (k : ℕ) < (edgeCounts a c : ℕ) → a = 0 ∧ c = 1 ∧ k = 0) a c k (mem_aliveUnits.1 hu).2
+    rfl
+  · revert ht
+    simp only [unitTarget]
+    generalize moveChannelEquiv _ _ edgePlacement ν = w
+    obtain ⟨mv, d⟩ := w
+    obtain rfl := eq_edgeRelay mv
+    simp [edgeRelay, Move.target, Relay.target]
+
+/-- The relay of the edge uses the one unit on the edge. -/
+private theorem moveCount_edgeRelay :
+    moveCount 2 (initialCounts edgeCounts) (outcomeOf _ _ edgePlacement o) edgeRelay = 1 :=
+  (moveCount_eq _).trans (load_edge o)
+
+/-- The relay of the edge, the only move, uses the one unit on the edge; with the outcome `1` on
+every channel the outcomes are good, and both channels of the relay have one alive unit. -/
+example : moveCount 2 (initialCounts edgeCounts) (outcomeOf _ _ edgePlacement edgeOutcome)
+      (edgeRelay (F := F)) = 1 ∧
+    (∀ x, (towerPlan edgeRoutes (edgeLaws F) edgePlacement 2 1 2).Good edgeCounts edgeOutcome x) ∧
+    ∀ β, alive 2 (initialCounts edgeCounts) (outcomeOf _ _ edgePlacement edgeOutcome)
+      ⟨edgeRelay (F := F), β⟩ = 1 := by
+  refine ⟨moveCount_edgeRelay _, fun x => ?_, fun _ =>
+    alive_eq_of_goodOutcome fun _ => (moveCount_edgeRelay _).symm⟩
+  change GoodOutcome _ _ _ (moveOrder edgeRoutes edgeBase (edgeLaws F) x)
+  rw [eq_edgeRelay (moveOrder edgeRoutes edgeBase (edgeLaws F) x)]
+  exact fun _ => (moveCount_edgeRelay _).symm
+
+/-- The first channel of the relay of the edge. -/
+private noncomputable def edgeChannel : (moves edgeRoutes (edgeLaws F) edgePlacement).Channel :=
+  (moveChannelEquiv _ _ edgePlacement).symm ⟨edgeRelay, false⟩
+
+/-- The new unit `0` of the first channel of the relay of the edge is alive, and its units are done
+between the chamber `false` and its parent: the unit is assigned to that chamber. -/
+private theorem new_mem_assignedUnits_edge :
+    (.new edgeChannel 0 : PlanUnit edgeRoutes (edgeLaws F) edgePlacement 1 2) ∈
+      assignedUnits edgeRoutes (edgeLaws F) edgePlacement 2 edgeCounts edgeOutcome
+        (.ofChamber le_rfl false) := by
+  simp only [new_mem_assignedUnits, edgeChannel, Equiv.apply_symm_apply]
+  refine ⟨?_, rfl, rfl⟩
+  rw [alive_eq_of_goodOutcome (ν := ⟨edgeRelay, false⟩) fun _ => (moveCount_edgeRelay _).symm]
+  exact Nat.one_pos
+
+/-- **The units between the chamber `false` and its parent**, the root, for the outcome `1`: the
+new unit `0` of the first channel of the relay of the edge is assigned to the chamber and the
+initial unit is not; by `card_assignedUnits_le` there are at most as many as the load `1` of the
+edge, so that new unit is the only one. -/
+example : (.new edgeChannel 0 : PlanUnit edgeRoutes (edgeLaws F) edgePlacement 1 2) ∈
+      assignedUnits edgeRoutes (edgeLaws F) edgePlacement 2 edgeCounts edgeOutcome
+        (.ofChamber le_rfl false) ∧
+    UnitId.init 0 1 0 ∉ assignedUnits edgeRoutes (edgeLaws F) edgePlacement 2 edgeCounts
+      edgeOutcome (.ofChamber le_rfl false) ∧
+    (assignedUnits edgeRoutes (edgeLaws F) edgePlacement 2 edgeCounts edgeOutcome
+      (.ofChamber le_rfl false)).card = 1 := by
+  refine ⟨new_mem_assignedUnits_edge, init_notMem_assignedUnits, le_antisymm
+    ((card_assignedUnits_le _).trans_eq ?_) (card_pos.2 ⟨_, new_mem_assignedUnits_edge⟩)⟩
+  simp [Tower.incidentSum, edgeLoads, load_edge edgeOutcome]
+
+/-- At the rate `1`, the units between the chamber `false` and its parent are within
+`edgeUnitBound` (`parentUnits_le`). -/
+example : (assignedUnits edgeRoutes (edgeLaws F) edgePlacement 2 edgeCounts edgeOutcome
+      (.ofChamber le_rfl false)).card ≤ edgeUnitBound (edgeLaws F) 2 2 2 1 :=
+  (card_assignedUnits_le _).trans (parentUnits_le edgeStageRate le_rfl false)
+
+/-- **The units in the end**: the initial unit from the party `0` to the party `1` is alive and
+lies on the edge, not done, so after all moves it is not current any more
+(`unitTarget_eq_done_of_mem_cur`). -/
+example : UnitId.init 0 1 0 ∉ (towerPlan edgeRoutes (edgeLaws F) edgePlacement 2 1 2).cur
+    edgeCounts edgeOutcome (Fintype.card (Move edgeRoutes edgeBase (edgeLaws F))) := fun hu => by
+  have := unitTarget_eq_done_of_mem_cur hu ⟨by decide, by decide⟩
+  simp only [unitTarget, initialTarget_edge] at this
+  cases this
+
+/-! ### The sizes and the program of the tower with one edge -/
+
+/-- The sizes of the tower with one edge, its routes and its laws are at most `2`. -/
+private theorem edgeSize : SizeBound (edgeLaws F) 1 2 2 where
+  one_le := by norm_num
+  types_le := by norm_num
+  places_le := by norm_num
+  degree_le := by norm_num
+  length_le := by norm_num
+  stages_le := by norm_num
+  base_le := le_rfl
+  card_X_zero_le := le_rfl
+  card_kind_le := by simp [unitLaws]
+  card_slot_le _ := (rfl : Fintype.card Empty = 0).trans_le (Nat.zero_le 2)
+
+/-- The tree of the tower with one edge has three nodes, the parties of its placement, at most
+`3 · 2 ^ 2`. -/
+example : Fintype.card edgeTower.Node = 3 ∧ Fintype.card edgeTower.Node ≤ 3 * 2 ^ 2 :=
+  ⟨Placement.card_node edgePlacement, card_node_le two_pos (edgeSize (F := ℕ))⟩
+
+/-- A placement of the tower with one edge exists, with one extra party. -/
+example : Nonempty (Placement edgeTower edgeBase 1) := by
+  simpa [Placement.card_node edgePlacement] using exists_placement edgeTower edgeBase
+
+/-- The plan of the tower with one edge has at most `1092` units, with one initial unit between
+two base parties and one unit on every channel: `4` initial units, and at most `17 · 2 ^ 6`
+channels (`card_moveChannel_le`). -/
+private theorem edge_numUnits_le : numUnits edgeRoutes edgeBase (edgeLaws F) 1 1 ≤ 1092 := by
+  have := card_moveChannel_le (R := edgeRoutes) (ch := edgeBase) two_pos (edgeSize (F := F))
+  simp only [numUnits]
+  omega
+
+/-- The bounds for the program of the plan of the tower with one edge, for `Y = 1100`. -/
+private theorem edgeProgramBound : ProgramBound edgeRoutes edgeBase (edgeLaws F) 1 1 1100 where
+  base_mul_base_le := by norm_num
+  numUnits_le := edge_numUnits_le.trans (by norm_num)
+  card_channel_le := (card_moveChannel_le two_pos edgeSize).trans (by norm_num)
+  card_move_le := (card_move_le two_pos edgeSize Nat.one_pos).trans (by norm_num)
+  card_target_le := (show Fintype.card (Target edgeTower 1 2) = 19 by decide).trans_le
+    (by norm_num)
+  card_node_le := (card_node_le two_pos (edgeSize (F := F))).trans (by norm_num)
+  card_pair_le := (show Fintype.card (Sym2 Unit) = 1 by decide).trans_le (by norm_num)
+  card_kind_le := by simp [unitLaws]
+  types_le := by norm_num
+  endTime_le := by decide
+  units_le := by
+    have := edge_numUnits_le (F := F)
+    simp only [show Fintype.card (Sym2 edgeTower.Fl) = 1 by decide]
+    omega
+
+/-- The bounds for the units of the plan of the tower with one edge, for `Y = 1100` and `TM = 0`:
+at most `9 · 2 ^ 5` slots and `1092` units. -/
+private theorem edgePlanUnitBound : UnitBound edgeRoutes (edgeLaws F) edgePlacement 1 1 1100 0 where
+  card_slot_le := (card_moveSlot_le two_pos edgeSize Nat.one_pos).trans (by norm_num)
+  card_unit_le := (card_planUnit edgePlacement).trans_le (edge_numUnits_le.trans (by norm_num))
+  padding_le := by norm_num
+
+/-- **The program of the plan of the tower with one edge.** From a program that computes the
+numbers of initial units and the outcomes, `11 + 8 · 1100` stages of `1100 ^ 12` gates compute the
+numbers of the plan, two more the tree for its loads, and nine more its units. -/
+example {Inp : Type} {N p c : ℕ} {inp : Fin N → Inp → Fin (1100 ^ 4)} {H : Set (Inp → ℕ)}
+    (nI : Inp → Fin 2 → Fin 2 → Fin 2)
+    (oI : Inp → (moves edgeRoutes (edgeLaws F) edgePlacement).Channel → Fin 1)
+    (hS : SlpN inp (p + c * 1100 ^ 12) H)
+    (hi : InputsIn (fun x => initialCounts (nI x))
+      (fun x => outcomeOf _ _ edgePlacement (oI x)) H) :
+    ∃ H', SlpN inp (p + (c + 11 + 8 * 1100 + 2 + 9) * 1100 ^ 12) H' ∧
+      TreeIn Nat.one_pos (fun x => load 2 (initialCounts (nI x))
+        (outcomeOf _ _ edgePlacement (oI x))) H' ∧ UnitsIn nI oI 2 0 H' := by
+  have hY : StepBase (1100 ^ 4) 1100 := ⟨by norm_num, le_rfl⟩
+  obtain ⟨H1, s1, -, f1⟩ := counts_stage hY edgeProgramBound (InputBound.ofPlan nI oI)
+    Nat.one_pos hS hi
+  obtain ⟨H2, s2, u2, f2⟩ := tree_stage hY edgeProgramBound Nat.one_pos
+    (fun x τ => loadGiven_le_numUnits ((InputBound.ofPlan nI oI).initial_le x)
+      ((InputBound.ofPlan nI oI).outcome_le x) _ τ) s1 f1.load f1.toChoicesIn
+  obtain ⟨H3, s3, u3, f3⟩ := units_stage hY edgeProgramBound edgePlanUnitBound s2 (f1.mono u2)
+  exact ⟨H3, s3, ⟨fun P P' => u3 (f2.parent P P'), fun P => u3 (f2.parentUnits P)⟩, f3⟩
+
+/-! ### The rules and the units for an arbitrary tower -/
 
 /-- In the tower plan a slot is given at most `cap` units, if every move uses at most `cap`
 units. The bound `hcap` is a hypothesis here. -/
@@ -429,6 +625,57 @@ example {T : Tower h b D J r} (R : Routes T m Uu) {ch : Fin A ↪ T.X 0} (FL : V
     (z : (moves R FL Pl).Slot) : ((towerPlan R FL Pl lhat U0 U1).given n o z).card ≤ cap :=
   have hP := towerPlan_ok hr hb hcap
   (hP.card_given_le n o z).trans (hP.count_le n o z.1)
+
+section
+
+variable {T : Tower h b D J r} {R : Routes T m Uu} {ch : Fin A ↪ T.X 0} {FL : VertexLaws F T}
+  {Pl : Placement T ch A'} (n : Fin A → Fin A → Fin (U0 + 1)) (o : (moves R FL Pl).Channel → Fin U1)
+
+/-- An alive unit of a channel that is current after all moves is done: a channel of a law move is
+never done. -/
+example (l : VertexMove FL) (c : (FL.law l.kind).Channel) (ν : (moves R FL Pl).Channel)
+    (hν : moveChannelEquiv R FL Pl ν = ⟨.vertex l, c⟩) (k : Fin U1)
+    (hu : (.new ν k : PlanUnit R FL Pl U0 U1) ∈
+      (towerPlan R FL Pl lhat U0 U1).cur n o (Fintype.card (Move R ch FL))) :
+    ¬ IsAlive R FL Pl lhat n o (.new ν k) := fun ha => by
+  have := unitTarget_eq_done_of_mem_cur hu ha
+  rw [show unitTarget R FL Pl (.new ν k : PlanUnit R FL Pl U0 U1) =
+    (moveChannelEquiv R FL Pl ν).1.target (moveChannelEquiv R FL Pl ν).2 from rfl, hν] at this
+  simp [Move.target] at this
+
+/-- The units that a party ever holds, exactly: the initial units of its strings and, for every
+end of a channel at it, the outcome of the channel and one more unit. -/
+example (p : Fin (A + A')) :
+    heldCount R FL Pl n o p =
+      (∑ a, ∑ b, if p = Fin.castAdd A' a ∨ p = Fin.castAdd A' b then (n a b : ℕ) else 0) +
+        ∑ ν with (ν.1 : ℕ) < Fintype.card (Move R ch FL),
+          ∑ d, if (moves R FL Pl).channelParty ν d = p then (o ν : ℕ) + 1 else 0 :=
+  Plan.card_filter_holds_seenAt _ p
+
+/-- Possible outcomes are good, in the form of the hypothesis of `Cut.Plan.value_moves`. -/
+example {ub : ℕ} (hub : 0 < ub) :
+    ∀ n o x, (towerPlan R FL Pl lhat U0 U1).Possible n o ub x →
+      (towerPlan R FL Pl lhat U0 U1).Good n o x :=
+  fun _ _ _ => towerPlan_good_of_possible hub
+
+/-- For good outcomes, what the party of a node ever holds alone is bounded by the bound for what
+it holds and reads. -/
+example (hr : 0 < r) (hb : 0 < b) (hh : 0 < h) (hg : ∀ x, (towerPlan R FL Pl lhat U0 U1).Good n o x)
+    (hnr : ∀ f : T.Fl, ∃ ν, T.cN ν = f ∨ T.dN ν = f) {Sm : ℕ}
+    (hSm : ∀ d, Fintype.card (FL.law d).Slot ≤ Sm) {ℓf : ℕ} (c : T.X J)
+    (hini : ∀ a, Tower.Node.ofChamber (Nat.zero_le J) (ch a) = .ofChamber le_rfl c →
+      ∑ c', ((n a c' : ℕ) + n c' a) ≤ ℓf) :
+    heldCount R FL Pl n o (Pl.party (.ofChamber le_rfl c)) ≤
+      (if ∃ a, Tower.Node.ofChamber (Nat.zero_le J) (ch a) = .ofChamber le_rfl c then
+        ℓf + 8 * m * lhat else 0) +
+        channelEndCount R FL Pl (Pl.party (.ofChamber le_rfl c)) +
+        (4 + (2 * Fintype.card T.Nr * FL.lengthBound + 1 + Sm) * Fintype.card FL.Kind) *
+          (8 * T.parentUnits (edgeLoads (load lhat (initialCounts n) (outcomeOf R FL Pl o))) J c +
+            3 * T.childUnits hh (edgeLoads (load lhat (initialCounts n) (outcomeOf R FL Pl o)))
+              J c) :=
+  le_self_add.trans (heldCount_add_sum_roleUnits_le hr hb hh hg hnr hSm _ hini)
+
+end
 
 /-! ### Laws at the vertices of other towers -/
 
@@ -454,5 +701,9 @@ example : ∑ q : Sym2 (Fin 3), (if q.IsDiag then 0 else 1 : ℕ) = 3 := by
   have h6 : ∑ a : Fin 3, ∑ b : Fin 3, (if a = b then 0 else 1 : ℕ) = 6 := by decide
   rw [h6, smul_eq_mul] at h
   omega
+
+/-- The `3` pairs of different elements of `Fin 3`, as a subtype of `Sym2 (Fin 3)`. -/
+example : ∑ _e : {q : Sym2 (Fin 3) // ¬ q.IsDiag}, (1 : ℕ) = 3 :=
+  (Fintype.sum_subtype_not_isDiag fun _ => (1 : ℕ)).trans (by decide)
 
 end CslibFrontierTests.SeparationTowerPlan

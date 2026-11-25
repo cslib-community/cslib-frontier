@@ -130,7 +130,6 @@ theorem kilianResponseBits_kilianRespond_le (hlen : ∀ k x, (H k x).length = k.
   simp only [Function.comp_apply, kilianOpen, List.map_map]
   refine (List.sum_le_length_nsmul _ (1 + kilianDepth V x * k.length) fun m hm => ?_).trans ?_
   · obtain ⟨a, -, rfl⟩ := List.mem_map.mp hm
-    simp only [Function.comp_apply, kilianOpeningBits]
     have hpath : (merklePath H k (kilianLeaves (kilianTable V x table))
         (kilianPosition V x a)).length = kilianDepth V x := by
       simp [length_merklePath, kilianLeaves, kilianDepth]
@@ -140,7 +139,7 @@ theorem kilianResponseBits_kilianRespond_le (hlen : ∀ k x, (H k x).length = k.
           obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hm
           exact length_le_of_mem_merklePath hlen hs
     simp only [List.length_map, hpath, smul_eq_mul] at hsum
-    omega
+    simpa only [Function.comp_apply, kilianOpeningBits] using Nat.add_le_add_left hsum 1
   · simp only [List.length_map, smul_eq_mul]
     exact Nat.mul_le_mul_right _ (hq ρ (hρs ρ hρ))
 
@@ -155,13 +154,13 @@ theorem kilianCommunication_honest_le (hlen : ∀ k x, (H k x).length = k.length
       2 * n + n * V.coins x + n * (q * (1 + (V.coins x + Nat.clog 2 q) * n)) := by
   have hroot : (kilianCommit H V k x table).length ≤ n :=
     ((length_merkleRoot (hlen k) _).trans hk).le
-  have hresponse := kilianResponseBits_kilianRespond_le hlen (k := k) (table := table) hq hρs
   have hchallenges : (ρs.map List.length).sum ≤ n * V.coins x := by
     refine (List.sum_le_length_nsmul _ (V.coins x) fun m hm => ?_).trans (by simp [hn])
     obtain ⟨ρ, hρ, rfl⟩ := List.mem_map.mp hm
     exact (hρs ρ hρ).le
-  have hdepth : ρs.length * (q * (1 + kilianDepth V x * k.length)) ≤
+  have hresponse : kilianResponseBits (kilianRespond H V k x table ρs) ≤
       n * (q * (1 + (V.coins x + Nat.clog 2 q) * n)) := by
+    refine (kilianResponseBits_kilianRespond_le hlen hq hρs).trans ?_
     rw [hn, hk]
     gcongr
     exact kilianDepth_le hq
@@ -182,21 +181,16 @@ theorem kilianCommunication_honest_le_log {enc : α ↪ List Bool} {c : ℕ}
       (2 + c + q + q * c + q * Nat.clog 2 q) * (n + 1) ^ 2 * (Nat.log 2 (enc x).length + 1) := by
   set ℓ := Nat.log 2 (enc x).length + 1
   set L := Nat.clog 2 q
-  have hℓ : 1 ≤ ℓ := Nat.le_add_left 1 _
-  refine (kilianCommunication_honest_le hlen hk hn hρs hq).trans ?_
-  have hstep : 2 * n + n * V.coins x + n * (q * (1 + (V.coins x + L) * n)) ≤
-      2 * n + n * (c * ℓ) + n * (q * (1 + (c * ℓ + L) * n)) := by
-    gcongr
-  refine hstep.trans ?_
-  have h₁ : n ≤ (n + 1) ^ 2 * ℓ := by nlinarith
-  have h₂ : n * ℓ ≤ (n + 1) ^ 2 * ℓ := by nlinarith
-  have h₃ : n ^ 2 * ℓ ≤ (n + 1) ^ 2 * ℓ := by nlinarith
-  have h₄ : n ^ 2 ≤ (n + 1) ^ 2 * ℓ := by nlinarith
-  have e₂ := Nat.mul_le_mul_left c h₂
-  have e₁ := Nat.mul_le_mul_left q h₁
-  have e₃ := Nat.mul_le_mul_left (q * c) h₃
-  have e₄ := Nat.mul_le_mul_left (q * L) h₄
-  nlinarith
+  have hℓ : 0 < ℓ := Nat.succ_pos _
+  have hn1 : n ≤ (n + 1) ^ 2 := by nlinarith
+  have hn2 : n ^ 2 ≤ (n + 1) ^ 2 := Nat.pow_le_pow_left n.le_succ 2
+  refine (kilianCommunication_honest_le hlen hk hn hρs hq).trans
+    ((?_ : _ ≤ 2 * n + n * (c * ℓ) + n * (q * (1 + (c * ℓ + L) * n))).trans ?_)
+  · gcongr
+  · nlinarith [Nat.mul_le_mul_left q (hn1.trans (Nat.le_mul_of_pos_right _ hℓ)),
+      Nat.mul_le_mul_left c (Nat.mul_le_mul_right ℓ hn1),
+      Nat.mul_le_mul_left (q * c) (Nat.mul_le_mul_right ℓ hn2),
+      Nat.mul_le_mul_left (q * L) (hn2.trans (Nat.le_mul_of_pos_right _ hℓ))]
 
 /-! ### The verifier's input -/
 
@@ -229,23 +223,16 @@ theorem length_kilianVerifierInput_honest_le {enc : α ↪ List Bool}
       (b := n) fun s hs => by simpa [hk] using length_le_of_mem_merklePath hlen hs
     have hdepth : (merklePath H k (kilianLeaves (kilianTable V x table))
         (kilianPosition V x a)).length ≤ d := by
-      rw [length_merklePath]
-      simpa [kilianLeaves, kilianDepth] using kilianDepth_le hq
+      simpa [length_merklePath, kilianLeaves, kilianDepth] using kilianDepth_le hq
     simp only [encKilianOpening_apply, length_encPair, encBool_apply, List.length_singleton]
     nlinarith
-  have hanswers (ρ : List Bool) (hρ : ρ ∈ ρs) :
-      (encList encKilianOpening (kilianOpen H V k x table ρ)).length ≤
-        q * (2 * (3 + d * (2 * n + 1)) + 1) := by
-    refine (length_encList_le _ _ (hopening ρ)).trans ?_
-    simp only [kilianOpen, List.length_map]
-    exact Nat.mul_le_mul_right _ (hq ρ (hρs ρ hρ))
   have hresponse : (encKilianResponse (kilianRespond H V k x table ρs)).length ≤
       n * (2 * (q * (2 * (3 + d * (2 * n + 1)) + 1)) + 1) := by
     refine (length_encList_le _ _ (b := q * (2 * (3 + d * (2 * n + 1)) + 1))
-      fun answers h => ?_).trans ?_
-    · obtain ⟨ρ, hρ, rfl⟩ := List.mem_map.mp h
-      exact hanswers ρ hρ
-    · simp [kilianRespond, hn]
+      fun answers h => ?_).trans (by simp [kilianRespond, hn])
+    obtain ⟨ρ, hρ, rfl⟩ := List.mem_map.mp h
+    refine (length_encList_le _ _ (hopening ρ)).trans ?_
+    simpa only [kilianOpen, List.length_map] using Nat.mul_le_mul_right _ (hq ρ (hρs ρ hρ))
   have hchallenges : (encList encBits ρs).length ≤ n * (2 * V.coins x + 1) :=
     (length_encList_le _ _ (b := V.coins x) fun ρ hρ => (hρs ρ hρ).le).trans (by rw [hn])
   enc_len [encKilianView_apply, encKilianClaim_apply, hk]
@@ -293,25 +280,17 @@ theorem computableInTimeAndSpace_kilianVerify_honest_le {enc : α ↪ List Bool}
         (∀ ρ ∈ v.challenges, ρ.length = V.coins v.stmt) ∧
         v.root = kilianCommit H V v.key v.stmt table ∧
         v.response = kilianRespond H V v.key v.stmt table v.challenges)
-      (fun v => v.key.length + (enc v.stmt).length) inBound hin_pb fun view hview => by
-        rcases hview with ⟨n, table, hk, hn, hρs, hroot, hresp⟩
-        have hcoins_le : V.coins view.stmt ≤ c * ((n + (enc view.stmt).length) + 1) :=
-          (hcoins view.stmt).trans
-            (Nat.mul_le_mul_left c (Nat.succ_le_succ
-              ((Nat.log_le_self 2 _).trans (Nat.le_add_left _ _))))
-        have hview_eq : view =
-            { key := view.key, stmt := view.stmt, root := kilianCommit H V view.key view.stmt table,
-              challenges := view.challenges,
-              response := kilianRespond H V view.key view.stmt table view.challenges } := by
-          rcases view with ⟨⟨k, stmt, root⟩, challenges, response⟩
-          dsimp only at hroot hresp
-          subst hroot hresp
-          rfl
-        conv_lhs => rw [hview_eq]
+      (fun v => v.key.length + (enc v.stmt).length) inBound hin_pb
+      fun ⟨⟨k, stmt, root⟩, challenges, response⟩ ⟨n, table, hk, hn, hρs, hroot, hresp⟩ => by
+        dsimp only at hk hn hρs hroot hresp ⊢
+        subst hroot hresp
+        have hcoins_le : V.coins stmt ≤ c * ((n + (enc stmt).length) + 1) :=
+          (hcoins stmt).trans (Nat.mul_le_mul_left c (Nat.succ_le_succ
+            ((Nat.log_le_self 2 _).trans (Nat.le_add_left _ _))))
         rw [hk]
-        refine (length_kilianVerifierInput_honest_le hlen hk hn hρs (hq view.stmt)).trans ?_
-        have hn_le : n ≤ n + (enc view.stmt).length := Nat.le_add_right _ _
-        have hx_le : (enc view.stmt).length ≤ n + (enc view.stmt).length := Nat.le_add_left _ _
+        refine (length_kilianVerifierInput_honest_le hlen hk hn hρs (hq stmt)).trans ?_
+        have hn_le : n ≤ n + (enc stmt).length := Nat.le_add_right _ _
+        have hx_le : (enc stmt).length ≤ n + (enc stmt).length := Nat.le_add_left _ _
         dsimp only [inBound]
         gcongr
   refine ⟨kTM, State, hfin, tm, t, s, tHonest, sHonest, ht_pb, hs_pb, htH, hsH, htm',

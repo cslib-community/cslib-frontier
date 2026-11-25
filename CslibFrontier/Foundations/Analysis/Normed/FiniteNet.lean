@@ -77,27 +77,16 @@ theorem exists_halfNet (E : Type*) [NormedAddCommGroup E] [NormedSpace ℝ E]
   by_contra hnot
   have hfar : ∀ y ∈ s, (1 : ℝ) / 2 < ‖x - y‖ := by
     simpa only [not_exists, not_and, not_le] using hnot
-  have hxs : x ∉ s := by
-    intro hxs
-    have := hfar x hxs
-    simp only [sub_self, norm_zero] at this
-    linarith
-  have hnew : P (insert x s) := by
-    constructor
-    · intro y hy
-      rcases Finset.mem_insert.mp hy with rfl | hy
-      · exact hx
-      · exact hs y hy
-    · intro y hy z hz hyz
-      rcases Finset.mem_insert.mp hy with hyx | hys
-      · subst y
-        rcases Finset.mem_insert.mp hz with hzx | hzs
-        · exact (hyz hzx.symm).elim
-        · exact (hfar z hzs).le
-      · rcases Finset.mem_insert.mp hz with hzx | hzs
-        · subst z
-          simpa only [norm_sub_rev] using (hfar y hys).le
-        · exact hsep y hys z hzs hyz
+  have hxs : x ∉ s := fun hxs =>
+    absurd (hfar x hxs) (by simp only [sub_self, norm_zero]; norm_num)
+  have hnew : P (insert x s) :=
+    ⟨fun y hy => (Finset.mem_insert.mp hy).elim (fun h => h ▸ hx) (hs y),
+      fun y hy z hz hyz => (Finset.mem_insert.mp hy).elim
+        (fun hyx => (Finset.mem_insert.mp hz).elim
+          (fun hzx => (hyz (hyx.trans hzx.symm)).elim) fun hzs => hyx ▸ (hfar z hzs).le)
+        fun hys => (Finset.mem_insert.mp hz).elim
+          (fun hzx => hzx ▸ by simpa only [norm_sub_rev] using (hfar y hys).le)
+          fun hzs => hsep y hys z hzs hyz⟩
   have hbound : (insert x s).card ≤ sSup sizes :=
     le_csSup hbd ⟨insert x s, rfl, hnew⟩
   rw [Finset.card_insert_of_notMem hxs, ← hsmax] at hbound

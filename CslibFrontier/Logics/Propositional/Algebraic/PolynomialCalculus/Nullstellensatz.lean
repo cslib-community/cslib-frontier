@@ -81,38 +81,27 @@ theorem exists_isProof_of_ns {s d : ℕ} {F : List (MvPolynomial V R)}
       size ls ≤ s ^ 2 + (d + 1) * s ∧ degree ls ≤ d := by
   classical
   let t := Finset.univ.sigma fun i : Fin F.length => (P i).support
-  let p : (Σ _ : Fin F.length, V →₀ ℕ) → MvPolynomial V R :=
-    fun x => monomial x.2 1 * F.get x.1
-  let a : (Σ _ : Fin F.length, V →₀ ℕ) → R := fun x => (P x.1).coeff x.2
+  let p : (Σ _ : Fin F.length, V →₀ ℕ) → MvPolynomial V R := fun x => monomial x.2 1 * F.get x.1
   let w : (Σ _ : Fin F.length, V →₀ ℕ) → ℕ := fun x => (F.get x.1).support.card
-  have hsum : ∑ x ∈ t, C (a x) * p x = q := by
-    dsimp only [t, p, a]
+  have hsum : ∑ x ∈ t, C ((P x.1).coeff x.2) * p x = q := by
     rw [Finset.sum_sigma]
     calc
-      _ = ∑ i, F.get i * P i := by
-        apply Finset.sum_congr rfl
-        intro i _
-        simp only [← mul_assoc, C_mul_monomial, mul_one]
+      _ = ∑ i, F.get i * P i := Finset.sum_congr rfl fun i _ => by
+        simp only [p, ← mul_assoc, C_mul_monomial, mul_one]
         rw [← Finset.sum_mul, support_sum_monomial_coeff, mul_comm]
       _ = q := hP
   have hw : ∑ x ∈ t, w x = NS.size F P := by
-    dsimp only [t, w]
-    rw [Finset.sum_sigma]
-    simp only [Finset.sum_const, nsmul_eq_mul, Nat.cast_id, NS.size, Nat.mul_comm]
-  have hsupport (x) (_ : x ∈ t) : (p x).support.card ≤ w x :=
-    card_support_monomial_mul_le _ _ _
-  have hproof x (hx : x ∈ t) (_ : p x ≠ 0) :
-      ∃ ls, IsProof F ls ∧ p x ∈ ls ∧ size ls ≤ (d + 1) * w x ∧ degree ls ≤ d := by
-    have hmx : x.2 ∈ (P x.1).support := (Finset.mem_sigma.mp hx).2
-    have hdx : (F.get x.1).totalDegree + x.2.degree ≤ d :=
-      (Finset.le_sup_of_le (Finset.mem_univ x.1)
-        (Finset.le_sup (f := fun m => (F.get x.1).totalDegree + m.degree) hmx)).trans hd
-    obtain ⟨ls, hls, hm, hs', hd'⟩ := exists_isProof_monomial_mul (List.get_mem F x.1) x.2
-    refine ⟨ls, hls, hm, hs'.trans ?_, hd'.trans hdx⟩
-    exact Nat.mul_le_mul_right _ (by omega)
-  obtain ⟨ls, hls, hmem, hs', hd'⟩ :=
-    exists_isProof_sum t p a w (fun x => (d + 1) * w x) d hsupport hproof
-      (hsum.symm ▸ hq)
+    simp only [t, w, Finset.sum_sigma, Finset.sum_const, nsmul_eq_mul, Nat.cast_id, NS.size,
+      Nat.mul_comm]
+  obtain ⟨ls, hls, hmem, hs', hd'⟩ := exists_isProof_sum t p (fun x => (P x.1).coeff x.2) w
+    (fun x => (d + 1) * w x) d (fun _ _ => card_support_monomial_mul_le _ _ _)
+    (fun x hx _ => by
+      have hdx : (F.get x.1).totalDegree + x.2.degree ≤ d :=
+        (Finset.le_sup_of_le (Finset.mem_univ x.1) (Finset.le_sup
+          (f := fun m => (F.get x.1).totalDegree + m.degree) (Finset.mem_sigma.mp hx).2)).trans hd
+      obtain ⟨ls, hls, hm, hs', hd'⟩ := exists_isProof_monomial_mul (List.get_mem F x.1) x.2
+      exact ⟨ls, hls, hm, hs'.trans (Nat.mul_le_mul_right _ (by omega)), hd'.trans hdx⟩)
+    (hsum.symm ▸ hq)
   refine ⟨ls, hls, hsum ▸ hmem, hs'.trans ?_, hd'⟩
   rw [← Finset.mul_sum, hw]
   exact Nat.add_le_add (Nat.pow_le_pow_left hs 2) (Nat.mul_le_mul_left _ hs)
@@ -138,8 +127,7 @@ theorem RefutableInSize.of_ns {s d₀ : ℕ} {F : List (MvPolynomial V R)}
   obtain ⟨Q, hQ, hsize, hdeg⟩ := hP.exists_degree_le_mul_size hd₀
   obtain ⟨ls, hls, h1, hS, _⟩ := exists_refutation_of_ns (s := s) (d := d₀ * s)
     hQ (hsize.trans hs) (hdeg.trans (Nat.mul_le_mul_left d₀ hs))
-  refine ⟨ls, hls, h1, hS.trans_eq ?_⟩
-  ring
+  exact ⟨ls, hls, h1, hS.trans_eq (by ring)⟩
 
 /-- An NS refutation of degree at most `d` yields a PC refutation of degree at most `d`. -/
 theorem RefutableInDegree.of_ns {d : ℕ} {F : List (MvPolynomial V R)}

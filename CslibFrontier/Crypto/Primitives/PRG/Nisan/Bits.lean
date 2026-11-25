@@ -102,8 +102,7 @@ theorem abs_dens_eval_bitGenerator_sub_le {S : Type*} [Fintype S] (n k : ℕ)
       (fun y => if P.eval y = true then (1 : ℝ) else 0) fun _ => rfl).symm
   have hgen : (dens {z : BitSeed n k | P.eval (bitGenerator n k z) = true} : ℝ) =
       dens {z : BitSeed n k | P.blocks.eval (blocks toeplitzHash k z.1 z.2) = true} := by
-    simp only [ReadOnceProgram.eval_blocks]
-    rfl
+    simp only [ReadOnceProgram.eval_blocks]; rfl
   have := abs_dens_eval_blocks_sub_le isPairwiseIndependentHash_toeplitzHash_bool k P.blocks
   rw [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at this
   rw [hgen, huni]
@@ -119,21 +118,19 @@ theorem secure_bitGenerator (n k w : ℕ) :
   rintro _ ⟨P, rfl⟩
   rw [Generator.advantage, Generator.toReal_realExperiment_pure,
     Generator.toReal_idealExperiment_pure]
-  have hk : (1 : ℝ≥0) ≤ 2 ^ k := one_le_pow₀ one_le_two
   have := abs_dens_eval_bitGenerator_sub_le n k P
   rw [Fintype.card_fin] at this
-  simp only [NNReal.coe_div, NNReal.coe_mul, NNReal.coe_sub hk, NNReal.coe_pow, NNReal.coe_ofNat,
-    NNReal.coe_one, NNReal.coe_natCast, Real.coe_sqrt]
+  simp only [NNReal.coe_div, NNReal.coe_mul, NNReal.coe_sub (one_le_pow₀ one_le_two),
+    NNReal.coe_pow, NNReal.coe_ofNat, NNReal.coe_one, NNReal.coe_natCast, Real.coe_sqrt]
   exact_mod_cast this
 
 /-- **Nisan's generator on bit strings of even length**: for `n = 2 m`, the advantage of read-once
 branching programs of width `w` is at most `(2 ^ k - 1) w / 2 ^ (m + 1)`. -/
 theorem secure_bitGenerator_two_mul (m k w : ℕ) :
     (bitGenerator (2 * m) k).Secure (IsReadOnceTest w) ((2 ^ k - 1) * w / 2 ^ (m + 1)) := by
-  have hsqrt : NNReal.sqrt (2 ^ (2 * m)) = 2 ^ m := by
-    rw [Nat.mul_comm, pow_mul, NNReal.sqrt_sq]
   have h := secure_bitGenerator (2 * m) k w
-  rwa [hsqrt, ← pow_succ'] at h
+  rwa [show NNReal.sqrt (2 ^ (2 * m)) = 2 ^ m by rw [Nat.mul_comm, pow_mul, NNReal.sqrt_sq],
+    ← pow_succ'] at h
 
 /-- **The parameters of Nisan's generator** [Nisan1992]: with blocks of `n = 2 (k + a + d)` bits,
 Nisan's generator on bit strings stretches `O((k + a + d) k)` seed bits into `2 ^ k n` bits that
@@ -141,11 +138,10 @@ fool every read-once branching program of width at most `2 ^ a` with error `2 ^ 
 theorem secure_bitGenerator_of_le (k a d w : ℕ) (hw : w ≤ 2 ^ a) :
     (bitGenerator (2 * (k + a + d)) k).Secure (IsReadOnceTest w) (2 ^ d)⁻¹ := by
   refine fun A hA => (secure_bitGenerator_two_mul (k + a + d) k w A hA).trans ?_
-  have hk : (1 : ℝ≥0) ≤ 2 ^ k := one_le_pow₀ one_le_two
   have hw' : (w : ℝ≥0) ≤ 2 ^ a := by exact_mod_cast hw
   have hle : ((2 ^ k - 1) * w / 2 ^ (k + a + d + 1) : ℝ≥0) ≤ (2 ^ d)⁻¹ := by
     rw [div_le_iff₀ (by positivity), pow_succ, pow_add, pow_add, inv_mul_eq_div]
-    calc (2 ^ k - 1) * (w : ℝ≥0) ≤ 2 ^ k * 2 ^ a :=
+    calc ((2 ^ k - 1) * w : ℝ≥0) ≤ 2 ^ k * 2 ^ a :=
           mul_le_mul tsub_le_self hw' (by positivity) (by positivity)
       _ ≤ 2 ^ k * 2 ^ a * 2 ^ d * 2 / 2 ^ d := by
           rw [mul_assoc (2 ^ k * 2 ^ a), mul_div_assoc, mul_div_cancel_left₀ _ (by positivity)]

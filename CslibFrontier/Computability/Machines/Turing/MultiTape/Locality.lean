@@ -62,16 +62,13 @@ variable {k : ℕ} {Symbol State : Type*} {input : List Symbol}
 /-- Every head starts at zero. -/
 theorem Cfg.headPos_init (q₀ : State) (head : Option (Fin k)) :
     (Cfg.init q₀ input : Cfg k Symbol State input).headPos head = 0 := by
-  cases head with
-  | none => simp [Cfg.headPos]
-  | some i => rfl
+  cases head <;> simp [Cfg.headPos]
 
 /-- The input head is at a coordinate in `[-1, n]` on an input of length `n`. -/
 theorem Cfg.headPos_none_mem_Icc (cfg : Cfg k Symbol State input) :
     cfg.headPos none ∈ Set.Icc (-1) (input.length : ℤ) := by
   have := cfg.inputPos.isLt
-  simp only [headPos_none, Set.mem_Icc]
-  omega
+  simp only [headPos_none, Set.mem_Icc]; omega
 
 /-- An action moves every head by at most one cell. -/
 theorem Action.abs_headPos_apply_sub_le (action : Action k Symbol State)
@@ -79,13 +76,12 @@ theorem Action.abs_headPos_apply_sub_le (action : Action k Symbol State)
     |(action.apply cfg).headPos head - cfg.headPos head| ≤ 1 := by
   cases head with
   | none =>
-    have hmove := val_moveInputPos_eq cfg.inputPos action.inputTape
-    have hlt := cfg.inputPos.isLt
-    have hcast : (action.inputTape.cast : ℤ) = -1 ∨ (action.inputTape.cast : ℤ) = 0 ∨
+    have := val_moveInputPos_eq cfg.inputPos action.inputTape
+    have := cfg.inputPos.isLt
+    have : (action.inputTape.cast : ℤ) = -1 ∨ (action.inputTape.cast : ℤ) = 0 ∨
         (action.inputTape.cast : ℤ) = 1 := by
       rcases action.inputTape with _ | _ | _ <;> simp [SignType.cast]
-    simp only [Cfg.headPos_none, Action.apply_inputPos, abs_le]
-    omega
+    simp only [Cfg.headPos_none, Action.apply_inputPos, abs_le]; omega
   | some i => exact workTapePos_apply_le action cfg i
 
 /-- **A step moves every head by at most one cell.** -/
@@ -134,18 +130,15 @@ theorem Cfg.AgreeOn.mono {W W' : Fin k → Set ℤ} {c c' : Cfg k Symbol State i
 /-- Agreeing configurations are at the same head positions. -/
 theorem Cfg.AgreeOn.headPos_eq {W : Fin k → Set ℤ} {c c' : Cfg k Symbol State input}
     (h : c.AgreeOn W c') : c.headPos = c'.headPos := by
-  funext head
-  cases head with
-  | none => simp [h.inputPos_eq]
-  | some i => simp [h.workTapePos_eq]
+  funext t
+  cases t <;> simp [h.inputPos_eq, h.workTapePos_eq]
 
 /-- Agreement on cells containing the work heads gives the same read symbols. -/
 theorem Cfg.AgreeOn.workTapeSymbols_eq {W : Fin k → Set ℤ} {c c' : Cfg k Symbol State input}
     (h : c.AgreeOn W c') (hpos : ∀ i, c.workTapePos i ∈ W i) :
     c.workTapeSymbols = c'.workTapeSymbols := by
   funext i
-  simp only [Cfg.workTapeSymbols, ← h.workTapePos_eq]
-  exact h.workTapes_eq i _ (hpos i)
+  simpa only [Cfg.workTapeSymbols, ← h.workTapePos_eq] using h.workTapes_eq i _ (hpos i)
 
 /-- One action applied to agreeing configurations keeps them agreeing on `W`: it writes the same
 symbols under the same heads. -/
@@ -156,11 +149,7 @@ theorem Cfg.AgreeOn.apply {W : Fin k → Set ℤ} {c c' : Cfg k Symbol State inp
   simp only [Action.apply_workTapes, ← h.workTapePos_eq]
   cases (action.workTapes i).1 with
   | none => exact h.workTapes_eq i z hz
-  | some s =>
-    by_cases hz' : z = c.workTapePos i
-    · simp [hz']
-    · simp only [Function.update_of_ne hz']
-      exact h.workTapes_eq i z hz
+  | some _ => by_cases hz' : z = c.workTapePos i <;> simp [hz', h.workTapes_eq i z hz]
 
 /-- **Locality of a step.** If two configurations agree on cells `W` containing their work
 heads, one step keeps them agreeing on `W`, and both append the same word to their outputs. -/
@@ -170,14 +159,11 @@ theorem MultiTapeTM.agreeOn_step (tm : MultiTapeTM k Symbol State) {W : Fin k �
       ∃ e, (tm.step c).output = c.output ++ e ∧ (tm.step c').output = c'.output ++ e := by
   cases hs : c.state with
   | none =>
-    have hs' : c'.state = none := h.state_eq ▸ hs
-    rw [MultiTapeTM.step_of_halt hs, MultiTapeTM.step_of_halt hs']
+    rw [MultiTapeTM.step_of_halt hs, MultiTapeTM.step_of_halt (h.state_eq ▸ hs)]
     exact ⟨h, [], by simp, by simp⟩
   | some q =>
-    have hs' : c'.state = some q := h.state_eq ▸ hs
-    have hread : c.inputSymbol = c'.inputSymbol := by
-      simp only [Cfg.inputSymbol, h.inputPos_eq]
-    rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hs', hread,
+    rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state (h.state_eq ▸ hs),
+      show c.inputSymbol = c'.inputSymbol by simp only [Cfg.inputSymbol, h.inputPos_eq],
       h.workTapeSymbols_eq hpos]
     exact ⟨h.apply _, _, Action.apply_output _ _, Action.apply_output _ _⟩
 

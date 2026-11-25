@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.BuildEntries
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.OutScope
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.Partition
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Tactic.Realize
 import Mathlib.Tactic.Ring
 
@@ -149,328 +150,222 @@ theorem elimVarProg_spec {w : ℕ} {args : ElimVarArgs} {es : ElimState ℕ ℕ}
   unfold elimVarProg
   obtain ⟨hs0, hsc_eq, hlive_len, hrem_len, hlive_h, hrem_h⟩ := hes
   dsimp only at hsc_eq hlive_len hrem_len hlive_h hrem_h
-  let msArgs : MemScanArgs := ⟨args.x, args.remPtr, args.remLen⟩
-  have hms_val :
-      (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (memScan msArgs)) :=
-    memScan_valid msArgs (by dsimp only [msArgs]; rw [hrem_len]; exact hrem_h.1)
-  have hms_st : (Memory.spec 0).clientState s (memScan msArgs) = s := memScan_state msArgs s
-  have hms_res : (Memory.spec 0).clientResult s (memScan msArgs) =
-      if args.x ∈ es.remaining then 1 else 0 := memScan_result hrem_h.2 hrem_len.symm
-  have hms_cost : memoryCost (memScan msArgs) s ≤ R :=
-    (memScan_cost msArgs s).trans (by dsimp only [msArgs]; rw [hrem_len]; exact hR)
-  dsimp only [msArgs] at hms_cost
-  have hpure_st {α : Type} (x : α) (u : Memory.State) :
-      (Memory.spec 0).clientState u (pure x) = u := rfl
-  have hpure_res {α : Type} (x : α) (u : Memory.State) :
-      (Memory.spec 0).clientResult u (pure x) = x := rfl
+  have hms_val := memScan_valid (w := w) ⟨args.x, args.remPtr, args.remLen⟩
+    (by dsimp only; rw [hrem_len]; exact hrem_h.1)
+  have hms_res := memScan_result (args := ⟨args.x, args.remPtr, args.remLen⟩) hrem_h.2
+    hrem_len.symm
+  have hms_cost := memScan_cost ⟨args.x, args.remPtr, args.remLen⟩ s
+  dsimp only at hms_res hms_cost
+  rw [validHistory_bind', StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind, memoryCost_bind', memScan_state, hms_res]
   by_cases hx : args.x ∈ es.remaining
-  · have hin1 : ¬ ((Memory.spec 0).clientResult s (memScan msArgs) = 0) := by
-      rw [hms_res, ite_eq_left hx]; decide
-    let fnArgs : MemScanArgs := ⟨args.x, args.remPtr, args.remLen⟩
-    have hfn_spec := filterNe_spec (w := w) fnArgs hwf hrem_h hrem_len.symm
-      (hfit_fr.of_le (by dsimp only [fnArgs, stepMemDelta]; omega))
-    have hfn_cost := filterNe_cost fnArgs s
-    dsimp only at hfn_spec
-    generalize hs₁ : (Memory.spec 0).clientState s (filterNe fnArgs) = s₁ at hfn_spec
-    generalize hremPair : (Memory.spec 0).clientResult s (filterNe fnArgs) = remPair at hfn_spec
-    obtain ⟨hfn_val, hfn_fr, hfn_pres, hfn_ptr, hfn_len, hfn_holds⟩ := hfn_spec
-    dsimp only [fnArgs] at hfn_fr hfn_len hfn_holds hfn_cost
-    have hwf₁ : Memory.WellFormed w s₁ := by rw [← hs₁]; exact wellFormed_clientState hwf hfn_val
-    have hlive_s₁ : HoldsFactorList args.livePtr es.live s₁ := hlive_h.mono_frontier hfn_pres
-    let plArgs : PartitionArgs := ⟨args.x, args.livePtr, args.liveLen⟩
-    have hpl_spec := partitionLive_spec (w := w) (args := plArgs) hwf₁ hlive_s₁ hlive_len.symm hSW
-      (hfit_fr.of_le (by rw [hfn_fr]; dsimp only [plArgs, stepMemDelta]; omega))
-    dsimp only at hpl_spec
-    generalize hs₂ : (Memory.spec 0).clientState s₁ (partitionLive plArgs) = s₂ at hpl_spec
-    generalize hpart : (Memory.spec 0).clientResult s₁ (partitionLive plArgs) = part at hpl_spec
-    obtain ⟨hpl_val, hpl_fr, hpl_pres, hpl_bPtr, hpl_rBuf, hpl_bLen, hpl_rLen,
-        hpl_bH, _, hpl_rH, hpl_rD, hpl_cost⟩ := hpl_spec
-    dsimp only [plArgs] at hpl_fr hpl_rBuf hpl_bLen hpl_rLen hpl_bH hpl_rH hpl_rD hpl_cost
-    have hwf₂ : Memory.WellFormed w s₂ :=
-      by rw [← hs₂]; exact wellFormed_clientState hwf₁ hpl_val
-    let bucket := es.live.filter fun f => decide (args.x ∈ f.scope)
-    let rest := es.live.filter fun f => decide (args.x ∉ f.scope)
-    let rem' := es.remaining.filter fun v => decide (v ≠ args.x)
-    change part.bucketLen = bucket.length at hpl_bLen
-    change part.restLen = rest.length at hpl_rLen
-    change HoldsFactorList part.bucketPtr bucket s₂ at hpl_bH
-    change HoldsFactorList (part.newLiveBuf + 4) rest s₂ at hpl_rH
-    change AllDataBelow s₁.frontier (part.newLiveBuf + 4) rest s₂ at hpl_rD
-    have hs2_fr : s₂.frontier = s.frontier + args.remLen + 4 + 8 * args.liveLen := by
-      rw [hpl_fr, hfn_fr]
-    by_cases hbk0 : bucket.isEmpty = true
-    · have hb_nil : bucket = [] := List.isEmpty_iff.mp hbk0
-      have hp_bLen0 : part.bucketLen = 0 := by rw [hpl_bLen, hb_nil]; rfl
-      have hes'_eq : elimVar args.dom args.x es =
-          { scalar := es.scalar * args.dom, live := es.live, remaining := rem' } := by
-        unfold elimVar
-        rw [ite_eq_left hx]
-        dsimp only
-        change (if bucket.isEmpty then _ else _) = _
-        rw [ite_eq_left hbk0]
-        simp only [Nat.cast_id]
-        rfl
-      have hbk_eq : (stepStats args.dom args.x es).bucketFactors = 0 := by
-        unfold stepStats
-        rw [ite_eq_left hx]
-        dsimp only
-        change ElimStepStats.bucketFactors (if bucket.isEmpty then _ else _) = 0
-        rw [ite_eq_left hbk0]
-      rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hms_st, ite_eq_right hin1,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hs₁, hremPair,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hs₂, hpart,
-        ite_eq_left hp_bLen0, hpure_st, hpure_res, hes'_eq, hbk_eq]
-      have hpres_all : PreservesBelow s.frontier s s₂ :=
-        hfn_pres.trans (hpl_pres.mono_bound hfn_pres.2.1)
-      refine ⟨validHistory_bind_step hms_val ?_, hpres_all,
-        by rw [hs2_fr]; dsimp only [stepMemDelta]; omega, ?_, ?_⟩
-      · rw [hms_st, ite_eq_right hin1]
-        refine validHistory_bind_step hfn_val ?_
-        rw [hs₁, hremPair]
-        refine validHistory_bind_step hpl_val ?_
-        rw [hs₂, hpart, ite_eq_left hp_bLen0]
-        exact validHistory_pure w s₂ _
-      · refine ⟨by rw [hs2_fr]; omega, by dsimp only; rw [hsc_eq], hlive_len, hfn_len,
-          hlive_h.mono_frontier hpres_all, hfn_holds.mono_frontier hpl_pres⟩
-      · rw [memoryCost_bind', hms_st, ite_eq_right hin1, memoryCost_bind',
-          hs₁, hremPair, memoryCost_bind', hs₂, hpart, ite_eq_left hp_bLen0,
-          memoryCost_pure, Nat.add_zero]
-        have hM_mul : args.liveLen * (8 + SW) ≤ M * (8 + SW) :=
-          Nat.mul_le_mul_right _ (by omega)
-        dsimp only [stepFixedCost]
-        omega
-    · have hb_ne : bucket ≠ [] := fun h => hbk0 (List.isEmpty_iff.mpr h)
-      have hp_bLen_ne : ¬ (part.bucketLen = 0) := by
-        rw [hpl_bLen]; exact (List.length_pos_iff.mpr hb_ne).ne'
-      have hes'_eq : elimVar args.dom args.x es =
-          { scalar := es.scalar, live := elimBucketTable args.dom args.x bucket :: rest,
-            remaining := rem' } := by
-        simp [elimVar, hx, hbk0, bucket, rest, rem']
-      have hbk_eq : (stepStats args.dom args.x es).bucketFactors = bucket.length := by
-        simp [stepStats, hx, hbk0, bucket]
-      have hj_le : (bucketJointScope bucket).length ≤ W := by
-        simpa [stepStats, hx, hbk0, bucket] using hW
-      have hout_le_W : (bucketOutScope args.x bucket).length ≤ W :=
-        (List.length_filter_le _ _).trans hj_le
-      have hb_SW : ∀ f ∈ bucket, f.scope.length ≤ SW :=
-        fun f hf => hSW f (List.mem_filter.mp hf).1
-      have hb_le_M : part.bucketLen ≤ M := by
-        rw [hpl_bLen]; exact (List.length_filter_le _ _).trans hM
-      let bosArgs : BuildOutScopeArgs := ⟨args.x, part.bucketPtr, part.bucketLen⟩
-      have hbmul_le : part.bucketLen * SW ≤ M * SW := Nat.mul_le_mul_right SW hb_le_M
-      have hbos_spec :=
-        buildOutScope_spec (w := w) (args := bosArgs) hwf₂ hpl_bH hpl_bLen.symm hb_SW hout_le_W
-          (hfit_fr.of_le (by dsimp only [bosArgs, stepMemDelta]; rw [hs2_fr]; omega))
-      dsimp only at hbos_spec
-      generalize hs₃ : (Memory.spec 0).clientState s₂ (buildOutScope bosArgs) = s₃ at hbos_spec
-      generalize houtPair :
-        (Memory.spec 0).clientResult s₂ (buildOutScope bosArgs) = outPair at hbos_spec
-      obtain ⟨hbos_val, hbos_fr, hbos_pres, hbos_lo, hbos_len, hbos_holds, hbos_cost⟩ := hbos_spec
-      dsimp only [bosArgs] at hbos_fr hbos_len hbos_holds hbos_cost
-      have hwf₃ : Memory.WellFormed w s₃ :=
-        by rw [← hs₃]; exact wellFormed_clientState hwf₂ hbos_val
-      have hjoint_eq : (bucketOutScope args.x bucket).length + 1 =
-          (bucketJointScope bucket).length :=
-        length_bucketOutScope_add_one hb_ne fun f hf => by
-          simpa using (List.mem_filter.mp hf).2
-      have hout_succ_le_W : outPair.2 + 1 ≤ W := by
-        rw [hbos_len, hjoint_eq]; exact hj_le
-      have hout_le_W' : outPair.2 ≤ W := Nat.le_of_succ_le hout_succ_le_W
-      have hpow_out_le : (max 1 args.dom) ^ outPair.2 ≤ (max 1 args.dom) ^ W :=
-        Nat.pow_le_pow_right (le_max_left 1 args.dom) hout_le_W'
-      have hpow_joint_le : (max 1 args.dom) ^ outPair.2 * args.dom ≤ (max 1 args.dom) ^ W := by
-        calc (max 1 args.dom) ^ outPair.2 * args.dom
-            ≤ (max 1 args.dom) ^ outPair.2 * max 1 args.dom :=
-              Nat.mul_le_mul_left _ (le_max_right 1 args.dom)
-          _ = (max 1 args.dom) ^ (outPair.2 + 1) := (Nat.pow_succ _ _).symm
-          _ ≤ (max 1 args.dom) ^ W :=
-              Nat.pow_le_pow_right (le_max_left 1 args.dom) hout_succ_le_W
-      have hb_capB : max 1 args.dom * (bucket.map capFactor).prod ≤ B :=
-        (Nat.mul_le_mul_left _ (bucket_prod_le_stateCap args.x es)).trans hcapB
-      let boeArgs : BuildOutArgs :=
-        ⟨args.dom, args.x, outPair.1, outPair.2, part.bucketPtr, part.bucketLen⟩
-      have hs3_pos : 0 < s₃.frontier := lt_of_lt_of_le hs0
-        (hfn_pres.2.1.trans (hpl_pres.2.1.trans hbos_pres.2.1))
-      have hboe_spec :=
-        buildOutEntries_spec (w := w) (args := boeArgs) hwf₃ hs3_pos
-          hbos_holds rfl hbos_len.symm (hpl_bH.mono_frontier hbos_pres) hpl_bLen.symm hb_SW
-          (hfit_fr.of_le (by dsimp only [boeArgs, stepMemDelta]; rw [hs2_fr] at hbos_fr; omega))
-          hb_capB hB
-      dsimp only at hboe_spec
-      generalize hs₄ : (Memory.spec 0).clientState s₃ (buildOutEntries boeArgs) = s₄ at hboe_spec
-      generalize hentPair :
-        (Memory.spec 0).clientResult s₃ (buildOutEntries boeArgs) = entPair at hboe_spec
-      obtain ⟨hboe_val, hboe_pres, hboe_fr, hboe_lo, hboe_len, hboe_holds, hboe_cost⟩ := hboe_spec
-      dsimp only [boeArgs] at hboe_fr hboe_len hboe_holds hboe_cost
-      have hwf₄ : Memory.WellFormed w s₄ :=
-        by rw [← hs₄]; exact wellFormed_clientState hwf₃ hboe_val
-      let newTab := elimBucketTable args.dom args.x bucket
-      change entPair.2 = newTab.entries.size at hboe_len
-      change HoldsIn entPair.1 newTab.entries.toList s₄ at hboe_holds
-      let wdFinal : WriteDescArgs := ⟨part.newLiveBuf, outPair.1, outPair.2, entPair.1, entPair.2⟩
-      have hrBuf_le_s2 : part.newLiveBuf + 4 ≤ s₂.frontier := by omega
-      have hs2_le_s3 : s₂.frontier ≤ s₃.frontier := hbos_pres.2.1
-      have hs3_le_s4 : s₃.frontier ≤ s₄.frontier := hboe_pres.2.1
-      have hwd_dst_lt : part.newLiveBuf + 4 ≤ s₄.frontier :=
-        hrBuf_le_s2.trans (hs2_le_s3.trans hs3_le_s4)
-      have hout_s4 : HoldsIn outPair.1 newTab.scope s₄ :=
-        hbos_holds.mono_frontier hboe_pres
-      have hsc_eq_new : newTab.scope = bucketOutScope args.x bucket := rfl
-      have hfit_o1 : Fits w outPair.1 := hwf₄.frontier_fits.of_le (by have := hout_s4.1; omega)
-      have hfit_o2 : Fits w outPair.2 := hwf₄.frontier_fits.of_le (by
-        have hbd := hout_s4.1; rw [hsc_eq_new, ← hbos_len] at hbd; omega)
-      have hfit_e1 : Fits w entPair.1 := hwf₄.frontier_fits.of_le (by have := hboe_holds.1; omega)
-      have hfit_e2 : Fits w entPair.2 := hwf₄.frontier_fits.of_le (by
-        have hbd := hboe_holds.1; rw [Array.length_toList, ← hboe_len] at hbd; omega)
-      have hwd_val := writeDesc_valid wdFinal hwd_dst_lt hfit_o1 hfit_o2 hfit_e1 hfit_e2
-      have hwd_fr_pair := writeDesc_frame wdFinal s₄
-      have hst5_def : (Memory.spec 0).clientState s₄ (writeDesc wdFinal) =
-          ⟨Function.update (Function.update (Function.update
-            (Function.update s₄.mem part.newLiveBuf outPair.1) (part.newLiveBuf + 1) outPair.2)
-            (part.newLiveBuf + 2) entPair.1) (part.newLiveBuf + 3) entPair.2, s₄.frontier⟩ := rfl
-      generalize hs₅ : (Memory.spec 0).clientState s₄ (writeDesc wdFinal) = s₅
-        at hwd_fr_pair hst5_def
-      obtain ⟨hs5_fr, hwd_out⟩ := hwd_fr_pair
-      dsimp only [wdFinal] at hwd_out
-      have hs1_le_dst : s₁.frontier ≤ part.newLiveBuf := by omega
-      have hpres_15 : PreservesBelow s₁.frontier s₁ s₅ := by
-        refine ⟨le_rfl, ?_, fun a ha => ?_⟩
-        · rw [hs5_fr]
-          exact hpl_pres.2.1.trans (hs2_le_s3.trans hs3_le_s4)
-        · rw [hwd_out a (Or.inl (lt_of_lt_of_le ha hs1_le_dst))]
-          rw [hboe_pres.2.2 a (lt_of_lt_of_le ha (hpl_pres.2.1.trans hs2_le_s3))]
-          rw [hbos_pres.2.2 a (lt_of_lt_of_le ha hpl_pres.2.1)]
-          exact hpl_pres.2.2 a ha
-      have hpres_all : PreservesBelow s.frontier s s₅ :=
-        hfn_pres.trans (hpres_15.mono_bound hfn_pres.2.1)
-      have hnew_f : HoldsFactor part.newLiveBuf newTab s₅ := by
-        have hm0 : s₅.mem part.newLiveBuf = outPair.1 := by
-          rw [hst5_def]; dsimp only
-          rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-            Function.update_of_ne (by omega), Function.update_self]
-        have hm1 : s₅.mem (part.newLiveBuf + 1) = outPair.2 := by
-          rw [hst5_def]; dsimp only
-          rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-            Function.update_self]
-        have hm2 : s₅.mem (part.newLiveBuf + 2) = entPair.1 := by
-          rw [hst5_def]; dsimp only
-          rw [Function.update_of_ne (by omega), Function.update_self]
-        have hm3 : s₅.mem (part.newLiveBuf + 3) = entPair.2 := by
-          rw [hst5_def]; dsimp only; rw [Function.update_self]
-        unfold HoldsFactor
-        rw [hm0, hm1, hm2, hm3]
-        refine ⟨by rw [hs5_fr]; exact hwd_dst_lt, hbos_len, hboe_len, ?_, ?_⟩
-        · refine ⟨by rw [hs5_fr]; exact hout_s4.1, hout_s4.2.frame fun a hlo _ => ?_⟩
-          exact hwd_out a (Or.inr (hrBuf_le_s2.trans (hbos_lo.trans hlo)))
-        · refine ⟨by rw [hs5_fr]; exact hboe_holds.1, hboe_holds.2.frame fun a hlo _ => ?_⟩
-          exact hwd_out a (Or.inr (hrBuf_le_s2.trans (hs2_le_s3.trans (hboe_lo.trans hlo))))
-      have hrest_s5 : HoldsFactorList (part.newLiveBuf + 4) rest s₅ := by
-        have hpres_25 : PreservesBelow s₁.frontier s₂ s₅ := by
-          refine ⟨hpl_pres.2.1, ?_, fun a ha => ?_⟩
-          · rw [hs5_fr]; exact hs2_le_s3.trans hs3_le_s4
-          · rw [hwd_out a (Or.inl (lt_of_lt_of_le ha hs1_le_dst))]
-            rw [hboe_pres.2.2 a (lt_of_lt_of_le ha (hpl_pres.2.1.trans hs2_le_s3))]
-            exact hbos_pres.2.2 a (lt_of_lt_of_le ha hpl_pres.2.1)
-        exact hpl_rH.frame_outside hpl_rD hpres_25 fun a hlo hhi => by
-          rw [hwd_out a (Or.inr hlo)]
-          have hr_le : rest.length ≤ args.liveLen :=
-            (List.length_filter_le _ _).trans (le_of_eq hlive_len.symm)
-          have ha2 : a < s₂.frontier := by omega
-          rw [hboe_pres.2.2 a (lt_of_lt_of_le ha2 hs2_le_s3)]
-          exact hbos_pres.2.2 a ha2
-      rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hms_st, ite_eq_right hin1,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hs₁, hremPair,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hs₂, hpart, ite_eq_right hp_bLen_ne,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hs₃, houtPair,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hs₄, hentPair,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hs₅, hpure_res, hpure_st, hes'_eq, hbk_eq]
-      refine ⟨validHistory_bind_step hms_val ?_, hpres_all, ?_, ?_, ?_⟩
-      · rw [hms_st, ite_eq_right hin1]
-        refine validHistory_bind_step hfn_val ?_
-        rw [hs₁, hremPair]
-        refine validHistory_bind_step hpl_val ?_
-        rw [hs₂, hpart, ite_eq_right hp_bLen_ne]
-        refine validHistory_bind_step hbos_val ?_
-        rw [hs₃, houtPair]
-        refine validHistory_bind_step hboe_val ?_
-        rw [hs₄, hentPair]
-        refine validHistory_bind_step hwd_val ?_
-        rw [hs₅]
-        exact validHistory_pure w s₅ _
-      · rw [hs5_fr]
-        dsimp only [stepMemDelta]
-        omega
-      · refine ⟨lt_of_lt_of_le hs0 hpres_all.2.1, hsc_eq, ?_, hfn_len, ⟨hnew_f, hrest_s5⟩,
-          hfn_holds.mono_frontier hpres_15⟩
-        dsimp only
-        rw [hpl_rLen, List.length_cons, Nat.add_comm]
-      · rw [memoryCost_bind', hms_st, ite_eq_right hin1, memoryCost_bind',
-          hs₁, hremPair, memoryCost_bind', hs₂, hpart, ite_eq_right hp_bLen_ne,
-          memoryCost_bind', hs₃, houtPair, memoryCost_bind', hs₄, hentPair,
-          memoryCost_bind', hs₅, writeDesc_cost, memoryCost_pure, Nat.add_zero]
-        have hM_mul : args.liveLen * (8 + SW) ≤ M * (8 + SW) :=
-          Nat.mul_le_mul_right _ (by omega)
-        have hbos_c' :
-            memoryCost (buildOutScope ⟨args.x, part.bucketPtr, part.bucketLen⟩) s₂ ≤
-              2 + bucket.length * (3 + SW * (4 + W)) :=
-          calc memoryCost (buildOutScope ⟨args.x, part.bucketPtr, part.bucketLen⟩) s₂
-              ≤ 2 + part.bucketLen * (3 + 2 * SW + SW * (2 + W)) := hbos_cost
-            _ = 2 + bucket.length * (3 + SW * (4 + W)) := by rw [hpl_bLen]; ring
-        have hboe_c' :
-            memoryCost (buildOutEntries
-              ⟨args.dom, args.x, outPair.1, outPair.2, part.bucketPtr, part.bucketLen⟩) s₃ ≤
-              3 + W + 4 * (max 1 args.dom) ^ W +
-                bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) := by
-          have h2_le : 5 + SW * (outPair.2 + 1) ≤ 5 + SW * W :=
-            Nat.add_le_add_left (Nat.mul_le_mul_left SW hout_succ_le_W) 5
-          calc memoryCost (buildOutEntries
-                ⟨args.dom, args.x, outPair.1, outPair.2, part.bucketPtr, part.bucketLen⟩) s₃
-              ≤ 3 + outPair.2 + (max 1 args.dom) ^ outPair.2 *
-                  (3 + args.dom * (1 + part.bucketLen * (5 + SW * (outPair.2 + 1)))) := hboe_cost
-            _ = 3 + outPair.2 + (max 1 args.dom) ^ outPair.2 * 3 +
-                  ((max 1 args.dom) ^ outPair.2 * args.dom) * 1 +
-                  bucket.length * (((max 1 args.dom) ^ outPair.2 * args.dom) *
-                    (5 + SW * (outPair.2 + 1))) := by
-                rw [hpl_bLen]; ring
-            _ ≤ 3 + W + (max 1 args.dom) ^ W * 3 +
-                  (max 1 args.dom) ^ W * 1 +
-                  bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) :=
-                Nat.add_le_add
-                  (Nat.add_le_add
-                    (Nat.add_le_add (Nat.add_le_add_left hout_le_W' 3)
-                      (Nat.mul_le_mul_right 3 hpow_out_le))
-                    (Nat.mul_le_mul_right 1 hpow_joint_le))
-                  (Nat.mul_le_mul_left _ (Nat.mul_le_mul hpow_joint_le h2_le))
-            _ = 3 + W + 4 * (max 1 args.dom) ^ W +
-                  bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) := by ring
-        have hunit_split : bucket.length * (3 + SW * (4 + W)) +
-            bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) =
-            bucket.length * stepBucketUnitCost SW args.dom W := by
-          dsimp only [stepBucketUnitCost]; ring
-        dsimp only [stepFixedCost]
-        omega
-  · have hin0 : (Memory.spec 0).clientResult s (memScan msArgs) = 0 := by
-      rw [hms_res, ite_eq_right hx]
-    have hes'_eq : elimVar args.dom args.x es = es := by simp [elimVar, hx]
+  swap
+  · have hes'_eq : elimVar args.dom args.x es = es := by simp [elimVar, hx]
     have hbk_eq : (stepStats args.dom args.x es).bucketFactors = 0 := by simp [stepStats, hx]
-    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-      hms_st, ite_eq_left hin0, hpure_res, hpure_st, hes'_eq, hbk_eq]
-    refine ⟨validHistory_bind_step hms_val ?_, PreservesBelow.refl le_rfl,
-      Nat.le_add_right _ _, ⟨hs0, hsc_eq, hlive_len, hrem_len, hlive_h, hrem_h⟩, ?_⟩
-    · rw [hms_st, ite_eq_left hin0]
-      exact validHistory_pure w s _
-    · rw [memoryCost_bind', hms_st, ite_eq_left hin0, memoryCost_pure, Nat.add_zero]
-      dsimp only [stepFixedCost]
-      omega
+    rw [ite_eq_right hx, ite_eq_left rfl, StateTransitionSpec.clientResult_pure,
+      StateTransitionSpec.clientState_pure, memoryCost_pure, hes'_eq, hbk_eq]
+    exact ⟨⟨hms_val, validHistory_pure w s _⟩, PreservesBelow.refl le_rfl, Nat.le_add_right _ _,
+      ⟨hs0, hsc_eq, hlive_len, hrem_len, hlive_h, hrem_h⟩, by dsimp only [stepFixedCost]; omega⟩
+  have hfn := filterNe_spec (w := w) ⟨args.x, args.remPtr, args.remLen⟩ hwf hrem_h hrem_len.symm
+    (hfit_fr.of_le (by dsimp only [stepMemDelta]; omega))
+  have hfn_cost := filterNe_cost ⟨args.x, args.remPtr, args.remLen⟩ s
+  dsimp only at hfn hfn_cost
+  have hwf₁ := wellFormed_clientState hwf hfn.1
+  rw [ite_eq_left hx, ite_eq_right Nat.one_ne_zero, validHistory_bind',
+    StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind, memoryCost_bind']
+  generalize (Memory.spec 0).clientState s (filterNe ⟨args.x, args.remPtr, args.remLen⟩) =
+    s₁ at hfn hwf₁ ⊢
+  generalize (Memory.spec 0).clientResult s (filterNe ⟨args.x, args.remPtr, args.remLen⟩) =
+    remPair at hfn ⊢
+  obtain ⟨hfn_val, hfn_fr, hfn_pres, -, hfn_len, hfn_holds⟩ := hfn
+  have hpl := partitionLive_spec (w := w) (args := ⟨args.x, args.livePtr, args.liveLen⟩) hwf₁
+    (hlive_h.mono_frontier hfn_pres) hlive_len.symm hSW
+    (hfit_fr.of_le (by rw [hfn_fr]; dsimp only [stepMemDelta]; omega))
+  dsimp only at hpl
+  have hwf₂ := wellFormed_clientState hwf₁ hpl.1
+  rw [validHistory_bind', StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind, memoryCost_bind']
+  generalize (Memory.spec 0).clientState s₁ (partitionLive ⟨args.x, args.livePtr, args.liveLen⟩) =
+    s₂ at hpl hwf₂ ⊢
+  generalize (Memory.spec 0).clientResult s₁ (partitionLive ⟨args.x, args.livePtr, args.liveLen⟩) =
+    part at hpl ⊢
+  obtain ⟨hpl_val, hpl_fr, hpl_pres, -, hpl_rBuf, hpl_bLen, hpl_rLen, hpl_bH, -, hpl_rH, hpl_rD,
+    hpl_cost⟩ := hpl
+  let bucket := es.live.filter fun f => decide (args.x ∈ f.scope)
+  let rest := es.live.filter fun f => decide (args.x ∉ f.scope)
+  let rem' := es.remaining.filter fun v => decide (v ≠ args.x)
+  change part.bucketLen = bucket.length at hpl_bLen
+  change part.restLen = rest.length at hpl_rLen
+  change HoldsFactorList part.bucketPtr bucket s₂ at hpl_bH
+  change HoldsFactorList (part.newLiveBuf + 4) rest s₂ at hpl_rH
+  change AllDataBelow s₁.frontier (part.newLiveBuf + 4) rest s₂ at hpl_rD
+  have hs2_fr : s₂.frontier = s.frontier + args.remLen + 4 + 8 * args.liveLen := by
+    rw [hpl_fr, hfn_fr]
+  have hM_mul : args.liveLen * (8 + SW) ≤ M * (8 + SW) := Nat.mul_le_mul_right _ (by omega)
+  by_cases hbk0 : bucket.isEmpty = true
+  · have hp_bLen0 : part.bucketLen = 0 := by rw [hpl_bLen, List.isEmpty_iff.mp hbk0]; rfl
+    have hes'_eq : elimVar args.dom args.x es =
+        { scalar := es.scalar * args.dom, live := es.live, remaining := rem' } := by
+      unfold elimVar
+      rw [ite_eq_left hx]
+      dsimp only
+      change (if bucket.isEmpty then _ else _) = _
+      rw [ite_eq_left hbk0]
+      simp only [Nat.cast_id]
+      rfl
+    have hbk_eq : (stepStats args.dom args.x es).bucketFactors = 0 := by
+      unfold stepStats
+      rw [ite_eq_left hx]
+      dsimp only
+      change ElimStepStats.bucketFactors (if bucket.isEmpty then _ else _) = 0
+      rw [ite_eq_left hbk0]
+    have hpres_all : PreservesBelow s.frontier s s₂ :=
+      hfn_pres.trans (hpl_pres.mono_bound hfn_pres.2.1)
+    rw [ite_eq_left hp_bLen0, StateTransitionSpec.clientResult_pure,
+      StateTransitionSpec.clientState_pure, memoryCost_pure, hes'_eq, hbk_eq]
+    exact ⟨⟨hms_val, hfn_val, hpl_val, validHistory_pure w s₂ _⟩, hpres_all,
+      by rw [hs2_fr]; dsimp only [stepMemDelta]; omega,
+      ⟨by rw [hs2_fr]; omega, by dsimp only; rw [hsc_eq], hlive_len, hfn_len,
+        hlive_h.mono_frontier hpres_all, hfn_holds.mono_frontier hpl_pres⟩,
+      by dsimp only [stepFixedCost]; omega⟩
+  have hb_ne : bucket ≠ [] := fun h => hbk0 (List.isEmpty_iff.mpr h)
+  have hp_bLen_ne : ¬ (part.bucketLen = 0) := by
+    rw [hpl_bLen]; exact (List.length_pos_iff.mpr hb_ne).ne'
+  have hes'_eq : elimVar args.dom args.x es =
+      { scalar := es.scalar, live := elimBucketTable args.dom args.x bucket :: rest,
+        remaining := rem' } := by
+    simp [elimVar, hx, hbk0, bucket, rest, rem']
+  have hbk_eq : (stepStats args.dom args.x es).bucketFactors = bucket.length := by
+    simp [stepStats, hx, hbk0, bucket]
+  have hj_le : (bucketJointScope bucket).length ≤ W := by
+    simpa [stepStats, hx, hbk0, bucket] using hW
+  have hb_SW : ∀ f ∈ bucket, f.scope.length ≤ SW :=
+    fun f hf => hSW f (List.mem_filter.mp hf).1
+  have hb_le_M : part.bucketLen ≤ M := by
+    rw [hpl_bLen]; exact (List.length_filter_le _ _).trans hM
+  have hbmul_le : part.bucketLen * SW ≤ M * SW := Nat.mul_le_mul_right SW hb_le_M
+  have hbos := buildOutScope_spec (w := w) (args := ⟨args.x, part.bucketPtr, part.bucketLen⟩)
+    hwf₂ hpl_bH hpl_bLen.symm hb_SW ((List.length_filter_le _ _).trans hj_le)
+    (hfit_fr.of_le (by dsimp only [stepMemDelta]; rw [hs2_fr]; omega))
+  dsimp only at hbos
+  have hwf₃ := wellFormed_clientState hwf₂ hbos.1
+  rw [ite_eq_right hp_bLen_ne, validHistory_bind', StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind, memoryCost_bind']
+  generalize
+    (Memory.spec 0).clientState s₂ (buildOutScope ⟨args.x, part.bucketPtr, part.bucketLen⟩) = s₃
+    at hbos hwf₃ ⊢
+  generalize
+    (Memory.spec 0).clientResult s₂ (buildOutScope ⟨args.x, part.bucketPtr, part.bucketLen⟩) =
+      outPair at hbos ⊢
+  obtain ⟨hbos_val, hbos_fr, hbos_pres, hbos_lo, hbos_len, hbos_holds, hbos_cost⟩ := hbos
+  have hout_succ_le_W : outPair.2 + 1 ≤ W := by
+    rw [hbos_len, length_bucketOutScope_add_one hb_ne fun f hf => by
+      simpa using (List.mem_filter.mp hf).2]
+    exact hj_le
+  have hpow_out_le : (max 1 args.dom) ^ outPair.2 ≤ (max 1 args.dom) ^ W :=
+    Nat.pow_le_pow_right (le_max_left 1 args.dom) (by omega)
+  have hpow_joint_le : (max 1 args.dom) ^ outPair.2 * args.dom ≤ (max 1 args.dom) ^ W :=
+    (Nat.mul_le_mul_left _ (le_max_right 1 args.dom)).trans
+      ((Nat.pow_succ _ _).symm.le.trans
+        (Nat.pow_le_pow_right (le_max_left 1 args.dom) hout_succ_le_W))
+  have hboe := buildOutEntries_spec (w := w)
+    (args := ⟨args.dom, args.x, outPair.1, outPair.2, part.bucketPtr, part.bucketLen⟩) hwf₃
+    (lt_of_lt_of_le hs0 (hfn_pres.2.1.trans (hpl_pres.2.1.trans hbos_pres.2.1)))
+    hbos_holds rfl hbos_len.symm (hpl_bH.mono_frontier hbos_pres) hpl_bLen.symm hb_SW
+    (hfit_fr.of_le (by dsimp only [stepMemDelta]; rw [hs2_fr] at hbos_fr; omega))
+    ((Nat.mul_le_mul_left _ (bucket_prod_le_stateCap args.x es)).trans hcapB) hB
+  dsimp only at hboe
+  have hwf₄ := wellFormed_clientState hwf₃ hboe.1
+  rw [validHistory_bind', StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind, memoryCost_bind']
+  generalize (Memory.spec 0).clientState s₃
+    (buildOutEntries ⟨args.dom, args.x, outPair.1, outPair.2, part.bucketPtr, part.bucketLen⟩) =
+      s₄ at hboe hwf₄ ⊢
+  generalize (Memory.spec 0).clientResult s₃
+    (buildOutEntries ⟨args.dom, args.x, outPair.1, outPair.2, part.bucketPtr, part.bucketLen⟩) =
+      entPair at hboe ⊢
+  obtain ⟨hboe_val, hboe_pres, hboe_fr, hboe_lo, hboe_len, hboe_holds, hboe_cost⟩ := hboe
+  let newTab := elimBucketTable args.dom args.x bucket
+  change entPair.2 = newTab.entries.size at hboe_len
+  change HoldsIn entPair.1 newTab.entries.toList s₄ at hboe_holds
+  have hs2_le_s3 : s₂.frontier ≤ s₃.frontier := hbos_pres.2.1
+  have hs3_le_s4 : s₃.frontier ≤ s₄.frontier := hboe_pres.2.1
+  have hout_s4 : HoldsIn outPair.1 newTab.scope s₄ := hbos_holds.mono_frontier hboe_pres
+  have hsc_eq_new : newTab.scope = bucketOutScope args.x bucket := rfl
+  have hfit_o1 : Fits w outPair.1 := hwf₄.frontier_fits.of_le (by have := hout_s4.1; omega)
+  have hfit_o2 : Fits w outPair.2 := hwf₄.frontier_fits.of_le (by
+    have hbd := hout_s4.1; rw [hsc_eq_new, ← hbos_len] at hbd; omega)
+  have hfit_e1 : Fits w entPair.1 := hwf₄.frontier_fits.of_le (by have := hboe_holds.1; omega)
+  have hfit_e2 : Fits w entPair.2 := hwf₄.frontier_fits.of_le (by
+    have hbd := hboe_holds.1; rw [Array.length_toList, ← hboe_len] at hbd; omega)
+  have hwd_val := writeDesc_valid (s := s₄)
+    ⟨part.newLiveBuf, outPair.1, outPair.2, entPair.1, entPair.2⟩ (by dsimp only; omega)
+    hfit_o1 hfit_o2 hfit_e1 hfit_e2
+  have hst5_def : (Memory.spec 0).clientState s₄
+      (writeDesc ⟨part.newLiveBuf, outPair.1, outPair.2, entPair.1, entPair.2⟩) =
+      ⟨Function.update (Function.update (Function.update
+        (Function.update s₄.mem part.newLiveBuf outPair.1) (part.newLiveBuf + 1) outPair.2)
+        (part.newLiveBuf + 2) entPair.1) (part.newLiveBuf + 3) entPair.2, s₄.frontier⟩ := rfl
+  obtain ⟨hs5_fr, hwd_out⟩ :=
+    writeDesc_frame ⟨part.newLiveBuf, outPair.1, outPair.2, entPair.1, entPair.2⟩ s₄
+  rw [validHistory_bind', StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind, memoryCost_bind', writeDesc_cost]
+  generalize (Memory.spec 0).clientState s₄
+    (writeDesc ⟨part.newLiveBuf, outPair.1, outPair.2, entPair.1, entPair.2⟩) = s₅
+    at hs5_fr hwd_out hst5_def ⊢
+  dsimp only at hwd_out
+  obtain ⟨hm0, hm1, hm2, hm3⟩ : s₅.mem part.newLiveBuf = outPair.1 ∧
+      s₅.mem (part.newLiveBuf + 1) = outPair.2 ∧ s₅.mem (part.newLiveBuf + 2) = entPair.1 ∧
+      s₅.mem (part.newLiveBuf + 3) = entPair.2 := by
+    rw [hst5_def]; simp
+  have hpres_25 : PreservesBelow s₁.frontier s₂ s₅ :=
+    ⟨hpl_pres.2.1, by omega, fun a ha => by
+      rw [hwd_out a (Or.inl (by omega)), hboe_pres.2.2 a (by omega)]
+      exact hbos_pres.2.2 a (by omega)⟩
+  have hpres_15 := hpl_pres.trans hpres_25
+  have hpres_all : PreservesBelow s.frontier s s₅ :=
+    hfn_pres.trans (hpres_15.mono_bound hfn_pres.2.1)
+  have hnew_f : HoldsFactor part.newLiveBuf newTab s₅ := by
+    unfold HoldsFactor
+    rw [hm0, hm1, hm2, hm3]
+    refine ⟨by omega, hbos_len, hboe_len,
+      ⟨by rw [hs5_fr]; exact hout_s4.1, hout_s4.2.frame fun a hlo _ => ?_⟩,
+      ⟨by rw [hs5_fr]; exact hboe_holds.1, hboe_holds.2.frame fun a hlo _ => ?_⟩⟩
+    · exact hwd_out a (Or.inr (by omega))
+    · exact hwd_out a (Or.inr (by omega))
+  have hrest_s5 : HoldsFactorList (part.newLiveBuf + 4) rest s₅ :=
+    hpl_rH.frame_outside hpl_rD hpres_25 fun a hlo hhi => by
+      have hr_le : rest.length ≤ args.liveLen := (List.length_filter_le _ _).trans hlive_len.ge
+      rw [hwd_out a (Or.inr hlo), hboe_pres.2.2 a (by omega)]
+      exact hbos_pres.2.2 a (by omega)
+  rw [StateTransitionSpec.clientResult_pure, StateTransitionSpec.clientState_pure,
+    memoryCost_pure, hes'_eq, hbk_eq]
+  refine ⟨⟨hms_val, hfn_val, hpl_val, hbos_val, hboe_val, hwd_val, validHistory_pure w _ _⟩,
+    hpres_all, by dsimp only [stepMemDelta]; omega,
+    ⟨lt_of_lt_of_le hs0 hpres_all.2.1, hsc_eq, ?_, hfn_len, ⟨hnew_f, hrest_s5⟩,
+      hfn_holds.mono_frontier hpres_15⟩, ?_⟩
+  · dsimp only
+    rw [hpl_rLen, List.length_cons, Nat.add_comm]
+  have hboe_c : memoryCost (buildOutEntries
+      ⟨args.dom, args.x, outPair.1, outPair.2, part.bucketPtr, part.bucketLen⟩) s₃ ≤
+        3 + W + 4 * (max 1 args.dom) ^ W +
+          bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) :=
+    calc _ ≤ 3 + outPair.2 + (max 1 args.dom) ^ outPair.2 *
+              (3 + args.dom * (1 + part.bucketLen * (5 + SW * (outPair.2 + 1)))) := hboe_cost
+      _ = 3 + outPair.2 + (max 1 args.dom) ^ outPair.2 * 3 +
+            ((max 1 args.dom) ^ outPair.2 * args.dom) * 1 +
+            bucket.length * (((max 1 args.dom) ^ outPair.2 * args.dom) *
+              (5 + SW * (outPair.2 + 1))) := by
+          rw [hpl_bLen]; ring
+      _ ≤ 3 + W + (max 1 args.dom) ^ W * 3 + (max 1 args.dom) ^ W * 1 +
+            bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) := by gcongr; omega
+      _ = _ := by ring
+  have hunit_split : part.bucketLen * (3 + 2 * SW + SW * (2 + W)) +
+      bucket.length * ((max 1 args.dom) ^ W * (5 + SW * W)) =
+      bucket.length * stepBucketUnitCost SW args.dom W := by
+    rw [hpl_bLen]; dsimp only [stepBucketUnitCost]; ring
+  dsimp only [stepFixedCost]
+  omega
 
 theorem elimVarProg_realizes :
     Realizes .exact elimVarProg WordEncoding.encode WordEncoding.encode
@@ -532,29 +427,19 @@ theorem elimVarProg_realizes :
     exact hfit_fr.of_le (by dsimp only [stepMemDelta]; omega)
   · rw [memScan_state]
     exact ⟨es.live, hlive_len.symm, hlive_h.mono_frontier hfn_pres⟩
-  · have hsc_le : d.scalar * d.dom ≤ B := by
-      have h1_live : 1 ≤ (es.live.map capFactor).prod :=
-        List.one_le_prod_of_one_le (by simp [one_le_capFactor])
-      have hsc_m : d.scalar * d.dom ≤ max 1 d.dom * max 1 es.scalar := by
-        rw [hsc_eq, Nat.mul_comm]
-        exact Nat.mul_le_mul (le_max_right 1 d.dom) (le_max_right 1 es.scalar)
-      calc d.scalar * d.dom ≤ max 1 d.dom * max 1 es.scalar := hsc_m
-        _ ≤ (max 1 d.dom * max 1 es.scalar) * (es.live.map capFactor).prod :=
-            Nat.le_mul_of_pos_right _ h1_live
-        _ = max 1 d.dom * stateCap es := by unfold stateCap; ring
-        _ ≤ B := hcapB
-    exact hB.of_le hsc_le
+  · refine hB.of_le (le_trans ?_ hcapB)
+    calc d.scalar * d.dom ≤ max 1 d.dom * max 1 es.scalar := by
+          rw [hsc_eq, Nat.mul_comm]
+          exact Nat.mul_le_mul (le_max_right 1 d.dom) (le_max_right 1 es.scalar)
+      _ ≤ (max 1 d.dom * max 1 es.scalar) * (es.live.map capFactor).prod :=
+          Nat.le_mul_of_pos_right _
+            (List.one_le_prod_of_one_le (l := es.live.map capFactor) (by simp [one_le_capFactor]))
+      _ = max 1 d.dom * stateCap es := by unfold stateCap; ring
   · exact h1
   · rw [memScan_state]
-    have hK_le : (bucket.flatMap FactorTable.scope).length ≤ M * SW := by
-      have hfl : (bucket.flatMap FactorTable.scope).length ≤ bucket.length * SW := by
-        rw [List.length_flatMap]
-        have hsum := List.sum_le_length_nsmul (bucket.map fun a => a.scope.length) SW
-          fun _ hn => by
-            rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
-            exact hb_SW f hf
-        simpa [smul_eq_mul] using hsum
-      exact hfl.trans (Nat.mul_le_mul_right SW ((List.length_filter_le _ _).trans hM))
+    have hK_le : (bucket.flatMap FactorTable.scope).length ≤ M * SW :=
+      (List.length_flatMap_le hb_SW).trans
+        (Nat.mul_le_mul_right SW ((List.length_filter_le _ _).trans hM))
     refine ⟨bucket, hpl_bLen.symm, hpl_bH, hfit_fr.of_le ?_⟩
     rw [hpl_fr, hfn_fr]
     dsimp only [stepMemDelta]
@@ -564,32 +449,17 @@ theorem elimVarProg_realizes :
     rw [← hbos_len] at hbd
     exact hbd
   · rw [memScan_state] at hc ⊢
-    have hms_res : (Memory.spec 0).clientResult s (memScan ⟨d.x, d.remPtr, d.remLen⟩) =
-        if d.x ∈ es.remaining then 1 else 0 := memScan_result hrem_h.2 hrem_len.symm
     have hx : d.x ∈ es.remaining := by
       by_contra hnx
-      have : (Memory.spec 0).clientResult s (memScan ⟨d.x, d.remPtr, d.remLen⟩) = 0 := by
-        rw [hms_res, ite_eq_right hnx]
-      exact absurd this ‹_›
-    have hbk_ne : bucket.isEmpty = false := by
-      cases hb_emp : bucket.isEmpty
-      · rfl
-      · exfalso
-        have hb0 : bucket = [] := List.isEmpty_iff.mp hb_emp
-        have hb0_len : bucket.length = 0 := by rw [hb0]; rfl
-        have hbz : part.bucketLen = 0 := hpl_bLen.trans hb0_len
-        exact absurd hbz hc
+      exact absurd ((memScan_result (args := ⟨d.x, d.remPtr, d.remLen⟩) hrem_h.2
+        hrem_len.symm).trans (ite_eq_right hnx)) ‹_›
+    have hbk_ne : bucket.isEmpty = false :=
+      Bool.eq_false_iff.mpr fun hb =>
+        hc (hpl_bLen.trans (List.length_eq_zero_iff.mpr (List.isEmpty_iff.mp hb)))
     have hj_le : (bucketJointScope bucket).length ≤ W := by
       simpa [stepStats, hx, hbk_ne, bucket] using hW
-    have hout_le_W : (bucketOutScope d.x bucket).length ≤ W :=
-      (List.length_filter_le _ _).trans hj_le
-    have hpow_le : (max 1 d.dom) ^ ((Memory.spec 0).clientResult
-        ((Memory.spec 0).clientState s₁ (partitionLive ⟨d.x, d.livePtr, d.liveLen⟩))
-        (buildOutScope ⟨d.x, part.bucketPtr, part.bucketLen⟩)).2 ≤ (max 1 d.dom) ^ W := by
-      dsimp only [part, s₁]
-      rw [hbos_len]
-      exact Nat.pow_le_pow_right (le_max_left 1 d.dom) hout_le_W
-    dsimp only [part, s₁] at hpow_le
+    have hpow_le := Nat.pow_le_pow_right (le_max_left 1 d.dom)
+      (hbos_len.trans_le ((List.length_filter_le _ _).trans hj_le))
     refine hfit_fr.of_le ?_
     have hbmul := Nat.mul_le_mul_right SW hb_le_M
     rw [hpl_fr, hfn_fr] at hbos_fr

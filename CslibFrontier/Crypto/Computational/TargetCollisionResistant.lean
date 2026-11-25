@@ -854,11 +854,11 @@ theorem exists_uowhfCandidateInput_collision
     have hLn_eq : L m₀ n = L m₁ n := by
       obtain ⟨w₀, hw₀, hw₀_len⟩ := htop_singleton hm₀_pow
       obtain ⟨w₁, hw₁, hw₁_len⟩ := htop_singleton hm₁_pow
-      have hpad_eq : w₀ = w₁ := by
-        dsimp only [L] at hw₀ hw₁
-        simpa only [hw₀, hw₁, List.headD_cons, padOrTake_eq_self hw₀_len,
-          padOrTake_eq_self hw₁_len] using hroot_eq
-      rw [hw₀, hw₁, hpad_eq]
+      rw [hw₀, hw₁]
+      refine congrArg (· :: []) ?_
+      dsimp only [L] at hw₀ hw₁
+      simpa only [hw₀, hw₁, List.headD_cons, padOrTake_eq_self hw₀_len,
+        padOrTake_eq_self hw₁_len] using hroot_eq
     obtain ⟨i, hi_lt, hLi_ne, hLi_succ⟩ := exists_step_eq_of_ne (L m₀) (L m₁) hL0_ne hLn_eq
     have hstep_i (m : List Bool) :
         L m (i + 1) = uowhfTreeStep h n κ M (BitString.listRow κ i K) (L m i) := by
@@ -897,16 +897,13 @@ theorem exists_uowhfCandidateInput_collision
       · exact hrefute hk heven
       · exact hrefute hk hodd
     · simp only [uowhfCandidateInput, hi_lt, ↓reduceIte]
-      have hgt1' : ¬ (L m₁ i).length ≤ 1 := hLi_len_eq ▸ hgt1
-      simp only [uowhfTreeStep, hgt1, hgt1', ↓reduceIte] at hLi_succ
+      simp only [uowhfTreeStep, hgt1, ↓reduceIte, ← hLi_len_eq] at hLi_succ
       have hr₀ : j < (List.range (((L m₀ i).length + 1) / 2)).length := by
         simpa only [List.length_range] using hj_half
-      have hr₁ : j < (List.range (((L m₁ i).length + 1) / 2)).length := by
-        simpa only [List.length_range, ← hLi_len_eq] using hj_half
       have hj_entry := congrArg (fun l => l[j]?) hLi_succ
-      simp only [List.getElem?_map, List.getElem?_eq_getElem hr₀,
-        List.getElem?_eq_getElem hr₁, List.getElem_range, Option.map_some,
-        Option.some.injEq, padOrTake_eq_self (BitString.length_listRow κ i K)] at hj_entry
+      simp only [List.getElem?_map, List.getElem?_eq_getElem hr₀, List.getElem_range,
+        Option.map_some, Option.some.injEq, padOrTake_eq_self (BitString.length_listRow κ i K)]
+        at hj_entry
       rwa [padOrTake_eq_self (hlen_h _ _ (BitString.length_listRow κ i K)
           (length_uowhfPairInput M (L m₀ i) j)),
         padOrTake_eq_self (hlen_h _ _ (BitString.length_listRow κ i K)
@@ -1108,9 +1105,8 @@ theorem succProbability_targetCollisionGame_uowhfTreeHash_le
       rw [uowhfCandidateInput_take_eq h hi_le K m₁]
   have hcover : ∀ t ∈ μ.support, W t = true → ∃ s : Fin (dyadicSize bound), Wi s t = true := by
     rintro ⟨choice, K, m₁⟩ ht hW
-    simp only [μ, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at ht
-    obtain ⟨choice', hchoice, K', hK, ⟨m₁', hm₁, htuple⟩⟩ := ht
-    injection htuple with h1 h23; injection h23 with h2 h3; subst h1 h2 h3
+    simp only [μ, PMF.mem_support_bind_iff, PMF.mem_support_map_iff, Prod.mk.injEq] at ht
+    obtain ⟨choice', hchoice, K', hK, m₁', hm₁, rfl, rfl, rfl⟩ := ht
     obtain ⟨_, _, hne, hcol⟩ := isCollision_eq_true_iff.mp hW
     obtain ⟨hm₀_B, hm₀_pow⟩ := hm₀_bound choice' hchoice
     obtain ⟨i, hi_le, j, hj_lt, hx_ne, hx_col⟩ :=

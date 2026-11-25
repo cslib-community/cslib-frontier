@@ -37,27 +37,19 @@ theorem canonical_of_combine_some (e : Q ≃ Fin s) (b : ℕ) (ports : PortMap k
       fun h δ => (providers h δ).getD empty)) else none) = some raw at hcombined
   split at hcombined
   next hguard =>
-    have hg : previous.isSome = true ∧ ∀ h δ, (providers h δ).isSome = true := by
+    obtain ⟨hprevSome, hprovSome⟩ :
+        previous.isSome = true ∧ ∀ h δ, (providers h δ).isSome = true := by
       simpa only [Bool.and_eq_true, decide_eq_true_eq] using hguard
-    have hp : Load.CanonicalWindows b (previous.getD empty) := by
-      cases hparse : previous with
-      | none => simp [hparse] at hg
-      | some value =>
-        simpa only [hparse, Option.getD_some] using
-          Load.canonical_of_checked_some e b previousWord value hparse
-    have hps (h : Fin k) (δ : Fin 3) :
-        Load.CanonicalWindows b ((providers h δ).getD empty) := by
-      cases hparse : providers h δ with
-      | none =>
-        have hsome := hg.2 h δ
-        simp [hparse] at hsome
-      | some value =>
-        simpa only [hparse, Option.getD_some] using
-          Load.canonical_of_checked_some e b (providerWords h δ) value hparse
-    have hraw := Option.some.inj hcombined
-    rw [← hraw]
-    exact Providers.canonical_combine b ports (previous.getD empty)
-      (fun h δ => (providers h δ).getD empty) hp hps
+    obtain ⟨prev, hprev⟩ := Option.isSome_iff_exists.mp hprevSome
+    choose prov hprov using fun h δ => Option.isSome_iff_exists.mp (hprovSome h δ)
+    rw [← Option.some.inj hcombined]
+    exact Providers.canonical_combine b ports _ _
+      (by
+        simpa only [hprev, Option.getD_some] using
+          Load.canonical_of_checked_some e b previousWord prev hprev)
+      fun h δ => by
+        simpa only [hprov h δ, Option.getD_some] using
+          Load.canonical_of_checked_some e b (providerWords h δ) (prov h δ) (hprov h δ)
   next => contradiction
 
 /-- Checked combination rejects precisely the failed previous/provider labels, even when the
@@ -70,24 +62,6 @@ theorem combine_eq_none_iff (e : Q ≃ Fin s) (b : ℕ) (ports : PortMap k)
   classical
   cases hprevious : Encoding.NativeChecked.parse (k := k) e (b, previousWord) with
   | none => simp [combine, hprevious]
-  | some previous =>
-    simp only [Option.some_ne_none, false_or]
-    constructor
-    · intro hcombined
-      by_contra hfailed
-      have hall : ∀ h δ,
-          (Encoding.NativeChecked.parse (k := k) e (b, providerWords h δ)).isSome = true := by
-        intro h δ
-        cases hparse : Encoding.NativeChecked.parse (k := k) e (b, providerWords h δ) with
-        | none => exact False.elim (hfailed ⟨h, δ, hparse⟩)
-        | some value => rfl
-      simp [combine, hprevious, hall] at hcombined
-    · rintro ⟨h, δ, hparse⟩
-      have hfailed : ¬∀ h δ,
-          (Encoding.NativeChecked.parse (k := k) e (b, providerWords h δ)).isSome = true := by
-        intro hall
-        have hsome := hall h δ
-        simp [hparse] at hsome
-      simp [combine, hprevious, hfailed]
+  | some previous => simp [combine, hprevious, Option.isSome_eq_false_iff]
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay.Providers.Labels

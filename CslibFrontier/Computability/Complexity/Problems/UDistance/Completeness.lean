@@ -86,14 +86,12 @@ theorem computableInLogSpace_pendant : ComputableInLogSpace pendant encSTCON enc
   · simp only [pendant, h, ↓reduceDIte]
     have hc' : (c : ℕ) < I.n + 1 := c.isLt
     by_cases hc : (c : ℕ) < I.n
-    · have hr : ¬(r : ℕ) < I.n := fun hr => h ⟨hr, hc⟩
-      have hrt : (r : ℕ) ≠ I.t := by omega
-      simp [hr, hrt]
+    · simp [show ¬(r : ℕ) < I.n from fun hr => h ⟨hr, hc⟩, show (r : ℕ) ≠ I.t by omega]
     · by_cases hr : (r : ℕ) = I.t <;> simp [hr, show (c : ℕ) = I.n by omega]
 
 /-- The undirected graph of an instance is computed in logarithmic space. -/
 theorem computableInLogSpace_undirected : ComputableInLogSpace undirected encSTCON encUSTCON := by
-  have h := computableInLogSpace_of_entryExprs (F := fun I => I.undirected.toSTCONInstance)
+  refine (computableInLogSpace_of_entryExprs (F := fun I => I.undirected.toSTCONInstance)
     (numV := reg 0) (src := reg 1) (tgt := reg 2)
     (guard₁ := add (sub (reg 3) (reg 4)) (sub (reg 4) (reg 3)))
     (pos₁ := add (add (add (add (reg 0) (reg 1)) (reg 2)) (const 3))
@@ -103,22 +101,21 @@ theorem computableInLogSpace_undirected : ComputableInLogSpace undirected encSTC
       (add (mul (reg 4) (reg 0)) (reg 3)))
     (test := const 0) 1
     (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
-    (fun I => by have := I.length_encode; simp only [undirected, pow_one]
-                 change I.n ≤ I.encode.length + 1; omega) fun I r c => ?_
-  · exact h.congr fun _ => rfl
-  · obtain ⟨r, hr⟩ := r
-    obtain ⟨c, hc⟩ := c
-    change r < I.n at hr
-    change c < I.n at hc
-    refine (I.undirected_adj ⟨r, hr⟩ ⟨c, hc⟩).trans ?_
-    simp only [entryOf, eval_add, eval_sub, eval_mul, eval_reg, eval_const,
-      List.getD_cons_zero, List.getD_cons_succ, lt_irrefl, decide_false, Bool.or_false]
-    rw [I.getElem?_encode_matrix hr hc, I.getElem?_encode_matrix hc hr]
-    by_cases hrc : r = c
-    · subst hrc
-      simp
-    · have hpos : 0 < r - c + (c - r) := by omega
-      simp [hpos, hrc]
+    (fun I => by
+      have := I.length_encode
+      simp only [undirected, pow_one]
+      change I.n ≤ I.encode.length + 1
+      omega) fun I ⟨r, hr⟩ ⟨c, hc⟩ => ?_).congr
+    fun _ => rfl
+  change r < I.n at hr
+  change c < I.n at hc
+  refine (I.undirected_adj ⟨r, hr⟩ ⟨c, hc⟩).trans ?_
+  simp only [entryOf, eval_add, eval_sub, eval_mul, eval_reg, eval_const, List.getD_cons_zero,
+    List.getD_cons_succ, lt_irrefl, decide_false, Bool.or_false]
+  rw [I.getElem?_encode_matrix hr hc, I.getElem?_encode_matrix hc hr]
+  rcases eq_or_ne r c with rfl | hrc
+  · simp
+  · simp [hrc, show 0 < r - c + (c - r) by omega]
 
 /-- Reads the unary header `1^n` of an encoded instance: `true` while in the header. -/
 private def headerT : Transducer Bool Bool where
@@ -150,10 +147,10 @@ theorem computableInLogSpace_distanceInstance :
     ComputableInLogSpace distanceInstance encSTCON encUDistance := by
   have hB : ComputableInLogSpace (fun J : STCONInstance => (⟨J, J.n⟩ : BoundedSTCONInstance))
       encSTCON encBoundedSTCON :=
-    (ComputableInLogSpace.pair ComputableInLogSpace.id computableInLogSpace_n).congr fun _ => rfl
-  have hU := computableInLogSpace_undirected.comp
-    (BoundedSTCONInstance.computableInLogSpace_layered.comp hB)
-  exact (ComputableInLogSpace.pair hU computableInLogSpace_n).congr fun _ => rfl
+    (ComputableInLogSpace.pair .id computableInLogSpace_n).congr fun _ => rfl
+  exact ((computableInLogSpace_undirected.comp
+    (BoundedSTCONInstance.computableInLogSpace_layered.comp hB)).pair
+    computableInLogSpace_n).congr fun _ => rfl
 
 end STCONInstance
 
@@ -209,15 +206,14 @@ namespace UDistanceEq
 
 /-- **Distance exactly `K` in undirected graphs is in `NL`**, by `NL = coNL`. -/
 theorem mem_NL : UDistanceEq ∈ NL encUDistance := by
-  have hle : {I : UDistanceInstance | I.toBoundedSTCON ∈ BoundedSTCON} ∈ NL encUDistance :=
-    LogSpaceReducible.mem_NL ⟨_, ComputableInLogSpace.of_eq
-      UDistanceInstance.encBoundedSTCON_toBoundedSTCON, fun _ => Iff.rfl⟩ BoundedSTCON.mem_NL
-  have hlt : {I : UDistanceInstance | I.strict ∈ BoundedSTCON} ∈ NL encUDistance :=
-    LogSpaceReducible.mem_NL ⟨_, UDistanceInstance.computableInLogSpace_strict, fun _ => Iff.rfl⟩
-      BoundedSTCON.mem_NL
-  convert inter_mem_NL hle (compl_mem_NL hlt) using 1
-  ext I
-  exact I.mem_UDistanceEq_iff
+  convert inter_mem_NL
+    (LogSpaceReducible.mem_NL (A := {I | I.toBoundedSTCON ∈ BoundedSTCON})
+      ⟨_, .of_eq UDistanceInstance.encBoundedSTCON_toBoundedSTCON, fun _ => Iff.rfl⟩
+      BoundedSTCON.mem_NL)
+    (compl_mem_NL (LogSpaceReducible.mem_NL (A := {I | I.strict ∈ BoundedSTCON})
+      ⟨_, UDistanceInstance.computableInLogSpace_strict, fun _ => Iff.rfl⟩ BoundedSTCON.mem_NL))
+    using 1
+  exact Set.ext fun I => I.mem_UDistanceEq_iff
 
 /-- Directed connectivity reduces to distance exactly `K` through the layered graph. -/
 theorem logSpaceReducible_STCON : LogSpaceReducible encSTCON encUDistance STCON UDistanceEq :=

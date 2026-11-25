@@ -89,21 +89,11 @@ vector. -/
     forestHighWord (forestLabelWord low high x) = BitVec.ofNat (n + 1) (high x).val := by
   simp only [forestHighWord, forestLabelWord, Fin.append_right, BitString.equivBitVec_getLsbD]
 
-private theorem forestLowWord_toNat (low high : BitString n → Fin (Nat.card (BitString n)))
-    (x : BitString n) :
-    (forestLowWord (forestLabelWord low high x)).toNat = (low x).val := by
-  have hlt : (low x).val < 2 ^ n := by
-    simpa [Nat.card_eq_fintype_card] using (low x).isLt
+private theorem ofNat_card_toNat (v : Fin (Nat.card (BitString n))) :
+    (BitVec.ofNat (n + 1) v.val).toNat = v.val := by
+  have hlt : v.val < 2 ^ n := by simpa [Nat.card_eq_fintype_card] using v.isLt
   have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
-  rw [forestLowWord_bits, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
-
-private theorem forestHighWord_toNat (low high : BitString n → Fin (Nat.card (BitString n)))
-    (x : BitString n) :
-    (forestHighWord (forestLabelWord low high x)).toNat = (high x).val := by
-  have hlt : (high x).val < 2 ^ n := by
-    simpa [Nat.card_eq_fintype_card] using (high x).isLt
-  have hpow : 2 ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
-  rw [forestHighWord_bits, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
 
 /-- Word-level interval containment on unpacked `(n + 1)`-bit words matches rank containment. -/
 theorem forest_label_interval (low high : BitString n → Fin (Nat.card (BitString n)))
@@ -115,7 +105,8 @@ theorem forest_label_interval (low high : BitString n → Fin (Nat.card (BitStri
       (low a ≤ low h ∧ low h ≤ high a) := by
   rw [Bool.and_eq_true, Bool.not_eq_true', Bool.not_eq_true', BitVec.ult, BitVec.ult,
     decide_eq_false_iff_not, decide_eq_false_iff_not, not_lt, not_lt,
-    forestLowWord_toNat, forestLowWord_toNat, forestHighWord_toNat]
+    forestLowWord_bits, forestLowWord_bits, forestHighWord_bits,
+    ofNat_card_toNat, ofNat_card_toNat, ofNat_card_toNat]
   rfl
 
 /-- An anchor record packs a marked state, its two interval words, and its `(n + 3)`-bit depth. -/
@@ -195,17 +186,9 @@ theorem synthesis_fixed_dictionary {a v M Q : ℕ} (s : Set (BooleanFunction a))
       Nat.clog_mono_right _ (by omega)
     set c := Nat.clog 2 (Q + M)
     set c' := Nat.clog 2 (M + Q + 1)
-    have hc1 : c + 1 ≤ c' + n + (1 + v) + 3 := by omega
-    have hnv : n + (v + 1) + 1 ≤ c' + n + (1 + v) + 3 := by omega
-    have hpow : (c + 1) ^ 2 * (n + (v + 1) + 1) ≤ (c' + n + (1 + v) + 3) ^ 3 := by
-      calc (c + 1) ^ 2 * (n + (v + 1) + 1)
-          ≤ (c' + n + (1 + v) + 3) ^ 2 * (c' + n + (1 + v) + 3) :=
-            Nat.mul_le_mul (Nat.pow_le_pow_left hc1 2) hnv
-        _ = (c' + n + (1 + v) + 3) ^ 3 := by ring
-    have hQM : 48 * (Q + M + 1) ≤ 256 * (M + Q + 1) := by omega
     calc 48 * (Q + M + 1) * (c + 1) ^ 2 * (n + (v + 1) + 1)
-        = (48 * (Q + M + 1)) * ((c + 1) ^ 2 * (n + (v + 1) + 1)) := by ring
-      _ ≤ (256 * (M + Q + 1)) * (c' + n + (1 + v) + 3) ^ 3 := Nat.mul_le_mul hQM hpow
+        ≤ 256 * (M + Q + 1) * (c' + n + (1 + v) + 3) ^ 2 * (c' + n + (1 + v) + 3) :=
+          Nat.mul_le_mul (Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left (by omega) 2)) (by omega)
       _ = 256 * (M + Q + 1) * (c' + n + (1 + v) + 3) ^ 3 := by ring
 
 /-- Combined checkpoint-mark and compressed-edge tables for a functional graph on `BitString n`. -/

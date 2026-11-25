@@ -117,19 +117,14 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
       rwa [hrs.reconstruct, List.length_take_of_le hiy] at hh
     have hrs' : RunEncoding (xs.take (y.regs idx + c)) (rs ++ [(xs[y.regs idx], c)]) := by
       refine ⟨?_, ?_, ?_⟩
-      · intro p hp
-        rcases List.mem_append.mp hp with hp | hp
-        · exact hrs.positive p hp
-        · exact (List.mem_singleton.mp hp) ▸ hcp
+      · exact fun p hp => (List.mem_append.mp hp).elim (hrs.positive p)
+          fun hp => (List.mem_singleton.mp hp) ▸ hcp
       · refine List.pairwise_append.mpr ⟨hrs.ordered, by simp, fun p hp q hq => ?_⟩
         rcases List.mem_singleton.mp hq with rfl
         exact hrlt p hp _ (List.drop_eq_getElem_cons hi ▸ List.mem_cons_self)
       · rw [expand_append, expand_singleton, hrs.reconstruct, htake]
-    suffices ∃ z, ExecWithin w body y z (8 * c + 19) ∧ I z ∧
-        (8 * c + 19) + 2 + 29 * (n - z.regs idx) ≤ 29 * (n - y.regs idx) by
-      obtain ⟨z, hz, hIz, hpot⟩ := this
-      exact ⟨z, 8 * c + 19, hz, hIz, hpot⟩
-    apply WP.exists_execWithin
+    rw [exists_comm]
+    refine ⟨8 * c + 19, WP.exists_execWithin ?_⟩
     unfold body flush
     wram_exec * [hym.get _ hi]
     wram_call (Count.exec (stop := y.regs idx + c) (k := xs[y.regs idx])) [hrun, hnext]

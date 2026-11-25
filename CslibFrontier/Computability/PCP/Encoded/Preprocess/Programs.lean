@@ -124,20 +124,15 @@ theorem preprocessRelation_eq_true [DecidableEq α] (g : Graph C)
     (v : Fin g.edges.length × Bool) (d : PreprocessLabel D) (a b : α) :
     g.preprocessRelation eval fallback ((v.1.val, v.2), d) a b = true ↔
       (g.regularPreprocess eval fallback family).rel (v, d) a b := by
-  rcases d with ((u | d) | d) | u
-  · rcases v with ⟨v, side⟩
-    cases side <;> simp [preprocessRelation, regularPreprocess, ConstraintGraph.degreeReduce,
+  rcases d with ((_ | _) | _) | _
+  · rcases v with ⟨v, _ | _⟩ <;>
+      simp [preprocessRelation, regularPreprocess, ConstraintGraph.degreeReduce,
+        RegularConstraintGraph.addLoops, RegularConstraintGraph.addTrivial,
+        RegularConstraintGraph.union, edgeAt, toGraph, Function.flip_def]
+  all_goals
+    simp [preprocessRelation, regularPreprocess, ConstraintGraph.degreeReduce,
       RegularConstraintGraph.addLoops, RegularConstraintGraph.addTrivial,
-      RegularConstraintGraph.union, edgeAt, toGraph, Function.flip_def]
-  · simp [preprocessRelation, regularPreprocess, ConstraintGraph.degreeReduce,
-      RegularConstraintGraph.addLoops, RegularConstraintGraph.addTrivial,
-      RegularConstraintGraph.union]
-  · simp [preprocessRelation, regularPreprocess, RegularConstraintGraph.addLoops,
-      RegularConstraintGraph.addTrivial, RegularConstraintGraph.union,
-      RegularConstraintGraph.unconstrained]
-  · simp [preprocessRelation, regularPreprocess, RegularConstraintGraph.addLoops,
-      RegularConstraintGraph.addTrivial, RegularConstraintGraph.union,
-      RegularConstraintGraph.unconstrained]
+      RegularConstraintGraph.union, RegularConstraintGraph.unconstrained]
 
 variable {enc : C ↪ List Bool} {labelEncoding : D ↪ List Bool}
   {dartEncoding : PreprocessLabel D ↪ List Bool}
@@ -158,9 +153,8 @@ private theorem polytime_preprocessRotation [Finite D] (fallback : C)
         p.1.preprocessRotation fallback rotate (p.2.1, d))
       (encPair (encoding enc) (encPair (encPair encUnary encBool) dartEncoding))
       (encPair (encPair encUnary encBool) dartEncoding) := by
-    rcases d with ((u | d) | d) | u
-    · simp only [preprocessRotation]
-      fun_prop
+    rcases d with ((_ | d) | d) | _
+    · simp only [preprocessRotation]; fun_prop
     · have hcloud : ComputableInPolyTime
           (fun p : Graph C × ((ℕ × Bool) × PreprocessLabel D) =>
             p.1.cloudRotation fallback rotate (p.2.1, d))
@@ -168,22 +162,18 @@ private theorem polytime_preprocessRotation [Finite D] (fallback : C)
           (encPair (encPair encUnary encBool) labelEncoding) :=
         isPolyTime_cloudRotation (.fst _ _)
           (((ComputableInPolyTime.snd _ _).fst').prod (.const d)) hrotate fallback
-      have hlabel : ComputableInPolyTime
-          (fun d : D => (Sum.inl (Sum.inl (Sum.inr d)) : PreprocessLabel D))
-          labelEncoding dartEncoding := .of_finite _
-      exact hcloud.fst'.prod (hlabel.comp hcloud.snd')
+      exact hcloud.fst'.prod
+        ((ComputableInPolyTime.of_finite (encIn := labelEncoding) (encOut := dartEncoding)
+          fun d : D => Sum.inl (Sum.inl (Sum.inr d))).comp hcloud.snd')
     · have hnext : ComputableInPolyTime
           (fun p : Graph C × ((ℕ × Bool) × PreprocessLabel D) =>
             rotate (2 * p.1.edges.length, halfEdgeNumber p.2.1, d))
           (encPair (encoding enc) (encPair (encPair encUnary encBool) dartEncoding))
-          (encPair encUnary labelEncoding) := by
-        fun_prop
-      have hlabel : ComputableInPolyTime
-          (fun d : D => (Sum.inl (Sum.inr d) : PreprocessLabel D))
-          labelEncoding dartEncoding := .of_finite _
-      exact (isPolyTime_halfEdgeOfNumber.comp hnext.fst').prod (hlabel.comp hnext.snd')
-    · simp only [preprocessRotation]
-      fun_prop
+          (encPair encUnary labelEncoding) := by fun_prop
+      exact (isPolyTime_halfEdgeOfNumber.comp hnext.fst').prod
+        ((ComputableInPolyTime.of_finite (encIn := labelEncoding) (encOut := dartEncoding)
+          fun d : D => Sum.inl (Sum.inr d)).comp hnext.snd')
+    · simp only [preprocessRotation]; fun_prop
   exact ((ComputableInPolyTime.snd _ _).snd').finite_cases hbranch
 
 /-- Constraint evaluation charges the original descriptor and both endpoint labels. -/
@@ -203,7 +193,7 @@ private theorem polytime_preprocessRelation [Finite D] [DecidableEq α]
       (encPair (encoding enc)
         (encPair (encPair (encPair encUnary encBool) dartEncoding) (encPair alphabet alphabet)))
       encBool := by
-    rcases d with ((u | d) | d) | u <;> simp only [preprocessRelation] <;> fun_prop
+    rcases d with ((_ | _) | _) | _ <;> simp only [preprocessRelation] <;> fun_prop
   exact ((ComputableInPolyTime.snd _ _).fst'.snd').finite_cases hbranch
 
 /-- Computed graph and dart arguments determine their encodings before composition. -/
@@ -219,10 +209,9 @@ theorem isPolyTime_preprocessRotation [Finite D] {Input : Type} {input : Input �
     (fallback : C) : ComputableInPolyTime
       (fun x => (graph x).preprocessRotation fallback rotate (dart x))
       input (encPair (encPair encUnary encBool) dartEncoding) := by
-  have hf := polytime_preprocessRotation (enc := enc) (dartEncoding := dartEncoding)
-    fallback rotate hrotate
-  have hg := hgraph.prod hdart
-  simpa only [Function.comp_def] using hf.comp hg
+  simpa only [Function.comp_def] using
+    (polytime_preprocessRotation (enc := enc) (dartEncoding := dartEncoding)
+      fallback rotate hrotate).comp (hgraph.prod hdart)
 
 /-- Computed constraints and labels use the same evaluator under any fixed label encoding. -/
 @[fun_prop]

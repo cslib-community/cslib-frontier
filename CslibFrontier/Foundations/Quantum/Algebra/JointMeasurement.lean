@@ -99,8 +99,7 @@ omit [DecidableEq ι] in
 theorem jointProd_eq_noncommProd :
     jointProd O hO = (Finset.univ : Finset ι).noncommProd O fun i _ j _ _ => hO i j := by
   have := isMulCommutative_jointAlg O hO
-  unfold jointProd
-  rw [← Finset.noncommProd_eq_prod]
+  rw [jointProd, ← Finset.noncommProd_eq_prod]
   exact Finset.map_noncommProd _ _ _ (jointAlg O).val
 
 omit [DecidableEq ι] in
@@ -108,22 +107,20 @@ omit [DecidableEq ι] in
 theorem map_jointProd {B F : Type*} [Ring B] [Algebra ℂ B] [FunLike F A B]
     [AlgHomClass F ℂ A B] (f : F) :
     f (jointProd O hO) = jointProd (fun i => f (O i)) fun i j => (hO i j).map f := by
-  rw [jointProd_eq_noncommProd, jointProd_eq_noncommProd]
-  exact Finset.map_noncommProd _ _ _ f
+  simpa only [jointProd_eq_noncommProd] using Finset.map_noncommProd _ _ _ f
 
 omit [DecidableEq ι] in
-theorem jointProj_mem_jointAlg (a : ι → Bool) : jointProj O hO a ∈ jointAlg O := by
-  unfold jointProj
-  exact SetLike.coe_mem _
+theorem jointProj_mem_jointAlg (a : ι → Bool) : jointProj O hO a ∈ jointAlg O :=
+  SetLike.coe_mem _
 
 /-- The joint projections sum to `1`. -/
 theorem sum_jointProj : ∑ a, jointProj O hO a = 1 := by
   have := isMulCommutative_jointAlg O hO
-  have h₁ : ∀ j, ∑ b, jointSignProj O j b = 1 := fun j =>
-    Subtype.ext (by simpa [jointSignProj] using sum_signProj (O j))
   unfold jointProj
   rw [← map_sum, ← Fintype.prod_sum (fun j b => jointSignProj O j b)]
-  simp only [h₁, Finset.prod_const_one, map_one]
+  simp only [show ∀ j, ∑ b, jointSignProj O j b = 1 from fun j =>
+    Subtype.ext (by simpa [jointSignProj] using sum_signProj (O j)), Finset.prod_const_one,
+    map_one]
 
 omit [DecidableEq ι] in
 /-- Each joint projection factors through every projection `P_{a_j}(O_j)`, on either side. -/
@@ -132,13 +129,9 @@ theorem exists_jointProj_eq_mul (a : ι → Bool) (j : ι) :
       jointProj O hO a = signProj (O j) (a j) * M := by
   classical
   have := isMulCommutative_jointAlg O hO
-  refine ⟨(jointAlg O).val (∏ k ∈ univ.erase j, jointSignProj O k (a k)), ?_, ?_⟩
-  · unfold jointProj
-    rw [← Finset.prod_erase_mul _ _ (mem_univ j), map_mul]
-    rfl
-  · unfold jointProj
-    rw [← Finset.mul_prod_erase _ _ (mem_univ j), map_mul]
-    rfl
+  exact ⟨(jointAlg O).val (∏ k ∈ univ.erase j, jointSignProj O k (a k)),
+    by rw [jointProj, ← Finset.prod_erase_mul _ _ (mem_univ j), map_mul]; rfl,
+    by rw [jointProj, ← Finset.mul_prod_erase _ _ (mem_univ j), map_mul]; rfl⟩
 
 section Involution
 
@@ -158,15 +151,14 @@ theorem jointProd_mul_jointProj (a : ι → Bool) :
     jointProd O hO * jointProj O hO a = (∏ j, (signVal (a j) : ℂ)) • jointProj O hO a := by
   classical
   have := isMulCommutative_jointAlg O hO
-  have key : ∀ s : Finset ι, (jointAlg O).val (∏ j ∈ s, (⟨O j, mem_jointAlg O j⟩ : jointAlg O)) *
-      jointProj O hO a = (∏ j ∈ s, (signVal (a j) : ℂ)) • jointProj O hO a := by
-    intro s
-    induction s using Finset.induction_on with
-    | empty => simp
-    | insert j s hj ih =>
-      rw [Finset.prod_insert hj, Finset.prod_insert hj, map_mul, mul_assoc, ih, mul_smul_comm,
-        Subalgebra.coe_val, Subtype.coe_mk, mul_jointProj O hO hO', smul_smul, mul_comm]
-  exact key univ
+  suffices ∀ s : Finset ι, (jointAlg O).val (∏ j ∈ s, (⟨O j, mem_jointAlg O j⟩ : jointAlg O)) *
+      jointProj O hO a = (∏ j ∈ s, (signVal (a j) : ℂ)) • jointProj O hO a from this univ
+  intro s
+  induction s using Finset.induction_on with
+  | empty => simp
+  | insert j s hj ih =>
+    rw [Finset.prod_insert hj, Finset.prod_insert hj, map_mul, mul_assoc, ih, mul_smul_comm,
+      Subalgebra.coe_val, Subtype.coe_mk, mul_jointProj O hO hO', smul_smul, mul_comm]
 
 omit [DecidableEq ι] in
 /-- **Outcomes contradicting the product vanish**: if `∏_j O_j = c · 1` and the signs of `a`
@@ -175,8 +167,8 @@ theorem jointProj_eq_zero {c : ℂ} (hprod : jointProd O hO = c • 1) {a : ι �
     (ha : c ≠ ∏ j, (signVal (a j) : ℂ)) : jointProj O hO a = 0 := by
   have h := jointProd_mul_jointProj O hO hO' a
   rw [hprod, smul_mul_assoc, one_mul] at h
-  have hz : (c - ∏ j, (signVal (a j) : ℂ)) • jointProj O hO a = 0 := by rw [sub_smul, h, sub_self]
-  rw [← one_smul ℂ (jointProj O hO a), ← inv_mul_cancel₀ (sub_ne_zero.mpr ha), mul_smul, hz,
+  rw [← one_smul ℂ (jointProj O hO a), ← inv_mul_cancel₀ (sub_ne_zero.mpr ha), mul_smul,
+    show (c - ∏ j, (signVal (a j) : ℂ)) • jointProj O hO a = 0 by rw [sub_smul, h, sub_self],
     smul_zero]
 
 omit [DecidableEq ι] in
@@ -184,11 +176,9 @@ omit [DecidableEq ι] in
 theorem jointProj_mul_self (a : ι → Bool) :
     jointProj O hO a * jointProj O hO a = jointProj O hO a := by
   have := isMulCommutative_jointAlg O hO
-  have hp : ∀ j, jointSignProj O j (a j) * jointSignProj O j (a j) = jointSignProj O j (a j) :=
-    fun j => Subtype.ext (signProj_mul_self (hO' j) (a j))
-  unfold jointProj
-  rw [← map_mul, ← Finset.prod_mul_distrib]
-  simp only [hp]
+  rw [jointProj, ← map_mul, ← Finset.prod_mul_distrib]
+  simp only [show ∀ j, jointSignProj O j (a j) * jointSignProj O j (a j) = jointSignProj O j (a j)
+    from fun j => Subtype.ext (signProj_mul_self (hO' j) (a j))]
 
 omit [DecidableEq ι] in
 /-- Joint projections of different outcomes are orthogonal. -/
@@ -205,9 +195,7 @@ end Ring
 theorem jointProd_eq_prod {ι A : Type*} [Fintype ι] [CommRing A] [Algebra ℂ A] (O : ι → A)
     (hO : ∀ i j, Commute (O i) (O j)) : jointProd O hO = ∏ j, O j := by
   have := isMulCommutative_jointAlg O hO
-  unfold jointProd
-  rw [map_prod]
-  rfl
+  rw [jointProd, map_prod]; rfl
 
 section Order
 
@@ -220,17 +208,15 @@ theorem isSelfAdjoint_jointProj (hsa : ∀ j, IsSelfAdjoint (O j)) (a : ι → B
     IsSelfAdjoint (jointProj O hO a) := by
   classical
   have := isMulCommutative_jointAlg O hO
-  have key : ∀ s : Finset ι,
-      IsSelfAdjoint ((jointAlg O).val (∏ j ∈ s, jointSignProj O j (a j))) := by
-    intro s
-    induction s using Finset.induction_on with
-    | empty => simp
-    | insert j s hj ih =>
-      rw [Finset.prod_insert hj, map_mul]
-      refine isSelfAdjoint_iff.mpr ?_
-      rw [star_mul, ih.star_eq, val_jointSignProj, (isSelfAdjoint_signProj (hsa j) (a j)).star_eq,
-        ← val_jointSignProj, ← map_mul, mul_comm, map_mul]
-  exact key univ
+  suffices ∀ s : Finset ι,
+      IsSelfAdjoint ((jointAlg O).val (∏ j ∈ s, jointSignProj O j (a j))) from this univ
+  intro s
+  induction s using Finset.induction_on with
+  | empty => simp
+  | insert j s hj ih =>
+    rw [Finset.prod_insert hj, map_mul, isSelfAdjoint_iff, star_mul, ih.star_eq,
+      val_jointSignProj, (isSelfAdjoint_signProj (hsa j) (a j)).star_eq,
+      ← val_jointSignProj, ← map_mul, mul_comm, map_mul]
 
 /-- The **joint measurement** of pairwise commuting `±1` observables: the outcome `a : ι → Bool`
 has the effect `∏_j P_{a_j}(O_j)`. -/

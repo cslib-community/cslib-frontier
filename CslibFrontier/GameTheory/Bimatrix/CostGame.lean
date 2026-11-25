@@ -131,9 +131,7 @@ theorem deviationCost_toCostGame_row (G : BimatrixGame M N) {x : M → ℝ} (y :
     G.toCostGame.deviationCost (profile x y) false (ULift.up i) = -(G.A *ᵥ y) i := by
   have hp : ∀ b, b ≠ true → ∑ a, profile x y b a = 1 := by
     rintro (_ | _) hb
-    · rw [sum_pureStrategy_false]
-      exact hx
-    · exact absurd rfl hb
+    exacts [by rwa [sum_pureStrategy_false], absurd rfl hb]
   rw [CostGame.deviationCost_def]
   calc ∑ s, productWeight (profile x y) s * G.toCostGame.cost false (update s false (ULift.up i))
       = ∑ s, productWeight (profile x y) s *
@@ -152,9 +150,7 @@ theorem deviationCost_toCostGame_column (G : BimatrixGame M N) (x : M → ℝ) {
     G.toCostGame.deviationCost (profile x y) true (ULift.up j) = -(x ᵥ* G.B) j := by
   have hp : ∀ b, b ≠ false → ∑ a, profile x y b a = 1 := by
     rintro (_ | _) hb
-    · exact absurd rfl hb
-    · rw [sum_pureStrategy_true]
-      exact hy
+    exacts [absurd rfl hb, by rwa [sum_pureStrategy_true]]
   rw [CostGame.deviationCost_def]
   calc ∑ s, productWeight (profile x y) s * G.toCostGame.cost true (update s true (ULift.up j))
       = ∑ s, productWeight (profile x y) s *
@@ -169,16 +165,16 @@ theorem deviationCost_toCostGame_column (G : BimatrixGame M N) (x : M → ℝ) {
 /-- The row player's expected cost under `profile x y` is its negated payoff. -/
 theorem expectedCost_toCostGame_false (G : BimatrixGame M N) {x : M → ℝ} (y : N → ℝ)
     (hx : ∑ i, x i = 1) : G.toCostGame.expectedCost (profile x y) false = -G.payoff₁ x y := by
-  have hx' : ∑ a, profile x y false a = 1 := by rw [sum_pureStrategy_false]; exact hx
-  rw [← G.toCostGame.sum_mul_deviationCost_eq_expectedCost _ hx', sum_pureStrategy_false]
+  rw [← G.toCostGame.sum_mul_deviationCost_eq_expectedCost _ (by rwa [sum_pureStrategy_false]),
+    sum_pureStrategy_false]
   simp only [profile_false, deviationCost_toCostGame_row G y hx, payoff₁_eq_dotProduct,
     dotProduct, mul_neg, sum_neg_distrib]
 
 /-- The column player's expected cost under `profile x y` is its negated payoff. -/
 theorem expectedCost_toCostGame_true (G : BimatrixGame M N) (x : M → ℝ) {y : N → ℝ}
     (hy : ∑ j, y j = 1) : G.toCostGame.expectedCost (profile x y) true = -G.payoff₂ x y := by
-  have hy' : ∑ a, profile x y true a = 1 := by rw [sum_pureStrategy_true]; exact hy
-  rw [← G.toCostGame.sum_mul_deviationCost_eq_expectedCost _ hy', sum_pureStrategy_true]
+  rw [← G.toCostGame.sum_mul_deviationCost_eq_expectedCost _ (by rwa [sum_pureStrategy_true]),
+    sum_pureStrategy_true]
   simp only [profile_true, deviationCost_toCostGame_column G x hy, payoff₂_eq_dotProduct,
     dotProduct, mul_neg, sum_neg_distrib]
 
@@ -186,35 +182,34 @@ theorem expectedCost_toCostGame_true (G : BimatrixGame M N) (x : M → ℝ) {y :
 equilibrium of `G` exactly when `profile x y` is a mixed Nash equilibrium of `G.toCostGame`. -/
 theorem isNash_iff_isMixedNash {G : BimatrixGame M N} {x : M → ℝ} {y : N → ℝ} :
     G.IsNash x y ↔ G.toCostGame.IsMixedNash (profile x y) := by
-  constructor
-  · intro h
-    obtain ⟨h₁, h₂⟩ := isNash_iff.1 h
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · obtain ⟨h₁, h₂⟩ := isNash_iff.1 h
     have hx := h₁.isMixedStrategy
     have hy := h₂.isMixedStrategy
-    refine ⟨fun b => ?_, fun b a => ?_⟩
-    · cases b
-      exacts [isMixedStrategy_profile_false_iff.2 hx, isMixedStrategy_profile_true_iff.2 hy]
-    · cases b
-      · obtain ⟨i⟩ := a
-        rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
-          deviationCost_toCostGame_row G y hx.sum_eq_one i]
-        exact neg_le_neg (h₁.le_payoff₁ i)
-      · obtain ⟨j⟩ := a
-        rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
-          deviationCost_toCostGame_column G x hy.sum_eq_one j]
-        exact neg_le_neg (h₂.le_payoff₂ j)
-  · intro h
-    have hx := isMixedStrategy_profile_false_iff.1 (h.1 false)
+    refine ⟨fun b => by
+      cases b
+      exacts [isMixedStrategy_profile_false_iff.2 hx, isMixedStrategy_profile_true_iff.2 hy],
+      fun b a => ?_⟩
+    cases b
+    · obtain ⟨i⟩ := a
+      rw [expectedCost_toCostGame_false G y hx.sum_eq_one,
+        deviationCost_toCostGame_row G y hx.sum_eq_one i]
+      exact neg_le_neg (h₁.le_payoff₁ i)
+    · obtain ⟨j⟩ := a
+      rw [expectedCost_toCostGame_true G x hy.sum_eq_one,
+        deviationCost_toCostGame_column G x hy.sum_eq_one j]
+      exact neg_le_neg (h₂.le_payoff₂ j)
+  · have hx := isMixedStrategy_profile_false_iff.1 (h.1 false)
     have hy := isMixedStrategy_profile_true_iff.1 (h.1 true)
     refine isNash_iff.2 ⟨isBestResponse₁_iff.2 ⟨hx, fun i hi => isPureBestResponse₁_iff.2
       fun i' => ?_⟩, isBestResponse₂_iff.2 ⟨hy, fun j hj => isPureBestResponse₂_iff.2
       fun j' => ?_⟩⟩
-    · have hle := h.2 false (ULift.up i')
-      rw [← h.deviationCost_eq_of_pos false (a := ULift.up i) hi] at hle
+    · have hle := (h.deviationCost_eq_of_pos false (a := ULift.up i) hi).trans_le
+        (h.2 false (ULift.up i'))
       simp only [deviationCost_toCostGame_row G y hx.sum_eq_one] at hle
       linarith
-    · have hle := h.2 true (ULift.up j')
-      rw [← h.deviationCost_eq_of_pos true (a := ULift.up j) hj] at hle
+    · have hle := (h.deviationCost_eq_of_pos true (a := ULift.up j) hj).trans_le
+        (h.2 true (ULift.up j'))
       simp only [deviationCost_toCostGame_column G x hy.sum_eq_one] at hle
       linarith
 

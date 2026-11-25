@@ -186,6 +186,14 @@ private theorem strictRank_lt_iff {α β : Type*} [Fintype α] [Fintype β]
       rw [← h] at hx
       exact lt_irrefl (g x) (Finset.mem_filter.mp hx).2
 
+/-- Strict ranks of `Sum.elim φ (-ψ)` compare across the two sides as the halfspace `φ a + ψ b < 0`.
+-/
+private theorem strictRank_inl_lt_inr_iff {α β : Type*} [Fintype α] [Fintype β]
+    (φ : α → ℝ) (ψ : β → ℝ) (a : α) (b : β) :
+    strictRank (Sum.elim φ (-ψ)) (.inl a) < strictRank (Sum.elim φ (-ψ)) (.inr b) ↔
+      φ a + ψ b < 0 :=
+  (strictRank_lt_iff _ _ _).trans lt_neg_iff_add_neg
+
 /-- **Number of `t`-halfspace combinations on `α × β`.** Over finite types `α` and `β` with
 `m = |α| + |β|`, at most `2 ^ (2 ^ t) * m ^ (t * m)` functions `α → β → Bool` belong to
 `IsHalfspaceComb t`, independent of the real weights. -/
@@ -208,12 +216,7 @@ theorem card_isHalfspaceComb_le (t : ℕ) (α β : Type*) [Fintype α] [Fintype 
     dsimp only [decode]
     rw [h a b]
     congr 1 with r
-    have hlt : strictRank (Sum.elim (φ r) (-ψ r)) (.inl a) <
-        strictRank (Sum.elim (φ r) (-ψ r)) (.inr b) ↔ φ r a + ψ r b < 0 := by
-      rw [strictRank_lt_iff]
-      simp only [Sum.elim_inl, Sum.elim_inr, Pi.neg_apply]
-      constructor <;> intro h' <;> linarith
-    simp only [hlt]
+    exact decide_eq_decide.mpr (strictRank_inl_lt_inr_iff _ _ _ _)
   calc (Finset.univ.filter fun f : α → β → Bool => IsHalfspaceComb t f).card
       ≤ (Finset.univ.image decode).card := Finset.card_le_card hsub
     _ ≤ (Finset.univ : Finset (((Fin t → Bool) → Bool) × (Fin t → α ⊕ β → Fin m))).card :=
@@ -290,6 +293,13 @@ private theorem HalfspaceCombBias.nonneg {t : ℕ} {ι U : Type*} [Finite ι] [F
       Nat.mul_pos (lt_of_lt_of_le hKpos hA) (lt_of_lt_of_le hKpos hB)
     exact_mod_cast this
   nlinarith [abs_nonneg (signedCount {x | x ∈ S ↔ false = true} (rectangle X univ univ))]
+
+/-- A signed count on `R` depends only on the counted set's trace on `R`. -/
+private theorem signedCount_congr {ι U : Type*} {D D' R : Set (ι → U)}
+    (h : ∀ x ∈ R, x ∈ D ↔ x ∈ D') : signedCount D R = signedCount D' R := by
+  have h₁ : R ∩ D = R ∩ D' := Set.ext fun x => and_congr_right (h x)
+  have h₂ : R \ D = R \ D' := Set.ext fun x => and_congr_right fun hx => not_congr (h x hx)
+  rw [signedCount, signedCount, h₁, h₂]
 
 section Witness
 
@@ -371,13 +381,9 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
   set n := Fintype.card ι
   set N := Fintype.card (ι → Bool)
   have hN : N = 2 ^ n := by simp [N, n]
-  have hKpos : 0 < K := by
-    by_contra! h0
-    have hK0 : K = 0 := Nat.le_zero.mp h0
-    rw [hK0, Nat.cast_zero, mul_zero] at hKt
-    have : (2 : ℝ) ≤ ((2 ^ t + 3 * n + 2 : ℕ) : ℝ) := by
-      exact_mod_cast Nat.le_add_left 2 (2 ^ t + 3 * n)
-    linarith
+  have hKpos : 0 < K :=
+    (Nat.cast_pos (α := ℝ)).mp
+      (by linarith [show (0 : ℝ) < ((2 ^ t + 3 * n + 2 : ℕ) : ℝ) by positivity])
   let WType (k₁ k₂ : ℕ) :=
     Set ι × (Fin k₁ → ι → Bool) × (Fin k₂ → ι → Bool) ×
       ((Fin t → Bool) → Bool) × (Fin t → Fin k₁ ⊕ Fin k₂ → Fin (k₁ + k₂))
@@ -405,9 +411,7 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
         intro f hf
         simp only [E, Finset.mem_filter, Finset.mem_univ, true_and] at hf ⊢
         have heq : {z : ι → Bool | (f z = true) ↔ (patOf k₁ k₂ w z = true)} =
-            {z | f z = patOf k₁ k₂ w z} := by
-          ext z
-          cases f z <;> cases patOf k₁ k₂ w z <;> simp
+            {z | f z = patOf k₁ k₂ w z} := Set.ext fun _ => Bool.coe_iff_coe
         exact heq ▸ hf.2
       exact (Nat.cast_le.mpr (Finset.card_le_card hsub)).trans
         (card_filter_lt_abs_signedCount_agree_le (rectOf k₁ k₂ w) (patOf k₁ k₂ w) hb.le)
@@ -454,9 +458,9 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
     have hk₁N : k₁ ≤ N := (Nat.le_mul_of_pos_right _ (by omega)).trans hRN
     have hk₂N : k₂ ≤ N := (Nat.le_mul_of_pos_left _ (by omega)).trans hRN
     let rk : Fin t → Fin k₁ ⊕ Fin k₂ → Fin (k₁ + k₂) := fun r =>
-      Sum.rec (fun i => (strictRank (Sum.elim (fun i' => φ r (a i')) (fun j' => -ψ r (c j')))
+      Sum.rec (fun i => (strictRank (Sum.elim (fun i' => φ r (a i')) (-fun j' => ψ r (c j')))
         (.inl i)).cast (by simp [Fintype.card_fin]))
-        (fun j => (strictRank (Sum.elim (fun i' => φ r (a i')) (fun j' => -ψ r (c j')))
+        (fun j => (strictRank (Sum.elim (fun i' => φ r (a i')) (-fun j' => ψ r (c j')))
         (.inr j)).cast (by simp [Fintype.card_fin]))
     let w : WType k₁ k₂ := (X, x, y, G, rk)
     have hw_rect : rectOf k₁ k₂ w = rectangle X A B := by
@@ -484,26 +488,11 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
       rw [hi_eq, hj_eq, ← hi, ← hj, hG (a i) (c j)]
       congr 1 with r
       dsimp only [rk]
-      have hlt : strictRank (Sum.elim (fun i' => φ r (a i')) (fun j' => -ψ r (c j'))) (.inl i) <
-          strictRank (Sum.elim (fun i' => φ r (a i')) (fun j' => -ψ r (c j'))) (.inr j) ↔
-          φ r (a i) + ψ r (c j) < 0 := by
-        rw [strictRank_lt_iff]
-        simp only [Sum.elim_inl, Sum.elim_inr]
-        constructor <;> intro h' <;> linarith
-      exact decide_eq_decide.mpr
-        (by rw [Fin.lt_def, Fin.val_cast, Fin.val_cast, ← Fin.lt_def, hlt])
-    have hsc_congr : signedCount {z | (f z = true) ↔ (patOf k₁ k₂ w z = true)} (rectangle X A B) =
-        signedCount {z | f z = true ↔ hcomb (X.domRestrict z) (Xᶜ.domRestrict z) = true}
-          (rectangle X A B) := by
-      simp only [signedCount]
-      congr 2
-      · refine congrArg Set.ncard (Set.ext fun z => ?_)
-        simp only [mem_inter_iff, mem_ofPred_eq]
-        exact and_congr_right fun hz => by rw [hpat_eq z hz]
-      · refine congrArg Set.ncard (Set.ext fun z => ?_)
-        simp only [Set.mem_sdiff, mem_ofPred_eq]
-        exact and_congr_right fun hz => not_congr (by rw [hpat_eq z hz])
-    rwa [hsc_congr, ← hrect_ncard]
+      exact decide_eq_decide.mpr (by
+        rw [Fin.lt_def, Fin.val_cast, Fin.val_cast, ← Fin.lt_def, strictRank_inl_lt_inr_iff])
+    rw [← hrect_ncard]
+    exact hbias.trans_eq (congrArg abs (signedCount_congr fun z hz => by
+      simp only [mem_ofPred_eq, hpat_eq z hz]))
   have hterm (k₁ k₂ : ℕ) (hk₁ : K ≤ k₁) (hk₂ : K ≤ k₂) (hk₁N : k₁ ≤ N) (hk₂N : k₂ ≤ N) :
       ∑ w : WType k₁ k₂, (#(E k₁ k₂ w) : ℝ) ≤
         2 ^ (2 ^ t + n + 1) * 2 ^ N * exp (-(2 * K)) := by
@@ -518,16 +507,10 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
           2 ^ (2 ^ t + n) * 2 ^ ((t + 1) * (n + 1) * (k₁ + k₂)) := by
         simp only [WType, Fintype.card_prod, Fintype.card_set, Fintype.card_fun, Fintype.card_bool,
           Fintype.card_fin, Fintype.card_sum]
-        have hpow_rk : ((k₁ + k₂) ^ (k₁ + k₂)) ^ t ≤ ((2 ^ (n + 1)) ^ (k₁ + k₂)) ^ t :=
-          Nat.pow_le_pow_left (Nat.pow_le_pow_left hsum_le _) _
-        have hpow_n1 : (2 ^ n) ^ k₁ ≤ (2 ^ (n + 1)) ^ k₁ :=
-          Nat.pow_le_pow_left (Nat.pow_le_pow_right two_pos (Nat.le_succ n)) _
-        have hpow_n2 : (2 ^ n) ^ k₂ ≤ (2 ^ (n + 1)) ^ k₂ :=
-          Nat.pow_le_pow_left (Nat.pow_le_pow_right two_pos (Nat.le_succ n)) _
         calc 2 ^ n * ((2 ^ n) ^ k₁ * ((2 ^ n) ^ k₂ * (2 ^ 2 ^ t * ((k₁ + k₂) ^ (k₁ + k₂)) ^ t)))
             ≤ 2 ^ n * ((2 ^ (n + 1)) ^ k₁ * ((2 ^ (n + 1)) ^ k₂ *
-                (2 ^ 2 ^ t * ((2 ^ (n + 1)) ^ (k₁ + k₂)) ^ t))) :=
-              by gcongr
+                (2 ^ 2 ^ t * ((2 ^ (n + 1)) ^ (k₁ + k₂)) ^ t))) := by
+              gcongr <;> omega
           _ = 2 ^ (2 ^ t + n) * 2 ^ ((t + 1) * (n + 1) * (k₁ + k₂)) := by
               simp only [← pow_mul, ← pow_add]
               congr 1
@@ -538,23 +521,15 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
       refine (mul_le_mul_of_nonneg_right (two_pow_le_exp _) (exp_pos _).le).trans ?_
       rw [← exp_add, exp_le_exp]
       push_cast
+      have hK0 : (0 : ℝ) ≤ K := Nat.cast_nonneg K
       have htn1 : (1 : ℝ) ≤ ((t : ℝ) + 1) * ((n : ℝ) + 1) := by
         nlinarith [Nat.cast_nonneg (α := ℝ) t, Nat.cast_nonneg (α := ℝ) n]
-      have h2K_le : 2 * (K : ℝ) ≤ b ^ 2 * (k₁ : ℝ) * k₂ := by
-        have hK1 : 2 * (K : ℝ) ≤ (2 * ((t : ℝ) + 1) * ((n : ℝ) + 1)) * K := by
-          nlinarith [show (0 : ℝ) ≤ K by exact_mod_cast hKpos.le]
-        have hK2 : (2 * ((t : ℝ) + 1) * ((n : ℝ) + 1)) * K ≤ (b ^ 2 * K) * K :=
-          mul_le_mul_of_nonneg_right hKb (Nat.cast_nonneg K)
-        have hK3 : (b ^ 2 * K) * K ≤ b ^ 2 * k₁ * k₂ := by
-          have := mul_le_mul hk₁' hk₂' (Nat.cast_nonneg K) (Nat.cast_nonneg k₁)
-          nlinarith [sq_nonneg b]
-        linarith
-      have hsum_prod : ((t : ℝ) + 1) * ((n : ℝ) + 1) * (k₁ + k₂) ≤ b ^ 2 * k₁ * k₂ := by
-        have hm := mul_le_mul_of_nonneg_right hKb (by positivity : (0 : ℝ) ≤ k₁ + k₂)
-        have hm1 := mul_le_mul_of_nonneg_left hk₂' (by positivity : (0 : ℝ) ≤ b ^ 2 * k₁)
-        have hm2 := mul_le_mul_of_nonneg_left hk₁' (by positivity : (0 : ℝ) ≤ b ^ 2 * k₂)
-        linarith
-      linarith
+      -- `(t + 1) (n + 1) (k₁ + k₂) ≤ b² k₁ k₂` and `2 K ≤ 2 (t + 1) (n + 1) K ≤ b² K² ≤ b² k₁ k₂`.
+      linarith [mul_le_mul_of_nonneg_right hKb (by positivity : (0 : ℝ) ≤ k₁ + k₂),
+        mul_le_mul_of_nonneg_right hKb hK0, mul_le_mul_of_nonneg_right htn1 hK0,
+        mul_le_mul_of_nonneg_left hk₂' (by positivity : (0 : ℝ) ≤ b ^ 2 * k₁),
+        mul_le_mul_of_nonneg_left hk₁' (by positivity : (0 : ℝ) ≤ b ^ 2 * k₂),
+        mul_le_mul_of_nonneg_left (mul_le_mul hk₁' hk₂' hK0 (Nat.cast_nonneg k₁)) (sq_nonneg b)]
     calc ∑ w : WType k₁ k₂, (#(E k₁ k₂ w) : ℝ)
         ≤ ∑ _w : WType k₁ k₂, 2 * 2 ^ N * exp (-(2 * b ^ 2 * (k₁ * k₂ : ℕ))) :=
           Finset.sum_le_sum fun w _ => hE k₁ k₂ w
@@ -590,14 +565,7 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
           have : (#(Finset.Icc K N) : ℝ) ≤ N := by exact_mod_cast hIcc
           gcongr
       _ = (2 : ℝ) ^ (2 ^ t + 3 * n + 1) * exp (-(2 * K)) * 2 ^ N := by
-          have hNN : (N : ℝ) * N = (2 : ℝ) ^ (2 * n) := by
-            rw [hN]; push_cast; rw [← pow_add]; ring_nf
-          calc (N : ℝ) * N * (2 ^ (2 ^ t + n + 1) * 2 ^ N * exp (-(2 * K)))
-              = ((N : ℝ) * N * 2 ^ (2 ^ t + n + 1)) * exp (-(2 * K)) * 2 ^ N := by ring
-            _ = (2 : ℝ) ^ (2 ^ t + 3 * n + 1) * exp (-(2 * K)) * 2 ^ N := by
-                rw [hNN, ← pow_add]
-                congr 2
-                ring
+          rw [hN]; push_cast; ring
       _ < 2 ^ N := by
           refine mul_lt_of_lt_one_left (by positivity) ?_
           refine (mul_le_mul_of_nonneg_right (two_pow_le_exp _) (exp_pos _).le).trans_lt ?_
@@ -910,13 +878,9 @@ private theorem abs_signedCount_le_of_root_peers {ι U M : Type*} [Finite ι] [F
         exact_mod_cast Nat.mul_le_mul_left _ (realizedSize_eraseNode_le hB hL hs (B.path x s))
       have hcardR : ((B.accepted \ B.sweep.peers s x).ncard : ℝ) + (B.sweep.peers s x).ncard =
           B.accepted.ncard := by exact_mod_cast hcard
-      rw [signedCount_eq_add_sdiff D hR]
-      calc |signedCount D (B.sweep.peers s x) + signedCount D (B.accepted \ B.sweep.peers s x)|
-          ≤ |signedCount D (B.sweep.peers s x)| +
-              |signedCount D (B.accepted \ B.sweep.peers s x)| := abs_add_le _ _
-        _ ≤ 2 * b * B.accepted.ncard + ((K - 1) ^ 2 * realizedSize B : ℕ) := by
-            rw [← hcardR]
-            linarith
+      rw [signedCount_eq_add_sdiff D hR, ← hcardR]
+      linarith [abs_add_le (signedCount D (B.sweep.peers s x))
+        (signedCount D (B.accepted \ B.sweep.peers s x))]
     · push Not at hthick
       have hsmall : B.SmallSides K := fun s hs x hx => by
         by_cases hA : K ≤ (B.sweep.pastSide s x).ncard
@@ -1100,11 +1064,8 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
   set μ := A * ε₀ / (4 * (1 + A))
   have hμ : 0 < μ := by positivity
   have hμ_le : μ ≤ 1 / 8 := by
-    have hε_half : ε₀ ≤ 1 / 2 := min_le_right _ _
-    have hA_frac : A / (1 + A) ≤ 1 := div_le_one_of_le₀ (by linarith) (by positivity)
-    calc μ = A / (1 + A) * (ε₀ / 4) := by simp only [μ]; field_simp
-      _ ≤ 1 * ((1 / 2) / 4) := mul_le_mul hA_frac (by linarith) (by positivity) zero_le_one
-      _ = 1 / 8 := by norm_num
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith [min_le_right ε (1 / 2 : ℝ)]
   refine ⟨μ * Real.log 2, by positivity, ?_⟩
   intro U _ _ t K b S hbias hK
   set q := Nat.card U
@@ -1196,29 +1157,12 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
       revert Aset Cset hAset hCset hrect_sub
       rw [hrev_eq]
       intro Aset Cset hAset hCset hrect_sub
-      have hsc_eq : signedCount D (rectangle (Nnet.readIn (lay.initial s)) Aset Cset) =
-          signedCount {y | y ∈ S n ↔ fcomb ((Nnet.readIn (lay.initial s)).domRestrict y)
-            ((Nnet.readIn (lay.initial s))ᶜ.domRestrict y) = true}
-            (rectangle (Nnet.readIn (lay.initial s)) Aset Cset) := by
-        have hon : ∀ y ∈ rectangle (Nnet.readIn (lay.initial s)) Aset Cset,
-            T.eval p I y = fcomb ((Nnet.readIn (lay.initial s)).domRestrict y)
-              ((Nnet.readIn (lay.initial s))ᶜ.domRestrict y) := by
-          intro y hy
-          have hpeer_y := hrect_sub hy
-          have hp_eq : B₀.path y s = B₀.path x s := hpeer_y.2
-          refine hfeval y ?_
-          rw [← hp_eq, hpath_eq y]
-          rfl
-        simp only [signedCount, D]
-        congr 2
-        · refine congrArg Set.ncard (Set.ext fun y => ?_)
-          simp only [mem_inter_iff, mem_ofPred_eq]
-          exact and_congr_right fun hy => by rw [hon y hy]
-        · refine congrArg Set.ncard (Set.ext fun y => ?_)
-          simp only [Set.mem_sdiff, mem_ofPred_eq]
-          exact and_congr_right fun hy => not_congr (by rw [hon y hy])
-      rw [hsc_eq]
-      exact hS _ Aset Cset hAset hCset fcomb hfcomb
+      have hon : ∀ y ∈ rectangle (Nnet.readIn (lay.initial s)) Aset Cset,
+          T.eval p I y = fcomb ((Nnet.readIn (lay.initial s)).domRestrict y)
+            ((Nnet.readIn (lay.initial s))ᶜ.domRestrict y) := fun y hy =>
+        hfeval y (by rw [← show B₀.path y s = B₀.path x s from (hrect_sub hy).2, hpath_eq y]; rfl)
+      convert hS _ Aset Cset hAset hCset fcomb hfcomb using 2
+      exact signedCount_congr fun y hy => by simp only [D, mem_ofPred_eq, hon y hy]
     · -- `s = V + 1`: `B₀.revealed s = univ`, so `(↥univᶜ → U)` has card `1 < 2 ≤ K' n`.
       have hs_top : s = V + 1 := by
         change s ≤ V + 1 at hs
@@ -1252,10 +1196,7 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
   have hlogV_le : Real.log (V + 1) ≤ Real.log (10 * (2 + 1 / A) * n + 11) :=
     Real.log_le_log (by positivity) (by linarith)
   have hpos_edge_step (s : ℕ) : (0 : ℝ) < (B₀.edgeOf s '' univ).ncard := by
-    have x0 : Fin n → U := fun _ => Classical.arbitrary U
-    have : 0 < (B₀.edgeOf s '' univ).ncard :=
-      (ncard_pos (toFinite _)).mpr ⟨B₀.edgeOf s x0, x0, mem_univ x0, rfl⟩
-    exact_mod_cast this
+    exact_mod_cast (ncard_pos (toFinite _)).mpr (univ_nonempty.image _)
   -- Bound the exponent `w_max` of `q ^ w_max` across all steps `s < V`.
   have hstep_le (s : ℕ) (hs : s < V) :
       Real.logb q ((B₀.edgeOf s '' univ).ncard : ℝ) ≤
@@ -1266,22 +1207,14 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
       union_subset (hlay s hs s le_rfl (by omega)).1 (hlay s hs (s + 1) (by omega) le_rfl).1
     have hmin := ncard_realizedEdge_le_min p I hfan_lc lay hs hcomp_sub
     rw [hB₀_acc] at hmin
-    have hpos_edge := hpos_edge_step s
+    have hlogb (m : ℕ) (h : (B₀.edgeOf s '' univ).ncard ≤ q ^ m) :
+        Real.logb q ((B₀.edgeOf s '' univ).ncard : ℝ) ≤ m :=
+      (Real.logb_le_iff_le_rpow (by linarith) (hpos_edge_step s)).mpr (by
+        rw [Real.rpow_natCast]; exact_mod_cast h)
     have hlog_min : Real.logb q ((B₀.edgeOf s '' univ).ncard : ℝ) ≤
-        min (((Nnet.frontier lay s).ncard : ℝ) + 4) (nW : ℝ) := by
-      refine le_min ?_ ?_
-      · have hle1 : ((B₀.edgeOf s '' univ).ncard : ℝ) ≤
-            (q : ℝ) ^ ((Nnet.frontier lay s).ncard + 4) := by
-          exact_mod_cast hmin.trans (min_le_left _ _)
-        calc Real.logb q _ ≤ Real.logb q ((q : ℝ) ^ ((Nnet.frontier lay s).ncard + 4)) :=
-              Real.logb_le_logb_of_le (by linarith) hpos_edge hle1
-          _ = ((Nnet.frontier lay s).ncard : ℝ) + 4 := by
-              rw [Real.logb_pow, Real.logb_self_eq_one (by linarith), mul_one]; push_cast; ring
-      · have hle2 : ((B₀.edgeOf s '' univ).ncard : ℝ) ≤ (q : ℝ) ^ nW := by
-          exact_mod_cast hmin.trans (min_le_right _ _)
-        calc Real.logb q _ ≤ Real.logb q ((q : ℝ) ^ nW) :=
-              Real.logb_le_logb_of_le (by linarith) hpos_edge hle2
-          _ = nW := by rw [Real.logb_pow, Real.logb_self_eq_one (by linarith), mul_one]
+        min (((Nnet.frontier lay s).ncard : ℝ) + 4) (nW : ℝ) :=
+      le_min (by exact_mod_cast hlogb _ (hmin.trans (min_le_left _ _)))
+        (hlogb _ (hmin.trans (min_le_right _ _)))
     have hfront_le : ((Nnet.frontier lay s).ncard : ℝ) ≤
         (A + η) * (Compiler.graph lc).cycleRankOn W + η * V + C :=
       (hlay s hs s le_rfl (by omega)).2
@@ -1318,28 +1251,18 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
     push_cast
     have h1_le_qM : (1 : ℝ) ≤ (q : ℝ) ^ M_exp := Real.one_le_rpow (by linarith) hM_nonneg
     have hsum_le : ∑ x ∈ Finset.range V, ((B₀.edgeOf x '' univ).ncard : ℝ) ≤
-        (V : ℝ) * (q : ℝ) ^ M_exp := by
-      calc ∑ x ∈ Finset.range V, ((B₀.edgeOf x '' univ).ncard : ℝ)
-          ≤ ∑ _x ∈ Finset.range V, (q : ℝ) ^ M_exp :=
-            Finset.sum_le_sum fun s hs =>
-              (Real.logb_le_iff_le_rpow (by linarith) (hpos_edge_step s)).mp
-                (hstep_le s (Finset.mem_range.mp hs))
-        _ = (V : ℝ) * (q : ℝ) ^ M_exp := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+        (V : ℝ) * (q : ℝ) ^ M_exp :=
+      (Finset.sum_le_sum fun s hs => (Real.logb_le_iff_le_rpow (by linarith)
+        (hpos_edge_step s)).mp (hstep_le s (Finset.mem_range.mp hs))).trans_eq
+        (by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul])
     have hlast_r : ((B₀.edgeOf V '' univ).ncard : ℝ) ≤ (q : ℝ) ^ M_exp :=
       (Nat.cast_le.mpr hlast_le).trans (by simpa only [Nat.cast_one] using h1_le_qM)
     linarith
   have hK'_rpow : (((K' n - 1) ^ 2 : ℕ) : ℝ) ≤ (q : ℝ) ^ (2 * Real.logb q (K' n)) := by
     have hK'_pos : (0 : ℝ) < (K' n : ℕ) := by exact_mod_cast (show 0 < K' n by positivity)
-    have hsub_le : ((K' n - 1 : ℕ) : ℝ) ≤ (K' n : ℕ) := by exact_mod_cast Nat.sub_le (K' n) 1
-    have hK_eq : ((K' n : ℕ) : ℝ) = (q : ℝ) ^ Real.logb q (K' n) :=
-      (Real.rpow_logb (by positivity) (by linarith) hK'_pos).symm
-    rw [Nat.cast_pow]
-    calc ((K' n - 1 : ℕ) : ℝ) ^ 2
-        ≤ ((K' n : ℕ) : ℝ) ^ 2 := pow_le_pow_left₀ (Nat.cast_nonneg _) hsub_le 2
-      _ = ((q : ℝ) ^ Real.logb q (K' n)) ^ (2 : ℕ) := congrArg (· ^ (2 : ℕ)) hK_eq
-      _ = (q : ℝ) ^ (2 * Real.logb q (K' n)) := by
-          rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity)]
-          ring_nf
+    rw [mul_comm, Real.rpow_mul (by positivity),
+      Real.rpow_logb (by positivity) (by linarith) hK'_pos, Real.rpow_two]
+    exact_mod_cast Nat.pow_le_pow_left (Nat.sub_le (K' n) 1) 2
   have hV1_rpow : (V + 1 : ℝ) ≤ (q : ℝ) ^ (κ * Real.log (V + 1)) := by
     have hV1_eq : (V + 1 : ℝ) = (q : ℝ) ^ Real.logb q (V + 1) :=
       (Real.rpow_logb (by positivity) (by linarith) (by positivity)).symm
@@ -1371,56 +1294,21 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
     rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin, Real.rpow_natCast]
     push_cast
     rfl
-  have hres_le : (((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) : ℝ) /
-      (2 * Nat.card (Fin n → U)) ≤ Real.exp (-(μ * Real.log 2 * n)) := by
+  -- `R ≤ q ^ ((1 - μ) n) ≤ exp (-μ log 2 · n) q ^ n` bounds the peeling residual.
+  have hres_le : (((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) : ℝ) ≤
+      Real.exp (-(μ * Real.log 2 * n)) * Nat.card (Fin n → U) := by
     rw [hcard_univ]
-    have hqn_pos : (0 : ℝ) < (q : ℝ) ^ (n : ℝ) := Real.rpow_pos_of_pos (by positivity) _
-    calc (((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) : ℝ) / (2 * (q : ℝ) ^ (n : ℝ))
-        ≤ (((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) : ℝ) / (q : ℝ) ^ (n : ℝ) :=
-          div_le_div_of_nonneg_left (Nat.cast_nonneg _) hqn_pos (by linarith)
-      _ ≤ (q : ℝ) ^ ((1 - μ) * n) / (q : ℝ) ^ (n : ℝ) :=
-          div_le_div_of_nonneg_right hnum_le hqn_pos.le
-      _ = (q : ℝ) ^ (-(μ * n)) := by
-          rw [← Real.rpow_sub (by positivity)]
-          congr 1
-          ring
-      _ = Real.exp (Real.log q * (-(μ * n))) := Real.rpow_def_of_pos (by positivity) _
-      _ ≤ Real.exp (-(μ * Real.log 2 * n)) := by
-          rw [Real.exp_le_exp]
-          have := mul_le_mul_of_nonneg_right hlq2 (show (0 : ℝ) ≤ μ * n by positivity)
-          linarith
-  have hD_part : (D.ncard : ℝ) + (Dᶜ.ncard : ℝ) = Nat.card (Fin n → U) := by
-    exact_mod_cast ncard_add_ncard_compl D
-  have hsc_univ : signedCount D univ = 2 * (D.ncard : ℝ) - Nat.card (Fin n → U) := by
-    have hdef : signedCount D univ = ((univ ∩ D).ncard : ℝ) - (univ \ D).ncard := rfl
-    have hi : univ ∩ D = D := univ_inter D
-    have hs : univ \ D = Dᶜ := by ext x; simp
-    rw [hdef, hi, hs]
-    linarith
-  have hN_pos : (0 : ℝ) < Nat.card (Fin n → U) := by
-    rw [hcard_univ]
-    exact Real.rpow_pos_of_pos (by positivity) _
-  have hpeel' : signedCount D univ ≤
-      2 * b n * Nat.card (Fin n → U) + ((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) := by
-    rw [ncard_univ] at hpeel
-    exact (le_abs_self _).trans hpeel
-  have hagree_eq : agreement (S n) {x | T.eval p I x = true} =
-      1 / 2 + signedCount D univ / (2 * Nat.card (Fin n → U)) := by
-    rw [agreement, show {x : Fin n → U | x ∈ S n ↔ x ∈ {y | T.eval p I y = true}} = D from rfl,
-      hsc_univ]
-    field_simp
-    ring
-  rw [hagree_eq]
-  have hdiv_peel : signedCount D univ / (2 * Nat.card (Fin n → U)) ≤
-      b n + (((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) : ℝ) / (2 * Nat.card (Fin n → U)) := by
-    have h := div_le_div_of_nonneg_right hpeel' (by positivity : (0 : ℝ) ≤ 2 * Nat.card (Fin n → U))
-    have hsplit : (2 * b n * Nat.card (Fin n → U) +
-        (((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) : ℝ)) / (2 * Nat.card (Fin n → U)) =
-        b n + (((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) : ℝ) / (2 * Nat.card (Fin n → U)) := by
-      have hN_ne : (Nat.card (Fin n → U) : ℝ) ≠ 0 := hN_pos.ne'
-      field_simp
-    linarith
-  linarith
+    refine hnum_le.trans ?_
+    rw [Real.rpow_def_of_pos (by positivity), Real.rpow_def_of_pos (by positivity), ← Real.exp_add,
+      Real.exp_le_exp]
+    nlinarith [mul_le_mul_of_nonneg_right hlq2 (show (0 : ℝ) ≤ μ * n by positivity)]
+  have hN_pos : (0 : ℝ) < Nat.card (Fin n → U) := by exact_mod_cast Nat.card_pos
+  have hsc := signedCount_eq_two_mul D univ
+  rw [univ_inter, ncard_univ] at hsc
+  rw [ncard_univ] at hpeel
+  rw [agreement, div_le_iff₀ hN_pos]
+  change (D.ncard : ℝ) ≤ _
+  linarith [le_abs_self (signedCount D univ), mul_pos (Real.exp_pos (-(μ * Real.log 2 * n))) hN_pos]
 
 end LivePeeling
 
@@ -1476,70 +1364,36 @@ private theorem exists_mul_signRepresents_of_isHalfspaceComb_one {α β : Type*}
   cases nonempty_fintype β
   obtain ⟨G, φ, ψ, h⟩ := hf
   set rk := strictRank (Sum.elim (φ 0) (-ψ 0))
-  let U₀ : Matrix α (Fin 2) ℝ := fun a i => if i = 0 then (rk (.inl a) : ℝ) + 1 / 2 else 1
+  -- `(Ucd c d * V₀) a b = c (rk a - rk b + 1/2) + d`; `(c, d)` is read off the truth table of `G`.
+  let Ucd (c d : ℝ) : Matrix α (Fin 2) ℝ :=
+    fun a i => if i = 0 then c * ((rk (.inl a) : ℝ) + 1 / 2) + d else c
   let V₀ : Matrix (Fin 2) β ℝ := fun i b => if i = 0 then 1 else -(rk (.inr b) : ℝ)
-  have hmul₀ (a : α) (b : β) : (U₀ * V₀) a b = (rk (.inl a) : ℝ) - (rk (.inr b) : ℝ) + 1 / 2 := by
+  have hmul (c d : ℝ) (a : α) (b : β) :
+      (Ucd c d * V₀) a b = c * ((rk (.inl a) : ℝ) - rk (.inr b) + 1 / 2) + d := by
     rw [Matrix.mul_apply, Fin.sum_univ_two]
-    simp only [Fin.isValue, U₀, V₀, ↓reduceIte, one_ne_zero]
+    simp only [Fin.isValue, Ucd, V₀, ↓reduceIte, one_ne_zero]
     ring
-  have hlt_rk (a : α) (b : β) : rk (.inl a) < rk (.inr b) ↔ φ 0 a + ψ 0 b < 0 := by
-    rw [strictRank_lt_iff]
-    simp only [Sum.elim_inl, Sum.elim_inr, Pi.neg_apply]
-    constructor <;> intro h' <;> linarith
-  have hvec (a : α) (b : β) :
-      (fun r : Fin 1 => decide (φ r a + ψ r b < 0)) =
-        fun _ => decide (φ 0 a + ψ 0 b < 0) :=
-    funext fun r => by rw [Fin.eq_zero r]
-  let U_one : Matrix α (Fin 2) ℝ := fun _ _ => 1
-  let U_neg : Matrix α (Fin 2) ℝ := fun _ _ => -1
-  let V_one : Matrix (Fin 2) β ℝ := fun _ _ => 1
-  cases hb0 : G (fun _ => false) <;> cases hb1 : G (fun _ => true)
-  · -- `G = const false`: `f a b = false`, represented by `+2 > 0`.
-    refine ⟨U_one, V_one, Communication.SignRepresents.iff_lt.mpr fun a b => ?_⟩
-    have hfab : f a b = false := by
-      rw [h a b, hvec]
-      cases decide (φ 0 a + ψ 0 b < 0) <;> simp only [hb0, hb1]
-    rw [hfab, Matrix.mul_apply, Fin.sum_univ_two]
-    simp only [U_one, V_one]
-    norm_num
-  · -- `G v = v 0`: `f a b = decide (φ 0 a + ψ 0 b < 0)`.
-    refine ⟨U₀, V₀, Communication.SignRepresents.iff_lt.mpr fun a b => ?_⟩
-    have hfab : f a b = decide (φ 0 a + ψ 0 b < 0) := by
-      rw [h a b, hvec]
-      cases decide (φ 0 a + ψ 0 b < 0) <;> simp only [hb0, hb1]
-    rw [hfab, hmul₀]
-    by_cases hlt : φ 0 a + ψ 0 b < 0
-    · simp only [hlt, decide_true, ↓reduceIte]
-      have hrk : (rk (.inl a) : ℕ) + 1 ≤ rk (.inr b) := (hlt_rk a b).mpr hlt
-      have hrk' : ((rk (.inl a) : ℕ) : ℝ) + 1 ≤ (rk (.inr b) : ℕ) := by exact_mod_cast hrk
-      linarith
-    · simp only [hlt, decide_false, Bool.false_eq_true, ↓reduceIte]
-      have hrk : (rk (.inr b) : ℕ) ≤ rk (.inl a) := not_lt.mp (mt (hlt_rk a b).mp hlt)
-      have hrk' : ((rk (.inr b) : ℕ) : ℝ) ≤ (rk (.inl a) : ℕ) := by exact_mod_cast hrk
-      linarith
-  · -- `G v = !v 0`: represented by `(-U₀) * V₀`.
-    refine ⟨-U₀, V₀, Communication.SignRepresents.iff_lt.mpr fun a b => ?_⟩
-    have hfab : f a b = !decide (φ 0 a + ψ 0 b < 0) := by
-      rw [h a b, hvec]
-      cases decide (φ 0 a + ψ 0 b < 0) <;> simp only [hb0, hb1, Bool.not_true, Bool.not_false]
-    rw [hfab, Matrix.neg_mul, Matrix.neg_apply, hmul₀]
-    by_cases hlt : φ 0 a + ψ 0 b < 0
-    · simp only [hlt, decide_true, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-      have hrk : (rk (.inl a) : ℕ) + 1 ≤ rk (.inr b) := (hlt_rk a b).mpr hlt
-      have hrk' : ((rk (.inl a) : ℕ) : ℝ) + 1 ≤ (rk (.inr b) : ℕ) := by exact_mod_cast hrk
-      linarith
-    · simp only [hlt, decide_false, Bool.not_false, ↓reduceIte]
-      have hrk : (rk (.inr b) : ℕ) ≤ rk (.inl a) := not_lt.mp (mt (hlt_rk a b).mp hlt)
-      have hrk' : ((rk (.inr b) : ℕ) : ℝ) ≤ (rk (.inl a) : ℕ) := by exact_mod_cast hrk
-      linarith
-  · -- `G = const true`: `f a b = true`, represented by `-2 < 0`.
-    refine ⟨U_neg, V_one, Communication.SignRepresents.iff_lt.mpr fun a b => ?_⟩
-    have hfab : f a b = true := by
-      rw [h a b, hvec]
-      cases decide (φ 0 a + ψ 0 b < 0) <;> simp only [hb0, hb1]
-    rw [hfab, Matrix.mul_apply, Fin.sum_univ_two]
-    simp only [U_neg, V_one]
-    norm_num
+  have hfab (a : α) (b : β) : f a b = G fun _ => decide (rk (.inl a) < rk (.inr b)) := by
+    rw [h a b]
+    congr 1 with r
+    rw [Fin.eq_zero r]
+    exact decide_eq_decide.mpr (strictRank_inl_lt_inr_iff _ _ _ _).symm
+  -- Integer ranks put `rk a - rk b + 1/2` at distance `≥ 1/2` from `0`.
+  have hrk (a : α) (b : β) :
+      rk (.inl a) < rk (.inr b) ∧ ((rk (.inl a) : ℕ) : ℝ) + 1 ≤ (rk (.inr b) : ℕ) ∨
+        ¬rk (.inl a) < rk (.inr b) ∧ ((rk (.inr b) : ℕ) : ℝ) ≤ (rk (.inl a) : ℕ) := by
+    rcases lt_or_ge (rk (.inl a)) (rk (.inr b)) with h' | h'
+    · exact .inl ⟨h', by exact_mod_cast (h' : (rk (.inl a) : ℕ) + 1 ≤ rk (.inr b))⟩
+    · exact .inr ⟨not_lt.mpr h', by exact_mod_cast h'⟩
+  -- `G` is `const false`, `id`, `not` or `const true`.
+  cases hb0 : G (fun _ => false) <;> cases hb1 : G (fun _ => true) <;>
+    [refine ⟨Ucd 0 1, V₀, ?_⟩; refine ⟨Ucd 1 0, V₀, ?_⟩; refine ⟨Ucd (-1) 0, V₀, ?_⟩;
+      refine ⟨Ucd 0 (-1), V₀, ?_⟩] <;>
+  refine Communication.SignRepresents.iff_lt.mpr fun a b => ?_ <;>
+  rw [hfab, hmul] <;>
+  rcases hrk a b with ⟨hlt, hX⟩ | ⟨hlt, hX⟩ <;>
+  simp only [hlt, decide_true, decide_false, hb0, hb1, Bool.false_eq_true, ↓reduceIte] <;>
+  linarith
 
 /-- **Sign-rank of a two-party halfspace (`t = 1`).** Every `1`-halfspace combination over finite
 domains has sign-rank at most `2`. -/
@@ -1613,23 +1467,15 @@ theorem signRank_thresholdTop_le {σ : Signature.{v}} {U : Type u} [Fintype U]
     refine Communication.SignRepresents.iff_lt.mpr fun a b => ?_
     set τ₀ := cutVal (glue (a, b))
     have hmul : (U_big * V_big) a b = (U_slice τ₀ * V_slice τ₀) a b := by
-      rw [Matrix.mul_apply, Fintype.sum_prod_type]
-      have hterm (τ : Ecut → U) :
-          ∑ i : Fin 2, U_big a (τ, i) * V_big (τ, i) b =
-            if τ = τ₀ then (U_slice τ₀ * V_slice τ₀) a b else 0 := by
-        by_cases hτ : τ = τ₀
-        · subst hτ
-          obtain ⟨ha, hb⟩ := (hrect_iff τ₀ a b).mpr rfl
-          simp only [U_big, V_big, ha, hb, ↓reduceIte, Matrix.mul_apply]
-        · have hnot : ¬(a ∈ Aset τ ∧ b ∈ Bset τ) := mt (hrect_iff τ a b).mp (Ne.symm hτ)
-          simp only [hτ, ↓reduceIte]
-          refine Finset.sum_eq_zero fun i _ => ?_
-          by_cases ha : a ∈ Aset τ
-          · have hb : b ∉ Bset τ := fun hb => hnot ⟨ha, hb⟩
-            simp only [U_big, V_big, hb, ↓reduceIte, mul_zero]
-          · simp only [U_big, V_big, ha, ↓reduceIte, zero_mul]
-      simp_rw [hterm]
-      simp only [Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
+      rw [Matrix.mul_apply, Fintype.sum_prod_type, Finset.sum_eq_single τ₀ (fun τ _ hτ => ?_)
+        (fun h => absurd (Finset.mem_univ τ₀) h)]
+      · obtain ⟨ha, hb⟩ := (hrect_iff τ₀ a b).mpr rfl
+        simp only [U_big, V_big, ha, hb, ↓reduceIte, Matrix.mul_apply]
+      refine Finset.sum_eq_zero fun i _ => ?_
+      by_cases ha : a ∈ Aset τ
+      · have hb : b ∉ Bset τ := fun hb => hτ ((hrect_iff τ a b).mp ⟨ha, hb⟩).symm
+        simp only [U_big, V_big, hb, ↓reduceIte, mul_zero]
+      · simp only [U_big, V_big, ha, ↓reduceIte, zero_mul]
     have heval_eq : T.eval p I (glue (a, b)) = f_slice τ₀ a b := by
       have h1 := hf_eval τ₀ (glue (a, b)) (funext fun e => by
         by_cases he : e ∈ Ecut
@@ -1718,10 +1564,8 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
     filter_upwards [hdefic_o.bound (by norm_num : (0 : ℝ) < 1 / 8), eventually_ge_atTop 24]
       with n hn hn24
     simp only [Real.norm_eq_abs, Nat.abs_cast] at hn
-    have hd : (defic n : ℝ) ≤ 1 / 8 * n := by linarith [le_abs_self (defic n : ℝ)]
     have hn24' : (24 : ℝ) ≤ n := by exact_mod_cast hn24
-    have hreal : (4 * (defic n + 2) + 4 : ℝ) ≤ n := by linarith
-    exact_mod_cast hreal
+    exact_mod_cast (by linarith [le_abs_self (defic n : ℝ)] : (4 * (defic n + 2) + 4 : ℝ) ≤ n)
   filter_upwards [herr_o.bound (show (0 : ℝ) < A * ε by positivity), hsmall_defic] with n herrn hdn
   simp only [Real.norm_eq_abs, Nat.abs_cast] at herrn
   have herr : (1 + 2 * (A + η)) * (defic n : ℝ) + (2 * |C| + 6 * (A + η) + 4) ≤ A * ε * n := by
@@ -1763,9 +1607,7 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
           not_iff_not.mpr ((Compiler.graph lc).edgeCut_eq_empty_iff.mp hQ e)
       have hQc_eq : Nnet.readIn Qsetᶜ = (Nnet.readIn Qset)ᶜ := readIn_compl_liveNetwork p Qset
       have hsum_n : (Nnet.readIn Qset).ncard + (Nnet.readIn Qsetᶜ).ncard = n := by
-        rw [hQc_eq]
-        have := ncard_add_ncard_compl (Nnet.readIn Qset)
-        rwa [Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin] at this
+        rw [hQc_eq, ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
       have hQc_le := hcut_le Qsetᶜ hQc_cut (by omega)
       omega
   -- Pick the layer `s` where `readIn (lay.initial s)` has size `⌊n / 2⌋`.
@@ -1824,16 +1666,9 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
       (fun _ => univ) hfan_lc hW_cut (Nnet.ncard_component_le_ncard_touching_add_one _)
     rw [hse] at h
     change (Compiler.graph lc).cycleRankOn W + (Nnet.readIn W).ncard ≤ (2 - 1) * se + 1 at h
-    have h' : (Compiler.graph lc).cycleRankOn W + (Nnet.readIn W).ncard ≤ se + 1 := by omega
-    have h_r : ((Compiler.graph lc).cycleRankOn W : ℝ) + (Nnet.readIn W).ncard ≤ se + 1 := by
-      exact_mod_cast h'
-    have hW_r : (n : ℝ) - (defic n + 2 : ℝ) ≤ (Nnet.readIn W).ncard := by
-      have h1 : n ≤ (Nnet.readIn W).ncard + (defic n + 2) := by
-        have := hdn
-        omega
-      have hr : (n : ℝ) ≤ (Nnet.readIn W).ncard + (defic n + 2 : ℕ) := by exact_mod_cast h1
-      push_cast at hr
-      linarith
+    have h_r : ((Compiler.graph lc).cycleRankOn W : ℝ) + n ≤ se + 1 + (defic n + 2 : ℕ) := by
+      exact_mod_cast (by omega : (Compiler.graph lc).cycleRankOn W + n ≤ se + 1 + (defic n + 2))
+    push_cast at h_r
     linarith
   have hV_le : V ≤ 7 * se + 3 * n := by
     have h := Compiler.card_vertex_le hfan_lc
@@ -1865,11 +1700,8 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
     have hC_le := le_abs_self C
     have hAe_pos : 0 < A * ε := by positivity
     linarith [hfront_le, herr]
-  have hn_div2 : (n : ℝ) - 1 ≤ 2 * ((n / 2 : ℕ) : ℝ) := by
-    have h1 : n ≤ 2 * (n / 2) + 1 := by omega
-    have hr : (n : ℝ) ≤ (2 * (n / 2) + 1 : ℕ) := by exact_mod_cast h1
-    push_cast at hr
-    linarith
+  have hn_div2 : (n : ℝ) ≤ 2 * ((n / 2 : ℕ) : ℝ) + 1 := by
+    exact_mod_cast (by omega : n ≤ 2 * (n / 2) + 1)
   have hhalf_r : ((n / 2 : ℕ) : ℝ) ≤ 2 * ((Nnet.frontier lay s).ncard : ℝ) + 2 + defic n := by
     exact_mod_cast hhalf_le
   have hAe_nonneg : 0 ≤ (1 / 2) * (A * ε) * n := by positivity

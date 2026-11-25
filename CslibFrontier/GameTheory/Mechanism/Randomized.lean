@@ -274,31 +274,18 @@ theorem coinFlipMechanism_support :
 theorem coinFlipMechanism_expectedUtility (v : Bool → ℝ) (b : Unit → Bool → ℝ) :
     coinFlipMechanism.expectedUtility () v b = (v true + v false) / 2 - 1 := by
   classical
-  have hne : coinFlipBranch true ≠ coinFlipBranch false :=
-    fun h => Bool.noConfusion (coinFlipBranch_injective h)
-  have hzero : ∀ M : Mechanism Unit Bool,
-      M ∉ ({coinFlipBranch true, coinFlipBranch false} : Finset (Mechanism Unit Bool)) →
-        (coinFlipMechanism.dist M).toReal * M.utility () v b = 0 := by
-    intro M hM
-    have hnot : M ∉ coinFlipMechanism.dist.support := by
-      rw [coinFlipMechanism_support]
-      simpa only [Finset.mem_insert, Finset.mem_singleton, Set.mem_insert_iff,
-        Set.mem_singleton_iff] using hM
-    rw [PMF.mem_support_iff, not_not] at hnot
-    simp only [hnot, ENNReal.toReal_zero, zero_mul]
-  have hprob : ∀ c : Bool, (coinFlipMechanism.dist (coinFlipBranch c)).toReal = 1 / 2 := by
-    intro c
+  have hprob (c : Bool) : (coinFlipMechanism.dist (coinFlipBranch c)).toReal = 1 / 2 := by
     rw [coinFlipMechanism,
       Cslib.Probability.PMF.map_apply_of_injective _ coinFlipBranch_injective c,
       Cslib.Probability.PMF.uniformOfFintype_apply, Fintype.card_bool]
     norm_num
-  rw [expectedUtility, tsum_eq_sum hzero, Finset.sum_pair hne, hprob true, hprob false]
-  simp only [Mechanism.utility, coinFlipBranch, ↓reduceIte, Bool.false_eq_true]
-  by_cases h : b () false ≤ b () true
-  · simp only [h, ↓reduceIte]
-    ring
-  · simp only [h, ↓reduceIte]
-    ring
+  rw [expectedUtility, ← coinFlipBranch_injective.tsum_eq fun M hM => ?_,
+    tsum_fintype, Fintype.sum_bool, hprob, hprob]
+  · simp only [Mechanism.utility, coinFlipBranch, ↓reduceIte, Bool.false_eq_true]
+    split_ifs <;> ring
+  · have hmem : M ∈ coinFlipMechanism.dist.support := fun h0 => hM (by simp [h0])
+    obtain ⟨c, _, rfl⟩ := (PMF.mem_support_map_iff _ _ M).1 hmem
+    exact ⟨c, rfl⟩
 
 /-- `coinFlipMechanism` is truthful in expectation on all real valuations (`Set.univ`), hence on
 every valuation domain `V`. -/

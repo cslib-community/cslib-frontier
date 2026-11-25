@@ -71,32 +71,17 @@ theorem push_le_prod_wire_hubs {A : Type} [Fintype A] [DecidableEq A] (π : A �
     | Sum.inr false => β (l none) fun a => l (some a)
   have key := push_le_of_edges π ξ t Λ src tgt tab (by
     rintro (a | b) x x' l l' hx hl
-    · have h1 := hx a rfl
-      have h2 : l (some a) = l' (some a) := hl (some a) (Or.inl rfl)
-      change (if x a = l (some a) then (1 : K) else 0) = if x' a = l' (some a) then 1 else 0
-      rw [h1, h2]
+    · change (if x a = l (some a) then (1 : K) else 0) = if x' a = l' (some a) then 1 else 0
+      rw [hx a rfl, hl (some a) (Or.inl rfl)]
     · cases b
-      · have h1 : l none = l' none := hl none (Or.inr rfl)
-        change β (l none) _ = β (l' none) _
-        rw [h1]
-        refine hβ _ _ _ fun a ha => hl (some a) (Or.inr ?_)
-        change Sum.inr (decide (S a)) = _
-        simp [ha]
-      · have h1 : l none = l' none := hl none (Or.inl rfl)
-        change α (l none) _ = α (l' none) _
-        rw [h1]
-        refine hα _ _ _ fun a ha => hl (some a) (Or.inr ?_)
-        change Sum.inr (decide (S a)) = _
-        simp [ha]) (by
+      · change β (l none) _ = β (l' none) _
+        rw [hl none (Or.inr rfl)]
+        exact hβ _ _ _ fun a ha => hl (some a) (Or.inr (by simp [tgt, ha]))
+      · change α (l none) _ = α (l' none) _
+        rw [hl none (Or.inl rfl)]
+        exact hα _ _ _ fun a ha => hl (some a) (Or.inr (by simp [tgt, ha]))) (by
     intro x
-    have e1 : ∀ l : ∀ o, Λ o, ∏ v, tab v x l =
-        (∏ a, if x a = l (some a) then (1 : K) else 0) *
-          (α (l none) (fun a => l (some a)) * β (l none) fun a => l (some a)) := by
-      intro l
-      rw [Fintype.prod_sum_type]
-      congr 1
-      rw [Fintype.prod_bool]
-    simp only [e1]
+    simp only [tab, Fintype.prod_sum_type, Fintype.prod_bool]
     rw [hs]
     symm
     refine (Fintype.sum_equiv (Equiv.piOptionEquivProd (β := Λ)) _

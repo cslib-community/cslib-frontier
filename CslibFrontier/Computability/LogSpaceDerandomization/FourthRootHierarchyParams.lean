@@ -109,15 +109,10 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
     dsimp [θ₂, θ, a]
     field_simp
     ring
-  have hθ₂small : θ₂ < 1 / (32 * q) := by
-    rw [hθ₂, div_lt_div_iff_of_pos_left one_pos (by positivity) (by positivity)]
-    linarith
-  have hτ : 1 / (8 * q) < 1 / (4 * q) := by
-    rw [div_lt_div_iff_of_pos_left one_pos (by positivity) (by positivity)]
-    linarith
-  have hτ₁ : 1 / (4 * q) ≤ 1 / q := by
-    rw [div_le_div_iff_of_pos_left one_pos (by positivity) hq]
-    linarith
+  have hθ₂small : θ₂ < 1 / (32 * q) :=
+    hθ₂ ▸ one_div_lt_one_div_of_lt (by positivity) (by linarith)
+  have hτ : 1 / (8 * q) < 1 / (4 * q) := one_div_lt_one_div_of_lt (by positivity) (by linarith)
+  have hτ₁ : 1 / (4 * q) ≤ 1 / q := one_div_le_one_div_of_le hq (by linarith)
   set δ₀ : ℝ := θ / 400
   set δ₁ : ℝ := θ / 200
   set η : ℝ := δ₀ / 1000
@@ -130,24 +125,18 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
     (δ := min (1 / (32 * q)) (Real.exp (1 / θ) / 2)) (by positivity)
   have htail : Real.exp (1 / θ) * (1 / θ) ^ k / k.factorial ≤ 1 / (32 * q) :=
     hk.trans (min_le_left _ _)
-  have hkpos : 0 < k := by
-    by_contra h
-    have hzero : k = 0 := Nat.eq_zero_of_not_pos h
+  have hkpos : 0 < k := Nat.pos_of_ne_zero fun hzero => by
     have hb := hk.trans (min_le_right _ _)
     simp only [hzero, pow_zero, Nat.factorial_zero, Nat.cast_one, mul_one, div_one] at hb
     linarith [Real.exp_pos (1 / θ)]
   set m : ℕ := ⌈q⌉₊ * (k + 1)
   have hcopies : q * ((k : ℝ) + 1) < (m : ℝ) + 1 := by
-    have hqc : q ≤ ⌈q⌉₊ := Nat.le_ceil q
-    have hm : (m : ℝ) = ⌈q⌉₊ * ((k : ℝ) + 1) := by simp [m]
-    rw [hm]
-    nlinarith [(Nat.cast_nonneg (α := ℝ) k)]
+    push_cast [m]
+    nlinarith [Nat.le_ceil q, (Nat.cast_nonneg (α := ℝ) k)]
   set J : ℕ := ⌈(2 * Cπ * m * k * (k + 1)) / δ₀⌉₊ + 1
   set K : ℕ := ⌈160 * (1 + Cpair * k / η)⌉₊
   set R : ℝ := (4 * J + 40 * |Cvar|) / cπ
-  have hR : 4 * (J : ℝ) + 40 * |Cvar| ≤ cπ * R := by
-    dsimp [R]
-    rw [mul_div_cancel₀ _ hcπ.ne']
+  have hR : 4 * (J : ℝ) + 40 * |Cvar| ≤ cπ * R := (mul_div_cancel₀ _ hcπ.ne').ge
   have hγ : (1 / 2 : ℝ) < 4 / 5 := by norm_num
   have hκ : (1 / 4 : ℝ) < 1 / 2 := by norm_num
   refine ⟨{
@@ -238,25 +227,18 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
   · rw [div_le_div_iff₀ (by positivity) hq, one_mul]
     simpa only [mul_comm] using hcopies.le
   · have hJ : (2 * Cπ * m * k * (k + 1)) / δ₀ ≤ (J : ℝ) := by
-      dsimp [J]
-      push_cast
-      exact (Nat.le_ceil _).trans (by linarith)
-    have hb := (div_le_iff₀ hδ₀).mp hJ
-    linarith
-  · intro F hF
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hF
-    rcases hF with rfl | rfl | rfl | rfl | rfl
-    · exact ⟨exists_lipschitzWith_polynomialSwitch4_root _ _,
-        exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _⟩
-    · exact ⟨exists_lipschitzWith_polynomialSwitch4_root _ _,
-        exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _⟩
-    · refine ⟨exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _, ?_⟩
-      simpa only [sub_sub_cancel] using exists_lipschitzWith_polynomialSwitch4_root η η₂
-    · refine ⟨exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _, ?_⟩
-      simpa only [sub_sub_cancel] using
-        exists_lipschitzWith_polynomialSwitch4_root (1 / 2) (4 / 5)
-    · exact ⟨exists_lipschitzWith_polynomialSwitch4_root _ _,
-        exists_lipschitzWith_one_sub_polynomialSwitch4_root _ _⟩
+      push_cast [J]
+      linarith [Nat.le_ceil ((2 * Cπ * m * k * (k + 1)) / δ₀)]
+    linarith [(div_le_iff₀ hδ₀).mp hJ]
+  · simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
+    have hsw (a b : ℝ) := And.intro (exists_lipschitzWith_polynomialSwitch4_root a b)
+      (exists_lipschitzWith_one_sub_polynomialSwitch4_root a b)
+    have hcomp (a b : ℝ) :
+        (∃ K, LipschitzWith K fun t => (1 - polynomialSwitch4 a b t) ^ (4⁻¹ : ℝ)) ∧
+        (∃ K, LipschitzWith K fun t => (1 - (1 - polynomialSwitch4 a b t)) ^ (4⁻¹ : ℝ)) :=
+      ⟨exists_lipschitzWith_one_sub_polynomialSwitch4_root a b,
+        by simpa only [sub_sub_cancel] using exists_lipschitzWith_polynomialSwitch4_root a b⟩
+    exact ⟨hsw _ _, hsw _ _, hcomp η η₂, hcomp (1 / 2) (4 / 5), hsw _ _⟩
 
 end FourthRootHierarchyParams
 

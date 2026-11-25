@@ -292,10 +292,8 @@ variable {G}
 /-- Under randomness composition, correctness of fresh garblings gives correctness of
 rerandomized ones. -/
 theorem rerandCorrect_of_correct (rc : G.RandomnessComposition) (h : G.Correct) :
-    G.RerandCorrect := by
-  intro f x r r'
-  rw [← rc.garble_explainGb]
-  exact h f x (rc.explainGb r r')
+    G.RerandCorrect :=
+  fun f x r r' => rc.garble_explainGb f r r' ▸ h f x (rc.explainGb r r')
 
 /-- Inverse data for randomness composition, used by the reductions from rerandomization privacy
 to explainability: `unexplainGb · r'` inverts `explainGb · r'`, `explainRerand` is a bijection in
@@ -577,9 +575,8 @@ theorem explainGbAdvantage_eq (rc : G.RandomnessComposition) (hinv : rc.Invertib
     relabel_uniform
         (fun p : G.Coins × G.RerandCoins => (rc.explainGb p.1 p.2, hinv.invRerand p.2)) with p
     · rintro ⟨r₁, r'₁⟩ ⟨r₂, r'₂⟩ h
-      simp only [Prod.mk.injEq] at h
-      have h₂ := hinv.invRerand.injective h.2
-      exact Prod.ext ((hinv.explainGb_bijective r'₂).injective (h₂ ▸ h.1)) h₂
+      obtain rfl := hinv.invRerand.injective (Prod.mk.inj h).2
+      exact Prod.ext ((hinv.explainGb_bijective _).injective (Prod.mk.inj h).1) rfl
     · rw [rc.garble_explainGb]
       dsimp only [rerandGarbled]
       rw [hinv.rerand_invRerand, encode_permEncoding, hinv.permInput_invRerand]
@@ -620,13 +617,10 @@ theorem explainRerandAdvantage_le (rc : G.RandomnessComposition) (hinv : rc.Inve
       (rc.explainGb p.1 (rc.explainRerand p.2.1 p.2.2),
        hinv.invRerand p.2.2, rc.explainRerand p.2.1 p.2.2)) with p
     · rintro ⟨r₀, r₁, r₂⟩ ⟨r₀', r₁', r₂'⟩ h
-      simp only [Prod.mk.injEq] at h
-      rcases h with ⟨hgb, hinvEq, hrer⟩
-      have h₂ := hinv.invRerand.injective hinvEq
-      subst h₂
-      have h₁ := (hinv.explainRerand_bijective r₂).injective hrer
-      subst h₁
-      exact Prod.ext ((hinv.explainGb_bijective (rc.explainRerand r₁ r₂)).injective hgb) rfl
+      rcases Prod.mk.inj h with ⟨hgb, h2⟩
+      obtain rfl := hinv.invRerand.injective (Prod.mk.inj h2).1
+      obtain rfl := (hinv.explainRerand_bijective _).injective (Prod.mk.inj h2).2
+      exact Prod.ext ((hinv.explainGb_bijective _).injective hgb) rfl
     · rw [hinv.unexplainGb_explainGb, rc.garble_explainGb]
       dsimp only [rerandGarbled]
       rw [rc.rerand_explainRerand]
@@ -681,8 +675,7 @@ theorem eval_explainGbFixedRealView (rc : G.RandomnessComposition) (f : F) (x : 
   simp only [explainGbFixedRealView, explainGbFixedIdealView, ProbComp.eval_bind,
     ProbComp.eval_uniform, ProbComp.eval_pure]
   relabel_uniform (rc.explainGb r) with r'
-  rw [rc.garble_explainGb]
-  rfl
+  rw [rc.garble_explainGb]; rfl
 
 /-- If `explainRerand r₁` is a bijection, explainable rerandomization with fixed coins `r` and
 `r₁` holds with zero error. -/
@@ -694,8 +687,7 @@ theorem eval_explainRerandFixedRealView (rc : G.RandomnessComposition) (f : F)
   simp only [explainRerandFixedRealView, explainRerandFixedIdealView, ProbComp.eval_bind,
     ProbComp.eval_uniform, ProbComp.eval_pure]
   relabel_uniform (rc.explainRerand r₁) with r₂
-  rw [rc.rerand_explainRerand]
-  rfl
+  rw [rc.rerand_explainRerand]; rfl
 
 end RerandomizableGarbling
 

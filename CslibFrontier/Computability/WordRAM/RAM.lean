@@ -108,12 +108,11 @@ theorem Instr.mapOp_additiveHomStandard_isAdditive (i : Instr .additive r) :
   cases i with
   | op o =>
     cases o with
-    | alu f d args =>
-      rcases f with ⟨f, hf⟩
+    | alu f _ _ =>
+      rcases f with ⟨_, hf⟩
       simp only [List.mem_cons, List.not_mem_nil, or_false] at hf
       rcases hf with rfl | rfl
-      · exact Or.inl rfl
-      · exact Or.inr rfl
+      exacts [Or.inl rfl, Or.inr rfl]
     | _ => trivial
   | _ => trivial
 
@@ -398,16 +397,12 @@ private theorem reaches_sub_jpos {q : RAM.Program} {pc jumpTarget : ℕ} {i j : 
   have hfirst : Reaches q ⟨pc, σ⟩ ⟨pc + 1, τ⟩
       (RAM.bitLength (x.regs j) + RAM.bitLength (x.regs i)) := by
     simpa [RAM.Instr.exec, RAM.logCost, hσ.regs, τ] using Reaches.step (s := ⟨pc, σ⟩) hsub
-  have hsecond := Reaches.step (s := ⟨pc + 1, τ⟩) hjpos
-  by_cases hij : x.regs i < x.regs j
-  · have hsecond' : Reaches q ⟨pc + 1, τ⟩ ⟨jumpTarget, τ⟩
-        (RAM.bitLength (x.regs j - x.regs i)) := by
-      simpa [RAM.Instr.exec, RAM.logCost, τ, Nat.sub_pos_iff_lt, hij] using hsecond
-    simpa only [ite_eq_left hij] using hfirst.trans hsecond'
-  · have hsecond' : Reaches q ⟨pc + 1, τ⟩ ⟨pc + 2, τ⟩
-        (RAM.bitLength (x.regs j - x.regs i)) := by
-      simpa [RAM.Instr.exec, RAM.logCost, τ, Nat.sub_pos_iff_lt, hij, Nat.add_assoc] using hsecond
-    simpa only [ite_eq_right hij] using hfirst.trans hsecond'
+  have hsecond : Reaches q ⟨pc + 1, τ⟩ ⟨if x.regs i < x.regs j then jumpTarget else pc + 2, τ⟩
+      (RAM.bitLength (x.regs j - x.regs i)) := by
+    by_cases hij : x.regs i < x.regs j <;>
+      simpa [RAM.Instr.exec, RAM.logCost, τ, Nat.sub_pos_iff_lt, hij, Nat.add_assoc] using
+        Reaches.step (s := ⟨pc + 1, τ⟩) hjpos
+  exact hfirst.trans hsecond
 
 private theorem branch_simulation {q : RAM.Program} {base length pc target w : ℕ}
     {c : Cond r} {x : Data r} {σ : URM.Regs}

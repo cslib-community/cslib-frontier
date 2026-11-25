@@ -122,14 +122,29 @@ theorem expect_sign_mul_sign_mul_sign_mul_sign [DecidableEq X] (hh : IsKWiseInde
   simp only [mul_assoc] at h4 ⊢
   rw [h4]
   congr 1
-  simp only [Fin.forall_fin_succ, Fin.isValue, IsEmpty.forall_iff, and_true, Finset.card_filter,
-    Fin.sum_univ_four, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
-    Matrix.cons_val_three, Matrix.head_cons, Matrix.tail_cons, Matrix.cons_val_succ]
   apply propext
-  by_cases hca : c = a <;> by_cases hda : d = a <;> by_cases hcb : c = b <;>
-    by_cases hdb : d = b <;>
-    simp only [hca, hda, hcb, hdb, hab, hab.symm, hcd, hcd.symm, ite_true, ite_false,
-      Nat.even_iff] <;> (try split_ifs) <;> simp_all
+  have hcount (x : X) : #{j' : Fin 4 | (![a, b, c, d] : Fin 4 → X) j' = x} =
+      (if a = x then 1 else 0) + (if b = x then 1 else 0) +
+        (if c = x then 1 else 0) + (if d = x then 1 else 0) := by
+    rw [Finset.card_filter, Fin.sum_univ_four]
+    rfl
+  constructor
+  · intro h
+    have ha : Even #{j' : Fin 4 | (![a, b, c, d] : Fin 4 → X) j' = a} := h 0
+    have hb : Even #{j' : Fin 4 | (![a, b, c, d] : Fin 4 → X) j' = b} := h 1
+    simp only [hcount, ite_true, hab, hab.symm, ite_false, add_zero, zero_add, Nat.even_iff]
+      at ha hb
+    by_cases hca : c = a
+    · subst hca
+      simp only [hab, ite_false, add_zero] at hb
+      exact Or.inl ⟨rfl, by by_contra hdb; simp [hdb] at hb⟩
+    · have hda : d = a := by by_contra hda; simp [hca, hda] at ha
+      subst hda
+      simp only [hab, ite_false, add_zero] at hb
+      exact Or.inr ⟨by by_contra hcb; simp [hcb] at hb, rfl⟩
+  · rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩) j
+    · rw [hcount]; rcases j with ⟨_ | _ | _ | _ | _, hj⟩ <;> first | omega | simp [hcd, hcd.symm]
+    · rw [hcount]; rcases j with ⟨_ | _ | _ | _ | _, hj⟩ <;> first | omega | simp [hab, hab.symm]
 
 /-- **The tug-of-war estimator is unbiased** [AlonMatiasSzegedy1999, Theorem 2.2]: for a pairwise
 independent family of signs `ε (h i x)` with mean zero and square one,

@@ -71,10 +71,8 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ : 
         have h1 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) hV_pos hV3
         rwa [Real.logb_pow] at h1
       have hw_le : (w : ℝ) ≤ 4 * c_w * Real.logb 2 U := by
-        have hsum : Real.logb 2 U + Real.logb 2 V ≤ 4 * Real.logb 2 U := by linarith only [hlogV]
-        calc (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V) := hw
-          _ ≤ c_w * (4 * Real.logb 2 U) := mul_le_mul_of_nonneg_left hsum hcw
-          _ = 4 * c_w * Real.logb 2 U := by ring
+        linarith only [hw, mul_le_mul_of_nonneg_left
+          (by linarith only [hlogV] : Real.logb 2 U + Real.logb 2 V ≤ 4 * Real.logb 2 U) hcw]
       have hlog_poly : (1 + α) * Real.logb 2 n ≤ Real.logb 2 U := by
         have h1 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
           (Real.rpow_pos_of_pos hn_pos _) hU_poly
@@ -91,27 +89,16 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ : 
           mul_le_mul_of_nonneg_right (by linarith only [hcw]) hγ.le
         have hhalf : α / (1 + α) / 2 = α / (2 * (1 + α)) := by rw [div_div, mul_comm (1 + α) 2]
         linarith only [h2c, hγ_eq, hhalf]
-      have h1 : 11 * m ≤ γ * m * Real.logb 2 U := by
-        have h := mul_le_mul_of_nonneg_right h11_mul hm_nn
-        linarith only [h]
-      have h2 : 6 * m * t ≤ γ * m * Real.logb 2 U := by
-        have h := mul_le_mul_of_nonneg_right ht_hi hm_nn
-        linarith only [h]
-      have h3 : γ * m * (w : ℝ) ≤ 4 * c_w * γ * m * Real.logb 2 U := by
-        have h := mul_le_mul_of_nonneg_left hw_le (by positivity : 0 ≤ γ * m)
-        linarith only [h]
       have h4 : ((4 + 4 * c_w) * γ) * (m * Real.logb 2 U) ≤
           (α / (2 * (1 + α))) * (m * Real.logb 2 U) :=
         mul_le_mul_of_nonneg_right hcoef (by positivity)
       have h5 : (α / (2 * (1 + α))) * (m * Real.logb 2 U) ≤
-          (m / 2) * Real.logb 2 ((U : ℝ) / (n : ℝ)) := by
-        have heq : (α / (2 * (1 + α))) * (m * Real.logb 2 U) =
-            (m / 2) * ((α / (1 + α)) * Real.logb 2 U) := by
-          have : 2 * (1 + α) ≠ 0 := by positivity
-          have : 1 + α ≠ 0 := by positivity
-          field_simp
-        exact heq ▸ mul_le_mul_of_nonneg_left hlog_div (by positivity)
-      linarith only [hR_in, h1, h2, h3, h4, h5]
+          (m / 2) * Real.logb 2 ((U : ℝ) / (n : ℝ)) :=
+        calc _ = (m / 2) * ((α / (1 + α)) * Real.logb 2 U) := by rw [div_mul_eq_div_div]; ring
+          _ ≤ _ := mul_le_mul_of_nonneg_left hlog_div (by positivity)
+      linarith only [hR_in, mul_le_mul_of_nonneg_right h11_mul hm_nn,
+        mul_le_mul_of_nonneg_right ht_hi hm_nn,
+        mul_le_mul_of_nonneg_left hw_le (by positivity : 0 ≤ γ * m), h4, h5]
     exact outer_lemma_insertQueryDelete hU hV hspace hspace T hcorr hγ ht hℓ ht_stop hm_lo hF_lo
       hF_hi hR_outer hbud
   · push Not at hV3
@@ -122,11 +109,8 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ : 
         have h1 := (Real.logb_lt_logb (by norm_num : (1 : ℝ) < 2) (by positivity) hV3).le
         rwa [Real.logb_pow] at h1
       have hw_le : (w : ℝ) ≤ 2 * c_w * Real.logb 2 V := by
-        have hsum : Real.logb 2 U + Real.logb 2 V ≤ 2 * Real.logb 2 V := by
-          linarith only [hlogV, hlogU_nn]
-        calc (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V) := hw
-          _ ≤ c_w * (2 * Real.logb 2 V) := mul_le_mul_of_nonneg_left hsum hcw
-          _ = 2 * c_w * Real.logb 2 V := by ring
+        linarith only [hw, mul_le_mul_of_nonneg_left (by linarith only [hlogV, hlogU_nn] :
+          Real.logb 2 U + Real.logb 2 V ≤ 2 * Real.logb 2 V) hcw]
       have hγ20 : 5 * γ ≤ 1 / 4 := by
         have h := mul_le_mul_of_nonneg_right (show 20 ≤ 20 + 24 * c_w by linarith only [hcw]) hγ.le
         linarith only [h, hγ_eq, hα_frac]
@@ -139,15 +123,13 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ : 
         rw [Real.logb_div hU_pos.ne' hn_pos.ne']; linarith only [hlogV, hlogn_nn]
       have h12 : 7 * m + 2 * m * t ≤ 2 * γ * m * Real.logb 2 U :=
         outer_budget_time_le hγ hm_nn h11 ht_hi
-      have h3 : γ * m * (w : ℝ) ≤ (2 * c_w * γ) * (m * Real.logb 2 V) := by
-        have h := mul_le_mul_of_nonneg_left hw_le (by positivity : 0 ≤ γ * m)
-        linarith only [h]
       have h4 : (5 * γ) * (m * Real.logb 2 U) ≤ (1 / 4) * (m * Real.logb 2 U) :=
         mul_le_mul_of_nonneg_right hγ20 (by positivity)
       have h5 : (2 * c_w * γ) * (m * Real.logb 2 V) ≤ (1 / 12) * (m * Real.logb 2 V) :=
         mul_le_mul_of_nonneg_right hcw12 (mul_nonneg hm_nn (by linarith only [hlogV, hlogU_nn]))
       have h6 := mul_le_mul_of_nonneg_left hgap_V hm_nn
-      linarith only [hR_in, h12, h3, h4, h5, h6]
+      linarith only [hR_in, h12, mul_le_mul_of_nonneg_left hw_le (by positivity : 0 ≤ γ * m), h4,
+        h5, h6]
     exact outer_lemma_largeVal_insertQueryDelete
       (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV hspace hspace T hcorr hγ
       ht hℓ ht_stop hF_lo hF_hi hR_outer hbud

@@ -78,23 +78,21 @@ theorem hasMistakeTree_of_natarajanShatters {C : ConceptClass α β} (W : Finset
   | empty => exact hW.nonempty
   | insert a W ha ih =>
     rw [Finset.card_insert_of_notMem ha]
-    rw [Finset.coe_insert] at hW
-    obtain ⟨f₀, f₁, hne, h⟩ := hW
+    obtain ⟨f₀, f₁, hne, h⟩ := Finset.coe_insert a W ▸ hW
     have ha_mem : a ∈ insert a (W : Set α) := Set.mem_insert a _
     refine ⟨a, f₀ a, f₁ a, hne a ha_mem, ih ?_, ih ?_⟩
     · refine ⟨f₀, f₁, fun x hx => hne x (Set.mem_insert_of_mem a hx), fun B hB => ?_⟩
       obtain ⟨c, hc, h₀, h₁⟩ := h (insert a B) (Set.insert_subset_insert hB)
-      refine ⟨c, mem_versionSpace_singleton.mpr ⟨hc, h₀ a (Set.mem_insert a B)⟩, ?_, ?_⟩
-      · exact fun x hx => h₀ x (Set.mem_insert_of_mem a hx)
-      · intro x hx
-        have hxa : x ≠ a := fun hxeq => ha (Finset.mem_coe.mp (hxeq ▸ hx.1))
-        exact h₁ x ⟨Set.mem_insert_of_mem a hx.1, fun hx' =>
-          (Set.mem_insert_iff.mp hx').elim hxa hx.2⟩
+      refine ⟨c, mem_versionSpace_singleton.mpr ⟨hc, h₀ a (Set.mem_insert a B)⟩,
+        fun x hx => h₀ x (Set.mem_insert_of_mem a hx), fun x hx => ?_⟩
+      have hxa : x ≠ a := fun hxeq => ha (Finset.mem_coe.mp (hxeq ▸ hx.1))
+      exact h₁ x ⟨Set.mem_insert_of_mem a hx.1, fun hx' =>
+        (Set.mem_insert_iff.mp hx').elim hxa hx.2⟩
     · refine ⟨f₀, f₁, fun x hx => hne x (Set.mem_insert_of_mem a hx), fun B hB => ?_⟩
       have haB : a ∉ B := fun ha' => ha (Finset.mem_coe.mp (hB ha'))
       obtain ⟨c, hc, h₀, h₁⟩ := h B (hB.trans (Set.subset_insert a _))
-      refine ⟨c, mem_versionSpace_singleton.mpr ⟨hc, h₁ a ⟨ha_mem, haB⟩⟩, h₀, ?_⟩
-      exact fun x hx => h₁ x ⟨Set.mem_insert_of_mem a hx.1, hx.2⟩
+      exact ⟨c, mem_versionSpace_singleton.mpr ⟨hc, h₁ a ⟨ha_mem, haB⟩⟩, h₀,
+        fun x hx => h₁ x ⟨Set.mem_insert_of_mem a hx.1, hx.2⟩⟩
 
 theorem natCast_le_littlestoneDim_of_natarajanShatters {C : ConceptClass α β} (W : Finset α)
     (hW : NatarajanShatters C (W : Set α)) : (W.card : ℕ∞) ≤ littlestoneDim C :=
@@ -193,13 +191,10 @@ theorem littlestoneDim_univ_of_nontrivial [Fintype α] [Nontrivial β] :
   classical
   apply le_antisymm (littlestoneDim_le_card _)
   obtain ⟨y₀, y₁, hne⟩ := exists_pair_ne β
-  have hW : NatarajanShatters (Set.univ : ConceptClass α β)
-      ((Finset.univ : Finset α) : Set α) := by
-    refine ⟨fun _ => y₀, fun _ => y₁, fun _ _ => hne, fun B _ => ?_⟩
-    refine ⟨fun x => if x ∈ B then y₀ else y₁, Set.mem_univ _, ?_, ?_⟩
-    · intro x hx; exact ite_eq_left hx
-    · intro x hx; exact ite_eq_right hx.2
-  simpa using natCast_le_littlestoneDim_of_natarajanShatters Finset.univ hW
+  simpa using natCast_le_littlestoneDim_of_natarajanShatters Finset.univ
+    ⟨fun _ => y₀, fun _ => y₁, fun _ _ => hne, fun B _ =>
+      ⟨fun x => if x ∈ B then y₀ else y₁, Set.mem_univ _,
+        fun _ hx => ite_eq_left hx, fun _ hx => ite_eq_right hx.2⟩⟩
 
 /-- The class of all Boolean functions on a finite domain `α` has Littlestone dimension `|α|`. -/
 theorem littlestoneDim_univ [Fintype α] :

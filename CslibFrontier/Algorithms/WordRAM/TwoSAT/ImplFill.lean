@@ -42,6 +42,16 @@ def implFillBody : Code .standard 28 := ram[
     pReg ← pReg + cOne ];
   iReg ← iReg + cOne ]
 
+/-- The negated literal code `litCodeBy Fin.val a ^^^ 1` fits the word width. -/
+private theorem fits_litCode_xor_one (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound)
+    (a : Literal (Fin G.n)) : Fits w (litCodeBy Fin.val a ^^^ 1) :=
+  G.fits_of_le hfit (by
+    rw [show litCodeBy Fin.val a ^^^ 1 = (litEquiv G.n a.negate).val from
+      litCodeBy_xor_one Fin.val a]
+    have := (litEquiv G.n a.negate).isLt
+    unfold Instance.wordBound
+    omega)
+
 theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     ∀ (cs : CNF (Fin G.n)) (g : Literal (Fin G.n) → List (Literal (Fin G.n)))
       (idx p : ℕ) (x : Data 28),
@@ -72,8 +82,7 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     have hend : ¬ (Cond.lt iReg mClauses).Holds x := by
       change ¬ x.regs iReg < x.regs mClauses
       omega
-    refine ⟨x, ⟨2, by omega, Exec.loop_exit hend⟩,
-      hpcsr, fun _ _ => rfl, fun _ _ => rfl⟩
+    exact ⟨x, ExecWithin.loop_exit hend, hpcsr, fun _ _ => rfl, fun _ _ => rfl⟩
   | c :: cs, g, idx, p, x, hcs, htarget, hidx, hp, hcm, hpcsr, hc1, hm, hcur, hedge, hi, hpR => by
     have hc := hcs c List.mem_cons_self
     have hrest : ∀ c' ∈ cs, 1 ≤ c'.length ∧ c'.length ≤ 2 :=
@@ -89,21 +98,20 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           G.encode_length, Instance.wordBound]
         omega)
     obtain ⟨hlen_p, hlit_p, hcm_rest⟩ := clauseMemAt_cons hcm
-    have hflat_cons : ((c :: cs).flatMap (encodeClauseBy Fin.val)).length =
-        c.length + 1 + (cs.flatMap (encodeClauseBy Fin.val)).length := by
-      simp [List.flatMap_cons, length_encodeClauseBy, Nat.add_assoc]
+    simp only [List.flatMap_cons, List.length_append, length_encodeClauseBy] at hp
+    have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; lia)
     have htarget' : cs.foldl addClauseEdges (addClauseEdges g c) = implicationAdj G.φ := by
       rcases htarget with hnil | hfold
       · simp [hnil] at hidx
       · simpa using hfold
-    let FillStepPost (x₁ : Data 28) : Prop :=
-      PartialCSRAt G.adjFin (mapAdj (litEquiv G.n) (addClauseEdges g c))
-          curBase edgeBase x₁.mem ∧
-        (∀ a, ¬ ((curBase ≤ a ∧ a < curBase + 2 * G.n) ∨
-            (edgeBase ≤ a ∧ a < edgeBase + csrOffset G.adjFin (2 * G.n))) → x₁.mem a = x.mem a) ∧
-        x₁.regs iReg = idx + 1 ∧ x₁.regs pReg = p + 1 + c.length ∧
-        (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r)
-    have hstep : ∃ x₁, ExecWithin w implFillBody x x₁ 26 ∧ FillStepPost x₁ := by
+    obtain ⟨x₁, hx₁_ex, hx₁_p_csr, hx₁_out, hx₁_i, hx₁_p, hx₁_fr⟩ :
+        ∃ x₁, ExecWithin w implFillBody x x₁ 26 ∧
+          PartialCSRAt G.adjFin (mapAdj (litEquiv G.n) (addClauseEdges g c))
+            curBase edgeBase x₁.mem ∧
+          (∀ a, ¬ ((curBase ≤ a ∧ a < curBase + 2 * G.n) ∨
+              (edgeBase ≤ a ∧ a < edgeBase + csrOffset G.adjFin (2 * G.n))) → x₁.mem a = x.mem a) ∧
+          x₁.regs iReg = idx + 1 ∧ x₁.regs pReg = p + 1 + c.length ∧
+          (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r) := by
       rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, rest⟩⟩⟩
       · simp at hc
       · have hmem_a : x.mem (p + 1) = litCodeBy Fin.val a := by simpa using hlit_p 0 (by simp)
@@ -114,48 +122,28 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           have hle := length_le_foldl_addClauseEdges cs (addClauseEdges g [a]) a.negate
           rw [htarget'] at hle
           simpa [Instance.adjFin, mapAdj, addClauseEdges] using hle
-        have hf_p1 : Fits w (p + 1) :=
-          G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
         have hf_p2 : Fits w (p + 1 + 1) :=
           G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
-        have hf_na : Fits w (litCodeBy Fin.val a ^^^ 1) :=
-          G.fits_of_le hfit (by
-            rw [hxor_a]
-            have := (litEquiv G.n a.negate).isLt
-            unfold Instance.wordBound
-            omega)
-        have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
+        have hf_na := fits_litCode_xor_one G hfit a
         let st_v := ((((x.set jReg 1).set pReg (p + 1)).set oldFinReg (litCodeBy Fin.val a)).set
           vReg (litCodeBy Fin.val a ^^^ 1)).set uReg (litCodeBy Fin.val a)
         obtain ⟨y₁, hy₁_ex, hy₁_p, hy₁_out, hy₁_fr⟩ :=
           backfillStepCode_spec G.adjFin (mapAdj (litEquiv G.n) g) curBase edgeBase
             (2 * G.φ.length) hdisj hmc hfit_bf (litEquiv G.n a.negate) (litEquiv G.n a) hroom_a
-            (x := st_v) (by dsimp only [st_v]; wram_simp; exact hc1)
-            (by dsimp only [st_v]; wram_simp; exact hcur)
-            (by dsimp only [st_v]; wram_simp; exact hedge)
-            (by dsimp only [st_v]; wram_simp; exact hxor_a)
-            (by dsimp only [st_v, litEquiv]; wram_simp; rfl)
-            (by dsimp only [st_v]; exact hpcsr)
+            (x := st_v) (by wram_simp [st_v, hc1]) (by wram_simp [st_v, hcur])
+            (by wram_simp [st_v, hedge]) (by wram_simp [st_v, hxor_a])
+            (by dsimp only [st_v, litEquiv]; wram_simp; rfl) hpcsr
         have hlen_1 : x.mem p = 1 := by simpa using hlen_p
         unfold implFillBody
-        wram_exec [hc1, hpR, hi, hlen_1, hmem_a, hf_p1, hf_na]
+        wram_exec [hc1, hpR, hi, hlen_1, hmem_a, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
-        have hy₁_1 : y₁.regs cOne = 1 :=
-          (hy₁_fr cOne (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hc1)
-        have hy₁_pr : y₁.regs pReg = p + 1 :=
-          (hy₁_fr pReg (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp)
-        have hy₁_i : y₁.regs iReg = idx :=
-          (hy₁_fr iReg (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hi)
-        wram_exec [hy₁_1, hy₁_pr, hy₁_i, hf_p2, hf_i1]
-        dsimp only [FillStepPost]
+        wram_exec [hy₁_fr, st_v, hc1, hi, hf_p2, hf_i1]
         refine ⟨?_, fun addr_a ha => ?_, by wram_simp, by wram_simp; omega, fun r hr => ?_⟩
         · wram_simp
           rwa [mapAdj_addClauseEdges_one]
         · wram_simp
           exact hy₁_out addr_a ha
-        · regs_lt
-          rw [hy₁_fr r (by reg_ne) (by reg_ne)]
-          dsimp only [st_v]; regs_lt
+        · wram_simp [hy₁_fr r (by reg_ne) (by reg_ne), st_v]
       · have hmem_a : x.mem (p + 1) = litCodeBy Fin.val a := by simpa using hlit_p 0 (by simp)
         have hmem_b : x.mem (p + 1 + 1) = litCodeBy Fin.val b := by
           simpa [Nat.add_assoc] using hlit_p 1 (by simp)
@@ -176,100 +164,51 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             by_cases hab : a.negate = b.negate <;> simp [hab]
           have hle2 := length_le_foldl_addClauseEdges cs (addClauseEdges g [a, b]) a.negate
           rw [htarget'] at hle2
-          have htot := hle1.trans hle2
-          simpa [Instance.adjFin, mapAdj, g₁] using htot
+          simpa [Instance.adjFin, mapAdj, g₁] using hle1.trans hle2
         have hroom_b : (mapAdj (litEquiv G.n) g₁ (litEquiv G.n b.negate)).length + 1 ≤
             (G.adjFin (litEquiv G.n b.negate)).length := by
           have hle2 := length_le_foldl_addClauseEdges cs (addClauseEdges g [a, b]) b.negate
           rw [htarget'] at hle2
           simpa [Instance.adjFin, mapAdj, addClauseEdges, g₁] using hle2
-        have hf_p1 : Fits w (p + 1) :=
-          G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
-        have hf_p2 : Fits w (p + 1 + 1) :=
-          G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
         have hf_p3 : Fits w (p + 1 + 1 + 1) :=
           G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
-        have hf_na : Fits w (litCodeBy Fin.val a ^^^ 1) :=
-          G.fits_of_le hfit (by
-            rw [hxor_a]
-            have := (litEquiv G.n a.negate).isLt
-            unfold Instance.wordBound
-            omega)
-        have hf_nb : Fits w (litCodeBy Fin.val b ^^^ 1) :=
-          G.fits_of_le hfit (by
-            rw [hxor_b]
-            have := (litEquiv G.n b.negate).isLt
-            unfold Instance.wordBound
-            omega)
-        have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
+        have hf_na := fits_litCode_xor_one G hfit a
+        have hf_nb := fits_litCode_xor_one G hfit b
         let st_v1 := ((((((x.set jReg 2).set pReg (p + 1)).set oldFinReg (litCodeBy Fin.val a)).set
           pReg (p + 1 + 1)).set jReg (litCodeBy Fin.val b)).set
           vReg (litCodeBy Fin.val a ^^^ 1)).set uReg (litCodeBy Fin.val b)
         obtain ⟨y₁, hy₁_ex, hy₁_p, hy₁_out, hy₁_fr⟩ :=
           backfillStepCode_spec G.adjFin (mapAdj (litEquiv G.n) g) curBase edgeBase
             (2 * G.φ.length) hdisj hmc hfit_bf (litEquiv G.n a.negate) (litEquiv G.n b) hroom_a
-            (x := st_v1) (by dsimp only [st_v1]; wram_simp; exact hc1)
-            (by dsimp only [st_v1]; wram_simp; exact hcur)
-            (by dsimp only [st_v1]; wram_simp; exact hedge)
-            (by dsimp only [st_v1]; wram_simp; exact hxor_a)
-            (by dsimp only [st_v1, litEquiv]; wram_simp; rfl)
-            (by dsimp only [st_v1]; exact hpcsr)
+            (x := st_v1) (by wram_simp [st_v1, hc1]) (by wram_simp [st_v1, hcur])
+            (by wram_simp [st_v1, hedge]) (by wram_simp [st_v1, hxor_a])
+            (by dsimp only [st_v1, litEquiv]; wram_simp; rfl) hpcsr
         have hy₁_p' : PartialCSRAt G.adjFin (mapAdj (litEquiv G.n) g₁) curBase edgeBase y₁.mem := by
           rwa [hg₁_map]
-        have hy₁_1 : y₁.regs cOne = 1 :=
-          (hy₁_fr cOne (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp; exact hc1)
-        have hy₁_cur : y₁.regs curB = curBase :=
-          (hy₁_fr curB (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp; exact hcur)
-        have hy₁_edge : y₁.regs edgeB = edgeBase :=
-          (hy₁_fr edgeB (by decide) (by decide)).trans
-            (by dsimp only [st_v1]; wram_simp; exact hedge)
-        have hy₁_a : y₁.regs oldFinReg = litCodeBy Fin.val a :=
-          (hy₁_fr oldFinReg (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp)
-        have hy₁_b : y₁.regs jReg = litCodeBy Fin.val b :=
-          (hy₁_fr jReg (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp)
         let st_v2 := (y₁.set vReg (litCodeBy Fin.val b ^^^ 1)).set uReg (litCodeBy Fin.val a)
         obtain ⟨y₂, hy₂_ex, hy₂_p, hy₂_out, hy₂_fr⟩ :=
           backfillStepCode_spec G.adjFin (mapAdj (litEquiv G.n) g₁) curBase edgeBase
             (2 * G.φ.length) hdisj hmc hfit_bf (litEquiv G.n b.negate) (litEquiv G.n a) hroom_b
-            (x := st_v2) (by dsimp only [st_v2]; wram_simp; exact hy₁_1)
-            (by dsimp only [st_v2]; wram_simp; exact hy₁_cur)
-            (by dsimp only [st_v2]; wram_simp; exact hy₁_edge)
-            (by dsimp only [st_v2]; wram_simp; exact hxor_b)
-            (by dsimp only [st_v2, litEquiv]; wram_simp; rfl)
-            (by dsimp only [st_v2]; exact hy₁_p')
+            (x := st_v2) (by wram_simp [st_v2, hy₁_fr, st_v1, hc1])
+            (by wram_simp [st_v2, hy₁_fr, st_v1, hcur]) (by wram_simp [st_v2, hy₁_fr, st_v1, hedge])
+            (by wram_simp [st_v2, hxor_b]) (by dsimp only [st_v2, litEquiv]; wram_simp; rfl) hy₁_p'
         unfold implFillBody
-        wram_exec [hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_p1, hf_p2, hf_na]
+        wram_exec [hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
-        wram_exec [hy₁_1, hy₁_a, hy₁_b, hf_nb]
+        wram_exec [hy₁_fr, st_v1, hc1, hf_nb]
         refine WP.of_execWithin hy₂_ex ?_
-        have hy₂_1 : y₂.regs cOne = 1 :=
-          (hy₂_fr cOne (by decide) (by decide)).trans
-            (by dsimp only [st_v2]; wram_simp; exact hy₁_1)
-        have hy₂_pr : y₂.regs pReg = p + 1 + 1 :=
-          (hy₂_fr pReg (by decide) (by decide)).trans
-            ((hy₁_fr pReg (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp))
-        have hy₂_i : y₂.regs iReg = idx :=
-          (hy₂_fr iReg (by decide) (by decide)).trans
-            ((hy₁_fr iReg (by decide) (by decide)).trans
-              (by dsimp only [st_v1]; wram_simp; exact hi))
-        wram_exec [hy₂_1, hy₂_pr, hy₂_i, hf_p3, hf_i1]
-        dsimp only [FillStepPost]
+        wram_exec [hy₂_fr, st_v2, hy₁_fr, st_v1, hc1, hi, hf_p3, hf_i1]
         refine ⟨?_, fun addr_a ha => ?_, by wram_simp, by wram_simp; omega, fun r hr => ?_⟩
         · wram_simp
           rwa [mapAdj_addClauseEdges_two, ← hg₁_map]
         · wram_simp
           exact (hy₂_out addr_a ha).trans (hy₁_out addr_a ha)
-        · regs_lt
-          rw [hy₂_fr r (by reg_ne) (by reg_ne)]
-          dsimp only [st_v2]; regs_lt
-          rw [hy₁_fr r (by reg_ne) (by reg_ne)]
-          dsimp only [st_v1]; regs_lt
+        · wram_simp [hy₂_fr r (by reg_ne) (by reg_ne), st_v2, hy₁_fr r (by reg_ne) (by reg_ne),
+            st_v1]
       · simp at hc
-    obtain ⟨x₁, hx₁_ex, hx₁_p_csr, hx₁_out, hx₁_i, hx₁_p, hx₁_fr⟩ := hstep
     have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := by
       intro k hk
       have hk_bound : p + 1 + c.length + k < G.workBase := by
-        rw [hflat_cons] at hp
         simp only [Instance.workBase, Instance.outAddrBase]
         omega
       rw [hx₁_out _ (by simp only [curBase, edgeBase, kCurAddr, kEdgeAddr]; omega)]
@@ -281,16 +220,13 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     obtain ⟨y, hy_ex, hy_p_csr, hy_out, hy_fr⟩ := implFillLoop_spec G hfit cs
       (addClauseEdges g c) (idx + 1) (p + 1 + c.length) x₁ hrest (.inr htarget')
       (by simp only [List.length_cons] at hidx; omega)
-      (by rw [hflat_cons] at hp; omega) hcm_x₁ hx₁_p_csr
+      (by lia) hcm_x₁ hx₁_p_csr
       ((hx₁_fr cOne (by decide)).trans hc1)
       ((hx₁_fr mClauses (by decide)).trans hm)
       ((hx₁_fr curB (by decide)).trans hcur)
       ((hx₁_fr edgeB (by decide)).trans hedge)
       hx₁_i hx₁_p
-    obtain ⟨t₁, ht₁, he₁⟩ := hx₁_ex
-    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
-    refine ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; omega,
-        Exec.loop_iter hlt he₁ he₂⟩, hy_p_csr,
+    refine ⟨y, (hx₁_ex.loop_iter hlt hy_ex).mono (by simp only [List.length_cons]; omega), hy_p_csr,
       fun a ha => (hy_out a ha).trans (hx₁_out a ha),
       fun r hr => (hy_fr r hr).trans (hx₁_fr r hr)⟩
 

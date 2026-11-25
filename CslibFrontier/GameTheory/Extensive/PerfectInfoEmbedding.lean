@@ -643,28 +643,22 @@ theorem toExtensiveTree_isPureNash_iff {ι : Type u} [DecidableEq ι] (T : Perfe
     (s : ∀ i, PureStrategy i T) :
     T.toExtensiveTree.toCostGame.IsPureNash (fun i => (s i).toExtensive) ↔
       T.toCostGame.IsPureNash s := by
+  have hupd : ∀ i (σ' : PureStrategy i T),
+      Function.update (fun j => (s j).toExtensive) i σ'.toExtensive =
+        fun j => (Function.update s i σ' j).toExtensive := fun i σ' => by
+    funext j
+    by_cases hj : j = i
+    · subst hj
+      simp
+    · simp [hj]
   constructor
   · intro h i σ'
-    have hdev := h i σ'.toExtensive
-    have hupd : Function.update (fun j => (s j).toExtensive) i σ'.toExtensive =
-        fun j => (Function.update s i σ' j).toExtensive := by
-      funext j
-      by_cases hj : j = i
-      · subst hj; simp
-      · simp [hj]
     simpa [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost, hupd,
-      toExtensiveTree_evalPure] using hdev
+      toExtensiveTree_evalPure] using h i σ'.toExtensive
   · intro h i sE'
     let σ' := PureStrategy.ofExtensive T sE'
-    have hsE' : sE' = σ'.toExtensive := (PureStrategy.toExtensiveEquiv T i).right_inv sE' |>.symm
     have hdev := h i σ'
-    have hupd : Function.update (fun j => (s j).toExtensive) i σ'.toExtensive =
-        fun j => (Function.update s i σ' j).toExtensive := by
-      funext j
-      by_cases hj : j = i
-      · subst hj; simp
-      · simp [hj]
-    rw [hsE']
+    rw [show sE' = σ'.toExtensive from (PureStrategy.toExtensiveEquiv T i).right_inv sE' |>.symm]
     simp only [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost] at hdev ⊢
     rw [hupd, toExtensiveTree_evalPure, toExtensiveTree_evalPure]
     exact hdev
@@ -729,12 +723,7 @@ theorem toExtensiveTree_isMixedNash_iff {ι : Type u} [Fintype ι] [DecidableEq 
       by_cases hj : j = i
       · subst hj; simp [e, PureStrategy.toExtensiveEquiv]
       · simp [hj, e, PureStrategy.toExtensiveEquiv]
-    have hupd' : ∀ sE' : ∀ j,
-        Cslib.GameTheory.Extensive.PureStrategy (fun j => T.InfoSet j) (fun _ h => h.Act) j,
-        -T.toExtensiveTree.evalPure (Function.update sE' i sE) i =
-          -T.expectedPayoff (Function.update (fun j => (e j).symm (sE' j)) i ((e i).symm sE)) i :=
-      fun sE' => congrArg Neg.neg (hupd sE')
-    simp_rw [hupd']
+    simp_rw [hupd]
     exact hprof q fun s => -T.expectedPayoff (Function.update s i ((e i).symm sE)) i
   have hpush : (fun i sE => μ i (PureStrategy.ofExtensive T sE)) =
       fun i sE => μ i ((e i).symm sE) := rfl

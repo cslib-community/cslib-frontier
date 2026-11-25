@@ -99,7 +99,6 @@ theorem wp_methods {s : Memory.State} (hs : Inv L w s) (o : Op) (hv : spec.valid
       (fun a s' t => spec.stepFn (abs L s) o = (abs L s', a) ∧ Inv L w s' ∧
         t ≤ opCharge (abs L s) o ∧ s'.frontier = s.frontier ∧
         ∀ b ∉ L.footprint, s'.mem b = s.mem b) s := by
-  have hlim := hs.allocated
   cases o with
   | size =>
     exact (wp_lift _ _ _).mpr
@@ -111,11 +110,11 @@ theorem wp_methods {s : Memory.State} (hs : Inv L w s) (o : Op) (hv : spec.valid
     rw [hs.total_eq]
   | pairAt r =>
     refine wp_mono ?_ (wp_pairAt hs hv)
-    rintro a s' t ⟨rfl, rfl, ht⟩
+    rintro _ _ _ ⟨rfl, rfl, ht⟩
     exact ⟨rfl, hs, ht, rfl, fun _ _ => rfl⟩
   | contract u v =>
     refine wp_mono ?_ (wp_contract hs hv)
-    rintro a s' t ⟨hf, hfr, habs, hs', ht⟩
+    rintro _ _ _ ⟨hf, hfr, habs, hs', ht⟩
     exact ⟨by rw [habs]; rfl, hs', ht, hf, hfr⟩
 
 variable (L w)
@@ -209,10 +208,9 @@ theorem minCut_le_of_mem_support_kargerProg {e : Memory.State} (he : Inv L w e) 
     {x : ℕ × Memory.State}
     (hx : x ∈ ((Memory.spec w).toRandomized.withCoins.run (kargerProg L w) e).support) :
     minCut W₀ ≤ x.1 := by
-  have hmem : (x.1, abs L x.2) ∈ (spec.toRandomized.withCoins.run karger ⟨n, W₀⟩).support := by
-    rw [← habs, ← map_run_kargerProg he (habs ▸ demonicValid_karger hn hW₀)]
-    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨x, hx, rfl⟩
-  exact minCut_le_of_mem_support_karger hn hW₀ hmem
+  refine minCut_le_of_mem_support_karger hn hW₀ (x := (x.1, abs L x.2)) ?_
+  rw [← habs, ← map_run_kargerProg he (habs ▸ demonicValid_karger hn hW₀)]
+  exact (PMF.mem_support_map_iff _ _ _).mpr ⟨x, hx, rfl⟩
 
 /-! ## Cost -/
 

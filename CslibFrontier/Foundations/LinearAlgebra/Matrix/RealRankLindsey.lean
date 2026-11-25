@@ -76,58 +76,23 @@ theorem sq_sum_bilinear_mul_two_pow_rank_le_l2 [Fintype α] [Fintype β] [Decida
           have heq : B *ᵥ q + B *ᵥ q' = 0 ↔ B *ᵥ q' = B *ᵥ q := by
             rw [add_eq_zero_iff_eq_neg, ZModModule.neg_eq_self, eq_comm]
           rw [if_congr heq rfl rfl]
+  set I : (β → ZMod 2) → (β → ZMod 2) → ℝ := fun q q' =>
+    if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0
   have hfibre : ∑ p, H p ^ 2 ≤ (∑ q, h q ^ 2) * K * (2 : ℝ) ^ Fintype.card α := by
-    rw [hexp]
-    have hpt : ∀ q q', h q * h q' * (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) ≤
-        ((h q ^ 2 + h q' ^ 2) / 2) *
-          (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) := by
-      intro q q'
-      refine mul_le_mul_of_nonneg_right ?_ (by split_ifs <;> positivity)
-      nlinarith [sq_nonneg (h q - h q')]
-    have hcard_row (q : β → ZMod 2) :
-        ∑ q' : β → ZMod 2, (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) =
-          K * (2 : ℝ) ^ Fintype.card α := by
+    have hrow (q) : ∑ q', I q q' = K * 2 ^ Fintype.card α := by
       rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const, nsmul_eq_mul,
         card_filter_mulVec_eq B q]
-    have hcard_col (q' : β → ZMod 2) :
-        ∑ q : β → ZMod 2, (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) =
-          K * (2 : ℝ) ^ Fintype.card α := by
-      have hsymm : ∀ q, (B *ᵥ q' = B *ᵥ q) ↔ (B *ᵥ q = B *ᵥ q') := fun _ => eq_comm
-      simp_rw [hsymm]
-      exact hcard_row q'
-    calc ∑ q, ∑ q', h q * h q' * (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0)
-        ≤ ∑ q, ∑ q', ((h q ^ 2 + h q' ^ 2) / 2) *
-            (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) :=
-          Finset.sum_le_sum fun q _ => Finset.sum_le_sum fun q' _ => hpt q q'
-      _ = (1 / 2) * (∑ q, h q ^ 2 * ∑ q',
-              if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) +
-            (1 / 2) * (∑ q', h q' ^ 2 * ∑ q,
-              if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) := by
-          have hsplit : ∀ q q', ((h q ^ 2 + h q' ^ 2) / 2) *
-              (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) =
-              (1 / 2) * (h q ^ 2 * (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0)) +
-              (1 / 2) * (h q' ^ 2 *
-                (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0)) := by
-            intro q q'; ring
-          simp_rw [hsplit, Finset.sum_add_distrib]
-          have h1 : ∑ q, ∑ q', (1 / 2) * (h q ^ 2 *
-              if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) =
-              (1 / 2) * ∑ q, h q ^ 2 * ∑ q',
-                if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0 := by
-            rw [Finset.mul_sum]
-            refine Finset.sum_congr rfl fun q _ => ?_
-            simp_rw [Finset.mul_sum]
-          have h2 : ∑ q, ∑ q', (1 / 2) * (h q' ^ 2 *
-              if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) =
-              (1 / 2) * ∑ q', h q' ^ 2 * ∑ q,
-                if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0 := by
-            rw [Finset.sum_comm, Finset.mul_sum]
-            refine Finset.sum_congr rfl fun q' _ => ?_
-            simp_rw [Finset.mul_sum]
-          rw [h1, h2]
-      _ = (∑ q, h q ^ 2) * K * (2 : ℝ) ^ Fintype.card α := by
-          simp_rw [hcard_row, hcard_col, ← Finset.sum_mul]
-          ring
+    have hswap : ∑ q, ∑ q', h q' ^ 2 * I q q' = ∑ q, ∑ q', h q ^ 2 * I q q' := by
+      rw [Finset.sum_comm]; simp only [I, eq_comm]
+    rw [hexp]
+    have h2 : 2 * ∑ q, ∑ q', h q * h q' * I q q' ≤
+        ∑ q, ∑ q', h q ^ 2 * I q q' + ∑ q, ∑ q', h q' ^ 2 * I q q' := by
+      simp only [Finset.mul_sum, ← Finset.sum_add_distrib]
+      gcongr with q _ q' _
+      have : 0 ≤ I q q' := by simp only [I]; split_ifs <;> positivity
+      linarith [mul_nonneg (sq_nonneg (h q - h q')) this]
+    simp only [hswap, ← Finset.mul_sum, hrow, ← Finset.sum_mul] at h2
+    linarith
   have hK : (K : ℝ) * 2 ^ B.rank = 2 ^ Fintype.card β := by
     exact_mod_cast card_ker_mul_two_pow_rank B
   have hg0 : 0 ≤ ∑ p, g p ^ 2 := Finset.sum_nonneg fun p _ => sq_nonneg (g p)
@@ -148,15 +113,10 @@ private theorem sq_sum_matrix_bilinear_le_of_rank_le [Fintype α] [Fintype β] [
         r * (∑ p, ∑ q, M p q ^ 2) * 2 ^ Fintype.card α * 2 ^ Fintype.card β
   | 0, M, hr => by
     classical
-    have hr0 : M.rank = 0 := Nat.eq_zero_of_le_zero hr
-    have hbot : LinearMap.range M.mulVecLin = ⊥ := Submodule.finrank_eq_zero.mp hr0
-    have hM0 : ∀ p q, M p q = 0 := by
-      intro p q
-      have hmem : M.mulVecLin (Pi.single q 1) ∈ (⊥ : Submodule ℝ ((α → ZMod 2) → ℝ)) :=
-        hbot ▸ LinearMap.mem_range_self M.mulVecLin (Pi.single q 1)
-      have hcol : M *ᵥ Pi.single q 1 = 0 := (Submodule.mem_bot ℝ).mp hmem
-      simpa [mulVec_single] using congrFun hcol p
-    simp [hM0]
+    obtain rfl : M = 0 := Matrix.toLin'.injective <| by
+      rw [map_zero, Matrix.toLin'_apply']
+      exact LinearMap.range_eq_bot.1 (Submodule.finrank_eq_zero.1 (Nat.eq_zero_of_le_zero hr))
+    simp
   | r + 1, M, hr => by
     classical
     by_cases hzero : ∀ p q, M p q = 0
@@ -191,41 +151,20 @@ private theorem sq_sum_matrix_bilinear_le_of_rank_le [Fintype α] [Fintype β] [
       let e₀ : (β → ZMod 2) → ℝ := Pi.single q₀ 1
       have hN_le : LinearMap.range N.mulVecLin ≤ LinearMap.range M.mulVecLin := by
         rintro _ ⟨x, rfl⟩
-        refine ⟨x - (c ⬝ᵥ x) • e₀, ?_⟩
+        refine ⟨x - (c ⬝ᵥ x) • Pi.single q₀ 1, ?_⟩
+        rw [mulVecLin_apply, mulVecLin_apply, mulVec_sub, mulVec_smul, mulVec_single_one]
         ext p
-        simp only [mulVecLin_apply, mulVec, dotProduct, N, of_apply, Pi.sub_apply, Pi.smul_apply,
-          smul_eq_mul, sub_mul, Finset.sum_sub_distrib]
-        have hv : ∑ q, v p * c q * x q = (∑ q, c q * x q) * M p q₀ := by
-          simp_rw [show ∀ q, v p * c q * x q = (c q * x q) * v p from fun q => by ring,
-            ← Finset.sum_mul]
-          rfl
-        have hsingle : ∑ q, M p q * e₀ q = M p q₀ := by
-          rw [Fintype.sum_eq_single q₀ fun q hq => by simp [e₀, hq]]
-          simp [e₀]
-        rw [hv]
-        simp_rw [show ∀ q, M p q * (x q - (∑ i, c i * x i) * e₀ q) =
-            M p q * x q - (∑ i, c i * x i) * (M p q * e₀ q) from fun q => by ring,
-          Finset.sum_sub_distrib, ← Finset.mul_sum, hsingle]
+        simp only [Pi.sub_apply, Pi.smul_apply, smul_eq_mul, col_apply, mulVec, dotProduct, N, v,
+          of_apply, sub_mul, Finset.sum_sub_distrib, Finset.sum_mul]
+        congr 1; exact Finset.sum_congr rfl fun q _ => by ring
       have hN_lt : LinearMap.range N.mulVecLin < LinearMap.range M.mulVecLin := by
         refine lt_of_le_of_ne hN_le fun heq => ?_
-        have hv_mem : v ∈ LinearMap.range M.mulVecLin := by
-          refine ⟨e₀, ?_⟩
-          ext p
-          simp [e₀, mulVec_single, v]
-        rw [← heq] at hv_mem
-        obtain ⟨x, hx⟩ := hv_mem
-        have hdot : v ⬝ᵥ (N *ᵥ x) = 0 := by
-          calc v ⬝ᵥ (N *ᵥ x)
-              = ∑ p, v p * ∑ q, N p q * x q := rfl
-            _ = ∑ q, x q * ∑ p, v p * N p q := by
-                simp_rw [Finset.mul_sum, show ∀ p q, v p * (N p q * x q) = x q * (v p * N p q)
-                  from fun _ _ => by ring]
-                exact Finset.sum_comm
-            _ = 0 := by simp [horth]
+        obtain ⟨x, hx⟩ : v ∈ LinearMap.range N.mulVecLin := by
+          rw [heq]; exact ⟨e₀, funext fun p => by simp [e₀, mulVec_single, v]⟩
+        have hdot := dotProduct_mulVec v N x
         rw [mulVecLin_apply] at hx
-        rw [hx] at hdot
-        have hvv : v ⬝ᵥ v = s := by
-          simp [dotProduct, s, sq]
+        rw [hx, show v ᵥ* N = 0 from funext horth, zero_dotProduct] at hdot
+        have hvv : v ⬝ᵥ v = s := by simp [dotProduct, s, sq]
         linarith
       have hrank_lt : N.rank < M.rank := Submodule.finrank_lt_finrank_of_lt hN_lt
       have hNrank : N.rank ≤ r := by omega
@@ -245,48 +184,20 @@ private theorem sq_sum_matrix_bilinear_le_of_rank_le [Fintype α] [Fintype β] [
           r * (∑ p, ∑ q, N p q ^ 2) * 2 ^ Fintype.card α * 2 ^ Fintype.card β :=
         sq_sum_matrix_bilinear_le_of_rank_le B r N hNrank
       rw [hSM, hpyth]
-      set W : ℝ := (2 : ℝ) ^ Fintype.card α * 2 ^ Fintype.card β
-      have hW : 0 ≤ W := by positivity
       have hpow : (0 : ℝ) < 2 ^ B.rank := by positivity
-      have hI₁' : S₁ ^ 2 * 2 ^ B.rank ≤ s * (∑ q, c q ^ 2) * W := by
-        dsimp only [W]; linarith
-      have hI₂' : S₂ ^ 2 * 2 ^ B.rank ≤ (r : ℝ) * (∑ p, ∑ q, N p q ^ 2) * W := by
-        dsimp only [W]; linarith
+      have hNW : 0 ≤ (∑ p, ∑ q, N p q ^ 2) * (2 ^ Fintype.card α * 2 ^ Fintype.card β) := by
+        positivity
       rcases Nat.eq_zero_or_pos r with rfl | hrpos
-      · simp only [Nat.cast_zero, zero_mul] at hI₂'
-        have hS₂_sq : S₂ ^ 2 ≤ 0 := nonpos_of_mul_nonpos_left hI₂' hpow
-        have hS₂ : S₂ = 0 := sq_eq_zero_iff.mp (le_antisymm hS₂_sq (sq_nonneg S₂))
-        have hN2 : 0 ≤ ∑ p, ∑ q, N p q ^ 2 :=
-          Finset.sum_nonneg fun p _ => Finset.sum_nonneg fun q _ => sq_nonneg (N p q)
-        rw [hS₂, add_zero, Nat.zero_add, Nat.cast_one, one_mul]
-        calc S₁ ^ 2 * 2 ^ B.rank
-            ≤ s * (∑ q, c q ^ 2) * W := hI₁'
-          _ ≤ (s * (∑ q, c q ^ 2) + ∑ p, ∑ q, N p q ^ 2) * W :=
-              mul_le_mul_of_nonneg_right (le_add_of_nonneg_right hN2) hW
-          _ = _ := by dsimp only [W]; ring
-      · have hr' : (0 : ℝ) < r := Nat.cast_pos.mpr hrpos
-        have hcs : (r : ℝ) * (S₁ + S₂) ^ 2 ≤ ((r : ℝ) + 1) * ((r : ℝ) * S₁ ^ 2 + S₂ ^ 2) := by
-          nlinarith [sq_nonneg ((r : ℝ) * S₁ - S₂)]
-        have hmul := mul_le_mul_of_nonneg_right hcs hpow.le
-        have hcomb : ((r : ℝ) * S₁ ^ 2 + S₂ ^ 2) * 2 ^ B.rank ≤
-            (r : ℝ) * (s * (∑ q, c q ^ 2) + ∑ p, ∑ q, N p q ^ 2) * W := by
-          have h1 : (r : ℝ) * (S₁ ^ 2 * 2 ^ B.rank) ≤ (r : ℝ) * (s * (∑ q, c q ^ 2) * W) :=
-            mul_le_mul_of_nonneg_left hI₁' hr'.le
-          linarith
-        have hstep : (r : ℝ) * ((S₁ + S₂) ^ 2 * 2 ^ B.rank) ≤
-            (r : ℝ) * (((r : ℝ) + 1) * (s * (∑ q, c q ^ 2) + ∑ p, ∑ q, N p q ^ 2) * W) := by
-          calc (r : ℝ) * ((S₁ + S₂) ^ 2 * 2 ^ B.rank)
-              = (r : ℝ) * (S₁ + S₂) ^ 2 * 2 ^ B.rank := by ring
-            _ ≤ ((r : ℝ) + 1) * ((r : ℝ) * S₁ ^ 2 + S₂ ^ 2) * 2 ^ B.rank := hmul
-            _ = ((r : ℝ) + 1) * (((r : ℝ) * S₁ ^ 2 + S₂ ^ 2) * 2 ^ B.rank) := by ring
-            _ ≤ ((r : ℝ) + 1) * ((r : ℝ) * (s * (∑ q, c q ^ 2) + ∑ p, ∑ q, N p q ^ 2) * W) :=
-                mul_le_mul_of_nonneg_left hcomb (by positivity)
-            _ = (r : ℝ) * (((r : ℝ) + 1) * (s * (∑ q, c q ^ 2) + ∑ p, ∑ q, N p q ^ 2) * W) := by
-                ring
-        have hres := le_of_mul_le_mul_left hstep hr'
-        push_cast
-        dsimp only [W] at hres
+      · have hS₂ : S₂ = 0 := pow_eq_zero_iff two_ne_zero |>.1 <| le_antisymm
+          (nonpos_of_mul_nonpos_left (by simpa using hI₂) hpow) (sq_nonneg S₂)
+        rw [hS₂, zero_add, Nat.cast_one, one_mul, add_zero]
         linarith
+      · have hr : (0 : ℝ) < r := by exact_mod_cast hrpos
+        push_cast
+        refine le_of_mul_le_mul_left ?_ hr
+        linarith [mul_le_mul_of_nonneg_left hI₁ (by positivity : (0 : ℝ) ≤ r * (r + 1)),
+          mul_le_mul_of_nonneg_left hI₂ (by positivity : (0 : ℝ) ≤ r + 1),
+          mul_nonneg (sq_nonneg ((r : ℝ) * S₁ - S₂)) hpow.le]
 
 /-- **Real-rank Lindsey's lemma over `𝔽₂`.** For any matrix `B : Matrix α β (ZMod 2)`, any real
 matrix `M : Matrix (α → ZMod 2) (β → ZMod 2) ℝ`, and any weights `|g(p)| ≤ 1`, `|h(q)| ≤ 1`,
@@ -307,24 +218,15 @@ theorem sq_sum_matrix_bilinear_mul_two_pow_rank_le [Fintype α] [Fintype β] [De
     (rank_mul_le_left _ _).trans (rank_mul_le_right _ _)
   have hnorm : ∑ p, ∑ q, M' p q ^ 2 ≤ ∑ p, ∑ q, M p q ^ 2 := by
     refine Finset.sum_le_sum fun p _ => Finset.sum_le_sum fun q _ => ?_
-    rw [hM'_apply]
-    have hg2 : g p ^ 2 ≤ 1 := by nlinarith [abs_nonneg (g p), sq_abs (g p), hg p]
-    have hh2 : h q ^ 2 ≤ 1 := by nlinarith [abs_nonneg (h q), sq_abs (h q), hh q]
-    have hgh : g p ^ 2 * h q ^ 2 ≤ 1 := by nlinarith [sq_nonneg (g p), sq_nonneg (h q)]
-    calc (M p q * g p * h q) ^ 2 = M p q ^ 2 * (g p ^ 2 * h q ^ 2) := by ring
-      _ ≤ M p q ^ 2 * 1 := mul_le_mul_of_nonneg_left hgh (sq_nonneg _)
-      _ = M p q ^ 2 := mul_one _
-  have hmain := sq_sum_matrix_bilinear_le_of_rank_le B M.rank M' hrank
+    have hgh : g p ^ 2 * h q ^ 2 ≤ 1 := by
+      rw [← sq_abs, ← sq_abs (h q)]
+      exact (mul_le_mul (pow_le_one₀ (abs_nonneg _) (hg p)) (pow_le_one₀ (abs_nonneg _) (hh q))
+        (sq_nonneg _) zero_le_one).trans_eq (one_mul 1)
+    calc M' p q ^ 2 = M p q ^ 2 * (g p ^ 2 * h q ^ 2) := by rw [hM'_apply]; ring
+      _ ≤ M p q ^ 2 := mul_le_of_le_one_right (sq_nonneg _) hgh
   simp_rw [← hM'_apply]
-  refine hmain.trans ?_
-  have hpow : (0 : ℝ) ≤ 2 ^ Fintype.card α * 2 ^ Fintype.card β := by positivity
-  have hr0 : (0 : ℝ) ≤ M.rank := Nat.cast_nonneg _
-  calc (M.rank : ℝ) * (∑ p, ∑ q, M' p q ^ 2) * 2 ^ Fintype.card α * 2 ^ Fintype.card β
-      = (M.rank : ℝ) * (∑ p, ∑ q, M' p q ^ 2) * (2 ^ Fintype.card α * 2 ^ Fintype.card β) := by
-        ring
-    _ ≤ (M.rank : ℝ) * (∑ p, ∑ q, M p q ^ 2) * (2 ^ Fintype.card α * 2 ^ Fintype.card β) :=
-        mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hnorm hr0) hpow
-    _ = (M.rank : ℝ) * (∑ p, ∑ q, M p q ^ 2) * 2 ^ Fintype.card α * 2 ^ Fintype.card β := by
-        ring
+  refine (sq_sum_matrix_bilinear_le_of_rank_le B M.rank M' hrank).trans ?_
+  have := mul_le_mul_of_nonneg_left hnorm (Nat.cast_nonneg (α := ℝ) M.rank)
+  gcongr
 
 end Matrix

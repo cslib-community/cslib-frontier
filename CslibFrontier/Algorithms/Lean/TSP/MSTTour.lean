@@ -245,45 +245,33 @@ theorem mem_growTour {W : Type} {F : List (WeightedEdge n W)}
 private def insideWeight (F : List (WeightedEdge n ℕ)) (t : List (Fin n)) : ℕ :=
   (F.map fun e => if e.u ∈ t ∧ e.v ∈ t then e.weight else 0).sum
 
-private theorem sum_map_inside_mono {t t' : List (Fin n)} (hsub : t ⊆ t')
-    (L : List (WeightedEdge n ℕ)) :
-    (L.map fun e => if e.u ∈ t ∧ e.v ∈ t then e.weight else 0).sum ≤
-      (L.map fun e => if e.u ∈ t' ∧ e.v ∈ t' then e.weight else 0).sum := by
-  induction L with
-  | nil => exact le_rfl
-  | cons f L ih =>
-    simp only [List.map_cons, List.sum_cons]
-    have : (if f.u ∈ t ∧ f.v ∈ t then f.weight else 0) ≤
-        (if f.u ∈ t' ∧ f.v ∈ t' then f.weight else 0) := by
-      split_ifs with h1 h2
-      · exact le_rfl
-      · exact absurd ⟨hsub h1.1, hsub h1.2⟩ h2
-      · exact Nat.zero_le _
-      · exact le_rfl
-    omega
+private theorem sum_map_le {α : Type*} {f g : α → ℕ} (h : ∀ a, f a ≤ g a) :
+    ∀ L : List α, (L.map f).sum ≤ (L.map g).sum
+  | [] => le_rfl
+  | a :: L => Nat.add_le_add (h a) (sum_map_le h L)
+
+private theorem insideWeight_mono {t t' : List (Fin n)} (hsub : t ⊆ t')
+    (L : List (WeightedEdge n ℕ)) : insideWeight L t ≤ insideWeight L t' :=
+  sum_map_le (fun f => by
+    split_ifs with h1 h2
+    · exact le_rfl
+    · exact absurd ⟨hsub h1.1, hsub h1.2⟩ h2
+    · exact Nat.zero_le _
+    · exact le_rfl) L
 
 private theorem insideWeight_add_le {F : List (WeightedEdge n ℕ)} {t t' : List (Fin n)}
     (hsub : t ⊆ t') {e : WeightedEdge n ℕ} (he : e ∈ F) (hin : ¬(e.u ∈ t ∧ e.v ∈ t))
     (hin' : e.u ∈ t' ∧ e.v ∈ t') : insideWeight F t + e.weight ≤ insideWeight F t' := by
   obtain ⟨A, B, rfl⟩ := List.append_of_mem he
+  have hA := insideWeight_mono hsub A
+  have hB := insideWeight_mono hsub B
   simp only [insideWeight, List.map_append, List.map_cons, List.sum_append, List.sum_cons,
-    ite_eq_right hin, ite_eq_left hin']
-  have hA := sum_map_inside_mono hsub A
-  have hB := sum_map_inside_mono hsub B
+    ite_eq_right hin, ite_eq_left hin'] at hA hB ⊢
   omega
 
 private theorem insideWeight_le_totalWeight (F : List (WeightedEdge n ℕ)) (t : List (Fin n)) :
-    insideWeight F t ≤ totalWeight F := by
-  unfold insideWeight totalWeight
-  induction F with
-  | nil => exact le_rfl
-  | cons f F ih =>
-    simp only [List.map_cons, List.sum_cons]
-    have : (if f.u ∈ t ∧ f.v ∈ t then f.weight else 0) ≤ f.weight := by
-      split_ifs
-      · exact le_rfl
-      · exact Nat.zero_le _
-    omega
+    insideWeight F t ≤ totalWeight F :=
+  sum_map_le (fun f => by split_ifs <;> omega) F
 
 /-- The charging invariant: once the tour has two vertices, it costs at most twice the tree
 edges inside it. -/
@@ -300,13 +288,10 @@ private theorem cycleCost_growTour_le {δ : Fin n → Fin n → ℕ} (hsymm : �
     clear ih
     have heF := List.mem_of_find?_eq_some h
     obtain ⟨a, b, hab, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
-    have hperm := insertAfter_perm b ha
-    have hsub : t ⊆ growStep t e := fun x hx => by
-      rw [heq]
-      exact hperm.symm.subset (List.mem_cons_of_mem _ hx)
-    have hbin : b ∈ growStep t e := by
-      rw [heq]
-      exact hperm.symm.subset List.mem_cons_self
+    have hmem : ∀ x, x ∈ growStep t e ↔ x = b ∨ x ∈ t := fun x => by
+      rw [heq, (insertAfter_perm b ha).mem_iff, List.mem_cons]
+    have hsub : t ⊆ growStep t e := fun x hx => (hmem x).2 (Or.inr hx)
+    have hbin : b ∈ growStep t e := (hmem b).2 (Or.inl rfl)
     have hw2 : δ a b + δ b a = 2 * e.weight := by
       rw [hw e heF]
       have := hsymm e.u e.v
@@ -319,11 +304,14 @@ private theorem cycleCost_growTour_le {δ : Fin n → Fin n → ℕ} (hsymm : �
       · have := cycleCost_insertAfter_le δ htri b ha
         have := ht h2
         omega
-      · obtain ⟨A, B, rfl, hins⟩ := exists_eq_insertAfter b ha
-        simp only [List.length_append, List.length_cons] at h2
-        rw [hins, List.eq_nil_of_length_eq_zero (show A.length = 0 by omega),
-          List.eq_nil_of_length_eq_zero (show B.length = 0 by omega), List.nil_append,
-          cycleCost_pair]
+      · obtain rfl : t = [a] := by
+          cases t with
+          | nil => simp at ha
+          | cons x t' =>
+            cases t' with
+            | nil => simpa [eq_comm] using ha
+            | cons _ _ => simp at h2
+        simp only [insertAfter, ↓reduceIte, cycleCost_pair]
         omega
     rw [← heq] at hcost
     omega

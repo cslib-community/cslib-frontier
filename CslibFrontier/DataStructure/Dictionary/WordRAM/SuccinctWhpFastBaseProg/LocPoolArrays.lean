@@ -172,9 +172,7 @@ theorem writeFastLocGenProg_fastStep {c U V w n_max base b loc tag : ℕ}
       fun heq => hbl (mul_add_inj_right hl' hloc heq)
     rw [readPacked_writePacked_of_ne hw s.mem hne tag, hloc0 b' hb' loc' hl']
     by_cases hbb : b' = b
-    · subst hbb
-      have hll : loc' ≠ loc := fun h => hbl ⟨rfl, h⟩
-      simp [hll]
+    · subst hbb; simp [show loc' ≠ loc from fun h => hbl ⟨rfl, h⟩]
     · simp [hbb]
 
 /-! ## Section 2: `poolFreeStack` and `poolOwner` Accessors -/
@@ -284,11 +282,9 @@ theorem writePoolFreeStackGenProg_fastStep {c U V w n_max base j pSlot : ℕ}
           (Or.inl (by omega))).trans (hbptr0 b hb k hk))
       (fun j' hj' => ⟨?_,
         (readPacked_writePacked_disjoint hw hj' hj (Or.inr (by omega))).trans (hpool0 j' hj').2⟩)⟩
-  by_cases hjj : j' = j
-  · subst hjj; simp only [Function.update_self]
-    exact readPacked_writePacked_self _ _ _ s.mem j' hp_g
-  · simp only [Function.update_of_ne hjj]
-    exact (readPacked_writePacked_of_ne hw s.mem hjj pSlot).trans (hpool0 j' hj').1
+  simp only [Function.update_apply]; split_ifs with hjj
+  · subst hjj; exact readPacked_writePacked_self _ _ _ s.mem j' hp_g
+  · exact (readPacked_writePacked_of_ne hw s.mem hjj pSlot).trans (hpool0 j' hj').1
 
 /-- Write `fs.poolOwner j := enc` (`j < poolSizeWhp n_max`, `d = (((cp, base), j), enc)`). -/
 @[irreducible] def writePoolOwnerGenProg :
@@ -354,11 +350,9 @@ theorem writePoolOwnerGenProg_fastStep {c U V w n_max base j enc : ℕ}
           (Or.inl (by omega))).trans (hbptr0 b hb k hk))
       (fun j' hj' => ⟨(readPacked_writePacked_disjoint hw hj' hj (Or.inl (by omega))).trans
           (hpool0 j' hj').1, ?_⟩)⟩
-  by_cases hjj : j' = j
-  · subst hjj; simp only [Function.update_self]
-    exact readPacked_writePacked_self _ _ _ s.mem j' henc_g
-  · simp only [Function.update_of_ne hjj]
-    exact (readPacked_writePacked_of_ne hw s.mem hjj enc).trans (hpool0 j' hj').2
+  simp only [Function.update_apply]; split_ifs with hjj
+  · subst hjj; exact readPacked_writePacked_self _ _ _ s.mem j' henc_g
+  · exact (readPacked_writePacked_of_ne hw s.mem hjj enc).trans (hpool0 j' hj').2
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

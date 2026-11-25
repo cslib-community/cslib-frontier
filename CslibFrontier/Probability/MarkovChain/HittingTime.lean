@@ -152,11 +152,11 @@ theorem survival_add_le {S : Set V} (hS : ∀ a ∈ S, ∀ b, P a b ≠ 0 → b 
     ∀ (t : ℕ), ∀ x ∈ S, survival P v (t + m) x ≤ c * survival P v t x
   | 0, x, hx => by
     rcases eq_or_ne x v with rfl | hxv
-    · simp [show 0 + m = m by omega]
+    · simp
     · simpa [survival_zero_of_ne hxv] using hc x hx
   | t + 1, x, hx => by
     rcases eq_or_ne x v with rfl | hxv
-    · simp [show t + 1 + m = t + m + 1 by omega]
+    · simp
     · rw [show t + 1 + m = t + m + 1 by omega, survival_succ_of_ne hxv, survival_succ_of_ne hxv,
         mul_sum]
       refine sum_le_sum fun y _ => ?_
@@ -203,11 +203,8 @@ theorem exists_survival_lt_one {v x : V}
     obtain ⟨m, hm⟩ := ih
     rcases eq_or_ne x v with rfl | hxv
     · exact ⟨0, by simp⟩
-    refine ⟨m + 1, ?_⟩
-    have hle := survival_succ_add_le (P := P) hxv y m
-    have hpos : P x y * (1 - survival P v m y) ≠ 0 :=
-      mul_ne_zero hxy (tsub_pos_of_lt hm).ne'
-    exact (ENNReal.lt_add_right (survival_ne_top v (m + 1) x) hpos).trans_le hle
+    · exact ⟨m + 1, (ENNReal.lt_add_right (survival_ne_top v (m + 1) x)
+        (mul_ne_zero hxy (tsub_pos_of_lt hm).ne')).trans_le (survival_succ_add_le hxv y m)⟩
 
 /-! ### Expected hitting and return times -/
 
@@ -246,34 +243,31 @@ theorem hittingTime_ne_top {S : Set V}
     (hreach : ∀ y ∈ S, Relation.ReflTransGen (fun a b => P a b ≠ 0) y v) {x : V} (hx : x ∈ S) :
     hittingTime P v x ≠ ⊤ := by
   classical
-  have hm : ∀ y, ∃ m, y ∈ S → survival P v m y < 1 := fun y => by
+  have hm (y : V) : ∃ m, y ∈ S → survival P v m y < 1 := by
     by_cases hy : y ∈ S
     · obtain ⟨m, hm⟩ := exists_survival_lt_one (hreach y hy)
       exact ⟨m, fun _ => hm⟩
     · exact ⟨0, fun h => (hy h).elim⟩
   choose m hm using hm
-  set M := univ.sup m + 1 with hM
-  have hMy : ∀ y ∈ S, survival P v M y < 1 := fun y hy =>
-    (survival_antitone v y (le_trans (le_sup (mem_univ y)) (Nat.le_succ _))).trans_lt
-      (hm y hy)
-  set c := univ.sup fun y => if y ∈ S then survival P v M y else 0 with hc
+  set M := univ.sup m + 1
+  set c := univ.sup fun y => if y ∈ S then survival P v M y else 0
   have hc1 : c < 1 := by
-    rw [hc, Finset.sup_lt_iff (by simp)]
+    rw [Finset.sup_lt_iff (by simp)]
     intro y _
     split_ifs with hy
-    · exact hMy y hy
+    · exact (survival_antitone v y ((le_sup (mem_univ y)).trans (Nat.le_succ _))).trans_lt
+        (hm y hy)
     · simp
-  have hcy : ∀ y ∈ S, survival P v M y ≤ c := fun y hy => by
-    have := le_sup (f := fun y => if y ∈ S then survival P v M y else 0) (mem_univ y)
-    simpa [hy] using this
-  have hgeom : ∀ (k r : ℕ), ∀ x ∈ S, survival P v (k * M + r) x ≤ c ^ k := by
-    intro k r
+  have hcy (y) (hy : y ∈ S) : survival P v M y ≤ c := by
+    simpa [hy] using le_sup (f := fun y => if y ∈ S then survival P v M y else 0) (mem_univ y)
+  have hgeom (k r : ℕ) : ∀ x ∈ S, survival P v (k * M + r) x ≤ c ^ k := by
     induction k with
     | zero => intro x _; simpa using survival_le_one v r x
     | succ k ih =>
       intro x hx
       calc survival P v ((k + 1) * M + r) x = survival P v ((k * M + r) + M) x := by
-            congr 1; ring
+            congr 1
+            ring
         _ ≤ c * survival P v (k * M + r) x := survival_add_le hS hcy _ x hx
         _ ≤ c * c ^ k := mul_le_mul_right (ih x hx) _
         _ = c ^ (k + 1) := (pow_succ' c k).symm
@@ -383,20 +377,17 @@ stationary distribution, the expected return time to `v` is `1 / π v`. -/
 theorem mul_returnTime_eq {π : V → ℝ≥0∞} (hπ : ∀ y, ∑ x, π x * P x y = π y) (v : V)
     (hfin : ∑ x, π x * hittingTime P v x ≠ ⊤) :
     π v * returnTime P v = ∑ x, π x := by
-  have key : ∀ w, π w * (1 + ∑ y, P w y * hittingTime P v y) =
-      (if w = v then π v * returnTime P v else 0) + π w * hittingTime P v w := by
-    intro w
-    rcases eq_or_ne w v with rfl | hw
-    · simp [returnTime_eq]
-    · simp [hw, ← hittingTime_eq_of_ne hw]
-  have hsum := congrArg (fun f => ∑ w, f w) (funext key)
+  have hsum : ∑ w, π w * (1 + ∑ y, P w y * hittingTime P v y) =
+      ∑ w, ((if w = v then π v * returnTime P v else 0) + π w * hittingTime P v w) :=
+    sum_congr rfl fun w _ => by
+      rcases eq_or_ne w v with rfl | hw
+      · simp [returnTime_eq]
+      · simp [hw, ← hittingTime_eq_of_ne hw]
   simp only [sum_add_distrib, sum_ite_eq', mem_univ, ite_true] at hsum
-  have h2 : ∑ w, π w * (1 + ∑ y, P w y * hittingTime P v y) =
-      ∑ x, π x + ∑ x, π x * hittingTime P v x := by
-    simp_rw [mul_add, mul_one, sum_add_distrib, mul_sum, ← mul_assoc]
-    rw [sum_comm]
-    simp_rw [← sum_mul, hπ]
-  exact (ENNReal.add_left_inj hfin).1 (hsum.symm.trans h2)
+  simp_rw [mul_add, mul_one, sum_add_distrib, mul_sum, ← mul_assoc] at hsum
+  rw [sum_comm] at hsum
+  simp_rw [← sum_mul, hπ] at hsum
+  exact (ENNReal.add_left_inj hfin).1 hsum.symm
 
 /-- **Kac's formula** for a stationary distribution `π`: if the hitting times of `v` are finite
 from every state in the support of `π`, then `π v * E_v[τ⁺_v] = 1`. -/

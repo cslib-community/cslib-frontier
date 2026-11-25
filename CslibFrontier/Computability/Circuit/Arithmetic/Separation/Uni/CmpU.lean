@@ -53,16 +53,13 @@ theorem chkG_map {n : ℕ} {B κ : Type*} (φ : (Fin n → B) → κ) (hφ : Fun
     (p : Option (Fin n → B)) (l : List (Rc n B)) :
     chkG (p.map φ) (l.map fun r => (r.1, φ r.2)) ↔ chk p l := by
   induction l generalizing p with
-  | nil => simp [chkG, chk]
+  | nil => rfl
   | cons r l ih =>
-    rw [List.map_cons, chkG, chk]
     have h1 := ih (some r.2)
     rw [Option.map_some] at h1
-    rw [h1]
+    rw [List.map_cons, chkG, chk, h1]
     refine and_congr (or_congr Iff.rfl ?_) Iff.rfl
-    rcases p with _ | q
-    · simp
-    · simp [hφ.eq_iff]
+    rcases p with _ | q <;> simp [hφ.eq_iff]
 
 /-- One round of the shifted neighbour comparison: either an entry/arbitrary step `(.inl (r, x))`
 or a matching lookup step `(.inr r)`. -/
@@ -86,34 +83,27 @@ theorem RdG.exists_iff (r r' : Bool × κ) :
     (∃ d : RdG κ, d.fst = r ∧ d.snd = r') ↔ (r'.1 = false ∨ some r.2 = some r'.2) := by
   constructor
   · rintro ⟨⟨r, x⟩ | r, rfl, rfl⟩ <;> simp [RdG.fst, RdG.snd]
-  · rcases r' with ⟨f, x⟩
-    rintro (h | h)
-    · simp only at h
-      subst h
-      exact ⟨.inl (r, x), rfl, rfl⟩
-    · simp only [Option.some.injEq] at h
-      subst h
-      cases f
-      · exact ⟨.inl (r, r.2), rfl, rfl⟩
-      · exact ⟨.inr r, rfl, rfl⟩
+  · rcases r' with ⟨_ | _, x⟩
+    · exact fun _ => ⟨.inl (r, x), rfl, rfl⟩
+    · rintro (h | h)
+      · cases h
+      · cases Option.some.inj h
+        exact ⟨.inr r, rfl, rfl⟩
 
 theorem cmpG_iff (r : Bool × κ) (l : List (Bool × κ)) :
     (∃ (ds : List (RdG κ)) (r' : Bool × κ),
         ds.map RdG.snd = l ∧ ds.map RdG.fst ++ [r'] = r :: l) ↔
       chkG (some r.2) l := by
   induction l generalizing r with
-  | nil =>
-    simp only [chkG, iff_true]
-    exact ⟨[], r, rfl, rfl⟩
+  | nil => exact iff_of_true ⟨[], r, rfl, rfl⟩ trivial
   | cons a l ih =>
     rw [chkG, ← ih, ← RdG.exists_iff]
-    constructor
-    · rintro ⟨_ | ⟨d, ds⟩, r', h1, h2⟩
-      · simp at h1
-      · simp only [List.map_cons, List.cons.injEq, List.cons_append] at h1 h2
-        exact ⟨⟨d, h2.1, h1.1⟩, ds, r', h1.2, h2.2⟩
-    · rintro ⟨⟨d, h1, h2⟩, ds, r', h3, h4⟩
-      exact ⟨d :: ds, r', by simp [h2, h3], by simp [h1, h4]⟩
+    refine ⟨?_, fun ⟨⟨d, h1, h2⟩, ds, r', h3, h4⟩ =>
+      ⟨d :: ds, r', by simp [h2, h3], by simp [h1, h4]⟩⟩
+    rintro ⟨_ | ⟨d, ds⟩, r', h1, h2⟩
+    · cases h1
+    · simp only [List.map_cons, List.cons.injEq, List.cons_append] at h1 h2
+      exact ⟨⟨d, h2.1, h1.1⟩, ds, r', h1.2, h2.2⟩
 
 /-- A run of the shifted neighbour comparison between the two copies of the sorted list. -/
 @[ext]
@@ -135,40 +125,28 @@ structure XG (κ : Type*) where
 
 theorem exists_cmpG {l : List (Bool × κ)} (hl : l ≠ []) :
     (∃ y : XG κ, PlG y = l ∧ QlG y = l) ↔ chkG none l := by
-  obtain ⟨r, l, rfl⟩ := List.exists_cons_of_ne_nil hl
+  obtain ⟨⟨f, x⟩, l, rfl⟩ := List.exists_cons_of_ne_nil hl
   rw [chkG, ← cmpG_iff]
-  constructor
-  · rintro ⟨⟨x, ds, r'⟩, h1, h2⟩
-    simp only [PlG, List.cons.injEq] at h1
-    obtain ⟨rfl, h1⟩ := h1
-    exact ⟨Or.inl rfl, ds, r', h1, h2⟩
-  · rintro ⟨h, ds, r', h1, h2⟩
-    have hr : r.1 = false := by simpa using h
-    obtain ⟨f, x⟩ := r
-    simp only at hr
-    subst hr
-    exact ⟨⟨x, ds, r'⟩, by simp [PlG, h1], h2⟩
+  refine ⟨fun ⟨⟨_, ds, r'⟩, h1, h2⟩ => ?_, fun ⟨h, ds, r', h1, h2⟩ => ?_⟩
+  · simp only [PlG, List.cons.injEq, Prod.mk.injEq] at h1
+    exact ⟨.inl h1.1.1.symm, ds, r', h1.2, h2⟩
+  · rcases h with rfl | h
+    · exact ⟨⟨x, ds, r'⟩, by simp [PlG, h1], h2⟩
+    · cases h
 
 theorem cmpG_unique {y y' : XG κ} (h1 : PlG y = PlG y') (h2 : QlG y = QlG y') :
     y = y' := by
   obtain ⟨x, ds, r⟩ := y
   obtain ⟨x', ds', r'⟩ := y'
   simp only [PlG, List.cons.injEq, Prod.mk.injEq, true_and] at h1
-  simp only [QlG] at h2
   obtain ⟨rfl, h1⟩ := h1
   have hl : ds.length = ds'.length := by simpa using congrArg List.length h1
   obtain ⟨h4, h3⟩ := List.append_inj h2 (by simpa using hl)
   obtain rfl : r = r' := by simpa using h3
-  obtain rfl : ds = ds' := by
-    clear h3 h2
-    induction ds generalizing ds' with
-    | nil => simpa using hl.symm
-    | cons d ds ih =>
-      rcases ds' with _ | ⟨d', ds'⟩
-      · simp at hl
-      · simp only [List.map_cons, List.cons.injEq] at h1 h4
-        rw [RdG.ext h4.1 h1.1, ih ds' h1.2 (by simpa using hl) h4.2]
-  rfl
+  congr 1
+  exact List.ext_getElem hl fun i hi hi' =>
+    RdG.ext (by simpa [hi, hi'] using congrArg (·[i]?) h4)
+      (by simpa [hi, hi'] using congrArg (·[i]?) h1)
 
 end Pure
 
@@ -197,16 +175,12 @@ theorem runs_rk (zs : Finset (Zc K)) (hz : zs.Nonempty) :
     Runs (2 * (2 * zs.card + 1) + (Fintype.card (Bl K) * (2 * zs.card + 1) + 1) +
         (2 * zs.card + 1))
       (fun r : Rk K => on zs (rk r : List (Sy M K))) (fun _ => (1 : A)) := by
-  have h :=
-    ((Runs.letter (F := A) zs (fun f : Bool => (Sy.flag f : Sy M K)) (fun _ => 1)).mul
+  refine ((((Runs.letter (F := A) zs (fun f : Bool => (Sy.flag f : Sy M K)) (fun _ => 1)).mul
       (Runs.wordstar (F := A) zs hz (be : Bl K → Sy M K))).mul
-      (Runs.word (F := A) zs [(Sy.dot : Sy M K)])
-  refine (h.congr
+      (Runs.word (F := A) zs [(Sy.dot : Sy M K)])).congr
     ⟨fun r => ((r.1, r.2), ()), fun y => (y.1.1, y.1.2), fun _ => rfl, fun _ => rfl⟩
-    (fun r z => ?_) fun _ => by simp).mono ?_
-  · simp only [Equiv.coe_fn_mk, on_append, rk_eq]
-    rfl
-  · simp
+    (fun r z => by simp only [Equiv.coe_fn_mk, on_append, rk_eq]; rfl)
+    (fun _ => by simp)).mono (by simp)
 
 /-- Emissions of a single comparison round on `cP` and `cQ`. -/
 @[expose] def emRd (d : RdG (List (Bl K))) : Zc K → List (Sy M K) := fun z =>
@@ -216,7 +190,6 @@ theorem runs_rdG :
     Runs ((9 + (Fintype.card (Bl K) * 3 + 1) + (3 + (Fintype.card (Bl K) * 3 + 1) + 3)) +
         (6 + 3 + (Fintype.card (Bl K) * 5 + 1) + 5))
       (emRd : RdG (List (Bl K)) → Zc K → List (Sy M K)) (fun _ => (1 : A)) := by
-  have hpq : (cP : Zc K) ≠ cQ := by simp
   have h1 := (runs_rk (A := A) (M := M) (K := K) {cQ} ⟨cQ, by simp⟩).mul
     (((Runs.word (F := A) (Z := Zc K) {cP} [(Sy.flag false : Sy M K)]).mul
       (Runs.wordstar (F := A) {cP} ⟨cP, by simp⟩ (be : Bl K → Sy M K))).mul
@@ -233,18 +206,14 @@ theorem runs_rdG :
      fun y => by rcases y with ⟨a, b⟩ | ⟨a, b⟩ <;> rfl,
      fun y => by rcases y with ⟨a, b⟩ | ⟨a, b⟩ <;> rfl⟩
     (fun y z => ?_) fun y => by rcases y with ⟨a, b⟩ | ⟨a, b⟩ <;> simp).mono ?_
-  · rcases y with ⟨a, b⟩ | ⟨a, b⟩
-    · simp only [Equiv.coe_fn_mk, Sum.map_inl, Sum.elim_inl, emRd, RdG.fst, RdG.snd, rk_eq]
-      by_cases hz : z = cP
-      · subst hz; simp [on]
+  · rcases y with ⟨a, b⟩ | ⟨a, b⟩ <;>
+      simp only [Equiv.coe_fn_mk, Sum.map_inl, Sum.elim_inl, Sum.map_inr, Sum.elim_inr,
+        emRd, RdG.fst, RdG.snd, rk_eq]
+    · by_cases hz : z = cP <;> simp [on, hz]
+    · by_cases hz : z = cP
       · simp [on, hz]
-    · simp only [Equiv.coe_fn_mk, Sum.map_inr, Sum.elim_inr, emRd, RdG.fst, RdG.snd, rk_eq]
-      by_cases hz : z = cP
-      · subst hz; simp [on]
-      · by_cases hz' : z = cQ
-        · subst hz'; simp [on]
-        · simp [on, hz, hz']
-  · rw [Finset.card_pair hpq]
+      · by_cases hz' : z = cQ <;> simp [on, hz, hz']
+  · rw [Finset.card_pair (by simp)]
     simp only [card_singleton, List.length_singleton, Fintype.card_bool]
     omega
 
@@ -262,27 +231,17 @@ theorem runs_cm : Runs (dimCm (Fintype.card (Bl K)))
     (emCm : XG (List (Bl K)) → Zc K → List (Sy M K)) (fun _ => (1 : A)) := by
   have hk := (runs_rdG (A := A) (M := M) (K := K)).kstar
     fun _ => ⟨cP, by simp [emRd, on, rk_eq]⟩
-  have h :=
-    (((Runs.word (F := A) (Z := Zc K) {cP} [(Sy.flag false : Sy M K)]).mul
+  refine (((((Runs.word (F := A) (Z := Zc K) {cP} [(Sy.flag false : Sy M K)]).mul
       (Runs.wordstar (F := A) {cP} ⟨cP, by simp⟩ (be : Bl K → Sy M K))).mul
       (Runs.word (F := A) {cP} [(Sy.dot : Sy M K)])).mul
-      (hk.mul (runs_rk (A := A) (M := M) (K := K) {cQ} ⟨cQ, by simp⟩))
-  refine (h.congr
+      (hk.mul (runs_rk (A := A) (M := M) (K := K) {cQ} ⟨cQ, by simp⟩))).congr
     ⟨fun y => ((((), y.head), ()), y.rounds, y.last),
-     fun y => ⟨y.1.1.2, y.2.1, y.2.2⟩,
-     fun _ => rfl, fun _ => rfl⟩
-    (fun y z => ?_) fun _ => by simp).mono ?_
-  · obtain ⟨w, ds, r⟩ := y
-    simp only [Equiv.coe_fn_mk, emCm, PlG, QlG]
-    by_cases hz : z = cP
-    · subst hz
-      simp [on, emRd, rk_eq, List.flatMap_map]
-    · by_cases hz' : z = cQ
-      · subst hz'
-        simp [on, emRd, rk_eq, List.flatMap_map]
-      · simp [on, emRd, hz, hz']
-  · unfold dimCm
-    simp
+     fun y => ⟨y.1.1.2, y.2.1, y.2.2⟩, fun _ => rfl, fun _ => rfl⟩
+    (fun ⟨w, ds, r⟩ z => ?_) fun _ => by simp).mono (by simp [dimCm])
+  simp only [Equiv.coe_fn_mk, emCm, PlG, QlG]
+  by_cases hz : z = cP
+  · simp [on, emRd, rk_eq, List.flatMap_map, hz]
+  · by_cases hz' : z = cQ <;> simp [on, emRd, rk_eq, List.flatMap_map, hz, hz']
 
 end Emit
 

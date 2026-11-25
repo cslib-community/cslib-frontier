@@ -117,18 +117,7 @@ theorem biUnion {ι : Type*} (indices : Finset ι) (targets : ι → Set ((Fin n
   | @insert i indices hi ih =>
     have hstep := (h i (mem_insert_self i indices)).union
       (ih fun j hj => h j (mem_insert_of_mem hj))
-    have hset : targets i ∪ (⋃ j ∈ indices, targets j) = ⋃ j ∈ insert i indices, targets j := by
-      ext f
-      simp only [Set.mem_union, Set.mem_iUnion, mem_insert]
-      constructor
-      · rintro (hf | ⟨j, hj, hf⟩)
-        · exact ⟨i, Or.inl rfl, hf⟩
-        · exact ⟨j, Or.inr hj, hf⟩
-      · rintro ⟨j, rfl | hj, hf⟩
-        · exact Or.inl hf
-        · exact Or.inr ⟨j, hj, hf⟩
-    rw [hset, ← sum_insert hi, ← sum_insert hi] at hstep
-    exact hstep
+    rwa [set_biUnion_insert, sum_insert hi, sum_insert hi]
 
 theorem exists_circuit_outputs {m : ℕ} {f : Fin m → (Fin n → U) → U}
     (h : CostSynthesis I w (inputs n) (Set.range f) a wa) :
@@ -140,11 +129,8 @@ theorem exists_circuit_outputs {m : ℕ} {f : Fin m → (Fin n → U) → U}
 theorem exists_circuit {f : (Fin n → U) → U}
     (h : CostSynthesis I w (inputs n) {f} a wa) :
     ∃ c : Circuit σ n 1, c.Computes I (single f) ∧ c.size ≤ a ∧ c.program.cost w ≤ wa := by
-  have h' : CostSynthesis I w (inputs n) (Set.range fun _ : Fin 1 => f) a wa := by
-    refine h.mono Set.Subset.rfl ?_ le_rfl le_rfl
-    rintro _ ⟨_, rfl⟩
-    exact rfl
-  exact h'.exists_circuit_outputs
+  exact (h.mono (t' := Set.range fun _ : Fin 1 => f) Set.Subset.rfl Set.range_const_subset le_rfl
+    le_rfl).exists_circuit_outputs
 
 end CostSynthesis
 
@@ -168,13 +154,8 @@ theorem add_two_of_mem (hArity : σ.Arity addOp = 2)
     split_ifs <;> assumption
   refine h.mono Set.Subset.rfl ?_ le_rfl (by omega)
   rintro _ rfl
-  have heq : (fun x => f x + g x) = fun x => I addOp (fun i => args i x) := by
-    funext x
-    rw [hEval]
-    dsimp only [args]
-    simp
-  rw [heq]
-  exact rfl
+  refine funext fun x => ?_
+  simp [hEval, args]
 
 /-- Summing a nonempty finite family of already-available wires uses `#S - 1` binary addition gates
 and zero weight, with no constant or zero gate needed. -/
@@ -186,22 +167,14 @@ theorem nonempty_sum_of_mem {ι : Type*} (hArity : σ.Arity addOp = 2)
     CostSynthesis I w s {fun x => ∑ i ∈ S, F i x} (#S - 1) 0 := by
   induction hS using Finset.Nonempty.cons_induction with
   | singleton a =>
-    have heq : (fun x => ∑ i ∈ ({a} : Finset ι), F i x) = F a := by
-      funext x
-      exact sum_singleton (fun i => F i x) a
-    rw [heq, card_singleton]
-    exact CostSynthesis.of_mem (hF a (mem_singleton_self a))
+    simpa only [sum_singleton, card_singleton] using
+      CostSynthesis.of_mem (hF a (mem_singleton_self a))
   | cons a T haT hT ih =>
-    have hsub := ih fun i hi => hF i (mem_cons_of_mem hi)
-    have hadd := add_two_of_mem hArity hEval hZeroW (s := s ∪ {fun x => ∑ i ∈ T, F i x})
-      (Or.inl (hF a (mem_cons.mpr (Or.inl rfl)))) (Or.inr rfl)
-    have htot := hsub.trans hadd
-    have heq : (fun x => F a x + ∑ i ∈ T, F i x) = fun x => ∑ i ∈ cons a T haT, F i x := by
-      funext x
-      exact (sum_cons (f := fun i => F i x) haT).symm
-    rw [heq] at htot
-    rw [card_cons]
-    have hcard : 1 ≤ #T := hT.card_pos
+    have htot := (ih fun i hi => hF i (mem_cons_of_mem hi)).trans
+      (add_two_of_mem hArity hEval hZeroW (s := s ∪ {fun x => ∑ i ∈ T, F i x})
+        (Or.inl (hF a (mem_cons_self a T))) (Or.inr rfl))
+    have := hT.card_pos
+    simp only [sum_cons, card_cons]
     exact htot.mono Set.Subset.rfl Set.Subset.rfl (by omega) le_rfl
 
 /-- Summing a finite family when `(fun _ => 0)` is already available uses at most `#S - 1` binary
@@ -227,14 +200,10 @@ theorem mul_sub_two_pow_le {b s : ℕ} (hbs : b ≤ s) :
       induction k, hbk using Nat.le_induction with
       | base => exact le_rfl
       | succ k hbk ih =>
-        calc (k + 1) * 2 ^ b = k * 2 ^ b + 2 ^ b := by ring
-          _ ≤ k * 2 ^ b + k * 2 ^ b :=
-              Nat.add_le_add_left (Nat.le_mul_of_pos_left _ (lt_of_lt_of_le hb hbk)) _
-          _ = 2 * (k * 2 ^ b) := by ring
-          _ ≤ 2 * (b * 2 ^ k) := Nat.mul_le_mul_left 2 ih
-          _ = b * 2 ^ (k + 1) := by rw [pow_succ]; ring
-    exact (Nat.mul_le_mul_left s (Nat.sub_le _ _)).trans
-      ((Nat.mul_le_mul_left s (Nat.sub_le _ _)).trans (hmono s hbs))
+        have := Nat.le_mul_of_pos_left (2 ^ b) (lt_of_lt_of_le hb hbk)
+        rw [pow_succ, add_mul, one_mul, ← mul_assoc]
+        omega
+    exact (Nat.mul_le_mul_left s ((Nat.sub_le _ _).trans (Nat.sub_le _ _))).trans (hmono s hbs)
 
 /-- All `2 ^ b - 1` nonempty subset sums of `b` available functions cost `2 ^ b - b - 1` binary
 addition gates (since the `b` singletons are already available). -/
@@ -284,17 +253,10 @@ theorem block_nonempty_subSums (hArity : σ.Arity addOp = 2)
         · simp [T', Fin.castSucc_ne_last]
       rcases T'.eq_empty_or_nonempty with hT'0 | hT'ne
       · have hT_sing : T = {Fin.last b} := by simp [hT_decomp, hT'0]
-        rw [hT_sing]
-        have heq : (fun x => ∑ j ∈ ({Fin.last b} : Finset (Fin (b + 1))), v j x) =
-            v (Fin.last b) := by
-          funext x
-          exact sum_singleton (fun j => v j x) (Fin.last b)
-        rw [heq]
-        exact Or.inl (hv (Fin.last b))
-      · refine Or.inr (Or.inr ?_)
-        rw [Set.mem_iUnion₂]
-        refine ⟨T', mem_erase.mpr ⟨hT'ne.ne_empty, mem_univ T'⟩, ?_⟩
-        funext x
+        subst hT_sing
+        exact Or.inl (by simpa only [sum_singleton] using hv (Fin.last b))
+      · refine Or.inr (Or.inr (Set.mem_iUnion₂.mpr
+          ⟨T', mem_erase.mpr ⟨hT'ne.ne_empty, mem_univ T'⟩, funext fun x => ?_⟩))
         rw [hT_decomp, sum_insert (by simp [Fin.castSucc_ne_last]), sum_map]
         rfl
     · have hT_decomp : T = T'.map Fin.castSuccEmb := by
@@ -303,11 +265,8 @@ theorem block_nonempty_subSums (hArity : σ.Arity addOp = 2)
         · simp [T', hlast]
         · simp [T']
       have hT'ne : T'.Nonempty := by
-        rcases T'.eq_empty_or_nonempty with h0 | hne
-        · exfalso
-          rw [h0, map_empty] at hT_decomp
-          exact Finset.Nonempty.ne_empty hT hT_decomp
-        · exact hne
+        rw [hT_decomp] at hT
+        exact map_nonempty.mp hT
       refine Or.inr (Or.inl ⟨T', hT'ne, ?_⟩)
       funext x
       rw [hT_decomp, sum_map]

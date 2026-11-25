@@ -47,9 +47,7 @@ private theorem Desc.step_toOracle (d : Desc) (oracle : ℕ → Bool) (x : List 
   | some q =>
     simp only [OracleDesc.step, OracleDesc.stepWith, Desc.toOracle, h, List.find?_map,
       Function.comp_def, stepOut, step]
-    cases d.table.find? (·.1 = c.key x q) with
-    | none => simp
-    | some a => simp [OracleDesc.Config.applyInstruction]
+    cases d.table.find? (·.1 = c.key x q) <;> simp [OracleDesc.Config.applyInstruction]
 
 /-- Lifting a finite table preserves its configuration and output at every time. -/
 theorem Desc.runFor_toOracle (d : Desc) (oracle : ℕ → Bool) (x : List ℕ) (t : ℕ) :
@@ -60,16 +58,13 @@ theorem Desc.runFor_toOracle (d : Desc) (oracle : ℕ → Bool) (x : List ℕ) (
   | zero => rfl
   | succ t ih =>
     rw [OracleDesc.runFor, Function.iterate_succ_apply', ← OracleDesc.runFor, ih,
-      Function.iterate_succ_apply']
-    exact d.step_toOracle oracle x _
+      Function.iterate_succ_apply', d.step_toOracle]
 
 /-- The lifted table returns exactly a word produced by a halted ordinary run. -/
 theorem Desc.mem_eval_toOracle_iff (d : Desc) (oracle : ℕ → Bool) (x out : List ℕ) :
     out ∈ d.toOracle.eval oracle x ↔ ∃ t, simulate d x t = (out, true) := by
-  rw [OracleDesc.mem_eval_iff]
-  apply exists_congr
-  intro t
-  simp only [d.runFor_toOracle, simulate, Prod.mk.injEq, Option.isNone_iff_eq_none, and_comm]
+  simp only [OracleDesc.mem_eval_iff, d.runFor_toOracle, simulate, Prod.mk.injEq,
+    Option.isNone_iff_eq_none, and_comm]
 
 namespace OracleDesc
 
@@ -90,26 +85,20 @@ private theorem runFor_unaryQuery_scan (oracle : ℕ → Bool) {n t : ℕ} (ht :
   induction t with
   | zero => rfl
   | succ t ih =>
-    have hin : inputSymbol (List.replicate n 1) (t + 1) = some 1 := by
-      simp [inputSymbol, List.drop_replicate, List.head?_replicate, show n - t ≠ 0 by omega]
     rw [runFor, Function.iterate_succ_apply', ← runFor, ih (by omega)]
     simp [unaryQuery, step, stepWith, SCfg.key, Config.applyInstruction, Act.apply, moveInput,
-      applyTapes, hin]
+      applyTapes, inputSymbol, List.drop_replicate, List.head?_replicate, show n - t ≠ 0 by omega]
 
 /-- The membership program returns the whole unary output, including the empty no word. -/
 theorem eval_unaryQuery (oracle : ℕ → Bool) (n : ℕ) :
     unaryQuery.eval oracle (List.replicate n 1) =
       Part.some (if oracle n then [1] else []) := by
-  apply Part.eq_some_iff.mpr
-  apply (unaryQuery.mem_eval_iff _ _ _).mpr
-  refine ⟨n + 2, ?_⟩
-  have hin : inputSymbol (List.replicate n 1) (n + 1) = none := by
-    simp [inputSymbol, List.drop_replicate]
+  refine Part.eq_some_iff.mpr <| (unaryQuery.mem_eval_iff _ _ _).mpr ⟨n + 2, ?_⟩
   rw [runFor, show n + 2 = 2 + n by omega, Function.iterate_add_apply, ← runFor,
     runFor_unaryQuery_scan oracle (Nat.le_refl n)]
   cases ha : oracle n <;>
     simp [unaryQuery, step, stepWith, SCfg.key, Config.applyInstruction, Act.apply, moveInput,
-      hin, ha, Function.iterate_succ_apply']
+      inputSymbol, List.drop_replicate, ha, Function.iterate_succ_apply']
 
 /-- Compiling the oracle opcode to the native model agrees with evaluation of the recursive
 code on all total membership oracles and all tally inputs. -/

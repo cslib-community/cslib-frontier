@@ -108,67 +108,33 @@ private theorem size_search_lt (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Lit
     (hvs : OpenVars φ π vs) → (hfuel : vs.length ≤ fuel) → {c : Clause ℕ} →
     {d : φ.Derivation c} → {h : ∀ l ∈ c, l.negate ∈ π} →
     search φ fuel π vs hvs hfuel = .unsat c d h → d.size < 2 ^ (vs.length + 1) := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    intro π vs hvs hfuel c d h hs
-    obtain rfl : vs = [] := List.eq_nil_of_length_eq_zero (by omega)
-    rw [search] at hs
-    split at hs
-    · cases hs
-      simp
-    · split at hs
-      · cases hs
-      · exact absurd (all_any_holds ‹_› fun x hx => (hvs.covers x hx).resolve_left
-          List.not_mem_nil) ‹_›
-  | succ fuel ih =>
-    intro π vs hvs hfuel c d h hs
-    rw [search] at hs
-    split at hs
-    · cases hs
-      simp
-    · split at hs
-      · cases hs
-      · split at hs
-        · exact absurd (all_any_holds ‹_› fun x hx =>
-            (‹OpenVars φ π []›.covers x hx).resolve_left List.not_mem_nil) ‹_›
-        · omega
-        · rename_i x xs fuel' _ _ hfe _
-          obtain rfl : fuel' = fuel := by omega
-          split at hs
-          rename_i v b hv _
-          have hlen : ((x :: xs).erase v).length = xs.length := by
-            rw [List.length_erase_of_mem hv, List.length_cons, Nat.add_sub_cancel]
-          have hpow : 2 ^ ((x :: xs).length + 1) = 2 * 2 ^ (xs.length + 1) := by
-            rw [List.length_cons, Nat.pow_succ, Nat.mul_comm]
-          rw [hpow]
-          dsimp only at hs
-          split at hs
-          · cases hs
-          · rename_i c₁ d₁ h₁ hs₁
-            have ih₁ := ih _ _ _ _ hs₁
-            rw [hlen] at ih₁
-            split at hs
-            · split at hs
-              · cases hs
-              · rename_i c₂ d₂ h₂ hs₂
-                have ih₂ := ih _ _ _ _ hs₂
-                rw [hlen] at ih₂
-                split at hs
-                · have : d.size = d₁.size + d₂.size + 1 := by
-                    cases b
-                    · simp only [resolveBranches] at hs
-                      cases hs
-                      simp only [Derivation.size_resolvent]
-                    · simp only [resolveBranches] at hs
-                      cases hs
-                      simp only [Derivation.size_resolvent]
-                      omega
-                  omega
-                · cases hs
-                  omega
-            · cases hs
-              omega
+  intro fuel π vs hvs hfuel
+  fun_induction search φ fuel π vs hvs hfuel with
+  | case1 => rintro _ _ _ ⟨⟩; simp
+  | case2 | case3 | case4 => intro _ _ _ hs; cases hs
+  | case5 =>
+    rename_i ih₁ ih₂
+    intro c d h hs
+    have h1 := ih₁ ‹_›
+    have h2 := ih₂ ‹_›
+    rw [List.length_erase_of_mem ‹_›, List.length_cons, Nat.add_sub_cancel] at h1 h2
+    rw [List.length_cons, Nat.pow_succ]
+    cases ‹Bool› <;> simp only [resolveBranches] at hs <;> cases hs <;>
+      simp only [Derivation.size_resolvent] <;> omega
+  | case6 =>
+    rename_i ih₁ ih₂
+    rintro _ _ _ ⟨⟩
+    have h2 := ih₂ ‹_›
+    rw [List.length_erase_of_mem ‹_›, List.length_cons, Nat.add_sub_cancel] at h2
+    rw [List.length_cons, Nat.pow_succ]
+    omega
+  | case7 =>
+    rename_i ih₁
+    rintro _ _ _ ⟨⟩
+    have h1 := ih₁ ‹_›
+    rw [List.length_erase_of_mem ‹_›, List.length_cons, Nat.add_sub_cancel] at h1
+    rw [List.length_cons, Nat.pow_succ]
+    omega
 
 /-- Closing the clause of the search's derivation to the empty clause keeps the derivation. -/
 private theorem size_refutationOf {φ : CNF ℕ} : (c : Clause ℕ) → (d : φ.Derivation c) →

@@ -86,14 +86,10 @@ theorem blockOf_update_self (h : ∑ b, sizes b = n) (x : BitString n) (b : Fin 
     blockOf h (Function.update x (blockEquiv h ⟨b, j⟩) v) b =
       Function.update (blockOf h x b) j v := by
   funext i
-  by_cases hi : i = j
-  · subst i
-    simp [blockOf]
-  · rw [Function.update_of_ne hi]
-    simp only [blockOf]
-    rw [Function.update_of_ne]
-    intro he
-    exact hi (by simpa using (blockEquiv h).injective he)
+  rcases eq_or_ne i j with rfl | hi
+  · simp [blockOf]
+  · simp only [Function.update_of_ne hi, blockOf]
+    rw [Function.update_of_ne fun he => hi (by simpa using (blockEquiv h).injective he)]
 
 /-- Changing a coordinate of block `b` leaves every other block unchanged. -/
 theorem blockOf_update_of_ne (h : ∑ b, sizes b = n) (x : BitString n) {b c : Fin k}
@@ -101,9 +97,7 @@ theorem blockOf_update_of_ne (h : ∑ b, sizes b = n) (x : BitString n) {b c : F
     blockOf h (Function.update x (blockEquiv h ⟨b, j⟩) v) c = blockOf h x c := by
   funext i
   simp only [blockOf]
-  rw [Function.update_of_ne]
-  intro he
-  exact hc (congrArg Sigma.fst ((blockEquiv h).injective he))
+  rw [Function.update_of_ne fun he => hc (congrArg Sigma.fst ((blockEquiv h).injective he))]
 
 /-- The OR of the local functions `g b` on the blocks of the consecutive layout. -/
 @[expose] def orBlocks (h : ∑ b, sizes b = n) (g : ∀ b, BooleanFunction (sizes b)) :
@@ -129,12 +123,11 @@ theorem orSensitiveBlocks_subset {h : ∑ b, sizes b = n} {g : ∀ b, BooleanFun
   intro b hb
   rw [mem_singleton]
   by_contra hbj
-  simp only [orSensitiveBlocks, mem_filter, mem_univ, true_and] at hb
-  apply hb
+  simp only [orSensitiveBlocks, mem_filter, mem_univ, true_and, ne_eq] at hb
   have h₁ : ∃ c, Function.update (fun c => g c (blockOf h x c)) b (!g b (blockOf h x b)) c =
-      true := ⟨j, by rw [Function.update_of_ne (Ne.symm hbj)]; exact hj⟩
-  simp only [h₁, decide_true]
-  exact (decide_eq_true ⟨j, hj⟩).symm
+      true := ⟨j, by rwa [Function.update_of_ne (Ne.symm hbj)]⟩
+  have h₂ : ∃ c, g c (blockOf h x c) = true := ⟨j, hj⟩
+  exact hb (by simp [h₁, h₂])
 
 /-- A coordinate is sensitive for the disjunction iff it is sensitive for its block and that
 block is one whose flip changes the disjunction. -/
@@ -142,42 +135,23 @@ theorem isSensitiveCoord_orBlocks_iff {h : ∑ b, sizes b = n}
     {g : ∀ b, BooleanFunction (sizes b)} {x : BitString n} {b : Fin k} {j : Fin (sizes b)} :
     IsSensitiveCoord (orBlocks h g) x (blockEquiv h ⟨b, j⟩) ↔
       IsSensitiveCoord (g b) (blockOf h x b) j ∧ b ∈ orSensitiveBlocks h g x := by
-  set i := blockEquiv h ⟨b, j⟩
-  set x' := Function.update x i (!x i)
-  have hb : blockOf h x' b = Function.update (blockOf h x b) j (!blockOf h x b j) :=
-    blockOf_update_self h x b j _
-  have hc (c : Fin k) (hc : c ≠ b) : blockOf h x' c = blockOf h x c :=
-    blockOf_update_of_ne h x hc j _
-  simp only [IsSensitiveCoord, orSensitiveBlocks, mem_filter, mem_univ, true_and]
+  have hupd (c : Fin k) :
+      g c (blockOf h (Function.update x (blockEquiv h ⟨b, j⟩) (!x (blockEquiv h ⟨b, j⟩))) c) =
+        Function.update (fun c => g c (blockOf h x c)) b
+          (g b (Function.update (blockOf h x b) j (!blockOf h x b j))) c := by
+    rcases eq_or_ne c b with rfl | hcb
+    · rw [blockOf_update_self, Function.update_self]
+      rfl
+    · rw [blockOf_update_of_ne h x hcb, Function.update_of_ne hcb]
+  simp only [IsSensitiveCoord, orBlocks, orSensitiveBlocks, mem_filter, mem_univ, true_and, hupd]
   by_cases hl : g b (Function.update (blockOf h x b) j (!blockOf h x b j)) = g b (blockOf h x b)
-  · have he : (fun c => g c (blockOf h x' c)) = fun c => g c (blockOf h x c) := by
-      funext c
-      by_cases hcb : c = b
-      · subst c
-        rw [hb, hl]
-      · rw [hc c hcb]
-    simp only [hl, ne_eq, not_true_eq_false, false_and, iff_false, not_not]
-    have he' (c : Fin k) : g c (blockOf h x' c) = g c (blockOf h x c) := congrFun he c
-    change decide (∃ c, g c (blockOf h x' c) = true) = decide (∃ c, g c (blockOf h x c) = true)
-    simp only [he']
-  · have hn : g b (Function.update (blockOf h x b) j (!blockOf h x b j)) =
+  · simp [hl]
+  · simp only [hl, ne_eq, not_false_eq_true, true_and]
+    have hflip : g b (Function.update (blockOf h x b) j (!blockOf h x b j)) =
         !g b (blockOf h x b) := by
       cases h₁ : g b (Function.update (blockOf h x b) j (!blockOf h x b j)) <;>
         cases h₂ : g b (blockOf h x b) <;> simp_all
-    have he : (fun c => g c (blockOf h x' c)) =
-        Function.update (fun c => g c (blockOf h x c)) b (!g b (blockOf h x b)) := by
-      funext c
-      by_cases hcb : c = b
-      · subst c
-        rw [hb, hn, Function.update_self]
-      · rw [hc c hcb, Function.update_of_ne hcb]
-    simp only [hl, ne_eq, not_false_eq_true, true_and]
-    have he' (c : Fin k) : g c (blockOf h x' c) =
-        Function.update (fun c => g c (blockOf h x c)) b (!g b (blockOf h x b)) c :=
-      congrFun he c
-    change decide (∃ c, g c (blockOf h x' c) = true) ≠ decide (∃ c, g c (blockOf h x c) = true) ↔
-      _
-    simp only [he', ne_eq]
+    rw [hflip]
 
 /-- The sensitive coordinates of the disjunction are the sensitive coordinates of the blocks
 whose flip changes the disjunction, placed by the layout. -/
@@ -218,19 +192,15 @@ theorem sensitivityAt_orBlocks_of_unique (h : ∑ b, sizes b = n)
     (g : ∀ b, BooleanFunction (sizes b)) {x : BitString n} {b : Fin k}
     (hb : g b (blockOf h x b) = true) (hother : ∀ c, c ≠ b → g c (blockOf h x c) = false) :
     sensitivityAt (orBlocks h g) x = sensitivityAt (g b) (blockOf h x b) := by
-  have hT : orSensitiveBlocks h g x = {b} := by
+  have hsens : orSensitiveBlocks h g x = {b} := by
     refine subset_antisymm (orSensitiveBlocks_subset hb) (singleton_subset_iff.mpr ?_)
     simp only [orSensitiveBlocks, mem_filter, mem_univ, true_and]
-    have hnone : ¬∃ c, Function.update (fun c => g c (blockOf h x c)) b
-        (!g b (blockOf h x b)) c = true := by
+    have hnone : ¬ ∃ c,
+        Function.update (fun c => g c (blockOf h x c)) b (!g b (blockOf h x b)) c = true := by
       rintro ⟨c, hc⟩
-      by_cases hcb : c = b
-      · subst c
-        simp [hb] at hc
-      · rw [Function.update_of_ne hcb, hother c hcb] at hc
-        exact Bool.false_ne_true hc
-    simp only [hnone, decide_false]
-    exact fun he => Bool.false_ne_true (he.trans (decide_eq_true ⟨b, hb⟩))
-  rw [sensitivityAt_orBlocks, hT, sum_singleton]
+      rcases eq_or_ne c b with rfl | hcb <;> simp_all [Function.update_of_ne]
+    rw [decide_eq_false hnone, decide_eq_true ⟨b, hb⟩]
+    decide
+  rw [sensitivityAt_orBlocks, hsens, sum_singleton]
 
 end Cslib.BitString

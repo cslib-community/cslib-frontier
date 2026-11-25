@@ -75,23 +75,17 @@ private theorem sum_mul_mul_le_of_rectangle_sum_le (M : X → Y → ℝ)
     ∑ x, ∑ y, p x * q y * M x y ≤ a * b * K := by
   classical
   let A := univ.filter fun x => 0 < ∑ y, q y * M x y
-  have h₁ := sum_mul_le_cap_mul_sum_pos p (fun x => ∑ y, q y * M x y) hp₀ hp
-  have h₂ := sum_mul_le_cap_mul_sum_pos q (fun y => ∑ x ∈ A, M x y) hq₀ hq
-  have h₃ := hM A (univ.filter fun y => 0 < ∑ x ∈ A, M x y)
   calc
-    ∑ x, ∑ y, p x * q y * M x y = ∑ x, p x * ∑ y, q y * M x y := by
-      simp only [mul_sum, mul_assoc]
-    _ ≤ a * ∑ x ∈ A, ∑ y, q y * M x y := h₁
+    ∑ x, ∑ y, p x * q y * M x y = ∑ x, p x * ∑ y, q y * M x y := by simp only [mul_sum, mul_assoc]
+    _ ≤ a * ∑ x ∈ A, ∑ y, q y * M x y :=
+      sum_mul_le_cap_mul_sum_pos p (fun x => ∑ y, q y * M x y) hp₀ hp
     _ = a * ∑ y, q y * ∑ x ∈ A, M x y := by
       rw [sum_comm]
       simp only [mul_sum]
     _ ≤ a * (b * ∑ y with 0 < ∑ x ∈ A, M x y, ∑ x ∈ A, M x y) :=
-      mul_le_mul_of_nonneg_left h₂ ha
-    _ ≤ a * (b * K) := by
-      apply mul_le_mul_of_nonneg_left _ ha
-      apply mul_le_mul_of_nonneg_left _ hb
-      rw [sum_comm]
-      exact h₃
+      mul_le_mul_of_nonneg_left (sum_mul_le_cap_mul_sum_pos q _ hq₀ hq) ha
+    _ ≤ a * (b * K) := mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left
+      (sum_comm.trans_le (hM A _)) hb) ha
     _ = a * b * K := (mul_assoc _ _ _).symm
 
 /-- The rectangle discrepancy bound extends to nonnegative, possibly subnormalized product
@@ -107,31 +101,21 @@ theorem abs_sum_mul_signVal_le_discrepancy_of_weight_le [Nonempty X] [Nonempty Y
   classical
   let D := discrepancy (PMF.uniformOfFintype (X × Y)) g
   let N : ℝ := Fintype.card X * Fintype.card Y
-  have hN : 0 < N := by
-    dsimp [N]
-    positivity
+  have hN : 0 < N := by positivity
   have hrect (A : Finset X) (B : Finset Y) :
       |∑ x ∈ A, ∑ y ∈ B, signVal (g x y)| ≤ N * D := by
     have h := abs_sum_le_discrepancy (PMF.uniformOfFintype (X × Y)) g A B
     simp only [PMF.uniformOfFintype_apply, Fintype.card_prod, ENNReal.toReal_inv,
       Nat.cast_mul, ← mul_sum] at h
     change |N⁻¹ * ∑ x ∈ A, ∑ y ∈ B, signVal (g x y)| ≤ D at h
-    rw [abs_mul, abs_of_pos (inv_pos.mpr hN), inv_mul_le_iff₀ hN] at h
-    exact h
-  have hupper (M : X → Y → ℝ)
-      (hM : ∀ A : Finset X, ∀ B : Finset Y, ∑ x ∈ A, ∑ y ∈ B, M x y ≤ N * D) :
-      ∑ x, ∑ y, p x * q y * M x y ≤ a * b * (N * D) :=
-    sum_mul_mul_le_of_rectangle_sum_le M p q ha hb hp₀ hp hq₀ hq hM
+    rwa [abs_mul, abs_of_pos (inv_pos.mpr hN), inv_mul_le_iff₀ hN] at h
   rw [mul_assoc (a * b)]
-  apply abs_le.mpr
-  constructor
-  · have h := hupper (fun x y => -signVal (g x y)) fun A B => by
-      simp only [sum_neg_distrib]
-      exact (neg_le_abs _).trans (hrect A B)
-    simp only [mul_neg, sum_neg_distrib] at h
-    linarith
-  · exact hupper (fun x y => signVal (g x y)) fun A B =>
-      (le_abs_self _).trans (hrect A B)
+  refine abs_le.mpr ⟨?_, sum_mul_mul_le_of_rectangle_sum_le _ p q ha hb hp₀ hp hq₀ hq
+    fun A B => (le_abs_self _).trans (hrect A B)⟩
+  have h := sum_mul_mul_le_of_rectangle_sum_le (fun x y => -signVal (g x y)) p q ha hb hp₀ hp hq₀ hq
+    fun A B => by simpa only [sum_neg_distrib] using (neg_le_abs _).trans (hrect A B)
+  simp only [mul_neg, sum_neg_distrib] at h
+  linarith
 
 /-- Uniform discrepancy bounds the bias of a gadget under independent sources with atom caps
 `a` and `b`. The alphabets may differ, and the atom caps are arbitrary nonnegative reals. -/
@@ -221,12 +205,10 @@ theorem sum_mul_abs_sum_signVal_le_discrepancy [Nonempty X] [Nonempty Y]
       (∑ x, ∑ y, pPos x * (q y).toReal * signVal (g x y)) -
         (∑ x, ∑ y, pNeg x * (q y).toReal * signVal (g x y)) := by
     simp only [mul_assoc, ← mul_sum, ← sum_sub_distrib]
-    apply sum_congr rfl
-    intro x _
+    refine sum_congr rfl fun x _ => ?_
     change (p x).toReal * |r x| = pPos x * r x - pNeg x * r x
-    by_cases hr : 0 ≤ r x
-    · simp [pPos, pNeg, hr, abs_of_nonneg hr]
-    · simp [pPos, pNeg, hr, abs_of_neg (lt_of_not_ge hr)]
+    by_cases hr : 0 ≤ r x <;>
+      simp [pPos, pNeg, hr, abs_of_nonneg, abs_of_neg, lt_of_not_ge]
   change (∑ x, (p x).toReal * |r x|) ≤ _
   rw [hsplit]
   linarith [le_abs_self (∑ x, ∑ y, pPos x * (q y).toReal * signVal (g x y)),
@@ -238,27 +220,19 @@ private theorem sum_mass_filter_lt_of_sum_mul_le {α : Type*} [Fintype α]
     (∑ x with t < f x, (p x).toReal) < β := by
   classical
   let A := univ.filter fun x => t < f x
-  by_cases hA : (∑ x ∈ A, (p x).toReal) = 0
-  · change (∑ x ∈ A, (p x).toReal) < β
-    rw [hA]
-    exact hβ
-  have hApos : 0 < ∑ x ∈ A, (p x).toReal :=
-    lt_of_le_of_ne (sum_nonneg fun _ _ => ENNReal.toReal_nonneg) (Ne.symm hA)
-  obtain ⟨x, hx, hpx⟩ := sum_pos_iff_of_nonneg (fun x (_ : x ∈ A) =>
-    ENNReal.toReal_nonneg) |>.mp hApos
+  rcases eq_or_lt_of_le (sum_nonneg fun x (_ : x ∈ A) => ENNReal.toReal_nonneg (a := p x)) with
+    hA | hApos
+  · exact hA.symm.trans_lt hβ
+  obtain ⟨x, hx, hpx⟩ := (sum_pos_iff_of_nonneg fun x (_ : x ∈ A) =>
+    ENNReal.toReal_nonneg).mp hApos
   have hstrict : t * (∑ x ∈ A, (p x).toReal) < ∑ x ∈ A, (p x).toReal * f x := by
     rw [mul_sum]
-    apply sum_lt_sum
-    · intro x hx
-      exact (mul_comm _ _).trans_le
-        (mul_le_mul_of_nonneg_left (mem_filter.mp hx).2.le ENNReal.toReal_nonneg)
-    · refine ⟨x, hx, ?_⟩
-      rw [mul_comm]
-      exact mul_lt_mul_of_pos_left (mem_filter.mp hx).2 hpx
-  have hsub : (∑ x ∈ A, (p x).toReal * f x) ≤ ∑ x, (p x).toReal * f x :=
-    sum_le_sum_of_subset_of_nonneg (filter_subset _ _)
-      (fun x _ _ => mul_nonneg ENNReal.toReal_nonneg (hf x))
-  exact (mul_lt_mul_iff_right₀ ht).mp (hstrict.trans_le (hsub.trans h))
+    exact sum_lt_sum (fun x hx => (mul_comm _ _).trans_le
+      (mul_le_mul_of_nonneg_left (mem_filter.mp hx).2.le ENNReal.toReal_nonneg))
+      ⟨x, hx, (mul_comm _ _).trans_lt (mul_lt_mul_of_pos_left (mem_filter.mp hx).2 hpx)⟩
+  exact (mul_lt_mul_iff_right₀ ht).mp (hstrict.trans_le
+    ((sum_le_sum_of_subset_of_nonneg (filter_subset _ _)
+      fun x _ _ => mul_nonneg ENNReal.toReal_nonneg (hf x)).trans h))
 
 /-- A strict tail bound for the bias of a row sampled from an independent source. This is the
 sampling step of CFKMP Lemma 2.10 in atom-cap form. -/

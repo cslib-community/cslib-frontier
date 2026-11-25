@@ -81,18 +81,12 @@ instance {M : Type w} : Quantifier CountingQuant M where
 theorem CountingQuant.eval_iff_of_equiv {M : Type w} {N : Type w'} (q : CountingQuant)
     {pM : M → Prop} {pN : N → Prop} (f : M ≃ N) (hf : ∀ c, pM c ↔ pN (f c)) :
     Quantifier.eval q pM ↔ Quantifier.eval q pN := by
-  cases q with
-  | atLeast m =>
-    rw [CountingQuant.eval_atLeast, CountingQuant.eval_atLeast]
-    have himage : f '' {c | pM c} = {d | pN d} := by
-      ext d
-      constructor
-      · rintro ⟨c, hc, rfl⟩
-        exact (hf c).1 hc
-      · intro hd
-        refine ⟨f.symm d, (hf (f.symm d)).2 ?_, f.apply_symm_apply d⟩
-        rwa [f.apply_symm_apply]
-    rw [← himage, f.injective.encard_image]
+  rcases q with ⟨m⟩
+  rw [CountingQuant.eval_atLeast, CountingQuant.eval_atLeast]
+  suffices f '' {c | pM c} = {d | pN d} by rw [← this, f.injective.encard_image]
+  ext d
+  exact ⟨fun ⟨c, hc, hcd⟩ => hcd ▸ (hf c).1 hc,
+    fun hd => ⟨f.symm d, (hf _).2 (by rwa [f.apply_symm_apply]), f.apply_symm_apply d⟩⟩
 
 instance : ExQuantTag CountingQuant where
   exQuant := .atLeast 1
@@ -188,11 +182,8 @@ def toCounting : Formula L k → CountingFormula L k
 @[simp] theorem realize_toCounting (φ : Formula L k) (a : Fin k → M) :
     φ.toCounting.Realize a ↔ φ.Realize a := by
   induction φ generalizing a with
-  | falsum => rw [toCounting, GenFormula.realize_falsum, GenFormula.realize_falsum]
-  | equal i j => rw [toCounting, GenFormula.realize_equal, GenFormula.realize_equal]
-  | rel R f => rw [toCounting, GenFormula.realize_rel, GenFormula.realize_rel]
-  | imp _ _ ihφ ihψ =>
-    rw [toCounting, GenFormula.realize_imp, GenFormula.realize_imp, ihφ, ihψ]
+  | falsum | equal _ _ | rel _ _ => simp [toCounting]
+  | imp _ _ ihφ ihψ => rw [toCounting, GenFormula.realize_imp, GenFormula.realize_imp, ihφ, ihψ]
   | quant q i _ ih =>
     cases q
     simp only [toCounting, CountingFormula.realize_atLeast, Nat.cast_one,
@@ -203,13 +194,10 @@ def toCounting : Formula L k → CountingFormula L k
 @[simp] theorem quantifierRank_toCounting (φ : Formula L k) :
     φ.toCounting.quantifierRank = φ.quantifierRank := by
   induction φ with
-  | falsum => rw [toCounting, GenFormula.quantifierRank_falsum, GenFormula.quantifierRank_falsum]
-  | equal i j =>
-    rw [toCounting, GenFormula.quantifierRank_equal, GenFormula.quantifierRank_equal]
-  | rel R f => rw [toCounting, GenFormula.quantifierRank_rel, GenFormula.quantifierRank_rel]
+  | falsum | equal _ _ | rel _ _ => simp [toCounting]
   | imp _ _ ihφ ihψ =>
     rw [toCounting, GenFormula.quantifierRank_imp, GenFormula.quantifierRank_imp, ihφ, ihψ]
-  | quant q i _ ih =>
+  | quant q _ _ ih =>
     cases q
     rw [toCounting, CountingFormula.quantifierRank_atLeast, GenFormula.quantifierRank_quant, ih]
 
@@ -217,12 +205,9 @@ def toCounting : Formula L k → CountingFormula L k
 @[simp] theorem freeVars_toCounting (φ : Formula L k) :
     φ.toCounting.freeVars = φ.freeVars := by
   induction φ with
-  | falsum => rw [toCounting, GenFormula.freeVars_falsum, GenFormula.freeVars_falsum]
-  | equal i j => rw [toCounting, GenFormula.freeVars_equal, GenFormula.freeVars_equal]
-  | rel R f => rw [toCounting, GenFormula.freeVars_rel, GenFormula.freeVars_rel]
-  | imp _ _ ihφ ihψ =>
-    rw [toCounting, GenFormula.freeVars_imp, GenFormula.freeVars_imp, ihφ, ihψ]
-  | quant q i _ ih =>
+  | falsum | equal _ _ | rel _ _ => simp [toCounting]
+  | imp _ _ ihφ ihψ => rw [toCounting, GenFormula.freeVars_imp, GenFormula.freeVars_imp, ihφ, ihψ]
+  | quant q _ _ ih =>
     cases q
     rw [toCounting, CountingFormula.freeVars_atLeast, GenFormula.freeVars_quant, ih]
 

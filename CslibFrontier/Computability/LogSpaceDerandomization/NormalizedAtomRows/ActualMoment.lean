@@ -203,31 +203,24 @@ theorem actual_normalized_fourth_moment_capacity
         rw [abs_mul, abs_of_nonneg (by positivity : (0 : ℝ) ≤ 2 ^ dyadicSlack m i), abs_of_nonneg
           (hB ν x y)]
         simpa only [mul_comm] using hμ ν i hi x y)
-    rw [row_const_mul X (retainedMask t (if ν = 0 then side P k else Lt) D suffix) N u (2 ^
-      dyadicSlack
-      m i) (fun (_ : Environment P J) x y => B ν x y)] at hh
+    rw [row_const_mul X (retainedMask t (if ν = 0 then side P k else Lt) D suffix) N u
+      (2 ^ dyadicSlack m i) (fun (_ : Environment P J) x y => B ν x y)] at hh
     have hh' := hh.trans (mul_le_mul_of_nonneg_left (hb ν) (by positivity))
     simpa only [abs_of_nonneg (by positivity : (0 : ℝ) ≤ 2 ^ dyadicSlack m i), mul_pow, mul_comm]
       using hh'
   have hrow (i : ℕ) (hi : i < m) := raw_prefix_row_budget HP s t Ls (side P k) Lt D sourceSuffix
-    suffix
-    k G hG ζ Δ raw m i (hzero i) hsub hNu hε (fun ν => hmean ν i hi) (fun ν => hz ν i hi)
+    suffix k G hG ζ Δ raw m i (hzero i) hsub hNu hε (fun ν => hmean ν i hi) (fun ν => hz ν i hi)
   have htail := integrated_actual_clipped_tail_capacity HP s t hst Ls Lt D hD sourceSuffix suffix
-    H hk
-    (hLt.trans (side_le P k)) G hG ζ hη hNu hmass m n (fun _ => HP.K) hnscale Δ raw
+    H hk (hLt.trans (side_le P k)) G hG ζ hη hNu hmass m n (fun _ => HP.K) hnscale Δ raw
     (fun _ => ε) (fun _ => ε) (fun _ => hε) (fun _ => hε) B hB hμ hb
     (fun ν i hi => actualNoiseMax_budget s t Ls (side P k) Lt D sourceSuffix suffix k G hG Δ raw
       hNu ν i (hz ν i hi)) hzero
   have ht : vertexNormPow 4 N u X
       (actualClippedTail HP s t Ls Lt D sourceSuffix suffix k m η G ζ
         n (fun _ => HP.K) Δ raw) ≤ (T * (4 * ε)) ^ 4 := by
-    have he : (((2 + 256 * M / η) * (ε + ε)) / 63 + (ε + ε) * (7 / 9)) = T * ε := by
-      dsimp only [T]
-      ring
-    change _ ≤ (T * (4 * ε)) ^ 4
     apply htail.trans
-    rw [show (((2 + 256 * ((HP.k : ℝ) + 1) / η) * (ε + ε)) / 63 + (ε + ε) * (7 / 9)) = T * ε from
-      he]
+    rw [show (((2 + 256 * ((HP.k : ℝ) + 1) / η) * (ε + ε)) / 63 + (ε + ε) * (7 / 9)) = T * ε by
+      dsimp only [T, M]; ring]
     exact pow_le_pow_left₀ (mul_nonneg hT hε) (by nlinarith [mul_nonneg hT hε]) 4
   have hout := hbound N u hNu X Ya m hm n hnscale Δ raw truth hn
     (fun σ x y _ _ => div_nonneg (hG x y) (rate_pos k).le)
@@ -264,8 +257,7 @@ theorem actual_normalized_fourth_moment_capacity
     intro σ x y _ _
     by_cases hy : Yt σ y
     · rw [ite_eq_left hy, genuine_recipe_identity HP hζ]
-      simp only [actualNormalizedCapacity, hy, ↓reduceIte, stateRootError, truth, Yt, Ya]
-      exact le_rfl
+      simp only [actualNormalizedCapacity, hy, ↓reduceIte, stateRootError, truth, Yt, Ya, le_refl]
     · rw [ite_eq_right hy, abs_zero]
       exact abs_nonneg _
   apply hrestrict.trans
@@ -337,13 +329,10 @@ theorem actual_normalized_fourth_moment_compatible
  ^ 4 := by
   obtain ⟨Cf, hCf, hfloor⟩ := actual_normalized_fourth_moment_capacity HP hζ hs hmargin hsmall
     hcapscale
-  refine ⟨Cf, hCf, ?_⟩
-  intro η hη hηs hη1 hηθ
+  refine ⟨Cf, hCf, fun η hη hηs hη1 hηθ => ?_⟩
   obtain ⟨C, hC, hbound⟩ := hfloor η hη hηs hη1 hηθ
-  refine ⟨C, hC, ?_⟩
-  intro P J _ s t hst Ls Lt D hD sourceSuffix suffix H k hk hLt G hG hmass N u ε hNu hε m hm Δ raw
-    B hB hμ hb hz hzero
-  exact hbound P J s t hst Ls Lt D hD sourceSuffix suffix H k hk hLt G hG hmass N u ε hNu hε m hm
-    (compatibleCapacity HP.K m) (fun i _ => (compatibleCapacity_bounds HP.K m i).1)
-    (fun i _ => (compatibleCapacity_bounds HP.K m i).2) Δ raw B hB hμ hb hz hzero
+  exact ⟨C, hC, fun P J _ s t hst Ls Lt D hD sourceSuffix suffix H k hk hLt G hG hmass N u ε hNu hε
+    m hm => hbound P J s t hst Ls Lt D hD sourceSuffix suffix H k hk hLt G hG hmass N u ε hNu hε
+    m hm (compatibleCapacity HP.K m) (fun i _ => (compatibleCapacity_bounds HP.K m i).1)
+    (fun i _ => (compatibleCapacity_bounds HP.K m i).2)⟩
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

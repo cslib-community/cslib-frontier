@@ -76,8 +76,7 @@ def boundedClauseLength (c : Clause ℕ) : Fin 4 :=
 /-- The bounded length tag is exactly the first three source positions' presence count. -/
 theorem boundedClauseLength_eq (c : Clause ℕ) :
     boundedClauseLength c = ⟨min c.length 3, by omega⟩ := by
-  rcases c with _ | ⟨p, _ | ⟨q, _ | ⟨r, rest⟩⟩⟩
-  all_goals (apply Fin.ext; simp [boundedClauseLength])
+  rcases c with _ | ⟨_, _ | ⟨_, _ | ⟨_, _⟩⟩⟩ <;> exact Fin.ext (by simp [boundedClauseLength])
 
 /-- Native computation of the bounded presence tag examines three list heads. -/
 @[fun_prop]
@@ -198,10 +197,8 @@ theorem profileVariables_source_bound : ∀ p : ClauseProfile, ∀ v ∈ profile
     decide +kernel
   intro p v hv
   have hh := List.all_eq_true.mp (hall p) v hv
-  rcases v with (j | k) | k
-  · exact of_decide_eq_true hh
-  · trivial
-  · trivial
+  rcases v with (j | _) | _
+  exacts [of_decide_eq_true hh, trivial, trivial]
 
 private theorem profileVariable_getD_source_bound (p : ClauseProfile) (n : ℕ) :
     (match (profileVariables p).getD n (.inl (.inl 0)) with
@@ -221,13 +218,11 @@ theorem profileRole_map_val (p : ClauseProfile) (n : ℕ) :
         | .inl (.inl j) => some j | _ => none) := by
   have hb := profileVariable_getD_source_bound p n
   unfold profileRole variableRole
-  generalize he : (profileVariables p).getD n (.inl (.inl 0)) = v at hb ⊢
-  cases v with
-  | inl v =>
-    cases v with
-    | inl j => simpa only [Option.map_some] using congrArg some (Nat.mod_eq_of_lt hb)
-    | inr v => rfl
-  | inr v => rfl
+  generalize (profileVariables p).getD n (.inl (.inl 0)) = v at hb ⊢
+  rcases v with (j | _) | _
+  · simpa only [Option.map_some] using congrArg some (Nat.mod_eq_of_lt hb)
+  · rfl
+  · rfl
 
 /-- The finite role table can be emitted in native polynomial time. -/
 @[fun_prop]
@@ -262,9 +257,9 @@ theorem computableInPolyTime_clausePorts_of_literalSide
       (encPair encInput encUnary) encClause := by
     unfold encInput encCNF encClause
     fun_prop
-  have hn := computableInPolyTime_boundedClauseLength.comp hc
-  have ht := hn.prod ((hside 0).prod ((hside 1).prod (hside 2)))
-  have h := computableInPolyTime_choosePorts.comp ht
-  simpa only [Function.comp_def, clausePorts, boundedClauseLength_eq] using h
+  simpa only [Function.comp_def, clausePorts, boundedClauseLength_eq] using
+    computableInPolyTime_choosePorts.comp <|
+      (computableInPolyTime_boundedClauseLength.comp hc).prod
+        ((hside 0).prod ((hside 1).prod (hside 2)))
 
 end Cslib.Complexity.SAT.ExactOne.DrawingFinitePolyTime

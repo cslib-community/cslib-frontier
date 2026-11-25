@@ -48,9 +48,7 @@ theorem capacity {d r m b : ℕ} (hb : b ≤ r * m) (child : Fin d) :
     child.val * (r * m) + b ≤ ((2 ^ m) ^ (d * r)).size := by
   rw [← pow_mul, Nat.size_pow]
   have hc := Nat.mul_le_mul_right (r * m) (Nat.succ_le_of_lt child.isLt)
-  rw [Nat.succ_mul] at hc
-  have heq : d * (r * m) = m * (d * r) := by ac_rfl
-  omega
+  rw [Nat.succ_mul, show d * (r * m) = m * (d * r) by ac_rfl] at hc; omega
 
 /-- A flattened grid coordinate decodes to its consecutive counter bits. -/
 theorem unpackBits_gridDigit {d r m b : ℕ} (hb : b ≤ r * m) (hm : 0 < m)
@@ -66,15 +64,11 @@ theorem unpackBits_gridDigit {d r m b : ℕ} (hb : b ≤ r * m) (hm : 0 < m)
         ⟨j.val / m, hdiv⟩) ⟨j.val % m, Nat.mod_lt _ hm⟩ = _
   rw [equivFin_symm_apply]
   simp only [blocksEquiv, Equiv.coe_fn_mk, block, gridDigit, finProdFinEquiv_apply_val]
-  rw [Nat.mul_comm r child.val, Nat.add_comm (j.val / m) (child.val * r)]
-  rw [Nat.testBit_mod_two_pow]
-  simp only [Nat.mod_lt _ hm, decide_true, Bool.true_and]
-  rw [← pow_mul, Nat.testBit_div_two_pow]
+  rw [Nat.mul_comm r child.val, Nat.add_comm (j.val / m) (child.val * r), Nat.testBit_mod_two_pow]
+  simp only [Nat.mod_lt _ hm, decide_true, Bool.true_and, ← pow_mul, Nat.testBit_div_two_pow]
   congr 1
-  simp only [Nat.mul_add]
-  have heq : m * (child.val * r) = child.val * (r * m) := by ac_rfl
-  rw [heq]
-  have hquot := Nat.mod_add_div j.val m
+  rw [Nat.mul_add, show m * (child.val * r) = child.val * (r * m) by ac_rfl]
+  have := Nat.mod_add_div j.val m
   omega
 
 /-- The native slice is exactly the existing unpacked child word on every grid assignment. -/
@@ -91,12 +85,9 @@ theorem label_eq_ofFn_unpackBits {d r m b : ℕ} (hb : b ≤ r * m) (hm : 0 < m)
     label ((2 ^ m) ^ (d * r), counter, r * m, b, child) =
       List.ofFn (unpackBits hb (blocksEquiv (fun q : Fin (d * r) =>
         (⟨gridDigit (2 ^ m) counter q, Nat.mod_lt _ (by positivity)⟩ : Fin (2 ^ m))) child)) := by
-  apply List.ext_getElem
-  · simp only [length_label _ _ _ _ _ (capacity hb child), List.length_ofFn]
-  · intro j hj hj'
-    rw [List.getElem_ofFn]
-    rw [← List.getD_eq_getElem _ (d := false) hj]
-    exact getD_label_eq_unpackBits hb hm counter child
-      ⟨j, by simpa only [List.length_ofFn] using hj'⟩
+  refine List.ext_getElem
+    (by simp only [length_label _ _ _ _ _ (capacity hb child), List.length_ofFn]) fun j hj hj' => ?_
+  rw [List.getElem_ofFn, ← List.getD_eq_getElem _ (d := false) hj]
+  exact getD_label_eq_unpackBits hb hm counter child ⟨j, by simpa only [List.length_ofFn] using hj'⟩
 
 end Cslib.TreeEval.Ary.Packed.AssignmentLabels

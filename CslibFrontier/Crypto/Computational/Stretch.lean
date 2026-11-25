@@ -149,45 +149,30 @@ theorem isPPT_test {α : Type} {input : α ↪ List Bool}
     (hchallenge : ComputableInPolyTime challenge input encBits) :
     IsPPTOn input encBool
       (fun a => test (generator a) (seedBits a) (count a) (adversary a) (challenge a)) := by
-  let pairEncoding := encPair input encUnary
-  let fullEncoding := encPair pairEncoding encBits
   have ha := ComputableInPolyTime.fst input encUnary
   have hi := ComputableInPolyTime.snd input encUnary
-  have houter := ComputableInPolyTime.fst pairEncoding encBits
-  have hsuffix := ComputableInPolyTime.snd pairEncoding encBits
+  have houter := ComputableInPolyTime.fst (encPair input encUnary) encBits
+  have hha : ComputableInPolyTime (fun p : (α × ℕ) × List Bool => p.1.1)
+      (encPair (encPair input encUnary) encBits) input := ha.comp houter
   have hprepare : ComputableInPolyTime
       (fun p : (α × ℕ) × List Bool => (p.1.1,
         iterate (generator p.1.1) (seedBits p.1.1) (count p.1.1 - (p.1.2 + 1))
-          (challenge p.1.1 ++ p.2))) fullEncoding (encPair input encBits) := by
-    apply ComputableInPolyTime.prod (ha.comp houter)
-    apply polyTime_iterate
-    · have hparam := ComputableInPolyTime.fst fullEncoding encBits
-      have hword := ComputableInPolyTime.snd fullEncoding encBits
-      have harg : ComputableInPolyTime
-          (fun p : ((α × ℕ) × List Bool) × List Bool => (p.1.1.1, p.2))
-          (encPair fullEncoding encBits) (encPair input encBits) :=
-        ((ha.comp houter).comp hparam).prod hword
-      exact hgenerator.comp harg
-    · exact hseedBits.comp (ha.comp houter)
+          (challenge p.1.1 ++ p.2))) (encPair (encPair input encUnary) encBits)
+      (encPair input encBits) := by
+    refine hha.prod (polyTime_iterate ?_ (hseedBits.comp hha) ?_ ?_)
+    · exact hgenerator.comp
+        ((hha.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _))
     · exact ComputableInPolyTime.unary_sub.comp
-        ((hcount.comp (ha.comp houter)).prod
-          (ComputableInPolyTime.unary_succ.comp (hi.comp houter)))
-    · exact ComputableInPolyTime.bitsAppend (hchallenge.comp (ha.comp houter)) hsuffix
-  have hsample := isPPTOn_sampleList.preprocess hi
-  have hpost : IsPPTOn fullEncoding encBool (fun p : (α × ℕ) × List Bool =>
-      adversary p.1.1 (iterate (generator p.1.1) (seedBits p.1.1)
-        (count p.1.1 - (p.1.2 + 1)) (challenge p.1.1 ++ p.2))) := by
-    simpa only [Function.comp_def] using hadversary.preprocess hprepare
-  have hyes := hsample.bind_with
+        ((hcount.comp hha).prod (ComputableInPolyTime.unary_succ.comp (hi.comp houter)))
+    · exact ComputableInPolyTime.bitsAppend (hchallenge.comp hha) (ComputableInPolyTime.snd _ _)
+  have hyes := (isPPTOn_sampleList.preprocess hi).bind_with
     (second := fun p suffix => adversary p.1 (iterate (generator p.1) (seedBits p.1)
-      (count p.1 - (p.2 + 1)) (challenge p.1 ++ suffix))) hpost
-  have hcond := ComputableInPolyTime.unary_lt' hi (hcount.comp ha)
-  have hfalse : IsPPTOn pairEncoding encBool (fun _ => pure false) :=
-    (ComputableInPolyTime.const false).isPPTOn
-  have hbranch := IsPPTOn.ite hcond hyes hfalse
-  have hindex := isPPTOn_sampleBoundedIndex hcount
-  simpa only [test, reduction, hop, pairEncoding, fullEncoding, Function.comp_def] using
-    hindex.bind_with hbranch
+      (count p.1 - (p.2 + 1)) (challenge p.1 ++ suffix)))
+    (by simpa only [Function.comp_def] using hadversary.preprocess hprepare)
+  have hbranch := IsPPTOn.ite (ComputableInPolyTime.unary_lt' hi (hcount.comp ha)) hyes
+    (ComputableInPolyTime.const (encIn := encPair input encUnary) false).isPPTOn
+  simpa only [test, reduction, hop, Function.comp_def] using
+    (isPPTOn_sampleBoundedIndex hcount).bind_with hbranch
 
 /-- Capping a sampled index only merges rejecting branches. -/
 theorem hop_min (generator : List Bool → List Bool) (count : ℕ → ℕ)
@@ -358,15 +343,15 @@ theorem indexed_indistinguishable {κ : Type} {encContext : κ ↪ List Bool}
   have hprepare : ComputableInPolyTime
       (fun p : ((ℕ × κ) × List Bool) × List Bool => (p.1.1, p.2))
       (encPair (encPair (encPair encUnary encContext) encBits) encBits)
-      (encPair (encPair encUnary encContext) encBits) := by fun_prop
+      (encPair (encPair encUnary encContext) encBits) :=
+    (ComputableInPolyTime.fst _ _).fst'.prod (ComputableInPolyTime.snd _ _)
   have hparameter : ComputableInPolyTime (fun p : (ℕ × κ) × List Bool => p.1.1)
-      (encPair (encPair encUnary encContext) encBits) encUnary := by fun_prop
+      (encPair (encPair encUnary encContext) encBits) encUnary :=
+    (ComputableInPolyTime.fst _ _).fst'
   have hreduce : IsPPTOn (encPair (encPair encUnary encContext) encBits)
-      encBool (fun ((n, context), word) => reduction n context word) := by
-    unfold reduction
-    exact isPPT_test (hgenerator.comp hprepare) (hseedBits.comp hparameter)
-      (hcount.comp hparameter) (hadversary.preprocess hprepare)
-      (ComputableInPolyTime.snd _ _)
+      encBool (fun ((n, context), word) => reduction n context word) :=
+    isPPT_test (hgenerator.comp hprepare) (hseedBits.comp hparameter)
+      (hcount.comp hparameter) (hadversary.preprocess hprepare) (ComputableInPolyTime.snd _ _)
   have h := (hsecure reduction hreduce).polynomiallyBounded_mul (loss_polynomial hcount)
   exact h.congr' (Filter.Eventually.of_forall (fun n => (test_advantage_eq _ _ _ _).symm))
 

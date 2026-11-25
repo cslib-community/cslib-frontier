@@ -68,8 +68,7 @@ theorem eval_coinCountExpr (machine : MultiTapePTM k Bool State)
     (coinCountExpr machine B n u v sym).eval regs =
       coinCountWithSymbol machine (B.eval regs) (n.eval regs) (u.eval regs) (v.eval regs)
         symbol := by
-  rw [coinCountExpr, eval_add, eval_edgeExpr _ hs, eval_edgeExpr _ hs]
-  rfl
+  rw [coinCountExpr, eval_add, eval_edgeExpr _ hs, eval_edgeExpr _ hs]; rfl
 
 /-- Read from `frame w` and store the coin count in register three, then continue at `exit`.
 Registers zero through two hold `w.length`, the source ID, and the target ID. The radix is
@@ -100,22 +99,17 @@ theorem reachesOut_coinCountCode (machine : MultiTapePTM k Bool State)
   have hr : P.ReachesOut (frame w) (P.Active S) (b, [w.length, u, v, y])
       (b + 5, [w.length, u, v, symbolCode symbol]) [] := by
     simpa [symbol] using reachesOut_readSymbolCode (w := w) hread (by simp) hS
-  have hbound : ∀ r ∈ [w.length, u, v, symbolCode symbol], r ≤ S := by
-    intro r hr
-    have hm : r ∈ [w.length, u, v, y].set 3 (symbolCode symbol) := hr
-    rcases List.mem_or_eq_of_mem_set hm with hm | rfl
-    · exact hS r hm
-    · exact (Nat.le_of_lt_succ (symbolCode_lt symbol)).trans h2
-  have heval :
-      (coinCountExpr machine (radixExpr D (reg 0)) (reg 0) (reg 1) (reg 2) (reg 3)).eval
-        [w.length, u, v, symbolCode symbol] =
+  have hbound : ∀ r ∈ [w.length, u, v, symbolCode symbol], r ≤ S :=
+    fun r (hr : r ∈ [w.length, u, v, y].set 3 (symbolCode symbol)) =>
+      (List.mem_or_eq_of_mem_set hr).elim (hS r)
+        fun h => h ▸ (Nat.le_of_lt_succ (symbolCode_lt symbol)).trans h2
+  have heval : (coinCountExpr machine (radixExpr D (reg 0)) (reg 0) (reg 1) (reg 2)
+      (reg 3)).eval [w.length, u, v, symbolCode symbol] =
       coinCountWithSymbol machine (radix D w.length) w.length u v symbol := by
     simpa using eval_coinCountExpr machine (symbol := symbol)
       (B := radixExpr D (reg 0)) (n := reg 0) (u := reg 1) (v := reg 2) (sym := reg 3)
       (regs := [w.length, u, v, symbolCode symbol]) rfl
-  refine (hr.trans (ReachesOut.assign hassign hbound ?_)).of_eq rfl
-  rw [heval]
-  exact ReachesOut.refl _
+  exact (hr.trans (ReachesOut.assign hassign hbound (heval ▸ ReachesOut.refl _))).of_eq rfl
 
 /-- The count block followed by a halt. The caller supplies the original input length and the
 two compact IDs in registers zero through two before entering the block. -/

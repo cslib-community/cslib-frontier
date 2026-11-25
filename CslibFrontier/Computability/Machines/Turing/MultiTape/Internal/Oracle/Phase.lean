@@ -104,10 +104,8 @@ theorem congr {program program' : α → WordOracleComp Operation γ}
       ProbOracleComp.runWith oracle (program' a) s) :
     IsTidyOraclePPTOn input output program' := by
   obtain ⟨hops, k, Control, hfinite, machine, c, d, h⟩ := h
-  refine ⟨hops, k, Control, hfinite, machine, c, d, fun a => (h a).congr ?_⟩
-  intro State oracle s
-  rw [ProbOracleComp.runWith_map, ProbOracleComp.runWith_map]
-  exact congrArg _ (heq a State oracle s)
+  refine ⟨hops, k, Control, hfinite, machine, c, d, fun a => (h a).congr fun State oracle s => ?_⟩
+  simp only [ProbOracleComp.runWith_map, heq a State oracle s]
 
 /-- A program returning its declared encoding has the same clean realizations. -/
 theorem iff_encoded {program : α → WordOracleComp Operation γ} :
@@ -132,15 +130,11 @@ theorem query_take [Finite Operation] (op : Operation) :
         ProbOracleComp.query (spec := fun _ : Operation × List Bool => List Bool)
           (op, request.1)) := by
   refine ⟨inferInstance, 0, QueryTakeState ⊕ RewindState, inferInstance, queryTakePTM op, 4, 1,
-    fun request => ?_⟩
-  have hlength : (encPair encBits encUnary request).length =
-      2 * request.1.length + 1 + request.2 := by
-    simp [encPair_apply, encBits_apply, encUnary_apply]
-  refine ((computesTidily_queryTakePTM op request.1 request.2).mono ?_).congr ?_
-  · rw [hlength]
-    lia
-  · intro State oracle s
-    simp only [encBits, Function.Embedding.coe_refl, id_map]
+    fun request => ((computesTidily_queryTakePTM op request.1 request.2).mono ?_).congr
+      fun State oracle s => by simp [encBits]⟩
+  simp only [encPair_apply, encBits_apply, encUnary_apply, List.length_append, length_frame,
+    List.length_replicate]
+  lia
 
 /-- A fair private bit leaves every external oracle state unchanged. -/
 theorem uniform_bool [Finite Operation] (input : α ↪ List Bool) :
@@ -280,12 +274,9 @@ theorem cond {condition : α → Bool} {yes no : α → WordOracleComp Operation
       c₂ * ((input a).length + 1) ^ d₂ + 10) (by growth_poly) fun a => ?_
   have hite := ComputesTidily.ite (w := test a) (htester a)
     (fun _ => hyesMachine a) (fun _ => hnoMachine a)
-  cases hc : condition a with
-  | false =>
-    simp only [test, hc, Bool.false_eq_true, ↓reduceIte, List.length_nil] at hite ⊢
-    exact hite.mono (by lia)
-  | true =>
-    simp only [test, hc, ↓reduceIte, reduceCtorEq, List.length_singleton] at hite ⊢
+  cases hc : condition a <;>
+    simp only [test, hc, Bool.false_eq_true, ↓reduceIte, reduceCtorEq, List.length_nil,
+      List.length_singleton] at hite ⊢ <;>
     exact hite.mono (by lia)
 
 /-- Select a branch with an efficiently decidable condition, executing only that branch. -/
@@ -306,12 +297,9 @@ theorem finite_cases {Tag : Type} [Finite Tag] {tagEncoding : Tag ↪ List Bool}
   let _ := Fintype.ofFinite Tag
   cases isEmpty_or_nonempty Tag with
   | inl hempty =>
-    let : IsEmpty α := ⟨fun a => isEmptyElim (tag a)⟩
-    apply (of_computableInPolyTime (Operation := Operation)
-      (ComputableInPolyTime.of_finite (encIn := input) (encOut := output)
-        (fun a : α => isEmptyElim a))).congr
-    intro a
-    exact isEmptyElim a
+    have : IsEmpty α := ⟨fun a => isEmptyElim (tag a)⟩
+    exact (of_computableInPolyTime (Operation := Operation)
+      (ComputableInPolyTime.of_finite (isEmptyElim (α := α)))).congr fun a => isEmptyElim a
   | inr hnonempty =>
     let fallback := Classical.choice hnonempty
     have hselect (tags : List Tag) : IsTidyOraclePPTOn input output (fun a =>

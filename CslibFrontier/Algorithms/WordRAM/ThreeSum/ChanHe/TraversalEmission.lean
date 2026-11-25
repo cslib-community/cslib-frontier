@@ -108,15 +108,14 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
     (htable : published = true → x.regs outputs + x.regs outputCount < x.regs heap) :
     Nonempty (Emission (Nat.primesLE (x.regs limit)) (x.regs digits) e x
       (if published then deliveryState b else localDeliveryState b) published) := by
-  have hbp (i : Fin 128) (hi : 64 ≤ i.val) (hne : i ≠ selected) :
+  have hbp (i : Fin 128) (hi : 64 ≤ i.val := by decide) (hne : i ≠ selected := by decide) :
       b.regs i = x.regs i := (hb i hi).trans (hu i hi hne)
   have hL : NodePacking.layout ((nodeState b).comap kernel) = recordLayout x M := by
     rw [nodeState_layout, hb selected (by decide), hus]
-    exact recordLayout_congr x b M hbp
+    exact recordLayout_congr x b M fun i hi hne => hbp i hi hne
   have htableb (hp : published = true) :
       b.regs outputs + b.regs outputCount < b.regs heap := by
-    rw [hbp outputs (by decide) (by decide), hbp outputCount (by decide) (by decide),
-      hbp heap (by decide) (by decide)]
+    rw [hbp outputs, hbp outputCount, hbp heap]
     exact htable hp
   have houtb : NodePacking.Output (NodePacking.layout ((nodeState b).comap kernel))
       e.read u.mem b.mem := by simpa only [hL] using hout
@@ -133,8 +132,7 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
       change NodePacking.Output (recordLayout x M) e.read
         (Function.update u.mem (b.regs outputs + b.regs outputCount) (recordLayout x M).packed)
         (deliveryState b).mem
-      have h := delivery_output b e.read u.mem houtb (htableb rfl)
-      simpa only [hL] using h
+      simpa only [hL] using delivery_output b e.read u.mem houtb (htableb rfl)
   have hMexact : M = (e.task.node (Nat.primesLE (x.regs limit)) (x.regs digits)).M := by
     simpa only [hl.2.2, e.image_read, Math.Task.node, Entry.task] using hM
   have hnodeExact : NodePacking.node (recordLayout x M) e.read =
@@ -153,8 +151,9 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
     have hc := Finset.card_le_card hh
     simpa only [Entry.task, List.toFinset_card_of_nodup (hnd j),
       List.toFinset_card_of_nodup (hv.1 j)] using hc
-  refine ⟨⟨M, hMexact, hMpos, hMle, zs, hnd, hsets', hlen, ?_, ?_, ?_, ?_, ?_, ?_, ?_, b.mem,
-    ?_, ?_, ?_⟩⟩
+  refine ⟨⟨M, hMexact, hMpos, hMle, zs, hnd, hsets', hlen, ?_, ?_,
+    fun j i => hdata j i.val i.isLt, ?_, ?_, ?_, ?_, b.mem,
+    fun p hp => (hout.frame p (Or.inl hp)).trans (hprefix p hp), ?_, ?_⟩⟩
   · intro j
     rw [delivered_regs published b (deliveryState_heavy_length b j)
       (localDeliveryState_heavy_length b j), hL, hout.heavy_card j, ← hsets j]
@@ -162,8 +161,6 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
   · intro j
     rw [delivered_regs published b (deliveryState_heavy_base b j)
       (localDeliveryState_heavy_base b j), hL]
-  · intro j i
-    exact hdata j i.val i.isLt
   · intro i
     have hp := hd.packed i.val i.isLt
     rw [hnodeExact] at hp
@@ -172,27 +169,23 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
   · cases published with
     | false =>
       change (localDeliveryState b).regs outputCount = x.regs outputCount + 0
-      rw [localDeliveryState_count, hbp outputCount (by decide) (by decide), Nat.add_zero]
+      rw [localDeliveryState_count, hbp outputCount, Nat.add_zero]
     | true =>
       change (deliveryState b).regs outputCount = x.regs outputCount + 1
-      rw [deliveryState_count, hbp outputCount (by decide) (by decide)]
+      rw [deliveryState_count, hbp outputCount]
   · rw [delivered_regs published b (deliveryState_heap b) (localDeliveryState_heap b), hL]
-  · intro p hp
-    exact (hout.frame p (Or.inl hp)).trans (hprefix p hp)
   · cases published with
     | false => exact localDeliveryState_mem b
     | true =>
       change (deliveryState b).mem =
         Function.update b.mem (x.regs outputs + x.regs outputCount) (recordLayout x M).packed
-      rw [deliveryState_mem, hbp outputs (by decide) (by decide),
-        hbp outputCount (by decide) (by decide)]
+      rw [deliveryState_mem, hbp outputs, hbp outputCount]
       congr 1
       exact (deliveryState_packed b).trans (congrArg NodePacking.Layout.packed hL)
   · intro i hi hsel hh hc ht hw
-    cases published with
-    | false =>
-      exact (localDeliveryState_preserves b i hh ht hw).trans (hbp i hi hsel)
-    | true => exact (deliveryState_preserves b i hh hc ht hw).trans (hbp i hi hsel)
+    cases published
+    exacts [(localDeliveryState_preserves b i hh ht hw).trans (hbp i hi hsel),
+      (deliveryState_preserves b i hh hc ht hw).trans (hbp i hi hsel)]
 
 /-- Execute both complete searches and the complete node construction for an actual loaded
 entry. All heavy witnesses come from the executed memory and all control work is charged. -/

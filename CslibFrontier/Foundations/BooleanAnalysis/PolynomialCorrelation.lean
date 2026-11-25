@@ -458,16 +458,11 @@ private theorem gen_update_update_mem_span_firstFlagUnset {d : ℕ}
       Submodule.span (ZMod 2) (gen '' {b | (∀ t, #(b t).1 ≤ m) ∧
         FirstFlagUnset (fun A : Finset (Fin (2 * m + 1)) => #A + d ≤ m) b}) := by
   intro a'
-  have hfst (t : Fin k) : (a' t).1 = (a t).1 := by
-    by_cases ht : t = i
-    · subst ht
-      simp [a']
-    · simp [a', Function.update_of_ne ht]
-  have hfst' (t : Fin k) : (Function.update a' j ((a' j).1, true) t).1 = (a t).1 := by
-    by_cases ht : t = j
-    · subst ht
-      simp [hfst]
-    · simp [Function.update_of_ne ht, hfst]
+  have hupd (f : Fin k → Finset (Fin (2 * m + 1)) × Bool) (idx : Fin k) (b : Bool) (t : Fin k) :
+      (Function.update f idx ((f idx).1, b) t).1 = (f t).1 := by
+    rcases eq_or_ne t idx with rfl | ht <;> simp [Function.update_of_ne, *]
+  have hfst' (t : Fin k) : (Function.update a' j ((a' j).1, true) t).1 = (a t).1 :=
+    (hupd a' j true t).trans (hupd a i false t)
   refine Submodule.subset_span ⟨_, ⟨fun t => hfst' t ▸ ha t, fun t ht hmt => ?_⟩, rfl⟩
   simp only [hfst'] at ht hmt
   rw [← eq_of_forall_lt_not hi hmi ht hmt, Function.update_of_ne hj.symm]
@@ -518,40 +513,46 @@ private theorem exists_mem_span_firstFlagUnset_eq {d : ℕ}
   set V := Submodule.span (ZMod 2) (gen '' {a | (∀ i, #(a i).1 ≤ m) ∧
     FirstFlagUnset (fun A : Finset (Fin (2 * m + 1)) => #A + d ≤ m) a})
   let U := agreeSubmodule E V
-  have hgen (n : ℕ) : ∀ a : Fin k → Finset (Fin (2 * m + 1)) × Bool,
-      (∀ i, #(a i).1 ≤ m) → genWeight m a = n → gen a ∈ U := by
-    induction n using Nat.strong_induction_on with
-    | _ n ih =>
-    intro a ha hn
-    by_cases hall : FirstFlagUnset (fun A : Finset (Fin (2 * m + 1)) => #A + d ≤ m) a
-    · exact ⟨gen a, Submodule.subset_span ⟨a, ⟨ha, hall⟩, rfl⟩, fun _ _ => rfl⟩
-    -- the first block with room for `d` more bits carries its majority
-    obtain ⟨i, hi, hmi, hb⟩ : ∃ i, #(a i).1 + d ≤ m ∧ (∀ j < i, ¬#(a j).1 + d ≤ m) ∧
-        (a i).2 = true := by
-      simpa [FirstFlagUnset] using hall
-    set a' := Function.update a i ((a i).1, false) with ha'_def
-    have ha' (j : Fin k) : #(a' j).1 ≤ m := by
-      rcases eq_or_ne j i with rfl | hj <;> simp [a', Function.update_of_ne, ha j, *]
-    -- without the majority of block `i`, and times `P`, the product has smaller weight
-    have hlow : P * gen a' ∈ U := by
-      have hw : genWeight m a' + d < n := by
-        rw [← hn, ha'_def, genWeight_update, genWeight_eq a i]
-        simp only [atomWeight, hb, ↓reduceIte, Bool.false_eq_true]
+  have hgen (n : ℕ) : genSpan k m n ≤ U := by
+    induction n with
+    | zero =>
+      refine Submodule.span_le.2 ?_
+      rintro _ ⟨a, ⟨ha, h0⟩, rfl⟩
+      refine ⟨gen a, Submodule.subset_span ⟨a, ⟨ha, fun i _ _ => ?_⟩, rfl⟩, fun _ _ => rfl⟩
+      cases hb : (a i).2
+      · rfl
+      · have hge := genWeight_eq a i
+        simp only [atomWeight, hb, ↓reduceIte] at hge
         omega
-      refine (Submodule.span_le.2 ?_ : genSpan k m (genWeight m a' + d) ≤ U)
-        (mul_mem_genSpan hP (Submodule.subset_span ⟨a', ⟨ha', le_rfl⟩, rfl⟩))
-      rintro _ ⟨b, ⟨hb', hbw⟩, rfl⟩
-      exact ih _ (by omega) b hb' rfl
-    -- with the majority of another block instead, the product is allowed
-    have hrest : ∀ j ∈ univ.erase i, gen (Function.update a' j ((a' j).1, true)) ∈ U := fun j hj =>
-      ⟨_, gen_update_update_mem_span_firstFlagUnset ha hi hmi (ne_of_mem_erase hj), fun _ _ => rfl⟩
-    obtain ⟨g, hg, hgx⟩ := add_mem hlow (Submodule.sum_mem U hrest)
-    exact ⟨g, hg, fun x hx =>
-      (hgx x hx).trans (mul_gen_update_false_add_sum_erase_eq (hE x hx) hb)⟩
-  suffices h : genSpan k m (k * (2 * m + 1)) ≤ U from h (mem_genSpan f)
-  refine Submodule.span_le.2 ?_
-  rintro _ ⟨a, ⟨ha, -⟩, rfl⟩
-  exact hgen _ a ha rfl
+    | succ n ih =>
+      refine Submodule.span_le.2 ?_
+      rintro _ ⟨a, ⟨ha, hn⟩, rfl⟩
+      by_cases hall : FirstFlagUnset (fun A : Finset (Fin (2 * m + 1)) => #A + d ≤ m) a
+      · exact ⟨gen a, Submodule.subset_span ⟨a, ⟨ha, hall⟩, rfl⟩, fun _ _ => rfl⟩
+      -- the first block with room for `d` more bits carries its majority
+      obtain ⟨i, hi, hmi, hb⟩ : ∃ i, #(a i).1 + d ≤ m ∧ (∀ j < i, ¬#(a j).1 + d ≤ m) ∧
+          (a i).2 = true := by
+        simpa [FirstFlagUnset] using hall
+      set a' := Function.update a i ((a i).1, false) with ha'_def
+      have ha' (j : Fin k) : #(a' j).1 ≤ m := by
+        rcases eq_or_ne j i with rfl | hj <;> simp [a', Function.update_of_ne, ha j, *]
+      -- without the majority of block `i`, and times `P`, the product has weight ≤ n
+      have hw : genWeight m a' + d ≤ n := by
+        rw [ha'_def, genWeight_update]
+        have := genWeight_eq a i
+        simp only [atomWeight, hb, ↓reduceIte, Bool.false_eq_true] at this ⊢
+        omega
+      have hlow : P * gen a' ∈ U :=
+        ih (genSpan_mono hw (mul_mem_genSpan hP (Submodule.subset_span ⟨a', ⟨ha', le_rfl⟩, rfl⟩)))
+      -- with the majority of another block instead, the product is allowed
+      have hrest : ∀ j ∈ univ.erase i, gen (Function.update a' j ((a' j).1, true)) ∈ U :=
+        fun j hj =>
+          ⟨_, gen_update_update_mem_span_firstFlagUnset ha hi hmi (ne_of_mem_erase hj),
+            fun _ _ => rfl⟩
+      obtain ⟨g, hg, hgx⟩ := add_mem hlow (Submodule.sum_mem U hrest)
+      exact ⟨g, hg, fun x hx =>
+        (hgx x hx).trans (mul_gen_update_false_add_sum_erase_eq (hE x hx) hb)⟩
+  exact hgen (k * (2 * m + 1)) (mem_genSpan f)
 
 end Blocks
 
@@ -602,22 +603,14 @@ private theorem abs_expect_signVal_mul_le_of_two_mul_card_le {n : ℕ} {f p : Bo
     {B : ℝ} (h₁ : 2 * (#{x | p x = f x} : ℝ) ≤ 2 ^ n + B)
     (h₂ : 2 * (#{x | (!p x) = f x} : ℝ) ≤ 2 ^ n + B) :
     |𝔼 x, signVal (f x) * signVal (p x)| ≤ B / 2 ^ n := by
+  have hnot (x : BitString n) : (!p x) = f x ↔ ¬p x = f x := by cases f x <;> cases p x <;> decide
   have hd : #{x | (!p x) = f x} = hammingDist f p := by
-    simp only [hammingDist]
-    congr 1
-    ext x
-    simp only [mem_filter, mem_univ, true_and]
-    cases f x <;> cases p x <;> decide
+    simp only [hammingDist, hnot, ne_comm]
   have hsum : (#{x | p x = f x} : ℝ) + #{x | (!p x) = f x} = 2 ^ n := by
     have h := card_filter_add_card_filter_not (s := (univ : Finset (BitString n)))
       fun x => p x = f x
     rw [card_univ, BitString.card] at h
-    have he : #{x | ¬p x = f x} = #{x | (!p x) = f x} := by
-      congr 1
-      ext x
-      simp only [mem_filter, mem_univ, true_and]
-      cases f x <;> cases p x <;> decide
-    rw [he] at h
+    simp only [← hnot] at h
     exact_mod_cast h
   have hpos : (0 : ℝ) < 2 ^ n := by positivity
   have key : 1 - 2 * (hammingDist f p : ℝ) / 2 ^ n = (2 * #{x | p x = f x} - 2 ^ n) / 2 ^ n := by

@@ -121,17 +121,15 @@ metadata and the words. Original input symbols remain on the query input, outsid
 theorem prepareWords_inSpace (e : Q ≃ Fin s) :
     ComputableInSpace (prepareWords (k := k) e) encWordArgs CheckedGate.encState
       (fun a => (encWordArgs a).length) := by
-  have hN := of_inO (encWordArgs_inputLength_inO (k := k))
   have hb := of_inO (encWordArgs_blockWidth_inO (k := k))
-  have hσ := of_inO (encWordArgs_schedule_inO (k := k))
-  have hi := of_inO (encWordArgs_interval_inO (k := k))
   have hwords := of_inO (encWordArgs_words_inO (k := k))
   have hprevious := Assignments.encWords_previous_budget hwords
-  have hproviders := Assignments.encWords_providers_budget hwords
-  have haddress := budget_prod hσ hi
+  have haddress := budget_prod (of_inO (encWordArgs_schedule_inO (k := k)))
+    (of_inO (encWordArgs_interval_inO (k := k)))
   have hports := budget_comp_linear (ScheduleRead.providerMap_inSpace k) haddress
   have hcombined := budget_comp_linear (Providers.Labels.combine_inSpace (k := k) e)
-    (budget_prod hb (budget_prod hports (budget_prod hprevious hproviders)))
+    (budget_prod hb (budget_prod hports
+      (budget_prod hprevious (Assignments.encWords_providers_budget hwords))))
   let empty : RawResult k Q := (none, fun _ => 0, .empty, fun _ => [])
   have hget : ComputableInSpace (fun o : Option (RawResult k Q) => o.getD empty)
       (encOption encRawResult) encRawResult (fun o => (encOption encRawResult o).length) :=
@@ -140,17 +138,16 @@ theorem prepareWords_inSpace (e : Q ≃ Fin s) :
       (encOption encRawResult) encBool (fun o => (encOption encRawResult o).length) :=
     of_inO (ComputableInDegree.isSome encRawResult).inO_one
   have horigin := budget_comp_linear (ScheduleRead.origin_inSpace k 0) haddress
-  have hrow := budget_comp_linear (ScheduleRead.fullrow_inSpace k) haddress
   have hload := budget_comp_linear (Load.load_inSpace (k := k) (Q := Q))
-    (budget_prod hN (budget_prod hb (budget_prod horigin
-      (budget_comp_linear hget hcombined))))
-  have hcontext := budget_prod horigin.fst' (budget_prod horigin.snd' hrow)
-  have hsuccess := budget_comp_linear
-    (of_inO (ComputableInO.inr encBits (Gate.encState (k := k) (Q := Q))))
-    (budget_prod hcontext hload)
-  have hfailure := budget_comp_linear
-    (of_inO (ComputableInO.inl encBits (Gate.encState (k := k) (Q := Q)))) hprevious
-  refine (budget_ite (budget_comp_linear hisSome hcombined) hsuccess hfailure).of_enc_eq ?_
+    (budget_prod (of_inO (encWordArgs_inputLength_inO (k := k)))
+      (budget_prod hb (budget_prod horigin (budget_comp_linear hget hcombined))))
+  refine (budget_ite (budget_comp_linear hisSome hcombined)
+    (budget_comp_linear (of_inO (ComputableInO.inr encBits (Gate.encState (k := k) (Q := Q))))
+      (budget_prod (budget_prod horigin.fst'
+        (budget_prod horigin.snd' (budget_comp_linear (ScheduleRead.fullrow_inSpace k) haddress)))
+        hload))
+    (budget_comp_linear (of_inO (ComputableInO.inl encBits (Gate.encState (k := k) (Q := Q))))
+      hprevious)).of_enc_eq ?_
   rintro ⟨N, b, σ, i, words⟩
   cases hc : Providers.Labels.combine e (b, ScheduleRead.providerMap k (σ, i), words.previous,
       words.providers) <;>
@@ -161,17 +158,12 @@ storage. Original input symbols remain on the query input, outside this state. -
 theorem prepare_inSpace (e : Q ≃ Fin s) :
     ComputableInSpace (prepare (k := k) e) encArgs CheckedGate.encState
       (fun a => (encArgs a).length) := by
-  have hN := of_inO encArgs_inputLength_inO
   have hb := of_inO encArgs_blockWidth_inO
-  have hσ := of_inO encArgs_schedule_inO
-  have hi := of_inO encArgs_interval_inO
-  have hlimit := of_inO encArgs_limit_inO
-  have hcounter := of_inO encArgs_counter_inO
-  have hstride := of_inO encArgs_stride_inO
-  have hwidth := budget_comp_linear (Encoding.width_inSpace k s) hb
   have hwords := budget_comp_linear (Assignments.labels_inSpace k)
-    (Assignments.encArgs_mk_budget hlimit hcounter hstride hwidth)
+    (Assignments.encArgs_mk_budget (of_inO encArgs_limit_inO) (of_inO encArgs_counter_inO)
+      (of_inO encArgs_stride_inO) (budget_comp_linear (Encoding.width_inSpace k s) hb))
   exact (budget_comp_linear (prepareWords_inSpace (k := k) e)
-    (encWordArgs_mk_budget hN hb hσ hi hwords)).of_enc_eq fun _ => rfl
+    (encWordArgs_mk_budget (of_inO encArgs_inputLength_inO) hb (of_inO encArgs_schedule_inO)
+      (of_inO encArgs_interval_inO) hwords)).of_enc_eq fun _ => rfl
 
 end Turing.MultiTapePTM.BlockComputation.QueryReplay.Supplier

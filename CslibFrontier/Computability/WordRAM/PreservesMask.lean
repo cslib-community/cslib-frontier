@@ -121,20 +121,18 @@ theorem preservesAll_eq_true_iff (keep : Fin r → Bool) (c : Code B r) :
     | none => simp
     | some d =>
       simp only [Bool.not_eq_true', ne_eq, Option.some.injEq]
-      exact ⟨fun h i hi heq => by subst heq; simp [hi] at h,
+      exact ⟨fun h _ hi heq => by
+          subst heq
+          simp [hi] at h,
         fun h => Bool.eq_false_iff.mpr fun hd => h d hd rfl⟩
-  | seq c₁ c₂ ih₁ ih₂ =>
-    simp only [preservesAll, Bool.and_eq_true, Preserves, ih₁, ih₂]
-    exact ⟨fun ⟨h₁, h₂⟩ i hi => ⟨h₁ i hi, h₂ i hi⟩,
-      fun h => ⟨fun i hi => (h i hi).1, fun i hi => (h i hi).2⟩⟩
-  | branch _ pos neg ihp ihn =>
-    simp only [preservesAll, Bool.and_eq_true, Preserves, ihp, ihn]
-    exact ⟨fun ⟨h₁, h₂⟩ i hi => ⟨h₁ i hi, h₂ i hi⟩,
-      fun h => ⟨fun i hi => (h i hi).1, fun i hi => (h i hi).2⟩⟩
-  | loop _ body ih => exact ih
+  | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ =>
+    simp only [preservesAll, Bool.and_eq_true, Preserves, ih₁, ih₂, forall_and]
+  | loop _ _ ih => exact ih
   | rand dst _ =>
     simp only [preservesAll, Preserves, Bool.not_eq_true']
-    exact ⟨fun h i hi heq => by subst heq; simp [hi] at h,
+    exact ⟨fun h _ hi heq => by
+        subst heq
+        simp [hi] at h,
       fun h => Bool.eq_false_iff.mpr fun hd => h dst hd rfl⟩
 
 /-- Drop-in replacement for `∀ i : Fin r, P i → c.Preserves i := by decide`: evaluates `P` only on
@@ -150,17 +148,14 @@ theorem preservesAll_rename (keep : Fin r' → Bool) (f : Fin r → Fin r') (c :
     (c.rename f).preservesAll keep = c.preservesAll (keep ∘ f) := by
   induction c with
   | op o => exact o.preservesAll_rename keep f
-  | seq c₁ c₂ ih₁ ih₂ => simp [rename, preservesAll, ih₁, ih₂]
-  | branch _ pos neg ihp ihn => simp [rename, preservesAll, ihp, ihn]
-  | loop _ body ih => exact ih
+  | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ => simp [rename, preservesAll, ih₁, ih₂]
+  | loop _ _ ih => exact ih
   | rand _ _ => rfl
 
 @[simp]
 private theorem preservesAll_const_false (c : Code B r) :
-    c.preservesAll (fun _ => false) = true := by
-  rw [preservesAll_eq_true_iff]
-  intro _ h
-  cases h
+    c.preservesAll (fun _ => false) = true :=
+  (preservesAll_eq_true_iff _ c).mpr fun _ h => by cases h
 
 /-- `preservesAll` on a renamed subprogram is `true` without unfolding the callee whenever the
 register bank `f` is disjoint from `keep`. -/
@@ -195,17 +190,13 @@ private theorem preserves_of_lt_writeStart {c : Code B r} {i : Fin r} (hi : i.va
     cases h : o.dest with
     | none => simp
     | some d =>
-      simp only [h, ne_eq, Option.some.injEq] at hi ⊢
-      exact fun heq => Nat.ne_of_lt hi (congrArg Fin.val heq).symm
-  | seq c₁ c₂ ih₁ ih₂ =>
+      simp only [h] at hi
+      exact fun heq => Nat.ne_of_lt hi (congrArg Fin.val (Option.some.inj heq)).symm
+  | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ =>
     simp only [writeStart, lt_min_iff] at hi
     exact ⟨ih₁ hi.1, ih₂ hi.2⟩
-  | branch _ pos neg ihp ihn =>
-    simp only [writeStart, lt_min_iff] at hi
-    exact ⟨ihp hi.1, ihn hi.2⟩
-  | loop _ body ih => exact ih hi
-  | rand _ _ =>
-    exact fun h => Nat.ne_of_lt hi (congrArg Fin.val h).symm
+  | loop _ _ ih => exact ih hi
+  | rand _ _ => exact fun h => Nat.ne_of_lt hi (congrArg Fin.val h).symm
 
 /-- Every register strictly below `lo` is preserved when `lo ≤ c.writeStart`. -/
 theorem preserves_of_writeStart {c : Code B r} {lo : ℕ} (h : lo ≤ c.writeStart)
@@ -220,20 +211,14 @@ private theorem preserves_of_writeEnd_le {c : Code B r} {i : Fin r} (hi : c.writ
     cases h : o.dest with
     | none => simp
     | some d =>
-      simp only [h, ne_eq, Option.some.injEq] at hi ⊢
-      exact fun heq => absurd (congrArg Fin.val heq) (by omega)
-  | seq c₁ c₂ ih₁ ih₂ =>
+      simp only [h] at hi
+      exact fun heq => absurd (congrArg Fin.val (Option.some.inj heq)) (by omega)
+  | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ =>
     simp only [writeEnd, max_le_iff] at hi
     exact ⟨ih₁ hi.1, ih₂ hi.2⟩
-  | branch _ pos neg ihp ihn =>
-    simp only [writeEnd, max_le_iff] at hi
-    exact ⟨ihp hi.1, ihn hi.2⟩
-  | loop _ body ih => exact ih hi
+  | loop _ _ ih => exact ih hi
   | rand _ _ =>
-    intro h
-    simp only [writeEnd] at hi
-    have := congrArg Fin.val h
-    omega
+    exact fun h => absurd (congrArg Fin.val h) (by simp only [writeEnd] at hi; omega)
 
 /-- Every register at or above `hi` is preserved when `c.writeEnd ≤ hi`. -/
 theorem preserves_of_writeEnd {c : Code B r} {hi : ℕ} (h : c.writeEnd ≤ hi)
@@ -254,8 +239,7 @@ def readsWidthBool : Code B r → Bool
 theorem readsWidthBool_eq_true_iff (c : Code B r) : c.readsWidthBool = true ↔ c.ReadsWidth := by
   induction c with
   | op o => exact o.readsWidthBool_eq_true_iff
-  | seq _ _ ih₁ ih₂ => simp [readsWidthBool, ReadsWidth, ih₁, ih₂]
-  | branch _ _ _ ihp ihn => simp [readsWidthBool, ReadsWidth, ihp, ihn]
+  | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ => simp [readsWidthBool, ReadsWidth, ih₁, ih₂]
   | loop _ _ ih => exact ih
   | rand _ _ => simp [readsWidthBool, ReadsWidth]
 
@@ -270,8 +254,7 @@ theorem readsWidthBool_rename (f : Fin r → Fin r') (c : Code B r) :
     (c.rename f).readsWidthBool = c.readsWidthBool := by
   induction c with
   | op o => exact o.readsWidthBool_rename f
-  | seq _ _ ih₁ ih₂ => simp [rename, readsWidthBool, ih₁, ih₂]
-  | branch _ _ _ ihp ihn => simp [rename, readsWidthBool, ihp, ihn]
+  | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ => simp [rename, readsWidthBool, ih₁, ih₂]
   | loop _ _ ih => exact ih
   | rand _ _ => rfl
 

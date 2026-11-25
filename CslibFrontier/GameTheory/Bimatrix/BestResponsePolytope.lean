@@ -218,37 +218,35 @@ theorem IsNondegenerate.isNondegenerateSystem_matP (hG : G.IsNondegenerate) :
   rw [isNondegenerateSystem_iff]
   intro x hx
   obtain ⟨hx₀, hxB⟩ := matP_mulVec_le_iff.1 hx
-  have hL : (tightRows G.matP (rhsP M N) x).toLeft = univ.filter fun i => x i = 0 := by
-    ext i
+  have hL : (tightRows G.matP (rhsP M N) x).toLeft = univ.filter (x · = 0) := by
+    ext
     simp
   rw [← card_toLeft_add_card_toRight, hL]
-  by_cases hx0 : x = 0
-  · subst hx0
-    have hR : (tightRows G.matP (rhsP M N) 0).toRight = ∅ := by ext j; simp
+  rcases eq_or_ne x 0 with rfl | hx0
+  · have hR : (tightRows G.matP (rhsP M N) 0).toRight = ∅ := by
+      ext
+      simp
     rw [hR, card_empty, add_zero]
     exact card_le_univ _
-  have hsum := card_filter_add_card_filter_not (s := univ) fun i => x i = 0
-  rw [card_univ] at hsum
-  have hpos : 0 < ∑ i, x i := by
-    obtain ⟨i, hi⟩ := Function.ne_iff.1 hx0
-    exact (sum_pos_iff_of_nonneg fun j _ => hx₀ j).2 ⟨i, mem_univ _, (hx₀ i).lt_of_ne' hi⟩
-  have hsupp : (Function.support ((∑ i, x i)⁻¹ • x)).ncard =
-      #(univ.filter fun i => ¬x i = 0) := by
+  obtain ⟨i₀, hi₀⟩ := Function.ne_iff.1 hx0
+  have hpos : 0 < ∑ i, x i :=
+    (sum_pos_iff_of_nonneg fun j _ => hx₀ j).2 ⟨i₀, mem_univ _, (hx₀ i₀).lt_of_ne' hi₀⟩
+  have hsupp : (Function.support ((∑ i, x i)⁻¹ • x)).ncard = #(univ.filter fun i => ¬x i = 0) := by
     rw [Function.support_const_smul_of_ne_zero _ _ (inv_ne_zero hpos.ne'), ← Set.ncard_coe_finset]
     congr 1
-    ext i
+    ext
     simp
-  have hT : ∀ j ∈ (tightRows G.matP (rhsP M N) x).toRight,
-      G.IsPureBestResponse₂ ((∑ i, x i)⁻¹ • x) j := fun j hj => by
-    rw [mem_toRight, inr_mem_tightRows_matP] at hj
+  have hT : ((tightRows G.matP (rhsP M N) x).toRight : Set N) ⊆
+      {j | G.IsPureBestResponse₂ ((∑ i, x i)⁻¹ • x) j} := fun j hj => by
+    rw [Finset.mem_coe, mem_toRight, inr_mem_tightRows_matP] at hj
     exact isPureBestResponse₁_swap.1 (isPureBestResponse₁_smul_of_eq_one (G := G.swap)
       (inv_nonneg.2 hpos.le) (fun j' => by simpa only [swap_A, mulVec_transpose] using hxB j')
       (by simpa only [swap_A, mulVec_transpose] using hj))
-  have h1 := (Set.ncard_le_ncard
-    (s := ((tightRows G.matP (rhsP M N) x).toRight : Set N))
-    (t := {j | G.IsPureBestResponse₂ ((∑ i, x i)⁻¹ • x) j}) hT (Set.toFinite _)).trans
+  have h1 := (Set.ncard_le_ncard hT (Set.toFinite _)).trans
     ((isNondegenerate_iff.1 hG).1 _ (isMixedStrategy_inv_sum_smul hx₀ hx0))
+  have hsum := card_filter_add_card_filter_not (s := univ) (x · = 0)
   rw [Set.ncard_coe_finset, hsupp] at h1
+  rw [card_univ] at hsum
   omega
 
 omit [DecidableEq M] in
@@ -264,17 +262,13 @@ omit [Fintype N] [DecidableEq N] in
 cone is `{0}`. -/
 theorem eq_zero_of_matP_mulVec_nonpos [Nonempty N] (hB : ∀ i j, 0 < G.B i j) {v : M → ℝ}
     (hv : G.matP *ᵥ v ≤ 0) : v = 0 := by
-  have hnn : ∀ i, 0 ≤ v i := fun i => by
-    simpa [matP_mulVec] using hv (.inl i)
+  have hnn (i : M) : 0 ≤ v i := by simpa [matP_mulVec] using hv (.inl i)
   obtain ⟨j⟩ := ‹Nonempty N›
-  have hj : (v ᵥ* G.B) j ≤ 0 := by simpa using hv (.inr j)
   have hsum : ∑ i, v i * G.B i j = 0 :=
-    le_antisymm hj
+    le_antisymm (by simpa [vecMul, dotProduct] using hv (.inr j))
       (sum_nonneg fun i _ => mul_nonneg (hnn i) (hB i j).le)
-  funext i
-  have := (sum_eq_zero_iff_of_nonneg fun i _ => mul_nonneg (hnn i) (hB i j).le).1 hsum i
-    (mem_univ _)
-  exact (mul_eq_zero.1 this).resolve_right (hB i j).ne'
+  exact funext fun i => (mul_eq_zero.1 ((sum_eq_zero_iff_of_nonneg fun i _ =>
+    mul_nonneg (hnn i) (hB i j).le).1 hsum i (mem_univ _))).resolve_right (hB i j).ne'
 
 omit [Fintype M] [DecidableEq M] in
 /-- With positive payoffs to player 1, the best response polytope `Q` is bounded: its recession
@@ -340,16 +334,15 @@ private theorem isBestResponse₁_of_completelyLabeled (hx : G.matP *ᵥ x ≤ r
   obtain ⟨hy₁, hy₀⟩ := matQ_mulVec_le_iff.1 hy
   obtain ⟨hcl₁, -⟩ := completelyLabeled_iff_forall.1 hcl
   refine isBestResponse₁_iff.2 ⟨isMixedStrategy_inv_sum_smul hx₀ hx0, fun i hi => ?_⟩
-  have hxi : x i ≠ 0 := fun h => by simp [h] at hi
   exact isPureBestResponse₁_smul_of_eq_one (inv_nonneg.2 (sum_nonneg fun j _ => hy₀ j)) hy₁
-    ((hcl₁ i).resolve_left hxi)
+    ((hcl₁ i).resolve_left fun h => by simp [h] at hi)
 
 /-- A nonzero feasible completely labelled pair `(x, y)` of `P × Q` rescales to the Nash
 equilibrium `(x / ∑ x, y / ∑ y)` ([vonStengel2007], Section 3.3). -/
 theorem isNash_of_completelyLabeled (hx : G.matP *ᵥ x ≤ rhsP M N) (hy : G.matQ *ᵥ y ≤ rhsQ M N)
     (hcl : LemkeHowson.CompletelyLabeled G.matP (rhsP M N) G.matQ (rhsQ M N) x y)
     (hx0 : x ≠ 0) : G.IsNash ((∑ i, x i)⁻¹ • x) ((∑ j, y j)⁻¹ • y) := by
-  have hy0 : y ≠ 0 := fun h => hx0 ((eq_zero_iff_eq_zero_of_completelyLabeled hx hy hcl).2 h)
+  have hy0 : y ≠ 0 := mt (eq_zero_iff_eq_zero_of_completelyLabeled hx hy hcl).2 hx0
   exact isNash_iff.2 ⟨isBestResponse₁_of_completelyLabeled hx hy hcl hx0,
     isBestResponse₁_swap.1
       (isBestResponse₁_of_completelyLabeled (swap_matP_mulVec_le_iff.2 hy)
@@ -360,19 +353,13 @@ private theorem matP_mulVec_inv_payoff₂_le (hB : ∀ i j, 0 < G.B i j) (h : G.
     G.matP *ᵥ ((G.payoff₂ x y)⁻¹ • x) ≤ rhsP M N ∧
       ∀ j, ((((G.payoff₂ x y)⁻¹ • x) ᵥ* G.B) j = 1 ∨ y j = 0) := by
   obtain ⟨h₁, h₂⟩ := isNash_iff.1 h
-  have hx := h₁.isMixedStrategy
-  have hy := h₂.isMixedStrategy
-  have hp := G.payoff₂_pos hB hx hy
-  refine ⟨matP_mulVec_le_iff.2 ⟨fun i => smul_nonneg (inv_nonneg.2 hp.le) (hx.nonneg i),
-    fun j => ?_⟩, fun j => ?_⟩
+  have hp := G.payoff₂_pos hB h₁.isMixedStrategy h₂.isMixedStrategy
+  refine ⟨matP_mulVec_le_iff.2 ⟨fun i => smul_nonneg (inv_nonneg.2 hp.le)
+    (h₁.isMixedStrategy.nonneg i), fun j => ?_⟩, fun j => ?_⟩
   · rw [smul_vecMul, Pi.smul_apply, smul_eq_mul, inv_mul_le_iff₀ hp, mul_one]
     exact h₂.le_payoff₂ j
-  · rcases (hy.nonneg j).lt_or_eq with hj | hj
-    · left
-      rw [smul_vecMul, Pi.smul_apply, smul_eq_mul, ← h₂.payoff₂_eq_of_pos hj,
-        inv_mul_cancel₀ hp.ne']
-    · right
-      exact hj.symm
+  · refine (h₂.isMixedStrategy.nonneg j).lt_or_eq.imp (fun hj => ?_) Eq.symm
+    rw [smul_vecMul, Pi.smul_apply, smul_eq_mul, ← h₂.payoff₂_eq_of_pos hj, inv_mul_cancel₀ hp.ne']
 
 /-- A Nash equilibrium `(x, y)` of a game with positive payoffs, rescaled by the inverse
 equilibrium payoffs, is a feasible completely labelled pair of `P × Q`
@@ -386,19 +373,11 @@ theorem IsNash.completelyLabeled (hA : ∀ i j, 0 < G.A i j) (hB : ∀ i j, 0 < 
   obtain ⟨hP, hcl₂⟩ := matP_mulVec_inv_payoff₂_le hB h
   obtain ⟨hQ', hcl₁'⟩ := matP_mulVec_inv_payoff₂_le (G := G.swap)
     (fun j i => by simpa only [swap_B, transpose_apply] using hA i j) (isNash_swap.2 h)
-  have hQ : G.matQ *ᵥ ((G.payoff₁ x y)⁻¹ • y) ≤ rhsQ M N :=
-    payoff₂_swap G y x ▸ swap_matP_mulVec_le_iff.1 hQ'
-  refine ⟨hP, hQ, completelyLabeled_iff_forall.2 ⟨fun i => ?_, fun j => ?_⟩⟩
-  · rcases hcl₁' i with hi | hi
-    · right
-      simpa only [payoff₂_swap, swap_B, vecMul_transpose] using hi
-    · left
-      rw [Pi.smul_apply, hi, smul_zero]
-  · rcases hcl₂ j with hj | hj
-    · left
-      exact hj
-    · right
-      rw [Pi.smul_apply, hj, smul_zero]
+  refine ⟨hP, payoff₂_swap G y x ▸ swap_matP_mulVec_le_iff.1 hQ',
+    completelyLabeled_iff_forall.2 ⟨fun i => (hcl₁' i).symm.imp
+      (fun hi => by rw [Pi.smul_apply, hi, smul_zero])
+      (by simpa only [payoff₂_swap, swap_B, vecMul_transpose] using ·),
+    fun j => (hcl₂ j).imp_right fun hj => by rw [Pi.smul_apply, hj, smul_zero]⟩⟩
 
 /-! ### The completely labelled vertex pairs -/
 
@@ -475,34 +454,31 @@ theorem setOf_completelyLabeled_eq (hG : G.IsNondegenerate)
       insert 0 (G.toPolytopes '' {p | G.IsNash p.1 p.2}) := by
   have hnd₁ := hG.isNondegenerateSystem_matP
   have hnd₂ := hG.isNondegenerateSystem_matQ
-  have hcard : Fintype.card (M ⊕ N) = Fintype.card M + Fintype.card N := Fintype.card_sum
   ext ⟨x, y⟩
   rw [Set.mem_ofPred_eq, Set.mem_insert_iff, Set.mem_image]
   constructor
   · rintro ⟨hxv, hyv, hcl⟩
     have hx := hxv.mulVec_le
     have hy := hyv.mulVec_le
-    by_cases hx0 : x = 0
-    · left
-      rw [Prod.mk_eq_zero]
-      exact ⟨hx0, (eq_zero_iff_eq_zero_of_completelyLabeled hx hy hcl).1 hx0⟩
-    · right
-      obtain ⟨hx₀, -⟩ := matP_mulVec_le_iff.1 hx
+    rcases eq_or_ne x 0 with rfl | hx0
+    · exact Or.inl (Prod.mk_eq_zero.2 ⟨rfl,
+        (eq_zero_iff_eq_zero_of_completelyLabeled hx hy hcl).1 rfl⟩)
+    · obtain ⟨hx₀, -⟩ := matP_mulVec_le_iff.1 hx
       obtain ⟨-, hy₀⟩ := matQ_mulVec_le_iff.1 hy
-      have hy0 : y ≠ 0 := fun h => hx0 ((eq_zero_iff_eq_zero_of_completelyLabeled hx hy hcl).2 h)
-      have hsx : 0 < ∑ i, x i := by
-        obtain ⟨i, hi⟩ := Function.ne_iff.1 hx0
-        exact (sum_pos_iff_of_nonneg fun j _ => hx₀ j).2 ⟨i, mem_univ _, (hx₀ i).lt_of_ne' hi⟩
-      have hsy : 0 < ∑ j, y j := by
-        obtain ⟨j, hj⟩ := Function.ne_iff.1 hy0
-        exact (sum_pos_iff_of_nonneg fun j _ => hy₀ j).2 ⟨j, mem_univ _, (hy₀ j).lt_of_ne' hj⟩
+      have hy0 : y ≠ 0 := mt (eq_zero_iff_eq_zero_of_completelyLabeled hx hy hcl).2 hx0
+      obtain ⟨i, hi⟩ := Function.ne_iff.1 hx0
+      obtain ⟨j, hj⟩ := Function.ne_iff.1 hy0
+      have hsx : 0 < ∑ i, x i :=
+        (sum_pos_iff_of_nonneg fun k _ => hx₀ k).2 ⟨i, mem_univ _, (hx₀ i).lt_of_ne' hi⟩
+      have hsy : 0 < ∑ j, y j :=
+        (sum_pos_iff_of_nonneg fun k _ => hy₀ k).2 ⟨j, mem_univ _, (hy₀ j).lt_of_ne' hj⟩
       obtain ⟨hu, hv⟩ := payoff_inv_sum_smul hx hy hcl hx0
-      refine ⟨((∑ i, x i)⁻¹ • x, (∑ j, y j)⁻¹ • y), isNash_of_completelyLabeled hx hy hcl hx0, ?_⟩
+      refine Or.inr ⟨((∑ i, x i)⁻¹ • x, (∑ j, y j)⁻¹ • y),
+        isNash_of_completelyLabeled hx hy hcl hx0, ?_⟩
       rw [toPolytopes_apply, hu, hv, inv_inv, inv_inv, smul_inv_smul₀ hsx.ne',
         smul_inv_smul₀ hsy.ne']
   · rintro (h | ⟨⟨x', y'⟩, h, he⟩)
-    · rw [Prod.mk_eq_zero] at h
-      obtain ⟨rfl, rfl⟩ := h
+    · obtain ⟨rfl, rfl⟩ := Prod.mk_eq_zero.1 h
       exact ⟨isVertex_matP_zero, isVertex_matQ_zero,
         completelyLabeled_iff_forall.2 ⟨fun _ => .inl rfl, fun _ => .inr rfl⟩⟩
     · rw [Set.mem_ofPred_eq] at h
@@ -510,13 +486,13 @@ theorem setOf_completelyLabeled_eq (hG : G.IsNondegenerate)
       obtain ⟨j₀, -⟩ := (isNash_iff.1 h).2.isMixedStrategy.exists_pos
       have : Nonempty M := ⟨i₀⟩
       have : Nonempty N := ⟨j₀⟩
-      have hrec₁ : ∀ v, G.matP *ᵥ v ≤ 0 → v = 0 := fun _ => eq_zero_of_matP_mulVec_nonpos hB
-      have hrec₂ : ∀ v, G.matQ *ᵥ v ≤ 0 → v = 0 := fun _ => eq_zero_of_matQ_mulVec_nonpos hA
       obtain ⟨hx, hy, hcl⟩ := h.completelyLabeled hA hB
       rw [toPolytopes_apply, Prod.mk.injEq] at he
       obtain ⟨rfl, rfl⟩ := he
-      exact ⟨LemkeHowson.isVertex_left_of_completelyLabeled hnd₁ hrec₁ hnd₂ hcard hx hy hcl,
-        LemkeHowson.isVertex_right_of_completelyLabeled hnd₁ hnd₂ hrec₂ hcard hx hy hcl, hcl⟩
+      exact ⟨LemkeHowson.isVertex_left_of_completelyLabeled hnd₁
+          (fun _ => eq_zero_of_matP_mulVec_nonpos hB) hnd₂ Fintype.card_sum hx hy hcl,
+        LemkeHowson.isVertex_right_of_completelyLabeled hnd₁ hnd₂
+          (fun _ => eq_zero_of_matQ_mulVec_nonpos hA) Fintype.card_sum hx hy hcl, hcl⟩
 
 omit [DecidableEq M] [DecidableEq N] in
 /-- A nondegenerate bimatrix game with positive payoffs has an odd number of Nash equilibria. -/
@@ -527,17 +503,16 @@ theorem IsNondegenerate.odd_ncard_isNash_of_pos [Nonempty M] [Nonempty N] (hG : 
   have heven := LemkeHowson.even_ncard_completelyLabeled hG.isNondegenerateSystem_matP
     (fun _ => eq_zero_of_matP_mulVec_nonpos hB) hG.isNondegenerateSystem_matQ
     (fun _ => eq_zero_of_matQ_mulVec_nonpos hA) (Fintype.card_sum (α := M) (β := N))
-  have hfin : (G.toPolytopes '' {p | G.IsNash p.1 p.2}).Finite := by
-    refine ((setOf_isVertex_finite (A := G.matP) (b := rhsP M N)).prod
-      (setOf_isVertex_finite (A := G.matQ) (b := rhsQ M N))).subset ?_
-    intro p hp
-    have hp' : p ∈ insert 0 (G.toPolytopes '' {p | G.IsNash p.1 p.2}) := Set.mem_insert_of_mem _ hp
-    rw [← setOf_completelyLabeled_eq hG hA hB, Set.mem_ofPred_eq] at hp'
-    exact Set.mem_prod.2 ⟨hp'.1, hp'.2.1⟩
-  rw [setOf_completelyLabeled_eq hG hA hB, Set.ncard_insert_of_notMem
+  have hfin : (G.toPolytopes '' {p | G.IsNash p.1 p.2}).Finite :=
+    ((setOf_isVertex_finite (A := G.matP) (b := rhsP M N)).prod
+      (setOf_isVertex_finite (A := G.matQ) (b := rhsQ M N))).subset fun p hp => by
+      have hp' : p ∈ insert 0 (G.toPolytopes '' {p | G.IsNash p.1 p.2}) :=
+        Set.mem_insert_of_mem _ hp
+      rw [← setOf_completelyLabeled_eq hG hA hB, Set.mem_ofPred_eq] at hp'
+      exact Set.mem_prod.2 ⟨hp'.1, hp'.2.1⟩
+  rwa [setOf_completelyLabeled_eq hG hA hB, Set.ncard_insert_of_notMem
     (zero_notMem_image_toPolytopes hB) hfin, (injOn_toPolytopes hA hB).ncard_image,
     Nat.even_add_one, Nat.not_even_iff_odd] at heven
-  exact heven
 
 omit [DecidableEq M] [DecidableEq N] in
 /-- **A nondegenerate bimatrix game has an odd number of Nash equilibria** ([vonStengel2007],
