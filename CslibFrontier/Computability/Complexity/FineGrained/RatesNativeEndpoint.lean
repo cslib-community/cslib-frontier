@@ -98,6 +98,21 @@ theorem SharpDeclaredKSAT_of_not_valid {k : ℕ} {x : DeclaredCNF}
     SharpDeclaredKSAT k x = 0 := by
   simp only [SharpDeclaredKSAT, h, Bool.false_eq_true, ↓reduceIte]
 
+/-- Package a `ComputableInO` runtime bounded by `C * (2 ^ (A * interpolationScale (μ x)) *
+(|encA x| + 1) ^ d) + C` into `ComputableInSingleSubexpTime`. -/
+private theorem computableInSingleSubexpTime_of_interpolationScale {α β : Type}
+    {encA : α ↪ List Bool} {encB : β ↪ List Bool} {f : α → β} {μ : α → ℕ}
+    {T S : α → ℕ} (A d C : ℕ)
+    (hO : ComputableInO f encA encB T S)
+    (hT : ∀ x, (T x : ℝ) ≤
+      C * ((2 : ℝ) ^ ((A : ℝ) * SubexponentialSAT.interpolationScale (μ x)) *
+        (((encA x).length : ℝ) + 1) ^ d) + C) :
+    ComputableInSingleSubexpTime f encA encB μ :=
+  ⟨fun n => (A : ℝ) * SubexponentialSAT.interpolationScale n, d,
+    fun n => mul_nonneg (Nat.cast_nonneg A) (SubexponentialSAT.interpolationScale_nonneg n),
+    SubexponentialSAT.isLittleO_interpolationScale.const_mul_left (A : ℝ),
+    (ComputableInTimeO.of_computableInO hO fun _ => le_rfl).mono C hT fun _ => by positivity⟩
+
 /-- **Unconditional single-machine declared model counting.** For each fixed width `k`, one native
 multi-tape machine computes `SharpDeclaredKSAT k` in time `2 ^ o(numVars) · poly(L)`. -/
 theorem computableInSingleSubexpTime_SharpDeclaredKSAT (k : ℕ) :
@@ -113,53 +128,39 @@ theorem computableInSingleSubexpTime_SharpDeclaredKSAT (k : ℕ) :
   obtain ⟨p, q, hp⟩ := htoPair.polyBounded_length.exists_le
   have hcompO := (hcountO.comp hdg.inO).of_enc_eq (g := SharpDeclaredKSAT k) fun x =>
     congrArg encNat (hspec (x.numVars, x.formula)).symm
-  let s (N : ℕ) : ℝ := (A : ℝ) * interpolationScale N
-  have hs_nn : ∀ N, 0 ≤ s N := fun N =>
-    mul_nonneg (Nat.cast_nonneg A) (interpolationScale_nonneg N)
-  have hs_o : s =o[atTop] fun N : ℕ => (N : ℝ) :=
-    isLittleO_interpolationScale.const_mul_left (A : ℝ)
-  refine ⟨s, dg + q * e, hs_nn, hs_o,
-    (ComputableInTimeO.of_computableInO hcompO fun _ => le_rfl).mono
-      (1 + c * (p + 1) ^ e + c) (fun x => ?_) fun _ => by positivity⟩
+  refine computableInSingleSubexpTime_of_interpolationScale A (dg + q * e)
+    (1 + c * (p + 1) ^ e) hcompO fun x => ?_
   set L : ℕ := (encDeclaredCNF x).length
-  have hL1 : 1 ≤ L + 1 := Nat.le_add_left 1 L
-  have hLR1 : (1 : ℝ) ≤ (L : ℝ) + 1 := by exact_mod_cast hL1
-  have hX1 : (1 : ℝ) ≤ 2 ^ s x.numVars := Real.one_le_rpow (by norm_num) (hs_nn _)
-  have hpow : ((encPair encUnary encCNF (x.numVars, x.formula)).length + 1) ^ e ≤
-      (p + 1) ^ e * (L + 1) ^ (q * e) :=
-    Nat.add_one_pow_le_of_le_mul_pow hL1 (hp x) e
-  have hqe : ((L : ℝ) + 1) ^ (q * e) ≤ ((L : ℝ) + 1) ^ (dg + q * e) :=
-    pow_le_pow_right₀ hLR1 (Nat.le_add_left _ _)
-  have hdg_le : ((L : ℝ) + 1) ^ dg ≤ 2 ^ s x.numVars * ((L : ℝ) + 1) ^ (dg + q * e) :=
+  set X : ℝ := (2 : ℝ) ^ ((A : ℝ) * interpolationScale x.numVars)
+  set M : ℝ := X * ((L : ℝ) + 1) ^ (dg + q * e)
+  have hLR1 : (1 : ℝ) ≤ (L : ℝ) + 1 := by exact_mod_cast Nat.le_add_left 1 L
+  have hX1 : 1 ≤ X := Real.one_le_rpow (by norm_num)
+    (mul_nonneg (Nat.cast_nonneg A) (interpolationScale_nonneg _))
+  have hdg_le : ((L : ℝ) + 1) ^ dg ≤ M :=
     (pow_le_pow_right₀ hLR1 (Nat.le_add_right _ _)).trans
       (le_mul_of_one_le_left (by positivity) hX1)
   have hpowR : (((encPair encUnary encCNF (x.numVars, x.formula)).length : ℝ) + 1) ^ e ≤
-      ((p + 1) ^ e : ℕ) * ((L : ℝ) + 1) ^ (dg + q * e) := by
-    have h1 : (((encPair encUnary encCNF (x.numVars, x.formula)).length : ℝ) + 1) ^ e ≤
-        ((p + 1) ^ e : ℕ) * ((L : ℝ) + 1) ^ (q * e) := by exact_mod_cast hpow
-    exact h1.trans (mul_le_mul_of_nonneg_left hqe (Nat.cast_nonneg _))
-  have hTR : (T (x.numVars, x.formula) : ℝ) ≤
-      ((c * (p + 1) ^ e : ℕ) : ℝ) * (2 ^ s x.numVars * ((L : ℝ) + 1) ^ (dg + q * e)) + c := by
-    have h0 := hT (x.numVars, x.formula)
-    have hmul : (2 : ℝ) ^ s x.numVars *
-        (((encPair encUnary encCNF (x.numVars, x.formula)).length : ℝ) + 1) ^ e ≤
-        ((p + 1) ^ e : ℕ) * (2 ^ s x.numVars * ((L : ℝ) + 1) ^ (dg + q * e)) := by
-      have hm := mul_le_mul_of_nonneg_left hpowR (by positivity : (0 : ℝ) ≤ 2 ^ s x.numVars)
-      linarith [show (2 : ℝ) ^ s x.numVars * (((p + 1) ^ e : ℕ) * ((L : ℝ) + 1) ^ (dg + q * e))
-        = ((p + 1) ^ e : ℕ) * (2 ^ s x.numVars * ((L : ℝ) + 1) ^ (dg + q * e)) by ring]
-    have hmulc := mul_le_mul_of_nonneg_left hmul (Nat.cast_nonneg c)
-    push_cast at hmulc ⊢
-    dsimp only [s] at *
-    linarith
-  have hc1 : (c : ℝ) ≤ c * (2 ^ s x.numVars * ((L : ℝ) + 1) ^ (dg + q * e)) :=
-    le_mul_of_one_le_right (Nat.cast_nonneg c)
-      (one_le_mul_of_one_le_of_one_le hX1 (one_le_pow₀ hLR1))
-  have hconst_nn : (0 : ℝ) ≤ (1 + c * (p + 1) ^ e + c : ℕ) := Nat.cast_nonneg _
-  change ((((encDeclaredCNF x).length + 1) ^ dg +
-    T (x.numVars, x.formula) : ℕ) : ℝ) ≤ _
-  push_cast at hTR hconst_nn ⊢
-  dsimp only [L] at *
-  linarith
+      ((p + 1) ^ e : ℕ) * ((L : ℝ) + 1) ^ (dg + q * e) :=
+    calc (((encPair encUnary encCNF (x.numVars, x.formula)).length : ℝ) + 1) ^ e
+        ≤ ((p + 1) ^ e : ℕ) * ((L : ℝ) + 1) ^ (q * e) := by
+          exact_mod_cast Nat.add_one_pow_le_of_le_mul_pow (Nat.le_add_left 1 L) (hp x) e
+      _ ≤ ((p + 1) ^ e : ℕ) * ((L : ℝ) + 1) ^ (dg + q * e) := by
+          gcongr; exact Nat.le_add_left _ _
+  have hmul : X * (((encPair encUnary encCNF (x.numVars, x.formula)).length : ℝ) + 1) ^ e ≤
+      ((p + 1) ^ e : ℕ) * M :=
+    calc X * (((encPair encUnary encCNF (x.numVars, x.formula)).length : ℝ) + 1) ^ e
+        ≤ X * (((p + 1) ^ e : ℕ) * ((L : ℝ) + 1) ^ (dg + q * e)) := by gcongr
+      _ = ((p + 1) ^ e : ℕ) * M := by simp only [M]; ring
+  calc ((((encDeclaredCNF x).length + 1) ^ dg + T (x.numVars, x.formula) : ℕ) : ℝ)
+      = ((L : ℝ) + 1) ^ dg + T (x.numVars, x.formula) := by push_cast; rfl
+    _ ≤ M + (c * (X * (((encPair encUnary encCNF (x.numVars, x.formula)).length : ℝ) + 1) ^ e) +
+        c) := add_le_add hdg_le (hT (x.numVars, x.formula))
+    _ ≤ M + (c * (((p + 1) ^ e : ℕ) * M) + c) := by gcongr
+    _ = ((1 + c * (p + 1) ^ e : ℕ) : ℝ) * M + c := by push_cast; ring
+    _ ≤ ((1 + c * (p + 1) ^ e : ℕ) : ℝ) * M + (1 + c * (p + 1) ^ e : ℕ) := by
+        gcongr
+        exact_mod_cast Nat.le_add_left_of_le
+          (Nat.le_mul_of_pos_right c (Nat.one_le_pow e (p + 1) (Nat.succ_pos p)))
 
 /-- **Unconditional single-machine `#k-SAT` model counting.** For each fixed width `k`, a *single*
 native multi-tape machine computes `SharpKSAT k` in time `2 ^ o(n) · poly(L)` (`n = φ.numVars`). -/
@@ -167,25 +168,17 @@ theorem computableInSingleSubexpTime_SharpKSAT (k : ℕ) :
     ComputableInSingleSubexpTime (SharpKSAT k) encCNF encNat CNF.numVars := by
   open SubexponentialSAT in
   obtain ⟨count, A, e, _, hspec, hcountO⟩ := CountingNativeEndpoint.exists_modelCounter k
-  let s (n : ℕ) : ℝ := (A : ℝ) * interpolationScale n
-  have hs_nn : ∀ n, 0 ≤ s n := fun n =>
-    mul_nonneg (Nat.cast_nonneg A) (interpolationScale_nonneg n)
-  have hs_o : s =o[atTop] fun n : ℕ => (n : ℝ) :=
-    isLittleO_interpolationScale.const_mul_left (A : ℝ)
   have hraw : ComputableInSingleSubexpTime count encCNF encNat CNF.numVars := by
-    refine ⟨s, e, hs_nn, hs_o,
-      (ComputableInTimeO.of_computableInO hcountO fun _ => le_rfl).mono 2
-        (fun φ => ?_) fun _ => by positivity⟩
-    set X : ℝ := (2 : ℝ) ^ s φ.numVars
-    have hX1 : 1 ≤ X := Real.one_le_rpow (by norm_num) (hs_nn _)
+    refine computableInSingleSubexpTime_of_interpolationScale A e 2 hcountO fun φ => ?_
+    set X : ℝ := (2 : ℝ) ^ ((A : ℝ) * interpolationScale φ.numVars)
+    have hX1 : 1 ≤ X := Real.one_le_rpow (by norm_num)
+      (mul_nonneg (Nat.cast_nonneg A) (interpolationScale_nonneg _))
     have hceil : (⌈X⌉₊ : ℝ) ≤ 2 * X := by
-      have hlt := (Nat.ceil_lt_add_one (by positivity : 0 ≤ X)).le
-      linarith
-    have hmul := mul_le_mul_of_nonneg_right hceil
-      (by positivity : (0 : ℝ) ≤ (((encCNF φ).length : ℝ) + 1) ^ e)
-    push_cast
-    dsimp only [X, s] at hmul ⊢
-    linarith
+      linarith [(Nat.ceil_lt_add_one (by positivity : 0 ≤ X)).le]
+    calc ((⌈X⌉₊ * ((encCNF φ).length + 1) ^ e : ℕ) : ℝ)
+        = ⌈X⌉₊ * (((encCNF φ).length : ℝ) + 1) ^ e := by push_cast; rfl
+      _ ≤ (2 * X) * (((encCNF φ).length : ℝ) + 1) ^ e := by gcongr
+      _ ≤ 2 * (X * (((encCNF φ).length : ℝ) + 1) ^ e) + 2 := by linarith
   have hguarded := hraw.ite_polyTime (computableInPolyTime_all_length_le k)
     (ComputableInPolyTime.const 0)
   have heq : (fun φ : CNF ℕ => if φ.all (fun c => decide (c.length ≤ k)) then count φ else 0) =
@@ -193,8 +186,7 @@ theorem computableInSingleSubexpTime_SharpKSAT (k : ℕ) :
     funext φ
     unfold SharpKSAT SharpSAT
     split_ifs with hw
-    · simp only [List.all_eq_true, decide_eq_true_eq] at hw
-      exact hspec φ hw
+    · exact hspec φ (by simpa only [List.all_eq_true, decide_eq_true_eq] using hw)
     · rfl
   rwa [heq] at hguarded
 
@@ -247,16 +239,15 @@ theorem solvesWithErrorInSubexpTime_GapKSAT_perfect (k : ℕ) {s : ℝ} (hs0 : 0
 theorem gapSatExponent_perfect_eq_zero (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1) :
     gapSatExponent (GapKSATSpec.perfect k s hs0 hs1) = 0 :=
   le_antisymm
-    ((gapSatExponent_perfect_le_satExponent k hs0 hs1).trans
-      (le_of_eq (CountingNativeEndpoint.satExponent_eq_zero k)))
+    ((gapSatExponent_perfect_le_satExponent k hs0 hs1).trans_eq
+      (CountingNativeEndpoint.satExponent_eq_zero k))
     (gapSatExponent_nonneg _)
 
 /-- Every perfect-completeness `GapKSAT` specification has `rGapSatExponent = 0`. -/
 theorem rGapSatExponent_perfect_eq_zero (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1) :
     rGapSatExponent (GapKSATSpec.perfect k s hs0 hs1) = 0 :=
   le_antisymm
-    ((rGapSatExponent_le_gapSatExponent _).trans
-      (le_of_eq (gapSatExponent_perfect_eq_zero k hs0 hs1)))
+    ((rGapSatExponent_le_gapSatExponent _).trans_eq (gapSatExponent_perfect_eq_zero k hs0 hs1))
     (rGapSatExponent_nonneg _)
 
 /-- The native model counter refutes `#ETH`. -/
@@ -265,11 +256,9 @@ theorem not_SharpETH : ¬SharpETH := by
   exact lt_irrefl 0
 
 /-- The native model counter refutes `#SETH`. -/
-theorem not_SharpSETH : ¬SharpSETH := by
-  rintro h
+theorem not_SharpSETH : ¬SharpSETH := fun h => by
   obtain ⟨k, hk⟩ := h (1 / 2) (by norm_num)
-  have hhalf : (1 : ℝ) - 1 / 2 = 1 / 2 := by norm_num
-  rw [hhalf] at hk
+  norm_num at hk
   exact hk (computableInSubexpTime_SharpKSAT k (1 / 2) (by norm_num))
 
 /-- The single-machine native `3`-SAT solver refutes `SingleETH`. -/
