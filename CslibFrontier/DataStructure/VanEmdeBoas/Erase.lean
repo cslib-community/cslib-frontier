@@ -343,8 +343,7 @@ private theorem erase_cluster_branch {s : Tree d} {c : Fin (universeSize d) → 
     · rw [hss]
       by_cases hki : k = i
       · subst k; simp [hci_b]
-      · have hval : k.val ≠ i.val := fun h => hki (Fin.ext h)
-        simp [hki, hval, ho k]
+      · simp [hki, Fin.val_ne_of_ne hki, ho k]
   · rw [ite_eq_right hcm]
     obtain ⟨hci_val, hci_set⟩ := ih (hc i) low
     refine finish _ _ hs hci_val hci_set fun k => ?_
@@ -391,15 +390,9 @@ private theorem erase_spec {t : Tree d} (ht : t.Valid) (x : ℕ) :
           simp only [not_contains_of_bounds_none (t := leaf none) rfl y,
             contains_leaf_some, false_iff, not_and]
           omega
-        · refine ⟨leaf_valid M hMlt, fun y => ?_⟩
-          simp only [contains_leaf_some]
-          omega
-        · refine ⟨leaf_valid m (by omega), fun y => ?_⟩
-          simp only [contains_leaf_some]
-          omega
-        · refine ⟨ht, fun y => ?_⟩
-          simp only [contains_leaf_some]
-          omega
+        · exact ⟨leaf_valid M hMlt, fun y => by simp only [contains_leaf_some]; omega⟩
+        · exact ⟨leaf_valid m (by omega), fun y => by simp only [contains_leaf_some]; omega⟩
+        · exact ⟨ht, fun y => by simp only [contains_leaf_some]; omega⟩
   | succ d ih =>
     cases t with
     | node b s c =>
@@ -452,8 +445,7 @@ private theorem erase_spec {t : Tree d} (ht : t.Valid) (x : ℕ) :
                 hexcl'
               rw [erase, ite_eq_right hout, ite_eq_right heq, htarget]
               dsimp only at hres ⊢
-              rw [hbi]
-              exact hres
+              rwa [hbi]
             · -- Deleting `x ≠ m` (`m < x ≤ M`): keep `m` and delete `x % u` from `c (x / u)`.
               obtain ⟨hx_div, htarget⟩ := eraseTarget_of_ne (s := s) (c := c) hxm
                 (Nat.lt_of_le_of_lt (show x ≤ M by omega) he.2.1)

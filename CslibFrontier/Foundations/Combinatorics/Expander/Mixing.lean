@@ -11,7 +11,6 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Basic
 public import Mathlib.Analysis.Real.Sqrt
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.Finset.Variance
-import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.BigOperators.Balance
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Tactic.FieldSimp
@@ -85,6 +84,11 @@ section Mixing
 
 variable [Nonempty D]
 
+private theorem walk_pow_sub_expect (t : ℕ) (f : V → ℝ) :
+    (G.walk ^ t) (fun w ↦ f w - 𝔼 u, f u) = fun v ↦ (G.walk ^ t) f v - 𝔼 u, f u := by
+  rw [show (fun w ↦ f w - 𝔼 u, f u) = f - fun _ ↦ 𝔼 u, f u from rfl, map_sub, walk_pow_const]
+  rfl
+
 /-- The correlation of `f` with `g` along walks of length `t` is the product of the expectations
 plus the correlation of the centered functions. -/
 theorem expect_mul_walk_pow_eq (t : ℕ) (f g : V → ℝ) :
@@ -93,11 +97,8 @@ theorem expect_mul_walk_pow_eq (t : ℕ) (f g : V → ℝ) :
         𝔼 v, (f v - 𝔼 w, f w) * (G.walk ^ t) (fun w ↦ g w - 𝔼 u, g u) v := by
   rcases isEmpty_or_nonempty V with hV | hV
   · simp
-  have hg : (G.walk ^ t) (fun w ↦ g w - 𝔼 u, g u) = fun v ↦ (G.walk ^ t) g v - 𝔼 u, g u := by
-    rw [show (fun w ↦ g w - 𝔼 u, g u) = g - fun _ ↦ 𝔼 u, g u from rfl, map_sub, walk_pow_const]
-    rfl
-  simp only [hg, sub_mul, mul_sub, expect_sub_distrib, ← expect_mul, ← mul_expect, expect_walk_pow,
-    Fintype.expect_const]
+  simp only [walk_pow_sub_expect, sub_mul, mul_sub, expect_sub_distrib, ← expect_mul, ← mul_expect,
+    expect_walk_pow, Fintype.expect_const]
   ring
 
 /-- **Variance decay along walks**: a walk of length `t` multiplies the variance of a function,
@@ -106,11 +107,8 @@ its second moment about the mean, by at most `λ(G) ^ (2 t)`; the mean is preser
 theorem expect_walk_pow_sub_expect_sq_le (t : ℕ) (f : V → ℝ) :
     𝔼 v, ((G.walk ^ t) f v - 𝔼 w, f w) ^ 2 ≤
       G.spectralExpansion ^ (2 * t) * 𝔼 v, (f v - 𝔼 w, f w) ^ 2 := by
-  have hf : (G.walk ^ t) (fun w ↦ f w - 𝔼 u, f u) = fun v ↦ (G.walk ^ t) f v - 𝔼 u, f u := by
-    rw [show (fun w ↦ f w - 𝔼 u, f u) = f - fun _ ↦ 𝔼 u, f u from rfl, map_sub, walk_pow_const]
-    rfl
   have h := G.expect_walk_pow_sq_le_spectralExpansion_pow_mul (expect_sub_expect f) t
-  rwa [hf] at h
+  rwa [walk_pow_sub_expect] at h
 
 /-- **The mixing lemma for functions**: the correlation `𝔼 v, f v * (G.walk ^ t) g v` of `f` with
 `g` along walks of length `t` differs from the product of their expectations by at most
@@ -243,7 +241,8 @@ theorem le_card_interedges_compl_of_expect_mul_walk_le {μ : ℝ}
     have := mul_le_mul_of_nonneg_left h (by positivity : 0 ≤ n ^ 2 * d)
     field_simp at this
     linarith
-  nlinarith
+  linarith [h', show (1 - μ) * d * s * (n - s) - e₂ * n =
+      (e₁ * n - s ^ 2 * d) - μ * d * (s * n - s ^ 2) by linear_combination -n * he]
 
 /-- **Spectral expanders are edge expanders** [Arora and Barak, Section 21.2][AroraBarak09]: in a
 `d`-regular graph on `n` vertices, at least `(1 - λ(G)) d |S| |Sᶜ| / n` edges leave `S`. -/
@@ -268,10 +267,11 @@ theorem le_card_interedges_compl_of_two_mul_card_le {S : Finset V}
     mul_nonneg (mul_nonneg (sub_nonneg.2 G.spectralExpansion_le_one) (Nat.cast_nonneg _))
       (Nat.cast_nonneg _)
   have hc : (Fintype.card V : ℝ) ≤ 2 * #Sᶜ := by
+    have hS' : 2 * (#S : ℝ) ≤ Fintype.card V := by exact_mod_cast hS
     rw [card_compl_eq]
-    cast_linarith [hS]
+    linarith
   rw [div_le_div_iff₀ two_pos hn]
-  nlinarith [mul_le_mul_of_nonneg_left hc hA]
+  exact (mul_le_mul_of_nonneg_left hc hA).trans_eq (by ring)
 
 end Sets
 
@@ -290,11 +290,7 @@ private theorem card_filter_ne_neighbor_eq_sum_card_interedges {α : Type*} [Dec
   congr 2
   ext p
   simp only [mem_filter, mem_univ, true_and, mem_interedges, mem_compl]
-  constructor
-  · rintro ⟨h, rfl⟩
-    exact ⟨rfl, fun h' ↦ h h'.symm⟩
-  · rintro ⟨rfl, h⟩
-    exact ⟨fun h' ↦ h h'.symm, rfl⟩
+  exact ⟨fun ⟨h, rfl⟩ ↦ ⟨rfl, Ne.symm h⟩, fun ⟨rfl, h⟩ ↦ ⟨Ne.symm h, rfl⟩⟩
 
 /-- **Disagreement across an expander, for a most frequent label**: if no label is taken by more
 vertices than `c`, at least `(1 - λ(G)) d |{f ≠ c}|` darts join two differently labelled vertices,
@@ -319,10 +315,7 @@ theorem mul_card_filter_ne_le_card_filter_ne_neighbor {α : Type*} [DecidableEq 
     rw [← Nat.cast_sum, ← card_eq_sum_card_fiberwise fun v _ ↦ mem_image_of_mem f (mem_univ v),
       card_univ]
   have hne : (#{v | f v ≠ c} : ℝ) = Fintype.card V - s c := by
-    rw [← card_compl_eq]
-    congr 2
-    ext v
-    simp
+    rw [← card_compl_eq]; congr 2; ext v; simp
   have hterm (a : α) : (1 - G.spectralExpansion) * Fintype.card D * s a *
       (Fintype.card V - s a) / Fintype.card V ≤
         #(G.interedges {v | f v = a} ({v | f v = a} : Finset V)ᶜ) := by

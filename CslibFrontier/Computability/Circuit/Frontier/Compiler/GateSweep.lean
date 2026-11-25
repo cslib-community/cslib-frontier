@@ -188,23 +188,8 @@ private theorem sum_straddle_le_of_tangent_on {σ : Signature.{v}} {n m : ℕ} (
       _ = (1 - (k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) * (S.card : ℝ) +
             (∑ w ∈ S, ((Compiler.support c w).ncard : ℝ)) / (2 : ℝ) ^ k₀ := by
           rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, mul_comm, ← Finset.sum_div]
-  have hsupp_div := div_le_div_of_nonneg_right hsupp hpos2.le
-  have halg :
-      (1 - (k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) *
-          ((n - {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard) + G) +
-        (B + m) / (2 : ℝ) ^ k₀ =
-      (1 - (k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) * n -
-        {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard +
-        ((1 - (k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) * G + B / (2 : ℝ) ^ k₀) +
-        ((k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) * {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard +
-        (m : ℝ) / (2 : ℝ) ^ k₀ := by
-    field_simp
-    ring
-  have hRin : ({i : Fin n | Compiler.Reach c (.input i)}.ncard : ℝ) =
-      n - {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard := by linarith
-  rw [hRin] at hcard
-  rw [hcard] at htan
-  linarith
+  linear_combination htan + div_le_div_of_nonneg_right hsupp hpos2.le + hgs + hd_nn +
+    (1 - (k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) * (hcard + hcompl)
 
 /-- Supporting-line bound on `∑_w (1 - 2^{1 - |support w|})` for any circuit of fan-in at most `r`
 and any tangent parameter `k₀ : ℕ`. -/
@@ -371,22 +356,16 @@ theorem agreement_le_of_signalWidth {S : Set (Fin n → U)} {K r : ℕ} {b : ℝ
         rw [Compiler.steinerNetwork_toMultigraph]
         exact Compiler.maxDegreeLE_steinerGraph hfan)
       (fun u => (Compiler.ncard_readAt_steinerNetwork_le hfan u).trans_eq (max_eq_left (by omega)))
+  have hread (A : Set U) : (Compiler.steinerNetwork c I (fun _ => A) π).readᶜ =
+      {i : Fin n | ¬ Compiler.Reach c (.input i)} := by
+    rw [Compiler.read_steinerNetwork]; rfl
+  have hdeg_eq : w + 2 * (r + 1) + r = w + 3 * r + 2 := by omega
   have h₁ := bound Acc
   have h₂ := bound Accᶜ
-  rw [Compiler.accepted_steinerNetwork_single] at h₁
-  have hacc_c : (Compiler.steinerNetwork c I (fun _ => Accᶜ) π).accepted =
-      {x | c.eval I x 0 ∈ Acc}ᶜ := Compiler.accepted_steinerNetwork_single
-  rw [hacc_c] at h₂
-  have hread₁ : (Compiler.steinerNetwork c I (fun _ => Acc) π).readᶜ =
-      {i : Fin n | ¬ Compiler.Reach c (.input i)} := by
-    rw [Compiler.read_steinerNetwork]; rfl
-  have hread₂ : (Compiler.steinerNetwork c I (fun _ => Accᶜ) π).readᶜ =
-      {i : Fin n | ¬ Compiler.Reach c (.input i)} := by
-    rw [Compiler.read_steinerNetwork]; rfl
-  rw [hread₁] at h₁
-  rw [hread₂] at h₂
-  have hdeg_eq : w + 2 * (r + 1) + r = w + 3 * r + 2 := by omega
-  rw [hdeg_eq] at h₁ h₂
+  rw [Compiler.accepted_steinerNetwork_single, hread, hdeg_eq] at h₁
+  rw [show (Compiler.steinerNetwork c I (fun _ => Accᶜ) π).accepted =
+      {x | c.eval I x 0 ∈ Acc}ᶜ from Compiler.accepted_steinerNetwork_single, hread,
+    hdeg_eq] at h₂
   have h := agreement_le h₁ h₂
   have hres :
       (K - 1) ^ 2 * (V * q ^ (w + 3 * r + 2) +
@@ -409,9 +388,7 @@ theorem agreement_le_of_signalWidth {S : Set (Fin n → U)} {K r : ℕ} {b : ℝ
     rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
     push_cast
     rfl
-  have hN_pos : (0 : ℝ) < (q : ℝ) ^ n := by
-    have : 0 < q := Nat.card_pos
-    positivity
+  have hN_pos : (0 : ℝ) < (q : ℝ) ^ n := pow_pos (Nat.cast_pos.mpr Nat.card_pos) n
   rw [hN_card] at h
   refine h.trans ?_
   have hhalf : ∀ R : ℝ, (R + R) / (2 * (q : ℝ) ^ n) = R / (q : ℝ) ^ n := fun R => by
@@ -754,12 +731,8 @@ theorem eventually_twenty_eight_div_nine_lt_seven_mul_innerSize
   filter_upwards [eventually_gateSweep_lt_mul_innerSize.{u, v} (r := 8) (by decide) 2 hSK hε] with
     n hn σ I Acc c hfan hdec
   have h := hn σ I Acc c hfan hdec
-  have hval : ((8 : ℕ) - 1 : ℝ) * gateSweepCoefficient 8 2 = 28 / 9 := by
-    unfold gateSweepCoefficient
-    norm_num
-  rw [hval] at h
-  have h7 : ((8 : ℕ) - 1 : ℝ) * c.innerSize = 7 * c.innerSize := by norm_num
-  rwa [h7] at h
+  norm_num [gateSweepCoefficient] at h
+  exact h
 
 /-- At fan-in `r = 40` (`k₀ = 4`), `39 * c.innerSize > (78 / 17 - ε) n` (`78 / 17 ≈ 4.5882`,
 surpassing `4.57597`). -/
@@ -771,12 +744,8 @@ theorem eventually_seventy_eight_div_seventeen_lt_thirty_nine_mul_innerSize
   filter_upwards [eventually_gateSweep_lt_mul_innerSize.{u, v} (r := 40) (by decide) 4 hSK hε] with
     n hn σ I Acc c hfan hdec
   have h := hn σ I Acc c hfan hdec
-  have hval : ((40 : ℕ) - 1 : ℝ) * gateSweepCoefficient 40 4 = 78 / 17 := by
-    unfold gateSweepCoefficient
-    norm_num
-  rw [hval] at h
-  have h39 : ((40 : ℕ) - 1 : ℝ) * c.innerSize = 39 * c.innerSize := by norm_num
-  rwa [h39] at h
+  norm_num [gateSweepCoefficient] at h
+  exact h
 
 /-- At fan-in `r = 64` (`k₀ = 4`), `63 * c.innerSize > (126 / 25 - ε) n` (`5.04 n`). -/
 theorem eventually_one_hundred_twenty_six_div_twenty_five_lt_sixty_three_mul_innerSize
@@ -787,12 +756,8 @@ theorem eventually_one_hundred_twenty_six_div_twenty_five_lt_sixty_three_mul_inn
   filter_upwards [eventually_gateSweep_lt_mul_innerSize.{u, v} (r := 64) (by decide) 4 hSK hε] with
     n hn σ I Acc c hfan hdec
   have h := hn σ I Acc c hfan hdec
-  have hval : ((64 : ℕ) - 1 : ℝ) * gateSweepCoefficient 64 4 = 126 / 25 := by
-    unfold gateSweepCoefficient
-    norm_num
-  rw [hval] at h
-  have h63 : ((64 : ℕ) - 1 : ℝ) * c.innerSize = 63 * c.innerSize := by norm_num
-  rwa [h63] at h
+  norm_num [gateSweepCoefficient] at h
+  exact h
 
 end Family1
 
@@ -923,17 +888,9 @@ theorem exists_eventually_agreement_le_log {r : ℕ} (hr : 2 ≤ r) {ε : ℝ} (
     (ε := ε / (r - 1 : ℝ)) (div_pos hε hr1_pos)
   refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
   filter_upwards [H U S K b hbias hK] with n hn σ I Acc c hfan hsize
-  refine hn σ I Acc c hfan ?_
-  have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-  have hmul : (r - 1 : ℝ) * c.innerSize ≤
-      (r - 1 : ℝ) * ((gateSweepCoefficient r k₀ - ε / (r - 1 : ℝ)) * n) := by
-    have hsub :
-        Real.logb 2 r - Real.logb 2 (Real.logb 2 r) - 1 - ε ≤
-          (r - 1 : ℝ) * (gateSweepCoefficient r k₀ - ε / (r - 1 : ℝ)) := by
-      have hid : (r - 1 : ℝ) * (ε / (r - 1 : ℝ)) = ε := mul_div_cancel₀ ε hr1_pos.ne'
-      linarith
-    exact hsize.trans ((mul_le_mul_of_nonneg_right hsub hn0).trans_eq (mul_assoc _ _ _))
-  exact le_of_mul_le_mul_left hmul hr1_pos
+  refine hn σ I Acc c hfan (le_of_mul_le_mul_left (hsize.trans ?_) hr1_pos)
+  calc _ ≤ ((r - 1 : ℝ) * gateSweepCoefficient r k₀ - ε) * n := by gcongr
+    _ = _ := by field_simp
 
 end Family2
 
@@ -1043,9 +1000,8 @@ theorem eventually_six_sub_lt_innerSize_add_twelve_mul_multiFanoutSize {U : Type
   filter_upwards [eventually_lt_innerSize_add_multiFanoutSize.{u, v} (k₀ := 4) (by decide)
     hSK hε] with n hn σ I Acc c hfan hdec
   have h := hn σ I Acc c hfan hdec
-  have h6 : (((4 : ℕ) + 2 : ℝ) - ε) = 6 - ε := by norm_num
-  have h12 : ((2 : ℝ) ^ (4 : ℕ) - (4 : ℕ)) = 12 := by norm_num
-  rwa [h6, h12] at h
+  norm_num at h
+  exact h
 
 /-- **Family 3 (average-case) — Low-reuse agreement bound at fan-in two.** Below
 `(k₀ + 2 - ε) n` in `c.innerSize + (2 ^ k₀ - k₀) * Compiler.multiFanoutSize c`, agreement with any

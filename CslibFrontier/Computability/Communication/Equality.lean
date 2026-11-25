@@ -110,17 +110,14 @@ theorem two_mul_card_inter_le_two_pow_of_solves_equality {p : Protocol X X Bool}
     have hz : z = false := by simpa [equality, hxy] using (hp x hx y hy).symm
     have : A ∩ B = ∅ := by
       refine eq_empty_of_forall_notMem fun c hc => ?_
-      have := hp c (mem_inter.1 hc).1 c (mem_inter.1 hc).2
-      simp [equality, hz] at this
+      simpa [equality, hz] using hp c (mem_inter.1 hc).1 c (mem_inter.1 hc).2
     simp [this]
   | alice send p₀ p₁ ih₀ ih₁ =>
     rw [Protocol.depth_alice]
     refine two_mul_card_inter_le_of_split send (ih₀ fun x hx y hy => ?_)
-      (ih₁ fun x hx y hy => ?_) hne
-    · have := hp x (mem_filter.1 hx).1 y hy
-      simpa [Protocol.Solves, Communication.Solves, (mem_filter.1 hx).2] using this
-    · have := hp x (mem_filter.1 hx).1 y hy
-      simpa [Protocol.Solves, Communication.Solves, (mem_filter.1 hx).2] using this
+      (ih₁ fun x hx y hy => ?_) hne <;>
+    simpa [Protocol.Solves, Communication.Solves, (mem_filter.1 hx).2] using
+      hp x (mem_filter.1 hx).1 y hy
   | bob send p₀ p₁ ih₀ ih₁ =>
     have hsymm {A' B' : Finset X} : (∃ x ∈ A', ∃ y ∈ B', x ≠ y) → ∃ y ∈ B', ∃ x ∈ A', y ≠ x :=
       fun ⟨x, hx, y, hy, hxy⟩ => ⟨y, hy, x, hx, Ne.symm hxy⟩
@@ -128,12 +125,12 @@ theorem two_mul_card_inter_le_two_pow_of_solves_equality {p : Protocol X X Bool}
     refine two_mul_card_inter_le_of_split send (fun h => ?_) (fun h => ?_) (hsymm hne)
     · rw [inter_comm]
       refine ih₀ (fun x hx y hy => ?_) (hsymm h)
-      have := hp x hx y (mem_filter.1 hy).1
-      simpa [Protocol.Solves, Communication.Solves, (mem_filter.1 hy).2] using this
+      simpa [Protocol.Solves, Communication.Solves, (mem_filter.1 hy).2] using
+        hp x hx y (mem_filter.1 hy).1
     · rw [inter_comm]
       refine ih₁ (fun x hx y hy => ?_) (hsymm h)
-      have := hp x hx y (mem_filter.1 hy).1
-      simpa [Protocol.Solves, Communication.Solves, (mem_filter.1 hy).2] using this
+      simpa [Protocol.Solves, Communication.Solves, (mem_filter.1 hy).2] using
+        hp x hx y (mem_filter.1 hy).1
 
 variable [Fintype X]
 
@@ -181,8 +178,7 @@ theorem card_add_two_le_leafCount_of_run_eq_equality (hX : 1 < Fintype.card X)
       intro i hi
       rcases mem_insert.1 hi with rfl | hi
       · simpa using hout hab
-      · rw [mem_singleton.1 hi]
-        simpa using hout hab.symm
+      · simpa [mem_singleton.1 hi] using hout hab.symm
     simpa [card_pair hne] using card_le_card hsub
   have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin p.leafCount)))
     fun i => p.leafOutput i = true

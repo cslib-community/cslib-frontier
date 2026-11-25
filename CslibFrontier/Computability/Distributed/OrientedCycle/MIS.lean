@@ -166,17 +166,11 @@ theorem invariant {x : ZMod n → ℕ} (hx : IsProperColoring x) (r : ℕ) :
   induction r with
   | zero =>
     have hJ : ∀ v, (misOfColoring.state x 0 v).2 = decide (x v = 0) := fun v => rfl
-    refine ⟨fun v hv => ?_, fun v hv => ?_, fun v hv => ?_⟩
-    · rw [hJ] at hv
-      simp_all
-    · left
-      rw [hJ]
-      simp_all
-    · rw [hJ] at hv ⊢
-      have := hx v
-      simp only [decide_eq_true_eq] at hv
-      simp only [decide_eq_false_iff_not]
-      omega
+    refine ⟨fun v hv => ?_, fun v hv => ?_, fun v hv => ?_⟩ <;>
+      simp only [hJ, decide_eq_true_eq, decide_eq_false_iff_not] at hv ⊢
+    · omega
+    · omega
+    · have := hx v; omega
   | succ r ih =>
     obtain ⟨ha, hb, hc⟩ := ih
     refine ⟨fun v hv => ?_, fun v hv => ?_, fun v hv => ?_⟩
@@ -188,17 +182,10 @@ theorem invariant {x : ZMod n → ℕ} (hx : IsProperColoring x) (r : ℕ) :
     · simp only [state_snd_succ, Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq,
         Bool.not_eq_true']
       rcases Nat.lt_or_ge (x v) (r + 1) with hlt | hge
-      · rcases hb v (by omega) with h | h | h
-        · exact Or.inl (Or.inl h)
-        · exact Or.inr (Or.inl (Or.inl h))
-        · exact Or.inr (Or.inr (Or.inl h))
+      · rcases hb v (by omega) with h | h | h <;> simp only [h, true_or, or_true]
       · have hxv : x v = r + 1 := le_antisymm hv hge
-        by_cases h1 : (misOfColoring.state x r (v - 1)).2 = true
-        · exact Or.inr (Or.inl (Or.inl h1))
-        by_cases h2 : (misOfColoring.state x r (v + 1)).2 = true
-        · exact Or.inr (Or.inr (Or.inl h2))
-        simp only [Bool.not_eq_true] at h1 h2
-        exact Or.inl (Or.inr ⟨⟨hxv, h1⟩, h2⟩)
+        cases (misOfColoring.state x r (v - 1)).2 <;>
+          cases (misOfColoring.state x r (v + 1)).2 <;> simp [hxv]
     · rw [state_snd_succ] at hv ⊢
       have hxv : x v = r + 1 → x (v + 1) ≠ r + 1 := fun h h' => hx v (h.trans h'.symm)
       have hc' := hc v

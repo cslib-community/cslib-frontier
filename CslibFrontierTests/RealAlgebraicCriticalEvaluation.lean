@@ -8,11 +8,13 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
@@ -449,5 +451,28 @@ example : ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth 
     fin_cases i <;> unfold CoordinateFingerprint.Bounded <;> decide
   obtain ⟨word, hw, hd⟩ := exists_coordinateFingerprintWitness f hf
   exact ⟨word, hw, hd 0, hd 1⟩
+
+-- Both the raw witness word and the binary address are evaluator inputs.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let C : Controlled (fun _ : List Bool => F) encBits 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let labels := C.wordCoordinateFingerprintLabels (d := fun _ => 1) Decoder.bits
+      (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+      (.const 1) id ComputableInPolyTime.id'
+    labels.evaluate ∈ CountingFunction 20 (encEvaluation (encPair encBits encNat)) encNat := by
+  intro F C labels
+  exact labels.evaluate_mem
+
+-- Lifting the single variable to coordinate 1 reads the second input with zero padding.
+example (w p : ℕ) (z : List ℕ) (hp : p.Prime) :
+    let C : Controlled (fun _ : ℕ => (X 0 : MvPolynomial (Fin 1) ℤ)) encNat 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let lifted := C.onCoordinate (n := fun _ => 2) (.const 2) (fun _ => 1) (.const 1)
+    lifted.cutoff w < p → lifted.evaluate (w, p, z) = z.getD 1 0 % p := by
+  intro C lifted hcut
+  rw [lifted.evaluate_eq w p z hp hcut]
+  simp only [evaluation, MvPolynomial.rename_X, MvPolynomial.eval₂_X, ZMod.val_natCast,
+    List.getD_eq_getElem?_getD, Fin.val_one]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

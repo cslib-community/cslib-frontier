@@ -156,12 +156,9 @@ theorem two_mul_card_multPairs (m : ℕ) : 2 * #(multPairs m) = m * (m + 1) := b
       ext rs
       simp only [mem_multPairs, mem_union, mem_antidiagonal]
       omega
-    have hdisj : Disjoint (multPairs m) (antidiagonal m) := by
-      rw [Finset.disjoint_left]
-      intro rs h1 h2
-      rw [mem_multPairs] at h1
-      rw [mem_antidiagonal] at h2
-      omega
+    have hdisj : Disjoint (multPairs m) (antidiagonal m) :=
+      Finset.disjoint_left.2 fun rs h1 h2 => by
+        rw [mem_multPairs] at h1; rw [mem_antidiagonal] at h2; omega
     rw [hunion, card_union_of_disjoint hdisj, Finset.Nat.card_antidiagonal, mul_add, ih]
     ring
 
@@ -198,14 +195,11 @@ theorem IsWeightedInterpolant.natDegree_mul_le (hQ : IsWeightedInterpolant α w 
 
 /-- Multiplicity-`1` Guruswami–Sudan interpolants are Sudan interpolants. -/
 theorem isInterpolant_one_iff_sudan :
-    IsInterpolant α w 1 d D Q ↔ Sudan.IsInterpolant α w d D Q := by
-  constructor
-  · intro h
-    exact ⟨h.ne_zero, h.weightedDegree_le,
-      fun i => (vanishesToOrder_one_iff (α i) (w i) Q).1 (h.vanishes i)⟩
-  · intro h
-    exact ⟨h.ne_zero, h.weightedDegree_le,
-      fun i => (vanishesToOrder_one_iff (α i) (w i) Q).2 (h.evalEval_eq_zero i)⟩
+    IsInterpolant α w 1 d D Q ↔ Sudan.IsInterpolant α w d D Q :=
+  ⟨fun h => ⟨h.ne_zero, h.weightedDegree_le,
+      fun i => (vanishesToOrder_one_iff (α i) (w i) Q).1 (h.vanishes i)⟩,
+    fun h => ⟨h.ne_zero, h.weightedDegree_le,
+      fun i => (vanishesToOrder_one_iff (α i) (w i) Q).2 (h.evalEval_eq_zero i)⟩⟩
 
 /-- **Least-`Y`-degree multiplicity bound.** If `Q` is a weighted-multiplicity interpolant of
 minimum `Y`-degree and every point multiplicity satisfies `mult i ≤ m`, then no polynomial
@@ -214,8 +208,7 @@ theorem IsWeightedInterpolant.rootMultiplicity_le_of_min (hQ : IsWeightedInterpo
     (hmin : ∀ Q', IsWeightedInterpolant α w mult d D Q' → Q.natDegree ≤ Q'.natDegree)
     (hmult : ∀ i, mult i ≤ m) (P : F[X]) :
     Q.rootMultiplicity P ≤ m := by
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   set r := Q.rootMultiplicity P
   obtain ⟨S, hQS⟩ := pow_rootMultiplicity_dvd Q P
   change Q = (Y - C P) ^ r * S at hQS
@@ -223,11 +216,7 @@ theorem IsWeightedInterpolant.rootMultiplicity_le_of_min (hQ : IsWeightedInterpo
   let Q' : F[X][Y] := (Y - C P) ^ m * S
   have hQ'0 : Q' ≠ 0 := mul_ne_zero (pow_ne_zero m (X_sub_C_ne_zero P)) hS0
   have hQ'dvd : Q' ∣ Q := by
-    obtain ⟨t, ht⟩ := Nat.exists_eq_add_of_le hlt.le
-    refine ⟨(Y - C P) ^ t, ?_⟩
-    rw [hQS, ht, pow_add]
-    dsimp only [Q']
-    ring
+    rw [hQS]; exact mul_dvd_mul_right (pow_dvd_pow _ hlt.le) S
   have hQ'interp : IsWeightedInterpolant α w mult d D Q' := by
     refine ⟨hQ'0, hQ.weightedDegree_le.of_dvd hQ.ne_zero hQ'dvd, fun i => ?_⟩
     by_cases hi : P.eval (α i) = w i
@@ -297,14 +286,11 @@ theorem exists_isWeightedInterpolant_min_natDegree (α w : ι → F)
     ∃ Q, IsWeightedInterpolant α w mult d D Q ∧
       ∀ Q', IsWeightedInterpolant α w mult d D Q' → Q.natDegree ≤ Q'.natDegree := by
   classical
-  have hex : ∃ n : ℕ, ∃ Q, IsWeightedInterpolant α w mult d D Q ∧ Q.natDegree = n := by
-    obtain ⟨Q, hQ⟩ := exists_isWeightedInterpolant (mult := mult) (d := d) (D := D) α w hn
-    exact ⟨Q.natDegree, Q, hQ, rfl⟩
-  let n₀ := Nat.find hex
+  have hex : ∃ n : ℕ, ∃ Q, IsWeightedInterpolant α w mult d D Q ∧ Q.natDegree = n :=
+    let ⟨Q, hQ⟩ := exists_isWeightedInterpolant (mult := mult) (d := d) (D := D) α w hn
+    ⟨_, Q, hQ, rfl⟩
   obtain ⟨Q, hQ, hdeg⟩ := Nat.find_spec hex
-  refine ⟨Q, hQ, fun Q' hQ' => ?_⟩
-  rw [hdeg]
-  exact Nat.find_min' hex ⟨Q', hQ', rfl⟩
+  exact ⟨Q, hQ, fun Q' hQ' => hdeg ▸ Nat.find_min' hex ⟨Q', hQ', rfl⟩⟩
 
 /-- **Existence of a multiplicity-`m` interpolant.** Whenever the number of monomials of
 `(1, d)`-weighted degree at most `D` exceeds `|ι| * (m * (m + 1) / 2)`, every received word has a
@@ -350,41 +336,21 @@ theorem IsWeightedInterpolant.eval_eq_zero (hα : Function.Injective α)
   by_contra hne
   let agree : Finset ι := {i | P.eval (α i) = w i}
   let ms : Multiset F := ∑ i ∈ agree, Multiset.replicate (mult i) (α i)
-  have hle_roots : ms ≤ (Q.eval P).roots := by
-    rw [Multiset.le_iff_count]
-    intro x
-    rw [Polynomial.count_roots]
-    have hcnt : Multiset.count x ms =
-        ∑ i ∈ agree, Multiset.count x (Multiset.replicate (mult i) (α i)) := by
-      dsimp only [ms]
-      induction agree using Finset.cons_induction with
-      | empty => simp
-      | cons i s hi ih =>
-        rw [Finset.sum_cons, Finset.sum_cons, Multiset.count_add, ih]
-    rw [hcnt]
+  have hle_roots : ms ≤ (Q.eval P).roots := Multiset.le_iff_count.2 fun x => by
+    rw [Polynomial.count_roots, Multiset.count_sum']
     by_cases hx : ∃ i ∈ agree, α i = x
     · obtain ⟨i, hi, rfl⟩ := hx
-      rw [Finset.sum_eq_single i]
-      · rw [Multiset.count_replicate_self]
-        exact (le_rootMultiplicity_iff hne).2
-          ((hQ.vanishes i).X_sub_C_pow_dvd_eval (mem_filter.1 hi).2)
-      · intro j _ hji
-        rw [Multiset.count_replicate, ite_eq_right fun heq => hji (hα heq)]
-      · intro hi'
-        exact absurd hi hi'
+      rw [Finset.sum_eq_single_of_mem i hi fun j _ hji => by
+        rw [Multiset.count_replicate, ite_eq_right fun heq => hji (hα heq)],
+        Multiset.count_replicate_self]
+      exact (le_rootMultiplicity_iff hne).2
+        ((hQ.vanishes i).X_sub_C_pow_dvd_eval (mem_filter.1 hi).2)
     · push Not at hx
-      rw [Finset.sum_eq_zero]
-      · exact Nat.zero_le _
-      · intro j hj
-        rw [Multiset.count_replicate, ite_eq_right (hx j hj)]
-  have hms_card : ms.card = ∑ i ∈ agree, mult i := by
-    dsimp only [ms]
-    induction agree using Finset.cons_induction with
-    | empty => simp
-    | cons i s hi ih =>
-      rw [Finset.sum_cons, Finset.sum_cons, Multiset.card_add, Multiset.card_replicate, ih]
+      rw [Finset.sum_eq_zero fun j hj => by rw [Multiset.count_replicate, ite_eq_right (hx j hj)]]
+      exact Nat.zero_le _
   have hcard : ∑ i ∈ agree, mult i ≤ D := by
-    calc ∑ i ∈ agree, mult i = ms.card := hms_card.symm
+    calc ∑ i ∈ agree, mult i = ms.card := by
+          simp only [ms, Multiset.card_sum, Multiset.card_replicate]
       _ ≤ (Q.eval P).roots.card := Multiset.card_le_card hle_roots
       _ ≤ (Q.eval P).natDegree := Polynomial.card_roots' _
       _ ≤ D := hQ.weightedDegree_le.natDegree_eval_le hP
@@ -576,11 +542,7 @@ theorem guruswamiSudan_johnson_ineq {n d t : ℕ} (ht : n * d < t ^ 2) :
     1 ≤ m ∧ D + 1 = m * t ∧ n * d * m * (m + 1) < (D + 1) * (D + 2) := by
   intro m D
   have hpos_Δ : 0 < t ^ 2 - n * d := Nat.sub_pos_of_lt ht
-  have ht_pos : 0 < t := by
-    by_contra h0
-    have ht0 : t = 0 := by omega
-    subst ht0
-    simp at ht
+  have ht_pos : 0 < t := Nat.pos_of_ne_zero fun h0 => by subst h0; simp at ht
   have hm_pos : 1 ≤ m := Nat.succ_le_succ (Nat.zero_le _)
   have hmt_pos : 1 ≤ m * t := Nat.mul_pos hm_pos ht_pos
   have hD1 : D + 1 = m * t := Nat.sub_add_cancel hmt_pos
@@ -617,23 +579,16 @@ theorem mem_guruswamiSudan_johnson_iff (hα : Function.Injective α) (hk : 2 ≤
   rw [mem_guruswamiSudan_iff_of_lt hα hk hineq]
   have hne : e ≤ n := by
     by_contra hgt
-    have hsub : n - e = 0 := Nat.sub_eq_zero_of_le (le_of_not_ge hgt)
-    rw [hsub] at he
+    rw [Nat.sub_eq_zero_of_le (le_of_not_ge hgt)] at he
     simp at he
   have hcard_sum : #{i | P.eval (α i) = w i} + hammingDist (fun i => P.eval (α i)) w = n :=
     card_filter_eq_add_hammingDist (fun i => P.eval (α i)) w
-  constructor
-  · rintro ⟨hdeg, hagree⟩
-    refine ⟨hdeg, ?_⟩
-    change D < m * #{i | P.eval (α i) = w i} at hagree
-    have hmt : m * (n - e) ≤ m * #{i | P.eval (α i) = w i} := by omega
-    have hle : n - e ≤ #{i | P.eval (α i) = w i} := Nat.le_of_mul_le_mul_left hmt hm
+  refine and_congr_right fun _ => ⟨fun hagree => ?_, fun hdist => ?_⟩
+  · change D < m * #{i | P.eval (α i) = w i} at hagree
+    have hle : n - e ≤ #{i | P.eval (α i) = w i} := Nat.le_of_mul_le_mul_left (by omega) hm
     omega
-  · rintro ⟨hdeg, hdist⟩
-    refine ⟨hdeg, ?_⟩
-    change D < m * #{i | P.eval (α i) = w i}
-    have hle : n - e ≤ #{i | P.eval (α i) = w i} := by omega
-    have hmt : m * (n - e) ≤ m * #{i | P.eval (α i) = w i} := Nat.mul_le_mul_left m hle
+  · change D < m * #{i | P.eval (α i) = w i}
+    have hmt := Nat.mul_le_mul_left m (show n - e ≤ #{i | P.eval (α i) = w i} by omega)
     omega
 
 /-- **Asymptotic / real Johnson-bound corollary** [GuruswamiSudan1999], [GuruswamiRudraSudan2019,
@@ -666,99 +621,53 @@ theorem exists_guruswamiSudan_of_eps [Nonempty ι] (hα : Function.Injective α)
     have hneg : (1 - Real.sqrt ρ - ε) * n < 0 := mul_neg_of_neg_of_pos (by linarith) hnR
     linarith
   · push Not at hgap
-    have hρ'pos : 0 < ρ' := by
-      have : (0 : ℝ) < ((k - 1 : ℕ) : ℝ) := Nat.cast_pos.2 (by omega)
-      exact div_pos this hnR
-    have hρ'le1 : ρ' ≤ 1 := by
-      rw [div_le_one hnR]
-      exact_mod_cast (by omega : k - 1 ≤ n)
-    have hρ'leρ : ρ' ≤ ρ := by
-      dsimp only [ρ', ρ]
-      gcongr
-      exact_mod_cast Nat.sub_le k 1
-    have hsqrt_le1 : Real.sqrt ρ' ≤ 1 := by
-      rw [Real.sqrt_le_one]
-      exact hρ'le1
+    have hρ'pos : 0 < ρ' := div_pos (Nat.cast_pos.2 (by omega)) hnR
+    have hρ'leρ : ρ' ≤ ρ := by dsimp only [ρ', ρ]; gcongr; exact_mod_cast Nat.sub_le k 1
     set m : ℕ := ⌊Real.sqrt ρ' / (2 * ε)⌋₊ + 1
     set t : ℕ := ⌈(Real.sqrt ρ + ε) * n⌉₊
     set D : ℕ := m * t - 1
     have hm_pos : 1 ≤ m := Nat.le_add_left 1 _
     have hm_bound : m ≤ ⌊1 / (2 * ε)⌋₊ + 1 := by
-      dsimp only [m]
-      gcongr
+      dsimp only [m]; gcongr
+      exact Real.sqrt_le_one.2 ((div_le_one hnR).2 (by exact_mod_cast (by omega : k - 1 ≤ n)))
     have ht_ge : (Real.sqrt ρ + ε) * n ≤ (t : ℝ) := Nat.le_ceil _
-    have ht_pos : 0 < t := by
-      have hpos : (0 : ℝ) < (Real.sqrt ρ + ε) * n := mul_pos (by positivity) hnR
-      exact_mod_cast hpos.trans_le ht_ge
-    have ht_le_n : t ≤ n := by
-      refine Nat.ceil_le.2 ?_
-      nlinarith
-    have hmt_pos : 1 ≤ m * t := Nat.mul_pos hm_pos ht_pos
-    have hD_lt : D < m * n := by
-      have hmt_le : m * t ≤ m * n := Nat.mul_le_mul_left m ht_le_n
-      omega
-    have hD1 : D + 1 = m * t := Nat.sub_add_cancel hmt_pos
-    have hD2 : D + 2 = m * t + 1 := by omega
+    have ht_pos : 0 < t := Nat.cast_pos.1 ((mul_pos (by positivity) hnR).trans_le ht_ge)
+    have ht_le_n : t ≤ n := Nat.ceil_le.2 (by nlinarith)
+    have hD1 : D + 1 = m * t := Nat.sub_add_cancel (Nat.mul_pos hm_pos ht_pos)
+    have hD_lt : D < m * n := by have := Nat.mul_le_mul_left m ht_le_n; omega
     have hm_gt : Real.sqrt ρ' / (2 * ε) < (m : ℝ) := by
       simpa [m] using Nat.lt_floor_add_one (Real.sqrt ρ' / (2 * ε))
-    have hsqrt_le : Real.sqrt ρ' ≤ Real.sqrt ρ := Real.sqrt_le_sqrt hρ'leρ
-    have ht_ge' : (Real.sqrt ρ' + ε) * n ≤ (t : ℝ) := by nlinarith
+    have ht_ge' : (Real.sqrt ρ' + ε) * n ≤ (t : ℝ) :=
+      (mul_le_mul_of_nonneg_right (by linarith [Real.sqrt_le_sqrt hρ'leρ]) hnR.le).trans ht_ge
     have htsq : (ρ' + 2 * ε * Real.sqrt ρ' + ε ^ 2) * (n : ℝ) ^ 2 ≤ (t : ℝ) ^ 2 := by
-      have h1 : ((Real.sqrt ρ' + ε) * n) ^ 2 ≤ (t : ℝ) ^ 2 :=
-        pow_le_pow_left₀ (by positivity) ht_ge' 2
-      have h2 : ((Real.sqrt ρ' + ε) * n) ^ 2 =
-          (ρ' + 2 * ε * Real.sqrt ρ' + ε ^ 2) * (n : ℝ) ^ 2 := by
-        have hsq : Real.sqrt ρ' ^ 2 = ρ' := Real.sq_sqrt hρ'pos.le
-        ring_nf
-        rw [hsq]
-        ring
-      linarith
+      linear_combination pow_le_pow_left₀ (by positivity) ht_ge' 2 -
+        (n : ℝ) ^ 2 * Real.sq_sqrt hρ'pos.le
     have hmul_gt : ρ' < (m : ℝ) * (2 * ε * Real.sqrt ρ') := by
-      have h1 : Real.sqrt ρ' < (m : ℝ) * (2 * ε) := (div_lt_iff₀ (by positivity)).1 hm_gt
-      have h2 := mul_lt_mul_of_pos_right h1 (Real.sqrt_pos.2 hρ'pos)
-      have hsq : Real.sqrt ρ' * Real.sqrt ρ' = ρ' := Real.mul_self_sqrt hρ'pos.le
-      linarith
-    have hnd_eq : (n : ℝ) * ((k - 1 : ℕ) : ℝ) = ρ' * (n : ℝ) ^ 2 := by
-      dsimp only [ρ']
-      field_simp
+      have h2 := mul_lt_mul_of_pos_right ((div_lt_iff₀ (by positivity)).1 hm_gt)
+        (Real.sqrt_pos.2 hρ'pos)
+      linarith [Real.mul_self_sqrt hρ'pos.le]
+    have hnd_eq : (n : ℝ) * ((k - 1 : ℕ) : ℝ) = ρ' * (n : ℝ) ^ 2 := by dsimp only [ρ']; field_simp
     have hstepR :
         (n : ℝ) * ((k - 1 : ℕ) : ℝ) * ((m : ℝ) + 1) < (t : ℝ) * ((m : ℝ) * (t : ℝ) + 1) := by
       have h1 : (n : ℝ) * ((k - 1 : ℕ) : ℝ) <
           (m : ℝ) * ((t : ℝ) ^ 2 - (n : ℝ) * ((k - 1 : ℕ) : ℝ)) := by
-        have hdiff : (2 * ε * Real.sqrt ρ' + ε ^ 2) * (n : ℝ) ^ 2 ≤
-            (t : ℝ) ^ 2 - (n : ℝ) * ((k - 1 : ℕ) : ℝ) := by
-          rw [hnd_eq]
-          linarith
-        have hstrict : ρ' * (n : ℝ) ^ 2 <
-            (m : ℝ) * ((2 * ε * Real.sqrt ρ' + ε ^ 2) * (n : ℝ) ^ 2) := by
-          have hn2 : (0 : ℝ) < (n : ℝ) ^ 2 := sq_pos_of_pos hnR
-          have hpos_eps : (0 : ℝ) < (m : ℝ) * ε ^ 2 := by positivity
-          have : ρ' < (m : ℝ) * (2 * ε * Real.sqrt ρ' + ε ^ 2) := by nlinarith
-          rw [← mul_assoc]
-          exact mul_lt_mul_of_pos_right this hn2
-        have hle_m : (m : ℝ) * ((2 * ε * Real.sqrt ρ' + ε ^ 2) * (n : ℝ) ^ 2) ≤
-            (m : ℝ) * ((t : ℝ) ^ 2 - (n : ℝ) * ((k - 1 : ℕ) : ℝ)) :=
-          mul_le_mul_of_nonneg_left hdiff (Nat.cast_nonneg m)
-        rw [← hnd_eq] at hstrict
-        exact hstrict.trans_le hle_m
+        rw [hnd_eq]
+        calc ρ' * (n : ℝ) ^ 2 < (m : ℝ) * (2 * ε * Real.sqrt ρ' + ε ^ 2) * (n : ℝ) ^ 2 := by
+              gcongr; linarith [(by positivity : (0 : ℝ) < m * ε ^ 2)]
+          _ ≤ (m : ℝ) * ((t : ℝ) ^ 2 - ρ' * (n : ℝ) ^ 2) := by rw [mul_assoc]; gcongr; linarith
       cast_nlinarith [ht_pos]
     have hstepN : n * (k - 1) * (m + 1) < t * (m * t + 1) := by exact_mod_cast hstepR
     have hineq : n * (k - 1) * m * (m + 1) < (D + 1) * (D + 2) := by
-      rw [hD1, hD2]
-      have hmul := Nat.mul_lt_mul_of_pos_left hstepN hm_pos
-      linarith
+      rw [show D + 2 = m * t + 1 by omega, hD1]
+      linarith [Nat.mul_lt_mul_of_pos_left hstepN hm_pos]
     refine ⟨m, D, hm_pos, hm_bound, hD_lt,
       fun w => ⟨card_guruswamiSudan_mul_le, fun P hP hdist => ?_⟩⟩
-    rw [mem_guruswamiSudan_iff_of_lt hα hk hineq]
-    refine ⟨hP, ?_⟩
-    have hcard_sum : #{i | P.eval (α i) = w i} + hammingDist (fun i => P.eval (α i)) w = n :=
-      card_filter_eq_add_hammingDist (fun i => P.eval (α i)) w
+    refine (mem_guruswamiSudan_iff_of_lt hα hk hineq).2 ⟨hP, ?_⟩
     have hcard_sumR : (#{i | P.eval (α i) = w i} : ℝ) +
         (hammingDist (fun i => P.eval (α i)) w : ℝ) = n := by
-      exact_mod_cast hcard_sum
-    have hagreeR : (Real.sqrt ρ + ε) * n ≤ (#{i | P.eval (α i) = w i} : ℝ) := by linarith
-    have htle : t ≤ #{i | P.eval (α i) = w i} := Nat.ceil_le.2 hagreeR
-    have hmt : m * t ≤ m * #{i | P.eval (α i) = w i} := Nat.mul_le_mul_left m htle
+      exact_mod_cast card_filter_eq_add_hammingDist (fun i => P.eval (α i)) w
+    have hmt : m * t ≤ m * #{i | P.eval (α i) = w i} :=
+      Nat.mul_le_mul_left m (Nat.ceil_le.2 (by linarith))
     omega
 
 end Cslib.Code

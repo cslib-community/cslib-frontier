@@ -37,6 +37,7 @@ import CslibFrontierResults.Entries.ODonnellPeres
 import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SecurityEconomics
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
+import CslibFrontierResults.Entries.ODonnellMonotoneCoefficient
 import CslibFrontierResults.Entries.VeriPBClique
 import CslibFrontierResults.Entries.SingleMinded
 import CslibFrontierResults.Entries.GraphicalGames
@@ -66,6 +67,7 @@ import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.PotentialPolymatrix
 import CslibFrontierResults.Entries.EvolutionaryStability
+import CslibFrontierResults.Entries.LupanovRectifier
 import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.ExternalRegret
 import CslibFrontierResults.Entries.UtilityGame

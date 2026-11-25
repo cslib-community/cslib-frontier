@@ -332,9 +332,8 @@ theorem isPPT_iknpSenderSim :
     · exact IsPPTOn.replicate
         (ComputableInPolyTime.length_bits.comp (hpair.fst'.comp (.fst _ encBits))).sampleList
         (hn.comp (.fst _ encBits))
-    · exact (senderSimWord_polyTime (hpair.comp ((ComputableInPolyTime.fst _ encBits).comp
-        (.fst _ (encList encBits)))) ((ComputableInPolyTime.snd _ encBits).comp
-          (.fst _ (encList encBits))) (.snd _ (encList encBits))).isPPTOn
+    · exact (senderSimWord_polyTime (hpair.comp (by fun_prop)) (by fun_prop)
+        (by fun_prop)).isPPTOn
   refine isPPTOn_iff_encoded.mpr (hprog.congr fun x => ?_)
   obtain ⟨n, d, xs, ys⟩ := x
   have hlen : ((iknpEncoding hash m).input.rep n d 0 (xs sender)).1.length = m n :=
@@ -442,14 +441,8 @@ theorem isPPT_iknpReceiverSim (hh : ComputableInPolyTime hash encBits encBool) :
     refine IsPPTOn.bind_with (left := encList encBits)
       (IsPPTOn.replicate hn.sampleList hcount) ?_
     refine IsPPTOn.bind_with (left := encBits) (hcount.comp (.fst _ _)).sampleList ?_
-    have hx : ComputableInPolyTime
-        (fun q : (SimInput (iknpFamily hash m) {1} × List (List Bool)) × List Bool => q.1.1)
-        (encPair (encPair (encSimInput (iknpEncoding hash m)) (encList encBits)) encBits)
-        (encSimInput (iknpEncoding hash m)) :=
-      (ComputableInPolyTime.fst _ (encList encBits)).comp (.fst _ encBits)
-    exact (receiverSimWord_polyTime hash hh (hr.comp hx) (hz.comp hx)
-      ((ComputableInPolyTime.snd _ (encList encBits)).comp (.fst _ encBits))
-      (.snd _ encBits)).isPPTOn
+    exact (receiverSimWord_polyTime hash hh (hr.comp (by fun_prop)) (hz.comp (by fun_prop))
+      (by fun_prop) (by fun_prop)).isPPTOn
   refine isPPTOn_iff_encoded.mpr (hprog.congr fun x => ?_)
   obtain ⟨n, d, xs, ys⟩ := x
   have hlen : ((iknpEncoding hash m).input.rep n d 1 (xs receiver)).length = m n :=
@@ -565,38 +558,18 @@ theorem isPPT_iknpReceiverToCR (hh : ComputableInPolyTime hash encBits encBool)
     refine IsPPTOn.bind_with (hZ.choose.preprocess
       (prepare := fun x : CorrelationRobust.Input m => (x.level, ()))
       ((CorrelationRobust.encInput_level_polyTime m .id').prod (.const ()))) ?_
-    have hx : ComputableInPolyTime
-        (fun q : CorrelationRobust.Input m × (((i : Fin 2) → IKNPInputWords i) × List Bool) => q.1)
-        (encPair (CorrelationRobust.encInput m)
-          (encPair (encDPi (iknpEncoding hash m).input.enc) encBits))
-        (CorrelationRobust.encInput m) := .fst _ _
-    have htable : ComputableInPolyTime
-        (fun q : CorrelationRobust.Input m × (((i : Fin 2) → IKNPInputWords i) × List Bool) =>
-          q.2.1)
-        (encPair (CorrelationRobust.encInput m)
-          (encPair (encDPi (iknpEncoding hash m).input.enc) encBits))
-        (encDPi (iknpEncoding hash m).input.enc) := (ComputableInPolyTime.snd _ _).fst'
     have ht : ComputableInPolyTime
         (fun q : CorrelationRobust.Input m × (((i : Fin 2) → IKNPInputWords i) × List Bool) =>
           List.ofFn fun j => List.ofFn (q.1.inputs j))
         (encPair (CorrelationRobust.encInput m)
           (encPair (encDPi (iknpEncoding hash m).input.enc) encBits)) (encList encBits) :=
-      (CorrelationRobust.encInput_inputs_polyTime m hx).of_enc_eq fun _ => rfl
-    have hp : ComputableInPolyTime
-        (fun q : CorrelationRobust.Input m × (((i : Fin 2) → IKNPInputWords i) × List Bool) =>
-          (q.2.1 0 : List Bool × List Bool))
-        (encPair (CorrelationRobust.encInput m)
-          (encPair (encDPi (iknpEncoding hash m).input.enc) encBits)) (encPair encBits encBits) :=
-      (ComputableInPolyTime.dpi_apply (iknpEncoding hash m).input.enc 0).comp htable
-    have hr : ComputableInPolyTime
-        (fun q : CorrelationRobust.Input m × (((i : Fin 2) → IKNPInputWords i) × List Bool) =>
-          (q.2.1 1 : List Bool))
-        (encPair (CorrelationRobust.encInput m)
-          (encPair (encDPi (iknpEncoding hash m).input.enc) encBits)) encBits :=
-      (ComputableInPolyTime.dpi_apply (iknpEncoding hash m).input.enc 1).comp htable
+      (CorrelationRobust.encInput_inputs_polyTime m (.fst _ _)).of_enc_eq fun _ => rfl
     exact hW.preprocess (reductionGuessWords_polyTime (m := m) hash hh
-      (CorrelationRobust.encInput_level_polyTime m hx) ht
-      (CorrelationRobust.encInput_outputs_polyTime m hx) hp hr (ComputableInPolyTime.snd _ _).snd')
+      (CorrelationRobust.encInput_level_polyTime m (.fst _ _)) ht
+      (CorrelationRobust.encInput_outputs_polyTime m (.fst _ _))
+      ((ComputableInPolyTime.dpi_apply (iknpEncoding hash m).input.enc 0).comp (by fun_prop))
+      ((ComputableInPolyTime.dpi_apply (iknpEncoding hash m).input.enc 1).comp (by fun_prop))
+      (by fun_prop))
   refine hprog.congr fun x => ?_
   simp only [iknpReceiverToCR, ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map]
   refine congrArg (PMF.bind _) (funext fun c => ?_)

@@ -59,34 +59,16 @@ theorem exists_computableInTimeAndSpace_iterateWhile {init : α → β} {step : 
       (fun a => c * (r a + 1) * (l a + (encIn a).length + 1) ^ d)
       (fun a => c * (l a + (encIn a).length + 1) ^ d) := by
   obtain ⟨ci, di, ki, Si, _, tmi, hi⟩ := Internal.NormalForm.polyTime hinit
-  let ci' := ci
-  let di' := di
-  have hti (a) : ci * ((encIn a).length + 1) ^ di ≤
-      ci * ((encIn a).length + 1) ^ di := le_rfl
-  have hsi := hti
   obtain ⟨cs, ds, ks, Ss, _, tms, hs⟩ := Internal.NormalForm.polyTime hstep
-  let cs' := cs
-  let ds' := ds
-  have hts (a) : cs * ((encState a).length + 1) ^ ds ≤
-      cs * ((encState a).length + 1) ^ ds := le_rfl
-  have hss := hts
   obtain ⟨cf, df, kf, Sf, _, tmf, hf⟩ := Internal.NormalForm.polyTime hfin
-  let cf' := cf
-  let df' := df
-  have htf (a) : cf * ((encState a).length + 1) ^ df ≤
-      cf * ((encState a).length + 1) ^ df := le_rfl
-  have hsf := htf
   -- the loop, along the trajectory from `init a`
   have hloop (a : α) := computesTidily_iterateWhile (tm := tms)
     (w := fun n => encState (step^[n] (init a))) (r := r a)
-    (t := cs * (l a + 1) ^ ds) (s := cs' * (l a + 1) ^ ds') (l := l a)
+    (t := cs * (l a + 1) ^ ds) (s := cs * (l a + 1) ^ ds) (l := l a)
     (fun n hn => by
-      have h := (hs (step^[n] (init a))).mono
-        ((hts _).trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left
-          (Nat.add_le_add_right (hl a n hn) 1) ds)))
-        ((hss _).trans (Nat.mul_le_mul_left cs' (Nat.pow_le_pow_left
-          (Nat.add_le_add_right (hl a n hn) 1) ds')))
-      simpa only [Function.iterate_succ_apply'] using h)
+      have hb := Nat.mul_le_mul_left cs
+        (Nat.pow_le_pow_left (Nat.add_le_add_right (hl a n hn) 1) ds)
+      simpa only [Function.iterate_succ_apply'] using (hs (step^[n] (init a))).mono hb hb)
     (hl a) (hne a) (hnil a) true
   -- the start followed by the loop
   let main := (tms.iterateWhile true).comp tmi true
@@ -101,7 +83,7 @@ theorem exists_computableInTimeAndSpace_iterateWhile {init : α → β} {step : 
   have h : ComputableInTimeAndSpace (fun a => fin (step^[r a] (init a))) encIn encOut
       (fun a => (hmainTime a) + (cf * ((encState (step^[r a] (init a))).length + 1) ^ df) +
         c₀ * ((encState (step^[r a] (init a))).length + 1))
-      (fun a => (hmainSpace a) + (cf' * ((encState (step^[r a] (init a))).length + 1) ^ df') +
+      (fun a => (hmainSpace a) + (cf * ((encState (step^[r a] (init a))).length + 1) ^ df) +
         c₀ * ((encState (step^[r a] (init a))).length + 1)) := by
     refine ⟨_, _, inferInstance, tmf.comp main true, ?_⟩
     exact ComputesFunInTimeAndSpace.mono
@@ -122,33 +104,30 @@ theorem exists_computableInTimeAndSpace_iterateWhile {init : α → β} {step : 
           dsimp only [c₀] at hm ⊢
           rw [Nat.mul_add, Nat.mul_one]
           omega
-        dsimp only [hmainSpace, ci', di', cf', df', kMain, main] at ho ⊢
+        dsimp only [hmainSpace, kMain, main] at ho ⊢
         omega)
   -- the bounds, with `P = (l a + |encIn a| + 1) ^ D` bounding every polynomial term
   obtain ⟨E, hE⟩ : ∃ E, E = 2 * (ks + 3) := ⟨_, rfl⟩
-  set D := di + di' + ds + ds' + df + df' + 1
+  set D := di + ds + df + 1
   have hpow (a : α) {e : ℕ} (he : e ≤ D) {x : ℕ} (hx : x + 1 ≤ l a + (encIn a).length + 1) :
       (x + 1) ^ e ≤ (l a + (encIn a).length + 1) ^ D :=
     (Nat.pow_le_pow_left hx e).trans (Nat.pow_le_pow_right (by omega) he)
-  refine ⟨ci + ci' + cs + E * cs' + cf + cf' + 2 * c₀ + 6 * ki + E * (6 * ks + 54) + 10 * ks + 200,
+  refine ⟨2 * ci + cs + E * cs + 2 * cf + 2 * c₀ + 6 * ki + E * (6 * ks + 54) + 10 * ks + 200,
     D, ?_⟩
   refine ComputableInTimeAndSpace.mono h (fun a => ?_) (fun a => ?_)
   all_goals
     dsimp only [hmainTime, hmainSpace] at ⊢
-    have h₁ := (hti a).trans (Nat.mul_le_mul_left ci (hpow a (by omega) (by omega)))
-    have h₂ := (hsi a).trans (Nat.mul_le_mul_left ci' (hpow a (by omega) (by omega)))
-    have h₃ := Nat.mul_le_mul_left cs (hpow a (show ds ≤ D by omega) (x := l a) (by omega))
-    have h₄ := Nat.mul_le_mul_left cs' (hpow a (show ds' ≤ D by omega) (x := l a) (by omega))
+    have h₁ := Nat.mul_le_mul_left ci
+      (hpow a (show di ≤ D by omega) (x := (encIn a).length) (by omega))
+    have h₂ := Nat.mul_le_mul_left cs (hpow a (show ds ≤ D by omega) (x := l a) (by omega))
     have hlast := hl a (r a) le_rfl
-    have h₅ := (htf (step^[r a] (init a))).trans
-      (Nat.mul_le_mul_left cf (hpow a (show df ≤ D by omega) (by omega)))
-    have h₆ := (hsf (step^[r a] (init a))).trans
-      (Nat.mul_le_mul_left cf' (hpow a (show df' ≤ D by omega) (by omega)))
+    have h₃ := Nat.mul_le_mul_left cf
+      (hpow a (show df ≤ D by omega) (x := (encState (step^[r a] (init a))).length) (by omega))
     have hlP := hpow a (show 1 ≤ D by omega) (x := l a) (by omega)
     have hfirst := hl a 0 (Nat.zero_le _)
     have hmax : max ki (ks + 1 + 2) ≤ ki + ks + 3 := by omega
     rw [pow_one] at hlP
-    generalize (l a + (encIn a).length + 1) ^ D = P at h₁ h₂ h₃ h₄ h₅ h₆ hlP ⊢
+    generalize (l a + (encIn a).length + 1) ^ D = P at h₁ h₂ h₃ hlP ⊢
   · -- time
     have hloopT : cs * (l a + 1) ^ ds + 10 * l a + 24 ≤ (cs + 34) * P := by linarith
     calc _ ≤ (r a + 1) * ((cs + 34) * P) + (ci + cf + 2 * c₀ + 50) * P := by
@@ -160,7 +139,7 @@ theorem exists_computableInTimeAndSpace_iterateWhile {init : α → β} {step : 
       _ = (cs + 34 + (ci + cf + 2 * c₀ + 50)) * ((r a + 1) * P) := by ring
       _ ≤ _ := by rw [mul_assoc]; exact Nat.mul_le_mul_right _ (by omega)
   · -- space
-    have hY : cs' * (l a + 1) ^ ds' + 10 * l a + 6 * ks + 44 ≤ (cs' + 6 * ks + 54) * P := by
+    have hY : cs * (l a + 1) ^ ds + 10 * l a + 6 * ks + 44 ≤ (cs + 6 * ks + 54) * P := by
       have : 6 * ks + 44 ≤ (6 * ks + 44) * P := Nat.le_mul_of_pos_right _ (by omega)
       nlinarith
     have hEY := Nat.mul_le_mul_left E hY

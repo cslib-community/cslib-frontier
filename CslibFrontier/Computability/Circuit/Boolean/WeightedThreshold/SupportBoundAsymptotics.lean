@@ -88,10 +88,8 @@ private theorem eventually_lt_of_support_bounds {a : ℝ} (ha : 0 < a) (d : ℕ)
       _ = (d / T * (1 / a)) * n := by ring
       _ ≤ δ * n := mul_le_mul_of_nonneg_right hcoeff hN
   have hmain : a * q ≤ n - a * ε * n := by
-    have h := mul_le_mul_of_nonneg_left hsmall ha.le
-    have heq : a * ((1 / a - ε) * n) = n - a * ε * n := by
-      field_simp
-    rwa [heq] at h
+    linarith [mul_le_mul_of_nonneg_left hsmall ha.le,
+      show a * ((1 / a - ε) * n) = n - a * ε * n by field_simp]
   have hδeq : 4 * δ = a * ε := by dsimp [δ]; ring
   have hδn := congrArg (fun z : ℝ => z * n) hδeq
   have hpos := mul_pos (mul_pos ha hε) hNpos

@@ -111,32 +111,26 @@ private theorem expected_inv_order_le_two_mul_advantage_ddh (F : PrimeOrderGroup
     (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal ≤
       2 * Game.advantage (F.ddhRealGame setup (ddhZeroDistinguisher F) n)
         (F.ddhRandomGame setup (ddhZeroDistinguisher F) n) := by
-  have hreal :
-      (F.ddhRealGame setup (ddhZeroDistinguisher F) n) true =
-        (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹) +
-        (∑' d, setup n d *
-          (((F.order d - 1 : ℕ) : ℝ≥0∞) * ((F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹))) := by
+  set E := ∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹ with hE
+  set R := ∑' d, setup n d *
+    (((F.order d - 1 : ℕ) : ℝ≥0∞) * ((F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹)) with hR
+  have hreal : (F.ddhRealGame setup (ddhZeroDistinguisher F) n) true = E + R := by
     simp only [ddhRealGame, Game.withSetup, ddhRealExperiment, ddhZeroDistinguisher,
       ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, smul_eq_zero,
       F.generator_ne_zero, or_false]
-    rw [PMF.bind_apply, ← tsum_add]
+    rw [PMF.bind_apply, hE, hR, ← tsum_add]
     refine tsum_congr fun d => ?_
     rw [uniform_mul_decide_eq_zero_apply F d, mul_add]
-  have hideal :
-      (F.ddhRandomGame setup (ddhZeroDistinguisher F) n) true =
-        ∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹ := by
+  have hideal : (F.ddhRandomGame setup (ddhZeroDistinguisher F) n) true = E := by
     simp only [ddhRandomGame, Game.withSetup, ddhRandomExperiment, ddhZeroDistinguisher,
       ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, smul_eq_zero,
       F.generator_ne_zero, or_false, PMF.bind_const]
-    rw [PMF.bind_apply]
+    rw [PMF.bind_apply, hE]
     refine tsum_congr fun d => congrArg (setup n d * ·) ?_
     simpa only [eq_comm, ZMod.card] using uniformOfFintype_bind_decide_eq_apply_true
       (0 : ZMod (F.order d))
-  have hle_sum :
-      ∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹ ≤
-        2 * ∑' d, setup n d *
-          (((F.order d - 1 : ℕ) : ℝ≥0∞) * ((F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹)) := by
-    rw [← ENNReal.tsum_mul_left]
+  have hle_sum : E ≤ 2 * R := by
+    rw [hE, hR, ← ENNReal.tsum_mul_left]
     refine tsum_le_tsum fun d => ?_
     rw [← mul_assoc, mul_comm (2 : ℝ≥0∞) (setup n d), mul_assoc]
     refine mul_le_mul_of_nonneg_left ?_ zero_le
@@ -152,49 +146,18 @@ private theorem expected_inv_order_le_two_mul_advantage_ddh (F : PrimeOrderGroup
           gcongr
       _ = 2 * (((F.order d - 1 : ℕ) : ℝ≥0∞) * ((F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹)) := by
           ring
-  have hreal_top : (F.ddhRealGame setup (ddhZeroDistinguisher F) n) true ≠ ⊤ :=
-    PMF.apply_ne_top _ _
-  have hideal_top : (F.ddhRandomGame setup (ddhZeroDistinguisher F) n) true ≠ ⊤ :=
-    PMF.apply_ne_top _ _
-  have hrem_top :
-      (∑' d, setup n d *
-        (((F.order d - 1 : ℕ) : ℝ≥0∞) * ((F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹))) ≠ ⊤ := by
-    intro htop
-    apply hreal_top
-    rw [hreal, htop, add_top]
-  have hexp_top : (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹) ≠ ⊤ := by
-    rwa [← hideal]
-  have htoNN :
-      (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal ≤
-        2 * (∑' d, setup n d *
-          (((F.order d - 1 : ℕ) : ℝ≥0∞) *
-            ((F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹))).toNNReal := by
-    rw [← ENNReal.toNNReal_ofNat, ← ENNReal.toNNReal_mul]
-    exact ENNReal.toNNReal_mono (ENNReal.mul_ne_top ENNReal.ofNat_ne_top hrem_top) hle_sum
-  have hadv :
-      (∑' d, setup n d *
-        (((F.order d - 1 : ℕ) : ℝ≥0∞) *
-          ((F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹))).toNNReal =
-        Game.advantage (F.ddhRealGame setup (ddhZeroDistinguisher F) n)
-          (F.ddhRandomGame setup (ddhZeroDistinguisher F) n) := by
+  have hrem_top : R ≠ ⊤ := fun htop =>
+    PMF.apply_ne_top (F.ddhRealGame setup (ddhZeroDistinguisher F) n) true (by
+      rw [hreal, htop, add_top])
+  have hadv : R.toNNReal = Game.advantage (F.ddhRealGame setup (ddhZeroDistinguisher F) n)
+      (F.ddhRandomGame setup (ddhZeroDistinguisher F) n) := by
     apply NNReal.eq
     rw [Game.coe_advantage]
-    have hsucc_real :
-        Game.succProbability (F.ddhRealGame setup (ddhZeroDistinguisher F) n) =
-          (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal +
-          (∑' d, setup n d *
-            (((F.order d - 1 : ℕ) : ℝ≥0∞) *
-              ((F.order d : ℝ≥0∞)⁻¹ * (F.order d : ℝ≥0∞)⁻¹))).toNNReal := by
-      unfold Game.succProbability
-      rw [hreal, ENNReal.toNNReal_add hexp_top hrem_top]
-    have hsucc_ideal :
-        Game.succProbability (F.ddhRandomGame setup (ddhZeroDistinguisher F) n) =
-          (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal := by
-      unfold Game.succProbability
-      rw [hideal]
-    rw [hsucc_real, hsucc_ideal, NNReal.coe_add, add_sub_cancel_left,
-      abs_of_nonneg (NNReal.coe_nonneg _)]
-  exact htoNN.trans_eq (congrArg (2 * ·) hadv)
+    unfold Game.succProbability
+    rw [hreal, hideal, ENNReal.toNNReal_add (hideal ▸ PMF.apply_ne_top _ _) hrem_top,
+      NNReal.coe_add, add_sub_cancel_left, abs_of_nonneg (NNReal.coe_nonneg _)]
+  rw [← hadv, ← ENNReal.toNNReal_ofNat, ← ENNReal.toNNReal_mul]
+  exact ENNReal.toNNReal_mono (ENNReal.mul_ne_top ENNReal.ofNat_ne_top hrem_top) hle_sum
 
 /-- **Expected inverse group order is negligible under `DDH`** (original): if `F.DDH setup` holds,
 then `n ↦ (∑' d, setup n d * (F.order d)⁻¹).toNNReal` is negligible. -/

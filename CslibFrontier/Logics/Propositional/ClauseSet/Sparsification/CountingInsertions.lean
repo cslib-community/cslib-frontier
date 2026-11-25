@@ -168,10 +168,7 @@ theorem countingInsertionCount_eq_present_add_deleted {θ : ℕ → ℕ} (hθ : 
   intro n
   induction n with
   | zero =>
-    have hS0 : S 0 = ∅ := by
-      apply filter_eq_empty_iff.mpr
-      intro C hC h
-      exact h.1 hC
+    have hS0 : S 0 = ∅ := filter_eq_empty_iff.mpr fun C hC h => h.1 hC
     simp [hS0]
   | succ n ih =>
     intro hn
@@ -244,10 +241,7 @@ theorem countingInsertionCount_le_pow {M : ℕ} (hM : 2 ≤ M)
         M ^ (j - i) * countingInsertionCount N ψ c H b i ≤
           (4 * declared.card * M ^ (j - 1)) * 3 ^ (i - 1) := by
       obtain ⟨hi1, hij⟩ := mem_Ico.mp hi
-      have hpow : M ^ (j - i) * M ^ (i - 1) = M ^ (j - 1) := by
-        rw [← pow_add]
-        congr 1
-        omega
+      have hpow : M ^ (j - i) * M ^ (i - 1) = M ^ (j - 1) := by rw [← pow_add]; congr 1; omega
       calc
         _ ≤ M ^ (j - i) * (4 * (3 * M) ^ (i - 1) * declared.card) :=
           Nat.mul_le_mul_left _ (ih i hij hi1)

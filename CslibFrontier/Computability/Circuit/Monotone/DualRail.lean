@@ -185,35 +185,13 @@ theorem isCodeFrom_dualCode {n : ℕ} :
     have hw (j : ℕ) (hj : j < g.2.length) : g.2.getD j 0 < n + k := getD_lt_of_isCode hj hlt
     rcases g with ⟨_ | _ | _ | _, args⟩ <;> simp only at hlen hw
     · exact isCodeFrom_pair rfl rfl (by simp) (by simp)
-    · have h₀ := hw 0 (by omega)
-      exact isCodeFrom_pair rfl rfl (by
-          simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-        (by
-          simp only [railWire, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-    · have h₀ := hw 0 (by omega)
-      have h₁ := hw 1 (by omega)
-      exact isCodeFrom_pair rfl rfl (by
-          simp only [railWire, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-        (by
-          simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-    · have h₀ := hw 0 (by omega)
-      have h₁ := hw 1 (by omega)
-      exact isCodeFrom_pair rfl rfl (by
-          simp only [railWire, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
-        (by
-          simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons,
-            List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq]
-          omega)
+    all_goals
+      have h₀ := hw 0 (by omega)
+      try have h₁ := hw 1 (by omega)
+      refine isCodeFrom_pair rfl rfl ?_ ?_ <;>
+        simp only [railWire, Bool.false_eq_true, ↓reduceIte, List.mem_cons, List.not_mem_nil,
+          or_false, forall_eq_or_imp, forall_eq] <;>
+        omega
 
 /-- Evaluating two gates, the second reading only wires computed before the first. -/
 private theorem evalCode_pair {σ : Signature} {U : Type*} (I : Interpretation σ U)

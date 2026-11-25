@@ -653,7 +653,8 @@ theorem spentDebit_le_of_certified [DecidableEq Context]
       sum_balance_outputPayload_filter reqs ctx
   omega
 
-private theorem findNoteForgery_eq_none_iff [DecidableEq Nullifier] [DecidableEq Context]
+/-- `findNoteForgery reqs = none` iff every spend in `reqs` uses a certified input note. -/
+theorem findNoteForgery_eq_none_iff [DecidableEq Nullifier] [DecidableEq Context]
     (reqs : List (Request Nullifier Context Opening Commitment Sig)) :
     findNoteForgery reqs = none ↔
       ∀ s ∈ spends reqs, s.inputNote ∈ reqs.map (fun r => r.outputPayload.message) := by
@@ -666,7 +667,9 @@ private theorem findNoteForgery_eq_none_iff [DecidableEq Nullifier] [DecidableEq
   · intro h s hs
     simp [h s hs]
 
-private theorem findNoteForgery_eq_some [DecidableEq Nullifier] [DecidableEq Context]
+/-- If `findNoteForgery reqs = some tok`, then `tok` is the payload/signature pair of some spend
+in `reqs` whose input note never appeared among the output notes in `reqs`. -/
+theorem findNoteForgery_eq_some [DecidableEq Nullifier] [DecidableEq Context]
     {reqs : List (Request Nullifier Context Opening Commitment Sig)}
     {tok : Token (Credit.Note Nullifier Context) Opening Sig}
     (h : findNoteForgery reqs = some tok) :

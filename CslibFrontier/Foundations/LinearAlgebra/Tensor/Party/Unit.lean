@@ -149,13 +149,9 @@ theorem antisymmRel_push_unit_congr {L : Type} [Fintype L] [DecidableEq L] (π :
       (_ : Set.range π' = S),
       AntisymmRel (· ≤ ·) (push π' (unit K L n)) (push (fun q : S => (q : I)) (unit K S n)) := by
     intro L _ _ π' S hS
-    let ρ : L → S := fun l => ⟨π' l, by
-      have : π' l ∈ (S : Set I) := hS ▸ Set.mem_range_self l
-      exact this⟩
-    have hρ : ρ.Surjective := by
-      rintro ⟨q, hq⟩
-      have : q ∈ Set.range π' := hS ▸ (show q ∈ (S : Set I) from hq)
-      obtain ⟨l, hl⟩ := this
+    let ρ : L → S := fun l => ⟨π' l, Finset.mem_coe.1 (hS ▸ Set.mem_range_self l)⟩
+    have hρ : ρ.Surjective := fun ⟨q, hq⟩ => by
+      obtain ⟨l, hl⟩ : q ∈ Set.range π' := hS ▸ Finset.mem_coe.2 hq
       exact ⟨l, Subtype.ext hl⟩
     exact ((antisymmRel_push_push (fun q : S => (q : I)) ρ (unit K L n)).symm.trans
       ((antisymmRel_push_unit ρ hρ n).image (monotone_push _)))
@@ -168,13 +164,9 @@ theorem push_const_le_one (q : I) (t : PartyTensor K J) : push (fun _ => q) t �
   refine le_of_map (fun p a => if h : q = p then t.entry fun j => a ⟨j, h⟩ else 1)
     (fun _ _ => ()) fun x => ?_
   have key : ∀ f : ∀ p, ∀ j : {j : J // q = p}, t.Index j.1, t.entry (fun j => f q ⟨j, rfl⟩) =
-      ∏ p, if h : q = p then t.entry fun j => f p ⟨j, h⟩ else 1 := by
-    intro f
-    rw [Finset.prod_eq_single q]
-    · simp
-    · intro p _ hp
-      rw [dite_eq_right fun h => hp h.symm]
-    · simp
+      ∏ p, if h : q = p then t.entry fun j => f p ⟨j, h⟩ else 1 := fun f => by
+    rw [Finset.prod_eq_single q (fun p _ hp => dite_eq_right fun h => hp h.symm) (by simp)]
+    simp
   exact (key x).trans (_root_.mul_one _).symm
 
 /-! ### Wires -/
@@ -188,9 +180,7 @@ theorem antisymmRel_wire_comm (n : ℕ) (p q : I) :
 
 /-- A wire with both ends at one party is a restriction of `1`. -/
 theorem wire_self_le_one (n : ℕ) (p : I) : wire K n p p ≤ 1 := by
-  have : (![p, p] : Fin 2 → I) = fun _ => p := by
-    funext i; fin_cases i <;> rfl
-  rw [wire, this]
+  rw [wire, Matrix.vec_single_eq_const, Matrix.vecCons_const]
   exact push_const_le_one p _
 
 /-- Two parallel wires are one wire, whose dimension is the product. -/
@@ -217,10 +207,7 @@ private theorem tr_sum {n : ℕ} (x : Fin 2 → Fin n) :
   · intro l _ hl
     by_cases h0 : x 0 = l 0
     · by_cases h1 : l 0 = l 1
-      · refine absurd (funext fun i => ?_) hl
-        fin_cases i
-        · exact h0.symm
-        · exact (h0.trans h1).symm
+      · exact absurd (funext fun i => by fin_cases i <;> simp [h0, h1]) hl
       · simp [Fin.prod_univ_succ, tr, h1]
     · simp [Fin.prod_univ_succ, tr, h0]
   · simp
@@ -269,19 +256,13 @@ theorem push_le_mul_push (π π' : J → I) (t : PartyTensor K J) :
       · rw [Finset.sum_eq_single (fun _ => x)]
         · simp
         · intro y _ hy
-          have : ∃ j, ¬ x j = y () j := by
-            by_contra hcon
-            push Not at hcon
-            exact hy (funext fun _ => funext fun j => (hcon j).symm)
-          obtain ⟨j, hj⟩ := this
+          obtain ⟨j, hj⟩ : ∃ j, ¬ x j = y () j :=
+            not_forall.1 fun hcon => hy (funext fun _ => funext fun j => (hcon j).symm)
           rw [Finset.prod_eq_zero (Finset.mem_univ (Sum.inr j)) (ite_eq_right hj), zero_mul]
         · simp
       · intro l _ hl
-        have : ∃ j, ¬ x j = l j := by
-          by_contra hcon
-          push Not at hcon
-          exact hl (funext fun j => (hcon j).symm)
-        obtain ⟨j, hj⟩ := this
+        obtain ⟨j, hj⟩ : ∃ j, ¬ x j = l j :=
+          not_forall.1 fun hcon => hl (funext fun j => (hcon j).symm)
         refine Finset.sum_eq_zero fun y _ => ?_
         rw [Finset.prod_eq_zero (Finset.mem_univ (Sum.inl j)) (ite_eq_right hj), zero_mul]
       · simp)

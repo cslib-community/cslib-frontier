@@ -103,13 +103,10 @@ private theorem subsetBagStep_eval (bp bl : ℕ) (st : SubScanState) (t : Memory
     (Memory.spec 0).clientState t (subsetBagStep ((bp, bl), st)) = t ∧
     (Memory.spec 0).clientResult t (subsetBagStep ((bp, bl), st)) =
       ⟨st.cur + 1, if mem = 1 then st.found else 0⟩ := by
-  have hr_st (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
-  have hr_res (x : ℕ) : (Memory.spec 0).clientResult t (Memory.read x) = t.mem x := rfl
   unfold subsetBagStep
   dsimp only
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hr_st, hr_res,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    bagMemProg_state]
+  rw [clientState_bind_read, clientResult_bind_read, StateTransitionSpec.clientState_bind,
+    StateTransitionSpec.clientResult_bind, bagMemProg_state]
   exact ⟨rfl, rfl⟩
 
 /-- `subsetBagProg` is read-only and leaves memory unchanged. -/
@@ -145,27 +142,19 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
         ys.length * stepCost by
     have hrun := this scopeL args.scopePtr 1 hscope (.inr rfl)
     rw [hscope_len] at hrun
-    have hsub_iff : (∀ u ∈ scopeL, u ∈ bagL) ↔ scopeL.toFinset ⊆ bagL.toFinset := by
-      simp [Finset.subset_iff]
-    refine ⟨?_, subsetBagProg_state args s, ?_, ?_⟩
-    · unfold subsetBagProg
-      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
-    · unfold subsetBagProg
-      rw [StateTransitionSpec.clientResult_bind, hrun.2.1]
-      exact if_congr (by simp [hsub_iff]) rfl rfl
-    · unfold subsetBagProg
-      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    unfold subsetBagProg
+    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _), subsetBagProg_state args s,
+      ?_, ?_⟩
+    · rw [StateTransitionSpec.clientResult_bind, hrun.2.1]
+      exact if_congr (by simp [Finset.subset_iff]) rfl rfl
+    · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
       exact hrun.2.2
   intro ys
   induction ys with
   | nil =>
     intro cur ok _ hok
-    have h0 : iterate subsetBagStep (args.bagPtr, args.bagLen) 0 ⟨cur, ok⟩ = pure ⟨cur, ok⟩ := rfl
-    have hr : (Memory.spec 0).clientResult s (pure (⟨cur, ok⟩ : SubScanState)) = ⟨cur, ok⟩ := rfl
-    rw [List.length_nil, h0]
-    refine ⟨validHistory_pure w s _, ?_, by simp [memoryCost_pure]⟩
-    rw [hr]
-    rcases hok with rfl | rfl <;> simp
+    refine ⟨validHistory_pure w s _, ?_, by simp [iterate, memoryCost_pure]⟩
+    rcases hok with rfl | rfl <;> rfl
   | cons u rest ih =>
     intro cur ok hcur hok
     rw [HoldsIn.cons_iff] at hcur
@@ -175,11 +164,7 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
       bagMemProg_spec (w := w) ⟨u, args.bagPtr, args.bagLen⟩ hbag hbag_len
     dsimp only at hr_bm hc_bm
     let ok' := if (if memBag u bagL then 1 else 0) = 1 then ok else 0
-    have hok' : ok' = 0 ∨ ok' = 1 := by
-      dsimp only [ok']
-      by_cases hm : (if memBag u bagL then 1 else 0) = 1
-      · rw [ite_eq_left hm]; exact hok
-      · rw [ite_eq_right hm]; exact .inl rfl
+    have hok' : ok' = 0 ∨ ok' = 1 := by dsimp only [ok']; split_ifs <;> omega
     obtain ⟨hst_step, hres_step⟩ := subsetBagStep_eval args.bagPtr args.bagLen ⟨cur, ok⟩ s
     have hres_step' :
         (Memory.spec 0).clientResult s
@@ -196,11 +181,9 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
       exact validHistory_bind_step hv_bm (validHistory_pure w _ _)
     have hc_step :
         memoryCost (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩)) s ≤ stepCost := by
-      have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
-      have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
       unfold subsetBagStep
       dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r, hmem_u,
+      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_u,
         memoryCost_bind', hst_bm, memoryCost_pure]
       dsimp only [stepCost]
       omega
@@ -219,9 +202,8 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
       rcases hok with rfl | rfl
       · simp
       · by_cases hu : u ∈ bagL <;> simp [hu]
-    · rw [memoryCost_bind', hst_step, hres_step']
-      calc _ ≤ stepCost + rest.length * stepCost := Nat.add_le_add hc_step hc_rem
-        _ = (rest.length + 1) * stepCost := by rw [Nat.succ_mul, Nat.add_comm]
+    · rw [memoryCost_bind', hst_step, hres_step', Nat.succ_mul, Nat.add_comm _ stepCost]
+      exact Nat.add_le_add hc_step hc_rem
 
 /-- Exact-basis Word-RAM realization certificate for `subsetBagProg`. -/
 theorem subsetBagProg_realizes :
@@ -287,19 +269,32 @@ private theorem eraseCopyStep_eval (target : ℕ) (st : EraseState) (t : Memory.
       (if st.skipped = 0 ∧ x = target then ⟨st.srcCur + 1, st.dstCur, 1⟩
        else ⟨st.srcCur + 1, st.dstCur + 1, st.skipped⟩) ∧
     memoryCost (eraseCopyStep (target, st)) t ≤ 2 := by
-  have hr_st : (Memory.spec 0).clientState t (Memory.read st.srcCur) = t := rfl
-  have hr_res : (Memory.spec 0).clientResult t (Memory.read st.srcCur) = t.mem st.srcCur := rfl
   unfold eraseCopyStep
   dsimp only
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    memoryCost_bind', memoryCost_read, hr_st, hr_res]
-  by_cases hc : st.skipped = 0 ∧ t.mem st.srcCur = target
-  · rw [ite_eq_left hc, ite_eq_left hc, ite_eq_left hc, memoryCost_pure]
-    exact ⟨rfl, rfl, by omega⟩
-  · rw [ite_eq_right hc, ite_eq_right hc, ite_eq_right hc,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-      memoryCost_bind', memoryCost_write, memoryCost_pure]
-    exact ⟨rfl, rfl, by omega⟩
+  rw [clientState_bind_read, clientResult_bind_read, memoryCost_bind', memoryCost_read,
+    clientState_read, clientResult_read]
+  split_ifs
+  · exact ⟨rfl, rfl, by rw [memoryCost_pure]; omega⟩
+  · rw [memoryCost_bind', memoryCost_write, memoryCost_pure]
+    exact ⟨rfl, rfl, le_rfl⟩
+
+private theorem eraseCopyStep_valid {w target : ℕ} {st : EraseState} {t : Memory.State}
+    (hsrc : st.srcCur < t.frontier) (hfit : Fits w (t.mem st.srcCur))
+    (hdst : ¬(st.skipped = 0 ∧ t.mem st.srcCur = target) → st.dstCur < t.frontier) :
+    (Memory.spec w).ValidHistory t
+      ((Memory.spec w).clientHistory t (eraseCopyStep (target, st))) := by
+  unfold eraseCopyStep
+  dsimp only
+  refine validHistory_read_bind hsrc ?_
+  split_ifs with hc
+  · exact validHistory_pure w t _
+  · exact validHistory_write_bind (hdst hc) hfit (validHistory_pure w _ _)
+
+private theorem sub_memBag_eq_length_erase {xs : List ℕ} {n target : ℕ} (hlen : xs.length = n) :
+    n - (if memBag target xs then 1 else 0) = (xs.erase target).length := by
+  subst hlen
+  rw [memBag_eq_decide, List.length_erase]
+  by_cases hm : target ∈ xs <;> simp [hm]
 
 /-- Allocate and copy a materialized bag with the first occurrence of `args.target` erased. -/
 def eraseBagProg (args : BagScanArgs) : Memory.Prog (ℕ × ℕ) := do
@@ -324,14 +319,7 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
     HoldsIn s.frontier (xs.erase args.target) s₁ ∧
     memoryCost (eraseBagProg args) s ≤ 3 * args.len + 1 := by
   obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ := bagMemProg_spec (w := w) args hxs hlen
-  have hlen_er :
-      args.len - (if memBag args.target xs then 1 else 0) =
-        (xs.erase args.target).length := by
-    rw [memBag_eq_decide]
-    by_cases hm : args.target ∈ xs
-    · simp only [hm, decide_true, ↓reduceIte, ← hlen]
-      exact (List.length_erase_of_mem hm).symm
-    · simp [hm, List.erase_of_not_mem hm, hlen]
+  have hlen_er := sub_memBag_eq_length_erase (target := args.target) hlen
   let bagLen := (xs.erase args.target).length
   let bagPtr := s.frontier
   let s_a := (Memory.spec 0).clientState s (Memory.allocDirty bagLen)
@@ -366,31 +354,25 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
       (by simp)
     simp only [List.length_nil, Nat.add_zero, hlen] at hrun
     obtain ⟨hv_loop, ⟨hfr_end, hp_end, hbag_end⟩, hc_loop⟩ := hrun
-    unfold eraseBagProg
-    dsimp only
     have ha_st : (Memory.spec 0).clientState s (Memory.allocDirty bagLen) = s_a := rfl
     have ha_res : (Memory.spec 0).clientResult s (Memory.allocDirty bagLen) = bagPtr := rfl
-    refine ⟨validHistory_bind_step hv_bm ?_, ?_, ?_, ?_, ?_, ?_⟩
+    have hstate : (Memory.spec 0).clientState s (eraseBagProg args) =
+        (Memory.spec 0).clientState s_a
+          (iterate eraseCopyStep args.target args.len ⟨args.base, bagPtr, 0⟩) := by
+      simp only [eraseBagProg]
+      rw [StateTransitionSpec.clientState_bind, hst_bm, hr_bm, hlen_er,
+        StateTransitionSpec.clientState_bind, ha_st, ha_res, StateTransitionSpec.clientState_bind]
+      rfl
+    dsimp only
+    rw [hstate]
+    simp only [eraseBagProg]
+    refine ⟨validHistory_bind_step hv_bm ?_, ?_, hfr_end, hp_end, hbag_end, ?_⟩
     · rw [hst_bm, hr_bm, hlen_er]
-      refine validHistory_bind_step hv_a ?_
-      rw [ha_st, ha_res]
-      exact validHistory_bind_step hv_loop (validHistory_pure w _ _)
+      exact validHistory_bind_step hv_a (validHistory_bind_step hv_loop (validHistory_pure w _ _))
     · rw [StateTransitionSpec.clientResult_bind, hst_bm, hr_bm, hlen_er,
         StateTransitionSpec.clientResult_bind, ha_st, ha_res,
         StateTransitionSpec.clientResult_bind]
       rfl
-    · rw [StateTransitionSpec.clientState_bind, hst_bm, hr_bm, hlen_er,
-        StateTransitionSpec.clientState_bind, ha_st, ha_res,
-        StateTransitionSpec.clientState_bind]
-      exact hfr_end
-    · rw [StateTransitionSpec.clientState_bind, hst_bm, hr_bm, hlen_er,
-        StateTransitionSpec.clientState_bind, ha_st, ha_res,
-        StateTransitionSpec.clientState_bind]
-      exact hp_end
-    · rw [StateTransitionSpec.clientState_bind, hst_bm, hr_bm, hlen_er,
-        StateTransitionSpec.clientState_bind, ha_st, ha_res,
-        StateTransitionSpec.clientState_bind]
-      exact hbag_end
     · rw [memoryCost_bind', hst_bm, hr_bm, hlen_er,
         memoryCost_bind', memoryCost_allocDirty, ha_st, ha_res,
         memoryCost_bind', memoryCost_pure, Nat.add_zero]
@@ -412,7 +394,7 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
     rw [HoldsIn.cons_iff] at hys
     obtain ⟨_, hmem_x, hrest⟩ := hys
     have hsrc_lt : srcCur < t.frontier := by simp only [List.length_cons] at hsrc_end; omega
-    have hx_fit : Fits w x := hfit_ys x List.mem_cons_self
+    have hx_fit : Fits w (t.mem srcCur) := hmem_x ▸ hfit_ys x List.mem_cons_self
     have hfit_rest : ∀ u ∈ rest, Fits w u := fun u hu => hfit_ys u (List.mem_cons_of_mem _ hu)
     simp only [List.length_cons] at hsrc_end ⊢
     have hiter_eq : iterate eraseCopyStep args.target (rest.length + 1)
@@ -426,14 +408,8 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
     by_cases hskip_cond : skipped = 0 ∧ x = args.target
     · rw [ite_eq_left hskip_cond] at hst_ev hres_ev
       obtain ⟨rfl, rfl⟩ := hskip_cond
-      have hv_step : (Memory.spec w).ValidHistory t
-          ((Memory.spec w).clientHistory t
-            (eraseCopyStep (args.target, ⟨srcCur, bagPtr + written.length, 0⟩))) := by
-        unfold eraseCopyStep
-        dsimp only
-        refine validHistory_read_bind hsrc_lt ?_
-        rw [hmem_x, ite_eq_left ⟨rfl, rfl⟩]
-        exact validHistory_pure w t _
+      have hv_step := eraseCopyStep_valid (target := args.target)
+        (st := ⟨srcCur, bagPtr + written.length, 0⟩) hsrc_lt hx_fit fun h => (h ⟨rfl, hmem_x⟩).elim
       have hconcat' : written ++ (if (1 : ℕ) = 1 then rest else rest.erase args.target) =
           xs.erase args.target := by
         simpa [List.erase_cons] using hconcat
@@ -467,14 +443,8 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
             ⟨srcCur + 1, bagPtr + (written ++ [x]).length, skipped⟩ := by
         rw [hres_ev]
         simp [Nat.add_assoc]
-      have hv_step : (Memory.spec w).ValidHistory t
-          ((Memory.spec w).clientHistory t
-            (eraseCopyStep (args.target, ⟨srcCur, bagPtr + written.length, skipped⟩))) := by
-        unfold eraseCopyStep
-        dsimp only
-        refine validHistory_read_bind hsrc_lt ?_
-        rw [hmem_x, ite_eq_right hskip_cond]
-        exact validHistory_write_bind hdst_lt hx_fit (validHistory_pure w t₁ _)
+      have hv_step := eraseCopyStep_valid (target := args.target)
+        (st := ⟨srcCur, bagPtr + written.length, skipped⟩) hsrc_lt hx_fit fun _ => hdst_lt
       have hp₁ : PreservesBelow bagPtr t t₁ :=
         preservesBelow_write (Nat.le_add_right _ _) hdst_lt
       have hrest₁ : HoldsIn (srcCur + 1) rest t₁ :=
@@ -523,21 +493,12 @@ theorem eraseBagProg_realizes :
     · simp [hm]
   · obtain ⟨h1, xs, hxs, hlen, hbase_le, hfit_elems, hfit_fr⟩ := h
     obtain ⟨_, hst_bm, hr_bm, _⟩ := bagMemProg_spec (w := w) d hxs hlen
-    rw [hst_bm, hr_bm]
-    have hlen_er :
-        d.len - (if memBag d.target xs then 1 else 0) =
-          (xs.erase d.target).length := by
-      rw [memBag_eq_decide]
-      by_cases hm : d.target ∈ xs
-      · simp only [hm, decide_true, ↓reduceIte, ← hlen]
-        exact (List.length_erase_of_mem hm).symm
-      · simp [hm, List.erase_of_not_mem hm, hlen]
+    rw [hst_bm, hr_bm, sub_memBag_eq_length_erase hlen]
     let bagLen := (xs.erase d.target).length
     have hbagLen_le : bagLen ≤ d.len := by
       dsimp only [bagLen]; rw [← hlen]; exact List.length_erase_le
     let s_a : Memory.State := { mem := s.mem, frontier := s.frontier + bagLen }
     have hp_a : PreservesBelow s.frontier s s_a := ⟨le_rfl, Nat.le_add_right _ _, fun _ _ => rfl⟩
-    rw [hlen_er]
     refine iterationSafe_of_stepInv _ _ w _
       (fun (j : ℕ) (st : EraseState) (t : Memory.State) =>
         j ≤ d.len ∧

@@ -72,10 +72,7 @@ private theorem searchBelow_bounds (n μ : ℕ) (hμ : μ ≤ 2 ^ n) (j : ℕ) (
   | zero => simp [searchBelow, hμ]
   | succ j ih =>
     obtain ⟨hz, hlo⟩ := ih (by omega)
-    have hp : 2 ^ (n - j) = 2 ^ (n - j - 1) * 2 := by
-      rw [← Nat.pow_succ]
-      congr 1
-      omega
+    have hp : 2 ^ (n - j) = 2 ^ (n - j - 1) * 2 := by rw [← Nat.pow_succ]; congr 1; omega
     refine ⟨fun h => ?_, fun h => ?_⟩
     · subst h
       simpa only [searchBelow, Nat.not_lt_zero, ite_false] using hz rfl
@@ -88,8 +85,7 @@ private theorem searchBelow_lt (n μ j : ℕ) (hμ : μ < 2 ^ n) (hj : j ≤ n) 
     searchBelow n μ j < 2 ^ n := by
   obtain ⟨hz, hp⟩ := searchBelow_bounds n μ hμ.le j hj
   rcases Nat.eq_zero_or_pos μ with h | h
-  · rw [hz h]
-    positivity
+  · rw [hz h]; positivity
   · exact (hp h).1.trans hμ
 
 /-- **Binary search.** One more than the last candidate below `μ`, or zero, is `μ`. -/
@@ -174,8 +170,7 @@ theorem synthesis_threshold {a : ℕ} (s : Set (BooleanFunction a)) (μ : BitStr
     have h1 : (1 : BitVec (n + 2)).toNat = 1 := by grind
     have h0 : (0 : BitVec (n + 2)).toNat = 0 := rfl
     by_cases hz : μ x = 0
-    · rw [ite_eq_left (by rw [h0, hz]; rfl), hz]
-      rfl
+    · rw [ite_eq_left (by rw [h0, hz]; rfl), hz]; rfl
     · rw [ite_eq_right hz] at hs
       apply BitVec.eq_of_toNat_eq
       rw [ite_eq_right (by rw [h0, decide_eq_true_iff]; omega), BitVec.toNat_add,
@@ -228,8 +223,7 @@ theorem depth_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (hLN : 
   refine ⟨out, fun x => by rw [hout x, BitString.equivBitVec_getLsbD], hs.trans ?_⟩
   have hC : C + 16 * (n + 3) ≤ (n + 2) * (40000 * powerBudget n c.size (2 ^ n) L + 4 * n) +
       (40000 * powerBudget n c.size (2 ^ n) L + (6 * n + 1)) + 16 * (n + 3) := by
-    simp only [C]
-    omega
+    simp only [C]; omega
   have := Nat.mul_le_mul_left (n + 1) hC
   unfold depthBudget
   omega
@@ -246,8 +240,7 @@ private theorem depthBudget_le (n s L : ℕ) :
     nlinarith [Nat.zero_le (n ^ 3)]
   have hsmall' := Nat.mul_le_mul_left (n + 1) hsmall
   have hB : (n + 1) * ((n + 1) ^ 3) ≤ (n + 1) ^ 2 * B := by
-    have := Nat.mul_le_mul_left ((n + 1) ^ 2) hb
-    nlinarith
+    nlinarith [Nat.mul_le_mul_left ((n + 1) ^ 2) hb]
   unfold depthBudget
   nlinarith [Nat.zero_le ((n + 1) ^ 2 * B), Nat.zero_le (n * B)]
 

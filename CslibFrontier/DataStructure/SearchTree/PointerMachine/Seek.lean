@@ -162,17 +162,14 @@ private theorem loop (t : BinaryTree (Label M extra))
           rfl (by simp [y, next, State.setPtr, nil])
       have first : Runs (seek lt) x y 6 := by
         simpa [record, cursor, root, y] using left_steps lt compare x _ pc nil addr read less
-      refine ⟨ds, f, v, 6 + n, ?_, ?_, whole, ?_, ?_, ?_⟩
-      · have b : n ≤ 7 * searchVisits (x.data 0) (keys l) + 1 := by
-          simpa [y, next] using bound
-        simp only [keys, BinaryTree.map, searchVisits, less, ↓reduceIte]
-        change 6 + n ≤ 7 * (1 + searchVisits (x.data 0) (keys l)) + 1
-        omega
-      · simpa [record, y, next, State.setPtr, cursor, root,
-          Function.update_comm, Function.update_idem] using first.trans run
-      · simpa [y, next] using sp
-      · simpa [y, next] using stop
-      · simpa [keys, BinaryTree.map, contains, less, y, next] using found
+      refine ⟨ds, f, v, 6 + n, ?_, by simpa [record, y, next, State.setPtr, cursor, root,
+          Function.update_comm, Function.update_idem] using first.trans run, whole,
+        by simpa [y, next] using sp, by simpa [y, next] using stop,
+        by simpa [keys, BinaryTree.map, contains, less, y, next] using found⟩
+      have b : n ≤ 7 * searchVisits (x.data 0) (keys l) + 1 := by simpa [y, next] using bound
+      simp only [keys, BinaryTree.map, searchVisits, less, ↓reduceIte]
+      change 6 + n ≤ 7 * (1 + searchVisits (x.data 0) (keys l)) + 1
+      omega
     · by_cases greater : a.data 0 < x.data 0
       · let y := next x (root r) (some a.address) (a.data 0) 2
         obtain ⟨ds, f, v, n, bound, run, whole, sp, stop, found⟩ :=
@@ -183,17 +180,14 @@ private theorem loop (t : BinaryTree (Label M extra))
         have first : Runs (seek lt) x y 7 := by
           simpa [record, cursor, root, y] using
             right_steps lt compare x _ pc nil addr read less greater
-        refine ⟨ds, f, v, 7 + n, ?_, ?_, whole, ?_, ?_, ?_⟩
-        · have b : n ≤ 7 * searchVisits (x.data 0) (keys r) + 1 := by
-            simpa [y, next] using bound
-          simp only [keys, BinaryTree.map, searchVisits, less, greater, ↓reduceIte]
-          change 7 + n ≤ 7 * (1 + searchVisits (x.data 0) (keys r)) + 1
-          omega
-        · simpa [record, y, next, State.setPtr, cursor, root,
-            Function.update_comm, Function.update_idem] using first.trans run
-        · simpa [y, next] using sp
-        · simpa [y, next] using stop
-        · simpa [keys, BinaryTree.map, contains, less, greater, y, next] using found
+        refine ⟨ds, f, v, 7 + n, ?_, by simpa [record, y, next, State.setPtr, cursor, root,
+            Function.update_comm, Function.update_idem] using first.trans run, whole,
+          by simpa [y, next] using sp, by simpa [y, next] using stop,
+          by simpa [keys, BinaryTree.map, contains, less, greater, y, next] using found⟩
+        have b : n ≤ 7 * searchVisits (x.data 0) (keys r) + 1 := by simpa [y, next] using bound
+        simp only [keys, BinaryTree.map, searchVisits, less, greater, ↓reduceIte]
+        change 7 + n ≤ 7 * (1 + searchVisits (x.data 0) (keys r)) + 1
+        omega
       · have equal : x.data 0 = a.data 0 := le_antisymm (le_of_not_gt greater) (le_of_not_gt less)
         refine ⟨cs, .node a l r, a.data 0, 4, ?_, ?_, rfl, path, equal.symm, ?_⟩
         · simp [keys, BinaryTree.map, searchVisits, less, greater]
@@ -249,15 +243,12 @@ theorem seek_correct (x : State M (layout extra regs))
     · simp [step, seek, pc, Instr.effect, Instr.next]
     · simp [step, seek, start, Instr.effect, Instr.next, State.setPtr]
   · cases focus <;> simp [finish, next, seek, root]
-  · have b : n ≤ 7 * searchVisits (x.data 0) (keys t) + 1 := bound
-    omega
+  · have b : n ≤ 7 * searchVisits (x.data 0) (keys t) + 1 := bound; omega
   · have reps := (represents_plug_iff x.heap cs focus).mp (whole ▸ rep)
-    refine ⟨rfl, ?_, ?_, ?_, ?_, whole, reps.1, reps.2, path, ?_, ?_⟩
-    · intro i hi; simp [finish, next, start, hi, State.setPtr]
-    · intro i h0 h2 h5; simp [finish, next, start, h0, h2, h5, State.setPtr]
-    · simp [finish, next, State.setPtr]
-    · simp [finish, next, State.setPtr]
-    · cases focus <;> exact stop
-    · simpa [finish, next, start, State.setPtr] using found
+    refine ⟨rfl, fun i hi => by simp [finish, next, start, hi, State.setPtr],
+      fun i h0 h2 h5 => by simp [finish, next, start, h0, h2, h5, State.setPtr],
+      by simp [finish, next, State.setPtr], by simp [finish, next, State.setPtr], whole, reps.1,
+      reps.2, path, by cases focus <;> exact stop,
+      by simpa [finish, next, start, State.setPtr] using found⟩
 
 end Cslib.DataStructure.SearchTree.PointerMachine

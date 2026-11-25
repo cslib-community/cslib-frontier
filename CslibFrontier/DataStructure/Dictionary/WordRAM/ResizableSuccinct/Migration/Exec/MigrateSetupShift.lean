@@ -159,9 +159,7 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
   have hs₉_keep8 : ∀ reg, reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize)) →
       s₉.regs reg = s₈.regs reg := fun _ hreg => growZeroPost_regs_of_not_mem hreg
   set s₁₀ := s₉.set mFr peakF
-  have hs₉_pf : s₉.regs mPeakFront = peakF :=
-    (hs₉_keep8 mPeakFront
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_pf
+  have hs₉_pf : s₉.regs mPeakFront = peakF := (hs₉_keep8 mPeakFront (by simp)).trans hs₈_pf
   have hex_fr10 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
     (d := mFr) (s := mPeakFront) (x := s₉) hs₉f_eq.le
   rw [hs₉_pf] at hex_fr10
@@ -172,18 +170,14 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
   let oldItemDst := arenaB + (arenaW - iwOld)
   have hdst_end : oldItemDst + iwOld = arenaB + arenaW := by
     dsimp only [oldItemDst]; rw [Nat.add_assoc, Nat.sub_add_cancel hiwo_le_aw]
-  have hs₁₀_nm : s₁₀.regs mNewMeta = newMeta :=
-    (by simp [s₁₀, RData.set] : s₁₀.regs mNewMeta = s₉.regs mNewMeta).trans <|
-    (hs₉_keep8 mNewMeta
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_nm
+  have hs₁₀_keep : ∀ reg, reg ≠ mFr →
+      reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize)) →
+      s₁₀.regs reg = s₈.regs reg := fun reg h1 h =>
+    (Function.update_of_ne h1 _ _).trans (hs₉_keep8 reg h)
+  have hs₁₀_nm : s₁₀.regs mNewMeta = newMeta := (hs₁₀_keep _ (by simp) (by simp)).trans hs₈_nm
   have hs₁₀_oid : s₁₀.regs mOldItemDst = oldItemDst :=
-    (by simp [s₁₀, RData.set] : s₁₀.regs mOldItemDst = s₉.regs mOldItemDst).trans <|
-    (hs₉_keep8 mOldItemDst
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_oid
-  have hs₁₀_iwo : s₁₀.regs mIwOld = iwOld :=
-    (by simp [s₁₀, RData.set] : s₁₀.regs mIwOld = s₉.regs mIwOld).trans <|
-    (hs₉_keep8 mIwOld
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_iwo
+    (hs₁₀_keep _ (by simp) (by simp)).trans hs₈_oid
+  have hs₁₀_iwo : s₁₀.regs mIwOld = iwOld := (hs₁₀_keep _ (by simp) (by simp)).trans hs₈_iwo
   have hin_cr : s₁₀.regs ∘ srcCopyRight = WordEncoding.encode ((newMeta, oldItemDst), iwOld) :=
     (regs_pairSrc (regs_pairSrc (regs_reg1_eq mNewMeta hs₁₀_nm)
       (regs_reg1_eq mOldItemDst hs₁₀_oid)) (regs_reg1_eq mIwOld hs₁₀_iwo)).eq
@@ -217,31 +211,18 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
   have hfit_dst2 : Fits w (newMeta + offNew) := hfit_ar.of_le (Nat.le_add_right _ _)
   have hs₁₂b : s₁₂.Bounded w := hs₁₁b.set (hfit_dst2.of_le (Nat.le_add_right _ _))
   have hms₁₂ : memoryState mFr s₁₂.toData = ⟨s₁₁.mem, peakF⟩ :=
-    Memory.State.ext rfl (by
-      dsimp only [memoryState, s₁₂, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpA)]
-      exact hs₁₁_fr_reg)
+    Memory.State.ext rfl (by simp [memoryState, s₁₂, RData.set, RData.toData, hs₁₁_fr_reg])
   have hkeep_8_to_12 : ∀ reg : Fin rResize, reg.val < 160 →
       reg ∉ ([mFr, mTmpA, mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize)) →
       s₁₂.regs reg = s₈.regs reg := fun reg h160 hnot => by
     simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
     obtain ⟨hfr', hta, hres, hcur, hidx, hz, ho⟩ := hnot
-    calc s₁₂.regs reg
-        = s₁₁.regs reg := by simp [s₁₂, RData.set, Function.update_of_ne hta]
-      _ = s₁₀.regs reg := hs₁₁_keep10 reg hfr' h160
-      _ = s₉.regs reg := by simp [s₁₀, RData.set, Function.update_of_ne hfr']
-      _ = s₈.regs reg := hs₉_keep8 reg (by
-            simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-            exact ⟨hres, hcur, hidx, hz, ho⟩)
+    rw [← hs₁₀_keep reg hfr' (by simp [hres, hcur, hidx, hz, ho]), ← hs₁₁_keep10 reg hfr' h160]
+    exact Function.update_of_ne hta _ _
   have hs₁₂_base : s₁₂.regs mBase = base :=
-    (hkeep_8_to_12 mBase (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_base
-  have hs₁₂_cnt : s₁₂.regs mCnt = n :=
-    (hkeep_8_to_12 mCnt (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_cnt
-  have hs₁₂_nn : s₁₂.regs mNNew = N_new :=
-    (hkeep_8_to_12 mNNew (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_nn
+    (hkeep_8_to_12 _ (mReg_lt_160 _) (by simp)).trans hs₈_base
+  have hs₁₂_cnt : s₁₂.regs mCnt = n := (hkeep_8_to_12 _ (mReg_lt_160 _) (by simp)).trans hs₈_cnt
+  have hs₁₂_nn : s₁₂.regs mNNew = N_new := (hkeep_8_to_12 _ (mReg_lt_160 _) (by simp)).trans hs₈_nn
   have hin_wp2 : s₁₂.regs ∘ srcWriteParams =
       WordEncoding.encode (((base, newMeta), (N_new, (n, n)))) := by
     refine (regs_pairSrc
@@ -320,25 +301,15 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
       exact hcp_cr j hj
   have hrep_old_y : ReducedKWise.Rep (base + epochHdrWords) w (qBits U N_old) (hashB N_old)
       (totalMicroBits N_old) 3 θ_old y.mem := by
-    have hsp_le : 225 + ReducedKWise.space w (qBits U N_old) (hashB N_old) (totalMicroBits N_old) 3
-        ≤ offCompItems U w N_old := by
-      have hlm : offCompLM U w N_old ≤ offCompItems U w N_old := by
-        unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
-      dsimp only [offCompLM, epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
-        at hlm ⊢
-      exact hlm
-    have heh : epochHdrWords = 225 := rfl
-    exact ⟨ReducedKWise.tableRep_congr hsplit₈.hash_rep.1
-        (fun a h1 h2 =>
-          (hold_meta_eq a ⟨h1, by dsimp only [newMeta]; linarith only [h2, hsp_le, heh]⟩).symm),
-      ReducedKWise.seedRep_congr (w := w) hsplit₈.hash_rep.2
-        (fun a h1 h2 =>
-          have hsw_le :
-              ReducedKWise.seedWords (qBits U N_old) (hashB N_old) (totalMicroBits N_old) 3 ≤
-                ReducedKWise.space w (qBits U N_old) (hashB N_old) (totalMicroBits N_old) 3 :=
-            Nat.le_add_right _ _
-          (hold_meta_eq a
-            ⟨h1, by dsimp only [newMeta]; linarith only [h2, hsw_le, hsp_le, heh]⟩).symm)⟩
+    have hlm : offCompLM U w N_old ≤ offCompItems U w N_old := by
+      unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
+    refine ⟨ReducedKWise.tableRep_congr hsplit₈.hash_rep.1 fun a h₁ h₂ =>
+        (hold_meta_eq a ⟨h₁, ?_⟩).symm,
+      ReducedKWise.seedRep_congr (w := w) hsplit₈.hash_rep.2 fun a h₁ h₂ =>
+        (hold_meta_eq a ⟨h₁, ?_⟩).symm⟩
+    all_goals dsimp only [newMeta, offCompLM, epochHdrWords, epochHashSpace, epochQBits,
+      epochHashB, qBits, hashB] at hlm h₂ ⊢
+    all_goals linarith only [h₂, hlm]
   obtain ⟨s_fix_old, hinv_old, htot_old, hcpl_old⟩ := hsplit₈.coupled
   have hlm_old_ge : epochHdrWords ≤ offCompLM U w N_old := Nat.le_add_right _ _
   obtain ⟨hcpl_old_y, hgm_old_y⟩ := fixedCoupled_of_shift (s₀ := ⟨s₈.mem, s₈.frontier⟩)
@@ -350,15 +321,11 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
       y.regs reg = s₈.regs reg := fun reg h160 hnot => by
     simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
     obtain ⟨hfr', hta, hres, hcur, hidx, hz, ho, hoff, hhs, hhb⟩ := hnot
-    calc y.regs reg
-        = s₁₃.regs reg := by
-            dsimp only [y, s₁₄, RData.set]
-            rw [Function.update_of_ne hhb, Function.update_of_ne hcur]
-      _ = s₁₂.regs reg := hs₁₃_keep12 reg hfr' h160 hoff hhs
-      _ = s₈.regs reg :=
-            hkeep_8_to_12 reg h160 (by
-              simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-              exact ⟨hfr', hta, hres, hcur, hidx, hz, ho⟩)
+    rw [← hkeep_8_to_12 reg h160 (by simp [hfr', hta, hres, hcur, hidx, hz, ho]),
+      ← hs₁₃_keep12 reg hfr' h160 hoff hhs]
+    exact (Function.update_of_ne hhb _ _).trans (Function.update_of_ne hcur _ _)
+  have hky : ∀ reg : Fin rResize, 16 ≤ reg.val ∧ reg.val < 150 → y.regs reg = s₈.regs reg :=
+    fun reg h => hkeep_8_to_y reg (by omega) (by clear * - h; simp [Fin.ext_iff]; omega)
   have hpeak_lin := migratePeakWords_le_linear (V := V) hw hsplit₈.root_hdr.fits_U hV hn hev
   have hiwo_lin := compactedItemWords_le_linear (U := U) (V := V) (w := w) (N := N_old) (n := n)
     hw hU.le hV
@@ -387,15 +354,8 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
     ⟨s_fix_old, hinv_old, (congrArg (totalSlots N_old) hgm_old_y).trans htot_old, hcpl_old_y⟩,
     ?_, ?_, ?_, hs₁₃_nm, ?_, ?_, ?_, ?_, ?_, ?_,
     fun i => ?_, fun i => ?_, fun i => ?_, fun i => ?_⟩
-  · refine abiPreserved_trans habi₈ ⟨?_, ?_, ?_, ?_⟩
-    · exact hkeep_8_to_y mBase (mReg_lt_160 _)
-        (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)
-    · exact hkeep_8_to_y mTag (mReg_lt_160 _)
-        (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)
-    · exact hkeep_8_to_y mArgU (mReg_lt_160 _)
-        (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)
-    · exact hkeep_8_to_y mArgV (mReg_lt_160 _)
-        (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)
+  · exact abiPreserved_trans habi₈ (abiPreserved_of_lt_five fun r h5 hr =>
+      hkeep_8_to_y r (by omega) (by clear * - h5 hr; simp [Fin.ext_iff] at hr ⊢; omega))
   · intro addr haddr
     rw [hym, hs₁₃_mem_eq,
       hframe_wp2 addr (fun h => by dsimp only [newMeta] at h; linarith only [haddr, h.1]),
@@ -404,49 +364,19 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
         dsimp only [newMeta] at hnm_le_oid
         linarith only [haddr, h.1, hnm_le_oid])]
     exact hbelow₈ addr haddr
-  · exact (hkeep_8_to_y mBase (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_base
-  · exact (hkeep_8_to_y mCnt (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_cnt
+  · exact (hkeep_8_to_y mBase (mReg_lt_160 _) (by simp)).trans hs₈_base
+  · exact (hkeep_8_to_y mCnt (mReg_lt_160 _) (by simp)).trans hs₈_cnt
   · simp [y, s₁₄, RData.set, hs₁₃_fr_reg]
   · simp [y, s₁₄, RData.set, hs₁₃_off]
-  · exact (hkeep_8_to_y mIwNew (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_iwn
-  · exact (hkeep_8_to_y mArena (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_ar
-  · exact (hkeep_8_to_y mPeakFront (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_pf
-  · exact (hkeep_8_to_y mOldItemDst (mReg_lt_160 _)
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)).trans hs₈_oid
+  · exact (hkeep_8_to_y mIwNew (mReg_lt_160 _) (by simp)).trans hs₈_iwn
+  · exact (hkeep_8_to_y mArena (mReg_lt_160 _) (by simp)).trans hs₈_ar
+  · exact (hkeep_8_to_y mPeakFront (mReg_lt_160 _) (by simp)).trans hs₈_pf
+  · exact (hkeep_8_to_y mOldItemDst (mReg_lt_160 _) (by simp)).trans hs₈_oid
   · simp [y, RData.set]
-  · refine (hkeep_8_to_y (mOldHp i) (mOldHp_lt_160 i) ?_).trans (hs₈_ohp i)
-    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-    exact ⟨mOldHp_ne_mReg i (Or.inl (by decide)), mOldHp_ne_mReg i (Or.inr (by decide)),
-      mOldHp_ne_mReg i (Or.inl (by decide)), mOldHp_ne_mReg i (Or.inl (by decide)),
-      mOldHp_ne_mReg i (Or.inl (by decide)), mOldHp_ne_mReg i (Or.inl (by decide)),
-      mOldHp_ne_mReg i (Or.inl (by decide)), mOldHp_ne_mReg i (Or.inr (by decide)),
-      mOldHp_ne_mReg i (Or.inr (by decide)), mOldHp_ne_mReg i (Or.inl (by decide))⟩
-  · refine (hkeep_8_to_y (mOldCp i) (mOldCp_lt_160 i) ?_).trans (hs₈_ocp i)
-    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-    exact ⟨mOldCp_ne_mReg i (Or.inl (by decide)), mOldCp_ne_mReg i (Or.inr (by decide)),
-      mOldCp_ne_mReg i (Or.inl (by decide)), mOldCp_ne_mReg i (Or.inl (by decide)),
-      mOldCp_ne_mReg i (Or.inl (by decide)), mOldCp_ne_mReg i (Or.inl (by decide)),
-      mOldCp_ne_mReg i (Or.inl (by decide)), mOldCp_ne_mReg i (Or.inr (by decide)),
-      mOldCp_ne_mReg i (Or.inr (by decide)), mOldCp_ne_mReg i (Or.inl (by decide))⟩
-  · refine (hkeep_8_to_y (mNewHp i) (mNewHp_lt_160 i) ?_).trans (hs₈_nhp i)
-    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-    exact ⟨mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inr (by decide)),
-      mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inl (by decide)),
-      mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inl (by decide)),
-      mNewHp_ne_mReg i (Or.inl (by decide)), mNewHp_ne_mReg i (Or.inr (by decide)),
-      mNewHp_ne_mReg i (Or.inr (by decide)), mNewHp_ne_mReg i (Or.inl (by decide))⟩
-  · refine (hkeep_8_to_y (mNewCp i) (mNewCp_lt_160 i) ?_).trans (hs₈_ncp i)
-    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or]
-    exact ⟨mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inr (by decide)),
-      mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inl (by decide)),
-      mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inl (by decide)),
-      mNewCp_ne_mReg i (Or.inl (by decide)), mNewCp_ne_mReg i (Or.inr (by decide)),
-      mNewCp_ne_mReg i (Or.inr (by decide)), mNewCp_ne_mReg i (Or.inl (by decide))⟩
+  · exact (hky _ (by simp only [val_mOldHp]; omega)).trans (hs₈_ohp i)
+  · exact (hky _ (by simp only [val_mOldCp]; omega)).trans (hs₈_ocp i)
+  · exact (hky _ (by simp only [val_mNewHp]; omega)).trans (hs₈_nhp i)
+  · exact (hky _ (by simp only [val_mNewCp]; omega)).trans (hs₈_ncp i)
 
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

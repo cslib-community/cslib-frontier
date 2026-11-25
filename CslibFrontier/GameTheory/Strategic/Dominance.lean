@@ -395,8 +395,7 @@ theorem IsStrictlyDominantEquilibrium.eq_single_of_isMixedNash [∀ j, Decidable
     have hzero : ∀ b ≠ s i, p i b = 0 := fun b hb =>
       hp.eq_zero_of_isStrictlyDominated ⟨s i, fun t => hs i t b hb⟩
     have hsum := (hp.1 i).sum_eq_one
-    rw [← add_sum_erase _ _ (mem_univ (s i)),
-      sum_eq_zero (fun b hb => hzero b (ne_of_mem_erase hb)), add_zero] at hsum
+    rw [Fintype.sum_eq_single (s i) hzero] at hsum
     simpa only [Pi.single_eq_same] using hsum
   · rw [Pi.single_eq_of_ne ha]
     exact hp.eq_zero_of_isStrictlyDominated ⟨s i, fun t => hs i t a ha⟩
@@ -425,14 +424,10 @@ private noncomputable def liftMixed (A : ∀ i, Set (S i)) (q : ∀ i, A i → �
     ℝ :=
   if ha : a ∈ A i then q i ⟨a, ha⟩ else 0
 
-private theorem coe_update_restrict [DecidableEq ι] {A : ∀ i, Set (S i)} (s : ∀ i, A i) (i : ι)
-    (a : A i) :
-    (fun j => ((update s i a j : A j) : S j)) = update (fun j => (s j : S j)) i a.1 := by
-  funext j
-  by_cases hj : j = i
-  · subst hj
-    simp only [update_self]
-  · simp only [update_of_ne hj]
+private theorem restrict_cost_update [DecidableEq ι] (G : CostGame ι S) {A : ∀ i, Set (S i)}
+    (s : ∀ i, A i) (i : ι) (a : A i) :
+    (G.restrict A).cost i (update s i a) = G.cost i (update (fun j => (s j : S j)) i a.1) :=
+  congrArg (G.cost i) (funext (apply_update (fun j => ((↑) : A j → S j)) s i a))
 
 section PureRestriction
 
@@ -451,18 +446,15 @@ theorem isPureNash_iff_restrict
       obtain ⟨b, -, hb⟩ := hA i (s i) hni
       exact hs.not_isStrictlyDominated i ⟨b, hb⟩
     refine ⟨hmem, fun i a => ?_⟩
-    dsimp only [restrict]
-    rw [coe_update_restrict]
+    rw [restrict_cost_update]
     exact hs i a.1
   · rintro ⟨hmem, hs⟩ i a
     by_cases ha : a ∈ A i
     · have h := hs i ⟨a, ha⟩
-      dsimp only [restrict] at h
-      rwa [coe_update_restrict] at h
+      rwa [restrict_cost_update] at h
     · obtain ⟨b, hbA, hb⟩ := hA i a ha
       have h := hs i ⟨b, hbA⟩
-      dsimp only [restrict] at h
-      rw [coe_update_restrict] at h
+      rw [restrict_cost_update] at h
       exact h.trans (hb s).le
 
 end PureRestriction
@@ -561,9 +553,7 @@ private theorem deviationCost_restrict_eq [∀ i, Fintype (A i)] (q : ∀ i, A i
     (a : A i) :
     (G.restrict A).deviationCost q i a = G.deviationCost (liftMixed A q) i a.1 := by
   rw [deviationCost_def, deviationCost_def, sum_productWeight_liftMixed_mul]
-  refine sum_congr rfl fun s _ => ?_
-  dsimp only [restrict]
-  rw [coe_update_restrict]
+  exact sum_congr rfl fun s _ => by rw [restrict_cost_update]
 
 omit [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] in
 private theorem liftMixed_restrict_eq_self {p : ∀ i, S i → ℝ}
@@ -688,10 +678,8 @@ theorem idowdsSeq_subset_of_le {m n : ℕ} (hmn : m ≤ n) (i : ι) :
   | step _ ih => exact fun a ha => ih ha.1
 
 theorem idowdsStep_idowdsSeq (k : ℕ) :
-    G.IDoWDSStep (G.idowdsSeq k) (G.idowdsSeq (k + 1)) := by
-  refine ⟨fun i a ha => ha.1, fun i a ha hnot => ?_⟩
-  by_contra hnd
-  exact hnot ⟨ha, hnd⟩
+    G.IDoWDSStep (G.idowdsSeq k) (G.idowdsSeq (k + 1)) :=
+  ⟨fun _ _ ha => ha.1, fun _ _ ha hnot => not_not.1 fun hnd => hnot ⟨ha, hnd⟩⟩
 
 /-- Every stage of the simultaneous `idowdsSeq` sequence is reachable by relational `IDoWDS`. -/
 theorem idowds_idowdsSeq (k : ℕ) :
@@ -736,51 +724,28 @@ theorem exists_idowdsSeq_eq_idowdsLimit [Finite ι] [∀ j, Finite (S j)] (G : C
   have hsub_step : ∀ i : ι,
       univ.filter (· ∈ G.idowdsSeq (K + 1) i) ⊆ univ.filter (· ∈ G.idowdsSeq K i) :=
     fun i a ha => mem_filter.2 ⟨mem_univ a, (mem_filter.1 ha).2.1⟩
-  have hcard_le : ∀ i : ι,
-      (univ.filter (· ∈ G.idowdsSeq (K + 1) i)).card ≤
-        (univ.filter (· ∈ G.idowdsSeq K i)).card :=
-    fun i => card_le_card (hsub_step i)
+  have hcard_le : ∀ i ∈ univ, (univ.filter (· ∈ G.idowdsSeq (K + 1) i)).card ≤
+      (univ.filter (· ∈ G.idowdsSeq K i)).card := fun i _ => card_le_card (hsub_step i)
   have hcard_eq : cardAt (K + 1) = cardAt K :=
-    le_antisymm (sum_le_sum fun i _ => hcard_le i)
-      (not_lt.1 (hK_min (cardAt (K + 1)) ⟨K + 1, rfl⟩))
+    le_antisymm (sum_le_sum hcard_le) (not_lt.1 (hK_min (cardAt (K + 1)) ⟨K + 1, rfl⟩))
   have hstep_eq : G.idowdsSeq (K + 1) = G.idowdsSeq K := by
     funext i
-    have hi_eq : (univ.filter (· ∈ G.idowdsSeq (K + 1) i)).card =
-        (univ.filter (· ∈ G.idowdsSeq K i)).card := by
-      by_contra hne
-      have hlt : (univ.filter (· ∈ G.idowdsSeq (K + 1) i)).card <
-          (univ.filter (· ∈ G.idowdsSeq K i)).card := lt_of_le_of_ne (hcard_le i) hne
-      have hsum_lt : cardAt (K + 1) < cardAt K :=
-        sum_lt_sum (fun j _ => hcard_le j) ⟨i, mem_univ i, hlt⟩
-      omega
-    have hfin_eq : univ.filter (· ∈ G.idowdsSeq (K + 1) i) =
-        univ.filter (· ∈ G.idowdsSeq K i) :=
-      eq_of_subset_of_card_le (hsub_step i) hi_eq.ge
     ext a
-    have ha := Finset.ext_iff.1 hfin_eq a
-    simpa only [mem_filter, mem_univ, true_and] using ha
-  have hconst : ∀ d : ℕ, G.idowdsSeq (K + d) = G.idowdsSeq K := by
-    intro d
-    induction d with
-    | zero => rfl
-    | succ d ih =>
-      funext i
-      change {a | ∃ ha : a ∈ G.idowdsSeq (K + d) i,
-        ¬ (G.restrict (G.idowdsSeq (K + d))).IsWeaklyDominated i ⟨a, ha⟩} = G.idowdsSeq K i
-      rw [ih]
-      exact congrFun hstep_eq i
-  have hlim : G.idowdsSeq K = G.idowdsLimit := by
-    funext i
-    ext a
-    rw [mem_idowdsLimit_iff]
-    refine ⟨fun ha k => ?_, fun h => h K⟩
-    rcases le_total k K with hk | hk
-    · exact idowdsSeq_subset_of_le hk i ha
-    · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
-      rwa [hconst d]
-  refine ⟨K, fun k hk => ?_⟩
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
-  rw [hconst d, hlim]
+    simpa only [mem_filter, mem_univ, true_and] using Finset.ext_iff.1 (eq_of_subset_of_card_le
+      (hsub_step i) ((sum_eq_sum_iff_of_le hcard_le).1 hcard_eq i (mem_univ i)).ge) a
+  have hconst : ∀ k, K ≤ k → G.idowdsSeq k = G.idowdsSeq K := by
+    intro k hk
+    induction k, hk using Nat.le_induction with
+    | base => rfl
+    | succ k _ ih => rw [← hstep_eq, idowdsSeq_succ, idowdsSeq_succ, ih]
+  refine ⟨K, fun k hk => (hconst k hk).trans ?_⟩
+  funext i
+  ext a
+  rw [mem_idowdsLimit_iff]
+  refine ⟨fun ha k => ?_, fun h => h K⟩
+  rcases le_total k K with hk | hk
+  · exact idowdsSeq_subset_of_le hk i ha
+  · rwa [hconst k hk]
 
 /-- On a finite game with nonempty strategy sets, the simultaneous `IDoWDS` limit `G.idowdsLimit i`
 is nonempty for every player `i`. -/
@@ -826,10 +791,7 @@ theorem idosdsStep_erase_single {A : ∀ i, Set (S i)} [∀ j, Nonempty (A j)]
   · by_cases hi : i = i₀
     · subst hi
       rw [update_self] at hnot ⊢
-      have ha_eq : a = a₀ := by
-        by_contra hne
-        exact hnot ⟨ha, hne⟩
-      subst ha_eq
+      obtain rfl : a = a₀ := not_not.1 fun hne => hnot ⟨ha, hne⟩
       have hb_ne : b₀ ≠ a := fun h => hdom.ne (Subtype.ext h.symm)
       exact ⟨b₀, hb₀, ⟨hb₀, hb_ne⟩, hdom⟩
     · rw [update_of_ne hi] at hnot
@@ -843,13 +805,11 @@ theorem idosdsStep_simultaneous (A : ∀ i, Set (S i)) [∀ i, Finite (A i)] [�
       (fun i => {a | ∃ ha : a ∈ A i, ¬ (G.restrict A).IsStrictlyDominated i ⟨a, ha⟩}) := by
   have := fun i => Fintype.ofFinite (A i)
   refine ⟨fun i a ha => ha.1, fun i a ha hnot => ?_⟩
-  have hdom : (G.restrict A).IsStrictlyDominated i ⟨a, ha⟩ := by
-    by_contra hnd
-    exact hnot ⟨ha, hnd⟩
+  obtain ⟨b₀, hb₀⟩ : (G.restrict A).IsStrictlyDominated i ⟨a, ha⟩ :=
+    not_not.1 fun hnd => hnot ⟨ha, hnd⟩
   classical
   let domSet : Finset (A i) :=
     univ.filter fun b => (G.restrict A).IsStrictlyDominatedBy i ⟨a, ha⟩ b
-  obtain ⟨b₀, hb₀⟩ := hdom
   have hne : domSet.Nonempty := ⟨b₀, mem_filter.2 ⟨mem_univ _, hb₀⟩⟩
   obtain ⟨bMin, hbMin_mem, hbMin_min⟩ := domSet.exists_min_image
     (fun b => (univ.filter fun c : A i => (G.restrict A).IsStrictlyDominatedBy i b c).card) hne
@@ -857,17 +817,13 @@ theorem idosdsStep_simultaneous (A : ∀ i, Set (S i)) [∀ i, Finite (A i)] [�
     (mem_filter.1 hbMin_mem).2
   have hndMin : ¬ (G.restrict A).IsStrictlyDominated i bMin := by
     rintro ⟨c, hbc⟩
-    have hac : c ∈ domSet := mem_filter.2 ⟨mem_univ _, habMin.trans hbc⟩
-    have hle := hbMin_min c hac
     have hsub : (univ.filter fun d : A i => (G.restrict A).IsStrictlyDominatedBy i c d) ⊂
         (univ.filter fun d : A i => (G.restrict A).IsStrictlyDominatedBy i bMin d) := by
-      rw [ssubset_iff_subset_ne]
-      refine ⟨fun d hd => mem_filter.2 ⟨mem_univ _, hbc.trans (mem_filter.1 hd).2⟩, fun heq => ?_⟩
-      have hc_in : c ∈ univ.filter fun d : A i => (G.restrict A).IsStrictlyDominatedBy i bMin d :=
-        mem_filter.2 ⟨mem_univ _, hbc⟩
-      rw [← heq] at hc_in
-      exact (mem_filter.1 hc_in).2.ne rfl
-    exact (Finset.card_lt_card hsub).not_ge hle
+      refine (ssubset_iff_of_subset fun d hd => ?_).2 ⟨c, ?_, fun h => (mem_filter.1 h).2.ne rfl⟩
+      · exact mem_filter.2 ⟨mem_univ _, hbc.trans (mem_filter.1 hd).2⟩
+      · exact mem_filter.2 ⟨mem_univ _, hbc⟩
+    exact (Finset.card_lt_card hsub).not_ge
+      (hbMin_min c (mem_filter.2 ⟨mem_univ _, habMin.trans hbc⟩))
   exact ⟨bMin.1, bMin.2, ⟨bMin.2, hndMin⟩, habMin⟩
 
 private theorem IDoSDSStep.isPureNash_restrict_iff {A B : ∀ i, Set (S i)}
@@ -882,23 +838,19 @@ private theorem IDoSDSStep.isPureNash_restrict_iff {A B : ∀ i, Set (S i)}
       exact hpA.not_isStrictlyDominated i ⟨⟨b, hbA⟩, hdom⟩
     refine ⟨hsB, fun i b => ?_⟩
     have h := hpA i ⟨b.1, hstep.1 i b.2⟩
-    dsimp only [restrict] at h ⊢
-    rw [coe_update_restrict] at h ⊢
+    rw [restrict_cost_update] at h ⊢
     exact h
   · rintro ⟨hsB, hpB⟩
     have hsA : ∀ i, s i ∈ A i := fun i => hstep.1 i (hsB i)
     refine ⟨hsA, fun i a => ?_⟩
     by_cases haB : a.1 ∈ B i
     · have h := hpB i ⟨a.1, haB⟩
-      dsimp only [restrict] at h ⊢
-      rw [coe_update_restrict] at h ⊢
+      rw [restrict_cost_update] at h ⊢
       exact h
     · obtain ⟨b, hbA, hbB, hdom⟩ := hstep.2 i a.1 a.2 haB
       have h := hpB i ⟨b, hbB⟩
       have hlt := hdom fun j => ⟨s j, hsA j⟩
-      dsimp only [restrict] at h hlt ⊢
-      rw [coe_update_restrict] at h ⊢
-      rw [coe_update_restrict, coe_update_restrict] at hlt
+      simp only [restrict_cost_update] at h hlt ⊢
       exact h.trans hlt.le
 
 /-- **Iterated deletion of strictly dominated strategies preserves pure Nash equilibria**: if
@@ -908,20 +860,7 @@ the restricted game), then the pure Nash equilibria of `G` are in bijection with
 theorem IDoSDS.isPureNash_iff {A : ∀ i, Set (S i)}
     (h : G.IDoSDS (fun _ => Set.univ) A) (s : ∀ i, S i) :
     G.IsPureNash s ↔ ∃ hs : ∀ i, s i ∈ A i, (G.restrict A).IsPureNash fun i => ⟨s i, hs i⟩ := by
-  have huniv : G.IsPureNash s ↔
-      ∃ hs : ∀ i, s i ∈ (fun _ => Set.univ : ∀ i, Set (S i)) i,
-        (G.restrict (fun _ => Set.univ)).IsPureNash fun i => ⟨s i, hs i⟩ := by
-    constructor
-    · intro hs
-      refine ⟨fun _ => trivial, fun i a => ?_⟩
-      dsimp only [restrict]
-      rw [coe_update_restrict]
-      exact hs i a.1
-    · rintro ⟨_, hs⟩ i a
-      have h0 := hs i ⟨a, trivial⟩
-      dsimp only [restrict] at h0
-      rwa [coe_update_restrict] at h0
-  rw [huniv]
+  rw [isPureNash_iff_restrict (A := fun _ => Set.univ) (fun _ _ ha => (ha trivial).elim) s]
   induction h with
   | refl => rfl
   | tail _ hstep ih => exact ih.trans (hstep.isPureNash_restrict_iff s)
@@ -954,25 +893,17 @@ private theorem deviationCost_lt_of_restrict_strictlyDominatedBy {A : ∀ i, Set
     G.deviationCost p i b < G.deviationCost p i a := by
   rw [deviationCost_def, deviationCost_def]
   obtain ⟨s₀, hs₀⟩ := exists_productWeight_pos hp
-  have mem_of_pos : ∀ {s : ∀ j, S j}, 0 < productWeight p s → ∀ j, s j ∈ A j := by
-    intro s hs j
-    by_contra hj
-    rw [productWeight_def] at hs
-    have h0 : ∏ k, p k (s k) = 0 := prod_eq_zero (mem_univ j) (hsupp j (s j) hj)
-    linarith
-  have hlt₀ : G.cost i (update s₀ i b) < G.cost i (update s₀ i a) := by
-    have hA₀ := mem_of_pos hs₀
-    have h := hdom fun j => ⟨s₀ j, hA₀ j⟩
-    dsimp only [restrict] at h
-    rwa [coe_update_restrict, coe_update_restrict] at h
-  refine sum_lt_sum (fun s _ => ?_) ⟨s₀, mem_univ s₀, mul_lt_mul_of_pos_left hlt₀ hs₀⟩
+  have hlt : ∀ {s : ∀ j, S j}, 0 < productWeight p s →
+      G.cost i (update s i b) < G.cost i (update s i a) := by
+    intro s hs
+    have hA : ∀ j, s j ∈ A j := fun j => Classical.by_contradiction fun hj => hs.ne' <| by
+      rw [productWeight_def]
+      exact prod_eq_zero (mem_univ j) (hsupp j (s j) hj)
+    simpa only [restrict_cost_update] using hdom fun j => ⟨s j, hA j⟩
+  refine sum_lt_sum (fun s _ => ?_) ⟨s₀, mem_univ s₀, mul_lt_mul_of_pos_left (hlt hs₀) hs₀⟩
   rcases (productWeight_nonneg (fun j => (hp j).nonneg) s).eq_or_lt with h0 | hpos
   · rw [← h0, zero_mul, zero_mul]
-  · have hAs := mem_of_pos hpos
-    have h := hdom fun j => ⟨s j, hAs j⟩
-    dsimp only [restrict] at h
-    rw [coe_update_restrict, coe_update_restrict] at h
-    exact mul_le_mul_of_nonneg_left h.le hpos.le
+  · exact mul_le_mul_of_nonneg_left (hlt hpos).le hpos.le
 
 private theorem IDoSDSStep.supported_mixedNash_iff {A B : ∀ i, Set (S i)}
     (hstep : G.IDoSDSStep A B) (p : ∀ i, S i → ℝ) :
@@ -1045,8 +976,7 @@ theorem IDoSDS.isMixedNash_iff_eq_single_of_singleton [∀ i, DecidableEq (S i)]
     by_cases ha : a = sStar i
     · subst ha
       have hsum := (hp i).sum_eq_one
-      rw [← add_sum_erase _ _ (mem_univ (sStar i)),
-        sum_eq_zero (fun b hb => hzero i b (ne_of_mem_erase hb)), add_zero] at hsum
+      rw [Fintype.sum_eq_single (sStar i) (hzero i)] at hsum
       simpa only [Pi.single_eq_same] using hsum
     · rw [Pi.single_eq_of_ne ha]
       exact hzero i a ha

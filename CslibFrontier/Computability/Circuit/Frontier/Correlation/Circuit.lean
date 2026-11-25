@@ -150,8 +150,7 @@ theorem sq_correlation_quadForm_mul_le_of_layout (Q : Matrix (Fin n) (Fin n) (ZM
       · refine Or.inl ⟨_, ⟨x, ?_, rfl⟩, by simp [msg, hx]⟩
         rwa [accepted_network_eq_eval]
       · refine Or.inr ⟨_, ⟨x, ?_, rfl⟩, by simp [msg, hx]⟩
-        rw [accepted_network_eq_eval]
-        exact hx
+        rwa [accepted_network_eq_eval]
     have h₁ : ((fun x => P₁.path x t) '' N₁.accepted).ncard ≤
         2 ^ ((Compiler.graph c).frontier π t).ncard := by
       have := N₁.ncard_image_path_le π ht

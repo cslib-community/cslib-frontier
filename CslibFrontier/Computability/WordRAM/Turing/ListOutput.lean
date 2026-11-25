@@ -243,17 +243,11 @@ theorem parkedOutputCertificate_isPolynomial (L : ℕ)
     have hacc : (encList encNat ((List.range j).map fun i =>
         SparseMemory.read (s a).default (v + 1 + i) (s a).memory)).length ≤ j * (2 * W a + 1) := by
       rw [length_encList]
-      calc (((List.range j).map fun i =>
-              SparseMemory.read (s a).default (v + 1 + i) (s a).memory).map
-              fun x => 2 * (encNat x).length + 1).sum
-          ≤ (((List.range j).map fun i =>
-              SparseMemory.read (s a).default (v + 1 + i) (s a).memory).map
-              fun _ => 2 * W a + 1).sum :=
-            List.sum_le_sum fun x hx => by
-              obtain ⟨i, -, rfl⟩ := List.mem_map.mp hx
-              have := length_encNat_le_of_lt_two_pow (hsa.read_lt (v + 1 + i))
-              omega
-        _ = j * (2 * W a + 1) := by simp [Function.comp_def]
+      refine (List.sum_le_length_nsmul _ (2 * W a + 1) fun x hx => ?_).trans (by simp)
+      obtain ⟨_, hy, rfl⟩ := List.mem_map.mp hx
+      obtain ⟨i, -, rfl⟩ := List.mem_map.mp hy
+      have := length_encNat_le_of_lt_two_pow (hsa.read_lt (v + 1 + i))
+      omega
     have hmem : 2 * (encNat (s a).default).length +
         (SparseMemory.encoding encNat encNat (s a).memory).length + 3 ≤
           (FiniteState.encoding B.encoding (s a)).length := by
@@ -338,12 +332,10 @@ theorem Program.ComputesListInTime.turingComputableInPolyTime_of_width
   -- Every simulated outcome is bounded by a polynomial in the input length.
   obtain ⟨bound, hbound, hOutLen⟩ := exists_polyBounded_resultEncoding_run_le q hwidth hencode
     hfits hstepsU.polyBounded
-  have hRun : cRun.IsPolynomial :=
-    runCertificateOf_isPolynomial _ _ _ _ _ _ (B.nativePrimitivesOfPolyTime_isPolynomial hop)
+  have hOut := parkedOutputCertificate_isPolynomial p.length cFinal
+    (runCertificateOf_isPolynomial _ _ _ _ _ _ (B.nativePrimitivesOfPolyTime_isPolynomial hop)
       (ofPolyTime_isPolynomial hstepsT) (ofPolyTime_isPolynomial hwidth) hInit
-      hstepsU.polyBounded hbound hOutLen
-  have hFinal : cFinal.IsPolynomial := hRun
-  have hOut := parkedOutputCertificate_isPolynomial p.length cFinal hFinal hwidth.polyBounded
+      hstepsU.polyBounded hbound hOutLen) hwidth.polyBounded
     (fun a => (hfinal a).1) (hlen.mono fun a => by rw [(hfinal a).2])
   exact ((parkedOutputCertificate p.length cFinal).congr fun a => ((hfinal a).2).symm).polyTime
     (congr_isPolynomial _ _ hOut)

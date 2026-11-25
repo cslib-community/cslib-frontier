@@ -281,33 +281,14 @@ private theorem valueNode_mem_visOf {b : Bool} :
 private theorem mem_visOf_append {b : Bool} {u : ℕ} :
     u ∈ visOf (z ++ [b]) ↔
       u ∈ topNode (z.length + 1) :: bottomNode z.length :: valueNode z.length b :: visOf z := by
-  have hget (j : ℕ) (hj : j < z.length + 1) :
-      (z ++ [b]).getD j false = if j < z.length then z.getD j false else b := by
-    split_ifs with h
-    · exact List.getD_append _ _ _ _ h
-    · rw [List.getD_append_right _ _ _ _ (by omega), show j - z.length = 0 by omega]
-      rfl
-  simp only [mem_visOf, List.mem_cons, List.length_append, List.length_singleton]
-  constructor
-  · rintro (⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩)
-    · rcases Nat.lt_or_ge i (z.length + 1) with h | h
-      · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨i, by omega, rfl⟩)))
-      · exact Or.inl (by rw [show i = z.length + 1 by omega])
-    · rcases Nat.lt_or_ge i z.length with h | h
-      · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨i, h, rfl⟩))))
-      · exact Or.inr (Or.inl (by rw [show i = z.length by omega]))
-    · rw [hget i hi]
-      split_ifs with h
-      · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨i, h, rfl⟩))))
-      · exact Or.inr (Or.inr (Or.inl (by rw [show i = z.length by omega])))
-  · rintro (rfl | rfl | rfl | ⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩)
-    · exact Or.inl ⟨_, le_rfl, rfl⟩
-    · exact Or.inr (Or.inl ⟨_, by omega, rfl⟩)
-    · exact Or.inr (Or.inr ⟨z.length, by omega, by
-        rw [hget z.length (by omega), ite_eq_right (lt_irrefl _)]⟩)
-    · exact Or.inl ⟨i, by omega, rfl⟩
-    · exact Or.inr (Or.inl ⟨i, by omega, rfl⟩)
-    · exact Or.inr (Or.inr ⟨i, by omega, by rw [hget i (by omega), ite_eq_left hi]⟩)
+  have hval : (List.range z.length).map (fun j => valueNode j ((z ++ [b]).getD j false)) =
+      (List.range z.length).map (fun j => valueNode j (z.getD j false)) :=
+    List.map_congr_left fun j hj => by rw [List.getD_append _ _ _ _ (List.mem_range.1 hj)]
+  have hlast : (z ++ [b]).getD z.length false = b := by
+    rw [List.getD_append_right _ _ _ _ le_rfl, Nat.sub_self]; rfl
+  simp only [visOf, List.length_append, List.length_singleton, List.range_succ, List.map_append,
+    List.map_singleton, hval, hlast, List.mem_append, List.mem_cons, List.not_mem_nil, or_false]
+  exact iff_of_eq (by ac_rfl)
 
 end Visited
 
@@ -446,7 +427,8 @@ private theorem geographyWins_topNode (heven : Even xs.length)
           fun z' => ψ.eval (fun x => (z ++ z').getD (lastIdx xs x) false) = true))
   | 0, z, hz => by
     have hz' : z.length = xs.length := by omega
-    have hpar : (z.length % 2 == 0) = true := by grind
+    obtain ⟨m, hm⟩ := heven
+    have hpar : (z.length % 2 == 0) = true := by simp [show z.length % 2 = 0 by omega]
     rw [hpar, iff_true_left rfl, List.replicate_zero, alternation_nil, List.append_nil, hz']
     exact geographyWins_topNode_length hz' hvars
   | k + 1, z, hz => by
@@ -506,7 +488,9 @@ theorem updates_eq_getD_lastIdx (σ : ℕ → Bool) :
           omega, List.getD_cons_succ]
     · obtain rfl : x = v := by simpa [hxs] using hx
       rw [QBF.updates_of_notMem hxs, Function.update_self]
-      have hidx : (x :: vs).reverse.idxOf x = vs.length := by grind
+      have hidx : (x :: vs).reverse.idxOf x = vs.length := by
+        rw [List.reverse_cons, List.idxOf_append_of_notMem (by simpa using hxs)]
+        simp
       rw [lastIdx, hidx, List.length_cons, show vs.length + 1 - 1 - vs.length = 0 by omega]
       rfl
 

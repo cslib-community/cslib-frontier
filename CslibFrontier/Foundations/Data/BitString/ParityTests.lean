@@ -95,11 +95,7 @@ theorem weight_testRow_le (γ : Fin P → Fin m × Bool) : weight (testRow γ) �
       rw [← testRow, he.2]
       decide
     obtain ⟨j, -, hj⟩ := exists_ne_zero_of_sum_ne_zero hne
-    have hje : (γ j).1 = e := by
-      by_contra h
-      simp only [h, ↓reduceIte] at hj
-      exact hj rfl
-    exact mem_image.mpr ⟨j, mem_univ j, hje⟩
+    exact mem_image.mpr ⟨j, mem_univ j, of_not_not fun h => hj (by simp [h])⟩
   calc weight (testRow γ)
       = #{e : Fin m | testRow γ e = true} := rfl
     _ ≤ #(univ.image fun j : Fin P => (γ j).1) := card_le_card hsub
@@ -164,9 +160,7 @@ private theorem two_mul_pow_le_pow {m t₀ P : ℕ} (hP : 1 ≤ P) (ht₀ : t₀
     2 * t₀ ^ P ≤ m ^ P := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · obtain rfl : t₀ = 0 := by
-      rcases Nat.eq_zero_or_pos t₀ with h | h
-      · exact h
-      · simp only [zero_mul, nonpos_iff_eq_zero, mul_eq_zero] at ht₀; omega
+      simp only [zero_mul, nonpos_iff_eq_zero, mul_eq_zero] at ht₀; omega
     simp [Nat.pos_iff_ne_zero.mp hP]
   have hPr : (1 : ℝ) ≤ P := by exact_mod_cast hP
   have hPpos : (0 : ℝ) < P := by linarith
@@ -202,9 +196,7 @@ theorem pow_le_four_mul_card_testParity_eq_true (z : Fin m → Bool) (hP : 1 ≤
         _ = (t₀ + weight z) * P := by ring
         _ = m * P := by rw [hsplit]
     have e : m * P = m * (P - 1) + m := by
-      rw [← Nat.mul_succ]
-      congr 1
-      omega
+      rw [← Nat.mul_succ, Nat.succ_eq_add_one, Nat.sub_add_cancel hP]
     omega
   have hkey := two_mul_pow_le_pow hP ht₀
   have hle : t₀ ^ P ≤ m ^ P := Nat.pow_le_pow_left (by omega) P
@@ -230,10 +222,8 @@ theorem four_mul_card_accept_le_of_forall_le {ι : Type*} (S : Finset ι) (z : �
     4 * #{x ∈ S | testParity γ (z x) = false} ≤ 3 * #S := by
   rcases S.eq_empty_or_nonempty with rfl | ⟨x₀, hx₀⟩
   · simp
-  have hm : 0 < m := by
-    by_contra h
-    obtain rfl : m = 0 := by omega
-    exact hz₀ x₀ hx₀ (funext fun i => i.elim0)
+  have hm : 0 < m :=
+    Nat.pos_of_ne_zero fun h => hz₀ x₀ hx₀ (funext fun i => absurd i.isLt (by omega))
   have : Nonempty (Fin m) := ⟨⟨0, hm⟩⟩
   set N := Fintype.card (Fin P → Fin m × Bool) with hN
   have hNpos : 0 < N := Fintype.card_pos
@@ -373,8 +363,7 @@ theorem numPassing_greedy (v : X → Fin m → Bool) {n : ℕ} (hn : 1 ≤ n)
     have := four_mul_card_accept_le_of_forall_le S v hP
       (fun x hx => (mem_filter.mp hx).2.2)
       (fun x hx => hinit x (hpre i x (mem_filter.mp hx).2.1) (mem_filter.mp hx).2.2) (γ i) hmin
-    simp only [hD, hA, ← hcount] at this ⊢
-    exact this
+    simpa only [hD, hA, ← hcount] using this
   have h₀ : D 0 ≤ 2 ^ n := (card_le_univ _).trans hX
   have hfin := eq_zero_of_four_mul_le_three_mul D hn h₀ hstep
   rw [numPassing_eq]

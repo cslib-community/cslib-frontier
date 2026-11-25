@@ -141,11 +141,9 @@ theorem satisfiable_replaceGadgets_iff
       List.ofFn (fun j : Fin (srcArity F[i].rel) => σ (F[i].scope.getD j.val 0)) =
         F[i].scope.map σ := by
     have hlen := hF F[i] (List.getElem_mem hi)
-    apply List.ext_getElem
-    · simp [hlen]
-    · intro j hj hk
-      simp only [List.getElem_ofFn, List.getElem_map]
-      rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hk)]
+    refine List.ext_getElem (by simp [hlen]) fun j hj hk => ?_
+    simp only [List.getElem_ofFn, List.getElem_map]
+    rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hk)]
   constructor
   · rintro ⟨τ, hτ⟩
     refine ⟨fun v => τ (2 * v), ?_⟩
@@ -154,8 +152,7 @@ theorem satisfiable_replaceGadgets_iff
     have hg := (gadgets F[i].rel).correct (fun j => τ (2 * F[i].scope.getD j.val 0))
     have hr := hg.mpr ⟨_, (hev τ).mp hτ i hi⟩
     change srcSem F[i].rel (List.ofFn _) = true at hr
-    rw [scope_eq (fun v => τ (2 * v)) i hi] at hr
-    exact hr
+    rwa [scope_eq (fun v => τ (2 * v)) i hi] at hr
   · rintro ⟨σ, hσ⟩
     have hex : ∀ (i : ℕ) (hi : i < F.length), ∃ b : Fin (gadgets F[i].rel).numAux → Bool,
         (gadgets F[i].rel).body.eval sem

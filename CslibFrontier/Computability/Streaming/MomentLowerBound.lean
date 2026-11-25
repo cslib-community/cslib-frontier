@@ -136,54 +136,50 @@ theorem Algorithm.le_of_approx_freqMoment {σ : Type*} {L b k : ℕ} {η : ℝ} 
   have hsum := card_filter_eq_add_hammingDist y x
   rw [Fintype.card_fin] at hsum
   have hF1 : (freqMoment k (graphStream x ++ graphStream x) : ℝ) = 2 ^ k * L := by
-    rw [freqMoment_graphStream_append_eq]
-    have hc := card_filter_eq_add_hammingDist x x
-    rw [Fintype.card_fin, hammingDist_self] at hc
-    rw [hammingDist_self]
-    push_cast
-    rw [show ((#{i | x i = x i} : ℕ) : ℝ) = L by exact_mod_cast hc]
-    ring
+    simp only [freqMoment_graphStream_append_eq, hammingDist_self, filter_true, card_univ,
+      Fintype.card_fin, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, mul_zero, add_zero]
   have hF2 : (freqMoment k (graphStream y ++ graphStream x) : ℝ) =
       2 ^ k * (#{i | y i = x i} : ℕ) + 2 * (hammingDist y x : ℕ) := by
-    rw [freqMoment_graphStream_append_eq]
-    push_cast
-    ring
-  rw [hF1] at h1
-  rw [hF2] at h2
-  have hsum' : ((#{i | y i = x i} : ℕ) : ℝ) + (hammingDist y x : ℕ) = L := by exact_mod_cast hsum
-  have hd' : (L : ℝ) ≤ 2 * (hammingDist y x : ℕ) := by exact_mod_cast hd
-  have hLpos : (0 : ℝ) < L := by
-    have : 0 < L := lt_of_le_of_lt (Nat.zero_le b) hb
-    exact_mod_cast this
-  generalize ((#{i | y i = x i} : ℕ) : ℝ) = c at hsum' h2
-  generalize ((hammingDist y x : ℕ) : ℝ) = δ at hsum' hd' h2
+    rw [freqMoment_graphStream_append_eq]; push_cast; ring
+  rw [hF1] at h1; rw [hF2] at h2
+  have hLpos : (0 : ℝ) < L := by exact_mod_cast lt_of_le_of_lt (Nat.zero_le b) hb
+  have hη0 : 0 ≤ η := nonneg_of_mul_nonneg_left ((abs_nonneg _).trans h1) (by positivity)
+  have hd' : (L : ℝ) ≤ 2 * (hammingDist y x : ℝ) := by exact_mod_cast hd
+  have hδle : (hammingDist y x : ℝ) ≤ L := by exact_mod_cast (by omega : hammingDist y x ≤ L)
+  have hc : ((#{i | y i = x i} : ℕ) : ℝ) = L - (hammingDist y x : ℝ) := by
+    have : ((#{i | y i = x i} : ℕ) : ℝ) + (hammingDist y x : ℝ) = L := by exact_mod_cast hsum
+    linarith
+  set δ : ℝ := (hammingDist y x : ℝ)
+  rw [hc] at h2
   rw [abs_le] at h1 h2
-  obtain ⟨h1l, h1r⟩ := h1
-  obtain ⟨h2l, h2r⟩ := h2
   rcases Nat.eq_zero_or_pos k with rfl | hk0
-  · -- `F₀`: `L` against `L + δ ≥ 3 L / 2`
-    norm_num at h1l h1r h2l h2r
-    nlinarith
-  · -- `F_k` for `k ≥ 2`: `P L` against at most `(P + 2) L / 2`, where `P = 2 ^ k ≥ 4`
-    have hP : (4 : ℝ) ≤ 2 ^ k := by
-      have : 2 ≤ k := by omega
-      calc (4 : ℝ) = 2 ^ 2 := by norm_num
-        _ ≤ 2 ^ k := pow_le_pow_right₀ (by norm_num) this
+  · -- `F₀`: `L` against `L + δ` with `L / 2 ≤ δ ≤ L`
+    norm_num at h1 h2
+    exact lt_irrefl (L : ℝ) <| calc
+      (L : ℝ) ≤ 2 * δ := hd'
+      _ ≤ 2 * (η * (2 * L + δ)) := by linarith
+      _ ≤ 2 * (η * (3 * L)) :=
+          mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (by linarith) hη0) (by norm_num)
+      _ = (6 * η) * L := by ring
+      _ < 1 * L := mul_lt_mul_of_pos_right (by linarith) hLpos
+      _ = L := one_mul _
+  · -- `F_k` for `k ≥ 2`: `P L` against `P (L - δ) + 2 δ`, where `P = 2 ^ k ≥ 4`
     set P : ℝ := 2 ^ k
-    have hPL : 0 < P * L := by positivity
-    have hη0 : 0 ≤ η := by
-      by_contra hneg
-      push Not at hneg
-      have := mul_neg_of_neg_of_pos hneg hPL
-      linarith
-    have hc : c = L - δ := by linarith
-    subst hc
-    have hF2le : 2 * (P * (L - δ) + 2 * δ) ≤ (P + 2) * L := by
-      nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ P - 2) (by linarith : (0 : ℝ) ≤ 2 * δ - L)]
-    have hq : 0 < P - 2 - η * (3 * P + 2) := by
-      nlinarith [mul_pos (by linarith : (0 : ℝ) < 1 - 7 * η) (by linarith : (0 : ℝ) < 3 * P + 2)]
-    nlinarith [mul_pos hLpos hq, mul_nonneg hη0 (by linarith : (0 : ℝ) ≤
-      (P + 2) * L - 2 * (P * (L - δ) + 2 * δ))]
+    have hP : 4 ≤ P := calc
+      (4 : ℝ) = 2 ^ 2 := by norm_num
+      _ ≤ 2 ^ k := pow_le_pow_right₀ (by norm_num) (by omega)
+    have hgap : (P - 2) * L ≤ (P - 2) * (2 * δ) := mul_le_mul_of_nonneg_left hd' (by linarith)
+    exact lt_irrefl ((P - 2) * L) <| calc
+      (P - 2) * L ≤ (P - 2) * (2 * δ) := hgap
+      _ = 2 * (P * L - (P * (L - δ) + 2 * δ)) := by ring
+      _ ≤ 2 * (η * (P * L + (P * (L - δ) + 2 * δ))) := by linarith
+      _ = η * (4 * P * L - (P - 2) * (2 * δ)) := by ring
+      _ ≤ η * ((3 * P + 2) * L) := mul_le_mul_of_nonneg_left (by linarith) hη0
+      _ ≤ η * (7 * (P - 2) * L) :=
+          mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right (by linarith) hLpos.le) hη0
+      _ = (7 * η) * ((P - 2) * L) := by ring
+      _ < 1 * ((P - 2) * L) := mul_lt_mul_of_pos_right hη (mul_pos (by linarith) hLpos)
+      _ = (P - 2) * L := one_mul _
 
 /-- The embedding of `Fin (N / k) × Fin k` into `Fin N` by consecutive blocks of `k` items,
 which transfers the lower bounds over product universes to the universe `Fin N`. -/

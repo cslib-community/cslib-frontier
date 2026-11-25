@@ -255,16 +255,12 @@ theorem HeapInv.push (h : HeapInv N base S mem) {v c : ℕ} (hv : v < N)
     ext <;> (dsimp only; split_ifs <;> omega)
   refine ⟨⟨by omega, fun i h1 h2 => ?_, fun i h1 h2 => ?_, fun w hw => ?_,
     fun w hw hw0 => ?_⟩, fun i h1 h2 => ⟨fun hi => ?_, fun hi _ => by omega⟩⟩
-  · rcases Nat.lt_or_ge i (S + 1) with hi | hi
-    · have := h.vertex_lt i h1 (by omega)
-      simp only [m', Function.update_apply]; split_ifs <;> omega
-    · simp only [m', Function.update_apply]; split_ifs <;> omega
-  · rcases Nat.lt_or_ge i (S + 1) with hi | hi
-    · have := h.vertex_lt i h1 (by omega)
-      have := hne i h1 (by omega)
-      have := h.pos_vertex i h1 (by omega)
-      simp only [m', Function.update_apply]; split_ifs <;> omega
-    · simp only [m', Function.update_apply]; split_ifs <;> omega
+  · have := h.vertex_lt i h1
+    simp only [m', Function.update_apply]; split_ifs <;> omega
+  · have := h.vertex_lt i h1
+    have := hne i h1
+    have := h.pos_vertex i h1
+    simp only [m', Function.update_apply]; split_ifs <;> omega
   · have := h.pos_le w hw
     simp only [m', Function.update_apply]; split_ifs <;> omega
   · by_cases hwv : w = v
@@ -383,9 +379,7 @@ theorem HeapInv.extract (h : HeapInv N base S mem) (hS : 2 ≤ S) :
       simp only [m', Function.update_apply]; split_ifs <;> omega
   · rw [hpos w hw]
     split_ifs with h1 h2
-    · omega
-    · omega
-    · exact (hother w hw h2 h1).1
+    exacts [by omega, by omega, (hother w hw h2 h1).1]
   · rw [hpos w hw] at hw0 ⊢
     split_ifs at hw0 ⊢ with h1 h2
     · simp only [m', Function.update_apply]; split_ifs <;> omega
@@ -402,8 +396,7 @@ theorem HeapInv.extract (h : HeapInv N base S mem) (hS : 2 ≤ S) :
       rintro (h0 | h0)
       · omega
       · exact hUL h0.symm
-    · omega
-    · omega
+    all_goals omega
 
 /-- **Singleton root removal**: clearing the root's position on a 1-element heap leaves the empty
 heap invariant. -/

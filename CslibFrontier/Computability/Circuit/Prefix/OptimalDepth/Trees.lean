@@ -149,10 +149,8 @@ theorem IntervalTree.suffixOfLeftPrefix {a b : ℕ} (t : IntervalTree a b) :
     have hL := L.lt
     have hR := R.lt
     rw [IntervalTree.erase_root_eq_union, Finset.mem_union] at hs
-    have hsL : (a, s) ∈ L.intervals := by
-      rcases hs with hsL | hsR
-      · exact hsL
-      · have := R.mem_intervals_bounds hsR; omega
+    have hsL : (a, s) ∈ L.intervals :=
+      hs.resolve_right fun hsR => by have := R.mem_intervals_bounds hsR; omega
     have hbds := L.mem_intervals_bounds hsL
     by_cases hsm : s = m
     · rw [hsm]
@@ -162,11 +160,8 @@ theorem IntervalTree.suffixOfLeftPrefix {a b : ℕ} (t : IntervalTree a b) :
       rcases hpq with hpL | hpR
       · have := L.mem_intervals_bounds hpL; omega
       · exact hpR
-    · have hsL_er : (a, s) ∈ L.intervals.erase (a, m) := by
-        refine Finset.mem_erase.mpr ⟨?_, hsL⟩
-        intro heq
-        rw [Prod.mk.injEq] at heq
-        exact hsm heq.2
+    · have hsL_er : (a, s) ∈ L.intervals.erase (a, m) :=
+        Finset.mem_erase.mpr ⟨fun heq => hsm (Prod.mk.inj heq).2, hsL⟩
       obtain ⟨has, _, JL, hJL_d, hJL_sub⟩ := ihL s hsL_er
       refine ⟨has, by omega, .node JL R, ?_, ?_⟩
       · simp only [IntervalTree.depth]
@@ -175,12 +170,8 @@ theorem IntervalTree.suffixOfLeftPrefix {a b : ℕ} (t : IntervalTree a b) :
         rw [IntervalTree.erase_root_eq_union, Finset.mem_union] at hpq
         simp only [IntervalTree.intervals, Finset.mem_insert, Finset.mem_union]
         rcases hpq with hpL | hpR
-        · have hpL_er : (p, q) ∈ L.intervals.erase (a, m) := by
-            refine Finset.mem_erase.mpr ⟨?_, hpL⟩
-            intro heq
-            rw [Prod.mk.injEq] at heq
-            omega
-          exact Or.inr (Or.inl (hJL_sub p q hpL_er hsp))
+        · exact Or.inr (Or.inl (hJL_sub p q (Finset.mem_erase.mpr
+            ⟨fun heq => by have := (Prod.mk.inj heq).1; omega, hpL⟩) hsp))
         · exact Or.inr (Or.inr hpR)
 
 
@@ -271,11 +262,8 @@ theorem GenPrefixTree.outCount_le_two_pow :
         have h2 := GenPrefixTree.child_depth_lt (st := st) (hasOut := hasOut) (isMul := isMul)
           (child := child) i
         exact h1.trans (Nat.pow_le_pow_right (by omega) (by omega))
-      have hsum_le : ∑ i : Fin r, (child i).outCount ≤ r * 2 ^ H := by
-        calc
-          ∑ i : Fin r, (child i).outCount ≤ ∑ _i : Fin r, 2 ^ H :=
-            Finset.sum_le_sum fun i _ => hch_le i
-          _ = r * 2 ^ H := by rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+      have hsum_le : ∑ i : Fin r, (child i).outCount ≤ r * 2 ^ H :=
+        (Finset.sum_le_sum fun i _ => hch_le i).trans_eq (by simp)
       have hpow : 2 ^ (GenPrefixTree.node st hasOut r isMul child).depth = 2 * 2 ^ H := by
         rw [show (GenPrefixTree.node st hasOut r isMul child).depth = H + 1 by omega,
           Nat.pow_succ, Nat.mul_comm]

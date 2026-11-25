@@ -62,6 +62,13 @@ theorem V_zero_right (k d : ℕ) : V k d 0 = (3 / 2 : ℝ) ^ d := by
 private theorem V_zero_left (k h : ℕ) : V k 0 h = 1 := by
   cases h <;> simp only [V, pow_zero]
 
+/-- Unfolds `V k d (h + 1)` for `d ≠ 0` once its window `min d (k - 1)` is known. -/
+private theorem V_succ_eq {k d l : ℕ} (hd : d ≠ 0) (hl : min d (k - 1) = l) (h : ℕ) :
+    V k d (h + 1) = (∑ i ∈ Finset.Ico 1 l, V k (d - i) h) + 2 * V k (d - l) h := by
+  obtain ⟨d, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hd
+  subst hl
+  rfl
+
 private theorem V_one_le (k d h : ℕ) : (1 : ℝ) ≤ V k d h := by
   induction h generalizing d with
   | zero =>
@@ -71,9 +78,7 @@ private theorem V_one_le (k d h : ℕ) : (1 : ℝ) ≤ V k d h := by
     cases d with
     | zero => rw [V_zero_left]
     | succ d =>
-      change (1 : ℝ) ≤
-        (∑ i ∈ Finset.Ico 1 (min (d + 1) (k - 1)), V k (d + 1 - i) h) +
-          2 * V k (d + 1 - min (d + 1) (k - 1)) h
+      rw [V_succ_eq d.add_one_ne_zero rfl]
       have hsum : (0 : ℝ) ≤ ∑ i ∈ Finset.Ico 1 (min (d + 1) (k - 1)), V k (d + 1 - i) h :=
         Finset.sum_nonneg fun i _ => ( zero_le_one.trans (ih _) )
       have hlast := ih (d + 1 - min (d + 1) (k - 1))
@@ -84,10 +89,8 @@ theorem V_nonneg (k d h : ℕ) : (0 : ℝ) ≤ V k d h :=
   zero_le_one.trans (V_one_le k d h)
 
 private theorem V_one_left {k : ℕ} (hk : 2 ≤ k) (h : ℕ) : V k 1 (h + 1) = 2 := by
-  have hl : min 1 (k - 1) = 1 := Nat.min_eq_left (by omega)
-  change (∑ i ∈ Finset.Ico 1 (min 1 (k - 1)), V k (1 - i) h) +
-      2 * V k (1 - min 1 (k - 1)) h = 2
-  rw [hl, Finset.Ico_self, Finset.sum_empty, zero_add, Nat.sub_self, V_zero_left, mul_one]
+  rw [V_succ_eq one_ne_zero (Nat.min_eq_left (by omega)), Finset.Ico_self, Finset.sum_empty,
+    zero_add, Nat.sub_self, V_zero_left, mul_one]
 
 private theorem V_succ_sub_self_small {k d : ℕ} (hd : d + 1 ≤ k - 1) (h : ℕ) :
     V k (d + 1) (h + 1) - V k d (h + 1) =
@@ -98,28 +101,18 @@ private theorem V_succ_sub_self_small {k d : ℕ} (hd : d + 1 ≤ k - 1) (h : �
     rw [V_one_left hk2, V_zero_left]
     norm_num
   | succ m =>
-    have hl1 : min (m + 1) (k - 1) = m + 1 := Nat.min_eq_left (by omega)
-    have hl2 : min (m + 2) (k - 1) = m + 2 := Nat.min_eq_left hd
     simp only [Nat.succ_ne_zero, ↓reduceIte]
-    change ((∑ i ∈ Finset.Ico 1 (min (m + 2) (k - 1)), V k (m + 2 - i) h) +
-        2 * V k (m + 2 - min (m + 2) (k - 1)) h) -
-      ((∑ i ∈ Finset.Ico 1 (min (m + 1) (k - 1)), V k (m + 1 - i) h) +
-        2 * V k (m + 1 - min (m + 1) (k - 1)) h) = V k (m + 1) h
-    rw [hl1, hl2, Nat.sub_self, Nat.sub_self, V_zero_left,
-      sum_Ico_one_succ_shift (l := m + 1) (by omega) (m + 1) (fun x => V k x h)]
+    rw [V_succ_eq (by omega) (Nat.min_eq_left hd),
+      V_succ_eq (by omega) (Nat.min_eq_left (by omega : m + 1 ≤ k - 1)), Nat.sub_self, Nat.sub_self,
+      V_zero_left, sum_Ico_one_succ_shift (l := m + 1) (by omega) (m + 1) (fun x => V k x h)]
     ring
 
 private theorem V_step_le_mul {k a b h : ℕ} {c : ℝ} (ha0 : a ≠ 0) (hb0 : b ≠ 0)
     (ha : k - 1 ≤ a) (hb : k - 1 ≤ b)
     (hstep : ∀ i ≤ k - 1, V k (a - i) h ≤ c * V k (b - i) h) :
     V k a (h + 1) ≤ c * V k b (h + 1) := by
-  have hrec (n : ℕ) (hn : n ≠ 0) : V k n (h + 1) =
-      (∑ i ∈ Finset.Ico 1 (min n (k - 1)), V k (n - i) h) + 2 * V k (n - min n (k - 1)) h := by
-    cases n with
-    | zero => exact (hn rfl).elim
-    | succ m => rfl
-  rw [hrec a ha0, hrec b hb0, Nat.min_eq_right ha, Nat.min_eq_right hb,
-    mul_add, Finset.mul_sum]
+  rw [V_succ_eq ha0 (Nat.min_eq_right ha), V_succ_eq hb0 (Nat.min_eq_right hb), mul_add,
+    Finset.mul_sum]
   have hsum : ∑ i ∈ Finset.Ico 1 (k - 1), V k (a - i) h ≤
       ∑ i ∈ Finset.Ico 1 (k - 1), c * V k (b - i) h := by
     refine Finset.sum_le_sum fun i hi => ?_
@@ -152,6 +145,37 @@ private theorem V_mono_left (k : ℕ) :
             rw [show d + 2 - i = (d + 1 - i) + 1 by omega, one_mul]
             exact ih _
 
+private theorem V_one_mul_three_halves {k n : ℕ} (hk : 3 ≤ k) (hn : k - 1 ≤ n) :
+    V k (n + 1) 1 = (3 / 2 : ℝ) * V k n 1 := by
+  have hstep (i : ℕ) (hi : i ≤ k - 1) : V k (n + 1 - i) 0 = 3 / 2 * V k (n - i) 0 := by
+    rw [show n + 1 - i = n - i + 1 by omega, V_zero_right, V_zero_right, pow_succ, mul_comm]
+  rw [V_succ_eq n.add_one_ne_zero (Nat.min_eq_right (by omega)) 0,
+    V_succ_eq (by omega) (Nat.min_eq_right hn) 0, hstep _ le_rfl,
+    Finset.sum_congr rfl fun i hi => hstep i (Finset.mem_Ico.1 hi).2.le, ← Finset.mul_sum]
+  ring
+
+private theorem pow_le_V_one {k : ℕ} (hk : 3 ≤ k) :
+    ∀ n : ℕ, 2 ≤ n → (3 / 2 : ℝ) ^ (n + 1) ≤ V k n 1 := by
+  intro n hn
+  induction hn with
+  | refl =>
+    rw [V_succ_eq two_ne_zero (Nat.min_eq_left (by omega)) 0,
+      show Finset.Ico 1 2 = {1} by decide, Finset.sum_singleton, V_zero_right, V_zero_right]
+    norm_num
+  | @step m hm ih =>
+    change (3 / 2 : ℝ) ^ (m + 2) ≤ V k (m + 1) 1
+    have hm0 : m ≠ 0 := by have : 2 ≤ m := hm; omega
+    by_cases hsmall : m + 1 ≤ k - 1
+    · have hdiff := V_succ_sub_self_small hsmall 0
+      simp only [Nat.zero_add, hm0, ↓reduceIte, V_zero_right] at hdiff
+      have hp : (0 : ℝ) ≤ (3 / 2 : ℝ) ^ m := by positivity
+      have hp1 : (3 / 2 : ℝ) ^ (m + 1) = (3 / 2) * (3 / 2 : ℝ) ^ m := by ring
+      have hp2 : (3 / 2 : ℝ) ^ (m + 2) = (9 / 4) * (3 / 2 : ℝ) ^ m := by ring
+      linarith
+    · have hmul := V_one_mul_three_halves hk (by omega : k - 1 ≤ m)
+      have hp2 : (3 / 2 : ℝ) ^ (m + 2) = (3 / 2) * (3 / 2 : ℝ) ^ (m + 1) := by ring
+      linarith
+
 private theorem V_mono_right {k : ℕ} (hk : 3 ≤ k) :
     ∀ d h : ℕ, V k d h ≤ V k d (h + 1) := by
   intro d h
@@ -165,46 +189,15 @@ private theorem V_mono_right {k : ℕ} (hk : 3 ≤ k) :
         rw [V_zero_right, pow_one, V_one_left (by omega)]
         norm_num
       | succ n =>
-        set l := min (n + 2) (k - 1)
-        have hl_ge2 : 2 ≤ l := by dsimp only [l]; omega
-        change (3 / 2 : ℝ) ^ (n + 2) ≤
-          (∑ i ∈ Finset.Ico 1 l, V k (n + 2 - i) 0) + 2 * V k (n + 2 - l) 0
-        have hp_base : (0 : ℝ) ≤ (3 / 2 : ℝ) ^ n := by positivity
-        by_cases hl2 : l = 2
-        · rw [hl2]
-          have h1 : Finset.Ico 1 2 = {1} := by decide
-          rw [h1, Finset.sum_singleton, show n + 2 - 1 = n + 1 by omega,
-            show n + 2 - 2 = n by omega, V_zero_right, V_zero_right]
-          have hpow1 : (3 / 2 : ℝ) ^ (n + 1) = (3 / 2) * (3 / 2 : ℝ) ^ n := by ring
-          have hpow2 : (3 / 2 : ℝ) ^ (n + 2) = (9 / 4) * (3 / 2 : ℝ) ^ n := by ring
-          linarith
-        · have hl3 : 3 ≤ l := by omega
-          have hsub : ({1, 2} : Finset ℕ) ⊆ Finset.Ico 1 l := by
-            intro x hx
-            simp only [Finset.mem_insert, Finset.mem_singleton] at hx
-            simp only [Finset.mem_Ico]
-            omega
-          have hpair : ∑ i ∈ ({1, 2} : Finset ℕ), V k (n + 2 - i) 0 ≤
-              ∑ i ∈ Finset.Ico 1 l, V k (n + 2 - i) 0 :=
-            Finset.sum_le_sum_of_subset_of_nonneg hsub fun i _ _ => V_nonneg k _ 0
-          rw [Finset.sum_pair (by decide), show n + 2 - 1 = n + 1 by omega,
-            show n + 2 - 2 = n by omega, V_zero_right, V_zero_right] at hpair
-          have hlast := V_nonneg k (n + 2 - l) 0
-          have hpow1 : (3 / 2 : ℝ) ^ (n + 1) = (3 / 2) * (3 / 2 : ℝ) ^ n := by ring
-          have hpow2 : (3 / 2 : ℝ) ^ (n + 2) = (9 / 4) * (3 / 2 : ℝ) ^ n := by ring
-          linarith
+        rw [V_zero_right]
+        exact (pow_le_pow_right₀ (by norm_num) (Nat.le_succ _)).trans
+          (pow_le_V_one hk _ (by omega))
   | succ h ih =>
     cases d with
     | zero => simp only [V_zero_left, le_rfl]
     | succ d =>
-      set l := min (d + 1) (k - 1)
-      change (∑ i ∈ Finset.Ico 1 l, V k (d + 1 - i) h) + 2 * V k (d + 1 - l) h ≤
-        (∑ i ∈ Finset.Ico 1 l, V k (d + 1 - i) (h + 1)) + 2 * V k (d + 1 - l) (h + 1)
-      have hsum : ∑ i ∈ Finset.Ico 1 l, V k (d + 1 - i) h ≤
-          ∑ i ∈ Finset.Ico 1 l, V k (d + 1 - i) (h + 1) :=
-        Finset.sum_le_sum fun i _ => ih _
-      have hlast := ih (d + 1 - l)
-      linarith
+      rw [V_succ_eq d.add_one_ne_zero rfl h, V_succ_eq d.add_one_ne_zero rfl (h + 1)]
+      gcongr <;> apply ih
 
 private theorem V_le_two_mul {k : ℕ} (hk : 3 ≤ k) :
     ∀ d h : ℕ, V k (d + 1) h ≤ 2 * V k d h := by
@@ -256,41 +249,22 @@ private theorem V_three_term {k : ℕ} (hk : 3 ≤ k) :
       · by_cases h2 : m + 2 = k - 1
         · have hd1 := V_succ_sub_self_small (by omega : m + 2 ≤ k - 1) h
           simp only [Nat.succ_ne_zero, ↓reduceIte] at hd1
-          have hl2 : min (m + 2) (k - 1) = m + 2 := Nat.min_eq_left (by omega)
-          have hl3 : min (m + 3) (k - 1) = m + 2 := by rw [← h2]; exact Nat.min_eq_right (by omega)
           have hd2 : V k (m + 3) (h + 1) - V k (m + 2) (h + 1) =
               V k (m + 2) h + V k 1 h - 2 * V k 0 h := by
-            change ((∑ i ∈ Finset.Ico 1 (min (m + 3) (k - 1)), V k (m + 3 - i) h) +
-                2 * V k (m + 3 - min (m + 3) (k - 1)) h) -
-              ((∑ i ∈ Finset.Ico 1 (min (m + 2) (k - 1)), V k (m + 2 - i) h) +
-                2 * V k (m + 2 - min (m + 2) (k - 1)) h) = _
-            rw [hl2, hl3, show m + 3 - (m + 2) = 1 by omega, Nat.sub_self]
-            have hsum_tel : (∑ i ∈ Finset.Ico 1 (m + 2), V k (m + 3 - i) h) -
-                (∑ i ∈ Finset.Ico 1 (m + 2), V k (m + 2 - i) h) =
-                V k (m + 2) h - V k 1 h := by
-              have hleft : ∑ i ∈ Finset.Ico 1 (m + 2), V k (m + 3 - i) h =
-                  V k (m + 2) h + ∑ j ∈ Finset.Ico 1 (m + 1), V k (m + 2 - j) h :=
-                sum_Ico_one_succ_shift (l := m + 1) (by omega) (m + 2) (fun x => V k x h)
-              have hright : ∑ i ∈ Finset.Ico 1 (m + 2), V k (m + 2 - i) h =
-                  (∑ j ∈ Finset.Ico 1 (m + 1), V k (m + 2 - j) h) + V k 1 h := by
-                rw [Finset.sum_Ico_succ_top (by omega) (fun i => V k (m + 2 - i) h),
-                  show m + 2 - (m + 1) = 1 by omega]
-              rw [hleft, hright]
-              ring
-            linarith
+            rw [V_succ_eq (by omega) (by omega : min (m + 3) (k - 1) = m + 2),
+              V_succ_eq (by omega) (Nat.min_eq_left (by omega : m + 2 ≤ k - 1)),
+              show m + 3 - (m + 2) = 1 by omega, Nat.sub_self,
+              sum_Ico_one_succ_shift (l := m + 1) (by omega) (m + 2) (fun x => V k x h),
+              Finset.sum_Ico_succ_top (by omega : 1 ≤ m + 1) (fun i => V k (m + 2 - i) h),
+              show m + 2 - (m + 1) = 1 by omega]
+            ring
           have hv1 : V k 1 h ≤ 2 * V k 0 h := V_le_two_mul hk 0 h
           have htwo := V_le_two_mul hk (m + 1) h
           linarith
-        · have hl1 : min (m + 1) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-          have hl2 : min (m + 2) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-          have hl3 : min (m + 3) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-          change 2 * ((∑ i ∈ Finset.Ico 1 (min (m + 1) (k - 1)), V k (m + 1 - i) h) +
-              2 * V k (m + 1 - min (m + 1) (k - 1)) h) +
-            ((∑ i ∈ Finset.Ico 1 (min (m + 3) (k - 1)), V k (m + 3 - i) h) +
-              2 * V k (m + 3 - min (m + 3) (k - 1)) h) ≤
-            3 * ((∑ i ∈ Finset.Ico 1 (min (m + 2) (k - 1)), V k (m + 2 - i) h) +
-              2 * V k (m + 2 - min (m + 2) (k - 1)) h)
-          rw [hl1, hl2, hl3, mul_add, mul_add, Finset.mul_sum, Finset.mul_sum]
+        · rw [V_succ_eq (by omega) (Nat.min_eq_right (by omega : k - 1 ≤ m + 1)),
+            V_succ_eq (by omega) (Nat.min_eq_right (by omega : k - 1 ≤ m + 1 + 2)),
+            V_succ_eq (by omega) (Nat.min_eq_right (by omega : k - 1 ≤ m + 1 + 1)), mul_add,
+            mul_add, Finset.mul_sum, Finset.mul_sum]
           have hsum : (∑ i ∈ Finset.Ico 1 (k - 1), 2 * V k (m + 1 - i) h) +
               (∑ i ∈ Finset.Ico 1 (k - 1), V k (m + 3 - i) h) ≤
               ∑ i ∈ Finset.Ico 1 (k - 1), 3 * V k (m + 2 - i) h := by
@@ -306,54 +280,6 @@ private theorem V_three_term {k : ℕ} (hk : 3 ≤ k) :
               show m + 2 - (k - 1) = (m + 1 - (k - 1)) + 1 by omega]
             exact ih _
           linarith
-
-private theorem V_one_mul_three_halves {k n : ℕ} (hk : 3 ≤ k) (hn : k - 1 ≤ n) :
-    V k (n + 1) 1 = (3 / 2 : ℝ) * V k n 1 := by
-  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
-  have hl1 : min (m + 1) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-  have hl2 : min (m + 2) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-  change (∑ i ∈ Finset.Ico 1 (min (m + 2) (k - 1)), V k (m + 2 - i) 0) +
-      2 * V k (m + 2 - min (m + 2) (k - 1)) 0 =
-    (3 / 2 : ℝ) * ((∑ i ∈ Finset.Ico 1 (min (m + 1) (k - 1)), V k (m + 1 - i) 0) +
-      2 * V k (m + 1 - min (m + 1) (k - 1)) 0)
-  rw [hl1, hl2, mul_add, Finset.mul_sum]
-  have hsum : ∑ i ∈ Finset.Ico 1 (k - 1), V k (m + 2 - i) 0 =
-      ∑ i ∈ Finset.Ico 1 (k - 1), (3 / 2 : ℝ) * V k (m + 1 - i) 0 := by
-    refine Finset.sum_congr rfl fun i hi => ?_
-    simp only [Finset.mem_Ico] at hi
-    rw [show m + 2 - i = (m + 1 - i) + 1 by omega, V_zero_right, V_zero_right, pow_succ]
-    ring
-  have hlast : V k (m + 2 - (k - 1)) 0 = (3 / 2 : ℝ) * V k (m + 1 - (k - 1)) 0 := by
-    rw [show m + 2 - (k - 1) = (m + 1 - (k - 1)) + 1 by omega, V_zero_right, V_zero_right,
-      pow_succ]
-    ring
-  rw [hsum, hlast]
-  ring
-
-private theorem pow_le_V_one {k : ℕ} (hk : 3 ≤ k) :
-    ∀ n : ℕ, 2 ≤ n → (3 / 2 : ℝ) ^ (n + 1) ≤ V k n 1 := by
-  intro n hn
-  induction hn with
-  | refl =>
-    have hl : min 2 (k - 1) = 2 := Nat.min_eq_left (by omega)
-    change (3 / 2 : ℝ) ^ 3 ≤
-      (∑ i ∈ Finset.Ico 1 (min 2 (k - 1)), V k (2 - i) 0) + 2 * V k (2 - min 2 (k - 1)) 0
-    rw [hl, show Finset.Ico 1 2 = {1} by decide, Finset.sum_singleton, V_zero_right, V_zero_right]
-    norm_num
-  | @step m hm ih =>
-    change (3 / 2 : ℝ) ^ (m + 2) ≤ V k (m + 1) 1
-    have hm_ge2 : 2 ≤ m := hm
-    by_cases hsmall : m + 1 ≤ k - 1
-    · have hm0 : m ≠ 0 := by omega
-      have hdiff := V_succ_sub_self_small hsmall 0
-      simp only [Nat.zero_add, hm0, ↓reduceIte, V_zero_right] at hdiff
-      have hp : (0 : ℝ) ≤ (3 / 2 : ℝ) ^ m := by positivity
-      have hp1 : (3 / 2 : ℝ) ^ (m + 1) = (3 / 2) * (3 / 2 : ℝ) ^ m := by ring
-      have hp2 : (3 / 2 : ℝ) ^ (m + 2) = (9 / 4) * (3 / 2 : ℝ) ^ m := by ring
-      linarith
-    · have hmul := V_one_mul_three_halves hk (by omega : k - 1 ≤ m)
-      have hp2 : (3 / 2 : ℝ) ^ (m + 2) = (3 / 2) * (3 / 2 : ℝ) ^ (m + 1) := by ring
-      linarith
 
 private theorem V_step_ineq {k : ℕ} (hk : 3 ≤ k) :
     ∀ n h : ℕ, V k (n + 1) h + 2 * V k n (h + 1) ≤ 2 * V k (n + 1) (h + 1) := by
@@ -388,15 +314,10 @@ private theorem V_step_ineq {k : ℕ} (hk : 3 ≤ k) :
         simp only [Nat.succ_ne_zero, ↓reduceIte] at hdiff
         have htwo := V_le_two_mul hk (m + 1) (h + 1)
         linarith
-      · have hl1 : min (m + 1) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-        have hl2 : min (m + 2) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-        change ((∑ i ∈ Finset.Ico 1 (min (m + 2) (k - 1)), V k (m + 2 - i) h) +
-            2 * V k (m + 2 - min (m + 2) (k - 1)) h) +
-          2 * ((∑ i ∈ Finset.Ico 1 (min (m + 1) (k - 1)), V k (m + 1 - i) (h + 1)) +
-            2 * V k (m + 1 - min (m + 1) (k - 1)) (h + 1)) ≤
-          2 * ((∑ i ∈ Finset.Ico 1 (min (m + 2) (k - 1)), V k (m + 2 - i) (h + 1)) +
-            2 * V k (m + 2 - min (m + 2) (k - 1)) (h + 1))
-        rw [hl1, hl2, mul_add, mul_add, Finset.mul_sum, Finset.mul_sum]
+      · rw [V_succ_eq (by omega) (Nat.min_eq_right (by omega : k - 1 ≤ m + 1 + 1)) h,
+          V_succ_eq (by omega) (Nat.min_eq_right (by omega : k - 1 ≤ m + 1 + 1)) (h + 1),
+          V_succ_eq (by omega) (Nat.min_eq_right (by omega : k - 1 ≤ m + 1)) (h + 1), mul_add,
+          mul_add, Finset.mul_sum, Finset.mul_sum]
         have hsum : (∑ i ∈ Finset.Ico 1 (k - 1), V k (m + 2 - i) h) +
             (∑ i ∈ Finset.Ico 1 (k - 1), 2 * V k (m + 1 - i) (h + 1)) ≤
             ∑ i ∈ Finset.Ico 1 (k - 1), 2 * V k (m + 2 - i) (h + 1) := by
@@ -422,18 +343,25 @@ private theorem V_step_ineq {k : ℕ} (hk : 3 ≤ k) :
         let l := min d (r - 1)
         (∑ i ∈ Finset.Ico 1 l, V k (d - i) h) + 2 * V k (d - l) h
 
+/-- Unfolds `W k r d (h + 1)` for `2 ≤ r` and `d ≠ 0` once its window `min d (r - 1)` is known. -/
+private theorem W_succ_eq {k r d l : ℕ} (hr : 2 ≤ r) (hd : d ≠ 0) (hl : min d (r - 1) = l)
+    (h : ℕ) : W k r d (h + 1) = (∑ i ∈ Finset.Ico 1 l, V k (d - i) h) + 2 * V k (d - l) h := by
+  subst hl
+  have hr0 : r ≠ 0 := by omega
+  have hr1 : r ≠ 1 := by omega
+  simp only [W, hr0, hr1, hd, ↓reduceIte]
+
 /-- At full root budget `r = k ≥ 2`, `W k k d h` coincides with `V k d h`. -/
 theorem W_eq_V {k : ℕ} (hk : 2 ≤ k) (d h : ℕ) : W k k d h = V k d h := by
   cases h with
   | zero => rw [W, V_zero_right]
   | succ h =>
-    unfold W
-    have hk0 : k ≠ 0 := by omega
-    have hk1 : k ≠ 1 := by omega
-    simp only [hk0, hk1, ↓reduceIte]
     cases d with
-    | zero => simp only [↓reduceIte, V_zero_left]
-    | succ d => simp only [Nat.succ_ne_zero, ↓reduceIte]; rfl
+    | zero =>
+      have hk0 : k ≠ 0 := by omega
+      have hk1 : k ≠ 1 := by omega
+      simp only [W, hk0, hk1, ↓reduceIte, V_zero_left]
+    | succ d => rw [W_succ_eq hk d.add_one_ne_zero rfl, V_succ_eq d.add_one_ne_zero rfl]
 
 /-- For positive root budget `r ≥ 1`, `1 ≤ W k r d h`. -/
 theorem W_one_le {k r : ℕ} (hr : 1 ≤ r) (d h : ℕ) : (1 : ℝ) ≤ W k r d h := by
@@ -442,20 +370,16 @@ theorem W_one_le {k r : ℕ} (hr : 1 ≤ r) (d h : ℕ) : (1 : ℝ) ≤ W k r d 
     unfold W
     exact one_le_pow₀ (by norm_num)
   | succ h =>
-    unfold W
-    have hr0 : r ≠ 0 := by omega
-    simp only [hr0, ↓reduceIte]
-    by_cases hr1 : r = 1
-    · simp only [hr1, ↓reduceIte]; exact V_one_le k d h
-    · simp only [hr1, ↓reduceIte]
-      by_cases hd0 : d = 0
-      · simp only [hd0, ↓reduceIte, le_rfl]
-      · simp only [hd0, ↓reduceIte]
-        have hsum : (0 : ℝ) ≤ ∑ i ∈ Finset.Ico 1 (min d (r - 1)), V k (d - i) h :=
-          Finset.sum_nonneg fun i _ => V_nonneg k _ h
-        have hlast := V_one_le k (d - min d (r - 1)) h
-        linarith
-
+    obtain rfl | hr2 := hr.eq_or_lt
+    · simpa only [W, one_ne_zero, ↓reduceIte] using V_one_le k d h
+    obtain rfl | hd := Nat.eq_zero_or_pos d
+    · have hr0 : r ≠ 0 := by omega
+      have hr1 : r ≠ 1 := by omega
+      simp only [W, hr0, hr1, ↓reduceIte, le_rfl]
+    rw [W_succ_eq hr2 hd.ne' rfl]
+    have hsum : (0 : ℝ) ≤ ∑ i ∈ Finset.Ico 1 (min d (r - 1)), V k (d - i) h :=
+      Finset.sum_nonneg fun i _ => V_nonneg k _ h
+    linarith [V_one_le k (d - min d (r - 1)) h]
 
 /-- `W k r d h` is monotone in the interval-tree depth `d`. -/
 theorem W_mono_left (k : ℕ) :
@@ -469,37 +393,27 @@ theorem W_mono_left (k : ℕ) :
   | succ h =>
     by_cases hr0 : r = 0
     · simp only [W, hr0, ↓reduceIte, le_rfl]
-    · by_cases hr1 : r = 1
-      · simp only [W, hr1, ↓reduceIte]
-        exact V_mono_left k d h
-      · simp only [W, hr0, hr1, ↓reduceIte, Nat.succ_ne_zero]
-        by_cases hd0 : d = 0
-        · subst hd0
-          have hl : min 1 (r - 1) = 1 := Nat.min_eq_left (by omega)
-          simp only [↓reduceIte, hl, Finset.Ico_self, Finset.sum_empty, zero_add, Nat.sub_self,
-            V_zero_left]
-          norm_num
-        · simp only [hd0, ↓reduceIte]
-          by_cases hsmall : d + 1 ≤ r - 1
-          · have hl1 : min d (r - 1) = d := Nat.min_eq_left (by omega)
-            have hl2 : min (d + 1) (r - 1) = d + 1 := Nat.min_eq_left hsmall
-            rw [hl1, hl2, Nat.sub_self, Nat.sub_self, V_zero_left,
-              sum_Ico_one_succ_shift (l := d) (by omega) d (fun x => V k x h)]
-            have hp := V_nonneg k d h
-            linarith
-          · have hl1 : min d (r - 1) = r - 1 := Nat.min_eq_right (by omega)
-            have hl2 : min (d + 1) (r - 1) = r - 1 := Nat.min_eq_right (by omega)
-            rw [hl1, hl2]
-            have hsum : ∑ i ∈ Finset.Ico 1 (r - 1), V k (d - i) h ≤
-                ∑ i ∈ Finset.Ico 1 (r - 1), V k (d + 1 - i) h := by
-              refine Finset.sum_le_sum fun i hi => ?_
-              simp only [Finset.mem_Ico] at hi
-              rw [show d + 1 - i = (d - i) + 1 by omega]
-              exact V_mono_left k _ h
-            have hlast : V k (d - (r - 1)) h ≤ V k (d + 1 - (r - 1)) h := by
-              rw [show d + 1 - (r - 1) = (d - (r - 1)) + 1 by omega]
-              exact V_mono_left k _ h
-            linarith
+    by_cases hr1 : r = 1
+    · simp only [W, hr1, ↓reduceIte]
+      exact V_mono_left k d h
+    have hr : 2 ≤ r := by omega
+    obtain rfl | hd0 := Nat.eq_zero_or_pos d
+    · rw [zero_add, W_succ_eq hr one_ne_zero (Nat.min_eq_left (by omega)), Finset.Ico_self,
+        Finset.sum_empty, zero_add, Nat.sub_self, V_zero_left]
+      simp only [W, hr0, hr1, ↓reduceIte]
+      norm_num
+    by_cases hsmall : d + 1 ≤ r - 1
+    · rw [W_succ_eq hr hd0.ne' (Nat.min_eq_left (by omega)),
+        W_succ_eq hr d.add_one_ne_zero (Nat.min_eq_left hsmall), Nat.sub_self, Nat.sub_self,
+        V_zero_left, sum_Ico_one_succ_shift (l := d) (by omega) d (fun x => V k x h)]
+      linarith [V_nonneg k d h]
+    · have hmono (x : ℕ) (hx : x ≤ d) : V k (d - x) h ≤ V k (d + 1 - x) h := by
+        rw [show d + 1 - x = d - x + 1 by omega]
+        exact V_mono_left k _ h
+      rw [W_succ_eq hr hd0.ne' (Nat.min_eq_right (by omega)),
+        W_succ_eq hr d.add_one_ne_zero (Nat.min_eq_right (by omega))]
+      gcongr with i hi
+      exacts [hmono i (by have := (Finset.mem_Ico.1 hi).2; omega), hmono _ (by omega)]
 
 /-- Splitting off a direct child subtree at depth `1` satisfies
 `W k (r - 1) d (h + 1) + V k d h = W k r (d + 1) (h + 1)`. -/
@@ -522,16 +436,11 @@ theorem W_split_depth_one {k r d h : ℕ} (hr : 2 ≤ r) :
         Finset.Ico_self, Finset.sum_empty, zero_add, Nat.sub_self, V_zero_left]
       norm_num
     | succ m =>
-      change W k (r - 1) (m + 1) (h + 1) + V k (m + 1) h = W k r (m + 2) (h + 1)
-      simp only [W, hr_m1_0, hr_m1_1, hr0, hr1, ↓reduceIte, Nat.succ_ne_zero]
-      rw [show r - 1 - 1 = r - 2 by omega]
-      set l' := min (m + 1) (r - 2)
-      have hl : min (m + 2) (r - 1) = l' + 1 := by
-        rw [show r - 1 = (r - 2) + 1 by omega]
-        exact Nat.succ_min_succ (m + 1) (r - 2)
-      have hl'_pos : 1 ≤ l' := by dsimp only [l']; omega
-      rw [hl, show m + 2 - (l' + 1) = m + 1 - l' by omega,
-        sum_Ico_one_succ_shift hl'_pos (m + 1) (fun x => V k x h)]
+      set l := min (m + 1) (r - 1 - 1)
+      rw [W_succ_eq (r := r - 1) (by omega) m.add_one_ne_zero rfl,
+        W_succ_eq hr (by omega) (by omega : min (m + 1 + 1) (r - 1) = l + 1),
+        show m + 1 + 1 - (l + 1) = m + 1 - l by omega,
+        sum_Ico_one_succ_shift (by omega : 1 ≤ l) (m + 1) (fun x => V k x h)]
       ring
 
 /-- Splitting off a proper descendant subtree at depth `≥ 2` satisfies
@@ -547,20 +456,14 @@ theorem W_split_depth_two {k r d h : ℕ} (hk : 3 ≤ k) (hr : 2 ≤ r) (_hrk : 
       zero_add, Nat.sub_self, V_zero_left]
     norm_num
   | succ m =>
-    change W k r (m + 1) (h + 2) + V k (m + 1) h ≤ W k r (m + 2) (h + 2)
-    simp only [W, hr0, hr1, ↓reduceIte, Nat.succ_ne_zero]
     by_cases hsmall : m + 2 ≤ r - 1
-    · have hl1 : min (m + 1) (r - 1) = m + 1 := Nat.min_eq_left (by omega)
-      have hl2 : min (m + 2) (r - 1) = m + 2 := Nat.min_eq_left hsmall
-      rw [hl1, hl2, Nat.sub_self, Nat.sub_self, V_zero_left,
+    · rw [W_succ_eq hr m.add_one_ne_zero (Nat.min_eq_left (by omega : m + 1 ≤ r - 1)),
+        W_succ_eq hr (by omega) (Nat.min_eq_left hsmall), Nat.sub_self, Nat.sub_self, V_zero_left,
         sum_Ico_one_succ_shift (l := m + 1) (by omega) (m + 1) (fun x => V k x (h + 1))]
-      have hmr := V_mono_right hk (m + 1) h
-      linarith
+      linarith [V_mono_right hk (m + 1) h]
     · obtain ⟨u, hu_eq⟩ : ∃ u, r - 1 = u + 1 := ⟨r - 2, by omega⟩
-      have hu_le : u + 1 ≤ m + 1 := by omega
-      have hl1 : min (m + 1) (r - 1) = u + 1 := by rw [hu_eq]; exact Nat.min_eq_right hu_le
-      have hl2 : min (m + 2) (r - 1) = u + 1 := by rw [hu_eq]; exact Nat.min_eq_right (by omega)
-      rw [hl1, hl2]
+      rw [W_succ_eq hr m.add_one_ne_zero (by omega : min (m + 1) (r - 1) = u + 1),
+        W_succ_eq hr (by omega) (by omega : min (m + 2) (r - 1) = u + 1)]
       have htel_sum : (∑ i ∈ Finset.Ico 1 (u + 1), V k (m + 2 - i) (h + 1)) +
           2 * V k (m + 2 - (u + 1)) (h + 1) -
           ((∑ i ∈ Finset.Ico 1 (u + 1), V k (m + 1 - i) (h + 1)) +

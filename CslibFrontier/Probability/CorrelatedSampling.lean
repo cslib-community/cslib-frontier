@@ -119,12 +119,10 @@ theorem firstIn_of_firstIn_union {A B : Finset Ω} {l : List Ω} {c : Ω}
   | nil => simp [firstIn] at h
   | cons a l ih =>
     rw [firstIn_cons] at h ⊢
-    by_cases ha : a ∈ A ∪ B
-    · rw [ite_eq_left ha] at h
-      cases h
+    split_ifs at h with ha
+    · cases h
       rw [ite_eq_left hc]
-    · rw [ite_eq_right ha] at h
-      rw [ite_eq_right fun haA => ha (mem_union_left _ haA)]
+    · rw [ite_eq_right fun haA => ha (mem_union_left _ haA)]
       exact ih h
 
 /-- **Luce's choice axiom for weighted orders.** In the draws without replacement from `U`, the
@@ -149,26 +147,18 @@ theorem map_firstIn_weightedOrderAux (w : Ω → ℝ≥0) :
         exact (PMF.mem_support_iff _ _).mp ha (by rw [weightedDraw_apply, ite_eq_right haU])
       rw [PMF.map_comp]
       by_cases haR : a ∈ R
-      · rw [ite_eq_left haR]
-        have : firstIn R ∘ (a :: ·) = Function.const _ (some a) := by
-          funext l
-          simp [firstIn_cons, haR]
-        rw [this, PMF.map_const]
-      · rw [ite_eq_right haR]
-        have : firstIn R ∘ (a :: ·) = firstIn R := by
-          funext l
-          simp [firstIn_cons, haR]
-        have hRU : R ∩ U.erase a = R ∩ U := by
-          ext x
-          simp only [mem_inter, mem_erase]
-          exact ⟨fun h => ⟨h.1, h.2.2⟩, fun h => ⟨h.1, fun hx => haR (hx ▸ h.1), h.2⟩⟩
-        rw [this, map_firstIn_weightedOrderAux w m (U.erase a) R
-          (by rw [card_erase_of_mem haU]; omega) (hRU ▸ hR)]
+      · rw [ite_eq_left haR, show firstIn R ∘ (a :: ·) = Function.const _ (some a) from
+          funext fun l => by simp [firstIn_cons, haR], PMF.map_const]
+      · have hRU : R ∩ U.erase a = R ∩ U := by
+          rw [inter_erase, erase_eq_of_notMem fun h => haR (mem_inter.mp h).1]
+        rw [ite_eq_right haR, show firstIn R ∘ (a :: ·) = firstIn R from
+          funext fun l => by simp [firstIn_cons, haR],
+          map_firstIn_weightedOrderAux w m (U.erase a) R (by rw [card_erase_of_mem haU]; omega)
+            (hRU ▸ hR)]
         simp only [hRU]
     rw [Cslib.Probability.PMF.bind_congr_on_support _ _ _ hcont]
     have hrhs : ∀ c, (PMF.map some (weightedDraw w (R ∩ U) hR)) (some c) =
-        weightedDraw w (R ∩ U) hR c := by
-      intro c
+        weightedDraw w (R ∩ U) hR c := fun c => by
       rw [PMF.map_apply, tsum_fintype]
       simp
     ext o
@@ -256,8 +246,7 @@ theorem sum_sub_predIn (T : Finset ℝ≥0) : ∑ v ∈ T, (v - predIn T v) = T.
     have haT : a ∉ T := fun ha => lt_irrefl a (hlt a ha)
     have hpa : predIn (insert a T) a = T.sup id := by
       rw [predIn, filter_insert, ite_eq_right (lt_irrefl a), filter_true_of_mem hlt]
-    have hpv : ∀ v ∈ T, predIn (insert a T) v = predIn T v := by
-      intro v hv
+    have hpv : ∀ v ∈ T, predIn (insert a T) v = predIn T v := fun v hv => by
       rw [predIn, predIn, filter_insert, ite_eq_right (lt_asymm (hlt v hv))]
     have hsup : T.sup id ≤ a := Finset.sup_le fun v hv => (hlt v hv).le
     rw [sum_insert haT, hpa, sum_congr rfl fun v hv => by rw [hpv v hv], ih, sup_insert,
@@ -319,12 +308,8 @@ theorem sum_weight_fiber [DecidableEq S] {t : S → ℝ≥0} (s : S) (hts : t s 
     ∑ c ∈ (under P t).filter (·.1 = s), weight P c = t s := by
   rw [← sum_filter_le_sub_predIn hts, under, filter_filter, sum_filter, Fintype.sum_sigma,
     sum_filter, ← sum_coe_sort (values P s)]
-  rw [sum_eq_single s]
-  · refine sum_congr rfl fun v _ => ?_
-    simp [weight]
-  · intro s' _ hs'
-    exact sum_eq_zero fun v _ => by simp [hs']
-  · simp
+  rw [sum_eq_single s (fun s' _ hs' => sum_eq_zero fun v _ => by simp [hs']) (by simp)]
+  exact sum_congr rfl fun v _ => by simp [weight]
 
 /-- The cells under the graph of `t` have total length `∑ s, t s`. -/
 theorem sum_weight_under {t : S → ℝ≥0} (ht : ∀ s, t s ∈ values P s) :
@@ -353,8 +338,7 @@ theorem sum_weight_region (i : I) : ∑ c ∈ region P i, (weight P c : ℝ≥0�
   simpa [tsum_fintype] using (P i).tsum_coe
 
 theorem sum_weight_region_ne_zero (i : I) : ∑ c ∈ region P i, (weight P c : ℝ≥0∞) ≠ 0 := by
-  rw [sum_weight_region]
-  exact one_ne_zero
+  rw [sum_weight_region]; exact one_ne_zero
 
 /-- **Correlated sampling, marginals.** Party `i` outputs a sample of `P i`. -/
 theorem map_sample (i : I) : (shared P).map (sample P i) = P i := by

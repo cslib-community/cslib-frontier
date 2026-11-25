@@ -116,16 +116,12 @@ theorem eval_supportIndicatorCircuit {bits n count : ℕ} (hn : n ≤ 2 ^ bits)
       have hx : block x j = (equivFin bits).symm valueFin := by
         funext k
         rw [BitString.equivFin_symm_apply]
-        have hk := h k
-        rw [hleaf] at hk
-        exact beq_iff_eq.mp hk
-      have := congrArg (equivFin bits) hx
-      simpa only [Equiv.apply_symm_apply, valueFin] using congrArg Fin.val this
+        exact beq_iff_eq.mp ((hleaf k).symm.trans (h k))
+      simpa only [Equiv.apply_symm_apply, valueFin] using
+        congrArg (fun y => (equivFin bits y : ℕ)) hx
     · intro h
-      have hx : block x j = (equivFin bits).symm valueFin := by
-        apply (equivFin bits).injective
-        rw [Equiv.apply_symm_apply]
-        exact Fin.ext h
+      have hx : block x j = (equivFin bits).symm valueFin :=
+        (equivFin bits).eq_symm_apply.mpr (Fin.ext h)
       intro k
       rw [hleaf]
       change (block x j k == i.val.testBit k.val) = true
@@ -137,28 +133,7 @@ theorem eval_supportIndicatorCircuit {bits n count : ℕ} (hn : n ≤ 2 ^ bits)
   simp only [Fin.isValue, Circuit.eval_oneGate, Boolean.interpretation, Nat.reduceAdd,
     indicatorVector_apply, List.mem_toFinset, List.mem_ofFn]
   rw [List.balancedFold_eq_foldr, foldr_or_eq_any]
-  have hvalue (j : Fin count) :
-      ((((fun y : Fin 1 → Bool => y 0) ∘ fun C => C.eval interpretation x) ∘
-        fun j : Fin count =>
-          Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-            (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-            (List.ofFn fun k : Fin bits =>
-              (Formula.literal (fun _ => i.val.testBit k.val)
-                (finProdFinEquiv (j, k))).toCircuit)) j) =
-        decide ((equivFin bits (block x j) : ℕ) = i.val) := by
-    simpa only [Function.comp_apply] using hword j
-  have hvalues :
-      List.ofFn ((((fun y : Fin 1 → Bool => y 0) ∘ fun C => C.eval interpretation x) ∘
-        fun j : Fin count =>
-          Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-            (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-            (List.ofFn fun k : Fin bits =>
-              (Formula.literal (fun _ => i.val.testBit k.val)
-                (finProdFinEquiv (j, k))).toCircuit))) =
-        List.ofFn (fun j : Fin count =>
-          decide ((equivFin bits (block x j) : ℕ) = i.val)) := by
-    exact congrArg List.ofFn (funext hvalue)
-  rw [List.map_ofFn, hvalues]
+  simp only [List.map_ofFn, Function.comp_def, hword]
   rw [Bool.eq_iff_iff]
   simp
 

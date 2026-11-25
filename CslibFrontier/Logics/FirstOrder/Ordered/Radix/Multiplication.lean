@@ -106,35 +106,18 @@ theorem realize_multiply {d m : ℕ} (B : (language L).Term α)
     have hXY : X * Y < (B.realize v).val ^ d := by simpa only [X, Y, he] using hZ
     obtain ⟨q, hq0, hqe, hqb, hqs⟩ := Nat.exists_radix_quotients (Nat.le_of_lt hB)
       (fun i => ((y i).realize v).val)
-    have hr (i : Fin (m + 1)) : ∃ w : Fin d → Fin n,
-        (∀ j, (w j).val < (B.realize v).val) ∧
-        Nat.ofDigits (B.realize v).val (List.ofFn fun j => (w j).val) = X * q i :=
+    choose R hR hRv using fun i : Fin (m + 1) =>
       exists_word (B.realize v) (lt_of_le_of_lt (Nat.mul_le_mul_left X (hqb i)) hXY)
-    choose R hR hRv using hr
-    have ht (i : Fin m) : ∃ w : Fin d → Fin n,
-        (∀ j, (w j).val < (B.realize v).val) ∧
-        Nat.ofDigits (B.realize v).val (List.ofFn fun j => (w j).val) =
-          X * ((y i).realize v).val := by
-      apply exists_word (B.realize v)
-      apply lt_of_le_of_lt (Nat.mul_le_mul_left X (show ((y i).realize v).val ≤ Y by
-        have hqi := hqs i
-        have hqb' := hqb i.castSucc
-        dsimp [Y]
-        lia)) hXY
-    choose T hT hTv using ht
+    choose T hT hTv using fun i : Fin m => exists_word (B.realize v)
+      (lt_of_le_of_lt (Nat.mul_le_mul_left X (show ((y i).realize v).val ≤ Y by
+        have := hqs i; have := hqb i.castSucc; dsimp [Y]; lia)) hXY)
     refine ⟨hx, hy, hz, (fun p => Sum.elim (fun i => R i p.2) (fun i => T i p.2) p.1),
       ?_, ?_, ?_⟩
-    · have h := Nat.ofDigits_ofFn_inj hB (hR 0) hz
-        (show Nat.ofDigits (B.realize v).val (List.ofFn fun j => (R 0 j).val) = _ by
-          rw [hRv, hq0]
-          exact he)
-      exact fun j => congrFun h j
-    · have h := Nat.ofDigits_ofFn_inj hB (hR (Fin.last m))
-        (fun _ : Fin d => show 0 < (B.realize v).val by lia)
-        (show Nat.ofDigits (B.realize v).val (List.ofFn fun j => (R (Fin.last m) j).val) =
-            Nat.ofDigits (B.realize v).val (List.ofFn fun _ : Fin d => 0) by
-          simp only [hRv, hqe, Nat.mul_zero, List.ofFn_const, Nat.ofDigits_replicate_zero])
-      exact fun j => congrFun h j
+    · exact congrFun (Nat.ofDigits_ofFn_inj (x := fun j => (R 0 j).val) hB (hR 0) hz
+        (by rw [hRv, hq0]; exact he))
+    · exact congrFun (Nat.ofDigits_ofFn_inj (x := fun j => (R (Fin.last m) j).val)
+        (y := fun _ => 0) hB (hR _) (fun _ => by lia)
+        (by simp only [hRv, hqe, Nat.mul_zero, List.ofFn_const, Nat.ofDigits_replicate_zero]))
     · intro i
       refine ⟨Nat.le_of_lt (hy i), hx, (fun _ => by lia), hT i, ?_, le_refl _,
         hR i.succ, hT i, hR i.castSucc, ?_⟩

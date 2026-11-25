@@ -492,16 +492,6 @@ private theorem deficit_add_sum (Os : List (List ℕ)) (h : ∀ O ∈ Os, O.leng
     simp only [deficit, List.map_cons, List.sum_cons, List.length_cons] at this ⊢
     omega
 
-private theorem length_le_sum (Os : List (List ℕ)) (h : ∀ O ∈ Os, 1 ≤ O.length) :
-    Os.length ≤ (Os.map List.length).sum := by
-  induction Os with
-  | nil => simp
-  | cons O Os ih =>
-    have h₀ := h O List.mem_cons_self
-    have := ih fun O' hO' => h O' (List.mem_cons_of_mem _ hO')
-    simp only [List.map_cons, List.sum_cons, List.length_cons]
-    omega
-
 private theorem mem_padBlocks {m : ℕ} {Os : List (List ℕ)} {off : ℕ} {S : List ℕ}
     (h : S ∈ padBlocks m Os off) :
     ∃ O ∈ Os, ∃ off', S = O ++ (List.range (3 - O.length)).map (m + off' + ·) := by
@@ -548,13 +538,11 @@ theorem mem_of_oneSatisfiable {φ : CNF ℕ}
     exact (List.existsUnique_mem_of_countP_eq_one (hone j hj)).unique ⟨hu', ((hT u).mp hu).2⟩
       ⟨hv', ((hT v).mp hv).2⟩
   have hOs_mem : ∀ j, j ∈ Os.flatten ↔ j < m := fun j => by
-    constructor
-    · intro h
-      obtain ⟨O, hO, hjO⟩ := List.mem_flatten.mp h
+    refine ⟨fun h => ?_, fun hj => ?_⟩
+    · obtain ⟨O, hO, hjO⟩ := List.mem_flatten.mp h
       obtain ⟨v, -, rfl⟩ := List.mem_map.mp hO
       exact (hmemj hjO).1
-    · intro hj
-      obtain ⟨v, hv, hσv⟩ := List.countP_pos_iff.mp (by rw [hone j hj]; omega)
+    · obtain ⟨v, hv, hσv⟩ := List.countP_pos_iff.mp (by rw [hone j hj]; omega)
       exact List.mem_flatten.mpr ⟨occ φ v, List.mem_map.mpr
         ⟨v, (hT v).mpr ⟨mem_vars.mpr ⟨_, List.getElem_mem hj, hv⟩, hσv⟩, rfl⟩,
         mem_occ_of_mem hj hv⟩
@@ -564,7 +552,8 @@ theorem mem_of_oneSatisfiable {φ : CNF ℕ}
   have hsum : (Os.map List.length).sum = m := by
     rw [← List.length_flatten, hperm_O.length_eq, List.length_range]
   have hdef := deficit_add_sum Os fun O hO => (hOsle O hO).2
-  have hTm := length_le_sum Os fun O hO => (hOsle O hO).1
+  have hTm : Os.length ≤ (Os.map List.length).sum := by
+    simpa using List.length_le_sum_of_one_le _ (List.forall_mem_map.2 fun O hO => (hOsle O hO).1)
   rw [hsum] at hdef hTm
   -- the exact cover
   let L := padBlocks m Os 0 ++ restTriples (m + deficit Os) (m - Os.length)

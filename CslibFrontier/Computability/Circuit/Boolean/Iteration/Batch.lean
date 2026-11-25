@@ -249,9 +249,8 @@ private theorem batch_construction_cost (n s M N r L : ℕ) (hN : N ≤ 2 ^ n)
   have hn2 : (n + 1) ^ 2 ≤ P := Nat.pow_le_pow_right (by omega) (by decide)
   -- the shared dictionary
   have hwidth : (d + 1) ^ 2 * (n + (n + 1) + 1) ≤ 18 * P := by
-    have h1 : (d + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 := by
-      calc (d + 1) ^ 2 ≤ (3 * (n + 1)) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-        _ = 9 * (n + 1) ^ 2 := by ring
+    have h1 : (d + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 :=
+      (Nat.pow_le_pow_left (by omega : d + 1 ≤ 3 * (n + 1)) 2).trans_eq (by ring)
     calc (d + 1) ^ 2 * (n + (n + 1) + 1) ≤ 9 * (n + 1) ^ 2 * (2 * (n + 1)) := by
           gcongr; omega
       _ = 18 * P := by simp only [P]; ring
@@ -269,20 +268,16 @@ private theorem batch_construction_cost (n s M N r L : ℕ) (hN : N ≤ 2 ^ n)
   have hmember : (2 * L + 1) * (4 * ((n + 2) + n + 1)) +
       200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 + 40000 * (P * (L + 0 + 1)) + 4 * n ≤
         85440 * (L * P) := by
-    have h1 : (2 * L + 1) * (4 * ((n + 2) + n + 1)) ≤ 36 * (L * P) := by
-      calc (2 * L + 1) * (4 * ((n + 2) + n + 1)) ≤ (3 * L) * (12 * P) :=
-            Nat.mul_le_mul (by omega) (by omega)
-        _ = 36 * (L * P) := by ring
+    have h1 : (2 * L + 1) * (4 * ((n + 2) + n + 1)) ≤ 36 * (L * P) :=
+      (Nat.mul_le_mul (by omega : 2 * L + 1 ≤ 3 * L) (by omega : _ ≤ 12 * P)).trans_eq (by ring)
     have h2 : 200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 ≤ 5400 * (L * P) := by
       have hs : (n + (n + 2) + 1) ^ 2 ≤ 9 * P := by
         calc (n + (n + 2) + 1) ^ 2 ≤ (3 * (n + 1)) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-          _ = 9 * (n + 1) ^ 2 := by ring
-          _ ≤ 9 * P := Nat.mul_le_mul_left 9 hn2
+          _ ≤ 9 * P := by rw [mul_pow]; exact Nat.mul_le_mul_left _ hn2
       calc 200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 ≤ 200 * (3 * L) * (9 * P) := by gcongr; omega
         _ = 5400 * (L * P) := by ring
     have h3 : 40000 * (P * (L + 0 + 1)) ≤ 80000 * (L * P) := by
-      calc 40000 * (P * (L + 0 + 1)) ≤ 40000 * (P * (2 * L)) := by gcongr; omega
-        _ = 80000 * (L * P) := by ring
+      linarith [Nat.le_mul_of_pos_left P hL]
     have h4 : 4 * n ≤ 4 * (L * P) :=
       Nat.mul_le_mul_left 4 ((Nat.le_succ n).trans (hn1.trans (Nat.le_mul_of_pos_left P hL)))
     omega
@@ -321,17 +316,18 @@ theorem batched_fixed_power_on_prefixes (c : Circuit signature n n)
         (blockMap (c.eval interpretation)^[T] r) ∧
       out.size ≤ 100000 * batchBudget n c.size S.card r L := by
   classical
+  have hrep (x : BitString (r * n)) : ((c.iterate T).replicate r).eval interpretation x =
+      blockMap (c.eval interpretation)^[T] r x := by
+    rw [Circuit.eval_replicate]
+    funext i
+    simp only [blockMap, Circuit.eval_iterate]
   wlog hLN : L ≤ 2 ^ n generalizing L
   · -- A longer prefix only strengthens the promise, and for a nonempty batch the budget at
     -- `L = 2 ^ n` is at most the budget at `L`.
     have hNL : 2 ^ n < L := not_le.1 hLN
     rcases Nat.eq_zero_or_pos r with rfl | hr
-    · refine ⟨(c.iterate T).replicate 0, fun x _ => ?_, ?_⟩
-      · rw [Circuit.eval_replicate]
-        funext i
-        simp only [blockMap, Circuit.eval_iterate]
-      · rw [Circuit.size_replicate, Nat.zero_mul]
-        exact Nat.zero_le _
+    · exact ⟨(c.iterate T).replicate 0, fun x _ => hrep x,
+        by rw [Circuit.size_replicate, Nat.zero_mul]; exact Nat.zero_le _⟩
     obtain ⟨out, hout, hs⟩ := this (2 ^ n) (Nat.two_pow_pos n) le_rfl
     refine ⟨out, fun x hx => hout fun member i => hx member ⟨i, i.isLt.trans hNL⟩, hs.trans ?_⟩
     have hcard : S.card ≤ 2 ^ n := by simpa using Finset.card_le_univ S
@@ -347,17 +343,12 @@ theorem batched_fixed_power_on_prefixes (c : Circuit signature n n)
     exact Nat.mul_le_mul_left 100000 (Nat.add_le_add h1 h2)
   let f := c.eval interpretation
   by_cases hT : T < 2 * L
-  · refine ⟨(c.iterate T).replicate r, ?_, ?_⟩
-    · intro x _
-      rw [Circuit.eval_replicate]
-      funext i
-      simp only [blockMap, Circuit.eval_iterate]
-    · rw [Circuit.size_replicate, Circuit.size_iterate]
-      have h1 : r * (T * c.size) ≤ 2 * (r * L * c.size) := by
-        calc r * (T * c.size) ≤ r * (2 * L * c.size) := by gcongr
-          _ = 2 * (r * L * c.size) := by ring
-      unfold batchBudget
-      omega
+  · refine ⟨(c.iterate T).replicate r, fun x _ => hrep x, ?_⟩
+    rw [Circuit.size_replicate, Circuit.size_iterate]
+    have h1 : r * (T * c.size) ≤ 2 * (r * L * c.size) :=
+      (by gcongr : r * (T * c.size) ≤ r * (2 * L * c.size)).trans_eq (by ring)
+    unfold batchBudget
+    omega
   obtain ⟨H, _, hcard, hcover⟩ := FunctionalGraph.exists_checkpoints_on f S hL
   let cp : Fin H.card → BitString n := fun j => (H.equivFin.symm j).val
   have hcp : Function.Injective cp := fun i j h => H.equivFin.symm.injective (Subtype.ext h)
