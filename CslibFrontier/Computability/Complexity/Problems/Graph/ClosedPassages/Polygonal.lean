@@ -176,14 +176,12 @@ theorem intersectionParity_eq_sum_route_intersectionParity {G : Graph}
   have middleAvoid (e f : E) (hne : e ≠ f) (k : Fin ((M e).segments + 1)) :
       (M e).point k ∉ (M f).support := by
     by_cases hlo : k.val = 0
-    · have hk : k = 0 := Fin.ext hlo
-      subst k
+    · obtain rfl : k = 0 := Fin.ext hlo
       change (M e).endpoint false ∉ (M f).support
       rw [trimmedRoute_endpoint]
       exact portAvoid (e, false) f hne
     by_cases hhi : k.val = (D.route e).segments
-    · have hk : k = Fin.last (D.route e).segments := Fin.ext hhi
-      subst k
+    · obtain rfl : k = Fin.last (D.route e).segments := Fin.ext hhi
       change (M e).endpoint true ∉ (M f).support
       rw [trimmedRoute_endpoint]
       exact portAvoid (e, true) f hne
@@ -248,9 +246,8 @@ theorem intersectionParity_eq_sum_route_intersectionParity {G : Graph}
       · exact hac (hinj he)
     exact Set.disjoint_left.mp (hdisks _ (hdeclared a) _ (hdeclared b) hv) (portBall a)
       (chordBall b c hbc hz)
-  have ne (e f : E) (he : x e = true) (hf : y f = true) : e ≠ f := by
-    intro h
-    exact hedges f (h ▸ he) hf
+  have ne (e f : E) (he : x e = true) (hf : y f = true) : e ≠ f := fun h =>
+    hedges f (h ▸ he) hf
   have piecesNe {w : E → Bool} (R : ClosedPassages G w) (i : E ⊕ Fin R.count)
       (k : Fin (R.passageRoute D ρ i).segments) :
       (R.passageRoute D ρ i).point k.castSucc ≠ (R.passageRoute D ρ i).point k.succ := by
@@ -313,15 +310,9 @@ theorem intersectionParity_eq_sum_route_intersectionParity {G : Graph}
       _ = _ := Route.intersectionParity_symm _ _
   have zeroParity {p q : Route} (h : Disjoint p.support q.support) :
       p.intersectionParity q = false := by
-    unfold Route.intersectionParity
-    apply Finset.sum_eq_zero
-    intro i _
-    apply Finset.sum_eq_zero
-    intro j _
-    apply decide_eq_false
+    refine Finset.sum_eq_zero fun i _ => Finset.sum_eq_zero fun j _ => decide_eq_false ?_
     rintro ⟨z, hp, hq⟩
-    exact Set.disjoint_left.mp h
-      (Set.mem_iUnion.mpr ⟨i, openSegment_subset_segment ℝ _ _ hp⟩)
+    exact Set.disjoint_left.mp h (Set.mem_iUnion.mpr ⟨i, openSegment_subset_segment ℝ _ _ hp⟩)
       (Set.mem_iUnion.mpr ⟨j, openSegment_subset_segment ℝ _ _ hq⟩)
   have cancel := Route.sum_intersectionParity_eq_false_of_even
     (P.passageRoute D ρ) (Q.passageRoute D ρ) P.passageWeight Q.passageWeight

@@ -238,10 +238,8 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   let a : E → ℝ := fun e => (D.route e).start.re
   let b : E → ℝ := fun e => (D.route e).finish.re
   have hshape (e : E) : D.route e = Route.line (parabolaPoint (a e)) (parabolaPoint (b e)) := rfl
-  have hne (e : E) : a e ≠ b e := by
-    intro hab
-    have hn := (Route.isSimple_line_iff _ _).mp (referenceDrawing_simple hI e)
-    exact hn (congrArg parabolaPoint hab)
+  have hne (e : E) : a e ≠ b e := fun hab =>
+    (Route.isSimple_line_iff _ _).mp (referenceDrawing_simple hI e) (congrArg parabolaPoint hab)
   have hopen (e : X) : z ∈ openSegment ℝ (D.route e.val).start (D.route e.val).finish := by
     have hend (tag : Bool) : z ≠ (D.route e.val).endpoint tag := by
       rw [D.endpoint_eq]
@@ -250,11 +248,8 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
     apply mem_openSegment_of_ne_left_right (hend false).symm (hend true).symm
     exact (Route.support_line _ _) ▸ e.property
   let s : X → ℝ := fun e => a e.val + b e.val
-  have hs : Function.Injective s := by
-    intro e f heq
-    apply Subtype.ext
-    by_contra hef
-    exact (referenceDrawing_slope_ne_of_interior_contact hI e.val f.val hef (hopen e) (hopen f)) heq
+  have hs : Function.Injective s := fun e f heq => Subtype.ext <| by_contra fun hef =>
+    referenceDrawing_slope_ne_of_interior_contact hI e.val f.val hef (hopen e) (hopen f) heq
   have hF : ∀ e f : X, F e.val = true → F f.val = true → e = f := by
     intro e f he hf
     by_contra hef
@@ -274,17 +269,9 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   have hfixed (e : X) : fixed = some e ↔ F e.val = true := by
     dsimp only [fixed]
     split_ifs with h
-    · constructor
-      · intro he
-        have hei := Option.some.inj he
-        exact hei ▸ h.choose_spec
-      · intro he
-        exact congrArg some (hF h.choose e h.choose_spec he)
-    · constructor
-      · intro he
-        exact he.elim
-      · intro he
-        exact (h ⟨e, he⟩).elim
+    · exact ⟨fun he => Option.some.inj he ▸ h.choose_spec,
+        fun he => congrArg some (hF h.choose e h.choose_spec he)⟩
+    · exact ⟨fun he => he.elim, fun he => (h ⟨e, he⟩).elim⟩
   let m : X → ℝ := fun e => min (z.re - min (a e.val) (b e.val))
     (max (a e.val) (b e.val) - z.re)
   have hmem (e : X) : z ∈ openSegment ℝ (parabolaPoint (a e.val))
@@ -312,8 +299,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   have hEndR (e : X) (tag : Bool) : (R e).endpoint tag =
       if tag then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩ := by
     cases tag
-    · exact (hends e).1
-    · exact (hends e).2.1
+    exacts [(hends e).1, (hends e).2.1]
   have htransport (e : X) (tag : Bool) :
       (P e).endpoint tag = z + (R e).endpoint (if flip e then !tag else tag) := by
     change ((if flip e then (R e).reverse else R e).translate z).endpoint tag = _
@@ -327,8 +313,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         (if tag then (if b e.val < a e.val then (⟨-r, -r * s e⟩ : ℂ) else ⟨r, r * s e⟩)
           else (if b e.val < a e.val then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩)) := by
       cases tag
-      · exact hcutA e
-      · exact hcutB e
+      exacts [hcutA e, hcutB e]
     rw [htransport, hEndR, hc]
     congr 1
     cases tag <;> by_cases hf : b e.val < a e.val <;>
@@ -369,8 +354,7 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         Route.translate_line, Route.start_line, Route.finish_line]
     exact ⟨hd, by rw [hline, hpointA e, hpointB e]⟩
   refine ⟨r, hr, d, α, β, ?_, hPkeep, ?_, ?_, ?_⟩
-  · intro e
-    exact ⟨hα e, hαβ e, hβ e, hpointA e, hpointB e,
+  · exact fun e => ⟨hα e, hαβ e, hβ e, hpointA e, hpointB e,
       placed_simple (hends e).2.2.1 (flip e) z, hball e⟩
   · intro e f hef
     obtain ⟨w, ⟨he, hf⟩, huniq⟩ := hpair e f hef

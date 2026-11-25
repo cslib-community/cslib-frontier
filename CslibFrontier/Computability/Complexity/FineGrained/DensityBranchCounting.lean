@@ -283,46 +283,38 @@ theorem exists_modelCounter (k : ℕ) :
   · -- correctness: both branches count models
     dsimp only
     split
-    · exact hcount₁ φ hφ
-    · exact hcount₂ φ hφ
+    exacts [hcount₁ φ hφ, hcount₂ φ hφ]
   · -- time: the test and either branch are within `T`
     have hd' : Y φ ^ d ≤ T φ := (Nat.pow_le_pow_right (hY1 φ) (by omega)).trans (hT1 φ)
     have hbr : (if guard φ then 2 ^ (A₁ * φ.length / q φ) * Y φ ^ e₁
         else ⌈(2 : ℝ) ^ ((A₂ : ℝ) * interpolationScale φ.numVars)⌉₊ * Y φ ^ e₂) ≤ T φ := by
       simp only [T]
-      split
-      · exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (hY1 φ) (by omega))
-      · exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (hY1 φ) (by omega))
+      split <;> exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (hY1 φ) (by omega))
     change Y φ ^ d + (if guard φ then 2 ^ (A₁ * φ.length / q φ) * Y φ ^ e₁
         else ⌈(2 : ℝ) ^ ((A₂ : ℝ) * interpolationScale φ.numVars)⌉₊ * Y φ ^ e₂) ≤ 2 * (T φ + 1)
     omega
   · -- space: the test and either branch are within `Y ^ b`
     have hd' : Y φ ^ d ≤ Y φ ^ b := Nat.pow_le_pow_right (hY1 φ) (by omega)
     have hbr : (if guard φ then Y φ ^ b₁ else Y φ ^ b₂) ≤ Y φ ^ b := by
-      split
-      · exact Nat.pow_le_pow_right (hY1 φ) (by omega)
-      · exact Nat.pow_le_pow_right (hY1 φ) (by omega)
+      split <;> exact Nat.pow_le_pow_right (hY1 φ) (by omega)
     change Y φ ^ d + (if guard φ then Y φ ^ b₁ else Y φ ^ b₂) ≤ 2 * (Y φ ^ b + 1)
     omega
   · -- every formula: the interpolation scale
+    have hceil {c : ℕ} (hc : c ≤ A) : ⌈(2 : ℝ) ^ ((c : ℝ) * interpolationScale φ.numVars)⌉₊ ≤
+        ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale φ.numVars)⌉₊ :=
+      Nat.ceil_le_ceil (Real.rpow_le_rpow_of_exponent_le (by norm_num)
+        (mul_le_mul_of_nonneg_right (by exact_mod_cast hc) (interpolationScale_nonneg _)))
     simp only [T]
     split
     · next hg =>
-      have hφ : φ.length ≤ threshold φ.numVars := of_decide_eq_true hg
-      have h := two_pow_le_of_le_threshold A₁ hφ
-      have hceil : ⌈(2 : ℝ) ^ (((32 * A₁ : ℕ) : ℝ) * interpolationScale φ.numVars)⌉₊ ≤
-          ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale φ.numVars)⌉₊ :=
-        Nat.ceil_le_ceil (Real.rpow_le_rpow_of_exponent_le (by norm_num)
-          (mul_le_mul_of_nonneg_right (by exact_mod_cast (by omega : 32 * A₁ ≤ A))
-            (interpolationScale_nonneg _)))
+      have h := two_pow_le_of_le_threshold A₁ (of_decide_eq_true hg)
       calc 2 ^ (A₁ * φ.length / q φ) * Y φ ^ e₀
           ≤ ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale φ.numVars)⌉₊ * Y φ ^ (65536 * A₁) *
-              Y φ ^ e₀ := Nat.mul_le_mul_right _ (h.trans (Nat.mul_le_mul_right _ hceil))
+              Y φ ^ e₀ :=
+            Nat.mul_le_mul_right _ (h.trans (Nat.mul_le_mul_right _ (hceil (by omega))))
         _ = ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale φ.numVars)⌉₊ * Y φ ^ e := by
             rw [he, pow_add]; ring
-    · refine Nat.mul_le_mul (Nat.ceil_le_ceil (Real.rpow_le_rpow_of_exponent_le (by norm_num)
-        (mul_le_mul_of_nonneg_right (by exact_mod_cast (by omega : A₂ ≤ A))
-          (interpolationScale_nonneg _)))) (hYe φ)
+    · exact Nat.mul_le_mul (hceil (by omega)) (hYe φ)
   · -- at most `threshold n` clauses: the contraction branch
     have hg : guard φ = true := decide_eq_true hφ
     simp only [T, hg, ↓reduceIte]
@@ -345,10 +337,7 @@ theorem exists_modelCounter (k : ℕ) :
         by_contra hbig
         have := mul_le_threshold (not_lt.mp hbig)
         omega
-      have hn : 1 ≤ φ.numVars := by
-        rcases Nat.eq_zero_or_pos φ.numVars with h0 | h0
-        · rw [h0] at hφ hgt; omega
-        · exact h0
+      have hn : 1 ≤ φ.numVars := Nat.pos_of_ne_zero fun h0 => by rw [h0] at hφ hgt; omega
       have hK' : ⌈(2 : ℝ) ^ ((A₂ : ℝ) * interpolationScale φ.numVars)⌉₊ ≤ K :=
         Finset.le_sup (f := fun n => ⌈(2 : ℝ) ^ ((A₂ : ℝ) * interpolationScale n)⌉₊)
           (Finset.mem_range.mpr hsmall)

@@ -265,44 +265,20 @@ private theorem auxiliaryOn_insert {E : Type*} [Fintype E] [DecidableEq E]
     · exact A.vertices f hf _ (hdV e) hind.2.2.1 hind.2.2.2
     · exact hw
   let apex := Function.update A.apex e w
-  refine ⟨⟨apex, ?_, ?_, ?_, ?_, ?_⟩⟩
-  · intro f hf
-    rcases Finset.mem_insert.mp hf with rfl | hf
-    · simpa only [apex, Function.update_self] using hwball
-    · have hfe : f ≠ e := fun h => he (h ▸ hf)
-      simpa only [apex, Function.update_of_ne hfe] using A.apex_ball f hf
-  · intro f hf
-    rcases Finset.mem_insert.mp hf with rfl | hf
-    · simpa only [apex, Function.update_self] using And.intro hwc hwd
-    · have hfe : f ≠ e := fun h => he (h ▸ hf)
-      simpa only [apex, Function.update_of_ne hfe] using A.apex_ne f hf
-  · intro f hf z hz hzc hzd
-    rcases Finset.mem_insert.mp hf with rfl | hf
-    · simpa only [apex, Function.update_self] using auxiliary_avoids_point (hV z hz) hzc hzd hw
-    · have hfe : f ≠ e := fun h => he (h ▸ hf)
-      simpa only [apex, Function.update_of_ne hfe] using A.vertices f hf z hz hzc hzd
-  · intro f hf k hind
-    rcases Finset.mem_insert.mp hf with rfl | hf
-    · simpa only [apex, Function.update_self] using hnewR k hind
-    · have hfe : f ≠ e := fun h => he (h ▸ hf)
-      simpa only [apex, Function.update_of_ne hfe] using A.old f hf k hind
-  · intro f hf g hg hind
-    rcases Finset.mem_insert.mp hf with hfe | hf
-    · subst f
-      rcases Finset.mem_insert.mp hg with hge | hg
-      · subst g
-        exact False.elim (hind.1 rfl)
-      · have hge : g ≠ e := fun h => he (h ▸ hg)
-        simpa only [apex, Function.update_self, Function.update_of_ne hge, H] using
-          (hnewH g hg hind).1
-    · have hfe : f ≠ e := fun h => he (h ▸ hf)
-      rcases Finset.mem_insert.mp hg with hge | hg
-      · subst g
-        simpa only [apex, Function.update_self, Function.update_of_ne hfe, H] using
-          (hnewH f hf (endsApart_symm hind)).2
-      · have hge : g ≠ e := fun h => he (h ▸ hg)
-        simpa only [apex, Function.update_of_ne hfe, Function.update_of_ne hge, H] using
-          A.pairs f hf g hg hind
+  have hupe : apex e = w := Function.update_self ..
+  have hupd (f : E) (hf : f ∈ s) : apex f = A.apex f :=
+    Function.update_of_ne (fun (h : f = e) => he (h ▸ hf)) ..
+  refine ⟨⟨apex, ?_, ?_, ?_, ?_, ?_⟩⟩ <;> simp only [Finset.forall_mem_insert]
+  · exact ⟨hupe ▸ hwball, fun f hf => hupd f hf ▸ A.apex_ball f hf⟩
+  · exact ⟨hupe ▸ ⟨hwc, hwd⟩, fun f hf => hupd f hf ▸ A.apex_ne f hf⟩
+  · exact ⟨fun z hz hzc hzd => hupe ▸ auxiliary_avoids_point (hV z hz) hzc hzd hw,
+      fun f hf => hupd f hf ▸ A.vertices f hf⟩
+  · exact ⟨fun k hind => hupe ▸ hnewR k hind, fun f hf => hupd f hf ▸ A.old f hf⟩
+  · refine ⟨⟨fun hind => absurd rfl hind.1, fun g hg hind => ?_⟩,
+      fun f hf => ⟨fun hind => ?_, fun g hg hind => ?_⟩⟩
+    · rw [hupe, hupd g hg]; exact (hnewH g hg hind).1
+    · rw [hupe, hupd f hf]; exact (hnewH f hf (endsApart_symm hind)).2
+    · rw [hupd f hf, hupd g hg]; exact A.pairs f hf g hg hind
 
 private theorem exists_auxiliaryOn {E : Type*} [Fintype E] [DecidableEq E]
     (c d : E → ℂ) (R : E × Bool → Route) (V : Finset ℂ)
@@ -747,26 +723,14 @@ theorem query_eq_true_of_positioned_frozen_embedding {I : FixedRotationInput} (h
   let c (e : E) := (ref.route e).start
   let d (e : E) := (ref.route e).finish
   obtain ⟨A, κ, hReg, _⟩ := exists_reference_crossing_regularization hI
-  have hDs (e : E) : (D.route e).start = c e := by
-    calc
-      _ = D.vertex (Dart.vertex (e, false)) := D.endpoint_eq e false
-      _ = ref.vertex (Dart.vertex (e, false)) := hV _ (subdivision_end_declared hI e false)
-      _ = c e := rfl
-  have hDf (e : E) : (D.route e).finish = d e := by
-    calc
-      _ = D.vertex (Dart.vertex (e, true)) := D.endpoint_eq e true
-      _ = ref.vertex (Dart.vertex (e, true)) := hV _ (subdivision_end_declared hI e true)
-      _ = d e := rfl
-  have hAs (e : E) : (A.drawing.route e).start = c e := by
-    calc
-      _ = A.drawing.vertex (Dart.vertex (e, false)) := A.drawing.endpoint_eq e false
-      _ = ref.vertex (Dart.vertex (e, false)) := congrFun A.vertex_eq _
-      _ = c e := rfl
-  have hAf (e : E) : (A.drawing.route e).finish = d e := by
-    calc
-      _ = A.drawing.vertex (Dart.vertex (e, true)) := A.drawing.endpoint_eq e true
-      _ = ref.vertex (Dart.vertex (e, true)) := congrFun A.vertex_eq _
-      _ = d e := rfl
+  have hDs (e : E) : (D.route e).start = c e :=
+    (D.endpoint_eq e false).trans (hV _ (subdivision_end_declared hI e false))
+  have hDf (e : E) : (D.route e).finish = d e :=
+    (D.endpoint_eq e true).trans (hV _ (subdivision_end_declared hI e true))
+  have hAs (e : E) : (A.drawing.route e).start = c e :=
+    (A.drawing.endpoint_eq e false).trans (congrFun A.vertex_eq _)
+  have hAf (e : E) : (A.drawing.route e).finish = d e :=
+    (A.drawing.endpoint_eq e true).trans (congrFun A.vertex_eq _)
   have hcd (e : E) : c e ≠ d e := by
     intro heq
     exact (subdivision_endpoint_spec hI e).2
@@ -809,11 +773,8 @@ theorem query_eq_true_of_positioned_frozen_embedding {I : FixedRotationInput} (h
       obtain ⟨b, hbb, hbw⟩ := hb.surjOn hw
       rw [← haz, ← hbw, hO ha hbb]
     have hTIff (z : ℂ) : z ∈ T ↔
-        z ∈ (A.drawing.route e).support ∧ z ∈ (A.drawing.route f).support := by
-      constructor
-      · exact fun hz => ⟨hz.1, hz.2.1⟩
-      · rintro ⟨he, hf⟩
-        exact ⟨he, hf, haway e f hap z he hf⟩
+        z ∈ (A.drawing.route e).support ∧ z ∈ (A.drawing.route f).support :=
+      ⟨fun hz => ⟨hz.1, hz.2.1⟩, fun ⟨he, hf⟩ => ⟨he, hf, haway e f hap z he hf⟩⟩
     have hOpen (z : ℂ) (hz : z ∈ T) :
         ∃ (i : Fin (A.drawing.route e).segments) (j : Fin (A.drawing.route f).segments)
           (s t : ℝ), s ∈ Set.Ioo 0 1 ∧ t ∈ Set.Ioo 0 1 ∧
@@ -824,20 +785,11 @@ theorem query_eq_true_of_positioned_frozen_embedding {I : FixedRotationInput} (h
       (by rw [hAs, hAf]; exact hcd e) (by rw [hAs, hAf]; exact hcd f) hTIff hT hOpen]
     have hNonempty : T.Nonempty ↔ O.Nonempty := by
       rw [← hb.image_eq, Set.image_nonempty]
-    by_cases hbit : crossing (referenceOrder I) (G.edges[e]) (G.edges[f]) = true
-    · change decide T.Nonempty = _
-      obtain ⟨z, hz, _⟩ := (referenceDrawing_crossing_iff hI e f hind).mp hbit
-      have ht : T.Nonempty := hNonempty.mpr ⟨z, hz⟩
-      simp only [ht, decide_true, hbit]
-    · change decide T.Nonempty = _
-      have hfalse := Bool.eq_false_iff.mpr hbit
-      have ho : ¬O.Nonempty := by
-        rintro ⟨z, hz⟩
-        apply hbit
-        apply (referenceDrawing_crossing_iff hI e f hind).mpr
-        exact ⟨z, hz, fun w hw => hO hw hz⟩
-      have ht : ¬T.Nonempty := fun ht => ho (hNonempty.mp ht)
-      simp only [ht, decide_false, hfalse]
+    have hcross := referenceDrawing_crossing_iff hI e f hind
+    refine Bool.eq_iff_iff.2 ((decide_eq_true_iff).trans (hNonempty.trans
+      ⟨fun ⟨z, hz⟩ => hcross.2 ⟨z, hz, fun w hw => hO hw hz⟩, fun h => ?_⟩))
+    obtain ⟨z, hz, _⟩ := hcross.1 h
+    exact ⟨z, hz⟩
   let F := frame I
   let index (e : Fin F.segments.length) : E :=
     ⟨e.val, by simpa only [F, frame, G, subdivisionGraph, List.length_map] using e.isLt⟩

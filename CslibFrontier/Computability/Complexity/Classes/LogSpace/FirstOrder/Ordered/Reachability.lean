@@ -401,18 +401,13 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
         rcases ih with hu0 | ⟨a, rfl, hsa⟩ | ⟨hu_max, -⟩
         · rcases hedge with ⟨_, hw⟩ | ⟨a, b, ha, _, _⟩ | ⟨ht, _⟩
           · exact Or.inr (Or.inl ⟨I.s, Fin.ext hw, .refl⟩)
-          · omega
-          · omega
+          all_goals omega
         · rcases hedge with ⟨hu0, _⟩ | ⟨a', b, ha', hb, hab⟩ | ⟨ht, hw⟩
           · simp only [shift] at hu0
             omega
-          · have ha_eq : a = a' := by
-              fin_index [shift]
-            subst ha_eq
+          · obtain rfl : a = a' := by fin_index [shift]
             exact Or.inr (Or.inl ⟨b, Fin.ext hb, hsa.tail hab⟩)
-          · have ha_eq : a = I.t := by
-              fin_index [shift]
-            subst ha_eq
+          · obtain rfl : a = I.t := by fin_index [shift]
             exact Or.inr (Or.inr ⟨hw, hsa⟩)
         · rcases hedge with ⟨hu0, _⟩ | ⟨a, _, ha, _, _⟩ | ⟨ht, _⟩
           · omega
@@ -567,12 +562,8 @@ private theorem stconToSTEncoded_mem_iff (I : STCONInstance) :
     stconToSTEncoded I ∈ STReach.encodedLanguage stGraphVocabulary ↔ I ∈ STCON := by
   by_cases hn1 : I.n ≤ 1
   · simp only [stconToSTEncoded, hn1, ↓reduceIte]
-    have hI : I ∈ STCON := by
-      rw [mem_STCON]
-      have hsub : I.s = I.t := by
-        omega
-      rw [hsub]
-    exact iff_of_true yesSTEncoded_mem_STReach hI
+    have hsub : I.s = I.t := by omega
+    exact iff_of_true yesSTEncoded_mem_STReach (by rw [mem_STCON, hsub])
   · have hn2 : 2 ≤ I.n := by omega
     simp only [stconToSTEncoded, hn1, ↓reduceIte]
     let tables : List (List Bool) := [I.matrix, rawOneHot I.n I.t.val, rawOneHot I.n I.s.val]
