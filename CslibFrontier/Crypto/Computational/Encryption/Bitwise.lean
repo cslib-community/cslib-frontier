@@ -312,13 +312,7 @@ private theorem isPPTOn_bitwiseToSingleAt_choose
       (fun q : ((ℕ × List Bool) × ℕ) × ChoiceOut (List Bool) =>
         decide (q.1.2 < maxLen q.1.1.1))
       EMid encBool := by
-    have hn : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × ℕ) × ChoiceOut (List Bool) => q.1.1.1)
-        EMid encUnary := by dsimp only [EMid, EIn]; fun_prop
-    have hsplit : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × ℕ) × ChoiceOut (List Bool) => q.1.2)
-        EMid encUnary := by dsimp only [EMid, EIn]; fun_prop
-    exact ComputableInPolyTime.unary_lt.comp (hsplit.prod (hmax.comp hn))
+    dsimp only [EMid, EIn]; polytime
   have hcond : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × ℕ) × ChoiceOut (List Bool) =>
         valid q.1.1.1 q.1.1.2 (ChoiceOut.msg₀ q.2) (ChoiceOut.msg₁ q.2) &&
@@ -732,8 +726,7 @@ theorem INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le
   wordINDCPA_of_indcpaOn_validBoundedWords hpkBound hpkLen fun maxLen hmax =>
     h.indcpaOn_bitwiseEncrypt (computableInPolyTime_validBoundedWords hmax) hencrypt hmax
       fun _ _ _ _ _ hv => by
-        simp only [validBoundedWords, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hv
-        exact hv
+        simpa only [validBoundedWords, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] using hv
 
 /-- Single-challenge bitwise reduction step (library infrastructure after [KatzLindell2020],
 Section 12.2.2, locator not verified, rather than Theorem 12.6's multi-encryption oracle endpoint;
