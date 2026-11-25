@@ -247,19 +247,14 @@ private theorem update {x : ℕ} (h : IsPathRemovalNumbering n (C.erase x) σ) (
     have := h.le z (Finset.mem_erase.2 ⟨hzx, hz⟩)
     omega
   refine ⟨fun z hz w hw e => ?_, fun z hz => ?_, fun z hz => ?_, fun z hz => ?_⟩
-  · simp only [Finset.mem_coe] at hz hw
-    by_cases hzx : z = x
-    · by_cases hwx : w = x
-      · rw [hzx, hwx]
-      · rw [hzx, Function.update_self, Function.update_of_ne hwx] at e
-        have := hold w hw hwx
-        omega
-    · by_cases hwx : w = x
-      · rw [hwx, Function.update_self, Function.update_of_ne hzx] at e
-        have := hold z hz hzx
-        omega
-      · rw [Function.update_of_ne hzx, Function.update_of_ne hwx] at e
-        exact h.injOn (Finset.mem_erase.2 ⟨hzx, hz⟩) (Finset.mem_erase.2 ⟨hwx, hw⟩) e
+  · simp only [Finset.mem_coe, Function.update_apply] at hz hw e
+    split_ifs at e with hzx hwx hwx
+    · rw [hzx, hwx]
+    · have := hold w hw hwx
+      omega
+    · have := hold z hz hzx
+      omega
+    · exact h.injOn (Finset.mem_erase.2 ⟨hzx, hz⟩) (Finset.mem_erase.2 ⟨hwx, hw⟩) e
   · by_cases hzx : z = x
     · rw [hzx, Function.update_self]
     · rw [Function.update_of_ne hzx]
@@ -334,23 +329,16 @@ theorem erase_of_pathAvailable (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx
   · simp only [Finset.mem_coe] at hz hw
     have hzg := hne z hz
     have hwg := hne w hw
-    have hz' := Finset.mem_of_mem_erase hz
-    have hw' := Finset.mem_of_mem_erase hw
-    refine h.injOn hz' hw' ?_
-    by_cases h1 : σ z < g <;> by_cases h2 : σ w < g
-    · rw [hσ'lt z h1, hσ'lt w h2] at e; omega
-    · rw [hσ'lt z h1, hσ'ge w h2] at e; omega
-    · rw [hσ'ge z h1, hσ'lt w h2] at e; omega
-    · rw [hσ'ge z h1, hσ'ge w h2] at e; omega
+    refine h.injOn (Finset.mem_of_mem_erase hz) (Finset.mem_of_mem_erase hw) ?_
+    simp only [hσ'] at e
+    split_ifs at e <;> omega
   · have := h.le z (Finset.mem_of_mem_erase hz)
     have := hne z hz
-    by_cases h1 : σ z < g
-    · rw [hσ'lt z h1]; omega
-    · rw [hσ'ge z h1]; omega
+    simp only [hσ']
+    split_ifs <;> omega
   · have := h.lt z (Finset.mem_of_mem_erase hz)
-    by_cases h1 : σ z < g
-    · rw [hσ'lt z h1]; omega
-    · rw [hσ'ge z h1]; omega
+    simp only [hσ']
+    split_ifs <;> omega
   · have hzC := Finset.mem_of_mem_erase hz
     have hzx := Finset.ne_of_mem_erase hz
     have hzg := hne z hz
