@@ -247,19 +247,7 @@ private def rotation : RotationSystem G where
 
 private theorem realizes (odd : Bool) : (drawing odd).Realizes rotation where
   nonzero d := (simple odd d.1).germ_ne_zero d.2
-  directions_injective a b hv he := by
-    let D := drawing odd
-    apply D.segmentEnd_injective
-    apply rayEndVector_injective_of_open_inter_subsingleton D.segmentStart D.segmentFinish
-      (fun i => (simple odd i.1).segment_ne i.2) (regular odd).open_inter_subsingleton
-    · rw [D.segmentEnd_endpoint, D.segmentEnd_endpoint, hv]
-    · rw [D.segmentEnd_vector, D.segmentEnd_vector]
-      have harg : (D.germ a).arg = (D.germ b).arg := Complex.arg_coe_angle_eq_iff.mp he
-      have hsign : (D.germ a).im < 0 ↔ (D.germ b).im < 0 := by
-        rw [← Complex.arg_neg_iff, ← Complex.arg_neg_iff, harg]
-      by_cases h : (D.germ b).im < 0
-      · simp only [turnArg, h, hsign.mpr h, harg, ↓reduceIte]
-      · simp only [turnArg, h, mt hsign.mp h, harg, ↓reduceIte]
+  directions_injective := (regular odd).directions_injective (simple odd)
   clockwise a b c hab hbc hneab hnebc hneac := by
     have tags : ∀ a b : Fin 2 × Bool,
         Dart.vertex (G := G) a = Dart.vertex (G := G) b → a.2 = b.2 := by decide

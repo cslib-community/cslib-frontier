@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RegularContacts
 public import CslibFrontier.Foundations.Geometry.Polygonal.Germs
+public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityColors
+import CslibFrontier.Foundations.Geometry.Polygonal.SegmentRays
 
 /-!
 # Distinct outgoing geometric rays in polygonal drawings
@@ -71,55 +73,46 @@ theorem IsEmbedding.directions_injective {G : Graph} {D : PolygonalDrawing G}
       (Route.endTime_mem b.2 ⟨ht'.1.le, ht'.2.le⟩) hpoint
     exact (D.route a.1).not_atEnd_near_end a.2 ba hs' ha
 
+/-- The segment-end occurrence corresponding to one actual graph dart. -/
+@[expose] def segmentEnd {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
+    D.SegmentIndex × Bool := (⟨d.1, (D.route d.1).endSegment d.2⟩, d.2)
+
+/-- Distinct graph darts retain distinct indexed segment ends, including loop ends. -/
+theorem segmentEnd_injective {G : Graph} (D : PolygonalDrawing G) :
+    Function.Injective D.segmentEnd := by
+  intro a b h
+  exact congrArg (fun k : D.SegmentIndex × Bool => (k.1.1, k.2)) h
+
+/-- The segment-end point of a dart is its actual named vertex. -/
+theorem segmentEnd_endpoint {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
+    rayEndpoint D.segmentStart D.segmentFinish (D.segmentEnd d) = D.vertex d.vertex := by
+  rw [← D.endpoint_eq d.1 d.2]
+  rcases d with ⟨e, tag⟩
+  cases tag <;> simp [segmentEnd, rayEndpoint, segmentStart, segmentFinish,
+    Route.endSegment, Route.endpoint, Route.start, Route.finish]
+
+/-- The outgoing vector at a dart's segment end is its actual drawing germ. -/
+theorem segmentEnd_vector {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
+    rayEndVector D.segmentStart D.segmentFinish (D.segmentEnd d) = D.germ d := by
+  rcases d with ⟨e, tag⟩
+  cases tag <;> simp [segmentEnd, rayEndVector, segmentStart, segmentFinish,
+    Route.endSegment, germ, Route.germ, Route.start, Route.finish]
+
 /-- Distinct incident darts of a regular drawing with simple routes have distinct directions.
 Equal directions would give two common points in the open parts of their end segments. -/
 theorem HasRegularContacts.directions_injective {G : Graph} {D : PolygonalDrawing G}
     (hD : D.HasRegularContacts) (hsimple : ∀ e, (D.route e).IsSimple) (a b : Dart G)
     (hv : a.vertex = b.vertex) (harg : D.direction a = D.direction b) : a = b := by
-  by_contra hab
-  have hedge : a.1 ≠ b.1 := by
-    rcases a with ⟨e, u⟩
-    rcases b with ⟨f, v⟩
-    intro h
-    change e = f at h
-    subst f
-    cases u <;> cases v
-    · exact hab rfl
-    · exact hD.reverse_vertex_ne (e, true) hv
-    · exact hD.reverse_vertex_ne (e, false) hv
-    · exact hab rfl
-  let endIndex (d : Dart G) : D.SegmentIndex := ⟨d.1, (D.route d.1).endSegment d.2⟩
-  have hindex : endIndex a ≠ endIndex b := fun h => hedge (congrArg Sigma.fst h)
-  have mem_end (d : Dart G) {s : ℝ} (hs : s ∈ Set.Ioo 0 1) :
-      D.vertex d.vertex + s • D.germ d ∈ openSegment ℝ
-        (D.segmentStart (endIndex d)) (D.segmentFinish (endIndex d)) := by
-    rw [openSegment_eq_image_lineMap]
-    refine ⟨Route.endTime d.2 s, ?_, ?_⟩
-    · cases d.2
-      · exact hs
-      · change 0 < 1 - s ∧ 1 - s < 1
-        exact ⟨sub_pos.mpr hs.2, sub_lt_self _ hs.1⟩
-    · change (D.route d.1).eval (endIndex d).2 (Route.endTime d.2 s) = _
-      rw [Route.eval_near_end, D.endpoint_eq]
-      rfl
-  have hnza : D.germ a ≠ 0 := (hsimple a.1).germ_ne_zero a.2
-  have hnzb : D.germ b ≠ 0 := (hsimple b.1).germ_ne_zero b.2
-  obtain ⟨s, hs, t, ht, hst⟩ := exists_small_smul_eq_of_arg_eq hnza hnzb
-    (Complex.arg_coe_angle_eq_iff.mp harg) (by norm_num : (0 : ℝ) < 1 / 3)
-  have hsame : D.vertex a.vertex + s • D.germ a = D.vertex b.vertex + t • D.germ b :=
-    congrArg₂ (· + ·) (congrArg D.vertex hv) hst
-  have hhalf : D.vertex a.vertex + ((1 / 2 : ℝ) * s) • D.germ a =
-      D.vertex b.vertex + ((1 / 2 : ℝ) * t) • D.germ b := by
-    simp only [← smul_smul, hv, hst]
-  have short {x : ℝ} (hx : x ∈ Set.Ioo 0 (1 / 3)) : x ∈ Set.Ioo 0 1 :=
-    ⟨hx.1, hx.2.trans (by norm_num)⟩
-  have half_short {x : ℝ} (hx : x ∈ Set.Ioo 0 (1 / 3)) :
-      (1 / 2 : ℝ) * x ∈ Set.Ioo 0 1 :=
-    ⟨mul_pos (by norm_num) hx.1, by linarith [hx.2]⟩
-  have heq := hD.open_inter_subsingleton (endIndex a) (endIndex b) hindex
-    ⟨mem_end a (short hs), hsame ▸ mem_end b (short ht)⟩
-    ⟨mem_end a (half_short hs), hhalf ▸ mem_end b (half_short ht)⟩
-  have htime := smul_left_injective ℝ hnza (add_left_cancel heq)
-  linarith [hs.1]
+  apply D.segmentEnd_injective
+  apply rayEndVector_injective_of_open_inter_subsingleton D.segmentStart D.segmentFinish
+    (fun i => (hsimple i.1).segment_ne i.2) hD.open_inter_subsingleton
+  · rw [D.segmentEnd_endpoint, D.segmentEnd_endpoint, hv]
+  · rw [D.segmentEnd_vector, D.segmentEnd_vector]
+    have harg' : (D.germ a).arg = (D.germ b).arg := Complex.arg_coe_angle_eq_iff.mp harg
+    have hsign : (D.germ a).im < 0 ↔ (D.germ b).im < 0 := by
+      rw [← Complex.arg_neg_iff, ← Complex.arg_neg_iff, harg']
+    by_cases h : (D.germ b).im < 0
+    · simp only [turnArg, h, hsign.mpr h, harg', ↓reduceIte]
+    · simp only [turnArg, h, mt hsign.mp h, harg', ↓reduceIte]
 
 end Cslib.Complexity.Graph.PolygonalDrawing

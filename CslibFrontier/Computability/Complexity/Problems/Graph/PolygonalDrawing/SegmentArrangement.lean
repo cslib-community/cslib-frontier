@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.FaceColorsRayParity
-public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RegularContacts
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Germs
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityColors
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteInterior
 public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentRays
@@ -149,31 +149,6 @@ theorem HasRegularContacts.segment_ends_at_bend {G : Graph} {D : PolygonalDrawin
     let ⟨side, hend, _⟩ := hD.vertex_contacts a.1 a.2 _
       (endpoint_parameters_mem_Icc ht) v hv he.symm
     ⟨side, hend⟩) e i k hp
-
-/-- The segment-end occurrence corresponding to one actual graph dart. -/
-@[expose] def segmentEnd {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
-    D.SegmentIndex × Bool := (⟨d.1, (D.route d.1).endSegment d.2⟩, d.2)
-
-/-- Distinct graph darts retain distinct indexed segment ends, including loop ends. -/
-theorem segmentEnd_injective {G : Graph} (D : PolygonalDrawing G) :
-    Function.Injective D.segmentEnd := by
-  intro a b h
-  exact congrArg (fun k : D.SegmentIndex × Bool => (k.1.1, k.2)) h
-
-/-- The segment-end point of a dart is its actual named vertex. -/
-theorem segmentEnd_endpoint {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
-    rayEndpoint D.segmentStart D.segmentFinish (D.segmentEnd d) = D.vertex d.vertex := by
-  rw [← D.endpoint_eq d.1 d.2]
-  rcases d with ⟨e, tag⟩
-  cases tag <;> simp [segmentEnd, rayEndpoint, segmentStart, segmentFinish,
-    Route.endSegment, Route.endpoint, Route.start, Route.finish]
-
-/-- The outgoing vector at a dart's segment end is its actual drawing germ. -/
-theorem segmentEnd_vector {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
-    rayEndVector D.segmentStart D.segmentFinish (D.segmentEnd d) = D.germ d := by
-  rcases d with ⟨e, tag⟩
-  cases tag <;> simp [segmentEnd, rayEndVector, segmentStart, segmentFinish,
-    Route.endSegment, germ, Route.germ, Route.start, Route.finish]
 
 /-- Every segment end at a declared vertex is an actual original graph dart there.
 Internal bends cannot be mistaken for vertex incidences. -/
