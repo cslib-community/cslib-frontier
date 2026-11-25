@@ -148,18 +148,22 @@ theorem two_pow_le_sum_two_pow_isolation :
   | n + 1, S, hS => by
     rw [sum_split S fun σ => 2 ^ isolation S σ]
     by_cases h0 : (slice S false).Nonempty <;> by_cases h1 : (slice S true).Nonempty
-    · have ih0 := two_pow_le_sum_two_pow_isolation (slice S false) h0
+    · -- Both slices are nonempty.
+      have ih0 := two_pow_le_sum_two_pow_isolation (slice S false) h0
       have ih1 := two_pow_le_sum_two_pow_isolation (slice S true) h1
       have e0 := sum_slice_le S false
       have e1 := sum_slice_le S true
       rw [Fintype.sum_bool, pow_succ]; omega
-    · rw [Fintype.sum_bool, not_nonempty_iff_eq_empty.mp h1, sum_empty, zero_add, pow_succ]
+    · -- Only the slice with first coordinate `false` is nonempty.
+      rw [Fintype.sum_bool, not_nonempty_iff_eq_empty.mp h1, sum_empty, zero_add, pow_succ]
       exact (Nat.mul_le_mul_right 2 (two_pow_le_sum_two_pow_isolation _ h0)).trans
         (sum_slice_mul_two_le_of_not_nonempty S false h1)
-    · rw [Fintype.sum_bool, not_nonempty_iff_eq_empty.mp h0, sum_empty, add_zero, pow_succ]
+    · -- Only the slice with first coordinate `true` is nonempty.
+      rw [Fintype.sum_bool, not_nonempty_iff_eq_empty.mp h0, sum_empty, add_zero, pow_succ]
       exact (Nat.mul_le_mul_right 2 (two_pow_le_sum_two_pow_isolation _ h1)).trans
         (sum_slice_mul_two_le_of_not_nonempty S true h0)
-    · obtain ⟨σ, hσ⟩ := hS
+    · -- Both slices are empty, so `S` is empty.
+      obtain ⟨σ, hσ⟩ := hS
       cases hb : σ 0
       · exact (h0 ⟨Fin.tail σ, mem_slice.mpr (by rwa [← hb, Fin.cons_self_tail])⟩).elim
       · exact (h1 ⟨Fin.tail σ, mem_slice.mpr (by rwa [← hb, Fin.cons_self_tail])⟩).elim

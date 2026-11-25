@@ -559,6 +559,7 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
   let e : V₀ ≃ Fin n := Fintype.equivFin V₀
   let G : TrustGraph (Fin n) := G₀.relabel e
   have hlt : F G (e v₀) < F G (e w₀) := by rw [hSym G₀ e v₀, hSym G₀ e w₀]; exact hlt₀
+  -- Prefix graphs `G_pref k` turn on outgoing edges of vertices `< k` one vertex at a time.
   let G_pref : ℕ → TrustGraph (Fin n) := fun k =>
     { weight := fun u v => if u.1 < k then G.weight u v else 0
       weight_nonneg := fun u v => by split_ifs; exacts [G.weight_nonneg u v, le_rfl]

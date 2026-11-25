@@ -191,7 +191,8 @@ private theorem unconstrained_winner_payment_eq {M : BudgetedMechanism ι} {m : 
       hall_m w₁ Bmax hw₁ hBM₁, hall_m w₂ Bmax hw₂ hBM₂] at hic12
     linarith
   refine ⟨hall_m t BigB ht hBigB, le_antisymm ?_ ?_⟩
-  · by_contra hgt; push Not at hgt
+  · -- Upper bound `payment j ≤ (θ i).val * m` by taking `w₂ = (θ i).val + ε → (θ i).val`.
+    by_contra hgt; push Not at hgt
     let p := (M.outcome (Function.update θ j ⟨t, BigB⟩)).payment j
     let w₂ := (θ i).val + (p - (θ i).val * m) / (2 * m)
     have hw₂ : (θ i).val < w₂ := by
@@ -201,7 +202,8 @@ private theorem unconstrained_winner_payment_eq {M : BudgetedMechanism ι} {m : 
     have hw₂_mul : w₂ * m = (θ i).val * m + (p - (θ i).val * m) / 2 := by
       dsimp only [w₂]; field_simp [hm.ne']
     linarith
-  · by_contra hlt; push Not at hlt
+  · -- Lower bound `(θ i).val * m ≤ payment j` via deviation from `s < (θ i).val`.
+    by_contra hlt; push Not at hlt
     let p := (M.outcome (Function.update θ j ⟨t, BigB⟩)).payment j
     have hp_nn : 0 ≤ p := hnn _ (update_pos hθ j ⟨ht_pos, hBigB_pos⟩) j
     let s := max ((θ i).val / 2) ((θ i).val - ((θ i).val * m - p) / (2 * m))
@@ -266,6 +268,7 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
     have hce := (Outcome.isParetoOptimal_iff (fun r => (hθ r).1.le)
       hfeas (hbf θ hθ)).mp (hpo θ hθ)
     linarith [(hce.1 ⟨i, hv_i_pos⟩).1, sum_eq_pair_of_zero hij hother0]
+  -- Helper: `alloc j ≤ budget / v_i` for `w > v_i` at budget `B_j`, via `(v_i + ε, BigB)`.
   have hupper (w : ℝ) (hw : (θ i).val < w) :
       (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).alloc j ≤ (θ j).budget / (θ i).val := by
     have hw_pos : 0 < w := hv_i_pos.trans hw
@@ -297,6 +300,7 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
     linarith
   have hup_self : (M.outcome θ).alloc j ≤ (θ j).budget / (θ i).val := by
     simpa only [Function.update_eq_self] using hupper (θ j).val hlt_ij
+  -- Whenever bidder `j` reports `w > v_i` with budget `B_j` and receives `< m`, its budget binds.
   have hpay_if_lt (w : ℝ) (hw : (θ i).val < w)
       (hltw : (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).alloc j < m) :
       (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).payment j = (θ j).budget := by
@@ -313,6 +317,7 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
         sum_eq_pair_of_zero hij hother_w]
     simpa only [Function.update_self] using hce_w.2 i j hxi_pos
       (by simpa only [Function.update_of_ne hij, Function.update_self] using hw)
+  -- Split between strict binding `(θ j).budget < (θ i).val * m` and boundary equality.
   rcases lt_or_eq_of_le hbind with hstrict | heq
   · have hpay_bind (w : ℝ) (hw : (θ i).val < w) :
         (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).payment j = (θ j).budget :=
@@ -353,7 +358,8 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
       linarith
     have hxj : (M.outcome θ).alloc j = (θ j).budget / (θ i).val := le_antisymm hup_self hlow
     exact ⟨hxj, by linarith, hother0, fun _ => hp_s⟩
-  · have hdiv_eq : (θ j).budget / (θ i).val = m := by
+  · -- Boundary case `(θ j).budget = (θ i).val * m`: then `budget / v_i = m`.
+    have hdiv_eq : (θ j).budget / (θ i).val = m := by
       rw [heq, mul_div_cancel_left₀ m hv_i_pos.ne']
     have hxj_eq : (M.outcome θ).alloc j = m := by
       by_contra hne
@@ -366,6 +372,7 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
         have h := payment_le_of_ir hir hθ j
         rw [← h0, mul_zero] at h
         linarith
+      -- Pick `w` just above `v_i` with `w * alloc j < v_i * m = budget`.
       let w := (θ i).val + ((θ i).val * (m - (M.outcome θ).alloc j)) / (2 * (M.outcome θ).alloc j)
       have hw : (θ i).val < w := by
         linarith [div_pos (mul_pos hv_i_pos (sub_pos.mpr hxj_lt))

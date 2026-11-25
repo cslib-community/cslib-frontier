@@ -768,7 +768,8 @@ theorem IsEquilibrium.budget_mul_utility_le {M : LinearFisherMarket I G}
   · rw [← hbj0, zero_mul]
     rcases eq_or_lt_of_le (M.budget_nonneg i) with hbi0 | _
     · rw [← hbi0, zero_mul]
-    · have hexp0 : expenditure p (x j) = 0 :=
+    · -- Since `expenditure p (x j) = 0`, `x i + x j` is budget-feasible for buyer `i`.
+      have hexp0 : expenditure p (x j) = 0 :=
         le_antisymm (by simpa [← hbj0] using hdem_j.1.2) (expenditure_nonneg heq.1 hdem_j.1.1)
       have hle := hdem_i.2 (x i + x j) ⟨fun g => add_nonneg (hdem_i.1.1 g) (hdem_j.1.1 g),
         by rw [expenditure_add, hexp0, add_zero]; exact hdem_i.1.2⟩

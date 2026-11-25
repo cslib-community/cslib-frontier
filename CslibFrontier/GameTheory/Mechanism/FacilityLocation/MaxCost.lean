@@ -896,7 +896,8 @@ theorem lrmMechanism_isWeakGroupStrategyProof [DecidableEq ι] :
     dsimp [center]; ring
   rcases le_or_gt l' l with hll | hll
   · rcases le_or_gt r r' with hrr | hrr
-    · obtain ⟨i, hiA⟩ := hA
+    · -- Case 1: `l' ≤ l` and `r ≤ r'` (interval expands on both sides).
+      obtain ⟨i, hiA⟩ := hA
       refine ⟨i, hiA, ?_⟩
       have hxi_l := leftmost_le x i; have hxi_r := le_rightmost x i
       rw [expectedCost_lrmMechanism, expectedCost_lrmMechanism,
@@ -909,12 +910,16 @@ theorem lrmMechanism_isWeakGroupStrategyProof [DecidableEq ι] :
       change 1 / 4 * (x i - l) + 1 / 4 * -(x i - r) + 1 / 2 * |x i - center x| ≤
         1 / 4 * (x i - l') + 1 / 4 * -(x i - r') + 1 / 2 * |x i - center x'|
       linarith [abs_sub_le (x i) (center x') (center x)]
-    · obtain ⟨i, hiA, hxi⟩ := hright_mem hrr
+    · -- Case 3: `l' ≤ l` and `r' < r` (rightmost agent must be in `A` and strictly loses).
+      obtain ⟨i, hiA, hxi⟩ := hright_mem hrr
       exact ⟨i, hiA, by rw [hxi, expectedCost_lrm_rightmost, hcR hrr.le]; linarith⟩
   · rcases le_or_gt r r' with hrr | hrr
-    · obtain ⟨i, hiA, hxi⟩ := hleft_mem hll
+    · -- Case 2: `l < l'` and `r ≤ r'` (leftmost agent must be in `A` and strictly loses).
+      obtain ⟨i, hiA, hxi⟩ := hleft_mem hll
       exact ⟨i, hiA, by rw [hxi, expectedCost_lrm_leftmost, hcL hll.le]; linarith⟩
-    · obtain ⟨iL, hiLA, hxiL⟩ := hleft_mem hll
+    · -- Case 4: `l < l'` and `r' < r` (both boundary agents lie in `A`, and their cost sum is
+      -- invariant `r - l`, so they cannot both strictly gain).
+      obtain ⟨iL, hiLA, hxiL⟩ := hleft_mem hll
       obtain ⟨iR, hiRA, hxiR⟩ := hright_mem hrr
       by_cases hL : expectedCost (lrmMechanism x) (x iL) ≤ expectedCost (lrmMechanism x') (x iL)
       · exact ⟨iL, hiLA, hL⟩
@@ -982,7 +987,8 @@ theorem three_halves_le_of_isStrategyProof [DecidableEq ι] (hcard : 2 ≤ Finty
   have hhalf := exists_expectedCost_ge_half_dist (hfin x) (0 : ℝ) 1
   rw [show dist (0 : ℝ) 1 / 2 = 1 / 2 by rw [Real.dist_eq]; norm_num] at hhalf
   rcases hhalf with h0 | h1
-  · let x' := Function.update x i₁ (-1)
+  · -- `1/2 ≤ expectedCost (M x) 0`: deviate agent `i₁` from `0` to `-1` (center `0`, opt `1`).
+    let x' := Function.update x i₁ (-1)
     have hx' : leftmost x' = -1 ∧ rightmost x' = 1 := by
       rw [show x' = fun j => if j = i₁ then -1 else if j = i₂ then 1 else 1 / 2 by
         funext j; by_cases h : j = i₁ <;> simp [x', x, h]]
@@ -994,7 +1000,8 @@ theorem three_halves_le_of_isStrategyProof [DecidableEq ι] (hcard : 2 ≤ Finty
     rw [show center x' = 0 by rw [center, hx'.1, hx'.2]; norm_num] at hmc
     rw [show optMaxCost x' = 1 by rw [optMaxCost_real_eq, hx'.1, hx'.2]; norm_num] at hmc hbd
     linarith
-  · let x' := Function.update x i₂ 2
+  · -- `1/2 ≤ expectedCost (M x) 1`: deviate agent `i₂` from `1` to `2` (center `1`, opt `1`).
+    let x' := Function.update x i₂ 2
     have hx' : leftmost x' = 0 ∧ rightmost x' = 2 := by
       rw [show x' = fun j => if j = i₁ then 0 else if j = i₂ then 2 else 1 / 2 by
         funext j; by_cases h : j = i₂ <;> simp [x', x, h, h12.symm]]

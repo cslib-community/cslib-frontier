@@ -179,12 +179,14 @@ theorem load_relatedPureLowerNE (k : ℕ) (j : relatedPureLowerMachine k) :
   revert u
   refine Fin.cases ?_ ?_ r
   · intro u
+    -- Tier `0` receives no jobs under `relatedPureLowerNE`.
     have hempty :
         (univ.filter fun i : relatedPureLowerJob k => relatedPureLowerNE k i = ⟨0, u⟩) = ∅ :=
       filter_eq_empty_iff.mpr fun ⟨t, _, _⟩ _ h => Fin.succ_ne_zero t (congrArg Sigma.fst h)
     rw [hempty, sum_empty, zero_div]
     simp
-  · intro t u
+  · -- Tier `t.succ` receives `2 * (t + 1)` jobs of weight `2 ^ t`, divided by speed `2 ^ (t + 1)`.
+    intro t u
     have hfilt :
         (univ.filter fun i : relatedPureLowerJob k => relatedPureLowerNE k i = ⟨t.succ, u⟩) =
           univ.image fun v : Fin (2 * (t.val + 1)) => (⟨t, (u, v)⟩ : relatedPureLowerJob k) :=
@@ -389,6 +391,7 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
       (1 / 5 : ℝ) * (Real.log (m : ℝ) / Real.log (Real.log (m : ℝ))) * G.optMakespan ≤
         G.makespan A := by
   let M : ℕ → ℕ := fun k => Fintype.card (relatedPureLowerMachine k)
+  -- Pick the largest `k ≥ 2` with `M k ≤ m`.
   have hS_ne : ((range (m + 1)).filter fun k => 2 ≤ k ∧ M k ≤ m).Nonempty :=
     ⟨2, mem_filter.mpr ⟨mem_range.mpr (by omega), le_rfl,
       by dsimp only [M]; rw [card_relatedPureLowerMachine_two]; exact hm⟩⟩
@@ -407,6 +410,8 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
     have := hk_max (k + 1) (mem_filter.mpr ⟨mem_range.mpr (by omega), by omega, hle⟩)
     dsimp only [id_eq] at this
     omega
+  -- Reindex `relatedPureLower k` into `Fin n` jobs and the first `M k` machines of `Fin m`,
+  -- padding the remaining `m - M k` idle machines with speed `1 / k`.
   let n : ℕ := Fintype.card (relatedPureLowerJob k)
   let eJ : Fin n ≃ relatedPureLowerJob k := (Fintype.equivFin (relatedPureLowerJob k)).symm
   let eM : Fin (M k) ≃ relatedPureLowerMachine k :=
@@ -425,6 +430,7 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
     ⟨(eM.symm x).val, lt_of_lt_of_le (eM.symm x).isLt hMk_le⟩
   let A : Fin n → Fin m := fun i => embedM (relatedPureLowerNE k (eJ i))
   let Aopt : Fin n → Fin m := fun i => embedM (relatedPureLowerOpt k (eJ i))
+  -- Helper computing `G.load (fun i => embedM (B (eJ i))) j` for any `B`.
   have hload_embed (B : relatedPureLowerJob k → relatedPureLowerMachine k) (j : Fin m) :
       G.load (fun i => embedM (B (eJ i))) j =
         if h : j.val < M k then (relatedPureLower k).load B (eM ⟨j.val, h⟩) else 0 := by
@@ -490,6 +496,7 @@ theorem exists_relatedPureNash_makespan_ge_log_div_log_log {m : ℕ} [NeZero m] 
       (i := eJ.symm ⟨⟨0, by omega⟩,
         (⟨0, relatedPureLowerTierCount_pos k (by omega)⟩, ⟨0, by omega⟩)⟩)
       (by simp [G])
+  -- Asymptotic bound: `(1 / 5) * (log m / log (log m)) ≤ k`.
   have hk_real : (2 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk2
   have hexp_lt_m : Real.exp (k : ℝ) < (m : ℝ) :=
     (exp_lt_card_relatedPureLowerMachine hk2).trans_le (by exact_mod_cast hMk_le)

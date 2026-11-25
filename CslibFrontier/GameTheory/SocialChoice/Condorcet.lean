@@ -444,6 +444,7 @@ theorem not_isCondorcetConsistent_plurality [Finite A] [Nonempty A] (hV : 3 ≤ 
   obtain ⟨a₀, b₀, c₀, hab₀, hac₀, hbc₀⟩ := h3
   have : Nonempty V := Fintype.card_pos_iff.1 (by omega)
   let m := t.top
+  -- Pick two distinct alternatives `w, y` distinct from `m`.
   obtain ⟨w, y, hwm, hym, hwy⟩ : ∃ w y : A, w ≠ m ∧ y ≠ m ∧ w ≠ y := by
     by_cases ha : a₀ = m
     · exact ha ▸ ⟨b₀, c₀, hab₀.symm, hac₀.symm, hbc₀⟩
@@ -473,6 +474,7 @@ theorem not_isCondorcetConsistent_plurality [Finite A] [Nonempty A] (hV : 3 ≤ 
         (tripleTop t y w m).asymm (tripleTop_isTop t y w m w hwy),
         tripleTop_isTop t w m y y hwy.symm, ↓reduceIte, n, k]
       omega
+    -- Every voter ranks `w` above any `x ∉ {m, w, y}`.
     refine majorityPrefers_of_forall fun i => ?_
     unfold P threeBlockProfile; split_ifs
     · exact ((t.toTop y).toTop w).toTop_prefers_of_ne hwm hxm |>.2 ((t.toTop y).isTop_toTop w x hxw)
