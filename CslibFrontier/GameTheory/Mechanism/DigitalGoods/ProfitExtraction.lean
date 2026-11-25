@@ -269,18 +269,15 @@ theorem singlePriceProfitOn_eq_sup_orderStatistic [Fintype ι] [Nonempty ι] {m 
       have hos := Fintype.orderStatistic_isOrderStatistic b hcm
       have hbj_le_y : b j ≤ y := by
         by_contra hlt
-        have hy_lt : y < b j := lt_of_not_ge hlt
         have hsub : (univ.filter fun i => b i ≤ y) ⊆ (univ.filter fun i => b i < b j) :=
-          fun i hi => mem_filter.2 ⟨mem_univ _, (mem_filter.1 hi).2.trans_lt hy_lt⟩
+          fun i hi => mem_filter.2 ⟨mem_univ _, (mem_filter.1 hi).2.trans_lt (lt_of_not_ge hlt)⟩
         have hle1 : (univ.filter fun i => b i ≤ y).card ≤ n - c := by
           rw [← hlt_card]; exact card_le_card hsub
         have hlt1 : n - c < (univ.filter fun i => b i ≤ y).card := hos.2.2
         omega
-      calc b j * (c : ℝ)
-          = (c : ℝ) * b j := mul_comm _ _
-        _ ≤ (c : ℝ) * y := mul_le_mul_of_nonneg_left hbj_le_y (Nat.cast_nonneg _)
-        _ ≤ (Icc m n).sup' hne fun k : ℕ => (k : ℝ) * Fintype.orderStatistic b (n - k) :=
-            le_sup' (fun k : ℕ => (k : ℝ) * Fintype.orderStatistic b (n - k)) hcIcc
+      rw [mul_comm]
+      exact (mul_le_mul_of_nonneg_left hbj_le_y (Nat.cast_nonneg _)).trans
+        (le_sup' (fun k : ℕ => (k : ℝ) * Fintype.orderStatistic b (n - k)) hcIcc)
   · refine sup'_le hne _ fun k hk => ?_
     have hk_bounds := mem_Icc.1 hk
     set y : ℝ := Fintype.orderStatistic b (n - k)
@@ -294,13 +291,10 @@ theorem singlePriceProfitOn_eq_sup_orderStatistic [Fintype ι] [Nonempty ι] {m 
     have hge_card : k ≤ (univ.filter fun i => y ≤ b i).card := by omega
     obtain ⟨j, hj⟩ := hos.1
     have hy0 : 0 ≤ y := by dsimp only [y]; rw [← hj]; exact hb j
-    calc (k : ℝ) * y
-        ≤ ((univ.filter fun i => y ≤ b i).card : ℝ) * y :=
-          mul_le_mul_of_nonneg_right (Nat.cast_le.2 hge_card) hy0
-      _ = y * ((univ.filter fun i => y ≤ b i).card : ℝ) := mul_comm _ _
-      _ ≤ singlePriceProfitOn m univ b :=
-          mul_card_le_singlePriceProfitOn (fun i _ => hb i) (filter_subset _ _)
-            (hk_bounds.1.trans hge_card) fun i hi => (mem_filter.1 hi).2
+    refine (mul_le_mul_of_nonneg_right (Nat.cast_le.2 hge_card) hy0).trans ?_
+    rw [mul_comm]
+    exact mul_card_le_singlePriceProfitOn (fun i _ => hb i) (filter_subset _ _)
+      (hk_bounds.1.trans hge_card) fun i hi => (mem_filter.1 hi).2
 
 /-- An auction (represented by its profit or expected profit function `profit`) is `β`-competitive
 with respect to a benchmark `bench` if `0 ≤ β` and `bench b ≤ β * profit b` on every nonnegative
