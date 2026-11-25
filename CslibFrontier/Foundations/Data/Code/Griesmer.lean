@@ -309,18 +309,12 @@ private noncomputable def simplexPointProdUnitsEquivNeZero (F : Type*) [Field F]
   invFun w :=
     let S : Finset (Fin k) := univ.filter fun i => w.1 i ≠ 0
     have hS : S.Nonempty := by
-      by_contra hEmpty
-      apply w.2
-      ext i
-      by_contra hi
-      exact hEmpty ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
+      obtain ⟨i, hi⟩ := Function.ne_iff.1 w.2; exact ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
     let i₀ : Fin k := S.min' hS
     have hi₀ : w.1 i₀ ≠ 0 := (mem_filter.1 (S.min'_mem hS)).2
     ⟨⟨(w.1 i₀)⁻¹ • w.1, i₀, by simp [hi₀], fun j hj => by
         have hj_not : j ∉ S := fun hjS => not_le_of_gt hj (S.min'_le j hjS)
-        have hj0 : w.1 j = 0 := by
-          by_contra hne
-          exact hj_not (mem_filter.2 ⟨mem_univ j, hne⟩)
+        have hj0 : w.1 j = 0 := not_not.1 fun hne => hj_not (mem_filter.2 ⟨mem_univ j, hne⟩)
         simp [hj0]⟩,
       Units.mk0 (w.1 i₀) hi₀⟩
   left_inv := by
@@ -332,15 +326,11 @@ private noncomputable def simplexPointProdUnitsEquivNeZero (F : Type*) [Field F]
       simp only [S, mem_filter, mem_univ, true_and, w, Pi.smul_apply, smul_eq_mul, hi1, mul_one]
       exact u.ne_zero
     have hmin_eq : S.min' ⟨i, hiS⟩ = i := by
-      refine le_antisymm (S.min'_le i hiS) ?_
-      by_contra hlt
-      have hlt' : S.min' ⟨i, hiS⟩ < i := not_le.1 hlt
+      refine le_antisymm (S.min'_le i hiS) (not_lt.1 fun hlt' => ?_)
       have hmem := (mem_filter.1 (S.min'_mem ⟨i, hiS⟩)).2
       simp only [w, Pi.smul_apply, smul_eq_mul, hzero _ hlt', mul_zero, ne_eq, not_true_eq_false]
         at hmem
-    have hwi : w (S.min' ⟨i, hiS⟩) = (u : F) := by
-      rw [hmin_eq]
-      simp [w, hi1]
+    have hwi : w (S.min' ⟨i, hiS⟩) = (u : F) := by rw [hmin_eq]; simp [w, hi1]
     refine Prod.ext (Subtype.ext ?_) (Units.ext hwi)
     change (w (S.min' _) )⁻¹ • w = v
     rw [hwi, smul_smul, inv_mul_cancel₀ u.ne_zero, one_smul]
@@ -351,11 +341,7 @@ private noncomputable def simplexPointProdUnitsEquivNeZero (F : Type*) [Field F]
     simp only [Pi.smul_apply, smul_eq_mul]
     set S : Finset (Fin k) := univ.filter fun i => w i ≠ 0
     have hS : S.Nonempty := by
-      by_contra hEmpty
-      apply hw
-      ext i
-      by_contra hi
-      exact hEmpty ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
+      obtain ⟨i, hi⟩ := Function.ne_iff.1 hw; exact ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
     have hi₀ : w (S.min' hS) ≠ 0 := (mem_filter.1 (S.min'_mem hS)).2
     rw [← mul_assoc, mul_inv_cancel₀ hi₀, one_mul]
 
