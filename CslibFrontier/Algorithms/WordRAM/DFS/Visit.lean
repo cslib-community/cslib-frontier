@@ -27,20 +27,6 @@ open Cslib.WordRAM
 open Cslib.Algorithms.Lean.DFS
 open Reg
 
-local macro "reg_ne" : tactic =>
-  `(tactic| exact Fin.ne_of_val_ne (by
-    simp only [ne_eq, Fin.ext_iff, cZero, cOne, cThree, nVerts, offB, edgeB, visB, finB, stkB,
-      curB, revOffB, revEdgeB, ordB, compB, iReg, pReg, finCnt, compIdxReg, oldFinReg, uReg, vReg,
-      jReg, jEndReg, addr, outReg] at *
-    omega))
-
-local macro "regs_lt" : tactic =>
-  `(tactic| (
-    repeat (first
-      | rw [Data.write_regs_apply]
-      | rw [Data.set_regs_of_ne (by reg_ne)])
-    try rfl))
-
 local macro "mem_upd" : tactic =>
   `(tactic| simp only [Data.set_mem, Data.set_mem_apply, Data.write_mem])
 
@@ -152,15 +138,9 @@ structure DfsRegs (offAddr edgeAddr visAddr finAddr stkAddr : ℕ) (x : Data 28)
 private theorem dfsRegs_of_frame {offAddr edgeAddr visAddr finAddr stkAddr : ℕ} {x y : Data 28}
     (hx : DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x)
     (hfr : ∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) :
-    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr y :=
-  { czero := (hfr cZero (by decide)).trans hx.czero
-    cone := (hfr cOne (by decide)).trans hx.cone
-    cthree := (hfr cThree (by decide)).trans hx.cthree
-    hoff := (hfr offB (by decide)).trans hx.hoff
-    hedge := (hfr edgeB (by decide)).trans hx.hedge
-    hvis := (hfr visB (by decide)).trans hx.hvis
-    hfin := (hfr finB (by decide)).trans hx.hfin
-    hstk := (hfr stkB (by decide)).trans hx.hstk }
+    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr y := by
+  obtain ⟨⟩ := hx
+  constructor <;> wram_simp [*]
 
 /-- Push the root `uReg` as the first DFS stack frame. -/
 private def dfsPushRoot : Code .standard 28 := ram[
@@ -256,53 +236,22 @@ private theorem dfsStepBody_pop {N w : ℕ} (adj : Fin N → List (Fin N))
       (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r) := by
   have hoff_u := csrOffset_succ adj u.isLt
   simp only [Fin.eta] at hoff_u
-  have hjeq : csrOffset adj u.val + idx = csrOffset adj (u.val + 1) := by omega
-  have hstk1' : x.mem (stkAddr + 3 * d + 1) = csrOffset adj (u.val + 1) := hstk1.trans hjeq
+  have hstk1' : x.mem (stkAddr + 3 * d + 1) = csrOffset adj (u.val + 1) := by omega
   have hu_lt := u.isLt
-  have hf_3d : Fits w (3 * d) := hfit.of_le (by omega)
-  have hf_s0 : Fits w (stkAddr + 3 * d) := hfit.of_le (by omega)
-  have hf_s1 : Fits w (stkAddr + 3 * d + 1) := hfit.of_le (by omega)
-  have hf_s2 : Fits w (stkAddr + 3 * d + 1 + 1) := hfit.of_le (by omega)
-  have hf_fin : Fits w (finAddr + F₀) := hfit.of_le (by omega)
-  have hf_fc1 : Fits w (F₀ + 1) := hfit.of_le (by omega)
-  let PopPost (x₁ : Data 28) : Prop :=
-    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
-      CSRAt adj offAddr edgeAddr x₁.mem ∧
-      VisAt vis visAddr x₁.mem ∧
-      x₁.regs pReg = d ∧
-      x₁.regs finCnt = F₀ + 1 ∧
-      x₁.mem (finAddr + F₀) = u.val ∧
-      (∀ a, ¬ (a = finAddr + F₀) → x₁.mem a = x.mem a) ∧
-      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
-  change ∃ x₁, ExecWithin w dfsStepBody x x₁ 16 ∧ PopPost x₁
   have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
     simpa [Nat.add_assoc] using hstk2
   unfold dfsStepBody
   wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
-    hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1', hstk2',
-    hf_3d, hf_s0, hf_s1, hf_s2, hf_fin, hf_fc1]
-  dsimp only [PopPost]
-  refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp, ?_, fun a ha => ?_, fun r hr => ?_⟩
-  · refine dfsRegs_of_frame hregs fun r hr => ?_
-    regs_lt
+    hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1', hstk2']
+  refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun v => ?_, by wram_simp,
+    by wram_simp, by wram_simp, fun a ha => by wram_simp,
+    fun r hr => by rcases hr with hr | rfl | rfl <;> wram_simp⟩
   · mem_upd
     exact hcsr.of_eqOn
       (fun _ _ => Function.update_of_ne (by omega) _ _)
       (fun _ _ => Function.update_of_ne (by omega) _ _)
-  · intro w_v; mem_upd
-    rw [Function.update_of_ne (by have := w_v.isLt; omega)]; exact hvis w_v
-  · mem_upd; exact Function.update_self _ _ _
-  · mem_upd; exact Function.update_of_ne ha _ _
-  · have hv : r ≠ vReg := by reg_ne
-    have ha : r ≠ addr := by reg_ne
-    have hu' : r ≠ uReg := by reg_ne
-    have hj : r ≠ jReg := by reg_ne
-    have hje : r ≠ jEndReg := by reg_ne
-    have hp' : r ≠ pReg := by reg_ne
-    have hfc' : r ≠ finCnt := by reg_ne
-    simp only [Data.write_regs_apply, Data.set_regs_of_ne hv, Data.set_regs_of_ne ha,
-      Data.set_regs_of_ne hu', Data.set_regs_of_ne hj, Data.set_regs_of_ne hje,
-      Data.set_regs_of_ne hp', Data.set_regs_of_ne hfc']
+  · have := v.isLt
+    wram_simp [hvis v]
 
 private theorem dfsStepBody_skip {N w : ℕ} (adj : Fin N → List (Fin N))
     (offAddr edgeAddr visAddr finAddr stkAddr Mc : ℕ)
@@ -348,55 +297,20 @@ private theorem dfsStepBody_skip {N w : ℕ} (adj : Fin N → List (Fin N))
   have hvis_v1 : x.mem (visAddr + v.val) = 1 := by simpa [hmem] using hvis v
   have hu_lt := u.isLt
   have hv_lt := v.isLt
-  have hf_3d : Fits w (3 * d) := hfit.of_le (by omega)
-  have hf_s0 : Fits w (stkAddr + 3 * d) := hfit.of_le (by omega)
-  have hf_s1 : Fits w (stkAddr + 3 * d + 1) := hfit.of_le (by omega)
-  have hf_s2 : Fits w (stkAddr + 3 * d + 1 + 1) := hfit.of_le (by omega)
-  have hf_j1 : Fits w (j + 1) := hfit.of_le (by omega)
-  have hf_ej : Fits w (edgeAddr + j) := hfit.of_le (by omega)
-  have hf_vv : Fits w (visAddr + v.val) := hfit.of_le (by omega)
   have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
     simpa [Nat.add_assoc] using hstk2
-  let SkipPost (x₁ : Data 28) : Prop :=
-    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
-      CSRAt adj offAddr edgeAddr x₁.mem ∧
-      VisAt vis visAddr x₁.mem ∧
-      x₁.regs pReg = d + 1 ∧
-      x₁.regs finCnt = F₀ ∧
-      x₁.mem (stkAddr + 3 * d) = u.val ∧
-      x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
-      x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
-      (∀ a, a ≠ stkAddr + 3 * d + 1 → x₁.mem a = x.mem a) ∧
-      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
-  change ∃ x₁, ExecWithin w dfsStepBody x x₁ 24 ∧ SkipPost x₁
   unfold dfsStepBody
   wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
-    hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v1, hj_lt_end,
-    hf_3d, hf_s0, hf_s1, hf_s2, hf_j1, hf_ej, hf_vv]
-  dsimp only [SkipPost]
-  refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp; exact hfc, ?_, ?_, ?_,
-    fun a ha => ?_, fun r hr => ?_⟩
-  · refine dfsRegs_of_frame hregs fun r hr => ?_
-    regs_lt
+    hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v1, hj_lt_end]
+  refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun v => ?_, by wram_simp,
+    by wram_simp [hfc], by wram_simp [hstk0], by wram_simp; omega, by wram_simp [hstk2],
+    fun a ha => by wram_simp, fun r hr => by rcases hr with hr | rfl | rfl <;> wram_simp⟩
   · mem_upd
     exact hcsr.of_eqOn
       (fun _ _ => Function.update_of_ne (by omega) _ _)
       (fun _ _ => Function.update_of_ne (by omega) _ _)
-  · intro w_v; mem_upd
-    rw [Function.update_of_ne (by have := w_v.isLt; omega)]; exact hvis w_v
-  · mem_upd; rw [Function.update_of_ne (by omega)]; exact hstk0
-  · mem_upd; rw [Function.update_self]; omega
-  · mem_upd; rw [Function.update_of_ne (by omega)]; exact hstk2
-  · mem_upd; exact Function.update_of_ne ha _ _
-  · have hv : r ≠ vReg := by reg_ne
-    have ha : r ≠ addr := by reg_ne
-    have hu' : r ≠ uReg := by reg_ne
-    have hj : r ≠ jReg := by reg_ne
-    have hje : r ≠ jEndReg := by reg_ne
-    have hp' : r ≠ pReg := by reg_ne
-    simp only [Data.write_regs_apply, Data.set_regs_of_ne hv, Data.set_regs_of_ne ha,
-      Data.set_regs_of_ne hu', Data.set_regs_of_ne hj, Data.set_regs_of_ne hje,
-      Data.set_regs_of_ne hp']
+  · have := v.isLt
+    wram_simp [hvis v]
 
 private theorem dfsStepBody_push {N w : ℕ} (adj : Fin N → List (Fin N))
     (offAddr edgeAddr visAddr finAddr stkAddr Mc : ℕ)
@@ -445,93 +359,53 @@ private theorem dfsStepBody_push {N w : ℕ} (adj : Fin N → List (Fin N))
       hcsr.2 u idx hidx_lt, hv_eq]
   have hvis_v0 : x.mem (visAddr + v.val) = 0 := by simpa [hmem] using hvis v
   set vis₁ := insert v vis
-  have hcard_vis₁_le : vis₁.card ≤ N := by
-    have := Finset.card_le_univ vis₁; simpa using this
+  have hcard_vis₁_le : vis₁.card ≤ N := by simpa using Finset.card_le_univ vis₁
   have hu_lt := u.isLt
   have hv_lt := v.isLt
   have hoff_v0 : x.mem (offAddr + v.val) = csrOffset adj v.val := hcsr.1 v.val (by omega)
   have hoff_v1 : x.mem (offAddr + v.val + 1) = csrOffset adj (v.val + 1) := by
     simpa [Nat.add_assoc] using hcsr.1 (v.val + 1) (by omega)
-  have hf_3d : Fits w (3 * d) := hfit.of_le (by omega)
-  have hf_s0 : Fits w (stkAddr + 3 * d) := hfit.of_le (by omega)
-  have hf_s1 : Fits w (stkAddr + 3 * d + 1) := hfit.of_le (by omega)
-  have hf_s2 : Fits w (stkAddr + 3 * d + 1 + 1) := hfit.of_le (by omega)
-  have hf_j1 : Fits w (j + 1) := hfit.of_le (by omega)
-  have hf_ej : Fits w (edgeAddr + j) := hfit.of_le (by omega)
-  have hf_vv : Fits w (visAddr + v.val) := hfit.of_le (by omega)
-  have hf_ov0 : Fits w (offAddr + v.val) := hfit.of_le (by omega)
-  have hf_ov1 : Fits w (offAddr + v.val + 1) := hfit.of_le (by omega)
-  have hf_3d1 : Fits w (3 * (d + 1)) := hfit.of_le (by omega)
-  have hf_c0 : Fits w (stkAddr + 3 * (d + 1)) := hfit.of_le (by omega)
-  have hf_c1 : Fits w (stkAddr + 3 * (d + 1) + 1) := hfit.of_le (by omega)
-  have hf_c2 : Fits w (stkAddr + 3 * (d + 1) + 1 + 1) := hfit.of_le (by omega)
-  have hf_p2 : Fits w (d + 1 + 1) := hfit.of_le (by omega)
   have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
     simpa [Nat.add_assoc] using hstk2
-  let PushPost (x₁ : Data 28) : Prop :=
-    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
-      CSRAt adj offAddr edgeAddr x₁.mem ∧
-      VisAt vis₁ visAddr x₁.mem ∧
-      x₁.regs pReg = (d + 1) + 1 ∧
-      x₁.regs finCnt = F₀ ∧
-      x₁.mem (stkAddr + 3 * d) = u.val ∧
-      x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
-      x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
-      x₁.mem (stkAddr + 3 * (d + 1)) = v.val ∧
-      x₁.mem (stkAddr + 3 * (d + 1) + 1) = csrOffset adj v.val + 0 ∧
-      x₁.mem (stkAddr + 3 * (d + 1) + 2) = csrOffset adj (v.val + 1) ∧
-      (∀ a, ¬ (a = visAddr + v.val ∨
-          (stkAddr + 3 * d ≤ a ∧ a < stkAddr + 3 * N)) → x₁.mem a = x.mem a) ∧
-      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
-  change ∃ x₁, ExecWithin w dfsStepBody x x₁ 34 ∧ PushPost x₁
   unfold dfsStepBody
   wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v0, hj_lt_end,
-    hoff_v0, hoff_v1, hf_3d, hf_s0, hf_s1, hf_s2, hf_j1, hf_ej, hf_vv,
-    hf_ov0, hf_ov1, hf_3d1, hf_c0, hf_c1, hf_c2, hf_p2]
-  dsimp only [PushPost]
-  refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp; exact hfc,
-    ?_, ?_, ?_, ?_, ?_, ?_, fun a ha => ?_, fun r hr => ?_⟩
-  · refine dfsRegs_of_frame hregs fun r hr => ?_
-    regs_lt
+    hoff_v0, hoff_v1]
+  refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun w_v => ?_, by wram_simp,
+    by wram_simp [hfc], by wram_simp [hstk0], by wram_simp; omega, by wram_simp [hstk2],
+    by wram_simp, by wram_simp, by wram_simp, fun a ha => by wram_simp,
+    fun r hr => by rcases hr with hr | rfl | rfl <;> wram_simp⟩
   · mem_upd
     exact hcsr.of_eqOn
       (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
       (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
-  · intro w_v; mem_upd
-    have hw_lt := w_v.isLt
+  · have := w_v.isLt
+    mem_upd
     repeat rw [Function.update_of_ne (by omega)]
-    by_cases hwv : w_v = v
-    · subst hwv
-      rw [Function.update_self]
-      simp [vis₁]
-    · have hne : visAddr + w_v.val ≠ visAddr + v.val := fun h => hwv (Fin.ext (by omega))
-      rw [Function.update_of_ne hne, Function.update_of_ne (by omega)]
-      simpa [vis₁, hwv] using hvis w_v
-  · mem_upd; repeat rw [Function.update_of_ne (by omega)]
-    exact hstk0
-  · mem_upd; repeat rw [Function.update_of_ne (by omega)]
-    rw [Function.update_self]; omega
-  · mem_upd; repeat rw [Function.update_of_ne (by omega)]
-    exact hstk2
-  · mem_upd
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), Function.update_self]
-  · mem_upd
-    rw [Function.update_of_ne (by omega), Function.update_self]; omega
-  · mem_upd
-    rw [show stkAddr + 3 * (d + 1) + 2 = stkAddr + 3 * (d + 1) + 1 + 1 by omega,
-      Function.update_self]
-  · mem_upd
-    repeat rw [Function.update_of_ne (by omega)]
-  · have hv : r ≠ vReg := by reg_ne
-    have ha : r ≠ addr := by reg_ne
-    have hu' : r ≠ uReg := by reg_ne
-    have hj : r ≠ jReg := by reg_ne
-    have hje : r ≠ jEndReg := by reg_ne
-    have hp' : r ≠ pReg := by reg_ne
-    simp only [Data.write_regs_apply, Data.set_regs_of_ne hv, Data.set_regs_of_ne ha,
-      Data.set_regs_of_ne hu', Data.set_regs_of_ne hj, Data.set_regs_of_ne hje,
-      Data.set_regs_of_ne hp']
+    refine visAt_insert (fun w' => ?_) v w_v
+    rw [Function.update_of_ne (by have := w'.isLt; omega)]; exact hvis w'
+
+/-- The cells from `base` on hold the vertices of `L` in order. -/
+private def FinAt {N : ℕ} (L : List (Fin N)) (base : ℕ) (mem : ℕ → ℕ) : Prop :=
+  ∀ q (hq : q < L.length), mem (base + q) = L[q].val
+
+private theorem FinAt.append {N : ℕ} {A B : List (Fin N)} {base : ℕ} {mem : ℕ → ℕ}
+    (hA : FinAt A base mem) (hB : FinAt B (base + A.length) mem) : FinAt (A ++ B) base mem := by
+  intro q hq
+  rw [List.length_append] at hq
+  by_cases h : q < A.length
+  · rw [List.getElem_append_left h]; exact hA q h
+  · rw [List.getElem_append_right (by omega), ← hB (q - A.length) (by omega)]
+    congr 1; omega
+
+/-- One iteration of the DFS loop on a nonempty stack, then the rest of the loop. -/
+private theorem dfsLoop_iter {w offAddr edgeAddr visAddr finAddr stkAddr d T₁ T₂ : ℕ}
+    {x x₁ z : Data 28} (hregs : DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x)
+    (hp : x.regs pReg = d + 1) (h₁ : ExecWithin w dfsStepBody x x₁ T₁)
+    (h₂ : ExecWithin w dfsLoop x₁ z T₂) : ExecWithin w dfsLoop x z (T₁ + T₂ + 2) := by
+  have hlt : (Cond.lt cZero pReg).Holds x := by
+    change x.regs cZero < x.regs pReg; rw [hregs.czero, hp]; omega
+  exact h₁.loop_iter hlt h₂
 
 private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
     (offAddr edgeAddr visAddr finAddr stkAddr Mc : ℕ)
@@ -564,9 +438,7 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
           VisAt s.visited visAddr y.mem →
           y.regs pReg = d →
           y.regs finCnt = F₀ + s.finished.length + 1 →
-          (∀ q (hq : q < s.finished.reverse.length),
-            y.mem (finAddr + F₀ + q) = (s.finished.reverse[q]).val) →
-          y.mem (finAddr + F₀ + s.finished.length) = u.val →
+          FinAt (s.finished.reverse ++ [u]) (finAddr + F₀) y.mem →
           (∀ a, ¬ ((visAddr ≤ a ∧ a < visAddr + N) ∨
               (finAddr + F₀ ≤ a ∧ a < finAddr + F₀ + s.finished.length + 1) ∨
               (stkAddr + 3 * d ≤ a ∧ a < stkAddr + 3 * N)) → y.mem a = x.mem a) →
@@ -582,22 +454,19 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
     | nil =>
       intro idx d F₀ T_cont vis x Q hidx _ _ hcons hregs hcsr hvis hp hfc hstk0 hstk1 hstk2 hcont
       simp only [List.length_nil, Nat.add_zero] at hidx
-      obtain ⟨x₁, ⟨t₁, ht₁, he₁⟩, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_fin0, hx₁_out,
-        hx₁_fr⟩ :=
+      obtain ⟨x₁, hx₁, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_fin0, hx₁_out, hx₁_fr⟩ :=
         dfsStepBody_pop adj offAddr edgeAddr visAddr finAddr stkAddr Mc
           hdisj1 hdisj2 hdisj3 hdisj4 hmc hfit u idx d F₀ vis hidx hcons
           hregs hcsr hvis hp hfc hstk0 hstk1 hstk2
-      obtain ⟨z, ⟨t₂, ht₂, he₂⟩, hQz⟩ := hcont x₁ hx₁_r hx₁_csr hx₁_vis hx₁_p
+      obtain ⟨z, hz, hQz⟩ := hcont x₁ hx₁_r hx₁_csr hx₁_vis hx₁_p
         (by simpa [foldEmpty] using hx₁_fc)
-        (fun q hq => by simp [foldEmpty] at hq)
-        (by simpa [foldEmpty] using hx₁_fin0)
+        (fun q hq => by
+          obtain rfl : q = 0 := by simpa [foldEmpty] using hq
+          simpa [foldEmpty] using hx₁_fin0)
         (fun a ha => hx₁_out a (by dsimp only [foldEmpty, List.length_nil] at ha; omega))
         hx₁_fr
-      have hlt : (Cond.lt cZero pReg).Holds x := by
-        have := hregs.czero
-        change x.regs cZero < x.regs pReg; omega
-      exact ⟨z, ⟨t₁ + t₂ + 2, by dsimp only [dfsFrameTime, foldEmpty, outDegreeSum]; omega,
-        Exec.loop_iter hlt he₁ he₂⟩, hQz⟩
+      exact ⟨z, (dfsLoop_iter hregs hp hx₁ hz).mono
+        (by dsimp only [dfsFrameTime, foldEmpty, outDegreeSum]; omega), hQz⟩
     | cons v es' ih_es =>
       intro idx d F₀ T_cont vis x Q hidx hes hk hcons hregs hcsr hvis hp hfc hstk0 hstk1 hstk2
         hcont
@@ -608,36 +477,30 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
       have hes' : ∀ q (hq : q < es'.length), (adj u)[idx + 1 + q]'(by omega) = es'[q] := by
         intro q hq
         have h := hes (q + 1) (by simp only [List.length_cons]; omega)
-        have hcongr : (adj u)[idx + 1 + q]'(by omega) = (adj u)[idx + (q + 1)]'(by omega) := by
-          congr 1; omega
-        exact hcongr.trans (by simpa only [List.getElem_cons_succ] using h)
+        simp only [show idx + 1 + q = idx + (q + 1) by omega]
+        simpa only [List.getElem_cons_succ] using h
       by_cases hmem : v ∈ vis
       · -- Case 1: `v ∈ vis`
         have hvisit_v : visit adj k v ⟨vis, []⟩ = ⟨vis, []⟩ := by
-          cases k with
-          | zero => rfl
-          | succ k' => exact visit_of_mem hmem
+          cases k
+          exacts [rfl, visit_of_mem hmem]
         have hfold_eq : foldEmpty adj k (v :: es') vis = foldEmpty adj k es' vis := by
           rw [foldEmpty_cons, hvisit_v]
           simp
-        obtain ⟨x₁, ⟨t₁, ht₁, he₁⟩, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_s0, hx₁_s1,
-          hx₁_s2, hx₁_out, hx₁_fr⟩ :=
+        rw [hfold_eq] at hcont ⊢
+        obtain ⟨x₁, hx₁, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_s0, hx₁_s1, hx₁_s2, hx₁_out,
+          hx₁_fr⟩ :=
           dfsStepBody_skip adj offAddr edgeAddr visAddr finAddr stkAddr Mc
             hdisj1 hdisj2 hdisj3 hdisj4 hmc hfit u v idx d F₀ vis (by omega) hv_eq hmem hcons
             hregs hcsr hvis hp hfc hstk0 hstk1 hstk2
-        obtain ⟨z, ⟨t₂, ht₂, he₂⟩, hQz⟩ := ih_es (idx + 1) d F₀ T_cont vis x₁ Q (by omega) hes'
+        obtain ⟨z, hz, hQz⟩ := ih_es (idx + 1) d F₀ T_cont vis x₁ Q (by omega) hes'
           hk hcons hx₁_r hx₁_csr hx₁_vis hx₁_p hx₁_fc hx₁_s0 hx₁_s1 hx₁_s2
-          (fun y hy_r hy_csr hy_vis hy_p hy_fc hy_fin hy_u hy_out hy_fr => by
-            rw [hfold_eq] at hcont
-            exact hcont y hy_r hy_csr hy_vis hy_p hy_fc hy_fin hy_u
+          (fun y hy_r hy_csr hy_vis hy_p hy_fc hy_fin hy_out hy_fr =>
+            hcont y hy_r hy_csr hy_vis hy_p hy_fc hy_fin
               (fun a ha => (hy_out a ha).trans (hx₁_out a (by omega)))
               (fun r hr => (hy_fr r hr).trans (hx₁_fr r hr)))
-        have hlt : (Cond.lt cZero pReg).Holds x := by
-          have := hregs.czero
-          change x.regs cZero < x.regs pReg; omega
-        refine ⟨z, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩, hQz⟩
-        rw [hfold_eq]
-        simp only [dfsFrameTime, List.length_cons] at ht₂ ⊢
+        refine ⟨z, (dfsLoop_iter hregs hp hx₁ hz).mono ?_, hQz⟩
+        simp only [dfsFrameTime, List.length_cons]
         omega
       · -- Case 2: `v ∉ vis`
         have hcard_lt : vis.card < N := by simpa using Finset.card_lt_univ_of_notMem hmem
@@ -645,11 +508,10 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
         · omega
         set vis₁ := insert v vis
         have hcard_vis₁ : vis₁.card = vis.card + 1 := Finset.card_insert_of_notMem hmem
-        have hcard_vis₁_le : vis₁.card ≤ N := by
-          have := Finset.card_le_univ vis₁; simpa using this
+        have hcard_vis₁_le : vis₁.card ≤ N := by simpa using Finset.card_le_univ vis₁
         have hk' : N - vis₁.card ≤ k' := by omega
         have hcons_child : F₀ + (d + 1) + 1 + (N - vis₁.card) ≤ N := by omega
-        obtain ⟨x₁, ⟨t₁, ht₁, he₁⟩, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_d0, hx₁_d1,
+        obtain ⟨x₁, hx₁, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_d0, hx₁_d1,
           hx₁_d2, hx₁_c0, hx₁_c1, hx₁_c2, hx₁_out, hx₁_fr⟩ :=
           dfsStepBody_push adj offAddr edgeAddr visAddr finAddr stkAddr Mc
             hdisj1 hdisj2 hdisj3 hdisj4 hmc hfit u v idx d F₀ vis (by omega) hv_eq hmem
@@ -665,119 +527,43 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
         have hcard_s₁ : s₁.visited.card = vis.card + s₁.finished.length := by
           rw [← hs₁_def]; exact card_visit_nil adj (k' + 1) v vis
         have hcard_s₁_le : s₁.visited.card ≤ N := by
-          have := Finset.card_le_univ s₁.visited; simpa only [Fintype.card_fin] using this
+          simpa only [Fintype.card_fin] using Finset.card_le_univ s₁.visited
         have hlen_s₁ : s₁.finished.length = s_child.finished.length + 1 := by
           rw [hs₁_eq]; rfl
         have hk_s₁ : N - s₁.visited.card ≤ k' + 1 := by omega
         have hcons_after : (F₀ + s₁.finished.length) + d + 1 + (N - s₁.visited.card) ≤ N := by
           omega
-        obtain ⟨z, ⟨t₂, ht₂, he₂⟩, hQz⟩ := ih_k k' (Nat.lt_succ_self k') v (adj v) 0 (d + 1) F₀
+        rw [hfold_cons] at hcont ⊢
+        dsimp only at hcont
+        obtain ⟨z, hz, hQz⟩ := ih_k k' (Nat.lt_succ_self k') v (adj v) 0 (d + 1) F₀
           (dfsFrameTime adj es' s₂.finished + T_cont) vis₁ x₁ Q (Nat.zero_add _)
           (fun q hq => by simp only [Nat.zero_add]) hk' hcons_child hx₁_r hx₁_csr hx₁_vis hx₁_p
           hx₁_fc hx₁_c0 hx₁_c1 hx₁_c2
-          (fun y₁ hy₁_r hy₁_csr hy₁_vis hy₁_p hy₁_fc hy₁_fin hy₁_v hy₁_out hy₁_fr => by
-            rw [hsc_def] at hy₁_vis hy₁_fc hy₁_fin hy₁_v hy₁_out
-            have hy₁_vis' : VisAt s₁.visited visAddr y₁.mem := by rw [hs₁_eq]; exact hy₁_vis
-            have hy₁_fc' : y₁.regs finCnt = F₀ + s₁.finished.length := by
-              rw [hlen_s₁]; exact hy₁_fc
-            have hy₁_d0 : y₁.mem (stkAddr + 3 * d) = u.val :=
-              (hy₁_out (stkAddr + 3 * d) (by omega)).trans hx₁_d0
-            have hy₁_d1 : y₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) :=
-              (hy₁_out (stkAddr + 3 * d + 1) (by omega)).trans hx₁_d1
-            have hy₁_d2 : y₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) :=
-              (hy₁_out (stkAddr + 3 * d + 2) (by omega)).trans hx₁_d2
+          (fun y₁ hy₁_r hy₁_csr hy₁_vis hy₁_p hy₁_fc hy₁_fin hy₁_out hy₁_fr => by
+            rw [hsc_def] at hy₁_vis hy₁_fc hy₁_fin hy₁_out
+            have hy₁_fin' : FinAt s₁.finished.reverse (finAddr + F₀) y₁.mem := by
+              rw [hs₁_eq, List.reverse_cons]; exact hy₁_fin
             rw [← hs₂_def]
-            exact ih_es (idx + 1) d (F₀ + s₁.finished.length) T_cont s₁.visited y₁ Q
-              (by omega) hes' hk_s₁ hcons_after hy₁_r hy₁_csr hy₁_vis' hy₁_p hy₁_fc'
-              hy₁_d0 hy₁_d1 hy₁_d2
-              (fun y₂ hy₂_r hy₂_csr hy₂_vis hy₂_p hy₂_fc hy₂_fin hy₂_u hy₂_out hy₂_fr => by
-                rw [hs₂_def] at hy₂_vis hy₂_fc hy₂_fin hy₂_u hy₂_out
-                have hy₂_vis' : VisAt (foldEmpty adj (k' + 1) (v :: es') vis).visited
-                    visAddr y₂.mem := by
-                  rw [hfold_cons]; exact hy₂_vis
-                have hy₂_fc' : y₂.regs finCnt =
-                    F₀ + (foldEmpty adj (k' + 1) (v :: es') vis).finished.length + 1 := by
-                  rw [hfold_cons]; dsimp only; rw [List.length_append]; omega
-                have hy₂_u' : y₂.mem (finAddr + F₀ +
-                    (foldEmpty adj (k' + 1) (v :: es') vis).finished.length) = u.val := by
-                  rw [hfold_cons]; dsimp only; rw [List.length_append]
-                  rw [show finAddr + F₀ + (s₂.finished.length + s₁.finished.length) =
-                    finAddr + (F₀ + s₁.finished.length) + s₂.finished.length by omega]
-                  exact hy₂_u
-                have hy₂_fin_all :
-                    ∀ q (hq : q < (foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse.length),
-                      y₂.mem (finAddr + F₀ + q) =
-                        ((foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse[q]).val := by
-                  intro q hq
-                  have hrev : (foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse =
-                      s_child.finished.reverse ++ [v] ++ s₂.finished.reverse := by
-                    rw [hfold_cons, hs₁_eq]
-                    simp only [List.reverse_append, List.reverse_cons, List.append_assoc]
-                  have hrev2 : (foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse =
-                      s₁.finished.reverse ++ s₂.finished.reverse := by
-                    rw [hfold_cons]; dsimp only; exact List.reverse_append
-                  have hq_tot : q < s_child.finished.length + 1 + s₂.finished.length := by
-                    rw [hrev] at hq
-                    simp only [List.length_append, List.length_reverse,
-                      List.length_singleton] at hq
-                    omega
-                  by_cases hq1 : q < s_child.finished.length
-                  · have hpres : y₂.mem (finAddr + F₀ + q) = y₁.mem (finAddr + F₀ + q) :=
-                      hy₂_out (finAddr + F₀ + q) (by omega)
-                    rw [hpres, hy₁_fin q (by rw [List.length_reverse]; exact hq1)]
-                    congr 1
-                    simp only [hrev, List.append_assoc]
-                    rw [List.getElem_append_left (by rw [List.length_reverse]; exact hq1)]
-                  · by_cases hq2 : q = s_child.finished.length
-                    · subst hq2
-                      have hpres : y₂.mem (finAddr + F₀ + s_child.finished.length) =
-                          y₁.mem (finAddr + F₀ + s_child.finished.length) :=
-                        hy₂_out (finAddr + F₀ + s_child.finished.length) (by omega)
-                      rw [hpres, hy₁_v]
-                      congr 1
-                      simp only [hrev, List.append_assoc]
-                      rw [List.getElem_append_right (by rw [List.length_reverse])]
-                      simp only [List.length_reverse, Nat.sub_self, List.singleton_append,
-                        List.getElem_cons_zero]
-                    · set q' := q - s₁.finished.length
-                      have hq'_lt : q' < s₂.finished.reverse.length := by
-                        rw [List.length_reverse]; omega
-                      have haddr_eq :
-                          finAddr + F₀ + q = finAddr + (F₀ + s₁.finished.length) + q' := by
-                        omega
-                      rw [haddr_eq, hy₂_fin q' hq'_lt]
-                      congr 1
-                      simp only [hrev2]
-                      have hge : s₁.finished.reverse.length ≤ q := by
-                        rw [List.length_reverse]; omega
-                      rw [List.getElem_append_right hge]
-                      congr 1
-                      rw [List.length_reverse]
-                exact hcont y₂ hy₂_r hy₂_csr hy₂_vis' hy₂_p hy₂_fc' hy₂_fin_all hy₂_u'
-                  (fun a ha => by
-                    rw [hfold_cons] at ha; dsimp only at ha
-                    rw [List.length_append] at ha
-                    have h2 := hy₂_out a (by omega)
-                    have h1 := hy₁_out a (by omega)
-                    have h0 := hx₁_out a (by have := v.isLt; omega)
-                    exact h2.trans (h1.trans h0))
-                  (fun r hr => (hy₂_fr r hr).trans ((hy₁_fr r hr).trans (hx₁_fr r hr)))))
-        have hlt : (Cond.lt cZero pReg).Holds x := by
-          have := hregs.czero
-          change x.regs cZero < x.regs pReg; omega
-        refine ⟨z, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩, hQz⟩
-        rw [hsc_def] at ht₂
-        have hout_eq : outDegreeSum adj (foldEmpty adj (k' + 1) (v :: es') vis).finished =
-            outDegreeSum adj s₂.finished +
-              ((adj v).length + outDegreeSum adj s_child.finished) := by
-          rw [hfold_cons, hs₁_eq]
-          dsimp only
-          rw [outDegreeSum_append]
-          simp only [outDegreeSum, List.map_cons, List.sum_cons]
-        have hlen_eq : (foldEmpty adj (k' + 1) (v :: es') vis).finished.length =
-            s₂.finished.length + (1 + s_child.finished.length) := by
-          rw [hfold_cons, hs₁_eq]; dsimp only; rw [List.length_append, List.length_cons]; omega
-        simp only [dfsFrameTime, List.length_cons, hout_eq, hlen_eq] at ht₂ ⊢
+            refine ih_es (idx + 1) d (F₀ + s₁.finished.length) T_cont s₁.visited y₁ Q
+              (by omega) hes' hk_s₁ hcons_after hy₁_r hy₁_csr (by rw [hs₁_eq]; exact hy₁_vis)
+              hy₁_p (by omega) ((hy₁_out _ (by omega)).trans hx₁_d0)
+              ((hy₁_out _ (by omega)).trans hx₁_d1) ((hy₁_out _ (by omega)).trans hx₁_d2)
+              (fun y₂ hy₂_r hy₂_csr hy₂_vis hy₂_p hy₂_fc hy₂_fin hy₂_out hy₂_fr => ?_)
+            rw [hs₂_def] at hy₂_vis hy₂_fc hy₂_fin hy₂_out
+            refine hcont y₂ hy₂_r hy₂_csr hy₂_vis hy₂_p
+              (by simp only [List.length_append]; omega) ?_ (fun a ha => ?_)
+              (fun r hr => (hy₂_fr r hr).trans ((hy₁_fr r hr).trans (hx₁_fr r hr)))
+            · rw [List.reverse_append, List.append_assoc]
+              refine FinAt.append (fun q hq => (hy₂_out _ ?_).trans (hy₁_fin' q hq)) ?_
+              · simp only [List.length_reverse] at hq; omega
+              · rwa [List.length_reverse, Nat.add_assoc]
+            · simp only [List.length_append] at ha
+              exact (hy₂_out a (by omega)).trans ((hy₁_out a (by omega)).trans
+                (hx₁_out a (by have := v.isLt; omega))))
+        refine ⟨z, (dfsLoop_iter hregs hp hx₁ hz).mono ?_, hQz⟩
+        rw [hsc_def, hs₁_eq]
+        simp only [dfsFrameTime, outDegreeSum, List.length_cons, List.length_append,
+          List.map_append, List.map_cons, List.sum_append, List.sum_cons]
         omega
 
 private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N))
@@ -812,7 +598,6 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
         y.regs reg = x.regs reg) := by
   have hr_lt := r.isLt
   have hvis_r : x.mem (visAddr + r.val) = (decide (r ∈ vis)).toNat := hvis r
-  have hf_vr : Fits w (visAddr + r.val) := hfit.of_le (by omega)
   obtain ⟨k', hkN⟩ : ∃ k', N = k' + 1 := ⟨N - 1, by omega⟩
   let RootPost (y : Data 28) : Prop :=
     let s := visit adj N r ⟨vis, []⟩
@@ -833,32 +618,26 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
     have hs_eq : visit adj N r ⟨vis, []⟩ = ⟨vis, []⟩ :=
       (congrArg (fun fuel => visit adj fuel r ⟨vis, []⟩) hkN).trans (visit_of_mem hmem)
     unfold visitRootCode
-    wram_exec [hregs.czero, hregs.hvis, hu, hvis_1, hf_vr]
+    wram_exec [hregs.czero, hregs.hvis, hu, hvis_1]
     dsimp only [RootPost]
     rw [hs_eq]
-    refine ⟨?_, ?_, ?_, ?_, fun _ hq => by simp at hq, fun _ _ => rfl, fun reg hreg => ?_⟩
-    · refine dfsRegs_of_frame hregs fun reg hreg => ?_
-      regs_lt
-    · mem_upd; exact hcsr
-    · intro w_v; mem_upd; exact hvis w_v
-    · wram_simp; simpa using hfc
-    · regs_lt
+    exact ⟨dfsRegs_of_frame hregs fun reg hreg => by wram_simp, by mem_upd; exact hcsr,
+      fun w_v => by mem_upd; exact hvis w_v, by wram_simp; simpa using hfc,
+      fun _ hq => by simp at hq, fun _ _ => rfl,
+      fun reg hreg => by rcases hreg with hreg | rfl | rfl <;> wram_simp⟩
   · have hvis_0 : x.mem (visAddr + r.val) = 0 := by simpa [hmem] using hvis_r
     set vis₁ := insert r vis
     have hcard_vis₁ : vis₁.card = vis.card + 1 := Finset.card_insert_of_notMem hmem
-    have hcard_vis₁_le : vis₁.card ≤ N := by
-      have := Finset.card_le_univ vis₁; simpa using this
+    have hcard_vis₁_le : vis₁.card ≤ N := by simpa using Finset.card_le_univ vis₁
     have hk' : N - vis₁.card ≤ k' := by omega
     have hcons_root : F₀ + 0 + 1 + (N - vis₁.card) ≤ N := by omega
     have hoff_r0 : x.mem (offAddr + r.val) = csrOffset adj r.val := hcsr.1 r.val (by omega)
     have hoff_r1 : x.mem (offAddr + r.val + 1) = csrOffset adj (r.val + 1) := by
       simpa [Nat.add_assoc] using hcsr.1 (r.val + 1) (by omega)
-    have hf_or0 : Fits w (offAddr + r.val) := hfit.of_le (by omega)
-    have hf_or1 : Fits w (offAddr + r.val + 1) := hfit.of_le (by omega)
-    have hf_s1 : Fits w (stkAddr + 1) := hfit.of_le (by omega)
-    have hf_s2 : Fits w (stkAddr + 1 + 1) := hfit.of_le (by omega)
-    let PushRootPost (x₁ : Data 28) : Prop :=
-      DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
+    obtain ⟨x₁, hx₁_ex, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_s0, hx₁_s1, hx₁_s2,
+      hx₁_out, hx₁_fr⟩ : ∃ x₁, ExecWithin w dfsPushRoot
+        ((x.set addr (visAddr + r.val)).set jReg 0) x₁ 11 ∧
+        DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
         CSRAt adj offAddr edgeAddr x₁.mem ∧
         VisAt vis₁ visAddr x₁.mem ∧
         x₁.regs pReg = 1 ∧
@@ -869,43 +648,20 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
         (∀ a, ¬ (a = visAddr + r.val ∨ (stkAddr ≤ a ∧ a < stkAddr + 3 * N)) →
           x₁.mem a = x.mem a) ∧
         (∀ reg : Fin 28, (reg.val < 19 ∨ reg = compIdxReg ∨ reg = oldFinReg) →
-          x₁.regs reg = x.regs reg)
-    have hpush : ∃ x₁, ExecWithin w dfsPushRoot
-        ((x.set addr (visAddr + r.val)).set jReg 0) x₁ 11 ∧ PushRootPost x₁ := by
+          x₁.regs reg = x.regs reg) := by
       unfold dfsPushRoot
-      wram_exec [hregs.cone, hregs.hoff, hregs.hstk, hu, hoff_r0, hoff_r1,
-        hf_or0, hf_or1, hf_s1, hf_s2]
-      dsimp only [PushRootPost]
-      refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp; exact hfc,
-        ?_, ?_, ?_, fun a ha => ?_, fun reg hreg => ?_⟩
-      · refine dfsRegs_of_frame hregs fun reg hreg => ?_
-        regs_lt
+      wram_exec [hregs.cone, hregs.hoff, hregs.hstk, hu, hoff_r0, hoff_r1]
+      refine ⟨dfsRegs_of_frame hregs fun reg hreg => by wram_simp, ?_, fun w_v => ?_, by wram_simp,
+        by wram_simp [hfc], by wram_simp, by wram_simp, by wram_simp, fun a ha => by wram_simp,
+        fun reg hreg => by rcases hreg with hreg | rfl | rfl <;> wram_simp⟩
       · mem_upd
         exact hcsr.of_eqOn
           (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
           (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
-      · intro w_v; mem_upd
-        have hw_lt := w_v.isLt
+      · have hw_lt := w_v.isLt
+        mem_upd
         repeat rw [Function.update_of_ne (by omega)]
         exact visAt_insert hvis r w_v
-      · mem_upd
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Nat.add_zero, Function.update_self]
-      · mem_upd
-        rw [Function.update_of_ne (by omega), Nat.mul_zero, Nat.add_zero, Function.update_self]
-        omega
-      · mem_upd
-        rw [show stkAddr + 2 = stkAddr + 1 + 1 by omega, Function.update_self]
-      · mem_upd
-        repeat rw [Function.update_of_ne (by omega)]
-      · have ha : reg ≠ addr := by reg_ne
-        have hj : reg ≠ jReg := by reg_ne
-        have hje : reg ≠ jEndReg := by reg_ne
-        have hp' : reg ≠ pReg := by reg_ne
-        simp only [Data.write_regs_apply, Data.set_regs_of_ne ha, Data.set_regs_of_ne hj,
-          Data.set_regs_of_ne hje, Data.set_regs_of_ne hp']
-    obtain ⟨x₁, hx₁_ex, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_s0, hx₁_s1, hx₁_s2,
-      hx₁_out, hx₁_fr⟩ := hpush
     have hs_eq : visit adj N r ⟨vis, []⟩ =
         ⟨(foldEmpty adj k' (adj r) vis₁).visited,
           r :: (foldEmpty adj k' (adj r) vis₁).finished⟩ :=
@@ -914,32 +670,19 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
       finAddr stkAddr Mc hdisj1 hdisj2 hdisj3 hdisj4 hmc hfit k' r (adj r) 0 0 F₀ 2 vis₁ x₁
       RootPost (by simp) (fun q hq => by simp) hk' hcons_root hx₁_r hx₁_csr hx₁_vis hx₁_p hx₁_fc
       hx₁_s0 hx₁_s1 hx₁_s2
-      (fun y hy_r hy_csr hy_vis hy_p hy_fc hy_fin hy_rval hy_out hy_fr => by
+      (fun y hy_r hy_csr hy_vis hy_p hy_fc hy_fin hy_out hy_fr => by
         have hend : ¬ (Cond.lt cZero pReg).Holds y := by
           change ¬ y.regs cZero < y.regs pReg
           have := hy_r.czero; omega
-        refine ⟨y, ⟨2, le_rfl, Exec.loop_exit hend⟩, ?_⟩
+        refine ⟨y, ExecWithin.loop_exit hend, ?_⟩
         dsimp only [RootPost]
         rw [hs_eq]
         dsimp only
         refine ⟨hy_r, hy_csr, hy_vis, by rw [List.length_cons, hy_fc]; omega,
           fun q hq => ?_, fun a ha => ?_, fun reg hreg => (hy_fr reg hreg).trans (hx₁_fr reg hreg)⟩
-        · simp only [List.reverse_cons, List.length_append, List.length_reverse,
-            List.length_singleton] at hq
-          by_cases hq_lt : q < (foldEmpty adj k' (adj r) vis₁).finished.length
-          · rw [hy_fin q (by simpa using hq_lt)]
-            congr 1
-            simp only [List.reverse_cons]
-            rw [List.getElem_append_left (by simpa using hq_lt)]
-          · have hq_eq : q = (foldEmpty adj k' (adj r) vis₁).finished.length := by omega
-            subst hq_eq
-            rw [hy_rval]
-            congr 1
-            simp
+        · simp only [List.reverse_cons] at hq ⊢; exact hy_fin q hq
         · simp only [List.length_cons] at ha
-          have h1 := hy_out a (by omega)
-          have h0 := hx₁_out a (by omega)
-          exact h1.trans h0)
+          exact (hy_out a (by omega)).trans (hx₁_out a (by omega)))
     have hbound : 2 + 1 + 11 + t_loop ≤
         16 + 60 * (visit adj N r ⟨vis, []⟩).finished.length +
           36 * outDegreeSum adj (visit adj N r ⟨vis, []⟩).finished := by
@@ -948,10 +691,9 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
         List.sum_cons] at ht_loop ⊢
       omega
     unfold visitRootCode
-    wram_exec [hregs.czero, hregs.hvis, hu, hvis_0, hf_vr]
+    wram_exec [hregs.czero, hregs.hvis, hu, hvis_0]
     refine WP.of_execWithin hx₁_ex ?_
     refine WP.of_execWithin ⟨t_loop, le_rfl, he_loop⟩ ?_
     exact ⟨by omega, hRz⟩
-
 
 end Cslib.Algorithms.WordRAM.DFS

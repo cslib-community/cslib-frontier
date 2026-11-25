@@ -128,10 +128,8 @@ theorem HoldsIn.append_iff {base : ℕ} {xs ys : List ℕ} {s : Memory.State} :
 theorem HoldsIn.drop {base : ℕ} {xs : List ℕ} {s : Memory.State}
     (h : HoldsIn base xs s) (k : ℕ) (hk : k ≤ xs.length) :
     HoldsIn (base + k) (xs.drop k) s := by
-  have hsplit : xs = xs.take k ++ xs.drop k := (List.take_append_drop k xs).symm
-  rw [hsplit, HoldsIn.append_iff] at h
-  have hh := h.2
-  rwa [List.length_take_of_le hk] at hh
+  rw [← List.take_append_drop k xs, HoldsIn.append_iff, List.length_take_of_le hk] at h
+  exact h.2
 
 theorem holdsIn_init (words : List ℕ) : HoldsIn 1 words (Memory.State.init words) := by
   refine ⟨by simp [Memory.State.init, Nat.add_comm], fun i => ?_⟩
@@ -201,66 +199,22 @@ theorem powProg_state (args : PowArgs) (s : Memory.State) :
 
 theorem powProg_result (args : PowArgs) (s : Memory.State) :
     (Memory.spec 0).clientResult s (powProg args) = args.base ^ args.exp := by
-  unfold powProg
-  suffices ∀ k acc,
-      (Memory.spec 0).clientResult s (iterate powStep args.base k acc) = acc * args.base ^ k by
-    simpa only [Nat.one_mul] using this args.exp 1
-  intro k
-  induction k with
-  | zero =>
-    intro acc
-    have h0 : iterate powStep args.base 0 acc = pure acc := rfl
-    rw [h0]
-    simp only [Nat.pow_zero, Nat.mul_one]
-    rfl
-  | succ k ih =>
-    intro acc
-    change (Memory.spec 0).clientResult s
-      (powStep (args.base, acc) >>= iterate powStep args.base k) = acc * args.base ^ (k + 1)
-    rw [StateTransitionSpec.clientResult_bind]
-    change (Memory.spec 0).clientResult s
-      (iterate powStep args.base k (acc * args.base)) = acc * args.base ^ (k + 1)
-    rw [ih (acc * args.base), Nat.pow_succ, Nat.mul_comm (args.base ^ k), ← Nat.mul_assoc]
+  have h := iterate_invariant_of powStep args.base
+    (fun j acc _ => acc * args.base ^ j = args.base ^ args.exp)
+    (fun j acc _ h => by rw [← h, pow_succ', ← Nat.mul_assoc]; rfl)
+    (n := args.exp) (a := 1) (s := s) (Nat.one_mul _)
+  simpa only [powProg, Nat.pow_zero, Nat.mul_one] using h
 
 theorem powProg_spec {w : ℕ} (args : PowArgs) {s : Memory.State} (hs : 0 < s.frontier) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (powProg args)) ∧
     (Memory.spec 0).clientState s (powProg args) = s ∧
     (Memory.spec 0).clientResult s (powProg args) = args.base ^ args.exp ∧
-    memoryCost (powProg args) s ≤ args.exp := by
-  have hcost : memoryCost (powProg args) s ≤ args.exp := by
-    unfold powProg
-    simpa only [Nat.one_mul] using
-      memoryCost_iterate_le_of powStep 1 args.base (fun _ _ => le_rfl) args.exp 1 s
-  suffices ∀ k acc,
-      (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (iterate powStep args.base k acc)) ∧
-      (Memory.spec 0).clientResult s (iterate powStep args.base k acc) =
-        acc * args.base ^ k by
-    obtain ⟨hv, hr⟩ := this args.exp 1
-    refine ⟨?_, powProg_state args s, ?_, hcost⟩
-    · unfold powProg; exact hv
-    · unfold powProg; simpa only [Nat.one_mul] using hr
-  intro k
-  induction k with
-  | zero =>
-    intro acc
-    have h0 : iterate powStep args.base 0 acc = pure acc := rfl
-    rw [h0]
-    exact ⟨validHistory_pure w s acc, by simp only [Nat.pow_zero, Nat.mul_one]; rfl⟩
-  | succ k ih =>
-    intro acc
-    change (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (powStep (args.base, acc) >>= iterate powStep args.base k)) ∧
-      (Memory.spec 0).clientResult s
-        (powStep (args.base, acc) >>= iterate powStep args.base k) =
-        acc * args.base ^ (k + 1)
-    obtain ⟨hv_k, hr_k⟩ := ih (acc * args.base)
-    refine ⟨validHistory_bind_step (validHistory_read_bind hs (validHistory_pure w s _)) hv_k, ?_⟩
-    rw [StateTransitionSpec.clientResult_bind]
-    change (Memory.spec 0).clientResult s
-      (iterate powStep args.base k (acc * args.base)) = acc * args.base ^ (k + 1)
-    rw [hr_k, Nat.pow_succ, Nat.mul_comm (args.base ^ k), ← Nat.mul_assoc]
+    memoryCost (powProg args) s ≤ args.exp :=
+  ⟨validHistory_iterate_inv (fun t => 0 < t.frontier) powStep args.base
+      (fun _ t ht => validHistory_read_bind ht (validHistory_pure w t _)) args.exp 1 hs,
+    powProg_state args s, powProg_result args s, by
+      simpa only [powProg, Nat.one_mul] using
+        memoryCost_iterate_le_of powStep 1 args.base (fun _ _ => le_rfl) args.exp 1 s⟩
 
 theorem powProg_realizes :
     Realizes .exact powProg WordEncoding.encode WordEncoding.encode
@@ -356,64 +310,30 @@ theorem bagMemProg_spec {w : ℕ} (args : BagScanArgs) {xs : List ℕ} {s : Memo
         if found = 1 ∨ memBag args.target ys = true then 1 else 0 by
     have hrun := this xs args.base hxs 0 (.inl rfl)
     rw [hlen] at hrun
-    refine ⟨?_, bagMemProg_state args s, ?_, hcost⟩
-    · unfold bagMemProg
-      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
-    · unfold bagMemProg
-      rw [StateTransitionSpec.clientResult_bind]
-      change ((Memory.spec 0).clientResult s
-        (iterate bagMemStep args.target args.len ⟨args.base, 0⟩)).found = _
-      rw [hrun.2]
-      cases memBag args.target xs <;> rfl
+    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _), bagMemProg_state args s,
+      ?_, hcost⟩
+    unfold bagMemProg
+    rw [StateTransitionSpec.clientResult_bind]
+    exact hrun.2.trans (by cases memBag args.target xs <;> rfl)
   intro ys
   induction ys with
   | nil =>
     intro cur _ found hfd
-    have h0 : iterate bagMemStep args.target 0 ⟨cur, found⟩ = pure ⟨cur, found⟩ := rfl
-    simp only [List.length_nil, h0, memBag]
     refine ⟨validHistory_pure w s _, ?_⟩
     rcases hfd with rfl | rfl <;> rfl
   | cons u rest ih =>
     intro cur hcur found hfd
-    rw [HoldsIn.cons_iff] at hcur
-    obtain ⟨hb, hmem_u, hrest⟩ := hcur
+    obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
+    have hstep : (Memory.spec 0).clientResult s (bagMemStep (args.target, ⟨cur, found⟩)) =
+        ⟨cur + 1, if u = args.target then 1 else found⟩ := by
+      rw [← hmem_u]; rfl
+    obtain ⟨hv, hr⟩ := ih (cur + 1) hrest (if u = args.target then 1 else found)
+      (by split_ifs <;> simp [hfd])
+    rw [← hstep] at hv hr
     have hlt : cur < s.frontier := by omega
-    let found' := if u = args.target then 1 else found
-    have hfd' : found' = 0 ∨ found' = 1 := by
-      dsimp only [found']
-      split_ifs
-      · exact .inr rfl
-      · exact hfd
-    obtain ⟨hv_rest, hr_rest⟩ := ih (cur + 1) hrest found' hfd'
-    simp only [List.length_cons]
-    change (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (bagMemStep (args.target, ⟨cur, found⟩) >>= iterate bagMemStep args.target rest.length)) ∧
-      ((Memory.spec 0).clientResult s
-        (bagMemStep (args.target, ⟨cur, found⟩) >>=
-          iterate bagMemStep args.target rest.length)).found = _
-    have hstep_res : (Memory.spec 0).clientResult s (bagMemStep (args.target, ⟨cur, found⟩)) =
-        ⟨cur + 1, found'⟩ := by
-      dsimp only [bagMemStep, found']
-      change (⟨cur + 1, if s.mem cur = args.target then 1 else found⟩ : BagScanState) = _
-      rw [hmem_u]
-    refine ⟨validHistory_bind_step (validHistory_read_bind hlt (validHistory_pure w s _)) ?_, ?_⟩
-    · change (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (iterate bagMemStep args.target rest.length
-            ((Memory.spec 0).clientResult s (bagMemStep (args.target, ⟨cur, found⟩)))))
-      rwa [hstep_res]
-    · rw [StateTransitionSpec.clientResult_bind]
-      change ((Memory.spec 0).clientResult s
-        (iterate bagMemStep args.target rest.length
-          ((Memory.spec 0).clientResult s (bagMemStep (args.target, ⟨cur, found⟩))))).found = _
-      rw [hstep_res, hr_rest]
-      dsimp only [found', memBag]
-      by_cases heq : args.target = u
-      · subst heq
-        simp
-      · have hne : u ≠ args.target := Ne.symm heq
-        simp [heq, hne]
+    refine ⟨validHistory_bind_step (validHistory_read_bind hlt (validHistory_pure w s _)) hv,
+      hr.trans ?_⟩
+    by_cases heq : u = args.target <;> simp [memBag, heq, eq_comm]
 
 theorem bagMemProg_realizes :
     Realizes .exact bagMemProg WordEncoding.encode WordEncoding.encode
@@ -431,12 +351,9 @@ theorem bagMemProg_realizes :
   have hcur_fit : Fits w (st.cur + 1) := hfit.of_le (by omega)
   have hfd' : (if m.mem st.cur = d.target then 1 else st.found) ≤ 1 := by
     split_ifs <;> omega
-  refine ⟨?_, ?_, ?_⟩
-  · split
-    · exact ⟨hcur_fit, h1⟩
-    · exact hcur_fit
-  · change (st.cur + 1) + j = d.base + d.len
-    omega
-  · exact hfd'
+  refine ⟨?_, by change (st.cur + 1) + j = d.base + d.len; omega, hfd'⟩
+  split
+  · exact ⟨hcur_fit, h1⟩
+  · exact hcur_fit
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

@@ -280,10 +280,8 @@ theorem decodeTree_preorder (φ : CNF ℕ) :
         List.append_assoc, ih₁]
       simp only [ih₂]
       obtain ⟨v, b⟩ := l
-      cases b
-      · simp [searchTree, hs, litCode, litCodeBy, Std.Sat.Literal.negate]
-      · simp [searchTree, hs, litCode, litCodeBy, Std.Sat.Literal.negate]
-        omega
+      cases b <;> simp [searchTree, hs, litCode, litCodeBy, Std.Sat.Literal.negate]
+      omega
   termination_by fuel => fuel
 
 /-- **The output determines a tree-like refutation**: on an unsatisfiable formula, the words of the
@@ -644,10 +642,8 @@ theorem programLog_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c
       ExecutesList w programLog (State.init (encode N φ)) (refutationWords N φ) n := by
   obtain ⟨y, ⟨n, hn, he⟩, hyo, hyl⟩ := solverLog_spec N φ hN hfit
   have hlen := length_refutationWords_le N φ
-  refine ⟨n + 1, by omega, ?_⟩
-  have := he.executesList out (by rw [hyl, hyo]; exact hfit.of_le (by omega))
-  rw [hyl] at this
-  exact this
+  exact ⟨n + 1, by omega,
+    hyl ▸ he.executesList out (by rw [hyl, hyo]; exact hfit.of_le (by omega))⟩
 
 /-- **The variant takes an instruction per leaf of the search tree**: on an unsatisfiable
 formula, every halting run of the program on `encode N φ` takes at least as many instructions as
@@ -668,11 +664,10 @@ theorem leafCount_searchTree_le_of_executes (N : ℕ) (φ : CNF ℕ)
   obtain ⟨v', hv'⟩ := hex
   obtain ⟨-, rfl⟩ := hv'.unique h
   -- the words of the tree are in the output
-  have hsol : ∃ c, solve φ = .unsat c := by
+  obtain ⟨c, hc⟩ : ∃ c, solve φ = .unsat c := by
     cases hs : solve φ with
     | sat σ => exact absurd ⟨σ, solve_sat hs⟩ hφ
     | unsat c => exact ⟨c, rfl⟩
-  obtain ⟨c, hc⟩ := hsol
   have hw : refutationWords N φ = 0 :: treeWords φ := by
     simp [refutationWords, answerWords, hc]
   have hout : outputList y.mem (L + 1 + 4 * N) = 0 :: treeWords φ := by rw [← hyo, hyl, hw]
@@ -703,19 +698,8 @@ theorem programLog_spec_pow (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l �
   set E := (encode N φ).length
   have hE : 1 ≤ E := by simp [E, encode]
   have hd' : 2 ^ (depth φ + 1) ≤ 2 * 2 ^ N := by rw [Nat.pow_succ] at hd; omega
-  have hp : 1 ≤ 2 ^ N := Nat.one_le_two_pow
-  have hNp : N < 2 ^ N := Nat.lt_two_pow_self
-  have h₁ : 2 ^ (depth φ + 1) * (60 * E + 78) ≤ 2 * 2 ^ N * (138 * E) :=
-    Nat.mul_le_mul hd' (by omega)
-  have h₂ : 10 * N ≤ 10 * (2 ^ N * E) := by
-    have : 2 ^ N ≤ 2 ^ N * E := Nat.le_mul_of_pos_right _ hE
-    omega
-  have h₃ : 15 ≤ 15 * (2 ^ N * E) := by
-    have : 1 ≤ 2 ^ N * E := Nat.mul_pos hp hE
-    omega
-  have : 2 * 2 ^ N * (138 * E) = 276 * (2 ^ N * E) := by ring
-  have : 301 * 2 ^ N * E = 301 * (2 ^ N * E) := by ring
-  omega
+  linarith [Nat.mul_le_mul_right (60 * E + 78) hd', Nat.mul_le_mul_left (2 ^ N) hE,
+    Nat.one_le_two_pow (n := N), Nat.lt_two_pow_self (n := N)]
 
 /-- **The variant takes `2 ^ Ω(n log n)` instructions on the pigeonhole formulas.** For `m > n`, an
 injective map `f` numbering the variables of `PHP^m_n` below `N`, and a word size `w` that fits

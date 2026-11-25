@@ -78,84 +78,70 @@ private theorem exec_emitLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   have hB := inp.bfs_spec hvalid
   have hlo := layout_order inp
   have hwb := wordBound_eq_outBase inp
-  induction fuel with
-  | zero =>
-    intro acc x hL hM _ hfuel hr2 hhold _
-    have hq0 : x.regs r4 = 0 := hfuel.resolve_right (Nat.not_lt_zero _)
+  induction fuel <;> intro acc x hL hM hq_lt hfuel hr2 hhold hbud <;>
+    rcases Nat.eq_zero_or_pos (x.regs r4) with hq0 | hqpos
+  case zero.inr => omega
+  case zero.inl | succ.inl =>
     have hstop : ¬(Cond.lt zero r4).Holds x := by
       simp only [Cond.holds_lt, hL.h_zero, hq0]; omega
-    simp only [followOut, List.flatMap_nil, List.append_nil, List.length_nil, Nat.mul_zero,
-      Nat.add_zero]
+    rw [hq0, followOut_zero_right]
+    simp only [List.flatMap_nil, List.append_nil, List.length_nil, Nat.mul_zero, Nat.add_zero]
     exact ⟨x, ExecWithin.loop_exit hstop, hL, hM, hhold, hr2, rfl, rfl, rfl⟩
-  | succ fuel ih =>
-    intro acc x hL hM hq_lt hfuel hr2 hhold hbud
-    rcases Nat.eq_zero_or_pos (x.regs r4) with hq0 | hqpos
-    · have hstop : ¬(Cond.lt zero r4).Holds x := by
-        simp only [Cond.holds_lt, hL.h_zero, hq0]; omega
-      rw [hq0, followOut_zero_right]
-      simp only [List.flatMap_nil, List.append_nil, List.length_nil, Nat.mul_zero, Nat.add_zero]
-      exact ⟨x, ExecWithin.loop_exit hstop, hL, hM, hhold, hr2, rfl, rfl, rfl⟩
-    · have hc : (Cond.lt zero r4).Holds x := by
-        simp only [Cond.holds_lt, hL.h_zero]; exact hqpos
-      rw [followOut_pos _ _ hqpos] at hbud ⊢
-      simp only [List.length_cons] at hbud ⊢
-      have hq_maxS : x.regs r4 < inp.maxS := lt_of_lt_of_le hq_lt hT_maxS
-      obtain ⟨hqn_lt, hqn_dec⟩ := hB.outNext_spec (x.regs r4) hq_lt hqpos
-      have hd_read : x.mem (inp.depthBase + x.regs r4) = inp.trie.depth (x.regs r4) :=
-        hM.depth_cell _ hq_maxS
-      have hon_read : x.mem (inp.outNextBase + x.regs r4) = inp.bfs.outNext (x.regs r4) :=
-        hM.outNext_cell _ hq_maxS
-      have hf_dp : Fits w (inp.depthBase + x.regs r4) := hw.of_le (by omega)
-      have hf_p1 : Fits w (inp.outBase + 1 + acc.length + 1) := hw.of_le (by omega)
-      have hf_p2 : Fits w (inp.outBase + 1 + acc.length + 1 + 1) := hw.of_le (by omega)
-      have hf_on : Fits w (inp.outNextBase + x.regs r4) := hw.of_le (by omega)
-      have hst : ∃ x₁, ExecWithin w emitStepCode x x₁ 8 ∧
-          x₁.regs r4 = inp.bfs.outNext (x.regs r4) ∧
-          x₁.regs r2 = inp.outBase + 1 + acc.length + 2 ∧
-          x₁.regs rState = x.regs rState ∧ x₁.regs r1 = x.regs r1 ∧ x₁.regs r3 = x.regs r3 ∧
-          x₁.mem = Function.update
-            (Function.update x.mem (inp.outBase + 1 + acc.length) (x.regs r3))
-            (inp.outBase + 1 + acc.length + 1) (inp.trie.depth (x.regs r4)) := by
-        refine WP.exists_execWithin ?_
-        unfold emitStepCode
-        wram_exec [hL.h_depthBase, hL.h_outNextBase, hL.h_one, hr2, hd_read, hon_read,
-          hf_dp, hf_p1, hf_p2, hf_on]
-        exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-          by wram_simp⟩
-      obtain ⟨x₁, he_st, hx₁_r4, hx₁_r2, hx₁_rS, hx₁_r1, hx₁_r3, hx₁_mem⟩ := hst
-      have hL₁ := hL.of_preserves he_st
-      have hM₁ : BFSMem inp inp.trie inp.bfs x₁.mem :=
-        bfsMem_of_eq_below_outBase hM fun addr hlt_ob => by
-          rw [hx₁_mem, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-      have hhold₁ : Block.HoldsList (inp.outBase + 1)
-          (acc ++ [x.regs r3, inp.trie.depth (x.regs r4)]) x₁.mem := by
-        have hh1 := hhold.append_one (x.regs r3)
-        have hh2 := hh1.append_one (inp.trie.depth (x.regs r4))
-        simp only [List.length_append, List.length_singleton, List.append_assoc,
-          List.singleton_append] at hh2
-        rwa [show inp.outBase + 1 + (acc.length + 1) = inp.outBase + 1 + acc.length + 1 by omega,
-          ← hx₁_mem] at hh2
-      have hfuel₁ : x₁.regs r4 = 0 ∨ inp.trie.depth (x₁.regs r4) < fuel := by
-        rw [hx₁_r4]
-        have hdq : inp.trie.depth (x.regs r4) < fuel + 1 := hfuel.resolve_left (by omega)
-        rcases hqn_dec with h0 | hlt_d
-        · exact Or.inl h0
-        · exact Or.inr (by omega)
-      obtain ⟨y, he_tl, hLy, hMy, hholdy, hy_r2, hy_rS, hy_r1, hy_r3⟩ :=
-        ih (acc ++ [x.regs r3, inp.trie.depth (x.regs r4)]) x₁ hL₁ hM₁
-          (by rw [hx₁_r4]; exact hqn_lt) hfuel₁
-          (by rw [hx₁_r2, List.length_append]; simp only [List.length_cons, List.length_nil]; omega)
-          hhold₁
-          (by rw [hx₁_r4, List.length_append]; simp only [List.length_cons, List.length_nil]; omega)
-      rw [hx₁_r4] at he_tl hholdy hy_r2
-      rw [hx₁_r3] at hholdy
-      simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.append_assoc]
-        at hholdy ⊢
-      refine ⟨y, (ExecWithin.loop_iter hc he_st he_tl).mono (by omega), hLy, hMy, hholdy, ?_,
-        hy_rS.trans hx₁_rS, hy_r1.trans hx₁_r1, hy_r3.trans hx₁_r3⟩
-      rw [hy_r2, List.length_append]
-      simp only [List.length_cons, List.length_nil]
-      omega
+  case succ.inr fuel ih =>
+    have hc : (Cond.lt zero r4).Holds x := by
+      simp only [Cond.holds_lt, hL.h_zero]; exact hqpos
+    rw [followOut_pos _ _ hqpos] at hbud ⊢
+    simp only [List.length_cons] at hbud ⊢
+    have hq_maxS : x.regs r4 < inp.maxS := lt_of_lt_of_le hq_lt hT_maxS
+    obtain ⟨hqn_lt, hqn_dec⟩ := hB.outNext_spec (x.regs r4) hq_lt hqpos
+    have hd_read : x.mem (inp.depthBase + x.regs r4) = inp.trie.depth (x.regs r4) :=
+      hM.depth_cell _ hq_maxS
+    have hon_read : x.mem (inp.outNextBase + x.regs r4) = inp.bfs.outNext (x.regs r4) :=
+      hM.outNext_cell _ hq_maxS
+    have hf_dp : Fits w (inp.depthBase + x.regs r4) := hw.of_le (by omega)
+    have hf_p1 : Fits w (inp.outBase + 1 + acc.length + 1) := hw.of_le (by omega)
+    have hf_p2 : Fits w (inp.outBase + 1 + acc.length + 1 + 1) := hw.of_le (by omega)
+    have hf_on : Fits w (inp.outNextBase + x.regs r4) := hw.of_le (by omega)
+    have hst : ∃ x₁, ExecWithin w emitStepCode x x₁ 8 ∧
+        x₁.regs r4 = inp.bfs.outNext (x.regs r4) ∧
+        x₁.regs r2 = inp.outBase + 1 + acc.length + 2 ∧
+        x₁.regs rState = x.regs rState ∧ x₁.regs r1 = x.regs r1 ∧ x₁.regs r3 = x.regs r3 ∧
+        x₁.mem = Function.update
+          (Function.update x.mem (inp.outBase + 1 + acc.length) (x.regs r3))
+          (inp.outBase + 1 + acc.length + 1) (inp.trie.depth (x.regs r4)) := by
+      refine WP.exists_execWithin ?_
+      unfold emitStepCode
+      wram_exec [hL.h_depthBase, hL.h_outNextBase, hL.h_one, hr2, hd_read, hon_read,
+        hf_dp, hf_p1, hf_p2, hf_on]
+      exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+        by wram_simp⟩
+    obtain ⟨x₁, he_st, hx₁_r4, hx₁_r2, hx₁_rS, hx₁_r1, hx₁_r3, hx₁_mem⟩ := hst
+    have hL₁ := hL.of_preserves he_st
+    have hM₁ : BFSMem inp inp.trie inp.bfs x₁.mem :=
+      bfsMem_of_eq_below_outBase hM fun addr hlt_ob => by
+        rw [hx₁_mem, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+    have hhold₁ : Block.HoldsList (inp.outBase + 1)
+        (acc ++ [x.regs r3, inp.trie.depth (x.regs r4)]) x₁.mem := by
+      rw [hx₁_mem]
+      simpa only [List.length_append, List.length_singleton, List.append_assoc,
+        List.singleton_append, Nat.add_assoc] using
+        (hhold.append_one (x.regs r3)).append_one (inp.trie.depth (x.regs r4))
+    have hdq : inp.trie.depth (x.regs r4) < fuel + 1 := hfuel.resolve_left (by omega)
+    obtain ⟨y, he_tl, hLy, hMy, hholdy, hy_r2, hy_rS, hy_r1, hy_r3⟩ :=
+      ih (acc ++ [x.regs r3, inp.trie.depth (x.regs r4)]) x₁ hL₁ hM₁
+        (by rw [hx₁_r4]; exact hqn_lt) (by rw [hx₁_r4]; exact hqn_dec.imp_right fun _ => by omega)
+        (by rw [hx₁_r2, List.length_append]; simp only [List.length_cons, List.length_nil]; omega)
+        hhold₁
+        (by rw [hx₁_r4, List.length_append]; simp only [List.length_cons, List.length_nil]; omega)
+    rw [hx₁_r4] at he_tl hholdy hy_r2
+    rw [hx₁_r3] at hholdy
+    simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.append_assoc]
+      at hholdy ⊢
+    refine ⟨y, (ExecWithin.loop_iter hc he_st he_tl).mono (by omega), hLy, hMy, hholdy, ?_,
+      hy_rS.trans hx₁_rS, hy_r1.trans hx₁_r1, hy_r3.trans hx₁_r3⟩
+    rw [hy_r2, List.length_append]
+    simp only [List.length_cons, List.length_nil]
+    omega
 
 private theorem exec_emitCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     (hw : Fits w inp.wordBound) (acc : List ℕ) (x : Data 26)
@@ -279,11 +265,6 @@ private theorem exec_scanLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
       rw [hu'_str, hu_str, ← longestNodeSuffix_append_singleton_eq_nextMove]
     have hout_eq : output inp.patterns (inp.trie.strOf u') = output inp.patterns (pref ++ [a]) := by
       rw [hu'_lns, output_longestNodeSuffix]
-    have hocc_next :
-        occurrences inp.patterns (pref ++ [a]) =
-          occurrences inp.patterns pref ++
-            (output inp.patterns (pref ++ [a])).map fun y => (pref.length + 1, y) :=
-      occurrences_append_singleton inp.patterns pref a
     have hocc_pref_le :
         (occurrences inp.patterns (pref ++ [a])).length ≤
           (occurrences inp.patterns inp.text).length := by
@@ -294,7 +275,7 @@ private theorem exec_scanLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         (occurrences inp.patterns (pref ++ [a])).length =
           (occurrences inp.patterns pref).length +
             (output inp.patterns (pref ++ [a])).length := by
-      rw [hocc_next, List.length_append, List.length_map]
+      rw [occurrences_append_singleton, List.length_append, List.length_map]
     obtain ⟨x₃, he_em, hL₃, hM₃, hhold₃, hr2₃, hs3, _, hr3₃⟩ :=
       exec_emitCode inp w hvalid hw (encodeOccurrences (occurrences inp.patterns pref)) x₂
         hL₂ (by rwa [hm2, hm1]) (by rw [hs2]; exact hu'_lt)
@@ -302,7 +283,7 @@ private theorem exec_scanLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         (by rwa [hm2, hm1])
         (by rw [hs2, hout_eq, length_encodeOccurrences]; omega)
     rw [hs2, hout_eq] at he_em hhold₃ hr2₃
-    rw [h32, h31, ← encodeOccurrences_append, ← hocc_next] at hhold₃
+    rw [h32, h31, ← encodeOccurrences_append, ← occurrences_append_singleton] at hhold₃
     rw [length_encodeOccurrences] at hr2₃
     have hadv : ∃ x₄, ExecWithin (B := .standard) w (ram[ r1 ← r3 ]) x₃ x₄ 1 ∧
         x₄.regs rState = u' ∧ x₄.regs r1 = (pref ++ [a]).length ∧

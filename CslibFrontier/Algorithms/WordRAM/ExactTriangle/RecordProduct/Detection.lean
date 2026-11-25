@@ -73,21 +73,12 @@ theorem product_ne_zero_iff {m n g p : ℕ} (values : ℕ → ℤ)
       rw [hj]
       exact_mod_cast hr
   obtain ⟨hX, hY⟩ := matrices_zero_one m n g p values idx
-  have hx : ∀ a j, X a j = 0 ∨ X a j = 1 := by
-    intro a j
-    have := hX a j
-    change 0 ≤ X a j ∧ X a j ≤ 1 at this
-    omega
-  have hy : ∀ j b, Y j b = 0 ∨ Y j b = 1 := by
-    intro j b
-    have := hY j b
-    change 0 ≤ Y j b ∧ Y j b ≤ 1 at this
-    omega
-  rw [LopsidedGraph.mul_apply_eq_commonNeighborCount_ofMatrices X Y ∅ hx hy]
-  have hnz := (LopsidedGraph.ofMatrices X Y ∅).commonNeighborCount_ne_zero_iff a b
-  rw [show ((LopsidedGraph.ofMatrices X Y ∅).commonNeighborCount a b : ℤ) ≠ 0 ↔
-      (LopsidedGraph.ofMatrices X Y ∅).commonNeighborCount a b ≠ 0 by exact_mod_cast Iff.rfl]
-  rw [hnz]
+  have hx (a j) : X a j = 0 ∨ X a j = 1 := by
+    have := hX a j; change 0 ≤ X a j ∧ X a j ≤ 1 at this; omega
+  have hy (j b) : Y j b = 0 ∨ Y j b = 1 := by
+    have := hY j b; change 0 ≤ Y j b ∧ Y j b ≤ 1 at this; omega
+  rw [LopsidedGraph.mul_apply_eq_commonNeighborCount_ofMatrices X Y ∅ hx hy, Nat.cast_ne_zero,
+    (LopsidedGraph.ofMatrices X Y ∅).commonNeighborCount_ne_zero_iff a b]
   change (∃ j : Fin (D m), X a j = 1 ∧ Y j b = 1) ↔ G.HasCommonNeighbor a b
   constructor
   · rintro ⟨j, hleft, hright⟩
@@ -108,8 +99,6 @@ theorem product_ne_zero_iff {m n g p : ℕ} (values : ℕ → ℤ)
     let c : Fin n := ⟨A.first + v.val, hn⟩
     have hc : c ∈ piece n (D m) g idx.piece := by
       apply (mem_piece_iff_interval hD hg c).mpr
-      change idx.piece * pieceSize (D m) g ≤ A.first + v.val ∧
-        A.first + v.val < idx.piece * pieceSize (D m) g + A.length
       change A.first ≤ A.first + v.val ∧ A.first + v.val < A.first + A.length
       exact ⟨by omega, Nat.add_lt_add_left v.isLt _⟩
     have he : j.val = v.val * p + label.val := by
@@ -175,16 +164,13 @@ theorem failed_occurrences_le {m n g p : ℕ} (values : ℕ → ℤ)
       apply Finset.mem_filter.mpr
       refine ⟨mem_acceptedPairs.mpr ⟨hidx, ?_, ?_⟩, ?_⟩
       · exact hquery _ (List.get_mem _ _)
-      · have he := i.prop.2.1
-        simpa only [ans, decide_eq_true_eq, hget i.val i.prop.1] using he
-      · have he := i.prop.2.2
-        simpa only [scanOf, hget i.val i.prop.1] using he⟩
+      · simpa only [ans, decide_eq_true_eq, hget i.val i.prop.1] using i.prop.2.1
+      · simpa only [scanOf, hget i.val i.prop.1] using i.prop.2.2⟩
   have hf : Function.Injective f := by
     intro i j hij
     have hpair : qs.get ⟨i.val, i.prop.1⟩ = qs.get ⟨j.val, j.prop.1⟩ :=
       congrArg (fun s => s.val.2) hij
-    have hi := List.nodup_iff_injective_get.mp hqs hpair
-    exact Subtype.ext (congrArg Fin.val hi)
+    exact Subtype.ext (congrArg Fin.val (List.nodup_iff_injective_get.mp hqs hpair))
   change Nat.count P qs.length ≤ _
   rw [Nat.count_eq_card_fintype]
   calc

@@ -33,23 +33,6 @@ open Cslib.WordRAM
 open Cslib.Algorithms.Lean.DFS
 open Reg
 
-local macro "reg_ne" : tactic =>
-  `(tactic| exact Fin.ne_of_val_ne (by
-    simp only [ne_eq, Fin.ext_iff, cZero, cOne, cThree, nVerts, offB, edgeB, visB, finB, stkB,
-      curB, revOffB, revEdgeB, ordB, compB, iReg, pReg, finCnt, compIdxReg, oldFinReg, uReg, vReg,
-      jReg, jEndReg, addr, outReg] at *
-    omega))
-
-local macro "regs_lt" : tactic =>
-  `(tactic| (
-    repeat (first
-      | rw [Data.write_regs_apply]
-      | rw [Data.set_regs_of_ne (by reg_ne)])
-    try rfl))
-
-local macro "mem_upd" : tactic =>
-  `(tactic| simp only [Data.set_mem, Data.set_mem_apply, Data.write_mem])
-
 /-! ### Pass 2: CSR transpose construction (`O(N + M)`) -/
 
 /-- Scan the CSR arcs leaving `uIdxReg` and run `stepBody` on each `(u = uIdxReg, v = vReg)`. -/
@@ -101,6 +84,18 @@ private abbrev revGraph {N : ℕ} (adj : Fin N → List (Fin N)) : Fin N → Lis
   transposeAdj adj (List.finRange N)
 
 
+/-- A CSR graph survives a run that writes only addresses `MemWrite` outside it. -/
+private theorem CSRAt.of_unwritten {N : ℕ} {adj : Fin N → List (Fin N)} {wb : ℕ}
+    {MemWrite : ℕ → Prop} {mem₁ mem₂ : ℕ → ℕ}
+    (h : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) mem₁)
+    (hdisj : ∀ a, MemWrite a →
+      ¬ ((kOffAddr wb ≤ a ∧ a < kOffAddr wb + N + 1) ∨
+        (kEdgeAddr wb N ≤ a ∧ a < kEdgeAddr wb N + csrOffset adj N)))
+    (hout : ∀ a, ¬ MemWrite a → mem₂ a = mem₁ a) :
+    CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) mem₂ :=
+  h.of_eqOn (fun _ _ => hout _ fun hw => hdisj _ hw (.inl ⟨by omega, by omega⟩))
+    (fun _ _ => hout _ fun hw => hdisj _ hw (.inr ⟨by omega, by omega⟩))
+
 private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc) (hfit : Fits w (kTopAddr wb N Mc + Mc + 4))
     (fwdEdgeReg uIdxReg : Fin 28) (stepBody : Code .standard 28) (stepTime : ℕ)
@@ -134,12 +129,12 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
           ((stepTime + 5) * es.length + 2) ∧
         Inv (es.foldl (fun r v => Function.update r v (u :: r v)) rev) y.mem ∧
         (∀ a, ¬ MemWrite a → y.mem a = x.mem a) ∧
-        (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → r ≠ vReg → r ≠ jReg → y.regs r = x.regs r)
+        (∀ r : Fin 28, r.val < 24 → y.regs r = x.regs r)
   | [], k, rev, x, hk, _, _, hinv, _, _, _, _, _, hj, hof => by
     simp only [List.length_nil, Nat.add_zero] at hk
     have hend : ¬ (Cond.lt jReg oldFinReg).Holds x := by
       change ¬ x.regs jReg < x.regs oldFinReg; omega
-    exact ⟨x, ⟨2, by simp, Exec.loop_exit hend⟩, hinv, fun _ _ => rfl, fun _ _ _ _ _ => rfl⟩
+    exact ⟨x, ExecWithin.loop_exit hend, hinv, fun _ _ => rfl, fun _ _ => rfl⟩
   | v :: es, k, rev, x, hk, hget, hroom_all, hinv, hcsr, hc1, hfwd, hconst, huR, hj, hof => by
     simp only [List.length_cons] at hk
     have hk_lt : k < (adj u).length := by omega
@@ -161,77 +156,22 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
       simp only [List.foldl_cons] at hall
       simpa using hle.trans hall
     let st_v := (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val
-    have hst_fr : ∀ r : Fin 28, r.val < 18 → st_v.regs r = x.regs r := fun r hr => by
-      dsimp only [st_v]; rw [Data.set_regs_of_ne (by reg_ne), Data.set_regs_of_ne (by reg_ne)]
-    have hst_u : st_v.regs uIdxReg = u.val := by
-      dsimp only [st_v]
-      have h1 : uIdxReg ≠ vReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 24; omega)
-      have h2 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
-      rw [Data.set_regs_of_ne h1, Data.set_regs_of_ne h2, huR]
-    have hst_c1 : st_v.regs cOne = 1 := (hst_fr cOne (by decide)).trans hc1
+    have hp1 : ExecWithin w (ram[ addr ← fwdEdgeReg + jReg; vReg ← *addr ]) x st_v 2 := by
+      wram_exec [hfwd, hj, hmem_e]
     obtain ⟨y₁, hy₁_ex, hy₁_inv, hy₁_out, hy₁_fr⟩ :=
-      hstep u v rev st_v hroom_v hinv hst_c1 hst_u
-        (by dsimp only [st_v]; wram_simp) (hconst_regs _ _ (fun r hr => (hst_fr r hr).symm) hconst)
-    have hp1 : ExecWithin (B := .standard) w (ram[ addr ← fwdEdgeReg + jReg; vReg ← *addr ])
-        x st_v 2 := by
-      have hfwd_ne_a : fwdEdgeReg ≠ addr := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 27; omega)
-      have hj_ne_a : jReg ≠ addr := by reg_ne
-      have h1 : Exec (B := .standard) w (ram[ addr ← fwdEdgeReg + jReg ]) x
-          (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))) 1 := by
-        have h : Exec (B := .standard) w (ram[ addr ← fwdEdgeReg + jReg ]) x _ 1 :=
-          Exec.bin (by
-            change Fits w (x.regs fwdEdgeReg + x.regs jReg); rw [hfwd, hj]; exact hf_eaddr)
-        simpa [BinOp.eval, hfwd, hj] using h
-      have h2 : Exec (B := .standard) w (ram[ vReg ← *addr ])
-          (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))) st_v 1 := by
-        have h := Exec.load (B := .standard) (w := w)
-          (x := x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))) (d := vReg) (a := addr)
-        simpa [Data.set_regs_self, Data.set_mem, hmem_e, st_v] using h
-      exact ⟨2, le_rfl, h1.seq h2⟩
-    have hy₁_1 : y₁.regs cOne = 1 :=
-      (hy₁_fr cOne (by decide) (by decide)).trans hst_c1
+      hstep u v rev st_v hroom_v hinv (by wram_simp [st_v, hc1]) (by wram_simp [st_v, huR])
+        (by wram_simp [st_v]) (hconst_regs _ _ (fun r hr => by wram_simp [st_v]) hconst)
+    have hy₁_lt : ∀ r : Fin 28, r.val < 24 → y₁.regs r = x.regs r := fun r hr => by
+      rw [hy₁_fr r (Fin.ne_of_val_ne (by change r.val ≠ 27; omega))
+        (Fin.ne_of_val_ne (by change r.val ≠ 26; omega))]
+      wram_simp [st_v]
     have hy₁_j : y₁.regs jReg = csrOffset adj u.val + k :=
-      (hy₁_fr jReg (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hj)
-    let x₂ := y₁.set jReg (csrOffset adj u.val + (k + 1))
+      (hy₁_fr jReg (by decide) (by decide)).trans (by wram_simp [st_v, hj])
+    let x₂ := y₁.set jReg (csrOffset adj u.val + k + 1)
     have hp2 : ExecWithin w (ram[ jReg ← jReg + cOne ]) y₁ x₂ 1 := by
-      have htriv : x₂ = y₁.set jReg (csrOffset adj u.val + k + 1) := by
-        simp [x₂, Nat.add_assoc]
-      rw [htriv]
-      wram_exec [hy₁_j, hy₁_1, hf_j1]
-    have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
-      hcsr.of_eqOn
-        (fun i hi => by
-          by_contra hne
-          have hmem : MemWrite (kOffAddr wb + i) := by
-            by_contra hnw; exact hne (hy₁_out _ hnw)
-          exact hdisj _ hmem (.inl ⟨by omega, by omega⟩))
-        (fun e he => by
-          by_contra hne
-          have hmem : MemWrite (kEdgeAddr wb N + e) := by
-            by_contra hnw; exact hne (hy₁_out _ hnw)
-          exact hdisj _ hmem (.inr ⟨by omega, by omega⟩))
-    have hx₂_fr : ∀ r : Fin 28, r.val < 18 → x₂.regs r = x.regs r := fun r hr => by
-      dsimp only [x₂]
-      rw [Data.set_regs_of_ne (by reg_ne), hy₁_fr r (by reg_ne) (by reg_ne), hst_fr r hr]
-    have hx₂_fwd : x₂.regs fwdEdgeReg = kEdgeAddr wb N := by
-      dsimp only [x₂]
-      have h1 : fwdEdgeReg ≠ jReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 25; omega)
-      have h2 : fwdEdgeReg ≠ addr := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 27; omega)
-      have h3 : fwdEdgeReg ≠ jEndReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 26; omega)
-      have h4 : fwdEdgeReg ≠ vReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 24; omega)
-      rw [Data.set_regs_of_ne h1, hy₁_fr fwdEdgeReg h2 h3]
-      dsimp only [st_v]
-      rw [Data.set_regs_of_ne h4, Data.set_regs_of_ne h2, hfwd]
-    have hx₂_u : x₂.regs uIdxReg = u.val := by
-      dsimp only [x₂]
-      have h1 : uIdxReg ≠ jReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 25; omega)
-      have h2 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
-      have h3 : uIdxReg ≠ jEndReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 26; omega)
-      rw [Data.set_regs_of_ne h1, hy₁_fr uIdxReg h2 h3, hst_u]
-    have hx₂_of : x₂.regs oldFinReg = csrOffset adj u.val + (adj u).length := by
-      dsimp only [x₂]
-      rw [Data.set_regs_of_ne (by reg_ne), hy₁_fr oldFinReg (by decide) (by decide)]
-      dsimp only [st_v]; wram_simp; exact hof
+      wram_exec [hy₁_j, hy₁_lt cOne (by decide), hc1, hf_j1]
+    have hx₂_lt : ∀ r : Fin 28, r.val < 24 → x₂.regs r = x.regs r := fun r hr => by
+      rw [← hy₁_lt r hr]; wram_simp [x₂]
     obtain ⟨y, hy_ex, hy_inv, hy_out, hy_fr⟩ :=
       forEachArcInner_spec adj wb Mc hmc hfit fwdEdgeReg uIdxReg stepBody stepTime bound Inv
         MemWrite ConstRegs hu_lo hu_hi hfwd_hi hfwd_ne hdisj hconst_regs hstep u es (k + 1)
@@ -240,23 +180,17 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
           have h := hget (q + 1) (by simp; omega)
           simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
         (fun z => by simpa [List.foldl_cons] using hroom_all z)
-        hy₁_inv hx₂_csr ((hx₂_fr cOne (by decide)).trans hc1) hx₂_fwd
-        (hconst_regs _ _ (fun r hr => (hx₂_fr r hr).symm) hconst) hx₂_u
-        (by dsimp only [x₂]; wram_simp) hx₂_of
-    have hbody_ex : ExecWithin w (forEachArcInner fwdEdgeReg stepBody) x x₂ (stepTime + 3) :=
-      (hp1.seq (hy₁_ex.seq hp2)).mono (by omega)
-    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
-    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+        hy₁_inv (hcsr.of_unwritten hdisj hy₁_out) ((hx₂_lt cOne (by decide)).trans hc1)
+        ((hx₂_lt _ hfwd_hi).trans hfwd)
+        (hconst_regs _ _ (fun r hr => (hx₂_lt r (by omega)).symm) hconst)
+        ((hx₂_lt _ hu_hi).trans huR) (by wram_simp [x₂]; omega)
+        ((hx₂_lt oldFinReg (by decide)).trans hof)
     have hlt : (Cond.lt jReg oldFinReg).Holds x := by
       change x.regs jReg < x.regs oldFinReg; omega
-    refine ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; rw [Nat.mul_add, Nat.mul_one]; omega,
-        Exec.loop_iter hlt he₁ he₂⟩,
-      hy_inv, fun a ha => (hy_out a ha).trans (hy₁_out a ha), fun r h1 h2 h3 h4 => ?_⟩
-    rw [hy_fr r h1 h2 h3 h4]
-    dsimp only [x₂]
-    rw [Data.set_regs_of_ne h4, hy₁_fr r h1 h2]
-    dsimp only [st_v]
-    rw [Data.set_regs_of_ne h3, Data.set_regs_of_ne h1]
+    refine ⟨y, ((hp1.seq (hy₁_ex.seq hp2)).loop_iter hlt hy_ex).mono ?_, hy_inv,
+      fun a ha => (hy_out a ha).trans (hy₁_out a ha), fun r hr => (hy_fr r hr).trans (hx₂_lt r hr)⟩
+    simp only [List.length_cons, Nat.mul_add, Nat.mul_one]
+    omega
 
 private theorem forEachArc_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc) (hfit : Fits w (kTopAddr wb N Mc + Mc + 4))
@@ -297,7 +231,7 @@ private theorem forEachArc_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     simp only [List.length_nil, Nat.add_zero] at hidx
     have hend : ¬ (Cond.lt uIdxReg nVerts).Holds x := by
       change ¬ x.regs uIdxReg < x.regs nVerts; omega
-    exact ⟨x, ⟨2, by simp [outDegreeSum], Exec.loop_exit hend⟩,
+    exact ⟨x, (ExecWithin.loop_exit hend).mono (by simp [outDegreeSum]),
       hinv, fun _ _ => rfl, fun _ _ => rfl⟩
   | u :: us, idx, rev, x, hidx, hus, hroom_all, hinv, hcsr, hc1, hNv, hoff, hfwd, hconst,
       huIdx => by
@@ -310,110 +244,34 @@ private theorem forEachArc_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     have hoff_u1 : x.mem (kOffAddr wb + idx + 1) = csrOffset adj u.val + (adj u).length := by
       simpa [← hu_val, Nat.add_assoc, csrOffset_succ adj u.isLt] using
         hcsr.1 (u.val + 1) (by omega)
-    have hf_oa : Fits w (kOffAddr wb + idx) :=
-      hfit.of_le (by simp only [kOffAddr, kTopAddr]; omega)
     have hf_oa1 : Fits w (kOffAddr wb + idx + 1) :=
       hfit.of_le (by simp only [kOffAddr, kTopAddr]; omega)
     have hf_i1 : Fits w (idx + 1) := hfit.of_le (by simp only [kTopAddr]; omega)
     let x₁ := (((x.set addr (kOffAddr wb + idx)).set jReg (csrOffset adj u.val)).set
       addr (kOffAddr wb + idx + 1)).set oldFinReg (csrOffset adj u.val + (adj u).length)
-    have hp1 : ExecWithin (B := .standard) w
+    have hp1 : ExecWithin w
         (ram[ addr ← offB + uIdxReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ])
         x x₁ 4 := by
-      let d₁ := x.set addr (kOffAddr wb + idx)
-      let d₂ := d₁.set jReg (csrOffset adj u.val)
-      let d₃ := d₂.set addr (kOffAddr wb + idx + 1)
-      have h_u1 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
-      have he1 : Exec (B := .standard) w (ram[ addr ← offB + uIdxReg ]) x d₁ 1 := by
-        have h : Exec (B := .standard) w (ram[ addr ← offB + uIdxReg ]) x _ 1 :=
-          Exec.bin (by change Fits w (x.regs offB + x.regs uIdxReg); rw [hoff, huIdx]; exact hf_oa)
-        simpa [d₁, BinOp.eval, hoff, huIdx] using h
-      have he2 : Exec (B := .standard) w (ram[ jReg ← *addr ]) d₁ d₂ 1 := by
-        have h := Exec.load (B := .standard) (w := w) (x := d₁) (d := jReg) (a := addr)
-        simpa [d₂, d₁, Data.set_regs_self, Data.set_mem, hoff_u] using h
-      have he3 : Exec (B := .standard) w (ram[ addr ← addr + cOne ]) d₂ d₃ 1 := by
-        have hc1_2 : d₂.regs cOne = 1 := by
-          dsimp only [d₂, d₁]
-          rw [Data.set_regs_of_ne (by reg_ne), Data.set_regs_of_ne (by reg_ne), hc1]
-        have ha_2 : d₂.regs addr = kOffAddr wb + idx := by
-          dsimp only [d₂, d₁]; rw [Data.set_regs_of_ne (by reg_ne), Data.set_regs_self]
-        have h : Exec (B := .standard) w (ram[ addr ← addr + cOne ]) d₂ _ 1 :=
-          Exec.bin (by change Fits w (d₂.regs addr + d₂.regs cOne); rw [ha_2, hc1_2]; exact hf_oa1)
-        simpa [d₃, BinOp.eval, ha_2, show d₂.regs 1 = 1 from hc1_2] using h
-      have he4 : Exec (B := .standard) w (ram[ oldFinReg ← *addr ]) d₃ x₁ 1 := by
-        have h := Exec.load (B := .standard) (w := w) (x := d₃) (d := oldFinReg) (a := addr)
-        simpa [x₁, d₃, d₂, d₁, Data.set_regs_self, Data.set_mem, hoff_u1] using h
-      exact ⟨4, le_rfl, he1.seq (he2.seq (he3.seq he4))⟩
+      wram_exec [hoff, huIdx, hoff_u, hoff_u1, hc1]
     have hx₁_fr : ∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r := fun r hr => by
-      dsimp only [x₁]
-      simp [Data.set_regs_of_ne (by reg_ne : r ≠ oldFinReg),
-        Data.set_regs_of_ne (by reg_ne : r ≠ addr), Data.set_regs_of_ne (by reg_ne : r ≠ jReg)]
-    have hx₁_fwd : x₁.regs fwdEdgeReg = kEdgeAddr wb N := by
-      dsimp only [x₁]
-      have h2 : fwdEdgeReg ≠ addr := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 27; omega)
-      have h3 : fwdEdgeReg ≠ jReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 25; omega)
-      rw [Data.set_regs_of_ne hfwd_ne_of, Data.set_regs_of_ne h2, Data.set_regs_of_ne h3,
-        Data.set_regs_of_ne h2, hfwd]
-    have hx₁_u : x₁.regs uIdxReg = u.val := by
-      dsimp only [x₁]
-      have h2 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
-      have h3 : uIdxReg ≠ jReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 25; omega)
-      rw [Data.set_regs_of_ne hu_ne_of, Data.set_regs_of_ne h2, Data.set_regs_of_ne h3,
-        Data.set_regs_of_ne h2, huIdx, hu_val]
+      wram_simp [x₁]
     have hroom_u : ∀ z : Fin N,
-        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤ bound z := by
-      intro z
-      have hle : ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤
-          (us.foldl (fun r u' => (adj u').foldl (fun r v => Function.update r v (u' :: r v)) r)
-            ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev) z).length :=
-        length_foldl_vs_rev_le adj us _ z
-      exact hle.trans (by simpa [List.foldl_cons] using hroom_all z)
+        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤ bound z :=
+      fun z => (length_foldl_vs_rev_le adj us _ z).trans
+        (by simpa [List.foldl_cons] using hroom_all z)
     obtain ⟨y₁, hy₁_ex, hy₁_inv, hy₁_out, hy₁_fr⟩ :=
       forEachArcInner_spec adj wb Mc hmc hfit fwdEdgeReg uIdxReg stepBody stepTime bound Inv
         MemWrite ConstRegs hu_lo hu_hi hfwd_hi hfwd_ne hdisj hconst_regs hstep u (adj u) 0 rev x₁
-        (by simp) (fun q _ => by simp) hroom_u (by dsimp only [x₁]; exact hinv)
-        (by dsimp only [x₁]; exact hcsr)
-        ((hx₁_fr cOne (by decide)).trans hc1) hx₁_fwd
-        (hconst_regs _ _ (fun r hr => (hx₁_fr r hr).symm) hconst) hx₁_u
-        (by dsimp only [x₁]; wram_simp) (by dsimp only [x₁]; wram_simp)
-    have hy₁_u : y₁.regs uIdxReg = idx := by
-      have h1 : uIdxReg ≠ addr := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 27; omega)
-      have h2 : uIdxReg ≠ jEndReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 26; omega)
-      have h3 : uIdxReg ≠ vReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 24; omega)
-      have h4 : uIdxReg ≠ jReg := Fin.ne_of_val_ne (by change uIdxReg.val ≠ 25; omega)
-      rw [hy₁_fr uIdxReg h1 h2 h3 h4, hx₁_u, hu_val]
-    have hy₁_1 : y₁.regs cOne = 1 :=
-      (hy₁_fr cOne (by decide) (by decide) (by decide) (by decide)).trans
-        ((hx₁_fr cOne (by decide)).trans hc1)
+        (by simp) (fun q _ => by simp) hroom_u hinv hcsr (by wram_simp [x₁, hc1])
+        (by wram_simp [x₁, hfwd]) (hconst_regs _ _ (fun r hr => (hx₁_fr r hr).symm) hconst)
+        (by wram_simp [x₁, huIdx, hu_val]) (by wram_simp [x₁]) (by wram_simp [x₁])
+    have hy₁_u : y₁.regs uIdxReg = idx := (hy₁_fr _ hu_hi).trans (by wram_simp [x₁, huIdx])
+    have hy₁_1 : y₁.regs cOne = 1 := (hy₁_fr cOne (by decide)).trans (by wram_simp [x₁, hc1])
     let x₂ := y₁.set uIdxReg (idx + 1)
-    have hp2 : ExecWithin (B := .standard) w (ram[ uIdxReg ← uIdxReg + cOne ]) y₁ x₂ 1 := by
-      have h : Exec (B := .standard) w (ram[ uIdxReg ← uIdxReg + cOne ]) y₁ _ 1 :=
-        Exec.bin (by change Fits w (y₁.regs uIdxReg + y₁.regs cOne); rw [hy₁_u, hy₁_1]; exact hf_i1)
-      exact ⟨1, le_rfl, by simpa [x₂, BinOp.eval, hy₁_u, show y₁.regs 1 = 1 from hy₁_1] using h⟩
-    have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
-      hcsr.of_eqOn
-        (fun i hi => by
-          by_contra hne
-          have hmem : MemWrite (kOffAddr wb + i) := by
-            by_contra hnw; exact hne (hy₁_out _ hnw)
-          exact hdisj _ hmem (.inl ⟨by omega, by omega⟩))
-        (fun e he => by
-          by_contra hne
-          have hmem : MemWrite (kEdgeAddr wb N + e) := by
-            by_contra hnw; exact hne (hy₁_out _ hnw)
-          exact hdisj _ hmem (.inr ⟨by omega, by omega⟩))
+    have hp2 : ExecWithin w (ram[ uIdxReg ← uIdxReg + cOne ]) y₁ x₂ 1 := by
+      wram_exec [hy₁_u, hy₁_1, hf_i1]
     have hx₂_fr0 : ∀ r : Fin 28, r.val < 18 → x₂.regs r = x.regs r := fun r hr => by
-      have hne_u : r ≠ uIdxReg := Fin.ne_of_val_ne (by omega)
-      dsimp only [x₂]
-      rw [Data.set_regs_of_ne hne_u, hy₁_fr r (by reg_ne) (by reg_ne) (by reg_ne) (by reg_ne),
-        hx₁_fr r hr]
-    have hx₂_fwd : x₂.regs fwdEdgeReg = kEdgeAddr wb N := by
-      have h1 : fwdEdgeReg ≠ addr := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 27; omega)
-      have h2 : fwdEdgeReg ≠ jEndReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 26; omega)
-      have h3 : fwdEdgeReg ≠ vReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 24; omega)
-      have h4 : fwdEdgeReg ≠ jReg := Fin.ne_of_val_ne (by change fwdEdgeReg.val ≠ 25; omega)
-      dsimp only [x₂]
-      rw [Data.set_regs_of_ne hfwd_ne, hy₁_fr fwdEdgeReg h1 h2 h3 h4, hx₁_fwd]
+      rw [← hx₁_fr r hr, ← hy₁_fr r (by omega)]; wram_simp [x₂]
     obtain ⟨y, hy_ex, hy_inv, hy_out, hy_fr⟩ :=
       forEachArc_spec adj wb Mc hmc hfit fwdEdgeReg uIdxReg stepBody stepTime bound Inv MemWrite
         ConstRegs hu_lo hu_hi hu_ne_of hfwd_hi hfwd_ne_of hfwd_ne hdisj hconst_regs hstep
@@ -422,28 +280,18 @@ private theorem forEachArc_spec {N w : ℕ} (adj : Fin N → List (Fin N))
           have h := hus (q + 1) (by simp; omega)
           simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
         (fun z => by simpa [List.foldl_cons] using hroom_all z)
-        hy₁_inv hx₂_csr ((hx₂_fr0 cOne (by decide)).trans hc1)
+        hy₁_inv (hcsr.of_unwritten hdisj hy₁_out) ((hx₂_fr0 cOne (by decide)).trans hc1)
         ((hx₂_fr0 nVerts (by decide)).trans hNv) ((hx₂_fr0 offB (by decide)).trans hoff)
-        hx₂_fwd (hconst_regs _ _ (fun r hr => (hx₂_fr0 r hr).symm) hconst)
-        (by dsimp only [x₂]; wram_simp)
-    have hbody_ex : ExecWithin w
-        ((ram[ addr ← offB + uIdxReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ]).seq
-          ((Code.loop (.lt jReg oldFinReg) (forEachArcInner fwdEdgeReg stepBody)).seq
-            (ram[ uIdxReg ← uIdxReg + cOne ])))
-        x x₂ (9 + (stepTime + 5) * (adj u).length - 2) := by
-      have := (hp1.seq (hy₁_ex.seq hp2)).mono
-        (show 4 + ((stepTime + 5) * (adj u).length + 2 + 1) ≤
-          9 + (stepTime + 5) * (adj u).length - 2 by omega)
-      exact this
-    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
-    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+        (by rw [show x₂.regs fwdEdgeReg = y₁.regs fwdEdgeReg by wram_simp [x₂],
+          hy₁_fr _ hfwd_hi]; wram_simp [x₁, hfwd])
+        (hconst_regs _ _ (fun r hr => (hx₂_fr0 r hr).symm) hconst) (by wram_simp [x₂])
     have hlt : (Cond.lt uIdxReg nVerts).Holds x := by
       change x.regs uIdxReg < x.regs nVerts; omega
-    refine ⟨y, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩,
-      hy_inv, fun a ha => (hy_out a ha).trans (hy₁_out a ha),
+    refine ⟨y, ((hp1.seq (hy₁_ex.seq hp2)).loop_iter hlt hy_ex).mono ?_, hy_inv,
+      fun a ha => (hy_out a ha).trans (hy₁_out a ha),
       fun r hr => (hy_fr r hr).trans (hx₂_fr0 r hr)⟩
     simp only [List.length_cons, outDegreeSum, List.map_cons, List.sum_cons,
-      Nat.mul_add, Nat.mul_one] at ht₂ ⊢
+      Nat.mul_add, Nat.mul_one]
     omega
 
 theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
@@ -467,24 +315,23 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
   set revAdj := transposeAdj adj (List.finRange N)
   have hmc_rev : csrOffset revAdj N ≤ Mc := by
     dsimp only [revAdj]; rwa [csrOffset_transposeAdj_eq]
-  have hfit_cur : Fits w (kCurAddr wb N Mc + N) :=
+  have hfit_ps : Fits w (kCurAddr wb N Mc + N + Mc + 2) :=
     hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
   obtain ⟨x₁, hx₁_ex, hx₁_zero, hx₁_out, hx₁_fr⟩ :=
-    zeroBlockCode_spec curB (by decide) (kCurAddr wb N Mc) N hfit_cur hc0 hc1 hcur hNv
+    zeroBlockCode_spec curB (by decide) (kCurAddr wb N Mc) N (hfit_ps.of_le (by omega)) hc0 hc1
+      hcur hNv
   have hx₁_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₁.mem :=
     hcsr.of_eqOn
       (fun _ _ => hx₁_out _ (by dsimp only [kOffAddr, kCurAddr]; omega))
       (fun _ _ => hx₁_out _ (by dsimp only [kEdgeAddr, kCurAddr]; omega))
   let x₂ := x₁.set iReg 0
   have hp1 : ExecWithin (B := .standard) w (ram[ iReg ← cZero ]) x₁ x₂ 1 := by
-    have h0' : x₁.regs cZero = 0 := (hx₁_fr cZero (by decide)).trans hc0
-    wram_exec [h0']
+    wram_exec [hx₁_fr cZero (by decide), hc0]
   have hroom_rev : ∀ z : Fin N, (revAdj z).length ≤ Mc := by
     intro z
     have h1 := csrOffset_succ revAdj z.isLt; simp only [Fin.eta] at h1
     have h2 := csrOffset_mono revAdj (by omega : z.val + 1 ≤ N); omega
-  have hf_cur : Fits w (kCurAddr wb N Mc + N + Mc + 1) :=
-    hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
+  have hf_cur : Fits w (kCurAddr wb N Mc + N + Mc + 1) := hfit_ps.of_le (by omega)
   obtain ⟨x₃, hx₃_ex, hx₃_deg, hx₃_out, hx₃_fr⟩ :=
     forEachArc_spec adj wb Mc hmc hfit edgeB iReg incCurCode 4 (fun _ => Mc)
       (fun rev mem => ∀ z : Fin N, mem (kCurAddr wb N Mc + z.val) = (rev z).length)
@@ -501,53 +348,30 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
         rw [hy_deg z]
         by_cases hz : z = v <;> simp [hz])
       (List.finRange N) 0 (fun _ => []) x₂ (by simp) (fun q _ => by simp)
-      (fun z => hroom_rev z) (fun z => by dsimp only [x₂]; exact hx₁_zero z.val z.isLt)
-      hx₁_csr (by dsimp only [x₂]; wram_simp; exact (hx₁_fr cOne (by decide)).trans hc1)
-      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr nVerts (by decide)).trans hNv)
-      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr offB (by decide)).trans hoff)
-      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr edgeB (by decide)).trans hedge)
-      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr curB (by decide)).trans hcur)
-      (by dsimp only [x₂]; wram_simp)
-  have hx₃_fr0 : ∀ r : Fin 28, r.val < 18 → x₃.regs r = x.regs r := fun r hr => by
-    have h3 := hx₃_fr r hr
-    have hne : r ≠ iReg := by reg_ne
-    dsimp only [x₂] at h3
-    rw [h3, Data.set_regs_of_ne hne]
-    exact hx₁_fr r hr
+      (fun z => hroom_rev z) (fun z => hx₁_zero z.val z.isLt)
+      hx₁_csr (by wram_simp [x₂, hx₁_fr, hc1]) (by wram_simp [x₂, hx₁_fr, hNv])
+      (by wram_simp [x₂, hx₁_fr, hoff]) (by wram_simp [x₂, hx₁_fr, hedge])
+      (by wram_simp [x₂, hx₁_fr, hcur]) (by wram_simp [x₂])
+  have hx₃_fr0 : ∀ r : Fin 28, r.val < 18 → x₃.regs r = x.regs r := fun r hr =>
+    (hx₃_fr r hr).trans (by wram_simp [x₂, hx₁_fr r hr])
   let x₄ := (x₃.set compIdxReg (kOffAddr wb)).set offB (kRevOffAddr wb N Mc)
   have hp2 : ExecWithin (B := .standard) w (ram[ compIdxReg ← offB; offB ← revOffB ]) x₃ x₄ 2 := by
-    have h_ob : x₃.regs offB = kOffAddr wb := (hx₃_fr0 offB (by decide)).trans hoff
-    have h_rob : x₃.regs revOffB = kRevOffAddr wb N Mc := (hx₃_fr0 revOffB (by decide)).trans hroff
-    wram_exec [h_ob, h_rob]
-  have hfit_ps : Fits w (kCurAddr wb N Mc + N + Mc + 2) :=
-    hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
+    wram_exec [hx₃_fr0, hoff, hroff]
   obtain ⟨x₅, hx₅_ex, hx₅_roff, hx₅_cur, hx₅_out, hx₅_fr⟩ :=
     prefixSumCode_spec revAdj (kCurAddr wb N Mc) (kRevOffAddr wb N Mc) Mc
       (by simp only [kRevOffAddr, kCurAddr]; omega) hmc_rev hfit_ps (x := x₄)
-      (by dsimp only [x₄]; wram_simp; exact (hx₃_fr0 cZero (by decide)).trans hc0)
-      (by dsimp only [x₄]; wram_simp; exact (hx₃_fr0 cOne (by decide)).trans hc1)
-      (by dsimp only [x₄]; wram_simp; exact (hx₃_fr0 curB (by decide)).trans hcur)
-      (by dsimp only [x₄]; wram_simp)
-      (by dsimp only [x₄]; wram_simp; exact (hx₃_fr0 nVerts (by decide)).trans hNv)
-      hx₃_deg
+      (by wram_simp [x₄, hx₃_fr0, hc0]) (by wram_simp [x₄, hx₃_fr0, hc1])
+      (by wram_simp [x₄, hx₃_fr0, hcur]) (by wram_simp [x₄])
+      (by wram_simp [x₄, hx₃_fr0, hNv]) hx₃_deg
   have hx₅_comp : x₅.regs compIdxReg = kOffAddr wb :=
-    (hx₅_ex.regs_eq (by decide)).trans (by dsimp only [x₄]; wram_simp)
-  have hx₅_fr0 : ∀ r : Fin 28, r.val < 18 → r ≠ offB → x₅.regs r = x.regs r := fun r hr hno => by
-    rw [hx₅_fr r hr]
-    dsimp only [x₄]
-    have hne_c : r ≠ compIdxReg := by reg_ne
-    rw [Data.set_regs_of_ne hno, Data.set_regs_of_ne hne_c]
-    exact hx₃_fr0 r hr
+    (hx₅_ex.regs_eq (by decide)).trans (by wram_simp [x₄])
+  have hx₅_fr0 : ∀ r : Fin 28, r.val < 18 → r ≠ offB → x₅.regs r = x.regs r := fun r hr hno =>
+    (hx₅_fr r hr).trans (by wram_simp [x₄, hx₃_fr0 r hr])
   let x₆ := (((x₅.set offB (kOffAddr wb)).set finCnt (kEdgeAddr wb N)).set
     edgeB (kRevEdgeAddr wb N Mc)).set uReg 0
   have hp3 : ExecWithin (B := .standard) w
       (ram[ offB ← compIdxReg; finCnt ← edgeB; edgeB ← revEdgeB; uReg ← cZero ]) x₅ x₆ 4 := by
-    have h_eb : x₅.regs edgeB = kEdgeAddr wb N :=
-      (hx₅_fr0 edgeB (by decide) (by decide)).trans hedge
-    have h_reb : x₅.regs revEdgeB = kRevEdgeAddr wb N Mc :=
-      (hx₅_fr0 revEdgeB (by decide) (by decide)).trans hredge
-    have h_c0 : x₅.regs cZero = 0 := (hx₅_fr0 cZero (by decide) (by decide)).trans hc0
-    wram_exec [hx₅_comp, h_eb, h_reb, h_c0]
+    wram_exec [hx₅_comp, hx₅_fr0, hedge, hredge, hc0]
   have hx₅_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₅.mem :=
     hx₁_csr.of_eqOn
       (fun _ _ => (hx₅_out _ (by dsimp only [kOffAddr, kRevOffAddr, kCurAddr]; omega)).trans
@@ -571,55 +395,27 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
           hc1' hcur' hedge' hv hu hinv)
       (List.finRange N) 0 (fun _ => []) x₆ (by simp) (fun q _ => by simp) (fun _ => le_rfl)
       (partialCSRAt_init revAdj (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) x₅.mem hx₅_cur)
-      hx₅_csr
-      (by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 cOne (by decide) (by decide)).trans hc1)
-      (by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 nVerts (by decide) (by decide)).trans hNv)
-      (by dsimp only [x₆]; wram_simp)
-      (by dsimp only [x₆]; wram_simp)
-      ⟨by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 curB (by decide) (by decide)).trans hcur,
-        by dsimp only [x₆]; wram_simp⟩
-      (by dsimp only [x₆]; wram_simp)
-  have hx₇_roff : ∀ u ≤ N, x₇.mem (kRevOffAddr wb N Mc + u) = csrOffset revAdj u := fun u hu => by
-    rw [hx₇_out _ (by simp only [kRevOffAddr, kCurAddr, kRevEdgeAddr]; omega)]
-    exact hx₅_roff u hu
+      hx₅_csr (by wram_simp [x₆, hx₅_fr0, hc1]) (by wram_simp [x₆, hx₅_fr0, hNv])
+      (by wram_simp [x₆]) (by wram_simp [x₆])
+      ⟨by wram_simp [x₆, hx₅_fr0, hcur], by wram_simp [x₆]⟩ (by wram_simp [x₆])
   have hx₇_rcsr : CSRAt revAdj (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc) x₇.mem :=
     csrAt_of_partialCSRAt revAdj (kRevOffAddr wb N Mc) (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc)
-      x₇.mem hx₇_roff hx₇_pcsr
-  have hx₇_rob : x₇.regs revOffB = kRevOffAddr wb N Mc := by
-    rw [hx₇_fr revOffB (by decide)]
-    dsimp only [x₆]; wram_simp
-    exact (hx₅_fr0 revOffB (by decide) (by decide)).trans hroff
+      x₇.mem (fun u hu => by
+        rw [hx₇_out _ (by simp only [kRevOffAddr, kCurAddr, kRevEdgeAddr]; omega)]
+        exact hx₅_roff u hu) hx₇_pcsr
   let y := x₇.set offB (kRevOffAddr wb N Mc)
   have hp4 : ExecWithin (B := .standard) w (ram[ offB ← revOffB ]) x₇ y 1 := by
-    wram_exec [hx₇_rob]
-  have hout_sum : outDegreeSum adj (List.finRange N) = csrOffset adj N :=
-    (csrOffset_eq_outDegreeSum adj).symm
-  rw [List.length_finRange, hout_sum] at hx₃_ex hx₇_ex
+    wram_exec [hx₇_fr revOffB (by decide), x₆, hx₅_fr0, hroff]
+  rw [List.length_finRange, ← csrOffset_eq_outDegreeSum] at hx₃_ex hx₇_ex
   refine ⟨y,
     (hx₁_ex.seq (hp1.seq (hx₃_ex.seq (hp2.seq (hx₅_ex.seq (hp3.seq (hx₇_ex.seq hp4))))))).mono
       (by omega),
-    hx₇_rcsr,
-    by dsimp only [y]; wram_simp,
-    by
-      dsimp only [y]; wram_simp
-      rw [hx₇_fr edgeB (by decide)]; dsimp only [x₆]; wram_simp,
-    fun a ha => ?_,
-    fun r hr hno hne => ?_⟩
-  · dsimp only [y]; mem_upd
-    rw [hx₇_out _ (by dsimp only [revAdj, revGraph] at *; omega)]
-    dsimp only [x₆]; mem_upd
-    rw [hx₅_out _ (by omega)]
-    dsimp only [x₄]; mem_upd
-    rw [hx₃_out _ (by omega)]
-    dsimp only [x₂]; mem_upd
-    exact hx₁_out _ (by omega)
-  · dsimp only [y]
-    rw [Data.set_regs_of_ne hno, hx₇_fr r hr]
-    dsimp only [x₆]
-    have hne_u : r ≠ uReg := by reg_ne
-    have hne_fc : r ≠ finCnt := by reg_ne
-    rw [Data.set_regs_of_ne hne_u, Data.set_regs_of_ne hne, Data.set_regs_of_ne hne_fc,
-      Data.set_regs_of_ne hno]
-    exact hx₅_fr0 r hr hno
+    hx₇_rcsr, by wram_simp [y], by wram_simp [y, hx₇_fr edgeB (by decide), x₆],
+    fun a ha => ?_, fun r hr hno hne => ?_⟩
+  · rw [show y.mem a = x₇.mem a from rfl, hx₇_out _ (by dsimp only [revAdj, revGraph] at *; omega),
+      show x₆.mem a = x₅.mem a from rfl, hx₅_out _ (by omega)]
+    exact (hx₃_out _ (by omega)).trans (hx₁_out _ (by omega))
+  · rw [show y.regs r = x₇.regs r by wram_simp [y], hx₇_fr r hr]
+    wram_simp [x₆, hx₅_fr0 r hr hno]
 
 end Cslib.Algorithms.WordRAM.DFS
