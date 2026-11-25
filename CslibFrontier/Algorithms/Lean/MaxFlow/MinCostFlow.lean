@@ -1298,22 +1298,14 @@ feasible flows on `N` with the same `value` as `f`. -/
       · simp [hst, g.netOut_eq_zero hvs (hst ▸ hvs)]
     · by_cases hvs : v = N.s
       · subst hvs
-        have hg' : g.netOut N.s = val := hg
         simp only [hst, ↓reduceIte, sub_zero]
-        exact hg'
+        exact hg
       · by_cases hvt : v = N.t
         · subst hvt
           have htot : ∑ x : V, g.netOut x = 0 := by
             simp only [Network.Flow.netOut, Finset.sum_sub_distrib]
-            rw [Finset.sum_comm]
-            exact sub_self _
-          have hrest : ∑ x : V, g.netOut x = g.netOut N.s + g.netOut N.t := by
-            rw [← Finset.add_sum_erase _ _ (Finset.mem_univ N.s),
-              Finset.sum_eq_single N.t]
-            · intro x hx hxt
-              exact g.netOut_eq_zero (Finset.ne_of_mem_erase hx) hxt
-            · intro ht
-              exact absurd (Finset.mem_erase.mpr ⟨Ne.symm hst, Finset.mem_univ _⟩) ht
+            exact sub_eq_zero.mpr Finset.sum_comm
+          have hrest := Fintype.sum_eq_add N.s N.t hst fun x hx => g.netOut_eq_zero hx.1 hx.2
           have hs_val : g.netOut N.s = val := hg
           simp [Ne.symm hst]
           omega
