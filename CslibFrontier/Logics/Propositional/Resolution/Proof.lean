@@ -160,7 +160,8 @@ theorem isProof_iff_lineProof : φ.IsProof ls ↔ LineProof (resolutionRules V) 
     | nil => exact .nil
     | mem _ hc ih => exact ih.hyp hc
     | @resolvent _ c₁ c₂ v _ h₁ h₂ hv₁ hv₂ ih =>
-      exact ih.step ⟨c₁, c₂, v, hv₁, hv₂, rfl⟩ (by simp [h₁, h₂])
+      exact ih.step ⟨c₁, c₂, v, hv₁, hv₂, rfl⟩
+        fun | _, .head _ => h₁ | _, .tail _ (.head _) => h₂
   · intro h
     induction h with
     | nil => exact .nil
