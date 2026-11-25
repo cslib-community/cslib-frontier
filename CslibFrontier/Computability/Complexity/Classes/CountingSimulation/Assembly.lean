@@ -131,6 +131,13 @@ private theorem computableInPolyTime_scheduleCount (heads : ℕ) :
 
 /-! ### Resource bounds -/
 
+/-- The accumulation overhead `(s + 1) * (A + R)` of `s` residues of cost `R ≤ U * E`. -/
+private theorem succ_mul_add_le {s A R U E : ℕ} (hs : 1 ≤ s) (hE : 1 ≤ E) (hR : R ≤ U * E) :
+    (s + 1) * (A + R) ≤ 2 * (A + U) * (s * E) :=
+  calc (s + 1) * (A + R) ≤ (2 * s) * (A * E + U * E) :=
+        Nat.mul_le_mul (by omega) (Nat.add_le_add (Nat.le_mul_of_pos_right _ hE) hR)
+    _ = _ := by ring
+
 /-- **Time and space of the simulation** (conditional on the interfaces). For a constant `k`, the
 simulation on an input `x` with clock `t` runs within time
 `k * (|x| + t + 1) ^ k * scheduleCount heads t * 2 ^ (k * t / √⌊log₂ t⌋)` and space
@@ -234,39 +241,17 @@ theorem exists_computableInO_simulate (F : NetworkFamily encN value Admissible c
   have htime (c : List Bool × ℕ) :
       csim.time c ≤ V c * scheduleCount F.heads c.2 * E c := by
     have hG := (bG c).1
-    have hVc : pG (sz c) + sz c + 2 * (a * (sz c + 1) ^ d + U c) = V c := rfl
-    have hcE : 1 ≤ scheduleCount F.heads c.2 * E c := Nat.mul_pos (hcnt1 c) (hE c)
+    have h2 := Nat.le_mul_of_pos_right (pG (sz c) + sz c) (Nat.mul_pos (hcnt1 c) (hE c))
     simp only [csim, cms, NativeCertificate.congr, NativeCertificate.branch_time,
-      NativeCertificate.const_time]
+      NativeCertificate.const_time, Nat.mul_assoc (V c)]
     split_ifs with hc
-    · have hc' : c.1.length ≤ c.2 ∧ 2 ≤ c.2 := of_decide_eq_true hc
-      have hR : R c ≤ U c * E c :=
-        Finset.sup_le fun i hi => (hone c hc' i (Finset.mem_range.mp hi)).1
-      have h1 : (scheduleCount F.heads c.2 + 1) * (a * (sz c + 1) ^ d + R c) ≤
-          2 * (a * (sz c + 1) ^ d + U c) * (scheduleCount F.heads c.2 * E c) := by
-        have hAE : a * (sz c + 1) ^ d ≤ a * (sz c + 1) ^ d * E c := Nat.le_mul_of_pos_right _ (hE c)
-        calc _ ≤ (scheduleCount F.heads c.2 + 1) * (a * (sz c + 1) ^ d + U c * E c) := by gcongr
-          _ ≤ (2 * scheduleCount F.heads c.2) * ((a * (sz c + 1) ^ d + U c) * E c) :=
-              Nat.mul_le_mul (by have := hcnt1 c; omega)
-                ((Nat.add_le_add_right hAE (U c * E c)).trans_eq (Nat.add_mul _ _ _).symm)
-          _ = _ := by ring
-      have h2 : pG (sz c) ≤ pG (sz c) * (scheduleCount F.heads c.2 * E c) :=
-        Nat.le_mul_of_pos_right _ hcE
-      calc _ ≤ pG (sz c) * (scheduleCount F.heads c.2 * E c) +
-            2 * (a * (sz c + 1) ^ d + U c) * (scheduleCount F.heads c.2 * E c) := by
-              simp only [sz] at hG h1 h2 ⊢
-              omega
-        _ ≤ V c * (scheduleCount F.heads c.2 * E c) := by
-              rw [← hVc, ← Nat.add_mul]
-              exact Nat.mul_le_mul_right _ (by omega)
-        _ = _ := by ring
-    · have h2 : pG (sz c) + sz c ≤ (pG (sz c) + sz c) * (scheduleCount F.heads c.2 * E c) :=
-        Nat.le_mul_of_pos_right _ hcE
-      calc _ ≤ (pG (sz c) + sz c) * (scheduleCount F.heads c.2 * E c) := by
-              simp only [sz] at hG h2 ⊢
-              omega
-        _ ≤ V c * (scheduleCount F.heads c.2 * E c) := Nat.mul_le_mul_right _ (by omega)
-        _ = _ := by ring
+    · have hR : R c ≤ U c * E c := Finset.sup_le fun i hi =>
+        (hone c (of_decide_eq_true hc) i (Finset.mem_range.mp hi)).1
+      have h1 := succ_mul_add_le (A := a * (sz c + 1) ^ d) (hcnt1 c) (hE c) hR
+      simp only [V, sz, Nat.add_mul] at hG h1 h2 ⊢
+      omega
+    · simp only [V, sz, Nat.add_mul] at hG h2 ⊢
+      omega
   have hspace (c : List Bool × ℕ) : csim.space c ≤ V c := by
     have hG := (bG c).2
     simp only [csim, cms, NativeCertificate.congr, NativeCertificate.branch_space,
