@@ -121,8 +121,8 @@ theorem IsCopositive.submatrix_equiv_iff {V W K : Type*} [Fintype V] [Fintype W]
     exact hcop (x ∘ e.symm) fun v => hx (e.symm v)
 
 /-- A nonnegative vector whose entries sum to `1`, as a point of `Convexity.StdSimplex`. -/
-private noncomputable def stdSimplexOfFun {V K : Type*} [Fintype V] [Semiring K] [PartialOrder K] (y : V → K)
-    (hy0 : ∀ v, 0 ≤ y v) (hy1 : ∑ v, y v = 1) : Convexity.StdSimplex K V where
+private noncomputable def stdSimplexOfFun {V K : Type*} [Fintype V] [Semiring K] [PartialOrder K]
+    (y : V → K) (hy0 : ∀ v, 0 ≤ y v) (hy1 : ∑ v, y v = 1) : Convexity.StdSimplex K V where
   weights := Finsupp.equivFunOnFinite.symm y
   nonneg := hy0
   total := by rwa [Finsupp.sum_fintype _ _ fun _ => rfl]
@@ -346,7 +346,8 @@ theorem isCopositive_int_real_iff_nat {V : Type*} [Fintype V] {M : Matrix V V �
     by_contra hnc
     have hB (i j) : |M i j| ≤ ((Finset.univ.sup fun p : V × V => (M p.1 p.2).natAbs : ℕ) : ℤ) := by
       rw [← Int.natCast_natAbs]
-      exact_mod_cast Finset.le_sup (f := fun p : V × V => (M p.1 p.2).natAbs) (Finset.mem_univ (i, j))
+      exact_mod_cast Finset.le_sup (f := fun p : V × V => (M p.1 p.2).natAbs)
+        (Finset.mem_univ (i, j))
     obtain ⟨p, _, hp_neg⟩ := exists_nat_dotProduct_lt_zero_of_isSymm hSymm hB hnc
     exact (not_lt_of_ge (hnat p)) hp_neg
 
