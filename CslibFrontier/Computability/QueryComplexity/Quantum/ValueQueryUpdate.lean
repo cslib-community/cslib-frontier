@@ -274,7 +274,6 @@ theorem abs_reprogrammed_measureProb_sub_le {κ : Type*} [Fintype κ] [Fintype �
     abs_readout_reprogrammed_measureProb_sub_le step U ψ hψ T (fun _ => ())
       (fun _ => p) (δ := ⟨δ, hδ⟩) (fun _ => hp) (fun H _ => post H) (fun H _ => accept H)
   simp only [Fintype.sum_unique, proj] at bound
-  convert bound using 1
-  rfl
+  exact bound
 
 end Cslib.Quantum

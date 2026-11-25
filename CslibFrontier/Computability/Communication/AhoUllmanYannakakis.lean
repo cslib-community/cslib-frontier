@@ -79,9 +79,8 @@ private theorem eq_of_mem_rowMeets_colMeets {S : Finset (Fin p.size)} {k j : Fin
 private theorem card_rowMeets_add_card_colMeets_le {S : Finset (Fin p.size)} (k : Fin p.size) :
     #(p.rowMeets S k) + #(p.colMeets S k) ≤ #S + 1 := by
   classical
-  have hinter : p.rowMeets S k ∩ p.colMeets S k ⊆ {k} := fun j hj => by
-    rw [mem_inter] at hj
-    exact mem_singleton.mpr (p.eq_of_mem_rowMeets_colMeets hj.1 hj.2)
+  have hinter : p.rowMeets S k ∩ p.colMeets S k ⊆ {k} := fun _ hj =>
+    mem_singleton.mpr (p.eq_of_mem_rowMeets_colMeets (mem_inter.mp hj).1 (mem_inter.mp hj).2)
   have hunion : p.rowMeets S k ∪ p.colMeets S k ⊆ S :=
     union_subset (filter_subset _ _) (filter_subset _ _)
   have := card_union_add_card_inter (p.rowMeets S k) (p.colMeets S k)

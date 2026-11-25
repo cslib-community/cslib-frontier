@@ -76,8 +76,7 @@ private theorem length_encMode_lt (m : Mode) : (encMode m).length < 7 := by
   have := length_encFinEnum_lt m
   have hc : Nat.card Mode = 7 := by
     rw [Nat.card_congr Mode.equiv]; simp
-  rw [hc] at this
-  exact this
+  rwa [hc] at this
 
 private theorem length_encTag_lt (t : Fin 7) : (encFinEnum (Fin 7) t).length < 7 := by
   simpa only [Nat.card_fin] using length_encFinEnum_lt t
@@ -117,23 +116,20 @@ theorem bounds_of_inv {ℓ H : ℕ} {s : State} (hs : Inv ℓ H s) : Bounds ℓ 
   cases c with
   | hdrLength n =>
     obtain ⟨heq, hn⟩ := hs
-    simp only [State.mk.injEq] at heq
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, -⟩ := heq
+    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
     have := length_encNat_mono hn
     exact ⟨Nat.zero_le _, Nat.zero_le _, by simp, hempty, by simp, by simp,
       by simp only [Ctl.toTuple]; omega, by simp [Ctl.toTuple], by simp [Ctl.toTuple]⟩
   | hdrHeight n =>
     obtain ⟨heq, hn⟩ := hs
-    simp only [State.mk.injEq] at heq
-    obtain ⟨he, rfl, rfl, rfl, rfl, rfl, -⟩ := heq
+    obtain ⟨he, rfl, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
     subst e
     have := length_encNat_mono hn
     exact ⟨le_rfl, Nat.zero_le _, by simp, hempty, by simp, by simp,
       by simp only [Ctl.toTuple]; omega, by simp [Ctl.toTuple], by simp [Ctl.toTuple]⟩
   | prime q d =>
     obtain ⟨heq, hq, hqp, hd, hdq⟩ := hs
-    simp only [State.mk.injEq] at heq
-    obtain ⟨he, hh, rfl, rfl, rfl, rfl, -⟩ := heq
+    obtain ⟨he, hh, rfl, rfl, rfl, rfl, -⟩ := State.mk.inj heq
     subst e h
     have h₁ := length_lt_primeFor hqp
     have h₂ := length_lt_primeFor (hdq.trans hqp)

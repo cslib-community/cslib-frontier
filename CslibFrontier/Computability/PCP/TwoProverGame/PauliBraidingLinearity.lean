@@ -127,8 +127,8 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_pauliBraidingLinearity
         (T.alice (a + b)).observable)).re := by
   intro R T
   have hscore : 1 - 2 * ε ≤ (symmetricLinearityGame n).commutingWinProb R := by
-    have h := rejection_pauliBraidingLinearityStrategy_le G special decode S basis
-    change 1 - (symmetricLinearityGame n).commutingWinProb R ≤ _ at h
+    have h : 1 - (symmetricLinearityGame n).commutingWinProb R ≤ _ :=
+      rejection_pauliBraidingLinearityStrategy_le G special decode S basis
     linarith
   have h := R.one_sub_le_expect_re_apply_mul_mul_of_symmetricLinearityGame
     (fun q => (hA basis q).map _) (fun q => (hB basis q).map _) hscore roles
@@ -208,8 +208,7 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
       point c d - pauliBraidingBasisObservable M basis c d =
         if basis then (if d = c then diff c else 0) else 0 := by
     cases basis
-    · change point c d - point c d = 0
-      exact sub_self _
+    · exact sub_self (point c d)
     · by_cases h : d = c
       · subst d
         change point c c -
@@ -245,8 +244,8 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
     calc
       _ ≤ 𝔼 c, (4 * ((size : ℝ)⁻¹) ^ 2) * bad c := by
         refine expect_le_expect fun c _ => ?_
-        have h := (tie c).norm_observable_map_sub_sq_le S.state first second
-        change S.state.norm (diff c) ^ 2 ≤ 4 * bad c at h
+        have h : S.state.norm (diff c) ^ 2 ≤ 4 * bad c :=
+          (tie c).norm_observable_map_sub_sq_le S.state first second
         simpa only [mul_assoc, mul_left_comm (((size : ℝ)⁻¹) ^ 2) 4] using
           mul_le_mul_of_nonneg_left h (sq_nonneg ((size : ℝ)⁻¹))
       _ = (4 / size) * ((𝔼 c, bad c) / size) := by

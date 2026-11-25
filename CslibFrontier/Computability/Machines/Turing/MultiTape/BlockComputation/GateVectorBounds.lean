@@ -174,13 +174,10 @@ theorem exists_runFrom_gateExtension_bounded {p q r m : ℕ} [Fact p.Prime]
         (start (prefixState params values j)) t)).length ≤ B) := by
     intro j hj
     have hjr : j < r := hj
-    refine ⟨times ⟨j, hjr⟩, ?_, ?_, ?_, ?_⟩
-    · simpa only [start, prefixState, params, setChunk_gateParams] using hpre ⟨j, hjr⟩
-    · simpa only [start, prefixState, params, setChunk_gateParams] using hhalt ⟨j, hjr⟩
-    · simpa only [start, prefixState, params, setChunk_gateParams, values, hjr, ↓reduceDIte]
-        using hans ⟨j, hjr⟩
-    · intro t ht
-      have hpar := setChunk_encoding_mono
+    simp only [start, prefixState, params, setChunk_gateParams]
+    refine ⟨times ⟨j, hjr⟩, hpre ⟨j, hjr⟩, hhalt ⟨j, hjr⟩, ?_, fun t ht => ?_⟩
+    · simpa only [values, hjr, ↓reduceDIte] using hans ⟨j, hjr⟩
+    · have hpar := setChunk_encoding_mono
         (QueryGate.gateParams (s := 2 ^ m)
           (⟨w.length, b, σ, i.val, m, 0, r * m⟩ : Interpolation.Context) x) (Nat.le_of_lt hjr)
       simp only [setChunk_gateParams] at hpar
@@ -188,12 +185,8 @@ theorem exists_runFrom_gateExtension_bounded {p q r m : ℕ} [Fact p.Prime]
         w.length b σ i.val m (r * m) (Nat.le_of_lt hjr)
       have hlocal := hsize ⟨j, hjr⟩ t ht
       dsimp only at hlocal
-      have hbound : (Interpolation.encState ((Interpolation.machine M e).runFrom w
-          (Interpolation.initial (QueryGate.gateParams (s := 2 ^ m)
-            (⟨w.length, b, σ, i.val, m, j, r * m⟩ : Interpolation.Context) x)) t)).length ≤ B := by
-        dsimp only [B, maxParams, maxContext]
-        omega
-      simpa only [start, prefixState, params, setChunk_gateParams] using hbound
+      dsimp only [B, maxParams, maxContext]
+      omega
   obtain ⟨T, hT, hbound⟩ := exists_runFrom_prefix_encoding_le M e params w values B
     (Fact.out : p.Prime).pos hsupplier r le_rfl
   refine ⟨T, _, hT, ?_, ?_, ?_, ?_, ?_⟩

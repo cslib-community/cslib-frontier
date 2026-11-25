@@ -193,8 +193,7 @@ private theorem quantumValue_le_of_relabel
       ext ⟨⟨x, y⟩, a, b⟩
       exact ha x y a b
     rw [hpreimage]
-  rw [← hscore]
-  exact H.quantumWinProb_le_quantumValue T
+  exact hscore.symm.le.trans (H.quantumWinProb_le_quantumValue T)
 
 private abbrev singleTupleEquiv (U : Type*) : U ≃ (Fin 1 → U) :=
   (Equiv.funUnique (Fin 1) U).symm

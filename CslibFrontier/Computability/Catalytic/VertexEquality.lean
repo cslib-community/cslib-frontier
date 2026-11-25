@@ -602,10 +602,8 @@ theorem vertexCatBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
     have : d ≤ d * (B + 1) := Nat.le_mul_of_pos_right d (by omega)
     rw [Nat.add_mul]
     omega
-  have hstage2 : (innerDigits B n + 1) * innerAccBits B n ≤ (c + 12) * (d + 2) * (B + 1) := by
-    calc (innerDigits B n + 1) * innerAccBits B n
-        ≤ (c + 12) * ((d + 2) * (B + 1)) := Nat.mul_le_mul (by omega) hk₂_lin
-      _ = (c + 12) * (d + 2) * (B + 1) := by ring
+  have hstage2 : (innerDigits B n + 1) * innerAccBits B n ≤ (c + 12) * (d + 2) * (B + 1) :=
+    (Nat.mul_le_mul (show innerDigits B n + 1 ≤ c + 12 by omega) hk₂_lin).trans_eq (by ring)
   have hpow_q₂ : 2 ^ (2 * innerChunkBits B) ≤ 4 * (B + 1) := by
     by_cases hlog : Nat.log 2 B ≤ 1
     · have hq₂_eq : innerChunkBits B = 1 := by grind [innerChunkBits, outerChunkBits]
@@ -620,11 +618,9 @@ theorem vertexCatBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
   have hstage3 : 2 ^ innerAccBits B n ≤ 2 ^ (d + 2) * (B + 1) := by
     calc 2 ^ innerAccBits B n
         ≤ 2 ^ (2 * innerChunkBits B + d) := Nat.pow_le_pow_right (by decide) hk₂
-      _ = 2 ^ d * 2 ^ (2 * innerChunkBits B) := by rw [Nat.add_comm, pow_add]
+      _ = 2 ^ d * 2 ^ (2 * innerChunkBits B) := by ring
       _ ≤ 2 ^ d * (4 * (B + 1)) := Nat.mul_le_mul_left _ hpow_q₂
-      _ = 2 ^ (d + 2) * (B + 1) := by
-          rw [show d + 2 = d + 1 + 1 by omega, pow_succ, pow_succ]
-          ring
+      _ = 2 ^ (d + 2) * (B + 1) := by ring
   calc vertexCatBits B n
       = (outerDigits B n + 1) * outerAccBits B n +
           (innerDigits B n + 1) * innerAccBits B n + 2 ^ innerAccBits B n := rfl
