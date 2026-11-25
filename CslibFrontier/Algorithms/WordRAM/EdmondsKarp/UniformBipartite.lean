@@ -857,8 +857,8 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
   set st2 := (Memory.spec 0).clientState st1 (iterate bmSrcStep (m, r) m 0)
   set st3 := (Memory.spec 0).clientState st2 (iterate bmSnkStep (m, r) r 0)
   set st4 := (Memory.spec 0).clientState st3 (iterate bmEdgeOuter (m, r) m 0)
-  have hst_ne : (bipartiteFinNetwork G).s ≠ (bipartiteFinNetwork G).t := by
-    intro h; exact bipartiteNetwork_s_ne_t G ((bipartiteFinEquiv m r).injective h)
+  have hst_ne : (bipartiteFinNetwork G).s ≠ (bipartiteFinNetwork G).t := fun h =>
+    bipartiteNetwork_s_ne_t G ((bipartiteFinEquiv m r).injective h)
   have hcap_le1 : ∀ x y : Fin (bmNodes m r), (bipartiteFinNetwork G).cap x y ≤ 1 := fun x y => by
     change (bipartiteNetwork G).cap ((bipartiteFinEquiv m r).symm x)
       ((bipartiteFinEquiv m r).symm y) ≤ 1
@@ -876,18 +876,13 @@ private theorem bmMain_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
   set CFin : Finset (Fin (bmNodes m r)) :=
     Finset.univ.filter fun x =>
       st5.mem (distAddr ⟨bmNodes m r, bmMatBase m r, bmScrBase m r, 1⟩ x.1) < bmNodes m r
-  have hG5 : ∀ u : Fin m, ∀ v : Fin r, st5.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
-    intro u v
-    have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
-    rw [hEk_frame _ (Or.inl (by bm_omega))]
-    exact hG4 u v
   obtain ⟨hR_fr, hR_cov⟩ := bmCovR_spec (m := m) (r := r) st5
   set st6 := (Memory.spec 0).clientState st5 (iterate bmCovRStep (m, r) r 0)
   have hG6 : ∀ u : Fin m, ∀ v : Fin r, st6.mem (3 + u.1 * r + v.1) = if G (u, v) then 1 else 0 := by
     intro u v
     have hlt : u.1 * r + v.1 < m * r := Nat.mul_comm r u.1 ▸ Nat.mul_add_lt_mul_of_lt_of_lt u.2 v.2
-    rw [hR_fr _ (by bm_omega)]
-    exact hG5 u v
+    rw [hR_fr _ (by bm_omega), hEk_frame _ (Or.inl (by bm_omega))]
+    exact hG4 u v
   obtain ⟨hL_fr, hL_cov⟩ := bmCovL_spec G hG6
   set st7 := (Memory.spec 0).clientState st6 (iterate bmCovLOuter (m, r) m 0)
   have hst_main : (Memory.spec 0).clientState st (bmMain (m, r)) = st7 := by
