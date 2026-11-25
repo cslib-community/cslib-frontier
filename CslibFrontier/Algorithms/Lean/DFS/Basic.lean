@@ -221,11 +221,9 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
       Inv adj (visit adj k u s) ∧ Ext s (visit adj k u s) ∧ u ∈ (visit adj k u s).visited ∧
         ∀ x ∈ (visit adj k u s).visited, x ∈ s.visited ∨ Relation.ReflTransGen (Edge adj) u x
   | 0, u, s, hI, hk, _ => by
-    have hcard : s.visited.card = Fintype.card V := le_antisymm (Finset.card_le_univ _) (by omega)
-    have huniv : s.visited = Finset.univ := Finset.eq_univ_of_card _ hcard
-    refine ⟨hI, Ext.refl s, ?_, fun x hx => .inl hx⟩
-    rw [visit_zero, huniv]
-    exact Finset.mem_univ u
+    have huniv : s.visited = Finset.univ :=
+      Finset.eq_univ_of_card _ (le_antisymm (Finset.card_le_univ _) (by omega))
+    exact ⟨hI, Ext.refl s, (huniv ▸ Finset.mem_univ u : u ∈ s.visited), fun x hx => .inl hx⟩
   | k + 1, u, s, hI, hk, hgray => by
     by_cases hu : u ∈ s.visited
     · rw [visit_of_mem hu]
@@ -254,17 +252,8 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
             obtain ⟨hx', hxf'⟩ := hE₁.gray hx hxf
             exact hgt x hx' hxf'
         rw [List.foldl_cons]
-        refine ⟨hI₂, hE₁.trans hE₂, ?_, ?_⟩
-        · intro w hw
-          rcases List.mem_cons.1 hw with rfl | hw
-          · exact hE₂.visited_subset hv₁
-          · exact hv₂ w hw
-        · intro x hx
-          rcases hr₂ x hx with hx | hx
-          · rcases hr₁ x hx with hx | hx
-            · exact .inl hx
-            · exact .inr (Relation.ReflTransGen.head hv hx)
-          · exact .inr hx
+        exact ⟨hI₂, hE₁.trans hE₂, List.forall_mem_cons.2 ⟨hE₂.visited_subset hv₁, hv₂⟩,
+          fun x hx => (hr₂ x hx).elim (fun hx => (hr₁ x hx).imp id (.head hv)) .inr⟩
     rw [visit_of_notMem hu]
     set s₀ : State V := ⟨insert u s.visited, s.finished⟩ with hs₀
     have hI₀ : Inv adj s₀ :=
@@ -281,9 +270,8 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
       omega
     have hg₀ : ∀ x ∈ s₀.visited, x ∉ s₀.finished → Relation.ReflTransGen (Edge adj) x u := by
       intro x hx hxf
-      rcases Finset.mem_insert.1 hx with rfl | hx
-      · exact .refl
-      · exact hgray x hx hxf
+      obtain rfl | hx := Finset.mem_insert.1 hx
+      exacts [.refl, hgray x hx hxf]
     obtain ⟨hIt, hEt, hvt, hrt⟩ := hfold (adj u) (fun v hv => hv) s₀ hI₀ hk₀ hg₀
     set t := (adj u).foldl (fun t v => visit adj k v t) s₀ with ht
     obtain ⟨new, hnew, hdis, hvis⟩ := id hEt
@@ -291,16 +279,10 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
       rw [hnew, List.mem_append, not_or]
       exact ⟨fun h => hdis u h (Finset.mem_insert_self _ _), fun h => hu (hI.finished_subset u h)⟩
     have hut' : u ∈ t.visited := (hvis u).2 (.inl (Finset.mem_insert_self _ _))
-    have hf_sub' : ∀ x ∈ u :: t.finished, x ∈ t.visited := by
-      intro x hx
-      rcases List.mem_cons.1 hx with rfl | hx
-      · exact hut'
-      · exact hIt.finished_subset x hx
-    have hclosed' : ∀ x ∈ u :: t.finished, ∀ y ∈ adj x, y ∈ t.visited := by
-      intro x hx
-      rcases List.mem_cons.1 hx with rfl | hx
-      · exact hvt
-      · exact hIt.closed x hx
+    have hf_sub' : ∀ x ∈ u :: t.finished, x ∈ t.visited :=
+      List.forall_mem_cons.2 ⟨hut', hIt.finished_subset⟩
+    have hclosed' : ∀ x ∈ u :: t.finished, ∀ y ∈ adj x, y ∈ t.visited :=
+      List.forall_mem_cons.2 ⟨hvt, hIt.closed⟩
     refine ⟨?_, ?_, hut', ?_⟩
     · refine ⟨List.nodup_cons.2 ⟨hut, hIt.nodup⟩, hf_sub', hclosed', ?_, ?_⟩
       · intro x hx y hy
@@ -309,9 +291,7 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
           · exact .inl ((List.singleton_sublist.2 hyf).cons_cons x)
           · obtain ⟨hy₀, hyf₀⟩ := hEt.gray (hvt y hy) hyf
             exact .inr (hg₀ y hy₀ hyf₀)
-        · rcases hIt.order x hx y hy with h | h
-          · exact .inl (h.cons u)
-          · exact .inr h
+        · exact (hIt.order x hx y hy).imp (·.cons u) id
       · intro x hx y hxy hnyx
         by_cases hyt : y ∈ t.visited
         · by_cases hyf : y ∈ t.finished
@@ -353,18 +333,14 @@ private theorem visit_spec [DecidableEq V] [Fintype V] :
                   exact ⟨hzu, hzn, hzf⟩
                 exact .inr ⟨z, hEt.visited_subset (Finset.mem_insert_of_mem hzv), hzf', hxz⟩
     · refine ⟨u :: new, by simp [hnew, s₀], ?_, ?_⟩
-      · intro x hx
-        rcases List.mem_cons.1 hx with rfl | hx
-        · exact hu
-        · exact fun h => hdis x hx (Finset.mem_insert_of_mem h)
+      · exact List.forall_mem_cons.2 ⟨hu, fun x hx h => hdis x hx (Finset.mem_insert_of_mem h)⟩
       · intro x
         simp only [hvis, s₀, Finset.mem_insert, List.mem_cons]
         tauto
     · intro x hx
-      rcases hrt x hx with hx | hx
-      · rcases Finset.mem_insert.1 hx with rfl | hx
-        · exact .inr .refl
-        · exact .inl hx
+      obtain hx | hx := hrt x hx
+      · obtain rfl | hx := Finset.mem_insert.1 hx
+        exacts [.inr .refl, .inl hx]
       · exact .inr hx
 
 private theorem foldl_visit_spec [DecidableEq V] [Fintype V] {k : ℕ} (hk : Fintype.card V ≤ k) :
@@ -387,17 +363,11 @@ private theorem foldl_visit_spec [DecidableEq V] [Fintype V] {k : ℕ} (hk : Fin
       exact hxf' (hb x hx')
     obtain ⟨hI₂, hE₂, hb₂, hr₂, hR₂⟩ := foldl_visit_spec hk roots _ hI₁ hb₁
     rw [List.foldl_cons]
-    refine ⟨hI₂, hE₁.trans hE₂, hb₂, ?_, ?_⟩
-    · intro u hu
-      rcases List.mem_cons.1 hu with rfl | hu
-      · exact hE₂.visited_subset hr₁
-      · exact hr₂ u hu
-    · intro x hx
-      rcases hR₂ x hx with hx | ⟨r', hr', hx⟩
-      · rcases hR₁ x hx with hx | hx
-        · exact .inl hx
-        · exact .inr ⟨r, List.mem_cons_self, hx⟩
-      · exact .inr ⟨r', List.mem_cons_of_mem _ hr', hx⟩
+    refine ⟨hI₂, hE₁.trans hE₂, hb₂, List.forall_mem_cons.2 ⟨hE₂.visited_subset hr₁, hr₂⟩, ?_⟩
+    intro x hx
+    rcases hR₂ x hx with hx | ⟨r', hr', hx⟩
+    · exact (hR₁ x hx).imp id fun hx => ⟨r, List.mem_cons_self, hx⟩
+    · exact .inr ⟨r', List.mem_cons_of_mem _ hr', hx⟩
 
 private theorem dfs_spec [DecidableEq V] [Fintype V] {k : ℕ} (hk : Fintype.card V ≤ k)
     (roots : List V) :
@@ -449,9 +419,7 @@ theorem dfs_scc_finished_order (hk : Fintype.card V ≤ k) (roots : List V) {u v
     (hnvu : ¬ Relation.ReflTransGen (Edge adj) v u) :
     ∃ z, StronglyConnected adj u z ∧ [z, v] <+ (dfs adj k roots).finished := by
   obtain ⟨hI, hb, -, -⟩ := dfs_spec (adj := adj) hk roots
-  rcases hI.scc_order u hu v huv hnvu with ⟨z, huz, hsub⟩ | ⟨z, hzv, hzf, -⟩
-  · exact ⟨z, huz, hsub⟩
-  · exact absurd (hb z hzv) hzf
+  exact (hI.scc_order u hu v huv hnvu).resolve_right fun ⟨z, hzv, hzf, _⟩ => hzf (hb z hzv)
 
 end Results
 
