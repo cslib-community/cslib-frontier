@@ -1002,4 +1002,41 @@ example :
   · intro z
     simp only [Fintype.sum_bool, BooleanRing.add_self, Bool.zero_eq_false]
 
+-- Remove a strictly negative interval from a horizontal segment with one vertical crossing.
+example :
+    let F := AffineMap.lineMap (k := ℝ) (-2 : ℂ) 2
+    let q := Route.line (-Complex.I) Complex.I
+    (Route.line (-2) (F (1 / 8))).intersectionParity q +
+      (Route.line (F (3 / 8)) 2).intersectionParity q = true := by
+  intro F q
+  classical
+  have hsep : Disjoint (segment ℝ (F (1 / 8)) (F (3 / 8))) q.support := by
+    change Disjoint (segment ℝ (F (1 / 8)) (F (3 / 8))) (Route.line (-Complex.I) Complex.I).support
+    rw [Route.support_line]
+    apply Set.disjoint_left.mpr
+    intro w hw hv
+    rw [segment_eq_image_lineMap] at hw hv
+    obtain ⟨s, hs, hes⟩ := hw
+    obtain ⟨t, _, het⟩ := hv
+    have hneg : w.re < 0 := by
+      rw [← hes]
+      norm_num [F, AffineMap.lineMap_apply_module, Complex.add_re, Complex.smul_re]
+      linarith [hs.1, hs.2]
+    have hzero : w.re = 0 := by
+      rw [← het]
+      simp [AffineMap.lineMap_apply_module, Complex.add_re]
+    exact hneg.ne hzero
+  have hcross : (Route.line (-2) 2).intersectionParity (Route.line (-Complex.I) Complex.I) =
+      true := by
+    rw [Route.intersectionParity_line_line, decide_eq_true_eq]
+    refine ⟨0, ?_, ?_⟩
+    · rw [openSegment_eq_image_lineMap]
+      exact ⟨1 / 2, by norm_num, by norm_num [AffineMap.lineMap_apply_module', Complex.real_smul]⟩
+    · rw [openSegment_eq_image_lineMap]
+      refine ⟨1 / 2, by norm_num, ?_⟩
+      have hs : (1 : ℝ) - 1 / 2 = 1 / 2 := by norm_num
+      rw [AffineMap.lineMap_apply_module, hs, smul_neg, neg_add_cancel]
+  exact (Route.intersectionParity_line_split_of_disjoint (a := -2) (b := 2)
+    (l := 1 / 8) (u := 3 / 8) (by norm_num) (by norm_num) (by norm_num) hsep).symm.trans hcross
+
 end CslibFrontierTests.PolygonalRayParityIntersections
