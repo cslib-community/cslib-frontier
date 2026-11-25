@@ -164,50 +164,17 @@ variable {c : Code I.Op I.Test} {x y y' : I.Data} {n n' : ℕ}
 /-- Executions are deterministic. -/
 theorem unique (h : Exec I c x y n) (h' : Exec I c x y' n') : y = y' ∧ n = n' := by
   induction h generalizing y' n' with
-  | skip => cases h'; exact ⟨rfl, rfl⟩
-  | op ho =>
-    cases h' with
-    | op ho' => exact ⟨Option.some.inj (ho.symm.trans ho'), rfl⟩
-  | seq _ _ ih₁ ih₂ =>
-    cases h' with
-    | seq h₁ h₂ =>
-      obtain ⟨rfl, rfl⟩ := ih₁ h₁
-      obtain ⟨rfl, rfl⟩ := ih₂ h₂
-      exact ⟨rfl, rfl⟩
-  | branch_pos ht _ ih =>
-    cases h' with
-    | branch_pos _ h =>
-      obtain ⟨rfl, rfl⟩ := ih h
-      exact ⟨rfl, rfl⟩
-    | branch_neg hf _ => exact absurd ht hf
-  | branch_neg hf _ ih =>
-    cases h' with
-    | branch_pos ht _ => exact absurd ht hf
-    | branch_neg _ h =>
-      obtain ⟨rfl, rfl⟩ := ih h
-      exact ⟨rfl, rfl⟩
-  | loop_exit hf =>
-    cases h' with
-    | loop_exit => exact ⟨rfl, rfl⟩
-    | loop_iter ht _ _ => exact absurd ht hf
-  | loop_iter ht _ _ ihb ihl =>
-    cases h' with
-    | loop_exit hf => exact absurd ht hf
-    | loop_iter _ hb hl =>
-      obtain ⟨rfl, rfl⟩ := ihb hb
-      obtain ⟨rfl, rfl⟩ := ihl hl
-      exact ⟨rfl, rfl⟩
-  | loopUntil_exit ht =>
-    cases h' with
-    | loopUntil_exit => exact ⟨rfl, rfl⟩
-    | loopUntil_iter hf _ _ => exact absurd ht hf
-  | loopUntil_iter hf _ _ ihb ihl =>
-    cases h' with
-    | loopUntil_exit ht => exact absurd ht hf
-    | loopUntil_iter _ hb hl =>
-      obtain ⟨rfl, rfl⟩ := ihb hb
-      obtain ⟨rfl, rfl⟩ := ihl hl
-      exact ⟨rfl, rfl⟩
+  | skip | loop_exit | loopUntil_exit => cases h' <;> first | exact ⟨rfl, rfl⟩ | contradiction
+  | op ho => cases h' with | op ho' => exact ⟨Option.some.inj (ho.symm.trans ho'), rfl⟩
+  | branch_pos _ _ ih | branch_neg _ _ ih =>
+    cases h' <;> try contradiction
+    rename_i h
+    simpa using ih h
+  | seq _ _ ih₁ ih₂ | loop_iter _ _ _ ih₁ ih₂ | loopUntil_iter _ _ _ ih₁ ih₂ =>
+    cases h' <;> try contradiction
+    rename_i h₁ h₂
+    obtain ⟨rfl, rfl⟩ := ih₁ h₁
+    simpa using ih₂ h₂
 
 /-- A property that every data instruction preserves is preserved by executions. -/
 theorem invariant (P : I.Data → Prop) (hop : ∀ o x y, I.eval o x = some y → P x → P y)
@@ -416,49 +383,30 @@ of iterations. The definition is structurally recursive, so `simp` and `decide` 
 
 variable {I}
 
-private theorem Exec.of_evalLoop {t : I.Test} {body : Code I.Op I.Test}
+omit [∀ t x, Decidable (I.Holds t x)] in
+/-- A run of `Code.evalLoop` is an execution of a loop `c` whose exit and iteration rules are
+`hexit` and `hiter`. -/
+private theorem Exec.of_evalLoop {cont : I.Data → Bool} {exit : ℕ} {c body : Code I.Op I.Test}
     {f : I.Data → Option (I.Data × ℕ)}
-    (hf : ∀ {x y : I.Data} {n : ℕ}, f x = some (y, n) → Exec I body x y n) {fuel : ℕ}
-    {x y : I.Data} {n : ℕ}
-    (h : Code.evalLoop I (fun y => decide (I.Holds t y)) 2 f fuel x = some (y, n)) :
-    Exec I (.loop t body) x y n := by
+    (hf : ∀ {x y : I.Data} {n : ℕ}, f x = some (y, n) → Exec I body x y n)
+    (hexit : ∀ {x : I.Data}, cont x = false → Exec I c x x exit)
+    (hiter : ∀ {x y z : I.Data} {m k : ℕ}, cont x = true → Exec I body x y m →
+      Exec I c y z k → Exec I c x z (m + k + 2)) {fuel : ℕ} {x y : I.Data} {n : ℕ}
+    (h : Code.evalLoop I cont exit f fuel x = some (y, n)) : Exec I c x y n := by
   induction fuel generalizing x y n with
   | zero =>
-    simp only [Code.evalLoop, decide_eq_true_eq] at h
-    split at h
-    · cases h
-    · next ht => cases h; exact .loop_exit ht
+    simp only [Code.evalLoop] at h
+    split at h <;> cases h
+    exact hexit (Bool.eq_false_iff.2 ‹_›)
   | succ fuel ih =>
-    simp only [Code.evalLoop, decide_eq_true_eq] at h
+    simp only [Code.evalLoop] at h
     split at h
-    · next ht =>
-      obtain ⟨⟨x₁, m⟩, hb, hrest⟩ := Option.bind_eq_some_iff.1 h
+    · obtain ⟨⟨x₁, m⟩, hb, hrest⟩ := Option.bind_eq_some_iff.1 h
       obtain ⟨⟨x₂, k⟩, hl, he⟩ := Option.map_eq_some_iff.1 hrest
       cases he
-      exact .loop_iter ht (hf hb) (ih hl)
-    · next ht => cases h; exact .loop_exit ht
-
-private theorem Exec.of_evalLoopUntil {t : I.Test} {body : Code I.Op I.Test}
-    {f : I.Data → Option (I.Data × ℕ)}
-    (hf : ∀ {x y : I.Data} {n : ℕ}, f x = some (y, n) → Exec I body x y n) {fuel : ℕ}
-    {x y : I.Data} {n : ℕ}
-    (h : Code.evalLoop I (fun y => !decide (I.Holds t y)) 1 f fuel x = some (y, n)) :
-    Exec I (.loopUntil t body) x y n := by
-  induction fuel generalizing x y n with
-  | zero =>
-    simp only [Code.evalLoop, Bool.not_eq_true', decide_eq_false_iff_not] at h
-    split at h
+      exact hiter ‹_› (hf hb) (ih hl)
     · cases h
-    · next ht => cases h; exact .loopUntil_exit (not_not.mp ht)
-  | succ fuel ih =>
-    simp only [Code.evalLoop, Bool.not_eq_true', decide_eq_false_iff_not] at h
-    split at h
-    · next ht =>
-      obtain ⟨⟨x₁, m⟩, hb, hrest⟩ := Option.bind_eq_some_iff.1 h
-      obtain ⟨⟨x₂, k⟩, hl, he⟩ := Option.map_eq_some_iff.1 hrest
-      cases he
-      exact .loopUntil_iter ht (hf hb) (ih hl)
-    · next ht => cases h; exact .loopUntil_exit (not_not.mp ht)
+      exact hexit (Bool.eq_false_iff.2 ‹_›)
 
 /-- The interpreter only finds executions. -/
 theorem Exec.of_eval {fuel : ℕ} {c : Code I.Op I.Test} {x y : I.Data} {n : ℕ}
@@ -476,17 +424,15 @@ theorem Exec.of_eval {fuel : ℕ} {c : Code I.Op I.Test} {x y : I.Data} {n : ℕ
     exact .seq (ih₁ h₁) (ih₂ h₂)
   | branch t pos neg ihp ihn =>
     simp only [Code.eval] at h
-    split at h
-    · next ht =>
-      obtain ⟨⟨x₁, m⟩, h₁, he⟩ := Option.map_eq_some_iff.1 h
-      cases he
-      exact .branch_pos ht (ihp h₁)
-    · next ht =>
-      obtain ⟨⟨x₁, m⟩, h₁, he⟩ := Option.map_eq_some_iff.1 h
-      cases he
-      exact .branch_neg ht (ihn h₁)
-  | loop t body ih => exact Exec.of_evalLoop ih h
-  | loopUntil t body ih => exact Exec.of_evalLoopUntil ih h
+    split at h <;> obtain ⟨⟨x₁, m⟩, h₁, he⟩ := Option.map_eq_some_iff.1 h <;> cases he
+    · exact .branch_pos ‹_› (ihp h₁)
+    · exact .branch_neg ‹_› (ihn h₁)
+  | loop t body ih =>
+    exact Exec.of_evalLoop ih (fun ht => .loop_exit (by simpa using ht))
+      (fun ht => .loop_iter (by simpa using ht)) h
+  | loopUntil t body ih =>
+    exact Exec.of_evalLoop ih (fun ht => .loopUntil_exit (by simpa using ht))
+      (fun ht => .loopUntil_iter (by simpa using ht)) h
 
 /-- An interpreter result within the budget is an execution within it. -/
 theorem ExecWithin.of_eval {fuel : ℕ} {c : Code I.Op I.Test} {x y : I.Data} {n T : ℕ}
