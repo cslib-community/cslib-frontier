@@ -1093,11 +1093,8 @@ theorem ncard_frontier_steinerGraph_eq (t : ℕ) :
         omega
       have hj1_ge : t ≤ (π (supportNode c π w ⟨j.1 + 1, hj1⟩) : ℕ) := by
         by_contra! hlt'
-        have hmem : (⟨j.1 + 1, hj1⟩ : Fin (support c w).ncard) ∈ S :=
-          Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt'⟩
-        have hmax := Fin.le_iff_val_le_val.mp (S.le_max' _ hmem)
-        change j.1 + 1 ≤ j.1 at hmax
-        omega
+        exact (Fin.le_iff_val_le_val.mp (S.le_max' ⟨j.1 + 1, hj1⟩
+          (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt'⟩))).not_gt (Nat.lt_succ_self j.1)
       exact ⟨⟨w, ⟨j.1, by omega⟩⟩, mem_frontier_steinerGraph_iff.mpr ⟨hj_lt, hj1_ge⟩, rfl⟩
   rw [← himg]
   exact (InjOn.ncard_image fun e₁ h₁ e₂ h₂ hw => steinerEdge_eq_of_mem_frontier h₁ h₂ hw).symm
