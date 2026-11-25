@@ -111,18 +111,15 @@ theorem IsPartitionCover.of_embedding {C : κ → Set X × Set Y}
       rw [e.injective.extend_apply] at hxC hyC
       exact hmem w x hx hxC y hy hyC
     · rw [Function.extend_apply' _ _ _ hw'] at hxC
-      exact absurd hxC (Set.notMem_empty x)
+      exact hxC.elim
   · obtain ⟨w, hw, hunique⟩ := hcov x hx y hy hR
-    refine ⟨e w, ?_, fun w' hw' => ?_⟩
-    · dsimp only
-      rwa [e.injective.extend_apply]
-    · dsimp only at hw'
-      by_cases hex : ∃ u, e u = w'
-      · obtain ⟨u, rfl⟩ := hex
-        rw [e.injective.extend_apply] at hw'
-        exact congrArg e (hunique u hw')
-      · rw [Function.extend_apply' _ _ _ hex] at hw'
-        exact absurd hw'.1 (Set.notMem_empty x)
+    refine ⟨e w, by dsimp only; rwa [e.injective.extend_apply], fun w' hw' => ?_⟩
+    dsimp only at hw'
+    by_cases hex : ∃ u, e u = w'
+    · obtain ⟨u, rfl⟩ := hex
+      exact congrArg e (hunique u (by rwa [e.injective.extend_apply] at hw'))
+    · rw [Function.extend_apply' _ _ _ hex] at hw'
+      exact hw'.1.elim
 
 /-- A partition cover indexed by a finite type `κ` bounds `partitionCoverNumber` by `|κ|`. -/
 theorem IsPartitionCover.partitionCoverNumber_le [Fintype κ] {C : κ → Set X × Set Y}
@@ -171,11 +168,9 @@ private theorem le_sum_prod_of_eq_natCast {ι₁ ι₂ : Type*} [Fintype ι₁] 
   classical
   by_cases htop : ∃ i j, F i j = ⊤
   · obtain ⟨i₀, j₀, hij⟩ := htop
-    have h1 : (⊤ : ℕ∞) ≤ ∑ j : ι₂, F i₀ j :=
-      hij ▸ single_le_sum (f := fun j => F i₀ j) (fun _ _ => zero_le) (mem_univ j₀)
-    have h2 : ∑ j : ι₂, F i₀ j ≤ ∑ i : ι₁, ∑ j : ι₂, F i j :=
-      single_le_sum (f := fun i => ∑ j : ι₂, F i j) (fun _ _ => zero_le) (mem_univ i₀)
-    exact le_top.trans (h1.trans h2)
+    exact le_top.trans <|
+      (hij ▸ single_le_sum (f := F i₀) (fun _ _ => zero_le) (mem_univ j₀)).trans
+        (single_le_sum (f := fun i => ∑ j, F i j) (fun _ _ => zero_le) (mem_univ i₀))
   · push Not at htop
     choose r hr using fun i j => ENat.ne_top_iff_exists.1 (htop i j)
     refine (h r hr).trans_eq ?_
@@ -190,18 +185,15 @@ theorem coverNumber_le_sum_fibers {ι₁ ι₂ : Type*} [Fintype ι₁] [Fintype
       ∑ i : ι₁, ∑ j : ι₂, coverNumber z R (A ∩ f ⁻¹' {i}) (B ∩ g ⁻¹' {j}) := by
   refine le_sum_prod_of_eq_natCast fun r hr => ?_
   choose C hC using fun i j => coverNumber_le_iff.1 (hr i j).ge
-  let κ := Σ p : ι₁ × ι₂, Fin (r p.1 p.2)
   have hcov : IsCover z R A B
-      (fun w : κ => (f ⁻¹' {w.1.1} ∩ (C w.1.1 w.1.2 w.2).1,
-        g ⁻¹' {w.1.2} ∩ (C w.1.1 w.1.2 w.2).2)) := by
-    refine ⟨fun ⟨⟨i, j⟩, w⟩ x hxA hxC y hyB hyC =>
-      (hC i j).1 w x ⟨hxA, hxC.1⟩ hxC.2 y ⟨hyB, hyC.1⟩ hyC.2, fun x hxA y hyB hR => ?_⟩
-    obtain ⟨w, hw1, hw2⟩ := (hC (f x) (g y)).2 x ⟨hxA, rfl⟩ y ⟨hyB, rfl⟩ hR
-    exact ⟨⟨(f x, g y), w⟩, ⟨rfl, hw1⟩, ⟨rfl, hw2⟩⟩
-  refine hcov.coverNumber_le.trans_eq ?_
-  congr 1
-  rw [Fintype.card_sigma, Fintype.sum_prod_type]
-  simp only [Fintype.card_fin]
+      (fun w : Σ p : ι₁ × ι₂, Fin (r p.1 p.2) => (f ⁻¹' {w.1.1} ∩ (C w.1.1 w.1.2 w.2).1,
+        g ⁻¹' {w.1.2} ∩ (C w.1.1 w.1.2 w.2).2)) :=
+    ⟨fun ⟨⟨i, j⟩, w⟩ x hxA hxC y hyB hyC =>
+      (hC i j).1 w x ⟨hxA, hxC.1⟩ hxC.2 y ⟨hyB, hyC.1⟩ hyC.2, fun x hxA y hyB hR =>
+      let ⟨w, hw1, hw2⟩ := (hC (f x) (g y)).2 x ⟨hxA, rfl⟩ y ⟨hyB, rfl⟩ hR
+      ⟨⟨(f x, g y), w⟩, ⟨rfl, hw1⟩, ⟨rfl, hw2⟩⟩⟩
+  exact hcov.coverNumber_le.trans_eq (congrArg Nat.cast
+    (by simp only [Fintype.card_sigma, Fintype.sum_prod_type, Fintype.card_fin]))
 
 /-- Partitioning `A` by `f : X → ι₁` and `B` by `g : Y → ι₂` bounds `partitionCoverNumber` by the
 sum of the fiberwise partition cover numbers. -/
@@ -211,39 +203,27 @@ theorem partitionCoverNumber_le_sum_fibers {ι₁ ι₂ : Type*} [Fintype ι₁]
       ∑ i : ι₁, ∑ j : ι₂, partitionCoverNumber z R (A ∩ f ⁻¹' {i}) (B ∩ g ⁻¹' {j}) := by
   refine le_sum_prod_of_eq_natCast fun r hr => ?_
   choose C hC using fun i j => partitionCoverNumber_le_iff.1 (hr i j).ge
-  let κ := Σ p : ι₁ × ι₂, Fin (r p.1 p.2)
   have hcov : IsPartitionCover z R A B
-      (fun w : κ => (f ⁻¹' {w.1.1} ∩ (C w.1.1 w.1.2 w.2).1,
+      (fun w : Σ p : ι₁ × ι₂, Fin (r p.1 p.2) => (f ⁻¹' {w.1.1} ∩ (C w.1.1 w.1.2 w.2).1,
         g ⁻¹' {w.1.2} ∩ (C w.1.1 w.1.2 w.2).2)) := by
     refine ⟨fun ⟨⟨i, j⟩, w⟩ x hxA hxC y hyB hyC =>
       (hC i j).1 w x ⟨hxA, hxC.1⟩ hxC.2 y ⟨hyB, hyC.1⟩ hyC.2, fun x hxA y hyB hR => ?_⟩
     obtain ⟨w, ⟨hw1, hw2⟩, hunique⟩ := (hC (f x) (g y)).2 x ⟨hxA, rfl⟩ y ⟨hyB, rfl⟩ hR
     refine ⟨⟨(f x, g y), w⟩, ⟨⟨rfl, hw1⟩, ⟨rfl, hw2⟩⟩, ?_⟩
-    rintro ⟨⟨i', j'⟩, w'⟩ ⟨⟨hxi, hxC'⟩, ⟨hyj, hyC'⟩⟩
-    have hi : i' = f x := hxi.symm
-    have hj : j' = g y := hyj.symm
-    subst hi hj
-    exact congrArg (Sigma.mk (f x, g y)) (hunique w' ⟨hxC', hyC'⟩)
-  refine hcov.partitionCoverNumber_le.trans_eq ?_
-  congr 1
-  rw [Fintype.card_sigma, Fintype.sum_prod_type]
-  simp only [Fintype.card_fin]
+    rintro ⟨⟨i', j'⟩, w'⟩ ⟨⟨rfl, hxC'⟩, ⟨rfl, hyC'⟩⟩
+    exact congrArg (Sigma.mk _) (hunique w' ⟨hxC', hyC'⟩)
+  exact hcov.partitionCoverNumber_le.trans_eq (congrArg Nat.cast
+    (by simp only [Fintype.card_sigma, Fintype.sum_prod_type, Fintype.card_fin]))
 
 /-! ### Equivalence with `(ℕ, +, ·)`-semiring rank (`rk_+`) -/
 
 private theorem existsUnique_ne_zero_of_sum_eq_one {ι : Type*} [Fintype ι] {g : ι → ℕ}
     (hsum : ∑ i : ι, g i = 1) : ∃! i : ι, g i ≠ 0 := by
   classical
-  have hex : ∃ i : ι, g i ≠ 0 := by
-    by_contra! hall
-    have h0 : ∑ i : ι, g i = 0 := sum_eq_zero fun i _ => hall i
-    omega
-  obtain ⟨i₀, hi₀⟩ := hex
-  refine ⟨i₀, hi₀, fun j hj => ?_⟩
-  by_contra hji
-  have hle : g j + g i₀ ≤ ∑ i : ι, g i :=
-    add_le_sum (fun _ _ => Nat.zero_le _) (mem_univ j) (mem_univ i₀) hji
-  omega
+  obtain ⟨i₀, _, hi₀⟩ := exists_ne_zero_of_sum_ne_zero (hsum.symm ▸ one_ne_zero)
+  exact ⟨i₀, hi₀, fun j hj => of_not_not fun hji => by
+    have := add_le_sum (f := g) (fun _ _ => Nat.zero_le _) (mem_univ j) (mem_univ i₀) hji
+    omega⟩
 
 /-- **Equivalence with `(ℕ, +, ·)`-rank (`rk_+`)** ([Sergeev2026UniqueDisjointness, §1, p. 2]): on
 `X × Y`, `partitionCoverNumber z R Set.univ Set.univ` equals the infimum of `M.nonnegRank` over all
@@ -259,12 +239,11 @@ theorem partitionCoverNumber_eq_iInf_nonnegRank_nat (z : Bool) (R : X → Y → 
   · refine le_iInf fun M => le_iInf fun ⟨h1, h0⟩ => le_nonnegRank_iff.2 fun r ⟨T, U, _, _, hTU⟩ =>
       partitionCoverNumber_le_iff.2 ⟨fun i => ({x | T x i ≠ 0}, {y | U i y ≠ 0}), ?_, ?_⟩
     · intro i x _ hx y _ hy
-      by_contra hRz
+      refine of_not_not fun hRz => ?_
       have hM0 : M x y = 0 := h0 x y hRz
       rw [← hTU, Matrix.mul_apply] at hM0
-      have hterm : T x i * U i y ≤ ∑ k : Fin r, T x k * U k y :=
-        single_le_sum (f := fun k : Fin r => T x k * U k y) (fun _ _ => Nat.zero_le _) (mem_univ i)
-      have hpos : 0 < T x i * U i y := Nat.mul_pos (Nat.pos_of_ne_zero hx) (Nat.pos_of_ne_zero hy)
+      have := single_le_sum (f := fun k => T x k * U k y) (fun _ _ => Nat.zero_le _) (mem_univ i)
+      have := Nat.mul_pos (Nat.pos_of_ne_zero hx) (Nat.pos_of_ne_zero hy)
       omega
     · intro x _ y _ hRnz
       have hM1 : ∑ k : Fin r, T x k * U k y = 1 := by
@@ -276,28 +255,24 @@ theorem partitionCoverNumber_eq_iInf_nonnegRank_nat (z : Bool) (R : X → Y → 
     let T : Matrix X (Fin r) ℕ := fun x i => if x ∈ (C i).1 then 1 else 0
     let U : Matrix (Fin r) Y ℕ := fun i y => if y ∈ (C i).2 then 1 else 0
     let M : Matrix X Y ℕ := T * U
-    have hM1 : ∀ x y, ¬R x y (!z) → M x y = 1 := by
-      intro x y hRnz
-      obtain ⟨i₀, ⟨hx₀, hy₀⟩, huniq⟩ := hC.2 x (Set.mem_univ x) y (Set.mem_univ y) hRnz
-      change ∑ i : Fin r, T x i * U i y = 1
-      rw [sum_eq_single i₀]
+    have hM1 (x : X) (y : Y) (hRnz : ¬R x y (!z)) : M x y = 1 := by
+      obtain ⟨i₀, ⟨hx₀, hy₀⟩, huniq⟩ := hC.2 x ⟨⟩ y ⟨⟩ hRnz
+      dsimp only [M]
+      rw [Matrix.mul_apply, sum_eq_single i₀]
       · simp only [T, U, hx₀, hy₀, ↓reduceIte, mul_one]
       · intro i _ hi
-        have hnot : ¬(x ∈ (C i).1 ∧ y ∈ (C i).2) := fun h => hi (huniq i h)
         by_cases hx : x ∈ (C i).1
-        · have hy : y ∉ (C i).2 := fun hy => hnot ⟨hx, hy⟩
-          simp only [T, U, hx, hy, ↓reduceIte, mul_zero]
+        · simp only [T, U, hx, show y ∉ (C i).2 from fun hy => hi (huniq i ⟨hx, hy⟩),
+            ↓reduceIte, mul_zero]
         · simp only [T, hx, ↓reduceIte, zero_mul]
-      · intro hi₀
-        exact absurd (mem_univ i₀) hi₀
-    have hM0 : ∀ x y, ¬R x y z → M x y = 0 := by
-      intro x y hRz
-      change ∑ i : Fin r, T x i * U i y = 0
+      · exact fun h => absurd (mem_univ i₀) h
+    have hM0 (x : X) (y : Y) (hRz : ¬R x y z) : M x y = 0 := by
+      dsimp only [M]
+      rw [Matrix.mul_apply]
       refine sum_eq_zero fun i _ => ?_
       by_cases hx : x ∈ (C i).1
-      · have hy : y ∉ (C i).2 := fun hy =>
-          hRz (hC.1 i x (Set.mem_univ x) hx y (Set.mem_univ y) hy)
-        simp only [T, U, hx, hy, ↓reduceIte, mul_zero]
+      · simp only [T, U, hx, show y ∉ (C i).2 from fun hy => hRz (hC.1 i x ⟨⟩ hx y ⟨⟩ hy),
+          ↓reduceIte, mul_zero]
       · simp only [T, hx, ↓reduceIte, zero_mul]
     have hfac : M.HasNonnegFactorization (Fin r) :=
       ⟨T, U, fun _ _ => Nat.zero_le _, fun _ _ => Nat.zero_le _, rfl⟩

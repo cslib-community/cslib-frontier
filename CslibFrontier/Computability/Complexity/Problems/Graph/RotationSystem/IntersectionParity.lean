@@ -121,13 +121,9 @@ theorem sum_ports (f : Dart G → Bool) :
     (∑ i : Fin P.count, (f (P.dart i false) + f (P.dart i true))) =
       ∑ d : Dart G, if x d.1 = true then f d else 0 := by
   classical
-  have hs : (∑ d : Dart G, if x d.1 = true then f d else 0) =
-      ∑ d : {d : Dart G // x d.1 = true}, f d.val := by
-    rw [← Finset.sum_filter]
-    exact Finset.sum_subtype _ (fun d => by simp) f
-  rw [hs]
-  have h := Equiv.sum_comp P.ports (fun d => f d.val)
-  simpa only [Fintype.sum_prod_type, Fintype.sum_bool, dart, add_comm] using h
+  rw [← Finset.sum_filter, Finset.sum_subtype (p := fun d => x d.1 = true) _ (fun _ => by simp) f]
+  simpa only [Fintype.sum_prod_type, Fintype.sum_bool, dart, add_comm] using
+    Equiv.sum_comp P.ports (fun d => f d.val)
 
 include P in
 /-- Exactly-once closed passage data have even parity at every original vertex. -/
@@ -137,16 +133,11 @@ theorem vertexEven : G.VertexEven x := by
   have h := P.sum_ports (fun d => if d.vertex = v then true else false)
   have hz : (∑ i : Fin P.count,
       ((if (P.dart i false).vertex = v then true else false) +
-      (if (P.dart i true).vertex = v then true else false))) = false := by
-    apply Finset.sum_eq_zero
-    intro i _
-    rw [show (P.dart i false).vertex = (P.dart i true).vertex from P.vertex_eq i]
-    exact BooleanRing.add_self _
+      (if (P.dart i true).vertex = v then true else false))) = false :=
+    Finset.sum_eq_zero fun i _ => P.vertex_eq i ▸ BooleanRing.add_self _
   rw [hz] at h
   rw [h]
-  apply Finset.sum_congr rfl
-  intro d _
-  cases x d.1 <;> simp
+  exact Finset.sum_congr rfl fun d _ => by cases x d.1 <;> simp
 
 end ClosedPassages
 
@@ -187,21 +178,13 @@ private theorem pow_injective_to_distance (a b : Dart G) (h : a.vertex = b.verte
     {i j : ℕ} (hi : i ≤ r.rotationDistance a b) (hj : j ≤ r.rotationDistance a b)
     (heq : (r.rotate ^ i) a = (r.rotate ^ j) a) : i = j := by
   wlog hij : i < j generalizing i j
-  · rcases lt_trichotomy i j with hij | hij | hij
-    · exact this hi hj heq hij
-    · exact hij
-    · exact (this hj hi heq.symm hij).symm
-  have hn : r.rotationDistance a b - j + i < r.rotationDistance a b := by omega
-  apply False.elim
-  apply r.pow_ne_of_lt_rotationDistance a b h hn
-  calc
-    (r.rotate ^ (r.rotationDistance a b - j + i)) a =
-        (r.rotate ^ (r.rotationDistance a b - j)) ((r.rotate ^ i) a) := by
-      rw [pow_add, Equiv.Perm.mul_apply]
-    _ = (r.rotate ^ (r.rotationDistance a b - j)) ((r.rotate ^ j) a) := congrArg _ heq
-    _ = (r.rotate ^ r.rotationDistance a b) a := by
-      rw [← Equiv.Perm.mul_apply, ← pow_add, Nat.sub_add_cancel hj]
-    _ = b := r.pow_rotationDistance a b h
+  · rcases lt_trichotomy i j with hij | rfl | hij
+    exacts [this hi hj heq hij, rfl, (this hj hi heq.symm hij).symm]
+  refine absurd ?_ (r.pow_ne_of_lt_rotationDistance a b h
+    (k := r.rotationDistance a b - j + i) (by omega))
+  rw [pow_add, Equiv.Perm.mul_apply, heq, ← Equiv.Perm.mul_apply, ← pow_add,
+    Nat.sub_add_cancel hj]
+  exact r.pow_rotationDistance a b h
 
 open Classical in
 /-- The literal directed cyclic interval `(a,b]`: rotate forward from `a` to the first `b`,
@@ -243,12 +226,10 @@ theorem faceBoundary_rotate (q : r.Face → Bool) (d : Dart G) :
     r.faceBoundary q d.1 =
       q (Quotient.mk _ d) + q (Quotient.mk _ (r.rotate.symm d)) := by
   rw [r.faceBoundary_dart, ← Bool.add_eq_xor]
-  congr 1
-  apply congrArg q
   have hf := r.face_eq_next d.reverse
   change (Quotient.mk _ (r.rotate.symm d.reverse.reverse) : r.Face) = _ at hf
   rw [Dart.reverse_reverse] at hf
-  exact hf.symm
+  exact congrArg (q (Quotient.mk _ d) + q ·) hf.symm
 
 /-- Boundary labels along a rotation interval telescope to its two incident face colors. -/
 theorem sum_faceBoundary_rotationInterval (q : r.Face → Bool) (a b : Dart G)
@@ -278,13 +259,11 @@ theorem alternates_eq_interval (a b c d : Dart G)
       decide (a ∈ r.rotationInterval c d) + decide (b ∈ r.rotationInterval c d) := by
   classical
   by_cases hvc : a.vertex = c.vertex
-  · have hbdv : b.vertex = d.vertex := hv.symm.trans (hvc.trans hw)
-    by_cases ha : a ∈ r.rotationInterval c d <;>
+  · by_cases ha : a ∈ r.rotationInterval c d <;>
       by_cases hb : b ∈ r.rotationInterval c d <;>
-      simp [Alternates, hab, hcd, hac, had, hbc, hbd, hv, hw, hbdv, ha, hb,
-        Bool.add_eq_xor]
-  · have ha : a ∉ r.rotationInterval c d :=
-      fun h => hvc (r.vertex_of_mem_rotationInterval c d a h)
+      simp [Alternates, hab, hcd, hac, had, hbc, hbd, hv, hw, hv.symm.trans (hvc.trans hw),
+        ha, hb, Bool.add_eq_xor]
+  · have ha : a ∉ r.rotationInterval c d := fun h => hvc (r.vertex_of_mem_rotationInterval c d a h)
     have hb : b ∉ r.rotationInterval c d :=
       fun h => hvc (hv.trans (r.vertex_of_mem_rotationInterval c d b h))
     simp [Alternates, hvc, ha, hb, Bool.add_eq_xor]
@@ -292,11 +271,8 @@ theorem alternates_eq_interval (a b c d : Dart G)
 private theorem disjoint_ports_ne {x y : Fin G.2.length → Bool}
     (P : ClosedPassages G x) (Q : ClosedPassages G y)
     (hdisj : ∀ e, x e = true → y e = true → False)
-    (i : Fin P.count) (j : Fin Q.count) (b c : Bool) : P.dart i b ≠ Q.dart j c := by
-  intro h
-  apply hdisj (P.dart i b).1 (P.supported i b)
-  rw [h]
-  exact Q.supported j c
+    (i : Fin P.count) (j : Fin Q.count) (b c : Bool) : P.dart i b ≠ Q.dart j c :=
+  fun h => hdisj (P.dart i b).1 (P.supported i b) (h ▸ Q.supported j c)
 
 open Classical in
 /-- Against one passage of an edge-disjoint system, the sum of all alternating passage
@@ -309,28 +285,16 @@ theorem sum_alternates_eq_interval {x y : Fin G.2.length → Bool}
       (P.dart i false) (P.dart i true) (Q.dart j false) (Q.dart j true))) =
       ∑ d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true), x d.1 := by
   classical
-  calc
-    _ = ∑ i : Fin P.count,
-        (decide (P.dart i false ∈ r.rotationInterval (Q.dart j false) (Q.dart j true)) +
-        decide (P.dart i true ∈ r.rotationInterval (Q.dart j false) (Q.dart j true))) := by
-      apply Finset.sum_congr rfl
-      intro i _
-      exact r.alternates_eq_interval _ _ _ _ (P.dart_ne i) (Q.dart_ne j)
-        (disjoint_ports_ne P Q hdisj i j false false)
-        (disjoint_ports_ne P Q hdisj i j false true)
-        (disjoint_ports_ne P Q hdisj i j true false)
-        (disjoint_ports_ne P Q hdisj i j true true) (P.vertex_eq i) (Q.vertex_eq j)
-    _ = ∑ d : Dart G, if x d.1 = true then
-        decide (d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true)) else 0 :=
-      P.sum_ports (fun d =>
-        decide (d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true)))
-    _ = _ := by
-      rw [← Finset.sum_ite_mem_eq
-        (r.rotationInterval (Q.dart j false) (Q.dart j true)) (fun d => x d.1)]
-      apply Finset.sum_congr rfl
-      intro d _
-      by_cases hm : d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true) <;>
-        cases x d.1 <;> simp [hm, Bool.zero_eq_false]
+  rw [Finset.sum_congr rfl fun i _ => r.alternates_eq_interval _ _ _ _ (P.dart_ne i)
+      (Q.dart_ne j) (disjoint_ports_ne P Q hdisj i j false false)
+      (disjoint_ports_ne P Q hdisj i j false true)
+      (disjoint_ports_ne P Q hdisj i j true false)
+      (disjoint_ports_ne P Q hdisj i j true true) (P.vertex_eq i) (Q.vertex_eq j),
+    P.sum_ports (fun d => decide (d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true))),
+    ← Finset.sum_ite_mem_eq (r.rotationInterval (Q.dart j false) (Q.dart j true)) (fun d => x d.1)]
+  refine Finset.sum_congr rfl fun d _ => ?_
+  by_cases hm : d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true) <;>
+    cases x d.1 <;> simp [hm, Bool.zero_eq_false]
 
 open Classical in
 /-- If the first support is a face boundary, its local alternating count along one passage
@@ -361,25 +325,19 @@ theorem intersectionParity_faceBoundary {x y : Fin G.2.length → Bool}
     (hdisj : ∀ e, x e = true → y e = true → False)
     (q : r.Face → Bool) (hq : r.faceBoundary q = x) : r.intersectionParity P Q = false := by
   classical
-  have hx (i : Fin G.2.length) (hi : y i = true) : x i = false := by
-    cases he : x i
-    · rfl
-    · exact False.elim (hdisj i he hi)
   have hf (d : Dart G) (hd : y d.1 = true) :
       q (Quotient.mk _ d) = q (Quotient.mk _ d.reverse) := by
-    have he := (r.faceBoundary_dart q d).symm.trans ((congrFun hq d.1).trans (hx d.1 hd))
-    cases ha : q (Quotient.mk _ d) <;>
-      cases hb : q (Quotient.mk _ d.reverse) <;> simp_all
+    have hx : x d.1 = false := Bool.eq_false_iff.mpr fun hx => hdisj d.1 hx hd
+    have he := (r.faceBoundary_dart q d).symm.trans ((congrFun hq d.1).trans hx)
+    cases ha : q (Quotient.mk _ d) <;> cases hb : q (Quotient.mk _ d.reverse) <;> simp_all
   unfold intersectionParity
   simp only [r.sum_alternates_eq_faceColors P Q hdisj q hq, add_comm]
   rw [Q.sum_ports (fun d => q (Quotient.mk _ d))]
   simp only [Dart, Fintype.sum_prod_type, Fintype.sum_bool]
-  apply Finset.sum_eq_zero
-  intro i _
+  refine Finset.sum_eq_zero fun i _ => ?_
   by_cases hi : y i = true
-  · have he := hf (i, false) hi
-    change q (Quotient.mk _ (i, false)) = q (Quotient.mk _ (i, true)) at he
-    simp only [hi, ite_true, he, BooleanRing.add_self]
+  · simp only [hi, ite_true, show q (Quotient.mk _ (i, false)) = q (Quotient.mk _ (i, true))
+      from hf (i, false) hi, BooleanRing.add_self]
   · simp [hi]
 
 /-- Any two supported edge-disjoint closed passage systems on a componentwise numerically

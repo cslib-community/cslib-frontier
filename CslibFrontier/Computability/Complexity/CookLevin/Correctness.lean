@@ -85,15 +85,14 @@ private theorem eval_inputClauses (t j : ℕ) :
       · simp only [inputAt, show j ≠ 0 by omega, ite_false]
         exact List.getElem?_eq_none (by simp only [List.length_append, length_certWord]; omega)
     simp [this]
-  · have : inputAt (u ++ certWord σ L) j = u[j - 1]? := by
+  · rw [show inputAt (u ++ certWord σ L) j = u[j - 1]? by
       simp only [inputAt, show j ≠ 0 by omega, ite_false]
-      exact List.getElem?_append_left (by omega)
-    simp [this]
-  · have : inputAt (u ++ certWord σ L) j = some (σ (.cert (j - 1 - u.length))) := by
+      exact List.getElem?_append_left (by omega)]
+    simp
+  · rw [show inputAt (u ++ certWord σ L) j = some (σ (.cert (j - 1 - u.length))) by
       simp only [inputAt, show j ≠ 0 by omega, ite_false]
       rw [List.getElem?_append_right (by omega)]
-      simp [certWord, List.getElem?_map, List.getElem?_range (show j - 1 - u.length < L by omega)]
-    rw [this]
+      simp [certWord, List.getElem?_map, List.getElem?_range (show j - 1 - u.length < L by omega)]]
     cases hc : σ (.cert (j - 1 - u.length)) <;> cases hp : σ (.holds t (.inPos j)) <;>
       simp [hc, hp]
 
@@ -144,12 +143,11 @@ theorem eval_uniqueClauses (t : ℕ) :
     true_implies, CNF.eval_cons, CNF.eval_map_eq_true_iff, Clause.eval_imp, List.mem_cons,
     List.mem_nil_iff, or_false, forall_eq, Var.holds.injEq, Feature.read.injEq,
     Feature.inRead.injEq, true_and]
-  constructor
-  · rintro ⟨⟨h₁, h₂⟩, h₃⟩
-    exact ⟨h₁, h₂, fun y hy => ⟨(h₃ y).1 hy, (h₃ y).2.1 hy, fun i => (h₃ y).2.2 i hy⟩⟩
-  · rintro ⟨h₁, h₂, h₃⟩
-    exact ⟨⟨h₁, h₂⟩, fun y => ⟨fun hy => (h₃ y hy).1, fun hy => (h₃ y hy).2.1,
-      fun i hy => (h₃ y hy).2.2 i⟩⟩
+  exact ⟨fun ⟨⟨h₁, h₂⟩, h₃⟩ =>
+      ⟨h₁, h₂, fun y hy => ⟨(h₃ y).1 hy, (h₃ y).2.1 hy, fun i => (h₃ y).2.2 i hy⟩⟩,
+    fun ⟨h₁, h₂, h₃⟩ =>
+      ⟨⟨h₁, h₂⟩, fun y => ⟨fun hy => (h₃ y hy).1, fun hy => (h₃ y hy).2.1,
+        fun i hy => (h₃ y hy).2.2 i⟩⟩⟩
 
 /-- An assignment describes the configuration `cfg` at time `t`: the basic features true at time
 `t` are those holding of `cfg`. -/
@@ -168,10 +166,9 @@ theorem Agrees.sit {cfg : Cfg k Bool State (u ++ certWord σ L)} {t : ℕ}
   have hp := cfg.inputPos.isLt
   refine (eval_sitClauses t).1 hsit y ((hA _ (state_mem_basic _)).2 hs) ?_ fun i => ?_
   · rw [← holds_inRead.1 hi, Cfg.inputSymbol_eq_inputAt]
-    refine hreadI _ (by simp only [List.length_append, length_certWord] at hp; omega) ?_
-    exact (hA _ (inPos_mem_basic (by simpa using hp))).2 rfl
-  · rw [← holds_read.1 (hr i)]
-    exact hreadW i _ _ (hb i) ((hA _ (head_mem_basic i (hb i))).2 rfl)
+    exact hreadI _ (by simp only [List.length_append, length_certWord] at hp; omega)
+      ((hA _ (inPos_mem_basic (by simpa using hp))).2 rfl)
+  · exact holds_read.1 (hr i) ▸ hreadW i _ _ (hb i) ((hA _ (head_mem_basic i (hb i))).2 rfl)
       ((hA _ (cell_mem_basic i (hb i) _)).2 rfl)
 
 variable [DecidableEq State]
@@ -298,29 +295,29 @@ theorem eval_tableau_runAssignment {w : List Bool} (hw : w.length = L)
       simp [runFrom, OutView.ofList]
   · refine (eval_oneHotClauses t).2 fun g hg => ?_
     obtain ⟨ψ, hψg, hψ⟩ := exists_holds_of_mem_groups hlen (hb t ht) hg
-    refine CNF.eval_exactlyOne_map_of_iff (Var.holds_right_injective t) hψg fun φ hφ => ?_
-    rw [runAssignment_holds]
-    exact ⟨fun h => eq_of_holds_of_mem_groups hg hφ hψg h hψ, fun e => e ▸ hψ⟩
+    exact CNF.eval_exactlyOne_map_of_iff (Var.holds_right_injective t) hψg fun φ hφ =>
+      runAssignment_holds.trans
+        ⟨fun h => eq_of_holds_of_mem_groups hg hφ hψg h hψ, fun e => e ▸ hψ⟩
   · refine (eval_readClauses t).2 ⟨fun i z s _ hh hc => ?_, fun j _ hj => ?_⟩
     · rw [runAssignment_holds] at hh hc ⊢
       rw [holds_read, Cfg.workTapeSymbols, holds_head.1 hh, holds_cell.1 hc]
     · rw [certWord_runAssignment hw, runAssignment_holds, holds_inRead,
-        Cfg.inputSymbol_eq_inputAt, holds_inPos.1 ((runAssignment_holds).1 hj)]
-  · refine (eval_sitClauses t).2 fun y hs hi hr => ?_
-    rw [runAssignment_holds] at hs hi ⊢
-    exact (holds_sit_iff y).2 ⟨hs, hi, fun i => runAssignment_holds.1 (hr i)⟩
-  · refine (eval_uniqueClauses t).2 ⟨fun i s s' h h' => ?_, fun s s' h h' => ?_, fun y hy => ?_⟩
-    · rw [runAssignment_holds, holds_read] at h h'
-      exact h.symm.trans h'
-    · rw [runAssignment_holds, holds_inRead] at h h'
-      exact h.symm.trans h'
-    · obtain ⟨hs, hi, hr⟩ := (holds_sit_iff y).1 (runAssignment_holds.1 hy)
-      exact ⟨runAssignment_holds.2 hs, runAssignment_holds.2 hi,
-        fun i => runAssignment_holds.2 (hr i)⟩
+        Cfg.inputSymbol_eq_inputAt, holds_inPos.1 (runAssignment_holds.1 hj)]
+  · exact (eval_sitClauses t).2 fun y hs hi hr => runAssignment_holds.2 <|
+      (holds_sit_iff y).2 ⟨runAssignment_holds.1 hs, runAssignment_holds.1 hi,
+        fun i => runAssignment_holds.1 (hr i)⟩
+  · refine (eval_uniqueClauses t).2
+      ⟨fun _ _ _ h h' => (holds_read.1 (runAssignment_holds.1 h)).symm.trans
+        (holds_read.1 (runAssignment_holds.1 h')),
+      fun _ _ h h' => (holds_inRead.1 (runAssignment_holds.1 h)).symm.trans
+        (holds_inRead.1 (runAssignment_holds.1 h')), fun y hy => ?_⟩
+    obtain ⟨hs, hi, hr⟩ := (holds_sit_iff y).1 (runAssignment_holds.1 hy)
+    exact ⟨runAssignment_holds.2 hs, runAssignment_holds.2 hi,
+      fun i => runAssignment_holds.2 (hr i)⟩
   · refine (eval_stepClauses t).2 fun φ hφ c hc hall => ?_
     rw [runAssignment_holds, runFrom_succ]
-    refine (holds_step_iff_exists_stepTerms tm hlen (hb t ht.le) hφ).2 ⟨c, hc, fun l hl => ?_⟩
-    rw [← hall l hl, runAssignment_holds]
+    exact (holds_step_iff_exists_stepTerms tm hlen (hb t ht.le) hφ).2
+      ⟨c, hc, fun l hl => by rw [← hall l hl, runAssignment_holds]⟩
   · exact eval_acceptClauses.2 ⟨runAssignment_holds.2 hhalt,
       runAssignment_holds.2 (by rw [holds_out, hout]; rfl)⟩
 
@@ -331,17 +328,13 @@ theorem exists_eval_tableau_iff {z : List Bool} :
     (∃ σ, certWord σ z.length = z ∧ (tableau tm u z.length T).eval σ = true) ↔
       (tm.runFrom (tm.initCfg (u ++ z)) T).state = none ∧
         (tm.runFrom (tm.initCfg (u ++ z)) T).output = [true] := by
-  constructor
-  · rintro ⟨σ, hz, h⟩
-    have hA := agrees_of_eval_tableau h T le_rfl
-    obtain ⟨-, -, -, haccept⟩ := eval_tableau.1 h
-    obtain ⟨hstate, hout⟩ := eval_acceptClauses.1 haccept
-    rw [hz] at hA
-    exact ⟨(hA _ (state_mem_basic _)).1 hstate,
-      OutView.ofList_eq_one_iff.1 ((hA _ (out_mem_basic _)).1 hout)⟩
-  · rintro ⟨hhalt, hout⟩
-    exact ⟨runAssignment tm u z, certWord_runAssignment rfl,
-      eval_tableau_runAssignment rfl hhalt hout⟩
+  refine ⟨fun ⟨σ, hz, h⟩ => ?_, fun ⟨hhalt, hout⟩ =>
+    ⟨runAssignment tm u z, certWord_runAssignment rfl,
+      eval_tableau_runAssignment rfl hhalt hout⟩⟩
+  have hA := hz ▸ agrees_of_eval_tableau h T le_rfl
+  obtain ⟨hstate, hout⟩ := eval_acceptClauses.1 (eval_tableau.1 h).2.2.2
+  exact ⟨(hA _ (state_mem_basic _)).1 hstate,
+    OutView.ofList_eq_one_iff.1 ((hA _ (out_mem_basic _)).1 hout)⟩
 
 /-- **The Cook–Levin tableau is correct.** `tableau tm u L T` is satisfiable exactly when some
 certificate `w` of length `L` makes `tm`, started on `u ++ w`, halt within `T` steps with output
@@ -350,15 +343,11 @@ theorem tableau_satisfiable_iff :
     (tableau tm u L T).Satisfiable ↔
       ∃ w : List Bool, w.length = L ∧ (tm.runFrom (tm.initCfg (u ++ w)) T).state = none ∧
         (tm.runFrom (tm.initCfg (u ++ w)) T).output = [true] := by
-  constructor
-  · rintro ⟨σ, h⟩
-    have hL := length_certWord σ L
-    refine ⟨certWord σ L, hL, exists_eval_tableau_iff.1 ⟨σ, ?_⟩⟩
-    rw [hL]
-    exact ⟨rfl, h⟩
-  · rintro ⟨w, rfl, h⟩
-    obtain ⟨σ, -, hσ⟩ := exists_eval_tableau_iff.2 h
-    exact ⟨σ, hσ⟩
+  refine ⟨fun ⟨σ, h⟩ => ⟨certWord σ L, length_certWord σ L,
+    exists_eval_tableau_iff.1 ⟨σ, by simp, by simpa using h⟩⟩, ?_⟩
+  rintro ⟨_, rfl, h⟩
+  obtain ⟨σ, -, hσ⟩ := exists_eval_tableau_iff.2 h
+  exact ⟨σ, hσ⟩
 
 end Completeness
 

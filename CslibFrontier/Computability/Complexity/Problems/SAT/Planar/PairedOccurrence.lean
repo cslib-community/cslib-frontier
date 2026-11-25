@@ -55,17 +55,11 @@ def pathPortSignals (sites : List Point) (r : Route) : List Variable :=
 private theorem portKeySignal_injective (sites : List Point) :
     Function.Injective (portKeySignal sites) := by
   rintro ⟨⟨p, s⟩, l⟩ ⟨⟨q, t⟩, k⟩ h
-  have hcell : p = q := congrArg Prod.fst h
-  subst q
-  by_cases hp : p ∈ sites
-  · have he : s = t ∧ l = k := by
+  obtain rfl : p = q := congrArg Prod.fst h
+  by_cases hp : p ∈ sites <;>
+    obtain ⟨rfl, rfl⟩ : s = t ∧ l = k := by
       simpa [portKeySignal, port, hp, PairedCrossover.terminal] using h
-    rcases he with ⟨rfl, rfl⟩
-    rfl
-  · have he : s = t ∧ l = k := by
-      simpa [portKeySignal, port, hp] using h
-    rcases he with ⟨rfl, rfl⟩
-    rfl
+  all_goals rfl
 
 private theorem pathPortSignals_cons_cons (sites : List Point) (a b : Point) (r : Route) :
     pathPortSignals sites (a :: b :: r) =
@@ -93,33 +87,27 @@ private theorem count_two_links (sites : List Point) (a b : Point) (v : Variable
 
 private theorem count_last_pair_le (sites : List Point) (a b : Point) (l : Fin 2) (v : Variable) :
     [signal sites a b l].count v ≤ (pathPortSignals sites [a, b]).count v := by
-  have hp : pathPortSignals sites [a, b] =
-      [signal sites a b 0, signal sites a b 1, signal sites b a 0, signal sites b a 1] := rfl
-  rw [hp]
-  have hl : l = 0 ∨ l = 1 := by fin_cases l <;> simp
-  rcases hl with rfl | rfl <;> simp only [List.count_cons, List.count_nil] <;> omega
+  change _ ≤
+    [signal sites a b 0, signal sites a b 1, signal sites b a 0, signal sites b a 1].count v
+  rcases (by fin_cases l <;> simp : l = 0 ∨ l = 1) with rfl | rfl <;>
+    simp only [List.count_cons, List.count_nil] <;> omega
 
 /-- External literals use only their actual path-half ports; unused clause halves overcount. -/
 theorem count_links_lastLiteral_le (sites : List Point) (positive : Bool) (r : Route)
     (hlen : 2 ≤ r.length) (v : Variable) :
     (CNF.vars ((links sites r).map Prod.fst)).count v +
       [(lastLiteral sites r positive).1.1].count v ≤ (pathPortSignals sites r).count v := by
-  induction r with
-  | nil => simp at hlen
-  | cons a r ih =>
-    cases r with
-    | nil => simp at hlen
-    | cons b r =>
-      cases r with
-      | nil =>
-        simpa [links, lastLiteral, List.consecutivePairs, CNF.vars] using
-          count_last_pair_le sites a b (PairedPorts.spokeLane (side b a)) v
-      | cons c r =>
-        have ht := ih (by simp : 2 ≤ (b :: c :: r).length)
-        rw [links_cons_cons_cons, List.map_append, List.map_cons, List.map_cons, List.map_nil,
-          count_vars_append, lastLiteral_cons_cons_cons,
-          pathPortSignals_cons_cons, List.count_append, count_two_links]
-        omega
+  match r with
+  | [] | [_] => simp at hlen
+  | [a, b] =>
+    simpa [links, lastLiteral, List.consecutivePairs, CNF.vars] using
+      count_last_pair_le sites a b (PairedPorts.spokeLane (side b a)) v
+  | a :: b :: c :: r =>
+    have ht := count_links_lastLiteral_le sites positive (b :: c :: r) (by simp) v
+    rw [links_cons_cons_cons, List.map_append, List.map_cons, List.map_cons, List.map_nil,
+      count_vars_append, lastLiteral_cons_cons_cons, pathPortSignals_cons_cons,
+      List.count_append, count_two_links]
+    omega
 
 /-- Both lanes of every directed port in all actual canonical paths. -/
 def allPathPortSignals (φ : CNF ℕ) : List Variable :=
@@ -129,15 +117,13 @@ def allPathPortSignals (φ : CNF ℕ) : List Variable :=
 theorem allPathPortSignals_nodup {φ : CNF ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ 3) (hv : ∀ v, φ.vars.count v ≤ 3) :
     (allPathPortSignals φ).Nodup := by
-  have hn : ((paths φ).flatMap pathPortKeys).Nodup := PlanarCompile.pathPorts_nodup hw hv
-  have heq : allPathPortSignals φ =
+  rw [show allPathPortSignals φ =
       (((paths φ).flatMap pathPortKeys).product [0, 1]).map
-        (portKeySignal (crossingSites φ)) := by
+        (portKeySignal (crossingSites φ)) by
     change ((paths φ).flatMap fun r =>
       ((pathPortKeys r).product [0, 1]).map (portKeySignal (crossingSites φ))) = _
-    simp [List.product, List.map_flatMap, List.flatMap_assoc]
-  rw [heq]
-  exact (hn.product (by decide)).map (portKeySignal_injective _)
+    simp [List.product, List.map_flatMap, List.flatMap_assoc]]
+  exact ((PlanarCompile.pathPorts_nodup hw hv).product (by decide)).map (portKeySignal_injective _)
 
 private theorem vars_originalClauses (φ : CNF ℕ) (sites : List Point) :
     CNF.vars ((originalClauses φ sites).map Prod.fst) =
@@ -155,15 +141,12 @@ private theorem count_external_blocks_le {φ : CNF ℕ} (sites : List Point)
   induction os with
   | nil => simp [CNF.vars]
   | cons o os ih =>
-    have ht := ih (fun a ha => hpaths a (List.mem_cons_of_mem _ ha))
+    have ht := ih fun a ha => hpaths a (List.mem_cons_of_mem _ ha)
     have ho := count_links_lastLiteral_le sites o.lit.2 (occurrencePath φ o)
       (hpaths o List.mem_cons_self) v
+    simp only [List.count_singleton] at ho
     rw [List.flatMap_cons, List.map_append, count_vars_append, List.map_cons,
       List.count_cons, List.flatMap_cons, List.count_append]
-    have hc : [(lastLiteral sites (occurrencePath φ o) o.lit.2).1.1].count v =
-        if (lastLiteral sites (occurrencePath φ o) o.lit.2).1.1 == v then 1 else 0 := by
-      simp [List.count_cons]
-    rw [hc] at ho
     omega
 
 private theorem vars_flatMap (ps : List Point) (f : Point → List PlacedClause) :
@@ -176,24 +159,22 @@ private theorem vars_flatMap (ps : List Point) (f : Point → List PlacedClause)
 private theorem vars_ordinaryBlock (p : Point) :
     CNF.vars ((ordinaryClauses p).map Prod.fst) =
       OrdinaryRing.formula.vars.map (fun v => ((p, Sum.inl v) : Variable)) := by
-  have h : (ordinaryClauses p).map Prod.fst =
-      OrdinaryRing.formula.relabel (fun v => ((p, Sum.inl v) : Variable)) := by
+  rw [← CNF.vars_relabel]
+  exact congrArg CNF.vars <| by
     simpa only [ordinaryClauses, CNF.relabel, List.map_map, Function.comp_def] using
-      congrArg (List.map (fun c : Clause OrdinaryRing.Variable =>
-        c.relabel (fun v => ((p, Sum.inl v) : Variable))))
+      congrArg (List.map fun c : Clause OrdinaryRing.Variable =>
+        c.relabel fun v => ((p, Sum.inl v) : Variable))
         (List.zipIdx_map_fst (l := OrdinaryRing.formula) 0)
-  rw [h, CNF.vars_relabel]
 
 private theorem vars_crossingBlock (p : Point) :
     CNF.vars ((crossingClauses p).map Prod.fst) =
       PairedCrossover.formula.vars.map (fun v => ((p, Sum.inr v) : Variable)) := by
-  have h : (crossingClauses p).map Prod.fst =
-      PairedCrossover.formula.relabel (fun v => ((p, Sum.inr v) : Variable)) := by
+  rw [← CNF.vars_relabel]
+  exact congrArg CNF.vars <| by
     simpa only [crossingClauses, CNF.relabel, List.map_map, Function.comp_def] using
-      congrArg (List.map (fun c : Clause PairedCrossover.Variable =>
-        c.relabel (fun v => ((p, Sum.inr v) : Variable))))
+      congrArg (List.map fun c : Clause PairedCrossover.Variable =>
+        c.relabel fun v => ((p, Sum.inr v) : Variable))
         (List.zipIdx_map_fst (l := PairedCrossover.formula) 0)
-  rw [h, CNF.vars_relabel]
 
 /-- Literal positions supplied by all emitted ordinary rings. -/
 def ordinarySignals (φ : CNF ℕ) : List Variable :=
@@ -210,23 +191,17 @@ private theorem count_tagged {W : Type*} [DecidableEq W] (ls : List W)
     (hinj : Function.Injective tag) (ps : List Point) (p : Point) (v : W) :
     (ps.flatMap fun q => ls.map (fun w => ((q, tag w) : Variable))).count (p, tag v) =
       ps.count p * ls.count v := by
-  have hone (q : Point) :
-      (ls.map (fun w => ((q, tag w) : Variable))).count (p, tag v) =
-        if q = p then ls.count v else 0 := by
-    by_cases h : q = p
-    · subst q
-      rw [ite_eq_left rfl]
-      exact List.count_map_of_injective ls (fun w => ((p, tag w) : Variable))
-        (fun _ _ he => hinj (congrArg Prod.snd he)) v
-    · rw [ite_eq_right h, List.count_eq_zero]
-      rintro hm
-      obtain ⟨w, _, he⟩ := List.mem_map.mp hm
-      exact h (congrArg Prod.fst he)
   induction ps with
   | nil => simp
   | cons q ps ih =>
-    rw [List.flatMap_cons, List.count_append, hone, List.count_cons, ih]
-    by_cases h : q = p <;> simp [h, beq_iff_eq, Nat.add_mul, Nat.add_comm]
+    rw [List.flatMap_cons, List.count_append, List.count_cons, ih]
+    by_cases h : q = p
+    · subst q
+      simp [List.count_map_of_injective ls (fun w => ((p, tag w) : Variable))
+        (fun _ _ he => hinj (congrArg Prod.snd he)) v, Nat.add_mul, Nat.add_comm]
+    · rw [List.count_eq_zero.mpr fun hm => by
+        obtain ⟨_, _, he⟩ := List.mem_map.mp hm; exact h (congrArg Prod.fst he)]
+      simp [h]
 
 private theorem count_ordinary_inl (φ : CNF ℕ) (p : Point) (v : Fin 4 × Fin 2) :
     (ordinarySignals φ).count (p, Sum.inl v) = (ordinaryCells φ).count p * 2 := by
@@ -277,13 +252,11 @@ private theorem count_allPathPortSignals_nonterminal {φ : CNF ℕ} (p : Point)
     (allPathPortSignals φ).count (p, Sum.inr v) = 0 := by
   rw [List.count_eq_zero]
   intro hm
-  obtain ⟨r, _, hm⟩ := List.mem_flatMap.mp hm
+  obtain ⟨_, _, hm⟩ := List.mem_flatMap.mp hm
   obtain ⟨k, _, hk⟩ := List.mem_map.mp hm
   have hs := congrArg Prod.snd hk
   by_cases hp : k.1.1 ∈ crossingSites φ
-  · have ht : PairedCrossover.terminal k.1.2 k.2 = v := by
-      simpa [portKeySignal, port, hp] using hs
-    exact hv ⟨_, _, ht⟩
+  · exact hv ⟨_, _, by simpa [portKeySignal, port, hp] using hs⟩
   · simp [portKeySignal, port, hp] at hs
 
 private theorem count_vars_pairedFormula : ∀ v, PairedCrossover.formula.vars.count v ≤ 3 := by
