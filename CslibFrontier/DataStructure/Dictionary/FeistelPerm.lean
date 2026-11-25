@@ -892,14 +892,14 @@ theorem childRouterMinS_eq : childRouterMinS = 2100 ^ 3 := by
 
 theorem le_two_pow_mul_childRouterCharBits {c T : ℕ} (hc : 1 ≤ c) :
     T ≤ 2 ^ (c * childRouterCharBits c T) := by
-  have hmax_c : max c 1 = c := max_eq_left hc
   set LT := Nat.clog 2 (max T 2)
-  have hdiv : LT ≤ ((LT + c - 1) / c) * c := by
-    have hmod := Nat.div_add_mod (LT + c - 1) c
-    have hlt := Nat.mod_lt (LT + c - 1) hc
-    rw [Nat.mul_comm]
+  have hdiv : LT ≤ c * ((LT + c - 1) / c) := by
+    have := Nat.div_add_mod (LT + c - 1) c
+    have := Nat.mod_lt (LT + c - 1) hc
     omega
-  have hle_exp : LT ≤ c * childRouterCharBits c T := by grind [childRouterCharBits, Nat.mul_comm]
+  have hle_exp : LT ≤ c * childRouterCharBits c T := by
+    rw [childRouterCharBits, max_eq_left hc]
+    exact hdiv.trans (Nat.mul_le_mul_left c (le_max_right _ _))
   calc T ≤ max T 2 := le_max_left T 2
     _ ≤ 2 ^ LT := Nat.le_pow_clog (by decide) _
     _ ≤ 2 ^ (c * childRouterCharBits c T) := Nat.pow_le_pow_right (by decide) hle_exp
@@ -1189,13 +1189,9 @@ theorem dens_not_injOn_feistelHead_le {ι α : Type*} [Fintype ι] [Nonempty ι]
     · let e : Fin (2 ^ s) ≃ Fin (2 ^ s) := Equiv.xor (p.1.1 ^^^ p.2.1)
       have hiff (i : ι) :
           (feistelHead (h i) p.1 = feistelHead (h i) p.2) ↔ h i p.1.2 = e (h i p.2.2) := by
-        dsimp only [feistelHead, e, Equiv.xor_apply]
-        rw [xor_eq_iff_right_eq, ← xor_assoc]
-        rfl
-      simp only [hiff]
-      have heq := FeistelQuotient.expect_boole_apply_eq_equiv (𝕜 := ℝ) hh hsnd e
-      rw [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] at heq
-      exact heq.le
+        simp only [feistelHead, e, Equiv.xor_apply, xor_eq_iff_right_eq, xor_assoc]
+      simpa only [hiff, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] using
+        (FeistelQuotient.expect_boole_apply_eq_equiv (𝕜 := ℝ) hh hsnd e).le
   have hexp_le :
       2 * (dens {i : ι | ¬ Set.InjOn (feistelHead (h i)) (S : Set (Fin (2 ^ s) × α))} : ℝ) ≤
         ((#S * (#S - 1) : ℕ) : ℝ) / (2 ^ s : ℝ) := by
@@ -1343,14 +1339,10 @@ theorem dens_not_injOn_idCompressorHead_le (s T : ℕ) (S : Finset (Fin (2 ^ s) 
     (dens {θ : IdCompressorSeed s T |
       ¬ Set.InjOn (idCompressorHead s T θ) (S : Set (Fin (2 ^ s) × Fin T))} : ℝ) ≤
       (#S : ℝ) ^ 2 / (2 * (2 ^ s : ℝ)) := by
-  have hpw := (isKWiseIndependentHash_idCompressorRound s T).isPairwiseIndependentHash le_rfl
-  have hbase := dens_not_injOn_feistelHead_le hpw S
-  refine hbase.trans ?_
+  refine (dens_not_injOn_feistelHead_le
+    ((isKWiseIndependentHash_idCompressorRound s T).isPairwiseIndependentHash le_rfl) S).trans ?_
   gcongr
-  have hnat : #S * (#S - 1) ≤ #S ^ 2 := by
-    rw [sq]
-    exact Nat.mul_le_mul_left #S (Nat.sub_le #S 1)
-  exact_mod_cast hnat
+  exact_mod_cast (sq #S).symm ▸ Nat.mul_le_mul_left #S (Nat.sub_le #S 1)
 
 /-- `PMF.uniformOfFintype` event-probability form of `dens_not_injOn_idCompressorHead_le`. -/
 theorem prob_not_injOn_idCompressorHead_le (s T : ℕ) (S : Finset (Fin (2 ^ s) × Fin T)) :

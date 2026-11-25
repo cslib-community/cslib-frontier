@@ -200,13 +200,12 @@ private theorem computeMetaWordsProg_spec {w U dstMetaBase N : ℕ} {s : Memory.
   refine ⟨?_, ?_, ?_, ?_⟩
   · dsimp only [d, computeMetaWordsProg]
     rw [htotMicro_eq, hgmBits_eq, validHistory_bind', clientState_maxSlabsProg,
-      clientResult_maxSlabsProg]
-    refine ⟨validHistory_maxSlabsProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_ifEqZeroProg, clientResult_ifEqZeroProg, hgmLen_eq]
-    refine ⟨validHistory_ifEqZeroProg _ _, ?_⟩
-    rw [validHistory_bind', clientState_compPackedWordsProg]; refine ⟨hv_pw _ s, ?_⟩
-    rw [validHistory_bind', clientState_compPackedWordsProg]; refine ⟨hv_pw _ s, ?_⟩
-    rw [validHistory_bind', clientState_compPackedWordsProg]; exact ⟨hv_pw _ s, trivial⟩
+      clientResult_maxSlabsProg, validHistory_bind', clientState_ifEqZeroProg,
+      clientResult_ifEqZeroProg, hgmLen_eq, validHistory_bind', clientState_compPackedWordsProg,
+      validHistory_bind', clientState_compPackedWordsProg, validHistory_bind',
+      clientState_compPackedWordsProg]
+    exact ⟨validHistory_maxSlabsProg _ _, validHistory_ifEqZeroProg _ _,
+      hv_pw _ s, hv_pw _ s, hv_pw _ s, trivial⟩
   · simp only [d, computeMetaWordsProg, prog_runClient_state_bind, runClient_state_maxSlabsProg,
       runClient_state_compPackedWordsProg, prog_runClient_state_pure]
     exact clientState_ifEqZeroProg _ _
@@ -238,14 +237,11 @@ private theorem realizesBounded_computeMetaWords :
     have hgmBits_eq : Nat.log 2 N + 1 = globalPtrBits N := (clog2_succ_eq_log2_add_one hN).symm
     have htotMicro_eq : (1 <<< Nat.log 2 N) = totalMicroBuckets N := by
       rw [Nat.shiftLeft_eq, one_mul, ← totalMicroBits_eq_log]; rfl
-    repeat rw [hgmBits_eq]
-    repeat rw [htotMicro_eq]
-    repeat rw [clientState_maxSlabsProg]
-    repeat rw [clientResult_maxSlabsProg]
-    repeat rw [clientState_ifEqZeroProg]
-    repeat rw [clientResult_ifEqZeroProg]
-    repeat rw [globalMetaLen_cond_eq]
-    repeat rw [clientState_compPackedWordsProg])
+    repeat first
+      | rw [hgmBits_eq] | rw [htotMicro_eq]
+      | rw [clientState_maxSlabsProg] | rw [clientResult_maxSlabsProg]
+      | rw [clientState_ifEqZeroProg] | rw [clientResult_ifEqZeroProg]
+      | rw [globalMetaLen_cond_eq] | rw [clientState_compPackedWordsProg])
   all_goals try (intro _; unfold slabSize; positivity)
   all_goals try (
     dsimp only [CompPackedWordsPre]
@@ -312,14 +308,9 @@ private theorem writeCompSubAProg_spec {w U V dstMetaBase N : ℕ} {s : Memory.S
   have hcp := fits_mkCompParams (V := V) hw hNU hU hV hfit_dst
   have hfit63 : Fits w (dstMetaBase + 63) := fits_add_of_fits_offCompItems hfit_dst (by decide)
   set cp := mkCompParams U V w N
-  have ho0 : 225 + epochHashSpace U w N = offCompLMSub U w N 0 := by
-    dsimp only [offCompLMSub, offCompLM, epochHdrWords]; ring
-  have ho1 : 225 + epochHashSpace U w N + lmSubWords N w = offCompLMSub U w N 1 := by
-    dsimp only [offCompLMSub, offCompLM, epochHdrWords]; ring
-  have ho2 : 225 + epochHashSpace U w N + lmSubWords N w * 2 = offCompLMSub U w N 2 := by
-    dsimp only [offCompLMSub, offCompLM, epochHdrWords]; ring
-  have ho3 : 225 + epochHashSpace U w N + lmSubWords N w * 3 = offCompLMSub U w N 3 := by
-    dsimp only [offCompLMSub, offCompLM, epochHdrWords]; ring
+  have ho (i : ℕ) : 225 + epochHashSpace U w N + lmSubWords N w * i = offCompLMSub U w N i := by
+    dsimp only [offCompLMSub, offCompLM, epochHdrWords]
+    ring
   obtain ⟨hv, hres, hfr, hmem, hframe, hc⟩ :=
     writeTwoBlock4FinRet_spec (dstMetaBase + 27) cp 0 (by decide) (offCompLMSub U w N 3) (s := s)
       (by omega) (hfit63.of_le (by omega)) hcp
@@ -327,7 +318,10 @@ private theorem writeCompSubAProg_spec {w U V dstMetaBase N : ℕ} {s : Memory.S
       writeBlock4Prog (dstMetaBase + 27, ((cp 0, cp 1), (cp 2, cp 3))) >>= fun _ =>
         writeBlock4Prog (dstMetaBase + 27 + 4, ((cp 4, cp 5), (cp 6, cp 7))) >>= fun _ =>
           pure (offCompLMSub U w N 3) := by
-    dsimp only [prog, d, writeCompSubAProg]; rw [ho3, ho2, ho1, ho0]; rfl
+    dsimp only [prog, d, writeCompSubAProg]
+    rw [ho 3, ho 2, ← mul_one (lmSubWords N w), ho 1, ← add_zero (225 + epochHashSpace U w N),
+      ← mul_zero (lmSubWords N w), ho 0]
+    rfl
   refine ⟨⟨U, V, dstMetaBase, hw, hN, hNU, hU, hV, rfl, rfl, rfl, rfl, rfl, rfl, h63, hfit_dst⟩, ?_⟩
   dsimp only [s']; rw [hprog_eq]
   exact ⟨hv, hres, hfr, fun j hj => (hmem j hj).trans (congrArg cp (Fin.ext (Nat.zero_add j))),
@@ -396,29 +390,24 @@ private theorem writeCompSubBProg_spec {w U V dstMetaBase N : ℕ} {s : Memory.S
   have hcp := fits_mkCompParams (V := V) hw hNU hU hV hfit_dst
   have hfit63 : Fits w (dstMetaBase + 63) := fits_add_of_fits_offCompItems hfit_dst (by decide)
   set cp := mkCompParams U V w N
-  have ho4 : offCompLMSub U w N 3 + lmSubWords N w = offCompLMSub U w N 4 := by
-    dsimp only [offCompLMSub]; ring
-  have ho5 : offCompLMSub U w N 3 + lmSubWords N w * 2 = offCompLMSub U w N 5 := by
-    dsimp only [offCompLMSub]; ring
-  have ho6 : offCompLMSub U w N 3 + lmSubWords N w * 3 = offCompLMSub U w N 6 := by
-    dsimp only [offCompLMSub]; ring
-  have ho7 : offCompLMSub U w N 3 + lmSubWords N w * 4 = offCompLMSub U w N 7 := by
-    dsimp only [offCompLMSub]; ring
-  have ho8 : offCompLMSub U w N 3 + lmSubWords N w * 5 = offCompLMSub U w N 8 := by
-    dsimp only [offCompLMSub]; ring
+  have ho (i : ℕ) :
+      offCompLMSub U w N 3 + lmSubWords N w * i = offCompLMSub U w N (3 + i) := by
+    dsimp only [offCompLMSub]
+    ring
   have hogm : offCompLMSub U w N 3 + lmSubWords N w * 6 = offCompGM U w N := by
-    dsimp only [offCompGM, offCompLMSub]; ring
+    dsimp only [offCompGM, offCompLMSub]
+    ring
   obtain ⟨hv, hres, hfr, hmem, hframe, hc⟩ :=
     writeTwoBlock4FinRet_spec (dstMetaBase + 35) cp 8 (by decide) (offCompGM U w N) (s := s)
       (by omega) (hfit63.of_le (by omega)) hcp
+  have hb35 : dstMetaBase + 27 + 8 = dstMetaBase + 35 := by omega
+  have hb39 : dstMetaBase + 27 + 12 = dstMetaBase + 35 + 4 := by omega
   have hprog_eq : prog =
       writeBlock4Prog (dstMetaBase + 35, ((cp 8, cp 9), (cp 10, cp 11))) >>= fun _ =>
         writeBlock4Prog (dstMetaBase + 35 + 4, ((cp 12, cp 13), (cp 14, cp 15))) >>= fun _ =>
           pure (offCompGM U w N) := by
     dsimp only [prog, d, writeCompSubBProg]
-    rw [hogm, ho8, ho7, ho6, ho5, ho4,
-      show dstMetaBase + 27 + 8 = dstMetaBase + 35 by omega,
-      show dstMetaBase + 27 + 12 = dstMetaBase + 35 + 4 by omega]
+    rw [hogm, ho 5, ho 4, ho 3, ho 2, ← mul_one (lmSubWords N w), ho 1, hb35, hb39]
     rfl
   refine ⟨⟨U, V, dstMetaBase, N, hw, hN, hNU, hU, hV, rfl, rfl, rfl, rfl, h63, hfit_dst⟩, ?_⟩
   dsimp only [s']; rw [hprog_eq]
