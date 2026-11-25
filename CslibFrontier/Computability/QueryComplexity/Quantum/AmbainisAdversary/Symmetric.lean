@@ -67,6 +67,16 @@ open Finset Function BitString
 
 variable {N : ℕ} {W : Type*} [Fintype W]
 
+private theorem nat_le_of_one_third_bound {N M : ℕ} {r : ℝ}
+    (h : (1 - 2 * √((1 / 3 : ℝ) * (1 - 1 / 3))) * N ≤ r) (hr : 18 * r = M) :
+    N ≤ M := by
+  -- `2√(2/9) ≤ 17/18`, since `8/9 = 288/324 ≤ 289/324`
+  have hsqrt : √((1 / 3 : ℝ) * (1 - 1 / 3)) ≤ 17 / 36 :=
+    (Real.sqrt_le_left (by norm_num)).2 (by norm_num)
+  have hscale : (1 / 18 : ℝ) * N ≤ (1 - 2 * √((1 / 3 : ℝ) * (1 - 1 / 3))) * N := by
+    gcongr; linarith
+  exact_mod_cast (show (N : ℝ) ≤ M by linarith)
+
 /-- **Bounded-error parity takes `Ω(N)` queries** [Ambainis2002], §5.3: if a `T`-query algorithm
 with a unit initial state accepts every input `x`, by an outcome in `S`, with probability within
 `ε ≤ 1/2` of the parity of `x`, then `(1 - 2√(ε(1-ε))) N ≤ 2T`. -/
@@ -75,31 +85,29 @@ theorem one_sub_mul_card_le_two_mul_of_parity (U : ℕ → State N W →ₗᵢ[�
     (h : ∀ x, |measureProb (run U ψ₀ x T) S - bitVal ℝ (parity N x)| ≤ ε) (hε : 2 * ε ≤ 1) :
     (1 - 2 * √(ε * (1 - ε))) * N ≤ 2 * T := by
   classical
-  rcases Nat.eq_zero_or_pos N with hN | hN
-  · subst hN
-    simp
+  rcases Nat.eq_zero_or_pos N with rfl | hN
+  · simp
   set A : Finset (BitString N) := {x | parity N x = true}
   set B : Finset (BitString N) := {x | parity N x = false}
-  have hflip (x : BitString N) (i : Fin N) : parity N (update x i (!x i)) = !parity N x :=
-    parity_update_not x i
   have hA : A.Nonempty := by
     cases h0 : parity N (fun _ => false)
-    · have := hflip (fun _ => false) ⟨0, hN⟩
-      rw [h0] at this
-      exact ⟨_, mem_filter.2 ⟨mem_univ _, this⟩⟩
+    · exact ⟨update (fun _ => false) ⟨0, hN⟩ true, mem_filter.2 ⟨mem_univ _,
+        by simpa [h0] using parity_update_not (fun _ => false) ⟨0, hN⟩⟩⟩
     · exact ⟨fun _ => false, mem_filter.2 ⟨mem_univ _, h0⟩⟩
-  have h₁ : ∀ x ∈ A, 1 - ε ≤ measureProb (run U ψ₀ x T) S := by grind [bitVal_true]
-  have h₂ : ∀ y ∈ B, measureProb (run U ψ₀ y T) S ≤ ε := by grind [bitVal_false]
-  have hm : ∀ x ∈ A, N ≤ #{i | update x i (!x i) ∈ B} := by
-    intro x hx
-    have hx' : parity N x = true := (mem_filter.1 hx).2
-    refine le_of_eq ?_
-    rw [filter_true_of_mem fun i _ => by simp [B, hflip, hx'], card_univ, Fintype.card_fin]
-  have hm' : ∀ y ∈ B, N ≤ #{i | update y i (!y i) ∈ A} := by
-    intro y hy
-    have hy' : parity N y = false := (mem_filter.1 hy).2
-    refine le_of_eq ?_
-    rw [filter_true_of_mem fun i _ => by simp [A, hflip, hy'], card_univ, Fintype.card_fin]
+  have h₁ : ∀ x ∈ A, 1 - ε ≤ measureProb (run U ψ₀ x T) S := fun x hx => by
+    have := (abs_le.1 (h x)).1
+    rw [(mem_filter.1 hx).2, bitVal_true] at this
+    linarith
+  have h₂ : ∀ y ∈ B, measureProb (run U ψ₀ y T) S ≤ ε := fun y hy => by
+    have := (abs_le.1 (h y)).2
+    rw [(mem_filter.1 hy).2, bitVal_false] at this
+    linarith
+  have hm : ∀ x ∈ A, N ≤ #{i | update x i (!x i) ∈ B} := fun x hx => by
+    rw [filter_true_of_mem fun i _ => by simp [B, parity_update_not, (mem_filter.1 hx).2],
+      card_univ, Fintype.card_fin]
+  have hm' : ∀ y ∈ B, N ≤ #{i | update y i (!y i) ∈ A} := fun y hy => by
+    rw [filter_true_of_mem fun i _ => by simp [A, parity_update_not, (mem_filter.1 hy).2],
+      card_univ, Fintype.card_fin]
   have := one_sub_two_mul_sqrt_mul_sqrt_le_two_mul_of_neighbors U hψ₀ T S hA h₁ h₂ hε hm hm'
   rwa [Real.sqrt_mul_self (Nat.cast_nonneg N)] at this
 
@@ -109,14 +117,10 @@ parity of `x`, then `N ≤ 36 T`. -/
 theorem card_le_thirty_six_mul_of_parity (U : ℕ → State N W →ₗᵢ[ℂ] State N W)
     {ψ₀ : State N W} (hψ₀ : ‖ψ₀‖ = 1) (T : ℕ) (S : Finset (Fin N × Bool × W))
     (h : ∀ x, |measureProb (run U ψ₀ x T) S - bitVal ℝ (parity N x)| ≤ 1 / 3) :
-    N ≤ 36 * T := by
-  have := one_sub_mul_card_le_two_mul_of_parity U hψ₀ T S h (by norm_num)
-  -- `2√(2/9) ≤ 17/18`, since `8/9 = 288/324 ≤ 289/324`
-  have hsqrt : √((1 / 3 : ℝ) * (1 - 1 / 3)) ≤ 17 / 36 :=
-    (Real.sqrt_le_left (by norm_num)).2 (by norm_num)
-  have hN : (0 : ℝ) ≤ N := Nat.cast_nonneg N
-  have : (N : ℝ) ≤ 36 * T := by nlinarith
-  exact_mod_cast this
+    N ≤ 36 * T :=
+  nat_le_of_one_third_bound
+    (one_sub_mul_card_le_two_mul_of_parity U hψ₀ T S h (by norm_num))
+    (by push_cast; ring)
 
 /-- **Telling weight `k` from weight `k - 1`** [Ambainis2002], §5.3: if a `T`-query algorithm with
 a unit initial state accepts every input of weight `k`, by an outcome in `S`, with probability at
@@ -129,51 +133,41 @@ theorem one_sub_mul_sqrt_le_two_mul_of_weight (U : ℕ → State N W →ₗᵢ[�
     (hε : 2 * ε ≤ 1) :
     (1 - 2 * √(ε * (1 - ε))) * √(k * (N + 1 - k)) ≤ 2 * T := by
   classical
-  rcases Nat.eq_zero_or_pos k with hk0 | hk0
-  · subst hk0
-    simp
+  rcases Nat.eq_zero_or_pos k with rfl | hk0
+  · simp
   rcases le_or_gt k N with hkN | hkN
   swap
-  · have : (k : ℝ) * (N + 1 - k) ≤ 0 := by
-      have : (N : ℝ) + 1 ≤ k := by exact_mod_cast hkN
-      nlinarith
-    rw [Real.sqrt_eq_zero'.2 this, mul_zero]
+  · have hle : (N : ℝ) + 1 ≤ k := by exact_mod_cast hkN
+    have hnonpos : (k : ℝ) * (N + 1 - k) ≤ 0 :=
+      mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg k) (by linarith)
+    rw [Real.sqrt_eq_zero'.2 hnonpos, mul_zero]
     positivity
   set A := weightLayer N k
   set B := weightLayer N (k - 1)
-  have hA : A.Nonempty := weightLayer_nonempty hkN
-  have hm : ∀ x ∈ A, k ≤ #{i | update x i (!x i) ∈ B} := by
-    intro x hx
+  have hm : ∀ x ∈ A, k ≤ #{i | update x i (!x i) ∈ B} := fun x hx => by
     have hx' := mem_weightLayer.1 hx
-    refine le_of_eq ?_
-    rw [← hx']
-    refine congrArg card (filter_congr fun i _ => ?_)
+    refine le_of_eq (hx'.symm.trans (congrArg card (filter_congr fun i _ => ?_)))
     rw [mem_weightLayer]
     cases hi : x i
-    · rw [Bool.not_false, weight_update_true hi]
-      exact ⟨fun h => absurd h Bool.false_ne_true, fun h => by exfalso; omega⟩
-    · rw [Bool.not_true]
-      have := weight_update_false hi
-      exact ⟨fun _ => by omega, fun _ => rfl⟩
-  have hm' : ∀ y ∈ B, N - (k - 1) ≤ #{i | update y i (!y i) ∈ A} := by
-    intro y hy
+    · have := weight_update_true hi
+      simp only [Bool.not_false, Bool.false_eq_true, false_iff]; omega
+    · have := weight_update_false hi
+      simp only [Bool.not_true, eq_self, true_iff]; omega
+  have hm' : ∀ y ∈ B, N - (k - 1) ≤ #{i | update y i (!y i) ∈ A} := fun y hy => by
     have hy' := mem_weightLayer.1 hy
     have hc := card_filter_eq_false_eq_card_sub_weight y
     rw [Fintype.card_fin, hy'] at hc
-    rw [← hc]
-    refine le_of_eq (congrArg card (filter_congr fun i _ => ?_))
+    refine le_of_eq (hc.symm.trans (congrArg card (filter_congr fun i _ => ?_)))
     rw [mem_weightLayer]
     cases hi : y i
-    · rw [Bool.not_false, weight_update_true hi]
-      exact ⟨fun _ => by omega, fun _ => rfl⟩
-    · rw [Bool.not_true]
-      have := weight_update_false hi
-      exact ⟨fun h => absurd h.symm Bool.false_ne_true, fun h => by exfalso; omega⟩
-  have h₁' : ∀ x ∈ A, 1 - ε ≤ measureProb (run U ψ₀ x T) S :=
-    fun x hx => h₁ x (mem_weightLayer.1 hx)
-  have h₂' : ∀ y ∈ B, measureProb (run U ψ₀ y T) S ≤ ε := fun y hy =>
-    h₂ y (by have := mem_weightLayer.1 hy; omega)
-  have := one_sub_two_mul_sqrt_mul_sqrt_le_two_mul_of_neighbors U hψ₀ T S hA h₁' h₂' hε hm hm'
+    · have := weight_update_true hi
+      simp only [Bool.not_false, eq_self, true_iff]; omega
+    · have := weight_update_false hi
+      simp only [Bool.not_true, Bool.true_eq_false, false_iff]; omega
+  have := one_sub_two_mul_sqrt_mul_sqrt_le_two_mul_of_neighbors U hψ₀ T S
+    (weightLayer_nonempty hkN)
+    (fun x hx => h₁ x (mem_weightLayer.1 hx))
+    (fun y hy => h₂ y (by have := mem_weightLayer.1 hy; omega)) hε hm hm'
   have hcast : ((N - (k - 1) : ℕ) : ℝ) = N + 1 - k := by
     rw [Nat.cast_sub (by omega), Nat.cast_sub hk0]
     ring
@@ -207,16 +201,18 @@ theorem one_sub_mul_card_le_four_mul_of_majority (U : ℕ → State N W →ₗ�
   -- `N / 2 ≤ √(k (N + 1 - k))` for `k = ⌈N / 2⌉`
   have hsq : (N : ℝ) / 2 ≤ √(((N + 1) / 2 : ℕ) * (N + 1 - ((N + 1) / 2 : ℕ))) := by
     refine Real.le_sqrt_of_sq_le ?_
-    rcases Nat.even_or_odd N with ⟨a, ha⟩ | ⟨a, ha⟩
-    · have hk : (N + 1) / 2 = a := by omega
-      rw [hk, ha]
-      push_cast
-      nlinarith
-    · have hk : (N + 1) / 2 = a + 1 := by omega
-      rw [hk, ha]
-      push_cast
-      nlinarith
-  nlinarith [mul_le_mul_of_nonneg_left hsq hc]
+    set k := (N + 1) / 2
+    have hN : (0 : ℝ) ≤ N := Nat.cast_nonneg N
+    rcases (by omega : 2 * k = N ∨ 2 * k = N + 1) with h | h
+    · have hk : (2 * k : ℝ) = N := by exact_mod_cast h
+      have : (k : ℝ) * (N + 1 - k) - (N / 2) ^ 2 = N / 2 := by
+        rw [show (k : ℝ) = N / 2 by linarith]; ring
+      linarith
+    · have hk : (2 * k : ℝ) = N + 1 := by exact_mod_cast h
+      have : (k : ℝ) * (N + 1 - k) - (N / 2) ^ 2 = (2 * N + 1) / 4 := by
+        rw [show (k : ℝ) = (N + 1) / 2 by linarith]; ring
+      linarith
+  linarith [mul_le_mul_of_nonneg_left hsq hc]
 
 /-- **Bounded-error majority takes `N / 72` queries**: if a `T`-query algorithm with a unit
 initial state accepts every input `x`, by an outcome in `S`, with probability within `1/3` of the
@@ -224,12 +220,9 @@ majority of `x`, then `N ≤ 72 T`. -/
 theorem card_le_seventy_two_mul_of_majority (U : ℕ → State N W →ₗᵢ[ℂ] State N W)
     {ψ₀ : State N W} (hψ₀ : ‖ψ₀‖ = 1) (T : ℕ) (S : Finset (Fin N × Bool × W))
     (h : ∀ x, |measureProb (run U ψ₀ x T) S - bitVal ℝ (majority N x)| ≤ 1 / 3) :
-    N ≤ 72 * T := by
-  have := one_sub_mul_card_le_four_mul_of_majority U hψ₀ T S h (by norm_num)
-  have hsqrt : √((1 / 3 : ℝ) * (1 - 1 / 3)) ≤ 17 / 36 :=
-    (Real.sqrt_le_left (by norm_num)).2 (by norm_num)
-  have hN : (0 : ℝ) ≤ N := Nat.cast_nonneg N
-  have : (N : ℝ) ≤ 72 * T := by nlinarith
-  exact_mod_cast this
+    N ≤ 72 * T :=
+  nat_le_of_one_third_bound
+    (one_sub_mul_card_le_four_mul_of_majority U hψ₀ T S h (by norm_num))
+    (by push_cast; ring)
 
 end Cslib.Quantum

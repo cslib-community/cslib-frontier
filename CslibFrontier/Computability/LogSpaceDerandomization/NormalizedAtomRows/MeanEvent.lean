@@ -67,7 +67,7 @@ theorem source_mixed_pair (s t : Fin J) (hst : t ≠ s) (Ls Lt : ℕ)
   have hjR := congrArg (fun q : ℚ≥0 => (q : ℝ)) hj
   simp only [NNRat.cast_mul] at hiR hjR
   rw [hiR, hjR]
-  nlinarith
+  exact hh.trans_eq (by ring)
 
 variable (HP : FourthRootHierarchyParams 16 1 16 32 8)
 open Classical in
@@ -206,28 +206,23 @@ lemma actual_rarity_card (s t : Fin J) (hst : t ≠ s) (Ls Lt : ℕ)
   let T : Finset (Environment P J) := {σ | frameRetains P 4 Ls (σ s)
     (CopyPadding.identifier D sourceSuffix x) ∧ frameRetains P 4 Lt (σ t)
       (CopyPadding.identifier D suffix y)}
+  let E : Environment P J → Prop := heavyCountEvent (fun τ w => frameRetains P 4 (side P k) (τ t)
+    (CopyPadding.identifier D suffix w)) univ (fun w => G x w / rate k) floor n
   have h := actual_conditional_rarity s t hst Ls Lt
     (CopyPadding.identifier D sourceSuffix x) D hD suffix H hk hLt G hG hmass hf hn x y
   dsimp only at h
+  have hfilt : ({σ : Environment P J | frameRetains P 4 Ls (σ s)
+      (CopyPadding.identifier D sourceSuffix x) ∧ frameRetains P 4 Lt (σ t)
+      (CopyPadding.identifier D suffix y) ∧ E σ} : Finset _) = {σ ∈ T | E σ} := by
+    simp only [T, filter_filter, and_assoc]
+  change (#{σ : Environment P J | frameRetains P 4 Ls (σ s)
+      (CopyPadding.identifier D sourceSuffix x) ∧ frameRetains P 4 Lt (σ t)
+      (CopyPadding.identifier D suffix y) ∧ E σ} : ℝ) ≤ ((2 + 256 * M / floor) / (n : ℝ)) * #T
+  rw [hfilt]
   rcases T.eq_empty_or_nonempty with hT | hT
-  · have hz : #{σ : Environment P J | frameRetains P 4 Ls (σ s) (CopyPadding.identifier D
-    sourceSuffix x) ∧
-        frameRetains P 4 Lt (σ t) (CopyPadding.identifier D suffix y)} = 0 := by
-      change #T = 0
-      rw [hT]; rfl
-    have hsub : ({σ | frameRetains P 4 Ls (σ s) (CopyPadding.identifier D sourceSuffix x) ∧
-      frameRetains P 4 Lt (σ t) (CopyPadding.identifier D suffix y) ∧
-      heavyCountEvent (fun τ w => frameRetains P 4 (side P k) (τ t)
-        (CopyPadding.identifier D suffix w)) univ (fun w => G x w / rate k) floor n σ} : Finset _)
-          ⊆ T :=
-      fun σ hσ => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hσ).2.1, (mem_filter.mp hσ).2.2.1⟩
-    have hzero := card_le_card hsub
-    rw [hT] at hzero
-    simp only [card_empty, Nat.le_zero] at hzero
-    rw [hzero, hz, Nat.cast_zero, mul_zero]
+  · simp [hT]
   · have ht : (0 : ℝ) < #T := by exact_mod_cast hT.card_pos
-    have hh := (div_le_iff₀ ht).mp h
-    simpa only [T, filter_filter, and_assoc, show (8 : ℝ) * 32 = 256 by norm_num] using hh
+    simpa only [show (8 : ℝ) * 32 = 256 by norm_num] using (div_le_iff₀ ht).mp h
 
 open Classical in
 /-- Actual mixed-rate H4 rarity contracts any deterministic endpoint mean discrepancy.

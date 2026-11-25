@@ -130,47 +130,37 @@ instance fintypeK' : Fintype K' :=
 /-- The binary stack encoding of a positive number starts with its lowest digit. -/
 private theorem trNat_eq (n : ℕ) :
     trNat n = if n = 0 then [] else (if n.bodd then Γ'.bit1 else Γ'.bit0) :: trNat n.div2 := by
-  split_ifs with hn hb
-  · rw [hn, trNat_zero]
-  · have key : trNat n = trNum (Num.bit1 (Num.ofNat' n.div2)) := by
-      conv_lhs => rw [← Nat.bit_bodd_div2 n, hb]
+  by_cases hn : n = 0
+  · simp [hn]
+  · rw [ite_eq_right hn]
+    have hnum : trNat n = trNum (Num.bit n.bodd (Num.ofNat' n.div2)) := by
+      conv_lhs => rw [← Nat.bit_bodd_div2 n]
       rw [trNat, ← Num.ofNat'_eq, Num.ofNat'_bit]
-      rfl
-    rw [key, trNat, ← Num.ofNat'_eq]
-    cases Num.ofNat' n.div2 <;> rfl
-  · have hb' : n.bodd = false := by simpa using hb
-    have hd : n.div2 ≠ 0 := by
-      intro hd
-      apply hn
-      rw [← Nat.bit_bodd_div2 n, hb', hd]
-      rfl
-    have key : trNat n = trNum (Num.bit0 (Num.ofNat' n.div2)) := by
-      conv_lhs => rw [← Nat.bit_bodd_div2 n, hb']
-      rw [trNat, ← Num.ofNat'_eq, Num.ofNat'_bit]
-      rfl
-    rw [key, trNat, ← Num.ofNat'_eq]
-    rcases h : Num.ofNat' n.div2 with _ | p
-    · exact absurd (by rw [← Num.to_of_nat n.div2, ← Num.ofNat'_eq, h]; rfl) hd
-    · rfl
+      cases n.bodd <;> rfl
+    rw [hnum, trNat, ← Num.ofNat'_eq]
+    cases hb : n.bodd
+    · rcases h : Num.ofNat' n.div2 with _ | p
+      · have hd : n.div2 = 0 := by rw [← Num.to_of_nat n.div2, ← Num.ofNat'_eq, h]; rfl
+        exact absurd (by rw [← Nat.bit_bodd_div2 n, hb, hd]; rfl) hn
+      · rfl
+    · cases Num.ofNat' n.div2 <;> rfl
 
 /-- The stack encoding of a number lists its binary digits (`Nat.bits`), least significant first,
 as `bit0` and `bit1`. -/
 theorem trNat_eq_map_bits (n : ℕ) :
     trNat n = n.bits.map fun b => if b then Γ'.bit1 else Γ'.bit0 := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    by_cases hn : n = 0
-    · simp [hn]
-    · have hlt : n.div2 < n := by rw [Nat.div2_val]; omega
-      have hbits : n.bits = n.bodd :: n.div2.bits := by
-        conv_lhs => rw [← Nat.bit_bodd_div2 n]
-        refine Nat.bits_append_bit _ _ fun hd => ?_
-        by_contra hb
-        apply hn
-        rw [← Nat.bit_bodd_div2 n, hd, Bool.eq_false_iff.2 hb]
-        rfl
-      rw [trNat_eq, hbits, List.map_cons, ← ih _ hlt]
-      simp [hn]
+  induction n using Nat.binaryRec with
+  | zero => simp
+  | bit b n ih =>
+    by_cases h0 : b = false ∧ n = 0
+    · rcases h0 with ⟨rfl, rfl⟩
+      simp
+    · have hne : Nat.bit b n ≠ 0 := by
+        cases b <;> simp only [Nat.bit, Bool.cond_false, Bool.cond_true]
+        · intro h; exact h0 ⟨rfl, by omega⟩
+        · omega
+      rw [trNat_eq, ite_eq_right hne, Nat.bodd_bit, Nat.div2_bit,
+        Nat.bits_append_bit n b (by cases b <;> simp_all), List.map_cons, ih]
 
 /-- The stack alphabet of `PartrecToTM2` is primcodable through an enumeration. -/
 noncomputable instance primcodableΓ' : Primcodable Γ' :=
@@ -193,15 +183,13 @@ theorem primrec_trNat : Primrec trNat := by
     (Primrec.option_some.comp (Primrec.option_getD.comp (Primrec.option_map hget hcons)
       (Primrec.const ([] : List Γ')))).to₂
   have := Primrec.nat_strong_rec (fun (_ : Unit) n => trNat n) hg fun _ n => by
-    change some ((((List.range n).map trNat)[(((List.range n).map trNat).length).div2]?).map
-      (fun t => (if (((List.range n).map trNat).length).bodd then Γ'.bit1 else Γ'.bit0) :: t)
-        |>.getD []) = some (trNat n)
-    rw [List.length_map, List.length_range]
+    rw [show (List.range n).map (fun m => trNat m) = (List.range n).map trNat from rfl,
+      List.length_map, List.length_range]
     rcases Nat.eq_zero_or_pos n with rfl | hn
     · rfl
     · have hlt : n.div2 < n := by rw [Nat.div2_val]; omega
       rw [List.getElem?_map, List.getElem?_range hlt, Option.map_some, Option.map_some,
-        Option.getD_some, trNat_eq n, ite_eq_right (Nat.pos_iff_ne_zero.mp hn)]
+        Option.getD_some, trNat_eq n, ite_eq_right hn.ne']
   exact (this.comp (Primrec.const ()) Primrec.id).of_eq fun _ => rfl
 
 /-- The binary digits of a number are primitive recursive. -/
