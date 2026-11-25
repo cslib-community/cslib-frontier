@@ -201,8 +201,7 @@ private theorem lifted_preserve {r L : ℕ}
           liftedInvariant invariant L (n + 1) p' ∧ p'.2 ≠ [] := by
   intro n hn p hp _ oracle st st' p' hp'
   simp only [liftedStep, ProbOracleComp.runWith_map, PMF.mem_support_map_iff] at hp'
-  obtain ⟨⟨w', st''⟩, hw', heq⟩ := hp'
-  rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
+  obtain ⟨⟨w', st''⟩, hw', ⟨⟩⟩ := hp'
   obtain ⟨hinv, hne⟩ := hpreserve n hn p.2 hp.1 _ oracle st st'' w' hw'
   exact ⟨⟨hinv, hlength n hn.le p.2 hp.1⟩, hne⟩
 
@@ -246,8 +245,8 @@ private theorem runsWords_liftedRound {tm : MultiTapePTM k Bool State Operation}
       (w', s') ∈ (ProbOracleComp.runWith oracle program s).support → w'.length ≤ L)
     (hp : p.1.length ≤ L) (hv : p.2.length ≤ L) (out : List Bool) :
     (tm.iterateWhileRound mark).RunsWords x (words p.1 p.2) out (t + 10 * L + 22)
-      ((fun v' => (p.2, v')) <$> program) (fun q => words q.1 q.2) (fun _ => []) := by
-  exact ((RunsWords.iterateWhileRound (x := x) mark (vp := p.1) h hl out).of_map
+      ((fun v' => (p.2, v')) <$> program) (fun q => words q.1 q.2) (fun _ => []) :=
+  ((RunsWords.iterateWhileRound (x := x) mark (vp := p.1) h hl out).of_map
     (fun v' => (p.2, v')) (fun q => words q.1 q.2) (fun _ => [])).mono (by omega)
 
 private theorem runsWords_liftedLast {tm : MultiTapePTM k Bool State Operation} (mark : Bool)
@@ -256,11 +255,10 @@ private theorem runsWords_liftedLast {tm : MultiTapePTM k Bool State Operation} 
     (hp : p.1.length ≤ L) (hv : p.2.length ≤ L) (out : List Bool) :
     (tm.iterateWhileRound mark).RunsWords x (words p.1 p.2) out (t + 10 * L + 22)
       (liftedLast p) (fun q => words q.1 q.2) (fun _ => []) := by
-  have hround := runsWords_liftedRound (x := x) mark h
+  simpa only [map_pure, liftedLast] using runsWords_liftedRound (x := x) mark h
     (fun _ _ _ w' _ hw' => by
       simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hw'
       simp [hw'.1]) hp hv out
-  simpa only [map_pure, liftedLast] using hround
 
 omit [DecidableEq Operation] in
 private theorem liftedLast_stops (p : List Bool × List Bool)
@@ -381,9 +379,7 @@ public theorem RunsInSpace.iterateWhile {tm : MultiTapePTM k Bool State Empty} (
         (transformsTapes_finish (k := k) mark p.1)
         (hP := congrArg (words p.1) hnil) (hQ := fun _ _ h => h)
         (ws' := fun _ => []) (emitted := p.1)).mono (time' := 5 * L + 11) (by omega))
-  exact hbound.mono (by
-    have : max (3 * L + 6) (max (t + 10 * L + 22) (5 * L + 11)) = t + 10 * L + 22 := by omega
-    rw [this])
+  exact hbound.mono (Nat.mul_le_mul_left _ (by omega))
 
 open scoped ENNReal in
 open IterateWhile RepeatUntilBlank in
@@ -463,8 +459,7 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
             · have hne := (hlength v' (hsupport v hv v' hv')).1
               rw [List.nil_append, eval_runClosedConfigFrom_check_ne_nil _ _ (by rwa [words_next])]
               by_cases ha : v' ∈ answer
-              · have h0 := add_assoc R 1 (n * (R + 1) + j) ▸ hstop v v' hvL ha (n * (R + 1) + j)
-                rw [h0, mul_zero]
+              · rw [add_assoc R 1, hstop v v' hvL ha, mul_zero]
                 exact zero_le
               · have hr : v' ∈ retry := (hsupport v hv v' hv').resolve_right ha
                 rw [Set.indicator_of_mem hr]
@@ -537,7 +532,7 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
       · exact mul_le_of_le_one_right' (PMF.toOuterMeasure_le_one _ _)
       · rw [mul_one]
   refine (tsum_le_add_of_shift _ (fun _ => PMF.toOuterMeasure_le_one _ _) hshift).trans ?_
-  rw [show 3 * L + 6 + (5 * L + 11) = 8 * L + 17 by omega]
-  exact add_le_add le_rfl hU
+  have h8 : 3 * L + 6 + (5 * L + 11) = 8 * L + 17 := by omega
+  exact h8 ▸ add_le_add le_rfl hU
 
 end Turing.MultiTapePTM
