@@ -48,21 +48,15 @@ theorem vadd_cancel_left (u v : Fin m → F2) : u + (u + v) = v := by
 
 theorem mem_span_singleton_F2 {u v : Fin m → F2} : v ∈ span F2 {u} ↔ v = 0 ∨ v = u := by
   rw [mem_span_singleton]
-  constructor
-  · rintro ⟨a, rfl⟩
-    have h : a = 0 ∨ a = 1 := by
-      revert a
-      decide
-    rcases h with rfl | rfl
-    · exact Or.inl (zero_smul _ _)
-    · exact Or.inr (one_smul _ _)
+  refine ⟨fun ⟨a, ha⟩ => ?_, ?_⟩
+  · rcases (by decide : ∀ a : F2, a = 0 ∨ a = 1) a with rfl | rfl <;> simp [← ha]
   · rintro (rfl | rfl)
     · exact ⟨0, zero_smul _ _⟩
     · exact ⟨1, one_smul _ _⟩
 
 theorem mem_sup_span_F2 {u v : Fin m → F2} : v ∈ A ⊔ span F2 {u} ↔ v ∈ A ∨ v + u ∈ A := by
   rw [Submodule.mem_sup]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨y, hy, z, hz, rfl⟩
     rcases mem_span_singleton_F2.1 hz with rfl | rfl
     · exact Or.inl (by rwa [add_zero])
@@ -78,8 +72,7 @@ def Indep2 (A : Submodule F2 (Fin m → F2)) (u₁ u₂ : Fin m → F2) : Prop :
     u₂ ∉ A
 
 theorem indep2_iff {u₁ u₂ : Fin m → F2} : Indep2 A u₁ u₂ ↔ u₁ ∉ A ∧ u₂ ∉ A ⊔ span F2 {u₁} := by
-  rw [mem_sup_span_F2, not_or, add_comm u₂ u₁]
-  rfl
+  simp only [Indep2, mem_sup_span_F2, not_or, add_comm u₂ u₁]
 
 theorem Indep2.symm {u₁ u₂ : Fin m → F2} (h : Indep2 A u₁ u₂) : Indep2 A u₂ u₁ :=
   ⟨h.2.1, h.1, by rw [add_comm]; exact h.2.2⟩
@@ -91,23 +84,18 @@ theorem Indep2.add_left {u₁ u₂ : Fin m → F2} (h : Indep2 A u₁ u₂) : In
   ⟨h.2.2, h.2.1, by rw [add_assoc, vadd_self, add_zero]; exact h.1⟩
 
 theorem exists_notMem (hA : Module.finrank F2 A < m) : ∃ u, u ∉ A := by
-  by_contra h
-  push Not at h
-  have : A = ⊤ := eq_top_iff.2 fun u _ => h u
-  rw [this, finrank_top, Module.finrank_fin_fun] at hA
+  by_contra! h
+  rw [show A = ⊤ from eq_top_iff.2 fun u _ => h u, finrank_top, Module.finrank_fin_fun] at hA
   exact lt_irrefl _ hA
 
 /-- Outside a subspace of codimension at least 2, every vector has a second one that is independent
 of it. -/
 theorem exists_indep2 (hA : Module.finrank F2 A + 2 ≤ m) {u : Fin m → F2} (hu : u ∉ A) : ∃ v,
     Indep2 A u v := by
-  have h1 : Module.finrank F2 (A ⊔ span F2 {u} : Submodule F2 (Fin m → F2)) < m := by
-    have h2 := Submodule.finrank_add_le_finrank_add_finrank A (span F2 {u})
-    have h3 : Module.finrank F2 (span F2 {u}) ≤ 1 := by
-      have := finrank_span_le_card (R := F2) ({u} : Set (Fin m → F2))
-      simpa using this
-    omega
-  obtain ⟨v, hv⟩ := exists_notMem h1
+  have h2 := Submodule.finrank_add_le_finrank_add_finrank A (span F2 {u})
+  have h3 : Module.finrank F2 (span F2 {u}) ≤ 1 := by
+    simpa using finrank_span_le_card (R := F2) ({u} : Set (Fin m → F2))
+  obtain ⟨v, hv⟩ := exists_notMem (A := A ⊔ span F2 {u}) (by omega)
   exact ⟨v, indep2_iff.2 ⟨hu, hv⟩⟩
 
 /-- "Such moves connect all vectors outside" a subspace R of codimension at least 2: a function
@@ -120,53 +108,36 @@ theorem connect {R : Submodule F2 (Fin m → F2)} (hR : Module.finrank F2 R + 2 
   by_cases h : x + x' ∈ R
   · obtain ⟨z, hz⟩ := exists_indep2 hR hx
     have h1 : z + (x + x') ∉ R := fun h2 => hz.2.1 (by simpa using R.sub_mem h2 h)
-    have e : x + z + (z + (x + x')) = x' := by
-      rw [add_assoc, vadd_cancel_left, vadd_cancel_left]
-    have h2 := hg (x + z) (z + (x + x')) ⟨hz.2.2, h1, by rwa [e]⟩
-    rw [e] at h2
-    rw [h2, hg x z hz]
-  · have h2 := hg x (x + x') ⟨hx, h, by rwa [vadd_cancel_left]⟩
-    rw [vadd_cancel_left] at h2
-    exact h2.symm
+    have e : x + z + (z + (x + x')) = x' := by rw [add_assoc, vadd_cancel_left, vadd_cancel_left]
+    simpa only [e, hg x z hz] using (hg (x + z) (z + (x + x')) ⟨hz.2.2, h1, by rwa [e]⟩).symm
+  · simpa only [vadd_cancel_left] using (hg x (x + x') ⟨hx, h, by rwa [vadd_cancel_left]⟩).symm
 
 /-! ### Matrices u xᵀ -/
 
 theorem vec_ne_zero {u x : Fin m → F2} : vecMulVec u x ≠ 0 ↔ u ≠ 0 ∧ x ≠ 0 := by
-  constructor
-  · intro h
-    refine ⟨?_, ?_⟩ <;> rintro rfl <;> simp at h
-  · rintro ⟨hu, hx⟩ h
-    obtain ⟨i, hi⟩ := Function.ne_iff.1 hu
-    obtain ⟨j, hj⟩ := Function.ne_iff.1 hx
-    have := congrFun (congrFun h i) j
-    rw [vecMulVec_apply] at this
-    exact (mul_ne_zero hi hj) this
+  refine ⟨fun h => ⟨by rintro rfl; simp at h, by rintro rfl; simp at h⟩, fun ⟨hu, hx⟩ h => ?_⟩
+  obtain ⟨i, hi⟩ := Function.ne_iff.1 hu
+  obtain ⟨j, hj⟩ := Function.ne_iff.1 hx
+  exact mul_ne_zero hi hj (by simpa [vecMulVec_apply] using congrFun (congrFun h i) j)
 
 theorem colSpace_vec (u : Fin m → F2) {x : Fin m → F2} (hx : x ≠ 0) : colSpace (vecMulVec u x) =
     span F2 {u} := by
-  have hc : ∀ j, (vecMulVec u x).col j = x j • u := fun j => by
-    funext i
-    simp [Matrix.col, vecMulVec_apply, mul_comm]
+  have hc : ∀ j, (vecMulVec u x).col j = x j • u := fun j =>
+    funext fun i => by simp [Matrix.col, vecMulVec_apply, mul_comm]
   refine le_antisymm (span_le.2 ?_) (span_le.2 ?_)
   · rintro _ ⟨j, rfl⟩
-    rw [hc]
-    exact smul_mem _ _ (mem_span_singleton_self u)
+    exact hc j ▸ smul_mem _ _ (mem_span_singleton_self u)
   · rintro _ rfl
     obtain ⟨j, hj⟩ := Function.ne_iff.1 hx
-    have h1 : x j = 1 := by
-      have : ∀ a : F2, a ≠ 0 → a = 1 := by decide
-      exact this _ hj
-    refine subset_span ⟨j, ?_⟩
-    rw [hc, h1, one_smul]
+    have h1 : x j = 1 := (by decide : ∀ a : F2, a ≠ 0 → a = 1) _ hj
+    exact subset_span ⟨j, by rw [hc, h1, one_smul]⟩
 
 theorem rowSpace_vec {u : Fin m → F2} (hu : u ≠ 0) (x : Fin m → F2) : rowSpace (vecMulVec u x) =
     span F2 {x} := by
   rw [rowSpace_eq, transpose_vecMulVec, colSpace_vec x hu]
 
 theorem colSpace_zero : colSpace (0 : Mt m) = ⊥ := by
-  refine (span_eq_bot).2 ?_
-  rintro _ ⟨j, rfl⟩
-  rfl
+  exact span_eq_bot.2 fun _ ⟨_, h⟩ => h.symm
 
 theorem rowSpace_zero : rowSpace (0 : Mt m) = ⊥ := by
   rw [rowSpace_eq, transpose_zero, colSpace_zero]
@@ -184,13 +155,10 @@ theorem rank_vec {u x : Fin m → F2} (hu : u ≠ 0) (hx : x ≠ 0) : (vecMulVec
 
 theorem disjoint_span_F2 {u : Fin m → F2} (hu : u ≠ 0) : Disjoint A (span F2 {u}) ↔ u ∉ A := by
   rw [disjoint_def]
-  constructor
-  · intro h hA
-    exact hu (h u hA (mem_span_singleton_self u))
-  · intro h v hv hv'
-    rcases mem_span_singleton_F2.1 hv' with rfl | rfl
-    · rfl
-    · exact absurd hv h
+  refine ⟨fun h hA => hu (h u hA (mem_span_singleton_self u)), fun h v hv hv' => ?_⟩
+  rcases mem_span_singleton_F2.1 hv' with rfl | rfl
+  · rfl
+  · exact absurd hv h
 
 theorem iSupIndep_of_indep2 {u₁ u₂ : Fin m → F2} (h : Indep2 A u₁ u₂) :
     iSupIndep ![A, span F2 {u₁}, span F2 {u₂}] := by
@@ -198,66 +166,44 @@ theorem iSupIndep_of_indep2 {u₁ u₂ : Fin m → F2} (h : Indep2 A u₁ u₂) 
   simp only [Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
     Matrix.vecHead, Matrix.vecTail, Function.comp_apply, Fin.succ_zero_eq_one]
   rw [sup_comm (span F2 {u₂})]
-  refine ⟨disjoint_def.2 fun v hv hv' => ?_, disjoint_def.2 fun v hv hv' => ?_,
-      disjoint_def.2 fun v hv hv' => ?_⟩
-  · rcases mem_sup_span_F2.1 hv' with h1 | h1 <;> rcases mem_span_singleton_F2.1 h1 with h2 | h2
-    · exact h2
-    · exact absurd (h2 ▸ hv) h.1
-    · have : v = u₂ := by rw [← vadd_cancel_left u₂ v, add_comm u₂ v, h2, add_zero]
-      exact absurd (this ▸ hv) h.2.1
-    · have : v = u₁ + u₂ := by rw [← h2, add_assoc, vadd_self, add_zero]
-      exact absurd (this ▸ hv) h.2.2
-  · rcases mem_span_singleton_F2.1 hv with rfl | rfl
-    · rfl
-    · rcases mem_sup_span_F2.1 hv' with h1 | h1
-      · exact absurd h1 h.1
-      · exact absurd h1 h.2.2
-  · rcases mem_span_singleton_F2.1 hv with rfl | rfl
-    · rfl
-    · rcases mem_sup_span_F2.1 hv' with h1 | h1
-      · exact absurd h1 h.2.1
-      · exact absurd (by rwa [add_comm] at h1) h.2.2
+  refine ⟨disjoint_def.2 fun v hv hv' => ?_,
+    disjoint_comm.2 ((disjoint_span_F2 fun e : u₁ = 0 => h.1 (e ▸ A.zero_mem)).2
+      (indep2_iff.1 h.symm).2),
+    disjoint_comm.2 ((disjoint_span_F2 fun e : u₂ = 0 => h.2.1 (e ▸ A.zero_mem)).2
+      (indep2_iff.1 h).2)⟩
+  rcases mem_sup_span_F2.1 hv' with h1 | h1 <;> rcases mem_span_singleton_F2.1 h1 with h2 | h2
+  · exact h2
+  · exact absurd (h2 ▸ hv) h.1
+  · exact absurd (by rwa [← vadd_cancel_left u₂ v, add_comm u₂ v, h2, add_zero] at hv) h.2.1
+  · exact absurd (by rwa [← h2, add_assoc, vadd_self, add_zero]) h.2.2
 
 theorem indep2_of_iSupIndep {u₁ u₂ : Fin m → F2} (h1 : u₁ ≠ 0) (h2 : u₂ ≠ 0)
     (h : iSupIndep ![A, span F2 {u₁}, span F2 {u₂}]) : Indep2 A u₁ u₂ := by
-  obtain ⟨d0, d1, -⟩ := iSupIndep_fin_three.1 h
+  obtain ⟨d0, -, d2⟩ := iSupIndep_fin_three.1 h
   simp only [Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
-    Matrix.vecHead, Matrix.vecTail, Function.comp_apply, Fin.succ_zero_eq_one] at d0 d1
-  rw [sup_comm (span F2 {u₂})] at d1
-  rw [disjoint_def] at d0 d1
-  have m1 : u₁ ∈ span F2 {u₁} := mem_span_singleton_self u₁
-  have m2 : u₂ ∈ span F2 {u₂} := mem_span_singleton_self u₂
-  refine ⟨fun hA => h1 (d0 _ hA (mem_sup_left m1)), fun hA => h2 (d0 _ hA (mem_sup_right m2)),
-      fun hA => ?_⟩
-  have e := d0 _ hA (add_mem (mem_sup_left m1) (mem_sup_right m2))
-  have e' : u₁ = u₂ := by rw [← vadd_cancel_left u₁ u₂, e, add_zero]
-  exact h1 (d1 _ m1 (mem_sup_right (e' ▸ m2)))
+    Matrix.vecHead, Matrix.vecTail, Function.comp_apply, Fin.succ_zero_eq_one] at d0 d2
+  exact indep2_iff.2 ⟨(disjoint_span_F2 h1).1 (d0.mono_right le_sup_left),
+    (disjoint_span_F2 h2).1 d2.symm⟩
 
 /-! ### Transversal matrices of rank one -/
 
 theorem transversal_two {W V : Mt m} :
     Transversal ![W, V] ↔ Disjoint (colSpace W) (colSpace V) ∧ Disjoint (rowSpace W)
         (rowSpace V) := by
-  have e1 : (fun k => colSpace (![W, V] k)) = ![colSpace W, colSpace V] := by
-    funext k
-    fin_cases k <;> rfl
-  have e2 : (fun k => rowSpace (![W, V] k)) = ![rowSpace W, rowSpace V] := by
-    funext k
-    fin_cases k <;> rfl
-  rw [Transversal, e1, e2, iSupIndep_pair (i := 0) (j := 1) (by decide) (by decide),
+  have e (f : Mt m → Submodule F2 (Fin m → F2)) : (fun k => f (![W, V] k)) = ![f W, f V] :=
+    funext fun k => by fin_cases k <;> rfl
+  rw [Transversal, e colSpace, e rowSpace,
+    iSupIndep_pair (i := 0) (j := 1) (by decide) (by decide),
     iSupIndep_pair (i := 0) (j := 1) (by decide) (by decide)]
   rfl
 
 theorem transversal_three {W V V' : Mt m} : Transversal ![W, V, V'] ↔
     iSupIndep ![colSpace W, colSpace V, colSpace V'] ∧
         iSupIndep ![rowSpace W, rowSpace V, rowSpace V'] := by
-  have e1 : (fun k => colSpace (![W, V, V'] k)) = ![colSpace W, colSpace V, colSpace V'] := by
-    funext k
-    fin_cases k <;> rfl
-  have e2 : (fun k => rowSpace (![W, V, V'] k)) = ![rowSpace W, rowSpace V, rowSpace V'] := by
-    funext k
-    fin_cases k <;> rfl
-  rw [Transversal, e1, e2]
+  have e (f : Mt m → Submodule F2 (Fin m → F2)) :
+      (fun k => f (![W, V, V'] k)) = ![f W, f V, f V'] :=
+    funext fun k => by fin_cases k <;> rfl
+  rw [Transversal, e colSpace, e rowSpace]
 
 /-- W and u xᵀ ≠ 0 are transversal if and only if u is outside the column space and x outside the
 row space of W. -/

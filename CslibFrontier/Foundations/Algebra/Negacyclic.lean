@@ -184,30 +184,23 @@ theorem negacyclicMul_smul {n : ℕ} {R : Type*} [CommRing R] (r : R) (a b : Fin
 theorem sum_negacyclicMul {n : ℕ} {R : Type*} [Ring R] {ι : Type*} (s : Finset ι)
     (f : ι → Fin n → R) (b : Fin n → R) :
     negacyclicMul (∑ i ∈ s, f i) b = ∑ i ∈ s, negacyclicMul (f i) b := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp
-  | insert i s hi ih =>
-    rw [Finset.sum_insert hi, add_negacyclicMul, ih, Finset.sum_insert hi]
+  exact map_sum (⟨⟨fun a => negacyclicMul a b, zero_negacyclicMul b⟩,
+    fun x y => add_negacyclicMul x y b⟩ : (Fin n → R) →+ (Fin n → R)) f s
 
 /-- Negacyclic multiplication distributes over finite sums on the right. -/
 theorem negacyclicMul_sum {n : ℕ} {R : Type*} [Ring R] {ι : Type*} (s : Finset ι)
     (a : Fin n → R) (f : ι → Fin n → R) :
     negacyclicMul a (∑ i ∈ s, f i) = ∑ i ∈ s, negacyclicMul a (f i) := by
-  classical
-  induction s using Finset.induction_on with
-  | empty => simp
-  | insert i s hi ih =>
-    rw [Finset.sum_insert hi, negacyclicMul_add, ih, Finset.sum_insert hi]
+  exact map_sum (⟨⟨negacyclicMul a, negacyclicMul_zero a⟩,
+    negacyclicMul_add a⟩ : (Fin n → R) →+ (Fin n → R)) f s
 
 /-- Negacyclic multiplication commutes with ring homomorphisms applied to coefficients. -/
 theorem map_negacyclicMul {n : ℕ} {R S : Type*} [Ring R] [Ring S] (f : R →+* S)
     (a b : Fin n → R) :
     f ∘ negacyclicMul a b = negacyclicMul (f ∘ a) (f ∘ b) := by
   funext i
-  have h := RingHom.map_mulVec f (rotMatrix a) b i
-  rw [map_rotMatrix] at h
-  exact h
+  simpa only [Function.comp_apply, map_rotMatrix, rotMatrix_mulVec] using
+    RingHom.map_mulVec f (rotMatrix a) b i
 
 /-! ### Commutativity and associativity -/
 
@@ -257,8 +250,7 @@ theorem negacyclicMul_comm {n : ℕ} {R : Type*} [CommRing R] (a b : Fin n → R
   rw [← (negacyclicSwapEquiv i).sum_comp]
   refine Finset.sum_congr rfl fun j _ => ?_
   simp only [negacyclicSwapEquiv_apply, rotMatrix_apply_eq_negacyclicSwap,
-    negacyclicSwap_involutive i j]
-  rw [negacyclicSwap_val]
+    negacyclicSwap_involutive i j, negacyclicSwap_val]
   split_ifs <;> first | omega | ring
 
 /-- Cyclic index addition `(l + k) mod n` on `Fin n`. -/
@@ -324,22 +316,14 @@ is the matrix product `rotMatrix a * rotMatrix b`. -/
 theorem rotMatrix_negacyclicMul {n : ℕ} {R : Type*} [CommRing R] (a b : Fin n → R) :
     rotMatrix (negacyclicMul a b) = rotMatrix a * rotMatrix b := by
   ext i k
-  simp only [Matrix.mul_apply]
-  rw [← (cyclicShiftEquiv k).sum_comp]
-  rw [rotMatrix_apply_eq_cyclicSub (negacyclicMul a b) i k]
+  rw [Matrix.mul_apply, ← (cyclicShiftEquiv k).sum_comp,
+    rotMatrix_apply_eq_cyclicSub (negacyclicMul a b) i k]
   simp only [negacyclicMul, Matrix.mulVec, dotProduct, ← Finset.sum_neg_distrib]
-  by_cases hik : k.val ≤ i.val
-  · simp only [hik, ↓reduceIte]
+  by_cases hik : k.val ≤ i.val <;> simp only [hik, ↓reduceIte]
+  all_goals
     refine Finset.sum_congr rfl fun l _ => ?_
     simp only [cyclicShiftEquiv_apply, rotMatrix_apply_eq_cyclicSub, cyclicSub_cyclicAdd,
-      cyclicSub_cyclicAdd_eq]
-    rw [cyclicSub_val, cyclicAdd_val]
-    split_ifs <;> first | omega | ring
-  · simp only [hik, ↓reduceIte]
-    refine Finset.sum_congr rfl fun l _ => ?_
-    simp only [cyclicShiftEquiv_apply, rotMatrix_apply_eq_cyclicSub, cyclicSub_cyclicAdd,
-      cyclicSub_cyclicAdd_eq]
-    rw [cyclicSub_val, cyclicAdd_val]
+      cyclicSub_cyclicAdd_eq, cyclicSub_val, cyclicAdd_val]
     split_ifs <;> first | omega | ring
 
 /-- **Associativity of negacyclic polynomial multiplication**: `(a * b) * c = a * (b * c)` in
@@ -354,48 +338,39 @@ theorem negacyclicMul_assoc {n : ℕ} {R : Type*} [CommRing R] (a b c : Fin n �
 /-- Entrywise absolute-value bound for `rotMatrix` over `ℤ`. -/
 theorem abs_rotMatrix_le {n α : ℕ} {a : Fin n → ℤ} (ha : ∀ i, |a i| ≤ α) (i j : Fin n) :
     |rotMatrix a i j| ≤ α := by
-  simp only [rotMatrix, Matrix.of_apply]
-  split_ifs with h
-  · exact ha ⟨i.val - j.val, by omega⟩
-  · rw [abs_neg]
-    exact ha ⟨n + i.val - j.val, by omega⟩
+  rw [rotMatrix_apply_eq_negacyclicSwap]
+  split_ifs
+  · exact ha _
+  · simpa only [abs_neg] using ha _
 
 /-- **Infinity-norm bound for negacyclic multiplication**: if `‖a‖_∞ ≤ α` and `‖b‖_∞ ≤ β`, then
 every coefficient of `negacyclicMul a b` has absolute value at most `n * α * β`. -/
 theorem abs_negacyclicMul_le {n α β : ℕ} {a b : Fin n → ℤ}
     (ha : ∀ i, |a i| ≤ α) (hb : ∀ j, |b j| ≤ β) (i : Fin n) :
     |negacyclicMul a b i| ≤ n * α * β := by
-  calc |negacyclicMul a b i|
-      = |∑ j : Fin n, rotMatrix a i j * b j| := rfl
-    _ ≤ ∑ j : Fin n, |rotMatrix a i j * b j| := Finset.abs_sum_le_sum_abs _ _
-    _ ≤ ∑ _j : Fin n, ((α : ℤ) * β) := Finset.sum_le_sum fun j _ => by
-      rw [abs_mul]
-      exact mul_le_mul (abs_rotMatrix_le ha i j) (hb j) (abs_nonneg _) (by positivity)
-    _ = n * α * β := by
-      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-      ring
+  refine (Finset.abs_sum_le_sum_abs (fun j => rotMatrix a i j * b j) Finset.univ).trans
+    ((Finset.sum_le_sum fun j _ => (abs_mul _ _).le.trans
+      (mul_le_mul (abs_rotMatrix_le ha i j) (hb j) (abs_nonneg _) (by positivity))).trans_eq ?_)
+  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  ring
 
 /-- Each row of `rotMatrix a` is a signed rearrangement of `a`, so its absolute values sum to
 the `ℓ₁` norm of `a`. -/
 theorem sum_abs_rotMatrix_apply {n : ℕ} (a : Fin n → ℤ) (i : Fin n) :
-    ∑ j, |rotMatrix a i j| = ∑ j, |a j| :=
-  calc ∑ j, |rotMatrix a i j| = ∑ j, |a (negacyclicSwap i j)| :=
-        Finset.sum_congr rfl fun j _ => by
-          rw [rotMatrix_apply_eq_negacyclicSwap]
-          split_ifs <;> simp only [abs_neg]
-    _ = ∑ j, |a j| := (negacyclicSwapEquiv i).sum_comp fun j => |a j|
+    ∑ j, |rotMatrix a i j| = ∑ j, |a j| := by
+  rw [← (negacyclicSwapEquiv i).sum_comp fun j => |a j|]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  rw [rotMatrix_apply_eq_negacyclicSwap]
+  split_ifs <;> simp only [abs_neg, negacyclicSwapEquiv_apply]
 
 /-- **`ℓ₁`-`ℓ∞` bound for negacyclic multiplication**: if `‖b‖_∞ ≤ β`, then every coefficient of
 `negacyclicMul a b` has absolute value at most `‖a‖₁ · β`. -/
 theorem abs_negacyclicMul_le_sum_abs_mul {n β : ℕ} {a b : Fin n → ℤ} (hb : ∀ j, |b j| ≤ β)
-    (i : Fin n) : |negacyclicMul a b i| ≤ (∑ j, |a j|) * β :=
-  calc |negacyclicMul a b i|
-      = |∑ j : Fin n, rotMatrix a i j * b j| := rfl
-    _ ≤ ∑ j : Fin n, |rotMatrix a i j * b j| := Finset.abs_sum_le_sum_abs _ _
-    _ ≤ ∑ j : Fin n, |rotMatrix a i j| * β := Finset.sum_le_sum fun j _ => by
-      rw [abs_mul]
-      exact mul_le_mul_of_nonneg_left (hb j) (abs_nonneg _)
-    _ = (∑ j, |a j|) * β := by rw [← Finset.sum_mul, sum_abs_rotMatrix_apply]
+    (i : Fin n) : |negacyclicMul a b i| ≤ (∑ j, |a j|) * β := by
+  refine (Finset.abs_sum_le_sum_abs (fun j => rotMatrix a i j * b j) Finset.univ).trans
+    ((Finset.sum_le_sum fun j _ =>
+      (abs_mul _ _).le.trans (mul_le_mul_of_nonneg_left (hb j) (abs_nonneg _))).trans_eq ?_)
+  rw [← Finset.sum_mul, sum_abs_rotMatrix_apply]
 
 /-! ### Inner products of coefficient-vector tuples -/
 
@@ -458,14 +433,11 @@ theorem map_innerPoly {k n : ℕ} {R S : Type*} [Ring R] [Ring S] (f : R →+* S
 theorem abs_innerPoly_le {k n α β : ℕ} {a b : Fin k → Fin n → ℤ}
     (ha : ∀ j i, |a j i| ≤ α) (hb : ∀ j i, |b j i| ≤ β) (i : Fin n) :
     |innerPoly a b i| ≤ k * n * α * β := by
-  calc |innerPoly a b i|
-      = |∑ j : Fin k, negacyclicMul (a j) (b j) i| := by simp [innerPoly]
-    _ ≤ ∑ j : Fin k, |negacyclicMul (a j) (b j) i| := Finset.abs_sum_le_sum_abs _ _
-    _ ≤ ∑ _j : Fin k, ((n : ℤ) * α * β) :=
-      Finset.sum_le_sum fun j _ => abs_negacyclicMul_le (ha j) (hb j) i
-    _ = k * n * α * β := by
-      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-      ring
+  rw [innerPoly, Finset.sum_apply]
+  refine (Finset.abs_sum_le_sum_abs _ _).trans
+    ((Finset.sum_le_sum fun j _ => abs_negacyclicMul_le (ha j) (hb j) i).trans_eq ?_)
+  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  ring
 
 /-! ### The ring `Negacyclic R n` -/
 
@@ -568,10 +540,8 @@ theorem ofCoeffs_negacyclicMul (a b : Fin n → R) :
 /-- The negacyclic matrix of the constant polynomial `1` is the identity matrix. -/
 @[simp] theorem rotMatrix_coeffs_one : rotMatrix (1 : Negacyclic R n).coeffs = 1 := by
   ext i j
-  have := i.isLt
-  have := j.isLt
   simp only [rotMatrix, Matrix.of_apply, coeffs_one, Matrix.one_apply, Fin.ext_iff]
-  split_ifs <;> first | rfl | (exfalso; omega) | simp
+  split_ifs <;> first | rfl | omega | simp
 
 /-- Multiplying by the coefficients of the constant polynomial `1` is the identity. -/
 @[simp] theorem one_negacyclicMul (a : Fin n → R) :
