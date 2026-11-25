@@ -131,13 +131,7 @@ theorem size_constants (ds : List (Fin (r + 4))) (cs : List ℕ)
     (hlen : ds.length = cs.length) : (constants ds cs).size = ds.length + 1 := by
   induction ds generalizing cs with
   | nil => cases cs <;> simp_all [constants]
-  | cons d ds ih =>
-    cases cs with
-    | nil => simp_all
-    | cons c cs =>
-      have hlen' : ds.length = cs.length := by simpa using hlen
-      simp only [constants, Code.size, ih cs hlen', List.length_cons]
-      omega
+  | cons d ds ih => cases cs <;> simp_all [constants, Code.size]; omega
 
 /-- Constants are checked against the physical width. No initial destination contents matter. -/
 theorem exec_constants {w : ℕ} (ds : List (Fin (r + 4))) (cs : List ℕ)
@@ -216,9 +210,10 @@ private theorem exec_accumulate {w : ℕ} (hw : 2 ≤ w) (as : List (Fin (r + 4)
     wram_exec [List.length_nil]
     exact ⟨by simp [value], rfl, fun _ _ => by wram_simp⟩
   | cons a as ih =>
-    have hβ : 1 ≤ radix w := by have := one_lt_radix hw; omega
     have hv : value (radix w) x as ≤ value (radix w) x (a :: as) := by
-      rw [value_cons]; nlinarith
+      rw [value_cons]
+      exact (Nat.le_mul_of_pos_left _ (Nat.zero_lt_of_lt (one_lt_radix hw))).trans
+        (Nat.le_add_left _ _)
     have hat := (digit_ne (hin a List.mem_cons_self)).1
     refine WP.Exact.exists_exec ?_
     unfold accumulate
@@ -317,8 +312,12 @@ private theorem exec_extract {w : ℕ} (ds : List (Fin (r + 4)))
       · exact hyd ▸ Nat.mod_lt _ (Nat.two_pow_pos _)
       · exact hyb i hi
     · rw [value_cons, hyd, List.length_cons, pow_succ]
-      have := Nat.mod_add_div (x.regs total) (radix w)
-      nlinarith [congrArg (radix w * ·) hyv]
+      calc x.regs total % radix w + radix w * value (radix w) y ds +
+              radix w ^ ds.length * radix w * y.regs total
+          = x.regs total % radix w +
+              radix w * (value (radix w) y ds + radix w ^ ds.length * y.regs total) := by ring
+        _ = x.regs total % radix w + radix w * (x.regs total / radix w) := by rw [hyv]
+        _ = x.regs total := Nat.mod_add_div _ _
 
 /-- Initialize the half-word radix and extract a scalar into fixed output registers. -/
 def split (a : Fin (r + 4)) (ds : List (Fin (r + 4))) : Code .standard (r + 4) :=
